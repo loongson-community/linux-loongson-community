@@ -179,8 +179,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 /* XXX Simplify this.  On the R10000 writing a TLB entry for an virtual
    address that already exists will overwrite the old entry and not result
    in TLB malfunction or TLB shutdown.  */
-static void andes_update_mmu_cache(struct vm_area_struct * vma,
-                                   unsigned long address, pte_t pte)
+void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;
@@ -226,8 +225,6 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 
 void __init andes_tlb_init(void)
 {
-	_update_mmu_cache = andes_update_mmu_cache;
-
 	/*
 	 * You should never change this register:
 	 *   - On R4600 1.7 the tlbp never hits for pages smaller than

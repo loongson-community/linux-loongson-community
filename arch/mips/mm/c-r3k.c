@@ -258,7 +258,7 @@ static void r3k_flush_cache_page(struct vm_area_struct *vma,
 {
 }
 
-static void r3k_flush_dcache_page(struct page * page)
+static void r3k_flush_data_cache_page(unsigned long addr)
 {
 }
 
@@ -314,11 +314,6 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 	r3k_flush_dcache_range(start, start + size);
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-}
-
 void __init ld_mmu_r23000(void)
 {
 	unsigned long config;
@@ -328,15 +323,16 @@ void __init ld_mmu_r23000(void)
 
 	r3k_probe_cache();
 
-	_flush_cache_all = r3k_flush_cache_all;
-	___flush_cache_all = r3k___flush_cache_all;
-	_flush_cache_mm = r3k_flush_cache_mm;
-	_flush_cache_range = r3k_flush_cache_range;
-	_flush_cache_page = r3k_flush_cache_page;
-	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
-	_flush_dcache_page = r3k_flush_dcache_page;
-	_flush_icache_page = r3k_flush_icache_page;
-	_flush_icache_range = r3k_flush_icache_range;
+	flush_cache_all = r3k_flush_cache_all;
+	__flush_cache_all = r3k___flush_cache_all;
+	flush_cache_mm = r3k_flush_cache_mm;
+	flush_cache_range = r3k_flush_cache_range;
+	flush_cache_page = r3k_flush_cache_page;
+	flush_icache_page = r3k_flush_icache_page;
+	flush_icache_range = r3k_flush_icache_range;
+
+	flush_cache_sigtramp = r3k_flush_cache_sigtramp;
+	flush_data_cache_page = r3k_flush_data_cache_page;
 
 	_dma_cache_wback_inv = r3k_dma_cache_wback_inv;
 
@@ -344,5 +340,4 @@ void __init ld_mmu_r23000(void)
 		(int) (icache_size >> 10), (int) icache_lsize);
 	printk("Primary data cache %dkb, linesize %d bytes\n",
 		(int) (dcache_size >> 10), (int) dcache_lsize);
-
 }

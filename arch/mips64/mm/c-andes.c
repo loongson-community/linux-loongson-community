@@ -50,7 +50,7 @@ static void andes_flush_cache_page(struct vm_area_struct *vma,
 {
 }
 
-static void andes_flush_dcache_page(struct page * page)
+static void andes_flush_data_cache_page(unsigned long addr)
 {
 }
 
@@ -86,11 +86,6 @@ static void andes_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-}
-
 void __init ld_mmu_andes(void)
 {
 	/* Default cache error handler for SB1 */
@@ -109,16 +104,16 @@ void __init ld_mmu_andes(void)
 	_clear_page = andes_clear_page;
 	_copy_page = andes_copy_page;
 
-	_flush_cache_all = andes_flush_cache_all;
-	___flush_cache_all = andes___flush_cache_all;
-	_flush_cache_mm = andes_flush_cache_mm;
-	_flush_cache_range = andes_flush_cache_range;
-	_flush_cache_page = andes_flush_cache_page;
-	_flush_dcache_page = andes_flush_dcache_page;
-	_flush_icache_range = andes_flush_icache_range;
-	_flush_icache_page = andes_flush_icache_page;
+	flush_cache_all = andes_flush_cache_all;
+	__flush_cache_all = andes___flush_cache_all;
+	flush_cache_mm = andes_flush_cache_mm;
+	flush_cache_range = andes_flush_cache_range;
+	flush_cache_page = andes_flush_cache_page;
+	flush_icache_range = andes_flush_icache_range;
+	flush_icache_page = andes_flush_icache_page;
 
-	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
+	flush_cache_sigtramp = andes_flush_cache_sigtramp;
+	flush_data_cache_page = andes_flush_data_cache_page;
 
 	__flush_cache_all();
 }

@@ -251,32 +251,12 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 	}
 }
 
-static void mips32_flush_dcache_page_impl(struct page *page)
+static void mips32_flush_data_cache_page(unsigned long addr)
 {
-	unsigned long addr = (unsigned long)page_address(page);
-
 	if (sc_lsize)
 		blast_scache_page(addr);
 	else
 		blast_dcache_page(addr);
-}
-
-static void mips32_flush_dcache_page(struct page *page)
-{
-	if (page->mapping &&
-	    list_empty(&page->mapping->i_mmap) &&
-	    list_empty(&page->mapping->i_mmap_shared)) {
-		SetPageDcacheDirty(page);
-
-		return;
-	}
-
-	/*
-	 * We could delay the flush for the !page->mapping case too.  But that
-	 * case is for exec env/arg pages and those are %99 certainly going to
-	 * get faulted into the tlb (and thus flushed) anyways.
-	 */
-	mips32_flush_dcache_page_impl(page);
 }
 
 static void
@@ -419,22 +399,6 @@ static void mips32_flush_icache_all(void)
 		blast_icache();
 	}
 }
-
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		mips32_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 
 /* Detect and size the various caches. */
 static void __init probe_icache(unsigned long config)
@@ -624,13 +588,14 @@ static void __init setup_noscache_funcs(void)
 {
 	_clear_page = (void *)mips32_clear_page_dc;
 	_copy_page = (void *)mips32_copy_page_dc;
-	_flush_cache_all = mips32_flush_cache_all_pc;
-	___flush_cache_all = mips32_flush_cache_all_pc;
-	_flush_cache_mm = mips32_flush_cache_mm_pc;
-	_flush_cache_range = mips32_flush_cache_range_pc;
-	_flush_cache_page = mips32_flush_cache_page_pc;
 
-	_flush_icache_page = mips32_flush_icache_page;
+	flush_cache_all = mips32_flush_cache_all_pc;
+	__flush_cache_all = mips32_flush_cache_all_pc;
+	flush_cache_mm = mips32_flush_cache_mm_pc;
+	flush_cache_range = mips32_flush_cache_range_pc;
+	flush_cache_page = mips32_flush_cache_page_pc;
+
+	flush_icache_page = mips32_flush_icache_page;
 
 	_dma_cache_wback_inv = mips32_dma_cache_wback_inv_pc;
 	_dma_cache_wback = mips32_dma_cache_wback;
@@ -639,15 +604,16 @@ static void __init setup_noscache_funcs(void)
 
 static void __init setup_scache_funcs(void)
 {
-        _flush_cache_all = mips32_flush_cache_all_sc;
-        ___flush_cache_all = mips32_flush_cache_all_sc;
-	_flush_cache_mm = mips32_flush_cache_mm_sc;
-	_flush_cache_range = mips32_flush_cache_range_sc;
-	_flush_cache_page = mips32_flush_cache_page_sc;
 	_clear_page = (void *)mips32_clear_page_sc;
 	_copy_page = (void *)mips32_copy_page_sc;
 
-	_flush_icache_page = mips32_flush_icache_page_s;
+        flush_cache_all = mips32_flush_cache_all_sc;
+        __flush_cache_all = mips32_flush_cache_all_sc;
+	flush_cache_mm = mips32_flush_cache_mm_sc;
+	flush_cache_range = mips32_flush_cache_range_sc;
+	flush_cache_page = mips32_flush_cache_page_sc;
+
+	flush_icache_page = mips32_flush_icache_page_s;
 
 	_dma_cache_wback_inv = mips32_dma_cache_wback_inv_sc;
 	_dma_cache_wback = mips32_dma_cache_wback;
@@ -697,10 +663,18 @@ void __init ld_mmu_mips32(void)
 	probe_dcache(config);
 	setup_scache(config);
 
-	_flush_cache_sigtramp = mips32_flush_cache_sigtramp;
-	_flush_dcache_page = mips32_flush_dcache_page;
-	_flush_icache_range = mips32_flush_icache_range;	/* Ouch */
-	_flush_icache_all = mips32_flush_icache_all;
+	/*
+	 * XXX Some MIPS32 processors have physically indexed caches.  This
+	 * code supports virtually indexed processors and will be unnecessarily
+	 * unefficient on physically indexed processors.
+	 */
+	shm_align_mask = max_t(unsigned long, mips_cpu.dcache.sets * dc_lsize,
+	                       PAGE_SIZE) - 1;
+
+	flush_cache_sigtramp = mips32_flush_cache_sigtramp;
+	flush_icache_range = mips32_flush_icache_range;		/* Ouch */
+	flush_data_cache_page = mips32_flush_data_cache_page;
+	flush_icache_all = mips32_flush_icache_all;
 
 	__flush_cache_all();
 }

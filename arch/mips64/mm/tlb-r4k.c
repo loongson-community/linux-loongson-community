@@ -220,8 +220,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 /*
  * Updates the TLB with the new pte(s).
  */
-void mips64_update_mmu_cache(struct vm_area_struct * vma,
-		      unsigned long address, pte_t pte)
+void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;
@@ -375,7 +374,6 @@ void __init r4k_tlb_init(void)
 	unsigned long config = read_c0_config();
 
 	probe_tlb(config);
-	_update_mmu_cache = mips64_update_mmu_cache;
 	write_c0_pagemask(PM_4K);
 	write_c0_wired(0);
 	temp_tlb_entry = mips_cpu.tlbsize - 1;

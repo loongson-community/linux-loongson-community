@@ -1,7 +1,11 @@
 /*
- * loadmmu.c: Setup cpu/cache specific function ptrs at boot time.
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1997, 1999, 2000, 2001, 2002, 2003 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
@@ -23,18 +27,19 @@ void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
-void (*_flush_cache_all)(void);
-void (*___flush_cache_all)(void);
-void (*_flush_cache_mm)(struct mm_struct *mm);
-void (*_flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
-			  unsigned long end);
-void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-void (*_flush_cache_sigtramp)(unsigned long addr);
-void (*_flush_icache_range)(unsigned long start, unsigned long end);
-void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
+void (*flush_cache_all)(void);
+void (*__flush_cache_all)(void);
+void (*flush_cache_mm)(struct mm_struct *mm);
+void (*flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
+	unsigned long end);
+void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
+void (*flush_icache_range)(unsigned long start, unsigned long end);
+void (*flush_icache_page)(struct vm_area_struct *vma, struct page *page);
 
-void (*_flush_dcache_page)(struct page * page);
-void (*_flush_icache_all)(void);
+/* MIPS specific cache operations */
+void (*flush_cache_sigtramp)(unsigned long addr);
+void (*flush_data_cache_page)(unsigned long addr);
+void (*flush_icache_all)(void);
 
 #ifdef CONFIG_NONCOHERENT_IO
 
@@ -65,7 +70,7 @@ extern void r3k_tlb_init(void);
 extern void r4k_tlb_init(void);
 extern void sb1_tlb_init(void);
 
-void __init loadmmu(void)
+void __init load_mmu(void)
 {
 	if (mips_cpu.options & MIPS_CPU_4KTLB) {
 #if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_VR41XX) || \
@@ -123,6 +128,11 @@ void __init loadmmu(void)
 		sb1_tlb_init();
 		break;
 #endif
+
+	case CPU_R8000:
+		panic("R8000 is unsupported");
+		break;
+
 	default:
 		panic("Yeee, unsupported mmu/cache architecture.");
 	}

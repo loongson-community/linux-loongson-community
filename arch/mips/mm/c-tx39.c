@@ -34,7 +34,7 @@ extern long scache_size;
 
 extern int r3k_have_wired_reg;	/* in r3k-tlb.c */
 
-static void tx39h_flush_dcache_page(struct page * page)
+static void tx39h_flush_data_cache_page(unsigned long addr)
 {
 }
 
@@ -205,29 +205,9 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 		tx39_blast_icache_page_indexed(page);
 }
 
-static void tx39_flush_dcache_page_impl(struct page *page)
+static void tx39_flush_data_cache_page(unsigned long addr)
 {
-	unsigned long addr = (unsigned long) page_address(page);
-
 	tx39_blast_dcache_page(addr);
-}
-
-static void tx39_flush_dcache_page(struct page *page)
-{
-	if (page->mapping &&
-	    list_empty(&page->mapping->i_mmap) &&
-	    list_empty(&page->mapping->i_mmap_shared)) {
-		SetPageDcacheDirty(page);
-
-		return;
-	}
-
-	/*
-	 * We could delay the flush for the !page->mapping case too.  But that
-	 * case is for exec env/arg pages and those are %99 certainly going to
-	 * get faulted into the tlb (and thus flushed) anyways.
-	 */
-	tx39_flush_dcache_page_impl(page);
 }
 
 static void tx39_flush_icache_range(unsigned long start, unsigned long end)
@@ -321,21 +301,6 @@ static void tx39_flush_cache_sigtramp(unsigned long addr)
 	local_irq_restore(flags);
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		tx39_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 static __init void tx39_probe_cache(void)
 {
 	unsigned long config;
@@ -375,17 +340,21 @@ void __init ld_mmu_tx39(void)
 	switch (mips_cpu.cputype) {
 	case CPU_TX3912:
 		/* TX39/H core (writethru direct-map cache) */
-		_flush_cache_all	= tx39h_flush_icache_all;
-		___flush_cache_all	= tx39h_flush_icache_all;
-		_flush_cache_mm		= (void *) tx39h_flush_icache_all;
-		_flush_cache_range	= (void *) tx39h_flush_icache_all;
-		_flush_cache_page	= (void *) tx39h_flush_icache_all;
-		_flush_cache_sigtramp	= (void *) tx39h_flush_icache_all;
-		_flush_dcache_page	= tx39h_flush_dcache_page;
-		_flush_icache_page	= (void *) tx39h_flush_icache_all;
-		_flush_icache_range	= (void *) tx39h_flush_icache_all;
+		flush_cache_all	= tx39h_flush_icache_all;
+		__flush_cache_all	= tx39h_flush_icache_all;
+		flush_cache_mm		= (void *) tx39h_flush_icache_all;
+		flush_cache_range	= (void *) tx39h_flush_icache_all;
+		flush_cache_page	= (void *) tx39h_flush_icache_all;
+		flush_icache_page	= (void *) tx39h_flush_icache_all;
+		flush_icache_range	= (void *) tx39h_flush_icache_all;
 
-		_dma_cache_wback_inv = tx39h_dma_cache_wback_inv;
+		flush_cache_sigtramp	= (void *) tx39h_flush_icache_all;
+		flush_data_cache_page	= (void *) tx39h_flush_icache_all;
+
+		_dma_cache_wback_inv	= tx39h_dma_cache_wback_inv;
+
+		shm_align_mask		= PAGE_SIZE - 1;
+
 		break;
 
 	case CPU_TX3922:
@@ -396,19 +365,24 @@ void __init ld_mmu_tx39(void)
 		write_c0_wired(0);	/* set 8 on reset... */
 		/* board-dependent init code may set WBON */
 
-		_flush_cache_all = tx39_flush_cache_all;
-		___flush_cache_all = tx39_flush_cache_all;
-		_flush_cache_mm = tx39_flush_cache_mm;
-		_flush_cache_range = tx39_flush_cache_range;
-		_flush_cache_page = tx39_flush_cache_page;
-		_flush_cache_sigtramp = tx39_flush_cache_sigtramp;
-		_flush_dcache_page = tx39_flush_dcache_page;
-		_flush_icache_page = tx39_flush_icache_page;
-		_flush_icache_range = tx39_flush_icache_range;
+		flush_cache_all = tx39_flush_cache_all;
+		__flush_cache_all = tx39_flush_cache_all;
+		flush_cache_mm = tx39_flush_cache_mm;
+		flush_cache_range = tx39_flush_cache_range;
+		flush_cache_page = tx39_flush_cache_page;
+		flush_icache_page = tx39_flush_icache_page;
+		flush_icache_range = tx39_flush_icache_range;
+
+		flush_cache_sigtramp = tx39_flush_cache_sigtramp;
+		flush_data_cache_page = tx39_flush_data_cache_page;
 
 		_dma_cache_wback_inv = tx39_dma_cache_wback_inv;
 		_dma_cache_wback = tx39_dma_cache_wback;
 		_dma_cache_inv = tx39_dma_cache_inv;
+
+		shm_align_mask = max_t(unsigned long,
+		                       (dcache_size / mips_cpu.dcache.ways) - 1,
+		                       PAGE_SIZE - 1);
 
 		break;
 	}

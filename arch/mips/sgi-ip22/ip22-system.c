@@ -69,7 +69,7 @@ static int __init string_to_cpu(char *s)
 }
 
 /*
- * We' call this early before loadmmu().  If we do the other way around
+ * We' call this early before load_mmu().  If we do the other way around
  * the firmware will crash and burn.
  */
 void __init sgi_sysinit(void)

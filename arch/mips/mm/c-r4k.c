@@ -257,9 +257,7 @@ static inline void r4k_flush_pcache_all(void)
 static void r4k_flush_cache_range(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end)
 {
-	struct mm_struct *mm = vma->vm_mm;
-
-	if (cpu_context(smp_processor_id(), mm) != 0) {
+	if (cpu_context(smp_processor_id(), vma->vm_mm) != 0) {
 		r4k_blast_dcache();
 		if (vma->vm_flags & VM_EXEC)
 			r4k_blast_icache();
@@ -285,7 +283,8 @@ static void r4k_flush_pcache_mm(struct mm_struct *mm)
 	}
 }
 
-static void r4k_flush_cache_page(struct vm_area_struct *vma, unsigned long page)
+static void r4k_flush_cache_page(struct vm_area_struct *vma,
+					unsigned long page)
 {
 	int exec = vma->vm_flags & VM_EXEC;
 	struct mm_struct *mm = vma->vm_mm;
@@ -392,29 +391,9 @@ static void r4k_flush_cache_page_r4600(struct vm_area_struct *vma,
 	}
 }
 
-static void r4k_flush_dcache_page_impl(struct page *page)
+static void r4k_flush_data_cache_page(unsigned long addr)
 {
-	unsigned long addr = (unsigned long) page_address(page);
-
 	r4k_blast_dcache_page(addr);
-}
-
-static void r4k_flush_dcache_page(struct page *page)
-{
-	if (page->mapping &&
-	    list_empty(&page->mapping->i_mmap) &&
-	    list_empty(&page->mapping->i_mmap_shared)) {
-		SetPageDcacheDirty(page);
-
-		return;
-	}
-
-	/*
-	 * We could delay the flush for the !page->mapping case too.  But that
-	 * case is for exec env/arg pages and those are %99 certainly going to
-	 * get faulted into the tlb (and thus flushed) anyways.
-	 */
-	r4k_flush_dcache_page_impl(page);
 }
 
 static void r4k_flush_icache_range(unsigned long start, unsigned long end)
@@ -581,21 +560,6 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #endif
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		r4k_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 static void __init probe_icache(unsigned long config)
 {
 	switch (mips_cpu.cputype) {
@@ -726,12 +690,12 @@ static void __init setup_noscache_funcs(void)
 		}
 		break;
 	}
-	_flush_cache_all = r4k_flush_pcache_all;
-	___flush_cache_all = r4k_flush_pcache_all;
-	_flush_cache_mm = r4k_flush_pcache_mm;
-	_flush_cache_page = r4k_flush_cache_page;
-	_flush_icache_page = r4k_flush_icache_page;
-	_flush_cache_range = r4k_flush_cache_range;
+	flush_cache_all = r4k_flush_pcache_all;
+	__flush_cache_all = r4k_flush_pcache_all;
+	flush_cache_mm = r4k_flush_pcache_mm;
+	flush_cache_page = r4k_flush_cache_page;
+	flush_icache_page = r4k_flush_icache_page;
+	flush_cache_range = r4k_flush_cache_range;
 
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
 	_dma_cache_wback = r4k_dma_cache_wback_inv_pc;
@@ -762,12 +726,12 @@ static void __init setup_scache_funcs(void)
 		break;
 	}
 
-	_flush_cache_all = r4k_flush_pcache_all;
-	___flush_cache_all = r4k_flush_scache_all;
-	_flush_cache_mm = r4k_flush_scache_mm;
-	_flush_cache_range = r4k_flush_cache_range;
-	_flush_cache_page = r4k_flush_cache_page;
-	_flush_icache_page = r4k_flush_icache_page;
+	flush_cache_all = r4k_flush_pcache_all;
+	__flush_cache_all = r4k_flush_scache_all;
+	flush_cache_mm = r4k_flush_scache_mm;
+	flush_cache_range = r4k_flush_cache_range;
+	flush_cache_page = r4k_flush_cache_page;
+	flush_icache_page = r4k_flush_icache_page;
 
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
 	_dma_cache_wback = r4k_dma_cache_wback_inv_sc;
@@ -795,7 +759,7 @@ static inline void __init setup_scache(unsigned int config)
 	case CPU_R5000:
 	case CPU_NEVADA:
 			setup_noscache_funcs();
-#if defined(CONFIG_R5000_CPU_SCACHE)
+#ifdef CONFIG_R5000_CPU_SCACHE
 			r5k_sc_init();
 #endif
 			break;
@@ -808,6 +772,7 @@ void __init ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_c0_config();
 	extern char except_vec2_generic;
+	unsigned int sets;
 
 	/* Default cache error handler for R4000 family */
 
@@ -825,15 +790,24 @@ void __init ld_mmu_r4xx0(void)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
-		_flush_cache_page = r4k_flush_cache_page_r4600;
+		flush_cache_page = r4k_flush_cache_page_r4600;
+		sets = 1;
+		break;
+
+	default:
+		sets = 0;
+		break;
 	}
 
-	_flush_dcache_page = r4k_flush_dcache_page;
-	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
+	shm_align_mask = max_t(unsigned long,
+	                       (dcache_size >> sets) - 1, PAGE_SIZE - 1);
+
+	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	if ((read_c0_prid() & 0xfff0) == 0x2020) {
-		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
+		flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
-	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
+	flush_data_cache_page = r4k_flush_data_cache_page;
+	flush_icache_range = r4k_flush_icache_range;	/* Ouch */
 
 	__flush_cache_all();
 }

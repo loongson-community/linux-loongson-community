@@ -263,8 +263,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 
 /* Stolen from mips32 routines */
 
-void sb1_update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
-                      pte_t pte)
+void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;
@@ -317,7 +316,6 @@ void sb1_tlb_init(void)
 	 * check exceptions due to duplicate TLB entries
 	 */
 	sb1_sanitize_tlb();
-	_update_mmu_cache = sb1_update_mmu_cache;
 
 	memcpy((void *)KSEG0 + 0x080, except_vec1_sb1, 0x80);
 	flush_icache_range(KSEG0, KSEG0 + 0x80);

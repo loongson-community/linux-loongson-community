@@ -89,7 +89,7 @@ static void rm7k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 {
 }
 
-static void rm7k_flush_dcache_page(struct page * page)
+static void rm7k_flush_data_cache_page(unsigned long addr)
 {
 }
 
@@ -184,11 +184,6 @@ static void rm7k_flush_cache_sigtramp(unsigned long addr)
 {
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
-}
-
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
 }
 
 /* Detect and size the caches. */
@@ -330,15 +325,18 @@ void __init ld_mmu_rm7k(void)
 	_clear_page = rm7k_clear_page;
 	_copy_page = rm7k_copy_page;
 
-	_flush_cache_all = rm7k_flush_cache_all_d32i32;
-	___flush_cache_all = __flush_cache_all_d32i32;
-	_flush_cache_mm = rm7k_flush_cache_mm_d32i32;
-	_flush_cache_range = rm7k_flush_cache_range_d32i32;
-	_flush_cache_page = rm7k_flush_cache_page_d32i32;
-	_flush_dcache_page = rm7k_flush_dcache_page;
-	_flush_cache_sigtramp = rm7k_flush_cache_sigtramp;
-	_flush_icache_range = rm7k_flush_icache_range;
-	_flush_icache_page = rm7k_flush_icache_page;
+	flush_cache_all = rm7k_flush_cache_all_d32i32;
+	__flush_cache_all = __flush_cache_all_d32i32;
+	flush_cache_mm = rm7k_flush_cache_mm_d32i32;
+	flush_cache_range = rm7k_flush_cache_range_d32i32;
+	flush_cache_page = rm7k_flush_cache_page_d32i32;
+	flush_icache_range = rm7k_flush_icache_range;
+	flush_icache_page = rm7k_flush_icache_page;
+
+	flush_cache_sigtramp = rm7k_flush_cache_sigtramp;
+	flush_data_cache_page = rm7k_flush_data_cache_page;
+
+	shm_align_mask = PAGE_SIZE - 1;
 
 	_dma_cache_wback_inv = rm7k_dma_cache_wback_inv;
 	_dma_cache_wback = rm7k_dma_cache_wback;

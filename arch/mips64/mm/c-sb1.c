@@ -508,20 +508,20 @@ void ld_mmu_sb1(void)
 	 * physically indexed and tagged, so no virtual aliasing can
 	 * occur
 	 */
-	_flush_cache_range = (void *) sb1_nop;
-	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
-	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
-	_flush_cache_all = sb1_nop;
-	_flush_dcache_page = (void (*)(struct page *)) sb1_nop;
+	flush_cache_range = (void *) sb1_nop;
+	flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
+	flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
+	flush_cache_all = sb1_nop;
 
 	/* These routines are for Icache coherence with the Dcache */
-	_flush_icache_range = sb1_flush_icache_range;
-	_flush_icache_page = sb1_flush_icache_page;
-	_flush_icache_all = __sb1_flush_icache_all; /* local only */
-	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
+	flush_icache_range = sb1_flush_icache_range;
+	flush_icache_page = sb1_flush_icache_page;
+	flush_icache_all = __sb1_flush_icache_all; /* local only */
+	flush_cache_sigtramp = sb1_flush_cache_sigtramp;
+	flush_data_cache_page = (void *) sb1_nop;
 
 	/* Full flushes */
-	___flush_cache_all = sb1___flush_cache_all;
+	__flush_cache_all = sb1___flush_cache_all;
 
 	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 	/*

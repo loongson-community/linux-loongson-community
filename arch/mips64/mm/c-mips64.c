@@ -438,21 +438,6 @@ mips64_flush_icache_all(void)
 	}
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		mips64_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 /* Detect and size the various caches. */
 static void __init probe_icache(unsigned long config)
 {
@@ -631,17 +616,15 @@ static int __init probe_scache(unsigned long config)
 
 static void __init setup_noscache_funcs(void)
 {
-	_flush_cache_all = mips64_flush_cache_all_pc;
-	___flush_cache_all = mips64_flush_cache_all_pc;
-	_flush_cache_mm = mips64_flush_cache_mm_pc;
-	_flush_cache_range = mips64_flush_cache_range_pc;
-	_flush_cache_page = mips64_flush_cache_page_pc;
-	_flush_dcache_page = mips64_flush_dcache_page;
-
 	_clear_page = (void *)mips64_clear_page_dc;
 	_copy_page = (void *)mips64_copy_page_dc;
 
-	_flush_icache_page = mips64_flush_icache_page;
+	flush_cache_all = mips64_flush_cache_all_pc;
+	__flush_cache_all = mips64_flush_cache_all_pc;
+	flush_cache_mm = mips64_flush_cache_mm_pc;
+	flush_cache_range = mips64_flush_cache_range_pc;
+	flush_cache_page = mips64_flush_cache_page_pc;
+	flush_icache_page = mips64_flush_icache_page;
 
 	_dma_cache_wback_inv = mips64_dma_cache_wback_inv_pc;
 	_dma_cache_wback = mips64_dma_cache_wback;
@@ -650,16 +633,14 @@ static void __init setup_noscache_funcs(void)
 
 static void __init setup_scache_funcs(void)
 {
-        _flush_cache_all = mips64_flush_cache_all_sc;
-        ___flush_cache_all = mips64_flush_cache_all_sc;
-	_flush_cache_mm = mips64_flush_cache_mm_sc;
-	_flush_cache_range = mips64_flush_cache_range_sc;
-	_flush_cache_page = mips64_flush_cache_page_sc;
-	_flush_dcache_page = mips64_flush_dcache_page;
-
 	_clear_page = (void *)mips64_clear_page_sc;
 	_copy_page = (void *)mips64_copy_page_sc;
 
+        flush_cache_all = mips64_flush_cache_all_sc;
+        __flush_cache_all = mips64_flush_cache_all_sc;
+	flush_cache_mm = mips64_flush_cache_mm_sc;
+	flush_cache_range = mips64_flush_cache_range_sc;
+	flush_cache_page = mips64_flush_cache_page_sc;
 	_flush_icache_page = mips64_flush_icache_page_s;
 
 	_dma_cache_wback_inv = mips64_dma_cache_wback_inv_sc;
@@ -710,9 +691,10 @@ void __init ld_mmu_mips64(void)
 	probe_dcache(config);
 	setup_scache(config);
 
-	_flush_cache_sigtramp = mips64_flush_cache_sigtramp;
-	_flush_icache_range = mips64_flush_icache_range;	/* Ouch */
-	_flush_icache_all = mips64_flush_icache_all;
+	flush_cache_sigtramp = mips64_flush_cache_sigtramp;
+	flush_data_cache_page = mips64_flush_data_cache_page;
+	flush_icache_range = mips64_flush_icache_range;	/* Ouch */
+	flush_icache_all = mips64_flush_icache_all;
 
 	__flush_cache_all();
 }

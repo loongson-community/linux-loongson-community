@@ -333,27 +333,9 @@ static void r5432_flush_cache_page_d32i32(struct vm_area_struct *vma,
 	}
 }
 
-static void r5432_flush_dcache_page_impl(struct page *page)
+static void r5432_flush_data_cache_page(unsigned long addr)
 {
-	blast_dcache32_page((unsigned long)page_address(page));
-}
-
-static void r5432_flush_dcache_page(struct page *page)
-{
-	if (page->mapping &&
-	    list_empty(&page->mapping->i_mmap) &&
-	    list_empty(&page->mapping->i_mmap_shared)) {
-		SetPageDcacheDirty(page);
-
-		return;
-	}
-
-	/*
-	 * We could delay the flush for the !page->mapping case too.  But that
-	 * case is for exec env/arg pages and those are %99 certainly going to
-	 * get faulted into the tlb (and thus flushed) anyways.
-	 */
-	r5432_flush_dcache_page_impl(page);
+	blast_dcache32_page(addr);
 }
 
 static void
@@ -435,21 +417,6 @@ static void r5432_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		r5432_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
@@ -483,21 +450,27 @@ void __init ld_mmu_r5432(void)
 	probe_icache(config);
 	probe_dcache(config);
 
+	shm_align_mask = max_t(unsigned long,
+	                       (dcache_size >> 1) - 1, PAGE_SIZE - 1);
+
 	_clear_page = r5432_clear_page_d32;
 	_copy_page = r5432_copy_page_d32;
-	_flush_cache_all = r5432_flush_cache_all_d32i32;
-	___flush_cache_all = r5432_flush_cache_all_d32i32;
-	_flush_cache_mm = r5432_flush_cache_mm_d32i32;
-	_flush_cache_range = r5432_flush_cache_range_d32i32;
-	_flush_cache_page = r5432_flush_cache_page_d32i32;
-	_flush_dcache_page = r5432_flush_dcache_page;
-	_flush_icache_page = r5432_flush_icache_page_i32;
+
+	flush_cache_all = r5432_flush_cache_all_d32i32;
+	__flush_cache_all = r5432_flush_cache_all_d32i32;
+	flush_cache_mm = r5432_flush_cache_mm_d32i32;
+	flush_cache_range = r5432_flush_cache_range_d32i32;
+	flush_cache_page = r5432_flush_cache_page_d32i32;
+	flush_icache_range = r5432_flush_icache_range;	/* Ouch */
+	flush_icache_page = r5432_flush_icache_page_i32;
+
+
+	flush_cache_sigtramp = r5432_flush_cache_sigtramp;
+	flush_data_cache_page = r5432_flush_data_cache_page;
+
 	_dma_cache_wback_inv = r5432_dma_cache_wback_inv_pc;
 	_dma_cache_wback = r5432_dma_cache_wback;
 	_dma_cache_inv = r5432_dma_cache_inv_pc;
-
-	_flush_cache_sigtramp = r5432_flush_cache_sigtramp;
-	_flush_icache_range = r5432_flush_icache_range;	/* Ouch */
 
 	__flush_cache_all();
 }

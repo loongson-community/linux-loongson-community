@@ -61,8 +61,36 @@ extern void (*_copy_page)(void * to, void * from);
 
 #define clear_page(page)		_clear_page((void *)(page))
 #define copy_page(to, from)		_copy_page((void *)(to), (void *)(from))
-#define clear_user_page(page, vaddr, pg)	clear_page(page)
-#define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
+
+extern unsigned long shm_align_mask;
+
+static inline unsigned long pages_do_alias(unsigned long addr1,
+	unsigned long addr2)
+{
+	return (addr1 ^ addr2) & shm_align_mask;
+}
+
+struct page;
+
+static inline void clear_user_page(void *addr, unsigned long vaddr,
+	struct page *page)
+{
+	extern void (*flush_data_cache_page)(unsigned long addr);
+
+	clear_page(addr);
+	if (pages_do_alias((unsigned long) addr, vaddr))
+		flush_data_cache_page((unsigned long)addr);
+}
+
+static inline void copy_user_page(void *vto, void *vfrom, unsigned long vaddr,
+	struct page *to)
+{
+	extern void (*flush_data_cache_page)(unsigned long addr);
+
+	copy_page(vto, vfrom);
+	if (pages_do_alias((unsigned long)vto, vaddr))
+		flush_data_cache_page((unsigned long)vto);
+}
 
 /*
  * These are used to make use of C type-checking..

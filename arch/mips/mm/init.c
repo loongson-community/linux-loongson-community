@@ -43,15 +43,6 @@ static unsigned long totalhigh_pages;
 
 extern void prom_free_prom_memory(void);
 
-
-asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
-{
-	/* This should flush more selectivly ...  */
-	__flush_cache_all();
-
-	return 0;
-}
-
 /*
  * We have upto 8 empty zeroed pages so we can map one of the right colour
  * when needed.  This is necessary only on R4000 / R4400 SC and MC versions
@@ -65,7 +56,8 @@ static inline unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size;
 	struct page *page;
-	if(mips_cpu.options & MIPS_CPU_VCE)
+
+	if (mips_cpu.options & MIPS_CPU_VCE)
 		order = 3;
 	else
 		order = 0;

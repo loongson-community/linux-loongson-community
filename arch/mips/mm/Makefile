@@ -3,7 +3,7 @@
 #
 
 export-objs			+= ioremap.o loadmmu.o
-obj-y				+= extable.o init.o ioremap.o fault.o \
+obj-y				+= cache.o extable.o init.o ioremap.o fault.o \
 				   pgtable.o loadmmu.o
 
 obj-$(CONFIG_HIGHMEM)		+= highmem.o

@@ -176,29 +176,9 @@ static void tx49_flush_cache_page(struct vm_area_struct *vma,
 		tx49_blast_icache_page_indexed(page);
 }
 
-static void tx49_flush_dcache_page_impl(struct page *page)
+static void tx49_flush_data_cache_page(unsigned long addr)
 {
-	unsigned long addr = (unsigned long) page_address(page);
-
 	tx49_blast_dcache_page(addr);
-}
-
-static void tx49_flush_dcache_page(struct page *page)
-{
-	if (page->mapping &&
-	    list_empty(&page->mapping->i_mmap) &&
-	    list_empty(&page->mapping->i_mmap_shared)) {
-		SetPageDcacheDirty(page);
-
-		return;
-	}
-
-	/*
-	 * We could delay the flush for the !page->mapping case too.  But that
-	 * case is for exec env/arg pages and those are %99 certainly going to
-	 * get faulted into the tlb (and thus flushed) anyways.
-	 */
-	tx49_flush_dcache_page_impl(page);
 }
 
 static void
@@ -283,26 +263,13 @@ static void tx49_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
-void __update_cache(struct vm_area_struct *vma, unsigned long address,
-	pte_t pte)
-{
-	struct page *page;
-	unsigned long pfn;
-
-	pfn = pte_pfn(pte);
-	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
-	    Page_dcache_dirty(page)) {
-		tx49_flush_dcache_page_impl(page);
-
-		ClearPageDcacheDirty(page);
-	}
-}
-
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
 	icache_size = 1 << (12 + ((config >> 9) & 7));
 	ic_lsize = 16 << ((config >> 5) & 1);
+	mips_cpu.icache.ways = 1;
+	mips_cpu.icache.sets = icache_size / mips_cpu.icache.linesz;
 
 	printk("Primary instruction cache %dkb, linesize %d bytes.\n",
 	       icache_size >> 10, ic_lsize);
@@ -312,6 +279,8 @@ static void __init probe_dcache(unsigned long config)
 {
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
 	dc_lsize = 16 << ((config >> 4) & 1);
+	mips_cpu.dcache.ways = 1;
+	mips_cpu.dcache.sets = dcache_size / mips_cpu.dcache.linesz;
 
 	printk("Primary data cache %dkb, linesize %d bytes.\n",
 	       dcache_size >> 10, dc_lsize);
@@ -335,14 +304,6 @@ void __init ld_mmu_tx49(void)
 
 	probe_icache(config);
 	probe_dcache(config);
-	if (mips_cpu.icache.ways == 0)
-		mips_cpu.icache.ways = 1;
-	if (mips_cpu.dcache.ways == 0)
-		mips_cpu.dcache.ways = 1;
-	mips_cpu.icache.sets =
-		icache_size / mips_cpu.icache.ways / mips_cpu.icache.linesz;
-	mips_cpu.dcache.sets =
-		dcache_size / mips_cpu.dcache.ways / mips_cpu.dcache.linesz;
 
 	switch (dc_lsize) {
 	case 16:
@@ -354,20 +315,20 @@ void __init ld_mmu_tx49(void)
 		_copy_page = r4k_copy_page_d32;
 		break;
 	}
-	_flush_cache_all = tx49_flush_cache_all;
-	___flush_cache_all = _flush_cache_all;
-	_flush_cache_mm = tx49_flush_cache_mm;
-	_flush_cache_range = tx49_flush_cache_range;
-	_flush_cache_page = tx49_flush_cache_page;
-	_flush_icache_page = tx49_flush_icache_page;
-	_flush_dcache_page = tx49_flush_dcache_page;
+	flush_cache_all = tx49_flush_cache_all;
+	__flush_cache_all = _flush_cache_all;
+	flush_cache_mm = tx49_flush_cache_mm;
+	flush_cache_range = tx49_flush_cache_range;
+	flush_cache_page = tx49_flush_cache_page;
+	flush_icache_range = tx49_flush_icache_range;	/* Ouch */
+	flush_icache_page = tx49_flush_icache_page;
+
+	flush_cache_sigtramp = tx49_flush_cache_sigtramp;
+	flush_data_cache_page = tx49_flush_data_cache_page;
 
 	_dma_cache_wback_inv = tx49_dma_cache_wback_inv;
 	_dma_cache_wback = tx49_dma_cache_wback;
 	_dma_cache_inv = tx49_dma_cache_inv;
-
-	_flush_cache_sigtramp = tx49_flush_cache_sigtramp;
-	_flush_icache_range = tx49_flush_icache_range;	/* Ouch */
 
 	__flush_cache_all();
 }

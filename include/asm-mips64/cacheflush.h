@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 - 2001, 02 by Ralf Baechle
+ * Copyright (C) 1994, 95, 96, 97, 98, 99, 2000, 01, 02, 03 by Ralf Baechle
  * Copyright (C) 1999, 2000, 2001 Silicon Graphics, Inc.
  */
 #ifndef __ASM_CACHEFLUSH_H
@@ -24,49 +24,36 @@
  *  - flush_icache_range(start, end) flush a range of instructions
  *  - flush_dcache_page(pg) flushes(wback&invalidates) a page for dcache
  *  - flush_icache_page(vma, pg) flushes(invalidates) a page for icache
+ *
+ * MIPS specific flush operations:
+ *
+ *  - flush_cache_sigtramp() flush signal trampoline
+ *  - flush_icache_all() flush the entire instruction cache
+ *  - flush_data_cache_page() flushes a page from the data cache
  */
-extern void (*_flush_cache_all)(void);
-extern void (*___flush_cache_all)(void);
-
-extern void (*_flush_cache_mm)(struct mm_struct *mm);
-extern void (*_flush_cache_range)(struct vm_area_struct *vma,
+extern void (*flush_cache_all)(void);
+extern void (*__flush_cache_all)(void);
+extern void (*flush_cache_mm)(struct mm_struct *mm);
+extern void (*flush_cache_range)(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end);
-extern void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-extern void (*_flush_dcache_page)(struct page * page);
-extern void (*_flush_icache_all)(void);
-extern void (*_flush_icache_range)(unsigned long start, unsigned long end);
-extern void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
-
-#define flush_cache_all()		_flush_cache_all()
-#define __flush_cache_all()		___flush_cache_all()
-
-#define flush_cache_mm(mm)		_flush_cache_mm(mm)
-#define flush_cache_range(vma,start,end) _flush_cache_range(vma,start,end)
-#define flush_cache_page(vma,page)	_flush_cache_page(vma, page)
-#define flush_dcache_page(page)		_flush_dcache_page(page)
+extern void (*flush_cache_page)(struct vm_area_struct *vma,
+	unsigned long page);
 #define flush_page_to_ram(page)		do { } while (0)
-#define flush_icache_range(start, end)	_flush_icache_range(start, end)
-#define flush_icache_user_range(vma, page, addr, len)	\
-	 flush_icache_page((vma), (page))
-#define flush_icache_page(vma, page)	_flush_icache_page(vma, page)
+extern void flush_dcache_page(struct page *page);
+extern void (*flush_icache_page)(struct vm_area_struct *vma,
+	struct page *page);
+extern void (*flush_icache_range)(unsigned long start, unsigned long end);
+#define flush_icache_user_range(vma, page, addr, len)   \
+					flush_icache_page(vma, page)
 
-/*
- * This one is optional because currently virtually indexed, virtually
- * tagged instruction caches are rare on MIPS.
- */
+
+extern void (*flush_cache_sigtramp)(unsigned long addr);
 #ifdef CONFIG_VTAG_ICACHE
-#define flush_icache_all()		_flush_icache_all()
+extern void (*flush_icache_all)(void);
 #else
 #define flush_icache_all()		do { } while(0)
 #endif
-
-/*
- * The foll cache flushing routines are MIPS specific.
- * flush_cache_l2 is needed only during initialization.
- */
-extern void (*_flush_cache_sigtramp)(unsigned long addr);
-
-#define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
+extern void (*flush_data_cache_page)(unsigned long addr);
 
 /*
  * This flag is used to indicate that the page pointed to by a pte

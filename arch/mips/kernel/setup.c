@@ -106,7 +106,7 @@ EXPORT_SYMBOL(isa_slot_offset);
 
 extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
-extern void loadmmu(void);
+extern void load_mmu(void);
 extern asmlinkage void start_kernel(void);
 extern void prom_init(int, char **, char **, int *);
 
@@ -132,7 +132,7 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	 * then flush the tlb and caches.  On the r4xx0
 	 * variants this also sets CP0_WIRED to zero.
 	 */
-	loadmmu();
+	load_mmu();
 
 	/* Disable coprocessors and set FPU for 16/32 FPR register model */
 	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
