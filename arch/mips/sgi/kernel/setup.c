@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: setup.c,v 1.3 1997/07/24 01:55:45 ralf Exp $
+ * $Id: setup.c,v 1.4 1997/09/11 08:13:11 shaver Exp $
  */
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -62,21 +62,6 @@ static void sgi_irq_setup(void)
 	sgint_init();
 }
 
-#if 0
-extern void register_console(void (*proc)(const char *));
-
-static void sgi_print(const char *p)
-{
-	char c;
-
-	while((c = *p++) != 0) {
-		if(c == '\n')
-			prom_putchar('\r');
-		prom_putchar(c);
-	}
-}
-#endif
-
 void sgi_setup(void)
 {
 	char *ctype;
@@ -88,8 +73,6 @@ void sgi_setup(void)
 	_machine_restart = sgi_machine_restart;
 	_machine_halt = sgi_machine_halt;
 	_machine_power_off = sgi_machine_power_off;
-
-	/* register_console(sgi_print); */
 
 	/* Init the INDY HPC I/O controller.  Need to call this before
 	 * fucking with the memory controller because it needs to know the
