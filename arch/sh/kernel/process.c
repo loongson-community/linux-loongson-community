@@ -12,7 +12,9 @@
  */
 
 #include <linux/unistd.h>
+#include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/a.out.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -39,16 +41,13 @@ void enable_hlt(void)
 void cpu_idle(void *unused)
 {
 	/* endless idle loop with no priority at all */
-	init_idle();
-	current->nice = 20;
-
 	while (1) {
 		if (hlt_counter) {
-			if (current->need_resched)
+			if (need_resched())
 				break;
 		} else {
 			__cli();
-			while (!current->need_resched) {
+			while (!need_resched()) {
 				__sti();
 				asm volatile("sleep" : : : "memory");
 				__cli();

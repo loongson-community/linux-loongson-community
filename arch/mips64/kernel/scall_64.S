@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 96, 97, 98, 99, 2000, 01 by Ralf Baechle
+ * Copyright (C) 1995, 96, 97, 98, 99, 2000, 01, 02 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
@@ -14,6 +14,7 @@
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/offset.h>
 #include <asm/unistd.h>
 
 #ifndef CONFIG_MIPS32_COMPAT
@@ -22,82 +23,122 @@
 
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
-/* When 32-bit compatibility is configured scall_o32.S already did this.  */
 #ifndef CONFIG_MIPS32_COMPAT
-	.set	noat
-	SAVE_SOME
-	STI
-	.set	at
+		/*
+		 * When 32-bit compatibility is configured scall_o32.S
+		 * already did this.
+		 */
+		.set	noat
+		SAVE_SOME
+		STI
+		.set	at
 #endif
-	ld	t1, PT_EPC(sp)		# skip syscall on return
+		ld	t1, PT_EPC(sp)		# skip syscall on return
 
-	subu	t0, v0, __NR_Linux	# check syscall number
-	sltiu	t0, t0,	__NR_Linux_syscalls + 1
-	daddiu	t1, 4			# skip to next instruction
-	beqz	t0, illegal_syscall
-	sd	t1, PT_EPC(sp)
+		subu	t0, v0, __NR_Linux	# check syscall number
+		sltiu	t0, t0,	__NR_Linux_syscalls + 1
+		daddiu	t1, 4			# skip to next instruction
+		beqz	t0, illegal_syscall
+		sd	t1, PT_EPC(sp)
 
-	dsll	t0, v0, 3		# offset into table
-	ld	t2, (sys_call_table - (__NR_Linux * 8))(t0) # syscall routine
+		dsll	t0, v0, 3		# offset into table
+		ld	t2, (sys_call_table - (__NR_Linux * 8))(t0)
+						# syscall routine
 
-	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
+		sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
-	ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-	andi	t0, PT_TRACESYS
-	bnez	t0, trace_a_syscall
+		lbu	t0, TASK_SYSCALL_TRACE($28)
+		bnez	t0, syscall_trace_entry	# syscall tracing enabled?
 
-	jalr	t2			# Do The Real Thing (TM)
+		jalr	t2			# Do The Real Thing (TM)
 
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sd	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+		li	t0, -EMAXERRNO - 1	# error?
+		sltu	t0, t0, v0
+		sd	t0, PT_R7(sp)		# set error flag
+		beqz	t0, 1f
 
-	negu	v0			# error
-	sd	v0, PT_R0(sp)		# set flag for syscall restarting
-1:	sd	v0, PT_R2(sp)		# result
+		negu	v0			# error
+		sd	v0, PT_R0(sp)		# set flag for syscall
+						# restarting
+1:		sd	v0, PT_R2(sp)		# result
 
-ret_from_sys_call:
-	mfc0	t0, CP0_STATUS
-	xori	t0, t0, 1
-	ori	t0, t0, 1
-	mtc0	t0, CP0_STATUS
-	SSNOP; SSNOP; SSNOP
+syscall_exit:
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		xori	t0, t0, 1		# signals dont change between
+		ori	t0, t0, 1		# sampling and return
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
 
-	ld	t2, TASK_NEED_RESCHED($28)
-	bnez	t2, reschedule
-	lw	v0, TASK_SIGPENDING($28)
-	bnez	v0, signal_return
+		lw	a2, TASK_WORK($28)	# current->work
+		bnez	a2, syscall_exit_work
 
-restore_all:
-	RESTORE_SOME
-	RESTORE_SP
-	eret
+FEXPORT(restore_all)
+		RESTORE_SOME
+		RESTORE_SP
+		eret
 
-/* Put this behind restore_all for the sake of the branch prediction.  */
-signal_return:
-	.type	signal_return, @function
+EXPORT(work_pending)
+#ifdef __MIPSEB__
+		srl	t0, a2, 24		# current->work.need_resched
+						# test high 8 bits
+		bltz	t0, work_notifysig
+#endif
+#ifdef __MIPSEL__
+		andi	t0, a2, 0xff		# current->work.need_resched
+						# test low 8 bits
+		bltz	t0, work_notifysig
+#endif
+work_resched:
+		jal	schedule
 
-	mfc0	t0, CP0_STATUS
-	ori	t0, t0, 1
-	mtc0	t0, CP0_STATUS
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
 
-	move	a0, zero
-	move	a1, sp
-	jal	do_signal
-	b	restore_all
+		lw	a2, TASK_WORK($28)	# This also converts into
+						# a union of four chars
+#ifdef __MIPSEB__
+		li	t1, 0xff00ffff		# current->work (ignoring
+		and	t0, t1			# syscall_trace)
+		beqz	a2, restore_all
+		srl	t0, a2, 24		# current->work.need_resched
+						# test high 8 bits
+		bltz	t0, work_notifysig
+#endif
+#ifdef __MIPSEL__
+		ori	t0, 0x0000ff00		# current->work (ignoring
+		xori	t0, 0x0000ff00		# syscall_trace)
+		beqz	a2, restore_all
+		andi	t0, a2, 0xff		# current->work.need_resched
+						# test low 8 bits
+		bltz	t0, work_notifysig
+#endif
 
-reschedule:
-	SAVE_STATIC
-	jal	schedule
-	b	ret_from_sys_call
+work_notifysig:					# deal with pending signals and
+						# notify-resume requests
+		move	a0, sp
+		li	a1, 0
+		jal	do_notify_resume	# a2 already loaded
+		j	restore_all
+
+syscall_exit_work:
+		lb	t0, TASK_SYSCALL_TRACE($28)
+						# current->work.syscall_trace
+		beqz	t0, work_pending
+		mfc0	t0, CP0_STATUS		# sti
+		ori	t0, t0, 1
+		mtc0	t0, CP0_STATUS
+		jal	do_syscall_trace
+		j	resume_userspace
 
 /* ------------------------------------------------------------------------ */
 
-trace_a_syscall:
+syscall_trace_entry:
 	SAVE_STATIC
 	sd	t2,PT_R1(sp)
-	jal	syscall_trace
+	jal	do_syscall_trace
 	ld	t2,PT_R1(sp)
 
 	ld	a0, PT_R4(sp)		# Restore argument registers
@@ -115,8 +156,7 @@ trace_a_syscall:
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-	jal	syscall_trace
-	j	ret_from_sys_call
+	j	syscall_exit
 
 illegal_syscall:
 	/* This also isn't a 64-bit syscall, throw an error.  */
@@ -124,7 +164,7 @@ illegal_syscall:
 	sd	v0, PT_R2(sp)
 	li	t0, 1				# set error flag
 	sd	t0, PT_R7(sp)
-	j	ret_from_sys_call
+	j	syscall_exit
 	END(handle_sys64)
 
 sys_call_table:

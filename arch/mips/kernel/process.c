@@ -36,7 +36,7 @@ ATTRIB_NORET void cpu_idle(void)
 	/* endless idle loop with no priority at all */
 
 	while (1) {
-		while (!current->need_resched)
+		while (!need_resched())
 			if (cpu_wait)
 				(*cpu_wait)();
 		schedule();

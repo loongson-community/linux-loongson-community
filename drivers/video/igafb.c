@@ -283,7 +283,7 @@ static int igafb_mmap(struct fb_info *info, struct file *file,
 		pgprot_val(vma->vm_page_prot) &= ~(fb->mmap_map[i].prot_mask);
 		pgprot_val(vma->vm_page_prot) |= fb->mmap_map[i].prot_flag;
 
-		if (remap_page_range(vma->vm_start + page, map_offset,
+		if (remap_page_range(vma, vma->vm_start + page, map_offset,
 				     map_size, vma->vm_page_prot))
 			return -EAGAIN;
 
@@ -568,7 +568,7 @@ static int __init iga_init(struct fb_info_iga *info)
 	}
 
 	strcpy(info->fb_info.modename, igafb_name);
-	info->fb_info.node = -1;
+	info->fb_info.node = NODEV;
 	info->fb_info.fbops = &igafb_ops;
 	info->fb_info.disp = &info->disp;
 	strcpy(info->fb_info.fontname, fontname);

@@ -436,6 +436,16 @@ static __inline__ unsigned long ffz(unsigned long word)
 
 #ifdef __KERNEL__
 
+/*
+ * __ffs - find first bit in word.
+ * @word: The word to search
+ *
+ * Undefined if no bit exists, so code should check against 0 first.
+ */
+static __inline__ unsigned long __ffs(unsigned long word)
+{
+	return ffz(word);
+}
 
 /*
  * ffs - find first bit set

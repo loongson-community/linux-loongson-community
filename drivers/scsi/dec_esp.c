@@ -191,19 +191,19 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 		esp_initialize(esp);
 
 		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
-				"ncr53c94", NULL))
+				"ncr53c94", esp->ehost))
 			goto err_dealloc;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_MERR],
 				scsi_dma_merr_int, SA_INTERRUPT, 
-				"ncr53c94 error", NULL))
+				"ncr53c94 error", esp->ehost))
 			goto err_free_irq;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_ERR],
 				scsi_dma_err_int, SA_INTERRUPT, 
-				"ncr53c94 overrun", NULL))
+				"ncr53c94 overrun", esp->ehost))
 			goto err_free_irq_merr;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_DMA],
 				scsi_dma_int, SA_INTERRUPT, 
-				"ncr53c94 dma", NULL))
+				"ncr53c94 dma", esp->ehost))
 			goto err_free_irq_err;
  			
 	}
@@ -264,7 +264,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 			esp->dma_advance_sg = 0;
 
  			if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
- 					 "PMAZ_AA", NULL)) {
+ 					 "PMAZ_AA", esp->ehost)) {
  				esp_deallocate(esp);
  				release_tc_card(slot);
  				continue;

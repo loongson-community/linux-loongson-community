@@ -3,6 +3,12 @@
  * HISTORY:
  *
  * $Log: pgtable.h,v $
+ * Revision 1.14  2001/12/10 03:08:50  bjornw
+ * Added pgtable_cache_init dummy
+ *
+ * Revision 1.13  2001/11/12 18:05:38  pkj
+ * Added declaration of paging_init().
+ *
  * Revision 1.12  2001/08/11 00:28:00  bjornw
  * PAGE_CHG_MASK and PAGE_NONE had somewhat untraditional values
  *
@@ -106,12 +112,14 @@
  * the CRIS page table tree.
  */
 
+extern void paging_init(void);
+
 /* The cache doesn't need to be flushed when TLB entries change because 
  * the cache is mapped to physical memory, not virtual memory
  */
 #define flush_cache_all()			do { } while (0)
 #define flush_cache_mm(mm)			do { } while (0)
-#define flush_cache_range(mm, start, end)	do { } while (0)
+#define flush_cache_range(vma, start, end)	do { } while (0)
 #define flush_cache_page(vma, vmaddr)		do { } while (0)
 #define flush_page_to_ram(page)			do { } while (0)
 #define flush_dcache_page(page)                 do { } while (0)
@@ -125,7 +133,7 @@
  *  - flush_tlb_all() flushes all processes TLBs
  *  - flush_tlb_mm(mm) flushes the specified mm context TLB's
  *  - flush_tlb_page(vma, vmaddr) flushes one page
- *  - flush_tlb_range(mm, start, end) flushes a range of pages
+ *  - flush_tlb_range(vma, start, end) flushes a range of pages
  *
  */
 
@@ -133,7 +141,7 @@ extern void flush_tlb_all(void);
 extern void flush_tlb_mm(struct mm_struct *mm);
 extern void flush_tlb_page(struct vm_area_struct *vma, 
 			   unsigned long addr);
-extern void flush_tlb_range(struct mm_struct *mm,
+extern void flush_tlb_range(struct vm_area_struct *vma,
 			    unsigned long start,
 			    unsigned long end);
 
@@ -507,6 +515,6 @@ static inline void update_mmu_cache(struct vm_area_struct * vma,
 /*
  * No page table caches to initialise
  */
-#define pgtable_cache_init()	do { } while (0)
+#define pgtable_cache_init()   do { } while (0)
 
 #endif /* _CRIS_PGTABLE_H */

@@ -5,6 +5,14 @@ CONFIG_MIPS=y
 CONFIG_MIPS32=y
 
 #
+# General setup
+#
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+CONFIG_SYSCTL=y
+
+#
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
@@ -80,7 +88,6 @@ CONFIG_CPU_HAS_LLDSCD=y
 # General setup
 #
 CONFIG_CPU_LITTLE_ENDIAN=y
-CONFIG_NET=y
 # CONFIG_PCI_NAMES is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
@@ -90,9 +97,6 @@ CONFIG_NET=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
-CONFIG_SYSVIPC=y
-# CONFIG_BSD_PROCESS_ACCT is not set
-CONFIG_SYSCTL=y
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 # CONFIG_BINFMT_AOUT is not set
@@ -115,6 +119,7 @@ CONFIG_BINFMT_ELF=y
 #
 # CONFIG_PNP is not set
 # CONFIG_ISAPNP is not set
+# CONFIG_PNPBIOS is not set
 
 #
 # Block devices
@@ -148,7 +153,7 @@ CONFIG_BLK_DEV_LOOP=y
 #
 CONFIG_PACKET=y
 # CONFIG_PACKET_MMAP is not set
-# CONFIG_NETLINK is not set
+CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
@@ -158,6 +163,7 @@ CONFIG_INET=y
 # CONFIG_IP_PNP is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
+# CONFIG_ARPD is not set
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
 # CONFIG_IPV6 is not set
@@ -210,6 +216,7 @@ CONFIG_BLK_DEV_IDE=y
 # CONFIG_BLK_DEV_HD is not set
 CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_IDEDISK_MULTI_MODE is not set
+# CONFIG_IDEDISK_STROKE is not set
 # CONFIG_BLK_DEV_IDEDISK_VENDOR is not set
 # CONFIG_BLK_DEV_IDEDISK_FUJITSU is not set
 # CONFIG_BLK_DEV_IDEDISK_IBM is not set
@@ -224,6 +231,7 @@ CONFIG_BLK_DEV_IDEDISK=y
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
 # CONFIG_BLK_DEV_IDESCSI is not set
+# CONFIG_IDE_TASK_IOCTL is not set
 
 #
 # IDE chipset support/bugfixes
@@ -235,12 +243,15 @@ CONFIG_BLK_DEV_IDEDISK=y
 CONFIG_BLK_DEV_IDEPCI=y
 # CONFIG_IDEPCI_SHARE_IRQ is not set
 CONFIG_BLK_DEV_IDEDMA_PCI=y
-CONFIG_BLK_DEV_ADMA=y
 # CONFIG_BLK_DEV_OFFBOARD is not set
+# CONFIG_BLK_DEV_IDEDMA_FORCED is not set
 # CONFIG_IDEDMA_PCI_AUTO is not set
+# CONFIG_IDEDMA_ONLYDISK is not set
 CONFIG_BLK_DEV_IDEDMA=y
 # CONFIG_IDEDMA_PCI_WIP is not set
+# CONFIG_BLK_DEV_IDEDMA_TIMEOUT is not set
 # CONFIG_IDEDMA_NEW_DRIVE_LISTINGS is not set
+CONFIG_BLK_DEV_ADMA=y
 # CONFIG_BLK_DEV_AEC62XX is not set
 # CONFIG_AEC62XX_TUNING is not set
 # CONFIG_BLK_DEV_ALI15X3 is not set
@@ -255,6 +266,7 @@ CONFIG_BLK_DEV_IDEDMA=y
 # CONFIG_BLK_DEV_HPT366 is not set
 # CONFIG_BLK_DEV_NS87415 is not set
 # CONFIG_BLK_DEV_OPTI621 is not set
+# CONFIG_BLK_DEV_PDC_ADMA is not set
 # CONFIG_BLK_DEV_PDC202XX is not set
 # CONFIG_PDC202XX_BURST is not set
 # CONFIG_PDC202XX_FORCE is not set
@@ -300,6 +312,7 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
+# CONFIG_ETHERTAP is not set
 
 #
 # Ethernet (10 or 100Mbit)
@@ -532,7 +545,6 @@ CONFIG_LOCKD=y
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 # CONFIG_ZISOFS_FS is not set
-# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types
@@ -569,6 +581,7 @@ CONFIG_SGI_PARTITION=y
 # USB Host Controller Drivers
 #
 # CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -693,3 +706,5 @@ CONFIG_CROSSCOMPILE=y
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_ZLIB_INFLATE is not set
+# CONFIG_ZLIB_DEFLATE is not set

@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.128 2002/01/11 08:45:38 davem Exp $
+/*  $Id: process.c,v 1.129 2002/01/23 11:27:32 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -54,14 +54,14 @@ int cpu_idle(void)
 
 	/* endless idle loop with no priority at all */
 	for (;;) {
-		/* If current->need_resched is zero we should really
+		/* If current->work.need_resched is zero we should really
 		 * setup for a system wakup event and execute a shutdown
 		 * instruction.
 		 *
 		 * But this requires writing back the contents of the
 		 * L2 cache etc. so implement this later. -DaveM
 		 */
-		while (!current->need_resched)
+		while (!need_resched())
 			barrier();
 
 		schedule();
@@ -80,7 +80,7 @@ int cpu_idle(void)
 int cpu_idle(void)
 {
 	while(1) {
-		if (current->need_resched != 0) {
+		if (need_resched()) {
 			unidle_me();
 			schedule();
 			check_pgt_cache();

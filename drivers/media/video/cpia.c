@@ -2147,8 +2147,7 @@ static void fetch_frame(void *data)
 			/* loop until image ready */
 			do_command(cam, CPIA_COMMAND_GetCameraStatus,0,0,0,0);
 			while (cam->params.status.streamState != STREAM_READY) {
-				if (current->need_resched)
-					schedule();
+				cond_resched();
 
 				current->state = TASK_INTERRUPTIBLE;
 
@@ -2163,8 +2162,7 @@ static void fetch_frame(void *data)
 		}
 
 		/* grab image from camera */
-		if (current->need_resched)
-			schedule();
+		cond_resched();
 
 		oldjif = jiffies;
 		image_size = cam->ops->streamRead(cam->lowlevel_data,
@@ -2189,8 +2187,7 @@ static void fetch_frame(void *data)
 		/* decompress and convert image to by copying it from
 		 * raw_image to decompressed_frame
 		 */
-		if (current->need_resched)
-			schedule();
+		cond_resched();
 
 		cam->image_size = parse_picture(cam, image_size);
 		if (cam->image_size <= 0)
@@ -2972,7 +2969,7 @@ static int cpia_ioctl(struct video_device *dev, unsigned int ioctlnr, void *arg)
 } 
 
 /* FIXME */
-static int cpia_mmap(struct video_device *dev, const char *adr,
+static int cpia_mmap(struct vm_area_struct *vma, struct video_device *dev, const char *adr,
                      unsigned long size)
 {
 	unsigned long start = (unsigned long)adr;
@@ -3005,7 +3002,7 @@ static int cpia_mmap(struct video_device *dev, const char *adr,
 	pos = (unsigned long)(cam->frame_buf);
 	while (size > 0) {
 		page = kvirt_to_pa(pos);
-		if (remap_page_range(start, page, PAGE_SIZE, PAGE_SHARED)) {
+		if (remap_page_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
 			up(&cam->busy_lock);
 			return -EAGAIN;
 		}

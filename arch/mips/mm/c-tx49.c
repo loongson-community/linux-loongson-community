@@ -86,15 +86,17 @@ static inline void r49_flush_cache_all_d32i32(void)
 	__restore_flags(flags);
 }
 
-static void r49_flush_cache_range_d16i32(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void r49_flush_cache_range_d16i32(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != 0) {
 		unsigned long flags, config;
 
 #ifdef DEBUG_CACHE
-		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
+		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start,
+		       end);
 #endif
 		__save_and_cli(flags);
 		blast_dcache16_wayLSB();
@@ -107,10 +109,11 @@ static void r49_flush_cache_range_d16i32(struct mm_struct *mm,
 	}
 }
 
-static void r49_flush_cache_range_d32i32(struct mm_struct *mm,
-					       unsigned long start,
-					       unsigned long end)
+static void r49_flush_cache_range_d32i32(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != 0) {
 		unsigned long flags, config;
 

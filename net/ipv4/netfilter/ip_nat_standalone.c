@@ -166,34 +166,6 @@ ip_nat_out(unsigned int hooknum,
 	return ip_nat_fn(hooknum, pskb, in, out, okfn);
 }
 
-/* FIXME: change in oif may mean change in hh_len.  Check and realloc
-   --RR */
-static int
-route_me_harder(struct sk_buff *skb)
-{
-	struct iphdr *iph = skb->nh.iph;
-	struct rtable *rt;
-	struct rt_key key = { dst:iph->daddr,
-			      src:iph->saddr,
-			      oif:skb->sk ? skb->sk->bound_dev_if : 0,
-			      tos:RT_TOS(iph->tos)|RTO_CONN,
-#ifdef CONFIG_IP_ROUTE_FWMARK
-			      fwmark:skb->nfmark
-#endif
-			    };
-
-	if (ip_route_output_key(&rt, &key) != 0) {
-		printk("route_me_harder: No more route.\n");
-		return -EINVAL;
-	}
-
-	/* Drop old route. */
-	dst_release(skb->dst);
-
-	skb->dst = &rt->u.dst;
-	return 0;
-}
-
 static unsigned int
 ip_nat_local_fn(unsigned int hooknum,
 		struct sk_buff **pskb,
@@ -216,7 +188,7 @@ ip_nat_local_fn(unsigned int hooknum,
 	if (ret != NF_DROP && ret != NF_STOLEN
 	    && ((*pskb)->nh.iph->saddr != saddr
 		|| (*pskb)->nh.iph->daddr != daddr))
-		return route_me_harder(*pskb) == 0 ? ret : NF_DROP;
+		return route_me_harder(pskb) == 0 ? ret : NF_DROP;
 	return ret;
 }
 

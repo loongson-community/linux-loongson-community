@@ -57,7 +57,7 @@
 /*
  * Version Information
  */
-#define DRIVER_VERSION "v1.48 for Linux 2.4"
+#define DRIVER_VERSION "v1.48a for Linux 2.4"
 #define EMAIL "mmcclell@bigfoot.com"
 #define DRIVER_AUTHOR "Mark McClelland <mmcclell@bigfoot.com> & Bret Wallach \
 	& Orion Sky Lawlor <olawlor@acm.org> & Kevin Moore & Charl P. Botha \
@@ -492,6 +492,10 @@ rvfree(void *mem, unsigned long size)
 static struct proc_dir_entry *ov511_proc_entry = NULL;
 extern struct proc_dir_entry *video_proc_entry;
 
+static struct file_operations ov511_control_fops = {
+	ioctl:		ov511_control_ioctl,
+};
+
 #define YES_NO(x) ((x) ? "yes" : "no")
 
 /* /proc/video/ov511/<minor#>/info */
@@ -673,8 +677,8 @@ create_proc_ov511_cam(struct usb_ov511 *ov511)
 		unlock_kernel();
 		return;
 	}
-	ov511->proc_control->proc_fops->ioctl = ov511_control_ioctl;
 	ov511->proc_control->data = ov511;
+	ov511->proc_control->proc_fops = &ov511_control_fops;
 	unlock_kernel();
 }
 
@@ -3875,7 +3879,7 @@ ov511_postprocess(struct usb_ov511 *ov511, struct ov511_frame *frame)
  **********************************************************************/
 
 static int 
-ov511_move_data(struct usb_ov511 *ov511, urb_t *urb)
+ov511_move_data(struct usb_ov511 *ov511, struct urb *urb)
 {
 	unsigned char *cdata;
 	int data_size, num, offset, i, totlen = 0;
@@ -4108,7 +4112,7 @@ check_middle:
 }
 
 static int 
-ov518_move_data(struct usb_ov511 *ov511, urb_t *urb)
+ov518_move_data(struct usb_ov511 *ov511, struct urb *urb)
 {
 	unsigned char *cdata;
 	int i, data_size, totlen = 0;
@@ -4369,7 +4373,7 @@ ov511_isoc_irq(struct urb *urb)
 static int 
 ov511_init_isoc(struct usb_ov511 *ov511)
 {
-	urb_t *urb;
+	struct urb *urb;
 	int fx, err, n, size;
 
 	PDEBUG(3, "*** Initializing capture ***");
@@ -5552,7 +5556,7 @@ error:
 }
 
 static int 
-ov511_mmap(struct video_device *vdev, const char *adr, unsigned long size)
+ov511_mmap(struct vm_area_struct *vma, struct video_device *vdev, const char *adr, unsigned long size)
 {
 	struct usb_ov511 *ov511 = vdev->priv;
 	unsigned long start = (unsigned long)adr;
@@ -5574,7 +5578,7 @@ ov511_mmap(struct video_device *vdev, const char *adr, unsigned long size)
 	pos = (unsigned long)ov511->fbuf;
 	while (size > 0) {
 		page = kvirt_to_pa(pos);
-		if (remap_page_range(start, page, PAGE_SIZE, PAGE_SHARED)) {
+		if (remap_page_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
 			up(&ov511->lock);
 			return -EAGAIN;
 		}
@@ -6893,13 +6897,13 @@ ov51x_disconnect(struct usb_device *dev, void *ptr)
 		}
 	}
 
-	usb_driver_release_interface(&ov511_driver,
-		&ov511->dev->actconfig->interface[ov511->iface]);
-	ov511->dev = NULL;
-
 #if defined(CONFIG_PROC_FS) && defined(CONFIG_VIDEO_PROC_FS)
         destroy_proc_ov511_cam(ov511);
 #endif
+
+	usb_driver_release_interface(&ov511_driver,
+		&ov511->dev->actconfig->interface[ov511->iface]);
+	ov511->dev = NULL;
 
 	/* Free the memory */
 	if (ov511 && !ov511->user) {

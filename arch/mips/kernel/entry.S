@@ -33,54 +33,103 @@
 EXPORT(ret_from_fork)
 		move	a0, v0			# prev
 		jal	schedule_tail
-		lw	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-		andi	t0, PT_TRACESYS
-		bnez	t0, tracesys_exit
-		j	ret_from_sys_call
-
-tracesys_exit:	jal	syscall_trace
-		b	ret_from_sys_call
+		j	syscall_exit
 
 EXPORT(ret_from_irq)
 EXPORT(ret_from_exception)
 		lw	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
-		bnez	t0, ret_from_sys_call
-		j	restore_all
+		beqz	t0, restore_all
 
-reschedule:	jal	schedule 
-
-EXPORT(ret_from_sys_call)
-		.type	ret_from_irq,@function
-
-		mfc0	t0, CP0_STATUS	# need_resched and signals atomic test
-		ori	t0, t0, 1
-		xori	t0, t0, 1
+EXPORT(resume_userspace)
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	v0, TASK_NEED_RESCHED($28)
-		lw	v1, TASK_SIGPENDING($28)
-		bnez	v0, reschedule
-		bnez	v1, signal_return
-		FEXPORT(restore_all)
-restore_all:	.set	noat
+		lw	a2, TASK_WORK($28)
+#ifdef __MIPSEB__
+		li	t1, 0xff00ffff		# current->work (ignoring
+		and	a2, t1			# syscall_trace)
+#endif
+#ifdef __MIPSEL__
+		ori	a2, 0x0000ff00		# current->work (ignoring
+		xori	a2, 0x0000ff00		# syscall_trace)
+#endif
+		bnez	a2, work_pending
+		j	restore_all
+
+EXPORT(syscall_exit)
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
+
+		lw	a2, TASK_WORK($28)	# current->work
+		bnez	a2, syscall_exit_work
+
+FEXPORT(restore_all)
+		.set	noat
 		RESTORE_ALL_AND_RET
 		.set	at
 
-/* Put this behind restore_all for the sake of the branch prediction.  */
-signal_return:
-		.type	signal_return, @function
+EXPORT(work_pending)
+#ifdef __MIPSEB__
+		srl	t0, a2, 24		# current->work.need_resched
+						# test high 8 bits
+		bltz	t0, work_notifysig
+#endif
+#ifdef __MIPSEL__
+		andi	t0, a2, 0xff		# current->work.need_resched
+						# test low 8 bits
+		bltz	t0, work_notifysig
+#endif
+work_resched:
+		jal	schedule
 
-		mfc0	t0, CP0_STATUS
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
+
+		lw	a2, TASK_WORK($28)	# This also converts into
+						# a union of four chars
+#ifdef __MIPSEB__
+		li	t1, 0xff00ffff		# current->work (ignoring
+		and	t0, t1			# syscall_trace)
+		beqz	a2, restore_all
+		srl	t0, a2, 24		# current->work.need_resched
+						# test high 8 bits
+		bltz	t0, work_notifysig
+#endif
+#ifdef __MIPSEL__
+		ori	t0, 0x0000ff00		# current->work (ignoring
+		xori	t0, 0x0000ff00		# syscall_trace)
+		beqz	a2, restore_all
+		andi	t0, a2, 0xff		# current->work.need_resched
+						# test low 8 bits
+		bltz	t0, work_notifysig
+#endif
+
+work_notifysig:					# deal with pending signals and
+						# notify-resume requests
+		move	a0, sp
+		li	a1, 0
+		jal	do_notify_resume	# a2 already loaded
+		j	restore_all
+
+FEXPORT(syscall_exit_work)
+		lb	t0, TASK_SYSCALL_TRACE($28)
+						# current->work.syscall_trace
+		beqz	t0, work_pending
+		mfc0	t0, CP0_STATUS		# sti
 		ori	t0, t0, 1
 		mtc0	t0, CP0_STATUS
-
-		move	a0, zero
-		move	a1, sp
-		jal	do_signal
-		b	restore_all
-
+		jal	do_syscall_trace
+		b	resume_userspace
 /*
  * Common spurious interrupt handler.
  */
@@ -180,10 +229,12 @@ handle_vcei:
  * the C preprocessor ...
  */
 #define __BUILD_clear_none(exception)
-#define __BUILD_clear_sti(exception)                                    \
+#define __BUILD_clear_sti(exception)					\
 		STI
-#define __BUILD_clear_cli(exception)                                    \
+#define __BUILD_clear_cli(exception)					\
 		CLI
+#define __BUILD_clear_kmode(exception)					\
+		KMODE
 #define __BUILD_clear_fpe(exception)                                    \
 		cfc1	a1,fcr31;                                       \
 		li	a2,~(0x3f<<12);                                 \
@@ -234,15 +285,15 @@ EXPORT(exception_count_##exception);                                    \
 		BUILD_HANDLER(ades,ade,ade,silent)		/* #5  */
 		BUILD_HANDLER(ibe,be,cli,silent)		/* #6  */
 		BUILD_HANDLER(dbe,be,cli,silent)		/* #7  */
-		BUILD_HANDLER(bp,bp,sti,silent)			/* #9  */
-		BUILD_HANDLER(ri,ri,sti,silent)			/* #10 */
-		BUILD_HANDLER(cpu,cpu,sti,silent)		/* #11 */
-		BUILD_HANDLER(ov,ov,sti,silent)			/* #12 */
-		BUILD_HANDLER(tr,tr,sti,silent)			/* #13 */
+		BUILD_HANDLER(bp,bp,kmode,silent)		/* #9  */
+		BUILD_HANDLER(ri,ri,kmode,silent)		/* #10 */
+		BUILD_HANDLER(cpu,cpu,kmode,silent)		/* #11 */
+		BUILD_HANDLER(ov,ov,kmode,silent)		/* #12 */
+		BUILD_HANDLER(tr,tr,kmode,silent)		/* #13 */
 		BUILD_HANDLER(fpe,fpe,fpe,silent)		/* #15 */
 		BUILD_HANDLER(watch,watch,sti,silent)		/* #23 */
 		BUILD_HANDLER(mcheck,mcheck,cli,silent)		/* #24 */
-		BUILD_HANDLER(reserved,reserved,sti,silent)	/* others */
+		BUILD_HANDLER(reserved,reserved,kmode,silent)	/* others */
 
 		.set	pop
 

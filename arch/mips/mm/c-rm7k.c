@@ -78,9 +78,8 @@ static inline void rm7k_flush_cache_all_d32i32(void)
 	/* Yes! Caches that don't suck ...  */
 }
 
-static void rm7k_flush_cache_range_d32i32(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void rm7k_flush_cache_range_d32i32(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
 	/* RM7000 caches are sane ...  */
 }

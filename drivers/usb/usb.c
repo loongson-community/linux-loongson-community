@@ -324,8 +324,9 @@ int usb_check_bandwidth (struct usb_device *dev, struct urb *urb)
 	unsigned int	pipe = urb->pipe;
 	long		bustime;
 
-	bustime = usb_calc_bus_time (usb_pipeslow(pipe), usb_pipein(pipe),
-			usb_pipeisoc(pipe), usb_maxpacket(dev, pipe, usb_pipeout(pipe)));
+	bustime = usb_calc_bus_time (dev->speed == USB_SPEED_LOW,
+			usb_pipein(pipe), usb_pipeisoc(pipe),
+			usb_maxpacket(dev, pipe, usb_pipeout(pipe)));
 	if (usb_pipeisoc(pipe))
 		bustime = NS_TO_US(bustime) / urb->number_of_packets;
 	else
@@ -1073,48 +1074,75 @@ void usb_inc_dev_use(struct usb_device *dev)
  * ----------------------------------------------------------------------*/
 
 /**
- *	usb_alloc_urb - creates a new urb for a USB driver to use
- *	@iso_packets: number of iso packets for this urb
+ * usb_alloc_urb - creates a new urb for a USB driver to use
+ * @iso_packets: number of iso packets for this urb
  *
- *	Creates an urb for the USB driver to use and returns a pointer to it.
- *	If no memory is available, NULL is returned.
+ * Creates an urb for the USB driver to use, initializes a few internal
+ * structures, incrementes the usage counter, and returns a pointer to it.
  *
- *	If the driver want to use this urb for interrupt, control, or bulk
- *	endpoints, pass '0' as the number of iso packets.
+ * If no memory is available, NULL is returned.
  *
- *	The driver should call usb_free_urb() when it is finished with the urb.
+ * If the driver want to use this urb for interrupt, control, or bulk
+ * endpoints, pass '0' as the number of iso packets.
+ *
+ * The driver must call usb_free_urb() when it is finished with the urb.
  */
-urb_t *usb_alloc_urb(int iso_packets)
+struct urb *usb_alloc_urb(int iso_packets)
 {
-	urb_t *urb;
+	struct urb *urb;
 
-	urb = (urb_t *)kmalloc(sizeof(urb_t) + iso_packets * sizeof(iso_packet_descriptor_t),
-	      in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
+	urb = (struct urb *)kmalloc(sizeof(struct urb) + 
+		iso_packets * sizeof(struct usb_iso_packet_descriptor),
+		in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
 	if (!urb) {
 		err("alloc_urb: kmalloc failed");
 		return NULL;
 	}
 
 	memset(urb, 0, sizeof(*urb));
-
+	atomic_inc(&urb->count);
 	spin_lock_init(&urb->lock);
 
 	return urb;
 }
 
 /**
- *	usb_free_urb - frees the memory used by a urb
- *	@urb: pointer to the urb to free
+ * usb_free_urb - frees the memory used by a urb when all users of it are finished
+ * @urb: pointer to the urb to free
  *
- *	If an urb is created with a call to usb_create_urb() it should be
- *	cleaned up with a call to usb_free_urb() when the driver is finished
- *	with it.
+ * Must be called when a user of a urb is finished with it.  When the last user
+ * of the urb calls this function, the memory of the urb is freed.
+ *
+ * Note: The transfer buffer associated with the urb is not freed, that must be
+ * done elsewhere.
  */
-void usb_free_urb(urb_t* urb)
+void usb_free_urb(struct urb *urb)
 {
 	if (urb)
-		kfree(urb);
+		if (atomic_dec_and_test(&urb->count))
+			kfree(urb);
 }
+
+/**
+ * usb_get_urb - incrementes the reference count of the urb
+ * @urb: pointer to the urb to modify
+ *
+ * This must be  called whenever a urb is transfered from a device driver to a
+ * host controller driver.  This allows proper reference counting to happen
+ * for urbs.
+ *
+ * A pointer to the urb with the incremented reference counter is returned.
+ */
+struct urb * usb_get_urb(struct urb *urb)
+{
+	if (urb) {
+		atomic_inc(&urb->count);
+		return urb;
+	} else
+		return NULL;
+}
+		
+		
 /*-------------------------------------------------------------------*/
 
 /**
@@ -1127,7 +1155,7 @@ void usb_free_urb(urb_t* urb)
  * This call may be issued in interrupt context.
  *
  * The caller must have correctly initialized the URB before submitting
- * it.  Macros such as FILL_BULK_URB() and FILL_CONTROL_URB() are
+ * it.  Functions such as usb_fill_bulk_urb() and usb_fill_control_urb() are
  * available to ensure that most fields are correctly initialized, for
  * the particular kind of transfer, although they will not initialize
  * any transfer flags.
@@ -1171,7 +1199,7 @@ void usb_free_urb(urb_t* urb)
  * the periodic request, and bandwidth reservation is being done for
  * this controller, submitting such a periodic request will fail. 
  */
-int usb_submit_urb(urb_t *urb)
+int usb_submit_urb(struct urb *urb)
 {
 	if (urb && urb->dev && urb->dev->bus && urb->dev->bus->op)
 		return urb->dev->bus->op->submit_urb(urb);
@@ -1205,7 +1233,7 @@ int usb_submit_urb(urb_t *urb)
  * and the completion function will see status -ECONNRESET.  Failure is
  * indicated by any other return value.
  */
-int usb_unlink_urb(urb_t *urb)
+int usb_unlink_urb(struct urb *urb)
 {
 	if (urb && urb->dev && urb->dev->bus && urb->dev->bus->op)
 		return urb->dev->bus->op->unlink_urb(urb);
@@ -1221,7 +1249,7 @@ struct usb_api_data {
 	int done;
 };
 
-static void usb_api_blocking_completion(urb_t *urb)
+static void usb_api_blocking_completion(struct urb *urb)
 {
 	struct usb_api_data *awd = (struct usb_api_data *)urb->context;
 
@@ -1231,7 +1259,7 @@ static void usb_api_blocking_completion(urb_t *urb)
 }
 
 // Starts urb and waits for completion or timeout
-static int usb_start_wait_urb(urb_t *urb, int timeout, int* actual_length)
+static int usb_start_wait_urb(struct urb *urb, int timeout, int* actual_length)
 { 
 	DECLARE_WAITQUEUE(wait, current);
 	struct usb_api_data awd;
@@ -1289,7 +1317,7 @@ static int usb_start_wait_urb(urb_t *urb, int timeout, int* actual_length)
 int usb_internal_control_msg(struct usb_device *usb_dev, unsigned int pipe, 
 			    struct usb_ctrlrequest *cmd,  void *data, int len, int timeout)
 {
-	urb_t *urb;
+	struct urb *urb;
 	int retv;
 	int length;
 
@@ -1376,7 +1404,7 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request, __u
 int usb_bulk_msg(struct usb_device *usb_dev, unsigned int pipe, 
 			void *data, int len, int *actual_length, int timeout)
 {
-	urb_t *urb;
+	struct urb *urb;
 
 	if (len < 0)
 		return -EINVAL;
@@ -2252,6 +2280,14 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 		return -EINVAL;
 	}
 
+	/* 9.4.10 says devices don't need this, if the interface
+	   only has one alternate setting */
+	if (iface->num_altsetting == 1) {
+		warn("ignoring set_interface for dev %d, iface %d, alt %d",
+			dev->devnum, interface, alternate);
+		return 0;
+	}
+
 	if ((ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
 	    USB_REQ_SET_INTERFACE, USB_RECIP_INTERFACE, alternate,
 	    interface, NULL, 0, HZ * 5)) < 0)
@@ -2504,6 +2540,53 @@ int usb_string(struct usb_device *dev, int index, char *buf, size_t size)
 	return err;
 }
 
+/**
+ * usb_make_path - returns device path in the hub tree
+ * @dev: the device whose path is being constructed
+ * @buf: where to put the string
+ * @size: how big is "buf"?
+ *
+ * Returns length of the string (>= 0) or out of memory status (< 0).
+ */
+int usb_make_path(struct usb_device *dev, char *buf, size_t size)
+{
+	struct usb_device *pdev = dev->parent;
+	char *tmp;
+	char *port;
+	int i;
+
+	if (!(port = kmalloc(size, GFP_KERNEL)))
+		return -ENOMEM;
+	if (!(tmp = kmalloc(size, GFP_KERNEL))) {
+		kfree(port);
+		return -ENOMEM;
+	}
+
+	*port = 0;
+	while (pdev) {
+		for (i = 0; i < pdev->maxchild; i++)
+			if (pdev->children[i] == dev)
+				break;
+
+		if (pdev->children[i] != dev) {
+			kfree(port);
+			kfree(tmp);
+			return -ENODEV;
+		}
+
+		strcpy(tmp, port);
+		snprintf(port, size, strlen(port) ? "%d.%s" : "%d", i + 1, tmp);
+
+		dev = pdev;
+		pdev = dev->parent;
+	}
+
+	snprintf(buf, size, "usb%d:%s", dev->bus->busnum, port);
+	kfree(port);
+	kfree(tmp);
+	return strlen(buf);
+}
+
 /*
  * By the time we get here, the device has gotten a new device ID
  * and is in the default state. We need to identify the thing and
@@ -2737,6 +2820,7 @@ EXPORT_SYMBOL(usb_get_current_frame_number);
 // asynchronous request completion model
 EXPORT_SYMBOL(usb_alloc_urb);
 EXPORT_SYMBOL(usb_free_urb);
+EXPORT_SYMBOL(usb_get_urb);
 EXPORT_SYMBOL(usb_submit_urb);
 EXPORT_SYMBOL(usb_unlink_urb);
 
@@ -2753,5 +2837,6 @@ EXPORT_SYMBOL(usb_clear_halt);
 EXPORT_SYMBOL(usb_set_configuration);
 EXPORT_SYMBOL(usb_set_interface);
 
+EXPORT_SYMBOL(usb_make_path);
 EXPORT_SYMBOL(usb_devfs_handle);
 MODULE_LICENSE("GPL");

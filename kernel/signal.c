@@ -106,7 +106,7 @@ static void flush_sigqueue(struct sigpending *queue)
 void
 flush_signals(struct task_struct *t)
 {
-	t->sigpending = 0;
+	t->work.sigpending = 0;
 	flush_sigqueue(&t->pending);
 }
 
@@ -120,7 +120,7 @@ void exit_sighand(struct task_struct *tsk)
 		if (atomic_dec_and_test(&sig->count))
 			kmem_cache_free(sigact_cachep, sig);
 	}
-	tsk->sigpending = 0;
+	tsk->work.sigpending = 0;
 	flush_sigqueue(&tsk->pending);
 	spin_unlock_irq(&tsk->sigmask_lock);
 }
@@ -247,7 +247,7 @@ printk("SIG dequeue (%s:%d): %d ", current->comm, current->pid,
 		if (current->notifier) {
 			if (sigismember(current->notifier_mask, sig)) {
 				if (!(current->notifier)(current->notifier_data)) {
-					current->sigpending = 0;
+					current->work.sigpending = 0;
 					return 0;
 				}
 			}
@@ -466,7 +466,7 @@ static int send_signal(int sig, struct siginfo *info, struct sigpending *signals
  */
 static inline void signal_wake_up(struct task_struct *t)
 {
-	t->sigpending = 1;
+	t->work.sigpending = 1;
 
 #ifdef CONFIG_SMP
 	/*

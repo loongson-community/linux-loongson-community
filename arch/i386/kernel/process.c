@@ -42,7 +42,6 @@
 #include <asm/processor.h>
 #include <asm/i387.h>
 #include <asm/desc.h>
-#include <asm/mmu_context.h>
 #ifdef CONFIG_MATH_EMULATION
 #include <asm/math_emu.h>
 #endif
@@ -81,7 +80,7 @@ static void default_idle(void)
 {
 	if (current_cpu_data.hlt_works_ok && !hlt_counter) {
 		__cli();
-		if (!current->need_resched)
+		if (!need_resched())
 			safe_halt();
 		else
 			__sti();
@@ -90,7 +89,7 @@ static void default_idle(void)
 
 /*
  * On SMP it's slightly faster (but much more power-consuming!)
- * to poll the ->need_resched flag instead of waiting for the
+ * to poll the ->work.need_resched flag instead of waiting for the
  * cross-CPU IPI to arrive. Use this option with caution.
  */
 static void poll_idle (void)
@@ -103,15 +102,15 @@ static void poll_idle (void)
 	 * Deal with another CPU just having chosen a thread to
 	 * run here:
 	 */
-	oldval = xchg(&current->need_resched, -1);
+	oldval = xchg(&current->work.need_resched, -1);
 
 	if (!oldval)
 		asm volatile(
 			"2:"
-			"cmpl $-1, %0;"
+			"cmpb $-1, %0;"
 			"rep; nop;"
 			"je 2b;"
-				: :"m" (current->need_resched));
+				: :"m" (current->work.need_resched));
 }
 
 /*
@@ -127,7 +126,7 @@ void cpu_idle (void)
 		void (*idle)(void) = pm_idle;
 		if (!idle)
 			idle = default_idle;
-		while (!current->need_resched)
+		while (!need_resched())
 			idle();
 		schedule();
 		check_pgt_cache();
@@ -690,15 +689,17 @@ void __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	asm volatile("movl %%gs,%0":"=m" (*(int *)&prev->gs));
 
 	/*
-	 * Restore %fs and %gs.
+	 * Restore %fs and %gs if needed.
 	 */
-	loadsegment(fs, next->fs);
-	loadsegment(gs, next->gs);
+	if (unlikely(prev->fs | prev->gs | next->fs | next->gs)) {
+		loadsegment(fs, next->fs);
+		loadsegment(gs, next->gs);
+	}
 
 	/*
 	 * Now maybe reload the debug registers
 	 */
-	if (next->debugreg[7]){
+	if (unlikely(next->debugreg[7])) {
 		loaddebug(next, 0);
 		loaddebug(next, 1);
 		loaddebug(next, 2);
@@ -708,7 +709,7 @@ void __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 		loaddebug(next, 7);
 	}
 
-	if (prev->ioperm || next->ioperm) {
+	if (unlikely(prev->ioperm || next->ioperm)) {
 		if (next->ioperm) {
 			/*
 			 * 4 cachelines copy ... not good, but not that

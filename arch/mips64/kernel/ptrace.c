@@ -262,10 +262,18 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		ret = -EIO;
 		if ((unsigned int) data > _NSIG)
 			break;
-		if (request == PTRACE_SYSCALL)
-			child->ptrace |= PT_TRACESYS;
-		else
-			child->ptrace &= ~PT_TRACESYS;
+		if (request == PTRACE_SYSCALL) {
+			if (!(child->ptrace & PT_SYSCALLTRACE)) {
+				child->ptrace |= PT_SYSCALLTRACE;
+				child->work.syscall_trace++;
+			}
+		}
+		else {
+			if (child->ptrace & PT_SYSCALLTRACE) {
+				child->ptrace &= ~PT_SYSCALLTRACE;
+				child->work.syscall_trace--;
+			}
+		}
 		child->exit_code = data;
 		wake_up_process(child);
 		ret = 0;
@@ -535,10 +543,18 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		ret = -EIO;
 		if ((unsigned long) data > _NSIG)
 			break;
-		if (request == PTRACE_SYSCALL)
-			child->ptrace |= PT_TRACESYS;
-		else
-			child->ptrace &= ~PT_TRACESYS;
+		if (request == PTRACE_SYSCALL) {
+			if (!(child->ptrace & PT_SYSCALLTRACE)) {
+				child->ptrace |= PT_SYSCALLTRACE;
+				child->work.syscall_trace++;
+			}
+		}
+		else {
+			if (child->ptrace & PT_SYSCALLTRACE) {
+				child->ptrace &= ~PT_SYSCALLTRACE;
+				child->work.syscall_trace--;
+			}
+		}
 		child->exit_code = data;
 		wake_up_process(child);
 		ret = 0;
@@ -583,10 +599,29 @@ out:
 	return ret;
 }
 
-asmlinkage void syscall_trace(void)
+struct task_work_bf {
+#ifdef __MIPSEB__
+	signed		need_resched  :8;
+	unsigned	syscall_trace;	/* count of syscall interceptors */
+	unsigned	sigpending;
+	unsigned	notify_resume;	/* request for notification on
+					   userspace execution resumption */
+#endif
+#ifdef __MIPSEL__
+	unsigned	notify_resume : 8;	/* request for notification on
+						   userspace execution
+						   resumption */
+	unsigned	sigpending    : 8;
+	unsigned	syscall_trace : 8;	/* count of syscall
+						   interceptors */
+	signed		need_resched : 8;
+#endif
+};
+
+asmlinkage void do_syscall_trace(void)
 {
-	if ((current->ptrace & (PT_PTRACED|PT_TRACESYS))
-	    != (PT_PTRACED|PT_TRACESYS))
+	if ((current->ptrace & (PT_PTRACED|PT_SYSCALLTRACE))
+	    != (PT_PTRACED|PT_SYSCALLTRACE))
 		return;
 
 	/* The 0x80 provides a way for the tracing parent to distinguish
@@ -604,5 +639,31 @@ asmlinkage void syscall_trace(void)
 	if (current->exit_code) {
 		send_sig(current->exit_code, current, 1);
 		current->exit_code = 0;
+	}
+}
+
+extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
+
+/*
+ * notification of userspace execution resumption
+ * - triggered by current->work.notify_resume
+ */
+asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
+	struct task_work_bf work_pending)
+{
+	/* deal with pending signal delivery */
+	if (work_pending.sigpending) {
+#ifdef CONFIG_BINFMT_ELF32
+		if (likely((current->thread.mflags & MF_32BIT))) {
+			return do_signal32(oldset, regs);
+		}
+#endif
+#ifdef CONFIG_BINFMT_IRIX
+		if (unlikely(current->personality != PER_LINUX)) {
+			do_irix_signal(oldset, regs);
+			return;
+		}
+#endif
+		do_signal(regs,oldset);
 	}
 }

@@ -546,7 +546,6 @@ static __inline__ int rtattr_strcmp(struct rtattr *rta, char *str)
 
 extern int rtattr_parse(struct rtattr *tb[], int maxattr, struct rtattr *rta, int len);
 
-#ifdef CONFIG_RTNETLINK
 extern struct sock *rtnl;
 
 struct rtnetlink_link
@@ -568,12 +567,6 @@ extern void __rta_fill(struct sk_buff *skb, int attrtype, int attrlen, const voi
 
 extern void rtmsg_ifinfo(int type, struct net_device *dev, unsigned change);
 
-#else
-
-#define rtmsg_ifinfo(a,b,c) do { } while (0)
-
-#endif
-
 extern struct semaphore rtnl_sem;
 
 #define rtnl_exlock()		do { } while(0)
@@ -583,23 +576,19 @@ extern struct semaphore rtnl_sem;
 #define rtnl_shlock()		down(&rtnl_sem)
 #define rtnl_shlock_nowait()	down_trylock(&rtnl_sem)
 
-#ifndef CONFIG_RTNETLINK
-#define rtnl_shunlock()	up(&rtnl_sem)
-#else
 #define rtnl_shunlock()	do { up(&rtnl_sem); \
 		             if (rtnl && rtnl->receive_queue.qlen) \
 				     rtnl->data_ready(rtnl, 0); \
 		        } while(0)
-#endif
 
 extern void rtnl_lock(void);
 extern void rtnl_unlock(void);
 extern void rtnetlink_init(void);
 
 #define ASSERT_RTNL() do { if (down_trylock(&rtnl_sem) == 0)  { up(&rtnl_sem); \
-printk("RTNL: assertion failed at " __FILE__ "(%d):" __FUNCTION__ "\n", __LINE__); } \
+printk("RTNL: assertion failed at " __FILE__ "(%d)\n", __LINE__); } \
 		   } while(0);
-#define BUG_TRAP(x) if (!(x)) { printk("KERNEL: assertion (" #x ") failed at " __FILE__ "(%d):" __FUNCTION__ "\n", __LINE__); }
+#define BUG_TRAP(x) if (!(x)) { printk("KERNEL: assertion (" #x ") failed at " __FILE__ "(%d)\n", __LINE__); }
 
 
 #endif /* __KERNEL__ */

@@ -100,11 +100,12 @@ static void tx39_flush_cache_mm(struct mm_struct *mm)
 	}
 }
 
-static void tx39_flush_cache_range(struct mm_struct *mm,
-				    unsigned long start,
-				    unsigned long end)
+static void tx39_flush_cache_range(struct vm_area_cache *vma,
+	unsigned long start, unsigned long end)
 {
-	if(mm->context != 0) {
+	struct mm_struct *mm = vma->vm_mm;
+
+	if (mm->context != 0) {
 		unsigned long flags, config;
 
 #ifdef DEBUG_CACHE

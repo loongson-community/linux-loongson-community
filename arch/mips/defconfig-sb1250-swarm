@@ -5,6 +5,14 @@ CONFIG_MIPS=y
 CONFIG_MIPS32=y
 
 #
+# General setup
+#
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+# CONFIG_SYSCTL is not set
+
+#
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
@@ -96,7 +104,6 @@ CONFIG_CPU_HAS_LLDSCD=y
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 # CONFIG_BINFMT_IRIX is not set
 # CONFIG_FORWARD_KEYBOARD is not set
-CONFIG_NET=y
 # CONFIG_PCI is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
@@ -106,9 +113,6 @@ CONFIG_NET=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
-CONFIG_SYSVIPC=y
-# CONFIG_BSD_PROCESS_ACCT is not set
-# CONFIG_SYSCTL is not set
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 # CONFIG_BINFMT_AOUT is not set
@@ -131,6 +135,7 @@ CONFIG_BINFMT_ELF=y
 #
 # CONFIG_PNP is not set
 # CONFIG_ISAPNP is not set
+# CONFIG_PNPBIOS is not set
 
 #
 # Block devices
@@ -164,9 +169,7 @@ CONFIG_BLK_DEV_RAM_SIZE=9220
 # Networking options
 #
 # CONFIG_PACKET is not set
-CONFIG_NETLINK=y
-CONFIG_RTNETLINK=y
-# CONFIG_NETLINK_DEV is not set
+CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
@@ -450,7 +453,6 @@ CONFIG_LOCKD_V4=y
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 # CONFIG_ZISOFS_FS is not set
-# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types
@@ -474,6 +476,7 @@ CONFIG_MSDOS_PARTITION=y
 # USB Host Controller Drivers
 #
 # CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -595,3 +598,5 @@ CONFIG_CROSSCOMPILE=y
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_ZLIB_INFLATE is not set
+# CONFIG_ZLIB_DEFLATE is not set

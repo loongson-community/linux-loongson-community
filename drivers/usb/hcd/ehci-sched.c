@@ -381,7 +381,7 @@ static int intr_submit (
 			vdbg ("qh %p usecs %d period %d starting frame %d.%d",
 				qh, qh->usecs, period, frame, uframe);
 			do {
-				if (unlikely ((long)ehci->pshadow [frame].ptr)) {
+				if (unlikely (ehci->pshadow [frame].ptr != 0)) {
 // FIXME -- just link to the end, before any qh with a shorter period,
 // AND handle it already being (implicitly) linked into this frame
 					BUG ();
@@ -630,7 +630,7 @@ itd_complete (struct ehci_hcd *ehci, struct ehci_itd *itd, unsigned long flags)
 	if (!(urb->transfer_flags & EHCI_STATE_UNLINK)
 			&& ehci->hcd.state != USB_STATE_HALT) {
 		int			i;
-		iso_packet_descriptor_t	*desc;
+		struct usb_iso_packet_descriptor	*desc;
 		struct ehci_itd		*first_itd = urb->hcpriv;
 
 		/* update status for this frame's transfers */

@@ -54,8 +54,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 	bgez	t0, stackargs
 
 stack_done:
-		ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-		andi	t0, PT_TRACESYS
+		lbu	t0, TASK_SYSCALL_TRACE($28)
+						# syscall tracing enabled?
 		bnez	t0, trace_a_syscall
 
 		jalr	t2			# Do The Real Thing (TM)
@@ -69,36 +69,23 @@ stack_done:
 		sd	v0, PT_R0(sp)		# flag for syscall restarting
 1:		sd	v0, PT_R2(sp)		# result
 
-FEXPORT(o32_ret_from_sys_call)
-		mfc0	t0, CP0_STATUS	# need_resched and signals atomic test
-		ori	t0, t0, 1
-		xori	t0, t0, 1
+FEXPORT(o32_syscall_exit)
+		mfc0	t0, CP0_STATUS		# make need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		ld	t2, TASK_NEED_RESCHED($28)
-		bnez	t2, o32_reschedule
-		lw	v0, TASK_SIGPENDING($28)
-		bnez	v0, signal_return
+		lw	a2, TASK_WORK($28)	# current->work
+		bnez	a2, o32_syscall_exit_work
 
 restore_all:	RESTORE_SOME
 		RESTORE_SP
-		.set	mips3
 		eret
-		.set	mips0
 
-signal_return:	mfc0	t0, CP0_STATUS	# need_resched and signals atomic test
-		ori	t0, t0, 1
-		mtc0	t0, CP0_STATUS
-		move	a0, zero
-		move	a1, sp
+o32_syscall_exit_work:
 		SAVE_STATIC
-		jal	do_signal
-
-o32_reschedule:
-		SAVE_STATIC
-		jal	schedule
-		b	o32_ret_from_sys_call
+		j	syscall_exit_work
 
 /* ------------------------------------------------------------------------ */
 
@@ -110,7 +97,7 @@ trace_a_syscall:
 	sd	a7, PT_R11(sp)
 
 	sd	t2,PT_R1(sp)
-	jal	syscall_trace
+	jal	do_syscall_trace
 	ld	t2,PT_R1(sp)
 
 	ld	a0, PT_R4(sp)		# Restore argument registers
@@ -131,8 +118,7 @@ trace_a_syscall:
 	sd	v0, PT_R0(sp)		# set flag for syscall restarting
 1:	sd	v0, PT_R2(sp)		# result
 
-	jal	syscall_trace
-	j	o32_ret_from_sys_call
+	j	syscall_exit
 
 /* ------------------------------------------------------------------------ */
 
@@ -171,74 +157,76 @@ stackargs:
 	 * The stackpointer for a call with more than 4 arguments is bad.
 	 */
 bad_stack:
-	negu	v0				# error
-	sd	v0, PT_R0(sp)
-	sd	v0, PT_R2(sp)
-	li	t0, 1				# set error flag
-	sd	t0, PT_R7(sp)
-	j	ret_from_sys_call
+		negu	v0			# error
+		sd	v0, PT_R0(sp)
+		sd	v0, PT_R2(sp)
+		li	t0, 1			# set error flag
+		sd	t0, PT_R7(sp)
+		j	o32_syscall_exit
 
 not_o32_scall:
-	/* This is not an 32-bit compatibility syscall, pass it on to
-	   the 64-bit syscall handlers.  */
-	j	handle_sys64
+		/*
+		 * This is not an 32-bit compatibility syscall, pass it on
+		 * to the 64-bit syscall handlers.
+		 */
+		j	handle_sys64
 
 illegal_syscall:
-	/* This also isn't a 64-bit syscall, throw an error.  */
-	li	v0, ENOSYS			# error
-	sd	v0, PT_R2(sp)
-	li	t0, 1				# set error flag
-	sd	t0, PT_R7(sp)
-	j	ret_from_sys_call
-	END(handle_sys)
+		/* This also isn't a 64-bit syscall, throw an error.  */
+		li	v0, ENOSYS		# error
+		sd	v0, PT_R2(sp)
+		li	t0, 1			# set error flag
+		sd	t0, PT_R7(sp)
+		j	o32_syscall_exit
+		END(handle_sys)
 
-	LEAF(mips_atomic_set)
-	andi	v0, a1, 3			# must be word aligned
-	bnez	v0, bad_alignment
+LEAF(mips_atomic_set)
+		andi	v0, a1, 3		# must be word aligned
+		bnez	v0, bad_alignment
 
-	ld	v1, THREAD_CURDS($28)		# in legal address range?
-	daddiu	a0, a1, 4
-	or	a0, a0, a1
-	and	a0, a0, v1
-	bltz	a0, bad_address
+		ld	v1, THREAD_CURDS($28)	# in legal address range?
+		daddiu	a0, a1, 4
+		or	a0, a0, a1
+		and	a0, a0, v1
+		bltz	a0, bad_address
 
-	/* Ok, this is the ll/sc case.  World is sane :-)  */
-1:	ll	v0, (a1)
-	move	a0, a2
-2:	sc	a0, (a1)
-	beqz	a0, 1b
+		/* Ok, this is the ll/sc case.  World is sane :-)  */
+1:		ll	v0, (a1)
+		move	a0, a2
+2:		sc	a0, (a1)
+		beqz	a0, 1b
 
-	.section __ex_table,"a"
-	PTR	1b, bad_stack
-	PTR	2b, bad_stack
-	.previous
+		.section __ex_table,"a"
+		PTR	1b, bad_stack
+		PTR	2b, bad_stack
+		.previous
 
-1:	sd	v0, PT_R2(sp)		# result
+1:		sd	v0, PT_R2(sp)		# result
 
-	/* Success, so skip usual error handling garbage.  */
-	ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-	andi	t0, PT_TRACESYS
-	bnez	t0, 1f
-	b	o32_ret_from_sys_call
+		/* Success, so skip usual error handling garbage.  */
+		lbu	t0, TASK_SYSCALL_TRACE($28)
+						# syscall tracing enabled?
+		bnez	t0, 1f
+		b	o32_syscall_exit
 
-1:	SAVE_STATIC
-	jal	syscall_trace
-	li	a3, 0			# success
-	j	ret_from_sys_call
+1:		SAVE_STATIC
+		jal	do_syscall_trace
+		li	a3, 0			# success
+		j	syscall_exit
 
 bad_address:
-	li	v0, -EFAULT
-	jr	ra
+		li	v0, -EFAULT
+		jr	ra
 
 bad_alignment:
-	li	v0, -EINVAL
-	jr	ra
-	END(mips_atomic_set)
+		li	v0, -EINVAL
+		jr	ra
+		END(mips_atomic_set)
 
-	LEAF(sys32_sysmips)
-	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
-	j	sys_sysmips
-	END(sys32_sysmips)
+LEAF(sys32_sysmips)
+		beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
+		j	sys_sysmips
+		END(sys32_sysmips)
 
 	.macro	syscalltable
 	sys	sys_syscall	0			/* 4000 */

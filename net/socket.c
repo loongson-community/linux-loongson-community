@@ -67,6 +67,8 @@
 #include <linux/netdevice.h>
 #include <linux/proc_fs.h>
 #include <linux/wanrouter.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 #include <linux/init.h>
 #include <linux/poll.h>
 #include <linux/cache.h>
@@ -79,11 +81,7 @@
 
 #include <asm/uaccess.h>
 
-#include <linux/inet.h>
-#include <net/ip.h>
 #include <net/sock.h>
-#include <net/tcp.h>
-#include <net/udp.h>
 #include <net/scm.h>
 #include <linux/netfilter.h>
 
@@ -280,16 +278,17 @@ static struct super_operations sockfs_ops = {
 
 static struct super_block * sockfs_read_super(struct super_block *sb, void *data, int silent)
 {
-	struct inode *root = new_inode(sb);
+	struct inode *root;
+	sb->s_blocksize = 1024;
+	sb->s_blocksize_bits = 10;
+	sb->s_magic = SOCKFS_MAGIC;
+	sb->s_op	= &sockfs_ops;
+	root = new_inode(sb);
 	if (!root)
 		return NULL;
 	root->i_mode = S_IFDIR | S_IRUSR | S_IWUSR;
 	root->i_uid = root->i_gid = 0;
 	root->i_atime = root->i_mtime = root->i_ctime = CURRENT_TIME;
-	sb->s_blocksize = 1024;
-	sb->s_blocksize_bits = 10;
-	sb->s_magic = SOCKFS_MAGIC;
-	sb->s_op	= &sockfs_ops;
 	sb->s_root = d_alloc(NULL, &(const struct qstr) { "socket:", 7, 0 });
 	if (!sb->s_root) {
 		iput(root);
@@ -439,11 +438,11 @@ struct socket *sock_alloc(void)
 	struct inode * inode;
 	struct socket * sock;
 
-	inode = get_empty_inode();
+	inode = new_inode(sock_mnt->mnt_sb);
 	if (!inode)
 		return NULL;
 
-	inode->i_sb = sock_mnt->mnt_sb;
+	inode->i_dev = NODEV;
 	sock = socki_lookup(inode);
 
 	inode->i_mode = S_IFSOCK|S_IRWXUGO;
@@ -1723,7 +1722,7 @@ void __init sock_init(void)
 	 * The netlink device handler may be needed early.
 	 */
 
-#ifdef  CONFIG_RTNETLINK
+#ifdef CONFIG_NET
 	rtnetlink_init();
 #endif
 #ifdef CONFIG_NETLINK_DEV

@@ -444,7 +444,7 @@ static int control_mmap(struct fb_info *info, struct file *file,
        		return -EINVAL;
        off += start;
        vma->vm_pgoff = off >> PAGE_SHIFT;
-       if (io_remap_page_range(vma->vm_start, off,
+       if (io_remap_page_range(vma, vma->vm_start, off,
            vma->vm_end - vma->vm_start, vma->vm_page_prot))
                return -EAGAIN;
 
@@ -1376,7 +1376,7 @@ static void control_set_dispsw(struct display *disp, int cmode, struct fb_info_c
 static void __init control_init_info(struct fb_info *info, struct fb_info_control *p)
 {
 	strcpy(info->modename, "control");
-	info->node = -1;	/* ??? danj */
+	info->node = NODEV;
 	info->fbops = &controlfb_ops;
 	info->disp = &p->display;
 	strcpy(info->fontname, fontname);

@@ -588,6 +588,13 @@ D: USB Bluetooth Driver
 S: University of Michigan
 S: Ann Arbor, MI
 
+N: Michael Cornwell
+E: cornwell@acm.org
+D: Original designer and co-author of ATA Taskfile
+D: Kernel module SMART utilities
+S: Santa Cruz, California
+S: USA
+
 N: Kees Cook
 E: cook@cpoint.net
 W: http://outflux.net/
@@ -1186,22 +1193,19 @@ D: Selection mechanism
 
 N: Andre Hedrick
 E: andre@linux-ide.org
-E: andre@aslab.com
-E: andre@suse.com
+E: andre@linuxdiskcert.org
 W: http://www.linux-ide.org/
+W: http://www.linuxdiskcert.org/
 D: Random SMP kernel hacker...
 D: Uniform Multi-Platform E-IDE driver
 D: Active-ATA-Chipset maddness..........
-D: Ultra DMA 100/66/33
-D: ATA-Disconnect
+D: Ultra DMA 133/100/66/33 w/48-bit Addressing
+D: ATA-Disconnect, ATA-TCQ
 D: ATA-Smart Kernel Daemon
+D: Serial ATA
+D: ATA Command Block and Taskfile
 S: Linux ATA Development (LAD)
 S: Concord, CA
-S: ASL, Inc. 1-877-ASL-3535
-S: 1757 Houret Court, Milpitas, CA 95035
-S: SuSE Linux, Inc.
-S: 580 Second Street, Suite 210  Oakland, CA  94607
-S: USA
 
 N: Jochen Hein
 E: jochen@jochen.org
@@ -1276,6 +1280,13 @@ E: jauderho@carumba.com
 W: http://www.carumba.com/
 D: bug toaster (A1 sauce makes all the difference)
 D: Random linux hacker
+
+N: Tim Hockin
+E: thockin@hockin.org
+W: http://www.hockin.org/~thockin
+D: Natsemi ethernet
+D: Cobalt Networks (x86) support
+D: This-and-That
 
 N: Dirk Hohndel
 E: hohndel@suse.de
@@ -1447,11 +1458,10 @@ S: USA
 
 N: Dave Jones
 E: davej@suse.de
-W: http://www.suse.de/~davej
-D: Moved PCI bridge tuning to userspace (Powertweak).
-D: Various x86 (& clones) setup code hacking.
-D: AFFS fixes for 2.3.x
-D: Various Janitorial hacks. (kernel-janitor.sourceforge.net)
+W: http://www.codemonkey.org.uk
+D: x86 errata/setup maintenance.
+D: Backport/Forwardport merge monkey.
+D: Various Janitor work.
 S: c/o SuSE Linux UK Ltd
 S: The Kinetic Centre
 S: Theobald Street
@@ -1656,6 +1666,13 @@ S: ul. Matemblewska 1B/10
 S: 80-283 Gdansk
 S: Poland
 
+N: Jakob Kemi
+E: jakob.kemi@telia.com
+D: V4L W9966 Webcam driver
+S: Forsbyvägen 33
+S: 74143 Knivsta
+S: Sweden
+
 N: Gero Kuhlmann
 E: gero@gkminix.han.de
 D: mounting root via NFS
@@ -1827,6 +1844,11 @@ D: Console-mouse-tracking patches
 S: Puistokaari 1 E 18
 S: 00200 Helsinki
 S: Finland
+
+N: Daniel J. Maas
+E: dmaas@dcine.com
+W: http://www.maasdigital.com
+D: dv1394
 
 N: Hamish Macdonald
 E: hamishm@lucent.com
@@ -2522,7 +2544,7 @@ S: Wanniassa ACT 2903
 S: Australia
 
 N: Gerard Roudier
-E: groudier@iplus.fr
+E: groudier@free.fr
 D: Contributed to asynchronous read-ahead improvement
 S: 21 Rue Carnot
 S: 95170 Deuil La Barre

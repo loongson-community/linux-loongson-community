@@ -258,7 +258,6 @@ void flush_tlb_mm(struct mm_struct *mm)
 }
 
 struct flush_tlb_data {
-	struct mm_struct *mm;
 	struct vm_area_struct *vma;
 	unsigned long addr1;
 	unsigned long addr2;

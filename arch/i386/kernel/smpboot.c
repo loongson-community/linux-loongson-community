@@ -435,6 +435,7 @@ void __init smp_callin(void)
 	 */
  	smp_store_cpu_info(cpuid);
 
+	disable_APIC_timer();
 	/*
 	 * Allow the master to continue.
 	 */
@@ -465,13 +466,13 @@ int __init start_secondary(void *unused)
 	smp_callin();
 	while (!atomic_read(&smp_commenced))
 		rep_nop();
+	enable_APIC_timer();
 	/*
 	 * low-memory mappings have been cleared, flush them from
 	 * the local TLBs too.
 	 */
 	local_flush_tlb();
 
-	init_idle();
 	return cpu_idle();
 }
 
@@ -804,7 +805,7 @@ static void __init do_boot_cpu (int apicid)
 	if (!idle)
 		panic("No idle process for CPU %d", cpu);
 
-	idle->cpu = cpu;
+	init_idle(idle, cpu);
 
 	map_cpu_to_boot_apicid(cpu, apicid);
 
@@ -923,6 +924,7 @@ static void __init do_boot_cpu (int apicid)
 }
 
 cycles_t cacheflush_time;
+unsigned long cache_decay_ticks;
 
 static void smp_tune_scheduling (void)
 {
@@ -956,9 +958,13 @@ static void smp_tune_scheduling (void)
 		cacheflush_time = (cpu_khz>>10) * (cachesize<<10) / bandwidth;
 	}
 
+	cache_decay_ticks = (long)cacheflush_time/cpu_khz * HZ / 1000;
+
 	printk("per-CPU timeslice cutoff: %ld.%02ld usecs.\n",
 		(long)cacheflush_time/(cpu_khz/1000),
 		((long)cacheflush_time*100/(cpu_khz/1000)) % 100);
+	printk("task migration cache decay timeout: %ld msecs.\n",
+		(cache_decay_ticks + 1) * 1000 / HZ);
 }
 
 /*
@@ -1017,7 +1023,7 @@ void __init smp_boot_cpus(void)
 	boot_cpu_logical_apicid = logical_smp_processor_id();
 	map_cpu_to_boot_apicid(0, boot_cpu_apicid);
 
-	global_irq_holder = 0;
+	global_irq_holder = NO_PROC_ID;
 	current->cpu = 0;
 	smp_tune_scheduling();
 

@@ -34,7 +34,7 @@ extern asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs);
 extern asmlinkage int save_fp_context(struct sigcontext *sc);
 extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
-extern asmlinkage void syscall_trace(void);
+extern asmlinkage void do_syscall_trace(void);
 
 /* 32-bit compatibility types */
 
@@ -365,11 +365,11 @@ asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->ptrace & PT_TRACESYS)
-		syscall_trace();
+	if (current->work.need_resched)
+		do_syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\to32_ret_from_sys_call"
+		"j\to32_syscall_exit"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */
@@ -410,7 +410,7 @@ asmlinkage void sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	 */
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\to32_ret_from_sys_call"
+		"j\to32_syscall_exit"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */

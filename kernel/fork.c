@@ -21,6 +21,7 @@
 #include <linux/completion.h>
 #include <linux/namespace.h>
 #include <linux/personality.h>
+#include <linux/file.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -630,7 +631,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	}
 	spin_lock_init(&p->alloc_lock);
 
-	p->sigpending = 0;
+	p->work.sigpending = 0;
 	init_sigpending(&p->pending);
 
 	p->it_real_value = p->it_virt_value = p->it_prof_value = 0;
@@ -646,11 +647,10 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	{
 		int i;
 
-		p->cpu = smp_processor_id();
-
 		/* ?? should we just memset this ?? */
 		for(i = 0; i < smp_num_cpus; i++)
-			p->per_cpu_utime[i] = p->per_cpu_stime[i] = 0;
+			p->per_cpu_utime[cpu_logical_map(i)] =
+				p->per_cpu_stime[cpu_logical_map(i)] = 0;
 		spin_lock_init(&p->sigmask_lock);
 	}
 #endif
@@ -703,9 +703,13 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		 * runqueue lock is not a problem.
 		 */
 		current->time_slice = 1;
-		expire_task(current);
+		scheduler_tick(current);
 	}
+	p->sleep_timestamp = jiffies;
 	__restore_flags(flags);
+
+	if (p->policy == SCHED_OTHER)
+		p->prio = MAX_PRIO - 1 - ((MAX_PRIO - 1 - p->prio) * 1) / 3;
 
 	/*
 	 * Ok, add it to the run-queues and make it
@@ -742,23 +746,16 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 	if (p->ptrace & PT_PTRACED)
 		send_sig(SIGSTOP, p, 1);
 
-#define RUN_CHILD_FIRST 1
-#if RUN_CHILD_FIRST
 	wake_up_forked_process(p);		/* do this last */
-#else
-	wake_up_process(p);			/* do this last */
-#endif
 	++total_forks;
 	if (clone_flags & CLONE_VFORK)
 		wait_for_completion(&vfork);
-#if RUN_CHILD_FIRST
 	else
 		/*
 		 * Let the child process run first, to avoid most of the
 		 * COW overhead when the child exec()s afterwards.
 		 */
-		current->need_resched = 1;
-#endif
+		current->work.need_resched = 1;
 
 fork_out:
 	return retval;

@@ -344,7 +344,7 @@ static void params_changed(struct usb_vicam *vicam)
 	synchronize(vicam);
 	mdelay(10);
 	vicam_parameters(vicam);
-	printk("Submiting urb: %d\n", usb_submit_urb(&vicam->readurb));
+	printk("Submiting urb: %d\n", usb_submit_urb(vicam->readurb));
 #endif
 }
 
@@ -468,29 +468,23 @@ static int vicam_v4l_open(struct video_device *vdev, int flags)
 	int err = 0;
 	
 	dbg("vicam_v4l_open");
-
-	MOD_INC_USE_COUNT; 
+ 
 	down(&vicam->sem);
 
-	if (vicam->open_count)		/* Maybe not needed? */
-		err = -EBUSY;
+	vicam->fbuf = rvmalloc(vicam->maxframesize * VICAM_NUMFRAMES);
+	if (!vicam->fbuf)
+		err=-ENOMEM;
 	else {
-		vicam->fbuf = rvmalloc(vicam->maxframesize * VICAM_NUMFRAMES);
-		if (!vicam->fbuf)
-			err=-ENOMEM;
-		else {
-			vicam->open_count = 1;
-		}
-#ifdef BLINKING
-		vicam_sndctrl(1, vicam, VICAM_REQ_CAMERA_POWER, 0x01, NULL, 0);
-		info ("led on");
-		vicam_sndctrl(1, vicam, VICAM_REQ_LED_CONTROL, 0x01, NULL, 0);
-#endif
+		vicam->open_count = 1;
 	}
+#ifdef BLINKING
+	vicam_sndctrl(1, vicam, VICAM_REQ_CAMERA_POWER, 0x01, NULL, 0);
+	info ("led on");
+	vicam_sndctrl(1, vicam, VICAM_REQ_LED_CONTROL, 0x01, NULL, 0);
+#endif
 
 	up(&vicam->sem);
-	if (err)
-		MOD_DEC_USE_COUNT;
+	
 	return err;
 }
 
@@ -515,7 +509,6 @@ static void vicam_v4l_close(struct video_device *vdev)
 	up(&vicam->sem);
 	/* Why does se401.c have a usbdevice check here? */
 	/* If device is unplugged while open, I guess we only may unregister now */
-	MOD_DEC_USE_COUNT;
 }
 
 static long vicam_v4l_read(struct video_device *vdev, char *user_buf, unsigned long buflen, int noblock)
@@ -670,7 +663,7 @@ static int vicam_v4l_ioctl(struct video_device *vdev, unsigned int cmd, void *ar
         return ret;
 }
 
-static int vicam_v4l_mmap(struct video_device *dev, const char *adr, unsigned long size)
+static int vicam_v4l_mmap(struct vm_area_struct *vma, struct video_device *dev, const char *adr, unsigned long size)
 {
 	struct usb_vicam *vicam = (struct usb_vicam *)dev;
 	unsigned long start = (unsigned long)adr;
@@ -691,7 +684,7 @@ static int vicam_v4l_mmap(struct video_device *dev, const char *adr, unsigned lo
 	pos = (unsigned long)vicam->fbuf;
 	while (size > 0) {
 		page = kvirt_to_pa(pos);
-		if (remap_page_range(start, page, PAGE_SIZE, PAGE_SHARED)) {
+		if (remap_page_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
 			up(&vicam->sem);
 			return -EAGAIN;
 		}
@@ -717,6 +710,7 @@ static int vicam_v4l_init(struct video_device *dev)
 
 /* FIXME - vicam_template - important */
 static struct video_device vicam_template = {
+	owner:		THIS_MODULE,
 	name:		"vicam USB camera",
 	type:		VID_TYPE_CAPTURE,
 	hardware:	VID_HARDWARE_SE401, /* need to ask for own id */
@@ -847,9 +841,9 @@ static int vicam_init(struct usb_vicam *vicam)
 
 	vicam_parameters(vicam);
 
-	FILL_BULK_URB(&vicam->readurb, vicam->udev, usb_rcvbulkpipe(vicam->udev, 0x81),
+	FILL_BULK_URB(vicam->readurb, vicam->udev, usb_rcvbulkpipe(vicam->udev, 0x81),
 		      buf, 0x1e480, vicam_bulk, vicam);
-	printk("Submiting urb: %d\n", usb_submit_urb(&vicam->readurb));
+	printk("Submiting urb: %d\n", usb_submit_urb(vicam->readurb));
 
 	return 0;
 error:
@@ -883,7 +877,13 @@ static void * __devinit vicam_probe(struct usb_device *udev, unsigned int ifnum,
 		return NULL;
 	}
 	memset(vicam, 0, sizeof(*vicam));
-	
+
+	vicam->readurb = usb_alloc_urb(0);
+	if (!vicam->readurb) {
+		kfree(vicam);
+		return NULL;
+	}
+
 	vicam->udev = udev;
 	vicam->camera_name = camera_name;
 	vicam->win.brightness = 128;
@@ -931,6 +931,7 @@ static void vicam_disconnect(struct usb_device *udev, void *ptr)
 
 	if (!vicam->open_count) {
 		/* Other random junk */
+		usb_free_urb(vicam->readurb);
 		kfree(vicam);
 		vicam = NULL;
 	}
@@ -938,6 +939,7 @@ static void vicam_disconnect(struct usb_device *udev, void *ptr)
 
 /* usb specific object needed to register this driver with the usb subsystem */
 static struct usb_driver vicam_driver = {
+	owner:		THIS_MODULE,
 	name:		"vicam",
 	probe:		vicam_probe,
 	disconnect:	vicam_disconnect,
@@ -984,3 +986,4 @@ static void __exit usb_vicam_exit(void)
 
 module_init(usb_vicam_init);
 module_exit(usb_vicam_exit);
+

@@ -8,17 +8,8 @@
 
 #include <linux/sched.h>
 #include <linux/locks.h>
-#include <linux/fs.h>
 #include <linux/msdos_fs.h>
-#include <linux/errno.h>
-#include <linux/fcntl.h>
-#include <linux/stat.h>
-#include <linux/string.h>
-#include <linux/pagemap.h>
 #include <linux/fat_cvf.h>
-
-#include <asm/uaccess.h>
-#include <asm/system.h>
 
 #define PRINTK(x)
 #define Printk(x) printk x
@@ -65,8 +56,11 @@ int fat_get_block(struct inode *inode, sector_t iblock, struct buffer_head *bh_r
 		return -EIO;
 	}
 	if (!(iblock % MSDOS_SB(inode->i_sb)->cluster_size)) {
-		if (fat_add_cluster(inode) < 0)
-			return -ENOSPC;
+		int error;
+
+		error = fat_add_cluster(inode);
+		if (error < 0)
+			return error;
 	}
 	MSDOS_I(inode)->mmu_private += sb->s_blocksize;
 	phys = fat_bmap(inode, iblock);

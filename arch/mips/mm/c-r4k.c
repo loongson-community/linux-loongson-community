@@ -120,12 +120,10 @@ static inline void r4k_flush_cache_all_d32i32(void)
 	blast_dcache32(); blast_icache32();
 }
 
-static void
-r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
-                                unsigned long start,
-                                unsigned long end)
+static void r4k_flush_cache_range_s16d16i16(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -156,12 +154,10 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 	}
 }
 
-static void
-r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
-                                unsigned long start,
-                                unsigned long end)
+static void r4k_flush_cache_range_s32d16i16(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -192,11 +188,11 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
+static void r4k_flush_cache_range_s64d16i16(struct vm_area_struct *vma,
 					    unsigned long start,
 					    unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -227,11 +223,11 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
+static void r4k_flush_cache_range_s128d16i16(struct vm_area_struct *vma,
 					     unsigned long start,
 					     unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -262,11 +258,11 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
+static void r4k_flush_cache_range_s32d32i32(struct vm_area_struct *vma,
 					    unsigned long start,
 					    unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -297,11 +293,10 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
-					    unsigned long start,
-					    unsigned long end)
+static void r4k_flush_cache_range_s64d32i32(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -332,11 +327,11 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
+static void r4k_flush_cache_range_s128d32i32(struct vm_area_struct *vma,
 					     unsigned long start,
 					     unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 
 	if (mm->context == 0)
 		return;
@@ -367,10 +362,11 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void r4k_flush_cache_range_d16i16(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != 0) {
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
@@ -379,10 +375,11 @@ static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
 	}
 }
 
-static void r4k_flush_cache_range_d32i32(struct mm_struct *mm,
-					 unsigned long start,
-					 unsigned long end)
+static void r4k_flush_cache_range_d32i32(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != 0) {
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);

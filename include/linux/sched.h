@@ -25,6 +25,7 @@ extern unsigned long event;
 #include <linux/signal.h>
 #include <linux/securebits.h>
 #include <linux/fs_struct.h>
+#include <linux/compiler.h>
 
 struct exec_domain;
 
@@ -136,16 +137,21 @@ struct completion;
 extern rwlock_t tasklist_lock;
 extern spinlock_t mmlist_lock;
 
+typedef struct task_struct task_t;
+
 extern void sched_init(void);
-extern void init_idle(void);
+extern void init_idle(task_t *idle, int cpu);
 extern void show_state(void);
 extern void cpu_init (void);
 extern void trap_init(void);
 extern void update_process_times(int user);
 extern void update_one_process(struct task_struct *p, unsigned long user,
 			       unsigned long system, int cpu);
-extern void expire_task(struct task_struct *p);
-extern void idle_tick(void);
+extern void scheduler_tick(struct task_struct *p);
+extern void sched_task_migrated(struct task_struct *p);
+extern void smp_migrate_task(int cpu, task_t *task);
+extern unsigned long cache_decay_ticks;
+
 
 #define	MAX_SCHEDULE_TIMEOUT	LONG_MAX
 extern signed long FASTCALL(schedule_timeout(signed long timeout));
@@ -156,44 +162,7 @@ extern void flush_scheduled_tasks(void);
 extern int start_context_thread(void);
 extern int current_is_keventd(void);
 
-/*
- * The default fd array needs to be at least BITS_PER_LONG,
- * as this is the granularity returned by copy_fdset().
- */
-#define NR_OPEN_DEFAULT BITS_PER_LONG
-
 struct namespace;
-/*
- * Open file table structure
- */
-struct files_struct {
-	atomic_t count;
-	rwlock_t file_lock;	/* Protects all the below members.  Nests inside tsk->alloc_lock */
-	int max_fds;
-	int max_fdset;
-	int next_fd;
-	struct file ** fd;	/* current fd array */
-	fd_set *close_on_exec;
-	fd_set *open_fds;
-	fd_set close_on_exec_init;
-	fd_set open_fds_init;
-	struct file * fd_array[NR_OPEN_DEFAULT];
-};
-
-#define INIT_FILES \
-{ 							\
-	count:		ATOMIC_INIT(1), 		\
-	file_lock:	RW_LOCK_UNLOCKED, 		\
-	max_fds:	NR_OPEN_DEFAULT, 		\
-	max_fdset:	__FD_SETSIZE, 			\
-	next_fd:	0, 				\
-	fd:		&init_files.fd_array[0], 	\
-	close_on_exec:	&init_files.close_on_exec_init, \
-	open_fds:	&init_files.open_fds_init, 	\
-	close_on_exec_init: { { 0, } }, 		\
-	open_fds_init:	{ { 0, } }, 			\
-	fd_array:	{ NULL, } 			\
-}
 
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
@@ -230,29 +199,12 @@ struct mm_struct {
 
 extern int mmlist_nr;
 
-#define INIT_MM(name) \
-{			 				\
-	mm_rb:		RB_ROOT,			\
-	pgd:		swapper_pg_dir, 		\
-	mm_users:	ATOMIC_INIT(2), 		\
-	mm_count:	ATOMIC_INIT(1), 		\
-	mmap_sem:	__RWSEM_INITIALIZER(name.mmap_sem), \
-	page_table_lock: SPIN_LOCK_UNLOCKED, 		\
-	mmlist:		LIST_HEAD_INIT(name.mmlist),	\
-}
-
 struct signal_struct {
 	atomic_t		count;
 	struct k_sigaction	action[_NSIG];
 	spinlock_t		siglock;
 };
 
-
-#define INIT_SIGNALS {	\
-	count:		ATOMIC_INIT(1), 		\
-	action:		{ {{0,}}, }, 			\
-	siglock:	SPIN_LOCK_UNLOCKED 		\
-}
 
 /*
  * Some day this will be a full-fledged user tracking system..
@@ -275,8 +227,16 @@ struct user_struct {
 extern struct user_struct root_user;
 #define INIT_USER (&root_user)
 
-typedef struct task_struct task_t;
 typedef struct prio_array prio_array_t;
+
+/* this struct must occupy one 32-bit chunk so that is can be read in one go */
+struct task_work {
+	__s8	need_resched;
+	__u8	syscall_trace;	/* count of syscall interceptors */
+	__u8	sigpending;
+	__u8	notify_resume;	/* request for notification on
+				   userspace execution resumption */
+} __attribute__((packed));
 
 struct task_struct {
 	/*
@@ -284,13 +244,14 @@ struct task_struct {
 	 */
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	unsigned long flags;	/* per process flags, defined below */
-	int sigpending;
+	volatile struct task_work work;
+
 	mm_segment_t addr_limit;	/* thread address space:
 					 	0-0xBFFFFFFF for user-thead
 						0-0xFFFFFFFF for kernel-thread
 					 */
 	struct exec_domain *exec_domain;
-	volatile long need_resched;
+	long __pad;
 	unsigned long ptrace;
 
 	int lock_depth;		/* Lock depth */
@@ -305,7 +266,9 @@ struct task_struct {
 	prio_array_t *array;
 
 	unsigned int time_slice;
-	unsigned long sleep_jtime;
+
+	unsigned long sleep_avg;
+	unsigned long sleep_timestamp;
 
 	unsigned long policy;
 	unsigned long cpus_allowed;
@@ -428,7 +391,7 @@ struct task_struct {
  */
 
 #define PT_PTRACED	0x00000001
-#define PT_TRACESYS	0x00000002
+#define PT_SYSCALLTRACE	0x00000002	/* T if syscall_trace is +1 for ptrace() */
 #define PT_DTRACE	0x00000004	/* delayed trace (used on m68k, i386) */
 #define PT_TRACESYSGOOD	0x00000008
 #define PT_PTRACE_CAP	0x00000010	/* ptracer can follow suid-exec */
@@ -444,56 +407,58 @@ struct task_struct {
  * them out at 128 to make it easier to search the
  * scheduler bitmap.
  */
-#define MAX_RT_PRIO	128
+#define MAX_RT_PRIO		128
 /*
  * The lower the priority of a process, the more likely it is
  * to run. Priority of a process goes from 0 to 167. The 0-99
  * priority range is allocated to RT tasks, the 128-167 range
  * is for SCHED_OTHER tasks.
  */
-#define MAX_PRIO	(MAX_RT_PRIO+40)
-#define DEF_USER_NICE	0
+#define MAX_PRIO		(MAX_RT_PRIO + 40)
 
 /*
  * Scales user-nice values [ -20 ... 0 ... 19 ]
- * to static priority [ 24 ... 63 (MAX_PRIO-1) ]
+ * to static priority [ 128 ... 167 (MAX_PRIO-1) ]
  *
- * User-nice value of -20 == static priority 24, and
- * user-nice value 19 == static priority 63. The lower
+ * User-nice value of -20 == static priority 128, and
+ * user-nice value 19 == static priority 167. The lower
  * the priority value, the higher the task's priority.
+ */
+#define NICE_TO_PRIO(n)		(MAX_RT_PRIO + (n) + 20)
+#define DEF_USER_NICE		0
+
+/*
+ * Default timeslice is 150 msecs, maximum is 300 msecs.
+ * Minimum timeslice is 10 msecs.
  *
- * Note that while static priority cannot go below 24,
- * the priority of a process can go as low as 0.
+ * These are the 'tuning knobs' of the scheduler:
  */
-#define NICE_TO_PRIO(n)	(MAX_PRIO-1 + (n) - 19)
+#define MIN_TIMESLICE		( 10 * HZ / 1000)
+#define MAX_TIMESLICE		(300 * HZ / 1000)
+#define CHILD_FORK_PENALTY	95
+#define PARENT_FORK_PENALTY	100
+#define EXIT_WEIGHT		3
+#define PRIO_INTERACTIVE_RATIO	20
+#define PRIO_CPU_HOG_RATIO	60
+#define PRIO_BONUS_RATIO	70
+#define INTERACTIVE_DELTA	3
+#define MAX_SLEEP_AVG		(2*HZ)
+#define STARVATION_LIMIT	(2*HZ)
 
-#define DEF_PRIO NICE_TO_PRIO(DEF_USER_NICE)
+#define USER_PRIO(p)		((p)-MAX_RT_PRIO)
+#define MAX_USER_PRIO		(USER_PRIO(MAX_PRIO))
 
 /*
- * Default timeslice is 90 msecs, maximum is 150 msecs.
- * Minimum timeslice is 20 msecs.
- */
-#define MIN_TIMESLICE	( 20 * HZ / 1000)
-#define MAX_TIMESLICE	(150 * HZ / 1000)
-
-#define USER_PRIO(p) ((p)-MAX_RT_PRIO)
-#define MAX_USER_PRIO (USER_PRIO(MAX_PRIO))
-
-/*
- * PRIO_TO_TIMESLICE scales priority values [ 100 ... 139  ]
- * to initial time slice values [ MAX_TIMESLICE (150 msec) ... 2 ]
+ * NICE_TO_TIMESLICE scales nice values [ -20 ... 19 ]
+ * to time slice values.
  *
  * The higher a process's priority, the bigger timeslices
  * it gets during one round of execution. But even the lowest
  * priority process gets MIN_TIMESLICE worth of execution time.
  */
-#define PRIO_TO_TIMESLICE(p) \
-	((( (MAX_USER_PRIO-1-USER_PRIO(p))*(MAX_TIMESLICE-MIN_TIMESLICE) + \
-		MAX_USER_PRIO-1) / MAX_USER_PRIO) + MIN_TIMESLICE)
 
-#define RT_PRIO_TO_TIMESLICE(p) \
-	((( (MAX_RT_PRIO-(p)-1)*(MAX_TIMESLICE-MIN_TIMESLICE) + \
-			MAX_RT_PRIO-1) / MAX_RT_PRIO) + MIN_TIMESLICE)
+#define NICE_TO_TIMESLICE(n) (MIN_TIMESLICE + \
+	((MAX_TIMESLICE - MIN_TIMESLICE) * (19-(n))) / 39)
 
 extern void set_cpus_allowed(task_t *p, unsigned long new_mask);
 extern void set_user_nice(task_t *p, long nice);
@@ -504,53 +469,6 @@ asmlinkage long sys_sched_yield(void);
  * The default (Linux) execution domain.
  */
 extern struct exec_domain	default_exec_domain;
-
-/*
- *  INIT_TASK is used to set up the first task table, touch at
- * your own risk!. Base=0, limit=0x1fffff (=2MB)
- */
-#define INIT_TASK(tsk)	\
-{									\
-    state:		0,						\
-    flags:		0,						\
-    sigpending:		0,						\
-    addr_limit:		KERNEL_DS,					\
-    exec_domain:	&default_exec_domain,				\
-    lock_depth:		-1,						\
-    __nice:		DEF_USER_NICE,					\
-    policy:		SCHED_OTHER,					\
-    cpus_allowed:	-1,						\
-    mm:			NULL,						\
-    active_mm:		&init_mm,					\
-    run_list:		LIST_HEAD_INIT(tsk.run_list),			\
-    time_slice:		PRIO_TO_TIMESLICE(DEF_PRIO),			\
-    next_task:		&tsk,						\
-    prev_task:		&tsk,						\
-    p_opptr:		&tsk,						\
-    p_pptr:		&tsk,						\
-    thread_group:	LIST_HEAD_INIT(tsk.thread_group),		\
-    wait_chldexit:	__WAIT_QUEUE_HEAD_INITIALIZER(tsk.wait_chldexit),\
-    real_timer:		{						\
-	function:		it_real_fn				\
-    },									\
-    cap_effective:	CAP_INIT_EFF_SET,				\
-    cap_inheritable:	CAP_INIT_INH_SET,				\
-    cap_permitted:	CAP_FULL_SET,					\
-    keep_capabilities:	0,						\
-    rlim:		INIT_RLIMITS,					\
-    user:		INIT_USER,					\
-    comm:		"swapper",					\
-    thread:		INIT_THREAD,					\
-    fs:			&init_fs,					\
-    files:		&init_files,					\
-    sigmask_lock:	SPIN_LOCK_UNLOCKED,				\
-    sig:		&init_signals,					\
-    pending:		{ NULL, &tsk.pending.head, {{0}}},		\
-    blocked:		{{0}},						\
-    alloc_lock:		SPIN_LOCK_UNLOCKED,				\
-    journal_info:	NULL,						\
-}
-
 
 #ifndef INIT_TASK_SIZE
 # define INIT_TASK_SIZE	2048*sizeof(long)
@@ -671,7 +589,18 @@ extern int do_sigaltstack(const stack_t *, stack_t *, unsigned long);
 
 static inline int signal_pending(struct task_struct *p)
 {
-	return (p->sigpending != 0);
+	return (p->work.sigpending != 0);
+}
+  
+static inline int need_resched(void)
+{
+	return unlikely(current->work.need_resched != 0);
+}
+
+static inline void cond_resched(void)
+{
+	if (need_resched())
+		schedule();
 }
 
 /*
@@ -710,7 +639,7 @@ static inline int has_pending_signals(sigset_t *signal, sigset_t *blocked)
 
 static inline void recalc_sigpending(struct task_struct *t)
 {
-	t->sigpending = has_pending_signals(&t->pending.signal, &t->blocked);
+	t->work.sigpending = has_pending_signals(&t->pending.signal, &t->blocked);
 }
 
 /* True if we are on the alternate signal stack.  */

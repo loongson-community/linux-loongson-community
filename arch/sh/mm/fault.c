@@ -207,8 +207,7 @@ no_context:
 out_of_memory:
 	up_read(&mm->mmap_sem);
 	if (current->pid == 1) {
-		current->policy |= SCHED_YIELD;
-		schedule();
+		yield();
 		down_read(&mm->mmap_sem);
 		goto survive;
 	}
@@ -248,6 +247,8 @@ asmlinkage int __do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
 	if (address >= P3SEG && address < P4SEG)
 		dir = pgd_offset_k(address);
 	else if (address >= TASK_SIZE)
+		return 1;
+	else if (!current->mm)
 		return 1;
 	else
 		dir = pgd_offset(current->mm, address);
@@ -374,9 +375,11 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 }
 
-void flush_tlb_range(struct mm_struct *mm, unsigned long start,
+void flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		     unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != NO_CONTEXT) {
 		unsigned long flags;
 		int size;

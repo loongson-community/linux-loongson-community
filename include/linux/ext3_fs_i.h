@@ -28,7 +28,6 @@ struct ext3_inode_info {
 	__u32	i_faddr;
 	__u8	i_frag_no;
 	__u8	i_frag_size;
-	__u16	unused;			/* formerly i_osync */
 #endif
 	__u32	i_file_acl;
 	__u32	i_dir_acl;
@@ -73,6 +72,7 @@ struct ext3_inode_info {
 	 * by other means, so we have truncate_sem.
 	 */
 	struct rw_semaphore truncate_sem;
+	struct inode vfs_inode;
 };
 
 #endif	/* _LINUX_EXT3_FS_I */

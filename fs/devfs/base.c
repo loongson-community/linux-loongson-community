@@ -1,6 +1,6 @@
 /*  devfs (Device FileSystem) driver.
 
-    Copyright (C) 1998-2001  Richard Gooch
+    Copyright (C) 1998-2002  Richard Gooch
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -604,6 +604,14 @@
     20020113   Richard Gooch <rgooch@atnf.csiro.au>
 	       Fixed (rare, old) race in <devfs_lookup>.
   v1.9
+    20020120   Richard Gooch <rgooch@atnf.csiro.au>
+	       Fixed deadlock bug in <devfs_d_revalidate_wait>.
+	       Tag VFS deletable in <devfs_mk_symlink> if handle ignored.
+  v1.10
+    20020129   Richard Gooch <rgooch@atnf.csiro.au>
+	       Added KERN_* to remaining messages.
+	       Cleaned up declaration of <stat_read>.
+  v1.11
 */
 #include <linux/types.h>
 #include <linux/errno.h>
@@ -636,7 +644,7 @@
 #include <asm/bitops.h>
 #include <asm/atomic.h>
 
-#define DEVFS_VERSION            "1.9 (20020113)"
+#define DEVFS_VERSION            "1.11 (20020129)"
 
 #define DEVFS_NAME "devfs"
 
@@ -781,7 +789,7 @@ struct devfs_entry
     umode_t mode;
     unsigned short namelen;      /*  I think 64k+ filenames are a way off... */
     unsigned char hide:1;
-    unsigned char vfs_created:1; /*  Whether created by driver or VFS        */
+    unsigned char vfs_deletable:1;/*  Whether the VFS may delete the entry   */
     char name[1];                /*  This is just a dummy: the allocated array
 				     is bigger. This is NULL-terminated      */
 };
@@ -844,8 +852,8 @@ static int devfsd_ioctl (struct inode *inode, struct file *file,
 			 unsigned int cmd, unsigned long arg);
 static int devfsd_close (struct inode *inode, struct file *file);
 #ifdef CONFIG_DEVFS_DEBUG
-static int stat_read (struct file *file, char *buf, size_t len,
-			    loff_t *ppos);
+static ssize_t stat_read (struct file *file, char *buf, size_t len,
+			  loff_t *ppos);
 static struct file_operations stat_fops =
 {
     read:    stat_read,
@@ -1774,7 +1782,8 @@ int devfs_mk_symlink (devfs_handle_t dir, const char *name, unsigned int flags,
     DPRINTK (DEBUG_REGISTER, "(%s)\n", name);
     err = devfs_do_symlink (dir, name, flags, link, &de, info);
     if (err) return err;
-    if (handle != NULL) *handle = de;
+    if (handle == NULL) de->vfs_deletable = TRUE;
+    else *handle = de;
     devfsd_notify (de, DEVFSD_NOTIFY_REGISTERED, flags & DEVFS_FL_WAIT);
     return 0;
 }   /*  End Function devfs_mk_symlink  */
@@ -1817,7 +1826,7 @@ devfs_handle_t devfs_mk_dir (devfs_handle_t dir, const char *name, void *info)
 	{
 	    PRINTK ("(%s): using old entry in dir: %p \"%s\"\n",
 		    name, dir, dir->name);
-	    old->vfs_created = FALSE;
+	    old->vfs_deletable = FALSE;
 	    devfs_put (dir);
 	    return old;
 	}
@@ -2426,10 +2435,10 @@ static int check_disc_changed (struct devfs_entry *de)
     if (bdops->check_media_change == NULL) goto out;
     if ( !bdops->check_media_change (dev) ) goto out;
     retval = 1;
-    printk ( KERN_DEBUG "VFS: Disk change detected on device %s\n",
+    printk (KERN_DEBUG "VFS: Disk change detected on device %s\n",
 	     kdevname (dev) );
-    if (invalidate_device(dev, 0))
-	printk("VFS: busy inodes on changed media..\n");
+    if ( invalidate_device (dev, 0) )
+	printk (KERN_WARNING "VFS: busy inodes on changed media..\n");
     /*  Ugly hack to disable messages about unable to read partition table  */
     tmp = warn_no_part;
     warn_no_part = 0;
@@ -2878,13 +2887,16 @@ static int devfs_d_revalidate_wait (struct dentry *dentry, int flags)
     struct devfs_lookup_struct *lookup_info = dentry->d_fsdata;
     DECLARE_WAITQUEUE (wait, current);
 
-    if ( !dentry->d_inode && is_devfsd_or_child (fs_info) )
+    if ( is_devfsd_or_child (fs_info) )
     {
 	devfs_handle_t de = lookup_info->de;
 	struct inode *inode;
 
-	DPRINTK (DEBUG_I_LOOKUP, "(%s): dentry: %p de: %p by: \"%s\"\n",
-		 dentry->d_name.name, dentry, de, current->comm);
+	DPRINTK (DEBUG_I_LOOKUP,
+		 "(%s): dentry: %p inode: %p de: %p by: \"%s\"\n",
+		 dentry->d_name.name, dentry, dentry->d_inode, de,
+		 current->comm);
+	if (dentry->d_inode) return 1;
 	if (de == NULL)
 	{
 	    read_lock (&parent->u.dir.lock);
@@ -3015,7 +3027,7 @@ static int devfs_unlink (struct inode *dir, struct dentry *dentry)
     de = get_devfs_entry_from_vfs_inode (inode);
     DPRINTK (DEBUG_I_UNLINK, "(%s): de: %p\n", dentry->d_name.name, de);
     if (de == NULL) return -ENOENT;
-    if (!de->vfs_created) return -EPERM;
+    if (!de->vfs_deletable) return -EPERM;
     write_lock (&de->parent->u.dir.lock);
     unhooked = _devfs_unhook (de);
     write_unlock (&de->parent->u.dir.lock);
@@ -3044,7 +3056,7 @@ static int devfs_symlink (struct inode *dir, struct dentry *dentry,
     DPRINTK (DEBUG_DISABLED, "(%s): errcode from <devfs_do_symlink>: %d\n",
 	     dentry->d_name.name, err);
     if (err < 0) return err;
-    de->vfs_created = TRUE;
+    de->vfs_deletable = TRUE;
     de->inode.uid = current->euid;
     de->inode.gid = current->egid;
     de->inode.atime = CURRENT_TIME;
@@ -3073,7 +3085,7 @@ static int devfs_mkdir (struct inode *dir, struct dentry *dentry, int mode)
     if (parent == NULL) return -ENOENT;
     de = _devfs_alloc_entry (dentry->d_name.name, dentry->d_name.len, mode);
     if (!de) return -ENOMEM;
-    de->vfs_created = TRUE;
+    de->vfs_deletable = TRUE;
     if ( ( err = _devfs_append_entry (parent, de, FALSE, NULL) ) != 0 )
 	return err;
     de->inode.uid = current->euid;
@@ -3103,7 +3115,7 @@ static int devfs_rmdir (struct inode *dir, struct dentry *dentry)
     de = get_devfs_entry_from_vfs_inode (inode);
     if (de == NULL) return -ENOENT;
     if ( !S_ISDIR (de->mode) ) return -ENOTDIR;
-    if (!de->vfs_created) return -EPERM;
+    if (!de->vfs_deletable) return -EPERM;
     /*  First ensure the directory is empty and will stay thay way  */
     write_lock (&de->u.dir.lock);
     de->u.dir.no_more_additions = TRUE;
@@ -3137,7 +3149,7 @@ static int devfs_mknod (struct inode *dir, struct dentry *dentry, int mode,
     if (parent == NULL) return -ENOENT;
     de = _devfs_alloc_entry (dentry->d_name.name, dentry->d_name.len, mode);
     if (!de) return -ENOMEM;
-    de->vfs_created = TRUE;
+    de->vfs_deletable = TRUE;
     if ( S_ISBLK (mode) || S_ISCHR (mode) )
     {
 	de->u.fcb.u.device.major = MAJOR (rdev);
@@ -3229,7 +3241,7 @@ static struct super_block *devfs_read_super (struct super_block *sb,
     return sb;
 
 out_no_root:
-    printk ("devfs_read_super: get root inode failed\n");
+    PRINTK ("(): get root inode failed\n");
     if (root_inode) iput (root_inode);
     return NULL;
 }   /*  End Function devfs_read_super  */
@@ -3456,7 +3468,7 @@ static int __init init_devfs_fs (void)
 {
     int err;
 
-    printk ("%s: v%s Richard Gooch (rgooch@atnf.csiro.au)\n",
+    printk (KERN_INFO "%s: v%s Richard Gooch (rgooch@atnf.csiro.au)\n",
 	    DEVFS_NAME, DEVFS_VERSION);
     devfsd_buf_cache = kmem_cache_create ("devfsd_event",
 					  sizeof (struct devfsd_buf_entry),
@@ -3464,9 +3476,9 @@ static int __init init_devfs_fs (void)
     if (!devfsd_buf_cache) OOPS ("(): unable to allocate event slab\n");
 #ifdef CONFIG_DEVFS_DEBUG
     devfs_debug = devfs_debug_init;
-    printk ("%s: devfs_debug: 0x%0x\n", DEVFS_NAME, devfs_debug);
+    printk (KERN_INFO "%s: devfs_debug: 0x%0x\n", DEVFS_NAME, devfs_debug);
 #endif
-    printk ("%s: boot_options: 0x%0x\n", DEVFS_NAME, boot_options);
+    printk (KERN_INFO "%s: boot_options: 0x%0x\n", DEVFS_NAME, boot_options);
     err = register_filesystem (&devfs_fs_type);
     if (!err)
     {
@@ -3483,8 +3495,8 @@ void __init mount_devfs_fs (void)
 
     if ( !(boot_options & OPTION_MOUNT) ) return;
     err = do_mount ("none", "/dev", "devfs", 0, "");
-    if (err == 0) printk ("Mounted devfs on /dev\n");
-    else printk ("Warning: unable to mount devfs, err: %d\n", err);
+    if (err == 0) printk (KERN_INFO "Mounted devfs on /dev\n");
+    else PRINTK ("(): unable to mount devfs, err: %d\n", err);
 }   /*  End Function mount_devfs_fs  */
 
 module_init(init_devfs_fs)

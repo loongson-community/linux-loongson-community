@@ -262,7 +262,7 @@ struct buffer_head {
 
 	wait_queue_head_t b_wait;
 
-	struct inode *	     b_inode;
+	int b_inode;				/* will go away */
 	struct list_head     b_inode_buffers;	/* doubly linked list of inode dirty buffers */
 };
 
@@ -287,32 +287,9 @@ extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long
 
 
 #include <linux/pipe_fs_i.h>
-#include <linux/minix_fs_i.h>
-#include <linux/ext2_fs_i.h>
-#include <linux/ext3_fs_i.h>
-#include <linux/hpfs_fs_i.h>
-#include <linux/ntfs_fs_i.h>
-#include <linux/msdos_fs_i.h>
-#include <linux/umsdos_fs_i.h>
-#include <linux/iso_fs_i.h>
-#include <linux/nfs_fs_i.h>
-#include <linux/sysv_fs_i.h>
-#include <linux/affs_fs_i.h>
-#include <linux/ufs_fs_i.h>
-#include <linux/efs_fs_i.h>
-#include <linux/coda_fs_i.h>
+/* #include <linux/umsdos_fs_i.h> */
 #include <linux/romfs_fs_i.h>
-#include <linux/shmem_fs.h>
-#include <linux/smb_fs_i.h>
-#include <linux/hfs_fs_i.h>
-#include <linux/adfs_fs_i.h>
-#include <linux/qnx4_fs_i.h>
-#include <linux/reiserfs_fs_i.h>
-#include <linux/bfs_fs_i.h>
-#include <linux/udf_fs_i.h>
-#include <linux/ncp_fs_i.h>
 #include <linux/proc_fs_i.h>
-#include <linux/jffs2_fs_i.h>
 #include <linux/cramfs_fs_sb.h>
 
 /*
@@ -476,36 +453,19 @@ struct inode {
 	unsigned int		i_attr_flags;
 	__u32			i_generation;
 	union {
-		struct minix_inode_info		minix_i;
-		struct ext2_inode_info		ext2_i;
-		struct ext3_inode_info		ext3_i;
-		struct hpfs_inode_info		hpfs_i;
-		struct ntfs_inode_info		ntfs_i;
-		struct msdos_inode_info		msdos_i;
-		struct umsdos_inode_info	umsdos_i;
-		struct iso_inode_info		isofs_i;
-		struct nfs_inode_info		nfs_i;
-		struct sysv_inode_info		sysv_i;
-		struct affs_inode_info		affs_i;
-		struct ufs_inode_info		ufs_i;
-		struct efs_inode_info		efs_i;
+		/* struct umsdos_inode_info	umsdos_i; */
 		struct romfs_inode_info		romfs_i;
-		struct shmem_inode_info		shmem_i;
-		struct coda_inode_info		coda_i;
-		struct smb_inode_info		smbfs_i;
-		struct hfs_inode_info		hfs_i;
-		struct adfs_inode_info		adfs_i;
-		struct qnx4_inode_info		qnx4_i;
-		struct reiserfs_inode_info	reiserfs_i;
-		struct bfs_inode_info		bfs_i;
-		struct udf_inode_info		udf_i;
-		struct ncp_inode_info		ncpfs_i;
 		struct proc_inode_info		proc_i;
 		struct socket			socket_i;
-		struct jffs2_inode_info		jffs2_i;
 		void				*generic_ip;
 	} u;
 };
+
+#include <linux/shmem_fs.h>
+/* will die */
+#include <linux/coda_fs_i.h>
+#include <linux/ext3_fs_i.h>
+#include <linux/efs_fs_i.h>
 
 struct fown_struct {
 	int pid;		/* pid or -pgrp where SIGIO should be sent */
@@ -562,6 +522,9 @@ extern int init_private_file(struct file *, struct dentry *, int);
  * Lockd stuffs a "host" pointer into this.
  */
 typedef struct files_struct *fl_owner_t;
+
+/* that will die - we need it for nfs_lock_info */
+#include <linux/nfs_fs_i.h>
 
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
@@ -850,6 +813,10 @@ struct inode_operations {
 	int (*revalidate) (struct dentry *);
 	int (*setattr) (struct dentry *, struct iattr *);
 	int (*getattr) (struct dentry *, struct iattr *);
+	int (*setxattr) (struct dentry *, char *, void *, size_t, int);
+	int (*getxattr) (struct dentry *, char *, void *, size_t);
+	int (*listxattr) (struct dentry *, char *, size_t);
+	int (*removexattr) (struct dentry *, char *);
 };
 
 struct seq_file;
@@ -859,6 +826,9 @@ struct seq_file;
  * without the big kernel lock held in all filesystems.
  */
 struct super_operations {
+   	struct inode *(*alloc_inode)(struct super_block *sb);
+	void (*destroy_inode)(struct inode *);
+
 	void (*read_inode) (struct inode *);
   
   	/* reiserfs kludge.  reiserfs needs 64 bits of information to
@@ -1151,7 +1121,16 @@ static inline void mark_buffer_clean(struct buffer_head * bh)
 extern void FASTCALL(__mark_dirty(struct buffer_head *bh));
 extern void FASTCALL(__mark_buffer_dirty(struct buffer_head *bh));
 extern void FASTCALL(mark_buffer_dirty(struct buffer_head *bh));
-extern void FASTCALL(buffer_insert_inode_data_queue(struct buffer_head *, struct inode *));
+extern void FASTCALL(buffer_insert_list(struct buffer_head *, struct list_head *));
+
+static inline void buffer_insert_inode_queue(struct buffer_head *bh, struct inode *inode)
+{
+	buffer_insert_list(bh, &inode->i_dirty_buffers);
+}
+static inline void buffer_insert_inode_data_queue(struct buffer_head *bh, struct inode *inode)
+{
+	buffer_insert_list(bh, &inode->i_dirty_data_buffers);
+}
 
 #define atomic_set_buffer_dirty(bh) test_and_set_bit(BH_Dirty, &(bh)->b_state)
 
@@ -1219,10 +1198,16 @@ extern int fsync_dev(kdev_t);
 extern int fsync_super(struct super_block *);
 extern int fsync_no_super(struct block_device *);
 extern void sync_inodes_sb(struct super_block *);
-extern int osync_inode_buffers(struct inode *);
-extern int osync_inode_data_buffers(struct inode *);
-extern int fsync_inode_buffers(struct inode *);
-extern int fsync_inode_data_buffers(struct inode *);
+extern int osync_buffers_list(struct list_head *);
+extern int fsync_buffers_list(struct list_head *);
+static inline int fsync_inode_buffers(struct inode *inode)
+{
+	return fsync_buffers_list(&inode->i_dirty_buffers);
+}
+static inline int fsync_inode_data_buffers(struct inode *inode)
+{
+	return fsync_buffers_list(&inode->i_dirty_data_buffers);
+}
 extern int inode_has_buffers(struct inode *);
 extern void filemap_fdatasync(struct address_space *);
 extern void filemap_fdatawait(struct address_space *);
@@ -1327,6 +1312,7 @@ extern struct dentry * lookup_hash(struct qstr *, struct dentry *);
 #define user_path_walk(name,nd)	 __user_walk(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, nd)
 #define user_path_walk_link(name,nd) __user_walk(name, LOOKUP_POSITIVE, nd)
 
+extern void inode_init_once(struct inode *);
 extern void iput(struct inode *);
 extern void force_delete(struct inode *);
 extern struct inode * igrab(struct inode *);
@@ -1340,20 +1326,8 @@ static inline struct inode *iget(struct super_block *sb, unsigned long ino)
 }
 
 extern void clear_inode(struct inode *);
-extern struct inode * get_empty_inode(void);
-
-static inline struct inode * new_inode(struct super_block *sb)
-{
-	struct inode *inode = get_empty_inode();
-	if (inode) {
-		inode->i_sb = sb;
-		inode->i_dev = sb->s_dev;
-		inode->i_blkbits = sb->s_blocksize_bits;
-	}
-	return inode;
-}
+extern struct inode *new_inode(struct super_block *);
 extern void remove_suid(struct inode *inode);
-
 extern void insert_inode_hash(struct inode *);
 extern void remove_inode_hash(struct inode *);
 extern struct file * get_empty_filp(void);
@@ -1458,6 +1432,7 @@ extern int block_read_full_page(struct page*, get_block_t*);
 extern int block_prepare_write(struct page*, unsigned, unsigned, get_block_t*);
 extern int cont_prepare_write(struct page*, unsigned, unsigned, get_block_t*,
 				unsigned long *);
+extern int generic_cont_expand(struct inode *inode, loff_t size) ;
 extern int block_commit_write(struct page *page, unsigned from, unsigned to);
 extern int block_sync_page(struct page *);
 

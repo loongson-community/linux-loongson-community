@@ -116,6 +116,7 @@ EXPORT_SYMBOL(sk_alloc);
 EXPORT_SYMBOL(sk_free);
 EXPORT_SYMBOL(sock_wake_async);
 EXPORT_SYMBOL(sock_alloc_send_skb);
+EXPORT_SYMBOL(sock_alloc_send_pskb);
 EXPORT_SYMBOL(sock_init_data);
 EXPORT_SYMBOL(sock_no_release);
 EXPORT_SYMBOL(sock_no_bind);
@@ -291,6 +292,8 @@ EXPORT_SYMBOL(icmpv6_send);
 EXPORT_SYMBOL(ndisc_mc_map);
 EXPORT_SYMBOL(register_inet6addr_notifier);
 EXPORT_SYMBOL(unregister_inet6addr_notifier);
+#include <net/ip6_route.h>
+EXPORT_SYMBOL(ip6_route_output);
 #endif
 #if defined (CONFIG_IPV6_MODULE) || defined (CONFIG_KHTTPD) || defined (CONFIG_KHTTPD_MODULE)
 /* inet functions common to v4 and v6 */
@@ -406,7 +409,6 @@ EXPORT_SYMBOL(secure_ipv6_id);
 
 #endif
 
-#ifdef CONFIG_NETLINK
 EXPORT_SYMBOL(netlink_set_err);
 EXPORT_SYMBOL(netlink_broadcast);
 EXPORT_SYMBOL(netlink_unicast);
@@ -418,9 +420,7 @@ EXPORT_SYMBOL(netlink_attach);
 EXPORT_SYMBOL(netlink_detach);
 EXPORT_SYMBOL(netlink_post);
 #endif
-#endif
 
-#ifdef CONFIG_RTNETLINK
 EXPORT_SYMBOL(rtattr_parse);
 EXPORT_SYMBOL(rtnetlink_links);
 EXPORT_SYMBOL(__rta_fill);
@@ -430,7 +430,6 @@ EXPORT_SYMBOL(rtnl);
 EXPORT_SYMBOL(neigh_delete);
 EXPORT_SYMBOL(neigh_add);
 EXPORT_SYMBOL(neigh_dump_info);
-#endif
 
 EXPORT_SYMBOL(dev_set_allmulti);
 EXPORT_SYMBOL(dev_set_promiscuity);
@@ -522,6 +521,10 @@ EXPORT_SYMBOL(if_port_text);
 EXPORT_SYMBOL(hippi_type_trans);
 #endif
 
+#ifdef CONFIG_NET_FASTROUTE
+EXPORT_SYMBOL(netdev_fastroute);
+#endif
+
 #ifdef CONFIG_SYSCTL
 EXPORT_SYMBOL(sysctl_wmem_max);
 EXPORT_SYMBOL(sysctl_rmem_max);
@@ -553,9 +556,7 @@ EXPORT_SYMBOL(qdisc_kill_estimator);
 EXPORT_SYMBOL(tcf_police);
 EXPORT_SYMBOL(tcf_police_locate);
 EXPORT_SYMBOL(tcf_police_destroy);
-#ifdef CONFIG_RTNETLINK
 EXPORT_SYMBOL(tcf_police_dump);
-#endif
 #endif
 #endif
 #ifdef CONFIG_NET_CLS

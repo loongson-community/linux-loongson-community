@@ -5,6 +5,14 @@ CONFIG_MIPS=y
 CONFIG_MIPS64=y
 
 #
+# General setup
+#
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+CONFIG_SYSCTL=y
+
+#
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
@@ -56,7 +64,6 @@ CONFIG_CPU_HAS_LLDSCD=y
 #
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 CONFIG_ARC_CONSOLE=y
-CONFIG_NET=y
 # CONFIG_PCI is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
@@ -65,9 +72,6 @@ CONFIG_NET=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
-CONFIG_SYSVIPC=y
-# CONFIG_BSD_PROCESS_ACCT is not set
-CONFIG_SYSCTL=y
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 CONFIG_BINFMT_ELF=y
@@ -90,6 +94,7 @@ CONFIG_BINFMT_ELF32=y
 #
 # CONFIG_PNP is not set
 # CONFIG_ISAPNP is not set
+# CONFIG_PNPBIOS is not set
 
 #
 # Block devices
@@ -123,8 +128,6 @@ CONFIG_BINFMT_ELF32=y
 #
 CONFIG_PACKET=y
 CONFIG_PACKET_MMAP=y
-CONFIG_NETLINK=y
-CONFIG_RTNETLINK=y
 CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
@@ -396,6 +399,13 @@ CONFIG_INDYDOG=y
 # CONFIG_VIDEO_DEV is not set
 
 #
+# SGI Character devices
+#
+CONFIG_SGI_NEWPORT_CONSOLE=y
+CONFIG_FONT_8x16=y
+CONFIG_DUMMY_CONSOLE=y
+
+#
 # File systems
 #
 # CONFIG_QUOTA is not set
@@ -468,7 +478,6 @@ CONFIG_LOCKD=y
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 # CONFIG_ZISOFS_FS is not set
-# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types
@@ -492,17 +501,6 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_NLS is not set
 
 #
-# Console drivers
-#
-
-#
-# Frame-buffer support
-#
-# CONFIG_FB is not set
-CONFIG_SGI_NEWPORT_CONSOLE=y
-CONFIG_FONT_8x16=y
-
-#
 # Sound
 #
 # CONFIG_SOUND is not set
@@ -524,6 +522,7 @@ CONFIG_SGI_DS1286=y
 # USB Host Controller Drivers
 #
 # CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -642,3 +641,5 @@ CONFIG_CROSSCOMPILE=y
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_ZLIB_INFLATE is not set
+# CONFIG_ZLIB_DEFLATE is not set

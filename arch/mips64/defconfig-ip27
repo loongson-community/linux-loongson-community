@@ -5,6 +5,14 @@ CONFIG_MIPS=y
 CONFIG_MIPS64=y
 
 #
+# General setup
+#
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+CONFIG_SYSCTL=y
+
+#
 # Code maturity level options
 #
 # CONFIG_EXPERIMENTAL is not set
@@ -57,7 +65,6 @@ CONFIG_CPU_HAS_LLDSCD=y
 #
 # CONFIG_MIPS_INSANE_LARGE is not set
 # CONFIG_CPU_LITTLE_ENDIAN is not set
-CONFIG_NET=y
 CONFIG_PCI_NAMES=y
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
@@ -66,9 +73,6 @@ CONFIG_PCI_NAMES=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
-CONFIG_SYSVIPC=y
-# CONFIG_BSD_PROCESS_ACCT is not set
-CONFIG_SYSCTL=y
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 CONFIG_BINFMT_ELF=y
@@ -124,8 +128,6 @@ CONFIG_BINFMT_ELF32=y
 #
 CONFIG_PACKET=y
 CONFIG_PACKET_MMAP=y
-CONFIG_NETLINK=y
-CONFIG_RTNETLINK=y
 CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
@@ -462,7 +464,6 @@ CONFIG_LOCKD_V4=y
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 # CONFIG_ZISOFS_FS is not set
-# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types
@@ -499,6 +500,7 @@ CONFIG_SGI_PARTITION=y
 # USB Host Controller Drivers
 #
 # CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -616,3 +618,5 @@ CONFIG_CROSSCOMPILE=y
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_ZLIB_INFLATE is not set
+# CONFIG_ZLIB_DEFLATE is not set

@@ -7,19 +7,7 @@ define_bool CONFIG_MIPS32 y
 
 mainmenu_name "Linux/MIPS Kernel Configuration"
 
-mainmenu_option next_comment
-comment 'Code maturity level options'
-bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
-endmenu
-
-mainmenu_option next_comment
-comment 'Loadable module support'
-bool 'Enable loadable module support' CONFIG_MODULES
-if [ "$CONFIG_MODULES" = "y" ]; then
-   bool '  Set version information on all module symbols' CONFIG_MODVERSIONS
-   bool '  Kernel module loader' CONFIG_KMOD
-fi
-endmenu
+source init/Config.in
 
 mainmenu_option next_comment
 comment 'Machine selection'
@@ -400,8 +388,6 @@ if [ "$CONFIG_ARC32" = "y" ]; then
    bool 'ARC console support' CONFIG_ARC_CONSOLE
 fi
 
-bool 'Networking support' CONFIG_NET
-
 if [ "$CONFIG_PCI" != "y" ]; then
    define_bool CONFIG_PCI n
 fi
@@ -431,9 +417,6 @@ else
    define_bool CONFIG_HOTPLUG_PCI n
 fi
 
-bool 'System V IPC' CONFIG_SYSVIPC
-bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
-bool 'Sysctl support' CONFIG_SYSCTL
 define_bool CONFIG_KCORE_ELF y
 define_bool CONFIG_KCORE_AOUT n
 define_bool CONFIG_BINFMT_AOUT n

@@ -28,8 +28,8 @@ static void andes_flush_cache_mm(struct mm_struct *mm)
 {
 }
 
-static void andes_flush_cache_range(struct mm_struct *mm, unsigned long start,
-                                    unsigned long end)
+static void andes_flush_cache_range(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
 }
 

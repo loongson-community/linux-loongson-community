@@ -8,11 +8,6 @@
 
 #include <linux/fs.h>
 #include <linux/msdos_fs.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
 
 #if 0
 #  define PRINTK(x)	printk x
@@ -38,15 +33,25 @@ static char ascii_extensions[] =
  * read-only. The file system can be made writable again by remounting it.
  */
 
-void fat_fs_panic(struct super_block *s,const char *msg)
+static char panic_msg[512];
+
+void fat_fs_panic(struct super_block *s, const char *fmt, ...)
 {
 	int not_ro;
+	va_list args;
+
+	va_start (args, fmt);
+	vsnprintf (panic_msg, sizeof(panic_msg), fmt, args);
+	va_end (args);
 
 	not_ro = !(s->s_flags & MS_RDONLY);
-	if (not_ro) s->s_flags |= MS_RDONLY;
-	printk("Filesystem panic (dev %s).\n  %s\n", s->s_id, msg);
 	if (not_ro)
-		printk("  File system has been set read-only\n");
+		s->s_flags |= MS_RDONLY;
+
+	printk("FAT: Filesystem panic (dev %s)\n"
+	       "    %s\n", s->s_id, panic_msg);
+	if (not_ro)
+		printk("    File system has been set read-only\n");
 }
 
 
@@ -102,13 +107,14 @@ void fat_clusters_flush(struct super_block *sb)
 	/* Sanity check */
 	if (!IS_FSINFO(fsinfo)) {
 		printk("FAT: Did not find valid FSINFO signature.\n"
-		       "Found signature1 0x%x signature2 0x%x sector=%ld.\n",
+		       "     Found signature1 0x%08x signature2 0x%08x"
+		       " (sector = %lu)\n",
 		       CF_LE_L(fsinfo->signature1), CF_LE_L(fsinfo->signature2),
 		       MSDOS_SB(sb)->fsinfo_sector);
-		return;
+	} else {
+		fsinfo->free_clusters = CF_LE_L(MSDOS_SB(sb)->free_clusters);
+		fat_mark_buffer_dirty(sb, bh);
 	}
-	fsinfo->free_clusters = CF_LE_L(MSDOS_SB(sb)->free_clusters);
-	fat_mark_buffer_dirty(sb, bh);
 	fat_brelse(sb, bh);
 }
 
@@ -120,14 +126,13 @@ int fat_add_cluster(struct inode *inode)
 {
 	struct super_block *sb = inode->i_sb;
 	int count, nr, limit, last, curr, file_cluster;
-	int cluster_size = MSDOS_SB(sb)->cluster_size;
-	int res = -ENOSPC;
+	int cluster_bits = MSDOS_SB(sb)->cluster_bits;
 	
 	lock_fat(sb);
 	
 	if (MSDOS_SB(sb)->free_clusters == 0) {
 		unlock_fat(sb);
-		return res;
+		return -ENOSPC;
 	}
 	limit = MSDOS_SB(sb)->clusters;
 	nr = limit; /* to keep GCC happy */
@@ -139,7 +144,7 @@ int fat_add_cluster(struct inode *inode)
 	if (count >= limit) {
 		MSDOS_SB(sb)->free_clusters = 0;
 		unlock_fat(sb);
-		return res;
+		return -ENOSPC;
 	}
 	
 	MSDOS_SB(sb)->prev_free = (count + MSDOS_SB(sb)->prev_free + 1) % limit;
@@ -163,13 +168,20 @@ int fat_add_cluster(struct inode *inode)
 	*/
 	last = file_cluster = 0;
 	if ((curr = MSDOS_I(inode)->i_start) != 0) {
+		int max_cluster = MSDOS_I(inode)->mmu_private >> cluster_bits;
+
 		fat_cache_lookup(inode, INT_MAX, &last, &curr);
 		file_cluster = last;
-		while (curr && curr != -1){
+		while (curr && curr != -1) {
 			file_cluster++;
-			if (!(curr = fat_access(sb, last = curr,-1))) {
+			if (!(curr = fat_access(sb, last = curr, -1))) {
 				fat_fs_panic(sb, "File without EOF");
-				return res;
+				return -EIO;
+			}
+			if (file_cluster > max_cluster) {
+				fat_fs_panic(sb,"inode %lu: bad cluster counts",
+					     inode->i_ino);
+				return -EIO;
 			}
 		}
 	}
@@ -181,14 +193,12 @@ int fat_add_cluster(struct inode *inode)
 		MSDOS_I(inode)->i_logstart = nr;
 		mark_inode_dirty(inode);
 	}
-	if (file_cluster
-	    != inode->i_blocks / cluster_size / (sb->s_blocksize / 512)) {
+	if (file_cluster != (inode->i_blocks >> (cluster_bits - 9))) {
 		printk ("file_cluster badly computed!!! %d <> %ld\n",
-			file_cluster,
-			inode->i_blocks / cluster_size / (sb->s_blocksize / 512));
+			file_cluster, inode->i_blocks >> (cluster_bits - 9));
 		fat_cache_inval_inode(inode);
 	}
-	inode->i_blocks += (1 << MSDOS_SB(sb)->cluster_bits) / 512;
+	inode->i_blocks += (1 << cluster_bits) >> 9;
 
 	return nr;
 }
@@ -202,24 +212,23 @@ struct buffer_head *fat_extend_dir(struct inode *inode)
 
 	if (MSDOS_SB(sb)->fat_bits != 32) {
 		if (inode->i_ino == MSDOS_ROOT_INO)
-			return res;
+			return ERR_PTR(-ENOSPC);
 	}
 
 	nr = fat_add_cluster(inode);
 	if (nr < 0)
-		return res;
+		return ERR_PTR(nr);
 	
 	sector = MSDOS_SB(sb)->data_start + (nr - 2) * cluster_size;
 	last_sector = sector + cluster_size;
-	if (MSDOS_SB(sb)->cvf_format && MSDOS_SB(sb)->cvf_format->zero_out_cluster)
+	if (MSDOS_SB(sb)->cvf_format
+	    && MSDOS_SB(sb)->cvf_format->zero_out_cluster) {
+		res = ERR_PTR(-EIO);
 		MSDOS_SB(sb)->cvf_format->zero_out_cluster(inode, nr);
-	else {
+	} else {
 		for ( ; sector < last_sector; sector++) {
-#ifdef DEBUG
-			printk("zeroing sector %d\n", sector);
-#endif
 			if (!(bh = fat_getblk(sb, sector)))
-				printk("getblk failed\n");
+				printk("FAT: fat_getblk() failed\n");
 			else {
 				memset(bh->b_data, 0, sb->s_blocksize);
 				fat_set_uptodate(sb, bh, 1);
@@ -230,6 +239,8 @@ struct buffer_head *fat_extend_dir(struct inode *inode)
 					fat_brelse(sb, bh);
 			}
 		}
+		if (res == NULL)
+			res = ERR_PTR(-EIO);
 	}
 	if (inode->i_size & (sb->s_blocksize - 1)) {
 		fat_fs_panic(sb, "Odd directory size");
@@ -472,7 +483,8 @@ static int raw_scan_nonroot(struct super_block *sb,int start,const char *name,
     int *number,int *ino,struct buffer_head **res_bh,struct msdos_dir_entry
     **res_de)
 {
-	int count,cluster;
+	int count, cluster;
+	unsigned long dir_size = 0;
 
 #ifdef DEBUG
 	printk("raw_scan_nonroot: start=%d\n",start);
@@ -484,6 +496,13 @@ static int raw_scan_nonroot(struct super_block *sb,int start,const char *name,
 			    count,name,number,ino,res_bh,res_de)) >= 0)
 				return cluster;
 		}
+		dir_size += 1 << MSDOS_SB(sb)->cluster_bits;
+		if (dir_size > FAT_MAX_DIR_SIZE) {
+			fat_fs_panic(sb, "Directory %d: "
+				     "exceeded the maximum size of directory",
+				     start);
+			break;
+		}
 		if (!(start = fat_access(sb,start,-1))) {
 			fat_fs_panic(sb,"FAT error");
 			break;
@@ -491,8 +510,8 @@ static int raw_scan_nonroot(struct super_block *sb,int start,const char *name,
 #ifdef DEBUG
 	printk("next start: %d\n",start);
 #endif
-	}
-	while (start != -1);
+	} while (start != -1);
+
 	return -ENOENT;
 }
 

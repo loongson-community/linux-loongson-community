@@ -79,7 +79,7 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	out64(((u64)0xffff)<<48, mailbox_clear_regs[smp_processor_id()]);
 	
 	if (action & SMP_INT_RESCHEDULE) {
-		current->need_resched = 1;
+		current->work.need_resched = 1;
 	}
 	if (action & SMP_INT_CALL_FUNC) {
 		smp_call_function_interrupt();

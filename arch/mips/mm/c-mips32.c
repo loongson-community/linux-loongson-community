@@ -79,15 +79,14 @@ static inline void mips32_flush_cache_all_pc(void)
 	__restore_flags(flags);
 }
 
-static void
-mips32_flush_cache_range_sc(struct mm_struct *mm,
+static void mips32_flush_cache_range_sc(struct vm_area_struct *vma,
 			 unsigned long start,
 			 unsigned long end)
 {
-	struct vm_area_struct *vma;
+	struct mm_struct *mm = vma->vm_mm;
 	unsigned long flags;
 
-	if(mm->context == 0)
+	if (mm->context == 0)
 		return;
 
 	start &= PAGE_MASK;
@@ -118,11 +117,12 @@ mips32_flush_cache_range_sc(struct mm_struct *mm,
 	}
 }
 
-static void mips32_flush_cache_range_pc(struct mm_struct *mm,
-				     unsigned long start,
-				     unsigned long end)
+static void mips32_flush_cache_range_pc(struct vm_area_struct *vma,
+	unsigned long start, unsigned long end)
 {
-	if(mm->context != 0) {
+	struct mm_struct *mm = vma->vm_mm;
+
+	if (mm->context != 0) {
 		unsigned long flags;
 
 #ifdef DEBUG_CACHE

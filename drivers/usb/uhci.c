@@ -520,7 +520,8 @@ static void uhci_append_queued_urb(struct uhci *uhci, struct urb *eurb, struct u
 
 	lltd = list_entry(lurbp->td_list.prev, struct uhci_td, list);
 
-	uhci_fixup_toggle(urb, uhci_toggle(lltd->info) ^ 1);
+	usb_settoggle(urb->dev, usb_pipeendpoint(urb->pipe), usb_pipeout(urb->pipe),
+		uhci_fixup_toggle(urb, uhci_toggle(lltd->info) ^ 1));
 
 	/* All qh's in the queue need to link to the next queue */
 	urbp->qh->link = eurbp->qh->link;
@@ -556,6 +557,7 @@ static void uhci_delete_queued_urb(struct uhci *uhci, struct urb *urb)
 
 	/* Fix up the toggle for the next URB's */
 	if (!urbp->queued)
+		/* We set the toggle when we unlink */
 		toggle = usb_gettoggle(urb->dev, usb_pipeendpoint(urb->pipe), usb_pipeout(urb->pipe));
 	else {
 		/* If we're in the middle of the queue, grab the toggle */
@@ -811,7 +813,9 @@ static int uhci_submit_control(struct urb *urb)
 	destination = (urb->pipe & PIPE_DEVEP_MASK) | USB_PID_SETUP;
 
 	/* 3 errors */
-	status = (urb->pipe & TD_CTRL_LS) | TD_CTRL_ACTIVE | (3 << 27);
+	status = TD_CTRL_ACTIVE | (3 << 27);
+	if (urb->dev->speed == USB_SPEED_LOW)
+		status |= TD_CTRL_LS;
 
 	/*
 	 * Build the TD for the control request
@@ -890,7 +894,7 @@ static int uhci_submit_control(struct urb *urb)
 	qh->urbp = urbp;
 
 	/* Low speed or small transfers gets a different queue and treatment */
-	if (urb->pipe & TD_CTRL_LS) {
+	if (urb->dev->speed == USB_SPEED_LOW) {
 		uhci_insert_tds_in_qh(qh, urb, 0);
 		uhci_insert_qh(uhci, uhci->skel_ls_control_qh, urb);
 	} else {
@@ -1057,7 +1061,7 @@ static int usb_control_retrigger_status(struct urb *urb)
 	uhci_insert_tds_in_qh(urbp->qh, urb, 0);
 
 	/* Low speed or small transfers gets a different queue and treatment */
-	if (urb->pipe & TD_CTRL_LS)
+	if (urb->dev->speed == USB_SPEED_LOW)
 		uhci_insert_qh(uhci, uhci->skel_ls_control_qh, urb);
 	else
 		uhci_insert_qh(uhci, uhci->skel_hs_control_qh, urb);
@@ -1081,7 +1085,9 @@ static int uhci_submit_interrupt(struct urb *urb)
 	/* The "pipe" thing contains the destination in bits 8--18 */
 	destination = (urb->pipe & PIPE_DEVEP_MASK) | usb_packetid(urb->pipe);
 
-	status = (urb->pipe & TD_CTRL_LS) | TD_CTRL_ACTIVE | TD_CTRL_IOC;
+	status = TD_CTRL_ACTIVE | TD_CTRL_IOC;
+	if (urb->dev->speed == USB_SPEED_LOW)
+		status |= TD_CTRL_LS;
 
 	td = uhci_alloc_td(uhci, urb->dev);
 	if (!td)
@@ -1216,7 +1222,7 @@ static int uhci_submit_bulk(struct urb *urb, struct urb *eurb)
 		return -EINVAL;
 
 	/* Can't have low speed bulk transfers */
-	if (urb->pipe & TD_CTRL_LS)
+	if (urb->dev->speed == USB_SPEED_LOW)
 		return -EINVAL;
 
 	/* The "pipe" thing contains the destination in bits 8--18 */
@@ -1683,8 +1689,8 @@ static void uhci_unlink_generic(struct uhci *uhci, struct urb *urb)
 
 		/* Control and Isochronous ignore the toggle, so this */
 		/* is safe for all types */
-		if (!(td->status & TD_CTRL_ACTIVE) &&
-		    (uhci_actual_length(td->status) < uhci_expected_length(td->info) ||
+		if ((!(td->status & TD_CTRL_ACTIVE) &&
+		    (uhci_actual_length(td->status) < uhci_expected_length(td->info)) ||
 		    tmp == head)) {
 			usb_settoggle(urb->dev, uhci_endpoint(td->info),
 				uhci_packetout(td->info),

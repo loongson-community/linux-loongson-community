@@ -87,9 +87,11 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 	}
 }
 
-void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
-				unsigned long end)
+void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
+	unsigned long end)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
 	if (mm->context != 0) {
 		unsigned long flags;
 		int size;

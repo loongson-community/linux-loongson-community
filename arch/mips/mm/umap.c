@@ -28,8 +28,8 @@
 #include <asm/pgalloc.h>
 #include <asm/page.h>
 
-static inline void
-remove_mapping_pte_range (pmd_t *pmd, unsigned long address, unsigned long size)
+static inline void remove_mapping_pte_range (pmd_t *pmd, unsigned long address,
+	unsigned long size)
 {
 	pte_t *pte;
 	unsigned long end;
@@ -56,8 +56,8 @@ remove_mapping_pte_range (pmd_t *pmd, unsigned long address, unsigned long size)
 						  
 }
 
-static inline void
-remove_mapping_pmd_range (pgd_t *pgd, unsigned long address, unsigned long size)
+static inline void remove_mapping_pmd_range (pgd_t *pgd, unsigned long address,
+	unsigned long size)
 {
 	pmd_t *pmd;
 	unsigned long end;
@@ -87,21 +87,21 @@ remove_mapping_pmd_range (pgd_t *pgd, unsigned long address, unsigned long size)
  * This routine is called from the page fault handler to remove a
  * range of active mappings at this point
  */
-void
-remove_mapping (struct task_struct *task, unsigned long start, unsigned long end)
+void remove_mapping (struct vm_area_struct *vma, struct task_struct *task,
+	unsigned long start, unsigned long end)
 {
 	unsigned long beg = start;
 	pgd_t *dir;
 
 	down_write (&task->mm->mmap_sem);
-	dir = pgd_offset (task->mm, start);
-	flush_cache_range (task->mm, beg, end);
+	dir = pgd_offset(task->mm, start);
+	flush_cache_range(vma, beg, end);
 	while (start < end){
 		remove_mapping_pmd_range (dir, start, end - start);
 		start = (start + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	local_flush_tlb_range (task->mm, beg, end);
+	local_flush_tlb_range(vma, beg, end);
 	up_write (&task->mm->mmap_sem);
 }
 
@@ -140,8 +140,8 @@ static inline void forget_pte(pte_t page)
  * maps a range of vmalloc()ed memory into the requested pages. the old
  * mappings are removed. 
  */
-static inline void
-vmap_pte_range (pte_t *pte, unsigned long address, unsigned long size, unsigned long vaddr)
+static inline void vmap_pte_range(pte_t *pte, unsigned long address,
+	unsigned long size, unsigned long vaddr)
 {
 	unsigned long end;
 	pgd_t *vdir;
@@ -170,8 +170,8 @@ vmap_pte_range (pte_t *pte, unsigned long address, unsigned long size, unsigned 
 	} while (address < end);
 }
 
-static inline int
-vmap_pmd_range (pmd_t *pmd, unsigned long address, unsigned long size, unsigned long vaddr)
+static inline int vmap_pmd_range(pmd_t *pmd, unsigned long address,
+	unsigned long size, unsigned long vaddr)
 {
 	unsigned long end;
 
@@ -191,8 +191,8 @@ vmap_pmd_range (pmd_t *pmd, unsigned long address, unsigned long size, unsigned 
 	return 0;
 }
 
-int
-vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
+int vmap_page_range (struct vm_area_struct *vma, unsigned long from,
+	unsigned long size, unsigned long vaddr)
 {
 	int error = 0;
 	pgd_t * dir;
@@ -201,7 +201,7 @@ vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
 
 	vaddr -= from;
 	dir = pgd_offset(current->mm, from);
-	flush_cache_range(current->mm, beg, end);
+	flush_cache_range(vma, beg, end);
 	while (from < end) {
 		pmd_t *pmd = pmd_alloc(current->mm, dir, from);
 		error = -ENOMEM;
@@ -213,6 +213,7 @@ vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr)
 		from = (from + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	local_flush_tlb_range(current->mm, beg, end);
+	local_flush_tlb_range(vma, beg, end);
+
 	return error;
 }

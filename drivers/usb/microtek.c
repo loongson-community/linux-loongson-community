@@ -320,16 +320,11 @@ static inline void mts_debug_dump(struct mts_desc* dummy)
 
 #endif
 
-
-/* static inline int mts_is_aborting(struct mts_desc* desc) {
-	return (atomic_read(&desc->context.do_abort));
-}  */
-
 static inline void mts_urb_abort(struct mts_desc* desc) {
 	MTS_DEBUG_GOT_HERE();
 	mts_debug_dump(desc);
 
-	usb_unlink_urb( &desc->urb );
+	usb_unlink_urb( desc->urb );
 }
 
 static struct mts_desc * mts_list; /* list of active scanners */
@@ -370,6 +365,7 @@ void mts_remove_nolock( struct mts_desc* to_remove )
 	scsi_unregister_host(&to_remove->ctempl);
 	unlock_kernel();
 
+	usb_free_urb(to_remove->urb);
 	kfree( to_remove );
 }
 
@@ -504,7 +500,7 @@ void mts_int_submit_urb (struct urb* transfer,
 	transfer->status = 0;
 
 	res = usb_submit_urb( transfer );
-	if ( res ) {
+	if ( unlikely(res) ) {
 		MTS_INT_ERROR( "could not submit URB! Error was %d\n",(int)res );
 		context->srb->result = DID_ERROR << 16;
 		mts_transfer_cleanup(transfer);
@@ -518,7 +514,7 @@ static void mts_transfer_cleanup( struct urb *transfer )
 {
 	MTS_INT_INIT();
 
-	if ( context->final_callback )
+	if ( likely(context->final_callback != NULL) )
 		context->final_callback(context->srb);
 
 }
@@ -556,7 +552,7 @@ static void mts_data_done( struct urb* transfer )
 
 	if ( context->data_length != transfer->actual_length ) {
 		context->srb->resid = context->data_length - transfer->actual_length;
-	} else if ( transfer->status ) {
+	} else if ( unlikely(transfer->status) ) {
 		context->srb->result = (transfer->status == -ENOENT ? DID_ABORT : DID_ERROR)<<16;
 	}
 
@@ -571,7 +567,7 @@ static void mts_command_done( struct urb *transfer )
 {
 	MTS_INT_INIT();
 
-	if ( transfer->status ) {
+	if ( unlikely(transfer->status) ) {
 	        if (transfer->status == -ENOENT) {
 		        /* We are being killed */
 			MTS_DEBUG_GOT_HERE();
@@ -605,7 +601,7 @@ static void mts_do_sg (struct urb* transfer)
 	
 	MTS_DEBUG("Processing fragment %d of %d\n", context->fragment,context->srb->use_sg);
 
-	if (transfer->status) {
+	if (unlikely(transfer->status)) {
                 context->srb->result = (transfer->status == -ENOENT ? DID_ABORT : DID_ERROR)<<16;
 		mts_transfer_cleanup(transfer);
         }
@@ -703,14 +699,14 @@ int mts_scsi_queuecommand( Scsi_Cmnd *srb, mts_scsi_cmnd_callback callback )
 
 		srb->result = DID_BAD_TARGET << 16;
 
-		if(callback)
+		if(likely(callback != NULL))
 			callback(srb);
 
 		goto out;
 	}
 
 	
-	FILL_BULK_URB(&desc->urb,
+	FILL_BULK_URB(desc->urb,
 		      desc->usb_dev,
 		      usb_sndbulkpipe(desc->usb_dev,desc->ep_out),
 		      srb->cmnd,
@@ -723,13 +719,13 @@ int mts_scsi_queuecommand( Scsi_Cmnd *srb, mts_scsi_cmnd_callback callback )
 	mts_build_transfer_context( srb, desc );
 	desc->context.final_callback = callback;
 	
-	res=usb_submit_urb(&desc->urb);
+	res=usb_submit_urb(desc->urb);
 
-	if(res){
+	if(unlikely(res)){
 		MTS_ERROR("error %d submitting URB\n",(int)res);
 		srb->result = DID_ERROR << 16;
 
-		if(callback)
+		if(likely(callback != NULL))
 			callback(srb);
 
 	}
@@ -937,10 +933,12 @@ static void * mts_usb_probe (struct usb_device *dev, unsigned int interface,
 		return NULL;
 	}
 
-	/* As done by usb_alloc_urb */
 	memset( new_desc, 0, sizeof(*new_desc) );
-	spin_lock_init(&new_desc->urb.lock);
-	
+	new_desc->urb = usb_alloc_urb(0);
+	if (!new_desc->urb) {
+		kfree(new_desc);
+		return NULL;
+	}
 		
 	/* initialising that descriptor */
 	new_desc->usb_dev = dev;
@@ -1061,4 +1059,5 @@ module_exit(microtek_drv_exit);
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
 MODULE_LICENSE("GPL");
+
 

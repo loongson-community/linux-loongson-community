@@ -7,19 +7,7 @@ define_bool CONFIG_MIPS64 y
 
 mainmenu_name "Linux/MIPS64 Kernel Configuration"
 
-mainmenu_option next_comment
-comment 'Code maturity level options'
-bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
-endmenu
-
-mainmenu_option next_comment
-comment 'Loadable module support'
-bool 'Enable loadable module support' CONFIG_MODULES
-if [ "$CONFIG_MODULES" = "y" ]; then
-   bool '  Set version information on all module symbols' CONFIG_MODVERSIONS
-   bool '  Kernel module loader' CONFIG_KMOD
-fi
-endmenu
+source init/Config.in
 
 mainmenu_option next_comment
 comment 'Machine selection'
@@ -143,8 +131,6 @@ if [ "$CONFIG_ARC32" = "y" ]; then
    bool 'ARC console support' CONFIG_ARC_CONSOLE
 fi
 
-bool 'Networking support' CONFIG_NET
-
 if [ "$CONFIG_PCI" != "y" ]; then
    define_bool CONFIG_PCI n
 fi
@@ -171,9 +157,6 @@ else
    define_bool CONFIG_HOTPLUG_PCI n
 fi
 
-bool 'System V IPC' CONFIG_SYSVIPC
-bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
-bool 'Sysctl support' CONFIG_SYSCTL
 define_bool CONFIG_KCORE_ELF y
 define_bool CONFIG_KCORE_AOUT n
 tristate 'Kernel support for 64-bit ELF binaries' CONFIG_BINFMT_ELF
@@ -274,22 +257,20 @@ source drivers/char/Config.in
 
 source drivers/media/Config.in
 
-source fs/Config.in
-
-if [ "$CONFIG_VT" = "y" ]; then
+if [ "$CONFIG_SGI_IP22" = "y" ]; then
    mainmenu_option next_comment
-   comment 'Console drivers'
-   source drivers/video/Config.in
-   if [ "$CONFIG_SGI_IP22" = "y" ]; then
+   comment 'SGI Character devices'
+   if [ "$CONFIG_VT" = "y" ]; then
       tristate 'SGI Newport Console support' CONFIG_SGI_NEWPORT_CONSOLE
-      if [ "$CONFIG_SGI_NEWPORT_CONSOLE" != "y" ]; then
-	 define_bool CONFIG_DUMMY_CONSOLE y
-      else
+      if [ "$CONFIG_SGI_NEWPORT_CONSOLE" = "y" ]; then
 	 define_bool CONFIG_FONT_8x16 y
       fi
+      define_bool CONFIG_DUMMY_CONSOLE y
    fi
-  endmenu
+   endmenu
 fi
+
+source fs/Config.in
 
 mainmenu_option next_comment
 comment 'Sound'

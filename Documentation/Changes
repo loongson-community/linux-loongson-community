@@ -31,7 +31,7 @@ al español de este documento en varios formatos.
 Eine deutsche Version dieser Datei finden Sie unter
 <http://www.stefan-winter.de/Changes-2.4.0.txt>.
 
-Last updated: November 29, 2001
+Last updated: January 22, 2002
 
 Chris Ricker (kaboom@gatech.edu or chris.ricker@genetics.utah.edu).
 
@@ -50,10 +50,10 @@ with pcmcia-cs.
 
 o  Gnu C                  2.95.3                  # gcc --version
 o  Gnu make               3.77                    # make --version
-o  binutils               2.9.5.0.24              # ld -v
+o  binutils               2.9.5.0.25              # ld -v
 o  util-linux             2.10o                   # fdformat --version
 o  modutils               2.4.2                   # insmod -V
-o  e2fsprogs              1.19                    # tune2fs
+o  e2fsprogs              1.25                    # tune2fs
 o  reiserfsprogs          3.x.0j                  # reiserfsck 2>&1|grep reiserfsprogs
 o  pcmcia-cs              3.1.21                  # cardmgr -V
 o  PPP                    2.4.0                   # pppd --version
@@ -106,8 +106,8 @@ assembling the 16-bit boot code, removing the need for as86 to compile
 your kernel.  This change does, however, mean that you need a recent
 release of binutils.
 
-System utils
-============
+System utililities
+==================
 
 Architectural changes
 ---------------------
@@ -261,8 +261,8 @@ needs to be recompiled or (preferably) upgraded.
 Getting updated software
 ========================
 
-Compilers
-*********
+Kernel compilation
+******************
 
 egcs 1.1.2 (gcc 2.91.66)
 ------------------------
@@ -272,15 +272,12 @@ gcc 2.95.3
 ----------
 o  <ftp://ftp.gnu.org/gnu/gcc/gcc-2.95.3.tar.gz>
 
-Gnu Make
-********
-
 Make 3.77
 ---------
 o  <ftp://ftp.gnu.org/gnu/make/make-3.77.tar.gz>
 
 Binutils
-********
+--------
 o  <ftp://ftp.kernel.org/pub/linux/devel/binutils/>
 
 System utilities
@@ -304,8 +301,7 @@ o  <ftp://rawhide.redhat.com/pub/rawhide/SRPMS/SRPMS/>
 
 E2fsprogs
 ---------
-o  <http://prdownloads.sourceforge.net/e2fsprogs/e2fsprogs-1.19.tar.gz>
-o  <http://prdownloads.sourceforge.net/e2fsprogs/e2fsprogs-1.19-0.src.rpm>
+o  <http://prdownloads.sourceforge.net/e2fsprogs/e2fsprogs-1.25.tar.gz>
 
 Reiserfsprogs
 -------------
@@ -333,10 +329,10 @@ o  <http://www.urbanmyth.org/microcode/>
 
 Powertweak
 ----------
-o  <http://powertweak.sourceforge.net>
+o  <http://powertweak.sourceforge.net/>
 
-Network
-*******
+Networking
+**********
 
 PPP
 ---

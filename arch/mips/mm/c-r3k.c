@@ -249,13 +249,13 @@ static void r3k_flush_cache_mm(struct mm_struct *mm)
 {
 }
 
-static void r3k_flush_cache_range(struct mm_struct *mm, unsigned long start,
-				  unsigned long end)
+static void r3k_flush_cache_range(struct vm_area_range *vma,
+	unsigned long start, unsigned long end)
 {
 }
 
 static void r3k_flush_cache_page(struct vm_area_struct *vma,
-				   unsigned long page)
+	unsigned long page)
 {
 }
 

@@ -1184,7 +1184,7 @@ long usbvideo_v4l_write(struct video_device *dev, const char *buf,
 	return -EINVAL;
 }
 
-int usbvideo_v4l_mmap(struct video_device *dev, const char *adr, unsigned long size)
+int usbvideo_v4l_mmap(struct vm_area_struct *vma, struct video_device *dev, const char *adr, unsigned long size)
 {
 	uvd_t *uvd = (uvd_t *) dev;
 	unsigned long start = (unsigned long) adr;
@@ -1199,7 +1199,7 @@ int usbvideo_v4l_mmap(struct video_device *dev, const char *adr, unsigned long s
 	pos = (unsigned long) uvd->fbuf;
 	while (size > 0) {
 		page = usbvideo_kvirt_to_pa(pos);
-		if (remap_page_range(start, page, PAGE_SIZE, PAGE_SHARED))
+		if (remap_page_range(vma, start, page, PAGE_SIZE, PAGE_SHARED))
 			return -EAGAIN;
 
 		start += PAGE_SIZE;
@@ -1776,7 +1776,7 @@ read_done:
 /*
  * Make all of the blocks of data contiguous
  */
-static int usbvideo_CompressIsochronous(uvd_t *uvd, urb_t *urb)
+static int usbvideo_CompressIsochronous(uvd_t *uvd, struct urb *urb)
 {
 	char *cdata;
 	int i, totlen = 0;
@@ -1891,7 +1891,7 @@ int usbvideo_StartDataPump(uvd_t *uvd)
 	/* We double buffer the Iso lists */
 	for (i=0; i < USBVIDEO_NUMSBUF; i++) {
 		int j, k;
-		urb_t *urb = uvd->sbuf[i].urb;
+		struct urb *urb = uvd->sbuf[i].urb;
 		urb->dev = dev;
 		urb->context = uvd;
 		urb->pipe = usb_rcvisocpipe(dev, uvd->video_endp);

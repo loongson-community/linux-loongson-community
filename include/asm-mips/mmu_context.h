@@ -26,18 +26,19 @@
 # error update this function.
 #endif
 
-static inline int sched_find_first_zero_bit(char *bitmap)
+static inline int sched_find_first_bit(unsigned long *b)
 {
-	unsigned int *b = (unsigned int *)bitmap;
-	unsigned int rt;
-
-	rt = b[0] & b[1] & b[2] & b[3];
-	if (unlikely(rt != 0xffffffff))
-		return find_first_zero_bit(bitmap, MAX_RT_PRIO);
-
-	if (b[4] != ~0)
-		return ffz(b[4]) + MAX_RT_PRIO;
-	return ffz(b[5]) + 32 + MAX_RT_PRIO;
+	if (unlikely(b[0]))
+		return __ffs(b[0]);
+	if (unlikely(b[1]))
+		return __ffs(b[1]) + 32;
+	if (unlikely(b[2]))
+		return __ffs(b[2]) + 64;
+	if (unlikely(b[3]))
+		return __ffs(b[3]) + 96;
+	if (b[4])
+		return __ffs(b[4]) + 128;
+	return __ffs(b[5]) + 32 + 128;
 }
 
 /*

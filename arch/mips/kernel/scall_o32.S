@@ -16,109 +16,96 @@
 #include <asm/isadep.h>
 #include <asm/sysmips.h>
 #include <asm/unistd.h>
+#include <asm/offset.h>
 
 /* Highest syscall used of any syscall flavour */
 #define MAX_SYSCALL_NO	__NR_Linux + __NR_Linux_syscalls
 
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
-	.set	noat
-	SAVE_SOME
-	STI
-	.set	at
+		.set	noat
+		SAVE_SOME
+		STI
+		.set	at
 
-	lw	t1, PT_EPC(sp)		# skip syscall on return
+		lw	t1, PT_EPC(sp)		# skip syscall on return
 
-	sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
-	addiu	t1, 4			# skip to next instruction
-	beqz	t0, illegal_syscall
-	sw	t1, PT_EPC(sp)
+		sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
+		addiu	t1, 4			# skip to next instruction
+		beqz	t0, illegal_syscall
+		sw	t1, PT_EPC(sp)
 
-	/* XXX Put both in one cacheline, should save a bit. */
-	sll	t0, v0, 2
-	lw	t2, sys_call_table(t0)	# syscall routine
-	lbu	t3, sys_narg_table(v0)	# number of arguments
-	beqz	t2, illegal_syscall;
+		/* XXX Put both in one cacheline, should save a bit. */
+		sll	t0, v0, 2
+		lw	t2, sys_call_table(t0)	# syscall routine
+		lbu	t3, sys_narg_table(v0)	# number of arguments
+		beqz	t2, illegal_syscall;
 
-	subu	t0, t3, 5		# 5 or more arguments?
-	sw	a3, PT_R26(sp)		# save a3 for syscall restarting
-	bgez	t0, stackargs
+		subu	t0, t3, 5		# 5 or more arguments?
+		sw	a3, PT_R26(sp)		# save a3 for syscall restarting
+		bgez	t0, stackargs
 
 stack_done:
-        sw      a3, PT_R26(sp)          # save for syscall restart
-	lw	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-	andi	t0, PT_TRACESYS
-	bnez	t0, trace_a_syscall
+		sw	a3, PT_R26(sp)          # save for syscall restart
+		lbu	t0, TASK_SYSCALL_TRACE($28)
+						# syscall tracing enabled?
+		bnez	t0, syscall_trace_entry
 
-	jalr	t2			# Do The Real Thing (TM)
+		jalr	t2			# Do The Real Thing (TM)
 
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sw	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+		li	t0, -EMAXERRNO - 1	# error?
+		sltu	t0, t0, v0
+		sw	t0, PT_R7(sp)		# set error flag
+		beqz	t0, 1f
 
-	negu	v0			# error
-	sw	v0, PT_R0(sp)		# set flag for syscall restarting
-1:	sw	v0, PT_R2(sp)		# result
+		negu	v0			# error
+		sw	v0, PT_R0(sp)		# set flag for syscall
+						# restarting
+1:		sw	v0, PT_R2(sp)		# result
 
-EXPORT(o32_ret_from_sys_call)
-	mfc0	t0, CP0_STATUS		# need_resched and signals atomic test
-	ori	t0, t0, 1
-	xori	t0, t0, 1
-	mtc0	t0, CP0_STATUS
-	SSNOP; SSNOP; SSNOP
+EXPORT(o32_syscall_exit)
+		mfc0	t0, CP0_STATUS		# make sure need_resched and
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
 
-	lw	t2, TASK_NEED_RESCHED($28)
-	bnez	t2, o32_reschedule
-	lw	v0, TASK_SIGPENDING($28)
-	bnez	v0, signal_return
-restore_all:
-	RESTORE_SOME
-	RESTORE_SP_AND_RET
+		lw	a2, TASK_WORK($28)	# current->work
+		bnez	a2, o32_syscall_exit_work
 
-/* Put this behind restore_all for the sake of the branch prediction.  */
-signal_return:
-	.type	signal_return, @function
+o32_restore_all:
+		RESTORE_SOME
+		RESTORE_SP_AND_RET
 
-	mfc0	t0, CP0_STATUS
-	ori	t0, t0, 1
-	mtc0	t0, CP0_STATUS
-
-	SAVE_STATIC
-	move	a0, zero
-	move	a1, sp
-	jal	do_signal
-	b	restore_all
-
-o32_reschedule:
-	jal	schedule
-	b	o32_ret_from_sys_call
+o32_syscall_exit_work:
+		SAVE_STATIC
+		j	syscall_exit_work
 
 /* ------------------------------------------------------------------------ */
 
-trace_a_syscall:
-	SAVE_STATIC
-	sw	t2, PT_R1(sp)
-	jal	syscall_trace
-	lw	t2, PT_R1(sp)
+syscall_trace_entry:
+		SAVE_STATIC
+		sw	t2, PT_R1(sp)
+		jal	do_syscall_trace
+		lw	t2, PT_R1(sp)
 
-	lw	a0, PT_R4(sp)		# Restore argument registers
-	lw	a1, PT_R5(sp)
-	lw	a2, PT_R6(sp)
-	lw	a3, PT_R7(sp)
-	jalr	t2
+		lw	a0, PT_R4(sp)		# Restore argument registers
+		lw	a1, PT_R5(sp)
+		lw	a2, PT_R6(sp)
+		lw	a3, PT_R7(sp)
+		jalr	t2
 
-	li	t0, -EMAXERRNO - 1	# error?
-	sltu	t0, t0, v0
-	sw	t0, PT_R7(sp)		# set error flag
-	beqz	t0, 1f
+		li	t0, -EMAXERRNO - 1	# error?
+		sltu	t0, t0, v0
+		sw	t0, PT_R7(sp)		# set error flag
+		beqz	t0, 1f
 
-	negu	v0			# error
-	sw	v0, PT_R0(sp)		# set flag for syscall restarting
-1:	sw	v0, PT_R2(sp)		# result
+		negu	v0			# error
+		sw	v0, PT_R0(sp)		# set flag for syscall
+						# restarting
+1:		sw	v0, PT_R2(sp)		# result
 
-	jal	syscall_trace
-	j	ret_from_sys_call
+		j	syscall_exit
 
 /* ------------------------------------------------------------------------ */
 
@@ -178,7 +165,7 @@ bad_stack:
 	sw	v0, PT_R2(sp)
 	li	t0, 1				# set error flag
 	sw	t0, PT_R7(sp)
-	j	ret_from_sys_call
+	j	o32_syscall_exit
 
 	/*
 	 * The system call does not exist in this kernel
@@ -188,7 +175,7 @@ illegal_syscall:
 	sw	v0, PT_R2(sp)
 	li	t0, 1				# set error flag
 	sw	t0, PT_R7(sp)
-	j	ret_from_sys_call
+	j	o32_syscall_exit
 	END(handle_sys)
 
 	LEAF(mips_atomic_set)
@@ -241,15 +228,14 @@ illegal_syscall:
 1:
 
 	/* Success, so skip usual error handling garbage.  */
-	lw	t0, TASK_PTRACE($28)	# syscall tracing enabled?
-	andi	t0, PT_TRACESYS
+	lbu	t0, TASK_SYSCALL_TRACE($28)	# syscall tracing enabled?
 	bnez	t0, 1f
-	b	o32_ret_from_sys_call
+	b	o32_syscall_exit
 
 1:	SAVE_STATIC
-	jal	syscall_trace
+	jal	do_syscall_trace
 	li	a3, 0			# success
-	j	ret_from_sys_call
+	j	syscall_exit
 
 no_mem:	li	v0, -ENOMEM
 	jr	ra

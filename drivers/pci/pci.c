@@ -38,6 +38,8 @@
 LIST_HEAD(pci_root_buses);
 LIST_HEAD(pci_devices);
 
+extern struct device_driver pci_device_driver;
+
 /**
  * pci_find_slot - locate PCI device from a given PCI slot
  * @bus: number of PCI bus on which desired PCI device resides
@@ -1085,6 +1087,13 @@ struct pci_bus * __devinit pci_add_new_bus(struct pci_bus *parent, struct pci_de
 	child->ops = parent->ops;
 	child->sysdata = parent->sysdata;
 
+	/* init generic fields */
+	child->iobus.self = &dev->dev;
+	child->iobus.parent = &parent->iobus;
+	dev->dev.subordinate = &child->iobus;
+
+	strcpy(child->iobus.name,dev->dev.name);
+
 	/*
 	 * Set up the primary, secondary and subordinate
 	 * bus numbers.
@@ -1180,6 +1189,7 @@ static int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev * dev, 
 		pci_write_config_word(dev, PCI_COMMAND, cr);
 	}
 	sprintf(child->name, (is_cardbus ? "PCI CardBus #%02x" : "PCI Bus #%02x"), child->number);
+
 	return max;
 }
 
@@ -1293,8 +1303,14 @@ struct pci_dev * __devinit pci_scan_device(struct pci_dev *temp)
 	dev->dma_mask = 0xffffffff;
 	if (pci_setup_device(dev) < 0) {
 		kfree(dev);
-		dev = NULL;
+		return NULL;
 	}
+
+	/* now put in global tree */
+	strcpy(dev->dev.name,dev->name);
+	strcpy(dev->dev.bus_id,dev->slot_name);
+
+	device_register(&dev->dev);
 	return dev;
 }
 
@@ -1345,10 +1361,17 @@ unsigned int __devinit pci_do_scan_bus(struct pci_bus *bus)
 	DBG("Scanning bus %02x\n", bus->number);
 	max = bus->secondary;
 
+	/* we should know for sure what the bus number is, so set the bus ID
+	 * for the bus and make sure it's registered in the device tree */
+	sprintf(bus->iobus.bus_id,"pci%d",bus->number);
+	iobus_register(&bus->iobus);
+
 	/* Create a device template */
 	memset(&dev0, 0, sizeof(dev0));
 	dev0.bus = bus;
 	dev0.sysdata = bus->sysdata;
+	dev0.dev.parent = &bus->iobus;
+	dev0.dev.driver = &pci_device_driver;
 
 	/* Go find them, Rover! */
 	for (devfn = 0; devfn < 0x100; devfn += 8) {
@@ -1403,7 +1426,13 @@ struct pci_bus * __devinit  pci_alloc_primary_bus(int bus)
 	}
 
 	b = pci_alloc_bus();
+	if (!b)
+		return NULL;
 	list_add_tail(&b->node, &pci_root_buses);
+
+	sprintf(b->iobus.bus_id,"pci%d",bus);
+	strcpy(b->iobus.name,"Host/PCI Bridge");
+	iobus_register(&b->iobus);
 
 	b->number = b->secondary = bus;
 	b->resource[0] = &ioport_resource;
@@ -1929,7 +1958,7 @@ pci_pool_free (struct pci_pool *pool, void *vaddr, dma_addr_t dma)
 }
 
 
-void __devinit  pci_init(void)
+static int __devinit pci_init(void)
 {
 	struct pci_dev *dev;
 
@@ -1942,6 +1971,7 @@ void __devinit  pci_init(void)
 #ifdef CONFIG_PM
 	pm_register(PM_PCI_DEV, 0, pci_pm_callback);
 #endif
+	return 0;
 }
 
 static int __devinit  pci_setup(char *str)
@@ -1958,6 +1988,8 @@ static int __devinit  pci_setup(char *str)
 	}
 	return 1;
 }
+
+subsys_initcall(pci_init);
 
 __setup("pci=", pci_setup);
 

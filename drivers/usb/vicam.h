@@ -68,14 +68,14 @@ struct usb_vicam
 	/* v4l stuff */
 	char *camera_name;
 	char *fbuf;
-	urb_t *urb[VICAM_NUMSBUF];
+	struct urb *urb[VICAM_NUMSBUF];
 	int sizes;
 	int *width;
 	int *height;
 	int maxframesize;
 	struct picture_parm win;
 	struct proc_dir_entry *proc_entry;      /* /proc/se401/videoX */
-	struct urb readurb;
+	struct urb *readurb;
 };
 
 #endif

@@ -610,7 +610,7 @@ static void se401_send_size(struct usb_se401 *se401, int width, int height)
 */
 static int se401_start_stream(struct usb_se401 *se401)
 {
-	urb_t *urb;
+	struct urb *urb;
 	int err=0, i;
 	se401->streaming=1;
 
@@ -1354,7 +1354,7 @@ static long se401_read(struct video_device *dev, char *buf, unsigned long count,
 	return realcount;
 }
 
-static int se401_mmap(struct video_device *dev, const char *adr,
+static int se401_mmap(struct vm_area_struct *vma, struct video_device *dev, const char *adr,
         unsigned long size)
 {
 	struct usb_se401 *se401 = (struct usb_se401 *)dev;
@@ -1374,7 +1374,7 @@ static int se401_mmap(struct video_device *dev, const char *adr,
 	pos = (unsigned long)se401->fbuf;
 	while (size > 0) {
 		page = kvirt_to_pa(pos);
-		if (remap_page_range(start, page, PAGE_SIZE, PAGE_SHARED)) {
+		if (remap_page_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
 			up(&se401->lock);
 			return -EAGAIN;
 		}

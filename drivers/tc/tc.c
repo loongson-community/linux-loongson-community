@@ -247,6 +247,8 @@ void __init tc_init(void)
 	}
 }
 
+subsys_initcall(tc_init);
+
 EXPORT_SYMBOL(search_tc_card);
 EXPORT_SYMBOL(claim_tc_card);
 EXPORT_SYMBOL(release_tc_card);

@@ -82,15 +82,17 @@ void output_task_defines(void)
 	text("/* MIPS task_struct offsets. */");
 	offset("#define TASK_STATE         ", struct task_struct, state);
 	offset("#define TASK_FLAGS         ", struct task_struct, flags);
-	constant("  #define PT_TRACESYS        ", PT_TRACESYS);
-	offset("#define TASK_SIGPENDING    ", struct task_struct, sigpending);
-	offset("#define TASK_NEED_RESCHED  ", struct task_struct, need_resched);
-	offset("#define TASK_PTRACE        ", struct task_struct, ptrace);
+	offset("#define TASK_WORK          ", struct task_struct, work);
+	offset("#define TASK_NEED_RESCHED  ", struct task_struct,
+                                              work.need_resched);
+	offset("#define TASK_SYSCALL_TRACE ", struct task_struct,
+                                              work.syscall_trace);
+	offset("#define TASK_SIGPENDING    ", struct task_struct,
+	                                      work.sigpending);
 	offset("#define TASK_MM            ", struct task_struct, mm);
 	offset("#define TASK_CPU           ", struct task_struct, cpu);
 	offset("#define TASK_PID           ", struct task_struct, pid);
 	size(  "#define TASK_STRUCT_SIZE   ", struct task_struct);
-	constant("#define PT_TRACESYS        ", PT_TRACESYS);
 	linefeed;
 }
 

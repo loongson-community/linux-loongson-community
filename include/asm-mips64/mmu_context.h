@@ -16,15 +16,13 @@
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 
-static inline int sched_find_first_zero_bit(unsigned long *b)
+static inline int sched_find_first_bit(unsigned long *b)
 {
-	unsigned long rt;
-
-	rt = b[0] & b[1];
-	if (unlikely(rt != 0xffffffffffffffff))
-		return find_first_zero_bit(b, MAX_RT_PRIO);
-
-	return ffz(b[2]) + MAX_RT_PRIO;
+	if (unlikely(b[0]))
+		return __ffs(b[0]);
+	if (unlikely(b[1]))
+		return __ffs(b[1]) + 64;
+	return __ffs(b[2]) + 128;
 }
 
 /*

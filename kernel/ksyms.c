@@ -85,9 +85,6 @@ EXPORT_SYMBOL(do_mmap_pgoff);
 EXPORT_SYMBOL(do_munmap);
 EXPORT_SYMBOL(do_brk);
 EXPORT_SYMBOL(exit_mm);
-EXPORT_SYMBOL(exit_files);
-EXPORT_SYMBOL(exit_fs);
-EXPORT_SYMBOL(exit_sighand);
 
 /* internal kernel memory management */
 EXPORT_SYMBOL(_alloc_pages);
@@ -140,6 +137,7 @@ EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
 EXPORT_SYMBOL(iget4);
 EXPORT_SYMBOL(iput);
+EXPORT_SYMBOL(inode_init_once);
 EXPORT_SYMBOL(force_delete);
 EXPORT_SYMBOL(follow_up);
 EXPORT_SYMBOL(follow_down);
@@ -209,6 +207,7 @@ EXPORT_SYMBOL(block_write_full_page);
 EXPORT_SYMBOL(block_read_full_page);
 EXPORT_SYMBOL(block_prepare_write);
 EXPORT_SYMBOL(block_sync_page);
+EXPORT_SYMBOL(generic_cont_expand);
 EXPORT_SYMBOL(cont_prepare_write);
 EXPORT_SYMBOL(generic_commit_write);
 EXPORT_SYMBOL(block_truncate_page);
@@ -273,6 +272,8 @@ EXPORT_SYMBOL(lease_get_mtime);
 EXPORT_SYMBOL(lock_may_read);
 EXPORT_SYMBOL(lock_may_write);
 EXPORT_SYMBOL(dcache_readdir);
+EXPORT_SYMBOL(fd_install);
+EXPORT_SYMBOL(put_unused_fd);
 
 /* for stackable file systems (lofs, wrapfs, cryptfs, etc.) */
 EXPORT_SYMBOL(default_llseek);
@@ -505,17 +506,16 @@ EXPORT_SYMBOL(si_meminfo);
 /* Added to make file system as module */
 EXPORT_SYMBOL(sys_tz);
 EXPORT_SYMBOL(file_fsync);
-EXPORT_SYMBOL(fsync_inode_buffers);
-EXPORT_SYMBOL(fsync_inode_data_buffers);
+EXPORT_SYMBOL(fsync_buffers_list);
 EXPORT_SYMBOL(clear_inode);
 EXPORT_SYMBOL(___strtok);
 EXPORT_SYMBOL(init_special_inode);
 EXPORT_SYMBOL(read_ahead);
 EXPORT_SYMBOL(__get_hash_table);
-EXPORT_SYMBOL(get_empty_inode);
+EXPORT_SYMBOL(new_inode);
 EXPORT_SYMBOL(insert_inode_hash);
 EXPORT_SYMBOL(remove_inode_hash);
-EXPORT_SYMBOL(buffer_insert_inode_queue);
+EXPORT_SYMBOL(buffer_insert_list);
 EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
@@ -536,9 +536,6 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
-
-/* time */
-EXPORT_SYMBOL(get_fast_time);
 
 /* library functions */
 EXPORT_SYMBOL(strnicmp);

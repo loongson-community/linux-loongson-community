@@ -892,6 +892,7 @@ static int __init isapnp_create_device(struct pci_bus *card,
 		case _STAG_END:
 			if (size > 0)
 				isapnp_skip_bytes(size);
+			isapnp_config_prepare(dev);
 			return 1;
 		default:
 			printk(KERN_ERR "isapnp: unexpected or unknown tag type 0x%x for logical device %i (device %i), ignored\n", type, dev->devfn, card->number);
@@ -2356,12 +2357,9 @@ int __init isapnp_init(void)
 	return 0;
 }
 
-#ifdef MODULE
+subsys_initcall(isapnp_init);
 
-int init_module(void)
-{
-	return isapnp_init();
-}
+#ifdef MODULE
 
 void cleanup_module(void)
 {

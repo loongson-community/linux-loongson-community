@@ -344,7 +344,7 @@ void free_swap_and_cache(swp_entry_t entry)
 	if (page) {
 		page_cache_get(page);
 		/* Only cache user (+us), or swap space full? Free it! */
-		if (page_count(page) == 2 || vm_swap_full()) {
+		if (page_count(page) - !!page->buffers == 2 || vm_swap_full()) {
 			delete_from_swap_cache(page);
 			SetPageDirty(page);
 		}
@@ -696,7 +696,7 @@ static int try_to_unuse(unsigned int type)
 		 * interactive performance.  Interruptible check on
 		 * signal_pending() would be nice, but changes the spec?
 		 */
-		if (current->need_resched)
+		if (need_resched())
 			schedule();
 	}
 
@@ -904,11 +904,12 @@ asmlinkage long sys_swapon(const char * specialfile, int swap_flags)
 	swap_file = filp_open(name, O_RDWR, 0);
 	putname(name);
 	error = PTR_ERR(swap_file);
-	if (error)
+	if (IS_ERR(swap_file))
 		goto bad_swap_2;
 
 	p->swap_file = swap_file;
 
+	error = -EINVAL;
 	if (S_ISBLK(swap_file->f_dentry->d_inode->i_mode)) {
 		p->swap_device = swap_file->f_dentry->d_inode->i_rdev;
 		set_blocksize(p->swap_device, PAGE_SIZE);

@@ -1674,8 +1674,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 		if (sig)
 			break;
 
-		if (current->need_resched)
-			schedule();
+		cond_resched();
 	} while (xcp->cp0_epc > prevepc);
 
 	/* SIGILL indicates a non-fpu instruction */

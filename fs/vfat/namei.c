@@ -19,13 +19,7 @@
 
 #include <linux/sched.h>
 #include <linux/msdos_fs.h>
-#include <linux/nls.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/string.h>
 #include <linux/ctype.h>
-#include <linux/stat.h>
-#include <linux/mm.h>
 #include <linux/slab.h>
 
 #define DEBUG_LEVEL 0
@@ -446,7 +440,7 @@ struct shortname_info {
 	(x)->lower = 1;				\
 	(x)->upper = 1;				\
 	(x)->valid = 1;				\
-} while (0);
+} while (0)
 
 static inline unsigned char
 shortname_info_to_lcase(struct shortname_info *base,
@@ -1266,10 +1260,15 @@ struct super_block *vfat_read_super(struct super_block *sb,void *data,
 	struct super_block *res;
   
 	MSDOS_SB(sb)->options.isvfat = 1;
-
 	res = fat_read_super(sb, data, silent, &vfat_dir_inode_operations);
-	if (res == NULL)
+	if (IS_ERR(res))
 		return NULL;
+	if (res == NULL) {
+		if (!silent)
+			printk(KERN_INFO "VFS: Can't find a valid"
+			       " VFAT filesystem on dev %s.\n", sb->s_id);
+		return NULL;
+	}
 
 	if (parse_options((char *) data, &(MSDOS_SB(sb)->options))) {
 		MSDOS_SB(sb)->options.dotsOK = 0;

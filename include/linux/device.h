@@ -80,7 +80,7 @@ struct device {
 	atomic_t	refcount;	/* refcount to make sure the device
 					 * persists for the right amount of time */
 
-	struct driver_dir_entry	* dir;
+	struct driver_dir_entry	dir;
 
 	struct device_driver *driver;	/* which driver has allocated this
 					   device */
@@ -123,7 +123,7 @@ struct iobus {
 	struct list_head devices;	/* children devices */
 
 	struct device *self;		/* pointer to controlling device */
-	struct driver_dir_entry	* dir;	/* driverfs directory */
+	struct driver_dir_entry	dir;	/* driverfs directory */
 
 	char	name[DEVICE_NAME_SIZE];
 	char	bus_id[BUS_ID_SIZE];
@@ -147,21 +147,11 @@ list_to_iobus(const struct list_head *node)
  * High level routines for use by the bus drivers
  */
 extern int device_register(struct device * dev);
-extern struct device * device_alloc(void);
-extern void device_init_dev(struct device * dev);
 
 extern int iobus_register(struct iobus * iobus);
-extern struct iobus * iobus_alloc(void);
-extern void iobus_init(struct iobus * iobus);
 
-extern int device_create_file(struct device *device, const char * name, mode_t mode,
-			      struct driverfs_operations * ops, void * data);
+extern int device_create_file(struct device *device, struct driver_file_entry * entry);
 extern void device_remove_file(struct device * dev, const char * name);
-
-extern int iobus_create_file(struct iobus *bus, const char * name, mode_t mode,
-			     struct driverfs_operations * ops, void * data);
-extern void iobus_remove_file(struct iobus * iobus, const char * name);
-
 
 /*
  * Platform "fixup" functions - allow the platform to have their say
@@ -196,31 +186,11 @@ static inline void unlock_device(struct device * dev)
  */
 static inline void get_device(struct device * dev)
 {
+	BUG_ON(!atomic_read(&dev->refcount));
 	atomic_inc(&dev->refcount);
 }
 
 extern void put_device(struct device * dev);
-
-
-/**
- * valid_device - check if device is valid
- * @dev:	device in question
- *
- * Check whether or not a device can be operated on.
- * If so, increment the reference count and carry on.
- */
-static inline int valid_device(struct device * dev)
-{
-	int val;
-
-	lock_device(dev);
-	val = atomic_read(&dev->refcount);
-	if (val)
-		get_device(dev);
-	unlock_device(dev);
-	return (val > 0);
-}
-
 
 static inline void lock_iobus(struct iobus * iobus)
 {
@@ -234,18 +204,8 @@ static inline void unlock_iobus(struct iobus * iobus)
 
 static inline void get_iobus(struct iobus * iobus)
 {
+	BUG_ON(!atomic_read(&iobus->refcount));
 	atomic_inc(&iobus->refcount);
-}
-
-static inline int valid_iobus(struct iobus * iobus)
-{
-	int val;
-	lock_iobus(iobus);
-	val = atomic_read(&iobus->refcount);
-	if (val)
-		get_iobus(iobus);
-	unlock_iobus(iobus);
-	return (val > 0);
 }
 
 extern void put_iobus(struct iobus * iobus);

@@ -61,12 +61,11 @@
  * These are offsets into the task-struct.
  */
 flags		=  4
-sigpending	=  8
-need_resched	= 20
-tsk_ptrace	= 24
+#error sigpending	=  8
+#error need_resched	= 20
+#error tsk_ptrace	= 24
 
-PT_TRACESYS  = 0x00000002
-PF_USEDFPU   = 0x00100000
+#error PT_TRACESYS  = 0x00000002
 
 ENOSYS = 38
 EINVAL = 22
@@ -301,8 +300,8 @@ ENTRY(ret_from_fork)
 	! If we're being traced, return via syscall_ret_trace, otherwise
 	! return directly to ret_from_syscall
 	stc	k_current, r0
-	mov.l	@(tsk_ptrace,r0), r0	! Is current PTRACE_SYSCALL'd?
-	mov	#PT_TRACESYS, r1
+#error	mov.l	@(tsk_ptrace,r0), r0	! Is current PTRACE_SYSCALL'd?
+#error	mov	#PT_TRACESYS, r1
 	tst	r1, r0
 	bt	ret_from_syscall
 	bra	syscall_ret_trace
@@ -372,8 +371,8 @@ system_call:
 	STI()
 	!
 	stc	k_current, r11
-	mov.l	@(tsk_ptrace,r11), r10	! Is current PTRACE_SYSCALL'd?
-	mov	#PT_TRACESYS, r11
+#error	mov.l	@(tsk_ptrace,r11), r10	! Is current PTRACE_SYSCALL'd?
+#error	mov	#PT_TRACESYS, r11
 	tst	r11, r10
 	bt	5f
 	!                     	Yes it is traced.
@@ -498,7 +497,7 @@ fixup_syscall_argerr:
 	.align	2
 __TRA:	.long	TRA
 __syscall_trace:
-    	.long	SYMBOL_NAME(syscall_trace)
+#error    	.long	SYMBOL_NAME(syscall_trace)
 __n_sys:.long	NR_syscalls
 __sct:	.long	SYMBOL_NAME(sys_call_table)
 __syscall_ret_trace:
@@ -546,10 +545,10 @@ ENTRY(ret_from_syscall)
 	ldc	r0, sr
 	!
 	stc	k_current, r1
-	mov.l	@(need_resched,r1), r0
+#error	mov.l	@(need_resched,r1), r0
 	tst	r0, r0
 	bf	reschedule
-	mov.l	@(sigpending,r1), r0
+#error	mov.l	@(sigpending,r1), r0
 	tst	r0, r0
 	bt	restore_all
 signal_return:
@@ -561,18 +560,12 @@ signal_return:
 	 lds	r0, pr
 	.align	2
 __do_signal:
-	.long	SYMBOL_NAME(do_signal)
+#error	.long	SYMBOL_NAME(do_signal)
 __irq_stat:
 	.long	SYMBOL_NAME(irq_stat)
 
 	.align 2
 restore_all:
-#if defined(__SH4__)
-	mov.l	__fpu_prepare_fd, r0
-	jsr	@r0
-	 stc	sr, r4
-#endif
-	!
 	mov.l	@r15+, r0
 	mov.l	@r15+, r1
 	mov.l	@r15+, r2
@@ -585,7 +578,7 @@ restore_all:
 	stc	sr, r8
 	mov.l	__blrb_flags, r9	! BL =1, RB=1
 	or	r9, r8
-	ldc	r8, sr		! here, change the register bank
+	ldc	r8, sr			! here, change the register bank
 	!
 	mov.l	@r15+, r8
 	mov.l	@r15+, r9
@@ -594,25 +587,25 @@ restore_all:
 	mov.l	@r15+, r12
 	mov.l	@r15+, r13
 	mov.l	@r15+, r14
-	mov.l	@r15+, k4	! original stack pointer
+	mov.l	@r15+, k4		! original stack pointer
 	ldc.l	@r15+, spc
 	lds.l	@r15+, pr
-	mov.l	@r15+, k3	! original SR
+	mov.l	@r15+, k3		! original SR
 	ldc.l	@r15+, gbr
 	lds.l	@r15+, mach
 	lds.l	@r15+, macl
-	add	#4, r15	! Skip syscall number
+	add	#4, r15			! Skip syscall number
 	!
 	! Calculate new SR value
-	mov	k3, k2	! original SR value
+	mov	k3, k2			! original SR value
 	mov.l	1f, k1
 	stc	sr, k0
-	and	k1, k0	! Get current FD-bit
+	and	k1, k0			! Get current FD-bit
 	mov.l	2f, k1
-	and	k1, k2	! Mask orignal SR value
-	or	k0, k2	! Inherit current FD-bit
+	and	k1, k2			! Mask orignal SR value
+	or	k0, k2			! Inherit current FD-bit
 	!
-	mov	k3, k0	! Calculate IMASK-bits
+	mov	k3, k0			! Calculate IMASK-bits
 	shlr2	k0
 	and	#0x3c, k0
 	cmp/eq	#0x3c, k0
@@ -620,69 +613,15 @@ restore_all:
 	 shll2	k0
 	mov	g_imask, k0
 	!
-7:	or	k0, k2	! Set the IMASK-bits
+7:	or	k0, k2			! Set the IMASK-bits
 	ldc	k2, ssr
 	!
-#if defined(__SH4__)
-	shll	k2
-	shll	k2
-	bf	9f		! user mode
-	/* Kernel to kernel transition */
-	mov.l	1f, k1
-	tst	k1, k3
-	bf	9f		! it hadn't FPU
-	! Kernel to kernel and FPU was used
-	! There's the case we don't get FPU now
-	stc	sr, k2
-	tst	k1, k2
-	bt	8f
-	! We need to grab FPU here
-	xor	k1, k2
-	ldc	k2, sr		! Grab FPU
-	mov.l	__init_task_flags, k1
-	mov.l	@k1, k2
-	mov.l	__PF_USEDFPU, k0
-	or	k0, k2
-	mov.l	k2, @k1		! Set init_task.flags |= PF_USEDFPU
-	!
-	! Restoring FPU...
-	!
-8:	mov.l	3f, k1
-	lds	k1, fpscr
-	fmov.s	@r15+, fr0
-	fmov.s	@r15+, fr1
-	fmov.s	@r15+, fr2
-	fmov.s	@r15+, fr3
-	fmov.s	@r15+, fr4
-	fmov.s	@r15+, fr5
-	fmov.s	@r15+, fr6
-	fmov.s	@r15+, fr7
-	fmov.s	@r15+, fr8
-	fmov.s	@r15+, fr9
-	fmov.s	@r15+, fr10
-	fmov.s	@r15+, fr11
-	fmov.s	@r15+, fr12
-	fmov.s	@r15+, fr13
-	fmov.s	@r15+, fr14
-	fmov.s	@r15+, fr15
-	lds.l	@r15+, fpscr
-	lds.l	@r15+, fpul
-9:
-#endif
 	mov	k4, r15
 	rte
 	 nop
 
 	.align	2
 __blrb_flags:	.long	0x30000000
-#if defined(__SH4__)
-__fpu_prepare_fd:
-	.long	SYMBOL_NAME(fpu_prepare_fd)
-__init_task_flags:
-	.long	SYMBOL_NAME(init_task_union)+4
-__PF_USEDFPU:
-	.long	PF_USEDFPU
-#endif
 1:	.long	0x00008000	! FD
 2:	.long	0xffff7f0f	! ~(IMASK+FD)
 3:	.long	0x00080000	! SZ=0, PR=1
@@ -732,61 +671,21 @@ handle_exception:
 	! Using k0, k1 for scratch registers (r0_bank1, r1_bank),
 	! save all registers onto stack.
 	!
-	stc	ssr, k0	! from kernel space?
-	shll	k0		! Check MD bit (bit30) by shifting it into the T bit
-	shll	k0
-#if defined(__SH4__)
-	bf/s	8f		! it's from user to kernel transition
-	 mov	r15, k0	! save original stack to k0
-	/* It's a kernel to kernel transition. */
-	/* Is the FPU disabled? */
-	mov.l	2f, k1
-	stc	ssr, k0
-	tst	k1, k0
-	mov.l	4f, k1
-	bf/s	9f		! FPU is not enabled, no need to save it
-	 mov	r15, k0	! save original stack to k0
-	! FPU is enabled, save it
-	! /* XXX: Need to save another bank of FPU if all FPU feature is used */
-	! /* Currently it's not the case for GCC (only udivsi3_i4, divsi3_i4) */
-	sts.l	fpul,  @-r15
-	sts.l	fpscr, @-r15
-	mov.l	6f, k1
-	lds	k1, fpscr
-	mov.l	3f, k1
-	fmov.s	fr15, @-r15
-	fmov.s	fr14, @-r15
-	fmov.s	fr13, @-r15
-	fmov.s	fr12, @-r15
-	fmov.s	fr11, @-r15
-	fmov.s	fr10, @-r15
-	fmov.s	fr9, @-r15
-	fmov.s	fr8, @-r15
-	fmov.s	fr7, @-r15
-	fmov.s	fr6, @-r15
-	fmov.s	fr5, @-r15
-	fmov.s	fr4, @-r15
-	fmov.s	fr3, @-r15
-	fmov.s	fr2, @-r15
-	fmov.s	fr1, @-r15
-	bra 9f
-	 fmov.s	fr0, @-r15
-#else
-	mov.l	3f, k1
-	bt/s	9f		! it's a kernel to kernel transition, and skip the FPU save.
-	 mov	r15, k0	! save original stack to k0 anyway
-#endif
-8:	/* User space to kernel */
+	stc	ssr, k0		! Is it from kernel space?
+	shll	k0		! Check MD bit (bit30) by shifting it into...
+	shll	k0		!       ...the T bit
+	bt/s	9f		! It's a kernel to kernel transition.
+	 mov	r15, k0		! save original stack to k0
+	/* User space to kernel */
 	mov	#0x20, k1
-	shll8	k1			! k1 <= 8192 == THREAD_SIZE
+	shll8	k1		! k1 <= 8192 == THREAD_SIZE
 	add	current, k1
 	mov	k1, r15		! change to kernel stack
 	!
-	mov.l	4f, k1			! let kernel release FPU
-9:	! Save the user registers on the stack.
-	! At this point, k1 should have been set to the new SR value
-  	mov	#-1, k4
-	mov.l	k4, @-r15		! syscall_nr (default: -1)
+9:  	mov	#-1, k4
+	mov.l	3f, k1
+	! Save the user registers on the stack.
+	mov.l	k4, @-r15	! syscall_nr (default: -1)
 	!
 	sts.l	macl, @-r15
 	sts.l	mach, @-r15
@@ -806,11 +705,11 @@ handle_exception:
 	mov.l	r9, @-r15
 	mov.l	r8, @-r15
 	!
-	stc	sr, r8	! Back to normal register bank, and
-	or	k1, r8	! Block all interrupts, may release FPU
+	stc	sr, r8		! Back to normal register bank, and
+	or	k1, r8		! Block all interrupts
 	mov.l	5f, k1
-	and	k1, r8	! ...
-	ldc	r8, sr	! ...changed here.
+	and	k1, r8		! ...
+	ldc	r8, sr		! ...changed here.
 	!
 	mov.l	r7, @-r15
 	mov.l	r6, @-r15
@@ -831,9 +730,7 @@ handle_exception:
 	 nop
 	.align	2
 1:	.long	SYMBOL_NAME(exception_handling_table)
-2:	.long	0x00008000	! FD=1
 3:	.long	0x000000f0	! FD=0, IMASK=15
-4:	.long	0x000080f0	! FD=1, IMASK=15
 5:	.long	0xcfffffff	! RB=0, BL=0
 6:	.long	0x00080000	! SZ=0, PR=1
 

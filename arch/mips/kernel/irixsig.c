@@ -16,7 +16,7 @@
 #include <asm/ptrace.h>
 #include <asm/uaccess.h>
 
-extern asmlinkage void syscall_trace(void);
+extern asmlinkage void do_syscall_trace(void);
 
 #undef DEBUG_SIG
 
@@ -350,11 +350,11 @@ irix_sigreturn(struct pt_regs *regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->ptrace & PT_TRACESYS)
-		syscall_trace();
+	if (current->work.need_resched)
+		do_syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29,%0\n\t"
-		"j\tret_from_sys_call"
+		"j\tsyscall_exit"
 		:/* no outputs */
 		:"r" (&regs));
 		/* Unreached */

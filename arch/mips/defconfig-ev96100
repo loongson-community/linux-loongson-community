@@ -5,6 +5,14 @@ CONFIG_MIPS=y
 CONFIG_MIPS32=y
 
 #
+# General setup
+#
+CONFIG_NET=y
+CONFIG_SYSVIPC=y
+# CONFIG_BSD_PROCESS_ACCT is not set
+CONFIG_SYSCTL=y
+
+#
 # Code maturity level options
 #
 CONFIG_EXPERIMENTAL=y
@@ -88,7 +96,6 @@ CONFIG_CPU_HAS_LLDSCD=y
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 # CONFIG_BINFMT_IRIX is not set
 # CONFIG_FORWARD_KEYBOARD is not set
-CONFIG_NET=y
 CONFIG_PCI_NAMES=y
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
@@ -98,9 +105,6 @@ CONFIG_PCI_NAMES=y
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
-CONFIG_SYSVIPC=y
-# CONFIG_BSD_PROCESS_ACCT is not set
-CONFIG_SYSCTL=y
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 # CONFIG_BINFMT_AOUT is not set
@@ -123,6 +127,7 @@ CONFIG_BINFMT_ELF=y
 #
 # CONFIG_PNP is not set
 # CONFIG_ISAPNP is not set
+# CONFIG_PNPBIOS is not set
 
 #
 # Block devices
@@ -155,7 +160,7 @@ CONFIG_BINFMT_ELF=y
 # Networking options
 #
 # CONFIG_PACKET is not set
-# CONFIG_NETLINK is not set
+CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
@@ -168,6 +173,7 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_IP_PNP_RARP is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
+# CONFIG_ARPD is not set
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
 # CONFIG_IPV6 is not set
@@ -238,6 +244,7 @@ CONFIG_NETDEVICES=y
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
 # CONFIG_TUN is not set
+# CONFIG_ETHERTAP is not set
 
 #
 # Ethernet (10 or 100Mbit)
@@ -471,7 +478,6 @@ CONFIG_LOCKD=y
 # CONFIG_NCPFS_NLS is not set
 # CONFIG_NCPFS_EXTRAS is not set
 # CONFIG_ZISOFS_FS is not set
-# CONFIG_ZLIB_FS_INFLATE is not set
 
 #
 # Partition Types
@@ -495,6 +501,7 @@ CONFIG_MSDOS_PARTITION=y
 # USB Host Controller Drivers
 #
 # CONFIG_USB_EHCI_HCD is not set
+# CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 # CONFIG_USB_OHCI is not set
@@ -619,3 +626,5 @@ CONFIG_CROSSCOMPILE=y
 # Library routines
 #
 # CONFIG_CRC32 is not set
+# CONFIG_ZLIB_INFLATE is not set
+# CONFIG_ZLIB_DEFLATE is not set

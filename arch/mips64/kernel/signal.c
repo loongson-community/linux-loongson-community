@@ -35,7 +35,7 @@ extern asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs);
 extern asmlinkage int save_fp_context(struct sigcontext *sc);
 extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
-extern asmlinkage void syscall_trace(void);
+extern asmlinkage void do_syscall_trace(void);
 
 int copy_siginfo_to_user(siginfo_t *to, siginfo_t *from)
 {
@@ -290,11 +290,11 @@ asmlinkage void sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->ptrace & PT_TRACESYS)
-		syscall_trace();
+	if (current->work.need_resched)
+		do_syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\tret_from_sys_call"
+		"j\tsyscall_exit"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */
@@ -335,7 +335,7 @@ asmlinkage void sys_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	 */
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
-		"j\tret_from_sys_call"
+		"j\tsyscall_exit"
 		:/* no outputs */
 		:"r" (&regs));
 	/* Unreached */
@@ -593,12 +593,6 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
 	struct k_sigaction *ka;
 	siginfo_t info;
-
-#ifdef CONFIG_BINFMT_ELF32
-	if (current->thread.mflags & MF_32BIT) {
-		return do_signal32(oldset, regs);
-	}
-#endif
 
 	if (!oldset)
 		oldset = &current->blocked;

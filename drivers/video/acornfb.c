@@ -1152,7 +1152,7 @@ acornfb_mmap(struct fb_info *info, struct file *file, struct vm_area_struct *vma
 	 * some updates to the screen occasionally, but process switches
 	 * should cause the caches and buffers to be flushed often enough.
 	 */
-	if (io_remap_page_range(vma->vm_start, off,
+	if (io_remap_page_range(vma, vma->vm_start, off,
 				vma->vm_end - vma->vm_start,
 				vma->vm_page_prot))
 		return -EAGAIN;
@@ -1318,7 +1318,7 @@ acornfb_init_fbinfo(void)
 	strcpy(fb_info.modename, "Acorn");
 	strcpy(fb_info.fontname, "Acorn8x8");
 
-	fb_info.node		   = -1;
+	fb_info.node		   = NODEV;
 	fb_info.fbops		   = &acornfb_ops;
 	fb_info.disp		   = &global_disp;
 	fb_info.changevar	   = NULL;

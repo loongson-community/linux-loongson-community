@@ -84,16 +84,13 @@ static inline void get_bit_address (struct super_block * s, unsigned long block,
    to free a list of blocks at once. -Hans */
 				/* I wonder if it would be less modest
                                    now that we use journaling. -Hans */
-void reiserfs_free_block (struct reiserfs_transaction_handle *th, unsigned long block)
+static void _reiserfs_free_block (struct reiserfs_transaction_handle *th, unsigned long block)
 {
     struct super_block * s = th->t_super;
     struct reiserfs_super_block * rs;
     struct buffer_head * sbh;
     struct buffer_head ** apbh;
     int nr, offset;
-
-  RFALSE(!s, "vs-4060: trying to free block on nonexistent device");
-  RFALSE(is_reusable (s, block, 1) == 0, "vs-4070: can not free such block");
 
   PROC_INFO_INC( s, free_block );
 
@@ -103,8 +100,12 @@ void reiserfs_free_block (struct reiserfs_transaction_handle *th, unsigned long 
 
   get_bit_address (s, block, &nr, &offset);
 
-  /* mark it before we clear it, just in case */
-  journal_mark_freed(th, s, block) ;
+  if (nr >= sb_bmap_nr (rs)) {
+	  reiserfs_warning ("vs-4075: reiserfs_free_block: "
+			    "block %lu is out of range on %s\n", 
+			    block, bdevname(s->s_dev));
+	  return;
+  }
 
   reiserfs_prepare_for_journal(s, apbh[nr], 1 ) ;
 
@@ -124,7 +125,26 @@ void reiserfs_free_block (struct reiserfs_transaction_handle *th, unsigned long 
   s->s_dirt = 1;
 }
 
+void reiserfs_free_block (struct reiserfs_transaction_handle *th, 
+                          unsigned long block) {
+    struct super_block * s = th->t_super;
 
+    RFALSE(!s, "vs-4061: trying to free block on nonexistent device");
+    RFALSE(is_reusable (s, block, 1) == 0, "vs-4071: can not free such block");
+    /* mark it before we clear it, just in case */
+    journal_mark_freed(th, s, block) ;
+    _reiserfs_free_block(th, block) ;
+}
+
+/* preallocated blocks don't need to be run through journal_mark_freed */
+void reiserfs_free_prealloc_block (struct reiserfs_transaction_handle *th, 
+                          unsigned long block) {
+    struct super_block * s = th->t_super;
+
+    RFALSE(!s, "vs-4060: trying to free block on nonexistent device");
+    RFALSE(is_reusable (s, block, 1) == 0, "vs-4070: can not free such block");
+    _reiserfs_free_block(th, block) ;
+}
 
 /* beginning from offset-th bit in bmap_nr-th bitmap block,
    find_forward finds the closest zero bit. It returns 1 and zero
@@ -382,16 +402,18 @@ free_and_return:
       goto free_and_return ;
     }
     search_start = new_block ;
-    if (search_start >= reiserfs_get_journal_block(s) &&
-        search_start < (reiserfs_get_journal_block(s) + JOURNAL_BLOCK_COUNT)) {
-	reiserfs_warning("vs-4130: reiserfs_new_blocknrs: trying to allocate log block %lu\n",
-			 search_start) ;
-	search_start++ ;
-	amount_needed++ ;
-	continue ;
-    }
-       
 
+
+    /* make sure the block is not of journal or reserved area */
+    if (is_block_in_log_or_reserved_area(s, search_start)) {
+      reiserfs_warning("vs-4130: reiserfs_new_blocknrs: trying to allocate log block %lu\n",
+		       search_start) ;
+      search_start++ ;
+      amount_needed++ ;
+      continue ;
+    }
+    
+    
     reiserfs_prepare_for_journal(s, SB_AP_BITMAP(s)[i], 1) ;
 
     RFALSE( buffer_locked (SB_AP_BITMAP (s)[i]) || 
@@ -466,6 +488,7 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
 				unsigned long      * free_blocknrs,
 				unsigned long        search_start)
 {
+  struct reiserfs_inode_info *ei = REISERFS_I(p_s_inode);
   int ret=0, blks_gotten=0;
   unsigned long border = 0;
   unsigned long bstart = 0;
@@ -488,12 +511,7 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
     ** to be grouped towards the start of the border
     */
     border = le32_to_cpu(INODE_PKEY(p_s_inode)->k_dir_id) % (SB_BLOCK_COUNT(th->t_super) - bstart - 1) ;
-  } else {
-    /* why would we want to delcare a local variable to this if statement
-    ** name border????? -chris
-    ** unsigned long border = 0;
-    */
-    if (!reiserfs_hashed_relocation(th->t_super)) {
+  } else if (!reiserfs_hashed_relocation(th->t_super)) {
       hash_in = le32_to_cpu((INODE_PKEY(p_s_inode))->k_dir_id);
 				/* I wonder if the CPU cost of the
                                    hash will obscure the layout
@@ -503,7 +521,6 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
       
       hash_out = keyed_hash(((char *) (&hash_in)), 4);
       border = hash_out % (SB_BLOCK_COUNT(th->t_super) - bstart - 1) ;
-    }
   }
   border += bstart ;
   allocated[0] = 0 ; /* important.  Allows a check later on to see if at
@@ -550,13 +567,13 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
     }
 
   /* take a block off the prealloc list and return it -Hans */
-  if (p_s_inode->u.reiserfs_i.i_prealloc_count > 0) {
-    p_s_inode->u.reiserfs_i.i_prealloc_count--;
-    *free_blocknrs = p_s_inode->u.reiserfs_i.i_prealloc_block++;
+  if (ei->i_prealloc_count > 0) {
+    ei->i_prealloc_count--;
+    *free_blocknrs = ei->i_prealloc_block++;
 
     /* if no more preallocated blocks, remove inode from list */
-    if (! p_s_inode->u.reiserfs_i.i_prealloc_count) {
-      list_del(&p_s_inode->u.reiserfs_i.i_prealloc_list);
+    if (! ei->i_prealloc_count) {
+      list_del_init(&ei->i_prealloc_list);
     }
     
     return ret;
@@ -567,8 +584,8 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
   /* this uses the last preallocated block as the search_start.  discard
   ** prealloc does not zero out this number.
   */
-  if (search_start <= p_s_inode->u.reiserfs_i.i_prealloc_block) {
-    search_start = p_s_inode->u.reiserfs_i.i_prealloc_block;
+  if (search_start <= ei->i_prealloc_block) {
+    search_start = ei->i_prealloc_block;
   }
   
   /* doing the compare again forces search_start to be >= the border,
@@ -588,6 +605,7 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
   *free_blocknrs = 0;
   blks = PREALLOCATION_SIZE-1;
   for (blks_gotten=0; blks_gotten<PREALLOCATION_SIZE; blks_gotten++) {
+
     ret = do_reiserfs_new_blocknrs(th, free_blocknrs, search_start, 
 				   1/*amount_needed*/, 
 				   0/*for root reserved*/,
@@ -611,18 +629,18 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
     }
 #endif
     if (blks_gotten==0) {
-      p_s_inode->u.reiserfs_i.i_prealloc_block = *free_blocknrs;
+      ei->i_prealloc_block = *free_blocknrs;
     }
     search_start = *free_blocknrs; 
     *free_blocknrs = 0;
   }
-  p_s_inode->u.reiserfs_i.i_prealloc_count = blks;
-  *free_blocknrs = p_s_inode->u.reiserfs_i.i_prealloc_block;
-  p_s_inode->u.reiserfs_i.i_prealloc_block++;
+  ei->i_prealloc_count = blks;
+  *free_blocknrs = ei->i_prealloc_block;
+  ei->i_prealloc_block++;
 
   /* if inode has preallocated blocks, link him to list */
-  if (p_s_inode->u.reiserfs_i.i_prealloc_count) {
-    list_add(&p_s_inode->u.reiserfs_i.i_prealloc_list,
+  if (ei->i_prealloc_count) {
+    list_add(&ei->i_prealloc_list,
 	     &SB_JOURNAL(th->t_super)->j_prealloc_list);
   } 
   /* we did actually manage to get 1 block */
@@ -657,42 +675,45 @@ int reiserfs_new_unf_blocknrs2 (struct reiserfs_transaction_handle *th,
 // analog. You should be able to tell which portion by looking at the
 // ext2 code and comparing. 
 static void __discard_prealloc (struct reiserfs_transaction_handle * th,
-				struct inode * inode)
+				struct reiserfs_inode_info *ei)
 {
-  while (inode->u.reiserfs_i.i_prealloc_count > 0) {
-    reiserfs_free_block(th,inode->u.reiserfs_i.i_prealloc_block);
-    inode->u.reiserfs_i.i_prealloc_block++;
-    inode->u.reiserfs_i.i_prealloc_count --;
+  unsigned long save = ei->i_prealloc_block ;
+  while (ei->i_prealloc_count > 0) {
+    reiserfs_free_prealloc_block(th,ei->i_prealloc_block);
+    ei->i_prealloc_block++;
+    ei->i_prealloc_count --;
   }
-  list_del (&(inode->u.reiserfs_i.i_prealloc_list));
+  ei->i_prealloc_block = save;
+  list_del_init(&(ei->i_prealloc_list));
 }
 
 
 void reiserfs_discard_prealloc (struct reiserfs_transaction_handle *th, 
 				struct inode * inode)
 {
+  struct reiserfs_inode_info *ei = REISERFS_I(inode);
 #ifdef CONFIG_REISERFS_CHECK
-  if (inode->u.reiserfs_i.i_prealloc_count < 0)
+  if (ei->i_prealloc_count < 0)
      reiserfs_warning("zam-4001:" __FUNCTION__ ": inode has negative prealloc blocks count.\n");
 #endif  
-    if (inode->u.reiserfs_i.i_prealloc_count > 0) {
-    __discard_prealloc(th, inode);
+    if (ei->i_prealloc_count > 0) {
+    __discard_prealloc(th, ei);
   }
       }
 
 void reiserfs_discard_all_prealloc (struct reiserfs_transaction_handle *th)
 {
   struct list_head * plist = &SB_JOURNAL(th->t_super)->j_prealloc_list;
-  struct inode * inode;
   
   while (!list_empty(plist)) {
-    inode = list_entry(plist->next, struct inode, u.reiserfs_i.i_prealloc_list);
+	struct reiserfs_inode_info *ei;
+	ei = list_entry(plist->next, struct reiserfs_inode_info, i_prealloc_list);
 #ifdef CONFIG_REISERFS_CHECK
-    if (!inode->u.reiserfs_i.i_prealloc_count) {
-      reiserfs_warning("zam-4001:" __FUNCTION__ ": inode is in prealloc list but has no preallocated blocks.\n");
-    }
-#endif    
-    __discard_prealloc(th, inode);
+	if (!ei->i_prealloc_count) {
+		reiserfs_warning("zam-4001:" __FUNCTION__ ": inode is in prealloc list but has no preallocated blocks.\n");
+	}
+#endif
+	__discard_prealloc(th, ei);
     }
 }
 #endif
