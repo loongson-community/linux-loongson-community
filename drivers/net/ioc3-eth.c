@@ -706,8 +706,10 @@ ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
 
 	if (ip->rxr == NULL) {
 		/* Allocate and initialize rx ring.  4kb = 512 entries  */
-		ip->rxr = (unsigned long *) get_free_page(GFP_KERNEL|GFP_ATOMIC);
+		ip->rxr = (unsigned long *) get_free_page(GFP_KERNEL);
 		rxr = (unsigned long *) ip->rxr;
+		if (!rxr)
+			printk("ioc3_alloc_rings(): get_free_page() failed!\n");
 
 		/* Now the rx buffers.  The RX ring may be larger but
 		   we only allocate 16 buffers for now.  Need to tune
@@ -737,7 +739,9 @@ ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
 
 	if (ip->txr == NULL) {
 		/* Allocate and initialize tx rings.  16kb = 128 bufs.  */
-		ip->txr = (struct ioc3_etxd *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, 2);
+		ip->txr = (struct ioc3_etxd *)__get_free_pages(GFP_KERNEL, 2);
+		if (!ip->txr)
+			printk("ioc3_alloc_rings(): get_free_page() failed!\n");
 		ip->tx_pi = 0;
 		ip->tx_ci = 0;
 	}
