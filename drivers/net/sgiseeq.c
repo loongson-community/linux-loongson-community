@@ -600,22 +600,16 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 {
 	struct net_device *dev;
 	struct sgiseeq_private *sp;
-	int i;
-	
-	sp = (struct sgiseeq_private *) get_zeroed_page(GFP_KERNEL);
-	if (!sp) {
-		printk (KERN_ERR
-			"Seeq8003: Could not allocate private data.\n");
-		return -ENOMEM;
+	int err, i;
+
+	dev = alloc_etherdev(sizeof(struct sgiseeq_private));
+	if (!dev) {
+		printk(KERN_ERR "Sgiseeq: Etherdev alloc failed, aborting.\n");
+		err = -ENOMEM;
+		goto err_out;
 	}
 
-	dev = init_etherdev(NULL, 0);
-	if (!dev) {
-		printk (KERN_ERR
-			"Seeq8003: Could not allocate memory for device.\n");
-		free_page((unsigned long) sp);
-		return -ENOMEM;
-	}
+	sp = dev->priv;
 
 	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
 		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
@@ -637,7 +631,6 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	}
 	printk("\n");
 
-	dev->priv = sp;
 #ifdef DEBUG
 	gpriv = sp;
 	gdev = dev;
@@ -677,12 +670,24 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	dev->set_multicast_list   = sgiseeq_set_multicast;
 	dev->irq                  = irq;
 	dev->dma                  = 0;
-	ether_setup(dev);
+
+	if (register_netdev(dev)) {
+		printk(KERN_ERR "Sgiseeq: Cannot register net device, "
+		       "aborting.\n");
+		err = -ENODEV;
+		goto err_out_free_irq;
+	}
 
 	sp->next_module = root_sgiseeq_dev;
 	root_sgiseeq_dev = dev;
 
 	return 0;
+
+err_out_free_irq:
+	free_irq(irq, dev);
+
+err_out:
+	return err;
 }
 
 static int __init sgiseeq_probe(void)
