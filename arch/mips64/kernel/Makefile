@@ -7,7 +7,7 @@
 #
 
 .S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+	$(CC) $(CFLAGS) $(CFLAGS_$@) -c $< -o $*.o
 
 all:	kernel.o head.o init_task.o
 
@@ -28,6 +28,9 @@ endif
 ifdef CONFIG_SMP
 O_OBJS += smp.o
 endif
+
+CFLAGS_r4k_genex.o := -P
+CFLAGS_r4k_tlb_glue.o := -P
 
 clean:
 
