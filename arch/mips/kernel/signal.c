@@ -78,8 +78,7 @@ int copy_siginfo_to_user(siginfo_t *to, siginfo_t *from)
  * Atomically swap in the new signal mask, and wait for a signal.
  */
 save_static_function(sys_sigsuspend);
-static_unused int
-_sys_sigsuspend(struct pt_regs regs)
+static_unused int _sys_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
@@ -104,10 +103,8 @@ _sys_sigsuspend(struct pt_regs regs)
 	}
 }
 
-
 save_static_function(sys_rt_sigsuspend);
-static_unused int
-_sys_rt_sigsuspend(struct pt_regs regs)
+static_unused int _sys_rt_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *unewset, saveset, newset;
         size_t sigsetsize;
@@ -138,8 +135,8 @@ _sys_rt_sigsuspend(struct pt_regs regs)
 	}
 }
 
-asmlinkage int 
-sys_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
+asmlinkage int sys_sigaction(int sig, const struct sigaction *act,
+	struct sigaction *oact)
 {
 	struct k_sigaction new_ka, old_ka;
 	int ret;
@@ -179,8 +176,7 @@ sys_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 	return ret;
 }
 
-asmlinkage int
-sys_sigaltstack(struct pt_regs regs)
+asmlinkage int sys_sigaltstack(struct pt_regs regs)
 {
 	const stack_t *uss = (const stack_t *) regs.regs[4];
 	stack_t *uoss = (stack_t *) regs.regs[5];
@@ -189,49 +185,57 @@ sys_sigaltstack(struct pt_regs regs)
 	return do_sigaltstack(uss, uoss, usp);
 }
 
-static void
-restore_thread_fp_context(struct sigcontext *sc)
+static inline int restore_thread_fp_context(struct sigcontext *sc)
 {
-	int i;
-	/* Note: This assumes that fpu.soft/fpu.hard union is isomorphic */	
 	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+	int i, err = 0;
 
 	/* 
-	 * Copy all 32 64-bit values, for two reasons.
-	 * First, the R3000 and R4000/MIPS32 kernels use
-	 * the thread FP register storage differently,
-	 * such that a full copy is essentially necessary
-	 * to support both.  Someone obsessed with performance 
-	 * could turn this into distinct routines in each
-	 * of the _fpu.S files.
-	 * 
+	 * Copy all 32 64-bit values, for two reasons.  First, the R3000 and
+	 * R4000/MIPS32 kernels use the thread FP register storage differently,
+	 * such that a full copy is essentially necessary to support both.
 	 */
 
-	for (i = 0; i < 32; i++ ) {
-		__get_user(pfreg[i], &sc->sc_fpregs[i]);
-	}
-	__get_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+#define restore_fpr(i) 						\
+	do { err |= __get_user(pfreg[i], &sc->sc_fpregs[i]); } while(0);
+
+	restore_fpr( 0); restore_fpr( 1); restore_fpr( 2); restore_fpr( 3);
+	restore_fpr( 4); restore_fpr( 5); restore_fpr( 6); restore_fpr( 7);
+	restore_fpr( 8); restore_fpr( 9); restore_fpr(10); restore_fpr(11);
+	restore_fpr(12); restore_fpr(13); restore_fpr(14); restore_fpr(15);
+	restore_fpr(16); restore_fpr(17); restore_fpr(18); restore_fpr(19);
+	restore_fpr(20); restore_fpr(21); restore_fpr(22); restore_fpr(23);
+	restore_fpr(24); restore_fpr(25); restore_fpr(26); restore_fpr(27);
+	restore_fpr(28); restore_fpr(29); restore_fpr(30); restore_fpr(31);
+
+	err |= __get_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+
+	return err;
 }
 
-static void
-save_thread_fp_context(struct sigcontext *sc)
+static inline int save_thread_fp_context(struct sigcontext *sc)
 {
-	int i;
-	/* Note: This assumes that fpu.soft/fpu.hard union is isomorphic */	
 	u64 *pfreg = &current->thread.fpu.soft.regs[0];
+	int i, err = 0;
 
-	/* 
-	 * See comment in restore_thread_fp_context()
-	 */
+#define save_fpr(i) 							\
+	do { err |= __put_user(regs->regs[i], &sc->sc_fpregs[i]); } while(0)
 
-	for (i = 0; i < 32; i++ ) {
-		__put_user(pfreg[i], &sc->sc_fpregs[i]);
-	}
-	__put_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+	save_fpr( 0); save_fpr( 1); save_fpr( 2); save_fpr( 3);
+	save_fpr( 4); save_fpr( 5); save_fpr( 6); save_fpr( 7);
+	save_fpr( 8); save_fpr( 9); save_fpr(10); save_fpr(11);
+	save_fpr(12); save_fpr(13); save_fpr(14); save_fpr(15);
+	save_fpr(16); save_fpr(17); save_fpr(18); save_fpr(19);
+	save_fpr(20); save_fpr(21); save_fpr(22); save_fpr(23);
+	save_fpr(24); save_fpr(25); save_fpr(26); save_fpr(27);
+	save_fpr(28); save_fpr(29); save_fpr(30); save_fpr(31);
+
+	err |= __put_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
+
+	return err;
 }
 
-asmlinkage int
-restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+static int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int owned_fp;
 	int err = 0;
@@ -263,20 +267,23 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 
 	err |= __get_user(owned_fp, &sc->sc_ownedfp);
 	err |= __get_user(current->used_math, &sc->sc_used_math);
+
 	if (owned_fp) {
 		err |= restore_fp_context(sc);
-	} else {
-		if (current == last_task_used_math) {
-			/* Signal handler acquired FPU - give it back */
-			last_task_used_math = NULL;
-			regs->cp0_status &= ~ST0_CU1;
-		}
-		if (current->used_math) {
-			/* Undo possible contamination of thread state */
-			restore_thread_fp_context(sc);
-		}
+		goto out;
 	}
 
+	if (current == last_task_used_math) {
+		/* Signal handler acquired FPU - give it back */
+		last_task_used_math = NULL;
+		regs->cp0_status &= ~ST0_CU1;
+	}
+	if (current->used_math) {
+		/* Undo possible contamination of thread state */
+		err |= restore_thread_fp_context(sc);
+	}
+
+out:
 	return err;
 }
 
@@ -294,8 +301,7 @@ struct rt_sigframe {
 	struct ucontext rs_uc;
 };
 
-asmlinkage void
-sys_sigreturn(struct pt_regs regs)
+asmlinkage void sys_sigreturn(struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -331,8 +337,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-asmlinkage void
-sys_rt_sigreturn(struct pt_regs regs)
+asmlinkage void sys_rt_sigreturn(struct pt_regs regs)
 {
 	struct rt_sigframe *frame;
 	sigset_t set;
@@ -373,8 +378,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-static int inline
-setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+static int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int owned_fp;
 	int err = 0;
@@ -407,28 +411,31 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	err |= __put_user(owned_fp, &sc->sc_ownedfp);
 	err |= __put_user(current->used_math, &sc->sc_used_math);
 
-	if (current->used_math) {	/* fp is active.  */
-		/* There exists FP thread state that may be trashed by signal */
-		if (owned_fp) {	
-			/* fp is active.  Save context from FPU */
-			err |= save_fp_context(sc);
-		} else {
-			/* 
-			 * Someone else has FPU. 
-			 * Copy Thread context into signal context 
-			 */
-			save_thread_fp_context(sc);
-		}
+	if (!current->used_math)
+		goto out;
+
+	/* There exists FP thread state that may be trashed by signal */
+	if (owned_fp) {	
+		/* fp is active.  Save context from FPU */
+		err |= save_fp_context(sc);
+		goto out;
 	}
 
+	/* 
+	 * Someone else has FPU. 
+	 * Copy Thread context into signal context 
+	 */
+	err |= save_thread_fp_context(sc);
+
+out:
 	return err;
 }
 
 /*
  * Determine which stack to use..
  */
-static inline void *
-get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
+static inline void * get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
+	size_t frame_size)
 {
 	unsigned long sp;
 
@@ -449,9 +456,8 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((sp - frame_size) & ALMASK);
 }
 
-static void inline
-setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
-            int signr, sigset_t *set)
+static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
+	int signr, sigset_t *set)
 {
 	struct sigframe *frame;
 	int err = 0;
@@ -512,9 +518,8 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static void inline
-setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
-               int signr, sigset_t *set, siginfo_t *info)
+static void inline setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
+	int signr, sigset_t *set, siginfo_t *info)
 {
 	struct rt_sigframe *frame;
 	int err = 0;
@@ -588,8 +593,7 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static inline void
-handle_signal(unsigned long sig, struct k_sigaction *ka,
+static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
 	siginfo_t *info, sigset_t *oldset, struct pt_regs * regs)
 {
 	if (ka->sa.sa_flags & SA_SIGINFO)
@@ -608,8 +612,7 @@ handle_signal(unsigned long sig, struct k_sigaction *ka,
 	}
 }
 
-static inline void
-syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
+static inline void syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
 {
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
