@@ -116,7 +116,8 @@ static void setup_irix_frame(struct k_sigaction *ka, struct pt_regs *regs,
 	regs->regs[5] = 0; /* XXX sigcode XXX */
 	regs->regs[6] = regs->regs[29] = sp;
 	regs->regs[7] = (unsigned long) ka->sa.sa_handler;
-	regs->regs[25] = regs->cp0_epc = (unsigned long) ka->sa.sa_restorer;
+	regs->regs[25] = regs->cp0_epc = (unsigned long) ka->sa_restorer;
+
 	return;
 
 segv_and_exit:
@@ -314,7 +315,7 @@ irix_sigaction(int sig, const struct sigaction *act,
 		 * value for all invocations of sigaction.  Will have to
 		 * investigate.  POSIX POSIX, die die die...
 		 */
-		new_ka.sa.sa_restorer = trampoline;
+		new_ka.sa_restorer = trampoline;
 	}
 
 /* XXX Implement SIG_SETMASK32 for IRIX compatibility */

@@ -113,7 +113,6 @@ asmlinkage int sys_sigaction(int sig, const struct sigaction *act,
 		err |= __get_user(new_ka.sa.sa_handler, &act->sa_handler);
 		err |= __get_user(new_ka.sa.sa_flags, &act->sa_flags);
 		err |= __get_user(mask, &act->sa_mask.sig[0]);
-		err |= __get_user(new_ka.sa.sa_restorer, &act->sa_restorer);
 		if (err)
 			return -EFAULT;
 
@@ -131,7 +130,6 @@ asmlinkage int sys_sigaction(int sig, const struct sigaction *act,
                 err |= __put_user(0, &oact->sa_mask.sig[1]);
                 err |= __put_user(0, &oact->sa_mask.sig[2]);
                 err |= __put_user(0, &oact->sa_mask.sig[3]);
-		err |= __put_user(old_ka.sa.sa_restorer, &oact->sa_restorer);
                 if (err)
 			return -EFAULT;
 	}
@@ -365,23 +363,15 @@ static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	if (!access_ok(VERIFY_WRITE, frame, sizeof (*frame)))
 		goto give_sigsegv;
 
-	/* Set up to return from userspace.  If provided, use a stub already
-	   in userspace.  */
-	if (ka->sa.sa_flags & SA_RESTORER)
-		regs->regs[31] = (unsigned long) ka->sa.sa_restorer;
-	else {
-		/*
-		 * Set up the return code ...
-		 *
-		 *         li      v0, __NR_sigreturn
-		 *         syscall
-		 */
-		err |= __put_user(0x24020000 + __NR_sigreturn,
-		                  frame->sf_code + 0);
-		err |= __put_user(0x0000000c                 ,
-		                  frame->sf_code + 1);
-		flush_cache_sigtramp((unsigned long) frame->sf_code);
-	}
+	/*
+	 * Set up the return code ...
+	 *
+	 *         li      v0, __NR_sigreturn
+	 *         syscall
+	 */
+	err |= __put_user(0x24020000 + __NR_sigreturn, frame->sf_code + 0);
+	err |= __put_user(0x0000000c                 , frame->sf_code + 1);
+	flush_cache_sigtramp((unsigned long) frame->sf_code);
 
 	err |= setup_sigcontext(regs, &frame->sf_sc);
 	err |= __copy_to_user(&frame->sf_mask, set, sizeof(*set));
@@ -428,23 +418,15 @@ static void inline setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
 	if (!access_ok(VERIFY_WRITE, frame, sizeof (*frame)))
 		goto give_sigsegv;
 
-	/* Set up to return from userspace.  If provided, use a stub already
-	   in userspace.  */
-	if (ka->sa.sa_flags & SA_RESTORER)
-		regs->regs[31] = (unsigned long) ka->sa.sa_restorer;
-	else {
-		/*
-		 * Set up the return code ...
-		 *
-		 *         li      v0, __NR_rt_sigreturn
-		 *         syscall
-		 */
-		err |= __put_user(0x24020000 + __NR_rt_sigreturn,
-		                  frame->rs_code + 0);
-		err |= __put_user(0x0000000c                 ,
-		                  frame->rs_code + 1);
-		flush_cache_sigtramp((unsigned long) frame->rs_code);
-	}
+	/*
+	 * Set up the return code ...
+	 *
+	 *         li      v0, __NR_rt_sigreturn
+	 *         syscall
+	 */
+	err |= __put_user(0x24020000 + __NR_rt_sigreturn, frame->rs_code + 0);
+	err |= __put_user(0x0000000c                    , frame->rs_code + 1);
+	flush_cache_sigtramp((unsigned long) frame->rs_code);
 
 	/* Create siginfo.  */
 	err |= copy_siginfo_to_user(&frame->rs_info, info);
