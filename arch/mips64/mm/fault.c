@@ -65,8 +65,8 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	if (in_interrupt() || mm == &init_mm)
 		goto no_context;
 #if DEBUG_MIPS64
-	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
-	       address, write, regs->cp0_epc);
+	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(), current->comm,
+		current->pid, address, write, regs->cp0_epc);
 #endif
 	down(&mm->mmap_sem);
 	vma = find_vma(mm, address);
@@ -155,9 +155,9 @@ no_context:
 	 * Oops. The kernel tried to access some bad page. We'll have to
 	 * terminate things with extreme prejudice.
 	 */
-	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
+	printk(KERN_ALERT "Cpu %d Unable to handle kernel paging request at "
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
-	       address, regs->cp0_epc, regs->regs[31]);
+	       smp_processor_id(), address, regs->cp0_epc, regs->regs[31]);
 while(1);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
