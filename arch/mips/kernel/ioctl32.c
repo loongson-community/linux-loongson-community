@@ -384,7 +384,7 @@ static inline int dev_ifconf(unsigned int fd, unsigned int cmd,
 	struct ifreq32 *ifr32;
 	struct ifreq *ifr;
 	mm_segment_t old_fs;
-	int len;
+	unsigned int i, j;
 	int err;
 
 	if (copy_from_user(&ifc32, uifc32, sizeof(struct ifconf32)))
@@ -403,16 +403,14 @@ static inline int dev_ifconf(unsigned int fd, unsigned int cmd,
 	}
 	ifr = ifc.ifc_req;
 	ifr32 = (struct ifreq32 *)A(ifc32.ifcbuf);
-	len = ifc32.ifc_len / sizeof (struct ifreq32);
-	while (len--) {
+	for (i = 0; i < ifc32.ifc_len; i += sizeof (struct ifreq32)) {
 		if (copy_from_user(ifr++, ifr32++, sizeof (struct ifreq32))) {
-			err = -EFAULT;
-			goto out;
+			kfree (ifc.ifc_buf);
+			return -EFAULT;
 		}
 	}
 
-	old_fs = get_fs();
-	set_fs (KERNEL_DS);
+	old_fs = get_fs(); set_fs (KERNEL_DS);
 	err = sys_ioctl (fd, SIOCGIFCONF, (unsigned long)&ifc);
 	set_fs (old_fs);
 	if (err)
@@ -420,16 +418,26 @@ static inline int dev_ifconf(unsigned int fd, unsigned int cmd,
 
 	ifr = ifc.ifc_req;
 	ifr32 = (struct ifreq32 *)A(ifc32.ifcbuf);
-	len = ifc.ifc_len / sizeof (struct ifreq);
-	ifc32.ifc_len = len * sizeof (struct ifreq32);
-
-	while (len--) {
+	for (i = 0, j = 0; i < ifc32.ifc_len && j < ifc.ifc_len;
+	     i += sizeof (struct ifreq32), j += sizeof (struct ifreq)) {
 		if (copy_to_user(ifr32++, ifr++, sizeof (struct ifreq32))) {
 			err = -EFAULT;
 			goto out;
 		}
 	}
-
+	if (ifc32.ifcbuf == 0) {
+		/* Translate from 64-bit structure multiple to
+		 * a 32-bit one.
+		 */
+		i = ifc.ifc_len;
+		i = ((i / sizeof(struct ifreq)) * sizeof(struct ifreq32));
+		ifc32.ifc_len = i;
+	} else {
+		if (i <= ifc32.ifc_len)
+			ifc32.ifc_len = i;
+		else
+			ifc32.ifc_len = i - sizeof (struct ifreq32);
+	}
 	if (copy_to_user(uifc32, &ifc32, sizeof(struct ifconf32))) {
 		err = -EFAULT;
 		goto out;
