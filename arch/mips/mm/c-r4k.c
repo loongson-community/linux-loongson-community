@@ -1038,7 +1038,6 @@ void __init ld_mmu_r4xx0(void)
 
 	probe_pcache();
 	setup_scache();
-	coherency_setup();
 
 	if (c->dcache.sets * c->dcache.ways > PAGE_SIZE)
 		c->dcache.flags |= MIPS_CACHE_ALIASES;
@@ -1080,6 +1079,7 @@ void __init ld_mmu_r4xx0(void)
 #endif
 
 	__flush_cache_all();
+	coherency_setup();
 
 	build_clear_page();
 	build_copy_page();
