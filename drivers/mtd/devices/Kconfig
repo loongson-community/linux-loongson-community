@@ -40,7 +40,7 @@ config MTD_PMC551_DEBUG
 
 config MTD_MS02NV
 	tristate "DEC MS02-NV NVRAM module support"
-	depends on MTD && DECSTATION
+	depends on MTD && MACH_DECSTATION
 	help
 	  This is an MTD driver for the DEC's MS02-NV (54-20948-01) battery
 	  backed-up NVRAM module.  The module was originally meant as an NFS
