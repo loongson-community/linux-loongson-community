@@ -28,7 +28,7 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 
 	if (ret != NULL) {
 		memset(ret, 0, size);
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 		dma_cache_wback_inv((unsigned long) ret, size);
 		ret = KSEG1ADDR(ret);
 #endif
@@ -43,7 +43,7 @@ void pci_free_consistent(struct pci_dev *hwdev, size_t size,
 {
 	unsigned long addr = (unsigned long) vaddr;
 
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	addr = KSEG0ADDR(addr);
 #endif
 	free_pages(addr, get_order(size));

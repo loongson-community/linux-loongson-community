@@ -13,6 +13,7 @@
 
 #include <linux/config.h>
 #include <linux/pagemap.h>
+#include <linux/types.h>
 #include <asm/addrspace.h>
 #include <asm/byteorder.h>
 
@@ -157,7 +158,7 @@ extern void iounmap(void *addr);
 #define __raw_readw readw
 #define __raw_readl readl
 
-#define writeb(b,addr) (*(volatile unsigned char *)(addr)) = (b)
+#define writeb(b,addr) (*(volatile unsigned char *)(addr)) = (__ioswab8(b))
 #define writew(b,addr) (*(volatile unsigned short *)(addr)) = (__ioswab16(b))
 #define writel(b,addr) (*(volatile unsigned int *)(addr)) = (__ioswab32(b))
 #define __raw_writeb writeb
@@ -167,8 +168,6 @@ extern void iounmap(void *addr);
 #define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
 #define memcpy_toio(a,b,c)	memcpy((void *)(a),(b),(c))
-
-/* END SNI HACKS ... */
 
 /*
  * ISA space is 'always mapped' on currently supported MIPS systems, no need
@@ -217,72 +216,72 @@ out:
 
 #define outb(val,port)							\
 do {									\
-	*(volatile __u8 *)(mips_io_port_base + (port)) = (val);		\
+	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
 } while(0)
 
 #define outw(val,port)							\
 do {									\
-	*(volatile __u16 *)(mips_io_port_base + (port)) = (val);	\
+	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);	\
 } while(0)
 
 #define outl(val,port)							\
 do {									\
-	*(volatile __u32 *)(mips_io_port_base + (port)) = (val);	\
+	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
 } while(0)
 
 #define outb_p(val,port)						\
 do {									\
-	*(volatile __u8 *)(mips_io_port_base + (port)) = (val);		\
+	*(volatile u8 *)(mips_io_port_base + (port)) = __ioswab8(val);	\
 	SLOW_DOWN_IO;							\
 } while(0)
 
 #define outw_p(val,port)						\
 do {									\
-	*(volatile __u16 *)(mips_io_port_base + (port)) = (val);	\
+	*(volatile u16 *)(mips_io_port_base + (port)) = __ioswab16(val);\
 	SLOW_DOWN_IO;							\
 } while(0)
 
 #define outl_p(val,port)						\
 do {									\
-	*(volatile __u32 *)(mips_io_port_base + (port)) = (val);	\
+	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
 	SLOW_DOWN_IO;							\
 } while(0)
 
-#define inb(port) (*(volatile __u8 *)(mips_io_port_base + (port)))
-#define inw(port) (*(volatile __u16 *)(mips_io_port_base + (port)))
-#define inl(port) (*(volatile __u32 *)(mips_io_port_base + (port)))
+#define inb(port) (__ioswab8(*(volatile u8 *)(mips_io_port_base + (port))))
+#define inw(port) (__ioswab16(*(volatile u16 *)(mips_io_port_base + (port))))
+#define inl(port) (__ioswab32(*(volatile u32 *)(mips_io_port_base + (port))))
 
 #define inb_p(port)							\
 ({									\
-	__u8 __inb_ret;							\
+	u8 __val;							\
 									\
-	__inb_ret = *(volatile __u8 *)(mips_io_port_base + (port));	\
+	__val = *(volatile u8 *)(mips_io_port_base + (port));		\
 	SLOW_DOWN_IO;							\
-	__inb_ret;							\
+	__ioswab8(__val);						\
 })
 
 #define inw_p(port)							\
 ({									\
-	__u16 __inw_ret;						\
+	u16 __val;							\
 									\
-	__inw_ret = *(volatile __u16 *)(mips_io_port_base + (port));	\
+	__val = *(volatile u16 *)(mips_io_port_base + (port));		\
 	SLOW_DOWN_IO;							\
-	__inw_ret;							\
+	__ioswab16(__val);						\
 })
 
 #define inl_p(port)							\
 ({									\
-	__u32 __inl_ret;						\
+	u32 __val;							\
 									\
-	__inl_ret = *(volatile __u32 *)(mips_io_port_base + (port));	\
+	__val = *(volatile u32 *)(mips_io_port_base + (port));		\
 	SLOW_DOWN_IO;							\
-	_inl_ret;							\
+	__ioswab32(__val);						\
 })
 
 static inline void outsb(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		outb(*(__u8 *)addr, port);
+		outb(*(u8 *)addr, port);
 		addr++;
 	}
 }
@@ -290,7 +289,7 @@ static inline void outsb(unsigned long port, void *addr, unsigned int count)
 static inline void insb(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		*(__u8 *)addr = inb(port);
+		*(u8 *)addr = inb(port);
 		addr++;
 	}
 }
@@ -298,7 +297,7 @@ static inline void insb(unsigned long port, void *addr, unsigned int count)
 static inline void outsw(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		outw(*(__u16 *)addr, port);
+		outw(*(u16 *)addr, port);
 		addr += 2;
 	}
 }
@@ -306,7 +305,7 @@ static inline void outsw(unsigned long port, void *addr, unsigned int count)
 static inline void insw(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		*(__u16 *)addr = inw(port);
+		*(u16 *)addr = inw(port);
 		addr += 2;
 	}
 }
@@ -314,7 +313,7 @@ static inline void insw(unsigned long port, void *addr, unsigned int count)
 static inline void outsl(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		outl(*(__u32 *)addr, port);
+		outl(*(u32 *)addr, port);
 		addr += 4;
 	}
 }
@@ -322,7 +321,7 @@ static inline void outsl(unsigned long port, void *addr, unsigned int count)
 static inline void insl(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		*(__u32 *)addr = inw(port);
+		*(u32 *)addr = inw(port);
 		addr += 4;
 	}
 }
@@ -345,6 +344,8 @@ static inline void insl(unsigned long port, void *addr, unsigned int count)
  *    be discarded.  This operation is necessary before dma operations
  *    to the memory.
  */
+#ifdef CONFIG_NONCOHERENT_IO
+
 extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
@@ -352,5 +353,13 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 #define dma_cache_wback_inv(start,size)	_dma_cache_wback_inv(start,size)
 #define dma_cache_wback(start,size)	_dma_cache_wback(start,size)
 #define dma_cache_inv(start,size)	_dma_cache_inv(start,size)
+
+#else /* Sane hardware */
+
+#define dma_cache_wback_inv(start,size)	do { (start); (size); } while (0)
+#define dma_cache_wback(start,size)	do { (start); (size); } while (0)
+#define dma_cache_inv(start,size)	do { (start); (size); } while (0)
+
+#endif /* CONFIG_NONCOHERENT_IO */
 
 #endif /* _ASM_IO_H */

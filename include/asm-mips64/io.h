@@ -385,22 +385,7 @@ __OUTS(w,l,4)
  *    be discarded.  This operation is necessary before dma operations
  *    to the memory.
  */
-#ifdef CONFIG_COHERENT_IO
-
-/* This is for example for IP27.  */
-static inline void dma_cache_wback_inv(unsigned long start, unsigned long size)
-{
-}
-
-static inline void dma_cache_wback(unsigned long start, unsigned long size)
-{
-}
-
-static inline void dma_cache_inv(unsigned long start, unsigned long size)
-{
-}
-
-#else
+#ifdef CONFIG_NONCOHERENT_IO
 
 extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
@@ -410,6 +395,12 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 #define dma_cache_wback(start,size)	_dma_cache_wback(start,size)
 #define dma_cache_inv(start,size)	_dma_cache_inv(start,size)
 
-#endif
+#else /* Sane hardware */
+
+#define dma_cache_wback_inv(start,size)	do { (start); (size); } while (0)
+#define dma_cache_wback(start,size)	do { (start); (size); } while (0)
+#define dma_cache_inv(start,size)	do { (start); (size); } while (0)
+
+#endif /* CONFIG_NONCOHERENT_IO */
 
 #endif /* _ASM_IO_H */

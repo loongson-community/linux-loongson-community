@@ -45,7 +45,6 @@ unset CONFIG_BINFMT_ELF32
 unset CONFIG_BOARD_SCACHE
 unset CONFIG_BOOT_ELF32
 unset CONFIG_BOOT_ELF64
-unset CONFIG_COHERENT_IO
 unset CONFIG_ISA
 unset CONFIG_MAPPED_PCI_IO
 unset CONFIG_PCI
@@ -57,6 +56,7 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_BOOT_ELF32 y
+   define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_SGI y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
@@ -64,7 +64,6 @@ fi
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
    define_bool CONFIG_ARC64 y
-   define_bool CONFIG_COHERENT_IO y
    define_bool CONFIG_MAPPED_PCI_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_QL_ISP_A64 y
@@ -78,13 +77,13 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
    define_bool CONFIG_PCI y
    #define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_MAPPED_PCI_IO y
+   define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_ARC_MEMORY y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
 
 if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
-   define_bool CONFIG_COHERENT_IO y
    define_bool CONFIG_SWAP_IO_SPACE y
    define_bool CONFIG_CFE y
    define_bool CONFIG_SIBYTE_SB1250 y

@@ -92,7 +92,7 @@ static inline dma_addr_t pci_map_single(struct pci_dev *hwdev, void *ptr,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv((unsigned long)ptr, size);
 #endif
 
@@ -131,7 +131,7 @@ static inline dma_addr_t pci_map_page(struct pci_dev *hwdev, struct page *page,
 
 	addr = (unsigned long) page_address(page);
 	addr += offset;
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv(addr, size);
 #endif
 
@@ -165,14 +165,14 @@ static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
 static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 			     int nents, int direction)
 {
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	int i;
 #endif
 
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	/* Make sure that gcc doesn't leave the empty loop body.  */
 	for (i = 0; i < nents; i++, sg++)
 		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
@@ -212,7 +212,7 @@ static inline void pci_dma_sync_single(struct pci_dev *hwdev,
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	dma_cache_wback_inv((unsigned long)bus_to_virt(dma_handle), size);
 #endif
 }
@@ -228,7 +228,7 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 				   struct scatterlist *sg,
 				   int nelems, int direction)
 {
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	int i;
 #endif
 
@@ -236,7 +236,7 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 		BUG();
 
 	/* Make sure that gcc doesn't leave the empty loop body.  */
-#ifndef CONFIG_COHERENT_IO
+#ifdef CONFIG_NONCOHERENT_IO
 	for (i = 0; i < nelems; i++, sg++)
 		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
 #endif
