@@ -52,6 +52,10 @@ extern void __init it8172_init_ram_resource(unsigned long memsize);
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
 #define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
 
+const char *get_system_type(void)
+{
+	return "Globespan IVR";
+}
 
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {

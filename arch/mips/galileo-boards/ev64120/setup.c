@@ -68,7 +68,7 @@ extern struct pci_ops galileo_pci_ops;
 
 extern unsigned long mips_machgroup;
 
-char arcs_cmdline[COMMAND_LINE_SIZE] = { "console=ttyS0,115200 "
+char arcs_cmdline[CL_SIZE] = { "console=ttyS0,115200 "
 	    "root=/dev/nfs rw nfsroot=192.168.1.1:/mnt/disk2/fs.gal "
 	    "ip=192.168.1.211:192.168.1.1:::gt::"
 };
@@ -149,22 +149,25 @@ void ev64120_setup(void)
 
 }
 
-/********************************************************************
- *SetUpBootInfo -
+const char *get_system_type(void)
+{
+	return "Galileo EV64120A";
+}
+
+/*
+ * SetUpBootInfo -
  *
- *This function is called at very first stages of kernel startup.
- *It specifies for the kernel the evaluation board that the linux
- *is running on. Then it saves the eprom parameters that holds the
- *command line, memory size etc...
+ * This function is called at very first stages of kernel startup.
+ * It specifies for the kernel the evaluation board that the linux
+ * is running on. Then it saves the eprom parameters that holds the
+ * command line, memory size etc...
  *
- *Inputs :
- *argc - nothing
- *argv - holds a pointer to the eprom parameters
- *envp - nothing
- *
- *Outpus :
- *
- *********************************************************************/
+ * Inputs :
+ * argc - nothing
+ * argv - holds a pointer to the eprom parameters
+ * envp - nothing
+ */
+
 void SetUpBootInfo(int argc, char **argv, char **envp)
 {
 	mips_machgroup = MACH_GROUP_GALILEO;

@@ -17,13 +17,18 @@
 #include <asm/addrspace.h>
 #include <asm/page.h>
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 #ifdef CONFIG_FB_TX3912
 extern unsigned long tx3912fb_paddr;
 extern unsigned long tx3912fb_vaddr;
 extern unsigned long tx3912fb_size;
 #endif
+
+const char *get_system_type(void)
+{
+	return "Philips Nino";
+}
 
 /* Do basic initialization */
 void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)

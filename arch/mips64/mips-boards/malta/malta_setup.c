@@ -91,6 +91,10 @@ static void __init malta_irq_setup(void)
 #endif
 }
 
+const char *get_system_type(void)
+{
+	return "MIPS Malta";
+}
 
 void __init malta_setup(void)
 {

@@ -34,17 +34,10 @@
 #define MACH_GROUP_NEC_VR41XX  19 /* NEC Vr41xx based boards/gadgets          */
 #define MACH_GROUP_HP_LJ	20 /* Hewlett Packard LaserJet */
 
-#define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
-	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", \
-	"ITE", "Philips", "Globepspan", "SiByte", "Toshiba", "Alchemy",       \
-	"NEC Vr41xx", "HP LaserJet" }
-
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
  */
 #define MACH_UNKNOWN		0	/* whatever...			*/
-
-#define GROUP_UNKNOWN_NAMES { "unknown" }
 
 /*
  * Valid machtype values for group JAZZ
@@ -52,8 +45,6 @@
 #define MACH_ACER_PICA_61	0	/* Acer PICA-61 (PICA1)		*/
 #define MACH_MIPS_MAGNUM_4000	1	/* Mips Magnum 4000 "RC4030"	*/
 #define MACH_OLIVETTI_M700      2	/* Olivetti M700-10 (-15 ??)    */
-
-#define GROUP_JAZZ_NAMES { "Acer PICA 61", "Mips Magnum 4000", "Olivetti M700" }
 
 /*
  * Valid machtype for group DEC 
@@ -69,32 +60,21 @@
 #define MACH_DS5500		8	/* DECstation 5500		*/
 #define MACH_DS5800		9	/* DECstation 5800		*/
 
-#define GROUP_DEC_NAMES { "unknown", "DECstation 2100/3100", "DECstation 5100", \
-	"DECstation 5000/200", "DECstation 5000/1xx", "Personal DECstation 5000/xx", \
-	"DECstation 5000/2x0", "DECstation 5400", "DECstation 5500", \
-	"DECstation 5800" }
-
 /*
  * Valid machtype for group ARC
  */
 #define MACH_DESKSTATION_RPC44  0	/* Deskstation rPC44 */
 #define MACH_DESKSTATION_TYNE	1	/* Deskstation Tyne */
 
-#define GROUP_ARC_NAMES { "Deskstation rPC44", "Deskstation Tyne" }
-
 /*
  * Valid machtype for group SNI_RM
  */
 #define MACH_SNI_RM200_PCI	0	/* RM200/RM300/RM400 PCI series */
 
-#define GROUP_SNI_RM_NAMES { "RM200 PCI" }
-
 /*
  * Valid machtype for group ACN
  */
 #define MACH_ACN_MIPS_BOARD	0       /* ACN MIPS single board        */
-
-#define GROUP_ACN_NAMES { "ACN" }
 
 /*
  * Valid machtype for group SGI
@@ -102,15 +82,13 @@
 #define MACH_SGI_INDY		0	/* R4?K and R5K Indy workstations */
 #define MACH_SGI_CHALLENGE_S	1	/* The Challenge S server */
 #define MACH_SGI_INDIGO2	2	/* The Indigo2 system */
-
-#define GROUP_SGI_NAMES { "Indy", "Challenge S", "Indigo2" }
+#define MACH_SGI_IP27		3	/* Origin 200, Origin 2000, Onyx 2 */
+#define MACH_SGI_IP32		4	/* O2 */
 
 /*
  * Valid machtype for group COBALT
  */
 #define MACH_COBALT_27 		 0	/* Proto "27" hardware */
-
-#define GROUP_COBALT_NAMES { "Microserver 27" }
 
 /*
  * Valid machtype for group NEC DDB
@@ -119,22 +97,16 @@
 #define MACH_NEC_DDB5476         1      /* NEC DDB Vrc-5476 */
 #define MACH_NEC_DDB5477         2      /* NEC DDB Vrc-5477 */
 
-#define GROUP_NEC_DDB_NAMES { "Vrc-5074", "Vrc-5476", "Vrc-5477"}
-
 /*
  * Valid machtype for group BAGET
  */
 #define MACH_BAGET201		0	/* BT23-201 */
 #define MACH_BAGET202		1	/* BT23-202 */
 
-#define GROUP_BAGET_NAMES { "BT23-201", "BT23-202" }
-
 /*
  * Cosine boards.
  */
 #define MACH_COSINE_ORION	0
-
-#define GROUP_COSINE_NAMES { "Orion" }
 
 /*
  * Valid machtype for group GALILEO
@@ -142,14 +114,10 @@
 #define MACH_EV96100		0	/* EV96100 */
 #define MACH_EV64120A		1	/* EV64120A */
 
-#define GROUP_GALILEO_NAMES { "EV96100" , "EV64120A" }
-
 /*
  * Valid machtype for group MOMENCO
  */
 #define MACH_MOMENCO_OCELOT		0
-
-#define GROUP_MOMENCO_NAMES { "Ocelot" }
 
  
 /*
@@ -157,14 +125,10 @@
  */
 #define MACH_QED_4N_S01B	0	/* ITE8172 based eval board */
  
-#define GROUP_ITE_NAMES { "QED-4N-S01B" } /* the actual board name */
-	
 /*
  * Valid machtype for group Globespan
  */
 #define MACH_IVR       0                  /* IVR eval board */
-
-#define GROUP_GLOBESPAN_NAMES { "IVR" }   /* the actual board name */   
 
 /*
  * Valid machtype for group PHILIPS
@@ -172,14 +136,10 @@
 #define MACH_PHILIPS_NINO	0	/* Nino */
 #define MACH_PHILIPS_VELO	1	/* Velo */
 
-#define GROUP_PHILIPS_NAMES { "Nino" , "Velo" }
-
 /*
  * Valid machtype for group SIBYTE
  */
 #define MACH_SWARM              0
-
-#define GROUP_SIBYTE_NAMES {"SWARM" }
 
 /*
  * Valid machtypes for group Toshiba
@@ -189,22 +149,15 @@
 #define MACH_JMR		2
 #define MACH_TOSHIBA_JMR3927    3      /* JMR-TX3927 CPU/IO board */
 
-#define GROUP_TOSHIBA_NAMES { "Pallas", "TopasCE", "JMR", "JMR TX3927" }
-
 /*
  * Valid machtype for group Alchemy
  */
 #define MACH_PB1000	0	         /* Au1000-based eval board */
  
-#define GROUP_ALCHEMY_NAMES { "PB1000" } /* the actual board name */
-
 /*
  * Valid machtype for group NEC_VR41XX
  */
 #define MACH_NEC_OSPREY                0       /* Osprey eval board */
-
-#define GROUP_NEC_VR41XX_NAMES { "Osprey" }
-
 
 /*
  * Valid cputype values
@@ -264,7 +217,7 @@
 	"Au1000", "MIPS 4KEc", "MIPS 4KSc", "NEC Vr41xx", "R5500", "TX49xx", \
 	"TX39xx" }
 
-#define COMMAND_LINE_SIZE	256
+#define CL_SIZE			80
 
 #define BOOT_MEM_MAP_MAX	32
 #define BOOT_MEM_RAM		1
@@ -272,6 +225,8 @@
 #define BOOT_MEM_RESERVED	3
 
 #ifndef __ASSEMBLY__
+
+const char *get_system_type(void);
 
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;

@@ -13,7 +13,12 @@
 #include <asm/bootinfo.h>
 
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
+
+const char *get_system_type(void)
+{
+	return "NEC DDB Vrc-5074";
+}
 
 void __init prom_init(const char *s)
 {

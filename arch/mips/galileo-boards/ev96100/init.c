@@ -52,7 +52,7 @@ typedef struct {
 
 int prom_argc;
 char **prom_argv, **prom_envp;
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 int init_debug = 0;
 
@@ -151,6 +151,10 @@ int get_ethernet_addr(char *ethernet_addr)
 	return 0;
 }
 
+const char *get_system_type(void)
+{
+	return "Galileo EV96100";
+}
 
 void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {

@@ -17,7 +17,7 @@
 const char CommandLine[] = Delimiter
   "root=/dev/hda3                                                                                                                                                                                                                                            ";
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 int __init prom_init(int argc, char ** argv, char **envp)
 {

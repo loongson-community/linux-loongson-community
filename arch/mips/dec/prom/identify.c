@@ -19,6 +19,26 @@ extern int (*rex_getsysid)(void);
 extern unsigned long mips_machgroup;
 extern unsigned long mips_machtype;
 
+extern unsigned long mips_machtype;
+const char *get_system_type(void)
+{ 
+	static char system[32];
+	int called = 0;
+	const char *dec_system_strings[] = { "unknown", "DECstation 2100/3100",
+        	"DECstation 5100", "DECstation 5000/200", "DECstation 5000/1xx",
+		"Personal DECstation 5000/xx", "DECstation 5000/2x0",
+		"DECstation 5400", "DECstation 5500", "DECstation 5800"
+	};
+
+	if (called == 0) {
+		called = 1;
+		strcpy(system, "Digital ");
+		strcat(system, dec_system_strings[mips_machtype]);
+	}
+
+	return system;
+}
+
 void __init prom_identify_arch (unsigned int magic)
 {
 	unsigned char dec_cpunum, dec_firmrev, dec_etc;

@@ -32,7 +32,12 @@
 
 #define PLD_REG(x)	((uint8_t*)(PLD_BASE+(x)))
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
+
+const char *get_system_type(void)
+{
+	return "Momentum Ocelot";
+}
 
 /* [jsun@junsun.net] PMON passes arguments in C main() style */
 void __init prom_init(int argc, const char **arg)

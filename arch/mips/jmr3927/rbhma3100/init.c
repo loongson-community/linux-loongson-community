@@ -47,6 +47,15 @@ extern void  __init prom_init_cmdline(void);
 extern char *prom_getenv(char *envname);
 unsigned long mips_nofpu = 0;
 
+const char *get_system_type(void)
+{
+	return "Toshiba"
+#ifdef CONFIG_TOSHIBA_JMR3927
+	       " JMR_TX3927"
+#endif
+	;
+}
+
 extern void puts(unsigned char *cp);
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {

@@ -26,6 +26,8 @@ int sgi_has_ioc2 = 0;
 int sgi_guiness = 0;
 int sgi_boardid;
 
+extern char *system_type;
+
 void __init sgihpc_init(void)
 {
 	unsigned long sid, crev, brev;
@@ -51,12 +53,14 @@ void __init sgihpc_init(void)
 #endif
 		sgi_guiness = 1;
 		mips_machtype = MACH_SGI_INDY;
+		strcat(system_type, "Indy");
 	} else {
 #ifdef DEBUG_SGIHPC
 		prom_printf("FULLHOUSE ");
 #endif
                 mips_machtype = MACH_SGI_INDIGO2;
 		sgi_guiness = 0;
+		strcat(system_type, "Indigo2");
 	}
 	sgi_boardid = brev;
 

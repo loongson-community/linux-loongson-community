@@ -21,7 +21,12 @@
 #include <asm/bootinfo.h>
 #include <asm/addrspace.h>
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
+
+const char *get_system_type(void)
+{
+	return "NEC_Vr41xx Osprey";
+}
 
 /* 
  * [jsun] right now we assume it is the nec debug monitor, which does

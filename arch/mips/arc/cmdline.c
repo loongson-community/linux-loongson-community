@@ -12,7 +12,7 @@
 
 #undef DEBUG_CMDLINE
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 char * __init prom_getcmdline(void)
 {

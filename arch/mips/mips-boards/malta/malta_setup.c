@@ -65,6 +65,12 @@ struct resource standard_io_resources[] = {
 
 #define STANDARD_IO_RESOURCES (sizeof(standard_io_resources)/sizeof(struct resource))
 
+const char *get_system_type(void)
+{
+	return "MIPS Malta";
+}
+
+
 void __init malta_setup(void)
 {
 #ifdef CONFIG_REMOTE_DEBUG

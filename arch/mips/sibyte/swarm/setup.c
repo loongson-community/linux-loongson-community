@@ -64,6 +64,10 @@ unsigned int swarm_mem_region_count;
 
 #endif
 
+const char *get_system_type(void)
+{
+	return "SiByte Swarm";
+}
 
 #ifdef CONFIG_BLK_DEV_IDE_SWARM
 static int swarm_ide_default_irq(ide_ioreg_t base)
@@ -363,7 +367,7 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	}
 	cfe_init((long)prom_vec);
 	cfe_open_console();
-	if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, COMMAND_LINE_SIZE) < 0) {
+	if (cfe_getenv("LINUX_CMDLINE", arcs_cmdline, CL_SIZE) < 0) {
 		if (argc < 0) {
 			/*
 			 * It's OK for direct boot to not provide a
@@ -400,7 +404,7 @@ __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 #endif /* CONFIG_SWARM_STANDALONE */
 
 	/* Not sure this is needed, but it's the safe way. */
-	arcs_cmdline[COMMAND_LINE_SIZE-1] = 0;
+	arcs_cmdline[CL_SIZE-1] = 0;
 
 	mips_machgroup = MACH_GROUP_SIBYTE;
 	prom_meminit();

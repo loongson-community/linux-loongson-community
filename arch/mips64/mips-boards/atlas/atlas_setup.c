@@ -54,6 +54,11 @@ extern struct rtc_ops atlas_rtc_ops;
 
 extern void mips_reboot_setup(void);
 
+const char *get_system_type(void)
+{
+	return "MIPS Atlas";
+}
+
 void __init atlas_setup(void)
 {
 #ifdef CONFIG_REMOTE_DEBUG

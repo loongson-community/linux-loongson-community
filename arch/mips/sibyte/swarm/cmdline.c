@@ -23,4 +23,4 @@
  * the variable other than provide an instantiation.  Everything about
  * arcs_cmdline seems more than a little bit hackish...
  */
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];

@@ -35,6 +35,12 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		return 0;
 #endif
 
+	/*
+	 * For the first processor also print the system type
+	 */
+	if (n == 0)
+		seq_printf(m, "system type\t\t: %s\n", get_system_type());
+
 	seq_printf(m, "processor\t\t: %ld\n", n);
 	sprintf(fmt, "cpu model\t\t: %%s V%%d.%%d%s\n",
 	        (mips_cpu.options & MIPS_CPU_FPU) ? "  FPU V%d.%d" : "");
@@ -43,8 +49,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	                           (version >> 4) & 0x0f, version & 0x0f,
 	                           (fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
 	seq_printf(m, "BogoMIPS\t\t: %lu.%02lu\n",
-	              (loops_per_jiffy + 2500) / (500000/HZ),
-	              ((loops_per_jiffy + 2500) / (5000/HZ)) % 100);
+	              loops_per_jiffy / (500000/HZ),
+	              (loops_per_jiffy / (5000/HZ)) % 100);
 	seq_printf(m, "wait instruction\t: %s\n", cpu_wait ? "yes" : "no");
 	seq_printf(m, "microsecond timers\t: %s\n",
 	              (mips_cpu.options & MIPS_CPU_COUNTER) ? "yes" : "no");

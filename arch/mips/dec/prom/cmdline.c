@@ -17,7 +17,7 @@
 extern int (*prom_printf)(char *, ...);
 #endif
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 void __init prom_init_cmdline(int argc, char **argv, unsigned long magic)
 {

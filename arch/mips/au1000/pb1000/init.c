@@ -44,6 +44,11 @@ char **prom_argv, **prom_envp;
 extern void  __init prom_init_cmdline(void);
 extern char *prom_getenv(char *envname);
 
+const char *get_system_type(void)
+{
+	return "Alchemy PB1000";
+}
+
 int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
 	unsigned char *memsize_str;

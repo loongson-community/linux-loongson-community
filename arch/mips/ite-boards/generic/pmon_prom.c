@@ -44,7 +44,7 @@
 
 /* #define DEBUG_CMDLINE */
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 extern int prom_argc;
 extern char **prom_argv, **prom_envp;
 

@@ -7,7 +7,13 @@
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
+
+const char *get_system_type(void)
+{
+	/* Should probably return one of "BT23-201", "BT23-202" */
+	return "Baget";
+}
 
 void __init prom_init(unsigned int mem_upper)
 {

@@ -26,7 +26,7 @@
 extern int prom_argc;
 extern char **prom_argv;
 
-char arcs_cmdline[COMMAND_LINE_SIZE];
+char arcs_cmdline[CL_SIZE];
 
 char * __init prom_getcmdline(void)
 {

@@ -26,6 +26,10 @@
 int remote_debug = 0;
 #endif
 
+const char *get_system_type(void)
+{
+	return "HP LaserJet";		/* But which exactly?  */
+}
 
 static void (*timer_interrupt_service)(int irq, void *dev_id, struct pt_regs * regs) = NULL;
 
