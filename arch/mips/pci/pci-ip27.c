@@ -319,75 +319,19 @@ static inline void pci_enable_swapping(struct pci_dev *dev)
 	bridge->b_widget.w_tflush;	/* Flush */
 }
 
-static void __init pci_fixup_isp1020(struct pci_dev *d)
+static void __init pci_fixup_qlogic_isp(struct pci_dev *d)
 {
-	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
-
-	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", pci_name(d));
-
-	/*
-	 * Configure device to allow bus mastering, i/o and memory mapping.
-	 * Older qlogicisp driver expects to have the IO space enable
-	 * bit set. Things stop working if we program the controllers as not
-	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
-	 */
-	d->resource[1].flags |= 1;
+	printk("PCI: Fixing QLogic ISP in [bus:slot.fn] %s\n", pci_name(d));
 
 	pci_enable_swapping(d);
-}
-
-static void __init pci_fixup_isp2x00(struct pci_dev *d)
-{
-	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
-	bridge_t *bridge = bc->base;
-	bridgereg_t devreg;
-	int i;
-	int slot = PCI_SLOT(d->devfn);
-	unsigned int start;
-
-	printk("PCI: Fixing isp2x00 in [bus:slot.fn] %s\n", pci_name(d));
-
-	/* set the resource struct for this device */
-	start = (u32) (u64) bridge;	/* yes, we want to lose the upper 32 bits here */
-	start |= BRIDGE_DEVIO(slot);
-
-	/*
-	 * set the bridge device(x) reg for this device
-	 */
-	devreg = bridge->b_device[slot].reg;
-	/* point device(x) to it appropriate small window */
-	devreg &= ~BRIDGE_DEV_OFF_MASK;
-	devreg |= (start >> 20) & BRIDGE_DEV_OFF_MASK;
-	bridge->b_device[slot].reg = devreg;
-
-	pci_enable_swapping(d);
-
-	pci_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
-
-	/* set cache line size */
-	pci_write_config_dword(d, PCI_CACHE_LINE_SIZE, 0xf080);
-
-	/* set pci bus timeout */
-	bridge->b_bus_timeout |= BRIDGE_BUS_PCI_RETRY_HLD(0x3);
-	bridge->b_wid_tflush;
-	printk("PCI: bridge bus timeout= 0x%x \n", bridge->b_bus_timeout);
-
-	/* set host error field */
-	bridge->b_int_host_err = 0x44;
-	bridge->b_wid_tflush;
-
-	bridge->b_wid_tflush;	/* wait until Bridge PIO complete */
-	for (i = 0; i < 8; i++)
-		printk("PCI: device(%d)= 0x%x\n", i,
-		       bridge->b_device[i].reg);
 }
 
 struct pci_fixup pcibios_fixups[] = {
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP1020,
-	 pci_fixup_isp1020},
+	 pci_fixup_qlogic_isp},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100,
-	 pci_fixup_isp2x00},
+	 pci_fixup_qlogic_isp},
 	{PCI_FIXUP_HEADER, PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2200,
-	 pci_fixup_isp2x00},
+	 pci_fixup_qlogic_isp},
 	{0}
 };
