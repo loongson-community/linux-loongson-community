@@ -239,7 +239,7 @@ static inline void cpu_probe(void)
 				mips_cpu.tlbsize = 64;
 				break;
 			case PRID_REV_TX3927:
-			case PRID_REV_TX3927B:
+//			case PRID_REV_TX3927B:
 				/* check core-mode */
 				if ((*(volatile u32 *)0xfffee004 >> 16) == 0x3927)
 					mips_cpu.cputype = CPU_TX3927;
@@ -249,6 +249,7 @@ static inline void cpu_probe(void)
 				mips_cpu.icache.ways = 2;
 				mips_cpu.dcache.ways = 2;
 				break;
+#if 0
 			case PRID_REV_TX39H3TEG:
 				/* support core-mode only */
 				mips_cpu.cputype = CPU_TX39XX;
@@ -256,6 +257,7 @@ static inline void cpu_probe(void)
 				mips_cpu.icache.ways = 2;
 				mips_cpu.dcache.ways = 2;
 				break;
+#endif
 			default:
 				mips_cpu.cputype = CPU_UNKNOWN;
 				break;
@@ -268,6 +270,7 @@ static inline void cpu_probe(void)
 			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
+#if 0
 		case PRID_IMP_TX49:
 			mips_cpu.cputype = CPU_TX49XX;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
@@ -277,6 +280,7 @@ static inline void cpu_probe(void)
 			mips_cpu.icache.ways = 4;
 			mips_cpu.dcache.ways = 4;
 			break;
+#endif
 		case PRID_IMP_R5000:
 			mips_cpu.cputype = CPU_R5000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
