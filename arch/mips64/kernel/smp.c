@@ -358,8 +358,7 @@ void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 
 	fd.addr1 = start;
 	fd.addr2 = end;
-	smp_call_function(flush_tlb_kernel_range_ipi, (void *)&fd, 1, 1);
-	local_flush_tlb_kernel_range(start, end);
+	on_each_cpu(flush_tlb_kernel_range_ipi, (void *)&fd, 1, 1);
 }
 
 static void flush_tlb_page_ipi(void *info)
