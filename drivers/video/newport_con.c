@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.5 1999/02/11 23:46:58 tsbogend Exp $
+/* $Id: newport_con.c,v 1.6 1999/03/02 23:42:27 tsbogend Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -28,12 +28,12 @@
 #include <asm/newport.h>
 
 extern unsigned char vga_font[];
-
 extern struct newport_regs *npregs;
-int newport_num_lines;
-int newport_num_columns;
-int topscan;
-int xcurs_correction = 29;
+
+static int topscan;
+static int xcurs_correction = 29;
+static int newport_xsize;
+static int newport_ysize;
 
 #define BMASK(c) (c << 24)
 
@@ -93,7 +93,7 @@ static inline void newport_clear_lines(int ystart, int yend)
 {
     ystart = ((ystart << 4) + topscan) & 0x3ff;
     yend = ((yend << 4) + topscan + 15) & 0x3ff;    
-    newport_clear_screen (0, ystart, 1279, yend);
+    newport_clear_screen (0, ystart, 1280+63, yend);
 }
 
 void newport_reset (void)
@@ -122,6 +122,50 @@ void newport_reset (void)
     npregs->cset.xywin = (4096 << 16) | 4096;
     /* Clear the screen. */
     newport_clear_screen(0,0,1280+63,1024);
+}
+
+/*
+ * calculate the actual screen size by reading
+ * the video timing out of the VC2
+ */
+void newport_get_screensize(void)
+{
+    int i,cols;
+    unsigned short ventry,treg;
+    unsigned short linetable[128]; /* should be enough */
+
+    ventry = newport_vc2_get (npregs, VC2_IREG_VENTRY);
+    newport_vc2_set(npregs, VC2_IREG_RADDR, ventry);
+    npregs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_RAM |
+			   NPORT_DMODE_W2 | VC2_PROTOCOL);
+    for(i = 0; i < 128; i++) {
+	newport_bfwait();
+	linetable[i] = npregs->set.dcbdata0.hwords.s1;
+    }
+
+    newport_xsize = newport_ysize = 0;
+    for (i = 0; linetable[i+1] && (i < sizeof(linetable)); i+=2) {
+	cols = 0;
+        newport_vc2_set(npregs, VC2_IREG_RADDR, linetable[i]);
+        npregs->set.dcbmode = (NPORT_DMODE_AVC2 | VC2_REGADDR_RAM |
+			       NPORT_DMODE_W2 | VC2_PROTOCOL);
+	do {
+	    newport_bfwait();
+	    treg = npregs->set.dcbdata0.hwords.s1;
+	    if ((treg & 1) == 0)
+		cols += (treg >> 7) & 0xfe;
+	    if ((treg & 0x80) == 0) {
+		newport_bfwait();
+		treg = npregs->set.dcbdata0.hwords.s1;
+	    } 
+	} while ((treg & 0x8000) == 0);
+	if (cols) {
+	    if (cols > newport_xsize)
+		newport_xsize = cols;
+	    newport_ysize += linetable[i+1];
+	}
+    }
+    printk ("NG1: Screensize %dx%d\n",newport_xsize,newport_ysize);
 }
 
 static void newport_get_revisions(void)
@@ -161,15 +205,15 @@ static void newport_get_revisions(void)
     npregs->set.dcbdata0.bytes.b3 = BT445_REVISION_REG;
     npregs->set.dcbmode = (DCB_BT445 | BT445_PROTOCOL |
                            BT445_CSR_REVISION | NPORT_DMODE_W1);
-    bt445_rev = npregs->set.dcbdata0.bytes.b3 & 15;
+    bt445_rev = (npregs->set.dcbdata0.bytes.b3 >> 4) - 0x0a;
 
 #define L(a)     (char)('A'+(a))
     printk ("NG1: Revision %d, %d bitplanes, REX3 revision %c, VC2 revision %c, xmap9 revision %c, cmap revision %c, bt445 revision %c\n",
 	    board_rev,bitplanes,L(rex3_rev),L(vc2_rev), L(xmap9_rev),
-	    L(cmap_rev),L(bt445_rev));
+	    L(cmap_rev ? (cmap_rev+1):0),L(bt445_rev));
 #undef L
 
-    if (board_rev == 3) /* I don't know all affected revsions */
+    if (board_rev == 3) /* I don't know all affected revisions */
 	xcurs_correction = 21;
 }
 
@@ -195,20 +239,18 @@ __initfunc(static const char *newport_startup(void))
     }
 
     newport_reset ();
-
     newport_get_revisions();
+    newport_get_screensize();
 
     // gfx_init (display_desc);
-    newport_num_lines = ORIG_VIDEO_LINES;
-    newport_num_columns = ORIG_VIDEO_COLS;
     
     return "SGI Newport";
 }
 
 static void newport_init(struct vc_data *vc, int init)
 {
-    vc->vc_cols = newport_num_columns;
-    vc->vc_rows = newport_num_lines;
+    vc->vc_cols = newport_xsize / 8;
+    vc->vc_rows = newport_ysize / 16;
     vc->vc_can_do_color = 1;
 }
 
