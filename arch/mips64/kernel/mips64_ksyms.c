@@ -106,12 +106,6 @@ EXPORT_SYMBOL(mips_io_port_base);
 int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
 int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
 
-#ifdef CONFIG_MIPS_FPE_MODULE
-EXPORT_SYMBOL(__compute_return_epc);
-EXPORT_SYMBOL(register_fpe);
-EXPORT_SYMBOL(unregister_fpe);
-#endif
-
 #ifdef CONFIG_VT
 EXPORT_SYMBOL(screen_info);
 #endif

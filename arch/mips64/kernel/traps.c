@@ -334,26 +334,6 @@ void do_ov(struct pt_regs *regs)
 	force_sig(SIGFPE, current);
 }
 
-#ifdef CONFIG_MIPS_FPE_MODULE
-static void (*fpe_handler)(struct pt_regs *regs, unsigned int fcr31);
-
-/*
- * Register_fpe/unregister_fpe are for debugging purposes only.  To make
- * this hack work a bit better there is no error checking.
- */
-int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
-{
-	fpe_handler = handler;
-	return 0;
-}
-
-int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
-{
-	fpe_handler = NULL;
-	return 0;
-}
-#endif
-
 /*
  * XXX Delayed fp exceptions when doing a lazy ctx switch XXX
  */
@@ -363,12 +343,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	unsigned int insn;
 	extern void simfp(unsigned int);
 
-#ifdef CONFIG_MIPS_FPE_MODULE
-	if (fpe_handler != NULL) {
-		fpe_handler(regs, fcr31);
-		return;
-	}
-#endif
 	if (fcr31 & 0x20000) {
 		/* Retry instruction with flush to zero ...  */
 		if (!(fcr31 & (1<<24))) {
