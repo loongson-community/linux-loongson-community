@@ -35,7 +35,17 @@ extern struct rtc_ops std_rtc_ops;
 extern struct ide_ops std_ide_ops;
 
 
-char arcs_cmdline[CL_SIZE] = { "console=ttyS0,115200 root=/dev/hda1" };
+char arcs_cmdline[CL_SIZE] = {
+ "console=ttyS0,115200 "
+#ifdef CONFIG_IP_PNP
+ "ip=on "
+#endif
+#ifdef CONFIG_ROOT_NFS
+ "root=/dev/nfs "
+#else
+ "root=/dev/hda1 "
+#endif
+ };
 
 const char *get_system_type(void)
 {
