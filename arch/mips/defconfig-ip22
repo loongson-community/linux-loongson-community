@@ -121,6 +121,7 @@ CONFIG_FORWARD_KEYBOARD=y
 CONFIG_ARC_CONSOLE=y
 # CONFIG_IP22_EISA is not set
 # CONFIG_PCI is not set
+# CONFIG_GENERIC_ISA_DMA is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 # CONFIG_TC is not set

@@ -64,9 +64,6 @@ extern void set_device_ro(kdev_t dev,int flag);
 extern void *sys_call_table;
 
 extern struct timezone sys_tz;
-extern int request_dma(unsigned int dmanr, const char * deviceID);
-extern void free_dma(unsigned int dmanr);
-extern spinlock_t dma_spin_lock;
 
 #ifdef CONFIG_MODVERSIONS
 const struct module_symbol __export_Using_Versions
@@ -180,6 +177,7 @@ EXPORT_SYMBOL(filp_close);
 EXPORT_SYMBOL(put_filp);
 EXPORT_SYMBOL(files_lock);
 EXPORT_SYMBOL(check_disk_change);
+EXPORT_SYMBOL(__check_disk_change);
 EXPORT_SYMBOL(__invalidate_buffers);
 EXPORT_SYMBOL(invalidate_bdev);
 EXPORT_SYMBOL(invalidate_inodes);
@@ -271,7 +269,7 @@ EXPORT_SYMBOL(poll_freewait);
 EXPORT_SYMBOL(ROOT_DEV);
 EXPORT_SYMBOL(find_get_page);
 EXPORT_SYMBOL(find_lock_page);
-EXPORT_SYMBOL(grab_cache_page);
+EXPORT_SYMBOL(find_or_create_page);
 EXPORT_SYMBOL(grab_cache_page_nowait);
 EXPORT_SYMBOL(read_cache_page);
 EXPORT_SYMBOL(vfs_readlink);
@@ -437,10 +435,6 @@ EXPORT_SYMBOL(unlock_kiovec);
 EXPORT_SYMBOL(brw_kiovec);
 EXPORT_SYMBOL(kiobuf_wait_for_io);
 
-/* dma handling */
-EXPORT_SYMBOL(request_dma);
-EXPORT_SYMBOL(free_dma);
-EXPORT_SYMBOL(dma_spin_lock);
 #ifdef HAVE_DISABLE_HLT
 EXPORT_SYMBOL(disable_hlt);
 EXPORT_SYMBOL(enable_hlt);
@@ -508,6 +502,7 @@ EXPORT_SYMBOL(kdevname);
 EXPORT_SYMBOL(__bdevname);
 EXPORT_SYMBOL(cdevname);
 EXPORT_SYMBOL(simple_strtoul);
+EXPORT_SYMBOL(simple_strtol);
 EXPORT_SYMBOL(system_utsname);	/* UTS data */
 EXPORT_SYMBOL(uts_sem);		/* UTS semaphore */
 #ifndef __mips__

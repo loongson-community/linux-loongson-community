@@ -106,8 +106,6 @@ static void ntfs_end_buffer_async_read(struct buffer_head *bh, int uptodate)
 	if (!NInoMstProtected(ni)) {
 		if (likely(page_uptodate && !PageError(page)))
 			SetPageUptodate(page);
-		unlock_page(page);
-		return;
 	} else {
 		char *addr;
 		unsigned int i, recs, nr_err;
@@ -171,7 +169,7 @@ static int ntfs_read_block(struct page *page)
 	run_list_element *rl;
 	struct buffer_head *bh, *head, *arr[MAX_BUF_PER_PAGE];
 	sector_t iblock, lblock, zblock;
-	unsigned int blocksize, blocks, vcn_ofs;
+	unsigned int blocksize, vcn_ofs;
 	int i, nr;
 	unsigned char blocksize_bits;
 
@@ -187,7 +185,6 @@ static int ntfs_read_block(struct page *page)
 	if (unlikely(!bh))
 		return -ENOMEM;
 
-	blocks = PAGE_CACHE_SIZE >> blocksize_bits;
 	iblock = page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
 	lblock = (ni->allocated_size + blocksize - 1) >> blocksize_bits;
 	zblock = (ni->initialized_size + blocksize - 1) >> blocksize_bits;
@@ -333,6 +330,8 @@ handle_zblock:
  * for it to be read in before we can do the copy.
  *
  * Return 0 on success and -errno on error.
+ *
+ * WARNING: Do not make this function static! It is used by mft.c!
  */
 int ntfs_readpage(struct file *file, struct page *page)
 {
@@ -373,8 +372,8 @@ int ntfs_readpage(struct file *file, struct page *page)
 	else
 		base_ni = ni->_INE(base_ntfs_ino);
 
-	/* Map, pin and lock the mft record for reading. */
-	mrec = map_mft_record(READ, base_ni);
+	/* Map, pin and lock the mft record. */
+	mrec = map_mft_record(base_ni);
 	if (unlikely(IS_ERR(mrec))) {
 		err = PTR_ERR(mrec);
 		goto err_out;
@@ -417,7 +416,7 @@ int ntfs_readpage(struct file *file, struct page *page)
 put_unm_err_out:
 	put_attr_search_ctx(ctx);
 unm_err_out:
-	unmap_mft_record(READ, base_ni);
+	unmap_mft_record(base_ni);
 err_out:
 	unlock_page(page);
 	return err;
@@ -427,11 +426,8 @@ err_out:
  * ntfs_aops - general address space operations for inodes and attributes
  */
 struct address_space_operations ntfs_aops = {
-	writepage:	NULL,			/* Write dirty page to disk. */
-	readpage:	ntfs_readpage,		/* Fill page with data. */
-	sync_page:	block_sync_page,	/* Currently, just unplugs the
+	.readpage	= ntfs_readpage,	/* Fill page with data. */
+	.sync_page	= block_sync_page,	/* Currently, just unplugs the
 						   disk request queue. */
-	prepare_write:	NULL,			/* . */
-	commit_write:	NULL,			/* . */
 };
 

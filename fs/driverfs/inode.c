@@ -56,7 +56,6 @@ static struct vfsmount *driverfs_mount;
 static spinlock_t mount_lock = SPIN_LOCK_UNLOCKED;
 static int mount_count = 0;
 
-
 static int driverfs_readpage(struct file *file, struct page * page)
 {
 	if (!PageUptodate(page)) {
@@ -130,14 +129,15 @@ struct inode *driverfs_get_inode(struct super_block *sb, int mode, int dev)
 
 static int driverfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int dev)
 {
-	struct inode *inode = driverfs_get_inode(dir->i_sb, mode, dev);
-	int error = -EPERM;
+	struct inode *inode;
+	int error = -ENOSPC;
 
 	if (dentry->d_inode)
 		return -EEXIST;
 
 	/* only allow create if ->d_fsdata is not NULL (so we can assume it 
 	 * comes from the driverfs API below. */
+	inode = driverfs_get_inode(dir->i_sb, mode, dev);
 	if (inode) {
 		d_instantiate(dentry, inode);
 		dget(dentry);
@@ -689,7 +689,7 @@ void driverfs_remove_file(struct driver_dir_entry * dir, const char * name)
 		if (dentry->d_inode && 
 		    (dentry->d_parent->d_inode == dir->dentry->d_inode)) {
 			driverfs_unlink(dir->dentry->d_inode,dentry);
-			dput(dir->dentry);
+			dput(dentry);
 			put_mount();
 		}
 	}
@@ -721,7 +721,7 @@ void driverfs_remove_dir(struct driver_dir_entry * dir)
 
 		node = node->next;
 		driverfs_unlink(dentry->d_inode,d);
-		dput(dentry);
+		dput(d);
 		put_mount();
 	}
 	up(&dentry->d_inode->i_sem);

@@ -461,7 +461,7 @@ err_out_free:
 }
 
 
-static void __exit dmfe_remove_one (struct pci_dev *pdev)
+static void __devexit dmfe_remove_one (struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 	struct dmfe_board_info *db = dev->priv;
@@ -1983,10 +1983,10 @@ MODULE_DEVICE_TABLE(pci, dmfe_pci_tbl);
 
 
 static struct pci_driver dmfe_driver = {
-	name:		"dmfe",
-	id_table:	dmfe_pci_tbl,
-	probe:		dmfe_init_one,
-	remove:		__devexit_p(dmfe_remove_one),
+	.name		= "dmfe",
+	.id_table	= dmfe_pci_tbl,
+	.probe		= dmfe_init_one,
+	.remove		= __devexit_p(dmfe_remove_one),
 };
 
 MODULE_AUTHOR("Sten Wang, sten_wang@davicom.com.tw");

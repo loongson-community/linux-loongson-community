@@ -433,6 +433,7 @@ N: Lars Brinkhoff
 E: lars@nocrew.org
 W: http://lars.nocrew.org/
 D: dsp56k device driver
+D: ptrace proxy in user mode kernel port
 S: Kopmansg 2
 S: 411 13  Goteborg
 S: Sweden
@@ -713,6 +714,11 @@ S: 3000 FORE Drive
 S: Warrendale, Pennsylvania 15086
 S: USA
 
+N: Martin Devera
+E: devik@cdi.cz
+W: http://luxik.cdi.cz/~devik/qos/
+D: HTB qdisc and random networking hacks
+
 N: Alex deVries
 E: adevries@thepuffingroup.com
 D: Various SGI parts, bits of HAL2 and Newport, PA-RISC Linux.
@@ -725,7 +731,7 @@ N: Jeff Dike
 E: jdike@karaya.com
 W: http://user-mode-linux.sourceforge.net
 D: User mode kernel port
-S: RR1 Box 67C
+S: 375 Tubbs Hill Rd
 S: Deering NH 03244
 S: USA
 
@@ -2185,7 +2191,7 @@ S: Fullarton 5063
 S: South Australia
 
 N. Wolfgang Muees
-E: wmues@nexgo.de
+E: wolfgang@iksw-muees.de
 D: Auerswald USB driver
 
 N: Ian A. Murdock

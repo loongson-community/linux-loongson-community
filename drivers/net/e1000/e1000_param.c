@@ -196,37 +196,10 @@ E1000_PARAM(XsumRX, "Disable or enable Receive Checksum offload");
  *
  * Valid Range: 0-65535
  *
- * Default Value: 64/128
+ * Default Value: 0/128
  */
 
 E1000_PARAM(RxIntDelay, "Receive Interrupt Delay");
-
-/* MDI-X Support Enable/Disable - Applies only to Copper PHY
- *
- * Valid Range: 0, 3
- *  - 0 - Auto in all modes
- *  - 1 - MDI
- *  - 2 - MDI-X
- *  - 3 - Auto in 1000 Base-T mode (MDI in 10 Base-T and 100 Base-T)
- *
- * Default Value: 0 (Auto)
- */
-
-E1000_PARAM(MdiX, "Set MDI/MDI-X Mode");
-
-/* Automatic Correction of Reversed Cable Polarity Enable/Disable
- * This setting applies only to Copper PHY
- *
- * Valid Range: 0, 1
- *  - 0 - Disabled
- *  - 1 - Enabled
- *
- * Default Value: 1 (Enabled)
- */
-
-E1000_PARAM(DisablePolarityCorrection,
-	"Disable or enable Automatic Correction for Reversed Cable Polarity");
-
 
 #define AUTONEG_ADV_DEFAULT  0x2F
 #define AUTONEG_ADV_MASK     0x2F
@@ -242,15 +215,10 @@ E1000_PARAM(DisablePolarityCorrection,
 #define MIN_RXD                       80
 #define MAX_82544_RXD               4096
 
-#define DEFAULT_RDTR                  64
+#define DEFAULT_RDTR                   0
 #define DEFAULT_RADV                 128
 #define MAX_RXDELAY               0xFFFF
 #define MIN_RXDELAY                    0
-
-#define DEFAULT_MDIX                   0
-#define MAX_MDIX                       3
-#define MIN_MDIX                       0
-
 
 struct e1000_option {
 	enum { enable_option, range_option, list_option } type;
@@ -345,11 +313,11 @@ e1000_check_options(struct e1000_adapter *adapter)
 
 	{ /* Transmit Descriptor Count */
 		struct e1000_option opt = {
-			type: range_option,
-			name: "Transmit Descriptors",
-			err:  "using default of " __MODULE_STRING(DEFAULT_TXD),
-			def:  DEFAULT_TXD,
-			arg: { r: { min: MIN_TXD }}
+			.type = range_option,
+			.name = "Transmit Descriptors",
+			.err  = "using default of " __MODULE_STRING(DEFAULT_TXD),
+			.def  = DEFAULT_TXD,
+			.arg  = { r: { min: MIN_TXD }}
 		};
 		struct e1000_desc_ring *tx_ring = &adapter->tx_ring;
 		e1000_mac_type mac_type = adapter->hw.mac_type;
@@ -361,11 +329,11 @@ e1000_check_options(struct e1000_adapter *adapter)
 	}
 	{ /* Receive Descriptor Count */
 		struct e1000_option opt = {
-			type: range_option,
-			name: "Receive Descriptors",
-			err:  "using default of " __MODULE_STRING(DEFAULT_RXD),
-			def:  DEFAULT_RXD,
-			arg: { r: { min: MIN_RXD }}
+			.type = range_option,
+			.name = "Receive Descriptors",
+			.err  = "using default of " __MODULE_STRING(DEFAULT_RXD),
+			.def  = DEFAULT_RXD,
+			.arg  = { r: { min: MIN_RXD }}
 		};
 		struct e1000_desc_ring *rx_ring = &adapter->rx_ring;
 		e1000_mac_type mac_type = adapter->hw.mac_type;
@@ -377,10 +345,10 @@ e1000_check_options(struct e1000_adapter *adapter)
 	}
 	{ /* Checksum Offload Enable/Disable */
 		struct e1000_option opt = {
-			type: enable_option,
-			name: "Checksum Offload",
-			err:  "defaulting to Enabled",
-			def:  OPTION_ENABLED
+			.type = enable_option,
+			.name = "Checksum Offload",
+			.err  = "defaulting to Enabled",
+			.def  = OPTION_ENABLED
 		};
 		
 		int rx_csum = XsumRX[bd];
@@ -397,11 +365,11 @@ e1000_check_options(struct e1000_adapter *adapter)
 			 { e1000_fc_default, "Flow Control Hardware Default" }};
 
 		struct e1000_option opt = {
-			type: list_option,
-			name: "Flow Control",
-			err:  "reading default settings from EEPROM",
-			def:  e1000_fc_default,
-			arg: { l: { nr: ARRAY_SIZE(fc_list), p: fc_list }}
+			.type = list_option,
+			.name = "Flow Control",
+			.err  = "reading default settings from EEPROM",
+			.def  = e1000_fc_default,
+			.arg  = { l: { nr: ARRAY_SIZE(fc_list), p: fc_list }}
 		};
 
 		int fc = FlowControl[bd];
@@ -412,9 +380,9 @@ e1000_check_options(struct e1000_adapter *adapter)
 		char *rdtr = "using default of " __MODULE_STRING(DEFAULT_RDTR);
 		char *radv = "using default of " __MODULE_STRING(DEFAULT_RADV);
 		struct e1000_option opt = {
-			type: range_option,
-			name: "Receive Interrupt Delay",
-			arg: { r: { min: MIN_RXDELAY, max: MAX_RXDELAY }}
+			.type = range_option,
+			.name = "Receive Interrupt Delay",
+			.arg  = { r: { min: MIN_RXDELAY, max: MAX_RXDELAY }}
 		};
 		e1000_mac_type mac_type = adapter->hw.mac_type;
 		opt.def = mac_type < e1000_82540 ? DEFAULT_RDTR : DEFAULT_RADV;
@@ -483,11 +451,11 @@ e1000_check_copper_options(struct e1000_adapter *adapter)
 		                                      {  SPEED_100, "" },
 		                                      { SPEED_1000, "" }};
 		struct e1000_option opt = {
-			type: list_option,
-			name: "Speed",
-			err:  "parameter ignored",
-			def:  0,
-			arg: { l: { nr: ARRAY_SIZE(speed_list), p: speed_list }}
+			.type = list_option,
+			.name = "Speed",
+			.err  = "parameter ignored",
+			.def  = 0,
+			.arg  = { l: { nr: ARRAY_SIZE(speed_list), p: speed_list }}
 		};
 
 		speed = Speed[bd];
@@ -498,11 +466,11 @@ e1000_check_copper_options(struct e1000_adapter *adapter)
 		                                     { HALF_DUPLEX, "" },
 		                                     { FULL_DUPLEX, "" }};
 		struct e1000_option opt = {
-			type: list_option,
-			name: "Duplex",
-			err:  "parameter ignored",
-			def:  0,
-			arg: { l: { nr: ARRAY_SIZE(dplx_list), p: dplx_list }}
+			.type = list_option,
+			.name = "Duplex",
+			.err  = "parameter ignored",
+			.def  = 0,
+			.arg  = { l: { nr: ARRAY_SIZE(dplx_list), p: dplx_list }}
 		};
 
 		dplx = Duplex[bd];
@@ -550,11 +518,11 @@ e1000_check_copper_options(struct e1000_adapter *adapter)
 			 { 0x2f, AA "1000/FD, 100/FD, 100/HD, 10/FD, 10/HD" }};
 
 		struct e1000_option opt = {
-			type: list_option,
-			name: "AutoNeg",
-			err:  "parameter ignored",
-			def:  AUTONEG_ADV_DEFAULT,
-			arg: { l: { nr: ARRAY_SIZE(an_list), p: an_list }}
+			.type = list_option,
+			.name = "AutoNeg",
+			.err  = "parameter ignored",
+			.def  = AUTONEG_ADV_DEFAULT,
+			.arg  = { l: { nr: ARRAY_SIZE(an_list), p: an_list }}
 		};
 
 		int an = AutoNeg[bd];
@@ -646,36 +614,6 @@ e1000_check_copper_options(struct e1000_adapter *adapter)
 		BUG();
 	}
 
-	/* a few other copper only options */
-
-	{ /* MDI/MDI-X */
-		struct e1000_option opt = {
-			type: range_option,
-			name: "MDI/MDI-X",
-			err:  "using default of " __MODULE_STRING(DEFAULT_MDIX),
-			def:  DEFAULT_MDIX,
-			arg: { r: { min: MIN_MDIX, max: MAX_MDIX }}
-		};
-
-		int mdix = MdiX[bd];
-		e1000_validate_option(&mdix, &opt);
-		adapter->hw.mdix = mdix;
-	}
-	{ /* Automatic Correction for Reverse Cable Polarity */
-	  /* option is actually to disable polarity correction,
-	   * so setting to OPTION_ENABLED turns the hardware feature off */
-		struct e1000_option opt = {
-			type: enable_option,
-			name: "Disable Polarity Correction",
-			err:  "defaulting to Disabled",
-			def:  OPTION_DISABLED,
-		};
-
-		int dpc = DisablePolarityCorrection[bd];
-		e1000_validate_option(&dpc, &opt);
-		adapter->hw.disable_polarity_correction = dpc;
-	}
-	
 	/* Speed, AutoNeg and MDI/MDI-X must all play nice */
 	if (e1000_validate_mdi_setting(&(adapter->hw)) < 0) {
 		printk(KERN_INFO "Speed, AutoNeg and MDI-X specifications are "

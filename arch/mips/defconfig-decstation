@@ -103,6 +103,7 @@ CONFIG_CPU_HAS_WB=y
 #
 CONFIG_CPU_LITTLE_ENDIAN=y
 # CONFIG_PCI is not set
+# CONFIG_GENERIC_ISA_DMA is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 CONFIG_TC=y

@@ -432,11 +432,6 @@ int unregister_cdrom(struct cdrom_device_info *unreg)
 		topCdromPtr = cdi->next;
 	cdi->ops->n_minors--;
 	devfs_unregister (cdi->de);
-	if (atomic_read (&cdi->cdrom_driverfs_dev.refcount)) {
-		device_remove_file (&cdi->cdrom_driverfs_dev, "name");
-		device_remove_file (&cdi->cdrom_driverfs_dev, "kdev");
-		put_device (&cdi->cdrom_driverfs_dev);
-	}
 	devfs_dealloc_unique_number (&cdrom_numspace, cdi->number);
 	cdinfo(CD_REG_UNREG, "drive \"/dev/%s\" unregistered\n", cdi->name);
 	return 0;
@@ -486,7 +481,7 @@ int cdrom_open(struct inode *ip, struct file *fp)
 	cdinfo(CD_OPEN, "Use count for \"/dev/%s\" now %d\n", cdi->name, cdi->use_count);
 	/* Do this on open.  Don't wait for mount, because they might
 	    not be mounting, but opening with O_NONBLOCK */
-	check_disk_change(dev);
+	check_disk_change(ip->i_bdev);
 	return ret;
 }
 

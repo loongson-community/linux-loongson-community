@@ -123,7 +123,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	 * If we're in an interrupt or have no user
 	 * context, we must not take the fault..
 	 */
-	if (in_interrupt() || !mm)
+	if (preempt_count() || !mm)
 		goto no_context;
 
 	down_read(&mm->mmap_sem);

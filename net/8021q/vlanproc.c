@@ -75,8 +75,8 @@ static char term_msg[]   = "***KERNEL:  Out of buffer space!***\n";
  */
 
 static struct file_operations vlan_fops = {
-	read:	vlan_proc_read,
-	ioctl: NULL, /* vlan_proc_ioctl */
+	.read =	vlan_proc_read,
+	.ioctl = NULL, /* vlan_proc_ioctl */
 };
 
 /*
@@ -84,8 +84,8 @@ static struct file_operations vlan_fops = {
  */
 
 static struct file_operations vlandev_fops = {
-	read:	vlan_proc_read,
-	ioctl:	NULL, /* vlan_proc_ioctl */
+	.read =	vlan_proc_read,
+	.ioctl =NULL, /* vlan_proc_ioctl */
 };
 
 /*
@@ -187,14 +187,14 @@ int vlan_proc_add_dev (struct net_device *vlandev)
 int vlan_proc_rem_dev(struct net_device *vlandev)
 {
 	if (!vlandev) {
-		printk(VLAN_ERR __FUNCTION__ ": invalid argument: %p\n",
-		       vlandev);
+		printk(VLAN_ERR "%s: invalid argument: %p\n",
+			__FUNCTION__, vlandev);
 		return -EINVAL;
 	}
 
 	if (!(vlandev->priv_flags & IFF_802_1Q_VLAN)) {
-		printk(VLAN_DBG __FUNCTION__ ": invalid argument, device: %s is not a VLAN device, priv_flags: 0x%4hX.\n",
-		       vlandev->name, vlandev->priv_flags);
+		printk(VLAN_DBG "%s: invalid argument, device: %s is not a VLAN device, priv_flags: 0x%4hX.\n",
+			__FUNCTION__, vlandev->name, vlandev->priv_flags);
 		return -EINVAL;
 	}
 

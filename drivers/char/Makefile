@@ -65,6 +65,12 @@ ifeq ($(ARCH),arm)
   endif
 endif
 
+ifeq ($(ARCH),um)
+  KEYMAP   =
+  KEYBD    =
+  CONSOLE  =
+endif
+
 ifeq ($(ARCH),sh)
   KEYMAP   =
   KEYBD    =
@@ -108,19 +114,22 @@ ifeq ($(CONFIG_QTRONIX_KEYBOARD),y)
   KEYMAP   = qtronixmap.o
 endif
 
+ifeq ($(CONFIG_SPARC32),y)
+  KEYBD    =
+endif
+
+ifeq ($(CONFIG_SPARC64),y)
+  KEYBD    =
+endif
+
 ifeq ($(CONFIG_DUMMY_KEYB),y)
   KEYBD = dummy_keyb.o
 endif
 
 obj-$(CONFIG_VT) += vt.o vc_screen.o consolemap.o consolemap_deftbl.o $(CONSOLE) selection.o
-obj-$(CONFIG_SERIAL_AMBA) += serial_amba.o
-obj-$(CONFIG_TS_AU1000_ADS7846) += au1000_ts.o
+obj-$(CONFIG_VT) += keyboard.o $(KEYMAP) $(KEYBD)
 
-ifndef CONFIG_SUN_KEYBOARD
-  obj-$(CONFIG_VT) += keyboard.o $(KEYMAP) $(KEYBD)
-else
-  obj-$(CONFIG_PCI) += keyboard.o $(KEYMAP)
-endif
+obj-$(CONFIG_TS_AU1000_ADS7846) += au1000_ts.o
 
 obj-$(CONFIG_MAGIC_SYSRQ) += sysrq.o
 obj-$(CONFIG_ATARI_DSP56K) += dsp56k.o

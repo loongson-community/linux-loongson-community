@@ -119,6 +119,7 @@ define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 
 if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
    define_bool CONFIG_ARC32 y
+   define_bool CONFIG_GENERIC_ISA_DMA y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_MIPS_JAZZ y
@@ -255,6 +256,7 @@ fi
 if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
      "$CONFIG_OLIVETTI_M700"    = "y" ]; then
    define_bool CONFIG_ARC32 y
+   define_bool CONFIG_GENERIC_ISA_DMA y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_FB y
@@ -402,6 +404,7 @@ if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_ARC_PROMLIB y
+   define_bool CONFIG_GENERIC_ISA_DMA y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
    define_bool CONFIG_NONCOHERENT_IO y
@@ -611,6 +614,7 @@ fi
 source drivers/pci/Config.in
 
 if [ "$CONFIG_ISA" != "y" ]; then
+   define_bool CONFIG_GENERIC_ISA_DMA n
    define_bool CONFIG_ISA n
    define_bool CONFIG_EISA n
 else

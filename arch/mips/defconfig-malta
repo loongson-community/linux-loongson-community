@@ -111,6 +111,7 @@ CONFIG_CPU_HAS_SYNC=y
 #
 CONFIG_CPU_LITTLE_ENDIAN=y
 # CONFIG_PCI_NAMES is not set
+# CONFIG_GENERIC_ISA_DMA is not set
 # CONFIG_ISA is not set
 # CONFIG_EISA is not set
 # CONFIG_TC is not set

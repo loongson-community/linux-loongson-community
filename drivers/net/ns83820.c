@@ -755,7 +755,7 @@ static void ns83820_cleanup_rx(struct ns83820 *dev)
 
 	/* synchronize with the interrupt handler and kill it */
 	dev->rx_info.up = 0;
-	synchronize_irq();
+	synchronize_irq(dev->pci_dev->irq);
 
 	/* touch the pci bus... */
 	readl(dev->base + IMR);
@@ -1296,11 +1296,11 @@ static int ns83820_stop(struct net_device *_dev)
 	readl(dev->base + IER);
 
 	dev->rx_info.up = 0;
-	synchronize_irq();
+	synchronize_irq(dev->pci_dev->irq);
 
 	ns83820_do_reset(dev, CR_RST);
 
-	synchronize_irq();
+	synchronize_irq(dev->pci_dev->irq);
 
 	dev->IMR_cache &= ~(ISR_TXURN | ISR_TXIDLE | ISR_TXERR | ISR_TXDESC | ISR_TXOK);
 	ns83820_cleanup_rx(dev);
@@ -1675,13 +1675,13 @@ static struct pci_device_id ns83820_pci_tbl[] __devinitdata = {
 };
 
 static struct pci_driver driver = {
-	name:		"ns83820",
-	id_table:	ns83820_pci_tbl,
-	probe:		ns83820_init_one,
-	remove:		__devexit_p(ns83820_remove_one),
+	.name		= "ns83820",
+	.id_table	= ns83820_pci_tbl,
+	.probe		= ns83820_init_one,
+	.remove		= __devexit_p(ns83820_remove_one),
 #if 0	/* FIXME: implement */
-	suspend:	,
-	resume:		,
+	.suspend	= ,
+	.resume		= ,
 #endif
 };
 

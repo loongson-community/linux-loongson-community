@@ -220,6 +220,9 @@ static struct pci_device_id tulip_pci_tbl[] __devinitdata = {
 	{ 0x1113, 0x1217, PCI_ANY_ID, PCI_ANY_ID, 0, 0, MX98715 },
 	{ 0x1113, 0x9511, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
 	{ 0x14f1, 0x1803, PCI_ANY_ID, PCI_ANY_ID, 0, 0, CONEXANT },
+	{ 0x1186, 0x1561, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
+	{ 0x1626, 0x8410, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
+	{ 0x1737, 0xAB09, PCI_ANY_ID, PCI_ANY_ID, 0, 0, COMET },
 	{ } /* terminate list */
 };
 MODULE_DEVICE_TABLE(pci, tulip_pci_tbl);
@@ -1764,13 +1767,13 @@ static void __devexit tulip_remove_one (struct pci_dev *pdev)
 
 
 static struct pci_driver tulip_driver = {
-	name:		DRV_NAME,
-	id_table:	tulip_pci_tbl,
-	probe:		tulip_init_one,
-	remove:		__devexit_p(tulip_remove_one),
+	.name		= DRV_NAME,
+	.id_table	= tulip_pci_tbl,
+	.probe		= tulip_init_one,
+	.remove		= __devexit_p(tulip_remove_one),
 #ifdef CONFIG_PM
-	suspend:	tulip_suspend,
-	resume:		tulip_resume,
+	.suspend	= tulip_suspend,
+	.resume		= tulip_resume,
 #endif /* CONFIG_PM */
 };
 

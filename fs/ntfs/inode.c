@@ -278,15 +278,18 @@ void ntfs_destroy_big_inode(struct inode *inode)
 	ntfs_inode *ni = NTFS_I(inode);
 
 	ntfs_debug("Entering.");
-	BUG_ON(atomic_read(&ni->mft_count) || !atomic_dec_and_test(&ni->count));
+	BUG_ON(ni->page);
+	if (!atomic_dec_and_test(&ni->count))
+		BUG();
 	kmem_cache_free(ntfs_big_inode_cache, NTFS_I(inode));
 }
 
-static ntfs_inode *ntfs_alloc_extent_inode(void)
+static inline ntfs_inode *ntfs_alloc_extent_inode(void)
 {
-	ntfs_inode *ni = (ntfs_inode *)kmem_cache_alloc(ntfs_inode_cache,
-			SLAB_NOFS);
+	ntfs_inode *ni;
+
 	ntfs_debug("Entering.");
+	ni = (ntfs_inode *)kmem_cache_alloc(ntfs_inode_cache, SLAB_NOFS);
 	if (likely(ni != NULL)) {
 		ni->state = 0;
 		return ni;
@@ -298,7 +301,9 @@ static ntfs_inode *ntfs_alloc_extent_inode(void)
 void ntfs_destroy_extent_inode(ntfs_inode *ni)
 {
 	ntfs_debug("Entering.");
-	BUG_ON(atomic_read(&ni->mft_count) || !atomic_dec_and_test(&ni->count));
+	BUG_ON(ni->page);
+	if (!atomic_dec_and_test(&ni->count))
+		BUG();
 	kmem_cache_free(ntfs_inode_cache, ni);
 }
 
@@ -322,8 +327,7 @@ static void __ntfs_init_inode(struct super_block *sb, ntfs_inode *ni)
 	atomic_set(&ni->count, 1);
 	ni->vol = NTFS_SB(sb);
 	init_run_list(&ni->run_list);
-	init_rwsem(&ni->mrec_lock);
-	atomic_set(&ni->mft_count, 0);
+	init_MUTEX(&ni->mrec_lock);
 	ni->page = NULL;
 	ni->page_ofs = 0;
 	ni->attr_list_size = 0;
@@ -340,7 +344,7 @@ static void __ntfs_init_inode(struct super_block *sb, ntfs_inode *ni)
 	return;
 }
 
-static void ntfs_init_big_inode(struct inode *vi)
+static inline void ntfs_init_big_inode(struct inode *vi)
 {
 	ntfs_inode *ni = NTFS_I(vi);
 
@@ -350,7 +354,8 @@ static void ntfs_init_big_inode(struct inode *vi)
 	return;
 }
 
-ntfs_inode *ntfs_new_extent_inode(struct super_block *sb, unsigned long mft_no)
+inline ntfs_inode *ntfs_new_extent_inode(struct super_block *sb,
+		unsigned long mft_no)
 {
 	ntfs_inode *ni = ntfs_alloc_extent_inode();
 
@@ -445,7 +450,7 @@ err_corrupt_attr:
  * ntfs_read_locked_inode - read an inode from its device
  * @vi:		inode to read
  *
- * ntfs_read_locked_inode() is called from the ntfs_iget() to read the inode
+ * ntfs_read_locked_inode() is called from ntfs_iget() to read the inode
  * described by @vi into memory from the device.
  *
  * The only fields in @vi that we need to/can look at when the function is
@@ -502,7 +507,7 @@ static int ntfs_read_locked_inode(struct inode *vi)
 		ntfs_init_big_inode(vi);
 	ni = NTFS_I(vi);
 
-	m = map_mft_record(READ, ni);
+	m = map_mft_record(ni);
 	if (IS_ERR(m)) {
 		err = PTR_ERR(m);
 		goto err_out;
@@ -788,6 +793,11 @@ skip_attr_list_load:
 			/* No index allocation. */
 			vi->i_size = ni->initialized_size =
 					ni->allocated_size = 0;
+			/* We are done with the mft record, so we release it. */
+			put_attr_search_ctx(ctx);
+			unmap_mft_record(ni);
+			m = NULL;
+			ctx = NULL;
 			goto skip_large_dir_stuff;
 		} /* LARGE_INDEX: Index allocation present. Setup state. */
 		NInoSetIndexAllocPresent(ni);
@@ -832,7 +842,14 @@ skip_attr_list_load:
 				ctx->attr->_ANR(initialized_size));
 		ni->allocated_size = sle64_to_cpu(
 				ctx->attr->_ANR(allocated_size));
-
+		/*
+		 * We are done with the mft record, so we release it. Otherwise
+		 *
+		 */
+		put_attr_search_ctx(ctx);
+		unmap_mft_record(ni);
+		m = NULL;
+		ctx = NULL;
 		/* Get the index bitmap attribute inode. */
 		bvi = ntfs_attr_iget(vi, AT_BITMAP, I30, 4);
 		if (unlikely(IS_ERR(bvi))) {
@@ -856,7 +873,6 @@ skip_attr_list_load:
 					bvi->i_size << 3, vi->i_size);
 			goto unm_err_out;
 		}
-
 skip_large_dir_stuff:
 		/* Everyone gets read and scan permissions. */
 		vi->i_mode |= S_IRUGO | S_IXUGO;
@@ -996,6 +1012,11 @@ skip_large_dir_stuff:
 				le32_to_cpu(ctx->attr->_ARA(value_length));
 		}
 no_data_attr_special_case:
+		/* We are done with the mft record, so we release it. */
+		put_attr_search_ctx(ctx);
+		unmap_mft_record(ni);
+		m = NULL;
+		ctx = NULL;
 		/* Everyone gets all permissions. */
 		vi->i_mode |= S_IRWXUGO;
 		/* If read-only, noone gets write permissions. */
@@ -1024,9 +1045,6 @@ no_data_attr_special_case:
 	else
 		vi->i_blocks = ni->_ICF(compressed_size) >> 9;
 
-	put_attr_search_ctx(ctx);
-	unmap_mft_record(READ, ni);
-
 	ntfs_debug("Done.");
 	return 0;
 
@@ -1035,7 +1053,8 @@ unm_err_out:
 		err = -EIO;
 	if (ctx)
 		put_attr_search_ctx(ctx);
-	unmap_mft_record(READ, ni);
+	if (m)
+		unmap_mft_record(ni);
 err_out:
 	ntfs_error(vi->i_sb, "Failed with error code %i. Marking inode 0x%lx "
 			"as bad.", -err, vi->i_ino);
@@ -1089,7 +1108,7 @@ static int ntfs_read_locked_attr_inode(struct inode *base_vi, struct inode *vi)
 	/* Set inode type to zero but preserve permissions. */
 	vi->i_mode	= base_vi->i_mode & ~S_IFMT;
 
-	m = map_mft_record(READ, base_ni);
+	m = map_mft_record(base_ni);
 	if (IS_ERR(m)) {
 		err = PTR_ERR(m);
 		goto err_out;
@@ -1263,7 +1282,7 @@ static int ntfs_read_locked_attr_inode(struct inode *base_vi, struct inode *vi)
 	ni->nr_extents = -1;
 
 	put_attr_search_ctx(ctx);
-	unmap_mft_record(READ, base_ni);
+	unmap_mft_record(base_ni);
 
 	ntfs_debug("Done.");
 	return 0;
@@ -1273,7 +1292,7 @@ unm_err_out:
 		err = -EIO;
 	if (ctx)
 		put_attr_search_ctx(ctx);
-	unmap_mft_record(READ, base_ni);
+	unmap_mft_record(base_ni);
 err_out:
 	ntfs_error(vi->i_sb, "Failed with error code %i while reading "
 			"attribute inode (mft_no 0x%lx, type 0x%x, name_len "
@@ -1396,7 +1415,7 @@ void ntfs_read_inode_mount(struct inode *vi)
 	/* Need this to sanity check attribute list references to $MFT. */
 	ni->seq_no = le16_to_cpu(m->sequence_number);
 
-	/* Provides readpage() and sync_page() for map_mft_record(READ). */
+	/* Provides readpage() and sync_page() for map_mft_record(). */
 	vi->i_mapping->a_ops = &ntfs_mft_aops;
 
 	ctx = get_attr_search_ctx(ni, m);
@@ -1793,8 +1812,8 @@ void __ntfs_clear_inode(ntfs_inode *ni)
 		}
 	}
 	/* Synchronize with ntfs_commit_inode(). */
-	down_write(&ni->mrec_lock);
-	up_write(&ni->mrec_lock);
+	down(&ni->mrec_lock);
+	up(&ni->mrec_lock);
 	if (NInoDirty(ni)) {
 		ntfs_error(ni->vol->sb, "Failed to commit dirty inode "
 				"asynchronously.");
