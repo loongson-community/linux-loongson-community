@@ -170,7 +170,6 @@ static __init void indy_time_init(void)
 /* Generic SGI handler for (spurious) 8254 interrupts */
 void indy_8254timer_irq(struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
 	int irq = SGI_8254_0_IRQ;
 	ULONG cnt;
 	char c;
@@ -185,7 +184,6 @@ void indy_8254timer_irq(struct pt_regs *regs)
 
 void indy_r4k_timer_interrupt(struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
 	int irq = SGI_TIMER_IRQ;
 
 	irq_enter();

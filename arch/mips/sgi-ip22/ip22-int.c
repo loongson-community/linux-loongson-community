@@ -264,7 +264,6 @@ extern void ip22_be_interrupt(int irq, struct pt_regs *regs);
 
 void indy_buserror_irq(struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
 	int irq = SGI_BUSERR_IRQ;
 
 	irq_enter();
