@@ -38,7 +38,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 	.set	at
 #endif
 
-	subu	t0, v0, __NR_64_Linux	# check syscall number
+	dsubu	t0, v0, __NR_64_Linux	# check syscall number
 	sltiu	t0, t0,	__NR_64_Linux_syscalls + 1
 #if !defined(CONFIG_MIPS32_O32) && !defined(CONFIG_MIPS32_N32)
 	ld	t1, PT_EPC(sp)		# skip syscall on return

@@ -31,7 +31,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	.set	at
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
-	subu	t0, v0, __NR_O32_Linux	# check syscall number
+	dsubu	t0, v0, __NR_O32_Linux	# check syscall number
 	sltiu	t0, t0, __NR_O32_Linux_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
 	sd	t1, PT_EPC(sp)

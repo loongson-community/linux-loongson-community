@@ -37,7 +37,7 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 	.set	at
 #endif
 
-	subu	t0, v0, __NR_N32_Linux	# check syscall number
+	dsubu	t0, v0, __NR_N32_Linux	# check syscall number
 	sltiu	t0, t0,	__NR_N32_Linux_syscalls + 1
 
 #ifndef CONFIG_MIPS32_O32
