@@ -240,7 +240,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 #endif
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 
 	if (irq_desc[irq].handler->ack) {
@@ -273,7 +273,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 	}
 
 	enable_irq(irq);
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	if (softirq_active(cpu) & softirq_mask(cpu))
 		do_softirq();

@@ -2,7 +2,6 @@
  * Galileo Technology chip interrupt handler
  *
  *  Modified by RidgeRun, Inc.
- *    
  */
 #include <linux/module.h>
 #include <linux/interrupt.h>
@@ -12,55 +11,54 @@
 #include <linux/sched.h>
 #include <linux/kernel_stat.h>
 #include <asm/io.h>
-#include <asm/galileo-boards/gt64120.h>
+#include <asm/gt64120.h>
 #include <asm/galileo-boards/ev64120.h>
 #include <asm/galileo-boards/ev64120int.h>
 
 /*
-  These are interrupt handlers for the GT on-chip interrupts.  They
-  all come in to the MIPS on a single interrupt line, and have to
-  be handled and ack'ed differently than other MIPS interrupts.
-*/
+ * These are interrupt handlers for the GT on-chip interrupts.  They all come
+ * in to the MIPS on a single interrupt line, and have to be handled and ack'ed
+ * differently than other MIPS interrupts.
+ */
 
 #if CURRENTLY_UNUSED
 
 struct tq_struct irq_handlers[MAX_CAUSE_REGS][MAX_CAUSE_REG_WIDTH];
 void hook_irq_handler(int int_cause, int bit_num, void *isr_ptr);
 
-/********************************************************************
- *hook_irq_handler
+/*
+ * hook_irq_handler
  *
- *Hooks IRQ handler to the system. When the system is interrupted
- *the interrupt service routine is called.
+ * Hooks IRQ handler to the system. When the system is interrupted
+ * the interrupt service routine is called.
  *
- *Inputs :
- *int_cause - The interrupt cause number. In EVB64120 two parameters 
- *            are declared, INT_CAUSE_MAIN and INT_CAUSE_HIGH. 
- *bit_num   - Indicates which bit number in the cause register
- *isr_ptr   - Pointer to the interrupt service routine
+ * Inputs :
+ * int_cause - The interrupt cause number. In EVB64120 two parameters 
+ *             are declared, INT_CAUSE_MAIN and INT_CAUSE_HIGH. 
+ * bit_num   - Indicates which bit number in the cause register
+ * isr_ptr   - Pointer to the interrupt service routine
  *
- *Outputs :
- *
- *********************************************************************/
+ * Outputs :
+ */
 void hook_irq_handler(int int_cause, int bit_num, void *isr_ptr)
 {
 	irq_handlers[int_cause][bit_num].routine = isr_ptr;
 }
 
 
-/********************************************************************
- *enable_galileo_irq
+/*
+ * enable_galileo_irq
  *
- *Enables the IRQ on Galileo Chip
+ * Enables the IRQ on Galileo Chip
  *
- *Inputs :
- *int_cause -  The interrupt cause number. In EVB64120 two parameters 
+ * Inputs :
+ * int_cause -  The interrupt cause number. In EVB64120 two parameters 
  *            are declared, INT_CAUSE_MAIN and INT_CAUSE_HIGH.
- *bit_num   - Indicates which bit number in the cause register
+ * bit_num   - Indicates which bit number in the cause register
  *
- *Outputs :
- *1 if succesful, 0 if failure
- *********************************************************************/
+ * Outputs :
+ * 1 if succesful, 0 if failure
+ */
 int enable_galileo_irq(int int_cause, int bit_num)
 {
 	if (int_cause == INT_CAUSE_MAIN)
@@ -73,19 +71,19 @@ int enable_galileo_irq(int int_cause, int bit_num)
 	return 1;
 }
 
-/********************************************************************
- *disable_galileo_irq
+/*
+ * disable_galileo_irq
  *
- *Disables the IRQ on Galileo Chip
+ * Disables the IRQ on Galileo Chip
  *
- *Inputs :
- *int_cause -  The interrupt cause number. In EVB64120 two parameters 
+ * Inputs :
+ * int_cause -  The interrupt cause number. In EVB64120 two parameters 
  *            are declared, INT_CAUSE_MAIN and INT_CAUSE_HIGH.
- *bit_num   - Indicates which bit number in the cause register
+ * bit_num   - Indicates which bit number in the cause register
  *
- *Outputs :
- *1 if succesful, 0 if failure
- *********************************************************************/
+ * Outputs :
+ * 1 if succesful, 0 if failure
+ */
 int disable_galileo_irq(int int_cause, int bit_num)
 {
 	if (int_cause == INT_CAUSE_MAIN)
@@ -101,17 +99,17 @@ int disable_galileo_irq(int int_cause, int bit_num)
 
 #endif				/*  UNUSED  */
 
-/********************************************************************
- *galileo_irq -
- *	
- *Interrupt handler for interrupts coming from the Galileo chip.
- *It could be timer interrupt, built in ethernet ports etc...
+/*
+ * galileo_irq -
  *
- *Inputs :
+ * Interrupt handler for interrupts coming from the Galileo chip.
+ * It could be timer interrupt, built in ethernet ports etc...
  *
- *Outputs :
+ * Inputs :
  *
- *********************************************************************/
+ * Outputs :
+ *
+ */
 static void galileo_irq(int irq, void *dev_id, struct pt_regs *regs)
 {
 	unsigned int irq_src, int_high_src, irq_src_mask,
@@ -191,20 +189,18 @@ static void galileo_irq(int irq, void *dev_id, struct pt_regs *regs)
 #endif
 }
 
-/********************************************************************
- *galileo_time_init -
+/*
+ * galileo_time_init -
  *
- *Initializes timer using galileo's built in timer.
+ * Initializes timer using galileo's built in timer.
  *
  *
- *Inputs :
- *irq - number of irq to be used by the timer
+ * Inputs :
+ * irq - number of irq to be used by the timer
  *
- *Outpus :
+ * Outpus :
  *
- *********************************************************************/
-
-
+ */
 #ifdef CONFIG_SYSCLK_100
 #define Sys_clock (100 * 1000000)	// 100 MHz
 #endif
@@ -216,10 +212,10 @@ static void galileo_irq(int irq, void *dev_id, struct pt_regs *regs)
 #endif
 
 /*
-  This will ignore the standard MIPS timer interrupt handler
-  that is passed in as *irq (=irq0 in ../kernel/time.c).
-  We will do our own timer interrupt handling.
-*/
+ * This will ignore the standard MIPS timer interrupt handler that is passed
+ * in as *irq (=irq0 in ../kernel/time.c).  We will do our own timer interrupt
+ * handling.
+ */
 void galileo_time_init(struct irqaction *irq)
 {
 	extern irq_desc_t irq_desc[NR_IRQS];
@@ -230,9 +226,10 @@ void galileo_time_init(struct irqaction *irq)
 	/* Load timer value for 100 Hz */
 	GT_WRITE(GT_TC3_OFS, Sys_clock / 100);
 
-	/*  Create the IRQ structure entry for the timer.  Since we're too early
-	   in the boot process to use the "request_irq()" call, we'll hard-code
-	   the values to the correct interrupt line.
+	/*
+	 * Create the IRQ structure entry for the timer.  Since we're too early
+	 * in the boot process to use the "request_irq()" call, we'll hard-code
+	 * the values to the correct interrupt line.
 	 */
 	timer.handler = &galileo_irq;
 	timer.flags = SA_SHIRQ;
@@ -270,5 +267,4 @@ void galileo_irq_init(void)
 		}
 	}
 #endif
-
 }

@@ -1,5 +1,4 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
  *	Galileo EV96100 board specific pci support.
  *
@@ -43,7 +42,7 @@
 #include <linux/init.h>
 
 #include <asm/galileo-boards/ev96100.h>
-#include <asm/galileo-boards/gt64120.h>
+#include <asm/gt64120.h>
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
