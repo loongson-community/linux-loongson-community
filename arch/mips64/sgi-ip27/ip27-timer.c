@@ -39,6 +39,7 @@ static unsigned long ct_cur;		/* What counter should be at next timer irq */
 static long last_rtc_update = 0;	/* Last time the rtc clock got updated */
 
 extern rwlock_t xtime_lock;
+extern volatile unsigned long lost_ticks;
 
 
 static int set_rtc_mmss(unsigned long nowtime)
@@ -158,19 +159,50 @@ again:
 	write_unlock(&xtime_lock);
 }
 
+unsigned long inline do_gettimeoffset(void)
+{
+	unsigned long ct_cur1 = LOCAL_HUB_L(PI_RT_COUNT) + CYCLES_PER_JIFFY;
+	return (ct_cur1 - ct_cur) * NSEC_PER_CYCLE / 1000;
+}
+
 void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long flags;
+	unsigned long usec, sec;
 
 	read_lock_irqsave(&xtime_lock, flags);
-	*tv = xtime;
+	usec = do_gettimeoffset();
+	{
+		unsigned long lost = lost_ticks;
+		if (lost)
+			usec += lost * (1000000 / HZ);
+	}
+	sec = xtime.tv_sec;
+	usec += xtime.tv_usec;
 	read_unlock_irqrestore(&xtime_lock, flags);
+
+	while (usec >= 1000000) {
+		usec -= 1000000;
+		sec++;
+	}
+
+	tv->tv_sec = sec;
+	tv->tv_usec = usec;
 }
 
 void do_settimeofday(struct timeval *tv)
 {
 	write_lock_irq(&xtime_lock);
+	tv->tv_usec -= do_gettimeoffset();
+	tv->tv_usec -= lost_ticks * (1000000 / HZ);
+
+	while (tv->tv_usec < 0) {
+		tv->tv_usec += 1000000;
+		tv->tv_sec--;
+	}
+
 	xtime = *tv;
+	time_adjust = 0;		/* stop active adjtime() */
 	time_state = TIME_BAD;
 	time_maxerror = MAXPHASE;
 	time_esterror = MAXPHASE;
