@@ -54,6 +54,11 @@ obj-$(CONFIG_REMOTE_DEBUG)	+= gdb-low.o gdb-stub.o
 obj-$(CONFIG_PCI)		+= pci-dma.o
 obj-$(CONFIG_PROC_FS)		+= proc.o
 
+ifdef CONFIG_PCI
+obj-$(CONFIG_NEW_PCI)          += pci.o
+obj-$(CONFIG_PCI_AUTO)         += pci_auto.o
+endif
+
 entry.o: entry.S
 head.o: head.S
 

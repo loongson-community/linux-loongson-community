@@ -93,6 +93,8 @@ if [ "$CONFIG_MIPS_EV96100" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_MIPS_GT96100 y
    define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
 fi
 if [ "$CONFIG_MIPS_EV64120" = "y" ]; then
    define_bool CONFIG_PCI y
@@ -188,6 +190,8 @@ if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_IT8712 y
    define_bool CONFIG_PC_KEYB y
+   define_bool CONFIG_NEW_PCI y
+   define_bool CONFIG_PCI_AUTO y
 fi
 if [ "$CONFIG_MIPS_IVR" = "y" ]; then
    define_bool CONFIG_PCI y

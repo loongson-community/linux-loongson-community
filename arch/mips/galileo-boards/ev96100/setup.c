@@ -87,9 +87,8 @@ void __init ev96100_setup(void)
 
 	char *argptr;
 
-	set_cp0_status(ST0_FR,0);
+	clear_cp0_status(ST0_FR);
         __wbflush = rm7000_wbflush;
-
 
         if (config & 0x8) {
             printk("Secondary cache is enabled\n");
