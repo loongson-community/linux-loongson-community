@@ -111,3 +111,5 @@ void __init tanbac_tb0226_setup(void)
 	vr41xx_pciu_init(&pci_address_map);
 #endif
 }
+
+early_initcall(tanbac_tb0226_setup);
