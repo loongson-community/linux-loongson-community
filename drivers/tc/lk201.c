@@ -83,6 +83,13 @@ static int __init lk201_reset(struct dec_serial *info)
 	return 0;
 }
 
+int kbd_rate(struct kbd_repeat *rep)
+{
+       return 0;
+}
+
+
+
 void kbd_leds(unsigned char leds)
 {
 	return;

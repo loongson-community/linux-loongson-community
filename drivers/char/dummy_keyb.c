@@ -31,6 +31,11 @@ void kbd_leds(unsigned char leds)
 {
 }
 
+int kbd_rate(struct kbd_repeat *rep)
+{
+	return 0;
+}
+
 int kbd_setkeycode(unsigned int scancode, unsigned int keycode)
 {
 	return (scancode == keycode) ? 0 : -EINVAL;
