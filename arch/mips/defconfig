@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc3
-# Sat Dec  4 16:15:25 2004
+# Sun Dec 12 03:14:31 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -871,6 +871,11 @@ CONFIG_NLS_ISO8859_15=m
 CONFIG_NLS_KOI8_R=m
 CONFIG_NLS_KOI8_U=m
 CONFIG_NLS_UTF8=m
+
+#
+# Profiling support
+#
+# CONFIG_PROFILING is not set
 
 #
 # Kernel hacking

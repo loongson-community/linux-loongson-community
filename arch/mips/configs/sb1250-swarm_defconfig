@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc3
-# Sat Dec  4 16:15:57 2004
+# Sun Dec 12 03:14:52 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -143,7 +143,7 @@ CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_16KB is not set
 # CONFIG_PAGE_SIZE_64KB is not set
 # CONFIG_SIBYTE_DMA_PAGEOPS is not set
-# CONFIG_CPU_HAS_PREFETCH is not set
+CONFIG_CPU_HAS_PREFETCH=y
 CONFIG_VTAG_ICACHE=y
 CONFIG_SB1_PASS_1_WORKAROUNDS=y
 # CONFIG_64BIT_PHYS_ADDR is not set
@@ -639,6 +639,11 @@ CONFIG_MSDOS_PARTITION=y
 # Native Language Support
 #
 # CONFIG_NLS is not set
+
+#
+# Profiling support
+#
+# CONFIG_PROFILING is not set
 
 #
 # Kernel hacking
