@@ -128,20 +128,21 @@ LEAF(spurious_interrupt)
 
 		/* General exception vector R4000 version. */
 		NESTED(except_vec3_r4000, 0, sp)
+		.set	push
 		.set    mips3
 		.set	noat
 		mfc0	k1, CP0_CAUSE
-		andi	k1, k1, 0x7c
 		li	k0, 31<<2
+		andi	k1, k1, 0x7c
+		.set	noreorder
 		beq	k1, k0, handle_vced
 		 li	k0, 14<<2
 		beq	k1, k0, handle_vcei
 		 la	k0, exception_handlers
+		.set	reorder
 		addu	k0, k0, k1
 		lw	k0, (k0)
-		nop
 		jr	k0
-		 nop
 
 		/*
 		 * Big shit, we now may have two dirty primary cache lines for
@@ -174,7 +175,7 @@ handle_vcei:
 		sw	k1, %lo(vcei_count)(k0)
 #endif
 		eret
-		.set    mips0
+		.set    pop
 		END(except_vec3_r4000)
 
 		__FINIT
