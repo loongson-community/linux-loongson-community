@@ -21,8 +21,6 @@
 #include <linux/config.h>
 #include <linux/types.h>
 
-#include <asm/ddb5xxx/debug.h>
-
 /*
  *  This file is based on the following documentation:
  *

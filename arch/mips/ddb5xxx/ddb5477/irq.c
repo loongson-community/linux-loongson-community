@@ -18,10 +18,10 @@
 
 #include <asm/system.h>
 #include <asm/mipsregs.h>
+#include <asm/debug.h>
+
 #include <asm/ddb5xxx/ddb5xxx.h>
 
-/* [jsun] sooner or later we should move this debug stuff to MIPS common */
-#include <asm/ddb5xxx/debug.h>
 
 /*
  * IRQ mapping
@@ -76,7 +76,7 @@ extern asmlinkage void ddb5477_handle_int(void);
 void
 ddb5477_irq_setup(void)
 {
-	MIPS_DEBUG(printk("ddb5477_irq_setup invoked.\n"));
+	db_run(printk("ddb5477_irq_setup invoked.\n"));
 
 	/* by default, we disable all interrupts and route all vrc5477 
 	 * interrupts to pin 0 (irq 2) */
@@ -141,13 +141,13 @@ vrc5477_irq_dispatch(struct pt_regs *regs)
 	u32 bitmask;
 	u32 i;
 
-	MIPS_ASSERT(ddb_in32(DDB_INT2STAT) == 0);
-	MIPS_ASSERT(ddb_in32(DDB_INT3STAT) == 0);
-	MIPS_ASSERT(ddb_in32(DDB_INT4STAT) == 0);
-	MIPS_ASSERT(ddb_in32(DDB_NMISTAT) == 0);
+	db_assert(ddb_in32(DDB_INT2STAT) == 0);
+	db_assert(ddb_in32(DDB_INT3STAT) == 0);
+	db_assert(ddb_in32(DDB_INT4STAT) == 0);
+	db_assert(ddb_in32(DDB_NMISTAT) == 0);
 
 	if (ddb_in32(DDB_INT1STAT) != 0) {
-#if defined(CONFIG_LL_DEBUG)
+#if defined(CONFIG_DEBUG)
 		vrc5477_show_int_regs();
 #endif
 		panic("error interrupt has happened.\n");

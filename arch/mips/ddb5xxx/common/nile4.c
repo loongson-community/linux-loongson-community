@@ -21,7 +21,6 @@
 #include <linux/kernel.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
-#include <asm/ddb5xxx/debug.h>
 
 u32
 ddb_calc_pdar(u32 phys, u32 size, int width, 

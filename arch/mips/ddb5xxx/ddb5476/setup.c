@@ -24,6 +24,7 @@
 #include <asm/reboot.h>
 #include <asm/gdb-stub.h>
 #include <asm/time.h>
+#include <asm/debug.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -189,11 +190,11 @@ ddb5476_board_init(void)
 {
 	/* ----------- setup PDARs ------------ */
 	/* check SDRAM0, whether we are on MEM bus does not matter */
-	MIPS_ASSERT((ddb_in32(DDB_SDRAM0) & 0xffffffef) ==
-		    ddb_calc_pdar(DDB_SDRAM_BASE, DDB_SDRAM_SIZE, 32, 0, 1));
+	db_assert((ddb_in32(DDB_SDRAM0) & 0xffffffef) ==
+		  ddb_calc_pdar(DDB_SDRAM_BASE, DDB_SDRAM_SIZE, 32, 0, 1));
 
 	/* SDRAM1 should be turned off.  What is this for anyway ? */
-	MIPS_ASSERT( (ddb_in32(DDB_SDRAM1) & 0xf) == 0);
+	db_assert( (ddb_in32(DDB_SDRAM1) & 0xf) == 0);
 
 	/* flash 1&2, DDB status, DDB control */
 	ddb_set_pdar(DDB_DCS2, DDB_DCS2_BASE, DDB_DCS2_SIZE, 16, 0, 0);
@@ -208,13 +209,13 @@ ddb5476_board_init(void)
 
 	/* verify VRC5477 base addr */
 	/* don't care about some details */
-	MIPS_ASSERT((ddb_in32(DDB_INTCS) & 0xffffff0f) ==
-		    ddb_calc_pdar(DDB_INTCS_BASE, DDB_INTCS_SIZE, 8, 0, 0));
+	db_assert((ddb_in32(DDB_INTCS) & 0xffffff0f) ==
+		  ddb_calc_pdar(DDB_INTCS_BASE, DDB_INTCS_SIZE, 8, 0, 0));
 
 	/* verify BOOT ROM addr */
 	/* don't care about some details */
-	MIPS_ASSERT((ddb_in32(DDB_BOOTCS) & 0xffffff0f) ==
-		    ddb_calc_pdar(DDB_BOOTCS_BASE, DDB_BOOTCS_SIZE, 8, 0, 0));
+	db_assert((ddb_in32(DDB_BOOTCS) & 0xffffff0f) ==
+		  ddb_calc_pdar(DDB_BOOTCS_BASE, DDB_BOOTCS_SIZE, 8, 0, 0));
 
 	/* setup PCI windows - window1 for MEM/config, window0 for IO */
 	ddb_set_pdar(DDB_PCIW0, DDB_PCI_IO_BASE, DDB_PCI_IO_SIZE, 32, 0, 1);

@@ -402,5 +402,6 @@ CONFIG_VGA_CONSOLE=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+# CONFIG_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set
 # CONFIG_MIPS_UNCACHED is not set

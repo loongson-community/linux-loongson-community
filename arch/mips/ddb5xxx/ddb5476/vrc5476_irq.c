@@ -18,7 +18,6 @@
 #include <asm/system.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
-#include <asm/ddb5xxx/debug.h>
 
 static int irq_base;
 

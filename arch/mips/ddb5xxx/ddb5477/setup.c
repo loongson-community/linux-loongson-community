@@ -33,6 +33,7 @@
 #include <asm/irq.h>
 #include <asm/reboot.h>
 #include <asm/gdb-stub.h>
+#include <asm/debug.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
 
@@ -60,7 +61,7 @@ static void ddb_machine_restart(char *command)
 
 	/* CPU cold reset */
 	t = ddb_in32(DDB_CPUSTAT);
-	MIPS_ASSERT((t&1));
+	db_assert((t&1));
 	ddb_out32(DDB_CPUSTAT, t);
 
 	/* Call the PROM */
@@ -90,7 +91,7 @@ static void __init ddb_time_init(void)
 	rtc_ds1386_init(KSEG1ADDR(DDB_LCS1_BASE));
 }
 
-#if defined(CONFIG_LL_DEBUG)
+#if defined(CONFIG_DEBUG)
 int  board_init_done_flag = 0;
 #endif
 
@@ -117,7 +118,7 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 #endif
 	
 	/* this is the last board dependent code */
-	MIPS_DEBUG(board_init_done_flag = 1);
+	db_run(board_init_done_flag = 1);
 }
 
 static void ddb5477_board_init(void);
@@ -164,11 +165,11 @@ static void __init ddb5477_board_init()
 	/* ----------- setup PDARs ------------ */
 
 	/* SDRAM should have been set */
-	MIPS_ASSERT(ddb_in32(DDB_SDRAM0) == 
+	db_assert(ddb_in32(DDB_SDRAM0) == 
 		    ddb_calc_pdar(DDB_SDRAM_BASE, DDB_SDRAM_SIZE, 32, 0, 1));
 
 	/* SDRAM1 should be turned off.  What is this for anyway ? */
-	MIPS_ASSERT( (ddb_in32(DDB_SDRAM1) & 0xf) == 0);
+	db_assert( (ddb_in32(DDB_SDRAM1) & 0xf) == 0);
 
 	/* Set LDCSs */
 	/* flash */
@@ -179,12 +180,12 @@ static void __init ddb5477_board_init()
 	ddb_set_pdar(DDB_LCS2, DDB_LCS2_BASE, DDB_LCS2_SIZE, 16, 0, 0);
 
 	/* verify VRC5477 base addr */
-	MIPS_ASSERT(ddb_in32(DDB_VRC5477) == 
-		    ddb_calc_pdar(DDB_VRC5477_BASE, DDB_VRC5477_SIZE, 32, 0, 1));
+	db_assert(ddb_in32(DDB_VRC5477) == 
+		  ddb_calc_pdar(DDB_VRC5477_BASE, DDB_VRC5477_SIZE, 32, 0, 1));
 	
 	/* verify BOOT ROM addr */
-	MIPS_ASSERT(ddb_in32(DDB_BOOTCS) == 
-		    ddb_calc_pdar(DDB_BOOTCS_BASE, DDB_BOOTCS_SIZE, 8, 0, 0));
+	db_assert(ddb_in32(DDB_BOOTCS) == 
+		  ddb_calc_pdar(DDB_BOOTCS_BASE, DDB_BOOTCS_SIZE, 8, 0, 0));
 
 	/* setup PCI windows - window0 for MEM/config, window1 for IO */
 	ddb_set_pdar(DDB_PCIW0, DDB_PCI0_MEM_BASE, DDB_PCI0_MEM_SIZE, 32, 0, 1);

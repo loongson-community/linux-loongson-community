@@ -4,9 +4,9 @@
 #include <linux/pci.h>
 
 #include <asm/pci_channel.h>
+#include <asm/debug.h>
 
 #include <asm/ddb5xxx/ddb5xxx.h>
-#include <asm/ddb5xxx/debug.h>
 
 static struct resource extpci_io_resource = {
 	"pci IO space", 
@@ -81,8 +81,8 @@ void __init pcibios_fixup_irqs(void)
 
 	pci_for_each_dev(dev) {
 		slot_num = PCI_SLOT(dev->devfn);
-		MIPS_ASSERT(slot_num < MAX_SLOT_NUM);
-		MIPS_ASSERT(irq_map[slot_num] != 0xff);
+		db_assert(slot_num < MAX_SLOT_NUM);
+		db_assert(irq_map[slot_num] != 0xff);
 
 		pci_write_config_byte(dev, 
 				      PCI_INTERRUPT_LINE,
@@ -91,7 +91,7 @@ void __init pcibios_fixup_irqs(void)
 	}
 }
 
-#if defined(CONFIG_LL_DEBUG)
+#if defined(CONFIG_DEBUG)
 extern void jsun_scan_pci_bus(void);
 #endif
 

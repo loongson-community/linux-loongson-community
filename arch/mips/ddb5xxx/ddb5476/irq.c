@@ -3,6 +3,11 @@
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Sony Software Development Center Europe (SDCE), Brussels
+ *
+ * Re-write the whole thing to use new irq.c file.
+ * Copyright (C) 2001 MontaVista Software Inc.
+ * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
+ *
  */
 #include <linux/config.h>
 #include <linux/init.h>

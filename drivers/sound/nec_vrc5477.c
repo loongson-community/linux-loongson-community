@@ -83,16 +83,24 @@
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
 
-#include <asm/ddb5xxx/debug.h>
+/* -------------------debug macros -------------------------------------- */
+/* #undef VRC5477_AC97_DEBUG */
+#define VRC5477_AC97_DEBUG
 
 #undef VRC5477_AC97_VERBOSE_DEBUG
+/* #define VRC5477_AC97_VERBOSE_DEBUG */
 
-/* one must turn on CONFIG_LL_DEBUG before VERBOSE_DEBUG is turned */
 #if defined(VRC5477_AC97_VERBOSE_DEBUG)
-#if !defined(CONFIG_LL_DEBUG)
-#error "You must turn CONFIG_LL_DEBUG"
+#define VRC5477_AC97_DEBUG
 #endif
-#endif
+
+#if defined(VRC5477_AC97_DEBUG)
+#include <linux/kernel.h>
+#define ASSERT(x)  if (!(x)) { \
+	panic("assertion failed at %s:%d: %s\n", __FILE__, __LINE__, #x); }
+#else
+#define	ASSERT(x)
+#endif /* VRC5477_AC97_DEBUG */
 
 #if defined(VRC5477_AC97_VERBOSE_DEBUG)
 static u16 inTicket=0; 		/* check sync between intr & write */
@@ -179,11 +187,11 @@ struct vrc5477_ac97_state {
 	unsigned long io;
 	unsigned int irq;
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 	/* debug /proc entry */
 	struct proc_dir_entry *ps;
 	struct proc_dir_entry *ac97_ps;
-#endif /* CONFIG_LL_DEBUG */
+#endif /* VRC5477_AC97_DEBUG */
 
 	struct ac97_codec codec;
 
@@ -275,7 +283,7 @@ static u16 rdcodec(struct ac97_codec *codec, u8 addr)
                 (VRC5477_CODEC_RD_RRDYA | VRC5477_CODEC_RD_RRDYD) ) {
 		/* we get either addr or data, or both */
 		if (result & VRC5477_CODEC_RD_RRDYA) {
-			MIPS_ASSERT(addr == ((result >> 16) & 0x7f) );
+			ASSERT(addr == ((result >> 16) & 0x7f) );
 		}
 		if (result & VRC5477_CODEC_RD_RRDYD) {
 			break;
@@ -408,7 +416,7 @@ static void start_dac(struct vrc5477_ac97_state *s)
 	}
 
 	/* we should have some data to do the DMA trasnfer */
-	MIPS_ASSERT(db->count >= db->fragSize);
+	ASSERT(db->count >= db->fragSize);
 
 	/* clear pending fales interrupts */
 	outl(VRC5477_INT_MASK_DAC1END | VRC5477_INT_MASK_DAC2END, 
@@ -442,12 +450,12 @@ static void start_dac(struct vrc5477_ac97_state *s)
 	outl (temp, s->io + VRC5477_CTRL);
 
 	/* it is time to setup next dma transfer */
-	MIPS_ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
-	MIPS_ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
+	ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
+	ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
 
 	temp = db->nextOut + db->fragSize;
 	if (temp >= db->fragTotalSize) {
-		MIPS_ASSERT(temp == db->fragTotalSize);
+		ASSERT(temp == db->fragTotalSize);
 		temp = 0;
 	}
 
@@ -463,7 +471,7 @@ static void start_dac(struct vrc5477_ac97_state *s)
 #if defined(VRC5477_AC97_VERBOSE_DEBUG)
 	outTicket = *(u16*)(db->lbuf+db->nextOut);
 	if (db->count > db->fragSize) {
-		MIPS_ASSERT((u16)(outTicket+1) == *(u16*)(db->lbuf+temp));
+		ASSERT((u16)(outTicket+1) == *(u16*)(db->lbuf+temp));
 	}
 #endif
 
@@ -521,7 +529,7 @@ static void start_adc(struct vrc5477_ac97_state *s)
 	}
 
 	/* we should at least have some free space in the buffer */
-	MIPS_ASSERT(db->count < db->fragTotalSize - db->fragSize * 2);
+	ASSERT(db->count < db->fragTotalSize - db->fragSize * 2);
 
 	/* clear pending ones */
 	outl(VRC5477_INT_MASK_ADC1END | VRC5477_INT_MASK_ADC2END, 
@@ -553,7 +561,7 @@ static void start_adc(struct vrc5477_ac97_state *s)
 	/* it is time to setup next dma transfer */
 	temp = db->nextIn + db->fragSize;
 	if (temp >= db->fragTotalSize) {
-		MIPS_ASSERT(temp == db->fragTotalSize);
+		ASSERT(temp == db->fragTotalSize);
 		temp = 0;
 	}
 	outl(db->lbufDma + temp, s->io + VRC5477_ADC1_BADDR);
@@ -573,7 +581,7 @@ extern inline void dealloc_dmabuf(struct vrc5477_ac97_state *s,
 				  struct dmabuf *db)
 {
 	if (db->lbuf) {
-		MIPS_ASSERT(db->rbuf);
+		ASSERT(db->rbuf);
 		pci_free_consistent(s->dev, PAGE_SIZE << db->bufOrder,
 				    db->lbuf, db->lbufDma);
 		pci_free_consistent(s->dev, PAGE_SIZE << db->bufOrder,
@@ -592,7 +600,7 @@ static int prog_dmabuf(struct vrc5477_ac97_state *s,
 	unsigned bufsize;
 
 	if (!db->lbuf) {
-		MIPS_ASSERT(!db->rbuf);
+		ASSERT(!db->rbuf);
 
 		db->ready = 0;
 		for (order = DMABUF_DEFAULTORDER; 
@@ -606,7 +614,7 @@ static int prog_dmabuf(struct vrc5477_ac97_state *s,
 							&db->rbufDma);
 			if (db->lbuf && db->rbuf) break;
 			if (db->lbuf) {
-			    MIPS_ASSERT(!db->rbuf);
+			    ASSERT(!db->rbuf);
 			    pci_free_consistent(s->dev, 
 						PAGE_SIZE << order,
 						db->lbuf,
@@ -614,7 +622,7 @@ static int prog_dmabuf(struct vrc5477_ac97_state *s,
 			}
 		}
 		if (!db->lbuf) {
-			MIPS_ASSERT(!db->rbuf);
+			ASSERT(!db->rbuf);
 			return -ENOMEM;
 		}
 
@@ -677,7 +685,7 @@ static inline void vrc5477_ac97_adc_interrupt(struct vrc5477_ac97_state *s)
 	/* set the base addr for next DMA transfer */
 	temp = adc->nextIn + 2*adc->fragSize;
 	if (temp >= adc->fragTotalSize) {
-		MIPS_ASSERT( (temp == adc->fragTotalSize) ||
+		ASSERT( (temp == adc->fragTotalSize) ||
                              (temp == adc->fragTotalSize + adc->fragSize) );
 		temp -= adc->fragTotalSize;
 	}
@@ -687,7 +695,7 @@ static inline void vrc5477_ac97_adc_interrupt(struct vrc5477_ac97_state *s)
 	/* adjust nextIn */
 	adc->nextIn += adc->fragSize;
 	if (adc->nextIn >= adc->fragTotalSize) {
-		MIPS_ASSERT(adc->nextIn == adc->fragTotalSize);
+		ASSERT(adc->nextIn == adc->fragTotalSize);
 		adc->nextIn = 0;
 	}
 
@@ -706,13 +714,13 @@ static inline void vrc5477_ac97_dac_interrupt(struct vrc5477_ac97_state *s)
 	unsigned temp;
 
 	/* next DMA transfer should already started */
-	MIPS_ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
-	MIPS_ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
+	ASSERT(inl(s->io + VRC5477_DAC1_CTRL) & VRC5477_DMA_WIP);
+	ASSERT(inl(s->io + VRC5477_DAC2_CTRL) & VRC5477_DMA_WIP);
 
 	/* let us set for next next DMA transfer */
 	temp = dac->nextOut + dac->fragSize*2;
 	if (temp >= dac->fragTotalSize) {
-		MIPS_ASSERT( (temp == dac->fragTotalSize) || 
+		ASSERT( (temp == dac->fragTotalSize) || 
                              (temp == dac->fragTotalSize + dac->fragSize) );
 		temp -= dac->fragTotalSize;
 	}
@@ -728,22 +736,22 @@ static inline void vrc5477_ac97_dac_interrupt(struct vrc5477_ac97_state *s)
 		printk("assert fail: - %d vs %d\n", 
 		        *(u16*)(dac->lbuf +  dac->nextOut),
                         outTicket);
-                MIPS_ASSERT(1 == 0);
+                ASSERT(1 == 0);
 	}
 #endif
 
 	/* adjust nextOut pointer */
 	dac->nextOut += dac->fragSize;
 	if (dac->nextOut >= dac->fragTotalSize) {
-		MIPS_ASSERT(dac->nextOut == dac->fragTotalSize);
+		ASSERT(dac->nextOut == dac->fragTotalSize);
 		dac->nextOut = 0;
 	}
 
 	/* adjust count */
 	dac->count -= dac->fragSize;
 	if (dac->count <=0 ) {
-		MIPS_ASSERT(dac->count == 0);
-		MIPS_ASSERT(dac->nextIn == dac->nextOut);
+		ASSERT(dac->count == 0);
+		ASSERT(dac->nextIn == dac->nextOut);
 		/* buffer under run */
 		stop_dac(s);
 	}
@@ -751,12 +759,12 @@ static inline void vrc5477_ac97_dac_interrupt(struct vrc5477_ac97_state *s)
 #if defined(VRC5477_AC97_VERBOSE_DEBUG)
 	if (dac->count) {
 		outTicket ++;
-		MIPS_ASSERT(*(u16*)(dac->lbuf +  dac->nextOut) == outTicket);
+		ASSERT(*(u16*)(dac->lbuf +  dac->nextOut) == outTicket);
 	}
 #endif
 	
 	/* we cannot have both under run and someone is waiting on us */
-	MIPS_ASSERT(! (waitqueue_active(&dac->wait) && (dac->count <= 0)) );
+	ASSERT(! (waitqueue_active(&dac->wait) && (dac->count <= 0)) );
 
 	/* wake up anybody listening */
 	if (waitqueue_active(&dac->wait))
@@ -911,7 +919,7 @@ copy_two_channel_adc_to_user(struct vrc5477_ac97_state *s,
 
 		copyCount -= count;
 		bufStart += count;
-		MIPS_ASSERT(bufStart <= db->fragTotalSize);
+		ASSERT(bufStart <= db->fragTotalSize);
 		buffer += count *2;
 	}
 	return 0;
@@ -943,12 +951,12 @@ copy_adc_to_user(struct vrc5477_ac97_state *s,
 		}
 		if (copyCount + db->nextOut > db->fragTotalSize) {
 			copyCount = db->fragTotalSize - db->nextOut;
-			MIPS_ASSERT((copyCount % db->fragSize) == 0);
+			ASSERT((copyCount % db->fragSize) == 0);
 		}
 
 		copyFragCount = (copyCount-1) >> db->fragShift;
 		copyFragCount = (copyFragCount+1) << db->fragShift;
-		MIPS_ASSERT(copyFragCount >= copyCount);
+		ASSERT(copyFragCount >= copyCount);
 
 		/* we copy differently based on adc channels */
 		if (s->adcChannels == 1) {
@@ -971,12 +979,12 @@ copy_adc_to_user(struct vrc5477_ac97_state *s,
 
 		db->nextOut += copyFragCount;
 		if (db->nextOut >= db->fragTotalSize) {
-			MIPS_ASSERT(db->nextOut == db->fragTotalSize);
+			ASSERT(db->nextOut == db->fragTotalSize);
 			db->nextOut = 0;
 		}
 
-		MIPS_ASSERT((copyFragCount % db->fragSize) == 0);
-		MIPS_ASSERT( (count == 0) || (copyCount == copyFragCount));
+		ASSERT((copyFragCount % db->fragSize) == 0);
+		ASSERT( (count == 0) || (copyCount == copyFragCount));
 	}
 
 	spin_lock_irqsave(&s->lock, flags);
@@ -1005,7 +1013,7 @@ vrc5477_ac97_read(struct file *file,
 	if (!access_ok(VERIFY_WRITE, buffer, count))
 		return -EFAULT;
 
-	MIPS_ASSERT(db->ready);
+	ASSERT(db->ready);
 
 	while (count > 0) {
 		// wait for samples in capture buffer
@@ -1030,7 +1038,7 @@ vrc5477_ac97_read(struct file *file,
 			}
 		} while (avail <= 0);
 
-		MIPS_ASSERT( (avail % db->fragSize) == 0);
+		ASSERT( (avail % db->fragSize) == 0);
 		copyCount = copy_adc_to_user(s, buffer, count, avail);
 		if (copyCount <=0 ) {
 			if (!ret) ret = -EFAULT;
@@ -1053,7 +1061,7 @@ copy_two_channel_dac_from_user(struct vrc5477_ac97_state *s,
 	struct dmabuf *db = &s->dma_dac;
 	int bufStart = db->nextIn;
 
-	MIPS_ASSERT(db->ready);
+	ASSERT(db->ready);
 
         for (; copyCount > 0; ) {
                 int i;
@@ -1071,7 +1079,7 @@ copy_two_channel_dac_from_user(struct vrc5477_ac97_state *s,
 
                 copyCount -= count;
 		bufStart += count;
-		MIPS_ASSERT(bufStart <= db->fragTotalSize);
+		ASSERT(bufStart <= db->fragTotalSize);
                 buffer += count *2;
         }
         return 0;
@@ -1107,13 +1115,13 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
 		}
                 if (copyCount + db->nextIn > db->fragTotalSize) {
                         copyCount = db->fragTotalSize - db->nextIn;
-                        MIPS_ASSERT((copyCount % db->fragSize) == 0);
-                        MIPS_ASSERT(copyCount > 0);
+                        ASSERT((copyCount % db->fragSize) == 0);
+                        ASSERT(copyCount > 0);
                 }
 
 		copyFragCount = (copyCount-1) >> db->fragShift;
 		copyFragCount = (copyFragCount+1) << db->fragShift;
-		MIPS_ASSERT(copyFragCount >= copyCount);
+		ASSERT(copyFragCount >= copyCount);
 
 		/* we copy differently based on the number channels */
 		if (s->dacChannels == 1) {
@@ -1153,12 +1161,12 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
 
 		db->nextIn += copyFragCount;
 		if (db->nextIn >= db->fragTotalSize) {
-			MIPS_ASSERT(db->nextIn == db->fragTotalSize);
+			ASSERT(db->nextIn == db->fragTotalSize);
 			db->nextIn = 0;
 		}
 
-		MIPS_ASSERT((copyFragCount % db->fragSize) == 0);
-		MIPS_ASSERT( (count == 0) || (copyCount == copyFragCount));
+		ASSERT((copyFragCount % db->fragSize) == 0);
+		ASSERT( (count == 0) || (copyCount == copyFragCount));
 	}
 
 	spin_lock_irqsave(&s->lock, flags);
@@ -1168,7 +1176,7 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
 	}
 
 	/* nextIn should not be equal to nextOut unless we are full */
-	MIPS_ASSERT( ( (db->count == db->fragTotalSize) && 
+	ASSERT( ( (db->count == db->fragTotalSize) && 
                        (db->nextIn == db->nextOut) ) ||
                      ( (db->count < db->fragTotalSize) &&
                        (db->nextIn != db->nextOut) ) );
@@ -1216,7 +1224,7 @@ static ssize_t vrc5477_ac97_write(struct file *file, const char *buffer,
 			}
 		} while (avail <= 0);
 	
-		MIPS_ASSERT( (avail % db->fragSize) == 0);
+		ASSERT( (avail % db->fragSize) == 0);
 		copyCount = copy_dac_from_user(s, buffer, count, avail);
 		if (copyCount < 0) {
 			if (!ret) ret = -EFAULT;
@@ -1257,7 +1265,7 @@ static unsigned int vrc5477_ac97_poll(struct file *file,
 	return mask;
 }
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 static struct ioctl_str_t {
     unsigned int cmd;
     const char* str;
@@ -1308,7 +1316,7 @@ static int vrc5477_ac97_ioctl(struct inode *inode, struct file *file,
 	int count;
 	int val, ret;
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 	for (count=0; count<sizeof(ioctl_str)/sizeof(ioctl_str[0]); count++) {
 		if (ioctl_str[count].cmd == cmd)
 			break;
@@ -1639,7 +1647,7 @@ static /*const*/ struct file_operations vrc5477_ac97_audio_fops = {
  * CODEC chipstate
  */
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 
 struct {
        const char *regname;
@@ -1763,7 +1771,7 @@ static int proc_vrc5477_ac97_dump (char *buf, char **start, off_t fpos,
 	return len;
 
 }
-#endif /* CONFIG_LL_DEBUG */
+#endif /* VRC5477_AC97_DEBUG */
 
 /* --------------------------------------------------------------------- */
 
@@ -1800,7 +1808,7 @@ u16 myrdcodec(u8 addr)
         udelay(100); /* workaround hardware bug */
         // dump_memory(0xbb000000, 48);
         while ( ((result=myinl(VRC5477_CODEC_RD)) & 0xc0000000) != 0xc0000000);
-        MIPS_ASSERT(addr == ((result >> 16) & 0x7f) );
+        ASSERT(addr == ((result >> 16) & 0x7f) );
         return result & 0xffff;
 }
 
@@ -1828,7 +1836,7 @@ void jsun_ac97_test(struct vrc5477_ac97_state *s)
         while (myinl(VRC5477_CODEC_WR) & 0x80000000);
 
 	for (i=0; i< 0x40; i+=4) {	
-	MIPS_ASSERT(inl(s->io+i) == myinl(i));
+		ASSERT(inl(s->io+i) == myinl(i));
 	}
 
         printk("codec registers : ");
@@ -1855,8 +1863,6 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 {
 	struct vrc5477_ac97_state *s;
 	char proc_str[80];
-
-	MIPS_DEBUG(printk("vrc5477_ac97_probe() invoked\n"));
 
 	if (pcidev->irq == 0) 
 		return -1;
@@ -1909,37 +1915,27 @@ static int __devinit vrc5477_ac97_probe(struct pci_dev *pcidev,
 	     register_sound_mixer(&vrc5477_ac97_mixer_fops, -1)) < 0)
 		goto err_dev2;
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 	/* intialize the debug proc device */
 	s->ps = create_proc_read_entry(VRC5477_AC97_MODULE_NAME, 0, NULL,
 				       proc_vrc5477_ac97_dump, NULL);
-#endif /* CONFIG_LL_DEBUG */
+#endif /* VRC5477_AC97_DEBUG */
 	
 	/* enable pci io and bus mastering */
 	if (pci_enable_device(pcidev))
 		goto err_dev3;
 	pci_set_master(pcidev);
 
-/*
-jsun_scan_pci_bus();
-vrc5477_show_pci_regs();
-vrc5477_show_pdar_regs();
-*/
-
 	/* cold reset the AC97 */
 	outl(VRC5477_ACLINK_CTRL_RST_ON | VRC5477_ACLINK_CTRL_RST_TIME,
 	     s->io + VRC5477_ACLINK_CTRL);
 	while (inl(s->io + VRC5477_ACLINK_CTRL) & VRC5477_ACLINK_CTRL_RST_ON);
 
-/*
-jsun_ac97_test(s);
-*/
-
 	/* codec init */
 	if (!ac97_probe_codec(&s->codec))
 		goto err_dev3;
 
-#ifdef CONFIG_LL_DEBUG
+#ifdef VRC5477_AC97_DEBUG
 	sprintf(proc_str, "driver/%s/%d/ac97", 
 		VRC5477_AC97_MODULE_NAME, s->codec.id);
 	s->ac97_ps = create_proc_read_entry (proc_str, 0, NULL,
@@ -1994,10 +1990,12 @@ static void __devinit vrc5477_ac97_remove(struct pci_dev *dev)
 	if (!s)
 		return;
 	list_del(&s->devs);
-#ifdef CONFIG_LL_DEBUG
+
+#ifdef VRC5477_AC97_DEBUG
 	if (s->ps)
 		remove_proc_entry(VRC5477_AC97_MODULE_NAME, NULL);
-#endif /* CONFIG_LL_DEBUG */
+#endif /* VRC5477_AC97_DEBUG */
+
 	synchronize_irq();
 	free_irq(s->irq, s);
 	release_region(s->io, pci_resource_len(dev,0));

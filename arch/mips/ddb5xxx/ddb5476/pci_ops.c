@@ -2,7 +2,7 @@
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
- * arch/mips/ddb5xxx/ddb5477/pci_ops.c
+ * arch/mips/ddb5xxx/ddb5476/pci_ops.c
  *     Define the pci_ops for DB5477.
  *
  * Much of the code is derived from the original DDB5074 port by 
@@ -21,8 +21,8 @@
 #include <linux/types.h>
 
 #include <asm/addrspace.h>
+#include <asm/debug.h>
 
-#include <asm/ddb5xxx/debug.h>
 #include <asm/ddb5xxx/ddb5xxx.h>
 
 /*
@@ -74,10 +74,10 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	}
 
 	/* minimum pdar (window) size is 2MB */
-	MIPS_ASSERT(swap->config_size >= (2 << 20));
+	db_assert(swap->config_size >= (2 << 20));
 
-	MIPS_ASSERT(slot_num < (1 << 5));
-	MIPS_ASSERT(bus < (1 << 8));
+	db_assert(slot_num < (1 << 5));
+	db_assert(bus < (1 << 8));
 
 	/* backup registers */
 	swap->pdar_backup = ddb_in32(swap->pdar);
@@ -113,7 +113,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 		virt_addr = KSEG1ADDR(swap->config_base + pci_addr);
 		pciinit_offset = 0;
 	} else {
-		MIPS_ASSERT( (pci_addr & (swap->config_size - 1)) == 0);
+		db_assert( (pci_addr & (swap->config_size - 1)) == 0);
 		virt_addr = KSEG1ADDR(swap->config_base);
 		pciinit_offset = pci_addr;
 	}
@@ -140,13 +140,13 @@ static int read_config_dword(struct pci_config_swap *swap,
 	u32 bus, slot_num, func_num;
 	u32 base;
 
-	MIPS_ASSERT((where & 3) == 0);
-	MIPS_ASSERT(where < (1 << 8));
+	db_assert((where & 3) == 0);
+	db_assert(where < (1 << 8));
 
 	/* check if the bus is top-level */
 	if (dev->bus->parent != NULL) {
 		bus = dev->bus->number;
-		MIPS_ASSERT(bus != 0);
+		db_assert(bus != 0);
 	} else {
 		bus = 0;
 	}
@@ -167,7 +167,7 @@ static int read_config_word(struct pci_config_swap *swap,
         int status;
         u32 result;
 
-	MIPS_ASSERT((where & 1) == 0);
+	db_assert((where & 1) == 0);
 
         status = read_config_dword(swap, dev, where & ~3, &result);
         if (where & 2) result >>= 16;
@@ -198,13 +198,13 @@ static int write_config_dword(struct pci_config_swap *swap,
 	u32 bus, slot_num, func_num;
 	u32 base;
 
-	MIPS_ASSERT((where & 3) == 0);
-	MIPS_ASSERT(where < (1 << 8));
+	db_assert((where & 3) == 0);
+	db_assert(where < (1 << 8));
 
 	/* check if the bus is top-level */
 	if (dev->bus->parent != NULL) {
 		bus = dev->bus->number;
-		MIPS_ASSERT(bus != 0);
+		db_assert(bus != 0);
 	} else {
 		bus = 0;
 	}
@@ -225,7 +225,7 @@ static int write_config_word(struct pci_config_swap *swap,
 	int status, shift=0;
 	u32 result;
 
-	MIPS_ASSERT((where & 1) == 0);
+	db_assert((where & 1) == 0);
 
 	status = read_config_dword(swap, dev, where & ~3, &result);
 	if (status != PCIBIOS_SUCCESSFUL) return status;
@@ -284,7 +284,7 @@ struct pci_ops ddb5476_ext_pci_ops ={
 };
 
 
-#if defined(CONFIG_LL_DEBUG)
+#if defined(CONFIG_DEBUG)
 void jsun_scan_pci_bus(void)
 {
 	struct pci_bus bus;
@@ -310,7 +310,7 @@ void jsun_scan_pci_bus(void)
 			int i;
 
 			dev.devfn = devfn;
-			MIPS_VERIFY(pci_read_config_dword(&dev, 0, &temp),
+			db_verify(pci_read_config_dword(&dev, 0, &temp),
 				    == PCIBIOS_SUCCESSFUL);
 			if (temp == 0xffffffff) continue;
 
@@ -318,21 +318,21 @@ void jsun_scan_pci_bus(void)
 			       11+devfn/8);
 
 			/* verify read word and byte */
-			MIPS_VERIFY(pci_read_config_word(&dev, 2, &temp16),
-				    == PCIBIOS_SUCCESSFUL);
-			MIPS_ASSERT(temp16 == (temp >> 16));
-			MIPS_VERIFY(pci_read_config_byte(&dev, 3, &temp8),
-				    == PCIBIOS_SUCCESSFUL);
-			MIPS_ASSERT(temp8 == (temp >> 24));
-			MIPS_VERIFY(pci_read_config_byte(&dev, 1, &temp8),
-				    == PCIBIOS_SUCCESSFUL);
-			MIPS_ASSERT(temp8 == ((temp >> 8) & 0xff));
+			db_verify(pci_read_config_word(&dev, 2, &temp16),
+				  == PCIBIOS_SUCCESSFUL);
+			db_assert(temp16 == (temp >> 16));
+			db_verify(pci_read_config_byte(&dev, 3, &temp8),
+				  == PCIBIOS_SUCCESSFUL);
+			db_assert(temp8 == (temp >> 24));
+			db_verify(pci_read_config_byte(&dev, 1, &temp8),
+				  == PCIBIOS_SUCCESSFUL);
+			db_assert(temp8 == ((temp >> 8) & 0xff));
 
 			for (i=0; i < 16; i++) {
 				if ((i%4) == 0)
 					printk(KERN_INFO);
-				MIPS_VERIFY(pci_read_config_dword(&dev, i*4, &temp),
-					    == PCIBIOS_SUCCESSFUL);
+				db_verify(pci_read_config_dword(&dev, i*4, &temp),
+					  == PCIBIOS_SUCCESSFUL);
 				printk("\t%08X", temp);
 				if ((i%4) == 3)
 					printk("\n");

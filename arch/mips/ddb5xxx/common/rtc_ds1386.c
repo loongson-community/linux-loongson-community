@@ -24,7 +24,7 @@
 #include <asm/time.h>
 #include <asm/addrspace.h>
 
-#include <asm/ddb5xxx/debug.h>
+#include <asm/debug.h>
 
 #define	EPOCH		2000
 
@@ -147,7 +147,7 @@ rtc_ds1386_init(unsigned long base)
 	
 	/* remember the base */
 	rtc_base = base;
-	MIPS_ASSERT((rtc_base & 0xe0000000) == KSEG1);
+	db_assert((rtc_base & 0xe0000000) == KSEG1);
 
 	/* turn on RTC if it is not on */
 	byte = READ_RTC(0x9);
