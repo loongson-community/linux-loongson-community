@@ -8,6 +8,7 @@
 #define _ASM_CPU_H
 
 #include <asm/cache.h>
+
 /* Assigned Company values for bits 23:16 of the PRId Register  
    (CP0 register 15, select 0).  As of the MIPS32 and MIPS64 specs from 
    MTI, the PRId register is defined in this (backwards compatible)
@@ -122,7 +123,7 @@ struct mips_cpu {
 #define MIPS_CPU_4KTLB		0x00000008  /* "R4K" TLB handler */
 #define MIPS_CPU_FPU		0x00000010  /* CPU has FPU */
 #define MIPS_CPU_32FPR		0x00000020  /* 32 dbl. prec. FP registers */
-#define MIPS_CPU_COUNTER	0x00000040 /* Cycle count/compare */
+#define MIPS_CPU_COUNTER	0x00000040  /* Cycle count/compare */
 #define MIPS_CPU_WATCH		0x00000080  /* watchpoint registers */
 #define MIPS_CPU_MIPS16		0x00000100  /* code compression */
 #define MIPS_CPU_DIVEC		0x00000200  /* dedicated interrupt vector */

@@ -78,7 +78,7 @@ int kstack_depth_to_print = 24;
  */
 #define MODULE_RANGE (8*1024*1024)
 
-#if !defined(CONFIG_CPU_HAS_LLSC)
+#ifndef CONFIG_CPU_HAS_LLSC
 /*
  * This stuff is needed for the userland ll-sc emulation for R2300
  */
@@ -370,31 +370,31 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 {
 	unsigned int *epc;
 
-	epc = (unsigned int *) (unsigned long) regs->cp0_epc;
-	if (regs->cp0_cause & CAUSEF_BD)
-		epc++;
+	epc = (unsigned int *) regs->cp0_epc +
+	      ((regs->cp0_cause & CAUSEF_BD) != 0);
+	if (!get_user(opcode, epc))
+		return 0;
 
-	if (verify_area(VERIFY_READ, epc, 4)) {
-		force_sig(SIGSEGV, current);
-		return 1;
-	}
-	*opcode = *epc;
-
-	return 0;
+	force_sig(SIGSEGV, current);
+	return 1;
 }
 
 void do_bp(struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int opcode, bcode;
+	unsigned int *epc;
+
+	epc = (unsigned int *) regs->cp0_epc +
+	      ((regs->cp0_cause & CAUSEF_BD) != 0);
+	if (get_user(opcode, epc))
+		goto sigsegv;
 
 	/*
 	 * There is the ancient bug in the MIPS assemblers that the break
 	 * code starts left to bit 16 instead to bit 6 in the opcode.
 	 * Gas is bug-compatible ...
 	 */
-	if (get_insn_opcode(regs, &opcode))
-		return;
 	bcode = ((opcode >> 16) & ((1 << 20) - 1));
 
 	/*
@@ -418,15 +418,23 @@ void do_bp(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
+	return;
+
+sigsegv:
+	force_sig(SIGSEGV, current);
 }
 
 void do_tr(struct pt_regs *regs)
 {
 	siginfo_t info;
 	unsigned int opcode, bcode;
+	unsigned *epc;
 
-	if (get_insn_opcode(regs, &opcode))
-		return;
+	epc = (unsigned int *) regs->cp0_epc +
+	      ((regs->cp0_cause & CAUSEF_BD) != 0);
+	if (get_user(opcode, epc))
+		goto sigsegv;
+
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
 	/*
@@ -450,9 +458,13 @@ void do_tr(struct pt_regs *regs)
 	default:
 		force_sig(SIGTRAP, current);
 	}
+	return;
+
+sigsegv:
+	force_sig(SIGSEGV, current);
 }
 
-#if !defined(CONFIG_CPU_HAS_LLSC)
+#ifndef CONFIG_CPU_HAS_LLSC
 
 #ifdef CONFIG_SMP
 #error "ll/sc emulation is not SMP safe"
@@ -594,7 +606,7 @@ void do_ri(struct pt_regs *regs)
 {
 	unsigned int opcode;
 
-        get_insn_opcode(regs, &opcode);
+	get_insn_opcode(regs, &opcode);
 	printk("[%s:%ld] Illegal instruction %08x at %08lx ra=%08lx\n",
 	       current->comm, (unsigned long)current->pid, opcode,
 	       regs->cp0_epc, regs->regs[31]);
@@ -678,7 +690,7 @@ void do_reserved(struct pt_regs *regs)
 
 static inline void watch_init(void)
 {
-        if(mips_cpu.options & MIPS_CPU_WATCH ) {
+	if (mips_cpu.options & MIPS_CPU_WATCH ) {
 		(void)set_except_vector(23, handle_watch);
  		watch_available = 1;
  	}
@@ -721,10 +733,10 @@ static inline void parity_protection_init(void)
 
 void cache_parity_error(void)
 {
-        unsigned int reg_val;
+	unsigned int reg_val;
 
-        /* For the moment, report the problem and hang. */
-        reg_val = read_32bit_cp0_register(CP0_ERROREPC);
+	/* For the moment, report the problem and hang. */
+	reg_val = read_32bit_cp0_register(CP0_ERROREPC);
 	printk("Cache error exception:\n");
 	printk("cp0_errorepc == %08x\n", reg_val);
 	reg_val = read_32bit_cp0_register(CP0_CACHEERR);
