@@ -779,10 +779,10 @@ config BOOT_ELF32
 	depends on DECSTATION || MIPS_ATLAS || MIPS_MALTA || SIBYTE_SB1xxx_SOC || SGI_IP32 || SGI_IP22 || SNI_RM200_PCI
 	default y
 
-config L1_CACHE_SHIFT
+config MIPS_L1_CACHE_SHIFT
 	int
+	default "5"
 	default "4" if DECSTATION
-	default "5" if SGI_IP32 || SGI_IP22 || MIPS_SEAD || MIPS_MALTA || MIPS_ATLAS
 	default "7" if SGI_IP27
 
 config ARC32
