@@ -81,7 +81,6 @@ NESTED(mapped_kernel_setup_tlb, 16, sp)
 	 * at physical 0x1c000 and virtual 0xa80000000001c000.
 	 * (mips64/Makefile has a --change-address to do this).
 	 */
-	or	a0, zero, zero
 	dli	t0, 0xffffffffc0000000
 	dmtc0	t0, CP0_ENTRYHI
 	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _PAGE_DIRTY|_CACHE_CACHABLE_COW) >> 6)
