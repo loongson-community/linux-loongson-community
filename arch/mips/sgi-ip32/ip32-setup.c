@@ -94,10 +94,6 @@ void __init ip32_timer_setup(struct irqaction *irq)
 
 static int __init ip32_setup(void)
 {
-	set_io_port_base((unsigned long) ioremap(MACEPCI_LOW_IO, 0x2000000));
-
-	crime_init();
-
 	board_be_init = ip32_be_init;
 
 	rtc_get_time = mc146818_get_cmos_time;

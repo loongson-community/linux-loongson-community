@@ -541,6 +541,8 @@ config SGI_IP32
 	select ARC
 	select ARC32
 	select BOOT_ELF32
+	select OWN_DMA
+	select DMA_IP32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select R5000_CPU_SCACHE
@@ -924,6 +926,12 @@ config	DMA_COHERENT
 	bool
 
 config	DMA_IP27
+	bool
+
+config	DMA_IP32
+	bool
+
+config	OWN_DMA
 	bool
 
 config	DMA_NONCOHERENT

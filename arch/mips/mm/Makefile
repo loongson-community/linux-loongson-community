@@ -34,8 +34,11 @@ obj-$(CONFIG_RM7000_CPU_SCACHE)	+= sc-rm7k.o
 #
 # Choose one DMA coherency model
 #
+ifndef CONFIG_OWN_DMA
 obj-$(CONFIG_DMA_COHERENT)	+= dma-coherent.o
 obj-$(CONFIG_DMA_NONCOHERENT)	+= dma-noncoherent.o
+endif
 obj-$(CONFIG_DMA_IP27)		+= dma-ip27.o
+obj-$(CONFIG_DMA_IP32)		+= dma-ip32.o
 
 EXTRA_AFLAGS := $(CFLAGS)
