@@ -935,7 +935,6 @@ void __init trap_init(void)
 		 * should get some special optimizations.
 		 */
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		set_cp0_status(ST0_XX);
 		/*
 		 * The R10k might even work for Linux/MIPS - but we're paranoid
 		 * and refuse to run until this is tested on real silicon
@@ -994,6 +993,9 @@ void __init trap_init(void)
 		panic("Unknown CPU type");
 	}
 	flush_icache_range(KSEG0, KSEG0 + 0x200);
+
+	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
+		set_cp0_status(ST0_XX);
 
 	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
 	current->active_mm = &init_mm;
