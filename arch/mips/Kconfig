@@ -30,6 +30,7 @@ menu "Machine selection"
 config MACH_JAZZ
 	bool "Support for the Jazz family of machines"
 	select ARC
+	select ARC32
 	select GENERIC_ISA_DMA
 	select I8259
 	select ISA
@@ -455,6 +456,7 @@ config NEC_OSPREY
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
 	select ARC
+	select ARC32
 	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select IP22_CPU_SCACHE
@@ -469,6 +471,7 @@ config SGI_IP27
 	bool "Support for SGI IP27 (Origin200/2000)"
 	depends on MIPS64
 	select ARC
+	select ARC64
 	select DMA_IP27
 	select HW_HAS_PCI
 	select PCI_DOMAINS
@@ -536,6 +539,7 @@ config SGI_IP32
 	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on MIPS64 && EXPERIMENTAL
 	select ARC
+	select ARC32
 	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
@@ -869,6 +873,7 @@ config SIBYTE_TBPROF
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
 	select ARC
+	select ARC32
 	select BOOT_ELF32
 	select DMA_NONCOHERENT
 	select GENERIC_ISA_DMA
@@ -1034,6 +1039,9 @@ config SYSCLK_100
 
 endchoice
 
+config ARC32
+	bool
+
 config AU1000_USB_DEVICE
 	bool
 	depends on MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000
@@ -1061,11 +1069,6 @@ config MIPS_L1_CACHE_SHIFT
 	default "4" if MACH_DECSTATION
 	default "7" if SGI_IP27
 	default "5"
-
-config ARC32
-	bool
-	depends on MACH_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
-	default y
 
 config FB
 	bool
@@ -1126,8 +1129,6 @@ config ARC_PROMLIB
 
 config ARC64
 	bool
-	depends on SGI_IP27
-	default y
 
 config BOOT_ELF64
 	bool
