@@ -106,12 +106,15 @@ static struct hw_interrupt_type kn02_irq_type = {
 void __init init_kn02_irqs(int base)
 {
 	volatile u32 *csr = (volatile u32 *)KN02_CSR_BASE;
+	unsigned long flags;
 	int i;
 
-	/* Mask interrupts and preset write-only bits. */
-	cached_kn02_csr = (*csr & ~0xff0000) | 0xff;
+	/* Mask interrupts. */
+	spin_lock_irqsave(&kn02_lock, flags);
+	cached_kn02_csr &= ~KN03_CSR_IOINTEN;
 	*csr = cached_kn02_csr;
 	iob();
+	spin_unlock_irqrestore(&kn02_lock, flags);
 
 	for (i = base; i < base + KN02_IRQ_LINES; i++) {
 		irq_desc[i].status = IRQ_DISABLED;

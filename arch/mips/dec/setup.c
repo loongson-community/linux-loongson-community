@@ -128,16 +128,28 @@ static void __init dec_time_init(struct irqaction *irq)
 
 
 /*
- * Bus error (DBE/IBE exceptions and memory interrupts) handling
- * setup.  Nothing for now.
+ * Bus error (DBE/IBE exceptions and bus interrupts) handling setup.
  */
-void __init bus_error_init(void)
+void __init dec_be_init(void)
 {
+	switch (mips_machtype) {
+	case MACH_DS23100:	/* DS2100/DS3100 Pmin/Pmax */
+		busirq.flags |= SA_SHIRQ;
+		break;
+	case MACH_DS5000_200:	/* DS5000/200 3max */
+	case MACH_DS5000_2X0:	/* DS5000/240 3max+ */
+	case MACH_DS5900:	/* DS5900 bigmax */
+		board_be_handler = dec_ecc_be_handler;
+		busirq.handler = dec_ecc_be_interrupt;
+		dec_ecc_be_init();
+		break;
+	}
 }
 
 
 void __init decstation_setup(void)
 {
+	board_be_init = dec_be_init;
 	board_time_init = dec_time_init;
 
 	wbflush_setup();
@@ -746,6 +758,10 @@ void __init init_IRQ(void)
 		setup_irq(dec_interrupt[DEC_IRQ_FPU], &fpuirq);
 	if (dec_interrupt[DEC_IRQ_CASCADE] >= 0)
 		setup_irq(dec_interrupt[DEC_IRQ_CASCADE], &ioirq);
+
+	/* Register the bus error interrupt. */
+	if (dec_interrupt[DEC_IRQ_BUS] >= 0 && busirq.handler)
+		setup_irq(dec_interrupt[DEC_IRQ_BUS], &busirq);
 
 	/* Register the HALT interrupt. */
 	if (dec_interrupt[DEC_IRQ_HALT] >= 0)
