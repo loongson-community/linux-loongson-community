@@ -34,8 +34,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 	subu	t0, v0, __NR_O32_Linux	# check syscall number
 	sltiu	t0, t0, __NR_O32_Linux_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
-	beqz	t0, not_o32_scall
 	sd	t1, PT_EPC(sp)
+	beqz	t0, not_o32_scall
 #if 0
  SAVE_ALL
  move a1, v0
