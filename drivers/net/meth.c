@@ -20,6 +20,8 @@
 #include <linux/interrupt.h> /* mark_bh */
 
 #include <linux/in.h>
+#include <linux/in6.h>
+#include <linux/device.h> /* struct device, et al */
 #include <linux/netdevice.h>   /* struct device, and other headers */
 #include <linux/etherdevice.h> /* eth_type_trans */
 #include <linux/ip.h>          /* struct iphdr */
@@ -27,20 +29,15 @@
 #include <linux/skbuff.h>
 #include <linux/mii.h> /*MII definitions */
 
-#include <asm/ip32/crime.h>
 #include <asm/ip32/mace.h>
 #include <asm/ip32/ip32_ints.h>
 
-#include <linux/slab.h>
 #include <asm/io.h>
+#include <asm/checksum.h>
 #include <asm/scatterlist.h>
-#include <linux/device.h> /* struct device, et al */
 #include <linux/dma-mapping.h>
 
 #include "meth.h"
-
-#include <linux/in6.h>
-#include <asm/checksum.h>
 
 #ifndef MFE_DEBUG
 #define MFE_DEBUG 0

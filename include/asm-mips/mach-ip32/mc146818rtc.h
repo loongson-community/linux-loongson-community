@@ -18,12 +18,12 @@
 
 static unsigned char CMOS_READ(unsigned long addr)
 {
-	return (unsigned char) mace_read_8 (MACEISA_RTC_BASE + (addr << 8));
+	return mace_read_8(MACEISA_RTC_BASE + (addr << 8));
 }
 
 static inline void CMOS_WRITE(unsigned char data, unsigned long addr)
 {
-	mace_write_8 (MACEISA_RTC_BASE + (addr << 8), data);
+	mace_write_8(data, MACEISA_RTC_BASE + (addr << 8));
 }
 
 #define RTC_ALWAYS_BCD	0

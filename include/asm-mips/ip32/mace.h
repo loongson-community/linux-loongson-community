@@ -13,11 +13,11 @@
 
 #include <asm/addrspace.h>
 #include <asm/system.h>
+#include <asm/io.h>
 /*
  * Address map
  */
-#define MACE_BASE_OFFSET        0x1f000000
-#define MACE_BASE		CKSEG1ADDR(MACE_BASE_OFFSET)
+#define MACE_BASE		0x1f000000	/* physical */
 #define MACE_PCI		(0x00080000)
 #define MACE_VIN1		(0x00100000)
 #define MACE_VIN2		(0x00180000)
@@ -256,58 +256,55 @@
                              MACEISA_SERIAL2_RDMAT_INT |        \
                              MACEISA_SERIAL2_RDMAOR_INT)
 
-#ifndef __ASSEMBLY__
-#include <asm/types.h>
+extern void *sgi_mace;
 
 /*
  * XXX Some of these are probably not needed (or even legal?)
  */
-static inline u8 mace_read_8 (unsigned long __offset)
+static inline uint8_t mace_read_8(unsigned long offset)
 {
-	return *((volatile u8 *) (MACE_BASE + __offset));
+	return readb(sgi_mace + offset);
 }
 
-static inline u16 mace_read_16 (unsigned long __offset)
+static inline uint16_t mace_read_16(unsigned long offset)
 {
-	return *((volatile u16 *) (MACE_BASE + __offset));
+	return readw(sgi_mace + offset);
 }
 
-static inline u32 mace_read_32 (unsigned long __offset)
+static inline uint32_t mace_read_32(unsigned long offset)
 {
-	return *((volatile u32 *) (MACE_BASE + __offset));
+	return readl(sgi_mace + offset);
 }
 
-static inline u64 mace_read_64 (unsigned long __offset)
+static inline uint64_t mace_read_64(unsigned long offset)
 {
-	return *((volatile u64 *) (MACE_BASE + __offset));
+	return readq(sgi_mace + offset);
 }
 
-static inline void mace_write_8 (unsigned long __offset, u8 __val)
+static inline void mace_write_8(uint8_t val, unsigned long offset)
 {
-	*((volatile u8 *) (MACE_BASE + __offset)) = __val;
+	writeb(val, sgi_mace + offset);
 }
 
-static inline void mace_write_16 (unsigned long __offset, u16 __val)
+static inline void mace_write_16(uint16_t val, unsigned long offset)
 {
-	*((volatile u16 *) (MACE_BASE + __offset)) = __val;
+	writew(val, sgi_mace + offset);
 }
 
-static inline void mace_write_32 (unsigned long __offset, u32 __val)
+static inline void mace_write_32(uint32_t val, unsigned long offset)
 {
-	*((volatile u32 *) (MACE_BASE + __offset)) = __val;
+	writel(val, sgi_mace + offset);
 }
 
-static inline void mace_write_64 (unsigned long __offset, u64 __val)
+static inline void mace_write_64(uint64_t val, unsigned long offset)
 {
-	*((volatile u64 *) (MACE_BASE + __offset)) = __val;
+	writeq(val, sgi_mace + offset);
 }
 
 /* Call it whenever device needs to read data from main memory coherently */
 static inline void mace_inv_read_buffers(void)
 {
-/*	mace_write_32(MACEPCI_WFLUSH,0xffffffff);*/
+/*	mace_write_32(0xffffffff, MACEPCI_WFLUSH);*/
 }
-#endif /* !__ASSEMBLY__ */
-
 
 #endif /* __ASM_MACE_H__ */

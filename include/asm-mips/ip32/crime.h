@@ -11,26 +11,24 @@
 #ifndef __ASM_CRIME_H__
 #define __ASM_CRIME_H__
 
-#include <asm/types.h>
 #include <asm/addrspace.h>
+#include <asm/io.h>
 
 /*
  * Address map
  */
-#ifndef __ASSEMBLY__
-#define CRIME_BASE	CKSEG1ADDR(0x14000000)
-#else
-#define CRIME_BASE	0xffffffffb4000000
-#endif
+#define CRIME_BASE	0x14000000	/* physical */
 
-#ifndef __ASSEMBLY__
-static inline u64 crime_read_64 (unsigned long __offset) {
-        return *((volatile u64 *) (CRIME_BASE + __offset));
+extern void *sgi_crime;
+
+static inline uint64_t crime_read(unsigned long offset)
+{
+        return readq(sgi_crime + offset);
 }
-static inline void crime_write_64 (unsigned long __offset, u64 __val) {
-        *((volatile u64 *) (CRIME_BASE + __offset)) = __val;
+static inline void crime_write(uint64_t val, unsigned long offset)
+{
+	writeq(val, sgi_crime + offset);
 }
-#endif
 
 #undef BIT
 #define BIT(x) (1UL << (x))

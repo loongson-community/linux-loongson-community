@@ -18,14 +18,11 @@
 #include <asm/mipsregs.h>
 #include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
-#include <asm/ip32/crime.h>
-#include <asm/ip32/mace.h>
-#include <asm/ip32/ip32_ints.h>
 #include <asm/sgialib.h>
 #include <asm/traps.h>
 #include <asm/io.h>
-
-extern u32 cc_interval;
+#include <asm/ip32/mace.h>
+#include <asm/ip32/ip32_ints.h>
 
 #ifdef CONFIG_SGI_O2MACE_ETH
 /*
@@ -59,9 +56,10 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 #endif
 
 extern void ip32_time_init(void);
-extern void ip32_be_init(void);                                                
-extern void __init ip32_timer_setup (struct irqaction *irq);                   
-extern void __init crime_init (void);                                          
+extern void ip32_be_init(void);
+extern void __init ip32_timer_setup (struct irqaction *irq);
+extern void __init crime_init (void);
+extern int console_setup(const char*);
 
 #ifdef CONFIG_SERIAL_8250
 #include <linux/tty.h>
@@ -70,23 +68,47 @@ extern void __init crime_init (void);
 extern int __init early_serial_setup(struct uart_port *port);
 extern void __init ip32_pci_setup(void);
 
-#define STD_COM_FLAGS ( ASYNC_SKIP_TEST)
+#define STD_COM_FLAGS (ASYNC_SKIP_TEST)
 #define BASE_BAUD (1843200 / 16)
 
 #endif /* CONFIG_SERIAL_8250 */
 
-static void __init ip32_setup(void)
+static int __init ip32_setup(void)
 {
-	TLBMISS_HANDLER_SETUP ();
+	set_io_port_base((unsigned long) ioremap(MACEPCI_LOW_IO, 0x2000000));
 
-	set_io_port_base(UNCACHEDADDR(MACEPCI_HI_IO));
+#ifdef CONFIG_SERIAL_8250
+ 	{
+		static struct uart_port sgio2_serial_ports[]={ {}, {} };
+		memset(sgio2_serial_ports, 0, sizeof(sgio2_serial_ports));
+		sgio2_serial_ports[0].type	= PORT_16550A;
+		sgio2_serial_ports[0].line	= 0;
+		sgio2_serial_ports[0].irq	= MACEISA_SERIAL1_IRQ;
+		sgio2_serial_ports[0].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		sgio2_serial_ports[0].uartclk	= BASE_BAUD * 16;
+		sgio2_serial_ports[0].iotype	= UPIO_MEM;
+		sgio2_serial_ports[0].membase	= ioremap(MACE_BASE + MACEISA_SER1_BASE, 0x8000);
+		sgio2_serial_ports[0].fifosize	= 14;
+                /* How much to shift register offset by. Each UART register
+		 * is replicated over 256 byte space */
+		sgio2_serial_ports[0].regshift	= 8;
+		sgio2_serial_ports[1].type	= PORT_16550A;
+		sgio2_serial_ports[1].line	= 1;
+		sgio2_serial_ports[1].irq	= MACEISA_SERIAL2_IRQ;
+		sgio2_serial_ports[1].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		sgio2_serial_ports[1].uartclk	= BASE_BAUD * 16;
+		sgio2_serial_ports[1].iotype	= UPIO_MEM;
+		sgio2_serial_ports[1].membase	= ioremap(MACE_BASE + MACEISA_SER2_BASE, 0x8000);
+		sgio2_serial_ports[1].fifosize	= 14;
+		sgio2_serial_ports[1].regshift	= 8;
 
-	early_serial_setup(sgio2_serial_ports);
-	early_serial_setup(sgio2_serial_ports+1);
+		early_serial_setup(sgio2_serial_ports);
+		early_serial_setup(sgio2_serial_ports + 1);
+	}
 #endif
 #ifdef CONFIG_SGI_O2MACE_ETH
 	{
-		char *mac=ArcGetEnvironmentVariable("eaddr");
+		char *mac = ArcGetEnvironmentVariable("eaddr");
 		str2eaddr(o2meth_eaddr, mac);
 	}
 #endif
@@ -107,13 +129,15 @@ static void __init ip32_setup(void)
 	conswitchp = &dummy_con;
 # endif
 #endif
+	crime_init();
 
 	board_be_init = ip32_be_init;
 	board_time_init = ip32_time_init;
 	board_timer_setup = ip32_timer_setup;
 
-	crime_init();
  	ip32_pci_setup();
+
+	return 0;
 }
 
 early_initcall(ip32_setup);
