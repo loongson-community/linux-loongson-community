@@ -790,6 +790,7 @@ mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 
 	if (ir == 0) {		/* a nop is easy */
 		regs->cp0_epc = VA_TO_REG(cpc);
+		regs->cp0_cause &= ~CAUSEF_BD;
 		return 0;
 	}
 #ifdef DSEMUL_TRACE
