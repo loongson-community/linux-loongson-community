@@ -416,6 +416,7 @@ EXC(	lb	t1, 0(src),	l_exc)
 	 ADD	dst, dst, 1
 l_exc:
 	LOAD	t0, TI_TASK($28)
+	 nop
 	LOAD	t0, THREAD_BUADDR(t0)	# t0 is just past last good address
 	 nop
 	SUB	len, AT, t0		# len number of uncopied bytes
