@@ -89,7 +89,6 @@
 /* Static Function Declarations	 */
 static int titan_ge_eth_open(struct net_device *);
 static int titan_ge_eth_stop(struct net_device *);
-static int titan_ge_change_mtu(struct net_device *, int);
 static struct net_device_stats *titan_ge_get_stats(struct net_device *);
 static int titan_ge_init_rx_desc_ring(titan_ge_port_info *, int, int,
 				      unsigned long, unsigned long,
