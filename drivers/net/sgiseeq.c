@@ -710,7 +710,6 @@ static void __exit sgiseeq_exit(void)
 		irq = dev->irq;
 		unregister_netdev(dev);
 		free_irq(irq, dev);
-		free_page((unsigned long) sp);
 		kfree(dev);
 	}
 }
