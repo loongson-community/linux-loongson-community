@@ -314,6 +314,7 @@ cpuid_t getcpuid(void)
 
 void per_cpu_init(void)
 {
+	extern void load_mmu(void);
 	static int is_slave = 0;
 	cpuid_t cpu = getcpuid();
 	cnodeid_t cnode = get_compact_nodeid();
@@ -337,6 +338,7 @@ void per_cpu_init(void)
 			set_cp0_status(ST0_XX, ST0_XX);
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
 		sti();
+		load_mmu();
 	}
 	if (is_slave == 0)
 		is_slave = 1;
