@@ -27,6 +27,7 @@
  *  - flush_cache_range(mm, start, end) flushes a range of pages
  *  - flush_page_to_ram(page) write back kernel page to ram
  */
+extern void (*_flush_cache_all)(void);
 extern void (*_flush_cache_mm)(struct mm_struct *mm);
 extern void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
                                  unsigned long end);

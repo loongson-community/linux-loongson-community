@@ -24,6 +24,7 @@ void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
+void (*_flush_cache_all)(void);
 void (*_flush_cache_mm)(struct mm_struct *mm);
 void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
                            unsigned long end);
