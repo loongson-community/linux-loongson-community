@@ -172,63 +172,6 @@ static cpuid_t cpu_node_probe(void)
 	return highest + 1;
 }
 
-void mlreset(void)
-{
-	int i;
-	void init_topology_matrix(void);
-	void dump_topology(void);
-
-
-	master_nasid = get_nasid();
-	fine_mode = is_fine_dirmode();
-
-	/*
-	 * Probe for all CPUs - this creates the cpumask and
-	 * sets up the mapping tables.
-	 */
-	maxcpus = cpu_node_probe();
-	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
-
-	init_topology_matrix();
-	dump_topology();
-
-	gen_region_mask(&region_mask, numnodes);
-	CNODEMASK_CLRALL(hub_init_mask);
-
-	setup_replication_mask(numnodes);
-
-	/*
-	 * Set all nodes' calias sizes to 8k
-	 */
-	for (i = 0; i < numnodes; i++) {
-		nasid_t nasid;
-
-		nasid = COMPACT_TO_NASID_NODEID(i);
-
-		/*
-		 * Always have node 0 in the region mask, otherwise
-		 * CALIAS accesses get exceptions since the hub
-		 * thinks it is a node 0 address.
-		 */
-		REMOTE_HUB_S(nasid, PI_REGION_PRESENT, (region_mask | 1));
-#ifdef CONFIG_REPLICATE_EXHANDLERS
-		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_8K);
-#else
-		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_0);
-#endif
-
-#ifdef LATER
-		/*
-		 * Set up all hubs to have a big window pointing at
-		 * widget 0. Memory mode, widget 0, offset 0
-		 */
-		REMOTE_HUB_S(nasid, IIO_ITTE(SWIN0_BIGWIN),
-			((HUB_PIO_MAP_TO_MEM << IIO_ITTE_IOSP_SHIFT) |
-			(0 << IIO_ITTE_WIDGET_SHIFT)));
-#endif
-	}
-}
-
 static void per_hub_init(cnodeid_t cnode)
 {
 	extern void pcibr_setup(cnodeid_t);
@@ -506,5 +449,59 @@ static void dump_topology(void)
 			printk("\n");
 
 		} while ( (brd = find_lboard_class(KLCF_NEXT(brd), KLTYPE_ROUTER)) );
+	}
+}
+
+void mlreset(void)
+{
+	int i;
+
+	master_nasid = get_nasid();
+	fine_mode = is_fine_dirmode();
+
+	/*
+	 * Probe for all CPUs - this creates the cpumask and
+	 * sets up the mapping tables.
+	 */
+	maxcpus = cpu_node_probe();
+	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
+
+	init_topology_matrix();
+	dump_topology();
+
+	gen_region_mask(&region_mask, numnodes);
+	CNODEMASK_CLRALL(hub_init_mask);
+
+	setup_replication_mask(numnodes);
+
+	/*
+	 * Set all nodes' calias sizes to 8k
+	 */
+	for (i = 0; i < numnodes; i++) {
+		nasid_t nasid;
+
+		nasid = COMPACT_TO_NASID_NODEID(i);
+
+		/*
+		 * Always have node 0 in the region mask, otherwise
+		 * CALIAS accesses get exceptions since the hub
+		 * thinks it is a node 0 address.
+		 */
+		REMOTE_HUB_S(nasid, PI_REGION_PRESENT, (region_mask | 1));
+#ifdef CONFIG_REPLICATE_EXHANDLERS
+		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_8K);
+#else
+		REMOTE_HUB_S(nasid, PI_CALIAS_SIZE, PI_CALIAS_SIZE_0);
+#endif
+
+#ifdef LATER
+		/*
+		 * Set up all hubs to have a big window pointing at
+		 * widget 0. Memory mode, widget 0, offset 0
+		 */
+		REMOTE_HUB_S(nasid, IIO_ITTE(SWIN0_BIGWIN),
+			((HUB_PIO_MAP_TO_MEM << IIO_ITTE_IOSP_SHIFT) |
+			(0 << IIO_ITTE_WIDGET_SHIFT)));
+#endif
 	}
 }
