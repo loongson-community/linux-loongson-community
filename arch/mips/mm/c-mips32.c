@@ -649,25 +649,6 @@ static inline void __init setup_scache(unsigned int config)
 	setup_noscache_funcs();
 }
 
-static void __init probe_tlb(unsigned long config)
-{
-        unsigned long config1;
-
-        if (!(config & (1 << 31))) {
-	        /* 
-		 * Not a MIPS32 complainant CPU. 
-		 * Config 1 register not supported, we assume R4k style.
-		 */  
-	        mips_cpu.tlbsize = 48;
-	} else {
-	        config1 = read_mips32_cp0_config1();
-		if (!((config >> 7) & 3))
-		        panic("No MMU present");
-		else
-		        mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
-	}	
-}
-
 void __init ld_mmu_mips32(void)
 {
 	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
@@ -681,7 +662,6 @@ void __init ld_mmu_mips32(void)
 	probe_icache(config);
 	probe_dcache(config);
 	setup_scache(config);
-	probe_tlb(config);
 
 	_flush_cache_sigtramp = mips32_flush_cache_sigtramp;
 	_flush_icache_range = mips32_flush_icache_range;	/* Ouch */
