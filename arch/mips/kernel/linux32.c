@@ -742,6 +742,7 @@ do_readv_writev32(int type, struct file *file, const struct compat_iovec *vector
 	 * specially as they have atomicity guarantees and can handle
 	 * iovec's natively
 	 */
+#ifdef CONFIG_NET
 	if (inode->i_sock) {
 		int err;
 		err = sock_readv_writev(type, inode, file, iov, count, tot_len);
@@ -749,6 +750,7 @@ do_readv_writev32(int type, struct file *file, const struct compat_iovec *vector
 			kfree(iov);
 		return err;
 	}
+#endif
 
 	if (!file->f_op) {
 		if (iov != iovstack)
