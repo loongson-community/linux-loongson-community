@@ -161,7 +161,8 @@ choice 'CPU type' \
 	 RM7000 CONFIG_CPU_RM7000 \
 	 R56x0 CONFIG_CPU_NEVADA \
 	 R8000 CONFIG_CPU_R8000	\
-	 R10000 CONFIG_CPU_R10000" R4x00
+	 R10000 CONFIG_CPU_R10000 \
+	 MIPS32 CONFIG_CPU_MIPS32" R4x00
 
 bool 'Override CPU Options' CONFIG_CPU_ADVANCED
 
@@ -191,7 +192,7 @@ if [ "$CONFIG_DECSTATION" = "y" -o "$CONFIG_DDB5074" = "y" -o "$CONFIG_DDB5476" 
 else
    bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 fi
-bool ' Kernel floating-point emulation' CONFIG_MIPS_FPU_EMULATOR
+bool 'Kernel floating-point emulation' CONFIG_MIPS_FPU_EMULATOR
 
 if [ "$CONFIG_PROC_FS" = "y" ]; then
    define_bool CONFIG_KCORE_ELF y

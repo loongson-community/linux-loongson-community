@@ -8,6 +8,7 @@
  * (C) Copyright 1996  Linus Torvalds
  * (C) Copyright 1998, 1999, 2000  Ralf Baechle
  * (C) Copyright 1999, 2000  Silicon Graphics, Inc.
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 #ifndef _ASM_SEMAPHORE_H
 #define _ASM_SEMAPHORE_H
@@ -104,7 +105,7 @@ static inline int down_interruptible(struct semaphore * sem)
 	return ret;
 }
 
-#if !defined(CONFIG_CPU_HAS_LLSC)
+#if !defined(CONFIG_CPU_HAS_LLSC) || defined(CONFIG_CPU_MIPS32)
 
 static inline int down_trylock(struct semaphore * sem)
 {

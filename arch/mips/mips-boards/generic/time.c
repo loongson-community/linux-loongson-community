@@ -31,6 +31,7 @@
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
+#include <asm/div64.h>
 
 #include <linux/mc146818rtc.h>
 #include <linux/timex.h>
@@ -274,6 +275,7 @@ void __init time_init(void)
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
+#define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
 
 /* Cycle counter value at the previous timer interrupt.. */
 
@@ -303,6 +305,15 @@ static unsigned long do_fast_gettimeoffset(void)
 
 	if (tmp && last_jiffies != tmp) {
 		last_jiffies = tmp;
+#ifdef CONFIG_CPU_MIPS32
+		if (last_jiffies != 0) {
+			unsigned long r0;
+			do_div64_32(r0, timerhi, timerlo, tmp);
+			do_div64_32(quotient, USECS_PER_JIFFY,
+				    USECS_PER_JIFFY_FRAC, r0);
+			cached_quotient = quotient;
+		}
+#else
 		__asm__(".set\tnoreorder\n\t"
 			".set\tnoat\n\t"
 			".set\tmips3\n\t"
@@ -325,6 +336,7 @@ static unsigned long do_fast_gettimeoffset(void)
 			 "r" (USECS_PER_JIFFY)
 			:"$1");
 		cached_quotient = quotient;
+#endif
 	}
 
 	/* Get last timer tick in absolute kernel time */

@@ -15,6 +15,14 @@
  * Copyright (C) 1999 Silicon Graphics, Inc.
  *
  * Head.S contains the MIPS exception handler and startup code.
+ *
+ **************************************************************************
+ *  9 Nov, 2000.
+ *  Added Cache Error exception handler and SBDDP EJTAG debug exception.
+ *
+ *  Kevin Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ **************************************************************************
  */
 #include <linux/config.h>
 #include <linux/threads.h>
@@ -68,9 +76,9 @@
 	mtc0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
 	mtc0	k1, CP0_ENTRYLO1		# load it
-	b	1f
-	 tlbwr					# write random tlb entry
-1:	
+	nop					# Need 2 cycles between mtc0
+	nop					#  and tlbwr (CP0 hazard).
+	tlbwr					# write random tlb entry
 	nop
 	eret					# return from trap
 	END(except_vec0_r4000)
@@ -308,12 +316,26 @@
 
 	/* Cache Error */
 	LEAF(except_vec2_generic)
-	/* Famous last words: unreached */
-	mfc0	a1,CP0_ERROREPC
-	PRINT("Cache error exception: c0_errorepc == %08x\n")
-1:
-	j	1b
-	 nop
+	.set	noat
+	.set    mips0
+	/*
+	 * This is a very bad place to be.  Our cache error
+	 * detection has triggered.  If we have write-back data
+	 * in the cache, we may not be able to recover.  As a
+	 * first-order desperate measure, turn off KSEG0 cacheing.
+	 */
+	mfc0	k0,CP0_CONFIG
+	li	k1,~CONF_CM_CMASK
+	and	k0,k0,k1
+	ori	k0,k0,CONF_CM_UNCACHED
+	mtc0	k0,CP0_CONFIG
+	/* Give it a few cycles to sink in... */
+	nop
+	nop
+	nop
+
+	j	cache_parity_error
+	nop
 	END(except_vec2_generic)
 
 	/* General exception vector R4000 version. */
@@ -338,6 +360,7 @@
  * c0_badvaddr because after return from this exception handler the load /
  * store will be re-executed.
  */
+	.set    mips3
 handle_vced:
 	mfc0	k0, CP0_BADVADDR
  li k1, -4
@@ -393,6 +416,19 @@ handle_vcei:
 	 nop
 	END(except_vec4)
 
+	/*
+	 * SBDDP EJTAG debug exception handler.
+	 * The EJTAG debug exception entry point is 0xbfc00480, which
+	 * normally is in the boot PROM, so the boot PROM must do a
+	 * unconditional jump to this vector.
+	 */	
+	NESTED(except_vec_ejtag_debug, 0, sp)
+	PRINT("SDBBP EJTAG debug exception - not handled yet, hang!\n");
+1:	j	1b
+	 nop
+	END(except_vec_ejtag_debug)
+
+	
 /*
  * Kernel entry point
  */

@@ -6,9 +6,11 @@
  * Copyright (C) 1994, 1995, 1996, 1997, 2000 by Ralf Baechle
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Modified for further R[236]000 support by Paul M. Antoine, 1996.
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
-#ifndef __ASM_MIPS_MIPSREGS_H
-#define __ASM_MIPS_MIPSREGS_H
+#ifndef _ASM_MIPSREGS_H
+#define _ASM_MIPSREGS_H
 
 #include <linux/linkage.h>
 
@@ -187,6 +189,24 @@
         "dmtc0\t%0,"STR(register)"\n\t"                         \
         ".set\tmips0"                                           \
         : : "r" (value))
+
+#ifdef CONFIG_CPU_MIPS32
+/* 
+ * This should be changed when we get a compiler that support the MIPS32 ISA. 
+ */
+#define read_mips32_cp0_config1()                               \
+({ int __res;                                                   \
+        __asm__ __volatile__(                                   \
+	".set\tnoreorder\n\t"                                   \
+	".set\tnoat\n\t"                                        \
+     	".word\t0x40018001\n\t"                                 \
+	"move\t%0,$1\n\t"                                       \
+	".set\tat\n\t"                                          \
+	".set\treorder"                                         \
+:"=r" (__res));                                         \
+        __res;})
+#endif
+
 /*
  * R4x00 interrupt enable / cause bits
  */
@@ -421,4 +441,4 @@ extern asmlinkage unsigned int read_perf_cntl(unsigned int counter);
 extern asmlinkage void write_perf_cntl(unsigned int counter, unsigned int val);
 #endif
 
-#endif /* __ASM_MIPS_MIPSREGS_H */
+#endif /* _ASM_MIPSREGS_H */

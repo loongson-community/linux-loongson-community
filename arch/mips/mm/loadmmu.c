@@ -2,6 +2,8 @@
  * loadmmu.c: Setup cpu/cache specific function ptrs at boot time.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -42,10 +44,22 @@ extern void ld_mmu_r6000(void);
 extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
+extern void ld_mmu_mips32(void);
 
 void __init loadmmu(void)
 {
-	switch (mips_cpu.cputype) {
+
+	if (mips_cpu.options & MIPS_CPU_4KTLB) {
+#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
+    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
+		printk("Loading R4000 MMU routines.\n");
+		ld_mmu_r4xx0();
+#endif
+#if defined(CONFIG_CPU_MIPS32)
+		printk("Loading MIPS32 MMU routines.\n");
+		ld_mmu_mips32();
+#endif
+	} else switch(mips_cpu.cputype) {
 #ifdef CONFIG_CPU_R3000
 	case CPU_R2000:
 	case CPU_R3000:
@@ -53,28 +67,6 @@ void __init loadmmu(void)
 	case CPU_R3081E:
 		printk("Loading R[23]00 MMU routines.\n");
 		ld_mmu_r2300();
-		break;
-#endif
-
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
-    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4200:
-	case CPU_R4300:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-	case CPU_R4600:
-	case CPU_R4640:
-	case CPU_R4650:
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_R5000A:
-	case CPU_NEVADA:
-		printk("Loading R4000 MMU routines.\n");
-		ld_mmu_r4xx0();
 		break;
 #endif
 

@@ -9,6 +9,14 @@
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+/**************************************************************************
+ *  13 Nov, 2000.
+ *  Made support for MIPS32 CPUs and restoring of fp registers.
+ *
+ *  Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
+ *************************************************************************/
+	
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
@@ -23,8 +31,6 @@
 #include <asm/stackframe.h>
 
 #include <asm/asmmacro.h>
-
-	.set	mips3
 
 /*
  * task_struct *r4xx0_resume(task_struct *prev, task_struct *next)
@@ -113,6 +119,7 @@ LEAF(restore_fp)
 #define FPU_DEFAULT  0x00000000
 
 LEAF(init_fpu)
+	.set	mips3
 	mfc0	t0, CP0_STATUS
 	li	t1, 0x20000000
 	or	t0, t1
@@ -143,3 +150,4 @@ LEAF(init_fpu)
 	 dmtc1	t0, $f30
 	.set	reorder
 	END(init_fpu)
+

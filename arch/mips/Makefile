@@ -60,6 +60,9 @@ endif
 ifdef CONFIG_CPU_R4X00
 GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
 endif
+ifdef CONFIG_CPU_MIPS32
+GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
+endif
 ifdef CONFIG_CPU_R5000
 GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif

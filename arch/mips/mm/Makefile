@@ -38,6 +38,10 @@ ifdef CONFIG_CPU_NEVADA
 O_OBJS   += r4xx0.o
 endif
 
+ifdef CONFIG_CPU_MIPS32
+O_OBJS   += mips32.o
+endif
+
 ifdef CONFIG_SGI_IP22
 O_OBJS   += umap.o
 endif

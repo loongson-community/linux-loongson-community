@@ -1,10 +1,11 @@
 /*
  * SMP- and interrupt-safe semaphores helper functions.
  *
- * (C) Copyright 1996 Linus Torvalds
- * (C) Copyright 1999 Andrea Arcangeli
- * (C) Copyright 1999 Ralf Baechle
- * (C) Copyright 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1996 Linus Torvalds
+ * Copyright (C) 1999 Andrea Arcangeli
+ * Copyright (C) 1999 Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 2000 MIPS Technologies, Inc.
  */
 #ifndef _ASM_SEMAPHORE_HELPER_H
 #define _ASM_SEMAPHORE_HELPER_H
@@ -19,7 +20,7 @@ static inline void wake_one_more(struct semaphore * sem)
 	atomic_inc(&sem->waking);
 }
 
-#if !defined(CONFIG_CPU_HAS_LLSC)
+#if !defined(CONFIG_CPU_HAS_LLSC) || defined(CONFIG_CPU_MIPS32)
 
 /*
  * It doesn't make sense, IMHO, to endlessly turn interrupts off and on again.
