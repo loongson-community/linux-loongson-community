@@ -130,7 +130,7 @@ static unsigned long dosample(volatile unsigned char *tcwp,
 /*
  * Here we need to calibrate the cycle counter to at least be close.
  */
-void indy_time_init(void)
+static __init void indy_time_init(void)
 {
 	struct sgi_ioc_timers *p;
 	volatile unsigned char *tcwp, *tc2p;
