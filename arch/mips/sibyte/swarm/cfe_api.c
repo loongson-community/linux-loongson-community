@@ -55,11 +55,10 @@ int cfe_init(cfe_xuint_t handle)
 	return 0;
 }
 
+int cfe_iocb_dispatch(cfe_xiocb_t *xiocb);
 int cfe_iocb_dispatch(cfe_xiocb_t *xiocb)
 {
-	if (!cfe_dispfunc)
-		return -1;
-
+	if (!cfe_dispfunc) return -1;
 	return (*cfe_dispfunc)(cfe_handle,xiocb);
 }
 
@@ -344,7 +343,7 @@ int cfe_getstdhandle(int flg)
 int cfe_start_cpu(int cpu, void (*fn)(void), long sp, long gp, long a1)
 {
 	cfe_xiocb_t xiocb;
-
+	
 	xiocb.xiocb_fcode = CFE_CMD_FW_CPUCTL;
 	xiocb.xiocb_status = 0;
 	xiocb.xiocb_handle = 0;
@@ -356,12 +355,29 @@ int cfe_start_cpu(int cpu, void (*fn)(void), long sp, long gp, long a1)
 	xiocb.plist.xiocb_cpuctl.sp_val = sp;
 	xiocb.plist.xiocb_cpuctl.a1_val = a1;
 	xiocb.plist.xiocb_cpuctl.start_addr = (long)fn;
-
+	
 	cfe_iocb_dispatch(&xiocb);
-
+	
 	return xiocb.xiocb_status;
 }
 
+
+int cfe_stop_cpu(int cpu)
+{
+	cfe_xiocb_t xiocb;
+	
+	xiocb.xiocb_fcode = CFE_CMD_FW_CPUCTL;
+	xiocb.xiocb_status = 0;
+	xiocb.xiocb_handle = 0;
+	xiocb.xiocb_flags  = 0;
+	xiocb.xiocb_psize = sizeof(xiocb_cpuctl_t);
+	xiocb.plist.xiocb_cpuctl.cpu_number = cpu;
+	xiocb.plist.xiocb_cpuctl.cpu_command = CFE_CPU_CMD_STOP;
+	
+	cfe_iocb_dispatch(&xiocb);
+	
+	return xiocb.xiocb_status;
+}
 
 void cfe_open_console()
 {
@@ -374,7 +390,6 @@ void cfe_console_print(char *str)
 	int res;
 
 	if (cfe_console_handle != -1) {
-		cfe_write(cfe_console_handle, str, strlen(str));
 		do {
 			res = cfe_writeblk(cfe_console_handle, 0, str, len);
 			if (res < 0)
@@ -384,3 +399,4 @@ void cfe_console_print(char *str)
 		} while (len);
 	}
 }
+

@@ -54,6 +54,7 @@ int cfe_exit(int warm, int status);
 int cfe_flushcache(int flg);
 int cfe_getstdhandle(int flg);
 int cfe_start_cpu(int cpu, void (*fn)(void), long sp, long gp, long a1);
+int cfe_stop_cpu(int cpu);
 
 void cfe_open_console(void);
 void cfe_console_print(char *);

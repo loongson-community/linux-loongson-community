@@ -47,9 +47,10 @@ atomic_t smp_commenced = ATOMIC_INIT(0);
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 struct cpuinfo_mips cpu_data[NR_CPUS];
-void (*volatile smp_cpu0_finalize)(void) = NULL;
+void (*volatile smp_cpu0_finalize)(void);
 
-static atomic_t cpus_booted = ATOMIC_INIT(0);
+// static atomic_t cpus_booted = ATOMIC_INIT(0);
+atomic_t cpus_booted = ATOMIC_INIT(0);
 
 
 /* These are defined by the board-specific code. */
@@ -103,77 +104,6 @@ asmlinkage void start_secondary(void)
 	atomic_inc(&cpus_booted);
 	while (!atomic_read(&smp_commenced));
 	cpu_idle();
-}
-
-void __init smp_boot_cpus(void)
-{
-	int i;
-
-	set_context(0);
-	smp_num_cpus = prom_setup_smp();
-	init_new_context(current, &init_mm);
-	current->processor = 0;
-	cpu_data[0].udelay_val = loops_per_jiffy;
-	cpu_data[0].asid_cache = ASID_FIRST_VERSION;
-	CPUMASK_CLRALL(cpu_online_map);
-	CPUMASK_SETB(cpu_online_map, 0);
-	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
-	init_idle();
-	for (i = 1; i < smp_num_cpus; i++) {
-		struct task_struct *p;
-		struct pt_regs regs;
-		printk("Starting CPU %d... ", i);
-
-		/* Spawn a new process normally.  Grab a pointer to
-		   its task struct so we can mess with it */
-		do_fork(CLONE_VM|CLONE_PID, 0, &regs, 0);
-		p = init_task.prev_task;
-
-		/* Schedule the first task manually */
-		p->processor = i;
-		p->cpus_runnable = 1 << i; /* we schedule the first task manually */
-
-		/* Attach to the address space of init_task. */
-		atomic_inc(&init_mm.mm_count);
-		p->active_mm = &init_mm;
-		init_tasks[i] = p;
-
-		del_from_runqueue(p);
-		unhash_process(p);
-
-		prom_boot_secondary(i,
-				    (unsigned long)p + KERNEL_STACK_SIZE - 32,
-				    (unsigned long)p);
-
-#if 0
-		/* This is copied from the ip-27 code in the mips64 tree */
-
-		struct task_struct *p;
-
-		/*
-		 * The following code is purely to make sure
-		 * Linux can schedule processes on this slave.
-		 */
-		kernel_thread(0, NULL, CLONE_PID);
-		p = init_task.prev_task;
-		sprintf(p->comm, "%s%d", "Idle", i);
-		init_tasks[i] = p;
-		p->processor = i;
-		p->cpus_runnable = 1 << i; /* we schedule the first task manually */
-		del_from_runqueue(p);
-		unhash_process(p);
-		/* Attach to the address space of init_task. */
-		atomic_inc(&init_mm.mm_count);
-		p->active_mm = &init_mm;
-		prom_boot_secondary(i, 
-				    (unsigned long)p + KERNEL_STACK_SIZE - 32,
-				    (unsigned long)p);
-#endif
-	}
-
-	/* Wait for everyone to come up */
-	while (atomic_read(&cpus_booted) != smp_num_cpus);
-	smp_threads_ready = 1;
 }
 
 void __init smp_commence(void)
