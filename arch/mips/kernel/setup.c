@@ -123,8 +123,8 @@ static void __init print_memory_map(void)
 
 	for (i = 0; i < boot_mem_map.nr_map; i++) {
 		printk(" memory: %0*Lx @ %0*Lx ",
-		       field, (u64) boot_mem_map.map[i].size,
-		       field, (u64) boot_mem_map.map[i].addr);
+		       field, (unsigned long long) boot_mem_map.map[i].size,
+		       field, (unsigned long long) boot_mem_map.map[i].addr);
 
 		switch (boot_mem_map.map[i].type) {
 		case BOOT_MEM_RAM:
@@ -204,15 +204,15 @@ static inline void parse_cmdline_early(void)
 
 static inline void bootmem_init(void)
 {
+	unsigned long start_pfn;
+#ifndef CONFIG_SGI_IP27
+	unsigned long bootmap_size, max_low_pfn, first_usable_pfn;
+	int i;
+#endif
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long *initrd_header;
-#endif
-	unsigned long bootmap_size;
-	unsigned long start_pfn, max_low_pfn, first_usable_pfn;
-	int i;
 
-#ifdef CONFIG_BLK_DEV_INITRD
 	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
 	if (tmp < (unsigned long)&_end)
 		tmp += PAGE_SIZE;
