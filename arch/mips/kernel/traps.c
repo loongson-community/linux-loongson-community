@@ -129,13 +129,14 @@ static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
 		ll_bit = 0;
 	}
 	ll_task = current;
+
 	regs->regs[(opcode & RT) >> 16] = value;
 
 	compute_return_epc(regs);
 	return;
 
 sig:
-	send_sig(signal, current, 1);
+	force_sig(signal, current);
 }
 
 static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
@@ -167,19 +168,21 @@ static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
 	}
 	if (ll_bit == 0 || ll_task != current) {
 		regs->regs[reg] = 0;
+		return;
+	}
+
+	if (put_user(regs->regs[reg], vaddr)) {
+		signal = SIGSEGV;
 		goto sig;
 	}
 
-	if (put_user(regs->regs[reg], vaddr))
-		signal = SIGSEGV;
-	else
-		regs->regs[reg] = 1;
+	regs->regs[reg] = 1;
 
 	compute_return_epc(regs);
 	return;
 
 sig:
-	send_sig(signal, current, 1);
+	force_sig(signal, current);
 }
 
 /*
