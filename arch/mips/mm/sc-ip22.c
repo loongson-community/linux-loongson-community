@@ -152,7 +152,7 @@ static inline int __init indy_sc_probe(void)
 		return 0;
 
 	size <<= PAGE_SHIFT;
-	printk(KERN_INFO "R4600/R5000 SCACHE size %ldK, linesize 32 bytes.\n",
+	printk(KERN_INFO "R4600/R5000 SCACHE size %dK, linesize 32 bytes.\n",
 	       size >> 10);
 	scache_size = size;
 
