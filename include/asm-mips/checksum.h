@@ -79,9 +79,10 @@ static inline unsigned short int csum_fold(unsigned int sum)
 	"addu\t%0,$1\n\t"
 	"xori\t%0,0xffff\n\t"
 	".set\tat"
-	: "+r" (sum));
+	: "=r" (sum)
+	: "r" (sum));
 
- 	return sum;
+	return sum;
 }
  
 /*
