@@ -6,7 +6,6 @@
  * Copyright (C) 2000 - 2001 by Kanoj Sarcar (kanoj@sgi.com)
  * Copyright (C) 2000 - 2001 by Silicon Graphics, Inc.
  */
-
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
 
@@ -42,7 +41,7 @@ extern int __cpu_logical_map[NR_CPUS];
 typedef unsigned long   cpumask_t;
 
 #define CPUMASK_CLRALL(p)	(p) = 0
-#define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
+#define CPUMASK_SETB(p, bit)	(p) |= 1UL << (bit)
 #define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
 #define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
 

@@ -77,7 +77,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	char fmt [64];
 
 #ifdef CONFIG_SMP
-	if (!(cpu_online_map & (1<<n)))
+	if (!CPUMASK_TSTB(cpu_online_map, n))
 		return 0;
 #endif
 
