@@ -244,12 +244,12 @@ static inline int serial_paranoia_check(struct async_struct *info,
 
 static _INLINE_ unsigned int serial_in(struct async_struct *info, int offset)
 {
-	return (inl(info->port+offset) & 0xff);
+	return (inl(info->port+offset) & 0xffff);
 }
 
 static _INLINE_ void serial_out(struct async_struct *info, int offset, int value)
 {
-	outl(value & 0xff, info->port+offset);
+	outl(value & 0xffff, info->port+offset);
 }
 
 
