@@ -38,6 +38,13 @@ extern void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
 			       unsigned long end);
 extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
 
+/*
+ * - add_wired_entry() add a fixed TLB entry, and move wired register
+ */
+extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
+			       unsigned long entryhi, unsigned long pagemask);
+
+
 /* Basically we have the same two-level (which is the logical three level
  * Linux page table layout folded) page tables as the i386.  Some day
  * when we have proper page coloring support we can have a 1% quicker
