@@ -3,6 +3,7 @@
  * Board Registers defines.
  *
  * Copyright 2004 Embedded Edge LLC.
+ * Copyright 2005 Ralf Baechle (ralf@linux-mips.org)
  *
  * ########################################################################
  *
@@ -26,6 +27,7 @@
 #ifndef __ASM_PB1550_H
 #define __ASM_PB1550_H
 
+#include <linux/config.h>
 #include <linux/types.h>
 
 #define BCSR_PHYS_ADDR 0xAF000000

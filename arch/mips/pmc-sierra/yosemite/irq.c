@@ -24,7 +24,7 @@
  *
  * Second level Interrupt handlers for the PMC-Sierra Titan/Yosemite board
  */
-
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>

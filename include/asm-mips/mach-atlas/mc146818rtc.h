@@ -1,7 +1,7 @@
 /*
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
- * Copyright (C) 2003 by Ralf Baechle
+ * Copyright (C) 2003, 05 Ralf Baechle (ralf@linux-mips.org)
  *
  * This program is free software; you can distribute it and/or modify it
  * under the terms of the GNU General Public License (Version 2) as
@@ -19,6 +19,7 @@
 #ifndef __ASM_MACH_ATLAS_MC146818RTC_H
 #define __ASM_MACH_ATLAS_MC146818RTC_H
 
+#include <linux/config.h>
 #include <asm/io.h>
 #include <asm/mips-boards/atlas.h>
 #include <asm/mips-boards/atlasint.h>

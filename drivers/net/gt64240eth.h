@@ -9,6 +9,7 @@
  * Copyright 2000 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	stevel@mvista.com or support@mvista.com
+ * Copyright 2004, 05 Ralf Baechle (ralf@linux-mips.org)
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -31,6 +32,7 @@
 #ifndef _GT64240ETH_H
 #define _GT64240ETH_H
 
+#include <linux/config.h>
 #include <asm/gt64240.h>
 
 #define ETHERNET_PORTS_DIFFERENCE_OFFSETS	0x400

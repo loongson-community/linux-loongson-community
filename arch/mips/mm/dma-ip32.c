@@ -9,7 +9,6 @@
  * swiped from i386, and cloned for MIPS by Geert, polished by Ralf.
  * IP32 changes by Ilya.
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/module.h>

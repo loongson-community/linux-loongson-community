@@ -4,9 +4,12 @@
  * for more details.
  *
  * Copyright (C) 2005 Ilya A. Volynets-Evenbakh
+ * Copyright (C) 2005 Ralf Baechle (ralf@linux-mips.org)
  */
 #ifndef __ASM_MACH_IP32_CPU_FEATURE_OVERRIDES_H
 #define __ASM_MACH_IP32_CPU_FEATURE_OVERRIDES_H
+
+#include <linux/config.h>
 
 /*
  * R5000 has an interesting "restriction":  ll(d)/sc(d)

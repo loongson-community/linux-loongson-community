@@ -15,7 +15,6 @@
  * indicate that some process(es) are waiting for the semaphore.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/init.h>

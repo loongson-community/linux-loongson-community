@@ -15,8 +15,6 @@
 #ifndef __NEC_CMBVR4133_H
 #define __NEC_CMBVR4133_H
 
-#include <linux/config.h>
-
 #include <asm/addrspace.h>
 #include <asm/vr41xx/vr41xx.h>
 
