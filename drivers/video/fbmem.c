@@ -617,10 +617,7 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 #elif defined(__i386__)
 	if (boot_cpu_data.x86 > 3)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
-#elif defined(__mips__)
-	pgprot_val(vma->vm_page_prot) &= ~_CACHE_MASK;
-	pgprot_val(vma->vm_page_prot) |= _CACHE_UNCACHED;
-#elif defined(__arm__)
+#elif defined(__arm__) || defined(__mips__)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	/* This is an IO map - tell maydump to skip this VMA */
 	vma->vm_flags |= VM_IO;
