@@ -616,8 +616,8 @@ asmlinkage void do_watch(struct pt_regs *regs)
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
-	dump_tlb_all();
 	show_regs(regs);
+	dump_tlb_all();
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
 
@@ -648,8 +648,8 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 static inline void watch_init(void)
 {
 	if (mips_cpu.options & MIPS_CPU_WATCH) {
-	set_except_vector(23, handle_watch);
-	watch_available = 1;
+		set_except_vector(23, handle_watch);
+		watch_available = 1;
 	}
 }
 
@@ -733,7 +733,7 @@ void __init trap_init(void)
 	 * interrupt processing overhead.  Use it where available.
 	 */
 	if (mips_cpu.options & MIPS_CPU_DIVEC) {
-		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
+		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 0x80);
 		set_cp0_cause(CAUSEF_IV);
 	}
 
@@ -767,9 +767,12 @@ void __init trap_init(void)
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);
 
-	if (mips_cpu.options & MIPS_CPU_VCE)
+	if (mips_cpu.options & MIPS_CPU_VCE) {
+		/* VCE and DIVEC are mutually exclusive. */
+		if (mips_cpu.options & MIPS_CPU_DIVEC)
+			BUG();
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
-	else if (mips_cpu.options & MIPS_CPU_4KEX)
+	} else if (mips_cpu.options & MIPS_CPU_4KEX)
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 	else
 		memcpy((void *)(KSEG0 + 0x080), &except_vec3_generic, 0x80);

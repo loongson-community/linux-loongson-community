@@ -5,6 +5,7 @@
  *
  * Copyright (C) 1994 - 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics
+ * Copyright (C) 2002  Maciej W. Rozycki
  *
  * Low level exception handling
  */
@@ -31,25 +32,28 @@
 	BUILD_HANDLER mcheck mcheck cli verbose		/* #24 */
 	BUILD_HANDLER reserved reserved sti verbose	/* others */
 
+
 	__INIT
 
 /* General exception handler for CPUs with virtual coherency exception.
  *
- * Be careful when changing this, it has to be at most 128 bytes to fit
- * into space reserved for the exception handler.
+ * Be careful when changing this, it has to be at most 256 (as a special
+ * exception) bytes to fit into space reserved for the exception handler.
  */
-	NESTED(except_vec3_r4000, 0, sp)
+	.set	push
 	.set	noat
-#if defined(R5432_CP0_INTERRUPT_WAR)
-	mfc0    k0, CP0_INDEX
-#endif
+NESTED(except_vec3_r4000, 0, sp)
 	mfc0	k1, CP0_CAUSE
-	andi	k1, k1, 0x7c
 	li	k0, 31<<2
+	andi	k1, k1, 0x7c
+	.set	push
+	.set	noreorder
+	.set	nomacro
 	beq	k1, k0, handle_vced
 	 li	k0, 14<<2
 	beq	k1, k0, handle_vcei
 	 dsll	k1, k1, 1
+	.set	pop
 	ld	k0, exception_handlers(k1)
 	jr	k0
 
@@ -60,51 +64,61 @@
  * store will be re-executed.
  */
 handle_vced:
-	mfc0	k0, CP0_BADVADDR
+	dmfc0	k0, CP0_BADVADDR
 	li	k1, -4					# Is this ...
 	and	k0, k1					# ... really needed?
 	mtc0	zero, CP0_TAGLO
 	cache	Index_Store_Tag_D,(k0)
 	cache	Hit_Writeback_Inv_SD,(k0)
-	lui	k0, %hi(vced_count)
-	lw	k1, %lo(vced_count)(k0)
+	dla	k0, vced_count
+	lw	k1, (k0)
 	addiu	k1, 1
-	sw	k1, %lo(vced_count)(k0)
+	sw	k1, (k0)
 	eret
 
 handle_vcei:
-	mfc0	k0, CP0_BADVADDR
+	dmfc0	k0, CP0_BADVADDR
 	cache	Hit_Writeback_Inv_SD,(k0)		# also cleans pi
-	lui	k0, %hi(vcei_count)
-	lw	k1, %lo(vcei_count)(k0)
+	dla	k0, vcei_count
+	lw	k1, (k0)
 	addiu	k1, 1
-	sw	k1, %lo(vcei_count)(k0)
+	sw	k1, (k0)
 	eret
+END(except_vec3_r4000)
+	.set	pop
 
-	END(except_vec3_r4000)
-	.set	at
 
-	/* General exception vector for all other CPUs. */
-	NESTED(except_vec3_generic, 0, sp)
+/* General exception vector for all other CPUs.
+ *
+ * Be careful when changing this, it has to be at most 128 bytes
+ * to fit into space reserved for the exception handler.
+ */
+	.set	push
 	.set	noat
+NESTED(except_vec3_generic, 0, sp)
+#if defined(R5432_CP0_INTERRUPT_WAR)
+	mfc0    k0, CP0_INDEX
+#endif
 	mfc0	k1, CP0_CAUSE
 	andi	k1, k1, 0x7c
 	dsll	k1, k1, 1
 	ld	k0, exception_handlers(k1)
 	jr	k0
-	 nop
-	END(except_vec3_generic)
-	.set	at
+END(except_vec3_generic)
+	.set	pop
+
 
 /*
- * Special interrupt vector for embedded MIPS.  This is a dedicated interrupt
- * vector which reduces interrupt processing overhead.  The jump instruction
- * will be inserted here at initialization time.  This handler may only be 8
- * bytes in size!
+ * Special interrupt vector for MIPS64 ISA & embedded MIPS processors.
+ * This is a dedicated interrupt exception vector which reduces the
+ * interrupt processing overhead.  The jump instruction will be replaced
+ * at the initialization time.
+ *
+ * Be careful when changing this, it has to be at most 128 bytes
+ * to fit into space reserved for the exception handler.
  */
 NESTED(except_vec4, 0, sp)
 1:	j	1b			/* Dummy, will be replaced */
-	 nop
-	END(except_vec4)
+END(except_vec4)
 
 	__FINIT
