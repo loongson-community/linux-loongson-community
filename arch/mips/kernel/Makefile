@@ -35,7 +35,6 @@ endif
 endif
 
 obj-$(CONFIG_SMP)		+= smp.o
-obj-$(CONFIG_MIPS_FPE_MODULE)	+= fpe.o
 
 # Old style irq support, going to die in 2.5.
 export-objs			+= old-irq.o

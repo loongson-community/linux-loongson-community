@@ -493,9 +493,6 @@ mainmenu_option next_comment
 comment 'Kernel hacking'
 
 bool 'Are you using a crosscompiler' CONFIG_CROSSCOMPILE
-if [ "$CONFIG_MODULES" = "y" ]; then
-   bool ' Build fp execption handler module' CONFIG_MIPS_FPE_MODULE
-fi
 if [ "$CONFIG_SERIAL" = "y" -o "$CONFIG_AU1000_UART" = "y" ]; then
   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
   dep_bool 'Console output to GDB' CONFIG_GDB_CONSOLE $CONFIG_REMOTE_DEBUG

@@ -288,26 +288,6 @@ void do_ov(struct pt_regs *regs)
 	force_sig(SIGFPE, current);
 }
 
-#ifdef CONFIG_MIPS_FPE_MODULE
-static void (*fpe_handler)(struct pt_regs *regs, unsigned int fcr31);
-
-/*
- * Register_fpe/unregister_fpe are for debugging purposes only.  To make
- * this hack work a bit better there is no error checking.
- */
-int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
-{
-	fpe_handler = handler;
-	return 0;
-}
-
-int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
-{
-	fpe_handler = NULL;
-	return 0;
-}
-#endif
-
 /*
  * XXX Delayed fp exceptions when doing a lazy ctx switch XXX
  */
@@ -315,13 +295,6 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	if (!(mips_cpu.options & MIPS_CPU_FPU))
 		panic("Floating Point Exception with No FPU");
-
-#ifdef CONFIG_MIPS_FPE_MODULE
-	if (fpe_handler != NULL) {
-		fpe_handler(regs, fcr31);
-		return;
-	}
-#endif
 
 	if (fcr31 & FPU_CSR_UNI_X) {
 		extern void save_fp(struct task_struct *);
