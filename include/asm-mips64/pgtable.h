@@ -529,7 +529,7 @@ extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 #define module_unmap    vfree
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
-#define PageSkip(page)		test_bit(PG_skip, &(page)->flags)
+#define PageSkip(page)		(0)
 #ifndef CONFIG_DISCONTIGMEM
 #define kern_addr_valid(addr)	(1)
 #endif
