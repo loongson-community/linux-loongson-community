@@ -115,11 +115,11 @@ clear_bit(int nr, volatile void *addr)
 }
 
 /*
- * __clear_bit - Set a bit in memory
- * @nr: the bit to set
- * @addr: the address to start counting from
+ * __clear_bit - Clears a bit in memory
+ * @nr: Bit to clear
+ * @addr: Address to start counting from
  *
- * Unlike set_bit(), this function is non-atomic and may be reordered.
+ * Unlike clear_bit(), this function is non-atomic and may be reordered.
  * If it's called on the same region of memory simultaneously, the effect
  * may be that only one operation succeeds.
  */
