@@ -465,21 +465,26 @@ void core_send_ipi(int destid, unsigned int action)
 void install_ipi(void)
 {
 	int slice = LOCAL_HUB_L(PI_CPU_NUM);
-	hubreg_t mask;
+	int cpu = smp_processor_id();
+	hubreg_t mask, set;
 
 	if (slice == 0) {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_A_IRQ);
 		LOCAL_HUB_CLR_INTR(CPU_CALL_A_IRQ);
 		mask = LOCAL_HUB_L(PI_INT_MASK0_A);	/* Slice A */
-		mask |= (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) |
-		        (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ));
+		set = (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) |
+		      (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ));
+		mask |= set;
+		cpu_data[cpu].p_intmasks.intpend0_masks |= set;
 		LOCAL_HUB_S(PI_INT_MASK0_A, mask);
 	} else {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_B_IRQ);
 		LOCAL_HUB_CLR_INTR(CPU_CALL_B_IRQ);
 		mask = LOCAL_HUB_L(PI_INT_MASK0_B);	/* Slice B */
-		mask |= (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) |
-		        (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ));
+		set = (1UL << FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) |
+		      (1UL << FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ));
+		mask |= set;
+		cpu_data[cpu].p_intmasks.intpend0_masks |= set;
 		LOCAL_HUB_S(PI_INT_MASK0_B, mask);
 	}
 }
