@@ -482,6 +482,8 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 	struct k_sigaction *ka = &current->sighand->action[sig-1];
 
 	switch(regs->regs[0]) {
+	case ERESTART_RESTARTBLOCK:
+		current_thread_info()->restart_block.fn = do_no_restart_syscall;
 	case ERESTARTNOHAND:
 		regs->regs[2] = EINTR;
 		break;
@@ -540,6 +542,10 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		    regs->regs[2] == ERESTARTNOINTR) {
 			regs->regs[7] = regs->regs[26];
 			regs->cp0_epc -= 8;
+		}
+		if (regs->regs[2] == ERESTART_RESTARTBLOCK) {
+			regs->regs[2] = __NR_restart_syscall;
+			regs->cp0_epc -= 4;
 		}
 	}
 	return 0;
