@@ -83,12 +83,9 @@ unsigned long spurious_count = 0;
  * from the irq value
  */
 #define IRQ_TO_BUS(i)			irq_to_bus[(i)]
-#define IRQ_TO_CPU(i) \
-	((i) == IOC3_ETH_INT ? 0 : bus_to_cpu[IRQ_TO_BUS(i)])
-#define NASID_FROM_PCI_IRQ(i) \
-		(((i) == IOC3_ETH_INT) ? 0 : bus_to_nid[IRQ_TO_BUS(i)])
-#define WID_FROM_PCI_IRQ(i) \
-		(((i) == IOC3_ETH_INT) ? 8 : bus_to_wid[IRQ_TO_BUS(i)])
+#define IRQ_TO_CPU(i)			bus_to_cpu[IRQ_TO_BUS(i)]
+#define NASID_FROM_PCI_IRQ(i)		bus_to_nid[IRQ_TO_BUS(i)]
+#define WID_FROM_PCI_IRQ(i)		bus_to_wid[IRQ_TO_BUS(i)]
 #define	SLOT_FROM_PCI_IRQ(i)		irq_to_slot[i]
 
 void disable_irq(unsigned int irq_nr)
@@ -221,8 +218,9 @@ void ip27_do_irq(struct pt_regs *regs)
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int bridge_startup(unsigned int irq)
 {
-        bridge_t *bridge;
-        int pin, swlevel;
+	bridgereg_t device;
+	bridge_t *bridge;
+	int pin, swlevel;
 	cpuid_t cpu;
 	nasid_t master = NASID_FROM_PCI_IRQ(irq);
 
@@ -230,46 +228,28 @@ static unsigned int bridge_startup(unsigned int irq)
 	pin = SLOT_FROM_PCI_IRQ(irq);
 	cpu = IRQ_TO_CPU(irq);
 
-	DBG("bridge_startup(): irq= 0x%x  real_irq= %d pin=%d\n", irq, real_irq, pin);
-        /*
-         * "map" irq to a swlevel greater than 6 since the first 6 bits
-         * of INT_PEND0 are taken
-         */
-        swlevel = IRQ_TO_SWLEVEL(cpu, irq);
-        intr_connect_level(cpu, swlevel);
+	DBG("bridge_startup(): irq= 0x%x  pin=%d\n", irq, pin);
+	/*
+	 * "map" irq to a swlevel greater than 6 since the first 6 bits
+	 * of INT_PEND0 are taken
+	 */
+	swlevel = IRQ_TO_SWLEVEL(cpu, irq);
+	intr_connect_level(cpu, swlevel);
 
-        bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (master << 8));
-        bridge->b_int_enable |= (1 << pin);
-	/* set more stuff in int_enable reg */
+	bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (master << 8));
+	bridge->b_int_enable |= (1 << pin);
+	/* more stuff in int_enable reg */
 	bridge->b_int_enable |= 0x7ffffe00;
 
-        if (irq != IOC3_ETH_INT) {
-                bridgereg_t device;
-#if 0
-                /*
-                 * Allocate enough RRBs on the bridge for the DMAs.
-                 * Right now allocating 2 RRBs on the normal channel
-                 * and 2 on the virtual channel for slot 0 on the bus.
-                 * And same for slot 1, to get ioc3 eth working.
-                 */
-                Not touching b_even_resp          /* boot doesn't go far */
-                bridge->b_even_resp = 0xdd99cc88; /* boot doesn't go far */
-                bridge->b_even_resp = 0xcccc8888; /* breaks eth0 */
-                bridge->b_even_resp = 0xcc88;     /* breaks eth0 */
-#endif
-                /* Turn on bridge swapping */
-                device = bridge->b_device[pin].reg;
-                device |= BRIDGE_DEV_SWAP_DIR;
-                bridge->b_device[pin].reg = device;
-                /*
-                 * XXX This only works if b_int_device is initialized to 0!
-		 * We program the bridge to have a 1:1 mapping between devices
-		 * (slots) and intr pins.
-                 */
-                device = bridge->b_int_device;
-                device |= (pin << (pin*3));
-                bridge->b_int_device = device;
-        }
+	/*
+	 * XXX This only works if b_int_device is initialized to 0!
+	 * We program the bridge to have a 1:1 mapping between devices
+	 * (slots) and intr pins.
+	 */
+	device = bridge->b_int_device;
+	device |= (pin << (pin*3));
+	bridge->b_int_device = device;
+
         bridge->b_widget.w_tflush;                      /* Flush */
 
         return 0;       /* Never anything pending.  */
@@ -278,25 +258,25 @@ static unsigned int bridge_startup(unsigned int irq)
 /* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int bridge_shutdown(unsigned int irq)
 {
-        bridge_t *bridge;
-        int pin, swlevel;
+	bridge_t *bridge;
+	int pin, swlevel;
 
-        bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
-							WID_FROM_PCI_IRQ(irq));
+	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
+	                                     WID_FROM_PCI_IRQ(irq));
 	DBG("bridge_shutdown: irq 0x%x\n", irq);
 	pin = SLOT_FROM_PCI_IRQ(irq);
 
-        /*
-         * map irq to a swlevel greater than 6 since the first 6 bits
-         * of INT_PEND0 are taken
-         */
-        swlevel = IRQ_TO_SWLEVEL(cpu, irq);
-        intr_disconnect_level(smp_processor_id(), swlevel);
+	/*
+	 * map irq to a swlevel greater than 6 since the first 6 bits
+	 * of INT_PEND0 are taken
+	 */
+	swlevel = IRQ_TO_SWLEVEL(cpu, irq);
+	intr_disconnect_level(smp_processor_id(), swlevel);
 
-        bridge->b_int_enable &= ~(1 << pin);
-        bridge->b_widget.w_tflush;                      /* Flush */
+	bridge->b_int_enable &= ~(1 << pin);
+	bridge->b_widget.w_tflush;                      /* Flush */
 
-        return 0;       /* Never anything pending.  */
+	return 0;       /* Never anything pending.  */
 }
 
 void irq_debug(void)
@@ -726,7 +706,7 @@ void install_cpuintr(cpuid_t cpu)
 	done = 1;
 	/* HACK ENDS */
 #else /* CPUS_PER_NODE */
-	<< Bomb!  Must redefine this for more than 2 CPUS. >>
+#error Must redefine this for more than 2 CPUS.
 #endif /* CPUS_PER_NODE */
 #endif /* CONFIG_SMP */
 }

@@ -79,7 +79,6 @@ extern int ni5010_probe(struct net_device *);
 extern int ni52_probe(struct net_device *);
 extern int ni65_probe(struct net_device *);
 extern int sonic_probe(struct net_device *);
-extern int ioc3_probe(struct net_device *);
 extern int SK_init(struct net_device *);
 extern int seeq8005_probe(struct net_device *);
 extern int smc_init( struct net_device * );
@@ -387,9 +386,6 @@ struct devprobe sgi_probes[] __initdata = {
 struct devprobe mips_probes[] __initdata = {
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	{sonic_probe, 0},
-#endif
-#ifdef CONFIG_SGI_IOC3_ETH
-	{ioc3_probe, 0},
 #endif
 #ifdef CONFIG_BAGETLANCE        /* Lance-based Baget ethernet boards */
         {bagetlance_probe, 0},

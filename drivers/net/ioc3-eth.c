@@ -54,6 +54,7 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/pci_ids.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -107,6 +108,7 @@ struct ioc3_private {
 	int rx_pi;			/* RX producer index */
 	int tx_ci;			/* TX consumer index */
 	int tx_pi;			/* TX producer index */
+	int txqlen;
 	spinlock_t ioc3_lock;
 };
 
@@ -133,15 +135,6 @@ struct ioc3_private {
 /* DMA barrier to separate cached and uncached accesses.  */
 #define BARRIER()							\
 	__asm__("sync" ::: "memory")
-
-/* This El Cheapo implementatin of TX_BUFFS_AVAIL may leave on entry unused.
-   Since the TX ring has 128 entries which is fairly large we don't care and
-   use this, more efficient implementation.  */
-#define TX_BUFFS_AVAIL(ip)						\
-({									\
-	struct ioc3_private *_ip = (ip);				\
-	((512 + _ip->tx_ci + 1) - _ip->tx_pi) & 511;			\
-})
 
 
 #define IOC3_SIZE 0x100000
@@ -240,7 +233,7 @@ static void nic_show_regnr(struct ioc3 *ioc3)
 	for (i = 0; i < 8; i++)
 		regnr[i] = nic_read_byte(ioc3);
 
-	switch(regnr[0]) {
+	switch (regnr[0]) {
 	case 0x01:	type = "DS1990A"; break;
 	case 0x91:	type = "DS1981U"; break;
 	default:	type = "unknown"; break;
@@ -395,8 +388,9 @@ next:
 }
 
 static inline void
-ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
+ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 {
+	unsigned long packets, bytes;
 	int tx_entry, o_entry;
 	struct sk_buff *skb;
 	u32 etcir;
@@ -405,14 +399,16 @@ ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
 	etcir = ioc3->etcir;
 	tx_entry = (etcir >> 7) & 127;
 	o_entry = ip->tx_ci;
+	packets = 0;
+	bytes = 0;
 
 	while (o_entry != tx_entry) {
 		ioc3->eisr = EISR_TXEXPLICIT;		/* Ack */
 		ioc3->eisr;				/* Flush */
 
+		packets++;
+		bytes += skb->len;
 		skb = ip->tx_skbs[o_entry];
-		ip->stats.tx_packets++;
-		ip->stats.tx_bytes += skb->len;
 		dev_kfree_skb_irq(skb);
 		ip->tx_skbs[o_entry] = NULL;
 
@@ -421,6 +417,14 @@ ioc3_tx(struct ioc3_private *ip, struct ioc3 *ioc3)
 		etcir = ioc3->etcir;			/* More pkts sent?  */
 		tx_entry = (etcir >> 7) & 127;
 	}
+
+	ip->stats.tx_packets += packets;
+	ip->stats.tx_bytes += bytes;
+	ip->txqlen -= packets;
+
+	if (ip->txqlen < 128)
+		netif_wake_queue(dev);
+
 	ip->tx_ci = o_entry;
 	spin_unlock(&ip->ioc3_lock);
 }
@@ -464,14 +468,10 @@ static void ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 		ioc3_rx(dev, ip, ioc3);
 	}
 	if (eisr & EISR_TXEXPLICIT) {
-		ioc3_tx(ip, ioc3);
+		ioc3_tx(dev, ip, ioc3);
 	}
 	if (eisr & (EISR_RXMEMERR | EISR_TXMEMERR)) {
 		ioc3_error(dev, ip, ioc3, eisr);
-	}
-
-	if ((TX_BUFFS_AVAIL(ip) >= 0) && netif_queue_stopped(dev)) {
-		netif_wake_queue(dev);
 	}
 
 	__cli();
@@ -620,9 +620,12 @@ ioc3_ssram_disc(struct ioc3_private *ip)
 	}
 }
 
-static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
+static void ioc3_init(struct pci_dev *pdev)
 {
+	struct net_device *dev = NULL;	// XXX
 	struct ioc3_private *ip;
+	struct ioc3 *ioc3;
+	unsigned long ioc3_base, ioc3_size;
 
 	dev = init_etherdev(dev, 0);
 
@@ -636,8 +639,11 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	ip = (struct ioc3_private *) kmalloc(sizeof(*ip), GFP_KERNEL);
 	memset(ip, 0, sizeof(*ip));
 	dev->priv = ip;
-	dev->irq = IOC3_ETH_INT;
+	dev->irq = pdev->irq;
 
+	ioc3_base = pdev->resource[0].start;
+	ioc3_size = pdev->resource[0].end - ioc3_base;
+	ioc3 = (struct ioc3 *) ioremap(ioc3_base, ioc3_size);
 	ip->regs = ioc3;
 
 	ioc3_eth_init(dev, ip, ioc3);
@@ -646,6 +652,7 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	ioc3_init_rings(dev, ip, ioc3);
 
 	spin_lock_init(&ip->ioc3_lock);
+	ip->txqlen = 0;
 
 	/* Misc registers  */
 	ioc3->erbar = 0;
@@ -671,26 +678,26 @@ static void ioc3_probe1(struct net_device *dev, struct ioc3 *ioc3)
 	dev->set_multicast_list	= ioc3_set_multicast_list;
 }
 
-int
-ioc3_probe(struct net_device *dev)
+static int __init ioc3_probe(void)
 {
-	static int initialized;
+	static int called = 0;
 	struct ioc3 *ioc3;
-	nasid_t nid;
+	int cards;
 
-	if (initialized)		/* Only initialize once ...  */
-		return 0;
-	initialized++;
+	if (called)
+		return -ENODEV;
+	called = 1;
 
-#if 0
-	nid = get_nasid();		/* Never assume we are on master cpu */
-#else
-	nid = 0;
-#endif
-	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
-	ioc3_probe1(dev, ioc3);
+	if (pci_present()) {
+		struct pci_dev *pdev = NULL;
 
-	return 0;
+		while ((pdev = pci_find_device(PCI_VENDOR_ID_SGI,
+		                               PCI_DEVICE_ID_SGI_IOC3, pdev))) {
+			ioc3_init(pdev);
+		}
+	}
+
+	return cards ? -ENODEV : 0;
 }
 
 static int
@@ -715,7 +722,7 @@ ioc3_open(struct net_device *dev)
 	ioc3->eier = EISR_RXTIMERINT | EISR_TXEXPLICIT | /* Interrupts ...  */
 	             EISR_RXMEMERR | EISR_TXMEMERR;
 
-	netif_wake_queue(dev);
+	netif_start_queue(dev);
 	restore_flags(flags);
 
 	MOD_INC_USE_COUNT;
@@ -733,11 +740,8 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct ioc3_etxd *desc;
 	int produce;
 
-	if (!TX_BUFFS_AVAIL(ip)) {
-		return 1;
-	}
-
 	spin_lock_irq(&ip->ioc3_lock);
+
 	data = (unsigned long) skb->data;
 	len = skb->len;
 
@@ -781,8 +785,11 @@ ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	ip->tx_pi = produce;
 	ioc3->etpir = produce << 7;			/* Fire ... */
 
-	if (TX_BUFFS_AVAIL(ip))
-		netif_wake_queue(dev);
+	ip->txqlen++;
+
+	if (ip->txqlen > 127)
+		netif_stop_queue(dev);
+
 	spin_unlock_irq(&ip->ioc3_lock);
 
 	return 0;
@@ -954,22 +961,7 @@ static void ioc3_set_multicast_list(struct net_device *dev)
 #ifdef MODULE
 MODULE_AUTHOR("Ralf Baechle <ralf@oss.sgi.com>");
 MODULE_DESCRIPTION("SGI IOC3 Ethernet driver");
-
-int
-init_module(void)
-{
-	struct pci_dev *dev = NULL;
-
-	while ((dev = pci_find_device(PCI_VENDOR_ID_SGI, 0x0003, dev))) {
-		ioc3_init(&p, dev);
-	}
-
-	return -EBUSY;
-}
-
-void
-cleanup_module(void)
-{
-	printk("cleanup_module called\n");
-}
 #endif /* MODULE */
+
+module_init(ioc3_probe);
+//module_exit(ioc3_cleanup_module);	/* Not yet ...  */

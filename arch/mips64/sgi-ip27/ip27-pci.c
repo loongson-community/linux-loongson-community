@@ -148,11 +148,6 @@ void __init pcibios_init(void)
 	int	i;
 
 	ioport_resource.end = ~0UL;
-	/*
-	 * Hacks for ioc3 eth. Make sure we associate IOC3_ETH_INT
-	 * with nasid 0, widget 8, slot 2.
-	 */
-	irq_to_slot[IOC3_ETH_INT] = 2;
 
 	for (i=0; i<num_bridges; i++) {
 		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
@@ -271,6 +266,38 @@ pcibios_setup(char *str)
 }
 
 static void __init
+pci_disable_swapping(struct pci_dev *dev)
+{
+	unsigned int bus_id = (unsigned) dev->bus->number;
+	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
+				     bus_to_wid[bus_id]);
+	int		slot = PCI_SLOT(dev->devfn);
+	bridgereg_t 	devreg;
+
+	devreg = bridge->b_device[slot].reg;
+	devreg &= ~BRIDGE_DEV_SWAP_DIR;		/* turn off byte swapping */
+	bridge->b_device[slot].reg = devreg;
+
+	bridge->b_widget.w_tflush;		/* Flush */
+}
+
+static void __init
+pci_enable_swapping(struct pci_dev *dev)
+{
+	unsigned int bus_id = (unsigned) dev->bus->number;
+	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
+				     bus_to_wid[bus_id]);
+	int		slot = PCI_SLOT(dev->devfn);
+	bridgereg_t 	devreg;
+
+	devreg = bridge->b_device[slot].reg;
+	devreg |= BRIDGE_DEV_SWAP_DIR;		/* turn on byte swapping */
+	bridge->b_device[slot].reg = devreg;
+
+	bridge->b_widget.w_tflush;		/* Flush */
+}
+
+static void __init
 pci_fixup_ioc3(struct pci_dev *d)
 {
 	int i;
@@ -289,6 +316,8 @@ pci_fixup_ioc3(struct pci_dev *d)
 	d->subsystem_vendor = 0;
 	d->subsystem_device = 0;
 	d->irq = 1;
+
+	pci_disable_swapping(d);
 }
 
 static void __init
@@ -311,6 +340,8 @@ pci_fixup_isp1020(struct pci_dev *d)
 	command |= PCI_COMMAND_IO;
 	pci_write_config_word(d, PCI_COMMAND, command);
 	d->resource[1].flags |= 1;
+
+	pci_enable_swapping(d);
 }
 
 static void __init
@@ -346,11 +377,9 @@ pci_fixup_isp2x00(struct pci_dev *d)
 	/* point device(x) to it appropriate small window */
 	devreg &= ~BRIDGE_DEV_OFF_MASK;
 	devreg |= (start >> 20) & BRIDGE_DEV_OFF_MASK;
-
-	/* turn on byte swapping in direct map mode (how we currently run dma's) */
-	devreg |= BRIDGE_DEV_SWAP_DIR;		/* turn on byte swapping */
-
 	bridge->b_device[slot].reg = devreg;
+
+	pci_enable_swapping(d);
 
 	/* set card's base addr reg */
 	//pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x500001);
@@ -365,7 +394,6 @@ pci_fixup_isp2x00(struct pci_dev *d)
 	pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
 	//pci_conf0_write_config_dword(d, PCI_ROM_ADDRESS, (start | 0x20000));
 
-
 	/* set cache line size */
 	pci_conf0_write_config_dword(d, PCI_CACHE_LINE_SIZE, 0xf080);
 
@@ -377,7 +405,7 @@ pci_fixup_isp2x00(struct pci_dev *d)
 	/* set host error field */
 	bridge->b_int_host_err = 0x44;
 	bridge->b_wid_tflush;
-		
+
 	bridge->b_wid_tflush;   	/* wait until Bridge PIO complete */
 	for (i=0; i<8; i++)
 		printk("PCI: device(%d)= 0x%x\n",i,bridge->b_device[i].reg);
