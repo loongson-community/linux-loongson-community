@@ -31,7 +31,9 @@
 
 	.align  5
 NESTED(handle_sys64, PT_SIZE, sp)
-
+	.set	noat
+	SAVE_SOME
+	.set	at
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 	sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
