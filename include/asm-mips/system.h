@@ -219,7 +219,7 @@ do {									\
 		"nop\n\t"			\
 		".set	pop"			\
 		: /* no output */		\
-		: "m" (*(int *)KSEG1)		\
+		: "m" (*(int *)CKSEG1)		\
 		: "memory")
 
 #define fast_wmb()	__sync()
