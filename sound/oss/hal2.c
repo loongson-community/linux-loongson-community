@@ -1,5 +1,5 @@
 /*
- *  Driver for HAL2 sound processors
+ *  Driver for A2 audio system used in SGI machines
  *  Copyright (c) 2001, 2002, 2003 Ladislav Michl <ladis@linux-mips.org>
  *  
  *  Based on Ulf Carlsson's code.
@@ -57,8 +57,9 @@
 #define H2_WRITE_ADDR(addr)	(addr)
 
 static char *hal2str = "HAL2";
-static int ibuffers = 2;
-static int obuffers = 8;
+static int msmix = 0;
+static int ibufs = 4;
+static int obufs = 8;
 
 /* 
  * I doubt anyone has a machine with two HAL2 cards. It's possible to
@@ -255,7 +256,7 @@ static void hal2_dac_interrupt(struct hal2_codec *dac)
 	int running;
 
 	spin_lock(&dac->lock);
-	
+
 	/* if tail buffer contains zero samples DMA stream was already
 	 * stopped */
 	running = dac->tail->info.cnt;
@@ -275,7 +276,7 @@ static void hal2_dac_interrupt(struct hal2_codec *dac)
 static void hal2_adc_interrupt(struct hal2_codec *adc)
 {
 	int running;
-	
+
 	spin_lock(&adc->lock);
 
 	/* if head buffer contains nonzero samples DMA stream was already
@@ -317,16 +318,16 @@ static int hal2_compute_rate(struct hal2_codec *codec, unsigned int rate)
 	else if (rate > 48000) rate = 48000;
 
 	if (44100 % rate < 48000 % rate) {
-		mod = 44100 / rate;
+		mod = 4 * 44100 / rate;
 		codec->master = 44100;
 	} else {
-		mod = 48000 / rate;
+		mod = 4 * 48000 / rate;
 		codec->master = 48000;
 	}
 
-	codec->inc = 1;
+	codec->inc = 4;
 	codec->mod = mod;
-	rate = codec->master / mod;
+	rate = 4 * codec->master / mod;
 
 	DEBUG("real_rate: %d\n", rate);
 
@@ -376,6 +377,7 @@ static void hal2_setup_dac(struct hal2_card *hal2)
 	highwater = (sample_size * 2) >> 1;	/* halfwords */
 	fifobeg = 0;				/* playback is first */
 	fifoend = (sample_size * 4) >> 3;	/* doublewords */
+
 	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_LD |
 		     (highwater << 8) | (fifobeg << 16) | (fifoend << 24) |
 		     (hal2->dac.format & AFMT_S16_LE ? HPC3_PDMACTRL_SEL : 0);
@@ -403,12 +405,13 @@ static void hal2_setup_adc(struct hal2_card *hal2)
 	struct hal2_pbus *pbus = &hal2->adc.pbus;
 
 	DEBUG("hal2_setup_adc\n");
-	
+
 	sample_size = 2 * hal2->adc.voices;
 
 	highwater = (sample_size * 2) >> 1;		/* halfwords */
 	fifobeg = (4 * 4) >> 3;				/* record is second */
 	fifoend = (4 * 4 + sample_size * 4) >> 3;	/* doublewords */
+
 	pbus->ctrl = HPC3_PDMACTRL_RT | HPC3_PDMACTRL_RCV | HPC3_PDMACTRL_LD | 
 		     (highwater << 8) | (fifobeg << 16) | (fifoend << 24) |
 		     (hal2->adc.format & AFMT_S16_LE ? HPC3_PDMACTRL_SEL : 0);
@@ -480,11 +483,11 @@ static int hal2_alloc_dmabuf(struct hal2_card *hal2, int is_dac)
 
 	if (is_dac) {
 		codec = &hal2->dac;
-		buffers = obuffers;
+		buffers = obufs;
 		cntinfo = HPCDMA_XIE | HPCDMA_EOX;
 	} else {
 		codec = &hal2->adc;
-		buffers = ibuffers;
+		buffers = ibufs;
 		cntinfo = HPCDMA_XIE | H2_BUFFER_SIZE;
 	}
 	
@@ -558,9 +561,9 @@ static int hal2_get_buffer(struct hal2_card *hal2, char *buffer, int count)
 	unsigned long flags;
 	int size, ret = 0;
 	struct hal2_codec *adc = &hal2->adc;
-	
+
 	spin_lock_irqsave(&adc->lock, flags);
-	
+
 	DEBUG("getting %d bytes ", count);
 
 	/* enable DMA stream if there are no data */
@@ -568,20 +571,20 @@ static int hal2_get_buffer(struct hal2_card *hal2, char *buffer, int count)
 	    adc->tail->info.cnt == 0)
 		hal2_start_adc(hal2);
 
-	DEBUG("... ");
-
 	while (adc->tail->info.cnt > 0 && count > 0) {
 		size = min(adc->tail->info.cnt, count);
 		spin_unlock_irqrestore(&adc->lock, flags);
 
-		if (copy_to_user(buffer, &adc->tail->data[H2_BUFFER_SIZE-size],
+		if (copy_to_user(buffer,
+				 &adc->tail->data[H2_BUFFER_SIZE -
+				 		  adc->tail->info.cnt],
 				 size)) {
 			ret = -EFAULT;
 			goto out;
 		}
 
 		spin_lock_irqsave(&adc->lock, flags);
-		
+
 		adc->tail->info.cnt -= size;
 		/* buffer is empty, update tail pointer */
 		if (adc->tail->info.cnt == 0) {
@@ -602,9 +605,9 @@ static int hal2_get_buffer(struct hal2_card *hal2, char *buffer, int count)
 		DEBUG("(%d) ", size);
 	}
 	spin_unlock_irqrestore(&adc->lock, flags);
-out:	
+out:
 	DEBUG("\n");
-	
+
 	return ret;
 } 
 
@@ -617,15 +620,15 @@ static int hal2_add_buffer(struct hal2_card *hal2, char *buffer, int count)
 	unsigned long flags;
 	int size, ret = 0;
 	struct hal2_codec *dac = &hal2->dac;
-	
+
 	spin_lock_irqsave(&dac->lock, flags);
-	
+
 	DEBUG("adding %d bytes ", count);
 
 	while (dac->head->info.cnt == 0 && count > 0) {
 		size = min((int)H2_BUFFER_SIZE, count);
 		spin_unlock_irqrestore(&dac->lock, flags);
-		
+
 		if (copy_from_user(dac->head->data, buffer, size)) {
 			ret = -EFAULT;
 			goto out;
@@ -645,11 +648,11 @@ static int hal2_add_buffer(struct hal2_card *hal2, char *buffer, int count)
 	}
 	if (!(dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) && ret > 0)
 		hal2_start_dac(hal2);
-	
+
 	spin_unlock_irqrestore(&dac->lock, flags);
-out:	
+out:
 	DEBUG("\n");
-	
+
 	return ret;
 }
 
@@ -658,7 +661,7 @@ out:
 static void hal2_reset_pointer(struct hal2_card *hal2, int is_dac)
 {
 	struct hal2_codec *codec = (is_dac) ? &hal2->dac : &hal2->adc;
-	
+
 	DEBUG("hal2_reset_pointer\n");
 
 	codec->tail = codec->head;
@@ -681,7 +684,7 @@ static int hal2_sync_dac(struct hal2_card *hal2)
 			      HZ / dac->sample_rate / 900;
 
 	down(&dac->sem);
-	
+
 	while (dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) {
 		add_wait_queue(&dac->dma_wait, &wait);
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -702,16 +705,16 @@ static int hal2_sync_dac(struct hal2_card *hal2)
 	}
 
 	up(&dac->sem);
-	
+
 	return ret;
 }
 
 static int hal2_write_mixer(struct hal2_card *hal2, int index, int vol)
 {
-	unsigned int l, r;
+	unsigned int l, r, tmp;
 
 	DEBUG_MIX("mixer %d write\n", index);
-	
+
 	if (index >= SOUND_MIXER_NRDEVICES || !mixtable[index].avail)
 		return -EINVAL;
 
@@ -730,14 +733,13 @@ static int hal2_write_mixer(struct hal2_card *hal2, int index, int vol)
 		DEBUG_MIX("output attenuator %d,%d\n", l, r);
 
 		if (r | l) {
-			unsigned int tmp = hal2_i_look32(hal2, H2I_DAC_C2); 
-		
+			tmp = hal2_i_look32(hal2, H2I_DAC_C2); 
 			tmp &= ~(H2I_C2_L_ATT_M | H2I_C2_R_ATT_M | H2I_C2_MUTE);
 
 			/* Attenuator has five bits */
-			l = (31 * (100 - l) / 99);
-			r = (31 * (100 - r) / 99);
-			
+			l = 31 * (100 - l) / 99;
+			r = 31 * (100 - r) / 99;
+
 			DEBUG_MIX("left: %d, right %d\n", l, r);
 
 			tmp |= (l << H2I_C2_L_ATT_SHIFT) & H2I_C2_L_ATT_M;
@@ -747,7 +749,22 @@ static int hal2_write_mixer(struct hal2_card *hal2, int index, int vol)
 			hal2_i_setbit32(hal2, H2I_DAC_C2, H2I_C2_MUTE);
 		break;
 	case H2_MIX_INPUT_GAIN:
-		/* TODO */
+
+		DEBUG_MIX("input gain %d,%d\n", l, r);
+
+		tmp = hal2_i_look32(hal2, H2I_ADC_C2);
+		tmp &= ~(H2I_C2_L_GAIN_M | H2I_C2_R_GAIN_M);
+
+		/* Gain control has four bits */
+		l = 16 * l / 100;
+		r = 16 * r / 100;
+
+		DEBUG_MIX("left: %d, right %d\n", l, r);
+
+		tmp |= (l << H2I_C2_L_GAIN_SHIFT) & H2I_C2_L_GAIN_M;
+		tmp |= (r << H2I_C2_R_GAIN_SHIFT) & H2I_C2_R_GAIN_M;
+		hal2_i_write32(hal2, H2I_ADC_C2, tmp);
+
 		break;
 	}
 
@@ -764,6 +781,10 @@ static void hal2_init_mixer(struct hal2_card *hal2)
 
 	/* disable attenuator */
 	hal2_i_write32(hal2, H2I_DAC_C2, 0);
+	/* set max input gain */
+	hal2_i_write32(hal2, H2I_ADC_C2, H2I_C2_MUTE |
+			(H2I_C2_L_GAIN_M << H2I_C2_L_GAIN_SHIFT) | 
+			(H2I_C2_R_GAIN_M << H2I_C2_R_GAIN_SHIFT));
 	/* set max volume */
 	hal2->mixer.master = 0xff;
 	hal2->vol_regs->left = 0xff;
@@ -799,7 +820,7 @@ static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
 
         if (cmd == SOUND_MIXER_INFO) {
 		mixer_info info;
-		
+
 		strncpy(info.id, hal2str, sizeof(info.id));
 		strncpy(info.name, hal2str, sizeof(info.name));
 		info.modify_counter = hal2->mixer.modcnt;
@@ -809,7 +830,7 @@ static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
 	}
 	if (cmd == SOUND_OLD_MIXER_INFO) {
 		_old_mixer_info info;
-		
+
 		strncpy(info.id, hal2str, sizeof(info.id));
 		strncpy(info.name, hal2str, sizeof(info.name));
 		if (copy_to_user((void *)arg, &info, sizeof(info)))
@@ -832,7 +853,7 @@ static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
                 case SOUND_MIXER_DEVMASK:
                 case SOUND_MIXER_STEREODEVS: {
 			int i;
-			
+
 			for (val = i = 0; i < SOUND_MIXER_NRDEVICES; i++)
 				if (mixtable[i].avail)
 					val |= 1 << i;
@@ -848,7 +869,7 @@ static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
 		/* Read a specific mixer */
 		default: {
 			int i = _IOC_NR(cmd);
-			
+
 			if (i >= SOUND_MIXER_NRDEVICES || !mixtable[i].avail)
 				return -EINVAL;
 			val = hal2->mixer.volume[mixtable[i].idx];
@@ -857,10 +878,10 @@ static int hal2_mixer_ioctl(struct hal2_card *hal2, unsigned int cmd,
 		}
 		return put_user(val, (int *)arg);
 	}
-	
+
         if (_IOC_DIR(cmd) != (_IOC_WRITE|_IOC_READ))
 		return -EINVAL;
-	
+
 	hal2->mixer.modcnt++;
 
 	if (get_user(val, (int *)arg))
@@ -908,18 +929,18 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 	switch (cmd) {
 	case OSS_GETVERSION:
 		return put_user(SOUND_VERSION, (int *)arg);
-		
+
 	case SNDCTL_DSP_SYNC:
 		if (file->f_mode & FMODE_WRITE)
 			return hal2_sync_dac(hal2);
 		return 0;
-		
+
 	case SNDCTL_DSP_SETDUPLEX:
 		return 0;
 
 	case SNDCTL_DSP_GETCAPS:
 		return put_user(DSP_CAP_DUPLEX | DSP_CAP_MULTI, (int *)arg);
-		
+
 	case SNDCTL_DSP_RESET:
 		if (file->f_mode & FMODE_READ) {
 			hal2_stop_adc(hal2);
@@ -947,7 +968,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 			hal2_set_dac_rate(hal2);
 		}
 		return put_user(val, (int *)arg);
-		
+
 	case SNDCTL_DSP_STEREO:
 		if (get_user(val, (int *)arg))
 			return -EFAULT;
@@ -984,10 +1005,10 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		if (file->f_mode & FMODE_WRITE)
 			val = hal2->dac.voices;
 		return put_user(val, (int *)arg);
-		
+
 	case SNDCTL_DSP_GETFMTS: /* Returns a mask */
                 return put_user(H2_SUPPORTED_FORMATS, (int *)arg);
-		
+
 	case SNDCTL_DSP_SETFMT: /* Selects ONE fmt*/
 		if (get_user(val, (int *)arg))
 			return -EFAULT;
@@ -1012,7 +1033,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 				val = hal2->dac.format;
 		}
 		return put_user(val, (int *)arg);
-		
+
 	case SNDCTL_DSP_POST:
 		return 0;
 
@@ -1021,10 +1042,10 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		audio_buf_info info;
 		struct hal2_buf *buf;
 		struct hal2_codec *dac = &hal2->dac;
-		
+
 		if (!(file->f_mode & FMODE_WRITE))
 			return -EINVAL;
-		
+
 		spin_lock_irqsave(&dac->lock, flags);
 		info.fragments = 0;
 		buf = dac->head;
@@ -1033,23 +1054,23 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 			buf = buf->info.next;
 		}
 		spin_unlock_irqrestore(&dac->lock, flags);
-		
-		info.fragstotal = obuffers;
+
+		info.fragstotal = obufs;
 		info.fragsize = H2_BUFFER_SIZE;
                 info.bytes = info.fragsize * info.fragments;
 
 		return copy_to_user((void *)arg, &info, sizeof(info)) ? -EFAULT : 0;
 	}
-			   
+
 	case SNDCTL_DSP_GETISPACE: {
 		unsigned long flags;
 		audio_buf_info info;
 		struct hal2_buf *buf;
 		struct hal2_codec *adc = &hal2->adc;
-			
+
 		if (!(file->f_mode & FMODE_READ))
 			return -EINVAL;
-		
+
 		spin_lock_irqsave(&adc->lock, flags);
 		info.fragments = 0;
 		info.bytes = 0;
@@ -1061,19 +1082,19 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		}
 		spin_unlock_irqrestore(&adc->lock, flags);
 
-		info.fragstotal = ibuffers;
+		info.fragstotal = ibufs;
 		info.fragsize = H2_BUFFER_SIZE;
-		
+
 		return copy_to_user((void *)arg, &info, sizeof(info)) ? -EFAULT : 0;
 	}
 
 	case SNDCTL_DSP_NONBLOCK:
 		file->f_flags |= O_NONBLOCK;
 		return 0;
-		
+
 	case SNDCTL_DSP_GETBLKSIZE:
 		return put_user(H2_BUFFER_SIZE, (int *)arg);
-	
+
 	case SNDCTL_DSP_SETFRAGMENT:
 		return 0;
 
@@ -1097,7 +1118,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		val = 16;
 		return put_user(val, (int *)arg);
 	}
-	
+
 	return hal2_mixer_ioctl(hal2, cmd, arg);
 }
 
@@ -1112,9 +1133,9 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 		return 0;
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
-	
+
 	down(&adc->sem);
-	
+
 	if (file->f_flags & O_NONBLOCK) {
 		err = hal2_get_buffer(hal2, buffer, count);
 		err = err == 0 ? -EAGAIN : err;
@@ -1125,7 +1146,7 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 				2 * adc->voices * HZ / adc->sample_rate / 900;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
-			
+
 			err = hal2_get_buffer(hal2, buffer, count);
 			if (err > 0) {
 				count -= err;
@@ -1154,11 +1175,10 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 				remove_wait_queue(&adc->dma_wait, &wait);
 			}
 		} while (count > 0 && err >= 0);
-	
 	}
-	
+
 	up(&adc->sem);
-	
+
 	return err;
 }
 
@@ -1187,7 +1207,7 @@ static ssize_t hal2_write(struct file *file, const char *buffer,
 				2 * dac->voices * HZ / dac->sample_rate / 900;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
-			
+
 			err = hal2_add_buffer(hal2, buf, count);
 			if (err > 0) {
 				count -= err;
@@ -1217,7 +1237,7 @@ static ssize_t hal2_write(struct file *file, const char *buffer,
 			}
 		} while (count > 0 && err >= 0);
 	}
-	
+
 	up(&dac->sem);
 
 	return err;
@@ -1231,24 +1251,24 @@ static unsigned int hal2_poll(struct file *file, struct poll_table_struct *wait)
 
 	if (file->f_mode & FMODE_READ) {
 		struct hal2_codec *adc = &hal2->adc;
-		
+
 		poll_wait(file, &hal2->adc.dma_wait, wait);
 		spin_lock_irqsave(&adc->lock, flags);
 		if (adc->tail->info.cnt > 0)
 			mask |= POLLIN;
 		spin_unlock_irqrestore(&adc->lock, flags);
 	}
-	
+
 	if (file->f_mode & FMODE_WRITE) {
 		struct hal2_codec *dac = &hal2->dac;
-		
+
 		poll_wait(file, &dac->dma_wait, wait);
 		spin_lock_irqsave(&dac->lock, flags);
 		if (dac->head->info.cnt == 0)
 			mask |= POLLOUT;
 		spin_unlock_irqrestore(&dac->lock, flags);
 	}
-	
+
 	return mask;
 }
 
@@ -1267,7 +1287,7 @@ static int hal2_open(struct inode *inode, struct file *file)
 	if (file->f_mode & FMODE_READ) {
 		if (hal2->adc.usecount)
 			return -EBUSY;
-		
+
 		/* OSS spec wanted us to use 8 bit, 8 kHz mono by default,
 		 * but HAL2 can't do 8bit audio */
 		hal2->adc.format = AFMT_S16_BE;
@@ -1301,7 +1321,7 @@ static int hal2_open(struct inode *inode, struct file *file)
 		
 		hal2->dac.usecount++;
 	}
-	
+
 	return 0;
 }
 
@@ -1416,7 +1436,7 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 {
 	int ret = 0;
 	struct hal2_card *hal2;
-	
+
 	hal2 = (struct hal2_card *) kmalloc(sizeof(struct hal2_card), GFP_KERNEL);
 	if (!hal2)
 		return -ENOMEM;
@@ -1438,7 +1458,7 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 	ret = hal2_alloc_resources(hal2, hpc3);
 	if (ret)
 		goto fail1;
-	
+
 	hal2->dev_dsp = register_sound_dsp(&hal2_audio_fops, -1);
 	if (hal2->dev_dsp < 0) {
 		ret = hal2->dev_dsp;
@@ -1468,10 +1488,11 @@ static int hal2_init_card(struct hal2_card **phal2, struct hpc3_regs *hpc3)
 				HPC3_DMACFG_DS16 | \
 				HPC3_DMACFG_EVENHI | \
 				HPC3_DMACFG_RTIME | \
+			  (8 << HPC3_DMACFG_BURST_SHIFT) | \
 				HPC3_DMACFG_DRQLIVE)
 	/*
 	 * Ignore what's mentioned in the specification and write value which
-	 * works in Real World (TM)
+	 * works in The Real World (TM)
 	 */
 	hpc3->pbus_dmacfg[hal2->dac.pbus.pbusnr][0] = 0x8208844;
 	hpc3->pbus_dmacfg[hal2->adc.pbus.pbusnr][0] = 0x8208844;
@@ -1486,7 +1507,7 @@ fail2:
 	hal2_free_resources(hal2);
 fail1:
 	kfree(hal2);
-	
+
 	return ret;
 }
 
@@ -1502,6 +1523,17 @@ static int __init init_hal2(void)
 
 	for (i = 0; i < MAXCARDS; i++)
 		hal2_card[i] = NULL;
+
+	/* adjust input and output buffer count to some reasonable value */
+	if (ibufs < 2)
+		ibufs = 2;
+	else if (ibufs > 16)
+		ibufs = 16;
+
+	if (obufs < 2)
+		obufs = 2;
+	else if (obufs > 64)
+		obufs = 64;
 
 	error = hal2_init_card(&hal2_card[0], hpc3c0);
 	
@@ -1531,6 +1563,31 @@ static void __exit exit_hal2(void)
 
 module_init(init_hal2);
 module_exit(exit_hal2);
+
+#ifndef MODULE
+static int __init setup_hal2(char *str)
+{
+        /* enable main mixer control, input buffers, output buffers */
+	int ints[3];
+	
+	str = get_options(str, ARRAY_SIZE(ints), ints);
+	
+	msmix = ints[1];
+	ibufs = ints[2];
+	obufs = ints[3];
+
+	return 1;
+}
+
+__setup("hal2=", setup_hal2);	
+#endif
+
+MODULE_PARM(msmix, "i");
+MODULE_PARM(ibufs, "i");
+MODULE_PARM(obufs, "i");
+MODULE_PARM_DESC(msmix, "Enables master volume mixer");
+MODULE_PARM_DESC(ibufs, "Number of (page sized) input buffers");
+MODULE_PARM_DESC(obufs, "Number of (page sized) output buffers");
 
 MODULE_DESCRIPTION("OSS compatible driver for SGI HAL2 audio");
 MODULE_AUTHOR("Ladislav Michl");
