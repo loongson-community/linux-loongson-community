@@ -178,7 +178,8 @@ void __init smp_boot_cpus(void)
 
 void __init smp_commence(void)
 {
-	/* Not sure what to do here yet */
+	wmb();
+	atomic_set(&smp_commenced, 1);
 }
 
 void smp_send_reschedule(int cpu)
