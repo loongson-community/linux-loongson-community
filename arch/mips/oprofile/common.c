@@ -13,6 +13,7 @@
 
 #include "op_impl.h"
 
+extern struct op_mips_model op_model_mipsxx __attribute__((weak));
 extern struct op_mips_model op_model_rm9000 __attribute__((weak));
 
 static struct op_mips_model *model;
@@ -72,6 +73,10 @@ void __init oprofile_arch_init(struct oprofile_operations *ops)
 	struct op_mips_model *lmodel = NULL;
 
 	switch (current_cpu_data.cputype) {
+	case CPU_24K:
+		lmodel = &op_model_mipsxx;
+		break;
+
 	case CPU_RM9000:
 		lmodel = &op_model_rm9000;
 		break;
