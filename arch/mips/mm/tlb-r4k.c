@@ -362,7 +362,6 @@ __init int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 	}
 
 	write_c0_index(temp_tlb_entry);
-	BARRIER;
 	write_c0_pagemask(pagemask);
 	write_c0_entryhi(entryhi);
 	write_c0_entrylo0(entrylo0);
