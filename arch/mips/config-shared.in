@@ -74,6 +74,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
       bool '    Configure for L3proc Demo' CONFIG_L3DEMO
       int '    Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
       bool '    Multi-Processing support' CONFIG_SMP
+      define_bool CONFIG_SIBYTE_CFE y
    fi
 fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
