@@ -28,6 +28,7 @@
 #include <linux/auto_fs.h>
 #include <linux/ext2_fs.h>
 #include <linux/raid/md_u.h>
+#include <linux/rtc.h>
 #include <scsi/scsi.h>
 #undef __KERNEL__		/* This file was born to be ugly ...  */
 #include <scsi/scsi_ioctl.h>
@@ -833,7 +834,25 @@ static struct ioctl32_list ioctl32_handler_table[] = {
 	IOCTL32_DEFAULT(AUTOFS_IOC_CATATONIC),
 	IOCTL32_DEFAULT(AUTOFS_IOC_PROTOVER),
 	IOCTL32_HANDLER(AUTOFS_IOC_SETTIMEOUT32, ioc_settimeout),
-	IOCTL32_DEFAULT(AUTOFS_IOC_EXPIRE)
+	IOCTL32_DEFAULT(AUTOFS_IOC_EXPIRE),
+
+	/* Little p (/dev/rtc, /dev/envctrl, etc.) */
+	IOCTL32_DEFAULT(_IOR('p', 20, int[7])), /* RTCGET */
+	IOCTL32_DEFAULT(_IOW('p', 21, int[7])), /* RTCSET */
+	IOCTL32_DEFAULT(RTC_AIE_ON),
+	IOCTL32_DEFAULT(RTC_AIE_OFF),
+	IOCTL32_DEFAULT(RTC_UIE_ON),
+	IOCTL32_DEFAULT(RTC_UIE_OFF),
+	IOCTL32_DEFAULT(RTC_PIE_ON),
+	IOCTL32_DEFAULT(RTC_PIE_OFF),
+	IOCTL32_DEFAULT(RTC_WIE_ON),
+	IOCTL32_DEFAULT(RTC_WIE_OFF),
+	IOCTL32_DEFAULT(RTC_ALM_SET),
+	IOCTL32_DEFAULT(RTC_ALM_READ),
+	IOCTL32_DEFAULT(RTC_RD_TIME),
+	IOCTL32_DEFAULT(RTC_SET_TIME),
+	IOCTL32_DEFAULT(RTC_WKALM_SET),
+	IOCTL32_DEFAULT(RTC_WKALM_RD)
 };
 
 #define NR_IOCTL32_HANDLERS	(sizeof(ioctl32_handler_table) /	\
