@@ -78,7 +78,7 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	unsigned long epc, fixup;
+	unsigned long fixup;
 	siginfo_t info;
 
 	/*
@@ -182,8 +182,7 @@ bad_area_nosemaphore:
 
 no_context:
 	/* Are we prepared to handle this kernel fault?  */
-	epc = regs->cp0_epc + delay_slot(regs) ? 4 : 0;
-	fixup = search_exception_table(epc);
+	fixup = search_exception_table(exception_epc(regs));
 	if (fixup) {
 		long new_epc;
 
