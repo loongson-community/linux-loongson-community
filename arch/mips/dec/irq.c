@@ -4,7 +4,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * $Id: irq.c,v 1.1.2.1 1998/03/18 20:51:19 harald Exp $
+ * $Id: irq.c,v 1.2 1999/01/17 03:49:41 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -24,7 +24,6 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/wbflush.h>
 
 #include <asm/dec/interrupts.h>
 

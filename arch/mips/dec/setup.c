@@ -101,9 +101,13 @@ __initfunc(static void dec_time_init(struct irqaction *irq))
 {
     /*
      * Here we go, enable periodic rtc interrupts.
-     * Frequency is 128 Hz.
      */
-    CMOS_WRITE(RTC_REF_CLCK_32KHZ | 0x9, RTC_REG_A);
+
+#ifndef LOG_2_HZ
+#  define LOG_2_HZ 7
+#endif
+
+    CMOS_WRITE(RTC_REF_CLCK_32KHZ | (16 - LOG_2_HZ), RTC_REG_A);
     CMOS_WRITE(CMOS_READ(RTC_REG_B) | RTC_PIE, RTC_REG_B);
     setup_dec_irq(CLOCK, irq);
 }
@@ -291,25 +295,30 @@ __initfunc(void dec_init_kn02ba(void))
     asic_mask_tbl[0] = KMIN_CLOCK;
     asic_irq_nr[0] = CLOCK;
 
+    dec_interrupt[SCSI_DMA_INT].cpu_mask = IE_IRQ3;
+    dec_interrupt[SCSI_DMA_INT].iemask = SCSI_DMA_INTS;
+    asic_mask_tbl[1] = SCSI_DMA_INTS;
+    asic_irq_nr[1] = SCSI_DMA_INT;
+
     dec_interrupt[SCSI_INT].cpu_mask = IE_IRQ3;
-    dec_interrupt[SCSI_INT].iemask = KMIN_SCSI_INTS;
-    asic_mask_tbl[1] = KMIN_SCSI_INTS;
-    asic_irq_nr[1] = SCSI_INT;
+    dec_interrupt[SCSI_INT].iemask = SCSI_CHIP;
+    asic_mask_tbl[2] = SCSI_CHIP;
+    asic_irq_nr[2] = SCSI_INT;
 
     dec_interrupt[ETHER].cpu_mask = IE_IRQ3;
     dec_interrupt[ETHER].iemask = LANCE_INTS;
-    asic_mask_tbl[2] = LANCE_INTS;
-    asic_irq_nr[2] = ETHER;
+    asic_mask_tbl[3] = LANCE_INTS;
+    asic_irq_nr[3] = ETHER;
 
     dec_interrupt[SERIAL].cpu_mask = IE_IRQ3;
     dec_interrupt[SERIAL].iemask = SERIAL_INTS;
-    asic_mask_tbl[3] = SERIAL_INTS;
-    asic_irq_nr[3] = SERIAL;
+    asic_mask_tbl[4] = SERIAL_INTS;
+    asic_irq_nr[4] = SERIAL;
 
     dec_interrupt[MEMORY].cpu_mask = IE_IRQ3;
     dec_interrupt[MEMORY].iemask = KMIN_TIMEOUT;
-    asic_mask_tbl[4] = KMIN_TIMEOUT;
-    asic_irq_nr[4] = MEMORY;
+    asic_mask_tbl[5] = KMIN_TIMEOUT;
+    asic_irq_nr[5] = MEMORY;
 
     dec_interrupt[TC0].cpu_mask = IE_IRQ0;
     dec_interrupt[TC0].iemask = 0;
@@ -366,30 +375,35 @@ __initfunc(void dec_init_kn02ca(void))
     cpu_mask_tbl[0] = IE_IRQ1;
     cpu_irq_nr[0] = CLOCK;
 
+    dec_interrupt[SCSI_DMA_INT].cpu_mask = IE_IRQ3;
+    dec_interrupt[SCSI_DMA_INT].iemask = SCSI_DMA_INTS;
+    asic_mask_tbl[0] = SCSI_DMA_INTS;
+    asic_irq_nr[0] = SCSI_DMA_INT;
+
     dec_interrupt[SCSI_INT].cpu_mask = IE_IRQ3;
-    dec_interrupt[SCSI_INT].iemask = SCSI_INTS;
-    asic_mask_tbl[0] = SCSI_INTS;
-    asic_irq_nr[0] = SCSI_INT;
+    dec_interrupt[SCSI_INT].iemask = SCSI_CHIP;
+    asic_mask_tbl[1] = SCSI_CHIP;
+    asic_irq_nr[1] = SCSI_INT;
 
     dec_interrupt[ETHER].cpu_mask = IE_IRQ3;
     dec_interrupt[ETHER].iemask = LANCE_INTS;
-    asic_mask_tbl[1] = LANCE_INTS;
-    asic_irq_nr[1] = ETHER;
+    asic_mask_tbl[2] = LANCE_INTS;
+    asic_irq_nr[2] = ETHER;
 
     dec_interrupt[SERIAL].cpu_mask = IE_IRQ3;
     dec_interrupt[SERIAL].iemask = XINE_SERIAL_INTS;
-    asic_mask_tbl[2] = XINE_SERIAL_INTS;
-    asic_irq_nr[2] = SERIAL;
+    asic_mask_tbl[3] = XINE_SERIAL_INTS;
+    asic_irq_nr[3] = SERIAL;
 
     dec_interrupt[TC0].cpu_mask = IE_IRQ3;
     dec_interrupt[TC0].iemask = MAXINE_TC0;
-    asic_mask_tbl[3] = MAXINE_TC0;
-    asic_irq_nr[3] = TC0;
+    asic_mask_tbl[4] = MAXINE_TC0;
+    asic_irq_nr[4] = TC0;
 
     dec_interrupt[TC1].cpu_mask = IE_IRQ3;
     dec_interrupt[TC1].iemask = MAXINE_TC1;
-    asic_mask_tbl[4] = MAXINE_TC1;
-    asic_irq_nr[4] = TC1;
+    asic_mask_tbl[5] = MAXINE_TC1;
+    asic_irq_nr[5] = TC1;
 
     dec_interrupt[MEMORY].cpu_mask = IE_IRQ2;
     dec_interrupt[MEMORY].iemask = 0;
@@ -436,35 +450,40 @@ __initfunc(void dec_init_kn03(void))
     cpu_mask_tbl[0] = IE_IRQ1;
     cpu_irq_nr[0] = CLOCK;
 
+    dec_interrupt[SCSI_DMA_INT].cpu_mask = IE_IRQ0;
+    dec_interrupt[SCSI_DMA_INT].iemask = SCSI_DMA_INTS;
+    asic_mask_tbl[0] = SCSI_DMA_INTS;
+    asic_irq_nr[0] = SCSI_DMA_INT;
+
     dec_interrupt[SCSI_INT].cpu_mask = IE_IRQ0;
-    dec_interrupt[SCSI_INT].iemask = SCSI_INTS;
-    asic_mask_tbl[0] = SCSI_INTS;
-    asic_irq_nr[0] = SCSI_INT;
+    dec_interrupt[SCSI_INT].iemask = SCSI_CHIP;
+    asic_mask_tbl[1] = SCSI_CHIP;
+    asic_irq_nr[1] = SCSI_INT;
 
     dec_interrupt[ETHER].cpu_mask = IE_IRQ0;
     dec_interrupt[ETHER].iemask = LANCE_INTS;
-    asic_mask_tbl[1] = LANCE_INTS;
-    asic_irq_nr[1] = ETHER;
+    asic_mask_tbl[2] = LANCE_INTS;
+    asic_irq_nr[2] = ETHER;
 
     dec_interrupt[SERIAL].cpu_mask = IE_IRQ0;
     dec_interrupt[SERIAL].iemask = SERIAL_INTS;
-    asic_mask_tbl[2] = SERIAL_INTS;
-    asic_irq_nr[2] = SERIAL;
+    asic_mask_tbl[3] = SERIAL_INTS;
+    asic_irq_nr[3] = SERIAL;
 
     dec_interrupt[TC0].cpu_mask = IE_IRQ0;
     dec_interrupt[TC0].iemask = KN03_TC0;
-    asic_mask_tbl[3] = KN03_TC0;
-    asic_irq_nr[3] = TC0;
+    asic_mask_tbl[4] = KN03_TC0;
+    asic_irq_nr[4] = TC0;
 
     dec_interrupt[TC1].cpu_mask = IE_IRQ0;
     dec_interrupt[TC1].iemask = KN03_TC1;
-    asic_mask_tbl[4] = KN03_TC1;
-    asic_irq_nr[4] = TC1;
+    asic_mask_tbl[5] = KN03_TC1;
+    asic_irq_nr[5] = TC1;
 
     dec_interrupt[TC2].cpu_mask = IE_IRQ0;
     dec_interrupt[TC2].iemask = KN03_TC2;
-    asic_mask_tbl[5] = KN03_TC2;
-    asic_irq_nr[5] = TC2;
+    asic_mask_tbl[6] = KN03_TC2;
+    asic_irq_nr[6] = TC2;
 
     dec_interrupt[MEMORY].cpu_mask = IE_IRQ3;
     dec_interrupt[MEMORY].iemask = 0;

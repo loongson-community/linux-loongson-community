@@ -58,10 +58,25 @@
 #define SIMR		0x120			/* System Interrupt Mask Register */
 
 /*
- * These come from mach, meaning unkown	yet
+ * Handle partial word SCSI DMA transfers
  */
 #define	SCSI_SCR	0x1b0
 #define	SCSI_SDR0	0x1c0
 #define	SCSI_SDR1	0x1d0
+
+/*
+ * DMA defines for the System Support Register
+ */
+#define LANCE_DMA_EN	(1UL<<16)			/* LANCE DMA enable */
+#define SCSI_DMA_EN	(1UL<<17)			/* SCSI DMA enable */
+#define SCSI_DMA_DIR	(1UL<<18)			/* SCSI DMA direction */
+#define ISDN_REC_DMA_EN (1UL<<19)			/* ISDN receive DMA enable */
+#define ISDN_TRN_DMA_EN (1UL<<20)			/* ISDN transmit DMA enable */
+#define FLOPPY_DMA_EN	(1UL<<21)			/* Floppy DMA enable */
+#define FLOPPY_DMA_DIR	(1UL<<22)			/* Floppy DMA direction */
+#define SCC1A_DMA_EN	(1UL<<28)			/* SCC1 Channel A DMA enable */
+#define SCC1B_DMA_EN	(1UL<<29)			/* SCC1 Channel B DMA enable */
+#define SCC0A_DMA_EN	(1UL<<30)			/* SCC0 Channel A DMA enable */
+#define SCC0B_DMA_EN	(1UL<<31)			/* Scc0 Channel B DMA enable */
 
 #endif

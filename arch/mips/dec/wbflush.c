@@ -101,11 +101,4 @@ static void wbflush_kn02ba(void)
  */
 static void wbflush_kn03(void)
 {
-    asm(".set\tpush\n\t"
-	".set\tnoreorder\n\t"
-	"lui\t$2,0xbf84\n\t"
-	"lw\t$3,0x120($2)\n\t"
-	"lw\t$3,0x120($2)\n\t"
-	".set\tpop"
-  : : :"$2", "$3");
 }

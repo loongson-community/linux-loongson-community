@@ -93,3 +93,12 @@ __initfunc(void prom_meminit(unsigned int magic))
 	prom_printf("mips_memory_upper: 0x%08x\n", mips_memory_upper);
 #endif
 }
+
+/* Called from mem_init() to fixup the mem_map page settings. */
+__initfunc(void prom_fixup_mem_map(unsigned long start, unsigned long end))
+{
+}
+
+void prom_free_prom_memory (void)
+{
+}

@@ -423,7 +423,7 @@ __initfunc(void time_init(void))
      * The PROM will reset the year to either '70, '71 or '72.
      * This hack will only work until Dec 31 2001.
      */
-    year += 1925;
+    year += 1927;
 
     xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
     xtime.tv_usec = 0;

@@ -23,17 +23,18 @@
  * Interrupts before the TC Interrupts.
  */
 #define CLOCK 	0
-#define SCSI_INT	1
-#define ETHER	2
-#define SERIAL	3
-#define TC0	4
-#define TC1	5
-#define TC2	6
-#define MEMORY	7
-#define FPU	8
-#define HALT	9
+#define SCSI_DMA_INT 	1
+#define SCSI_INT	2
+#define ETHER		3
+#define SERIAL		4
+#define TC0		5
+#define TC1		6
+#define TC2		7
+#define MEMORY		8
+#define FPU		9
+#define HALT		10
 
-#define NR_INTS	10
+#define NR_INTS	11
 
 #ifndef _LANGUAGE_ASSEMBLY
 /*

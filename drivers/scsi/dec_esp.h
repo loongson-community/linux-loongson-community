@@ -1,6 +1,6 @@
 /* dec_esp.h: Defines and structures for the JAZZ SCSI driver.
  *
- * Copyright (C) 1998 Harald Koerfgen
+ * DECstation changes Copyright (C) 1998 Harald Koerfgen
  *
  * based on jazz_esp.h:
  * Copyright (C) 1997 Thomas Bogendoerfer (tsbogend@alpha.franken.de)
@@ -39,4 +39,4 @@ extern int esp_proc_info(char *buffer, char **start, off_t offset, int length,
 		cmd_per_lun:    1,				\
 		use_clustering: DISABLE_CLUSTERING, }
 
-#endif /* JAZZ_DEC_H */
+#endif /* DEC_ESP_H */
