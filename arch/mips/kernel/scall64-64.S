@@ -214,7 +214,7 @@ sys_call_table:
 	PTR	sys_newlstat
 	PTR	sys_poll
 	PTR	sys_lseek
-	PTR	sys_mmap2
+	PTR	old_mmap
 	PTR	sys_mprotect			/* 5010 */
 	PTR	sys_munmap
 	PTR	sys_brk
