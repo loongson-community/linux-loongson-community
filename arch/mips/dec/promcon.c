@@ -34,28 +34,23 @@ static int __init prom_console_setup(struct console *co, char *options)
 	return 0;
 }
 
-static kdev_t prom_console_device(struct console *c)
-{
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
-}
-
 static struct console sercons =
 {
-    .name	= "ttyS",
-    .write	= prom_console_write,
-    .device	= prom_console_device,
-    .setup	= prom_console_setup,
-    .flags	= CON_PRINTBUFFER,
-    .index	= -1,
+	.name	= "ttyS",
+	.write	= prom_console_write,
+	.setup	= prom_console_setup,
+	.flags	= CON_PRINTBUFFER,
+	.index	= -1,
 };
 
 /*
  *    Register console.
  */
 
-long __init prom_console_init(long kmem_start, long kmem_end)
+static int __init prom_console_init(void)
 {
 	register_console(&sercons);
 
-	return kmem_start;
+	return 0;
 }
+console_initcall(prom_console_init);
