@@ -188,7 +188,7 @@ asmlinkage int sys_sigaltstack(struct pt_regs regs)
 static inline int restore_thread_fp_context(struct sigcontext *sc)
 {
 	u64 *pfreg = &current->thread.fpu.soft.regs[0];
-	int i, err = 0;
+	int err = 0;
 
 	/* 
 	 * Copy all 32 64-bit values, for two reasons.  First, the R3000 and
@@ -216,10 +216,10 @@ static inline int restore_thread_fp_context(struct sigcontext *sc)
 static inline int save_thread_fp_context(struct sigcontext *sc)
 {
 	u64 *pfreg = &current->thread.fpu.soft.regs[0];
-	int i, err = 0;
+	int err = 0;
 
 #define save_fpr(i) 							\
-	do { err |= __put_user(regs->regs[i], &sc->sc_fpregs[i]); } while(0)
+	do { err |= __put_user(pfreg[i], &sc->sc_fpregs[i]); } while(0)
 
 	save_fpr( 0); save_fpr( 1); save_fpr( 2); save_fpr( 3);
 	save_fpr( 4); save_fpr( 5); save_fpr( 6); save_fpr( 7);
