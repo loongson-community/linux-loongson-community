@@ -17,6 +17,7 @@
 #include <linux/pci.h>
 #include <linux/ide.h>
 
+#include <asm/bootinfo.h>
 #include <asm/checksum.h>
 #include <asm/dma.h>
 #include <asm/io.h>
@@ -40,6 +41,7 @@ extern long __strlen_user_asm(const char *s);
 extern long __strnlen_user_nocheck_asm(const char *s);
 extern long __strnlen_user_asm(const char *s);
 
+EXPORT_SYMBOL(mips_machtype);
 EXPORT_SYMBOL(EISA_bus);
 
 /*
