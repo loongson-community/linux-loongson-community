@@ -566,6 +566,9 @@ __initfunc(int rtc_init(void))
 	if (guess)
 		printk("rtc: %s epoch (%lu) detected\n", guess, epoch);
 #endif
+#ifdef CONFIG_MIPS_JAZZ
+	epoch = 1980;
+#endif
 	init_timer(&rtc_irq_timer);
 	rtc_irq_timer.function = rtc_dropped_irq;
 	rtc_wait = NULL;
