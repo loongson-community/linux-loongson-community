@@ -203,20 +203,15 @@ static inline void pci_unmap_page(struct pci_dev *hwdev, dma_addr_t dma_address,
 static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 			     int nents, int direction)
 {
-#ifdef CONFIG_NONCOHERENT_IO
 	int i;
-#endif
 
 	if (direction == PCI_DMA_NONE)
 		BUG();
 
-	/* Make sure that gcc doesn't leave the empty loop body.  */
 	for (i = 0; i < nents; i++, sg++) {
-#ifdef CONFIG_NONCOHERENT_IO
 		dma_cache_wback_inv((unsigned long)page_address(sg->page),
 		                    sg->length);
-#endif
-	//	sg->address = (char *)(bus_to_baddr[hwdev->bus->number] | __pa(sg->address));
+		sg->address = (char *)(bus_to_baddr[hwdev->bus->number] | __pa(sg->address));
 	}
 
 	return nents;
@@ -291,8 +286,10 @@ static inline int pci_dma_supported(struct pci_dev *hwdev, u64 mask)
 	 * so we can't guarantee allocations that must be
 	 * within a tighter range than GFP_DMA..
 	 */
+#ifdef CONFIG_ISA
 	if (mask < 0x00ffffff)
 		return 0;
+#endif
 
 	return 1;
 }
