@@ -13,7 +13,6 @@
 #include <asm/regdef.h>
 #include <asm/cacheops.h>
 #include <asm/mipsregs.h>
-#include <asm/page.h>
 
 #define PAGE_SIZE       0x1000
 
@@ -134,7 +133,8 @@ LEAF(r4k_clear_page_r4600_v2)
 	nop
 
 	.set	volatile
-	lw	zero, KSEG1
+	la	AT, KSEG1
+	lw	zero, (AT)
 	.set	novolatile
 
 	addiu	AT, a0, PAGE_SIZE
