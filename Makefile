@@ -184,7 +184,6 @@ ARCH		?= $(SUBARCH)
 CROSS_COMPILE	?=
 
 # Architecture as present in compile.h
-
 UTS_MACHINE := $(ARCH)
 
 # SHELL used by kbuild
