@@ -46,7 +46,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 
 stack_done:
 		sw	a3, PT_R26(sp)          # save for syscall restart
-		lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+		LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
 		bltz	t0, syscall_trace_entry	# -> yes
 
 		jalr	t2			# Do The Real Thing (TM)
@@ -68,7 +68,7 @@ EXPORT(o32_syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)	# current->work
+		LONG_L	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, o32_syscall_exit_work
 
 o32_restore_all:
@@ -226,7 +226,7 @@ illegal_syscall:
 1:
 
 	/* Success, so skip usual error handling garbage.  */
-	lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
 	bltz	t0, 1f
 	b	o32_syscall_exit
 

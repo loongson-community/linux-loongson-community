@@ -47,7 +47,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 
 		sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
-		lw	t0, TI_FLAGS($28)
+		LONG_L	t0, TI_FLAGS($28)
 		bltz	t0, syscall_trace_entry	# syscall tracing enabled?
 
 		jalr	t2			# Do The Real Thing (TM)
@@ -69,7 +69,7 @@ syscall_exit:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)	# current->work
+		LONG_L	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
 FEXPORT(restore_all)
@@ -89,7 +89,7 @@ work_resched:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)
+		LONG_L	a2, TI_FLAGS($28)
 		andi	a2, _TIF_WORK_MASK	# is there any work to be done
 						# other than syscall tracing
 		beqz	a2, restore_all
@@ -104,7 +104,7 @@ work_notifysig:					# deal with pending signals and
 		j	restore_all
 
 syscall_exit_work:
-		lw	t0, TI_FLAGS($28)	# current->work.syscall_trace
+		LONG_L	t0, TI_FLAGS($28)	# current->work.syscall_trace
 		bgez	t0, work_pending
 
 		mfc0	t0, CP0_STATUS		# sti

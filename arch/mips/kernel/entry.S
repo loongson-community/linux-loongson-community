@@ -76,7 +76,7 @@ EXPORT(resume_userspace)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)
+		LONG_L	a2, TI_FLAGS($28)
 		andi	a2, _TIF_WORK_MASK	# current->work (ignoring
 						# syscall_trace)
 		bnez	a2, work_pending
@@ -89,7 +89,7 @@ EXPORT(syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)	# current->work
+		LONG_L	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
 FEXPORT(restore_all)
@@ -109,7 +109,7 @@ work_resched:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)
+		LONG_L	a2, TI_FLAGS($28)
 		andi	a2, _TIF_WORK_MASK	# is there any work to be done
 						# other than syscall tracing?
 		beqz	a2, restore_all
@@ -124,7 +124,7 @@ work_notifysig:					# deal with pending signals and
 		j	restore_all
 
 FEXPORT(syscall_exit_work)
-		lw	t0, TI_FLAGS($28)
+		LONG_L	t0, TI_FLAGS($28)
 		bgez	t0, work_pending	# trace bit is set
 		mfc0	t0, CP0_STATUS		# sti
 		ori	t0, t0, 1

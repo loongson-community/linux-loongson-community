@@ -53,7 +53,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	bgez	t0, stackargs
 
 stack_done:
-		lw	t0, TI_FLAGS($28)
+		LONG_L	t0, TI_FLAGS($28)
 						# syscall tracing enabled?
 		bnez	t0, trace_a_syscall
 
@@ -75,7 +75,7 @@ FEXPORT(o32_syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TI_FLAGS($28)
+		LONG_L	a2, TI_FLAGS($28)
 		bnez	a2, o32_syscall_exit_work
 
 restore_all:	RESTORE_SOME
@@ -203,7 +203,7 @@ LEAF(mips_atomic_set)
 1:		sd	v0, PT_R2(sp)		# result
 
 		/* Success, so skip usual error handling garbage.  */
-		lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+		LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
 		bltz	t0, 1f
 		b	o32_syscall_exit
 
