@@ -27,18 +27,6 @@
 #include <asm/hardirq.h>
 #include <asm/div64.h>
 
-/* 
- * macro for catching spurious errors.  Eable to LL_DEBUG in kernel hacking
- * config menu.
- */
-#ifdef CONFIG_LL_DEBUG
-#define	MIPS_ASSERT(x)	if (!(x)) { panic("MIPS_ASSERT failed at %s:%d\n", __FILE__, __LINE__); }
-#define MIPS_DEBUG(x)  do { x; } while (0)
-#else
-#define MIPS_ASSERT(x)
-#define MIPS_DEBUG(x)
-#endif
-
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC ((1000000ULL << 32) / HZ & 0xffffffff)
@@ -159,10 +147,6 @@ unsigned long fixed_rate_gettimeoffset(void)
 	u32 count;
 	unsigned long res;
 
-	MIPS_ASSERT(mips_cpu.options & MIPS_CPU_COUNTER);
-	MIPS_ASSERT(mips_counter_frequency != 0);
-	MIPS_ASSERT(sll32_usecs_per_cycle != 0);
-
 	/* Get last timer tick in absolute kernel time */
 	count = read_32bit_cp0_register(CP0_COUNT);
 
@@ -204,8 +188,6 @@ unsigned long calibrate_div32_gettimeoffset(void)
 	unsigned long res, tmp;
 	unsigned long quotient;
 
-	MIPS_ASSERT(mips_cpu.options & MIPS_CPU_COUNTER);
-
 	tmp = jiffies;
 
 	quotient = cached_quotient;
@@ -246,11 +228,6 @@ unsigned long calibrate_div64_gettimeoffset(void)
 	u32 count;
 	unsigned long res, tmp;
 	unsigned long quotient;
-
-	MIPS_ASSERT(mips_cpu.options & MIPS_CPU_COUNTER);
-	MIPS_ASSERT((mips_cpu.isa_level != MIPS_CPU_ISA_I) &&
-		    (mips_cpu.isa_level != MIPS_CPU_ISA_II) &&
-		    (mips_cpu.isa_level != MIPS_CPU_ISA_M32));
 
 	tmp = jiffies;
 
@@ -434,19 +411,14 @@ static struct irqaction timer_irqaction = {
 
 void __init time_init(void)
 {
-	printk("New MIPS time_init() invoked.\n");
-
 	if (board_time_init)
 		board_time_init();
 
-	/* setup xtime */
-	write_lock_irq(&xtime_lock);
 	xtime.tv_sec = rtc_get_time();
 	xtime.tv_usec = 0;
-	write_unlock_irq(&xtime_lock);
 
 	/* choose appropriate gettimeoffset routine */
-	if ( ! (mips_cpu.options & MIPS_CPU_COUNTER) ) {
+	if (!(mips_cpu.options & MIPS_CPU_COUNTER)) {
 		/* no cpu counter - sorry */
 		do_gettimeoffset = null_gettimeoffset;
 	} else if (mips_counter_frequency != 0) {
@@ -473,11 +445,6 @@ void __init time_init(void)
 		sll32_usecs_per_cycle = mips_counter_frequency / 100000;
 		sll32_usecs_per_cycle = 0xffffffff / sll32_usecs_per_cycle;
 		sll32_usecs_per_cycle *= 10;
-
-		MIPS_DEBUG(printk("cycles_per_jiffy = %d\n", 
-				  cycles_per_jiffy));
-		MIPS_DEBUG(printk("sll32_usecs_per_cycle = %d \n",
-				  sll32_usecs_per_cycle));
 	}
 
 	/* 
@@ -491,6 +458,5 @@ void __init time_init(void)
 	 * to be NULL function so that we are sure the high-level code
 	 * is not invoked accidentally.
 	 */
-	MIPS_ASSERT(board_timer_setup != NULL);
 	board_timer_setup(&timer_irqaction);
 }
