@@ -658,6 +658,8 @@ void __init setup_arch(char **cmdline_p)
 	void nec_osprey_setup(void);
 	void jmr3927_setup(void);
  	void it8172_setup(void);
+	void swarm_setup(void);
+	void hp_setup(void);
 
 	unsigned long bootmap_size;
 	unsigned long start_pfn, max_pfn, first_usable_pfn;
@@ -781,7 +783,7 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #ifdef CONFIG_HP_LASERJET
         case MACH_GROUP_HP_LASERJET:
-                { void hp_setup(void); hp_setup(); }
+                hp_setup();
                 break;
 #endif
 	default:
