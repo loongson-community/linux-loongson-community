@@ -79,6 +79,7 @@ typedef struct {
 #error cpumask macros only defined for 128p kernels
 #endif
 
+extern cpumask_t phys_cpu_present_map;
 extern cpumask_t cpu_online_map;
 
 #define cpu_possible(cpu) (phys_cpu_present_map & (1<<(cpu)))
