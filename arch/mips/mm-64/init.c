@@ -162,7 +162,13 @@ void __init paging_init(void)
 	zones_size[ZONE_DMA] = low;
 #endif
 #ifdef CONFIG_HIGHMEM
-	zones_size[ZONE_HIGHMEM] = high - low;
+	if (cpu_has_dc_aliases) {
+		printk(KERN_WARNING "This processor doesn't support highmem.");
+		if (high - low)
+			printk(" %dk highmem ignored", high - low);
+			printk("\n");
+	} else
+		zones_size[ZONE_HIGHMEM] = high - low;
 #endif
 
 	free_area_init(zones_size);
