@@ -8,7 +8,7 @@
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 
-extern inline int
+static inline int
 setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int err = 0;
@@ -58,7 +58,7 @@ out:
 	return err;
 }
 
-extern inline int
+static inline int
 restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 {
 	int err = 0;
