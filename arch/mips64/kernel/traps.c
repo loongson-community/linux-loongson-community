@@ -531,11 +531,11 @@ static inline int simulate_llsc(struct pt_regs *regs)
 
 	if ((opcode & OPCODE) == LL) {
 		simulate_ll(regs, opcode);
-		return;
+		return 0;
 	}
 	if ((opcode & OPCODE) == SC) {
 		simulate_sc(regs, opcode);
-		return;
+		return 0;
 	}
 }
 
