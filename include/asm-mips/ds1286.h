@@ -14,7 +14,6 @@
 #define _ASM_DS1286_h
 
 #include <asm/mc146818rtc.h>
-#include <linux/rtc.h>		/* for struct rtc_time */
 
 /**********************************************************************
  * register summary
@@ -37,6 +36,7 @@
 
 /* RTC_*_alarm is always true if 2 MSBs are set */
 # define RTC_ALARM_DONT_CARE 	0xC0
+
 
 /*
  * Bits in the month register
@@ -66,8 +66,5 @@
 #ifndef BIN_TO_BCD
 #define BIN_TO_BCD(val) ((val)=(((val)/10)<<4) + (val)%10)
 #endif
-
-extern void ds1286_get_time(struct rtc_time *rtc_tm);
-extern int ds1286_set_time(struct rtc_time *rtc_tm);
 
 #endif /* _ASM_DS1286_h */

@@ -23,26 +23,76 @@
 #include <asm/sgialib.h>
 #include <asm/sgi/sgint23.h>
 
+
 /*
  * note that mktime uses month from 1 to 12 while to_tm
  * uses 0 to 11. ask Jun Sun why!
  */
 static unsigned long indy_rtc_get_time(void)
 {	
-	struct rtc_time tm;
+	unsigned char yrs, mon, day, hrs, min, sec;
+	unsigned char save_control;
 
-	ds1286_get_time(&tm);
-	return mktime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-		      tm.tm_hour, tm.tm_min, tm.tm_sec);
+	save_control = CMOS_READ(RTC_CMD);
+	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+
+	sec = CMOS_READ(RTC_SECONDS);
+	min = CMOS_READ(RTC_MINUTES);
+	hrs = CMOS_READ(RTC_HOURS) & 0x1f;
+	day = CMOS_READ(RTC_DATE);
+	mon = CMOS_READ(RTC_MONTH) & 0x1f;
+	yrs = CMOS_READ(RTC_YEAR);
+
+	CMOS_WRITE(save_control, RTC_CMD);
+
+	BCD_TO_BIN(sec);
+	BCD_TO_BIN(min);
+	BCD_TO_BIN(hrs);
+	BCD_TO_BIN(day);
+	BCD_TO_BIN(mon);
+	BCD_TO_BIN(yrs);
+
+	if (yrs < 45)
+		yrs += 30;
+	if ((yrs += 40) < 70)
+		yrs += 100;
+
+	return mktime((int)yrs + 1900, mon, day, hrs, min, sec);
 }
 
 static int indy_rtc_set_time(unsigned long tim)
 {
 	struct rtc_time tm;
-	
+	unsigned char save_control;
+
 	to_tm(tim, &tm);
+
 	tm.tm_year -= 1900;
-	return ds1286_set_time(&tm);
+	tm.tm_mon += 1;
+	if (tm.tm_year >= 100)
+		tm.tm_year -= 100;
+
+	BIN_TO_BCD(tm.tm_sec);
+	BIN_TO_BCD(tm.tm_min);
+	BIN_TO_BCD(tm.tm_hour);
+	BIN_TO_BCD(tm.tm_mday);
+	BIN_TO_BCD(tm.tm_mon);
+	BIN_TO_BCD(tm.tm_year);
+
+	save_control = CMOS_READ(RTC_CMD);
+	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+
+	CMOS_WRITE(tm.tm_year, RTC_YEAR);
+	CMOS_WRITE(tm.tm_mon, RTC_MONTH);
+	CMOS_WRITE(tm.tm_mday, RTC_DATE);
+	CMOS_WRITE(tm.tm_hour, RTC_HOURS);
+	CMOS_WRITE(tm.tm_min, RTC_MINUTES);
+	CMOS_WRITE(tm.tm_sec, RTC_SECONDS);
+	CMOS_WRITE(0, RTC_HUNDREDTH_SECOND);
+
+	CMOS_WRITE(save_control, RTC_CMD);
+
+	return 0;
 }
 
 static unsigned long dosample(volatile unsigned char *tcwp,

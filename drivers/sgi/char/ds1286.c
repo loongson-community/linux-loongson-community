@@ -62,7 +62,8 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 static unsigned int ds1286_poll(struct file *file, poll_table *wait);
 
 void ds1286_get_alm_time (struct rtc_time *alm_tm);
-void ds1286_get_exact_time(struct rtc_time *rtc_tm);
+void ds1286_get_time(struct rtc_time *rtc_tm);
+int ds1286_set_time(struct rtc_time *rtc_tm);
 
 void set_rtc_irq_bit(unsigned char bit);
 void clear_rtc_irq_bit(unsigned char bit);
@@ -215,7 +216,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 	}
 	case RTC_RD_TIME:	/* Read the time/date from RTC	*/
 	{
-		ds1286_get_exact_time(&wtime);
+		ds1286_get_time(&wtime);
 		break;
 	}
 	case RTC_SET_TIME:	/* Set the RTC */
@@ -317,7 +318,7 @@ int get_ds1286_status(char *buf)
 
 	p = buf;
 
-	ds1286_get_exact_time(&tm);
+	ds1286_get_time(&tm);
 	hundredth = CMOS_READ(RTC_HUNDREDTH_SECOND);
 	BCD_TO_BIN(hundredth);
 
@@ -389,8 +390,11 @@ static inline unsigned char ds1286_is_updating(void)
 	return CMOS_READ(RTC_CMD) & RTC_TE;
 }
 
-void ds1286_get_exact_time(struct rtc_time *rtc_tm)
+
+void ds1286_get_time(struct rtc_time *rtc_tm)
 {
+	unsigned char save_control;
+	unsigned int flags;
 	unsigned long uip_watchdog = jiffies;
 	
 	/*
@@ -406,17 +410,6 @@ void ds1286_get_exact_time(struct rtc_time *rtc_tm)
 	if (ds1286_is_updating() != 0)
 		while (jiffies - uip_watchdog < 2*HZ/100)
 			barrier();
-	
-	ds1286_get_time(rtc_tm);
-}
-
-/* 
- * we're using this for setting system time when timer is not running yet
- */
-void ds1286_get_time(struct rtc_time *rtc_tm)
-{
-	unsigned char save_control;
-	unsigned int flags;
 
 	/*
 	 * Only the values that we read from the RTC are set. We leave
