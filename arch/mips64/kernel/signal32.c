@@ -231,10 +231,12 @@ asmlinkage int sys32_sigaction(int sig, const struct sigaction32 *act,
 
 		if (!access_ok(VERIFY_READ, act, sizeof(*act)))
 			return -EFAULT;
-		err |= __get_user(new_ka.sa.sa_handler, &act->sa_handler);
+		err |= __get_user((u32)(u64)new_ka.sa.sa_handler,
+		                  &act->sa_handler);
 		err |= __get_user(new_ka.sa.sa_flags, &act->sa_flags);
 		err |= __get_user(mask, &act->sa_mask.sig[0]);
-		err |= __get_user(new_ka.sa.sa_restorer, &act->sa_restorer);
+		err |= __get_user((u32)(u64)new_ka.sa.sa_restorer,
+		                   &act->sa_restorer);
 		if (err)
 			return -EFAULT;
 
@@ -247,12 +249,14 @@ asmlinkage int sys32_sigaction(int sig, const struct sigaction32 *act,
 		if (!access_ok(VERIFY_WRITE, oact, sizeof(*oact)))
                         return -EFAULT;
 		err |= __put_user(old_ka.sa.sa_flags, &oact->sa_flags);
-		err |= __put_user(old_ka.sa.sa_handler, &oact->sa_handler);
+		err |= __put_user((u32)(u64)old_ka.sa.sa_handler,
+		                  &oact->sa_handler);
 		err |= __put_user(old_ka.sa.sa_mask.sig[0], oact->sa_mask.sig);
                 err |= __put_user(0, &oact->sa_mask.sig[1]);
                 err |= __put_user(0, &oact->sa_mask.sig[2]);
                 err |= __put_user(0, &oact->sa_mask.sig[3]);
-		err |= __put_user(old_ka.sa.sa_restorer, &oact->sa_restorer);
+		err |= __put_user((u32)(u64)old_ka.sa.sa_restorer,
+		                  &oact->sa_restorer);
                 if (err)
 			return -EFAULT;
 	}
@@ -858,9 +862,11 @@ asmlinkage int sys32_rt_sigaction(int sig, const struct sigaction32 *act,
 
 		if (!access_ok(VERIFY_READ, act, sizeof(*act)))
 			return -EFAULT;
-		err |= __get_user (new_sa.sa.sa_handler, &act->sa_handler);
-		err |= __get_user (new_sa.sa.sa_flags, &act->sa_flags);
-		err |= __get_user (new_sa.sa.sa_restorer, &act->sa_restorer);
+		err |= __get_user((u32)(u64)new_sa.sa.sa_handler,
+		                  &act->sa_handler);
+		err |= __get_user(new_sa.sa.sa_flags, &act->sa_flags);
+		err |= __get_user((u32)(u64)new_sa.sa.sa_restorer,
+		                  &act->sa_restorer);
 		err |= get_sigset(&new_sa.sa.sa_mask, &act->sa_mask);
 		if (err)
 			return -EFAULT;
@@ -874,9 +880,11 @@ asmlinkage int sys32_rt_sigaction(int sig, const struct sigaction32 *act,
 		if (!access_ok(VERIFY_WRITE, oact, sizeof(*oact)))
 			return -EFAULT;
 
-		err |= __put_user (new_sa.sa.sa_handler, &oact->sa_handler);
-		err |= __put_user (new_sa.sa.sa_flags, &oact->sa_flags);
-		err |= __put_user (new_sa.sa.sa_restorer, &oact->sa_restorer);
+		err |= __put_user((u32)(u64)new_sa.sa.sa_handler,
+		                   &oact->sa_handler);
+		err |= __put_user(new_sa.sa.sa_flags, &oact->sa_flags);
+		err |= __put_user((u32)(u64)new_sa.sa.sa_restorer,
+		                  &oact->sa_restorer);
 		err |= put_sigset(&new_sa.sa.sa_mask, &oact->sa_mask);
 		if (err)
 			return -EFAULT;

@@ -1,5 +1,4 @@
-/* $Id: ip27-pci.c,v 1.8 2000/02/16 01:07:30 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -187,8 +186,6 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
 static int __init
 pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	int rv;
-
 	if ((dev->bus->number >= MAX_PCI_BUSSES) || (pin != 1) || \
 					(slot >= MAX_DEVICES_PER_PCIBUS)) {
 		printk("Increase supported PCI busses %d,%d,%d\n", \
@@ -363,7 +360,7 @@ pci_fixup_isp2x00(struct pci_dev *d)
 	printk("PCI: Fixing isp2x00 in [bus:slot.fn] %s\n", d->slot_name);
 
 	/* set the resource struct for this device */
-	start = (u32) bridge;	/* yes, we want to lose the upper 32 bits here */
+	start = (u32) (u64)bridge;	/* yes, we want to lose the upper 32 bits here */
 	start |= BRIDGE_DEVIO(slot);
 
 	d->resource[0].start = start;

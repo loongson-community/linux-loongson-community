@@ -1,5 +1,4 @@
-/* $Id: ptrace.c,v 1.1 1999/12/04 03:59:00 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -29,9 +28,10 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
-/* Tracing a 32-bit process with a 64-bit strace and vice verca will not
-   work.  I don't know how to fix this.  */
-
+/*
+ * Tracing a 32-bit process with a 64-bit strace and vice versa will not
+ * work.  I don't know how to fix this.
+ */
 asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 {
 	struct task_struct *child;
@@ -110,7 +110,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		ret = -EIO;
 		if (copied != sizeof(tmp))
 			break;
-		ret = put_user(tmp, (unsigned int *) data);
+		ret = put_user(tmp, (unsigned int *) (unsigned long) data);
 		break;
 	}
 
@@ -173,7 +173,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			ret = -EIO;
 			goto out_tsk;
 		}
-		ret = put_user(tmp, (unsigned *) data);
+		ret = put_user(tmp, (unsigned *) (unsigned long) data);
 		break;
 		}
 	/* when I and D space are separate, this will have to be fixed. */

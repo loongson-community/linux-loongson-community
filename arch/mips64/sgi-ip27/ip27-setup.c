@@ -1,13 +1,12 @@
-/* $Id: ip27-setup.c,v 1.7 2000/03/07 15:45:29 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * SGI IP27 specific setup.
  *
- * Copyright (C) 1999 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 1999 Silcon Graphics, Inc.
+ * Copyright (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copyright (C) 1999, 2000 Silcon Graphics, Inc.
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -129,7 +128,7 @@ void __init pcibr_setup(cnodeid_t nid)
 		widget_id = *(volatile widgetreg_t *)
                         (RAW_NODE_SWIN_BASE(nasid, 0x0) + WIDGET_ID);
 		partnum = XWIDGET_PART_NUM(widget_id);
-		printk("Cpu %d, Nasid 0x%lx, pcibr_setup(): found partnum= 0x%x",
+		printk("Cpu %d, Nasid 0x%x, pcibr_setup(): found partnum= 0x%x",
 					smp_processor_id(), nasid, partnum);
 		if (partnum == BRIDGE_WIDGET_PART_NUM) {
 			/*
@@ -152,7 +151,7 @@ void __init pcibr_setup(cnodeid_t nid)
                                    KLTYPE_MIDPLANE8)) == NULL)
 				printk("argh\n");
 			else
-				printk("brd= 0x%x\n", brd);
+				printk("brd = 0x%lx\n", (unsigned long) brd);
 			if ((xbow_p = (klxbow_t *)
 			     find_component(brd, NULL, KLSTRUCT_XBOW)) == NULL)
 				printk("argh\n");

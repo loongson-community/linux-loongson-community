@@ -957,7 +957,7 @@ sys32_readv(int fd, struct iovec32 *vector, u32 count)
 	struct file *file;
 	ssize_t ret;
 
-	file = -EBADF;
+	ret = -EBADF;
 	file = fget(fd);
 	if (!file)
 		goto bad_file;

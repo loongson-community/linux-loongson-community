@@ -1,5 +1,4 @@
-/* $Id: ip27-memory.c,v 1.2 2000/01/27 01:05:24 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -27,13 +26,15 @@
 #include <asm/sn/arch.h>
 #include <asm/mmzone.h>
 
+/* ip27-klnuma.c   */
+extern pfn_t node_getfirstfree(cnodeid_t cnode);
+
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
 #define SLOT_IGNORED	0xffff
 
 short slot_lastfilled_cache[MAX_COMPACT_NODES];
 unsigned short slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
 static pfn_t numpages;
-static pfn_t pagenr = 0;
 
 plat_pg_data_t *plat_node_data[MAX_COMPACT_NODES];
 bootmem_data_t plat_node_bdata[MAX_COMPACT_NODES];
@@ -240,6 +241,8 @@ prom_free_prom_memory (void)
 }
 
 #ifdef CONFIG_DISCONTIGMEM
+
+static pfn_t pagenr = 0;
 
 void __init paging_init(void)
 {

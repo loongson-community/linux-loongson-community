@@ -1,7 +1,6 @@
-/* $Id: ip27-timer.c,v 1.3 2000/02/18 09:54:40 ulfc Exp $
- *
- * Copytight (C) 1999 Ralf Baechle (ralf@gnu.org)
- * Copytight (C) 1999 Silicon Graphics, Inc.
+/*
+ * Copytight (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
+ * Copytight (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -92,7 +91,6 @@ void rt_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	int cpuA = ((cputoslice(cpu)) == 0);
-	int user = user_mode(regs);
 	int irq = 7;				/* XXX Assign number */
 
 	write_lock(&xtime_lock);
@@ -113,6 +111,7 @@ again:
 #ifdef CONFIG_SMP
 	if (current->pid) {
 		unsigned int *inc, *inc2;
+		int user = user_mode(regs);
 
 		update_one_process(current, 1, user, !user, cpu);
 		if (--current->counter <= 0) {

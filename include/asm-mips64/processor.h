@@ -1,13 +1,12 @@
-/* $Id: processor.h,v 1.11 2000/03/14 01:39:27 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1994 Waldorf GMBH
- * Copyright (C) 1995, 1996, 1997, 1998, 1999 Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000 Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_PROCESSOR_H
 #define _ASM_PROCESSOR_H
@@ -15,12 +14,37 @@
 #include <linux/config.h>
 
 /*
- * Default implementation of macro that returns current
- * instruction pointer ("program counter").
+ * Return current * instruction pointer ("program counter").
+ *
+ * Two implementations.  The ``la'' version results in shorter code for
+ * the kernel which we assume to reside in the 32-bit compat address space.
+ * The  ``jal'' version is for use by modules which live in outer space.
+ * This is just a single instruction unlike the long dla macro expansion.
  */
-#define current_text_addr() ({ __label__ _l; _l: &&_l;})
+#ifdef MODULE
+#define current_text_addr()						\
+({									\
+	void *_a;							\
+									\
+	__asm__ ("jal\t1f, 1f\n\t"					\
+		"1:"							\
+		: "=r" (_a));						\
+									\
+	_a;								\
+})
+#else
+#define current_text_addr()						\
+({									\
+	void *_a;							\
+									\
+	__asm__ ("dla\t%0, 1f\n\t"					\
+		"1:"							\
+		: "=r" (_a));						\
+									\
+	_a;								\
+})
+#endif
 
-#include <linux/config.h>
 #if !defined (_LANGUAGE_ASSEMBLY)
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>

@@ -6,6 +6,7 @@
 #include <linux/init.h>
 #include <linux/mmzone.h>
 #include <linux/kernel.h>
+#include <linux/string.h>
 
 #include <asm/page.h>
 #include <asm/sn/types.h>

@@ -35,7 +35,6 @@
 #define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
 
 cpumask_t	boot_cpumask;
-static volatile cpumask_t boot_barrier;
 hubreg_t	region_mask = 0;
 static int	fine_mode = 0;
 int		maxcpus;
@@ -160,24 +159,6 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 	 */
 
 	return(highest + 1);
-}
-
-/*
- * Takes as first input the PROM assigned cpu id, and the kernel
- * assigned cpu id as the second.
- */
-static void alloc_cpupda(cpuid_t cpu, int cpunum)
-{
-	cnodeid_t	node;
-	nasid_t		nasid;
-
-	node = get_cpu_cnode(cpu);
-	nasid = COMPACT_TO_NASID_NODEID(node);
-
-	cputonasid(cpunum) = nasid;
-	cputocnode(cpunum) = node;
-	cputoslice(cpunum) = get_cpu_slice(cpu);
-	cpu_data[cpunum].p_cpuid = cpu;
 }
 
 int cpu_enabled(cpuid_t cpu)
@@ -388,6 +369,24 @@ cnodeid_t get_compact_nodeid(void)
 
 #ifdef CONFIG_SMP
 
+/*
+ * Takes as first input the PROM assigned cpu id, and the kernel
+ * assigned cpu id as the second.
+ */
+static void alloc_cpupda(cpuid_t cpu, int cpunum)
+{
+	cnodeid_t	node;
+	nasid_t		nasid;
+
+	node = get_cpu_cnode(cpu);
+	nasid = COMPACT_TO_NASID_NODEID(node);
+
+	cputonasid(cpunum) = nasid;
+	cputocnode(cpunum) = node;
+	cputoslice(cpunum) = get_cpu_slice(cpu);
+	cpu_data[cpunum].p_cpuid = cpu;
+}
+
 void __init smp_callin(void)
 {
 #if 0
@@ -405,6 +404,8 @@ int __init start_secondary(void)
 	while (!atomic_read(&smp_commenced));
 	return cpu_idle();
 }
+
+static volatile cpumask_t boot_barrier;
 
 void cboot(void)
 {

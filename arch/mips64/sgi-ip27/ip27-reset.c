@@ -18,8 +18,6 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/sgialib.h>
-#include <asm/sgi/sgihpc.h>
-#include <asm/sgi/sgint23.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/gda.h>
@@ -29,10 +27,14 @@ void machine_restart(char *command) __attribute__((noreturn));
 void machine_halt(void) __attribute__((noreturn));
 void machine_power_off(void) __attribute__((noreturn));
 
+#define noreturn while(1);				/* Silence gcc.  */
+
 /* XXX How to pass the reboot command to the firmware??? */
 void machine_restart(char *command)
 {
+#if 0
 	int i;
+#endif
 
 	printk("Reboot started from CPU %d\n", smp_processor_id());
 #ifdef CONFIG_SMP
@@ -45,6 +47,7 @@ void machine_restart(char *command)
 #else
 	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
 #endif
+	noreturn;
 }
 
 void machine_halt(void)
@@ -58,11 +61,13 @@ void machine_halt(void)
 		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG, 
 							PROMOP_RESTART);
 	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
+	noreturn;
 }
 
 void machine_power_off(void)
 {
 	/* To do ...  */
+	noreturn;
 }
 
 void ip27_reboot_setup(void)

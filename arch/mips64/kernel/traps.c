@@ -183,7 +183,7 @@ void die(const char * str, struct pt_regs * regs, unsigned long err)
 	spin_lock_irq(&die_lock);
 	printk("%s: %04lx\n", str, err & 0xffff);
 	show_regs(regs);
-	printk("Process %s (pid: %ld, stackpage=%08lx)\n",
+	printk("Process %s (pid: %d, stackpage=%08lx)\n",
 		current->comm, current->pid, (unsigned long) current);
 	show_stack((unsigned long *) regs->regs[29]);
 	show_trace((unsigned long *) regs->regs[29]);
@@ -233,6 +233,7 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
 	unsigned long pc;
 	unsigned int insn;
+	extern void simfp(unsigned int);
 
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
@@ -326,7 +327,7 @@ void do_tr(struct pt_regs *regs)
 
 void do_ri(struct pt_regs *regs)
 {
-	printk("Cpu%d[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
+	printk("Cpu%d[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
 	        smp_processor_id(), current->comm, current->pid, regs->cp0_epc, 
 		regs->regs[31]);
 	if (compute_return_epc(regs))
@@ -387,7 +388,7 @@ void do_reserved(struct pt_regs *regs)
 	 * caused by a new unknown cpu type or after another deadly
 	 * hard/software error.
 	 */
-	panic("Caught reserved exception %d - should not happen.",
+	panic("Caught reserved exception %ld - should not happen.",
 	      (regs->cp0_cause & 0x1f) >> 2);
 }
 
