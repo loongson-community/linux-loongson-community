@@ -1052,9 +1052,9 @@ void __init ld_mmu_mips32(void)
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
 #ifdef CONFIG_MIPS_UNCACHED
-	set_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
 #else
-	set_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
 #endif
 
 	probe_icache(config);
