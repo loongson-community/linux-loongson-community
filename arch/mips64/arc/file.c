@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: file.c,v 1.3 1999/10/19 20:51:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -46,7 +46,7 @@ ArcGetReadStatus(ULONG FileID)
 }
 
 LONG __init
-ArcWrite(ULONG long FileID, void *Buffer, ULONG N, ULONG *Count)
+ArcWrite(ULONG FileID, PVOID Buffer, ULONG N, PULONG Count)
 {
 	return ARC_CALL4(write, FileID, Buffer, N, Count);
 }

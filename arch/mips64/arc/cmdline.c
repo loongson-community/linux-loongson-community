@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: cmdline.c,v 1.2 1999/10/19 20:51:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -46,12 +46,12 @@ void __init prom_init_cmdline(void)
 		for(i = 0; i < NENTS(ignored); i++) {
 			int len = strlen(ignored[i]);
 
-			if(!strncmp(prom_argv[actr], ignored[i], len))
+			if(!strncmp(prom_argv(actr), ignored[i], len))
 				goto pic_cont;
 		}
 		/* Ok, we want it. */
-		strcpy(cp, prom_argv[actr]);
-		cp += strlen(prom_argv[actr]);
+		strcpy(cp, prom_argv(actr));
+		cp += strlen(prom_argv(actr));
 		*cp++ = ' ';
 
 	pic_cont:

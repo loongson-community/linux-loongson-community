@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: memory.c,v 1.4 1999/11/19 20:35:22 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,8 +7,11 @@
  * memory.c: PROM library functions for acquiring/using memory descriptors
  *           given to us from the ARCS firmware.
  *
- * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1996 by David S. Miller (dm@engr.sgi.com)
+ * Copyright (C) 1999 by Ralf Baechle
+ * Copyright (C) 1999 by Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -108,9 +111,20 @@ prom_setup_memupper(void)
 		if(!highest || p->base > highest->base)
 			highest = p;
 	}
-	mips_memory_upper = highest->base + highest->size;
+	mips_memory_upper = (long) highest->base + highest->size;
+
+#ifdef CONFIG_SGI_IP22
+	/* Evil temporary hack - free_area_init may overwrite firmware reserved
+	   memory during the initialization on an Indy if we have more than
+	   a certain amount of memory.  For now on Indys we limit memory to
+	   64mb max.  */
+	if (mips_memory_upper > PAGE_OFFSET + 0x08000000 + 64 * 1024 * 1024) {
+		prom_printf("WARNING: Limiting memory to 64mb.\n");
+		mips_memory_upper = PAGE_OFFSET + 0x08000000 + 64 * 1024 * 1024;
+	}
+#endif
 #ifdef DEBUG
-	prom_printf("prom_setup_memupper: mips_memory_upper = %08lx\n",
+	prom_printf("prom_setup_memupper: mips_memory_upper = %016lx\n",
 	            mips_memory_upper);
 #endif
 }
@@ -186,10 +200,14 @@ prom_fixup_mem_map(unsigned long start, unsigned long end)
 restart:
 	while(start < end) {
 		for(i = 0; i < nents; i++) {
+			unsigned long base, size;
+
+			base = (unsigned long) (long) p[i].base;
+			size = p[i].size;
 			if ((p[i].type == MEMTYPE_FREE)
-			    && (start >= (p[i].base))
-			    && (start < (p[i].base + p[i].size))) {
-				start = p[i].base + p[i].size;
+			    && (start >= base)
+			    && (start < base + size)) {
+				start = base + size;
 				start &= PAGE_MASK;
 				goto restart;
 			}
@@ -203,18 +221,20 @@ void
 prom_free_prom_memory (void)
 {
 	struct prom_pmemblock *p;
-	unsigned long addr;
-	unsigned long num_pages = 0;
+	unsigned long addr, base;
+	unsigned long freed = 0;
 
-	for(p = prom_getpblock_array(); p->size != 0; p++) {
-		if (p->type == MEMTYPE_PROM) {
-			for (addr = p->base; addr < p->base + p->size; addr += PAGE_SIZE) {
-				mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
-				atomic_set(&mem_map[MAP_NR(addr)].count, 1);
-				free_page(addr);
-				num_pages++;
-			}
+	for (p = prom_getpblock_array(); p->size != 0; p++) {
+		if (p->type != MEMTYPE_PROM)
+			continue;
+		addr = base = (unsigned long) (long) p->base;
+		while (addr < base + p->size) {
+			mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
+			atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+			free_page(addr);
+			freed += PAGE_SIZE;
+			addr += PAGE_SIZE;
 		}
 	}
-	printk ("Freeing prom memory: %ldk freed\n", num_pages * PAGE_SIZE);
+	printk("Freeing prom memory: %ldkb freed\n", freed / 1024);
 }

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: init.c,v 1.3 1999/10/19 20:51:45 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -18,9 +18,9 @@
 
 /* Master romvec interface. */
 struct linux_romvec *romvec;
-struct linux_promblock *sgi_pblock;
+PSYSTEM_PARAMETER_BLOCK sgi_pblock;
 int prom_argc;
-char **prom_argv, **prom_envp;
+LONG *_prom_argv, *_prom_envp;
 unsigned short prom_vers, prom_rev;
 
 extern void prom_testtree(void);
@@ -28,13 +28,13 @@ extern void prom_testtree(void);
 int __init
 prom_init(int argc, char **argv, char **envp)
 {
-	struct linux_promblock *pb;
+	PSYSTEM_PARAMETER_BLOCK pb;
 
 	romvec = ROMVECTOR;
 	pb = sgi_pblock = PROMBLOCK;
 	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
+	_prom_argv = (LONG *) argv;
+	_prom_envp = (LONG *) envp;
 
 	if(pb->magic != 0x53435241) {
 		prom_printf("Aieee, bad prom vector magic %08lx\n", pb->magic);

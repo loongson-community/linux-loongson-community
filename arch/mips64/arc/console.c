@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: console.c,v 1.3 1999/10/19 20:51:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -13,16 +13,16 @@
 
 void __init prom_putchar(char c)
 {
-	long cnt;
-	char it = c;
+	ULONG cnt;
+	CHAR it = c;
 
 	ArcWrite(1, &it, 1, &cnt);
 }
 
 char __init prom_getchar(void)
 {
-	long cnt;
-	char c;
+	ULONG cnt;
+	CHAR c;
 
 	ArcRead(0, &c, 1, &cnt);
 

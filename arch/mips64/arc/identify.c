@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: identify.c,v 1.5 1999/11/19 20:35:21 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -17,7 +17,6 @@
 #include <linux/types.h>
 #include <linux/string.h>
 
-#include <asm/sgi/sgi.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 
@@ -63,8 +62,8 @@ prom_identify_arch(void)
 	/* The root component tells us what machine architecture we
 	   have here.  */
 	p = ArcGetChild(PROM_NULL_COMPONENT);
-	printk("ARCH: %s\n", p->iname);
-	mach = string_to_mach(p->iname);
+	printk("ARCH: %s\n", (char *) (long) p->iname);
+	mach = string_to_mach((char *) (long) p->iname);
 
 	mips_machgroup = mach->group;
 	mips_machtype = mach->type;

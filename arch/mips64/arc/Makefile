@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile,v 1.1 1999/08/20 21:13:32 ralf Exp $
 # Makefile for the SGI arcs prom monitor library routines
 # under Linux.
 #
