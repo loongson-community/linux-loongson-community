@@ -18,6 +18,8 @@
 #include <linux/sys.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
+#include <linux/init.h>
+#include <linux/completion.h>
 
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
@@ -31,6 +33,7 @@
 #include <asm/io.h>
 #include <asm/elf.h>
 #include <asm/isadep.h>
+#include <asm/inst.h>
 
 /*
  * We use this if we don't have any better idle routine..
@@ -172,6 +175,66 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	return retval;
 }
 
+struct mips_frame_info {
+	int frame_offset;
+	int pc_offset;
+};
+static struct mips_frame_info schedule_frame;
+static struct mips_frame_info schedule_timeout_frame;
+static struct mips_frame_info sleep_on_frame;
+static struct mips_frame_info sleep_on_timeout_frame;
+static struct mips_frame_info wait_for_completion_frame;
+static int mips_frame_info_initialized;
+static int __init get_frame_info(struct mips_frame_info *info, void *func)
+{
+	int i;
+	union mips_instruction *ip = (union mips_instruction *)func;
+	info->pc_offset = -1;
+	info->frame_offset = -1;
+	for (i = 0; i < 128; i++, ip++) {
+		/* if jal, jalr, jr, stop. */
+		if (ip->j_format.opcode == jal_op ||
+		    (ip->r_format.opcode == spec_op &&
+		     (ip->r_format.func == jalr_op ||
+		      ip->r_format.func == jr_op)))
+			break;
+		if (ip->i_format.opcode == sw_op &&
+		    ip->i_format.rs == 29) {
+			/* sw $ra, offset($sp) */
+			if (ip->i_format.rt == 31) {
+				if (info->pc_offset != -1)
+					break;
+				info->pc_offset =
+					ip->i_format.simmediate / sizeof(long);
+			}
+			/* sw $s8, offset($sp) */
+			if (ip->i_format.rt == 30) {
+				if (info->frame_offset != -1)
+					break;
+				info->frame_offset =
+					ip->i_format.simmediate / sizeof(long);
+			}
+		}
+	}
+	if (info->pc_offset == -1 || info->frame_offset == -1) {
+		printk("Can't analyze prologue code at %p\n", func);
+		info->pc_offset = -1;
+		info->frame_offset = -1;
+		return -1;
+	}
+
+	return 0;
+}
+void __init frame_info_init(void)
+{
+	mips_frame_info_initialized =
+		!get_frame_info(&schedule_frame, schedule) &&
+		!get_frame_info(&schedule_timeout_frame, schedule_timeout) &&
+		!get_frame_info(&sleep_on_frame, sleep_on) &&
+		!get_frame_info(&sleep_on_timeout_frame, sleep_on_timeout) &&
+		!get_frame_info(&wait_for_completion_frame, wait_for_completion);
+}
+
 unsigned long thread_saved_pc(struct thread_struct *t)
 {
 	extern void ret_from_fork(void);
@@ -180,7 +243,9 @@ unsigned long thread_saved_pc(struct thread_struct *t)
 	if (t->reg31 == (unsigned long) ret_from_fork)
 	return t->reg31;
 
-	return ((unsigned long *)t->reg29)[13];
+	if (schedule_frame.pc_offset < 0)
+		return 0;
+	return ((unsigned long *)t->reg29)[schedule_frame.pc_offset];
 }
 
 /*
@@ -199,6 +264,8 @@ unsigned long get_wchan(struct task_struct *p)
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
+	if (!mips_frame_info_initialized)
+		return 0;
 	pc = thread_saved_pc(&p->thread);
 	if (pc < first_sched || pc >= last_sched) {
 		return pc;
@@ -212,29 +279,33 @@ unsigned long get_wchan(struct task_struct *p)
 		goto schedule_timeout_caller;
 	if (pc >= (unsigned long)interruptible_sleep_on)
 		goto schedule_caller;
-	/* Fall through */
+	if (pc >= (unsigned long)wait_for_completion)
+		goto schedule_caller;
+	goto schedule_timeout_caller;
 
 schedule_caller:
-	pc = ((unsigned long *)p->thread.reg30)[13];
-
+	frame = ((unsigned long *)p->thread.reg30)[schedule_frame.frame_offset];
+	if (pc >= (unsigned long) sleep_on)
+		pc = ((unsigned long *)frame)[sleep_on_frame.pc_offset];
+	else
+		pc = ((unsigned long *)frame)[wait_for_completion_frame.pc_offset];
 	return pc;
 
 schedule_timeout_caller:
 	/*
 	 * The schedule_timeout frame
 	 */
-	frame = ((unsigned long *)p->thread.reg30)[13];
+	frame = ((unsigned long *)p->thread.reg30)[schedule_frame.frame_offset];
 
 	/*
 	 * frame now points to sleep_on_timeout's frame
 	 */
-	frame = ((unsigned long *)frame)[9];
-	pc    = ((unsigned long *)frame)[10];
+	pc    = ((unsigned long *)frame)[schedule_timeout_frame.pc_offset];
 
 	if (pc >= first_sched && pc < last_sched) {
-		/* schedule_timeout called by interruptible_sleep_on_timeout */
-		frame = ((unsigned long *)frame)[9];
-		pc    = ((unsigned long *)frame)[10];
+		/* schedule_timeout called by [interruptible_]sleep_on_timeout */
+		frame = ((unsigned long *)frame)[schedule_timeout_frame.frame_offset];
+		pc    = ((unsigned long *)frame)[sleep_on_timeout_frame.pc_offset];
 	}
 
 	return pc;

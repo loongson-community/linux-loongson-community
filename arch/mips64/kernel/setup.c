@@ -421,7 +421,9 @@ void __init setup_arch(char **cmdline_p)
 	extern void ip32_setup(void);
 	extern void swarm_setup(void);
 	extern void malta_setup(void);
+	void frame_info_init(void);
 
+	frame_info_init();
 #ifdef CONFIG_DECSTATION
 	decstation_setup();
 #endif

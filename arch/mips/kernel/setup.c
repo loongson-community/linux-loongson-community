@@ -491,6 +491,9 @@ void __init setup_arch(char **cmdline_p)
 	void swarm_setup(void);
 	void hp_setup(void);
 	void au1x00_setup(void);
+	void frame_info_init(void);
+
+	frame_info_init();
 
 #ifdef CONFIG_BLK_DEV_FD
 	fd_ops = &no_fd_ops;
