@@ -1831,7 +1831,6 @@ static struct tty_operations serial_ops = {
 int __init zs_init(void)
 {
 	int channel, i;
-	unsigned long flags;
 	struct dec_serial *info;
 
 	if(!BUS_PRESENT)
