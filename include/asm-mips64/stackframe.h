@@ -90,8 +90,10 @@
 		lui	k1, %hi(kernelsp)
 		ld	k1, %lo(kernelsp)(k1)
 #else
-		mfc0	k1, CP0_WATCHHI
 		mfc0	k0, CP0_WATCHLO
+		mfc0	k1, CP0_WATCHHI
+		dsll32	k0, k0, 0	/* Get rid of sign extension */
+		dsrl32	k0, k0, 0	/* Get rid of sign extension */
 		dsll32	k1, k1, 0
 		or	k1, k1, k0
 		li	k0, K0BASE
