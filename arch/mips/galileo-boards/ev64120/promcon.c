@@ -36,11 +36,6 @@ int prom_getchar(void)
 {
 	return 0;
 }
-static int prom_console_wait_key(struct console *co)
-{
-	return prom_getchar();
-}
-
 static int __init prom_console_setup(struct console *co, char *options)
 {
 
@@ -57,7 +52,6 @@ static struct console sercons = {
 	prom_console_write,
 	NULL,
 	prom_console_device,
-	prom_console_wait_key,
 	NULL,
 	prom_console_setup,
 	CON_PRINTBUFFER,
