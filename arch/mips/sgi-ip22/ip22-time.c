@@ -8,6 +8,7 @@
  *
  * Copyright (C) 2001 by Ladislav Michl
  */
+
 #include <linux/bcd.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -23,6 +24,7 @@
 #include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/ioc.h>
+#include <asm/sgi/hpc3.h>
 #include <asm/sgi/ip22.h>
 
 /*
@@ -31,40 +33,33 @@
  */
 static unsigned long indy_rtc_get_time(void)
 {
-	unsigned char yrs, mon, day, hrs, min, sec;
-	unsigned char save_control;
+	unsigned int yrs, mon, day, hrs, min, sec;
+	unsigned int save_control;
 
-	save_control = CMOS_READ(RTC_CMD);
-	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+	save_control = hpc3c0->rtcregs[RTC_CMD] & 0xff;
+	hpc3c0->rtcregs[RTC_CMD] = save_control | RTC_TE;
 
-	sec = CMOS_READ(RTC_SECONDS);
-	min = CMOS_READ(RTC_MINUTES);
-	hrs = CMOS_READ(RTC_HOURS) & 0x1f;
-	day = CMOS_READ(RTC_DATE);
-	mon = CMOS_READ(RTC_MONTH) & 0x1f;
-	yrs = CMOS_READ(RTC_YEAR);
+	sec = BCD2BIN(hpc3c0->rtcregs[RTC_SECONDS] & 0xff);
+	min = BCD2BIN(hpc3c0->rtcregs[RTC_MINUTES] & 0xff);
+	hrs = BCD2BIN(hpc3c0->rtcregs[RTC_HOURS] & 0x1f);
+	day = BCD2BIN(hpc3c0->rtcregs[RTC_DATE] & 0xff);
+	mon = BCD2BIN(hpc3c0->rtcregs[RTC_MONTH] & 0x1f);
+	yrs = BCD2BIN(hpc3c0->rtcregs[RTC_YEAR] & 0xff);
 
-	CMOS_WRITE(save_control, RTC_CMD);
-
-	sec = BCD2BIN(sec);
-	min = BCD2BIN(min);
-	hrs = BCD2BIN(hrs);
-	day = BCD2BIN(day);
-	mon = BCD2BIN(mon);
-	yrs = BCD2BIN(yrs);
+	hpc3c0->rtcregs[RTC_CMD] = save_control;
 
 	if (yrs < 45)
 		yrs += 30;
 	if ((yrs += 40) < 70)
 		yrs += 100;
 
-	return mktime((int)yrs + 1900, mon, day, hrs, min, sec);
+	return mktime(yrs + 1900, mon, day, hrs, min, sec);
 }
 
 static int indy_rtc_set_time(unsigned long tim)
 {
 	struct rtc_time tm;
-	unsigned char save_control;
+	unsigned int save_control;
 
 	to_tm(tim, &tm);
 
@@ -73,25 +68,18 @@ static int indy_rtc_set_time(unsigned long tim)
 	if (tm.tm_year >= 100)
 		tm.tm_year -= 100;
 
-	tm.tm_sec = BIN2BCD(tm.tm_sec);
-	tm.tm_min = BIN2BCD(tm.tm_min);
-	tm.tm_hour = BIN2BCD(tm.tm_hour);
-	tm.tm_mday = BIN2BCD(tm.tm_mday);
-	tm.tm_mon = BIN2BCD(tm.tm_mon);
-	tm.tm_year = BIN2BCD(tm.tm_year);
+	save_control = hpc3c0->rtcregs[RTC_CMD] & 0xff;
+	hpc3c0->rtcregs[RTC_CMD] = save_control | RTC_TE;
 
-	save_control = CMOS_READ(RTC_CMD);
-	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+	hpc3c0->rtcregs[RTC_YEAR] = BIN2BCD(tm.tm_sec);
+	hpc3c0->rtcregs[RTC_MONTH] = BIN2BCD(tm.tm_mon);
+	hpc3c0->rtcregs[RTC_DATE] = BIN2BCD(tm.tm_mday);
+	hpc3c0->rtcregs[RTC_HOURS] = BIN2BCD(tm.tm_hour);
+	hpc3c0->rtcregs[RTC_MINUTES] = BIN2BCD(tm.tm_min);
+	hpc3c0->rtcregs[RTC_SECONDS] = BIN2BCD(tm.tm_sec);
+	hpc3c0->rtcregs[RTC_HUNDREDTH_SECOND] = 0;
 
-	CMOS_WRITE(tm.tm_year, RTC_YEAR);
-	CMOS_WRITE(tm.tm_mon, RTC_MONTH);
-	CMOS_WRITE(tm.tm_mday, RTC_DATE);
-	CMOS_WRITE(tm.tm_hour, RTC_HOURS);
-	CMOS_WRITE(tm.tm_min, RTC_MINUTES);
-	CMOS_WRITE(tm.tm_sec, RTC_SECONDS);
-	CMOS_WRITE(0, RTC_HUNDREDTH_SECOND);
-
-	CMOS_WRITE(save_control, RTC_CMD);
+	hpc3c0->rtcregs[RTC_CMD] = save_control;
 
 	return 0;
 }
@@ -213,15 +201,8 @@ extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 
 static void indy_timer_setup(struct irqaction *irq)
 {
-	unsigned long count;
-
 	/* over-write the handler, we use our own way */
 	irq->handler = no_action;
-
-	/* set time for first interrupt */
-	count = read_c0_count();
-	count += mips_counter_frequency / HZ;
-	write_c0_compare(count);
 
 	/* setup irqaction */
 	setup_irq(SGI_TIMER_IRQ, irq);
