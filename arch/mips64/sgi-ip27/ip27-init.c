@@ -283,6 +283,7 @@ void sn_mp_setup(void)
 
 void per_hub_init(cnodeid_t cnode)
 {
+	extern void pcibr_setup(cnodeid_t);
 	cnodemask_t	done;
 
 	spin_lock(&hub_mask_lock);
@@ -299,6 +300,7 @@ void per_hub_init(cnodeid_t cnode)
 	 */
 	if (!done) {
 		hub_rtc_init(cnode);
+		pcibr_setup(cnode); 
 	}
 }
 
@@ -343,6 +345,7 @@ void per_cpu_init(void)
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
 		sti();
 		load_mmu();
+		atomic_inc(&numstarted);
 	}
 	if (is_slave == 0)
 		is_slave = 1;
@@ -391,7 +394,6 @@ void cboot(void)
 #endif
 	_flush_tlb_all();
 	flush_cache_all();
-	atomic_inc(&numstarted); 
 	start_secondary();
 }
 

@@ -63,7 +63,7 @@
 irq_cpustat_t irq_stat [NR_CPUS];
 
 extern asmlinkage void ip27_irq(void);
-extern int irq_to_bus[], irq_to_slot[];
+extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int (*irq_cannonicalize)(int irq);
 int intr_connect_level(cpuid_t cpu, int bit);
 int intr_disconnect_level(cpuid_t cpu, int bit);
@@ -82,10 +82,13 @@ unsigned long spurious_count = 0;
  * use these macros to get the encoded nasid and widget id
  * from the irq value
  */
+#define IRQ_TO_BUS(i)			irq_to_bus[(i)]
+#define IRQ_TO_CPU(i) \
+	((i) == IOC3_ETH_INT ? 0 : bus_to_cpu[IRQ_TO_BUS(i)])
 #define NASID_FROM_PCI_IRQ(i) \
-		(((i) == IOC3_ETH_INT) ? 0 : bus_to_nid[irq_to_bus[(i)]])
+		(((i) == IOC3_ETH_INT) ? 0 : bus_to_nid[IRQ_TO_BUS(i)])
 #define WID_FROM_PCI_IRQ(i) \
-		(((i) == IOC3_ETH_INT) ? 8 : bus_to_wid[irq_to_bus[(i)]])
+		(((i) == IOC3_ETH_INT) ? 8 : bus_to_wid[IRQ_TO_BUS(i)])
 #define	SLOT_FROM_PCI_IRQ(i)		irq_to_slot[i]
 
 void disable_irq(unsigned int irq_nr)
@@ -106,7 +109,7 @@ int get_irq_list(char *buf)
 	int i, len = 0;
 	struct irqaction * action;
 
-	for (i = 0 ; i < 32 ; i++) {
+	for (i = 0 ; i < NR_IRQS ; i++) {
 		action = irq_action[i];
 		if (!action) 
 			continue;
@@ -220,12 +223,12 @@ static unsigned int bridge_startup(unsigned int irq)
 {
         bridge_t *bridge;
         int pin, swlevel;
-	cpuid_t cpu = 0;
+	cpuid_t cpu;
+	nasid_t master = NASID_FROM_PCI_IRQ(irq);
 
-        bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
-							WID_FROM_PCI_IRQ(irq));
-
-	pin = SLOT_FROM_PCI_IRQ(irq); 
+        bridge = (bridge_t *) NODE_SWIN_BASE(master, WID_FROM_PCI_IRQ(irq));
+	pin = SLOT_FROM_PCI_IRQ(irq);
+	cpu = IRQ_TO_CPU(irq);
 
 	DBG("bridge_startup(): irq= 0x%x  real_irq= %d pin=%d\n", irq, real_irq, pin);
         /*
@@ -235,7 +238,7 @@ static unsigned int bridge_startup(unsigned int irq)
         swlevel = IRQ_TO_SWLEVEL(cpu, irq);
         intr_connect_level(cpu, swlevel);
 
-        bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
+        bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (master << 8));
         bridge->b_int_enable |= (1 << pin);
 	/* set more stuff in int_enable reg */
 	bridge->b_int_enable |= 0x7ffffe00;
@@ -294,30 +297,6 @@ static unsigned int bridge_shutdown(unsigned int irq)
         bridge->b_widget.w_tflush;                      /* Flush */
 
         return 0;       /* Never anything pending.  */
-}
-
-static void bridge_init(void)
-{
-	bridge_t *bridge;
-        int     bus;
-
-        for (bus=0; bus<num_bridges; bus++) {
-          bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus],bus_to_wid[bus]);          
-          /* Hmm...  IRIX sets additional bits in the address which are
-             documented as reserved in the bridge docs ...  */
-          bridge->b_int_mode = 0x0;                     /* Don't clear ints */
-#if 0
-          bridge->b_wid_int_upper = 0x000a8000;           /* Ints to node 0 */
-          bridge->b_wid_int_lower = 0x01000090;
-          bridge->b_dir_map = 0xa00000;                 /* DMA */
-#endif /* shouldn't lower= 0x01800090 ??? */
-          bridge->b_wid_int_upper = 0x000a8000;           /* Ints to widget A */
-          bridge->b_wid_int_lower = 0x01800090;
-          bridge->b_dir_map = 0xa00000;                   /* DMA */
-
-          bridge->b_int_enable = 0;
-          bridge->b_widget.w_tflush;                    /* Flush */
-        }
 }
 
 void irq_debug(void)
@@ -447,7 +426,6 @@ void __init init_IRQ(void)
 {
 	irq_cannonicalize = indy_irq_cannonicalize;
 
-	bridge_init();
 	set_except_vector(0, ip27_irq);
 }
 

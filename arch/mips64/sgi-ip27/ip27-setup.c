@@ -12,6 +12,9 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/spinlock.h>
+#include <linux/sched.h>
+#include <linux/smp.h>
 #include <asm/sn/types.h>
 #include <asm/sn/sn0/addrs.h>
 #include <asm/sn/sn0/hubni.h>
@@ -102,27 +105,32 @@ static void __init verify_mode(void)
 #define XXBOW_WIDGET_PART_NUM   0xd000          /* Xbridge */
 #define BASE_XBOW_PORT  	8     /* Lowest external port */
 
-static void __init pcibr_setup(void)
+unsigned int bus_to_cpu[256];
+
+void __init pcibr_setup(cnodeid_t nid)
 {
-	int 			i;
+	int 			i, start, num, masterwid;
 	bridge_t 		*bridge; 
 	volatile u64 		hubreg;
-	nasid_t	 		nasid;
+	nasid_t	 		nasid, masternasid;
 	xwidget_part_num_t	partnum;
 	widgetreg_t 		widget_id;
+	static spinlock_t	pcibr_setup_lock = SPIN_LOCK_UNLOCKED;
 
-	num_bridges = 0;
 	/*
 	 * find what's on our local node
 	 */
-	nasid = 0;
-	hubreg = LOCAL_HUB_L(IIO_LLP_CSR);
+	spin_lock(&pcibr_setup_lock);
+	start = num_bridges;		/* Remember where we start from */
+	nasid = COMPACT_TO_NASID_NODEID(nid);
+	hubreg = REMOTE_HUB_L(nasid, IIO_LLP_CSR);
 	if (hubreg & IIO_LLP_CSR_IS_UP) {
 		/* link is up */
 		widget_id = *(volatile widgetreg_t *)
                         (RAW_NODE_SWIN_BASE(nasid, 0x0) + WIDGET_ID);
 		partnum = XWIDGET_PART_NUM(widget_id);
-		printk("pcibr_setup(): found partnum= 0x%x ", partnum);
+		printk("Cpu %d, Nasid 0x%lx, pcibr_setup(): found partnum= 0x%x",
+					smp_processor_id(), nasid, partnum);
 		if (partnum == BRIDGE_WIDGET_PART_NUM) {
 			/*
 			 * found direct connected bridge so must be Origin200
@@ -131,8 +139,7 @@ static void __init pcibr_setup(void)
 			num_bridges = 1;
         		bus_to_wid[0] = 0x8;
 			bus_to_nid[0] = 0;
-		}
-		if (partnum == XBOW_WIDGET_PART_NUM) {
+		} else if (partnum == XBOW_WIDGET_PART_NUM) {
 			lboard_t *brd;
 			klxbow_t *xbow_p;
 			/*
@@ -150,6 +157,27 @@ static void __init pcibr_setup(void)
 			     find_component(brd, NULL, KLSTRUCT_XBOW)) == NULL)
 				printk("argh\n");
 			else {
+			   /*
+			    * Okay, here's a xbow. Lets arbitrate and find
+			    * out if we should initialize it. Set hub connected
+			    * at highest or lowest widget as master.
+			    * This algo needs to change a little for headless
+			    * nodes.
+			    */
+#ifdef WIDGET_A
+			   i = HUB_WIDGET_ID_MAX + 1;
+			   do {
+				i--;
+			   } while (!XBOW_PORT_TYPE_HUB(xbow_p, i));
+#else
+			   i = HUB_WIDGET_ID_MIN - 1;
+			   do {
+				i++;
+			   } while (!XBOW_PORT_TYPE_HUB(xbow_p, i));
+#endif
+			   masterwid = i;
+			   masternasid = XBOW_PORT_NASID(xbow_p, i);
+			   if (nasid == masternasid)
 			   for (i=HUB_WIDGET_ID_MIN; i<=HUB_WIDGET_ID_MAX; i++) {
 				if (!XBOW_PORT_IS_ENABLED(xbow_p, i))
 					continue;
@@ -166,8 +194,7 @@ static void __init pcibr_setup(void)
 				}
 			   }
 			}
-		}
-		if (partnum == XXBOW_WIDGET_PART_NUM) {
+		} else if (partnum == XXBOW_WIDGET_PART_NUM) {
 			/*
 			 * found xbridge, assume ibrick for now 
 			 */
@@ -183,13 +210,17 @@ static void __init pcibr_setup(void)
 			num_bridges = 3;
 		}
 	}
+	num = num_bridges - start;
+	spin_unlock(&pcibr_setup_lock);
 	/*
          * set bridge registers
          */
-	for (i=0; i<num_bridges; i++) {
+	for (i = start; i < (start + num); i++) {
+
 		DBG("pcibr_setup: bus= %d  bus_to_wid[%2d]= %d  bus_to_nid[%2d]= %d\n",
                         i, i, bus_to_wid[i], i, bus_to_nid[i]);
 
+		bus_to_cpu[i] = smp_processor_id();
 		/*
 		 * point to this bridge
 		 */
@@ -208,6 +239,19 @@ static void __init pcibr_setup(void)
 		bridge->b_wid_control |= BRIDGE_CTRL_IO_SWAP;
 		bridge->b_wid_control |= BRIDGE_CTRL_MEM_SWAP;
 
+		/*
+		 * Hmm...  IRIX sets additional bits in the address which 
+		 * are documented as reserved in the bridge docs.
+		 * We waste time programming b_wid_int_upper/b_wid_int_lower,
+		 * since bridge_startup will set up the widget->nasid intr
+		 * path anyway.
+		 */
+		bridge->b_int_mode = 0x0;		/* Don't clear ints */
+		bridge->b_wid_int_upper = 0x000a8000;	/* Ints to widget A */
+		bridge->b_wid_int_lower = 0x01800090;
+		bridge->b_dir_map = 0xa00000;		/* DMA */
+		bridge->b_int_enable = 0;
+
 		bridge->b_wid_tflush;     /* wait until Bridge PIO complete */
 	}
 }
@@ -217,11 +261,11 @@ void __init ip27_setup(void)
 	nasid_t nid;
 	hubreg_t p, e;
 
+	num_bridges = 0;
 	/*
 	 * hub_rtc init and cpu clock intr enabled for later calibrate_delay.
 	 */
 	DBG("ip27_setup(): Entered.\n");
-	per_cpu_init();
 	nid = get_nasid();
 	printk("IP27: Running on node %d.\n", nid);
 
@@ -240,9 +284,5 @@ void __init ip27_setup(void)
 	verify_mode();
 	ioc3_sio_init();
 	ioc3_eth_init();
-
-	DBG("ip27_setup(): calling pcibr_setup\n");
-	/* set some bridge registers */
-	pcibr_setup();
-	DBG("ip27_setup(): Exit.\n");
+	per_cpu_init();
 }
