@@ -859,7 +859,7 @@ type name(void) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 /*
@@ -887,7 +887,7 @@ type name(atype a) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #define _syscall2(type,name,atype,a,btype,b) \
@@ -912,7 +912,7 @@ type name(atype a, btype b) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #define _syscall3(type,name,atype,a,btype,b,ctype,c) \
@@ -938,7 +938,7 @@ type name(atype a, btype b, ctype c) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #define _syscall4(type,name,atype,a,btype,b,ctype,c,dtype,d) \
@@ -964,7 +964,7 @@ type name(atype a, btype b, ctype c, dtype d) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #if (_MIPS_SIM == _MIPS_SIM_ABI32)
@@ -1001,7 +1001,7 @@ type name(atype a, btype b, ctype c, dtype d, etype e) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #define _syscall6(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f) \
@@ -1034,7 +1034,7 @@ type name(atype a, btype b, ctype c, dtype d, etype e, ftype f) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #endif /* (_MIPS_SIM == _MIPS_SIM_ABI32) */
@@ -1065,7 +1065,7 @@ type name (atype a,btype b,ctype c,dtype d,etype e) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #define _syscall6(type,name,atype,a,btype,b,ctype,c,dtype,d,etype,e,ftype,f) \
@@ -1094,7 +1094,7 @@ type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
 	if (__a3 == 0) \
 		return (type) __v0; \
 	errno = __v0; \
-	return -1; \
+	return (type) -1; \
 }
 
 #endif /* (_MIPS_SIM == _MIPS_SIM_NABI32) || (_MIPS_SIM == _MIPS_SIM_ABI64) */
