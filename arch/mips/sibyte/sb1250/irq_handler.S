@@ -76,8 +76,13 @@
 	mfc0	a0, CP0_EPC
 	jal	sbprof_cpu_intr
 	 addu	a0, a0, t1		/* a0 = EPC + (BD ? 4 :	0) */
+	/* Re-enable interrupts here so that events due to sbprof_cpu_intr
+	   get charged to ret_from_irq (via a recursive interrupt) 
+	   rather than the restart pc. */
+	mfc0	t0, CP0_STATUS
+	or	t0, ST0_IE
 	j	ret_from_irq
-	 nop				# delay slot
+	 mtc0	t0, CP0_STATUS		# delay slot
 0:
 #endif
 	/* Timer interrupt is routed to IP[4] */
@@ -100,6 +105,18 @@
 	j	ret_from_irq
 	 nop				# delay slot
 2:
+#endif
+
+#ifdef CONFIG_REMOTE_DEBUG
+	/* KGDB (uart 1) interrupt is routed to IP[6] */
+	andi	t1, s0, CAUSEF_IP6
+	beqz	t1, 1f
+	nop                            # delay slot
+	jal	sb1250_kgdb_interrupt
+         move	a0, sp
+	j	ret_from_irq
+	nop                            # delay slot
+1:
 #endif
 
 	and      t1, s0, CAUSEF_IP2

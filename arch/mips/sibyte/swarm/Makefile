@@ -2,9 +2,7 @@ USE_STANDARD_AS_RULE := true
 
 all: sbswarm.a
 
-OBJS-y                   = setup.o cmdline.o rtc.o time.o memory.o cfe_api.o
-
-OBJS-$(CONFIG_SMP)      += smp.o
+OBJS-y                   = setup.o cmdline.o rtc_xicor1241.o
 
 OBJS-$(CONFIG_L3DEMO)   += procl3switch.o l3procbootstrap.o l3proc.o
 OBJS-$(CONFIG_REMOTE_DEBUG) += dbg_io.o

@@ -23,12 +23,15 @@
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+
 #include <asm/errno.h>
 #include <asm/signal.h>
 #include <asm/system.h>
 #include <asm/ptrace.h>
+
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
+#include <asm/sibyte/sb1250_uart.h>
 #include <asm/sibyte/sb1250_scd.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/64bit.h>
@@ -50,6 +53,7 @@ static void ack_sb1250_irq(unsigned int irq);
 
 #ifdef CONFIG_REMOTE_DEBUG
 extern void breakpoint(void);
+extern void set_debug_traps(void);
 #endif
 
 #define NR_IRQS 64
@@ -155,6 +159,39 @@ void __init init_sb1250_irqs(void)
 }
 
 
+static void sb1250_dummy_handler(int irq, void *dev_id, struct pt_regs *regs)
+{
+}
+
+static struct irqaction sb1250_dummy_action = {
+	handler: sb1250_dummy_handler,
+	flags:   0,
+	mask:    0,
+	name:    "sb1250-private",
+	next:    NULL,
+	dev_id:  0
+};
+
+int sb1250_steal_irq(int irq)
+{
+	irq_desc_t *desc = irq_desc + irq;
+	unsigned long flags;
+	int retval = 0;
+
+	if (irq >= NR_IRQS)
+		return -EINVAL;
+
+	spin_lock_irqsave(&desc->lock,flags);
+	/* Don't allow sharing at all for these */
+	if (desc->action != NULL)
+		retval = -EBUSY;
+	else {
+		desc->action = &sb1250_dummy_action;
+		desc->depth = 0;
+	}
+	spin_unlock_irqrestore(&desc->lock,flags);
+}
+
 /*
  *  init_IRQ is called early in the boot sequence from init/main.c.  It
  *  is responsible for setting up the interrupt mapper and installing the
@@ -178,12 +215,16 @@ void __init init_sb1250_irqs(void)
 #define IMR_IP2_VAL	K_INT_MAP_I0
 #define IMR_IP3_VAL	K_INT_MAP_I1
 #define IMR_IP4_VAL	K_INT_MAP_I2
+#define IMR_IP5_VAL	K_INT_MAP_I3
+#define IMR_IP6_VAL	K_INT_MAP_I4
 
 void __init init_IRQ(void)
 {
 
 	unsigned int i;
 	u64 tmp;
+	unsigned int imask = STATUSF_IP4 | STATUSF_IP3 | STATUSF_IP2 |
+		STATUSF_IP1 | STATUSF_IP0;
 
 	/* Default everything to IP2 */
 	for (i = 0; i < NR_IRQS; i++) {	/* was I0 */
@@ -220,26 +261,61 @@ void __init init_IRQ(void)
 	out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
 	out64(tmp, KSEG1 + A_IMR_REGISTER(1, R_IMR_INTERRUPT_MASK));
 
+	sb1250_steal_irq(K_INT_MBOX_0);
+
 	/*
 	 * Note that the timer interrupts are also mapped, but this is
 	 * done in sb1250_time_init()
 	 */
 
-#ifdef CONFIG_SIBYTE_SB1250_PROF
-	/* Enable IP[7,4:0], disable the rest */
-	clear_cp0_status(0x6000);
-	set_cp0_status(0x9f00);
-#else
-	/* Enable IP[4:0], disable the rest */
-	clear_cp0_status(0xe000);
-	set_cp0_status(0x1f00);
+#ifdef CONFIG_BCM1250_PROF
+	imask |= STATUSF_IP7;
 #endif
+#ifdef CONFIG_REMOTE_DEBUG
+	imask |= STATUSF_IP6;
+#endif
+	/* Enable necessary IPs, disable the rest */
+	change_cp0_status(ST0_IM, imask);
 	set_except_vector(0, sb1250_irq_handler);
 
 #ifdef CONFIG_REMOTE_DEBUG
+	/* Setup uart 1 settings, mapper */
+	out64(M_DUART_IMR_BRK, KSEG1 + A_DUART + R_DUART_IMR_B);
+
+	/* Note: avoiding request_irq at this point, because it's too
+           early to kmalloc */
+	out64(IMR_IP6_VAL, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) + (K_INT_UART_1<<3));
+	tmp = in64(KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
+	tmp &= ~(1<<K_INT_UART_1);
+	out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
+	
 	/* If local serial I/O used for debug port, enter kgdb at once */
 //      puts("Waiting for kgdb to connect...");
 	set_debug_traps();
 	breakpoint();
 #endif
 }
+
+#ifdef CONFIG_REMOTE_DEBUG
+
+#include <linux/delay.h>
+
+extern void set_async_breakpoint(unsigned int epc);
+
+#define duart_out(reg, val)     out64(val, KSEG1 + A_DUART_CHANREG(1,reg))
+#define duart_in(reg)           in64(KSEG1 + A_DUART_CHANREG(1,reg))
+
+void sb1250_kgdb_interrupt(struct pt_regs *regs)
+{
+	/* 
+	 * Clear break-change status (allow some time for the remote
+	 * host to stop the break, since we would see another
+	 * interrupt on the end-of-break too) 
+	 */ 
+	mdelay(500);
+	duart_out(R_DUART_CMD, V_DUART_MISC_CMD_RESET_BREAK_INT | 
+				M_DUART_RX_EN | M_DUART_TX_EN);
+	if (!user_mode(regs))
+		set_async_breakpoint(regs->cp0_epc);
+}
+#endif 	/* CONFIG_REMOTE_DEBUG */

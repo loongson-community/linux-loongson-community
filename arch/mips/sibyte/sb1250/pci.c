@@ -17,7 +17,7 @@
  */
 
 /*
- * SB1250-specific PCI support
+ * BCM1250-specific PCI support
  *
  * This module provides the glue between Linux's PCI subsystem
  * and the hardware.  We basically provide glue for accessing
@@ -41,9 +41,11 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/console.h>
 
 #include <asm/sibyte/sb1250_defs.h>
 #include <asm/sibyte/sb1250_regs.h>
+#include <asm/sibyte/sb1250_scd.h>
 #include <asm/io.h>
 
 #include "lib_hssubr.h"
@@ -232,16 +234,24 @@ struct pci_ops sb1250_pci_ops = {
 void __init pcibios_init(void)
 {
 	uint32_t cmdreg;
+	uint64_t reg;
 
 	/*
 	 * See if the PCI bus has been configured by the firmware.
 	 */
 
-	cmdreg = READCFG32((A_PCI_TYPE00_HEADER | MATCH_BITS) + PCI_COMMAND);
+	cmdreg = READCFG32((A_PCI_TYPE00_HEADER | MATCH_BITS) +
+			   PCI_COMMAND);
 
 	if (!(cmdreg & PCI_COMMAND_MASTER)) {
 		printk
 		    ("PCI: Skipping PCI probe.  Bus is not initialized.\n");
+		return;
+	}
+
+	reg = *((volatile uint64_t *) KSEG1ADDR(A_SCD_SYSTEM_CFG));
+	if (!(reg & M_SYS_PCI_HOST)) {
+		printk("PCI: Skipping PCI probe.  Processor is in PCI device mode.\n");
 		return;
 	}
 
@@ -254,13 +264,15 @@ void __init pcibios_init(void)
 	 */
 
 	set_io_port_base(ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
+	isa_slot_offset = (unsigned long)ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES_32, 1024*1024);
 
 	/*
 	 * Also check the LDT bridge's enable, just in case we didn't
 	 * initialize that one.
 	 */
 
-	cmdreg = READCFG32((A_PCI_TYPE01_HEADER | MATCH_BITS) + PCI_COMMAND);
+	cmdreg = READCFG32((A_PCI_TYPE01_HEADER | MATCH_BITS) +
+			   PCI_COMMAND);
 
 	if (cmdreg & PCI_COMMAND_MASTER) {
 		sb1250_bus_status |= LDT_BUS_ENABLED;
@@ -271,16 +283,20 @@ void __init pcibios_init(void)
 	printk("PCI: Probing PCI hardware on host bus 0.\n");
 	pci_scan_bus(0, &sb1250_pci_ops, NULL);
 
+#ifdef CONFIG_VGA_CONSOLE
+	take_over_console(&vga_con,0,MAX_NR_CONSOLES-1,1);
+#endif
 }
 
-int pcibios_enable_device(struct pci_dev *dev)
+int __init pcibios_enable_device(struct pci_dev *dev)
 {
 	/* Not needed, since we enable all devices at startup.  */
 	return 0;
 }
 
-void pcibios_align_resource(void *data, struct resource *res,
-                            unsigned long size)
+void __init
+pcibios_align_resource(void *data, struct resource *res,
+		       unsigned long size)
 {
 }
 
@@ -295,7 +311,8 @@ struct pci_fixup pcibios_fixups[] = {
 	{0}
 };
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
+void __init
+pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 			struct resource *res, int resource)
 {
 	unsigned long where, size;
@@ -312,12 +329,12 @@ void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
  *  Called after each bus is probed, but before its children
  *  are examined.
  */
-void pcibios_fixup_bus(struct pci_bus *b)
+void __init pcibios_fixup_bus(struct pci_bus *b)
 {
 	pci_read_bridge_bases(b);
 }
 
-unsigned int pcibios_assign_all_busses(void)
+unsigned __init int pcibios_assign_all_busses(void)
 {
 	return 1;
 }

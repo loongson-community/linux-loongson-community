@@ -53,17 +53,23 @@ static struct sbprof_tb *sbp;
  *
  ************************************************************************/
 
-/* Once per second on a 500 Mhz 1250 */
-#define TB_PERIOD 250000000ULL
+/* 100 samples per second on a 500 Mhz 1250 */
+#define TB_PERIOD 2500000ULL
 
 static void arm_tb(void)
 {
+        unsigned long long scdperfcnt;
 	unsigned long long next = (1ULL << 40) - TB_PERIOD;
 	/* Generate an SCD_PERFCNT interrupt in TB_PERIOD Zclks to
 	   trigger start of trace.  XXX vary sampling period */
 	out64(0, KSEG1 + A_SCD_PERF_CNT_1);
-	out64(in64(KSEG1 + A_SCD_PERF_CNT_CFG) | // keep counters 0,2,3 as is
+	scdperfcnt = in64(KSEG1 + A_SCD_PERF_CNT_CFG);
+	/* Unfortunately, in Pass 2 we must clear all counters to knock down
+	   a previous interrupt request.  This means that bus profiling
+	   requires ALL of the SCD perf counters. */
+	out64((scdperfcnt & ~M_SPC_CFG_SRC1) | // keep counters 0,2,3 as is
 		   M_SPC_CFG_ENABLE |		 // enable counting
+		   M_SPC_CFG_CLEAR |		 // clear all counters
 		   V_SPC_CFG_SRC1(1),		 // counter 1 counts cycles
 	      KSEG1 + A_SCD_PERF_CNT_CFG);
 	out64(next, KSEG1 + A_SCD_PERF_CNT_1);
