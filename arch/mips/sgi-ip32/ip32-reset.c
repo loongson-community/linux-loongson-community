@@ -23,6 +23,7 @@
 #include <asm/types.h>
 #include <asm/system.h>
 #include <asm/wbflush.h>
+#include <asm/ip32/mace.h>
 #include <asm/ip32/ip32_ints.h>
 
 #define POWERDOWN_TIMEOUT	120
