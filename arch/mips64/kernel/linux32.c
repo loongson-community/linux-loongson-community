@@ -1,9 +1,10 @@
-/* $Id$
+/* $Id: linux32.c,v 1.4 2000/02/29 20:49:15 ulfc Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
+ * sys32_execve from ia64/ia32 code, Feb 2000, Kanoj Sarcar (kanoj@sgi.com)
  */
 
 #include <linux/mm.h>
@@ -13,6 +14,7 @@
 #include <linux/highuid.h>
 
 #include <asm/uaccess.h>
+#include <asm/mman.h>
 
 /*
  * Revalidate the inode. This is required for proper NFS attribute caching.
@@ -169,4 +171,67 @@ asmlinkage int sys_lstat64(char * filename, struct stat *statbuf)
 asmlinkage int sys_fstat64(unsigned int fd, struct stat *statbuf)
 {
 	return sys_fstat(fd, statbuf);
+}
+
+static int
+nargs(unsigned int arg, char **ap)
+{
+	char *ptr; 
+	int n, err;
+
+	n = 0;
+	for (; ptr; ) {
+		if ((err = get_user(ptr, (int *)arg)))
+			return(err);
+		if (ap)
+			*ap++ = ptr;
+		arg += sizeof(unsigned int);
+		n++;
+	}
+	return(n - 1);
+}
+
+asmlinkage long
+sys32_execve(abi64_no_regargs, struct pt_regs regs)
+{
+	extern asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs);
+	extern asmlinkage long sys_munmap(unsigned long addr, size_t len);
+	unsigned int argv = (unsigned int)regs.regs[5];
+	unsigned int envp = (unsigned int)regs.regs[6];
+	char **av, **ae;
+	int na, ne, r, len;
+
+	na = nargs(argv, NULL);
+	ne = nargs(envp, NULL);
+	len = (na + ne + 2) * sizeof(*av);
+	/*
+	 *  kmalloc won't work because the `sys_exec' code will attempt
+	 *  to do a `get_user' on the arg list and `get_user' will fail
+	 *  on a kernel address (simplifies `get_user').  Instead we
+	 *  do an mmap to get a user address.  Note that since a successful
+	 *  `execve' frees all current memory we only have to do an
+	 *  `munmap' if the `execve' failes.
+	 */
+	down(&current->mm->mmap_sem);
+	lock_kernel();
+
+	av = do_mmap_pgoff(0, NULL, len,
+		PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0);
+
+	unlock_kernel();
+	up(&current->mm->mmap_sem);
+
+	if (IS_ERR(av))
+		return(av);
+	ae = av + na + 1;
+	av[na] = (char *)0;
+	ae[ne] = (char *)0;
+	(void)nargs(argv, av);
+	(void)nargs(envp, ae);
+	regs.regs[5] = av;
+	regs.regs[6] = ae;
+	r = sys_execve(__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0,__dummy0, regs);
+	if (IS_ERR(r))
+		sys_munmap(av, len);
+	return(r);
 }

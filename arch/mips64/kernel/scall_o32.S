@@ -202,7 +202,7 @@ illegal_syscall:
 	sys	sys_creat	2
 	sys	sys_link	2
 	sys	sys_unlink	1			/* 4010 */
-	sys	sys_execve	0
+	sys	sys32_execve	0
 	sys	sys_chdir	1
 	sys	sys_time	1
 	sys	sys_mknod	3
