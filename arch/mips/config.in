@@ -38,6 +38,26 @@ bool 'Support for NEC DDB Vrc-5476' CONFIG_DDB5476
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
 bool 'Support for SGI IP22' CONFIG_SGI_IP22
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
+bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
+   if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+       bool '    Support for older IT8172 (Rev C)' CONFIG_IT8172_REVC
+       bool '    Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
+       if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
+	   define_bool CONFIG_IT8172_CIR y
+       else
+           bool '    Enable PS2 Keyboard Support ' CONFIG_PC_KEYB
+       fi
+       bool '    Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
+       bool '    Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
+   fi
+   bool 'Support for Globespan IVR board' CONFIG_MIPS_IVR
+   if [ "$CONFIG_MIPS_IVR" = "y" ]; then
+       bool '    Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
+       if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
+	   define_bool CONFIG_IT8172_CIR y
+       fi
+       bool '    Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
+   fi
 
 #
 # Select some configuration options automatically for certain systems.
@@ -125,6 +145,14 @@ if [ "$CONFIG_DDB5074" = "y" -o "$CONFIG_DDB5476"  = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_ROTTEN_IRQ y
+fi
+if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_IT8712 y
+   define_bool CONFIG_PC_KEYB y
+fi
+if [ "$CONFIG_MIPS_IVR" = "y" ]; then
+   define_bool CONFIG_PCI y
 fi
 
 if [ "$CONFIG_ISA" != "y" ]; then

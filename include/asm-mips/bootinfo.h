@@ -25,9 +25,10 @@
 #define MACH_GROUP_COSINE      10 /* CoSine Orion                             */
 #define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
 #define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
+#define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards*/
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN",      \
-	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum" }
+	"SGI", "Cobalt", "NEC DDB", "Baget", "Cosine", "Galileo", "Momentum", "ITE" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -139,6 +140,14 @@
 #define MACH_MOMENCO_OCELOT		0
 
 #define GROUP_MOMENCO_NAMES { "Ocelot" }
+
+ 
+/*
+ * Valid machtype for group ITE
+ */
+#define MACH_QED_4N_S01B	0	/* ITE8172 based eval board */
+ 
+#define GROUP_ITE_NAMES { "QED-4N-S01B" } /* the actual board name */
 
 /*
  * Valid cputype values

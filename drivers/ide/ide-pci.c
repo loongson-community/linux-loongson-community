@@ -74,6 +74,7 @@
 #define DEVID_AMD7409	((ide_pci_devid_t){PCI_VENDOR_ID_AMD,     PCI_DEVICE_ID_AMD_VIPER_7409})
 #define DEVID_SLC90E66	((ide_pci_devid_t){PCI_VENDOR_ID_EFAR,    PCI_DEVICE_ID_EFAR_SLC90E66_1})
 #define DEVID_OSB4	((ide_pci_devid_t){PCI_VENDOR_ID_SERVERWORKS, PCI_DEVICE_ID_SERVERWORKS_OSB4IDE})
+#define DEVID_ITE8172G	((ide_pci_devid_t){PCI_VENDOR_ID_ITE,     PCI_DEVICE_ID_ITE_IT8172G})
 
 #define	IDE_IGNORE	((void *)-1)
 
@@ -246,6 +247,18 @@ extern void ide_init_piix(ide_hwif_t *);
 #define INIT_PIIX	NULL
 #endif
 
+#ifdef CONFIG_BLK_DEV_IT8172
+extern unsigned int pci_init_it8172(struct pci_dev *, const char *);
+extern unsigned int ata66_it8172(ide_hwif_t *);
+extern void ide_init_it8172(ide_hwif_t *);
+#define PCI_IT8172	&pci_init_it8172
+#define INIT_IT8172	&ide_init_it8172
+#else
+#define PCI_IT8172	NULL
+#define ATA66_IT8172	NULL
+#define INIT_IT8172	NULL
+#endif
+
 #ifdef CONFIG_BLK_DEV_RZ1000
 extern void ide_init_rz1000(ide_hwif_t *);
 #define INIT_RZ1000	&ide_init_rz1000
@@ -381,6 +394,7 @@ static ide_pci_device_t ide_pci_chipsets[] __initdata = {
 	{DEVID_AMD7409,	"AMD7409",	PCI_AMD7409,	ATA66_AMD7409,	INIT_AMD7409,	DMA_AMD7409,	{{0x40,0x01,0x01}, {0x40,0x02,0x02}},	ON_BOARD,	0 },
 	{DEVID_SLC90E66,"SLC90E66",	PCI_SLC90E66,	ATA66_SLC90E66,	INIT_SLC90E66,	NULL,		{{0x41,0x80,0x80}, {0x43,0x80,0x80}},	ON_BOARD,	0 },
         {DEVID_OSB4,    "ServerWorks OSB4",     PCI_OSB4,       ATA66_OSB4,     INIT_OSB4,      NULL,   {{0x00,0x00,0x00}, {0x00,0x00,0x00}},   ON_BOARD,       0 },
+	{DEVID_ITE8172G,"IT8172G",	PCI_IT8172,	NULL,	INIT_IT8172,	NULL,		{{0x00,0x00,0x00}, {0x40,0x00,0x01}},	ON_BOARD,	0 },
 	{IDE_PCI_DEVID_NULL, "PCI_IDE",	NULL,		NULL,		NULL,		NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	ON_BOARD,	0 }};
 
 /*
@@ -784,6 +798,8 @@ void __init ide_scan_pcidev (struct pci_dev *dev)
 		return;
 	else if (IDE_PCI_DEVID_EQ(d->devid, DEVID_CY82C693) && (!(PCI_FUNC(dev->devfn) & 1) || !((dev->class >> 8) == PCI_CLASS_STORAGE_IDE)))
 		return;	/* CY82C693 is more than only a IDE controller */
+	else if (IDE_PCI_DEVID_EQ(d->devid, DEVID_ITE8172G) && (!(PCI_FUNC(dev->devfn) & 1) || !((dev->class >> 8) == PCI_CLASS_STORAGE_IDE)))
+		return;	/* IT8172G is also more than only an IDE controller */
 	else if (IDE_PCI_DEVID_EQ(d->devid, DEVID_UM8886A) && !(PCI_FUNC(dev->devfn) & 1))
 		return;	/* UM8886A/BF pair */
 	else if (IDE_PCI_DEVID_EQ(d->devid, DEVID_HPT366))

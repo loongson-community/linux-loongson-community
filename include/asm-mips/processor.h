@@ -81,7 +81,7 @@ extern struct task_struct *last_task_used_math;
  * for a 64 bit kernel expandable to 8192EB, of which the current MIPS
  * implementations will "only" be able to use 1TB ...
  */
-#define TASK_SIZE	(0x80000000UL)
+#define TASK_SIZE	(0x7fff8000UL)
 
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.

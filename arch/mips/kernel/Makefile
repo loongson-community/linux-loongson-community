@@ -48,7 +48,9 @@ ifndef CONFIG_DECSTATION
     ifndef CONFIG_MIPS_ATLAS
       ifndef CONFIG_MIPS_MALTA
         ifndef CONFIG_MIPS_EV96100
-	  obj-y += time.o
+	  ifndef CONFIG_MIPS_ITE8172
+	    obj-y += time.o
+	  endif
         endif
       endif
     endif

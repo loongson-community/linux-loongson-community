@@ -533,6 +533,11 @@ void __init setup_arch(char **cmdline_p)
 		ev64120_setup();
 		break;
 #endif
+#ifdef CONFIG_MIPS_ITE8172
+	case  MACH_GROUP_ITE:
+		it8172_setup();
+		break;
+#endif
 	default:
 		panic("Unsupported architecture");
 	}

@@ -91,6 +91,10 @@ ifneq ($(CONFIG_SUN_SERIAL),)
   SERIAL   =
 endif
 
+ifeq ($(CONFIG_QTRONIX_KEYBOARD),y)
+  KEYBD    = qtronix.o
+  KEYMAP   = qtronixmap.o
+endif
 
 obj-$(CONFIG_VT) += vt.o vc_screen.o consolemap.o consolemap_deftbl.o $(CONSOLE) selection.o
 obj-$(CONFIG_SERIAL) += $(SERIAL)
@@ -208,3 +212,7 @@ consolemap_deftbl.o: consolemap_deftbl.c $(TOPDIR)/include/linux/types.h
 
 defkeymap.c: defkeymap.map
 	loadkeys --mktable defkeymap.map > defkeymap.c
+ifeq ($(CONFIG_QTRONIX_KEYBOARD),y)
+qtronixmap.c: qtronixmap.map
+	loadkeys --mktable qtronixmap.map > qtronixmap.c
+endif

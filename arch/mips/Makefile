@@ -218,6 +218,17 @@ LOADADDR      += 0x80100000
 endif
 
 #
+# ITE 8172 eval board with QED 5231 CPU
+#
+ifdef CONFIG_MIPS_ITE8172
+LIBS		+= arch/mips/ite-boards/qed-4n-s01b/ite.o		     \
+		   arch/mips/ite-boards/generic/it8172.o
+SUBDIRS		+= arch/mips/ite-boards/generic				     \
+		   arch/mips/ite-boards/qed-4n-s01b
+LOADADDR	+= 0x80100000
+endif
+
+#
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.

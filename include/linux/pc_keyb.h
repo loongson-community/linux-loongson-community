@@ -33,9 +33,15 @@ extern unsigned char aux_device_present;
  *	Keyboard Controller Registers on normal PCs.
  */
 
+#ifdef CONFIG_MIPS_ITE8172
+#define KBD_STATUS_REG		(0x14000000 + 0x64) /* Status register (R) */
+#define KBD_CNTL_REG		(0x14000000 + 0x64) /* Controller command register (W) */
+#define KBD_DATA_REG		(0x14000000 + 0x60) /* Keyboard data register (R/W) */
+#else
 #define KBD_STATUS_REG		0x64	/* Status register (R) */
 #define KBD_CNTL_REG		0x64	/* Controller command register (W) */
 #define KBD_DATA_REG		0x60	/* Keyboard data register (R/W) */
+#endif
 
 /*
  *	Keyboard Controller Commands

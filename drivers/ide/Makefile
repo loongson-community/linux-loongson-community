@@ -24,6 +24,7 @@ obj-$(CONFIG_BLK_DEV_IDEDISK)   += ide-disk.o
 obj-$(CONFIG_BLK_DEV_IDECD)     += ide-cd.o
 obj-$(CONFIG_BLK_DEV_IDETAPE)   += ide-tape.o
 obj-$(CONFIG_BLK_DEV_IDEFLOPPY) += ide-floppy.o
+obj-$(CONFIG_BLK_DEV_IT8172)    += it8172.o
 
 ide-obj-$(CONFIG_BLK_DEV_AEC62XX)	+= aec62xx.o
 ide-obj-$(CONFIG_BLK_DEV_ALI14XX)	+= ali14xx.o
