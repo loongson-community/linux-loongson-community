@@ -2,7 +2,7 @@
  * Driver for Zilog serial chips found on SGI workstations and
  * servers.  This driver could actually be made more generic.
  *
- * This is based on the drivers/serial/sunzilog.c code as of 2.5.70 and the
+ * This is based on the drivers/serial/sunzilog.c code as of 2.6.0-test7 and the
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include <linux/circ_buf.h>
 #include <linux/serial.h>
+#include <linux/sysrq.h>
 #include <linux/console.h>
 #include <linux/spinlock.h>
 #include <linux/init.h>
@@ -37,6 +38,10 @@
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/hpc3.h>
 #include <asm/sgi/ip22.h>
+
+#if defined(CONFIG_SERIAL_SUNZILOG_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#define SUPPORT_SYSRQ
+#endif
 
 #include <linux/serial_core.h>
 
@@ -948,7 +953,7 @@ static int zilog_irq = -1;
 static struct uart_driver ip22zilog_reg = {
 	.owner		=	THIS_MODULE,
 	.driver_name	=	"ttyS",
-	.dev_name	=	"tty/",
+	.devfs_name	=	"tty/",
 	.major		=	TTY_MAJOR,
 };
 
@@ -995,6 +1000,7 @@ static struct zilog_layout * __init get_zs(int chip)
 
 #define ZS_PUT_CHAR_MAX_DELAY	2000	/* 10 ms */
 
+#ifdef CONFIG_SERIAL_IP22_ZILOG_CONSOLE
 static void ip22zilog_put_char(struct zilog_channel *channel, unsigned char ch)
 {
 	int loops = ZS_PUT_CHAR_MAX_DELAY;
@@ -1129,6 +1135,7 @@ static struct console ip22zilog_console = {
 	.index	=	-1,
 	.data	=	&ip22zilog_reg,
 };
+#define IP22ZILOG_CONSOLE	(&ip22zilog_console)
 
 static int __init ip22zilog_console_init(void)
 {
@@ -1150,6 +1157,10 @@ static int __init ip22zilog_console_init(void)
 	register_console(&ip22zilog_console);
 	return 0;
 }
+#else /* CONFIG_SERIAL_IP22_ZILOG_CONSOLE */
+#define IP22ZILOG_CONSOLE		(NULL)
+#define ip22zilog_console_init()	do { } while (0)
+#endif
 
 static void __init ip22zilog_prepare(void)
 {
@@ -1257,7 +1268,7 @@ static int __init ip22zilog_ports_init(void)
 	 * in the system.
 	 */
 	ip22zilog_reg.nr = NUM_CHANNELS;
-	ip22zilog_reg.cons = &ip22zilog_console;
+	ip22zilog_reg.cons = IP22ZILOG_CONSOLE;
 
 	ip22zilog_reg.minor = ip22serial_current_minor;
 	ip22serial_current_minor += NUM_CHANNELS;
