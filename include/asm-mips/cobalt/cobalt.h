@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1997 Cobalt Microserver
  * Copyright (C) 1997 Ralf Baechle
- * Copyright (C) 2001 Liam Davies (ldavies@agile.tv)
+ * Copyright (C) 2001, 2002, 2003 Liam Davies (ldavies@agile.tv)
  *
  */
 #ifndef __ASM_MIPS_COBALT_H
@@ -77,6 +77,22 @@
 #define COBALT_BRD_ID_RAQ1     0x4
 #define COBALT_BRD_ID_QUBE2    0x5
 #define COBALT_BRD_ID_RAQ2     0x6
+
+
+/*
+ * Galileo chipset access macros for the Cobalt. The base address for
+ * the GT64111 chip is 0x14000000
+ */
+#define GT64111_BASE		0x04000000
+#define GALILEO_REG(ofs)	(GT64111_BASE + (ofs))
+
+#define GALILEO_INL(port)	(inl(GALILEO_REG(port)))
+#define GALILEO_OUTL(val, port)	outl(val, GALILEO_REG(port))
+
+#define GALILEO_T0EXP		0x0100
+#define GALILEO_ENTC0		0x01
+#define GALILEO_SELTC0		0x02
+
 
 #endif /* __ASM_MIPS_COBALT_H */
 
