@@ -21,6 +21,7 @@
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
 
+#include <asm/cacheflush.h>
 #include <asm/system.h>
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>

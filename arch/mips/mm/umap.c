@@ -25,6 +25,7 @@
 #include <linux/swap.h>
 
 #include <asm/system.h>
+#include <asm/cacheflush.h>
 #include <asm/pgalloc.h>
 #include <asm/page.h>
 
