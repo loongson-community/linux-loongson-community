@@ -68,7 +68,7 @@ extern void pgd_init(unsigned long page);
 
 extern __inline__ pgd_t *get_pgd_slow(void)
 {
-	pgd_t *ret = (pgd_t *)__get_free_page(GFP_KERNEL), *init;
+	pgd_t *ret = (pgd_t *)__get_free_pages(GFP_KERNEL, PGD_ORDER), *init;
 
 	if (ret) {
 		init = pgd_offset(&init_mm, 0);
@@ -101,7 +101,7 @@ extern __inline__ void free_pgd_fast(pgd_t *pgd)
 
 extern __inline__ void free_pgd_slow(pgd_t *pgd)
 {
-	free_page((unsigned long)pgd);
+	free_pages((unsigned long)pgd, PGD_ORDER);
 }
 
 extern pte_t *get_pte_slow(pmd_t *pmd, unsigned long address_preadjusted);

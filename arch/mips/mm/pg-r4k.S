@@ -8,13 +8,19 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997,  1998,  1999,  2000 Ralf Baechle ralf@gnu.org
  */
+#include <linux/config.h>
 #include <asm/addrspace.h>
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/cacheops.h>
 #include <asm/mipsregs.h>
 
-#define PAGE_SIZE       0x1000
+#define PAGE_SIZE	0x1000
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define PGD_SIZE	0x2000
+#else
+#define PGD_SIZE	0x1000
+#endif
 
 	.text
 	.set	mips3
@@ -668,7 +674,7 @@ LEAF(r4k_copy_page_s128)
 
 /* This one still needs to receive cache optimizations  */
 LEAF(pgd_init)
-	addiu	AT, a0, PAGE_SIZE
+	addiu	AT, a0, PGD_SIZE / 2
 	la	v0, invalid_pte_table
 1:	sw	v0, (a0)
 	sw	v0, 4(a0)

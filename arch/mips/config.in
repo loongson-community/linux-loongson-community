@@ -318,6 +318,16 @@ if [ "$CONFIG_CPU_SB1" = "y" ]; then
    define_bool CONFIG_VTAG_ICACHE y
 fi
 
+if [ "$CONFIG_CPU_R4X00"  = "y" -o \
+     "$CONFIG_CPU_R5000" = "y" -o \
+     "$CONFIG_CPU_RM7000" = "y" -o \
+     "$CONFIG_CPU_R10000" = "y" -o \
+     "$CONFIG_CPU_SB1" = "y" -o \
+     "$CONFIG_CPU_MIPS32" = "y" -o \
+     "$CONFIG_CPU_MIPS64" = "y" ]; then
+   bool '  Support for 64-bit physical addresspace' CONFIG_64BIT_PHYS_ADDR
+fi
+
 bool 'Override CPU Options' CONFIG_CPU_ADVANCED
 if [ "$CONFIG_CPU_ADVANCED" = "y" ]; then
    bool '  ll/sc Instructions available' CONFIG_CPU_HAS_LLSC

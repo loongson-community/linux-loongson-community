@@ -132,7 +132,13 @@ extern unsigned long isa_slot_offset;
  */
 #define page_to_phys(page)	((page - mem_map) << PAGE_SHIFT)
 
-extern void * __ioremap(unsigned long offset, unsigned long size, unsigned long flags);
+#ifdef CONFIG_64BIT_PHYS_ADDR
+typedef unsigned long long phys_t;
+#else
+typedef unsigned long phys_t;
+#endif
+
+extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 
 static inline void *ioremap(unsigned long offset, unsigned long size)
 {

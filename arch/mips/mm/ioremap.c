@@ -14,10 +14,10 @@
 #include <asm/io.h>
 #include <asm/pgalloc.h>
 
-static inline void remap_area_pte(pte_t * pte, unsigned long address, unsigned long size,
-	unsigned long phys_addr, unsigned long flags)
+static inline void remap_area_pte(pte_t * pte, unsigned long address,
+	phys_t size, phys_t phys_addr, unsigned long flags)
 {
-	unsigned long end;
+	phys_t end;
 	pgprot_t pgprot = __pgprot(_PAGE_GLOBAL | _PAGE_PRESENT | __READABLE
 	                           | __WRITEABLE | flags);
 
@@ -39,10 +39,10 @@ static inline void remap_area_pte(pte_t * pte, unsigned long address, unsigned l
 	} while (address && (address < end));
 }
 
-static inline int remap_area_pmd(pmd_t * pmd, unsigned long address, unsigned long size,
-	unsigned long phys_addr, unsigned long flags)
+static inline int remap_area_pmd(pmd_t * pmd, unsigned long address,
+	phys_t size, phys_t phys_addr, unsigned long flags)
 {
-	unsigned long end;
+	phys_t end;
 
 	address &= ~PGDIR_MASK;
 	end = address + size;
@@ -62,8 +62,8 @@ static inline int remap_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 	return 0;
 }
 
-static int remap_area_pages(unsigned long address, unsigned long phys_addr,
-				 unsigned long size, unsigned long flags)
+static int remap_area_pages(unsigned long address, phys_t phys_addr,
+	phys_t size, unsigned long flags)
 {
 	int error;
 	pgd_t * dir;
@@ -107,9 +107,9 @@ static int remap_area_pages(unsigned long address, unsigned long phys_addr,
  * caller shouldn't need to know that small detail.
  */
 
-#define IS_LOW512(addr) (!((unsigned long)(addr) & ~0x1fffffffUL))
+#define IS_LOW512(addr) (!((phys_t)(addr) & ~0x1fffffffUL))
 
-void * __ioremap(unsigned long phys_addr, unsigned long size, unsigned long flags)
+void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 {
 	void * addr;
 	struct vm_struct * area;
@@ -124,7 +124,7 @@ void * __ioremap(unsigned long phys_addr, unsigned long size, unsigned long flag
 	 * Map objects in the low 512mb of address space using KSEG1, otherwise
 	 * map using page tables.
 	 */
-	if (IS_LOW512(phys_addr) && IS_LOW512(phys_addr + size - 1))
+	if (IS_LOW512(phys_addr) && IS_LOW512(last_addr))
 		return (void *) KSEG1ADDR(phys_addr);
 
 	/*

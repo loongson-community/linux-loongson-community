@@ -107,5 +107,5 @@ void pgd_init(unsigned long page)
 		".set\treorder"
 		:"=r" (dummy1), "=r" (dummy2)
 		:"r" ((unsigned long) invalid_pte_table), "0" (page),
-		 "1" (PAGE_SIZE/(sizeof(pmd_t)*8)));
+		 "1" (USER_PTRS_PER_PGD / 8));
 }

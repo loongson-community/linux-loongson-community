@@ -26,7 +26,29 @@
 
 #define TLB_OPTIMIZE /* If you are paranoid, disable this. */
 
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define PTE_L		ld
+#define PTE_S		sd
+#define PTE_SIZE	8
+#define PTEP_INDX_MSK	0xff0
+#define PTE_INDX_MSK	0xff8
+#else
+#define PTE_L		lw
+#define PTE_S		sw
+#define PTE_SIZE	4
+#define PTEP_INDX_MSK	0xff8
+#define PTE_INDX_MSK	0xffc
+#endif
+
 	__INIT
+
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define GET_PTE_OFF(reg)
+#elif CONFIG_CPU_VR41XX
+#define GET_PTE_OFF(reg)	srl	reg, reg, 3
+#else
+#define GET_PTE_OFF(reg)	srl	reg, reg, 1
+#endif
 
 /*	
  * These handlers much be written in a relocatable manner
@@ -43,28 +65,24 @@
 	mfc0	k1, CP0_CONTEXT
 	la	k0, pgd_current
 	srl	k1, 23
-	sll	k1, 2
+	sll	k1, 2				# log2(sizeof(pgd_t)
 	addu	k1, k0, k1
 	lw	k1, (k1)
 #else 
 	lw	k1, pgd_current			# get pgd pointer
 #endif	
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, 22			# get pgd only bits
+	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
 
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
 	lw	k1, (k1)
-#if defined(CONFIG_CPU_VR41XX)
-	srl	k0, k0, 3			# get pte offset
-#else
-	srl	k0, k0, 1			# get pte offset
-#endif
-	and	k0, k0, 0xff8
+	GET_PTE_OFF(k0)				# get pte offset
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0			# add in offset
-	lw	k0, 0(k1)			# get even pte
-	lw	k1, 4(k1)			# get odd pte
+	PTE_L	k0, 0(k1)			# get even pte
+	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
 	srl	k0, k0, 6			# convert to entrylo0
 	mtc0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
@@ -80,17 +98,19 @@
 	LEAF(except_vec0_r4600)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, 22
+	srl	k0, k0, PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0
-	lw	k0, 0(k1)
-	lw	k1, 4(k1)
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
 	srl	k0, k0, 6
 	mtc0	k0, CP0_ENTRYLO0
 	srl	k1, k1, 6
@@ -116,17 +136,19 @@
 	LEAF(except_vec0_nevada)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, 22			# get pgd only bits
+	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0			# add in pgd offset
 	lw	k1, (k1)
 	mfc0	k0, CP0_CONTEXT			# get context reg
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1			# get pte offset
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0			# add in offset
-	lw	k0, 0(k1)			# get even pte
-	lw	k1, 4(k1)			# get odd pte
+	PTE_L	k0, 0(k1)			# get even pte
+	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
 	srl	k0, k0, 6			# convert to entrylo0
 	mtc0	k0, CP0_ENTRYLO0		# load it
 	srl	k1, k1, 6			# convert to entrylo1
@@ -142,17 +164,19 @@
 	LEAF(except_vec0_r45k_bvahwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, 22
+	srl	k0, k0, PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0
-	lw	k0, 0(k1)
-	lw	k1, 4(k1)
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
@@ -172,17 +196,19 @@
 	LEAF(except_vec0_r4k_mphwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, 22
+	srl	k0, k0, PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0
-	lw	k0, 0(k1)
-	lw	k1, 4(k1)
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
@@ -202,17 +228,19 @@
 	LEAF(except_vec0_r4k_250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, 22
+	srl	k0, k0, PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0
-	lw	k0, 0(k1)
-	lw	k1, 4(k1)
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
 	srl	k0, k0, 6
 	mtc0	zero, CP0_ENTRYLO0
 	mtc0	k0, CP0_ENTRYLO0
@@ -231,17 +259,19 @@
 	LEAF(except_vec0_r4k_MP250MHZhwbug)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, 22
+	srl	k0, k0, PGDIR_SHIFT
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0
 	mfc0	k0, CP0_CONTEXT
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0
-	lw	k0, 0(k1)
-	lw	k1, 4(k1)
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
 	nop				/* XXX */
 	tlbp
 	srl	k0, k0, 6
@@ -267,14 +297,16 @@
 	LEAF(except_vec0_au1000)
 	.set	mips3
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, 22			# get pgd only bits
+	srl	k0, k0, PGDIR_SHIFT		# get pgd only bits
 	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
 	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
 	srl	k0, k0, 1			# get pte offset
-	and	k0, k0, 0xff8
+#endif
+	and	k0, k0, PTEP_INDX_MSK
 	addu	k1, k1, k0			# add in offset
 	j	translate_pte
 	nop
@@ -304,30 +336,29 @@
 #define GET_PGD(scratch, ptr)    \
 	lw	ptr, pgd_current;
 #endif
-	
-	
+
 #define LOAD_PTE(pte, ptr) \
 	GET_PGD(pte, ptr)          \
 	mfc0	pte, CP0_BADVADDR; \
-	srl	pte, pte, 22; \
+	srl	pte, pte, PGDIR_SHIFT; \
 	sll	pte, pte, 2; \
 	addu	ptr, ptr, pte; \
 	mfc0	pte, CP0_BADVADDR; \
 	lw	ptr, (ptr); \
 	srl	pte, pte, 10; \
-	and	pte, pte, 0xffc; \
+	and	pte, pte, PTE_INDX_MSK; \
 	addu	ptr, ptr, pte; \
-	lw	pte, (ptr);
+	PTE_L	pte, (ptr);
 
 	/* This places the even/odd pte pair in the page
 	 * table at PTR into ENTRYLO0 and ENTRYLO1 using
 	 * TMP as a scratch register.
 	 */
 #define PTE_RELOAD(ptr, tmp) \
-	ori	ptr, ptr, 0x4; \
-	xori	ptr, ptr, 0x4; \
-	lw	tmp, 4(ptr); \
-	lw	ptr, 0(ptr); \
+	ori	ptr, ptr, PTE_SIZE; \
+	xori	ptr, ptr, PTE_SIZE; \
+	PTE_L	tmp, PTE_SIZE(ptr); \
+	PTE_L	ptr, 0(ptr); \
 	srl	tmp, tmp, 6; \
 	mtc0	tmp, CP0_ENTRYLO1; \
 	srl	ptr, ptr, 6; \
@@ -355,12 +386,12 @@
 	andi	pte, pte, (_PAGE_PRESENT | _PAGE_READ); \
 	xori	pte, pte, (_PAGE_PRESENT | _PAGE_READ); \
 	bnez	pte, label; \
-	 lw	pte, (ptr);
+	 PTE_L	pte, (ptr);
 
 	/* Make PTE valid, store result in PTR. */
 #define PTE_MAKEVALID(pte, ptr) \
 	ori	pte, pte, (_PAGE_VALID | _PAGE_ACCESSED); \
-	sw	pte, (ptr);
+	PTE_S	pte, (ptr);
 
 	/* Check if PTE can be written to, if not branch to LABEL.
 	 * Regardless restore PTE with value from PTR when done.
@@ -369,7 +400,7 @@
 	andi	pte, pte, (_PAGE_PRESENT | _PAGE_WRITE); \
 	xori	pte, pte, (_PAGE_PRESENT | _PAGE_WRITE); \
 	bnez	pte, label; \
-	 lw	pte, (ptr);
+	 PTE_L	pte, (ptr);
 
 	/* Make PTE writable, update software status bits as well,
 	 * then store at PTR.
@@ -377,7 +408,7 @@
 #define PTE_MAKEWRITE(pte, ptr) \
 	ori	pte, pte, (_PAGE_ACCESSED | _PAGE_MODIFIED | \
 			   _PAGE_VALID | _PAGE_DIRTY); \
-	sw	pte, (ptr);
+	PTE_S	pte, (ptr);
 
 	.set	noreorder
 
@@ -466,14 +497,10 @@ nopage_tlbs:
 	tlbp					# find faulting entry
 	andi	k0, k0, _PAGE_WRITE
 	beqz	k0, nowrite_mod
-	 lw	k0, (k1)
+	 PTE_L	k0, (k1)
 
 	/* Present and writable bits set, set accessed and dirty bits. */
 	PTE_MAKEWRITE(k0, k1)
-#if 0
-	ori	k0, k0, (_PAGE_ACCESSED | _PAGE_DIRTY)
-	sw	k0, (k1)
-#endif
 
 	/* Now reload the entry into the tlb. */
 	PTE_RELOAD(k1, k0)

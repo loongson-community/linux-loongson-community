@@ -89,21 +89,35 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define PMD_SHIFT	21
+#else
 #define PMD_SHIFT	22
+#endif
 #define PMD_SIZE	(1UL << PMD_SHIFT)
 #define PMD_MASK	(~(PMD_SIZE-1))
 
 /* PGDIR_SHIFT determines what a third-level page table entry can map */
-#define PGDIR_SHIFT	22
+#define PGDIR_SHIFT	PMD_SHIFT
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
 
-/* Entries per page directory level: we use two-level, so
+/*
+ * Entries per page directory level: we use two-level, so
  * we don't really have any PMD directory physically.
  */
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define PTRS_PER_PTE	512
+#define PTRS_PER_PMD	1
+#define PTRS_PER_PGD	2048
+#define PGD_ORDER	1
+#else
 #define PTRS_PER_PTE	1024
 #define PTRS_PER_PMD	1
 #define PTRS_PER_PGD	1024
+#define PGD_ORDER	0
+#endif
+
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
 
@@ -244,21 +258,6 @@ extern unsigned long zero_page_mask;
 
 #define ZERO_PAGE(vaddr) \
 	(virt_to_page(empty_zero_page + (((unsigned long)(vaddr)) & zero_page_mask)))
-
-/* number of bits that fit into a memory pointer */
-#define BITS_PER_PTR			(8*sizeof(unsigned long))
-
-/* to align the pointer to a pointer address */
-#define PTR_MASK			(~(sizeof(void*)-1))
-
-/*
- * sizeof(void*) == (1 << SIZEOF_PTR_LOG2)
- */
-#define SIZEOF_PTR_LOG2			2
-
-/* to find an entry in a page-table */
-#define PAGE_PTR(address) \
-((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
 extern void load_pgd(unsigned long pg_dir);
 

@@ -12,7 +12,7 @@
 
 /* PAGE_SHIFT determines the page size */
 #define PAGE_SHIFT	12
-#define PAGE_SIZE	(1UL << PAGE_SHIFT)
+#define PAGE_SIZE	(1L << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 
 #ifdef __KERNEL__
@@ -68,7 +68,11 @@ extern void (*_copy_page)(void * to, void * from);
 /*
  * These are used to make use of C type-checking..
  */
+#ifdef CONFIG_64BIT_PHYS_ADDR
+typedef struct { unsigned long long pte; } pte_t;
+#else
 typedef struct { unsigned long pte; } pte_t;
+#endif
 typedef struct { unsigned long pmd; } pmd_t;
 typedef struct { unsigned long pgd; } pgd_t;
 typedef struct { unsigned long pgprot; } pgprot_t;
@@ -100,7 +104,7 @@ extern __inline__ int get_order(unsigned long size)
 #endif /* _LANGUAGE_ASSEMBLY */
 
 /* to align the pointer to the (next) page boundary */
-#define PAGE_ALIGN(addr)	(((addr)+PAGE_SIZE-1)&PAGE_MASK)
+#define PAGE_ALIGN(addr)	(((addr) + PAGE_SIZE - 1) & PAGE_MASK)
 
 /*
  * This handles the memory map.
