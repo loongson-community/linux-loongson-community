@@ -74,9 +74,15 @@ void __init swarm_timer_setup(struct irqaction *irq)
         sb1250_time_init();
 }
 
+extern void sb1250_setup(void);
+
+extern int xicor_probe(void);
 extern int xicor_set_time(unsigned long);
 extern unsigned long xicor_get_time(void);
-extern void sb1250_setup(void);
+
+extern int m41t81_probe(void);
+extern int m41t81_set_time(unsigned long);
+extern unsigned long m41t81_get_time(void);
 
 void __init swarm_setup(void)
 {
@@ -86,10 +92,19 @@ void __init swarm_setup(void)
 
 	panic_timeout = 5;  /* For debug.  */
 
-        board_timer_setup = swarm_timer_setup;
+	board_timer_setup = swarm_timer_setup;
 
-        rtc_get_time = xicor_get_time;
-        rtc_set_time = xicor_set_time;
+	if (xicor_probe()) {
+		printk("swarm setup: Xicor 1241 RTC detected.\n");
+		rtc_get_time = xicor_get_time;
+		rtc_set_time = xicor_set_time;
+	}
+ 
+	if (m41t81_probe()) {
+		printk("swarm setup: M41T81 RTC detected.\n");
+		rtc_get_time = m41t81_get_time;
+		rtc_set_time = m41t81_set_time;
+	}
 
 #ifdef CONFIG_L3DEMO
 	if (l3info != NULL) {
