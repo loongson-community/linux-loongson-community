@@ -161,6 +161,84 @@ CONFIG_BLK_DEV_RAM_SIZE=4096
 # CONFIG_BLK_DEV_INITRD is not set
 
 #
+# ATA/ATAPI/MFM/RLL support
+#
+# CONFIG_IDE is not set
+# CONFIG_BLK_DEV_HD is not set
+
+#
+# SCSI device support
+#
+CONFIG_SCSI=y
+
+#
+# SCSI support type (disk, tape, CD-ROM)
+#
+CONFIG_BLK_DEV_SD=y
+CONFIG_SD_EXTRA_DEVS=40
+# CONFIG_CHR_DEV_ST is not set
+# CONFIG_CHR_DEV_OSST is not set
+# CONFIG_BLK_DEV_SR is not set
+# CONFIG_CHR_DEV_SG is not set
+
+#
+# Some SCSI devices (e.g. CD jukebox) support multiple LUNs
+#
+# CONFIG_SCSI_MULTI_LUN is not set
+# CONFIG_SCSI_REPORT_LUNS is not set
+# CONFIG_SCSI_CONSTANTS is not set
+# CONFIG_SCSI_LOGGING is not set
+
+#
+# SCSI low-level drivers
+#
+# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
+# CONFIG_SCSI_7000FASST is not set
+# CONFIG_SCSI_ACARD is not set
+# CONFIG_SCSI_AIC7XXX is not set
+# CONFIG_SCSI_AIC7XXX_OLD is not set
+# CONFIG_SCSI_DPT_I2O is not set
+# CONFIG_SCSI_ADVANSYS is not set
+# CONFIG_SCSI_IN2000 is not set
+# CONFIG_SCSI_AM53C974 is not set
+# CONFIG_SCSI_MEGARAID is not set
+# CONFIG_SCSI_BUSLOGIC is not set
+# CONFIG_SCSI_CPQFCTS is not set
+# CONFIG_SCSI_DMX3191D is not set
+# CONFIG_SCSI_DTC3280 is not set
+# CONFIG_SCSI_EATA is not set
+# CONFIG_SCSI_EATA_DMA is not set
+# CONFIG_SCSI_EATA_PIO is not set
+# CONFIG_SCSI_FUTURE_DOMAIN is not set
+# CONFIG_SCSI_GDTH is not set
+# CONFIG_SCSI_GENERIC_NCR5380 is not set
+# CONFIG_SCSI_INITIO is not set
+# CONFIG_SCSI_INIA100 is not set
+# CONFIG_SCSI_NCR53C406A is not set
+# CONFIG_SCSI_NCR53C7xx is not set
+# CONFIG_SCSI_SYM53C8XX_2 is not set
+# CONFIG_SCSI_NCR53C8XX is not set
+# CONFIG_SCSI_SYM53C8XX is not set
+# CONFIG_SCSI_PAS16 is not set
+# CONFIG_SCSI_PCI2000 is not set
+# CONFIG_SCSI_PCI2220I is not set
+# CONFIG_SCSI_PSI240I is not set
+# CONFIG_SCSI_QLOGIC_FAS is not set
+# CONFIG_SCSI_QLOGIC_ISP is not set
+# CONFIG_SCSI_QLOGIC_FC is not set
+# CONFIG_SCSI_QLOGIC_1280 is not set
+# CONFIG_SCSI_SYM53C416 is not set
+# CONFIG_SCSI_DC390T is not set
+# CONFIG_SCSI_T128 is not set
+# CONFIG_SCSI_U14_34F is not set
+# CONFIG_SCSI_DEBUG is not set
+
+#
+# Old non-SCSI/ATAPI CD-ROM drives
+#
+# CONFIG_CD_NO_IDESCSI is not set
+
+#
 # Multi-device support (RAID and LVM)
 #
 # CONFIG_MD is not set
@@ -231,77 +309,18 @@ CONFIG_IP_PNP=y
 # CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
-# ATA/IDE/MFM/RLL support
+# Fusion MPT device support
 #
-# CONFIG_IDE is not set
-# CONFIG_BLK_DEV_HD is not set
+# CONFIG_FUSION is not set
+# CONFIG_FUSION_BOOT is not set
+# CONFIG_FUSION_ISENSE is not set
+# CONFIG_FUSION_CTL is not set
+# CONFIG_FUSION_LAN is not set
 
 #
-# SCSI support
+# IEEE 1394 (FireWire) support (EXPERIMENTAL)
 #
-CONFIG_SCSI=y
-
-#
-# SCSI support type (disk, tape, CD-ROM)
-#
-CONFIG_BLK_DEV_SD=y
-CONFIG_SD_EXTRA_DEVS=40
-# CONFIG_CHR_DEV_ST is not set
-# CONFIG_CHR_DEV_OSST is not set
-# CONFIG_BLK_DEV_SR is not set
-# CONFIG_CHR_DEV_SG is not set
-
-#
-# Some SCSI devices (e.g. CD jukebox) support multiple LUNs
-#
-# CONFIG_SCSI_MULTI_LUN is not set
-# CONFIG_SCSI_REPORT_LUNS is not set
-# CONFIG_SCSI_CONSTANTS is not set
-# CONFIG_SCSI_LOGGING is not set
-
-#
-# SCSI low-level drivers
-#
-# CONFIG_BLK_DEV_3W_XXXX_RAID is not set
-# CONFIG_SCSI_7000FASST is not set
-# CONFIG_SCSI_ACARD is not set
-# CONFIG_SCSI_AIC7XXX is not set
-# CONFIG_SCSI_AIC7XXX_OLD is not set
-# CONFIG_SCSI_DPT_I2O is not set
-# CONFIG_SCSI_ADVANSYS is not set
-# CONFIG_SCSI_IN2000 is not set
-# CONFIG_SCSI_AM53C974 is not set
-# CONFIG_SCSI_MEGARAID is not set
-# CONFIG_SCSI_BUSLOGIC is not set
-# CONFIG_SCSI_CPQFCTS is not set
-# CONFIG_SCSI_DMX3191D is not set
-# CONFIG_SCSI_DTC3280 is not set
-# CONFIG_SCSI_EATA is not set
-# CONFIG_SCSI_EATA_DMA is not set
-# CONFIG_SCSI_EATA_PIO is not set
-# CONFIG_SCSI_FUTURE_DOMAIN is not set
-# CONFIG_SCSI_GDTH is not set
-# CONFIG_SCSI_GENERIC_NCR5380 is not set
-# CONFIG_SCSI_INITIO is not set
-# CONFIG_SCSI_INIA100 is not set
-# CONFIG_SCSI_NCR53C406A is not set
-# CONFIG_SCSI_NCR53C7xx is not set
-# CONFIG_SCSI_SYM53C8XX_2 is not set
-# CONFIG_SCSI_NCR53C8XX is not set
-# CONFIG_SCSI_SYM53C8XX is not set
-# CONFIG_SCSI_PAS16 is not set
-# CONFIG_SCSI_PCI2000 is not set
-# CONFIG_SCSI_PCI2220I is not set
-# CONFIG_SCSI_PSI240I is not set
-# CONFIG_SCSI_QLOGIC_FAS is not set
-# CONFIG_SCSI_QLOGIC_ISP is not set
-# CONFIG_SCSI_QLOGIC_FC is not set
-# CONFIG_SCSI_QLOGIC_1280 is not set
-# CONFIG_SCSI_SYM53C416 is not set
-# CONFIG_SCSI_DC390T is not set
-# CONFIG_SCSI_T128 is not set
-# CONFIG_SCSI_U14_34F is not set
-# CONFIG_SCSI_DEBUG is not set
+# CONFIG_IEEE1394 is not set
 
 #
 # I2O device support
@@ -434,7 +453,6 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
-# CONFIG_SERIO_Q40KBD is not set
 # CONFIG_SERIO_PARKBD is not set
 
 #
@@ -611,6 +629,11 @@ CONFIG_MSDOS_PARTITION=y
 #
 CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG_KERNEL is not set
+
+#
+# Security options
+#
+CONFIG_SECURITY_CAPABILITIES=y
 
 #
 # Library routines

@@ -42,7 +42,6 @@
 /* The 'big kernel lock' */
 spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;	/* Not used */
-atomic_t smp_commenced = ATOMIC_INIT(0);
 struct cpuinfo_mips cpu_data[NR_CPUS];
 
 // static atomic_t cpus_booted = ATOMIC_INIT(0);
@@ -156,16 +155,9 @@ asmlinkage void start_secondary(void)
 	printk("Slave cpu booted successfully\n");
 	CPUMASK_SETB(cpu_online_map, cpu);
 	atomic_inc(&cpus_booted);
-	while (!atomic_read(&smp_commenced));
 	cpu_idle();
 }
 #endif /* CONFIG_SGI_IP27 */
-
-void __init smp_commence(void)
-{
-	wmb();
-	atomic_set(&smp_commenced, 1);
-}
 
 /*
  * this function sends a 'reschedule' IPI to another CPU.

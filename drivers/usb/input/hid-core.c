@@ -903,6 +903,9 @@ static int hid_input_report(int type, struct urb *urb)
 	for (n = 0; n < report->maxfield; n++)
 		hid_input_field(hid, report->field[n], data);
 
+	if (hid->claimed & HID_CLAIMED_INPUT)
+		hidinput_report_event(hid, report);
+
 	return 0;
 }
 
@@ -1278,10 +1281,8 @@ void hid_init_reports(struct hid_device *hid)
 			usb_unlink_urb(hid->urbout);
 	}
 
-	if (err) {
+	if (err)
 		warn("timeout initializing reports\n");
-		return;
-	}
 
 	report_enum = hid->report_enum + HID_INPUT_REPORT;
 	list = report_enum->report_list.next;
@@ -1548,8 +1549,8 @@ static void* hid_probe(struct usb_device *dev, unsigned int ifnum,
 }
 
 static struct usb_device_id hid_usb_ids [] = {
-	{ match_flags: USB_DEVICE_ID_MATCH_INT_CLASS,
-	    bInterfaceClass: USB_INTERFACE_CLASS_HID },
+	{ .match_flags = USB_DEVICE_ID_MATCH_INT_CLASS,
+	    .bInterfaceClass = USB_INTERFACE_CLASS_HID },
 	{ }						/* Terminating entry */
 };
 

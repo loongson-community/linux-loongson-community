@@ -5,6 +5,8 @@
  *
  * Copyright (C) 2000 - 2001 by Kanoj Sarcar (kanoj@sgi.com)
  * Copyright (C) 2000 - 2001 by Silicon Graphics, Inc.
+ * Copyright (C) 2000, 2001, 2002 Ralf Baechle
+ * Copyright (C) 2000, 2001 Broadcom Corporation
  */
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
@@ -30,10 +32,18 @@ extern int __cpu_logical_map[NR_CPUS];
 
 #define NO_PROC_ID	(-1)
 
+struct call_data_struct {
+	void		(*func)(void *);
+	void		*info;
+	atomic_t	started;
+	atomic_t	finished;
+	int		wait;
+};
+
+extern struct call_data_struct *call_data;
+
 #define SMP_RESCHEDULE_YOURSELF	0x1	/* XXX braindead */
 #define SMP_CALL_FUNCTION	0x2
-
-#endif /* CONFIG_SMP */
 
 #if (NR_CPUS <= _MIPS_SZLONG)
 
@@ -69,25 +79,21 @@ typedef struct {
 #error cpumask macros only defined for 128p kernels
 #endif
 
-#ifdef CONFIG_SMP
-
-struct call_data_struct {
-	void		(*func)(void *);
-	void		*info;
-	atomic_t	started;
-	atomic_t	finished;
-	int		wait;
-};
-
-extern struct call_data_struct *call_data;
-
 extern cpumask_t cpu_online_map;
 
+#define cpu_possible(cpu) (phys_cpu_present_map & (1<<(cpu)))
 #define cpu_online(cpu) (cpu_online_map & (1<<(cpu)))
 
 extern inline unsigned int num_online_cpus(void)
 {
 	return hweight32(cpu_online_map);
+}
+
+extern volatile unsigned long cpu_callout_map;
+/* We don't mark CPUs online until __cpu_up(), so we need another measure */
+static inline int num_booting_cpus(void)
+{
+	return hweight32(cpu_callout_map);
 }
 
 #endif /* CONFIG_SMP */

@@ -63,7 +63,6 @@
 #include <asm/mk48t59.h>
 #include <asm/prep_nvram.h>
 #include <asm/raven.h>
-#include <asm/keyboard.h>
 #include <asm/vga.h>
 #include <asm/time.h>
 
@@ -310,6 +309,8 @@ static struct smp_ops_t pplus_smp_ops = {
 	smp_pplus_probe,
 	smp_pplus_kick_cpu,
 	smp_pplus_setup_cpu,
+	.give_timebase = smp_generic_give_timebase,
+	.take_timebase = smp_generic_take_timebase,
 };
 #endif /* CONFIG_SMP */
 

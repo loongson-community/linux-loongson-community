@@ -55,7 +55,6 @@
 #include <asm/mk48t59.h>
 #include <asm/prep_nvram.h>
 #include <asm/raven.h>
-#include <asm/keyboard.h>
 #include <asm/vga.h>
 #include <asm/time.h>
 #include <asm/mpc10x.h>
@@ -757,6 +756,8 @@ static struct smp_ops_t prep_smp_ops __prepdata = {
 	smp_prep_probe,
 	smp_prep_kick_cpu,
 	smp_prep_setup_cpu,
+	.give_timebase = smp_generic_give_timebase,
+	.take_timebase = smp_generic_take_timebase,
 };
 #endif /* CONFIG_SMP */
 

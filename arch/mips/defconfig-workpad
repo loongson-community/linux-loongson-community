@@ -162,6 +162,47 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_BLK_DEV_INITRD is not set
 
 #
+# ATA/ATAPI/MFM/RLL support
+#
+CONFIG_IDE=y
+CONFIG_BLK_DEV_IDE=y
+# CONFIG_BLK_DEV_HD_IDE is not set
+# CONFIG_BLK_DEV_HD is not set
+CONFIG_BLK_DEV_IDEDISK=y
+# CONFIG_IDEDISK_MULTI_MODE is not set
+# CONFIG_IDEDISK_STROKE is not set
+CONFIG_ATAPI=y
+# CONFIG_BLK_DEV_IDECD is not set
+# CONFIG_BLK_DEV_IDETAPE is not set
+# CONFIG_BLK_DEV_IDEFLOPPY is not set
+# CONFIG_BLK_DEV_IDESCSI is not set
+# CONFIG_BLK_DEV_IDECS is not set
+
+#
+# ATA host controller support
+#
+# CONFIG_BLK_DEV_RZ1000 is not set
+# CONFIG_BLK_DEV_CMD640 is not set
+# CONFIG_BLK_DEV_CMD640_ENHANCED is not set
+# CONFIG_BLK_DEV_ISAPNP is not set
+# CONFIG_IDE_CHIPSETS is not set
+# CONFIG_IDEDMA_IVB is not set
+# CONFIG_IDEDMA_AUTO is not set
+# CONFIG_BLK_DEV_ATARAID is not set
+# CONFIG_BLK_DEV_ATARAID_PDC is not set
+# CONFIG_BLK_DEV_ATARAID_HPT is not set
+
+#
+# SCSI device support
+#
+# CONFIG_SCSI is not set
+
+#
+# Old non-SCSI/ATAPI CD-ROM drives
+#
+# CONFIG_CD_NO_IDESCSI is not set
+
+#
 # Multi-device support (RAID and LVM)
 #
 # CONFIG_MD is not set
@@ -231,46 +272,22 @@ CONFIG_IP_MULTICAST=y
 # CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
-# ATA/IDE/MFM/RLL support
+# Fusion MPT device support
 #
-CONFIG_IDE=y
+# CONFIG_FUSION is not set
+# CONFIG_FUSION_BOOT is not set
+# CONFIG_FUSION_ISENSE is not set
+# CONFIG_FUSION_CTL is not set
+# CONFIG_FUSION_LAN is not set
 
 #
-# ATA and ATAPI Block devices
+# I2O device support
 #
-CONFIG_BLK_DEV_IDE=y
-
-#
-# Please see Documentation/ide.txt for help/info on IDE drives
-#
-# CONFIG_BLK_DEV_HD_IDE is not set
-# CONFIG_BLK_DEV_HD is not set
-CONFIG_BLK_DEV_IDEDISK=y
-# CONFIG_IDEDISK_MULTI_MODE is not set
-# CONFIG_IDEDISK_STROKE is not set
-# CONFIG_BLK_DEV_IDECS is not set
-# CONFIG_BLK_DEV_IDECD is not set
-# CONFIG_BLK_DEV_IDETAPE is not set
-# CONFIG_BLK_DEV_IDEFLOPPY is not set
-# CONFIG_BLK_DEV_IDESCSI is not set
-
-#
-# ATA host chip set support
-#
-# CONFIG_BLK_DEV_CMD640 is not set
-# CONFIG_BLK_DEV_CMD640_ENHANCED is not set
-# CONFIG_BLK_DEV_ISAPNP is not set
-# CONFIG_IDE_CHIPSETS is not set
-CONFIG_ATAPI=y
-# CONFIG_IDEDMA_AUTO is not set
-# CONFIG_BLK_DEV_ATARAID is not set
-# CONFIG_BLK_DEV_ATARAID_PDC is not set
-# CONFIG_BLK_DEV_ATARAID_HPT is not set
-
-#
-# SCSI support
-#
-# CONFIG_SCSI is not set
+# CONFIG_I2O is not set
+# CONFIG_I2O_BLOCK is not set
+# CONFIG_I2O_LAN is not set
+# CONFIG_I2O_SCSI is not set
+# CONFIG_I2O_PROC is not set
 
 #
 # Network device support
@@ -363,11 +380,6 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_ISDN_BOOL is not set
 
 #
-# Old CD-ROM drivers (not SCSI, not IDE)
-#
-# CONFIG_CD_NO_IDESCSI is not set
-
-#
 # Input device support
 #
 # CONFIG_INPUT is not set
@@ -399,7 +411,6 @@ CONFIG_SOUND_GAMEPORT=y
 # CONFIG_SERIO_I8042 is not set
 # CONFIG_SERIO_SERPORT is not set
 # CONFIG_SERIO_CT82C710 is not set
-# CONFIG_SERIO_Q40KBD is not set
 # CONFIG_SERIO_PARKBD is not set
 
 #
@@ -617,6 +628,11 @@ CONFIG_SGI_PARTITION=y
 #
 CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG_KERNEL is not set
+
+#
+# Security options
+#
+CONFIG_SECURITY_CAPABILITIES=y
 
 #
 # Library routines

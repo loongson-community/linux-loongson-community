@@ -159,6 +159,22 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_BLK_DEV_INITRD is not set
 
 #
+# ATA/ATAPI/MFM/RLL support
+#
+# CONFIG_IDE is not set
+# CONFIG_BLK_DEV_HD is not set
+
+#
+# SCSI device support
+#
+# CONFIG_SCSI is not set
+
+#
+# Old non-SCSI/ATAPI CD-ROM drives
+#
+# CONFIG_CD_NO_IDESCSI is not set
+
+#
 # Multi-device support (RAID and LVM)
 #
 # CONFIG_MD is not set
@@ -229,15 +245,18 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
-# ATA/IDE/MFM/RLL support
+# Fusion MPT device support
 #
-# CONFIG_IDE is not set
-# CONFIG_BLK_DEV_HD is not set
+# CONFIG_FUSION is not set
+# CONFIG_FUSION_BOOT is not set
+# CONFIG_FUSION_ISENSE is not set
+# CONFIG_FUSION_CTL is not set
+# CONFIG_FUSION_LAN is not set
 
 #
-# SCSI support
+# IEEE 1394 (FireWire) support (EXPERIMENTAL)
 #
-# CONFIG_SCSI is not set
+# CONFIG_IEEE1394 is not set
 
 #
 # I2O device support
@@ -397,7 +416,6 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
-# CONFIG_SERIO_Q40KBD is not set
 # CONFIG_SERIO_PARKBD is not set
 
 #
@@ -574,6 +592,11 @@ CONFIG_MSDOS_PARTITION=y
 #
 CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG_KERNEL is not set
+
+#
+# Security options
+#
+CONFIG_SECURITY_CAPABILITIES=y
 
 #
 # Library routines
