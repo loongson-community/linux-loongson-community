@@ -93,7 +93,6 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		struct rtc_time rtc_tm;
 		unsigned char mon, day, hrs, min, sec, leap_yr;
 		unsigned int yrs;
-		unsigned long flags;
 
 		if (!capable(CAP_SYS_TIME))
 			return -EACCES;
@@ -150,8 +149,6 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		rtc->min = min;
 		rtc->sec = sec;
 		rtc->control &= ~M48T35_RTC_SET;
-		spin_unlock_irq(&rtc_lock);
-
 		spin_unlock_irq(&rtc_lock);
 		return 0;
 	}
@@ -216,7 +213,6 @@ static struct miscdevice rtc_dev=
 
 static int __init rtc_init(void)
 {
-	unsigned long flags;
 	nasid_t nid;
 
 	nid = get_nasid();
@@ -296,9 +292,6 @@ static int rtc_read_proc(char *page, char **start, off_t off,
 
 static void get_rtc_time(struct rtc_time *rtc_tm)
 {
-
-	unsigned long flags;
-
 	/*
 	 * Do we need to wait for the last update to finish?
 	 */
