@@ -39,6 +39,8 @@
 
 #ifdef CONFIG_SGI_IP27
 /* XXX Origin garbage has no business in this file  */
+#include <linux/console.h>
+#include <asm/sgialib.h>
 #include <asm/sn/sn0/addrs.h>
 #endif
 
@@ -109,6 +111,25 @@ extern char arcs_cmdline[CL_SIZE];
 #ifdef CONFIG_SGI_IP27
 /* XXX Origin garbage has no business in this file  */
 unsigned long mips_io_port_base = IO_BASE;
+
+static void ip27prom_console_write(struct console *con, const char *s, unsigned n)
+{
+	prom_printf("%s", s);
+}
+
+static struct console ip27_prom_console = {
+	"prom",
+	ip27prom_console_write,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	CON_CONSDEV | CON_ENABLED,
+	-1,
+	0,
+	NULL
+};
 #endif
 
 extern void ip22_setup(void);
@@ -201,4 +222,7 @@ void __init setup_arch(char **cmdline_p)
 	pgd_set(swapper_pg_dir, kpmdtbl);
 	for (i = 0; i < (1 << KPTBL_PAGE_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
+#ifdef CONFIG_SGI_IP27
+	register_console(&ip27_prom_console);
+#endif
 }
