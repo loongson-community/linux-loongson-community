@@ -2737,6 +2737,27 @@ out:
 	return len;
 }
 
+extern asmlinkage ssize_t sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+
+asmlinkage int sys32_sendfile(int out_fd, int in_fd, __kernel_off_t32 *offset, s32 count)
+{
+	mm_segment_t old_fs = get_fs();
+	int ret;
+	off_t of;
+	
+	if (offset && get_user(of, offset))
+		return -EFAULT;
+		
+	set_fs(KERNEL_DS);
+	ret = sys_sendfile(out_fd, in_fd, offset ? &of : NULL, count);
+	set_fs(old_fs);
+	
+	if (offset && put_user(of, offset))
+		return -EFAULT;
+		
+	return ret;
+}
+
 asmlinkage ssize_t sys_readahead(int fd, loff_t offset, size_t count);
 
 asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,

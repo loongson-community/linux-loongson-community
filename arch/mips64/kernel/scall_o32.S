@@ -504,7 +504,7 @@ out:	jr	ra
 	sys	sys_capget	2
 	sys	sys_capset	2			/* 4205 */
 	sys	sys32_sigaltstack	0
-	sys	sys_sendfile	4
+	sys	sys32_sendfile	4
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
 	sys	sys32_mmap2	6			/* 4210 */
