@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: init.c,v 1.2 1998/04/05 11:24:02 ralf Exp $
+ * $Id: init.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -42,6 +42,7 @@ __initfunc(int prom_init(int argc, char **argv, char **envp))
 
 	prom_vers = pb->ver;
 	prom_rev = pb->rev;
+	prom_identify_arch();
 #ifdef CONFIG_SGI
 	printk("PROMLIB: SGI ARCS firmware Version %d Revision %d\n",
 		    prom_vers, prom_rev);
@@ -50,7 +51,6 @@ __initfunc(int prom_init(int argc, char **argv, char **envp))
 		    prom_vers, prom_rev);
 #endif
 	prom_meminit();
-	prom_identify_arch();
 
 #if 0
 	prom_testtree();
