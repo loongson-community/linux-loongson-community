@@ -43,7 +43,7 @@
 	sdc1	$f30, (THREAD_FPU + 0x0f0)(thread); \
 	sw	tmp,  (THREAD_FPU + 0x100)(thread)
 
-#ifdef __LITTLE_ENDIAN
+#if defined (__MIPSEL__)
 #define FPU_SAVE_SINGLE(thread,tmp)                 \
 	cfc1	tmp,  fcr31;                        \
 	swc1	$f0,  (THREAD_FPU + 0x000)(thread); \
@@ -79,7 +79,7 @@
 	swc1	$f30, (THREAD_FPU + 0x0f0)(thread); \
 	swc1	$f31, (THREAD_FPU + 0x0f4)(thread); \
 	sw	tmp,  (THREAD_FPU + 0x100)(thread)
-#else
+#elif defined (__MIPSEB__)
 #define FPU_SAVE_SINGLE(thread,tmp)                 \
 	cfc1	tmp,  fcr31;                        \
 	swc1	$f0,  (THREAD_FPU + 0x004)(thread); \
@@ -115,6 +115,8 @@
 	swc1	$f30, (THREAD_FPU + 0x0f4)(thread); \
 	swc1	$f31, (THREAD_FPU + 0x0f0)(thread); \
 	sw	tmp,  (THREAD_FPU + 0x100)(thread)
+#else
+#error "MIPS, but neither __MIPSEB__, nor __MIPSEL__???"
 #endif
 
 #define FPU_RESTORE_DOUBLE(thread, tmp) \
@@ -137,7 +139,7 @@
 	ldc1	$f30, (THREAD_FPU + 0x0f0)(thread); \
 	ctc1	tmp,  fcr31
 
-#ifdef __LITTLE_ENDIAN
+#if defined (__MIPSEL__)
 #define FPU_RESTORE_SINGLE(thread,tmp)              \
 	lw	tmp,  (THREAD_FPU + 0x100)(thread); \
 	lwc1	$f0,  (THREAD_FPU + 0x000)(thread); \
@@ -173,7 +175,7 @@
 	lwc1	$f30, (THREAD_FPU + 0x0f0)(thread); \
 	lwc1	$f31, (THREAD_FPU + 0x0f4)(thread); \
 	ctc1	tmp,  fcr31
-#else
+#elif defined (__MIPSEB__)
 #define FPU_RESTORE_SINGLE(thread,tmp)              \
 	lw	tmp,  (THREAD_FPU + 0x100)(thread); \
 	lwc1	$f0,  (THREAD_FPU + 0x004)(thread); \
@@ -209,6 +211,8 @@
 	lwc1	$f30, (THREAD_FPU + 0x0f4)(thread); \
 	lwc1	$f31, (THREAD_FPU + 0x0f0)(thread); \
 	ctc1	tmp,  fcr31
+#else
+#error "MIPS, but neither __MIPSEB__, nor __MIPSEL__???"
 #endif
 
 #define CPU_SAVE_NONSCRATCH(thread) \

@@ -230,11 +230,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			 * of the values stored in the even registers - unless
 			 * we're using r2k_switch.S.
 			 */
-#ifdef CONFIG_CPU_R3000
-			if (mips_cpu.options & MIPS_CPU_FPU)
-				*(unsigned long *)(fregs + addr) = data;
-			else
-#endif
 			if (addr & 1) {
 				fregs[(addr & ~1) - FPR_BASE] &= 0xffffffff;
 				fregs[(addr & ~1) - FPR_BASE] |= ((unsigned long long) data) << 32;
