@@ -14,9 +14,9 @@
  * will be others accessing it also
  */
 
-/* 
+/*
  * This is the way it works: LKB5 Base is at 0x0128. TITAN_BASE is defined in
- * include/asm/titan_dep.h. TITAN_GE_BASE is the value in the TITAN_GE_LKB5 
+ * include/asm/titan_dep.h. TITAN_GE_BASE is the value in the TITAN_GE_LKB5
  * register.
  */
 
@@ -32,12 +32,12 @@ extern unsigned long titan_ge_base;
 
 #ifndef msec_delay
 #define msec_delay(x)   do { if(in_interrupt()) { \
-                                /* Don't mdelay in interrupt context! */ \
-                                BUG(); \
-                        } else { \
-                                set_current_state(TASK_UNINTERRUPTIBLE); \
-                                schedule_timeout((x * HZ)/1000); \
-                        } } while(0)
+				/* Don't mdelay in interrupt context! */ \
+				BUG(); \
+			} else { \
+				set_current_state(TASK_UNINTERRUPTIBLE); \
+				schedule_timeout((x * HZ)/1000); \
+			} } while(0)
 #endif
 
 #define TITAN_GE_PORT_0
@@ -131,8 +131,8 @@ extern unsigned long titan_ge_sram;
 /* Default Rx Queue Size */
 #define	TITAN_GE_RX_QUEUE	64
 
-/* 
- * Tx and Rx Interrupt Coalescing parameter. These values are 
+/*
+ * Tx and Rx Interrupt Coalescing parameter. These values are
  * for 1 Ghz processor. Rx coalescing can be taken care of
  * by NAPI. NAPI is adaptive and hence useful. Tx coalescing
  * is not adaptive. Hence, these values need to be adjusted
@@ -145,17 +145,17 @@ extern unsigned long titan_ge_sram;
 
 /* Define the Rx descriptor */
 typedef struct _eth_rx_desc {
-        u32     reserved;	/* Unused 		*/
-        u32     buffer_addr;	/* CPU buffer address 	*/
+	u32     reserved;	/* Unused 		*/
+	u32     buffer_addr;	/* CPU buffer address 	*/
 	u32	cmd_sts;	/* Command and Status	*/
 	u32	buffer;		/* XDMA buffer address	*/
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
 typedef struct _eth_tx_desc {
-        u16     cmd_sts;	/* Command, Status and Buffer count */
+	u16     cmd_sts;	/* Command, Status and Buffer count */
 	u16	buffer_len;	/* Length of the buffer	*/
-        u32     buffer_addr;	/* Physical address of the buffer */
+	u32     buffer_addr;	/* Physical address of the buffer */
 } titan_ge_tx_desc;
 
 #elif defined(__LITTLE_ENDIAN)
@@ -163,7 +163,7 @@ typedef struct _eth_tx_desc {
 /* Define the Rx descriptor */
 typedef struct _eth_rx_desc {
 	u32	buffer_addr;	/* Buffer address inclusive of checksum */
-        u32     cmd_sts;	/* Command and Status info */
+	u32     cmd_sts;	/* Command and Status info */
 } titan_ge_rx_desc;
 
 /* Define the Tx descriptor */
@@ -178,10 +178,10 @@ typedef struct _eth_tx_desc {
 
 /* Packet Structure */
 typedef struct _pkt_info {
-        unsigned int           len;
-        unsigned int            cmd_sts;
-        unsigned int            buffer;
-        struct sk_buff          *skb;
+	unsigned int           len;
+	unsigned int            cmd_sts;
+	unsigned int            buffer;
+	struct sk_buff          *skb;
 	unsigned int		checksum;
 } titan_ge_packet;
 
@@ -262,7 +262,7 @@ typedef struct _eth_port_ctrl {
 #define TITAN_GE_RX_TRUNC		TITAN_BIT20	/* packet size greater than 32 buffers */
 
 /* Tx Descriptor Command */
-#define	TITAN_GE_TX_BUFFER_OWNED	TITAN_BIT5	/* buffer ownership */	
+#define	TITAN_GE_TX_BUFFER_OWNED	TITAN_BIT5	/* buffer ownership */
 #define	TITAN_GE_TX_ENABLE_INTERRUPT	TITAN_BIT15	/* Interrupt Enable */
 
 /* Return Status */

@@ -26,7 +26,7 @@
  * -> FIFO is where the incoming and outgoing data is placed
  * -> TRTG is the unit that pulls the data from the FIFO for Tx and pushes
  *    the data into the FIFO for Rx
- * -> TMAC is the outgoing MAC interface and RMAC is the incoming. 
+ * -> TMAC is the outgoing MAC interface and RMAC is the incoming.
  * -> AFX is the address filtering block
  * -> GMII block to communicate with the PHY
  *
@@ -37,10 +37,10 @@
  * CPU memory --> XDMA --> Tx FIFO --> TRTG --> TMAC --> GMII
  *
  * The Titan driver has support for the following performance features:
- * -> Rx side checksumming 
+ * -> Rx side checksumming
  * -> Jumbo Frames
  * -> Interrupt Coalscing
- * -> Rx NAPI 
+ * -> Rx NAPI
  * -> SKB Recycling
  * -> Transmit/Receive descriptors in SRAM
  * -> Fast routing for IP forwarding
@@ -135,38 +135,38 @@ extern unsigned char titan_ge_mac_addr_base[6];
 unsigned long titan_ge_base;
 static unsigned long titan_ge_sram;
 
-/* 
+/*
  * The Titan GE has two alignment requirements:
  * -> skb->data to be cacheline aligned (32 byte)
  * -> IP header alignment to 16 bytes
  *
  * The latter is not implemented. So, that results in an extra copy on
- * the Rx. This is a big performance hog. For the former case, the 
+ * the Rx. This is a big performance hog. For the former case, the
  * dev_alloc_skb() has been replaced with titan_ge_alloc_skb(). The size
  * requested is calculated:
- * 
+ *
  * Ethernet Frame Size : 1518
  * Ethernet Header     : 14
  * Future Titan change for IP header alignment : 2
  *
- * Hence, we allocate (1518 + 14 + 2+ 64) = 1580 bytes. For the future 
+ * Hence, we allocate (1518 + 14 + 2+ 64) = 1580 bytes. For the future
  * revisions of the chip that do support IP header alignment, we will use
  * skb_reserve().
  */
 
 #define ALIGNED_RX_SKB_ADDR(addr) \
-        ((((unsigned long)(addr) + (64UL - 1UL)) \
+	((((unsigned long)(addr) + (64UL - 1UL)) \
 	& ~(64UL - 1UL)) - (unsigned long)(addr))
 
 #define titan_ge_alloc_skb(__length, __gfp_flags) \
 ({      struct sk_buff *__skb; \
-        __skb = alloc_skb((__length) + 64, (__gfp_flags)); \
-        if(__skb) { \
-                int __offset = (int) ALIGNED_RX_SKB_ADDR(__skb->data); \
-                if(__offset) \
-                        skb_reserve(__skb, __offset); \
-        } \
-        __skb; \
+	__skb = alloc_skb((__length) + 64, (__gfp_flags)); \
+	if(__skb) { \
+		int __offset = (int) ALIGNED_RX_SKB_ADDR(__skb->data); \
+		if(__offset) \
+			skb_reserve(__skb, __offset); \
+	} \
+	__skb; \
 })
 
 /*
@@ -180,20 +180,20 @@ static void titan_ge_gmii_config(int port_num)
 	err = titan_ge_mdio_read(port_num, TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
 
 	if (err == TITAN_GE_MDIO_ERROR) {
-                printk(KERN_ERR
-                       "Could not read PHY control register 0x11 \n");
+		printk(KERN_ERR
+		       "Could not read PHY control register 0x11 \n");
 		printk(KERN_ERR
 			"Setting speed to 1000 Mbps and Duplex to Full \n");
 
 		return;
-        }
+	}
 
 	err = titan_ge_mdio_write(port_num, TITAN_GE_MDIO_PHY_IE, 0);
 
 	if (phy_reg & 0x8000) {
 		if (phy_reg & 0x2000) {
 			/* Full Duplex and 1000 Mbps */
-			TITAN_GE_WRITE((TITAN_GE_GMII_CONFIG_MODE + 
+			TITAN_GE_WRITE((TITAN_GE_GMII_CONFIG_MODE +
 					(port_num << 12)), 0x201);
 		}  else {
 			/* Half Duplex and 1000 Mbps */
@@ -269,19 +269,19 @@ static void titan_ge_update_afx(titan_ge_port_info * titan_ge_eth)
 	memcpy(p_addr, titan_ge_eth->port_mac_addr, 6);
 
 	/* Set the MAC address here for TMAC and RMAC */
-        TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_HI + (port << 12)),
-                       ((p_addr[5] << 8) | p_addr[4]));
-        TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_MID + (port << 12)),
-                       ((p_addr[3] << 8) | p_addr[2]));
-        TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_LOW + (port << 12)), 
-                       ((p_addr[1] << 8) | p_addr[0]));
+	TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_HI + (port << 12)),
+		       ((p_addr[5] << 8) | p_addr[4]));
+	TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_MID + (port << 12)),
+		       ((p_addr[3] << 8) | p_addr[2]));
+	TITAN_GE_WRITE((TITAN_GE_TMAC_STATION_LOW + (port << 12)),
+		       ((p_addr[1] << 8) | p_addr[0]));
 
-        TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_HI + (port << 12)),
-                       ((p_addr[5] << 8) | p_addr[4]));
-        TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_MID + (port << 12)),
-                       ((p_addr[3] << 8) | p_addr[2]));
-        TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_LOW + (port << 12)),
-                       ((p_addr[1] << 8) | p_addr[0]));
+	TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_HI + (port << 12)),
+		       ((p_addr[5] << 8) | p_addr[4]));
+	TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_MID + (port << 12)),
+		       ((p_addr[3] << 8) | p_addr[2]));
+	TITAN_GE_WRITE((TITAN_GE_RMAC_STATION_LOW + (port << 12)),
+		       ((p_addr[1] << 8) | p_addr[0]));
 
 	TITAN_GE_WRITE((0x112c | (port << 12)), 0x1);
 	/* Configure the eight address filters */
@@ -304,7 +304,7 @@ static void titan_ge_update_afx(titan_ge_port_info * titan_ge_eth)
 			       ((p_addr[5] << 8) | p_addr[4]));
 
 		/* VLAN id set to 0 */
-		TITAN_GE_WRITE((TITAN_GE_AFX_EXACT_MATCH_VID + 
+		TITAN_GE_WRITE((TITAN_GE_AFX_EXACT_MATCH_VID +
 				(port << 12)), 0);
 	}
 }
@@ -330,7 +330,7 @@ static void titan_ge_tx_timeout_task(struct net_device *netdev)
 			TITAN_GE_READ(0x5008 + (port << 8)));
 	printk(KERN_ERR "CHANNEL ERROR: %x \n",
 			TITAN_GE_READ(TITAN_GE_CHANNEL0_INTERRUPT
-						+ (port << 8)));	
+						+ (port << 8)));
 
 	netif_device_detach(netdev);
 	titan_ge_port_reset(titan_ge_eth->port_num);
@@ -410,7 +410,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 		is = OCD_READ(RM9000x2_OCD_INTP1STATUS1);
 		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR1, is);
 #endif
-        }
+	}
 
 	/* Ack the CPU interrupt */
 	if (port_num == 1) {
@@ -423,7 +423,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 		is = OCD_READ(RM9000x2_OCD_INTP1STATUS0);
 		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR0, is);
 #endif
-        }
+	}
 
 	eth_int_cause1 = TITAN_GE_READ(TITAN_GE_INTR_XDMA_CORE_A);
 #ifdef CONFIG_SMP
@@ -445,13 +445,13 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 
 	/* Handle Tx first. No need to ack interrupts */
 #ifdef CONFIG_SMP
-	if ( (eth_int_cause1 & 0x20202) || 
+	if ( (eth_int_cause1 & 0x20202) ||
 		(eth_int_cause2 & 0x20202) )
 #else
-	if (eth_int_cause1 & 0x20202) 
+	if (eth_int_cause1 & 0x20202)
 #endif
 		titan_ge_free_tx_queue(titan_ge_eth);
-		
+
 #ifdef TITAN_RX_NAPI
 	/* Handle the Rx next */
 #ifdef CONFIG_SMP
@@ -462,12 +462,12 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 #endif
 		if (netif_rx_schedule_prep(netdev)) {
 			unsigned int ack;
-	
+
 			ack = TITAN_GE_READ(TITAN_GE_INTR_XDMA_IE);
 			/* Disable Tx and Rx both */
-			if (port_num == 0) 
+			if (port_num == 0)
 				ack &= ~(0x3);
-			if (port_num == 1) 
+			if (port_num == 1)
 				ack &= ~(0x300);
 
 			/* Interrupts have been disabled */
@@ -482,7 +482,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 
 #endif
 	/* Handle error interrupts */
-        if (eth_int_cause_error && (eth_int_cause_error != 0x2)) {
+	if (eth_int_cause_error && (eth_int_cause_error != 0x2)) {
 		printk(KERN_ERR
 			"XDMA Channel Error : %x  on port %d\n",
 			eth_int_cause_error, port_num);
@@ -498,16 +498,16 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 		printk(KERN_ERR
 			"XDMA currently has prefetcted %d Rx descriptors \n",
 			TITAN_GE_READ(0x505c + (port_num << 8)));
-	
-                TITAN_GE_WRITE((TITAN_GE_CHANNEL0_INTERRUPT +
-                               (port_num << 8)), eth_int_cause_error);
-        }
+
+		TITAN_GE_WRITE((TITAN_GE_CHANNEL0_INTERRUPT +
+			       (port_num << 8)), eth_int_cause_error);
+	}
 
 	/*
-	 * PHY interrupt to inform abt the changes. Reading the 
+	 * PHY interrupt to inform abt the changes. Reading the
 	 * PHY Status register will clear the interrupt
 	 */
-	if ((!(eth_int_cause1 & 0x30303)) && 
+	if ((!(eth_int_cause1 & 0x30303)) &&
 		(eth_int_cause_error == 0)) {
 		err =
 		    titan_ge_mdio_read(port_num,
@@ -536,9 +536,9 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 }
 
 /*
- * Multicast and Promiscuous mode set. The 
- * set_multi entry point is called whenever the 
- * multicast address list or the network interface 
+ * Multicast and Promiscuous mode set. The
+ * set_multi entry point is called whenever the
+ * multicast address list or the network interface
  * flags are updated.
  */
 static void titan_ge_set_multi(struct net_device *netdev)
@@ -547,7 +547,7 @@ static void titan_ge_set_multi(struct net_device *netdev)
 	unsigned int port_num = titan_ge_eth->port_num;
 	unsigned long reg_data;
 
-	reg_data = TITAN_GE_READ(TITAN_GE_AFX_ADDRS_FILTER_CTRL_1 + 
+	reg_data = TITAN_GE_READ(TITAN_GE_AFX_ADDRS_FILTER_CTRL_1 +
 				(port_num << 12));
 
 	if (netdev->flags & IFF_PROMISC) {
@@ -561,7 +561,7 @@ static void titan_ge_set_multi(struct net_device *netdev)
 		reg_data = 0x2;
 	}
 
-	TITAN_GE_WRITE((TITAN_GE_AFX_ADDRS_FILTER_CTRL_1 + 
+	TITAN_GE_WRITE((TITAN_GE_AFX_ADDRS_FILTER_CTRL_1 +
 			(port_num << 12)), reg_data);
 	if (reg_data & 0x01) {
 		TITAN_GE_WRITE((TITAN_GE_AFX_MULTICAST_HASH_LOW +
@@ -592,7 +592,7 @@ static int titan_ge_open(struct net_device *netdev)
 		return -1;
 	} else {
 		netdev->irq = TITAN_ETH_PORT_IRQ - port_num;
-		printk(KERN_INFO "Assigned IRQ %d to port %d\n", 
+		printk(KERN_INFO "Assigned IRQ %d to port %d\n",
 				netdev->irq, port_num);
 	}
 
@@ -623,28 +623,28 @@ static int titan_ge_rx_return_buff(titan_ge_port_info * titan_ge_port,
 
 #ifdef TITAN_GE_JUMBO_FRAMES
 	rx_desc->buffer_addr =
-               pci_map_single(0, skb->data, TITAN_GE_JUMBO_BUFSIZE - 2,
-                                            PCI_DMA_FROMDEVICE);
+	       pci_map_single(0, skb->data, TITAN_GE_JUMBO_BUFSIZE - 2,
+					    PCI_DMA_FROMDEVICE);
 #else
-	rx_desc->buffer_addr = 
-                pci_map_single(0, skb->data, TITAN_GE_STD_BUFSIZE - 2,
-                                            PCI_DMA_FROMDEVICE);
+	rx_desc->buffer_addr =
+		pci_map_single(0, skb->data, TITAN_GE_STD_BUFSIZE - 2,
+					    PCI_DMA_FROMDEVICE);
 #endif
 
 	titan_ge_port->rx_skb[rx_used_desc] = skb;
 	rx_desc->cmd_sts = TITAN_GE_RX_BUFFER_OWNED;
 
 	titan_ge_port->rx_used_desc_q =
-    	(rx_used_desc + 1) % TITAN_GE_RX_QUEUE;
+	(rx_used_desc + 1) % TITAN_GE_RX_QUEUE;
 
 	return TITAN_OK;
 }
 
 /*
- * Allocate the SKBs for the Rx ring. Also used 
+ * Allocate the SKBs for the Rx ring. Also used
  * for refilling the queue
  */
-static int titan_ge_rx_task(struct net_device *netdev, 
+static int titan_ge_rx_task(struct net_device *netdev,
 				titan_ge_port_info *titan_ge_eth)
 {
 	struct sk_buff *skb;
@@ -655,10 +655,10 @@ static int titan_ge_rx_task(struct net_device *netdev,
 	/* First try to get the skb from the recycler */
 #ifdef TITAN_GE_JUMBO_FRAMES
 		skb = titan_ge_alloc_skb(TITAN_GE_JUMBO_BUFSIZE, GFP_ATOMIC);
-#else	
+#else
 		skb = titan_ge_alloc_skb(TITAN_GE_STD_BUFSIZE, GFP_ATOMIC);
 #endif
-		if (!skb) {	
+		if (!skb) {
 			/* OOM, set the flag */
 			printk("OOM \n");
 			oom_flag = 1;
@@ -672,7 +672,7 @@ static int titan_ge_rx_task(struct net_device *netdev,
 		if (titan_ge_rx_return_buff(titan_ge_eth, skb) !=
 		    TITAN_OK) {
 			printk(KERN_ERR "%s: Error allocating RX Ring\n",
-		       		netdev->name);
+				netdev->name);
 			break;
 		}
 	}
@@ -681,14 +681,14 @@ static int titan_ge_rx_task(struct net_device *netdev,
 }
 
 /*
- * Actual init of the Tital GE port. There is one register for 
+ * Actual init of the Tital GE port. There is one register for
  * the channel configuration
  */
 static void titan_port_init(struct net_device *netdev,
 			    titan_ge_port_info * titan_ge_eth)
 {
 	unsigned long reg_data;
-	
+
 	titan_ge_port_reset(titan_ge_eth->port_num);
 
 	/* First reset the TMAC */
@@ -736,17 +736,17 @@ static int titan_ge_port_start(struct net_device *netdev,
 
 		/* Turn on GMII/MII mode and turn off TBI mode */
 		reg_data = TITAN_GE_READ(TITAN_GE_TSB_CTRL_1);
-        	reg_data |= 0x00000700;
+		reg_data |= 0x00000700;
 		reg_data &= ~(0x00800000); /* Fencing */
 #ifdef TITAN_RX_NAPI
 		TITAN_GE_WRITE(0x000c, 0x00001100);
 #else
 		TITAN_GE_WRITE(0x000c, 0x00000100); /* No WCIMODE */
 #endif
-	        TITAN_GE_WRITE(TITAN_GE_TSB_CTRL_1, reg_data);
+		TITAN_GE_WRITE(TITAN_GE_TSB_CTRL_1, reg_data);
 
 		/* Set the CPU Resource Limit register */
-		TITAN_GE_WRITE(0x00f8, 0x8); 
+		TITAN_GE_WRITE(0x00f8, 0x8);
 
 		/* Be conservative when using the BIU buffers */
 		TITAN_GE_WRITE(0x0068, 0x4);
@@ -758,26 +758,26 @@ static int titan_ge_port_start(struct net_device *netdev,
 #endif
 
 	/* We need to write the descriptors for Tx and Rx */
-        TITAN_GE_WRITE((TITAN_GE_CHANNEL0_TX_DESC + (port_num << 8)),
-                       (unsigned long) titan_port->tx_dma);
-        TITAN_GE_WRITE((TITAN_GE_CHANNEL0_RX_DESC + (port_num << 8)),
-                       (unsigned long) titan_port->rx_dma);
+	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_TX_DESC + (port_num << 8)),
+		       (unsigned long) titan_port->tx_dma);
+	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_RX_DESC + (port_num << 8)),
+		       (unsigned long) titan_port->rx_dma);
 
 	if (config_done == 0) {
 		/* Step 1:  XDMA config	*/
-	        reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
+		reg_data = TITAN_GE_READ(TITAN_GE_XDMA_CONFIG);
 		reg_data &= ~(0x80000000);      /* clear reset */
-       		reg_data |= 0x1 << 29;	/* sparse tx descriptor spacing */
+		reg_data |= 0x1 << 29;	/* sparse tx descriptor spacing */
 		reg_data |= 0x1 << 28;	/* sparse rx descriptor spacing */
-		reg_data |= (0x1 << 23) | (0x1 << 24);  /* Descriptor Coherency */ 
+		reg_data |= (0x1 << 23) | (0x1 << 24);  /* Descriptor Coherency */
 		reg_data |= (0x1 << 21) | (0x1 << 22);  /* Data Coherency */
 		TITAN_GE_WRITE(TITAN_GE_XDMA_CONFIG, reg_data);
 	}
 
 	/* IR register for the XDMA */
 	reg_data = TITAN_GE_READ(TITAN_GE_GDI_INTERRUPT_ENABLE + (port_num << 8));
-       	reg_data |= 0x80068000; /* No Rx_OOD */
-       	TITAN_GE_WRITE((TITAN_GE_GDI_INTERRUPT_ENABLE + (port_num << 8)), reg_data);
+	reg_data |= 0x80068000; /* No Rx_OOD */
+	TITAN_GE_WRITE((TITAN_GE_GDI_INTERRUPT_ENABLE + (port_num << 8)), reg_data);
 
 	/* Start the Tx and Rx XDMA controller */
 	reg_data = TITAN_GE_READ(TITAN_GE_CHANNEL0_CONFIG + (port_num << 8));
@@ -795,7 +795,7 @@ static int titan_ge_port_start(struct net_device *netdev,
 	reg_data |= 0x0f; /* All of the packet */
 #endif
 
-        TITAN_GE_WRITE((TITAN_GE_CHANNEL0_CONFIG + (port_num << 8)), reg_data);
+	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_CONFIG + (port_num << 8)), reg_data);
 
 	/* Rx desc count */
 	count = titan_ge_rx_task(netdev, titan_port);
@@ -804,8 +804,8 @@ static int titan_ge_port_start(struct net_device *netdev,
 
 	udelay(30);
 
-	/* 
-	 * Step 2:  Configure the SDQPF, i.e. FIFO 
+	/*
+	 * Step 2:  Configure the SDQPF, i.e. FIFO
 	 */
 	if (config_done == 0) {
 		reg_data = TITAN_GE_READ(TITAN_GE_SDQPF_RXFIFO_CTL);
@@ -820,26 +820,26 @@ static int titan_ge_port_start(struct net_device *netdev,
 		reg_data = 0x1;
 		TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_CTL, reg_data);
 		reg_data &= ~(0x1);
-        	TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_CTL, reg_data);
+		TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_CTL, reg_data);
 		reg_data = TITAN_GE_READ(TITAN_GE_SDQPF_TXFIFO_CTL);
-        	TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_CTL, reg_data);
+		TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_CTL, reg_data);
 	}
-	/* 
-	 * Enable RX FIFO 0, 4 and 8 
+	/*
+	 * Enable RX FIFO 0, 4 and 8
 	 */
 	if (port_num == 0) {
 		reg_data = TITAN_GE_READ(TITAN_GE_SDQPF_RXFIFO_0);
-	
+
 		reg_data |= 0x100000;
 		reg_data |= (0xff << 10);
 
 		TITAN_GE_WRITE(TITAN_GE_SDQPF_RXFIFO_0, reg_data);
-		/* 
-		 * BAV2,BAV and DAV settings for the Rx FIFO 
+		/*
+		 * BAV2,BAV and DAV settings for the Rx FIFO
 		 */
-        	reg_data1 = TITAN_GE_READ(0x4844);
-	       	reg_data1 |= ( (0x10 << 20) | (0x10 << 10) | 0x1);
-        	TITAN_GE_WRITE(0x4844, reg_data1);
+		reg_data1 = TITAN_GE_READ(0x4844);
+		reg_data1 |= ( (0x10 << 20) | (0x10 << 10) | 0x1);
+		TITAN_GE_WRITE(0x4844, reg_data1);
 
 		reg_data &= ~(0x00100000);
 		reg_data |= 0x200000;
@@ -854,15 +854,15 @@ static int titan_ge_port_start(struct net_device *netdev,
 		reg_data |= (0xff << 10);
 
 		TITAN_GE_WRITE(TITAN_GE_SDQPF_TXFIFO_0, reg_data);
-	
-		/* 
-		 * BAV2, BAV and DAV settings for the Tx FIFO 
+
+		/*
+		 * BAV2, BAV and DAV settings for the Tx FIFO
 		 */
-	        reg_data1 = TITAN_GE_READ(0x4944);
+		reg_data1 = TITAN_GE_READ(0x4944);
 		reg_data1 = ( (0x1 << 20) | (0x1 << 10) | 0x10);
 
-	        TITAN_GE_WRITE(0x4944, reg_data1);
-	
+		TITAN_GE_WRITE(0x4944, reg_data1);
+
 		reg_data &= ~(0x00100000);
 		reg_data |= 0x200000;
 
@@ -950,15 +950,15 @@ static int titan_ge_port_start(struct net_device *netdev,
 		TITAN_GE_WRITE(0x4958, reg_data);
 	}
 
-	/* 
-	 * Step 3:  TRTG block enable 
+	/*
+	 * Step 3:  TRTG block enable
 	 */
 	reg_data = TITAN_GE_READ(TITAN_GE_TRTG_CONFIG + (port_num << 12));
-	reg_data |= 0x0001; 
+	reg_data |= 0x0001;
 	TITAN_GE_WRITE((TITAN_GE_TRTG_CONFIG + (port_num << 12)), reg_data);
 
-	/* 
-	 * Step 4:  Start the Tx activity 
+	/*
+	 * Step 4:  Start the Tx activity
 	 */
 	TITAN_GE_WRITE((TITAN_GE_TMAC_CONFIG_2 + (port_num << 12)), 0xe197);
 #ifdef TITAN_GE_JUMBO_FRAMES
@@ -973,9 +973,9 @@ static int titan_ge_port_start(struct net_device *netdev,
 	udelay(30);
 
 	/* Destination Address drop bit */
-        reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_2 + (port_num << 12));
-        reg_data |= 0x218;        /* DA_DROP bit and pause */
-        TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_2 + (port_num << 12)), reg_data);
+	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_2 + (port_num << 12));
+	reg_data |= 0x218;        /* DA_DROP bit and pause */
+	TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_2 + (port_num << 12)), reg_data);
 
 	TITAN_GE_WRITE((0x1218 + (port_num << 12)), 0x3);
 
@@ -993,8 +993,8 @@ static int titan_ge_port_start(struct net_device *netdev,
 
 	udelay(30);
 
-	/* 
-	 * Enable the Interrupts for Tx and Rx 
+	/*
+	 * Enable the Interrupts for Tx and Rx
 	 */
 	reg_data1 = TITAN_GE_READ(TITAN_GE_INTR_XDMA_IE);
 
@@ -1013,7 +1013,7 @@ static int titan_ge_port_start(struct net_device *netdev,
 
 	TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_IE, reg_data1);
 	TITAN_GE_WRITE(0x003c, 0x300);
-	
+
 	if (config_done == 0) {
 		TITAN_GE_WRITE(0x0024, 0x04000024);	/* IRQ vector */
 		TITAN_GE_WRITE(0x0020, 0x000fb000);	/* INTMSG base */
@@ -1047,7 +1047,7 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 			titan_ge_eth->tx_curr_desc_q;
 
 	tx_curr = &(titan_ge_eth->tx_desc_area[curr_desc]);
-	tx_curr->buffer_addr = 
+	tx_curr->buffer_addr =
 		pci_map_single(0, skb->data, skb_headlen(skb),
 					PCI_DMA_TODEVICE);
 
@@ -1058,14 +1058,14 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 	tx_curr->cmd_sts = 0x1 | (1 << 15) | (1 << 5);
 
 	/* Kick the XDMA to start the transfer from memory to the FIFO */
-        TITAN_GE_WRITE((0x5044 + (port_num << 8)), 0x1);
+	TITAN_GE_WRITE((0x5044 + (port_num << 8)), 0x1);
 
 	/* Current descriptor updated */
 	titan_ge_eth->tx_curr_desc_q = (curr_desc + 1) % TITAN_GE_TX_QUEUE;
 
 	/* Prefetch the next descriptor */
 	prefetch((const void *)
-	         &titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]);
+		 &titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]);
 }
 
 #ifndef TITAN_RX_NAPI
@@ -1110,7 +1110,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 
 	/* Set the MAC Address */
 	memcpy(titan_ge_eth->port_mac_addr, netdev->dev_addr, 6);
-	
+
 	if (config_done == 0)
 		titan_port_init(netdev, titan_ge_eth);
 
@@ -1122,17 +1122,17 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	size = titan_ge_eth->tx_ring_size * sizeof(titan_ge_tx_desc);
 
 	/* Allocate space in the SRAM for the descriptors */
-        if (port_num == 0) {
-                titan_ge_eth->tx_desc_area =
-                    (titan_ge_tx_desc *) titan_ge_sram;
+	if (port_num == 0) {
+		titan_ge_eth->tx_desc_area =
+		    (titan_ge_tx_desc *) titan_ge_sram;
 
-                titan_ge_eth->tx_dma = TITAN_SRAM_BASE;
-        }
+		titan_ge_eth->tx_dma = TITAN_SRAM_BASE;
+	}
 
 	if (port_num == 1) {
 		titan_ge_eth->tx_desc_area =
 		    (titan_ge_tx_desc *) (titan_ge_sram + 0x100);
-		
+
 		titan_ge_eth->tx_dma = TITAN_SRAM_BASE + 0x100;
 	}
 
@@ -1206,14 +1206,14 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	/* Fill the Rx ring with the SKBs */
 	titan_ge_port_start(netdev, titan_ge_eth);
 
-	/* 
+	/*
 	 * Check if Interrupt Coalscing needs to be turned on. The
-	 * values specified in the register is multiplied by 
+	 * values specified in the register is multiplied by
 	 * (8 x 64 nanoseconds) to determine when an interrupt should
-	 * be sent to the CPU. 
+	 * be sent to the CPU.
 	 */
 #ifndef TITAN_RX_NAPI
-	/* 
+	/*
 	 * If NAPI is turned on, we disable Rx interrupts
 	 * completely. So, we dont need coalescing then. Tx side
 	 * coalescing set to very high value. Maybe, disable
@@ -1222,7 +1222,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	if (TITAN_GE_RX_COAL) {
 		titan_ge_eth->rx_int_coal =
 		    titan_ge_rx_coal(TITAN_GE_RX_COAL, port_num);
-	} 
+	}
 
 #endif
 	if (TITAN_GE_TX_COAL) {
@@ -1251,10 +1251,10 @@ static int titan_ge_eth_open(struct net_device *netdev)
 }
 
 /*
- * Queue the packet for Tx. Currently no support for zero copy, 
- * checksum offload and Scatter Gather. The chip does support 
- * Scatter Gather only. But, that wont help here since zero copy 
- * requires support for Tx checksumming also. 
+ * Queue the packet for Tx. Currently no support for zero copy,
+ * checksum offload and Scatter Gather. The chip does support
+ * Scatter Gather only. But, that wont help here since zero copy
+ * requires support for Tx checksumming also.
  */
 int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 {
@@ -1305,20 +1305,20 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 	rx_curr_desc = titan_ge_port->rx_curr_desc_q;
 	rx_used_desc = titan_ge_port->rx_used_desc_q;
 
-	if (((rx_curr_desc + 1) % TITAN_GE_RX_QUEUE) == rx_used_desc) 
+	if (((rx_curr_desc + 1) % TITAN_GE_RX_QUEUE) == rx_used_desc)
 		return TITAN_ERROR;
 
 	rx_desc = &(titan_ge_port->rx_desc_area[rx_curr_desc]);
 
-	if (rx_desc->cmd_sts & TITAN_GE_RX_BUFFER_OWNED) 
+	if (rx_desc->cmd_sts & TITAN_GE_RX_BUFFER_OWNED)
 		return TITAN_ERROR;
 
 	packet->skb = titan_ge_port->rx_skb[rx_curr_desc];
 	packet->len = (rx_desc->cmd_sts & 0x7fff);
 
-	/* 
-	 * At this point, we dont know if the checksumming 
-	 * actually helps relieve CPU. So, keep it for 
+	/*
+	 * At this point, we dont know if the checksumming
+	 * actually helps relieve CPU. So, keep it for
 	 * port 0 only
 	 */
 	packet->checksum = ntohs((rx_desc->buffer & 0xffff0000) >> 16);
@@ -1326,7 +1326,7 @@ static int titan_ge_rx(struct net_device *netdev, int port_num,
 
 	titan_ge_port->rx_curr_desc_q =
 	    (rx_curr_desc + 1) % TITAN_GE_RX_QUEUE;
-	
+
 	/* Prefetch the next descriptor */
 	prefetch((const void *)
 	       &titan_ge_port->rx_desc_area[titan_ge_port->rx_curr_desc_q + 1]);
@@ -1344,7 +1344,7 @@ static int titan_ge_free_tx_queue(titan_ge_port_info *titan_ge_eth)
 	/* Take the lock */
 	spin_lock_irqsave(&(titan_ge_eth->lock), flags);
 
-	while (titan_ge_return_tx_desc(titan_ge_eth, titan_ge_eth->port_num) == 0) 
+	while (titan_ge_return_tx_desc(titan_ge_eth, titan_ge_eth->port_num) == 0)
 		if (titan_ge_eth->tx_ring_skbs != 1)
 			titan_ge_eth->tx_ring_skbs--;
 
@@ -1394,14 +1394,14 @@ static int titan_ge_slowpath(struct sk_buff *skb,
 
 /*
  * Threshold beyond which we do the cleaning of
- * Tx queue and new allocation for the Rx 
+ * Tx queue and new allocation for the Rx
  * queue
  */
 #define	TX_THRESHOLD	4
 #define	RX_THRESHOLD	10
 
 /*
- * Receive the packets and send it to the kernel. 
+ * Receive the packets and send it to the kernel.
  */
 static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 {
@@ -1435,10 +1435,10 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 			(packet.cmd_sts & TITAN_GE_RX_CRC_ERROR)) {
 				stats->rx_dropped++;
 				dev_kfree_skb_any(skb);
-	
+
 				continue;
 		}
-		/* 
+		/*
 		 * Either support fast path or slow path. Decision
 		 * making can really slow down the performance. The
 		 * idea is to cut down the number of checks and improve
@@ -1446,13 +1446,13 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		 */
 		skb_put(skb, packet.len);
 
-		if (titan_ge_slowpath(skb, &packet, netdev) < 0) 
+		if (titan_ge_slowpath(skb, &packet, netdev) < 0)
 			goto out_next;
 
 #ifdef TITAN_RX_NAPI
 		if (titan_ge_eth->rx_threshold > RX_THRESHOLD) {
 			ack = titan_ge_rx_task(netdev, titan_ge_eth);
-        	        TITAN_GE_WRITE((0x5048 + (port_num << 8)), ack);
+			TITAN_GE_WRITE((0x5048 + (port_num << 8)), ack);
 			titan_ge_eth->rx_threshold = 0;
 		} else
 			titan_ge_eth->rx_threshold++;
@@ -1480,13 +1480,13 @@ out_next:
 #ifdef TITAN_RX_NAPI
 
 /*
- * Enable the Rx side interrupts 
+ * Enable the Rx side interrupts
  */
 static void titan_ge_enable_int(unsigned int port_num,
 			titan_ge_port_info *titan_ge_eth,
 			struct net_device *netdev)
 {
-	unsigned long reg_data = 
+	unsigned long reg_data =
 		TITAN_GE_READ(TITAN_GE_INTR_XDMA_IE);
 
 	if (port_num == 0)
@@ -1502,39 +1502,39 @@ static void titan_ge_enable_int(unsigned int port_num,
 
 /*
  * Main function to handle the polling for Rx side NAPI.
- * Receive interrupts have been disabled at this point. 
+ * Receive interrupts have been disabled at this point.
  * The poll schedules the transmit followed by receive.
- */	
+ */
 static int titan_ge_poll(struct net_device *netdev, int *budget)
 {
-        titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
-        int port_num = titan_ge_eth->port_num; 
-	int work_done = 0; 
+	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
+	int port_num = titan_ge_eth->port_num;
+	int work_done = 0;
 	unsigned long flags, status;
 
 	titan_ge_eth->rx_work_limit = *budget;
-        if (titan_ge_eth->rx_work_limit > netdev->quota)
-                titan_ge_eth->rx_work_limit = netdev->quota;
+	if (titan_ge_eth->rx_work_limit > netdev->quota)
+		titan_ge_eth->rx_work_limit = netdev->quota;
 
 	do {
 		/* Do the transmit cleaning work here */
 		titan_ge_free_tx_queue(titan_ge_eth);
 
 		/* Ack the Rx interrupts */
-		if (port_num == 0) 
+		if (port_num == 0)
 			TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0x3);
-                if (port_num == 1)
-                        TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0x300);
-                if (port_num == 2)
-                        TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0x30000);
+		if (port_num == 1)
+			TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0x300);
+		if (port_num == 2)
+			TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, 0x30000);
 
-	        work_done += titan_ge_receive_queue(netdev, 0);
+		work_done += titan_ge_receive_queue(netdev, 0);
 
-		/* Out of quota and there is work to be done */	
+		/* Out of quota and there is work to be done */
 		if (titan_ge_eth->rx_work_limit < 0)
-			goto not_done;			
+			goto not_done;
 
-		/* Receive alloc_skb could lead to OOM */	
+		/* Receive alloc_skb could lead to OOM */
 		if (oom_flag == 1) {
 			oom_flag = 0;
 			goto oom;
@@ -1558,7 +1558,7 @@ oom:
 
 done:
 	/*
-	 * No more packets on the poll list. Turn the interrupts 
+	 * No more packets on the poll list. Turn the interrupts
 	 * back on and we should be able to catch the new
 	 * packets in the interrupt handler
 	 */
@@ -1566,7 +1566,7 @@ done:
 		work_done = 1;
 
 	*budget -= work_done;
-        netdev->quota -= work_done;
+	netdev->quota -= work_done;
 
 	spin_lock_irqsave(&titan_ge_eth->lock, flags);
 
@@ -1655,7 +1655,7 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 	unsigned long reg_data;
 
 	/* Stop the Rx DMA */
-	reg_data = TITAN_GE_READ(TITAN_GE_CHANNEL0_CONFIG + 
+	reg_data = TITAN_GE_READ(TITAN_GE_CHANNEL0_CONFIG +
 				(port_num << 8));
 	reg_data |= 0x000c0000;
 	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_CONFIG +
@@ -1711,8 +1711,8 @@ static int titan_ge_eth_stop(struct net_device *netdev)
 }
 
 /*
- * Update the MAC address. Note that we have to write the 
- * address in three station registers, 16 bits each. And this 
+ * Update the MAC address. Note that we have to write the
+ * address in three station registers, 16 bits each. And this
  * has to be done for TMAC and RMAC
  */
 static void titan_ge_update_mac_address(struct net_device *netdev)
@@ -1727,8 +1727,8 @@ static void titan_ge_update_mac_address(struct net_device *netdev)
 	/* Update the Address Filtering Match tables */
 	titan_ge_update_afx(titan_ge_eth);
 
-	printk("Station MAC : %d %d %d %d %d %d  \n", 
-		p_addr[5], p_addr[4], p_addr[3], 
+	printk("Station MAC : %d %d %d %d %d %d  \n",
+		p_addr[5], p_addr[4], p_addr[3],
 		p_addr[2], p_addr[1], p_addr[0]);
 
 	/* Set the MAC address here for TMAC and RMAC */
@@ -1797,21 +1797,21 @@ static int __init titan_ge_init_module(void)
 
 #ifdef TITAN_RX_RING_IN_SRAM
 	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
-	                                        TITAN_SRAM_SIZE);
+						TITAN_SRAM_SIZE);
 	if (!titan_ge_sram) {
 		printk("Mapping Titan SRAM failed\n");
 		goto out_unmap_ge;
 	}
 #endif
 
-	/* Register only one port */ 
-	if (titan_ge_init(0)) 
+	/* Register only one port */
+	if (titan_ge_init(0))
 		printk(KERN_ERR
 		       "Error registering the TITAN Ethernet driver"
 			"for port 0 \n");
-	
-	if (titan_ge_init(1)) 
-		printk(KERN_ERR "Error registering the TITAN Ethernet" 
+
+	if (titan_ge_init(1))
+		printk(KERN_ERR "Error registering the TITAN Ethernet"
 				"driver for port 1\n");
 
 	return 0;
@@ -1858,7 +1858,7 @@ static int titan_ge_init_rx_desc_ring(titan_ge_port_info * titan_eth_port,
 	if ((rx_buff_size < 8) || (rx_buff_size > TITAN_GE_MAX_RX_BUFFER))
 		return 0;
 
-	/* 64-bit alignment 
+	/* 64-bit alignment
 	if ((rx_buff_base_addr + rx_buff_size) & 0x7)
 		return 0; */
 
@@ -1878,7 +1878,7 @@ static int titan_ge_init_rx_desc_ring(titan_ge_port_info * titan_eth_port,
 	    (titan_ge_rx_desc *) rx_desc_base_addr;
 	titan_eth_port->rx_desc_area_size =
 	    rx_desc_num * sizeof(titan_ge_rx_desc);
-	
+
 	titan_eth_port->rx_dma = rx_dma;
 
 	return TITAN_OK;
@@ -1977,8 +1977,8 @@ static int titan_ge_init(int port)
 
 	err = register_netdev(netdev);
 
-        if (err)
-	        goto out_free_netdev;
+	if (err)
+		goto out_free_netdev;
 
 	printk(KERN_NOTICE
 	       "%s: port %d with MAC address %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -2010,17 +2010,17 @@ static void titan_ge_port_reset(unsigned int port_num)
 	unsigned int reg_data;
 
 	/* Stop the Tx port activity */
-	reg_data = TITAN_GE_READ(TITAN_GE_TMAC_CONFIG_1 + 
+	reg_data = TITAN_GE_READ(TITAN_GE_TMAC_CONFIG_1 +
 				(port_num << 12));
 	reg_data &= ~(0x0001);
-	TITAN_GE_WRITE((TITAN_GE_TMAC_CONFIG_1 + 
+	TITAN_GE_WRITE((TITAN_GE_TMAC_CONFIG_1 +
 			(port_num << 12)), reg_data);
 
 	/* Stop the Rx port activity */
-	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1 + 
+	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1 +
 				(port_num << 12));
 	reg_data &= ~(0x0001);
-	TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_1 + 
+	TITAN_GE_WRITE((TITAN_GE_RMAC_CONFIG_1 +
 			(port_num << 12)), reg_data);
 
 	return;

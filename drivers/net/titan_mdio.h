@@ -37,7 +37,7 @@
 #define	PHY_ANEG_TIME_WAIT		45	/* 45 seconds wait time */
 
 /*
- * MDIO Config Structure 
+ * MDIO Config Structure
  */
 typedef struct {
 	unsigned int		clka;
@@ -46,7 +46,7 @@ typedef struct {
 } titan_ge_mdio_config;
 
 /*
- * Function Prototypes 
+ * Function Prototypes
  */
 int titan_ge_mdio_setup(titan_ge_mdio_config *);
 int titan_ge_mdio_inaddrs(int, int);
