@@ -119,9 +119,6 @@ static inline void check_mult_sh(void)
 	int m1, m2;
 	long p, s, v;
 
-	/* Instead of clobbers; for egcs 1.1.2 sake.  */
-	long __d0, __d1, __d2;
-
 	printk("Checking for the multiply/shift bug... ");
 
 	local_irq_save(flags);
@@ -139,12 +136,13 @@ static inline void check_mult_sh(void)
 		".set	noat\n\t"
 		".set	noreorder\n\t"
 		".set	nomacro\n\t"
-		"mult	%4, %5\n\t"
-		"dsll32	%0, %6, %7\n\t"
+		"mult	%1, %2\n\t"
+		"dsll32	%0, %3, %4\n\t"
 		"mflo	$0\n\t"
 		".set	pop"
-		: "=r" (v), "=&h" (__d0), "=&l" (__d1), "=&a" (__d2)
-		: "r" (5), "r" (8), "r" (5), "I" (0));
+		: "=r" (v)
+		: "r" (5), "r" (8), "r" (5), "I" (0)
+		: "hi", "lo", "accum");
 	local_irq_restore(flags);
 
 	if (v == 5L << 32) {
