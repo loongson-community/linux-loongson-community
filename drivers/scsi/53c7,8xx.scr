@@ -221,10 +221,10 @@ ABSOLUTE int_test_1 = 0x04000000		; Test 1 complete
 ABSOLUTE int_test_2 = 0x04010000		; Test 2 complete
 ABSOLUTE int_test_3 = 0x04020000		; Test 3 complete
 						
-EXTERNAL NCR53c7xx_msg_abort 		; Pointer to abort message
-EXTERNAL NCR53c7xx_msg_reject 		; Pointer to reject message
-EXTERNAL NCR53c7xx_zero			; long with zero in it, use for source
-EXTERNAL NCR53c7xx_sink			; long to dump worthless data in
+ABSOLUTE NCR53c7xx_msg_abort = 0	; Pointer to abort message
+ABSOLUTE NCR53c7xx_msg_reject = 0       ; Pointer to reject message
+ABSOLUTE NCR53c7xx_zero	= 0		; long with zero in it, use for source
+ABSOLUTE NCR53c7xx_sink = 0		; long to dump worthless data in
 
 ; Pointer to final bytes of multi-byte messages
 ABSOLUTE msg_buf = 0
@@ -233,7 +233,7 @@ ABSOLUTE msg_buf = 0
 ABSOLUTE reselected_identify = 0
 ABSOLUTE reselected_tag = 0
 
-; Request sense command pointer, its a 6 byte command, should
+; Request sense command pointer, it's a 6 byte command, should
 ; be constant for all commands since we always want 16 bytes of 
 ; sense and we don't need to change any fields as we did under 
 ; SCSI-I when we actually cared about the LUN field.
@@ -830,7 +830,7 @@ reselected_not_end:
     ; XXX the ALU is only eight bits wide, and the assembler
     ; wont do the dirt work for us.  As long as dsa_check_reselect
     ; is negative, we need to sign extend with 1 bits to the full
-    ; 32 bit width os the address.
+    ; 32 bit width of the address.
     ;
     ; A potential work around would be to have a known alignment 
     ; of the DSA structure such that the base address plus 
@@ -881,13 +881,23 @@ selected:
 wait_reselect_failed:
 ; Reading CTEST2 clears the SIG_P bit in the ISTAT register.
     MOVE CTEST2 & 0x40 TO SFBR	
-    JUMP selected, IF NOT 0x40
+    JUMP schedule, IF 0x40
+    MOVE SIST0 & 0x20 TO SFBR
+    JUMP selected, IF 0x20
+; FIXME : Something bogus happened, and we shouldn't fail silently.
     JUMP schedule
 
 select_failed:
-    MOVE ISTAT & 0x20 TO SFBR
-    JUMP reselected, IF NOT 0x20
-    MOVE ISTAT & 0xdf TO ISTAT
+; If SIGP is set, the user just gave us another command, and
+; we should restart or return to the scheduler.
+; Reading CTEST2 clears the SIG_P bit in the ISTAT register.
+    MOVE CTEST2 & 0x40 TO SFBR	
+    JUMP select, IF 0x40
+; Otherwise, mask the selected and reselected bits off SIST0
+    MOVE SIST0 & 0x30 TO SFBR
+    JUMP selected, IF 0x20
+    JUMP reselected, IF 0x10 
+; FIXME : Something bogus happened, and we shouldn't fail silently.
     JUMP schedule
 
 ;
@@ -980,7 +990,10 @@ no_source_data:
 ; If DSP points here, and a phase mismatch is encountered, we need to 
 ; do a bus reset.
 ;
+    
+    MOVE SCNTL2 & 0x7f TO SCNTL2
     MOVE 1, NCR53c7xx_msg_abort, WHEN MSG_OUT
+    WAIT DISCONNECT
     INT int_norm_aborted
 
 ;

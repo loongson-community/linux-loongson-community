@@ -19,6 +19,9 @@ OBJS=	namei.o inode.o file.o dir.o util.o rock.o symlink.o
 isofs.o: $(OBJS)
 	$(LD) -r -o isofs.o $(OBJS)
 
+modules: isofs.o
+	ln -sf ../fs/isofs/isofs.o $(TOPDIR)/modules
+
 dep:
 	$(CPP) -M *.c > .depend
 

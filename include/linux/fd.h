@@ -127,6 +127,7 @@ struct floppy_drive_params {
 #define FD_BROKEN_DCL 0x20
 #define FD_DEBUG 0x02
 #define FD_SILENT_DCL_CLEAR 0x4
+#define FD_INVERTED_DCL 0x80
 
   char read_track;		/* use readtrack during probing? */
 
@@ -212,7 +213,7 @@ struct floppy_fdc_state {
 	int dtr;
 	unsigned char version;	/* FDC version code */
 	unsigned char dor;
-	int address; /* io address */
+	unsigned int address; /* io address */
 	unsigned int rawcmd:2;
 	unsigned int reset:1;
 	unsigned int need_configure:1;

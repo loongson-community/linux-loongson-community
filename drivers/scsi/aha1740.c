@@ -120,7 +120,7 @@ sense[0],sense[1],sense[2],sense[3]);
 	    }
 	    else if ( status[0]&0x60 )
 	    {
-		retval = DID_ERROR; /* Didn't found a better error */
+		retval = DID_ERROR; /* Didn't find a better error */
 	    }
 	    /* In any other case return DID_OK so for example
                CONDITION_CHECKS make it through to the appropriate
@@ -164,7 +164,7 @@ int aha1740_test_port(void)
 }
 
 /* A "high" level interrupt handler */
-void aha1740_intr_handle(int foo)
+void aha1740_intr_handle(int irq, struct pt_regs * regs)
 {
     void (*my_done)(Scsi_Cmnd *);
     int errstatus, adapstat;
@@ -178,6 +178,7 @@ void aha1740_intr_handle(int foo)
     {
 	DEB(printk("aha1740_intr top of loop.\n"));
 	adapstat = inb(G2INTST);
+	ecbptr = (struct ecb *) bus_to_virt(inl(MBOXIN0));
 	outb(G2CNTRL_IRST,G2CNTRL); /* interrupt reset */
       
         switch ( adapstat & G2INTST_MASK )
@@ -185,10 +186,6 @@ void aha1740_intr_handle(int foo)
 	case	G2INTST_CCBRETRY:
 	case	G2INTST_CCBERROR:
 	case	G2INTST_CCBGOOD:
-	    ecbptr = (struct ecb *) (	((ulong) inb(MBOXIN0)) +
-					((ulong) inb(MBOXIN1) <<8) +
-					((ulong) inb(MBOXIN2) <<16) +
-					((ulong) inb(MBOXIN3) <<24) );
 	    outb(G2CNTRL_HRDY,G2CNTRL); /* Host Ready -> Mailbox in complete */
 	    if (!ecbptr)
 	    {
@@ -197,6 +194,12 @@ void aha1740_intr_handle(int foo)
 		continue;
 	    }
 	    SCtmp = ecbptr->SCpnt;
+	    if (!SCtmp)
+	    {
+		printk("Aha1740 null SCtmp in interrupt (%x,%x,%x,%d)\n",
+			inb(G2STAT),adapstat,inb(G2INTST),number_serviced++);
+		continue;
+	    }
 	    if (SCtmp->host_scribble)
 		scsi_free(SCtmp->host_scribble, 512);
 	  /* Fetch the sense data, and tuck it away, in the required slot.  The
@@ -233,7 +236,7 @@ void aha1740_intr_handle(int foo)
 	    break;
 	}
       number_serviced++;
-    };
+    }
 }
 
 int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
@@ -241,6 +244,7 @@ int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     unchar direction;
     unchar *cmd = (unchar *) SCpnt->cmnd;
     unchar target = SCpnt->target;
+    unsigned long flags;
     void *buff = SCpnt->request_buffer;
     int bufflen = SCpnt->request_bufflen;
     int ecbno;
@@ -273,6 +277,7 @@ int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 
     /* locate an available ecb */
 
+    save_flags(flags);
     cli();
     ecbno = aha1740_last_ecb_used + 1;		/* An optimization */
     if (ecbno >= AHA1740_ECBS) ecbno = 0;
@@ -290,7 +295,7 @@ int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     ecb[ecbno].cmdw = AHA1740CMD_INIT;	/* SCSI Initiator Command doubles as reserved flag */
 
     aha1740_last_ecb_used = ecbno;    
-    sti();
+    restore_flags(flags);
 
 #ifdef DEBUG
     printk("Sending command (%d %x)...",ecbno, done);
@@ -366,21 +371,18 @@ int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 	  thing else is in the driver was broken, like _makecode(), or
 	  when a scsi device hung the scsi bus.  Even under these conditions,
 	  The loop actually only cycled < 3 times (we instrumented it). */
-        ulong adrs;
 
 	DEB(printk("aha1740[%d] critical section\n",ecbno));
+	save_flags(flags);
 	cli();
 	if ( ! (inb(G2STAT) & G2STAT_MBXOUT) )
 	{
 	    printk("aha1740[%d]_mbxout wait!\n",ecbno);
 	    cli(); /* printk may have done a sti()! */
 	}
+	mb();
 	while ( ! (inb(G2STAT) & G2STAT_MBXOUT) );	/* Oh Well. */
-	adrs = (ulong) &(ecb[ecbno]);			/* Spit the command */
-	outb((char) (adrs&0xff), MBOXOUT0);		/* out, note this set */
-	outb((char) ((adrs>>8)&0xff), MBOXOUT1);	/* of outb's must be */
-	outb((char) ((adrs>>16)&0xff), MBOXOUT2);	/* atomic */
-	outb((char) ((adrs>>24)&0xff), MBOXOUT3);
+	outl(virt_to_bus(ecb+ecbno), MBOXOUT0);
 	if ( inb(G2STAT) & G2STAT_BUSY )
 	{
 	    printk("aha1740[%d]_attn wait!\n",ecbno);
@@ -388,7 +390,7 @@ int aha1740_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 	}
 	while ( inb(G2STAT) & G2STAT_BUSY );		/* And Again! */
 	outb(ATTN_START | (target & 7), ATTN);	/* Start it up */
-	sti();
+	restore_flags(flags);
 	DEB(printk("aha1740[%d] request queued.\n",ecbno));
     }
     else
@@ -423,6 +425,7 @@ void aha1740_getconfig(void)
   static int intab[] = { 9,10,11,12,0,14,15,0 };
 
   irq_level = intab [ inb(INTDEF)&0x7 ];
+  outb(inb(INTDEF) | 0x10, INTDEF);
 }
 
 int aha1740_detect(Scsi_Host_Template * tpnt)
@@ -462,7 +465,7 @@ int aha1740_detect(Scsi_Host_Template * tpnt)
         printk("Unable to allocate IRQ for adaptec controller.\n");
         return 0;
     }
-    snarf_region(base, 0x5c);  /* Reserve the space that we need to use */
+    request_region(base, 0x5c,"aha1740");  /* Reserve the space that we need to use */
     return 1;
 }
 

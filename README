@@ -1,13 +1,9 @@
 
-	Linux kernel release 1.1.xx
+	Linux kernel release 1.2.xx
 
-These are the release notes for linux version 1.1.  Read them carefully,
+These are the release notes for linux version 1.2.  Read them carefully,
 as they tell you what this is all about, explain how to install the
 kernel, and what to do if something goes wrong. 
-
-Warning: This is a work in progress. If you are not reasonably at ease with
-the C programming language, GCC, installing Linux, and recovering from
-system crashes, please use the 1.0 version, or wait for 1.2.
 
 WHAT IS LINUX?
 
@@ -23,12 +19,21 @@ WHAT IS LINUX?
   It is distributed under the GNU General Public License - see the
   accompanying COPYING file for more details. 
 
+DOCUMENTATION:
+
+ - there is a lot of documentation available both in electronic form on
+   the internet and in books, both Linux-specific and pertaining to
+   general UNIX questions.  I'd recommend looking into the documentation
+   subdirectories on any Linux ftp site for the LDP (Linux Documentation
+   Project) books.  This README is not meant to be documentation on the
+   system: there are much better sources available.
+
 INSTALLING the kernel:
 
  - If you install the full sources, do a
 
 		cd /usr/src
-		gzip -cd linux-1.1.XX.tar.gz | tar xfv -
+		gzip -cd linux-1.2.XX.tar.gz | tar xfv -
 
    to get it all put in place. Replace "XX" with the version number of the
    latest kernel.
@@ -53,8 +58,8 @@ INSTALLING the kernel:
 		cd /usr/include
 		rm -rf linux
 		rm -rf asm
-		ln -s /usr/src/linux/include/linux .
-		ln -s /usr/src/linux/include/asm .
+		ln -s /usr/src/linux/include/linux linux
+		ln -s /usr/src/linux/include/asm-i386 asm
 
  - make sure you have no stale .o files and dependencies lying around:
 
@@ -111,22 +116,23 @@ COMPILING the kernel:
  - keep a backup kernel handy in case something goes wrong. 
 
  - In order to boot your new kernel, you'll need to copy the kernel
-   image (found in /usr/src/linux/zImage after compilation) to the place
-   where your regular bootable kernel is found. 
+   image (found in /usr/src/linux/arch/i386/boot/zImage after compilation)
+   to the place where your regular bootable kernel is found. 
 
    For some, this is on a floppy disk, in which case you can "cp
-   /usr/src/linux/zImage /dev/fd0" to make a bootable floppy. 
+   /usr/src/linux/arch/i386/boot/zImage /dev/fd0" to make a bootable
+   floppy. 
 
    If you boot Linux from the hard drive, chances are you use LILO which
-   uses the kernel image as specified in the file /etc/lilo/config.  The
+   uses the kernel image as specified in the file /etc/lilo.conf.  The
    kernel image file is usually /vmlinuz, or /zImage, or /etc/zImage. 
    To use the new kernel, copy the new image over the old one (save a
    backup of the original!).  Then, you MUST RERUN LILO to update the
    loading map!! If you don't, you won't be able to boot the new kernel
    image. 
 
-   Reinstalling LILO is usually a matter of running /etc/lilo/install. 
-   You may wish to edit /etc/lilo/config to specify an entry for your
+   Reinstalling LILO is usually a matter of running /sbin/lilo. 
+   You may wish to edit /etc/lilo.conf to specify an entry for your
    old kernel image (say, /vmlinux.old) in case the new one does not
    work.  See the LILO docs for more information. 
 
@@ -179,12 +185,11 @@ IF SOMETHING GOES WRONG:
    see which kernel function contains the offending address.
 
    To find out the kernel function name, you'll need to find the system
-   binary associated with the kernel that exhibited the symptom.  In the
-   case of compressed kernels, this will be 'linux/tools/zSystem', while
-   uncompressed kernels use the file 'tools/system'.  To extract the
-   namelist and match it against the EIP from the kernel crash, do:
+   binary associated with the kernel that exhibited the symptom.  This is
+   the file 'linux/vmlinux'.  To extract the namelist and match it against
+   the EIP from the kernel crash, do:
 
-		nm tools/zSystem | sort | less
+		nm vmlinux | sort | less
 
    This will give you a list of kernel addresses sorted in ascending
    order, from which it is simple to find the function that contains the
@@ -208,10 +213,10 @@ IF SOMETHING GOES WRONG:
    kernel with -g; edit arch/i386/Makefile appropriately, then do a "make
    clean". You'll also need to enable CONFIG_PROC_FS (via "make config").
 
-   After you've rebooted with the new kernel, do "gdb tools/zSystem
-   /proc/kcore". You can now use all the usual gdb commands. The command to
-   look up the point where your system crashed is "l *0xXXXXXXXX". (Replace
-   the XXXes with the EIP value.)
+   After you've rebooted with the new kernel, do "gdb vmlinux /proc/kcore".
+   You can now use all the usual gdb commands. The command to look up the
+   point where your system crashed is "l *0xXXXXXXXX". (Replace the XXXes
+   with the EIP value.)
 
    gdb'ing a non-running kernel currently fails because gdb (wrongly)
    disregards the starting offset for which the kernel is compiled.

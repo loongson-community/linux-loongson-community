@@ -122,7 +122,7 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern inline char * strchr(const char * s,char c)
+extern inline char * strchr(const char * s, int c)
 {
 register char * __res;
 __asm__ __volatile__(
@@ -140,7 +140,7 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern inline char * strrchr(const char * s,char c)
+extern inline char * strrchr(const char * s, int c)
 {
 register char * __res;
 __asm__ __volatile__(
@@ -337,25 +337,68 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern inline void * memcpy(void * to, const void * from, size_t n)
+extern inline void * __memcpy(void * to, const void * from, size_t n)
 {
 __asm__ __volatile__(
 	"cld\n\t"
-	"movl %%edx, %%ecx\n\t"
-	"shrl $2,%%ecx\n\t"
 	"rep ; movsl\n\t"
-	"testb $1,%%dl\n\t"
+	"testb $2,%%dl\n\t"
 	"je 1f\n\t"
-	"movsb\n"
-	"1:\ttestb $2,%%dl\n\t"
-	"je 2f\n\t"
 	"movsw\n"
-	"2:\n"
+	"1:\ttestb $1,%%dl\n\t"
+	"je 2f\n\t"
+	"movsb\n"
+	"2:"
 	: /* no output */
-	:"d" (n),"D" ((long) to),"S" ((long) from)
+	:"c" (n/4), "d" (n),"D" ((long) to),"S" ((long) from)
 	: "cx","di","si","memory");
 return (to);
 }
+
+/*
+ * This looks horribly ugly, but the compiler can optimize it totally,
+ * as the count is constant.
+ */
+extern inline void * __constant_memcpy(void * to, const void * from, size_t n)
+{
+	switch (n) {
+		case 0:
+			return to;
+		case 1:
+			*(unsigned char *)to = *(unsigned char *)from;
+			return to;
+		case 2:
+			*(unsigned short *)to = *(unsigned short *)from;
+			return to;
+		case 3:
+			*(unsigned short *)to = *(unsigned short *)from;
+			*(2+(unsigned char *)to) = *(2+(unsigned char *)from);
+			return to;
+		case 4:
+			*(unsigned long *)to = *(unsigned long *)from;
+			return to;
+	}
+#define COMMON(x) \
+__asm__("cld\n\t" \
+	"rep ; movsl" \
+	x \
+	: /* no outputs */ \
+	: "c" (n/4),"D" ((long) to),"S" ((long) from) \
+	: "cx","di","si","memory");
+
+	switch (n % 4) {
+		case 0: COMMON(""); return to;
+		case 1: COMMON("\n\tmovsb"); return to;
+		case 2: COMMON("\n\tmovsw"); return to;
+		case 3: COMMON("\n\tmovsw\n\tmovsb"); return to;
+	}
+#undef COMMON
+}
+
+#define memcpy(t, f, n) \
+(__builtin_constant_p(n) ? \
+ __constant_memcpy((t),(f),(n)) : \
+ __memcpy((t),(f),(n)))
 
 extern inline void * memmove(void * dest,const void * src, size_t n)
 {
@@ -397,7 +440,7 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern inline void * memchr(const void * cs,char c,size_t count)
+extern inline void * memchr(const void * cs,int c,size_t count)
 {
 register void * __res;
 if (!count)
@@ -414,7 +457,7 @@ __asm__ __volatile__(
 return __res;
 }
 
-extern inline void * __memset_generic(void * s,char c,size_t count)
+extern inline void * __memset_generic(void * s, char c,size_t count)
 {
 __asm__ __volatile__(
 	"cld\n\t"
@@ -427,8 +470,31 @@ return s;
 }
 
 /* we might want to write optimized versions of these later */
-#define __constant_c_memset(s,c,count) __memset_generic((s),(c),(count))
 #define __constant_count_memset(s,c,count) __memset_generic((s),(c),(count))
+
+/*
+ * memset(x,0,y) is a reasonably common thing to do, so we want to fill
+ * things 32 bits at a time even when we don't know the size of the
+ * area at compile-time..
+ */
+extern inline void * __constant_c_memset(void * s, unsigned long c, size_t count)
+{
+__asm__ __volatile__(
+	"cld\n\t"
+	"rep ; stosl\n\t"
+	"testb $2,%%dl\n\t"
+	"je 1f\n\t"
+	"stosw\n"
+	"1:\ttestb $1,%%dl\n\t"
+	"je 2f\n\t"
+	"stosb\n"
+	"2:"
+	: /* no output */
+	:"a" (c), "d" (count), "c" (count/4), "D" ((long) s)
+	:"cx","di","memory");
+return (s);	
+}
+
 
 /*
  * This looks horribly ugly, but the compiler can optimize it totally,
@@ -488,7 +554,7 @@ __asm__("cld\n\t" \
 /*
  * find the first occurrence of byte 'c', or 1 past the area if none
  */
-extern inline char * memscan(void * addr, unsigned char c, int size)
+extern inline void * memscan(void * addr, int c, size_t size)
 {
 	if (!size)
 		return addr;

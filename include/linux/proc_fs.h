@@ -1,6 +1,8 @@
 #ifndef _LINUX_PROC_FS_H
 #define _LINUX_PROC_FS_H
 
+#include <linux/config.h>
+
 /*
  * The proc filesystem constants/structures
  */
@@ -12,6 +14,8 @@ enum root_directory_inos {
 	PROC_MEMINFO,
 	PROC_KMSG,
 	PROC_VERSION,
+	PROC_CPUINFO,
+	PROC_PCI,
 	PROC_SELF,	/* will change inode # */
 	PROC_NET,
 #ifdef CONFIG_DEBUG_MALLOC
@@ -24,7 +28,9 @@ enum root_directory_inos {
 	PROC_INTERRUPTS,
 	PROC_FILESYSTEMS,
 	PROC_KSYMS,
-	PROC_DMA
+	PROC_DMA,	
+	PROC_IOPORTS,
+	PROC_PROFILE /* whether enabled or not */
 };
 
 enum pid_directory_inos {
@@ -58,10 +64,32 @@ enum net_directory_inos {
 #ifdef CONFIG_INET_RARP
 	PROC_NET_RARP,
 #endif
+#ifdef CONFIG_IP_MULTICAST
+	PROC_NET_IGMP,
+#endif
+#ifdef CONFIG_IP_FIREWALL
+	PROC_NET_IPFWFWD,
+	PROC_NET_IPFWBLK,
+#endif
+#ifdef CONFIG_IP_ACCT
+	PROC_NET_IPACCT,
+#endif
+#ifdef CONFIG_IP_MASQUERADE
+	PROC_NET_IPMSQHST,
+#endif
+#if	defined(CONFIG_WAVELAN)
+	PROC_NET_WAVELAN,
+#endif	/* defined(CONFIG_WAVELAN) */
 #endif
 #ifdef CONFIG_IPX
+	PROC_NET_IPX_INTERFACE,
 	PROC_NET_IPX_ROUTE,
 	PROC_NET_IPX,
+#endif
+#ifdef CONFIG_ATALK
+	PROC_NET_ATALK,
+	PROC_NET_AT_ROUTE,
+	PROC_NET_ATIF,
 #endif
 #ifdef CONFIG_AX25
 	PROC_NET_AX25_ROUTE,
@@ -72,6 +100,7 @@ enum net_directory_inos {
 	PROC_NET_NR,
 #endif
 #endif
+	PROC_NET_SOCKSTAT,
 	PROC_NET_LAST
 };
 
@@ -86,7 +115,7 @@ struct proc_dir_entry {
 extern struct super_block *proc_read_super(struct super_block *,void *,int);
 extern void proc_put_inode(struct inode *);
 extern void proc_put_super(struct super_block *);
-extern void proc_statfs(struct super_block *, struct statfs *);
+extern void proc_statfs(struct super_block *, struct statfs *, int);
 extern void proc_read_inode(struct inode *);
 extern void proc_write_inode(struct inode *);
 extern int proc_match(int, const char *, struct proc_dir_entry *);
@@ -96,7 +125,9 @@ extern struct inode_operations proc_base_inode_operations;
 extern struct inode_operations proc_net_inode_operations;
 extern struct inode_operations proc_mem_inode_operations;
 extern struct inode_operations proc_array_inode_operations;
+extern struct inode_operations proc_arraylong_inode_operations;
 extern struct inode_operations proc_kcore_inode_operations;
+extern struct inode_operations proc_profile_inode_operations;
 extern struct inode_operations proc_kmsg_inode_operations;
 extern struct inode_operations proc_link_inode_operations;
 extern struct inode_operations proc_fd_inode_operations;

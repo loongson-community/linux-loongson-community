@@ -33,7 +33,10 @@
 #define NFS_PROC_DEBUG
 #endif
 
-#include <linux/config.h>
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/param.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -898,6 +901,7 @@ static struct {
 	{ NFSERR_NOENT,		ENOENT		},
 	{ NFSERR_IO,		errno_NFSERR_IO	},
 	{ NFSERR_NXIO,		ENXIO		},
+	{ NFSERR_EAGAIN,	EAGAIN		},
 	{ NFSERR_ACCES,		EACCES		},
 	{ NFSERR_EXIST,		EEXIST		},
 	{ NFSERR_NODEV,		ENODEV		},

@@ -1,13 +1,13 @@
-#ifndef _ASM_IO_H
-#define _ASM_IO_H
+#ifndef __ASM_MIPS_IO_H
+#define __ASM_MIPS_IO_H
 
-#include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>
 
 /*
  * This file contains the definitions for the MIPS counterpart of the
  * x86 in/out instructions. This heap of macros and C results in much
- * better code than the approach of doing it in plain C.
+ * better code than the approach of doing it in plain C, though that's
+ * probably not needed.
  *
  *   Ralf
  *
@@ -37,7 +37,7 @@
 #define __SLOW_DOWN_IO \
 	__asm__ __volatile__( \
 		"sb\t$0,0x80(%0)" \
-		: : "d" (PORT_BASE));
+		: : "r" (PORT_BASE));
 
 #ifdef REALLY_SLOW_IO
 #define SLOW_DOWN_IO { __SLOW_DOWN_IO; __SLOW_DOWN_IO; __SLOW_DOWN_IO; __SLOW_DOWN_IO; }
@@ -56,24 +56,27 @@ extern inline void __out##s(unsigned int value, unsigned int port) {
 __asm__ __volatile__ ("s" #m "\t%0,%1(%2)"
 
 #define __OUT(m,s) \
-__OUT1(s) __OUT2(m) : : "d" (value), "i" (0), "d" (PORT_BASE+port)); } \
-__OUT1(s##c) __OUT2(m) : : "d" (value), "i" (port), "d" (PORT_BASE)); } \
-__OUT1(s##_p) __OUT2(m) : : "d" (value), "i" (0), "d" (PORT_BASE+port)); \
+__OUT1(s) __OUT2(m) : : "r" (value), "i" (0), "r" (PORT_BASE+port)); } \
+__OUT1(s##c) __OUT2(m) : : "r" (value), "i" (port), "r" (PORT_BASE)); } \
+__OUT1(s##_p) __OUT2(m) : : "r" (value), "i" (0), "r" (PORT_BASE+port)); \
 	SLOW_DOWN_IO; } \
-__OUT1(s##c_p) __OUT2(m) : : "d" (value), "i" (port), "d" (PORT_BASE)); \
+__OUT1(s##c_p) __OUT2(m) : : "r" (value), "i" (port), "r" (PORT_BASE)); \
 	SLOW_DOWN_IO; }
 
 #define __IN1(s) \
 extern inline unsigned int __in##s(unsigned int port) { unsigned int _v;
 
+/*
+ * Useless nops will be removed by the assembler
+ */
 #define __IN2(m) \
-__asm__ __volatile__ ("l" #m "u\t%0,%1(%2)\n\t"
+__asm__ __volatile__ ("l" #m "u\t%0,%1(%2)\n\tnop"
 
 #define __IN(m,s) \
-__IN1(s) __IN2(m) STR(FILL_LDS) : "=d" (_v) : "i" (0), "d" (PORT_BASE+port)); return _v; } \
-__IN1(s##c) __IN2(m) STR(FILL_LDS) : "=d" (_v) : "i" (port), "d" (PORT_BASE)); return _v; } \
-__IN1(s##_p) __IN2(m) : "=d" (_v) : "i" (0), "d" (PORT_BASE+port)); SLOW_DOWN_IO; return _v; } \
-__IN1(s##c_p) __IN2(m) : "=d" (_v) : "i" (port), "d" (PORT_BASE)); SLOW_DOWN_IO; return _v; }
+__IN1(s) __IN2(m) : "=r" (_v) : "i" (0), "r" (PORT_BASE+port)); return _v; } \
+__IN1(s##c) __IN2(m) : "=r" (_v) : "i" (port), "r" (PORT_BASE)); return _v; } \
+__IN1(s##_p) __IN2(m) : "=r" (_v) : "i" (0), "r" (PORT_BASE+port)); SLOW_DOWN_IO; return _v; } \
+__IN1(s##c_p) __IN2(m) : "=r" (_v) : "i" (port), "r" (PORT_BASE)); SLOW_DOWN_IO; return _v; }
 
 #define __INS1(s) \
 extern inline void __ins##s(unsigned int port, void * addr, unsigned long count) {
@@ -83,21 +86,21 @@ __asm__ __volatile__ ( \
 	".set\tnoreorder\n\t" \
 	".set\tnoat\n" \
 	"1:\tl" #m "u\t$1,%4(%5)\n\t" \
-	"subu\t%1,%1,1\n\t" \
+	"subu\t%1,1\n\t" \
 	"s" #m "\t$1,(%0)\n\t" \
 	"bne\t$0,%1,1b\n\t" \
-	"addiu\t%0,%0,%6\n\t" \
+	"addiu\t%0,%6\n\t" \
 	".set\tat\n\t" \
 	".set\treorder"
 
 #define __INS(m,s,i) \
 __INS1(s) __INS2(m) \
-	: "=d" (addr), "=d" (count) \
-	: "0" (addr), "1" (count), "i" (0), "d" (PORT_BASE+port), "I" (i) \
+	: "=r" (addr), "=r" (count) \
+	: "0" (addr), "1" (count), "i" (0), "r" (PORT_BASE+port), "I" (i) \
 	: "$1");} \
 __INS1(s##c) __INS2(m) \
-	: "=d" (addr), "=d" (count) \
-	: "0" (addr), "1" (count), "i" (port), "d" (PORT_BASE), "I" (i) \
+	: "=r" (addr), "=r" (count) \
+	: "0" (addr), "1" (count), "i" (port), "r" (PORT_BASE), "I" (i) \
 	: "$1");}
 
 #define __OUTS1(s) \
@@ -117,12 +120,12 @@ __asm__ __volatile__ ( \
 
 #define __OUTS(m,s,i) \
 __OUTS1(s) __OUTS2(m) \
-	: "=d" (addr), "=d" (count) \
-	: "0" (addr), "1" (count), "i" (0), "d" (PORT_BASE+port), "I" (i) \
+	: "=r" (addr), "=r" (count) \
+	: "0" (addr), "1" (count), "i" (0), "r" (PORT_BASE+port), "I" (i) \
 	: "$1");} \
 __OUTS1(s##c) __OUTS2(m) \
-	: "=d" (addr), "=d" (count) \
-	: "0" (addr), "1" (count), "i" (port), "d" (PORT_BASE), "I" (i) \
+	: "=r" (addr), "=r" (count) \
+	: "0" (addr), "1" (count), "i" (port), "r" (PORT_BASE), "I" (i) \
 	: "$1");}
 
 __IN(b,b)
@@ -237,4 +240,4 @@ __OUTS(w,l,4)
 	__inslc((port),(addr),(count)) : \
 	__insl((port),(addr),(count)))
 
-#endif
+#endif /* __ASM_MIPS_IO_H */

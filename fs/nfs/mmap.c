@@ -9,6 +9,10 @@
  *	Copyright (C) 1993
  *
  */
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/stat.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -74,20 +78,25 @@ static unsigned long nfs_file_mmap_nopage(struct vm_area_struct * area,
 	}
 	return page;
 }
+
 struct vm_operations_struct nfs_file_mmap = {
 	NULL,			/* open */
 	NULL,			/* close */
+	NULL,			/* unmap */
+	NULL,			/* protect */
+	NULL,			/* sync */
+	NULL,			/* advise */
 	nfs_file_mmap_nopage,	/* nopage */
 	NULL,			/* wppage */
-	NULL,			/* share */
-	NULL,			/* unmap */
+	NULL,			/* swapout */
+	NULL,			/* swapin */
 };
 
 
 /* This is used for a general mmap of a nfs file */
 int nfs_mmap(struct inode * inode, struct file * file, struct vm_area_struct * vma)
 {
-	if (vma->vm_page_prot & PAGE_RW)	/* only PAGE_COW or read-only supported now */
+	if (vma->vm_flags & VM_SHARED)	/* only PAGE_COW or read-only supported now */
 		return -EINVAL;
 	if (!inode->i_sb || !S_ISREG(inode->i_mode))
 		return -EACCES;

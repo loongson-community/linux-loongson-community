@@ -1,6 +1,6 @@
 /* netdrv_init.c: Initialization for network devices. */
 /*
-	Written 1993,1994 by Donald Becker.
+	Written 1993,1994,1995 by Donald Becker.
 
 	The author may be reached as becker@cesdis.gsfc.nasa.gov or
 	C/O Center of Excellence in Space Data and Information Sciences
@@ -27,6 +27,7 @@
 #include <linux/string.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/trdevice.h>
 
 /* The network devices currently exist only in the socket namespace, so these
    entries are unused.  The only ones that make sense are
@@ -40,8 +41,9 @@
    Given that almost all of these functions are handled in the current
    socket-based scheme, putting ethercard devices in /dev/ seems pointless.
    
-   [Removed all support for /dev network devices. When someone adds streams then
-    by magic we get them, but otherwise they are un-needed and a space waste]
+   [Removed all support for /dev network devices. When someone adds
+    streams then by magic we get them, but otherwise they are un-needed
+	and a space waste]
 */
 
 /* The list of used and available "eth" slots (for "eth0", "eth1", etc.) */
@@ -51,7 +53,7 @@ static struct device *ethdev_index[MAX_ETH_CARDS];
 unsigned long lance_init(unsigned long mem_start, unsigned long mem_end);
 unsigned long pi_init(unsigned long mem_start, unsigned long mem_end);
 unsigned long apricot_init(unsigned long mem_start, unsigned long mem_end);
-
+unsigned long dec21040_init(unsigned long mem_start, unsigned long mem_end);
 
 /*
   net_dev_init() is our network device initialization routine.
@@ -62,14 +64,17 @@ unsigned long apricot_init(unsigned long mem_start, unsigned long mem_end);
 unsigned long net_dev_init (unsigned long mem_start, unsigned long mem_end)
 {
 
-#if defined(CONFIG_LANCE)			/* Note this is _not_ CONFIG_AT1500. */
+	/* Network device initialization for devices that must allocate
+	   low-memory or contiguous DMA buffers.
+	   */
+#if defined(CONFIG_LANCE)
 	mem_start = lance_init(mem_start, mem_end);
 #endif
 #if defined(CONFIG_PI)
 	mem_start = pi_init(mem_start, mem_end);
 #endif	
-#if defined(CONFIG_APRICOT)
-	mem_start = apricot_init(mem_start, mem_end);
+#if defined(CONFIG_DEC_ELCP)
+	mem_start = dec21040_init(mem_start, mem_end);
 #endif	
 	return mem_start;
 }
@@ -85,14 +90,35 @@ unsigned long net_dev_init (unsigned long mem_start, unsigned long mem_end)
  */
 
 struct device *
-init_etherdev(struct device *dev, int sizeof_private, unsigned long *mem_startp)
+init_etherdev(struct device *dev, int sizeof_priv, unsigned long *mem_startp)
 {
 	int new_device = 0;
 	int i;
 
+	/* Use an existing correctly named device in Space.c:dev_base. */
 	if (dev == NULL) {
 		int alloc_size = sizeof(struct device) + sizeof("eth%d  ")
-			+ sizeof_private + 3;
+			+ sizeof_priv + 3;
+		struct device *cur_dev;
+		char pname[8];		/* Putative name for the device.  */
+
+		for (i = 0; i < MAX_ETH_CARDS; ++i)
+			if (ethdev_index[i] == NULL) {
+				sprintf(pname, "eth%d", i);
+				for (cur_dev = dev_base; cur_dev; cur_dev = cur_dev->next)
+					if (strcmp(pname, cur_dev->name) == 0) {
+						dev = cur_dev;
+						dev->init = NULL;
+						sizeof_priv = (sizeof_priv + 3) & ~3;
+						if (mem_startp && *mem_startp ) {
+							dev->priv = (void*) *mem_startp;
+							*mem_startp += sizeof_priv;
+						} else
+							dev->priv = kmalloc(sizeof_priv, GFP_KERNEL);
+						memset(dev->priv, 0, sizeof_priv);
+						goto found;
+					}
+			}
 
 		alloc_size &= ~3;		/* Round to dword boundary. */
 
@@ -102,11 +128,13 @@ init_etherdev(struct device *dev, int sizeof_private, unsigned long *mem_startp)
 		} else
 			dev = (struct device *)kmalloc(alloc_size, GFP_KERNEL);
 		memset(dev, 0, alloc_size);
-		if (sizeof_private)
+		if (sizeof_priv)
 			dev->priv = (void *) (dev + 1);
-		dev->name = sizeof_private + (char *)(dev + 1);
+		dev->name = sizeof_priv + (char *)(dev + 1);
 		new_device = 1;
 	}
+
+	found:						/* From the double loop above. */
 
 	if (dev->name &&
 		((dev->name[0] == '\0') || (dev->name[0] == ' '))) {
@@ -118,7 +146,7 @@ init_etherdev(struct device *dev, int sizeof_private, unsigned long *mem_startp)
 			}
 	}
 
-	ether_setup(dev); /* should this be called here? */
+	ether_setup(dev); 	/* Hmmm, should this be called here? */
 	
 	if (new_device) {
 		/* Append the device to the device queue. */
@@ -154,13 +182,42 @@ void ether_setup(struct device *dev)
 
 	dev->hard_header	= eth_header;
 	dev->rebuild_header = eth_rebuild_header;
-	dev->type_trans = eth_type_trans;
 
 	dev->type		= ARPHRD_ETHER;
 	dev->hard_header_len = ETH_HLEN;
 	dev->mtu		= 1500; /* eth_mtu */
 	dev->addr_len	= ETH_ALEN;
 	for (i = 0; i < ETH_ALEN; i++) {
+		dev->broadcast[i]=0xff;
+	}
+
+	/* New-style flags. */
+	dev->flags		= IFF_BROADCAST|IFF_MULTICAST;
+	dev->family		= AF_INET;
+	dev->pa_addr	= 0;
+	dev->pa_brdaddr = 0;
+	dev->pa_mask	= 0;
+	dev->pa_alen	= sizeof(unsigned long);
+}
+
+#ifdef CONFIG_TR
+
+void tr_setup(struct device *dev)
+{
+	int i;
+	/* Fill in the fields of the device structure with ethernet-generic values.
+	   This should be in a common file instead of per-driver.  */
+	for (i = 0; i < DEV_NUMBUFFS; i++)
+		skb_queue_head_init(&dev->buffs[i]);
+
+	dev->hard_header	= tr_header;
+	dev->rebuild_header = tr_rebuild_header;
+
+	dev->type		= ARPHRD_IEEE802;
+	dev->hard_header_len = TR_HLEN;
+	dev->mtu		= 2000; /* bug in fragmenter...*/
+	dev->addr_len	= TR_ALEN;
+	for (i = 0; i < TR_ALEN; i++) {
 		dev->broadcast[i]=0xff;
 	}
 
@@ -172,6 +229,8 @@ void ether_setup(struct device *dev)
 	dev->pa_mask	= 0;
 	dev->pa_alen	= sizeof(unsigned long);
 }
+
+#endif
 
 int ether_config(struct device *dev, struct ifmap *map)
 {

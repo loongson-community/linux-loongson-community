@@ -20,6 +20,9 @@ OBJS=	bitmap.o truncate.o namei.o inode.o \
 xiafs.o: $(OBJS)
 	$(LD) -r -o xiafs.o $(OBJS)
 
+modules: xiafs.o
+	ln -sf ../fs/xiafs/xiafs.o $(TOPDIR)/modules
+
 dep:
 	$(CPP) -M *.c > .depend
 

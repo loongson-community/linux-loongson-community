@@ -1,44 +1,23 @@
 /*
- * alpha/head.S
+ * arch/alpha/boot/head.S
  *
- * initial boot stuff..
+ * initial bootloader stuff..
  */
 
 #include <asm/system.h>
 
 #define halt .long PAL_halt
 
-/*
- * NOTE! The console bootstrap will load us at 0x20000000, but this image
- * is linked to run at START_ADDR, so the first thing we do is to move
- * ourself up to the right address.. We'd better be position-independent
- * at that stage :-)
- */
 	.set noreorder
 	.globl	__start
 	.ent	__start
 __start:
 	bis	$31,$31,$31
-	br	$1,$200
-	.long START_ADDR, START_ADDR >> 32	/* strange bug in the assembler.. duh */
-	.long START_SIZE, START_SIZE >> 32
-$200:	ldq	$30,0($1)		/* new stack - below this */
-	lda	$2,-8($1)		/* __start */
-	bis	$30,$30,$3		/* new address */
-	subq	$3,$2,$6		/* difference */
-	ldq	$4,8($1)		/* size */
-$201:	subq	$4,8,$4
-	ldq	$5,0($2)
-	addq	$2,8,$2
-	stq	$5,0($3)
-	addq	$3,8,$3
-	bne	$4,$201
-	br	$1,$202
-$202:	addq	$1,$6,$1
-	addq	$1,12,$1		/* $203 in the new address space */
-	jmp	$31,($1),$203
-$203:	br	$27,$100
-$100:	ldgp	$29,0($27)
+	br	1f
+	/* room for the initial PCB, which comes here */
+	.quad	0,0,0,0,0,0,0,0
+1:	br	$27,2f
+2:	ldgp	$29,0($27)
 	lda	$27,start_kernel
 	jsr	$26,($27),start_kernel
 	halt
@@ -109,3 +88,44 @@ switch_to_osf_pal:
 __do_swppal:
 	.long	PAL_swppal
 	.end	switch_to_osf_pal
+
+.globl	dispatch
+.ent	dispatch
+dispatch:
+	subq	$30,80,$30
+	stq	$26,0($30)
+	stq	$29,8($30)
+
+	stq	$8,16($30)
+	stq	$9,24($30)
+	stq	$10,32($30)
+	stq	$11,40($30)
+	stq	$12,48($30)
+	stq	$13,56($30)
+	stq	$14,64($30)
+	stq	$15,72($30)
+
+	lda	$1,0x10000000		/* hwrpb */
+	ldq	$2,0xc0($1)		/* crb offset */
+	addq	$2,$1,$2		/* crb */
+	ldq	$27,0($2)		/* dispatch procedure value */
+
+	ldq	$2,8($27)		/* dispatch call address */
+	jsr	$26,($2)		/* call it (weird VMS call seq) */
+
+	ldq	$26,0($30)
+	ldq	$29,8($30)
+
+	ldq	$8,16($30)
+	ldq	$9,24($30)
+	ldq	$10,32($30)
+	ldq	$11,40($30)
+	ldq	$12,48($30)
+	ldq	$13,56($30)
+	ldq	$14,64($30)
+	ldq	$15,72($30)
+
+	addq	$30,80,$30
+	ret	$31,($26)
+.end    dispatch
+

@@ -38,15 +38,24 @@
  *			status display
  *	- Jul 1994	Dmitry Gorodchanin
  *			Fixes for memory leaks.
+ *      - Oct 1994      Dmitry Gorodchanin
+ *                      Modularization.
+ *	- Jan 1995	Bjorn Ekwall
+ *			Use ip_fast_csum from ip.h
  *
  *
- *	This module is a difficult issue. Its clearly inet code but its also clearly
+ *	This module is a difficult issue. It's clearly inet code but it's also clearly
  *	driver code belonging close to PPP and SLIP
  */
 
 #include <linux/config.h>
 #ifdef CONFIG_INET
 /* Entire module is for IP only */
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif
+
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -58,17 +67,18 @@
 #include <linux/fcntl.h>
 #include <linux/inet.h>
 #include <linux/netdevice.h>
-#include "ip.h"
-#include "protocol.h"
-#include "icmp.h"
-#include "tcp.h"
+#include <net/ip.h>
+#include <net/protocol.h>
+#include <net/icmp.h>
+#include <net/tcp.h>
 #include <linux/skbuff.h>
-#include "sock.h"
+#include <net/sock.h>
 #include <linux/errno.h>
 #include <linux/timer.h>
 #include <asm/system.h>
 #include <asm/segment.h>
 #include <linux/mm.h>
+#include <net/checksum.h>
 #include "slhc.h"
 
 int last_retran;
@@ -77,9 +87,6 @@ static unsigned char *encode(unsigned char *cp, unsigned short n);
 static long decode(unsigned char **cpp);
 static unsigned char * put16(unsigned char *cp, unsigned short x);
 static unsigned short pull16(unsigned char **cpp);
-
-extern int ip_csum(struct iphdr *iph);
-
 
 /* Initialize compression data structure
  *	slots must be in range 0 to 255 (zero meaning no compression)
@@ -91,7 +98,7 @@ slhc_init(int rslots, int tslots)
 	register struct cstate *ts;
 	struct slcompress *comp;
 
-	comp = (struct slcompress *)kmalloc(sizeof(struct slcompress), 
+	comp = (struct slcompress *)kmalloc(sizeof(struct slcompress),
 					    GFP_KERNEL);
 	if (! comp)
 		return NULL;
@@ -112,7 +119,7 @@ slhc_init(int rslots, int tslots)
 	}
 
 	if ( tslots > 0  &&  tslots < 256 ) {
-		comp->tstate = 
+		comp->tstate =
 		  (struct cstate *)kmalloc(tslots * sizeof(struct cstate),
 					   GFP_KERNEL);
 		if (! comp->tstate)
@@ -145,6 +152,9 @@ slhc_init(int rslots, int tslots)
 		ts[0].next = &(ts[comp->tslot_limit]);
 		ts[0].cs_this = 0;
 	}
+#ifdef MODULE
+	MOD_INC_USE_COUNT;
+#endif
 	return comp;
 }
 
@@ -162,6 +172,9 @@ slhc_free(struct slcompress *comp)
 	if ( comp->tstate != NULLSLSTATE )
 		kfree( comp->tstate );
 
+#ifdef MODULE
+	MOD_DEC_USE_COUNT;
+#endif
 	kfree( comp );
 }
 
@@ -216,7 +229,7 @@ decode(unsigned char **cpp)
 	}
 }
 
-/* 
+/*
  * icp and isize are the original packet.
  * ocp is a place to put a copy if necessary.
  * cpp is initially a pointer to icp.  If the copy is used,
@@ -241,7 +254,7 @@ slhc_compress(struct slcompress *comp, unsigned char *icp, int isize,
 	ip = (struct iphdr *) icp;
 
 	/* Bail if this packet isn't TCP, or is an IP fragment */
-	if(ip->protocol != IPPROTO_TCP || (ntohs(ip->frag_off) & 0x1fff) || 
+	if(ip->protocol != IPPROTO_TCP || (ntohs(ip->frag_off) & 0x1fff) ||
 				       (ip->frag_off & 32)){
 		/* Send as regular IP */
 		if(ip->protocol != IPPROTO_TCP)
@@ -310,7 +323,7 @@ found:
 	 * Found it -- move to the front on the connection list.
 	 */
 	if(lcs == ocs) {
-		/* found at most recently used */
+ 		/* found at most recently used */
 	} else if (cs == ocs) {
 		/* found at least recently used */
 		comp->xmit_oldest = lcs->cs_this;
@@ -345,7 +358,7 @@ found:
 	 || (th->doff > 5 && memcmp(th+1,cs->cs_tcpopt,((th->doff)-5)*4 != 0))){
 		goto uncompressed;
 	}
-	
+
 	/*
 	 * Figure out which of the changing fields changed.  The
 	 * receiver expects changes in the order: urgent, window,
@@ -379,7 +392,7 @@ found:
 		cp = encode(cp,deltaS);
 		changes |= NEW_S;
 	}
-	
+
 	switch(changes){
 	case 0:	/* Nothing changed. If this packet contains data and the
 		 * last one didn't, this is probably a data packet following
@@ -388,7 +401,7 @@ found:
 		 * retransmitted ack or window probe.  Send it uncompressed
 		 * in case the other side missed the compressed version.
 		 */
-		if(ip->tot_len != cs->cs_ip.tot_len && 
+		if(ip->tot_len != cs->cs_ip.tot_len &&
 		   ntohs(cs->cs_ip.tot_len) == hlen)
 			break;
 		goto uncompressed;
@@ -522,7 +535,7 @@ slhc_uncompress(struct slcompress *comp, unsigned char *icp, int isize)
 	thp->check = htons(x);
 
 	thp->psh = (changes & TCP_PUSH_BIT) ? 1 : 0;
-/* 
+/*
  * we can use the same number for the length of the saved header and
  * the current one, because the packet wouldn't have been sent
  * as compressed unless the options were the same as the previous one
@@ -557,7 +570,7 @@ slhc_uncompress(struct slcompress *comp, unsigned char *icp, int isize)
 		if(changes & NEW_W){
 			if((x = decode(&cp)) == -1) {
 				goto bad;
-			}	
+			}
 			thp->window = htons( ntohs(thp->window) + x);
 		}
 		if(changes & NEW_A){
@@ -606,7 +619,7 @@ slhc_uncompress(struct slcompress *comp, unsigned char *icp, int isize)
 	  cp += ((ip->ihl) - 5) * 4;
 	}
 
-	((struct iphdr *)icp)->check = ip_csum((struct iphdr*)icp);
+	((struct iphdr *)icp)->check = ip_fast_csum(icp, ((struct iphdr*)icp)->ihl);
 
 	memcpy(cp, thp, 20);
 	cp += 20;
@@ -649,7 +662,7 @@ slhc_remember(struct slcompress *comp, unsigned char *icp, int isize)
 	icp[9] = IPPROTO_TCP;
 	ip = (struct iphdr *) icp;
 
-	if (ip_csum(ip)) {
+	if (ip_fast_csum(icp, ip->ihl)) {
 		/* Bad IP header checksum; discard */
 		comp->sls_i_badcheck++;
 		return slhc_toss( comp );
@@ -715,4 +728,21 @@ void slhc_o_status(struct slcompress *comp)
 	}
 }
 
+#ifdef MODULE
+char kernel_version[] = UTS_RELEASE;
+
+int init_module(void)
+{
+	printk("CSLIP: code copyright 1989 Regents of the University of California\n");
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	if (MOD_IN_USE)  {
+		printk("CSLIP: module in use, remove delayed");
+	}
+	return;
+}
+#endif /* MODULE */
 #endif /* CONFIG_INET */

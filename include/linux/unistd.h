@@ -146,6 +146,12 @@
 #define __NR_setfsuid		138
 #define __NR_setfsgid		139
 #define __NR__llseek		140
+#define __NR_getdents		141
+#define __NR__newselect		142
+#define __NR_flock		143
+/* This one hasn't been assigned officially!  Code that relies
+   on it deserves to die ... */
+#define __NR__cacheflush	144
 
 extern int errno;
 

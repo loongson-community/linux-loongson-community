@@ -1,6 +1,6 @@
 /* smc-ultra.c: A SMC Ultra ethernet driver for linux. */
 /*
-	Written 1993-94 by Donald Becker.
+	Written 1993,1994,1995 by Donald Becker.
 
 	Copyright 1993 United States Government as represented by the
 	Director, National Security Agency.
@@ -12,14 +12,34 @@
 	Center of Excellence in Space Data and Information Sciences
 		Code 930.5, Goddard Space Flight Center, Greenbelt MD 20771
 
-	This is a driver for the SMC Ultra ethercard.
+	This is a driver for the SMC Ultra and SMC EtherEZ ethercards.
 
+	This driver uses the cards in the 8390-compatible, shared memory mode.
+	Most of the run-time complexity is handled by the generic code in
+	8390.c.  The code in this file is responsible for
+
+		ultra_probe()	 	Detecting and initializing the card.
+		ultra_probe1()	
+
+		ultra_open()		The card-specific details of starting, stopping
+		ultra_reset_8390()	and resetting the 8390 NIC core.
+		ultra_close()
+
+		ultra_block_input()		Routines for reading and writing blocks of
+		ultra_block_output()	packet buffer memory.
+
+	This driver enables the shared memory only when doing the actual data
+	transfers to avoid a bug in early version of the card that corrupted
+	data transferred by a AHA1542.
+
+	This driver does not support the programmed-I/O data transfer mode of
+	the EtherEZ.  That support (if available) is smc-ez.c.  Nor does it
+	use the non-8390-compatible "Altego" mode. (No support currently planned.)
 */
 
 static char *version =
-	"smc-ultra.c:v1.10 9/23/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
+	"smc-ultra.c:v1.12 1/18/95 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
@@ -94,10 +114,13 @@ int ultra_probe1(struct device *dev, int ioaddr)
 	char *model_name;
 	unsigned char eeprom_irq = 0;
 	/* Values from various config regs. */
-	unsigned char num_pages, irqreg, addr, reg4 = inb(ioaddr + 4) & 0x7f;
+	unsigned char num_pages, irqreg, addr;
+	unsigned char idreg = inb(ioaddr + 7);
+	unsigned char reg4 = inb(ioaddr + 4) & 0x7f;
 
 	/* Check the ID nibble. */
-	if ((inb(ioaddr + 7) & 0xF0) != 0x20)
+	if ((idreg & 0xF0) != 0x20 			/* SMC Ultra */
+		&& (idreg & 0xF0) != 0x40) 		/* SMC EtherEZ */
 		return ENODEV;
 
 	/* Select the station address register set. */
@@ -111,7 +134,9 @@ int ultra_probe1(struct device *dev, int ioaddr)
 	if (dev == NULL)
 		dev = init_etherdev(0, sizeof(struct ei_device), 0);
 
-	printk("%s: SMC Ultra at %#3x,", dev->name, ioaddr);
+	model_name = (idreg & 0xF0) == 0x20 ? "SMC Ultra" : "SMC EtherEZ";
+
+	printk("%s: %s at %#3x,", dev->name, model_name, ioaddr);
 
 	for (i = 0; i < 6; i++)
 		printk(" %2.2X", dev->dev_addr[i] = inb(ioaddr + 8 + i));
@@ -129,8 +154,6 @@ int ultra_probe1(struct device *dev, int ioaddr)
 	   can find the card after a warm boot. */
 	outb(reg4, ioaddr + 4);
 
-	model_name = "SMC Ultra";
-
 	if (dev->irq < 2) {
 		unsigned char irqmap[] = {0, 9, 3, 5, 7, 10, 11, 15};
 		int irq;
@@ -147,8 +170,8 @@ int ultra_probe1(struct device *dev, int ioaddr)
 	}
 
 
-	/* OK, were are certain this is going to work.  Setup the device. */
-	snarf_region(ioaddr, 32);
+	/* OK, we are certain this is going to work.  Setup the device. */
+	request_region(ioaddr, 32, model_name);
 
 	/* The 8390 isn't at the base address, so fake the offset */
 	dev->base_addr = ioaddr+ULTRA_NIC_OFFSET;
@@ -193,7 +216,7 @@ ultra_open(struct device *dev)
 {
 	int ioaddr = dev->base_addr - ULTRA_NIC_OFFSET; /* ASIC addr */
 
-	if (request_irq(dev->irq, ei_interrupt, 0, "SMC Ultra"))
+	if (request_irq(dev->irq, ei_interrupt, 0, ei_status.name))
 		return -EAGAIN;
 
 	outb(ULTRA_MEMENB, ioaddr);	/* Enable memory, 16 bit mode. */
@@ -226,16 +249,21 @@ ultra_block_input(struct device *dev, int count, char *buf, int ring_offset)
 	void *xfer_start = (void *)(dev->mem_start + ring_offset
 								- (START_PG<<8));
 
+	/* Enable shared memory. */
+	outb(ULTRA_MEMENB, dev->base_addr - ULTRA_NIC_OFFSET);
+
 	if (xfer_start + count > (void*) dev->rmem_end) {
 		/* We must wrap the input move. */
 		int semi_count = (void*)dev->rmem_end - xfer_start;
 		memcpy(buf, xfer_start, semi_count);
 		count -= semi_count;
 		memcpy(buf + semi_count, (char *)dev->rmem_start, count);
+		outb(0x00, dev->base_addr - ULTRA_NIC_OFFSET); /* Disable memory. */
 		return dev->rmem_start + count;
 	}
 	memcpy(buf, xfer_start, count);
 
+	outb(0x00, dev->base_addr - ULTRA_NIC_OFFSET); /* Disable memory. */
 	return ring_offset + count;
 }
 
@@ -246,8 +274,12 @@ ultra_block_output(struct device *dev, int count, const unsigned char *buf,
 	unsigned char *shmem
 		= (unsigned char *)dev->mem_start + ((start_page - START_PG)<<8);
 
+	/* Enable shared memory. */
+	outb(ULTRA_MEMENB, dev->base_addr - ULTRA_NIC_OFFSET);
+
 	memcpy(shmem, buf, count);
 
+	outb(0x00, dev->base_addr - ULTRA_NIC_OFFSET); /* Disable memory. */
 }
 
 static int

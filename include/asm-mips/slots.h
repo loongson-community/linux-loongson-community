@@ -1,11 +1,11 @@
 /*
  * include/asm-mips/slots.h
  *
+ * Copyright (C) 1994 by Waldorf Electronics
  * Written by Ralf Baechle
- * Copyright (C) 1994 by Waldorf GMBH
  */
-#ifndef _ASM_MIPS_SLOTS_H
-#define _ASM_MIPS_SLOTS_H
+#ifndef __ASM_MIPS_SLOTS_H
+#define __ASM_MIPS_SLOTS_H
 
 /*
  * SLOTSPACE is the address to which the physical address 0
@@ -14,4 +14,4 @@
  */
 #define SLOTSPACE 0xe1000000
 
-#endif /* _ASM_MIPS_SLOTS_H */
+#endif /* __ASM_MIPS_SLOTS_H */

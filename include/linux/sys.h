@@ -7,11 +7,6 @@
 #define NR_syscalls 256
 
 /*
- * These are system calls with the same entry-point
- */
-#define _sys_clone _sys_fork
-
-/*
  * These are system calls that will be removed at some time
  * due to newer versions existing..
  * (please be careful - ibcs2 may need some of these).
@@ -32,6 +27,10 @@
  * These are system calls that haven't been implemented yet
  * but have an entry in the table for future expansion..
  */
+#ifdef __mips__
+#define sys_quotactl	sys_ni_syscall
+#else
 #define _sys_quotactl	_sys_ni_syscall
+#endif
 
 #endif

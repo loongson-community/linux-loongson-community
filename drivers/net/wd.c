@@ -20,7 +20,6 @@
 static char *version =
 	"wd.c:v1.10 9/23/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
@@ -236,7 +235,7 @@ int wd_probe1(struct device *dev, int ioaddr)
 	}
 
 	/* OK, were are certain this is going to work.  Setup the device. */
-	snarf_region(ioaddr, WD_IO_EXTENT);
+	request_region(ioaddr, WD_IO_EXTENT,"wd");
 	ethdev_init(dev);
 
 	ei_status.name = model_name;
@@ -261,6 +260,13 @@ int wd_probe1(struct device *dev, int ioaddr)
 	dev->open = &wd_open;
 	dev->stop = &wd_close_card;
 	NS8390_init(dev, 0);
+
+#if 1
+	/* Enable interrupt generation on softconfig cards -- M.U */
+	/* .. but possibly potentially unsafe - Donald */
+	if (inb(ioaddr+14) & 0x20)
+		outb(inb(ioaddr+4)|0x80, ioaddr+4);
+#endif
 
 	return 0;
 }
@@ -362,6 +368,7 @@ wd_close_card(struct device *dev)
 	if (ei_debug > 1)
 		printk("%s: Shutting down ethercard.\n", dev->name);
 	NS8390_init(dev, 0);
+	dev->start = 0;
 
 	/* Change from 16-bit to 8-bit shared memory so reboot works. */
 	outb(ei_status.reg5, wd_cmdreg + WD_CMDREG5 );

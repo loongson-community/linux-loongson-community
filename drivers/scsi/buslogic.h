@@ -1,13 +1,6 @@
 /*
- *	buslogic.h	(C) 1993 David B. Gentzel
- *	Low-level scsi driver for BusLogic adapters
- *	by David B. Gentzel, Whitfield Software Services, Carnegie, PA
- *	    (gentzel@nova.enet.dec.com)
- *	Thanks to BusLogic for providing the necessary documentation
- *
- *	The original version of this driver was derived from aha1542.[ch] which
- *	is Copyright (C) 1992 Tommy Thorn.  Much has been reworked, but most of
- *	basic structure and substantial chunks of code still remain.
+ *	buslogic.h	Copyright (C) 1993, 1994 David B. Gentzel
+ *	See buslogic.c for more information.
  */
 
 #ifndef _BUSLOGIC_H
@@ -15,22 +8,14 @@
 int buslogic_detect(Scsi_Host_Template *);
 int buslogic_queuecommand(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
 int buslogic_abort(Scsi_Cmnd *);
-const char *buslogic_info(void);
+const char *buslogic_info(struct Scsi_Host *);
 int buslogic_reset(Scsi_Cmnd *);
 int buslogic_biosparam(Disk *, int, int *);
 
-#define BUSLOGIC_CMDLUN 1	/* Do not set this too high.  It sucks
-				   up lots of memory on ISA machines
-				   with > 16MB because of the huge number of
-				   bounce buffers that need to be allocated.
-				   For boards that use non-ISA bus, we can
-				   bump this in the board detect routine.  
-							10/8/94 ERY */
-
-#define BUSLOGIC { NULL,			\
+#define BUSLOGIC { NULL, NULL,			\
 		   "BusLogic",			\
 		   buslogic_detect,		\
-		   NULL,			\
+		   0,	/* no release func */	\
 		   buslogic_info,		\
 		   0,	/* no command func */	\
 		   buslogic_queuecommand,	\
@@ -41,7 +26,7 @@ int buslogic_biosparam(Disk *, int, int *);
 		   0,	/* set by driver */	\
 		   0,	/* set by driver */	\
 		   0,	/* set by driver */	\
-		   BUSLOGIC_CMDLUN,		\
+		   0,	/* set by driver */	\
 		   0,				\
 		   0,	/* set by driver */	\
 		   ENABLE_CLUSTERING		\

@@ -334,6 +334,27 @@ struct cdrom_read_audio
 	  u_char *buf; /* frame buffer (size: nframes*2352 bytes) */
 	};
 
+/*
+ * this has to be the "arg" of the CDROMMULTISESSION ioctl
+ * for obtaining multi session info.
+ * The returned "addr" is valid only if "xa_flag" is true.
+ */
+struct cdrom_multisession
+	{
+	  union
+	    {
+	      struct 			
+		{
+		  u_char minute;
+		  u_char second;
+		  u_char frame;
+		} msf;
+	      int lba;
+	    } addr; /* frame address: start-of-last-session (not the new "frame 16"!)*/
+	  u_char xa_flag; /* 1: "is XA disk" */
+	  u_char addr_format; /* CDROM_LBA or CDROM_MSF */
+	};
+
 #ifdef FIVETWELVE
 #define	CDROM_MODE1_SIZE	512
 #else
@@ -387,6 +408,10 @@ struct cdrom_read_audio
  * (still may change if other drivers will use it, too):
  */
 #define	CDROMEJECT_SW		0x530f		/* arg: 0 or 1 */
+ 
+/*
+ * obtain the start-of-last-session address of multi session disks
+ */
+#define	CDROMMULTISESSION	0x5310 /* (struct cdrom_multisession) */
 
 #endif  _LINUX_CDROM_H
-

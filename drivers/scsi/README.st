@@ -1,5 +1,5 @@
 This file contains brief information about the SCSI tape driver.
-Last modified: Sun Oct 16 19:20:03 1994 by root@kai.home
+Last modified: Tue Jan 10 21:32:35 1995 by root@kai.home
 
 BASICS
 
@@ -11,8 +11,9 @@ variable block size (within buffer limits). Both the auto-rewind
 device number) are implemented.
 
 By default the driver writes one filemark when the device is closed after
-writing. Two filemarks can be optionally written. In both cases end
-of data is signified by returning zero bytes for two consecutive reads.
+writing and the last operation has been a write. Two filemarks can be
+optionally written. In both cases end of data is signified by
+returning zero bytes for two consecutive reads.
 
 BUFFERING
 
@@ -106,7 +107,8 @@ MTSETDRVBUFFER
            Sets the buffering options. The bits are the new states
            (enabled/disabled) of the write buffering (MT_ST_BUFFER_WRITES),
            asynchronous writes (MT_ST_ASYNC_WRITES), read ahead
-           (MT_ST_READ_AHEAD), writing of two filemark (ST_TWO_FM), and
+           (MT_ST_READ_AHEAD), writing of two filemark (ST_TWO_FM),
+	   using the SCSI spacing to EOD (MT_ST_FAST_EOM), and
 	   debugging (MT_ST_DEBUGGING ; debugging must be compiled into the
 	   driver).
         MT_ST_WRITE_THRESHOLD
@@ -128,8 +130,9 @@ MTIOCGET Returns some status information.
         The current block size and the density code are stored in the field
         mt_dsreg (shifts for the subfields are MT_ST_BLKSIZE_SHIFT and
         MT_ST_DENSITY_SHIFT).
-	The WR_PROT, BOT, EOF, EOT, EOD, and D_[800,1600,6250]_BPI
-	status bits reflect the tape status. The other bits are not used.
+	The GMT_xxx status bits reflect the drive status. GMT_DR_OPEN
+	is set if there is no tape in the drive. GMT_EOD means either
+	end of recorded data or end of tape. GMT_EOT means end of tape.
 
 
 MISCELLANEOUS COMPILE OPTIONS
@@ -139,6 +142,12 @@ is defined.
 
 Immediate return from tape positioning SCSI commands can be enabled by
 defining ST_NOWAIT.
+
+The MTEOM command is by default implemented as spacing over 32767
+filemarks. With this method the file number in the status is
+correct. The user can request using direct spacing to EOD by setting
+ST_FAST_EOM 1 (or using the MT_ST_OPTIONS ioctl). In this case the file
+number will be invalid.
 
 When using read ahead or buffered writes the position within the file
 may not be correct after the file is closed (correct position may

@@ -1,9 +1,10 @@
 /*
  *  linux/fs/ext2/file.c
  *
- *  Copyright (C) 1992, 1993, 1994  Remy Card (card@masi.ibp.fr)
- *                                  Laboratoire MASI - Institut Blaise Pascal
- *                                  Universite Pierre et Marie Curie (Paris VI)
+ * Copyright (C) 1992, 1993, 1994, 1995
+ * Remy Card (card@masi.ibp.fr)
+ * Laboratoire MASI - Institut Blaise Pascal
+ * Universite Pierre et Marie Curie (Paris VI)
  *
  *  from
  *
@@ -195,9 +196,37 @@ static int ext2_file_read (struct inode * inode, struct file * filp,
 			left -= chars;
 			read += chars;
 			if (*bhe) {
+#if 0
+printk("ext2_file_read() #1:\n");
+printk("ext2_file_read() #1.1: ");print_sp();
+#endif
 				memcpy_tofs (buf, offset + (*bhe)->b_data,
 					     chars);
+#if 0
+printk("ext2_file_read() #2: buf == %08x\n", offset+(*bhe)->b_data);
+if(!buf)
+  {
+#if 0
+  printk("Flushing caches...\n");
+  sys_cacheflush(0, ~0, 3);
+#endif
+  printk("dumping #1 at %08lx...\n", (unsigned long) buf);
+  dump16(buf);
+  printk("dumping #2 at %08lx...\n", (unsigned long) (offset+(*bhe)->b_data));
+  dump16(offset+(*bhe)->b_data);
+#if 0
+  printk("Jumping to 0x0\n");
+  __asm__ __volatile__ ("jr\t%0;nop"::"r" (0));
+  printk("Freezing ...\n");
+  while(1);
+#endif
+  }
+/*dump_list(0);*/
+#endif
 				brelse (*bhe);
+#if 0
+printk("ext2_file_read() #3:\n");
+#endif
 				buf += chars;
 			} else {
 				while (chars-- > 0)

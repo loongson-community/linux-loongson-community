@@ -6,6 +6,10 @@
 
 /* bitmap.c contains the code that handles the inode and block bitmaps */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/sched.h>
 #include <linux/minix_fs.h>
 #include <linux/stat.h>
@@ -88,7 +92,7 @@ repeat:
 	j = 8192;
 	for (i=0 ; i<8 ; i++)
 		if ((bh=sb->u.minix_sb.s_zmap[i]) != NULL)
-			if ((j=find_first_zero_bit(bh->b_data,8192)) < 8192)
+			if ((j=find_first_zero_bit(bh->b_data, 8192)) < 8192)
 				break;
 	if (i>=8 || !bh || j>=8192)
 		return 0;
@@ -171,7 +175,7 @@ struct inode * minix_new_inode(const struct inode * dir)
 	j = 8192;
 	for (i=0 ; i<8 ; i++)
 		if ((bh = inode->i_sb->u.minix_sb.s_imap[i]) != NULL)
-			if ((j=find_first_zero_bit(bh->b_data,8192)) < 8192)
+			if ((j=find_first_zero_bit(bh->b_data, 8192)) < 8192)
 				break;
 	if (!bh || j >= 8192) {
 		iput(inode);

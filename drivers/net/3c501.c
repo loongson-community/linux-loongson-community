@@ -14,6 +14,65 @@
     The author may be reached as becker@CESDIS.gsfc.nasa.gov, or C/O
     Center of Excellence in Space Data and Information Sciences
        Code 930.5, Goddard Space Flight Center, Greenbelt MD 20771
+       
+    Fixed (again!) the missing interrupt locking on TX/RX shifting.
+    		Alan Cox <Alan.Cox@linux.org>
+    		
+    Removed calls to init_etherdev since they are no longer needed, and
+    cleaned up modularization just a bit. The driver still allows only
+    the default address for cards when loaded as a module, but that's
+    really less braindead than anyone using a 3c501 board. :)
+		    19950208 (invid@msen.com)
+
+    Added traps for interrupts hitting the window as we clear and TX load
+    the board. Now getting 150K/second FTP with a 3c501 card. Still playing
+    with a TX-TX optimisation to see if we can touch 180-200K/second as seems
+    theoretically maximum.
+    		19950402 Alan Cox <Alan.Cox@linux.org>
+    		
+    Some notes on this thing if you have to hack it.  [Alan]
+    
+    1]	Some documentation is available from 3Com. Due to the boards age
+    	standard responses when you ask for this will range from 'be serious'
+    	to 'give it to a museum'. The documentation is incomplete and mostly
+    	of historical interest anyway.
+    	
+    2]  The basic system is a single buffer which can be used to receive or
+    	transmit a packet. A third command mode exists when you are setting
+    	things up.
+    	
+    3]	If it's transmitting it's not receiving and vice versa. In fact the 
+    	time to get the board back into useful state after an operation is
+    	quite large.
+    	
+    4]	The driver works by keeping the board in receive mode waiting for a
+    	packet to arrive. When one arrives it is copied out of the buffer
+    	and delivered to the kernel. The card is reloaded and off we go.
+    	
+    5]	When transmitting dev->tbusy is set and the card is reset (from
+    	receive mode) [possibly losing a packet just received] to command
+    	mode. A packet is loaded and transmit mode triggered. The interrupt
+    	handler runs different code for transmit interrupts and can handle
+    	returning to receive mode or retransmissions (yes you have to help
+    	out with those too).
+    	
+    Problems:
+    	There are a wide variety of undocumented error returns from the card
+    and you basically have to kick the board and pray if they turn up. Most 
+    only occur under extreme load or if you do something the board doesn't
+    like (eg touching a register at the wrong time).
+    
+    	The driver is less efficient than it could be. It switches through
+    receive mode even if more transmits are queued. If this worries you buy
+    a real ethernet card.
+    
+    	The combination of slow receive restart and no real multicast
+    filter makes the board unusable with a kernel compiled for IP
+    multicasting in a real multicast environment. Thats down to the board, 
+    but even with no multicast programs running a multicast IP kernel is
+    in group 224.0.0.1 and you will therefore be listening to all multicasts.
+    One nv conference running over that ethernet and you can give up.
+    
 */
 
 static char *version =
@@ -25,6 +84,14 @@ static char *version =
   */
 
 #include <linux/config.h>
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#else
+#define MOD_INC_USE_COUNT
+#define MOD_DEC_USE_COUNT
+#endif
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/ptrace.h>
@@ -43,14 +110,6 @@ static char *version =
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
-#ifdef MODULE
-#include <linux/module.h>
-#include "../../tools/version.h"
-#endif
-
-extern struct device *init_etherdev(struct device *dev, int sizeof_private,
-				    unsigned long *mem_startp);
-
 /* A zero-terminated list of I/O addresses to be probed.
    The 3c501 can be at many locations, but here are the popular ones. */
 static unsigned int netcard_portlist[] =
@@ -62,7 +121,7 @@ int el1_probe(struct device *dev);
 static int  el1_probe1(struct device *dev, int ioaddr);
 static int  el_open(struct device *dev);
 static int  el_start_xmit(struct sk_buff *skb, struct device *dev);
-static void el_interrupt(int reg_ptr);
+static void el_interrupt(int irq, struct pt_regs *regs);
 static void el_receive(struct device *dev);
 static void el_reset(struct device *dev);
 static int  el1_close(struct device *dev);
@@ -81,6 +140,7 @@ struct net_local {
     struct enet_statistics stats;
     int tx_pkt_start;		/* The length of the current Tx packet. */
     int collisions;		/* Tx collisions this packet */
+    int loading;		/* Spot buffer load collisions */
 };
 
 
@@ -161,6 +221,8 @@ el1_probe(struct device *dev)
 static int
 el1_probe1(struct device *dev, int ioaddr)
 {
+    #ifndef MODULE
+
     char *mname;		/* Vendor name */
     unsigned char station_addr[6];
     int autoirq = 0;
@@ -183,10 +245,7 @@ el1_probe1(struct device *dev, int ioaddr)
 	return ENODEV;
 
     /* Grab the region so we can find the another board if autoIRQ fails. */
-    snarf_region(ioaddr, EL1_IO_EXTENT);
-
-    if (dev == NULL)
-	dev = init_etherdev(0, sizeof(struct net_local), 0);
+    request_region(ioaddr, EL1_IO_EXTENT,"3c501");
 
     /* We auto-IRQ by shutting off the interrupt line and letting it float
        high. */
@@ -218,9 +277,13 @@ el1_probe1(struct device *dev, int ioaddr)
     if (autoirq)
 	dev->irq = autoirq;
 
-    printk("%s: %s EtherLink at %#x, using %sIRQ %d, melting ethernet.\n",
+    printk("%s: %s EtherLink at %#lx, using %sIRQ %d.\n",
 	   dev->name, mname, dev->base_addr,
 	   autoirq ? "auto":"assigned ", dev->irq);
+	   
+#ifdef CONFIG_IP_MULTICAST
+    printk("WARNING: Use of the 3c501 in a multicast kernel is NOT recommended.\n");
+#endif    
 
     if (el_debug)
 	printk("%s", version);
@@ -239,6 +302,7 @@ el1_probe1(struct device *dev, int ioaddr)
     /* Setup the generic properties */
     ether_setup(dev);
 
+#endif /* !MODULE */
     return 0;
 }
 
@@ -261,9 +325,7 @@ el_open(struct device *dev)
     dev->start = 1;
 
     outb(AX_RX, AX_CMD);	/* Aux control, irq and receive enabled */
-#ifdef MODULE
     MOD_INC_USE_COUNT;
-#endif       
     return 0;
 }
 
@@ -272,6 +334,7 @@ el_start_xmit(struct sk_buff *skb, struct device *dev)
 {
     struct net_local *lp = (struct net_local *)dev->priv;
     int ioaddr = dev->base_addr;
+    unsigned long flags;
 
     if (dev->tbusy) {
 	if (jiffies - dev->trans_start < 20) {
@@ -296,24 +359,51 @@ el_start_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
     }
 
+    save_flags(flags);
+    /* Avoid incoming interrupts between us flipping tbusy and flipping
+       mode as the driver assumes tbusy is a faithful indicator of card
+       state */
+    cli();
     /* Avoid timer-based retransmission conflicts. */
     if (set_bit(0, (void*)&dev->tbusy) != 0)
+    {
+    	restore_flags(flags);
 	printk("%s: Transmitter access conflict.\n", dev->name);
+    }
     else {
 	int gp_start = 0x800 - (ETH_ZLEN < skb->len ? skb->len : ETH_ZLEN);
 	unsigned char *buf = skb->data;
 
+load_it_again_sam:
 	lp->tx_pkt_start = gp_start;
     	lp->collisions = 0;
 
+	/*
+	 *	Command mode with status cleared should [in theory]
+	 *	mean no more interrupts can be pending on the card.
+	 */
 	outb(AX_SYS, AX_CMD);
 	inb(RX_STATUS);
 	inb(TX_STATUS);
-	outw(0x00, RX_BUF_CLR);	/* Set rx packet area to 0. */
-	outw(gp_start, GP_LOW);
-	outsb(DATAPORT,buf,skb->len);
-	outw(gp_start, GP_LOW);
-	outb(AX_XMIT, AX_CMD);		/* Trigger xmit.  */
+	
+	lp->loading=1;
+	
+	/* 
+	 *	Turn interrupts back on while we spend a pleasant afternoon
+	 *	loading bytes into the board 
+	 */
+	restore_flags(flags);
+	outw(0x00, RX_BUF_CLR);		/* Set rx packet area to 0. */
+	outw(gp_start, GP_LOW);		/* aim - packet will be loaded into buffer start */
+	outsb(DATAPORT,buf,skb->len);	/* load buffer (usual thing each byte increments the pointer) */
+	outw(gp_start, GP_LOW);		/* the board reuses the same register */
+	if(lp->loading==2)		/* A receive upset our load, despite our best efforts */
+	{
+		if(el_debug>2)
+			printk("%s: burped during tx load.\n", dev->name);
+		goto load_it_again_sam;	/* Sigh... */
+	}
+	outb(AX_XMIT, AX_CMD);		/* fire ... Trigger xmit.  */
 	dev->trans_start = jiffies;
     }
 
@@ -327,9 +417,8 @@ el_start_xmit(struct sk_buff *skb, struct device *dev)
 /* The typical workload of the driver:
    Handle the ether interface interrupts. */
 static void
-el_interrupt(int reg_ptr)
+el_interrupt(int irq, struct pt_regs *regs)
 {
-    int irq = pt_regs2irq(reg_ptr);
     struct device *dev = (struct device *)(irq2dev_map[irq]);
     struct net_local *lp;
     int ioaddr;
@@ -349,8 +438,15 @@ el_interrupt(int reg_ptr)
     if (dev->interrupt)
 	printk("%s: Reentering the interrupt driver!\n", dev->name);
     dev->interrupt = 1;
+    
+    lp->loading=2;		/* So we can spot loading interruptions */
 
     if (dev->tbusy) {
+    
+    	/*
+    	 *	Board in transmit mode.
+    	 */
+    	 
 	int txsr = inb(TX_STATUS);
 
 	if (el_debug > 6)
@@ -358,12 +454,19 @@ el_interrupt(int reg_ptr)
 		   inw(RX_LOW));
 
 	if ((axsr & 0x80) && (txsr & TX_READY) == 0) {
+	/*
+	 *	FIXME: is there a logic to whether to keep on trying or
+	 *	reset immediately ?
+	 */
 	    printk("%s: Unusual interrupt during Tx, txsr=%02x axsr=%02x"
 		   " gp=%03x rp=%03x.\n", dev->name, txsr, axsr,
 		   inw(ioaddr + EL1_DATAPTR), inw(ioaddr + EL1_RXPTR));
 	    dev->tbusy = 0;
 	    mark_bh(NET_BH);
 	} else if (txsr & TX_16COLLISIONS) {
+	/*
+	 *	Timed out
+	 */
 	    if (el_debug)
 		printk("%s: Transmit failed 16 times, ethernet jammed?\n",
 		       dev->name);
@@ -372,6 +475,9 @@ el_interrupt(int reg_ptr)
 	} else if (txsr & TX_COLLISION) {	/* Retrigger xmit. */
 	    if (el_debug > 6)
 		printk(" retransmitting after a collision.\n");
+	/*
+	 *	Poor little chip can't reset its own start pointer
+	 */
 	    outb(AX_SYS, AX_CMD);
 	    outw(lp->tx_pkt_start, GP_LOW);
 	    outb(AX_XMIT, AX_CMD);
@@ -379,26 +485,42 @@ el_interrupt(int reg_ptr)
 	    dev->interrupt = 0;
 	    return;
 	} else {
+	/*
+	 *	It worked.. we will now fall through and receive
+	 */
 	    lp->stats.tx_packets++;
 	    if (el_debug > 6)
 		printk(" Tx succeeded %s\n",
 		       (txsr & TX_RDY) ? "." : "but tx is busy!");
+	/*
+	 *	This is safe the interrupt is atomic WRT itself.
+	 */
 	    dev->tbusy = 0;
-	    mark_bh(NET_BH);
+	    mark_bh(NET_BH);	/* In case more to transmit */
 	}
     } else {
+    
+    	/*
+    	 *	In receive mode.
+    	 */
+    	 
 	int rxsr = inb(RX_STATUS);
 	if (el_debug > 5)
 	    printk(" rxsr=%02x txsr=%02x rp=%04x", rxsr, inb(TX_STATUS),
 		   inw(RX_LOW));
 
-	/* Just reading rx_status fixes most errors. */
+	/*
+	 *	Just reading rx_status fixes most errors. 
+	 */
 	if (rxsr & RX_MISSED)
 	    lp->stats.rx_missed_errors++;
 	if (rxsr & RX_RUNT) {	/* Handled to avoid board lock-up. */
 	    lp->stats.rx_length_errors++;
 	    if (el_debug > 5) printk(" runt.\n");
 	} else if (rxsr & RX_GOOD) {
+	/*
+	 *	Receive worked.
+	 */
 	    el_receive(dev);
 	} else {			/* Nothing?  Something is broken! */
 	    if (el_debug > 2)
@@ -410,6 +532,9 @@ el_interrupt(int reg_ptr)
 	    printk(".\n");
     }
 
+    /*
+     *	Move into receive mode 
+     */
     outb(AX_RX, AX_CMD);
     outw(0x00, RX_BUF_CLR);
     inb(RX_STATUS);		/* Be certain that interrupts are cleared. */
@@ -440,9 +565,17 @@ el_receive(struct device *dev)
 	lp->stats.rx_over_errors++;
 	return;
     }
+    
+    /*
+     *	Command mode so we can empty the buffer
+     */
+     
     outb(AX_SYS, AX_CMD);
 
     skb = alloc_skb(pkt_len, GFP_ATOMIC);
+    /*
+     *	Start of frame
+     */
     outw(0x00, GP_LOW);
     if (skb == NULL) {
 	printk("%s: Memory squeeze, dropping packet.\n", dev->name);
@@ -452,8 +585,14 @@ el_receive(struct device *dev)
 	skb->len = pkt_len;
 	skb->dev = dev;
 
+	/*
+	 *	The read increments through the bytes. The interrupt
+	 *	handler will fix the pointer when it returns to 
+	 *	receive mode.
+	 */
+	 
 	insb(DATAPORT, skb->data, pkt_len);
-
+	skb->protocol=eth_type_trans(skb,dev);
 	netif_rx(skb);
 	lp->stats.rx_packets++;
     }
@@ -502,9 +641,7 @@ el1_close(struct device *dev)
     outb(AX_RESET, AX_CMD);	/* Reset the chip */
     irq2dev_map[dev->irq] = 0;
 
-#ifdef MODULE
     MOD_DEC_USE_COUNT;
-#endif    
     return 0;
 }
 
@@ -544,10 +681,15 @@ static struct device dev_3c501 = {
 		0, 0, 0, 0,
 	 	0x280, 5,
 	 	0, 0, 0, NULL, el1_probe };
+
+int io=0x280;
+int irq=5;
 	
 int
 init_module(void)
 {
+	dev_3c501.irq=irq;
+	dev_3c501.base_addr=io;
 	if (register_netdev(&dev_3c501) != 0)
 		return -EIO;
 	return 0;
@@ -556,12 +698,15 @@ init_module(void)
 void
 cleanup_module(void)
 {
-	if (MOD_IN_USE)
-		printk("3c501: device busy, remove delayed\n");
-	else
-	{
-		unregister_netdev(&dev_3c501);
-	}
+	/* No need to check MOD_IN_USE, as sys_delete_module() checks. */
+	unregister_netdev(&dev_3c501);
+
+	/* Free up the private structure, or leak memory :-)  */
+	kfree(dev_3c501.priv);
+	dev_3c501.priv = NULL;	/* gets re-allocated by el1_probe1 */
+
+	/* If we don't do this, we can't re-insmod it later. */
+	release_region(dev_3c501.base_addr, EL1_IO_EXTENT);
 }
 #endif /* MODULE */
 

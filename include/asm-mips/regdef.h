@@ -5,17 +5,17 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 by Ralf Baechle
+ * Copyright (C) 1994, 1995 by Ralf Baechle
  */
 
-#ifndef _ASM_MIPS_REGSDEFS_H_
-#define _ASM_MIPS_REGSDEFS_H_
+#ifndef __ASM_MIPS_REGDEF_H
+#define __ASM_MIPS_REGDEF_H
 
 /*
  * Symbolic register names
  */
 #define zero    $0      /* wired zero */
-#define AT      $1      /* assembler temp (uprcase, because ".set at") */
+#define AT      $1      /* assembler temp  - uppercase because of ".set at" */
 #define v0      $2      /* return value */
 #define v1      $3
 #define a0      $4      /* argument registers */
@@ -47,4 +47,4 @@
 #define fp      $30     /* frame pointer */
 #define ra      $31     /* return address */
 
-#endif /* _ASM_MIPS_REGSDEFS_H_ */
+#endif /* __ASM_MIPS_REGDEF_H */

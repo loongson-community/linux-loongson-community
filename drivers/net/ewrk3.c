@@ -68,7 +68,7 @@
     0) have a copy of the loadable modules code installed on your system.
     1) copy ewrk3.c from the  /linux/drivers/net directory to your favourite
     temporary directory.
-    2) edit the  source code near  line 1340 to reflect  the I/O address and
+    2) edit the  source code near  line 1830 to reflect  the I/O address and
     IRQ you're using.
     3) compile  ewrk3.c, but include -DMODULE in  the command line to ensure
     that the correct bits are compiled (see end of source code).
@@ -78,6 +78,8 @@
     6) run the net startup bits for your new eth?? interface manually 
     (usually /etc/rc.inet[12] at boot time). 
     7) enjoy!
+
+    [Alan Cox: Changed this so you can insmod ewrk3.o irq=x io=y]
 
     Note that autoprobing is not allowed in loadable modules - the system is
     already up and running and you're messing with interrupts.
@@ -118,14 +120,20 @@
       0.23    21-sep-94   Added transmit cut through
       0.24    31-oct-94   Added uid checks in some ioctls
       0.30     1-nov-94   BETA code release
+      0.31     5-dec-94   Added check/snarf_region code.
+      0.32    16-jan-95   Broadcast packet fix
 
     =========================================================================
 */
 
-static char *version = "ewrk3.c:v0.30 11/1/94 davies@wanton.lkg.dec.com\n";
+static char *version = "ewrk3.c:v0.32 1/16/95 davies@wanton.lkg.dec.com\n";
+
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif /* MODULE */
 
 #include <stdarg.h>
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -146,11 +154,6 @@ static char *version = "ewrk3.c:v0.30 11/1/94 davies@wanton.lkg.dec.com\n";
 #include <linux/time.h>
 #include <linux/types.h>
 #include <linux/unistd.h>
-
-#ifdef MODULE
-#include <linux/module.h>
-#include "/linux/tools/version.h"
-#endif /* MODULE */
 
 #include "ewrk3.h"
 
@@ -193,6 +196,7 @@ static int ewrk3_debug = 1;
 
 #define EWRK3_IO_BASE 0x100             /* Start address for probe search */
 #define EWRK3_IOP_INC 0x20              /* I/O address increment */
+#define EWRK3_TOTAL_SIZE 0x20           /* required I/O address space */
 #define EWRK3_IO_SEARCH 0x007dff7f      /* probe search mask */
 static long mem_chkd = EWRK3_IO_SEARCH; /* holds which I/O addrs should be */
 				        /* checked, for multi-EWRK3 case */
@@ -210,9 +214,8 @@ static long mem_chkd = EWRK3_IO_SEARCH; /* holds which I/O addrs should be */
 #define EISA_SLOT_INC 0x1000
 #endif
 
-#ifndef CRC_POLYNOMIAL
-#define CRC_POLYNOMIAL 0x04c11db7       /* Ethernet CRC polynomial */
-#endif /* CRC_POLYNOMIAL */
+#define CRC_POLYNOMIAL_BE 0x04c11db7UL   /* Ethernet CRC, big endian */
+#define CRC_POLYNOMIAL_LE 0xedb88320UL   /* Ethernet CRC, little endian */
 
 /*
 ** EtherWORKS 3 shared memory window sizes
@@ -287,7 +290,7 @@ struct ewrk3_private {
 */
 static int ewrk3_open(struct device *dev);
 static int ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev);
-static void ewrk3_interrupt(int reg_ptr);
+static void ewrk3_interrupt(int irq, struct pt_regs *regs);
 static int ewrk3_close(struct device *dev);
 static struct enet_statistics *ewrk3_get_stats(struct device *dev);
 static void set_multicast_list(struct device *dev, int num_addrs, void *addrs);
@@ -314,7 +317,7 @@ static struct device *isa_probe(struct device *dev);
 static struct device *eisa_probe(struct device *dev);
 static struct device *alloc_device(struct device *dev, int iobase);
 
-static int num_ewrk3s = 0, num_eth = 0, autoprobed = 0;
+static int num_ewrk3s = 0, num_eth = 0;
 static unsigned char irq[] = {5,0,10,3,11,9,15,12};
 
 #else
@@ -322,6 +325,8 @@ int  init_module(void);
 void cleanup_module(void);
 
 #endif /* MODULE */
+
+static int autoprobed = 0;
 
 /*
 ** Miscellaneous defines...
@@ -344,14 +349,24 @@ int ewrk3_probe(struct device *dev)
 #endif
 
   if (base_addr > 0x0ff) {	      /* Check a single specified location. */
-    if (((mem_chkd >> ((base_addr - EWRK3_IO_BASE)/ EWRK3_IOP_INC))&0x01)==0) {
-      if (DevicePresent(base_addr) == 0) { /* Is EWRK3 really here? */
-	status = ewrk3_hw_init(dev, base_addr);
+    if (!autoprobed) {                /* Module or fixed location */
+      if (!check_region(base_addr, EWRK3_TOTAL_SIZE)) {
+	if (((mem_chkd >> ((base_addr - EWRK3_IO_BASE)/ EWRK3_IOP_INC))&0x01)==1) {
+	  if (DevicePresent(base_addr) == 0) {      /* Is EWRK3 really here? */
+	                                            /* Register I/O Region */
+	    request_region(base_addr, EWRK3_IOP_INC, "ewrk3");
+	    status = ewrk3_hw_init(dev, base_addr);
+	  } else {
+	    printk("ewrk3_probe(): No device found\n");
+	    mem_chkd &= ~(0x01 << ((base_addr - EWRK3_IO_BASE)/EWRK3_IOP_INC));
+	  }
+	}
       } else {
-	printk("ewrk3_probe(): No device found\n");
+	printk("%s: ewrk3_probe(): Detected a device already registered at 0x%02x\n", dev->name, base_addr);
+	mem_chkd &= ~(0x01 << ((base_addr - EWRK3_IO_BASE)/EWRK3_IOP_INC));
       }
-    } else {
-      status = ewrk3_hw_init(dev, base_addr); /* Yes there is h/w */
+    } else {                          /* already know what ewrk3 h/w is here */
+      status = ewrk3_hw_init(dev, base_addr);
     }
   } else if (base_addr > 0) {         /* Don't probe at all. */
     status = -ENXIO;
@@ -891,9 +906,8 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
 ** The EWRK3 interrupt handler. 
 */
 static void
-ewrk3_interrupt(int reg_ptr)
+ewrk3_interrupt(int irq, struct pt_regs * regs)
 {
-    int irq = -(((struct pt_regs *)reg_ptr)->orig_eax+2);
     struct device *dev = (struct device *)(irq2dev_map[irq]);
     struct ewrk3_private *lp;
     int iobase;
@@ -1040,6 +1054,8 @@ ewrk3_rx(struct device *dev)
 	    ** Notify the upper protocol layers that there is another 
 	    ** packet to handle
 	    */
+	    
+	    skb->protocol=eth_type_trans(skb,dev);
 	    netif_rx(skb);
 
 	    /*
@@ -1227,20 +1243,19 @@ set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 /*
 ** Calculate the hash code and update the logical address filter
 ** from a list of ethernet multicast addresses.
-** Derived from a 'C' program in the AMD data book:
-** "Am79C90 CMOS Local Area Network Controller for Ethernet (C-LANCE)", 
-** Pub #17781, Rev. A, May 1993
+** Little endian crc one liner from Matt Thomas, DEC.
 **
+** Note that when clearing the table, the broadcast bit must remain asserted
+** to receive broadcast messages.
 */
 static void SetMulticastFilter(struct device *dev, int num_addrs, char *addrs, char *multicast_table)
 {
   struct ewrk3_private *lp = (struct ewrk3_private *)dev->priv;
-  int iobase = dev->base_addr;
-  char j, ctrl, bit, octet;
+  int i, iobase = dev->base_addr;
+  char j, bit, byte;
   short *p = (short *) multicast_table;
-  unsigned short hashcode;
-  int i;
-  long int crc, poly = (long int) CRC_POLYNOMIAL;
+  u_short hashcode;
+  u_long crc, poly = CRC_POLYNOMIAL_LE;
 
   while (set_bit(0, (void *)&lp->lock) != 0); /* Wait for lock to free */
 
@@ -1260,47 +1275,49 @@ static void SetMulticastFilter(struct device *dev, int num_addrs, char *addrs, c
 	i++;
       }
     }
-  } else if (num_addrs == 0) {
+  } else {
+    /* Clear table except for broadcast bit */
     if (lp->shmem_length == IO_ONLY) {
-      for (i=0; i<(HASH_TABLE_LEN >> 3); i++) {
+      for (i=0; i<(HASH_TABLE_LEN >> 4) - 1; i++) {
+	outb(0x00, EWRK3_DATA);
+      } 
+      outb(0x80, EWRK3_DATA); i++;           /* insert the broadcast bit */
+      for (; i<(HASH_TABLE_LEN >> 3); i++) {
 	outb(0x00, EWRK3_DATA);
       } 
     } else {
       memset(multicast_table, 0, (HASH_TABLE_LEN >> 3));
+      *(multicast_table + (HASH_TABLE_LEN >> 4) - 1) = 0x80;
     }
-  } else {
+
+    /* Update table */
     for (i=0;i<num_addrs;i++) {              /* for each address in the list */
-      if (((char) *(addrs+ETH_ALEN*i) & 0x01) == 1) {/* multicast address? */ 
-	crc = (long int) 0xffffffff;         /* init CRC for each address */
-	for (octet=0;octet<ETH_ALEN;octet++) { /* for each address octet */
-	  for(j=0;j<8;j++) {                 /* process each address bit */
-	    bit = (((char)* (addrs+ETH_ALEN*i+octet)) >> j) & 0x01;
-	    ctrl = ((crc < 0) ? 1 : 0);      /* shift the control bit */
-	    crc <<= 1;                       /* shift the CRC */
-	    if (bit ^ ctrl) {                /* (bit) XOR (control bit) */
-	      crc ^= poly;                   /* (CRC) XOR (polynomial) */
-	    }
+      if ((*addrs & 0x01) == 1) {            /* multicast address? */ 
+	crc = 0xffffffff;                    /* init CRC for each address */
+	for (byte=0;byte<ETH_ALEN;byte++) {  /* for each address byte */
+	                                     /* process each address bit */ 
+	  for (bit = *addrs++,j=0;j<8;j++, bit>>=1) {
+	    crc = (crc >> 1) ^ (((crc ^ bit) & 0x01) ? poly : 0);
 	  }
 	}
-	hashcode = (crc & 0x01);             /* hashcode is 9 LSb of CRC ... */
-	for (j=0;j<8;j++) {                  /* ... in reverse order. */
-	  hashcode <<= 1;
-	  crc >>= 1;
-	  hashcode |= (crc & 0x01);
-	}                                      
-	octet = hashcode >> 3;               /* bit[3-8] -> octet in filter */
-	                                     /* bit[0-2] -> bit in octet */
+	hashcode = crc & ((1 << 9) - 1);     /* hashcode is 9 LSb of CRC */
+
+	byte = hashcode >> 3;                /* bit[3-8] -> byte in filter */
+	bit = 1 << (hashcode & 0x07);        /* bit[0-2] -> bit in byte */
+
 	if (lp->shmem_length == IO_ONLY) {
 	  unsigned char tmp;
 
-	  outw((short)((long)multicast_table) + octet, EWRK3_PIR1);
+	  outw((short)((long)multicast_table) + byte, EWRK3_PIR1);
 	  tmp = inb(EWRK3_DATA);
-	  tmp |= (1 << (hashcode & 0x07));
-	  outw((short)((long)multicast_table) + octet, EWRK3_PIR1);
+	  tmp |= bit;
+	  outw((short)((long)multicast_table) + byte, EWRK3_PIR1);
 	  outb(tmp, EWRK3_DATA); 
 	} else {
-	  multicast_table[octet] |= (1 << (hashcode & 0x07));
+	  multicast_table[byte] |= bit;
 	}
+      } else {                               /* skip this address */
+	addrs += ETH_ALEN;
       }
     }
   }
@@ -1323,20 +1340,27 @@ static struct device *isa_probe(struct device *dev)
        i < 24;
        iobase += EWRK3_IOP_INC, i++) {
     if (tmp & 0x01) {
-      if (DevicePresent(iobase) == 0) {
+      /* Anything else registered here? */
+      if (!check_region(iobase, EWRK3_TOTAL_SIZE)) {    
+	if (DevicePresent(iobase) == 0) {
 /*
 ** Device found. Mark its (I/O) location for future reference. Only 24
 ** EtherWORKS devices can exist between 0x100 and 0x3e0.
 */
-	if (num_ewrk3s > 0) {        /* only gets here in autoprobe */
-	  dev = alloc_device(dev, iobase);
-	} else {
-	  if ((status = ewrk3_hw_init(dev, iobase)) == 0) {
-	    num_ewrk3s++;
+	  request_region(iobase, EWRK3_IOP_INC, "ewrk3");
+	  if (num_ewrk3s > 0) {        /* only gets here in autoprobe */
+	    dev = alloc_device(dev, iobase);
+	  } else {
+	    if ((status = ewrk3_hw_init(dev, iobase)) == 0) {
+	      num_ewrk3s++;
+	    }
 	  }
+	  num_eth++;
+	} else {
+	  mem_chkd &= ~(0x01 << ((iobase - EWRK3_IO_BASE)/EWRK3_IOP_INC));
 	}
-	num_eth++;
       } else {
+	printk("%s: ewrk3_probe(): Detected a device already registered at 0x%02x\n", dev->name, iobase);
 	mem_chkd &= ~(0x01 << ((iobase - EWRK3_IO_BASE)/EWRK3_IOP_INC));
       }
     }
@@ -1358,20 +1382,24 @@ static struct device *eisa_probe(struct device *dev)
   iobase+=EISA_SLOT_INC;            /* get the first slot address */
   for (status = -ENODEV, i=1; i<MAX_EISA_SLOTS; i++, iobase+=EISA_SLOT_INC) {
 
-    if (DevicePresent(iobase) == 0) {
+    /* Anything else registered here? */
+    if (!check_region(iobase, EWRK3_TOTAL_SIZE)) {
+      if (DevicePresent(iobase) == 0) {
 /*
 ** Device found. Mark its slot location for future reference. Only 7
 ** EtherWORKS devices can exist in EISA space....
 */
-      mem_chkd |= (0x01 << (i + 24));
-      if (num_ewrk3s > 0) {        /* only gets here in autoprobe */
-	dev = alloc_device(dev, iobase);
-      } else {
-	if ((status = ewrk3_hw_init(dev, iobase)) == 0) {
-	  num_ewrk3s++;
+	mem_chkd |= (0x01 << (i + 24));
+	request_region(iobase, EWRK3_IOP_INC, "ewrk3");
+	if (num_ewrk3s > 0) {        /* only gets here in autoprobe */
+	  dev = alloc_device(dev, iobase);
+	} else {
+	  if ((status = ewrk3_hw_init(dev, iobase)) == 0) {
+	    num_ewrk3s++;
+	  }
 	}
+	num_eth++;
       }
-      num_eth++;
     }
   }
   return dev;
@@ -1800,12 +1828,17 @@ char kernel_version[] = UTS_RELEASE;
 static struct device thisEthwrk = {
   "        ", /* device name inserted by /linux/drivers/net/net_init.c */
   0, 0, 0, 0,
-  0x300, 5,  /* I/O address, IRQ <--- EDIT THIS LINE FOR YOUR CONFIGURATION */
+  0x300, 5,  /* I/O address, IRQ */
   0, 0, 0, NULL, ewrk3_probe };
 	
+int io=0x300;	/* <--- EDIT THESE LINES FOR YOUR CONFIGURATION */
+int irq=5;	/* or use the insmod io= irq= options 		*/
+
 int
 init_module(void)
 {
+  thisEthwrk.base_addr=io;
+  thisEthwrk.irq=irq;
   if (register_netdev(&thisEthwrk) != 0)
     return -EIO;
   return 0;

@@ -12,12 +12,12 @@
 #include <linux/termios.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/major.h>
 #include <linux/tty.h>
 #include <linux/fcntl.h>
 #include <linux/string.h>
+#include <linux/mm.h>
 
 #include <asm/io.h>
 #include <asm/bitops.h>
@@ -40,7 +40,7 @@
 #define TERMIOS_WAIT	2
 #define TERMIOS_TERMIO	4
 
-void wait_until_sent(struct tty_struct * tty, int timeout)
+void tty_wait_until_sent(struct tty_struct * tty, int timeout)
 {
 	struct wait_queue wait = { current, NULL };
 
@@ -132,7 +132,7 @@ static int set_termios(struct tty_struct * tty, unsigned long arg, int opt)
 		tty->ldisc.flush_buffer(tty);
 
 	if (opt & TERMIOS_WAIT)
-		wait_until_sent(tty, 0);
+		tty_wait_until_sent(tty, 0);
 
 	cli();
 	*tty->termios = tmp_termios;
@@ -363,7 +363,7 @@ int n_tty_ioctl(struct tty_struct * tty, struct file * file,
 			retval = tty_check_change(tty);
 			if (retval)
 				return retval;
-			wait_until_sent(tty, 0);
+			tty_wait_until_sent(tty, 0);
 			if (!tty->driver.ioctl)
 				return 0;
 			tty->driver.ioctl(tty, file, cmd, arg);

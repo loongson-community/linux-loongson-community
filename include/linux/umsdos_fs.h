@@ -2,17 +2,20 @@
 #define LINUX_UMSDOS_FS_H
 
 #define UMSDOS_VERSION	0
-#define UMSDOS_RELEASE	3
-
-#ifndef LINUX_FS_H
-#include <linux/fs.h>
-#endif
+#define UMSDOS_RELEASE	4
 
 /* This is the file acting as a directory extension */
 #define UMSDOS_EMD_FILE		"--linux-.---"
 #define UMSDOS_EMD_NAMELEN	12
 #define UMSDOS_PSDROOT_NAME	"linux"
 #define UMSDOS_PSDROOT_LEN	5
+
+#ifndef _LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+#ifndef _LINUX_DIRENT_H
+#include <linux/dirent.h>
+#endif
 
 struct umsdos_fake_info {
 	char fname[13];
@@ -79,12 +82,40 @@ struct umsdos_info{
 #define UMSDOS_INIT_EMD		1242	/* Create the EMD file if not there */
 #define UMSDOS_DOS_SETUP	1243	/* Set the defaults of the MsDOS driver */
 
-#include <linux/stat.h>
-
+#define UMSDOS_RENAME_DOS	1244	/* rename a file/directory in the DOS */
+									/* directory only */
 struct umsdos_ioctl{
 	struct dirent dos_dirent;
 	struct umsdos_dirent umsdos_dirent;
-	struct new_stat stat;
+	/* The following structure is used to exchange some data */
+	/* with utilities (umsdos_progs/util/umsdosio.c). The first */
+	/* releases were using struct stat from "sys/stat.h". This was */
+	/* causing some problem for cross compilation of the kernel */
+	/* Since I am not really using the structure stat, but only some field */
+	/* of it, I have decided to replicate the structure here */
+	/* for compatibility with the binaries out there */
+	struct {
+		dev_t		st_dev;
+		unsigned short	__pad1;
+		ino_t		st_ino;
+		umode_t		st_mode;
+		nlink_t		st_nlink;
+		uid_t		st_uid;
+		gid_t		st_gid;
+		dev_t		st_rdev;
+		unsigned short	__pad2;
+		off_t		st_size;
+		unsigned long	st_blksize;
+		unsigned long	st_blocks;
+		time_t		st_atime;
+		unsigned long	__unused1;
+		time_t		st_mtime;
+		unsigned long	__unused2;
+		time_t		st_ctime;
+		unsigned long	__unused3;
+		unsigned long	__unused4;
+		unsigned long	__unused5;
+	}stat;
 	char version,release;
 };
 
@@ -92,6 +123,10 @@ struct umsdos_ioctl{
 #define EDM_ENTRY_ISUSED(e) ((e)->name_len!=0)
 
 #ifdef __KERNEL__
+
+#ifndef LINUX_FS_H
+#include <linux/fs.h>
+#endif
 
 extern struct inode_operations umsdos_dir_inode_operations;
 extern struct file_operations  umsdos_file_operations;

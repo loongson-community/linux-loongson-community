@@ -30,7 +30,6 @@
  * known BUGS: 16MB limit
  */
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -55,7 +54,7 @@
 
 #ifndef HAVE_PORTRESERVE
 #define check_region(ioaddr, size)              0
-#define snarf_region(ioaddr, size);             do ; while (0)
+#define request_region(ioaddr, size,name)       do ; while (0)
 #endif
 
 #ifndef NET_DEBUG
@@ -113,7 +112,7 @@ static unsigned int net_debug = NET_DEBUG;
 #define writedatareg(val) {outw(val,PORT+L_DATAREG);inw(PORT+L_DATAREG);}
 
 static int   ni65_probe1(struct device *dev,int);
-static void  ni65_interrupt(int reg_ptr);
+static void  ni65_interrupt(int irq, struct pt_regs *regs);
   static void recv_intr(struct device *dev);
   static void xmit_intr(struct device *dev);
 static int   ni65_open(struct device *dev);
@@ -244,7 +243,7 @@ static int ni65_probe1(struct device *dev,int ioaddr)
   irq2dev_map[dev->irq] = dev;
 
   /* Grab the region so we can find another board if autoIRQ fails. */
-        snarf_region(ioaddr,NI65_TOTAL_SIZE);
+        request_region(ioaddr,NI65_TOTAL_SIZE,"ni65");
 
   p = dev->priv = (void *) kmalloc(sizeof(struct priv),GFP_KERNEL);
   memset((char *) dev->priv,0,sizeof(struct priv));
@@ -398,9 +397,8 @@ static int am7990_reinit(struct device *dev)
  * interrupt handler  
  */
 
-static void ni65_interrupt(int reg_ptr)
+static void ni65_interrupt(int irq, struct pt_regs * regs)
 {
-  int irq = pt_regs2irq(reg_ptr);
   int csr0;
   struct device *dev = (struct device *) irq2dev_map[irq];
 
@@ -545,6 +543,7 @@ static void recv_intr(struct device *dev)
         skb1->len = len;
         skb1->dev = dev;
         p->stats.rx_packets++;
+        skb1->protocol=eth_type_trans(skb1,dev);
         netif_rx(skb1);
       }
       else

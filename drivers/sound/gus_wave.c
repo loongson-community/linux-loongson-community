@@ -781,7 +781,7 @@ gus_initialize (void)
 
   gus_select_voice (0);		/* This disables writes to IRQ/DMA reg */
 
-  gusintr (0);			/* Serve pending interrupts */
+  gusintr (0,NULL);		/* Serve pending interrupts */
   RESTORE_INTR (flags);
 }
 
@@ -3052,7 +3052,6 @@ do_loop_irq (int voice)
       pcm_active = 0;		/* Signal to the play_next_pcm_block routine */
     case LMODE_PCM:
       {
-	int             orig_qlen = pcm_qlen;
 	int             flag;	/* 0 or 2 */
 
 	pcm_qlen--;
@@ -3068,7 +3067,7 @@ do_loop_irq (int voice)
 	    pcm_active = 0;
 	  }
 
-	/*
+/*
  * If the queue was full before this interrupt, the DMA transfer was
  * suspended. Let it continue now.
  */

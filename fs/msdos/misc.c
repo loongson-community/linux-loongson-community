@@ -4,6 +4,10 @@
  *  Written 1992,1993 by Werner Almesberger
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/fs.h>
 #include <linux/msdos_fs.h>
 #include <linux/sched.h>
@@ -12,8 +16,10 @@
 #include <linux/string.h>
 #include <linux/stat.h>
 
+#include "msbuffer.h"
 
 #define PRINTK(x)
+#define Printk(x)	printk x
 /* Well-known binary file extensions */
 
 static char bin_extensions[] =
@@ -111,7 +117,8 @@ void unlock_fat(struct super_block *sb)
 
 int msdos_add_cluster(struct inode *inode)
 {
-	int count,nr,limit,last,current,sector,last_sector;
+	struct super_block *sb = inode->i_sb;
+	int count,nr,limit,last,current,sector,last_sector,file_cluster;
 	struct buffer_head *bh;
 	int cluster_size = MSDOS_SB(inode->i_sb)->cluster_size;
 
@@ -124,6 +131,7 @@ int msdos_add_cluster(struct inode *inode)
 		nr = ((count+MSDOS_SB(inode->i_sb)->prev_free) % limit)+2;
 		if (fat_access(inode->i_sb,nr,-1) == 0) break;
 	}
+	PRINTK (("cnt = %d --",count));
 #ifdef DEBUG
 printk("free cluster: %d\n",nr);
 #endif
@@ -143,14 +151,30 @@ printk("free cluster: %d\n",nr);
 printk("set to %x\n",fat_access(inode->i_sb,nr,-1));
 #endif
 	last = 0;
+	/* We must locate the last cluster of the file to add this
+	   new one (nr) to the end of the link list (the FAT).
+	   
+	   Here file_cluster will be the number of the last cluster of the
+	   file (before we add nr).
+	   
+	   last is the corresponding cluster number on the disk. We will
+	   use last to plug the nr cluster. We will use file_cluster to
+	   update the cache.
+	*/
+	file_cluster = 0;
 	if ((current = MSDOS_I(inode)->i_start) != 0) {
 		cache_lookup(inode,INT_MAX,&last,&current);
-		while (current && current != -1)
+		file_cluster = last;
+		while (current && current != -1){
+			PRINTK (("."));
+			file_cluster++;
 			if (!(current = fat_access(inode->i_sb,
 			    last = current,-1))) {
 				fs_panic(inode->i_sb,"File without EOF");
 				return -ENOSPC;
 			}
+		}
+		PRINTK ((" --  "));
 	}
 #ifdef DEBUG
 printk("last = %d\n",last);
@@ -173,10 +197,16 @@ if (last) printk("next set to %d\n",fat_access(inode->i_sb,last,-1));
 			printk("getblk failed\n");
 		else {
 			memset(bh->b_data,0,SECTOR_SIZE);
-			bh->b_uptodate = 1;
+			msdos_set_uptodate(sb,bh,1);
 			mark_buffer_dirty(bh, 1);
 			brelse(bh);
 		}
+	}
+	if (file_cluster != inode->i_blocks/cluster_size){
+		printk ("file_cluster badly computed!!! %d <> %ld\n"
+			,file_cluster,inode->i_blocks/cluster_size);
+	}else{
+		cache_add(inode,file_cluster,nr);
 	}
 	inode->i_blocks += cluster_size;
 	if (S_ISDIR(inode->i_mode)) {
@@ -255,6 +285,7 @@ void date_unix2dos(int unix_date,unsigned short *time,
 int msdos_get_entry(struct inode *dir, loff_t *pos,struct buffer_head **bh,
     struct msdos_dir_entry **de)
 {
+	struct super_block *sb = dir->i_sb;
 	int sector,offset;
 
 	while (1) {
@@ -269,7 +300,7 @@ int msdos_get_entry(struct inode *dir, loff_t *pos,struct buffer_head **bh,
 		if (*bh)
 			brelse(*bh);
 		PRINTK (("get_entry sector apres brelse\n"));
-		if (!(*bh = msdos_sread(dir->i_dev,sector))) {
+		if (!(*bh = bread(dir->i_dev,sector,SECTOR_SIZE))) {
 			printk("Directory sread (sector %d) failed\n",sector);
 			continue;
 		}
@@ -343,7 +374,7 @@ static int raw_scan_sector(struct super_block *sb,int sector,char *name,
 	struct inode *inode;
 	int entry,start,done;
 
-	if (!(bh = msdos_sread(sb->s_dev,sector))) return -EIO;
+	if (!(bh = bread(sb->s_dev,sector,SECTOR_SIZE))) return -EIO;
 	data = (struct msdos_dir_entry *) bh->b_data;
 	for (entry = 0; entry < MSDOS_DPS; entry++) {
 		if (name) RSS_NAME

@@ -27,14 +27,18 @@
 
 #define MINIX_INODES_PER_BLOCK ((BLOCK_SIZE)/(sizeof (struct minix_inode)))
 
+/*
+ * This is the original minix inode layout on disk.
+ * Note the 8-bit gid and atime and ctime.
+ */
 struct minix_inode {
-	unsigned short i_mode;
-	unsigned short i_uid;
-	unsigned long i_size;
-	unsigned long i_time;
-	unsigned char i_gid;
-	unsigned char i_nlinks;
-	unsigned short i_zone[9];
+	__u16 i_mode;
+	__u16 i_uid;
+	__u32 i_size;
+	__u32 i_time;
+	__u8  i_gid;
+	__u8  i_nlinks;
+	__u16 i_zone[9];
 };
 
 /*
@@ -44,34 +48,34 @@ struct minix_inode {
  * now 16-bit. The inode is now 64 bytes instead of 32.
  */
 struct new_minix_inode {
-	unsigned short i_mode;
-	unsigned short i_nlinks;
-	unsigned short i_uid;
-	unsigned short i_gid;
-	unsigned long i_size;
-	unsigned long i_atime;
-	unsigned long i_mtime;
-	unsigned long i_ctime;
-	unsigned long i_zone[10];
+	__u16 i_mode;
+	__u16 i_nlinks;
+	__u16 i_uid;
+	__u16 i_gid;
+	__u32 i_size;
+	__u32 i_atime;
+	__u32 i_mtime;
+	__u32 i_ctime;
+	__u32 i_zone[10];
 };
 
 /*
  * minix super-block data on disk
  */
 struct minix_super_block {
-	unsigned short s_ninodes;
-	unsigned short s_nzones;
-	unsigned short s_imap_blocks;
-	unsigned short s_zmap_blocks;
-	unsigned short s_firstdatazone;
-	unsigned short s_log_zone_size;
-	unsigned long s_max_size;
-	unsigned short s_magic;
-	unsigned short s_state;
+	__u16 s_ninodes;
+	__u16 s_nzones;
+	__u16 s_imap_blocks;
+	__u16 s_zmap_blocks;
+	__u16 s_firstdatazone;
+	__u16 s_log_zone_size;
+	__u32 s_max_size;
+	__u16 s_magic;
+	__u16 s_state;
 };
 
 struct minix_dir_entry {
-	unsigned short inode;
+	__u16 inode;
 	char name[0];
 };
 
@@ -110,7 +114,7 @@ extern int minix_remount (struct super_block * sb, int * flags, char * data);
 extern void minix_read_inode(struct inode *);
 extern void minix_write_inode(struct inode *);
 extern void minix_put_inode(struct inode *);
-extern void minix_statfs(struct super_block *, struct statfs *);
+extern void minix_statfs(struct super_block *, struct statfs *, int);
 extern int minix_sync_inode(struct inode *);
 extern int minix_sync_file(struct inode *, struct file *);
 

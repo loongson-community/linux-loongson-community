@@ -132,18 +132,4 @@ extern inline unsigned long ffz(unsigned long word)
 	return word;
 }
 
-/*
- * ffoz = Find First One in word and set to Zero. Undefined if no one exists,
- * so code should check against 0UL first..
- */
-extern inline unsigned long ffzc(unsigned long word)
-{
-	__asm__("bsf %2,%1\n\t"
-		"btrl %1,%0"
-		: "=m" (current->signal),"=r" (signr)
-		: "1" (signr));
-
-	return word;
-}
-
 #endif /* _I386_BITOPS_H */

@@ -538,7 +538,7 @@ static int NCR5380_set_timer (struct Scsi_Host *instance) {
     *prev = instance;
     timer_table[NCR5380_TIMER].expires = expires_first->time_expires;
     timer_active |= 1 << NCR5380_TIMER;
-    sti;
+    sti();
     return 0;
 }    
 
@@ -600,8 +600,8 @@ static void NCR5380_all_init (void) {
 
 
 static int probe_irq;
-static void probe_intr (int sig) {
-    probe_irq = sig;
+static void probe_intr (int irq, struct pt_regs * regs) {
+    probe_irq = irq;
 };
 
 static int NCR5380_probe_irq (struct Scsi_Host *instance, int possible) {
@@ -636,7 +636,8 @@ static int NCR5380_probe_irq (struct Scsi_Host *instance, int possible) {
     NCR5380_write(INITIATOR_COMMAND_REG, ICR_BASE | ICR_ASSERT_DATA | 
 	ICR_ASSERT_SEL);
 
-    while (probe_irq == IRQ_NONE && jiffies < timeout);
+    while (probe_irq == IRQ_NONE && jiffies < timeout)
+    	barrier();
 
     NCR5380_write(SELECT_ENABLE_REG, 0);
     NCR5380_write(INITIATOR_COMMAND_REG, ICR_BASE);
@@ -1030,7 +1031,7 @@ static void NCR5380_main (void) {
  *
  */
 
-static void NCR5380_intr (int irq) {
+static void NCR5380_intr (int irq, struct pt_regs * regs) {
     NCR5380_local_declare(); 
     struct Scsi_Host *instance;
     int done;
@@ -1912,7 +1913,10 @@ static void NCR5380_information_transfer (struct Scsi_Host *instance) {
 	instance->hostdata;
     unsigned char msgout = NOP;
     int sink = 0;
-    int len, transfersize;
+    int len;
+#if defined(PSEUDO_DMA) || defined(REAL_DMA_POLL)
+    int transfersize;
+#endif
     unsigned char *data;
     unsigned char phase, tmp, extended_msg[10], old_phase=0xff;
     Scsi_Cmnd *cmd = (Scsi_Cmnd *) hostdata->connected;
@@ -2014,7 +2018,7 @@ static void NCR5380_information_transfer (struct Scsi_Host *instance) {
 		    } else
 			cmd->SCp.this_residual -= transfersize - len;
 		} else
-#endif /* defined(REAL_DMA) || defined(REAL_DMA_POLL) */
+#endif /* defined(PSEUDO_DMA) || defined(REAL_DMA_POLL) */
 		  NCR5380_transfer_pio(instance, &phase, 
 		    (int *) &cmd->SCp.this_residual, (unsigned char **)
 		    &cmd->SCp.ptr);
@@ -2144,8 +2148,8 @@ static void NCR5380_information_transfer (struct Scsi_Host *instance) {
 		     */
 		    NCR5380_write(TARGET_COMMAND_REG, 0);
 		    
-		    while ((NCR5380_read(STATUS_REG) & SR_BSY) && 
-			!hostdata->connected);
+		    while ((NCR5380_read(STATUS_REG) & SR_BSY) && !hostdata->connected)
+			barrier();
 		    return;
 		case MESSAGE_REJECT:
 		    /* Accept message by clearing ACK */
@@ -2184,8 +2188,8 @@ static void NCR5380_information_transfer (struct Scsi_Host *instance) {
 		    /* Enable reselect interrupts */
 		    NCR5380_write(SELECT_ENABLE_REG, hostdata->id_mask);
 		    /* Wait for bus free to avoid nasty timeouts */
-		    while ((NCR5380_read(STATUS_REG) & SR_BSY) && 
-			!hostdata->connected);
+		    while ((NCR5380_read(STATUS_REG) & SR_BSY) && !hostdata->connected)
+		    	barrier();
 		    return;
 		/* 
 		 * The SCSI data pointer is *IMPLICITLY* saved on a disconnect

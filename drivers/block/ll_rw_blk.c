@@ -15,6 +15,7 @@
 #include <linux/string.h>
 #include <linux/config.h>
 #include <linux/locks.h>
+#include <linux/mm.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -40,16 +41,29 @@ int read_ahead[MAX_BLKDEV] = {0, };
  *	next-request
  */
 struct blk_dev_struct blk_dev[MAX_BLKDEV] = {
-	{ NULL, NULL },		/* no_dev */
-	{ NULL, NULL },		/* dev mem */
-	{ NULL, NULL },		/* dev fd */
-	{ NULL, NULL },		/* dev hd */
-	{ NULL, NULL },		/* dev ttyx */
-	{ NULL, NULL },		/* dev tty */
-	{ NULL, NULL },		/* dev lp */
-	{ NULL, NULL },		/* dev pipes */
-	{ NULL, NULL },		/* dev sd */
-	{ NULL, NULL }		/* dev st */
+	{ NULL, NULL },		/* 0 no_dev */
+	{ NULL, NULL },		/* 1 dev mem */
+	{ NULL, NULL },		/* 2 dev fd */
+	{ NULL, NULL },		/* 3 dev ide0 or hd */
+	{ NULL, NULL },		/* 4 dev ttyx */
+	{ NULL, NULL },		/* 5 dev tty */
+	{ NULL, NULL },		/* 6 dev lp */
+	{ NULL, NULL },		/* 7 dev pipes */
+	{ NULL, NULL },		/* 8 dev sd */
+	{ NULL, NULL },		/* 9 dev st */
+	{ NULL, NULL },		/* 10 */
+	{ NULL, NULL },		/* 11 */
+	{ NULL, NULL },		/* 12 */
+	{ NULL, NULL },		/* 13 */
+	{ NULL, NULL },		/* 14 */
+	{ NULL, NULL },		/* 15 */
+	{ NULL, NULL },		/* 16 */
+	{ NULL, NULL },		/* 17 */
+	{ NULL, NULL },		/* 18 */
+	{ NULL, NULL },		/* 19 */
+	{ NULL, NULL },		/* 20 */
+	{ NULL, NULL },		/* 21 */
+	{ NULL, NULL }		/* 22 dev ide1 */
 };
 
 /*
@@ -70,6 +84,57 @@ int * blk_size[MAX_BLKDEV] = { NULL, NULL, };
  * if (!blksize_size[MAJOR]) then 1024 bytes is assumed.
  */
 int * blksize_size[MAX_BLKDEV] = { NULL, NULL, };
+
+/*
+ * hardsect_size contains the size of the hardware sector of a device.
+ *
+ * hardsect_size[MAJOR][MINOR]
+ *
+ * if (!hardsect_size[MAJOR])
+ *		then 512 bytes is assumed.
+ * else
+ *		sector_size is hardsect_size[MAJOR][MINOR]
+ * This is currently set by some scsi device and read by the msdos fs driver
+ * This might be a some uses later.
+ */
+int * hardsect_size[MAX_BLKDEV] = { NULL, NULL, };
+
+/*
+ * "plug" the device if there are no outstanding requests: this will
+ * force the transfer to start only after we have put all the requests
+ * on the list.
+ */
+static void plug_device(struct blk_dev_struct * dev, struct request * plug)
+{
+	unsigned long flags;
+
+	plug->dev = -1;
+	plug->cmd = -1;
+	plug->next = NULL;
+	save_flags(flags);
+	cli();
+	if (!dev->current_request)
+		dev->current_request = plug;
+	restore_flags(flags);
+}
+
+/*
+ * remove the plug and let it rip..
+ */
+static void unplug_device(struct blk_dev_struct * dev)
+{
+	struct request * req;
+	unsigned long flags;
+
+	save_flags(flags);
+	cli();
+	req = dev->current_request;
+	if (req && req->dev == -1 && req->cmd == -1) {
+		dev->current_request = req->next;
+		(dev->request_fn)();
+	}
+	restore_flags(flags);
+}
 
 /*
  * look for a free request in the first N entries.
@@ -104,16 +169,38 @@ static inline struct request * get_request(int n, int dev)
 
 /*
  * wait until a free request in the first N entries is available.
- * NOTE: interrupts must be disabled on the way in, and will still
- *       be disabled on the way out.
  */
+static struct request * __get_request_wait(int n, int dev)
+{
+	register struct request *req;
+	struct wait_queue wait = { current, NULL };
+
+	add_wait_queue(&wait_for_request, &wait);
+	for (;;) {
+		unplug_device(MAJOR(dev)+blk_dev);
+		current->state = TASK_UNINTERRUPTIBLE;
+		cli();
+		req = get_request(n, dev);
+		sti();
+		if (req)
+			break;
+		schedule();
+	}
+	remove_wait_queue(&wait_for_request, &wait);
+	current->state = TASK_RUNNING;
+	return req;
+}
+
 static inline struct request * get_request_wait(int n, int dev)
 {
 	register struct request *req;
 
-	while ((req = get_request(n, dev)) == NULL)
-		sleep_on(&wait_for_request);
-	return req;
+	cli();
+	req = get_request(n, dev);
+	sti();
+	if (req)
+		return req;
+	return __get_request_wait(n, dev);
 }
 
 /* RO fail safe mechanism */
@@ -157,10 +244,11 @@ static void add_request(struct blk_dev_struct * dev, struct request * req)
 						kstat.dk_drive[disk_index]++;
 					break;
 		case HD_MAJOR:
-		case XT_DISK_MAJOR:	disk_index = (MINOR(req->dev) & 0x00C0) >> 6;
-					if (disk_index < 4)
-						kstat.dk_drive[disk_index]++;
+		case XT_DISK_MAJOR:	disk_index = (MINOR(req->dev) & 0x0040) >> 6;
+					kstat.dk_drive[disk_index]++;
 					break;
+		case IDE1_MAJOR:	disk_index = ((MINOR(req->dev) & 0x0040) >> 6) + 2;
+					kstat.dk_drive[disk_index]++;
 		default:		break;
 	}
 
@@ -219,6 +307,10 @@ static void make_request(int major,int rw, struct buffer_head * bh)
 			bh->b_req = 0;
 			return;
 		}
+	/* Uhhuh.. Nasty dead-lock possible here.. */
+	if (bh->b_lock)
+		return;
+	/* Maybe the above fixes it, and maybe it doesn't boot. Life is interesting */
 	lock_buffer(bh);
 	if ((rw == WRITE && !bh->b_dirt) || (rw == READ && bh->b_uptodate)) {
 		unlock_buffer(bh);
@@ -231,22 +323,25 @@ static void make_request(int major,int rw, struct buffer_head * bh)
  */
 	max_req = (rw == READ) ? NR_REQUEST : ((NR_REQUEST*2)/3);
 
-/* big loop: look for a free request. */
-
-repeat:
+/* look for a free request. */
 	cli();
 
-/* The scsi disk drivers completely remove the request from the queue when
- * they start processing an entry.  For this reason it is safe to continue
- * to add links to the top entry for scsi devices.
+/* The scsi disk drivers and the IDE driver completely remove the request
+ * from the queue when they start processing an entry.  For this reason
+ * it is safe to continue to add links to the top entry for those devices.
  */
-	if ((major == HD_MAJOR
+	if ((   major == IDE0_MAJOR	/* same as HD_MAJOR */
+	     || major == IDE1_MAJOR
 	     || major == FLOPPY_MAJOR
 	     || major == SCSI_DISK_MAJOR
 	     || major == SCSI_CDROM_MAJOR)
 	    && (req = blk_dev[major].current_request))
 	{
+#ifdef CONFIG_BLK_DEV_HD
 	        if (major == HD_MAJOR || major == FLOPPY_MAJOR)
+#else
+		if (major == FLOPPY_MAJOR)
+#endif CONFIG_BLK_DEV_HD
 			req = req->next;
 		while (req) {
 			if (req->dev == bh->b_dev &&
@@ -286,21 +381,16 @@ repeat:
 
 /* find an unused request. */
 	req = get_request(max_req, bh->b_dev);
+	sti();
 
-/* if no request available: if rw_ahead, forget it; otherwise try again. */
-	if (! req) {
+/* if no request available: if rw_ahead, forget it; otherwise try again blocking.. */
+	if (!req) {
 		if (rw_ahead) {
-			sti();
 			unlock_buffer(bh);
 			return;
 		}
-		sleep_on(&wait_for_request);
-		sti();
-		goto repeat;
+		req = __get_request_wait(max_req, bh->b_dev);
 	}
-
-/* we found a request. */
-	sti();
 
 /* fill up the request-info, and add it to the queue */
 	req->cmd = rw;
@@ -316,14 +406,15 @@ repeat:
 	add_request(major+blk_dev,req);
 }
 
-void ll_rw_page(int rw, int dev, int page, char * buffer)
+void ll_rw_page(int rw, int dev, unsigned long page, char * buffer)
 {
 	struct request * req;
 	unsigned int major = MAJOR(dev);
+	unsigned long sector = page * (PAGE_SIZE / 512);
 	struct semaphore sem = MUTEX_LOCKED;
 
 	if (major >= MAX_BLKDEV || !(blk_dev[major].request_fn)) {
-		printk("Trying to read nonexistent block-device %04x (%d)\n",dev,page*8);
+		printk("Trying to read nonexistent block-device %04x (%ld)\n",dev,sector);
 		return;
 	}
 	if (rw!=READ && rw!=WRITE)
@@ -332,15 +423,13 @@ void ll_rw_page(int rw, int dev, int page, char * buffer)
 		printk("Can't page to read-only device 0x%X\n",dev);
 		return;
 	}
-	cli();
 	req = get_request_wait(NR_REQUEST, dev);
-	sti();
 /* fill up the request-info, and add it to the queue */
 	req->cmd = rw;
 	req->errors = 0;
-	req->sector = page<<3;
-	req->nr_sectors = 8;
-	req->current_nr_sectors = 8;
+	req->sector = sector;
+	req->nr_sectors = PAGE_SIZE / 512;
+	req->current_nr_sectors = PAGE_SIZE / 512;
 	req->buffer = buffer;
 	req->sem = &sem;
 	req->bh = NULL;
@@ -357,7 +446,6 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 {
 	unsigned int major;
 	struct request plug;
-	int plugged;
 	int correct_size;
 	struct blk_dev_struct * dev;
 	int i;
@@ -407,15 +495,8 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 	   from starting until we have shoved all of the blocks into the
 	   queue, and then we let it rip.  */
 
-	plugged = 0;
-	cli();
-	if (!dev->current_request && nr > 1) {
-		dev->current_request = &plug;
-		plug.dev = -1;
-		plug.next = NULL;
-		plugged = 1;
-	}
-	sti();
+	if (nr > 1)
+		plug_device(dev, &plug);
 	for (i = 0; i < nr; i++) {
 		if (bh[i]) {
 			bh[i]->b_req = 1;
@@ -426,12 +507,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bh[])
 				kstat.pgpgout++;
 		}
 	}
-	if (plugged) {
-		cli();
-		dev->current_request = plug.next;
-		(dev->request_fn)();
-		sti();
-	}
+	unplug_device(dev);
 	return;
 
       sorry:
@@ -468,9 +544,7 @@ void ll_rw_swap_file(int rw, int dev, unsigned int *b, int nb, char *buf)
 
 	for (i=0; i<nb; i++, buf += buffersize)
 	{
-		cli();
 		req = get_request_wait(NR_REQUEST, dev);
-		sti();
 		req->cmd = rw;
 		req->errors = 0;
 		req->sector = (b[i] * buffersize) >> 9;
@@ -498,14 +572,23 @@ long blk_dev_init(long mem_start, long mem_end)
 #ifdef CONFIG_BLK_DEV_HD
 	mem_start = hd_init(mem_start,mem_end);
 #endif
+#ifdef CONFIG_BLK_DEV_IDE
+	mem_start = ide_init(mem_start,mem_end);
+#endif
 #ifdef CONFIG_BLK_DEV_XD
 	mem_start = xd_init(mem_start,mem_end);
 #endif
 #ifdef CONFIG_CDU31A
 	mem_start = cdu31a_init(mem_start,mem_end);
 #endif
+#ifdef CONFIG_CDU535
+	mem_start = sony535_init(mem_start,mem_end);
+#endif
 #ifdef CONFIG_MCD
 	mem_start = mcd_init(mem_start,mem_end);
+#endif
+#ifdef CONFIG_AZTCD
+        mem_start = aztcd_init(mem_start,mem_end);
 #endif
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();

@@ -31,7 +31,11 @@
 /* To have statistics (just packets sent) define this */
 #undef DUMMY_STATS
 
-#include <linux/config.h>
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -57,8 +61,23 @@ static int dummy_xmit(struct sk_buff *skb, struct device *dev);
 static struct enet_statistics *dummy_get_stats(struct device *dev);
 #endif
 
-int
-dummy_init(struct device *dev)
+#ifdef MODULE
+static int dummy_open(struct device *dev)
+{
+	MOD_INC_USE_COUNT;
+	return 0;
+}
+
+static int dummy_close(struct device *dev)
+{
+	MOD_DEC_USE_COUNT;
+	return 0;
+}
+
+#endif
+
+
+int dummy_init(struct device *dev)
 {
 /* I commented this out as bootup is noisy enough anyway and this driver
    seems pretty reliable 8) 8) 8) */
@@ -72,9 +91,14 @@ dummy_init(struct device *dev)
 	memset(dev->priv, 0, sizeof(struct enet_statistics));
 	dev->get_stats		= dummy_get_stats;
 #endif
+#ifdef MODULE
+	dev->open = &dummy_open;
+	dev->stop = &dummy_close;
+#endif
 
 	/* Fill in the fields of the device structure with ethernet-generic values. */
 	ether_setup(dev);
+	dev->flags |= IFF_NOARP;
 
 	return 0;
 }
@@ -107,3 +131,45 @@ dummy_get_stats(struct device *dev)
 	return stats;
 }
 #endif
+
+#ifdef MODULE
+char kernel_version[] = UTS_RELEASE;
+
+static int dummy_probe(struct device *dev)
+{
+	dummy_init(dev);
+	return 0;
+}
+
+static struct device dev_dummy = {
+	"dummy0\0   ", 
+		0, 0, 0, 0,
+	 	0x0, 0,
+	 	0, 0, 0, NULL, dummy_probe };
+
+int init_module(void)
+{
+	/* Find a name for this unit */
+	int ct= 1;
+	
+	while(dev_get(dev_dummy.name)!=NULL && ct<100)
+	{
+		sprintf(dev_dummy.name,"dummy%d",ct);
+		ct++;
+	}
+	
+	if (register_netdev(&dev_dummy) != 0)
+		return -EIO;
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	if (MOD_IN_USE)
+		printk("dummy: device busy, remove delayed\n");
+	else
+	{
+		unregister_netdev(&dev_dummy);
+	}
+}
+#endif /* MODULE */

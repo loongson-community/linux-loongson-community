@@ -32,6 +32,7 @@
 #ifdef CONFIGURE_SOUNDCARD
 
 #include <linux/major.h>
+#include <linux/mm.h>
 
 static int      soundcards_installed = 0;	/* Number of installed
 
@@ -221,7 +222,7 @@ tenmicrosec (void)
 }
 
 int
-snd_set_irq_handler (int interrupt_level, void (*hndlr) (int))
+snd_set_irq_handler (int interrupt_level, void (*hndlr) (int, struct pt_regs *))
 {
   int             retcode;
 

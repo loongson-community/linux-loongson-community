@@ -9,10 +9,10 @@
  * written by Ralf Baechle
  *
  */
-#ifndef _ASM_MIPS_IRQ_H
-#define _ASM_MIPS_IRQ_H
+#ifndef __ASM_MIPS_IRQ_H
+#define __ASM_MIPS_IRQ_H
 
 extern void disable_irq(unsigned int);
 extern void enable_irq(unsigned int);
 
-#endif /* _ASM_MIPS_IRQ_H */
+#endif /* __ASM_MIPS_IRQ_H */

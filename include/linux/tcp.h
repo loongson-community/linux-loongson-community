@@ -18,16 +18,16 @@
 #define _LINUX_TCP_H
 
 
-#define HEADER_SIZE	64		/* maximum header size		*/
+#define HEADER_SIZE	128		/* maximum header size		*/
 
 
 struct tcphdr {
-	u16	source;
-	u16	dest;
-	u32	seq;
-	u32	ack_seq;
-#if defined(__i386__) || defined(__MIPSEL__)
-	u16	res1:4,
+	__u16	source;
+	__u16	dest;
+	__u32	seq;
+	__u32	ack_seq;
+#if defined(LITTLE_ENDIAN_BITFIELD)
+	__u16	res1:4,
 		doff:4,
 		fin:1,
 		syn:1,
@@ -36,32 +36,22 @@ struct tcphdr {
 		ack:1,
 		urg:1,
 		res2:2;
-#elif defined(__mc68000__) || defined(__MIPSEB__)
-	u16	res2:2,
+#elif defined(BIG_ENDIAN_BITFIELD)
+	__u16	doff:4,
+		res1:4,
+		res2:2,
 		urg:1,
 		ack:1,
 		psh:1,
 		rst:1,
 		syn:1,
-		fin:1,
-		doff:4,
-		res1:4;
-#elif defined(__alpha__)
-	u16	res1:4,
-		doff:4,
-		fin:1,
-		syn:1,
-		rst:1,
-		psh:1,
-		ack:1,
-		urg:1,
-		res2:2;
+		fin:1;
 #else
-#error	"Adjust this structure for your cpu alignment rules"
+#error	"Adjust your <asm/byteorder.h> defines"
 #endif	
-	u16	window;
-	u16	check;
-	u16	urg_ptr;
+	__u16	window;
+	__u16	check;
+	__u16	urg_ptr;
 };
 
 

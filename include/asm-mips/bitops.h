@@ -5,18 +5,23 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1994 by Ralf Baechle
+ * Copyright (c) 1994, 1995  Ralf Baechle
  */
-#ifndef _ASM_MIPS_BITOPS_H
-#define _ASM_MIPS_BITOPS_H
+#ifndef __ASM_MIPS_BITOPS_H
+#define __ASM_MIPS_BITOPS_H
+
+#ifdef __R4000__
 
 #include <asm/mipsregs.h>
 
-extern inline int set_bit(int nr, void *addr)
+/*
+ * The following functions will only work for the R4000!
+ */
+extern __inline__ int set_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
-	addr += nr >> 5;
+	addr += ((nr >> 3) & ~3);
 	mask = 1 << (nr & 0x1f);
 	do {
 		mw = load_linked(addr);
@@ -27,11 +32,11 @@ extern inline int set_bit(int nr, void *addr)
 	return retval;
 }
 
-extern inline int clear_bit(int nr, void *addr)
+extern __inline__ int clear_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
-	addr += nr >> 5;
+	addr += ((nr >> 3) & ~3);
 	mask = 1 << (nr & 0x1f);
 	do {
 		mw = load_linked(addr);
@@ -42,11 +47,11 @@ extern inline int clear_bit(int nr, void *addr)
 	return retval;
 }
 
-extern inline int change_bit(int nr, void *addr)
+extern __inline__ int change_bit(int nr, void *addr)
 {
 	int	mask, retval, mw;
 
-	addr += nr >> 5;
+	addr += ((nr >> 3) & ~3);
 	mask = 1 << (nr & 0x1f);
 	do {
 		mw = load_linked(addr);
@@ -57,10 +62,83 @@ extern inline int change_bit(int nr, void *addr)
 	return retval;
 }
 
-extern inline int test_bit(int nr, void *addr)
+#else /* !defined(__R4000__) */
+
+#include <asm/system.h>
+
+#ifdef __KERNEL__
+/*
+ * Only disable interrupt for kernelmode stuff to keep some
+ * usermode stuff alive
+ */
+#define __flags unsigned long flags
+#define __cli() cli()
+#define __save_flags(x) save_flags(x)
+#define __restore_flags(x) restore_flags(x)
+#endif /* __KERNEL__ */
+
+extern __inline__ int set_bit(int nr, void * addr)
+{
+	int	mask, retval;
+	int	*a = addr;
+	__flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__save_flags(flags);
+	__cli();
+	retval = (mask & *a) != 0;
+	*a |= mask;
+	__restore_flags(flags);
+
+	return retval;
+}
+
+extern __inline__ int clear_bit(int nr, void * addr)
+{
+	int	mask, retval;
+	int	*a = addr;
+	__flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__save_flags(flags);
+	__cli();
+	retval = (mask & *a) != 0;
+	*a &= ~mask;
+	__restore_flags(flags);
+
+	return retval;
+}
+
+extern __inline__ int change_bit(int nr, void * addr)
+{
+	int	mask, retval;
+	int	*a = addr;
+	__flags;
+
+	a += nr >> 5;
+	mask = 1 << (nr & 0x1f);
+	__save_flags(flags);
+	__cli();
+	retval = (mask & *a) != 0;
+	*a ^= mask;
+	__restore_flags(flags);
+
+	return retval;
+}
+
+#undef __flags
+#undef __cli()
+#undef __save_flags(x)
+#undef __restore_flags(x)
+
+#endif /* !defined(__R4000__) */
+
+extern __inline__ int test_bit(int nr, void *addr)
 {
 	int	mask;
-	int	*a;
+	unsigned long	*a;
 
 	a = addr;
 	addr += nr >> 5;
@@ -68,11 +146,7 @@ extern inline int test_bit(int nr, void *addr)
 	return ((mask & *a) != 0);
 }
 
-
-/*
- * The above written is not true for the bitfield functions.
- */
-static inline int find_first_zero_bit (void *addr, unsigned size)
+extern __inline__ int find_first_zero_bit (void *addr, unsigned size)
 {
 	int res;
 
@@ -96,17 +170,17 @@ static inline int find_first_zero_bit (void *addr, unsigned size)
 		".set\tat\n\t"
 		".set\treorder\n"
 		"2:"
-		: "=d" (res)
-		: "d" ((unsigned int) 0xffffffff),
-		  "d" (size),
+		: "=r" (res)
+		: "r" ((unsigned int) 0xffffffff),
+		  "r" (size),
 		  "0" ((signed int) 0),
-		  "d" (addr)
+		  "r" (addr)
 		: "$1");
 
 	return res;
 }
 
-static inline int find_next_zero_bit (void * addr, int size, int offset)
+extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
 {
 	unsigned long * p = ((unsigned long *) addr) + (offset >> 5);
 	int set = 0, bit = offset & 31, res;
@@ -127,7 +201,8 @@ static inline int find_next_zero_bit (void * addr, int size, int offset)
 			: "=r" (set)
 			: "r" (*p >> bit),
 			  "r" (1),
-			  "0" (0));
+			  "0" (0)
+			: "$1");
 		if (set < (32 - bit))
 			return set + offset;
 		set = 32 - bit;
@@ -144,7 +219,7 @@ static inline int find_next_zero_bit (void * addr, int size, int offset)
  * ffz = Find First Zero in word. Undefined if no zero exists,
  * so code should check against ~0UL first..
  */
-extern inline unsigned long ffz(unsigned long word)
+extern __inline__ unsigned long ffz(unsigned long word)
 {
 	unsigned int	__res;
 	unsigned int	mask = 1;
@@ -154,10 +229,10 @@ extern inline unsigned long ffz(unsigned long word)
 		".set\tnoat\n\t"
 		"li\t%2,1\n"
 		"1:\tand\t$1,%2,%1\n\t"
-		"beq\t$0,$1,2f\n\t"
-		"sll\t%2,%2,1\n\t"
-		"bne\t$0,%2,1b\n\t"
-		"add\t%0,%0,1\n\t"
+		"beqz\t$1,2f\n\t"
+		"sll\t%2,1\n\t"
+		"bnez\t%2,1b\n\t"
+		"addiu\t%0,1\n\t"
 		".set\tat\n\t"
 		".set\treorder\n"
 		"2:\n\t"
@@ -170,4 +245,4 @@ extern inline unsigned long ffz(unsigned long word)
 	return __res;
 }
 
-#endif /* _ASM_MIPS_BITOPS_H */
+#endif /* __ASM_MIPS_BITOPS_H */

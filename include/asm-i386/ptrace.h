@@ -1,15 +1,5 @@
-#ifndef _ASM_I386_PTRACE_H
-#define _ASM_I386_PTRACE_H
-
-/*
- * linux/include/asm-i386/ptrace.h */
- *
- * machine dependend structs and defines to help the user use
- * the ptrace system call.
- */
-
-/* use ptrace (3 or 6, pid, PT_EXCL, data); to read or write
-   the processes registers. */
+#ifndef _I386_PTRACE_H
+#define _I386_PTRACE_H
 
 #define EBX 0
 #define ECX 1
@@ -53,9 +43,9 @@ struct pt_regs {
 	unsigned short ss, __ssu;
 };
 
-/*
- * This function computes the interrupt number from the stack frame
- */
-#define pt_regs2irq(p) ((int) -(((struct pt_regs *)p)->orig_eax+2))
+#ifdef __KERNEL__
+#define user_mode(regs) ((VM_MASK & (regs)->eflags) || (3 & (regs)->cs))
+extern void show_regs(struct pt_regs *);
+#endif
 
-#endif /* _ASM_I386_PTRACE_H */
+#endif

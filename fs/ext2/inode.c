@@ -1,9 +1,10 @@
 /*
  *  linux/fs/ext2/inode.c
  *
- *  Copyright (C) 1992, 1993, 1994  Remy Card (card@masi.ibp.fr)
- *                                  Laboratoire MASI - Institut Blaise Pascal
- *                                  Universite Pierre et Marie Curie (Paris VI)
+ * Copyright (C) 1992, 1993, 1994, 1995
+ * Remy Card (card@masi.ibp.fr)
+ * Laboratoire MASI - Institut Blaise Pascal
+ * Universite Pierre et Marie Curie (Paris VI)
  *
  *  from
  *
@@ -24,6 +25,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/mm.h>
 
 void ext2_put_inode (struct inode * inode)
 {
@@ -45,7 +47,7 @@ static int block_bmap (struct buffer_head * bh, int nr)
 
 	if (!bh)
 		return 0;
-	tmp = ((unsigned long *) bh->b_data)[nr];
+	tmp = ((u32 *) bh->b_data)[nr];
 	brelse (bh);
 	return tmp;
 }
@@ -99,7 +101,7 @@ static int ext2_alloc_block (struct inode * inode, unsigned long goal)
 				    "cannot get block %lu", result);
 			return 0;
 		}
-		memset (bh->b_data, 0, inode->i_sb->s_blocksize);
+		memset(bh->b_data, 0, inode->i_sb->s_blocksize);
 		bh->b_uptodate = 1;
 		mark_buffer_dirty(bh, 1);
 		brelse (bh);
@@ -181,8 +183,8 @@ int ext2_bmap (struct inode * inode, int block)
 static struct buffer_head * inode_getblk (struct inode * inode, int nr,
 					  int create, int new_block, int * err)
 {
+	u32 * p;
 	int tmp, goal = 0;
-	unsigned long * p;
 	struct buffer_head * result;
 	int blocks = inode->i_sb->s_blocksize / 512;
 
@@ -249,7 +251,7 @@ static struct buffer_head * block_getblk (struct inode * inode,
 					  int new_block, int * err)
 {
 	int tmp, goal = 0;
-	unsigned long * p;
+	u32 * p;
 	struct buffer_head * result;
 	int blocks = inode->i_sb->s_blocksize / 512;
 
@@ -263,7 +265,7 @@ static struct buffer_head * block_getblk (struct inode * inode,
 			return NULL;
 		}
 	}
-	p = (unsigned long *) bh->b_data + nr;
+	p = (u32 *) bh->b_data + nr;
 repeat:
 	tmp = *p;
 	if (tmp) {
@@ -286,8 +288,8 @@ repeat:
 		goal = inode->u.ext2_i.i_next_alloc_goal;
 	if (!goal) {
 		for (tmp = nr - 1; tmp >= 0; tmp--) {
-			if (((unsigned long *) bh->b_data)[tmp]) {
-				goal = ((unsigned long *)bh->b_data)[tmp];
+			if (((u32 *) bh->b_data)[tmp]) {
+				goal = ((u32 *)bh->b_data)[tmp];
 				break;
 			}
 		}
@@ -324,7 +326,7 @@ static int block_getcluster (struct inode * inode, struct buffer_head * bh,
 					  int nr,
 					  int blocksize)
 {
-	unsigned long * p;
+	u32 * p;
 	int firstblock = 0;
 	int result = 0;
 	int i;
@@ -337,7 +339,7 @@ static int block_getcluster (struct inode * inode, struct buffer_head * bh,
 	if(nr + 3 > EXT2_ADDR_PER_BLOCK(inode->i_sb)) goto out;
 
 	for(i=0; i< (PAGE_SIZE / inode->i_sb->s_blocksize); i++) {
-	  p = (unsigned long *) bh->b_data + nr + i;
+	  p = (u32 *) bh->b_data + nr + i;
 	  
 	  /* All blocks in cluster must already be allocated */
 	  if(*p == 0) goto out;
@@ -345,9 +347,9 @@ static int block_getcluster (struct inode * inode, struct buffer_head * bh,
 	  /* See if aligned correctly */
 	  if(i==0) firstblock = *p;
 	  else if(*p != firstblock + i) goto out;
-	};
+	}
 	
-	p = (unsigned long *) bh->b_data + nr;
+	p = (u32 *) bh->b_data + nr;
 	result = generate_cluster(bh->b_dev, (int *) p, blocksize);
 
       out:
@@ -567,7 +569,7 @@ void ext2_read_inode (struct inode * inode)
 	else if (S_ISFIFO(inode->i_mode))
 		init_fifo(inode);
 	if (inode->u.ext2_i.i_flags & EXT2_SYNC_FL)
-		inode->i_flags |= MS_SYNC;
+		inode->i_flags |= MS_SYNCHRONOUS;
 	if (inode->u.ext2_i.i_flags & EXT2_APPEND_FL)
 		inode->i_flags |= S_APPEND;
 	if (inode->u.ext2_i.i_flags & EXT2_IMMUTABLE_FL)

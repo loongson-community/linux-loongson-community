@@ -3,11 +3,9 @@
  *
  * Written by Ralf Baechle,
  * Copyright (C) 1994 by Waldorf GMBH
- *
- * Defines for Risc/OS compatible cacheflush systemcall
  */
-#ifndef	_ASM_MIPS_CACHECTL
-#define	_ASM_MIPS_CACHECTL
+#ifndef	__ASM_MIPS_CACHECTL
+#define	__ASM_MIPS_CACHECTL
 
 /*
  * cachectl.h -- defines for MIPS cache control system calls
@@ -20,13 +18,20 @@
 #define	DCACHE	(1<<1)		/* writeback and flush data cache */
 #define	BCACHE	(ICACHE|DCACHE)	/* flush both caches              */
 
-#define CACHELINES      512             /* number of cachelines    */
+#define CACHELINES      512	/* number of cachelines (kludgy)  */
+
+/*
+ * Cache Operations - for use by assembler code
+ */
+#define Index_Invalidate_I      0x00
+#define Index_Writeback_Inv_D   0x01
+#define Index_Load_Tag_D        0x05
 
 #ifdef __KERNEL__
-#ifndef __ASSEMBLY__
+#ifndef __LANGUAGE_ASSEMBLY__
 
 extern int sys_cacheflush(void *addr, int nbytes, int cache);
 
 #endif
 #endif
-#endif	/* _ASM_MIPS_CACHECTL */
+#endif	/* __ASM_MIPS_CACHECTL */

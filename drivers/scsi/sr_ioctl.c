@@ -1,5 +1,6 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/mm.h>
 #include <linux/fs.h>
 #include <asm/segment.h>
 #include <linux/errno.h>
@@ -14,7 +15,8 @@
 
 #define IOCTL_RETRIES 3
 /* The CDROM is fairly slow, so we need a little extra time */
-#define IOCTL_TIMEOUT 200
+/* In fact, it is very slow if it has to spin up first */
+#define IOCTL_TIMEOUT 3000
 
 extern int scsi_ioctl (Scsi_Device *dev, int cmd, void *arg);
 
@@ -384,6 +386,38 @@ int sr_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigne
 			return -EINVAL;
 		case CDROMREADMODE1:
 			return -EINVAL;
+			
+		/* block-copy from ../block/sbpcd.c with some adjustments... */
+		case CDROMMULTISESSION: /* tell start-of-last-session to user */
+			{
+			  struct cdrom_multisession  ms_info;
+			  long                       lba;
+			  
+			  err = verify_area(VERIFY_READ, (void *) arg,
+					    sizeof(struct cdrom_multisession));
+			  if (err) return (err);
+			
+			  memcpy_fromfs(&ms_info, (void *) arg, sizeof(struct cdrom_multisession));
+
+			  if (ms_info.addr_format==CDROM_MSF) { /* MSF-bin requested */
+			    lba = scsi_CDs[target].mpcd_sector+CD_BLOCK_OFFSET;
+			    ms_info.addr.msf.minute = lba / (CD_SECS*CD_FRAMES);
+			    lba %= CD_SECS*CD_FRAMES;
+			    ms_info.addr.msf.second = lba / CD_FRAMES;
+			    ms_info.addr.msf.frame  = lba % CD_FRAMES;
+			  } else if (ms_info.addr_format==CDROM_LBA) /* lba requested */
+			    ms_info.addr.lba=scsi_CDs[target].mpcd_sector;
+			  else return (-EINVAL);
+			
+			  ms_info.xa_flag=scsi_CDs[target].xa_flags & 0x01;
+			 			  
+			  err=verify_area(VERIFY_WRITE,(void *) arg,
+					  sizeof(struct cdrom_multisession));
+			  if (err) return (err);
+
+			  memcpy_tofs((void *) arg, &ms_info, sizeof(struct cdrom_multisession));
+			  return (0);
+			}
 
 		case BLKRASET:
 			if(!suser())  return -EACCES;
@@ -396,3 +430,20 @@ int sr_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigne
 			return scsi_ioctl(scsi_CDs[target].device,cmd,(void *) arg);
 		}
 }
+
+/*
+ * Overrides for Emacs so that we follow Linus's tabbing style.
+ * Emacs will notice this stuff at the end of the file and automatically
+ * adjust the settings for this buffer only.  This must remain at the end
+ * of the file.
+ * ---------------------------------------------------------------------------
+ * Local variables:
+ * c-indent-level: 8
+ * c-brace-imaginary-offset: 0
+ * c-brace-offset: -8
+ * c-argdecl-indent: 8
+ * c-label-offset: -8
+ * c-continued-statement-offset: 8
+ * c-continued-brace-offset: 0
+ * End:
+ */

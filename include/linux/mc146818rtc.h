@@ -12,13 +12,19 @@
 #define _MC146818RTC_H
 #include <asm/io.h>
 
+#ifndef RTC_PORT
+#define RTC_PORT(x)	(0x70 + (x))
+#define RTC_ADDR(x)	(0x80 | (x))
+#define RTC_ALWAYS_BCD	1
+#endif
+
 #define CMOS_READ(addr) ({ \
-outb_p(addr|0x80,0x70); \
-inb_p(0x71); \
+outb_p(RTC_ADDR(addr),RTC_PORT(0)); \
+inb_p(RTC_PORT(1)); \
 })
 #define CMOS_WRITE(val, addr) ({ \
-outb_p(addr|0x80,0x70); \
-outb_p(val,0x71); \
+outb_p(RTC_ADDR(addr),RTC_PORT(0)); \
+outb_p(val,RTC_PORT(1)); \
 })
 
 /**********************************************************************

@@ -19,6 +19,9 @@
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *		Donald J. Becker, <becker@super.org>
  *
+ *	FIXME:
+ *		Sort the device chain fastest first.
+ *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
  *		as published by the Free Software Foundation; either version
@@ -27,8 +30,6 @@
 #include <linux/config.h>
 #include <linux/netdevice.h>
 #include <linux/errno.h>
-
-#define LOOPBACK			/* always present, right?	*/
 
 #define	NEXT_DEV	NULL
 
@@ -49,14 +50,20 @@ extern int el3_probe(struct device *);
 extern int at1500_probe(struct device *);
 extern int at1700_probe(struct device *);
 extern int depca_probe(struct device *);
+extern int apricot_probe(struct device *);
 extern int ewrk3_probe(struct device *);
+extern int de4x5_probe(struct device *);
 extern int el1_probe(struct device *);
+#if	defined(CONFIG_WAVELAN)
+extern int wavelan_probe(struct device *);
+#endif	/* defined(CONFIG_WAVELAN) */
 extern int el16_probe(struct device *);
 extern int elplus_probe(struct device *);
 extern int ac3200_probe(struct device *);
 extern int e2100_probe(struct device *);
 extern int ni52_probe(struct device *);
 extern int ni65_probe(struct device *);
+extern int sonic_probe(struct device *);
 extern int SK_init(struct device *);
 
 /* Detachable devices ("pocket adaptors") */
@@ -112,9 +119,18 @@ ethif_probe(struct device *dev)
 #ifdef CONFIG_EWRK3             /* DEC EtherWORKS 3 */
         && ewrk3_probe(dev)
 #endif
+#ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
+        && de4x5_probe(dev)
+#endif
+#ifdef CONFIG_APRICOT		/* Apricot I82596 */
+	&& apricot_probe(dev)
+#endif
 #ifdef CONFIG_EL1		/* 3c501 */
 	&& el1_probe(dev)
 #endif
+#if	defined(CONFIG_WAVELAN)	/* WaveLAN */
+	&& wavelan_probe(dev)
+#endif	/* defined(CONFIG_WAVELAN) */
 #ifdef CONFIG_EL16		/* 3c507 */
 	&& el16_probe(dev)
 #endif
@@ -142,6 +158,9 @@ ethif_probe(struct device *dev)
 #ifdef CONFIG_NI65
 	&& ni65_probe(dev)
 #endif
+#ifdef CONFIG_MIPS_JAZZ_SONIC
+	&& sonic_probe(dev)
+#endif	
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
     }
@@ -149,6 +168,17 @@ ethif_probe(struct device *dev)
 }
 
 
+#ifdef CONFIG_NETROM
+	extern int nr_init(struct device *);
+	
+	static struct device nr3_dev = { "nr3", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, nr_init, };
+	static struct device nr2_dev = { "nr2", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr3_dev, nr_init, };
+	static struct device nr1_dev = { "nr1", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr2_dev, nr_init, };
+	static struct device nr0_dev = { "nr0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &nr1_dev, nr_init, };
+
+#   undef NEXT_DEV
+#   define	NEXT_DEV	(&nr0_dev)
+#endif
 
 /* Run-time ATtachable (Pocket) devices have a different (not "eth#") name. */
 #ifdef CONFIG_ATP		/* AT-LAN-TEC (RealTek) pocket adaptor. */
@@ -156,6 +186,14 @@ static struct device atp_dev = {
     "atp0", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, atp_init, /* ... */ };
 #   undef NEXT_DEV
 #   define NEXT_DEV	(&atp_dev)
+#endif
+
+#ifdef CONFIG_ARCNET
+    extern int arcnet_probe(struct device *dev);
+    static struct device arcnet_dev = {
+	"arc0", 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NEXT_DEV, arcnet_probe, };
+#   undef	NEXT_DEV
+#   define	NEXT_DEV	(&arcnet_dev)
 #endif
 
 /* The first device defaults to I/O base '0', which means autoprobe. */
@@ -269,6 +307,24 @@ static struct device eth0_dev = {
   
 #if defined(CONFIG_PPP)
 extern int ppp_init(struct device *);
+#ifdef CONFIG_PPP_LOTS
+
+    static struct device ppp15_dev={"ppp15",0,0,0,0,15,0,0,0,0,NEXT_DEV,ppp_init};
+    static struct device ppp14_dev={"ppp14",0,0,0,0,14,0,0,0,0,&ppp15_dev,ppp_init};
+    static struct device ppp13_dev={"ppp13",0,0,0,0,13,0,0,0,0,&ppp14_dev,ppp_init};
+    static struct device ppp12_dev={"ppp12",0,0,0,0,12,0,0,0,0,&ppp13_dev,ppp_init};
+    static struct device ppp11_dev={"ppp11",0,0,0,0,11,0,0,0,0,&ppp12_dev,ppp_init};
+    static struct device ppp10_dev={"ppp10",0,0,0,0,10,0,0,0,0,&ppp11_dev,ppp_init};
+    static struct device ppp9_dev={"ppp9",0,0,0,0,9,0,0,0,0,&ppp10_dev,ppp_init};
+    static struct device ppp8_dev={"ppp8",0,0,0,0,8,0,0,0,0,&ppp9_dev,ppp_init};
+    static struct device ppp7_dev={"ppp7",0,0,0,0,7,0,0,0,0,&ppp8_dev,ppp_init};
+    static struct device ppp6_dev={"ppp6",0,0,0,0,6,0,0,0,0,&ppp7_dev,ppp_init};
+    static struct device ppp5_dev={"ppp5",0,0,0,0,5,0,0,0,0,&ppp6_dev,ppp_init};
+    static struct device ppp4_dev={"ppp4",0,0,0,0,4,0,0,0,0,&ppp5_dev,ppp_init};
+#   undef	NEXT_DEV
+#   define	NEXT_DEV	(&ppp4_dev)
+#endif	/* CONFIG_PPP_LOTS */
+
 static struct device ppp3_dev = {
     "ppp3", 0x0, 0x0, 0x0, 0x0, 3, 0, 0, 0, 0, NEXT_DEV,  ppp_init, };
 static struct device ppp2_dev = {
@@ -289,9 +345,97 @@ static struct device ppp0_dev = {
 #   define	NEXT_DEV	(&dummy_dev)
 #endif
 
-#ifdef LOOPBACK
-    extern int loopback_init(struct device *dev);
-    static struct device loopback_dev = {
+#ifdef CONFIG_EQUALIZER
+extern int eql_init(struct device *dev);
+struct device eql_dev = {
+  "eql",			/* Master device for IP traffic load 
+				   balancing */
+  0x0, 0x0, 0x0, 0x0,		/* recv end/start; mem end/start */
+  0,				/* base I/O address */
+  0,				/* IRQ */
+  0, 0, 0,			/* flags */
+  NEXT_DEV,			/* next device */
+  eql_init			/* set up the rest */
+};
+#   undef       NEXT_DEV
+#   define      NEXT_DEV        (&eql_dev)
+#endif
+
+#ifdef CONFIG_IBMTR 
+
+    extern int tok_probe(struct device *dev);
+    static struct device ibmtr_dev1 = {
+	"tr1",			/* IBM Token Ring (Non-DMA) Interface */
+	0x0,			/* recv memory end			*/
+	0x0,			/* recv memory start			*/
+	0x0,			/* memory end				*/
+	0x0,			/* memory start				*/
+	0xa24,			/* base I/O address			*/
+	0,			/* IRQ					*/
+	0, 0, 0,		/* flags				*/
+	NEXT_DEV,		/* next device				*/
+	tok_probe		/* ??? Token_init should set up the rest	*/
+    };
+#   undef	NEXT_DEV
+#   define	NEXT_DEV	(&ibmtr_dev1)
+
+
+    extern int tok_probe(struct device *dev);
+    static struct device ibmtr_dev0 = {
+	"tr0",			/* IBM Token Ring (Non-DMA) Interface */
+	0x0,			/* recv memory end			*/
+	0x0,			/* recv memory start			*/
+	0x0,			/* memory end				*/
+	0x0,			/* memory start				*/
+	0xa20,			/* base I/O address			*/
+	0,			/* IRQ					*/
+	0, 0, 0,		/* flags				*/
+	NEXT_DEV,		/* next device				*/
+	tok_probe		/* ??? Token_init should set up the rest	*/
+    };
+#   undef	NEXT_DEV
+#   define	NEXT_DEV	(&ibmtr_dev0)
+
+#endif 
+#ifdef CONFIG_NET_IPIP
+#ifdef CONFIG_IP_FORWARD
+	extern int tunnel_init(struct device *);
+	
+	static struct device tunnel_dev1 = 
+	{
+		"tunl1",		/* IPIP tunnel  			*/
+		0x0,			/* recv memory end			*/
+		0x0,			/* recv memory start			*/
+		0x0,			/* memory end				*/
+		0x0,			/* memory start				*/
+		0x0,			/* base I/O address			*/
+		0,			/* IRQ					*/
+		0, 0, 0,		/* flags				*/
+		NEXT_DEV,		/* next device				*/
+		tunnel_init		/* Fill in the details			*/
+	};
+
+	static struct device tunnel_dev0 = 
+	{
+		"tunl0",		/* IPIP tunnel  			*/
+		0x0,			/* recv memory end			*/
+		0x0,			/* recv memory start			*/
+		0x0,			/* memory end				*/
+		0x0,			/* memory start				*/
+		0x0,			/* base I/O address			*/
+		0,			/* IRQ					*/
+		0, 0, 0,		/* flags				*/
+		&tunnel_dev1,		/* next device				*/
+		tunnel_init		/* Fill in the details			*/
+    };
+#   undef	NEXT_DEV
+#   define	NEXT_DEV	(&tunnel_dev0)
+
+#endif 
+#endif
+	
+extern int loopback_init(struct device *dev);
+struct device loopback_dev = {
 	"lo",			/* Software Loopback interface		*/
 	0x0,			/* recv memory end			*/
 	0x0,			/* recv memory start			*/
@@ -302,10 +446,6 @@ static struct device ppp0_dev = {
 	0, 0, 0,		/* flags				*/
 	NEXT_DEV,		/* next device				*/
 	loopback_init		/* loopback_init should set up the rest	*/
-    };
-#   undef	NEXT_DEV
-#   define	NEXT_DEV	(&loopback_dev)
-#endif
+};
 
-
-struct device *dev_base = NEXT_DEV;
+struct device *dev_base = &loopback_dev;

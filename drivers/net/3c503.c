@@ -25,11 +25,11 @@
 static char *version =
     "3c503.c:v1.10 9/23/93  Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include <linux/delay.h>
 #include <asm/io.h>
 #include <asm/system.h>
 
@@ -145,8 +145,10 @@ el2_probe1(struct device *dev, int ioaddr)
     static unsigned version_printed = 0;
 
     /* Reset and/or avoid any lurking NE2000 */
-    if (inb(ioaddr + 0x408) == 0xff)
+    if (inb(ioaddr + 0x408) == 0xff) {
+    	udelay(1000);
 	return ENODEV;
+    }
 
     /* We verify that it's a 3C503 board by checking the first three octets
        of its ethernet address. */
@@ -170,7 +172,7 @@ el2_probe1(struct device *dev, int ioaddr)
 	return ENODEV;
     }
 
-    snarf_region(ioaddr, EL2_IO_EXTENT);
+    request_region(ioaddr, EL2_IO_EXTENT,"3c503");
 
     if (dev == NULL)
 	dev = init_etherdev(0, sizeof(struct ei_device), 0);
@@ -315,6 +317,7 @@ el2_close(struct device *dev)
     outb(EGACFR_IRQOFF, E33G_GACFR);	/* disable interrupts. */
 
     NS8390_init(dev, 0);
+    dev->start = 0;
 
     return 0;
 }
@@ -328,7 +331,7 @@ el2_reset_8390(struct device *dev)
 {
     if (ei_debug > 1) {
 	printk("%s: Resetting the 3c503 board...", dev->name);
-	printk("%#x=%#02x %#x=%#02x %#x=%#02x...", E33G_IDCFR, inb(E33G_IDCFR),
+	printk("%#lx=%#02x %#lx=%#02x %#lx=%#02x...", E33G_IDCFR, inb(E33G_IDCFR),
 	       E33G_CNTRL, inb(E33G_CNTRL), E33G_GACFR, inb(E33G_GACFR));
     }
     outb_p(ECNTRL_RESET|ECNTRL_THIN, E33G_CNTRL);

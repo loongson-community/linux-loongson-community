@@ -93,7 +93,6 @@ static void     ad1848_start_input (int dev, unsigned long buf, int count, int i
 static int      ad1848_prepare_for_IO (int dev, int bsize, int bcount);
 static void     ad1848_reset (int dev);
 static void     ad1848_halt (int dev);
-void            ad1848_interrupt (int dev);
 
 static int
 ad_read (ad1848_info * devc, int reg)
@@ -684,7 +683,7 @@ ad1848_detect (int io_base)
  * Check that the I/O address is in use.
  *
  * The bit 0x80 of the base I/O port is known to be 0 after the
- * chip has performed it's power on initialization. Just assume
+ * chip has performed its power on initialization. Just assume
  * this has happened before the OS is starting.
  *
  * If the I/O address is unused, it typically returns 0xff.
@@ -866,7 +865,7 @@ ad1848_init (char *name, int io_base, int irq, int dma_playback, int dma_capture
 }
 
 void
-ad1848_interrupt (int irq)
+ad1848_interrupt (int irq, struct pt_regs * regs)
 {
   unsigned char   status;
   ad1848_info    *devc;

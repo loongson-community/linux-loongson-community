@@ -5,85 +5,191 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994 by Ralf Baechle
+ * Copyright (C) 1994, 1995 by Ralf Baechle
  */
+#ifndef __ASM_MIPS_SYSTEM_H
+#define __ASM_MIPS_SYSTEM_H
 
-#ifndef _ASM_MIPS_SYSTEM_H_
-#define _ASM_MIPS_SYSTEM_H_
+#if defined (__R4000__)
+#define sti()                            \
+__asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
+	".set\tnoat\n\t"                 \
+	"mfc0\t$1,$12\n\t"               \
+	"ori\t$1,0x1f\n\t"               \
+	"xori\t$1,0x1e\n\t"              \
+	"mtc0\t$1,$12\n\t"               \
+	".set\tat\n\t"                   \
+	".set\treorder"                  \
+	: /* no outputs */               \
+	: /* no inputs */                \
+	: "$1")
 
-#include <linux/types.h>
-#include <asm/segment.h>
-#include <asm/mipsregs.h>
+#define cli()                            \
+__asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
+	".set\tnoat\n\t"                 \
+	"mfc0\t$1,$12\n\t"               \
+	"ori\t$1,1\n\t"                  \
+	"xori\t$1,1\n\t"                 \
+	"mtc0\t$1,$12\n\t"               \
+	"nop\n\t"                        \
+	"nop\n\t"                        \
+	"nop\n\t"                        \
+	".set\tat\n\t"                   \
+	".set\treorder"                  \
+	: /* no outputs */               \
+	: /* no inputs */                \
+	: "$1")
 
+#else /* !defined (__R4000__) */
 /*
- * move_to_user_mode() doesn't switch to user mode on the mips, since
- * that would run us into problems: The kernel is located at virtual
- * address 0x80000000. If we now would switch over to user mode, we
- * we would immediately get an address error exception.
- * Anyway - we don't have problems with a task running in kernel mode,
- * as long it's code is foolproof.
+ * Untested goodies for the R3000 based DECstation et al.
  */
-#define move_to_user_mode()
-
-#define sti() \
+#define sti()                            \
 __asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
 	".set\tnoat\n\t"                 \
-	"mfc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	"ori\t$1,$1,0x1f\n\t"            \
-	"xori\t$1,$1,0x1e\n\t"           \
-	"mtc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	".set\tat"                       \
+	"mfc0\t$1,$12\n\t"               \
+	"ori\t$1,0x01\n\t"               \
+	"mtc0\t$1,$12\n\t"               \
+	".set\tat\n\t"                   \
+	".set\treorder"                  \
 	: /* no outputs */               \
 	: /* no inputs */                \
 	: "$1")
 
-#define cli() \
+#define cli()                            \
 __asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
 	".set\tnoat\n\t"                 \
-	"mfc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	"ori\t$1,$1,1\n\t"               \
-	"xori\t$1,$1,1\n\t"              \
-	"mtc0\t$1,"STR(CP0_STATUS)"\n\t" \
-	".set\tat"                       \
+	"mfc0\t$1,$12\n\t"               \
+	"ori\t$1,1\n\t"                  \
+	"xori\t$1,1\n\t"                 \
+	"mtc0\t$1,$12\n\t"               \
+	".set\tat\n\t"                   \
+	".set\treorder"                  \
 	: /* no outputs */               \
 	: /* no inputs */                \
 	: "$1")
+#endif /* !defined (__R4000__) */
 
 #define nop() __asm__ __volatile__ ("nop")
 
-extern ulong IRQ_vectors[256];
-extern ulong exception_handlers[256];
-
-#define set_intr_gate(n,addr) \
-	IRQ_vectors[n] = (ulong) (addr)
-
-#define set_except_vector(n,addr) \
-	exception_handlers[n] = (ulong) (addr)
-
-/*
- * atomic exchange of one word
- *
- * Fixme: This works only on MIPS ISA >=3
- */
-#define atomic_exchange(m,r) \
-	__asm__ __volatile__( \
-		"1:\tll\t$8,(%2)\n\t" \
-		"move\t$9,%0\n\t" \
-		"sc\t$9,(%2)\n\t" \
-		"beq\t$0,$9,1b\n\t" \
-		: "=r" (r) \
-		: "0" (r), "r" (&(m)) \
-		: "$8","$9","memory");
-
 #define save_flags(x)                    \
 __asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
 	"mfc0\t%0,$12\n\t"               \
+	".set\treorder"                  \
 	: "=r" (x))                      \
 
 #define restore_flags(x)                 \
 __asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
 	"mtc0\t%0,$12\n\t"               \
+	".set\treorder"                  \
 	: /* no output */                \
-	: "r" (x));                      \
+	: "r" (x))                       \
 
-#endif /* _ASM_MIPS_SYSTEM_H_ */
+#define sync_mem()                       \
+__asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
+	"sync\n\t"                       \
+	".set\treorder")                 \
+
+/*
+ * The 8 and 16 bit variants have to disable interrupts temporarily.
+ * Both are currently unused.
+ */
+extern inline unsigned long xchg_u8(char * m, unsigned long val)
+{
+	unsigned long flags, retval;
+
+	save_flags(flags);
+	sti();
+	retval = *m;
+	*m = val;
+	restore_flags(flags);
+
+	return retval;
+}
+
+extern inline unsigned long xchg_u16(short * m, unsigned long val)
+{
+	unsigned long flags, retval;
+
+	save_flags(flags);
+	sti();
+	retval = *m;
+	*m = val;
+	restore_flags(flags);
+
+	return retval;
+}
+
+/*
+ * For 32 and 64 bit operands we can take advantage of ll and sc.
+ * FIXME: This doesn't work for R3000 machines.
+ */
+extern inline unsigned long xchg_u32(int * m, unsigned long val)
+{
+	unsigned long dummy;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"ll\t%0,(%1)\n"
+		"1:\tmove\t$1,%2\n\t"
+		"sc\t$1,(%1)\n\t"
+		"beqzl\t$1,1b\n\t"
+		"ll\t%0,(%1)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		: "=r" (val), "=r" (m), "=r" (dummy)
+		: "1" (m), "2" (val));
+
+	return val;
+}
+
+/*
+ * Only used for 64 bit kernel.
+ */
+extern inline unsigned long xchg_u64(long * m, unsigned long val)
+{
+	unsigned long dummy;
+
+	__asm__ __volatile__(
+		".set\tnoreorder\n\t"
+		".set\tnoat\n\t"
+		"lld\t%0,(%1)\n"
+		"1:\tmove\t$1,%2\n\t"
+		"scd\t$1,(%1)\n\t"
+		"beqzl\t$1,1b\n\t"
+		"ll\t%0,(%1)\n\t"
+		".set\tat\n\t"
+		".set\treorder"
+		: "=r" (val), "=r" (m), "=r" (dummy)
+		: "1" (m), "2" (val));
+
+	return val;
+}
+
+extern inline void * xchg_ptr(void * m, void * val)
+{
+#if __mips == 3
+	return (void *) xchg_u64(m, (unsigned long) val);
+#else
+	return (void *) xchg_u32(m, (unsigned long) val);
+#endif
+}
+
+extern unsigned long IRQ_vectors[16];
+extern unsigned long exception_handlers[32];
+
+#define set_int_vector(n,addr) \
+	IRQ_vectors[n] = (unsigned long) (addr)
+
+#define set_except_vector(n,addr) \
+	exception_handlers[n] = (unsigned long) (addr)
+
+#endif /* __ASM_MIPS_SYSTEM_H */

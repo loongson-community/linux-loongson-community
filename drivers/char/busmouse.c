@@ -28,6 +28,7 @@
 #include <linux/busmouse.h>
 #include <linux/signal.h>
 #include <linux/errno.h>
+#include <linux/mm.h>
 
 #include <asm/io.h>
 #include <asm/segment.h>
@@ -43,7 +44,7 @@ void bmouse_setup(char *str, int *ints)
 		mouse_irq=ints[1];
 }
 
-static void mouse_interrupt(int unused)
+static void mouse_interrupt(int irq, struct pt_regs *regs)
 {
 	char dx, dy;
 	unsigned char buttons;

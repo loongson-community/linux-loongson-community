@@ -7,10 +7,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-ifndef CONFIG_UMSDOS_FS
-CFLAGS := $(CFLAGS) -DMODULE
-endif
-
 .c.s:
 	$(CC) $(CFLAGS) -S $<
 .c.o:
@@ -23,6 +19,9 @@ OBJS=	dir.o emd.o file.o inode.o ioctl.o mangle.o namei.o\
 
 umsdos.o: $(OBJS)
 	$(LD) -r -o umsdos.o $(OBJS)
+
+modules: umsdos.o
+	ln -sf ../fs/umsdos/umsdos.o $(TOPDIR)/modules
 
 clean:
 	rm -f core *.o *.a *.s

@@ -20,6 +20,7 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/personality.h>
+#include <linux/mm.h>
 
 #include <asm/segment.h>
 #include <asm/system.h>
@@ -76,7 +77,7 @@ static int check(int flag, select_table * wait, struct file * file)
 	if ((fops = file->f_op) && (select = fops->select))
 		return select(inode, file, flag, wait)
 		    || (wait && select(inode, file, flag, NULL));
-	if (S_ISREG(inode->i_mode))
+	if (flag != SEL_EX)
 		return 1;
 	return 0;
 }
@@ -164,10 +165,10 @@ static int __get_fd_set(int nr, unsigned long * fs_pointer, unsigned long * fdse
 	if (error)
 		return error;
 	while (nr > 0) {
-		*fdset = get_fs_long(fs_pointer);
+		*fdset = get_user(fs_pointer);
 		fdset++;
 		fs_pointer++;
-		nr -= 32;
+		nr -= 8 * sizeof(unsigned long);
 	}
 	return 0;
 }
@@ -177,10 +178,10 @@ static void __set_fd_set(int nr, unsigned long * fs_pointer, unsigned long * fds
 	if (!fs_pointer)
 		return;
 	while (nr > 0) {
-		put_fs_long(*fdset, fs_pointer);
+		put_user(*fdset, fs_pointer);
 		fdset++;
 		fs_pointer++;
-		nr -= 32;
+		nr -= 8 * sizeof(unsigned long);
 	}
 }
 
@@ -198,29 +199,18 @@ __set_fd_set(nr, (unsigned long *) (fsp), (unsigned long *) (fdp))
  * Update: ERESTARTSYS breaks at least the xview clock binary, so
  * I'm trying ERESTARTNOHAND which restart only when you want to.
  */
-asmlinkage int sys_select( unsigned long *buffer )
+asmlinkage int sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 {
-/* Perform the select(nd, in, out, ex, tv) system call. */
 	int i;
-	fd_set res_in, in, *inp;
-	fd_set res_out, out, *outp;
-	fd_set res_ex, ex, *exp;
-	int n;
-	struct timeval *tvp;
+	fd_set res_in, in;
+	fd_set res_out, out;
+	fd_set res_ex, ex;
 	unsigned long timeout;
 
-	i = verify_area(VERIFY_READ, buffer, 20);
-	if (i)
-		return i;
-	n = get_fs_long(buffer++);
 	if (n < 0)
 		return -EINVAL;
 	if (n > NR_OPEN)
 		n = NR_OPEN;
-	inp = (fd_set *) get_fs_long(buffer++);
-	outp = (fd_set *) get_fs_long(buffer++);
-	exp = (fd_set *) get_fs_long(buffer++);
-	tvp = (struct timeval *) get_fs_long(buffer);
 	if ((i = get_fd_set(n, inp, &in)) ||
 	    (i = get_fd_set(n, outp, &out)) ||
 	    (i = get_fd_set(n, exp, &ex))) return i;
@@ -236,11 +226,10 @@ asmlinkage int sys_select( unsigned long *buffer )
 	}
 	current->timeout = timeout;
 	i = do_select(n, &in, &out, &ex, &res_in, &res_out, &res_ex);
-	if (current->timeout > jiffies)
-		timeout = current->timeout - jiffies;
-	else
-		timeout = 0;
+	timeout = current->timeout - jiffies - 1;
 	current->timeout = 0;
+	if ((long) timeout < 0)
+		timeout = 0;
 	if (tvp && !(current->personality & STICKY_TIMEOUTS)) {
 		put_fs_long(timeout/HZ, (unsigned long *) &tvp->tv_sec);
 		timeout %= HZ;
@@ -255,4 +244,29 @@ asmlinkage int sys_select( unsigned long *buffer )
 	set_fd_set(n, outp, &res_out);
 	set_fd_set(n, exp, &res_ex);
 	return i;
+}
+
+/*
+ * Perform the select(nd, in, out, ex, tv) system call.
+ * Linux/i386 didn't use to be able to handle 5 system call
+ * parameters, so the old select used a memory block for
+ * parameter passing..
+ */
+asmlinkage int old_select(unsigned long *buffer)
+{
+	int n;
+	fd_set *inp;
+	fd_set *outp;
+	fd_set *exp;
+	struct timeval *tvp;
+
+	n = verify_area(VERIFY_READ, buffer, 5*sizeof(unsigned long));
+	if (n)
+		return n;
+	n = get_user(buffer);
+	inp = (fd_set *) get_user(buffer+1);
+	outp = (fd_set *) get_user(buffer+2);
+	exp = (fd_set *) get_user(buffer+3);
+	tvp = (struct timeval *) get_user(buffer+4);
+	return sys_select(n, inp, outp, exp, tvp);
 }

@@ -38,7 +38,7 @@
 DEFINE_WAIT_QUEUES (dev_sleeper[MAX_AUDIO_DEV], dev_sleep_flag[MAX_AUDIO_DEV]);
 
 static struct dma_buffparms dmaps[MAX_AUDIO_DEV] =
-{0};				/*
+{{0}};		/*
 		 * Primitive way to allocate
 		 * such a large array.
 		 * Needs dynamic run-time allocation.
@@ -740,7 +740,7 @@ DMAbuf_outputintr (int dev, int event_type)
  *	    buffer.
  *	1 = DMA transfer done. Device doesn't have local buffer or it's
  *	    empty now.
- *	2 = No DMA transfer but the device has now more space in it's local
+ *	2 = No DMA transfer but the device has now more space in its local
  *	    buffer.
  */
 

@@ -16,20 +16,20 @@
 	straight-forward Fujitsu MB86965 implementation.
 
   Sources:
-    The Fujitsu MB86695 datasheet.
+    The Fujitsu MB86965 datasheet.
 
-	After the initial version of this driver was written Gerry Sockins of
+	After the initial version of this driver was written Gerry Sawkins of
 	ATI provided their EEPROM configuration code header file.
     Thanks to NIIBE Yutaka <gniibe@mri.co.jp> for bug fixes.
 
   Bugs:
-	The MB86695 has a design flaw that makes all probes unreliable.  Not
+	The MB86965 has a design flaw that makes all probes unreliable.  Not
 	only is it difficult to detect, it also moves around in I/O space in
 	response to inb()s from other device probes!
 */
 
 static char *version =
-	"at1700.c:v1.10 9/24/94  Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
+	"at1700.c:v1.12 1/18/95  Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
 #include <linux/config.h>
 
@@ -70,7 +70,6 @@ typedef unsigned char uchar;
 /* Information that need to be kept for each board. */
 struct net_local {
 	struct enet_statistics stats;
-	long open_time;				/* Useless example local info. */
 	uint tx_started:1;			/* Number of packet on the Tx queue. */
 	uchar tx_queue;				/* Number of packet on the Tx queue. */
 	ushort tx_queue_len;		/* Current length of the Tx queue. */
@@ -120,7 +119,7 @@ static int at1700_probe1(struct device *dev, short ioaddr);
 static int read_eeprom(int ioaddr, int location);
 static int net_open(struct device *dev);
 static int	net_send_packet(struct sk_buff *skb, struct device *dev);
-static void net_interrupt(int reg_ptr);
+static void net_interrupt(int irq, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static int net_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
@@ -207,7 +206,7 @@ int at1700_probe1(struct device *dev, short ioaddr)
 
 	/* Grab the region so that we can find another board if the IRQ request
 	   fails. */
-	snarf_region(ioaddr, AT1700_IO_EXTENT);
+	request_region(ioaddr, AT1700_IO_EXTENT, "at1700");
 
 	printk("%s: AT1700 found at %#3x, IRQ %d, address ", dev->name,
 		   ioaddr, irq);
@@ -345,11 +344,13 @@ static int net_open(struct device *dev)
 	/* Switch to register bank 2 for the run-time registers. */
 	outb(0xe8, ioaddr + CONFIG_1);
 
+	lp->tx_started = 0;
+	lp->tx_queue = 0;
+	lp->tx_queue_len = 0;
+
 	/* Turn on Rx interrupts, leave Tx interrupts off until packet Tx. */
 	outb(0x00, ioaddr + TX_INTR);
 	outb(0x81, ioaddr + RX_INTR);
-
-	lp->open_time = jiffies;
 
 	dev->tbusy = 0;
 	dev->interrupt = 0;
@@ -385,6 +386,9 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 		outw(0x8100, ioaddr + TX_INTR);
 		dev->tbusy=0;
 		dev->trans_start = jiffies;
+		lp->tx_started = 0;
+		lp->tx_queue = 0;
+		lp->tx_queue_len = 0;
 	}
 
 	/* If some higher layer thinks we've missed an tx-done interrupt
@@ -435,9 +439,8 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 /* The typical workload of the driver:
    Handle the network interface interrupts. */
 static void
-net_interrupt(int reg_ptr)
+net_interrupt(int irq, struct pt_regs *regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status;
@@ -493,6 +496,7 @@ net_rx(struct device *dev)
 
 	while ((inb(ioaddr + RX_MODE) & 0x40) == 0) {
 		ushort status = inw(ioaddr + DATAPORT);
+		ushort pkt_len = inw(ioaddr + DATAPORT);
 
 		if (net_debug > 4)
 			printk("%s: Rxing packet mode %02x status %04x.\n",
@@ -511,13 +515,14 @@ net_rx(struct device *dev)
 			if (status & 0x02) lp->stats.rx_crc_errors++;
 			if (status & 0x01) lp->stats.rx_over_errors++;
 		} else {
-			ushort pkt_len = inw(ioaddr + DATAPORT);
 			/* Malloc up new buffer. */
 			struct sk_buff *skb;
 
 			if (pkt_len > 1550) {
 				printk("%s: The AT1700 claimed a very large packet, size %d.\n",
 					   dev->name, pkt_len);
+				/* Prime the FIFO and then flush the packet. */
+				inw(ioaddr + DATAPORT); inw(ioaddr + DATAPORT);
 				outb(0x05, ioaddr + 14);
 				lp->stats.rx_errors++;
 				break;
@@ -526,6 +531,8 @@ net_rx(struct device *dev)
 			if (skb == NULL) {
 				printk("%s: Memory squeeze, dropping packet (len %d).\n",
 					   dev->name, pkt_len);
+				/* Prime the FIFO and then flush the packet. */
+				inw(ioaddr + DATAPORT); inw(ioaddr + DATAPORT);
 				outb(0x05, ioaddr + 14);
 				lp->stats.rx_dropped++;
 				break;
@@ -534,15 +541,7 @@ net_rx(struct device *dev)
 			skb->dev = dev;
 
 			insw(ioaddr + DATAPORT, skb->data, (pkt_len + 1) >> 1);
-
-			if (net_debug > 5) {
-				int i;
-				printk("%s: Rxed packet of length %d: ", dev->name, pkt_len);
-				for (i = 0; i < 14; i++)
-					printk(" %02x", skb->data[i]);
-				printk(".\n");
-			}
-
+			skb->protocol=eth_type_trans(skb, dev);
 			netif_rx(skb);
 			lp->stats.rx_packets++;
 		}
@@ -574,8 +573,6 @@ static int net_close(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	int ioaddr = dev->base_addr;
-
-	lp->open_time = 0;
 
 	dev->tbusy = 1;
 	dev->start = 0;

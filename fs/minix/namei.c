@@ -4,6 +4,10 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/sched.h>
 #include <linux/minix_fs.h>
 #include <linux/kernel.h>
@@ -23,11 +27,11 @@
 static inline int namecompare(int len, int maxlen,
 	const char * name, const char * buffer)
 {
-	if (len >= maxlen)
+	if (len > maxlen)
 		return 0;
 	if (len < maxlen && buffer[len])
 		return 0;
-	return !memcmp(name,buffer,len);
+	return !memcmp(name, buffer, len);
 }
 
 /*
@@ -189,6 +193,7 @@ static int minix_add_entry(struct inode * dir,
 			}
 		} else {
 			dir->i_mtime = dir->i_ctime = CURRENT_TIME;
+			dir->i_dirt = 1;
 			for (i = 0; i < info->s_namelen ; i++)
 				de->name[i] = (i < namelen) ? name[i] : 0;
 			dir->i_version = ++event;

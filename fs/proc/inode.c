@@ -12,9 +12,12 @@
 #include <linux/stat.h>
 #include <linux/locks.h>
 #include <linux/limits.h>
+#include <linux/config.h>
 
 #include <asm/system.h>
 #include <asm/segment.h>
+
+extern unsigned long prof_len;
 
 void proc_put_inode(struct inode *inode)
 {
@@ -41,6 +44,37 @@ static struct super_operations proc_sops = {
 	NULL
 };
 
+
+static int parse_options(char *options,uid_t *uid,gid_t *gid)
+{
+	char *this_char,*value;
+
+	*uid = current->uid;
+	*gid = current->gid;
+	if (!options) return 1;
+	for (this_char = strtok(options,","); this_char; this_char = strtok(NULL,",")) {
+		if ((value = strchr(this_char,'=')) != NULL)
+			*value++ = 0;
+		if (!strcmp(this_char,"uid")) {
+			if (!value || !*value)
+				return 0;
+			*uid = simple_strtoul(value,&value,0);
+			if (*value)
+				return 0;
+		}
+		else if (!strcmp(this_char,"gid")) {
+			if (!value || !*value)
+				return 0;
+			*gid = simple_strtoul(value,&value,0);
+			if (*value)
+				return 0;
+		}
+		else return 0;
+	}
+	return 1;
+}
+
+
 struct super_block *proc_read_super(struct super_block *s,void *data, 
 				    int silent)
 {
@@ -55,20 +89,23 @@ struct super_block *proc_read_super(struct super_block *s,void *data,
 		printk("get root inode failed\n");
 		return NULL;
 	}
+	parse_options(data, &s->s_mounted->i_uid, &s->s_mounted->i_gid);
 	return s;
 }
 
-void proc_statfs(struct super_block *sb, struct statfs *buf)
+void proc_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 {
-	put_fs_long(PROC_SUPER_MAGIC, &buf->f_type);
-	put_fs_long(PAGE_SIZE/sizeof(long), &buf->f_bsize);
-	put_fs_long(0, &buf->f_blocks);
-	put_fs_long(0, &buf->f_bfree);
-	put_fs_long(0, &buf->f_bavail);
-	put_fs_long(0, &buf->f_files);
-	put_fs_long(0, &buf->f_ffree);
-	put_fs_long(NAME_MAX, &buf->f_namelen);
-	/* Don't know what value to put in buf->f_fsid */
+	struct statfs tmp;
+
+	tmp.f_type = PROC_SUPER_MAGIC;
+	tmp.f_bsize = PAGE_SIZE/sizeof(long);
+	tmp.f_blocks = 0;
+	tmp.f_bfree = 0;
+	tmp.f_bavail = 0;
+	tmp.f_files = 0;
+	tmp.f_ffree = 0;
+	tmp.f_namelen = NAME_MAX;
+	memcpy_tofs(buf, &tmp, bufsiz);
 }
 
 void proc_read_inode(struct inode * inode)
@@ -104,7 +141,24 @@ void proc_read_inode(struct inode * inode)
 		return;
 	}
 
-	/* files within /proc/net */
+#ifdef CONFIG_IP_ACCT
+	/* this file may be opened R/W by root to reset the accounting */
+	if (ino == PROC_NET_IPACCT) {
+		inode->i_mode = S_IFREG | S_IRUGO | S_IWUSR;
+		inode->i_op = &proc_net_inode_operations;
+		return;
+	}
+#endif
+#ifdef CONFIG_IP_FIREWALL
+	/* these files may be opened R/W by root to reset the counters */
+	if ((ino == PROC_NET_IPFWFWD) || (ino == PROC_NET_IPFWBLK)) {
+		inode->i_mode = S_IFREG | S_IRUGO | S_IWUSR;
+		inode->i_op = &proc_net_inode_operations;
+		return;
+	}
+#endif
+
+	/* other files within /proc/net */
 	if ((ino >= PROC_NET_UNIX) && (ino < PROC_NET_LAST)) {
 		inode->i_mode = S_IFREG | S_IRUGO;
 		inode->i_op = &proc_net_inode_operations;
@@ -114,7 +168,7 @@ void proc_read_inode(struct inode * inode)
 	if (!pid) {
 		switch (ino) {
 			case PROC_KMSG:
-				inode->i_mode = S_IFREG | S_IRUGO;
+				inode->i_mode = S_IFREG | S_IRUSR;
 				inode->i_op = &proc_kmsg_inode_operations;
 				break;
 			case PROC_NET:
@@ -127,6 +181,13 @@ void proc_read_inode(struct inode * inode)
 				inode->i_op = &proc_kcore_inode_operations;
 				inode->i_size = high_memory + PAGE_SIZE;
 				break;
+#ifdef CONFIG_PROFILE
+			case PROC_PROFILE:
+				inode->i_mode = S_IFREG | S_IRUGO | S_IWUSR;
+				inode->i_op = &proc_profile_inode_operations;
+				inode->i_size = (1+prof_len) * sizeof(unsigned long);
+				break;
+#endif
 			default:
 				inode->i_mode = S_IFREG | S_IRUGO;
 				inode->i_op = &proc_array_inode_operations;
@@ -160,12 +221,18 @@ void proc_read_inode(struct inode * inode)
 			inode->i_nlink = 2;
 			return;
 		case PROC_PID_ENVIRON:
+			inode->i_mode = S_IFREG | S_IRUSR;
+			inode->i_op = &proc_array_inode_operations;
+			return;
 		case PROC_PID_CMDLINE:
 		case PROC_PID_STAT:
 		case PROC_PID_STATM:
-		case PROC_PID_MAPS:
 			inode->i_mode = S_IFREG | S_IRUGO;
 			inode->i_op = &proc_array_inode_operations;
+			return;
+		case PROC_PID_MAPS:
+			inode->i_mode = S_IFIFO | S_IRUGO;
+			inode->i_op = &proc_arraylong_inode_operations;
 			return;
 	}
 	switch (ino >> 8) {

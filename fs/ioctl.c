@@ -7,6 +7,7 @@
 #include <asm/segment.h>
 
 #include <linux/sched.h>
+#include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/stat.h>
@@ -41,11 +42,11 @@ static int file_ioctl(struct file *filp,unsigned int cmd,unsigned long arg)
 			    (long *) arg);
 			return 0;
 		case FIONREAD:
-			error = verify_area(VERIFY_WRITE,(void *) arg,4);
+			error = verify_area(VERIFY_WRITE,(void *) arg,sizeof(int));
 			if (error)
 				return error;
 			put_fs_long(filp->f_inode->i_size - filp->f_pos,
-			    (long *) arg);
+			    (int *) arg);
 			return 0;
 	}
 	if (filp->f_op && filp->f_op->ioctl)

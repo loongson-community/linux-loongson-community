@@ -2,9 +2,9 @@
 #define _KBD_KERN_H
 
 #include <linux/interrupt.h>
-#define set_leds() mark_bh(KEYBOARD_BH)
-
 #include <linux/keyboard.h>
+
+extern int shift_state;
 
 extern char *func_table[MAX_NR_FUNC];
 extern char func_buf[];
@@ -65,6 +65,11 @@ extern unsigned long kbd_init(unsigned long);
 
 extern unsigned char getledstate(void);
 extern void setledstate(struct kbd_struct *kbd, unsigned int led);
+
+extern inline void set_leds(void)
+{
+	mark_bh(KEYBOARD_BH);
+}
 
 extern inline int vc_kbd_mode(struct kbd_struct * kbd, int flag)
 {

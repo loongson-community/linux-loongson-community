@@ -1,6 +1,11 @@
 #
 # i386/Makefile
 #
+# This file is included by the global makefile so that you can add your own
+# architecture-specific flags and dependencies. Remember to do have actions
+# for "archclean" and "archdep" for cleaning up and making dependencies for
+# this architecture
+#
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
 # for more details.
@@ -8,100 +13,69 @@
 # Copyright (C) 1994 by Linus Torvalds
 #
 
-AS86    =as86 -0 -a
-LD86    =ld86 -0
-AS      =as
-LD      =ld
-HOSTCC  =gcc -I$(TOPDIR)/include
-CC      =gcc -D__KERNEL__ -I$(TOPDIR)/include
-MAKE    =make
-CPP     =$(CC) -E
-AR      =ar
-STRIP   =strip
+#
+# Set these to indicate how to link it..
+#
+# -zmagic:   
+#
+# ZLINKFLAGS   = -Ttext 0x1000
+# LINKFLAGS    = -Ttext 0x100000
+#
+# -qmagic (we need to remove the 32 byte header for bootup purposes)
+#
+ZLINKFLAGS =-qmagic -Ttext 0xfe0
+LINKFLAGS =-qmagic -Ttext 0xfffe0
+CFLAGS := $(CFLAGS) -pipe
 
 ifdef CONFIG_M486
 CFLAGS := $(CFLAGS) -m486
 else
+ifdef CONFIG_M586
+CFLAGS := $(CFLAGS) -mpentium
+else
 CFLAGS := $(CFLAGS) -m386
 endif
+endif
 
-zBoot/zSystem: zBoot/*.c zBoot/*.S tools/zSystem
-	$(MAKE) -C zBoot
+HEAD := arch/i386/kernel/head.o
 
-zImage: $(CONFIGURE) boot/bootsect boot/setup zBoot/zSystem tools/build
-	tools/build boot/bootsect boot/setup zBoot/zSystem $(ROOT_DEV) > zImage
-	sync
+SUBDIRS := $(SUBDIRS) arch/i386/kernel arch/i386/mm
+ARCHIVES := arch/i386/kernel/kernel.o arch/i386/mm/mm.o $(ARCHIVES)
 
-zdisk: zImage
-	dd bs=8192 if=zImage of=/dev/fd0
+ifdef CONFIG_IBCS
+SUBDIRS := $(SUBDIRS) arch/i386/ibcs
+DRIVERS := $(DRIVERS) arch/i386/ibcs/ibcs.o
+endif
 
-zlilo: $(CONFIGURE) zImage
-	if [ -f $(INSTALL_PATH)/vmlinuz ]; then mv $(INSTALL_PATH)/vmlinuz $(INSTALL_PATH)/vmlinuz.old; fi
-	if [ -f $(INSTALL_PATH)/zSystem.map ]; then mv $(INSTALL_PATH)/zSystem.map $(INSTALL_PATH)/zSystem.old; fi
-	cat zImage > $(INSTALL_PATH)/vmlinuz
-	cp zSystem.map $(INSTALL_PATH)/
-	if [ -x /sbin/lilo ]; then /sbin/lilo; else /etc/lilo/install; fi
+ifdef CONFIG_MATH_EMULATION
+SUBDIRS := $(SUBDIRS) arch/i386/math-emu
+DRIVERS := $(DRIVERS) arch/i386/math-emu/math.a
+endif
 
-#
-# Set these to indicate how to link it..
-#
-# -zmagic:
-#
-#LOWLDFLAGS     = -Ttext 0x1000
-#HIGHLDFLAGS    = -Ttext 0x100000
-#
-# -qmagic (we need to remove the 32 byte header for bootup purposes)
-#
-LOWLDFLAGS      =-qmagic -Ttext 0xfe0
-HIGHLDFLAGS     =-qmagic -Ttext 0xfffe0
+arch/i386/kernel: dummy
+	$(MAKE) linuxsubdirs SUBDIRS=arch/i386/kernel
 
-tools/system:	boot/head.o init/main.o init/init.o tools/version.o linuxsubdirs
-	$(LD) $(LOWLDFLAGS) boot/head.o init/main.o tools/version.o \
-		$(ARCHIVES) \
-		$(FILESYSTEMS) \
-		$(DRIVERS) \
-		$(LIBS) \
-		-o tools/system
-		nm tools/zSystem | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | \
-		sort > System.map
+arch/i386/mm: dummy
+	$(MAKE) linuxsubdirs SUBDIRS=arch/i386/mm
 
-boot/setup: boot/setup.o
-	$(LD86) -s -o $@ $<
+MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
-boot/setup.o: boot/setup.s
-	$(AS86) -o $@ $<
+zImage: vmlinux
+	@$(MAKEBOOT) zImage
 
-boot/setup.s: boot/setup.S $(CONFIGURE) include/linux/config.h Makefile
-	$(CPP) -traditional $(SVGA_MODE) $(RAMDISK) $< -o $@
+compressed: zImage
 
-boot/bootsect: boot/bootsect.o
-	$(LD86) -s -o $@ $<
+zlilo: vmlinux
+	@$(MAKEBOOT) zlilo
 
-boot/bootsect.o: boot/bootsect.s
-	$(AS86) -o $@ $<
+zdisk: vmlinux
+	@$(MAKEBOOT) zdisk
 
-boot/bootsect.s: boot/bootsect.S $(CONFIGURE) include/linux/config.h Makefile
-	$(CPP) -traditional $(SVGA_MODE) $(RAMDISK) $< -o $@
-
-tools/zSystem:	boot/head.o init/main.o tools/version.o linuxsubdirs
-	$(LD) $(HIGHLDFLAGS) boot/head.o init/main.o tools/version.o \
-		$(ARCHIVES) \
-		$(FILESYSTEMS) \
-		$(DRIVERS) \
-		$(LIBS) \
-		-o tools/zSystem
-	nm tools/zSystem | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | \
-		sort > zSystem.map
-
-#
-# Leave these dummy entries for now to tell people that they are going away..
-#
-lilo:
-	@echo
-	@echo Uncompressed kernel images no longer supported. Use
-	@echo \"make zlilo\" instead.
-	@echo
-	@exit 1
+install: vmlinux
+	@$(MAKEBOOT) install
 
 archclean:
-	rm -f boot/bootsect boot/setup
+	@$(MAKEBOOT) clean
+
+archdep:
+	@$(MAKEBOOT) dep

@@ -282,7 +282,7 @@ extern int el16_probe(struct device *dev);	/* Called from Space.c */
 static int	el16_probe1(struct device *dev, int ioaddr);
 static int	el16_open(struct device *dev);
 static int	el16_send_packet(struct sk_buff *skb, struct device *dev);
-static void	el16_interrupt(int reg_ptr);
+static void	el16_interrupt(int irq, struct pt_regs *regs);
 static void el16_rx(struct device *dev);
 static int	el16_close(struct device *dev);
 static struct enet_statistics *el16_get_stats(struct device *dev);
@@ -370,7 +370,7 @@ int el16_probe1(struct device *dev, int ioaddr)
 	}
 	
 	/* We've committed to using the board, and can start filling in *dev. */
-	snarf_region(ioaddr, EL16_IO_EXTENT);
+	request_region(ioaddr, EL16_IO_EXTENT,"3c507");
 	dev->base_addr = ioaddr;
 
 	outb(0x01, ioaddr + MISC_CTRL);
@@ -509,9 +509,8 @@ el16_send_packet(struct sk_buff *skb, struct device *dev)
 /*	The typical workload of the driver:
 	Handle the network interface interrupts. */
 static void
-el16_interrupt(int reg_ptr)
+el16_interrupt(int irq, struct pt_regs *regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status, boguscount = 0;
@@ -848,6 +847,7 @@ el16_rx(struct device *dev)
 			/* 'skb->data' points to the start of sk_buff data area. */
 			memcpy(skb->data, data_frame + 5, pkt_len);
 		
+			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb);
 			lp->stats.rx_packets++;
 		}

@@ -6,7 +6,6 @@
  */
 
 #include <linux/errno.h>
-#include <asm/segment.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/ipc.h>
@@ -14,15 +13,18 @@
 #include <linux/stat.h>
 #include <linux/malloc.h>
 
+#include <asm/segment.h>
+#include <asm/pgtable.h>
+
 extern int ipcperms (struct ipc_perm *ipcp, short shmflg);
-extern unsigned int get_swap_page (void);
+extern unsigned long get_swap_page (void);
 static int findkey (key_t key);
 static int newseg (key_t key, int shmflg, int size);
-static int shm_map (struct vm_area_struct *shmd, int remap);
+static int shm_map (struct vm_area_struct *shmd);
 static void killseg (int id);
 static void shm_open (struct vm_area_struct *shmd);
 static void shm_close (struct vm_area_struct *shmd);
-static unsigned long shm_swap_in (struct vm_area_struct *, unsigned long);
+static pte_t shm_swap_in(struct vm_area_struct *, unsigned long, unsigned long);
 
 static int shm_tot = 0; /* total number of shared memory pages */
 static int shm_rss = 0; /* number of shared memory pages that are in memory */
@@ -161,7 +163,6 @@ static void killseg (int id)
 {
 	struct shmid_ds *shp;
 	int i, numpages;
-	ulong page;
 
 	shp = shm_segs[id];
 	if (shp == IPC_NOID || shp == IPC_UNUSED) {
@@ -180,13 +181,15 @@ static void killseg (int id)
 	}
 	numpages = shp->shm_npages;
 	for (i = 0; i < numpages ; i++) {
-		if (!(page = shp->shm_pages[i]))
+		pte_t pte;
+		pte_val(pte) = shp->shm_pages[i];
+		if (pte_none(pte))
 			continue;
-		if (page & PAGE_PRESENT) {
-			free_page (page & PAGE_MASK);
+		if (pte_present(pte)) {
+			free_page (pte_page(pte));
 			shm_rss--;
 		} else {
-			swap_free (page);
+			swap_free(pte_val(pte));
 			shm_swp--;
 		}
 	}
@@ -351,7 +354,7 @@ int sys_shmctl (int shmid, int cmd, struct shmid_ds *buf)
  * shmd->vm_start	virt addr of attach, multiple of SHMLBA
  * shmd->vm_end		multiple of SHMLBA
  * shmd->vm_next	next attach for task
- * shmd->vm_share	next attach for segment
+ * shmd->vm_next_share	next attach for segment
  * shmd->vm_offset	offset into segment
  * shmd->vm_pte		signature for this attach
  */
@@ -359,78 +362,84 @@ int sys_shmctl (int shmid, int cmd, struct shmid_ds *buf)
 static struct vm_operations_struct shm_vm_ops = {
 	shm_open,		/* open */
 	shm_close,		/* close */
+	NULL,			/* unmap */
+	NULL,			/* protect */
+	NULL,			/* sync */
+	NULL,			/* advise */
 	NULL,			/* nopage (done with swapin) */
 	NULL,			/* wppage */
-	NULL,			/* share */
-	NULL,			/* unmap */
 	NULL,			/* swapout (hardcoded right now) */
 	shm_swap_in		/* swapin */
 };
 
-/*
- * check range is unmapped, ensure page tables exist
- * mark page table entries with shm_sgn.
- * if remap != 0 the range is remapped.
- */
-static int shm_map (struct vm_area_struct *shmd, int remap)
+/* Insert shmd into the circular list shp->attaches */
+static inline void insert_attach (struct shmid_ds * shp, struct vm_area_struct * shmd)
 {
-	unsigned long *page_table;
-	unsigned long tmp, shm_sgn;
-	unsigned long page_dir = shmd->vm_task->tss.cr3;
+	struct vm_area_struct * attaches;
 
-	/* check that the range is unmapped */
-	if (!remap)
-		for (tmp = shmd->vm_start; tmp < shmd->vm_end; tmp += PAGE_SIZE) {
-			page_table = PAGE_DIR_OFFSET(page_dir,tmp);
-			if (*page_table & PAGE_PRESENT) {
-				page_table = (ulong *) (PAGE_MASK & *page_table);
-				page_table += ((tmp >> PAGE_SHIFT) & (PTRS_PER_PAGE-1));
-				if (*page_table) {
-					/* printk("shmat() -> EINVAL because address 0x%lx is already mapped.\n",tmp); */
-					return -EINVAL;
-				}
-			}
+	if ((attaches = shp->attaches)) {
+		shmd->vm_next_share = attaches;
+		shmd->vm_prev_share = attaches->vm_prev_share;
+		shmd->vm_prev_share->vm_next_share = shmd;
+		attaches->vm_prev_share = shmd;
+	} else
+		shp->attaches = shmd->vm_next_share = shmd->vm_prev_share = shmd;
+}
+
+/* Remove shmd from circular list shp->attaches */
+static inline void remove_attach (struct shmid_ds * shp, struct vm_area_struct * shmd)
+{
+	if (shmd->vm_next_share == shmd) {
+		if (shp->attaches != shmd) {
+			printk("shm_close: shm segment (id=%ld) attach list inconsistent\n",
+				(shmd->vm_pte >> SHM_ID_SHIFT) & SHM_ID_MASK);
+			printk("shm_close: %d %08lx-%08lx %c%c%c%c %08lx %08lx\n",
+				shmd->vm_task->pid, shmd->vm_start, shmd->vm_end,
+				shmd->vm_flags & VM_READ ? 'r' : '-',
+				shmd->vm_flags & VM_WRITE ? 'w' : '-',
+				shmd->vm_flags & VM_EXEC ? 'x' : '-',
+				shmd->vm_flags & VM_MAYSHARE ? 's' : 'p',
+				shmd->vm_offset, shmd->vm_pte);
 		}
+		shp->attaches = NULL;
+	} else {
+		if (shp->attaches == shmd)
+			shp->attaches = shmd->vm_next_share;
+		shmd->vm_prev_share->vm_next_share = shmd->vm_next_share;
+		shmd->vm_next_share->vm_prev_share = shmd->vm_prev_share;
+	}
+}
+
+/*
+ * ensure page tables exist
+ * mark page table entries with shm_sgn.
+ */
+static int shm_map (struct vm_area_struct *shmd)
+{
+	pgd_t *page_dir;
+	pmd_t *page_middle;
+	pte_t *page_table;
+	unsigned long tmp, shm_sgn;
 
 	/* clear old mappings */
 	do_munmap(shmd->vm_start, shmd->vm_end - shmd->vm_start);
 
 	/* add new mapping */
 	insert_vm_struct(current, shmd);
-	merge_segments(current->mm->mmap);
-
-	/* check that the range has page_tables */
-	for (tmp = shmd->vm_start; tmp < shmd->vm_end; tmp += PAGE_SIZE) {
-		page_table = PAGE_DIR_OFFSET(page_dir,tmp);
-		if (*page_table & PAGE_PRESENT) {
-			page_table = (ulong *) (PAGE_MASK & *page_table);
-			page_table += ((tmp >> PAGE_SHIFT) & (PTRS_PER_PAGE-1));
-			if (*page_table) {
-				if (*page_table & PAGE_PRESENT) {
-					--current->mm->rss;
-					free_page (*page_table & PAGE_MASK);
-				}
-				else
-					swap_free (*page_table);
-				*page_table = 0;
-			}
-		} else {
-			unsigned long new_pt;
-			if (!(new_pt = get_free_page(GFP_KERNEL)))
-				return -ENOMEM;
-			*page_table = new_pt | PAGE_TABLE;
-			tmp |= ((PAGE_SIZE << 10) - PAGE_SIZE);
-		}
-	}
+	merge_segments(current, shmd->vm_start, shmd->vm_end);
 
 	/* map page range */
 	shm_sgn = shmd->vm_pte + ((shmd->vm_offset >> PAGE_SHIFT) << SHM_IDX_SHIFT);
 	for (tmp = shmd->vm_start; tmp < shmd->vm_end; tmp += PAGE_SIZE,
 	     shm_sgn += (1 << SHM_IDX_SHIFT)) {
-		page_table = PAGE_DIR_OFFSET(page_dir,tmp);
-		page_table = (ulong *) (PAGE_MASK & *page_table);
-		page_table += (tmp >> PAGE_SHIFT) & (PTRS_PER_PAGE-1);
-		*page_table = shm_sgn;
+		page_dir = pgd_offset(shmd->vm_task,tmp);
+		page_middle = pmd_alloc(page_dir,tmp);
+		if (!page_middle)
+			return -ENOMEM;
+		page_table = pte_alloc(page_middle,tmp);
+		if (!page_table)
+			return -ENOMEM;
+		pte_val(*page_table) = shm_sgn;
 	}
 	invalidate();
 	return 0;
@@ -438,7 +447,6 @@ static int shm_map (struct vm_area_struct *shmd, int remap)
 
 /*
  * Fix shmaddr, allocate descriptor, map shm, add attach descriptor to lists.
- * raddr is needed to return addresses above 2Gig.
  */
 int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 {
@@ -453,12 +461,6 @@ int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 		return -EINVAL;
 	}
 
-	if (raddr) {
-		err = verify_area(VERIFY_WRITE, raddr, sizeof(ulong));
-		if (err)
-			return err;
-	}
-
 	shp = shm_segs[id = (unsigned int) shmid % SHMMNI];
 	if (shp == IPC_UNUSED || shp == IPC_NOID) {
 		/* printk("shmat() -> EINVAL because shmid = %d is invalid\n",shmid); */
@@ -468,7 +470,7 @@ int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	if (!(addr = (ulong) shmaddr)) {
 		if (shmflg & SHM_REMAP)
 			return -EINVAL;
-		if (!(addr = get_unmapped_area(shp->shm_segsz)))
+		if (!(addr = get_unmapped_area(0, shp->shm_segsz)))
 			return -ENOMEM;
 	} else if (addr & (SHMLBA-1)) {
 		if (shmflg & SHM_RND)
@@ -481,12 +483,11 @@ int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 		return -EINVAL;
 	}
 	if (!(shmflg & SHM_REMAP))
-		for (shmd = current->mm->mmap; shmd; shmd = shmd->vm_next)
-			if (!(addr >= shmd->vm_end || addr + shp->shm_segsz <= shmd->vm_start)) {
-				/* printk("shmat() -> EINVAL because the interval [0x%lx,0x%lx) intersects an already mapped interval [0x%lx,0x%lx).\n",
-					addr, addr + shp->shm_segsz, shmd->vm_start, shmd->vm_end); */
-				return -EINVAL;
-			}
+		if ((shmd = find_vma_intersection(current, addr, addr + shp->shm_segsz))) {
+			/* printk("shmat() -> EINVAL because the interval [0x%lx,0x%lx) intersects an already mapped interval [0x%lx,0x%lx).\n",
+				addr, addr + shp->shm_segsz, shmd->vm_start, shmd->vm_end); */
+			return -EINVAL;
+		}
 
 	if (ipcperms(&shp->shm_perm, shmflg & SHM_RDONLY ? S_IRUGO : S_IRUGO|S_IWUGO))
 		return -EACCES;
@@ -501,8 +502,7 @@ int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 		return -EIDRM;
 	}
 
-	shmd->vm_pte = (SHM_SWP_TYPE << 1) | (id << SHM_ID_SHIFT) |
-		(shmflg & SHM_RDONLY ? SHM_READ_ONLY : 0);
+	shmd->vm_pte = (SHM_SWP_TYPE << 1) | (id << SHM_ID_SHIFT);
 	shmd->vm_start = addr;
 	shmd->vm_end = addr + shp->shm_npages * PAGE_SIZE;
 	shmd->vm_task = current;
@@ -510,27 +510,25 @@ int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	shmd->vm_flags = VM_SHM | VM_MAYSHARE | VM_SHARED
 			 | VM_MAYREAD | VM_MAYEXEC | VM_READ | VM_EXEC
 			 | ((shmflg & SHM_RDONLY) ? 0 : VM_MAYWRITE | VM_WRITE);
-	shmd->vm_share = NULL;
+	shmd->vm_next_share = shmd->vm_prev_share = NULL;
 	shmd->vm_inode = NULL;
 	shmd->vm_offset = 0;
 	shmd->vm_ops = &shm_vm_ops;
 
 	shp->shm_nattch++;            /* prevent destruction */
-	if ((err = shm_map (shmd, shmflg & SHM_REMAP))) {
+	if ((err = shm_map (shmd))) {
 		if (--shp->shm_nattch <= 0 && shp->shm_perm.mode & SHM_DEST)
 			killseg(id);
 		kfree(shmd);
 		return err;
 	}
 
-	shmd->vm_share = shp->attaches;
-	shp->attaches = shmd;
+	insert_attach(shp,shmd);  /* insert shmd into shp->attaches */
+
 	shp->shm_lpid = current->pid;
 	shp->shm_atime = CURRENT_TIME;
 
-	if (!raddr)
-		return addr;
-	put_fs_long (addr, raddr);
+	*raddr = addr;
 	return 0;
 }
 
@@ -546,8 +544,7 @@ static void shm_open (struct vm_area_struct *shmd)
 		printk("shm_open: unused id=%d PANIC\n", id);
 		return;
 	}
-	shmd->vm_share = shp->attaches;
-	shp->attaches = shmd;
+	insert_attach(shp,shmd);  /* insert shmd into shp->attaches */
 	shp->shm_nattch++;
 	shp->shm_atime = CURRENT_TIME;
 	shp->shm_lpid = current->pid;
@@ -561,7 +558,6 @@ static void shm_open (struct vm_area_struct *shmd)
  */
 static void shm_close (struct vm_area_struct *shmd)
 {
-	struct vm_area_struct **shmdp;
 	struct shmid_ds *shp;
 	int id;
 
@@ -570,21 +566,7 @@ static void shm_close (struct vm_area_struct *shmd)
 	/* remove from the list of attaches of the shm segment */
 	id = (shmd->vm_pte >> SHM_ID_SHIFT) & SHM_ID_MASK;
 	shp = shm_segs[id];
-	for (shmdp = &shp->attaches; *shmdp; shmdp = &(*shmdp)->vm_share)
-		if (*shmdp == shmd) {
-			*shmdp = shmd->vm_share;
-			goto found;
-		}
-	printk("shm_close: shm segment (id=%d) attach list inconsistent\n",id);
-	printk("shm_close: %d %08lx-%08lx %c%c%c%c %08lx %08lx\n",
-		shmd->vm_task->pid, shmd->vm_start, shmd->vm_end,
-		shmd->vm_flags & VM_READ ? 'r' : '-',
-		shmd->vm_flags & VM_WRITE ? 'w' : '-',
-		shmd->vm_flags & VM_EXEC ? 'x' : '-',
-		shmd->vm_flags & VM_SHARED ? 's' : 'p',
-		shmd->vm_offset, shmd->vm_pte);
-
- found:
+	remove_attach(shp,shmd);  /* remove from shp->attaches */
   	shp->shm_lpid = current->pid;
 	shp->shm_dtime = CURRENT_TIME;
 	if (--shp->shm_nattch <= 0 && shp->shm_perm.mode & SHM_DEST)
@@ -611,73 +593,86 @@ int sys_shmdt (char *shmaddr)
 /*
  * page not present ... go through shm_pages
  */
-static unsigned long shm_swap_in(struct vm_area_struct * vma, unsigned long code)
+static pte_t shm_swap_in(struct vm_area_struct * shmd, unsigned long offset, unsigned long code)
 {
-	unsigned long page;
+	pte_t pte;
 	struct shmid_ds *shp;
 	unsigned int id, idx;
 
 	id = (code >> SHM_ID_SHIFT) & SHM_ID_MASK;
+	if (id != ((shmd->vm_pte >> SHM_ID_SHIFT) & SHM_ID_MASK)) {
+		printk ("shm_swap_in: code id = %d and shmd id = %ld differ\n",
+			id, (shmd->vm_pte >> SHM_ID_SHIFT) & SHM_ID_MASK);
+		return BAD_PAGE;
+	}
 	if (id > max_shmid) {
-		printk ("shm_no_page: id=%d too big. proc mem corrupted\n", id);
-		return BAD_PAGE | PAGE_SHARED;
+		printk ("shm_swap_in: id=%d too big. proc mem corrupted\n", id);
+		return BAD_PAGE;
 	}
 	shp = shm_segs[id];
 	if (shp == IPC_UNUSED || shp == IPC_NOID) {
-		printk ("shm_no_page: id=%d invalid. Race.\n", id);
-		return BAD_PAGE | PAGE_SHARED;
+		printk ("shm_swap_in: id=%d invalid. Race.\n", id);
+		return BAD_PAGE;
 	}
 	idx = (code >> SHM_IDX_SHIFT) & SHM_IDX_MASK;
+	if (idx != (offset >> PAGE_SHIFT)) {
+		printk ("shm_swap_in: code idx = %u and shmd idx = %lu differ\n",
+			idx, offset >> PAGE_SHIFT);
+		return BAD_PAGE;
+	}
 	if (idx >= shp->shm_npages) {
-		printk ("shm_no_page : too large page index. id=%d\n", id);
-		return BAD_PAGE | PAGE_SHARED;
+		printk ("shm_swap_in : too large page index. id=%d\n", id);
+		return BAD_PAGE;
 	}
 
-	if (!(shp->shm_pages[idx] & PAGE_PRESENT)) {
-		if(!(page = get_free_page(GFP_KERNEL))) {
+	pte_val(pte) = shp->shm_pages[idx];
+	if (!pte_present(pte)) {
+		unsigned long page = get_free_page(GFP_KERNEL);
+		if (!page) {
 			oom(current);
-			return BAD_PAGE | PAGE_SHARED;
+			return BAD_PAGE;
 		}
-		if (shp->shm_pages[idx] & PAGE_PRESENT) {
-			free_page (page);
+		pte_val(pte) = shp->shm_pages[idx];
+		if (pte_present(pte)) {
+			free_page (page); /* doesn't sleep */
 			goto done;
 		}
-		if (shp->shm_pages[idx]) {
-			read_swap_page (shp->shm_pages[idx], (char *) page);
-			if (shp->shm_pages[idx] & PAGE_PRESENT)  {
-				free_page (page);
+		if (!pte_none(pte)) {
+			read_swap_page(pte_val(pte), (char *) page);
+			pte_val(pte) = shp->shm_pages[idx];
+			if (pte_present(pte))  {
+				free_page (page); /* doesn't sleep */
 				goto done;
 			}
-			swap_free (shp->shm_pages[idx]);
+			swap_free(pte_val(pte));
 			shm_swp--;
 		}
 		shm_rss++;
-		shp->shm_pages[idx] = page | (PAGE_SHARED | PAGE_DIRTY);
+		pte = pte_mkdirty(mk_pte(page, PAGE_SHARED));
+		shp->shm_pages[idx] = pte_val(pte);
 	} else
 		--current->mm->maj_flt;  /* was incremented in do_no_page */
 
-done:
+done:	/* pte_val(pte) == shp->shm_pages[idx] */
 	current->mm->min_flt++;
-	page = shp->shm_pages[idx];
-	if (code & SHM_READ_ONLY)           /* write-protect */
-		page &= ~PAGE_RW;
-	mem_map[MAP_NR(page)]++;
-	return page;
+	mem_map[MAP_NR(pte_page(pte))]++;
+	return pte_modify(pte, shmd->vm_page_prot);
 }
 
 /*
- * Goes through counter = (shm_rss << prio) present shm pages.
+ * Goes through counter = (shm_rss >> prio) present shm pages.
  */
 static unsigned long swap_id = 0; /* currently being swapped */
 static unsigned long swap_idx = 0; /* next to swap */
 
 int shm_swap (int prio)
 {
-	unsigned long page;
+	pte_t page;
 	struct shmid_ds *shp;
 	struct vm_area_struct *shmd;
-	unsigned int swap_nr;
-	unsigned long id, idx, invalid = 0;
+	unsigned long swap_nr;
+	unsigned long id, idx;
+	int loop = 0, invalid = 0;
 	int counter;
 
 	counter = shm_rss >> prio;
@@ -687,35 +682,43 @@ int shm_swap (int prio)
  check_id:
 	shp = shm_segs[swap_id];
 	if (shp == IPC_UNUSED || shp == IPC_NOID || shp->shm_perm.mode & SHM_LOCKED ) {
+		next_id:
 		swap_idx = 0;
-		if (++swap_id > max_shmid)
+		if (++swap_id > max_shmid) {
+			if (loop)
+				goto failed;
+			loop = 1;
 			swap_id = 0;
+		}
 		goto check_id;
 	}
 	id = swap_id;
 
  check_table:
 	idx = swap_idx++;
-	if (idx >= shp->shm_npages) {
-		swap_idx = 0;
-		if (++swap_id > max_shmid)
-			swap_id = 0;
-		goto check_id;
-	}
+	if (idx >= shp->shm_npages)
+		goto next_id;
 
-	page = shp->shm_pages[idx];
-	if (!(page & PAGE_PRESENT))
+	pte_val(page) = shp->shm_pages[idx];
+	if (!pte_present(page))
 		goto check_table;
 	swap_attempts++;
 
 	if (--counter < 0) { /* failed */
+		failed:
 		if (invalid)
 			invalidate();
 		swap_free (swap_nr);
 		return 0;
 	}
-	for (shmd = shp->attaches; shmd; shmd = shmd->vm_share) {
-		unsigned long tmp, *pte;
+	if (shp->attaches)
+	  for (shmd = shp->attaches; ; ) {
+	    do {
+		pgd_t *page_dir;
+		pmd_t *page_middle;
+		pte_t *page_table, pte;
+		unsigned long tmp;
+
 		if ((shmd->vm_pte >> SHM_ID_SHIFT & SHM_ID_MASK) != id) {
 			printk ("shm_swap: id=%ld does not match shmd->vm_pte.id=%ld\n", id, shmd->vm_pte >> SHM_ID_SHIFT & SHM_ID_MASK);
 			continue;
@@ -723,37 +726,48 @@ int shm_swap (int prio)
 		tmp = shmd->vm_start + (idx << PAGE_SHIFT) - shmd->vm_offset;
 		if (!(tmp >= shmd->vm_start && tmp < shmd->vm_end))
 			continue;
-		pte = PAGE_DIR_OFFSET(shmd->vm_task->tss.cr3,tmp);
-		if (!(*pte & PAGE_PRESENT)) {
+		page_dir = pgd_offset(shmd->vm_task,tmp);
+		if (pgd_none(*page_dir) || pgd_bad(*page_dir)) {
 			printk("shm_swap: bad pgtbl! id=%ld start=%lx idx=%ld\n",
 					id, shmd->vm_start, idx);
-			*pte = 0;
+			pgd_clear(page_dir);
 			continue;
 		}
-		pte = (ulong *) (PAGE_MASK & *pte);
-		pte += ((tmp >> PAGE_SHIFT) & (PTRS_PER_PAGE-1));
-		tmp = *pte;
-		if (!(tmp & PAGE_PRESENT))
-			continue;
-		if (tmp & PAGE_ACCESSED) {
-			*pte &= ~PAGE_ACCESSED;
+		page_middle = pmd_offset(page_dir,tmp);
+		if (pmd_none(*page_middle) || pmd_bad(*page_middle)) {
+			printk("shm_swap: bad pgmid! id=%ld start=%lx idx=%ld\n",
+					id, shmd->vm_start, idx);
+			pmd_clear(page_middle);
 			continue;
 		}
-		tmp = shmd->vm_pte | idx << SHM_IDX_SHIFT;
-		*pte = tmp;
-		mem_map[MAP_NR(page)]--;
-		shmd->vm_task->mm->rss--;
+		page_table = pte_offset(page_middle,tmp);
+		pte = *page_table;
+		if (!pte_present(pte))
+			continue;
+		if (pte_young(pte)) {
+			*page_table = pte_mkold(pte);
+			continue;
+		}
+		if (pte_page(pte) != pte_page(page))
+			printk("shm_swap_out: page and pte mismatch\n");
+		pte_val(*page_table) = shmd->vm_pte | idx << SHM_IDX_SHIFT;
+		mem_map[MAP_NR(pte_page(pte))]--;
+		if (shmd->vm_task->mm->rss > 0)
+			shmd->vm_task->mm->rss--;
 		invalid++;
+	    /* continue looping through circular list */
+	    } while (0);
+	    if ((shmd = shmd->vm_next_share) == shp->attaches)
+		break;
 	}
 
-	if (mem_map[MAP_NR(page)] != 1)
+	if (mem_map[MAP_NR(pte_page(page))] != 1)
 		goto check_table;
-	page &= PAGE_MASK;
 	shp->shm_pages[idx] = swap_nr;
 	if (invalid)
 		invalidate();
-	write_swap_page (swap_nr, (char *) page);
-	free_page (page);
+	write_swap_page (swap_nr, (char *) pte_page(page));
+	free_page(pte_page(page));
 	swap_successes++;
 	shm_swp++;
 	shm_rss--;

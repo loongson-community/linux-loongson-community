@@ -14,12 +14,13 @@
 	$(CC) $(CFLAGS) -c $<
 
 OBJS  = ctype.o _exit.o open.o close.o errno.o write.o dup.o setsid.o \
-	execve.o wait.o string.o
+	execve.o wait.o string.o vsprintf.o
 
 lib.a: $(OBJS)
 	$(AR) rcs lib.a $(OBJS)
 	sync
 
+modules:
 dep:
 	$(CPP) -M *.c > .depend
 

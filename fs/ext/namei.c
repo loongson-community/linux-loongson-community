@@ -285,6 +285,7 @@ printk ("ext_add_entry : creating next block\n");
 				de->rec_len = rec_len;
 			}
 			dir->i_mtime = dir->i_ctime = CURRENT_TIME;
+			dir->i_dirt = 1;
 			de->name_len = namelen;
 			for (i=0; i < namelen ; i++)
 				de->name[i] = name[i];
@@ -810,8 +811,7 @@ start_up:
 		retval = -EEXIST;
 		if (new_bh)
 			goto end_rename;
-		retval = -EACCES;
-		if (!permission(old_inode, MAY_WRITE))
+		if ((retval = permission(old_inode, MAY_WRITE)) != 0)
 			goto end_rename;
 		retval = -EINVAL;
 		if (subdir(new_dir, old_inode))

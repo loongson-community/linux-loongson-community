@@ -100,14 +100,26 @@ static char *version =
 #define COUNT_LOOPS
  */
 #endif
+static int bnc, utp;
+/*
+ * Force media with insmod:
+ *	insmod de620.o bnc=1
+ * or
+ *	insmod de620.o utp=1
+ */
 
-#include <linux/config.h>
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
+#include <linux/ioport.h>
 #include <asm/io.h>
 #include <linux/in.h>
 #include <linux/ptrace.h>
@@ -118,11 +130,6 @@ static char *version =
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-
-#ifdef MODULE
-#include <linux/module.h>
-#include "../../tools/version.h"
-#endif
 
 /* Constant definitions for the DE-620 registers, commands and bits */
 #include "de620.h"
@@ -176,7 +183,7 @@ static void	de620_set_multicast_list(struct device *, int, void *);
 static int	de620_start_xmit(struct sk_buff *, struct device *);
 
 /* Dispatch from interrupts. */
-static void	de620_interrupt(int);
+static void	de620_interrupt(int, struct pt_regs *);
 static int	de620_rx_intr(struct device *);
 
 /* Initialization */
@@ -193,7 +200,6 @@ static int	read_eeprom(void);
 #define DE620_RX_START_PAGE 12		/* 12 pages (=3k) reserved for tx */
 #define DEF_NIC_CMD IRQEN | ICEN | DS1
 
-extern struct device *irq2dev_map[16];
 unsigned int de620_debug = DE620_DEBUG;
 
 static volatile byte	NIC_Cmd;
@@ -566,9 +572,8 @@ de620_start_xmit(struct sk_buff *skb, struct device *dev)
  *
  */
 static void
-de620_interrupt(int reg_ptr)
+de620_interrupt(int irq, struct pt_regs *regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = irq2dev_map[irq];
 	byte irq_status;
 	int bogus_count = 0;
@@ -686,6 +691,7 @@ de620_rx_intr(struct device *dev)
 			/* copy the packet into the buffer */
 			de620_read_block(buffer, size);
 			PRINTK(("Read %d bytes\n", size));
+			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb); /* deliver it "upstairs" */
 			/* count all receives */
 			((struct netstats *)(dev->priv))->rx_packets++;
@@ -720,6 +726,11 @@ adapter_init(struct device *dev)
 	else if (nic_data.Model == 2) { /* UTP */
 		EIPRegister = NCTL0 | NIS0;
 	}
+
+	if (utp)
+		EIPRegister = NCTL0 | NIS0;
+	if (bnc)
+		EIPRegister = NCTL0;
 
 	de620_send_command(W_CR | RNOP | CLEAR);
 	de620_send_command(W_CR | RNOP);
@@ -813,6 +824,14 @@ de620_probe(struct device *dev)
 		printk(" not identified in the printer port\n");
 		return ENODEV;
 	}
+
+#if 0 /* Not yet */
+	if (check_region(DE620_IO, 3)) {
+		printk(", port 0x%x busy\n", DE620_IO);
+		return EBUSY;
+	}
+#endif
+	request_region(DE620_IO, 3, "de620");
 
 	/* else, got it! */
 	printk(", Ethernet Address: %2.2X",
@@ -971,10 +990,8 @@ init_module(void)
 void
 cleanup_module(void)
 {
-	if (MOD_IN_USE)
-		printk("de620: device busy, remove delayed\n");
-	else
-		unregister_netdev(&de620_dev);
+	unregister_netdev(&de620_dev);
+	release_region(DE620_IO, 3);
 }
 #endif /* MODULE */
 

@@ -1,10 +1,8 @@
 VERSION = 1
-PATCHLEVEL = 1
-SUBLEVEL = 68
+PATCHLEVEL = 3
+SUBLEVEL = 0
 
 ARCH = mips
-
-all:	Version zImage
 
 .EXPORT_ALL_VARIABLES:
 
@@ -12,6 +10,18 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
+
+AS	=as
+LD	=ld
+HOSTCC	=gcc -I$(TOPDIR)/include
+CC	=gcc -D__KERNEL__ -I$(TOPDIR)/include
+MAKE	=make
+CPP	=$(CC) -E
+AR	=ar
+NM	=nm
+STRIP	=strip
+
+all:	do-it-all
 
 #
 # Make "config" the default target if there is no configuration file or
@@ -21,17 +31,23 @@ ifeq (.config,$(wildcard .config))
 include .config
 ifeq (.depend,$(wildcard .depend))
 include .depend
+do-it-all:	Version vmlinux
 else
 CONFIGURATION = depend
+do-it-all:	depend
 endif
 else
 CONFIGURATION = config
+do-it-all:	config
 endif
 
 #
 # ROOT_DEV specifies the default root-device when making the image.
 # This can be either FLOPPY, CURRENT, /dev/xxxx or empty, in which case
 # the default of FLOPPY is used by 'build'.
+#
+# NOTE: This does NOT work with Linux/MIPS yet. You need to hardcode
+# ROOT_DEV in arch/mips/kernel/setup.c ! 
 #
 
 ROOT_DEV = CURRENT
@@ -55,7 +71,7 @@ SVGA_MODE=	-DSVGA_MODE=NORMAL_VGA
 # standard CFLAGS
 #
 
-CFLAGS = -Wall -Wstrict-prototypes -O -fomit-frame-pointer #-pipe
+CFLAGS = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 
 ifdef CONFIG_CPP
 CFLAGS := $(CFLAGS) -x c++
@@ -71,21 +87,13 @@ endif
 # Include the make variables (CC, etc...)
 #
 
-include arch/$(ARCH)/Makefile
-
 ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o net/net.o ipc/ipc.o
 FILESYSTEMS	=fs/filesystems.a
 DRIVERS		=drivers/block/block.a \
 		 drivers/char/char.a \
-		 drivers/net/net.a \
-		 ibcs/ibcs.o
-LIBS		=lib/lib.a
-SUBDIRS		=kernel drivers mm fs net ipc ibcs lib
-SYMLINKS	=boot include/asm kernel/entry.S init/main.c kernel/sched.c \
-		 kernel/traps.c kernel/irq.c kernel/ioport.c kernel/ldt.c \
-		 kernel/vm86.c kernel/bios32.c kernel/splx.c kernel/signal.c \
-		 kernel/ptrace.c kernel/dummy.c mm
-
+		 drivers/net/net.a
+LIBS		=$(TOPDIR)/lib/lib.a
+SUBDIRS		=kernel drivers mm fs net ipc lib
 
 ifdef CONFIG_SCSI
 DRIVERS := $(DRIVERS) drivers/scsi/scsi.a
@@ -95,116 +103,81 @@ ifdef CONFIG_SOUND
 DRIVERS := $(DRIVERS) drivers/sound/sound.a
 endif
 
-ifdef CONFIG_MATH_EMULATION
-DRIVERS := $(DRIVERS) drivers/FPU-emu/math.a
+ifdef CONFIG_PCI
+DRIVERS := $(DRIVERS) drivers/pci/pci.a
 endif
+
+include arch/$(ARCH)/Makefile
 
 .c.s:
 	$(CC) $(CFLAGS) -S -o $*.s $<
 .s.o:
-	$(AS) $(ASFLAGS) -o $*.o $<
+	$(AS) -o $*.o $<
 .c.o:
 	$(CC) $(CFLAGS) -c -o $*.o $<
+.S.s:
+	$(CC) -D__ASSEMBLY__ -traditional -E -o $*.o $<
+.S.o:
+	$(CC) -D__ASSEMBLY__ -traditional -c -o $*.o $<
 
 Version: dummy
-	rm -f tools/version.h
+	rm -f include/linux/version.h
 
-boot:
-	ln -sf arch/$(ARCH)/boot boot
+boot: vmlinux
+	@$(MAKE) -C arch/$(ARCH)/boot
 
-include/asm:
+vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
+	$(LD) $(LINKFLAGS) $(HEAD) init/main.o init/version.o \
+		$(ARCHIVES) \
+		$(FILESYSTEMS) \
+		$(DRIVERS) \
+		$(LIBS) -o vmlinux
+	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)\|\(\$$\)' | sort > System.map
+
+symlinks:
+	rm -f include/asm
 	( cd include ; ln -sf asm-$(ARCH) asm)
 
-kernel/entry.S:
-	ln -sf ../arch/$(ARCH)/entry.S kernel/entry.S
+oldconfig: symlinks
+	$(CONFIG_SHELL) Configure -d arch/$(ARCH)/config.in
 
-init/main.c:
-	ln -sf ../arch/$(ARCH)/main.c init/main.c
-
-kernel/sched.c:
-	ln -sf ../arch/$(ARCH)/sched.c kernel/sched.c
-
-kernel/traps.c:
-	ln -sf ../arch/$(ARCH)/traps.c kernel/traps.c
-
-kernel/irq.c:
-	ln -sf ../arch/$(ARCH)/irq.c kernel/irq.c
-
-kernel/ioport.c:
-	ln -sf ../arch/$(ARCH)/ioport.c kernel/ioport.c
-
-kernel/ldt.c:
-	ln -sf ../arch/$(ARCH)/ldt.c kernel/ldt.c
-
-kernel/vm86.c:
-	ln -sf ../arch/$(ARCH)/vm86.c kernel/vm86.c
-
-kernel/bios32.c:
-	ln -sf ../arch/$(ARCH)/bios32.c kernel/bios32.c
-
-kernel/splx.c:
-	ln -sf ../arch/$(ARCH)/splx.c kernel/splx.c
-
-kernel/signal.c:
-	ln -sf ../arch/$(ARCH)/signal.c kernel/signal.c
-
-kernel/ptrace.c:
-	ln -sf ../arch/$(ARCH)/ptrace.c kernel/ptrace.c
-
-kernel/dummy.c:
-	ln -sf ../arch/$(ARCH)/dummy.c kernel/dummy.c
-
-mm:
-	ln -sf arch/$(ARCH)/mm mm
-
-symlinks: $(SYMLINKS)
-
-config.in: arch/$(ARCH)/config.in
-	cp $< $@
-
-oldconfig: symlinks config.in
-	$(CONFIG_SHELL) Configure -d $(OPTS)
-
-config: symlinks config.in
-	$(CONFIG_SHELL) Configure $(OPTS)
+config: symlinks
+	$(CONFIG_SHELL) Configure arch/$(ARCH)/config.in
 
 linuxsubdirs: dummy
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
 
-tools/./version.h: tools/version.h
+$(TOPDIR)/include/linux/version.h: include/linux/version.h
 
-tools/version.h: $(CONFIGURE) Makefile
-	@./makever.sh
-	@echo \#define UTS_RELEASE \"$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)\" > tools/version.h
+newversion:
+	@if [ ! -f .version ]; then \
+		echo 1 > .version; \
+	else \
+		expr `cat .version` + 1 > .version; \
+	fi
+
+include/linux/version.h: $(CONFIGURATION) Makefile newversion
+	@echo \#define UTS_RELEASE \"$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)\" > include/linux/version.h
 	@if [ -f .name ]; then \
 	   echo \#define UTS_VERSION \"\#`cat .version`-`cat .name` `date`\"; \
 	 else \
 	   echo \#define UTS_VERSION \"\#`cat .version` `date`\";  \
-	 fi >> tools/version.h 
-	@echo \#define LINUX_COMPILE_TIME \"`date +%T`\" >> tools/version.h
-	@echo \#define LINUX_COMPILE_BY \"`whoami`\" >> tools/version.h
-	@echo \#define LINUX_COMPILE_HOST \"`hostname`\" >> tools/version.h
+	 fi >> include/linux/version.h 
+	@echo \#define LINUX_COMPILE_TIME \"`date +%T`\" >> include/linux/version.h
+	@echo \#define LINUX_COMPILE_BY \"`whoami`\" >> include/linux/version.h
+	@echo \#define LINUX_COMPILE_HOST \"`hostname`\" >> include/linux/version.h
 	@if [ -x /bin/dnsdomainname ]; then \
 	   echo \#define LINUX_COMPILE_DOMAIN \"`dnsdomainname`\"; \
 	 else \
 	   echo \#define LINUX_COMPILE_DOMAIN \"`domainname`\"; \
-	 fi >> tools/version.h
-	@echo \#define LINUX_COMPILER \"`$(HOSTCC) -v 2>&1 | tail -1`\" >> tools/version.h
+	 fi >> include/linux/version.h
+	@echo \#define LINUX_COMPILER \"`$(CC) -v 2>&1 | tail -1`\" >> include/linux/version.h
+	@echo \#define LINUX_VERSION_CODE `expr $(VERSION) \\* 65536 + $(PATCHLEVEL) \\* 256 + $(SUBLEVEL)` >> include/linux/version.h
 
-tools/build: tools/build.c $(CONFIGURE)
-	$(HOSTCC) $(CFLAGS) -o $@ $<
+init/version.o: init/version.c include/linux/version.h
+	$(CC) $(CFLAGS) -DUTS_MACHINE='"$(ARCH)"' -c -o init/version.o init/version.c
 
-boot/head.o: $(CONFIGURE) boot/head.s
-
-boot/head.s: boot/head.S $(CONFIGURE) include/linux/tasks.h
-	$(CPP) -traditional $< -o $@
-
-tools/version.o: tools/version.c tools/version.h
-
-init/main.o: $(CONFIGURE) init/main.c
-	$(CC) $(CFLAGS) $(PROFILING) -c -o $*.o $<
-
-init/init.o: $(CONFIGURE) init/init.c
+init/main.o: init/main.c
 	$(CC) $(CFLAGS) $(PROFILING) -c -o $*.o $<
 
 fs: dummy
@@ -213,7 +186,7 @@ fs: dummy
 lib: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=lib
 
-mm.o: dummy
+mm: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=mm
 
 ipc: dummy
@@ -228,21 +201,51 @@ drivers: dummy
 net: dummy
 	$(MAKE) linuxsubdirs SUBDIRS=net
 
-clean:
+ifdef CONFIG_MODVERSIONS
+MODV = -DCONFIG_MODVERSIONS
+endif
+
+modules: include/linux/version.h
+	@set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i CFLAGS="$(CFLAGS) -DMODULE $(MODV)" modules; done
+	
+modules_install:
+	@( \
+	MODLIB=/lib/modules/$(VERSION).$(PATCHLEVEL).$(SUBLEVEL); \
+	cd modules; \
+	MODULES=""; \
+	inst_mod() { These="`cat $$1`"; MODULES="$$MODULES $$These"; \
+		mkdir -p $$MODLIB/$$2; cp -p $$These $$MODLIB/$$2; \
+		echo Installing modules under $$MODLIB/$$2; \
+	}; \
+	\
+	if [ -f NET_MODULES  ]; then inst_mod NET_MODULES  net;  fi; \
+	if [ -f SCSI_MODULES ]; then inst_mod SCSI_MODULES scsi; fi; \
+	if [ -f FS_MODULES   ]; then inst_mod FS_MODULES   fs;   fi; \
+	\
+	ls *.o > .allmods; \
+	echo $$MODULES | tr ' ' '\n' | sort | comm -23 .allmods - > .misc; \
+	if [ -s .misc ]; then inst_mod .misc misc; fi; \
+	rm -f .misc .allmods; \
+	)
+
+clean:	archclean
 	rm -f kernel/ksyms.lst
 	rm -f core `find . -name '*.[oas]' -print`
-	rm -f core `find . -name 'core' -print`
-	rm -f zImage zSystem.map tools/zSystem tools/system
-	rm -f Image System.map tools/build
-	rm -f zBoot/zSystem zBoot/xtract zBoot/piggyback
+	rm -f core `find . -type f -name 'core' -print`
+	rm -f vmlinux System.map
 	rm -f .tmp* drivers/sound/configure
+	rm -fr modules/*
 
 mrproper: clean
-	rm -f include/linux/autoconf.h tools/version.h
+	rm -f include/linux/autoconf.h include/linux/version.h
 	rm -f drivers/sound/local.h
 	rm -f .version .config* config.in config.old
-	rm -f $(SYMLINKS) boot include/asm kernel/entry.S init/main.c
+	rm -f include/asm
 	rm -f .depend `find . -name .depend -print`
+ifdef CONFIG_MODVERSIONS
+	rm -f $(TOPDIR)/include/linux/modversions.h
+	rm -f $(TOPDIR)/include/linux/modules/*
+endif
 
 distclean: mrproper
 
@@ -250,13 +253,18 @@ backup: mrproper
 	cd .. && tar cf - linux | gzip -9 > backup.gz
 	sync
 
-depend dep:
-	touch tools/version.h
+depend dep: archdep
+	touch include/linux/version.h
 	for i in init/*.c;do echo -n "init/";$(CPP) -M $$i;done > .tmpdepend
-	for i in tools/*.c;do echo -n "tools/";$(CPP) -M $$i;done >> .tmpdepend
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i dep; done
-	rm -f tools/version.h
+	rm -f include/linux/version.h
 	mv .tmpdepend .depend
+ifdef CONFIG_MODVERSIONS
+	@echo updating $(TOPDIR)/include/linux/modversions.h
+	@(cd $(TOPDIR)/include/linux/modules; for f in *.ver;\
+	do echo "#include <linux/modules/$${f}>"; done) \
+	> $(TOPDIR)/include/linux/modversions.h
+endif
 
 ifdef CONFIGURATION
 ..$(CONFIGURATION):
@@ -276,20 +284,3 @@ else
 dummy:
 
 endif
-
-#
-# Leave these dummy entries for now to tell people that they are going away..
-#
-Image:
-	@echo
-	@echo Uncompressed kernel images no longer supported. Use
-	@echo \"make zImage\" instead.
-	@echo
-	@exit 1
-
-disk:
-	@echo
-	@echo Uncompressed kernel images no longer supported. Use
-	@echo \"make zdisk\" instead.
-	@echo
-	@exit 1

@@ -42,18 +42,7 @@
 #ifndef _LINUX_INET_H
 #define _LINUX_INET_H
 
-#if defined (__i386__) || defined (__MIPSEL__)
-#define NET16(x)	((((x) >> 8) & 0x00FF) | (((x) << 8) & 0xFF00))
-#elif #if defined (__mc680x0__) || defined (__MIPSEB__)
-#define NET16(x)	(x)
-#elif defined (__alpha__)
-#define NET16(x)	((((x) >> 8) & 0x00FF) | (((x) << 8) & 0xFF00))
-#else
-#error change this to match your machine
-#endif
-
 #ifdef __KERNEL__
-
 
 extern void		inet_proto_init(struct net_proto *pro);
 extern char		*in_ntoa(unsigned long in);

@@ -283,18 +283,21 @@ static const unsigned short ultrastor_ports_14f[] = {
 };
 #endif
 
-static void ultrastor_interrupt(int cpl);
+static void ultrastor_interrupt(int, struct pt_regs *);
 static inline void build_sg_list(struct mscp *, Scsi_Cmnd *SCpnt);
 
 
 static inline int find_and_clear_bit_16(unsigned short *field)
 {
   int rv;
+  unsigned long flags;
+
+  save_flags(flags);
   cli();
   if (*field == 0) panic("No free mscp");
   asm("xorl %0,%0\n0:\tbsfw %1,%w0\n\tbtr %0,%1\n\tjnc 0b"
       : "=&r" (rv), "=m" (*field) : "1" (*field));
-  sti();
+  restore_flags(flags);
   return rv;
 }
 
@@ -435,7 +438,8 @@ static int ultrastor_14f_detect(Scsi_Host_Template * tpnt)
     /* All above tests passed, must be the right thing.  Get some useful
        info. */
 
-    snarf_region(config.port_address, 0x0c); /* Register the I/O space that we use */
+    request_region(config.port_address, 0x0c,"ultrastor"); 
+    /* Register the I/O space that we use */
 
     *(char *)&config_1 = inb(CONFIG(config.port_address + 0));
     *(char *)&config_2 = inb(CONFIG(config.port_address + 1));
@@ -729,13 +733,13 @@ int ultrastor_queuecommand(Scsi_Cmnd *SCpnt, void (*done)(Scsi_Cmnd *))
   retry:
     if (config.slot)
 	while (inb(config.ogm_address - 1) != 0 &&
-	       config.aborted[mscp_index] == 0xff);
+	       config.aborted[mscp_index] == 0xff) barrier();
 
     /* else??? */
 
     while ((inb(LCL_DOORBELL_INTR(config.doorbell_address)) & 
 	    (config.slot ? 2 : 1)) 
-	   && config.aborted[mscp_index] == 0xff);
+	   && config.aborted[mscp_index] == 0xff) barrier();
 
     /* To avoid race conditions, make the code to write to the adapter
        atomic.  This simplifies the abort code.  */
@@ -869,7 +873,7 @@ int ultrastor_abort(Scsi_Cmnd *SCpnt)
 	printk("Ux4F: abort while completed command pending\n");
 	restore_flags(flags);
 	cli();
-	ultrastor_interrupt(0);
+	ultrastor_interrupt(0, NULL);
 	restore_flags(flags);
 	return SCSI_ABORT_SUCCESS;  /* FIXME - is this correct? -ERY */
       }
@@ -1010,7 +1014,7 @@ int ultrastor_biosparam(Disk * disk, int dev, int * dkinfo)
     return 0;
 }
 
-static void ultrastor_interrupt(int cpl)
+static void ultrastor_interrupt(int irq, struct pt_regs *regs)
 {
     unsigned int status;
 #if ULTRASTOR_MAX_CMDS > 1

@@ -212,6 +212,8 @@
 #include <linux/fcntl.h>
 #include <linux/delay.h>
 #include <linux/tpqic02.h>
+#include <linux/config.h>
+#include <linux/mm.h>
 
 #include <asm/dma.h>
 #include <asm/system.h>
@@ -1794,7 +1796,7 @@ static void qic02_tape_times_out(void)
  * When we are finished, set flags to indicate end, disable timer.
  * NOTE: This *must* be fast! 
  */
-static void qic02_tape_interrupt(int unused)
+static void qic02_tape_interrupt(int irq, struct pt_regs *regs)
 {
 	int stat, r, i;
 

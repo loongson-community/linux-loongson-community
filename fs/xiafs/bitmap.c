@@ -11,6 +11,10 @@
 
 /* bitmap.c contains the code that handles the inode and block bitmaps */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/sched.h>
 #include <linux/locks.h>
 #include <linux/xia_fs.h>
@@ -54,7 +58,7 @@ zone_found:
     for (j=0; j < 32; j++)
         if (tmp & (1 << j))
 	    break;
-    if (set_bit(j, bmap+i)) {
+    if (set_bit(j,bmap+i)) {
         start_bit=j + (i << 5) + 1;
 	goto repeat;
     }

@@ -19,6 +19,7 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
 
 #define LOG_BUF_LEN	4096
 
@@ -129,7 +130,7 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 			console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
 			return 0;
 		case 8:
-			if (len < 0 || len > 8)
+			if (len < 1 || len > 8)
 				return -EINVAL;
 			console_loglevel = len;
 			return 0;
@@ -173,8 +174,10 @@ asmlinkage int printk(const char *fmt, ...)
 			log_buf[(log_start+log_size) & (LOG_BUF_LEN-1)] = *p;
 			if (log_size < LOG_BUF_LEN)
 				log_size++;
-			else
+			else {
 				log_start++;
+				log_start &= LOG_BUF_LEN-1;
+			}
 			logged_chars++;
 			if (*p == '\n')
 				break;

@@ -47,7 +47,7 @@ int send_sig(unsigned long sig,struct task_struct * p,int priv)
 	if (!p || sig > 32)
 		return -EINVAL;
 	if (!priv && ((sig != SIGCONT) || (current->session != p->session)) &&
-	    (current->euid != p->euid) && (current->uid != p->uid) && !suser())
+	    (current->euid != p->euid) && (current->euid != p->uid) && !suser())
 		return -EPERM;
 	if (!sig)
 		return 0;
@@ -91,6 +91,7 @@ void release(struct task_struct * p)
 	}
 	for (i=1 ; i<NR_TASKS ; i++)
 		if (task[i] == p) {
+			nr_tasks--;
 			task[i] = NULL;
 			REMOVE_LINKS(p);
 			if (STACK_MAGIC != *(unsigned long *)p->kernel_stack_page)
@@ -354,38 +355,6 @@ static void forget_original_parent(struct task_struct * father)
 	}
 }
 
-static void exit_mm(void)
-{
-	struct vm_area_struct * mpnt;
-
-	mpnt = current->mm->mmap;
-	current->mm->mmap = NULL;
-	while (mpnt) {
-		struct vm_area_struct * next = mpnt->vm_next;
-		if (mpnt->vm_ops && mpnt->vm_ops->close)
-			mpnt->vm_ops->close(mpnt);
-		if (mpnt->vm_inode)
-			iput(mpnt->vm_inode);
-		kfree(mpnt);
-		mpnt = next;
-	}
-
-#ifdef __i386__
-	/* forget local segments */
-	__asm__ __volatile__("mov %w0,%%fs ; mov %w0,%%gs ; lldt %w0"
-		: /* no outputs */
-		: "r" (0));
-	current->tss.ldt = 0;
-	if (current->ldt) {
-		void * ldt = current->ldt;
-		current->ldt = NULL;
-		vfree(ldt);
-	}
-#endif
-
-	free_page_tables(current);
-}
-
 static void exit_files(void)
 {
 	int i;
@@ -412,11 +381,13 @@ NORET_TYPE void do_exit(long code)
 		intr_count = 0;
 	}
 fake_volatile:
-	if (current->semundo)
-		sem_exit();
-	exit_mm();
+	current->flags |= PF_EXITING;
+	sem_exit();
+	exit_mmap(current);
+	free_page_tables(current);
 	exit_files();
 	exit_fs();
+	exit_thread();
 	forget_original_parent(current);
 	/* 
 	 * Check to see if any process groups have become orphaned
@@ -508,7 +479,7 @@ asmlinkage int sys_exit(int error_code)
 	do_exit((error_code&0xff)<<8);
 }
 
-asmlinkage int sys_wait4(pid_t pid,unsigned long * stat_addr, int options, struct rusage * ru)
+asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct rusage * ru)
 {
 	int flag, retval;
 	struct wait_queue wait = { current, NULL };
@@ -599,7 +570,7 @@ end_wait4:
  * sys_waitpid() remains for compatibility. waitpid() should be
  * implemented by calling sys_wait4() from libc.a.
  */
-asmlinkage int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options)
+asmlinkage int sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
 {
 	return sys_wait4(pid, stat_addr, options, NULL);
 }

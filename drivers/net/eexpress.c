@@ -18,7 +18,8 @@
 	Rework the board error reset
 	The statistics need to be updated correctly.
 
-        Modularized my Pauline Middelink <middelin@polyware.iaf.nl>
+        Modularized by Pauline Middelink <middelin@polyware.iaf.nl>
+        Changed to support io= irq= by Alan Cox <Alan.Cox@linux.org>
 */
 
 static char *version =
@@ -36,6 +37,11 @@ static char *version =
 	Intel Microcommunications Databook, Vol. 1, 1990. It provides just enough
 	info that the casual reader might think that it documents the i82586.
 */
+
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -55,11 +61,6 @@ static char *version =
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-#ifdef MODULE
-#include <linux/module.h>
-#include "../../tools/version.h"
-#endif
-
 #include <linux/malloc.h>
 
 /* use 0 for production, 1 for verification, 2..7 for debug */
@@ -289,7 +290,7 @@ extern int express_probe(struct device *dev);	/* Called from Space.c */
 static int	eexp_probe1(struct device *dev, short ioaddr);
 static int	eexp_open(struct device *dev);
 static int	eexp_send_packet(struct sk_buff *skb, struct device *dev);
-static void	eexp_interrupt(int reg_ptr);
+static void	eexp_interrupt(int irq, struct pt_regs *regs);
 static void eexp_rx(struct device *dev);
 static int	eexp_close(struct device *dev);
 static struct enet_statistics *eexp_get_stats(struct device *dev);
@@ -362,7 +363,7 @@ int eexp_probe1(struct device *dev, short ioaddr)
 	}
 
 	/* We've committed to using the board, and can start filling in *dev. */
-	snarf_region(ioaddr, 16);
+	request_region(ioaddr, 16,"eexpress");
 	dev->base_addr = ioaddr;
 
 	for (i = 0; i < 6; i++) {
@@ -514,9 +515,8 @@ eexp_send_packet(struct sk_buff *skb, struct device *dev)
 /*	The typical workload of the driver:
 	Handle the network interface interrupts. */
 static void
-eexp_interrupt(int reg_ptr)
+eexp_interrupt(int irq, struct pt_regs *regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status, boguscount = 0;
@@ -654,6 +654,9 @@ eexp_close(struct device *dev)
 
 	irq2dev_map[dev->irq] = 0;
 
+	/* release the ioport-region */
+	release_region(ioaddr, 16);
+
 	/* Update the statistics here. */
 
 #ifdef MODULE
@@ -683,6 +686,8 @@ eexp_get_stats(struct device *dev)
 static void
 set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 {
+/* This doesn't work yet */
+#if 0
 	short ioaddr = dev->base_addr;
 	if (num_addrs < 0) {
 		/* Not written yet, this requires expanding the init_words config
@@ -699,6 +704,7 @@ set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 		   cmd. */
 		outw(99, ioaddr);		/* Disable promiscuous mode, use normal mode */
 	}
+#endif
 }
 
 /* The horrible routine to read a word from the serial EEPROM. */
@@ -948,6 +954,7 @@ eexp_rx(struct device *dev)
 
 			insw(ioaddr, skb->data, (pkt_len + 1) >> 1);
 		
+			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb);
 			lp->stats.rx_packets++;
 		}
@@ -997,10 +1004,16 @@ eexp_rx(struct device *dev)
 char kernel_version[] = UTS_RELEASE;
 static struct device dev_eexpress = {
 	"        " /*"eexpress"*/, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, express_probe };
+	
+
+int irq=0;
+int io=0;	
 
 int
 init_module(void)
 {
+	dev_eexpress.base_addr=io;
+	dev_eexpress.irq=irq;
 	if (register_netdev(&dev_eexpress) != 0)
 		return -EIO;
 	return 0;

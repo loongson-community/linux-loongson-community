@@ -32,15 +32,12 @@ static char *version=
 "auto_irq.c:v1.11 Donald Becker (becker@cesdis.gsfc.nasa.gov)";
 #endif
 
-/*#include <linux/config.h>*/
-/*#include <linux/kernel.h>*/
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <linux/netdevice.h>
-/*#include <asm/system.h>*/
 
 struct device *irq2dev_map[16] = {0, 0, /* ... zeroed */};
 
@@ -53,7 +50,7 @@ static volatile int irq_number;	/* The latest irq number we actually found. */
 static volatile int irq_bitmap; /* The irqs we actually found. */
 static int irq_handled;		/* The irq lines we have a handler on. */
 
-static void autoirq_probe(int irq)
+static void autoirq_probe(int irq, struct pt_regs * regs)
 {
 	irq_number = irq;
 	set_bit(irq, (void *)&irq_bitmap);	/* irq_bitmap |= 1 << irq; */

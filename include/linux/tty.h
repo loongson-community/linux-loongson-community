@@ -62,6 +62,8 @@ extern struct screen_info screen_info;
 #define VIDEO_TYPE_CGA		0x11	/* CGA Display 			*/
 #define VIDEO_TYPE_EGAM		0x20	/* EGA/VGA in Monochrome Mode	*/
 #define VIDEO_TYPE_EGAC		0x21	/* EGA/VGA in Color Mode	*/
+#define VIDEO_TYPE_PICA_S3	0x30	/* ACER PICA-61 local S3 video	*/
+#define VIDEO_TYPE_MIPS_G364    0x31    /* MIPS Magnum 4000 G364 video  */
 
 /*
  * This character is the same as _POSIX_VDISABLE: it cannot be used as
@@ -199,7 +201,7 @@ struct tty_struct {
 	int pgrp;
 	int session;
 	dev_t	device;
-	int flags;
+	unsigned long flags;
 	int count;
 	struct winsize winsize;
 	unsigned char stopped:1, hw_stopped:1, packet:1;
@@ -222,15 +224,16 @@ struct tty_struct {
 	 */
 	unsigned int column;
 	unsigned char lnext:1, erasing:1, raw:1, real_raw:1, icanon:1;
+	unsigned char closing:1;
 	unsigned short minimum_to_wake;
 	unsigned overrun_time;
 	int num_overrun;
-	int process_char_map[256/32];
+	unsigned long process_char_map[256/(8*sizeof(unsigned long))];
 	char *read_buf;
 	int read_head;
 	int read_tail;
 	int read_cnt;
-	int read_flags[N_TTY_BUF_SIZE/32];
+	unsigned long read_flags[N_TTY_BUF_SIZE/(8*sizeof(unsigned long))];
 	int canon_data;
 	unsigned long canon_head;
 	unsigned int canon_column;
@@ -254,6 +257,7 @@ struct tty_struct {
 #define TTY_DEBUG 4
 #define TTY_DO_WRITE_WAKEUP 5
 #define TTY_PUSH 6
+#define TTY_CLOSING 7
 
 #define TTY_WRITE_FLUSH(tty) tty_write_flush((tty))
 
@@ -278,12 +282,16 @@ extern long lp_init(long);
 extern long con_init(long);
 extern long pty_init(long);
 extern long tty_init(long);
+extern long vcs_init(long);
+#ifdef CONFIG_CYCLADES
+extern long cy_init(long);
+#endif
 
 extern int tty_paranoia_check(struct tty_struct *tty, dev_t device,
 			      const char *routine);
 extern char *_tty_name(struct tty_struct *tty, char *buf);
 extern char *tty_name(struct tty_struct *tty);
-extern void wait_until_sent(struct tty_struct * tty, int timeout);
+extern void tty_wait_until_sent(struct tty_struct * tty, int timeout);
 extern int tty_check_change(struct tty_struct * tty);
 extern void stop_tty(struct tty_struct * tty);
 extern void start_tty(struct tty_struct * tty);
@@ -322,8 +330,6 @@ extern int  pty_open(struct tty_struct * tty, struct file * filp);
 
 extern int con_open(struct tty_struct * tty, struct file * filp);
 extern void update_screen(int new_console);
-extern void blank_screen(void);
-extern void unblank_screen(void);
 
 /* vt.c */
 

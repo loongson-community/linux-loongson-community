@@ -606,7 +606,7 @@ static inline Scb *alloc_scbs(int needed)
     save_flags(flags);
     cli();
     while (busy)  { /* someone else is allocating */
-        sti();
+        sti();	/* Yes this is really needed here */
 	now = jiffies;  while (jiffies == now)  /* wait a jiffy */;
 	cli();
     }
@@ -615,7 +615,7 @@ static inline Scb *alloc_scbs(int needed)
     while (freescbs < needed)  {
         timeout = jiffies + WAITnexttimeout;
 	do {
-	    sti();
+	    sti();	/* Yes this is really needed here */
 	    now = jiffies;   while (jiffies == now) /* wait a jiffy */;
 	    cli();
 	}  while (freescbs < needed && jiffies <= timeout);
@@ -797,15 +797,8 @@ static void wd7000_scsi_done(Scsi_Cmnd * SCpnt)
 
 #define wd7000_intr_ack(host)  outb(0,host->iobase+ASC_INTR_ACK)
 
-void wd7000_intr_handle(int irq)
+void wd7000_intr_handle(int irq, struct pt_regs * regs)
 {
-#ifdef 0
-    /*
-     * Use irqp as the parm, and the following declaration, if
-     * SA_INTERRUPT is not used.
-     */
-    register int irq = *(((int *)irqp)-2);
-#endif
     register int flag, icmb, errstatus, icmb_status;
     register int host_error, scsi_error;
     register Scb *scb;             /* for SCSI commands */
@@ -948,7 +941,7 @@ int wd7000_command(Scsi_Cmnd *SCpnt)
 {
     wd7000_queuecommand(SCpnt, wd7000_scsi_done);
 
-    while (SCpnt->SCp.phase > 0);  /* phase counts scbs down to 0 */
+    while (SCpnt->SCp.phase > 0) barrier();  /* phase counts scbs down to 0 */
 
     return SCpnt->result;
 }
@@ -971,7 +964,8 @@ int wd7000_diagnostics( Adapter *host, int code )
      */
     mail_out(host, (struct scb *) &icb);
     timeout = jiffies + WAITnexttimeout;  /* wait up to 2 seconds */
-    while (icb.phase && jiffies < timeout) /* wait for completion */;
+    while (icb.phase && jiffies < timeout)
+    	barrier(); /* wait for completion */
 
     if (icb.phase)  {
         printk("wd7000_diagnostics: timed out.\n");
@@ -1081,7 +1075,8 @@ void wd7000_revision(Adapter *host)
      * which in turn means that scatter/gather will be disabled.
      */
     mail_out(host, (struct scb *) &icb);
-    while (icb.phase) /* wait for completion */;
+    while (icb.phase)
+    	barrier(); /* wait for completion */
     host->rev1 = icb.primary;
     host->rev2 = icb.secondary;
 }
@@ -1162,7 +1157,7 @@ int wd7000_detect(Scsi_Host_Template * tpnt)
                 printk("using IO %xh IRQ %d DMA %d.\n",
 		       host->iobase, host->irq, host->dma);
 
-		snarf_region(host->iobase, 4); /* Register our ports */
+		request_region(host->iobase, 4,"wd7000"); /* Register our ports */
 		/*
 		 *  For boards before rev 6.0, scatter/gather isn't supported.
 		 */
@@ -1189,7 +1184,7 @@ int wd7000_abort(Scsi_Cmnd * SCpnt)
 
     if (inb(host->iobase+ASC_STAT) & INT_IM)  {
         printk("wd7000_abort: lost interrupt\n");
-	wd7000_intr_handle(host->irq);
+	wd7000_intr_handle(host->irq, NULL);
 	return SCSI_ABORT_SUCCESS;
     }
 

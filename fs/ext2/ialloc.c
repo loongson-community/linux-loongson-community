@@ -1,9 +1,10 @@
 /*
  *  linux/fs/ext2/ialloc.c
  *
- *  Copyright (C) 1992, 1993, 1994  Remy Card (card@masi.ibp.fr)
- *                                  Laboratoire MASI - Institut Blaise Pascal
- *                                  Universite Pierre et Marie Curie (Paris VI)
+ * Copyright (C) 1992, 1993, 1994, 1995
+ * Remy Card (card@masi.ibp.fr)
+ * Laboratoire MASI - Institut Blaise Pascal
+ * Universite Pierre et Marie Curie (Paris VI)
  *
  *  BSD ufs-inspired inode and directory allocation by 
  *  Stephen Tweedie (sct@dcs.ed.ac.uk), 1993
@@ -74,7 +75,7 @@ static void read_inode_bitmap (struct super_block * sb,
 		ext2_panic (sb, "read_inode_bitmap",
 			    "Cannot read inode bitmap - "
 			    "block_group = %lu, inode_bitmap = %lu",
-			    block_group, gdp->bg_inode_bitmap);
+			    block_group, (unsigned long) gdp->bg_inode_bitmap);
 	sb->u.ext2_sb.s_inode_bitmap_number[bitmap_nr] = block_group;
 	sb->u.ext2_sb.s_inode_bitmap[bitmap_nr] = bh;
 }
@@ -247,7 +248,7 @@ void ext2_free_inode (struct inode * inode)
 		set_inode_dtime (inode, gdp);
 	}
 	mark_buffer_dirty(bh, 1);
-	if (sb->s_flags & MS_SYNC) {
+	if (sb->s_flags & MS_SYNCHRONOUS) {
 		ll_rw_block (WRITE, 1, &bh);
 		wait_on_buffer (bh);
 	}
@@ -358,7 +359,7 @@ repeat:
 	else 
 	{
 		/*
-		 * Try to place the inode in it's parent directory
+		 * Try to place the inode in its parent directory
 		 */
 		i = dir->u.ext2_i.i_block_group;
 		tmp = get_group_desc (sb, i, &bh2);
@@ -414,7 +415,7 @@ repeat:
 			goto repeat;
 		}
 		mark_buffer_dirty(bh, 1);
-		if (sb->s_flags & MS_SYNC) {
+		if (sb->s_flags & MS_SYNCHRONOUS) {
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
 		}
@@ -476,7 +477,7 @@ repeat:
 	inode->u.ext2_i.i_block_group = i;
 	inode->i_op = NULL;
 	if (inode->u.ext2_i.i_flags & EXT2_SYNC_FL)
-		inode->i_flags |= MS_SYNC;
+		inode->i_flags |= MS_SYNCHRONOUS;
 	insert_inode_hash(inode);
 	inc_inode_version (inode, gdp, mode);
 
@@ -549,6 +550,6 @@ void ext2_check_inodes_bitmap (struct super_block * sb)
 		ext2_error (sb, "ext2_check_inodes_bitmap",
 			    "Wrong free inodes count in super block, "
 			    "stored = %lu, counted = %lu",
-			    es->s_free_inodes_count, bitmap_count);
+			    (unsigned long) es->s_free_inodes_count, bitmap_count);
 	unlock_super (sb);
 }

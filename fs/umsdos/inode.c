@@ -6,6 +6,14 @@
  *
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#else
+#define MOD_INC_USE_COUNT
+#define MOD_DEC_USE_COUNT
+#endif
+
 #include <linux/fs.h>
 #include <linux/msdos_fs.h>
 #include <linux/kernel.h>
@@ -13,14 +21,8 @@
 #include <linux/errno.h>
 #include <asm/segment.h>
 #include <linux/string.h>
-#include <linux/ctype.h>
 #include <linux/stat.h>
 #include <linux/umsdos_fs.h>
-
-#ifdef MODULE
-	#include <linux/module.h>
-	#include "../../tools/version.h"
-#endif
 
 struct inode *pseudo_root=NULL;		/* Useful to simulate the pseudo DOS */
 									/* directory. See UMSDOS_readdir_x() */
@@ -45,6 +47,9 @@ void UMSDOS_put_inode(struct inode *inode)
 	PRINTK (("put inode %x owner %x pos %d dir %x\n",inode
 		,inode->u.umsdos_i.i_emd_owner,inode->u.umsdos_i.pos
 		,inode->u.umsdos_i.i_emd_dir));
+	if (inode != NULL && inode == pseudo_root){
+		printk ("Umsdos: Oops releasing pseudo_root. Notify jacques@solucorp.qc.ca\n");
+	}
 	msdos_put_inode(inode);
 }
 
@@ -52,15 +57,13 @@ void UMSDOS_put_inode(struct inode *inode)
 void UMSDOS_put_super(struct super_block *sb)
 {
 	msdos_put_super(sb);
-	#ifdef MODULE
-		MOD_DEC_USE_COUNT;
-	#endif
+	MOD_DEC_USE_COUNT;
 }
 
 
-void UMSDOS_statfs(struct super_block *sb,struct statfs *buf)
+void UMSDOS_statfs(struct super_block *sb,struct statfs *buf, int bufsiz)
 {
-	msdos_statfs(sb,buf);
+	msdos_statfs(sb,buf,bufsiz);
 }
 
 
@@ -152,18 +155,11 @@ void umsdos_patch_inode (
 	if (!umsdos_isinit(inode)){
 		inode->u.umsdos_i.i_emd_dir = 0;
 		if (S_ISREG(inode->i_mode)){
-			static char is_init = 0;
-			if (!is_init){
-				/*
-					I don't want to change the msdos file system code
-					so I get the address of some subroutine dynamically
-					once.
-				*/
-				umsdos_file_inode_operations.bmap = inode->i_op->bmap;
+			if (inode->i_op->bmap != NULL){
 				inode->i_op = &umsdos_file_inode_operations;
-				is_init = 1;
+			}else{
+				inode->i_op = &umsdos_file_inode_operations_no_bmap;
 			}
-			inode->i_op = &umsdos_file_inode_operations;
 		}else if (S_ISDIR(inode->i_mode)){
 			if (dir != NULL){
 				umsdos_setup_dir_inode(inode);
@@ -408,8 +404,10 @@ struct super_block *UMSDOS_read_super(
 		which do not have an EMD file. They behave like normal
 		msdos directory, with all limitation of msdos.
 	*/
-	struct super_block *sb = msdos_read_super(s,data,silent);
-	printk ("UMSDOS Alpha 0.5a (compatibility level %d.%d, fast msdos)\n"
+	struct super_block *sb;
+	MOD_INC_USE_COUNT;
+	sb = msdos_read_super(s,data,silent);
+	printk ("UMSDOS Beta 0.6 (compatibility level %d.%d, fast msdos)\n"
 		,UMSDOS_VERSION,UMSDOS_RELEASE);
 	if (sb != NULL){
 		sb->s_op = &umsdos_sops;
@@ -420,8 +418,8 @@ struct super_block *UMSDOS_read_super(
 			/* #Specification: pseudo root / mount
 				When a umsdos fs is mounted, a special handling is done
 				if it is the root partition. We check for the presence
-				of the file /linux/etc/init or /linux/etc/rc.
-				If one is there, we do a chroot("/linux").
+				of the file /linux/etc/init or /linux/etc/rc or
+				/linux/sbin/init. If one is there, we do a chroot("/linux").
 
 				We check both because (see init/main.c) the kernel
 				try to exec init at different place and if it fails
@@ -454,32 +452,48 @@ struct super_block *UMSDOS_read_super(
 					,UMSDOS_PSDROOT_LEN,&pseudo)==0
 				&& S_ISDIR(pseudo->i_mode)){
 				struct inode *etc = NULL;
-				struct inode *rc = NULL;
+				struct inode *sbin = NULL;
+				int pseudo_ok = 0;
 				Printk (("/%s is there\n",UMSDOS_PSDROOT_NAME));
 				if (umsdos_real_lookup (pseudo,"etc",3,&etc)==0
 					&& S_ISDIR(etc->i_mode)){
-					struct inode *init;
+					struct inode *init = NULL;
+					struct inode *rc = NULL;
 					Printk (("/%s/etc is there\n",UMSDOS_PSDROOT_NAME));
 					if ((umsdos_real_lookup (etc,"init",4,&init)==0
 							&& S_ISREG(init->i_mode))
 						|| (umsdos_real_lookup (etc,"rc",2,&rc)==0
 							&& S_ISREG(rc->i_mode))){
-						umsdos_setup_dir_inode (pseudo);
-						Printk (("Activating pseudo root /%s\n",UMSDOS_PSDROOT_NAME));
-						pseudo_root = pseudo;
-						pseudo->i_count++;
-						pseudo = NULL;
+						pseudo_ok = 1;
 					}
 					iput (init);
 					iput (rc);
 				}
+				if (!pseudo_ok
+					&& umsdos_real_lookup (pseudo,"sbin",4,&sbin)==0
+					&& S_ISDIR(sbin->i_mode)){
+					struct inode *init = NULL;
+					Printk (("/%s/sbin is there\n",UMSDOS_PSDROOT_NAME));
+					if (umsdos_real_lookup (sbin,"init",4,&init)==0
+							&& S_ISREG(init->i_mode)){
+						pseudo_ok = 1;
+					}
+					iput (init);
+				}
+				if (pseudo_ok){
+					umsdos_setup_dir_inode (pseudo);
+					Printk (("Activating pseudo root /%s\n",UMSDOS_PSDROOT_NAME));
+					pseudo_root = pseudo;
+					pseudo->i_count++;
+					pseudo = NULL;
+				}
+				iput (sbin);
 				iput (etc);
 			}
 			iput (pseudo);
 		}
-		#ifdef MODULE
-			MOD_INC_USE_COUNT;
-		#endif
+	} else {
+		MOD_DEC_USE_COUNT;
 	}
 	return sb;
 }
@@ -501,12 +515,7 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	if (MOD_IN_USE)
-		printk("Umsdos: file system in use, remove delayed\n");
-	else
-	{
-		unregister_filesystem(&umsdos_fs_type);
-	}
+	unregister_filesystem(&umsdos_fs_type);
 }
 
 #endif

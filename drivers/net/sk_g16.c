@@ -56,7 +56,6 @@ static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
  *        - (Try to make it slightly faster.) 
  */
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/ptrace.h>
@@ -330,7 +329,7 @@ static char *rcsid = "$Id: sk_g16.c,v 1.1 1994/06/30 16:25:15 root Exp $";
 #ifndef HAVE_PORTRESERVE
 
 #define check_region(ioaddr, size)              0
-#define snarf_region(ioaddr, size);             do ; while (0)
+#define request_region(ioaddr, size,name)       do ; while (0)
 
 #endif
 
@@ -488,7 +487,7 @@ static int   SK_probe(struct device *dev, short ioaddr);
 
 static int   SK_open(struct device *dev);
 static int   SK_send_packet(struct sk_buff *skb, struct device *dev);
-static void  SK_interrupt(int reg_ptr);
+static void  SK_interrupt(int irq, struct pt_regs * regs);
 static void  SK_rxintr(struct device *dev);
 static void  SK_txintr(struct device *dev);
 static int   SK_close(struct device *dev);
@@ -722,7 +721,7 @@ int SK_probe(struct device *dev, short ioaddr)
 
 	outb(SK_ROM_RAM_OFF, SK_POS2);     /* Boot_ROM + RAM off */  
 
-        /* We found a Boot_ROM and its gone. Set RAM address on
+        /* We found a Boot_ROM and it's gone. Set RAM address on
          * Boot_ROM address. 
          */ 
 
@@ -783,7 +782,7 @@ int SK_probe(struct device *dev, short ioaddr)
 	    dev->dev_addr[5]);
 
     /* Grab the I/O Port region */
-    snarf_region(ioaddr, ETHERCARD_TOTAL_SIZE);
+    request_region(ioaddr, ETHERCARD_TOTAL_SIZE,"sk_g16");
 
     /* Initialize device structure */
 
@@ -1301,7 +1300,7 @@ static int SK_send_packet(struct sk_buff *skb, struct device *dev)
  * Description    : SK_G16 interrupt handler which checks for LANCE
  *                  Errors, handles transmit and receive interrupts
  *
- * Parameters     : I : int reg_ptr -
+ * Parameters     : I : int irq, struct pt_regs * regs -
  * Return Value   : None
  * Errors         : None
  * Globals        : None
@@ -1310,9 +1309,8 @@ static int SK_send_packet(struct sk_buff *skb, struct device *dev)
  *     YY/MM/DD  uid  Description
 -*/
 
-static void SK_interrupt(int reg_ptr)
+static void SK_interrupt(int irq, struct pt_regs * regs)
 {
-    int irq = pt_regs2irq(reg_ptr);
     int csr0;
     struct device *dev = (struct device *) irq2dev_map[irq];
     struct priv *p = (struct priv *) dev->priv;
@@ -1613,6 +1611,7 @@ static void SK_rxintr(struct device *dev)
 	     * netif_rx() always succeeds. see /net/inet/dev.c for more.
 	     */
 
+	    skb->protocol=eth_type_trans(skb,dev);
 	    netif_rx(skb);                 /* queue packet and mark it for processing */
 	   
 	    /* 

@@ -1,5 +1,5 @@
-#ifndef _ASM_MIPS_DELAY_H
-#define _ASM_MIPS_DELAY_H
+#ifndef __ASM_MIPS_DELAY_H
+#define __ASM_MIPS_DELAY_H
 
 extern __inline__ void __delay(int loops)
 {
@@ -27,10 +27,20 @@ extern __inline__ void __delay(int loops)
 extern __inline__ void udelay(unsigned long usecs)
 {
 	usecs *= 0x000010c6;		/* 2**32 / 1000000 */
-	__asm__("mul\t%0,%0,%1"
+	__asm__("multu\t%0,%1\n\t"
+		"mfhi\t%0"
 		:"=r" (usecs)
 		:"0" (usecs),"r" (loops_per_sec));
 	__delay(usecs);
 }
 
-#endif /* defined (_ASM_MIPS_DELAY_H) */
+/*
+ * The different variants for 32/64 bit are pure paranoia. The typical
+ * range of numbers that apprears for MIPS machines avoids overflows.
+ */
+extern __inline__ unsigned long muldiv(unsigned long a, unsigned long b, unsigned long c)
+{
+	return (a*b)/c;
+}
+
+#endif /* __ASM_MIPS_DELAY_H */

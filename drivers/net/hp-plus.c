@@ -21,21 +21,17 @@
 static char *version =
 "hp-plus.c:v1.10 9/24/94 Donald Becker (becker@cesdis.gsfc.nasa.gov)\n";
 
-#include <linux/config.h>
 #include <linux/string.h>		/* Important -- this inlines word moves. */
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+
 #include <asm/system.h>
 #include <asm/io.h>
 
-#ifdef start_bh_atomic			/* This checks for kernels >= 1.1.0. */
-#include <linux/netdevice.h>
-#include <linux/etherdevice.h>
-#else
-#include "dev.h"
-#endif
 
 #include "8390.h"
 extern struct device *init_etherdev(struct device *dev, int sizeof_private,
@@ -182,7 +178,7 @@ int hpp_probe1(struct device *dev, int ioaddr)
 	}
 
 	/* Grab the region so we can find another board if something fails. */
-	snarf_region(ioaddr, HP_IO_EXTENT);
+	request_region(ioaddr, HP_IO_EXTENT,"hp-plus");
 
 	/* Read the IRQ line. */
 	outw(HW_Page, ioaddr + HP_PAGING);

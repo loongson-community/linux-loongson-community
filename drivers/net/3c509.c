@@ -27,6 +27,11 @@
 static char *version = "3c509.c:1.03 10/8/94 becker@cesdis.gsfc.nasa.gov\n";
 
 #include <linux/config.h>
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#endif
+
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -42,11 +47,6 @@ static char *version = "3c509.c:1.03 10/8/94 becker@cesdis.gsfc.nasa.gov\n";
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-#ifdef MODULE
-#include <linux/module.h>
-#include "../../tools/version.h"
-#endif
-
 
 
 #ifdef EL3_DEBUG
@@ -102,7 +102,7 @@ static ushort id_read_eeprom(int index);
 static ushort read_eeprom(short ioaddr, int index);
 static int el3_open(struct device *dev);
 static int el3_start_xmit(struct sk_buff *skb, struct device *dev);
-static void el3_interrupt(int reg_ptr);
+static void el3_interrupt(int irq, struct pt_regs *regs);
 static void update_stats(int addr, struct device *dev);
 static struct enet_statistics *el3_get_stats(struct device *dev);
 static int el3_rx(struct device *dev);
@@ -224,11 +224,11 @@ int el3_probe(struct device *dev)
 	dev->base_addr = ioaddr;
 	dev->irq = irq;
 	dev->if_port = if_port;
-	snarf_region(dev->base_addr, 16);
+	request_region(dev->base_addr, 16,"3c509");
 
 	{
 		char *if_names[] = {"10baseT", "AUI", "undefined", "BNC"};
-		printk("%s: 3c509 at %#3.3x tag %d, %s port, address ",
+		printk("%s: 3c509 at %#3.3lx tag %d, %s port, address ",
 			   dev->name, dev->base_addr, current_tag, if_names[dev->if_port]);
 	}
 
@@ -460,10 +460,8 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 
 /* The EL3 interrupt handler. */
 static void
-el3_interrupt(int reg_ptr)
+el3_interrupt(int irq, struct pt_regs *regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
-
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	int ioaddr, status;
 	int i = 0;
@@ -605,6 +603,7 @@ el3_rx(struct device *dev)
 				insl(ioaddr+RX_FIFO, skb->data,
 							(pkt_len + 3) >> 2);
 
+				skb->protocol=eth_type_trans(skb,dev);
 				netif_rx(skb);
 				outw(RxDiscard, ioaddr + EL3_CMD); /* Pop top Rx packet. */
 				lp->stats.rx_packets++;
@@ -634,8 +633,13 @@ static void
 set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 {
 	short ioaddr = dev->base_addr;
-	if (el3_debug > 1)
-		printk("%s: Setting Rx mode to %d addresses.\n", dev->name, num_addrs);
+	if (el3_debug > 1) {
+		static int old = 0;
+		if (old != num_addrs) {
+			old = num_addrs;
+			printk("%s: Setting Rx mode to %d addresses.\n", dev->name, num_addrs);
+		}
+	}
 	if (num_addrs > 0) {
 		outw(SetRxFilter|RxStation|RxMulticast|RxBroadcast, ioaddr + EL3_CMD);
 	} else if (num_addrs < 0) {

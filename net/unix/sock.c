@@ -27,7 +27,6 @@
  *		2 of the License, or(at your option) any later version.
  */
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/major.h>
 #include <linux/signal.h>
@@ -49,14 +48,14 @@
 
 #include <stdarg.h>
 
-#include "unix.h"
+#include <net/unix.h>
 
 /*
  *	Because these have the address in them they casually waste an extra 8K of kernel data
  *	space that need not be wasted.
  */
  
-struct unix_proto_data unix_datas[NSOCKETS];
+struct unix_proto_data unix_datas[NSOCKETS_UNIX];
 
 static int unix_proto_create(struct socket *sock, int protocol);
 static int unix_proto_dup(struct socket *newsock, struct socket *oldsock);
@@ -331,7 +330,7 @@ static int unix_proto_create(struct socket *sock, int protocol)
 	upd->protocol = protocol;
 	upd->socket = sock;
 	UN_DATA(sock) = upd;
-	upd->refcnt = 1;	/* Now its complete - bgm */
+	upd->refcnt = 1;	/* Now it's complete - bgm */
 	return(0);
 }
 
@@ -422,7 +421,7 @@ static int unix_proto_bind(struct socket *sock, struct sockaddr *umyaddr,
 	i = do_mknod(fname, S_IFSOCK | S_IRWXUGO, 0);
 
 	if (i == 0) 
-		i = open_namei(fname, 0, S_IFSOCK, &upd->inode, NULL);
+		i = open_namei(fname, 2, S_IFSOCK, &upd->inode, NULL);
 	set_fs(old_fs);
 	if (i < 0) 
 	{
@@ -431,7 +430,7 @@ static int unix_proto_bind(struct socket *sock, struct sockaddr *umyaddr,
 			i=-EADDRINUSE;
 		return(i);
 	}
-	upd->sockaddr_len = sockaddr_len;	/* now its legal */
+	upd->sockaddr_len = sockaddr_len;	/* now it's legal */
 	
 	return(0);
 }
@@ -482,7 +481,7 @@ static int unix_proto_connect(struct socket *sock, struct sockaddr *uservaddr,
 	fname[sockaddr_len-UN_PATH_OFFSET] = '\0';
 	old_fs = get_fs();
 	set_fs(get_ds());
-	i = open_namei(fname, 0, S_IFSOCK, &inode, NULL);
+	i = open_namei(fname, 2, S_IFSOCK, &inode, NULL);
 	set_fs(old_fs);
 	if (i < 0) 
 	{
@@ -496,7 +495,7 @@ static int unix_proto_connect(struct socket *sock, struct sockaddr *uservaddr,
 		return(-EINVAL);
 	}
 	
-	if ((i = sock_awaitconn(sock, serv_upd->socket)) < 0) 
+	if ((i = sock_awaitconn(sock, serv_upd->socket, flags)) < 0) 
 	{
 		return(i);
 	}
@@ -546,13 +545,14 @@ static int unix_proto_accept(struct socket *sock, struct socket *newsock, int fl
 	{
 		if (flags & O_NONBLOCK) 
 			return(-EAGAIN);
+		sock->flags |= SO_WAITDATA;
 		interruptible_sleep_on(sock->wait);
+		sock->flags &= ~SO_WAITDATA;
 		if (current->signal & ~current->blocked) 
 		{
 			return(-ERESTARTSYS);
 		}
 	}
-
 /*
  * Great. Finish the connection relative to server and client,
  * wake up the client and return the new fd to the server.
@@ -569,6 +569,7 @@ static int unix_proto_accept(struct socket *sock, struct socket *newsock, int fl
 	UN_DATA(newsock)->sockaddr_un        = UN_DATA(sock)->sockaddr_un;
 	UN_DATA(newsock)->sockaddr_len       = UN_DATA(sock)->sockaddr_len;
 	wake_up_interruptible(clientsock->wait);
+	sock_wake_async(clientsock, 0);
 	return(0);
 }
 
@@ -622,7 +623,9 @@ static int unix_proto_read(struct socket *sock, char *ubuf, int size, int nonblo
 		}
 		if (nonblock) 
 			return(-EAGAIN);
+		sock->flags |= SO_WAITDATA;
 		interruptible_sleep_on(sock->wait);
+		sock->flags &= ~SO_WAITDATA;
 		if (current->signal & ~current->blocked) 
 		{
 			return(-ERESTARTSYS);
@@ -655,7 +658,10 @@ static int unix_proto_read(struct socket *sock, char *ubuf, int size, int nonblo
 		ubuf += cando;
 		todo -= cando;
 		if (sock->state == SS_CONNECTED)
+		{
 			wake_up_interruptible(sock->conn->wait);
+			sock_wake_async(sock->conn, 2);
+		}
 		avail = UN_BUF_AVAIL(upd);
 	} 
 	while(todo && avail);
@@ -690,8 +696,10 @@ static int unix_proto_write(struct socket *sock, char *ubuf, int size, int nonbl
 
 	while(!(space = UN_BUF_SPACE(pupd))) 
 	{
+		sock->flags |= SO_NOSPACE;
 		if (nonblock) 
 			return(-EAGAIN);
+		sock->flags &= ~SO_NOSPACE;
 		interruptible_sleep_on(sock->wait);
 		if (current->signal & ~current->blocked) 
 		{
@@ -745,7 +753,10 @@ static int unix_proto_write(struct socket *sock, char *ubuf, int size, int nonbl
 		ubuf += cando;
 		todo -= cando;
 		if (sock->state == SS_CONNECTED)
+		{
 			wake_up_interruptible(sock->conn->wait);
+			sock_wake_async(sock->conn, 1);
+		}
 		space = UN_BUF_SPACE(pupd);
 	}
 	while(todo && space);

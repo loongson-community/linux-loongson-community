@@ -20,6 +20,9 @@ OBJS=	ialloc.o balloc.o inode.o file.o dir.o symlink.o namei.o \
 sysv.o: $(OBJS)
 	$(LD) -r -o sysv.o $(OBJS)
 
+modules: sysv.o
+	ln -sf ../fs/sysv/sysv.o $(TOPDIR)/modules
+
 dep:
 	$(CPP) -M *.c > .depend
 

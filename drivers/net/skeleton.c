@@ -97,7 +97,7 @@ extern int netcard_probe(struct device *dev);
 static int netcard_probe1(struct device *dev, int ioaddr);
 static int net_open(struct device *dev);
 static int	net_send_packet(struct sk_buff *skb, struct device *dev);
-static void net_interrupt(int reg_ptr);
+static void net_interrupt(int irq, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static int net_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
@@ -247,7 +247,7 @@ static int netcard_probe1(struct device *dev, int ioaddr)
 #endif	/* jumpered DMA */
 
 	/* Grab the region so we can find another board if autoIRQ fails. */
-	snarf_region(ioaddr, NETCARD_IO_EXTENT);
+	request_region(ioaddr, NETCARD_IO_EXTENT,"skeleton");
 
 	/* Initialize the device structure. */
 	if (dev->priv == NULL)
@@ -355,9 +355,8 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 /* The typical workload of the driver:
    Handle the network interface interrupts. */
 static void
-net_interrupt(int reg_ptr)
+net_interrupt(int irq, struct pt_regs * regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status, boguscount = 0;

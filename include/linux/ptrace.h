@@ -1,11 +1,9 @@
 #ifndef _LINUX_PTRACE_H
 #define _LINUX_PTRACE_H
+/* ptrace.h */
+/* structs and defines to help the user use the ptrace system call. */
 
-/*
- * linux/include/linux/ptrace.h
- *
- * structs and defines to help the user use the ptrace system call.
- */
+/* has the defines to get at the registers. */
 
 #define PTRACE_TRACEME		   0
 #define PTRACE_PEEKTEXT		   1
@@ -23,9 +21,6 @@
 
 #define PTRACE_SYSCALL		  24
 
-/*
- * include machine dependend stuff
- */
 #include <asm/ptrace.h>
 
 #endif

@@ -24,10 +24,13 @@
 #include "kbd_kern.h"
 #include "vt_kern.h"
 #include "diacr.h"
+#include "selection.h"
 
 extern struct tty_driver console_driver;
+extern int sel_cons;
 
 #define VT_IS_IN_USE(i)	(console_driver.table[i] && console_driver.table[i]->count)
+#define VT_BUSY(i)	(VT_IS_IN_USE(i) || i == fg_console || i == sel_cons)
 
 /*
  * Console (vt and kd) routines, as defined by USL SVR4 manual, and by
@@ -52,6 +55,8 @@ extern void compute_shiftstate(void);
 extern void change_console(unsigned int new_console);
 extern void complete_change_console(unsigned int new_console);
 extern int vt_waitactive(void);
+extern void do_blank_screen(int nopowersave);
+extern void do_unblank_screen(void);
 
 extern unsigned int keymap_count;
 
@@ -60,6 +65,9 @@ extern unsigned int keymap_count;
  */
 extern int con_set_trans(char * table);
 extern int con_get_trans(char * table);
+extern void con_clear_unimap(struct unimapinit *ui);
+extern int con_set_unimap(ushort ct, struct unipair *list);
+extern int con_get_unimap(ushort ct, ushort *uct, struct unipair *list);
 extern int con_set_font(char * fontmap);
 extern int con_get_font(char * fontmap);
 
@@ -127,7 +135,7 @@ kd_mksound(unsigned int count, unsigned int ticks)
 int vt_ioctl(struct tty_struct *tty, struct file * file,
 	     unsigned int cmd, unsigned long arg)
 {
-	int i;
+	int i, perm;
 	unsigned int console;
 	unsigned char ucval;
 	struct kbd_struct * kbd;
@@ -138,13 +146,25 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	if (!vc_cons_allocated(console)) 	/* impossible? */
 		return -ENOIOCTLCMD;
 
+	/*
+	 * To have permissions to do most of the vt ioctls, we either have
+	 * to be the owner of the tty, or super-user.
+	 */
+	perm = 0;
+	if (current->tty == tty || suser())
+		perm = 1;
+
 	kbd = kbd_table + console;
 	switch (cmd) {
 	case KIOCSOUND:
+		if (!perm)
+			return -EPERM;
 		kd_mksound((unsigned int)arg, 0);
 		return 0;
 
 	case KDMKTONE:
+		if (!perm)
+			return -EPERM;
 	{
 		unsigned int ticks = HZ * ((arg >> 16) & 0xffff) / 1000;
 
@@ -188,6 +208,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		 * doesn't do a whole lot. i'm not sure if it should do any
 		 * restoration of modes or what...
 		 */
+		if (!perm)
+			return -EPERM;
 		switch (arg) {
 		case KD_GRAPHICS:
 			break;
@@ -208,11 +230,9 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		 * explicitly blank/unblank the screen if switching modes
 		 */
 		if (arg == KD_TEXT)
-			unblank_screen();
-		else {
-			timer_active &= ~(1<<BLANK_TIMER);
-			blank_screen();
-		}
+			do_unblank_screen();
+		else
+			do_blank_screen(1);
 		return 0;
 
 	case KDGETMODE:
@@ -230,6 +250,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return -EINVAL;
 
 	case KDSKBMODE:
+		if (!perm)
+			return -EPERM;
 		switch(arg) {
 		  case K_RAW:
 			kbd->kbdmode = VC_RAW;
@@ -309,6 +331,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		struct kbkeycode * const a = (struct kbkeycode *)arg;
 		unsigned int sc, kc;
 
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbkeycode));
 		if (i)
 			return i;
@@ -346,8 +370,10 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		const struct kbentry * a = (struct kbentry *)arg;
 		ushort *key_map;
 		u_char s;
-		u_short v;
+		u_short v, ov;
 
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbentry));
 		if (i)
 			return i;
@@ -359,7 +385,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		if (!i && v == K_NOSUCHMAP) {
 			/* disallocate map */
 			key_map = key_maps[s];
-			if (key_map) {
+			if (s && key_map) {
 			    key_maps[s] = 0;
 			    if (key_map[0] == U(K_ALLOCATED)) {
 				kfree_s(key_map, sizeof(plain_map));
@@ -381,6 +407,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 			return 0;
 
 		if (!(key_map = key_maps[s])) {
+			int j;
+
 			if (keymap_count >= MAX_NR_OF_USER_KEYMAPS && !suser())
 				return -EPERM;
 
@@ -390,18 +418,22 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				return -ENOMEM;
 			key_maps[s] = key_map;
 			key_map[0] = U(K_ALLOCATED);
-			for (s = 1; s < NR_KEYS; s++)
-				key_map[s] = U(K_HOLE);
+			for (j = 1; j < NR_KEYS; j++)
+				key_map[j] = U(K_HOLE);
 			keymap_count++;
 		}
+		ov = U(key_map[i]);
+		if (v == ov)
+			return 0;	/* nothing to do */
 		/*
 		 * Only the Superuser can set or unset the Secure
 		 * Attention Key.
 		 */
-		if (((key_map[i] == U(K_SAK)) || (v == K_SAK)) &&
-		    !suser())
+		if (((ov == K_SAK) || (v == K_SAK)) && !suser())
 			return -EPERM;
 		key_map[i] = U(v);
+		if (!s && (KTYP(ov) == KT_SHIFT || KTYP(v) == KT_SHIFT))
+			compute_shiftstate();
 		return 0;
 	}
 
@@ -437,6 +469,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		u_char *p;
 		char *q;
 
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_READ, (void *)a, sizeof(struct kbsentry));
 		if (i)
 			return i;
@@ -520,6 +554,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		struct kbdiacrs *a = (struct kbdiacrs *)arg;
 		unsigned int ct;
 
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_READ, (void *) a, sizeof(struct kbdiacrs));
 		if (i)
 			return i;
@@ -542,6 +578,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
 
 	case KDSKBLED:
+		if (!perm)
+			return -EPERM;
 		if (arg & ~0x77)
 			return -EINVAL;
 		kbd->ledflagstate = (arg & 7);
@@ -559,14 +597,40 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		return 0;
 
 	case KDSETLED:
+		if (!perm)
+		  return -EPERM;
 		setledstate(kbd, arg);
 		return 0;
+
+	/*
+	 * A process can indicate its willingness to accept signals
+	 * generated by pressing an appropriate key combination.
+	 * Thus, one can have a daemon that e.g. spawns a new console
+	 * upon a keypress and then changes to it.
+	 * Probably init should be changed to do this (and have a
+	 * field ks (`keyboard signal') in inittab describing the
+	 * desired action), so that the number of background daemons
+	 * does not increase.
+	 */
+	case KDSIGACCEPT:
+	{
+		extern int spawnpid, spawnsig;
+		if (!perm)
+		  return -EPERM;
+		if (arg < 1 || arg > NSIG || arg == SIGKILL)
+		  return -EINVAL;
+		spawnpid = current->pid;
+		spawnsig = arg;
+		return 0;
+	}
 
 	case VT_SETMODE:
 	{
 		struct vt_mode *vtmode = (struct vt_mode *)arg;
 		char mode;
 
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_WRITE, (void *)vtmode, sizeof(struct vt_mode));
 		if (i)
 			return i;
@@ -615,8 +679,7 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		put_fs_word(fg_console + 1, &vtstat->v_active);
 		state = 1;	/* /dev/tty0 is always open */
 		for (i = 0, mask = 2; i < MAX_NR_CONSOLES && mask; ++i, mask <<= 1)
-			if (console_driver.table[i] &&
-			    console_driver.table[i]->count > 0)
+			if (VT_IS_IN_USE(i))
 				state |= mask;
 		put_fs_word(state, &vtstat->v_state);
 		return 0;
@@ -642,6 +705,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	 * to preserve sanity).
 	 */
 	case VT_ACTIVATE:
+		if (!perm)
+			return -EPERM;
 		if (arg == 0 || arg > MAX_NR_CONSOLES)
 			return -ENXIO;
 		arg--;
@@ -655,6 +720,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	 * wait until the specified VT has been activated
 	 */
 	case VT_WAITACTIVE:
+		if (!perm)
+			return -EPERM;
 		if (arg == 0 || arg > MAX_NR_CONSOLES)
 			return -ENXIO;
 		arg--;
@@ -676,6 +743,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	 *	2:	completed switch-to OK
 	 */
 	case VT_RELDISP:
+		if (!perm)
+			return -EPERM;
 		if (vt_cons[console]->vt_mode.mode != VT_PROCESS)
 			return -EINVAL;
 
@@ -729,21 +798,15 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 		if (arg == 0) {
 		    /* disallocate all unused consoles, but leave 0 */
 		    for (i=1; i<MAX_NR_CONSOLES; i++)
-		      if (! VT_IS_IN_USE(i)) {
-			  if (i == fg_console)
-			    change_console(0);
-			  vc_disallocate(i);
-		      }
+		      if (! VT_BUSY(i))
+			vc_disallocate(i);
 		} else {
 		    /* disallocate a single console, if possible */
 		    arg--;
-		    if (VT_IS_IN_USE(arg))
+		    if (VT_BUSY(arg))
 		      return -EBUSY;
-		    if (arg) {			      /* leave 0 */
-			if (arg == fg_console)
-			  change_console(0);
-			vc_disallocate(arg);
-		    }
+		    if (arg)			      /* leave 0 */
+		      vc_disallocate(arg);
 		}
 		return 0;
 
@@ -751,6 +814,8 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	{
 		struct vt_sizes *vtsizes = (struct vt_sizes *) arg;
 		ushort ll,cc;
+		if (!perm)
+			return -EPERM;
 		i = verify_area(VERIFY_READ, (void *)vtsizes, sizeof(struct vt_sizes));
 		if (i)
 			return i;
@@ -760,21 +825,78 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	}
 
 	case PIO_FONT:
+		if (!perm)
+			return -EPERM;
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+			return -EINVAL;
 		return con_set_font((char *)arg);
 		/* con_set_font() defined in console.c */
 
 	case GIO_FONT:
+		if (vt_cons[fg_console]->vc_mode != KD_TEXT)
+			return -EINVAL;
 		return con_get_font((char *)arg);
 		/* con_get_font() defined in console.c */
 
 	case PIO_SCRNMAP:
+		if (!perm)
+			return -EPERM;
 		return con_set_trans((char *)arg);
-		/* con_set_trans() defined in console.c */
 
 	case GIO_SCRNMAP:
 		return con_get_trans((char *)arg);
-		/* con_get_trans() defined in console.c */
 
+	case PIO_UNIMAPCLR:
+	      { struct unimapinit ui;
+		if (!perm)
+			return -EPERM;
+		i = verify_area(VERIFY_READ, (void *)arg, sizeof(struct unimapinit));
+		if (i)
+		  return i;
+		memcpy_fromfs(&ui, (void *)arg, sizeof(struct unimapinit));
+		con_clear_unimap(&ui);
+		return 0;
+	      }
+
+	case PIO_UNIMAP:
+	      { struct unimapdesc *ud;
+		u_short ct;
+		struct unipair *list;
+
+		if (!perm)
+			return -EPERM;
+		i = verify_area(VERIFY_READ, (void *)arg, sizeof(struct unimapdesc));
+		if (i == 0) {
+		    ud = (struct unimapdesc *) arg;
+		    ct = get_fs_word(&ud->entry_ct);
+		    list = (struct unipair *) get_fs_long(&ud->entries);
+		    i = verify_area(VERIFY_READ, (void *) list,
+				    ct*sizeof(struct unipair));
+		}
+		if (i)
+		  return i;
+		return con_set_unimap(ct, list);
+	      }
+
+	case GIO_UNIMAP:
+	      { struct unimapdesc *ud;
+		u_short ct;
+		struct unipair *list;
+
+		i = verify_area(VERIFY_WRITE, (void *)arg, sizeof(struct unimapdesc));
+		if (i == 0) {
+		    ud = (struct unimapdesc *) arg;
+		    ct = get_fs_word(&ud->entry_ct);
+		    list = (struct unipair *) get_fs_long(&ud->entries);
+		    if (ct)
+		      i = verify_area(VERIFY_WRITE, (void *) list,
+				      ct*sizeof(struct unipair));
+		}
+		if (i)
+		  return i;
+		return con_get_unimap(ct, &(ud->entry_ct), list);
+	      }
+ 
 	default:
 		return -ENOIOCTLCMD;
 	}

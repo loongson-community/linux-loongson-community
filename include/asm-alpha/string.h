@@ -1,19 +1,15 @@
 #ifndef __ALPHA_STRING_H
 #define __ALPHA_STRING_H
 
-/* This doesn't actually work that well for unaligned stuff ;-p */
-extern inline void * memcpy(void * to, const void * from, size_t n)
-{
-	const unsigned long * f = from;
-	unsigned long * t = to;
-	int size = n;
+extern void * __constant_c_memset(void *, unsigned long, long);
+extern void * __memset(void *, char, size_t);
+extern void * __memcpy(void *, const void *, size_t);
 
-	for (;;) {
-		size -= 8;
-		if (size < 0)
-			return to;
-		*(t++) = *(f++);
-	}
-}
+#define memset(s, c, count) \
+(__builtin_constant_p(c) ? \
+ __constant_c_memset((s),(0x01010101UL*(unsigned char)c),(count)) : \
+ __memset((s),(c),(count)))
+
+#define memcpy(d,s,count) __memcpy((d),(s),(count))
 
 #endif

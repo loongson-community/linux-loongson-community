@@ -24,7 +24,7 @@ extern int ethif_init(struct device *dev);
 extern int ethdev_init(struct device *dev);
 extern void NS8390_init(struct device *dev, int startp);
 extern int ei_open(struct device *dev);
-extern void ei_interrupt(int reg_ptr);
+extern void ei_interrupt(int irq, struct pt_regs *regs);
 
 #ifndef HAVE_AUTOIRQ
 /* From auto_irq.c */
@@ -44,14 +44,13 @@ struct ei_device {
   unsigned open:1;
   unsigned word16:1;  /* We have the 16-bit (vs 8-bit) version of the card. */
   unsigned txing:1;		/* Transmit Active */
-  unsigned dmaing:2;		/* Remote DMA Active */
   unsigned irqlock:1;		/* 8390's intrs disabled when '1'. */
   unsigned pingpong:1;		/* Using the ping-pong driver */
   unsigned char tx_start_page, rx_start_page, stop_page;
   unsigned char current_page;	/* Read pointer in buffer  */
   unsigned char interface_num;	/* Net port (AUI, 10bT.) to use. */
   unsigned char txqueue;	/* Tx Packet buffer queue length. */
-  unsigned char in_interrupt;
+  unsigned char dmaing;		/* Remote DMA (Tx/Rx/Active) */
   short tx1, tx2;		/* Packet lengths for ping-pong tx. */
   short lasttx;			/* Alpha version consistency check. */
   unsigned char reg0;		/* Register '0' in a WD8013 */
@@ -60,6 +59,12 @@ struct ei_device {
   /* The new statistics table. */
   struct enet_statistics stat;
 };
+
+/* The maximum number of 8390 interrupt service routines called per IRQ. */
+#define MAX_SERVICE 12
+
+/* The maximum number of jiffies waited before assuming a Tx failed. */
+#define TX_TIMEOUT 20 
 
 #define ei_status (*(struct ei_device *)(dev->priv))
 

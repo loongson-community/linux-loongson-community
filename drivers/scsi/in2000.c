@@ -1,7 +1,7 @@
 /*
  *  This file is in2000.c, written and
  *  Copyright (C) 1993  Brad McLean
- *	Last edit 08/25/94 WDE
+ *	Last edit 1/19/95 TZ
  * Disclaimer:
  * Note:  This is ugly.  I know it, I wrote it, but my whole
  * focus was on getting the damn thing up and out quickly.
@@ -46,6 +46,12 @@
  */
 /* Changes for 1.1.43+ kernels made 8/25/94, code added to check for
  * new BIOS version, derived by jshiffle@netcom.com. (WDE)
+ *
+ * 1/7/95 Fix from Peter Lu (swift@world.std.com) for datalen vs. dataptr
+ * logic, much more stable under load.
+ *
+ * 1/19/95 (zerucha@shell.portal.com) Added module and biosparam support for
+ * larger SCSI hard drives (untested).
  */
 
 #include <linux/kernel.h>
@@ -195,10 +201,9 @@ static void in2000_fifo_out(void)	/* uses FIFOCNTR */
 #endif
     } while((in2000_datalen > 0) && ((infcnt = (inb(INFCNT)) & 0xfe) >= 0x20) );
     /* If scatter-gather, go on to next segment */
-    if( !in2000_datalen && in2000_current_segment < in2000_nsegment)
+    if( !in2000_datalen && ++in2000_current_segment < in2000_nsegment)
       {
       in2000_scatter++;
-      in2000_current_segment++;
       in2000_datalen = in2000_scatter->length;
       in2000_dataptr = (unsigned short*)in2000_scatter->address;
       }
@@ -253,10 +258,9 @@ DEB(printk("FIr:%d %02x %08x %08x\n", in2000_datalen,fic,count2,(unsigned int)in
 DEB(printk("FIer:%d %02x %08x\n", in2000_datalen,fic,(unsigned int )in2000_dataptr));
 /*    while ( count-- )
     	inw(INFIFO);*/	/* Throw away some extra stuff */
-    if( !in2000_datalen && in2000_current_segment < in2000_nsegment)
+    if( !in2000_datalen && ++in2000_current_segment < in2000_nsegment)
       {
       in2000_scatter++;
-      in2000_current_segment++;
       in2000_datalen = in2000_scatter->length;
       in2000_dataptr = (unsigned short*)in2000_scatter->address;
       }
@@ -265,7 +269,7 @@ DEB(printk("FIer:%d %02x %08x\n", in2000_datalen,fic,(unsigned int )in2000_datap
 	ficmsk = 0;}
 }
 
-static void in2000_intr_handle(int foo)
+static void in2000_intr_handle(int irq, struct pt_regs *regs)
 {
     int result=0;
     unsigned int count,auxstatus,scsistatus,cmdphase,scsibyte;
@@ -288,13 +292,16 @@ static void in2000_intr_handle(int foo)
 		scsistatus,cmdphase,scsibyte));
 
 	/* Why do we assume that we need to send more data here??? ERY */
-   	if ( in2000_datalen && in2000_dataptr )	/* data xfer pending */
+   	if ( in2000_datalen )	/* data xfer pending */
    	    {
-   	    if ( in2000_datawrite )
+   	    if ( in2000_dataptr == NULL )
+		printk("int2000: dataptr=NULL datalen=%d\n",
+			in2000_datalen);
+	    else if ( in2000_datawrite )
 		in2000_fifo_out();
 	    else
 		in2000_fifo_in();
-   	    } else ficmsk = 0;
+   	    } 
 	if ( (auxstatus & 0x8c) == 0x80 )
 	    {	/* There is a WD Chip interrupt & register read good */
 	    outb(2,ININTR);	/* Disable fifo interrupts */
@@ -405,6 +412,7 @@ int in2000_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     unchar *cmd = (unchar *) SCpnt->cmnd;
     unchar target = SCpnt->target;
     void *buff = SCpnt->request_buffer;
+    unsigned long flags;
     int bufflen = SCpnt->request_bufflen;
     int timeout, size, loop;
     int i;
@@ -420,7 +428,7 @@ int in2000_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 	bufflen = 0;
 
     /*
-     * What it looks like.  Boy did I get tired of reading it's output.
+     * What it looks like.  Boy did I get tired of reading its output.
      */
     if (*cmd == READ_10 || *cmd == WRITE_10) {
 	i = xscsi2int((cmd+1));
@@ -454,7 +462,8 @@ int in2000_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     if ( in2000_SCptr )
     {
 	printk("in2000_queue_command waiting for free command block!\n");
-	while ( in2000_SCptr );
+	while ( in2000_SCptr )
+	    barrier();
     }
     for ( timeout = jiffies + 5; timeout > jiffies; )
     {
@@ -511,6 +520,7 @@ int in2000_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     /*
      * Set up the FIFO
      */
+    save_flags(flags);
     cli();		/* so FIFO init waits till WD set */
     outb(0,INFRST);
     if ( direction == 1 )
@@ -538,7 +548,7 @@ int in2000_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     outb(COMMAND,INSTAT);
     outb(0,INNLED);
     outb(8,INDATA);		/* Select w/ATN & Transfer */
-    sti();			/* let the intrpt rip */
+    restore_flags(flags);			/* let the intrpt rip */
     return 0;
 }
 
@@ -628,7 +638,7 @@ int in2000_detect(Scsi_Host_Template * tpnt)
     shpnt->io_port = base;
     shpnt->n_io_port = 12;
     shpnt->irq = irq_level;
-    snarf_region(base, 12);  /* Prevent other drivers from using this space */
+    request_region(base, 12,"in2000");  /* Prevent other drivers from using this space */
     return 1;
 }
 
@@ -678,5 +688,33 @@ int in2000_biosparam(Disk * disk, int dev, int* iinfo)
     iinfo[0] = 64;
     iinfo[1] = 32;
     iinfo[2] = size >> 11;
+/* This should approximate the large drive handling that the DOS ASPI manager
+   uses.  Drives very near the boundaries may not be handled correctly (i.e.
+   near 2.0 Gb and 4.0 Gb) */
+    if (iinfo[2] > 1024) {
+	iinfo[0] = 64;
+	iinfo[1] = 63;
+	iinfo[2] = disk->capacity / (iinfo[0] * iinfo[1]);
+	}
+    if (iinfo[2] > 1024) {
+	iinfo[0] = 128;
+	iinfo[1] = 63;
+	iinfo[2] = disk->capacity / (iinfo[0] * iinfo[1]);
+	}
+    if (iinfo[2] > 1024) {
+	iinfo[0] = 255;
+	iinfo[1] = 63;
+	iinfo[2] = disk->capacity / (iinfo[0] * iinfo[1]);
+	if (iinfo[2] > 1023)
+	    iinfo[2] = 1023;
+	}
     return 0;
     }
+
+#ifdef MODULE
+/* Eventually this will go into an include file, but this will be later */
+Scsi_Host_Template driver_template = IN2000;
+
+#include "scsi_module.c"
+#endif
+

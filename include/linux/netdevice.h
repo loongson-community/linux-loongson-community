@@ -31,13 +31,25 @@
 /* for future expansion when we will have different priorities. */
 #define DEV_NUMBUFFS	3
 #define MAX_ADDR_LEN	7
-#define MAX_HEADER	18
+#define MAX_HEADER	38
 
 #define IS_MYADDR	1		/* address is (one of) our own	*/
 #define IS_LOOPBACK	2		/* address is for LOOPBACK	*/
 #define IS_BROADCAST	3		/* address is a valid broadcast	*/
 #define IS_INVBCAST	4		/* Wrong netmask bcast not for us (unused)*/
 #define IS_MULTICAST	5		/* Multicast IP address */
+
+/*
+ *	We tag these structures with multicasts.
+ */
+ 
+struct dev_mc_list
+{	
+	struct dev_mc_list *next;
+	char dmi_addr[MAX_ADDR_LEN];
+	unsigned short dmi_addrlen;
+	unsigned short dmi_users;
+};
 
 /*
  * The DEVICE structure.
@@ -60,12 +72,12 @@ struct device
   unsigned long		  rmem_start;		/* shmem "recv" start	*/
   unsigned long		  mem_end;		/* sahared mem end	*/
   unsigned long		  mem_start;		/* shared mem start	*/
-  unsigned short	  base_addr;		/* device I/O address	*/
+  unsigned long		  base_addr;		/* device I/O address	*/
   unsigned char		  irq;			/* device IRQ number	*/
 
   /* Low-level status flags. */
+  volatile unsigned int   tbusy;		/* transmitter busy	*/
   volatile unsigned char  start,		/* start an operation	*/
-                          tbusy,		/* transmitter busy	*/
                           interrupt;		/* interrupt arrived	*/
 
   struct device		  *next;
@@ -107,7 +119,12 @@ struct device
   unsigned long		  pa_dstaddr;	/* protocol P-P other side addr	*/
   unsigned long		  pa_mask;	/* protocol netmask		*/
   unsigned short	  pa_alen;	/* protocol address length	*/
+
+  struct dev_mc_list	 *mc_list;	/* Multicast mac addresses	*/
+  int			 mc_count;	/* Number of installed mcasts	*/
   
+  struct ip_mc_list	 *ip_mc_list;	/* IP multicast filter chain    */
+    
   /* For load balancing driver pair support */
   
   unsigned long		   pkt_queue;	/* Packets queued */
@@ -131,8 +148,6 @@ struct device
 					  struct sk_buff *skb);
   int			  (*rebuild_header)(void *eth, struct device *dev,
 				unsigned long raddr, struct sk_buff *skb);
-  unsigned short	  (*type_trans) (struct sk_buff *skb,
-					 struct device *dev);
 #define HAVE_MULTICAST			 
   void			  (*set_multicast_list)(struct device *dev,
   					 int num_addrs, void *addrs);
@@ -142,13 +157,13 @@ struct device
   int			  (*do_ioctl)(struct device *dev, struct ifreq *ifr, int cmd);
 #define HAVE_SET_CONFIG
   int			  (*set_config)(struct device *dev, struct ifmap *map);
-  
+  int			  (*header_cache)(struct device *dev, struct sock *sk, unsigned long saddr, unsigned long daddr);  
 };
 
 
 struct packet_type {
   unsigned short	type;	/* This is really htons(ether_type). */
-  unsigned short	copy:1;
+  struct device *	dev;
   int			(*func) (struct sk_buff *, struct device *,
 				 struct packet_type *);
   void			*data;
@@ -158,13 +173,16 @@ struct packet_type {
 
 #ifdef __KERNEL__
 
+#include <linux/notifier.h>
+
 /* Used by dev_rint */
 #define IN_SKBUFF	1
 
-extern volatile char in_bh;
+extern volatile int in_bh;
 
+extern struct device	loopback_dev;
 extern struct device	*dev_base;
-extern struct packet_type *ptype_base;
+extern struct packet_type *ptype_base[16];
 
 
 extern int		ip_addr_match(unsigned long addr1, unsigned long addr2);
@@ -197,11 +215,20 @@ extern void		dev_init(void);
 /* These functions live elsewhere (drivers/net/net_init.c, but related) */
 
 extern void		ether_setup(struct device *dev);
+extern void		tr_setup(struct device *dev);
 extern int		ether_config(struct device *dev, struct ifmap *map);
 /* Support for loadable net-drivers */
 extern int		register_netdev(struct device *dev);
 extern void		unregister_netdev(struct device *dev);
-
+extern int 		register_netdevice_notifier(struct notifier_block *nb);
+extern int		unregister_netdevice_notifier(struct notifier_block *nb);
+/* Functions used for multicast support */
+extern void		dev_mc_upload(struct device *dev);
+extern void 		dev_mc_delete(struct device *dev, void *addr, int alen, int all);
+extern void		dev_mc_add(struct device *dev, void *addr, int alen, int newonly);
+extern void		dev_mc_discard(struct device *dev);
+/* This is the wrong place but it'll do for the moment */
+extern void		ip_mc_allhost(struct device *dev);
 #endif /* __KERNEL__ */
 
 #endif	/* _LINUX_DEV_H */

@@ -8,13 +8,17 @@
  */
 
 
-#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/minix_fs.h>
 #include <linux/ext2_fs.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/mm.h>
+
+#ifdef __mips__
+#include <asm/bootinfo.h>
+#endif
 #include <asm/system.h>
 #include <asm/segment.h>
 
@@ -28,6 +32,7 @@ extern void wait_for_keypress(void);
 char	*rd_start;
 int	rd_length = 0;
 static int rd_blocksizes[2] = {0, 0};
+extern char _end;
 
 static void do_rd_request(void)
 {
@@ -77,18 +82,30 @@ static struct file_operations rd_fops = {
 long rd_init(long mem_start, int length)
 {
 	int	i;
+#if __i386__
 	char	*cp;
+#endif
 
 	if (register_blkdev(MEM_MAJOR,"rd",&rd_fops)) {
 		printk("RAMDISK: Unable to get major %d.\n", MEM_MAJOR);
 		return 0;
 	}
 	blk_dev[MEM_MAJOR].request_fn = DEVICE_REQUEST;
+#if __i386__
 	rd_start = (char *) mem_start;
 	rd_length = length;
 	cp = rd_start;
 	for (i=0; i < length; i++)
 		*cp++ = '\0';
+#elif defined(__mips__)
+	rd_start = (char *) &_end;
+	rd_length = length;
+	/*
+	 * Don't reserve memory - this has already been done
+	 * in arch/mips/kernel/setup.c.
+	 */
+	length = 0;
+#endif
 
 	for(i=0;i<2;i++) rd_blocksizes[i] = 1024;
 	blksize_size[MAJOR_NR] = rd_blocksizes;
@@ -125,6 +142,7 @@ static void do_load(void)
 	 */
 	for (tries = 0; tries < 1000; tries += 512) {
 		block = tries;
+#if defined (__i386__)
 		bh = breada(ROOT_DEV,block+1,BLOCK_SIZE, 0,  PAGE_SIZE);
 		if (!bh) {
 			printk("RAMDISK: I/O error while looking for super block!\n");
@@ -135,7 +153,17 @@ static void do_load(void)
 		*((struct super_block *) &sb) =
 			*((struct super_block *) bh->b_data);
 		brelse(bh);
-
+#else /* !defined (__i386__) */
+		/*
+		 * Linux/MIPS loads ramdisk images via the host machine's
+		 * bootroms. This enables us not only to load the ramdisk
+		 * from floppy - we might also use CDROM or via network
+		 * from BOOTP/TFTP, DLC/RIPL boot servers.
+		 * The same applies for Linux/68k machines.
+		 */
+		*((struct super_block *) &sb) =
+			*((struct super_block *) rd_start + BLOCK_SIZE);
+#endif /* !defined (__i386__) */
 
 		/* Try Minix */
 		nblocks = -1;
@@ -167,6 +195,7 @@ static void do_load(void)
 					nblocks, rd_length >> BLOCK_SIZE_BITS);
 			return;
 		}
+#ifdef __i386__
 		printk("RAMDISK: Loading %d blocks into RAM disk", nblocks);
 
 		/* We found an image file system.  Load it into core! */
@@ -189,6 +218,7 @@ static void do_load(void)
 			i++;
 		}
 		printk("\ndone\n");
+#endif /* __i386__ */
 
 		/* We loaded the file system image.  Prepare for mounting it. */
 		ROOT_DEV = ((MEM_MAJOR << 8) | RAMDISK_MINOR);
@@ -209,8 +239,8 @@ void rd_load(void)
 	/* If no RAM disk specified, give up early. */
 	if (!rd_length)
 		return;
-	printk("RAMDISK: %d bytes, starting at 0x%x\n",
-			rd_length, (int) rd_start);
+	printk("RAMDISK: %d bytes, starting at 0x%p\n",
+			rd_length, rd_start);
 
 	/* If we are doing a diskette boot, we might have to pre-load it. */
 	if (MAJOR(ROOT_DEV) != FLOPPY_MAJOR)

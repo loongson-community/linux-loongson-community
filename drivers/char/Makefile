@@ -17,13 +17,23 @@
 	$(CC) $(CFLAGS) -c $<
 
 OBJS  = tty_io.o n_tty.o console.o keyboard.o serial.o \
-	tty_ioctl.o pty.o vt.o mem.o \
-	defkeymap.o uni_to_437.o
+	tty_ioctl.o pty.o vt.o mem.o vc_screen.o \
+	defkeymap.o consolemap.o vesa_blank.o selection.o
 
 SRCS  = tty_io.c n_tty.c console.c keyboard.c serial.c \
-	tty_ioctl.c pty.c vt.c mem.c \
-	defkeymap.c uni_to_437.c
+	tty_ioctl.c pty.c vt.c mem.c vc_screen.c \
+	defkeymap.c consolemap.c vesa_blank.c selection.c
 
+
+ifdef CONFIG_MIPS_MAGNUM_4000
+OBJS := $(OBJS) fnt8x16.o
+SRCS := $(SRCS) fnt8x16.c
+endif
+
+ifdef CONFIG_CYCLADES
+OBJS := $(OBJS) cyclades.o
+SRCS := $(SRCS) cyclades.c
+endif
 
 ifdef CONFIG_ATIXL_BUSMOUSE
 M = y
@@ -40,6 +50,8 @@ endif
 ifdef CONFIG_PRINTER
 OBJS := $(OBJS) lp.o
 SRCS := $(SRCS) lp.c
+else
+MODULES := $(MODULES) lp.o
 endif
 
 ifdef CONFIG_MS_BUSMOUSE
@@ -67,6 +79,12 @@ ifdef M
 OBJS := $(OBJS) mouse.o
 SRCS := $(SRCS) mouse.c
 endif
+  
+ifdef CONFIG_SCC
+OBJS := $(OBJS) scc.o
+SRCS := $(SRCS) scc.c
+endif
+ 
 
 all: char.a
 
@@ -74,8 +92,22 @@ char.a: $(OBJS)
 	$(AR) rcs char.a $(OBJS)
 	sync	
 
+ifdef MODULES
+
+modules: $(MODULES)
+	(cd ../../modules;for i in $(MODULES); do ln -sf ../drivers/char/$$i .; done)
+
+else
+
+modules:
+
+endif
+
 dep:
 	$(CPP) -M $(SRCS) > .depend
+ifdef MODULES
+	$(CPP) -M -DMODULE $(MODULES:.o=.c) >> .depend
+endif
 
 dummy:
 

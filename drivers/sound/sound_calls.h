@@ -100,7 +100,7 @@ void tenmicrosec(void);
 void request_sound_timer (int count);
 void sound_stop_timer(void);
 int snd_ioctl_return(int *addr, int value);
-int snd_set_irq_handler (int interrupt_level, void(*hndlr)(int));
+int snd_set_irq_handler (int interrupt_level, void(*hndlr)(int, struct pt_regs *));
 void snd_release_irq(int vect);
 void sound_dma_malloc(int dev);
 void sound_dma_free(int dev);
@@ -177,7 +177,7 @@ void pas_midi_interrupt(void);
 long attach_gus_card(long mem_start, struct address_info * hw_config);
 int probe_gus(struct address_info *hw_config);
 int gus_set_midi_irq(int num);
-void gusintr(int);
+void gusintr(int, struct pt_regs * regs);
 long attach_gus_db16(long mem_start, struct address_info * hw_config);
 int probe_gus_db16(struct address_info *hw_config);
 
@@ -225,7 +225,7 @@ void sound_timer_interrupt(void);
 /*	From ad1848.c */
 void ad1848_init (char *name, int io_base, int irq, int dma_playback, int dma_capture);
 int ad1848_detect (int io_base);
-void     ad1848_interrupt (int dev);
+void     ad1848_interrupt (int dev, struct pt_regs *regs);
 long attach_ms_sound(long mem_start, struct address_info * hw_config);
 int probe_ms_sound(struct address_info *hw_config);
 

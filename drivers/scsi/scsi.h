@@ -50,6 +50,7 @@
 #define SEND_DIAGNOSTIC		0x1d
 #define ALLOW_MEDIUM_REMOVAL	0x1e
 
+#define SET_WINDOW              0x24
 #define READ_CAPACITY		0x25
 #define READ_10			0x28
 #define WRITE_10		0x2a
@@ -65,17 +66,28 @@
 #define SYNCHRONIZE_CACHE	0x35
 #define LOCK_UNLOCK_CACHE	0x36
 #define READ_DEFECT_DATA	0x37
+#define MEDIUM_SCAN             0x38
 #define COMPARE			0x39
 #define COPY_VERIFY		0x3a
 #define WRITE_BUFFER		0x3b
 #define READ_BUFFER		0x3c
+#define UPDATE_BLOCK            0x3d
 #define READ_LONG		0x3e
+#define WRITE_LONG              0x3f
 #define CHANGE_DEFINITION	0x40
+#define WRITE_SAME             0x41
 #define LOG_SELECT		0x4c
 #define LOG_SENSE		0x4d
 #define MODE_SELECT_10		0x55
 #define MODE_SENSE_10		0x5a
+#define WRITE_12                0xaa
+#define WRITE_VERIFY_12         0xae
+#define SEARCH_HIGH_12          0xb0
+#define SEARCH_EQUAL_12         0xb1
+#define SEARCH_LOW_12           0xb2
+#define SEND_VOLUME_TAG         0xb6
 
+extern void scsi_make_blocked_list(void);
 extern volatile int in_scan_scsis;
 extern const unsigned char scsi_command_size[8];
 #define COMMAND_SIZE(opcode) scsi_command_size[((opcode) >> 5) & 7]
@@ -126,6 +138,7 @@ extern const unsigned char scsi_command_size[8];
 #define INTERMEDIATE_GOOD	0x08
 #define INTERMEDIATE_C_GOOD	0x0a
 #define RESERVATION_CONFLICT	0x0c
+#define QUEUE_FULL              0x1a
 
 #define STATUS_MASK		0x1e
 	
@@ -234,8 +247,10 @@ extern const unsigned char scsi_command_size[8];
 
 #define TYPE_DISK	0x00
 #define TYPE_TAPE	0x01
+#define TYPE_PROCESSOR	0x03	/* HP scanners use this */
 #define TYPE_WORM	0x04	/* Treated as ROM by our system */
 #define TYPE_ROM	0x05
+#define TYPE_SCANNER	0x06
 #define TYPE_MOD	0x07  /* Magneto-optical disk - treated as TYPE_DISK */
 #define TYPE_NO_LUN	0x7f
 
@@ -266,6 +281,7 @@ extern const unsigned char scsi_command_size[8];
 #define SCSI_MAN_UNKNOWN     0
 #define SCSI_MAN_NEC         1
 #define SCSI_MAN_TOSHIBA     2
+#define SCSI_MAN_NEC_OLDCDR  3
 
 /*
 	The scsi_device struct contains what we know about each given scsi
@@ -388,8 +404,8 @@ struct scatterlist {
    code does not need to do anything special to keep the commands alive. */
 #define SCSI_RESET_SUCCESS 2
 
-/* We called for an reset of this bus, and we should get an interrupt 
-   when this succeeds.  Each command should get it's own status
+/* We called for a reset of this bus, and we should get an interrupt 
+   when this succeeds.  Each command should get its own status
    passed up to scsi_done, but this has not happened yet. */
 #define SCSI_RESET_PENDING 3
 
@@ -510,7 +526,7 @@ typedef struct scsi_cmnd {
 	DID_ABORT is returned in the hostbyte.
 */
 
-extern int scsi_abort (Scsi_Cmnd *, int code);
+extern int scsi_abort (Scsi_Cmnd *, int code, int pid);
 
 extern void scsi_do_cmd (Scsi_Cmnd *, const void *cmnd ,
                   void *buffer, unsigned bufflen, void (*done)(struct scsi_cmnd *),
@@ -525,6 +541,7 @@ extern int scsi_reset (Scsi_Cmnd *);
 extern int max_scsi_hosts;
 
 #if defined(MAJOR_NR) && (MAJOR_NR != SCSI_TAPE_MAJOR)
+#include "hosts.h"
 static Scsi_Cmnd * end_scsi_request(Scsi_Cmnd * SCpnt, int uptodate, int sectors)
 {
 	struct request * req;
@@ -563,7 +580,17 @@ static Scsi_Cmnd * end_scsi_request(Scsi_Cmnd * SCpnt, int uptodate, int sectors
 	if (req->sem != NULL) {
 		up(req->sem);
 	}
+
+        if (SCpnt->host->block) {
+           struct Scsi_Host * next;
+
+           for (next = SCpnt->host->block; next != SCpnt->host;
+                                                   next = next->block)
+              wake_up(&next->host_wait);
+           }
+
 	req->dev = -1;
+	wake_up(&wait_for_request);
 	wake_up(&SCpnt->device->device_wait);
 	return NULL;
 }
@@ -576,7 +603,7 @@ static Scsi_Cmnd * end_scsi_request(Scsi_Cmnd * SCpnt, int uptodate, int sectors
 #define INIT_SCSI_REQUEST \
 	if (!CURRENT) {\
 		CLEAR_INTR; \
-		sti();   \
+		restore_flags(flags);   \
 		return; \
 	} \
 	if (MAJOR(CURRENT->dev) != MAJOR_NR) \
@@ -591,14 +618,36 @@ static Scsi_Cmnd * end_scsi_request(Scsi_Cmnd * SCpnt, int uptodate, int sectors
 	if (CONDITION) {					\
 		struct wait_queue wait = { current, NULL};	\
 		add_wait_queue(QUEUE, &wait);			\
-sleep_repeat:							\
+        for(;;) {       					\
 		current->state = TASK_UNINTERRUPTIBLE;		\
 		if (CONDITION) {				\
-			schedule();				\
-			goto sleep_repeat;			\
+                   if (intr_count)                              \
+                      panic("scsi: trying to call schedule() in interrupt" \
+                            ", file %s, line %d.\n", __FILE__, __LINE__);  \
+		   schedule();				 	\
+		   }              			 	\
+	        else						\
+                   break;                            	        \
 		}						\
 		remove_wait_queue(QUEUE, &wait);		\
 		current->state = TASK_RUNNING;			\
 	}; }
 
 #endif
+
+/*
+ * Overrides for Emacs so that we follow Linus's tabbing style.
+ * Emacs will notice this stuff at the end of the file and automatically
+ * adjust the settings for this buffer only.  This must remain at the end
+ * of the file.
+ * ---------------------------------------------------------------------------
+ * Local variables:
+ * c-indent-level: 8
+ * c-brace-imaginary-offset: 0
+ * c-brace-offset: -8
+ * c-argdecl-indent: 8
+ * c-label-offset: -8
+ * c-continued-statement-offset: 8
+ * c-continued-brace-offset: 0
+ * End:
+ */

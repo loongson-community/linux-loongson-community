@@ -7,10 +7,7 @@
 #
 # Note 2! The CFLAGS definition is now in the main makefile...
 
-# only these two lines should need to be changed to remove inet sockets.
-# (and the inet/tcpip.o in net.o)
-
-SUBDIRS     := unix inet
+SUBDIRS     := 802 ax25 core ethernet ipv4 ipx unix appletalk netrom
 
 SUBOBJS     := $(foreach f,$(SUBDIRS),$f/$f.o)
 
@@ -26,7 +23,11 @@ OBJS	=  socket.o protocols.o
 all:		net.o
 
 net.o:		$(OBJS) network.a
-		$(LD) -r -o net.o $(OBJS) network.a
+ifeq ($(ARCH),mips)
+		$(LD) -u eth_setup -r -o net.o $(OBJS) network.a
+else
+		$(LD) -u _eth_setup -r -o net.o $(OBJS) network.a
+endif
 
 network.a:	subdirs
 		rm -f $@
@@ -39,6 +40,8 @@ subdirs:	dummy
 dep:
 		$(CPP) -M *.c > .depend
 		set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i dep; done
+
+modules:
 
 dummy:
 

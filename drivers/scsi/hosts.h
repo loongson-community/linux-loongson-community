@@ -228,8 +228,6 @@ typedef struct  SHT
 	be two Scsi_Host entries, but only 1 Scsi_Host_Template entries.
 */
 
-#define SCSI_HOST_BLOCK 0x800
-
 struct Scsi_Host
 	{
 		struct Scsi_Host * next;
@@ -245,25 +243,36 @@ struct Scsi_Host
 		   that should be locked out of performing I/O while we have an active
 		   command on this host. */
 		struct Scsi_Host * block;
+		unsigned wish_block:1;
 
 		/* These parameters should be set by the detect routine */
 		unsigned char *base;
-		short unsigned int io_port;
+		unsigned int io_port;
 		unsigned char n_io_port;
 		unsigned char irq;
 		unsigned char dma_channel;
+
+		/*
+		  Set these if there are conflicts between memory
+		  in the < 1mb region and regions at 16mb multiples.
+		  The address must be on a page boundary.
+		*/
+		unsigned long forbidden_addr;
+		unsigned long forbidden_size;
+
 		/*
 		  The rest can be copied from the template, or specifically
 		  initialized, as required.
-		  */
+		*/
 		
 		int this_id;
 		int can_queue;
+		short cmd_per_lun;
 		short unsigned int sg_tablesize;
 		unsigned unchecked_isa_dma:1;
 		/*
 		   True if this host was loaded as a loadable module
-		   */
+		*/
 		unsigned loaded_as_module:1;
 		
 		int hostdata[0];  /* Used for storage of host specific stuff */
@@ -284,14 +293,18 @@ extern Scsi_Host_Template * scsi_hosts;
    looks normal.  Also, it makes it possible to use the same code for a
    loadable module. */
 
-extern void * scsi_init_malloc(unsigned int size);
+extern void * scsi_init_malloc(unsigned int size, int priority);
 extern void scsi_init_free(char * ptr, unsigned int size);
 
+void scan_scsis (struct Scsi_Host * shpnt);
+
+extern int next_scsi_host;
 
 extern int scsi_loadable_module_flag;
 unsigned int scsi_init(void);
 extern struct Scsi_Host * scsi_register(Scsi_Host_Template *, int j);
 extern void scsi_unregister(struct Scsi_Host * i);
+extern int scsicam_bios_param (Disk *, int, int *);
 
 #define BLANK_HOST {"", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
@@ -309,7 +322,7 @@ struct Scsi_Device_Template
   int (*detect)(Scsi_Device *); /* Returns 1 if we can attach this device */
   void (*init)(void);  /* Sizes arrays based upon number of devices detected */
   void (*finish)(void);  /* Perform initialization after attachment */
-  void (*attach)(Scsi_Device *); /* Attach devices to arrays */
+  int (*attach)(Scsi_Device *); /* Attach devices to arrays */
   void (*detach)(Scsi_Device *);
 };
 
@@ -320,4 +333,42 @@ extern struct Scsi_Device_Template sg_template;
 
 int scsi_register_device(struct Scsi_Device_Template * sdpnt);
 
+/* These are used by loadable modules */
+extern int scsi_register_module(int, void *);
+extern void scsi_unregister_module(int, void *);
+
+/* The different types of modules that we can load and unload */
+#define MODULE_SCSI_HA 1
+#define MODULE_SCSI_CONST 2
+#define MODULE_SCSI_IOCTL 3
+#define MODULE_SCSI_DEV 4
+
+
+/*
+ * This is an ugly hack.  If we expect to be able to load devices at run time, we need
+ * to leave extra room in some of the data structures.  Doing a realloc to enlarge
+ * the structures would be riddled with race conditions, so until a better solution 
+ * is discovered, we use this crude approach
+ */
+#define SD_EXTRA_DEVS 2
+#define ST_EXTRA_DEVS 2
+#define SR_EXTRA_DEVS 2
+#define SG_EXTRA_DEVS (SD_EXTRA_DEVS + SR_EXTRA_DEVS + ST_EXTRA_DEVS)
+
 #endif
+/*
+ * Overrides for Emacs so that we follow Linus's tabbing style.
+ * Emacs will notice this stuff at the end of the file and automatically
+ * adjust the settings for this buffer only.  This must remain at the end
+ * of the file.
+ * ---------------------------------------------------------------------------
+ * Local variables:
+ * c-indent-level: 8
+ * c-brace-imaginary-offset: 0
+ * c-brace-offset: -8
+ * c-argdecl-indent: 8
+ * c-label-offset: -8
+ * c-continued-statement-offset: 8
+ * c-continued-brace-offset: 0
+ * End:
+ */

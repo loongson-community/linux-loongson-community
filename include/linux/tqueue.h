@@ -57,7 +57,7 @@ typedef struct tq_struct * task_queue;
 #define DECLARE_TASK_QUEUE(q)  task_queue q = &tq_last
 
 extern struct tq_struct tq_last;
-extern task_queue tq_timer, tq_immediate;
+extern task_queue tq_timer, tq_immediate, tq_scheduler;
 
 #ifdef INCLUDE_INLINE_FUNCS
 struct tq_struct tq_last = {
@@ -143,8 +143,7 @@ _INLINE_ void run_task_queue(task_queue *list)
 	void (*f) (void *);
 
 	while(1) {
-		p = &tq_last;
-		atomic_exchange(*list,p);
+		p = xchg_ptr(list,&tq_last);
 		if(p == &tq_last)
 			break;
 

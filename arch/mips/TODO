@@ -1,0 +1,10 @@
+ - Check the definitions for F_EXLCK and F_SHLCK in include/asm-mips/fcntl.h
+   for correctness and compatibility with MIPS ABI.
+ - Check the definitions for O_NDELAY in include/asm-mips/fcntl.h for
+   correctness and compatibility with MIPS ABI.
+ - What are the fields l_sysid and pad in struct flock supposed to contain?
+   Do we need to handle them in the kernel?
+ - Check the resource limits defines in asm-mips/resource.h
+ - Recheck struct stat in asm-mips/stat.h
+ - Use timestruc_t in struct stat in asm/stat.h instead of time_t
+ - cacheflush should check for illegal flags

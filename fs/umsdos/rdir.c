@@ -7,6 +7,10 @@
  *  (For directory without EMD file).
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <asm/segment.h>
 
 #include <linux/sched.h>
@@ -32,8 +36,10 @@ static int UMSDOS_rreaddir (
 {
 	int ret = 0;
 	while (1){
+		int len = -1;
 		ret = msdos_readdir(dir,filp,dirent,count);
-		if (ret == 5
+		if (ret > 0) len = get_fs_word(&dirent->d_reclen);
+		if (len == 5
 			&& pseudo_root != NULL
 			&& dir->i_sb->s_mounted == pseudo_root->i_sb->s_mounted){
 			/*
@@ -45,7 +51,7 @@ static int UMSDOS_rreaddir (
 			if (memcmp(name,UMSDOS_PSDROOT_NAME,UMSDOS_PSDROOT_LEN)!=0) break;
 		}else{
 			if (pseudo_root != NULL
-				&& ret == 2
+				&& len == 2
 				&& dir == dir->i_sb->s_mounted
 				&& dir == pseudo_root->i_sb->s_mounted){
 				char name[2];
@@ -60,11 +66,18 @@ static int UMSDOS_rreaddir (
 	return ret;
 }
 
-int UMSDOS_rlookup(
+/*
+	Lookup into a non promoted directory.
+	If the result is a directory, make sure we find out if it is
+	a promoted one or not (calling umsdos_setup_dir_inode(inode)).
+*/
+int umsdos_rlookup_x(
 	struct inode *dir,
 	const char *name,
 	int len,
-	struct inode **result)	/* Will hold inode of the file, if successful */
+	struct inode **result,	/* Will hold inode of the file, if successful */
+	int nopseudo)			/* Don't care about pseudo root mode */
+							/* so locating "linux" will work */
 {
 	int ret;
 	if (pseudo_root != NULL
@@ -84,7 +97,7 @@ int UMSDOS_rlookup(
 		ret = umsdos_real_lookup (dir,name,len,result);
 		if (ret == 0){
 			struct inode *inode = *result;
-			if (inode == pseudo_root){
+			if (inode == pseudo_root && !nopseudo){
 				/* #Specification: pseudo root / DOS/linux
 					Even in the real root directory (c:\), the directory
 					/linux won't show
@@ -101,6 +114,14 @@ int UMSDOS_rlookup(
 	}
 	iput (dir);
 	return ret;
+}
+int UMSDOS_rlookup(
+	struct inode *dir,
+	const char *name,
+	int len,
+	struct inode **result)	/* Will hold inode of the file, if successful */
+{
+	return umsdos_rlookup_x(dir,name,len,result,0);
 }
 
 static int UMSDOS_rrmdir (

@@ -1,9 +1,10 @@
 /*
  * linux/fs/ext2/ioctl.c
  *
- * Copyright (C) 1993, 1994  Remy Card (card@masi.ibp.fr)
- *                           Laboratoire MASI - Institut Blaise Pascal
- *                           Universite Pierre et Marie Curie (Paris VI)
+ * Copyright (C) 1993, 1994, 1995
+ * Remy Card (card@masi.ibp.fr)
+ * Laboratoire MASI - Institut Blaise Pascal
+ * Universite Pierre et Marie Curie (Paris VI)
  */
 
 #include <asm/segment.h>
@@ -13,6 +14,7 @@
 #include <linux/ext2_fs.h>
 #include <linux/ioctl.h>
 #include <linux/sched.h>
+#include <linux/mm.h>
 
 int ext2_ioctl (struct inode * inode, struct file * filp, unsigned int cmd,
 		unsigned long arg)

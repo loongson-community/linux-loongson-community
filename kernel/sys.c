@@ -4,7 +4,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -17,6 +16,7 @@
 #include <linux/ptrace.h>
 #include <linux/stat.h>
 #include <linux/mman.h>
+#include <linux/mm.h>
 
 #include <asm/segment.h>
 #include <asm/io.h>
@@ -32,38 +32,7 @@ extern void adjust_clock(void);
 
 asmlinkage int sys_ni_syscall(void)
 {
-	return -EINVAL;
-}
-
-asmlinkage int sys_idle(void)
-{
-	int i;
-
-	if (current->pid != 0)
-		return -EPERM;
-
-#ifdef __i386__
-	/* Map out the low memory: it's no longer needed */
-	for (i = 0 ; i < 768 ; i++)
-		swapper_pg_dir[i] = 0;
-#endif
-
-	/* endless idle loop with no priority at all */
-	current->counter = -100;
-	for (;;) {
-#if defined (__i386__)
-		if (hlt_works_ok && !need_resched)
-			__asm__("hlt");
-#elif defined (__mips__)
-		/*
-		 * R4[26]00 have wait, the R4000 doesn't.
-		 * Dunno about the R4400...
-		 */
-		if (!need_resched)
-			__asm__("wait");
-#endif
-		schedule();
-	}
+	return -ENOSYS;
 }
 
 static int proc_sel(struct task_struct *p, int which, int who)
@@ -163,6 +132,7 @@ asmlinkage int sys_prof(void)
 }
 
 extern void hard_reset_now(void);
+extern asmlinkage sys_kill(int, int);
 
 /*
  * Reboot system call: for obvious reasons only root may call it,
@@ -184,7 +154,11 @@ asmlinkage int sys_reboot(int magic, int magic_too, int flag)
 		C_A_D = 1;
 	else if (!flag)
 		C_A_D = 0;
-	else
+	else if (flag == 0xCDEF0123) {
+		printk(KERN_EMERG "System halted\n");
+		sys_kill(-1, SIGKILL);
+		do_exit(0);
+	} else
 		return -EINVAL;
 	return (0);
 }
@@ -402,12 +376,11 @@ asmlinkage int sys_times(struct tms * tbuf)
 	return jiffies;
 }
 
-asmlinkage int sys_brk(unsigned long brk)
+asmlinkage unsigned long sys_brk(unsigned long brk)
 {
 	int freepages;
 	unsigned long rlim;
 	unsigned long newbrk, oldbrk;
-	struct vm_area_struct * vma;
 
 	if (brk < current->mm->end_code)
 		return current->mm->brk;
@@ -430,18 +403,13 @@ asmlinkage int sys_brk(unsigned long brk)
 	rlim = current->rlim[RLIMIT_DATA].rlim_cur;
 	if (rlim >= RLIM_INFINITY)
 		rlim = ~0;
-	if (brk - current->mm->end_code > rlim ||
-	    brk >= current->mm->start_stack - 16384)
+	if (brk - current->mm->end_code > rlim)
 		return current->mm->brk;
 	/*
 	 * Check against existing mmap mappings.
 	 */
-	for (vma = current->mm->mmap; vma; vma = vma->vm_next) {
-		if (newbrk <= vma->vm_start)
-			break;
-		if (oldbrk < vma->vm_end)
-			return current->mm->brk;
-	}
+	if (find_vma_intersection(current, oldbrk, newbrk+PAGE_SIZE))
+		return current->mm->brk;
 	/*
 	 * stupid algorithm to decide if we have enough memory: while
 	 * simple, it hopefully works in most obvious cases.. Easy to
@@ -450,7 +418,14 @@ asmlinkage int sys_brk(unsigned long brk)
 	freepages = buffermem >> 12;
 	freepages += nr_free_pages;
 	freepages += nr_swap_pages;
+#if  0
+	/*
+	 * This assumes a PCish memory architecture...
+	 */
 	freepages -= (high_memory - 0x100000) >> 16;
+#else
+	freepages -= (high_memory - KSEG0) >> 16;
+#endif
 	freepages -= (newbrk-oldbrk) >> 12;
 	if (freepages < 0)
 		return current->mm->brk;
@@ -548,6 +523,7 @@ asmlinkage int sys_setsid(void)
 	current->leader = 1;
 	current->session = current->pgrp = current->pid;
 	current->tty = NULL;
+	current->tty_old_pgrp = 0;
 	return current->pgrp;
 }
 
@@ -557,18 +533,20 @@ asmlinkage int sys_setsid(void)
 asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
 {
 	int i;
+	int * groups;
 
 	if (gidsetsize) {
 		i = verify_area(VERIFY_WRITE, grouplist, sizeof(gid_t) * gidsetsize);
 		if (i)
 			return i;
 	}
-	for (i = 0 ; (i < NGROUPS) && (current->groups[i] != NOGROUP) ; i++) {
+	groups = current->groups;
+	for (i = 0 ; (i < NGROUPS) && (*groups != NOGROUP) ; i++, groups++) {
 		if (!gidsetsize)
 			continue;
 		if (i >= gidsetsize)
 			break;
-		put_fs_word(current->groups[i], (short *) grouplist);
+		put_user(*groups, grouplist);
 		grouplist++;
 	}
 	return(i);
@@ -660,22 +638,35 @@ asmlinkage int sys_olduname(struct oldold_utsname * name)
 	return 0;
 }
 
-/*
- * Only sethostname; gethostname can be implemented by calling uname()
- */
 asmlinkage int sys_sethostname(char *name, int len)
 {
-	int	i;
-	
+	int error;
+
 	if (!suser())
 		return -EPERM;
-	if (len > __NEW_UTS_LEN)
+	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
-	for (i=0; i < len; i++) {
-		if ((system_utsname.nodename[i] = get_fs_byte(name+i)) == 0)
-			return 0;
-	}
-	system_utsname.nodename[i] = 0;
+	error = verify_area(VERIFY_READ, name, len);
+	if (error)
+		return error;
+	memcpy_fromfs(system_utsname.nodename, name, len);
+	system_utsname.nodename[len] = 0;
+	return 0;
+}
+
+asmlinkage int sys_gethostname(char *name, int len)
+{
+	int i;
+
+	if (len < 0)
+		return -EINVAL;
+	i = verify_area(VERIFY_WRITE, name, len);
+	if (i)
+		return i;
+	i = 1+strlen(system_utsname.nodename);
+	if (i > len)
+		i = len;
+	memcpy_tofs(name, system_utsname.nodename, i);
 	return 0;
 }
 
@@ -708,10 +699,7 @@ asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim)
 	error = verify_area(VERIFY_WRITE,rlim,sizeof *rlim);
 	if (error)
 		return error;
-	put_fs_long(current->rlim[resource].rlim_cur, 
-		    (unsigned long *) rlim);
-	put_fs_long(current->rlim[resource].rlim_max, 
-		    ((unsigned long *) rlim)+1);
+	memcpy_tofs(rlim, current->rlim + resource, sizeof(*rlim));
 	return 0;	
 }
 
@@ -731,6 +719,10 @@ asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim)
 	     (new_rlim.rlim_max > old_rlim->rlim_max)) &&
 	    !suser())
 		return -EPERM;
+	if (resource == RLIMIT_NOFILE) {
+		if (new_rlim.rlim_cur > NR_OPEN || new_rlim.rlim_max > NR_OPEN)
+			return -EPERM;
+	}
 	*old_rlim = new_rlim;
 	return 0;
 }

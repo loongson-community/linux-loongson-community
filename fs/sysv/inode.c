@@ -20,6 +20,14 @@
  *  the superblock.
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#else
+#define MOD_INC_USE_COUNT
+#define MOD_DEC_USE_COUNT
+#endif
+
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -220,6 +228,7 @@ static struct super_block * detected_sysv4 (struct super_block *sb, struct buffe
 	sb->sv_sb_flc_blocks = &sbd->s_free[0];
 	sb->sv_sb_total_free_blocks = &sbd->s_tfree;
 	sb->sv_sb_time = &sbd->s_time;
+	sb->sv_sb_state = &sbd->s_state;
 	sb->sv_block_base = 0;
 	sb->sv_firstinodezone = 2;
 	sb->sv_firstdatazone = sbd->s_isize;
@@ -277,6 +286,7 @@ static struct super_block * detected_sysv2 (struct super_block *sb, struct buffe
 	sb->sv_sb_flc_blocks = &sbd->s_free[0];
 	sb->sv_sb_total_free_blocks = &sbd->s_tfree;
 	sb->sv_sb_time = &sbd->s_time;
+	sb->sv_sb_state = &sbd->s_state;
 	sb->sv_block_base = 0;
 	sb->sv_firstinodezone = 2;
 	sb->sv_firstdatazone = sbd->s_isize;
@@ -348,6 +358,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 		panic("Coherent FS: bad super-block size");
 	if (64 != sizeof (struct sysv_inode))
 		panic("sysv fs: bad i-node size");
+	MOD_INC_USE_COUNT;
 	lock_super(sb);
 	set_blocksize(dev,BLOCK_SIZE);
 
@@ -390,6 +401,8 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 	unlock_super(sb);
 	if (!silent)
 		printk("VFS: unable to read Xenix/SystemV/Coherent superblock on device %d/%d\n",MAJOR(dev),MINOR(dev));
+	failed:
+	MOD_DEC_USE_COUNT;
 	return NULL;
 
 	ok:
@@ -413,7 +426,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 				sb->s_dev = 0;
 				unlock_super(sb);
 				printk("SysV FS: cannot read superblock in 1024 byte mode\n");
-				return NULL;
+				goto failed;
 		}
 	} else {
 		/* Switch to another block size. Unfortunately, we have to
@@ -459,7 +472,7 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 				sb->s_dev = 0;
 				unlock_super(sb);
 				printk("SysV FS: cannot read superblock in 512 byte mode\n");
-				return NULL;
+				goto failed;
 		}
 	}
 	sb->sv_ninodes = (sb->sv_firstdatazone - sb->sv_firstinodezone) << sb->sv_inodes_per_block_bits;
@@ -475,8 +488,8 @@ struct super_block *sysv_read_super(struct super_block *sb,void *data,
 	sb->s_mounted = iget(sb,SYSV_ROOT_INO);
 	unlock_super(sb);
 	if (!sb->s_mounted) {
-		sysv_put_super(sb);
 		printk("SysV FS: get root inode failed\n");
+		sysv_put_super(sb);
 		return NULL;
 	}
 	sb->s_dirt = 1;
@@ -491,8 +504,15 @@ void sysv_write_super (struct super_block *sb)
 	lock_super(sb);
 	if (sb->sv_bh1->b_dirt || sb->sv_bh2->b_dirt) {
 		/* If we are going to write out the super block,
-		   then attach current time stamp. */
+		   then attach current time stamp.
+		   But if the filesystem was marked clean, keep it clean. */
 		unsigned long time = CURRENT_TIME;
+		unsigned long old_time = *sb->sv_sb_time;
+		if (sb->sv_convert)
+			old_time = from_coh_ulong(old_time);
+		if (sb->sv_type == FSTYPE_SYSV4)
+			if (*sb->sv_sb_state == 0x7c269d38 - old_time)
+				*sb->sv_sb_state = 0x7c269d38 - time;
 		if (sb->sv_convert)
 			time = to_coh_ulong(time);
 		*sb->sv_sb_time = time;
@@ -513,22 +533,22 @@ void sysv_put_super(struct super_block *sb)
 		set_blocksize(sb->s_dev,BLOCK_SIZE);
 	sb->s_dev = 0;
 	unlock_super(sb);
+	MOD_DEC_USE_COUNT;
 }
 
-void sysv_statfs(struct super_block *sb, struct statfs *buf)
+void sysv_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 {
-	long tmp;
+	struct statfs tmp;
 
-	put_fs_long(sb->s_magic, &buf->f_type);		/* type of filesystem */
-	put_fs_long(sb->sv_block_size, &buf->f_bsize);	/* block size */
-	put_fs_long(sb->sv_ndatazones, &buf->f_blocks);	/* total data blocks in file system */
-	tmp = sysv_count_free_blocks(sb);
-	put_fs_long(tmp, &buf->f_bfree);		/* free blocks in fs */
-	put_fs_long(tmp, &buf->f_bavail);		/* free blocks available to non-superuser */
-	put_fs_long(sb->sv_ninodes, &buf->f_files);	/* total file nodes in file system */
-	put_fs_long(sysv_count_free_inodes(sb), &buf->f_ffree);	/* free file nodes in fs */
-	put_fs_long(SYSV_NAMELEN, &buf->f_namelen);
-	/* Don't know what value to put in buf->f_fsid */	/* file system id */
+	tmp.f_type = sb->s_magic;
+	tmp.f_bsize = sb->sv_block_size;
+	tmp.f_blocks = sb->sv_ndatazones;
+	tmp.f_bfree = sysv_count_free_blocks(sb);
+	tmp.f_bavail = tmp.f_bfree;
+	tmp.f_files = sb->sv_ninodes;
+	tmp.f_ffree = sysv_count_free_inodes(sb);
+	tmp.f_namelen = SYSV_NAMELEN;
+	memcpy_tofs(buf, &tmp, bufsiz);
 }
 
 
@@ -949,3 +969,34 @@ int sysv_sync_inode(struct inode * inode)
         return err;
 }
 
+#ifdef MODULE
+
+/* Every kernel module contains stuff like this. */
+
+char kernel_version[] = UTS_RELEASE;
+
+static struct file_system_type sysv_fs_type[3] = {
+	{sysv_read_super, "xenix", 1, NULL},
+	{sysv_read_super, "sysv", 1, NULL},
+	{sysv_read_super, "coherent", 1, NULL}
+};
+
+int init_module(void)
+{
+	int i;
+
+	for (i = 0; i < 3; i++)
+		register_filesystem(&sysv_fs_type[i]);
+
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	int i;
+
+	for (i = 0; i < 3; i++)
+		unregister_filesystem(&sysv_fs_type[i]);
+}
+
+#endif

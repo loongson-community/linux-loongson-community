@@ -30,6 +30,7 @@
  * QIC02_TAPE_TIMER	timer for QIC-02 tape driver (it's not hardcoded)
  *
  * MCD_TIMER		Mitsumi CD-ROM Timer
+ *
  */
 
 #define BLANK_TIMER	0

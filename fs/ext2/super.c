@@ -1,9 +1,10 @@
 /*
  *  linux/fs/ext2/super.c
  *
- *  Copyright (C) 1992, 1993, 1994  Remy Card (card@masi.ibp.fr)
- *                                  Laboratoire MASI - Institut Blaise Pascal
- *                                  Universite Pierre et Marie Curie (Paris VI)
+ * Copyright (C) 1992, 1993, 1994, 1995
+ * Remy Card (card@masi.ibp.fr)
+ * Laboratoire MASI - Institut Blaise Pascal
+ * Universite Pierre et Marie Curie (Paris VI)
  *
  *  from
  *
@@ -26,10 +27,11 @@
 #include <linux/string.h>
 #include <linux/locks.h>
 
+static char error_buf[1024];
+
 void ext2_error (struct super_block * sb, const char * function,
 		 const char * fmt, ...)
 {
-	char buf[1024];
 	va_list args;
 
 	if (!(sb->s_flags & MS_RDONLY)) {
@@ -39,15 +41,15 @@ void ext2_error (struct super_block * sb, const char * function,
 		sb->s_dirt = 1;
 	}
 	va_start (args, fmt);
-	vsprintf (buf, fmt, args);
+	vsprintf (error_buf, fmt, args);
 	va_end (args);
 	if (test_opt (sb, ERRORS_PANIC) ||
 	    (sb->u.ext2_sb.s_es->s_errors == EXT2_ERRORS_PANIC &&
 	     !test_opt (sb, ERRORS_CONT) && !test_opt (sb, ERRORS_RO)))
 		panic ("EXT2-fs panic (device %d/%d): %s: %s\n",
-		       MAJOR(sb->s_dev), MINOR(sb->s_dev), function, buf);
+		       MAJOR(sb->s_dev), MINOR(sb->s_dev), function, error_buf);
 	printk (KERN_CRIT "EXT2-fs error (device %d/%d): %s: %s\n",
-		MAJOR(sb->s_dev), MINOR(sb->s_dev), function, buf);
+		MAJOR(sb->s_dev), MINOR(sb->s_dev), function, error_buf);
 	if (test_opt (sb, ERRORS_RO) ||
 	    (sb->u.ext2_sb.s_es->s_errors == EXT2_ERRORS_RO &&
 	     !test_opt (sb, ERRORS_CONT) && !test_opt (sb, ERRORS_PANIC))) {
@@ -59,7 +61,6 @@ void ext2_error (struct super_block * sb, const char * function,
 NORET_TYPE void ext2_panic (struct super_block * sb, const char * function,
 			    const char * fmt, ...)
 {
-	char buf[1024];
 	va_list args;
 
 	if (!(sb->s_flags & MS_RDONLY)) {
@@ -69,23 +70,22 @@ NORET_TYPE void ext2_panic (struct super_block * sb, const char * function,
 		sb->s_dirt = 1;
 	}
 	va_start (args, fmt);
-	vsprintf (buf, fmt, args);
+	vsprintf (error_buf, fmt, args);
 	va_end (args);
 	panic ("EXT2-fs panic (device %d/%d): %s: %s\n",
-	       MAJOR(sb->s_dev), MINOR(sb->s_dev), function, buf);
+	       MAJOR(sb->s_dev), MINOR(sb->s_dev), function, error_buf);
 }
 
 void ext2_warning (struct super_block * sb, const char * function,
 		   const char * fmt, ...)
 {
-	char buf[1024];
 	va_list args;
 
 	va_start (args, fmt);
-	vsprintf (buf, fmt, args);
+	vsprintf (error_buf, fmt, args);
 	va_end (args);
 	printk (KERN_WARNING "EXT2-fs warning (device %d/%d): %s: %s\n",
-		MAJOR(sb->s_dev), MINOR(sb->s_dev), function, buf);
+		MAJOR(sb->s_dev), MINOR(sb->s_dev), function, error_buf);
 }
 
 void ext2_put_super (struct super_block * sb)
@@ -360,7 +360,7 @@ static int ext2_check_descriptors (struct super_block * sb)
 			ext2_error (sb, "ext2_check_descriptors",
 				    "Block bitmap for group %d"
 				    " not in group (block %lu)!",
-				    i, gdp->bg_block_bitmap);
+				    i, (unsigned long) gdp->bg_block_bitmap);
 			return 0;
 		}
 		if (gdp->bg_inode_bitmap < block ||
@@ -369,7 +369,7 @@ static int ext2_check_descriptors (struct super_block * sb)
 			ext2_error (sb, "ext2_check_descriptors",
 				    "Inode bitmap for group %d"
 				    " not in group (block %lu)!",
-				    i, gdp->bg_inode_bitmap);
+				    i, (unsigned long) gdp->bg_inode_bitmap);
 			return 0;
 		}
 		if (gdp->bg_inode_table < block ||
@@ -379,7 +379,7 @@ static int ext2_check_descriptors (struct super_block * sb)
 			ext2_error (sb, "ext2_check_descriptors",
 				    "Inode table for group %d"
 				    " not in group (block %lu)!",
-				    i, gdp->bg_inode_table);
+				    i, (unsigned long) gdp->bg_inode_table);
 			return 0;
 		}
 		block += EXT2_BLOCKS_PER_GROUP(sb);
@@ -553,6 +553,31 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 		return NULL;
 	}
 
+	if (sb->u.ext2_sb.s_blocks_per_group > sb->s_blocksize * 8) {
+		sb->s_dev = 0;
+		unlock_super (sb);
+		brelse (bh);
+		printk ("EXT2-fs: #blocks per group too big: %lu\n",
+			sb->u.ext2_sb.s_blocks_per_group);
+		return NULL;
+	}
+	if (sb->u.ext2_sb.s_frags_per_group > sb->s_blocksize * 8) {
+		sb->s_dev = 0;
+		unlock_super (sb);
+		brelse (bh);
+		printk ("EXT2-fs: #fragments per group too big: %lu\n",
+			sb->u.ext2_sb.s_frags_per_group);
+		return NULL;
+	}
+	if (sb->u.ext2_sb.s_inodes_per_group > sb->s_blocksize * 8) {
+		sb->s_dev = 0;
+		unlock_super (sb);
+		brelse (bh);
+		printk ("EXT2-fs: #inodes per group too big: %lu\n",
+			sb->u.ext2_sb.s_inodes_per_group);
+		return NULL;
+	}
+
 	sb->u.ext2_sb.s_groups_count = (es->s_blocks_count -
 				        es->s_first_data_block +
 				       EXT2_BLOCKS_PER_GROUP(sb) - 1) /
@@ -716,11 +741,11 @@ int ext2_remount (struct super_block * sb, int * flags, char * data)
 	return 0;
 }
 
-void ext2_statfs (struct super_block * sb, struct statfs * buf)
+void ext2_statfs (struct super_block * sb, struct statfs * buf, int bufsiz)
 {
-	long tmp;
 	unsigned long overhead;
 	unsigned long overhead_per_group;
+	struct statfs tmp;
 
 	if (test_opt (sb, MINIX_DF))
 		overhead = 0;
@@ -737,19 +762,15 @@ void ext2_statfs (struct super_block * sb, struct statfs * buf)
 			   sb->u.ext2_sb.s_groups_count * overhead_per_group;
 	}
 
-	put_fs_long (EXT2_SUPER_MAGIC, &buf->f_type);
-	put_fs_long (sb->s_blocksize, &buf->f_bsize);
-	put_fs_long (sb->u.ext2_sb.s_es->s_blocks_count - overhead,
-		     &buf->f_blocks);
-	tmp = ext2_count_free_blocks (sb);
-	put_fs_long (tmp, &buf->f_bfree);
-	if (tmp >= sb->u.ext2_sb.s_es->s_r_blocks_count)
-		put_fs_long (tmp - sb->u.ext2_sb.s_es->s_r_blocks_count,
-			     &buf->f_bavail);
-	else
-		put_fs_long (0, &buf->f_bavail);
-	put_fs_long (sb->u.ext2_sb.s_es->s_inodes_count, &buf->f_files);
-	put_fs_long (ext2_count_free_inodes (sb), &buf->f_ffree);
-	put_fs_long (EXT2_NAME_LEN, &buf->f_namelen);
-	/* Don't know what value to put in buf->f_fsid */
+	tmp.f_type = EXT2_SUPER_MAGIC;
+	tmp.f_bsize = sb->s_blocksize;
+	tmp.f_blocks = sb->u.ext2_sb.s_es->s_blocks_count - overhead;
+	tmp.f_bfree = ext2_count_free_blocks (sb);
+	tmp.f_bavail = tmp.f_bfree - sb->u.ext2_sb.s_es->s_r_blocks_count;
+	if (tmp.f_bfree < sb->u.ext2_sb.s_es->s_r_blocks_count)
+		tmp.f_bavail = 0;
+	tmp.f_files = sb->u.ext2_sb.s_es->s_inodes_count;
+	tmp.f_ffree = ext2_count_free_inodes (sb);
+	tmp.f_namelen = EXT2_NAME_LEN;
+	memcpy_tofs(buf, &tmp, bufsiz);
 }

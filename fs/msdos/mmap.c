@@ -6,6 +6,10 @@
  *
  *	msdos mmap handling
  */
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/stat.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -48,6 +52,7 @@ static unsigned long msdos_file_mmap_nopage(
 		if (gap < PAGE_SIZE){
 			clear = PAGE_SIZE - gap;
 		}
+		filp.f_reada = 0;
 		filp.f_pos = pos;
 		need_read = PAGE_SIZE - clear;
 		{
@@ -71,10 +76,14 @@ static unsigned long msdos_file_mmap_nopage(
 struct vm_operations_struct msdos_file_mmap = {
 	NULL,			/* open */
 	NULL,			/* close */
+	NULL,			/* unmap */
+	NULL,			/* protect */
+	NULL,			/* sync */
+	NULL,			/* advise */
 	msdos_file_mmap_nopage,	/* nopage */
 	NULL,			/* wppage */
-	NULL,			/* share */
-	NULL,			/* unmap */
+	NULL,			/* swapout */
+	NULL,			/* swapin */
 };
 
 /*
@@ -83,7 +92,7 @@ struct vm_operations_struct msdos_file_mmap = {
  */
 int msdos_mmap(struct inode * inode, struct file * file, struct vm_area_struct * vma)
 {
-	if (vma->vm_page_prot & PAGE_RW)	/* only PAGE_COW or read-only supported now */
+	if (vma->vm_flags & VM_SHARED)	/* only PAGE_COW or read-only supported now */
 		return -EINVAL;
 	if (vma->vm_offset & (inode->i_sb->s_blocksize - 1))
 		return -EINVAL;
@@ -99,4 +108,5 @@ int msdos_mmap(struct inode * inode, struct file * file, struct vm_area_struct *
 	vma->vm_ops = &msdos_file_mmap;
 	return 0;
 }
+
 

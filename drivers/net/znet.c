@@ -62,7 +62,6 @@ static char *version = "znet.c:v1.02 9/23/94 becker@cesdis.gsfc.nasa.gov\n";
 	functionality from the serial subsystem.
  */
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -183,7 +182,7 @@ struct netidblk {
 int znet_probe(struct device *dev);
 static int	znet_open(struct device *dev);
 static int	znet_send_packet(struct sk_buff *skb, struct device *dev);
-static void	znet_interrupt(int reg_ptr);
+static void	znet_interrupt(int irq, struct pt_regs *regs);
 static void	znet_rx(struct device *dev);
 static int	znet_close(struct device *dev);
 static struct enet_statistics *net_get_stats(struct device *dev);
@@ -403,9 +402,8 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 }
 
 /* The ZNET interrupt handler. */
-static void	znet_interrupt(int reg_ptr)
+static void	znet_interrupt(int irq, struct pt_regs * regs)
 {
-	int irq = pt_regs2irq(reg_ptr);
 	struct device *dev = irq2dev_map[irq];
 	int ioaddr;
 	int boguscnt = 20;
@@ -548,18 +546,15 @@ static void znet_rx(struct device *dev)
 			lp->stats.rx_length_errors++;
 		} else {
 			/* Malloc up new buffer. */
-			int sksize = sizeof(struct sk_buff) + pkt_len;
 			struct sk_buff *skb;
 
-			skb = alloc_skb(sksize, GFP_ATOMIC);
+			skb = alloc_skb(pkt_len, GFP_ATOMIC);
 			if (skb == NULL) {
 				if (znet_debug)
 				  printk(KERN_WARNING "%s: Memory squeeze, dropping packet.\n", dev->name);
 				lp->stats.rx_dropped++;
 				break;
 			}
-			skb->mem_len = sksize;
-			skb->mem_addr = skb;
 			skb->len = pkt_len;
 			skb->dev = dev;
 
@@ -576,18 +571,9 @@ static void znet_rx(struct device *dev)
 						   packet[1], packet[2], packet[3]);
 				}
 		  }
-
-#ifdef HAVE_NETIF_RX
-			netif_rx(skb);
-#else
-			skb->lock = 0;
-			if (dev_rint((unsigned char*)skb, pkt_len, IN_SKBUFF, dev) != 0) {
-				kfree_s(skb, sksize);
-				lp->stats.rx_dropped++;
-				break;
-			}
-#endif
-			lp->stats.rx_packets++;
+		  skb->protocol=eth_type_trans(skb,dev);
+		  netif_rx(skb);
+		  lp->stats.rx_packets++;
 		}
 		zn.rx_cur = this_rfp_ptr;
 		if (zn.rx_cur >= zn.rx_end)

@@ -1,5 +1,5 @@
 #
-# Makefile for the linux memory manager.
+# Makefile for the linux mips-specific parts of the memory manager.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
 # removes any old dependencies. DON'T put your own dependencies here
@@ -14,10 +14,12 @@
 .c.s:
 	$(CC) $(CFLAGS) -S $<
 
-OBJS	= memory.o swap.o mmap.o mprotect.o kmalloc.o vmalloc.o
+OBJS	= fault.o init.o
 
 mm.o: $(OBJS)
 	$(LD) -r -o mm.o $(OBJS)
+
+modules:
 
 dep:
 	$(CPP) -M *.c > .depend

@@ -52,6 +52,8 @@
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/string.h>
+#include <linux/config.h>
+
 #include "../block/blk.h"
 #include "scsi.h"
 #include "hosts.h"
@@ -94,7 +96,9 @@ static void *base_address = NULL;	/*
 						used to calculate memory mapped
 						register location.
 					*/
+#ifdef notyet
 static volatile int abort_confirm = 0;
+#endif
 
 static volatile void *st0x_cr_sr;       /*
 						control register write,
@@ -177,6 +181,7 @@ static const Signature signatures[] = {
 {"FUTURE DOMAIN CORP. (C) 1986-1990 V6.0209/18/90",5, 47, FD},
 {"FUTURE DOMAIN CORP. (C) 1986-1990 V7.009/18/90", 5, 46, FD},
 {"FUTURE DOMAIN CORP. (C) 1992 V8.00.004/02/92",   5, 44, FD},
+{"IBM F1 BIOS V1.1004/30/92",			   5, 25, FD},
 {"FUTURE DOMAIN TMC-950",                        5, 21, FD},
 #endif /* CONFIG_SCSI_SEAGATE */
 }
@@ -190,7 +195,7 @@ static const Signature signatures[] = {
  */
 
 static int hostno = -1;
-static void seagate_reconnect_intr(int);
+static void seagate_reconnect_intr(int, struct pt_regs *);
 
 #ifdef FAST
 static int fast = 1;
@@ -279,7 +284,7 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
  *	First, we try for the manual override.
  */
 #ifdef DEBUG 
-	printk("Autodetecting seagate ST0x\n");
+	printk("Autodetecting ST0x / TMC-8xx\n");
 #endif
 	
 	if (hostno != -1)
@@ -328,13 +333,14 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
 	} /* (! controller_type) */
  
 	tpnt->this_id = (controller_type == SEAGATE) ? 7 : 6;
+	tpnt->name = (controller_type == SEAGATE) ? ST0X_ID_STR : FD_ID_STR;
 
 	if (base_address)
 		{
 		st0x_cr_sr =(void *) (((unsigned char *) base_address) + (controller_type == SEAGATE ? 0x1a00 : 0x1c00)); 
 		st0x_dr = (void *) (((unsigned char *) base_address ) + (controller_type == SEAGATE ? 0x1c00 : 0x1e00));
 #ifdef DEBUG
-		printk("ST0x detected. Base address = %x, cr = %x, dr = %x\n", base_address, st0x_cr_sr, st0x_dr);
+		printk("%s detected. Base address = %x, cr = %x, dr = %x\n", tpnt->name, base_address, st0x_cr_sr, st0x_dr);
 #endif
 /*
  *	At all times, we will use IRQ 5.  Should also check for IRQ3 if we 
@@ -342,7 +348,8 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
  */
 		instance = scsi_register(tpnt, 0);
 		hostno = instance->host_no;
-		if (request_irq((int) irq, seagate_reconnect_intr, SA_INTERRUPT, "seagate")) {
+		if (request_irq((int) irq, seagate_reconnect_intr, SA_INTERRUPT,
+		   (controller_type == SEAGATE) ? "seagate" : "tmc-8xx")) {
 			printk("scsi%d : unable to allocate IRQ%d\n",
 				hostno, (int) irq);
 			return 0;
@@ -351,39 +358,40 @@ int seagate_st0x_detect (Scsi_Host_Template * tpnt)
 		borken_init();
 #endif
 		
+		printk("%s options:"
+#ifdef ARBITRATE
+		" ARBITRATE"
+#endif
+#ifdef SLOW_HANDSHAKE
+		" SLOW_HANDSHAKE"
+#endif
+#ifdef FAST
+#ifdef FAST32
+		" FAST32"
+#else
+		" FAST"
+#endif
+#endif
+#ifdef LINKED
+		" LINKED"
+#endif
+              "\n", tpnt->name);
 		return 1;
 		}
 	else
 		{
 #ifdef DEBUG
-		printk("ST0x not detected.\n");
+		printk("ST0x / TMC-8xx not detected.\n");
 #endif
 		return 0;
 		}
 	}
 	 
 const char *seagate_st0x_info(struct Scsi_Host * shpnt) {
-      static char buffer[256];
-        sprintf(buffer, "scsi%d : %s at irq %d address %p options :"
-#ifdef ARBITRATE
-" ARBITRATE"
-#endif
-#ifdef SLOW_HANDSHAKE
-" SLOW_HANDSHAKE"
-#endif
-#ifdef FAST
-#ifdef FAST32
-" FAST32"
-#else
-" FAST"
-#endif
-#endif
- 
-#ifdef LINKED
-" LINKED"
-#endif
-              "\n", hostno, (controller_type == SEAGATE) ? "seagate" : 
-              "FD TMC-8xx", irq, base_address);
+      static char buffer[64];
+        sprintf(buffer, "%s at irq %d, address 0x%05X", 
+		(controller_type == SEAGATE) ? ST0X_ID_STR : FD_ID_STR,
+		irq, (unsigned int)base_address);
         return buffer;
 }
 
@@ -401,7 +409,7 @@ static int current_bufflen;
 #ifdef LINKED
 
 /* 
- * linked_connected indicates weather or not we are currently connected to 
+ * linked_connected indicates whether or not we are currently connected to 
  * linked_target, linked_lun and in an INFORMATION TRANSFER phase,
  * using linked commands.
  */
@@ -447,7 +455,7 @@ static int should_reconnect = 0;
  * asserting SEL.
  */
 
-static void seagate_reconnect_intr (int unused)
+static void seagate_reconnect_intr(int irq, struct pt_regs * regs)
 	{
 	int temp;
 	Scsi_Cmnd * SCtmp;

@@ -9,6 +9,10 @@
  *  This software may be redistributed per Linux Copyright.
  */
 
+#ifdef MODULE
+#include <linux/module.h>
+#endif
+
 #include <linux/sched.h>
 #include <linux/xia_fs.h>
 #include <linux/kernel.h>
@@ -356,6 +360,7 @@ int xiafs_mkdir(struct inode * dir, const char * name, int len, int mode)
     inode->i_op = &xiafs_dir_inode_operations;
     inode->i_size = XIAFS_ZSIZE(dir->i_sb);
     inode->i_atime = inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+    inode->i_dirt = 1;
     dir_block = xiafs_bread(inode,0,1);
     if (!dir_block) {
         iput(dir);
@@ -758,8 +763,7 @@ try_again:
         retval = -EEXIST;
 	if (new_bh)
 	    goto end_rename;
-	retval = -EACCES;
-	if (!permission(old_inode, MAY_WRITE))
+	if ((retval = permission(old_inode, MAY_WRITE)) != 0)
 	    goto end_rename;
 	retval = -EINVAL;
 	if (subdir(new_dir, old_inode))

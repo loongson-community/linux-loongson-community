@@ -21,8 +21,14 @@
 # In the future, some of these should be built conditionally.
 #
 
-OBJS := ll_rw_blk.o floppy.o ramdisk.o genhd.o 
-SRCS := ll_rw_blk.c floppy.c ramdisk.c genhd.c 
+OBJS := ll_rw_blk.o ramdisk.o genhd.o 
+SRCS := ll_rw_blk.c ramdisk.c genhd.c 
+BLOCK_MODULE_OBJS =
+
+ifdef CONFIG_BLK_DEV_FD
+OBJS := $(OBJS) floppy.o
+SRCS := $(SRCS) floppy.c
+endif
 
 ifdef CONFIG_CDU31A
 OBJS := $(OBJS) cdu31a.o
@@ -34,9 +40,18 @@ OBJS := $(OBJS) mcd.o
 SRCS := $(SRCS) mcd.c
 endif
 
+ifdef CONFIG_AZTCD
+OBJS := $(OBJS) aztcd.o
+SRCS := $(SRCS) aztcd.c
+else
+BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) aztcd.o
+endif
+
 ifdef CONFIG_SBPCD
 OBJS := $(OBJS) sbpcd.o
 SRCS := $(SRCS) sbpcd.c
+else
+BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) sbpcd.o
 endif #CONFIG_SBPCD
 
 ifdef CONFIG_SBPCD2
@@ -59,9 +74,21 @@ OBJS := $(OBJS) hd.o
 SRCS := $(SRCS) hd.c
 endif
 
+ifdef CONFIG_BLK_DEV_IDE
+OBJS := ide.o $(OBJS)
+SRCS := ide.c $(SRCS)
+endif
+
 ifdef CONFIG_BLK_DEV_XD
 OBJS := $(OBJS) xd.o
 SRCS := $(SRCS) xd.c
+endif
+
+ifdef CONFIG_CDU535
+OBJS := $(OBJS) sonycd535.o
+SRCS := $(SRCS) sonycd535.c
+else
+BLOCK_MODULE_OBJS := $(BLOCK_MODULE_OBJS) sonycd535.o
 endif
 
 all: block.a
@@ -73,6 +100,13 @@ block.a: $(OBJS)
 
 dep:
 	$(CPP) -M $(SRCS) > .depend
+ifdef BLOCK_MODULE_OBJS
+	$(CPP) -M -DMODULE $(BLOCK_MODULE_OBJS:.o=.c) >> .depend
+endif
+
+modules: $(BLOCK_MODULE_OBJS)
+	echo $(BLOCK_MODULE_OBJS) > ../../modules/BLOCK_MODULES
+	(cd ../../modules;for i in $(BLOCK_MODULE_OBJS); do ln -sf ../drivers/block/$$i .; done)
 
 dummy:
 

@@ -15,9 +15,11 @@
 #include <linux/tpqic02.h>
 #include <linux/malloc.h>
 #include <linux/mman.h>
+#include <linux/mm.h>
 
 #include <asm/segment.h>
 #include <asm/io.h>
+#include <asm/pgtable.h>
 
 #ifdef CONFIG_SOUND
 extern long soundcard_init(long mem_start);
@@ -87,16 +89,17 @@ static int mmap_mem(struct inode * inode, struct file * file, struct vm_area_str
 {
 	if (vma->vm_offset & ~PAGE_MASK)
 		return -ENXIO;
-#if defined (__i386__)
+#if defined(__i386__)
+	/*
+	 * hmm.. This disables high-memory caching, as the XFree86 team
+	 * wondered about that at one time.
+	 * The surround logic should disable caching for the high device
+	 * addresses anyway, but right now this seems still needed.
+	 */
 	if (x86 > 3 && vma->vm_offset >= high_memory)
-		vma->vm_page_prot |= PAGE_PCD;
-#elif defined (__mips__)
-	if (vma->vm_offset >= high_memory)
-		vma->vm_page_prot = vma->vm_page_prot & ~CACHE_MASK | CACHE_UNCACHED;
+		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
 #endif
-
-	if (remap_page_range(vma->vm_start, vma->vm_offset,
-		             vma->vm_end - vma->vm_start, vma->vm_page_prot))
+	if (remap_page_range(vma->vm_start, vma->vm_offset, vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 	vma->vm_inode = inode;
 	inode->i_count++;
@@ -168,10 +171,13 @@ static int read_zero(struct inode * node,struct file * file,char * buf,int count
 
 static int mmap_zero(struct inode * inode, struct file * file, struct vm_area_struct * vma)
 {
-	if (vma->vm_page_prot & PAGE_RW)
+	if (vma->vm_flags & VM_SHARED)
 		return -EINVAL;
+printk("mmap_zero() #1\n");
 	if (zeromap_page_range(vma->vm_start, vma->vm_end - vma->vm_start, vma->vm_page_prot))
+{printk("mmap_zero() #2\n");while(1);
 		return -EAGAIN;
+}printk("mmap_zero() #3\n");while(1);
 	return 0;
 }
 
@@ -186,9 +192,8 @@ static int write_full(struct inode * inode,struct file * file,char * buf, int co
 }
 
 /*
- * Special lseek() function for /dev/null and /dev/zero.
- * Most notably, you can fopen() both devices with "a" now.
- * This was previously impossible.  SRB.
+ * Special lseek() function for /dev/null and /dev/zero.  Most notably, you can fopen()
+ * both devices with "a" now.  This was previously impossible.  SRB.
  */
 
 static int null_lseek(struct inode * inode, struct file * file, off_t offset, int orig)

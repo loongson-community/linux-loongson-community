@@ -23,7 +23,8 @@
 enum {
   IPPROTO_IP = 0,		/* Dummy protocol for TCP		*/
   IPPROTO_ICMP = 1,		/* Internet Control Message Protocol	*/
-  IPPROTO_GGP = 2,		/* Gateway Protocol (deprecated)	*/
+  IPPROTO_IGMP = 2,		/* Internet Gateway Management Protocol */
+  IPPROTO_IPIP = 4,		/* IPIP tunnels (older KA9Q tunnels use 94) */
   IPPROTO_TCP = 6,		/* Transmission Control Protocol	*/
   IPPROTO_EGP = 8,		/* Exterior Gateway Protocol		*/
   IPPROTO_PUP = 12,		/* PUP protocol				*/
@@ -38,6 +39,14 @@ enum {
 /* Internet address. */
 struct in_addr {
 	unsigned long int	s_addr;
+};
+
+/* Request struct for multicast socket ops */
+
+struct ip_mreq 
+{
+	struct in_addr imr_multiaddr;	/* IP multicast address of group */
+	struct in_addr imr_interface;	/* local IP address of interface */
 };
 
 
@@ -72,13 +81,14 @@ struct sockaddr_in {
 #define	IN_CLASSB_HOST		(0xffffffff & ~IN_CLASSB_NET)
 #define	IN_CLASSB_MAX		65536
 
-#define	IN_CLASSC(a)		((((long int) (a)) & 0xc0000000) == 0xc0000000)
+#define	IN_CLASSC(a)		((((long int) (a)) & 0xe0000000) == 0xc0000000)
 #define	IN_CLASSC_NET		0xffffff00
 #define	IN_CLASSC_NSHIFT	8
 #define	IN_CLASSC_HOST		(0xffffffff & ~IN_CLASSC_NET)
 
 #define	IN_CLASSD(a)		((((long int) (a)) & 0xf0000000) == 0xe0000000)
 #define	IN_MULTICAST(a)		IN_CLASSD(a)
+#define IN_MULTICAST_NET	0xF0000000
 
 #define	IN_EXPERIMENTAL(a)	((((long int) (a)) & 0xe0000000) == 0xe0000000)
 #define	IN_BADCLASS(a)		((((long int) (a)) & 0xf0000000) == 0xf0000000)
@@ -96,34 +106,15 @@ struct sockaddr_in {
 #define	IN_LOOPBACKNET		127
 
 /* Address to loopback in software to local host.  */
-#define	INADDR_LOOPBACK		0x7f000001	/* 127.0.0.1		*/
+#define	INADDR_LOOPBACK		0x7f000001	/* 127.0.0.1   */
 
+/* Defines for Multicast INADDR */
+#define INADDR_UNSPEC_GROUP   	0xe0000000      /* 224.0.0.0   */
+#define INADDR_ALLHOSTS_GROUP 	0xe0000001      /* 224.0.0.1   */
+#define INADDR_MAX_LOCAL_GROUP  0xe00000ff      /* 224.0.0.255 */
 
-/*
- * Options for use with `getsockopt' and `setsockopt' at
- * the IP level.  LINUX does not yet have the IP_OPTIONS
- * option (grin), so we undefine it for now.- HJ && FvK
- */
-#if 0
-# define IP_OPTIONS	1		/* IP per-packet options	*/
-#endif
-#define IP_HDRINCL	2		/* raw packet header option	*/
+/* <asm/byteorder.h> contains the htonl type stuff.. */
 
-
-/* Linux Internet number representation function declarations. */
-#undef ntohl
-#undef ntohs
-#undef htonl
-#undef htons
-
-extern unsigned long int	ntohl(unsigned long int);
-extern unsigned short int	ntohs(unsigned short int);
-extern unsigned long int	htonl(unsigned long int);
-extern unsigned short int	htons(unsigned short int);
-
-/*
- * include machine dependencies
- */
-#include <asm/in.h>
+#include <asm/byteorder.h> 
 
 #endif	/* _LINUX_IN_H */

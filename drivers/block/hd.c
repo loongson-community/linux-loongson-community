@@ -1,5 +1,5 @@
 /*
- *  linux/kernel/hd.c
+ *  linux/drivers/block/hd.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
@@ -31,9 +31,10 @@
 #include <linux/kernel.h>
 #include <linux/hdreg.h>
 #include <linux/genhd.h>
-#include <linux/config.h>
 #include <linux/malloc.h>
 #include <linux/string.h>
+#include <linux/ioport.h>
+#include <linux/mc146818rtc.h> /* CMOS defines */
 
 #define REALLY_SLOW_IO
 #include <asm/system.h>
@@ -46,12 +47,6 @@
 #define HD_IRQ 14
 
 static int revalidate_hddisk(int, int);
-
-static inline unsigned char CMOS_READ(unsigned char addr)
-{
-	outb_p(addr,0x70);
-	return inb_p(0x71);
-}
 
 #define	HD_DELAY	0
 
@@ -836,14 +831,6 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 		case BLKRRPART: /* Re-read partition tables */
 			return revalidate_hddisk(inode->i_rdev, 1);
 
-		case HDIO_SETUNMASKINTR:	/* obsolete */
-			printk("hd: obsolete syscall: HDIO_SETUNMASKINTR\n");
-			if (!arg)  return -EINVAL;
-			err = verify_area(VERIFY_READ, (long *) arg, sizeof(long));
-			if (err)
-				return err;
-			arg = get_fs_long((long *) arg);
-			/* drop into HDIO_SET_UNMASKINTR */
 		case HDIO_SET_UNMASKINTR:
 			if (!suser()) return -EACCES;
 			if ((arg > 1) || (MINOR(inode->i_rdev) & 0x3F))
@@ -867,14 +854,6 @@ static int hd_ioctl(struct inode * inode, struct file * file,
 			put_fs_long(mult_count[dev], (long *) arg);
 			return 0;
 
-		case HDIO_SETMULTCOUNT:		/* obsolete */
-			printk("hd: obsolete syscall: HDIO_SETMULTCOUNT\n");
-			if (!arg)  return -EINVAL;
-			err = verify_area(VERIFY_READ, (long *) arg, sizeof(long));
-			if (err)
-				return err;
-			arg = get_fs_long((long *) arg);
-			/* drop into HDIO_SET_MULTCOUNT */
 		case HDIO_SET_MULTCOUNT:
 			if (!suser()) return -EACCES;
 			if (MINOR(inode->i_rdev) & 0x3F) return -EINVAL;
@@ -914,6 +893,8 @@ static int hd_open(struct inode * inode, struct file * filp)
 	int target;
 	target =  DEVICE_NR(inode->i_rdev);
 
+	if (target >= NR_HD)
+		return -ENODEV;
 	while (busy[target])
 		sleep_on(&busy_wait);
 	access_count[target]++;
@@ -950,7 +931,7 @@ static struct gendisk hd_gendisk = {
 	NULL		/* next */
 };
 	
-static void hd_interrupt(int unused)
+static void hd_interrupt(int irq, struct pt_regs *regs)
 {
 	void (*handler)(void) = DEVICE_INTR;
 
@@ -1040,6 +1021,9 @@ static void hd_geninit(void)
 		if (request_irq(HD_IRQ, hd_interrupt, SA_INTERRUPT, "hd")) {
 			printk("hd: unable to get IRQ%d for the harddisk driver\n",HD_IRQ);
 			NR_HD = 0;
+		} else {
+			request_region(HD_DATA, 8, "hd");
+			request_region(HD_CMD, 1, "hd(cmd)");
 		}
 	}
 	hd_gendisk.nr_real = NR_HD;

@@ -2,7 +2,7 @@
  *  linux/kernel/aha1542.c
  *
  *  Copyright (C) 1992  Tommy Thorn
- *  Copyright (C) 1993, 1994 Eric Youngdale
+ *  Copyright (C) 1993, 1994, 1995 Eric Youngdale
  *
  *  Modified by Eric Youngdale
  *        Use request_irq and request_dma to help prevent unexpected conflicts
@@ -13,6 +13,10 @@
  *  Modified by Matti Aarnio
  *        Accept parameters from LILO cmd-line. -- 1-Oct-94
  */
+
+#ifdef MODULE
+#include <linux/module.h>
+#endif
 
 #include <linux/kernel.h>
 #include <linux/head.h>
@@ -45,7 +49,7 @@ static const char RCSid[] = "$Header: /usr/src/linux/kernel/blk_drv/scsi/RCS/aha
 /* The adaptec can be configured for quite a number of addresses, but
 I generally do not want the card poking around at random.  We allow
 two addresses - this allows people to use the Adaptec with a Midi
-card, which also used 0x330 -- can be overriden with LILO! */
+card, which also used 0x330 -- can be overridden with LILO! */
 
 #define MAXBOARDS 2	/* Increase this and the sizes of the
 			   arrays below, if you need more.. */
@@ -149,27 +153,31 @@ static void aha1542_stat(void)
    are ever sent. */
 static int aha1542_out(unsigned int base, unchar *cmdp, int len)
 {
+  unsigned long flags = 0;
+  
   if(len == 1) {
     while(1==1){
 	WAIT(STATUS(base), CDF, 0, CDF);
+	save_flags(flags);
 	cli();
-	if(inb(STATUS(base)) & CDF) {sti(); continue;}
+	if(inb(STATUS(base)) & CDF) {restore_flags(flags); continue;}
 	outb(*cmdp, DATA(base));
-	sti();
+	restore_flags(flags);
 	return 0;
       }
   } else {
+    save_flags(flags);
     cli();
     while (len--)
       {
 	WAIT(STATUS(base), CDF, 0, CDF);
 	outb(*cmdp++, DATA(base));
       }
-    sti();
+    restore_flags(flags);
   }
     return 0;
   fail:
-  sti();
+    restore_flags(flags);
     printk("aha1542_out failed(%d): ", len+1); aha1542_stat();
     return 1;
 }
@@ -178,16 +186,19 @@ static int aha1542_out(unsigned int base, unchar *cmdp, int len)
    here */
 static int aha1542_in(unsigned int base, unchar *cmdp, int len)
 {
+    unsigned long flags;
+
+    save_flags(flags);
     cli();
     while (len--)
       {
 	  WAIT(STATUS(base), DF, DF, 0);
 	  *cmdp++ = inb(DATA(base));
       }
-    sti();
+    restore_flags(flags);
     return 0;
   fail:
-    sti();
+    restore_flags(flags);
     printk("aha1542_in failed(%d): ", len+1); aha1542_stat();
     return 1;
 }
@@ -197,16 +208,19 @@ static int aha1542_in(unsigned int base, unchar *cmdp, int len)
    if the board will respond the the command we are about to send or not */
 static int aha1542_in1(unsigned int base, unchar *cmdp, int len)
 {
+    unsigned long flags;
+    
+    save_flags(flags);
     cli();
     while (len--)
       {
 	  WAITd(STATUS(base), DF, DF, 0, 100);
 	  *cmdp++ = inb(DATA(base));
       }
-    sti();
+    restore_flags(flags);
     return 0;
   fail:
-    sti();
+    restore_flags(flags);
     return 1;
 }
 
@@ -335,23 +349,20 @@ static int aha1542_test_port(int bse, struct Scsi_Host * shpnt)
 }
 
 /* A "high" level interrupt handler */
-static void aha1542_intr_handle(int foo)
+static void aha1542_intr_handle(int irq, struct pt_regs *regs)
 {
     void (*my_done)(Scsi_Cmnd *) = NULL;
     int errstatus, mbi, mbo, mbistatus;
     int number_serviced;
+    unsigned int flags;
     struct Scsi_Host * shost;
     Scsi_Cmnd * SCtmp;
-    int irqno, * irqp, flag;
+    int flag;
     int needs_restart;
     struct mailbox * mb;
     struct ccb  *ccb;
 
-    irqp = (int *) foo;
-    irqp -= 2;  /* Magic - this is only required for slow interrupt handlers */
-    irqno = *irqp;
-
-    shost = aha_host[irqno - 9];
+    shost = aha_host[irq - 9];
     if(!shost) panic("Splunge!");
 
     mb = HOSTDATA(shost)->mb;
@@ -390,6 +401,7 @@ static void aha1542_intr_handle(int foo)
 
       aha1542_intr_reset(shost->io_port);
 
+      save_flags(flags);
       cli();
       mbi = HOSTDATA(shost)->aha1542_last_mbi_used + 1;
       if (mbi >= 2*AHA1542_MAILBOXES) mbi = AHA1542_MAILBOXES;
@@ -401,7 +413,7 @@ static void aha1542_intr_handle(int foo)
       } while (mbi != HOSTDATA(shost)->aha1542_last_mbi_used);
       
       if(mb[mbi].status == 0){
-	sti();
+	restore_flags(flags);
 	/* Hmm, no mail.  Must have read it the last time around */
 	if (!number_serviced && !needs_restart)
 	  printk("aha1542.c: interrupt received, but no mail.\n");
@@ -415,7 +427,7 @@ static void aha1542_intr_handle(int foo)
       mbistatus = mb[mbi].status;
       mb[mbi].status = 0;
       HOSTDATA(shost)->aha1542_last_mbi_used = mbi;
-      sti();
+      restore_flags(flags);
       
 #ifdef DEBUG
       {
@@ -498,6 +510,7 @@ int aha1542_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
     unchar *cmd = (unchar *) SCpnt->cmnd;
     unchar target = SCpnt->target;
     unchar lun = SCpnt->lun;
+    unsigned long flags;
     void *buff = SCpnt->request_buffer;
     int bufflen = SCpnt->request_bufflen;
     int mbo;
@@ -545,6 +558,7 @@ int aha1542_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 /* Use the outgoing mailboxes in a round-robin fashion, because this
    is how the host adapter will scan for them */
 
+    save_flags(flags);
     cli();
     mbo = HOSTDATA(SCpnt->host)->aha1542_last_mbo_used + 1;
     if (mbo >= AHA1542_MAILBOXES) mbo = 0;
@@ -563,7 +577,7 @@ int aha1542_queuecommand(Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))
 			    screwing with this cdb. */
 
     HOSTDATA(SCpnt->host)->aha1542_last_mbo_used = mbo;    
-    sti();
+    restore_flags(flags);
 
 #ifdef DEBUG
     printk("Sending command (%d %x)...",mbo, done);
@@ -667,7 +681,8 @@ int aha1542_command(Scsi_Cmnd * SCpnt)
     aha1542_queuecommand(SCpnt, internal_done);
 
     SCpnt->SCp.Status = 0;
-    while (!SCpnt->SCp.Status);
+    while (!SCpnt->SCp.Status)
+    	barrier();
     return SCpnt->result;
 }
 
@@ -903,6 +918,7 @@ int aha1542_detect(Scsi_Host_Template * tpnt)
 {
     unsigned char dma_chan;
     unsigned char irq_level;
+    unsigned long flags;
     unsigned int base_io;
     int trans;
     struct Scsi_Host * shpnt = NULL;
@@ -974,6 +990,7 @@ int aha1542_detect(Scsi_Host_Template * tpnt)
 		    DEB(aha1542_stat());
 		    
 		    DEB(printk("aha1542_detect: enable interrupt channel %d\n", irq_level));
+		    save_flags(flags);
 		    cli();
 		    if (request_irq(irq_level,aha1542_intr_handle, 0, "aha1542")) {
 			    printk("Unable to allocate IRQ for adaptec controller.\n");
@@ -1003,7 +1020,7 @@ int aha1542_detect(Scsi_Host_Template * tpnt)
 		    HOSTDATA(shpnt)->aha1542_last_mbi_used  = (2*AHA1542_MAILBOXES - 1);
 		    HOSTDATA(shpnt)->aha1542_last_mbo_used  = (AHA1542_MAILBOXES - 1);
 		    memset(HOSTDATA(shpnt)->SCint, 0, sizeof(HOSTDATA(shpnt)->SCint));
-		    sti();
+		    restore_flags(flags);
 #if 0
 		    DEB(printk(" *** READ CAPACITY ***\n"));
 		    
@@ -1037,7 +1054,7 @@ int aha1542_detect(Scsi_Host_Template * tpnt)
 			    aha1542_command(0, cmd, buffer, 512);
 		    }
 #endif    
-		    snarf_region(bases[indx], 4);  /* Register the IO ports that we use */
+		    request_region(bases[indx], 4,"aha1542");  /* Register the IO ports that we use */
 		    count++;
 		    continue;
 	    unregister:
@@ -1081,8 +1098,8 @@ static int aha1542_restart(struct Scsi_Host * shost)
 int aha1542_abort(Scsi_Cmnd * SCpnt)
 {
 #if 0
-  int intval[3];
   unchar ahacmd = CMD_START_SCSI;
+  unsigned long flags;
   struct mailbox * mb;
   int mbi, mbo, i;
 
@@ -1090,6 +1107,7 @@ int aha1542_abort(Scsi_Cmnd * SCpnt)
 	 inb(STATUS(SCpnt->host->io_port)),
 	 inb(INTRFLAGS(SCpnt->host->io_port)));
 
+  save_flags(flags);
   cli();
   mb = HOSTDATA(SCpnt->host)->mb;
   mbi = HOSTDATA(SCpnt->host)->aha1542_last_mbi_used + 1;
@@ -1100,13 +1118,12 @@ int aha1542_abort(Scsi_Cmnd * SCpnt)
     mbi++;
     if (mbi >= 2*AHA1542_MAILBOXES) mbi = AHA1542_MAILBOXES;
   } while (mbi != HOSTDATA(SCpnt->host)->aha1542_last_mbi_used);
-  sti();
+  restore_flags(flags);
 
   if(mb[mbi].status) {
     printk("Lost interrupt discovered on irq %d - attempting to recover\n", 
 	   SCpnt->host->irq);
-    intval[0] = SCpnt->host->irq;
-    aha1542_intr_handle((int) &intval[2]);
+    aha1542_intr_handle(SCpnt->host->irq, NULL);
     return 0;
   }
 
@@ -1130,12 +1147,13 @@ int aha1542_abort(Scsi_Cmnd * SCpnt)
 
     DEB(printk("aha1542_abort\n"));
 #if 0
+    save_flags(flags);
     cli();
     for(mbo = 0; mbo < AHA1542_MAILBOXES; mbo++)
       if (SCpnt == HOSTDATA(SCpnt->host)->SCint[mbo]){
 	mb[mbo].status = 2;  /* Abort command */
 	aha1542_out(SCpnt->host->io_port, &ahacmd, 1); /* start scsi command */
-	sti();
+	restore_flags(flags);
 	break;
       };
 #endif

@@ -23,6 +23,8 @@ minix.o: $(OBJS)
 dep:
 	$(CPP) -M *.c > .depend
 
+modules: minix.o
+
 #
 # include a dependency file if one exists
 #

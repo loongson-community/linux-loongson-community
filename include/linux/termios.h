@@ -43,6 +43,7 @@
 #define TIOCSETD	0x5423
 #define TIOCGETD	0x5424
 #define TCSBRKP		0x5425	/* Needed for POSIX tcsendbreak() */
+#define TIOCTTYGSTRUCT	0x5426  /* For debugging only */
 #define FIONCLEX	0x5450  /* these numbers need to be adjusted. */
 #define FIOCLEX		0x5451
 #define FIOASYNC	0x5452
@@ -53,6 +54,8 @@
 #define TIOCSLCKTRMIOS	0x5457
 #define TIOCSERGSTRUCT	0x5458 /* For debugging only */
 #define TIOCSERGETLSR   0x5459 /* Get line status register */
+#define TIOCSERGETMULTI 0x545A /* Get multiport config  */
+#define TIOCSERSETMULTI 0x545B /* Set multiport config */
 
 /* Used for packet mode */
 #define TIOCPKT_DATA		 0
@@ -192,6 +195,7 @@ struct termios {
 #define CBAUDEX 0010000
 #define  B57600  0010001
 #define  B115200 0010002
+#define  B230400 0010003
 #define CIBAUD	  002003600000	/* input baud rate (not used) */
 #define CRTSCTS	  020000000000		/* flow control */
 

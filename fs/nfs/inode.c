@@ -4,7 +4,18 @@
  *  Copyright (C) 1992  Rick Sladkey
  *
  *  nfs inode and superblock handling functions
+ *
+ *  Modularised by Alan Cox <Alan.Cox@linux.org>, while hacking some
+ *  experimental NFS changes. Modularisation taken straight from SYS5 fs.
  */
+
+#ifdef MODULE
+#include <linux/module.h>
+#include <linux/version.h>
+#else
+#define MOD_INC_USE_COUNT
+#define MOD_DEC_USE_COUNT
+#endif
 
 #include <asm/system.h>
 #include <asm/segment.h>
@@ -18,12 +29,12 @@
 #include <linux/errno.h>
 #include <linux/locks.h>
 
-extern int close_fp(struct file *filp, unsigned int fd);
+extern int close_fp(struct file *filp);
 
 static int nfs_notify_change(struct inode *, struct iattr *);
 static void nfs_put_inode(struct inode *);
 static void nfs_put_super(struct super_block *);
-static void nfs_statfs(struct super_block *, struct statfs *);
+static void nfs_statfs(struct super_block *, struct statfs *, int bufsiz);
 
 static struct super_operations nfs_sops = { 
 	NULL,			/* read inode */
@@ -43,11 +54,11 @@ static void nfs_put_inode(struct inode * inode)
 
 void nfs_put_super(struct super_block *sb)
 {
-        /* No locks should be open on this, so 0 should be safe as a fd. */
-	close_fp(sb->u.nfs_sb.s_server.file, 0);
+	close_fp(sb->u.nfs_sb.s_server.file);
 	lock_super(sb);
 	sb->s_dev = 0;
 	unlock_super(sb);
+	MOD_DEC_USE_COUNT;
 }
 
 /*
@@ -67,9 +78,11 @@ struct super_block *nfs_read_super(struct super_block *sb, void *raw_data,
 	struct file *filp;
 	dev_t dev = sb->s_dev;
 
+	MOD_INC_USE_COUNT;
 	if (!data) {
 		printk("nfs_read_super: missing data argument\n");
 		sb->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return NULL;
 	}
 	fd = data->fd;
@@ -80,11 +93,13 @@ struct super_block *nfs_read_super(struct super_block *sb, void *raw_data,
 	if (fd >= NR_OPEN || !(filp = current->files->fd[fd])) {
 		printk("nfs_read_super: invalid file descriptor\n");
 		sb->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return NULL;
 	}
 	if (!S_ISSOCK(filp->f_inode->i_mode)) {
 		printk("nfs_read_super: not a socket\n");
 		sb->s_dev = 0;
+		MOD_DEC_USE_COUNT;
 		return NULL;
 	}
 	filp->f_count++;
@@ -121,32 +136,33 @@ struct super_block *nfs_read_super(struct super_block *sb, void *raw_data,
 	if (!(sb->s_mounted = nfs_fhget(sb, &data->root, NULL))) {
 		sb->s_dev = 0;
 		printk("nfs_read_super: get root inode failed\n");
+		MOD_DEC_USE_COUNT;
 		return NULL;
 	}
 	return sb;
 }
 
-void nfs_statfs(struct super_block *sb, struct statfs *buf)
+void nfs_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 {
 	int error;
 	struct nfs_fsinfo res;
+	struct statfs tmp;
 
-	put_fs_long(NFS_SUPER_MAGIC, &buf->f_type);
 	error = nfs_proc_statfs(&sb->u.nfs_sb.s_server, &sb->u.nfs_sb.s_root,
 		&res);
 	if (error) {
 		printk("nfs_statfs: statfs error = %d\n", -error);
 		res.bsize = res.blocks = res.bfree = res.bavail = 0;
 	}
-	put_fs_long(res.bsize, &buf->f_bsize);
-	put_fs_long(res.blocks, &buf->f_blocks);
-	put_fs_long(res.bfree, &buf->f_bfree);
-	put_fs_long(res.bavail, &buf->f_bavail);
-	put_fs_long(0, &buf->f_files);
-	put_fs_long(0, &buf->f_ffree);
-	/* We should really try to interrogate the remote server to find
-	   it's maximum name length here */
-	put_fs_long(NAME_MAX, &buf->f_namelen);
+	tmp.f_type = NFS_SUPER_MAGIC;
+	tmp.f_bsize = res.bsize;
+	tmp.f_blocks = res.blocks;
+	tmp.f_bfree = res.bfree;
+	tmp.f_bavail = res.bavail;
+	tmp.f_files = 0;
+	tmp.f_ffree = 0;
+	tmp.f_namelen = NAME_MAX;
+	memcpy_tofs(buf, &tmp, bufsiz);
 }
 
 /*
@@ -238,3 +254,26 @@ int nfs_notify_change(struct inode *inode, struct iattr *attr)
 	inode->i_dirt = 0;
 	return error;
 }
+
+#ifdef MODULE
+
+/* Every kernel module contains stuff like this. */
+
+char kernel_version[] = UTS_RELEASE;
+
+static struct file_system_type nfs_fs_type = {
+	nfs_read_super, "nfs", 0, NULL
+};
+
+int init_module(void)
+{
+	register_filesystem(&nfs_fs_type);
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	unregister_filesystem(&nfs_fs_type);
+}
+
+#endif

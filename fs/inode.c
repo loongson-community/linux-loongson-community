@@ -406,12 +406,18 @@ repeat:
 		goto repeat;
 	}
 	inode->i_count--;
+	if (inode->i_mmap) {
+		printk("iput: inode %lu on device %d/%d still has mappings.\n",
+			inode->i_ino, MAJOR(inode->i_dev), MINOR(inode->i_dev));
+		inode->i_mmap = NULL;
+	}
 	nr_free_inodes++;
 	return;
 }
 
 struct inode * get_empty_inode(void)
 {
+	static int ino = 0;
 	struct inode * inode, * best;
 	int i;
 
@@ -456,6 +462,8 @@ repeat:
 	inode->i_nlink = 1;
 	inode->i_version = ++event;
 	inode->i_sem.count = 1;
+	inode->i_ino = ++ino;
+	inode->i_dev = -1;
 	nr_free_inodes--;
 	if (nr_free_inodes < 0) {
 		printk ("VFS: get_empty_inode: bad free inode count.\n");
