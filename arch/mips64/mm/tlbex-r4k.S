@@ -118,7 +118,7 @@ LEAF(except_vec1_r4k)
 END(except_vec1_r4k)
 
 LEAF(except_vec1_sb1)
-#ifdef BCM1250_M3_WAR
+#if BCM1250_M3_WAR
 	dmfc0	k0, CP0_BADVADDR
 	dmfc0	k1, CP0_ENTRYHI
 	xor	k0, k1

@@ -58,7 +58,7 @@
 	.endm
 
 	tlb_handler	xtlb_mod kmode 1
-#ifdef BCM1250_M3_WAR
+#if BCM1250_M3_WAR
 	tlb_handler_m3	xtlb_tlbl kmode 0
 #else
 	tlb_handler	xtlb_tlbl kmode 0

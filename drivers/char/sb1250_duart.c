@@ -117,14 +117,14 @@ static uart_state_t uart_states[DUART_MAX_LINE];
  * "write-mode-1 after any register access" is the accepted
  * workaround.
  */
-#ifdef SIBYTE_1956_WAR
+#if SIBYTE_1956_WAR
 static unsigned int last_mode1[DUART_MAX_LINE];
 #endif
 
 static inline u32 READ_SERCSR(u32 *addr, int line)
 {
 	u32 val = csr_in32(addr);
-#ifdef SIBYTE_1956_WAR
+#if SIBYTE_1956_WAR
 	csr_out32(last_mode1[line], uart_states[line].mode_1);
 #endif
 	return val;
@@ -133,7 +133,7 @@ static inline u32 READ_SERCSR(u32 *addr, int line)
 static inline void WRITE_SERCSR(u32 val, u32 *addr, int line)
 {
 	csr_out32(val, addr);
-#ifdef SIBYTE_1956_WAR
+#if SIBYTE_1956_WAR
 	csr_out32(last_mode1[line], uart_states[line].mode_1);
 #endif
 }
@@ -895,7 +895,7 @@ static int ser_console_setup(struct console *cons, char *str)
 		uart_state_t *port = uart_states + i;
 		
 		init_duart_port(port, i);
-#ifdef SIBYTE_1956_WAR
+#if SIBYTE_1956_WAR
 		last_mode1[i] = V_DUART_PARITY_MODE_NONE|V_DUART_BITS_PER_CHAR_8;
 #endif
 		WRITE_SERCSR(V_DUART_PARITY_MODE_NONE|V_DUART_BITS_PER_CHAR_8,

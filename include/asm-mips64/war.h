@@ -35,8 +35,9 @@
  *                              nop
  *                              nop
  *                              cache       Hit_Writeback_Invalidate_D
+ *
+ * #define R4600_V1_HIT_CACHEOP_WAR 1
  */
-#define R4600_V1_HIT_CACHEOP_WAR
 
 
 /*
@@ -49,8 +50,28 @@
  * by a load instruction to an uncached address to empty the response buffer."
  * (Revision 2.0 device errata from IDT available on http://www.idt.com/
  * in .pdf format.)
+ *
+ * #define R4600_V2_HIT_CACHEOP_WAR 1
  */
-#define R4600_V2_HIT_CACHEOP_WAR
+
+/*
+ * R4600 CPU modules for the Indy come with both V1.7 and V2.0 processors.
+ */
+#ifdef CONFIG_SGI_IP22
+
+#define R4600_V1_HIT_CACHEOP_WAR	1
+#define R4600_V2_HIT_CACHEOP_WAR	1
+
+#endif
+
+/*
+ * But the RM200C seems to have been shipped only with V2.0 R4600s
+ */
+#ifdef CONFIG_SNI_RM200_PCI
+
+#define R4600_V2_HIT_CACHEOP_WAR	1
+
+#endif
 
 #ifdef CONFIG_CPU_R5432
 
@@ -63,7 +84,7 @@
  * first thing in the exception handler, which breaks one of the
  * pre-conditions for this problem.
  */
-#define	R5432_CP0_INTERRUPT_WAR
+#define	R5432_CP0_INTERRUPT_WAR 1
 
 #endif
 
@@ -80,13 +101,32 @@
  * will just return and take the exception again if the information was
  * found to be inconsistent.
  */
-#define BCM1250_M3_WAR
+#define BCM1250_M3_WAR 1
 
 /* 
  * This is a DUART workaround related to glitches around register accesses
  */
-#define SIBYTE_1956_WAR
+#define SIBYTE_1956_WAR 1
 
+#endif
+
+/*
+ * Workarounds default to off
+ */
+#ifndef R4600_V1_HIT_CACHEOP_WAR
+#define R4600_V1_HIT_CACHEOP_WAR	0
+#endif
+#ifndef R4600_V2_HIT_CACHEOP_WAR
+#define R4600_V2_HIT_CACHEOP_WAR	0
+#endif
+#ifndef R5432_CP0_INTERRUPT_WAR
+#define R5432_CP0_INTERRUPT_WAR		0
+#endif
+#ifndef BCM1250_M3_WAR
+#define BCM1250_M3_WAR			0
+#endif
+#ifndef SIBYTE_1956_WAR
+#define SIBYTE_1956_WAR			0
 #endif
 
 #endif /* _ASM_WAR_H */

@@ -249,7 +249,7 @@
 
 	/* TLB refill, EXL == 0, SB1 with M3 errata handling version */
 	LEAF(except_vec0_sb1)
-#ifdef BCM1250_M3_WAR
+#if BCM1250_M3_WAR
 	mfc0	k0, CP0_BADVADDR
 	mfc0	k1, CP0_ENTRYHI
 	xor	k0, k1
@@ -438,7 +438,7 @@
 	.align	5
 	NESTED(handle_tlbl, PT_SIZE, sp)
 	.set	noat
-#ifdef BCM1250_M3_WAR
+#if BCM1250_M3_WAR
 	mfc0	k0, CP0_BADVADDR
 	mfc0	k1, CP0_ENTRYHI
 	xor	k0, k1
