@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: memory.c,v 1.8 2000/01/17 23:32:46 ralf Exp $
+ * $Id: memory.c,v 1.9 2000/01/27 01:05:23 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -24,9 +24,10 @@
 
 extern char _end;
 
-struct linux_mdesc * __init prom_getmdesc(struct linux_mdesc *curr)
+struct linux_mdesc * __init
+ArcGetMemoryDescriptor(struct linux_mdesc *Current)
 {
-	return romvec->get_mdesc(curr);
+	return romvec->get_mdesc(Current);
 }
 
 #ifdef DEBUG /* convenient for debugging */
@@ -54,7 +55,7 @@ static char *arc_mtypes[8] = {
 #define mtypes(a) (prom_flags & PROM_FLAG_ARCS) ? arcs_mtypes[a.arcs] : arc_mtypes[a.arc]
 #endif
 
-static struct prom_pmemblock prom_pblocks[PROM_MAX_PMEMBLOCKS];
+static struct prom_pmemblock pblocks[PROM_MAX_PMEMBLOCKS];
 
 #define MEMTYPE_DONTUSE   0
 #define MEMTYPE_PROM      1
@@ -103,102 +104,125 @@ static inline int memtype_classify_arc (union linux_memtypes type)
 static int __init prom_memtype_classify (union linux_memtypes type)
 {
 	if (prom_flags & PROM_FLAG_ARCS)	/* SGI is ``different'' ...  */
-		return memtype_classify_arc(type);
+		return memtype_classify_arcs(type);
 
 	return memtype_classify_arc(type);
 }
 
-static unsigned long __init find_max_low_pfn(void)
+static inline unsigned long find_max_low_pfn(void)
 {
 	struct prom_pmemblock *p, *highest;
+	unsigned long pfn;
 
-	for (p = prom_pblocks, highest = 0; p->size != 0; p++) {
+	p = pblocks;
+	highest = 0;
+	while (p->size != 0) {
 		if (!highest || p->base > highest->base)
 			highest = p;
+		p++;
 	}
+
+	pfn = (highest->base + highest->size) >> PAGE_SHIFT;
 #ifdef DEBUG
-	prom_printf("find_max_low_pfn: mips_memory_upper = %08lx\n", highest);
+	prom_printf("find_max_low_pfn: 0x%lx pfns.\n", pfn);
 #endif
-	return (highest->base + highest->size) >> PAGE_SHIFT;
+	return pfn;
 }
 
-#define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
-#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
-#define PFN_PHYS(x)	((x) << PAGE_SHIFT)
-#define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
+static inline struct prom_pmemblock *find_largest_memblock(void)
+{
+	struct prom_pmemblock *p, *largest;
+
+	p = pblocks;
+	largest = 0;
+	while (p->size != 0) {
+		if (!largest || p->size > largest->size)
+			largest = p;
+		p++;
+	}
+
+	return largest;
+}
 
 void __init prom_meminit(void)
 {
-	unsigned long start_pfn;
+	struct prom_pmemblock *largest;
+	unsigned long bootmap_size;
 	struct linux_mdesc *p;
 	int totram;
 	int i = 0;
 
 #ifdef DEBUG
 	prom_printf("ARCS MEMORY DESCRIPTOR dump:\n");
-	p = prom_getmdesc(PROM_NULL_MDESC);
+	p = ArcGetMemoryDescriptor(PROM_NULL_MDESC);
 	while(p) {
 		prom_printf("[%d,%p]: base<%08lx> pages<%08lx> type<%s>\n",
 			    i, p, p->base, p->pages, mtypes(p->type));
-		p = prom_getmdesc(p);
+		p = ArcGetMemoryDescriptor(p);
 		i++;
 	}
 #endif
 
 	totram = 0;
-	p = prom_getmdesc(PROM_NULL_MDESC);
 	i = 0;
-	while (p) {
-		prom_pblocks[i].type = prom_memtype_classify(p->type);
-		prom_pblocks[i].base = p->base << PAGE_SHIFT;
-		prom_pblocks[i].size = p->pages << PAGE_SHIFT;
+	p = PROM_NULL_MDESC;
+	while ((p = ArcGetMemoryDescriptor(p))) {
+		pblocks[i].type = prom_memtype_classify(p->type);
+		pblocks[i].base = p->base << PAGE_SHIFT;
+		pblocks[i].size = p->pages << PAGE_SHIFT;
 
-		switch (prom_pblocks[i].type) {
+		switch (pblocks[i].type) {
 		case MEMTYPE_FREE:
-			totram += prom_pblocks[i].size;
+			totram += pblocks[i].size;
 #ifdef DEBUG
-			prom_printf("free_chunk[%d]: base=%08lx size=%d\n",
-				    i, prom_pblocks[i].base,
-				    prom_pblocks[i].size);
+			prom_printf("free_chunk[%d]: base=%08lx size=%x\n",
+				    i, pblocks[i].base,
+				    pblocks[i].size);
 #endif
 			i++;
 			break;
 		case MEMTYPE_PROM:
 #ifdef DEBUG
-			prom_printf("prom_chunk[%d]: base=%08lx size=%d\n",
-				    i, prom_pblocks[i].base,
-				    prom_pblocks[i].size);
+			prom_printf("prom_chunk[%d]: base=%08lx size=%x\n",
+				    i, pblocks[i].base,
+				    pblocks[i].size);
 #endif
 			i++;
 			break;
 		default:
 			break;
 		}
-		p = prom_getmdesc(p);
 	}
-	prom_pblocks[i].size = 0;
+	pblocks[i].size = 0;
 
-	/* Setup upper physical memory bound. */
 	max_low_pfn = find_max_low_pfn();
+	largest = find_largest_memblock();
+	bootmap_size = init_bootmem(largest->base >> PAGE_SHIFT, max_low_pfn);
 
-	start_pfn = PFN_UP((unsigned long)&_end - PAGE_OFFSET);
-	init_bootmem(start_pfn, max_low_pfn);
+	for (i = 0; pblocks[i].size; i++)
+		if (pblocks[i].type == MEMTYPE_FREE)
+			free_bootmem(pblocks[i].base, pblocks[i].size);
 
-	for (i = 0; prom_pblocks[i].size; i++)
-		if (prom_pblocks[i].type == MEMTYPE_FREE)
-			free_bootmem(prom_pblocks[i].base, prom_pblocks[i].size);
+	/* This test is simpleminded.  It will fail if the bootmem bitmap
+	   falls into multiple adjacent ARC memory areas.  */
+	if (bootmap_size > largest->size) {
+		prom_printf("CRITIAL: overwriting PROM data.\n");
+		BUG();
+	}
+	reserve_bootmem(largest->base, bootmap_size);
 
-	printk("PROMLIB: Total free ram %d bytes (%dK,%dMB)\n",
-	       totram, (totram/1024), (totram/1024/1024));
+	printk("PROMLIB: Total free ram %dK / %dMB.\n",
+	       totram >> 10, totram >> 20);
 }
 
-void __init prom_free_prom_memory (void)
+void __init
+prom_free_prom_memory (void)
 {
 	struct prom_pmemblock *p;
 	unsigned long freed = 0;
 	unsigned long addr;
 
-	for (p = prom_pblocks; p->size != 0; p++) {
+	for (p = pblocks; p->size != 0; p++) {
 		if (p->type != MEMTYPE_PROM)
 			continue;
 
@@ -211,5 +235,5 @@ void __init prom_free_prom_memory (void)
 			freed += PAGE_SIZE;
 		}
 	}
-	printk("Freeing prom memory: %ldk freed\n", freed >> 10);
+	printk("Freeing prom memory: %ldkb freed\n", freed >> 10);
 }
