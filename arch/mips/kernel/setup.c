@@ -282,7 +282,7 @@ static inline void cpu_probe(void)
 			break;
 		case PRID_IMP_R10000:
 			mips_cpu.cputype = CPU_R10000;
-			mips_cpu.cputype = MIPS_CPU_ISA_IV;
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
 			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 				           MIPS_CPU_FPU | MIPS_CPU_32FPR | 
 				           MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
