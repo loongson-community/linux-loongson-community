@@ -122,8 +122,7 @@ unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
 	}
 	if (io)
 		return IORESOURCE_IO;
-	printk(KERN_WARNING "PCI: bridge %s does not support I/O forwarding!\n",
-				bridge->name);
+	//printk(KERN_WARNING "PCI: bridge %s does not support I/O forwarding!\n", bridge->name);
 	return 0;
 }
 

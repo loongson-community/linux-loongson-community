@@ -120,14 +120,12 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 
 #else
 
-static int config_access(unsigned char access_type, struct pci_dev *dev, 
-			 unsigned char where, u32 * data)
+static int config_access(unsigned char access_type, struct pci_bus *bus, 
+			 unsigned int devfn, unsigned char where, u32 *data)
 {
 #ifdef CONFIG_SOC_AU1500
-	unsigned char bus = dev->bus->number;
-	unsigned int dev_fn = dev->devfn;
-	unsigned int device = PCI_SLOT(dev_fn);
-	unsigned int function = PCI_FUNC(dev_fn);
+	unsigned int device = PCI_SLOT(devfn);
+	unsigned int function = PCI_FUNC(devfn);
 	unsigned long config, status;
         unsigned long cfg_addr;
 
@@ -142,12 +140,12 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	au_sync_udelay(1);
 
         /* setup the config window */
-        if (bus == 0) {
-                cfg_addr = ioremap( Au1500_EXT_CFG | ((1<<device)<<11) , 
-				0x00100000);
+        if (bus->number == 0) {
+                cfg_addr = (unsigned long)ioremap(Au1500_EXT_CFG | 
+				((1<<device)<<11), 0x00100000);
         } else {
-                cfg_addr = ioremap( Au1500_EXT_CFG_TYPE1 | (bus<<16) | 
-				(device<<11), 0x00100000);
+                cfg_addr = (unsigned long)ioremap(Au1500_EXT_CFG_TYPE1 | 
+				(bus->number<<16) | (device<<11), 0x00100000);
         }
 
         if (!cfg_addr)
@@ -157,8 +155,16 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
         config = cfg_addr | (function << 8) | (where & ~0x3);
 
 #if 0
-	printk("cfg access: config %x, dev_fn %x, device %x function %x\n",
-			config, dev_fn, device, function);
+	if (access_type == PCI_ACCESS_WRITE) {
+		printk("cfg write:  ");
+	} 
+	else {
+		printk("cfg read:  ");
+	}
+	printk("devfn %x, device %x func %x  \n",  devfn, device, function);
+	if (access_type == PCI_ACCESS_WRITE) {
+		printk("data %x\n", *data);
+	}
 #endif
 
 	if (access_type == PCI_ACCESS_WRITE) {
@@ -170,21 +176,23 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 
 
 	DBG("config_access: %d bus %d device %d at %x *data %x, conf %x\n", 
-			access_type, bus, device, where, *data, config);
+			access_type, bus->number, device, where, *data, config);
 
         /* unmap io space */
-        iounmap( cfg_addr );
+        iounmap( (void *)cfg_addr );
 
 	/* check master abort */
 	status = au_readl(Au1500_PCI_STATCMD);
 #if 0
-printk("cfg access: status %x, data %x\n", status, *data );
+	if (access_type == PCI_ACCESS_READ) {
+		printk("read data: %x\n", *data);
+	}
 #endif
 	if (status & (1<<29)) { 
 		*data = 0xffffffff;
 		return -1;
 	} else if ((status >> 28) & 0xf) {
-		DBG("PCI ERR detected: status %x\n", status);
+		printk("PCI ERR detected: status %x\n", status);
 		*data = 0xffffffff;
 		return -1;
 	} else {
@@ -194,12 +202,13 @@ printk("cfg access: status %x, data %x\n", status, *data );
 }
 #endif
 
-static int read_config_byte(struct pci_dev *dev, int where, u8 * val)
+static int read_config_byte(struct pci_bus *bus, unsigned int devfn, 
+		int where, u8 * val)
 {
 	u32 data;
 	int ret;
 
-	ret = config_access(PCI_ACCESS_READ, dev, where, &data);
+	ret = config_access(PCI_ACCESS_READ, bus, devfn, where, &data);
         if (where & 1) data >>= 8;
         if (where & 2) data >>= 16;
         *val = data & 0xff;
@@ -207,79 +216,107 @@ static int read_config_byte(struct pci_dev *dev, int where, u8 * val)
 }
 
 
-static int read_config_word(struct pci_dev *dev, int where, u16 * val)
+static int read_config_word(struct pci_bus *bus, unsigned int devfn, 
+		int where, u16 * val)
 {
 	u32 data;
 	int ret;
 
-	ret = config_access(PCI_ACCESS_READ, dev, where, &data);
+	ret = config_access(PCI_ACCESS_READ, bus, devfn, where, &data);
         if (where & 2) data >>= 16;
         *val = data & 0xffff;
 	return ret;
 }
 
-static int read_config_dword(struct pci_dev *dev, int where, u32 * val)
+static int read_config_dword(struct pci_bus *bus, unsigned int devfn, 
+		int where, u32 * val)
 {
 	int ret;
 
-	ret = config_access(PCI_ACCESS_READ, dev, where, val);
+	ret = config_access(PCI_ACCESS_READ, bus, devfn, where, val);
 	return ret;
 }
 
-
-static int write_config_byte(struct pci_dev *dev, int where, u8 val)
+static int 
+write_config_byte(struct pci_bus *bus, unsigned int devfn, int where, u8 val)
 {
 	u32 data = 0;
 
-	if (config_access(PCI_ACCESS_READ, dev, where, &data))
+	if (config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
 		return -1;
 
 	data = (data & ~(0xff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
 
-	if (config_access(PCI_ACCESS_WRITE, dev, where, &data))
+	if (config_access(PCI_ACCESS_WRITE, bus, devfn, where, &data))
 		return -1;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int write_config_word(struct pci_dev *dev, int where, u16 val)
+static int 
+write_config_word(struct pci_bus *bus, unsigned int devfn, int where, u16 val)
 {
         u32 data = 0;
 
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-        if (config_access(PCI_ACCESS_READ, dev, where, &data))
+        if (config_access(PCI_ACCESS_READ, bus, devfn, where, &data))
 	       return -1;
 
 	data = (data & ~(0xffff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
 
-	if (config_access(PCI_ACCESS_WRITE, dev, where, &data))
+	if (config_access(PCI_ACCESS_WRITE, bus, devfn, where, &data))
 	       return -1;
 
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int write_config_dword(struct pci_dev *dev, int where, u32 val)
+static int 
+write_config_dword(struct pci_bus *bus, unsigned int devfn, int where, u32 val)
 {
 	if (where & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (config_access(PCI_ACCESS_WRITE, dev, where, &val))
+	if (config_access(PCI_ACCESS_WRITE, bus, devfn, where, &val))
 	       return -1;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
+static int config_read (struct pci_bus *bus, unsigned int devfn, 
+		int where, int size, u32 *val)
+{
+	switch (size) {
+		case 1:
+			return read_config_byte(bus, devfn, where, (u8 *)val);
+		case 2:
+			return read_config_word(bus, devfn, where, (u16 *)val);
+		default:
+			return read_config_dword(bus, devfn, where, val);
+	}
+}
+
+static int config_write (struct pci_bus *bus, unsigned int devfn, 
+		int where, int size, u32 val)
+{
+	switch (size) {
+		case 1:
+			return write_config_byte(bus, devfn, where, (u8)val);
+		case 2:
+			return write_config_word(bus, devfn, where, (u16)val);
+		default:
+			return write_config_dword(bus, devfn, where, val);
+	}
+}
+
+
 struct pci_ops au1x_pci_ops = {
-	read_config_byte,
-        read_config_word,
-	read_config_dword,
-	write_config_byte,
-	write_config_word,
-	write_config_dword
+	config_read,
+	config_write
 };
+
 #endif /* CONFIG_PCI */

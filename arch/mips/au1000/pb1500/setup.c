@@ -99,7 +99,7 @@ void __init au1x00_setup(void)
 	board_time_init = au1x_time_init;
 	board_timer_setup = au1x_timer_setup;
 
-#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
+#ifdef CONFIG_SERIAL_AU1X00_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
@@ -221,7 +221,7 @@ void __init au1x00_setup(void)
 	}
 #endif // CONFIG_FB_E1356
 
-#ifndef CONFIG_SERIAL_NONSTANDARD
+#ifndef CONFIG_SERIAL_AU1X00_CONSOLE
 	/* don't touch the default serial console */
 	au_writel(0, UART0_ADDR + UART_CLK);
 #endif

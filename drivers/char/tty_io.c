@@ -2207,9 +2207,6 @@ void __init console_init(void)
 #ifdef CONFIG_VT
 	con_init();
 #endif
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
-	au1000_serial_console_init();
-#endif
 #ifdef CONFIG_SERIAL_CONSOLE
 #if (defined(CONFIG_8xx) || defined(CONFIG_8260))
 	console_8xx_init();

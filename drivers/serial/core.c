@@ -1932,6 +1932,9 @@ void __init uart_console_init(void)
 #ifdef CONFIG_SERIAL_UART00_CONSOLE
 	uart00_console_init();
 #endif
+#ifdef CONFIG_SERIAL_AU1X00_CONSOLE
+	serial_au1x00_console_init();
+#endif
 }
 #endif /* CONFIG_SERIAL_CORE_CONSOLE */
 

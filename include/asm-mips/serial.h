@@ -167,19 +167,23 @@
 #define LASAT_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_AU1000_UART
+#ifdef CONFIG_SERIAL_AU1X00
 #include <asm/au1000.h>
-#define AU1000_SERIAL_PORT_DEFNS                              \
-    { .baud_base = 0, .port = UART0_ADDR, .irq = AU1000_UART0_INT,  \
-      .flags = STD_COM_FLAGS, .type = 1 },                        \
-    { .baud_base = 0, .port = UART1_ADDR, .irq = AU1000_UART1_INT,  \
-      .flags = STD_COM_FLAGS, .type = 1 },     \
-    { .baud_base = 0, .port = UART2_ADDR, .irq = AU1000_UART2_INT,  \
-      .flags = STD_COM_FLAGS, .type = 1 },    \
-    { .baud_base = 0, .port = UART3_ADDR, .irq = AU1000_UART3_INT,  \
-      .flags = STD_COM_FLAGS, .type = 1 },
+#define CONFIG_SERIAL_AU1X00_CONSOLE_DEFNS                          \
+    { .baud_base = 0, .iomem_base = (u8 *)UART0_ADDR,               \
+	    .irq = AU1000_UART0_INT,  .flags = STD_COM_FLAGS,       \
+		    .iomem_reg_shift = 2, },                        \
+    { .baud_base = 0, .iomem_base = (u8 *)UART1_ADDR,               \
+	    .irq = AU1000_UART1_INT,  .flags = STD_COM_FLAGS,       \
+		    .iomem_reg_shift = 2 },                         \
+    { .baud_base = 0, .iomem_base = (u8 *)UART2_ADDR,               \
+	    .irq = AU1000_UART2_INT,  .flags = STD_COM_FLAGS,       \
+		    .iomem_reg_shift = 2},                          \
+    { .baud_base = 0, .iomem_base = (u8 *)UART3_ADDR,               \
+	    .irq = AU1000_UART3_INT,  .flags = STD_COM_FLAGS,       \
+		    .iomem_reg_shift = 2},
 #else
-#define AU1000_SERIAL_PORT_DEFNS
+#define AU1X00_SERIAL_PORT_DEFNS
 #endif
 
 #ifdef CONFIG_TOSHIBA_JMR3927
@@ -338,6 +342,6 @@
 	HUB6_SERIAL_PORT_DFNS			\
 	MOMENCO_OCELOT_SERIAL_PORT_DEFNS	\
 	MOMENCO_OCELOT_G_SERIAL_PORT_DEFNS	\
-	AU1000_SERIAL_PORT_DEFNS		\
+	CONFIG_SERIAL_AU1X00_CONSOLE_DEFNS	\
         TXX927_SERIAL_PORT_DEFNS        	\
 	DDB5477_SERIAL_PORT_DEFNS

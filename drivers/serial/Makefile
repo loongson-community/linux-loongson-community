@@ -4,7 +4,7 @@
 #  $Id: Makefile,v 1.8 2002/07/21 21:32:30 rmk Exp $
 #
 
-export-objs	:= core.o 8250.o 8250_pci.o suncore.o
+export-objs	:= core.o 8250.o 8250_pci.o suncore.o au1x00_uart.o
 
 serial-8250-y :=
 serial-8250-$(CONFIG_GSC) += 8250_gsc.o
@@ -30,5 +30,6 @@ obj-$(CONFIG_SERIAL_68328) += 68328serial.o
 obj-$(CONFIG_SERIAL_68360) += 68360serial.o
 obj-$(CONFIG_SERIAL_COLDFIRE) += mcfserial.o
 obj-$(CONFIG_V850E_NB85E_UART) += nb85e_uart.o
+obj-$(CONFIG_SERIAL_AU1X00) += au1x00_uart.o
 
 include $(TOPDIR)/Rules.make
