@@ -90,6 +90,7 @@
 #include <linux/nbd.h>
 #include <linux/random.h>
 #include <linux/filter.h>
+#include <linux/wireless.h>
 
 #ifdef CONFIG_SIBYTE_TBPROF
 #include <asm/sibyte/trace_prof.h>
