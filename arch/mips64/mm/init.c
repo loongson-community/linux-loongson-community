@@ -201,7 +201,8 @@ static void __init print_memory_map(void)
         }
 }
 
-void bootmem_init(void) {
+void bootmem_init(void)
+{
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long *initrd_header;
