@@ -1,4 +1,4 @@
-/* $Id: linux32.c,v 1.5 2000/02/29 22:13:07 kanoj Exp $
+/* $Id: linux32.c,v 1.6 2000/02/29 22:57:04 kanoj Exp $
  * 
  * Conversion between 32-bit and 64-bit native system calls.
  *
@@ -12,6 +12,7 @@
 #include <linux/file.h>
 #include <linux/smp_lock.h>
 #include <linux/highuid.h>
+#include <linux/dirent.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -234,4 +235,56 @@ sys32_execve(abi64_no_regargs, struct pt_regs regs)
 	if (IS_ERR(r))
 		sys_munmap(av, len);
 	return(r);
+}
+
+struct dirent32 {
+	unsigned int	d_ino;
+	unsigned int	d_off;
+	unsigned short	d_reclen;
+	char		d_name[NAME_MAX + 1];
+};
+
+static void
+xlate_dirent(void *dirent64, void *dirent32, long n)
+{
+	long off;
+	struct dirent *dirp;
+	struct dirent32 *dirp32;
+
+	off = 0;
+	while (off < n) {
+		dirp = (struct dirent *)(dirent64 + off);
+		dirp32 = (struct dirent32 *)(dirent32 + off);
+		off += dirp->d_reclen;
+		dirp32->d_ino = dirp->d_ino;
+		dirp32->d_off = (unsigned int)dirp->d_off;
+		dirp32->d_reclen = dirp->d_reclen;
+		strncpy(dirp32->d_name, dirp->d_name, dirp->d_reclen - ((3 * 4) + 2));
+	}
+	return;
+}
+
+asmlinkage long
+sys32_getdents(unsigned int fd, void * dirent32, unsigned int count)
+{
+	long n;
+	void *dirent64;
+
+	dirent64 = (unsigned long)(dirent32 + (sizeof(long) - 1)) & ~(sizeof(long) - 1);
+	if ((n = sys_getdents(fd, dirent64, count - (dirent64 - dirent32))) < 0)
+		return(n);
+	xlate_dirent(dirent64, dirent32, n);
+	return(n);
+}
+
+asmlinkage int
+sys32_readdir(unsigned int fd, void * dirent32, unsigned int count)
+{
+	int n;
+	struct dirent dirent64;
+
+	if ((n = old_readdir(fd, &dirent64, count)) < 0)
+		return(n);
+	xlate_dirent(&dirent64, dirent32, dirent64.d_reclen);
+	return(n);
 }
