@@ -1,11 +1,10 @@
-/* $Id: fault.c,v 1.7 2000/03/13 22:43:25 kanoj Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997, 1998, 1999 by Ralf Baechle
- * Copyright (C) 1999 by Silicon Graphics
+ * Copyright (C) 1995 - 2000 by Ralf Baechle
+ * Copyright (C) 1999, 2000 by Silicon Graphics, Inc.
  */
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -68,9 +67,10 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	int si_code = SEGV_MAPERR;
 	unsigned long fixup;
+	siginfo_t info;
 
+	info.si_code = SEGV_MAPERR;
 	/*
 	 * If we're in an interrupt or have no user
 	 * context, we must not take the fault..
@@ -96,7 +96,7 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
  * we can handle it..
  */
 good_area:
-	si_code = SEGV_ACCERR;
+	info.si_code = SEGV_ACCERR;
 
 	if (write) {
 		if (!(vma->vm_flags & VM_WRITE))
@@ -147,10 +147,11 @@ bad_area:
 		       (unsigned long) regs->cp0_epc,
 		       (unsigned long) regs->regs[31]);
 #endif
-		si.si_signo = SIGSEGV;
-		si.si_code = si_code;
-		si.si_addr = (void *) address;
-		force_sig_info(SIGSEGV, &si, tsk);
+		info.si_signo = SIGSEGV;
+		info.si_errno = 0;
+		/* info.si_code has been set above */
+		info.si_addr = (void *) address;
+		force_sig_info(SIGSEGV, &info, tsk);
 		return;
 	}
 
@@ -198,7 +199,11 @@ do_sigbus:
 	 * or user mode.
 	 */
 	tsk->thread.cp0_badvaddr = address;
-	force_sig(SIGBUS, tsk);
+	info.si_code = SIGBUS;
+	info.si_errno = 0;
+	info.si_code = BUS_ADRERR;
+	info.si_addr = (void *) address;
+	force_sig_info(SIGBUS, &info, tsk);
 
 	/* Kernel mode? Handle exceptions or die */
 	if (!user_mode(regs))

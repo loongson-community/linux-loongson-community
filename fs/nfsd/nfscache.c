@@ -68,7 +68,7 @@ nfsd_cache_init(void)
 	i = HASHSIZE * sizeof (struct nfscache_head);
 	hash_list = kmalloc (i, GFP_KERNEL);
 	if (!hash_list) {
-		kfree (nfscache);
+		free_pages ((unsigned long)nfscache, order);
 		nfscache = NULL;
 		printk (KERN_ERR "nfsd: cannot allocate %d bytes for hash list\n", i);
 		return;
@@ -98,6 +98,8 @@ void
 nfsd_cache_shutdown(void)
 {
 	struct svc_cacherep	*rp;
+	size_t			i;
+	unsigned long		order;
 
 	if (!cache_initialized)
 		return;
@@ -110,7 +112,10 @@ nfsd_cache_shutdown(void)
 	cache_initialized = 0;
 	cache_disabled = 1;
 
-	kfree (nfscache);
+	i = CACHESIZE * sizeof (struct svc_cacherep);
+	for (order = 0; (PAGE_SIZE << order) < i; order++)
+		;
+	free_pages ((unsigned long)nfscache, order);
 	nfscache = NULL;
 	kfree (hash_list);
 	hash_list = NULL;

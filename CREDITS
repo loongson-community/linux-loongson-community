@@ -550,6 +550,13 @@ S: 550 King Street
 S: Littleton, Massachusetts 01460
 S: USA
 
+N: Frank Davis
+E: fdavis112@juno.com
+D: Various kernel patches
+S: 8 Lakeview Terr.
+S: Kerhonskon, NY 12446
+S: USA
+
 N: Wayne Davison
 E: davison@borland.com
 D: Second extended file system co-designer
@@ -1632,7 +1639,7 @@ N: Claudio S. Matsuoka
 E: claudio@conectiva.com
 E: claudio@helllabs.org
 W: http://helllabs.org/~claudio
-D: OV511 driver hacks
+D: V4L, OV511 driver hacks
 S: Conectiva S.A.
 S: R. Tocantins 89
 S: 80050-430  Curitiba PR

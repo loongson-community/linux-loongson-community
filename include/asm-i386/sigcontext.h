@@ -1,6 +1,7 @@
 #ifndef _ASMi386_SIGCONTEXT_H
 #define _ASMi386_SIGCONTEXT_H
 
+#include <linux/config.h>
 /*
  * As documented in the iBCS2 standard..
  *
@@ -24,6 +25,10 @@ struct _fpstate {
 			datasel;
 	struct _fpreg	_st[8];
 	unsigned long	status;
+#ifdef CONFIG_X86_FX
+	unsigned long	mxcsr;
+	unsigned long   _xmm[4*22];
+#endif
 };
 
 struct sigcontext {
