@@ -139,7 +139,7 @@ void __init it8172_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif	  
+#endif
 
 	clear_cp0_status(ST0_FR);
 	rtc_ops = &it8172_rtc_ops;
@@ -154,7 +154,7 @@ void __init it8172_setup(void)
 	_machine_power_off = it8172_power_off;
 
 	/*
-	* IO/MEM resources. 
+	* IO/MEM resources.
 	*
 	* revisit this area.
 	*/
@@ -181,7 +181,7 @@ void __init it8172_setup(void)
 	dsr &= ~IT_PM_DSR_ACSB;
 #else
 	dsr |= IT_PM_DSR_ACSB;
-#endif	
+#endif
 #ifdef CONFIG_BLK_DEV_IT8172
 	dsr &= ~IT_PM_DSR_IDESB;
 	ide_ops = &std_ide_ops;
@@ -217,8 +217,8 @@ void __init it8172_setup(void)
 			LPCSetConfig(0x4, 0x30, 0x1);
 			LPCSetConfig(0x4, 0xf4, LPCGetConfig(0x4, 0xf4) | 0x80);
 
-			if ((LPCGetConfig(LDN_KEYBOARD, 0x30) == 0) || 
-					(LPCGetConfig(LDN_MOUSE, 0x30) == 0)) 
+			if ((LPCGetConfig(LDN_KEYBOARD, 0x30) == 0) ||
+					(LPCGetConfig(LDN_MOUSE, 0x30) == 0))
 				printk("Error: keyboard or mouse not enabled\n");
 
 			kbd_ops = &std_kbd_ops;
@@ -242,7 +242,7 @@ void __init it8172_setup(void)
 #endif
 #ifdef CONFIG_IT8172_SCR0
 	{
-		unsigned i; 
+		unsigned i;
 		/* Enable Smart Card Reader 0 */
 		/* First power it up */
 		IT_IO_READ16(IT_PM_DSR, i);
@@ -261,7 +261,7 @@ void __init it8172_setup(void)
 #endif /* CONFIG_IT8172_SCR0 */
 #ifdef CONFIG_IT8172_SCR1
 	{
-		unsigned i; 
+		unsigned i;
 		/* Enable Smart Card Reader 1 */
 		/* First power it up */
 		IT_IO_READ16(IT_PM_DSR, i);
@@ -283,7 +283,7 @@ void __init it8172_setup(void)
 
 #ifdef CONFIG_PC_KEYB
 /*
- * According to the ITE Special BIOS Note for waking up the 
+ * According to the ITE Special BIOS Note for waking up the
  * keyboard controller...
  */
 int init_8712_keyboard()

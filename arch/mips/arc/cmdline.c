@@ -80,7 +80,7 @@ void __init prom_init_cmdline(void)
 	actr = 1; /* Always ignore argv[0] */
 
 	cp = &(arcs_cmdline[0]);
-	/* 
+	/*
 	 * Move ARC variables to the beginning to make sure they can be
 	 * overridden by later arguments.
 	 */

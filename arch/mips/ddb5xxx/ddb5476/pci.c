@@ -10,13 +10,13 @@
 #include <asm/ddb5xxx/ddb5xxx.h>
 
 static struct resource extpci_io_resource = {
-	"pci IO space", 
+	"pci IO space",
 	0x1000,				/* leave some room for ISA bus */
 	DDB_PCI_IO_SIZE -1,
 	IORESOURCE_IO};
 
 static struct resource extpci_mem_resource = {
-	"pci memory space", 
+	"pci memory space",
 	DDB_PCI_MEM_BASE + 0x00100000,	/* leave 1 MB for RTC */
 	DDB_PCI_MEM_BASE + DDB_PCI_MEM_SIZE -1,
 	IORESOURCE_MEM};
@@ -32,7 +32,7 @@ struct pci_channel mips_pci_channels[] = {
 /*
  * we fix up irqs based on the slot number.
  * The first entry is at AD:11.
- * 
+ *
  * This does not work for devices on sub-buses yet.
  */
 
@@ -93,7 +93,7 @@ void __init pcibios_fixup_irqs(void)
 		db_assert(slot_num < MAX_SLOT_NUM);
 		db_assert(irq_map[slot_num] != 0xff);
 
-		pci_write_config_byte(dev, 
+		pci_write_config_byte(dev,
 				      PCI_INTERRUPT_LINE,
 				      irq_map[slot_num]);
 		dev->irq = irq_map[slot_num];
@@ -105,7 +105,7 @@ extern void jsun_scan_pci_bus(void);
 #endif
 
 void __init ddb_pci_reset_bus(void)
-{	
+{
 	u32 temp;
 
 	/*

@@ -250,14 +250,14 @@ loc_call:	/*
 
  		nor	s1,zero,s1
 		jal	do_IRQ
- 
+
  		/*
  		 * Reenable interrupt
  		 */
 		lhu	t2,JAZZ_IO_IRQ_ENABLE
  		or	t2,s1
 		sh	t2,JAZZ_IO_IRQ_ENABLE
- 
+
  		j	ret_from_irq
 
 /*

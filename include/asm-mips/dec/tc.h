@@ -28,7 +28,7 @@ extern void claim_tc_card(int);
  */
 extern void release_tc_card(int);
 /*
- * Return base address of card in slot 
+ * Return base address of card in slot
  */
 extern unsigned long get_tc_base_addr(int);
 /*

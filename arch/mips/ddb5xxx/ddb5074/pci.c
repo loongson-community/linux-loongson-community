@@ -39,7 +39,7 @@ static unsigned char irq_map[MAX_SLOT_NUM] = {
 	/* SLOT:  0 */ nile4_to_irq(PCI_EXT_INTE),
 	/* SLOT:  1 */ nile4_to_irq(PCI_EXT_INTA),
 	/* SLOT:  2 */ nile4_to_irq(PCI_EXT_INTA),
-	/* SLOT:  3 */ nile4_to_irq(PCI_EXT_INTB),		
+	/* SLOT:  3 */ nile4_to_irq(PCI_EXT_INTB),
 	/* SLOT:  4 */ nile4_to_irq(PCI_EXT_INTC),
 	/* SLOT:  5 */ nile4_to_irq(NILE4_INT_UART),
 	/* SLOT:  6 */ 0xff,
@@ -57,7 +57,7 @@ void __init pcibios_fixup_irqs(void) {
 	struct pci_dev *dev;
 	int slot_num;
 
-	pci_for_each_dev(dev) {	
+	pci_for_each_dev(dev) {
 		slot_num = PCI_SLOT(dev->devfn);
 		db_assert(slot_num < MAX_SLOT_NUM);
 printk("irq_map[%d]: %02x\n",slot_num, irq_map[slot_num]);
@@ -113,7 +113,7 @@ void __init pcibios_fixup(void)
 				 */
 				extern struct pci_dev *pci_pmu;
 				u8 t8;
-					 
+
 				pci_pmu = dev;  /* for LEDs D2 and D3 */
 				/* Program the lines for LEDs D2 and D3 to output */
 				pci_read_config_byte(dev, 0x7d, &t8);

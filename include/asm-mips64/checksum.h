@@ -87,7 +87,7 @@ static inline unsigned short int csum_fold(unsigned int sum)
 
  	return sum;
 }
- 
+
 /*
  *	This is a version of ip_compute_csum() optimized for IP headers,
  *	which always checksum on 4 octet boundaries.
@@ -202,7 +202,7 @@ static __inline__ unsigned short int csum_ipv6_magic(struct in6_addr *saddr,
 						     struct in6_addr *daddr,
 						     __u32 len,
 						     unsigned short proto,
-						     unsigned int sum) 
+						     unsigned int sum)
 {
 	__asm__(
 	".set\tnoreorder\t\t\t# csum_ipv6_magic\n\t"

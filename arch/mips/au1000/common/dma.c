@@ -194,7 +194,7 @@ int request_au1000_dma(int dev_id, const char *dev_str,
 
 	/* initialize the channel before returning */
 	init_dma(i);
-	
+
 	return i;
 }
 

@@ -77,7 +77,7 @@ void __init which_prom(unsigned long magic, int *prom_vec)
 		pmax_read = (int (*)(int, void *, int)) PMAX_PROM_READ;
 		pmax_close = (int (*)(int)) PMAX_PROM_CLOSE;
 	}
-} 
+}
 
 int __init prom_init(int argc, char **argv,
 	       unsigned long magic, int *prom_vec)

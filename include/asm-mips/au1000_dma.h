@@ -234,7 +234,7 @@ static __inline__ void init_dma(unsigned int dmanr)
 	mode = chan->mode | (chan->dev_id << DMA_DID_BIT);
 	if (chan->irq)
 		mode |= DMA_IE;
-	
+
 	au_writel(~mode, chan->io + DMA_MODE_CLEAR);
 	au_writel(mode, chan->io + DMA_MODE_SET);
 }

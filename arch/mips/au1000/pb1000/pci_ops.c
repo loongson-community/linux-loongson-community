@@ -46,18 +46,18 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 static struct resource pci_io_resource = {
-	"pci IO space", 
+	"pci IO space",
 	PCI_IO_START,
 	PCI_IO_END,
 	IORESOURCE_IO
 };
 
 static struct resource pci_mem_resource = {
-	"pci memory space", 
+	"pci memory space",
 	PCI_MEM_START,
 	PCI_MEM_END,
 	IORESOURCE_MEM
@@ -74,10 +74,10 @@ struct pci_channel mips_pci_channels[] = {
 
 /*
  * "Bus 2" is really the first and only external slot on the pb1000.
- * We'll call that bus 0, and limit the accesses to that single 
+ * We'll call that bus 0, and limit the accesses to that single
  * external slot only. The SDRAM is already initialized in setup.c.
  */
-static int config_access(unsigned char access_type, struct pci_dev *dev, 
+static int config_access(unsigned char access_type, struct pci_dev *dev,
 			 unsigned char where, u32 * data)
 {
 	unsigned char bus = dev->bus->number;
@@ -98,7 +98,7 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	}
 	au_sync_udelay(1);
 
-	DBG("config_access: %d bus %d dev_fn %x at %x *data %x, conf %x\n", 
+	DBG("config_access: %d bus %d dev_fn %x at %x *data %x, conf %x\n",
 			access_type, bus, dev_fn, where, *data, config);
 
 	DBG("bridge config reg: %x (%x)\n", au_readl(PCI_BRIDGE_CONFIG), *data);
@@ -119,7 +119,7 @@ static int read_config_byte(struct pci_dev *dev, int where, u8 * val)
 
 	ret = config_access(PCI_ACCESS_READ, dev, where, &data);
 	*val = data & 0xff;
-	return ret; 
+	return ret;
 }
 
 
@@ -130,7 +130,7 @@ static int read_config_word(struct pci_dev *dev, int where, u16 * val)
 
 	ret = config_access(PCI_ACCESS_READ, dev, where, &data);
 	*val = data & 0xffff;
-	return ret; 
+	return ret;
 }
 
 static int read_config_dword(struct pci_dev *dev, int where, u32 * val)
@@ -138,14 +138,14 @@ static int read_config_dword(struct pci_dev *dev, int where, u32 * val)
 	int ret;
 
 	ret = config_access(PCI_ACCESS_READ, dev, where, val);
-	return ret; 
+	return ret;
 }
 
 
 static int write_config_byte(struct pci_dev *dev, int where, u8 val)
 {
 	u32 data = 0;
-       
+
 	if (config_access(PCI_ACCESS_READ, dev, where, &data))
 		return -1;
 
@@ -164,11 +164,11 @@ static int write_config_word(struct pci_dev *dev, int where, u16 val)
 
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-       
+
         if (config_access(PCI_ACCESS_READ, dev, where, &data))
 	       return -1;
 
-	data = (data & ~(0xffff << ((where & 3) << 3))) | 
+	data = (data & ~(0xffff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
 
 	if (config_access(PCI_ACCESS_WRITE, dev, where, &data))

@@ -10,7 +10,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/param.h>
 #include <linux/timex.h>
-#include <linux/mm.h>		
+#include <linux/mm.h>
 
 #include <asm/time.h>
 #include <asm/pgtable.h>
@@ -26,7 +26,7 @@
 
 /*
  * This is a hack; we really need to figure these values out dynamically
- * 
+ *
  * Since 800 ns works very well with various HUB frequencies, such as
  * 360, 380, 390 and 400 MHZ, we use 800 ns rtc cycle time.
  *
@@ -52,7 +52,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 	nasid_t nid;
 
 	nid = get_nasid();
-	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base + 
+	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base +
 							IOC3_BYTEBUS_DEV0);
 
 	rtc->control |= M48T35_RTC_READ;
@@ -113,7 +113,7 @@ again:
 #ifdef CONFIG_SMP
 	update_process_times(user_mode(regs));
 #endif /* CONFIG_SMP */
-	
+
 	/*
 	 * If we have an externally synchronized Linux clock, then update
 	 * RTC clock accordingly every ~11 minutes. Set_rtc_mmss() has to be
@@ -124,12 +124,12 @@ again:
 		if (xtime.tv_usec >= 1000000 - ((unsigned) tick) / 2) {
 			if (set_rtc_mmss(xtime.tv_sec + 1) == 0)
 				last_rtc_update = xtime.tv_sec;
-			else    
+			else
 				last_rtc_update = xtime.tv_sec - 600;
 		} else if (xtime.tv_usec <= ((unsigned) tick) / 2) {
 			if (set_rtc_mmss(xtime.tv_sec) == 0)
 				last_rtc_update = xtime.tv_sec;
-			else    
+			else
 				last_rtc_update = xtime.tv_sec - 600;
 		}
         }
@@ -162,7 +162,7 @@ static __init unsigned long get_m48t35_time(void)
 	nasid_t nid;
 
 	nid = get_nasid();
-	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base + 
+	rtc = (struct m48t35_rtc *)(KL_CONFIG_CH_CONS_INFO(nid)->memory_base +
 							IOC3_BYTEBUS_DEV0);
 
 	rtc->control |= M48T35_RTC_READ;

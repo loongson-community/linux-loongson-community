@@ -5,8 +5,8 @@
  *
  * Copyright (C) 1995 - 1998 by Andreas Busse and Ralf Baechle
  */
-#ifndef __ASM_JAZZ_H 
-#define __ASM_JAZZ_H 
+#ifndef __ASM_JAZZ_H
+#define __ASM_JAZZ_H
 
 /*
  * The addresses below are virtual address. The mappings are
@@ -139,7 +139,7 @@ typedef struct {
  * Dummy Device Address. Used in jazzdma.c
  */
 #define JAZZ_DUMMY_DEVICE       0xe000d000
-     
+
 /*
  * JAZZ timer registers and interrupt no.
  * Note that the hardware timer interrupt is actually on
@@ -248,7 +248,7 @@ typedef struct {
 #define JAZZ_R4030_CACHE_BWIN   0xE0000060	/* I/O Cache Buffer Window */
 
 /*
- * Remote Speed Registers. 
+ * Remote Speed Registers.
  *
  *  0: free,      1: Ethernet,  2: SCSI,      3: Floppy,
  *  4: RTC,       5: Kb./Mouse  6: serial 1,  7: serial 2,

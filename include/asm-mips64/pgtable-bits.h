@@ -64,10 +64,10 @@
 /* No penalty for being coherent on the SB1, so just
    use it for "noncoherent" spaces, too.  Shouldn't hurt. */
 
-#define _CACHE_UNCACHED             (2<<9)  
-#define _CACHE_CACHABLE_COW         (5<<9)  
-#define _CACHE_CACHABLE_NONCOHERENT (5<<9)  
-#define _CACHE_UNCACHED_ACCELERATED (7<<9)  
+#define _CACHE_UNCACHED             (2<<9)
+#define _CACHE_CACHABLE_COW         (5<<9)
+#define _CACHE_CACHABLE_NONCOHERENT (5<<9)
+#define _CACHE_UNCACHED_ACCELERATED (7<<9)
 
 #else
 

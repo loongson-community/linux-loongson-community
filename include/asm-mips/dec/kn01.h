@@ -10,8 +10,8 @@
  * are by courtesy of Chris Fraser.
  * Copyright (C) 2002  Maciej W. Rozycki
  */
-#ifndef __ASM_MIPS_DEC_KN01_H 
-#define __ASM_MIPS_DEC_KN01_H 
+#ifndef __ASM_MIPS_DEC_KN01_H
+#define __ASM_MIPS_DEC_KN01_H
 
 #include <asm/addrspace.h>
 

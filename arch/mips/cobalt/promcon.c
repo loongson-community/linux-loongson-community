@@ -70,7 +70,7 @@ void putDebugChar(char kgdb_char)
 	ns16550_cons_put_char(kgdb_char, port);
 }
 
-static kdev_t 
+static kdev_t
 ns16550_console_dev(struct console *c)
 {
 	return mk_kdev(TTY_MAJOR, 64 + c->index);

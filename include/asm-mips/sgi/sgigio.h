@@ -19,21 +19,21 @@
  *   1     EXP0      0x1f400000 - 0x1f5fffff   2MB
  *   2     EXP1      0x1f600000 - 0x1f9fffff   4MB
  *
- * There are un-slotted devices, HPC, I/O and misc devices, which are grouped 
+ * There are un-slotted devices, HPC, I/O and misc devices, which are grouped
  * into the HPC address space.
  *   -     MISC      0x1fb00000 - 0x1fbfffff   1MB
- *      
+ *
  * Following space is reserved and unused
  *   -     RESERVED  0x18000000 - 0x1effffff 112MB
  *
- * The GIO specification tends to use slot numbers while the MC specification 
+ * The GIO specification tends to use slot numbers while the MC specification
  * tends to use slot types.
  *
- * slot0  - the "graphics" (GFX) slot but there is no requirement that 
+ * slot0  - the "graphics" (GFX) slot but there is no requirement that
  *          a graphics dev may only use this slot
- * slot1  - this is the "expansion"-slot 0 (EXP0), do not confuse with 
+ * slot1  - this is the "expansion"-slot 0 (EXP0), do not confuse with
  *          slot 0 (GFX).
- * slot2  - this is the "expansion"-slot 1 (EXP1), do not confuse with 
+ * slot2  - this is the "expansion"-slot 1 (EXP1), do not confuse with
  *          slot 1 (EXP0).
  */
 
@@ -57,7 +57,7 @@ struct gio_dev {
 	unsigned char	slot_number;
 	unsigned long	base_addr;
 	unsigned int	map_size;
-	
+
 	char		*name;
 	char		slot_name[5];
 };

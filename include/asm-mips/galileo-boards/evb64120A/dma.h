@@ -2,7 +2,7 @@
 
 /* Copyright Galileo Technology. */
 
-#ifndef __INCdmah 
+#ifndef __INCdmah
 #define __INCdmah
 
 /* includes */
@@ -55,11 +55,11 @@ typedef enum dmaEngine{DMA_ENG_0,DMA_ENG_1,DMA_ENG_2,DMA_ENG_3} DMA_ENGINE;
 typedef enum prioChan01{ROUND_ROBIN01,CH_1,CH_0} PRIO_CHAN_0_1;
 typedef enum prioChan23{ROUND_ROBIN23,CH_3,CH_2} PRIO_CHAN_2_3;
 typedef enum prioGroup{ROUND_ROBIN,CH_2_3,CH_0_1} PRIO_GROUP;
-typedef enum prioOpt{RETURN_BUS,KEEP_BUS} PRIO_OPT; 
+typedef enum prioOpt{RETURN_BUS,KEEP_BUS} PRIO_OPT;
 
 typedef struct dmaRecored
 {
-    unsigned int    ByteCnt;                                            
+    unsigned int    ByteCnt;
     unsigned int    SrcAdd;
     unsigned int    DestAdd;
     unsigned int    NextRecPtr;
@@ -74,7 +74,7 @@ DMA_STATUS dmaTransfer (DMA_ENGINE engine,unsigned int sourceAddr,
 bool	dmaCommand (DMA_ENGINE channel,unsigned int command);
 bool    isDmaChannelActive (DMA_ENGINE channel);
 
-bool    changeDmaPriority(PRIO_CHAN_0_1 prio_01, PRIO_CHAN_2_3 prio_23, 
+bool    changeDmaPriority(PRIO_CHAN_0_1 prio_01, PRIO_CHAN_2_3 prio_23,
                           PRIO_GROUP prioGrp, PRIO_OPT prioOpt);
 
 #endif /* __INCdmah */

@@ -71,11 +71,11 @@ int mips_dsemul(struct pt_regs *regs, mips_instruction ir, gpreg_t cpc)
 	printk("dsemul %lx %lx\n", regs->cp0_epc, cpc);
 
 #endif
- 
-	/* 
-	 * The strategy is to push the instruction onto the user stack 
-	 * and put a trap after it which we can catch and jump to 
-	 * the required address any alternative apart from full 
+
+	/*
+	 * The strategy is to push the instruction onto the user stack
+	 * and put a trap after it which we can catch and jump to
+	 * the required address any alternative apart from full
 	 * instruction emulation!!.
 	 *
 	 * Algorithmics used a system call instruction, and
@@ -124,7 +124,7 @@ int do_dsemulret(struct pt_regs *xcp)
 
 	fr = (struct emuframe *) (xcp->cp0_epc - sizeof(mips_instruction));
 
-	/* 
+	/*
 	 * If we can't even access the area, something is very wrong, but we'll
 	 * leave that to the default handling
 	 */
@@ -146,7 +146,7 @@ int do_dsemulret(struct pt_regs *xcp)
 		return 0;
 	}
 
-	/* 
+	/*
 	 * At this point, we are satisfied that it's a BD emulation trap.  Yes,
 	 * a user might have deliberately put two malformed and useless
 	 * instructions in a row in his program, in which case he's in for a

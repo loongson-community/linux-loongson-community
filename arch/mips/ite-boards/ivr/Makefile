@@ -17,8 +17,8 @@ all: ivr.o
 
 O_TARGET := ivr.o
 
-obj-y := init.o 
+obj-y := init.o
 
-obj-$(CONFIG_PCI) += pci_fixup.o 
+obj-$(CONFIG_PCI) += pci_fixup.o
 
 include $(TOPDIR)/Rules.make

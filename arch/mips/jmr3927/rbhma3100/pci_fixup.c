@@ -42,7 +42,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)

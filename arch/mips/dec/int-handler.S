@@ -240,7 +240,7 @@
 		srl	t0,IO_INR_DMA
 		li	t1,IO_IRQ_DMA>>IO_INR_DMA # mask
 		li	t2,8			# nr of bits / 2
-		
+
 		/*
 		 * Find irq with highest priority.
 		 * Highest irq number takes precedence.

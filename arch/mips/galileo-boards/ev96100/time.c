@@ -6,7 +6,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/atlas/atlas_rtc.c.
  *
  * Carsten Langgaard, carstenl@mips.com
@@ -67,9 +67,9 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 
 
-/* 
+/*
  * Figure out the r4k offset, the amount to increment the compare
- * register for each time tick. 
+ * register for each time tick.
  * Use the RTC to calculate offset.
  */
 static unsigned long __init cal_r4koff(void)
@@ -104,10 +104,10 @@ void __init time_init(void)
 
 	r4k_offset = cal_r4koff();
 
-	est_freq = 2*r4k_offset*HZ;	
+	est_freq = 2*r4k_offset*HZ;
 	est_freq += 5000;    /* round */
 	est_freq -= est_freq%10000;
-	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
+	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 
@@ -184,7 +184,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		 "r" (quotient));
 
 	/*
- 	 * Due to possible jiffies inconsistencies, we need to check 
+ 	 * Due to possible jiffies inconsistencies, we need to check
 	 * the result so that we'll get a timer that is monotonic.
 	 */
 	if (res >= USECS_PER_JIFFY)
@@ -260,7 +260,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		r4k_cur += r4k_offset;
 		ack_r4ktimer(r4k_cur);
 
-	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT) 
+	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
                     - r4k_cur) < 0x7fffffff);
 	return;
 

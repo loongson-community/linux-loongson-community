@@ -104,7 +104,7 @@ nasid_t get_actual_nasid(lboard_t *brd)
 /* Tweak this for maximum number of CPUs to activate */
 static int max_cpus = NR_CPUS;
 
-int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask, 
+int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 							int *highest)
 {
 	static int tot_cpus_found = 0;
@@ -131,7 +131,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 				cpus_found++;
 				tot_cpus_found++;
 			}
-			acpu = (klcpu_t *)find_component(brd, (klinfo_t *)acpu, 
+			acpu = (klcpu_t *)find_component(brd, (klinfo_t *)acpu,
 								KLSTRUCT_CPU);
 		}
 		brd = KLCF_NEXT(brd);
@@ -258,7 +258,7 @@ void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend, int base_level,
 			if (bits & (1 << i))
 				LOCAL_HUB_CLR_INTR(base_level + i);
 }
-	
+
 void intr_clear_all(nasid_t nasid)
 {
 	REMOTE_HUB_S(nasid, PI_INT_MASK0_A, 0);
@@ -314,10 +314,10 @@ void per_hub_init(cnodeid_t cnode)
 		REMOTE_HUB_S(nasid, IIO_ICTP, 0x800);
 		REMOTE_HUB_S(nasid, IIO_ICTO, 0xff);
 		hub_rtc_init(cnode);
-		pcibr_setup(cnode); 
+		pcibr_setup(cnode);
 #ifdef CONFIG_REPLICATE_EXHANDLERS
 		/*
-		 * If this is not a headless node initialization, 
+		 * If this is not a headless node initialization,
 		 * copy over the caliased exception handlers.
 		 */
 		if (get_compact_nodeid() == cnode) {
@@ -486,13 +486,13 @@ void allowboot(void)
 			/*
 		 	 * Launch a slave into bootstrap().
 		 	 * It doesn't take an argument, and we
-			 * set sp to the kernel stack of the newly 
+			 * set sp to the kernel stack of the newly
 			 * created idle process, gp to the proc struct
 			 * (so that current-> works).
 		 	 */
-			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus), 
+			LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus),
 				(launch_proc_t)MAPPED_KERN_RW_TO_K0(bootstrap),
-				0, (void *)((unsigned long)p + 
+				0, (void *)((unsigned long)p +
 				KERNEL_STACK_SIZE - 32), (void *)p);
 
 			/*
@@ -507,7 +507,7 @@ void allowboot(void)
 			/*
 			 * Wait this cpu to start up and initialize its hub,
 			 * and discover the io devices it will control.
-			 * 
+			 *
 			 * XXX: We really want to fire up launch all the CPUs
 			 * at once.  We have to preserve the order of the
 			 * devices on the bridges first though.
@@ -625,7 +625,7 @@ node_distance(nasid_t nasid_a, nasid_t nasid_b)
 						router_b = router;
 				}
 			}
-			
+
 		} while ( (brd = find_lboard_class(KLCF_NEXT(brd), KLTYPE_ROUTER)) );
 	}
 
@@ -726,7 +726,7 @@ dump_topology(void)
 					printk(" r");
 			}
 			printk("\n");
-			
+
 		} while ( (brd = find_lboard_class(KLCF_NEXT(brd), KLTYPE_ROUTER)) );
 	}
 }
@@ -742,7 +742,7 @@ dump_klcfg(void)
 	nasid_t         nasid;
 	lboard_t        *lbptr;
 	gda_t           *gdap;
-	
+
 	gdap = (gda_t *)GDA_ADDR(get_nasid());
 	if (gdap->g_magic != GDA_MAGIC) {
 		printk("dumpklcfg_cmd: Invalid GDA MAGIC\n");
@@ -756,24 +756,24 @@ dump_klcfg(void)
 			continue;
 
 		printk("\nDumpping klconfig Nasid %d:\n", nasid);
-	
+
 		lbptr = KL_CONFIG_INFO(nasid);
 
 		while (lbptr) {
 			printk("    %s, Nasid %d, Module %d, widget 0x%x, partition %d, NIC 0x%x lboard 0x%lx",
 				"board name here", /* BOARD_NAME(lbptr->brd_type), */
-				lbptr->brd_nasid, lbptr->brd_module, 
+				lbptr->brd_nasid, lbptr->brd_module,
 				lbptr->brd_widgetnum,
-				lbptr->brd_partition, 
+				lbptr->brd_partition,
 				(lbptr->brd_nic), lbptr);
 			if (lbptr->brd_flags & DUPLICATE_BOARD)
 				printk(" -D");
 			printk("\n");
 			for (i = 0; i < lbptr->brd_numcompts; i++) {
 				klinfo_t *kli;
-				kli = NODE_OFFSET_TO_KLINFO(NASID_GET(lbptr), lbptr->brd_compts[i]);                       
-				printk("        type %2d, flags 0x%04x, diagval %3d, physid %4d, virtid %2d: %s\n", 
-					kli->struct_type, 
+				kli = NODE_OFFSET_TO_KLINFO(NASID_GET(lbptr), lbptr->brd_compts[i]);
+				printk("        type %2d, flags 0x%04x, diagval %3d, physid %4d, virtid %2d: %s\n",
+					kli->struct_type,
 					kli->flags,
 					kli->diagval,
 					kli->physid,
@@ -798,7 +798,7 @@ dump_klcfg(void)
         	lbptr = KL_CONFIG_INFO(nasid);
 
         	while (lbptr) {
-			
+
 			lbptr = find_lboard_class(lbptr, KLCLASS_ROUTER);
 			if(!lbptr)
 				break;

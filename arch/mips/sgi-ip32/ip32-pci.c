@@ -34,7 +34,7 @@ do {									\
 	    || PCI_SLOT ((dev)->devfn) > 3)				\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
 } while (0)
-		
+
 #define mkaddr(dev, where) \
 ((((dev)->devfn & 0xffUL) << 8) | ((where) & 0xfcUL))
 
@@ -73,7 +73,7 @@ static int macepci_read_config_dword (struct pci_dev *dev, int where,
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
 	*val = mace_read_32 (MACEPCI_CONFIG_DATA);
-	
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -214,7 +214,7 @@ void __init pcibios_init (void)
 			start = dev->resource[i].start;
 			if (dev->resource[i].flags & IORESOURCE_IO)
 				start |= 1;
-			pci_write_config_dword (dev, 
+			pci_write_config_dword (dev,
 				PCI_BASE_ADDRESS_0 + (i << 2), (u32) start);
 		}
 		pci_write_config_byte (dev, PCI_CACHE_LINE_SIZE, 0x20);
@@ -394,7 +394,7 @@ void macepci_error (int irq, void *dev, struct pt_regs *regs) {
 	else if (flags & MACEPCI_ERROR_CONFIG_ADDR)
 		space = 'C';
 	else space = 'X';
-	
+
 	if (flags & MACEPCI_ERROR_MASTER_ABORT) {
 		printk ("MACEPCI: Master abort at 0x%08x (%c)\n", error_addr,
 			space);

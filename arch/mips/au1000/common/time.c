@@ -1,5 +1,5 @@
 /*
- * 
+ *
  * Copyright (C) 2001 MontaVista Software, ppopov@mvista.com
  * Copied and modified Carsten Langgaard's time.c
  *
@@ -152,7 +152,7 @@ void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
 	/* our counter ticks at 10.009765625 ms/tick, we we're running
 	 * almost 10uS too slow per tick.
 	 */
-	 
+
 	if (jiffie_drift >= 999) {
 		jiffie_drift -= 999;
 		do_timer(regs); /* increment jiffies by one */
@@ -160,9 +160,9 @@ void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
 }
 #endif
 
-/* 
+/*
  * Figure out the r4k offset, the amount to increment the compare
- * register for each time tick. 
+ * register for each time tick.
  * Use the Programmable Counter 1 to do this.
  */
 unsigned long cal_r4koff(void)
@@ -215,11 +215,11 @@ void __init time_init(void)
 	r4k_offset = cal_r4koff();
 	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
-	//est_freq = 2*r4k_offset*HZ;	
-	est_freq = r4k_offset*HZ;	
+	//est_freq = 2*r4k_offset*HZ;
+	est_freq = r4k_offset*HZ;
 	est_freq += 5000;    /* round */
 	est_freq -= est_freq%10000;
-	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
+	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 	set_au1000_speed(est_freq);
 	set_au1000_lcd_clock(); // program the LCD clock
@@ -291,8 +291,8 @@ static unsigned long do_fast_gettimeoffset(void)
 		offset = (unsigned long)(((pc0 - last_pc0) * 305) / 10);
 	}
 	if ((pc0-last_pc0) > 2*MATCH20_INC) {
-		printk("huge offset %x, last_pc0 %x last_match20 %x pc0 %x\n", 
-				(unsigned)offset, (unsigned)last_pc0, 
+		printk("huge offset %x, last_pc0 %x last_match20 %x pc0 %x\n",
+				(unsigned)offset, (unsigned)last_pc0,
 				(unsigned)last_match20, (unsigned)pc0);
 	}
 	au_sync();
@@ -338,7 +338,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		 "r" (quotient));
 
 	/*
- 	 * Due to possible jiffies inconsistencies, we need to check 
+ 	 * Due to possible jiffies inconsistencies, we need to check
 	 * the result so that we'll get a timer that is monotonic.
 	 */
 	if (res >= USECS_PER_JIFFY)

@@ -64,7 +64,7 @@ call_do_IRQ:
 
 	la      a1, ret_from_irq
 	jr	a1
-*/	
+*/
 3:	j	spurious_interrupt
 END(hpIRQ)
 

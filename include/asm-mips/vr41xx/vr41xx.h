@@ -62,7 +62,7 @@ extern void (*board_irq_init)(void);
 extern int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq));
 
 /*
- * Gegeral-Purpose I/O Unit 
+ * Gegeral-Purpose I/O Unit
  */
 enum {
 	TRIGGER_LEVEL,

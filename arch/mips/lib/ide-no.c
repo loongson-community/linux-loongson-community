@@ -35,7 +35,7 @@ static int no_ide_request_irq(unsigned int irq,
                               void *dev_id)
 {
 	panic("no_no_ide_request_irq called - shouldn't happen");
-}			
+}
 
 static void no_ide_free_irq(unsigned int irq, void *dev_id)
 {

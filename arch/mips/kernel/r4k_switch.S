@@ -52,7 +52,7 @@
 	srl	a3, 23
 	sll	a3, 2
 	addu	t1, a3, t1
-	sw	t0, (t1)	
+	sw	t0, (t1)
 #else
 	sw	t0, kernelsp
 #endif

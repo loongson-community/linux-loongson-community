@@ -23,7 +23,7 @@
 #include <linux/linkage.h>              /* for asmlinkage */
 #include <linux/rtc.h>                  /* for struct rtc_time */
 
-/* 
+/*
  * RTC ops.  By default, they point a no-RTC functions.
  *	rtc_get_time - mktime(year, mon, day, hour, min, sec) in seconds.
  *	rtc_set_time - reverse the above translation and set time to RTC.
@@ -39,7 +39,7 @@ extern int (*rtc_set_time)(unsigned long);
 extern void to_tm(unsigned long tim, struct rtc_time * tm);
 
 /*
- * do_gettimeoffset(). By default, this func pointer points to 
+ * do_gettimeoffset(). By default, this func pointer points to
  * do_null_gettimeoffset(), which leads to the same resolution as HZ.
  * Higher resolution versions are vailable, which gives ~1us resolution.
  */

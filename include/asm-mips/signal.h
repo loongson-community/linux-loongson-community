@@ -88,7 +88,7 @@ typedef unsigned long old_sigset_t;		/* at least 32 bits */
 
 #define SA_RESTORER	0x04000000
 
-/* 
+/*
  * sigaltstack controls
  */
 #define SS_ONSTACK     1

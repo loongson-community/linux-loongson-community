@@ -62,7 +62,7 @@
  * Host:                  Reply:
  * $m0,10#2a               +$00010203040506070809101112131415#42
  *
- * 
+ *
  *  ==============
  *  MORE EXAMPLES:
  *  ==============
@@ -72,11 +72,11 @@
  *  going. In this scenario the host machine was a PC and the
  *  target platform was a Galileo EVB64120A MIPS evaluation
  *  board.
- *   
+ *
  *  Step 1:
  *  First download gdb-5.0.tar.gz from the internet.
  *  and then build/install the package.
- * 
+ *
  *  Example:
  *    $ tar zxf gdb-5.0.tar.gz
  *    $ cd gdb-5.0
@@ -85,35 +85,35 @@
  *    $ install
  *    $ which mips-linux-elf-gdb
  *    /usr/local/bin/mips-linux-elf-gdb
- * 
+ *
  *  Step 2:
  *  Configure linux for remote debugging and build it.
- * 
+ *
  *  Example:
  *    $ cd ~/linux
  *    $ make menuconfig <go to "Kernel Hacking" and turn on remote debugging>
  *    $ make dep; make vmlinux
- * 
+ *
  *  Step 3:
  *  Download the kernel to the remote target and start
- *  the kernel running. It will promptly halt and wait 
+ *  the kernel running. It will promptly halt and wait
  *  for the host gdb session to connect. It does this
- *  since the "Kernel Hacking" option has defined 
+ *  since the "Kernel Hacking" option has defined
  *  CONFIG_REMOTE_DEBUG which in turn enables your calls
  *  to:
  *     set_debug_traps();
  *     breakpoint();
- * 
+ *
  *  Step 4:
  *  Start the gdb session on the host.
- * 
+ *
  *  Example:
  *    $ mips-linux-elf-gdb vmlinux
  *    (gdb) set remotebaud 115200
  *    (gdb) target remote /dev/ttyS1
- *    ...at this point you are connected to 
+ *    ...at this point you are connected to
  *       the remote target and can use gdb
- *       in the normal fasion. Setting 
+ *       in the normal fasion. Setting
  *       breakpoints, single stepping,
  *       printing variables, etc.
  */
@@ -211,7 +211,7 @@ static void getpacket(char *buffer)
 		checksum = 0;
 		xmitcsum = -1;
 		count = 0;
-	
+
 		/*
 		 * now, read until a # or end of buffer is found
 		 */
@@ -376,7 +376,7 @@ void set_debug_traps(void)
 	save_and_cli(flags);
 	for (ht = hard_trap_info; ht->tt && ht->signo; ht++)
 		saved_vectors[ht->tt] = set_except_vector(ht->tt, trap_low);
-  
+
 	putDebugChar('+'); /* 'hello world' */
 	/*
 	 * In case GDB is started before us, ack any packets
@@ -545,7 +545,7 @@ static void single_step(struct gdb_regs *regs)
 		targ += 4 + (insn.i_format.simmediate << 2);
 		break;
 	}
-				
+
 	if (is_branch) {
 		i = 0;
 		if (is_cond && targ != (regs->cp0_epc + 8)) {
@@ -565,7 +565,7 @@ static void single_step(struct gdb_regs *regs)
 
 /*
  *  If asynchronously interrupted by gdb, then we need to set a breakpoint
- *  at the interrupted instruction so that we wind up stopped with a 
+ *  at the interrupted instruction so that we wind up stopped with a
  *  reasonable stack frame.
  */
 static struct gdb_bp_save async_bp;
@@ -593,11 +593,11 @@ void handle_exception (struct gdb_regs *regs)
 	char *ptr;
 	unsigned long *stack;
 
-#if 0	
+#if 0
 	printk("in handle_exception()\n");
 	show_gdbregs(regs);
 #endif
-	
+
 	/*
 	 * First check trap type. If this is CPU_UNUSABLE and CPU_ID is 1,
 	 * the simply switch the FPU on and return since this is no error
@@ -617,7 +617,7 @@ void handle_exception (struct gdb_regs *regs)
 	/*
 	 * If we're in breakpoint() increment the PC
 	 */
-	if (trap == 9 && regs->cp0_epc == (unsigned long)breakinst)		
+	if (trap == 9 && regs->cp0_epc == (unsigned long)breakinst)
 		regs->cp0_epc += 4;
 
 	/*
@@ -627,7 +627,7 @@ void handle_exception (struct gdb_regs *regs)
 	if (step_bp[0].addr) {
 		*(unsigned *)step_bp[0].addr = step_bp[0].val;
 		step_bp[0].addr = 0;
-		    
+
 		if (step_bp[1].addr) {
 			*(unsigned *)step_bp[1].addr = step_bp[1].val;
 			step_bp[1].addr = 0;
@@ -721,7 +721,7 @@ void handle_exception (struct gdb_regs *regs)
 			ptr = mem2hex((char *)&regs->frame_ptr, ptr, 2*4, 0); /* frp */
 			ptr = mem2hex((char *)&regs->cp0_index, ptr, 16*4, 0); /* cp0 */
 			break;
-	  
+
 		/*
 		 * set the value of the CPU registers - return OK
 		 * FIXME: Needs to be written
@@ -767,7 +767,7 @@ void handle_exception (struct gdb_regs *regs)
 		/*
 		 * MAA..AA,LLLL: Write LLLL bytes at address AA.AA return OK
 		 */
-		case 'M': 
+		case 'M':
 			ptr = &input_buffer[1];
 
 			if (hexToInt(&ptr, &addr)
@@ -786,13 +786,13 @@ void handle_exception (struct gdb_regs *regs)
 		/*
 		 * cAA..AA    Continue at address AA..AA(optional)
 		 */
-		case 'c':    
+		case 'c':
 			/* try to read optional parameter, pc unchanged if no parm */
 
 			ptr = &input_buffer[1];
 			if (hexToInt(&ptr, &addr))
 				regs->cp0_epc = addr;
-	  
+
 			/*
 			 * Need to flush the instruction cache here, as we may
 			 * have deposited a breakpoint, and the icache probably
@@ -841,7 +841,7 @@ void handle_exception (struct gdb_regs *regs)
 		 */
 		case 'b':
 		{
-#if 0				
+#if 0
 			int baudrate;
 			extern void set_timer_3();
 
@@ -932,7 +932,7 @@ void gdb_putsn(const char *str, int l)
 		int i = (l>8)?8:l;
 		mem2hex((char *)str, &outbuf[1], i, 0);
 		outbuf[(i*2)+1]=0;
-		putpacket(outbuf); 
+		putpacket(outbuf);
 		str += i;
 		l -= i;
 	}
@@ -960,5 +960,5 @@ __init void register_gdb_console(void)
 {
 	register_console(&gdb_console);
 }
-     
+
 #endif

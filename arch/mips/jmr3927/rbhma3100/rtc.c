@@ -1,7 +1,7 @@
 /*
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * RTC routines for Dallas chip.
  *

@@ -29,14 +29,14 @@ added easily in the future.
 
 /******************************************************************************
 * Those two tables contain the supported flash devices information needed by
-* the driver: 
-* The first table "flashParametrs" starts with 10 shared fields 
+* the driver:
+* The first table "flashParametrs" starts with 10 shared fields
 *  (currently 6 are reserved):
 *   index 0 => Pointer to an entry in the second table list
 *   index 1 => baseAddress - Flash memory device base address.
-*   index 2 => width - 1, 2, 4 or 8 Bytes. 
+*   index 2 => width - 1, 2, 4 or 8 Bytes.
 *   index 3 => mode - PURE8, X8 or X16 flash configuration (for X16 devices only)
-* The second table (flashTypes) contains: 
+* The second table (flashTypes) contains:
 * Entry`s structure:
 *   Manufacture ID,Device ID,number of sectors,list of sector`s sizes
 *   (in Kbytes starting with sector number 0).
@@ -120,14 +120,14 @@ unsigned int flashTypes[] = {
 };
 
 /********************************************************************
-* flashInit - Initializes the FLASH memory driver`s parameters, this function 
+* flashInit - Initializes the FLASH memory driver`s parameters, this function
 *             must be called at least once before using the FLASH memory.
 *             If you are changing the FLASH base address call this function
 *             again.
 *
 * INPUTS:     unsigned int flashBaseAddress - The flash base Address.
 *             unsigned int flashWidth - Flash bus width in Bytes: 1,2,4 or 8.
-*             flashMode - PURE8, X8 or X16. 
+*             flashMode - PURE8, X8 or X16.
 * RETURNS:    Flash Size, zero when operation (flashInit) failed.
 *********************************************************************/
 unsigned int flashInit(unsigned int flashBaseAddress,
@@ -229,10 +229,10 @@ unsigned int flashInit(unsigned int flashBaseAddress,
 		break;
 
 	}
-	/* Try to locate the device in the supported flashes list (FLASH_TYPE). 
-	   according to the keys: 
+	/* Try to locate the device in the supported flashes list (FLASH_TYPE).
+	   according to the keys:
 	   1) mfrId - manufactor ID.
-	   2) devId - device ID.  
+	   2) devId - device ID.
 	 */
 
 	while (true) {
@@ -266,9 +266,9 @@ unsigned int flashInit(unsigned int flashBaseAddress,
 
 /********************************************************************
 * flashReset - Resets the Flash memory (FLASH`s internal protocol reset).
-*                
-* INTPUTS:  N/A    
-* OUTPUT:   N/A  
+*
+* INTPUTS:  N/A
+* OUTPUT:   N/A
 *********************************************************************/
 void flashReset()
 {
@@ -771,7 +771,7 @@ bool flashEraseSector(unsigned int sectorNumber)
 * flashWriteWord - Write 32Bit to the FLASH memory at the given offset from the
 *                  FLASH base address.
 *   			   address 0 = 0x00000000 !!
-*				   Attention!!! data "0" cannot be programed back to 
+*				   Attention!!! data "0" cannot be programed back to
 *                  "1" (only by first performing an earase operation).
 *                  The function takes care of Big/Little endian conversion
 *
@@ -899,7 +899,7 @@ bool flashWriteWord(unsigned int offset, unsigned int data)
 				}
 			}
 			break;
-		case 2:	/* Split the 32 bit write into two 8/16 bit Writings 
+		case 2:	/* Split the 32 bit write into two 8/16 bit Writings
 				   (16bit width). */
 			if (FLASH_MODE == X16) {
 				FirstData = 0xaa;	/* Data for the First  Cycle    */
@@ -1269,7 +1269,7 @@ bool flashWriteWord(unsigned int offset, unsigned int data)
 }
 
 /********************************************************************
-* flashReadWord - Read 32Bit from the FLASH memory at a given offset 
+* flashReadWord - Read 32Bit from the FLASH memory at a given offset
 *                 from the FLASH base address.
 * 				  address 0 = 0x00000000 !!
 *                 The function takes care of Big/Little endian conversion
@@ -1288,7 +1288,7 @@ unsigned int flashReadWord(unsigned int offset)
 * flashInWhichSector - Returns the sector`s number at which offset is at.
 *
 * INPUTS:  Offset
-* RETURNS: Sector number,or 0xffffffff in case the address is out of range or 
+* RETURNS: Sector number,or 0xffffffff in case the address is out of range or
 *          flash wasn't initialize.
 *********************************************************************/
 unsigned int flashInWhichSector(unsigned int offset)
@@ -1317,7 +1317,7 @@ unsigned int flashInWhichSector(unsigned int offset)
 * flashGetSectorSize - When given a Valid sector Number returns its Size.
 *
 * INPUTS:  unsigned int sectorNumber.
-* RETURNS: Sector size. (if Sector number isn't valid or flash wasn't 
+* RETURNS: Sector size. (if Sector number isn't valid or flash wasn't
 *          initialize return 0.)
 *********************************************************************/
 unsigned int flashGetSectorSize(unsigned int sectorNumber)
@@ -1484,7 +1484,7 @@ unsigned short flashReadShort(unsigned int offset)
 
 /********************************************************************
 * flashWriteShort - write 16bit data to a given flash offset.
-*                  It reads the whole word 32bit wide, modify the  short 
+*                  It reads the whole word 32bit wide, modify the  short
 *                  and write back the word.
 *
 * INPUTS:  unsigned int offset - required offset to be write to.
@@ -1520,7 +1520,7 @@ bool flashWriteShort(unsigned int offset, unsigned short sdata)
 
 /********************************************************************
 * flashWriteChar - write one charecter (8 bit) to a given flash offset.
-*                  It reads the whole word 32bit wide, modify the charecter 
+*                  It reads the whole word 32bit wide, modify the charecter
 *                  and write back the word.
 *
 * INPUTS:  unsigned int offset - required offset to be write to.
@@ -1548,7 +1548,7 @@ bool flashWriteChar(unsigned int offset, unsigned char cdata)
 
 /********************************************************************
 * flashGetNumOfSectors - write one charecter (8 bit) to a given flash offset.
-*                        It reads the whole word 32bit wide, modify the  
+*                        It reads the whole word 32bit wide, modify the
 *                        charecter and write back the word.
 *
 * INPUTS:  N/A.

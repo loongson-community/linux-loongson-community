@@ -1,5 +1,5 @@
 /*
- * Linux Rendering Resource Manager 
+ * Linux Rendering Resource Manager
  *
  *          Implements the SGI-compatible rendering resource manager.
  *          This takes care of implementing the virtualized video hardware
@@ -51,7 +51,7 @@ int
 rrm_command (unsigned int cmd, void *arg)
 {
 	int i, rnid;
-	
+
 	if (cmd > RRM_FUNCTIONS){
 		printk ("Called unimplemented rrm ioctl: %d\n", cmd + RRM_BASE);
 		return -EINVAL;

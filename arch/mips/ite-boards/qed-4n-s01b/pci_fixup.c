@@ -75,7 +75,7 @@ void __init pcibios_fixup_irqs(void)
 		switch (slot) {
 			case 0x01:
 			    /*
-			     * Internal device 1 is actually 7 different 
+			     * Internal device 1 is actually 7 different
 			     * internal devices on the IT8172G (a multi-
 			     * function device).
 			     */
@@ -97,7 +97,7 @@ void __init pcibios_fixup_irqs(void)
 						dev->irq = IT8172_PCI_INTD_IRQ;
 						break;
 					default:
-						dev->irq = 0xff; 
+						dev->irq = 0xff;
 						break;
 
 				}
@@ -117,7 +117,7 @@ void __init pcibios_fixup_irqs(void)
 						dev->irq = IT8172_PCI_INTD_IRQ;
 						break;
 					default:
-						dev->irq = 0xff; 
+						dev->irq = 0xff;
 						break;
 
 				}
@@ -137,7 +137,7 @@ void __init pcibios_fixup_irqs(void)
 						dev->irq = IT8172_PCI_INTA_IRQ;
 						break;
 					default:
-						dev->irq = 0xff; 
+						dev->irq = 0xff;
 						break;
 
 				}
@@ -157,7 +157,7 @@ void __init pcibios_fixup_irqs(void)
 						dev->irq = IT8172_PCI_INTB_IRQ;
 						break;
 					default:
-						dev->irq = 0xff; 
+						dev->irq = 0xff;
 						break;
 
 				}
@@ -177,7 +177,7 @@ void __init pcibios_fixup_irqs(void)
 						dev->irq = IT8172_PCI_INTC_IRQ;
 						break;
 					default:
-						dev->irq = 0xff; 
+						dev->irq = 0xff;
 						break;
 
 				}

@@ -80,8 +80,8 @@ static void __init hp_time_init(struct irqaction *irq)
        irq->handler = andros_timer_interrupt;
        irq->flags |= SA_INTERRUPT | SA_SHIRQ;
        printk("setting up timer in hp_time_init\n");
-       setup_irq(ASIC_IRQ_NUMBER, irq); 
-    
+       setup_irq(ASIC_IRQ_NUMBER, irq);
+
        // enable timer interrupt
        *((volatile unsigned int*)0xbfea0000) = 0x20;
 
@@ -98,7 +98,7 @@ static void __init hp_time_init(struct irqaction *irq)
 
         *((volatile unsigned int*)0xbff610a0) |= 1;    // turn on timer0
 
-    } else if (GetAsicId() == UnknownAsic) 
+    } else if (GetAsicId() == UnknownAsic)
         printk("Unknown asic in hp_time_init()\n");
     else
         printk("Unsupported asic in hp_time_init()\n");
@@ -107,7 +107,7 @@ static void __init hp_time_init(struct irqaction *irq)
 
 static void hplj_restart(void)
 {
-   if (GetAsicId() == AndrosAsic) 
+   if (GetAsicId() == AndrosAsic)
        *((volatile unsigned int *) 0xbfe900c0) = 0;
 
 

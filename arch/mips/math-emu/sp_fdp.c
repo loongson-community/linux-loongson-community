@@ -67,7 +67,7 @@ ieee754sp ieee754sp_fdp(ieee754dp x)
 	{
 		u32 rm;
 
-		/* convert from DP_MBITS to SP_MBITS+3 with sticky right shift 
+		/* convert from DP_MBITS to SP_MBITS+3 with sticky right shift
 		 */
 		rm = (xm >> (DP_MBITS - (SP_MBITS + 3))) |
 		    ((xm << (64 - (DP_MBITS - (SP_MBITS + 3)))) != 0);

@@ -120,7 +120,7 @@ void ddb5477_runtime_detection(void)
         *test_offset = saved_test_byte;
 
 	/* before we know a better way, we will trust PMON for getting
-	 * RAM size 
+	 * RAM size
 	 */
 	board_ram_size = 1 << (36 - (ddb_in32(DDB_SDRAM0) & 0xf));
 

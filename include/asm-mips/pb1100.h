@@ -22,7 +22,7 @@
  *
  * ########################################################################
  *
- * 
+ *
  */
 #ifndef __ASM_PB1100_H
 #define __ASM_PB1100_H
@@ -57,8 +57,8 @@
   #define PB1100_SD_WP0_RO       (1<<14) /* read only */
   #define PB1100_SD_PWR1         (1<<11) /* applies power to SD1 */
   #define PB1100_SD_PWR0         (1<<10) /* applies power to SD0 */
-  #define PB1100_SEL_SD_CONN1     (1<<9) 
-  #define PB1100_SEL_SD_CONN0     (1<<8) 
+  #define PB1100_SEL_SD_CONN1     (1<<9)
+  #define PB1100_SEL_SD_CONN0     (1<<8)
   #define PB1100_PC_DEASSERT_RST  (1<<7)
   #define PB1100_PC_DRV_EN        (1<<4)
 

@@ -10,14 +10,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 /*
- * Memory related routines 
+ * Memory related routines
  */
 
 #include <linux/config.h>
@@ -38,7 +38,7 @@ int page_is_ram(unsigned long pagenr)
 #else
 	int i;
 	for (i = 0; i < swarm_mem_region_count; i++) {
-		if ((addr >= swarm_mem_region_addrs[i]) 
+		if ((addr >= swarm_mem_region_addrs[i])
 		    && (addr < (swarm_mem_region_addrs[i] + swarm_mem_region_sizes[i]))) {
 			return 1;
 		}

@@ -1,5 +1,5 @@
 /*
- *  arch/mips/ddb5476/nile4.c -- 
+ *  arch/mips/ddb5476/nile4.c --
  *  	low-level PIC code for NEC Vrc-5476 (Nile 4)
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>

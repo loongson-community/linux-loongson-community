@@ -1,4 +1,4 @@
-/* 
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -8,7 +8,7 @@
 #ifndef __ASM_SN_NMI_H
 #define __ASM_SN_NMI_H
 
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 
 #include <asm/sn/addrs.h>
 

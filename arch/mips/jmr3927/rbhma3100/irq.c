@@ -1,7 +1,7 @@
 /*
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -137,7 +137,7 @@ static void jmr3927_irq_ack(unsigned int irq)
 	db_assert(irq < jmr3927_irq_base + JMR3927_NR_IRQ_IRC + JMR3927_NR_IRQ_IOC);
 
 	if (irq == JMR3927_IRQ_IRC_TMR0) {
-		jmr3927_tmrptr->tisr = 0;       /* ack interrupt */  
+		jmr3927_tmrptr->tisr = 0;       /* ack interrupt */
 	}
 
 	jmr3927_irq_disable(irq);
@@ -291,7 +291,7 @@ extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 void jmr3927_irc_irqdispatch(struct pt_regs *regs)
 {
 	int irq;
-	
+
 #ifdef CONFIG_TX_BRANCH_LIKELY_BUG_WORKAROUND
 	tx_branch_likely_bug_fixup(regs);
 #endif
@@ -468,7 +468,7 @@ hw_irq_controller jmr3927_irq_controller = {
 	NULL			/* no affinity stuff for UP */
 };
 
-void 
+void
 jmr3927_irq_init(u32 irq_base)
 {
 	extern irq_desc_t irq_desc[];
@@ -480,7 +480,7 @@ jmr3927_irq_init(u32 irq_base)
 		irq_desc[i].depth = 1;
 		irq_desc[i].handler = &jmr3927_irq_controller;
 	}
-	
+
 	jmr3927_irq_base = irq_base;
 }
 

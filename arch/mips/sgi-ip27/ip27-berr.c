@@ -36,7 +36,7 @@ static void dump_hub_information(unsigned long errst0, unsigned long errst1)
 		return;
 	}
 
-	
+
 	printk("Hub has valid error information:\n");
 	if (errst0 & PI_ERR_ST0_OVERRUN_MASK)
 		printk("Overrun is set.  Error stack may contain additional "

@@ -111,7 +111,7 @@
 	.set	push;       \
 	.set	reorder;    \
 	 lw	pte, (ptr); \
-	.set	pop; 
+	.set	pop;
 
 	/* Make PTE valid, store result in PTR. */
 #define PTE_MAKEVALID(pte, ptr) \
@@ -129,7 +129,7 @@
 	.set    reorder;    \
 	lw      pte, (ptr); \
 	.set    pop;
- 
+
 
 	/* Make PTE writable, update software status bits as well,
 	 * then store at PTR.
@@ -159,7 +159,7 @@
 	nop; \
 	jr	reg; \
 	 rfe
-			
+
 	.set	noreorder
 
 	.align	5

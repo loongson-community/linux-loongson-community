@@ -67,7 +67,7 @@ void __init sead_setup(void)
 		prom_printf("Config serial console: %s\n", serial_console);
 		console_setup(serial_console, NULL);
 	}
-#endif	  
+#endif
 
 	argptr = prom_getcmdline();
 

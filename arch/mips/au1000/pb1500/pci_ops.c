@@ -46,19 +46,19 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 /* TBD */
 static struct resource pci_io_resource = {
-	"pci IO space", 
+	"pci IO space",
 	Au1500_PCI_IO_START,
 	Au1500_PCI_IO_END,
 	IORESOURCE_IO
 };
 
 static struct resource pci_mem_resource = {
-	"pci memory space", 
+	"pci memory space",
 	Au1500_PCI_MEM_START,
 	Au1500_PCI_MEM_END,
 	IORESOURCE_MEM
@@ -73,7 +73,7 @@ struct pci_channel mips_pci_channels[] = {
 };
 
 static unsigned long cfg_addr;
-static int config_access(unsigned char access_type, struct pci_dev *dev, 
+static int config_access(unsigned char access_type, struct pci_dev *dev,
 			 unsigned char where, u32 * data)
 {
 	unsigned char bus = dev->bus->number;
@@ -82,7 +82,7 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	unsigned long config, status;
 	static int first = 1;
 
-	/* 
+	/*
  	 * 7:3 = slot
  	 * 2:0 = function
 	 */
@@ -95,7 +95,7 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	if (first) {
 		first = 0;
 		cfg_addr = ioremap(Au1500_EXT_CFG, 0x10000000);
-		if (!cfg_addr) 
+		if (!cfg_addr)
 			printk (KERN_ERR "PCI unable to ioremap cfg space\n");
 	}
 
@@ -116,7 +116,7 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	au_sync_udelay(1);
 
 	/* setup the lower 31 bits of the 36 bit address */
-	config = cfg_addr | 
+	config = cfg_addr |
 		((1<<device)<<11) | (function << 8) | (where & ~0x3);
 
 #if 0
@@ -131,12 +131,12 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	}
 	au_sync_udelay(1);
 
-	DBG("config_access: %d bus %d device %d at %x *data %x, conf %x\n", 
+	DBG("config_access: %d bus %d device %d at %x *data %x, conf %x\n",
 			access_type, bus, device, where, *data, config);
 
 	/* check master abort */
 	status = au_readl(Au1500_PCI_STATCMD);
-	if (status & (1<<29)) { 
+	if (status & (1<<29)) {
 		*data = 0xffffffff;
 		return -1;
 	} else if ((status >> 28) & 0xf) {
@@ -159,7 +159,7 @@ static int read_config_byte(struct pci_dev *dev, int where, u8 * val)
         if (where & 1) data >>= 8;
         if (where & 2) data >>= 16;
         *val = data & 0xff;
-	return ret; 
+	return ret;
 }
 
 
@@ -171,7 +171,7 @@ static int read_config_word(struct pci_dev *dev, int where, u16 * val)
 	ret = config_access(PCI_ACCESS_READ, dev, where, &data);
         if (where & 2) data >>= 16;
         *val = data & 0xffff;
-	return ret; 
+	return ret;
 }
 
 static int read_config_dword(struct pci_dev *dev, int where, u32 * val)
@@ -179,14 +179,14 @@ static int read_config_dword(struct pci_dev *dev, int where, u32 * val)
 	int ret;
 
 	ret = config_access(PCI_ACCESS_READ, dev, where, val);
-	return ret; 
+	return ret;
 }
 
 
 static int write_config_byte(struct pci_dev *dev, int where, u8 val)
 {
 	u32 data = 0;
-       
+
 	if (config_access(PCI_ACCESS_READ, dev, where, &data))
 		return -1;
 
@@ -205,11 +205,11 @@ static int write_config_word(struct pci_dev *dev, int where, u16 val)
 
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-       
+
         if (config_access(PCI_ACCESS_READ, dev, where, &data))
 	       return -1;
 
-	data = (data & ~(0xffff << ((where & 3) << 3))) | 
+	data = (data & ~(0xffff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
 
 	if (config_access(PCI_ACCESS_WRITE, dev, where, &data))

@@ -26,7 +26,7 @@ const char *get_system_type(void)
 	return "NEC_Vr41xx Osprey";
 }
 
-/* 
+/*
  * [jsun] right now we assume it is the nec debug monitor, which does
  * not pass any arguments.
  */

@@ -1,21 +1,21 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *  
+    *
     *  MIPS64 CPU definitions			File: sbmips.h
-    * 
+    *
     *  This module contains constants and macros specific to the
     *  SB1 MIPS64 core.
-    *  
+    *
     *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
-    *  
-    *********************************************************************  
+    *
+    *********************************************************************
     *
     *  Copyright 2000,2001
     *  Broadcom Corporation. All rights reserved.
-    *  
-    *  This program is free software; you can redistribute it and/or 
-    *  modify it under the terms of the GNU General Public License as 
-    *  published by the Free Software Foundation; either version 2 of 
+    *
+    *  This program is free software; you can redistribute it and/or
+    *  modify it under the terms of the GNU General Public License as
+    *  published by the Free Software Foundation; either version 2 of
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -25,7 +25,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -184,7 +184,7 @@
 #endif
 
 /*  *********************************************************************
-    *  CP0 Registers 
+    *  CP0 Registers
     ********************************************************************* */
 
 #if defined(__ASSEMBLY__)
@@ -385,8 +385,8 @@ name:
 #define M_SR_EXL	_MM_MAKEMASK1(1)
 #define M_SR_IE		_MM_MAKEMASK1(0)
 
-/* 
- * Cause Register 
+/*
+ * Cause Register
  */
 #define M_CAUSE_BD	_MM_MAKEMASK1(31) /* exception in BD slot */
 
@@ -550,8 +550,8 @@ name:
 
 
 
-/* 
- * Primary Cache TagLo 
+/*
+ * Primary Cache TagLo
  */
 
 #define S_TAGLO_PTAG	8

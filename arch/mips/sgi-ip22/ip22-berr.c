@@ -24,7 +24,7 @@ volatile int nofault;
 
 static void save_and_clear_buserr(void)
 {
-	/* save memory controler's error status registers */ 
+	/* save memory controler's error status registers */
 	cpu_err_addr = mcmisc_regs->cerr;
 	cpu_err_stat = mcmisc_regs->cstat;
 	gio_err_addr = mcmisc_regs->gerr;
@@ -34,8 +34,8 @@ static void save_and_clear_buserr(void)
 }
 
 /*
- * MC sends an interrupt whenever bus or parity errors occur. In addition, 
- * if the error happened during a CPU read, it also asserts the bus error 
+ * MC sends an interrupt whenever bus or parity errors occur. In addition,
+ * if the error happened during a CPU read, it also asserts the bus error
  * pin on the R4K. Code in bus error handler save the MC bus error registers
  * and then clear the interrupt when this happens.
  */

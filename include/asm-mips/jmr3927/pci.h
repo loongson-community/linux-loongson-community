@@ -2,7 +2,7 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * include/asm-mips/jmr3927/pci.h
  * Based on include/asm-mips/ddb5xxx/pci.h
@@ -51,7 +51,7 @@ struct pci_channel {
 	struct resource *mem_resource;
 };
 
-/* 
+/*
  * each board defines an array of pci_channels, that ends with all NULL entry
  */
 extern struct pci_channel mips_pci_channels[];

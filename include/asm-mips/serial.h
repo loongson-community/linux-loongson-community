@@ -175,7 +175,7 @@
     { baud_base: JMR3927_BASE_BAUD, port: UART0_ADDR, irq: UART0_INT,  \
       flags: UART0_FLAGS, type: 1 },                        \
     { baud_base: JMR3927_BASE_BAUD, port: UART1_ADDR, irq: UART1_INT,  \
-      flags: UART1_FLAGS, type: 1 },     
+      flags: UART1_FLAGS, type: 1 },
 #else
 #define TXX927_SERIAL_PORT_DEFNS
 #endif

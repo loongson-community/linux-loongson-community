@@ -193,7 +193,7 @@ static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 static unsigned int startup_irq(unsigned int irq_nr)
 {
 	local_enable_irq(irq_nr);
-	return 0; 
+	return 0;
 }
 
 
@@ -281,7 +281,7 @@ static void end_irq(unsigned int irq_nr)
 		local_enable_irq(irq_nr);
 	}
 	else {
-		printk("warning: end_irq %d did not enable (%x)\n", 
+		printk("warning: end_irq %d did not enable (%x)\n",
 				irq_nr, irq_desc[irq_nr].status);
 	}
 #if defined(CONFIG_MIPS_PB1000)
@@ -455,7 +455,7 @@ void __init init_IRQ(void)
 			case AU1000_GPIO_9: // PCMCIA Card Fully_Interted#
 			case AU1000_GPIO_10: // PCMCIA_STSCHG#
 			case AU1000_GPIO_11: // PCMCIA_IRQ#
-			case AU1000_GPIO_13: // DC_IRQ# 
+			case AU1000_GPIO_13: // DC_IRQ#
 			case AU1000_GPIO_23: // 2-wire SCL
 #endif
 				setup_local_irq(i, INTC_INT_LOW_LEVEL, 0);
@@ -495,7 +495,7 @@ void __init init_IRQ(void)
 	/* If local serial I/O used for debug port, enter kgdb at once */
 	puts("Waiting for kgdb to connect...");
 	set_debug_traps();
-	breakpoint(); 
+	breakpoint();
 #endif
 }
 
@@ -525,7 +525,7 @@ void intc0_req0_irqdispatch(struct pt_regs *regs)
 		do_IRQ(AU1000_USB_DEV_REQ_INT, regs);
 		return;
 	}
-	
+
 	for (i=0; i<32; i++) {
 		if ((intc0_req0 & (1<<i))) {
 			intc0_req0 &= ~(1<<i);
@@ -555,7 +555,7 @@ void intc0_req1_irqdispatch(struct pt_regs *regs)
 				counter0_irq(irq, NULL, regs);
 				local_enable_irq(irq);
 			}
-			else 
+			else
 #endif
 			{
 				do_IRQ(irq, regs);

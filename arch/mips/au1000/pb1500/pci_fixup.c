@@ -42,7 +42,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 static void fixup_resource(int r_num, struct pci_dev *dev) ;
@@ -57,8 +57,8 @@ void __init pcibios_fixup(void)
 {
 	int i;
 	struct pci_dev *dev;
-	
-	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START, 
+
+	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START,
 			Au1500_PCI_IO_END - Au1500_PCI_IO_START + 1);
 
 	if (!virt_io_addr) {
@@ -103,7 +103,7 @@ unsigned int pcibios_assign_all_busses(void)
 	return 0;
 }
 
-static void fixup_resource(int r_num, struct pci_dev *dev) 
+static void fixup_resource(int r_num, struct pci_dev *dev)
 {
 	unsigned long start, size, new_start;
 

@@ -2,13 +2,13 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * arch/mips/jmr3927/common/rtc_ds1742.c
  * Based on arch/mips/ddb5xxx/common/rtc_ds1386.c
  *     low-level RTC hookups for s for Dallas 1742 chip.
  *
- * Copyright (C) 2000-2001 Toshiba Corporation 
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -82,7 +82,7 @@ rtc_ds1742_get_time(void)
 }
 extern void to_tm(unsigned long tim, struct rtc_time * tm);
 
-static int 
+static int
 rtc_ds1742_set_time(unsigned long t)
 {
 	struct rtc_time tm;
@@ -117,7 +117,7 @@ rtc_ds1742_set_time(unsigned long t)
 
 	day = BIN_TO_BCD(tm.tm_mday);
 	if (day != cmos_day) {
-	
+
 		CMOS_WRITE(day, RTC_DATE);
 	}
 
@@ -144,7 +144,7 @@ rtc_ds1742_set_time(unsigned long t)
 	if (second !=  cmos_second) {
 		CMOS_WRITE(second & RTC_SECONDS_MASK,RTC_SECONDS);
 	}
-	
+
 	/* RTC_CENTURY and RTC_CONTROL share same address... */
 	CMOS_WRITE(cmos_century, RTC_CONTROL);
 

@@ -77,7 +77,7 @@ static int pcimt_write_config_word (struct pci_dev *dev,
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	*pci_config_address_reg = cfgaddr(dev, where);
-	*(volatile u16 *)(((int)pci_config_data_reg) + (where & 2)) = 
+	*(volatile u16 *)(((int)pci_config_data_reg) + (where & 2)) =
                   le16_to_cpu(val);
 	//printk("pci_write_word 0x%x = 0x%x\n", where, val);
 	return PCIBIOS_SUCCESSFUL;
@@ -158,9 +158,9 @@ void __init pci_setup(void)
       case AndrosAsic:   pci_regs_base_offset = 0xbff80000;   break;
       case HarmonyAsic:  pci_regs_base_offset = 0xbff70000;   break;
       default:
-         printk("ERROR: PCI does not support %s Asic\n", GetAsicName()); 
+         printk("ERROR: PCI does not support %s Asic\n", GetAsicName());
 	 while(1);
-         break; 
+         break;
    }
 
    // set bus stat/command reg
@@ -176,7 +176,7 @@ void __init pci_setup(void)
 
    // KLUDGE (mips_io_port_base is screwed up, we've got to work around it here)
    // by letting both low (illegal) and high (legal) addresses appear in pci io space
-   ioport_resource.start = 0x0; 
+   ioport_resource.start = 0x0;
 
    set_io_port_base(IO_PORT_LOGICAL_START + IO_PORT_VIRTUAL_OFFSET);
 
@@ -185,7 +185,7 @@ void __init pci_setup(void)
    // except that the range is outside user space
    // parameters: lo0, lo1, hi, pagemask
    // lo indicates physical page, hi indicates virtual address
-   add_wired_entry((IO_MEM_LOGICAL_START >> 6) | 0x17, 
+   add_wired_entry((IO_MEM_LOGICAL_START >> 6) | 0x17,
                    ((IO_MEM_LOGICAL_START + (16 * ONE_MEG)) >> 6) | 0x17,
                    0xee000000, PM_16M);
 
@@ -203,7 +203,7 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
     int bases;
 
     printk("adjusting pci device: %s\n", dev->name);
- 
+
     switch (dev->hdr_type) {
        case PCI_HEADER_TYPE_NORMAL: bases = 6; break;
        case PCI_HEADER_TYPE_BRIDGE: bases = 2; break;
@@ -212,12 +212,12 @@ void __init pcibios_fixup_resources(struct pci_dev *dev)
     }
     for (pos=0; pos < bases; pos++) {
        struct resource* res = &dev->resource[pos];
-       if (res->start >= IO_MEM_LOGICAL_START && 
+       if (res->start >= IO_MEM_LOGICAL_START &&
            res->end <= IO_MEM_LOGICAL_END) {
               res->start += IO_MEM_VIRTUAL_OFFSET;
               res->end += IO_MEM_VIRTUAL_OFFSET;
        }
-       if (res->start >= IO_PORT_LOGICAL_START && 
+       if (res->start >= IO_PORT_LOGICAL_START &&
            res->end <= IO_PORT_LOGICAL_END) {
               res->start += IO_PORT_VIRTUAL_OFFSET;
               res->end += IO_PORT_VIRTUAL_OFFSET;

@@ -139,7 +139,7 @@ sys_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 	}
 }
 
-asmlinkage int 
+asmlinkage int
 sys_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 {
 	struct k_sigaction new_ka, old_ka;
@@ -193,7 +193,7 @@ static inline int restore_thread_fp_context(struct sigcontext *sc)
      u64 *pfreg = &current->thread.fpu.soft.regs[0];
      int err = 0;
 
-     /* 
+     /*
       * Copy all 32 64-bit values.
       */
 
@@ -411,15 +411,15 @@ static int inline setup_sigcontext(struct pt_regs *regs,
 		goto out;
 
 	/* There exists FP thread state that may be trashed by signal */
-	if (owned_fp) {	
+	if (owned_fp) {
 		/* fp is active.  Save context from FPU */
 		err |= save_fp_context(sc);
 		goto out;
 	}
 
-	/* 
-	 * Someone else has FPU. 
-	 * Copy Thread context into signal context 
+	/*
+	 * Someone else has FPU.
+	 * Copy Thread context into signal context
 	 */
 	err |= save_thread_fp_context(sc);
 
@@ -438,7 +438,7 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	/* Default to using normal stack */
 	sp = regs->regs[29];
 
-	/* 
+	/*
  	 * FPU emulator may have it's own trampoline active just
  	 * above the user stack, 16-bytes before the next lowest
  	 * 16 byte boundary.  Try to avoid trashing it.

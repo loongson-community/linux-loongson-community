@@ -17,7 +17,7 @@
  *
  * MIPS64 CPU variant specific Cache routines.
  * These routine are not optimized in any way, they are done in a generic way
- * so they can be used on all MIPS64 compliant CPUs, and also done in an 
+ * so they can be used on all MIPS64 compliant CPUs, and also done in an
  * attempt not to break anything for the R4xx0 style CPUs.
  */
 #include <linux/init.h>
@@ -429,33 +429,33 @@ static void __init probe_icache(unsigned long config)
 	unsigned int lsize;
 
         if (!(config & (1 << 31))) {
-	        /* 
-		 * Not a MIPS64 complainant CPU. 
+	        /*
+		 * Not a MIPS64 complainant CPU.
 		 * Config 1 register not supported, we assume R4k style.
 		 */
 	        icache_size = 1 << (12 + ((config >> 9) & 7));
 		ic_lsize = 16 << ((config >> 5) & 1);
 		mips_cpu.icache.linesz = ic_lsize;
-		
-		/* 
+
+		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
 		if(!mips_cpu.icache.ways) mips_cpu.icache.ways = 1;
-		mips_cpu.icache.sets = 
+		mips_cpu.icache.sets =
 			(icache_size / ic_lsize) / mips_cpu.icache.ways;
 	} else {
-	       config1 = read_mips32_cp0_config1(); 
+	       config1 = read_mips32_cp0_config1();
 
 	       if ((lsize = ((config1 >> 19) & 7)))
 		       mips_cpu.icache.linesz = 2 << lsize;
-	       else 
+	       else
 		       mips_cpu.icache.linesz = lsize;
 	       mips_cpu.icache.sets = 64 << ((config1 >> 22) & 7);
 	       mips_cpu.icache.ways = 1 + ((config1 >> 16) & 7);
 
 	       ic_lsize = mips_cpu.icache.linesz;
-	       icache_size = mips_cpu.icache.sets * mips_cpu.icache.ways * 
+	       icache_size = mips_cpu.icache.sets * mips_cpu.icache.ways *
 		             ic_lsize;
 	}
 	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
@@ -468,32 +468,32 @@ static void __init probe_dcache(unsigned long config)
 	unsigned int lsize;
 
         if (!(config & (1 << 31))) {
-	        /* 
-		 * Not a MIPS64 complainant CPU. 
+	        /*
+		 * Not a MIPS64 complainant CPU.
 		 * Config 1 register not supported, we assume R4k style.
-		 */  
+		 */
 		dcache_size = 1 << (12 + ((config >> 6) & 7));
 		dc_lsize = 16 << ((config >> 4) & 1);
 		mips_cpu.dcache.linesz = dc_lsize;
-		/* 
+		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
 		if(!mips_cpu.dcache.ways) mips_cpu.dcache.ways = 1;
-		mips_cpu.dcache.sets = 
+		mips_cpu.dcache.sets =
 			(dcache_size / dc_lsize) / mips_cpu.dcache.ways;
 	} else {
 	        config1 = read_mips32_cp0_config1();
 
 		if ((lsize = ((config1 >> 10) & 7)))
 		        mips_cpu.dcache.linesz = 2 << lsize;
-		else 
+		else
 		        mips_cpu.dcache.linesz= lsize;
 		mips_cpu.dcache.sets = 64 << ((config1 >> 13) & 7);
 		mips_cpu.dcache.ways = 1 + ((config1 >> 7) & 7);
 
 		dc_lsize = mips_cpu.dcache.linesz;
-		dcache_size = 
+		dcache_size =
 			mips_cpu.dcache.sets * mips_cpu.dcache.ways
 			* dc_lsize;
 	}
@@ -635,12 +635,12 @@ static inline void __init setup_scache(unsigned int config)
 
 	if (sc_present) {
 	  	mips_cpu.scache.linesz = sc_lsize;
-		/* 
+		/*
 		 * We cannot infer associativity - assume direct map
 		 * unless probe template indicates otherwise
 		 */
 		if(!mips_cpu.scache.ways) mips_cpu.scache.ways = 1;
-		mips_cpu.scache.sets = 
+		mips_cpu.scache.sets =
 		  (scache_size / sc_lsize) / mips_cpu.scache.ways;
 
 		setup_scache_funcs();

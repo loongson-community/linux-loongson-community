@@ -1,23 +1,23 @@
 /*  *********************************************************************
     *  SB1250 Board Support Package
-    *  
+    *
     *  SCD Constants and Macros			File: sb1250_scd.h
-    *  
+    *
     *  This module contains constants and macros useful for
     *  manipulating the System Control and Debug module on the 1250.
-    *  
+    *
     *  SB1250 specification level:  0.2  plus errata as of 11/7/2000
-    *  
+    *
     *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
-    *  
-    *********************************************************************  
+    *
+    *********************************************************************
     *
     *  Copyright 2000,2001
     *  Broadcom Corporation. All rights reserved.
-    *  
-    *  This program is free software; you can redistribute it and/or 
-    *  modify it under the terms of the GNU General Public License as 
-    *  published by the Free Software Foundation; either version 2 of 
+    *
+    *  This program is free software; you can redistribute it and/or
+    *  modify it under the terms of the GNU General Public License as
+    *  published by the Free Software Foundation; either version 2 of
     *  the License, or (at your option) any later version.
     *
     *  This program is distributed in the hope that it will be useful,
@@ -27,7 +27,7 @@
     *
     *  You should have received a copy of the GNU General Public License
     *  along with this program; if not, write to the Free Software
-    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, 
+    *  Foundation, Inc., 59 Temple Place, Suite 330, Boston,
     *  MA 02111-1307 USA
     ********************************************************************* */
 
@@ -61,7 +61,7 @@
 #define G_SYS_PART(x)               _SB_GETVALUE(x,S_SYS_PART,M_SYS_PART)
 
 #define K_SYS_PART_SB1250           0x1250
-#define K_SYS_PART_SB1125           0x1125 
+#define K_SYS_PART_SB1125           0x1125
 
 #define S_SYS_WID                   _SB_MAKE64(32)
 #define M_SYS_WID                   _SB_MAKEMASK(32,S_SYS_WID)

@@ -16,7 +16,7 @@ static char *banner = "\nBaget Linux Loader v0.2\n";
 
 static void mem_move (long *to, long *from, long size)
 {
-	while (size > 0) { 
+	while (size > 0) {
 		*to++ = *from++;
 		size -= sizeof(long);
 	}
@@ -59,7 +59,7 @@ static __inline__ void reset_and_jump(int start, int mem_upper)
 		"jr\t%1\n\t"
 		"nop\n\t"
                 ".set\tat\n\t"
-                ".set\treorder"           
+                ".set\treorder"
                 : "=&r" (tmp)
                 : "Ir" (start), "Ir" (mem_upper)
                 : "memory");
@@ -71,7 +71,7 @@ static void start_kernel(void)
 	extern char _ramdisk_start, _ramdisk_end;
 
         outs( "Relocating Linux... " );
-	mem_move((long*)KSEG0, (long*)&_vmlinux_start, 
+	mem_move((long*)KSEG0, (long*)&_vmlinux_start,
                  &_vmlinux_end-&_vmlinux_start);
 	outs("done.\n");
 
@@ -86,7 +86,7 @@ static void start_kernel(void)
 		outs("done.\n");
 	}
 
-	{ 
+	{
 		extern void flush_cache_low(int isize, int dsize);
 		flush_cache_low(256*1024,256*1024);
 	}
@@ -102,10 +102,10 @@ static void mem_probe(void)
 	balo_state = MEM_PROBE;
 	outs("RAM: <");
 	while(mem_limit < mem_limit_dbe) {
-                if (can_write(mem_limit) && *mem_limit != 0) 
+                if (can_write(mem_limit) && *mem_limit != 0)
                         break; /* cycle found */
 		outc('.');
-		if (can_write(mem_limit)) 
+		if (can_write(mem_limit))
                         *mem_limit = -1; /* mark */
                 mem_limit += 0x40000;
 	}
@@ -124,7 +124,7 @@ static void print_regs(void)
 }
 
 void int_handler(struct pt_regs *regs)
-{ 
+{
         switch (balo_state) {
 	case BALO_INIT:
                 balo_printf("\nBALO: trap in balo itself.\n");
@@ -162,7 +162,7 @@ static void mem_init(void)
 
 	while(1) {
 		*mem_limit_dbe;
-		if (can_write(mem_limit_dbe)) 
+		if (can_write(mem_limit_dbe))
 			*mem_limit_dbe = 0;
 
 		mem_limit_dbe += 0x40000; /* +1M */
@@ -174,7 +174,7 @@ void balo_entry(void)
 {
         extern void except_vec3_generic(void);
 
-	cli(); 
+	cli();
 	outs(banner);
         memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
 	mem_init();

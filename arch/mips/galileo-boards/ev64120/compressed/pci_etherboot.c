@@ -20,7 +20,7 @@ static int pci_range_ck(unsigned char bus, unsigned char dev)
 	if ((bus == 0) && (dev >= 0) && (dev < 30))
 		return 0;	// Bus/Device Number OK
 
-	return -1;		// Bus/Device Number not OK  
+	return -1;		// Bus/Device Number not OK
 }
 
 /********************************************************************

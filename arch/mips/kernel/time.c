@@ -2,8 +2,8 @@
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
- * Common time service routines for MIPS machines. See 
- * Documents/MIPS/README.txt. 
+ * Common time service routines for MIPS machines. See
+ * Documents/MIPS/README.txt.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -344,7 +344,7 @@ void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		if (rtc_set_time(xtime.tv_sec) == 0) {
 			last_rtc_update = xtime.tv_sec;
 		} else {
-			last_rtc_update = xtime.tv_sec - 600; 
+			last_rtc_update = xtime.tv_sec - 600;
 			/* do it again in 60 s */
 		}
 	}
@@ -369,7 +369,7 @@ asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs)
 
 	/* we keep interrupt disabled all the time */
 	timer_interrupt(irq, NULL, regs);
-	
+
 	irq_exit(cpu, irq);
 
 	if (softirq_pending(cpu))
@@ -380,19 +380,19 @@ asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs)
 /*
  * time_init() - it does the following things.
  *
- * 1) board_time_init() - 
- * 	a) (optional) set up RTC routines, 
+ * 1) board_time_init() -
+ * 	a) (optional) set up RTC routines,
  *      b) (optional) calibrate and set the mips_counter_frequency
  *	    (only needed if you intended to use fixed_rate_gettimeoffset
  *	     or use cpu counter as timer interrupt source)
  * 2) setup xtime based on rtc_get_time().
  * 3) choose a appropriate gettimeoffset routine.
  * 4) calculate a couple of cached variables for later usage
- * 5) board_timer_setup() - 
+ * 5) board_timer_setup() -
  *	a) (optional) over-write any choices made above by time_init().
  *	b) machine specific code should setup the timer irqaction.
  *	c) enable the timer interrupt
- */ 
+ */
 
 void (*board_time_init)(void) = NULL;
 void (*board_timer_setup)(struct irqaction *irq) = NULL;
@@ -432,7 +432,7 @@ void __init time_init(void)
 		/* we need to calibrate the counter but we *do* have
 		 * 64-bit division. */
 		do_gettimeoffset = calibrate_div64_gettimeoffset;
-	}	
+	}
 
 	/* caclulate cache parameters */
 	if (mips_counter_frequency) {
@@ -445,14 +445,14 @@ void __init time_init(void)
 		sll32_usecs_per_cycle *= 10;
 	}
 
-	/* 
+	/*
 	 * Call board specific timer interrupt setup.
 	 *
-	 * this pointer must be setup in machine setup routine. 
+	 * this pointer must be setup in machine setup routine.
 	 *
 	 * Even if the machine choose to use low-level timer interrupt,
 	 * it still needs to setup the timer_irqaction.
-	 * In that case, it might be better to set timer_irqaction.handler 
+	 * In that case, it might be better to set timer_irqaction.handler
 	 * to be NULL function so that we are sure the high-level code
 	 * is not invoked accidentally.
 	 */

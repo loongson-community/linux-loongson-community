@@ -47,8 +47,8 @@ extern void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page)
  * routines are not needed. Only the icache on a processor is not
  * coherent with the dcache of the _same_ processor, so we must flush
  * the icache so that it does not contain stale contents of physical
- * memory. No flushes are needed for dma coherency, since the o200s 
- * are io coherent. The only place where we might be overoptimizing 
+ * memory. No flushes are needed for dma coherency, since the o200s
+ * are io coherent. The only place where we might be overoptimizing
  * out icache flushes are from mprotect (when PROT_EXEC is added).
  */
 extern void andes_flush_icache_page(unsigned long);
@@ -101,16 +101,16 @@ extern void (*_flush_cache_l1)(void);
  * pair of 4K pages, giving 1024 (== PTRS_PER_PMD) 8 byte pointers to
  * page tables. Each page table is a single 4K page, giving 512 (==
  * PTRS_PER_PTE) 8 byte ptes. Each pgde is initialized to point to
- * invalid_pmd_table, each pmde is initialized to point to 
+ * invalid_pmd_table, each pmde is initialized to point to
  * invalid_pte_table, each pte is initialized to 0. When memory is low,
  * and a pmd table or a page table allocation fails, empty_bad_pmd_table
  * and empty_bad_page_table is returned back to higher layer code, so
- * that the failure is recognized later on. Linux does not seem to 
+ * that the failure is recognized later on. Linux does not seem to
  * handle these failures very well though. The empty_bad_page_table has
  * invalid pte entries in it, to force page faults.
- * Vmalloc handling: vmalloc uses swapper_pg_dir[0] (returned by 
- * pgd_offset_k), which is initalized to point to kpmdtbl. kpmdtbl is 
- * the only single page pmd in the system. kpmdtbl entries point into 
+ * Vmalloc handling: vmalloc uses swapper_pg_dir[0] (returned by
+ * pgd_offset_k), which is initalized to point to kpmdtbl. kpmdtbl is
+ * the only single page pmd in the system. kpmdtbl entries point into
  * kptbl[] array. We reserve 1 << PGD_ORDER pages to hold the
  * vmalloc range translations, which the fault handler looks at.
  */
@@ -456,7 +456,7 @@ static inline pmd_t * pmd_offset(pgd_t * dir, unsigned long address)
 	       ((address >> PMD_SHIFT) & (PTRS_PER_PMD - 1));
 }
 
-/* Find an entry in the third-level page table.. */ 
+/* Find an entry in the third-level page table.. */
 #define __pte_offset(address)						\
 	((address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
 #define pte_offset(dir, address)					\

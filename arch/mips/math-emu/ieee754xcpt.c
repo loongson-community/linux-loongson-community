@@ -23,7 +23,7 @@
 
 /**************************************************************************
  *  Nov 7, 2000
- *  Added preprocessor hacks to map to Linux kernel diagnostics. 
+ *  Added preprocessor hacks to map to Linux kernel diagnostics.
  *
  *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.

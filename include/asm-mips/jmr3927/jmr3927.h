@@ -7,8 +7,8 @@
  *
  * Copyright (C) 2000-2001 Toshiba Corporation
  */
-#ifndef __ASM_TX3927_JMR3927_H 
-#define __ASM_TX3927_JMR3927_H 
+#ifndef __ASM_TX3927_JMR3927_H
+#define __ASM_TX3927_JMR3927_H
 
 #include <asm/jmr3927/tx3927.h>
 #include <asm/addrspace.h>
@@ -36,14 +36,14 @@
 #define JMR3927_PORT_BASE	KSEG1
 
 /* select indirect initiator access per errata */
-#define JMR3927_INIT_INDIRECT_PCI 
+#define JMR3927_INIT_INDIRECT_PCI
 #define PCI_ISTAT_IDICC           0x1000
 #define PCI_IPCIBE_IBE_LONG       0
-#define PCI_IPCIBE_ICMD_IOREAD    2 
+#define PCI_IPCIBE_ICMD_IOREAD    2
 #define PCI_IPCIBE_ICMD_IOWRITE   3
-#define PCI_IPCIBE_ICMD_MEMREAD   6 
+#define PCI_IPCIBE_ICMD_MEMREAD   6
 #define PCI_IPCIBE_ICMD_MEMWRITE  7
-#define PCI_IPCIBE_ICMD_SHIFT     4 
+#define PCI_IPCIBE_ICMD_SHIFT     4
 
 /* Address map (virtual address) */
 #define JMR3927_ROM0_BASE	(KSEG1 + JMR3927_ROMCE0)

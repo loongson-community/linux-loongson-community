@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
- * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) 
+ * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu)
  *                    - Indigo2 changes
  *                    - Interrupt handling fixes
  * Copyright (C) 2001 Ladislav Michl (ladis@psi.cz)
@@ -187,7 +187,7 @@ static void enable_local3_irq(unsigned int irq)
 {
 #ifdef I_REALLY_NEED_THIS_IRQ
 	unsigned long flags;
-	
+
 	save_and_cli(flags);
 	ioc_icontrol->imask1 |= (1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
 	ioc_icontrol->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
@@ -276,7 +276,7 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	/* if irq == 0, then the interrupt has already been cleared */
 	if (irq)
 		do_IRQ(irq, regs);
-	return;	
+	return;
 }
 
 extern void be_ip22_interrupt(int irq, struct pt_regs *regs);
@@ -292,11 +292,11 @@ void indy_buserror_irq(struct pt_regs *regs)
 	irq_exit(cpu, irq);
 }
 
-static struct irqaction local0_cascade = 
+static struct irqaction local0_cascade =
 	{ no_action, SA_INTERRUPT, 0, "local0 cascade", NULL, NULL };
-static struct irqaction local1_cascade = 
+static struct irqaction local1_cascade =
 	{ no_action, SA_INTERRUPT, 0, "local1 cascade", NULL, NULL };
-static struct irqaction buserr = 
+static struct irqaction buserr =
 	{ no_action, SA_INTERRUPT, 0, "Bus Error", NULL, NULL };
 static struct irqaction map0_cascade =
 	{ no_action, SA_INTERRUPT, 0, "mappable0 cascade", NULL, NULL };
@@ -409,7 +409,7 @@ void __init init_IRQ(void)
 	setup_irq(SGI_LOCAL_0_IRQ, &local0_cascade);
 	setup_irq(SGI_LOCAL_1_IRQ, &local1_cascade);
 	setup_irq(SGI_BUSERR_IRQ, &buserr);
-	
+
 	/* cascade in cascade. i love Indy ;-) */
 	setup_irq(SGI_MAP_0_IRQ, &map0_cascade);
 #ifdef I_REALLY_NEED_THIS_IRQ

@@ -101,7 +101,7 @@ static void __init ddb_timer_init(struct irqaction *irq)
 
 }
 
-static void __init ddb_time_init(void) 
+static void __init ddb_time_init(void)
 {
     /* we have ds1396 RTC chip */
 	rtc_ds1386_init(KSEG1ADDR(DDB_PCI_MEM_BASE));

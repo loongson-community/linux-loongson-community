@@ -49,7 +49,7 @@
 #define MACH_OLIVETTI_M700      2	/* Olivetti M700-10 (-15 ??)    */
 
 /*
- * Valid machtype for group DEC 
+ * Valid machtype for group DEC
  */
 #define MACH_DSUNKNOWN		0
 #define MACH_DS23100		1	/* DECstation 2100 or 3100	*/
@@ -122,12 +122,12 @@
  * Valid machtype for group MOMENCO
  */
 #define MACH_MOMENCO_OCELOT	0
- 
+
 /*
  * Valid machtype for group ITE
  */
 #define MACH_QED_4N_S01B	0	/* ITE8172 based eval board */
- 
+
 /*
  * Valid machtype for group Globespan
  */
@@ -158,7 +158,7 @@
 #define MACH_PB1000		0	/* Au1000-based eval board */
 #define MACH_PB1100		1	/* Au1100-based eval board */
 #define MACH_PB1500		2	/* Au1500-based eval board */
- 
+
 /*
  * Valid machtype for group NEC_VR41XX
  */

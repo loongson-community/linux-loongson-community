@@ -2,7 +2,7 @@
  * Wrap-around code for a console using the
  * DECstation PROM io-routines.
  *
- * Copyright (c) 1998 Harald Koerfgen 
+ * Copyright (c) 1998 Harald Koerfgen
  */
 
 #include <linux/tty.h>

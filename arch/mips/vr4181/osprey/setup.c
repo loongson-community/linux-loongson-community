@@ -47,7 +47,7 @@ void __init nec_osprey_setup(void)
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
- 
+
 	_machine_restart = nec_osprey_restart;
 	_machine_halt = nec_osprey_halt;
 	_machine_power_off = nec_osprey_power_off;
@@ -68,7 +68,7 @@ void __init nec_osprey_setup(void)
 	// *VR4181_GPMD0REG = 0x00c0;
 	// *VR4181_GPINTEN	 = 1<<6;
 
-	/* [jsun] I believe this will get the interrupt type right 
+	/* [jsun] I believe this will get the interrupt type right
 	 * for the ether port.
 	 */
 	*VR4181_GPINTTYPL = 0x3000;

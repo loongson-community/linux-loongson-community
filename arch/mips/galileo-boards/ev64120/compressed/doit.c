@@ -12,7 +12,7 @@
  *
  *    Example Usage:
  *       ./doit < piggy.gz > piggy.S
- *       
+ *
  */
 
 #include <stdio.h>

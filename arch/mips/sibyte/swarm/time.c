@@ -10,13 +10,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-/* 
+/*
  * Time routines for the swarm board.  We pass all the hard stuff
  * through to the sb1250 handling code.  Only thing we really keep
  * track of here is what time of day we think it is.  And we don't
@@ -205,7 +205,7 @@ static unsigned long __init get_swarm_time(void)
 	mon = xicor_read(X1241REG_MO);
 	year = xicor_read(X1241REG_YR);
 	y2k = xicor_read(X1241REG_Y2K);
- 
+
 	BCD_TO_BIN(day);
 	BCD_TO_BIN(mon);
 	BCD_TO_BIN(year);
@@ -217,7 +217,7 @@ static unsigned long __init get_swarm_time(void)
 }
 
 /*
- *  Bring up the timer at 100 Hz.  
+ *  Bring up the timer at 100 Hz.
  */
 void __init swarm_time_init(void)
 {

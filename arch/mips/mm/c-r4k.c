@@ -653,7 +653,7 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * in the cache.
 	 */
 	if (!(pte_val(*ptep) & _PAGE_VALID))
-		return; 
+		return;
 	/*
 	 * Doing flushes for another ASID than the current one is
 	 * too difficult since stupid R4k caches do a TLB translation

@@ -2,7 +2,7 @@
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
  *
- * rtc and time ops for vr4181.	 Part of code is drived from 
+ * rtc and time ops for vr4181.	 Part of code is drived from
  * linux-vr, originally written	 by Bradley D. LaRonde & Michael Klar.
  *
  * This program is free software; you can redistribute	it and/or modify it
@@ -32,7 +32,7 @@
 spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
 
 /* per VR41xx docs, bad data can be read if between 2 counts */
-static inline unsigned short 
+static inline unsigned short
 read_time_reg(volatile unsigned short *reg)
 {
 	unsigned short value;
@@ -43,7 +43,7 @@ read_time_reg(volatile unsigned short *reg)
 	return value;
 }
 
-static unsigned long 
+static unsigned long
 vr4181_rtc_get_time(void)
 {
 	unsigned short regh, regm, regl;
@@ -60,7 +60,7 @@ vr4181_rtc_get_time(void)
 	return ((regh << 17) | (regm << 1) | (regl >> 15));
 }
 
-static int 
+static int
 vr4181_rtc_set_time(unsigned long timeval)
 {
 	unsigned short intreg;
@@ -82,13 +82,13 @@ vr4181_rtc_set_time(unsigned long timeval)
 }
 
 
-/* 
+/*
  * timer interrupt routine (wrapper)
  *
  * we need our own interrupt routine because we need to clear
  * RTC1 interrupt.
  */
-static void 
+static void
 vr4181_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/* Clear the interrupt. */
@@ -115,7 +115,7 @@ vr4181_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 
-static void 
+static void
 vr4181_timer_setup(struct irqaction *irq)
 {
 	/* over-write the handler to be our own one */

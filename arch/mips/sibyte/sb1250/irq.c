@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -34,10 +34,10 @@
 #include <asm/sibyte/64bit.h>
 
 /*
- * These are the routines that handle all the low level interrupt stuff. 
+ * These are the routines that handle all the low level interrupt stuff.
  * Actions handled here are: initialization of the interrupt map, requesting of
  * interrupt lines by handlers, dispatching if interrupts to handlers, probing
- * for interrupt lines 
+ * for interrupt lines
  */
 
 
@@ -159,7 +159,7 @@ void __init init_sb1250_irqs(void)
  *  init_IRQ is called early in the boot sequence from init/main.c.  It
  *  is responsible for setting up the interrupt mapper and installing the
  *  handler that will be responsible for dispatching interrupts to the
- *  "right" place. 
+ *  "right" place.
  */
 /*
  * For now, map all interrupts to IP[2].  We could save
@@ -167,10 +167,10 @@ void __init init_sb1250_irqs(void)
  * IP lines, but keep it simple for bringup.  We'll also direct
  * all interrupts to a single CPU; we should probably route
  * PCI and LDT to one cpu and everything else to the other
- * to balance the load a bit. 
- * 
+ * to balance the load a bit.
+ *
  * On the second cpu, everything is set to IP5, which is
- * ignored, EXCEPT the mailbox interrupt.  That one is 
+ * ignored, EXCEPT the mailbox interrupt.  That one is
  * set to IP[2] so it is handled.  This is needed so we
  * can do cross-cpu function calls, as requred by SMP
  */
@@ -221,7 +221,7 @@ void __init init_IRQ(void)
 	out64(tmp, KSEG1 + A_IMR_REGISTER(1, R_IMR_INTERRUPT_MASK));
 
 	/*
-	 * Note that the timer interrupts are also mapped, but this is 
+	 * Note that the timer interrupts are also mapped, but this is
 	 * done in sb1250_time_init()
 	 */
 

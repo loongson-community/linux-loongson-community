@@ -167,10 +167,10 @@
 #define    VIC_SSxCR1_TF1(x)  ((x)&0xf)
 #define VIC_RELEASE      0xD3
 #define    VIC_RELEASE_BLKXFER_BLEN(x) ((x)&0x1f)
-#define    VIC_RELEASE_ROR             (0<<6) 
-#define    VIC_RELEASE_RWD             (1<<6) 
-#define    VIC_RELEASE_ROC             (2<<6) 
-#define    VIC_RELEASE_BCAP            (3<<6) 
+#define    VIC_RELEASE_ROR             (0<<6)
+#define    VIC_RELEASE_RWD             (1<<6)
+#define    VIC_RELEASE_ROC             (2<<6)
+#define    VIC_RELEASE_BCAP            (3<<6)
 #define VIC_BXFER_CTRL   0xD7
 #define    VIC_BXFER_CTRL_MODULE     (1<<7)
 #define    VIC_BXFER_CTRL_LOCAL      (1<<6)

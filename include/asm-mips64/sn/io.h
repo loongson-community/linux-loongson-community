@@ -56,9 +56,9 @@
 #define IIO_ITTE_GET(nasid, bigwin) REMOTE_HUB_ADDR((nasid), IIO_ITTE(bigwin))
 
 /*
- * Macro which takes the widget number, and returns the 
+ * Macro which takes the widget number, and returns the
  * IO PRB address of that widget.
- * value _x is expected to be a widget number in the range 
+ * value _x is expected to be a widget number in the range
  * 0, 8 - 0xF
  */
 #define	IIO_IOPRB(_x)	(IIO_IOPRB_0 + ( ( (_x) < HUB_WIDGET_ID_MIN ? \

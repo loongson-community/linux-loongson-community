@@ -221,7 +221,7 @@ asmlinkage int sys_olduname(struct oldold_utsname * name)
 		return -EFAULT;
 	if (!access_ok(VERIFY_WRITE,name,sizeof(struct oldold_utsname)))
 		return -EFAULT;
-  
+
 	error = __copy_to_user(&name->sysname,&system_utsname.sysname,__OLD_UTS_LEN);
 	error -= __put_user(0,name->sysname+__OLD_UTS_LEN);
 	error -= __copy_to_user(&name->nodename,&system_utsname.nodename,__OLD_UTS_LEN);

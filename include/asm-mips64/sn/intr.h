@@ -31,7 +31,7 @@
 		REMOTE_HUB_S((_hub), PI_INT_PEND_MOD, (0x100|(_level)))
 
 /*
- * When clearing the interrupt, make sure this clear does make it 
+ * When clearing the interrupt, make sure this clear does make it
  * to the hub. Otherwise we could end up losing interrupts.
  * We do an uncached load of the int_pend0 register to ensure this.
  */

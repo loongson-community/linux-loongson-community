@@ -6,7 +6,7 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
- *  
+ *
  *  Early initialization code for the Philips Nino
  */
 #include <linux/config.h>
@@ -60,8 +60,8 @@ void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 	 * memory and mark it as reserved.
 	 */
 	free_end = (mem_size - tx3912fb_size) & PAGE_MASK;
-	add_memory_region(0, free_end, BOOT_MEM_RAM); 
-	add_memory_region(free_end, (mem_size - free_end), BOOT_MEM_RESERVED); 
+	add_memory_region(0, free_end, BOOT_MEM_RAM);
+	add_memory_region(free_end, (mem_size - free_end), BOOT_MEM_RESERVED);
 
 	/*
 	 * Calculate physical and virtual addresses for
@@ -71,7 +71,7 @@ void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 	tx3912fb_vaddr = KSEG1ADDR(free_end);
 }
 #else
-	add_memory_region(0, mem_size, BOOT_MEM_RAM); 
+	add_memory_region(0, mem_size, BOOT_MEM_RAM);
 #endif
 }
 

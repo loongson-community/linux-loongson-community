@@ -22,7 +22,7 @@
  * ########################################################################
  *
  * Inline assembly cache operations.
- * 
+ *
  * This file is the original r4cache.c file with modification that makes the
  * cache handling more generic.
  *

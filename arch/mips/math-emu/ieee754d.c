@@ -20,7 +20,7 @@
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
  *  Nov 7, 2000
- *  Modified to build and operate in Linux kernel environment. 
+ *  Modified to build and operate in Linux kernel environment.
  *
  *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
  *  Copyright (C) 2000 MIPS Technologies, Inc. All rights reserved.

@@ -1,7 +1,7 @@
 /*
  * init.c: PROM library initialisation code.
  *
- * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov 
+ * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  */
 #include <linux/init.h>
 #include <asm/addrspace.h>

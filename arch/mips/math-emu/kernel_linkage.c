@@ -39,7 +39,7 @@ void fpu_emulator_init_fpu(void)
 {
 	static int first = 1;
 	int i;
- 
+
 	if (first) {
 		first = 0;
 		printk("Algorithmics/MIPS FPU Emulator v1.5\n");

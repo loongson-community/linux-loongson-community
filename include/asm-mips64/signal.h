@@ -89,7 +89,7 @@ typedef unsigned int old_sigset_t32;
 
 #define SA_RESTORER	0x04000000
 
-/* 
+/*
  * sigaltstack controls
  */
 #define SS_ONSTACK     1

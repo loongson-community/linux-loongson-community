@@ -53,7 +53,7 @@ static inline void remove_mapping_pte_range (pmd_t *pmd, unsigned long address,
 		address += PAGE_SIZE;
 		pte++;
 	} while (address < end);
-						  
+
 }
 
 static inline void remove_mapping_pmd_range (pgd_t *pgd, unsigned long address,
@@ -80,7 +80,7 @@ static inline void remove_mapping_pmd_range (pgd_t *pgd, unsigned long address,
 		address = (address + PMD_SIZE) & PMD_MASK;
 		pmd++;
 	} while (address < end);
-		
+
 }
 
 /*
@@ -138,7 +138,7 @@ static inline void forget_pte(pte_t page)
 
 /*
  * maps a range of vmalloc()ed memory into the requested pages. the old
- * mappings are removed. 
+ * mappings are removed.
  */
 static inline void vmap_pte_range(pte_t *pte, unsigned long address,
 	unsigned long size, unsigned long vaddr)
@@ -147,7 +147,7 @@ static inline void vmap_pte_range(pte_t *pte, unsigned long address,
 	pgd_t *vdir;
 	pmd_t *vpmd;
 	pte_t *vpte;
-	
+
 	address &= ~PMD_MASK;
 	end = address + size;
 	if (end > PMD_SIZE)

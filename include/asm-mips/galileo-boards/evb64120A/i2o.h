@@ -5,11 +5,11 @@
 #ifndef __INCi2oh
 #define __INCi2oh
 
-/* includes */            
-            
+/* includes */
+
 #include "core.h"
 
-/* typedefs */           
+/* typedefs */
 
 typedef enum _i2oMessageReg{MESSAGE_REG_0,MESSAGE_REG_1} I2O_MESSAGE_REG;
 typedef enum _cirQueSize{I20_16K = 0x1,I20_32K = 0x2,I20_64K = 0x4,\

@@ -52,7 +52,7 @@ ieee754sp ieee754sp_flong(s64 x)
 	xe = SP_MBITS + 3;
 
 	if (xm >> (SP_MBITS + 1 + 3)) {
-		/* shunt out overflow bits 
+		/* shunt out overflow bits
 		 */
 		while (xm >> (SP_MBITS + 1 + 3)) {
 			SPXSRSX1();

@@ -50,8 +50,8 @@
 #define MACEPCI_SWAPPED_VIEW		0
 #define MACEPCI_NATIVE_VIEW		0x40000000
 #define MACEPCI_IO			0x80000000
-/*#define MACEPCI_HI_MEMORY		0x0000000280000000UL * This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */ 
-#define MACEPCI_HI_MEMORY		0x0000000200000000UL /* This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */ 
+/*#define MACEPCI_HI_MEMORY		0x0000000280000000UL * This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */
+#define MACEPCI_HI_MEMORY		0x0000000200000000UL /* This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */
 #define MACEPCI_HI_IO			0x0000000100000000UL
 
 /*

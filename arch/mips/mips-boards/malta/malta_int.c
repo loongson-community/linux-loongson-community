@@ -16,9 +16,9 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * Routines for generic manipulation of the interrupts found on the MIPS 
+ * Routines for generic manipulation of the interrupts found on the MIPS
  * Malta board.
- * The interrupt controller is located in the South Bridge a PIIX4 device 
+ * The interrupt controller is located in the South Bridge a PIIX4 device
  * with two internal 82C95 interrupt controllers.
  */
 #include <linux/config.h>
@@ -53,16 +53,16 @@ static inline int get_int(int *irq)
 
 	*irq = mips_pcibios_iack();
 
-	/*  
+	/*
 	 * IRQ7 is used to detect spurious interrupts.
-	 * The interrupt acknowledge cycle returns IRQ7, if no 
+	 * The interrupt acknowledge cycle returns IRQ7, if no
 	 * interrupts is requested.
 	 * We can differentiate between this situation and a
 	 * "Normal" IRQ7 by reading the ISR.
 	 */
-	if (*irq == 7) 
+	if (*irq == 7)
 	{
-		outb(PIIX4_OCW3_SEL | PIIX4_OCW3_ISR, 
+		outb(PIIX4_OCW3_SEL | PIIX4_OCW3_ISR,
 		     PIIX4_ICTLR1_OCW3);
 		if (!(inb(PIIX4_ICTLR1_OCW3) & (1 << 7))) {
 			spin_unlock_irqrestore(&mips_irq_lock, flags);
@@ -73,7 +73,7 @@ static inline int get_int(int *irq)
 	}
 
 	spin_unlock_irqrestore(&mips_irq_lock, flags);
-	
+
 	return 0;
 }
 

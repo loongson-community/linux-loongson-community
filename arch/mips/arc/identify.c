@@ -6,9 +6,9 @@
  * identify.c: identify machine by looking up system identifier
  *
  * Copyright (C) 1998 Thomas Bogendoerfer
- * 
+ *
  * This code is based on arch/mips/sgi/kernel/system.c, which is
- * 
+ *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 #include <linux/config.h>

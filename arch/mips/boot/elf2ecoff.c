@@ -170,7 +170,7 @@ main (int argc, char **argv, char **envp)
       /* Section types we can't handle... */
       else if (ph [i].p_type != PT_LOAD)
         {
-	  fprintf (stderr, "Program header %d type %d can't be converted.\n", 
+	  fprintf (stderr, "Program header %d type %d can't be converted.\n",
 			  	ex.e_phnum, ph[i].p_type );
 	  exit (1);
 	}
@@ -299,7 +299,7 @@ main (int argc, char **argv, char **envp)
   esecs [0].s_nreloc = esecs [1].s_nreloc = esecs [2].s_nreloc = 0;
   esecs [0].s_nlnno = esecs [1].s_nlnno = esecs [2].s_nlnno = 0;
   if (addflag) {
-    esecs [3].s_relptr = esecs [4].s_relptr 
+    esecs [3].s_relptr = esecs [4].s_relptr
   	  = esecs [5].s_relptr = 0;
     esecs [3].s_lnnoptr = esecs [4].s_lnnoptr
 	  = esecs [5].s_lnnoptr = 0;
@@ -333,7 +333,7 @@ main (int argc, char **argv, char **envp)
 
     for (i = 0; i < nosecs; i++)
       {
-        printf ("Section %d: %s phys %lx  size %lx  file offset %lx\n", 
+        printf ("Section %d: %s phys %lx  size %lx  file offset %lx\n",
 	      i, esecs [i].s_name, esecs [i].s_paddr,
 	      esecs [i].s_size, esecs [i].s_scnptr);
       }

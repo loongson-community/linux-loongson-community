@@ -14,8 +14,8 @@
  * These are addresses which have to be known early in the boot process.
  * For other addresses refer to tc.h, ioasic_addrs.h and friends.
  */
-#ifndef __ASM_MIPS_DEC_KN02XA_H 
-#define __ASM_MIPS_DEC_KN02XA_H 
+#ifndef __ASM_MIPS_DEC_KN02XA_H
+#define __ASM_MIPS_DEC_KN02XA_H
 
 #include <asm/addrspace.h>
 

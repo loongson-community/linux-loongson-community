@@ -330,7 +330,7 @@ void __init ld_mmu_andes(void)
 			printk(KERN_EMERG "Unknown L2 line size\n");
 			while(1);
 	}
-    
+
 	update_mmu_cache = andes_update_mmu_cache;
 
         flush_cache_l1();

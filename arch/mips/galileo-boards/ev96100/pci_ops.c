@@ -7,7 +7,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/generic/pci.c
  *
  * Carsten Langgaard, carstenl@mips.com
@@ -63,13 +63,13 @@
 #define GT_PCI_IO_BASE     0x10000000
 #define GT_PCI_IO_SIZE     0x02000000
 static struct resource pci_io_resource = {
-	"io pci IO space", 
+	"io pci IO space",
 	0x10000000,
 	0x10000000 + 0x02000000,
 	IORESOURCE_IO};
 
 static struct resource pci_mem_resource = {
-	"ext pci memory space", 
+	"ext pci memory space",
 	0x12000000,
 	0x12000000 + 0x02000000,
 	IORESOURCE_MEM};
@@ -95,11 +95,11 @@ static gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
         }
 
 	/* Clear cause register bits */
-	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
+	GT_WRITE(GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
 	                             GT_INTRCAUSE_TARABORT0_BIT));
 
 	/* Setup address */
-	GT_WRITE(GT_PCI0_CFGADDR_OFS,  
+	GT_WRITE(GT_PCI0_CFGADDR_OFS,
 		 (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
 		 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
 		 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
@@ -112,7 +112,7 @@ static gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
 		*data = le32_to_cpu(*data);
 		}
 		GT_WRITE(GT_PCI0_CFGDATA_OFS, *data);
-	} 
+	}
         else {
 		GT_READ(GT_PCI0_CFGDATA_OFS, *data);
 		if (dev_fn != 0) {
@@ -131,7 +131,7 @@ static gt96100_config_access(unsigned char access_type, struct pci_dev *dev,
 	        /* Error occured */
 
 	        /* Clear bits */
-	        GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT | 
+	        GT_WRITE( GT_INTRCAUSE_OFS, ~(GT_INTRCAUSE_MASABORT0_BIT |
 					      GT_INTRCAUSE_TARABORT0_BIT) );
 
 		if (access_type == PCI_ACCESS_READ) {
@@ -158,7 +158,7 @@ read_config_byte (struct pci_dev *dev, int where, u8 *val)
 	}
 
 	*val = (data >> ((where & 3) << 3)) & 0xff;
-        DBG("cfg read byte: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read byte: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, *val);
 
 	return PCIBIOS_SUCCESSFUL;
@@ -179,7 +179,7 @@ read_config_word (struct pci_dev *dev, int where, u16 *val)
 	}
 
 	*val = (data >> ((where & 3) << 3)) & 0xffff;
-        DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, *val);
 
 	return PCIBIOS_SUCCESSFUL;
@@ -192,14 +192,14 @@ read_config_dword (struct pci_dev *dev, int where, u32 *val)
 
 	if (where & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-	
+
 	if (gt96100_config_access(PCI_ACCESS_READ, dev, where, &data)) {
 		*val = 0xffffffff;
 		return -1;
 	}
 
 	*val = data;
-        DBG("cfg read dword: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg read dword: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, *val);
 
 	return PCIBIOS_SUCCESSFUL;
@@ -210,13 +210,13 @@ static int
 write_config_byte (struct pci_dev *dev, int where, u8 val)
 {
 	u32 data = 0;
-       
+
 	if (gt96100_config_access(PCI_ACCESS_READ, dev, where, &data))
 		return -1;
 
 	data = (data & ~(0xff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
-        DBG("cfg write byte: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg write byte: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, val);
 
 	if (gt96100_config_access(PCI_ACCESS_WRITE, dev, where, &data))
@@ -232,13 +232,13 @@ write_config_word (struct pci_dev *dev, int where, u16 val)
 
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
-       
+
         if (gt96100_config_access(PCI_ACCESS_READ, dev, where, &data))
 	       return -1;
 
-	data = (data & ~(0xffff << ((where & 3) << 3))) | 
+	data = (data & ~(0xffff << ((where & 3) << 3))) |
 	       (val << ((where & 3) << 3));
-        DBG("cfg write word: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg write word: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, val);
 
 	if (gt96100_config_access(PCI_ACCESS_WRITE, dev, where, &data))
@@ -256,7 +256,7 @@ write_config_dword(struct pci_dev *dev, int where, u32 val)
 
 	if (gt96100_config_access(PCI_ACCESS_WRITE, dev, where, &val))
 	       return -1;
-        DBG("cfg write dword: bus %d dev_fn %x where %x: val %x\n", 
+        DBG("cfg write dword: bus %d dev_fn %x where %x: val %x\n",
                 dev->bus->number, dev->devfn, where, val);
 
 	return PCIBIOS_SUCCESSFUL;

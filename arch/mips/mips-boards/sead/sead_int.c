@@ -19,7 +19,7 @@
  *
  * ########################################################################
  *
- * Routines for generic manipulation of the interrupts found on the MIPS 
+ * Routines for generic manipulation of the interrupts found on the MIPS
  * Sead board.
  *
  */
@@ -95,8 +95,8 @@ void sead_hw1_irqdispatch(struct pt_regs *regs)
 void __init init_IRQ(void)
 {
 	int i;
-	
-        /* 
+
+        /*
          * Mask out all interrupt
 	 */
 	clear_cp0_status(0x0000ff00);

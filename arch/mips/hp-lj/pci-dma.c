@@ -35,10 +35,10 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 	           //flush the cache to eliminate coherency problems
 	           // and assure dirty lines won't later get written over any dma, etc.
                    flush_cache_all();
-		   ret = (void*)((unsigned int)ret | 0x20000000); 
+		   ret = (void*)((unsigned int)ret | 0x20000000);
                 }
 
-                
+
 	}
 	return ret;
 }

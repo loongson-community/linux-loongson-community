@@ -76,7 +76,7 @@ int putDebugChar(char c)
         	while (((SERIAL_REG(HPSR_TX_STAT_OFFSET) & HPSR_TX_STAT_READY) == 0))
              		;
         	SERIAL_REG(HPSR_DATA_OFFSET) = (unsigned int) c;
-        } 
+        }
 	return 1;
 }
 
@@ -86,7 +86,7 @@ char getDebugChar(void)
 		while (!(((H_HPSR_STAT) & H_SER_STAT_RX_EMPTY) == 0));
 
 	        return H_HPSR_DATA_RX;
-        
+
 	} else if (GetAsicId() == AndrosAsic) {
         	while ((SERIAL_REG(HPSR_RX_STAT_OFFSET) & HPSR_RX_DATA_AVAIL) == 0)
               		;

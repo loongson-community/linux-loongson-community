@@ -68,7 +68,7 @@ static int std_ide_request_irq(unsigned int irq,
                                 void *dev_id)
 {
 	return request_irq(irq, handler, flags, device, dev_id);
-}			
+}
 
 static void std_ide_free_irq(unsigned int irq, void *dev_id)
 {

@@ -67,9 +67,9 @@ static inline unsigned long setup_zero_pages(void)
 {
 	unsigned long order, size;
 	struct page *page;
-	if(mips_cpu.options & MIPS_CPU_VCE) 
+	if(mips_cpu.options & MIPS_CPU_VCE)
 		order = 3;
-	else 
+	else
 		order = 0;
 
 	empty_zero_page = __get_free_pages(GFP_KERNEL, order);
@@ -347,7 +347,7 @@ void free_initmem(void)
 	unsigned long addr;
 
 	prom_free_prom_memory ();
-    
+
 	addr = (unsigned long) &__init_begin;
 	while (addr < (unsigned long) &__init_end) {
 		ClearPageReserved(virt_to_page(addr));

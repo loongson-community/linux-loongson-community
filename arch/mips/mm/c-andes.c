@@ -124,6 +124,6 @@ void __init ld_mmu_andes(void)
 			printk("Unknown L2 line size\n");
 			while(1);
 	}
-    
+
         flush_cache_l1();
 }

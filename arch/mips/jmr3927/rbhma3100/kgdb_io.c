@@ -8,7 +8,7 @@
  *
  * Based on arch/mips/ddb5xxx/ddb5477/kgdb_io.c
  *
- * Copyright (C) 2000-2001 Toshiba Corporation 
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -52,7 +52,7 @@ static int remoteDebugInitialized = 0;
 int putDebugChar(unsigned char c)
 {
         int i = 0;
-	
+
 	if (!remoteDebugInitialized) {
 		remoteDebugInitialized = 1;
 		debugInit(38400);
@@ -75,7 +75,7 @@ unsigned char getDebugChar(void)
         int i = 0;
 	int dicr;
 	char c;
-	
+
 	if (!remoteDebugInitialized) {
 		remoteDebugInitialized = 1;
 		debugInit(38400);

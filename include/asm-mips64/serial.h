@@ -72,8 +72,8 @@
  *
  * The first one to do a register_console becomes the preferred console
  * (if there is no kernel command line console= directive). /dev/console
- * (ie 5, 1) is then "aliased" into the device number returned by the 
- * "device" routine referred to in this console structure 
+ * (ie 5, 1) is then "aliased" into the device number returned by the
+ * "device" routine referred to in this console structure
  * (ip27prom_console_dev).
  *
  * Also look in ip27-pci.c:pci_fixuop_ioc3() for some comments on working
@@ -120,7 +120,7 @@
           flags: STD_COM_FLAGS,				\
           iomem_base: (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
           iomem_reg_shift: 8,				\
-          io_type: SERIAL_IO_MEM},                      
+          io_type: SERIAL_IO_MEM},
 #else
 #define IP32_SERIAL_PORT_DEFNS
 #endif /* CONFIG_SGI_IP31 */

@@ -25,7 +25,7 @@ Counters/timers 1-3 are 24 bit wide.
 * cntTmrStart - Starts a counter/timer with given an initiate value.
 *
 * INPUTS:  unsigned int countNum - Selects one of the 8 counters/timers.
-*          unsigned int countValue - Initial value for count down. 
+*          unsigned int countValue - Initial value for count down.
 *          CNT_TMR_OP_MODES opMode - Set Mode, Counter or Timer.
 *
 * RETURNS: false if one of the parameters is erroneous, true otherwise.
@@ -63,11 +63,11 @@ bool cntTmrStart(CNTMR_NUM countNum, unsigned int countValue,
 }
 
 /********************************************************************
-* cntTmrDisable - Disables the timer/counter operation and return its 
+* cntTmrDisable - Disables the timer/counter operation and return its
 *                 value.
 *
 * INPUTS:  unsigned int countNum - Selects one of the 8 counters/timers.
-* RETURNS: The counter/timer value (unsigned int), if any of the arguments are 
+* RETURNS: The counter/timer value (unsigned int), if any of the arguments are
 *          erroneous return 0.
 *********************************************************************/
 
@@ -166,10 +166,10 @@ bool cntTmrLoad(unsigned int countNum, unsigned int countValue)
 *                 or as a timer. (for more details on the different between
 *                 those two modes is written in the Data Sheet).
 *                 NOTE: This function only set the counter/timer mode and
-*                 don't enable it. 
+*                 don't enable it.
 *                 Be aware: If this function try to load value to an enabled
 *                           counter/timer it terminate with false.
-* 
+*
 * INPUTS:  unsigned int countNum - Selects one of the 8 counters/timers.
 *          CNT_TMR_OP_MODES opMode - TIMER or COUNTER mode.
 * RETURNS: false if one of the parameters is erroneous true otherwise .

@@ -1,6 +1,6 @@
 /*
  * cp1emu.c: a MIPS coprocessor 1 (fpu) instruction emulator
- * 
+ *
  * MIPS floating point support
  * Copyright (C) 1994-2000 Algorithmics Ltd.  All rights reserved.
  * http://www.algor.co.uk
@@ -23,15 +23,15 @@
  *
  * A complete emulator for MIPS coprocessor 1 instructions.  This is
  * required for #float(switch) or #float(trap), where it catches all
- * COP1 instructions via the "CoProcessor Unusable" exception.  
+ * COP1 instructions via the "CoProcessor Unusable" exception.
  *
  * More surprisingly it is also required for #float(ieee), to help out
  * the hardware fpu at the boundaries of the IEEE-754 representation
  * (denormalised values, infinities, underflow, etc).  It is made
  * quite nasty because emulation of some non-COP1 instructions is
  * required, e.g. in branch delay slots.
- * 
- * Note if you know that you won't have an fpu, then you'll get much 
+ *
+ * Note if you know that you won't have an fpu, then you'll get much
  * better performance by compiling with -msoft-float!
  */
 #include <asm/inst.h>
@@ -94,7 +94,7 @@ static const unsigned int fpucondbit[8] = {
 #endif
 
 
-/* 
+/*
  * Redundant with logic already in kernel/branch.c,
  * embedded in compute_return_epc.  At some point,
  * a single subroutine should be used across both
@@ -213,7 +213,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 		/*
 		 * The instruction to be emulated is in a branch delay slot
 		 * which means that we have to  emulate the branch instruction
-		 * BEFORE we do the cop1 instruction. 
+		 * BEFORE we do the cop1 instruction.
 		 *
 		 * This branch could be a COP1 branch, but in that case we
 		 * would have had a trap for that instruction, and would not
@@ -545,7 +545,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 	return 0;
 }
 
-/* 
+/*
  * Conversion table from MIPS compare ops 48-63
  * cond = ieee754dp_cmp(x,y,IEEE754_UN,sig);
  */
@@ -1241,7 +1241,7 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		return SIGFPE;
 	}
 
-	/* 
+	/*
 	 * Now we can safely write the result back to the register file.
 	 */
 	switch (rfmt) {

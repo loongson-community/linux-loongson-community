@@ -7,7 +7,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * Part of this file was derived from Carsten Langgaard's 
+ * Part of this file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/atlas/atlas_int.c.
  *
  * Carsten Langgaard, carstenl@mips.com
@@ -132,28 +132,28 @@ void disable_it8172_irq(unsigned int irq_nr)
 	if ( (irq_nr >= IT8172_LPC_IRQ_BASE) && (irq_nr <= IT8172_SERIRQ_15)) {
 		/* LPC interrupt */
 		DPRINTK("DB lpc_mask  %x\n", it8172_hw0_icregs->lpc_mask);
-		it8172_hw0_icregs->lpc_mask |= 
+		it8172_hw0_icregs->lpc_mask |=
 			(1 << (irq_nr - IT8172_LPC_IRQ_BASE));
 		DPRINTK("DA lpc_mask  %x\n", it8172_hw0_icregs->lpc_mask);
 	}
 	else if ( (irq_nr >= IT8172_LB_IRQ_BASE) && (irq_nr <= IT8172_IOCHK_IRQ)) {
 		/* Local Bus interrupt */
 		DPRINTK("DB lb_mask  %x\n", it8172_hw0_icregs->lb_mask);
-		it8172_hw0_icregs->lb_mask |= 
+		it8172_hw0_icregs->lb_mask |=
 			(1 << (irq_nr - IT8172_LB_IRQ_BASE));
 		DPRINTK("DA lb_mask  %x\n", it8172_hw0_icregs->lb_mask);
 	}
 	else if ( (irq_nr >= IT8172_PCI_DEV_IRQ_BASE) && (irq_nr <= IT8172_DMA_IRQ)) {
 		/* PCI and other interrupts */
 		DPRINTK("DB pci_mask  %x\n", it8172_hw0_icregs->pci_mask);
-		it8172_hw0_icregs->pci_mask |= 
+		it8172_hw0_icregs->pci_mask |=
 			(1 << (irq_nr - IT8172_PCI_DEV_IRQ_BASE));
 		DPRINTK("DA pci_mask  %x\n", it8172_hw0_icregs->pci_mask);
 	}
 	else if ( (irq_nr >= IT8172_NMI_IRQ_BASE) && (irq_nr <= IT8172_POWER_NMI_IRQ)) {
 		/* NMI interrupts */
 		DPRINTK("DB nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
-		it8172_hw0_icregs->nmi_mask |= 
+		it8172_hw0_icregs->nmi_mask |=
 			(1 << (irq_nr - IT8172_NMI_IRQ_BASE));
 		DPRINTK("DA nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
 	}
@@ -168,28 +168,28 @@ void enable_it8172_irq(unsigned int irq_nr)
 	if ( (irq_nr >= IT8172_LPC_IRQ_BASE) && (irq_nr <= IT8172_SERIRQ_15)) {
 		/* LPC interrupt */
 		DPRINTK("EB before lpc_mask  %x\n", it8172_hw0_icregs->lpc_mask);
-		it8172_hw0_icregs->lpc_mask &= 
+		it8172_hw0_icregs->lpc_mask &=
 			~(1 << (irq_nr - IT8172_LPC_IRQ_BASE));
 		DPRINTK("EA after lpc_mask  %x\n", it8172_hw0_icregs->lpc_mask);
 	}
 	else if ( (irq_nr >= IT8172_LB_IRQ_BASE) && (irq_nr <= IT8172_IOCHK_IRQ)) {
 		/* Local Bus interrupt */
 		DPRINTK("EB lb_mask  %x\n", it8172_hw0_icregs->lb_mask);
-		it8172_hw0_icregs->lb_mask &= 
+		it8172_hw0_icregs->lb_mask &=
 			~(1 << (irq_nr - IT8172_LB_IRQ_BASE));
 		DPRINTK("EA lb_mask  %x\n", it8172_hw0_icregs->lb_mask);
 	}
 	else if ( (irq_nr >= IT8172_PCI_DEV_IRQ_BASE) && (irq_nr <= IT8172_DMA_IRQ)) {
 		/* PCI and other interrupts */
 		DPRINTK("EB pci_mask  %x\n", it8172_hw0_icregs->pci_mask);
-		it8172_hw0_icregs->pci_mask &= 
+		it8172_hw0_icregs->pci_mask &=
 			~(1 << (irq_nr - IT8172_PCI_DEV_IRQ_BASE));
 		DPRINTK("EA pci_mask  %x\n", it8172_hw0_icregs->pci_mask);
 	}
 	else if ( (irq_nr >= IT8172_NMI_IRQ_BASE) && (irq_nr <= IT8172_POWER_NMI_IRQ)) {
 		/* NMI interrupts */
 		DPRINTK("EB nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
-		it8172_hw0_icregs->nmi_mask &= 
+		it8172_hw0_icregs->nmi_mask &=
 			~(1 << (irq_nr - IT8172_NMI_IRQ_BASE));
 		DPRINTK("EA nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
 	}
@@ -201,7 +201,7 @@ void enable_it8172_irq(unsigned int irq_nr)
 static unsigned int startup_ite_irq(unsigned int irq)
 {
 	enable_it8172_irq(irq);
-	return 0; 
+	return 0;
 }
 
 #define shutdown_ite_irq	disable_it8172_irq
@@ -283,15 +283,15 @@ void __init init_IRQ(void)
 	it8172_hw0_icregs->lb_level |= 0x20;
 
 	/* keyboard and mouse are edge triggered */
-	it8172_hw0_icregs->lpc_trigger |= (0x2 | 0x1000); 
+	it8172_hw0_icregs->lpc_trigger |= (0x2 | 0x1000);
 
 
 #if 0
 	// Enable this piece of code to make internal USB interrupt
 	// edge triggered.
-	it8172_hw0_icregs->pci_trigger |= 
+	it8172_hw0_icregs->pci_trigger |=
 		(1 << (IT8172_USB_IRQ - IT8172_PCI_DEV_IRQ_BASE));
-	it8172_hw0_icregs->pci_level &= 
+	it8172_hw0_icregs->pci_level &=
 		~(1 << (IT8172_USB_IRQ - IT8172_PCI_DEV_IRQ_BASE));
 #endif
 
@@ -305,7 +305,7 @@ void __init init_IRQ(void)
 	/* If local serial I/O used for debug port, enter kgdb at once */
 	puts("Waiting for kgdb to connect...");
 	set_debug_traps();
-	breakpoint(); 
+	breakpoint();
 #endif
 }
 

@@ -20,7 +20,7 @@ AsicId GetAsicId(void)
 
 const char* const GetAsicName(void)
 {
-   static const char* const Names[] = 
+   static const char* const Names[] =
         { "Illegal", "Unknown", "Andros", "Harmony" };
 
    return Names[(int)GetAsicId()];

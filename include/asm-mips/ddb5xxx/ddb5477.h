@@ -225,7 +225,7 @@ extern void ll_vrc5477_irq_route(int vrc5477_irq, int ip);
 extern void ll_vrc5477_irq_enable(int vrc5477_irq);
 extern void ll_vrc5477_irq_disable(int vrc5477_irq);
 
-/* 
+/*
  * debug routines
  */
 #if defined(CONFIG_DEBUG)

@@ -261,22 +261,22 @@ do {									\
 	*(volatile u32 *)(mips_io_port_base + (port)) = __ioswab32(val);\
 	SLOW_DOWN_IO;							\
 } while(0)
-  
+
 static inline unsigned char inb(unsigned long port)
 {
 	return __ioswab8(*(volatile u8 *)(mips_io_port_base + port));
 }
-  
+
 static inline unsigned short inw(unsigned long port)
 {
 	return __ioswab16(*(volatile u16 *)(mips_io_port_base + port));
 }
-  
+
 static inline unsigned int inl(unsigned long port)
 {
 	return __ioswab32(*(volatile u32 *)(mips_io_port_base + port));
 }
-  
+
 static inline unsigned char inb_p(unsigned long port)
 {
 	u8 __val;

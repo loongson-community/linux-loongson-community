@@ -282,7 +282,7 @@ free_initmem(void)
 	unsigned long addr, page;
 
 	prom_free_prom_memory();
-    
+
 	addr = (unsigned long)(&__init_begin);
 	while (addr < (unsigned long)&__init_end) {
 		page = PAGE_OFFSET | CPHYSADDR(addr);

@@ -21,7 +21,7 @@
 *                     the CPU.
 *                     The messaging unit contains two sets of registers
 *                     so, actually it can receive a 64 bit message.
-* 
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: Data received from the remote agent.
@@ -37,12 +37,12 @@ unsigned int getInBoundMessage(I2O_MESSAGE_REG messageRegNum)
 
 
 /********************************************************************
-* checkInboundIntAndClear - When a message is received an interrupt is 
+* checkInboundIntAndClear - When a message is received an interrupt is
 *                           generated, to enable polling instead the use of
 *                           an interrupt handler the user can use this fuction.
 *                           You will need to mask the incomming interrupt for
 *                           proper use.
-* 
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: true if the corresponding bit in the cause register is set otherwise
@@ -76,9 +76,9 @@ bool checkInBoundIntAndClear(I2O_MESSAGE_REG messageRegNum)
 *                     the PCI agent.
 *                     The messaging unit contains two sets of registers
 *                     so, actually it can send a 64 bit message.
-* 
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
-*         unsigned int message - Message to be sent.   
+*         unsigned int message - Message to be sent.
 * OUTPUT: N/A.
 * RETURNS: true.
 *********************************************************************/
@@ -94,7 +94,7 @@ bool sendOutBoundMessage(I2O_MESSAGE_REG messageRegNum,
 * checkOutboundInt - When the CPU sends a message to the Outbound
 *                    register it generates an interrupt which is refelcted on
 *                    the Outbound Interrupt cause register, the interrupt can
-*                    be cleard only by the PCI agent which read the message. 
+*                    be cleard only by the PCI agent which read the message.
 *                    After sending the message you can acknowledge it by
 *                    monitoring the corresponding bit in the cause register.
 *
@@ -124,8 +124,8 @@ bool outBoundMessageAcknowledge(I2O_MESSAGE_REG messageRegNum)
 /********************************************************************
 * maskInBoundMessageInterrupt - Mask the inbound interrupt, when masking
 *                               the interrupt you can work in polling mode
-*                               using the checkInboundIntAndClear function. 
-* 
+*                               using the checkInboundIntAndClear function.
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: true.
@@ -146,8 +146,8 @@ bool maskInBoundMessageInterrupt(I2O_MESSAGE_REG messageRegNum)
 }
 
 /********************************************************************
-* enableInBoundMessageInterrupt - unMask the inbound interrupt. 
-* 
+* enableInBoundMessageInterrupt - unMask the inbound interrupt.
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: true.
@@ -170,8 +170,8 @@ bool enableInBoundMessageInterrupt(I2O_MESSAGE_REG messageRegNum)
 /********************************************************************
 * maskOutboundMessageInterrupt - Mask the out bound interrupt, when doing so
 *                           the PCI agent needs to poll on the interrupt
-*                           cause register to monitor an incoming message. 
-* 
+*                           cause register to monitor an incoming message.
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: true.
@@ -194,8 +194,8 @@ bool maskOutBoundMessageInterrupt(I2O_MESSAGE_REG messageRegNum)
 /********************************************************************
 * enableOutboundMessageInterrupt - Mask the out bound interrupt, when doing so
 *                           the PCI agent needs to poll on the interrupt
-*                           cause register to monitor an incoming message. 
-* 
+*                           cause register to monitor an incoming message.
+*
 * INPUTS: I2O_MESSAGE_REG messageRegNum - Selected set (0 or 1) register.
 * OUTPUT: N/A.
 * RETURNS: true.
@@ -216,13 +216,13 @@ bool enableOutBoundMessageInterrupt(I2O_MESSAGE_REG messageRegNum)
 }
 
 /********************************************************************
-* initiateOutBoundDoorBellInt - Setting a bit in this register to '1' by the 
+* initiateOutBoundDoorBellInt - Setting a bit in this register to '1' by the
 *                       CPU generates a PCI interrupt (if it is not masked by
 *                       the Outbound interrupt Mask register)
 *                       Only the PCI agent which recieved the interrupt can
 *                       clear it, only after clearing all the bits the
 *                       interrupt will be de-asserted.
-* 
+*
 * INPUTS: unsigned int data - Requested interrupt bits.
 * OUTPUT: N/A.
 * RETURNS: true.
@@ -236,7 +236,7 @@ bool initiateOutBoundDoorBellInt(unsigned int data)
 /********************************************************************
 * readInBoundDoorBellInt - Read the in bound door bell interrupt cause
 *                          register.
-* 
+*
 * OUTPUT:  N/A.
 * RETURNS: The 32 bit interrupt cause register.
 *********************************************************************/
@@ -253,7 +253,7 @@ unsigned int readInBoundDoorBellInt()
 *                           only by the CPU. The interrupt will be de-asserted
 *                           only if all the bits which where set by the PCI
 *                           agent are cleared.
-* 
+*
 * INPUTS:  unsigned int data - Bits to be cleared.
 * OUTPUT:  N/A.
 * RETURNS: true.
@@ -282,11 +282,11 @@ bool isInBoundDoorBellInterruptSet()
 }
 
 /********************************************************************
-* isOutBoundDoorBellInterruptSet - Check if out bound Doorbell Interrupt is 
+* isOutBoundDoorBellInterruptSet - Check if out bound Doorbell Interrupt is
 *                                  set, can be used for acknowledging interrupt
 *                                  handling by the agent who recieived the
-*                                  interrupt. 
-* 
+*                                  interrupt.
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS: true if the corresponding bit in the cause register is set otherwise
@@ -354,7 +354,7 @@ bool enableOutBoundDoorBellInterrupt()
 
 /********************************************************************
 * circularQueueEnable - Initialize the I2O messaging mechanism.
-* 
+*
 * INPUTS:   CIRCULE_QUEUE_SIZE cirQueSize - Bits 5:1 in the:
 *           Queue Control Register, Offset 0x50 (0x1c50).
 *           Defines the queues size (refer to the data sheet
@@ -364,7 +364,7 @@ bool enableOutBoundDoorBellInterrupt()
 *           Inbound Free = queueBaseAddr
 *           Inbound Post = queueBaseAddr + cirQueSize
 *           Outbound Post = queueBaseAddr + cirQueSize
-*           
+*
 * OUTPUT:  N/A.
 * RETURNS: true.
 *
@@ -410,10 +410,10 @@ bool circularQueueEnable(CIRCULAR_QUEUE_SIZE cirQueSize,
 }
 
 /********************************************************************
-* inBoundPostQueuePop - Two actions are being taken upon pop: 
+* inBoundPostQueuePop - Two actions are being taken upon pop:
 *           1) Getting out the data from the Queue`s head.
 *           2) Increment the tail pointer in a cyclic way (The HEAD is
-*              incremented automaticaly by the GT) 
+*              incremented automaticaly by the GT)
 *
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
@@ -469,7 +469,7 @@ bool isInBoundPostQueueInterruptSet()
 
 /********************************************************************
 * clearInBoundPostQueueInterrupt - Clears the Post queue interrupt.
-* 
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS: true.
@@ -486,7 +486,7 @@ bool clearInBoundPostQueueInterrupt()
 *
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
-* RETURNS: 
+* RETURNS:
 *********************************************************************/
 void maskInBoundPostQueueInterrupt()
 {
@@ -501,7 +501,7 @@ void maskInBoundPostQueueInterrupt()
 /********************************************************************
 * enableInBoundPostQueueInterrupt - Enable interrupt when ever there is a new
 *                                   message from the PCI agent.
-* 
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS:
@@ -516,11 +516,11 @@ void enableInBoundPostQueueInterrupt()
 }
 
 /********************************************************************
-* inBoundFreeQueuePush - Two actions are being taken upon push: 
+* inBoundFreeQueuePush - Two actions are being taken upon push:
 *           1) Place the user`s data on the Queue`s head.
 *           2) Increment the haed pointer in a cyclic way (The tail is
 *              decremented automaticaly by the GT)
-* 
+*
 * INPUTS:  unsigned int data - Data to be placed in the queue.
 * OUTPUT:  N/A.
 * RETURNS: true.
@@ -558,7 +558,7 @@ bool inBoundFreeQueuePush(unsigned int data)
 * isInBoundFreeQueueEmpty - Check if Inbound Free Queue Empty.
 *                           Can be used for acknowledging the messages
 *                           being sent by us to the PCI agent.
-* 
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS: true if the queue is empty , otherwise false.
@@ -579,12 +579,12 @@ bool isInBoundFreeQueueEmpty()
 }
 
 /********************************************************************
-* outBoundPostQueuePush  - Two actions are being taken upon push: 
+* outBoundPostQueuePush  - Two actions are being taken upon push:
 *           1) Place the user`s data on the Queue`s head.
 *           2) Increment the haed pointer in a cyclic way (The tail is
 *              decremented automaticaly by the GT when the Agent on the
 *              PCI have read data from the Outbound Port).
-* 
+*
 * INPUTS:  unsigned int data - Data to be placed in the queue`s head.
 * OUTPUT:  N/A.
 * RETURNS: true.
@@ -622,7 +622,7 @@ bool outBoundPostQueuePush(unsigned int data)
 * isOutBoundPostQueueEmpty - Check if Outbound Post Queue Empty.
 *                            Can be used for acknowledging the messages
 *                            being sent by us to the PCI agent.
-* 
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS: true if the queue is empty , otherwise false.
@@ -643,11 +643,11 @@ bool isOutBoundPostQueueEmpty()
 }
 
 /********************************************************************
-* outBoundFreeQueuePop - Two actions are being taken upon pop: 
+* outBoundFreeQueuePop - Two actions are being taken upon pop:
 *           1) Getting out the data from the Queue`s head.
 *           2) Increment the tail pointer in a cyclic way (The HEAD is
 *              incremented automaticaly by the GT)
-* 
+*
 * INPUTS:  N/A.
 * OUTPUT:  N/A.
 * RETURNS: Data pointed by tail.

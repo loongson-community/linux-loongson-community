@@ -58,7 +58,7 @@ static void sgi_machine_halt(void)
 static void sgi_machine_power_off(void)
 {
 	unsigned char val;
-	
+
 	cli();
 
 	/* Disable watchdog */

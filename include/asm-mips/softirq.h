@@ -19,7 +19,7 @@ static inline void cpu_bh_disable(int cpu)
 	local_bh_count(cpu)++;
 	barrier();
 }
- 
+
 static inline void __cpu_bh_enable(int cpu)
 {
 	barrier();

@@ -232,7 +232,7 @@ void __init tc_init(void)
  			i = 2;
 		else
  			i = 1;
- 		
+
  	        system_base = slot0addr + slot_size * (max_tcslot + i);
 
 #ifdef TC_DEBUG

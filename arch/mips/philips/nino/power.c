@@ -19,7 +19,7 @@ void nino_wait(void)
 	outl(inl(TX3912_POWER_CTRL) | TX3912_POWER_CTRL_STOPCPU,
 		 TX3912_POWER_CTRL);
 
-	/* 
+	/*
 	 * We wait until an interrupt happens...
 	 */
 

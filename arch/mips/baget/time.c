@@ -19,25 +19,25 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/ptrace.h>
-#include <asm/system.h>  
+#include <asm/system.h>
 
 #include <asm/baget/baget.h>
 
 extern rwlock_t xtime_lock;
 
-/* 
+/*
  *  To have precision clock, we need to fix available clock frequency
  */
 #define FREQ_NOM  79125  /* Baget frequency ratio */
 #define FREQ_DEN  10000
 
-static inline int timer_intr_valid(void) 
+static inline int timer_intr_valid(void)
 {
 	static unsigned long long ticks, valid_ticks;
 
 	if (ticks++ * FREQ_DEN >= valid_ticks * FREQ_NOM) {
-		/* 
-		 *  We need no overflow checks, 
+		/*
+		 *  We need no overflow checks,
 		 *  due baget unable to work 3000 years...
 		 *  At least without reboot...
 		 */
@@ -63,10 +63,10 @@ static void __init timer_enable(void)
 	vic_outb(ss0cr0, VIC_SS0CR0);
 
 	vic_outb(VIC_INT_IPL(6)|VIC_INT_NOAUTO|VIC_INT_EDGE|
-		 VIC_INT_LOW|VIC_INT_ENABLE, VIC_LINT2); 
+		 VIC_INT_LOW|VIC_INT_ENABLE, VIC_LINT2);
 }
 
-static struct irqaction timer_irq  = 
+static struct irqaction timer_irq  =
 { timer_interrupt, SA_INTERRUPT, 0, "timer", NULL, NULL};
 
 void __init time_init(void)

@@ -1,8 +1,8 @@
 /*
- * DS1286 Real Time Clock interface for Linux	
+ * DS1286 Real Time Clock interface for Linux
  *
  * Copyright (C) 1998, 1999, 2000 Ralf Baechle
- *	
+ *
  * Based on code written by Paul Gortmaker.
  *
  * This driver allows use of the real time clock (built into nearly all
@@ -82,7 +82,7 @@ static spinlock_t ds1286_lock = SPIN_LOCK_UNLOCKED;
 unsigned char ds1286_status;		/* bitmapped status byte.	*/
 unsigned long ds1286_freq;		/* Current periodic IRQ rate	*/
 
-unsigned char days_in_mo[] = 
+unsigned char days_in_mo[] =
 {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 /*
@@ -99,7 +99,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
                         unsigned int cmd, unsigned long arg)
 {
 
-	struct rtc_time wtime; 
+	struct rtc_time wtime;
 
 	switch (cmd) {
 	case RTC_AIE_OFF:	/* Mask alarm int. enab. bit	*/
@@ -175,7 +175,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		 */
 
 		ds1286_get_alm_time(&wtime);
-		break; 
+		break;
 	}
 	case RTC_ALM_SET:	/* Store a time into the alarm */
 	{
@@ -229,7 +229,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		if (copy_from_user(&rtc_tm, (struct rtc_time*)arg,
 				   sizeof(struct rtc_time)))
 			return -EFAULT;
-		
+
 		return ds1286_set_time(&rtc_tm);
 	}
 	default:
@@ -396,13 +396,13 @@ void ds1286_get_time(struct rtc_time *rtc_tm)
 	unsigned char save_control;
 	unsigned int flags;
 	unsigned long uip_watchdog = jiffies;
-	
+
 	/*
 	 * read RTC once any update in progress is done. The update
 	 * can take just over 2ms. We wait 10 to 20ms. There is no need to
 	 * to poll-wait (up to 1s - eeccch) for the falling edge of RTC_UIP.
 	 * If you need to know *exactly* when a second has started, enable
-	 * periodic update complete interrupts, (via ioctl) and then 
+	 * periodic update complete interrupts, (via ioctl) and then
 	 * immediately read /dev/rtc which will block until you get the IRQ.
 	 * Once the read clears, read the RTC time (again via ioctl). Easy.
 	 */

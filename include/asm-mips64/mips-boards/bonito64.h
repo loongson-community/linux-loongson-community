@@ -11,7 +11,7 @@
  */
 
 /*
- * Bonito Register Map 
+ * Bonito Register Map
  * Copyright (c) 1999 Algorithmics Ltd
  *
  * Algorithmics gives permission for anyone to use and modify this file
@@ -20,7 +20,7 @@
  *
  * Updated copies of this and other files can be found at
  * ftp://ftp.algor.co.uk/pub/bonito/
- * 
+ *
  * Users of the Bonito controller are warmly recommended to contribute
  * any useful changes back to Algorithmics (mail to bonito@algor.co.uk).
  */
@@ -75,7 +75,7 @@
 #define BONITO_PCICFG_BASE		0x1fe80000
 #define BONITO_PCICFG_SIZE		0x00080000
 #define BONITO_PCICFG_TOP		(BONITO_PCICFG_BASE+BONITO_PCICFG_SIZE-1)
- 
+
 
 /* Bonito Register Bases */
 
@@ -184,7 +184,7 @@
 #define BONITO_PCIMAP_CFG		BONITO(BONITO_REGBASE + 0x18)
 
 /* 5. ICU & GPIO regs */
- 
+
 /* GPIO Regs - r/w */
 
 #define BONITO_GPIODATA_OFFSET          0x1c
@@ -231,7 +231,7 @@
 */
 
 /* 7. IDE DMA & Copier */
- 
+
 #define BONITO_CONFIGBASE		0x000
 #define BONITO_BONITOBASE		0x100
 #define BONITO_LDMABASE 		0x200

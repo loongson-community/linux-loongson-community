@@ -31,6 +31,6 @@
  * SEAD UART register base.
  */
 #define SEAD_UART0_REGS_BASE    (0x1f000800)
-#define SEAD_BASE_BAUD ( 3686400 / 16 ) 
+#define SEAD_BASE_BAUD ( 3686400 / 16 )
 
 #endif /* !(_MIPS_SEAD_H) */

@@ -53,14 +53,14 @@ void unmask_irq(unsigned int irq)
 asmlinkage void via_irq(struct pt_regs *regs)
 {
 	char mstat, sstat;
-  
+
 	/* Read Master Status */
 	VIA_PORT_WRITE(0x20, 0x0C);
 	mstat = VIA_PORT_READ(0x20);
- 
+
 	if (mstat < 0) {
 		mstat &= 0x7f;
-		if (mstat != 2) {     	
+		if (mstat != 2) {
 			do_IRQ(mstat, regs);
 			VIA_PORT_WRITE(0x20, mstat | 0x20);
 		} else {
@@ -69,10 +69,10 @@ asmlinkage void via_irq(struct pt_regs *regs)
 			/* Slave interrupt */
 			VIA_PORT_WRITE(0xA0, 0x0C);
 			sstat = VIA_PORT_READ(0xA0);
-   
+
 			if (sstat < 0) {
 				do_IRQ((sstat + 8) & 0x7f, regs);
-				VIA_PORT_WRITE(0x20, 0x22);       
+				VIA_PORT_WRITE(0x20, 0x22);
 				VIA_PORT_WRITE(0xA0, (sstat & 0x7f) | 0x20);
 			} else {
 				printk("Spurious slave interrupt...\n");
@@ -87,7 +87,7 @@ asmlinkage void via_irq(struct pt_regs *regs)
 
 asmlinkage void galileo_irq(struct pt_regs *regs)
 {
-	unsigned long irq_src = *((unsigned long *) GALILEO_INTCAUSE); 
+	unsigned long irq_src = *((unsigned long *) GALILEO_INTCAUSE);
 
 	/* Check for timer irq ... */
 	if (irq_src & GALILEO_T0EXP) {

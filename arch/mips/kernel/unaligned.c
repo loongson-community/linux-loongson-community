@@ -41,7 +41,7 @@
  *
  * #include <stdio.h>
  * #include <asm/sysmips.h>
- * 
+ *
  * struct foo {
  *         unsigned char bar[8];
  * };
@@ -368,7 +368,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	unsigned long pc;
 	extern int do_dsemulret(struct pt_regs *);
 
-	/* 
+	/*
 	 * Address errors may be deliberately induced
 	 * by the FPU emulator to take retake control
 	 * of the CPU after executing the instruction

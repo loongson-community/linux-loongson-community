@@ -144,7 +144,7 @@ static int ms1bit(unsigned long x)
  * This code is unnecessarily complex, because we do SA_INTERRUPT
  * intr enabling. Basically, once we grab the set of intrs we need
  * to service, we must mask _all_ these interrupts; firstly, to make
- * sure the same intr does not intr again, causing recursion that 
+ * sure the same intr does not intr again, causing recursion that
  * can lead to stack overflow. Secondly, we can not just mask the
  * one intr we are do_IRQing, because the non-masked intrs in the
  * first set might intr again, causing multiple servicings of the
@@ -160,7 +160,7 @@ void ip27_do_irq(struct pt_regs *regs)
 					PI_INT_MASK0_A : PI_INT_MASK0_B);
 
 	/* copied from Irix intpend0() */
-	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
+	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) &
 				(mask0 = LOCAL_HUB_L(pi_int_mask0))) != 0) {
 		pend0 &= mask0;		/* Pick intrs we should look at */
 		if (pend0) {
@@ -236,7 +236,7 @@ static unsigned int shutdown_bridge_irq(unsigned int irq)
 	if (irq < BASE_PCI_IRQ)
 		return 0;
 
-	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq), 
+	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq),
 	                                     WID_FROM_PCI_IRQ(irq));
 	DBG("bridge_shutdown: irq 0x%x\n", irq);
 	pin = SLOT_FROM_PCI_IRQ(irq);
@@ -350,10 +350,10 @@ int intr_connect_level(int cpu, int bit)
 	intpend_masks[0] |= (1ULL << (u64)bit);
 
 	if (ip == 0) {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A + 
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
 				PI_INT_MASK_OFFSET * slice);
 	} else {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A + 
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
 				PI_INT_MASK_OFFSET * slice);
 	}
 	HUB_S(mask_reg, intpend_masks[0]);
@@ -371,10 +371,10 @@ int intr_disconnect_level(int cpu, int bit)
 	(void)intr_get_ptrs(cpu, bit, &bit, &intpend_masks, &ip);
 	intpend_masks[0] &= ~(1ULL << (u64)bit);
 	if (ip == 0) {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A + 
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
 				PI_INT_MASK_OFFSET * slice);
 	} else {
-		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A + 
+		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK1_A +
 				PI_INT_MASK_OFFSET * slice);
 	}
 	HUB_S(mask_reg, intpend_masks[0]);
@@ -436,10 +436,10 @@ void install_cpuintr(int cpu)
 	if (done == 0) {
 		int j;
 
-		if (request_irq(CPU_RESCHED_A_IRQ, handle_resched_intr, 
+		if (request_irq(CPU_RESCHED_A_IRQ, handle_resched_intr,
 							0, "resched", 0))
 			panic("intercpu intr unconnectible");
-		if (request_irq(CPU_RESCHED_B_IRQ, handle_resched_intr, 
+		if (request_irq(CPU_RESCHED_B_IRQ, handle_resched_intr,
 							0, "resched", 0))
 			panic("intercpu intr unconnectible");
 		if (request_irq(CPU_CALL_A_IRQ, smp_call_function_interrupt,
@@ -451,23 +451,23 @@ void install_cpuintr(int cpu)
 
 		for (j = 0; j < PERNODE_LEVELS; j++)
 			LEVEL_TO_IRQ(0, j) = -1;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) = 
+		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ)) =
 							CPU_RESCHED_A_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) = 
+		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_RESCHED_B_IRQ)) =
 							CPU_RESCHED_B_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ)) = 
+		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ)) =
 							CPU_CALL_A_IRQ;
-		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ)) = 
+		LEVEL_TO_IRQ(0, FAST_IRQ_TO_LEVEL(CPU_CALL_B_IRQ)) =
 							CPU_CALL_B_IRQ;
 		for (j = 1; j < MAX_COMPACT_NODES; j++)
-			memcpy(&node_level_to_irq[j][0], 
-			&node_level_to_irq[0][0], 
+			memcpy(&node_level_to_irq[j][0],
+			&node_level_to_irq[0][0],
 			sizeof(node_level_to_irq[0][0])*PERNODE_LEVELS);
 
 		done = 1;
 	}
 
-	intr_connect_level(cpu, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ + 
+	intr_connect_level(cpu, FAST_IRQ_TO_LEVEL(CPU_RESCHED_A_IRQ +
 							cputoslice(cpu)));
 	intr_connect_level(cpu, FAST_IRQ_TO_LEVEL(CPU_CALL_A_IRQ +
 							cputoslice(cpu)));

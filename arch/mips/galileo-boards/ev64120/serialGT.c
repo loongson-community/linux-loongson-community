@@ -3,7 +3,7 @@
  *
  * BRIEF MODULE DESCRIPTION
  *  Low Level Serial Port control for use
- *  with the Galileo EVB64120A MIPS eval board and 
+ *  with the Galileo EVB64120A MIPS eval board and
  *  its on board two channel 16552 Uart.
  *
  * Copyright (C) 2000 RidgeRun, Inc.
@@ -139,7 +139,7 @@ void serial_set(int channel, unsigned long baud)
 
 #if 0
 	/*
-	 * Set baud rate 
+	 * Set baud rate
 	 */
 	outreg(channel, LCR, LCR_DLAB | sav_lcr);
 	//  outreg(DLL,(XTAL/(16*2*(baud))-2));
@@ -149,7 +149,7 @@ void serial_set(int channel, unsigned long baud)
 #else
 	/*
 	 * Note: Set baud rate, hardcoded here for rate of 115200
-	 * since became unsure of above "buad rate" algorithm (??). 
+	 * since became unsure of above "buad rate" algorithm (??).
 	 */
 	outreg(channel, LCR, 0x83);
 	outreg(channel, DLM, 0x00);	// See note above

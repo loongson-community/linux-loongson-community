@@ -2,7 +2,7 @@
 
 /* Copyright Galileo Technology. */
 
-#ifndef __INCflashdrvh 
+#ifndef __INCflashdrvh
 #define __INCflashdrvh
 
 /* includes */
@@ -11,7 +11,7 @@
 
 /* defines */
 
-/* Supported Flash Manufactures */ 
+/* Supported Flash Manufactures */
 
 #define AMD_FLASH       0x01
 #define ST_FLASH        0x20
@@ -21,7 +21,7 @@
 /* Supported Flash Devices */
 
 /* AMD Devices */
-#define AM29F400BT      0x2223    
+#define AM29F400BT      0x2223
 #define AM29F400BB      0x22AB
 #define AM29LV800BT     0x22DA
 #define AM29LV400BT     0x22B9
@@ -34,12 +34,12 @@
 #define I28F640J3A      0x17
 #define I28F128J3A      0x18
 #define I28F320B3_B     0x8897
-#define I28F320B3_T     0x8896 
+#define I28F320B3_T     0x8896
 #define I28F160B3_B     0x8891
 #define I28F160B3_T     0x8890
 
-#define POINTER_TO_FLASH           flashParametrs[0] 
-#define FLASH_BASE_ADDRESS         flashParametrs[1] 
+#define POINTER_TO_FLASH           flashParametrs[0]
+#define FLASH_BASE_ADDRESS         flashParametrs[1]
 #define FLASH_WIDTH                flashParametrs[2] /* In Bytes */
 #define FLASH_MODE                 flashParametrs[3] /* In bits  */
 #define MANUFACTOR_ID              POINTER_TO_FLASH + 0
@@ -47,11 +47,11 @@
 #define NUMBER_OF_SECTORS          POINTER_TO_FLASH + 2
 #define FIRST_SECTOR_SIZE          POINTER_TO_FLASH + 3
 #define NUM_OF_DEVICES             FLASH_WIDTH / (FLASH_MODE / 8)
- 
+
 /* typedefs */
 
 typedef enum _FlashMode {PURE8,X8 = 8,X16 = 16} FLASHmode;
-/* PURE8 - when using a flash device whice can be configurated only as  
+/* PURE8 - when using a flash device whice can be configurated only as
             8 bit device. */
 /* X8    - when using a flash device which is 16 bit wide but configured to
            operate in 8 bit mode.*/

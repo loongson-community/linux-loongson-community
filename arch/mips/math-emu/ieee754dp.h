@@ -1,4 +1,4 @@
-/* 
+/*
  * IEEE754 floating point
  * double precision internal header file
  */

@@ -110,7 +110,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		: "r" (count), "r" (quotient));
 
 	/*
-	 * Due to possible jiffies inconsistencies, we need to check 
+	 * Due to possible jiffies inconsistencies, we need to check
 	 * the result so that we'll get a timer that is monotonic.
 	 */
 	if (res >= USECS_PER_JIFFY)
@@ -160,9 +160,9 @@ static unsigned long do_ioasic_gettimeoffset(void)
 	return res;
 }
 
-/* This function must be called with interrupts disabled 
+/* This function must be called with interrupts disabled
  * It was inspired by Steve McCanne's microtime-i386 for BSD.  -- jrs
- * 
+ *
  * However, the pc-audio speaker driver changes the divisor so that
  * it gets interrupted rather more often - it loads 64 into the
  * counter rather than 11932! This has an adverse impact on
@@ -176,7 +176,7 @@ static unsigned long do_ioasic_gettimeoffset(void)
  * using either the RTC or the 8253 timer. The decision would be
  * based on whether there was any other device around that needed
  * to trample on the 8253. I'd set up the RTC to interrupt at 1024 Hz,
- * and then do some jiggery to have a version of do_timer that 
+ * and then do some jiggery to have a version of do_timer that
  * advanced the clock by 1/1024 s. Every time that reached over 1/100
  * of a second, then do all the old code. If the time was kept correct
  * then do_gettimeoffset could just return 0 - there is no low order
@@ -187,7 +187,7 @@ static unsigned long do_ioasic_gettimeoffset(void)
  * often than every 120 us or so.
  *
  * Anyway, this needs more thought....          pjsg (1993-08-28)
- * 
+ *
  * If you are really that interested, you should be reading
  * comp.protocols.time.ntp!
  */

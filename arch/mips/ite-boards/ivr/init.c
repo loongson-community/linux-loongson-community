@@ -79,7 +79,7 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	 * make the entire physical memory visible to pci bus masters
 	 */
 	IT_READ(IT_MC_PCICR, pcicr);
-	pcicr &= ~0x1f; 
+	pcicr &= ~0x1f;
 	pcicr |= (mem_size - 1) >> 22;
 	IT_WRITE(IT_MC_PCICR, pcicr);
 

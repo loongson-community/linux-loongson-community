@@ -29,7 +29,7 @@
 
 #define PCI0_MEMORY_ENABLE(deviceNumber) pci0WriteConfigReg(                  \
           PCI_0STATUS_AND_COMMAND,deviceNumber,MEMORY_ENABLE |                \
-          pci0ReadConfigReg(PCI_0STATUS_AND_COMMAND,deviceNumber) )           
+          pci0ReadConfigReg(PCI_0STATUS_AND_COMMAND,deviceNumber) )
 
 #define PCI1_MEMORY_ENABLE(deviceNumber) pci1WriteConfigReg(                  \
           PCI_0STATUS_AND_COMMAND,deviceNumber,MEMORY_ENABLE |                \
@@ -59,9 +59,9 @@
           PCI_0STATUS_AND_COMMAND,deviceNumber,0xfffffff8  &                  \
           pci1ReadConfigReg(PCI_0STATUS_AND_COMMAND,deviceNumber))
 
-#define 	MASTER_ENABLE			BIT2  
-#define		MEMORY_ENABLE			BIT1  
-#define		I_O_ENABLE  			BIT0  
+#define 	MASTER_ENABLE			BIT2
+#define		MEMORY_ENABLE			BIT1
+#define		I_O_ENABLE  			BIT0
 #define     SELF                    0
 /* Agent on the PCI bus may have up to 6 BARS. */
 #define     BAR0                    0x10
@@ -70,7 +70,7 @@
 #define     BAR3                    0x1c
 #define     BAR4                    0x20
 #define     BAR5                    0x24
-   
+
 
 /* typedefs */
 
@@ -78,7 +78,7 @@ typedef struct pciDevice
 {
     char            type[20];
     unsigned int    deviceNum;
-    unsigned int    venID;                                            
+    unsigned int    venID;
     unsigned int    deviceID;
     unsigned int    bar0Base;
     unsigned int    bar0Size;

@@ -7,7 +7,7 @@
  *
  * Credits to Bradley D. LaRonde and Michael Klar for writing the original
  * irq.c file which was derived from the common irq.c file.
- *	
+ *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -179,9 +179,9 @@ extern void breakpoint(void);
 extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 extern void mips_cpu_irq_init(u32 irq_base);
 
-static struct irqaction cascade = 
+static struct irqaction cascade =
 	{ no_action, SA_INTERRUPT, 0, "cascade", NULL, NULL };
-static struct irqaction reserved = 
+static struct irqaction reserved =
 	{ no_action, SA_INTERRUPT, 0, "cascade", NULL, NULL };
 
 void __init init_IRQ(void)
@@ -215,7 +215,7 @@ void __init init_IRQ(void)
 	/* Default all ICU IRQs to off ... */
 	*VR4181_MSYSINT1REG = 0;
 	*VR4181_MSYSINT2REG = 0;
- 
+
 	/* We initialize the level 2 ICU registers to all bits disabled. */
 	*VR4181_MPIUINTREG = 0;
 	*VR4181_MAIUINTREG = 0;
@@ -228,7 +228,7 @@ void __init init_IRQ(void)
 	setup_irq(VR4181_IRQ_INT0, &cascade);
 	setup_irq(VR4181_IRQ_GIU, &cascade);
 
-	/* 
+	/*
 	 * RTC interrupts are interesting.  They have two destinations.
 	 * One is at sys irq controller, and the other is at CPU IP3 and IP4.
 	 * RTC timer is used as system timer.

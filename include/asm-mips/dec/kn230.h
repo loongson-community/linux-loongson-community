@@ -10,8 +10,8 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  */
-#ifndef __ASM_MIPS_DEC_KN230_H 
-#define __ASM_MIPS_DEC_KN230_H 
+#ifndef __ASM_MIPS_DEC_KN230_H
+#define __ASM_MIPS_DEC_KN230_H
 
 /*
  * CPU interrupt bits.

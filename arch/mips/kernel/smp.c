@@ -8,7 +8,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -17,7 +17,7 @@
  * Copyright (C) 2000, 2001 Ralf Baechle
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
  * Copyright (C) 2000, 2001 Broadcom Corporation
- */ 
+ */
 #include <linux/cache.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
@@ -66,13 +66,13 @@ void core_send_ipi(int cpu, unsigned int action);
 
 /*
  * Clear all undefined state in the cpu, set up sp and gp to the passed
- * values, and kick the cpu into smp_bootstrap(); 
+ * values, and kick the cpu into smp_bootstrap();
  */
 void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
 
 /*
  *  After we've done initial boot, this function is called to allow the
- *  board code to clean up state, if needed 
+ *  board code to clean up state, if needed
  */
 void prom_init_secondary(void);
 
@@ -128,7 +128,7 @@ struct call_data_struct *call_data;
  * is set, wait until all cpus have finished the function before returning.
  * The lock is here to protect the call structure.
  */
-int smp_call_function (void (*func) (void *info), void *info, int retry, 
+int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
@@ -232,11 +232,11 @@ static void flush_tlb_mm_ipi(void *mm)
 }
 
 /*
- * The following tlb flush calls are invoked when old translations are 
+ * The following tlb flush calls are invoked when old translations are
  * being torn down, or pte attributes are changing. For single threaded
  * address spaces, a new context is obtained on the current cpu, and tlb
  * context on other cpus are invalidated to force a new context allocation
- * at switch_mm time, should the mm ever be used on other cpus. For 
+ * at switch_mm time, should the mm ever be used on other cpus. For
  * multithreaded address spaces, intercpu interrupts have to be sent.
  * Another case where intercpu interrupts are required is when the target
  * mm might be active on another cpu (eg debuggers doing the flushes on

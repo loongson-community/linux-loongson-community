@@ -10,8 +10,8 @@
  * are by courtesy of Chris Fraser.
  * Copyright (C) 2002  Maciej W. Rozycki
  */
-#ifndef __ASM_MIPS_DEC_KN02_H 
-#define __ASM_MIPS_DEC_KN02_H 
+#ifndef __ASM_MIPS_DEC_KN02_H
+#define __ASM_MIPS_DEC_KN02_H
 
 #ifndef __ASSEMBLY__
 #include <linux/spinlock.h>

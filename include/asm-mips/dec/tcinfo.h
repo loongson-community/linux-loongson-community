@@ -1,4 +1,4 @@
-/* 
+/*
  * Various TURBOchannel related stuff
  *
  * This file is subject to the terms and conditions of the GNU General Public

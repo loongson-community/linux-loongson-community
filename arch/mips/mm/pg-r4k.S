@@ -83,10 +83,10 @@ LEAF(r4k_clear_page_d32)
  *      Hit_Invalidate_D and Create_Dirty_Excl_D should only be
  *      executed if there is no other dcache activity. If the dcache is
  *      accessed for another instruction immeidately preceding when these
- *      cache instructions are executing, it is possible that the dcache 
- *      tag match outputs used by these cache instructions will be 
+ *      cache instructions are executing, it is possible that the dcache
+ *      tag match outputs used by these cache instructions will be
  *      incorrect. These cache instructions should be preceded by at least
- *      four instructions that are not any kind of load or store 
+ *      four instructions that are not any kind of load or store
  *      instruction.
  *
  *      This is not allowed:    lw

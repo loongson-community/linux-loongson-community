@@ -89,7 +89,7 @@ int show_interrupts(struct seq_file *p, void *v)
 
 	for (i = 0 ; i < NR_IRQS ; i++) {
 		action = irq_desc[i].action;
-		if (!action) 
+		if (!action)
 			continue;
 		seq_printf(p, "%3d: ",i);
 		seq_printf(p, "%10u ", kstat_irqs(i));
@@ -193,12 +193,12 @@ static inline void get_irqlock(int cpu)
 }
 
 /*
- * A global "cli()" while in an interrupt context turns into just a local 
- * cli(). Interrupts should use spinlocks for the (very unlikely) case that 
+ * A global "cli()" while in an interrupt context turns into just a local
+ * cli(). Interrupts should use spinlocks for the (very unlikely) case that
  * they ever want to protect against each other.
- * 
- * If we already have local interrupts disabled, this will not turn a local 
- * disable into a global one (problems with spinlocks: this makes 
+ *
+ * If we already have local interrupts disabled, this will not turn a local
+ * disable into a global one (problems with spinlocks: this makes
  * save_flags+cli+sti usable inside a spinlock).
  */
 
@@ -312,9 +312,9 @@ int handle_IRQ_event(unsigned int irq, struct pt_regs * regs, struct irqaction *
  * Generic enable/disable code: this just calls
  * down into the PIC-specific version for the actual
  * hardware disable after having gotten the irq
- * controller lock. 
+ * controller lock.
  */
- 
+
 /**
  *	disable_irq_nosync - disable an irq without waiting
  *	@irq: Interrupt to disable
@@ -325,7 +325,7 @@ int handle_IRQ_event(unsigned int irq, struct pt_regs * regs, struct irqaction *
  *
  *	This function may be called from IRQ context.
  */
- 
+
 void inline disable_irq_nosync(unsigned int irq)
 {
 	irq_desc_t *desc = irq_desc + irq;
@@ -351,7 +351,7 @@ void inline disable_irq_nosync(unsigned int irq)
  *
  *	This function may be called - with care - from IRQ context.
  */
- 
+
 void disable_irq(unsigned int irq)
 {
 	disable_irq_nosync(irq);
@@ -372,7 +372,7 @@ void disable_irq(unsigned int irq)
  *
  *	This function may be called from IRQ context.
  */
- 
+
 void enable_irq(unsigned int irq)
 {
 	irq_desc_t *desc = irq_desc + irq;
@@ -407,7 +407,7 @@ void enable_irq(unsigned int irq)
  */
 asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 {
-	/* 
+	/*
 	 * We ack quickly, we don't want the irq controller
 	 * thinking we're snobs just because some other CPU has
 	 * disabled global interrupts (we have already done the
@@ -467,7 +467,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 		spin_unlock(&desc->lock);
 		handle_IRQ_event(irq, regs, action);
 		spin_lock(&desc->lock);
-		
+
 		if (!(desc->status & IRQ_PENDING))
 			break;
 		desc->status &= ~IRQ_PENDING;
@@ -497,7 +497,7 @@ out:
  *	This call allocates interrupt resources and enables the
  *	interrupt line and IRQ handling. From the point this
  *	call is made your handler function may be invoked. Since
- *	your handler function must clear any interrupt the board 
+ *	your handler function must clear any interrupt the board
  *	raises, you must take care both to initialise your hardware
  *	and to set up the interrupt handler in the right order.
  *
@@ -517,10 +517,10 @@ out:
  *	SA_SAMPLE_RANDOM	The interrupt can be used for entropy
  *
  */
- 
-int request_irq(unsigned int irq, 
+
+int request_irq(unsigned int irq,
 		void (*handler)(int, void *, struct pt_regs *),
-		unsigned long irqflags, 
+		unsigned long irqflags,
 		const char * devname,
 		void *dev_id)
 {
@@ -575,12 +575,12 @@ int request_irq(unsigned int irq,
  *	does not return until any executing interrupts for this IRQ
  *	have completed.
  *
- *	This function may be called from interrupt context. 
+ *	This function may be called from interrupt context.
  *
  *	Bugs: Attempting to free an irq in a handler for the same irq hangs
  *	      the machine.
  */
- 
+
 void free_irq(unsigned int irq, void *dev_id)
 {
 	irq_desc_t *desc;
@@ -641,7 +641,7 @@ static DECLARE_MUTEX(probe_sem);
  *	and a mask of potential interrupt lines is returned.
  *
  */
- 
+
 unsigned long probe_irq_on(void)
 {
 	unsigned int i;
@@ -650,15 +650,15 @@ unsigned long probe_irq_on(void)
 	unsigned long delay;
 
 	down(&probe_sem);
-	/* 
+	/*
 	 * something may have generated an irq long ago and we want to
-	 * flush such a longstanding irq before considering it as spurious. 
+	 * flush such a longstanding irq before considering it as spurious.
 	 */
 	for (i = NR_IRQS-1; i > 0; i--)  {
 		desc = irq_desc + i;
 
 		spin_lock_irq(&desc->lock);
-		if (!irq_desc[i].action) 
+		if (!irq_desc[i].action)
 			irq_desc[i].handler->startup(i);
 		spin_unlock_irq(&desc->lock);
 	}
@@ -720,7 +720,7 @@ unsigned long probe_irq_on(void)
  * Return a mask of triggered interrupts (this
  * can handle only legacy ISA interrupts).
  */
- 
+
 /**
  *	probe_irq_mask - scan a bitmap of interrupt lines
  *	@val:	mask of interrupts to consider
@@ -782,7 +782,7 @@ unsigned int probe_irq_mask(unsigned long val)
  *	nothing prevents two IRQ probe callers from overlapping. The
  *	results of this are non-optimal.
  */
- 
+
 int probe_irq_off(unsigned long val)
 {
 	int i, irq_found, nr_irqs;

@@ -97,7 +97,7 @@
 		sw	ra,GDB_FR_REG31(sp)
 
 		CLI				/* disable interrupts */
-		
+
 /*
  * Followed by the floating point registers
  */
@@ -211,7 +211,7 @@
 		lw	v0,GDB_FR_CP0_CONTEXT(sp)
 		mtc0	v1,CP0_INDEX
 		mtc0	v0,CP0_CONTEXT
-		
+
 
 /*
  * Next, the floating point registers

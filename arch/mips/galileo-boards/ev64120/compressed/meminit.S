@@ -1,8 +1,8 @@
-/* 
- * Define BUSWIDTH to usually be real buswidth X 2 (i.e assuming 
+/*
+ * Define BUSWIDTH to usually be real buswidth X 2 (i.e assuming
  * 2-way interleaving).  This is so that the test pattern and
  * inverted pattern are written to the same bank of memory, which
- * prevents us reading back data sitting in the dram buffers and 
+ * prevents us reading back data sitting in the dram buffers and
  * getting a false match.
  */
 
@@ -17,11 +17,11 @@
 #ifndef RAM_BASE
 #define RAM_BASE	KSEG1_BASE
 #endif
-			
+
 #ifndef MEMSTART
 #define MEMSTART	0x0		/* start of physical memory */
 #endif
-		
+
 #ifndef MEMINCR
 # define MEMINCR	0x10000		/* work up in 64Kb increments */
 #endif
@@ -36,13 +36,13 @@ SLEAF(size_mem)
 
 	li	t0,RAM_BASE+MEMSTART	# start at bottom of phys mem
 	move	t1,t0			# remember start address
-	li	t2,0xaa55aa55		# pattern 
+	li	t2,0xaa55aa55		# pattern
 	not	t3,t2			# ~pattern
 
 	move	t7,k0
 	la	t4,.fail		# bus error exception catcher
-	addu	k0,t4,s8		# RELOC 
-	
+	addu	k0,t4,s8		# RELOC
+
 	/* fill first 64Kb with zero (for cache init) */
 	move	t4,t0
 	li	t5,0x10000
@@ -55,7 +55,7 @@ SLEAF(size_mem)
 	bnez	t5,1b
 
 .loop:
-        addu    t0,MEMINCR		
+        addu    t0,MEMINCR
 	move	t4,t0
 
 	/* store pattern in bank 0, line 0 */
@@ -109,25 +109,25 @@ END(size_mem)
 
 
 /*
- * We must often initialise memory so that it has good parity/ecc, 
+ * We must often initialise memory so that it has good parity/ecc,
  * and this must be done before the caches are used.
  */
 
 /*
 	clear_mem (size)
 	  - clear memory from RAM_BASE+MEMSTART to RAM_BASE+MEMSTART+size
-	clear_mem_range (size, start)  
+	clear_mem_range (size, start)
 	  - clear memory from start to start+size
 */
 
 SLEAF(clear_mem)
 	li	a1,RAM_BASE+MEMSTART	# start at bottom of phys mem
-clear_mem_range:	
+clear_mem_range:
 	beqz	a0,9f
-	addu	a0,a1			# end of memory 
-	
+	addu	a0,a1			# end of memory
+
 	/* XXX should run cached, but caches may not be initialised yet */
-	.set noreorder	
+	.set noreorder
 #if __mips >= 3
 1:	sd	zero,0(a1)
 	sd	zero,8(a1)
@@ -139,7 +139,7 @@ clear_mem_range:
 	addu	a1,64
 	bne	a1,a0,1b
 	sd	zero,-8(a1)		# BDSLOT
-#else	
+#else
 1:	sw	zero,0(a1)
 	sw	zero,4(a1)
 	sw	zero,8(a1)
@@ -158,7 +158,7 @@ clear_mem_range:
 	addu	a1,64
 	bne	a1,a0,1b
 	sw	zero,-4(a1)		# BDSLOT
-#endif	
+#endif
 	.set	reorder
 
 9:	j	ra
@@ -172,7 +172,7 @@ SLEAF(init_tlb)
         mtc0	zero,C0_PGMASK
 	li	t8,K1BASE		/* tlbhi  = impossible vpn */
 	li	t9,(NTLBENTRIES-1)	/* index */
-	
+
 	.set noreorder
 	nop
 1:	mtc0	t8,C0_TLBHI

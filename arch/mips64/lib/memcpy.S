@@ -501,7 +501,7 @@ r_hword_align:
 r_word_align:
 	beqz	t8, r_dword_align
 	 sltiu	t8, a2, 56
-	
+
 	lh	ta0, -2(a1)
 	dsubu	a2, a2, 0x2
 	sh	ta0, -2(a0)

@@ -281,13 +281,13 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_PC_KEYB
 	kbd_ops = &no_kbd_ops;
 #endif
-	
+
 	rtc_ops = &no_rtc_ops;
 
 	switch(mips_machgroup)
 	{
 #ifdef CONFIG_BAGET_MIPS
-	case MACH_GROUP_BAGET: 
+	case MACH_GROUP_BAGET:
 		baget_setup();
 		break;
 #endif
@@ -388,7 +388,7 @@ void __init setup_arch(char **cmdline_p)
 	case  MACH_GROUP_GLOBESPAN:
 		it8172_setup();
 		break;
-#endif  
+#endif
 #ifdef CONFIG_NINO
 	case MACH_GROUP_PHILIPS:
 		nino_setup();
@@ -443,8 +443,8 @@ void __init setup_arch(char **cmdline_p)
 #define MAXMEM_PFN	PFN_DOWN(MAXMEM)
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8; 
-	if (tmp < (unsigned long)&_end) 
+	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
+	if (tmp < (unsigned long)&_end)
 		tmp += PAGE_SIZE;
 	initrd_header = (unsigned long *)tmp;
 	if (initrd_header[0] == 0x494E5244) {
@@ -580,9 +580,9 @@ void __init setup_arch(char **cmdline_p)
 	}
 	initrd_below_start_ok = 1;
 	if (initrd_start) {
-		unsigned long initrd_size = ((unsigned char *)initrd_end) - ((unsigned char *)initrd_start); 
+		unsigned long initrd_size = ((unsigned char *)initrd_end) - ((unsigned char *)initrd_start);
 		printk("Initial ramdisk at: 0x%p (%lu bytes)\n",
-		       (void *)initrd_start, 
+		       (void *)initrd_start,
 		       initrd_size);
 		if ((void *)initrd_end > phys_to_virt(PFN_PHYS(max_low_pfn))) {
 			printk("initrd extends beyond end of memory "
@@ -590,7 +590,7 @@ void __init setup_arch(char **cmdline_p)
 			       initrd_end,
 			       phys_to_virt(PFN_PHYS(max_low_pfn)));
 			initrd_start = initrd_end = 0;
-		} 
+		}
 	}
 #endif /* CONFIG_BLK_DEV_INITRD  */
 

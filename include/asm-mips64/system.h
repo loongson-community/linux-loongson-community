@@ -99,7 +99,7 @@ __asm__ (
 	"sll\t$0, $0, 1\t\t\t# nop\n\t"
 	"sll\t$0, $0, 1\t\t\t# nop\n\t"
 	"sll\t$0, $0, 1\t\t\t# nop\n\t"
-	".set\tpop\n\t"	
+	".set\tpop\n\t"
 	".endm");
 
 #define __save_and_cli(x)						\

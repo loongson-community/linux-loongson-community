@@ -199,7 +199,7 @@
 #define IP27_NMI_KREGS_OFFSET		0x11400
 #define IP27_NMI_KREGS_CPU_SIZE		0x200
 /*
- * save area of kernel nmi regs in eframe format 
+ * save area of kernel nmi regs in eframe format
  */
 #define IP27_NMI_EFRAME_OFFSET		0x11800
 #define IP27_NMI_EFRAME_SIZE		0x200

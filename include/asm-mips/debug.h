@@ -17,7 +17,7 @@
 #include <linux/config.h>
 
 /*
- * run-time macros for catching spurious errors.  Eable CONFIG_DEBUG in 
+ * run-time macros for catching spurious errors.  Eable CONFIG_DEBUG in
  * kernel hacking config menu to use them.
  *
  * Use them as run-time debugging aid.  NEVER USE THEM AS ERROR HANDLING CODE!!!

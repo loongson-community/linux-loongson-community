@@ -21,13 +21,13 @@ Description:
   Four systems are availalbe for download to the EVB64120A
   board.
 
-   1. - ramsys - 
+   1. - ramsys -
       To be loaded into ram then run. When run
       it decompresses the "vmlinux" kernel housed in its internal
       data structures and then jumps to the image which
       results in a linux kernel boot.
 
-   2. - flashsys - 
+   2. - flashsys -
       To be loaded into ram so that it can be
       burned into the onboard flash. Then the board jumpers
       can be switched so that the next power cycle caused
@@ -36,10 +36,10 @@ Description:
       Note: burner.srec is the utility that will allow
       the user to get this image into flash.
 
-   3. - flashsys2 - 
+   3. - flashsys2 -
       To be loaded into ram so that it can be
       burned into the onboard flash. Then on each power
-      cycle when the standard PMON prompt is presented 
+      cycle when the standard PMON prompt is presented
       the user can type `call 0xbf000000` to invoke
       the system in flash which then proceeds as
       described by #1 above.
@@ -53,8 +53,8 @@ Example: Running from Ram
 ==========================
 
   In this scenario the compressed system is downloaded
-  into ram and run directly from there. No flash is involved 
-  in this scenario. Naturally, the download must be repeated 
+  into ram and run directly from there. No flash is involved
+  in this scenario. Naturally, the download must be repeated
   on every power cycle.
 
   1. At the PMON prompt type `load`
@@ -69,7 +69,7 @@ Example: Running from flash: Scenario #1
 ========================================
 
   In this scenario vmlinux runs out of flash code
-  automatically on every power up. This means that 
+  automatically on every power up. This means that
   standard PMON code (of eprom) never runs.
 
   1. Place the boot jumpers in the Boot-from-eprom
@@ -77,7 +77,7 @@ Example: Running from flash: Scenario #1
      are found when booting PMON.
 
      Jumper settings. J11 - Removed
-                      J20 - Moved from the 1&2 position to 
+                      J20 - Moved from the 1&2 position to
                             the 2&3 position instead
 
   2. Use PMON to "load" the burner.srec image and then
@@ -89,12 +89,12 @@ Example: Running from flash: Scenario #1
      utility. The utililty will indicate when the burn
      process has completed.
 
-  4. Now switch off power and change the jumpers to 
+  4. Now switch off power and change the jumpers to
      the boot-from-flash position. The next power cycle
      will run the flash based system automatically.
 
      Jumper settings. J11 - Added.
-                      J20 - Moved from the 2&3 position to 
+                      J20 - Moved from the 2&3 position to
                             the 1&2 position instead
 
 Example: Running from flash: Scenario #2
@@ -111,7 +111,7 @@ Example: Running from flash: Scenario #2
      are found when booting PMON.
 
      Jumper settings. J11 - Removed
-                      J20 - Moved from the 1&2 position to 
+                      J20 - Moved from the 1&2 position to
                             the 2&3 position instead
 
   2. Use PMON to "load" the burner.srec image and then

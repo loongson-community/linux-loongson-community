@@ -51,7 +51,7 @@
 /*
  * <Bacchus> Historically I wrote this stuff the same way as Linus did
  * because I was young and clueless.  And now it's so jucky that I
- * don't want to put my eyes on it again to get rid of it :-) 
+ * don't want to put my eyes on it again to get rid of it :-)
  *
  * I'll do it then, because this code offends both me and my compiler
  * - particularly the bits of inline asm which end up doing crap like
@@ -161,7 +161,7 @@ extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
  *     make bus memory CPU accessible via the readb/readw/readl/writeb/
  *     writew/writel functions and the other mmio helpers. The returned
  *     address is not guaranteed to be usable directly as a virtual
- *     address. 
+ *     address.
  */
 
 #define ioremap(offset, size)						\
@@ -176,11 +176,11 @@ extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
  *     make bus memory CPU accessible via the readb/readw/readl/writeb/
  *     writew/writel functions and the other mmio helpers. The returned
  *     address is not guaranteed to be usable directly as a virtual
- *     address. 
+ *     address.
  *
  *     This version of ioremap ensures that the memory is marked uncachable
  *     on the CPU as well as honouring existing caching rules from things like
- *     the PCI bus. Note that there are other caches and buffers on many 
+ *     the PCI bus. Note that there are other caches and buffers on many
  *     busses. In paticular driver authors should read up on PCI writes
  *
  *     It's useful if some control registers are in such an area and

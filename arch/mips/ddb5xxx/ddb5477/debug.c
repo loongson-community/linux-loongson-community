@@ -30,9 +30,9 @@ void jsun_show_regs(char *name, Register *regs)
 
 	printk("\nshow regs: %s\n", name);
 	for(i=0;regs[i].regname!= NULL; i++) {
-		printk("%-16s= %08x\t\t(@%08x)\n", 
-		       regs[i].regname, 
-		       *(unsigned *)(regs[i].regaddr), 
+		printk("%-16s= %08x\t\t(@%08x)\n",
+		       regs[i].regname,
+		       *(unsigned *)(regs[i].regaddr),
 		       regs[i].regaddr);
 	}
 }

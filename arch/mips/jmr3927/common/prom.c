@@ -5,11 +5,11 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * Based on arch/mips/au1000/common/prom.c
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/xx files.
  *
  * Carsten Langgaard, carstenl@mips.com

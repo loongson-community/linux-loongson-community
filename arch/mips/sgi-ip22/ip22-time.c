@@ -3,10 +3,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Time operations for IP22 machines. Original code may come from 
+ * Time operations for IP22 machines. Original code may come from
  * Ralf Baechle or David S. Miller (sorry guys, i'm really not sure)
  *
- * Copyright (C) 2001 by Ladislav Michl 
+ * Copyright (C) 2001 by Ladislav Michl
  */
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -28,7 +28,7 @@
  * uses 0 to 11.
  */
 static unsigned long indy_rtc_get_time(void)
-{	
+{
 	unsigned char yrs, mon, day, hrs, min, sec;
 	unsigned char save_control;
 
@@ -127,8 +127,8 @@ static unsigned long dosample(volatile unsigned char *tcwp,
 	return ((ct1 - ct0) / 5000) * 5000;
 }
 
-/* 
- * Here we need to calibrate the cycle counter to at least be close. 
+/*
+ * Here we need to calibrate the cycle counter to at least be close.
  */
 void indy_time_init(void)
 {
@@ -165,7 +165,7 @@ void indy_time_init(void)
 	if (r4k_ticks[0] != r4k_ticks[1]) {
 		printk ("warning: timer counts differ, retrying...");
 		r4k_ticks[2] = dosample (tcwp, tc2p);
-		if (r4k_ticks[2] == r4k_ticks[0] 
+		if (r4k_ticks[2] == r4k_ticks[0]
 		    || r4k_ticks[2] == r4k_ticks[1])
 			r4k_tick = r4k_ticks[2];
 		else {
@@ -179,12 +179,12 @@ void indy_time_init(void)
 	printk("%d [%d.%02d MHz CPU]\n", (int) r4k_tick,
 		(int) (r4k_tick / 5000), (int) (r4k_tick % 5000) / 50);
 
-	mips_counter_frequency = r4k_tick * HZ;	
-	
+	mips_counter_frequency = r4k_tick * HZ;
+
 	/* HACK ALERT! This get's called after traps initialization
 	 * We piggyback the initialization of GIO bus here even though
 	 * it is technically not related with the timer in any way.
-	 * Doing it from ip22_setup wouldn't work since traps aren't 
+	 * Doing it from ip22_setup wouldn't work since traps aren't
 	 * initialized yet.
 	 */
 	sgigio_init();
@@ -225,7 +225,7 @@ extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
 static void indy_timer_setup(struct irqaction *irq)
 {
 	unsigned long count;
-	
+
 	/* over-write the handler, we use our own way */
 	irq->handler = no_action;
 

@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -29,17 +29,17 @@
  */
 
 static u64 mailbox_set_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU, 
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU,
 	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU
 };
 
 static u64 mailbox_clear_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU, 
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU,
 	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU
 };
 
 static u64 mailbox_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU, 
+	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU,
 	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU
 };
 
@@ -66,7 +66,7 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	unsigned int action;
-	
+
 	/* Load the mailbox register to figure out what we're supposed to do */
 	action = (in64(mailbox_regs[cpu]) >> 48) & 0xffff;
 

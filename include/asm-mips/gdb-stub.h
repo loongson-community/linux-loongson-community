@@ -57,7 +57,7 @@
 #define GDB_FR_REG29		((GDB_FR_REG28) + 4)		/* 29 */
 #define GDB_FR_REG30		((GDB_FR_REG29) + 4)		/* 30 */
 #define GDB_FR_REG31		((GDB_FR_REG30) + 4)		/* 31 */
-	
+
 /*
  * Saved special registers
  */
@@ -180,7 +180,7 @@ struct gdb_regs {
 	 */
 	long	frame_ptr;
 	long    dummy;		/* unused */
-	
+
 	/*
 	 * saved cp0 registers
 	 */

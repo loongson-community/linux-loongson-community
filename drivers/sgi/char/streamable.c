@@ -34,13 +34,13 @@ int
 get_sioc (struct strioctl *sioc, unsigned long arg)
 {
 	int v;
-	
+
 	v = verify_area (VERIFY_WRITE, (void *) arg, sizeof (struct strioctl));
 	if (v)
 		return v;
 	if (copy_from_user (sioc, (void *) arg, sizeof (struct strioctl)))
 		return -EFAULT;
-		
+
 	v = verify_area (VERIFY_WRITE, (void *) sioc->ic_dp, sioc->ic_len);
 	if (v)
 		return v;
@@ -59,7 +59,7 @@ sgi_gfx_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigne
 struct file_operations sgi_gfx_fops = {
 	ioctl:		sgi_gfx_ioctl,
 };
- 
+
 static struct miscdevice dev_gfx = {
 	SGI_GFX_MINOR, "sgi-gfx", &sgi_gfx_fops
 };
@@ -81,12 +81,12 @@ static int
 sgi_kbd_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
 {
 	*found = 1;
-	
+
 	switch (cmd){
 
 	case IDEVINITDEVICE:
 		return 0;
-			
+
 	case IDEVGETDEVICEDESC:
 		if (size >= sizeof (idevDesc)){
 			if (copy_to_user (data, &sgi_kbd_desc, sizeof (sgi_kbd_desc)))
@@ -112,7 +112,7 @@ sgi_keyb_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsign
 {
 	struct strioctl sioc;
 	int    f, v;
-	
+
 	/* IRIX calls I_PUSH on the opened device, go figure */
 	if (cmd == I_PUSH)
 		return 0;
@@ -127,16 +127,16 @@ sgi_keyb_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsign
 		 * call a stock IRIX xxx_wioctl routine
 		 *
 		 * The NULL is supposed to be a idevInfo, right now we
-		 * do not support this in our kernel.  
+		 * do not support this in our kernel.
 		 */
 		return sgi_kbd_sioc (NULL, sioc.ic_cmd, sioc.ic_len, sioc.ic_dp, &f);
 	}
-	
+
 	if (cmd == SHMIQ_ON){
 		kbd_assigned_device = arg;
 		forward_chars = fg_console + 1;
 		kbd_prev_mode = kbd_table [fg_console].kbdmode;
-		
+
 	        kbd_table [fg_console].kbdmode = VC_RAW;
 	} else if (cmd == SHMIQ_OFF && forward_chars){
 		kbd_table [forward_chars-1].kbdmode = kbd_prev_mode;
@@ -201,15 +201,15 @@ static idevValuatorDesc mouse_default_valuator = {
 
 static int mouse_opened;
 static idevValuatorDesc mouse_valuators [MOUSE_VALUATORS];
-	
+
 int
 sgi_mouse_open (struct inode *inode, struct file *file)
 {
 	int i;
-	
+
 	if (mouse_opened)
 		return -EBUSY;
-	
+
 	mouse_opened = 1;
 	for (i = 0; i < MOUSE_VALUATORS; i++)
 		mouse_valuators [i] = mouse_default_valuator;
@@ -231,7 +231,7 @@ sgi_mouse_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
 	switch (cmd){
 	case IDEVINITDEVICE:
 		return 0;
-			
+
 	case IDEVGETDEVICEDESC:
 		if (size >= sizeof (idevDesc)){
 			if (copy_to_user (data, &sgi_mouse_desc, sizeof (sgi_mouse_desc)))
@@ -242,7 +242,7 @@ sgi_mouse_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
 
 	case IDEVGETVALUATORDESC: {
 		idevGetSetValDesc request, *ureq = (idevGetSetValDesc *) data;
-		
+
 		if (size < sizeof (idevGetSetValDesc))
 			return -EINVAL;
 
@@ -250,7 +250,7 @@ sgi_mouse_sioc (idevInfo *dinfo, int cmd, int size, char *data, int *found)
 			return -EFAULT;
 		if (request.valNum >= MOUSE_VALUATORS)
 			return -EINVAL;
-		if (copy_to_user ((void *)&ureq->desc, 
+		if (copy_to_user ((void *)&ureq->desc,
 				  (void *)&mouse_valuators [request.valNum],
 				  sizeof (idevValuatorDesc)))
 			return -EFAULT;
@@ -276,16 +276,16 @@ sgi_mouse_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsig
 		v = get_sioc (&sioc, arg);
 		if (v)
 			return v;
-		
+
 		/* Why like this?  Because this is a sample piece of code
 		 * that can be copied into other drivers and shows how to
 		 * call a stock IRIX xxx_wioctl routine
 		 *
 		 * The NULL is supposed to be a idevInfo, right now we
-		 * do not support this in our kernel.  
+		 * do not support this in our kernel.
 		 */
 		return sgi_mouse_sioc (NULL, sioc.ic_cmd, sioc.ic_len, sioc.ic_dp, &f);
-		
+
 	case SHMIQ_ON:
 	case SHMIQ_OFF:
 		return 0;
@@ -309,7 +309,7 @@ streamable_init (void)
 {
 	printk ("streamable misc devices registered (keyb:%d, gfx:%d)\n",
 		SGI_STREAMS_KEYBOARD, SGI_GFX_MINOR);
-	
+
 	misc_register (&dev_gfx);
 	misc_register (&dev_input_keyboard);
 	misc_register (&dev_input_mouse);

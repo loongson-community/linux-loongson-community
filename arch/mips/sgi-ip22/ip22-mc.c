@@ -88,12 +88,12 @@ void __init sgimc_init(void)
 	/* Place the MC into a known state.  This must be done before
 	 * interrupts are first enabled etc.
 	 */
-	
+
 	/* Step 0: Make sure we turn off the watchdog in case it's
 	 *         still running (which might be the case after a
 	 *         soft reboot).
 	 */
-	tmpreg = mcmisc_regs->cpuctrl0; 
+	tmpreg = mcmisc_regs->cpuctrl0;
 	tmpreg &= ~SGIMC_CCTRL0_WDOG;
 	mcmisc_regs->cpuctrl0 = tmpreg;
 

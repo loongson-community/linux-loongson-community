@@ -66,7 +66,7 @@
 #define TIOCGETP        0x7408
 #define TIOCSETP        0x7409
 #define TIOCSETN        0x740a			/* TIOCSETP wo flush */
- 
+
 /* #define TIOCSETA	_IOW('t', 20, struct termios) set termios struct */
 /* #define TIOCSETAW	_IOW('t', 21, struct termios) drain output, set */
 /* #define TIOCSETAF	_IOW('t', 22, struct termios) drn out, fls in, set */

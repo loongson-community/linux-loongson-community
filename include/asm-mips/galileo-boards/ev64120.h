@@ -15,7 +15,7 @@
  */
 #define GT64120_BASE    (KSEG1ADDR(0x14000000))
 #define MIPS_GT_BASE    GT64120_BASE
- 
+
 /*
  *   PCI Bus allocation
  */
@@ -23,12 +23,12 @@
 #define GT_PCI_MEM_SIZE    0x02000000
 #define GT_PCI_IO_BASE     0x10000000
 #define GT_PCI_IO_SIZE     0x02000000
-#define GT_ISA_IO_BASE     PCI_IO_BASE          
+#define GT_ISA_IO_BASE     PCI_IO_BASE
 
 /*
  *   Duart I/O ports.
  */
-#define EV64120_COM1_BASE_ADDR  (0x1d000000 + 0x20) 
+#define EV64120_COM1_BASE_ADDR  (0x1d000000 + 0x20)
 #define EV64120_COM2_BASE_ADDR  (0x1d000000 + 0x00)
 
 
@@ -46,7 +46,7 @@
 
 
 /*
- * Because of an error/peculiarity in the Galileo chip, we need to swap the 
+ * Because of an error/peculiarity in the Galileo chip, we need to swap the
  * bytes when running bigendian.
  */
 
@@ -54,6 +54,6 @@
              *(volatile u32 *)(MIPS_GT_BASE+ofs) = cpu_to_le32(data)
 #define GT_READ(ofs, data)   \
              *data = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+ofs))
-    
+
 
 #endif /* !(_MIPS_EV64120_H) */

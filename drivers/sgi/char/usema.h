@@ -5,6 +5,6 @@
 #ifndef _SGI_USEMA_H
 #define _SGI_USEMA_H
 
-void usema_init (void); 
+void usema_init (void);
 
 #endif

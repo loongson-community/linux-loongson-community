@@ -1,11 +1,11 @@
-/*  
+/*
  * Miscellaneous definitions used to call the routines contained in the boot
  * PROMs on various models of DECSTATION's.
  * the rights to redistribute these changes.
  */
 
-#ifndef __ASM_DEC_PROM_H 
-#define __ASM_DEC_PROM_H 
+#ifndef __ASM_DEC_PROM_H
+#define __ASM_DEC_PROM_H
 
 /*
  * PMAX/3MAX PROM entry points for DS2100/3100's and DS5000/2xx's.  Many of

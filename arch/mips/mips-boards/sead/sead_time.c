@@ -51,7 +51,7 @@ extern rwlock_t xtime_lock;
 static char display_string[] = "        LINUX ON SEAD       ";
 
 static unsigned int display_count = 0;
-#define MAX_DISPLAY_COUNT (sizeof(display_string) - 8) 
+#define MAX_DISPLAY_COUNT (sizeof(display_string) - 8)
 
 #define MIPS_CPU_TIMER_IRQ 7
 
@@ -95,13 +95,13 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		do_softirq();
 }
 
-/* 
+/*
  * Figure out the r4k offset, the amount to increment the compare
- * register for each time tick. 
+ * register for each time tick.
  */
 static unsigned long __init cal_r4koff(void)
 {
-	/* 
+	/*
 	 * The SEAD board doesn't have a real time clock, so we can't
 	 * really calculate the timer offset.
 	 * For now we hardwire the SEAD board frequency to 12MHz.
@@ -122,7 +122,7 @@ void __init mips_time_init(void)
 	r4k_offset = cal_r4koff();
 	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
-        if ((read_32bit_cp0_register(CP0_PRID) & 0xffff00) == 
+        if ((read_32bit_cp0_register(CP0_PRID) & 0xffff00) ==
 	    (PRID_COMP_MIPS | PRID_IMP_20KC))
 		est_freq = r4k_offset*HZ;
 	else
@@ -130,7 +130,7 @@ void __init mips_time_init(void)
 
 	est_freq += 5000;    /* round */
 	est_freq -= est_freq%10000;
-	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
+	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 
 	__restore_flags(flags);

@@ -28,15 +28,15 @@
 #include <asm/addrspace.h>
 #include <asm/io.h>
 
-/* 
+/*
  * Malta I/O ports base address for the Galileo GT64120 and Algorithmics
- * Bonito system controllers. 
+ * Bonito system controllers.
  */
 #define MALTA_GT_PORT_BASE      (KSEG1ADDR(0x18000000))
 #define MALTA_BONITO_PORT_BASE  (KSEG1ADDR(0x1fd00000))
 #define MALTA_MSC_PORT_BASE     (KSEG1ADDR(0x18000000))
 
-/* 
+/*
  * Malta RTC-device indirect register access.
  */
 #define MALTA_RTC_ADR_REG       0x70

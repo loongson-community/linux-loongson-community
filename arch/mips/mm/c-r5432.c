@@ -353,7 +353,7 @@ static void r5432_flush_page_to_ram_d32(struct page *page)
 	blast_dcache32_page((unsigned long)page_address(page));
 }
 
-static void 
+static void
 r5432_flush_icache_range(unsigned long start, unsigned long end)
 {
 	r5432_flush_cache_all_d32i32();

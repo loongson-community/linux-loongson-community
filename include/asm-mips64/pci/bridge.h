@@ -612,7 +612,7 @@ typedef struct bridge_err_cmdword_s {
 /* Bridge INT_DEV register bits definition */
 #define BRIDGE_INT_DEV_SHFT(n)		((n)*3)
 #define BRIDGE_INT_DEV_MASK(n)		(0x7 << BRIDGE_INT_DEV_SHFT(n))
-#define BRIDGE_INT_DEV_SET(_dev, _line) (_dev << BRIDGE_INT_DEV_SHFT(_line))	
+#define BRIDGE_INT_DEV_SET(_dev, _line) (_dev << BRIDGE_INT_DEV_SHFT(_line))
 
 /* Bridge interrupt(x) register bits definition */
 #define BRIDGE_INT_ADDR_HOST		0x0003FF00

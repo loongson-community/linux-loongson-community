@@ -10,8 +10,8 @@
  * Copyright (C) 2001 Liam Davies (ldavies@agile.tv)
  *
  */
-#ifndef __ASM_MIPS_COBALT_H 
-#define __ASM_MIPS_COBALT_H 
+#ifndef __ASM_MIPS_COBALT_H
+#define __ASM_MIPS_COBALT_H
 
 /*
  * COBALT interrupt enable bits

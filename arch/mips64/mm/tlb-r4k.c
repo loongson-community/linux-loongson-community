@@ -17,7 +17,7 @@
  *
  * MIPS64 CPU variant specific MMU routines.
  * These routine are not optimized in any way, they are done in a generic way
- * so they can be used on all MIPS64 compliant CPUs, and also done in an 
+ * so they can be used on all MIPS64 compliant CPUs, and also done in an
  * attempt not to break anything for the R4xx0 style CPUs.
  */
 #include <linux/init.h>
@@ -62,7 +62,7 @@ void local_flush_tlb_all(void)
 
 	/* Blast 'em all away. */
 	while(entry < mips_cpu.tlbsize) {
-	        /* Make sure all entries differ. */  
+	        /* Make sure all entries differ. */
 	        set_entryhi(KSEG0+entry*0x2000);
 		set_index(entry);
 		BARRIER;
@@ -86,7 +86,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		__save_and_cli(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if (mm == current->active_mm)
-			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) & 
+			set_entryhi(CPU_CONTEXT(smp_processor_id(), mm) &
 				    0xff);
 		__restore_flags(flags);
 	}
@@ -108,7 +108,7 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		size = (size + 1) >> 1;
 		if(size <= mips_cpu.tlbsize/2) {
 			int oldpid = (get_entryhi() & 0xff);
-			int newpid = (CPU_CONTEXT(smp_processor_id(), mm) & 
+			int newpid = (CPU_CONTEXT(smp_processor_id(), mm) &
 				      0xff);
 
 			start &= (PAGE_MASK << 1);
@@ -137,7 +137,7 @@ void local_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if (mm == current->active_mm)
-				set_entryhi(CPU_CONTEXT(smp_processor_id(), 
+				set_entryhi(CPU_CONTEXT(smp_processor_id(),
 							mm) & 0xff);
 		}
 		__restore_flags(flags);
@@ -166,7 +166,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		set_entrylo1(0);
 		if(idx < 0)
 			goto finish;
-		/* Make sure all entries differ. */  
+		/* Make sure all entries differ. */
 		set_entryhi(KSEG0+idx*0x2000);
 		BARRIER;
 		tlb_write_indexed();
@@ -177,7 +177,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	}
 }
 
-/* 
+/*
  * Updates the TLB with the new pte(s).
  */
 void mips64_update_mmu_cache(struct vm_area_struct * vma,
@@ -280,8 +280,8 @@ void show_tlb(void)
 		entrylo0 = get_entrylo0();
 		entrylo1 = get_entrylo1();
 		printk("%02d: ASID=%02d%s VA=0x%08x ", entry, entryhi & ASID_MASK, (entrylo0 & entrylo1 & 1) ? "(G)" : "   ", entryhi & ~ASID_MASK);
-		printk("PA0=0x%08x C0=%x %s%s%s\n", (entrylo0>>6)<<12, (entrylo0>>3) & 7, (entrylo0 & 4) ? "Dirty " : "", (entrylo0 & 2) ? "Valid " : "Invalid ", (entrylo0 & 1) ? "Global" : ""); 
-		printk("\t\t\t     PA1=0x%08x C1=%x %s%s%s\n", (entrylo1>>6)<<12, (entrylo1>>3) & 7, (entrylo1 & 4) ? "Dirty " : "", (entrylo1 & 2) ? "Valid " : "Invalid ", (entrylo1 & 1) ? "Global" : ""); 
+		printk("PA0=0x%08x C0=%x %s%s%s\n", (entrylo0>>6)<<12, (entrylo0>>3) & 7, (entrylo0 & 4) ? "Dirty " : "", (entrylo0 & 2) ? "Valid " : "Invalid ", (entrylo0 & 1) ? "Global" : "");
+		printk("\t\t\t     PA1=0x%08x C1=%x %s%s%s\n", (entrylo1>>6)<<12, (entrylo1>>3) & 7, (entrylo1 & 4) ? "Dirty " : "", (entrylo1 & 2) ? "Valid " : "Invalid ", (entrylo1 & 1) ? "Global" : "");
 
 		dump_mm_page(entryhi & ~0xff);
 		dump_mm_page((entryhi & ~0xff) | 0x1000);
@@ -308,19 +308,19 @@ void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
         wired = get_wired();
         set_wired (wired + 1);
         set_index (wired);
-        BARRIER;    
+        BARRIER;
         set_pagemask (pagemask);
         set_entryhi(entryhi);
         set_entrylo0(entrylo0);
         set_entrylo1(entrylo1);
-        BARRIER;    
+        BARRIER;
         tlb_write_indexed();
-        BARRIER;    
-    
+        BARRIER;
+
         set_entryhi(old_ctx);
-        BARRIER;    
+        BARRIER;
         set_pagemask (old_pagemask);
-        local_flush_tlb_all();    
+        local_flush_tlb_all();
         __restore_flags(flags);
 }
 
@@ -353,17 +353,17 @@ __init int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 	}
 
 	set_index(temp_tlb_entry);
-	BARRIER;    
+	BARRIER;
 	set_pagemask(pagemask);
 	set_entryhi(entryhi);
 	set_entrylo0(entrylo0);
 	set_entrylo1(entrylo1);
-	BARRIER;    
+	BARRIER;
 	tlb_write_indexed();
-	BARRIER;    
-    
+	BARRIER;
+
 	set_entryhi(old_ctx);
-	BARRIER;    
+	BARRIER;
 	set_pagemask(old_pagemask);
 out:
 	__restore_flags(flags);
@@ -375,10 +375,10 @@ static void __init probe_tlb(unsigned long config)
         unsigned long config1;
 
         if (!(config & (1 << 31))) {
-	        /* 
-		 * Not a MIPS64 complainant CPU. 
+	        /*
+		 * Not a MIPS64 complainant CPU.
 		 * Config 1 register not supported, we assume R4k style.
-		 */  
+		 */
 	        mips_cpu.tlbsize = 48;
 	} else {
 	        config1 = read_mips32_cp0_config1();
@@ -386,7 +386,7 @@ static void __init probe_tlb(unsigned long config)
 		        panic("No MMU present");
 		else
 		        mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
-	}	
+	}
 
 	printk("Number of TLB entries %d.\n", mips_cpu.tlbsize);
 }

@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -50,7 +50,7 @@ static struct sbprof_tb *sbp;
  * overflow.
  *
  * We map the interrupt for trace_buffer_freeze to handle it on CPU 0.
- * 
+ *
  ************************************************************************/
 
 /* Once per second on a 500 Mhz 1250 */
@@ -150,17 +150,17 @@ static int sbprof_zbprof_start(struct file *filp)
 	out64(0, KSEG1 + A_ADDR_TRAP_UP_1);
 	out64(0, KSEG1 + A_ADDR_TRAP_UP_2);
 	out64(0, KSEG1 + A_ADDR_TRAP_UP_3);
-	
+
 	out64(0, KSEG1 + A_ADDR_TRAP_DOWN_0);
 	out64(0, KSEG1 + A_ADDR_TRAP_DOWN_1);
 	out64(0, KSEG1 + A_ADDR_TRAP_DOWN_2);
 	out64(0, KSEG1 + A_ADDR_TRAP_DOWN_3);
-	
+
 	out64(0, KSEG1 + A_ADDR_TRAP_CFG_0);
 	out64(0, KSEG1 + A_ADDR_TRAP_CFG_1);
 	out64(0, KSEG1 + A_ADDR_TRAP_CFG_2);
 	out64(0, KSEG1 + A_ADDR_TRAP_CFG_3);
-	
+
 	/* Initialize Trace Event 0-7 */
 	//				when interrupt
 	out64(M_SCD_TREVT_INTERRUPT, KSEG1 + A_SCD_TRACE_EVENT_0);
@@ -171,7 +171,7 @@ static int sbprof_zbprof_start(struct file *filp)
 	out64(0, KSEG1 + A_SCD_TRACE_EVENT_5);
 	out64(0, KSEG1 + A_SCD_TRACE_EVENT_6);
 	out64(0, KSEG1 + A_SCD_TRACE_EVENT_7);
-	
+
 	/* Initialize Trace Sequence 0-7 */
 	//				     Start on event 0 (interrupt)
 	out64(V_SCD_TRSEQ_FUNC_START|0x0fff,
@@ -252,7 +252,7 @@ static int sbprof_tb_open(struct inode *inode, struct file *filp)
 static int sbprof_tb_release(struct inode *inode, struct file *filp)
 {
 	int minor;
-	
+
 	minor = MINOR(inode->i_rdev);
 	if (minor != 0 || sbp == NULL) {
 		return -ENODEV;
@@ -269,7 +269,7 @@ static int sbprof_tb_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static ssize_t sbprof_tb_read(struct file *filp, char *buf, 
+static ssize_t sbprof_tb_read(struct file *filp, char *buf,
 			   size_t size, loff_t *offp)
 {
 	int cur_sample, sample_off, cur_count, sample_left;
@@ -309,9 +309,9 @@ static ssize_t sbprof_tb_read(struct file *filp, char *buf,
 #define SBPROF_ZBSTOP	_IOW('s', 1, int)
 #define SBPROF_ZBFULL	_IOW('s', 2, int)
 
-static int sbprof_tb_ioctl(struct inode *inode, 
+static int sbprof_tb_ioctl(struct inode *inode,
 			struct file *filp,
-			unsigned int command, 
+			unsigned int command,
 			unsigned long arg)
 {
 	int error = 0;
@@ -346,7 +346,7 @@ static struct file_operations sbprof_tb_fops = {
 
 static devfs_handle_t devfs_handle;
 
-static int __init sbprof_tb_init(void) 
+static int __init sbprof_tb_init(void)
 {
 	if (devfs_register_chrdev(SBPROF_TB_MAJOR, DEVNAME, &sbprof_tb_fops)) {
 		printk(KERN_WARNING DEVNAME ": initialization failed (dev %d)\n",

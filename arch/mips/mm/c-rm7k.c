@@ -138,7 +138,7 @@ rm7k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 		a += sc_lsize;
 	}
 
-	if (!rm7k_tcache_enabled) 
+	if (!rm7k_tcache_enabled)
 		return;
 
 	a = addr & ~(tc_pagesize - 1);
@@ -149,7 +149,7 @@ rm7k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 		a += tc_pagesize;
 	}
 }
-	       
+
 static void
 rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 {
@@ -164,7 +164,7 @@ rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 		a += sc_lsize;
 	}
 
-	if (!rm7k_tcache_enabled) 
+	if (!rm7k_tcache_enabled)
 		return;
 
 	a = addr & ~(tc_pagesize - 1);
@@ -209,10 +209,10 @@ static inline void probe_dcache(unsigned long config)
 }
 
 
-/* 
+/*
  * This function is executed in the uncached segment KSEG1.
  * It must not touch the stack, because the stack pointer still points
- * into KSEG0. 
+ * into KSEG0.
  *
  * Three options:
  *	- Write it in assembly and guarantee that we don't use the stack.
@@ -227,12 +227,12 @@ static inline void probe_dcache(unsigned long config)
 static __init void setup_scache(void)
 {
 	int register i;
-	
+
 	set_cp0_config(1<<3 /* CONF_SE */);
 
 	set_taglo(0);
 	set_taghi(0);
-	
+
 	for (i=0; i<scache_size; i+=sc_lsize) {
 		__asm__ __volatile__ (
 		      ".set noreorder\n\t"
@@ -264,7 +264,7 @@ static inline void probe_scache(unsigned long config)
 	func();
 	printk("Done\n");
 }
- 
+
 static inline void probe_tcache(unsigned long config)
 {
 	if ((config >> 17) & 1)
@@ -274,10 +274,10 @@ static inline void probe_tcache(unsigned long config)
 	 * magic necessary to turn it on, and blindly asking the CPU to
 	 * start using it would may give cache errors.
 	 *
-	 * Also, board-specific knowledge may allow us to use the 
+	 * Also, board-specific knowledge may allow us to use the
 	 * CACHE Flash_Invalidate_T instruction if the tag RAM supports
 	 * it, and may specify the size of the L3 cache so we don't have
-	 * to probe it. 
+	 * to probe it.
 	 */
 	printk(KERN_INFO "Tertiary cache present, %s enabled\n",
 	       config&(1<<12) ? "already" : "not (yet)");

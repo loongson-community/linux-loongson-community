@@ -522,13 +522,13 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		 * a bit extreme for what should be an infrequent event.
 		 */
 		save_fp(current);
-	
+
 		/* Run the emulator */
 		sig = fpu_emulator_cop1Handler (0, regs,
 			&current->thread.fpu.soft);
 
-		/* 
-		 * We can't allow the emulated instruction to leave any of 
+		/*
+		 * We can't allow the emulated instruction to leave any of
 		 * the cause bit set in $fcr31.
 		 */
 		current->thread.fpu.soft.sr &= ~FPU_CSR_ALL_X;
@@ -539,8 +539,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		/* If something went wrong, signal */
 		if (sig)
 		{
-			/* 
-			 * Return EPC is not calculated in the FPU emulator, 
+			/*
+			 * Return EPC is not calculated in the FPU emulator,
 			 * if a signal is being send. So we calculate it here.
 			 */
 			compute_return_epc(regs);
@@ -718,8 +718,8 @@ fp_emul:
 	sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
 	last_task_used_math = current;
 	if (sig) {
-		/* 
-		 * Return EPC is not calculated in the FPU emulator, if 
+		/*
+		 * Return EPC is not calculated in the FPU emulator, if
 		 * a signal is being send. So we calculate it here.
 		 */
 		compute_return_epc(regs);
@@ -798,7 +798,7 @@ static inline void parity_protection_init(void)
 		       "MIPS 5KC CPUs.\n");
 		write_32bit_cp0_register(CP0_ECC,
 		                         read_32bit_cp0_register(CP0_ECC)
-		                         | 0x80000000); 
+		                         | 0x80000000);
 		break;
 	default:
 		break;
@@ -851,9 +851,9 @@ void ejtag_exception_handler(struct pt_regs *regs)
         printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
         depc = read_32bit_cp0_register(CP0_DEPC);
         debug = read_32bit_cp0_register(CP0_DEBUG);
-        printk("DEPC = %08x, DEBUG = %08x\n", depc, debug); 
+        printk("DEPC = %08x, DEBUG = %08x\n", depc, debug);
         if (debug & 0x80000000) {
-                /* 
+                /*
                  * In branch delay slot.
                  * We cheat a little bit here and use EPC to calculate the
                  * debug return address (DEPC). EPC is restored after the
@@ -952,8 +952,8 @@ void __init trap_init(void)
 	for (i = 0; i <= 31; i++)
 		set_except_vector(i, handle_reserved);
 
-	/* 
-	 * Copy the EJTAG debug exception vector handler code to it's final 
+	/*
+	 * Copy the EJTAG debug exception vector handler code to it's final
 	 * destination.
 	 */
 	if (mips_cpu.options & MIPS_CPU_EJTAG)

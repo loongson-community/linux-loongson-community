@@ -307,7 +307,7 @@ static void enable_maceisa_irq (unsigned int irq)
 	unsigned long flags;
 
 	DBG ("maceisa enable: %u\n", irq);
-	
+
 	switch (irq) {
 	case MACEISA_AUDIO_SW_IRQ ... MACEISA_AUDIO3_MERR_IRQ:
 		crime_int = MACE_AUDIO_INT;
@@ -444,7 +444,7 @@ static void ip32_unknown_interrupt (struct pt_regs *regs)
 {
 	u64 crime;
 	u32 mace;
-	
+
 	printk ("Unknown interrupt occurred!\n");
 	printk ("cp0_status: %08x\tcp0_cause: %08x\n",
 		read_32bit_cp0_register (CP0_STATUS),

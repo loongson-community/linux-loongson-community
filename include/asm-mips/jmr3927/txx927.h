@@ -7,8 +7,8 @@
  *
  * Copyright (C) 2000 Toshiba Corporation
  */
-#ifndef __ASM_TXX927_H 
-#define __ASM_TXX927_H 
+#ifndef __ASM_TXX927_H
+#define __ASM_TXX927_H
 
 #ifndef __ASSEMBLY__
 

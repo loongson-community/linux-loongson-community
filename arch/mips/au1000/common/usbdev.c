@@ -224,7 +224,7 @@ alloc_packet(endpoint_t * ep, int data_size, void* data)
 	pkt->next = NULL;
 	if (data)
 		memcpy(pkt->payload, data, data_size);
-	
+
 	return pkt;
 }
 
@@ -445,7 +445,7 @@ kickstart_send_packet(endpoint_t * ep)
 		    ep->inlist.count);
 		return;
 	}
-	
+
 	dma_cache_wback_inv((unsigned long)pkt->payload, pkt->size);
 
 	/*
@@ -480,7 +480,7 @@ static usbdev_pkt_t *
 send_packet_complete(endpoint_t * ep)
 {
 	usbdev_pkt_t *pkt = unlink_head(&ep->inlist);
-	
+
 	if (pkt) {
 		pkt->status =
 			(au_readl(ep->reg->ctrl_stat) & USBDEV_CS_NAK) ?
@@ -490,7 +490,7 @@ send_packet_complete(endpoint_t * ep)
 		     ep->address, (pkt->status & PKT_STATUS_NAK) ?
 		     "NAK" : "ACK", pkt, ep->inlist.count);
 	}
-	
+
 	/*
 	 * The write fifo should already be drained if things are
 	 * working right, but flush it anyway just in case.
@@ -515,20 +515,20 @@ send_packet(struct usb_dev* dev, usbdev_pkt_t *pkt, int async)
 {
 	pkt_list_t *list;
 	endpoint_t* ep;
-	
+
 	if (!pkt || !(ep = epaddr_to_ep(dev, pkt->ep_addr)))
 		return -EINVAL;
-	
+
 	if (!pkt->size)
 		return 0;
-	
+
 	list = &ep->inlist;
 
 	if (!async && list->count) {
 		halt_dma(ep->indma);
 		flush_pkt_list(list);
 	}
-	
+
 	link_tail(ep, list, pkt);
 
 	vdbg(__FUNCTION__ ": ep%d, pkt=%p, size=%d, list count=%d",
@@ -593,7 +593,7 @@ receive_packet_complete(endpoint_t * ep)
 {
 	usbdev_pkt_t *pkt = ep->outlist.tail;
 	u32 cs;
-	
+
 	halt_dma(ep->outdma);
 
 	cs = au_readl(ep->reg->ctrl_stat);
@@ -612,11 +612,11 @@ receive_packet_complete(endpoint_t * ep)
 	 * should be drained now, but flush anyway just in case.
 	 */
 	flush_read_fifo(ep);
-	
+
 	pkt->status = (cs & USBDEV_CS_NAK) ? PKT_STATUS_NAK : PKT_STATUS_ACK;
 	if (ep->address == 0 && (cs & USBDEV_CS_SU))
 		pkt->status |= PKT_STATUS_SU;
-	
+
 	vdbg(__FUNCTION__ ": ep%d, %s pkt=%p, size=%d",
 	     ep->address, (pkt->status & PKT_STATUS_NAK) ?
 	     "NAK" : "ACK", pkt, pkt->size);
@@ -732,13 +732,13 @@ do_set_address(struct usb_dev* dev, devrequest* setup)
 		dev->address = new_addr;
 		new_state = ADDRESS;
 	}
-	
+
 	if (dev->state != new_state) {
 		dev->state = new_state;
 		/* inform function layer of usbdev state change */
 		dev->func_cb(CB_NEW_STATE, dev->state, dev->cb_data);
 	}
-	
+
 	return SETUP_STAGE;
 }
 
@@ -919,7 +919,7 @@ static void
 do_setup (struct usb_dev* dev, devrequest* setup)
 {
 	req_method_t m;
-	
+
 	dbg(__FUNCTION__ ": req %d %s", setup->request,
 	    get_std_req_name(setup->request));
 
@@ -929,7 +929,7 @@ do_setup (struct usb_dev* dev, devrequest* setup)
 		    setup->requesttype);
 		return;
 		}
-	
+
 	if ((setup->requesttype & 0x80) == USB_DIR_OUT && setup->length)
 		dbg(__FUNCTION__ ": OUT phase! length=%d", setup->length);
 
@@ -960,19 +960,19 @@ process_ep0_receive (struct usb_dev* dev)
 		spin_unlock(&ep0->lock);
 			return;
 		}
-	
+
 	// unlink immediately from endpoint.
 	unlink_head(&ep0->outlist);
-	
+
 	// override current stage if h/w says it's a setup packet
 	if (pkt->status & PKT_STATUS_SU)
 		dev->ep0_stage = SETUP_STAGE;
-	
+
 	switch (dev->ep0_stage) {
 	case SETUP_STAGE:
 		vdbg("SU bit is %s in setup stage",
 		     (pkt->status & PKT_STATUS_SU) ? "set" : "not set");
-		
+
 			if (pkt->size == sizeof(devrequest)) {
 #ifdef VDEBUG
 			if (pkt->status & PKT_STATUS_ACK)
@@ -1323,7 +1323,7 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 	endpoint_t *ep0;
 	int i, ret=0;
 	u8* fcd;
-	
+
 	if (dev_desc->bNumConfigurations > 1 ||
 	    config_desc->bNumInterfaces > 1 ||
 	    if_desc->bNumEndpoints > 4) {
@@ -1338,13 +1338,13 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 		ret = -EINVAL;
 		goto out;
 	}
-		
+
 	if (dev_desc->bMaxPacketSize0 != USBDEV_EP0_MAX_PACKET_SIZE) {
 		warn("EP0 Max Packet size must be %d",
 		     USBDEV_EP0_MAX_PACKET_SIZE);
 		dev_desc->bMaxPacketSize0 = USBDEV_EP0_MAX_PACKET_SIZE;
 	}
-	
+
 	memset(&usbdev, 0, sizeof(struct usb_dev));
 
 	usbdev.state = DEFAULT;
@@ -1355,7 +1355,7 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 		usbdev.str_desc[i] = str_desc[i];
 	usbdev.func_cb = cb;
 	usbdev.cb_data = cb_data;
-	
+
 	/* Initialize default control endpoint */
 	ep0 = &usbdev.ep[0];
 	ep0->active = 1;
@@ -1366,7 +1366,7 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 	ep0->address = 0;
 	ep0->direction = 0;
 	ep0->reg = &ep_reg[0];
-	
+
 	/* Initialize the other requested endpoints */
 	for (i = 0; i < if_desc->bNumEndpoints; i++) {
 		struct usb_endpoint_descriptor* epd = &ep_desc[i];
@@ -1419,7 +1419,7 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 		ret = -ENOMEM;
 		goto out;
 	}
-	
+
 	memcpy(fcd, config_desc, USB_DT_CONFIG_SIZE);
 	fcd += USB_DT_CONFIG_SIZE;
 	memcpy(fcd, if_desc, USB_DT_INTERFACE_SIZE);
@@ -1542,7 +1542,7 @@ usbdev_init(struct usb_device_descriptor* dev_desc,
 				ret = -ENXIO;
 				goto out;
 			}
-			
+
 			// start packet reception on OUT endpoint
 			kickstart_receive_packet(ep);
 		}

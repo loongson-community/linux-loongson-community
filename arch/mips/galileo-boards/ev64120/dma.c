@@ -6,7 +6,7 @@
 DESCRIPTION
 This file gives the user a complete interface to the powerful DMA engines,
 including functions for controling the priority mechanism.
-To fully understand the capabilities of the DMA engines please spare some 
+To fully understand the capabilities of the DMA engines please spare some
 time to go trough the spec.
 */
 
@@ -20,11 +20,11 @@ time to go trough the spec.
 #include "DMA.h"
 #endif
 /********************************************************************
-* dmaCommand - Write a command to a DMA channel 
+* dmaCommand - Write a command to a DMA channel
 *
 * Inputs: DMA_ENGINE channel - choosing one of the four engine.
 *         unsigned int command - The command to be written to the control register.
-* Returns: false if one of the parameters is erroneous else returns true. 
+* Returns: false if one of the parameters is erroneous else returns true.
 *********************************************************************/
 
 bool dmaCommand(DMA_ENGINE channel, unsigned int command)
@@ -39,14 +39,14 @@ bool dmaCommand(DMA_ENGINE channel, unsigned int command)
 * dmaTransfer - transfer data from sourceAddr to destAddr on DMA channel
 * Inputs:
 *   DMA_RECORED *nextRecoredPointer: If we are using chain mode DMA transfer,
-*   then this pointer should point to the next recored,otherwise it should be 
+*   then this pointer should point to the next recored,otherwise it should be
 *   NULL.
-*   VERY IMPORTANT !!! When using chain mode, the records must be 16 Bytes 
-*   aligned, the function will take care of that for you, but you need to 
+*   VERY IMPORTANT !!! When using chain mode, the records must be 16 Bytes
+*   aligned, the function will take care of that for you, but you need to
 *   allocate one more record for that, meaning: if you are having 3 records ,
 *   declare 4 (see the example bellow) and start using the second one.
 *   Example:
-*   Performing a chain mode DMA transfer(Copy a 1/4 mega of data using 
+*   Performing a chain mode DMA transfer(Copy a 1/4 mega of data using
 *   chain mode DMA):
 *    DMA_RECORED dmaRecoredArray[4];
 *    dmaRecoredArray[1].ByteCnt = _64KB;
@@ -149,10 +149,10 @@ bool isDmaChannelActive(DMA_ENGINE channel)
 
 
 /********************************************************************
-* changeDmaPriority - update the arbiter`s priority for channels 0-3 
+* changeDmaPriority - update the arbiter`s priority for channels 0-3
 *
-* Inputs: priority  for channels 0-1, priority  for channels 2-3, 
-          priority for groups and other priority options   
+* Inputs: priority  for channels 0-1, priority  for channels 2-3,
+          priority for groups and other priority options
 * RETURNS: false if one of the parameters is erroneous and true else
 *********************************************************************/
 

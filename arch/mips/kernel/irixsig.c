@@ -379,7 +379,7 @@ static inline void dump_sigact_irix5(struct sigact_irix5 *p)
 }
 #endif
 
-asmlinkage int 
+asmlinkage int
 irix_sigaction(int sig, const struct sigaction *act,
 	      struct sigaction *oact, void *trampoline)
 {

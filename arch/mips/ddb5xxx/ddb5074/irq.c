@@ -59,9 +59,9 @@ static void m1543_irq_setup(void)
 	 *
 	 *      IRQ1  - keyboard (default set by M1543)
 	 *      IRQ3  - reserved for UART B (default set by M1543) (note that
-	 *              the schematics for the DDB Vrc-5074 board seem to 
-	 *              indicate that IRQ3 is connected to the DS1386 
-	 *              watchdog timer interrupt output so we might have 
+	 *              the schematics for the DDB Vrc-5074 board seem to
+	 *              indicate that IRQ3 is connected to the DS1386
+	 *              watchdog timer interrupt output so we might have
 	 *              a conflict)
 	 *      IRQ4  - reserved for UART A (default set by M1543)
 	 *      IRQ5  - parallel (default set by M1543)
@@ -70,7 +70,7 @@ static void m1543_irq_setup(void)
 	 */
 
 	/*
-	 *  Assing mouse interrupt to IRQ12 
+	 *  Assing mouse interrupt to IRQ12
 	 */
 
 	/* Enter configuration mode */
@@ -115,7 +115,7 @@ void ddb_local0_irqdispatch(struct pt_regs *regs)
 		if (mask & 1) {
 			if (nile4_irq == NILE4_INT_INTE) {
 				int i8259_irq;
-				
+
 				nile4_clear_irq(NILE4_INT_INTE);
 				i8259_irq = nile4_i8259_iack();
 				do_IRQ(i8259_irq, regs);
@@ -157,7 +157,7 @@ void __init ddb_irq_setup(void)
 	nile4_irq_setup(NILE4_IRQ_BASE);
 	m1543_irq_setup();
 	init_i8259_irqs();
-	
+
 
 	printk("CPU_IRQ_BASE: %d\n",CPU_IRQ_BASE);
 

@@ -82,7 +82,7 @@ int main (int argc, char *argv[])
 		die ("open initrd");
 	if (fstat (fd_initrd, &st) < 0)
 		die ("fstat initrd");
-	loadaddr = ((SWAB(esecs[2].s_vaddr) + SWAB(esecs[2].s_size) 
+	loadaddr = ((SWAB(esecs[2].s_vaddr) + SWAB(esecs[2].s_size)
 			+ MIPS_PAGE_SIZE-1) & ~MIPS_PAGE_MASK) - 8;
 	if (loadaddr < (SWAB(esecs[2].s_vaddr) + SWAB(esecs[2].s_size)))
 		loadaddr += MIPS_PAGE_SIZE;

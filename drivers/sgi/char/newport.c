@@ -28,7 +28,7 @@ void newport_save (void *y)
 #define LOAD(val) x->val = npregs->set.val;
 #define LOADI(val) x->val = npregs->set.val.word;
 #define LOADC(val) x->val = npregs->cset.val;
-	
+
 	LOAD(drawmode1);
 	LOAD(drawmode0);
 	LOAD(lsmode);
@@ -65,9 +65,9 @@ void newport_save (void *y)
 	LOAD(wrmask);
 	LOAD(hostrw0);
 	LOAD(hostrw1);
-	
+
         /* configregs */
-	
+
 	LOADC(smask1x);
 	LOADC(smask1y);
 	LOADC(smask2x);
@@ -112,7 +112,7 @@ void newport_restore (void *y)
 #define STOREI(val) npregs->set.val.word = x->val
 #define STOREC(val) npregs->cset.val = x->val
 	newport_wait ();
-	
+
 	STORE(drawmode1);
 	STORE(drawmode0);
 	STORE(lsmode);
@@ -149,9 +149,9 @@ void newport_restore (void *y)
 	STORE(wrmask);
 	STORE(hostrw0);
 	STORE(hostrw1);
-	
+
         /* configregs */
-	
+
 	STOREC(smask1x);
 	STOREC(smask1y);
 	STOREC(smask2x);
@@ -174,7 +174,7 @@ newport_ioctl (int card, int cmd, unsigned long arg)
 	switch (cmd){
 	case NG1_SETDISPLAYMODE: {
 		struct ng1_setdisplaymode_args request;
-		
+
 		if (copy_from_user (&request, (void *) arg, sizeof (request)))
 			return -EFAULT;
 
@@ -183,8 +183,8 @@ newport_ioctl (int card, int cmd, unsigned long arg)
 		npregs->set.dcbmode = DCB_XMAP0 | XM9_CRS_FIFO_AVAIL |
 			DCB_DATAWIDTH_1 | R_DCB_XMAP9_PROTOCOL;
 		xmap9FIFOWait (npregs);
-		
-		/* FIXME: timing is wrong, just be extracted from 
+
+		/* FIXME: timing is wrong, just be extracted from
 		 * the per-board timing table.  I still have to figure
 		 * out where this comes from
 		 *
@@ -206,13 +206,13 @@ newport_ioctl (int card, int cmd, unsigned long arg)
 	}
 	case NG1_SET_CURSOR_HOTSPOT: {
 		struct ng1_set_cursor_hotspot request;
-		
+
 		if (copy_from_user (&request, (void *) arg, sizeof (request)))
 			return -EFAULT;
 		/* FIXME: make request.xhot, request.yhot the hot spot */
 		return 0;
 	}
-	
+
 	case NG1_SETGAMMARAMP0:
 		/* FIXME: load the gamma ramps :-) */
 		return 0;

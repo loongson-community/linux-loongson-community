@@ -4,13 +4,13 @@
  * for more details.
  *
  * Copyright (C) 1999 by Michael Klar
- * 
+ *
  * Copyright 2001 MontaVista Software Inc.
  * Author: jsun@mvista.com or jsun@junsun.net
  *
  */
-#ifndef __ASM_VR4181_VR4181_H 
-#define __ASM_VR4181_VR4181_H 
+#ifndef __ASM_VR4181_VR4181_H
+#define __ASM_VR4181_VR4181_H
 
 #include <asm/addrspace.h>
 

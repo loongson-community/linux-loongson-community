@@ -112,7 +112,7 @@ void __init pcibr_setup(cnodeid_t nid)
 {
 	int 			i, start, num;
 	unsigned long		masterwid;
-	bridge_t 		*bridge; 
+	bridge_t 		*bridge;
 	volatile u64 		hubreg;
 	nasid_t	 		nasid, masternasid;
 	xwidget_part_num_t	partnum;
@@ -122,8 +122,8 @@ void __init pcibr_setup(cnodeid_t nid)
 	/*
 	 * If the master is doing this for headless node, nothing to do.
 	 * This is because currently we require at least one of the hubs
-	 * (master hub) connected to the xbow to have at least one enabled 
-	 * cpu to receive intrs. Else we need an array bus_to_intrnasid[] 
+	 * (master hub) connected to the xbow to have at least one enabled
+	 * cpu to receive intrs. Else we need an array bus_to_intrnasid[]
 	 * that bridge_startup() needs to use to target intrs. All dma is
 	 * routed thru the widget of the master hub. The master hub wid
 	 * is selectable by WIDGET_A below.
@@ -174,8 +174,8 @@ void __init pcibr_setup(cnodeid_t nid)
 			else {
 			   /*
 			    * Okay, here's a xbow. Lets arbitrate and find
-			    * out if we should initialize it. Set enabled 
-			    * hub connected at highest or lowest widget as 
+			    * out if we should initialize it. Set enabled
+			    * hub connected at highest or lowest widget as
 			    * master.
 			    */
 #ifdef WIDGET_A
@@ -213,7 +213,7 @@ void __init pcibr_setup(cnodeid_t nid)
 			}
 		} else if (partnum == XXBOW_WIDGET_PART_NUM) {
 			/*
-			 * found xbridge, assume ibrick for now 
+			 * found xbridge, assume ibrick for now
 			 */
 			printk("...is xbridge\n");
         		bus_to_wid[0] = 0xb;
@@ -261,7 +261,7 @@ void __init pcibr_setup(cnodeid_t nid)
 		bridge->b_wid_control |= BRIDGE_CTRL_MEM_SWAP;
 
 		/*
-		 * Hmm...  IRIX sets additional bits in the address which 
+		 * Hmm...  IRIX sets additional bits in the address which
 		 * are documented as reserved in the bridge docs.
 		 */
 		bridge->b_int_mode = 0x0;		/* Don't clear ints */

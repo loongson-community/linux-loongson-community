@@ -5,7 +5,7 @@
  * arch/mips/ddb5xxx/ddb5476/pci_ops.c
  *     Define the pci_ops for DB5477.
  *
- * Much of the code is derived from the original DDB5074 port by 
+ * Much of the code is derived from the original DDB5074 port by
  * Geert Uytterhoeven <geert@sonycom.com>
  *
  * This program is free software; you can redistribute  it and/or modify it
@@ -43,7 +43,7 @@ struct pci_config_swap {
  * On DDB5476, we have one set of swap registers
  */
 struct pci_config_swap ext_pci_swap = {
-	DDB_PCIW0,  
+	DDB_PCIW0,
 	DDB_PCIINIT0,
 	DDB_PCI_CONFIG_BASE,
 	DDB_PCI_CONFIG_SIZE
@@ -53,7 +53,7 @@ static int pci_config_workaround=1;
 
 /*
  * access config space
- */	
+ */
 static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 					 u32 bus,/* 0 means top level bus */
 					 u32 slot_num)
@@ -66,7 +66,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	if (pci_config_workaround) {
 		/* [jsun] work around Vrc5476 controller itself, returnning
 		 * slot 0 essentially makes vrc5476 invisible
-		 */ 
+		 */
 		if (slot_num == 12) slot_num = 0;
 
 #if 0
@@ -77,7 +77,7 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 	} else {
 		/* now we have to be hornest, returning the true
 		 * PCI config headers for vrc5476
-		 */ 
+		 */
 		if (slot_num == 12) {
 			swap->pdar_backup = ddb_in32(swap->pdar);
 			swap->pmr_backup = ddb_in32(swap->pmr);
@@ -103,10 +103,10 @@ static inline u32 ddb_access_config_base(struct pci_config_swap *swap,
 		     0,		/* not on local memory bus */
 		     0);	/* not visible from PCI bus (N/A) */
 
-	/* 
-	 * calcuate the absolute pci config addr; 
+	/*
+	 * calcuate the absolute pci config addr;
 	 * according to the spec, we start scanning from adr:11 (0x800)
-	 */ 
+	 */
 	if (bus == 0) {
 		/* type 0 config */
 		pci_addr = 0x800 << slot_num;
@@ -224,7 +224,7 @@ static int write_config_dword(struct pci_config_swap *swap,
 	slot_num = PCI_SLOT(dev->devfn);
 	func_num = PCI_FUNC(dev->devfn);
 	base = ddb_access_config_base(swap, bus, slot_num);
-	*(volatile u32*) (base + (func_num << 8) + where) = val; 
+	*(volatile u32*) (base + (func_num << 8) + where) = val;
 	ddb_close_config_base(swap);
 	return PCIBIOS_SUCCESSFUL;
 }
@@ -314,7 +314,7 @@ void jsun_scan_pci_bus(void)
 	for (j=0; j< 1; j++) {
 		printk(KERN_INFO "scan ddb5476 external PCI bus:\n");
 		bus.ops = &ddb5476_ext_pci_ops;
-	
+
 		for (devfn = 0; devfn < 0x100; devfn += 8) {
 			u32 temp;
 			u16 temp16;

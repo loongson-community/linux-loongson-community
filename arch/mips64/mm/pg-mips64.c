@@ -17,7 +17,7 @@
  *
  * MIPS64 CPU variant specific Cache routines.
  * These routine are not optimized in any way, they are done in a generic way
- * so they can be used on all MIPS64 compliant CPUs, and also done in an 
+ * so they can be used on all MIPS64 compliant CPUs, and also done in an
  * attempt not to break anything for the R4xx0 style CPUs.
  */
 #include <linux/sched.h>

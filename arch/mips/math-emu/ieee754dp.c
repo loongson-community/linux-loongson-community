@@ -100,7 +100,7 @@ ieee754dp ieee754dp_bestnan(ieee754dp x, ieee754dp y)
 
 static u64 get_rounding(int sn, u64 xm)
 {
-	/* inexact must round of 3 bits 
+	/* inexact must round of 3 bits
 	 */
 	if (xm & (DP_MBIT(3) - 1)) {
 		switch (ieee754_csr.rm) {
@@ -174,7 +174,7 @@ ieee754dp ieee754dp_format(int sn, int xe, u64 xm)
 			xe++;
 		}
 		else {
-			/* sticky right shift es bits 
+			/* sticky right shift es bits
 			 */
 			xm = XDPSRS(xm, es);
 			xe += es;
@@ -188,10 +188,10 @@ ieee754dp ieee754dp_format(int sn, int xe, u64 xm)
 			SETCX(IEEE754_UNDERFLOW);
 		}
 
-		/* inexact must round of 3 bits 
+		/* inexact must round of 3 bits
 		 */
 		xm = get_rounding(sn, xm);
-		/* adjust exponent for rounding add overflowing 
+		/* adjust exponent for rounding add overflowing
 		 */
 		if (xm >> (DP_MBITS + 3 + 1)) {
 			/* add causes mantissa overflow */

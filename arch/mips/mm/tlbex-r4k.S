@@ -55,7 +55,7 @@
 #define GET_PTE_OFF(reg)	srl	reg, reg, 1
 #endif
 
-/*	
+/*
  * These handlers much be written in a relocatable manner
  * because based upon the cpu type an arbitrary one of the
  * following pieces of code will be copied to the KSEG0
@@ -73,9 +73,9 @@
 	sll	k1, 2				# log2(sizeof(pgd_t)
 	addu	k1, k0, k1
 	lw	k1, (k1)
-#else 
+#else
 	lw	k1, pgd_current			# get pgd pointer
-#endif	
+#endif
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
 
@@ -336,7 +336,7 @@
 	srl     ptr, 23;             \
 	sll     ptr, 2;              \
 	addu    ptr, scratch, ptr;   \
-	lw      ptr, (ptr);          
+	lw      ptr, (ptr);
 #else
 #define GET_PGD(scratch, ptr)    \
 	lw	ptr, pgd_current;
@@ -460,7 +460,7 @@ invalid_tlbl:
 	 tlbwi
 1:
 	nop
-	.set	mips3	
+	.set	mips3
 	eret
 	.set	mips0
 #endif
@@ -540,7 +540,7 @@ nowrite_mod:
  * On entry k0 contains the pte with the pseudo address.
  * On exit, k0 contains the "real" address, which is a
  * 36 bit physicall address.
- * This function is called only after it has been 
+ * This function is called only after it has been
  * determined that the pte is a pseudo physical address.
  *
  * Destroys k0, k1, and at. It's assumed that the calling
@@ -550,7 +550,7 @@ LEAF(get_real_pte)
 	.set	mips3
 	.set	at
 
-	li	k1, 0xe0000000          # check lcd 
+	li	k1, 0xe0000000          # check lcd
 	bltu	k0, k1, check_pcmcia_socket_1
 	nop
 	# lcd pseudo access
@@ -570,7 +570,7 @@ check_pcmcia_socket_1:
 	bltu	k0, k1, pcmcia_socket_0
 	nop
 	# famous last words, should not happen ...
-1:	
+1:
 	b 1b       # fixme -- to something a little more useful
 	# pcmcia socket 1 pseudo access
 
@@ -582,7 +582,7 @@ pcmcia_socket_0:
 	li	k1, 0x00ffffff
 	and	k1, k0, k1              # get access offset
 	lui	k0, 0x8000
-	or	k0, k0, k1              
+	or	k0, k0, k1
 	# now we have the correct even pte ... bits 31:0
 	srl	k0, k0, 6
 	lui	k1, 0xf000>>2
@@ -596,7 +596,7 @@ check_attr:
 	li	k1, 0x00ffffff
 	and	k1, k0, k1              # get access offset
 	lui	k0, 0x4000
-	or	k0, k0, k1              
+	or	k0, k0, k1
 	# now we have the correct even pte ... bits 31:0
 	srl	k0, k0, 6
 	lui	k1, 0xf000>>2
@@ -706,4 +706,4 @@ END(get_real_pte)
 __saved_at:	PTR	0
 __saved_pte:	PTR	0
 __saved_ra:	PTR	0
-#endif	
+#endif

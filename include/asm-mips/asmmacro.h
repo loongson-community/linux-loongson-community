@@ -115,7 +115,7 @@
 	swc1	$f30, (THREAD_FPU + 0x0f4)(thread); \
 	swc1	$f31, (THREAD_FPU + 0x0f0)(thread); \
 	sw	tmp,  (THREAD_FPU + 0x100)(thread)
-#endif 
+#endif
 
 #define FPU_RESTORE_DOUBLE(thread, tmp) \
 	lw	tmp,  (THREAD_FPU + 0x100)(thread); \

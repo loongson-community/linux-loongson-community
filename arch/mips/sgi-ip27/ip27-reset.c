@@ -44,7 +44,7 @@ static void ip27_machine_restart(char *command)
 #endif
 #if 0
 	for (i = 0; i < numnodes; i++)
-		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG, 
+		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG,
 							PROMOP_REBOOT);
 #else
 	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
@@ -60,7 +60,7 @@ static void ip27_machine_halt(void)
 	smp_send_stop();
 #endif
 	for (i = 0; i < numnodes; i++)
-		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG, 
+		REMOTE_HUB_S(COMPACT_TO_NASID_NODEID(i), PROMOP_REG,
 							PROMOP_RESTART);
 	LOCAL_HUB_S(NI_PORT_RESET, NPR_PORTRESET | NPR_LOCALRESET);
 	noreturn;

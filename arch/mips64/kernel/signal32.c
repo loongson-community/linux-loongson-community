@@ -262,7 +262,7 @@ static inline int restore_thread_fp_context(struct sigcontext *sc)
 	u64 *pfreg = &current->thread.fpu.soft.regs[0];
 	int err = 0;
 
-	/* 
+	/*
 	 * Copy all 32 64-bit values.
 	 */
 
@@ -480,15 +480,15 @@ static int inline setup_sigcontext(struct pt_regs *regs,
 		goto out;
 
 	/* There exists FP thread state that may be trashed by signal */
-	if (owned_fp) {	
+	if (owned_fp) {
 		/* fp is active.  Save context from FPU */
 		err |= save_fp_context(sc);
 		goto out;
 	}
 
-	/* 
-	 * Someone else has FPU. 
-	 * Copy Thread context into signal context 
+	/*
+	 * Someone else has FPU.
+	 * Copy Thread context into signal context
 	 */
 	err |= save_thread_fp_context(sc);
 
@@ -507,7 +507,7 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	/* Default to using normal stack */
 	sp = regs->regs[29];
 
-	/* 
+	/*
  	 * FPU emulator may have it's own trampoline active just
  	 * above the user stack, 16-bytes before the next lowest
  	 * 16 byte boundary.  Try to avoid trashing it.
@@ -832,7 +832,7 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 extern asmlinkage int sys_sigprocmask(int how, old_sigset_t *set,
 						old_sigset_t *oset);
 
-asmlinkage int sys32_sigprocmask(int how, old_sigset_t32 *set, 
+asmlinkage int sys32_sigprocmask(int how, old_sigset_t32 *set,
 				 old_sigset_t32 *oset)
 {
 	old_sigset_t s;
@@ -926,7 +926,7 @@ asmlinkage int sys32_rt_sigprocmask(int how, sigset32_t *set, sigset32_t *oset,
 
 	if (set && get_sigset(&new_set, set))
 		return -EFAULT;
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_rt_sigprocmask(how, set ? &new_set : NULL,
 				 oset ? &old_set : NULL, sigsetsize);

@@ -48,14 +48,14 @@ void cobalt_machine_halt(void)
 	/* Blink our cute? little LED (number 3)... */
 	while (1) {
 		led_state = led_state | ( 1 << 3 );
-		LEDSet(led_state);  
+		LEDSet(led_state);
 		mark = jiffies;
 		while (jiffies<(mark+HZ));
 		led_state = led_state & ~( 1 << 3 );
 		LEDSet(led_state);
 		mark = jiffies;
 		while (jiffies<(mark+HZ));
-	} 
+	}
 }
 
 /*

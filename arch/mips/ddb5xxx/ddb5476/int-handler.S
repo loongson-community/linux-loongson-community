@@ -28,7 +28,7 @@
 	CLI
 	.set	at
 	.set	noreorder
-	mfc0	t0, CP0_CAUSE  
+	mfc0	t0, CP0_CAUSE
 	mfc0	t2, CP0_STATUS
 
 	and	t0, t2
@@ -62,13 +62,13 @@
 
 	.align	5
 
-ll_cpu_ip0:	
+ll_cpu_ip0:
 	li	a0, CPU_IRQ_BASE + 0
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
-ll_cpu_ip1:	
+ll_cpu_ip1:
 	li	a0, CPU_IRQ_BASE + 1
 	move	a1, sp
 	jal	do_IRQ
@@ -79,25 +79,25 @@ ll_cpu_ip2:		/* jump to second-level dispatching */
 	jal	vrc5476_irq_dispatch
 	j	ret_from_irq
 
-ll_cpu_ip3:	
+ll_cpu_ip3:
 	li	a0, CPU_IRQ_BASE + 3
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
-ll_cpu_ip4:	
+ll_cpu_ip4:
 	li	a0, CPU_IRQ_BASE + 4
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
-ll_cpu_ip5:	
+ll_cpu_ip5:
 	li	a0, CPU_IRQ_BASE + 5
 	move	a1, sp
 	jal	do_IRQ
 	j	ret_from_irq
 
-ll_cpu_ip6:	
+ll_cpu_ip6:
 	li	a0, CPU_IRQ_BASE + 6
 	move	a1, sp
 	jal	do_IRQ

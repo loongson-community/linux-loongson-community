@@ -42,7 +42,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 static void fixup_resource(int r_num, struct pci_dev *dev) ;

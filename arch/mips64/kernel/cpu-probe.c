@@ -14,7 +14,7 @@
  */
 void (*cpu_wait)(void) = NULL;
 
-static void r3081_wait(void) 
+static void r3081_wait(void)
 {
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
 	write_32bit_cp0_register(CP0_CONF, cfg|CONF_HALT);
@@ -59,13 +59,13 @@ static inline void check_wait(void)
 		cpu_wait = r39xx_wait;
 		printk(" available.\n");
 		break;
-	case CPU_R4200: 
+	case CPU_R4200:
 /*	case CPU_R4300: */
-	case CPU_R4600: 
-	case CPU_R4640: 
-	case CPU_R4650: 
-	case CPU_R4700: 
-	case CPU_R5000: 
+	case CPU_R4600:
+	case CPU_R4640:
+	case CPU_R4650:
+	case CPU_R4700:
+	case CPU_R5000:
 	case CPU_NEVADA:
 	case CPU_RM7000:
 	case CPU_TX49XX:
@@ -103,7 +103,7 @@ static inline int cpu_has_confreg(void)
 {
 #ifdef CONFIG_CPU_R3000
 	extern unsigned long r3k_cache_size(unsigned long);
-	unsigned long size1, size2; 
+	unsigned long size1, size2;
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONF);
 
 	size1 = r3k_cache_size(ST0_ISC);
@@ -159,7 +159,7 @@ __init void cpu_probe(void)
 
         if (config0 & (1 << 31)) {
 		/* MIPS32 or MIPS64 compliant CPU. Read Config 1 register. */
-		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
 			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC;
 		config1 = read_mips32_cp0_config1();
 		if (config1 & (1 << 3))
@@ -319,28 +319,28 @@ __init void cpu_probe(void)
 			break;
 		case PRID_IMP_R5000:
 			mips_cpu.cputype = CPU_R5000;
-			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_R5432:
 			mips_cpu.cputype = CPU_R5432;
-			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_R5500:
 			mips_cpu.cputype = CPU_R5500;
-			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR | MIPS_CPU_WATCH;
 			mips_cpu.tlbsize = 48;
 			break;
 		case PRID_IMP_NEVADA:
 			mips_cpu.cputype = CPU_NEVADA;
-			mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
 			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR | MIPS_CPU_DIVEC;
 			mips_cpu.tlbsize = 48;
@@ -384,16 +384,16 @@ __init void cpu_probe(void)
 		case PRID_IMP_R10000:
 			mips_cpu.cputype = CPU_R10000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-				           MIPS_CPU_FPU | MIPS_CPU_32FPR | 
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+				           MIPS_CPU_FPU | MIPS_CPU_32FPR |
 				           MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R12000:
 			mips_cpu.cputype = CPU_R12000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_IV;
-			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
-				           MIPS_CPU_FPU | MIPS_CPU_32FPR | 
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+				           MIPS_CPU_FPU | MIPS_CPU_32FPR |
 				           MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
 			mips_cpu.tlbsize = 64;
 			break;
@@ -402,7 +402,7 @@ __init void cpu_probe(void)
 			break;
 		}
 		break;
-#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64) 
+#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
 	case PRID_COMP_MIPS:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_4KC:
@@ -428,7 +428,7 @@ __init void cpu_probe(void)
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
-		}		
+		}
 		break;
 	case PRID_COMP_ALCHEMY:
 		switch (mips_cpu.processor_id & 0xff00) {

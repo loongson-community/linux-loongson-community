@@ -4,7 +4,7 @@
  *
  * Copyright Galileo Technology.
  */
-#ifndef __INCcoreh 
+#ifndef __INCcoreh
 #define __INCcoreh
 
 #include <linux/types.h>
@@ -78,7 +78,7 @@
 typedef enum _bool{false,true} bool;
 
 #ifndef NULL
-#define NULL 0                                  
+#define NULL 0
 #endif
 
 /* The two following defines are according to MIPS architecture. */
@@ -111,7 +111,7 @@ do {									\
 /* Write 32/16/8 bits Cacheable */
 #define WRITE_CHAR_CACHEABLE(address, data)				\
 	(*((u8 *)((address) | MIPS_CACHEABLE)) = (data))
-                
+
 #define WRITE_SHORT_CACHEABLE(address, data)				\
 	(*((u16 *)((address) | MIPS_CACHEABLE)) = (u16) data)
 
@@ -158,8 +158,8 @@ do {									\
 	(*((u32 *)((address) | MIPS_CACHEABLE)))
 
 /*
- * SET_REG_BITS(regOffset,bits) - 
- * gets register offset and bits: a 32bit value. It set to logic '1' in the  
+ * SET_REG_BITS(regOffset,bits) -
+ * gets register offset and bits: a 32bit value. It set to logic '1' in the
  * internal register the bits which given as an input example:
  * SET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
  * '1' in register 0x840 while the other bits stays as is.
@@ -170,7 +170,7 @@ do {									\
 
 /*
  * RESET_REG_BITS(regOffset,bits) -
- * gets register offset and bits: a 32bit value. It set to logic '0' in the  
+ * gets register offset and bits: a 32bit value. It set to logic '0' in the
  * internal register the bits which given as an input example:
  * RESET_REG_BITS(0x840,BIT3 | BIT24 | BIT30) - set bits: 3,24 and 30 to logic
  * '0' in register 0x840 while the other bits stays as is.

@@ -32,12 +32,12 @@ void (*boot_addr)(int argc, char **argv, char **envp);
 struct eeprom_parameters {
   unsigned int boot_source;
   unsigned int operating_system;
-  
+
   /* network loader parametrs */
   unsigned int host_ip;
   unsigned int server_ip;
   char bootimage[64];
-  
+
   /* Board parameters */
   char eth0_mac[6];
   char eth1_mac[6];

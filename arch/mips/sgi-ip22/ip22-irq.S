@@ -103,7 +103,7 @@
 
 1:
 	/* Here by mistake? It is possible, that by the time we take
-	 * the exception the IRQ pin goes low, so just leave if this 
+	 * the exception the IRQ pin goes low, so just leave if this
 	 * is the case.
 	 */
 	beq	a0, zero, 1f

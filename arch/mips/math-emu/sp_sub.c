@@ -69,7 +69,7 @@ ieee754sp ieee754sp_sub(ieee754sp x, ieee754sp y)
 		return x;
 
 
-		/* Inifity handeling 
+		/* Inifity handeling
 		 */
 
 	case CLPAIR(IEEE754_CLASS_INF, IEEE754_CLASS_INF):
@@ -88,7 +88,7 @@ ieee754sp ieee754sp_sub(ieee754sp x, ieee754sp y)
 	case CLPAIR(IEEE754_CLASS_INF, IEEE754_CLASS_DNORM):
 		return x;
 
-		/* Zero handeling 
+		/* Zero handeling
 		 */
 
 	case CLPAIR(IEEE754_CLASS_ZERO, IEEE754_CLASS_ZERO):
@@ -173,7 +173,7 @@ ieee754sp ieee754sp_sub(ieee754sp x, ieee754sp y)
 			else
 				return ieee754sp_zero(0);	/* other round modes   => sign = 1 */
 
-		/* normalize to rounding precision 
+		/* normalize to rounding precision
 		 */
 		while ((xm >> (SP_MBITS + 3)) == 0) {
 			xm <<= 1;

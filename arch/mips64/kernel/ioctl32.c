@@ -45,7 +45,7 @@ static int w_long(unsigned int fd, unsigned int cmd, unsigned long arg)
 	mm_segment_t old_fs = get_fs();
 	int err;
 	unsigned long val;
-	
+
 	set_fs (KERNEL_DS);
 	err = sys_ioctl(fd, cmd, (unsigned long)&val);
 	set_fs (old_fs);
@@ -201,7 +201,7 @@ static inline int dev_ifconf(unsigned int fd, unsigned int cmd,
 
 	old_fs = get_fs();
 	set_fs (KERNEL_DS);
-	err = sys_ioctl (fd, SIOCGIFCONF, (unsigned long)&ifc);	
+	err = sys_ioctl (fd, SIOCGIFCONF, (unsigned long)&ifc);
 	set_fs (old_fs);
 	if (err)
 		goto out;
@@ -235,7 +235,7 @@ static inline int dev_ifsioc(unsigned int fd, unsigned int cmd,
 	struct ifreq ifr;
 	mm_segment_t old_fs;
 	int err;
-	
+
 	switch (cmd) {
 	case SIOCSIFMAP:
 		err = copy_from_user(&ifr, uifr, sizeof(ifr.ifr_name));
@@ -317,7 +317,7 @@ static inline int routing_ioctl(unsigned int fd, unsigned int cmd, unsigned long
 	u32 rtdev;
 	int ret;
 	mm_segment_t old_fs = get_fs();
-	
+
 	ret = copy_from_user (&r.rt_dst, &(ur->rt_dst), 3 * sizeof(struct sockaddr));
 	ret |= __get_user (r.rt_flags, &(ur->rt_flags));
 	ret |= __get_user (r.rt_metric, &(ur->rt_metric));
@@ -415,7 +415,7 @@ static int blkpg_ioctl_trans(unsigned int fd, unsigned int cmd,
 	struct blkpg_partition p;
 	int err;
 	mm_segment_t old_fs = get_fs();
-	
+
 	err = get_user(a.op, &arg->op);
 	err |= __get_user(a.flags, &arg->flags);
 	err |= __get_user(a.datalen, &arg->datalen);
@@ -434,7 +434,7 @@ static int blkpg_ioctl_trans(unsigned int fd, unsigned int cmd,
 		set_fs (old_fs);
 	default:
 		return -EINVAL;
-	}                                        
+	}
 	return err;
 }
 

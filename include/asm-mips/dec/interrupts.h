@@ -1,4 +1,4 @@
-/*  
+/*
  * Miscellaneous definitions used to initialise the interrupt vector table
  * with the machine-specific interrupt routines.
  *
@@ -11,8 +11,8 @@
  * Copyright (C) 2001, 2002  Maciej W. Rozycki
  */
 
-#ifndef __ASM_DEC_INTERRUPTS_H 
-#define __ASM_DEC_INTERRUPTS_H 
+#ifndef __ASM_DEC_INTERRUPTS_H
+#define __ASM_DEC_INTERRUPTS_H
 
 #include <asm/mipsregs.h>
 
@@ -122,4 +122,4 @@ extern void asic_intr_unimplemented(void);
 
 #endif /* __ASSEMBLY__ */
 
-#endif 
+#endif

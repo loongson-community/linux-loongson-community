@@ -46,7 +46,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 struct pci_channel mips_pci_channels[] = {

@@ -10,14 +10,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 /*
- * Setup code for the SWARM board 
+ * Setup code for the SWARM board
  */
 #include <linux/config.h>
 #include <linux/spinlock.h>
@@ -121,7 +121,7 @@ static int swarm_ide_request_irq(unsigned int irq,
                                 void *dev_id)
 {
 	return request_irq(irq, handler, flags, device, dev_id);
-}			
+}
 
 static void swarm_ide_free_irq(unsigned int irq, void *dev_id)
 {
@@ -259,9 +259,9 @@ void __init swarm_setup(void)
 #ifdef CONFIG_BLK_DEV_IDE_SWARM
 	ide_ops = &swarm_ide_ops;
 #endif
-}  
+}
 
-/* This is the kernel command line.  Actually, it's 
+/* This is the kernel command line.  Actually, it's
    copied, eventually, to command_line, and looks to be
    quite redundant.  But not something to fix just now */
 extern char arcs_cmdline[];
@@ -269,7 +269,7 @@ extern char arcs_cmdline[];
 #ifdef CONFIG_EMBEDDED_RAMDISK
 /* These are symbols defined by the ramdisk linker script */
 extern unsigned char __rd_start;
-extern unsigned char __rd_end;  
+extern unsigned char __rd_end;
 #endif
 
 static __init void prom_meminit(void)
@@ -280,8 +280,8 @@ static __init void prom_meminit(void)
 	int rd_flag;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	unsigned long initrd_pstart; 
-	unsigned long initrd_pend; 
+	unsigned long initrd_pstart;
+	unsigned long initrd_pend;
 
 #ifdef CONFIG_EMBEDDED_RAMDISK
 	/* If we're using an embedded ramdisk, then __rd_start and __rd_end
@@ -302,9 +302,9 @@ static __init void prom_meminit(void)
 		setleds("INRD");
 		panic("initrd out of addressable memory");
 	}
-       
+
 #endif /* INITRD */
-		
+
 	for (idx = 0; cfe_enummem(idx, &addr, &size, &type) != CFE_ERR_NOMORE;
 	     idx++) {
 		rd_flag = 0;
@@ -362,7 +362,7 @@ static __init void prom_meminit(void)
 #ifdef CONFIG_BLK_DEV_INITRD
 static int __init initrd_setup(char *str)
 {
-	/* 
+	/*
 	 *Initrd location comes in the form "<hex size of ramdisk in bytes>@<location in memory>"
 	 *  e.g. initrd=3abfd@80010000.  This is set up by the loader.
 	 */
@@ -403,11 +403,11 @@ static int __init initrd_setup(char *str)
  */
 __init int prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
-	/* 
+	/*
 	 * This should go away.  Detect if we're booting
 	 * straight from cfe without a loader.  If we
 	 * are, then we've got a prom vector in a0.  Otherwise,
-	 * argc (and argv and envp, for that matter) will be 0) 
+	 * argc (and argv and envp, for that matter) will be 0)
 	 */
 	if (argc < 0) {
 		prom_vec = (int *)argc;
@@ -463,7 +463,7 @@ void prom_free_prom_memory(void)
 	/* Not sure what I'm supposed to do here.  Nothing, I think */
 }
 
-static void setled(unsigned int index, char c) 
+static void setled(unsigned int index, char c)
 {
 	volatile unsigned char *led_ptr;
 
@@ -478,7 +478,7 @@ void setleds(char *str)
 	int i;
 	for (i = 0; i < 4; i++) {
 		if (!str[i]) {
-			for (; i < 4; i++) { 
+			for (; i < 4; i++) {
 				setled(' ', str[i]);
 			}
 		} else {
@@ -502,27 +502,27 @@ void set_led_msg(char *new_msg)
 	setleds("    ");
 }
 
-static void move_leds(unsigned long arg) 
+static void move_leds(unsigned long arg)
 {
 	int i;
 	unsigned char *tmp = led_msg_ptr;
 	for (i = 0; i < 4; i++) {
 		setled(i, *tmp);
 		tmp++;
-		if (!*tmp) { 
-			tmp = led_msg; 
+		if (!*tmp) {
+			tmp = led_msg;
 		}
 	}
 	led_msg_ptr++;
-	if (!*led_msg_ptr) { 
- 		led_msg_ptr = led_msg; 
+	if (!*led_msg_ptr) {
+ 		led_msg_ptr = led_msg;
 	}
 	del_timer(&led_timer);
 	led_timer.expires = jiffies + (HZ/8);
 	add_timer(&led_timer);
 }
 
-void hack_leds(void) 
+void hack_leds(void)
 {
 	init_timer(&led_timer);
 	led_timer.expires = jiffies + (HZ/8);

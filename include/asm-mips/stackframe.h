@@ -78,7 +78,7 @@
 		.macro	BUMP_LOCK_COUNT
 		.endm
 #endif
- 
+
 		.macro	SAVE_SOME
 		.set	push
 		.set	reorder

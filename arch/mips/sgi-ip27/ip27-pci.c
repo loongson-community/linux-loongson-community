@@ -158,7 +158,7 @@ void __init pcibios_init(void)
 }
 
 static inline u8
-bridge_swizzle(u8 pin, u8 slot) 
+bridge_swizzle(u8 pin, u8 slot)
 {
 	return (((pin-1) + slot) % 4) + 1;
 }
@@ -181,7 +181,7 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
  * All observed requests have pin == 1. We could have a global here, that
  * gets incremented and returned every time - unfortunately, pci_map_irq
  * may be called on the same device over and over, and need to return the
- * same value. On O2000, pin can be 0 or 1, and PCI slots can be [0..7]. 
+ * same value. On O2000, pin can be 0 or 1, and PCI slots can be [0..7].
  *
  * A given PCI device, in general, should be able to intr any of the cpus
  * on any one of the hubs connected to its xbow.
@@ -324,9 +324,9 @@ pci_fixup_isp1020(struct pci_dev *d)
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", d->slot_name);
 
 	/*
-	 * Configure device to allow bus mastering, i/o and memory mapping. 
-	 * Older qlogicisp driver expects to have the IO space enable 
-	 * bit set. Things stop working if we program the controllers as not 
+	 * Configure device to allow bus mastering, i/o and memory mapping.
+	 * Older qlogicisp driver expects to have the IO space enable
+	 * bit set. Things stop working if we program the controllers as not
 	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
 

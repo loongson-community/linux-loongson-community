@@ -88,7 +88,7 @@ static inline void tx39_flush_cache_all(void)
 	write_32bit_cp0_register(CP0_CONF, config);
 	__restore_flags(flags);
 }
- 
+
 static void tx39_flush_cache_mm(struct mm_struct *mm)
 {
 	if(mm->context != 0) {

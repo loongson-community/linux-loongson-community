@@ -131,7 +131,7 @@ void __init momenco_ocelot_setup(void)
 		Ocelot PLD (CS0)	0x2c000000	0xe0020000
 		NVRAM			0x2c800000	0xe0030000
 	*/
-		
+
 	add_temporary_entry(ENTRYLO(0x2C000000), ENTRYLO(0x2d000000), 0xe0020000, PM_64K);
 
 
@@ -292,7 +292,7 @@ static void __init setup_l3cache(unsigned long size)
 {
 	int register i;
 	unsigned long tmp;
-	
+
 	printk("Enabling L3 cache...");
 
 	/* Enable the L3 cache in the GT64120A's CPU Configuration register */

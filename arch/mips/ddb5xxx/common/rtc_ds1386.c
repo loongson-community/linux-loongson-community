@@ -42,7 +42,7 @@ static unsigned long rtc_base;
 
 static unsigned long
 rtc_ds1386_get_time(void)
-{	
+{
 	u8 byte;
 	u8 temp;
 	unsigned int year, month, day, hour, minute, second;
@@ -79,7 +79,7 @@ rtc_ds1386_get_time(void)
 	return mktime(year, month, day, hour, minute, second);
 }
 
-static int 
+static int
 rtc_ds1386_set_time(unsigned long t)
 {
 	struct rtc_time tm;
@@ -138,7 +138,7 @@ rtc_ds1386_set_time(unsigned long t)
 	if (second != READ_RTC(0x1)) {
 		WRITE_RTC(0x1, second);
 	}
-	
+
 	return 0;
 }
 
@@ -146,7 +146,7 @@ void
 rtc_ds1386_init(unsigned long base)
 {
 	unsigned char byte;
-	
+
 	/* remember the base */
 	rtc_base = base;
 	db_assert((rtc_base & 0xe0000000) == KSEG1);

@@ -31,7 +31,7 @@
  *
  *	uPD31577(VRC5477) VR5432-SDRAM/PCI Bridge (Luke)
  *	Preliminary Specification Decoment, Rev 1.1, 27 Dec, 2000
- *  
+ *
  */
 
 
@@ -175,7 +175,7 @@
 static inline void ddb_sync(void)
 {
 /* The DDB5074 doesn't seem to like these accesses. They kill the board on
- * interrupt load 
+ * interrupt load
  */
 #ifndef CONFIG_DDB5074
     volatile u32 *p = (volatile u32 *)0xbfc00000;
@@ -227,9 +227,9 @@ static inline u8 ddb_in8(u32 offset)
  *  Physical Device Address Registers
  */
 
-extern u32 
+extern u32
 ddb_calc_pdar(u32 phys, u32 size, int width, int on_memory_bus, int pci_visible);
-extern void 
+extern void
 ddb_set_pdar(u32 pdar, u32 phys, u32 size, int width,
 	     int on_memory_bus, int pci_visible);
 

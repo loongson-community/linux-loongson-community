@@ -54,8 +54,8 @@ char *prom_getenv(char *envname)
 {
 	/*
 	 * Return a pointer to the given environment variable.
-	 * In 64-bit mode: we're using 64-bit pointers, but all pointers 
-	 * in the PROM structures are only 32-bit, so we need some 
+	 * In 64-bit mode: we're using 64-bit pointers, but all pointers
+	 * in the PROM structures are only 32-bit, so we need some
 	 * workarounds, if we are running in 64-bit mode.
 	 */
 	int i, index=0;
@@ -95,7 +95,7 @@ static inline void str2eaddr(unsigned char *ea, unsigned char *str)
 		ea[i] = num;
 	}
 }
- 
+
 int get_ethernet_addr(char *ethernet_addr)
 {
         char *ethaddr_str;
@@ -135,7 +135,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 	case MIPS_REVISION_CORID_CORE_LV:
 	case MIPS_REVISION_CORID_CORE_FPGA:
 		/*
-		 * Setup the North bridge to do Master byte-lane swapping 
+		 * Setup the North bridge to do Master byte-lane swapping
 		 * when running in bigendian.
 		 */
 #if defined(__MIPSEL__)
@@ -149,15 +149,15 @@ int __init prom_init(int argc, char **argv, char **envp)
 		set_io_port_base(MALTA_GT_PORT_BASE);
 #else
 		set_io_port_base(KSEG1);
-#endif		
+#endif
 
 		break;
 	case MIPS_REVISION_CORID_BONITO64:
 	case MIPS_REVISION_CORID_CORE_20K:
-		/* 
+		/*
 		 * Disable Bonito IOBC.
 		 */
-		BONITO_PCIMEMBASECFG = BONITO_PCIMEMBASECFG & 
+		BONITO_PCIMEMBASECFG = BONITO_PCIMEMBASECFG &
 			~(BONITO_PCIMEMBASECFG_MEMBASE0_CACHED |
 			  BONITO_PCIMEMBASECFG_MEMBASE1_CACHED);
 
@@ -166,12 +166,12 @@ int __init prom_init(int argc, char **argv, char **envp)
 		 * when running in bigendian.
 		 */
 #if defined(__MIPSEL__)
-		BONITO_BONGENCFG = BONITO_BONGENCFG & 
-			~(BONITO_BONGENCFG_MSTRBYTESWAP | 
+		BONITO_BONGENCFG = BONITO_BONGENCFG &
+			~(BONITO_BONGENCFG_MSTRBYTESWAP |
 			  BONITO_BONGENCFG_BYTESWAP);
 #else
-		BONITO_BONGENCFG = BONITO_BONGENCFG | 
-			BONITO_BONGENCFG_MSTRBYTESWAP | 
+		BONITO_BONGENCFG = BONITO_BONGENCFG |
+			BONITO_BONGENCFG_MSTRBYTESWAP |
 			BONITO_BONGENCFG_BYTESWAP;
 #endif
 
@@ -187,7 +187,7 @@ int __init prom_init(int argc, char **argv, char **envp)
 #if defined(__MIPSEL__)
 		MSC_WRITE(MSC01_PCI_SWAP, MSC01_PCI_SWAP_NOSWAP);
 #else
-		MSC_WRITE(MSC01_PCI_SWAP, 
+		MSC_WRITE(MSC01_PCI_SWAP,
 			  MSC01_PCI_SWAP_BYTESWAP << MSC01_PCI_SWAP_IO_SHF |
 			  MSC01_PCI_SWAP_BYTESWAP << MSC01_PCI_SWAP_MEM_SHF |
 			  MSC01_PCI_SWAP_BYTESWAP << MSC01_PCI_SWAP_BAR0_SHF);

@@ -102,7 +102,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 	"b\t2f\n"
 	"1:\tbeqz\t%3, 2f\n\t"
 	"li\t%0, %4\n\t"
-	/* 
+	/*
 	 * It would be nice to assume that sem->count
 	 * is != -1, but we will guard against that case
 	 */
@@ -124,7 +124,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 }
 
 /*
- * waking_non_zero_trylock is unused.  we do everything in 
+ * waking_non_zero_trylock is unused.  we do everything in
  * down_trylock and let non-ll/sc hosts bounce around.
  */
 

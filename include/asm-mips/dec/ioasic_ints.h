@@ -19,7 +19,7 @@
 #ifndef __ASM_DEC_IOASIC_INTS_H
 #define __ASM_DEC_IOASIC_INTS_H
 
-/* 
+/*
  * The upper 16 bits are a part of the I/O ASIC's internal DMA engine
  * and thus are common to all I/O ASIC machines.  The exception is
  * the Maxine, which makes use of the FLOPPY and ISDN bits (otherwise

@@ -3,7 +3,7 @@
  *
  *  By RidgeRun Inc (Leveraged from Galileo's main.c, misc.c, etc).
  *
- *  Burn image from ram to flash 
+ *  Burn image from ram to flash
  *  For use with Galileo EVB64120A MIPS eval board.
  */
 #include <asm/types.h>

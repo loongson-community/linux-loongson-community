@@ -84,7 +84,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 
 	switch (request) {
 	/* when I and D space are separate, these will need to be fixed. */
-	case PTRACE_PEEKTEXT: /* read word at location addr. */ 
+	case PTRACE_PEEKTEXT: /* read word at location addr. */
 	case PTRACE_PEEKDATA: {
 		unsigned int tmp;
 		int copied;
@@ -203,7 +203,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			fregs = (unsigned long long *)&child->thread.fpu.hard.fp_regs[0];
 			if (child->used_math) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) { 
+				if (last_task_used_math == child) {
 					if (mips_cpu.options & MIPS_CPU_FPU) {
 						__enable_fpu();
 						save_fp(child);
@@ -246,7 +246,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			regs->lo = data;
 			break;
 		case FPC_CSR:
-			if (mips_cpu.options & MIPS_CPU_FPU) 
+			if (mips_cpu.options & MIPS_CPU_FPU)
 				child->thread.fpu.hard.control = data;
 			else
 				child->thread.fpu.soft.sr = data;
@@ -276,8 +276,8 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 	}
 
 /*
- * make the child exit.  Best I can do is send it a sigkill. 
- * perhaps it should be put in the status that it wants to 
+ * make the child exit.  Best I can do is send it a sigkill.
+ * perhaps it should be put in the status that it wants to
  * exit.
  */
 	case PTRACE_KILL: {
@@ -358,7 +358,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 	switch (request) {
 	/* when I and D space are separate, these will need to be fixed. */
-	case PTRACE_PEEKTEXT: /* read word at location addr. */ 
+	case PTRACE_PEEKTEXT: /* read word at location addr. */
 	case PTRACE_PEEKDATA: {
 		unsigned long tmp;
 		int copied;
@@ -551,8 +551,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	}
 
 /*
- * make the child exit.  Best I can do is send it a sigkill. 
- * perhaps it should be put in the status that it wants to 
+ * make the child exit.  Best I can do is send it a sigkill.
+ * perhaps it should be put in the status that it wants to
  * exit.
  */
 	case PTRACE_KILL: {

@@ -44,7 +44,7 @@ extern void mask_irq(unsigned int irq);
  *    6   - VIA southbridge PIC
  *    7   - PCI
  *
- * The VIA chip is a master/slave 8259 setup and has the 
+ * The VIA chip is a master/slave 8259 setup and has the
  *  following interrupts
  *    8   - RTC
  *    14  - IDE0
@@ -61,8 +61,8 @@ extern void mask_irq(unsigned int irq);
 
 #define COBALT_IRQS	16
 
-static unsigned short irqnr_to_type[COBALT_IRQS] = 
-{ CPUINT_LINE(0),  NOINT_LINE,      VIAINT_LINE,  NOINT_LINE, 
+static unsigned short irqnr_to_type[COBALT_IRQS] =
+{ CPUINT_LINE(0),  NOINT_LINE,      VIAINT_LINE,  NOINT_LINE,
   CPUINT_LINE(1),  NOINT_LINE,      NOINT_LINE,   CPUINT_LINE(3),
   VIAINT_LINE,     VIAINT_LINE,     NOINT_LINE,   NOINT_LINE,
   NOINT_LINE,      CPUINT_LINE(2),  VIAINT_LINE,  VIAINT_LINE };

@@ -95,10 +95,10 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		struct gfx_getboardinfo_args *bia = (void *) arg;
 		void   *dest_buf;
 		int    max_len;
-		
+
 		i = verify_area (VERIFY_READ, (void *) arg, sizeof (struct gfx_getboardinfo_args));
 		if (i) return i;
-		
+
 		if (__get_user (board,    &bia->board) ||
 		    __get_user (dest_buf, &bia->buf) ||
 		    __get_user (max_len,  &bia->len))
@@ -185,7 +185,7 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 	default:
 		if (cards [devnum].g_ioctl)
 			return (*cards [devnum].g_ioctl)(devnum, cmd, arg);
-		
+
 	}
 	return -EINVAL;
 }
@@ -208,14 +208,14 @@ sgi_graphics_close (struct inode *inode, struct file *file)
 	return 0;
 }
 
-/* 
+/*
  * This is the core of the direct rendering engine.
  */
 struct page *
 sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int
 		     no_share)
 {
-	pgd_t *pgd; pmd_t *pmd; pte_t *pte; 
+	pgd_t *pgd; pmd_t *pmd; pte_t *pte;
 	int board = GRAPHICS_CARD (vma->vm_dentry->d_inode->i_rdev);
 
 	unsigned long virt_add, phys_add;
@@ -225,7 +225,7 @@ sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int
 	printk ("Got a page fault for board %d address=%lx guser=%lx\n", board,
 		address, (unsigned long) cards[board].g_user);
 #endif
-	
+
 	/* Figure out if another process has this mapped, and revoke the mapping
 	 * in that case. */
 	if (cards[board].g_user && cards[board].g_user != current) {
@@ -261,7 +261,7 @@ sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int
 static struct vm_operations_struct graphics_mmap = {
 	nopage:	sgi_graphics_nopage,	/* our magic no-page fault handler */
 };
-	
+
 int
 sgi_graphics_mmap (struct file *file, struct vm_area_struct *vma)
 {

@@ -1,7 +1,7 @@
 #ifndef _ASM_MSGBUF_H
 #define _ASM_MSGBUF_H
 
-/* 
+/*
  * The msqid64_ds structure for alpha architecture.
  * Note extra padding because this structure is passed back and forth
  * between kernel and user space.

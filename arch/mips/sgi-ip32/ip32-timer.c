@@ -55,14 +55,14 @@ void __init ip32_timer_setup (struct irqaction *irq)
 	crime_time = crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK;
 	cc_tick = read_32bit_cp0_register (CP0_COUNT);
 
-	while ((crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK) - crime_time 
+	while ((crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK) - crime_time
 		< WAIT_MS * 1000000 / CRIME_NS_PER_TICK)
 		;
 	cc_tick = read_32bit_cp0_register (CP0_COUNT) - cc_tick;
 	cc_interval = cc_tick / HZ * (1000 / WAIT_MS);
 	/* The round-off seems unnecessary; in testing, the error of the
 	 * above procedure is < 100 ticks, which means it gets filtered
-	 * out by the HZ adjustment. 
+	 * out by the HZ adjustment.
 	 */
 	cc_interval = (cc_interval / PER_MHZ) * PER_MHZ;
 
@@ -86,7 +86,7 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
-	write_32bit_cp0_register (CP0_COMPARE, 
+	write_32bit_cp0_register (CP0_COMPARE,
 				  (u32) (count + cc_interval));
 	kstat.irqs[0][irq]++;
 	do_timer (regs);
@@ -165,7 +165,7 @@ static unsigned long do_gettimeoffset(void)
 		 "r" (quotient));
 
 	/*
- 	 * Due to possible jiffies inconsistencies, we need to check 
+ 	 * Due to possible jiffies inconsistencies, we need to check
 	 * the result so that we'll get a timer that is monotonic.
 	 */
 	if (res >= USECS_PER_JIFFY)

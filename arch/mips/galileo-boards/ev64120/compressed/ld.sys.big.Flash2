@@ -6,7 +6,7 @@ SECTIONS
 {
   . = 0xBF000000;
   .got : {*(.got)}
-  .reset : { 
+  .reset : {
     xfer.o
   }
   kernel_location_start = 0x80100000;

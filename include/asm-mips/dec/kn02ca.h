@@ -10,8 +10,8 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  */
-#ifndef __ASM_MIPS_DEC_KN02CA_H 
-#define __ASM_MIPS_DEC_KN02CA_H 
+#ifndef __ASM_MIPS_DEC_KN02CA_H
+#define __ASM_MIPS_DEC_KN02CA_H
 
 #include <asm/dec/kn02xa.h>		/* For common definitions. */
 

@@ -138,7 +138,7 @@ void * __ioremap(phys_t phys_addr, phys_t size, unsigned long flags)
 
 		t_addr = __va(phys_addr);
 		t_end = t_addr + (size - 1);
-	   
+
 		for(page = virt_to_page(t_addr); page <= virt_to_page(t_end); page++)
 			if(!PageReserved(page))
 				return NULL;

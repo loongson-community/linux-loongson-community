@@ -6,7 +6,7 @@ SECTIONS
 {
   . = 0xBFC00000;
   .got : {*(.got)}
-  .reset : { 
+  .reset : {
     sbdreset = ABSOLUTE(.);
     sbdreset_evb64120A.o
     evb64120A_Setup.o /* <-- Note: contains xfer.c contents as well.. */

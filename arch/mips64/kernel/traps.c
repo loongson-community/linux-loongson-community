@@ -433,8 +433,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		sig = fpu_emulator_cop1Handler (0, regs,
 			&current->thread.fpu.soft);
 
-		/* 
-		 * We can't allow the emulated instruction to leave any of 
+		/*
+		 * We can't allow the emulated instruction to leave any of
 		 * the cause bit set in $fcr31.
 		 */
 		current->thread.fpu.soft.sr &= ~FPU_CSR_ALL_X;
@@ -445,8 +445,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		/* If something went wrong, signal */
 		if (sig)
 		{
-			/* 
-			 * Return EPC is not calculated in the FPU emulator, 
+			/*
+			 * Return EPC is not calculated in the FPU emulator,
 			 * if a signal is being send. So we calculate it here.
 			 */
 			compute_return_epc(regs);
@@ -605,8 +605,8 @@ fp_emul:
 	sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
 	last_task_used_math = current;
 	if (sig) {
-		/* 
-		 * Return EPC is not calculated in the FPU emulator, if 
+		/*
+		 * Return EPC is not calculated in the FPU emulator, if
 		 * a signal is being send. So we calculate it here.
 		 */
 		compute_return_epc(regs);

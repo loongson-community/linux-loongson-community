@@ -83,7 +83,7 @@ void __init au1000_setup(void)
 	u32 pin_func, static_cfg0;
 	u32 sys_freqctrl, sys_clksrc;
 	u32 prid = read_32bit_cp0_register(CP0_PRID);
-	
+
 	argptr = prom_getcmdline();
 
 	/* Various early Au1000 Errata corrected by this */
@@ -94,14 +94,14 @@ void __init au1000_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif	  
+#endif
 
 	rtc_ops = &no_rtc_ops;
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
 
-	// IO/MEM resources. 
+	// IO/MEM resources.
 	set_io_port_base(0);
 	ioport_resource.start = 0x10000000;
 	ioport_resource.end = 0xffffffff;
@@ -196,7 +196,7 @@ void __init au1000_setup(void)
 	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
 		au_readl(USB_HOST_CONFIG);
 #endif
-	
+
 	// configure pins GPIO[14:9] as GPIO
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8080);
 
@@ -209,14 +209,14 @@ void __init au1000_setup(void)
 	au_writel(0x0030, SYS_OUTPUTCLR);
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 
-	// make gpio 15 an input (for interrupt line) 
+	// make gpio 15 an input (for interrupt line)
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x100);
-	// we don't need I2S, so make it available for GPIO[31:29] 
+	// we don't need I2S, so make it available for GPIO[31:29]
 	pin_func |= (1<<5);
 	au_writel(pin_func, SYS_PINFUNC);
 
 	au_writel(0x8000, SYS_TRIOUTCLR);
-	
+
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
@@ -237,7 +237,7 @@ void __init au1000_setup(void)
 	// expand CE0 to cover PCI
 	au_writel(0x11803e40, MEM_STADDR1);
 
-	// burst visibility on 
+	// burst visibility on
 	au_writel(au_readl(MEM_STCFG0) | 0x1000, MEM_STCFG0);
 
 	au_writel(0x83, MEM_STCFG1);         // ewait enabled, flash timing

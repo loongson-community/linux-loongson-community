@@ -12,11 +12,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- */ 
+ */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <asm/mmu_context.h>
@@ -46,7 +46,7 @@ static unsigned int dcache_sets;
  * if we miss in the icache, and have dirty data in the
  * L1 dcache, then we'll go out to memory (or the L2) and
  * get the not-as-recent data.
- * 
+ *
  * So the only time we have to flush the dcache is when
  * we're flushing the icache.  Since the L2 is fully
  * coherent to everything, including I/O, we never have
@@ -63,7 +63,7 @@ static inline void local_sb1___flush_dcache_all(void)
 	 * Haven't worried too much about speed here; given that we're flushing
 	 * the icache, the time to invalidate is dwarfed by the time it's going
 	 * to take to refill it.  Register usage:
-	 * 
+	 *
 	 * $1 - moving cache index
 	 * $2 - set count
 	 */
@@ -87,7 +87,7 @@ static inline void local_sb1___flush_dcache_all(void)
 		".set noreorder             \n"
 		".set mips2                 \n"
 		"sync                       \n"
-#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */
 		"sync                       \n"
 #endif
 		".set pop                   \n");
@@ -153,7 +153,7 @@ static void local_sb1_flush_icache_range(unsigned long start,
 		".set noreorder             \n"
 		".set noat                  \n"
 		".set mips4                 \n"
-		"     move   $1, %0         \n" 
+		"     move   $1, %0         \n"
 		"1:                         \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 		".align 3                   \n"
@@ -192,7 +192,7 @@ static void local_sb1_flush_icache_range(unsigned long start,
 		".set noreorder             \n"
 		".set noat                  \n"
 		".set mips4                 \n"
-		"     move   $1, %0         \n" 
+		"     move   $1, %0         \n"
 		".align 3                   \n"
 		"1:   cache  %3, (0<<13)($1) \n" /* Index-inval this address */
 		"     cache  %3, (1<<13)($1) \n" /* Index-inval this address */
@@ -277,9 +277,9 @@ static inline void protected_flush_icache_line(unsigned long addr)
 static inline void protected_writeback_dcache_line(unsigned long addr)
 {
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
-	/* Have to be sure the TLB entry exists for the cache op, 
+	/* Have to be sure the TLB entry exists for the cache op,
 	   so we have to be sure that nothing happens in between the
-	   lw and the cache op 
+	   lw and the cache op
 	*/
 	unsigned long flags;
 	local_irq_save(flags);
@@ -370,7 +370,7 @@ static void sb1_flush_icache_all(void)
 	 * Haven't worried too much about speed here; given that we're flushing
 	 * the icache, the time to invalidate is dwarfed by the time it's going
 	 * to take to refill it.  Register usage:
-	 * 
+	 *
 	 * $1 - moving cache index
 	 * $2 - set count
 	 */
@@ -402,23 +402,23 @@ static void sb1_nop(void)
 
 /*
  * This only needs to make sure stores done up to this
- * point are visible to other agents outside the CPU.  Given 
- * the coherent nature of the ZBbus, all that's required here is 
+ * point are visible to other agents outside the CPU.  Given
+ * the coherent nature of the ZBbus, all that's required here is
  * a sync to make sure the data gets out to the caches and is
- * visible to an arbitrary A Phase from an external agent 
- *   
+ * visible to an arbitrary A Phase from an external agent
+ *
  * Actually, I'm not even sure that's necessary; the semantics
  * of this function aren't clear.  If it's supposed to serve as
- * a memory barrier, this is needed.  If it's only meant to 
+ * a memory barrier, this is needed.  If it's only meant to
  * prevent data from being invisible to non-cpu memory accessors
- * for some indefinite period of time (e.g. in a non-coherent 
+ * for some indefinite period of time (e.g. in a non-coherent
  * dcache) then this function would be a complete nop.
  */
 static void sb1_flush_page_to_ram(struct page *page)
 {
 	__asm__ __volatile__(
 		"     sync  \n"  /* Short pipe */
-		:::"memory");	
+		:::"memory");
 }
 
 /*
@@ -432,13 +432,13 @@ static void sb1_flush_page_to_ram(struct page *page)
  * 6 - 4096
  * 7 - Reserved
  */
-  
+
 static unsigned int decode_cache_sets(unsigned int config_field)
 {
 	if (config_field == 7) {
 		/* JDCXXX - Find a graceful way to abort. */
 		return 0;
-	} 
+	}
 	return (1<<(config_field + 6));
 }
 
@@ -461,7 +461,7 @@ static unsigned int decode_cache_line_size(unsigned int config_field)
 	} else if (config_field == 7) {
 		/* JDCXXX - Find a graceful way to abort. */
 		return 0;
-	} 
+	}
 	return (1<<(config_field + 1));
 }
 

@@ -75,7 +75,7 @@
 	sltu	\tmp, \ptr, \tmp
 	beqz	\tmp, \not_vmalloc		# not vmalloc
 	.endm
-	
+
 
 	/*
 	 * This places the even/odd pte pair in the page table at the pte

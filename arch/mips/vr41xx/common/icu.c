@@ -157,7 +157,7 @@ static void disable_sysint1_irq(unsigned int irq)
 }
 
 static unsigned int startup_sysint1_irq(unsigned int irq)
-{ 
+{
 	set_icu1(MSYSINT1REG, (u16)1 << (irq - SYSINT1_IRQ_BASE));
 
 	return 0; /* never anything pending */
@@ -196,7 +196,7 @@ static void disable_sysint2_irq(unsigned int irq)
 }
 
 static unsigned int startup_sysint2_irq(unsigned int irq)
-{ 
+{
 	set_icu2(MSYSINT2REG, (u16)1 << (irq - SYSINT2_IRQ_BASE));
 
 	return 0; /* never anything pending */
@@ -255,7 +255,7 @@ static void disable_giuint_irq(unsigned int irq)
 }
 
 static unsigned int startup_giuint_irq(unsigned int irq)
-{ 
+{
 	vr41xx_clear_giuint(irq - GIUINT_IRQ_BASE);
 
 	enable_giuint_irq(irq);

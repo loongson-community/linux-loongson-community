@@ -5,8 +5,8 @@
  *
  * Copyright (C) 2000 Toshiba Corporation
  */
-#ifndef __ASM_TX3927_H 
-#define __ASM_TX3927_H 
+#ifndef __ASM_TX3927_H
+#define __ASM_TX3927_H
 
 #include <asm/jmr3927/txx927.h>
 

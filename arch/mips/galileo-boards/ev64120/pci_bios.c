@@ -441,7 +441,7 @@ static unsigned int pci1GetMemory1Size(void)
  * pci_range_ck -
  *
  * Check if the pci device that are trying to access does really exists
- * on the evaluation board.  
+ * on the evaluation board.
  *
  * Inputs :
  * bus - bus number (0 for PCI 0 ; 1 for PCI 1)
@@ -455,18 +455,18 @@ static __inline__ int pci_range_ck(unsigned char bus, unsigned char dev)
 	//DBG(KERN_INFO "p_r_c %d %d\n",bus,dev);
 	if (((bus == 0) || (bus == 1)) && (dev >= 6) && (dev <= 8))
 		return 0;	// Bus/Device Number OK
-	return -1;		// Bus/Device Number not OK  
+	return -1;		// Bus/Device Number not OK
 }
 
 /*
  * pciXReadConfigReg  - Read from a PCI configuration register
- *                    - Make sure the GT is configured as a master before 
+ *                    - Make sure the GT is configured as a master before
  *                      reading from another device on the PCI.
  *                   - The function takes care of Big/Little endian conversion.
  * INPUTS:   regOffset: The register offset as it apears in the GT spec (or PCI
  *                        spec)
- *           pciDevNum: The device number needs to be addressed.                
- * RETURNS: data , if the data == 0xffffffff check the master abort bit in the 
+ *           pciDevNum: The device number needs to be addressed.
+ * RETURNS: data , if the data == 0xffffffff check the master abort bit in the
  *                 cause register to make sure the data is valid
  *
  *  Configuration Address 0xCF8:
@@ -518,7 +518,7 @@ static unsigned int pci1ReadConfigReg(int offset, struct pci_dev *device)
 	   to stabilize, so the READ can work.
 	 */
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
-		/* when configurating our own PCI 1 L-unit the access is through  
+		/* when configurating our own PCI 1 L-unit the access is through
 		   the PCI 0 interface with reg number = reg number + 0x80 */
 		DataForRegCf8 |= 0x80;
 		GT_WRITE(GT_PCI0_CFGADDR_OFS, DataForRegCf8);
@@ -538,13 +538,13 @@ static unsigned int pci1ReadConfigReg(int offset, struct pci_dev *device)
 
 /*
  * pciXWriteConfigReg - Write to a PCI configuration register
- *                    - Make sure the GT is configured as a master before 
+ *                    - Make sure the GT is configured as a master before
  *                      writingto another device on the PCI.
  *                    - The function takes care of Big/Little endian conversion.
  * Inputs:   unsigned int regOffset: The register offset as it apears in the
- *           GT spec 
+ *           GT spec
  *                   (or any other PCI device spec)
- *           pciDevNum: The device number needs to be addressed.                
+ *           pciDevNum: The device number needs to be addressed.
  *
  *  Configuration Address 0xCF8:
  *
@@ -584,7 +584,7 @@ static void pci1WriteConfigReg(unsigned int offset,
 	   to stabilize, so the WRITE can work.
 	 */
 	if (PCI_SLOT(device->devfn) == SELF) {	/* This board */
-		/* when configurating our own PCI 1 L-unit the access is through  
+		/* when configurating our own PCI 1 L-unit the access is through
 		   the PCI 0 interface with reg number = reg number + 0x80 */
 		DataForRegCf8 |= 0x80;
 		GT_WRITE(GT_PCI0_CFGADDR_OFS, DataForRegCf8);

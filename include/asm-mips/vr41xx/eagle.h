@@ -228,7 +228,7 @@
 
 /*
  * RSTREG Register
- */ 
+ */
 #define NEC_EAGLE_RSTREG		KSEG1ADDR(0x0DFFFFD8)
 #define NEC_EAGLE_RST_RSTSW		0x02
 #define NEC_EAGLE_RST_LEDOFF		0x01

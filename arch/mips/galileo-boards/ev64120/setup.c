@@ -59,7 +59,7 @@ extern struct rtc_ops no_rtc_ops;
 extern void galileo_machine_restart(char *command);
 extern void galileo_machine_halt(void);
 extern void galileo_machine_power_off(void);
-/* 
+/*
  *This structure holds pointers to the pci configuration space accesses
  *and interrupts allocating routine for device over the PCI
  */

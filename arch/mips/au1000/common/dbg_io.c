@@ -71,7 +71,7 @@ void debugInit(uint32 baud, uint8 data, uint8 parity, uint8 stop)
 	UART16550_WRITE(UART_IER, 0);
 
 	/* set up baud rate */
-	{ 
+	{
 		uint32 divisor;
 
 		/* set divisor */

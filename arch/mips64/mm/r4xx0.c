@@ -136,10 +136,10 @@ static void r4k_clear_page_d32(void * page)
  *      Hit_Invalidate_D and Create_Dirty_Excl_D should only be
  *      executed if there is no other dcache activity. If the dcache is
  *      accessed for another instruction immeidately preceding when these
- *      cache instructions are executing, it is possible that the dcache 
- *      tag match outputs used by these cache instructions will be 
+ *      cache instructions are executing, it is possible that the dcache
+ *      tag match outputs used by these cache instructions will be
  *      incorrect. These cache instructions should be preceded by at least
- *      four instructions that are not any kind of load or store 
+ *      four instructions that are not any kind of load or store
  *      instruction.
  *
  *      This is not allowed:    lw
@@ -1225,7 +1225,7 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
 	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/* Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -1273,7 +1273,7 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
 	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
@@ -1323,7 +1323,7 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
 	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
@@ -1373,7 +1373,7 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
 	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/*
 		 * Do indexed flush, too much work to get the (possible)
@@ -1422,7 +1422,7 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	 * for every cache flush operation.  So we do indexed flushes
 	 * in that case, which doesn't overly flush the cache too much.
 	 */
-	if (CPU_CONTEXT(smp_processor_id(), mm) != 
+	if (CPU_CONTEXT(smp_processor_id(), mm) !=
 	    CPU_CONTEXT(smp_processor_id(), current->mm)) {
 		/* Do indexed flush, too much work to get the (possible)
 		 * tlb refills to work correctly.
@@ -1867,7 +1867,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if(mm == current->mm)
-				set_entryhi(CPU_CONTEXT(smp_processor_id(), 
+				set_entryhi(CPU_CONTEXT(smp_processor_id(),
 								mm) & 0xff);
 		}
 		__restore_flags(flags);

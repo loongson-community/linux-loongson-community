@@ -107,9 +107,9 @@ static unsigned long jazz_fd_dma_mem_alloc(unsigned long size)
 
 static void jazz_fd_dma_mem_free(unsigned long addr,
                                         unsigned long size)
-{       
+{
 	vdma_free(vdma_phys2log(PHYSADDR(addr)));
-	free_pages(addr, get_order(size));	
+	free_pages(addr, get_order(size));
 }
 
 static unsigned long jazz_fd_drive_type(unsigned long n)

@@ -1,4 +1,4 @@
-/* 
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -17,7 +17,7 @@
  */
 #ifndef __ASM_DEC_TCMODULE_H
 #define __ASM_DEC_TCMODULE_H
- 
+
 #define OLDCARD 0x3c0000
 #define NEWCARD 0x000000
 

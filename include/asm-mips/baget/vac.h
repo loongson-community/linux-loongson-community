@@ -21,8 +21,8 @@
 #define    VAC_A24_MASK          (0x3f<<9)
 #define    VAC_A24_D32_ENABLE    (1<<8)
 #define    VAC_A24_A24_CACHINH   (1<<7)
-#define    VAC_A24_A16D32_ENABLE (1<<6)  
-#define    VAC_A24_A16D32        (1<<5)  
+#define    VAC_A24_A16D32_ENABLE (1<<6)
+#define    VAC_A24_A16D32        (1<<5)
 #define    VAC_A24_DATAPATH      (1<<4)
 #define    VAC_A24_IO_CACHINH    (1<<3)
 #define VAC_REG1             0x900

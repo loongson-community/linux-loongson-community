@@ -106,7 +106,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		 "r" (quotient));
 
 	/*
- 	 * Due to possible jiffies inconsistencies, we need to check 
+ 	 * Due to possible jiffies inconsistencies, we need to check
 	 * the result so that we'll get a timer that is monotonic.
 	 */
 	if (res >= USECS_PER_JIFFY)
@@ -115,9 +115,9 @@ static unsigned long do_fast_gettimeoffset(void)
 	return res;
 }
 
-/* This function must be called with interrupts disabled 
+/* This function must be called with interrupts disabled
  * It was inspired by Steve McCanne's microtime-i386 for BSD.  -- jrs
- * 
+ *
  * However, the pc-audio speaker driver changes the divisor so that
  * it gets interrupted rather more often - it loads 64 into the
  * counter rather than 11932! This has an adverse impact on
@@ -131,7 +131,7 @@ static unsigned long do_fast_gettimeoffset(void)
  * using either the RTC or the 8253 timer. The decision would be
  * based on whether there was any other device around that needed
  * to trample on the 8253. I'd set up the RTC to interrupt at 1024 Hz,
- * and then do some jiggery to have a version of do_timer that 
+ * and then do some jiggery to have a version of do_timer that
  * advanced the clock by 1/1024 s. Every time that reached over 1/100
  * of a second, then do all the old code. If the time was kept correct
  * then do_gettimeoffset could just return 0 - there is no low order
@@ -142,7 +142,7 @@ static unsigned long do_fast_gettimeoffset(void)
  * often than every 120 us or so.
  *
  * Anyway, this needs more thought....		pjsg (1993-08-28)
- * 
+ *
  * If you are really that interested, you should be reading
  * comp.protocols.time.ntp!
  */
@@ -157,7 +157,7 @@ static unsigned long do_slow_gettimeoffset(void)
 	static unsigned long jiffies_p;
 
 	/*
-	 * cache volatile jiffies temporarily; we have IRQs turned off. 
+	 * cache volatile jiffies temporarily; we have IRQs turned off.
 	 */
 	unsigned long jiffies_t;
 
@@ -167,7 +167,7 @@ static unsigned long do_slow_gettimeoffset(void)
 	count = inb_p(0x40);	/* read the latched count */
 
 	/*
-	 * We do this guaranteed double memory access instead of a _p 
+	 * We do this guaranteed double memory access instead of a _p
 	 * postfix in the previous port access. Wheee, hackady hack
 	 */
 	jiffies_t = jiffies;
@@ -192,7 +192,7 @@ static unsigned long do_slow_gettimeoffset(void)
 			/* assumption about timer being IRQ1 */
 			if (inb(0x20) & 0x01) {
 				/*
-				 * We cannot detect lost timer interrupts ... 
+				 * We cannot detect lost timer interrupts ...
 				 * well, that's why we call them lost, don't we? :)
 				 * [hmm, on the Pentium and Alpha we can ... sort of]
 				 */
@@ -348,7 +348,7 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	    ddb5074_led_d2(1);
 	else if (cnt == 7 || cnt == dist+7)
 	    ddb5074_led_d2(0);
-	
+
 	if (++cnt > period) {
 	    cnt = 0;
 	    /* The hyperbolic function below modifies the heartbeat period
@@ -383,7 +383,7 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	 * CMOS clock accordingly every ~11 minutes. Set_rtc_mmss() has to be
 	 * called as close as possible to 500 ms before the new second starts.
 	 */
-	read_lock (&xtime_lock); 
+	read_lock (&xtime_lock);
 	if ((time_status & STA_UNSYNC) == 0 &&
 	    xtime.tv_sec > last_rtc_update + 660 &&
 	    xtime.tv_usec >= 500000 - ((unsigned) tick) / 2 &&
@@ -402,10 +402,10 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	 * look closely for now..
 	 */
 	/*smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0); */
-	read_unlock (&xtime_lock); 
+	read_unlock (&xtime_lock);
 }
 
-static inline void 
+static inline void
 r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	unsigned int count;
@@ -425,7 +425,7 @@ r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	 * we need only ask for the next in r4k_interval counts. On other
 	 * archs we have a real timer, so we don't want this.
 	 */
-	write_32bit_cp0_register (CP0_COMPARE, 
+	write_32bit_cp0_register (CP0_COMPARE,
 				  (unsigned long) (count + r4k_interval));
         kstat.irqs[0][irq]++;
 #endif

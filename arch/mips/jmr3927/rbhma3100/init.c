@@ -2,11 +2,11 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * arch/mips/jmr3927/common/init.c
  *
- * Copyright (C) 2000-2001 Toshiba Corporation 
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -66,7 +66,7 @@ int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 #endif
 	prom_argc = argc;
 	prom_argv = argv;
-	prom_envp = envp;     
+	prom_envp = envp;
 
 	mips_machgroup = MACH_GROUP_TOSHIBA;
 

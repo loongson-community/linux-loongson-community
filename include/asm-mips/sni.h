@@ -7,8 +7,8 @@
  *
  * Copyright (C) 1997, 1998 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_SNI_H 
-#define __ASM_MIPS_SNI_H 
+#ifndef __ASM_MIPS_SNI_H
+#define __ASM_MIPS_SNI_H
 
 #define SNI_PORT_BASE	0xb4000000
 

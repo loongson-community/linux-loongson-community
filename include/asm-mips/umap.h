@@ -4,5 +4,5 @@
 void remove_mapping (struct vm_area_struct *vma, struct task_struct *task, unsigned long start,
 unsigned long end);
 
-#endif 
+#endif
 

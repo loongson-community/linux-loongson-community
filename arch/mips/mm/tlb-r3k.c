@@ -201,12 +201,12 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 	unsigned long flags;
 	unsigned long old_ctx;
 	static unsigned long wired = 0;
-	
+
 #ifdef CONFIG_CPU_TX39XX
 	if (r3k_have_wired_reg) {
 		unsigned long old_pagemask;
 		unsigned long w;
-	
+
 #ifdef DEBUG_TLB
 		printk("[tlbwired]");
 		printk("ently lo0 %8x, hi %8x\n, pagemask %8x\n",
@@ -227,7 +227,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		set_entryhi(entryhi);
 		set_entrylo0(entrylo0);
 		tlb_write_indexed();
-    
+
 		set_entryhi(old_ctx);
 		set_pagemask (old_pagemask);
 		local_flush_tlb_all();
@@ -245,7 +245,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		wired++;
 		tlb_write_indexed();
 		set_entryhi(old_ctx);
-	        local_flush_tlb_all();    
+	        local_flush_tlb_all();
 		__restore_flags(flags);
 	}
 }

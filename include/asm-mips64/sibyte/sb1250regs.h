@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -84,16 +84,16 @@
 #define SB1250_INT_UART_1                9
 
 /* FIXME!  Need to add the rest */
- 
+
 
 /*
  * There are 2 UARTS.  Technically you can access them via
- * some unified registers, but the seperated interfaces are 
- * much cleaner 
+ * some unified registers, but the seperated interfaces are
+ * much cleaner
  */
 
-#define SB1250_UART_0_OFS            0x000  
-#define SB1250_UART_1_OFS            0x100  
+#define SB1250_UART_0_OFS            0x000
+#define SB1250_UART_1_OFS            0x100
 
 #define SB1250_DUART_MODE_1   (KSEG1 + 0x10060100)
 #define SB1250_DUART_MODE_2   (KSEG1 + 0x10060110)
@@ -106,8 +106,8 @@
 #define SB1250_DUART_IMR0     (KSEG1 + 0x10060330)
 #define SB1250_DUART_IMR1     (KSEG1 + 0x10060350)
 
-/* 
- *   Mode register 1 fields 
+/*
+ *   Mode register 1 fields
  */
 /* Bits per character */
 #define SB1250_DM1_8BPC        0x0
@@ -131,8 +131,8 @@
 /* RTS flow control */
 #define SB1250_DM1_RTS         0x80
 
-/* 
- *   Mode register 2 fields 
+/*
+ *   Mode register 2 fields
  */
 /* Stop bit length */
 #define SB1250_DM2_1_STOP_BIT  0x0
@@ -146,7 +146,7 @@
 #define SB1250_DM2_RMT_LOOP    0xc0
 
 /*
- * Command register fields 
+ * Command register fields
  */
 /* Any of these can be written */
 #define SB1250_DC_RX_EN        0x1
@@ -154,7 +154,7 @@
 #define SB1250_DC_TX_EN        0x4
 #define SB1250_DC_TX_DIS       0x8
 
-/* Command field possibilities.  At most one of these should be written 
+/* Command field possibilities.  At most one of these should be written
    at a time */
 #define SB1250_DC_RX_RST      0x20
 #define SB1250_DC_TX_RST      0x30

@@ -69,7 +69,7 @@ ieee754sp ieee754sp_add(ieee754sp x, ieee754sp y)
 		return x;
 
 
-		/* Inifity handeling 
+		/* Inifity handeling
 		 */
 
 	case CLPAIR(IEEE754_CLASS_INF, IEEE754_CLASS_INF):
@@ -88,7 +88,7 @@ ieee754sp ieee754sp_add(ieee754sp x, ieee754sp y)
 	case CLPAIR(IEEE754_CLASS_INF, IEEE754_CLASS_DNORM):
 		return x;
 
-		/* Zero handeling 
+		/* Zero handeling
 		 */
 
 	case CLPAIR(IEEE754_CLASS_ZERO, IEEE754_CLASS_ZERO):

@@ -62,28 +62,28 @@ void rs_kgdb_hook(int tty_no) {
 	serial_in(&kdb_port_info, UART_MSR);
 
 	/*
-	 * Now, initialize the UART 
+	 * Now, initialize the UART
 	 */
 	serial_out(&kdb_port_info, UART_LCR, UART_LCR_WLEN8);	/* reset DLAB */
 	if (kdb_port_info.flags & ASYNC_FOURPORT) {
 		kdb_port_info.MCR = UART_MCR_DTR | UART_MCR_RTS;
 		t = UART_MCR_DTR | UART_MCR_OUT1;
 	} else {
-		kdb_port_info.MCR 
+		kdb_port_info.MCR
 			= UART_MCR_DTR | UART_MCR_RTS | UART_MCR_OUT2;
 		t = UART_MCR_DTR | UART_MCR_RTS;
 	}
 
 	kdb_port_info.MCR = t;		/* no interrupts, please */
 	serial_out(&kdb_port_info, UART_MCR, kdb_port_info.MCR);
-	
+
 	/*
 	 * and set the speed of the serial port
 	 * (currently hardwired to 9600 8N1
 	 */
 
 	/* baud rate is fixed to 9600 (is this sufficient?)*/
-	t = kdb_port_info.state->baud_base / 9600;	
+	t = kdb_port_info.state->baud_base / 9600;
 	/* set DLAB */
 	serial_out(&kdb_port_info, UART_LCR, UART_LCR_WLEN8 | UART_LCR_DLAB);
 	serial_out(&kdb_port_info, UART_DLL, t & 0xff);/* LS of divisor */
@@ -97,7 +97,7 @@ int putDebugChar(char c)
 	return generic_putDebugChar(c);
 }
 
-char getDebugChar(void) 
+char getDebugChar(void)
 {
 	return generic_getDebugChar();
 }
@@ -151,7 +151,7 @@ static t_uart_saa9730_regmap *kgdb_uart = (void *)(ATLAS_SAA9730_REG + SAA9730_U
 
 static int saa9730_kgdb_active = 0;
 
-void saa9730_kgdb_hook(void) 
+void saa9730_kgdb_hook(void)
 {
         volatile unsigned char t;
 

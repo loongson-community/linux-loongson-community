@@ -41,7 +41,7 @@
  *
  * #include <stdio.h>
  * #include <asm/sysmips.h>
- * 
+ *
  * struct foo {
  *         unsigned char bar[8];
  * };

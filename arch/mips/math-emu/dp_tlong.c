@@ -49,7 +49,7 @@ s64 ieee754dp_tlong(ieee754dp x)
 		break;
 	}
 	if (xe >= 63) {
-		/* look for valid corner case */ 
+		/* look for valid corner case */
 		if (xe == 63 && xs && xm == DP_HIDDEN_BIT)
 			return -0x8000000000000000LL;
 		/* Set invalid. We will only use overflow for floating

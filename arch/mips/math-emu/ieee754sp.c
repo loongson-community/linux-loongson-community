@@ -101,7 +101,7 @@ ieee754sp ieee754sp_bestnan(ieee754sp x, ieee754sp y)
 
 static unsigned get_rounding(int sn, unsigned xm)
 {
-	/* inexact must round of 3 bits 
+	/* inexact must round of 3 bits
 	 */
 	if (xm & (SP_MBIT(3) - 1)) {
 		switch (ieee754_csr.rm) {
@@ -175,7 +175,7 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 			xe++;
 		}
 		else {
-			/* sticky right shift es bits 
+			/* sticky right shift es bits
 			 */
 			SPXSRSXn(es);
 			assert((xm & (SP_HIDDEN_BIT << 3)) == 0);
@@ -188,10 +188,10 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 			SETCX(IEEE754_UNDERFLOW);
 		}
 
-		/* inexact must round of 3 bits 
+		/* inexact must round of 3 bits
 		 */
 		xm = get_rounding(sn, xm);
-		/* adjust exponent for rounding add overflowing 
+		/* adjust exponent for rounding add overflowing
 		 */
 		if (xm >> (SP_MBITS + 1 + 3)) {
 			/* add causes mantissa overflow */

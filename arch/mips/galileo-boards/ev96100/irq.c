@@ -3,7 +3,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/atlas/atlas_int.c.
  *
  * Carsten Langgaard, carstenl@mips.com

@@ -16,9 +16,9 @@
 /* These are the virtual IRQ numbers, we divide all IRQ's into
  * 'spaces', the 'space' determines where and how to enable/disable
  * that particular IRQ on an SGI machine. HPC DMA and MC DMA interrups
- * are not supported this way. Driver is supposed to allocate HPC/MC 
+ * are not supported this way. Driver is supposed to allocate HPC/MC
  * interrupt as shareable and then look to proper status bit (see
- * HAL2 driver). This will prevent many complications, trust me ;-) 
+ * HAL2 driver). This will prevent many complications, trust me ;-)
  *	--ladis
  */
 #define SGINT_EISA	0	/* INDIGO 2 has 16 EISA irq levels */
@@ -43,7 +43,7 @@
 #define SGI_TIMER_IRQ	SGINT_CPU + 7
 
 #define SGI_FIFO_IRQ	SGINT_LOCAL0 + 0	/* FIFO full */
-#define SGI_GIO_0_IRQ	SGI_FIFO_IRQ		/* GIO-0 */	
+#define SGI_GIO_0_IRQ	SGI_FIFO_IRQ		/* GIO-0 */
 #define SGI_WD93_0_IRQ	SGINT_LOCAL0 + 1	/* 1st onboard WD93 */
 #define SGI_WD93_1_IRQ	SGINT_LOCAL0 + 2	/* 2nd onboard WD93 */
 #define SGI_ENET_IRQ	SGINT_LOCAL0 + 3	/* onboard ethernet */
@@ -88,7 +88,7 @@ struct sgi_ioc_ints {
 #define ISTAT0_LPR	0x20
 #define ISTAT0_HPC2	0x40
 #define ISTAT0_LIO2	0x80
-	
+
 #ifdef __MIPSEB__
 	unsigned char _unused1[3];
 	volatile unsigned char imask0;	/* Interrupt mask zero */
@@ -108,7 +108,7 @@ struct sgi_ioc_ints {
 #define ISTAT1_AFAIL	0x20
 #define ISTAT1_VIDEO	0x40
 #define ISTAT1_GIO2	0x80
-	
+
 #ifdef __MIPSEB__
 	unsigned char _unused3[3];
 	volatile unsigned char imask1;		/* Interrupt mask one */
@@ -200,7 +200,7 @@ struct sgi_int2_regs {
 #endif
 #define INT2_TCLEAR_T0CLR	0x1	/* Clear timer0 IRQ */
 #define INT2_TCLEAR_T1CLR	0x2	/* Clear timer1 IRQ */
-/* I am guesing there are only two unused registers here 
+/* I am guesing there are only two unused registers here
  * but I could be wrong...			- andrewb
  */
 /*	u32 _unused[3]; */

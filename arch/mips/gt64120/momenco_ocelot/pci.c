@@ -44,7 +44,7 @@ void __init gt64120_board_pcibios_fixup_bus(struct pci_bus *bus)
 			devices->irq = 2;       /* irq_nr is 2 for INT0 */
 		} else if (PCI_SLOT(devices->devfn) == 2) {
 			/*
-			 * Slot 2 is secondary ether port, i21143 
+			 * Slot 2 is secondary ether port, i21143
 			 * we double-check against that assumption
 			 */
 			if ((devices->vendor != 0x1011) ||

@@ -86,7 +86,7 @@ void __init au1500_setup(void)
 	char *argptr;
 	u32 pin_func, static_cfg0;
 	u32 sys_freqctrl, sys_clksrc;
-	
+
 	argptr = prom_getcmdline();
 
 	/* NOTE: The memory map is established by YAMON 2.08+ */
@@ -99,7 +99,7 @@ void __init au1500_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif	  
+#endif
 
 #ifdef CONFIG_SOUND_AU1000
 	strcat(argptr, " au1000_audio=vra");
@@ -110,7 +110,7 @@ void __init au1500_setup(void)
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
 
-	// IO/MEM resources. 
+	// IO/MEM resources.
 	set_io_port_base(0);
 	ioport_resource.start = 0x10000000;
 	ioport_resource.end = 0xffffffff;
@@ -192,7 +192,7 @@ void __init au1500_setup(void)
 	    ;
 	au_readl(USB_HOST_CONFIG);
 #endif
-	
+
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
@@ -231,7 +231,7 @@ void __init au1500_setup(void)
 	au_writel(0xf0000000, Au1500_PCI_MWMASK_DEV);
 	au_writel(0, Au1500_PCI_MWBASE_REV_CCL);
 	au_writel(0x02a00356, Au1500_PCI_STATCMD);
-	au_writel(0x00003c04, Au1500_PCI_HDRTYPE);	
+	au_writel(0x00003c04, Au1500_PCI_HDRTYPE);
 	au_writel(0x00000008, Au1500_PCI_MBAR);
 	au_sync();
 #endif
@@ -247,7 +247,7 @@ void __init au1500_setup(void)
 
 #ifdef CONFIG_RTC
 	rtc_ops = &pb1500_rtc_ops;
-	// Enable the RTC if not already enabled 
+	// Enable the RTC if not already enabled
 	if (!(au_readl(0xac000028) & 0x20)) {
 		printk("enabling clock ...\n");
 		au_writel((au_readl(0xac000028) | 0x20), 0xac000028);

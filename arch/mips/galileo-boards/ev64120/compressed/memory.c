@@ -8,7 +8,7 @@ This file contains function which gives the user the ability to remap the
 SDRAM memory and devices windows, please pay attention to overlapping windows
 since the function do not take care of that for you.
 When remapping the SDRAM or devices memory space pay attention to the PCI
-mappings and make sure to coordinate between the two interfaces!!!           
+mappings and make sure to coordinate between the two interfaces!!!
 */
 
 /* includes */
@@ -26,7 +26,7 @@ mappings and make sure to coordinate between the two interfaces!!!
 *      - If the memory bank size is 0 then this base address has no meaning !!!
 *
 * INPUTS:  MEMORY_BANK bank - SDRAM Bank number.
-* OUTPUT:  N/A  
+* OUTPUT:  N/A
 * RETURNS: Memory bank base address.
 *********************************************************************/
 unsigned int getMemoryBankBaseAddress(MEMORY_BANK bank)
@@ -45,7 +45,7 @@ unsigned int getMemoryBankBaseAddress(MEMORY_BANK bank)
 *           - If the device size is 0 then this base address has no meaning!!!
 *
 * INPUT:   DEVICE device - Bank number.
-* OUTPUT:  N/A  
+* OUTPUT:  N/A
 * RETURNS: Device base address.
 *********************************************************************/
 unsigned int getDeviceBaseAddress(DEVICE device)
@@ -83,7 +83,7 @@ unsigned int getMemoryBankSize(MEMORY_BANK bank)
 * getDeviceSize - Extract the size of a device memory space
 *
 * INPUT:    DEVICE device - Device number
-* OUTPUT:   N/A  
+* OUTPUT:   N/A
 * RETURNS:  Size of a device memory space.
 *********************************************************************/
 unsigned int getDeviceSize(DEVICE device)
@@ -103,10 +103,10 @@ unsigned int getDeviceSize(DEVICE device)
 * getDeviceWidth - A device can be with: 1,2,4 or 8 Bytes data width.
 *                  The width is determine in registers: 'Device Parameters'
 *                  registers (0x45c, 0x460, 0x464, 0x468, 0x46c - for each device.
-*                  at bits: [21:20].                  
+*                  at bits: [21:20].
 *
 * INPUT:    DEVICE device - Device number
-* OUTPUT:   N/A  
+* OUTPUT:   N/A
 * RETURNS:  Device width in Bytes (1,2,4, or 8), 0 if error had occurred.
 *********************************************************************/
 unsigned int getDeviceWidth(DEVICE device)
@@ -132,9 +132,9 @@ unsigned int getDeviceWidth(DEVICE device)
 
 /********************************************************************
 * mapMemoryBanks0and1 - Sets new bases and boundaries for memory banks 0 and 1
-*                     - Pay attention to the PCI mappings and make sure to 
+*                     - Pay attention to the PCI mappings and make sure to
 *                       coordinate between the two interfaces!!!
-*                     - It is the programmer`s responsibility to make sure 
+*                     - It is the programmer`s responsibility to make sure
 *                       there are no conflicts with other memory spaces!!!
 *                     - If a bank needs to be closed , give it a 0 length
 *
@@ -143,7 +143,7 @@ unsigned int getDeviceWidth(DEVICE device)
 *         unsigned int bank0Length - required bank 0 size.
 *         unsigned int bank1Base - required bank 1 base address.
 *         unsigned int bank1Length - required bank 1 size.
-* RETURNS: true on success, false on failure or if one of the parameters is 
+* RETURNS: true on success, false on failure or if one of the parameters is
 *          erroneous.
 *********************************************************************/
 bool mapMemoryBanks0and1(unsigned int bank0Base, unsigned int bank0Length,
@@ -205,7 +205,7 @@ bool mapMemoryBanks0and1(unsigned int bank0Base, unsigned int bank0Length,
 
 /********************************************************************
 * mapMemoryBanks2and3 - Sets new bases and boundaries for memory banks 2 and 3
-*                     - Pay attention to the PCI mappings and make sure to  
+*                     - Pay attention to the PCI mappings and make sure to
 *                       coordinate between the two interfaces!!!
 *                     - It`s the programmer`s responsibility to make sure there
 *                       are no conflicts with other memory spaces!!!
@@ -216,7 +216,7 @@ bool mapMemoryBanks0and1(unsigned int bank0Base, unsigned int bank0Length,
 *         unsigned int bank2Length - required bank 2 size.
 *         unsigned int bank3Base - required bank 3 base address.
 *         unsigned int bank3Length - required bank 3 size.
-* RETURNS: true on success, false on failure or if one of the parameters is 
+* RETURNS: true on success, false on failure or if one of the parameters is
 *          erroneous.
 *********************************************************************/
 bool mapMemoryBanks2and3(unsigned int bank2Base, unsigned int bank2Length,
@@ -278,9 +278,9 @@ bool mapMemoryBanks2and3(unsigned int bank2Base, unsigned int bank2Length,
 }
 
 /********************************************************************
-* mapDevices0_1and2MemorySpace - Sets new bases and boundaries for devices 0,1 
+* mapDevices0_1and2MemorySpace - Sets new bases and boundaries for devices 0,1
 *                                and 2
-*                     - Pay attention to the PCI mappings and make sure to 
+*                     - Pay attention to the PCI mappings and make sure to
 *                        coordinate between the two interfaces!!!
 *                     - It`s the programmer`s responsibility to make sure there
 *                       are no conflicts with other memory spaces!!!
@@ -289,11 +289,11 @@ bool mapMemoryBanks2and3(unsigned int bank2Base, unsigned int bank2Length,
 *
 * INPUTS: unsigned int device0Base - required cs_0 base address.
 *         unsigned int device0Length - required cs_0 size.
-*         unsigned int device1Base - required cs_1 base address. 
-*         unsigned int device1Length - required cs_0 size.       
-*         unsigned int device2Base - required cs_2 base address. 
-*         unsigned int device2Length - required cs_2 size.       
-* RETURNS: true on success, false on failure or if one of the parameters is 
+*         unsigned int device1Base - required cs_1 base address.
+*         unsigned int device1Length - required cs_0 size.
+*         unsigned int device2Base - required cs_2 base address.
+*         unsigned int device2Length - required cs_2 size.
+* RETURNS: true on success, false on failure or if one of the parameters is
 *          erroneous.
 *********************************************************************/
 bool mapDevices0_1and2MemorySpace(unsigned int device0Base,
@@ -431,11 +431,11 @@ bool mapDevices0_1and2MemorySpace(unsigned int device0Base,
 }
 
 /********************************************************************
-* mapDevices3andBootMemorySpace - Sets new bases and boundaries for devices: 
+* mapDevices3andBootMemorySpace - Sets new bases and boundaries for devices:
 *                                 3 and boot
-*                     - Pay attention to the PCI mappings and make sure to 
+*                     - Pay attention to the PCI mappings and make sure to
 *                       coordinate between the two interfaces!!!
-*                     - It is the programmer`s responsibility to make sure 
+*                     - It is the programmer`s responsibility to make sure
 *                       there are no conflicts with other memory spaces!!!
 *                     - If a device needs to be closed , give it a 0 length.
 *
@@ -501,7 +501,7 @@ bool mapDevices3andBootMemorySpace(unsigned int device3Base,
 }
 
 /********************************************************************
-* modifyDeviceParameters - This function can be used to modify a device`s 
+* modifyDeviceParameters - This function can be used to modify a device`s
 *                          parameters.
 *                        - Be advised to check the spec before modifying them.
 * Inputs:
@@ -579,8 +579,8 @@ bool modifyDeviceParameters(DEVICE device, unsigned int turnOff,
 }
 
 /********************************************************************
-* remapAddress - This fubction used for address remapping 
-* Inputs:      - regOffset: remap register 
+* remapAddress - This fubction used for address remapping
+* Inputs:      - regOffset: remap register
 *                remapHeader : remapped address
 * Returns: false if one of the parameters is erroneous,true otherwise.
 *********************************************************************/

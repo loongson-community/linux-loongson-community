@@ -21,7 +21,7 @@
 		CLI
 		.set	at
 
-		mfc0	t0, CP0_CAUSE  
+		mfc0	t0, CP0_CAUSE
 		mfc0	t2, CP0_STATUS
 
 		and	t0, t2
@@ -51,7 +51,7 @@ ll_galileo_irq:	li	a0, 4
 		j	ret_from_irq
 
 		.align	5
-ll_compare_irq:	li 	a0, 7	
+ll_compare_irq:	li 	a0, 7
 		move	a1, sp
 		jal	do_IRQ
 		j	ret_from_irq

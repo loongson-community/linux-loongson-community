@@ -8,7 +8,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/xx files.
  *
  * Carsten Langgaard, carstenl@mips.com
@@ -128,11 +128,11 @@ unsigned long __init prom_get_memsize(void)
 	memsize_str = prom_getenv("memsize");
 	if (!memsize_str) {
 #ifdef CONFIG_MIPS_ITE8172
-		memsize = 32; 
+		memsize = 32;
 #elif defined(CONFIG_MIPS_IVR)
-		memsize = 64; 
+		memsize = 64;
 #else
-		memsize = 8; 
+		memsize = 8;
 #endif
 		printk("memsize unknown: setting to %dMB\n", memsize);
 	} else {

@@ -86,7 +86,7 @@ void __init au1100_setup(void)
 	char *argptr;
 	u32 pin_func, static_cfg0;
 	u32 sys_freqctrl, sys_clksrc;
-	
+
 	argptr = prom_getcmdline();
 
 	/* NOTE: The memory map is established by YAMON 2.08+ */
@@ -99,7 +99,7 @@ void __init au1100_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
-#endif	  
+#endif
 
 #ifdef CONFIG_SOUND_AU1000
 	strcat(argptr, " au1000_audio=vra");
@@ -110,7 +110,7 @@ void __init au1100_setup(void)
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
 
-	// IO/MEM resources. 
+	// IO/MEM resources.
 	set_io_port_base(0);
 	ioport_resource.start = 0x10000000;
 	ioport_resource.end = 0xffffffff;
@@ -173,7 +173,7 @@ void __init au1100_setup(void)
 	au_writel(0x280E3D07, MEM_STTIME3); /* 250ns cycle time */
 	au_writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
 
-	// get USB Functionality pin state (device vs host drive pins)	
+	// get USB Functionality pin state (device vs host drive pins)
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8000);
 #ifndef CONFIG_AU1000_USB_DEVICE
 	// 2nd USB port is USB host
@@ -193,7 +193,7 @@ void __init au1100_setup(void)
 	    ;
 	au_readl(USB_HOST_CONFIG);
 #endif
-	
+
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
@@ -234,7 +234,7 @@ void __init au1100_setup(void)
 
 #ifdef CONFIG_RTC
 	rtc_ops = &pb1500_rtc_ops;
-	// Enable the RTC if not already enabled 
+	// Enable the RTC if not already enabled
 	if (!(readb(0xac000028) & 0x20)) {
 		writeb(readb(0xac000028) | 0x20, 0xac000028);
 		au_sync();

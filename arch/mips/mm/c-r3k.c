@@ -49,8 +49,8 @@ unsigned long __init r3k_cache_size(unsigned long ca_flags)
 		for (size = 128; size <= 0x40000; size <<= 1)
 			*(p + size) = 0;
 		*p = -1;
-		for (size = 128; 
-		     (size <= 0x40000) && (*(p + size) == 0); 
+		for (size = 128;
+		     (size <= 0x40000) && (*(p + size) == 0);
 		     size <<= 1)
 			;
 		if (size > 0x40000)
@@ -96,7 +96,7 @@ static void __init r3k_probe_cache(void)
 	dcache_size = r3k_cache_size(ST0_ISC);
 	if (dcache_size)
 		dcache_lsize = r3k_cache_lsize(ST0_ISC);
-	
+
 
 	icache_size = r3k_cache_size(ST0_ISC|ST0_SWC);
 	if (icache_size)
@@ -238,7 +238,7 @@ static inline unsigned long get_phys_page (unsigned long addr,
 static inline void r3k_flush_cache_all(void)
 {
 }
- 
+
 static inline void r3k___flush_cache_all(void)
 {
 	r3k_flush_icache_range(KSEG0, KSEG0 + icache_size);

@@ -1,7 +1,7 @@
 /*
  * init.c: PROM library initialisation code.
  *
- * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov 
+ * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
  */
 
 #include <linux/mm.h>
@@ -35,7 +35,7 @@ int __init prom_init(int argc, char ** argv, char **envp)
         add_memory_region(mem_size,reserve_size, BOOT_MEM_RESERVED);
 
 	printk("Main Memory: %ld bytes\n", mem_size);
-	printk("Reserved Memory: %ld bytes at 0x%08x\n", 
+	printk("Reserved Memory: %ld bytes at 0x%08x\n",
 		get_reserved_buffer_size(), (ulong)get_reserved_buffer());
 
 	printk("Detected %s ASIC\n", GetAsicName());

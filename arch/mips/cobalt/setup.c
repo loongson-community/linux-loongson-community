@@ -71,10 +71,10 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	setup_irq(0, irq);
 
 	/* Enable timer ints */
-	*((volatile unsigned long *) GALILEO_TIMER_CTRL) = 
+	*((volatile unsigned long *) GALILEO_TIMER_CTRL) =
 			(unsigned long) (GALILEO_ENTC0 | GALILEO_SELTC0);
 	/* Unmask timer int */
-	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100; 
+	*((volatile unsigned long *) GALILEO_CPU_MASK) = (unsigned long) 0x00000100;
 }
 
 int cobalt_serial_present;
@@ -96,7 +96,7 @@ void __init cobalt_setup(void)
 #endif
         set_io_port_base(0xb0000000);
 
-	/* 
+	/*
 	 * This is a prom style console. We just poke at the
 	 *  UART to make it talk.
 	 * Only use this console if you really screw up and can't
@@ -118,7 +118,7 @@ void __init cobalt_setup(void)
 void __init prom_init(int argc)
 {
 	mips_machgroup = MACH_GROUP_COBALT;
-	
+
 	add_memory_region(0x0, argc & 0x7fffffff, BOOT_MEM_RAM);
 }
 

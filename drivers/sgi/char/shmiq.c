@@ -10,7 +10,7 @@
  * any other number implements /dev/qcntl${minor-1}
  *
  * /dev/shmiq is used by the X server for two things:
- * 
+ *
  *    1. for I_LINK()ing trough ioctl the file handle of a
  *       STREAMS device.
  *
@@ -36,7 +36,7 @@
  * need an strace from an X server that runs on a machine with more
  * than one keyboard.  And this is a problem since the file handles
  * are pushed in /dev/shmiq, while the events should be dispatched to
- * the /dev/qcntlN device. 
+ * the /dev/qcntlN device.
  *
  * Until then, I just allow for 1 qcntl device.
  *
@@ -86,7 +86,7 @@ static struct {
 	int   		tail;			/* our copy of the shmiq->tail */
 	int    		events;
 	int    		mapped;
-	
+
 	wait_queue_head_t    proc_list;
 	struct fasync_struct *fasync;
 } shmiqs [MAX_SHMI_QUEUES];
@@ -108,12 +108,12 @@ shmiq_push_event (struct shmqevent *e)
 		return;
 	}
 	tail_next = (s->tail + 1) % (shmiqs [device].events);
-	
+
 	if (tail_next == s->head){
 		s->flags |= SHMIQ_OVERFLOW;
 		return;
 	}
-	
+
 	e->un.time = jiffies;
 	s->events [s->tail] = *e;
 	printk ("KERNEL: dev=%d which=%d type=%d flags=%d\n",
@@ -153,7 +153,7 @@ shmiq_forget_file (unsigned long fdes)
 
 	if (fdes > MAX_SHMIQ_DEVS)
 		return -EINVAL;
-	
+
 	if (!shmiq_pushed_devices [fdes].used)
 		return -EINVAL;
 
@@ -181,7 +181,7 @@ shmiq_sioc (int device, int cmd, struct strioctl *s)
 
 	case QIOCIISTR: {
 		struct muxioctl *mux = (struct muxioctl *) s->ic_dp;
-		
+
 		printk ("Double indirect ioctl: [%d, %x\n", mux->index, mux->realcmd);
 		return -EINVAL;
 	}
@@ -227,12 +227,12 @@ shmiq_ioctl (struct inode *inode, struct file *f, unsigned int cmd, unsigned lon
 	case I_UNLINK:
 		v = shmiq_forget_file (arg);
 		return v;
-		
+
 	case I_STR:
 		v = get_sioc (&sioc, arg);
 		if (v)
 			return v;
-		
+
 		/* FIXME: This forces device = 0 */
 		return shmiq_sioc (0, sioc.ic_cmd, &sioc);
 	}
@@ -251,7 +251,7 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 	struct shmiqreq req;
 	struct vm_area_struct *vma;
 	int v;
-	
+
 	switch (cmd) {
 		/*
 		 * The address space is already mapped as a /dev/zero
@@ -261,7 +261,7 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 		case QIOCATTACH: {
 			unsigned long vaddr;
 			int s;
-	
+
 			v = verify_area (VERIFY_READ, (void *) arg,
 			                 sizeof (struct shmiqreq));
 			if (v)
@@ -320,7 +320,7 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 	int minor = minor(file->f_dentry->d_inode->i_rdev), error;
 	unsigned int  size;
 	unsigned long mem, start;
-	
+
 	/* mmap is only supported on the qcntl devices */
 	if (minor-- == 0)
 		return -EINVAL;
@@ -329,7 +329,7 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 		return -EINVAL;
 
 	size  = vma->vm_end - vma->vm_start;
-	start = vma->vm_start; 
+	start = vma->vm_start;
 	mem = vmalloc_uncached(size);
 	if (!mem)
 		return -EINVAL;
@@ -339,7 +339,7 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 	/* Prevent the swapper from considering these pages for swap and touching them */
 	vma->vm_flags    |= (VM_SHM  | VM_LOCKED | VM_IO);
 	vma->vm_ops = &qcntl_mmap;
-	
+
 	/* Uncache the pages */
 	vma->vm_page_prot = PAGE_USERIO;
 
@@ -374,7 +374,7 @@ shmiq_qcntl_poll (struct file *filp, poll_table *wait)
 
 	if (!shmiqs [minor].mapped)
 		return 0;
-	
+
 	poll_wait (filp, &shmiqs [minor].proc_list, wait);
 	s = shmiqs [minor].shmiq_vaddr;
 	if (s->head != s->tail)
@@ -424,7 +424,7 @@ shmiq_qcntl_close (struct inode *inode, struct file *filp)
 {
 	int minor = minor(inode->i_rdev);
 	int j;
-	
+
 	if (minor-- == 0){
 		for (j = 0; j < MAX_SHMIQ_DEVS; j++)
 			shmiq_forget_file (j);

@@ -1,4 +1,4 @@
-/* 
+/*
  * IEEE754 floating point
  * common internal header file
  */

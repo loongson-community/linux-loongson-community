@@ -8,7 +8,7 @@ SECTIONS
   /* This is the value for an Origin kernel, taken from an IRIX kernel.  */
   /* . = 0xc00000000001c000; */
 
-  /* Set the vaddr for the text segment to a value 
+  /* Set the vaddr for the text segment to a value
         >= 0xa800 0000 0001 9000 if no symmon is going to configured
         >= 0xa800 0000 0030 0000 otherwise  */
 
@@ -55,12 +55,12 @@ SECTIONS
   __setup_end = .;
   __initcall_start = .;
   .initcall.init : {
-	*(.initcall1.init) 
-	*(.initcall2.init) 
-	*(.initcall3.init) 
-	*(.initcall4.init) 
-	*(.initcall5.init) 
-	*(.initcall6.init) 
+	*(.initcall1.init)
+	*(.initcall2.init)
+	*(.initcall3.init)
+	*(.initcall4.init)
+	*(.initcall5.init)
+	*(.initcall6.init)
 	*(.initcall7.init)
   }
   __initcall_end = .;
@@ -119,7 +119,7 @@ SECTIONS
   }
 
   /* Sections to be discarded */
-  /DISCARD/ : 
+  /DISCARD/ :
   {
         *(.text.exit)
         *(.data.exit)

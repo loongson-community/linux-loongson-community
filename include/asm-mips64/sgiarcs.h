@@ -115,7 +115,7 @@ enum arc_memtypes {
 	arc_prog,    /* A loaded program resides here */
 	arc_atmp,    /* temporary storage area */
 	arc_aperm,   /* permanent storage */
-	arc_fcontig, /* Contiguous and free */    
+	arc_fcontig, /* Contiguous and free */
 };
 
 union linux_memtypes {

@@ -8,7 +8,7 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
- * This file was derived from Carsten Langgaard's 
+ * This file was derived from Carsten Langgaard's
  * arch/mips/mips-boards/xx files.
  *
  * Carsten Langgaard, carstenl@mips.com
@@ -125,7 +125,7 @@ inline void str2eaddr(unsigned char *ea, unsigned char *str)
 		ea[i] = num;
 	}
 }
- 
+
 int get_ethernet_addr(char *ethernet_addr)
 {
 	int i;

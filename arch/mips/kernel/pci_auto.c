@@ -42,7 +42,7 @@
 #ifdef 	DEBUG
 #define	DBG(x...)	printk(x)
 #else
-#define	DBG(x...)	
+#define	DBG(x...)
 #endif
 
 /*
@@ -95,7 +95,7 @@ static u32 pciauto_upper_iospc;
 static u32 pciauto_lower_memspc;
 static u32 pciauto_upper_memspc;
 
-void __init 
+void __init
 pciauto_setup_bars(struct pci_channel *hose,
 		   int top_bus,
 		   int current_bus,
@@ -144,7 +144,7 @@ retry:
 			    PCI_BASE_ADDRESS_MEM_TYPE_64)
 				found_mem64 = 1;
 
-			addr_mask = PCI_BASE_ADDRESS_MEM_MASK;		
+			addr_mask = PCI_BASE_ADDRESS_MEM_MASK;
 			upper_limit = &pciauto_upper_memspc;
 			lower_limit = &pciauto_lower_memspc;
 			DBG("        Mem");
@@ -160,22 +160,22 @@ retry:
 		if ((bar_value + bar_size) > *upper_limit) {
 			if (bar_response & PCI_BASE_ADDRESS_SPACE) {
 				if (io_resource_inuse->child) {
-					io_resource_inuse = 
+					io_resource_inuse =
 						io_resource_inuse->child;
-					pciauto_lower_iospc = 
+					pciauto_lower_iospc =
 						io_resource_inuse->start;
-					pciauto_upper_iospc = 
+					pciauto_upper_iospc =
 						io_resource_inuse->end + 1;
 					goto retry;
 				}
 
 			} else {
 				if (mem_resource_inuse->child) {
-					mem_resource_inuse = 
+					mem_resource_inuse =
 						mem_resource_inuse->child;
-					pciauto_lower_memspc = 
+					pciauto_lower_memspc =
 						mem_resource_inuse->start;
-					pciauto_upper_memspc = 
+					pciauto_upper_memspc =
 						mem_resource_inuse->end + 1;
 					goto retry;
 				}
@@ -194,7 +194,7 @@ retry:
 		 * If we are a 64-bit decoder then increment to the
 		 * upper 32 bits of the bar and force it to locate
 		 * in the lower 4GB of memory.
-		 */ 
+		 */
 		if (found_mem64) {
 			bar += 4;
 			early_write_config_dword(hose, top_bus,
@@ -295,12 +295,12 @@ pciauto_bus_scan(struct pci_channel *hose, int top_bus, int current_bus)
 	int devfn_stop = 0xff;
 
 	sub_bus = current_bus;
-	
+
 	if (hose->first_devfn)
 		devfn_start = hose->first_devfn;
 	if (hose->last_devfn)
 		devfn_stop = hose->last_devfn;
-	
+
 	for (pci_devfn=devfn_start; pci_devfn<devfn_stop; pci_devfn++) {
 
 		if (PCI_FUNC(pci_devfn) && !found_multi)
@@ -387,7 +387,7 @@ pciauto_assign_resources(int busno, struct pci_channel *hose)
 	pciauto_upper_memspc = mem_resource_inuse->end + 1;
 	DBG("Autoconfig PCI channel 0x%p\n", hose);
 	DBG("Scanning bus %.2x, I/O 0x%.8x:0x%.8x, Mem 0x%.8x:0x%.8x\n",
-		busno, pciauto_lower_iospc, pciauto_upper_iospc, 
+		busno, pciauto_lower_iospc, pciauto_upper_iospc,
 		pciauto_lower_memspc, pciauto_upper_memspc);
 
 	return pciauto_bus_scan(hose, busno, busno);

@@ -18,7 +18,7 @@
  *
  * For more information:
  * usema(7m), usinit(3p), usnewsema(3p)
- * /usr/include/sys/usioctl.h 
+ * /usr/include/sys/usioctl.h
  *
  */
 #include <linux/fs.h>
@@ -52,7 +52,7 @@ sgi_usema_attach (usattach_t * attach, struct irix_usema *usema)
 	newfd = get_unused_fd();
 	if (newfd < 0)
 		return newfd;
-	
+
 	get_file(usema->filp);
 	fd_install(newfd, usema->filp);
 	/* Is that it? */
@@ -66,7 +66,7 @@ sgi_usemaclone_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 {
 	struct irix_usema *usema = file->private_data;
 	int retval;
-	
+
 	printk("[%s:%d] wants ioctl 0x%xd (arg 0x%lx)",
 	       current->comm, current->pid, cmd, arg);
 
@@ -140,10 +140,10 @@ static unsigned int
 sgi_usemaclone_poll(struct file *filp, poll_table *wait)
 {
 	struct irix_usema *usema = filp->private_data;
-	
+
 	printk("[%s:%d] wants to poll usema %p",
 	       current->comm, current->pid, usema);
-	
+
 	return 0;
 }
 
@@ -155,7 +155,7 @@ sgi_usemaclone_open(struct inode *inode, struct file *filp)
 	usema = kmalloc (sizeof (struct irix_usema), GFP_KERNEL);
 	if (!usema)
 		return -ENOMEM;
-	
+
 	usema->filp        = filp;
 	init_waitqueue_head(&usema->proc_list);
 	filp->private_data = usema;

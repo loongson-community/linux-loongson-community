@@ -19,9 +19,9 @@
  *
  * ########################################################################
  *
- * PROM library functions for acquiring/using memory descriptors given to 
+ * PROM library functions for acquiring/using memory descriptors given to
  * us from the YAMON.
- * 
+ *
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -83,11 +83,11 @@ struct prom_pmemblock * __init prom_getmdesc(void)
 	mdesc[1].size = 0x000ef000;
 
 #if (CONFIG_MIPS_MALTA)
-	/* 
+	/*
 	 * The area 0x000f0000-0x000fffff is allocated for BIOS memory by the
-	 * south bridge and PCI access always forwarded to the ISA Bus and 
+	 * south bridge and PCI access always forwarded to the ISA Bus and
 	 * BIOSCS# is always generated.
-	 * This mean that this area can't be used as DMA memory for PCI 
+	 * This mean that this area can't be used as DMA memory for PCI
 	 * devices.
 	 */
 	mdesc[2].type = yamon_dontuse;
@@ -148,7 +148,7 @@ void __init prom_meminit(void)
 		size = p->size;
 
 		add_memory_region(base, size, type);
-                p++; 
+                p++;
 	}
 }
 

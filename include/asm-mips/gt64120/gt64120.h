@@ -63,7 +63,7 @@
 #define GT_PCI1M0REMAP_OFS	0x110
 #define GT_PCI1M1REMAP_OFS	0x118
 
-#define GT_SCS0LD_OFS		0x400	
+#define GT_SCS0LD_OFS		0x400
 #define GT_SCS0HD_OFS		0x404
 #define GT_SCS1LD_OFS		0x408
 #define GT_SCS1HD_OFS		0x40c
@@ -327,7 +327,7 @@
 #define GT_PCI0_BARE_SWSCS32DIS_SHF	1
 #define GT_PCI0_BARE_SWSCS32DIS_MSK	(MSK(1) << GT_PCI0_BARE_SWSCS32DIS_SHF)
 #define GT_PCI0_BARE_SWSCS32DIS_BIT	GT_PCI0_BARE_SWSCS32DIS_MSK
-	
+
 #define GT_PCI0_BARE_SWSCS10DIS_SHF	2
 #define GT_PCI0_BARE_SWSCS10DIS_MSK	(MSK(1) << GT_PCI0_BARE_SWSCS10DIS_SHF)
 #define GT_PCI0_BARE_SWSCS10DIS_BIT	GT_PCI0_BARE_SWSCS10DIS_MSK
@@ -410,7 +410,7 @@
  ***********************************************************************
  */
 
-/* 
+/*
  * include asm/gt64120/<board>/gt64120_dep.h file
  */
 
@@ -432,7 +432,7 @@
  */
 
 /*
- * Board-dependent functions, which must be defined in 
+ * Board-dependent functions, which must be defined in
  * arch/mips/gt64120/<board>/pci.c file.
  *
  * This function is called by pcibios_fixup_bus(bus), which in turn is

@@ -15,7 +15,7 @@ USE_STANDARD_AS_RULE := true
 
 O_TARGET := ite.o
 
-obj-y := init.o 
+obj-y := init.o
 
 obj-$(CONFIG_PCI) += pci_fixup.o
 obj-$(CONFIG_BLK_DEV_INITRD) += le_ramdisk.o

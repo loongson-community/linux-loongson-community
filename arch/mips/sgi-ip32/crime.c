@@ -28,7 +28,7 @@ void crime_memerr_intr (unsigned int irq, void *dev_id, struct pt_regs *regs)
 	u64 memerr = crime_read_64 (CRIME_MEM_ERROR_STAT);
 	u64 addr = crime_read_64 (CRIME_MEM_ERROR_ADDR);
 	memerr &= CRIME_MEM_ERROR_STAT_MASK;
-	
+
 	printk ("CRIME memory error at physaddr 0x%08lx status %08lx\n",
 		addr << 2, memerr);
 

@@ -10,7 +10,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -23,7 +23,7 @@
  * and the hardware.  We basically provide glue for accessing
  * configuration space, and set up the translation for I/O
  * space accesses.
- * 
+ *
  * To access configuration space, we call some assembly-level
  * stubs that flip the KX bit on and off in the status
  * register, and do XKSEG addressed memory accesses there.
@@ -75,9 +75,9 @@
 /*
  * This variable is the KSEG2 (kernel virtual) mapping
  * of the ISA/PCI I/O space area.  We map 64K here and
- * the offsets from this address get treated with "match bytes" 
- * policy to make everything look little-endian.  So, 
- * you need to also set CONFIG_SWAP_IO_SPACE, but this is the 
+ * the offsets from this address get treated with "match bytes"
+ * policy to make everything look little-endian.  So,
+ * you need to also set CONFIG_SWAP_IO_SPACE, but this is the
  * combination that works correctly with most of Linux's drivers.
  */
 
@@ -247,8 +247,8 @@ void __init pcibios_init(void)
 
 	sb1250_bus_status |= PCI_BUS_ENABLED;
 
-	/* 
-	 * Establish a mapping from KSEG2 (kernel virtual) to PCI I/O space 
+	/*
+	 * Establish a mapping from KSEG2 (kernel virtual) to PCI I/O space
 	 * Use "match bytes", even though this exposes endianness.
 	 * big-endian Linuxes will have CONFIG_SWAP_IO_SPACE set.
 	 */

@@ -10,12 +10,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
- 
+
 /*
  * sb1250_handle_int() is the routine that is actually called when an interrupt
  * occurs.  It is installed as the exception vector handler in init_IRQ() in
@@ -23,10 +23,10 @@
  *
  * In the handle we figure out which interrupts need handling, and use that to
  * call the dispatcher, which will take care of actually calling registered
- * handlers 
- * 
+ * handlers
+ *
  * Note that we take care of all raised interrupts in one go at the handler.
- * This is more BSDish than the Indy code, and also, IMHO, more sane. 
+ * This is more BSDish than the Indy code, and also, IMHO, more sane.
  */
 #include <linux/config.h>
 
@@ -40,15 +40,15 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 
-/* 
+/*
  * What a pain. We have to be really careful saving the upper 32 bits of any
- * register across function calls if we don't want them trashed--since were 
+ * register across function calls if we don't want them trashed--since were
  * running in -o32, the calling routing never saves the full 64 bits of a
  * register across a function call.  Being the interrupt handler, we're
  * guaranteed that interrupts are disabled during this code so we don't have
  * to worry about random interrupts blasting the high 32 bits.
  */
- 
+
 	.text
 	.set	push
 	.set	noreorder
@@ -96,7 +96,7 @@
 	beqz	 t1, 2f
          nop
 	jal	 sb1250_mailbox_interrupt
-	 move    a0, sp		
+	 move    a0, sp
 	j	ret_from_irq
 	 nop				# delay slot
 2:
@@ -118,7 +118,7 @@
 
 3:	dclz	s1, s0		/* Find the next interrupt */
 	dsubu	a0, zero, s1
-	daddiu	a0, a0, 63     
+	daddiu	a0, a0, 63
 	jal	 do_IRQ
 	 nop
 

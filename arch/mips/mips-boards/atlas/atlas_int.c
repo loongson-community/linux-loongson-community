@@ -19,7 +19,7 @@
  *
  * ########################################################################
  *
- * Routines for generic manipulation of the interrupts found on the MIPS 
+ * Routines for generic manipulation of the interrupts found on the MIPS
  * Atlas board.
  *
  */
@@ -104,7 +104,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	unsigned long int_status;
 	int irq, cpu = smp_processor_id();
 
-	int_status = atlas_hw0_icregs->intstatus; 
+	int_status = atlas_hw0_icregs->intstatus;
 
 	/* if int_status == 0, then the interrupt has already been cleared */
 	if (int_status == 0)
@@ -127,7 +127,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 	action->handler(irq, action->dev_id, regs);
 	irq_exit(cpu, irq);
 
-	return;		
+	return;
 }
 
 #ifdef CONFIG_REMOTE_DEBUG
@@ -139,11 +139,11 @@ void __init init_IRQ(void)
 {
 	int i;
 
-	/* 
-	 * Mask out all interrupt by writing "1" to all bit position in 
-	 * the interrupt reset reg. 
+	/*
+	 * Mask out all interrupt by writing "1" to all bit position in
+	 * the interrupt reset reg.
 	 */
-	atlas_hw0_icregs->intrsten = 0xffffffff;    
+	atlas_hw0_icregs->intrsten = 0xffffffff;
 
 	/* Now safe to set the exception vector. */
 	set_except_vector(0, mipsIRQ);

@@ -19,7 +19,7 @@
 #include <asm/cobalt/cobalt.h>
 #include <asm/pci.h>
 #include <asm/io.h>
- 
+
 #ifdef CONFIG_PCI
 
 static void qube_expansion_slot_bist(struct pci_dev *dev)
@@ -252,11 +252,11 @@ struct pci_fixup pcibios_fixups[] = {
 };
 
 
-static __inline__ int pci_range_ck(struct pci_dev *dev) 
+static __inline__ int pci_range_ck(struct pci_dev *dev)
 {
-       if ((dev->bus->number == 0) 
-           && ((PCI_SLOT (dev->devfn) == 0) 
-               || ((PCI_SLOT (dev->devfn) > 6) 
+       if ((dev->bus->number == 0)
+           && ((PCI_SLOT (dev->devfn) == 0)
+               || ((PCI_SLOT (dev->devfn) > 6)
                    && (PCI_SLOT (dev->devfn) <= 12))))
 		return 0;  /* OK device number  */
 
@@ -328,7 +328,7 @@ static int qube_pci_write_config_dword (struct pci_dev *dev,
 
 static int
 qube_pci_write_config_word (struct pci_dev *dev,
-                                int where, 
+                                int where,
                                u16 val)
 {
 	unsigned long tmp;
@@ -347,7 +347,7 @@ qube_pci_write_config_word (struct pci_dev *dev,
 
 static int
 qube_pci_write_config_byte (struct pci_dev *dev,
-                                int where, 
+                                int where,
                                u8 val)
 {
 	unsigned long tmp;
@@ -393,7 +393,7 @@ char *pcibios_setup(char *str)
 int pcibios_enable_device(struct pci_dev *dev)
 {
 	u16 cmd, status;
-	
+
 	pci_read_config_word(dev, PCI_COMMAND, &cmd);
 	pci_read_config_word(dev, PCI_STATUS, &status);
 	printk("PCI: Enabling device %s (%04x  %04x)\n", dev->slot_name, cmd, status);
@@ -409,7 +409,7 @@ void pcibios_align_resource(void *data, struct resource *res,
 	panic("Uhhoh called pcibios_align_resource\n");
 }
 
-void pcibios_update_resource(struct pci_dev *dev, struct resource *root, 
+void pcibios_update_resource(struct pci_dev *dev, struct resource *root,
 		struct resource *res, int resource)
 {
 

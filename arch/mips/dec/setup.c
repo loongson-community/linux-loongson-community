@@ -72,7 +72,7 @@ volatile u32 *ioasic_base;
  *
  * * -- shared with SCSI
  */
- 
+
 int dec_interrupt[DEC_NR_INTS] = {
 	[0 ... DEC_NR_INTS - 1] = -1
 };
@@ -662,9 +662,9 @@ static int_ptr kn03_cpu_mask_nr_tbl[][2] __initdata = {
 		{ i: DEC_CPU_IRQ_NR(KN03_CPU_INR_MEMORY) } },
 	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_RTC) },
 		{ i: DEC_CPU_IRQ_NR(KN03_CPU_INR_RTC) } },
-	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_CASCADE) }, 
+	{ { i: DEC_CPU_IRQ_MASK(KN03_CPU_INR_CASCADE) },
 		{ p: kn03_io_int } },
-	{ { i: DEC_CPU_IRQ_ALL }, 
+	{ { i: DEC_CPU_IRQ_ALL },
 		{ p: cpu_all_int } },
 };
 
@@ -697,7 +697,7 @@ void __init dec_init_kn03(void)
 
 	/* IRQ routing. */
 	memcpy(&dec_interrupt, &kn03_interrupt,
-		sizeof(kn03_interrupt));	
+		sizeof(kn03_interrupt));
 
 	/* CPU IRQ priorities. */
 	memcpy(&cpu_mask_nr_tbl, &kn03_cpu_mask_nr_tbl,

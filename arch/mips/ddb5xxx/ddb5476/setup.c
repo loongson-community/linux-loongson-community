@@ -147,7 +147,7 @@ static void ddb5476_board_init(void);
 extern void ddb5476_irq_setup(void);
 extern void (*irq_setup)(void);
 
-void __init 
+void __init
 ddb_setup(void)
 {
 	extern int panic_timeout;
@@ -248,7 +248,7 @@ static void ddb5476_board_init(void)
 	/* this is problematic - it will reset Aladin which cause we loose
 	 * serial port, and we don't know how to set up Aladin chip again.
 	 */
-	// ddb_pci_reset_bus(); 
+	// ddb_pci_reset_bus();
 
 	ddb_out32(DDB_BAR0, 0x00000008);
 

@@ -17,10 +17,10 @@
  *      Hit_Invalidate_D and Create_Dirty_Excl_D should only be
  *      executed if there is no other dcache activity. If the dcache is
  *      accessed for another instruction immeidately preceding when these
- *      cache instructions are executing, it is possible that the dcache 
- *      tag match outputs used by these cache instructions will be 
+ *      cache instructions are executing, it is possible that the dcache
+ *      tag match outputs used by these cache instructions will be
  *      incorrect. These cache instructions should be preceded by at least
- *      four instructions that are not any kind of load or store 
+ *      four instructions that are not any kind of load or store
  *      instruction.
  *
  *      This is not allowed:    lw
@@ -55,12 +55,12 @@
 #ifdef CONFIG_CPU_R5432
 
 /*
- * When an interrupt happens on a CP0 register read instruction, CPU may 
- * lock up or read corrupted values of CP0 registers after it enters 
- * the exception handler.  
+ * When an interrupt happens on a CP0 register read instruction, CPU may
+ * lock up or read corrupted values of CP0 registers after it enters
+ * the exception handler.
  *
  * This workaround makes sure that we read a "safe" CP0 register as the
- * first thing in the exception handler, which breaks one of the 
+ * first thing in the exception handler, which breaks one of the
  * pre-conditions for this problem.
  */
 #define	R5432_CP0_INTERRUPT_WAR

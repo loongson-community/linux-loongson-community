@@ -38,9 +38,9 @@ static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern unsigned int mips_counter_frequency;
 extern asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
-/* 
+/*
  * Figure out the r4k offset, the amount to increment the compare
- * register for each time tick. 
+ * register for each time tick.
  * Use the RTC to calculate offset.
  */
 static unsigned long __init cal_r4koff(void)
@@ -64,7 +64,7 @@ static unsigned long __init cal_r4koff(void)
 
 	/* restore interrupts */
 	__restore_flags(flags);
-		
+
 	return (mips_counter_frequency / HZ);
 }
 
@@ -88,7 +88,7 @@ unsigned long it8172_rtc_get_time(void)
 		if ((hour & 0xf) == 0xc)
 		        hour &= 0x80;
 	        if (hour & 0x80)
-		        hour = (hour & 0xf) + 12;     
+		        hour = (hour & 0xf) + 12;
 	}
 	day = CMOS_READ(RTC_DAY_OF_MONTH);
 	mon = CMOS_READ(RTC_MONTH);
@@ -108,17 +108,17 @@ void __init it8172_time_init(void)
         unsigned int est_freq, flags;
 
 	__save_and_cli(flags);
-        /* Set Data mode - binary. */ 
+        /* Set Data mode - binary. */
         CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
 
 	printk("calculating r4koff... ");
 	r4k_offset = cal_r4koff();
 	printk("%08lx(%d)\n", r4k_offset, (int) r4k_offset);
 
-	est_freq = 2*r4k_offset*HZ;	
+	est_freq = 2*r4k_offset*HZ;
 	est_freq += 5000;    /* round */
 	est_freq -= est_freq%10000;
-	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
+	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 	__restore_flags(flags);
 }

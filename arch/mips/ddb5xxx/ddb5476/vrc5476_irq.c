@@ -62,7 +62,7 @@ static hw_irq_controller vrc5476_irq_controller = {
 	NULL				/* no affinity stuff for UP */
 };
 
-void __init 
+void __init
 vrc5476_irq_init(u32 base)
 {
 	extern irq_desc_t irq_desc[];
@@ -78,7 +78,7 @@ vrc5476_irq_init(u32 base)
 }
 
 
-asmlinkage void 
+asmlinkage void
 vrc5476_irq_dispatch(struct pt_regs *regs)
 {
 	extern unsigned int do_IRQ(int irq, struct pt_regs *regs);

@@ -16,7 +16,7 @@
 /*
  * copy while checksumming, otherwise like csum_partial
  */
-unsigned int csum_partial_copy(const char *src, char *dst, 
+unsigned int csum_partial_copy(const char *src, char *dst,
                                int len, unsigned int sum)
 {
 	/*
@@ -44,6 +44,6 @@ unsigned int csum_partial_copy_from_user (const char *src, char *dst,
 		memset(dst + len - missing, 0, missing);
 		*err_ptr = -EFAULT;
 	}
-		
+
 	return csum_partial(dst, len, sum);
 }

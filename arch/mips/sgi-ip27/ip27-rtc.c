@@ -1,7 +1,7 @@
 /*
  *	Driver for the SGS-Thomson M48T35 Timekeeper RAM chip
  *
- *	Real Time Clock interface for Linux	
+ *	Real Time Clock interface for Linux
  *
  *	TODO: Implement periodic interrupts.
  *
@@ -72,14 +72,14 @@ static struct m48t35_rtc *rtc;
 
 static unsigned long epoch = 1970;	/* year corresponding to 0x00	*/
 
-static const unsigned char days_in_mo[] = 
+static const unsigned char days_in_mo[] =
 {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		     unsigned long arg)
 {
 
-	struct rtc_time wtime; 
+	struct rtc_time wtime;
 
 	switch (cmd) {
 	case RTC_RD_TIME:	/* Read the time/date from RTC	*/
@@ -93,7 +93,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		unsigned char mon, day, hrs, min, sec, leap_yr;
 		unsigned int yrs;
 		unsigned long flags;
-			
+
 		if (!capable(CAP_SYS_TIME))
 			return -EACCES;
 
@@ -118,7 +118,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 		if (day > (days_in_mo[mon] + ((mon == 2) && leap_yr)))
 			return -EINVAL;
-			
+
 		if ((hrs >= 24) || (min >= 60) || (sec >= 60))
 			return -EINVAL;
 

@@ -21,7 +21,7 @@ extern unsigned long mips_machtype;
 
 extern unsigned long mips_machtype;
 const char *get_system_type(void)
-{ 
+{
 	static char system[32];
 	int called = 0;
 	const char *dec_system_strings[] = { "unknown", "DECstation 2100/3100",

@@ -107,7 +107,7 @@
  */
 #define MIPS_CPU_TIMER_IRQ       (NR_IRQS-1)
 
-/* 
+/*
  * IT8172 Interrupt Controller Registers
  */
 struct it8172_intc_regs {

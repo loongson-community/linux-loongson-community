@@ -109,7 +109,7 @@ strncmp(__const__ char *__cs, __const__ char *__ct, size_t __count)
 	"2:\n\t"
 #if defined(CONFIG_CPU_R3000)
 	"nop\n\t"
-#endif	
+#endif
 	"move\t%3,$1\n"
 	"3:\tsubu\t%3,$1\n\t"
 	".set\tat\n\t"

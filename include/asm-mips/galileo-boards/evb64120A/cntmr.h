@@ -2,7 +2,7 @@
 
 /* Copyright - Galileo technology */
 
-#ifndef __INCtimerCounterDrvh 
+#ifndef __INCtimerCounterDrvh
 #define __INCtimerCounterDrvh
 
 /* includes */
@@ -31,12 +31,12 @@
 typedef enum counterTimer{CNTMR_0,CNTMR_1,CNTMR_2,CNTMR_3} CNTMR_NUM;
 typedef enum cntTmrOpModes{COUNTER, TIMER} CNT_TMR_OP_MODES;
 
-bool    cntTmrLoad(unsigned int countNum, unsigned int value);	
+bool    cntTmrLoad(unsigned int countNum, unsigned int value);
 bool    cntTmrSetMode(CNTMR_NUM countNum, CNT_TMR_OP_MODES opMode);
-bool    cntTmrEnable(CNTMR_NUM countNum);  
+bool    cntTmrEnable(CNTMR_NUM countNum);
 bool    cntTmrStart (CNTMR_NUM countNum,unsigned int countValue,
                    CNT_TMR_OP_MODES opMode);
-unsigned int    cntTmrDisable(CNTMR_NUM countNum);              
+unsigned int    cntTmrDisable(CNTMR_NUM countNum);
 unsigned int    cntTmrRead(CNTMR_NUM countNum);
 
 #endif /* __INCtimerCounterDrvh */

@@ -26,7 +26,7 @@
 
 /**************************************************************************
  *  Nov 7, 2000
- *  Modification to allow integration with Linux kernel 
+ *  Modification to allow integration with Linux kernel
  *
  *  Kevin D. Kissell, kevink@mips.com and Carsten Langgard, carstenl@mips.com
  *  Copyright (C) 2000 MIPS Technologies, Inc. All rights reserved.
@@ -36,8 +36,8 @@
 /* Going from Algorithmics to Linux native environment, add this */
 #include <linux/types.h>
 
-/* 
- * Not very pretty, but the Linux kernel's normal va_list definition 
+/*
+ * Not very pretty, but the Linux kernel's normal va_list definition
  * does not allow it to be used as a structure element, as it is here.
  */
 #ifndef _STDARG_H
@@ -179,7 +179,7 @@ ieee754dp ieee754dp_abs(ieee754dp x);
 ieee754dp ieee754dp_neg(ieee754dp x);
 ieee754dp ieee754dp_scalb(ieee754dp x, int);
 
-/* return exponent as integer in floating point format 
+/* return exponent as integer in floating point format
  */
 ieee754dp ieee754dp_logb(ieee754dp x);
 
@@ -214,7 +214,7 @@ ieee754dp ieee754dp_sqrt(ieee754dp x);
 
 
 
-/* 5 types of floating point number 
+/* 5 types of floating point number
 */
 #define IEEE754_CLASS_NORM	0x00
 #define IEEE754_CLASS_ZERO	0x01
@@ -238,7 +238,7 @@ extern const char *const ieee754_cname[];
 #define IEEE754_CGT	0x04
 #define IEEE754_CUN	0x08
 
-/* rounding mode 
+/* rounding mode
 */
 #define IEEE754_RN	0	/* round to nearest */
 #define IEEE754_RZ	1	/* round toward zero  */
@@ -321,7 +321,7 @@ ieee754dp ieee754dp_fstr(const char *s, char **endp);
 char *ieee754dp_tstr(ieee754dp x, int prec, int fmt, int af);
 
 
-/* the control status register 
+/* the control status register
 */
 struct ieee754_csr {
 	unsigned pad:13;
@@ -350,7 +350,7 @@ static __inline unsigned ieee754_getcx(void)
 	return (ieee754_csr.cx);
 }
 
-/* test for current exception condition 
+/* test for current exception condition
  */
 static __inline int ieee754_cxtest(unsigned n)
 {
@@ -372,7 +372,7 @@ static __inline unsigned ieee754_clrsx(void)
 	return (ieee754_csr.sx = 0);
 }
 
-/* test for sticky exception condition 
+/* test for sticky exception condition
  */
 static __inline int ieee754_sxtest(unsigned n)
 {
@@ -450,7 +450,7 @@ extern const struct ieee754sp_konst __ieee754sp_spcvals[];
 #define ieee754sp_1e63() \
   (ieee754sp_spcvals[IEEE754_SPCVAL_P1E63])
 
-/* indefinite integer value 
+/* indefinite integer value
 */
 #define ieee754si_indef()	INT_MAX
 #ifdef LONG_LONG_MAX

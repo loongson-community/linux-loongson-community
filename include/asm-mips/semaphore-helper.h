@@ -127,7 +127,7 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 }
 
 /*
- * waking_non_zero_trylock is unused.  we do everything in 
+ * waking_non_zero_trylock is unused.  we do everything in
  * down_trylock and let non-ll/sc hosts bounce around.
  */
 

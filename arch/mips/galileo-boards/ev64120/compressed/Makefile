@@ -11,13 +11,13 @@
 #
 #   The system comes in three forms:
 #
-#       1. - ramsys - 
+#       1. - ramsys -
 #          to be loaded into ram then run. When run
 #          it decompresses the kernel housed in its internal
 #          data structures and then jumps to the image which
 #          results in a linux kernel boot.
 #
-#       2. - flashsys - 
+#       2. - flashsys -
 #          to be loaded into ram so that it can be
 #          burned into the onboard flash. Then the board jumpers
 #          can be switched so that the next power cycle caused
@@ -26,10 +26,10 @@
 #          Note: burner.srec is the utility that will allow
 #          the user to get this image into flash.
 #
-#       3. - flashsys2 - 
+#       3. - flashsys2 -
 #          to be loaded into ram so that it can be
 #          burned into the onboard flash. Then on each power
-#          cycle when the standard PMON prompt is presented 
+#          cycle when the standard PMON prompt is presented
 #          the user can type `call 0xbf000000` to invoke
 #          the system in flash which then proceeds as
 #          described by #1 above.
@@ -75,7 +75,7 @@ doit: doit.c
 	gcc -o doit doit.c
 
 piggy.gz: $(SYSTEM)
-	rm -f piggy piggy.gz 
+	rm -f piggy piggy.gz
 	$(OBJCOPY) -S -O binary $(SYSTEM) piggy
 	gzip -f -9 < piggy > piggy.gz
 
@@ -89,7 +89,7 @@ OBJECTS_burner    = burner.o load.o flashdrv.o
 
 ramsys.srec : $(OBJECTS_ramsys) ld.script.gal
 	@# Note: this image is intended to run out of ram. No flash involved.
-	$(LD) -T ld.script.gal -o ramsys $(OBJECTS_ramsys) 
+	$(LD) -T ld.script.gal -o ramsys $(OBJECTS_ramsys)
 	$(NM) ramsys | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aU] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System_ramsys.map
 	$(OBJCOPY) -O srec ramsys ramsys.srec
 	cp ramsys.srec $(TOPDIR)/.
@@ -97,7 +97,7 @@ ramsys.srec : $(OBJECTS_ramsys) ld.script.gal
 flashsys.srec : $(OBJECTS_flashsys) ld.sys.big.Flash
 	@# Note1: Use the burn utility to get this image into flash.
 	@# Note2: This image is intended to run out of flash as invoked
-	@# directly at powerup when EVB64120A jumpers are configured to 
+	@# directly at powerup when EVB64120A jumpers are configured to
 	@# bypass the onboard eprom.
 	@# Assumes that 0xBFC00000 is the bootup run address (normal MIPS).
 	@# And assumes that EVB64120A jumber J11 is added to the board and jumber
@@ -105,8 +105,8 @@ flashsys.srec : $(OBJECTS_flashsys) ld.sys.big.Flash
 	@# the jumper settings the system will execute at address 0xBFC00000,
 	@# as normal, yet that address will map to the onboard eeprom instead
 	@# of the onboard flash.
-	@# 
-	$(LD) -T ld.sys.big.Flash -o flashsys $(OBJECTS_flashsys) 
+	@#
+	$(LD) -T ld.sys.big.Flash -o flashsys $(OBJECTS_flashsys)
 	$(NM) flashsys | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System_flashsys.map
 	@#
 	@# Next, Create the image that we want to place in the flash part.
@@ -125,7 +125,7 @@ flashsys.srec : $(OBJECTS_flashsys) ld.sys.big.Flash
 	@# to the board's ram it will land starting at address 0xA0300000
 	@# because this is where we have choosen to have the image temporarily sit
 	@# while we subsequently burn it (using some method not revealed here) into
-	@# the board's flash. After the burn the system can be setup (via jumpers) 
+	@# the board's flash. After the burn the system can be setup (via jumpers)
 	@# to boot this image directory from the flash part.
 	$(OBJCOPY) -O srec --adjust-vma=0xe0700000 flashsys.temp flashsys.srec
 	cp flashsys.srec $(TOPDIR)/.
@@ -139,8 +139,8 @@ flashsys2.srec : $(OBJECTS_flashsys2) ld.sys.big.Flash2
 	@# the standard location such that the board boots out of onboard
 	@# eprom. From the PMON prompt the user can type `call 0xbf000000`
 	@# to transfer control to the image we are constructing here.
-	@# 
-	$(LD) -T ld.sys.big.Flash2 -o flashsys2 $(OBJECTS_flashsys2) 
+	@#
+	$(LD) -T ld.sys.big.Flash2 -o flashsys2 $(OBJECTS_flashsys2)
 	$(NM) flashsys2 | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System_flashsys2.map
 	@#
 	@# Next, Create the image that we want to place in the flash part.
@@ -168,7 +168,7 @@ flashsys2.srec : $(OBJECTS_flashsys2) ld.sys.big.Flash2
 burner.srec : $(OBJECTS_burner) ld.sys.big.burner
 	@# This utility can be used to burn the flashsys.srec or flashsys2.srec
 	@# into the EVB64120A's on board flash part (1Meg minimum).
-	$(LD) -T ld.sys.big.burner -o burner $(OBJECTS_burner) 
+	$(LD) -T ld.sys.big.burner -o burner $(OBJECTS_burner)
 	$(NM) burner | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aU] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System_burner.map
 	$(OBJCOPY) -O srec burner burner.srec
 	cp burner.srec $(TOPDIR)/.

@@ -1,7 +1,7 @@
 #ifndef _ASM_IPC_H
 #define _ASM_IPC_H
 
-/* 
+/*
  * These are used to wrap system calls on MIPS32.
  *
  * See arch/mips/kernel/sysmips.c for ugly details..

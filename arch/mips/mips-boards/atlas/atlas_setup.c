@@ -88,7 +88,7 @@ void __init atlas_setup(void)
 		prom_printf("Config serial console: %s\n", serial_console);
 		console_setup(serial_console, NULL);
 	}
-#endif	  
+#endif
 
 #ifdef CONFIG_REMOTE_DEBUG
 	argptr = prom_getcmdline();

@@ -104,7 +104,7 @@ static int serial_refcount;
 /* serial subtype definitions */
 #define SERIAL_TYPE_NORMAL	1
 #define SERIAL_TYPE_CALLOUT	2
-  
+
 /* number of characters left in xmit buffer before we ask for more */
 #define WAKEUP_CHARS 256
 
@@ -170,7 +170,7 @@ static int baud_table[] = {
 	0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800,
 	9600, 19200, 38400, 57600, 115200, 0 };
 
-/* 
+/*
  * Reading and writing Zilog8530 registers.  The delays are to make this
  * driver work on the Sun4 which needs a settling delay after each chip
  * register access, other machines handle this in hardware via auxiliary
@@ -295,7 +295,7 @@ static void rs_stop(struct tty_struct *tty)
 
 	if (serial_paranoia_check(info, tty->device, "rs_stop"))
 		return;
-	
+
 	save_flags(flags); cli();
 	if (info->curregs[5] & TxENAB) {
 		info->curregs[5] &= ~TxENAB;
@@ -309,10 +309,10 @@ static void rs_start(struct tty_struct *tty)
 {
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
 	unsigned long flags;
-	
+
 	if (serial_paranoia_check(info, tty->device, "rs_start"))
 		return;
-	
+
 	save_flags(flags); cli();
 	if (info->xmit_cnt && info->xmit_buf && !(info->curregs[5] & TxENAB)) {
 		info->curregs[5] |= TxENAB;
@@ -374,7 +374,7 @@ static inline void rs_recv_clear(struct sgi_zschannel *zsc)
  * rs_interrupt() should try to keep the interrupt handler as fast as
  * possible.  After you are done making modifications, it is not a bad
  * idea to do:
- * 
+ *
  * gcc -S -DKERNEL -Wall -Wstrict-prototypes -O6 -fomit-frame-pointer serial.c
  *
  * and look at the resulting assemble code in serial.s.
@@ -632,7 +632,7 @@ static void do_softint(void *private_)
 {
 	struct sgi_serial	*info = (struct sgi_serial *) private_;
 	struct tty_struct	*tty;
-	
+
 	tty = info->tty;
 	if (!tty)
 		return;
@@ -652,13 +652,13 @@ static void do_softint(void *private_)
  *
  * 	serial interrupt routine -> (scheduler tqueue) ->
  * 	do_serial_hangup() -> tty->hangup() -> rs_hangup()
- * 
+ *
  */
 static void do_serial_hangup(void *private_)
 {
 	struct sgi_serial	*info = (struct sgi_serial *) private_;
 	struct tty_struct	*tty;
-	
+
 	tty = info->tty;
 	if (!tty)
 		return;
@@ -724,7 +724,7 @@ static int startup(struct sgi_serial * info)
 	write_zsreg(info->zs_channel, 3, info->curregs[3]);
 	write_zsreg(info->zs_channel, 5, info->curregs[5]);
 	write_zsreg(info->zs_channel, 9, info->curregs[9]);
-	
+
 	/*
 	 * And clear the interrupt registers again for luck.
 	 */
@@ -764,9 +764,9 @@ static void shutdown(struct sgi_serial * info)
 	printk("Shutting down serial port %d (irq %d)....", info->line,
 	       info->irq);
 #endif
-	
+
 	save_flags(flags); cli(); /* Disable interrupts */
-	
+
 	if (info->xmit_buf) {
 		free_page((unsigned long) info->xmit_buf);
 		info->xmit_buf = 0;
@@ -774,7 +774,7 @@ static void shutdown(struct sgi_serial * info)
 
 	if (info->tty)
 		set_bit(TTY_IO_ERROR, &info->tty->flags);
-	
+
 	info->flags &= ~ZILOG_INITIALIZED;
 	restore_flags(flags);
 }
@@ -901,7 +901,7 @@ static void zs_cons_put_char(char ch)
 	restore_flags(flags);
 }
 
-/* 
+/*
  * This is the more generic put_char function for the driver.
  * In earlier versions of this driver, "rs_put_char" was the
  * name of the console-specific fucntion, now called zs_cons_put_char
@@ -909,7 +909,7 @@ static void zs_cons_put_char(char ch)
 
 static void rs_put_char(struct tty_struct *tty, char ch)
 {
-	struct sgi_zschannel *chan = 
+	struct sgi_zschannel *chan =
 		((struct sgi_serial *)tty->driver_data)->zs_channel;
 	volatile unsigned char junk;
 	int flags, loops = 0;
@@ -1014,7 +1014,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 
 	save_flags(flags);
 	while (1) {
-		cli();		
+		cli();
 		c = MIN(count, MIN(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
 				   SERIAL_XMIT_SIZE - info->xmit_head));
 		if (c <= 0)
@@ -1078,7 +1078,7 @@ static int rs_write_room(struct tty_struct *tty)
 {
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
 	int	ret;
-				
+
 	if (serial_paranoia_check(info, tty->device, "rs_write_room"))
 		return 0;
 	ret = SERIAL_XMIT_SIZE - info->xmit_cnt - 1;
@@ -1090,7 +1090,7 @@ static int rs_write_room(struct tty_struct *tty)
 static int rs_chars_in_buffer(struct tty_struct *tty)
 {
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
-				
+
 	if (serial_paranoia_check(info, tty->device, "rs_chars_in_buffer"))
 		return 0;
 	return info->xmit_cnt;
@@ -1099,7 +1099,7 @@ static int rs_chars_in_buffer(struct tty_struct *tty)
 static void rs_flush_buffer(struct tty_struct *tty)
 {
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
-				
+
 	if (serial_paranoia_check(info, tty->device, "rs_flush_buffer"))
 		return;
 	cli();
@@ -1155,7 +1155,7 @@ static void rs_flush_chars(struct tty_struct *tty)
 /*
  * ------------------------------------------------------------
  * rs_throttle()
- * 
+ *
  * This routine is called by the upper-layer tty layer to signal that
  * incoming characters should be throttled.
  * ------------------------------------------------------------
@@ -1165,14 +1165,14 @@ static void rs_throttle(struct tty_struct * tty)
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
 #ifdef SERIAL_DEBUG_THROTTLE
 	char	buf[64];
-	
+
 	printk("throttle %s: %d....\n", _tty_name(tty, buf),
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
 	if (serial_paranoia_check(info, tty->device, "rs_throttle"))
 		return;
-	
+
 	if (I_IXOFF(tty))
 		info->x_char = STOP_CHAR(tty);
 
@@ -1189,14 +1189,14 @@ static void rs_unthrottle(struct tty_struct * tty)
 	struct sgi_serial *info = (struct sgi_serial *)tty->driver_data;
 #ifdef SERIAL_DEBUG_THROTTLE
 	char	buf[64];
-	
+
 	printk("unthrottle %s: %d....\n", _tty_name(tty, buf),
 	       tty->ldisc.chars_in_buffer(tty));
 #endif
 
 	if (serial_paranoia_check(info, tty->device, "rs_unthrottle"))
 		return;
-	
+
 	if (I_IXOFF(tty)) {
 		if (info->x_char)
 			info->x_char = 0;
@@ -1222,7 +1222,7 @@ static int get_serial_info(struct sgi_serial * info,
 			   struct serial_struct * retinfo)
 {
 	struct serial_struct tmp;
-  
+
 	if (!retinfo)
 		return -EFAULT;
 	memset(&tmp, 0, sizeof(tmp));
@@ -1291,7 +1291,7 @@ check_and_exit:
  * 	    release the bus after transmitting. This must be done when
  * 	    the transmit shift register is empty, not be done when the
  * 	    transmit holding register is empty.  This functionality
- * 	    allows an RS485 driver to be written in user space. 
+ * 	    allows an RS485 driver to be written in user space.
  */
 static int get_lsr_info(struct sgi_serial * info, unsigned int *value)
 {
@@ -1304,7 +1304,7 @@ static int get_lsr_info(struct sgi_serial * info, unsigned int *value)
 	junk = ioc_icontrol->istat0;
 	sti();
 	return put_user(status,value);
-} 
+}
 
 static int get_modem_info(struct sgi_serial * info, unsigned int *value)
 {
@@ -1333,7 +1333,7 @@ static int set_modem_info(struct sgi_serial * info, unsigned int cmd,
 	if (get_user(arg, value))
 		return -EFAULT;
 	switch (cmd) {
-	case TIOCMBIS: 
+	case TIOCMBIS:
 		if (arg & TIOCM_RTS)
 			info->curregs[5] |= RTS;
 		if (arg & TIOCM_DTR)
@@ -1389,7 +1389,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 		if (tty->flags & (1 << TTY_IO_ERROR))
 		    return -EIO;
 	}
-	
+
 	switch (cmd) {
 		case TCSBRK:	/* SVID version: non-zero arg --> no break */
 			retval = tty_check_change(tty);
@@ -1438,7 +1438,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 				    info, sizeof(struct sgi_serial)))
 				return -EFAULT;
 			return 0;
-			
+
 		default:
 			return -ENOIOCTLCMD;
 		}
@@ -1464,7 +1464,7 @@ static void rs_set_termios(struct tty_struct *tty, struct termios *old_termios)
 /*
  * ------------------------------------------------------------
  * rs_close()
- * 
+ *
  * This routine is called when the serial port gets closed.  First, we
  * wait for the last remaining data to be sent.  Then, we unlink its
  * ZILOG structure from the interrupt chain if necessary, and we free
@@ -1478,14 +1478,14 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 
 	if (!info || serial_paranoia_check(info, tty->device, "rs_close"))
 		return;
-	
+
 	save_flags(flags); cli();
-	
+
 	if (tty_hung_up_p(filp)) {
 		restore_flags(flags);
 		return;
 	}
-	
+
 #ifdef SERIAL_DEBUG_OPEN
 	printk("rs_close ttys%d, count = %d\n", info->line, info->count);
 #endif
@@ -1520,7 +1520,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	if (info->flags & ZILOG_CALLOUT_ACTIVE)
 		info->callout_termios = *tty->termios;
 	/*
-	 * Now we wait for the transmit buffer to clear; and we notify 
+	 * Now we wait for the transmit buffer to clear; and we notify
 	 * the line discipline to only process XON/XOFF characters.
 	 */
 	tty->closing = 1;
@@ -1576,10 +1576,10 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 void rs_hangup(struct tty_struct *tty)
 {
 	struct sgi_serial * info = (struct sgi_serial *)tty->driver_data;
-	
+
 	if (serial_paranoia_check(info, tty->device, "rs_hangup"))
 		return;
-	
+
 	rs_flush_buffer(tty);
 	shutdown(info);
 	info->event = 0;
@@ -1635,7 +1635,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		info->flags |= ZILOG_CALLOUT_ACTIVE;
 		return 0;
 	}
-	
+
 	/*
 	 * If non-blocking mode is set, or the port is not enabled,
 	 * then make the check up front and then exit.
@@ -1655,7 +1655,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		if (tty->termios->c_cflag & CLOCAL)
 			do_clocal = 1;
 	}
-	
+
 	/*
 	 * Block waiting for the carrier detect and the line to become
 	 * free (i.e., not in use by the callout).  While we are in
@@ -1683,7 +1683,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 			if (info->flags & ZILOG_HUP_NOTIFY)
 				retval = -EAGAIN;
 			else
-				retval = -ERESTARTSYS;	
+				retval = -ERESTARTSYS;
 #else
 			retval = -EAGAIN;
 #endif
@@ -1715,7 +1715,7 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 		return retval;
 	info->flags |= ZILOG_NORMAL_ACTIVE;
 	return 0;
-}	
+}
 
 /*
  * This routine is called whenever a serial port is opened.  It
@@ -1767,17 +1767,17 @@ int rs_open(struct tty_struct *tty, struct file * filp)
 	if ((info->count == 1) && (info->flags & ZILOG_SPLIT_TERMIOS)) {
 		if (tty->driver.subtype == SERIAL_TYPE_NORMAL)
 			*tty->termios = info->normal_termios;
-		else 
+		else
 			*tty->termios = info->callout_termios;
 		change_speed(info);
 	}
 
-	/* If this is the serial console change the speed to 
+	/* If this is the serial console change the speed to
 	 * the right value
 	 */
 	if (info->is_cons) {
 		info->tty->termios->c_cflag = sgisercon->cflag;
-		change_speed(info);		
+		change_speed(info);
 	}
 
 	info->session = current->session;
@@ -1868,7 +1868,7 @@ int rs_init(void)
 
 	/* Initialize the tty_driver structure */
 	/* SGI: Not all of this is exactly right for us. */
-	
+
 	memset(&serial_driver, 0, sizeof(struct tty_driver));
 	serial_driver.magic = TTY_DRIVER_MAGIC;
 #ifdef CONFIG_DEVFS_FS
@@ -1923,7 +1923,7 @@ int rs_init(void)
 		panic("Couldn't register serial driver");
 	if (tty_register_driver(&callout_driver))
 		panic("Couldn't register callout driver");
-	
+
 	save_flags(flags); cli();
 
 	/* Set up our interrupt linked list */
@@ -2014,7 +2014,7 @@ int rs_init(void)
 		info->normal_termios = serial_driver.init_termios;
 		init_waitqueue_head(&info->open_wait);
 		init_waitqueue_head(&info->close_wait);
-		printk("tty%02d at 0x%04x (irq = %d)", info->line, 
+		printk("tty%02d at 0x%04x (irq = %d)", info->line,
 		       info->port, info->irq);
 		printk(" is a Zilog8530\n");
 	}
@@ -2052,7 +2052,7 @@ void
 rs_cons_hook(int chip, int out, int line)
 {
 	int channel;
-	
+
 	if(chip)
 		panic("rs_cons_hook called with chip not zero");
 	if(line != 0 && line != 1)
@@ -2068,11 +2068,11 @@ rs_cons_hook(int chip, int out, int line)
 	zs_soft[channel].change_needed = 0;
 	zs_soft[channel].clk_divisor = 16;
 	zs_soft[channel].zs_baud = get_zsbaud(&zs_soft[channel]);
-	if(out) 
+	if(out)
 		zs_cons_chanout = ((chip * 2) + channel);
-	else 
+	else
 		zs_cons_chanin = ((chip * 2) + channel);
-	
+
 	rs_cons_check(&zs_soft[channel], channel);
 }
 
@@ -2136,7 +2136,7 @@ static int __init zs_console_setup(struct console *con, char *options)
 	int	cflag = CREAD | HUPCL | CLOCAL;
 	char	*s, *dbaud;
 	int     i, brg;
-    
+
 	if (options) {
 		baud = simple_strtoul(options, NULL, 10);
 		s = options;
@@ -2213,8 +2213,8 @@ static int __init zs_console_setup(struct console *con, char *options)
         rs_cons_hook(0, 0, con->index);
 	info = zs_soft + con->index;
 	info->is_cons = 1;
-    
-	printk("Console: ttyS%d (Zilog8530), %d baud\n", 
+
+	printk("Console: ttyS%d (Zilog8530), %d baud\n",
 						info->line, baud);
 
 	i = con->cflag & CBAUD;
@@ -2254,14 +2254,14 @@ static int __init zs_console_setup(struct console *con, char *options)
 		zscons_regs[4] |= SB2;
 	else
 		zscons_regs[4] |= SB1;
-	
+
 	sgisercon = con;
 
 	brg = BPS_TO_BRG(baud, ZS_CLOCK / info->clk_divisor);
 	zscons_regs[12] = brg & 0xff;
 	zscons_regs[13] = (brg >> 8) & 0xff;
 	memcpy(info->curregs, zscons_regs, sizeof(zscons_regs));
-	memcpy(info->pendregs, zscons_regs, sizeof(zscons_regs));    
+	memcpy(info->pendregs, zscons_regs, sizeof(zscons_regs));
 	load_zsregs(info->zs_channel, zscons_regs);
 	ZS_CLEARERR(info->zs_channel);
 	ZS_CLEARFIFO(info->zs_channel);

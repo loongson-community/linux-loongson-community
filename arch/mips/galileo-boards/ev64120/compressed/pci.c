@@ -25,12 +25,12 @@
 
 /********************************************************************
 * pci0ScanDevices   - This function scan PCI0 bus, if found any device on
-*                     this bus it interrogate the Device for the information 
+*                     this bus it interrogate the Device for the information
 *                     it can discover.
-*                     The fields with all information are the following: 
+*                     The fields with all information are the following:
 *    char            type[20];
 *    unsigned int    deviceNum;
-*    unsigned int    venID;                                            
+*    unsigned int    venID;
 *    unsigned int    deviceID;
 *    unsigned int    bar0Base;
 *    unsigned int    bar0Size;
@@ -44,7 +44,7 @@
 *    unsigned int    bar4Size;
 *    unsigned int    bar5Base;
 *    unsigned int    bar5Size;
-* 
+*
 * Inputs:   PCI0_DEVICE* pci0Detect - Pointer to an array of STRUCT PCI0_DEVICE.
 *           unsigned int numberOfElment - The PCI0_DEVICE Array length.
 * Output:   None.
@@ -307,12 +307,12 @@ void pci0ScanDevices(PCI_DEVICE * pci0Detect, unsigned int numberOfElment)
 
 /********************************************************************
 * pci1ScanDevices   - This function scan PCI1 bus, if found any device on
-*                     this bus it interrogate the Device for the information 
+*                     this bus it interrogate the Device for the information
 *                     it can discover.
-*                     The fields with all information are the following: 
+*                     The fields with all information are the following:
 *    char            type[20];
 *    unsigned int    deviceNum;
-*    unsigned int    venID;                                            
+*    unsigned int    venID;
 *    unsigned int    deviceID;
 *    unsigned int    bar0Base;
 *    unsigned int    bar0Size;
@@ -326,8 +326,8 @@ void pci0ScanDevices(PCI_DEVICE * pci0Detect, unsigned int numberOfElment)
 *    unsigned int    bar4Size;
 *    unsigned int    bar5Base;
 *    unsigned int    bar5Size;
-* 
-* Inputs:   Pointer to an array of STRUCT PCI1_DEVICE. 
+*
+* Inputs:   Pointer to an array of STRUCT PCI1_DEVICE.
 * Output:   None.
 *********************************************************************/
 
@@ -562,12 +562,12 @@ void pci1ScanDevices(PCI_DEVICE * pci1Detect, unsigned int numberOfElment)
 
 /********************************************************************
 * pci0WriteConfigReg - Write to a PCI configuration register
-*                    - Make sure the GT is configured as a master before 
+*                    - Make sure the GT is configured as a master before
 *                      writingto another device on the PCI.
 *                    - The function takes care of Big/Little endian conversion.
-* Inputs:   unsigned int regOffset: The register offset as it apears in the GT spec 
+* Inputs:   unsigned int regOffset: The register offset as it apears in the GT spec
 *                   (or any other PCI device spec)
-*           pciDevNum: The device number needs to be addressed.                
+*           pciDevNum: The device number needs to be addressed.
 *
 *  Configuration Address 0xCF8:
 *
@@ -604,9 +604,9 @@ void pci0WriteConfigReg(unsigned int regOffset, unsigned int pciDevNum,
 *                   - Make sure the GT is configured as a master before writing
 *                     to another device on the PCI.
 *                   - The function takes care of Big/Little endian conversion.
-* Inputs:   unsigned int regOffset: The register offset as it apears in the  
+* Inputs:   unsigned int regOffset: The register offset as it apears in the
 *           GT spec (or any other PCI device spec)
-*           pciDevNum: The device number needs to be addressed.                
+*           pciDevNum: The device number needs to be addressed.
 *
 *  Configuration Address 0xCF8:
 *
@@ -626,7 +626,7 @@ void pci1WriteConfigReg(unsigned int regOffset, unsigned int pciDevNum,
 	pciDevNum = pciDevNum << 11;
 	regOffset = regOffset & 0x0fffffff;
 	if (pciDevNum == SELF) {	/* This board */
-		/* when configurating our own PCI 1 L-unit the access is through  
+		/* when configurating our own PCI 1 L-unit the access is through
 		   the PCI 0 interface with reg number = reg number + 0x80 */
 		DataForRegCf8 =
 		    (regOffset | pciDevNum | functionNum | 0x80) | BIT31;
@@ -647,13 +647,13 @@ void pci1WriteConfigReg(unsigned int regOffset, unsigned int pciDevNum,
 
 /********************************************************************
 * pci0ReadConfigReg  - Read from a PCI0 configuration register
-*                    - Make sure the GT is configured as a master before 
+*                    - Make sure the GT is configured as a master before
 *                      reading from another device on the PCI.
 *                   - The function takes care of Big/Little endian conversion.
 * INPUTS:   regOffset: The register offset as it apears in the GT spec (or PCI
 *                        spec)
-*           pciDevNum: The device number needs to be addressed.                
-* RETURNS: data , if the data == 0xffffffff check the master abort bit in the 
+*           pciDevNum: The device number needs to be addressed.
+* RETURNS: data , if the data == 0xffffffff check the master abort bit in the
 *                 cause register to make sure the data is valid
 *
 *  Configuration Address 0xCF8:
@@ -690,13 +690,13 @@ unsigned int pci0ReadConfigReg(unsigned int regOffset,
 
 /********************************************************************
 * pci1ReadConfigReg  - Read from a PCI1 configuration register
-*                    - Make sure the GT is configured as a master before 
+*                    - Make sure the GT is configured as a master before
 *                      reading from another device on the PCI.
 *                   - The function takes care of Big/Little endian conversion.
 * INPUTS:   regOffset: The register offset as it apears in the GT spec (or PCI
 *                        spec)
-*           pciDevNum: The device number needs to be addressed.                
-* RETURNS: data , if the data == 0xffffffff check the master abort bit in the 
+*           pciDevNum: The device number needs to be addressed.
+* RETURNS: data , if the data == 0xffffffff check the master abort bit in the
 *                 cause register to make sure the data is valid
 *
 *  Configuration Address 0xCF8:
@@ -718,7 +718,7 @@ unsigned int pci1ReadConfigReg(unsigned int regOffset,
 	pciDevNum = pciDevNum << 11;
 	regOffset = regOffset & 0x0fffffff;
 	if (pciDevNum == SELF) {	/* This board */
-		/* when configurating our own PCI 1 L-unit the access is through  
+		/* when configurating our own PCI 1 L-unit the access is through
 		   the PCI 0 interface with reg number = reg number + 0x80 */
 		DataForRegCf8 =
 		    (regOffset | pciDevNum | functionNum | 0x80) | BIT31;
@@ -1058,7 +1058,7 @@ unsigned int pci1GetMemory1Size()
 }
 
 /********************************************************************
-* pci0MapInternalRegSpace - Maps the internal registers memory space for the 
+* pci0MapInternalRegSpace - Maps the internal registers memory space for the
 *                           slave.
 *                           Stays the same for all GT devices Disco include
 * Inputs: base of pci0 internal register
@@ -1078,7 +1078,7 @@ void pci0MapInternalRegSpace(unsigned int pci0InternalBase)
 }
 
 /********************************************************************
-* pci1MapInternalRegSpace - Maps the internal registers memory space for the 
+* pci1MapInternalRegSpace - Maps the internal registers memory space for the
 *                           slave.
 *                           Stays the same for all GT devices Disco include
 * Inputs: base of pci1 internal register
@@ -1098,7 +1098,7 @@ void pci1MapInternalRegSpace(unsigned int pci1InternalBase)
 }
 
 /********************************************************************
-* pci0MapInternalRegIOSpace - Maps the internal registers IO space for the 
+* pci0MapInternalRegIOSpace - Maps the internal registers IO space for the
 *                             slave.
 *                             Stays the same for all GT devices Disco include
 * Inputs: base of pci0 internal io register
@@ -1117,7 +1117,7 @@ void pci0MapInternalRegIOSpace(unsigned int pci0InternalBase)
 }
 
 /********************************************************************
-* pci0MapInternalRegIOSpace - Maps the internal registers IO space for the 
+* pci0MapInternalRegIOSpace - Maps the internal registers IO space for the
 *                             slave.
 *                             Stays the same for all GT devices Disco include
 * Inputs: base of pci1 internal io register
@@ -1137,7 +1137,7 @@ void pci1MapInternalRegIOSpace(unsigned int pci1InternalBase)
 
 /********************************************************************
 * pci0MapMemoryBanks0_1 - Maps PCI0 memory banks 0 and 1 for the slave.
-*                         for Discovery we need two function: SCS0 & SCS1 
+*                         for Discovery we need two function: SCS0 & SCS1
 *                         (instead of SCS[1:0])
 * Inputs: base and size of pci0 dram
 *********************************************************************/
@@ -1163,7 +1163,7 @@ void pci0MapMemoryBanks0_1(unsigned int pci0Dram0_1Base,
 
 /********************************************************************
 * pci1MapMemoryBanks0_1 - Maps PCI1 memory banks 0 and 1 for the slave.
-*                         for Discovery we need two function: SCS0 & SCS1 
+*                         for Discovery we need two function: SCS0 & SCS1
 *                         (instead of SCS[1:0])
 * Inputs: base and size of pci1 dram
 *********************************************************************/
@@ -1188,7 +1188,7 @@ void pci1MapMemoryBanks0_1(unsigned int pci1Dram0_1Base,
 
 /********************************************************************
 * pci0MapMemoryBanks2_3 - Maps PCI0 memory banks 2 and 3 for the slave.
-*                         for Discovery we need two function: SCS2 & SCS3 
+*                         for Discovery we need two function: SCS2 & SCS3
 *                         (instead of SCS[3:2])
 * Inputs: base and size of pci0 dram
 *********************************************************************/
@@ -1213,7 +1213,7 @@ void pci0MapMemoryBanks2_3(unsigned int pci0Dram2_3Base,
 
 /********************************************************************
 * pci1MapMemoryBanks2_3 - Maps PCI1 memory banks 2 and 3 for the slave.
-*                         for Discovery we need two function: SCS2 & SCS3 
+*                         for Discovery we need two function: SCS2 & SCS3
 *                         (instead of SCS[3:2])
 * Inputs: base and size of pci1 dram
 *********************************************************************/
@@ -1237,7 +1237,7 @@ void pci1MapMemoryBanks2_3(unsigned int pci1Dram2_3Base,
 }
 
 /********************************************************************
-* pci0MapDevices0_1and2MemorySpace - Maps PCI0 devices 0,1 and 2 memory spaces 
+* pci0MapDevices0_1and2MemorySpace - Maps PCI0 devices 0,1 and 2 memory spaces
 *                                    for the slave.
 *                                    For the Discovery there are 3 separate
 *                                    fucnction's
@@ -1260,7 +1260,7 @@ void pci0MapDevices0_1and2MemorySpace(unsigned int pci0Dev012Base,
 }
 
 /********************************************************************
-* pci1MapDevices0_1and2MemorySpace - Maps PCI1 devices 0,1 and 2 memory spaces 
+* pci1MapDevices0_1and2MemorySpace - Maps PCI1 devices 0,1 and 2 memory spaces
 *                                    for the slave.
 *                                    For the Discovery there are 3 separate
 *                                    fucnction's
@@ -1282,9 +1282,9 @@ void pci1MapDevices0_1and2MemorySpace(unsigned int pci1Dev012Base,
 }
 
 /********************************************************************
-* pci0MapDevices3andBootMemorySpace - Maps PCI0 devices 3 and boot memory 
+* pci0MapDevices3andBootMemorySpace - Maps PCI0 devices 3 and boot memory
 *                                     spaces for the slave.
-*                                     For the Discovery there are 2 separate 
+*                                     For the Discovery there are 2 separate
 *                                     fucnction's
 * Inputs: base and length of pci0 device3/ boot
 *********************************************************************/
@@ -1309,9 +1309,9 @@ void pci0MapDevices3andBootMemorySpace(unsigned int pci0Dev3andBootBase,
 }
 
 /********************************************************************
-* pci1MapDevices3andBootMemorySpace - Maps PCI1 devices 3 and boot memory 
+* pci1MapDevices3andBootMemorySpace - Maps PCI1 devices 3 and boot memory
 *                                     spaces for the slave.
-*                                     For the Discovery there are 2 separate 
+*                                     For the Discovery there are 2 separate
 *                                     fucnction's
 * Inputs: base and length of pci1 device3/ boot
 *********************************************************************/

@@ -136,7 +136,7 @@ asmlinkage void sb1_cache_error(void)
 
 	/* Prevent re-entrance in the SMP case */
 	spin_lock(&in_cacheerr);
-	printk("Cache error exception on CPU %x:\n", 
+	printk("Cache error exception on CPU %x:\n",
 	       (read_32bit_cp0_register(CP0_PRID) >> 25) & 0x7);
 	__asm__ __volatile__ (
 		".set push\n\t"
@@ -181,7 +181,7 @@ asmlinkage void sb1_cache_error(void)
 				if (!(res & cerr_d))
 					printk("...didn't see indicated dcache problem\n");
 			} else {
-				if ((cerr_dpa & SB1_CACHE_INDEX_MASK) != (cerr_d & SB1_CACHE_INDEX_MASK)) 
+				if ((cerr_dpa & SB1_CACHE_INDEX_MASK) != (cerr_d & SB1_CACHE_INDEX_MASK))
 					printk(" cerr_d idx doesn't match cerr_dpa\n");
 				else {
 					res = extract_dc(cerr_d & SB1_CACHE_INDEX_MASK,
@@ -192,9 +192,9 @@ asmlinkage void sb1_cache_error(void)
 			}
 		}
 	}
-	
+
 	while (1);
-	/* 
+	/*
 	 * This tends to make things get really ugly; let's just stall instead.
 	 *    panic("Can't handle the cache error!");
 	 */
@@ -265,7 +265,7 @@ static uint32_t extract_ic(unsigned short addr, int data)
 	uint32_t taghi, taglolo, taglohi;
 	uint8_t lru;
 	int res = 0;
-	
+
 	printk("Icache index 0x%04x  ", addr);
 	for (way = 0; way < 4; way++) {
 		/* Index-load-tag-I */
@@ -315,12 +315,12 @@ static uint32_t extract_ic(unsigned short addr, int data)
 		}
 		printk(" %d  [VA %016llx]  [Vld? %d]  raw tags: %08X-%016llX\n",
 		       way, va, valid, taghi, taglo);
-		
+
 		if (data) {
 			uint32_t datahi, insta, instb;
 			uint8_t predecode;
 			int offset;
-			
+
 			/* (hit all banks and ways) */
 			for (offset = 0; offset < 4; offset++) {
 				/* Index-load-data-I */
@@ -367,7 +367,7 @@ static uint8_t dc_ecc(uint64_t dword)
 	uint32_t w;
 	uint8_t  p;
 	int      i;
-	
+
 	p = 0;
 	for (i = 7; i >= 0; i--)
 	{
@@ -438,7 +438,7 @@ static uint32_t extract_dc(unsigned short addr, int data)
 			: "=r" (taghi), "=r" (taglohi),
 			  "=r" (taglolo)
 			: "r" ((way << 13) | addr));
-			
+
 		taglo = ((unsigned long long)taglohi << 32) | taglolo;
 		pa = (taglo & 0xFFFFFFE000) | addr;
 		if (way == 0) {
@@ -467,12 +467,12 @@ static uint32_t extract_dc(unsigned short addr, int data)
 		} else {
 			res |= CP0_CERRD_TAG_STATE;
 		}
-		
+
 		if (data) {
 			uint64_t datalo;
 			uint32_t datalohi, datalolo, datahi;
 			int offset;
-			
+
 			for (offset = 0; offset < 4; offset++) {
 				/* Index-load-data-D */
 				__asm__ __volatile__ (

@@ -2,13 +2,13 @@
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *              ahennessy@mvista.com       
+ *              ahennessy@mvista.com
  *
  * Based on arch/mips/ddb5xxx/ddb5477/setup.c
  *
  *     Setup file for JMR3927.
  *
- * Copyright (C) 2000-2001 Toshiba Corporation 
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -183,7 +183,7 @@ unsigned long jmr3927_do_gettimeoffset(void)
        }
 
        return res;
-}                                         
+}
 
 
 void __init bus_error_init(void) { /* nothing */ }
@@ -191,7 +191,7 @@ void __init bus_error_init(void) { /* nothing */ }
 
 #if defined(CONFIG_BLK_DEV_INITRD)
 extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
-#endif 
+#endif
 
 //#undef DO_WRITE_THROUGH
 #define DO_WRITE_THROUGH
@@ -223,13 +223,13 @@ void __init jmr3927_setup(void)
 	_machine_power_off = jmr3927_machine_power_off;
 
 	/*
-	 * IO/MEM resources. 
+	 * IO/MEM resources.
 	 */
 	ioport_resource.start = pci_io_resource.start;
 	ioport_resource.end = pci_io_resource.end;
 	iomem_resource.start = pci_mem_resource.start;
 	iomem_resource.end = pci_mem_resource.end;
-	
+
 	/* Reboot on panic */
 	panic_timeout = 180;
 
@@ -287,9 +287,9 @@ void __init jmr3927_setup(void)
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS1,115200");
 	}
-#endif                                             
+#endif
 }
- 
+
 
 static void tx3927_setup(void);
 
@@ -352,7 +352,7 @@ static void __init jmr3927_board_init(void)
 	jmr3927_led_set(0);
 
 
-	if (jmr3927_have_isac()) 
+	if (jmr3927_have_isac())
 		jmr3927_io_led_set(0);
 	printk("JMR-TX3927 (Rev %d) --- IOC(Rev %d) DIPSW:%d,%d,%d,%d\n",
 	       jmr3927_ioc_reg_in(JMR3927_IOC_BREV_ADDR) & JMR3927_REV_MASK,

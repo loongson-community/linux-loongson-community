@@ -125,7 +125,7 @@ struct call_data_struct *call_data;
  * or are or have executed.
  */
 
-int smp_call_function (void (*func) (void *info), void *info, int retry, 
+int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
@@ -221,11 +221,11 @@ static void flush_tlb_mm_ipi(void *mm)
 }
 
 /*
- * The following tlb flush calls are invoked when old translations are 
+ * The following tlb flush calls are invoked when old translations are
  * being torn down, or pte attributes are changing. For single threaded
  * address spaces, a new context is obtained on the current cpu, and tlb
  * context on other cpus are invalidated to force a new context allocation
- * at switch_mm time, should the mm ever be used on other cpus. For 
+ * at switch_mm time, should the mm ever be used on other cpus. For
  * multithreaded address spaces, intercpu interrupts have to be sent.
  * Another case where intercpu interrupts are required is when the target
  * mm might be active on another cpu (eg debuggers doing the flushes on

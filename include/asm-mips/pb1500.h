@@ -22,7 +22,7 @@
  *
  * ########################################################################
  *
- * 
+ *
  */
 #ifndef __ASM_PB1500_H
 #define __ASM_PB1500_H
@@ -31,7 +31,7 @@
 #define PB1500_BOARD_STATUS   0xAE000004
 #define PB1500_PCI_PCMCIA     0xAE000010
   #define PC_DEASSERT_RST           0x80
-  #define PC_DRV_EN                 0x10 
+  #define PC_DRV_EN                 0x10
 #define PB1500_G_CONTROL      0xAE000014
 #define PB1500_RST_VDDI       0xAE00001C
 #define PB1500_LEDS           0xAE000018

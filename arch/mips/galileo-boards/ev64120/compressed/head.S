@@ -9,11 +9,11 @@
 	.text
 NESTED(startup, 16, sp)
 	.set	noreorder
-        
+
 	jal decompress_kernel
 	nop
-        
+
         jal kernel_location_start+0x584
         nop
-        
+
 	END(startup)

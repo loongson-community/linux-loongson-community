@@ -33,8 +33,8 @@
 
 
 #if defined(CONFIG_MIPS_ATLAS) || defined(CONFIG_MIPS_SEAD)
-/* 
- * Atlas registers are memory mapped on 64-bit aligned boundaries and 
+/*
+ * Atlas registers are memory mapped on 64-bit aligned boundaries and
  * only word access are allowed.
  * When reading the UART 8 bit registers only the LSB are valid.
  */
@@ -70,8 +70,8 @@ static struct serial_state rs_table[] = {
 };
 
 /*
- * Hooks to fake "prom" console I/O before devices 
- * are fully initialized. 
+ * Hooks to fake "prom" console I/O before devices
+ * are fully initialized.
  */
 static struct async_struct prom_port_info = {0};
 

@@ -6,7 +6,7 @@ struct graphics_ops {
 
 	/* Last process that got the graphics registers mapped  */
 	struct task_struct *g_user;
-	
+
 	/* Board info */
 	void               *g_board_info;
 	int                g_board_info_len;

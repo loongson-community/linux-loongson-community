@@ -1,6 +1,6 @@
-/* 
+/*
  * ip22-gio.c: Support for GIO64 bus (inspired by PCI code)
- * 
+ *
  * Copyright (C) 2002 Ladislav Michl
  */
 
@@ -68,7 +68,7 @@ static int gio_read_proc(char *buf, char **start, off_t off,
 {
 	int i;
 	char *p = buf;
-	
+
 	p += sprintf(p, "GIO devices found:\n");
 	for (i = 0; i < GIO_NUM_SLOTS; i++) {
 		if (gio_slot[i].flags & GIO_NO_DEVICE)
@@ -78,7 +78,7 @@ static int gio_read_proc(char *buf, char **start, off_t off,
 		p += sprintf(p, "    BaseAddr 0x%08lx, MapSize 0x%08x\n",
 			     gio_slot[i].base_addr, gio_slot[i].map_size);
 	}
-	
+
 	return p - buf;
 }
 
@@ -93,7 +93,7 @@ void create_gio_proc_entry(void)
  * @from: Previous GIO device found in search, or %NULL for new search.
  *
  * Iterates through the list of known GIO devices. If a GIO device is found
- * with a matching @device, a pointer to its device structure is returned. 
+ * with a matching @device, a pointer to its device structure is returned.
  * Otherwise, %NULL is returned.
  * A new search is initiated by passing %NULL to the @from argument.
  * Otherwise if @from is not %NULL, searches continue from next device.
@@ -102,12 +102,12 @@ struct gio_dev *
 gio_find_device(unsigned char device, const struct gio_dev *from)
 {
 	int i;
-	
+
 	for (i = (from) ? from->slot_number : 0; i < GIO_NUM_SLOTS; i++)
-		if (!(gio_slot[i].flags & GIO_NO_DEVICE) && 
+		if (!(gio_slot[i].flags & GIO_NO_DEVICE) &&
 		   (device == GIO_ANY_ID || device == gio_slot[i].device))
 			return &gio_slot[i];
-	
+
 	return NULL;
 }
 
@@ -120,7 +120,7 @@ gio_find_device(unsigned char device, const struct gio_dev *from)
 
 extern int ip22_baddr(unsigned int *val, unsigned long addr);
 
-/** 
+/**
  * sgigio_init - scan the GIO space and figure out what hardware is actually
  * present.
  */
@@ -147,7 +147,7 @@ void __init sgigio_init(void)
 		printk("GIO: Card 0x%02x @ 0x%08lx\n", gio_slot[i].device,
 			gio_slot[i].base_addr);
 	}
-	
+
 	if (!found)
 		printk("GIO: No GIO cards present.\n");
 }

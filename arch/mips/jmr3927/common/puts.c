@@ -7,7 +7,7 @@
  * Author: MontaVista Software, Inc.
  *         	ahennessy@mvista.com or source@mvista.com
  *
- * Copyright (C) 2000-2001 Toshiba Corporation 
+ * Copyright (C) 2000-2001 Toshiba Corporation
  *
  * Based on arch/mips/au1000/common/puts.c
  *
@@ -52,7 +52,7 @@ void
 putch(const unsigned char c)
 {
         int i = 0;
-	
+
         do {
             slow_down();
             i++;
@@ -69,7 +69,7 @@ unsigned char getch(void)
         int i = 0;
 	int dicr;
 	char c;
-	
+
 	/* diable RX int. */
 	dicr = tx3927_sioptr(1)->dicr;
 	tx3927_sioptr(1)->dicr = 0;

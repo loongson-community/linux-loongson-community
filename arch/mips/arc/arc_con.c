@@ -2,7 +2,7 @@
  * Wrap-around code for a console using the
  * ARC io-routines.
  *
- * Copyright (c) 1998 Harald Koerfgen 
+ * Copyright (c) 1998 Harald Koerfgen
  * Copyright (c) 2001 Ralf Baechle
  * Copyright (c) 2002 Thiemo Seufer
  */

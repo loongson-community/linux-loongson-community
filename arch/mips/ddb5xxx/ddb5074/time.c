@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Sony Software Development Center Europe (SDCE), Brussels
- *  
+ *
  */
 #include <linux/init.h>
 #include <asm/mc146818rtc.h>

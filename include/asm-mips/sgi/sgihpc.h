@@ -45,8 +45,8 @@ struct hpc3_pbus_dmacregs {
 	hpcreg pbdma_bptr;	/* pbus dma channel buffer ptr */
 	hpcreg pbdma_dptr;	/* pbus dma channel desc ptr */
 	char _unused1[PAGE_SIZE - (2 * sizeof(hpcreg))]; /* padding */
-	hpcreg pbdma_ctrl;	/* pbus dma channel control register has 
-				 * copletely different meaning for read 
+	hpcreg pbdma_ctrl;	/* pbus dma channel control register has
+				 * copletely different meaning for read
 				 * compared with write */
 	/* read */
 #define HPC3_PDMACTRL_INT	0x00000001 /* interrupt (cleared after read) */
@@ -235,7 +235,7 @@ struct hpc3_regs {
 	hpcreg scsi1_ext[256];	/* SCSI channel 1 external regs */
 	char _unused4[0x07c00];	/* It'll only hurt a little... */
 
-	/* Ethernet external registers. Noone use them so we need some 
+	/* Ethernet external registers. Noone use them so we need some
 	 * padding instead.
 	 */
 	char _unused5[0x04000]; /* It'll hurt a lot if you leave this out */

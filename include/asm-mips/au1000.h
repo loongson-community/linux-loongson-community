@@ -414,9 +414,9 @@ extern unsigned int get_au1000_lcd_clock(void);
 
 /* 4 byte offsets from AU1000_ETH_BASE */
 #define MAC_CONTROL                     0x0
-  #define MAC_RX_ENABLE               (1<<2) 
+  #define MAC_RX_ENABLE               (1<<2)
   #define MAC_TX_ENABLE               (1<<3)
-  #define MAC_DEF_CHECK               (1<<5) 
+  #define MAC_DEF_CHECK               (1<<5)
   #define MAC_SET_BL(X)       (((X)&0x3)<<6)
   #define MAC_AUTO_PAD                (1<<8)
   #define MAC_DISABLE_RETRY          (1<<10)
@@ -441,7 +441,7 @@ extern unsigned int get_au1000_lcd_clock(void);
 #define MAC_MCAST_LOW                  0x10
 #define MAC_MII_CNTRL                  0x14
   #define MAC_MII_BUSY                (1<<0)
-  #define MAC_MII_READ                     0 
+  #define MAC_MII_READ                     0
   #define MAC_MII_WRITE               (1<<1)
   #define MAC_SET_MII_SELECT_REG(X)   (((X)&0x1f)<<6)
   #define MAC_SET_MII_SELECT_PHY(X)   (((X)&0x1f)<<11)
@@ -523,7 +523,7 @@ extern unsigned int get_au1000_lcd_clock(void);
   #define RX_FILTER_FAIL             (1<<29)
   #define RX_PACKET_FILTER           (1<<30)
   #define RX_MISSED_FRAME            (1<<31)
-  
+
   #define RX_ERROR (RX_WDOG_TIMER | RX_RUNT | RX_OVERLEN |  \
                     RX_COLL | RX_MII_ERROR | RX_CRC_ERROR | \
                     RX_LEN_ERROR | RX_U_CNTRL_FRAME | RX_MISSED_FRAME)

@@ -77,7 +77,7 @@ struct RRM_CloseRN {
  * RRM_BINDPROCTORN:
  *
  * Return value when the X server calls it: 0
- */ 
+ */
 struct RRM_BindProcToRN {
 	int      rnid;
 };

@@ -61,7 +61,7 @@ static int eagle_ide_request_irq(unsigned int irq,
                                  void *dev_id)
 {
 	return request_irq(irq, handler, SA_SHIRQ, device, dev_id);
-}			
+}
 
 static void eagle_ide_free_irq(unsigned int irq, void *dev_id)
 {
