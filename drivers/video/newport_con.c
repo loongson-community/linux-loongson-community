@@ -466,7 +466,7 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
 {
     int count,x,y;
     unsigned short *s, *d;
-    unsigned short chattr = 0;
+    unsigned short chattr;
 
     logo_active = 0;	/* it's time to disable the logo now.. */
 
