@@ -41,7 +41,7 @@
 #define __bi_restore_flags(x)
 #endif /* __KERNEL__ */
 
-#if defined(CONFIG_CPU_HAS_LLSC)
+#ifdef CONFIG_CPU_HAS_LLSC
 
 #include <asm/mipsregs.h>
 
