@@ -1,11 +1,5 @@
 .*.cmd
-conmakehash
-docproc
-elfconfig.h
-fixdep
-kallsyms
-modpost
-mk_elfconfig
-pnmtologo
-split-include
 bin2c
+conmakehash
+kallsyms
+pnmtologo

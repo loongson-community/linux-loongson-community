@@ -1,0 +1,4 @@
+.*.cmd
+elfconfig.h
+mk_elfconfig
+modpost
