@@ -89,7 +89,7 @@
 		.endm
 
 		.macro	set_saved_sp	stackp temp temp2
-		lw	\temp, TASK_PROCESSOR(gp)
+		lw	\temp, TI_CPU(gp)
 		dsll	\temp, 3
 		lui	\temp2, %hi(kernelsp)
 		daddu	\temp, \temp2
