@@ -567,10 +567,12 @@ else
   endif
 endif
 
-ifdef CONFIG_MIPS_JAZZ_SONIC
+ifeq ($(CONFIG_MIPS_JAZZ_SONIC),y)
 L_OBJS += sonic.o
 else
-M_OBJS += sonic.o
+  ifeq ($(CONFIG_MIPS_JAZZ_SONIC),m)
+  M_OBJS += sonic.o
+  endif
 endif
 
 ifeq ($(CONFIG_ATARILANCE),y)
