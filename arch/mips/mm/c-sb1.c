@@ -249,9 +249,8 @@ asm("sb1_flush_icache_range = local_sb1_flush_icache_range");
 static void sb1_flush_icache_page(struct vm_area_struct *vma,
 	struct page *page)
 {
-	if (vma->vm_flags & VM_EXEC) {
+	if (!(vma->vm_flags & VM_EXEC))
 		return;
-	}
 
 	/*
 	 * We're not sure of the virtual address(es) involved here, so
