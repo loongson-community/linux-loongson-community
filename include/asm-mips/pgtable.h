@@ -386,7 +386,11 @@ extern void update_mmu_cache(struct vm_area_struct *vma,
 
 #include <asm-generic/pgtable.h>
 
+#ifdef CONFIG_64BIT_PHYS_ADDR
+typedef u64 pte_addr_t;
+#else
 typedef pte_t *pte_addr_t;
+#endif
 
 /*
  * We provide our own get_unmapped area to cope with the virtual aliasing
