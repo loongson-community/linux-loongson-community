@@ -8,6 +8,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994 - 2000 Ralf Baechle
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
