@@ -4,7 +4,7 @@
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  * Copyright (C) 2000 Ralf Baechle
- * Copyright (C) 2002  Maciej W. Rozycki
+ * Copyright (C) 2002, 2003  Maciej W. Rozycki
  *
  * Mostly stolen from the sparc64 ioctl32 implementation.
  */
@@ -34,6 +34,7 @@
 #include <linux/loop.h>
 #include <linux/fb.h>
 #include <linux/vt.h>
+#include <linux/vt_kern.h>
 #include <linux/kd.h>
 #include <linux/ext2_fs.h>
 #include <linux/videodev.h>
@@ -803,6 +804,116 @@ static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
 	return rw_long(fd, AUTOFS_IOC_SETTIMEOUT, arg);
 }
 
+extern int tty_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg);
+
+static int vt_check(struct file *file)
+{
+	struct tty_struct *tty;
+	struct inode *inode = file->f_dentry->d_inode;
+	
+	if (file->f_op->ioctl != tty_ioctl)
+		return -EINVAL;
+	                
+	tty = (struct tty_struct *)file->private_data;
+	if (tty_paranoia_check(tty, inode->i_rdev, "tty_ioctl"))
+		return -EINVAL;
+	                                                
+	if (tty->driver.ioctl != vt_ioctl)
+		return -EINVAL;
+	
+	/*
+	 * To have permissions to do most of the vt ioctls, we either have
+	 * to be the owner of the tty, or super-user.
+	 */
+	if (current->tty == tty || suser())
+		return 1;
+	return 0;                                                    
+}
+
+struct consolefontdesc32 {
+	unsigned short charcount;       /* characters in font (256 or 512) */
+	unsigned short charheight;      /* scan lines per character (1-32) */
+	u32 chardata;			/* font data in expanded form */
+};
+
+static int do_fontx_ioctl(unsigned int fd, int cmd, struct consolefontdesc32 *user_cfd, struct file *file)
+{
+	struct consolefontdesc cfdarg;
+	struct console_font_op op;
+	int i, perm;
+
+	perm = vt_check(file);
+	if (perm < 0) return perm;
+	
+	if (copy_from_user(&cfdarg, user_cfd, sizeof(struct consolefontdesc32)))
+		return -EFAULT;
+	
+	cfdarg.chardata = (unsigned char *)A(((struct consolefontdesc32 *)&cfdarg)->chardata);
+ 	
+	switch (cmd) {
+	case PIO_FONTX:
+		if (!perm)
+			return -EPERM;
+		op.op = KD_FONT_OP_SET;
+		op.flags = 0;
+		op.width = 8;
+		op.height = cfdarg.charheight;
+		op.charcount = cfdarg.charcount;
+		op.data = cfdarg.chardata;
+		return con_font_op(fg_console, &op);
+	case GIO_FONTX:
+		if (!cfdarg.chardata)
+			return 0;
+		op.op = KD_FONT_OP_GET;
+		op.flags = 0;
+		op.width = 8;
+		op.height = cfdarg.charheight;
+		op.charcount = cfdarg.charcount;
+		op.data = cfdarg.chardata;
+		i = con_font_op(fg_console, &op);
+		if (i)
+			return i;
+		cfdarg.charheight = op.height;
+		cfdarg.charcount = op.charcount;
+		((struct consolefontdesc32 *)&cfdarg)->chardata	= (unsigned long)cfdarg.chardata;
+		if (copy_to_user(user_cfd, &cfdarg, sizeof(struct consolefontdesc32)))
+			return -EFAULT;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+struct console_font_op32 {
+	unsigned int op;        /* operation code KD_FONT_OP_* */
+	unsigned int flags;     /* KD_FONT_FLAG_* */
+	unsigned int width, height;     /* font size */
+	unsigned int charcount;
+	u32 data;    /* font data with height fixed to 32 */
+};
+                                        
+static int do_kdfontop_ioctl(unsigned int fd, unsigned int cmd, struct console_font_op32 *fontop, struct file *file)
+{
+	struct console_font_op op;
+	int perm = vt_check(file), i;
+	struct vt_struct *vt;
+	
+	if (perm < 0) return perm;
+	
+	if (copy_from_user(&op, (void *) fontop, sizeof(struct console_font_op32)))
+		return -EFAULT;
+	if (!perm && op.op != KD_FONT_OP_GET)
+		return -EPERM;
+	op.data = (unsigned char *)A(((struct console_font_op32 *)&op)->data);
+	op.flags |= KD_FONT_FLAG_OLD;
+	vt = (struct vt_struct *)((struct tty_struct *)file->private_data)->driver_data;
+	i = con_font_op(vt->vc_num, &op);
+	if (i) return i;
+	((struct console_font_op32 *)&op)->data = (unsigned long)op.data;
+	if (copy_to_user((void *) fontop, &op, sizeof(struct console_font_op32)))
+		return -EFAULT;
+	return 0;
+}
+
 typedef int (* ioctl32_handler_t)(unsigned int, unsigned int, unsigned long, struct file *);
                                                                                 
 #define COMPATIBLE_IOCTL(cmd)		HANDLE_IOCTL((cmd),sys_ioctl)
@@ -901,6 +1012,8 @@ COMPATIBLE_IOCTL(GIO_UNISCRNMAP)
 COMPATIBLE_IOCTL(PIO_UNISCRNMAP)
 COMPATIBLE_IOCTL(PIO_FONTRESET)
 COMPATIBLE_IOCTL(PIO_UNIMAPCLR)
+HANDLE_IOCTL(PIO_FONTX, do_fontx_ioctl),
+HANDLE_IOCTL(KDFONTOP, do_kdfontop_ioctl),
 
 /* Big S */
 COMPATIBLE_IOCTL(SCSI_IOCTL_GET_IDLUN)
