@@ -8,11 +8,24 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1997 - 2002 Ralf Baechle (ralf@gnu.org)
  */
-#ifndef __ASM_R4KCACHE_H
-#define __ASM_R4KCACHE_H
+#ifndef _ASM_R4KCACHE_H
+#define _ASM_R4KCACHE_H
 
 #include <asm/asm.h>
 #include <asm/cacheops.h>
+
+/*
+ * This macro return a properly sign-extended address suitable as base address
+ * for indexed cache operations.  Two issues here:
+ *
+ *  - The MIPS32 and MIPS64 specs permit an implementation to directly derive
+ *    the index bits from the virtual address.  This breaks with tradition
+ *    set by the R4000.  To keep unpleassant surprises from happening we pick
+ *    an address in KSEG0 / CKSEG0.
+ *  - We need a properly sign extended address for 64-bit code.  To get away
+ *    without ifdefs we let the compiler do it by a type cast.
+ */
+#define INDEX_BASE	((int) KSEG0)
 
 #define cache_op(op,addr)						\
 	__asm__ __volatile__(						\
@@ -139,7 +152,7 @@ static inline void invalidate_tcache_page(unsigned long addr)
 
 static inline void blast_dcache16(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.dcache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.dcache.waybit;
 	unsigned long ws_end = current_cpu_data.dcache.ways << 
@@ -178,7 +191,7 @@ static inline void blast_dcache16_page_indexed(unsigned long page)
 
 static inline void blast_icache16(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.icache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
 	unsigned long ws_end = current_cpu_data.icache.ways <<
@@ -217,7 +230,7 @@ static inline void blast_icache16_page_indexed(unsigned long page)
 
 static inline void blast_scache16(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.scache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
 	unsigned long ws_end = current_cpu_data.scache.ways << 
@@ -282,7 +295,7 @@ static inline void blast_scache16_page_indexed(unsigned long page)
 
 static inline void blast_dcache32(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.dcache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.dcache.waybit;
 	unsigned long ws_end = current_cpu_data.dcache.ways <<
@@ -321,7 +334,7 @@ static inline void blast_dcache32_page_indexed(unsigned long page)
 
 static inline void blast_icache32(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.icache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
 	unsigned long ws_end = current_cpu_data.icache.ways <<
@@ -360,7 +373,7 @@ static inline void blast_icache32_page_indexed(unsigned long page)
 
 static inline void blast_scache32(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.scache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
 	unsigned long ws_end = current_cpu_data.scache.ways << 
@@ -425,7 +438,7 @@ static inline void blast_scache32_page_indexed(unsigned long page)
 
 static inline void blast_icache64(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.icache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.icache.waybit;
 	unsigned long ws_end = current_cpu_data.icache.ways <<
@@ -464,7 +477,7 @@ static inline void blast_icache64_page_indexed(unsigned long page)
 
 static inline void blast_scache64(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.scache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
 	unsigned long ws_end = current_cpu_data.scache.ways << 
@@ -529,7 +542,7 @@ static inline void blast_scache64_page_indexed(unsigned long page)
 
 static inline void blast_scache128(void)
 {
-	unsigned long start = KSEG0;
+	unsigned long start = INDEX_BASE;
 	unsigned long end = start + current_cpu_data.scache.waysize;
 	unsigned long ws_inc = 1UL << current_cpu_data.scache.waybit;
 	unsigned long ws_end = current_cpu_data.scache.ways << 
@@ -566,4 +579,4 @@ static inline void blast_scache128_page_indexed(unsigned long page)
 			cache128_unroll32(addr|ws,Index_Writeback_Inv_SD);
 }
 
-#endif /* __ASM_R4KCACHE_H */
+#endif /* _ASM_R4KCACHE_H */
