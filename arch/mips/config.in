@@ -78,16 +78,6 @@ define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 #
 # Select some configuration options automatically for certain systems.
 #
-unset CONFIG_ARC32
-unset CONFIG_BOARD_SCACHE
-unset CONFIG_HAVE_STD_PC_SERIAL_PORT
-unset CONFIG_I8259
-unset CONFIG_ISA
-unset CONFIG_PCI
-unset CONFIG_MIPS_JAZZ
-unset CONFIG_SWAP_IO_SPACE
-unset CONFIG_VIDEO_G364
-unset CONFIG_PC_KEYB
 
 define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n

@@ -39,15 +39,6 @@ define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 #
 # Select some configuration options automatically based on user selections
 #
-unset CONFIG_ARC32
-unset CONFIG_ARC64
-unset CONFIG_BINFMT_ELF32
-unset CONFIG_BOARD_SCACHE
-unset CONFIG_BOOT_ELF32
-unset CONFIG_BOOT_ELF64
-unset CONFIG_ISA
-unset CONFIG_MAPPED_PCI_IO
-unset CONFIG_PCI
 
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
