@@ -57,7 +57,7 @@ obj-$(CONFIG_CPU_R5432)		+= tlbex64.o
 obj-$(CONFIG_CPU_RM7000)	+= tlbex64.o
 obj-$(CONFIG_CPU_RM9000)	+= tlbex64.o
 obj-$(CONFIG_CPU_R10000)	+= tlbex64.o
-obj-$(CONFIG_CPU_SB1)		+= tlb6464.o
+obj-$(CONFIG_CPU_SB1)		+= tlbex64.o
 obj-$(CONFIG_CPU_MIPS64)	+= tlbex64.o
 endif
 
