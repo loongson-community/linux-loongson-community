@@ -1,4 +1,4 @@
-/* $Id: signal32.c,v 1.2 2000/02/18 00:03:48 ralf Exp $
+/* $Id: signal32.c,v 1.3 2000/03/07 15:45:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -38,12 +38,11 @@ extern asmlinkage int restore_fp_context(struct sigcontext *sc);
 
 /* 32-bit compatibility types */
 
-#define _NSIG32		128
 #define _NSIG32_BPW	32
-#define _NSIG_WORDS	(_NSIG / _NSIG_BPW)
+#define _NSIG32_WORDS	(_NSIG / _NSIG32_BPW)
 
 typedef struct {
-	unsigned int sig[_NSIG_WORDS];
+	unsigned int sig[_NSIG32_WORDS];
 } sigset32_t;
 
 typedef unsigned int __sighandler32_t;
