@@ -314,7 +314,7 @@ static inline unsigned long xchg_u32(volatile int * m, unsigned int val)
 }
 
 #ifdef CONFIG_MIPS64
-static inline __u64 xchg_u64(volatile __u64 * m, __u64 long val)
+static inline __u64 xchg_u64(volatile __u64 * m, __u64 val)
 {
 	__u64 retval;
 
