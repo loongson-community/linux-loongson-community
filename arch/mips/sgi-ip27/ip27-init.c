@@ -457,6 +457,7 @@ int __init prom_boot_secondary(int cpu, struct task_struct *idle)
 
 void __init prom_cpus_done(void)
 {
+	cnodeid_t cnode;
 
 #ifdef LATER
 	Wait logic goes here.
