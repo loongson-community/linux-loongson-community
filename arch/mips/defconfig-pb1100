@@ -662,6 +662,9 @@ CONFIG_RTC=y
 # File systems
 #
 # CONFIG_QUOTA is not set
+# CONFIG_QFMT_V1 is not set
+# CONFIG_QFMT_V2 is not set
+# CONFIG_QIFACE_COMPAT is not set
 CONFIG_AUTOFS_FS=m
 CONFIG_AUTOFS4_FS=m
 CONFIG_REISERFS_FS=m

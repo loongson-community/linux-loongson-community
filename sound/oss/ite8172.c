@@ -1647,7 +1647,9 @@ static int it8172_ioctl(struct inode *inode, struct file *file,
 		if (count < 0)
 			count = 0;
 		cinfo.blocks = count >> s->dma_adc.fragshift;
-		return copy_to_user((void *)arg, &cinfo, sizeof(cinfo));
+		if (copy_to_user((void *)arg, &cinfo, sizeof(cinfo)))
+			return -EFAULT;
+		return 0;
 
 	case SNDCTL_DSP_GETOPTR:
 		if (!(file->f_mode & FMODE_READ))
@@ -1670,7 +1672,9 @@ static int it8172_ioctl(struct inode *inode, struct file *file,
 		if (count < 0)
 			count = 0;
 		cinfo.blocks = count >> s->dma_dac.fragshift;
-		return copy_to_user((void *)arg, &cinfo, sizeof(cinfo));
+		if (copy_to_user((void *)arg, &cinfo, sizeof(cinfo)))
+			return -EFAULT;
+		return 0;
 
 	case SNDCTL_DSP_GETBLKSIZE:
 		if (file->f_mode & FMODE_WRITE)

@@ -456,6 +456,9 @@ CONFIG_UNIX98_PTY_COUNT=256
 # File systems
 #
 # CONFIG_QUOTA is not set
+# CONFIG_QFMT_V1 is not set
+# CONFIG_QFMT_V2 is not set
+# CONFIG_QIFACE_COMPAT is not set
 CONFIG_AUTOFS_FS=y
 # CONFIG_AUTOFS4_FS is not set
 # CONFIG_REISERFS_FS is not set
