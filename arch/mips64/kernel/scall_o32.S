@@ -43,6 +43,11 @@ NESTED(handle_sys, PT_SIZE, sp)
  RESTORE_ALL
 #endif
 
+	sll	a0, a0, 0
+	sll	a1, a1, 0
+	sll	a2, a2, 0
+	sll	a3, a3, 0
+
 	/* XXX Put both in one cacheline, should save a bit. */
 	dsll	t0, v0, 3		# offset into table
 	ld	t2, (sys_call_table - (__NR_O32_Linux * 8))(t0)
