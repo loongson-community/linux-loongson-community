@@ -92,7 +92,7 @@
 #define K_CALG_NOTUSED		6
 #define K_CALG_UNCACHED_ACCEL	7
 
-#define TO_PHYS_MASK		0xfffffffff			/* 36 bit */
+#define TO_PHYS_MASK			0xfffffffffULL		/* 36 bit */
 
 /*
  * 64-bit address conversions
