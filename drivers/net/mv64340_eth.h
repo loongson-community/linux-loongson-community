@@ -58,7 +58,9 @@
 /* Checksum offload for Tx is broken */
 #define  MV64340_CHECKSUM_OFFLOAD_TX	1
 #define  MV64340_NIC_SRAM_BASE_TX       0xfe000000
-#define	 MV64340_NAPI	1
+#define	 MV64340_NAPI			1
+#define	 MV64340_TX_FAST_REFILL		1
+#undef	 MV64340_COAL
 
 /* 
  * Number of RX / TX descriptors on RX / TX rings.
@@ -75,7 +77,9 @@
 #define MV64340_RX_QUEUE_SIZE 400
 
 #define MV64340_TX_COAL 100
+#ifdef MV64340_COAL
 #define MV64340_RX_COAL 100
+#endif
 
 /* Private data structure used for ethernet device */
 struct mv64340_eth_priv {
@@ -562,6 +566,11 @@ typedef struct _eth_port_ctrl {
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
         int tx_first_desc_q;
 #endif
+
+#ifdef MV64340_TX_FAST_REFILL
+	u32	tx_clean_threshold;
+#endif
+
 	/* Tx/Rx rings size and base variables fields. For driver use */
 	volatile ETH_RX_DESC *p_rx_desc_area;
 	unsigned int rx_desc_area_size;
