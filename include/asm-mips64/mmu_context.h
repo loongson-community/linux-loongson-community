@@ -33,8 +33,10 @@ static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk,
 #define ASID_FIRST_VERSION ((unsigned long)(~ASID_VERSION_MASK) + 1)
 
 extern inline void
-get_new_mmu_context(struct mm_struct *mm, unsigned long asid)
+get_new_mmu_context(struct mm_struct *mm)
 {
+	unsigned long asid = asid_cache;
+
 	if (! ((asid += ASID_INC) & ASID_MASK) ) {
 		flush_tlb_all(); /* start new asid cycle */
 		if (!asid)      /* fix version if needed */
@@ -56,11 +58,9 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
                              struct task_struct *tsk, unsigned cpu)
 {
-	unsigned long asid = asid_cache;
-
 	/* Check if our ASID is of an older version and thus invalid */
-	if ((next->context ^ asid) & ASID_VERSION_MASK)
-		get_new_mmu_context(next, asid);
+	if ((next->context ^ asid_cache) & ASID_VERSION_MASK)
+		get_new_mmu_context(next);
 
 	current_pgd = next->pgd;
 	set_entryhi(next->context);
@@ -83,7 +83,7 @@ extern inline void
 activate_mm(struct mm_struct *prev, struct mm_struct *next)
 {
 	/* Unconditionally get a new ASID.  */
-	get_new_mmu_context(next, asid_cache);
+	get_new_mmu_context(next);
 
 	current_pgd = next->pgd;
 	set_entryhi(next->context);

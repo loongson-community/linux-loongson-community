@@ -1,4 +1,4 @@
-/* $Id: andes.c,v 1.6 2000/02/24 00:12:41 ralf Exp $
+/* $Id: andes.c,v 1.7 2000/03/13 22:43:25 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -251,7 +251,7 @@ static void andes_flush_tlb_mm(struct mm_struct *mm)
 		printk("[tlbmm<%d>]", mm->context);
 #endif
 		save_and_cli(flags);
-		get_new_mmu_context(mm, asid_cache);
+		get_new_mmu_context(mm);
 		if(mm == current->mm)
 			set_entryhi(mm->context & 0xff);
 		restore_flags(flags);
@@ -300,7 +300,7 @@ andes_flush_tlb_range(struct mm_struct *mm, unsigned long start,
 			}
 			set_entryhi(oldpid);
 		} else {
-			get_new_mmu_context(mm, asid_cache);
+			get_new_mmu_context(mm);
 			if(mm == current->mm)
 				set_entryhi(mm->context & 0xff);
 		}
