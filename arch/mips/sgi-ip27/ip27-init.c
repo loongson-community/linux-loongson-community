@@ -79,53 +79,14 @@ static int is_fine_dirmode(void)
 
 extern void pcibr_setup(cnodeid_t);
 
-static __init void per_slice_init(cnodeid_t cnode, int slice)
-{
-	struct slice_data *si = hub_data[cnode]->slice + slice;
-	int cpu = smp_processor_id();
-	int i;
-
-	for (i = 0; i < LEVELS_PER_SLICE; i++)
-		si->level_to_irq[i] = -1;
-	/*
-	 * Some interrupts are reserved by hardware or by software convention.
-	 * Mark these as reserved right away so they won't be used accidently
-	 * later.
-	 */
-	for (i = 0; i <= BASE_PCI_IRQ; i++) {
-		__set_bit(i, si->irq_alloc_mask);
-		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
-	}
-
-	__set_bit(IP_PEND0_6_63, si->irq_alloc_mask);
-	LOCAL_HUB_S(PI_INT_PEND_MOD, IP_PEND0_6_63);
-
-	for (i = NI_BRDCAST_ERR_A; i <= MSC_PANIC_INTR; i++) {
-		__set_bit(i, si->irq_alloc_mask + 1);
-		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
-	}
-
-	LOCAL_HUB_L(PI_INT_PEND0);
-
-	/*
-	 * We use this so we can find the local hub's data as fast as only
-	 * possible.
-	 */
-	cpu_data[cpu].data = si;
-}
-
 extern void xtalk_probe_node(cnodeid_t nid);
 
 static void __init per_hub_init(cnodeid_t cnode)
 {
 	struct hub_data *hub = HUB_DATA(cnode);
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
-	int slice = LOCAL_HUB_L(PI_CPU_NUM);
 
 	cpu_set(smp_processor_id(), hub->h_cpus);
-
-	if (!test_and_set_bit(slice, &hub->slice_map))
-		per_slice_init(cnode, slice);
 
 	if (test_and_set_bit(cnode, hub_init_mask))
 		return;
@@ -157,6 +118,60 @@ static void __init per_hub_init(cnodeid_t cnode)
 		__flush_cache_all();
 	}
 #endif
+}
+
+void __init per_cpu_init(void)
+{
+	int cpu = smp_processor_id();
+	int slice = LOCAL_HUB_L(PI_CPU_NUM);
+	cnodeid_t cnode = get_compact_nodeid();
+	struct hub_data *hub = HUB_DATA(cnode);
+	struct slice_data *si = hub_data[cnode]->slice + slice;
+	int i;
+
+	if (test_and_set_bit(slice, &hub->slice_map))
+		return;
+
+	clear_c0_status(ST0_IM);
+
+	for (i = 0; i < LEVELS_PER_SLICE; i++)
+		si->level_to_irq[i] = -1;
+
+	/*
+	 * Some interrupts are reserved by hardware or by software convention.
+	 * Mark these as reserved right away so they won't be used accidently
+	 * later.
+	 */
+	for (i = 0; i <= BASE_PCI_IRQ; i++) {
+		__set_bit(i, si->irq_alloc_mask);
+		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
+	}
+
+	__set_bit(IP_PEND0_6_63, si->irq_alloc_mask);
+	LOCAL_HUB_S(PI_INT_PEND_MOD, IP_PEND0_6_63);
+
+	for (i = NI_BRDCAST_ERR_A; i <= MSC_PANIC_INTR; i++) {
+		__set_bit(i, si->irq_alloc_mask + 1);
+		LOCAL_HUB_S(PI_INT_PEND_MOD, i);
+	}
+
+	LOCAL_HUB_L(PI_INT_PEND0);
+
+	/*
+	 * We use this so we can find the local hub's data as fast as only
+	 * possible.
+	 */
+	cpu_data[cpu].data = si;
+
+	cpu_time_init();
+	install_ipi();
+
+	/* Install our NMI handler if symmon hasn't installed one. */
+	install_cpu_nmi_handler(cputoslice(cpu));
+
+	set_c0_status(SRB_DEV0 | SRB_DEV1);
+
+	per_hub_init(cnode);
 }
 
 /*
@@ -445,20 +460,6 @@ static inline void ioc3_eth_init(void)
 	ioc3 = (struct ioc3 *) KL_CONFIG_CH_CONS_INFO(nid)->memory_base;
 
 	ioc3->eier = 0;
-}
-
-void __init per_cpu_init(void)
-{
-	cnodeid_t cnode = get_compact_nodeid();
-	int cpu = smp_processor_id();
-
-	clear_c0_status(ST0_IM);
-	per_hub_init(cnode);
-	cpu_time_init();
-	install_ipi();
-	/* Install our NMI handler if symmon hasn't installed one. */
-	install_cpu_nmi_handler(cputoslice(cpu));
-	set_c0_status(SRB_DEV0 | SRB_DEV1);
 }
 
 extern void ip27_setup_console(void);
