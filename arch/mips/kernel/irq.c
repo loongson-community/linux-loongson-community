@@ -10,7 +10,6 @@
  */
 #include <linux/config.h>
 #include <linux/kernel.h>
-#include <linux/irq.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -867,7 +866,7 @@ int setup_irq(unsigned int irq, struct irqaction * new)
 	}
 	spin_unlock_irqrestore(&desc->lock,flags);
 
-	/* register_irq_proc(irq); */
+	register_irq_proc(irq);
 	return 0;
 }
 
