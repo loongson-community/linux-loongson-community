@@ -618,9 +618,8 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 
 	if (request_irq(irq, sgiseeq_interrupt, 0, sgiseeqstr, dev)) {
 		printk(KERN_ERR "Seeq8003: Can't get irq %d\n", dev->irq);
-		free_page((unsigned long) sp);
-		unregister_netdev(dev);
-		return -EAGAIN;
+		err = -EAGAIN;
+		goto err_out_free_dev;
 	}
 
 	printk(KERN_INFO "%s: SGI Seeq8003 ", dev->name);
@@ -690,6 +689,9 @@ int sgiseeq_init(struct hpc3_regs* regs, int irq)
 
 err_out_free_irq:
 	free_irq(irq, dev);
+
+err_out_free_dev:
+	kfree(dev);
 
 err_out:
 	return err;
