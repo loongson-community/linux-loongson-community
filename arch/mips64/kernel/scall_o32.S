@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.17 2000/03/24 00:07:29 ulfc Exp $
+/* $Id: scall_o32.S,v 1.18 2000/03/27 21:04:13 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -43,16 +43,16 @@ NESTED(handle_sys, PT_SIZE, sp)
 #endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
-	sltiu	t0, v0, MAX_SYSCALL_NO + 1 # check syscall number
+	subu	t0, v0, __NR_Linux32	# check syscall number
+	sltiu	t0, t0, __NR_Linux32_syscalls + 1
 	daddiu	t1, 4			# skip to next instruction
 	beqz	t0, not_o32_scall
 	sd	t1, PT_EPC(sp)
 
 	/* XXX Put both in one cacheline, should save a bit. */
-	dsll	t0, v0, 3
+	dsll	t0, v0, 3		# offset into table
 	ld	t2, (sys_call_table - (__NR_Linux32 * 8))(t0) # syscall routine
 	lbu	t3, (sys_narg_table - __NR_Linux32)(v0)	# number of arguments
-	beqz	t2, illegal_syscall;
 
 	subu	t0, t3, 5		# 5 or more arguments?
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
@@ -227,7 +227,7 @@ illegal_syscall:
 	sys	sys_getuid	0
 	sys	sys_stime	1			/* 4025 */
 	sys	sys32_ptrace	4
-	sys	sys_alarm	1
+	sys	sys32_alarm	1
 	sys	sys_fstat	2
 	sys	sys_ni_syscall	0
 	sys	sys_utime	2			/* 4030 */
@@ -254,7 +254,7 @@ illegal_syscall:
 	sys	sys_acct	0
 	sys	sys_umount	2
 	sys	sys_ni_syscall	0
-	sys	sys_ioctl	3
+	sys	sys32_ioctl	3
 	sys	sys_fcntl	3			/* 4055 */
 	sys	sys_ni_syscall	2
 	sys	sys_setpgid	2
@@ -277,9 +277,9 @@ illegal_syscall:
 	sys	sys_sethostname	2
 	sys	sys32_setrlimit	2			/* 4075 */
 	sys	sys32_getrlimit	2
-	sys	sys_getrusage	2
-	sys	sys_gettimeofday 2
-	sys	sys_settimeofday 2
+	sys	sys32_getrusage	2
+	sys	sys32_gettimeofday 2
+	sys	sys32_settimeofday 2
 	sys	sys_getgroups	2			/* 4080 */
 	sys	sys_setgroups	2
 	sys	sys_ni_syscall	0 /* old_select */
@@ -304,8 +304,8 @@ illegal_syscall:
 	sys	sys_ni_syscall	0	/* sys_ioperm */
 	sys	sys_socketcall	2
 	sys	sys_syslog	3
-	sys	sys_setitimer	3
-	sys	sys_getitimer	2			/* 4105 */
+	sys	sys32_setitimer	3
+	sys	sys32_getitimer	2			/* 4105 */
 	sys	sys32_newstat	2
 	sys	sys32_newlstat	2
 	sys	sys32_newfstat	2
@@ -340,7 +340,7 @@ illegal_syscall:
 	sys	sys_ni_syscall	0 /* for afs_syscall */
 	sys	sys_setfsuid	1
 	sys	sys_setfsgid	1
-	sys	sys_llseek	5			/* 4140 */
+	sys	sys32_llseek	5			/* 4140 */
 	sys	sys32_getdents	3
 	sys	sys_select	5
 	sys	sys_flock	2

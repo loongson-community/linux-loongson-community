@@ -18,7 +18,7 @@ O_OBJS	:= branch.o entry.o proc.o process.o ptrace.o r4k_cache.o r4k_fpu.o \
 OX_OBJS := mips64_ksyms.o
 
 ifdef CONFIG_MIPS32_COMPAT
-O_OBJS += linux32.o scall_o32.o signal32.o
+O_OBJS += linux32.o scall_o32.o signal32.o ioctl32.o
 endif
 
 ifdef CONFIG_BINFMT_ELF32

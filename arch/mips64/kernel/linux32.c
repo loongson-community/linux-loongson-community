@@ -15,6 +15,7 @@
 #include <linux/dirent.h>
 #include <linux/resource.h>
 #include <linux/highmem.h>
+#include <linux/time.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -22,6 +23,79 @@
 
 #define A(__x) ((unsigned long)(__x))
 
+#if 1
+static inline int
+putstat(struct stat32 *ubuf, struct stat *kbuf)
+{
+	int err;
+	
+	err = put_user (kbuf->st_dev, &ubuf->st_dev);
+	err |= __put_user (kbuf->st_ino, &ubuf->st_ino);
+	err |= __put_user (kbuf->st_mode, &ubuf->st_mode);
+	err |= __put_user (kbuf->st_nlink, &ubuf->st_nlink);
+	err |= __put_user (kbuf->st_uid, &ubuf->st_uid);
+	err |= __put_user (kbuf->st_gid, &ubuf->st_gid);
+	err |= __put_user (kbuf->st_rdev, &ubuf->st_rdev);
+	err |= __put_user (kbuf->st_size, &ubuf->st_size);
+	err |= __put_user (kbuf->st_atime, &ubuf->st_atime);
+	err |= __put_user (kbuf->st_mtime, &ubuf->st_mtime);
+	err |= __put_user (kbuf->st_ctime, &ubuf->st_ctime);
+	err |= __put_user (kbuf->st_blksize, &ubuf->st_blksize);
+	err |= __put_user (kbuf->st_blocks, &ubuf->st_blocks);
+	return err;
+}
+
+extern asmlinkage long sys_newstat(char * filename, struct stat * statbuf);
+
+asmlinkage int
+sys32_newstat(char * filename, struct stat32 *statbuf)
+{
+	int ret;
+	struct stat s;
+	mm_segment_t old_fs = get_fs();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_newstat(filename, &s);
+	set_fs (old_fs);
+	if (putstat (statbuf, &s))
+		return -EFAULT;
+	return ret;
+}
+
+extern asmlinkage long sys_newlstat(char * filename, struct stat * statbuf);
+
+asmlinkage int
+sys32_newlstat(char * filename, struct stat32 *statbuf)
+{
+	int ret;
+	struct stat s;
+	mm_segment_t old_fs = get_fs();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_newlstat(filename, &s);
+	set_fs (old_fs);
+	if (putstat (statbuf, &s))
+		return -EFAULT;
+	return ret;
+}
+
+extern asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf);
+
+asmlinkage int
+sys32_newfstat(unsigned int fd, struct stat32 *statbuf)
+{
+	int ret;
+	struct stat s;
+	mm_segment_t old_fs = get_fs();
+	
+	set_fs (KERNEL_DS);
+	ret = sys_newfstat(fd, &s);
+	set_fs (old_fs);
+	if (putstat (statbuf, &s))
+		return -EFAULT;
+	return ret;
+}
+#else
 /*
  * Revalidate the inode. This is required for proper NFS attribute caching.
  */
@@ -146,12 +220,13 @@ asmlinkage int sys32_newfstat(unsigned int fd, struct stat32 * statbuf)
 	unlock_kernel();
 	return err;
 }
+#endif
 asmlinkage int sys_mmap2(void) {return 0;}
 
 asmlinkage long sys_truncate(const char * path, unsigned long length);
 
-asmlinkage int sys_truncate64(const char *path, unsigned long high,
-			      unsigned long low)
+asmlinkage int sys_truncate64(const char *path, unsigned int high,
+			      unsigned int low)
 {
 	if ((int)high < 0)
 		return -EINVAL;
@@ -160,8 +235,8 @@ asmlinkage int sys_truncate64(const char *path, unsigned long high,
 
 asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length);
 
-asmlinkage int sys_ftruncate64(unsigned int fd, unsigned long high,
-			       unsigned long low)
+asmlinkage int sys_ftruncate64(unsigned int fd, unsigned int high,
+			       unsigned int low)
 {
 	if ((int)high < 0)
 		return -EINVAL;
@@ -501,6 +576,11 @@ struct timeval32
     int tv_sec, tv_usec;
 };
 
+struct itimerval32
+{
+    struct timeval32 it_interval;
+    struct timeval32 it_value;
+};
 
 struct rusage32 {
         struct timeval32 ru_utime;
@@ -694,3 +774,167 @@ sys32_fstatfs(unsigned int fd, struct statfs32 *buf)
 	return ret;
 }
 
+extern asmlinkage int
+sys_getrusage(int who, struct rusage *ru);
+
+asmlinkage int
+sys32_getrusage(int who, struct rusage32 *ru)
+{
+	struct rusage r;
+	int ret;
+	mm_segment_t old_fs = get_fs();
+		
+	set_fs (KERNEL_DS);
+	ret = sys_getrusage(who, &r);
+	set_fs (old_fs);
+	if (put_rusage (ru, &r)) return -EFAULT;
+	return ret;
+}
+
+static inline long
+get_tv32(struct timeval *o, struct timeval32 *i)
+{
+	return (!access_ok(VERIFY_READ, i, sizeof(*i)) ||
+		(__get_user(o->tv_sec, &i->tv_sec) |
+		 __get_user(o->tv_usec, &i->tv_usec)));
+	return ENOSYS;
+}
+
+static inline long
+get_it32(struct itimerval *o, struct itimerval32 *i)
+{
+	return (!access_ok(VERIFY_READ, i, sizeof(*i)) ||
+		(__get_user(o->it_interval.tv_sec, &i->it_interval.tv_sec) |
+		 __get_user(o->it_interval.tv_usec, &i->it_interval.tv_usec) |
+		 __get_user(o->it_value.tv_sec, &i->it_value.tv_sec) |
+		 __get_user(o->it_value.tv_usec, &i->it_value.tv_usec)));
+	return ENOSYS;
+}
+
+static inline long
+put_tv32(struct timeval32 *o, struct timeval *i)
+{
+	return (!access_ok(VERIFY_WRITE, o, sizeof(*o)) ||
+		(__put_user(i->tv_sec, &o->tv_sec) |
+		 __put_user(i->tv_usec, &o->tv_usec)));
+}
+
+static inline long
+put_it32(struct itimerval32 *o, struct itimerval *i)
+{
+	return (!access_ok(VERIFY_WRITE, i, sizeof(*i)) ||
+		(__put_user(i->it_interval.tv_sec, &o->it_interval.tv_sec) |
+		 __put_user(i->it_interval.tv_usec, &o->it_interval.tv_usec) |
+		 __put_user(i->it_value.tv_sec, &o->it_value.tv_sec) |
+		 __put_user(i->it_value.tv_usec, &o->it_value.tv_usec)));
+	return ENOSYS;
+}
+
+extern int do_getitimer(int which, struct itimerval *value);
+
+asmlinkage int
+sys32_getitimer(int which, struct itimerval32 *it)
+{
+	struct itimerval kit;
+	int error;
+
+	error = do_getitimer(which, &kit);
+	if (!error && put_it32(it, &kit))
+		error = -EFAULT;
+
+	return error;
+}
+
+extern int do_setitimer(int which, struct itimerval *, struct itimerval *);
+
+
+asmlinkage int
+sys32_setitimer(int which, struct itimerval32 *in, struct itimerval32 *out)
+{
+	struct itimerval kin, kout;
+	int error;
+
+	if (in) {
+		if (get_it32(&kin, in))
+			return -EFAULT;
+	} else
+		memset(&kin, 0, sizeof(kin));
+
+	error = do_setitimer(which, &kin, out ? &kout : NULL);
+	if (error || !out)
+		return error;
+	if (put_it32(out, &kout))
+		return -EFAULT;
+
+	return 0;
+
+}
+asmlinkage unsigned long 
+sys32_alarm(unsigned int seconds)
+{
+	struct itimerval it_new, it_old;
+	unsigned int oldalarm;
+
+	it_new.it_interval.tv_sec = it_new.it_interval.tv_usec = 0;
+	it_new.it_value.tv_sec = seconds;
+	it_new.it_value.tv_usec = 0;
+	do_setitimer(ITIMER_REAL, &it_new, &it_old);
+	oldalarm = it_old.it_value.tv_sec;
+	/* ehhh.. We can't return 0 if we have an alarm pending.. */
+	/* And we'd better return too much than too little anyway */
+	if (it_old.it_value.tv_usec)
+		oldalarm++;
+	return oldalarm;
+}
+
+/* Translations due to time_t size differences.  Which affects all
+   sorts of things, like timeval and itimerval.  */
+
+
+extern struct timezone sys_tz;
+extern int do_sys_settimeofday(struct timeval *tv, struct timezone *tz);
+
+asmlinkage int
+sys32_gettimeofday(struct timeval32 *tv, struct timezone *tz)
+{
+	if (tv) {
+		struct timeval ktv;
+		do_gettimeofday(&ktv);
+		if (put_tv32(tv, &ktv))
+			return -EFAULT;
+	}
+	if (tz) {
+		if (copy_to_user(tz, &sys_tz, sizeof(sys_tz)))
+			return -EFAULT;
+	}
+	return 0;
+}
+
+asmlinkage int
+sys32_settimeofday(struct timeval32 *tv, struct timezone *tz)
+{
+	struct timeval ktv;
+	struct timezone ktz;
+
+ 	if (tv) {
+		if (get_tv32(&ktv, tv))
+			return -EFAULT;
+	}
+	if (tz) {
+		if (copy_from_user(&ktz, tz, sizeof(ktz)))
+			return -EFAULT;
+	}
+
+	return do_sys_settimeofday(tv ? &ktv : NULL, tz ? &ktz : NULL);
+}
+
+extern asmlinkage long sys_llseek(unsigned int fd, unsigned long offset_high,
+			          unsigned long offset_low, loff_t * result,
+			          unsigned int origin);
+
+extern asmlinkage int sys32_llseek(unsigned int fd, unsigned int offset_high,
+			           unsigned int offset_low, loff_t * result,
+			           unsigned int origin)
+{
+	return sys_llseek(fd, offset_high, offset_low, result, origin);
+}
