@@ -608,6 +608,7 @@ config MIPS_XXS1500
 config MIPS_MTX1
 	bool "4G Systems MTX-1 board"
 	depends on SOC_AU1500
+	select HW_HAS_PCI
 	select DMA_NONCOHERENT
 
 endchoice

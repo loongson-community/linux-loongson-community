@@ -50,25 +50,24 @@ const char *get_system_type(void)
 	return "MTX-1";
 }
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+void __init prom_init(void)
 {
 	unsigned char *memsize_str;
 	unsigned long memsize;
 
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
+	prom_argc = fw_arg0;
+	prom_argv = (char **) fw_arg1;
+	prom_envp = (char **) fw_arg2;
 
 	mips_machgroup = MACH_GROUP_ALCHEMY;
 	mips_machtype = MACH_MTX1;	/* set the platform # */
+	
 	prom_init_cmdline();
 
 	memsize_str = prom_getenv("memsize");
-	if (!memsize_str) {
+	if (!memsize_str)
 		memsize = 0x04000000;
-	} else {
+	else
 		memsize = simple_strtol(memsize_str, NULL, 0);
-	}
 	add_memory_region(0, memsize, BOOT_MEM_RAM);
-	return 0;
 }
