@@ -890,6 +890,8 @@ void __init trap_init(void)
 
 	if (mips_cpu.options & MIPS_CPU_FPU)
 		set_except_vector(15, handle_fpe);
+	if (mips_cpu.options & MIPS_CPU_MCHECK)
+		set_except_vector(24, handle_mcheck);
 
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type

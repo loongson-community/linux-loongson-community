@@ -517,6 +517,9 @@ void __init trap_init(void)
 	mips4_setup();
 	go_64();		/* In memoriam C128 ;-)  */
 
+	if (mips_cpu.options & MIPS_CPU_MCHECK)
+		set_except_vector(24, handle_mcheck);
+
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
