@@ -251,11 +251,12 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.comm	exception_count\exception, 8, 8
 	.endm
 
-	.macro	BUILD_HANDLER exception handler clear verbose
+	.macro	__BUILD_HANDLER exception handler clear verbose ext
 	.align	5
 	NESTED(handle_\exception, PT_SIZE, sp)
 	.set	noat
 	SAVE_ALL
+	FEXPORT(handle_\exception\ext)
 	__BUILD_clear_\clear
 	.set	at
 	__BUILD_\verbose \exception
@@ -263,6 +264,10 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	jal	do_\handler
 	j	ret_from_exception
 	END(handle_\exception)
+	.endm
+
+	.macro	BUILD_HANDLER exception handler clear verbose
+	__BUILD_HANDLER	\exception \handler \clear \verbose _int
 	.endm
 
 	BUILD_HANDLER adel ade ade silent		/* #4  */
