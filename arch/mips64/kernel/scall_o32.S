@@ -3,8 +3,9 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995 - 2000 by Ralf Baechle
+ * Copyright (C) 1995 - 2000, 2001 by Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
+ * Copyright (C) 2001 MIPS Technologies, Inc.
  *
  * Hairy, the userspace application uses a different argument passing
  * convention than the kernel, so we have to translate things from o32
@@ -18,6 +19,7 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/unistd.h>
+#include <asm/sysmips.h>
 
 /* This duplicates the definition from <linux/sched.h> */
 #define PT_TRACESYS	0x00000002	/* tracing system calls */
@@ -34,14 +36,6 @@ NESTED(handle_sys, PT_SIZE, sp)
 	SAVE_SOME
 	STI
 	.set	at
-#if DEBUG_MIPS64
- jal dodebug
- ld $4, PT_R4(sp)
- ld $5, PT_R5(sp)
- ld $6, PT_R6(sp)
- ld $7, PT_R7(sp)
- ld $2, PT_R2(sp)
-#endif
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 	subu	t0, v0, __NR_Linux32	# check syscall number
@@ -205,6 +199,47 @@ illegal_syscall:
 	sd	t0, PT_R7(sp)
 	j	ret_from_sys_call
 	END(handle_sys)
+
+	LEAF(mips_atomic_set)
+	ld	v1, THREAD_CURDS($28)
+	daddiu	a0, a1, 4
+	or	a0, a0, a1
+	li	v0, -EFAULT
+	and	a0, a0, v1
+	bltz	a0, 9f
+
+	/* Ok, this is the ll/sc case.  World is sane :-)  */
+1:	ll	v0, (a1)
+	move	a0, a2
+2:	sc	a0, (a1)
+	beqz	a0, 1b
+
+	.section __ex_table,"a"
+	PTR	1b, bad_stack
+	PTR	2b, bad_stack
+	.previous
+
+1:	sd	v0, PT_R2(sp)		# result
+
+	/* Success, so skip usual error handling garbage.  */
+	ld	t0, TASK_PTRACE($28)	# syscall tracing enabled?
+	andi	t0, PT_TRACESYS
+	bnez	t0, 1f
+	b	o32_ret_from_sys_call
+
+1:	SAVE_STATIC
+	jal	syscall_trace
+	li	a3, 0			# success
+	j	ret_from_sys_call
+
+9:	li	v0, -EFAULT
+	jr	ra
+	END(mips_atomic_set)
+
+	LEAF(sys_sysmips)
+	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
+	j	_sys_sysmips
+	END(sys_sysmips)
 
 	.macro	syscalltable
 	sys	sys_syscall	0			/* 4000 */
