@@ -10,21 +10,7 @@
  */
 #include <linux/config.h>
 #include <linux/module.h>
-#include <linux/string.h>
-#include <linux/mm.h>
-#include <linux/interrupt.h>
-#include <linux/in6.h>
-#include <linux/pci.h>
-#include <linux/tty.h>
 #include <linux/ide.h>
-
-#include <asm/bootinfo.h>
-#include <asm/checksum.h>
-#include <asm/dma.h>
-#include <asm/io.h>
-#include <asm/page.h>
-#include <asm/pgalloc.h>
-#include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
 extern void *__bzero(void *__s, size_t __count);
@@ -36,8 +22,6 @@ extern long __strlen_user_nocheck_asm(const char *s);
 extern long __strlen_user_asm(const char *s);
 extern long __strnlen_user_nocheck_asm(const char *s);
 extern long __strnlen_user_asm(const char *s);
-
-EXPORT_SYMBOL(mips_machtype);
 
 /*
  * String functions

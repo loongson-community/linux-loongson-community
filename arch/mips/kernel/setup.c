@@ -68,6 +68,9 @@ struct rtc_ops *rtc_ops;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 
+EXPORT_SYMBOL(mips_machtype);
+EXPORT_SYMBOL(mips_machgroup);
+
 struct boot_mem_map boot_mem_map;
 
 static char command_line[CL_SIZE];
