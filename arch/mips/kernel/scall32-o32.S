@@ -280,7 +280,7 @@ bad_alignment:
 	sltiu	v0, t0, __NR_O32_Linux_syscalls + 1
 #endif
 	sll	t1, t0, 3
-	beqz	v0, enosys
+	beqz	v0, einval
 
 	lw	t2, sys_call_table(t1)		# syscall routine
 
@@ -289,10 +289,8 @@ bad_alignment:
 #else
 	li	v1, 4000 - __NR_O32_Linux	# index of sys_syscall
 #endif
-	beqz	t2, enosys			# null function pointer?
-
-	li	v0, -EINVAL
-	beq	t0, v1, out			# do not recurse
+	beqz	t2, einval			# null function pointer?
+	beq	t0, v1, einval			# do not recurse
 
 	/* Some syscalls like execve get their arguments from struct pt_regs
 	   and claim zero arguments in the syscall table. Thus we have to
@@ -317,9 +315,8 @@ bad_alignment:
 	jr	t2
 	/* Unreached */
 
-enosys:	li	v0, -ENOSYS
-
-out:	jr	ra
+einval:	li	v0, -EINVAL
+	jr	ra
 	END(sys_syscall)
 
 	.macro	fifty ptr, nargs, from=1, to=50

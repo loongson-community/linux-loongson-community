@@ -172,16 +172,14 @@ not_o32_scall:
 
 LEAF(sys32_syscall)
 	sltu	v0, a0, __NR_O32_Linux + __NR_O32_Linux_syscalls + 1
-	beqz	v0, enosys
+	beqz	v0, einval
 
 	dsll	v0, a0, 3
 	ld	t2, (sys_call_table - (__NR_O32_Linux * 8))(v0)
 
 	li	v1, 4000		# indirect syscall number
-	li	v0, -EINVAL
-	beq	a0, v1, out		# do not recurse
-
-	beqz	t2, enosys		# null function pointer?
+	beqz	t2, einval		# null function pointer?
+	beq	a0, v1, einval		# do not recurse
 
 	move	a0, a1			# shift argument registers
 	move	a1, a2
@@ -198,9 +196,8 @@ LEAF(sys32_syscall)
 	jr	t2
 	/* Unreached */
 
-enosys:	li	v0, -ENOSYS
-
-out:	jr	ra
+einval:	li	v0, -EINVAL
+	jr	ra
 	END(sys32_syscall)
 
 	.align	3
