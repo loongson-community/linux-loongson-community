@@ -445,6 +445,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_QIC02_TAPE is not set
 
 #
+# IPMI
+#
+# CONFIG_IPMI_HANDLER is not set
+
+#
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
@@ -515,6 +520,7 @@ CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 # CONFIG_NFSD is not set
 CONFIG_SUNRPC=y
+# CONFIG_SUNRPC_GSS is not set
 CONFIG_LOCKD=y
 # CONFIG_EXPORTFS is not set
 # CONFIG_CIFS is not set

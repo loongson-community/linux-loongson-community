@@ -261,6 +261,11 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 # CONFIG_QIC02_TAPE is not set
 
 #
+# IPMI
+#
+# CONFIG_IPMI_HANDLER is not set
+
+#
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
