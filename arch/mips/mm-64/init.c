@@ -77,6 +77,57 @@ unsigned long setup_zero_pages(void)
 	return 1UL << order;
 }
 
+#ifdef CONFIG_HIGHMEM
+pte_t *kmap_pte;
+pgprot_t kmap_prot;
+
+#define kmap_get_fixmap_pte(vaddr)					\
+	pte_offset_kernel(pmd_offset(pgd_offset_k(vaddr), (vaddr)), (vaddr))
+
+static void __init kmap_init(void)
+{
+	unsigned long kmap_vstart;
+
+	/* cache the first kmap pte */
+	kmap_vstart = __fix_to_virt(FIX_KMAP_BEGIN);
+	kmap_pte = kmap_get_fixmap_pte(kmap_vstart);
+
+	kmap_prot = PAGE_KERNEL;
+}
+
+#endif /* CONFIG_HIGHMEM */
+
+#ifdef CONFIG_HIGHMEM
+static void __init fixrange_init (unsigned long start, unsigned long end,
+	pgd_t *pgd_base)
+{
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte;
+	int i, j;
+	unsigned long vaddr;
+
+	vaddr = start;
+	i = __pgd_offset(vaddr);
+	j = __pmd_offset(vaddr);
+	pgd = pgd_base + i;
+
+	for ( ; (i < PTRS_PER_PGD) && (vaddr != end); pgd++, i++) {
+		pmd = (pmd_t *)pgd;
+		for (; (j < PTRS_PER_PMD) && (vaddr != end); pmd++, j++) {
+			if (pmd_none(*pmd)) {
+				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
+				set_pmd(pmd, __pmd(pte));
+				if (pte != pte_offset_kernel(pmd, 0))
+					BUG();
+			}
+			vaddr += PMD_SIZE;
+		}
+		j = 0;
+	}
+}
+#endif
+
 #ifndef CONFIG_DISCONTIGMEM
 
 extern void pagetable_init(void);
@@ -87,6 +138,10 @@ void __init paging_init(void)
 	unsigned long max_dma, high, low;
 
 	pagetable_init();
+
+#ifdef CONFIG_HIGHMEM
+	kmap_init();
+#endif
 
 	max_dma = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
@@ -101,6 +156,9 @@ void __init paging_init(void)
 	}
 #else
 	zones_size[ZONE_DMA] = low;
+#endif
+#ifdef CONFIG_HIGHMEM
+	zones_size[ZONE_HIGHMEM] = high - low;
 #endif
 
 	free_area_init(zones_size);
@@ -136,7 +194,16 @@ void __init mem_init(void)
 	unsigned long codesize, reservedpages, datasize, initsize;
 	unsigned long tmp, ram;
 
+#ifdef CONFIG_HIGHMEM
+	highstart_pfn = (KSEG1 - KSEG0) >> PAGE_SHIFT;
+	highmem_start_page = mem_map + highstart_pfn;
+#ifdef CONFIG_DISCONTIGMEM
+#error "CONFIG_HIGHMEM and CONFIG_DISCONTIGMEM dont work together yet"
+#endif
+	max_mapnr = num_physpages = highend_pfn;
+#else
 	max_mapnr = num_physpages = max_low_pfn;
+#endif
 	high_memory = (void *) __va(max_low_pfn << PAGE_SHIFT);
 
 	totalram_pages += free_all_bootmem();
@@ -149,6 +216,23 @@ void __init mem_init(void)
 			if (PageReserved(mem_map+tmp))
 				reservedpages++;
 		}
+
+#ifdef CONFIG_HIGHMEM
+	for (tmp = highstart_pfn; tmp < highend_pfn; tmp++) {
+		struct page *page = mem_map + tmp;
+
+		if (!page_is_ram(tmp)) {
+			SetPageReserved(page);
+			continue;
+		}
+		ClearPageReserved(page);
+		set_bit(PG_highmem, &page->flags);
+		atomic_set(&page->count, 1);
+		__free_page(page);
+		totalhigh_pages++;
+	}
+	totalram_pages += totalhigh_pages;
+#endif
 
 	codesize =  (unsigned long) &_etext - (unsigned long) &_text;
 	datasize =  (unsigned long) &_edata - (unsigned long) &_etext;
