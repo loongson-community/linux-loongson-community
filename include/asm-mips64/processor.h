@@ -102,6 +102,9 @@ struct cpuinfo_mips {
 extern struct cpuinfo_mips cpu_data[];
 #define current_cpu_data cpu_data[smp_processor_id()]
 
+extern void cpu_probe(void);
+extern void cpu_report(void);
+
 /*
  * System setup and hardware flags..
  */
