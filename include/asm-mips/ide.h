@@ -50,7 +50,12 @@ static inline void ide_init_hwif_ports(hw_regs_t *hw, ide_ioreg_t data_port,
 	ide_ops->ide_init_hwif_ports(hw, data_port, ctrl_port, irq);
 }
 
+#ifdef CONFIG_SIBYTE_SB1xxx_SOC
+extern void ide_init_default_hwifs(void);
+static __inline__ void mips_ide_init_default_hwifs(void)
+#else
 static __inline__ void ide_init_default_hwifs(void)
+#endif
 {
 #ifndef CONFIG_PCI
 	hw_regs_t hw;
