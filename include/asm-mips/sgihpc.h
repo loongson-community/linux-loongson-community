@@ -1,4 +1,4 @@
-/* $Id: sgihpc.h,v 1.3 1998/07/10 01:14:56 ralf Exp $
+/* $Id: sgihpc.h,v 1.4 1998/09/19 19:19:38 ralf Exp $
  *
  * sgihpc.h: Various HPC I/O controller defines.  The HPC is basically
  *           the approximate functional equivalent of the Sun SYSIO
@@ -230,8 +230,8 @@ struct hpc3_regs {
 	char _unused4[0x07c00]; /* It'll only hurt a little... */
 
 	/* Per-peripheral device external registers and dma/pio control. */
-	hpcreg pbus_extregs[256][10]; /* 2nd indice indexes controller */
-	hpcreg pbus_dmacfgs[128][10]; /* 2nd indice indexes controller */
+	hpcreg pbus_extregs[10][256]; /* 2nd indice indexes controller */
+	hpcreg pbus_dmacfgs[10][128]; /* 2nd indice indexes controller */
 #define HPC3_PIODCFG_D3R    0x00000001 /* Cycles to spend in D3 for reads */
 #define HPC3_PIODCFG_D4R    0x0000001e /* Cycles to spend in D4 for reads */
 #define HPC3_PIODCFG_D5R    0x000001e0 /* Cycles to spend in D5 for reads */
