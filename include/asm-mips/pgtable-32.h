@@ -195,7 +195,7 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 #define pte_unmap(pte) ((void)(pte))
 #define pte_unmap_nested(pte) ((void)(pte))
 
-extern pgd_t swapper_pg_dir[1024];
+extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 extern void paging_init(void);
 
 /* Swap entries must have VALID and GLOBAL bits cleared. */
