@@ -182,7 +182,7 @@ static void rm7k_flush_icache_range(unsigned long start, unsigned long end)
 }
 
 static void rm7k_flush_icache_page(struct vm_area_struct *vma,
-                                   struct page *page, unsigned long addr)
+                                   struct page *page)
 {
 	/*
 	 * FIXME: We should not flush the entire cache but establish some

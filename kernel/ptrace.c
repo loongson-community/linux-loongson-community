@@ -56,7 +56,7 @@ repeat:
 		maddr = kmap(page);
 		memcpy(maddr + (addr & ~PAGE_MASK), buf, len);
 		flush_page_to_ram(page);
-		flush_icache_page(vma, page, addr);
+		flush_icache_page(vma, page);
 		kunmap(page);
 	} else {
 		maddr = kmap(page);

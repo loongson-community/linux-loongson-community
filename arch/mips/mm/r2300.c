@@ -354,7 +354,7 @@ static void r3k_flush_page_to_ram(struct page * page)
 }
 
 static void r3k_flush_icache_page(struct vm_area_struct *vma,
-				  struct page *page, unsigned long address)
+				  struct page *page)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long physpage;

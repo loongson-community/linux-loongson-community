@@ -463,8 +463,7 @@ r5432_flush_icache_range(unsigned long start, unsigned long end)
 }
 
 static void
-r5432_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page,
-                          unsigned long address)
+r5432_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;

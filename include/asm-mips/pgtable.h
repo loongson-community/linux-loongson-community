@@ -36,7 +36,7 @@ extern void (*_flush_cache_sigtramp)(unsigned long addr);
 extern void (*_flush_page_to_ram)(struct page * page);
 extern void (*_flush_icache_range)(unsigned long start, unsigned long end);
 extern void (*_flush_icache_page)(struct vm_area_struct *vma,
-                                  struct page *page, unsigned long addr);
+                                  struct page *page);
 
 #define flush_dcache_page(page)			do { } while (0)
 
@@ -48,7 +48,7 @@ extern void (*_flush_icache_page)(struct vm_area_struct *vma,
 #define flush_page_to_ram(page)		_flush_page_to_ram(page)
 
 #define flush_icache_range(start, end)	_flush_icache_range(start,end)
-#define flush_icache_page(vma, page, addr) _flush_icache_page(vma, page, addr)
+#define flush_icache_page(vma, page) 	_flush_icache_page(vma, page)
 
 
 /*

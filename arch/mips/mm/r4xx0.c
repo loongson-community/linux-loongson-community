@@ -1948,8 +1948,7 @@ static void r4k_flush_page_to_ram_d32_r4600(struct page *page)
 }
 
 static void
-r4k_flush_icache_page_s(struct vm_area_struct *vma, struct page *page,
-                      unsigned long address)
+r4k_flush_icache_page_s(struct vm_area_struct *vma, struct page *page)
 {
 	/*
 	 * We did an scache flush therefore PI is already clean.
@@ -1963,8 +1962,7 @@ r4k_flush_icache_range(unsigned long start, unsigned long end)
 }
 
 static void
-r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page,
-                      unsigned long address)
+r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
@@ -1973,8 +1971,7 @@ r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page,
 }
 
 static void
-r4k_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page,
-                          unsigned long address)
+r4k_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;

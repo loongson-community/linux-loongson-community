@@ -1071,7 +1071,7 @@ static int do_swap_page(struct mm_struct * mm,
 			return -1;
 
 		flush_page_to_ram(page);
-		flush_icache_page(vma, page, address);
+		flush_icache_page(vma, page);
 	}
 
 	mm->rss++;
@@ -1164,7 +1164,7 @@ static int do_no_page(struct mm_struct * mm, struct vm_area_struct * vma,
 	 * handle that later.
 	 */
 	flush_page_to_ram(new_page);
-	flush_icache_page(vma, new_page, address);
+	flush_icache_page(vma, new_page);
 	entry = mk_pte(new_page, vma->vm_page_prot);
 	if (write_access) {
 		entry = pte_mkwrite(pte_mkdirty(entry));

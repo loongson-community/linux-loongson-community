@@ -125,7 +125,7 @@ static void __andes_flush_icache_range(unsigned long start, unsigned long end)
 }
 
 static void andes_flush_icache_page(struct vm_area_struct *vma,
-                                    struct page *page, unsigned long addr)
+                                    struct page *page)
 {
 	/* XXX */
 }
