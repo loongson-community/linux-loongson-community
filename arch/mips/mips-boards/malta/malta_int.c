@@ -50,18 +50,6 @@ void malta_hw0_irqdispatch(struct pt_regs *regs)
 	GT_READ(GT_PCI0_IACK_OFS, irq);
 	irq &= 0xFF;
 
-	/*  
-	 * IRQ7 is used to detect spurious interrupts.  The interrupt
-	 * acknowledge cycle returns IRQ7, if no interrupts is requested.  We
-	 * can differentiate between this situation and a "normal" IRQ7 by
-	 * reading the ISR.
-	 */
-	if (irq == 7) {
-		outb(PIIX4_OCW3_SEL | PIIX4_OCW3_ISR, PIIX4_ICTLR1_OCW3);
-		if (!(inb(PIIX4_ICTLR1_OCW3) & (1 << 7)))
-		        return;    /* Spurious interrupt. */
-	}
-
 	do_IRQ(irq, regs);
 }
 
