@@ -36,7 +36,6 @@
 
 extern int *blk_size[];
 
-struct gendisk *gendisk_head;
 int warn_no_part = 1; /*This is ugly: should make genhd removable media aware*/
 
 static int (*check_part[])(struct gendisk *hd, kdev_t dev, unsigned long first_sect, int first_minor) = {
@@ -96,12 +95,11 @@ EXPORT_SYMBOL(genhd_dasd_name);
 
 char *disk_name (struct gendisk *hd, int minor, char *buf)
 {
-	unsigned int part;
 	const char *maj = hd->major_name;
-	int unit = (minor >> hd->minor_shift) + 'a';
+	unsigned int unit = (minor >> hd->minor_shift);
+	unsigned int part = (minor & ((1 << hd->minor_shift) -1 ));
 
-	part = minor & ((1 << hd->minor_shift) - 1);
-	if (hd->part[minor].de) {
+	if ((unit < hd->nr_real) && hd->part[minor].de) {
 		int pos;
 
 		pos = devfs_generate_path (hd->part[minor].de, buf, 64);
@@ -111,7 +109,7 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 
 #ifdef CONFIG_ARCH_S390
 	if (genhd_dasd_name
-	    && genhd_dasd_name (buf, unit - 'a', part, hd) == 0)
+	    && genhd_dasd_name (buf, unit, part, hd) == 0)
 		return buf;
 #endif
 	/*
@@ -142,13 +140,13 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 			maj = "hd";
 			break;
 		case MD_MAJOR:
-			sprintf(buf, "%s%d", maj, unit - 'a');
+			sprintf(buf, "%s%d", maj, unit);
 			return buf;
 	}
 	if (hd->major >= SCSI_DISK1_MAJOR && hd->major <= SCSI_DISK7_MAJOR) {
 		unit = unit + (hd->major - SCSI_DISK1_MAJOR + 1) * 16;
-		if (unit > 'z') {
-			unit -= 'z' + 1;
+		if (unit+'a' > 'z') {
+			unit -= 26;
 			sprintf(buf, "sd%c%c", 'a' + unit / 26, 'a' + unit % 26);
 			if (part)
 				sprintf(buf + 4, "%d", part);
@@ -157,38 +155,32 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 	}
 	if (hd->major >= COMPAQ_SMART2_MAJOR && hd->major <= COMPAQ_SMART2_MAJOR+7) {
 		int ctlr = hd->major - COMPAQ_SMART2_MAJOR;
- 		int disk = minor >> hd->minor_shift;
- 		int part = minor & (( 1 << hd->minor_shift) - 1);
  		if (part == 0)
- 			sprintf(buf, "%s/c%dd%d", maj, ctlr, disk);
+ 			sprintf(buf, "%s/c%dd%d", maj, ctlr, unit);
  		else
- 			sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, disk, part);
+ 			sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, unit, part);
  		return buf;
  	}
 	if (hd->major >= COMPAQ_CISS_MAJOR && hd->major <= COMPAQ_CISS_MAJOR+7) {
                 int ctlr = hd->major - COMPAQ_CISS_MAJOR;
-                int disk = minor >> hd->minor_shift;
-                int part = minor & (( 1 << hd->minor_shift) - 1);
                 if (part == 0)
-                        sprintf(buf, "%s/c%dd%d", maj, ctlr, disk);
+                        sprintf(buf, "%s/c%dd%d", maj, ctlr, unit);
                 else
-                        sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, disk, part);
+                        sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, unit, part);
                 return buf;
 	}
 	if (hd->major >= DAC960_MAJOR && hd->major <= DAC960_MAJOR+7) {
 		int ctlr = hd->major - DAC960_MAJOR;
- 		int disk = minor >> hd->minor_shift;
- 		int part = minor & (( 1 << hd->minor_shift) - 1);
  		if (part == 0)
- 			sprintf(buf, "%s/c%dd%d", maj, ctlr, disk);
+ 			sprintf(buf, "%s/c%dd%d", maj, ctlr, unit);
  		else
- 			sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, disk, part);
+ 			sprintf(buf, "%s/c%dd%dp%d", maj, ctlr, unit, part);
  		return buf;
  	}
 	if (part)
-		sprintf(buf, "%s%c%d", maj, unit, part);
+		sprintf(buf, "%s%c%d", maj, unit+'a', part);
 	else
-		sprintf(buf, "%s%c", maj, unit);
+		sprintf(buf, "%s%c", maj, unit+'a');
 	return buf;
 }
 
@@ -256,39 +248,6 @@ unsigned int get_ptable_blocksize(kdev_t dev)
 
 	return ret;
 }
-
-#ifdef CONFIG_PROC_FS
-int get_partition_list(char *page, char **start, off_t offset, int count)
-{
-	struct gendisk *dsk;
-	int len;
-
-	len = sprintf(page, "major minor  #blocks  name\n\n");
-	for (dsk = gendisk_head; dsk; dsk = dsk->next) {
-		int n;
-
-		for (n = 0; n < (dsk->nr_real << dsk->minor_shift); n++)
-			if (dsk->part[n].nr_sects) {
-				char buf[64];
-
-				len += sprintf(page + len,
-					       "%4d  %4d %10d %s\n",
-					       dsk->major, n, dsk->sizes[n],
-					       disk_name(dsk, n, buf));
-				if (len < offset)
-					offset -= len, len = 0;
-				else if (len >= offset + count)
-					goto leave_loops;
-			}
-	}
-leave_loops:
-	*start = page + offset;
-	len -= offset;
-	if (len < 0)
-		len = 0;
-	return len > count ? count : len;
-}
-#endif
 
 static void check_partition(struct gendisk *hd, kdev_t dev, int first_part_minor)
 {

@@ -58,7 +58,6 @@ obj-$(CONFIG_SUNGEM) += sungem.o
 obj-$(CONFIG_MACE) += mace.o
 obj-$(CONFIG_BMAC) += bmac.o
 obj-$(CONFIG_GMAC) += gmac.o
-obj-$(CONFIG_NCR885E) += ncr885e.o
 
 obj-$(CONFIG_OAKNET) += oaknet.o 8390.o
 
@@ -74,7 +73,9 @@ obj-$(CONFIG_SIS900) += sis900.o
 obj-$(CONFIG_DM9102) += dmfe.o
 obj-$(CONFIG_YELLOWFIN) += yellowfin.o
 obj-$(CONFIG_ACENIC) += acenic.o
+obj-$(CONFIG_VETH) += veth.o
 obj-$(CONFIG_NATSEMI) += natsemi.o
+obj-$(CONFIG_NS83820) += ns83820.o
 obj-$(CONFIG_STNIC) += stnic.o 8390.o
 obj-$(CONFIG_FEALNX) += fealnx.o
 
@@ -137,17 +138,11 @@ obj-$(CONFIG_PPP_BSDCOMP) += bsd_comp.o
 obj-$(CONFIG_PPPOE) += pppox.o pppoe.o
 
 obj-$(CONFIG_SLIP) += slip.o
-ifeq ($(CONFIG_SLIP),y)
-  obj-$(CONFIG_SLIP_COMPRESSED) += slhc.o
-else
-  ifeq ($(CONFIG_SLIP),m)
-    obj-$(CONFIG_SLIP_COMPRESSED) += slhc.o
-  endif
+ifeq ($(CONFIG_SLIP_COMPRESSED),y)
+  obj-$(CONFIG_SLIP) += slhc.o
 endif
 
 obj-$(CONFIG_STRIP) += strip.o
-obj-$(CONFIG_DE650) += de650.o 8390.o
-obj-$(CONFIG_3C589) += 3c589.o
 obj-$(CONFIG_DUMMY) += dummy.o
 obj-$(CONFIG_BONDING) += bonding.o
 obj-$(CONFIG_DE600) += de600.o
@@ -184,8 +179,13 @@ obj-$(CONFIG_NI65) += ni65.o
 obj-$(CONFIG_ELPLUS) += 3c505.o
 obj-$(CONFIG_AC3200) += ac3200.o 8390.o
 obj-$(CONFIG_APRICOT) += 82596.o
+obj-$(CONFIG_LASI_82596) += lasi_82596.o
 obj-$(CONFIG_MVME16x_NET) += 82596.o
 obj-$(CONFIG_BVME6000_NET) += 82596.o
+
+# This is also a 82596 and should probably be merged
+obj-$(CONFIG_LP486E) += lp486e.o
+
 obj-$(CONFIG_ETH16I) += eth16i.o
 obj-$(CONFIG_ARIADNE2) += ariadne2.o 8390.o
 obj-$(CONFIG_HPLANCE) += hplance.o 7990.o

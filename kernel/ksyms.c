@@ -210,6 +210,7 @@ EXPORT_SYMBOL(waitfor_one_page);
 EXPORT_SYMBOL(generic_file_read);
 EXPORT_SYMBOL(do_generic_file_read);
 EXPORT_SYMBOL(generic_file_write);
+EXPORT_SYMBOL(generic_direct_IO);
 EXPORT_SYMBOL(generic_file_mmap);
 EXPORT_SYMBOL(generic_ro_fops);
 EXPORT_SYMBOL(generic_buffer_fdatasync);
@@ -284,8 +285,6 @@ EXPORT_SYMBOL(tty_unregister_driver);
 EXPORT_SYMBOL(tty_std_termios);
 
 /* block device driver support */
-EXPORT_SYMBOL(block_read);
-EXPORT_SYMBOL(block_write);
 EXPORT_SYMBOL(blksize_size);
 EXPORT_SYMBOL(hardsect_size);
 EXPORT_SYMBOL(blk_size);
@@ -299,7 +298,6 @@ EXPORT_SYMBOL(blkdev_open);
 EXPORT_SYMBOL(blkdev_get);
 EXPORT_SYMBOL(blkdev_put);
 EXPORT_SYMBOL(ioctl_by_bdev);
-EXPORT_SYMBOL(gendisk_head);
 EXPORT_SYMBOL(grok_partitions);
 EXPORT_SYMBOL(register_disk);
 EXPORT_SYMBOL(tq_disk);
@@ -307,7 +305,6 @@ EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(max_sectors);
 EXPORT_SYMBOL(max_readahead);
-EXPORT_SYMBOL(file_moveto);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
@@ -317,8 +314,6 @@ EXPORT_SYMBOL(tty_hung_up_p);
 EXPORT_SYMBOL(tty_flip_buffer_push);
 EXPORT_SYMBOL(tty_get_baud_rate);
 EXPORT_SYMBOL(do_SAK);
-EXPORT_SYMBOL(console_print);
-EXPORT_SYMBOL(console_loglevel);
 
 /* filesystem registration */
 EXPORT_SYMBOL(register_filesystem);
@@ -335,11 +330,6 @@ EXPORT_SYMBOL(prepare_binprm);
 EXPORT_SYMBOL(compute_creds);
 EXPORT_SYMBOL(remove_arg_zero);
 EXPORT_SYMBOL(set_binfmt);
-
-/* execution environment registration */
-EXPORT_SYMBOL(register_exec_domain);
-EXPORT_SYMBOL(unregister_exec_domain);
-EXPORT_SYMBOL(__set_personality);
 
 /* sysctl table registration */
 EXPORT_SYMBOL(register_sysctl_table);
@@ -434,6 +424,7 @@ EXPORT_SYMBOL(iomem_resource);
 /* process management */
 EXPORT_SYMBOL(complete_and_exit);
 EXPORT_SYMBOL(__wake_up);
+EXPORT_SYMBOL(__wake_up_sync);
 EXPORT_SYMBOL(wake_up_process);
 EXPORT_SYMBOL(sleep_on);
 EXPORT_SYMBOL(sleep_on_timeout);
@@ -455,9 +446,12 @@ EXPORT_SYMBOL(nr_running);
 
 /* misc */
 EXPORT_SYMBOL(panic);
-EXPORT_SYMBOL(printk);
 EXPORT_SYMBOL(sprintf);
+EXPORT_SYMBOL(snprintf);
+EXPORT_SYMBOL(sscanf);
 EXPORT_SYMBOL(vsprintf);
+EXPORT_SYMBOL(vsnprintf);
+EXPORT_SYMBOL(vsscanf);
 EXPORT_SYMBOL(kdevname);
 EXPORT_SYMBOL(bdevname);
 EXPORT_SYMBOL(cdevname);
@@ -475,6 +469,7 @@ EXPORT_SYMBOL(secure_tcp_sequence_number);
 EXPORT_SYMBOL(get_random_bytes);
 EXPORT_SYMBOL(securebits);
 EXPORT_SYMBOL(cap_bset);
+EXPORT_SYMBOL(reparent_to_init);
 EXPORT_SYMBOL(daemonize);
 EXPORT_SYMBOL(csum_partial); /* for networking and md */
 
@@ -493,6 +488,7 @@ EXPORT_SYMBOL(si_meminfo);
 EXPORT_SYMBOL(sys_tz);
 EXPORT_SYMBOL(file_fsync);
 EXPORT_SYMBOL(fsync_inode_buffers);
+EXPORT_SYMBOL(fsync_inode_data_buffers);
 EXPORT_SYMBOL(clear_inode);
 EXPORT_SYMBOL(nr_async_pages);
 EXPORT_SYMBOL(___strtok);
@@ -523,10 +519,6 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
-
-/* dynamic registering of consoles */
-EXPORT_SYMBOL(register_console);
-EXPORT_SYMBOL(unregister_console);
 
 /* time */
 EXPORT_SYMBOL(get_fast_time);

@@ -4,31 +4,33 @@
  * Copyright (C) 1997 Régis Duchesne
  * Copyright (C) 2000-2001 Anton Altaparmakov (AIA)
  */
+#include <linux/ntfs_fs.h>
 
 /* Necessary forward definition. */
 struct ntfs_inode;
 
 /* Which files should be returned from a director listing. */
-#define ngt_dos   1	/* only short names, no hidden files */
+#define ngt_dos   1	/* only short names, no system files */
 #define ngt_nt    2	/* only long names, all-uppercase becomes 
-			 * all-lowercase, no hidden files */
-#define ngt_posix 3	/* all names except hidden files */
+			 * all-lowercase, no system files */
+#define ngt_posix 3	/* all names except system files */
 #define ngt_full  4	/* all entries */
 
 typedef struct ntfs_sb_info ntfs_volume;
 
 typedef struct {
-	ntfs_cluster_t cluster;
+	ntfs_cluster_t lcn;
 	ntfs_cluster_t len;
 } ntfs_runlist;
 
-typedef struct ntfs_attribute{
+typedef struct ntfs_attribute {
 	int type;
 	ntfs_u16 *name;
 	int namelen;
 	int attrno;
 	__s64 size, allocated, initialized, compsize;
-	int compressed, resident, indexed;
+	ATTR_FLAGS flags;
+	__u8 resident, indexed;
 	int cengine;
 	union {
 		void *data;             /* if resident */

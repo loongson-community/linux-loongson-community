@@ -1,4 +1,4 @@
-/* $Id: cgthreefb.c,v 1.10 2001/02/13 01:17:14 davem Exp $
+/* $Id: cgthreefb.c,v 1.11 2001/09/19 00:04:33 davem Exp $
  * cgthreefb.c: CGthree frame buffer driver
  *
  * Copyright (C) 1996,1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -43,6 +43,8 @@
 #define CG3_SR_ID_COLOR         0x01
 #define CG3_SR_ID_MONO          0x02
 #define CG3_SR_ID_MONO_ECL      0x03
+
+MODULE_LICENSE("GPL");
 
 enum cg3_type {
 	CG3_AT_66HZ = 0,

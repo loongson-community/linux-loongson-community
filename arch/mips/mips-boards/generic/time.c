@@ -32,8 +32,10 @@
 
 #include <asm/mipsregs.h>
 #include <asm/ptrace.h>
+#include <asm/hardirq.h>
 #include <asm/div64.h>
 
+#include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>
 #include <linux/timex.h>
 
@@ -156,12 +158,13 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		if ((time_status & STA_UNSYNC) == 0 
 		    && xtime.tv_sec > last_rtc_update + 660 
 		    && xtime.tv_usec >= 500000 - (tick >> 1) 
-		    && xtime.tv_usec <= 500000 + (tick >> 1))
+		    && xtime.tv_usec <= 500000 + (tick >> 1)) {
 			if (set_rtc_mmss(xtime.tv_sec) == 0)
 				last_rtc_update = xtime.tv_sec;
 			else
 				/* do it again in 60 s */
 	    			last_rtc_update = xtime.tv_sec - 600; 
+		}
 		read_unlock(&xtime_lock);
 
 		if ((timer_tick_count++ % HZ) == 0) {

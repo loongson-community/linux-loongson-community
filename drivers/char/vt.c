@@ -28,7 +28,6 @@
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
-#include <asm/keyboard.h>
 
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
@@ -94,7 +93,8 @@ unsigned int video_scan_lines;
 
 #if defined(__i386__) || defined(__alpha__) || defined(__powerpc__) \
     || (defined(__mips__) && defined(CONFIG_ISA)) \
-    || (defined(__arm__) && defined(CONFIG_HOST_FOOTBRIDGE))
+    || (defined(__arm__) && defined(CONFIG_HOST_FOOTBRIDGE)) \
+    || defined(__x86_64__)
 
 static void
 kd_nosound(unsigned long ignored)
@@ -145,8 +145,13 @@ _kd_mksound(unsigned int hz, unsigned int ticks)
 
 #endif
 
-void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
+int _kbd_rate(struct kbd_repeat *rep)
+{
+	return -EINVAL;
+}
 
+void (*kd_mksound)(unsigned int hz, unsigned int ticks) = _kd_mksound;
+int (*kbd_rate)(struct kbd_repeat *rep) = _kbd_rate;
 
 #define i (tmp.kb_index)
 #define s (tmp.kb_table)
@@ -504,7 +509,6 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 	{
 		struct kbd_repeat kbrep;
 		
-		if (!kbd_rate) return( -EINVAL );
 		if (!capable(CAP_SYS_ADMIN))
 			return -EPERM;
 
@@ -832,9 +836,9 @@ int vt_ioctl(struct tty_struct *tty, struct file * file,
 				 * make sure we are atomic with respect to
 				 * other console switches..
 				 */
-				spin_lock_irq(&console_lock);
+				acquire_console_sem();
 				complete_change_console(newvt);
-				spin_unlock_irq(&console_lock);
+				release_console_sem();
 			}
 		}
 
@@ -1158,7 +1162,8 @@ void reset_vc(unsigned int new_console)
 	vt_cons[new_console]->vt_mode.frsig = 0;
 	vt_cons[new_console]->vt_pid = -1;
 	vt_cons[new_console]->vt_newvt = -1;
-	reset_palette (new_console) ;
+	if (!in_interrupt())    /* Via keyboard.c:SAK() - akpm */
+		reset_palette(new_console) ;
 }
 
 /*

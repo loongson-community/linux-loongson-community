@@ -74,6 +74,14 @@ struct gendisk {
 	devfs_handle_t *de_arr;         /* one per physical disc */
 	char *flags;                    /* one per physical disc */
 };
+
+/* drivers/block/genhd.c */
+extern struct gendisk *gendisk_head;
+
+extern void add_gendisk(struct gendisk *gp);
+extern void del_gendisk(struct gendisk *gp);
+extern struct gendisk *get_gendisk(kdev_t dev);
+
 #endif  /*  __KERNEL__  */
 
 #ifdef CONFIG_SOLARIS_X86_PARTITION
@@ -83,22 +91,22 @@ struct gendisk {
 
 struct solaris_x86_slice {
 	ushort	s_tag;			/* ID tag of partition */
-	ushort	s_flag;			/* permision flags */
-	daddr_t s_start;		/* start sector no of partition */
-	long	s_size;			/* # of blocks in partition */
+	ushort	s_flag;			/* permission flags */
+	unsigned int s_start;		/* start sector no of partition */
+	unsigned int s_size;		/* # of blocks in partition */
 };
 
 struct solaris_x86_vtoc {
-		unsigned long v_bootinfo[3];	/* info needed by mboot (unsupported) */
-	unsigned long v_sanity;		/* to verify vtoc sanity */
-	unsigned long v_version;	/* layout version */
+	unsigned int v_bootinfo[3];	/* info needed by mboot (unsupported) */
+	unsigned int v_sanity;		/* to verify vtoc sanity */
+	unsigned int v_version;		/* layout version */
 	char	v_volume[8];		/* volume name */
 	ushort	v_sectorsz;		/* sector size in bytes */
 	ushort	v_nparts;		/* number of partitions */
-	unsigned long v_reserved[10];	/* free space */
+	unsigned int v_reserved[10];	/* free space */
 	struct solaris_x86_slice
 		v_slice[SOLARIS_X86_NUMSLICE]; /* slice headers */
-	time_t	timestamp[SOLARIS_X86_NUMSLICE]; /* timestamp (unsupported) */
+	unsigned int timestamp[SOLARIS_X86_NUMSLICE]; /* timestamp (unsupported) */
 	char	v_asciilabel[128];	/* for compatibility */
 };
 
@@ -230,7 +238,6 @@ struct unixware_disklabel {
 #endif /* CONFIG_MINIX_SUBPARTITION */
 
 #ifdef __KERNEL__
-extern struct gendisk *gendisk_head;	/* linked list of disks */
 
 char *disk_name (struct gendisk *hd, int minor, char *buf);
 

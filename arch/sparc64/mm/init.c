@@ -1,4 +1,4 @@
-/*  $Id: init.c,v 1.179 2001/08/08 07:52:00 davem Exp $
+/*  $Id: init.c,v 1.189 2001/09/02 23:27:18 kanoj Exp $
  *  arch/sparc64/mm/init.c
  *
  *  Copyright (C) 1996-1999 David S. Miller (davem@caip.rutgers.edu)
@@ -27,9 +27,11 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
-#include <asm/vaddrs.h>
 #include <asm/dma.h>
 #include <asm/starfire.h>
+#include <asm/tlb.h>
+
+mmu_gather_t mmu_gathers[NR_CPUS];
 
 extern void device_scan(void);
 
@@ -54,6 +56,8 @@ extern char __init_begin, __init_end, _start, _end, etext, edata;
 /* Initial ramdisk setup */
 extern unsigned int sparc_ramdisk_image;
 extern unsigned int sparc_ramdisk_size;
+
+struct page *mem_map_zero;
 
 int do_check_pgt_cache(int low, int high)
 {
@@ -130,28 +134,6 @@ void flush_icache_range(unsigned long start, unsigned long end)
 	}
 }
 
-/*
- * BAD_PAGE is the page that is used for page faults when linux
- * is out-of-memory. Older versions of linux just did a
- * do_exit(), but using this instead means there is less risk
- * for a process dying in kernel mode, possibly leaving an inode
- * unused etc..
- *
- * BAD_PAGETABLE is the accompanying page-table: it is initialized
- * to point to BAD_PAGE entries.
- *
- * ZERO_PAGE is a special page that is used for zero-initialized
- * data and COW.
- */
-pte_t __bad_page(void)
-{
-	memset((void *) &empty_bad_page, 0, PAGE_SIZE);
-	return pte_mkdirty(mk_pte_phys((((unsigned long) &empty_bad_page) 
-					- ((unsigned long)&empty_zero_page)
-					+ phys_base),
-				       PAGE_SHARED));
-}
-
 void show_mem(void)
 {
 	printk("Mem-info:\n");
@@ -202,10 +184,10 @@ static void inherit_prom_mappings(void)
 	struct linux_prom_translation *trans;
 	unsigned long phys_page, tte_vaddr, tte_data;
 	void (*remap_func)(unsigned long, unsigned long, int);
-	pgd_t *pgdp;
-	pmd_t *pmdp;
+	pmd_t *pmdp, *pmd;
 	pte_t *ptep;
 	int node, n, i, tsz;
+	extern unsigned int obp_iaddr_patch[2], obp_daddr_patch[2];
 
 	node = prom_finddevice("/virtual-memory");
 	n = prom_getproplen(node, "translations");
@@ -229,36 +211,39 @@ static void inherit_prom_mappings(void)
 	}
 	n = n / sizeof(*trans);
 
+	/*
+	 * The obp translations are saved based on 8k pagesize, since obp can use
+	 * a mixture of pagesizes. Misses to the 0xf0000000 - 0x100000000, ie obp 
+	 * range, are handled in entry.S and do not use the vpte scheme (see rant
+	 * in inherit_locked_prom_mappings()).
+	 */
+#define OBP_PMD_SIZE 2048
+#define BASE_PAGE_SIZE 8192
+	pmd = __alloc_bootmem(OBP_PMD_SIZE, OBP_PMD_SIZE, 0UL);
+	if (pmd == NULL)
+		early_pgtable_allocfail("pmd");
+	memset(pmd, 0, OBP_PMD_SIZE);
 	for (i = 0; i < n; i++) {
 		unsigned long vaddr;
 
 		if (trans[i].virt >= 0xf0000000 && trans[i].virt < 0x100000000) {
 			for (vaddr = trans[i].virt;
 			     vaddr < trans[i].virt + trans[i].size;
-			     vaddr += PAGE_SIZE) {
+			     vaddr += BASE_PAGE_SIZE) {
 				unsigned long val;
 
-				pgdp = pgd_offset(&init_mm, vaddr);
-				if (pgd_none(*pgdp)) {
-					pmdp = __alloc_bootmem(PMD_TABLE_SIZE,
-							       PMD_TABLE_SIZE,
-							       0UL);
-					if (pmdp == NULL)
-						early_pgtable_allocfail("pmd");
-					memset(pmdp, 0, PMD_TABLE_SIZE);
-					pgd_set(pgdp, pmdp);
-				}
-				pmdp = pmd_offset(pgdp, vaddr);
+				pmdp = pmd + ((vaddr >> 23) & 0x7ff);
 				if (pmd_none(*pmdp)) {
-					ptep = __alloc_bootmem(PTE_TABLE_SIZE,
-							       PTE_TABLE_SIZE,
+					ptep = __alloc_bootmem(BASE_PAGE_SIZE,
+							       BASE_PAGE_SIZE,
 							       0UL);
 					if (ptep == NULL)
 						early_pgtable_allocfail("pte");
-					memset(ptep, 0, PTE_TABLE_SIZE);
+					memset(ptep, 0, BASE_PAGE_SIZE);
 					pmd_set(pmdp, ptep);
 				}
-				ptep = pte_offset(pmdp, vaddr);
+				ptep = (pte_t *)pmd_page(*pmdp) +
+						((vaddr >> 13) & 0x3ff);
 
 				val = trans[i].data;
 
@@ -267,10 +252,17 @@ static void inherit_prom_mappings(void)
 					val &= ~0x0003fe0000000000UL;
 
 				set_pte (ptep, __pte(val | _PAGE_MODIFIED));
-				trans[i].data += PAGE_SIZE;
+				trans[i].data += BASE_PAGE_SIZE;
 			}
 		}
 	}
+	phys_page = __pa(pmd);
+	obp_iaddr_patch[0] |= (phys_page >> 10);
+	obp_iaddr_patch[1] |= (phys_page & 0x3ff);
+	flushi((long)&obp_iaddr_patch[0]);
+	obp_daddr_patch[0] |= (phys_page >> 10);
+	obp_daddr_patch[1] |= (phys_page & 0x3ff);
+	flushi((long)&obp_daddr_patch[0]);
 
 	/* Now fixup OBP's idea about where we really are mapped. */
 	prom_printf("Remapping the kernel... ");
@@ -295,7 +287,7 @@ static void inherit_prom_mappings(void)
 
 	phys_page &= _PAGE_PADDR;
 	phys_page += ((unsigned long)&prom_boot_page -
-		      (unsigned long)&empty_zero_page);
+		      (unsigned long)KERNBASE);
 
 	if (tlb_type == spitfire) {
 		/* Lock this into i/d tlb entry 59 */
@@ -336,7 +328,7 @@ static void inherit_prom_mappings(void)
 		BUG();
 	}
 
-	tte_vaddr = (unsigned long) &empty_zero_page;
+	tte_vaddr = (unsigned long) KERNBASE;
 
 	/* Spitfire Errata #32 workaround */
 	__asm__ __volatile__("stxa	%0, [%1] %2\n\t"
@@ -366,7 +358,7 @@ static void inherit_prom_mappings(void)
 	remap_func((tlb_type == spitfire ?
 		    (spitfire_get_dtlb_data(sparc64_highest_locked_tlbent()) & _PAGE_PADDR) :
 		    (cheetah_get_litlb_data(sparc64_highest_locked_tlbent()) & _PAGE_PADDR)),
-		   (unsigned long) &empty_zero_page,
+		   (unsigned long) KERNBASE,
 		   prom_get_mmu_ihandle());
 
 	/* Flush out that temporary mapping. */
@@ -389,7 +381,7 @@ static void inherit_prom_mappings(void)
 		unsigned long size = trans[i].size;
 
 		if (vaddr < 0xf0000000UL) {
-			unsigned long avoid_start = (unsigned long) &empty_zero_page;
+			unsigned long avoid_start = (unsigned long) KERNBASE;
 			unsigned long avoid_end = avoid_start + (4 * 1024 * 1024);
 
 			if (vaddr < avoid_start) {
@@ -1048,7 +1040,7 @@ unsigned long __init bootmem_init(unsigned long *pages_avail)
 	 * 4MB locked TLB translation.
 	 */
 	start_pfn  = PAGE_ALIGN((unsigned long) &_end) -
-		((unsigned long) &empty_zero_page);
+		((unsigned long) KERNBASE);
 
 	/* Adjust up to the physical address where the kernel begins. */
 	start_pfn += phys_base;
@@ -1133,7 +1125,7 @@ void __init paging_init(void)
 	unsigned long alias_base = phys_base + PAGE_OFFSET;
 	unsigned long second_alias_page = 0;
 	unsigned long pt, flags, end_pfn, pages_avail;
-	unsigned long shift = alias_base - ((unsigned long)&empty_zero_page);
+	unsigned long shift = alias_base - ((unsigned long)KERNBASE);
 	unsigned long real_end;
 
 	set_bit(0, mmu_context_bmap);
@@ -1429,7 +1421,7 @@ void __init mem_init(void)
 
 	addr = PAGE_OFFSET + phys_base;
 	last = PAGE_ALIGN((unsigned long)&_end) -
-		((unsigned long) &empty_zero_page);
+		((unsigned long) KERNBASE);
 	last += PAGE_OFFSET + phys_base;
 	while (addr < last) {
 		set_bit(__pa(addr) >> 22, sparc64_valid_addr_bitmap);
@@ -1441,7 +1433,20 @@ void __init mem_init(void)
 	max_mapnr = last_valid_pfn - (phys_base >> PAGE_SHIFT);
 	high_memory = __va(last_valid_pfn << PAGE_SHIFT);
 
-	num_physpages = free_all_bootmem();
+	num_physpages = free_all_bootmem() - 1;
+
+	/*
+	 * Set up the zero page, mark it reserved, so that page count
+	 * is not manipulated when freeing the page from user ptes.
+	 */
+	mem_map_zero = _alloc_pages(GFP_KERNEL, 0);
+	if (mem_map_zero == NULL) {
+		prom_printf("paging_init: Cannot alloc zero page.\n");
+		prom_halt();
+	}
+	SetPageReserved(mem_map_zero);
+	clear_page(page_address(mem_map_zero));
+
 	codepages = (((unsigned long) &etext) - ((unsigned long)&_start));
 	codepages = PAGE_ALIGN(codepages) >> PAGE_SHIFT;
 	datapages = (((unsigned long) &edata) - ((unsigned long)&etext));
@@ -1455,7 +1460,7 @@ void __init mem_init(void)
 		extern pgd_t empty_pg_dir[1024];
 		unsigned long addr = (unsigned long)empty_pg_dir;
 		unsigned long alias_base = phys_base + PAGE_OFFSET -
-			(long)(&empty_zero_page);
+			(long)(KERNBASE);
 		
 		memset(empty_pg_dir, 0, sizeof(empty_pg_dir));
 		addr += alias_base;
@@ -1477,16 +1482,20 @@ void __init mem_init(void)
 
 void free_initmem (void)
 {
-	unsigned long addr;
+	unsigned long addr, initend;
 
-	addr = (unsigned long)(&__init_begin);
-	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
+	/*
+	 * The init section is aligned to 8k in vmlinux.lds. Page align for >8k pagesizes.
+	 */
+	addr = PAGE_ALIGN((unsigned long)(&__init_begin));
+	initend = (unsigned long)(&__init_end) & PAGE_MASK;
+	for (; addr < initend; addr += PAGE_SIZE) {
 		unsigned long page;
 		struct page *p;
 
 		page = (addr +
 			((unsigned long) __va(phys_base)) -
-			((unsigned long) &empty_zero_page));
+			((unsigned long) KERNBASE));
 		p = virt_to_page(page);
 
 		ClearPageReserved(p);

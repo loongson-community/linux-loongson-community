@@ -270,6 +270,8 @@ int tty_register_ldisc(int disc, struct tty_ldisc *new_ldisc)
 	return 0;
 }
 
+EXPORT_SYMBOL(tty_register_ldisc);
+
 /* Set the discipline of a tty line. */
 static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 {
@@ -444,8 +446,6 @@ void do_tty_hangup(void *data)
 	file_list_lock();
 	for (l = tty->tty_files.next; l != &tty->tty_files; l = l->next) {
 		struct file * filp = list_entry(l, struct file, f_list);
-		if (!filp->f_dentry)
-			continue;
 		if (filp->f_dentry->d_inode->i_rdev == CONSOLE_DEV ||
 		    filp->f_dentry->d_inode->i_rdev == SYSCONS_DEV) {
 			cons_filp = filp;
@@ -2023,7 +2023,7 @@ void tty_register_devfs (struct tty_driver *driver, unsigned int flags, unsigned
 			break;
 		default:
 			if (driver->major == PTY_MASTER_MAJOR)
-				flags |= DEVFS_FL_AUTO_OWNER;
+				mode |= S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 			break;
 	}
 	if ( (minor <  driver->minor_start) || 

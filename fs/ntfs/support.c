@@ -17,10 +17,7 @@
 #include "util.h"
 #include "inode.h"
 #include "macros.h"
-
-#ifndef NLS_MAX_CHARSET_SIZE
 #include <linux/nls.h>
-#endif
 
 static char print_buf[1024];
 
@@ -36,8 +33,8 @@ void ntfs_debug(int mask, const char *fmt, ...)
 	/* Filter it with the debugging level required */
 	if (ntdebug & mask) {
 		va_start(ap,fmt);
-		strcpy(print_buf, KERN_DEBUG);
-		vsprintf(print_buf + 3, fmt, ap);
+		strcpy(print_buf, KERN_DEBUG "NTFS: ");
+		vsprintf(print_buf + 9, fmt, ap);
 		printk(print_buf);
 		va_end(ap);
 	}
@@ -65,9 +62,6 @@ void ntfs_free(void *block)
 }
 #endif
 #else /* End of DEBUG functions. Normal ones below... */
-void ntfs_debug(int mask, const char *fmt, ...)
-{
-}
 
 #ifndef ntfs_malloc
 void *ntfs_malloc(int size)
@@ -108,8 +102,8 @@ void ntfs_error(const char *fmt,...)
         va_list ap;
 
         va_start(ap, fmt);
-        strcpy(print_buf, KERN_ERR);
-        vsprintf(print_buf + 3, fmt, ap);
+        strcpy(print_buf, KERN_ERR "NTFS: ");
+        vsprintf(print_buf + 9, fmt, ap);
         printk(print_buf);
         va_end(ap);
 }
@@ -120,7 +114,7 @@ int ntfs_read_mft_record(ntfs_volume *vol, int mftno, char *buf)
 	ntfs_io io;
 
 	ntfs_debug(DEBUG_OTHER, "read_mft_record 0x%x\n", mftno);
-	if (mftno == FILE_$Mft)
+	if (mftno == FILE_Mft)
 	{
 		ntfs_memcpy(buf, vol->mft, vol->mft_record_size);
 		return 0;
@@ -162,8 +156,8 @@ int ntfs_read_mft_record(ntfs_volume *vol, int mftno, char *buf)
 	return 0;
 }
 
-int ntfs_getput_clusters(ntfs_volume *vol, int cluster,	ntfs_size_t start_offs,
-			 ntfs_io *buf)
+int ntfs_getput_clusters(ntfs_volume *vol, int cluster, ntfs_size_t start_offs,
+		ntfs_io *buf)
 {
 	struct super_block *sb = NTFS_SB(vol);
 	struct buffer_head *bh;
@@ -173,6 +167,7 @@ int ntfs_getput_clusters(ntfs_volume *vol, int cluster,	ntfs_size_t start_offs,
 
 	ntfs_debug(DEBUG_OTHER, "%s_clusters %d %d %d\n", 
 		   buf->do_read ? "get" : "put", cluster, start_offs, length);
+	to_copy = vol->cluster_size - start_offs;
 	while (length) {
 		if (!(bh = bread(sb->s_dev, cluster, vol->cluster_size))) {
 			ntfs_debug(DEBUG_OTHER, "%s failed\n",
@@ -180,7 +175,8 @@ int ntfs_getput_clusters(ntfs_volume *vol, int cluster,	ntfs_size_t start_offs,
 			error = -EIO;
 			goto error_ret;
 		}
-		to_copy = min(unsigned int, vol->cluster_size - start_offs, length);
+		if (to_copy > length)
+			to_copy = length;
 		lock_buffer(bh);
 		if (buf->do_read) {
 			buf->fn_put(buf, bh->b_data + start_offs, to_copy);
@@ -211,10 +207,11 @@ int ntfs_getput_clusters(ntfs_volume *vol, int cluster,	ntfs_size_t start_offs,
 				}
 			}
 		}
+		brelse(bh);
 		length -= to_copy;
 		start_offs = 0;
+		to_copy = vol->cluster_size;
 		cluster++;
-		brelse(bh);
 	}
 error_ret:
 	return error;
@@ -245,8 +242,8 @@ int ntfs_dupuni2map(ntfs_volume *vol, ntfs_u16 *in, int in_len, char **out,
 			if (chl > 1) {
 				buf = ntfs_malloc(*out_len + chl - 1);
 				if (!buf) {
-					ntfs_free(result);
-					return -ENOMEM;
+					i = -ENOMEM;
+					goto err_ret;
 				}
 				memcpy(buf, result, o);
 				ntfs_free(result);
@@ -262,13 +259,18 @@ int ntfs_dupuni2map(ntfs_volume *vol, ntfs_u16 *in, int in_len, char **out,
 					"to chosen character set. Remount "
 					"with utf8 encoding and this should "
 					"work.\n");
-			ntfs_free(result);
-			return -EILSEQ;
+			i = -EILSEQ;
+			goto err_ret;
 		}
 	}
 	result[*out_len] = '\0';
 	*out = result;
 	return 0;
+err_ret:
+	ntfs_free(result);
+	*out_len = 0;
+	*out = NULL;
+	return i;
 }
 
 int ntfs_dupmap2uni(ntfs_volume *vol, char* in, int in_len, ntfs_u16 **out,
@@ -279,8 +281,10 @@ int ntfs_dupmap2uni(ntfs_volume *vol, char* in, int in_len, ntfs_u16 **out,
 	struct nls_table *nls = vol->nls_map;
 
 	*out = result = ntfs_malloc(2 * in_len);
-	if (!result)
+	if (!result) {
+		*out_len = 0;
 		return -ENOMEM;
+	}
 	*out_len = in_len;
 	for (i = o = 0; i < in_len; i++, o++) {
 		wchar_t uni;
@@ -288,22 +292,25 @@ int ntfs_dupmap2uni(ntfs_volume *vol, char* in, int in_len, ntfs_u16 **out,
 
 		charlen = nls->char2uni(&in[i], in_len - i, &uni);
 		if (charlen < 0) {
-			printk(KERN_ERR "NTFS: Name contains a character that "
-					"cannot be converted to Unicode.\n");
-			ntfs_free(result);
-			return charlen;
+			i = charlen;
+			goto err_ret;
 		}
 		*out_len -= charlen - 1;
 		i += charlen - 1;
 		/* FIXME: Byte order? */
 		result[o] = uni;
 		if (!result[o]) {
-			printk(KERN_ERR "NTFS: Name contains a character that "
-					"cannot be converted to Unicode.\n");
-			ntfs_free(result);
-			return -EILSEQ;
+			i = -EILSEQ;
+			goto err_ret;
 		}
 	}
 	return 0;
+err_ret:
+	printk(KERN_ERR "NTFS: Name contains a character that cannot be "
+			"converted to Unicode.\n");
+	ntfs_free(result);
+	*out_len = 0;
+	*out = NULL;
+	return i;
 }
 

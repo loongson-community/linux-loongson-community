@@ -30,7 +30,7 @@ static int nfsd_nr_put;
 
 
 struct nfsd_getdents_callback {
-	struct qstr *name;	/* name that was found. name->name already points to a buffer */
+	char *name;		/* name that was found. It already points to a buffer NAME_MAX+1 is size */
 	unsigned long ino;	/* the inum we are looking for */
 	int found;		/* inode matched? */
 	int sequence;		/* sequence counter */
@@ -44,8 +44,6 @@ static int filldir_one(void * __buf, const char * name, int len,
 			loff_t pos, ino_t ino, unsigned int d_type)
 {
 	struct nfsd_getdents_callback *buf = __buf;
-	struct qstr *qs = buf->name;
-	char *nbuf = (char*)qs->name; /* cast is to get rid of "const" */
 	int result = 0;
 
 	buf->sequence++;
@@ -53,22 +51,25 @@ static int filldir_one(void * __buf, const char * name, int len,
 dprintk("filldir_one: seq=%d, ino=%ld, name=%s\n", buf->sequence, ino, name);
 #endif
 	if (buf->ino == ino) {
-		qs->len = len;
-		memcpy(nbuf, name, len);
-		nbuf[len] = '\0';
+		memcpy(buf->name, name, len);
+		buf->name[len] = '\0';
 		buf->found = 1;
 		result = -1;
 	}
 	return result;
 }
 
-/*
- * Read a directory and return the name of the specified entry.
- * i_sem is already down().
- * The whole thing is a total BS. It should not be done via readdir(), damnit!
- * Oh, well, as soon as it will be in filesystems...
+/**
+ * nfsd_get_name - default nfsd_operations->get_name function
+ * @dentry: the directory in which to find a name
+ * @name:   a pointer to a %NAME_MAX+1 char buffer to store the name
+ * @child:  the dentry for the child directory.
+ *
+ * calls readdir on the parent until it finds an entry with
+ * the same inode number as the child, and returns that.
  */
-static int get_ino_name(struct dentry *dentry, struct qstr *name, unsigned long ino)
+static int nfsd_get_name(struct dentry *dentry, char *name,
+			struct dentry *child)
 {
 	struct inode *dir = dentry->d_inode;
 	int error;
@@ -92,12 +93,14 @@ static int get_ino_name(struct dentry *dentry, struct qstr *name, unsigned long 
 		goto out_close;
 
 	buffer.name = name;
-	buffer.ino = ino;
+	buffer.ino = child->d_inode->i_ino;
 	buffer.found = 0;
 	buffer.sequence = 0;
 	while (1) {
 		int old_seq = buffer.sequence;
-		error = file.f_op->readdir(&file, &buffer, filldir_one);
+
+		error = vfs_readdir(&file, filldir_one, &buffer);
+
 		if (error < 0)
 			break;
 
@@ -214,7 +217,6 @@ int d_splice(struct dentry *target, struct dentry *parent, struct qstr *name)
 	if (!(target->d_flags & DCACHE_NFSD_DISCONNECTED))
 		printk("nfsd: d_splice with non-DISCONNECTED target: %s/%s\n", parent->d_name.name, name->name);
 #endif
-	name->hash = full_name_hash(name->name, name->len);
 	tdentry = d_alloc(parent, name);
 	if (tdentry == NULL)
 		return -ENOMEM;
@@ -275,7 +277,6 @@ struct dentry *nfsd_findparent(struct dentry *child)
 	d_drop(tdentry); /* we never want ".." hashed */
 	if (!pdentry && tdentry->d_inode == NULL) {
 		/* File system cannot find ".." ... sad but possible */
-		dput(tdentry);
 		pdentry = ERR_PTR(-EINVAL);
 	}
 	if (!pdentry) {
@@ -313,17 +314,25 @@ struct dentry *nfsd_findparent(struct dentry *child)
 
 static struct dentry *splice(struct dentry *child, struct dentry *parent)
 {
-	int err = 0;
+	int err = 0, nerr;
 	struct qstr qs;
 	char namebuf[256];
 	struct list_head *lp;
-	struct dentry *tmp;
 	/* child is an IS_ROOT (anonymous) dentry, but it is hypothesised that
 	 * it should be a child of parent.
 	 * We see if we can find a name and, if we can - splice it in.
-	 * We hold the i_sem on the parent the whole time to try to follow locking protocols.
+	 * We lookup the name before locking (i_sem) the directory as namelookup
+	 * also claims i_sem.  If the name gets changed then we will loop around
+	 * and try again in find_fh_dentry.
 	 */
-	qs.name = namebuf;
+
+	nerr = nfsd_get_name(parent, namebuf, child);
+
+	/*
+	 * We now claim the parent i_sem so that no-one else tries to create
+	 * a dentry in the parent while we are.
+	 */
+	
 	down(&parent->d_inode->i_sem);
 
 	/* Now, things might have changed while we waited.
@@ -331,30 +340,34 @@ static struct dentry *splice(struct dentry *child, struct dentry *parent)
 	 * to a lookup (though nobody does this yet).  In this case, just succeed.
 	 */
 	if (child->d_parent == parent) goto out;
+	
 	/* Possibly a new dentry has been made for this child->d_inode in
-	 * parent by a lookup.  In this case return that dentry. caller must
+	 * parent by a lookup.  In this case return that dentry. Caller must
 	 * notice and act accordingly
 	 */
 	spin_lock(&dcache_lock);
-	for (lp = child->d_inode->i_dentry.next; lp != &child->d_inode->i_dentry ; lp=lp->next) {
-		tmp = list_entry(lp,struct dentry, d_alias);
-		if (tmp->d_parent == parent) {
+	list_for_each(lp, &child->d_inode->i_dentry) {
+		struct dentry *tmp = list_entry(lp,struct dentry, d_alias);
+		if (!list_empty(&tmp->d_hash) &&
+		    tmp->d_parent == parent) {
 			child = dget_locked(tmp);
 			spin_unlock(&dcache_lock);
 			goto out;
 		}
 	}
 	spin_unlock(&dcache_lock);
-	/* well, if we can find a name for child in parent, it should be safe to splice it in */
-	err = get_ino_name(parent, &qs, child->d_inode->i_ino);
-	if (err)
+
+	/* now we need that name.  If there was an error getting it, now is th
+	 * time to bail out.
+	 */
+	if ((err = nerr))
 		goto out;
-	tmp = d_lookup(parent, &qs);
-	if (tmp) {
+	qs.name = namebuf;
+	qs.len = strlen(namebuf);
+	if (find_inode_number(parent, &qs) != 0) {
 		/* Now that IS odd.  I wonder what it means... */
 		err = -EEXIST;
 		printk("nfsd-fh: found a name that I didn't expect: %s/%s\n", parent->d_name.name, qs.name);
-		dput(tmp);
 		goto out;
 	}
 	err = d_splice(child, parent, &qs);
@@ -696,7 +709,7 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	if (!error) {
 		error = nfsd_permission(exp, dentry, access);
 	}
-#ifdef NFSD_PARANOIA
+#ifdef NFSD_PARANOIA_EXTREME
 	if (error) {
 		printk("fh_verify: %s/%s permission failure, acc=%x, error=%d\n",
 		       dentry->d_parent->d_name.name, dentry->d_name.name, access, (error >> 24));
@@ -714,9 +727,8 @@ out:
  * before the fh goes out on the wire ...
  */
 inline int _fh_update(struct dentry *dentry, struct svc_export *exp,
-		      __u32 **datapp, int maxsize)
+		      __u32 *datap, int *maxsize)
 {
-	__u32 *datap= *datapp;
 	struct super_block *sb = dentry->d_inode->i_sb;
 	
 	if (dentry == exp->ex_dentry)
@@ -726,20 +738,22 @@ inline int _fh_update(struct dentry *dentry, struct svc_export *exp,
 		int need_parent = !S_ISDIR(dentry->d_inode->i_mode) &&
 			!(exp->ex_flags & NFSEXP_NOSUBTREECHECK);
 		
-		int type = sb->s_op->dentry_to_fh(dentry, datap, &maxsize, need_parent);
-		datap += maxsize;
-		*datapp = datap;
+		int type = sb->s_op->dentry_to_fh(dentry, datap, maxsize, need_parent);
 		return type;
 	}
-	
+
+	if (*maxsize < 2)
+		return 255;
 	*datap++ = ino_t_to_u32(dentry->d_inode->i_ino);
 	*datap++ = dentry->d_inode->i_generation;
-	if (S_ISDIR(dentry->d_inode->i_mode) || (exp->ex_flags & NFSEXP_NOSUBTREECHECK)){
-		*datapp = datap;
+	if (*maxsize ==2 ||
+	    S_ISDIR(dentry->d_inode->i_mode) ||
+	    (exp->ex_flags & NFSEXP_NOSUBTREECHECK)) {
+		*maxsize = 2;
 		return 1;
 	}
 	*datap++ = ino_t_to_u32(dentry->d_parent->d_inode->i_ino);
-	*datapp = datap;
+	*maxsize = 3;
 	return 2;
 }
 
@@ -809,10 +823,13 @@ fh_compose(struct svc_fh *fhp, struct svc_export *exp, struct dentry *dentry, st
 		/* fsid_type 0 == 2byte major, 2byte minor, 4byte inode */
 		*datap++ = htonl((MAJOR(exp->ex_dev)<<16)| MINOR(exp->ex_dev));
 		*datap++ = ino_t_to_u32(exp->ex_ino);
-		if (inode)
+		fhp->fh_handle.fh_size = 3*4;
+		if (inode) {
+			int size = fhp->fh_maxsize/4 - 3;
 			fhp->fh_handle.fh_fileid_type =
-				_fh_update(dentry, exp, &datap, fhp->fh_maxsize-3);
-		fhp->fh_handle.fh_size = (datap-fhp->fh_handle.fh_auth+1)*4;
+				_fh_update(dentry, exp, datap, &size);
+			fhp->fh_handle.fh_size += size*4;
+		}
 	}
 
 	nfsd_nr_verified++;
@@ -840,13 +857,15 @@ fh_update(struct svc_fh *fhp)
 	if (fhp->fh_handle.fh_version != 1) {
 		_fh_update_old(dentry, fhp->fh_export, &fhp->fh_handle);
 	} else {
+		int size;
 		if (fhp->fh_handle.fh_fileid_type != 0)
 			goto out_uptodate;
 		datap = fhp->fh_handle.fh_auth+
 			fhp->fh_handle.fh_size/4 -1;
+		size = (fhp->fh_maxsize - fhp->fh_handle.fh_size)/4;
 		fhp->fh_handle.fh_fileid_type =
-			_fh_update(dentry, fhp->fh_export, &datap, fhp->fh_maxsize-fhp->fh_handle.fh_size);
-		fhp->fh_handle.fh_size = (datap-fhp->fh_handle.fh_auth+1)*4;
+			_fh_update(dentry, fhp->fh_export, datap, &size);
+		fhp->fh_handle.fh_size += size*4;
 	}
 out:
 	return 0;

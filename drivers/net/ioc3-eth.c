@@ -1820,3 +1820,5 @@ MODULE_DESCRIPTION("SGI IOC3 Ethernet driver");
 
 module_init(ioc3_init_module);
 module_exit(ioc3_cleanup_module);
+
+MODULE_LICENSE("GPL");

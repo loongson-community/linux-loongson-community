@@ -931,7 +931,7 @@ byte ide_dump_status (ide_drive_t *drive, const char *msg, byte stat)
 					  cur & 0xf,
 					  IN_BYTE(IDE_SECTOR_REG));
 				}
-				if (HWGROUP(drive)->rq)
+				if (HWGROUP(drive) && HWGROUP(drive)->rq)
 					printk(", sector=%ld", HWGROUP(drive)->rq->sector);
 			}
 		}
@@ -2059,7 +2059,7 @@ jump_eight:
 
 void ide_unregister (unsigned int index)
 {
-	struct gendisk *gd, **gdp;
+	struct gendisk *gd;
 	ide_drive_t *drive, *d;
 	ide_hwif_t *hwif, *g;
 	ide_hwgroup_t *hwgroup;
@@ -2179,13 +2179,9 @@ void ide_unregister (unsigned int index)
 	blk_dev[hwif->major].data = NULL;
 	blk_dev[hwif->major].queue = NULL;
 	blksize_size[hwif->major] = NULL;
-	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
-		if (*gdp == hwif->gd)
-			break;
-	if (*gdp == NULL)
-		printk("gd not in disk chain!\n");
-	else {
-		gd = *gdp; *gdp = gd->next;
+	gd = hwif->gd;
+	if (gd) {
+		del_gendisk(gd);
 		kfree(gd->sizes);
 		kfree(gd->part);
 		if (gd->de_arr)
@@ -2193,6 +2189,7 @@ void ide_unregister (unsigned int index)
 		if (gd->flags)
 			kfree (gd->flags);
 		kfree(gd);
+		hwif->gd = NULL;
 	}
 	old_hwif		= *hwif;
 	init_hwif_data (index);	/* restore hwif data to pristine status */
@@ -2663,6 +2660,8 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 
 	 	case BLKGETSIZE:   /* Return device size */
 			return put_user(drive->part[MINOR(inode->i_rdev)&PARTN_MASK].nr_sects, (long *) arg);
+	 	case BLKGETSIZE64:
+			return put_user((u64)drive->part[MINOR(inode->i_rdev)&PARTN_MASK].nr_sects << 9, (u64 *) arg);
 
 		case BLKRRPART: /* Re-read partition tables */
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
@@ -2788,6 +2787,8 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 		case BLKPG:
 		case BLKELVGET:
 		case BLKELVSET:
+		case BLKBSZGET:
+		case BLKBSZSET:
 			return blk_ioctl(inode->i_rdev, cmd, arg);
 
 		case HDIO_GET_BUSSTATE:
@@ -2987,7 +2988,7 @@ static int __init match_parm (char *s, const char *keywords[], int vals[], int m
  * "ide0=ht6560b"	: probe/support HT6560B interface
  * "ide0=cmd640_vlb"	: *REQUIRED* for VLB cards with the CMD640 chip
  *			  (not for PCI -- automatically detected)
- * "ide0=qd6580"	: probe/support qd6580 interface
+ * "ide0=qd65xx"	: probe/support qd65xx interface
  * "ide0=ali14xx"	: probe/support ali14xx chipsets (ALI M1439, M1443, M1445)
  * "ide0=umc8672"	: probe/support umc8672 chipsets
  * "idex=dc4030"	: probe/support Promise DC4030VL interface
@@ -3155,7 +3156,7 @@ int __init ide_setup (char *s)
 		const char *ide_words[] = {
 			"noprobe", "serialize", "autotune", "noautotune", "reset", "dma", "ata66",
 			"minus8", "minus9", "minus10",
-			"four", "qd6580", "ht6560b", "cmd640_vlb", "dtc2278", "umc8672", "ali14xx", "dc4030", NULL };
+			"four", "qd65xx", "ht6560b", "cmd640_vlb", "dtc2278", "umc8672", "ali14xx", "dc4030", NULL };
 		hw = s[3] - '0';
 		hwif = &ide_hwifs[hw];
 		i = match_parm(&s[4], ide_words, vals, 3);
@@ -3222,14 +3223,14 @@ int __init ide_setup (char *s)
 				goto done;
 			}
 #endif /* CONFIG_BLK_DEV_HT6560B */
-#if CONFIG_BLK_DEV_QD6580
-			case -12: /* "qd6580" */
+#if CONFIG_BLK_DEV_QD65XX
+			case -12: /* "qd65xx" */
 			{
-				extern void init_qd6580 (void);
-				init_qd6580();
+				extern void init_qd65xx (void);
+				init_qd65xx();
 				goto done;
 			}
-#endif /* CONFIG_BLK_DEV_QD6580 */
+#endif /* CONFIG_BLK_DEV_QD65XX */
 #ifdef CONFIG_BLK_DEV_4DRIVES
 			case -11: /* "four" drives on one set of ports */
 			{

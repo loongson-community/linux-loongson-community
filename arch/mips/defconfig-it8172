@@ -132,19 +132,10 @@ CONFIG_MTD_PHYSMAP=y
 CONFIG_MTD_PHYSMAP_START=8000000
 CONFIG_MTD_PHYSMAP_LEN=2000000
 CONFIG_MTD_PHYSMAP_BUSWIDTH=4
-# CONFIG_MTD_SUN_UFLASH is not set
-# CONFIG_MTD_NORA is not set
 # CONFIG_MTD_PNC2000 is not set
 # CONFIG_MTD_RPXLITE is not set
-# CONFIG_MTD_SC520CDP is not set
-# CONFIG_MTD_NETSC520 is not set
 # CONFIG_MTD_SBC_GXX is not set
 # CONFIG_MTD_ELAN_104NC is not set
-# CONFIG_MTD_SA1100 is not set
-# CONFIG_MTD_SA1100_REDBOOT_PARTITIONS is not set
-# CONFIG_MTD_SA1100_BOOTLDR_PARTITIONS is not set
-# CONFIG_MTD_DC21285 is not set
-# CONFIG_MTD_IQ80310 is not set
 # CONFIG_MTD_DBOX2 is not set
 # CONFIG_MTD_CSTM_MIPS_IXX is not set
 # CONFIG_MTD_CFI_FLAGADM is not set
@@ -201,6 +192,7 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
+# CONFIG_MD_MULTIPATH is not set
 # CONFIG_BLK_DEV_LVM is not set
 
 #
@@ -252,6 +244,7 @@ CONFIG_IP_PNP_BOOTP=y
 #
 # CONFIG_PHONE is not set
 # CONFIG_PHONE_IXJ is not set
+# CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
 # ATA/IDE/MFM/RLL support
@@ -337,12 +330,15 @@ CONFIG_IDE_CHIPSETS=y
 # CONFIG_BLK_DEV_DTC2278 is not set
 # CONFIG_BLK_DEV_HT6560B is not set
 # CONFIG_BLK_DEV_PDC4030 is not set
-# CONFIG_BLK_DEV_QD6580 is not set
+# CONFIG_BLK_DEV_QD65XX is not set
 # CONFIG_BLK_DEV_UMC8672 is not set
 CONFIG_IDEDMA_AUTO=y
 # CONFIG_IDEDMA_IVB is not set
 # CONFIG_DMA_NONPCI is not set
 CONFIG_BLK_DEV_IDE_MODES=y
+# CONFIG_BLK_DEV_ATARAID is not set
+# CONFIG_BLK_DEV_ATARAID_PDC is not set
+# CONFIG_BLK_DEV_ATARAID_HPT is not set
 
 #
 # SCSI support
@@ -377,7 +373,6 @@ CONFIG_NETDEVICES=y
 # Ethernet (10 or 100Mbit)
 #
 CONFIG_NET_ETHERNET=y
-# CONFIG_ARM_AM79C961A is not set
 # CONFIG_SUNLANCE is not set
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNBMAC is not set
@@ -425,9 +420,9 @@ CONFIG_8139TOO=y
 # Ethernet (1000 Mbit)
 #
 # CONFIG_ACENIC is not set
-# CONFIG_ACENIC_OMIT_TIGON_I is not set
 # CONFIG_DL2K is not set
 # CONFIG_MYRI_SBUS is not set
+# CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_SK98LIN is not set
@@ -486,6 +481,10 @@ CONFIG_SERIAL_CONSOLE=y
 CONFIG_QTRONIX_KEYBOARD=y
 # CONFIG_IT8172_SCR0 is not set
 # CONFIG_IT8172_SCR1 is not set
+CONFIG_QTRONIX_KEYBOARD=y
+CONFIG_IT8172_CIR=y
+# CONFIG_IT8172_SCR0 is not set
+# CONFIG_IT8172_SCR1 is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
 
@@ -503,7 +502,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # Joysticks
 #
-# CONFIG_JOYSTICK is not set
+# CONFIG_INPUT_GAMEPORT is not set
+
+#
+# Input core support is needed for gameports
+#
 
 #
 # Input core support is needed for joysticks
@@ -623,6 +626,10 @@ CONFIG_MSDOS_PARTITION=y
 # Input core support
 #
 # CONFIG_INPUT is not set
+# CONFIG_INPUT_KEYBDEV is not set
+# CONFIG_INPUT_MOUSEDEV is not set
+# CONFIG_INPUT_JOYDEV is not set
+# CONFIG_INPUT_EVDEV is not set
 
 #
 # Kernel hacking

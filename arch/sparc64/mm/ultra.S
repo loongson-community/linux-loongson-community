@@ -1,4 +1,4 @@
-/* $Id: ultra.S,v 1.54 2001/03/22 07:26:04 davem Exp $
+/* $Id: ultra.S,v 1.57 2001/09/06 19:27:17 kanoj Exp $
  * ultra.S: Don't expand these all over the place...
  *
  * Copyright (C) 1997, 2000 David S. Miller (davem@redhat.com)
@@ -9,6 +9,7 @@
 #include <asm/pgtable.h>
 #include <asm/page.h>
 #include <asm/spitfire.h>
+#include <asm/mmu_context.h>
 
 	/* Basically, all this madness has to do with the
 	 * fact that Cheetah does not support IMMU flushes
@@ -32,7 +33,7 @@
 	.text
 	.align		32
 	.globl		__flush_tlb_page, __flush_tlb_mm, __flush_tlb_range
-__flush_tlb_page: /* %o0=(ctx & 0x3ff), %o1=page&PAGE_MASK, %o2=SECONDARY_CONTEXT */
+__flush_tlb_page: /* %o0=(ctx & TAG_CONTEXT_BITS), %o1=page&PAGE_MASK, %o2=SECONDARY_CONTEXT */
 /*IC1*/	BRANCH_IF_CHEETAH(g2, g3, __cheetah_flush_tlb_page)
 __spitfire_flush_tlb_page:
 /*IC2*/	ldxa		[%o2] ASI_DMMU, %g2
@@ -60,7 +61,7 @@ __cheetah_flush_tlb_page:
 	 wrpr		%g5, 0x0, %pstate
 	nop
 	nop
-__flush_tlb_mm: /* %o0=(ctx & 0x3ff), %o1=SECONDARY_CONTEXT */
+__flush_tlb_mm: /* %o0=(ctx & TAG_CONTEXT_BITS), %o1=SECONDARY_CONTEXT */
 /*IC5*/	BRANCH_IF_CHEETAH(g2, g3, __cheetah_flush_tlb_mm)
 __spitfire_flush_tlb_mm:
 /*IC6*/	ldxa		[%o1] ASI_DMMU, %g2
@@ -88,7 +89,7 @@ __cheetah_flush_tlb_mm:
 	retl
 	 wrpr		%g5, 0x0, %pstate
 	nop
-__flush_tlb_range: /* %o0=(ctx&0x3ff), %o1=start&PAGE_MASK, %o2=SECONDARY_CONTEXT,
+__flush_tlb_range: /* %o0=(ctx&TAG_CONTEXT_BITS), %o1=start&PAGE_MASK, %o2=SECONDARY_CONTEXT,
 		    * %o3=end&PAGE_MASK, %o4=PAGE_SIZE, %o5=(end - start)
 		    */
 /*IC9*/	BRANCH_IF_CHEETAH(g2, g3, __cheetah_flush_tlb_range)
@@ -96,7 +97,7 @@ __spitfire_flush_tlb_range:
 #define TLB_MAGIC	207 /* Students, do you know how I calculated this?  -DaveM */
 /*IC10*/cmp		%o5, %o4
 	bleu,pt		%xcc, __flush_tlb_page
-	 srlx		%o5, 13, %g5
+	 srlx		%o5, PAGE_SHIFT, %g5
 	cmp		%g5, TLB_MAGIC
 	bgeu,pn		%icc, __spitfire_flush_tlb_range_constant_time
 	 or		%o1, 0x10, %g5
@@ -124,18 +125,18 @@ __spitfire_flush_tlb_range_constant_time: /* %o0=ctx, %o1=start, %o3=end */
 	flush		%g6
 
 1:	ldxa		[%g2] ASI_ITLB_TAG_READ, %o4
-	and		%o4, 0x3ff, %o5
+	and		%o4, TAG_CONTEXT_BITS, %o5
 	cmp		%o5, %o0
 	bne,pt		%icc, 2f
-/*IC13*/ andn		%o4, 0x3ff, %o4
+/*IC13*/ andn		%o4, TAG_CONTEXT_BITS, %o4
 	cmp		%o4, %o1
 	blu,pt		%xcc, 2f
 	 cmp		%o4, %o3
 	blu,pn		%xcc, 4f
 2:	 ldxa		[%g2] ASI_DTLB_TAG_READ, %o4
-	and		%o4, 0x3ff, %o5
+	and		%o4, TAG_CONTEXT_BITS, %o5
 	cmp		%o5, %o0
-/*IC14*/andn		%o4, 0x3ff, %o4
+/*IC14*/andn		%o4, TAG_CONTEXT_BITS, %o4
 	bne,pt		%icc, 3f
 	 cmp		%o4, %o1
 	blu,pt		%xcc, 3f
@@ -302,7 +303,7 @@ __flush_dcache_page:	/* %o0=kaddr, %o1=flush_icache */
 	 nop
 
 flush_dcpage_cheetah:
-	sethi		%hi(8192), %o4
+	sethi		%hi(PAGE_SIZE), %o4
 1:	subcc		%o4, (1 << 5), %o4
 	stxa		%g0, [%o0 + %o4] ASI_DCACHE_INVALIDATE
 	membar		#Sync
@@ -387,14 +388,14 @@ __prefill_itlb:
 	.globl		__update_mmu_cache
 __update_mmu_cache:	/* %o0=vma, %o1=address, %o2=pte */
 	ldub		[%g6 + AOFF_task_thread + AOFF_thread_fault_code], %o3
-	srlx		%o1, 13, %o1
+	srlx		%o1, PAGE_SHIFT, %o1
 	ldx		[%o0 + 0x0], %o4		/* XXX vma->vm_mm */
 	brz,pn		%o3, 1f
-	 sllx		%o1, 13, %o0
+	 sllx		%o1, PAGE_SHIFT, %o0
 	ldx		[%o4 + AOFF_mm_context], %o5
 	andcc		%o3, FAULT_CODE_DTLB, %g0
 	mov		%o2, %o1
-	and		%o5, 0x3ff, %o5
+	and		%o5, TAG_CONTEXT_BITS, %o5
 	bne,pt		%xcc, __prefill_dtlb
 	 or		%o0, %o5, %o0
 	ba,a,pt		%xcc, __prefill_itlb
@@ -440,13 +441,13 @@ xcall_flush_tlb_mm:
 	retry
 
 xcall_flush_tlb_range:
-	sethi		%hi(8192 - 1), %g2
-	or		%g2, %lo(8192 - 1), %g2
+	sethi		%hi(PAGE_SIZE - 1), %g2
+	or		%g2, %lo(PAGE_SIZE - 1), %g2
 	andn		%g1, %g2, %g1
 	andn		%g7, %g2, %g7
 	sub		%g7, %g1, %g3
 	add		%g2, 1, %g2
-	srlx		%g3, 13, %g4
+	srlx		%g3, PAGE_SHIFT, %g4
 	cmp		%g4, 96
 
 	bgu,pn		%icc, xcall_flush_tlb_mm

@@ -7,12 +7,12 @@ extern unsigned long event;
 
 #include <linux/config.h>
 #include <linux/binfmts.h>
-#include <linux/personality.h>
 #include <linux/threads.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/times.h>
 #include <linux/timex.h>
+#include <linux/rbtree.h>
 
 #include <asm/system.h>
 #include <asm/semaphore.h>
@@ -26,6 +26,8 @@ extern unsigned long event;
 #include <linux/signal.h>
 #include <linux/securebits.h>
 #include <linux/fs_struct.h>
+
+struct exec_domain;
 
 /*
  * cloning flags:
@@ -199,12 +201,9 @@ struct files_struct {
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
 
-/* Number of map areas at which the AVL tree is activated. This is arbitrary. */
-#define AVL_MIN_MAP_COUNT	32
-
 struct mm_struct {
 	struct vm_area_struct * mmap;		/* list of VMAs */
-	struct vm_area_struct * mmap_avl;	/* tree of VMAs */
+	rb_root_t mm_rb;
 	struct vm_area_struct * mmap_cache;	/* last find_vma result */
 	pgd_t * pgd;
 	atomic_t mm_users;			/* How many users with user space? */
@@ -236,13 +235,10 @@ extern int mmlist_nr;
 
 #define INIT_MM(name) \
 {			 				\
-	mmap:		&init_mmap, 			\
-	mmap_avl:	NULL, 				\
-	mmap_cache:	NULL, 				\
+	mm_rb:		RB_ROOT,			\
 	pgd:		swapper_pg_dir, 		\
 	mm_users:	ATOMIC_INIT(2), 		\
 	mm_count:	ATOMIC_INIT(1), 		\
-	map_count:	1, 				\
 	mmap_sem:	__RWSEM_INITIALIZER(name.mmap_sem), \
 	page_table_lock: SPIN_LOCK_UNLOCKED, 		\
 	mmlist:		LIST_HEAD_INIT(name.mmlist),	\
@@ -319,6 +315,8 @@ struct task_struct {
 
 	struct task_struct *next_task, *prev_task;
 	struct mm_struct *active_mm;
+	struct list_head local_pages;
+	unsigned int allocation_order, nr_local_pages;
 
 /* task state */
 	struct linux_binfmt *binfmt;
@@ -415,6 +413,7 @@ struct task_struct {
 #define PF_DUMPCORE	0x00000200	/* dumped core */
 #define PF_SIGNALED	0x00000400	/* killed by a signal */
 #define PF_MEMALLOC	0x00000800	/* Allocating memory */
+#define PF_FREE_PAGES	0x00002000	/* per process page freeing */
 
 #define PF_USEDFPU	0x00100000	/* task used FPU this quantum (SMP) */
 
@@ -426,6 +425,7 @@ struct task_struct {
 #define PT_TRACESYS	0x00000002
 #define PT_DTRACE	0x00000004	/* delayed trace (used on m68k, i386) */
 #define PT_TRACESYSGOOD	0x00000008
+#define PT_PTRACE_CAP	0x00000010	/* ptracer can follow suid-exec */
 
 /*
  * Limit the stack by to some sane default: root can always
@@ -436,6 +436,12 @@ struct task_struct {
 #define DEF_COUNTER	(10*HZ/100)	/* 100 ms time slice */
 #define MAX_COUNTER	(20*HZ/100)
 #define DEF_NICE	(0)
+
+
+/*
+ * The default (Linux) execution domain.
+ */
+extern struct exec_domain	default_exec_domain;
 
 /*
  *  INIT_TASK is used to set up the first task table, touch at
@@ -751,6 +757,7 @@ extern void exit_mm(struct task_struct *);
 extern void exit_files(struct task_struct *);
 extern void exit_sighand(struct task_struct *);
 
+extern void reparent_to_init(void);
 extern void daemonize(void);
 
 extern int do_execve(char *, char **, char **, struct pt_regs *);

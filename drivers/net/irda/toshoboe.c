@@ -510,6 +510,7 @@ static int
 toshoboe_net_open (struct net_device *dev)
 {
   struct toshoboe_cb *self;
+  char hwname[32];
 
   IRDA_DEBUG (4, __FUNCTION__ "()\n");
 
@@ -537,11 +538,13 @@ toshoboe_net_open (struct net_device *dev)
 
   /* Ready to play! */
   netif_start_queue(dev);  
+  /* Give self a hardware name */
+  sprintf(hwname, "Toshiba-FIR @ 0x%03x", self->base);
   /* 
    * Open new IrLAP layer instance, now that everything should be
    * initialized properly 
    */
-  self->irlap = irlap_open(dev, &self->qos);	
+  self->irlap = irlap_open(dev, &self->qos, hwname);	
 
   self->open = 1;
 	
@@ -695,7 +698,6 @@ toshoboe_probe (struct pci_dev *pci_dev, const struct pci_device_id *pdid)
 {
   struct toshoboe_cb *self;
   struct net_device *dev;
-  struct pm_dev *pmdev;
   int i = 0;
   int ok = 0;
   int err;
@@ -845,11 +847,6 @@ toshoboe_probe (struct pci_dev *pci_dev, const struct pci_device_id *pdid)
   }
   pci_set_drvdata(pci_dev,self);
 
-/*  pmdev = pm_register (PM_PCI_DEV, PM_PCI_ID(pci_dev), toshoboe_pmproc);
-  if (pmdev)
-	  pmdev->data = self;
-	  */
-
   printk (KERN_WARNING "ToshOboe: Using ");
 #ifdef ONETASK
   printk ("single");
@@ -948,9 +945,9 @@ static struct pci_driver toshoboe_pci_driver = {
 };
 
 int __init
-toshoboe_init (void) {
-  pci_module_init(&toshoboe_pci_driver);
-  return 0;
+toshoboe_init (void)
+{
+  return pci_module_init(&toshoboe_pci_driver);
 }
 
 void

@@ -277,6 +277,9 @@ static struct {
 #ifdef CONFIG_FB_TX3912
 	{ "tx3912", tx3912fb_init, NULL },
 #endif
+#ifdef CONFIG_FB_TX3912
+	{ "tx3912", tx3912fb_init, NULL },
+#endif
 #ifdef CONFIG_FB_E1355
 	{ "e1355fb", e1355fb_init, e1355fb_setup },
 #endif
@@ -309,6 +312,18 @@ static struct {
 
 #ifdef CONFIG_FB_MAXINE
 	{ "maxinefb", maxinefb_init, NULL },
+#endif
+
+
+#ifdef CONFIG_FB_PMAG_BA
+       { "pmagbafb", pmagbafb_init, pmagbafb_setup },
+#endif
+#ifdef CONFIG_FB_PMAGB_B
+        { "pmagbbfb", pmagbbfb_init, pmagbbfb_setup },
+#endif
+
+#ifdef CONFIG_FB_MAXINE
+        { "maxinefb", maxinefb_init, maxinefb_setup },
 #endif
 
 
@@ -614,7 +629,7 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE|_PAGE_GUARDED;
 #elif defined(__alpha__)
 	/* Caching is off in the I/O space quadrant by design.  */
-#elif defined(__i386__)
+#elif defined(__i386__) || defined(__x86_64__)
 	if (boot_cpu_data.x86 > 3)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
 #elif defined(__arm__) || defined(__mips__)

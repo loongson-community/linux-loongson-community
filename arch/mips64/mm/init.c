@@ -36,7 +36,9 @@
 #include <asm/sgialib.h>
 #endif
 #include <asm/mmu_context.h>
+#include <asm/tlb.h>
 
+mmu_gather_t mmu_gathers[NR_CPUS];
 unsigned long totalram_pages;
 
 void pgd_init(unsigned long page)

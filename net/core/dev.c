@@ -1217,10 +1217,9 @@ int netif_rx(struct sk_buff *skb)
 enqueue:
 			dev_hold(skb->dev);
 			__skb_queue_tail(&queue->input_pkt_queue,skb);
-			local_irq_restore(flags);
-
 			/* Runs from irqs or BH's, no need to wake BH */
-			__cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
+			cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
+			local_irq_restore(flags);
 #ifndef OFFLINE_SAMPLE
 			get_sample_stats(this_cpu);
 #endif
@@ -1529,10 +1528,9 @@ softnet_break:
 
 	local_irq_disable();
 	netdev_rx_stat[this_cpu].time_squeeze++;
-	local_irq_enable();
-
 	/* This already runs in BH context, no need to wake up BH's */
-	__cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
+	cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
+	local_irq_enable();
 
 	NET_PROFILE_LEAVE(softnet_process);
 	return;
@@ -2279,6 +2277,32 @@ int dev_ioctl(unsigned int cmd, void *arg)
 		 *	These ioctl calls:
 		 *	- require superuser power.
 		 *	- require strict serialization.
+		 *	- return a value
+		 */
+		 
+		case SIOCETHTOOL:
+		case SIOCGMIIPHY:
+		case SIOCGMIIREG:
+			if (!capable(CAP_NET_ADMIN))
+				return -EPERM;
+			dev_load(ifr.ifr_name);
+			dev_probe_lock();
+			rtnl_lock();
+			ret = dev_ifsioc(&ifr, cmd);
+			rtnl_unlock();
+			dev_probe_unlock();
+			if (!ret) {
+				if (colon)
+					*colon = ':';
+				if (copy_to_user(arg, &ifr, sizeof(struct ifreq)))
+					return -EFAULT;
+			}
+			return ret;
+
+		/*
+		 *	These ioctl calls:
+		 *	- require superuser power.
+		 *	- require strict serialization.
 		 *	- do not return a value
 		 */
 		 
@@ -2293,9 +2317,6 @@ int dev_ioctl(unsigned int cmd, void *arg)
 		case SIOCSIFHWBROADCAST:
 		case SIOCSIFTXQLEN:
 		case SIOCSIFNAME:
-		case SIOCETHTOOL:
-		case SIOCGMIIPHY:
-		case SIOCGMIIREG:
 		case SIOCSMIIREG:
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
@@ -2424,8 +2445,12 @@ int register_netdevice(struct net_device *dev)
 	dev->iflink = -1;
 
 	/* Init, if this function is available */
-	if (dev->init && dev->init(dev) != 0)
+	if (dev->init && dev->init(dev) != 0) {
+#ifdef CONFIG_NET_DIVERT
+		free_divert_blk(dev);
+#endif
 		return -EIO;
+	}
 
 	dev->ifindex = dev_new_index();
 	if (dev->iflink == -1)
@@ -2434,6 +2459,9 @@ int register_netdevice(struct net_device *dev)
 	/* Check for existence, and append to tail of chain */
 	for (dp=&dev_base; (d=*dp) != NULL; dp=&d->next) {
 		if (d == dev || strcmp(d->name, dev->name) == 0) {
+#ifdef CONFIG_NET_DIVERT
+			free_divert_blk(dev);
+#endif
 			return -EEXIST;
 		}
 	}

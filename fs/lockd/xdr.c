@@ -91,6 +91,7 @@ nlm_decode_fh(u32 *p, struct nfs_fh *f)
 		return NULL;
 	}
 	f->size = NFS2_FHSIZE;
+	memset(f->data, 0, sizeof(f->data));
 	memcpy(f->data, p, NFS2_FHSIZE);
 	return p + XDR_QUADLEN(NFS2_FHSIZE);
 }
@@ -124,7 +125,9 @@ nlm_decode_lock(u32 *p, struct nlm_lock *lock)
 	struct file_lock	*fl = &lock->fl;
 	s32			start, len, end;
 
-	if (!(p = xdr_decode_string(p, &lock->caller, &len, NLM_MAXSTRLEN))
+	if (!(p = xdr_decode_string_inplace(p, &lock->caller,
+					    &lock->len,
+					    NLM_MAXSTRLEN))
 	 || !(p = nlm_decode_fh(p, &lock->fh))
 	 || !(p = nlm_decode_oh(p, &lock->oh)))
 		return NULL;
@@ -311,14 +314,14 @@ int
 nlmsvc_decode_shareargs(struct svc_rqst *rqstp, u32 *p, nlm_args *argp)
 {
 	struct nlm_lock	*lock = &argp->lock;
-	int		len;
 
 	memset(lock, 0, sizeof(*lock));
 	locks_init_lock(&lock->fl);
 	lock->fl.fl_pid = ~(u32) 0;
 
 	if (!(p = nlm_decode_cookie(p, &argp->cookie))
-	 || !(p = xdr_decode_string(p, &lock->caller, &len, NLM_MAXSTRLEN))
+	 || !(p = xdr_decode_string_inplace(p, &lock->caller,
+					    &lock->len, NLM_MAXSTRLEN))
 	 || !(p = nlm_decode_fh(p, &lock->fh))
 	 || !(p = nlm_decode_oh(p, &lock->oh)))
 		return 0;
@@ -350,9 +353,9 @@ int
 nlmsvc_decode_notify(struct svc_rqst *rqstp, u32 *p, struct nlm_args *argp)
 {
 	struct nlm_lock	*lock = &argp->lock;
-	int		len;
 
-	if (!(p = xdr_decode_string(p, &lock->caller, &len, NLM_MAXSTRLEN)))
+	if (!(p = xdr_decode_string_inplace(p, &lock->caller,
+					    &lock->len, NLM_MAXSTRLEN)))
 		return 0;
 	argp->state = ntohl(*p++);
 	return xdr_argsize_check(rqstp, p);
@@ -361,7 +364,7 @@ nlmsvc_decode_notify(struct svc_rqst *rqstp, u32 *p, struct nlm_args *argp)
 int
 nlmsvc_decode_reboot(struct svc_rqst *rqstp, u32 *p, struct nlm_reboot *argp)
 {
-	if (!(p = xdr_decode_string(p, &argp->mon, &argp->len, SM_MAXSTRLEN)))
+	if (!(p = xdr_decode_string_inplace(p, &argp->mon, &argp->len, SM_MAXSTRLEN)))
 		return 0;
 	argp->state = ntohl(*p++);
 	argp->addr = ntohl(*p++);

@@ -34,6 +34,7 @@
 #include <linux/pagemap.h>
 #include <linux/highmem.h>
 #include <linux/spinlock.h>
+#include <linux/personality.h>
 #define __NO_VERSION__
 #include <linux/module.h>
 
@@ -44,6 +45,8 @@
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
 #endif
+
+int core_uses_pid;
 
 static struct linux_binfmt *formats;
 static rwlock_t binfmt_lock = RW_LOCK_UNLOCKED;
@@ -159,11 +162,9 @@ static int count(char ** argv, int max)
 	if (argv != NULL) {
 		for (;;) {
 			char * p;
-			int error;
 
-			error = get_user(p,argv);
-			if (error)
-				return error;
+			if (get_user(p, argv))
+				return -EFAULT;
 			if (!p)
 				break;
 			argv++;
@@ -186,7 +187,7 @@ int copy_strings(int argc,char ** argv, struct linux_binprm *bprm)
 		int len;
 		unsigned long pos;
 
-		if (get_user(str, argv+argc) || !str || !(len = strnlen_user(str, bprm->p))) 
+		if (get_user(str, argv+argc) || !(len = strnlen_user(str, bprm->p)))
 			return -EFAULT;
 		if (bprm->p < len) 
 			return -E2BIG; 
@@ -262,7 +263,7 @@ void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long a
 	pte_t * pte;
 
 	if (page_count(page) != 1)
-		printk("mem_map disagrees with %p at %08lx\n", page, address);
+		printk(KERN_ERR "mem_map disagrees with %p at %08lx\n", page, address);
 	pgd = pgd_offset(tsk->mm, address);
 
 	spin_lock(&tsk->mm->page_table_lock);
@@ -347,8 +348,11 @@ struct file *open_exec(const char *name)
 	if (!err) {
 		inode = nd.dentry->d_inode;
 		file = ERR_PTR(-EACCES);
-		if (!IS_NOEXEC(inode) && S_ISREG(inode->i_mode)) {
+		if (!(nd.mnt->mnt_flags & MNT_NOEXEC) &&
+		    S_ISREG(inode->i_mode)) {
 			int err = permission(inode, MAY_EXEC);
+			if (!err && !(inode->i_mode & 0111))
+				err = -EACCES;
 			file = ERR_PTR(err);
 			if (!err) {
 				file = dentry_open(nd.dentry, nd.mnt, O_RDONLY);
@@ -580,9 +584,10 @@ int flush_old_exec(struct linux_binprm * bprm)
 mmap_failed:
 flush_failed:
 	spin_lock_irq(&current->sigmask_lock);
-	if (current->sig != oldsig)
+	if (current->sig != oldsig) {
 		kfree(current->sig);
-	current->sig = oldsig;
+		current->sig = oldsig;
+	}
 	spin_unlock_irq(&current->sigmask_lock);
 	return retval;
 }
@@ -593,7 +598,7 @@ flush_failed:
  */
 static inline int must_not_trace_exec(struct task_struct * p)
 {
-	return (p->ptrace & PT_PTRACED) && !cap_raised(p->p_pptr->cap_effective, CAP_SYS_PTRACE);
+	return (p->ptrace & PT_PTRACED) && !(p->ptrace & PT_PTRACE_CAP);
 }
 
 /* 
@@ -606,7 +611,10 @@ int prepare_binprm(struct linux_binprm *bprm)
 	struct inode * inode = bprm->file->f_dentry->d_inode;
 
 	mode = inode->i_mode;
-	/* Huh? We had already checked for MAY_EXEC, WTF do we check this? */
+	/*
+	 * Check execute perms again - if the caller has CAP_DAC_OVERRIDE,
+	 * vfs_permission lets a non-executable through
+	 */
 	if (!(mode & 0111))	/* with at least _one_ execute bit set */
 		return -EACCES;
 	if (bprm->file->f_op == NULL)
@@ -615,7 +623,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 	bprm->e_uid = current->euid;
 	bprm->e_gid = current->egid;
 
-	if(!IS_NOSUID(inode)) {
+	if(!(bprm->file->f_vfsmnt->mnt_flags & MNT_NOSUID)) {
 		/* Set-uid? */
 		if (mode & S_ISUID)
 			bprm->e_uid = inode->i_uid;
@@ -924,7 +932,7 @@ void set_binfmt(struct linux_binfmt *new)
 int do_coredump(long signr, struct pt_regs * regs)
 {
 	struct linux_binfmt * binfmt;
-	char corename[6+sizeof(current->comm)];
+	char corename[6+sizeof(current->comm)+10];
 	struct file * file;
 	struct inode * inode;
 	int retval = 0;
@@ -940,11 +948,9 @@ int do_coredump(long signr, struct pt_regs * regs)
 		goto fail;
 
 	memcpy(corename,"core.", 5);
-#if 0
-	memcpy(corename+5,current->comm,sizeof(current->comm));
-#else
 	corename[4] = '\0';
-#endif
+ 	if (core_uses_pid || atomic_read(&current->mm->mm_users) != 1)
+ 		sprintf(&corename[4], ".%d", current->pid);
 	file = filp_open(corename, O_CREAT | 2 | O_NOFOLLOW, 0600);
 	if (IS_ERR(file))
 		goto fail;

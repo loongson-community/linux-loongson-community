@@ -61,7 +61,8 @@ enum
 	CTL_FS=5,		/* Filesystems */
 	CTL_DEBUG=6,		/* Debugging */
 	CTL_DEV=7,		/* Devices */
-	CTL_BUS=8		/* Buses */
+	CTL_BUS=8,		/* Busses */
+	CTL_ABI=9		/* Binary emulation */
 };
 
 /* CTL_BUS names: */
@@ -118,7 +119,9 @@ enum
 	KERN_SHMPATH=48,	/* string: path to shm fs */
 	KERN_HOTPLUG=49,	/* string: path to hotplug policy agent */
 	KERN_IEEE_EMULATION_WARNINGS=50, /* int: unimplemented ieee instructions */
-	KERN_S390_USER_DEBUG_LOGGING=51  /* int: dumps of user faults */
+	KERN_S390_USER_DEBUG_LOGGING=51,  /* int: dumps of user faults */
+	KERN_CORE_USES_PID=52,		/* int: use core or core.%pid */
+	KERN_CADPID=54,		/* int: PID of the process to notify on CAD */
 };
 
 
@@ -281,6 +284,8 @@ enum
 	NET_TCP_APP_WIN=86,
 	NET_TCP_ADV_WIN_SCALE=87,
 	NET_IPV4_NONLOCAL_BIND=88,
+	NET_IPV4_ICMP_RATELIMIT=89,
+	NET_IPV4_ICMP_RATEMASK=90
 };
 
 enum {
@@ -470,6 +475,7 @@ enum {
 	NET_DECNET_DR_COUNT = 8,
 	NET_DECNET_DST_GC_INTERVAL = 9,
 	NET_DECNET_CONF = 10,
+	NET_DECNET_NO_FC_MAX_CWND = 11,
 	NET_DECNET_DEBUG_LEVEL = 255
 };
 
@@ -602,6 +608,17 @@ enum {
 	DEV_MAC_HID_MOUSE_BUTTON2_KEYCODE=4,
 	DEV_MAC_HID_MOUSE_BUTTON3_KEYCODE=5,
 	DEV_MAC_HID_ADB_MOUSE_SENDS_KEYCODES=6
+};
+
+/* /proc/sys/abi */
+enum
+{
+	ABI_DEFHANDLER_COFF=1,	/* default handler for coff binaries */
+	ABI_DEFHANDLER_ELF=2, 	/* default handler for ELF binaries */
+	ABI_DEFHANDLER_LCALL7=3,/* default handler for procs using lcall7 */
+	ABI_DEFHANDLER_LIBCSO=4,/* default handler for an libc.so ELF interp */
+	ABI_TRACE=5,		/* tracing flags */
+	ABI_FAKE_UTSNAME=6,	/* fake target utsname information */
 };
 
 #ifdef __KERNEL__

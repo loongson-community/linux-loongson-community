@@ -31,7 +31,7 @@ else
   endif
 endif
 
-export-objs	:= scsi_syms.o
+export-objs	:= scsi_syms.o 53c700.o 53c700-mem.o
 
 CFLAGS_aha152x.o =   -DAHA152X_STAT -DAUTOCONF
 CFLAGS_gdth.o    = # -DDEBUG_GDTH=2 -D__SERIAL__ -D__COM2__ -DGDTH_STATISTICS
@@ -66,6 +66,7 @@ obj-$(CONFIG_SCSI_PCI2000)	+= pci2000.o
 obj-$(CONFIG_SCSI_PCI2220I)	+= pci2220i.o
 obj-$(CONFIG_SCSI_PSI240I)	+= psi240i.o
 obj-$(CONFIG_SCSI_BUSLOGIC)	+= BusLogic.o
+obj-$(CONFIG_SCSI_DPT_I2O)	+= dpt_i2o.o
 obj-$(CONFIG_SCSI_U14_34F)	+= u14-34f.o
 obj-$(CONFIG_SCSI_ULTRASTOR)	+= ultrastor.o
 obj-$(CONFIG_SCSI_AHA152X)	+= aha152x.o
@@ -81,6 +82,7 @@ obj-$(CONFIG_SCSI_FUTURE_DOMAIN)+= fdomain.o
 obj-$(CONFIG_SCSI_IN2000)	+= in2000.o
 obj-$(CONFIG_SCSI_GENERIC_NCR5380) += g_NCR5380.o
 obj-$(CONFIG_SCSI_NCR53C406A)	+= NCR53c406a.o
+obj-$(CONFIG_SCSI_NCR_D700)	+= NCR_D700.o 53c700.o
 obj-$(CONFIG_SCSI_SYM53C416)	+= sym53c416.o
 obj-$(CONFIG_SCSI_QLOGIC_FAS)	+= qlogicfas.o
 obj-$(CONFIG_SCSI_QLOGIC_ISP)	+= qlogicisp.o 
@@ -122,6 +124,8 @@ obj-$(CONFIG_JAZZ_ESP)		+= NCR53C9x.o	jazz_esp.o
 obj-$(CONFIG_SUN3X_ESP)		+= NCR53C9x.o	sun3x_esp.o
 obj-$(CONFIG_SCSI_DEBUG)	+= scsi_debug.o
 obj-$(CONFIG_SCSI_FCAL)		+= fcal.o
+obj-$(CONFIG_SCSI_CPQFCTS)	+= cpqfc.o
+obj-$(CONFIG_SCSI_LASI700)	+= lasi700.o 53c700-mem.o
 
 ifeq ($(CONFIG_ARCH_ACORN),y)
 mod-subdirs	+= ../acorn/scsi
@@ -135,7 +139,7 @@ obj-$(CONFIG_BLK_DEV_SD)	+= sd_mod.o
 obj-$(CONFIG_BLK_DEV_SR)	+= sr_mod.o
 obj-$(CONFIG_CHR_DEV_SG)	+= sg.o
 
-list-multi	:= scsi_mod.o sd_mod.o sr_mod.o initio.o a100u2w.o
+list-multi	:= scsi_mod.o sd_mod.o sr_mod.o initio.o a100u2w.o cpqfc.o
 scsi_mod-objs	:= scsi.o hosts.o scsi_ioctl.o constants.o \
 			scsicam.o scsi_proc.o scsi_error.o \
 			scsi_obsolete.o scsi_queue.o scsi_lib.o \
@@ -145,6 +149,7 @@ sd_mod-objs	:= sd.o
 sr_mod-objs	:= sr.o sr_ioctl.o sr_vendor.o
 initio-objs	:= ini9100u.o i91uscsi.o
 a100u2w-objs	:= inia100.o i60uscsi.o
+cpqfc-objs	:= cpqfcTSinit.o cpqfcTScontrol.o cpqfcTSi2c.o cpqfcTSworker.o cpqfcTStrigger.o
 
 include $(TOPDIR)/Rules.make
 
@@ -163,6 +168,9 @@ initio.o: $(initio-objs)
 
 a100u2w.o: $(a100u2w-objs)
 	$(LD) -r -o $@ $(a100u2w-objs)
+
+cpqfc.o: $(cpqfc-objs)
+	$(LD) -r -o $@ $(cpqfc-objs)
 
 53c8xx_d.h: 53c7,8xx.scr script_asm.pl
 	ln -sf 53c7,8xx.scr fake8.c
@@ -194,3 +202,17 @@ sim710_d.h: sim710.scr script_asm.pl
 sim710_u.h: sim710_d.h
 
 sim710.o : sim710_d.h
+
+53c700_d.h: 53c700.scr script_asm.pl
+	$(PERL) -s script_asm.pl -ncr7x0_family < 53c700.scr
+	rm -f scriptu.h
+	mv script.h 53c700_d.h
+
+53c700.o: 53c700_d.h
+
+53c700-mem.o: 53c700_d.h
+
+53c700-mem.c: 53c700.c
+	echo "/* WARNING: GENERATED FILE (from $<), DO NOT MODIFY */" > $@
+	echo "#define MEM_MAPPED" >> $@
+	cat $< >> $@

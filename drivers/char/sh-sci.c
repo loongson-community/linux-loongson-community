@@ -44,7 +44,7 @@
 
 #include <linux/generic_serial.h>
 
-#ifdef CONFIG_DEBUG_KERNEL_WITH_GDB_STUB
+#ifdef CONFIG_SH_STANDARD_BIOS
 #include <asm/sh_bios.h>
 #endif
 
@@ -94,6 +94,7 @@ MODULE_PARM(sci_debug, "i");
 
 #define dprintk(x...) do { if (sci_debug) printk(x); } while(0)
 
+#ifdef CONFIG_SERIAL_CONSOLE
 static void put_char(struct sci_port *port, char c)
 {
 	unsigned long flags;
@@ -111,8 +112,9 @@ static void put_char(struct sci_port *port, char c)
 
 	restore_flags(flags);
 }
+#endif
 
-#ifdef CONFIG_DEBUG_KERNEL_WITH_GDB_STUB
+#ifdef CONFIG_SH_STANDARD_BIOS
 
 static void handle_error(struct sci_port *port)
 {				/* Clear error flags */
@@ -161,12 +163,12 @@ static __inline__ char lowhex(int  x)
  * This routine does not wait for a positive acknowledge.
  */
 
-static void put_string(struct sci_port *port,
-				  const char *buffer, int count)
+#ifdef CONFIG_SERIAL_CONSOLE
+static void put_string(struct sci_port *port, const char *buffer, int count)
 {
 	int i;
 	const unsigned char *p = buffer;
-#ifdef CONFIG_DEBUG_KERNEL_WITH_GDB_STUB
+#ifdef CONFIG_SH_STANDARD_BIOS
 	int checksum;
 
     	/* This call only does a trap the first time it is
@@ -202,7 +204,7 @@ static void put_string(struct sci_port *port,
 		put_char(port, *p++);
 	}
 }
-
+#endif
 
 
 static struct real_driver sci_real_driver = {
@@ -909,13 +911,10 @@ static int sci_ioctl(struct tty_struct * tty, struct file * filp,
 		              (unsigned int *) arg);
 		break;
 	case TIOCSSOFTCAR:
-		if ((rc = verify_area(VERIFY_READ, (void *) arg,
-		                      sizeof(int))) == 0) {
-			get_user(ival, (unsigned int *) arg);
+		if ((rc = get_user(ival, (unsigned int *) arg)) == 0)
 			tty->termios->c_cflag =
 				(tty->termios->c_cflag & ~CLOCAL) |
 				(ival ? CLOCAL : 0);
-		}
 		break;
 	case TIOCGSERIAL:
 		if ((rc = verify_area(VERIFY_WRITE, (void *) arg,
@@ -929,35 +928,23 @@ static int sci_ioctl(struct tty_struct * tty, struct file * filp,
 					  (struct serial_struct *) arg);
 		break;
 	case TIOCMGET:
-		if ((rc = verify_area(VERIFY_WRITE, (void *) arg,
-		                      sizeof(unsigned int))) == 0) {
-			ival = sci_getsignals(port);
-			put_user(ival, (unsigned int *) arg);
-		}
+		ival = sci_getsignals(port);
+		rc = put_user(ival, (unsigned int *) arg);
 		break;
 	case TIOCMBIS:
-		if ((rc = verify_area(VERIFY_READ, (void *) arg,
-		                      sizeof(unsigned int))) == 0) {
-			get_user(ival, (unsigned int *) arg);
+		if ((rc = get_user(ival, (unsigned int *) arg)) == 0)
 			sci_setsignals(port, ((ival & TIOCM_DTR) ? 1 : -1),
 			                     ((ival & TIOCM_RTS) ? 1 : -1));
-		}
 		break;
 	case TIOCMBIC:
-		if ((rc = verify_area(VERIFY_READ, (void *) arg,
-		                      sizeof(unsigned int))) == 0) {
-			get_user(ival, (unsigned int *) arg);
+		if ((rc = get_user(ival, (unsigned int *) arg)) == 0)
 			sci_setsignals(port, ((ival & TIOCM_DTR) ? 0 : -1),
 			                     ((ival & TIOCM_RTS) ? 0 : -1));
-		}
 		break;
 	case TIOCMSET:
-		if ((rc = verify_area(VERIFY_READ, (void *) arg,
-		                      sizeof(unsigned int))) == 0) {
-			get_user(ival, (unsigned int *)arg);
+		if ((rc = get_user(ival, (unsigned int *)arg)) == 0)
 			sci_setsignals(port, ((ival & TIOCM_DTR) ? 1 : 0),
 			                     ((ival & TIOCM_RTS) ? 1 : 0));
-		}
 		break;
 
 	default:
@@ -1144,22 +1131,25 @@ static void sci_free_irq(struct sci_port *port)
 	}
 }
 
+static char banner[] __initdata[] =
+	KERN_INFO "SuperH SCI(F) driver initialized\n";
+
 int __init sci_init(void)
 {
 	struct sci_port *port;
 	int j;
 
-	printk("SuperH SCI(F) driver initialized\n");
+	printk("%s", banner);
 
 	for (j=0; j<SCI_NPORTS; j++) {
 		port = &sci_ports[j];
-		printk("ttySC%d at 0x%08x is a %s\n", j, port->base,
+		printk(KERN_INFO "ttySC%d at 0x%08x is a %s\n", j, port->base,
 		       (port->type == PORT_SCI) ? "SCI" : "SCIF");
 	}
 
 	sci_init_drivers();
 
-#ifdef CONFIG_DEBUG_KERNEL_WITH_GDB_STUB
+#ifdef CONFIG_SH_STANDARD_BIOS
 	sh_bios_gdb_detach();
 #endif
 	return 0;		/* Return -EIO when not detected */

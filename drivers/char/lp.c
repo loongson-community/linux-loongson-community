@@ -543,7 +543,7 @@ static struct file_operations lp_fops = {
  * non-zero to get the latter behaviour. */
 #define CONSOLE_LP_STRICT 1
 
-/* The console_lock must be held when we get here. */
+/* The console must be locked when we get here. */
 
 static void lp_console_write (struct console *co, const char *s,
 			      unsigned count)
@@ -838,3 +838,6 @@ static void lp_cleanup_module (void)
 __setup("lp=", lp_setup);
 module_init(lp_init_module);
 module_exit(lp_cleanup_module);
+
+MODULE_LICENSE("GPL");
+EXPORT_NO_SYMBOLS;

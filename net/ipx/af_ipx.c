@@ -1890,7 +1890,7 @@ static int ipx_getsockopt(struct socket *sock, int level, int optname,
 	if (get_user(len, optlen))
 		goto out;
 
-	len = min(unsigned int, len, sizeof(int));
+	len = min_t(unsigned int, len, sizeof(int));
 	ret = -EINVAL;
 	if(len < 0)
 		goto out;
@@ -2536,7 +2536,7 @@ extern void destroy_8023_client(struct datalink_proto *);
 
 static unsigned char ipx_8022_type = 0xE0;
 static unsigned char ipx_snap_id[5] = { 0x0, 0x0, 0x0, 0x81, 0x37 };
-static const char banner[] __initdata =
+static char banner[] __initdata =
 	KERN_INFO "NET4: Linux IPX 0.47 for NET4.0\n"
 	KERN_INFO "IPX Portions Copyright (c) 1995 Caldera, Inc.\n" \
 	KERN_INFO "IPX Portions Copyright (c) 2000, 2001 Conectiva, Inc.\n";

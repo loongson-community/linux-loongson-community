@@ -180,7 +180,7 @@ extern __inline__ void pte_free_slow(pte_t *pte)
 	free_page((unsigned long)pte);
 }
 
-#define pte_free(pte)           pte_free_slow(pte)
+#define pte_free(pte)           pte_free_fast(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
 #define pgd_alloc(mm)           get_pgd_fast()
 

@@ -311,7 +311,7 @@ affs_remove_header(struct dentry *dentry)
 		goto done_unlock;
 	mark_buffer_dirty_inode(bh, inode);
 
-	affs_lock_dir(dir);
+	affs_unlock_dir(dir);
 
 	if (inode->i_nlink > 1)
 		retval = affs_remove_link(dentry);
@@ -507,7 +507,7 @@ affs_check_name(const unsigned char *name, int len)
 int
 affs_copy_name(unsigned char *bstr, struct dentry *dentry)
 {
-	int len = MIN(dentry->d_name.len, 30);
+	int len = min(dentry->d_name.len, 30u);
 
 	*bstr++ = len;
 	memcpy(bstr, dentry->d_name.name, len);

@@ -48,6 +48,7 @@
 /* Original author Chris Frantz - Compaq Computer Corporation */
 MODULE_AUTHOR("Compaq Computer Corporation");
 MODULE_DESCRIPTION("Driver for Compaq Smart2 Array Controllers");
+MODULE_LICENSE("GPL");
 
 #define MAJOR_NR COMPAQ_SMART2_MAJOR
 #include <linux/blk.h>
@@ -311,7 +312,6 @@ int __init init_module(void)
 void cleanup_module(void)
 {
 	int i;
-	struct gendisk *g;
 	char buff[4]; 
 
 	for(i=0; i<nr_ctlr; i++) {
@@ -335,16 +335,7 @@ void cleanup_module(void)
 			hba[i]->cmd_pool_dhandle);
 		kfree(hba[i]->cmd_pool_bits);
 
-		if (gendisk_head == &ida_gendisk[i]) {
-			gendisk_head = ida_gendisk[i].next;
-		} else {
-			for(g=gendisk_head; g; g=g->next) {
-				if (g->next == &ida_gendisk[i]) {
-					g->next = ida_gendisk[i].next;
-					break;
-				}
-			}
-		}
+		del_gendisk(&ida_gendisk[i]);
 	}
 	remove_proc_entry("cpqarray", proc_root_driver);
 	kfree(ida);
@@ -550,8 +541,7 @@ int __init cpqarray_init(void)
 		ida_gendisk[i].nr_real = 0; 
 	
 		/* Get on the disk list */
-		ida_gendisk[i].next = gendisk_head;
-		gendisk_head = &ida_gendisk[i];
+		add_gendisk(&ida_gendisk[i]);
 
 		init_timer(&hba[i]->timer);
 		hba[i]->timer.expires = jiffies + IDA_TIMER;
@@ -1227,9 +1217,9 @@ static int ida_ioctl(struct inode *inode, struct file *filep, unsigned int cmd, 
 	case IDAGETDRVINFO:
 		return copy_to_user(&io->c.drv,&hba[ctlr]->drv[dsk],sizeof(drv_info_t));
 	case BLKGETSIZE:
-		if (!arg) return -EINVAL;
-		put_user(ida[(ctlr<<CTLR_SHIFT)+MINOR(inode->i_rdev)].nr_sects, (long*)arg);
-		return 0;
+		return put_user(ida[(ctlr<<CTLR_SHIFT)+MINOR(inode->i_rdev)].nr_sects, (long*)arg);
+	case BLKGETSIZE64:
+		return put_user((u64)(ida[(ctlr<<CTLR_SHIFT)+MINOR(inode->i_rdev)].nr_sects) << 9, (u64*)arg);
 	case BLKRRPART:
 		return revalidate_logvol(inode->i_rdev, 1);
 	case IDAPASSTHRU:
@@ -1266,10 +1256,14 @@ static int ida_ioctl(struct inode *inode, struct file *filep, unsigned int cmd, 
 	}	
 
 	case BLKFLSBUF:
+	case BLKBSZSET:
+	case BLKBSZGET:
 	case BLKROSET:
 	case BLKROGET:
 	case BLKRASET:
 	case BLKRAGET:
+	case BLKELVGET:
+	case BLKELVSET:
 	case BLKPG:
 		return blk_ioctl(inode->i_rdev, cmd, arg);
 

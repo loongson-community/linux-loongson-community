@@ -1150,11 +1150,13 @@ static void fbcon_redraw(struct vc_data *conp, struct display *p,
 	    	}
 	    }
 	    scr_writew(c, d);
+	    console_conditional_schedule();
 	    s++;
 	    d++;
 	} while (s < le);
 	if (s > start)
 	    p->dispsw->putcs(conp, p, start, s - start, real_y(p, line), x);
+	console_conditional_schedule();
 	if (offset > 0)
 		line++;
 	else {
@@ -2206,6 +2208,10 @@ static int __init fbcon_show_logo( void )
 			    /* Some cards require 32bit access */
 			    fb_writel (val, dst);
 			    dst += 4;
+			} else if (bdepth == 2 && !((long)dst & 1)) {
+			    /* others require 16bit access */
+			    fb_writew (val,dst);
+			    dst +=2;
 			} else {
 #ifdef __LITTLE_ENDIAN
 			    for( i = 0; i < bdepth; ++i )
@@ -2280,6 +2286,10 @@ static int __init fbcon_show_logo( void )
 			/* Some cards require 32bit access */
 			fb_writel (val, dst);
 			dst += 4;
+		    } else if (bdepth == 2 && !((long)dst & 1)) {
+			/* others require 16bit access */
+			fb_writew (val,dst);
+			dst +=2;
 		    } else {
 #ifdef __LITTLE_ENDIAN
 			for( i = 0; i < bdepth; ++i )
@@ -2493,3 +2503,5 @@ EXPORT_SYMBOL(fbcon_redraw_bmove);
 EXPORT_SYMBOL(fbcon_redraw_clear);
 EXPORT_SYMBOL(fbcon_dummy);
 EXPORT_SYMBOL(fb_con);
+
+MODULE_LICENSE("GPL");

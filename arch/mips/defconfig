@@ -128,6 +128,7 @@ CONFIG_SYSCTL=y
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
+# CONFIG_MD_MULTIPATH is not set
 # CONFIG_BLK_DEV_LVM is not set
 
 #
@@ -184,6 +185,7 @@ CONFIG_IP_PNP_BOOTP=y
 #
 # CONFIG_PHONE is not set
 # CONFIG_PHONE_IXJ is not set
+# CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
 # SCSI support
@@ -221,6 +223,7 @@ CONFIG_SGIWD93_SCSI=y
 # CONFIG_SCSI_AHA1740 is not set
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
+# CONFIG_SCSI_DPT_I2O is not set
 # CONFIG_SCSI_ADVANSYS is not set
 # CONFIG_SCSI_IN2000 is not set
 # CONFIG_SCSI_AM53C974 is not set
@@ -237,6 +240,7 @@ CONFIG_SGIWD93_SCSI=y
 # CONFIG_SCSI_INITIO is not set
 # CONFIG_SCSI_INIA100 is not set
 # CONFIG_SCSI_NCR53C406A is not set
+# CONFIG_SCSI_NCR_D700 is not set
 # CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_PAS16 is not set
 # CONFIG_SCSI_PCI2000 is not set
@@ -268,7 +272,6 @@ CONFIG_NETDEVICES=y
 # Ethernet (10 or 100Mbit)
 #
 CONFIG_NET_ETHERNET=y
-# CONFIG_ARM_AM79C961A is not set
 # CONFIG_SUNLANCE is not set
 # CONFIG_SUNBMAC is not set
 # CONFIG_SUNQE is not set
@@ -287,9 +290,9 @@ CONFIG_SGISEEQ=y
 # Ethernet (1000 Mbit)
 #
 # CONFIG_ACENIC is not set
-# CONFIG_ACENIC_OMIT_TIGON_I is not set
 # CONFIG_DL2K is not set
 # CONFIG_MYRI_SBUS is not set
+# CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_SK98LIN is not set
@@ -365,7 +368,11 @@ CONFIG_PSMOUSE=y
 #
 # Joysticks
 #
-# CONFIG_JOYSTICK is not set
+# CONFIG_INPUT_GAMEPORT is not set
+
+#
+# Input core support is needed for gameports
+#
 
 #
 # Input core support is needed for joysticks
@@ -522,6 +529,10 @@ CONFIG_SGI_DS1286=y
 # Input core support
 #
 # CONFIG_INPUT is not set
+# CONFIG_INPUT_KEYBDEV is not set
+# CONFIG_INPUT_MOUSEDEV is not set
+# CONFIG_INPUT_JOYDEV is not set
+# CONFIG_INPUT_EVDEV is not set
 
 #
 # Kernel hacking

@@ -287,6 +287,7 @@ static void pd_eject( int unit);
 static struct hd_struct pd_hd[PD_DEVS];
 static int pd_sizes[PD_DEVS];
 static int pd_blocksizes[PD_DEVS];
+static int pd_maxsectors[PD_DEVS];
 
 #define PD_NAMELEN	8
 
@@ -343,16 +344,13 @@ static char *pd_errs[17] = { "ERR","INDEX","ECC","DRQ","SEEK","WRERR",
 extern struct block_device_operations pd_fops;
 
 static struct gendisk pd_gendisk = {
-        PD_MAJOR,       /* Major number */
-        PD_NAME,        /* Major name */
-        PD_BITS,        /* Bits to shift to get real from partition */
-        PD_PARTNS,      /* Number of partitions per real */
-        pd_hd,          /* hd struct */
-        pd_sizes,       /* block sizes */
-        0,              /* number */
-        NULL,           /* internal */
-        NULL,           /* next */
-	&pd_fops,       /* block device operations */
+	major:		PD_MAJOR,
+	major_name:	PD_NAME,
+	minor_shift:	PD_BITS,
+	max_p:		PD_PARTNS,
+	part:		pd_hd,
+	sizes:		pd_sizes,
+	fops:		&pd_fops,
 };
 
 static struct block_device_operations pd_fops = {
@@ -385,56 +383,6 @@ void pd_init_units( void )
 	}
 }
 
-static inline int pd_new_segment(request_queue_t *q, struct request *req, int max_segments)
-{
-	if (max_segments > cluster)
-		max_segments = cluster;
-
-	if (req->nr_segments < max_segments) {
-		req->nr_segments++;
-		return 1;
-	}
-	return 0;
-}
-
-static int pd_back_merge_fn(request_queue_t *q, struct request *req, 
-			    struct buffer_head *bh, int max_segments)
-{
-	if (req->bhtail->b_data + req->bhtail->b_size == bh->b_data)
-		return 1;
-	return pd_new_segment(q, req, max_segments);
-}
-
-static int pd_front_merge_fn(request_queue_t *q, struct request *req, 
-			     struct buffer_head *bh, int max_segments)
-{
-	if (bh->b_data + bh->b_size == req->bh->b_data)
-		return 1;
-	return pd_new_segment(q, req, max_segments);
-}
-
-static int pd_merge_requests_fn(request_queue_t *q, struct request *req,
-				struct request *next, int max_segments)
-{
-	int total_segments = req->nr_segments + next->nr_segments;
-	int same_segment;
-
-	if (max_segments > cluster)
-		max_segments = cluster;
-
-	same_segment = 0;
-	if (req->bhtail->b_data + req->bhtail->b_size == next->bh->b_data) {
-		total_segments--;
-		same_segment = 1;
-	}
-    
-	if (total_segments > max_segments)
-		return 0;
-
-	req->nr_segments = total_segments;
-	return 1;
-}
-
 int pd_init (void)
 
 {       int i;
@@ -448,18 +396,17 @@ int pd_init (void)
         }
 	q = BLK_DEFAULT_QUEUE(MAJOR_NR);
 	blk_init_queue(q, DEVICE_REQUEST);
-	q->back_merge_fn = pd_back_merge_fn;
-	q->front_merge_fn = pd_front_merge_fn;
-	q->merge_requests_fn = pd_merge_requests_fn;
         read_ahead[MAJOR_NR] = 8;       /* 8 sector (4kB) read ahead */
         
 	pd_gendisk.major = major;
 	pd_gendisk.major_name = name;
-	pd_gendisk.next = gendisk_head;
-	gendisk_head = &pd_gendisk;
+	add_gendisk(&pd_gendisk);
 
 	for(i=0;i<PD_DEVS;i++) pd_blocksizes[i] = 1024;
 	blksize_size[MAJOR_NR] = pd_blocksizes;
+
+	for(i=0;i<PD_DEVS;i++) pd_maxsectors[i] = cluster;
+	max_sectors[MAJOR_NR] = pd_maxsectors;
 
 	printk("%s: %s version %s, major %d, cluster %d, nice %d\n",
 		name,name,PD_VERSION,major,cluster,nice);
@@ -535,6 +482,8 @@ static int pd_ioctl(struct inode *inode,struct file *file,
                 if (err) return (err);
                 put_user(pd_hd[dev].nr_sects,(long *) arg);
                 return (0);
+            case BLKGETSIZE64:
+                return put_user((u64)pd_hd[dev].nr_sects << 9, (u64 *)arg);
             case BLKRRPART:
 		if (!capable(CAP_SYS_ADMIN))
 			return -EACCES;
@@ -642,12 +591,12 @@ void    cleanup_module(void)
 	int unit;
 
         devfs_unregister_blkdev(MAJOR_NR,name);
-        for(gdp=&gendisk_head;*gdp;gdp=&((*gdp)->next))
-                if (*gdp == &pd_gendisk) break;
-        if (*gdp) *gdp = (*gdp)->next;
+	del_gendisk(&pd_gendisk);
 
 	for (unit=0;unit<PD_UNITS;unit++) 
 	   if (PD.present) pi_release(PI);
+
+	max_sectors[MAJOR_NR] = NULL;
 }
 
 #endif

@@ -11,7 +11,7 @@
  *	at http://www.granch.com (English) or http://www.granch.ru (Russian)
  *
  *	This software may be used and distributed according to the terms
- *	of the GNU Public License.
+ *	of the GNU General Public License.
  *
  *
  *  5.0.1	Jun 22 2001
@@ -155,7 +155,9 @@ static int  enslave( struct net_device *, struct net_device * );
 static int  emancipate( struct net_device * );
 #endif
 
+#ifdef __i386__
 #define ASM_CRC 1
+#endif
 
 static const char  version[] =
 	"Granch SBNI12 driver ver 5.0.1  Jun 22 2001  Denis I.Timofeev.\n";
@@ -361,7 +363,7 @@ sbni_probe1( struct net_device  *dev,  unsigned long  ioaddr,  int  irq )
 	/* store MAC address (generate if that isn't known) */
 	*(u16 *)dev->dev_addr = htons( 0x00ff );
 	*(u32 *)(dev->dev_addr + 2) = htonl( 0x01000000 |
-		( (mac[num]  ?  mac[num]  :  (u32)dev->priv) & 0x00ffffff) );
+		( (mac[num]  ?  mac[num]  :  (u32)((long)dev->priv)) & 0x00ffffff) );
 
 	/* store link settings (speed, receive level ) */
 	nl->maxframe  = DEFAULT_FRAME_LEN;
@@ -659,7 +661,7 @@ download_data( struct net_device  *dev,  u32  *crc_p )
 	struct net_local  *nl    = (struct net_local *) dev->priv;
 	struct sk_buff    *skb	 = nl->tx_buf_p;
 
-	unsigned  len = min(unsigned int, skb->len - nl->outpos, nl->framelen);
+	unsigned  len = min_t(unsigned int, skb->len - nl->outpos, nl->framelen);
 
 	outsb( dev->base_addr + DAT, skb->data + nl->outpos, len );
 	*crc_p = calc_crc32( *crc_p, skb->data + nl->outpos, len );
@@ -760,7 +762,7 @@ interpret_ack( struct net_device  *dev,  unsigned  ack )
 			nl->outpos += nl->framelen;
 
 			if( --nl->tx_frameno )
-				nl->framelen = min(unsigned int,
+				nl->framelen = min_t(unsigned int,
 						   nl->maxframe,
 						   nl->tx_buf_p->len - nl->outpos);
 			else
@@ -1474,6 +1476,8 @@ MODULE_PARM(	mac,	"1-" __MODULE_STRING( SBNI_MAX_NUM_CARDS ) "i" );
 
 MODULE_PARM(	skip_pci_probe,	"i" );
 
+MODULE_LICENSE("GPL");
+
 
 int
 init_module( void )
@@ -1517,7 +1521,7 @@ cleanup_module( void )
 
 #else	/* MODULE */
 
-void __init
+static int __init
 sbni_setup( char  *p )
 {
 	int  n, parm;
@@ -1528,7 +1532,7 @@ sbni_setup( char  *p )
 	for( n = 0, parm = 0;  *p  &&  n < 8; ) {
 		(*dest[ parm ])[ n ] = simple_strtol( p, &p, 0 );
 		if( !*p  ||  *p == ')' )
-			return;
+			return 1;
 		if( *p == ';' )
 			++p, ++n, parm = 0;
 		else if( *p++ != ',' )
@@ -1539,6 +1543,7 @@ sbni_setup( char  *p )
 	}
 bad_param:
 	printk( KERN_ERR "Error in sbni kernel parameter!\n" );
+	return 0;
 }
 
 __setup( "sbni=", sbni_setup );

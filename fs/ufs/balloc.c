@@ -271,6 +271,7 @@ unsigned ufs_new_fragments (struct inode * inode, u32 * p, unsigned fragment,
 		if (!tmp) {
 			ufs_error (sb, "ufs_new_fragments", "internal error, "
 				"fragment %u, tmp %u\n", fragment, tmp);
+			unlock_super (sb);
 			return (unsigned)-1;
 		}
 		if (fragment < inode->u.ufs_i.i_lastfrag) {
@@ -312,7 +313,7 @@ unsigned ufs_new_fragments (struct inode * inode, u32 * p, unsigned fragment,
 			*p = SWAB32(result);
 			*err = 0;
 			inode->i_blocks += count << uspi->s_nspfshift;
-			inode->u.ufs_i.i_lastfrag = max(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
+			inode->u.ufs_i.i_lastfrag = max_t(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
 			NULLIFY_FRAGMENTS
 		}
 		unlock_super(sb);
@@ -327,7 +328,7 @@ unsigned ufs_new_fragments (struct inode * inode, u32 * p, unsigned fragment,
 	if (result) {
 		*err = 0;
 		inode->i_blocks += count << uspi->s_nspfshift;
-		inode->u.ufs_i.i_lastfrag = max(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
+		inode->u.ufs_i.i_lastfrag = max_t(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
 		NULLIFY_FRAGMENTS
 		unlock_super(sb);
 		UFSD(("EXIT, result %u\n", result))
@@ -380,7 +381,7 @@ unsigned ufs_new_fragments (struct inode * inode, u32 * p, unsigned fragment,
 		*p = SWAB32(result);
 		*err = 0;
 		inode->i_blocks += count << uspi->s_nspfshift;
-		inode->u.ufs_i.i_lastfrag = max(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
+		inode->u.ufs_i.i_lastfrag = max_t(u32, inode->u.ufs_i.i_lastfrag, fragment + count);
 		NULLIFY_FRAGMENTS
 		unlock_super(sb);
 		if (newcount < request)

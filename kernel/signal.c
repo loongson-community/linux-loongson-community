@@ -243,16 +243,16 @@ printk("SIG dequeue (%s:%d): %d ", current->comm, current->pid,
 #endif
 
 	sig = next_signal(current, mask);
-	if (current->notifier) {
-		if (sigismember(current->notifier_mask, sig)) {
-			if (!(current->notifier)(current->notifier_data)) {
-				current->sigpending = 0;
-				return 0;
+	if (sig) {
+		if (current->notifier) {
+			if (sigismember(current->notifier_mask, sig)) {
+				if (!(current->notifier)(current->notifier_data)) {
+					current->sigpending = 0;
+					return 0;
+				}
 			}
 		}
-	}
 
-	if (sig) {
 		if (!collect_signal(sig, &current->pending, info))
 			sig = 0;
 				
@@ -468,11 +468,6 @@ static inline void signal_wake_up(struct task_struct *t)
 {
 	t->sigpending = 1;
 
-	if (t->state & TASK_INTERRUPTIBLE) {
-		wake_up_process(t);
-		return;
-	}
-
 #ifdef CONFIG_SMP
 	/*
 	 * If the task is running on a different CPU 
@@ -489,6 +484,11 @@ static inline void signal_wake_up(struct task_struct *t)
 		smp_send_reschedule(t->processor);
 	spin_unlock(&runqueue_lock);
 #endif /* CONFIG_SMP */
+
+	if (t->state & TASK_INTERRUPTIBLE) {
+		wake_up_process(t);
+		return;
+	}
 }
 
 static int deliver_signal(int sig, struct siginfo *info, struct task_struct *t)
@@ -545,8 +545,6 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 	ret = deliver_signal(sig, info, t);
 out:
 	spin_unlock_irqrestore(&t->sigmask_lock, flags);
-	if ((t->state & TASK_INTERRUPTIBLE) && signal_pending(t))
-		wake_up_process(t);
 out_nolock:
 #if DEBUG_SIG
 printk(" %d -> %d\n", signal_pending(t), ret);

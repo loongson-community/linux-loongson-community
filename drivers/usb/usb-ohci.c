@@ -12,6 +12,7 @@
  * 
  * History:
  * 
+ * 2001/09/19 USB_ZERO_PACKET support (Jean Tourrilhes)
  * 2001/07/17 power management and pmac cleanup (Benjamin Herrenschmidt)
  * 2001/03/24 td/ed hashing to remove bus_to_virt (Steve Longerbeam);
  	pci_map_single (db)
@@ -537,6 +538,7 @@ static int sohci_submit_urb (urb_t * urb)
 	ed_t * ed;
 	urb_priv_t * urb_priv;
 	unsigned int pipe = urb->pipe;
+	int maxps = usb_maxpacket (urb->dev, pipe, usb_pipeout (pipe));
 	int i, size = 0;
 	unsigned long flags;
 	int bustime = 0;
@@ -579,6 +581,15 @@ static int sohci_submit_urb (urb_t * urb)
 	switch (usb_pipetype (pipe)) {
 		case PIPE_BULK:	/* one TD for every 4096 Byte */
 			size = (urb->transfer_buffer_length - 1) / 4096 + 1;
+
+			/* If the transfer size is multiple of the pipe mtu,
+			 * we may need an extra TD to create a empty frame
+			 * Jean II */
+			if ((urb->transfer_flags & USB_ZERO_PACKET) &&
+			    usb_pipeout (pipe) &&
+			    (urb->transfer_buffer_length != 0) && 
+			    ((urb->transfer_buffer_length % maxps) == 0))
+				size++;
 			break;
 		case PIPE_ISOCHRONOUS: /* number of packets from URB */
 			size = urb->number_of_packets;
@@ -1338,6 +1349,7 @@ static void td_submit_urb (urb_t * urb)
 	ohci_t * ohci = (ohci_t *) urb->dev->bus->hcpriv;
 	dma_addr_t data;
 	int data_len = urb->transfer_buffer_length;
+	int maxps = usb_maxpacket (urb->dev, urb->pipe, usb_pipeout (urb->pipe));
 	int cnt = 0; 
 	__u32 info = 0;
   	unsigned int toggle = 0;
@@ -1374,6 +1386,19 @@ static void td_submit_urb (urb_t * urb)
 				TD_CC | TD_DP_OUT : TD_CC | TD_R | TD_DP_IN ;
 			td_fill (ohci, info | (cnt? TD_T_TOGGLE:toggle), data, data_len, urb, cnt);
 			cnt++;
+
+			/* If the transfer size is multiple of the pipe mtu,
+			 * we may need an extra TD to create a empty frame
+			 * Note : another way to check this condition is
+			 * to test if(urb_priv->length > cnt) - Jean II */
+			if ((urb->transfer_flags & USB_ZERO_PACKET) &&
+			    usb_pipeout (urb->pipe) &&
+			    (urb->transfer_buffer_length != 0) && 
+			    ((urb->transfer_buffer_length % maxps) == 0)) {
+				td_fill (ohci, info | (cnt? TD_T_TOGGLE:toggle), 0, 0, urb, cnt);
+				cnt++;
+			}
+
 			if (!ohci->sleeping)
 				writel (OHCI_BLF, &ohci->regs->cmdstatus); /* start bulk list */
 			break;
@@ -1806,8 +1831,8 @@ static int rh_send_irq (ohci_t * ohci, void * rh_data, int rh_len)
   
 	if (ret > 0) { 
 		memcpy(rh_data, data,
-		       min(unsigned int, len,
-			   min(unsigned int, rh_len, sizeof(data))));
+		       min_t(unsigned int, len,
+			   min_t(unsigned int, rh_len, sizeof(data))));
 		return len;
 	}
 	return 0;
@@ -1989,16 +2014,16 @@ static int rh_submit_urb (urb_t * urb)
 		case RH_GET_DESCRIPTOR:
 			switch ((wValue & 0xff00) >> 8) {
 				case (0x01): /* device descriptor */
-					len = min(unsigned int,
+					len = min_t(unsigned int,
 						  leni,
-						  min(unsigned int,
+						  min_t(unsigned int,
 						      sizeof (root_hub_dev_des),
 						      wLength));
 					data_buf = root_hub_dev_des; OK(len);
 				case (0x02): /* configuration descriptor */
-					len = min(unsigned int,
+					len = min_t(unsigned int,
 						  leni,
-						  min(unsigned int,
+						  min_t(unsigned int,
 						      sizeof (root_hub_config_des),
 						      wLength));
 					data_buf = root_hub_config_des; OK(len);
@@ -2008,7 +2033,7 @@ static int rh_submit_urb (urb_t * urb)
 						data, wLength);
 					if (len > 0) {
 						data_buf = data;
-						OK(min(int, leni, len));
+						OK(min_t(int, leni, len));
 					}
 					// else fallthrough
 				default: 
@@ -2043,8 +2068,8 @@ static int rh_submit_urb (urb_t * urb)
 				data_buf [10] = data_buf [9] = 0xff;
 			    }
 				
-			    len = min(unsigned int, leni,
-				      min(unsigned int, data_buf [0], wLength));
+			    len = min_t(unsigned int, leni,
+				      min_t(unsigned int, data_buf [0], wLength));
 			    OK (len);
 			}
  
@@ -2061,7 +2086,7 @@ static int rh_submit_urb (urb_t * urb)
 	// ohci_dump_roothub (ohci, 0);
 #endif
 
-	len = min(int, len, leni);
+	len = min_t(int, len, leni);
 	if (data != data_buf)
 	    memcpy (data, data_buf, len);
   	urb->actual_length = len;
@@ -2864,3 +2889,4 @@ module_exit (ohci_hcd_cleanup);
 
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");

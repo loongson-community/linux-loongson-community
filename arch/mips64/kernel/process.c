@@ -15,6 +15,7 @@
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/mman.h>
+#include <linux/personality.h>
 #include <linux/sys.h>
 #include <linux/user.h>
 #include <linux/a.out.h>

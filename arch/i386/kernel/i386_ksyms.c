@@ -72,7 +72,7 @@ EXPORT_SYMBOL(get_cmos_time);
 EXPORT_SYMBOL(apm_info);
 EXPORT_SYMBOL(gdt);
 
-#ifdef CONFIG_IO_DEBUG
+#ifdef CONFIG_DEBUG_IOVIRT
 EXPORT_SYMBOL(__io_virt_debug);
 #endif
 
@@ -165,3 +165,13 @@ EXPORT_SYMBOL(empty_zero_page);
 #ifdef CONFIG_HAVE_DEC_LOCK
 EXPORT_SYMBOL(atomic_dec_and_lock);
 #endif
+
+#ifdef CONFIG_DEBUG_BUGVERBOSE
+EXPORT_SYMBOL(do_BUG);
+#endif
+
+#if defined(CONFIG_SONYPI) || defined(CONFIG_SONYPI_MODULE)
+extern int is_sony_vaio_laptop;
+EXPORT_SYMBOL(is_sony_vaio_laptop);
+#endif
+

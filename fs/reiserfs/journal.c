@@ -41,8 +41,6 @@
 **                      log blocks to hit disk if it doesn't want to.
 */
 
-#ifdef __KERNEL__
-
 #include <linux/config.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -60,13 +58,6 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/smp_lock.h>
-
-#else
-
-#include "nokernel.h"
-
-#endif
-
 
 /* the number of mounted filesystems.  This is used to decide when to
 ** start and kill the commit thread
@@ -755,6 +746,8 @@ reiserfs_panic(s, "journal-539: flush_commit_list: BAD count(%d) > orig_commit_l
   }
   atomic_set(&(jl->j_commit_flushing), 0) ;
   wake_up(&(jl->j_commit_wait)) ;
+  
+  s->s_dirt = 1 ;
   return 0 ;
 }
 
@@ -815,7 +808,7 @@ static void remove_all_from_journal_list(struct super_block *p_s_sb, struct reis
 ** called by flush_journal_list, before it calls remove_all_from_journal_list
 **
 */
-static int update_journal_header_block(struct super_block *p_s_sb, unsigned long offset, unsigned long trans_id) {
+static int _update_journal_header_block(struct super_block *p_s_sb, unsigned long offset, unsigned long trans_id) {
   struct reiserfs_journal_header *jh ;
   if (trans_id >= SB_JOURNAL(p_s_sb)->j_last_flush_trans_id) {
     if (buffer_locked((SB_JOURNAL(p_s_sb)->j_header_bh)))  {
@@ -834,12 +827,21 @@ static int update_journal_header_block(struct super_block *p_s_sb, unsigned long
     ll_rw_block(WRITE, 1, &(SB_JOURNAL(p_s_sb)->j_header_bh)) ;
     wait_on_buffer((SB_JOURNAL(p_s_sb)->j_header_bh)) ; 
     if (!buffer_uptodate(SB_JOURNAL(p_s_sb)->j_header_bh)) {
-      reiserfs_panic(p_s_sb, "journal-712: buffer write failed\n") ;
+      printk( "reiserfs: journal-837: IO error during journal replay\n" );
+      return -EIO ;
     }
   }
   return 0 ;
 }
 
+static int update_journal_header_block(struct super_block *p_s_sb, 
+                                       unsigned long offset, 
+				       unsigned long trans_id) {
+    if (_update_journal_header_block(p_s_sb, offset, trans_id)) {
+	reiserfs_panic(p_s_sb, "journal-712: buffer write failed\n") ;
+    }
+    return 0 ;
+}
 /* 
 ** flush any and all journal lists older than you are 
 ** can only be called from flush_journal_list
@@ -1374,6 +1376,9 @@ static int journal_transaction_is_valid(struct super_block *p_s_sb, struct buffe
   struct buffer_head *c_bh ;
   unsigned long offset ;
 
+  if (!d_bh)
+      return 0 ;
+
   desc = (struct reiserfs_journal_desc *)d_bh->b_data ;
   if (le32_to_cpu(desc->j_len) > 0 && !memcmp(desc->j_magic, JOURNAL_DESC_MAGIC, 8)) {
     if (oldest_invalid_trans_id && *oldest_invalid_trans_id && le32_to_cpu(desc->j_trans_id) > *oldest_invalid_trans_id) {
@@ -1641,8 +1646,6 @@ static int journal_read(struct super_block *p_s_sb) {
 
   if (continue_replay && is_read_only(p_s_sb->s_dev)) {
     printk("clm-2076: device is readonly, unable to replay log\n") ;
-    brelse(SB_JOURNAL(p_s_sb)->j_header_bh) ;
-    SB_JOURNAL(p_s_sb)->j_header_bh = NULL ;
     return -1 ;
   }
   if (continue_replay && (p_s_sb->s_flags & MS_RDONLY)) {
@@ -1734,9 +1737,14 @@ static int journal_read(struct super_block *p_s_sb) {
     printk("reiserfs: replayed %d transactions in %lu seconds\n", replay_count, 
 	    CURRENT_TIME - start) ;
   }
-  if (!is_read_only(p_s_sb->s_dev)) {
-    update_journal_header_block(p_s_sb, SB_JOURNAL(p_s_sb)->j_start, 
-                                SB_JOURNAL(p_s_sb)->j_last_flush_trans_id) ;
+  if (!is_read_only(p_s_sb->s_dev) && 
+       _update_journal_header_block(p_s_sb, SB_JOURNAL(p_s_sb)->j_start, 
+                                   SB_JOURNAL(p_s_sb)->j_last_flush_trans_id))
+  {
+      /* replay failed, caller must call free_journal_ram and abort
+      ** the mount
+      */
+      return -1 ;
   }
   return 0 ;
 }
@@ -2318,7 +2326,6 @@ int journal_end_sync(struct reiserfs_transaction_handle *th, struct super_block 
   return do_journal_end(th, p_s_sb, nblocks, COMMIT_NOW | WAIT) ;
 }
 
-#ifdef __KERNEL__
 int show_reiserfs_locks(void) {
 
   dump_journal_writers() ;
@@ -2338,7 +2345,6 @@ printk("journal lock is %d, join lock is %d, writers %d must wait is %d\n",
 #endif
   return 0 ;
 }
-#endif
 
 /*
 ** used to get memory back from async commits that are floating around
@@ -2374,7 +2380,6 @@ int flush_old_commits(struct super_block *p_s_sb, int immediate) {
   int count = 0;
   int start ; 
   time_t now ; 
-  int keep_dirty = 0 ;
   struct reiserfs_transaction_handle th ; 
 
   start =  SB_JOURNAL_LIST_INDEX(p_s_sb) ;
@@ -2383,10 +2388,6 @@ int flush_old_commits(struct super_block *p_s_sb, int immediate) {
   /* safety check so we don't flush while we are replaying the log during mount */
   if (SB_JOURNAL_LIST_INDEX(p_s_sb) < 0) {
     return 0  ;
-  }
-  if (!strcmp(current->comm, "kupdate")) {
-    immediate = 0 ;
-    keep_dirty = 1 ;
   }
   /* starting with oldest, loop until we get to the start */
   i = (SB_JOURNAL_LIST_INDEX(p_s_sb) + 1) % JOURNAL_LIST_COUNT ;
@@ -2412,7 +2413,6 @@ int flush_old_commits(struct super_block *p_s_sb, int immediate) {
     reiserfs_prepare_for_journal(p_s_sb, SB_BUFFER_WITH_SB(p_s_sb), 1) ;
     journal_mark_dirty(&th, p_s_sb, SB_BUFFER_WITH_SB(p_s_sb)) ;
     do_journal_end(&th, p_s_sb,1, COMMIT_NOW) ;
-    keep_dirty = 0 ;
   } else if (immediate) { /* belongs above, but I wanted this to be very explicit as a special case.  If they say to 
                              flush, we must be sure old transactions hit the disk too. */
     journal_join(&th, p_s_sb, 1) ;
@@ -2420,8 +2420,8 @@ int flush_old_commits(struct super_block *p_s_sb, int immediate) {
     journal_mark_dirty(&th, p_s_sb, SB_BUFFER_WITH_SB(p_s_sb)) ;
     do_journal_end(&th, p_s_sb,1, COMMIT_NOW | WAIT) ;
   }
-  keep_dirty |= reiserfs_journal_kupdate(p_s_sb) ;
-  return keep_dirty ;
+  reiserfs_journal_kupdate(p_s_sb) ;
+  return 0 ;
 }
 
 /*

@@ -212,9 +212,9 @@ static inline void copy_from_high_bh (struct buffer_head *to,
 
 	p_from = from->b_page;
 
-	vfrom = kmap_atomic(p_from, KM_BOUNCE_WRITE);
+	vfrom = kmap_atomic(p_from, KM_USER0);
 	memcpy(to->b_data, vfrom + bh_offset(from), to->b_size);
-	kunmap_atomic(vfrom, KM_BOUNCE_WRITE);
+	kunmap_atomic(vfrom, KM_USER0);
 }
 
 static inline void copy_to_high_bh_irq (struct buffer_head *to,
@@ -273,6 +273,13 @@ static inline void bounce_end_io (struct buffer_head *bh, int uptodate)
 
 static __init int init_emergency_pool(void)
 {
+	struct sysinfo i;
+        si_meminfo(&i);
+        si_swapinfo(&i);
+        
+        if (!i.totalhigh)
+        	return 0;
+
 	spin_lock_irq(&emergency_lock);
 	while (nr_emergency_pages < POOL_SIZE) {
 		struct page * page = alloc_page(GFP_ATOMIC);
@@ -321,7 +328,7 @@ struct page *alloc_bounce_page (void)
 	struct page *page;
 
 repeat_alloc:
-	page = alloc_page(GFP_NOIO);
+	page = alloc_page(GFP_NOHIGHIO);
 	if (page)
 		return page;
 	/*
@@ -359,7 +366,7 @@ struct buffer_head *alloc_bounce_bh (void)
 	struct buffer_head *bh;
 
 repeat_alloc:
-	bh = kmem_cache_alloc(bh_cachep, SLAB_NOIO);
+	bh = kmem_cache_alloc(bh_cachep, SLAB_NOHIGHIO);
 	if (bh)
 		return bh;
 	/*

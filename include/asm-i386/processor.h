@@ -14,6 +14,7 @@
 #include <asm/types.h>
 #include <asm/sigcontext.h>
 #include <asm/cpufeature.h>
+#include <linux/cache.h>
 #include <linux/config.h>
 #include <linux/threads.h>
 
@@ -52,7 +53,7 @@ struct cpuinfo_x86 {
 	unsigned long *pmd_quick;
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;
-};
+} __attribute__((__aligned__(SMP_CACHE_BYTES)));
 
 #define X86_VENDOR_INTEL 0
 #define X86_VENDOR_CYRIX 1
@@ -88,6 +89,7 @@ extern struct cpuinfo_x86 cpu_data[];
 #define cpu_has_fxsr	(test_bit(X86_FEATURE_FXSR, boot_cpu_data.x86_capability))
 #define cpu_has_xmm	(test_bit(X86_FEATURE_XMM,  boot_cpu_data.x86_capability))
 #define cpu_has_fpu	(test_bit(X86_FEATURE_FPU,  boot_cpu_data.x86_capability))
+#define cpu_has_apic	(test_bit(X86_FEATURE_APIC, boot_cpu_data.x86_capability))
 
 extern char ignore_irq13;
 
@@ -391,9 +393,6 @@ struct thread_struct {
 	0,{~0,}			/* io permissions */		\
 }
 
-#define INIT_MMAP \
-{ &init_mm, 0, 0, NULL, PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
-
 #define INIT_TSS  {						\
 	0,0, /* back_link, __blh */				\
 	sizeof(init_stack) + (long) &init_stack, /* esp0 */	\
@@ -476,5 +475,33 @@ static inline void rep_nop(void)
 {
 	__asm__ __volatile__("rep;nop");
 }
+
+/* Prefetch instructions for Pentium III and AMD Athlon */
+#ifdef 	CONFIG_MPENTIUMIII
+
+#define ARCH_HAS_PREFETCH
+extern inline void prefetch(const void *x)
+{
+	__asm__ __volatile__ ("prefetchnta (%0)" : : "r"(x));
+}
+
+#elif CONFIG_X86_USE_3DNOW
+
+#define ARCH_HAS_PREFETCH
+#define ARCH_HAS_PREFETCHW
+#define ARCH_HAS_SPINLOCK_PREFETCH
+
+extern inline void prefetch(const void *x)
+{
+	 __asm__ __volatile__ ("prefetch (%0)" : : "r"(x));
+}
+
+extern inline void prefetchw(const void *x)
+{
+	 __asm__ __volatile__ ("prefetchw (%0)" : : "r"(x));
+}
+#define spin_lock_prefetch(x)	prefetchw(x)
+
+#endif
 
 #endif /* __ASM_I386_PROCESSOR_H */

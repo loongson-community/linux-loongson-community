@@ -38,7 +38,7 @@ static void init_file_inode(struct inode *inode, hfs_u8 fork)
 	struct hfs_fork *fk;
 	struct hfs_cat_entry *entry = HFS_I(inode)->entry;
 
-	if (!IS_NOEXEC(inode) && (fork == HFS_FK_DATA)) {
+	if (fork == HFS_FK_DATA) {
 		inode->i_mode = S_IRWXUGO | S_IFREG;
 	} else {
 		inode->i_mode = S_IRUGO | S_IWUGO | S_IFREG;
@@ -169,7 +169,9 @@ static int __hfs_notify_change(struct dentry *dentry, struct iattr * attr, int k
 			attr->ia_valid &= ~ATTR_SIZE;
 		}
 	}
-	inode_setattr(inode, attr);
+	error = inode_setattr(inode, attr);
+	if (error)
+		return error;
 
 	/* We wouldn't want to mess with the sizes of the other fork */
 	attr->ia_valid &= ~ATTR_SIZE;

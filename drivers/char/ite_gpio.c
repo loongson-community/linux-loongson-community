@@ -426,3 +426,5 @@ void __exit ite_gpio_exit(void)
 
 module_init(ite_gpio_init);
 module_exit(ite_gpio_exit);
+
+MODULE_LICENSE("GPL");

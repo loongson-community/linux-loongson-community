@@ -101,6 +101,7 @@
 
 MODULE_AUTHOR("Michael Zappe <zapman@interlan.net>, Stephane Alnet <stephane@u-picardie.fr> and Brad Hards <bhards@bigpond.net.au>");
 MODULE_DESCRIPTION("KL5USB101 USB Ethernet driver");
+MODULE_LICENSE("GPL");
 
 static void *kaweth_probe(
             struct usb_device *dev,             /* the device */
@@ -248,9 +249,9 @@ static int kaweth_control(struct kaweth_device *kaweth,
 	
 	dr->requesttype = requesttype;
 	dr->request = request;
-	dr->value = value;
-	dr->index = index;
-	dr->length = size;
+	dr->value = cpu_to_le16p(&value);
+	dr->index = cpu_to_le16p(&index);
+	dr->length = cpu_to_le16p(&size);
 
 	return kaweth_internal_control_msg(kaweth->dev,
 					pipe,
@@ -370,6 +371,9 @@ static int kaweth_download_firmware(struct kaweth_device *kaweth,
 	kaweth->firmware_buf[4] = type;
 	kaweth->firmware_buf[5] = interrupt;
 
+	kaweth_dbg("High: %i, Low:%i", kaweth->firmware_buf[3],
+		   kaweth->firmware_buf[2]);
+
 	kaweth_dbg("Downloading firmware at %x to kaweth device at %x", 
 	    (int)data, 
 	    (int)kaweth);
@@ -476,7 +480,7 @@ static void kaweth_usb_receive(struct urb *urb)
 	int count = urb->actual_length;
 	int count2 = urb->transfer_buffer_length;
 			
-	__u16 pkt_len = *(__u16 *)kaweth->rx_buf;
+	__u16 pkt_len = le16_to_cpup(kaweth->rx_buf);
 
 	struct sk_buff *skb;
 
@@ -608,7 +612,7 @@ static int kaweth_start_xmit(struct sk_buff *skb, struct net_device *net)
 	kaweth_async_set_rx_mode(kaweth);
 	netif_stop_queue(net);
 
-	*((__u16 *)kaweth->tx_buf) = skb->len;
+	*((__u16 *)kaweth->tx_buf) = cpu_to_le16(skb->len);
 
 	memcpy(kaweth->tx_buf + 2, skb->data, skb->len);
 
@@ -719,8 +723,6 @@ static void kaweth_tx_timeout(struct net_device *net)
 	net->trans_start = jiffies;
 
 	usb_unlink_urb(kaweth->tx_urb);
-
-	netif_wake_queue(net);
 }
 
 /****************************************************************
@@ -836,7 +838,7 @@ static void *kaweth_probe(
 
 	kaweth_info("Statistics collection: %x", kaweth->configuration.statistics_mask);
 	kaweth_info("Multicast filter limit: %x", kaweth->configuration.max_multicast_filters & ((1 << 15) - 1));
-	kaweth_info("MTU: %d", kaweth->configuration.segment_size);
+	kaweth_info("MTU: %d", le16_to_cpu(kaweth->configuration.segment_size));
 	kaweth_info("Read MAC address %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",
 		 (int)kaweth->configuration.hw_addr[0],
 		 (int)kaweth->configuration.hw_addr[1],
@@ -879,6 +881,10 @@ static void *kaweth_probe(
 	kaweth->rx_urb = usb_alloc_urb(0);
 
 	kaweth->net = init_etherdev(0, 0);
+	if (!kaweth->net) {
+		kaweth_err("Error calling init_etherdev.");
+		return kaweth;
+	}
 
 	memcpy(kaweth->net->broadcast, &bcast_addr, sizeof(bcast_addr));
 	memcpy(kaweth->net->dev_addr, 
@@ -896,7 +902,7 @@ static void *kaweth_probe(
 	kaweth->net->hard_start_xmit = kaweth_start_xmit;
 	kaweth->net->set_multicast_list = kaweth_set_rx_mode;
 	kaweth->net->get_stats = kaweth_netdev_stats;
-	kaweth->net->mtu = kaweth->configuration.segment_size;
+	kaweth->net->mtu = le16_to_cpu(kaweth->configuration.segment_size);
 
 	memset(&kaweth->stats, 0, sizeof(kaweth->stats));
 
@@ -1051,4 +1057,11 @@ void __exit kaweth_exit(void)
 
 module_init(kaweth_init);
 module_exit(kaweth_exit);
+
+
+
+
+
+
+
 

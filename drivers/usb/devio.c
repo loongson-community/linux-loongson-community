@@ -684,7 +684,7 @@ static int proc_connectinfo(struct dev_state *ps, void *arg)
 	struct usbdevfs_connectinfo ci;
 
 	ci.devnum = ps->dev->devnum;
-	ci.slow = ps->dev->slow;
+	ci.slow = ps->dev->speed == USB_SPEED_LOW;
 	if (copy_to_user(arg, &ci, sizeof(ci)))
 		return -EFAULT;
 	return 0;
@@ -1082,7 +1082,7 @@ static int proc_ioctl (struct dev_state *ps, void *arg)
 		if (retval == 0)
 			/* ifno might usefully be passed ... */
 			retval = ifp->driver->ioctl (ps->dev, ctrl.ioctl_code, buf);
-			/* size = min(int, size, retval)? */
+			/* size = min_t(int, size, retval)? */
 	}
 
 	/* cleanup and return */

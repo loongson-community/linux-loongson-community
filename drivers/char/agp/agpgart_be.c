@@ -38,6 +38,7 @@
 #include <linux/init.h>
 #include <linux/pagemap.h>
 #include <linux/miscdevice.h>
+#include <linux/pm.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -48,6 +49,7 @@
 
 MODULE_AUTHOR("Jeff Hartmann <jhartmann@precisioninsight.com>");
 MODULE_PARM(agp_try_unsupported, "1i");
+MODULE_LICENSE("GPL and additional rights");
 EXPORT_SYMBOL(agp_free_memory);
 EXPORT_SYMBOL(agp_allocate_memory);
 EXPORT_SYMBOL(agp_copy_info);
@@ -65,7 +67,7 @@ static int agp_try_unsupported __initdata = 0;
 
 static inline void flush_cache(void)
 {
-#if defined(__i386__)
+#if defined(__i386__) || defined(__x86_64__)
 	asm volatile ("wbinvd":::"memory");
 #elif defined(__alpha__) || defined(__ia64__) || defined(__sparc__)
 	/* ??? I wonder if we'll really need to flush caches, or if the
@@ -305,6 +307,9 @@ static int agp_return_size(void)
 
 void agp_copy_info(agp_kern_info * info)
 {
+	unsigned long page_mask = 0;
+	int i;
+
 	memset(info, 0, sizeof(agp_kern_info));
 	if (agp_bridge.type == NOT_SUPPORTED) {
 		info->chipset = agp_bridge.type;
@@ -319,6 +324,12 @@ void agp_copy_info(agp_kern_info * info)
 	info->aper_size = agp_return_size();
 	info->max_memory = agp_bridge.max_memory_agp;
 	info->current_memory = atomic_read(&agp_bridge.current_memory_agp);
+	info->cant_use_aperture = agp_bridge.cant_use_aperture;
+
+	for(i = 0; i < agp_bridge.num_of_masks; i++)
+		page_mask |= agp_bridge.mask_memory(page_mask, i);
+
+	info->page_mask = ~page_mask;
 }
 
 /* End - Routine to copy over information structure */
@@ -376,9 +387,9 @@ int agp_unbind_memory(agp_memory * curr)
 /* 
  * Driver routines - start
  * Currently this module supports the following chipsets:
- * i810, 440lx, 440bx, 440gx, i840, i850, via vp3, via mvp3, via kx133, 
- * via kt133, amd irongate, ALi M1541, and generic support for the SiS 
- * chipsets.
+ * i810, i815, 440lx, 440bx, 440gx, i840, i850, via vp3, via mvp3,
+ * via kx133, via kt133, amd irongate, amd 761, amd 762, ALi M1541,
+ * and generic support for the SiS chipsets.
  */
 
 /* Generic Agp routines - Start */
@@ -428,8 +439,8 @@ static void agp_generic_agp_enable(u32 mode)
 			/* adjust RQ depth */
 			command =
 			    ((command & ~0xff000000) |
-			     min(u32, (mode & 0xff000000),
-				 min(u32, (command & 0xff000000),
+			     min_t(u32, (mode & 0xff000000),
+				 min_t(u32, (command & 0xff000000),
 				     (scratch & 0xff000000))));
 
 			/* disable SBA if it's not supported */
@@ -627,6 +638,15 @@ static int agp_generic_create_gatt_table(void)
 	return 0;
 }
 
+static int agp_generic_suspend(void)
+{
+	return 0;
+}
+
+static void agp_generic_resume(void)
+{
+}
+
 static int agp_generic_free_gatt_table(void)
 {
 	int page_order;
@@ -775,28 +795,31 @@ static void agp_generic_free_by_type(agp_memory * curr)
 
 static unsigned long agp_generic_alloc_page(void)
 {
-	void *pt;
-
-	pt = (void *) __get_free_page(GFP_KERNEL);
-	if (pt == NULL) {
+	struct page * page;
+	
+	page = alloc_page(GFP_KERNEL);
+	if (page == NULL) {
 		return 0;
 	}
-	atomic_inc(&virt_to_page(pt)->count);
-	set_bit(PG_locked, &virt_to_page(pt)->flags);
+	atomic_inc(&page->count);
+	set_bit(PG_locked, &page->flags);
 	atomic_inc(&agp_bridge.current_memory_agp);
-	return (unsigned long) pt;
+	return (unsigned long)page_address(page);
 }
 
-static void agp_generic_destroy_page(unsigned long page)
+static void agp_generic_destroy_page(unsigned long addr)
 {
-	void *pt = (void *) page;
+	void *pt = (void *) addr;
+	struct page *page;
 
 	if (pt == NULL) {
 		return;
 	}
-	atomic_dec(&virt_to_page(pt)->count);
-	clear_bit(PG_locked, &virt_to_page(pt)->flags);
-	wake_up(&virt_to_page(pt)->wait);
+	
+	page = virt_to_page(pt);
+	atomic_dec(&page->count);
+	clear_bit(PG_locked, &page->flags);
+	wake_up(&page->wait);
 	free_page((unsigned long) pt);
 	atomic_dec(&agp_bridge.current_memory_agp);
 }
@@ -1083,6 +1106,9 @@ static int __init intel_i810_setup(struct pci_dev *i810_dev)
 	agp_bridge.free_by_type = intel_i810_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 }
@@ -1233,6 +1259,10 @@ static unsigned long intel_mask_memory(unsigned long addr, int type)
 	return addr | agp_bridge.masks[0].mask;
 }
 
+static void intel_resume(void)
+{
+	intel_configure();
+}
 
 /* Setup function */
 static gatt_mask intel_generic_masks[] =
@@ -1275,6 +1305,9 @@ static int __init intel_generic_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = intel_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -1305,6 +1338,9 @@ static int __init intel_840_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -1335,6 +1371,9 @@ static int __init intel_850_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -1452,6 +1491,9 @@ static int __init via_generic_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -1563,6 +1605,9 @@ static int __init sis_generic_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 }
@@ -1938,6 +1983,9 @@ static int __init amd_irongate_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -2092,15 +2140,15 @@ static void ali_cache_flush(void)
 
 static unsigned long ali_alloc_page(void)
 {
-	void *pt;
+	struct page *page;
 	u32 temp;
 
-	pt = (void *) __get_free_page(GFP_KERNEL);
-	if (pt == NULL)
+	page = alloc_page(GFP_KERNEL);
+	if (page == NULL)
 		return 0;
 
-	atomic_inc(&virt_to_page(pt)->count);
-	set_bit(PG_locked, &virt_to_page(pt)->flags);
+	atomic_inc(&page->count);
+	set_bit(PG_locked, &page->flags);
 	atomic_inc(&agp_bridge.current_memory_agp);
 
 	global_cache_flush();
@@ -2109,16 +2157,17 @@ static unsigned long ali_alloc_page(void)
 		pci_read_config_dword(agp_bridge.dev, ALI_CACHE_FLUSH_CTRL, &temp);
 		pci_write_config_dword(agp_bridge.dev, ALI_CACHE_FLUSH_CTRL,
 				(((temp & ALI_CACHE_FLUSH_ADDR_MASK) |
-				  virt_to_phys((void *)pt)) |
+				  virt_to_phys(page_address(page))) |
 				    ALI_CACHE_FLUSH_EN ));
 	}
-	return (unsigned long) pt;
+	return (unsigned long)page_address(page);
 }
 
-static void ali_destroy_page(unsigned long page)
+static void ali_destroy_page(unsigned long addr)
 {
 	u32 temp;
-	void *pt = (void *) page;
+	void *pt = (void *) addr;
+	struct page *page;
 
 	if (pt == NULL)
 		return;
@@ -2133,9 +2182,10 @@ static void ali_destroy_page(unsigned long page)
 				    ALI_CACHE_FLUSH_EN));
 	}
 
-	atomic_dec(&virt_to_page(pt)->count);
-	clear_bit(PG_locked, &virt_to_page(pt)->flags);
-	wake_up(&virt_to_page(pt)->wait);
+	page = virt_to_page(pt);
+	atomic_dec(&page->count);
+	clear_bit(PG_locked, &page->flags);
+	wake_up(&page->wait);
 	free_page((unsigned long) pt);
 	atomic_dec(&agp_bridge.current_memory_agp);
 }
@@ -2181,6 +2231,9 @@ static int __init ali_generic_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = ali_alloc_page;
 	agp_bridge.agp_destroy_page = ali_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 0;
 
 	return 0;
 	
@@ -2393,7 +2446,7 @@ static int serverworks_fetch_size(void)
 			      &temp);
 	pci_write_config_dword(agp_bridge.dev,
 			       serverworks_private.gart_addr_ofs,
-			       0xfe000000);
+			       SVWRKS_SIZE_MASK);
 	pci_read_config_dword(agp_bridge.dev,
 			      serverworks_private.gart_addr_ofs,
 			      &temp2);
@@ -2657,8 +2710,8 @@ static void serverworks_agp_enable(u32 mode)
 			/* adjust RQ depth */
 			command =
 			    ((command & ~0xff000000) |
-			     min(u32, (mode & 0xff000000),
-				 min(u32, (command & 0xff000000),
+			     min_t(u32, (mode & 0xff000000),
+				 min_t(u32, (command & 0xff000000),
 				     (scratch & 0xff000000))));
 
 			/* disable SBA if it's not supported */
@@ -2766,6 +2819,7 @@ static int __init serverworks_setup (struct pci_dev *pdev)
 	agp_bridge.free_by_type = agp_generic_free_by_type;
 	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
 	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
+	agp_bridge.cant_use_aperture = 0;
 
 	pci_read_config_dword(agp_bridge.dev,
 			      SVWRKS_APSIZE,
@@ -2877,6 +2931,18 @@ static struct {
 		"AMD",
 		"Irongate",
 		amd_irongate_setup },
+	{ PCI_DEVICE_ID_AMD_761_0,
+		PCI_VENDOR_ID_AMD,
+		AMD_761,
+		"AMD",
+		"761",
+		amd_irongate_setup },
+	{ PCI_DEVICE_ID_AMD_762_0,
+		PCI_VENDOR_ID_AMD,
+		AMD_762,
+		"AMD",
+		"AMD 760MP",
+		amd_irongate_setup },
 	{ 0,
 		PCI_VENDOR_ID_AMD,
 		AMD_GENERIC,
@@ -2904,7 +2970,6 @@ static struct {
 		"Intel",
 		"440GX",
 		intel_generic_setup },
-	/* could we add support for PCI_DEVICE_ID_INTEL_815_1 too ? */
 	{ PCI_DEVICE_ID_INTEL_815_0,
 		PCI_VENDOR_ID_INTEL,
 		INTEL_I815,
@@ -2929,6 +2994,7 @@ static struct {
 		"Intel",
 		"Generic",
 		intel_generic_setup },
+
 #endif /* CONFIG_AGP_INTEL */
 
 #ifdef CONFIG_AGP_SIS
@@ -2956,29 +3022,11 @@ static struct {
 		"SiS",
 		"530",
 		sis_generic_setup },
-	{ PCI_DEVICE_ID_SI_630,
+	{ PCI_DEVICE_ID_SI_735,
 		PCI_VENDOR_ID_SI,
 		SIS_GENERIC,
 		"SiS",
-		"Generic",
-		sis_generic_setup },
-	{ PCI_DEVICE_ID_SI_540,
-		PCI_VENDOR_ID_SI,
-		SIS_GENERIC,
-		"SiS",
-		"Generic",
-		sis_generic_setup },
-	{ PCI_DEVICE_ID_SI_620,
-		PCI_VENDOR_ID_SI,
-		SIS_GENERIC,
-		"SiS",
-		"Generic",
-		sis_generic_setup },
-	{ PCI_DEVICE_ID_SI_530,
-		PCI_VENDOR_ID_SI,
-		SIS_GENERIC,
-		"SiS",
-		"Generic",
+		"735",
 		sis_generic_setup },
 	{ 0,
 		PCI_VENDOR_ID_SI,
@@ -3024,6 +3072,12 @@ static struct {
 		VIA_APOLLO_KT133,
 		"Via",
 		"Apollo Pro KT133",
+		via_generic_setup },
+	{ PCI_DEVICE_ID_VIA_8367_0,
+		PCI_VENDOR_ID_VIA,
+		VIA_APOLLO_KT133,
+		"Via",
+		"Apollo Pro KT266",
 		via_generic_setup },
 	{ 0,
 		PCI_VENDOR_ID_VIA,
@@ -3349,7 +3403,7 @@ static int __init agp_backend_initialize(void)
 	size_value = agp_bridge.fetch_size();
 
 	if (size_value == 0) {
-		printk(KERN_ERR PFX "unable to detrimine aperture size.\n");
+		printk(KERN_ERR PFX "unable to determine aperture size.\n");
 		rc = -EINVAL;
 		goto err_out;
 	}
@@ -3411,6 +3465,19 @@ static void agp_backend_cleanup(void)
 	}
 }
 
+static int agp_power(struct pm_dev *dev, pm_request_t rq, void *data)
+{
+	switch(rq)
+	{
+		case PM_SUSPEND:
+			return agp_bridge.suspend();
+		case PM_RESUME:
+			agp_bridge.resume();
+			return 0;
+	}		
+	return 0;
+}
+
 extern int agp_frontend_initialize(void);
 extern void agp_frontend_cleanup(void);
 
@@ -3445,11 +3512,14 @@ static int __init agp_init(void)
 	}
 
 	inter_module_register("drm_agp", THIS_MODULE, &drm_agp);
+	
+	pm_register(PM_PCI_DEV, PM_PCI_ID(agp_bridge.dev), agp_power);
 	return 0;
 }
 
 static void __exit agp_cleanup(void)
 {
+	pm_unregister_all(agp_power);
 	agp_frontend_cleanup();
 	agp_backend_cleanup();
 	inter_module_unregister("drm_agp");

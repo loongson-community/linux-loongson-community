@@ -714,10 +714,9 @@ dasd_register_major (major_info_t * major_info)
 
 	INIT_BLK_DEV (major, do_dasd_request, dasd_get_queue, NULL);
 
-	major_info->gendisk.major = major;
-	major_info->gendisk.next = gendisk_head;
 	major_info->gendisk.sizes = blk_size[major];
-	gendisk_head = &major_info->gendisk;
+	major_info->gendisk.major = major;
+	add_gendisk (&major_info->gendisk);
 	return major;
 
         /* error handling - free the prior allocated memory */  
@@ -775,7 +774,6 @@ dasd_unregister_major (major_info_t * major_info)
 {
 	int rc = 0;
 	int major;
-	struct gendisk *dd, *prev = NULL;
 	unsigned long flags;
 
 	if (major_info == NULL) {
@@ -784,20 +782,8 @@ dasd_unregister_major (major_info_t * major_info)
 	major = major_info->gendisk.major;
 	INIT_BLK_DEV (major, NULL, NULL, NULL);
 
-	/* do the gendisk stuff */
-	for (dd = gendisk_head; dd; dd = dd->next) {
-		if (dd == &major_info->gendisk) {
-			if (prev)
-				prev->next = dd->next;
-			else
-				gendisk_head = dd->next;
-			break;
-		}
-		prev = dd;
-	}
-	if (dd == NULL) {
-		return -ENOENT;
-	}
+	del_gendisk (&major_info->gendisk);
+
 	kfree (major_info->dasd_device);
 	kfree (major_info->gendisk.part);
 
@@ -2140,13 +2126,7 @@ dasd_revalidate (dasd_device_t * device)
 	}
 	for (i = (1 << DASD_PARTN_BITS) - 1; i >= 0; i--) {
                 int major = device->major_info->gendisk.major;
-		int minor = start + i;
-		kdev_t devi = MKDEV (major, minor);
-		struct super_block *sb = get_super (devi);
-		sync_dev (devi);
-		if (sb)
-			invalidate_inodes (sb);
-		invalidate_buffers (devi);
+		invalidate_device(MKDEV (major, start+i), 1);
 	}
         dasd_destroy_partitions(device);
         dasd_setup_partitions(device);
@@ -2195,11 +2175,13 @@ do_dasd_ioctl (struct inode *inp, /* unsigned */ int no, unsigned long data)
 	case BLKGETSIZE:{	/* Return device size */
 			long blocks = major_info->gendisk.sizes 
                                       [MINOR (inp->i_rdev)] << 1;
-			rc =
-			    copy_to_user ((long *) data, &blocks,
-					  sizeof (long));
-			if (rc)
-				rc = -EFAULT;
+			rc = put_user(blocks, (long *)arg);
+			break;
+		}
+	case BLKGETSIZE64:{
+			u64 blocks = major_info->gendisk.sizes 
+                                      [MINOR (inp->i_rdev)];
+			rc = put_user(blocks << 10, (u64 *)arg);
 			break;
 		}
 	case BLKRRPART:{
@@ -2517,7 +2499,6 @@ dasd_release (struct inode *inp, struct file *filp)
 		rc = -ENODEV;
                 goto out;
 	}
-	fsync_dev (inp->i_rdev);	/* sync the device */
         count = atomic_dec_return (&device->open_count);
         if ( count == 0) {
                 invalidate_buffers (inp->i_rdev);

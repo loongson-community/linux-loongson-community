@@ -99,16 +99,16 @@ static unsigned char ip22_read_status(void)
 }
 
 struct kbd_ops sgi_kbd_ops = {
-	ip22_request_region,
-	ip22_request_irq,
+	kbd_request_region:	ip22_request_region,
+	kbd_request_irq:	ip22_request_irq,
 
-	ip22_aux_request_irq,
-	ip22_aux_free_irq,
+	aux_request_irq:	ip22_aux_request_irq,
+	aux_free_irq:		ip22_aux_free_irq,
 
-	ip22_read_input,
-	ip22_write_output,
-	ip22_write_command,
-	ip22_read_status
+	kbd_read_input:		ip22_read_input,
+	kbd_write_output:	ip22_write_output,
+	kbd_write_command:	ip22_write_command,
+	kbd_read_status:	ip22_read_status
 };
 
 int __init page_is_ram(unsigned long pagenr)

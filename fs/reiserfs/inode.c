@@ -1,7 +1,6 @@
 /*
  * Copyright 2000 by Hans Reiser, licensing governed by reiserfs/README
  */
-#ifdef __KERNEL__
 
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -9,12 +8,6 @@
 #include <linux/locks.h>
 #include <linux/smp_lock.h>
 #include <asm/uaccess.h>
-
-#else
-
-#include "nokernel.h"
-
-#endif
 
 /* args for the create parameter of reiserfs_get_block */
 #define GET_BLOCK_NO_CREATE 0 /* don't create new blocks or convert tails */
@@ -55,6 +48,7 @@ void reiserfs_delete_inode (struct inode * inode)
 	;
     }
     clear_inode (inode); /* note this must go after the journal_end to prevent deadlock */
+    inode->i_blocks = 0;
     unlock_kernel() ;
 }
 
@@ -525,15 +519,25 @@ int reiserfs_get_block (struct inode * inode, long block,
     int fs_gen;
     int windex ;
     struct reiserfs_transaction_handle th ;
-    int jbegin_count = JOURNAL_PER_BALANCE_CNT * 3 ;
+    /* space reserved in transaction batch: 
+        . 3 balancings in direct->indirect conversion
+        . 1 block involved into reiserfs_update_sd()
+       XXX in practically impossible worst case direct2indirect()
+       can incur (much) more that 3 balancings. */
+    int jbegin_count = JOURNAL_PER_BALANCE_CNT * 3 + 1;
     int version;
     int transaction_started = 0 ;
-    loff_t new_offset = (block << inode->i_sb->s_blocksize_bits) + 1 ;
+    loff_t new_offset = (((loff_t)block) << inode->i_sb->s_blocksize_bits) + 1 ;
 
 				/* bad.... */
     lock_kernel() ;
     th.t_trans_id = 0 ;
     version = inode_items_version (inode);
+
+    if (block < 0) {
+	unlock_kernel();
+	return -EIO;
+    }
 
     if (!file_capable (inode, block)) {
 	unlock_kernel() ;
@@ -552,20 +556,14 @@ int reiserfs_get_block (struct inode * inode, long block,
 	return ret;
     }
 
-    if (block < 0) {
-	unlock_kernel();
-	return -EIO;
-    }
-
     inode->u.reiserfs_i.i_pack_on_close = 1 ;
 
     windex = push_journal_writer("reiserfs_get_block") ;
   
     /* set the key of the first byte in the 'block'-th block of file */
-    make_cpu_key (&key, inode,
-		  (loff_t)block * inode->i_sb->s_blocksize + 1, // k_offset
+    make_cpu_key (&key, inode, new_offset,
 		  TYPE_ANY, 3/*key length*/);
-    if ((new_offset + inode->i_sb->s_blocksize) >= inode->i_size) {
+    if ((new_offset + inode->i_sb->s_blocksize - 1) > inode->i_size) {
 	journal_begin(&th, inode->i_sb, jbegin_count) ;
 	transaction_started = 1 ;
     }
@@ -618,10 +616,13 @@ int reiserfs_get_block (struct inode * inode, long block,
     }
 
     if (indirect_item_found (retval, ih)) {
+	b_blocknr_t unfm_ptr;
+
 	/* 'block'-th block is in the file already (there is
 	   corresponding cell in some indirect item). But it may be
 	   zero unformatted node pointer (hole) */
-	if (!item[pos_in_item]) {
+	unfm_ptr = le32_to_cpu (item[pos_in_item]);
+	if (unfm_ptr == 0) {
 	    /* use allocated block to plug the hole */
 	    reiserfs_prepare_for_journal(inode->i_sb, bh, 1) ;
 	    if (fs_changed (fs_gen, inode->i_sb) && item_moved (&tmp_ih, &path)) {
@@ -630,15 +631,14 @@ int reiserfs_get_block (struct inode * inode, long block,
 	    }
 	    bh_result->b_state |= (1UL << BH_New);
 	    item[pos_in_item] = cpu_to_le32 (allocated_block_nr);
+	    unfm_ptr = allocated_block_nr;
 	    journal_mark_dirty (&th, inode->i_sb, bh);
 	    inode->i_blocks += (inode->i_sb->s_blocksize / 512) ;
 	    reiserfs_update_sd(&th, inode) ;
 	}
-	set_block_dev_mapped(bh_result, le32_to_cpu (item[pos_in_item]), inode);
+	set_block_dev_mapped(bh_result, unfm_ptr, inode);
 	pathrelse (&path);
-#ifdef REISERFS_CHECK
 	pop_journal_writer(windex) ;
-#endif /* REISERFS_CHECK */
 	if (transaction_started)
 	    journal_end(&th, inode->i_sb, jbegin_count) ;
 
@@ -815,8 +815,8 @@ int reiserfs_get_block (struct inode * inode, long block,
 	    goto failure;
 	}
 	if (retval == POSITION_FOUND) {
-	    reiserfs_warning ("vs-: reiserfs_get_block: "
-			      "%k should not be found", &key);
+	    reiserfs_warning ("vs-825: reiserfs_get_block: "
+			      "%k should not be found\n", &key);
 	    retval = -EEXIST;
 	    if (allocated_block_nr)
 	        reiserfs_free_block (&th, allocated_block_nr);
@@ -1139,7 +1139,7 @@ struct inode * reiserfs_iget (struct super_block * s, struct cpu_key * key)
     args.objectid = key->on_disk_key.k_dir_id ;
     inode = iget4 (s, key->on_disk_key.k_objectid, 0, (void *)(&args));
     if (!inode) 
-      return inode ;
+	return ERR_PTR(-ENOMEM) ;
 
     if (comp_short_keys (INODE_PKEY (inode), key) || is_bad_inode (inode)) {
 	/* either due to i/o error or a stale NFS handle */
@@ -1156,6 +1156,24 @@ struct dentry *reiserfs_fh_to_dentry(struct super_block *sb, __u32 *data,
     struct list_head *lp;
     struct dentry *result;
 
+    /* fhtype happens to reflect the number of u32s encoded.
+     * due to a bug in earlier code, fhtype might indicate there
+     * are more u32s then actually fitted.
+     * so if fhtype seems to be more than len, reduce fhtype.
+     * Valid types are:
+     *   2 - objectid + dir_id - legacy support
+     *   3 - objectid + dir_id + generation
+     *   4 - objectid + dir_id + objectid and dirid of parent - legacy
+     *   5 - objectid + dir_id + generation + objectid and dirid of parent
+     *   6 - as above plus generation of directory
+     * 6 does not fit in NFSv2 handles
+     */
+    if (fhtype > len) {
+	    if (fhtype != 6 || len != 5)
+		    printk(KERN_WARNING "nfsd/reiserfs, fhtype=%d, len=%d - odd\n",
+			   fhtype, len);
+	    fhtype = 5;
+    }
     if (fhtype < 2 || (parent && fhtype < 4)) 
 	goto out ;
 
@@ -1166,22 +1184,24 @@ struct dentry *reiserfs_fh_to_dentry(struct super_block *sb, __u32 *data,
 	    key.on_disk_key.k_objectid = data[0] ;
 	    key.on_disk_key.k_dir_id = data[1] ;
 	    inode = reiserfs_iget(sb, &key) ;
-	    if (inode && (fhtype == 3 || fhtype == 6) &&
+	    if (inode && !IS_ERR(inode) && (fhtype == 3 || fhtype >= 5) &&
 		data[2] != inode->i_generation) {
 		    iput(inode) ;
 		    inode = NULL ;
 	    }
     } else {
-	    key.on_disk_key.k_objectid = data[fhtype==6?3:2] ;
-	    key.on_disk_key.k_dir_id = data[fhtype==6?4:3] ;
+	    key.on_disk_key.k_objectid = data[fhtype>=5?3:2] ;
+	    key.on_disk_key.k_dir_id = data[fhtype>=5?4:3] ;
 	    inode = reiserfs_iget(sb, &key) ;
-	    if (inode && fhtype == 6 &&
+	    if (inode && !IS_ERR(inode) && fhtype == 6 &&
 		data[5] != inode->i_generation) {
 		    iput(inode) ;
 		    inode = NULL ;
 	    }
     }
 out:
+    if (IS_ERR(inode))
+	return ERR_PTR(PTR_ERR(inode));
     if (!inode)
         return ERR_PTR(-ESTALE) ;
 
@@ -1220,17 +1240,20 @@ int reiserfs_dentry_to_fh(struct dentry *dentry, __u32 *data, int *lenp, int nee
     data[0] = inode->i_ino ;
     data[1] = le32_to_cpu(INODE_PKEY (inode)->k_dir_id) ;
     data[2] = inode->i_generation ;
-    *lenp = 3;
+    *lenp = 3 ;
     /* no room for directory info? return what we've stored so far */
-    if (maxlen < 6 || ! need_parent)
-        return 3;
+    if (maxlen < 5 || ! need_parent)
+        return 3 ;
 
     inode = dentry->d_parent->d_inode ;
     data[3] = inode->i_ino ;
     data[4] = le32_to_cpu(INODE_PKEY (inode)->k_dir_id) ;
+    *lenp = 5 ;
+    if (maxlen < 6)
+	    return 5 ;
     data[5] = inode->i_generation ;
-    *lenp = 6;
-    return 6; 
+    *lenp = 6 ;
+    return 6 ;
 }
 
 
@@ -1790,7 +1813,6 @@ static inline void submit_bh_for_writepage(struct buffer_head **bhp, int nr) {
     for(i = 0 ; i < nr ; i++) {
         bh = bhp[i] ;
 	lock_buffer(bh) ;
-	get_bh(bh) ;		   /* async end_io handler puts this */
 	set_buffer_async_io(bh) ;
 	/* submit_bh doesn't care if the buffer is dirty, but nobody
 	** later on in the call chain will be cleaning it.  So, we

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.208 2001/08/13 18:56:12 davem Exp $
+ * Version:	$Id: tcp.c,v 1.211 2001/09/20 00:35:35 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -852,7 +852,7 @@ ssize_t do_tcp_sendpages(struct sock *sk, struct page **pages, int poffset, size
 
 		page = pages[poffset/PAGE_SIZE];
 		offset = poffset % PAGE_SIZE;
-		size = min(unsigned int, psize, PAGE_SIZE-offset);
+		size = min_t(unsigned int, psize, PAGE_SIZE-offset);
 
 		if (tp->send_head==NULL || (copy = mss_now - skb->len) <= 0) {
 new_segment:
@@ -1236,7 +1236,7 @@ static int tcp_recv_urg(struct sock * sk, long timeo,
 		msg->msg_flags|=MSG_OOB;
 
 		if(len>0) {
-			if (!(flags & MSG_PEEK) && !(flags & MSG_TRUNC))
+			if (!(flags & MSG_TRUNC))
 				err = memcpy_toiovec(msg->msg_iov, &c, 1);
 			len = 1;
 		} else
@@ -2326,7 +2326,7 @@ int tcp_getsockopt(struct sock *sk, int level, int optname, char *optval,
 	if(get_user(len,optlen))
 		return -EFAULT;
 
-	len = min(unsigned int, len, sizeof(int));
+	len = min_t(unsigned int, len, sizeof(int));
 	
 	if(len < 0)
 		return -EINVAL;
@@ -2361,7 +2361,7 @@ int tcp_getsockopt(struct sock *sk, int level, int optname, char *optval,
 			val = (val ? : sysctl_tcp_fin_timeout)/HZ;
 		break;
 	case TCP_DEFER_ACCEPT:
-		val = tp->defer_accept == 0 ? 0 : (TCP_TIMEOUT_INIT<<(tp->defer_accept-1));
+		val = tp->defer_accept == 0 ? 0 : ((TCP_TIMEOUT_INIT/HZ)<<(tp->defer_accept-1));
 		break;
 	case TCP_WINDOW_CLAMP:
 		val = tp->window_clamp;
@@ -2421,7 +2421,7 @@ int tcp_getsockopt(struct sock *sk, int level, int optname, char *optval,
 		info.tcpi_advmss = tp->advmss;
 		info.tcpi_reordering = tp->reordering;
 
-		len = min(unsigned int, len, sizeof(info));
+		len = min_t(unsigned int, len, sizeof(info));
 		if(put_user(len, optlen))
 			return -EFAULT;
 		if(copy_to_user(optval, &info,len))

@@ -54,20 +54,6 @@ ifeq ($(ARCH),s390x)
   SERIAL   =
 endif
 
-ifeq ($(ARCH),s390)
-  KEYMAP   =
-  KEYBD    =
-  CONSOLE  =
-  SERIAL   =
-endif
-
-ifeq ($(ARCH),s390x)
-  KEYMAP   =
-  KEYBD    =
-  CONSOLE  =
-  SERIAL   =
-endif
-
 ifeq ($(ARCH),m68k)
    ifdef CONFIG_AMIGA
       KEYBD = amikeyb.o
@@ -264,10 +250,10 @@ consolemap_deftbl.c: $(FONTMAPFILE) conmakehash
 
 consolemap_deftbl.o: consolemap_deftbl.c $(TOPDIR)/include/linux/types.h
 
-defkeymap.c: defkeymap.map
-	loadkeys --mktable defkeymap.map > defkeymap.c
+.DELETE_ON_ERROR:
 
-ifeq ($(CONFIG_QTRONIX_KEYBOARD),y)
+defkeymap.c: defkeymap.map
+	set -e ; loadkeys --mktable $< | sed -e 's/^static *//' > $@
+
 qtronixmap.c: qtronixmap.map
-	loadkeys --mktable qtronixmap.map > qtronixmap.c
-endif
+	set -e ; loadkeys --mktable $< | sed -e 's/^static *//' > $@

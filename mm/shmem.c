@@ -234,44 +234,55 @@ static int shmem_writepage(struct page * page)
 	int error;
 	struct shmem_inode_info *info;
 	swp_entry_t *entry, swap;
+	struct address_space *mapping;
+	unsigned long index;
 	struct inode *inode;
 
 	if (!PageLocked(page))
 		BUG();
-	
-	inode = page->mapping->host;
+
+	mapping = page->mapping;
+	index = page->index;
+	inode = mapping->host;
 	info = &inode->u.shmem_i;
-	swap = __get_swap_page(2);
-	error = -ENOMEM;
-	if (!swap.val) {
-		activate_page(page);
-		goto out;
-	}
 
 	spin_lock(&info->lock);
-	entry = shmem_swp_entry(info, page->index);
-	if (IS_ERR(entry))	/* this had been allocted on page allocation */
+	entry = shmem_swp_entry(info, index);
+	if (IS_ERR(entry))	/* this had been allocated on page allocation */
 		BUG();
-	shmem_recalc_inode(page->mapping->host);
-	error = -EAGAIN;
+	shmem_recalc_inode(inode);
 	if (entry->val)
 		BUG();
 
-	*entry = swap;
-	error = 0;
-	/* Remove the from the page cache */
+	/* Remove it from the page cache */
 	lru_cache_del(page);
 	remove_inode_page(page);
 
+	swap_list_lock();
+	swap = get_swap_page();
+
+	if (!swap.val) {
+		swap_list_unlock();
+		/* Add it back to the page cache */
+		add_to_page_cache_locked(page, mapping, index);
+		activate_page(page);
+		SetPageDirty(page);
+		error = -ENOMEM;
+		goto out;
+	}
+
 	/* Add it to the swap cache */
 	add_to_swap_cache(page, swap);
-	page_cache_release(page);
-	info->swapped++;
+	swap_list_unlock();
 
-	spin_unlock(&info->lock);
-out:
 	set_page_dirty(page);
+	info->swapped++;
+	*entry = swap;
+	error = 0;
+out:
+	spin_unlock(&info->lock);
 	UnlockPage(page);
+	page_cache_release(page);
 	return error;
 }
 
@@ -311,7 +322,7 @@ repeat:
 	 * cache and swap cache.  We need to recheck the page cache
 	 * under the protection of the info->lock spinlock. */
 
-	page = __find_get_page(mapping, idx, page_hash(mapping, idx));
+	page = find_get_page(mapping, idx);
 	if (page) {
 		if (TryLockPage(page))
 			goto wait_retry;
@@ -324,18 +335,21 @@ repeat:
 		unsigned long flags;
 
 		/* Look it up and read it in.. */
-		page = __find_get_page(&swapper_space, entry->val,
-				       page_hash(&swapper_space, entry->val));
+		page = find_get_page(&swapper_space, entry->val);
 		if (!page) {
+			swp_entry_t swap = *entry;
 			spin_unlock (&info->lock);
 			lock_kernel();
 			swapin_readahead(*entry);
 			page = read_swap_cache_async(*entry);
 			unlock_kernel();
-			if (!page) 
+			if (!page) {
+				if (entry->val != swap.val)
+					goto repeat;
 				return ERR_PTR(-ENOMEM);
+			}
 			wait_on_page(page);
-			if (!Page_Uptodate(page)) {
+			if (!Page_Uptodate(page) && entry->val == swap.val) {
 				page_cache_release(page);
 				return ERR_PTR(-EIO);
 			}
@@ -352,8 +366,8 @@ repeat:
 
 		swap_free(*entry);
 		*entry = (swp_entry_t) {0};
-		delete_from_swap_cache_nolock(page);
-		flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error) | (1 << PG_referenced) | (1 << PG_arch_1));
+		delete_from_swap_cache(page);
+		flags = page->flags & ~(1 << PG_uptodate | 1 << PG_error | 1 << PG_referenced | 1 << PG_arch_1);
 		page->flags = flags | (1 << PG_dirty);
 		add_to_page_cache_locked(page, mapping, idx);
 		info->swapped--;
@@ -1158,6 +1172,7 @@ static DECLARE_FSTYPE(tmpfs_fs_type, "tmpfs", shmem_read_super, FS_LITTER);
 #else
 static DECLARE_FSTYPE(tmpfs_fs_type, "tmpfs", shmem_read_super, FS_LITTER|FS_NOMOUNT);
 #endif
+static struct vfsmount *shm_mnt;
 
 static int __init init_shmem_fs(void)
 {
@@ -1181,6 +1196,7 @@ static int __init init_shmem_fs(void)
 		unregister_filesystem(&tmpfs_fs_type);
 		return PTR_ERR(res);
 	}
+	shm_mnt = res;
 
 	/* The internal instance should not do size checking */
 	if ((error = shmem_set_size(&res->mnt_sb->u.shmem_sb, ULONG_MAX, ULONG_MAX)))
@@ -1195,6 +1211,7 @@ static void __exit exit_shmem_fs(void)
 	unregister_filesystem(&shmem_fs_type);
 #endif
 	unregister_filesystem(&tmpfs_fs_type);
+	mntput(shm_mnt);
 }
 
 module_init(init_shmem_fs)
@@ -1240,7 +1257,7 @@ out:
 	return 0;
 found:
 	add_to_page_cache(page, inode->i_mapping, offset + idx);
-	set_page_dirty(page);
+	SetPageDirty(page);
 	SetPageUptodate(page);
 	UnlockPage(page);
 	info->swapped--;
@@ -1292,7 +1309,7 @@ struct file *shmem_file_setup(char * name, loff_t size)
 	this.name = name;
 	this.len = strlen(name);
 	this.hash = 0; /* will go */
-	root = tmpfs_fs_type.kern_mnt->mnt_root;
+	root = shm_mnt->mnt_root;
 	dentry = d_alloc(root, &this);
 	if (!dentry)
 		return ERR_PTR(-ENOMEM);
@@ -1310,7 +1327,7 @@ struct file *shmem_file_setup(char * name, loff_t size)
 	d_instantiate(dentry, inode);
 	dentry->d_inode->i_size = size;
 	shmem_truncate(inode);
-	file->f_vfsmnt = mntget(tmpfs_fs_type.kern_mnt);
+	file->f_vfsmnt = mntget(shm_mnt);
 	file->f_dentry = dentry;
 	file->f_op = &shmem_file_operations;
 	file->f_mode = FMODE_WRITE | FMODE_READ;

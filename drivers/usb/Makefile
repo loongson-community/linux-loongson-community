@@ -14,8 +14,9 @@ export-objs		:= usb.o
 
 # Multipart objects.
 
-list-multi		:= usbcore.o
+list-multi		:= usbcore.o hid.o
 usbcore-objs		:= usb.o usb-debug.o hub.o
+hid-objs		:= hid-core.o hid-input.o
 
 ifneq ($(CONFIG_USB_PWC),n)
 	export-objs		+= pwc-uncompress.o
@@ -29,6 +30,10 @@ pwc-objs		:= pwc-if.o pwc-misc.o pwc-ctrl.o pwc-uncompress.o
 
 ifeq ($(CONFIG_USB_DEVICEFS),y)
 	usbcore-objs	+= devio.o inode.o drivers.o devices.o
+endif
+
+ifeq ($(CONFIG_USB_HIDDEV),y)
+	hid-objs	+= hiddev.o
 endif
 
 # Object file lists.
@@ -60,16 +65,17 @@ obj-$(CONFIG_USB_DC2XX)		+= dc2xx.o
 obj-$(CONFIG_USB_MDC800)	+= mdc800.o
 obj-$(CONFIG_USB_USS720)	+= uss720.o
 obj-$(CONFIG_USB_DABUSB)	+= dabusb.o
-obj-$(CONFIG_USB_PLUSB)		+= plusb.o
 obj-$(CONFIG_USB_OV511)		+= ov511.o
 obj-$(CONFIG_USB_SE401)		+= se401.o
 obj-$(CONFIG_USB_PEGASUS)	+= pegasus.o
 obj-$(CONFIG_USB_CATC)		+= catc.o
+obj-$(CONFIG_USB_KAWETH)        += kaweth.o
+obj-$(CONFIG_USB_CDCETHER)	+= CDCEther.o
 obj-$(CONFIG_USB_RIO500)	+= rio500.o
 obj-$(CONFIG_USB_DSBR)		+= dsbr100.o
 obj-$(CONFIG_USB_MICROTEK)	+= microtek.o
 obj-$(CONFIG_USB_BLUETOOTH)	+= bluetooth.o
-obj-$(CONFIG_USB_NET1080)	+= net1080.o
+obj-$(CONFIG_USB_USBNET)	+= usbnet.o
 
 # Object files in subdirectories
 
@@ -91,6 +97,8 @@ include $(TOPDIR)/Rules.make
 usbcore.o: $(usbcore-objs)
 	$(LD) -r -o $@ $(usbcore-objs)
 
-pwc.o:		$(pwc-objs)
-	$(LD) -r -o $@ $(pwc-objs)
+hid.o: $(hid-objs)
+	$(LD) -r -o $@ $(hid-objs)
 
+pwc.o: $(pwc-objs)
+	$(LD) -r -o $@ $(pwc-objs)

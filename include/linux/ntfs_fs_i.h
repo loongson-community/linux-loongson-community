@@ -1,6 +1,8 @@
 #ifndef _LINUX_NTFS_FS_I_H
 #define _LINUX_NTFS_FS_I_H
 
+#include <linux/types.h>
+
 /* Forward declarations, to keep number of mutual includes low */
 struct ntfs_attribute;
 struct ntfs_sb_info;
@@ -68,8 +70,7 @@ typedef s32 ntfs_cluster_t;
 #endif
 
 /* Definition of the NTFS in-memory inode structure. */
-struct ntfs_inode_info{
-	unsigned long mmu_private;
+struct ntfs_inode_info {
 	struct ntfs_sb_info *vol;
 	unsigned long i_number;		/* Should be really 48 bits. */
 	__u16 sequence_number;		/* The current sequence number. */

@@ -1138,6 +1138,10 @@ static int acsi_ioctl( struct inode *inode, struct file *file,
 		return put_user(acsi_part[MINOR(inode->i_rdev)].nr_sects,
 				(long *) arg);
 
+	  case BLKGETSIZE64:   /* Return device size */
+		return put_user((u64)acsi_part[MINOR(inode->i_rdev)].nr_sects << 9,
+				(u64 *) arg);
+
 	  case BLKROSET:
 	  case BLKROGET:
 	  case BLKFLSBUF:
@@ -1386,16 +1390,14 @@ static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd )
 extern struct block_device_operations acsi_fops;
 
 static struct gendisk acsi_gendisk = {
-	MAJOR_NR,		/* Major number */	
-	"ad",			/* Major name */
-	4,			/* Bits to shift to get real from partition */
-	1 << 4,			/* Number of partitions per real */
-	acsi_part,		/* hd struct */
-	acsi_sizes,		/* block sizes */
-	0,			/* number */
-	(void *)acsi_info,	/* internal */
-	NULL,			/* next */
-	&acsi_fops,		/* file operations */
+	major:		MAJOR_NR,
+	major_name:	"ad",
+	minor_shift:	4,
+	max_p:		1 << 4,
+	part:		acsi_part,
+	sizes:		acsi_sizes,
+	real_devices:	(void *)acsi_info,
+	fops:		&acsi_fops,
 };
 	
 #define MAX_SCSI_DEVICE_CODE 10
@@ -1792,8 +1794,7 @@ int acsi_init( void )
 	
 	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	read_ahead[MAJOR_NR] = 8;		/* 8 sector (4kB) read-ahead */
-	acsi_gendisk.next = gendisk_head;
-	gendisk_head = &acsi_gendisk;
+	add_gendisk(&acsi_gendisk);
 
 #ifdef CONFIG_ATARI_SLM
 	err = slm_init();
@@ -1805,6 +1806,9 @@ int acsi_init( void )
 
 
 #ifdef MODULE
+
+MODULE_LICENSE("GPL");
+
 int init_module(void)
 {
 	int err;
@@ -1817,8 +1821,6 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	struct gendisk ** gdp;
-
 	del_timer( &acsi_timer );
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	atari_stram_free( acsi_buffer );
@@ -1826,13 +1828,7 @@ void cleanup_module(void)
 	if (devfs_unregister_blkdev( MAJOR_NR, "ad" ) != 0)
 		printk( KERN_ERR "acsi: cleanup_module failed\n");
 
-	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
-		if (*gdp == &acsi_gendisk)
-			break;
-	if (!*gdp)
-		printk( KERN_ERR "acsi: entry in disk chain missing!\n" );
-	else
-		*gdp = (*gdp)->next;
+	del_gendisk(&acsi_gendisk);
 }
 #endif
 

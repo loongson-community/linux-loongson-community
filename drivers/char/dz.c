@@ -1614,3 +1614,5 @@ void __init dz_serial_console_init(void)
 }
 
 #endif /* CONFIG_SERIAL_CONSOLE */
+
+MODULE_LICENSE("GPL");

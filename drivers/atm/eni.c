@@ -32,7 +32,7 @@
 #include "suni.h"
 #include "eni.h"
 
-#ifndef __i386__
+#if !defined(__i386__) && !defined(__x86_64__)
 #ifndef ioremap_nocache
 #define ioremap_nocache(X,Y) ioremap(X,Y)
 #endif 
@@ -2340,3 +2340,6 @@ static void __exit eni_cleanup(void)
 
 module_init(eni_init);
 module_exit(eni_cleanup);
+
+EXPORT_NO_SYMBOLS;
+MODULE_LICENSE("GPL");

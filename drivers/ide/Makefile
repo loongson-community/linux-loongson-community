@@ -56,7 +56,7 @@ ide-obj-$(CONFIG_BLK_DEV_PDC202XX)	+= pdc202xx.o
 ide-obj-$(CONFIG_BLK_DEV_PDC4030)	+= pdc4030.o
 ide-obj-$(CONFIG_BLK_DEV_PDC_ADMA)	+= pdcadma.o
 ide-obj-$(CONFIG_BLK_DEV_PIIX)		+= piix.o
-ide-obj-$(CONFIG_BLK_DEV_QD6580)	+= qd6580.o
+ide-obj-$(CONFIG_BLK_DEV_QD65XX)	+= qd65xx.o
 ide-obj-$(CONFIG_BLK_DEV_IDE_RAPIDE)	+= rapide.o
 ide-obj-$(CONFIG_BLK_DEV_RZ1000)	+= rz1000.o
 ide-obj-$(CONFIG_BLK_DEV_SIS5513)	+= sis5513.o
@@ -65,6 +65,12 @@ ide-obj-$(CONFIG_BLK_DEV_SL82C105)	+= sl82c105.o
 ide-obj-$(CONFIG_BLK_DEV_TRM290)	+= trm290.o
 ide-obj-$(CONFIG_BLK_DEV_UMC8672)	+= umc8672.o
 ide-obj-$(CONFIG_BLK_DEV_VIA82CXXX)	+= via82cxxx.o
+
+# The virtualised raid layers MUST come after the ide itself or bad stuff
+# will happen.
+obj-$(CONFIG_BLK_DEV_ATARAID)	+= ataraid.o
+obj-$(CONFIG_BLK_DEV_ATARAID_PDC)	+= pdcraid.o
+obj-$(CONFIG_BLK_DEV_ATARAID_HPT)	+= hptraid.o
 
 ide-obj-$(CONFIG_PROC_FS)		+= ide-proc.o
 

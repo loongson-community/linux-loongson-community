@@ -551,7 +551,8 @@ static int belkin_sa_ioctl (struct usb_serial_port *port, struct file * file, un
 	case TIOCMSET: /* Turns on and off the lines as specified by the mask */
 	case TIOCMBIS: /* turns on (Sets) the lines as specified by the mask */
 	case TIOCMBIC: /* turns off (Clears) the lines as specified by the mask */
-		if ((ret = get_user(mask, (unsigned long *) arg))) return ret;
+		if (get_user(mask, (unsigned long *) arg))
+			return -EFAULT;
 
 		if ((cmd == TIOCMSET) || (mask & TIOCM_RTS)) {
 			/* RTS needs set */
@@ -625,6 +626,7 @@ module_exit (belkin_sa_exit);
 
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");
 
 MODULE_PARM(debug, "i");
 MODULE_PARM_DESC(debug, "Debug enabled or not");

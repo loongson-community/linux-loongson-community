@@ -1055,3 +1055,6 @@ static void set_rtc_irq_bit(unsigned char bit)
 	spin_unlock_irq(&rtc_lock);
 }
 #endif
+
+MODULE_AUTHOR("Paul Gortmaker");
+MODULE_LICENSE("GPL");

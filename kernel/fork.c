@@ -8,7 +8,7 @@
  *  'fork.c' contains the help-routines for the 'fork' system call
  * (see also entry.S and others).
  * Fork is rather simple, once you get the hang of it, but the memory
- * management can be a bitch. See 'mm/memory.c': 'copy_page_tables()'
+ * management can be a bitch. See 'mm/memory.c': 'copy_page_range()'
  */
 
 #include <linux/config.h>
@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/completion.h>
+#include <linux/personality.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -39,8 +40,8 @@ void add_wait_queue(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
 
-	wq_write_lock_irqsave(&q->lock, flags);
 	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
+	wq_write_lock_irqsave(&q->lock, flags);
 	__add_wait_queue(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -49,8 +50,8 @@ void add_wait_queue_exclusive(wait_queue_head_t *q, wait_queue_t * wait)
 {
 	unsigned long flags;
 
-	wq_write_lock_irqsave(&q->lock, flags);
 	wait->flags |= WQ_FLAG_EXCLUSIVE;
+	wq_write_lock_irqsave(&q->lock, flags);
 	__add_wait_queue_tail(q, wait);
 	wq_write_unlock_irqrestore(&q->lock, flags);
 }
@@ -71,7 +72,7 @@ void __init fork_init(unsigned long mempages)
 	 * value: the thread structures can take up at most half
 	 * of memory.
 	 */
-	max_threads = mempages / (THREAD_SIZE/PAGE_SIZE) / 2;
+	max_threads = mempages / (THREAD_SIZE/PAGE_SIZE) / 8;
 
 	init_task.rlim[RLIMIT_NPROC].rlim_cur = max_threads/2;
 	init_task.rlim[RLIMIT_NPROC].rlim_max = max_threads/2;
@@ -101,6 +102,7 @@ inside:
 		for_each_task(p) {
 			if(p->pid == last_pid	||
 			   p->pgrp == last_pid	||
+			   p->tgid == last_pid	||
 			   p->session == last_pid) {
 				if(++last_pid >= next_safe) {
 					if(last_pid & 0xffff8000)
@@ -131,12 +133,24 @@ static inline int dup_mmap(struct mm_struct * mm)
 	flush_cache_mm(current->mm);
 	mm->locked_vm = 0;
 	mm->mmap = NULL;
-	mm->mmap_avl = NULL;
 	mm->mmap_cache = NULL;
 	mm->map_count = 0;
+	mm->rss = 0;
 	mm->cpu_vm_mask = 0;
 	mm->swap_address = 0;
 	pprev = &mm->mmap;
+
+	/*
+	 * Add it to the mmlist after the parent.
+	 * Doing it this way means that we can order the list,
+	 * and fork() won't mess up the ordering significantly.
+	 * Add it first so that swapoff can see any swap entries.
+	 */
+	spin_lock(&mmlist_lock);
+	list_add(&mm->mmlist, &current->mm->mmlist);
+	mmlist_nr++;
+	spin_unlock(&mmlist_lock);
+
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
 		struct file *file;
 
@@ -149,7 +163,6 @@ static inline int dup_mmap(struct mm_struct * mm)
 		*tmp = *mpnt;
 		tmp->vm_flags &= ~VM_LOCKED;
 		tmp->vm_mm = mm;
-		mm->map_count++;
 		tmp->vm_next = NULL;
 		file = tmp->vm_file;
 		if (file) {
@@ -168,24 +181,25 @@ static inline int dup_mmap(struct mm_struct * mm)
 			spin_unlock(&inode->i_mapping->i_shared_lock);
 		}
 
-		/* Copy the pages, but defer checking for errors */
-		retval = copy_page_range(mm, current->mm, tmp);
-		if (!retval && tmp->vm_ops && tmp->vm_ops->open)
-			tmp->vm_ops->open(tmp);
-
 		/*
-		 * Link in the new vma even if an error occurred,
-		 * so that exit_mmap() can clean up the mess.
+		 * Link in the new vma and copy the page table entries:
+		 * link in first so that swapoff can see swap entries.
 		 */
+		spin_lock(&mm->page_table_lock);
 		*pprev = tmp;
 		pprev = &tmp->vm_next;
+		mm->map_count++;
+		retval = copy_page_range(mm, current->mm, tmp);
+		spin_unlock(&mm->page_table_lock);
+
+		if (tmp->vm_ops && tmp->vm_ops->open)
+			tmp->vm_ops->open(tmp);
 
 		if (retval)
 			goto fail_nomem;
 	}
 	retval = 0;
-	if (mm->map_count >= AVL_MIN_MAP_COUNT)
-		build_mmap_avl(mm);
+	build_mmap_rb(mm);
 
 fail_nomem:
 	flush_tlb_mm(current->mm);
@@ -246,6 +260,9 @@ inline void __mmdrop(struct mm_struct *mm)
 void mmput(struct mm_struct *mm)
 {
 	if (atomic_dec_and_lock(&mm->mm_users, &mmlist_lock)) {
+		extern struct mm_struct *swap_mm;
+		if (swap_mm == mm)
+			swap_mm = list_entry(mm->mmlist.next, struct mm_struct, mmlist);
 		list_del(&mm->mmlist);
 		mmlist_nr--;
 		spin_unlock(&mmlist_lock);
@@ -319,18 +336,6 @@ static int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 	down_write(&oldmm->mmap_sem);
 	retval = dup_mmap(mm);
 	up_write(&oldmm->mmap_sem);
-
-	/*
-	 * Add it to the mmlist after the parent.
-	 *
-	 * Doing it this way means that we can order
-	 * the list, and fork() won't mess up the
-	 * ordering significantly.
-	 */
-	spin_lock(&mmlist_lock);
-	list_add(&mm->mmlist, &oldmm->mmlist);
-	mmlist_nr++;
-	spin_unlock(&mmlist_lock);
 
 	if (retval)
 		goto free_pt;
@@ -643,6 +648,8 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 #endif
 	p->lock_depth = -1;		/* -1 = no lock */
 	p->start_time = jiffies;
+
+	INIT_LIST_HEAD(&p->local_pages);
 
 	retval = -ENOMEM;
 	/* copy all the process information */

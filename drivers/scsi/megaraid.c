@@ -2857,6 +2857,7 @@ static int mega_findCard (Scsi_Host_Template * pHostTmpl,
 		if (!host)
 			goto err_unmap;
 
+#if 0
 		/*
 		 * Comment the following initialization if you know 'max_sectors' is
 		 * not defined for this kernel.
@@ -2864,6 +2865,7 @@ static int mega_findCard (Scsi_Host_Template * pHostTmpl,
 		 * greatly increases the IO performance - AM
 		 */
 		host->max_sectors = 1024;
+#endif
 
 		scsi_set_pci_device(host, pdev);
 		megaCfg = (mega_host_config *) host->hostdata;
@@ -3138,16 +3140,18 @@ int megaraid_detect (Scsi_Host_Template * pHostTmpl)
 	 * First argument (major) to register_chrdev implies a dynamic major
 	 * number allocation.
 	 */
-	major = register_chrdev (0, "megadev", &megadev_fops);
+	if (count) {
+		major = register_chrdev (0, "megadev", &megadev_fops);
 
-	/*
-	 * Register the Shutdown Notification hook in kernel
-	 */
-	if (register_reboot_notifier (&mega_notifier)) {
-		printk ("MegaRAID Shutdown routine not registered!!\n");
+		/*
+		 * Register the Shutdown Notification hook in kernel
+		 */
+		if (register_reboot_notifier (&mega_notifier)) {
+			printk ("MegaRAID Shutdown routine not registered!!\n");
+		}
+
+		init_MUTEX (&mimd_entry_mtx);
 	}
-
-	init_MUTEX (&mimd_entry_mtx);
 
 	return count;
 }

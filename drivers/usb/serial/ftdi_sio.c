@@ -470,8 +470,9 @@ static int ftdi_sio_write (struct usb_serial_port *port, int from_user,
 
 		/* Copy in the data to send */
 		if (from_user) {
-			copy_from_user(port->write_urb->transfer_buffer + data_offset , 
-				       buf, count - data_offset );
+			if (copy_from_user(port->write_urb->transfer_buffer + data_offset,
+					   buf, count - data_offset ))
+				return -EFAULT;
 		}
 		else {
 			memcpy(port->write_urb->transfer_buffer + data_offset,
@@ -1002,6 +1003,7 @@ module_exit(ftdi_sio_exit);
 
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");
 
 MODULE_PARM(debug, "i");
 MODULE_PARM_DESC(debug, "Debug enabled or not");

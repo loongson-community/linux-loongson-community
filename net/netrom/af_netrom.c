@@ -435,7 +435,7 @@ static int nr_getsockopt(struct socket *sock, int level, int optname,
 			return -ENOPROTOOPT;
 	}
 
-	len = min(unsigned int, len, sizeof(int));
+	len = min_t(unsigned int, len, sizeof(int));
 
 	if (put_user(len, optlen))
 		return -EFAULT;
@@ -1262,7 +1262,7 @@ static struct notifier_block nr_dev_notifier = {
 
 static struct net_device *dev_nr;
 
-static const char banner[] __initdata = KERN_INFO "G4KLX NET/ROM for Linux. Version 0.7 for AX25.037 Linux 2.4\n";
+static char banner[] __initdata = KERN_INFO "G4KLX NET/ROM for Linux. Version 0.7 for AX25.037 Linux 2.4\n";
 
 static int __init nr_proto_init(void)
 {

@@ -257,7 +257,7 @@ static int assign_type(struct file_lock *fl, int type)
 static int flock_to_posix_lock(struct file *filp, struct file_lock *fl,
 			       struct flock *l)
 {
-	loff_t start;
+	off_t start, end;
 
 	switch (l->l_whence) {
 	case 0: /*SEEK_SET*/
@@ -270,17 +270,16 @@ static int flock_to_posix_lock(struct file *filp, struct file_lock *fl,
 		start = filp->f_dentry->d_inode->i_size;
 		break;
 	default:
-		return (0);
+		return -EINVAL;
 	}
 
 	if (((start += l->l_start) < 0) || (l->l_len < 0))
-		return (0);
-	fl->fl_end = start + l->l_len - 1;
-	if (l->l_len > 0 && fl->fl_end < 0)
-		return (0);
-	if (fl->fl_end > OFFT_OFFSET_MAX)
-		return 0;
+		return -EINVAL;
+	end = start + l->l_len - 1;
+	if (l->l_len > 0 && end < 0)
+		return -EOVERFLOW;
 	fl->fl_start = start;	/* we record the absolute position */
+	fl->fl_end = end;
 	if (l->l_len == 0)
 		fl->fl_end = OFFSET_MAX;
 	
@@ -292,7 +291,7 @@ static int flock_to_posix_lock(struct file *filp, struct file_lock *fl,
 	fl->fl_insert = NULL;
 	fl->fl_remove = NULL;
 
-	return (assign_type(fl, l->l_type) == 0);
+	return assign_type(fl, l->l_type);
 }
 
 #if BITS_PER_LONG == 32
@@ -312,14 +311,14 @@ static int flock64_to_posix_lock(struct file *filp, struct file_lock *fl,
 		start = filp->f_dentry->d_inode->i_size;
 		break;
 	default:
-		return (0);
+		return -EINVAL;
 	}
 
 	if (((start += l->l_start) < 0) || (l->l_len < 0))
-		return (0);
+		return -EINVAL;
 	fl->fl_end = start + l->l_len - 1;
 	if (l->l_len > 0 && fl->fl_end < 0)
-		return (0);
+		return -EOVERFLOW;
 	fl->fl_start = start;	/* we record the absolute position */
 	if (l->l_len == 0)
 		fl->fl_end = OFFSET_MAX;
@@ -339,10 +338,10 @@ static int flock64_to_posix_lock(struct file *filp, struct file_lock *fl,
 		fl->fl_type = l->l_type;
 		break;
 	default:
-		return (0);
+		return -EINVAL;
 	}
 
-	return (1);
+	return (0);
 }
 #endif
 
@@ -473,21 +472,26 @@ static void locks_insert_lock(struct file_lock **pos, struct file_lock *fl)
 		fl->fl_insert(fl);
 }
 
-/* Delete a lock and then free it.
- * Remove our lock from the lock lists, wake up processes that are blocked
- * waiting for this lock, notify the FS that the lock has been cleared and
- * finally free the lock.
+/*
+ * Remove lock from the lock lists
  */
-static void locks_delete_lock(struct file_lock **thisfl_p, unsigned int wait)
+static inline void _unhash_lock(struct file_lock **thisfl_p)
 {
 	struct file_lock *fl = *thisfl_p;
 
 	*thisfl_p = fl->fl_next;
 	fl->fl_next = NULL;
 
-	list_del(&fl->fl_link);
-	INIT_LIST_HEAD(&fl->fl_link);
+	list_del_init(&fl->fl_link);
+}
 
+/*
+ * Wake up processes that are blocked waiting for this lock,
+ * notify the FS that the lock has been cleared and
+ * finally free the lock.
+ */
+static inline void _delete_lock(struct file_lock *fl, unsigned int wait)
+{
 	fasync_helper(0, fl->fl_file, 0, &fl->fl_fasync);
 	if (fl->fl_fasync != NULL){
 		printk(KERN_ERR "locks_delete_lock: fasync == %p\n", fl->fl_fasync);
@@ -502,6 +506,17 @@ static void locks_delete_lock(struct file_lock **thisfl_p, unsigned int wait)
 }
 
 /*
+ * Delete a lock and then free it.
+ */
+static void locks_delete_lock(struct file_lock **thisfl_p, unsigned int wait)
+{
+	struct file_lock *fl = *thisfl_p;
+
+	_unhash_lock(thisfl_p);
+	_delete_lock(fl, wait);
+}
+
+/*
  * Call back client filesystem in order to get it to unregister a lock,
  * then delete lock. Essentially useful only in locks_remove_*().
  * Note: this must be called with the semaphore already held!
@@ -511,12 +526,13 @@ static inline void locks_unlock_delete(struct file_lock **thisfl_p)
 	struct file_lock *fl = *thisfl_p;
 	int (*lock)(struct file *, int, struct file_lock *);
 
+	_unhash_lock(thisfl_p);
 	if (fl->fl_file->f_op &&
 	    (lock = fl->fl_file->f_op->lock) != NULL) {
 		fl->fl_type = F_UNLCK;
 		lock(fl->fl_file, F_SETLK, fl);
 	}
-	locks_delete_lock(thisfl_p, 0);
+	_delete_lock(fl, 0);
 }
 
 /* Determine if lock sys_fl blocks lock caller_fl. Common functionality
@@ -1353,8 +1369,8 @@ int fcntl_getlk(unsigned int fd, struct flock *l)
 	if (!filp)
 		goto out;
 
-	error = -EINVAL;
-	if (!flock_to_posix_lock(filp, &file_lock, &flock))
+	error = flock_to_posix_lock(filp, &file_lock, &flock);
+	if (error)
 		goto out_putf;
 
 	if (filp->f_op && filp->f_op->lock) {
@@ -1443,8 +1459,8 @@ int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l)
 		}
 	}
 
-	error = -EINVAL;
-	if (!flock_to_posix_lock(filp, file_lock, &flock))
+	error = flock_to_posix_lock(filp, file_lock, &flock);
+	if (error)
 		goto out_putf;
 	
 	error = -EBADF;
@@ -1518,8 +1534,8 @@ int fcntl_getlk64(unsigned int fd, struct flock64 *l)
 	if (!filp)
 		goto out;
 
-	error = -EINVAL;
-	if (!flock64_to_posix_lock(filp, &file_lock, &flock))
+	error = flock64_to_posix_lock(filp, &file_lock, &flock);
+	if (error)
 		goto out_putf;
 
 	if (filp->f_op && filp->f_op->lock) {
@@ -1596,8 +1612,8 @@ int fcntl_setlk64(unsigned int fd, unsigned int cmd, struct flock64 *l)
 		}
 	}
 
-	error = -EINVAL;
-	if (!flock64_to_posix_lock(filp, file_lock, &flock))
+	error = flock64_to_posix_lock(filp, file_lock, &flock);
+	if (error)
 		goto out_putf;
 	
 	error = -EBADF;
@@ -1661,6 +1677,7 @@ void locks_remove_posix(struct file *filp, fl_owner_t owner)
 	while ((fl = *before) != NULL) {
 		if ((fl->fl_flags & FL_POSIX) && fl->fl_owner == owner) {
 			locks_unlock_delete(before);
+			before = &inode->i_flock;
 			continue;
 		}
 		before = &fl->fl_next;

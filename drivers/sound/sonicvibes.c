@@ -118,25 +118,10 @@
 #include <linux/wrapper.h>
 #include <asm/uaccess.h>
 #include <asm/hardirq.h>
+#include <linux/gameport.h>
 
 #include "dm.h"
 
-#if defined(CONFIG_INPUT_ANALOG) || defined(CONFIG_INPUT_ANALOG_MODULE)
-#include <linux/gameport.h>
-#else
-struct gameport {
-	int io;
-	int size;
-};
-
-extern inline void gameport_register_port(struct gameport *gameport)
-{
-}
-
-extern inline void gameport_unregister_port(struct gameport *gameport)
-{
-}
-#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -2496,7 +2481,7 @@ static struct initvol {
 
 static int __devinit sv_probe(struct pci_dev *pcidev, const struct pci_device_id *pciid)
 {
-	static const char __initdata sv_ddma_name[] = "S3 Inc. SonicVibes DDMA Controller";
+	static char __initdata sv_ddma_name[] = "S3 Inc. SonicVibes DDMA Controller";
        	struct sv_state *s;
 	mm_segment_t fs;
 	int i, val, ret;

@@ -1141,6 +1141,8 @@ static int i2ob_ioctl(struct inode *inode, struct file *file,
 	switch (cmd) {
 		case BLKGETSIZE:
 			return put_user(i2ob[minor].nr_sects, (long *) arg);
+		case BLKGETSIZE64:
+			return put_user((u64)i2ob[minor].nr_sects << 9, (u64 *)arg);
 
 		case HDIO_GETGEO:
 		{
@@ -1194,9 +1196,6 @@ static int i2ob_release(struct inode *inode, struct file *file)
 	 */
 	if(!dev->i2odev)
 		return 0;
-
-	/* Sync the device so we don't get errors */
-	fsync_dev(inode->i_rdev);
 
 	if (dev->refcnt <= 0)
 		printk(KERN_ALERT "i2ob_release: refcount(%d) <= 0\n", dev->refcnt);
@@ -1857,16 +1856,14 @@ static struct block_device_operations i2ob_fops =
 
 static struct gendisk i2ob_gendisk = 
 {
-	MAJOR_NR,
-	"i2o/hd",
-	4,
-	1<<4,
-	i2ob,
-	i2ob_sizes,
-	MAX_I2OB,
-	NULL,
-	NULL,
-	&i2ob_fops,
+	major:		MAJOR_NR,
+	major_name:	"i2o/hd",
+	minor_shift:	4,
+	max_p:		1<<4,
+	part:		i2ob,
+	sizes:		i2ob_sizes,
+	nr_real:	MAX_I2OB,
+	fops:		&i2ob_fops,
 };
 
 
@@ -1978,9 +1975,8 @@ int i2o_block_init(void)
 
 	/*
 	 *	Adding i2ob_gendisk into the gendisk list.
-	 */	
-	i2ob_gendisk.next = gendisk_head;
-	gendisk_head = &i2ob_gendisk;
+	 */
+	add_gendisk(&i2ob_gendisk);
 
 	return 0;
 }
@@ -2050,20 +2046,6 @@ void cleanup_module(void)
 	 */
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 
-	/*
-	 *	Why isnt register/unregister gendisk in the kernel ???
-	 */
-
-	if (gendisk_head == &i2ob_gendisk) {
-		gendisk_head = i2ob_gendisk.next;
-		}
-	else {
-		for (gdp = gendisk_head; gdp; gdp = gdp->next)
-			if (gdp->next == &i2ob_gendisk)
-			{
-				gdp->next = i2ob_gendisk.next;
-				break;
-			}
-	}
+	del_gendisk(&i2ob_gendisk);
 }
 #endif

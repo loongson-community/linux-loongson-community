@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.77 2001/04/05 12:44:34 davem Exp $
+/* $Id: head.S,v 1.81 2001/09/07 23:00:15 kanoj Exp $
  * head.S: Initial boot code for the Sparc64 port of Linux.
  *
  * Copyright (C) 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -472,7 +472,7 @@ tlb_fixup_done:
 
 	wr	%g0, ASI_P, %asi
 	mov	1, %g5
-	sllx	%g5, (PAGE_SHIFT + 1), %g5
+	sllx	%g5, THREAD_SHIFT, %g5
 	sub	%g5, (REGWIN_SZ + STACK_BIAS), %g5
 	add	%g6, %g5, %sp
 	mov	0, %fp
@@ -487,13 +487,6 @@ tlb_fixup_done:
 	or	%o1, %lo(_end), %o1
 	call	__bzero
 	 sub	%o1, %o0, %o1
-
-	/* Now clear empty_zero_page */
-	sethi	%hi(8192), %o1
-	or	%o1, %lo(8192), %o1
-	sethi	%hi(KERNBASE), %g3
-	call	__bzero
-	 or	%g3, %lo(KERNBASE), %o0
 
 	mov	%l6, %o1			! OpenPROM stack
 	call	prom_init
@@ -647,12 +640,13 @@ set_worklist:
 	ret
 	 restore
 
+/*
+ * The following skips make sure the trap table in ttable.S is aligned
+ * on a 32K boundary as required by the v9 specs for TBA register.
+ */
 sparc64_boot_end:
 	.skip	0x2000 + _start - sparc64_boot_end
 bootup_user_stack_end:
-
-	.globl	empty_bad_page
-empty_bad_page:
 	.skip	0x2000
 
 #ifdef CONFIG_SBUS

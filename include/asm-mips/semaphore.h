@@ -94,6 +94,10 @@ static inline void down(struct semaphore * sem)
 		__down(sem);
 }
 
+/*
+ * Interruptible try to acquire a semaphore.  If we obtained
+ * it, return zero.  If we were interrupted, returns -EINTR
+ */
 static inline int down_interruptible(struct semaphore * sem)
 {
 	int ret = 0;
@@ -108,6 +112,10 @@ static inline int down_interruptible(struct semaphore * sem)
 
 #ifndef CONFIG_CPU_HAS_LLDSCD
 
+/*
+ * Non-blockingly attempt to down() a semaphore.
+ * Returns zero if we acquired it
+ */
 static inline int down_trylock(struct semaphore * sem)
 {
 	int ret = 0;

@@ -1,4 +1,4 @@
-/* $Id: cgsixfb.c,v 1.24 2001/02/13 01:17:14 davem Exp $
+/* $Id: cgsixfb.c,v 1.25 2001/09/19 00:04:33 davem Exp $
  * cgsixfb.c: CGsix (GX,GXplus) frame buffer driver
  *
  * Copyright (C) 1996,1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -127,6 +127,8 @@
 #define CG6_THC_MISC_INT_ENAB        (1 << 5)
 #define CG6_THC_MISC_INT             (1 << 4)
 #define CG6_THC_MISC_INIT            0x9f
+
+MODULE_LICENSE("GPL");
 
 /* The contents are unknown */
 struct cg6_tec {

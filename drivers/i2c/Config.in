@@ -27,6 +27,13 @@ if [ "$CONFIG_I2C" != "n" ]; then
       fi
    fi
 
+   if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+      dep_tristate 'ITE I2C Algorithm' CONFIG_ITE_I2C_ALGO $CONFIG_I2C
+      if [ "$CONFIG_ITE_I2C_ALGO" != "n" ]; then
+         dep_tristate '  ITE I2C Adapter' CONFIG_ITE_I2C_ADAP $CONFIG_ITE_I2C_ALGO
+      fi
+   fi
+
 # This is needed for automatic patch generation: sensors code starts here
 # This is needed for automatic patch generation: sensors code ends here
 

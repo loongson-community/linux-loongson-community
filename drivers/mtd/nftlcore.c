@@ -791,9 +791,11 @@ static int nftl_ioctl(struct inode * inode, struct file * file, unsigned int cmd
 		return copy_to_user((void *)arg, &g, sizeof g) ? -EFAULT : 0;
 	}
 	case BLKGETSIZE:   /* Return device size */
-		if (!arg) return -EINVAL;
 		return put_user(part_table[MINOR(inode->i_rdev)].nr_sects,
                                 (long *) arg);
+	case BLKGETSIZE64:
+		return put_user((u64)part_table[MINOR(inode->i_rdev)].nr_sects << 9,
+                                (u64 *)arg);
 		
 	case BLKFLSBUF:
 		if (!capable(CAP_SYS_ADMIN)) return -EACCES;
@@ -1024,11 +1026,6 @@ static struct block_device_operations nftl_fops =
  *
  ****************************************************************************/
 
-#if LINUX_VERSION_CODE < 0x20212 && defined(MODULE)
-#define init_nftl init_module
-#define cleanup_nftl cleanup_module
-#endif
-
 static struct mtd_notifier nftl_notifier = {
 	add:	NFTL_notify_add,
 	remove:	NFTL_notify_remove
@@ -1045,22 +1042,19 @@ static int __init init_nftl(void)
 #endif
 
 	if (register_blkdev(MAJOR_NR, "nftl", &nftl_fops)){
-		printk("unable to register NFTL block device on major %d\n", MAJOR_NR);
+		printk("unable to register NFTL block device on major %d\n",
+		       MAJOR_NR);
 		return -EBUSY;
 	} else {
-#if LINUX_VERSION_CODE < 0x20320
-		blk_dev[MAJOR_NR].request_fn = nftl_request;
-#else
 		blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), &nftl_request);
-#endif
+
 		/* set block size to 1kB each */
 		for (i = 0; i < 256; i++) {
 			nftl_blocksizes[i] = 1024;
 		}
 		blksize_size[MAJOR_NR] = nftl_blocksizes;
 
-		nftl_gendisk.next = gendisk_head;
-		gendisk_head = &nftl_gendisk;
+		add_gendisk(&nftl_gendisk);
 	}
 	
 	register_mtd_user(&nftl_notifier);
@@ -1070,24 +1064,12 @@ static int __init init_nftl(void)
 
 static void __exit cleanup_nftl(void)
 {
-	struct gendisk *gd, **gdp;
-
   	unregister_mtd_user(&nftl_notifier);
   	unregister_blkdev(MAJOR_NR, "nftl");
   	
-#if LINUX_VERSION_CODE < 0x20320
-  	blk_dev[MAJOR_NR].request_fn = 0;
-#else
   	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
-#endif	
 
-	/* remove ourself from generic harddisk list
-	   FIXME: why can't I found this partition on /proc/partition */
-  	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
-    		if (*gdp == &nftl_gendisk) {
-      			gd = *gdp; *gdp = gd->next;
-      			break;
-		}
+	del_gendisk(&nftl_gendisk);
 }
 
 module_init(init_nftl);

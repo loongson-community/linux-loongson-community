@@ -17,13 +17,14 @@ typedef struct kmem_cache_s kmem_cache_t;
 /* flags for kmem_cache_alloc() */
 #define	SLAB_NOFS		GFP_NOFS
 #define	SLAB_NOIO		GFP_NOIO
+#define SLAB_NOHIGHIO		GFP_NOHIGHIO
 #define	SLAB_ATOMIC		GFP_ATOMIC
 #define	SLAB_USER		GFP_USER
 #define	SLAB_KERNEL		GFP_KERNEL
 #define	SLAB_NFS		GFP_NFS
 #define	SLAB_DMA		GFP_DMA
 
-#define SLAB_LEVEL_MASK		(__GFP_WAIT|__GFP_HIGH|__GFP_IO|__GFP_FS)
+#define SLAB_LEVEL_MASK		(__GFP_WAIT|__GFP_HIGH|__GFP_IO|__GFP_HIGHIO|__GFP_FS)
 #define	SLAB_NO_GROW		0x00001000UL	/* don't grow a cache */
 
 /* flags to pass to kmem_cache_create().
@@ -59,7 +60,7 @@ extern void kmem_cache_free(kmem_cache_t *, void *);
 extern void *kmalloc(size_t, int);
 extern void kfree(const void *);
 
-extern void kmem_cache_reap(int);
+extern int FASTCALL(kmem_cache_reap(int));
 extern int slabinfo_read_proc(char *page, char **start, off_t off,
 				 int count, int *eof, void *data);
 extern int slabinfo_write_proc(struct file *file, const char *buffer,

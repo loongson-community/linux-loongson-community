@@ -53,7 +53,8 @@
 
 MODULE_AUTHOR("Author: Tivadar Szemethy <tiv@itc.hu>");
 MODULE_DESCRIPTION("Frame Relay protocol implementation for the COMX drivers"
-	"for Linux kernel 2.2.X");
+	"for Linux kernel 2.4.X");
+MODULE_LICENSE("GPL");
 
 #define	FRAD_UI		0x03
 #define	NLPID_IP	0xcc
@@ -634,7 +635,7 @@ static int fr_read_proc(char *page, char **start, off_t off, int count,
 
 	*start = page + off;
 	if (count >= len - off) *eof = 1;
-	return min(int, count, len - off);
+	return min_t(int, count, len - off);
 }
 
 static int fr_write_proc(struct file *file, const char *buffer, 

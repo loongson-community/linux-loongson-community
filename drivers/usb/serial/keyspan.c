@@ -349,7 +349,8 @@ static int keyspan_write(struct usb_serial_port *port, int from_user,
 		((char *)this_urb->transfer_buffer)[0] = 0;
 
 		if (from_user) {
-			copy_from_user(this_urb->transfer_buffer + 1, buf, todo);
+			if (copy_from_user(this_urb->transfer_buffer + 1, buf, todo))
+				return -EFAULT;
 		} else {
 			memcpy (this_urb->transfer_buffer + 1, buf, todo);
 		}
@@ -1718,6 +1719,7 @@ static void keyspan_shutdown (struct usb_serial *serial)
 
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");
 
 MODULE_PARM(debug, "i");
 MODULE_PARM_DESC(debug, "Debug enabled or not");

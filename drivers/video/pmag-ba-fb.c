@@ -27,7 +27,7 @@
 #include <linux/timer.h>
 #include <linux/mm.h>
 #include <linux/tty.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/fb.h>
@@ -424,3 +424,5 @@ int __init pmagbafb_init(void)
 		return -ENODEV;
 	}
 }
+
+MODULE_LICENSE("GPL");

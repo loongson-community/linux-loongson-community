@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.141 2001/08/13 20:24:34 kanoj Exp $
+/* $Id: pgtable.h,v 1.146 2001/09/11 02:20:23 kanoj Exp $
  * pgtable.h: SpitFire page table operations.
  *
  * Copyright 1996,1997 David S. Miller (davem@caip.rutgers.edu)
@@ -17,16 +17,7 @@
 #include <asm/mmu_context.h>
 #include <asm/system.h>
 #include <asm/page.h>
-
-#ifndef __ASSEMBLY__
-
-#define PG_dcache_dirty		PG_arch_1
-
-/* Certain architectures need to do special things when pte's
- * within a page table are directly modified.  Thus, the following
- * hook is made available.
- */
-#define set_pte(pteptr, pteval) ((*(pteptr)) = (pteval))
+#include <asm/processor.h>
 
 /* XXX All of this needs to be rethought so we can take advantage
  * XXX cheetah's full 64-bit virtual address space, ie. no more hole
@@ -42,8 +33,6 @@
  * long). Finally, the higher few bits determine pgde#.
  */
 
-#define VA_BITS 	44
-
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
 #define PMD_SHIFT	(PAGE_SHIFT + (PAGE_SHIFT-3))
 #define PMD_SIZE	(1UL << PMD_SHIFT)
@@ -55,6 +44,16 @@
 #define PGDIR_SIZE	(1UL << PGDIR_SHIFT)
 #define PGDIR_MASK	(~(PGDIR_SIZE-1))
 
+#ifndef __ASSEMBLY__
+
+#define PG_dcache_dirty		PG_arch_1
+
+/* Certain architectures need to do special things when pte's
+ * within a page table are directly modified.  Thus, the following
+ * hook is made available.
+ */
+#define set_pte(pteptr, pteval) ((*(pteptr)) = (pteval))
+
 /* Entries per page directory level. */
 #define PTRS_PER_PTE		(1UL << (PAGE_SHIFT-3))
 
@@ -65,16 +64,20 @@
 #define PTRS_PER_PMD		((const int)((current->thread.flags & SPARC_FLAG_32BIT) ? \
 				 (1UL << (32 - (PAGE_SHIFT-3) - PAGE_SHIFT)) : (REAL_PTRS_PER_PMD)))
 
-/* We cannot use the top 16G because VPTE table lives there. */
-#define PTRS_PER_PGD		((1UL << (VA_BITS - PAGE_SHIFT - (PAGE_SHIFT-3) - PMD_BITS))-1)
+/*
+ * We cannot use the top address range because VPTE table lives there. This
+ * formula finds the total legal virtual space in the processor, subtracts the
+ * vpte size, then aligns it to the number of bytes mapped by one pgde, and
+ * thus calculates the number of pgdes needed.
+ */
+#define PTRS_PER_PGD	(((1UL << VA_BITS) - VPTE_SIZE + (1UL << (PAGE_SHIFT + \
+			(PAGE_SHIFT-3) + PMD_BITS)) - 1) / (1UL << (PAGE_SHIFT + \
+			(PAGE_SHIFT-3) + PMD_BITS)))
 
 /* Kernel has a separate 44bit address space. */
 #define USER_PTRS_PER_PGD	((const int)((current->thread.flags & SPARC_FLAG_32BIT) ? \
 				 (1) : (PTRS_PER_PGD)))
 #define FIRST_USER_PGD_NR	0
-
-#define PTE_TABLE_SIZE	0x2000	/* 1024 entries 8 bytes each */
-#define PMD_TABLE_SIZE	0x2000	/* 2048 entries 4 bytes each */
 
 /* NOTE: TLB miss handlers depend heavily upon where this is. */
 #define VMALLOC_START		0x0000000140000000UL
@@ -115,6 +118,18 @@
 #define _PAGE_WRITE	0x0000000000000100	/* Writable SW Bit                    */
 #define _PAGE_PRESENT	0x0000000000000080	/* Present Page (ie. not swapped out) */
 
+#if PAGE_SHIFT == 13
+#define _PAGE_SZBITS	_PAGE_SZ8K
+#elif PAGE_SHIFT == 16
+#define _PAGE_SZBITS	_PAGE_SZ64K
+#elif PAGE_SHIFT == 19
+#define _PAGE_SZBITS	_PAGE_SZ512K
+#elif PAGE_SHIFT == 22
+#define _PAGE_SZBITS	_PAGE_SZ4M
+#else
+#error Wrong PAGE_SHIFT specified
+#endif
+
 #define _PAGE_CACHE	(_PAGE_CP | _PAGE_CV)
 
 #define __DIRTY_BITS	(_PAGE_MODIFIED | _PAGE_WRITE | _PAGE_W)
@@ -140,7 +155,7 @@
 
 #define _PFN_MASK	_PAGE_PADDR
 
-#define _PAGE_CHG_MASK	(_PFN_MASK | _PAGE_MODIFIED | _PAGE_ACCESSED | _PAGE_PRESENT)
+#define _PAGE_CHG_MASK	(_PFN_MASK | _PAGE_MODIFIED | _PAGE_ACCESSED | _PAGE_PRESENT | _PAGE_SZBITS)
 
 #define pg_iobits (_PAGE_VALID | _PAGE_PRESENT | __DIRTY_BITS | __ACCESS_BITS | _PAGE_E)
 
@@ -164,21 +179,18 @@
 
 #ifndef __ASSEMBLY__
 
-extern pte_t __bad_page(void);
-
-#define BAD_PAGE	__bad_page()
-
 extern unsigned long phys_base;
 
-#define ZERO_PAGE(vaddr)	(mem_map)
+extern struct page *mem_map_zero;
+#define ZERO_PAGE(vaddr)	(mem_map_zero)
 
 /* Warning: These take pointers to page structs now... */
 #define mk_pte(page, pgprot)		\
-	__pte((((page - mem_map) << PAGE_SHIFT)+phys_base) | pgprot_val(pgprot))
+	__pte((((page - mem_map) << PAGE_SHIFT)+phys_base) | pgprot_val(pgprot) | _PAGE_SZBITS)
 #define page_pte_prot(page, prot)	mk_pte(page, prot)
 #define page_pte(page)			page_pte_prot(page, __pgprot(0))
 
-#define mk_pte_phys(physpage, pgprot)	(__pte((physpage) | pgprot_val(pgprot)))
+#define mk_pte_phys(physpage, pgprot)	(__pte((physpage) | pgprot_val(pgprot) | _PAGE_SZBITS))
 
 extern inline pte_t pte_modify(pte_t orig_pte, pgprot_t new_prot)
 {

@@ -28,8 +28,7 @@
 #include <asm/io.h>
 #include <linux/blk.h>
 #include <linux/highmem.h>
-#include <linux/raid/md.h>
-
+#include <linux/slab.h>
 #include <linux/module.h>
 
 /*
@@ -131,7 +130,7 @@ static inline int get_max_sectors(kdev_t dev)
 	return max_sectors[MAJOR(dev)][MINOR(dev)];
 }
 
-inline request_queue_t *__blk_get_queue(kdev_t dev)
+inline request_queue_t *blk_get_queue(kdev_t dev)
 {
 	struct blk_dev_struct *bdev = blk_dev + MAJOR(dev);
 
@@ -139,22 +138,6 @@ inline request_queue_t *__blk_get_queue(kdev_t dev)
 		return bdev->queue(dev);
 	else
 		return &blk_dev[MAJOR(dev)].request_queue;
-}
-
-/*
- * NOTE: the device-specific queue() functions
- * have to be atomic!
- */
-request_queue_t *blk_get_queue(kdev_t dev)
-{
-	request_queue_t *ret;
-	unsigned long flags;
-
-	spin_lock_irqsave(&io_request_lock,flags);
-	ret = __blk_get_queue(dev);
-	spin_unlock_irqrestore(&io_request_lock,flags);
-
-	return ret;
 }
 
 static int __blk_cleanup_queue(struct list_head *head)
@@ -990,12 +973,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 	major = MAJOR(bhs[0]->b_dev);
 
 	/* Determine correct block size for this device. */
-	correct_size = BLOCK_SIZE;
-	if (blksize_size[major]) {
-		i = blksize_size[major][MINOR(bhs[0]->b_dev)];
-		if (i)
-			correct_size = i;
-	}
+	correct_size = get_hardsect_size(bhs[0]->b_dev);
 
 	/* Verify requested block sizes. */
 	for (i = 0; i < nr; i++) {
@@ -1272,7 +1250,6 @@ EXPORT_SYMBOL(end_that_request_first);
 EXPORT_SYMBOL(end_that_request_last);
 EXPORT_SYMBOL(blk_init_queue);
 EXPORT_SYMBOL(blk_get_queue);
-EXPORT_SYMBOL(__blk_get_queue);
 EXPORT_SYMBOL(blk_cleanup_queue);
 EXPORT_SYMBOL(blk_queue_headactive);
 EXPORT_SYMBOL(blk_queue_make_request);

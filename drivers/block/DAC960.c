@@ -31,6 +31,7 @@
 #include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/hdreg.h>
+#include <linux/blkpg.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/locks.h>
@@ -1882,7 +1883,6 @@ static int DAC960_MergeRequestsFunction(RequestQueue_T *RequestQueue,
 static boolean DAC960_RegisterBlockDevice(DAC960_Controller_T *Controller)
 {
   int MajorNumber = DAC960_MAJOR + Controller->ControllerNumber;
-  GenericDiskInfo_T *GenericDiskInfo;
   RequestQueue_T *RequestQueue;
   int MinorNumber;
   /*
@@ -1937,13 +1937,7 @@ static boolean DAC960_RegisterBlockDevice(DAC960_Controller_T *Controller)
   /*
     Install the Generic Disk Information structure at the end of the list.
   */
-  if ((GenericDiskInfo = gendisk_head) != NULL)
-    {
-      while (GenericDiskInfo->next != NULL)
-	GenericDiskInfo = GenericDiskInfo->next;
-      GenericDiskInfo->next = &Controller->GenericDiskInfo;
-    }
-  else gendisk_head = &Controller->GenericDiskInfo;
+  add_gendisk(&Controller->GenericDiskInfo);
   /*
     Indicate the Block Device Registration completed successfully,
   */
@@ -1979,16 +1973,7 @@ static void DAC960_UnregisterBlockDevice(DAC960_Controller_T *Controller)
   /*
     Remove the Generic Disk Information structure from the list.
   */
-  if (gendisk_head != &Controller->GenericDiskInfo)
-    {
-      GenericDiskInfo_T *GenericDiskInfo = gendisk_head;
-      while (GenericDiskInfo != NULL &&
-	     GenericDiskInfo->next != &Controller->GenericDiskInfo)
-	GenericDiskInfo = GenericDiskInfo->next;
-      if (GenericDiskInfo != NULL)
-	GenericDiskInfo->next = GenericDiskInfo->next->next;
-    }
-  else gendisk_head = Controller->GenericDiskInfo.next;
+  del_gendisk(&Controller->GenericDiskInfo);
 }
 
 
@@ -5089,26 +5074,19 @@ static int DAC960_IOCTL(Inode_T *Inode, File_T *File,
 			   sizeof(DiskGeometry_T)) ? -EFAULT : 0);
     case BLKGETSIZE:
       /* Get Device Size. */
-      if ((long *) Argument == NULL) return -EINVAL;
       return put_user(Controller->GenericDiskInfo.part[MINOR(Inode->i_rdev)]
 						 .nr_sects,
 		      (long *) Argument);
+    case BLKGETSIZE64:
+      return put_user((u64)Controller->GenericDiskInfo.part[MINOR(Inode->i_rdev)].nr_sects << 9,
+		      (u64 *) Argument);
     case BLKRAGET:
-      /* Get Read-Ahead. */
-      if ((long *) Argument == NULL) return -EINVAL;
-      return put_user(read_ahead[MAJOR(Inode->i_rdev)], (long *) Argument);
     case BLKRASET:
-      /* Set Read-Ahead. */
-      if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-      if (Argument > 256) return -EINVAL;
-      read_ahead[MAJOR(Inode->i_rdev)] = Argument;
-      return 0;
     case BLKFLSBUF:
-      /* Flush Buffers. */
-      if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-      fsync_dev(Inode->i_rdev);
-      invalidate_buffers(Inode->i_rdev);
-      return 0;
+    case BLKBSZGET:
+    case BLKBSZSET:
+      return blk_ioctl (Inode->i_rdev, Request, Argument);
+
     case BLKRRPART:
       /* Re-Read Partition Table. */
       if (!capable(CAP_SYS_ADMIN)) return -EACCES;

@@ -77,7 +77,7 @@ static int rx_copybreak = 100;
 	ToDo: Non-Intel setting could be better.
 */
 
-#if defined(__alpha__) || defined(__ia64__)
+#if defined(__alpha__) || defined(__ia64__) || defined(__x86_64__)
 static int csr0 = 0x01A00000 | 0xE000;
 #elif defined(__i386__) || defined(__powerpc__)
 static int csr0 = 0x01A00000 | 0x8000;
@@ -1260,7 +1260,7 @@ static void __devinit tulip_mwi_config (struct pci_dev *pdev,
 	if (tulip_debug > 3)
 		printk(KERN_DEBUG "%s: tulip_mwi_config()\n", pdev->slot_name);
 
-	tp->csr0 = 0;
+	tp->csr0 = csr0 = 0;
 
 	/* check for sane cache line size. from acenic.c. */
 	pci_read_config_byte(pdev, PCI_CACHE_LINE_SIZE, &cache);
@@ -1503,6 +1503,10 @@ static int __devinit tulip_init_one (struct pci_dev *pdev,
 #ifdef CONFIG_TULIP_MWI
 	if (!force_csr0 && (tp->flags & HAS_PCI_MWI))
 		tulip_mwi_config (pdev, dev);
+#else
+	/* MWI is broken for DC21143 rev 65... */
+	if (chip_idx == DC21143 && chip_rev == 65)
+		tp->csr0 &= ~MWI;
 #endif
 
 	/* Stop the chip's Tx and Rx processes. */

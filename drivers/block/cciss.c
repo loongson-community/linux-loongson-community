@@ -50,6 +50,7 @@
 /* Embedded module documentation macros - see modules.h */
 MODULE_AUTHOR("Charles M. White III - Compaq Computer Corporation");
 MODULE_DESCRIPTION("Driver for Compaq Smart Array Controller 5300");
+MODULE_LICENSE("GPL");
 
 #include "cciss_cmd.h"
 #include "cciss.h"
@@ -400,17 +401,23 @@ static int cciss_ioctl(struct inode *inode, struct file *filep,
 		put_user(hba[ctlr]->hd[MINOR(inode->i_rdev)].start_sect, &geo->start);
 		return 0;
 	case BLKGETSIZE:
-		if (!arg) return -EINVAL;
 		put_user(hba[ctlr]->hd[MINOR(inode->i_rdev)].nr_sects, (long*)arg);
+		return 0;
+	case BLKGETSIZE64:
+		put_user((u64)hba[ctlr]->hd[MINOR(inode->i_rdev)].nr_sects << 9, (u64*)arg);
 		return 0;
 	case BLKRRPART:
 		return revalidate_logvol(inode->i_rdev, 1);
 	case BLKFLSBUF:
+	case BLKBSZSET:
+	case BLKBSZGET:
 	case BLKROSET:
 	case BLKROGET:
 	case BLKRASET:
 	case BLKRAGET:
 	case BLKPG:
+	case BLKELVGET:
+	case BLKELVSET:
 		return( blk_ioctl(inode->i_rdev, cmd, arg));
 	case CCISS_GETPCIINFO:
 	{
@@ -1963,8 +1970,7 @@ static int __init cciss_init_one(struct pci_dev *pdev,
 	hba[i]->gendisk.nr_real = hba[i]->num_luns;
 
 	/* Get on the disk list */ 
-	hba[i]->gendisk.next = gendisk_head;
-	gendisk_head = &(hba[i]->gendisk); 
+	add_gendisk(&(hba[i]->gendisk));
 
 	cciss_geninit(i);
 	for(j=0; j<NWD; j++)
@@ -1980,7 +1986,6 @@ static void __devexit cciss_remove_one (struct pci_dev *pdev)
 {
 	ctlr_info_t *tmp_ptr;
 	int i;
-	struct gendisk *g;
 
 	if (pdev->driver_data == NULL)
 	{
@@ -2005,19 +2010,8 @@ static void __devexit cciss_remove_one (struct pci_dev *pdev)
 	
 
 	/* remove it from the disk list */
-	if (gendisk_head == &(hba[i]->gendisk))
-	{
-		gendisk_head = hba[i]->gendisk.next;
-	} else
-	{
-		for(g=gendisk_head; g ; g=g->next)
-		{
-			if(g->next == &(hba[i]->gendisk))
-			{
-				g->next = hba[i]->gendisk.next;
-			}
-		}
-	}
+	del_gendisk(&(hba[i]->gendisk));
+
 	pci_free_consistent(hba[i]->pdev, NR_CMDS * sizeof(CommandList_struct), 
 		hba[i]->cmd_pool, hba[i]->cmd_pool_dhandle);
 	pci_free_consistent(hba[i]->pdev, NR_CMDS * sizeof( ErrorInfo_struct),

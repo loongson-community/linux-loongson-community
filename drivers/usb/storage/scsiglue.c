@@ -1,7 +1,7 @@
 /* Driver for USB Mass Storage compliant devices
  * SCSI layer glue code
  *
- * $Id: scsiglue.c,v 1.21 2001/07/29 23:41:52 mdharm Exp $
+ * $Id: scsiglue.c,v 1.22 2001/09/02 04:29:27 mdharm Exp $
  *
  * Current development and maintenance by:
  *   (c) 1999, 2000 Matthew Dharm (mdharm-usb@one-eyed-alien.net)
@@ -49,7 +49,7 @@
 #include "debug.h"
 #include "transport.h"
 
-#include <linux/malloc.h>
+#include <linux/slab.h>
 
 /*
  * kernel thread actions
@@ -346,6 +346,7 @@ static int proc_info (char *buffer, char **start, off_t offset, int length,
 
 	/* show the GUID of the device */
 	SPRINTF("         GUID: " GUID_FORMAT "\n", GUID_ARGS(us->guid));
+	SPRINTF("     Attached: %d\n", us->pusb_dev != NULL);
 
 	/*
 	 * Calculate start of next buffer, and return value.

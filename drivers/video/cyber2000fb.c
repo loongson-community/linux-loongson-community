@@ -1285,7 +1285,7 @@ static inline void cyberpro_init_hw(struct cfb_info *cfb, int at_boot)
 		cfb->mclk_div  = cyber2000_grphr(MCLK_DIV);
 	}
 #endif
-#ifdef __i386__
+#if defined(__i386__) || defined(__x86_64__)
 	/*
 	 * x86 is simple, we just do regular outb's instead of
 	 * cyber2000_outb.
@@ -1673,6 +1673,7 @@ static void __exit cyberpro_exit(void)
 }
 
 #ifdef MODULE
+MODULE_LICENSE("GPL");
 module_init(cyber2000fb_init);
 #endif
 module_exit(cyberpro_exit);

@@ -90,6 +90,7 @@ static Scsi_Disk *rscsi_disks;
 static int *sd_sizes;
 static int *sd_blocksizes;
 static int *sd_hardsizes;	/* Hardware sector size */
+static int *sd_max_sectors;
 
 static int check_scsidisk_media_change(kdev_t);
 static int fop_revalidate_scsidisk(kdev_t);
@@ -227,9 +228,9 @@ static int sd_ioctl(struct inode * inode, struct file * file, unsigned int cmd, 
 			return 0;
 		}
 		case BLKGETSIZE:   /* Return device size */
-			if (!arg)
-				return -EINVAL;
 			return put_user(sd[SD_PARTITION(inode->i_rdev)].nr_sects, (long *) arg);
+		case BLKGETSIZE64:
+			return put_user((u64)sd[SD_PARTITION(inode->i_rdev)].nr_sects << 9, (u64 *)arg);
 
 		case BLKROSET:
 		case BLKROGET:
@@ -238,8 +239,10 @@ static int sd_ioctl(struct inode * inode, struct file * file, unsigned int cmd, 
 		case BLKFLSBUF:
 		case BLKSSZGET:
 		case BLKPG:
-                case BLKELVGET:
-                case BLKELVSET:
+		case BLKELVGET:
+		case BLKELVSET:
+		case BLKBSZGET:
+		case BLKBSZSET:
 			return blk_ioctl(inode->i_rdev, cmd, arg);
 
 		case BLKRRPART: /* Re-read partition tables */
@@ -561,22 +564,16 @@ static struct block_device_operations sd_fops =
 
 static struct gendisk sd_gendisk =
 {
-	SCSI_DISK0_MAJOR,	/* Major number */
-	"sd",			/* Major name */
-	4,			/* Bits to shift to get real from partition */
-	1 << 4,			/* Number of partitions per real */
-	NULL,			/* hd struct */
-	NULL,			/* block sizes */
-	0,			/* number */
-	NULL,			/* internal */
-	NULL,			/* next */
-        &sd_fops,		/* file operations */
+	major:		SCSI_DISK0_MAJOR,
+	major_name:	"sd",
+	minor_shift:	4,
+	max_p:		1 << 4,
+	fops:		&sd_fops,
 };
 
 static struct gendisk *sd_gendisks = &sd_gendisk;
 
 #define SD_GENDISK(i)    sd_gendisks[(i) / SCSI_DISKS_PER_MAJOR]
-#define LAST_SD_GENDISK  sd_gendisks[N_USED_SD_MAJORS - 1]
 
 /*
  * rw_intr is the interrupt routine for the device driver.
@@ -1020,7 +1017,7 @@ static int sd_init_onedisk(int i)
 		cmd[1] = (rscsi_disks[i].device->scsi_level <= SCSI_2) ?
 			 ((rscsi_disks[i].device->lun << 5) & 0xe0) : 0;
 		cmd[2] = 0x3f;	/* Get all pages */
-		cmd[4] = 8;     /* But we only want the 8 byte header */
+		cmd[4] = 255;   /* Ask for 255 bytes, even tho we want just the first 8 */
 		SRpnt->sr_cmd_len = 0;
 		SRpnt->sr_sense_buffer[0] = 0;
 		SRpnt->sr_sense_buffer[2] = 0;
@@ -1104,15 +1101,30 @@ static int sd_init()
 	if (!sd_hardsizes)
 		goto cleanup_blocksizes;
 
+	sd_max_sectors = kmalloc((sd_template.dev_max << 4) * sizeof(int), GFP_ATOMIC);
+	if (!sd_max_sectors)
+		goto cleanup_max_sectors;
+
 	for (i = 0; i < sd_template.dev_max << 4; i++) {
 		sd_blocksizes[i] = 1024;
 		sd_hardsizes[i] = 512;
+		/*
+		 * Allow lowlevel device drivers to generate 512k large scsi
+		 * commands if they know what they're doing and they ask for it
+		 * explicitly via the SHpnt->max_sectors API.
+		 */
+		sd_max_sectors[i] = MAX_SEGMENTS*8;
 	}
 
 	for (i = 0; i < N_USED_SD_MAJORS; i++) {
 		blksize_size[SD_MAJOR(i)] = sd_blocksizes + i * (SCSI_DISKS_PER_MAJOR << 4);
 		hardsect_size[SD_MAJOR(i)] = sd_hardsizes + i * (SCSI_DISKS_PER_MAJOR << 4);
+		max_sectors[SD_MAJOR(i)] = sd_max_sectors + i * (SCSI_DISKS_PER_MAJOR << 4);
 	}
+	/*
+	 * FIXME: should unregister blksize_size, hardsect_size and max_sectors when
+	 * the module is unloaded.
+	 */
 	sd = kmalloc((sd_template.dev_max << 4) *
 					  sizeof(struct hd_struct),
 					  GFP_ATOMIC);
@@ -1145,12 +1157,10 @@ static int sd_init()
 		sd_gendisks[i].part = sd + (i * SCSI_DISKS_PER_MAJOR << 4);
 		sd_gendisks[i].sizes = sd_sizes + (i * SCSI_DISKS_PER_MAJOR << 4);
 		sd_gendisks[i].nr_real = 0;
-		sd_gendisks[i].next = sd_gendisks + i + 1;
 		sd_gendisks[i].real_devices =
 		    (void *) (rscsi_disks + i * SCSI_DISKS_PER_MAJOR);
 	}
 
-	LAST_SD_GENDISK.next = NULL;
 	return 0;
 
 cleanup_gendisks_flags:
@@ -1164,6 +1174,8 @@ cleanup_gendisks_de_arr:
 cleanup_sd_gendisks:
 	kfree(sd);
 cleanup_sd:
+	kfree(sd_max_sectors);
+cleanup_max_sectors:
 	kfree(sd_hardsizes);
 cleanup_blocksizes:
 	kfree(sd_blocksizes);
@@ -1182,19 +1194,13 @@ cleanup_devfs:
 
 static void sd_finish()
 {
-	struct gendisk *gendisk;
 	int i;
 
 	for (i = 0; i < N_USED_SD_MAJORS; i++) {
 		blk_dev[SD_MAJOR(i)].queue = sd_find_queue;
+		add_gendisk(&sd_gendisks[i]);
 	}
-	for (gendisk = gendisk_head; gendisk != NULL; gendisk = gendisk->next)
-		if (gendisk == sd_gendisks)
-			break;
-	if (gendisk == NULL) {
-		LAST_SD_GENDISK.next = gendisk_head;
-		gendisk_head = sd_gendisks;
-	}
+
 	for (i = 0; i < sd_template.dev_max; ++i)
 		if (!rscsi_disks[i].capacity && rscsi_disks[i].device) {
 			sd_init_onedisk(i);
@@ -1375,10 +1381,7 @@ static int __init init_sd(void)
 
 static void __exit exit_sd(void)
 {
-	struct gendisk **prev_sdgd_link;
-	struct gendisk *sdgd;
 	int i;
-	int removed = 0;
 
 	scsi_unregister_module(MODULE_SCSI_DEV, &sd_template);
 
@@ -1392,26 +1395,9 @@ static void __exit exit_sd(void)
 		kfree(sd_blocksizes);
 		kfree(sd_hardsizes);
 		kfree((char *) sd);
-
-		/*
-		 * Now remove sd_gendisks from the linked list
-		 */
-		prev_sdgd_link = &gendisk_head;
-		while ((sdgd = *prev_sdgd_link) != NULL) {
-			if (sdgd >= sd_gendisks && sdgd <= &LAST_SD_GENDISK) {
-				removed++;
-				*prev_sdgd_link = sdgd->next;
-				continue;
-			}
-			prev_sdgd_link = &sdgd->next;
-		}
-
-		if (removed != N_USED_SD_MAJORS)
-			printk("%s %d sd_gendisks in disk chain",
-			       removed > N_USED_SD_MAJORS ? "total" : "just", removed);
-
 	}
 	for (i = 0; i < N_USED_SD_MAJORS; i++) {
+		del_gendisk(&sd_gendisks[i]);
 		blk_size[SD_MAJOR(i)] = NULL;
 		hardsect_size[SD_MAJOR(i)] = NULL;
 		read_ahead[SD_MAJOR(i)] = 0;

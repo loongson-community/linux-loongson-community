@@ -56,6 +56,7 @@ unsigned int cycx_debug;
 
 MODULE_AUTHOR("Arnaldo Carvalho de Melo");
 MODULE_DESCRIPTION("Cyclom 2X Sync Card Driver.");
+MODULE_LICENSE("GPL");
 MODULE_PARM(cycx_debug, "i");
 MODULE_PARM_DESC(cycx_debug, "cyclomx debug level");
 
@@ -111,8 +112,8 @@ int __init cyclomx_init (void)
 		fullname, DRV_VERSION, DRV_RELEASE, copyright);
 
 	/* Verify number of cards and allocate adapter data space */
-	ncards = min(int, ncards, MAX_CARDS);
-	ncards = max(int, ncards, 1);
+	ncards = min_t(int, ncards, MAX_CARDS);
+	ncards = max_t(int, ncards, 1);
 	card_array = kmalloc(sizeof(cycx_t) * ncards, GFP_KERNEL);
 	if (!card_array)
 		goto out;

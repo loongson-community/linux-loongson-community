@@ -11,6 +11,7 @@
 #include <linux/list.h>
 #include <linux/mmzone.h>
 #include <linux/swap.h>
+#include <linux/rbtree.h>
 
 extern unsigned long max_mapnr;
 extern unsigned long num_physpages;
@@ -18,7 +19,7 @@ extern void * high_memory;
 extern int page_cluster;
 /* The inactive_clean lists are per zone. */
 extern struct list_head active_list;
-extern struct list_head inactive_dirty_list;
+extern struct list_head inactive_list;
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -50,10 +51,7 @@ struct vm_area_struct {
 	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
 	unsigned long vm_flags;		/* Flags, listed below. */
 
-	/* AVL tree of VM areas per task, sorted by address */
-	short vm_avl_height;
-	struct vm_area_struct * vm_avl_left;
-	struct vm_area_struct * vm_avl_right;
+	rb_node_t vm_rb;
 
 	/*
 	 * For areas with an address space and backing store,
@@ -156,7 +154,6 @@ typedef struct page {
 					   updated asynchronously */
 	struct list_head lru;		/* Pageout list, eg. active_list;
 					   protected by pagemap_lru_lock !! */
-	unsigned long age;		/* Page aging counter. */
 	wait_queue_head_t wait;		/* Page locked?  Stand in line... */
 	struct page **pprev_hash;	/* Complement to *next_hash. */
 	struct buffer_head * buffers;	/* Buffer maps us to a disk block. */
@@ -187,7 +184,7 @@ typedef struct page {
  * Various page->flags bits:
  *
  * PG_reserved is set for special pages, which can never be swapped
- * out. Some of them might not even exist (eg. empty_bad_page)...
+ * out. Some of them might not even exist (eg empty_bad_page)...
  *
  * Multiple processes may "see" the same page. E.g. for untouched
  * mappings of /dev/null, all processes see the same page full of
@@ -210,8 +207,8 @@ typedef struct page {
  * The following discussion applies only to them.
  *
  * A page may belong to an inode's memory mapping. In this case,
- * page->mapping is the pointer to the inode, and page->offset is the
- * file offset of the page (not necessarily a multiple of PAGE_SIZE).
+ * page->mapping is the pointer to the inode, and page->index is the
+ * file offset of the page, in units of PAGE_CACHE_SIZE.
  *
  * A page may have buffers allocated to it. In this case,
  * page->buffers is a circular list of these buffer heads. Else,
@@ -226,7 +223,7 @@ typedef struct page {
  * using the page->list list_head. These fields are also used for
  * freelist managemet (when page->count==0).
  *
- * There is also a hash table mapping (inode,offset) to the page
+ * There is also a hash table mapping (mapping,index) to the page
  * in memory if present. The lists for this hash table use the fields
  * page->next_hash and page->pprev_hash.
  *
@@ -245,7 +242,7 @@ typedef struct page {
  *
  * For choosing which pages to swap out, inode pages carry a
  * PG_referenced bit, which is set any time the system accesses
- * that page through the (inode,offset) hash table. This referenced
+ * that page through the (mapping,index) hash table. This referenced
  * bit, together with the referenced bit in the page tables, is used
  * to manipulate page->age and move the page across the active,
  * inactive_dirty and inactive_clean lists.
@@ -260,7 +257,7 @@ typedef struct page {
  * PG_error is set to indicate that an I/O error occurred on this page.
  *
  * PG_arch_1 is an architecture specific page state bit.  The generic
- * code guarentees that this bit is cleared for a page when it first
+ * code guarantees that this bit is cleared for a page when it first
  * is entered into the page cache.
  *
  * PG_highmem pages are not permanently mapped into the kernel virtual
@@ -275,16 +272,13 @@ typedef struct page {
 #define PG_dirty		 4
 #define PG_decr_after		 5
 #define PG_active		 6
-#define PG_inactive_dirty	 7
+#define PG_inactive		 7
 #define PG_slab			 8
-#define PG_swap_cache		 9
 #define PG_skip			10
-#define PG_inactive_clean	11
-#define PG_highmem		12
-#define PG_checked		13	/* kill me in 2.5.<early>. */
-				/* bits 21-29 unused */
-#define PG_arch_1		30
-#define PG_reserved		31
+#define PG_highmem		11
+#define PG_checked		12	/* kill me in 2.5.<early>. */
+#define PG_arch_1		13
+#define PG_reserved		14
 
 /* Make it prettier to test the above... */
 #define Page_Uptodate(page)	test_bit(PG_uptodate, &(page)->flags)
@@ -331,30 +325,21 @@ static inline void set_page_dirty(struct page * page)
 #define SetPageDecrAfter(page)	set_bit(PG_decr_after, &(page)->flags)
 #define PageTestandClearDecrAfter(page)	test_and_clear_bit(PG_decr_after, &(page)->flags)
 #define PageSlab(page)		test_bit(PG_slab, &(page)->flags)
-#define PageSwapCache(page)	test_bit(PG_swap_cache, &(page)->flags)
-#define PageReserved(page)	test_bit(PG_reserved, &(page)->flags)
-
 #define PageSetSlab(page)	set_bit(PG_slab, &(page)->flags)
-#define PageSetSwapCache(page)	set_bit(PG_swap_cache, &(page)->flags)
-
-#define PageTestandSetSwapCache(page)	test_and_set_bit(PG_swap_cache, &(page)->flags)
-
-#define PageClearSlab(page)		clear_bit(PG_slab, &(page)->flags)
-#define PageClearSwapCache(page)	clear_bit(PG_swap_cache, &(page)->flags)
-
-#define PageTestandClearSwapCache(page)	test_and_clear_bit(PG_swap_cache, &(page)->flags)
+#define PageClearSlab(page)	clear_bit(PG_slab, &(page)->flags)
+#define PageReserved(page)	test_bit(PG_reserved, &(page)->flags)
 
 #define PageActive(page)	test_bit(PG_active, &(page)->flags)
 #define SetPageActive(page)	set_bit(PG_active, &(page)->flags)
 #define ClearPageActive(page)	clear_bit(PG_active, &(page)->flags)
+#define TestandSetPageActive(page)	test_and_set_bit(PG_active, &(page)->flags)
+#define TestandClearPageActive(page)	test_and_clear_bit(PG_active, &(page)->flags)
 
-#define PageInactiveDirty(page)	test_bit(PG_inactive_dirty, &(page)->flags)
-#define SetPageInactiveDirty(page)	set_bit(PG_inactive_dirty, &(page)->flags)
-#define ClearPageInactiveDirty(page)	clear_bit(PG_inactive_dirty, &(page)->flags)
-
-#define PageInactiveClean(page)	test_bit(PG_inactive_clean, &(page)->flags)
-#define SetPageInactiveClean(page)	set_bit(PG_inactive_clean, &(page)->flags)
-#define ClearPageInactiveClean(page)	clear_bit(PG_inactive_clean, &(page)->flags)
+#define PageInactive(page)	test_bit(PG_inactive, &(page)->flags)
+#define SetPageInactive(page)	set_bit(PG_inactive, &(page)->flags)
+#define ClearPageInactive(page)	clear_bit(PG_inactive, &(page)->flags)
+#define TestandSetPageInactive(page)	test_and_set_bit(PG_inactive, &(page)->flags)
+#define TestandClearPageInactive(page)	test_and_clear_bit(PG_inactive, &(page)->flags)
 
 #ifdef CONFIG_HIGHMEM
 #define PageHighMem(page)		test_bit(PG_highmem, &(page)->flags)
@@ -380,11 +365,11 @@ extern mem_map_t * mem_map;
  * can allocate highmem pages, the *get*page*() variants return
  * virtual kernel addresses to the allocated page(s).
  */
-extern struct page * FASTCALL(_alloc_pages(unsigned int gfp_mask, unsigned long order));
-extern struct page * FASTCALL(__alloc_pages(unsigned int gfp_mask, unsigned long order, zonelist_t *zonelist));
-extern struct page * alloc_pages_node(int nid, int gfp_mask, unsigned long order);
+extern struct page * FASTCALL(_alloc_pages(unsigned int gfp_mask, unsigned int order));
+extern struct page * FASTCALL(__alloc_pages(unsigned int gfp_mask, unsigned int order, zonelist_t *zonelist));
+extern struct page * alloc_pages_node(int nid, unsigned int gfp_mask, unsigned int order);
 
-static inline struct page * alloc_pages(int gfp_mask, unsigned long order)
+static inline struct page * alloc_pages(unsigned int gfp_mask, unsigned int order)
 {
 	/*
 	 * Gets optimized away by the compiler.
@@ -396,8 +381,8 @@ static inline struct page * alloc_pages(int gfp_mask, unsigned long order)
 
 #define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
 
-extern unsigned long FASTCALL(__get_free_pages(int gfp_mask, unsigned long order));
-extern unsigned long FASTCALL(get_zeroed_page(int gfp_mask));
+extern unsigned long FASTCALL(__get_free_pages(unsigned int gfp_mask, unsigned int order));
+extern unsigned long FASTCALL(get_zeroed_page(unsigned int gfp_mask));
 
 #define __get_free_page(gfp_mask) \
 		__get_free_pages((gfp_mask),0)
@@ -413,8 +398,8 @@ extern unsigned long FASTCALL(get_zeroed_page(int gfp_mask));
 /*
  * There is only one 'core' page-freeing function.
  */
-extern void FASTCALL(__free_pages(struct page *page, unsigned long order));
-extern void FASTCALL(free_pages(unsigned long addr, unsigned long order));
+extern void FASTCALL(__free_pages(struct page *page, unsigned int order));
+extern void FASTCALL(free_pages(unsigned long addr, unsigned int order));
 
 #define __free_page(page) __free_pages((page), 0)
 #define free_page(addr) free_pages((addr),0)
@@ -434,7 +419,7 @@ extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct 
 extern int remap_page_range(unsigned long from, unsigned long to, unsigned long size, pgprot_t prot);
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
 
-extern void vmtruncate(struct inode * inode, loff_t offset);
+extern int vmtruncate(struct inode * inode, loff_t offset);
 extern pmd_t *FASTCALL(__pmd_alloc(struct mm_struct *mm, pgd_t *pgd, unsigned long address));
 extern pte_t *FASTCALL(pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address));
 extern int handle_mm_fault(struct mm_struct *mm,struct vm_area_struct *vma, unsigned long address, int write_access);
@@ -443,6 +428,8 @@ extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *
 extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char *dst, int len);
 extern int ptrace_writedata(struct task_struct *tsk, char * src, unsigned long dst, int len);
 extern int ptrace_attach(struct task_struct *tsk);
+extern int ptrace_detach(struct task_struct *, unsigned int);
+extern void ptrace_disable(struct task_struct *);
 
 /*
  * On a two-level page table, this ends up being trivial. Thus the
@@ -451,7 +438,7 @@ extern int ptrace_attach(struct task_struct *tsk);
  */
 static inline pmd_t *pmd_alloc(struct mm_struct *mm, pgd_t *pgd, unsigned long address)
 {
-	if (!pgd_present(*pgd))
+	if (pgd_none(*pgd))
 		return __pmd_alloc(mm, pgd, address);
 	return pmd_offset(pgd, address);
 }
@@ -468,29 +455,37 @@ extern void show_mem(void);
 extern void si_meminfo(struct sysinfo * val);
 extern void swapin_readahead(swp_entry_t);
 
+extern struct address_space swapper_space;
+#define PageSwapCache(page) ((page)->mapping == &swapper_space)
+
+static inline int is_page_cache_freeable(struct page * page)
+{
+	return page_count(page) - !!page->buffers == 1;
+}
+
 /*
  * Work out if there are any other processes sharing this
  * swap cache page. Never mind the buffers.
  */
 static inline int exclusive_swap_page(struct page *page)
 {
-	unsigned int count;
-
 	if (!PageLocked(page))
 		BUG();
 	if (!PageSwapCache(page))
 		return 0;
-	count = page_count(page) - !!page->buffers;	/*  2: us + swap cache */
-	count += swap_count(page);			/* +1: just swap cache */
-	return count == 3;				/* =3: total */
+	if (page_count(page) - !!page->buffers != 2)	/* 2: us + cache */
+		return 0;
+	return swap_count(page) == 1;			/* 1: just cache */
 }
+
+extern void __free_pte(pte_t);
 
 /* mmap.c */
 extern void lock_vma_mappings(struct vm_area_struct *);
 extern void unlock_vma_mappings(struct vm_area_struct *);
 extern void insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void __insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
-extern void build_mmap_avl(struct mm_struct *);
+extern void build_mmap_rb(struct mm_struct *);
 extern void exit_mmap(struct mm_struct *);
 
 extern unsigned long get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
@@ -516,6 +511,22 @@ extern int do_munmap(struct mm_struct *, unsigned long, size_t);
 
 extern unsigned long do_brk(unsigned long, unsigned long);
 
+static inline void __vma_unlink(struct mm_struct * mm, struct vm_area_struct * vma, struct vm_area_struct * prev)
+{
+	prev->vm_next = vma->vm_next;
+	rb_erase(&vma->vm_rb, &mm->mm_rb);
+	if (mm->mmap_cache == vma)
+		mm->mmap_cache = prev;
+}
+
+static inline int can_vma_merge(struct vm_area_struct * vma, unsigned long vm_flags)
+{
+	if (!vma->vm_file && vma->vm_flags == vm_flags)
+		return 1;
+	else
+		return 0;
+}
+
 struct zone_t;
 /* filemap.c */
 extern void remove_inode_page(struct page *);
@@ -536,17 +547,19 @@ extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
 /* Action modifiers - doesn't change the zoning */
 #define __GFP_WAIT	0x10	/* Can wait and reschedule? */
 #define __GFP_HIGH	0x20	/* Should access emergency pools? */
-#define __GFP_IO	0x40	/* Can start physical IO? */
-#define __GFP_FS	0x80	/* Can call down to low-level FS? */
+#define __GFP_IO	0x40	/* Can start low memory physical IO? */
+#define __GFP_HIGHIO	0x80	/* Can start high mem physical IO? */
+#define __GFP_FS	0x100	/* Can call down to low-level FS? */
 
+#define GFP_NOHIGHIO	(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
 #define GFP_NOIO	(__GFP_HIGH | __GFP_WAIT)
-#define GFP_NOFS	(__GFP_HIGH | __GFP_WAIT | __GFP_IO)
+#define GFP_NOFS	(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_HIGHIO)
 #define GFP_ATOMIC	(__GFP_HIGH)
-#define GFP_USER	(             __GFP_WAIT | __GFP_IO | __GFP_FS)
-#define GFP_HIGHUSER	(             __GFP_WAIT | __GFP_IO | __GFP_FS | __GFP_HIGHMEM)
-#define GFP_KERNEL	(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_FS)
-#define GFP_NFS		(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_FS)
-#define GFP_KSWAPD	(                          __GFP_IO | __GFP_FS)
+#define GFP_USER	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS)
+#define GFP_HIGHUSER	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS | __GFP_HIGHMEM)
+#define GFP_KERNEL	(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS)
+#define GFP_NFS		(__GFP_HIGH | __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS)
+#define GFP_KSWAPD	(             __GFP_WAIT | __GFP_IO | __GFP_HIGHIO | __GFP_FS)
 
 /* Flag - indicates that the buffer will be suitable for DMA.  Ignored on some
    platforms, used as appropriate on others */
@@ -559,6 +572,11 @@ static inline int expand_stack(struct vm_area_struct * vma, unsigned long addres
 {
 	unsigned long grow;
 
+	/*
+	 * vma->vm_start/vm_end cannot change under us because the caller is required
+	 * to hold the mmap_sem in write mode. We need to get the spinlock only
+	 * before relocating the vma range ourself.
+	 */
 	address &= PAGE_MASK;
 	grow = (vma->vm_start - address) >> PAGE_SHIFT;
 	if (vma->vm_end - address > current->rlim[RLIMIT_STACK].rlim_cur ||

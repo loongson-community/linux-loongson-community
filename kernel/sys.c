@@ -39,6 +39,7 @@ int fs_overflowgid = DEFAULT_FS_OVERFLOWUID;
  */
 
 int C_A_D = 1;
+int cad_pid = 1;
 
 
 /*
@@ -350,7 +351,7 @@ void ctrl_alt_del(void)
 	if (C_A_D)
 		schedule_task(&cad_tq);
 	else
-		kill_proc(1, SIGINT, 1);
+		kill_proc(cad_pid, SIGINT, 1);
 }
 	
 
@@ -1215,7 +1216,7 @@ asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 	switch (option) {
 		case PR_SET_PDEATHSIG:
 			sig = arg2;
-			if (sig > _NSIG) {
+			if (sig < 0 || sig > _NSIG) {
 				error = -EINVAL;
 				break;
 			}

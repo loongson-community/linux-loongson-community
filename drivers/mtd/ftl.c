@@ -1174,10 +1174,10 @@ static int ftl_ioctl(struct inode *inode, struct file *file,
 	put_user(ftl_hd[minor].start_sect, (u_long *)&geo->start);
 	break;
     case BLKGETSIZE:
-	ret = verify_area(VERIFY_WRITE, (long *)arg, sizeof(long));
-	if (ret) return ret;
-	put_user(ftl_hd[minor].nr_sects, 
-		 (long *)arg);
+	ret = put_user(ftl_hd[minor].nr_sects, (long *)arg);
+	break;
+    case BLKGETSIZE64:
+	ret = put_user((u64)ftl_hd[minor].nr_sects << 9, (u64 *)arg);
 	break;
     case BLKRRPART:
 	ret = ftl_reread_partitions(minor);
@@ -1428,8 +1428,7 @@ mod_init_t init_ftl(void)
     blksize_size[FTL_MAJOR] = ftl_blocksizes;
     ftl_gendisk.major = FTL_MAJOR;
     blk_init_queue(BLK_DEFAULT_QUEUE(FTL_MAJOR), &do_ftl_request);
-    ftl_gendisk.next = gendisk_head;
-    gendisk_head = &ftl_gendisk;
+    add_gendisk(&ftl_gendisk);
     
     register_mtd_user(&ftl_notifier);
     
@@ -1438,19 +1437,13 @@ mod_init_t init_ftl(void)
 
 mod_exit_t cleanup_ftl(void)
 {
-    struct gendisk *gd, **gdp;
-
     unregister_mtd_user(&ftl_notifier);
 
     unregister_blkdev(FTL_MAJOR, "ftl");
     blk_cleanup_queue(BLK_DEFAULT_QUEUE(FTL_MAJOR));
     blksize_size[FTL_MAJOR] = NULL;
 
-    for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
-	if (*gdp == &ftl_gendisk) {
-	    gd = *gdp; *gdp = gd->next;
-	    break;
-	}
+    del_gendisk(&ftl_gendisk);
 }
 
 module_init(init_ftl);

@@ -3,17 +3,9 @@
  */
 
 
-#ifdef __KERNEL__
-
 #include <linux/sched.h>
 #include <linux/reiserfs_fs.h>
 #include <linux/smp_lock.h>
-
-#else
-
-#include "nokernel.h"
-
-#endif
 
 /*
 ** We pack the tails of files on file close, not at the time they are written.
@@ -84,7 +76,7 @@ static int reiserfs_sync_file(
 			      ) {
   struct inode * p_s_inode = p_s_dentry->d_inode;
   struct reiserfs_transaction_handle th ;
-  int n_err = 0;
+  int n_err;
   int windex ;
   int jbegin_count = 1 ;
 
@@ -94,6 +86,7 @@ static int reiserfs_sync_file(
       BUG ();
 
   n_err = fsync_inode_buffers(p_s_inode) ;
+  n_err |= fsync_inode_data_buffers(p_s_inode);
   /* commit the current transaction to flush any metadata
   ** changes.  sys_fsync takes care of flushing the dirty pages for us
   */

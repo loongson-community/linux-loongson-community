@@ -52,6 +52,12 @@
 #define DPRINTK(format,args...)
 #endif
 
+#ifndef __i386__
+#ifdef CONFIG_ATM_ZATM_EXACT_TS
+#warning Precise timestamping only available on i386 platform
+#undef CONFIG_ATM_ZATM_EXACT_TS
+#endif
+#endif
 
 #ifndef CONFIG_ATM_ZATM_DEBUG
 
@@ -1846,6 +1852,8 @@ int __init zatm_detect(void)
 
 #ifdef MODULE
  
+MODULE_LICENSE("GPL");
+
 int init_module(void)
 {
 	if (!zatm_detect()) {

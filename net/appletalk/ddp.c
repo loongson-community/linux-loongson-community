@@ -752,7 +752,7 @@ static int ddp_device_event(struct notifier_block *this, unsigned long event,
 
 /* ioctl calls. Shouldn't even need touching */
 /* Device configuration ioctl calls */
-int atif_ioctl(int cmd, void *arg)
+static int atif_ioctl(int cmd, void *arg)
 {
 	static char aarp_mcast[6] = {0x09, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	struct ifreq atreq;
@@ -1390,7 +1390,7 @@ static int atalk_rcv(struct sk_buff *skb, struct net_device *dev,
 
 	/* Trim buffer in case of stray trailing data */
 	origlen = skb->len;
-	skb_trim(skb, min(unsigned int, skb->len, ddphv.deh_len));
+	skb_trim(skb, min_t(unsigned int, skb->len, ddphv.deh_len));
 
 	/*
 	 * Size check to see if ddp->deh_len was crap
@@ -1455,7 +1455,7 @@ static int atalk_rcv(struct sk_buff *skb, struct net_device *dev,
 		}
 
                 /* Fix up skb->len field */
-                skb_trim(skb, min(unsigned int, origlen, rt->dev->hard_header_len +
+                skb_trim(skb, min_t(unsigned int, origlen, rt->dev->hard_header_len +
 			ddp_dl->header_length + ddphv.deh_len));
 
 		/* Mend the byte order */
@@ -1855,7 +1855,15 @@ static int atalk_ioctl(struct socket *sock,unsigned int cmd, unsigned long arg)
 		case SIOCDIFADDR:
 		case SIOCSARP:	/* proxy AARP */
 		case SIOCDARP:	/* proxy AARP */
-			return atif_ioctl(cmd, (void *)arg);
+		{
+			int ret;
+
+			rtnl_lock();
+			ret = atif_ioctl(cmd, (void *)arg);
+			rtnl_unlock();
+
+			return ret;
+		}
 		/* Physical layer ioctl calls */
 		case SIOCSIFLINK:
 		case SIOCGIFHWADDR:

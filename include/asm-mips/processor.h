@@ -12,7 +12,7 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
-
+#include <linux/cache.h>
 #include <asm/isadep.h>
 
 /*
@@ -34,7 +34,7 @@ struct cpuinfo_mips {
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;
 	unsigned long asid_cache;
-};
+} __attribute__((__aligned__(SMP_CACHE_BYTES)));
 
 /*
  * System setup and hardware flags..
@@ -167,9 +167,6 @@ struct thread_struct {
 };
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
-
-#define INIT_MMAP { &init_mm, KSEG0, KSEG1, NULL, PAGE_SHARED, \
-                    VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
 
 #define INIT_THREAD  { \
         /* \

@@ -13,6 +13,7 @@
 #include <linux/mm.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
+#include <linux/personality.h>
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/mman.h>

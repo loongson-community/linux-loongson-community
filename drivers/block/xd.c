@@ -126,17 +126,16 @@ static int xd_maxsect[XD_MAXDRIVES << 6];
 extern struct block_device_operations xd_fops;
 
 static struct gendisk xd_gendisk = {
-	MAJOR_NR,	/* Major number */
-	"xd",		/* Major name */
-	6,		/* Bits to shift to get real from partition */
-	1 << 6,		/* Number of partitions per real */
-	xd_struct,	/* hd struct */
-	xd_sizes,	/* block sizes */
-	0,		/* number */
-	(void *) xd_info,	/* internal */
-	NULL,		/* next */
-	&xd_fops,	/* file operations */
+	major:		MAJOR_NR,
+	major_name:	"xd",
+	minor_shift:	6,
+	max_p:		1 << 6,
+	part:		xd_struct,
+	sizes:		xd_sizes,
+	real_devices:	(void *)xd_info,
+	fops:		&xd_fops,
 };
+
 static struct block_device_operations xd_fops = {
 	open:		xd_open,
 	release:	xd_release,
@@ -173,8 +172,7 @@ int __init xd_init (void)
 	devfs_handle = devfs_mk_dir (NULL, xd_gendisk.major_name, NULL);
 	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	read_ahead[MAJOR_NR] = 8;	/* 8 sector (4kB) read ahead */
-	xd_gendisk.next = gendisk_head;
-	gendisk_head = &xd_gendisk;
+	add_gendisk(&xd_gendisk);
 	xd_geninit();
 
 	return 0;
@@ -339,6 +337,8 @@ static int xd_ioctl (struct inode *inode,struct file *file,u_int cmd,u_long arg)
 		case BLKGETSIZE:
 			if (!arg) return -EINVAL;
 			return put_user(xd_struct[MINOR(inode->i_rdev)].nr_sects,(long *) arg);
+		case BLKGETSIZE64:
+			return put_user((u64)xd_struct[MINOR(inode->i_rdev)].nr_sects << 9, (u64 *)arg);
 		case HDIO_SET_DMA:
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
 			if (xdc_busy) return -EBUSY;
@@ -376,9 +376,7 @@ static int xd_release (struct inode *inode, struct file *file)
 	int target = DEVICE_NR(inode->i_rdev);
 	if (target < xd_drives) {
 		xd_access[target]--;
-#ifdef MODULE
 		MOD_DEC_USE_COUNT;
-#endif /* MODULE */
 	}
 	return 0;
 }
@@ -1110,20 +1108,16 @@ MODULE_PARM(xd, "1-4i");
 MODULE_PARM(xd_geo, "3-6i");
 MODULE_PARM(nodma, "i");
 
+MODULE_LICENSE("GPL");
+
 static void xd_done (void)
 {
-	struct gendisk ** gdp;
-	
 	blksize_size[MAJOR_NR] = NULL;
 	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	blk_size[MAJOR_NR] = NULL;
 	hardsect_size[MAJOR_NR] = NULL;
 	read_ahead[MAJOR_NR] = 0;
-	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next))
-		if (*gdp == &xd_gendisk)
-			break;
-	if (*gdp)
-		*gdp = (*gdp)->next;
+	del_gendisk(&xd_gendisk);
 	release_region(xd_iobase,4);
 }
 

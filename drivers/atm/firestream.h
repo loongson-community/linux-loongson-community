@@ -345,18 +345,28 @@ struct FS_BPENTRY {
 #define CELLOSCONF_COST   (0x1 <<  0)
 /* Bits? */
 
-
 #define RAS0 0x1bc
 #define RAS0_DCD_XHLT (0x1 << 31)
 
 #define RAS0_VPSEL    (0x1 << 16)
 #define RAS0_VCSEL    (0x1 <<  0)
 
+#define RAS1 0x1c0
+#define RAS1_UTREG    (0x1 << 5)
+
 
 #define DMAMR 0x1cc
 #define DMAMR_TX_MODE_FULL (0x0 << 0)
 #define DMAMR_TX_MODE_PART (0x1 << 0)
 #define DMAMR_TX_MODE_NONE (0x2 << 0) /* And 3 */
+
+
+
+#define RAS2 0x280
+
+#define RAS2_NNI  (0x1 << 0)
+#define RAS2_USEL (0x1 << 1)
+#define RAS2_UBS  (0x1 << 2)
 
 
 

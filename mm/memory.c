@@ -47,6 +47,7 @@
 
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
+#include <asm/tlb.h>
 
 unsigned long max_mapnr;
 unsigned long num_physpages;
@@ -68,6 +69,27 @@ static inline void copy_cow_page(struct page * from, struct page * to, unsigned 
 }
 
 mem_map_t * mem_map;
+
+/*
+ * Called by TLB shootdown 
+ */
+void __free_pte(pte_t pte)
+{
+	struct page *page = pte_page(pte);
+	if ((!VALID_PAGE(page)) || PageReserved(page))
+		return;
+	/*
+	 * free_page() used to be able to clear swap cache
+	 * entries.  We may now have to do it manually.
+	 */
+	if (page->mapping) {
+		if (pte_dirty(pte))
+			set_page_dirty(page);
+	}
+		
+	free_page_and_swap_cache(page);
+}
+
 
 /*
  * Note: this doesn't free the actual pages themselves. That
@@ -103,8 +125,10 @@ static inline void free_one_pgd(pgd_t * dir)
 	}
 	pmd = pmd_offset(dir, 0);
 	pgd_clear(dir);
-	for (j = 0; j < PTRS_PER_PMD ; j++)
+	for (j = 0; j < PTRS_PER_PMD ; j++) {
+		prefetchw(pmd+j+(PREFETCH_STRIDE/16));
 		free_one_pmd(pmd+j);
+	}
 	pmd_free(pmd);
 }
 
@@ -128,11 +152,13 @@ void clear_page_tables(struct mm_struct *mm, unsigned long first, int nr)
 {
 	pgd_t * page_dir = mm->pgd;
 
+	spin_lock(&mm->page_table_lock);
 	page_dir += first;
 	do {
 		free_one_pgd(page_dir);
 		page_dir++;
 	} while (--nr);
+	spin_unlock(&mm->page_table_lock);
 
 	/* keep the page table cache within bounds */
 	check_pgt_cache();
@@ -148,6 +174,9 @@ void clear_page_tables(struct mm_struct *mm, unsigned long first, int nr)
  *
  * 08Jan98 Merged into one routine from several inline routines to reduce
  *         variable count and make things faster. -jj
+ *
+ * dst->page_table_lock is held on entry and exit,
+ * but may be dropped within pmd_alloc() and pte_alloc().
  */
 int copy_page_range(struct mm_struct *dst, struct mm_struct *src,
 			struct vm_area_struct *vma)
@@ -159,8 +188,7 @@ int copy_page_range(struct mm_struct *dst, struct mm_struct *src,
 
 	src_pgd = pgd_offset(src, address)-1;
 	dst_pgd = pgd_offset(dst, address)-1;
-	
-	spin_lock(&dst->page_table_lock);		
+
 	for (;;) {
 		pmd_t * src_pmd, * dst_pmd;
 
@@ -234,6 +262,7 @@ skip_copy_pte_range:		address = (address + PMD_SIZE) & PMD_MASK;
 					pte = pte_mkclean(pte);
 				pte = pte_mkold(pte);
 				get_page(ptepage);
+				dst->rss++;
 
 cont_copy_pte_range:		set_pte(dst_pte, pte);
 cont_copy_pte_range_noset:	address += PAGE_SIZE;
@@ -251,48 +280,27 @@ cont_copy_pmd_range:	src_pmd++;
 out_unlock:
 	spin_unlock(&src->page_table_lock);
 out:
-	spin_unlock(&dst->page_table_lock);
 	return 0;
-
 nomem:
-	spin_unlock(&dst->page_table_lock);
 	return -ENOMEM;
 }
 
 /*
  * Return indicates whether a page was freed so caller can adjust rss
  */
-static inline int free_pte(pte_t pte)
-{
-	if (pte_present(pte)) {
-		struct page *page = pte_page(pte);
-		if ((!VALID_PAGE(page)) || PageReserved(page))
-			return 0;
-		/* 
-		 * free_page() used to be able to clear swap cache
-		 * entries.  We may now have to do it manually.  
-		 */
-		if (pte_dirty(pte) && page->mapping)
-			set_page_dirty(page);
-		free_page_and_swap_cache(page);
-		return 1;
-	}
-	swap_free(pte_to_swp_entry(pte));
-	return 0;
-}
-
 static inline void forget_pte(pte_t page)
 {
 	if (!pte_none(page)) {
 		printk("forget_pte: old mapping existed!\n");
-		free_pte(page);
+		BUG();
 	}
 }
 
-static inline int zap_pte_range(struct mm_struct *mm, pmd_t * pmd, unsigned long address, unsigned long size)
+static inline int zap_pte_range(mmu_gather_t *tlb, pmd_t * pmd, unsigned long address, unsigned long size)
 {
-	pte_t * pte;
-	int freed;
+	unsigned long offset;
+	pte_t * ptep;
+	int freed = 0;
 
 	if (pmd_none(*pmd))
 		return 0;
@@ -301,27 +309,29 @@ static inline int zap_pte_range(struct mm_struct *mm, pmd_t * pmd, unsigned long
 		pmd_clear(pmd);
 		return 0;
 	}
-	pte = pte_offset(pmd, address);
-	address &= ~PMD_MASK;
-	if (address + size > PMD_SIZE)
-		size = PMD_SIZE - address;
-	size >>= PAGE_SHIFT;
-	freed = 0;
-	for (;;) {
-		pte_t page;
-		if (!size)
-			break;
-		page = ptep_get_and_clear(pte);
-		pte++;
-		size--;
-		if (pte_none(page))
+	ptep = pte_offset(pmd, address);
+	offset = address & ~PMD_MASK;
+	if (offset + size > PMD_SIZE)
+		size = PMD_SIZE - offset;
+	size &= PAGE_MASK;
+	for (offset=0; offset < size; ptep++, offset += PAGE_SIZE) {
+		pte_t pte = *ptep;
+		if (pte_none(pte))
 			continue;
-		freed += free_pte(page);
+		if (pte_present(pte)) {
+			freed ++;
+			/* This will eventually call __free_pte on the pte. */
+			tlb_remove_page(tlb, ptep, address + offset);
+		} else {
+			swap_free(pte_to_swp_entry(pte));
+			pte_clear(ptep);
+		}
 	}
+
 	return freed;
 }
 
-static inline int zap_pmd_range(struct mm_struct *mm, pgd_t * dir, unsigned long address, unsigned long size)
+static inline int zap_pmd_range(mmu_gather_t *tlb, pgd_t * dir, unsigned long address, unsigned long size)
 {
 	pmd_t * pmd;
 	unsigned long end;
@@ -335,13 +345,12 @@ static inline int zap_pmd_range(struct mm_struct *mm, pgd_t * dir, unsigned long
 		return 0;
 	}
 	pmd = pmd_offset(dir, address);
-	address &= ~PGDIR_MASK;
 	end = address + size;
-	if (end > PGDIR_SIZE)
-		end = PGDIR_SIZE;
+	if (end > ((address + PGDIR_SIZE) & PGDIR_MASK))
+		end = ((address + PGDIR_SIZE) & PGDIR_MASK);
 	freed = 0;
 	do {
-		freed += zap_pte_range(mm, pmd, address, end - address);
+		freed += zap_pte_range(tlb, pmd, address, end - address);
 		address = (address + PMD_SIZE) & PMD_MASK; 
 		pmd++;
 	} while (address < end);
@@ -353,8 +362,9 @@ static inline int zap_pmd_range(struct mm_struct *mm, pgd_t * dir, unsigned long
  */
 void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size)
 {
+	mmu_gather_t *tlb;
 	pgd_t * dir;
-	unsigned long end = address + size;
+	unsigned long start = address, end = address + size;
 	int freed = 0;
 
 	dir = pgd_offset(mm, address);
@@ -369,11 +379,18 @@ void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long s
 	if (address >= end)
 		BUG();
 	spin_lock(&mm->page_table_lock);
+	flush_cache_range(mm, address, end);
+	tlb = tlb_gather_mmu(mm);
+
 	do {
-		freed += zap_pmd_range(mm, dir, address, end - address);
+		freed += zap_pmd_range(tlb, dir, address, end - address);
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	} while (address && (address < end));
+
+	/* this will flush any remaining tlb entries */
+	tlb_finish_mmu(tlb, start, end);
+
 	/*
 	 * Update rss for the mm_struct (not necessarily current->mm)
 	 * Notice that rss is an unsigned long.
@@ -920,6 +937,8 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 			break;
 		/* Recheck swapcachedness once the page is locked */
 		can_reuse = exclusive_swap_page(old_page);
+		if (can_reuse)
+			delete_from_swap_cache(old_page);
 		UnlockPage(old_page);
 		if (!can_reuse)
 			break;
@@ -979,9 +998,7 @@ static void vmtruncate_list(struct vm_area_struct *mpnt, unsigned long pgoff)
 
 		/* mapping wholly truncated? */
 		if (mpnt->vm_pgoff >= pgoff) {
-			flush_cache_range(mm, start, end);
 			zap_page_range(mm, start, len);
-			flush_tlb_range(mm, start, end);
 			continue;
 		}
 
@@ -994,12 +1011,9 @@ static void vmtruncate_list(struct vm_area_struct *mpnt, unsigned long pgoff)
 		/* Ok, partially affected.. */
 		start += diff << PAGE_SHIFT;
 		len = (len - diff) << PAGE_SHIFT;
-		flush_cache_range(mm, start, end);
 		zap_page_range(mm, start, len);
-		flush_tlb_range(mm, start, end);
 	} while ((mpnt = mpnt->vm_next_share) != NULL);
 }
-			      
 
 /*
  * Handle all mappings that got truncated by a "truncate()"
@@ -1009,7 +1023,7 @@ static void vmtruncate_list(struct vm_area_struct *mpnt, unsigned long pgoff)
  * between the file and the memory map for a potential last
  * incomplete page.  Ugly, but necessary.
  */
-void vmtruncate(struct inode * inode, loff_t offset)
+int vmtruncate(struct inode * inode, loff_t offset)
 {
 	unsigned long pgoff;
 	struct address_space *mapping = inode->i_mapping;
@@ -1054,10 +1068,8 @@ out_truncate:
 		unlock_kernel();
 	}
 out:
-	return;
+	return 0;
 }
-
-
 
 /* 
  * Primitive swap readahead code. We simply read an aligned block of
@@ -1072,23 +1084,19 @@ void swapin_readahead(swp_entry_t entry)
 	unsigned long offset;
 
 	/*
-	 * Get the number of handles we should do readahead io to. Also,
-	 * grab temporary references on them, releasing them as io completes.
+	 * Get the number of handles we should do readahead io to.
 	 */
 	num = valid_swaphandles(entry, &offset);
 	for (i = 0; i < num; offset++, i++) {
 		/* Don't block on I/O for read-ahead */
-		if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster
-				* (1 << page_cluster)) {
-			while (i++ < num)
-				swap_free(SWP_ENTRY(SWP_TYPE(entry), offset++));
+		if (atomic_read(&nr_async_pages) >=
+		    pager_daemon.swap_cluster << page_cluster)
 			break;
-		}
 		/* Ok, do the async read-ahead now */
 		new_page = read_swap_cache_async(SWP_ENTRY(SWP_TYPE(entry), offset));
-		if (new_page != NULL)
-			page_cache_release(new_page);
-		swap_free(SWP_ENTRY(SWP_TYPE(entry), offset));
+		if (!new_page)
+			break;
+		page_cache_release(new_page);
 	}
 	return;
 }
@@ -1103,6 +1111,7 @@ static int do_swap_page(struct mm_struct * mm,
 	struct page *page;
 	swp_entry_t entry = pte_to_swp_entry(orig_pte);
 	pte_t pte;
+	int ret = 1;
 
 	spin_unlock(&mm->page_table_lock);
 	page = lookup_swap_cache(entry);
@@ -1119,6 +1128,9 @@ static int do_swap_page(struct mm_struct * mm,
 			 */
 			return pte_same(*page_table, orig_pte) ? -1 : 1;
 		}
+
+		/* Had to read the page from swap area: Major fault */
+		ret = 2;
 	}
 
 	/*
@@ -1144,13 +1156,12 @@ static int do_swap_page(struct mm_struct * mm,
 	pte = mk_pte(page, vma->vm_page_prot);
 
 	swap_free(entry);
-	if (exclusive_swap_page(page)) {	
-		if (write_access)
-			pte = pte_mkwrite(pte_mkdirty(pte));
-		if (vm_swap_full()) {
-			delete_from_swap_cache_nolock(page);
-			pte = pte_mkdirty(pte);
-		}
+	mark_page_accessed(page);
+	if (exclusive_swap_page(page)) {
+		if (vma->vm_flags & VM_WRITE)
+			pte = pte_mkwrite(pte);
+		pte = pte_mkdirty(pte);
+		delete_from_swap_cache(page);
 	}
 	UnlockPage(page);
 
@@ -1160,7 +1171,7 @@ static int do_swap_page(struct mm_struct * mm,
 
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, address, pte);
-	return 1;	/* Minor fault */
+	return ret;
 }
 
 /*
@@ -1377,7 +1388,7 @@ pmd_t *__pmd_alloc(struct mm_struct *mm, pgd_t *pgd, unsigned long address)
 		 * Because we dropped the lock, we should re-check the
 		 * entry, as somebody else could have populated it..
 		 */
-		if (pgd_present(*pgd)) {
+		if (!pgd_none(*pgd)) {
 			pmd_free(new);
 			goto out;
 		}
@@ -1395,7 +1406,7 @@ out:
  */
 pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 {
-	if (!pmd_present(*pmd)) {
+	if (pmd_none(*pmd)) {
 		pte_t *new;
 
 		/* "fast" allocation can happen without dropping the lock.. */
@@ -1411,7 +1422,7 @@ pte_t *pte_alloc(struct mm_struct *mm, pmd_t *pmd, unsigned long address)
 			 * Because we dropped the lock, we should re-check the
 			 * entry, as somebody else could have populated it..
 			 */
-			if (pmd_present(*pmd)) {
+			if (!pmd_none(*pmd)) {
 				pte_free(new);
 				goto out;
 			}

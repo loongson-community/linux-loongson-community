@@ -1,4 +1,4 @@
-/* $Id: timod.c,v 1.15 2001/08/13 18:56:10 davem Exp $
+/* $Id: timod.c,v 1.16 2001/09/18 22:29:06 davem Exp $
  * timod.c: timod emulation.
  *
  * Copyright (C) 1998 Patrik Rak (prak3264@ss1000.ms.mff.cuni.cz)
@@ -699,7 +699,7 @@ int timod_getmsg(unsigned int fd, char *ctl_buf, int ctl_maxlen, s32 *ctl_len,
 	}
 	if (ctl_maxlen >= 0 && sock->pfirst) {
 		struct T_primsg *it = sock->pfirst;
-		int l = min(int, ctl_maxlen, it->length);
+		int l = min_t(int, ctl_maxlen, it->length);
 		SCHECK_MAGIC((char*)((u64)(((char *)&it->type)+sock->offset+it->length+7)&~7),MKCTL_MAGIC);
 		SOLD("purting ctl data");
 		if(copy_to_user(ctl_buf,

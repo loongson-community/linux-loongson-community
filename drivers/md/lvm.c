@@ -197,9 +197,13 @@ static char *lvm_short_version = "version 0.9.1_beta2 (18/01/2001)";
 
 #include "lvm-snap.h"
 
-#define	LVM_CORRECT_READ_AHEAD( a) \
-   if      ( a < LVM_MIN_READ_AHEAD || \
-             a > LVM_MAX_READ_AHEAD) a = LVM_MAX_READ_AHEAD;
+#define	LVM_CORRECT_READ_AHEAD(a)		\
+do {						\
+	if ((a) < LVM_MIN_READ_AHEAD ||		\
+	    (a) > LVM_MAX_READ_AHEAD)		\
+		(a) = LVM_DEFAULT_READ_AHEAD;	\
+	read_ahead[MAJOR_NR] = (a);		\
+} while(0)
 
 #ifndef WRITEA
 #  define WRITEA WRITE
@@ -376,17 +380,13 @@ static int lvm_size[MAX_LV] =
 {0,};
 static struct gendisk lvm_gendisk =
 {
-	MAJOR_NR,		/* major # */
-	LVM_NAME,		/* name of major */
-	0,			/* number of times minor is shifted
-				   to get real minor */
-	1,			/* maximum partitions per device */
-	lvm_hd_struct,		/* partition table */
-	lvm_size,		/* device size in blocks, copied
-				   to block_size[] */
-	MAX_LV,			/* number or real devices */
-	NULL,			/* internal */
-	NULL,			/* pointer to next gendisk struct (internal) */
+	major:		MAJOR_NR,
+	major_name:	LVM_NAME,
+	minor_shift:	0,
+	max_p:		1,
+	part:		lvm_hd_struct,
+	sizes:		lvm_size,
+	nr_real:	MAX_LV,
 };
 
 /*
@@ -394,8 +394,6 @@ static struct gendisk lvm_gendisk =
  */
 int lvm_init(void)
 {
-	struct gendisk *gendisk_ptr = NULL;
-
 	if (register_chrdev(LVM_CHAR_MAJOR, lvm_name, &lvm_chr_fops) < 0) {
 		printk(KERN_ERR "%s -- register_chrdev failed\n", lvm_name);
 		return -EIO;
@@ -423,19 +421,7 @@ int lvm_init(void)
 	lvm_init_vars();
 	lvm_geninit(&lvm_gendisk);
 
-	/* insert our gendisk at the corresponding major */
-	if (gendisk_head != NULL) {
-		gendisk_ptr = gendisk_head;
-		while (gendisk_ptr->next != NULL &&
-		       gendisk_ptr->major > lvm_gendisk.major) {
-			gendisk_ptr = gendisk_ptr->next;
-		}
-		lvm_gendisk.next = gendisk_ptr->next;
-		gendisk_ptr->next = &lvm_gendisk;
-	} else {
-		gendisk_head = &lvm_gendisk;
-		lvm_gendisk.next = NULL;
-	}
+	add_gendisk(&lvm_gendisk);
 
 #ifdef LVM_HD_NAME
 	/* reference from drivers/block/genhd.c */
@@ -469,8 +455,6 @@ int lvm_init(void)
  */
 static void lvm_cleanup(void)
 {
-	struct gendisk *gendisk_ptr = NULL, *gendisk_ptr_prev = NULL;
-
 	devfs_unregister (lvm_devfs_handle);
 
 	if (unregister_chrdev(LVM_CHAR_MAJOR, lvm_name) < 0) {
@@ -481,16 +465,7 @@ static void lvm_cleanup(void)
 	}
 
 
-	gendisk_ptr = gendisk_ptr_prev = gendisk_head;
-	while (gendisk_ptr != NULL) {
-		if (gendisk_ptr == &lvm_gendisk)
-			break;
-		gendisk_ptr_prev = gendisk_ptr;
-		gendisk_ptr = gendisk_ptr->next;
-	}
-	/* delete our gendisk from chain */
-	if (gendisk_ptr == &lvm_gendisk)
-		gendisk_ptr_prev->next = gendisk_ptr->next;
+	del_gendisk(&lvm_gendisk);
 
 	blk_size[MAJOR_NR] = NULL;
 	blksize_size[MAJOR_NR] = NULL;
@@ -906,6 +881,11 @@ static int lvm_blk_ioctl(struct inode *inode, struct file *file,
 			return -EFAULT;
 		break;
 
+	case BLKGETSIZE64:
+		if (put_user((u64)lv_ptr->lv_size << 9, (u64 *)arg))
+			return -EFAULT;
+		break;
+
 
 	case BLKFLSBUF:
 		/* flush buffer cache */
@@ -929,6 +909,7 @@ static int lvm_blk_ioctl(struct inode *inode, struct file *file,
 		    (long) arg > LVM_MAX_READ_AHEAD)
 			return -EINVAL;
 		lv_ptr->lv_read_ahead = (long) arg;
+		read_ahead[MAJOR_NR] = lv_ptr->lv_read_ahead;
 		break;
 
 
@@ -1059,7 +1040,6 @@ static int lvm_blk_close(struct inode *inode, struct file *file)
 	       lvm_name, minor, VG_BLK(minor), LV_BLK(minor));
 #endif
 
-	sync_dev(inode->i_rdev);
 	if (lv_ptr->lv_open == 1) vg_ptr->lv_open--;
 	lv_ptr->lv_open--;
 

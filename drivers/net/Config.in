@@ -25,12 +25,13 @@ fi
 
 mainmenu_option next_comment
 comment 'Ethernet (10 or 100Mbit)'
-
 bool 'Ethernet (10 or 100Mbit)' CONFIG_NET_ETHERNET
 if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
-   dep_bool '  ARM EBSA110 AM79C961A support' CONFIG_ARM_AM79C961A $CONFIG_ARCH_EBSA110
-   if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
-      source drivers/acorn/net/Config.in
+   if [ "$CONFIG_ARM" = "y" ]; then  
+      dep_bool '  ARM EBSA110 AM79C961A support' CONFIG_ARM_AM79C961A $CONFIG_ARCH_EBSA110
+      if [ "$CONFIG_ARCH_ACORN" = "y" ]; then
+         source drivers/acorn/net/Config.in
+      fi
    fi
    if [ "$CONFIG_PPC" = "y" ]; then
       tristate '  MACE (Power Mac ethernet) support' CONFIG_MACE
@@ -39,7 +40,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
       tristate '  BMAC (G3 ethernet) support' CONFIG_BMAC
       tristate '  GMAC (G4/iBook ethernet) support' CONFIG_GMAC
-      tristate '  Symbios 53c885 (Synergy ethernet) support' CONFIG_NCR885E
       tristate '  National DP83902AV (Oak ethernet) support' CONFIG_OAKNET
    fi
    if [ "$CONFIG_ZORRO" = "y" ]; then
@@ -47,6 +47,9 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate '  Ariadne II and X-Surf support' CONFIG_NE2K_ZORRO
       tristate '  A2065 support' CONFIG_A2065
       tristate '  Hydra support' CONFIG_HYDRA
+   fi
+   if [ "$CONFIG_PARISC" = "y" ]; then
+      dep_tristate '  Lasi ethernet' CONFIG_LASI_82596 $CONFIG_GSC_LASI
    fi
    if [ "$CONFIG_MIPS_JAZZ" = "y" ]; then
       tristate '  MIPS JAZZ onboard SONIC Ethernet support' CONFIG_MIPS_JAZZ_SONIC
@@ -108,7 +111,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       dep_tristate '    NI6510 support' CONFIG_NI65 $CONFIG_ISA
    fi
    if [ "$CONFIG_ISA" = "y" -o "$CONFIG_MCA" = "y" ]; then
-      dep_tristate '  AT1700/1720 support (EXPERIMENTAL)' CONFIG_AT1700 $CONFIG_EXPERIMENTAL
+         dep_tristate '  AT1700/1720 support (EXPERIMENTAL)' CONFIG_AT1700 $CONFIG_EXPERIMENTAL
    fi
    if [ "$CONFIG_ISA" = "y" -o "$CONFIG_EISA" = "y" -o "$CONFIG_MCA" = "y" ]; then
       tristate '  DEPCA, DE10x, DE200, DE201, DE202, DE422 support' CONFIG_DEPCA
@@ -127,6 +130,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
       tristate '    HP PCLAN+ (27247B and 27252A) support' CONFIG_HPLAN_PLUS
       tristate '    HP PCLAN (27245 and other 27xxx series) support' CONFIG_HPLAN
+      tristate '    LP486E on board Ethernet' CONFIG_LP486E
       tristate '    ICL EtherTeam 16i/32 support' CONFIG_ETH16I
       tristate '    NE2000/NE1000 support' CONFIG_NE2000
       if [ "$CONFIG_OBSOLETE" = "y" ]; then
@@ -141,10 +145,10 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       tristate '  NE/2 (ne2000 MCA version) support' CONFIG_NE2_MCA
       tristate '  IBM LAN Adapter/A support' CONFIG_IBMLANA
    fi
-   if [ "$CONFIG_ISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
-      bool '  EISA, VLB, PCI and on board controllers' CONFIG_NET_PCI
+   if [ "$CONFIG_ISA" = "y" -o "$CONFIG_EISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
+     bool '  EISA, VLB, PCI and on board controllers' CONFIG_NET_PCI
    else
-      define_bool CONFIG_NET_PCI n
+     define_bool CONFIG_NET_PCI n
    fi
    if [ "$CONFIG_NET_PCI" = "y" ]; then
       dep_tristate '    AMD PCnet32 PCI support' CONFIG_PCNET32 $CONFIG_PCI
@@ -156,8 +160,10 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       dep_tristate '    Apricot Xen-II on board Ethernet' CONFIG_APRICOT $CONFIG_ISA
       dep_tristate '    CS89x0 support' CONFIG_CS89x0 $CONFIG_ISA
       dep_tristate '    DECchip Tulip (dc21x4x) PCI support' CONFIG_TULIP $CONFIG_PCI
-      dep_mbool '      New bus configuration (EXPERIMENTAL)' CONFIG_TULIP_MWI $CONFIG_EXPERIMENTAL $CONFIG_TULIP
-      dep_mbool '      Use PCI shared mem for NIC registers' CONFIG_TULIP_MMIO $CONFIG_TULIP
+      if [ "$CONFIG_TULIP" = "y" -o "$CONFIG_TULIP" = "m" ]; then
+         dep_bool '      New bus configuration (EXPERIMENTAL)' CONFIG_TULIP_MWI $CONFIG_EXPERIMENTAL
+         bool '      Use PCI shared mem for NIC registers' CONFIG_TULIP_MMIO
+      fi
       if [ "$CONFIG_PCI" = "y" -o "$CONFIG_EISA" = "y" ]; then
          tristate '    Generic DECchip & DIGITAL EtherWORKS PCI/EISA' CONFIG_DE4X5
          tristate '    Digi Intl. RightSwitch SE-X support' CONFIG_DGRS
@@ -221,14 +227,21 @@ mainmenu_option next_comment
 comment 'Ethernet (1000 Mbit)'
 
 dep_tristate 'Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support' CONFIG_ACENIC $CONFIG_PCI
-dep_mbool '  Omit support for old Tigon I based AceNICs' CONFIG_ACENIC_OMIT_TIGON_I $CONFIG_ACENIC
+if [ "$CONFIG_ACENIC" != "n" ]; then
+   bool '  Omit support for old Tigon I based AceNICs' CONFIG_ACENIC_OMIT_TIGON_I
+fi
 dep_tristate 'D-Link DL2000-based Gigabit Ethernet support' CONFIG_DL2K $CONFIG_PCI
 dep_tristate 'MyriCOM Gigabit Ethernet support' CONFIG_MYRI_SBUS $CONFIG_SBUS
+dep_tristate 'National Semiconduct DP83820 support' CONFIG_NS83820 $CONFIG_PCI
 dep_tristate 'Packet Engines Hamachi GNIC-II support' CONFIG_HAMACHI $CONFIG_PCI
 dep_tristate 'Packet Engines Yellowfin Gigabit-NIC support (EXPERIMENTAL)' CONFIG_YELLOWFIN $CONFIG_PCI $CONFIG_EXPERIMENTAL
 dep_tristate 'SysKonnect SK-98xx support' CONFIG_SK98LIN $CONFIG_PCI
 
 endmenu
+
+if [ "$CONFIG_PPC_ISERIES" = "y" ]; then
+   dep_tristate 'iSeries Virtual Ethernet driver support' CONFIG_VETH $CONFIG_PPC_ISERIES
+fi
 
 bool 'FDDI driver support' CONFIG_FDDI
 if [ "$CONFIG_FDDI" = "y" ]; then
@@ -260,7 +273,9 @@ if [ ! "$CONFIG_PPP" = "n" ]; then
    dep_tristate '  PPP support for sync tty ports' CONFIG_PPP_SYNC_TTY $CONFIG_PPP
    dep_tristate '  PPP Deflate compression' CONFIG_PPP_DEFLATE $CONFIG_PPP
    dep_tristate '  PPP BSD-Compress compression' CONFIG_PPP_BSDCOMP $CONFIG_PPP
-   dep_tristate '  PPP over Ethernet (EXPERIMENTAL)' CONFIG_PPPOE $CONFIG_PPP $CONFIG_EXPERIMENTAL
+   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+      dep_tristate '  PPP over Ethernet (EXPERIMENTAL)' CONFIG_PPPOE $CONFIG_PPP
+   fi
 fi
 
 tristate 'SLIP (serial line) support' CONFIG_SLIP

@@ -1,4 +1,4 @@
-/* $Id: isdn_net.c,v 1.140.6.7 2001/07/27 11:15:53 kai Exp $
+/* $Id: isdn_net.c,v 1.140.6.8 2001/08/14 14:04:21 kai Exp $
 
  * Linux ISDN subsystem, network interfaces and related functions (linklevel).
  *
@@ -190,7 +190,7 @@ static int isdn_net_start_xmit(struct sk_buff *, struct net_device *);
 static void isdn_net_ciscohdlck_connected(isdn_net_local *lp);
 static void isdn_net_ciscohdlck_disconnected(isdn_net_local *lp);
 
-char *isdn_net_revision = "$Revision: 1.140.6.7 $";
+char *isdn_net_revision = "$Revision: 1.140.6.8 $";
 
  /*
   * Code for raw-networking over ISDN
@@ -583,7 +583,7 @@ isdn_net_dial(void)
 	isdn_net_dev *p = dev->netdev;
 	int anymore = 0;
 	int i;
-	int flags;
+	ulong flags;
 	isdn_ctrl cmd;
 
 	while (p) {
@@ -1755,6 +1755,11 @@ isdn_net_ciscohdlck_receive(isdn_net_local *lp, struct sk_buff *skb)
 	case CISCO_TYPE_SLARP:
 		isdn_net_ciscohdlck_slarp_in(lp, skb);
 		goto out_free;
+	case CISCO_TYPE_CDP:
+		if (lp->cisco_debserint)
+			printk(KERN_DEBUG "%s: Received CDP packet. use "
+				"\"no cdp enable\" on cisco.\n", lp->name);
+		goto out_free;
 	default:
 		printk(KERN_WARNING "%s: Unknown Cisco type 0x%04x\n",
 		       lp->name, type);
@@ -2787,7 +2792,7 @@ isdn_net_setcfg(isdn_net_ioctl_cfg * cfg)
 			chidx = lp->pre_channel;
 		}
 		if (cfg->exclusive > 0) {
-			int flags;
+			ulong flags;
 
 			/* If binding is exclusive, try to grab the channel */
 			save_flags(flags);
@@ -3043,7 +3048,7 @@ isdn_net_delphone(isdn_net_ioctl_phone * phone)
 	int inout = phone->outgoing & 1;
 	isdn_net_phone *n;
 	isdn_net_phone *m;
-	int flags;
+	ulong flags;
 
 	if (p) {
 		save_flags(flags);
@@ -3079,7 +3084,7 @@ isdn_net_rmallphone(isdn_net_dev * p)
 {
 	isdn_net_phone *n;
 	isdn_net_phone *m;
-	int flags;
+	ulong flags;
 	int i;
 
 	save_flags(flags);
@@ -3128,7 +3133,7 @@ isdn_net_force_hangup(char *name)
 static int
 isdn_net_realrm(isdn_net_dev * p, isdn_net_dev * q)
 {
-	int flags;
+	ulong flags;
 
 	save_flags(flags);
 	cli();
@@ -3214,7 +3219,7 @@ isdn_net_rm(char *name)
 int
 isdn_net_rmall(void)
 {
-	int flags;
+	ulong flags;
 	int ret;
 
 	/* Walk through netdev-chain */

@@ -751,7 +751,7 @@ static int ax25_getsockopt(struct socket *sock, int level, int optname, char *op
 		return -EFAULT;
 
 	valptr = (void *) &val;
-	length = min(unsigned int, maxlen, sizeof(int));
+	length = min_t(unsigned int, maxlen, sizeof(int));
 
 	switch (optname) {
 		case AX25_WINDOW:
@@ -803,7 +803,7 @@ static int ax25_getsockopt(struct socket *sock, int level, int optname, char *op
 
 			if (ax25_dev != NULL && ax25_dev->dev != NULL) {
 				strncpy(devname, ax25_dev->dev->name, IFNAMSIZ);
-				length = min(unsigned int, strlen(ax25_dev->dev->name)+1, maxlen);
+				length = min_t(unsigned int, strlen(ax25_dev->dev->name)+1, maxlen);
 				devname[length-1] = '\0';
 			} else {
 				*devname = '\0';
@@ -1841,7 +1841,7 @@ EXPORT_SYMBOL(asc2ax);
 EXPORT_SYMBOL(null_ax25_address);
 EXPORT_SYMBOL(ax25_display_timer);
 
-static const char banner[] __initdata = KERN_INFO "NET4: G4KLX/GW4PTS AX.25 for Linux. Version 0.37 for Linux NET4.0\n";
+static char banner[] __initdata = KERN_INFO "NET4: G4KLX/GW4PTS AX.25 for Linux. Version 0.37 for Linux NET4.0\n";
 
 static int __init ax25_init(void)
 {

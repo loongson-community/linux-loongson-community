@@ -15,6 +15,10 @@
  *
  * See Documentation/usb/usb-serial.txt for more information on using this driver
  * 
+ * (09/13/2001) gkh
+ *	Moved generic driver initialize after we have registered with the USB
+ *	core.  Thanks to Randy Dunlap for pointing this problem out.
+ *
  * (07/03/2001) gkh
  *	Fixed module paramater size.  Thanks to John Brockmeyer for the pointer.
  *	Fixed vendor and product getting defined through the MODULE_PARM macro
@@ -306,8 +310,6 @@
 #define DRIVER_VERSION "v1.3"
 #define DRIVER_AUTHOR "Greg Kroah-Hartman, greg@kroah.com, http://www.kroah.com/linux-usb/"
 #define DRIVER_DESC "USB Serial Driver core"
-
-#define MAX(a,b)	(((a)>(b))?(a):(b))
 
 /* function prototypes for a "generic" type serial converter (no flow control, not all endpoints needed) */
 /* need to always compile these in, as some of the other devices use these functions as their own. */
@@ -852,7 +854,8 @@ static int generic_write (struct usb_serial_port *port, int from_user, const uns
 		count = (count > port->bulk_out_size) ? port->bulk_out_size : count;
 
 		if (from_user) {
-			copy_from_user(port->write_urb->transfer_buffer, buf, count);
+			if (copy_from_user(port->write_urb->transfer_buffer, buf, count))
+				return -EFAULT;
 		}
 		else {
 			memcpy (port->write_urb->transfer_buffer, buf, count);
@@ -1260,9 +1263,9 @@ static void * usb_serial_probe(struct usb_device *dev, unsigned int ifnum,
 
 	/* initialize some parts of the port structures */
 	/* we don't use num_ports here cauz some devices have more endpoint pairs than ports */
-	max_endpoints = MAX(num_bulk_in, num_bulk_out);
-	max_endpoints = MAX(max_endpoints, num_interrupt_in);
-	max_endpoints = MAX(max_endpoints, serial->num_ports);
+	max_endpoints = max(num_bulk_in, num_bulk_out);
+	max_endpoints = max(max_endpoints, num_interrupt_in);
+	max_endpoints = max(max_endpoints, (int)serial->num_ports);
 	dbg (__FUNCTION__ " - setting up %d port structures for this device", max_endpoints);
 	for (i = 0; i < max_endpoints; ++i) {
 		port = &serial->port[i];
@@ -1427,14 +1430,6 @@ int usb_serial_init(void)
 		return -1;
 	}
 
-#ifdef CONFIG_USB_SERIAL_GENERIC
-	generic_device_ids[0].idVendor = vendor;
-	generic_device_ids[0].idProduct = product;
-	generic_device_ids[0].match_flags = USB_DEVICE_ID_MATCH_VENDOR | USB_DEVICE_ID_MATCH_PRODUCT;
-	/* register our generic driver with ourselves */
-	usb_serial_register (&generic_device);
-#endif
-	
 	/* register the USB driver */
 	result = usb_register(&usb_serial_driver);
 	if (result < 0) {
@@ -1442,6 +1437,14 @@ int usb_serial_init(void)
 		err("usb_register failed for the usb-serial driver. Error number %d", result);
 		return -1;
 	}
+
+#ifdef CONFIG_USB_SERIAL_GENERIC
+	generic_device_ids[0].idVendor = vendor;
+	generic_device_ids[0].idProduct = product;
+	generic_device_ids[0].match_flags = USB_DEVICE_ID_MATCH_VENDOR | USB_DEVICE_ID_MATCH_PRODUCT;
+	/* register our generic driver with ourselves */
+	usb_serial_register (&generic_device);
+#endif
 
 	info(DRIVER_DESC " " DRIVER_VERSION);
 
@@ -1513,6 +1516,7 @@ EXPORT_SYMBOL(usb_serial_deregister);
 /* Module information */
 MODULE_AUTHOR( DRIVER_AUTHOR );
 MODULE_DESCRIPTION( DRIVER_DESC );
+MODULE_LICENSE("GPL");
 
 MODULE_PARM(debug, "i");
 MODULE_PARM_DESC(debug, "Debug enabled or not");
@@ -1524,4 +1528,3 @@ MODULE_PARM_DESC(vendor, "User specified USB idVendor");
 MODULE_PARM(product, "h");
 MODULE_PARM_DESC(product, "User specified USB idProduct");
 #endif
-

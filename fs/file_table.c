@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/smp_lock.h>
+#include <linux/iobuf.h>
 
 /* sysctl tunables... */
 struct files_stat_struct files_stat = {0, 0, NR_FILE};
@@ -104,21 +105,24 @@ void fput(struct file * file)
 
 	if (atomic_dec_and_test(&file->f_count)) {
 		locks_remove_flock(file);
+
+		if (file->f_iobuf)
+			free_kiovec(1, &file->f_iobuf);
+
 		if (file->f_op && file->f_op->release)
 			file->f_op->release(inode, file);
 		fops_put(file->f_op);
-		file->f_dentry = NULL;
-		file->f_vfsmnt = NULL;
 		if (file->f_mode & FMODE_WRITE)
 			put_write_access(inode);
-		dput(dentry);
-		if (mnt)
-			mntput(mnt);
 		file_list_lock();
+		file->f_dentry = NULL;
+		file->f_vfsmnt = NULL;
 		list_del(&file->f_list);
 		list_add(&file->f_list, &free_list);
 		files_stat.nr_free_files++;
 		file_list_unlock();
+		dput(dentry);
+		mntput(mnt);
 	}
 }
 
@@ -158,14 +162,6 @@ void file_move(struct file *file, struct list_head *list)
 	file_list_unlock();
 }
 
-void file_moveto(struct file *new, struct file *old)
-{
-	file_list_lock();
-	list_del(&new->f_list);
-	list_add(&new->f_list, &old->f_list);
-	file_list_unlock();
-}
-
 int fs_may_remount_ro(struct super_block *sb)
 {
 	struct list_head *p;
@@ -174,12 +170,7 @@ int fs_may_remount_ro(struct super_block *sb)
 	file_list_lock();
 	for (p = sb->s_files.next; p != &sb->s_files; p = p->next) {
 		struct file *file = list_entry(p, struct file, f_list);
-		struct inode *inode;
-
-		if (!file->f_dentry)
-			continue;
-
-		inode = file->f_dentry->d_inode;
+		struct inode *inode = file->f_dentry->d_inode;
 
 		/* File with pending delete? */
 		if (inode->i_nlink == 0)

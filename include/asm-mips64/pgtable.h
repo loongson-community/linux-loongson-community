@@ -816,4 +816,9 @@ static inline void set_context(unsigned long val)
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
+/*
+ * No page table caches to initialise
+ */
+#define pgtable_cache_init()	do { } while (0)
+
 #endif /* _ASM_PGTABLE_H */

@@ -1,4 +1,4 @@
-/* $Id: fcntl.h,v 1.11 2000/09/23 02:09:21 davem Exp $ */
+/* $Id: fcntl.h,v 1.12 2001/09/20 00:35:34 davem Exp $ */
 #ifndef _SPARC64_FCNTL_H
 #define _SPARC64_FCNTL_H
 
@@ -20,6 +20,8 @@
 #define O_DIRECTORY	0x10000	/* must be a directory */
 #define O_NOFOLLOW	0x20000	/* don't follow links */
 #define O_LARGEFILE	0x40000
+#define O_DIRECT        0x100000 /* direct disk access hint */
+
 
 #define F_DUPFD		0	/* dup */
 #define F_GETFD		1	/* get close_on_exec */

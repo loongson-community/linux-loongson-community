@@ -11,19 +11,11 @@
  * NO WARRANTY
  */
 
-#ifdef __KERNEL__
-
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/bitops.h>
 #include <linux/reiserfs_fs.h>
 #include <linux/smp_lock.h>
-
-#else
-
-#include "nokernel.h"
-
-#endif
 
 				/* there should be an overview right
                                    here, as there should be in every
@@ -382,7 +374,7 @@ struct dentry * reiserfs_lookup (struct inode * dir, struct dentry * dentry)
     pathrelse (&path_to_entry);
     if (retval == NAME_FOUND) {
 	inode = reiserfs_iget (dir->i_sb, (struct cpu_key *)&(de.de_dir_id));
-	if (!inode) {
+	if (!inode || IS_ERR(inode)) {
 	    return ERR_PTR(-EACCES);
         }
     }

@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: ip6_output.c,v 1.31 2001/04/17 20:39:51 davem Exp $
+ *	$Id: ip6_output.c,v 1.33 2001/09/20 00:35:35 davem Exp $
  *
  *	Based on linux/net/ipv4/ip_output.c
  *
@@ -149,7 +149,8 @@ static int route6_me_harder(struct sk_buff *skb)
 	dst = ip6_route_output(skb->sk, &fl);
 
 	if (dst->error) {
-		printk(KERN_DEBUG "route6_me_harder: No more route.\n");
+		if (net_ratelimit())
+			printk(KERN_DEBUG "route6_me_harder: No more route.\n");
 		return -EINVAL;
 	}
 
@@ -239,7 +240,8 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 		return NF_HOOK(PF_INET6, NF_IP6_LOCAL_OUT, skb, NULL, dst->dev, ip6_maybe_reroute);
 	}
 
-	printk(KERN_DEBUG "IPv6: sending pkt_too_big to self\n");
+	if (net_ratelimit())
+		printk(KERN_DEBUG "IPv6: sending pkt_too_big to self\n");
 	icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, dst->pmtu, skb->dev);
 	kfree_skb(skb);
 	return -EMSGSIZE;
@@ -724,7 +726,7 @@ int ip6_forward(struct sk_buff *skb)
 	struct ipv6hdr *hdr = skb->nh.ipv6h;
 	struct inet6_skb_parm *opt =(struct inet6_skb_parm*)skb->cb;
 	
-	if (ipv6_devconf.forwarding == 0 && opt->srcrt == 0)
+	if (ipv6_devconf.forwarding == 0)
 		goto error;
 
 	skb->ip_summed = CHECKSUM_NONE;

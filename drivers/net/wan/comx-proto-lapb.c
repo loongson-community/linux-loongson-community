@@ -212,7 +212,7 @@ static int comxlapb_read_proc(char *page, char **start, off_t off, int count,
 	if (count >= len - off) {
 		*eof = 1;
 	}
-	return min(int, count, len - off);
+	return min_t(int, count, len - off);
 }
 
 static int comxlapb_write_proc(struct file *file, const char *buffer, 
@@ -543,3 +543,5 @@ static void __exit comx_proto_lapb_exit(void)
 module_init(comx_proto_lapb_init);
 #endif
 module_exit(comx_proto_lapb_exit);
+
+MODULE_LICENSE("GPL");

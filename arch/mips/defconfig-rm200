@@ -132,6 +132,7 @@ CONFIG_BLK_DEV_FD=y
 # CONFIG_MD_RAID0 is not set
 # CONFIG_MD_RAID1 is not set
 # CONFIG_MD_RAID5 is not set
+# CONFIG_MD_MULTIPATH is not set
 # CONFIG_BLK_DEV_LVM is not set
 
 #
@@ -181,6 +182,7 @@ CONFIG_INET=y
 #
 # CONFIG_PHONE is not set
 # CONFIG_PHONE_IXJ is not set
+# CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
 # ATA/IDE/MFM/RLL support
@@ -254,7 +256,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # Joysticks
 #
-# CONFIG_JOYSTICK is not set
+# CONFIG_INPUT_GAMEPORT is not set
+
+#
+# Input core support is needed for gameports
+#
 
 #
 # Input core support is needed for joysticks
@@ -397,6 +403,10 @@ CONFIG_VGA_CONSOLE=y
 # Input core support
 #
 # CONFIG_INPUT is not set
+# CONFIG_INPUT_KEYBDEV is not set
+# CONFIG_INPUT_MOUSEDEV is not set
+# CONFIG_INPUT_JOYDEV is not set
+# CONFIG_INPUT_EVDEV is not set
 
 #
 # Kernel hacking

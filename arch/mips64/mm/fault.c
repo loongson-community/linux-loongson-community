@@ -6,6 +6,7 @@
  * Copyright (C) 1995 - 2000 by Ralf Baechle
  * Copyright (C) 1999, 2000 by Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -57,17 +58,33 @@ dodebug2(abi64_no_regargs, struct pt_regs regs)
 	printk("Got exception 0x%lx at 0x%lx\n", retaddr, regs.cp0_epc);
 }
 
-extern spinlock_t console_lock, timerlist_lock;
+extern spinlock_t timerlist_lock;
 
 /*
  * Unlock any spinlocks which will prevent us from getting the
  * message out (timerlist_lock is acquired through the
  * console unblank code)
  */
-void bust_spinlocks(void)
+void bust_spinlocks(int yes)
 {
-	spin_lock_init(&console_lock);
 	spin_lock_init(&timerlist_lock);
+	if (yes) {
+		oops_in_progress = 1;
+	} else {
+		int loglevel_save = console_loglevel;
+#ifdef CONFIG_VT
+		unblank_screen();
+#endif
+		oops_in_progress = 0;
+		/*
+		 * OK, the message is on the console.  Now we call printk()
+		 * without oops_in_progress set so that printk will give klogd
+		 * a poke.  Hold onto your hats...
+		 */
+		console_loglevel = 15;		/* NMI oopser may have shut the console up */
+		printk(" ");
+		console_loglevel = loglevel_save;
+	}
 }
 
 /*
@@ -201,7 +218,7 @@ no_context:
 	 * terminate things with extreme prejudice.
 	 */
 
-	bust_spinlocks();
+	bust_spinlocks(1);
 
 	printk(KERN_ALERT "Cpu %d Unable to handle kernel paging request at "
 	       "address %08lx, epc == %08x, ra == %08x\n",
@@ -209,6 +226,7 @@ no_context:
                (unsigned int) regs->regs[31]);
 	die("Oops", regs, write);
 	do_exit(SIGKILL);
+	bust_spinlocks(0);
 
 /*
  * We ran out of memory, or some other thing happened to us that made
