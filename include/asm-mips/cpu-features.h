@@ -87,12 +87,12 @@
  * that did the store so we can't optimize this into only doing the flush on
  * the local CPU.
  */
-#ifdef CONFIG_SMP
 #ifndef cpu_icache_snoops_remote_store
+#ifdef CONFIG_SMP
 #define cpu_icache_snoops_remote_store	(cpu_data[0].icache.flags & MIPS_IC_SNOOPS_REMOTE)
-#endif
 #else
 #define cpu_icache_snoops_remote_store	1
+#endif
 #endif
 
 /*
