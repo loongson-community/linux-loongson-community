@@ -49,12 +49,12 @@
 
 /* Entries per page directory level: we use two-level, so we don't really
    have any PMD directory physically.  */
-#define PTRS_PER_PGD		1024
-#define PTRS_PER_PMD		1024
-#define PTRS_PER_PTE		512
 #define PGD_ORDER		1
 #define PMD_ORDER		1
 #define PTE_ORDER		0
+#define PTRS_PER_PGD		((PAGE_SIZE << PGD_ORDER) / sizeof(pgd_t))
+#define PTRS_PER_PMD		((PAGE_SIZE << PMD_ORDER) / sizeof(pmd_t))
+#define PTRS_PER_PTE		((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
 
 #define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
 #define FIRST_USER_PGD_NR	0
