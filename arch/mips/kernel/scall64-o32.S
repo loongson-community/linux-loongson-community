@@ -126,7 +126,7 @@ trace_a_syscall:
 	ld	a3, PT_R7(sp)
 	ld	a4, PT_R8(sp)
 	ld	a5, PT_R9(sp)
-
+	ld	a6, PT_R10(sp)		# For indirect syscalls
 	jalr	t2
 
 	li	t0, -EMAXERRNO - 1	# error?

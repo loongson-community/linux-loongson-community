@@ -97,6 +97,8 @@ syscall_trace_entry:
 	ld	a1, PT_R5(sp)
 	ld	a2, PT_R6(sp)
 	ld	a3, PT_R7(sp)
+	ld	a4, PT_R8(sp)
+	ld	a5, PT_R9(sp)
 	jalr	t2
 
 	li	t0, -EMAXERRNO - 1	# error?
