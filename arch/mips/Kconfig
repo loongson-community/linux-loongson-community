@@ -420,27 +420,35 @@ choice
 
 config SIBYTE_SWARM
 	bool "BCM91250A-SWARM"
+	select SIBYTE_SB1250
 
 config SIBYTE_SENTOSA
 	bool "BCM91250E-Sentosa"
+	select SIBYTE_SB1250
 
 config SIBYTE_RHONE
 	bool "BCM91125E-Rhone"
+	select SIBYTE_BCM1125H
 
 config SIBYTE_CARMEL
 	bool "BCM91120x-Carmel"
+	select SIBYTE_BCM1120
 
 config SIBYTE_PTSWARM
 	bool "BCM91250PT-PTSWARM"
+	select SIBYTE_SB1250
 
 config SIBYTE_LITTLESUR
 	bool "BCM91250C2-LittleSur"
+	select SIBYTE_SB1250
 
 config SIBYTE_CRHINE
-	bool "BCM91120C-CRhone"
+	bool "BCM91120C-CRhine"
+	select SIBYTE_BCM1120
 
 config SIBYTE_CRHONE
 	bool "BCM91125C-CRhone"
+	select SIBYTE_BCM1125
 
 config SIBYTE_UNKNOWN
 	bool "Other"
@@ -455,7 +463,7 @@ config SIBYTE_BOARD
 choice
 	prompt "BCM1xxx SOC Type"
 	depends on SIBYTE_UNKNOWN
-	default SIBYTE_UNK_SB1250
+	default SIBYTE_UNK_BCM1250
 	help
 	  Since you haven't chosen a known evaluation board from
 	  Broadcom, you must explicitly pick the SOC this kernel is
@@ -463,42 +471,39 @@ choice
 
 config SIBYTE_UNK_BCM1250
 	bool "BCM1250"
+	select SIBYTE_SB1250
 
 config SIBYTE_UNK_BCM1120
 	bool "BCM1120"
+	select SIBYTE_BCM1120
 
 config SIBYTE_UNK_BCM1125
 	bool "BCM1125"
+	select SIBYTE_BCM1125
 
 config SIBYTE_UNK_BCM1125H
 	bool "BCM1125H"
+	select SIBYTE_BCM1125H
 
 endchoice
 
 config SIBYTE_SB1250
 	bool
-	depends on SIBYTE_SWARM || SIBYTE_SENTOSA || SIBYTE_LITTLESUR || SIBYTE_PTSWARM || SIBYTE_UNK_BCM1250
-	default y
 
 config SIBYTE_BCM1120
 	bool
-	depends on SIBYTE_CRHINE || SIBYTE_CARMEL || SIBYTE_UNK_BCM1120
-	default y
+	select SIBYTE_BCM112X
 
 config SIBYTE_BCM1125
 	bool
-	depends on SIBYTE_UNK_BCM1125
-	default y
+	select SIBYTE_BCM112X
 
 config SIBYTE_BCM1125H
 	bool
-	depends on SIBYTE_CRHONE || SIBYTE_RHONE || SIBYTE_UNK_BCM1125H
-	default y
+	select SIBYTE_BCM112X
 
 config SIBYTE_BCM112X
 	bool
-	depends on SIBYTE_BCM1120 || SIBYTE_BCM1125 || SIBYTE_BCM1125H
-	default y
 
 choice
 	prompt "SiByte SOC Stepping"
@@ -511,6 +516,7 @@ config CPU_SB1_PASS_1
 config CPU_SB1_PASS_2_1250
 	bool "1250 An"
 	depends on SIBYTE_SB1250
+	select CPU_SB1_PASS_2
 	help
 	  Also called BCM1250 Pass 2
 
@@ -529,6 +535,7 @@ config CPU_SB1_PASS_4
 config CPU_SB1_PASS_2_112x
 	bool "112x Hybrid"
 	depends on SIBYTE_BCM112X
+	select CPU_SB1_PASS_2
 
 config CPU_SB1_PASS_3
 	bool "112x An"
@@ -538,8 +545,6 @@ endchoice
 
 config CPU_SB1_PASS_2
 	bool
-	depends on CPU_SB1_PASS_2_1250 || CPU_SB1_PASS_2_112x
-	default y
 
 config SIBYTE_HAS_PCI
 	bool
