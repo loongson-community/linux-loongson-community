@@ -904,6 +904,13 @@ config FB_HIT
 	  This is the frame buffer device driver for the Hitachi HD64461 LCD
 	  frame buffer card.
 
+config FB_PMAG_AA
+	bool "PMAG-AA TURBOchannel framebuffer support"
+	depends on FB && DECSTATION && TC
+	help
+	  Support for the PMAG-AA TURBOchannel framebuffer card (1280x1024x1)
+	  used mainly in the MIPS-based DECstation series.
+
 config FB_PMAG_BA
 	bool "PMAG-BA TURBOchannel framebuffer support"
 	depends on FB && DECSTATION && TC
