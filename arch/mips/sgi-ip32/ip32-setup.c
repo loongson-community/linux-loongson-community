@@ -114,7 +114,7 @@ static int __init ip32_setup(void)
 		o2_serial[0].type	= PORT_16550A;
 		o2_serial[0].line	= 0;
 		o2_serial[0].irq	= MACEISA_SERIAL1_IRQ;
-		o2_serial[0].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		o2_serial[0].flags	= STD_COM_FLAGS;
 		o2_serial[0].uartclk	= BASE_BAUD * 16;
 		o2_serial[0].iotype	= UPIO_MEM;
 		o2_serial[0].membase	= (char *)&mace->isa.serial1;
@@ -125,7 +125,7 @@ static int __init ip32_setup(void)
 		o2_serial[1].type	= PORT_16550A;
 		o2_serial[1].line	= 1;
 		o2_serial[1].irq	= MACEISA_SERIAL2_IRQ;
-		o2_serial[1].flags	= STD_COM_FLAGS | UPF_RESOURCES;
+		o2_serial[1].flags	= STD_COM_FLAGS;
 		o2_serial[1].uartclk	= BASE_BAUD * 16;
 		o2_serial[1].iotype	= UPIO_MEM;
 		o2_serial[1].membase	= (char *)&mace->isa.serial2;
