@@ -264,7 +264,7 @@ static int init_tsc(void)
  	 *	the ident/bugs checks so we must run this hook as it
  	 *	may turn off the TSC flag.
  	 *
- 	 *	NOTE: this doesnt yet handle SMP 486 machines where only
+ 	 *	NOTE: this doesn't yet handle SMP 486 machines where only
  	 *	some CPU's have a TSC. Thats never worked and nobody has
  	 *	moaned if you have the only one in the world - you fix it!
  	 */
@@ -299,6 +299,7 @@ static int init_tsc(void)
 	return -ENODEV;
 }
 
+#ifndef CONFIG_X86_TSC
 /* disable flag for tsc.  Takes effect by clearing the TSC cpu flag
  * in cpu/common.c */
 static int __init tsc_setup(char *str)
@@ -306,7 +307,14 @@ static int __init tsc_setup(char *str)
 	tsc_disable = 1;
 	return 1;
 }
-
+#else
+static int __init tsc_setup(char *str)
+{
+	printk(KERN_WARNING "notsc: Kernel compiled with CONFIG_X86_TSC, "
+				"cannot disable TSC.\n");
+	return 1;
+}
+#endif
 __setup("notsc", tsc_setup);
 
 

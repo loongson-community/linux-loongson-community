@@ -26,7 +26,7 @@
 #define SCLP_CORE_PRINT_HEADER "sclp low level driver: "
 
 /*
- * decides wether we make use of the macro MACHINE_IS_VM to
+ * decides whether we make use of the macro MACHINE_IS_VM to
  * configure the driver for VM at run time (a little bit
  * different behaviour); otherwise we use the default
  * settings in sclp_data.init_ioctls
@@ -481,8 +481,7 @@ static void
 do_machine_quiesce(void)
 {
 	cpu_quiesce_map = cpu_online_map;
-	smp_call_function(do_load_quiesce_psw, NULL, 0, 0);
-	do_load_quiesce_psw(NULL);
+	on_each_cpu(do_load_quiesce_psw, NULL, 0, 0);
 }
 #else
 static void

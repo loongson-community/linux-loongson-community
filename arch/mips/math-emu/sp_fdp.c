@@ -53,7 +53,7 @@ ieee754sp ieee754sp_fdp(ieee754dp x)
 	case IEEE754_CLASS_ZERO:
 		return ieee754sp_zero(xs);
 	case IEEE754_CLASS_DNORM:
-		/* cant possibly be sp representable */
+		/* can't possibly be sp representable */
 		SETCX(IEEE754_UNDERFLOW);
 		SETCX(IEEE754_INEXACT);
 		if ((ieee754_csr.rm == IEEE754_RU && !xs) ||

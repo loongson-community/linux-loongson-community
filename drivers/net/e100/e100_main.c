@@ -1949,7 +1949,7 @@ e100_rx_srv(struct e100_private *bdp)
 		/* to allow manipulation with current skb we need to unlink it */
 		list_del(&(rx_struct->list_elem));
 
-		/* do not free & unmap badly recieved packet.
+		/* do not free & unmap badly received packet.
 		 * move it to the end of skb list for reuse */
 		if (!(rfd_status & RFD_STATUS_OK)) {
 			e100_add_skb_to_end(bdp, rx_struct);
@@ -2071,32 +2071,6 @@ e100_refresh_txthld(struct e100_private *bdp)
 }
 
 /**
- * e100_pseudo_hdr_csum - compute IP pseudo-header checksum
- * @ip: points to the header of the IP packet
- *
- * Return the 16 bit checksum of the IP pseudo-header.,which is computed
- * on the fields: IP src, IP dst, next protocol, payload length.
- * The checksum vaule is returned in network byte order.
- */
-static inline u16
-e100_pseudo_hdr_csum(const struct iphdr *ip)
-{
-	u32 pseudo = 0;
-	u32 payload_len = 0;
-
-	payload_len = ntohs(ip->tot_len) - (ip->ihl * 4);
-
-	pseudo += htons(payload_len);
-	pseudo += (ip->protocol << 8);
-	pseudo += ip->saddr & 0x0000ffff;
-	pseudo += (ip->saddr & 0xffff0000) >> 16;
-	pseudo += ip->daddr & 0x0000ffff;
-	pseudo += (ip->daddr & 0xffff0000) >> 16;
-
-	return FOLD_CSUM(pseudo);
-}
-
-/**
  * e100_prepare_xmit_buff - prepare a buffer for transmission
  * @bdp: atapter's private data struct
  * @skb: skb to send
@@ -2140,27 +2114,13 @@ e100_prepare_xmit_buff(struct e100_private *bdp, struct sk_buff *skb)
 
 		if ((ip->protocol == IPPROTO_TCP) ||
 		    (ip->protocol == IPPROTO_UDP)) {
-			u16 *chksum;
-
 			tcb->tcbu.ipcb.ip_activation_high =
 				IPCB_HARDWAREPARSING_ENABLE;
 			tcb->tcbu.ipcb.ip_schedule |=
 				IPCB_TCPUDP_CHECKSUM_ENABLE;
 
-			if (ip->protocol == IPPROTO_TCP) {
-				struct tcphdr *tcp;
-
-				tcp = (struct tcphdr *) ((u32 *) ip + ip->ihl);
-				chksum = &(tcp->check);
+			if (ip->protocol == IPPROTO_TCP)
 				tcb->tcbu.ipcb.ip_schedule |= IPCB_TCP_PACKET;
-			} else {
-				struct udphdr *udp;
-
-				udp = (struct udphdr *) ((u32 *) ip + ip->ihl);
-				chksum = &(udp->check);
-			}
-
-			*chksum = e100_pseudo_hdr_csum(ip);
 		}
 	}
 
@@ -2236,7 +2196,7 @@ e100_start_cu(struct e100_private *bdp, tcb_t *tcb)
 	spin_lock_irqsave(&(bdp->bd_lock), lock_flag);
 	switch (bdp->next_cu_cmd) {
 	case RESUME_NO_WAIT:
-		/*last cu command was a CU_RESMUE if this is a 558 or newer we dont need to
+		/*last cu command was a CU_RESMUE if this is a 558 or newer we don't need to
 		 * wait for command word to clear, we reach here only if we are bachlor
 		 */
 		e100_exec_cmd(bdp, SCB_CUC_RESUME);

@@ -46,7 +46,7 @@ static spinlock_t ioapic_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  *	Is the SiS APIC rmw bug present ?
- *	-1 = dont know, 0 = no, 1 = yes
+ *	-1 = don't know, 0 = no, 1 = yes
  */
 int sis_apic_bug = -1;
 
@@ -223,7 +223,7 @@ static void set_ioapic_affinity (unsigned int irq, unsigned long mask)
 
 extern unsigned long irq_affinity [NR_IRQS];
 int __cacheline_aligned pending_irq_balance_apicid [NR_IRQS];
-static int irqbalance_disabled __initdata = 0;
+static int irqbalance_disabled = NO_BALANCE_IRQ;
 static int physical_balance = 0;
 
 struct irq_cpu_info {
@@ -492,7 +492,7 @@ static inline void balance_irq (int cpu, int irq)
 	unsigned long allowed_mask;
 	unsigned int new_cpu;
 		
-	if (no_balance_irq)
+	if (irqbalance_disabled)
 		return;
 
 	allowed_mask = cpu_online_map & irq_affinity[irq];
@@ -1376,8 +1376,7 @@ void /*__init*/ print_local_APIC(void * dummy)
 
 void print_all_local_APICs (void)
 {
-	smp_call_function(print_local_APIC, NULL, 1, 1);
-	print_local_APIC(NULL);
+	on_each_cpu(print_local_APIC, NULL, 1, 1);
 }
 
 void /*__init*/ print_PIC(void)
@@ -1843,8 +1842,7 @@ static void setup_nmi (void)
 	 */ 
 	printk(KERN_INFO "activating NMI Watchdog ...");
 
-	smp_call_function(enable_NMI_through_LVT0, NULL, 1, 1);
-	enable_NMI_through_LVT0(NULL);
+	on_each_cpu(enable_NMI_through_LVT0, NULL, 1, 1);
 
 	printk(" done.\n");
 }

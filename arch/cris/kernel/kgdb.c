@@ -152,7 +152,7 @@
  *    (IPL too high, disabled, ...)
  *
  *  - The gdb stub is currently not reentrant, i.e. errors that happen therein
- *    (e.g. accesing invalid memory) may not be caught correctly. This could
+ *    (e.g. accessing invalid memory) may not be caught correctly. This could
  *    be removed in future by introducing a stack of struct registers.
  *
  */
@@ -1486,7 +1486,7 @@ kgdb_handle_serial:
   move.d   $r0,[reg+0x62]   ; Save the return address in BRP
   move     $usp,[reg+0x66]  ; USP
 
-;; get the serial character (from debugport.c) and check if its a ctrl-c
+;; get the serial character (from debugport.c) and check if it is a ctrl-c
 
   jsr getDebugChar
   cmp.b 3, $r10

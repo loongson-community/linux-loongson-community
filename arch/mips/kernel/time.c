@@ -35,7 +35,7 @@
 
 #define TICK_SIZE	(tick_nsec / 1000)
 
-u64 jiffies_64;
+u64 jiffies_64 = INITIAL_JIFFIES;
 
 /*
  * forward reference

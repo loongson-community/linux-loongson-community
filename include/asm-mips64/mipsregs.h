@@ -501,7 +501,7 @@
 #define CE1_SP_HINT_TO_SHARED_SC_BLOCKS	15
 
 /*
- * These flags define in which priviledge mode the counters count events
+ * These flags define in which privilege mode the counters count events
  */
 #define CEB_USER	8	/* Count events in user mode, EXL = ERL = 0 */
 #define CEB_SUPERVISOR	4	/* Count events in supvervisor mode EXL = ERL = 0 */

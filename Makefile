@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 5
-SUBLEVEL = 63
+SUBLEVEL = 64
 EXTRAVERSION =
 
 # *DOCUMENTATION*
@@ -159,7 +159,7 @@ STRIP		= $(CROSS_COMPILE)strip
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 OBJDUMP		= $(CROSS_COMPILE)objdump
 AWK		= awk
-GENKSYMS	= /sbin/genksyms
+GENKSYMS	= scripts/genksyms/genksyms
 DEPMOD		= /sbin/depmod
 KALLSYMS	= scripts/kallsyms
 PERL		= perl
@@ -190,11 +190,12 @@ export MODVERDIR := .tmp_versions
 
 # The temporary file to save gcc -MD generated dependencies must not
 # contain a comma
+comma := ,
 depfile = $(subst $(comma),_,$(@D)/.$(@F).d)
 
 noconfig_targets := xconfig menuconfig config oldconfig randconfig \
 		    defconfig allyesconfig allnoconfig allmodconfig \
-		    clean mrproper distclean \
+		    clean mrproper distclean rpm \
 		    help tags TAGS cscope sgmldocs psdocs pdfdocs htmldocs \
 		    checkconfig checkhelp checkincludes
 
@@ -319,36 +320,31 @@ define cmd_vmlinux__
 endef
 
 #	set -e makes the rule exit immediately on error
-#	Final awk script makes sure per-cpu vars are in per-cpu section, as
-#	old gcc (eg egcs 2.92.11) ignores section attribute if uninitialized.
 
 define rule_vmlinux__
-	set -e
-	$(if $(filter .tmp_kallsyms%,$^),,
-	  echo '  Generating build number'
-	  . $(src)/scripts/mkversion > .tmp_version
-	  mv -f .tmp_version .version
-	  $(Q)$(MAKE) $(build)=init
+	set -e;								\
+	$(if $(filter .tmp_kallsyms%,$^),,				\
+	  echo '  GEN     .version';					\
+	  . $(srctree)/scripts/mkversion > .tmp_version;		\
+	  mv -f .tmp_version .version;					\
+	  $(MAKE) $(build)=init;					\
 	)
-	$(call cmd,vmlinux__)
+	$(call cmd,vmlinux__);						\
 	echo 'cmd_$@ := $(cmd_vmlinux__)' > $(@D)/.$(@F).cmd
 endef
 
-define rule_vmlinux_no_percpu
+ifdef CONFIG_SMP
+#	Final awk script makes sure per-cpu vars are in per-cpu section, as
+#	old gcc (eg egcs 2.92.11) ignores section attribute if uninitialized.
+
+check_per_cpu =	$(AWK) -f $(srctree)/scripts/per-cpu-check.awk < System.map
+endif
+
+define rule_vmlinux
 	$(rule_vmlinux__)
 	$(NM) $@ | grep -v '\(compiled\)\|\(\.o$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | sort > System.map
+	$(check_per_cpu)
 endef
-
-ifdef CONFIG_SMP
-define rule_vmlinux
-	$(rule_vmlinux_no_percpu)
-	$(AWK) -f $(srctree)/scripts/per-cpu-check.awk < System.map
-endef
-else
-define rule_vmlinux
-	$(rule_vmlinux_no_percpu)
-endef
-endif
 
 LDFLAGS_vmlinux += -T arch/$(ARCH)/vmlinux.lds.s
 
@@ -377,7 +373,7 @@ cmd_kallsyms = $(NM) -n $< | scripts/kallsyms > $@
 	$(call cmd,kallsyms)
 
 .tmp_vmlinux1: $(vmlinux-objs) arch/$(ARCH)/vmlinux.lds.s FORCE
-	$(call if_changed_rule,vmlinux__)
+	+$(call if_changed_rule,vmlinux__)
 
 .tmp_vmlinux2: $(vmlinux-objs) .tmp_kallsyms1.o arch/$(ARCH)/vmlinux.lds.s FORCE
 	$(call if_changed_rule,vmlinux__)
@@ -457,14 +453,14 @@ include/asm:
 # 	Split autoconf.h into include/linux/config/*
 
 include/config/MARKER: scripts/split-include include/linux/autoconf.h
-	@echo '  SPLIT  include/linux/autoconf.h -> include/config/*'
+	@echo '  SPLIT   include/linux/autoconf.h -> include/config/*'
 	@scripts/split-include include/linux/autoconf.h include/config
 	@touch $@
 
 # 	if .config is newer than include/linux/autoconf.h, someone tinkered
 # 	with it and forgot to run make oldconfig
 
-include/linux/autoconf.h: .config
+include/linux/autoconf.h: .config scripts/fixdep
 	$(Q)$(MAKE) $(build)=scripts/kconfig scripts/kconfig/conf
 	./scripts/kconfig/conf -s arch/$(ARCH)/Kconfig
 
@@ -481,7 +477,7 @@ include/linux/version.h: Makefile
 	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2; \
 	  exit 1; \
 	fi;
-	@echo -n '  Generating $@'
+	@echo -n '  GEN     $@'
 	@(echo \#define UTS_RELEASE \"$(KERNELRELEASE)\"; \
 	  echo \#define LINUX_VERSION_CODE `expr $(VERSION) \\* 65536 + $(PATCHLEVEL) \\* 256 + $(SUBLEVEL)`; \
 	 echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))'; \
@@ -506,7 +502,7 @@ all: modules
 #	Build modules
 
 .PHONY: modules
-modules: $(SUBDIRS) $(if $(CONFIG_MODVERSIONS),vmlinux)
+modules: $(SUBDIRS) $(if $(KBUILD_BUILTIN),vmlinux)
 	@echo '  Building modules, stage 2.';
 	$(Q)$(MAKE) -rR -f scripts/Makefile.modpost
 
@@ -571,33 +567,6 @@ define generate-asm-offsets.h
 	 echo "#endif" )
 endef
 
-# RPM target
-# ---------------------------------------------------------------------------
-
-#	If you do a make spec before packing the tarball you can rpm -ta it
-
-spec:
-	. scripts/mkspec >kernel.spec
-
-#	Build a tar ball, generate an rpm from it and pack the result
-#	There arw two bits of magic here
-#	1) The use of /. to avoid tar packing just the symlink
-#	2) Removing the .dep files as they have source paths in them that
-#	   will become invalid
-
-rpm:	clean spec
-	find . $(RCS_FIND_IGNORE) \
-		\( -size 0 -o -name .depend -o -name .hdepend\) \
-		-type f -print | xargs rm -f
-	set -e; \
-	cd $(TOPDIR)/.. ; \
-	ln -sf $(TOPDIR) $(KERNELPATH) ; \
-	tar -cvz $(RCS_TAR_IGNORE) -f $(KERNELPATH).tar.gz $(KERNELPATH)/. ; \
-	rm $(KERNELPATH) ; \
-	cd $(TOPDIR) ; \
-	$(CONFIG_SHELL) $(srctree)/scripts/mkversion > .version ; \
-	rpm -ta $(TOPDIR)/../$(KERNELPATH).tar.gz ; \
-	rm $(TOPDIR)/../$(KERNELPATH).tar.gz
 
 else # ifdef include_config
 
@@ -630,7 +599,7 @@ ifeq ($(filter-out $(noconfig_targets),$(MAKECMDGOALS)),)
 # ---------------------------------------------------------------------------
 
 .PHONY: oldconfig xconfig menuconfig config \
-	make_with_config
+	make_with_config rpm
 
 scripts/kconfig/conf scripts/kconfig/mconf scripts/kconfig/qconf: scripts/fixdep FORCE
 	$(Q)$(MAKE) $(build)=scripts/kconfig $@
@@ -763,6 +732,36 @@ TAGS: FORCE
 tags: FORCE
 	$(call cmd,tags)
 
+# RPM target
+# ---------------------------------------------------------------------------
+
+#	If you do a make spec before packing the tarball you can rpm -ta it
+
+spec:
+	. $(srctree)/scripts/mkspec >kernel.spec
+
+#	Build a tar ball, generate an rpm from it and pack the result
+#	There are two bits of magic here
+#	1) The use of /. to avoid tar packing just the symlink
+#	2) Removing the .dep files as they have source paths in them that
+#	   will become invalid
+
+rpm:	clean spec
+	find . $(RCS_FIND_IGNORE) \
+		\( -size 0 -o -name .depend -o -name .hdepend \) \
+		-type f -print | xargs rm -f
+	set -e; \
+	cd $(TOPDIR)/.. ; \
+	ln -sf $(TOPDIR) $(KERNELPATH) ; \
+	tar -cvz $(RCS_TAR_IGNORE) -f $(KERNELPATH).tar.gz $(KERNELPATH)/. ; \
+	rm $(KERNELPATH) ; \
+	cd $(TOPDIR) ; \
+	$(CONFIG_SHELL) $(srctree)/scripts/mkversion > .version ; \
+	RPM=`which rpmbuild`; \
+	if [ -z "$$RPM" ]; then RPM=rpm; fi; \
+	$$RPM -ta $(TOPDIR)/../$(KERNELPATH).tar.gz ; \
+	rm $(TOPDIR)/../$(KERNELPATH).tar.gz
+
 # Brief documentation of the typical targets used
 # ---------------------------------------------------------------------------
 
@@ -782,7 +781,6 @@ help:
 	@echo  ''
 	@echo  'Other generic targets:'
 	@echo  '  all		- Build all targets marked with [*]'
-	@echo  '  dep           - Create module version information'
 	@echo  '* vmlinux	- Build the bare kernel'
 	@echo  '* modules	- Build all modules'
 	@echo  '  dir/file.[ois]- Build specified target only'
@@ -802,7 +800,7 @@ help:
 
 # Documentation targets
 # ---------------------------------------------------------------------------
-sgmldocs psdocs pdfdocs htmldocs: scripts
+sgmldocs psdocs pdfdocs htmldocs: scripts/docproc FORCE
 	$(Q)$(MAKE) $(build)=Documentation/DocBook $@
 
 # Scripts to check various things for consistency
@@ -812,11 +810,6 @@ checkconfig:
 	find * $(RCS_FIND_IGNORE) \
 		-name '*.[hcS]' -type f -print | sort \
 		| xargs $(PERL) -w scripts/checkconfig.pl
-
-checkhelp:
-	find * $(RCS_FIND_IGNORE) \
-		-name [cC]onfig.in -print | sort \
-		| xargs $(PERL) -w scripts/checkhelp.pl
 
 checkincludes:
 	find * $(RCS_FIND_IGNORE) \

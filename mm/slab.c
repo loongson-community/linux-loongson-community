@@ -1116,12 +1116,16 @@ static inline void check_spinlock_acquired(kmem_cache_t *cachep)
 static void smp_call_function_all_cpus(void (*func) (void *arg), void *arg)
 {
 	check_irq_on();
+	preempt_disable();
+
 	local_irq_disable();
 	func(arg);
 	local_irq_enable();
 
 	if (smp_call_function(func, arg, 1, 1))
 		BUG();
+
+	preempt_enable();
 }
 
 static void free_block (kmem_cache_t* cachep, void** objpp, int len);
@@ -1643,7 +1647,7 @@ cache_alloc_debugcheck_after(kmem_cache_t *cachep,
 	if (cachep->ctor && cachep->flags & SLAB_POISON) {
 		unsigned long	ctor_flags = SLAB_CTOR_CONSTRUCTOR;
 
-		if (!flags & __GFP_WAIT)
+		if (!(flags & __GFP_WAIT))
 			ctor_flags |= SLAB_CTOR_ATOMIC;
 
 		cachep->ctor(objp, cachep, ctor_flags);
@@ -2064,7 +2068,7 @@ static void enable_cpucache (kmem_cache_t *cachep)
 	else
 		limit = 248;
 
-#ifndef DEBUG
+#if DEBUG
 	/* With debugging enabled, large batchcount lead to excessively
 	 * long periods with disabled local interrupts. Limit the 
 	 * batchcount

@@ -183,7 +183,7 @@
 #define S_ATN		0x80	/**/
 #define S_SELECT	0x40	/**/
 #define S_REQUEST	0x20    /* Request line from SCSI bus*/
-#define S_ACK		0x10    /* Acknowlege line from SCSI bus*/
+#define S_ACK		0x10    /* Acknowledge line from SCSI bus*/
 #define S_BUSY		0x08    /* Busy line from SCSI bus*/
 #define S_CD		0x04    /* Command/Data line from SCSI bus*/
 #define S_IO		0x02    /* Input/Output line from SCSI bus*/
@@ -280,8 +280,6 @@ static void        nsp_cs_detach(dev_link_t *);
 static unsigned int nsphw_start_selection(Scsi_Cmnd *SCpnt, nsp_hw_data *data);
 static void nsp_start_timer(Scsi_Cmnd *SCpnt, nsp_hw_data *data, int time);
 
-static int nsp_detect(Scsi_Host_Template * );
-static int nsp_release(struct Scsi_Host *shpnt);
 static const char *nsp_info(struct Scsi_Host *shpnt);
 static int nsp_proc_info(char *buffer, char **start, off_t offset,
 			 int length, int hostno, int inout);

@@ -74,6 +74,8 @@
 #include <linux/pci.h>
 #include <linux/interrupt.h>
 #include <linux/poll.h>
+#include <linux/ioctl32.h>
+#include <linux/compat.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 
@@ -228,7 +230,7 @@ struct stream {
 	/* The cycle_count and cycle_offset fields are used for the
 	 * synchronization timestamps (syt) in the cip header.  They
 	 * are incremented by at least a cycle every time we put a
-	 * time stamp in a packet.  As we dont time stamp all
+	 * time stamp in a packet.  As we don't time stamp all
 	 * packages, cycle_count isn't updated in every cycle, and
 	 * sometimes it's incremented by 2.  Thus, we have
 	 * cycle_count2, which is simply incremented by one with each
@@ -748,7 +750,7 @@ static void fill_packet(struct stream *s, struct packet *packet, int nevents)
 
 		/* This next addition should be modulo 8000 (0x1f40),
 		 * but we only use the lower 4 bits of cycle_count, so
-		 * we dont need the modulo. */
+		 * we don't need the modulo. */
 		atomic_add(s->cycle_offset.integer / 3072, &s->cycle_count);
 		s->cycle_offset.integer %= 3072;
 	}
@@ -1262,8 +1264,11 @@ MODULE_LICENSE("GPL");
 
 static int __init amdtp_init_module (void)
 {
-	if (ieee1394_register_chardev(IEEE1394_MINOR_BLOCK_AMDTP,
-				      THIS_MODULE, &amdtp_fops)) {
+	int ret;
+
+	ret = ieee1394_register_chardev(IEEE1394_MINOR_BLOCK_AMDTP,
+					THIS_MODULE, &amdtp_fops);
+	if (ret) {
 		HPSB_ERR("amdtp: unable to get minor device block");
  		return -EIO;
  	}
@@ -1276,6 +1281,15 @@ static int __init amdtp_init_module (void)
 		return -EIO;
 	}
 
+#ifdef CONFIG_COMPAT
+	ret = register_ioctl32_conversion(AMDTP_IOC_CHANNEL, NULL);
+	ret |= register_ioctl32_conversion(AMDTP_IOC_PLUG, NULL);
+	ret |= register_ioctl32_conversion(AMDTP_IOC_PING, NULL);
+	ret |= register_ioctl32_conversion(AMDTP_IOC_ZAP, NULL);
+	if (ret)
+		HPSB_ERR("amdtp: Error registering ioctl32 translations");
+#endif
+
 	HPSB_INFO("Loaded AMDTP driver");
 
 	return 0;
@@ -1283,6 +1297,17 @@ static int __init amdtp_init_module (void)
 
 static void __exit amdtp_exit_module (void)
 {
+#ifdef CONFIG_COMPAT
+	int ret;
+
+	ret = unregister_ioctl32_conversion(AMDTP_IOC_CHANNEL);
+	ret |= unregister_ioctl32_conversion(AMDTP_IOC_PLUG);
+	ret |= unregister_ioctl32_conversion(AMDTP_IOC_PING);
+	ret |= unregister_ioctl32_conversion(AMDTP_IOC_ZAP);
+	if (ret)
+		HPSB_ERR("amdtp: Error unregistering ioctl32 translations");
+#endif
+
         hpsb_unregister_highlevel(amdtp_highlevel);
         ieee1394_unregister_chardev(IEEE1394_MINOR_BLOCK_AMDTP);
 

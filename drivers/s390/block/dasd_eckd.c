@@ -19,7 +19,7 @@
  * 10/04/00 changed RW-CCWS to R/W Key and Data
  * 10/10/00 reverted last change according to ESS exploitation
  * 10/10/00 now dequeuing init_cqr before freeing *ouch*
- * 26/10/00 fixed ITPM20144ASC (problems when accesing a device formatted by VIF)
+ * 26/10/00 fixed ITPM20144ASC (problems when accessing a device formatted by VIF)
  * 01/23/01 fixed kmalloc statement in dump_sense to be GFP_ATOMIC
  *	    fixed partition handling and HDIO_GETGEO
  * 2002/01/04 Created 2.4-2.5 compatibility mode
@@ -1427,7 +1427,7 @@ dasd_eckd_dump_sense(struct dasd_device_t *device, dasd_ccw_req_t * req,
  * addition we have one define extent ccw + 16 bytes of data and one
  * locate record ccw + 16 bytes of data. That makes:
  * (8192 - 24 - 136 - 8 - 16 - 8 - 16) / 16 = 499 blocks at maximum.
- * We want to fit two into the available memory so that we can immediatly
+ * We want to fit two into the available memory so that we can immediately
  * start the next request if one finishes off. That makes 249.5 blocks
  * for one request. Give a little safety and the result is 240.
  */

@@ -47,7 +47,8 @@ static int sendcmd(
 				      2: address is in scsi3addr */
 	unsigned int log_unit,
 	__u8	page_code,
-	unsigned char *scsi3addr );
+	unsigned char *scsi3addr,
+	int cmd_type);
 
 
 int __init cciss_scsi_detect(Scsi_Host_Template *tpnt);
@@ -210,7 +211,7 @@ scsi_cmd_stack_setup(int ctlr, struct cciss_scsi_adapter_data_t *sa)
 	stk = &sa->cmd_stack; 
 	size = sizeof(struct cciss_scsi_cmd_stack_elem_t) * CMD_STACK_SIZE;
 
-	// pci_alloc_consistent guarentees 32-bit DMA address will
+	// pci_alloc_consistent guarantees 32-bit DMA address will
 	// be used
 
 	stk->pool = (struct cciss_scsi_cmd_stack_elem_t *)

@@ -795,7 +795,7 @@ void __init trap_init(void)
 
 	per_cpu_trap_init();
 
-	/* Copy the generic exception handler code to it's final destination. */
+	/* Copy the generic exception handler code to its final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 
 	/*

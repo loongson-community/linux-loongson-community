@@ -32,7 +32,7 @@ MODULE_PARM(loose, "i");
 
 static int try_rfc959(const char *, size_t, u_int32_t [], char);
 static int try_eprt(const char *, size_t, u_int32_t [], char);
-static int try_espv_response(const char *, size_t, u_int32_t [], char);
+static int try_epsv_response(const char *, size_t, u_int32_t [], char);
 
 static struct ftp_search {
 	enum ip_conntrack_dir dir;
@@ -65,7 +65,7 @@ static struct ftp_search {
 		IP_CT_DIR_REPLY,
 		"229 ", sizeof("229 ") - 1, '(', ')',
 		IP_CT_FTP_EPSV,
-		try_espv_response,
+		try_epsv_response,
 	},
 };
 
@@ -157,7 +157,7 @@ static int try_eprt(const char *data, size_t dlen, u_int32_t array[6],
 }
 
 /* Returns 0, or length of numbers: |||6446| */
-static int try_espv_response(const char *data, size_t dlen, u_int32_t array[6],
+static int try_epsv_response(const char *data, size_t dlen, u_int32_t array[6],
 			     char term)
 {
 	char delim;
@@ -321,7 +321,7 @@ static int help(const struct iphdr *iph, size_t len,
 	if (found == -1) {
 		/* We don't usually drop packets.  After all, this is
 		   connection tracking, not packet filtering.
-		   However, it is neccessary for accurate tracking in
+		   However, it is necessary for accurate tracking in
 		   this case. */
 		if (net_ratelimit())
 			printk("conntrack_ftp: partial %s %u+%u\n",

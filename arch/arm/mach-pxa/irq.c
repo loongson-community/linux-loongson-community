@@ -86,7 +86,7 @@ static int pxa_gpio_irq_type(unsigned int irq, unsigned int type)
 }
 
 /*
- * GPIO IRQs must be acknoledged.  This is for GPIO 0 and 1.
+ * GPIO IRQs must be acknowledged.  This is for GPIO 0 and 1.
  */
 
 static void pxa_ack_low_gpio(unsigned int irq)
@@ -241,10 +241,4 @@ void __init pxa_init_irq(void)
 	/* Install handler for GPIO 2-80 edge detect interrupts */
 	set_irq_chip(IRQ_GPIO_2_80, &pxa_internal_chip);
 	set_irq_chained_handler(IRQ_GPIO_2_80, pxa_gpio_demux_handler);
-
-	/*
-	 * We generally don't want the LCD IRQ being
-	 * enabled as soon as we request it.
-	 */
-	set_irq_flags(IRQ_LCD, IRQF_VALID | IRQF_NOAUTOEN);
 }

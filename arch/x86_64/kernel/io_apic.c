@@ -685,7 +685,7 @@ void __init setup_ExtINT_IRQ0_pin(unsigned int pin, int vector)
 	entry.vector = vector;
 
 	/*
-	 * The timer IRQ doesnt have to know that behind the
+	 * The timer IRQ doesn't have to know that behind the
 	 * scene we have a 8259A-master in AEOI mode ...
 	 */
 	irq_desc[0].handler = &ioapic_edge_irq_type;
@@ -928,8 +928,7 @@ void /*__init*/ print_local_APIC(void * dummy)
 
 void print_all_local_APICs (void)
 {
-	smp_call_function(print_local_APIC, NULL, 1, 1);
-	print_local_APIC(NULL);
+	on_each_cpu(print_local_APIC, NULL, 1, 1);
 }
 
 void /*__init*/ print_PIC(void)
@@ -1539,7 +1538,7 @@ static inline void check_timer(void)
 	printk(" failed.\n");
 
 	if (nmi_watchdog) {
-		printk(KERN_WARNING "timer doesnt work through the IO-APIC - disabling NMI Watchdog!\n");
+		printk(KERN_WARNING "timer doesn't work through the IO-APIC - disabling NMI Watchdog!\n");
 		nmi_watchdog = 0;
 	}
 

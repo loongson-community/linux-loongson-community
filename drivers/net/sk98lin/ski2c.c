@@ -178,7 +178,7 @@
  *	Revision 1.2  1998/08/11 07:27:15  gklug
  *	add: functions of the interface
  *	adapt rest of source to C coding Conventions
- *	rmv: unneccessary code taken from Mona Lisa
+ *	rmv: unnecessary code taken from Mona Lisa
  *
  *	Revision 1.1  1998/06/19 14:28:43  malthoff
  *	Created. Sources taken from ML Projekt.
@@ -444,7 +444,7 @@ SK_IOC	IoC)	/* I/O Context */
 /*
  * Receive an ACK.
  *
- * returns	0 If acknoledged
+ * returns	0 If acknowledged
  *		1 in case of an error
  */
 int SkI2cRcvAck(

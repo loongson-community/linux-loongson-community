@@ -27,7 +27,7 @@
 int page_cluster;
 
 /*
- * Writeback is about to end against a page whic has been marked for immediate
+ * Writeback is about to end against a page which has been marked for immediate
  * reclaim.  If it still appears to be reclaimable, move it to the tail of the
  * inactive list.  The page still has PageWriteback set, which will pin it.
  *
@@ -363,5 +363,4 @@ void __init swap_setup(void)
 	 * Right now other parts of the system means that we
 	 * _really_ don't want to cluster much more
 	 */
-	init_MUTEX(&swapper_space.i_shared_sem);
 }

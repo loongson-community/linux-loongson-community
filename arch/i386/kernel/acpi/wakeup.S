@@ -44,6 +44,9 @@ wakeup_code:
 	testl	$1, video_flags - wakeup_code
 	jz	1f
 	lcall   $0xc000,$3
+	movw	%cs, %ax
+	movw	%ax, %ds					# Bios might have played with that
+	movw	%ax, %ss
 1:
 
 	testl	$2, video_flags - wakeup_code
@@ -314,6 +317,31 @@ ret_point:
 	movl saved_context_edi, %edi
 	call restore_processor_state
 	pushl saved_context_eflags ; popfl
+	ret
+
+ENTRY(do_suspend_lowlevel_s4bios)
+	cmpl $0,4(%esp)
+	jne ret_point
+	call save_processor_state
+
+	movl %esp, saved_context_esp
+	movl %eax, saved_context_eax
+	movl %ebx, saved_context_ebx
+	movl %ecx, saved_context_ecx
+	movl %edx, saved_context_edx
+	movl %ebp, saved_context_ebp
+	movl %esi, saved_context_esi
+	movl %edi, saved_context_edi
+	pushfl ; popl saved_context_eflags
+
+	movl $ret_point,saved_eip
+	movl %esp,saved_esp
+	movl %ebp,saved_ebp
+	movl %ebx,saved_ebx
+	movl %edi,saved_edi
+	movl %esi,saved_esi
+
+	call acpi_enter_sleep_state_s4bios
 	ret
 
 ALIGN

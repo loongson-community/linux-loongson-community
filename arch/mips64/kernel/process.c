@@ -65,7 +65,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 {
 	unsigned long status;
 
-	/* New thread looses kernel privileges. */
+	/* New thread loses kernel privileges. */
 	status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);
 	status |= KSU_USER;
 	status |= (current->thread.mflags & MF_32BIT_REGS) ? 0 : ST0_FR;
@@ -118,7 +118,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	p->thread.reg31 = (unsigned long) ret_from_fork;
 
 	/*
-	 * New tasks loose permission to use the fpu. This accelerates context
+	 * New tasks lose permission to use the fpu. This accelerates context
 	 * switching for most programs since they don't use the fpu.
 	 */
 	p->thread.cp0_status = read_c0_status() & ~(ST0_CU2|ST0_CU1|ST0_KSU);

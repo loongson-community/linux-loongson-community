@@ -1209,8 +1209,8 @@ smp_vic_cpi_interrupt(struct pt_regs regs)
 		smp_call_function_interrupt();
 }
 
-static inline void
-do_flush_tlb_all_local(void)
+static void
+do_flush_tlb_all(void* info)
 {
 	unsigned long cpu = smp_processor_id();
 
@@ -1220,19 +1220,11 @@ do_flush_tlb_all_local(void)
 }
 
 
-static void
-flush_tlb_all_function(void* info)
-{
-	do_flush_tlb_all_local();
-}
-
 /* flush the TLB of every active CPU in the system */
 void
 flush_tlb_all(void)
 {
-	smp_call_function (flush_tlb_all_function, 0, 1, 1);
-
-	do_flush_tlb_all_local();
+	on_each_cpu(do_flush_tlb_all, 0, 1, 1);
 }
 
 /* used to set up the trampoline for other CPUs when the memory manager
@@ -1453,7 +1445,7 @@ smp_intr_init(void)
 }
 
 /* send a CPI at level cpi to a set of cpus in cpuset (set 1 bit per
- * processor to recieve CPI */
+ * processor to receive CPI */
 static void
 send_CPI(__u32 cpuset, __u8 cpi)
 {
@@ -1481,7 +1473,7 @@ send_CPI(__u32 cpuset, __u8 cpi)
 		outb((__u8)cpuset, VIC_CPI_Registers[VIC_CPI_LEVEL0]);
 }
 
-/* Acknowlege receipt of CPI in the QIC, clear in QIC hardware and
+/* Acknowledge receipt of CPI in the QIC, clear in QIC hardware and
  * set the cache line to shared by reading it.
  *
  * DON'T make this inline otherwise the cache line read will be
