@@ -226,8 +226,8 @@ void dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nhwentries,
 
 EXPORT_SYMBOL(dma_unmap_sg);
 
-void dma_sync_single_for_cpu(struct device *dev, dma_addr_t dma_handle, size_t size,
-	enum dma_data_direction direction)
+void dma_sync_single_for_cpu(struct device *dev, dma_addr_t dma_handle,
+	size_t size, enum dma_data_direction direction)
 {
 	unsigned long addr;
  
@@ -239,8 +239,8 @@ void dma_sync_single_for_cpu(struct device *dev, dma_addr_t dma_handle, size_t s
 
 EXPORT_SYMBOL(dma_sync_single_for_cpu);
 
-void dma_sync_single_for_device(struct device *dev, dma_addr_t dma_handle, size_t size,
-	enum dma_data_direction direction)
+void dma_sync_single_for_device(struct device *dev, dma_addr_t dma_handle,
+	size_t size, enum dma_data_direction direction)
 {
 	unsigned long addr;
 
