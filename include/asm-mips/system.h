@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.19 1999/12/04 03:59:12 ralf Exp $
+/* $Id: system.h,v 1.20 1999/12/06 23:13:21 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -270,7 +270,7 @@ extern void __die_if_kernel(const char *, struct pt_regs *, const char *where,
 
 #define die(msg, regs)							\
 	__die(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
-#define die_if_kernel(msg, regs) do {					\
+#define die_if_kernel(msg, regs)					\
 	__die_if_kernel(msg, regs, __FILE__ ":"__FUNCTION__, __LINE__)
 
 #endif /* _ASM_SYSTEM_H */
