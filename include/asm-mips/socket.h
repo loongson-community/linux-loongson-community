@@ -69,7 +69,7 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_PEERSEC		30
 
 #ifdef __KERNEL__
-:
+
 /** sock_type - Socket types
  *
  * Please notice that for binary compat reasons MIPS has to
