@@ -327,12 +327,12 @@ void per_cpu_init(void)
 #if 0
 	install_tlbintr(cpu);
 #endif
+	set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
 	if (is_slave) {
 		set_cp0_status(ST0_BEV, 0);
 		if (mips4_available)
 			set_cp0_status(ST0_XX, ST0_XX);
 		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
-		set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
 	}
 	if (is_slave == 0)
 		is_slave = 1;
