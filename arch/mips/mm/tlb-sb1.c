@@ -172,15 +172,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 			}
 			write_c0_entryhi(oldpid);
 		} else {
-			get_new_mmu_context(mm, cpu);
-			if (mm == current->active_mm) {
-				write_c0_entryhi(cpu_asid(cpu, mm));
-			} else if (!(cpu_asid(cpu, mm)) &&
-				   cpu_context(cpu, current->active_mm)) {
-				/* Just wrapped ASIDs, bump the active one */
-				get_new_mmu_context(current->active_mm, cpu);
-				write_c0_entryhi(cpu_context(cpu, current->active_mm)& 0xff);
-			}
+			drop_mmu_context(mm, cpu);
 		}
 	}
 	local_irq_restore(flags);
@@ -325,17 +317,10 @@ void local_flush_tlb_one(unsigned long page)
    these entries, we just bump the asid. */
 void local_flush_tlb_mm(struct mm_struct *mm)
 {
-	unsigned long flags;
-	int cpu;
-	local_irq_save(flags);
-	cpu = smp_processor_id();
+	int cpu = smp_processor_id();
 	if (cpu_context(cpu, mm) != 0) {
-		get_new_mmu_context(mm, smp_processor_id());
-		if (mm == current->active_mm) {
-			write_c0_entryhi(cpu_context(cpu, mm) & 0xff);
-		}
+		drop_mmu_context(mm, cpu);
 	}
-	local_irq_restore(flags);
 }
 
 /* Stolen from mips32 routines */
