@@ -8,6 +8,8 @@
 #ifndef _ASM_HW_IRQ_H
 #define _ASM_HW_IRQ_H
 
+extern volatile unsigned long irq_err_count;
+
 /* This may not be apropriate for all machines, we'll see ...  */
 static inline void hw_resend_irq(struct hw_interrupt_type *h, unsigned int i)
 {
