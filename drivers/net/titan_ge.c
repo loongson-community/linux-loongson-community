@@ -2062,7 +2062,7 @@ out:
 /*
  * Unregister the Titan GE from the kernel
  */
-static void __init titan_ge_cleanup_module(void)
+static void __exit titan_ge_cleanup_module(void)
 {
 	iounmap((void *)titan_ge_sram);
 	iounmap((void *)titan_ge_base);
