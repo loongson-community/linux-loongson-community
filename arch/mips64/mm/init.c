@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.5 1999/11/23 17:12:50 ralf Exp $
+/* $Id: init.c,v 1.5 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -348,7 +348,7 @@ mem_init(unsigned long start_mem, unsigned long end_mem)
 {
 	int codepages = 0;
 	int datapages = 0;
-	unsigned long tmp;
+	unsigned long tmp, etext, ftext;
 	extern int _etext, _ftext;
 
 #ifdef CONFIG_MIPS_JAZZ
@@ -360,6 +360,14 @@ mem_init(unsigned long start_mem, unsigned long end_mem)
 	max_mapnr = MAP_NR(end_mem);
 	high_memory = (void *)end_mem;
 	num_physpages = 0;
+
+	etext = (unsigned long) &_etext;
+	ftext = (unsigned long) &_ftext;
+#ifdef CONFIG_BOOT_ELF64
+	/* Use etext/ftext value in XPHYS  */
+	etext = PAGE_OFFSET | CPHYSADDR(etext);
+	ftext = PAGE_OFFSET | CPHYSADDR(ftext);
+#endif
 
 	/* mark usable pages in the mem_map[] */
 	start_mem = PAGE_ALIGN(start_mem);
@@ -378,11 +386,9 @@ mem_init(unsigned long start_mem, unsigned long end_mem)
 		if (tmp >= MAX_DMA_ADDRESS)
 			clear_bit(PG_DMA, &mem_map[MAP_NR(tmp)].flags);
 		if (PageReserved(mem_map+MAP_NR(tmp))) {
-			if ((tmp < (unsigned long) &_etext) &&
-			    (tmp >= (unsigned long) &_ftext))
+			if ((tmp < etext) && (tmp >= ftext))
 				codepages++;
-			else if ((tmp < start_mem) &&
-				 (tmp > (unsigned long) &_etext))
+			else if ((tmp < start_mem) && (tmp > etext))
 				datapages++;
 			continue;
 		}
@@ -412,15 +418,17 @@ extern void prom_free_prom_memory(void);
 void
 free_initmem(void)
 {
-	unsigned long addr;
+	unsigned long addr, page;
 
-	prom_free_prom_memory ();
+	prom_free_prom_memory();
     
 	addr = (unsigned long)(&__init_begin);
-	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
-		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
-		set_page_count(mem_map + MAP_NR(addr), 1);
-		free_page(addr);
+	while (addr < (unsigned long)&__init_end) {
+		page = PAGE_OFFSET | CPHYSADDR(addr);
+		mem_map[MAP_NR(page)].flags &= ~(1 << PG_reserved);
+		set_page_count(mem_map + MAP_NR(page), 1);
+		free_page(page);
+		addr += PAGE_SIZE;
 	}
 	printk("Freeing unused kernel memory: %ldk freed\n",
 	       (&__init_end - &__init_begin) >> 10);
