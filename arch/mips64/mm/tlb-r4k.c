@@ -278,67 +278,6 @@ void mips64_update_mmu_cache(struct vm_area_struct * vma,
 	local_irq_restore(flags);
 }
 
-void dump_mm_page(unsigned long addr)
-{
-	pgd_t	*page_dir, *pgd;
-	pmd_t	*pmd;
-	pte_t	*pte, page;
-	unsigned long val;
-
-	page_dir = pgd_offset(current->mm, 0);
-	pgd = pgd_offset(current->mm, addr);
-	pmd = pmd_offset(pgd, addr);
-	pte = pte_offset(pmd, addr);
-	page = *pte;
-	printk("Memory Mapping: VA = %08lx, PA = %08lx ", addr, pte_val(page));
-	val = pte_val(page);
-	if (val & _PAGE_PRESENT) printk("present ");
-	if (val & _PAGE_READ) printk("read ");
-	if (val & _PAGE_WRITE) printk("write ");
-	if (val & _PAGE_ACCESSED) printk("accessed ");
-	if (val & _PAGE_MODIFIED) printk("modified ");
-	if (val & _PAGE_R4KBUG) printk("r4kbug ");
-	if (val & _PAGE_GLOBAL) printk("global ");
-	if (val & _PAGE_VALID) printk("valid ");
-	printk("\n");
-}
-
-void show_tlb(void)
-{
-	unsigned long flags;
-	unsigned int old_ctx;
-	unsigned int entry;
-	unsigned int entrylo0, entrylo1, entryhi;
-
-	local_irq_save(flags);
-
-	/* Save old context */
-	old_ctx = (read_c0_entryhi() & 0xff);
-
-	printk("TLB content:\n");
-	entry = 0;
-	while(entry < mips_cpu.tlbsize) {
-		write_c0_index(entry);
-		BARRIER;
-		tlb_read();
-		BARRIER;
-		entryhi = read_c0_entryhi();
-		entrylo0 = read_c0_entrylo0();
-		entrylo1 = read_c0_entrylo1();
-		printk("%02d: ASID=%02d%s VA=0x%08x ", entry, entryhi & ASID_MASK, (entrylo0 & entrylo1 & 1) ? "(G)" : "   ", entryhi & ~ASID_MASK);
-		printk("PA0=0x%08x C0=%x %s%s%s\n", (entrylo0>>6)<<12, (entrylo0>>3) & 7, (entrylo0 & 4) ? "Dirty " : "", (entrylo0 & 2) ? "Valid " : "Invalid ", (entrylo0 & 1) ? "Global" : "");
-		printk("\t\t\t     PA1=0x%08x C1=%x %s%s%s\n", (entrylo1>>6)<<12, (entrylo1>>3) & 7, (entrylo1 & 4) ? "Dirty " : "", (entrylo1 & 2) ? "Valid " : "Invalid ", (entrylo1 & 1) ? "Global" : "");
-
-		dump_mm_page(entryhi & ~0xff);
-		dump_mm_page((entryhi & ~0xff) | 0x1000);
-		entry++;
-	}
-	BARRIER;
-	write_c0_entryhi(old_ctx);
-
-	local_irq_restore(flags);
-}
-
 void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 				      unsigned long entryhi, unsigned long pagemask)
 {
