@@ -32,7 +32,7 @@
 
 #include <linux/init.h>
 #include <linux/pm.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/sysctl.h>
 #include <linux/acpi.h>
 
