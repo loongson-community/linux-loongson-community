@@ -83,4 +83,8 @@ void __init pcibios_fixup_irqs(void)
 		DBG("slot %d func %d irq %d\n", slot, func, dev->irq);
 	}
 }
+unsigned int pcibios_assign_all_busses(void)
+{
+	return 0;
+}
 #endif
