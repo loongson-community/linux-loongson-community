@@ -8,5 +8,6 @@
 
 ramdisk.o: ramdisk.gz ld.script
 	$(LD) -T ld.script -b binary -o $@ ramdisk.gz
+	chmod 644 $@
 
 include $(TOPDIR)/Rules.make

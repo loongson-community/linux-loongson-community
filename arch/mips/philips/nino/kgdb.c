@@ -1,5 +1,5 @@
 /*
- *  linux/arch/mips/philips/nino/kgdb.c
+ *  arch/mips/philips/nino/kgdb.c
  *
  *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
@@ -7,7 +7,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Kernel debugging on the Philips Nino.
+ *  Kernel debugging for the Philips Nino
  */
 #include <asm/system.h>
 #include <asm/tx3912.h>

@@ -1,5 +1,5 @@
 /*
- *  linux/arch/mips/philips/nino/time.c
+ *  arch/mips/philips/nino/time.c
  *
  *  Copyright (C) 1999 Harald Koerfgen
  *  Copyright (C) 2000 Pavel Machek (pavel@suse.cz)
@@ -9,7 +9,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Time handling functinos for Philips Nino.
+ *  Time handling functinos for Philips Nino
  */
 #include <linux/errno.h>
 #include <linux/init.h>

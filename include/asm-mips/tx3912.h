@@ -1,5 +1,5 @@
 /*
- *  linux/include/asm-mips/tx3912.h
+ *  include/asm-mips/tx3912.h
  *
  *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  *
@@ -9,8 +9,8 @@
  *
  *  Register includes for TMPR3912/05 and PR31700 processors
  */
-#ifndef __TX3912_H__
-#define __TX3912_H__
+#ifndef _TX3912_H_
+#define _TX3912_H_
 
 #include <asm/addrspace.h>
 
@@ -275,6 +275,8 @@
 #define	INT6_TELDMACNTINT	BIT(3)
 #define	INT6_CHIDMACNTINT	BIT(2)
 #define INT6_IOPOSNEGINT0       BIT(1)
+
+#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 
 /******************************************************************************
 *
@@ -573,4 +575,4 @@
 #define TX3912_UART_CTRL2_B600		0x17f	/* 383 */
 #define TX3912_UART_CTRL2_B300		0x2ff	/* 767 */
 
-#endif	/* __TX3912_H__ */
+#endif	/* _TX3912_H_ */

@@ -1,5 +1,5 @@
 /*
- *  linux/arch/mips/philips/nino/power.c
+ *  arch/mips/philips/nino/power.c
  *
  *  Copyright (C) 2000 Jim Pick <jim@jimpick.com>
  *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
@@ -8,7 +8,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Power management routines on the Philips Nino.
+ *  Power management routines for the Philips Nino
  */
 #include <asm/tx3912.h>
 
