@@ -188,14 +188,14 @@ struct pci_ops sb1250_pci_ops = {
 
 static struct resource sb1250_mem_resource = {
 	.name	= "SB1250 PCI MEM",
-	.start	= 0x40000000UL,
+	.start	= 0x41000000UL,
 	.end	= 0x5fffffffUL,
 	.flags	= IORESOURCE_MEM,
 };
                                                                                 
 static struct resource sb1250_io_resource = {
 	.name	= "SB1250 PCI I/O",
-	.start	= 0x00000000UL,
+	.start	= 0x00008000UL,
 	.end	= 0x01ffffffUL,
 	.flags	= IORESOURCE_IO,
 };
@@ -216,8 +216,8 @@ static int __init sb1250_pcibios_init(void)
 	pci_probe_only = 1;
 
 	/* Set I/O resource limits.  */
-	ioport_resource.end = 0x01ffffff;	/* 32MB accessible by sb1250 */
-	iomem_resource.end = 0xffffffff;	/* no HT support yet */
+	ioport_resource.end = 0x01ffffffUL;	/* 32MB accessible by sb1250 */
+	iomem_resource.end = 0xffffffffUL;	/* no HT support yet */
 
 	cfg_space =
 	    ioremap(A_PHYS_LDTPCI_CFG_MATCH_BITS, 16 * 1024 * 1024);
