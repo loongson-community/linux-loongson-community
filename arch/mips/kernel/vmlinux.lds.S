@@ -44,10 +44,11 @@ SECTIONS
 
   RODATA
 
-  . = ALIGN(64);
-
   /* writeable */
   .data : {			/* Data */
+    . = . + MAPPED_OFFSET;	/* for CONFIG_MAPPED_KERNEL */
+    *(.data.init_task)
+
     *(.data)
 
    /* Align the initial ramdisk image (INITRD) on page boundaries. */
@@ -77,15 +78,6 @@ SECTIONS
   .data.cacheline_aligned : { *(.data.cacheline_aligned) }
 
   _edata =  .;			/* End of data section */
-
-#ifdef CONFIG_MIPS32
-  . = ALIGN(8192);		/* init_task */
-#endif
-#ifdef CONFIG_MIPS64
-  . = ALIGN(16384);		/* init_task */
-#endif
-  . = . + MAPPED_OFFSET;	/* for CONFIG_MAPPED_KERNEL */
-  .data.init_task : { *(.data.init_task) }
 
   /* will be freed after init */
   . = ALIGN(4096);		/* Init code and data */
