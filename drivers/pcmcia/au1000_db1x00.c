@@ -6,6 +6,10 @@
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
  *
+ * Copyright 2004 Pete Popov, updated the driver to 2.6.
+ * Followed the sa11xx API and largely copied many of the hardware
+ * independent functions. 
+ *
  * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
@@ -25,77 +29,67 @@
  *
  * 
  */
+
 #include <linux/module.h>
-#include <linux/init.h>
-#include <linux/config.h>
-#include <linux/delay.h>
-#include <linux/ioport.h>
 #include <linux/kernel.h>
-#include <linux/tqueue.h>
-#include <linux/timer.h>
-#include <linux/mm.h>
-#include <linux/proc_fs.h>
-#include <linux/version.h>
-#include <linux/types.h>
+#include <linux/errno.h>
+#include <linux/interrupt.h>
+#include <linux/device.h>
+#include <linux/init.h>
 
-#include <pcmcia/version.h>
-#include <pcmcia/cs_types.h>
-#include <pcmcia/cs.h>
-#include <pcmcia/ss.h>
-#include <pcmcia/bulkmem.h>
-#include <pcmcia/cistpl.h>
-#include <pcmcia/bus_ops.h>
-#include "cs_internal.h"
-
-#include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/system.h>
+#include <asm/signal.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-db1x00/db1x00.h>
 
-#include <asm/au1000.h>
-#include <asm/au1000_pcmcia.h>
+#include "au1000_generic.h"
 
-#include <asm/db1x00.h>
+#ifdef PCMCIA_DEBUG
+static int pc_debug;
+#endif
 
 static BCSR * const bcsr = (BCSR *)0xAE000000;
+struct au1000_pcmcia_socket au1000_pcmcia_socket[PCMCIA_NUM_SOCKS];
 
-static int db1x00_pcmcia_init(struct pcmcia_init *init)
+static int db1x00_pcmcia_hw_init(struct au1000_pcmcia_socket *skt)
 {
-	bcsr->pcmcia = 0; /* turn off power */
-	au_sync_delay(2);
-	return PCMCIA_NUM_SOCKS;
-}
-
-static int db1x00_pcmcia_shutdown(void)
-{
-	bcsr->pcmcia = 0; /* turn off power */
-	au_sync_delay(2);
+	skt->irq = skt->nr ? AU1000_GPIO_5 : AU1000_GPIO_2;
 	return 0;
 }
 
-static int 
-db1x00_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
+static void db1x00_pcmcia_shutdown(struct au1000_pcmcia_socket *skt)
+{
+	bcsr->pcmcia = 0; /* turn off power */
+	au_sync_delay(2);
+}
+
+static void 
+db1x00_pcmcia_socket_state(struct au1000_pcmcia_socket *skt, struct pcmcia_state *state)
 {
 	u32 inserted;
 	unsigned char vs;
-
-	if(sock > PCMCIA_MAX_SOCK) return -1;
 
 	state->ready = 0;
 	state->vs_Xv = 0;
 	state->vs_3v = 0;
 	state->detect = 0;
 
-	if (sock == 0) {
+	switch (skt->nr) {
+	case 0:
 		vs = bcsr->status & 0x3;
 		inserted = !(bcsr->status & (1<<4));
-	}
-	else {
+		break;
+	case 1:
 		vs = (bcsr->status & 0xC)>>2;
 		inserted = !(bcsr->status & (1<<5));
+		break;
+	default:/* should never happen */
+		return;
 	}
 
-	DEBUG(KERN_DEBUG "db1x00 socket %d: inserted %d, vs %d\n", 
-			sock, inserted, vs);
+	if (inserted) 
+		DEBUG(4, "db1x00 socket %d: inserted %d, vs %d pcmcia %x\n", 
+				skt->nr, inserted, vs, bcsr->pcmcia);
 
 	if (inserted) {
 		switch (vs) {
@@ -109,7 +103,6 @@ db1x00_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 				/* return without setting 'detect' */
 				printk(KERN_ERR "db1x00 bad VS (%d)\n",
 						vs);
-				return -1;
 		}
 		state->detect = 1;
 		state->ready = 1;
@@ -118,51 +111,36 @@ db1x00_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 		/* if the card was previously inserted and then ejected,
 		 * we should turn off power to it
 		 */
-		if ((sock == 0) && (bcsr->pcmcia & BCSR_PCMCIA_PC0RST)) {
+		if ((skt->nr == 0) && (bcsr->pcmcia & BCSR_PCMCIA_PC0RST)) {
 			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC0RST | 
 					BCSR_PCMCIA_PC0DRVEN |
 					BCSR_PCMCIA_PC0VPP |
 					BCSR_PCMCIA_PC0VCC);
+			au_sync_delay(10);
 		}
-		else if ((sock == 1) && (bcsr->pcmcia & BCSR_PCMCIA_PC1RST)) {
+		else if ((skt->nr == 1) && bcsr->pcmcia & BCSR_PCMCIA_PC1RST) {
 			bcsr->pcmcia &= ~(BCSR_PCMCIA_PC1RST | 
 					BCSR_PCMCIA_PC1DRVEN |
 					BCSR_PCMCIA_PC1VPP |
 					BCSR_PCMCIA_PC1VCC);
+			au_sync_delay(10);
 		}
 	}
 
 	state->bvd1=1;
 	state->bvd2=1;
 	state->wrprot=0; 
-	return 1;
 }
-
-
-static int db1x00_pcmcia_get_irq_info(struct pcmcia_irq_info *info)
-{
-	if(info->sock > PCMCIA_MAX_SOCK) return -1;
-
-	if(info->sock == 0) {
-		info->irq = AU1000_GPIO_2;
-	}
-	else 
-		info->irq = AU1000_GPIO_5;
-
-	return 0;
-}
-
 
 static int 
-db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
+db1x00_pcmcia_configure_socket(struct au1000_pcmcia_socket *skt, struct socket_state_t *state)
 {
 	u16 pwr;
-	int sock = configure->sock;
+	int sock = skt->nr;
 
-	if(sock > PCMCIA_MAX_SOCK) return -1;
-
-	DEBUG(KERN_DEBUG "socket %d Vcc %dV Vpp %dV, reset %d\n", 
-			sock, configure->vcc, configure->vpp, configure->reset);
+	DEBUG(4, "config_skt %d Vcc %dV Vpp %dV, reset %d\n", 
+			sock, state->Vcc, state->Vpp, 
+			state->flags & SS_RESET);
 
 	/* pcmcia reg was set to zero at init time. Be careful when
 	 * initializing a socket not to wipe out the settings of the 
@@ -171,12 +149,13 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 	pwr = bcsr->pcmcia;
 	pwr &= ~(0xf << sock*8); /* clear voltage settings */
 
-	switch(configure->vcc){
+	state->Vpp = 0;
+	switch(state->Vcc){
 		case 0:  /* Vcc 0 */
 			pwr |= SET_VCC_VPP(0,0,sock);
 			break;
 		case 50: /* Vcc 5V */
-			switch(configure->vpp) {
+			switch(state->Vpp) {
 				case 0:
 					pwr |= SET_VCC_VPP(2,0,sock);
 					break;
@@ -191,13 +170,13 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 					pwr |= SET_VCC_VPP(0,0,sock);
 					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
 							__FUNCTION__, 
-							configure->vcc, 
-							configure->vpp);
+							state->Vcc, 
+							state->Vpp);
 					break;
 			}
 			break;
 		case 33: /* Vcc 3.3V */
-			switch(configure->vpp) {
+			switch(state->Vpp) {
 				case 0:
 					pwr |= SET_VCC_VPP(1,0,sock);
 					break;
@@ -212,15 +191,15 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 					pwr |= SET_VCC_VPP(0,0,sock);
 					printk("%s: bad Vcc/Vpp (%d:%d)\n", 
 							__FUNCTION__, 
-							configure->vcc, 
-							configure->vpp);
+							state->Vcc, 
+							state->Vpp);
 					break;
 			}
 			break;
 		default: /* what's this ? */
 			pwr |= SET_VCC_VPP(0,0,sock);
 			printk(KERN_ERR "%s: bad Vcc %d\n", 
-					__FUNCTION__, configure->vcc);
+					__FUNCTION__, state->Vcc);
 			break;
 	}
 
@@ -228,7 +207,7 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 	au_sync_delay(300);
 
 	if (sock == 0) {
-		if (!configure->reset) {
+		if (!(state->flags & SS_RESET)) {
 			pwr |= BCSR_PCMCIA_PC0DRVEN;
 			bcsr->pcmcia = pwr;
 			au_sync_delay(300);
@@ -243,7 +222,7 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 		}
 	}
 	else {
-		if (!configure->reset) {
+		if (!(state->flags & SS_RESET)) {
 			pwr |= BCSR_PCMCIA_PC1DRVEN;
 			bcsr->pcmcia = pwr;
 			au_sync_delay(300);
@@ -260,10 +239,42 @@ db1x00_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 	return 0;
 }
 
+/*
+ * Enable card status IRQs on (re-)initialisation.  This can
+ * be called at initialisation, power management event, or
+ * pcmcia event.
+ */
+void db1x00_socket_init(struct au1000_pcmcia_socket *skt)
+{
+	/* nothing to do for now */
+}
+
+/*
+ * Disable card status IRQs and PCMCIA bus on suspend.
+ */
+void db1x00_socket_suspend(struct au1000_pcmcia_socket *skt)
+{
+	/* nothing to do for now */
+}
+
 struct pcmcia_low_level db1x00_pcmcia_ops = { 
-	db1x00_pcmcia_init,
-	db1x00_pcmcia_shutdown,
-	db1x00_pcmcia_socket_state,
-	db1x00_pcmcia_get_irq_info,
-	db1x00_pcmcia_configure_socket
+	.owner			= THIS_MODULE,
+
+	.hw_init 		= db1x00_pcmcia_hw_init,
+	.hw_shutdown		= db1x00_pcmcia_shutdown,
+
+	.socket_state		= db1x00_pcmcia_socket_state,
+	.configure_socket	= db1x00_pcmcia_configure_socket,
+
+	.socket_init		= db1x00_socket_init,
+	.socket_suspend		= db1x00_socket_suspend
 };
+
+int __init pcmcia_db1x00_init(struct device *dev)
+{
+	int ret = -ENODEV;
+	bcsr->pcmcia = 0; /* turn off power, if it's not already off */
+	au_sync_delay(2);
+	ret = au1x00_pcmcia_socket_probe(dev, &db1x00_pcmcia_ops, 0, 2);
+	return ret;
+}

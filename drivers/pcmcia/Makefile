@@ -12,6 +12,7 @@ obj-$(CONFIG_HD64465_PCMCIA)		+= hd64465_ss.o
 obj-$(CONFIG_PCMCIA_SA1100)		+= sa1100_cs.o
 obj-$(CONFIG_PCMCIA_SA1111)		+= sa1111_cs.o
 obj-$(CONFIG_PCMCIA_VRC4173)		+= vrc4173_cardu.o
+obj-$(CONFIG_PCMCIA_AU1X00)		+= au1x00_ss.o
 
 pcmcia_core-objs-y				:= cistpl.o rsrc_mgr.o bulkmem.o cs.o
 pcmcia_core-objs-$(CONFIG_CARDBUS)		+= cardbus.o
@@ -28,11 +29,15 @@ sa1111_cs-objs-$(CONFIG_SA1100_PT_SYSTEM3)	+= sa1100_system3.o
 sa1111_cs-objs-$(CONFIG_SA1100_XP860)		+= sa1100_xp860.o
 sa1111_cs-objs					:= $(sa1111_cs-objs-y)
 
-obj-$(CONFIG_PCMCIA_AU1000)			+= au1x00_ss.o
-au1000_ss-objs-y				:= au1000_generic.o
-au1000_ss-objs-$(CONFIG_PCMCIA_PB1X00)		+= au1000_pb1x00.o
-au1000_ss-objs-$(CONFIG_PCMCIA_DB1X00)		+= au1000_db1x00.o
-au1000_ss-objs-$(CONFIG_PCMCIA_XXS1500) 	+= au1000_xxs1500.o
+au1x00_ss-objs-y				:= au1000_generic.o
+au1x00_ss-objs-$(CONFIG_MIPS_PB1000)		+= au1000_pb1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_PB1100)		+= au1000_pb1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_PB1500)		+= au1000_pb1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_DB1000)		+= au1000_db1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_DB1100)		+= au1000_db1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_DB1500)		+= au1000_db1x00.o
+au1x00_ss-objs-$(CONFIG_MIPS_XXS1500)	 	+= au1000_xxs1500.o
+au1x00_ss-objs					:= $(au1x00_ss-objs-y)
 
 sa1100_cs-objs-y				:= sa1100_generic.o
 sa1100_cs-objs-$(CONFIG_SA1100_ASSABET)		+= sa1100_assabet.o

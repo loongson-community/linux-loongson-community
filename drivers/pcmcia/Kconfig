@@ -81,21 +81,9 @@ config HD64465_PCMCIA
 	tristate "HD64465 host bridge support"
 	depends on HD64465 && PCMCIA
 
-config PCMCIA_AU1000
+config PCMCIA_AU1X00
 	tristate "Au1x00 pcmcia support"
 	depends on SOC_AU1X00 && PCMCIA
-
-config PCMCIA_PB1X00
-	tristate "Pb1x00 board support"
-	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
-
-config PCMCIA_DB1X00
-	tristate "Db1x00 board support"
-	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
-
-config PCMCIA_XXS1500
-	tristate "XXS1500 board support"
-	depends on SOC_AU1X00 && PCMCIA_AU1000!=n && PCMCIA
 
 config PCMCIA_SA1100
 	tristate "SA1100 support"
