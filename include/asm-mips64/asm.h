@@ -94,7 +94,7 @@ symbol		=	value
 		TEXT(msg)
 
 /*
- * Print formated string
+ * Print formatted string
  */
 #define PRINT(string)                                   \
 		.set	push;				\
@@ -105,7 +105,7 @@ symbol		=	value
 		TEXT(string)
 
 /*
- * Print formated string
+ * Print formatted string
  */
 #define PROM_PRINT(string)                              \
 		.set	push;				\

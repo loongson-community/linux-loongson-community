@@ -150,7 +150,7 @@ void __init setup_arch(char **cmdline_p)
 	bootmem_init ();
 #endif
 
-	strncpy (command_line, arcs_cmdline, CL_SIZE);
+	strncpy(command_line, arcs_cmdline, CL_SIZE);
 	memcpy(saved_command_line, command_line, CL_SIZE);
 	saved_command_line[CL_SIZE-1] = '\0';
 

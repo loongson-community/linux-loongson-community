@@ -22,14 +22,13 @@
 #define PRID_IMP_R4000    0x0400
 #define PRID_IMP_R6000A   0x0600
 #define PRID_IMP_R10000   0x0900
-#define PRID_IMP_R12000   0x0e00
 #define PRID_IMP_R4300    0x0b00
 #define PRID_IMP_R12000   0x0e00
 #define PRID_IMP_R8000    0x1000
 #define PRID_IMP_R4600    0x2000
 #define PRID_IMP_R4700    0x2100
 #define PRID_IMP_R4640    0x2200
-#define PRID_IMP_R4650    0x2200		/* Same as R4640 */
+#define PRID_IMP_R4650    0x2200	/* Same as R4640 */
 #define PRID_IMP_R5000    0x2300
 #define PRID_IMP_SONIC    0x2400
 #define PRID_IMP_MAGIC    0x2500

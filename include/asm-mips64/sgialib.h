@@ -90,9 +90,9 @@ extern pcomponent *prom_componentbypath(char *path);
  */
 extern void prom_identify_arch(void);
 
-/* Environemt variable routines. */
+/* Environment variable routines. */
 extern PCHAR ArcGetEnvironmentVariable(PCHAR name);
-extern LONG SetEnvironmentVariable(PCHAR name, PCHAR value);
+extern LONG ArcSetEnvironmentVariable(PCHAR name, PCHAR value);
 
 /* ARCS command line acquisition and parsing. */
 extern char *prom_getcmdline(void);
@@ -120,11 +120,11 @@ extern long prom_invoke(unsigned long pc, unsigned long sp, long argc, char **ar
 extern long prom_exec(char *name, long argc, char **argv, char **envp);
 
 /* Misc. routines. */
-extern void prom_halt(VOID) __attribute__((noreturn));
-extern void prom_powerdown(VOID) __attribute__((noreturn));
-extern void prom_restart(VOID) __attribute__((noreturn));
+extern VOID prom_halt(VOID) __attribute__((noreturn));
+extern VOID prom_powerdown(VOID) __attribute__((noreturn));
+extern VOID prom_restart(VOID) __attribute__((noreturn));
 extern VOID ArcReboot(VOID) __attribute__((noreturn));
-extern VOID ArcEnterInteractiveMode(void) __attribute__((noreturn));
+extern VOID ArcEnterInteractiveMode(VOID) __attribute__((noreturn));
 extern long prom_cfgsave(VOID);
 extern struct linux_sysid *prom_getsysid(VOID);
 extern VOID ArcFlushAllCaches(VOID);

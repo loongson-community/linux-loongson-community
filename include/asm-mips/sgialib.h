@@ -64,9 +64,9 @@ extern pcomponent *prom_componentbypath(char *path);
  */
 extern void prom_identify_arch(void);
 
-/* Environemt variable routines. */
+/* Environment variable routines. */
 extern PCHAR ArcGetEnvironmentVariable(CHAR *name);
-extern LONG SetEnvironmentVariable(PCHAR name, PCHAR value);
+extern LONG ArcSetEnvironmentVariable(PCHAR name, PCHAR value);
 
 /* ARCS command line acquisition and parsing. */
 extern char *prom_getcmdline(void);

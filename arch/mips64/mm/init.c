@@ -119,7 +119,7 @@ asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 }
 
 /*
- * We have upto 8 empty zeroed pages so we can map one of the right colour
+ * We have up to 8 empty zeroed pages so we can map one of the right colour
  * when needed.  This is necessary only on R4000 / R4400 SC and MC versions
  * where we have to avoid VCED / VECI exceptions for good performance at
  * any price.  Since page is never written to after the initialization we
@@ -201,7 +201,7 @@ static void __init print_memory_map(void)
         }
 }
 
-void bootmem_init (void) {
+void bootmem_init(void) {
 #ifdef CONFIG_BLK_DEV_INITRD
 	unsigned long tmp;
 	unsigned long *initrd_header;

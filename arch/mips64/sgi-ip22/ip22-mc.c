@@ -3,8 +3,6 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * indy_mc.c: Routines for manipulating the INDY memory controller.
- *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 2001 Ralf Baechle (ralf@gnu.org)
  */

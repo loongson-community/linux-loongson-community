@@ -32,11 +32,11 @@
 	.set	noreorder
 	/* Save floating point context */
 LEAF(save_fp_context)
-	mfc0	t1,CP0_STATUS
-	 sll	t2,t1,5
+	mfc0	t1, CP0_STATUS
+	sll	t2, t1,5
 
-	bgez	t2,1f
-	 cfc1	t1,fcr31
+	bgez	t2, 1f
+	 cfc1	t1, fcr31
 	/* Store the 16 odd double precision registers */
 	EX	sdc1 $f1, SC_FPREGS+8(a0)
 	EX	sdc1 $f3, SC_FPREGS+24(a0)
@@ -74,8 +74,8 @@ LEAF(save_fp_context)
 	EX	sdc1 $f28, SC_FPREGS+224(a0)
 	EX	sdc1 $f30, SC_FPREGS+240(a0)
 	EX	sw t1, SC_FPC_CSR(a0)
-	cfc1	t0,$0				# implementation/version
-	EX	sw t0,SC_FPC_EIR(a0)
+	cfc1	t0, $0				# implementation/version
+	EX	sw t0, SC_FPC_EIR(a0)
 
 	jr	ra
 	 li	v0, 0					# success
@@ -92,8 +92,8 @@ LEAF(save_fp_context)
  */
 LEAF(restore_fp_context)
 	mfc0	t1, CP0_STATUS
-	sll	t0,t1,5
-	bgez	t0,1f
+	sll	t0, t1,5
+	bgez	t0, 1f
 	 EX	lw t0, SC_FPC_CSR(a0)
 
 	/* Restore the 16 odd double precision registers only
@@ -136,14 +136,13 @@ LEAF(restore_fp_context)
 	EX	ldc1 $f26, SC_FPREGS+208(a0)
 	EX	ldc1 $f28, SC_FPREGS+224(a0)
 	EX	ldc1 $f30, SC_FPREGS+240(a0)
-	ctc1	t0,fcr31
+	ctc1	t0, fcr31
 	jr	ra
 	 li	v0, 0					# success
 	END(restore_fp_context)
-	.set	reorder
 
 	.type	fault@function
 	.ent	fault
-fault:	li	v0, -EFAULT
-	jr	ra
+fault:	jr	ra
+	 li	v0, -EFAULT				# failure
 	.end	fault
