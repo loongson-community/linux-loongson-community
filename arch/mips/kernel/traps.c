@@ -93,9 +93,9 @@ void simulate_sc(struct pt_regs *regs, unsigned int opcode);
 #define RT     0x001f0000
 #define OFFSET 0x0000ffff
 #define LL     0xc0000000
-#define SC     0xd0000000
+#define SC     0xe0000000
 
-#define DEBUG_LLSC
+#undef DEBUG_LLSC
 #endif
 
 /*
@@ -492,49 +492,69 @@ void do_tr(struct pt_regs *regs)
 
 #if !defined(CONFIG_CPU_HAS_LLSC)
 
+#ifdef CONFIG_SMP
+#error "ll/sc emulation is not SMP safe"
+#endif
+
 /*
  * userland emulation for R2300 CPUs
  * needed for the multithreading part of glibc
+ *
+ * this implementation can handle only sychronization between 2 or more
+ * user contexts and is not SMP safe.
  */
 void do_ri(struct pt_regs *regs)
 {
 	unsigned int opcode;
 
+	if (!user_mode(regs))
+		BUG();
+
 	if (!get_insn_opcode(regs, &opcode)) {
-		if ((opcode & OPCODE) == LL)
+		if ((opcode & OPCODE) == LL) {
 			simulate_ll(regs, opcode);
-		if ((opcode & OPCODE) == SC)
+			return;
+		}
+		if ((opcode & OPCODE) == SC) {
 			simulate_sc(regs, opcode);
-	} else {
-	  printk("[%s:%ld] Illegal instruction %08x at %08lx ra=%08lx\n",
-		 current->comm, (unsigned long)current->pid, opcode, 
-		 regs->cp0_epc, regs->regs[31]);
+			return;
+		}
 	}
+	printk("[%s:%d] Illegal instruction %08lx at %08lx, ra=%08lx, CP0_STATUS=%08lx\n",
+	       current->comm, current->pid, *((unsigned long*)regs->cp0_epc), regs->cp0_epc,
+		regs->regs[31], regs->cp0_status);
 	if (compute_return_epc(regs))
 		return;
 	force_sig(SIGILL, current);
 }
 
 /*
- * the ll_bit will be cleared by r2300_switch.S
+ * The ll_bit is cleared by r*_switch.S
  */
-unsigned long ll_bit, *lladdr;
- 
+
+unsigned long ll_bit;
+#ifdef CONFIG_PROC_FS
+extern unsigned long ll_ops;
+extern unsigned long sc_ops;
+#endif
+
+static struct task_struct *ll_task = NULL;
+
 void simulate_ll(struct pt_regs *regp, unsigned int opcode)
 {
-	unsigned long *addr, *vaddr;
+	unsigned long value, *vaddr;
 	long offset;
- 
+	int signal = 0;
+
 	/*
 	 * analyse the ll instruction that just caused a ri exception
 	 * and put the referenced address to addr.
 	 */
+
 	/* sign extend offset */
 	offset = opcode & OFFSET;
-	if (offset & 0x00008000)
-		offset = -(offset & 0x00007fff);
-	else
-		offset = (offset & 0x00007fff);
+	offset <<= 16;
+	offset >>= 16;
 
 	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
 
@@ -542,31 +562,44 @@ void simulate_ll(struct pt_regs *regp, unsigned int opcode)
 	printk("ll: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (opcode & RT) >> 16);
 #endif
 
-	/*
-	 * TODO: compute physical address from vaddr
-	 */
-	panic("ll: emulation not yet finished!");
+#ifdef CONFIG_PROC_FS
+	ll_ops++;
+#endif
 
-	lladdr = addr;
-	ll_bit = 1;
-	regp->regs[(opcode & RT) >> 16] = *addr;
+	if ((unsigned long)vaddr & 3)
+		signal = SIGBUS;
+	else if (get_user(value, vaddr))
+		signal = SIGSEGV;
+	else {
+		if (ll_task == NULL || ll_task == current) {
+			ll_bit = 1;
+		} else {
+			ll_bit = 0;
+		}
+		ll_task = current;
+		regp->regs[(opcode & RT) >> 16] = value;
+	}
+	if (compute_return_epc(regp))
+		return;
+	if (signal)
+		send_sig(signal, current, 1);
 }
- 
+
 void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 {
-	unsigned long *addr, *vaddr, reg;
+	unsigned long *vaddr, reg;
 	long offset;
+	int signal = 0;
 
 	/*
 	 * analyse the sc instruction that just caused a ri exception
 	 * and put the referenced address to addr.
 	 */
+
 	/* sign extend offset */
 	offset = opcode & OFFSET;
-	if (offset & 0x00008000)
-		offset = -(offset & 0x00007fff);
-	else
-		offset = (offset & 0x00007fff);
+	offset <<= 16;
+	offset >>= 16;
 
 	vaddr = (unsigned long *)((long)(regp->regs[(opcode & BASE) >> 21]) + offset);
 	reg = (opcode & RT) >> 16;
@@ -575,20 +608,22 @@ void simulate_sc(struct pt_regs *regp, unsigned int opcode)
 	printk("sc: vaddr = 0x%08x, reg = %d\n", (unsigned int)vaddr, (unsigned int)reg);
 #endif
 
-	/*
-	 * TODO: compute physical address from vaddr
-	 */
-	panic("sc: emulation not yet finished!");
+#ifdef CONFIG_PROC_FS
+	sc_ops++;
+#endif
 
-	lladdr = addr;
-
-	if (ll_bit == 0) {
+	if ((unsigned long)vaddr & 3)
+		signal = SIGBUS;
+	else if (ll_bit == 0 || ll_task != current)
 		regp->regs[reg] = 0;
+	else if (put_user(regp->regs[reg], vaddr))
+		signal = SIGSEGV;
+	else
+		regp->regs[reg] = 1;
+	if (compute_return_epc(regp))
 		return;
-	}
-
-	*addr = regp->regs[reg];
-	regp->regs[reg] = 1;
+	if (signal)
+		send_sig(signal, current, 1);
 }
 
 #else /* MIPS 2 or higher */
@@ -599,7 +634,7 @@ void do_ri(struct pt_regs *regs)
 
         get_insn_opcode(regs, &opcode);
 	printk("[%s:%ld] Illegal instruction %08x at %08lx ra=%08lx\n",
-	       current->comm, (unsigned long)current->pid, opcode, 
+	       current->comm, (unsigned long)current->pid, opcode,
 	       regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))
 		return;

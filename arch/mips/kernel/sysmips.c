@@ -75,6 +75,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	}
 
 	case MIPS_ATOMIC_SET: {
+#ifdef CONFIG_CPU_HAS_LLSC
 		unsigned int tmp;
 
 		p = (int *) arg1;
@@ -118,6 +119,9 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 			: /* No outputs */
 			: "r" (&cmd));
 		/* Unreached */
+#else
+	printk("sys_sysmips(MIPS_ATOMIC_SET, ...) not ready for !CONFIG_CPU_HAS_LLSC\n");
+#endif
 	}
 
 	case MIPS_FIXADE:
