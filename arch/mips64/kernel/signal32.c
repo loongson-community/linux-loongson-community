@@ -1061,7 +1061,7 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		   in so that we'll be awakened when they arrive.  */
 		sigset_t oldblocked = current->blocked;
 		sigandsets(&current->blocked, &current->blocked, &these);
-		recalc_sigpending(current);
+		recalc_sigpending();
 		spin_unlock_irq(&current->sigmask_lock);
 
 		timeout = MAX_SCHEDULE_TIMEOUT;
@@ -1075,7 +1075,7 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		spin_lock_irq(&current->sigmask_lock);
 		sig = dequeue_signal(&these, &info);
 		current->blocked = oldblocked;
-		recalc_sigpending(current);
+		recalc_sigpending();
 	}
 	spin_unlock_irq(&current->sigmask_lock);
 
