@@ -14325,6 +14325,14 @@ CONFIG_REMOTE_DEBUG
   better 32 MB RAM to avoid excessive linking time. This is only
   useful for kernel hackers. If unsure, say N.
 
+Run uncached
+CONFIG_MIPS_UNCACHED
+  If you say Y here there kernel will disable all CPU caches.  This will
+  reduce the system's performance dramatically but can help finding
+  otherwise hard to track bugs.  It can also useful if you're doing
+  hardware debugging with a logic analyzer and need to see all traffic
+  on the bus.
+
 Magic System Request Key support
 CONFIG_MAGIC_SYSRQ
   If you say Y here, you will have some control over the system even

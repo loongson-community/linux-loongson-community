@@ -437,4 +437,5 @@ if [ "$CONFIG_SERIAL" = "y" ]; then
   bool 'Remote GDB kernel debugging' CONFIG_REMOTE_DEBUG
 fi
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
+#bool 'Run uncached' CONFIG_MIPS_UNCACHED
 endmenu
