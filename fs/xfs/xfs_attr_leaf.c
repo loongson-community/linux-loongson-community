@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2002 Silicon Graphics, Inc.  All Rights Reserved.
+ * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -159,6 +159,9 @@ xfs_attr_shortform_add(xfs_da_args_t *args)
 			continue;
 		if (memcmp(args->name, sfe->nameval, args->namelen) != 0)
 			continue;
+		if (((args->flags & ATTR_SECURE) != 0) !=
+		    ((sfe->flags & XFS_ATTR_SECURE) != 0))
+			continue;
 		if (((args->flags & ATTR_ROOT) != 0) !=
 		    ((sfe->flags & XFS_ATTR_ROOT) != 0))
 			continue;
@@ -173,7 +176,8 @@ xfs_attr_shortform_add(xfs_da_args_t *args)
 
 	sfe->namelen = args->namelen;
 	INT_SET(sfe->valuelen, ARCH_CONVERT, args->valuelen);
-	sfe->flags = (args->flags & ATTR_ROOT) ? XFS_ATTR_ROOT : 0;
+	sfe->flags = (args->flags & ATTR_SECURE) ? XFS_ATTR_SECURE :
+			((args->flags & ATTR_ROOT) ? XFS_ATTR_ROOT : 0);
 	memcpy(sfe->nameval, args->name, args->namelen);
 	memcpy(&sfe->nameval[args->namelen], args->value, args->valuelen);
 	INT_MOD(sf->hdr.count, ARCH_CONVERT, 1);
@@ -208,6 +212,9 @@ xfs_attr_shortform_remove(xfs_da_args_t *args)
 		if (sfe->namelen != args->namelen)
 			continue;
 		if (memcmp(sfe->nameval, args->name, args->namelen) != 0)
+			continue;
+		if (((args->flags & ATTR_SECURE) != 0) !=
+		    ((sfe->flags & XFS_ATTR_SECURE) != 0))
 			continue;
 		if (((args->flags & ATTR_ROOT) != 0) !=
 		    ((sfe->flags & XFS_ATTR_ROOT) != 0))
@@ -253,6 +260,9 @@ xfs_attr_shortform_lookup(xfs_da_args_t *args)
 			continue;
 		if (memcmp(args->name, sfe->nameval, args->namelen) != 0)
 			continue;
+		if (((args->flags & ATTR_SECURE) != 0) !=
+		    ((sfe->flags & XFS_ATTR_SECURE) != 0))
+			continue;
 		if (((args->flags & ATTR_ROOT) != 0) !=
 		    ((sfe->flags & XFS_ATTR_ROOT) != 0))
 			continue;
@@ -280,6 +290,9 @@ xfs_attr_shortform_getvalue(xfs_da_args_t *args)
 		if (sfe->namelen != args->namelen)
 			continue;
 		if (memcmp(args->name, sfe->nameval, args->namelen) != 0)
+			continue;
+		if (((args->flags & ATTR_SECURE) != 0) !=
+		    ((sfe->flags & XFS_ATTR_SECURE) != 0))
 			continue;
 		if (((args->flags & ATTR_ROOT) != 0) !=
 		    ((sfe->flags & XFS_ATTR_ROOT) != 0))
@@ -369,7 +382,8 @@ xfs_attr_shortform_to_leaf(xfs_da_args_t *args)
 		nargs.valuelen = INT_GET(sfe->valuelen, ARCH_CONVERT);
 		nargs.hashval = xfs_da_hashname((char *)sfe->nameval,
 						sfe->namelen);
-		nargs.flags = (sfe->flags & XFS_ATTR_ROOT) ? ATTR_ROOT : 0;
+		nargs.flags = (sfe->flags & XFS_ATTR_SECURE) ? ATTR_SECURE :
+				((sfe->flags & XFS_ATTR_ROOT) ? ATTR_ROOT : 0);
 		error = xfs_attr_leaf_lookup_int(bp, &nargs); /* set a->index */
 		ASSERT(error == ENOATTR);
 		error = xfs_attr_leaf_add(bp, &nargs);
@@ -444,21 +458,24 @@ xfs_attr_shortform_list(xfs_attr_list_context_t *context)
 							< context->bufsize) {
 		for (i = 0, sfe = &sf->list[0];
 				i < INT_GET(sf->hdr.count, ARCH_CONVERT); i++) {
-			int ns = (sfe->flags & XFS_ATTR_ROOT)?
-						ROOT_NAMES : USER_NAMES;
+			attrnames_t	*namesp;
+
 			if (((context->flags & ATTR_ROOT) != 0) !=
 			    ((sfe->flags & XFS_ATTR_ROOT) != 0) &&
 			    !(context->flags & ATTR_KERNFULLS)) {
 				sfe = XFS_ATTR_SF_NEXTENTRY(sfe);
 				continue;
 			}
+			namesp = (sfe->flags & XFS_ATTR_SECURE) ? &attr_secure:
+				((sfe->flags & XFS_ATTR_ROOT) ? &attr_trusted :
+				  &attr_user);
 			if (context->flags & ATTR_KERNOVAL) {
 				ASSERT(context->flags & ATTR_KERNAMELS);
-				context->count += xfs_namespaces[ns].namelen +
+				context->count += namesp->attr_namelen +
 					INT_GET(sfe->namelen, ARCH_CONVERT) + 1;
 			}
 			else {
-				if (xfs_attr_put_listent(context, ns,
+				if (xfs_attr_put_listent(context, namesp,
 						   (char *)sfe->nameval,
 						   (int)sfe->namelen,
 						   (int)INT_GET(sfe->valuelen,
@@ -544,18 +561,23 @@ xfs_attr_shortform_list(xfs_attr_list_context_t *context)
 	 * Loop putting entries into the user buffer.
 	 */
 	for ( ; i < nsbuf; i++, sbp++) {
-		int ns = (sbp->flags & XFS_ATTR_ROOT)? ROOT_NAMES:USER_NAMES;
+		attrnames_t	*namesp;
+
+		namesp = (sfe->flags & XFS_ATTR_SECURE) ? &attr_secure :
+			((sfe->flags & XFS_ATTR_ROOT) ? &attr_trusted :
+			  &attr_user);
+
 		if (cursor->hashval != INT_GET(sbp->hash, ARCH_CONVERT)) {
 			cursor->hashval = INT_GET(sbp->hash, ARCH_CONVERT);
 			cursor->offset = 0;
 		}
 		if (context->flags & ATTR_KERNOVAL) {
 			ASSERT(context->flags & ATTR_KERNAMELS);
-			context->count += xfs_namespaces[ns].namelen
-					+ sbp->namelen + 1;
+			context->count += namesp->attr_namelen +
+						sbp->namelen + 1;
 		}
 		else {
-			if (xfs_attr_put_listent(context, ns,
+			if (xfs_attr_put_listent(context, namesp,
 					sbp->name, sbp->namelen,
 					INT_GET(sbp->valuelen, ARCH_CONVERT)))
 				break;
@@ -662,7 +684,8 @@ xfs_attr_leaf_to_shortform(xfs_dabuf_t *bp, xfs_da_args_t *args)
 		nargs.value = (char *)&name_loc->nameval[nargs.namelen];
 		nargs.valuelen = INT_GET(name_loc->valuelen, ARCH_CONVERT);
 		nargs.hashval = INT_GET(entry->hashval, ARCH_CONVERT);
-		nargs.flags = (entry->flags & XFS_ATTR_ROOT) ? ATTR_ROOT : 0;
+		nargs.flags = (entry->flags & XFS_ATTR_SECURE) ? ATTR_SECURE :
+			      ((entry->flags & XFS_ATTR_ROOT) ? ATTR_ROOT : 0);
 		xfs_attr_shortform_add(&nargs);
 	}
 	error = 0;
@@ -957,7 +980,8 @@ xfs_attr_leaf_add_work(xfs_dabuf_t *bp, xfs_da_args_t *args, int mapindex)
 				      + INT_GET(map->size, ARCH_CONVERT));
 	INT_SET(entry->hashval, ARCH_CONVERT, args->hashval);
 	entry->flags = tmp ? XFS_ATTR_LOCAL : 0;
-	entry->flags |= (args->flags & ATTR_ROOT) ? XFS_ATTR_ROOT : 0;
+	entry->flags |= (args->flags & ATTR_SECURE) ? XFS_ATTR_SECURE :
+			((args->flags & ATTR_ROOT) ? XFS_ATTR_ROOT : 0);
 	if (args->rename) {
 		entry->flags |= XFS_ATTR_INCOMPLETE;
 		if ((args->blkno2 == args->blkno) &&
@@ -1875,6 +1899,9 @@ xfs_attr_leaf_lookup_int(xfs_dabuf_t *bp, xfs_da_args_t *args)
 			if (memcmp(args->name, (char *)name_loc->nameval,
 					     args->namelen) != 0)
 				continue;
+			if (((args->flags & ATTR_SECURE) != 0) !=
+			    ((entry->flags & XFS_ATTR_SECURE) != 0))
+				continue;
 			if (((args->flags & ATTR_ROOT) != 0) !=
 			    ((entry->flags & XFS_ATTR_ROOT) != 0))
 				continue;
@@ -1886,6 +1913,9 @@ xfs_attr_leaf_lookup_int(xfs_dabuf_t *bp, xfs_da_args_t *args)
 				continue;
 			if (memcmp(args->name, (char *)name_rmt->name,
 					     args->namelen) != 0)
+				continue;
+			if (((args->flags & ATTR_SECURE) != 0) !=
+			    ((entry->flags & XFS_ATTR_SECURE) != 0))
 				continue;
 			if (((args->flags & ATTR_ROOT) != 0) !=
 			    ((entry->flags & XFS_ATTR_ROOT) != 0))
@@ -2270,7 +2300,7 @@ xfs_attr_leaf_list_int(xfs_dabuf_t *bp, xfs_attr_list_context_t *context)
 	retval = 0;
 	for (  ; (i < INT_GET(leaf->hdr.count, ARCH_CONVERT))
 	     && (retval == 0); entry++, i++) {
-		int ns = (entry->flags & XFS_ATTR_ROOT)? ROOT_NAMES:USER_NAMES;
+		attrnames_t	*namesp;
 
 		if (INT_GET(entry->hashval, ARCH_CONVERT) != cursor->hashval) {
 			cursor->hashval = INT_GET(entry->hashval, ARCH_CONVERT);
@@ -2284,14 +2314,18 @@ xfs_attr_leaf_list_int(xfs_dabuf_t *bp, xfs_attr_list_context_t *context)
 		    !(context->flags & ATTR_KERNFULLS))
 			continue;		/* skip non-matching entries */
 
+		namesp = (entry->flags & XFS_ATTR_SECURE) ? &attr_secure :
+			((entry->flags & XFS_ATTR_ROOT) ? &attr_trusted :
+			  &attr_user);
+
 		if (entry->flags & XFS_ATTR_LOCAL) {
 			name_loc = XFS_ATTR_LEAF_NAME_LOCAL(leaf, i);
 			if (context->flags & ATTR_KERNOVAL) {
 				ASSERT(context->flags & ATTR_KERNAMELS);
-				context->count += xfs_namespaces[ns].namelen
-						+ (int)name_loc->namelen + 1;
+				context->count += namesp->attr_namelen +
+						(int)name_loc->namelen + 1;
 			} else {
-				retval = xfs_attr_put_listent(context, ns,
+				retval = xfs_attr_put_listent(context, namesp,
 					(char *)name_loc->nameval,
 					(int)name_loc->namelen,
 					(int)INT_GET(name_loc->valuelen,
@@ -2301,10 +2335,10 @@ xfs_attr_leaf_list_int(xfs_dabuf_t *bp, xfs_attr_list_context_t *context)
 			name_rmt = XFS_ATTR_LEAF_NAME_REMOTE(leaf, i);
 			if (context->flags & ATTR_KERNOVAL) {
 				ASSERT(context->flags & ATTR_KERNAMELS);
-				context->count += xfs_namespaces[ns].namelen
-						+ (int)name_rmt->namelen + 1;
+				context->count += namesp->attr_namelen +
+						(int)name_rmt->namelen + 1;
 			} else {
-				retval = xfs_attr_put_listent(context, ns,
+				retval = xfs_attr_put_listent(context, namesp,
 					(char *)name_rmt->name,
 					(int)name_rmt->namelen,
 					(int)INT_GET(name_rmt->valuelen,
@@ -2333,7 +2367,7 @@ xfs_attr_leaf_list_int(xfs_dabuf_t *bp, xfs_attr_list_context_t *context)
 /*ARGSUSED*/
 int
 xfs_attr_put_listent(xfs_attr_list_context_t *context,
-		     int ns, char *name, int namelen, int valuelen)
+		     attrnames_t *namesp, char *name, int namelen, int valuelen)
 {
 	attrlist_ent_t *aep;
 	int arraytop;
@@ -2341,23 +2375,21 @@ xfs_attr_put_listent(xfs_attr_list_context_t *context,
 	ASSERT(!(context->flags & ATTR_KERNOVAL));
 	if (context->flags & ATTR_KERNAMELS) {
 		char *offset;
-		xattr_namespace_t *nsp;
 
 		ASSERT(context->count >= 0);
 
-		nsp = &xfs_namespaces[ns];
-		arraytop = context->count + nsp->namelen + namelen+1;
+		arraytop = context->count + namesp->attr_namelen + namelen + 1;
 		if (arraytop > context->firstu) {
 			context->count = -1;	/* insufficient space */
 			return(1);
 		}
 		offset = (char *)context->alist + context->count;
-		strncpy(offset, nsp->name, nsp->namelen);	/* namespace */
-		offset += nsp->namelen;
+		strncpy(offset, namesp->attr_name, namesp->attr_namelen);
+		offset += namesp->attr_namelen;
 		strncpy(offset, name, namelen);			/* real name */
 		offset += namelen;
 		*offset = '\0';
-		context->count += nsp->namelen + namelen + 1;
+		context->count += namesp->attr_namelen + namelen + 1;
 		return(0);
 	}
 

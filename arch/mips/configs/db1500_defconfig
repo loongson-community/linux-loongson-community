@@ -130,9 +130,6 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
-CONFIG_PCI=y
-CONFIG_PCI_LEGACY_PROC=y
-CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
 CONFIG_HOTPLUG=y
 
@@ -140,15 +137,12 @@ CONFIG_HOTPLUG=y
 # PCMCIA/CardBus support
 #
 CONFIG_PCMCIA=m
-# CONFIG_YENTA is not set
-# CONFIG_I82092 is not set
 # CONFIG_TCIC is not set
-CONFIG_PCMCIA_AU1X00=m
+# CONFIG_PCMCIA_AU1000 is not set
 
 #
 # PCI Hotplug Support
 #
-# CONFIG_HOTPLUG_PCI is not set
 
 #
 # Executable file formats
@@ -212,7 +206,6 @@ CONFIG_MTD_DB1X00_USER=y
 #
 # Self-contained MTD device drivers
 #
-# CONFIG_MTD_PMC551 is not set
 # CONFIG_MTD_SLRAM is not set
 # CONFIG_MTD_MTDRAM is not set
 # CONFIG_MTD_BLKMTD is not set
@@ -237,16 +230,11 @@ CONFIG_MTD_DB1X00_USER=y
 #
 # Plug and Play support
 #
-# CONFIG_PNP is not set
 
 #
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
-# CONFIG_BLK_CPQ_DA is not set
-# CONFIG_BLK_CPQ_CISS_DA is not set
-# CONFIG_BLK_DEV_DAC960 is not set
-# CONFIG_BLK_DEV_UMEM is not set
 CONFIG_BLK_DEV_LOOP=y
 # CONFIG_BLK_DEV_CRYPTOLOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
@@ -276,38 +264,8 @@ CONFIG_BLK_DEV_IDECS=m
 #
 # IDE chipset support/bugfixes
 #
-CONFIG_BLK_DEV_IDEPCI=y
-# CONFIG_IDEPCI_SHARE_IRQ is not set
-# CONFIG_BLK_DEV_OFFBOARD is not set
-# CONFIG_BLK_DEV_GENERIC is not set
-# CONFIG_BLK_DEV_OPTI621 is not set
-CONFIG_BLK_DEV_IDEDMA_PCI=y
-# CONFIG_BLK_DEV_IDEDMA_FORCED is not set
-# CONFIG_IDEDMA_PCI_AUTO is not set
-# CONFIG_IDEDMA_PCI_WIP is not set
-CONFIG_BLK_DEV_ADMA=y
-# CONFIG_BLK_DEV_AEC62XX is not set
-# CONFIG_BLK_DEV_ALI15X3 is not set
-# CONFIG_BLK_DEV_AMD74XX is not set
-# CONFIG_BLK_DEV_CMD64X is not set
-# CONFIG_BLK_DEV_TRIFLEX is not set
-# CONFIG_BLK_DEV_CY82C693 is not set
-# CONFIG_BLK_DEV_CS5520 is not set
-# CONFIG_BLK_DEV_CS5530 is not set
-# CONFIG_BLK_DEV_HPT34X is not set
-CONFIG_BLK_DEV_HPT366=y
-# CONFIG_BLK_DEV_SC1200 is not set
-# CONFIG_BLK_DEV_PIIX is not set
-# CONFIG_BLK_DEV_NS87415 is not set
-# CONFIG_BLK_DEV_PDC202XX_OLD is not set
-# CONFIG_BLK_DEV_PDC202XX_NEW is not set
-# CONFIG_BLK_DEV_SVWKS is not set
-# CONFIG_BLK_DEV_SIIMAGE is not set
-# CONFIG_BLK_DEV_SLC90E66 is not set
-# CONFIG_BLK_DEV_TRM290 is not set
-# CONFIG_BLK_DEV_VIA82CXXX is not set
-CONFIG_BLK_DEV_IDEDMA=y
-# CONFIG_IDEDMA_IVB is not set
+CONFIG_IDE_GENERIC=y
+# CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
 # CONFIG_DMA_NONPCI is not set
 # CONFIG_BLK_DEV_HD is not set
@@ -334,7 +292,6 @@ CONFIG_BLK_DEV_IDEDMA=y
 #
 # I2O device support
 #
-# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -416,11 +373,6 @@ CONFIG_IPV6_SCTP__=y
 #
 # CONFIG_NET_PKTGEN is not set
 CONFIG_NETDEVICES=y
-
-#
-# ARCnet devices
-#
-# CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
@@ -433,37 +385,14 @@ CONFIG_NETDEVICES=y
 CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
 CONFIG_MIPS_AU1X00_ENET=y
-# CONFIG_HAPPYMEAL is not set
-# CONFIG_SUNGEM is not set
-# CONFIG_NET_VENDOR_3COM is not set
-
-#
-# Tulip family network device support
-#
-# CONFIG_NET_TULIP is not set
-# CONFIG_HP100 is not set
-# CONFIG_NET_PCI is not set
 
 #
 # Ethernet (1000 Mbit)
 #
-# CONFIG_ACENIC is not set
-# CONFIG_DL2K is not set
-# CONFIG_E1000 is not set
-# CONFIG_NS83820 is not set
-# CONFIG_HAMACHI is not set
-# CONFIG_YELLOWFIN is not set
-# CONFIG_R8169 is not set
-# CONFIG_SIS190 is not set
-# CONFIG_SK98LIN is not set
-# CONFIG_TIGON3 is not set
 
 #
 # Ethernet (10000 Mbit)
 #
-# CONFIG_IXGB is not set
-# CONFIG_FDDI is not set
-# CONFIG_HIPPI is not set
 CONFIG_PPP=m
 CONFIG_PPP_MULTILINK=y
 # CONFIG_PPP_FILTER is not set
@@ -482,8 +411,6 @@ CONFIG_PPPOE=m
 #
 # Token Ring devices
 #
-# CONFIG_TR is not set
-# CONFIG_RCPCI is not set
 # CONFIG_SHAPER is not set
 
 #
@@ -555,7 +482,6 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
-# CONFIG_SERIO_PCIPS2 is not set
 
 #
 # Input Device Drivers
@@ -588,24 +514,6 @@ CONFIG_SERIAL_CORE=y
 CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
-
-#
-# I2C support
-#
-# CONFIG_I2C is not set
-
-#
-# I2C Algorithms
-#
-
-#
-# I2C Hardware Bus support
-#
-
-#
-# I2C Hardware Sensors Chip support
-#
-# CONFIG_I2C_SENSOR is not set
 
 #
 # Mice
@@ -642,6 +550,11 @@ CONFIG_RTC=y
 # CONFIG_RAW_DRIVER is not set
 
 #
+# I2C support
+#
+# CONFIG_I2C is not set
+
+#
 # Multimedia devices
 #
 # CONFIG_VIDEO_DEV is not set
@@ -663,7 +576,10 @@ CONFIG_RTC=y
 #
 # USB support
 #
-# CONFIG_USB is not set
+
+#
+# USB Gadget Support
+#
 # CONFIG_USB_GADGET is not set
 
 #

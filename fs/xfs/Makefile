@@ -30,17 +30,33 @@
 # http://oss.sgi.com/projects/GenInfo/SGIGPLNoticeExplan/
 #
 
-EXTRA_CFLAGS +=	 -Ifs/xfs -funsigned-char
+EXTRA_CFLAGS +=	 -Ifs/xfs -Ifs/xfs/linux -funsigned-char
 
 ifeq ($(CONFIG_XFS_DEBUG),y)
 	EXTRA_CFLAGS += -g -DSTATIC="" -DDEBUG -DXFSDEBUG
+	EXTRA_CFLAGS += -DPAGEBUF_LOCK_TRACKING
 endif
-ifeq ($(CONFIG_PAGEBUF_DEBUG),y)
+ifeq ($(CONFIG_XFS_TRACE),y)
+	EXTRA_CFLAGS += -DXFS_ALLOC_TRACE
+	EXTRA_CFLAGS += -DXFS_ATTR_TRACE
+	EXTRA_CFLAGS += -DXFS_BLI_TRACE
+	EXTRA_CFLAGS += -DXFS_BMAP_TRACE
+	EXTRA_CFLAGS += -DXFS_BMBT_TRACE
+	EXTRA_CFLAGS += -DXFS_DIR_TRACE
+	EXTRA_CFLAGS += -DXFS_DIR2_TRACE
+	EXTRA_CFLAGS += -DXFS_DQUOT_TRACE
+	EXTRA_CFLAGS += -DXFS_ILOCK_TRACE
+	EXTRA_CFLAGS += -DXFS_LOG_TRACE
+	EXTRA_CFLAGS += -DXFS_RW_TRACE
 	EXTRA_CFLAGS += -DPAGEBUF_TRACE
+	# EXTRA_CFLAGS += -DXFS_VNODE_TRACE
 endif
 
 obj-$(CONFIG_XFS_FS)		+= xfs.o
 
+ifneq ($(CONFIG_XFS_DMAPI),y)
+xfs-y				+= xfs_dmops.o
+endif
 
 xfs-$(CONFIG_XFS_QUOTA)		+= $(addprefix quota/, \
 				   xfs_dquot.o \
@@ -49,9 +65,10 @@ xfs-$(CONFIG_XFS_QUOTA)		+= $(addprefix quota/, \
 				   xfs_qm_syscalls.o \
 				   xfs_qm_bhv.o \
 				   xfs_qm.o)
-
 ifeq ($(CONFIG_XFS_QUOTA),y)
 xfs-$(CONFIG_PROC_FS)		+= quota/xfs_qm_stats.o
+else
+xfs-y				+= xfs_qmops.o
 endif
 
 xfs-$(CONFIG_XFS_RT)		+= xfs_rtalloc.o
@@ -66,6 +83,7 @@ xfs-y				+= xfs_alloc.o \
 				   xfs_alloc_btree.o \
 				   xfs_attr.o \
 				   xfs_attr_leaf.o \
+				   xfs_behavior.o \
 				   xfs_bit.o \
 				   xfs_bmap.o \
 				   xfs_bmap_btree.o \
@@ -79,7 +97,6 @@ xfs-y				+= xfs_alloc.o \
 				   xfs_dir2_leaf.o \
 				   xfs_dir2_node.o \
 				   xfs_dir2_sf.o \
-				   xfs_dir2_trace.o \
 				   xfs_dir_leaf.o \
 				   xfs_error.o \
 				   xfs_extfree_item.o \
@@ -90,6 +107,7 @@ xfs-y				+= xfs_alloc.o \
 				   xfs_inode.o \
 				   xfs_inode_item.o \
 				   xfs_iocore.o \
+				   xfs_iomap.o \
 				   xfs_itable.o \
 				   xfs_dfrag.o \
 				   xfs_log.o \
@@ -108,20 +126,17 @@ xfs-y				+= xfs_alloc.o \
 				   xfs_vnodeops.o \
 				   xfs_rw.o
 
-# Objects in pagebuf/
-xfs-y				+= $(addprefix pagebuf/, \
-				   page_buf.o \
-				   page_buf_locking.o)
+xfs-$(CONFIG_XFS_TRACE)		+= xfs_dir2_trace.o
 
 # Objects in linux/
 xfs-y				+= $(addprefix linux/, \
+				   mrlock.o \
 				   xfs_aops.o \
-				   xfs_behavior.o \
+				   xfs_buf.o \
 				   xfs_file.o \
 				   xfs_fs_subr.o \
 				   xfs_globals.o \
 				   xfs_ioctl.o \
-				   xfs_iomap.o \
 				   xfs_iops.o \
 				   xfs_lrw.o \
 				   xfs_super.o \
@@ -131,27 +146,9 @@ xfs-y				+= $(addprefix linux/, \
 # Objects in support/
 xfs-y				+= $(addprefix support/, \
 				   debug.o \
-				   ktrace.o \
 				   move.o \
-				   mrlock.o \
 				   qsort.o \
 				   uuid.o)
 
-# Quota and DMAPI stubs
-xfs-y				+= xfs_dmops.o \
-				   xfs_qmops.o
+xfs-$(CONFIG_XFS_TRACE)		+= support/ktrace.o
 
-# If both xfs and kdb modules are built in then xfsidbg is built in.  If xfs is
-# a module and kdb modules are being compiled then xfsidbg must be a module, to
-# follow xfs.  If xfs is built in then xfsidbg tracks the kdb module state.
-# This must come after the main xfs code so xfs initialises before xfsidbg.
-# KAO
-ifneq ($(CONFIG_KDB_MODULES),)
-  ifeq ($(CONFIG_XFS_FS),y)
-    obj-$(CONFIG_KDB_MODULES)	+= xfsidbg.o
-  else
-    obj-$(CONFIG_XFS_FS)	+= xfsidbg.o
-  endif
-endif
-
-CFLAGS_xfsidbg.o += -Iarch/$(ARCH)/kdb

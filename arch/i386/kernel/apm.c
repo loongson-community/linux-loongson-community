@@ -844,6 +844,8 @@ recalc:
 		idle_percentage *= 100;
 		idle_percentage /= jiffies_since_last_check;
 		use_apm_idle = (idle_percentage > idle_threshold);
+		if (apm_info.forbid_idle)
+			use_apm_idle = 0;
 		last_jiffies = jiffies;
 		last_stime = current->stime;
 	}
@@ -1199,6 +1201,7 @@ static int suspend(int vetoable)
 	}
 
 	device_suspend(3);
+	device_power_down(3);
 
 	/* serialize with the timer interrupt */
 	write_seqlock_irq(&xtime_lock);
@@ -1232,6 +1235,7 @@ static int suspend(int vetoable)
 	if (err != APM_SUCCESS)
 		apm_error("suspend", err);
 	err = (err == APM_SUCCESS) ? 0 : -EIO;
+	device_power_up();
 	device_resume();
 	pm_send_all(PM_RESUME, (void *)0);
 	queue_event(APM_NORMAL_RESUME, NULL);
@@ -1250,6 +1254,7 @@ static void standby(void)
 {
 	int	err;
 
+	device_power_down(3);
 	/* serialize with the timer interrupt */
 	write_seqlock_irq(&xtime_lock);
 	/* If needed, notify drivers here */
@@ -1259,6 +1264,7 @@ static void standby(void)
 	err = set_system_power_state(APM_STATE_STANDBY);
 	if ((err != APM_SUCCESS) && (err != APM_NO_ERROR))
 		apm_error("standby", err);
+	device_power_up();
 }
 
 static apm_event_t get_event(void)
@@ -1891,6 +1897,7 @@ static struct miscdevice apm_device = {
 static int __init apm_init(void)
 {
 	struct proc_dir_entry *apm_proc;
+	int ret;
 	int i;
 
 	if (apm_info.bios.version == 0) {
@@ -2008,7 +2015,11 @@ static int __init apm_init(void)
 	if (apm_proc)
 		apm_proc->owner = THIS_MODULE;
 
-	kernel_thread(apm, NULL, CLONE_KERNEL | SIGCHLD);
+	ret = kernel_thread(apm, NULL, CLONE_KERNEL | SIGCHLD);
+	if (ret < 0) {
+		printk(KERN_ERR "apm: disabled - Unable to start kernel thread.\n");
+		return -ENOMEM;
+	}
 
 	if (num_online_cpus() > 1 && !smp ) {
 		printk(KERN_NOTICE

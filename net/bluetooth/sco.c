@@ -630,7 +630,8 @@ static int sco_sock_getname(struct socket *sock, struct sockaddr *addr, int *len
 	return 0;
 }
 
-static int sco_sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int len)
+static int sco_sock_sendmsg(struct kiocb *iocb, struct socket *sock, 
+			    struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	int err = 0;
@@ -1054,3 +1055,4 @@ module_exit(sco_cleanup);
 MODULE_AUTHOR("Maxim Krasnyansky <maxk@qualcomm.com>");
 MODULE_DESCRIPTION("Bluetooth SCO ver " VERSION);
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("bt-proto-2");

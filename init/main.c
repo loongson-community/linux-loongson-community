@@ -105,7 +105,7 @@ int system_running;
 
 extern void time_init(void);
 /* Default late time init is NULL. archs can override this later. */
-void (*late_time_init)(void) = NULL;
+void (*late_time_init)(void);
 extern void softirq_init(void);
 
 static char *execute_command;
@@ -337,7 +337,7 @@ static void __init setup_per_cpu_areas(void)
 /* Called by boot processor to activate the rest. */
 static void __init smp_init(void)
 {
-	unsigned int i;
+	unsigned int i, j=0;
 
 	/* FIXME: This should be done in userspace --RR */
 	for (i = 0; i < NR_CPUS; i++) {
@@ -346,11 +346,12 @@ static void __init smp_init(void)
 		if (cpu_possible(i) && !cpu_online(i)) {
 			printk("Bringing up %i\n", i);
 			cpu_up(i);
+			j++;
 		}
 	}
 
 	/* Any cleanup work */
-	printk("CPUS done %u\n", max_cpus);
+	printk("CPUS done %u\n", j);
 	smp_cpus_done(max_cpus);
 #if 0
 	/* Get other processors into their bootup holding patterns. */
@@ -406,6 +407,7 @@ asmlinkage void __init start_kernel(void)
 	parse_args("Booting kernel", command_line, __start___param,
 		   __stop___param - __start___param,
 		   &unknown_bootoption);
+	sort_main_extable();
 	trap_init();
 	rcu_init();
 	init_IRQ();

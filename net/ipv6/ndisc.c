@@ -434,7 +434,7 @@ static void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
 	len = sizeof(struct icmp6hdr) + sizeof(struct in6_addr);
 
 	/* for anycast or proxy, solicited_addr != src_addr */
-	ifp = ipv6_get_ifaddr(solicited_addr, dev);
+	ifp = ipv6_get_ifaddr(solicited_addr, dev, 1);
  	if (ifp) {
 		src_addr = solicited_addr;
 		in6_ifa_put(ifp);
@@ -680,7 +680,7 @@ static void ndisc_solicit(struct neighbour *neigh, struct sk_buff *skb)
 	struct in6_addr *target = (struct in6_addr *)&neigh->primary_key;
 	int probes = atomic_read(&neigh->probes);
 
-	if (skb && ipv6_chk_addr(&skb->nh.ipv6h->saddr, dev))
+	if (skb && ipv6_chk_addr(&skb->nh.ipv6h->saddr, dev, 1))
 		saddr = &skb->nh.ipv6h->saddr;
 
 	if ((probes -= neigh->parms->ucast_probes) < 0) {
@@ -758,7 +758,7 @@ static void ndisc_recv_ns(struct sk_buff *skb)
 		}
 	}
 
-	if ((ifp = ipv6_get_ifaddr(&msg->target, dev)) != NULL) {
+	if ((ifp = ipv6_get_ifaddr(&msg->target, dev, 1)) != NULL) {
 		if (ifp->flags & IFA_F_TENTATIVE) {
 			/* Address is tentative. If the source
 			   is unspecified address, it is someone
@@ -955,7 +955,7 @@ static void ndisc_recv_na(struct sk_buff *skb)
 			return;
 		}
 	}
-	if ((ifp = ipv6_get_ifaddr(&msg->target, dev))) {
+	if ((ifp = ipv6_get_ifaddr(&msg->target, dev, 1))) {
 		if (ifp->flags & IFA_F_TENTATIVE) {
 			addrconf_dad_failure(ifp);
 			return;
@@ -1115,6 +1115,8 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 			if (rtime < HZ/10)
 				rtime = HZ/10;
 			in6_dev->nd_parms->retrans_time = rtime;
+			in6_dev->tstamp = jiffies;
+			inet6_ifinfo_notify(RTM_NEWLINK, in6_dev);
 		}
 
 		rtime = ntohl(ra_msg->reachable_time);
@@ -1128,6 +1130,8 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 				in6_dev->nd_parms->base_reachable_time = rtime;
 				in6_dev->nd_parms->gc_staletime = 3 * rtime;
 				in6_dev->nd_parms->reachable_time = neigh_rand_reach_time(rtime);
+				in6_dev->tstamp = jiffies;
+				inet6_ifinfo_notify(RTM_NEWLINK, in6_dev);
 			}
 		}
 	}
@@ -1492,6 +1496,21 @@ struct notifier_block ndisc_netdev_notifier = {
 	.notifier_call = ndisc_netdev_event,
 };
 
+#ifdef CONFIG_SYSCTL
+int ndisc_ifinfo_sysctl_change(struct ctl_table *ctl, int write, struct file * filp, void __user *buffer, size_t *lenp)
+{
+	struct net_device *dev = ctl->extra1;
+	struct inet6_dev *idev;
+
+	if (write && dev && (idev = in6_dev_get(dev)) != NULL) {
+		idev->tstamp = jiffies;
+		inet6_ifinfo_notify(RTM_NEWLINK, idev);
+		in6_dev_put(idev);
+	}
+	return proc_dointvec(ctl, write, filp, buffer, lenp);
+}
+#endif
+
 int __init ndisc_init(struct net_proto_family *ops)
 {
 	struct ipv6_pinfo *np;
@@ -1522,7 +1541,8 @@ int __init ndisc_init(struct net_proto_family *ops)
 	neigh_table_init(&nd_tbl);
 
 #ifdef CONFIG_SYSCTL
-	neigh_sysctl_register(NULL, &nd_tbl.parms, NET_IPV6, NET_IPV6_NEIGH, "ipv6");
+	neigh_sysctl_register(NULL, &nd_tbl.parms, NET_IPV6, NET_IPV6_NEIGH, 
+			      "ipv6", &ndisc_ifinfo_sysctl_change);
 #endif
 
 	register_netdevice_notifier(&ndisc_netdev_notifier);

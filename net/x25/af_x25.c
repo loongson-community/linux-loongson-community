@@ -910,7 +910,7 @@ out_clear_request:
 }
 
 static int x25_sendmsg(struct kiocb *iocb, struct socket *sock,
-		       struct msghdr *msg, int len)
+		       struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	struct x25_opt *x25 = x25_sk(sk);
@@ -919,7 +919,8 @@ static int x25_sendmsg(struct kiocb *iocb, struct socket *sock,
 	struct sk_buff *skb;
 	unsigned char *asmptr;
 	int noblock = msg->msg_flags & MSG_DONTWAIT;
-	int size, qbit = 0, rc = -EINVAL;
+	size_t size;
+	int qbit = 0, rc = -EINVAL;
 
 	if (msg->msg_flags & ~(MSG_DONTWAIT | MSG_OOB | MSG_EOR))
 		goto out;
@@ -1085,13 +1086,14 @@ out_kfree_skb:
 
 
 static int x25_recvmsg(struct kiocb *iocb, struct socket *sock,
-		       struct msghdr *msg, int size,
+		       struct msghdr *msg, size_t size,
 		       int flags)
 {
 	struct sock *sk = sock->sk;
 	struct x25_opt *x25 = x25_sk(sk);
 	struct sockaddr_x25 *sx25 = (struct sockaddr_x25 *)msg->msg_name;
-	int copied, qbit;
+	size_t copied;
+	int qbit;
 	struct sk_buff *skb;
 	unsigned char *asmptr;
 	int rc = -ENOTCONN;
@@ -1370,9 +1372,6 @@ void x25_kill_by_neigh(struct x25_neigh *nb)
 
 static int __init x25_init(void)
 {
-#ifdef MODULE
-	struct net_device *dev;
-#endif /* MODULE */
 	sock_register(&x25_family_ops);
 
 	dev_add_pack(&x25_packet_type);
@@ -1384,23 +1383,7 @@ static int __init x25_init(void)
 #ifdef CONFIG_SYSCTL
 	x25_register_sysctl();
 #endif
-
 	x25_proc_init();
-#ifdef MODULE
-	/*
-	 *	Register any pre existing devices.
-	 */
-	read_lock(&dev_base_lock);
-	for (dev = dev_base; dev; dev = dev->next) {
-		if ((dev->flags & IFF_UP) && (dev->type == ARPHRD_X25
-#if defined(CONFIG_LLC) || defined(CONFIG_LLC_MODULE)
-					   || dev->type == ARPHRD_ETHER
-#endif
-			))
-			x25_link_device_up(dev);
-	}
-	read_unlock(&dev_base_lock);
-#endif /* MODULE */
 	return 0;
 }
 module_init(x25_init);

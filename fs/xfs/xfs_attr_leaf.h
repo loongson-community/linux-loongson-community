@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000, 2002 Silicon Graphics, Inc.  All Rights Reserved.
+ * Copyright (c) 2000, 2002-2003 Silicon Graphics, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -44,6 +44,7 @@
 
 struct attrlist;
 struct attrlist_cursor_kern;
+struct attrnames;
 struct xfs_dabuf;
 struct xfs_da_args;
 struct xfs_da_state;
@@ -72,9 +73,9 @@ struct xfs_trans;
  * to work "forw"ard.  If none matches, continue with the "forw"ard leaf
  * nodes until the hash key changes or the attribute name is found.
  *
- * We store the fact that an attribute is a ROOT versus USER attribute in
+ * We store the fact that an attribute is a ROOT/USER/SECURE attribute in
  * the leaf_entry.  The namespaces are independent only because we also look
- * at the root/user bit when we are looking for a matching attribute name.
+ * at the namespace bit when we are looking for a matching attribute name.
  *
  * We also store a "incomplete" bit in the leaf_entry.  It shows that an
  * attribute is in the middle of being created and should not be shown to
@@ -101,7 +102,7 @@ typedef struct xfs_attr_leafblock {
 	struct xfs_attr_leaf_entry {	/* sorted on key, not name */
 		xfs_dahash_t hashval;	/* hash value of name */
 		__uint16_t nameidx;	/* index into buffer of name/value */
-		__uint8_t flags;	/* LOCAL, ROOT and INCOMPLETE flags */
+		__uint8_t flags;	/* LOCAL/ROOT/SECURE/INCOMPLETE flag */
 		__uint8_t pad2;		/* unused pad byte */
 	} entries[1];			/* variable sized array */
 	struct xfs_attr_leaf_name_local {
@@ -128,10 +129,12 @@ typedef struct xfs_attr_leaf_name_remote xfs_attr_leaf_name_remote_t;
  * on the system call, they are "or"ed together for various operations.
  */
 #define	XFS_ATTR_LOCAL_BIT	0	/* attr is stored locally */
-#define	XFS_ATTR_ROOT_BIT	1	/* limit access to attr to userid 0 */
+#define	XFS_ATTR_ROOT_BIT	1	/* limit access to trusted attrs */
+#define	XFS_ATTR_SECURE_BIT	2	/* limit access to secure attrs */
 #define	XFS_ATTR_INCOMPLETE_BIT	7	/* attr in middle of create/delete */
 #define XFS_ATTR_LOCAL		(1 << XFS_ATTR_LOCAL_BIT)
 #define XFS_ATTR_ROOT		(1 << XFS_ATTR_ROOT_BIT)
+#define XFS_ATTR_SECURE		(1 << XFS_ATTR_SECURE_BIT)
 #define XFS_ATTR_INCOMPLETE	(1 << XFS_ATTR_INCOMPLETE_BIT)
 
 /*
@@ -299,7 +302,8 @@ int	xfs_attr_leaf_newentsize(struct xfs_da_args *args, int blocksize,
 					int *local);
 int	xfs_attr_leaf_entsize(struct xfs_attr_leafblock *leaf, int index);
 int	xfs_attr_put_listent(struct xfs_attr_list_context *context,
-			     int ns, char *name, int namelen, int valuelen);
+			     struct attrnames *, char *name, int namelen,
+			     int valuelen);
 int	xfs_attr_rolltrans(struct xfs_trans **transp, struct xfs_inode *dp);
 
 #endif	/* __XFS_ATTR_LEAF_H__ */

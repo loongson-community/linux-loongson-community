@@ -49,8 +49,8 @@ extern struct call_data_struct *call_data;
 
 extern cpumask_t phys_cpu_present_map;
 extern cpumask_t cpu_online_map;
+#define cpu_possible_map	phys_cpu_present_map
 
-#define cpu_possible(cpu)	cpu_isset(cpu, phys_cpu_present_map)
 #define cpu_online(cpu)		cpu_isset(cpu, cpu_online_map)
 
 extern cpumask_t cpu_callout_map;

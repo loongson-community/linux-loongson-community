@@ -7,7 +7,6 @@
  * Copyright (C) 2002, Rohit Seth <rohit.seth@intel.com>
  */
 
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -652,17 +651,12 @@ int hash_huge_page(struct mm_struct *mm, unsigned long access,
 	unsigned long va, vpn;
 	int is_write;
 	hugepte_t old_pte, new_pte;
-	unsigned long hpteflags, prpn;
+	unsigned long hpteflags, prpn, flags;
 	long slot;
-
-	/* Is this for us? */
-	if (!in_hugepage_area(mm->context, ea))
-		return -1;
-
-	ea &= ~(HPAGE_SIZE-1);
 
 	/* We have to find the first hugepte in the batch, since
 	 * that's the one that will store the HPTE flags */
+	ea &= HPAGE_MASK;
 	ptep = hugepte_offset(mm, ea);
 
 	/* Search the Linux page table for a match with va */
@@ -697,6 +691,8 @@ int hash_huge_page(struct mm_struct *mm, unsigned long access,
 	 *	because we are doing software DIRTY bit management and the
 	 *	page is currently not DIRTY. 
 	 */
+
+	spin_lock_irqsave(&mm->page_table_lock, flags);
 
 	old_pte = *ptep;
 	new_pte = old_pte;
@@ -768,6 +764,8 @@ repeat:
 		 */
 		*ptep = new_pte;
 	}
+
+	spin_unlock_irqrestore(&mm->page_table_lock, flags);
 
 	return 0;
 }
@@ -886,10 +884,11 @@ static int __init hugetlb_init(void)
 			spin_unlock(&htlbpage_lock);
 		}
 		htlbpage_max = htlbpage_free = htlbpage_total = i;
-		printk("Total HugeTLB memory allocated, %d\n", htlbpage_free);
+		printk(KERN_INFO "Total HugeTLB memory allocated, %d\n",
+		       htlbpage_free);
 	} else {
 		htlbpage_max = 0;
-		printk("CPU does not support HugeTLB\n");
+		printk(KERN_INFO "CPU does not support HugeTLB\n");
 	}
 
 	return 0;

@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <asm/uaccess.h>
 
 #include "ctrlchar.h"
@@ -322,7 +323,7 @@ sclp_tty_timeout(unsigned long data)
  * Write a string to the sclp tty.
  */
 static void
-sclp_tty_write_string(const unsigned char *str, int count, int from_user)
+sclp_tty_write_string(const unsigned char *str, int count)
 {
 	unsigned long flags;
 	void *page;
@@ -337,8 +338,11 @@ sclp_tty_write_string(const unsigned char *str, int count, int from_user)
 		if (sclp_ttybuf == NULL) {
 			while (list_empty(&sclp_tty_pages)) {
 				spin_unlock_irqrestore(&sclp_tty_lock, flags);
-				wait_event(sclp_tty_waitq,
-					   !list_empty(&sclp_tty_pages));
+				if (in_interrupt())
+					sclp_sync_wait();
+				else
+					wait_event(sclp_tty_waitq,
+						!list_empty(&sclp_tty_pages));
 				spin_lock_irqsave(&sclp_tty_lock, flags);
 			}
 			page = sclp_tty_pages.next;
@@ -348,8 +352,8 @@ sclp_tty_write_string(const unsigned char *str, int count, int from_user)
 						       sclp_ioctls.htab);
 		}
 		/* try to write the string to the current output buffer */
-		written = sclp_write(sclp_ttybuf, str, count, from_user);
-		if (written == -EFAULT || written == count)
+		written = sclp_write(sclp_ttybuf, str, count);
+		if (written == count)
 			break;
 		/*
 		 * Not all characters could be written to the current
@@ -366,7 +370,9 @@ sclp_tty_write_string(const unsigned char *str, int count, int from_user)
 	} while (count > 0);
 	/* Setup timer to output current console buffer after 1/10 second */
 	if (sclp_ioctls.final_nl) {
-		if (sclp_ttybuf != NULL && !timer_pending(&sclp_tty_timer)) {
+		if (sclp_ttybuf != NULL &&
+		    sclp_chars_in_buffer(sclp_ttybuf) != 0 &&
+		    !timer_pending(&sclp_tty_timer)) {
 			init_timer(&sclp_tty_timer);
 			sclp_tty_timer.function = sclp_tty_timeout;
 			sclp_tty_timer.data = 0UL;
@@ -374,8 +380,14 @@ sclp_tty_write_string(const unsigned char *str, int count, int from_user)
 			add_timer(&sclp_tty_timer);
 		}
 	} else {
-		__sclp_ttybuf_emit(sclp_ttybuf);
-		sclp_ttybuf = NULL;
+		if (sclp_ttybuf != NULL &&
+		    sclp_chars_in_buffer(sclp_ttybuf) != 0) {
+			buf = sclp_ttybuf;
+			sclp_ttybuf = NULL;
+			spin_unlock_irqrestore(&sclp_tty_lock, flags);
+			__sclp_ttybuf_emit(buf);
+			spin_lock_irqsave(&sclp_tty_lock, flags);
+		}
 	}
 	spin_unlock_irqrestore(&sclp_tty_lock, flags);
 }
@@ -389,12 +401,32 @@ static int
 sclp_tty_write(struct tty_struct *tty, int from_user,
 	       const unsigned char *buf, int count)
 {
+	int length, ret;
+
 	if (sclp_tty_chars_count > 0) {
-		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count, 0);
+		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count);
 		sclp_tty_chars_count = 0;
 	}
-	sclp_tty_write_string(buf, count, from_user);
-	return count;
+	if (!from_user) {
+		sclp_tty_write_string(buf, count);
+		return count;
+	}
+	ret = 0;
+	while (count > 0) {
+		length = count < SCLP_TTY_BUF_SIZE ?
+			count : SCLP_TTY_BUF_SIZE;
+		length -= copy_from_user(sclp_tty_chars, buf, length);
+		if (length == 0) {
+			if (!ret)
+				ret = -EFAULT;
+			break;
+		}
+		sclp_tty_write_string(sclp_tty_chars, length);
+		buf += length;
+		count -= length;
+		ret += length;
+	}
+	return ret;
 }
 
 /*
@@ -412,7 +444,7 @@ sclp_tty_put_char(struct tty_struct *tty, unsigned char ch)
 {
 	sclp_tty_chars[sclp_tty_chars_count++] = ch;
 	if (ch == '\n' || sclp_tty_chars_count >= SCLP_TTY_BUF_SIZE) {
-		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count, 0);
+		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count);
 		sclp_tty_chars_count = 0;
 	}
 }
@@ -425,7 +457,7 @@ static void
 sclp_tty_flush_chars(struct tty_struct *tty)
 {
 	if (sclp_tty_chars_count > 0) {
-		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count, 0);
+		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count);
 		sclp_tty_chars_count = 0;
 	}
 }
@@ -451,7 +483,7 @@ sclp_tty_chars_in_buffer(struct tty_struct *tty)
 		count = sclp_chars_in_buffer(sclp_ttybuf);
 	list_for_each(l, &sclp_tty_outqueue) {
 		t = list_entry(l, struct sclp_buffer, list);
-		count += sclp_chars_in_buffer(sclp_ttybuf);
+		count += sclp_chars_in_buffer(t);
 	}
 	spin_unlock_irqrestore(&sclp_tty_lock, flags);
 	return count;
@@ -464,7 +496,7 @@ static void
 sclp_tty_flush_buffer(struct tty_struct *tty)
 {
 	if (sclp_tty_chars_count > 0) {
-		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count, 0);
+		sclp_tty_write_string(sclp_tty_chars, sclp_tty_chars_count);
 		sclp_tty_chars_count = 0;
 	}
 }

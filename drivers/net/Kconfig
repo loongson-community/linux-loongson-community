@@ -664,7 +664,7 @@ config ELMC
 
 config ELMC_II
 	tristate "3c527 \"EtherLink/MC 32\" support (EXPERIMENTAL)"
-	depends on NET_VENDOR_3COM && MCA && EXPERIMENTAL && BROKEN_ON_SMP
+	depends on NET_VENDOR_3COM && MCA && MCA_LEGACY
 	help
 	  If you have a network (Ethernet) card of this type, say Y and read
 	  the Ethernet-HOWTO, available from
@@ -1290,6 +1290,19 @@ config B44
 	  <file:Documentation/networking/net-modules.txt>.  The module will be
 	  called b44.
 
+config FORCEDETH
+	tristate "Reverse Engineered nForce Ethernet support (EXPERIMENTAL)"
+	depends on NET_PCI && PCI && EXPERIMENTAL
+	help
+	  If you have a network (Ethernet) controller of this type, say Y and
+	  read the Ethernet-HOWTO, available from
+	  <http://www.tldp.org/docs.html#howto>.
+
+	  To compile this driver as a module, choose M here and read
+	  <file:Documentation/networking/net-modules.txt>.  The module will be
+	  called forcedeth.
+
+
 config CS89x0
 	tristate "CS89x0 support"
 	depends on NET_PCI && ISA
@@ -1691,7 +1704,7 @@ config NET_POCKET
 	  <file:Documentation/Changes>) and you can say N here.
 
 	  Laptop users should read the Linux Laptop home page at
-	  <http://www.cs.utexas.edu/users/kharker/linux-laptop/>.
+	  <http://www.linux-on-laptops.com/>.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -1964,9 +1977,11 @@ config SK98LIN
 	    - EG1032 v2 Instant Gigabit Network Adapter
 	    - EG1064 v2 Instant Gigabit Network Adapter
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Abit)
+	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Albatron)
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Asus)
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (ECS)
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Epox)
+	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Foxconn)
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Gigabyte)
 	    - Marvell 88E8001 Gigabit LOM Ethernet Adapter (Iwill)
 	    - Marvell RDK-8001 Adapter
@@ -2012,8 +2027,10 @@ config SK98LIN
 	  Questions concerning this driver may be addressed to:
 	      linux@syskonnect.de
 	  
-	  To compile this driver as a module, choose M here: the module
-	  will be called sk98lin.  This is recommended.
+	  If you want to compile this driver as a module ( = code which can be
+	  inserted in and removed from the running kernel whenever you want),
+	  say M here and read Documentation/modules.txt. This is recommended.
+	  The module will be called sk98lin. This is recommended.
 
 config TIGON3
 	tristate "Broadcom Tigon3 support"

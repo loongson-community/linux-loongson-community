@@ -162,6 +162,8 @@ extern int tcx_init(void);
 extern int tcx_setup(char*);
 extern int leo_init(void);
 extern int leo_setup(char*);
+extern int kyrofb_init(void);
+extern int kyrofb_setup(char*);
 
 static struct {
 	const char *name;
@@ -250,6 +252,10 @@ static struct {
 #ifdef CONFIG_FB_VOODOO1
 	{ "sstfb", sstfb_init, sstfb_setup },
 #endif
+#ifdef CONFIG_FB_KYRO
+	{ "kyrofb", kyrofb_init, kyrofb_setup },
+#endif
+
 	/*
 	 * Generic drivers that are used as fallbacks
 	 * 

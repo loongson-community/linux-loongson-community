@@ -1283,6 +1283,7 @@ static int pfkey_delete(struct sock *sk, struct sk_buff *skb, struct sadb_msg *h
 
 static int pfkey_get(struct sock *sk, struct sk_buff *skb, struct sadb_msg *hdr, void **ext_hdrs)
 {
+	__u8 proto;
 	struct sk_buff *out_skb;
 	struct sadb_msg *out_hdr;
 	struct xfrm_state *x;
@@ -1297,6 +1298,7 @@ static int pfkey_get(struct sock *sk, struct sk_buff *skb, struct sadb_msg *hdr,
 		return -ESRCH;
 
 	out_skb = pfkey_xfrm_state2msg(x, 1, 3);
+	proto = x->id.proto;
 	xfrm_state_put(x);
 	if (IS_ERR(out_skb))
 		return  PTR_ERR(out_skb);
@@ -1304,7 +1306,7 @@ static int pfkey_get(struct sock *sk, struct sk_buff *skb, struct sadb_msg *hdr,
 	out_hdr = (struct sadb_msg *) out_skb->data;
 	out_hdr->sadb_msg_version = hdr->sadb_msg_version;
 	out_hdr->sadb_msg_type = SADB_DUMP;
-	out_hdr->sadb_msg_satype = pfkey_proto2satype(x->id.proto);
+	out_hdr->sadb_msg_satype = pfkey_proto2satype(proto);
 	out_hdr->sadb_msg_errno = 0;
 	out_hdr->sadb_msg_reserved = 0;
 	out_hdr->sadb_msg_seq = hdr->sadb_msg_seq;
@@ -2655,7 +2657,7 @@ static int pfkey_send_new_mapping(struct xfrm_state *x, xfrm_address_t *ipaddr, 
 }
 
 static int pfkey_sendmsg(struct kiocb *kiocb,
-			 struct socket *sock, struct msghdr *msg, int len)
+			 struct socket *sock, struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	struct sk_buff *skb = NULL;
@@ -2697,7 +2699,7 @@ out:
 }
 
 static int pfkey_recvmsg(struct kiocb *kiocb,
-			 struct socket *sock, struct msghdr *msg, int len,
+			 struct socket *sock, struct msghdr *msg, size_t len,
 			 int flags)
 {
 	struct sock *sk = sock->sk;

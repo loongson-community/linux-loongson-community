@@ -284,7 +284,7 @@ oom:
  */
  
 static int packet_sendmsg_spkt(struct kiocb *iocb, struct socket *sock,
-			       struct msghdr *msg, int len)
+			       struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_pkt *saddr=(struct sockaddr_pkt *)msg->msg_name;
@@ -659,7 +659,7 @@ ring_is_full:
 
 
 static int packet_sendmsg(struct kiocb *iocb, struct socket *sock,
-			  struct msghdr *msg, int len)
+			  struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_ll *saddr=(struct sockaddr_ll *)msg->msg_name;
@@ -1007,7 +1007,7 @@ out:
  */
 
 static int packet_recvmsg(struct kiocb *iocb, struct socket *sock,
-			  struct msghdr *msg, int len, int flags)
+			  struct msghdr *msg, size_t len, int flags)
 {
 	struct sock *sk = sock->sk;
 	struct sk_buff *skb;
@@ -1550,7 +1550,7 @@ static int packet_set_ring(struct sock *sk, struct tpacket_req *req, int closing
 	unsigned long *pg_vec = NULL;
 	struct tpacket_hdr **io_vec = NULL;
 	struct packet_opt *po = pkt_sk(sk);
-	int order = 0;
+	int was_running, num, order = 0;
 	int err = 0;
 
 	if (req->tp_block_nr) {
@@ -1623,10 +1623,13 @@ static int packet_set_ring(struct sock *sk, struct tpacket_req *req, int closing
 
 	/* Detach socket from network */
 	spin_lock(&po->bind_lock);
-	if (po->running) {
+	was_running = po->running;
+	num = po->num;
+	if (was_running) {
 		__dev_remove_pack(&po->prot_hook);
 		po->num = 0;
 		po->running = 0;
+		__sock_put(sk);
 	}
 	spin_unlock(&po->bind_lock);
 		
@@ -1657,8 +1660,12 @@ static int packet_set_ring(struct sock *sk, struct tpacket_req *req, int closing
 	}
 
 	spin_lock(&po->bind_lock);
-	if (po->running)
+	if (was_running && !po->running) {
+		sock_hold(sk);
+		po->running = 1;
+		po->num = num;
 		dev_add_pack(&po->prot_hook);
+	}
 	spin_unlock(&po->bind_lock);
 
 	release_sock(sk);

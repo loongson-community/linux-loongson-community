@@ -36,7 +36,6 @@
 
 #define ELEMENTS(arr) (sizeof (arr)/sizeof (arr[0]))
 
-extern struct sparc_phys_banks sp_banks[SPARC_PHYS_BANKS+1];
 extern int prom_node_root;
 
 /* At boot time we determine these two values necessary for setting
@@ -393,7 +392,7 @@ vmalloc_fault:
 
 		if (pmd_present(*pmd) || !pmd_present(*pmd_k))
 			goto bad_area_nosemaphore;
-		pmd_val(*pmd) = pmd_val(*pmd_k);
+		*pmd = *pmd_k;
 		return;
 	}
 }

@@ -1010,7 +1010,7 @@ int rose_rx_call_request(struct sk_buff *skb, struct net_device *dev, struct ros
 }
 
 static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
-			struct msghdr *msg, int len)
+			struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);
@@ -1083,7 +1083,11 @@ static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
 
 	asmptr = skb->h.raw = skb_put(skb, len);
 
-	memcpy_fromiovec(asmptr, msg->msg_iov, len);
+	err = memcpy_fromiovec(asmptr, msg->msg_iov, len);
+	if (err) {
+		kfree_skb(skb);
+		return err;
+	}
 
 	/*
 	 *	If the Q BIT Include socket option is in force, the first
@@ -1133,8 +1137,10 @@ static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
 		frontlen = skb_headroom(skb);
 
 		while (skb->len > 0) {
-			if ((skbn = sock_alloc_send_skb(sk, frontlen + ROSE_PACLEN, 0, &err)) == NULL)
+			if ((skbn = sock_alloc_send_skb(sk, frontlen + ROSE_PACLEN, 0, &err)) == NULL) {
+				kfree_skb(skb);
 				return err;
+			}
 
 			skbn->sk   = sk;
 			skbn->free = 1;
@@ -1159,7 +1165,7 @@ static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
 		}
 
 		skb->free = 1;
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 	} else {
 		skb_queue_tail(&sk->sk_write_queue, skb);		/* Throw it on the queue */
 	}
@@ -1174,15 +1180,15 @@ static int rose_sendmsg(struct kiocb *iocb, struct socket *sock,
 
 
 static int rose_recvmsg(struct kiocb *iocb, struct socket *sock,
-			struct msghdr *msg, int size, int flags)
+			struct msghdr *msg, size_t size, int flags)
 {
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);
 	struct sockaddr_rose *srose = (struct sockaddr_rose *)msg->msg_name;
-	int copied, qbit;
+	size_t copied;
 	unsigned char *asmptr;
 	struct sk_buff *skb;
-	int n, er;
+	int n, er, qbit;
 
 	/*
 	 * This works for seqpacket too. The receiver has ordered the queue for

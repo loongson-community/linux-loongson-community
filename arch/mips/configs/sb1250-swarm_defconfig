@@ -190,7 +190,6 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Plug and Play support
 #
-# CONFIG_PNP is not set
 
 #
 # Block devices
@@ -440,24 +439,6 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 # CONFIG_UNIX98_PTYS is not set
 
 #
-# I2C support
-#
-# CONFIG_I2C is not set
-
-#
-# I2C Algorithms
-#
-
-#
-# I2C Hardware Bus support
-#
-
-#
-# I2C Hardware Sensors Chip support
-#
-# CONFIG_I2C_SENSOR is not set
-
-#
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
@@ -487,6 +468,11 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 # CONFIG_RAW_DRIVER is not set
 
 #
+# I2C support
+#
+# CONFIG_I2C is not set
+
+#
 # Multimedia devices
 #
 # CONFIG_VIDEO_DEV is not set
@@ -509,6 +495,10 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 # USB support
 #
 # CONFIG_USB is not set
+
+#
+# USB Gadget Support
+#
 # CONFIG_USB_GADGET is not set
 
 #

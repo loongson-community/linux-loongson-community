@@ -59,7 +59,7 @@
 struct proc_dir_entry *proc_bt;
 
 /* Bluetooth sockets */
-#define BT_MAX_PROTO	5
+#define BT_MAX_PROTO	6
 static struct net_proto_family *bt_proto[BT_MAX_PROTO];
 
 static kmem_cache_t *bt_sock_cache;
@@ -201,12 +201,13 @@ struct sock *bt_accept_dequeue(struct sock *parent, struct socket *newsock)
 }
 
 int bt_sock_recvmsg(struct kiocb *iocb, struct socket *sock,
-	struct msghdr *msg, int len, int flags)
+	struct msghdr *msg, size_t len, int flags)
 {
 	int noblock = flags & MSG_DONTWAIT;
 	struct sock *sk = sock->sk;
 	struct sk_buff *skb;
-	int copied, err;
+	size_t copied;
+	int err;
 
 	BT_DBG("sock %p sk %p len %d", sock, sk, len);
 

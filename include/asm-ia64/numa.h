@@ -16,7 +16,6 @@
 #ifdef CONFIG_NUMA
 
 #include <linux/cache.h>
-#include <linux/cache.h>
 #include <linux/cpumask.h>
 #include <linux/numa.h>
 #include <linux/smp.h>
@@ -24,8 +23,8 @@
 
 #include <asm/mmzone.h>
 
-extern volatile u8 cpu_to_node_map[NR_CPUS] __cacheline_aligned;
-extern volatile cpumask_t node_to_cpu_mask[MAX_NUMNODES] __cacheline_aligned;
+extern u8 cpu_to_node_map[NR_CPUS] __cacheline_aligned;
+extern cpumask_t node_to_cpu_mask[MAX_NUMNODES] __cacheline_aligned;
 
 /* Stuff below this line could be architecture independent */
 

@@ -394,6 +394,7 @@ int sock_map_fd(struct socket *sock)
 		file->f_dentry->d_op = &sockfs_dentry_operations;
 		d_add(file->f_dentry, SOCK_INODE(sock));
 		file->f_vfsmnt = mntget(sock_mnt);
+		file->f_mapping = file->f_dentry->d_inode->i_mapping;
 
 		sock->file = file;
 		file->f_op = SOCK_INODE(sock)->i_fop = &socket_file_ops;
@@ -523,7 +524,8 @@ void sock_release(struct socket *sock)
 	sock->file=NULL;
 }
 
-static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int size)
+static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock, 
+				 struct msghdr *msg, size_t size)
 {
 	struct sock_iocb *si = kiocb_to_siocb(iocb);
 	int err;
@@ -540,7 +542,7 @@ static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct
 	return sock->ops->sendmsg(iocb, sock, msg, size);
 }
 
-int sock_sendmsg(struct socket *sock, struct msghdr *msg, int size)
+int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 {
 	struct kiocb iocb;
 	int ret;
@@ -553,7 +555,8 @@ int sock_sendmsg(struct socket *sock, struct msghdr *msg, int size)
 }
 
 
-static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int size, int flags)
+static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock, 
+				 struct msghdr *msg, size_t size, int flags)
 {
 	int err;
 	struct sock_iocb *si = kiocb_to_siocb(iocb);
@@ -571,7 +574,8 @@ static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock, struct
 	return sock->ops->recvmsg(iocb, sock, msg, size, flags);
 }
 
-int sock_recvmsg(struct socket *sock, struct msghdr *msg, int size, int flags)
+int sock_recvmsg(struct socket *sock, struct msghdr *msg, 
+		 size_t size, int flags)
 {
 	struct kiocb iocb;
 	int ret;
@@ -668,7 +672,7 @@ ssize_t sock_sendpage(struct file *file, struct page *page,
 }
 
 int sock_readv_writev(int type, struct inode * inode, struct file * file,
-		      const struct iovec * iov, long count, long size)
+		      const struct iovec * iov, long count, size_t size)
 {
 	struct msghdr msg;
 	struct socket *sock;

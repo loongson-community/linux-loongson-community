@@ -13,6 +13,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <linux/config.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -56,6 +57,12 @@ int main(void)
 	DEFINE(THREAD_FPSCR, offsetof(struct thread_struct, fpscr));
 	DEFINE(KSP, offsetof(struct thread_struct, ksp));
 
+#ifdef CONFIG_ALTIVEC
+	DEFINE(THREAD_VR0, offsetof(struct thread_struct, vr[0]));
+	DEFINE(THREAD_VRSAVE, offsetof(struct thread_struct, vrsave));
+	DEFINE(THREAD_VSCR, offsetof(struct thread_struct, vscr));
+	DEFINE(THREAD_USED_VR, offsetof(struct thread_struct, used_vr));
+#endif /* CONFIG_ALTIVEC */
 	DEFINE(MM, offsetof(struct task_struct, mm));
 
 	/* naca */

@@ -164,7 +164,7 @@ int scsi_delete_timer(struct scsi_cmnd *scmd)
  **/
 void scsi_times_out(struct scsi_cmnd *scmd)
 {
-	scsi_log_completion(scmd, TIMEOUT);
+	scsi_log_completion(scmd, TIMEOUT_ERROR);
 	if (unlikely(!scsi_eh_scmd_add(scmd, SCSI_EH_CANCEL_CMD))) {
 		panic("Error handler thread not present at %p %p %s %d",
 		      scmd, scmd->device->host, __FILE__, __LINE__);
@@ -1420,23 +1420,21 @@ static void scsi_eh_flush_done_q(struct list_head *done_q)
 	list_for_each_safe(lh, lh_sf, done_q) {
 		scmd = list_entry(lh, struct scsi_cmnd, eh_entry);
 		list_del_init(lh);
-		if (!scmd->device->online) {
-			 scmd->result |= (DRIVER_TIMEOUT << 24);
-		} else {
-			if (++scmd->retries < scmd->allowed) {
-				SCSI_LOG_ERROR_RECOVERY(3,
-					printk("%s: flush retry"
-					       " cmd: %p\n",
-						  current->comm,
-						  scmd));
+		if (scmd->device->online &&
+		    	(++scmd->retries < scmd->allowed)) {
+			SCSI_LOG_ERROR_RECOVERY(3, printk("%s: flush"
+							  " retry cmd: %p\n",
+							  current->comm,
+							  scmd));
 				scsi_queue_insert(scmd, SCSI_MLQUEUE_EH_RETRY);
-				continue;
-			}
+		} else {
+			if (!scmd->result)
+				scmd->result |= (DRIVER_TIMEOUT << 24);
+			SCSI_LOG_ERROR_RECOVERY(3, printk("%s: flush finish"
+							" cmd: %p\n",
+							current->comm, scmd));
+			scsi_finish_command(scmd);
 		}
-		SCSI_LOG_ERROR_RECOVERY(3, printk("%s: flush finish"
-				       " cmd: %p\n",
-					  current->comm, scmd));
-		scsi_finish_command(scmd);
 	}
 }
 

@@ -1010,7 +1010,7 @@ int nr_rx_frame(struct sk_buff *skb, struct net_device *dev)
 }
 
 static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
-		      struct msghdr *msg, int len)
+		      struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	nr_cb *nr = nr_sk(sk);
@@ -1101,7 +1101,12 @@ static int nr_sendmsg(struct kiocb *iocb, struct socket *sock,
 	SOCK_DEBUG(sk, "NET/ROM: Appending user data\n");
 
 	/* User data follows immediately after the NET/ROM transport header */
-	memcpy_fromiovec(asmptr, msg->msg_iov, len);
+	if (memcpy_fromiovec(asmptr, msg->msg_iov, len)) {
+		kfree_skb(skb);
+		err = -EFAULT;
+		goto out;
+	}
+
 	SOCK_DEBUG(sk, "NET/ROM: Transmitting buffer\n");
 
 	if (sk->sk_state != TCP_ESTABLISHED) {
@@ -1119,11 +1124,11 @@ out:
 }
 
 static int nr_recvmsg(struct kiocb *iocb, struct socket *sock,
-		      struct msghdr *msg, int size, int flags)
+		      struct msghdr *msg, size_t size, int flags)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_ax25 *sax = (struct sockaddr_ax25 *)msg->msg_name;
-	int copied;
+	size_t copied;
 	struct sk_buff *skb;
 	int er;
 

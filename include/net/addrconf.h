@@ -15,6 +15,8 @@
 
 #define ADDR_CHECK_FREQUENCY		(120*HZ)
 
+#define IPV6_MAX_ADDRESSES		16
+
 struct prefix_info {
 	__u8			type;
 	__u8			length;
@@ -50,18 +52,16 @@ struct prefix_info {
 extern void			addrconf_init(void);
 extern void			addrconf_cleanup(void);
 
-extern int		        addrconf_notify(struct notifier_block *this, 
-						unsigned long event, 
-						void * data);
-
 extern int			addrconf_add_ifaddr(void *arg);
 extern int			addrconf_del_ifaddr(void *arg);
 extern int			addrconf_set_dstaddr(void *arg);
 
 extern int			ipv6_chk_addr(struct in6_addr *addr,
-					      struct net_device *dev);
+					      struct net_device *dev,
+					      int strict);
 extern struct inet6_ifaddr *	ipv6_get_ifaddr(struct in6_addr *addr,
-						struct net_device *dev);
+						struct net_device *dev,
+						int strict);
 extern int			ipv6_get_saddr(struct dst_entry *dst, 
 					       struct in6_addr *daddr,
 					       struct in6_addr *saddr);

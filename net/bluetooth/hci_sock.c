@@ -66,20 +66,20 @@ static struct hci_sec_filter hci_sec_filter = {
 	/* Packet types */
 	0x10,
 	/* Events */
-	{ 0xd9fe, 0x0 },
+	{ 0x1000d9fe, 0x0000300c },
 	/* Commands */
 	{
 		{ 0x0 },
 		/* OGF_LINK_CTL */
-		{ 0x2a000002, 0x0, 0x0, 0x0  },
+		{ 0xbe000006, 0x00000001, 0x0000, 0x00 },
 		/* OGF_LINK_POLICY */
-		{ 0x1200, 0x0, 0x0, 0x0      },
+		{ 0x00005200, 0x00000000, 0x0000, 0x00 },
 		/* OGF_HOST_CTL */
-		{ 0x80100000, 0x202a, 0x0, 0x0 },
+		{ 0xaab00200, 0x2b402aaa, 0x0154, 0x00 },
 		/* OGF_INFO_PARAM */
-		{ 0x22a, 0x0, 0x0, 0x0       },
+		{ 0x000002be, 0x00000000, 0x0000, 0x00 },
 		/* OGF_STATUS_PARAM */
-		{ 0x2e, 0x0, 0x0, 0x0        }
+		{ 0x000000ea, 0x00000000, 0x0000, 0x00 }
 	}
 };
 
@@ -319,7 +319,8 @@ static inline void hci_sock_cmsg(struct sock *sk, struct msghdr *msg, struct sk_
         	put_cmsg(msg, SOL_HCI, HCI_CMSG_TSTAMP, sizeof(skb->stamp), &skb->stamp);
 }
  
-static int hci_sock_recvmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int len, int flags)
+static int hci_sock_recvmsg(struct kiocb *iocb, struct socket *sock, 
+			    struct msghdr *msg, size_t len, int flags)
 {
 	int noblock = flags & MSG_DONTWAIT;
 	struct sock *sk = sock->sk;
@@ -355,7 +356,8 @@ static int hci_sock_recvmsg(struct kiocb *iocb, struct socket *sock, struct msgh
 	return err ? : copied;
 }
 
-static int hci_sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int len)
+static int hci_sock_sendmsg(struct kiocb *iocb, struct socket *sock, 
+			    struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	struct hci_dev *hdev;
@@ -370,9 +372,9 @@ static int hci_sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct msgh
 	if (msg->msg_flags & ~(MSG_DONTWAIT|MSG_NOSIGNAL|MSG_ERRQUEUE))
 		return -EINVAL;
 
-	if (len < 4)
+	if (len < 4 || len > HCI_MAX_FRAME_SIZE)
 		return -EINVAL;
-	
+
 	lock_sock(sk);
 
 	if (!(hdev = hci_pi(sk)->hdev)) {

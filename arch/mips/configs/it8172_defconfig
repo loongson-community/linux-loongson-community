@@ -207,7 +207,6 @@ CONFIG_MTD_PHYSMAP_BUSWIDTH=4
 #
 # Plug and Play support
 #
-# CONFIG_PNP is not set
 
 #
 # Block devices
@@ -241,6 +240,7 @@ CONFIG_IDE_TASKFILE_IO=y
 #
 # IDE chipset support/bugfixes
 #
+CONFIG_IDE_GENERIC=y
 # CONFIG_BLK_DEV_IDEDMA is not set
 # CONFIG_IDEDMA_AUTO is not set
 # CONFIG_DMA_NONPCI is not set
@@ -459,24 +459,6 @@ CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
 
 #
-# I2C support
-#
-# CONFIG_I2C is not set
-
-#
-# I2C Algorithms
-#
-
-#
-# I2C Hardware Bus support
-#
-
-#
-# I2C Hardware Sensors Chip support
-#
-# CONFIG_I2C_SENSOR is not set
-
-#
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
@@ -505,6 +487,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
 # CONFIG_RAW_DRIVER is not set
+
+#
+# I2C support
+#
+# CONFIG_I2C is not set
 
 #
 # Multimedia devices
@@ -556,6 +543,10 @@ CONFIG_SOUND_IT8172=y
 
 #
 # USB support
+#
+
+#
+# USB Gadget Support
 #
 # CONFIG_USB_GADGET is not set
 

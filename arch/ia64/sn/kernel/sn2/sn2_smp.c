@@ -1,35 +1,11 @@
 /*
  * SN2 Platform specific SMP Support
  *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
  * Copyright (C) 2000-2003 Silicon Graphics, Inc. All rights reserved.
- * 
- * This program is free software; you can redistribute it and/or modify it 
- * under the terms of version 2 of the GNU General Public License 
- * as published by the Free Software Foundation.
- * 
- * This program is distributed in the hope that it would be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
- * 
- * Further, this software is distributed without any warranty that it is 
- * free of the rightful claim of any third person regarding infringement 
- * or the like.  Any license provided herein, whether implied or 
- * otherwise, applies only to this software file.  Patent licenses, if 
- * any, provided herein do not apply to combinations of this program with 
- * other software, or any other product whatsoever.
- * 
- * You should have received a copy of the GNU General Public 
- * License along with this program; if not, write the Free Software 
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- * 
- * Contact information:  Silicon Graphics, Inc., 1600 Amphitheatre Pkwy, 
- * Mountain View, CA  94043, or:
- * 
- * http://www.sgi.com 
- * 
- * For further information regarding this notice, see: 
- * 
- * http://oss.sgi.com/projects/GenInfo/NoticeExplan
  */
 
 #include <linux/init.h>
@@ -74,7 +50,7 @@ wait_piowc(void)
 
 	piows = pda->pio_write_status_addr;
 	do {
-		__asm__ __volatile__ ("mf.a" ::: "memory");
+		ia64_mfa();
 	} while (((ws = *piows) & SH_PIO_WRITE_STATUS_0_PENDING_WRITE_COUNT_MASK) != 
 			SH_PIO_WRITE_STATUS_0_PENDING_WRITE_COUNT_MASK);
 	return ws;
@@ -117,7 +93,8 @@ sn2_global_tlb_purge (unsigned long start, unsigned long end, unsigned long nbit
 			if (is_headless_node(cnode))
 				continue;
 			if (cnode == mycnode) {
-				asm volatile ("ptc.ga %0,%1;;srlz.i;;" :: "r"(start), "r"(nbits<<2) : "memory");
+				ia64_ptcga(start, nbits<<2);
+				ia64_srlz_i();
 			} else {
 				nasid = cnodeid_to_nasid(cnode);
 				ptc0 = CHANGE_NASID(nasid, ptc0);

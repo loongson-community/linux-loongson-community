@@ -1211,7 +1211,8 @@ config SMP
 	  If you don't know what to do here, say N.
 
 config NR_CPUS
-	int "Maximum number of CPUs (2-32)"
+	int "Maximum number of CPUs (2-64)"
+	range 2 64
 	depends on SMP
 	default "64" if SGI_IP27
 	default "2"

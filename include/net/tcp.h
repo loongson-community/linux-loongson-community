@@ -752,7 +752,7 @@ extern int			tcp_v4_remember_stamp(struct sock *sk);
 extern int		    	tcp_v4_tw_remember_stamp(struct tcp_tw_bucket *tw);
 
 extern int			tcp_sendmsg(struct kiocb *iocb, struct sock *sk,
-					    struct msghdr *msg, int size);
+					    struct msghdr *msg, size_t size);
 extern ssize_t			tcp_sendpage(struct socket *sock, struct page *page, int offset, size_t size, int flags);
 
 extern int			tcp_ioctl(struct sock *sk, 
@@ -846,7 +846,7 @@ extern int			tcp_setsockopt(struct sock *sk, int level,
 extern void			tcp_set_keepalive(struct sock *sk, int val);
 extern int			tcp_recvmsg(struct kiocb *iocb, struct sock *sk,
 					    struct msghdr *msg,
-					    int len, int nonblock, 
+					    size_t len, int nonblock, 
 					    int flags, int *addr_len);
 
 extern int			tcp_listen_start(struct sock *sk);
@@ -1457,7 +1457,7 @@ static __inline__ int tcp_prequeue(struct sock *sk, struct sk_buff *skb)
 		if (tp->ucopy.memory > sk->sk_rcvbuf) {
 			struct sk_buff *skb1;
 
-			if (sock_owned_by_user(sk)) BUG();
+			BUG_ON(sock_owned_by_user(sk));
 
 			while ((skb1 = __skb_dequeue(&tp->ucopy.prequeue)) != NULL) {
 				sk->sk_backlog_rcv(sk, skb1);

@@ -706,7 +706,8 @@ fail:
 	return err;
 }
 
-static int l2cap_sock_sendmsg(struct kiocb *iocb, struct socket *sock, struct msghdr *msg, int len)
+static int l2cap_sock_sendmsg(struct kiocb *iocb, struct socket *sock, 
+			      struct msghdr *msg, size_t len)
 {
 	struct sock *sk = sock->sk;
 	int err = 0;
@@ -2201,3 +2202,4 @@ module_exit(l2cap_cleanup);
 MODULE_AUTHOR("Maxim Krasnyansky <maxk@qualcomm.com>");
 MODULE_DESCRIPTION("Bluetooth L2CAP ver " VERSION);
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("bt-proto-0");

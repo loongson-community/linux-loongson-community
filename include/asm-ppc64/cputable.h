@@ -15,6 +15,8 @@
 #ifndef __ASM_PPC_CPUTABLE_H
 #define __ASM_PPC_CPUTABLE_H
 
+#include <linux/config.h>
+
 /* Exposed to userland CPU features - Must match ppc32 definitions */
 #define PPC_FEATURE_32			0x80000000
 #define PPC_FEATURE_64			0x40000000
@@ -74,10 +76,20 @@ extern struct cpu_spec		*cur_cpu_spec;
 #define FW_FEATURE_COPY		(1UL<<4)	
 #define FW_FEATURE_ASR		(1UL<<5)	
 #define FW_FEATURE_DEBUG	(1UL<<6)	
-#define FW_FEATURE_PERF		(1UL<<7)	
-#define FW_FEATURE_DUMP		(1UL<<8)	
-#define FW_FEATURE_INTERRUPT	(1UL<<9)	
-#define FW_FEATURE_MIGRATE	(1UL<<10)	
+#define FW_FEATURE_TERM		(1UL<<7)	
+#define FW_FEATURE_PERF		(1UL<<8)	
+#define FW_FEATURE_DUMP		(1UL<<9)	
+#define FW_FEATURE_INTERRUPT	(1UL<<10)	
+#define FW_FEATURE_MIGRATE	(1UL<<11)	
+#define FW_FEATURE_PERFMON	(1UL<<12)	
+#define FW_FEATURE_CRQ   	(1UL<<13)	
+#define FW_FEATURE_VIO   	(1UL<<14)	
+#define FW_FEATURE_RDMA   	(1UL<<15)	
+#define FW_FEATURE_LLAN   	(1UL<<16)	
+#define FW_FEATURE_BULK   	(1UL<<17)	
+#define FW_FEATURE_XDABR   	(1UL<<18)	
+#define FW_FEATURE_MULTITCE   	(1UL<<19)	
+#define FW_FEATURE_SPLPAR   	(1UL<<20)	
 
 typedef struct {
     unsigned long val;
@@ -123,9 +135,16 @@ extern firmware_feature_t firmware_features_table[];
 #define COMMON_USER_PPC64	(PPC_FEATURE_32 | PPC_FEATURE_64 | \
 			         PPC_FEATURE_HAS_FPU | PPC_FEATURE_HAS_MMU)
 
-#define CPU_FTR_PPCAS_ARCH_V2   (CPU_FTR_SLB | CPU_FTR_16M_PAGE | \
+#define CPU_FTR_PPCAS_ARCH_V2_BASE (CPU_FTR_SLB | \
                                  CPU_FTR_TLBIEL | CPU_FTR_NOEXECUTE | \
                                  CPU_FTR_NODSISRALIGN)
+
+/* iSeries doesn't support large pages */
+#ifdef CONFIG_PPC_ISERIES
+#define CPU_FTR_PPCAS_ARCH_V2	(CPU_FTR_PPCAS_ARCH_V2_BASE)
+#else
+#define CPU_FTR_PPCAS_ARCH_V2	(CPU_FTR_PPCAS_ARCH_V2_BASE | CPU_FTR_16M_PAGE)
+#endif
 
 #define COMMON_PPC64_FW	(0)
 #endif
@@ -144,10 +163,23 @@ extern firmware_feature_t firmware_features_table[];
 	.llong 99b;	 		        \
 	.previous
 
-#define END_FTR_SECTION_IFSET(msk)	END_FTR_SECTION((msk), (msk))
-#define END_FTR_SECTION_IFCLR(msk)	END_FTR_SECTION((msk), 0)
+#else
+
+#define BEGIN_FTR_SECTION		"98:\n"
+#define END_FTR_SECTION(msk, val)		\
+"99:\n"						\
+"	.section __ftr_fixup,\"a\";\n"		\
+"	.align 3;\n"				\
+"	.llong "#msk";\n"			\
+"	.llong "#val";\n"			\
+"	.llong 98b;\n"			        \
+"	.llong 99b;\n"	 		        \
+"	.previous\n"
 
 #endif /* __ASSEMBLY__ */
+
+#define END_FTR_SECTION_IFSET(msk)	END_FTR_SECTION((msk), (msk))
+#define END_FTR_SECTION_IFCLR(msk)	END_FTR_SECTION((msk), 0)
 
 #endif /* __ASM_PPC_CPUTABLE_H */
 #endif /* __KERNEL__ */

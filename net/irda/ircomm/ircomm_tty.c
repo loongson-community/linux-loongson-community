@@ -38,6 +38,7 @@
 #include <linux/termios.h>
 #include <linux/tty.h>
 #include <linux/interrupt.h>
+#include <linux/device.h>		/* for MODULE_ALIAS_CHARDEV_MAJOR */
 
 #include <asm/uaccess.h>
 
@@ -85,7 +86,9 @@ static struct tty_operations ops = {
 	.write_room      = ircomm_tty_write_room,
 	.chars_in_buffer = ircomm_tty_chars_in_buffer,
 	.flush_buffer    = ircomm_tty_flush_buffer,
-	.ioctl           = ircomm_tty_ioctl,
+	.ioctl           = ircomm_tty_ioctl,	/* ircomm_tty_ioctl.c */
+	.tiocmget        = ircomm_tty_tiocmget,	/* ircomm_tty_ioctl.c */
+	.tiocmset        = ircomm_tty_tiocmset,	/* ircomm_tty_ioctl.c */
 	.throttle        = ircomm_tty_throttle,
 	.unthrottle      = ircomm_tty_unthrottle,
 	.send_xchar      = ircomm_tty_send_xchar,
@@ -1411,6 +1414,7 @@ done:
 MODULE_AUTHOR("Dag Brattli <dagb@cs.uit.no>");
 MODULE_DESCRIPTION("IrCOMM serial TTY driver");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS_CHARDEV_MAJOR(IRCOMM_TTY_MAJOR);
 
 module_init(ircomm_tty_init);
 module_exit(ircomm_tty_cleanup);

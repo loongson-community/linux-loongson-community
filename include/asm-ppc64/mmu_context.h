@@ -1,11 +1,13 @@
 #ifndef __PPC64_MMU_CONTEXT_H
 #define __PPC64_MMU_CONTEXT_H
 
+#include <linux/config.h>
 #include <linux/spinlock.h>	
 #include <linux/kernel.h>	
 #include <linux/mm.h>	
 #include <asm/mmu.h>	
 #include <asm/ppcdebug.h>	
+#include <asm/cputable.h>
 
 /*
  * Copyright (C) 2001 PPC 64 Team, IBM Corp
@@ -80,6 +82,8 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 	long head;
 	unsigned long flags;
+	/* This does the right thing across a fork (I hope) */
+	unsigned long low_hpages = mm->context & CONTEXT_LOW_HPAGES;
 
 	spin_lock_irqsave(&mmu_context_queue.lock, flags);
 
@@ -90,6 +94,7 @@ init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 
 	head = mmu_context_queue.head;
 	mm->context = mmu_context_queue.elements[head];
+	mm->context |= low_hpages;
 
 	head = (head < LAST_USER_CONTEXT-1) ? head+1 : 0;
 	mmu_context_queue.head = head;
@@ -134,16 +139,31 @@ destroy_context(struct mm_struct *mm)
 }
 
 extern void flush_stab(struct task_struct *tsk, struct mm_struct *mm);
+extern void flush_slb(struct task_struct *tsk, struct mm_struct *mm);
 
 /*
  * switch_mm is the entry point called from the architecture independent
  * code in kernel/sched.c
  */
-static inline void
-switch_mm(struct mm_struct *prev, struct mm_struct *next,
-	  struct task_struct *tsk)
+static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
+			     struct task_struct *tsk)
 {
-	flush_stab(tsk, next);
+#ifdef CONFIG_ALTIVEC
+	asm volatile (
+ BEGIN_FTR_SECTION
+	"dssall;\n"
+ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
+	 : : );
+#endif /* CONFIG_ALTIVEC */
+
+	/* No need to flush userspace segments if the mm doesnt change */
+	if (prev == next)
+		return;
+
+	if (cur_cpu_spec->cpu_features & CPU_FTR_SLB)
+		flush_slb(tsk, next);
+	else
+		flush_stab(tsk, next);
 	cpu_set(smp_processor_id(), next->cpu_vm_mask);
 }
 

@@ -16,6 +16,7 @@
 
 #include <linux/config.h>
 
+#include <linux/module.h>
 #include <linux/acpi.h>
 #include <linux/bootmem.h>
 #include <linux/delay.h>
@@ -81,10 +82,13 @@ task_t *task_for_booting_cpu;
 
 /* Bitmask of currently online CPUs */
 cpumask_t cpu_online_map;
+EXPORT_SYMBOL(cpu_online_map);
 cpumask_t phys_cpu_present_map;
+EXPORT_SYMBOL(phys_cpu_present_map);
 
 /* which logical CPU number maps to which CPU (physical APIC ID) */
 volatile int ia64_cpu_to_sapicid[NR_CPUS];
+EXPORT_SYMBOL(ia64_cpu_to_sapicid);
 
 static volatile cpumask_t cpu_callin_map;
 
@@ -401,10 +405,7 @@ do_boot_cpu (int sapicid, int cpu)
 	}
 	Dprintk("\n");
 
-	if (cpu_isset(cpu, cpu_callin_map)) {
-		/* number CPUs logically, starting from 1 (BSP is 0) */
-		printk(KERN_INFO "CPU%d: CPU has booted.\n", cpu);
-	} else {
+	if (!cpu_isset(cpu, cpu_callin_map)) {
 		printk(KERN_ERR "Processor 0x%x/0x%x is stuck.\n", cpu, sapicid);
 		ia64_cpu_to_sapicid[cpu] = -1;
 		cpu_clear(cpu, cpu_online_map);  /* was set in smp_callin() */
@@ -466,9 +467,10 @@ smp_build_cpu_map (void)
 #ifdef CONFIG_NUMA
 
 /* on which node is each logical CPU (one cacheline even for 64 CPUs) */
-volatile u8 cpu_to_node_map[NR_CPUS] __cacheline_aligned;
+u8 cpu_to_node_map[NR_CPUS] __cacheline_aligned;
+EXPORT_SYMBOL(cpu_to_node_map);
 /* which logical CPUs are on which nodes */
-volatile cpumask_t node_to_cpu_mask[MAX_NUMNODES] __cacheline_aligned;
+cpumask_t node_to_cpu_mask[MAX_NUMNODES] __cacheline_aligned;
 
 /*
  * Build cpu to node mapping and initialize the per node cpu masks.
@@ -564,8 +566,8 @@ smp_cpus_done (unsigned int dummy)
 		if (cpu_online(cpu))
 			bogosum += cpu_data(cpu)->loops_per_jiffy;
 
-	printk(KERN_INFO "Total of %lu processors activated (%lu.%02lu BogoMIPS).\n",
-	       num_online_cpus(), bogosum/(500000/HZ), (bogosum/(5000/HZ))%100);
+	printk(KERN_INFO "Total of %d processors activated (%lu.%02lu BogoMIPS).\n",
+	       (int)num_online_cpus(), bogosum/(500000/HZ), (bogosum/(5000/HZ))%100);
 }
 
 int __devinit
@@ -578,14 +580,11 @@ __cpu_up (unsigned int cpu)
 	if (sapicid == -1)
 		return -EINVAL;
 
-	printk(KERN_INFO "Processor %d/%d is spinning up...\n", sapicid, cpu);
-
 	/* Processor goes to start_secondary(), sets online flag */
 	ret = do_boot_cpu(sapicid, cpu);
 	if (ret < 0)
 		return ret;
 
-	printk(KERN_INFO "Processor %d has spun up...\n", cpu);
 	return 0;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
+ * Copyright (c) 2000-2004 Silicon Graphics, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -36,9 +36,8 @@
  */
 
 #include "xfs.h"
-#include "xfs_bmap_btree.h"
-#include "xfs_bit.h"
-#include "xfs_rw.h"
+#include "xfs_cred.h"
+#include "xfs_sysctl.h"
 
 /*
  * System memory size - used to scale certain data structures in XFS.
@@ -69,10 +68,3 @@ xfs_param_t xfs_params = {
  */
 cred_t sys_cred_val, *sys_cred = &sys_cred_val;
 
-/* Export XFS symbols used by xfsidbg */
-EXPORT_SYMBOL(xfs_next_bit);
-EXPORT_SYMBOL(xfs_contig_bits);
-EXPORT_SYMBOL(xfs_bmbt_get_all);
-#if ARCH_CONVERT != ARCH_NOCONVERT
-EXPORT_SYMBOL(xfs_bmbt_disk_get_all);
-#endif
