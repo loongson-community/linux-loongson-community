@@ -38,7 +38,8 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	int __res = 0;							\
 	struct elfhdr *__h = (hdr);					\
 									\
-	if ((__h->e_machine != EM_MIPS) && (__h->e_machine != EM_MIPS))	\
+	if ((__h->e_machine != EM_MIPS) &&				\
+	    (__h->e_machine != EM_MIPS_RS4_BE))				\
 		__res = -ENOEXEC;					\
 									\
 	__res;								\
