@@ -29,7 +29,8 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	int __res = 0;							\
 	struct elfhdr *__h = (hdr);					\
 									\
-	if ((__h->e_machine != EM_MIPS) && (__h->e_machine != EM_MIPS))	\
+	if ((__h->e_machine != EM_MIPS) &&				\
+	    (__h->e_machine != EM_MIPS_RS4_BE))				\
 		__res = -ENOEXEC;					\
 	if (sizeof(elf_caddr_t) == 8 &&					\
 	    __h->e_ident[EI_CLASS] == ELFCLASS32)			\
