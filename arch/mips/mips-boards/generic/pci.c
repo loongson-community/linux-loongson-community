@@ -283,7 +283,7 @@ static int mips_pcibios_read(struct pci_bus *bus, unsigned int devfn, int where,
 static int mips_pcibios_write(struct pci_bus *bus, unsigned int devfn,
                               int where, int size, u32 val)
 {
-        u32 data = 0;
+	u32 data = 0;
 
 	if ((size == 2) && (where & 1))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
