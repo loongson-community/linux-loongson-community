@@ -5,7 +5,9 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ *
+ * $Id: syscalls.h,v 1.3 1997/06/20 09:48:49 ralf Exp $
  */
 
 /*
