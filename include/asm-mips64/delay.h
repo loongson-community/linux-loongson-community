@@ -11,6 +11,7 @@
 #define _ASM_DELAY_H
 
 #include <linux/config.h>
+#include <asm/param.h>
 
 extern unsigned long loops_per_jiffy;
 
@@ -40,7 +41,11 @@ extern __inline__ void __udelay(unsigned long usecs, unsigned long lpj)
 {
 	unsigned long lo;
 
+#if (HZ == 100)
 	usecs *= 0x00068db8bac710cbUL;		/* 2**64 / (1000000 / HZ) */
+#elif (HZ == 128)
+	usecs *= 0x0008637bd05af6c6UL;		/* 2**64 / (1000000 / HZ) */
+#endif
 	__asm__("dmultu\t%2,%3"
 		:"=h" (usecs), "=l" (lo)
 		:"r" (usecs),"r" (lpj));
