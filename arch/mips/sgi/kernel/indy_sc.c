@@ -1,4 +1,4 @@
-/* $Id: indy_sc.c,v 1.6 1999/01/04 16:03:56 ralf Exp $
+/* $Id: indy_sc.c,v 1.7 1999/05/07 22:25:11 ulfc Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -55,8 +55,8 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 		nop; nop; nop; nop;
 		.set mips0
 		.set reorder"
-		: "=r" (first), "=r" (last)
-		: "0" (first), "1" (last)
+		: /* no output */
+		: "r" (first), "r" (last)
 		: "$1");
 }
 
@@ -81,8 +81,8 @@ static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
 	/* Cache index wrap around.  Due to the way the buddy system works
 	   this case should not happen.  We're prepared to handle it,
 	   though. */
-	indy_sc_wipe(last_line, SC_SIZE);
-	indy_sc_wipe(0, first_line);
+	indy_sc_wipe(first_line, SC_SIZE - SC_LINE);
+	indy_sc_wipe(0, last_line);
 out:
 	__restore_flags(flags);
 }
