@@ -32,7 +32,9 @@
 #include <asm/mmu_context.h>
 
 /* Primary cache parameters. */
-static unsigned long icache_size, dcache_size; /* Size in bytes */
+static unsigned long icache_size, dcache_size; 		/* Size in bytes */
+static unsigned long icache_way_size, dcache_way_size;	/* Size divided by ways */
+
 #define ic_lsize	current_cpu_data.icache.linesz
 #define dc_lsize	current_cpu_data.dcache.linesz
 #define ic_ways		current_cpu_data.icache.ways
@@ -53,17 +55,17 @@ static inline void tx49_blast_dcache_page(unsigned long addr)
 static inline void tx49_blast_dcache_page_indexed(unsigned long addr)
 {
 	if (dc_lsize == 16)
-		blast_dcache16_page_indexed_wayLSB(addr);
+		blast_dcache16_page_indexed(addr);
 	else
-		blast_dcache32_page_indexed_wayLSB(addr);
+		blast_dcache32_page_indexed(addr);
 }
 
 static inline void tx49_blast_dcache(void)
 {
 	if (dc_lsize == 16)
-		blast_dcache16_wayLSB();
+		blast_dcache16();
 	else
-		blast_dcache32_wayLSB();
+		blast_dcache32();
 }
 
 static inline void tx49_blast_icache_page(unsigned long addr)
@@ -79,7 +81,7 @@ static inline void tx49_blast_icache_page_indexed(unsigned long addr)
 	local_irq_save(flags);
 	config = read_c0_config();
 	write_c0_config(config | TX49_CONF_IC);
-	blast_icache32_page_indexed_wayLSB(addr);
+	blast_icache32_page_indexed(addr);
 	write_c0_config(config);
 	local_irq_restore(flags);
 }
@@ -91,7 +93,7 @@ static inline void tx49_blast_icache(void)
 	local_irq_save(flags);
 	config = read_c0_config();
 	write_c0_config(config | TX49_CONF_IC);
-	blast_icache32_wayLSB();
+	blast_icache32();
 	write_c0_config(config);
 	local_irq_restore(flags);
 }
@@ -275,7 +277,9 @@ static void __init probe_icache(unsigned long config)
 	icache_size			= 1 << (12 + ((config >> 9) & 7));
 	ic_lsize			= 16 << ((config >> 5) & 1);
 	ic_ways				= 4;
+	icache_way_size			= icache_size / ic_ways;
 	current_cpu_data.icache.sets	= icache_size / (ic_lsize * ic_ways);
+	current_cpu_data.icache.waybit	= 0;
 
 	printk("Primary instruction cache %dkb %s, linesize %d bytes\n",
 	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
@@ -287,7 +291,9 @@ static void __init probe_dcache(unsigned long config)
 	dcache_size			= 1 << (12 + ((config >> 6) & 7));
 	dc_lsize			= 16 << ((config >> 4) & 1);
 	dc_ways				= 4;
+	dcache_way_size			= dcache_size / dc_ways;
 	current_cpu_data.dcache.sets	= dcache_size / (dc_lsize * dc_ways);
+	current_cpu_data.dcache.waybit	= 0;
 
 	printk("Primary data cache %dkb %s, linesize %d bytes\n",
 	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],

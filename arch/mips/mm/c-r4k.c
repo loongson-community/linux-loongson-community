@@ -14,6 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/bitops.h>
 
 #include <asm/bcache.h>
 #include <asm/bootinfo.h>
@@ -27,6 +28,7 @@
 
 /* Primary cache parameters. */
 static unsigned long icache_size, dcache_size; /* Size in bytes */
+static unsigned long icache_way_size, dcache_way_size; /* Size divided by ways */
 static unsigned long ic_lsize, dc_lsize;       /* LineSize in bytes */
 
 /* Secondary cache (if present) parameters. */
@@ -49,18 +51,10 @@ static struct bcache_ops no_sc_ops = {
 
 struct bcache_ops *bcops = &no_sc_ops;
 
-/*
- * On processors with QED R4600 style two set assosicative cache
- * this is the bit which selects the way in the cache for the
- * indexed cachops.
- */
-#define icache_waybit (icache_size >> 1)
-#define dcache_waybit (dcache_size >> 1)
-
 static void r4k_blast_dcache_page(unsigned long addr)
 {
-	unsigned int prid = read_c0_prid() & 0xfff0;
 	static void *l = &&init;
+	unsigned int prid;
 
 	goto *l;
 
@@ -88,6 +82,8 @@ dc_32_r4600:
 	}
 
 init:
+	prid = read_c0_prid() & 0xfff0;
+
 	if (prid == 0x2010)			/* R4600 V1.7 */
 		l = &&dc_32_r4600;
 	else if (dc_lsize == 16)
@@ -107,18 +103,12 @@ dc_16:
 	blast_dcache16_page_indexed(addr);
 	return;
 
-dc_32_lsb:
-	blast_dcache32_page_indexed(addr);
-	addr ^= 1UL;				/* Fall through */
-
 dc_32:
 	blast_dcache32_page_indexed(addr);
 	return;
 
 init:
-	if (current_cpu_data.cputype == CPU_R5432)
-		l = &&dc_32_lsb;
-	else if (dc_lsize == 16)
+	if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
 		l = &&dc_32;
@@ -135,17 +125,12 @@ dc_16:
 	blast_dcache16();
 	return;
 
-dc_32_lsb:
-	blast_dcache32_wayLSB();
-
 dc_32:
 	blast_dcache32();
 	return;
 
 init:
-	if (current_cpu_data.cputype == CPU_R5432)
-		l = &&dc_32_lsb;
-	else if (dc_lsize == 16)
+	if (dc_lsize == 16)
 		l = &&dc_16;
 	else if (dc_lsize == 32)
 		l = &&dc_32;
@@ -184,18 +169,12 @@ ic_16:
 	blast_icache16_page_indexed(addr);
 	return;
 
-ic_32_lsb:
-	blast_icache32_page_indexed(addr);
-	addr ^= 1UL;				/* Fall through */
-
 ic_32:
 	blast_icache32_page_indexed(addr);
 	return;
 
 init:
-	if (current_cpu_data.cputype == CPU_R5432)
-		l = &&ic_32_lsb;
-	else if (ic_lsize == 16)
+	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
 		l = &&ic_32;
@@ -212,17 +191,12 @@ ic_16:
 	blast_icache16();
 	return;
 
-ic_32_lsb:
-	blast_icache32_wayLSB();
-
 ic_32:
 	blast_icache32();
 	return;
 
 init:
-	if (current_cpu_data.cputype == CPU_R5432)
-		l = &&ic_32_lsb;
-	else if (ic_lsize == 16)
+	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
 		l = &&ic_32;
@@ -355,62 +329,6 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	r4k_blast_dcache_page_indexed(page);
 	if (exec)
 		r4k_blast_icache_page_indexed(page);
-}
-
-static void r4k_flush_cache_page_r4600(struct vm_area_struct *vma,
-	unsigned long page)
-{
-	int exec = vma->vm_flags & VM_EXEC;
-	struct mm_struct *mm = vma->vm_mm;
-	pgd_t *pgdp;
-	pmd_t *pmdp;
-	pte_t *ptep;
-
-	/*
-	 * If ownes no valid ASID yet, cannot possibly have gotten
-	 * this page into the cache.
-	 */
-	if (cpu_context(smp_processor_id(), mm) == 0)
-		return;
-
-	page &= PAGE_MASK;
-	pgdp = pgd_offset(mm, page);
-	pmdp = pmd_offset(pgdp, page);
-	ptep = pte_offset(pmdp, page);
-
-	/*
-	 * If the page isn't marked valid, the page cannot possibly be
-	 * in the cache.
-	 */
-	if (!(pte_val(*ptep) & _PAGE_PRESENT))
-		return;
-
-	/*
-	 * Doing flushes for another ASID than the current one is
-	 * too difficult since stupid R4k caches do a TLB translation
-	 * for every cache flush operation.  So we do indexed flushes
-	 * in that case, which doesn't overly flush the cache too much.
-	 */
-	if ((mm == current->active_mm) && (pte_val(*ptep) & _PAGE_VALID)) {
-		r4k_blast_dcache_page(page);
-		if (exec)
-			r4k_blast_icache_page(page);
-
-		return;
-	}
-
-	/*
-	 * Do indexed flush, too much work to get the (possible)
-	 * tlb refills to work correctly.
-	 */
-	page = KSEG0 + (page & (dcache_size - 1));
-	r4k_blast_dcache_page_indexed(page);
-	r4k_blast_dcache_page_indexed(page ^ dcache_waybit);
-
-	if (exec) {
-		r4k_blast_icache_page_indexed(page);
-		r4k_blast_icache_page_indexed(page ^ icache_waybit);
-	}
 }
 
 static void r4k_flush_data_cache_page(unsigned long addr)
@@ -644,20 +562,32 @@ static void __init probe_icache(unsigned long config)
 		panic("Impropper processor configuration detected");
 
 	switch (current_cpu_data.cputype) {
+	case CPU_VR4131:
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
-	case CPU_R5432:
 		current_cpu_data.icache.ways = 2;
+		current_cpu_data.icache.waybit = ffs(icache_size/2) - 1;
+		break;
+
+	case CPU_R5432:
+	case CPU_R5500:
+		current_cpu_data.icache.ways = 2;
+		current_cpu_data.icache.waybit= 0;
 		break;
 
 	default:
 		current_cpu_data.icache.ways = 1;
+		current_cpu_data.icache.waybit = 0; 	/* doesn't matter */
 		break;
 	}
 
-	printk("Primary instruction cache %dkb %s, linesize %d bytes\n",
+	/* compute a couple of other cache variables */
+	icache_way_size = icache_size / current_cpu_data.icache.ways;
+	current_cpu_data.icache.sets = icache_way_size / ic_lsize;
+
+	printk("Primary instruction cache %ldkb %s, linesize %ld bytes\n",
 	       icache_size >> 10, way_string[current_cpu_data.icache.ways],
 	       ic_lsize);
 }
@@ -681,24 +611,34 @@ static void __init probe_dcache(unsigned long config)
 	dc_lsize = 16 << ((config >> 4) & 1);
 
 	switch (current_cpu_data.cputype) {
+	case CPU_VR4131:
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_NEVADA:
-	case CPU_R5432:
 		current_cpu_data.dcache.ways = 2;
+		current_cpu_data.dcache.waybit= ffs(dcache_size/2) - 1;
+		break;
+
+	case CPU_R5432:
+	case CPU_R5500:
+		current_cpu_data.dcache.ways = 2;
+		current_cpu_data.dcache.waybit = 0;
 		break;
 
 	default:
 		current_cpu_data.dcache.ways = 1;
+		current_cpu_data.dcache.waybit = 0;	/* does not matter */
 		break;
 	}
 
-	if (current_cpu_data.dcache.sets * current_cpu_data.dcache.ways >
-	    PAGE_SIZE)
+	/* compute a couple of other cache variables */
+	dcache_way_size = dcache_size / current_cpu_data.dcache.ways;
+	current_cpu_data.dcache.sets = dcache_way_size / dc_lsize;
+	if (dcache_way_size > PAGE_SIZE)
 	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
 
-	printk("Primary data cache %dkb %s, linesize %d bytes\n",
+	printk("Primary data cache %ldkb %s, linesize %ld bytes\n",
 	       dcache_size >> 10, way_string[current_cpu_data.dcache.ways],
 	       dc_lsize);
 }
@@ -871,7 +811,6 @@ void __init ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_c0_config();
 	extern char except_vec2_generic;
-	unsigned int sets;
 
 	/* Default cache error handler for R4000 and R5000 family */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
@@ -886,20 +825,6 @@ void __init ld_mmu_r4xx0(void)
 	if (current_cpu_data.dcache.sets * current_cpu_data.dcache.ways >
 	    PAGE_SIZE)
 	        current_cpu_data.dcache.flags |= MIPS_CACHE_ALIASES;
-
-	switch(current_cpu_data.cputype) {
-	case CPU_R4600:			/* QED style two way caches? */
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_NEVADA:
-		flush_cache_page = r4k_flush_cache_page_r4600;
-		sets = 1;
-		break;
-
-	default:
-		sets = 0;
-		break;
-	}
 
 	shm_align_mask = max_t(unsigned long,
 	                       (dcache_size / current_cpu_data.dcache.ways) - 1,

@@ -34,10 +34,11 @@
  * Descriptor for a cache
  */
 struct cache_desc {
-	int linesz;
-	int sets;
-	int ways;
-	int flags;	/* Details like write thru/back, coherent, etc. */
+	unsigned short linesz;
+	unsigned short ways;
+	unsigned int sets;
+	unsigned int waybit;	/* Bits to select in a cache set */
+	unsigned int flags;	/* Flags describingcache properties */
 };
 
 /*

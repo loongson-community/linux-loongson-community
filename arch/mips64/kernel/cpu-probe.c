@@ -473,8 +473,6 @@ __init void cpu_probe(void)
 				break;
 			case PRID_REV_VR4131:
 				current_cpu_data.cputype = CPU_VR4131;
-				current_cpu_data.icache.ways = 2;
-				current_cpu_data.dcache.ways = 2;
 				break;
 			default:
 				printk(KERN_INFO "Unexpected CPU of NEC VR4100 series\n");
@@ -520,8 +518,6 @@ __init void cpu_probe(void)
 			    (PRID_REV_TX3927 & 0xf0)) {
 				current_cpu_data.cputype = CPU_TX3927;
 				current_cpu_data.tlbsize = 64;
-				current_cpu_data.icache.ways = 2;
-				current_cpu_data.dcache.ways = 2;
 			} else {
 				switch (current_cpu_data.processor_id & 0xff) {
 				case PRID_REV_TX3912:
@@ -551,8 +547,6 @@ __init void cpu_probe(void)
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR;
 			current_cpu_data.tlbsize = 48;
-			current_cpu_data.icache.ways = 4;
-			current_cpu_data.dcache.ways = 4;
 			break;
 		case PRID_IMP_R5000:
 			current_cpu_data.cputype = CPU_R5000;
@@ -581,8 +575,6 @@ __init void cpu_probe(void)
 			current_cpu_data.options = R4K_OPTS | MIPS_CPU_FPU |
 			                   MIPS_CPU_32FPR | MIPS_CPU_DIVEC;
 			current_cpu_data.tlbsize = 48;
-			current_cpu_data.icache.ways = 2;
-			current_cpu_data.dcache.ways = 2;
 			break;
 		case PRID_IMP_R6000:
 			current_cpu_data.cputype = CPU_R6000;

@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/bitops.h>
 
 #include <asm/io.h>
 #include <asm/page.h>
@@ -30,6 +31,7 @@
 
 /* Primary cache parameters. */
 static int icache_size, dcache_size; /* Size in bytes */
+static int icache_way_size, dcache_way_size; /* Size divided by ways */
 
 #define ic_lsize	32		/* Fixed to 32 byte on RM7000  */
 #define dc_lsize	32		/* Fixed to 32 byte on RM7000  */
@@ -190,6 +192,11 @@ static void rm7k_flush_cache_sigtramp(unsigned long addr)
 static inline void probe_icache(unsigned long config)
 {
 	icache_size = 1 << (12 + ((config >> 9) & 7));
+	current_cpu_data.icache.ways = 4;
+	icache_way_size = icache_size / 4;
+	current_cpu_data.icache.waybit = ffs(icache_way_size) - 1;
+	current_cpu_data.icache.linesz = 32;
+	current_cpu_data.icache.sets = icache_way_size / 32;
 
 	printk(KERN_INFO "Primary instruction cache %dKiB.\n", icache_size >> 10);
 }
@@ -197,6 +204,11 @@ static inline void probe_icache(unsigned long config)
 static inline void probe_dcache(unsigned long config)
 {
 	dcache_size = 1 << (12 + ((config >> 6) & 7));
+	current_cpu_data.dcache.ways = 4;
+	dcache_way_size = dcache_size / 4;
+	current_cpu_data.dcache.waybit = ffs(dcache_way_size) - 1;
+	current_cpu_data.dcache.linesz = 32;
+	current_cpu_data.dcache.sets = dcache_way_size / 32;
 
 	printk(KERN_INFO "Primary data cache %dKiB.\n", dcache_size >> 10);
 }

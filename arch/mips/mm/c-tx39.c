@@ -25,6 +25,7 @@
 
 /* For R3000 cores with R4000 style caches */
 static unsigned long icache_size, dcache_size;		/* Size in bytes */
+static unsigned long icache_way_size, dcache_way_size;	/* Size divided by ways */
 extern long scache_size;
 
 #define icache_lsize	current_cpu_data.icache.linesz
@@ -85,12 +86,12 @@ static inline void tx39_blast_dcache_page(unsigned long addr)
 
 static inline void tx39_blast_dcache_page_indexed(unsigned long addr)
 {
-	blast_dcache16_page_indexed_wayLSB(addr);
+	blast_dcache16_page_indexed(addr);
 }
 
 static inline void tx39_blast_dcache(void)
 {
-	blast_dcache16_wayLSB();
+	blast_dcache16();
 }
 
 static inline void tx39_blast_icache_page(unsigned long addr)
@@ -112,7 +113,7 @@ static inline void tx39_blast_icache_page_indexed(unsigned long addr)
 	local_irq_save(flags);
 	config = read_c0_conf();
 	write_c0_conf(config & ~TX39_CONF_ICE);
-	blast_icache16_page_indexed_wayLSB(addr);
+	blast_icache16_page_indexed(addr);
 	write_c0_conf(config);
 	local_irq_restore(flags);
 }
@@ -124,7 +125,7 @@ static inline void tx39_blast_icache(void)
 	local_irq_save(flags);
 	config = read_c0_conf();
 	write_c0_conf(config & ~TX39_CONF_ICE);
-	blast_icache16_wayLSB();
+	blast_icache16();
 	write_c0_conf(config);
 	local_irq_restore(flags);
 }
@@ -313,12 +314,22 @@ static __init void tx39_probe_cache(void)
 	icache_lsize = 16;
 	switch (current_cpu_data.cputype) {
 	case CPU_TX3912:
+		current_cpu_data.icache.ways = 1;
+		current_cpu_data.dcache.ways = 1;
 		dcache_lsize = 4;
 		break;
-	case CPU_TX3922:
+
 	case CPU_TX3927:
+		current_cpu_data.icache.ways = 2;
+		current_cpu_data.dcache.ways = 2;
+		dcache_lsize = 16;
+		break;
+
+	case CPU_TX3922:
 	case CPU_TX39XX:
 	default:
+		current_cpu_data.icache.ways = 1;
+		current_cpu_data.dcache.ways = 1;
 		dcache_lsize = 16;
 		break;
 	}
@@ -387,14 +398,17 @@ void __init ld_mmu_tx39(void)
 		break;
 	}
 
-	if (current_cpu_data.icache.ways == 0)
-		current_cpu_data.icache.ways = 1;
-	if (current_cpu_data.dcache.ways == 0)
-		current_cpu_data.dcache.ways = 1;
-	current_cpu_data.icache.sets =
-		icache_size / current_cpu_data.icache.ways / current_cpu_data.icache.linesz;
-	current_cpu_data.dcache.sets =
-		dcache_size / current_cpu_data.dcache.ways / current_cpu_data.dcache.linesz;
+	icache_way_size = icache_size / current_cpu_data.icache.ways;
+	dcache_way_size = dcache_size / current_cpu_data.dcache.ways;
+
+	current_cpu_data.icache.sets = icache_way_size / icache_lsize;
+	current_cpu_data.dcache.sets = dcache_way_size / dcache_lsize;
+
+	current_cpu_data.icache.sets = icache_way_size / icache_lsize;
+	current_cpu_data.dcache.sets = dcache_way_size / dcache_lsize;
+
+	current_cpu_data.icache.waybit = 0;
+	current_cpu_data.dcache.waybit = 0;
 
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
 		(int) (icache_size >> 10), (int) icache_lsize);
