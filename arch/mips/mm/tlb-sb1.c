@@ -330,7 +330,7 @@ void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 	tlb_probe();
 	pmdp = pmd_offset(pgdp, address);
 	idx = read_c0_index();
-	ptep = pte_offset(pmdp, address);
+	ptep = pte_offset_map(pmdp, address);
 	write_c0_entrylo0(pte_val(*ptep++) >> 6);
 	write_c0_entrylo1(pte_val(*ptep) >> 6);
 	if (idx < 0) {
