@@ -140,7 +140,8 @@
 	beqz	s0, 4f		/* No interrupts.  Return */
 	 move	a1, sp
 
-3:	dclz	s1, s0		/* Find the next interrupt */
+3:	#dclz	s1, s0		/* Find the next interrupt */
+	.word   0x72118824	# dclz s1, s0
 	dsubu	a0, zero, s1
 	daddiu	a0, a0, 63
 	jal	 do_IRQ
