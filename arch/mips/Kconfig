@@ -696,7 +696,7 @@ config	DMA_NONCOHERENT
 
 config EARLY_PRINTK
 	bool
-	depends on DECSTATION
+	depends on MACH_DECSTATION
 	default y
 
 config GENERIC_ISA_DMA
