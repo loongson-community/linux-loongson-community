@@ -100,7 +100,7 @@ int show_interrupts(struct seq_file *p, void *v)
 			seq_printf(p, ", %s", action->name);
 		seq_putc(p, '\n');
 	}
-	seq_printf(p, "ERR: %10lu\n", atomic_read(&irq_err_count));
+	seq_printf(p, "ERR: %10u\n", atomic_read(&irq_err_count));
 	return 0;
 }
 
