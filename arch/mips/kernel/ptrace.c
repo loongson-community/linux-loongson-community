@@ -174,8 +174,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			unsigned int flags;
 
 			if (!(mips_cpu.options & MIPS_CPU_FPU)) {
-				res = -EIO;
-				goto out;
+				break;
 			}
 
 			__save_flags(flags);
