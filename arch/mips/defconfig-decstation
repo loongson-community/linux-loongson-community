@@ -214,6 +214,13 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
+# ATA/IDE/MFM/RLL support
+#
+# CONFIG_IDE is not set
+# CONFIG_BLK_DEV_IDE_MODES is not set
+# CONFIG_BLK_DEV_HD is not set
+
+#
 # SCSI support
 #
 CONFIG_SCSI=y
