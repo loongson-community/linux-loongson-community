@@ -256,7 +256,7 @@ illegal_syscall:
 	sys	sys_umount	2
 	sys	sys_ni_syscall	0
 	sys	sys32_ioctl	3
-	sys	sys_fcntl	3			/* 4055 */
+	sys	sys32_fcntl	3			/* 4055 */
 	sys	sys_ni_syscall	2
 	sys	sys_setpgid	2
 	sys	sys_ni_syscall, 0
