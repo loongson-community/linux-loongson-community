@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: hal2.c,v 1.3 1999/01/27 19:33:48 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -60,9 +60,6 @@ struct hal2_channel {
 };
 
 struct hal2_private {
-	volatile struct hal2_ctrl_regs *regs;
-	volatile struct hal2_volume_regs *volume;
-
 	struct hal2_buffer *dac_head;
 	struct hal2_buffer *adc_tail;
 

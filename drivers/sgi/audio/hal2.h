@@ -11,7 +11,7 @@
 #define H2_VOLUME_PIO		(H2_HAL2_BASE + 2 * 0x200)
 #define H2_SYNTH_PIO		(H2_HAL2_BASE + 3 * 0x200)
 
-typedef unsigned short hal_reg;
+typedef volatile unsigned short hal_reg;
 
 struct hal2_ctrl_regs {
 	hal_reg _unused0[8];
