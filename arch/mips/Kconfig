@@ -321,8 +321,8 @@ config SGI_SN0_N_MODE
 	  running in M-Mode, so you should say N here.
 
 config DISCONTIGMEM
-	bool "Discontiguous Memory Support"
-	depends on SGI_IP27
+	bool
+	default y if SGI_IP27
 	help
 	  Say Y to upport efficient handling of discontiguous physical memory,
 	  for architectures which are either NUMA (Non-Uniform Memory Access)

@@ -36,7 +36,6 @@ extern pfn_t node_getfirstfree(cnodeid_t cnode);
 
 short slot_lastfilled_cache[MAX_COMPACT_NODES];
 unsigned short slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
-static pfn_t numpages;
 
 plat_pg_data_t *plat_node_data[MAX_COMPACT_NODES];
 bootmem_data_t plat_node_bdata[MAX_COMPACT_NODES];
@@ -185,21 +184,19 @@ void __init prom_meminit(void)
 
 	node_datasz = PFN_UP(sizeof(plat_pg_data_t));
 	mlreset();
-	numpages = szmem(0, 0);
-	for (node = (numnodes - 1); node >= 0; node--) {
+
+	max_low_pfn = num_physpages = szmem(0, 0);
+
+	for (node = 0; node < numnodes; node++) {
 		slot_firstpfn = slot_getbasepfn(node, 0);
 		slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
 		slot_freepfn = node_getfirstfree(node);
-		/*
-		 * Foll line hack for non discontigmem; remove once discontigmem
-		 * becomes the default. */
-		max_low_pfn = (slot_lastpfn - slot_firstpfn);
 
 		/*
 		 * Allocate the node data structure on the node first.
 		 */
-		plat_node_data[node] = (plat_pg_data_t *)(__va(slot_freepfn \
-							<< PAGE_SHIFT));
+		plat_node_data[node] = (plat_pg_data_t *)(__va(slot_freepfn << PAGE_SHIFT));
+
 		NODE_DATA(node)->bdata = plat_node_bdata + node;
 		slot_freepfn += node_datasz;
 	  	bootmap_size = init_bootmem_node(NODE_DATA(node), slot_freepfn,
@@ -209,7 +206,6 @@ void __init prom_meminit(void)
 		reserve_bootmem_node(NODE_DATA(node), slot_firstpfn << PAGE_SHIFT,
 		  ((slot_freepfn - slot_firstpfn) << PAGE_SHIFT) + bootmap_size);
 	}
-	printk("Total memory probed : 0x%lx pages\n", numpages);
 }
 
 unsigned long __init prom_free_prom_memory(void)
@@ -218,114 +214,79 @@ unsigned long __init prom_free_prom_memory(void)
 	return 0;
 }
 
-#ifdef CONFIG_DISCONTIGMEM
-
-static pfn_t pagenr;
+extern void pagetable_init(void);
+extern unsigned long setup_zero_pages(void);
 
 void __init paging_init(void)
 {
-	pmd_t *pmd = kpmdtbl;
-	pte_t *pte = kptbl;
-
-	cnodeid_t node;
 	unsigned long zones_size[MAX_NR_ZONES] = {0, 0, 0};
-	int i;
+	unsigned node;
 
-	/* Initialize the entire pgd.  */
-	pgd_init((unsigned long)swapper_pg_dir);
-	pmd_init((unsigned long)invalid_pmd_table, (unsigned long)invalid_pte_table);
-	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
-
-	/* This is for vmalloc  */
-	memset((void *)kptbl, 0, PAGE_SIZE << PGD_ORDER);
-	memset((void *)kpmdtbl, 0, PAGE_SIZE);
-	set_pgd(swapper_pg_dir, __pgd(kpmdtbl));
-	for (i = 0; i < (1 << PGD_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
-		pmd_val(*pmd) = (unsigned long)pte;
+	pagetable_init();
 
 	for (node = 0; node < numnodes; node++) {
 		pfn_t start_pfn = slot_getbasepfn(node, 0);
 		pfn_t end_pfn = node_getmaxclick(node);
 
 		zones_size[ZONE_DMA] = end_pfn + 1 - start_pfn;
-		free_area_init_node(node, NODE_DATA(node), 0, zones_size,
-						start_pfn, 0);
+		free_area_init_node(node, NODE_DATA(node), NULL,
+				zones_size, start_pfn, NULL);
 	}
 }
 
 void __init mem_init(void)
 {
-	extern unsigned long setup_zero_pages(void);
-	cnodeid_t nid;
-	unsigned long tmp;
-	unsigned long codesize, datasize, initsize;
-	int slot, numslots;
-	struct page *pg, *pslot;
+	unsigned long codesize, datasize, initsize, tmp;
+	unsigned node;
 
-	num_physpages = numpages;	/* memory already sized by szmem */
-	max_mapnr = pagenr;		/* already found during paging_init */
-	high_memory = (void *) __va(max_mapnr << PAGE_SHIFT);
+	high_memory = (void *) __va(num_physpages << PAGE_SHIFT);
 
-	for (nid = 0; nid < numnodes; nid++) {
-
-		/*
-		 * Hack till free_area_init_core() zeroes free_pages
-		 */
-		for (tmp = 0; tmp < MAX_NR_ZONES; tmp++)
-			PLAT_NODE_DATA(nid)->gendata.node_zones[tmp].free_pages=0;
+	for (node = 0; node < numnodes; node++) {
+		unsigned slot, numslots;
+		struct page *end, *p;
+	
 		/*
 	 	 * This will free up the bootmem, ie, slot 0 memory.
 	 	 */
-		totalram_pages += free_all_bootmem_node(NODE_DATA(nid));
+		totalram_pages += free_all_bootmem_node(NODE_DATA(node));
 
 		/*
 		 * We need to manually do the other slots.
 		 */
-		pg = NODE_DATA(nid)->node_mem_map + slot_getsize(nid, 0);
-		numslots = node_getlastslot(nid);
+		numslots = node_getlastslot(node);
 		for (slot = 1; slot <= numslots; slot++) {
-			pslot = NODE_DATA(nid)->node_mem_map +
-			   slot_getbasepfn(nid, slot) - slot_getbasepfn(nid, 0);
-
-			/*
-			 * Mark holes in previous slot. May also want to
-			 * free up the pages that hold the memmap entries.
-			 */
-			while (pg < pslot) {
-				pg++;
-			}
+			p = NODE_DATA(node)->node_mem_map +
+				(slot_getbasepfn(node, slot) -
+				 slot_getbasepfn(node, 0));
 
 			/*
 			 * Free valid memory in current slot.
 			 */
-			pslot += slot_getsize(nid, slot);
-			while (pg < pslot) {
+			for (end = p + slot_getsize(node, slot); p < end; p++) {
 				/* if (!page_is_ram(pgnr)) continue; */
 				/* commented out until page_is_ram works */
-				ClearPageReserved(pg);
-				atomic_set(&pg->count, 1);
-				__free_page(pg);
+				ClearPageReserved(p);
+				set_page_count(p, 1);
+				__free_page(p);
 				totalram_pages++;
-				pg++; pgnr++;
 			}
 		}
 	}
 
 	totalram_pages -= setup_zero_pages();	/* This comes from node 0 */
 
-	codesize =  (unsigned long) _etext - (unsigned long) _stext;
-	datasize =  (unsigned long) _edata - (unsigned long) _fdata;
-	initsize =  (unsigned long) __init_end - (unsigned long) __init_begin;
+	codesize =  (unsigned long) &_etext - (unsigned long) &_text;
+	datasize =  (unsigned long) &_edata - (unsigned long) &_etext;
+	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
-	tmp = (unsigned long) nr_free_pages();
-	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
-		"%ldk data, %ldk init)\n",
-		tmp << (PAGE_SHIFT-10),
-		num_physpages << (PAGE_SHIFT-10),
-		codesize >> 10,
-		(num_physpages - tmp) << (PAGE_SHIFT-10),
-		datasize >> 10,
-		initsize >> 10);
+	tmp = nr_free_pages();
+	printk(KERN_INFO "Memory: %luk/%luk available (%ldk kernel code, "
+	       "%ldk reserved, %ldk data, %ldk init, %ldk highmem)\n",
+	       tmp << (PAGE_SHIFT-10),
+	       num_physpages << (PAGE_SHIFT-10),
+	       codesize >> 10,
+	       (num_physpages - tmp) << (PAGE_SHIFT-10),
+	       datasize >> 10,
+	       initsize >> 10,
+	       (unsigned long) (totalhigh_pages << (PAGE_SHIFT-10)));
 }
-
-#endif /* CONFIG_DISCONTIGMEM */

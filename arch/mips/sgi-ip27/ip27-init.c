@@ -143,11 +143,10 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 	return cpus_found;
 }
 
-cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
+static cpuid_t cpu_node_probe(cpumask_t *boot_cpumask)
 {
-	int i, cpus = 0, highest = 0;
+	int i, highest = 0;
 	gda_t *gdap = GDA;
-	nasid_t nasid;
 
 	/*
 	 * Initialize the arrays to invalid nodeid (-1)
@@ -159,16 +158,15 @@ cpuid_t cpu_node_probe(cpumask_t *boot_cpumask, int *numnodes)
 	for (i = 0; i < MAXCPUS; i++)
 		cpuid_to_compact_node[i] = INVALID_CNODEID;
 
-	*numnodes = 0;
+	numnodes = 0;
 	for (i = 0; i < MAX_COMPACT_NODES; i++) {
-		if ((nasid = gdap->g_nasidtable[i]) == INVALID_NASID) {
+		nasid_t nasid = gdap->g_nasidtable[i];
+		if (nasid == INVALID_NASID)
 			break;
-		} else {
-			compact_to_nasid_node[i] = nasid;
-			nasid_to_compact_node[nasid] = i;
-			(*numnodes)++;
-			cpus += do_cpumask(i, nasid, boot_cpumask, &highest);
-		}
+		compact_to_nasid_node[i] = nasid;
+		nasid_to_compact_node[nasid] = i;
+		numnodes++;
+		do_cpumask(i, nasid, boot_cpumask, &highest);
 	}
 
 	/*
@@ -201,7 +199,7 @@ void mlreset(void)
 	 * sets up the mapping tables.
 	 */
 	cpus_clear(boot_cpumask);
-	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
+	maxcpus = cpu_node_probe(&boot_cpumask);
 	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 
 	init_topology_matrix();

@@ -195,7 +195,7 @@ struct page *pci_dac_dma_to_page(struct pci_dev *pdev,
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(pdev->bus);
 
-	return mem_map + ((dma_addr - bc->baddr) >> PAGE_SHIFT);
+	return pfn_to_page((dma_addr - bc->baddr) >> PAGE_SHIFT);
 }
 
 EXPORT_SYMBOL(pci_dac_dma_to_page);
