@@ -382,13 +382,13 @@ static u16 mii_read(struct ioc3 *ioc3, int phy, int reg)
 	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg | MICR_READTRIG;
 	while (ioc3->micr & MICR_BUSY);
 
-	return ioc3->midr & MIDR_DATA_MASK;
+	return ioc3->midr_r & MIDR_DATA_MASK;
 }
 
 static void mii_write(struct ioc3 *ioc3, int phy, int reg, u16 data)
 {
 	while (ioc3->micr & MICR_BUSY);
-	ioc3->midr = data;
+	ioc3->midr_w = data;
 	ioc3->micr = (phy << MICR_PHYADDR_SHIFT) | reg;
 	while (ioc3->micr & MICR_BUSY);
 }
