@@ -45,7 +45,7 @@
 #define KBD_REPORT_ERR
 #endif
 
-static int initialize_kbd(void);
+__initfunc(int initialize_kbd(void));
 
 int (*kbd_inb_p)(unsigned short port);
 int (*kbd_inb)(unsigned short port);
@@ -192,7 +192,7 @@ static void kbd_write(int address, int data)
 	kbd_outb(data, address);               /* write out the data*/
 }
 
-static int initialize_kbd(void)
+__initfunc(int initialize_kbd(void))
 {
 	unsigned long flags;
 

@@ -87,9 +87,10 @@
 #include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/blk.h>
+#include <linux/sched.h>
 #include <linux/interrupt.h>
 
-#include <asm/bootinfo.h>
+#include <asm/setup.h>
 #include <asm/atarihw.h>
 #include <asm/atariints.h>
 #include <asm/page.h>
@@ -197,8 +198,8 @@ static int falcon_classify_cmd( Scsi_Cmnd *cmd );
 static unsigned long atari_dma_xfer_len( unsigned long wanted_len,
                                          Scsi_Cmnd *cmd, int write_flag );
 #endif
-static void scsi_tt_intr( int irq, struct pt_regs *fp, void *dummy);
-static void scsi_falcon_intr( int irq, struct pt_regs *fp, void *dummy);
+static void scsi_tt_intr( int irq, void *dummy, struct pt_regs *fp);
+static void scsi_falcon_intr( int irq, void *dummy, struct pt_regs *fp);
 static void falcon_release_lock_if_possible( struct NCR5380_hostdata *
                                              hostdata );
 static void falcon_get_lock( void );
@@ -238,13 +239,18 @@ static unsigned long	atari_dma_stram_mask;
 static int atari_read_overruns = 0;
 #endif
 
-int setup_can_queue = -1;
-int setup_cmd_per_lun = -1;
-int setup_sg_tablesize = -1;
+static int setup_can_queue = -1;
+MODULE_PARM(setup_can_queue, "i");
+static int setup_cmd_per_lun = -1;
+MODULE_PARM(setup_cmd_per_lun, "i");
+static int setup_sg_tablesize = -1;
+MODULE_PARM(setup_sg_tablesize, "i");
 #ifdef SUPPORT_TAGS
-int setup_use_tagged_queuing = -1;
+static int setup_use_tagged_queuing = -1;
+MODULE_PARM(setup_use_tagged_queuing, "i");
 #endif
-int setup_hostid = -1;
+static int setup_hostid = -1;
+MODULE_PARM(setup_hostid, "i");
 
 
 #if defined(REAL_DMA)
@@ -261,9 +267,9 @@ static int scsi_dma_is_ignored_buserr( unsigned char dma_stat )
 		 * Check for this case:
 		 */
 		
-		for( i = 0; i < boot_info.num_memory; ++i ) {
-			end_addr = boot_info.memory[i].addr +
-				boot_info.memory[i].size;
+		for( i = 0; i < m68k_num_memory; ++i ) {
+			end_addr = m68k_memory[i].addr +
+				m68k_memory[i].size;
 			if (end_addr <= addr && addr <= end_addr + 4)
 				return( 1 );
 		}
@@ -277,7 +283,7 @@ static int scsi_dma_is_ignored_buserr( unsigned char dma_stat )
  * end-of-DMA, both SCSI ints are triggered simultaneously, so the NCR int has
  * to clear the DMA int pending bit before it allows other level 6 interrupts.
  */
-static void scsi_dma_buserr (int irq, struct pt_regs *fp, void *dummy)
+static void scsi_dma_buserr (int irq, void *dummy, struct pt_regs *fp)
 {
 	unsigned char	dma_stat = tt_scsi_dma.dma_ctrl;
 
@@ -306,7 +312,7 @@ static void scsi_dma_buserr (int irq, struct pt_regs *fp, void *dummy)
 #endif
 
 
-static void scsi_tt_intr (int irq, struct pt_regs *fp, void *dummy)
+static void scsi_tt_intr (int irq, void *dummy, struct pt_regs *fp)
 {
 #ifdef REAL_DMA
 	int dma_stat;
@@ -397,7 +403,7 @@ static void scsi_tt_intr (int irq, struct pt_regs *fp, void *dummy)
 }
 
 
-static void scsi_falcon_intr (int irq, struct pt_regs *fp, void *dummy)
+static void scsi_falcon_intr (int irq, void *dummy, struct pt_regs *fp)
 {
 #ifdef REAL_DMA
 	int dma_stat;
@@ -548,11 +554,11 @@ static void falcon_get_lock( void )
 	save_flags(oldflags);
 	cli();
 
-	while( intr_count == 0 && falcon_got_lock && stdma_others_waiting() )
+	while( !in_interrupt() && falcon_got_lock && stdma_others_waiting() )
 		sleep_on( &falcon_fairness_wait );
 
 	while (!falcon_got_lock) {
-		if (intr_count > 0)
+		if (in_interrupt())
 			panic( "Falcon SCSI hasn't ST-DMA lock in interrupt" );
 		if (!falcon_trying_lock) {
 			falcon_trying_lock = 1;
@@ -659,23 +665,27 @@ int atari_scsi_detect (Scsi_Host_Template *host)
 	if (setup_use_tagged_queuing < 0)
 		setup_use_tagged_queuing = DEFAULT_USE_TAGGED_QUEUING;
 #endif
-
+#ifdef REAL_DMA
 	/* If running on a Falcon and if there's TT-Ram (i.e., more than one
 	 * memory block, since there's always ST-Ram in a Falcon), then allocate a
 	 * STRAM_BUFFER_SIZE byte dribble buffer for transfers from/to alternative
 	 * Ram.
 	 */
 	if (MACH_IS_ATARI && ATARIHW_PRESENT(ST_SCSI) &&
-	    !ATARIHW_PRESENT(EXTD_DMA) && boot_info.num_memory > 1) {
+	    !ATARIHW_PRESENT(EXTD_DMA) && m68k_num_memory > 1) {
 		atari_dma_buffer = scsi_init_malloc(STRAM_BUFFER_SIZE,
 						    GFP_ATOMIC | GFP_DMA);
 		atari_dma_phys_buffer = VTOP( atari_dma_buffer );
 		atari_dma_orig_addr = 0;
 	}
-
+#endif
 	instance = scsi_register (host, sizeof (struct NCR5380_hostdata));
 	atari_scsi_host = instance;
-	instance->irq = IS_A_TT() ? IRQ_TT_MFP_SCSI : IRQ_MFP_FSCSI;
+       /* Set irq to 0, to avoid that the mid-level code disables our interrupt
+        * during queue_command calls. This is completely unnecessary, and even
+        * worse causes bad problems on the Falcon, where the int is shared with
+        * IDE and floppy! */
+       instance->irq = 0;
 
 	atari_scsi_reset_boot();
 	NCR5380_init (instance, 0);
@@ -685,15 +695,15 @@ int atari_scsi_detect (Scsi_Host_Template *host)
 		/* This int is actually "pseudo-slow", i.e. it acts like a slow
 		 * interrupt after having cleared the pending flag for the DMA
 		 * interrupt. */
-		add_isr(IRQ_TT_MFP_SCSI, scsi_tt_intr, IRQ_TYPE_SLOW,
-			NULL, "SCSI NCR5380");
+		request_irq(IRQ_TT_MFP_SCSI, scsi_tt_intr, IRQ_TYPE_SLOW,
+		            "SCSI NCR5380", scsi_tt_intr);
 		tt_mfp.active_edge |= 0x80;		/* SCSI int on L->H */
 #ifdef REAL_DMA
 		tt_scsi_dma.dma_ctrl = 0;
 		atari_dma_residual = 0;
 #endif /* REAL_DMA */
-
-		if (is_medusa) {
+#ifdef REAL_DMA
+		if (is_medusa || is_hades) {
 			/* While the read overruns (described by Drew Eckhardt in
 			 * NCR5380.c) never happened on TTs, they do in fact on the Medusa
 			 * (This was the cause why SCSI didn't work right for so long
@@ -708,6 +718,7 @@ int atari_scsi_detect (Scsi_Host_Template *host)
 			 */
 			atari_read_overruns = 4;
 		}
+#endif
 		
 	}
 	else { /* ! IS_A_TT */
@@ -747,7 +758,7 @@ int atari_scsi_detect (Scsi_Host_Template *host)
 int atari_scsi_release (struct Scsi_Host *sh)
 {
 	if (IS_A_TT())
-		remove_isr (IRQ_TT_MFP_SCSI, scsi_tt_intr, NULL);
+		free_irq(IRQ_TT_MFP_SCSI, scsi_tt_intr);
 	if (atari_dma_buffer)
 		scsi_init_free (atari_dma_buffer, STRAM_BUFFER_SIZE);
 	return 1;
@@ -851,7 +862,8 @@ int atari_scsi_reset( Scsi_Cmnd *cmd, unsigned int reset_flags)
 	else {
 		atari_turnon_irq( IRQ_MFP_FSCSI );
 	}
-	falcon_release_lock_if_possible(hostdata);
+	if ((rv & SCSI_RESET_ACTION) == SCSI_RESET_SUCCESS)
+		falcon_release_lock_if_possible(hostdata);
 
 	return( rv );
 }
@@ -1085,8 +1097,9 @@ static unsigned long atari_dma_xfer_len( unsigned long wanted_len,
 	if (possible_len > limit)
 		possible_len = limit;
 
-	DMA_PRINTK("Sorry, must cut DMA transfer size to %ld bytes instead "
-		   "of %ld\n", possible_len, wanted_len);
+	if (possible_len != wanted_len)
+		DMA_PRINTK("Sorry, must cut DMA transfer size to %ld bytes "
+			   "instead of %ld\n", possible_len, wanted_len);
 
 	return( possible_len );
 }

@@ -12,6 +12,8 @@
 #include <linux/errno.h>
 #include <linux/time.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
@@ -41,7 +43,6 @@ static void jiffiestotv(unsigned long jiffies, struct timeval *value)
 {
 	value->tv_usec = (jiffies % HZ) * (1000000 / HZ);
 	value->tv_sec = jiffies / HZ;
-	return;
 }
 
 static int _getitimer(int which, struct itimerval *value)
@@ -78,17 +79,19 @@ static int _getitimer(int which, struct itimerval *value)
 	return 0;
 }
 
+/* SMP: Only we modify our itimer values. */
 asmlinkage int sys_getitimer(int which, struct itimerval *value)
 {
-	int error;
+	int error = -EFAULT;
 	struct itimerval get_buffer;
 
-	if (!value)
-		return -EFAULT;
-	error = _getitimer(which, &get_buffer);
-	if (error)
-		return error;
-	return copy_to_user(value, &get_buffer, sizeof(get_buffer)) ? -EFAULT : 0;
+	if (value) {
+		error = _getitimer(which, &get_buffer);
+		if (!error)
+			error =	copy_to_user(value, &get_buffer, sizeof(get_buffer))
+				? -EFAULT : 0;
+	}
+	return error;
 }
 
 void it_real_fn(unsigned long __data)
@@ -149,17 +152,18 @@ int _setitimer(int which, struct itimerval *value, struct itimerval *ovalue)
 	return 0;
 }
 
+/* SMP: Again, only we play with our itimers, and signals are SMP safe
+ *      now so that is not an issue at all anymore.
+ */
 asmlinkage int sys_setitimer(int which, struct itimerval *value, struct itimerval *ovalue)
 {
-	int error;
 	struct itimerval set_buffer, get_buffer;
+	int error;
 
 	if (value) {
-		error = verify_area(VERIFY_READ, value, sizeof(*value));
-		if (error)
-			return error;
-		error = copy_from_user(&set_buffer, value, sizeof(set_buffer));
-		if (error)
+		if(verify_area(VERIFY_READ, value, sizeof(*value)))
+			return -EFAULT;
+		if(copy_from_user(&set_buffer, value, sizeof(set_buffer)))
 			return -EFAULT;
 	} else
 		memset((char *) &set_buffer, 0, sizeof(set_buffer));
@@ -169,6 +173,6 @@ asmlinkage int sys_setitimer(int which, struct itimerval *value, struct itimerva
 		return error;
 
 	if (copy_to_user(ovalue, &get_buffer, sizeof(get_buffer)))
-		error = -EFAULT; 
-	return error;
+		return -EFAULT; 
+	return 0;
 }

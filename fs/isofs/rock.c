@@ -203,6 +203,17 @@ int get_rock_ridge_filename(struct iso_directory_record * de,
 	break;
       case SIG('N','M'):
 	if (truncate) break;
+        /*
+	 * If the flags are 2 or 4, this indicates '.' or '..'.
+	 * We don't want to do anything with this, because it
+	 * screws up the code that calls us.  We don't really
+	 * care anyways, since we can just use the non-RR
+	 * name.
+	 */
+	if (rr->u.NM.flags & 6) {
+	  break;
+	}
+
 	if (rr->u.NM.flags & ~1) {
 	  printk("Unsupported NM flag settings (%d)\n",rr->u.NM.flags);
 	  break;
@@ -287,7 +298,7 @@ int parse_rock_ridge_inode(struct iso_directory_record * de,
 	CHECK_CE;
 	break;
       case SIG('E','R'):
-	printk("ISO9660 Extensions: ");
+	printk(KERN_DEBUG"ISO9660 Extensions: ");
 	{ int p;
 	  for(p=0;p<rr->u.ER.len_id;p++) printk("%c",rr->u.ER.data[p]);
 	};

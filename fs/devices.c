@@ -13,7 +13,6 @@
 #include <linux/major.h>
 #include <linux/string.h>
 #include <linux/sched.h>
-#include <linux/ext_fs.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
 #include <linux/errno.h>
@@ -236,11 +235,12 @@ int blkdev_open(struct inode * inode, struct file * filp)
 	return ret;
 }	
 
-void blkdev_release(struct inode * inode)
+int blkdev_release(struct inode * inode)
 {
 	struct file_operations *fops = get_blkfops(MAJOR(inode->i_rdev));
 	if (fops && fops->release)
-		fops->release(inode,NULL);
+		return fops->release(inode,NULL);
+	return 0;
 }
 
 
@@ -254,7 +254,7 @@ struct file_operations def_blk_fops = {
 	NULL,		/* read */
 	NULL,		/* write */
 	NULL,		/* readdir */
-	NULL,		/* select */
+	NULL,		/* poll */
 	NULL,		/* ioctl */
 	NULL,		/* mmap */
 	blkdev_open,	/* open */
@@ -307,7 +307,7 @@ struct file_operations def_chr_fops = {
 	NULL,		/* read */
 	NULL,		/* write */
 	NULL,		/* readdir */
-	NULL,		/* select */
+	NULL,		/* poll */
 	NULL,		/* ioctl */
 	NULL,		/* mmap */
 	chrdev_open,	/* open */

@@ -16,8 +16,8 @@ O_OBJS    = open.o read_write.o inode.o devices.o file_table.o buffer.o \
 		dcache.o $(BINFMTS) 
 
 MOD_LIST_NAME := FS_MODULES
-ALL_SUB_DIRS = minix ext ext2 fat msdos vfat proc isofs nfs xiafs umsdos \
-		hpfs sysv smbfs ncpfs ufs affs
+ALL_SUB_DIRS = minix ext2 fat msdos vfat proc isofs nfs umsdos \
+		hpfs sysv smbfs ncpfs ufs affs romfs autofs lockd nfsd
 
 ifeq ($(CONFIG_QUOTA),y)
 O_OBJS += dquot.o
@@ -30,14 +30,6 @@ SUB_DIRS += minix
 else
   ifeq ($(CONFIG_MINIX_FS),m)
   MOD_SUB_DIRS += minix
-  endif
-endif
-
-ifeq ($(CONFIG_EXT_FS),y)
-SUB_DIRS += ext
-else
-  ifeq ($(CONFIG_EXT_FS),m)
-  MOD_SUB_DIRS += ext
   endif
 endif
 
@@ -75,6 +67,10 @@ endif
 
 ifdef CONFIG_PROC_FS
 SUB_DIRS += proc
+ifeq ($(CONFIG_SUN_OPENPROMFS),m)
+MOD_IN_SUB_DIRS += proc
+MOD_TO_LIST += openpromfs.o
+endif
 endif
 
 ifeq ($(CONFIG_ISO9660_FS),y)
@@ -93,11 +89,20 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_XIA_FS),y)
-SUB_DIRS += xiafs
+ifeq ($(CONFIG_NFSD),y)
+CONFIG_LOCKD := y
+SUB_DIRS += nfsd
 else
-  ifeq ($(CONFIG_XIA_FS),m)
-  MOD_SUB_DIRS += xiafs
+  ifeq ($(CONFIG_NFSD),m)
+  MOD_SUB_DIRS += nfsd
+  endif
+endif
+
+ifeq ($(CONFIG_LOCKD),y)
+SUB_DIRS += lockd
+else
+  ifeq ($(CONFIG_LOCKD),m)
+  MOD_SUB_DIRS := lockd $(MOD_SUB_DIRS)
   endif
 endif
 
@@ -157,6 +162,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ROMFS_FS),y)
+SUB_DIRS += romfs
+else
+  ifeq ($(CONFIG_ROMFS_FS),m)
+  MOD_SUB_DIRS += romfs
+  endif
+endif
+
+ifeq ($(CONFIG_AUTOFS_FS),y)
+SUB_DIRS += autofs
+else
+  ifeq ($(CONFIG_AUTOFS_FS),m)
+  MOD_SUB_DIRS += autofs
+  endif
+endif
+
 ifeq ($(CONFIG_BINFMT_ELF),y)
 BINFMTS += binfmt_elf.o
 else
@@ -180,6 +201,15 @@ else
   M_OBJS += binfmt_java.o
   endif
 endif
+
+ifeq ($(CONFIG_BINFMT_EM86),y)
+BINFMTS += binfmt_em86.o
+else
+  ifeq ($(CONFIG_BINFMT_EM86),m)
+  M_OBJS += binfmt_em86.o
+  endif
+endif
+
 
 # binfmt_script is always there
 BINFMTS += binfmt_script.o

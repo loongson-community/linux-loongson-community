@@ -7,6 +7,8 @@
  * Added hooks for /proc/sys/net (minor, minor patch), 96/4/1, Mike Shaver.
  * Added kernel/java-{interpreter,appletviewer}, 96/5/10, Mike Shaver.
  * Dynamic registration fixes, Stephen Tweedie.
+ * Added kswapd-interval, ctrl-alt-del, printk stuff, 1/8/97, Chris Horn.
+ * Made sysctl support optional via CONFIG_SYSCTL, 1/10/97, Chris Horn.
  */
 
 #include <linux/config.h>
@@ -20,28 +22,49 @@
 #include <linux/ctype.h>
 #include <linux/utsname.h>
 #include <linux/swapctl.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/bitops.h>
 #include <asm/uaccess.h>
-
-/* External variables not in a header file. */
-extern int panic_timeout;
-
 
 #ifdef CONFIG_ROOT_NFS
 #include <linux/nfs_fs.h>
 #endif
 
+#ifdef CONFIG_SYSCTL
+
+/* External variables not in a header file. */
+extern int panic_timeout;
+extern int console_loglevel, default_message_loglevel;
+extern int minimum_console_loglevel, default_console_loglevel;
+extern int C_A_D, swapout_interval;
+extern int bdf_prm[], bdflush_min[], bdflush_max[];
+extern char binfmt_java_interpreter[], binfmt_java_appletviewer[];
+extern int sysctl_overcommit_memory;
+
+#ifdef __sparc__
+extern char reboot_command [];
+#endif
+
+static int parse_table(int *, int, void *, size_t *, void *, size_t,
+		       ctl_table *, void **);
+static int do_securelevel_strategy (ctl_table *, int *, int, void *, size_t *,
+				    void *, size_t, void **);
+
+
 static ctl_table root_table[];
 static struct ctl_table_header root_table_header = 
 	{root_table, DNODE_SINGLE(&root_table_header)};
 
-static int parse_table(int *, int, void *, size_t *, void *, size_t,
-		       ctl_table *, void **);
-
 static ctl_table kern_table[];
 static ctl_table vm_table[];
 extern ctl_table net_table[];
+static ctl_table proc_table[];
+static ctl_table fs_table[];
+static ctl_table debug_table[];
+static ctl_table dev_table[];
+
 
 /* /proc declarations: */
 
@@ -59,7 +82,7 @@ struct file_operations proc_sys_file_operations =
 	proc_readsys,	/* read	   */
 	proc_writesys,	/* write   */
 	NULL,		/* readdir */
-	NULL,		/* select  */
+	NULL,		/* poll    */
 	NULL,		/* ioctl   */
 	NULL,		/* mmap	   */
 	NULL,		/* no special open code	   */
@@ -94,19 +117,16 @@ static void register_proc_table(ctl_table *, struct proc_dir_entry *);
 static void unregister_proc_table(ctl_table *, struct proc_dir_entry *);
 #endif
 
-extern int bdf_prm[], bdflush_min[], bdflush_max[];
-
-static int do_securelevel_strategy (ctl_table *, int *, int, void *, size_t *,
-				    void *, size_t, void **);
-
-extern char binfmt_java_interpreter[], binfmt_java_appletviewer[];
-
 /* The default sysctl tables: */
 
 static ctl_table root_table[] = {
 	{CTL_KERN, "kernel", NULL, 0, 0555, kern_table},
 	{CTL_VM, "vm", NULL, 0, 0555, vm_table},
 	{CTL_NET, "net", NULL, 0, 0555, net_table},
+	{CTL_PROC, "proc", NULL, 0, 0555, proc_table},
+	{CTL_FS, "fs", NULL, 0, 0555, fs_table},
+	{CTL_DEBUG, "debug", NULL, 0, 0555, debug_table},
+        {CTL_DEV, "dev", NULL, 0, 0555, dev_table},
 	{0}
 };
 
@@ -140,7 +160,7 @@ static ctl_table kern_table[] = {
 #ifdef CONFIG_ROOT_NFS
 	{KERN_NFSRNAME, "nfs-root-name", nfs_root_name, NFS_ROOT_NAME_LEN,
 	 0644, NULL, &proc_dostring, &sysctl_string },
-	{KERN_NFSRNAME, "nfs-root-addrs", nfs_root_addrs, NFS_ROOT_ADDRS_LEN,
+	{KERN_NFSRADDRS, "nfs-root-addrs", nfs_root_addrs, NFS_ROOT_ADDRS_LEN,
 	 0644, NULL, &proc_dostring, &sysctl_string },
 #endif
 #ifdef CONFIG_BINFMT_JAVA
@@ -149,21 +169,46 @@ static ctl_table kern_table[] = {
 	{KERN_JAVA_APPLETVIEWER, "java-appletviewer", binfmt_java_appletviewer,
 	 64, 0644, NULL, &proc_dostring, &sysctl_string },
 #endif
+#ifdef __sparc__
+	{KERN_SPARC_REBOOT, "reboot-cmd", reboot_command,
+	 256, 0644, NULL, &proc_dostring, &sysctl_string },
+#endif
+	{KERN_CTLALTDEL, "ctrl-alt-del", &C_A_D, sizeof(int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_PRINTK, "printk", &console_loglevel, 4*sizeof(int),
+	 0644, NULL, &proc_dointvec},
 	{0}
 };
 
 static ctl_table vm_table[] = {
 	{VM_SWAPCTL, "swapctl", 
 	 &swap_control, sizeof(swap_control_t), 0600, NULL, &proc_dointvec},
-	{VM_KSWAPD, "kswapd", 
-	 &kswapd_ctl, sizeof(kswapd_ctl), 0600, NULL, &proc_dointvec},
 	{VM_FREEPG, "freepages", 
 	 &min_free_pages, 3*sizeof(int), 0600, NULL, &proc_dointvec},
 	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0600, NULL,
 	 &proc_dointvec_minmax, &sysctl_intvec, NULL,
 	 &bdflush_min, &bdflush_max},
+	{VM_OVERCOMMIT_MEMORY, "overcommit_memory", &sysctl_overcommit_memory,
+	 sizeof(sysctl_overcommit_memory), 0644, NULL, &proc_dointvec},
 	{0}
 };
+
+static ctl_table proc_table[] = {
+	{0}
+};
+
+static ctl_table fs_table[] = {
+	{0}
+};
+
+static ctl_table debug_table[] = {
+	{0}
+};
+
+static ctl_table dev_table[] = {
+	{0}
+};  
+
 
 void sysctl_init(void)
 {
@@ -184,25 +229,17 @@ int do_sysctl (int *name, int nlen,
 	if (nlen == 0 || nlen >= CTL_MAXNAME)
 		return -ENOTDIR;
 	
-	error = verify_area(VERIFY_READ,name,nlen*sizeof(int));
-	if (error) return error;
-	if (oldval) {
+	if (oldval) 
+	{
 		int old_len;
 		if (!oldlenp)
 			return -EFAULT;
-		error = verify_area(VERIFY_WRITE,oldlenp,sizeof(size_t));
-		if (error) return error;
-		get_user(old_len, oldlenp);
-		error = verify_area(VERIFY_WRITE,oldval,old_len);
-		if (error) return error;
-	}
-	if (newval) {
-		error = verify_area(VERIFY_READ,newval,newlen);
-		if (error) return error;
+		if(get_user(old_len, oldlenp))
+			return -EFAULT;
 	}
 	tmp = &root_table_header;
 	do {
-		context = 0;
+		context = NULL;
 		error = parse_table(name, nlen, oldval, oldlenp, 
 				    newval, newlen, tmp->ctl_table, &context);
 		if (context)
@@ -218,12 +255,15 @@ extern asmlinkage int sys_sysctl(struct __sysctl_args *args)
 {
 	struct __sysctl_args tmp;
 	int error;
-	error = verify_area(VERIFY_READ, args, sizeof(*args));
-	if (error)
-		return error;
-	copy_from_user(&tmp, args, sizeof(tmp));
-	return do_sysctl(tmp.name, tmp.nlen, tmp.oldval, tmp.oldlenp, 
-			 tmp.newval, tmp.newlen);
+
+	if(copy_from_user(&tmp, args, sizeof(tmp)))
+		return -EFAULT;
+		
+	lock_kernel();
+	error = do_sysctl(tmp.name, tmp.nlen, tmp.oldval, tmp.oldlenp,
+			  tmp.newval, tmp.newlen);
+	unlock_kernel();
+	return error;
 }
 
 /* Like in_group_p, but testing against egid, not fsgid */
@@ -248,6 +288,7 @@ out:
 
 /* ctl_perm does NOT grant the superuser all rights automatically, because
    some sysctl variables are readonly even to root. */
+
 static int test_perm(int mode, int op)
 {
 	if (!current->euid)
@@ -258,6 +299,7 @@ static int test_perm(int mode, int op)
 		return 0;
 	return -EACCES;
 }
+
 static inline int ctl_perm(ctl_table *table, int op)
 {
 	return test_perm(table->mode, op);
@@ -275,7 +317,8 @@ repeat:
 
 	for ( ; table->ctl_name; table++) {
 		int n;
-		get_user(n,name);
+		if(get_user(n,name))
+			return -EFAULT;
 		if (n == table->ctl_name ||
 		    table->ctl_name == CTL_ANY) {
 			if (table->child) {
@@ -335,15 +378,18 @@ int do_sysctl_strategy (ctl_table *table,
 			if (len) {
 				if (len > table->maxlen)
 					len = table->maxlen;
-				copy_to_user(oldval, table->data, len);
-				put_user(len, oldlenp);
+				if(copy_to_user(oldval, table->data, len))
+					return -EFAULT;
+				if(put_user(len, oldlenp))
+					return -EFAULT;
 			}
 		}
 		if (newval && newlen) {
 			len = newlen;
 			if (len > table->maxlen)
 				len = table->maxlen;
-			copy_from_user(table->data, newval, len);
+			if(copy_from_user(table->data, newval, len))
+				return -EFAULT;
 		}
 	}
 	return 0;
@@ -364,7 +410,8 @@ static int do_securelevel_strategy (ctl_table *table,
 	if (newval && newlen) {
 		if (newlen != sizeof (int))
 			return -EINVAL;
-		copy_from_user (&level, newval, newlen);
+		if(copy_from_user (&level, newval, newlen))
+			return -EFAULT;
 		if (level < securelevel && current->pid != 1)
 			return -EPERM;
 	}
@@ -406,11 +453,12 @@ void unregister_sysctl_table(struct ctl_table_header * table)
 /* Scan the sysctl entries in table and add them all into /proc */
 static void register_proc_table(ctl_table * table, struct proc_dir_entry *root)
 {
-	struct proc_dir_entry *de, *tmp;
-	int exists;
+	struct proc_dir_entry *de;
+	int len;
+	mode_t mode;
 	
 	for (; table->ctl_name; table++) {
-		exists = 0;
+		de = 0;
 		/* Can't do anything without a proc name. */
 		if (!table->procname)
 			continue;
@@ -418,46 +466,32 @@ static void register_proc_table(ctl_table * table, struct proc_dir_entry *root)
 		if (!table->proc_handler &&
 		    !table->child)
 			continue;
-		
-		de = kmalloc(sizeof(*de), GFP_KERNEL);
-		if (!de) continue;
-		de->namelen = strlen(table->procname);
-		de->name = table->procname;
-		de->mode = table->mode;
-		de->nlink = 1;
-		de->uid = 0;
-		de->gid = 0;
-		de->size = 0;
-		de->get_info = 0;	/* For internal use if we want it */
-		de->fill_inode = 0;	/* To override struct inode fields */
-		de->next = de->subdir = 0;
-		de->data = (void *) table;
-		/* Is it a file? */
-		if (table->proc_handler) {
-			de->ops = &proc_sys_inode_operations;
-			de->mode |= S_IFREG;
+
+		len = strlen(table->procname);
+		mode = table->mode;
+
+		if (table->proc_handler)
+			mode |= S_IFREG;
+		else {
+			mode |= S_IFDIR;
+			for (de = root->subdir; de; de = de->next) {
+				if (proc_match(len, table->procname, de))
+					break;
+			}
+			/* If the subdir exists already, de is non-NULL */
 		}
-		/* Otherwise it's a subdir */
-		else  {
-			/* First check to see if it already exists */
-			for (tmp = root->subdir; tmp; tmp = tmp->next) {
-				if (tmp->namelen == de->namelen &&
-				    !memcmp(tmp->name,de->name,de->namelen)) {
-					exists = 1;
-					kfree (de);
-					de = tmp;
-				}
-			}
-			if (!exists) {
-				de->ops = &proc_dir_inode_operations;
-				de->nlink++;
-				de->mode |= S_IFDIR;
-			}
+
+		if (!de) {
+			de = create_proc_entry(table->procname, mode, root);
+			if (!de)
+				continue;
+			de->data = (void *) table;
+			if (table->proc_handler)
+				de->ops = &proc_sys_inode_operations;
+
 		}
 		table->de = de;
-		if (!exists)
-			proc_register_dynamic(root, de);
-		if (de->mode & S_IFDIR )
+		if (de->mode & S_IFDIR)
 			register_proc_table(table->child, de);
 	}
 }
@@ -494,10 +528,6 @@ static long do_rw_proc(int write, struct inode * inode, struct file * file,
 	size_t res;
 	long error;
 	
-	error = verify_area(write ? VERIFY_READ : VERIFY_WRITE, buf, count);
-	if (error)
-		return error;
-
 	de = (struct proc_dir_entry*) inode->u.generic_ip;
 	if (!de || !de->data)
 		return -ENOTDIR;
@@ -548,14 +578,16 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
 		len = 0;
 		p = buffer;
 		while (len < *lenp) {
-			get_user(c, p++);
+			if(get_user(c, p++))
+				return -EFAULT;
 			if (c == 0 || c == '\n')
 				break;
 			len++;
 		}
 		if (len >= table->maxlen)
 			len = table->maxlen-1;
-		copy_from_user(table->data, buffer, len);
+		if(copy_from_user(table->data, buffer, len))
+			return -EFAULT;
 		((char *) table->data)[len] = 0;
 		filp->f_pos += *lenp;
 	} else {
@@ -565,9 +597,11 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
 		if (len > *lenp)
 			len = *lenp;
 		if (len)
-			copy_to_user(buffer, table->data, len);
+			if(copy_to_user(buffer, table->data, len))
+				return -EFAULT;
 		if (len < *lenp) {
-			put_user('\n', ((char *) buffer) + len);
+			if(put_user('\n', ((char *) buffer) + len))
+				return -EFAULT;
 			len++;
 		}
 		*lenp = len;
@@ -597,7 +631,8 @@ int proc_dointvec(ctl_table *table, int write, struct file *filp,
 		if (write) {
 			while (left) {
 				char c;
-				get_user(c,(char *) buffer);
+				if(get_user(c,(char *) buffer))
+					return -EFAULT;
 				if (!isspace(c))
 					break;
 				left--;
@@ -609,7 +644,8 @@ int proc_dointvec(ctl_table *table, int write, struct file *filp,
 			len = left;
 			if (len > TMPBUFLEN-1)
 				len = TMPBUFLEN-1;
-			copy_from_user(buf, buffer, len);
+			if(copy_from_user(buf, buffer, len))
+				return -EFAULT;
 			buf[len] = 0;
 			p = buf;
 			if (*p == '-' && left > 1) {
@@ -635,21 +671,24 @@ int proc_dointvec(ctl_table *table, int write, struct file *filp,
 			len = strlen(buf);
 			if (len > left)
 				len = left;
-			copy_to_user(buffer, buf, len);
+			if(copy_to_user(buffer, buf, len))
+				return -EFAULT;
 			left -= len;
 			buffer += len;
 		}
 	}
 
 	if (!write && !first && left) {
-		put_user('\n', (char *) buffer);
+		if(put_user('\n', (char *) buffer))
+			return -EFAULT;
 		left--, buffer++;
 	}
 	if (write) {
 		p = (char *) buffer;
 		while (left) {
 			char c;
-			get_user(c, p++);
+			if(get_user(c, p++))
+				return -EFAULT;
 			if (!isspace(c))
 				break;
 			left--;
@@ -685,7 +724,8 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 		if (write) {
 			while (left) {
 				char c;
-				get_user(c, (char *) buffer);
+				if(get_user(c, (char *) buffer))
+					return -EFAULT;
 				if (!isspace(c))
 					break;
 				left--;
@@ -697,7 +737,8 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 			len = left;
 			if (len > TMPBUFLEN-1)
 				len = TMPBUFLEN-1;
-			copy_from_user(buf, buffer, len);
+			if(copy_from_user(buf, buffer, len))
+				return -EFAULT;
 			buf[len] = 0;
 			p = buf;
 			if (*p == '-' && left > 1) {
@@ -728,21 +769,24 @@ int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 			len = strlen(buf);
 			if (len > left)
 				len = left;
-			copy_to_user(buffer, buf, len);
+			if(copy_to_user(buffer, buf, len))
+				return -EFAULT;
 			left -= len;
 			buffer += len;
 		}
 	}
 
 	if (!write && !first && left) {
-		put_user('\n', (char *) buffer);
+		if(put_user('\n', (char *) buffer))
+			return -EFAULT;
 		left--, buffer++;
 	}
 	if (write) {
 		p = (char *) buffer;
 		while (left) {
 			char c;
-			get_user(c, p++);
+			if(get_user(c, p++))
+				return -EFAULT;
 			if (!isspace(c))
 				break;
 			left--;
@@ -793,22 +837,27 @@ int sysctl_string(ctl_table *table, int *name, int nlen,
 		return -ENOTDIR;
 	
 	if (oldval && oldlenp) {
-		get_user(len, oldlenp);
+		if(get_user(len, oldlenp))
+			return -EFAULT;
 		if (len) {
 			l = strlen(table->data);
 			if (len > l) len = l;
 			if (len >= table->maxlen)
 				len = table->maxlen;
-			copy_to_user(oldval, table->data, len);
-			put_user(0, ((char *) oldval) + len);
-			put_user(len, oldlenp);
+			if(copy_to_user(oldval, table->data, len))
+				return -EFAULT;
+			if(put_user(0, ((char *) oldval) + len))
+				return -EFAULT;
+			if(put_user(len, oldlenp))
+				return -EFAULT;
 		}
 	}
 	if (newval && newlen) {
 		len = newlen;
 		if (len > table->maxlen)
 			len = table->maxlen;
-		copy_from_user(table->data, newval, len);
+		if(copy_from_user(table->data, newval, len))
+			return -EFAULT;
 		if (len == table->maxlen)
 			len--;
 		((char *) table->data)[len] = 0;
@@ -865,14 +914,16 @@ int do_string (
 		return -EINVAL;
 	if (oldval) {
 		int old_l;
-		get_user(old_l, oldlenp);
+		if(get_user(old_l, oldlenp))
+			return -EFAULT;
 		if (l > old_l)
 			return -ENOMEM;
-		put_user(l, oldlenp);
-		copy_to_user(oldval, data, l);
+		if(put_user(l, oldlenp) || copy_to_user(oldval, data, l))
+			return -EFAULT;
 	}
 	if (newval) {
-		copy_from_user(data, newval, newlen);
+		if(copy_from_user(data, newval, newlen))
+			return -EFAULT;
 		data[newlen] = 0;
 	}
 	return 0;
@@ -888,14 +939,16 @@ int do_int (
 		return -EINVAL;
 	if (oldval) {
 		int old_l;
-		get_user(old_l, oldlenp);
+		if(get_user(old_l, oldlenp))
+			return -EFAULT;
 		if (old_l < sizeof(int))
 			return -ENOMEM;
-		put_user(sizeof(int), oldlenp);
-		copy_to_user(oldval, data, sizeof(int));
+		if(put_user(sizeof(int), oldlenp)||copy_to_user(oldval, data, sizeof(int)))
+			return -EFAULT;
 	}
 	if (newval)
-		copy_from_user(data, newval, sizeof(int));
+		if(copy_from_user(data, newval, sizeof(int)))
+			return -EFAULT;
 	return 0;
 }
 
@@ -909,14 +962,71 @@ int do_struct (
 		return -EINVAL;
 	if (oldval) {
 		int old_l;
-		get_user(old_l, oldlenp);
+		if(get_user(old_l, oldlenp))
+			return -EFAULT;
 		if (old_l < len)
 			return -ENOMEM;
-		put_user(len, oldlenp);
-		copy_to_user(oldval, data, len);
+		if(put_user(len, oldlenp) || copy_to_user(oldval, data, len))
+			return -EFAULT;
 	}
 	if (newval)
-		copy_from_user(data, newval, len);
+		if(copy_from_user(data, newval, len))
+			return -EFAULT;
 	return 0;
 }
+
+
+#else /* CONFIG_SYSCTL */
+
+
+extern asmlinkage int sys_sysctl(struct __sysctl_args *args)
+{
+	return -ENOSYS;
+}
+
+int sysctl_string(ctl_table *table, int *name, int nlen,
+		  void *oldval, size_t *oldlenp,
+		  void *newval, size_t newlen, void **context)
+{
+	return -ENOSYS;
+}
+
+int sysctl_intvec(ctl_table *table, int *name, int nlen,
+		void *oldval, size_t *oldlenp,
+		void *newval, size_t newlen, void **context)
+{
+	return -ENOSYS;
+}
+
+int proc_dostring(ctl_table *table, int write, struct file *filp,
+		  void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+int proc_dointvec(ctl_table *table, int write, struct file *filp,
+		  void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
+		    void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+struct ctl_table_header * register_sysctl_table(ctl_table * table, 
+						int insert_at_head)
+{
+	return 0;
+}
+
+void unregister_sysctl_table(struct ctl_table_header * table)
+{
+}
+
+#endif /* CONFIG_SYSCTL */
+
+
 

@@ -18,7 +18,7 @@
  *     'unsigned long con_init(unsigned long)'
  *     'int con_open(struct tty_struct *tty, struct file * filp)'
  *     'void con_write(struct tty_struct * tty)'
- *     'void console_print(const char * b)'
+ *     'void vt_console_print(const char * b)'
  *     'void update_screen(int new_console)'
  *
  *     'void do_blank_screen(int)'
@@ -62,6 +62,7 @@
  * User-defined bell sound, new setterm control sequences and printk
  * redirection by Martin Mares <mj@k332.feld.cvut.cz> 19-Nov-95
  *
+ * APM screenblank bug fixed Takashi Manabe <manabe@roy.dsl.tutics.tut.jp>
  */
 
 #define BLANK 0x0020
@@ -92,6 +93,7 @@
 #include <linux/interrupt.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#include <linux/console.h>
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -134,6 +136,10 @@ unsigned long video_port_base;
 
 int serial_console;
 
+#ifdef __sparc__
+int serial_console;
+#endif
+
 struct tty_driver console_driver;
 static int console_refcount;
 static struct tty_struct *console_table[MAX_NR_CONSOLES];
@@ -142,6 +148,7 @@ static struct termios *console_termios_locked[MAX_NR_CONSOLES];
 unsigned short *vc_scrbuf[MAX_NR_CONSOLES];
 struct vc vc_cons [MAX_NR_CONSOLES];
 
+static int con_open(struct tty_struct *, struct file *);
 static void con_setsize(unsigned long rows, unsigned long cols);
 static void vc_init(unsigned int console, unsigned long rows,
 		    unsigned long cols, int do_clear);
@@ -159,7 +166,7 @@ extern void hide_cursor(void);
 static void reset_terminal(int currcons, int do_clear);
 extern void reset_vc(unsigned int new_console);
 extern void vt_init(void);
-extern void register_console(void (*proc)(const char *));
+extern void set_vesa_blanking(unsigned long arg);
 extern void vesa_blank(void);
 extern void vesa_unblank(void);
 extern void vesa_powerdown(void);
@@ -167,11 +174,10 @@ extern void compute_shiftstate(void);
 extern void reset_palette(int currcons);
 extern void set_palette(void);
 extern unsigned long con_type_init(unsigned long, const char **);
+extern void con_type_init_finish(void);
 extern int set_get_cmap(unsigned char *, int);
 extern int set_get_font(unsigned char *, int, int);
-#ifdef CONFIG_SGI
 extern void rs_cons_hook(int chip, int out, int channel);
-#endif
 
 /* Description of the hardware situation */
 unsigned char	video_type;		/* Type of display being used	*/
@@ -190,7 +196,7 @@ static int printable = 0;		/* Is console ready for printing? */
 int		video_mode_512ch = 0;	/* 512-character mode */
 unsigned long	video_font_height;	/* Height of current screen font */
 unsigned long	video_scan_lines;	/* Number of scan lines on screen */
-unsigned long   default_font_height;    /* Height of default screen font */
+static unsigned long   default_font_height;    /* Height of default screen font */
 int		video_font_is_default = 1;
 static unsigned short console_charmask = 0x0ff;
 
@@ -201,121 +207,16 @@ static int blankinterval = 10*60*HZ;
 static int vesa_off_interval = 0;
 static long blank_origin, blank__origin, unblank_origin;
 
-
-#ifdef CONFIG_SERIAL_ECHO
-
-#include <linux/serial_reg.h>
-
-extern int serial_echo_init (int base);
-extern int serial_echo_print (const char *s);
-
 /*
- * this defines the address for the port to which printk echoing is done
- *  when CONFIG_SERIAL_ECHO is defined
+ * fg_console is the current virtual console,
+ * last_console is the last used one,
+ * want_console is the console we want to switch to,
+ * kmsg_redirect is the console for kernel messages,
  */
-#define SERIAL_ECHO_PORT	0x3f8	/* COM1 */
-
-static int serial_echo_port = 0;
-
-#define serial_echo_outb(v,a) outb((v),(a)+serial_echo_port)
-#define serial_echo_inb(a)    inb((a)+serial_echo_port)
-
-#define BOTH_EMPTY (UART_LSR_TEMT | UART_LSR_THRE)
-
-/* Wait for transmitter & holding register to empty */
-#define WAIT_FOR_XMITR \
- do { \
-       lsr = serial_echo_inb(UART_LSR); \
- } while ((lsr & BOTH_EMPTY) != BOTH_EMPTY)
-
-/* These two functions abstract the actual communications with the
- * debug port.	This is so we can change the underlying communications
- * mechanism without modifying the rest of the code.
- */
-int
-serial_echo_print(const char *s)
-{
-	int     lsr, ier;
-	int     i;
-
-	if (!serial_echo_port) return (0);
-
-	/*
-	 * First save the IER then disable the interrupts
-	 */
-	ier = serial_echo_inb(UART_IER);
-	serial_echo_outb(0x00, UART_IER);
-
-	/*
-	 * Now, do each character
-	 */
-	for (i = 0; *s; i++, s++) {
-		WAIT_FOR_XMITR;
-
-		/* Send the character out. */
-		serial_echo_outb(*s, UART_TX);
-
-		/* if a LF, also do CR... */
-		if (*s == 10) {
-			WAIT_FOR_XMITR;
-			serial_echo_outb(13, UART_TX);
-		}
-	}
-
-	/*
-	 * Finally, Wait for transmitter & holding register to empty
-	 *  and restore the IER
-	 */
-	do {
-		lsr = serial_echo_inb(UART_LSR);
-	} while ((lsr & BOTH_EMPTY) != BOTH_EMPTY);
-	serial_echo_outb(ier, UART_IER);
-
-	return (0);
-}
-
-
-int
-serial_echo_init(int base)
-{
-	int comstat, hi, lo;
-	
-	if (base != 0x2f8 && base != 0x3f8) {
-		serial_echo_port = 0;
-		return (0);
-	} else
-	  serial_echo_port = base;
-
-	/*
-	 * read the Divisor Latch
-	 */
-	comstat = serial_echo_inb(UART_LCR);
-	serial_echo_outb(comstat | UART_LCR_DLAB, UART_LCR);
-	hi = serial_echo_inb(UART_DLM);
-	lo = serial_echo_inb(UART_DLL);
-	serial_echo_outb(comstat, UART_LCR);
-
-	/*
-	 * now do hardwired init
-	 */
-	serial_echo_outb(0x03, UART_LCR); /* No parity, 8 data bits, 1 stop */
-	serial_echo_outb(0x83, UART_LCR); /* Access divisor latch */
-	serial_echo_outb(0x00, UART_DLM); /* 9600 baud */
-	serial_echo_outb(0x0c, UART_DLL);
-	serial_echo_outb(0x03, UART_LCR); /* Done with divisor */
-
-	/* Prior to disabling interrupts, read the LSR and RBR
-	 * registers
-	 */
-	comstat = serial_echo_inb(UART_LSR); /* COM? LSR */
-	comstat = serial_echo_inb(UART_RX);	/* COM? RBR */
-	serial_echo_outb(0x00, UART_IER); /* Disable all interrupts */
-
-	return(0);
-}
-
-#endif /* CONFIG_SERIAL_ECHO */
-
+int fg_console = 0;
+int last_console = 0;
+int want_console = -1;
+int kmsg_redirect = 0;
 
 int vc_cons_allocated(unsigned int i)
 {
@@ -612,7 +513,7 @@ static void set_origin(int currcons)
 	__set_origin(__real_origin);
 }
 
-void scrup(int currcons, unsigned int t, unsigned int b)
+static void scrup(int currcons, unsigned int t, unsigned int b)
 {
 	int hardscroll = hardscroll_enabled;
 
@@ -674,40 +575,30 @@ void scrup(int currcons, unsigned int t, unsigned int b)
 	} else {
 		unsigned short * d = (unsigned short *) (origin+video_size_row*t);
 		unsigned short * s = (unsigned short *) (origin+video_size_row*(t+1));
-		unsigned int count = (b-t-1) * video_num_columns;
 
-		while (count) {
-			count--;
-			scr_writew(scr_readw(s++), d++);
-		}
-		count = video_num_columns;
-		while (count) {
-			count--;
-			scr_writew(video_erase_char, d++);
-		}
+		memcpyw(d, s, (b-t-1) * video_size_row);
+		memsetw(d + (b-t-1) * video_num_columns, video_erase_char, video_size_row);
 	}
 }
 
-void
+static void
 scrdown(int currcons, unsigned int t, unsigned int b)
 {
-	unsigned short *d, *s;
+	unsigned short *s;
 	unsigned int count;
 
 	if (b > video_num_lines || t >= b)
 		return;
-	d = (unsigned short *) (origin+video_size_row*b);
-	s = (unsigned short *) (origin+video_size_row*(b-1));
-	count = (b-t-1)*video_num_columns;
-	while (count) {
-		count--;
-		scr_writew(scr_readw(--s), --d);
+	s = (unsigned short *) (origin+video_size_row*(b-2));
+	if (b >= t + 1) {
+		count = b - t - 1;
+		while (count) {
+			count--;
+			memcpyw(s + video_num_columns, s, video_size_row);
+			s -= video_num_columns;
+		}
 	}
-	count = video_num_columns;
-	while (count) {
-		count--;
-		scr_writew(video_erase_char, --d);
-	}
+	memsetw(s + video_num_columns, video_erase_char, video_size_row);
 	has_scrolled = 1;
 }
 
@@ -780,10 +671,7 @@ static void csi_J(int currcons, int vpar)
 		default:
 			return;
 	}
-	while (count) {
-		count--;
-		scr_writew(video_erase_char, start++);
-	}
+	memsetw(start, video_erase_char, 2*count);
 	need_wrap = 0;
 }
 
@@ -808,28 +696,17 @@ static void csi_K(int currcons, int vpar)
 		default:
 			return;
 	}
-	while (count) {
-		count--;
-		scr_writew(video_erase_char, start++);
-	}
+	memsetw(start, video_erase_char, 2 * count);
 	need_wrap = 0;
 }
 
 static void csi_X(int currcons, int vpar) /* erase the following vpar positions */
 {					  /* not vt100? */
-	unsigned long count;
-	unsigned short * start;
-
 	if (!vpar)
 		vpar++;
 
-	start = (unsigned short *) pos;
-	count = (vpar > video_num_columns-x) ? (video_num_columns-x) : vpar;
-
-	while (count) {
-		count--;
-		scr_writew(video_erase_char, start++);
-	}
+	memsetw((unsigned short *) pos, video_erase_char,
+		(vpar > video_num_columns-x) ? 2 * (video_num_columns-x) : 2 * vpar);
 	need_wrap = 0;
 }
 
@@ -1000,12 +877,62 @@ void mouse_report(struct tty_struct * tty, int butt, int mrx, int mry)
 	respond_string(buf, tty);
 }
 
-/* invoked via ioctl(TIOCLINUX) */
+/* invoked via ioctl(TIOCLINUX) and through set_selection */
 int mouse_reporting(void)
 {
 	int currcons = fg_console;
 
 	return report_mouse;
+}
+
+int tioclinux(struct tty_struct *tty, unsigned long arg)
+{
+	char type, data;
+
+	if (tty->driver.type != TTY_DRIVER_TYPE_CONSOLE)
+		return -EINVAL;
+	if (current->tty != tty && !suser())
+		return -EPERM;
+	if (get_user(type, (char *)arg))
+		return -EFAULT;
+	switch (type)
+	{
+		case 2:
+			return set_selection(arg, tty, 1);
+		case 3:
+			return paste_selection(tty);
+		case 4:
+			do_unblank_screen();
+			return 0;
+		case 5:
+			return sel_loadlut(arg);
+		case 6:
+			
+	/*
+	 * Make it possible to react to Shift+Mousebutton.
+	 * Note that 'shift_state' is an undocumented
+	 * kernel-internal variable; programs not closely
+	 * related to the kernel should not use this.
+	 */
+	 		data = shift_state;
+			return __put_user(data, (char *) arg);
+		case 7:
+			data = mouse_reporting();
+			return __put_user(data, (char *) arg);
+		case 10:
+			set_vesa_blanking(arg);
+			return 0;
+		case 11:	/* set kmsg redirect */
+			if (!suser())
+				return -EPERM;
+			if (get_user(data, (char *)arg+1))
+					return -EFAULT;
+			kmsg_redirect = data;
+			return 0;
+		case 12:	/* get fg_console */
+			return fg_console;
+	}
+	return -EINVAL;
 }
 
 static inline unsigned short *screenpos(int currcons, int offset, int viewed)
@@ -1382,8 +1309,10 @@ static void con_stop(struct tty_struct *tty)
 	console_num = MINOR(tty->device) - (tty->driver.minor_start);
 	if (!vc_cons_allocated(console_num))
 		return;
+#if !CONFIG_AP1000
 	set_vc_kbd_led(kbd_table + console_num, VC_SCROLLOCK);
 	set_leds();
+#endif
 }
 
 /*
@@ -1397,8 +1326,10 @@ static void con_start(struct tty_struct *tty)
 	console_num = MINOR(tty->device) - (tty->driver.minor_start);
 	if (!vc_cons_allocated(console_num))
 		return;
+#if !CONFIG_AP1000
 	clr_vc_kbd_led(kbd_table + console_num, VC_SCROLLOCK);
 	set_leds();
+#endif
 }
 
 static void con_flush_chars(struct tty_struct *tty)
@@ -1418,6 +1349,11 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	unsigned int currcons;
 	struct vt_struct *vt = (struct vt_struct *)tty->driver_data;
 
+#if CONFIG_AP1000
+        ap_write(1,buf,count);
+        return(count);
+#endif
+
 	currcons = vt->vc_num;
 	if (!vc_cons_allocated(currcons)) {
 	    /* could this happen? */
@@ -1432,11 +1368,17 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	if (currcons == sel_cons)
 		clear_selection();
 
+	if (from_user) {
+		/* just to make sure that noone lurks at places he shouldn't see. */
+		if (verify_area(VERIFY_READ, buf, count))
+			return 0; /* ?? are error codes legal here ?? */
+	}
+
 	disable_bh(CONSOLE_BH);
 	while (!tty->stopped &&	count) {
 		enable_bh(CONSOLE_BH);
 		if (from_user)
-			get_user(c, buf);
+			__get_user(c, buf);
 		else
 			c = *buf;
 		buf++; n++; count--;
@@ -1880,10 +1822,10 @@ static int con_write(struct tty_struct * tty, int from_user,
 		     const unsigned char *buf, int count)
 {
 	int	retval;
-	
+
 	retval = do_con_write(tty, from_user, buf, count);
 	con_flush_chars(tty);
-	
+
 	return retval;
 }
 
@@ -1919,12 +1861,17 @@ void poke_blanked_console(void)
 	}
 }
 
-void console_print(const char * b)
+#ifdef CONFIG_VT_CONSOLE
+void vt_console_print(const char * b, unsigned count)
 {
 	int currcons = fg_console;
 	unsigned char c;
 	static int printing = 0;
 
+#if CONFIG_AP1000
+        prom_printf(b);
+        return;
+#endif
 	if (!printable || printing)
 		return;	 /* console not yet initialized */
 	printing = 1;
@@ -1934,15 +1881,12 @@ void console_print(const char * b)
 
 	if (!vc_cons_allocated(currcons)) {
 		/* impossible */
-		printk("console_print: tty %d not allocated ??\n", currcons+1);
+		printk("vt_console_print: tty %d not allocated ??\n", currcons+1);
 		return;
 	}
 
-#ifdef CONFIG_SERIAL_ECHO
-        serial_echo_print(b);
-#endif /* CONFIG_SERIAL_ECHO */
-
-	while ((c = *(b++)) != 0) {
+	while (count-- > 0) {
+		c = *(b++);
 		if (c == 10 || c == 13 || need_wrap) {
 			if (c != 13)
 				lf(currcons);
@@ -1966,6 +1910,19 @@ void console_print(const char * b)
 	poke_blanked_console();
 	printing = 0;
 }
+
+static int vt_console_device(void)
+{
+	return MKDEV(TTY_MAJOR, fg_console + 1);
+}
+
+extern void keyboard_wait_for_keypress(void);
+
+struct console vt_console_driver = {
+	vt_console_print, do_unblank_screen,
+        keyboard_wait_for_keypress, vt_console_device
+};
+#endif
 
 /*
  * con_throttle and con_unthrottle are only used for
@@ -2071,6 +2028,19 @@ unsigned long con_init(unsigned long kmem_start)
 	}
 #endif
 
+#ifdef __sparc__
+	if (serial_console) {
+		fg_console = 0;
+
+#if CONFIG_SUN_SERIAL
+		rs_cons_hook(0, 0, serial_console);
+		rs_cons_hook(0, 1, serial_console);
+#endif
+
+		return kmem_start;
+	}
+#endif
+
 	memset(&console_driver, 0, sizeof(struct tty_driver));
 	console_driver.magic = TTY_DRIVER_MAGIC;
 	console_driver.name = "tty";
@@ -2101,6 +2071,9 @@ unsigned long con_init(unsigned long kmem_start)
 	if (tty_register_driver(&console_driver))
 		panic("Couldn't register console driver\n");
 
+#if CONFIG_AP1000
+        return(kmem_start);
+#endif
 	con_setsize(ORIG_VIDEO_LINES, ORIG_VIDEO_COLS);
 
 	timer_table[BLANK_TIMER].fn = blank_screen;
@@ -2158,15 +2131,11 @@ unsigned long con_init(unsigned long kmem_start)
 	printable = 1;
 	if ( video_type == VIDEO_TYPE_VGAC || video_type == VIDEO_TYPE_EGAC
 	    || video_type == VIDEO_TYPE_EGAM || video_type == VIDEO_TYPE_TGAC
-	     || video_type == VIDEO_TYPE_SGI )
+	     || video_type == VIDEO_TYPE_SGI || video_type == VIDEO_TYPE_SUN )
 	{
 		default_font_height = video_font_height = ORIG_VIDEO_POINTS;
 		/* This may be suboptimal but is a safe bet - go with it */
 		video_scan_lines = video_font_height * video_num_lines;
-
-#ifdef CONFIG_SERIAL_ECHO
-		serial_echo_init(SERIAL_ECHO_PORT);
-#endif /* CONFIG_SERIAL_ECHO */
 
 		printk("Console: %ld point font, %ld scans\n",
 		       video_font_height, video_scan_lines);
@@ -2198,14 +2167,18 @@ unsigned long con_init(unsigned long kmem_start)
 		MIN_NR_CONSOLES, (MIN_NR_CONSOLES == 1) ? "" : "s",
 	        MAX_NR_CONSOLES);
 
+	con_type_init_finish();
+
 	/*
 	 * can't register TGA yet, because PCI bus probe has *not* taken
 	 * place before con_init() gets called. Trigger the real TGA hw
 	 * initialization and register_console() event from
 	 * within the bus probing code... :-(
 	 */
+#ifdef CONFIG_VT_CONSOLE
 	if (video_type != VIDEO_TYPE_TGAC)
-		register_console(console_print);
+		register_console(&vt_console_driver);
+#endif
 
 	init_bh(CONSOLE_BH, console_bh);
 	return kmem_start;
@@ -2248,12 +2221,14 @@ void do_blank_screen(int nopowersave)
 	hide_cursor();
 	console_blanked = fg_console + 1;
 
-#ifdef CONFIG_APM
-	if (apm_display_blank())
-		return;
-#endif
 	if(!nopowersave)
-	    vesa_blank();
+	{
+#ifdef CONFIG_APM
+		if (apm_display_blank())
+			return;
+#endif
+		vesa_blank();
+	}
 }
 
 void do_unblank_screen(void)
@@ -2346,7 +2321,7 @@ void update_screen(int new_console)
 /*
  * Allocate the console screen memory.
  */
-int con_open(struct tty_struct *tty, struct file * filp)
+static int con_open(struct tty_struct *tty, struct file * filp)
 {
 	unsigned int	idx;
 	int i;

@@ -18,6 +18,8 @@
  */
 #include <linux/config.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/branch.h>
 #include <asm/cachectl.h>
@@ -93,34 +95,15 @@ int kstack_depth_to_print = 24;
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
-void die_if_kernel(char * str, struct pt_regs * regs, long err)
+void show_registers(char * str, struct pt_regs * regs, long err)
 {
 	int	i;
 	int	*stack;
 	u32	*sp, *pc, addr, module_start, module_end;
 	extern	char start_kernel, _etext;
 
-	/*
-	 * Just return if in user mode.
-	 * XXX
-	 */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
-	if (!((regs)->cp0_status & 0x4))
-		return;
-#endif
-#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
-	if (!(regs->cp0_status & 0x18))
-		return;
-#endif
-
-	/*
-	 * Yes, these double casts are required ...
-	 */
-	sp = (u32 *)(unsigned long)regs->regs[29];
-	pc = (u32 *)(unsigned long)regs->cp0_epc;
-
-	console_verbose();
-	printk("%s: %08lx\n", str, err );
+	sp = (u32 *)regs->regs[29];
+	pc = (u32 *)regs->cp0_epc;
 
 	show_regs(regs);
 
@@ -189,6 +172,26 @@ void die_if_kernel(char * str, struct pt_regs * regs, long err)
 	do_exit(SIGSEGV);
 }
 
+void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+{
+	/*
+	 * Just return if in user mode.
+	 * XXX
+	 */
+#if (_MIPS_ISA == _MIPS_ISA_MIPS1) || (_MIPS_ISA == _MIPS_ISA_MIPS2)
+	if (!((regs)->cp0_status & 0x4))
+		return;
+#endif
+#if (_MIPS_ISA == _MIPS_ISA_MIPS3) || (_MIPS_ISA == _MIPS_ISA_MIPS4)
+	if (!(regs->cp0_status & 0x18))
+		return;
+#endif
+	console_verbose();
+	printk("%s: %04lx\n", str, err & 0xffff);
+	show_regs(regs);
+	do_exit(SIGSEGV);
+}
+
 static void default_be_board_handler(struct pt_regs *regs)
 {
 	/*
@@ -199,32 +202,44 @@ static void default_be_board_handler(struct pt_regs *regs)
 
 void do_ibe(struct pt_regs *regs)
 {
+	lock_kernel();
 	ibe_board_handler(regs);
+	unlock_kernel();
 }
 
 void do_dbe(struct pt_regs *regs)
 {
+	lock_kernel();
 	dbe_board_handler(regs);
+	unlock_kernel();
 }
 
 void do_ov(struct pt_regs *regs)
 {
+	lock_kernel();
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
 	if (compute_return_epc(regs))
-		return;
+		goto out;
 	force_sig(SIGFPE, current);
+out:
+	unlock_kernel();
 }
 
 void do_fpe(struct pt_regs *regs, unsigned int fcr31)
 {
+	lock_kernel();
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
+	printk("Caught floating exception at epc == %08lx, fcr31 == %08x\n",
+	       regs->cp0_epc, fcr31);
 	if (compute_return_epc(regs))
-		return;
+		goto out;
 	force_sig(SIGFPE, current);
+out:
+	unlock_kernel();
 }
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
@@ -262,6 +277,7 @@ void do_bp(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
 
+	lock_kernel();
 	/*
 	 * There is the ancient bug in the MIPS assemblers that the break
 	 * code starts left to bit 16 instead to bit 6 in the opcode.
@@ -271,87 +287,106 @@ void do_bp(struct pt_regs *regs)
 	printk("BREAKPOINT at %08lx\n", regs->cp0_epc);
 #endif
 	if (get_insn_opcode(regs, &opcode))
-		return;
+		goto out;
 	bcode = ((opcode >> 16) & ((1 << 20) - 1));
 
 	do_bp_and_tr(regs, "bp", bcode);
 
 	if (compute_return_epc(regs))
-		return;
+		goto out;
+out:
+	unlock_kernel();
 }
 
 void do_tr(struct pt_regs *regs)
 {
 	unsigned int opcode, bcode;
 
+	lock_kernel();
 	if (get_insn_opcode(regs, &opcode))
-		return;
+		goto out;
 	bcode = ((opcode >> 6) & ((1 << 20) - 1));
 
 	do_bp_and_tr(regs, "tr", bcode);
+out:
+	unlock_kernel();
 }
 
 void do_ri(struct pt_regs *regs)
 {
+	lock_kernel();
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
 	printk("[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))
-		return;
+		goto out;
 	force_sig(SIGILL, current);
+out:
+	unlock_kernel();
 }
 
 void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
 
+	lock_kernel();
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid == 1)
 	{
 		regs->cp0_status |= ST0_CU1;
-		return;
+		goto out;
 	}
 	force_sig(SIGILL, current);
+out:
+	unlock_kernel();
 }
 
 void do_vcei(struct pt_regs *regs)
 {
+	lock_kernel();
 	/*
 	 * Only possible on R4[04]00[SM]C. No handler because I don't have
 	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
 	panic("Caught VCEI exception - should not happen");
+	unlock_kernel();
 }
 
 void do_vced(struct pt_regs *regs)
 {
+	lock_kernel();
 	/*
 	 * Only possible on R4[04]00[SM]C. No handler because I don't have
 	 * such a cpu.  Theory says this exception doesn't happen.
 	 */
 	panic("Caught VCE exception - should not happen");
+	unlock_kernel();
 }
 
 void do_watch(struct pt_regs *regs)
 {
+	lock_kernel();
 	/*
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
 	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
+	unlock_kernel();
 }
 
 void do_reserved(struct pt_regs *regs)
 {
+	lock_kernel();
 	/*
 	 * Game over - no way to handle this if it ever occurs.
 	 * Most probably caused by a new unknown cpu type or
 	 * after another deadly hard/software error.
 	 */
 	panic("Caught reserved exception - should not happen.");
+	unlock_kernel();
 }
 
 static void watch_init(unsigned long cputype)
@@ -365,7 +400,7 @@ static void watch_init(unsigned long cputype)
 	case CPU_R4000PC:
 	case CPU_R4400PC:
 	case CPU_R4200:
-     /* case CPU_R4300: */
+	case CPU_R4300:
 		set_except_vector(23, handle_watch);
 		watch_available = 1;
 		break;
@@ -454,7 +489,7 @@ void trap_init(void)
 	case CPU_R4000PC:
 	case CPU_R4400PC:
 	case CPU_R4200:
-     /* case CPU_R4300: */
+	case CPU_R4300:
      /* case CPU_R4640: */
 	case CPU_R4600:
         case CPU_R5000:

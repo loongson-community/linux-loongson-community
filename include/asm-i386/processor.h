@@ -29,16 +29,26 @@ extern int  have_cpuid;		/* We have a CPUID */
 
 /*
  * Bus types (default is ISA, but people can check others with these..)
- * MCA_bus hardcoded to 0 for now.
  */
 extern int EISA_bus;
-#define MCA_bus 0
+extern int MCA_bus;
+
+/* from system description table in BIOS.  Mostly for MCA use, but
+others may find it useful. */
+extern unsigned int machine_id;
+extern unsigned int machine_submodel_id;
+extern unsigned int BIOS_revision;
 
 /*
  * User space process size: 3GB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.
  */
 #define TASK_SIZE	(0xC0000000UL)
+
+/* This decides where the kernel will search for a free chunk of vm
+ * space during mmap's.
+ */
+#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
@@ -130,9 +140,6 @@ struct thread_struct {
 	NULL, 0, 0, 0, 0 /* vm86_info */, \
 }
 
-#define alloc_kernel_stack()    __get_free_page(GFP_KERNEL)
-#define free_kernel_stack(page) free_page((page))
-
 #define start_thread(regs, new_eip, new_esp) do {\
 	unsigned long seg = USER_DS; \
 	__asm__("mov %w0,%%fs ; mov %w0,%%gs":"=r" (seg) :"0" (seg)); \
@@ -145,6 +152,9 @@ struct thread_struct {
 	regs->esp = new_esp; \
 } while (0)
 
+/* Free all resources held by a thread. */
+extern void release_thread(struct task_struct *);
+
 /*
  * Return saved PC of a blocked thread.
  */
@@ -152,6 +162,12 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
 	return ((unsigned long *)t->esp)[3];
 }
+
+/* Allocation and freeing of basic task resources. */
+#define alloc_task_struct()	kmalloc(sizeof(struct task_struct), GFP_KERNEL)
+#define alloc_kernel_stack(p)	__get_free_page(GFP_KERNEL)
+#define free_task_struct(p)	kfree(p)
+#define free_kernel_stack(page) free_page((page))
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)

@@ -9,6 +9,6 @@
 
 O_TARGET := mm.o
 O_OBJS	 := extable.o init.o fault.o r4xx0.o r2300.o r6000.o tfp.o \
-            andes.o loadmmu.o
+            andes.o loadmmu.o stack.o
 
 include $(TOPDIR)/Rules.make

@@ -49,12 +49,12 @@
 #include <linux/etherdevice.h>
 #include <linux/interrupt.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 
 #include <asm/bitops.h>
 #include <asm/amigaints.h>
 #include <asm/amigahw.h>
-#include <asm/zorro.h>
-#include <asm/bootinfo.h>
+#include <linux/zorro.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 
@@ -104,7 +104,7 @@ struct ariadne_private {
     u_short *rx_buff[RX_RING_SIZE];
     int cur_tx, cur_rx;			/* The next free ring entry */
     int dirty_tx;			/* The ring entries to be free()ed. */
-    struct enet_statistics stats;
+    struct net_device_stats stats;
     char tx_full;
     unsigned long lock;
     int key;
@@ -127,9 +127,9 @@ static int ariadne_open(struct device *dev);
 static void ariadne_init_ring(struct device *dev);
 static int ariadne_start_xmit(struct sk_buff *skb, struct device *dev);
 static int ariadne_rx(struct device *dev);
-static void ariadne_interrupt(int irq, struct pt_regs *fp, void *data);
+static void ariadne_interrupt(int irq, void *data, struct pt_regs *fp);
 static int ariadne_close(struct device *dev);
-static struct enet_statistics *ariadne_get_stats(struct device *dev);
+static struct net_device_stats *ariadne_get_stats(struct device *dev);
 #ifdef HAVE_MULTICAST
 static void set_multicast_list(struct device *dev);
 #endif
@@ -146,7 +146,7 @@ static void memcpyw(u_short *dest, u_short *src, int len)
 }
 
 
-int ariadne_probe(struct device *dev)
+__initfunc(int ariadne_probe(struct device *dev))
 {
     int key;
     struct ConfigDev *cd;
@@ -291,8 +291,8 @@ static int ariadne_open(struct device *dev)
     dev->interrupt = 0;
     dev->start = 1;
 
-    if (!add_isr(IRQ_AMIGA_PORTS, ariadne_interrupt, 0, dev,
-    		 "Ariadne Ethernet"))
+    if (request_irq(IRQ_AMIGA_PORTS, ariadne_interrupt, 0,
+                    "Ariadne Ethernet", dev))
 	return(-EAGAIN);
 
     board->Lance.RAP = CSR0;	/* PCnet-ISA Controller Status */
@@ -366,14 +366,14 @@ static int ariadne_close(struct device *dev)
     if (ariadne_debug > 1) {
 	printk("%s: Shutting down ethercard, status was %2.2x.\n", dev->name,
 	       board->Lance.RDP);
-	printk("%s: %d packets missed\n", dev->name,
+	printk("%s: %lu packets missed\n", dev->name,
 	       priv->stats.rx_missed_errors);
     }
 
     /* We stop the LANCE here -- it occasionally polls memory if we don't. */
     board->Lance.RDP = STOP;
 
-    remove_isr(IRQ_AMIGA_PORTS, ariadne_interrupt, dev);
+    free_irq(IRQ_AMIGA_PORTS, dev);
 
     MOD_DEC_USE_COUNT;
 
@@ -381,7 +381,7 @@ static int ariadne_close(struct device *dev)
 }
 
 
-static void ariadne_interrupt(int irq, struct pt_regs *fp, void *data)
+static void ariadne_interrupt(int irq, void *data, struct pt_regs *fp)
 {
     struct device *dev = (struct device *)data;
     struct ariadne_private *priv;
@@ -582,14 +582,6 @@ static int ariadne_start_xmit(struct sk_buff *skb, struct device *dev)
 	return(0);
     }
 
-    if (skb == NULL) {
-	dev_tint(dev);
-	return(0);
-    }
-
-    if (skb->len <= 0)
-	return(0);
-
 #if 0
     if (ariadne_debug > 3) {
 	board->Lance.RAP = CSR0;	/* PCnet-ISA Controller Status */
@@ -783,7 +775,7 @@ static int ariadne_rx(struct device *dev)
 }
 
 
-static struct enet_statistics *ariadne_get_stats(struct device *dev)
+static struct net_device_stats *ariadne_get_stats(struct device *dev)
 {
     struct ariadne_private *priv = (struct ariadne_private *)dev->priv;
     struct AriadneBoard *board = priv->board;

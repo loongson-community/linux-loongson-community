@@ -39,6 +39,7 @@
 #include <linux/malloc.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
+#include <linux/init.h>
 #ifdef CONFIG_APM
 #include <linux/apm_bios.h>
 #endif
@@ -65,6 +66,8 @@ extern int bus_mouse_init(void);
 extern int psaux_init(void);
 extern int ms_bus_mouse_init(void);
 extern int atixl_busmouse_init(void);
+extern int amiga_mouse_init(void);
+extern int atari_mouse_init(void);
 extern int sun_mouse_init(void);
 extern void watchdog_init(void);
 extern void wdt_init(void);
@@ -72,14 +75,16 @@ extern void pcwatchdog_init(void);
 extern int rtc_init(void);
 
 #ifdef CONFIG_PROC_FS
-static int proc_misc_read(char *buf, char **start, off_t offset, int len, int unused)
+static int misc_read_proc(char *buf, char **start, off_t offset,
+			  int len, int *eof, void *private)
 {
 	struct miscdevice *p;
 
 	len=0;
-	for (p = misc_list.next; p != &misc_list; p = p->next)
+	for (p = misc_list.next; p != &misc_list && len < 4000; p = p->next)
 		len += sprintf(buf+len, "%3i %s\n",p->minor, p->name ?: "");
-	return len;
+	*start = buf + offset;
+	return len > offset ? len - offset : 0;
 }
 
 #endif /* PROC_FS */
@@ -117,7 +122,7 @@ static struct file_operations misc_fops = {
 	NULL,		/* read */
 	NULL,		/* write */
 	NULL,		/* readdir */
-	NULL,		/* select */
+	NULL,		/* poll */
 	NULL,		/* ioctl */
 	NULL,		/* mmap */
         misc_open,
@@ -173,32 +178,20 @@ void cleanup_module(void)
 
 #endif
 
-static struct symbol_table misc_syms = {
-/* Should this be surrounded with "#ifdef CONFIG_MODULES" ? */
-#include <linux/symtab_begin.h>
-	X(misc_register),
-	X(misc_deregister),
-#ifndef MODULE
-	X(set_selection),   /* used by the kmouse module, can only */
-	X(paste_selection), /* be exported if misc.c is in linked in */
-#endif
-#include <linux/symtab_end.h>
-};
+EXPORT_SYMBOL(misc_register);
+EXPORT_SYMBOL(misc_deregister);
 
 #if defined(CONFIG_PROC_FS) && !defined(MODULE)
-static struct proc_dir_entry proc_misc = {
-	0, 4, "misc",
-	S_IFREG | S_IRUGO, 1, 0, 0,
-	0, NULL /* ops -- default to array */,
-	&proc_misc_read /* get_info */,
-};
+static struct proc_dir_entry *proc_misc;	
 #endif
 
-int misc_init(void)
+__initfunc(int misc_init(void))
 {
 #ifndef MODULE
 #ifdef CONFIG_PROC_FS
-	proc_register_dynamic(&proc_root, &proc_misc);	
+	proc_misc = create_proc_entry("misc", 0, 0);
+	if (proc_misc)
+		proc_misc->read_proc = misc_read_proc;
 #endif /* PROC_FS */
 #ifdef CONFIG_BUSMOUSE
 	bus_mouse_init();
@@ -221,14 +214,20 @@ int misc_init(void)
 #ifdef CONFIG_SUN_MOUSE
 	sun_mouse_init();
 #endif
-#ifdef CONFIG_SOFT_WATCHDOG
-	watchdog_init();
+/*
+ *	Only one watchdog can succeed. We probe the pcwatchdog first,
+ *	then the wdt cards and finally the software watchdog which always
+ *	works. This means if your hardware watchdog dies or is 'borrowed'
+ *	for some reason the software watchdog still gives you some cover.
+ */
+#ifdef CONFIG_PCWATCHDOG
+	pcwatchdog_init();
 #endif
 #ifdef CONFIG_WDT
 	wdt_init();
 #endif
-#ifdef CONFIG_PCWATCHDOG
-	pcwatchdog_init();
+#ifdef CONFIG_SOFT_WATCHDOG
+	watchdog_init();
 #endif
 #ifdef CONFIG_APM
 	apm_bios_init();
@@ -238,15 +237,10 @@ int misc_init(void)
 #endif
 #endif /* !MODULE */
 	if (register_chrdev(MISC_MAJOR,"misc",&misc_fops)) {
-	  printk("unable to get major %d for misc devices\n",
-		 MISC_MAJOR);
+		printk("unable to get major %d for misc devices\n",
+		       MISC_MAJOR);
 		return -EIO;
 	}
 
-	if(register_symtab(&misc_syms)!=0)
-	{
-		unregister_chrdev(MISC_MAJOR, "misc");
-		return -EIO;
-	}
 	return 0;
 }

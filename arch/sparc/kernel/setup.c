@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.75 1996/10/12 12:37:27 davem Exp $
+/*  $Id: setup.c,v 1.83 1997/04/01 02:21:49 davem Exp $
  *  linux/arch/sparc/kernel/setup.c
  *
  *  Copyright (C) 1995  David S. Miller (davem@caip.rutgers.edu)
@@ -12,7 +12,7 @@
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
-#include <linux/smp.h>
+#include <asm/smp.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
 #include <linux/tty.h>
@@ -23,6 +23,8 @@
 #include <linux/major.h>
 #include <linux/string.h>
 #include <linux/blk.h>
+#include <linux/init.h>
+#include <linux/interrupt.h>
 
 #include <asm/segment.h>
 #include <asm/system.h>
@@ -37,6 +39,9 @@
 #include <asm/kdebug.h>
 #include <asm/mbus.h>
 #include <asm/idprom.h>
+#include <asm/spinlock.h>
+#include <asm/softirq.h>
+#include <asm/hardirq.h>
 
 struct screen_info screen_info = {
 	0, 0,			/* orig-x, orig-y */
@@ -74,8 +79,13 @@ asmlinkage void sys_sync(void);	/* it's really int */
 void prom_sync_me(void)
 {
 	unsigned long prom_tbr, flags;
+	int cpu = smp_processor_id();
 
-	save_and_cli(flags);
+#ifdef __SMP__
+	global_irq_holder = NO_PROC_ID;
+	global_irq_lock = global_bh_lock = 0;
+#endif
+	__save_and_cli(flags);
 	__asm__ __volatile__("rd %%tbr, %0\n\t" : "=r" (prom_tbr));
 	__asm__ __volatile__("wr %0, 0x0, %%tbr\n\t"
 			     "nop\n\t"
@@ -88,9 +98,9 @@ void prom_sync_me(void)
 	prom_printf("PROM SYNC COMMAND...\n");
 	show_free_areas();
 	if(current->pid != 0) {
-		sti();
+		__sti();
 		sys_sync();
-		cli();
+		__cli();
 	}
 	prom_printf("Returning to prom\n");
 
@@ -98,7 +108,7 @@ void prom_sync_me(void)
 			     "nop\n\t"
 			     "nop\n\t"
 			     "nop\n\t" : : "r" (prom_tbr));
-	restore_flags(flags);
+	__restore_flags(flags);
 
 	return;
 }
@@ -110,8 +120,11 @@ unsigned int boot_flags;
 #define BOOTME_SINGLE 0x2
 #define BOOTME_KGDB   0x4
 
+#ifdef CONFIG_SUN_CONSOLE
 extern char *console_fb_path;
 static int console_fb = 0;
+#endif
+static unsigned long memory_size = 0;
 
 void kernel_enter_debugger(void)
 {
@@ -140,7 +153,7 @@ int obp_system_intr(void)
  * Process kernel command line switches that are specific to the
  * SPARC or that require special low-level processing.
  */
-static void process_switch(char c)
+__initfunc(static void process_switch(char c))
 {
 	switch (c) {
 	case 'd':
@@ -159,7 +172,7 @@ static void process_switch(char c)
 	}
 }
 
-static void boot_flags_init(char *commands)
+__initfunc(static void boot_flags_init(char *commands))
 {
 	while (*commands) {
 		/* Move to the start of the next "argument". */
@@ -180,11 +193,11 @@ static void boot_flags_init(char *commands)
 #ifdef CONFIG_SUN_SERIAL
 			case 'a':
 				rs_kgdb_hook(0);
-				printk("KGDB: Using serial line /dev/ttya.\n");
+				prom_printf("KGDB: Using serial line /dev/ttya.\n");
 				break;
 			case 'b':
 				rs_kgdb_hook(1);
-				printk("KGDB: Using serial line /dev/ttyb.\n");
+				prom_printf("KGDB: Using serial line /dev/ttyb.\n");
 				break;
 #endif
 #ifdef CONFIG_AP1000
@@ -199,6 +212,7 @@ static void boot_flags_init(char *commands)
 			}
 			commands += 9;
 		} else {
+#if CONFIG_SUN_CONSOLE
 			if (!strncmp(commands, "console=", 8)) {
 				commands += 8;
 				if (!strncmp (commands, "ttya", 4)) {
@@ -210,6 +224,22 @@ static void boot_flags_init(char *commands)
 				} else {
 					console_fb = 1;
 					console_fb_path = commands;
+				}
+			} else
+#endif
+			if (!strncmp(commands, "mem=", 4)) {
+				/*
+				 * "mem=XXX[kKmM] overrides the PROM-reported
+				 * memory size.
+				 */
+				memory_size = simple_strtoul(commands + 4,
+							     &commands, 0);
+				if (*commands == 'K' || *commands == 'k') {
+					memory_size <<= 10;
+					commands++;
+				} else if (*commands=='M' || *commands=='m') {
+					memory_size <<= 20;
+					commands++;
 				}
 			}
 			while (*commands && *commands != ' ')
@@ -224,13 +254,13 @@ static void boot_flags_init(char *commands)
  * physical memory probe as on the alpha.
  */
 
-extern void load_mmu(void);
 extern int prom_probe_memory(void);
 extern void sun4c_probe_vac(void);
 extern char cputypval;
 extern unsigned long start, end;
 extern void panic_setup(char *, int *);
 extern unsigned long srmmu_endmem_fixup(unsigned long);
+extern unsigned long sun_serial_setup(unsigned long);
 
 extern unsigned short root_flags;
 extern unsigned short root_dev;
@@ -243,6 +273,8 @@ extern unsigned ramdisk_size;
 
 extern int root_mountflags;
 
+extern void register_console(void (*proc)(const char *));
+
 char saved_command_line[256];
 char reboot_command[256];
 enum sparc_cpu sparc_cpu_model;
@@ -251,15 +283,10 @@ struct tt_entry *sparc_ttable;
 
 static struct pt_regs fake_swapper_regs = { 0, 0, 0, 0, { 0, } };
 
-void setup_arch(char **cmdline_p,
-	unsigned long * memory_start_p, unsigned long * memory_end_p)
+__initfunc(void setup_arch(char **cmdline_p,
+	unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	int total, i, packed;
-
-#if CONFIG_AP1000
-        register_console(prom_printf);
-	((char *)(&cputypval))[4] = 'm'; /* ugly :-( */
-#endif
 
 	sparc_ttable = (struct tt_entry *) &start;
 
@@ -275,6 +302,10 @@ void setup_arch(char **cmdline_p,
 	if(!strcmp(&cputypval,"sun4d")) { sparc_cpu_model=sun4d; }
 	if(!strcmp(&cputypval,"sun4e")) { sparc_cpu_model=sun4e; }
 	if(!strcmp(&cputypval,"sun4u")) { sparc_cpu_model=sun4u; }
+#if CONFIG_AP1000
+	sparc_cpu_model=ap1000;
+	strcpy(&cputypval, "ap+");
+#endif
 	printk("ARCH: ");
 	packed = 0;
 	switch(sparc_cpu_model) {
@@ -303,6 +334,11 @@ void setup_arch(char **cmdline_p,
 	case sun4u:
 		printk("SUN4U\n");
 		break;
+	case ap1000:
+		register_console((void (*) (const char *))prom_printf);
+		printk("AP1000\n");
+		packed = 1;
+		break;
 	default:
 		printk("UNKNOWN!\n");
 		break;
@@ -316,6 +352,7 @@ void setup_arch(char **cmdline_p,
 	}
 	if((boot_flags & BOOTME_KGDB)) {
 		set_debug_traps();
+		prom_printf ("Breakpoint!\n");
 		breakpoint();
 	}
 
@@ -325,15 +362,35 @@ void setup_arch(char **cmdline_p,
 	*memory_start_p = (((unsigned long) &end));
 
 	if(!packed) {
-		for(i=0; sp_banks[i].num_bytes != 0; i++)
+		for(i=0; sp_banks[i].num_bytes != 0; i++) {
 			end_of_phys_memory = sp_banks[i].base_addr +
-				sp_banks[i].num_bytes;
+					     sp_banks[i].num_bytes;
+			if (memory_size) {
+				if (end_of_phys_memory > memory_size) {
+					sp_banks[i].num_bytes -=
+					    (end_of_phys_memory - memory_size);
+					end_of_phys_memory = memory_size;
+					sp_banks[++i].base_addr = 0xdeadbeef;
+					sp_banks[i].num_bytes = 0;
+				}
+			}
+		}
 	} else {
 		unsigned int sum = 0;
 
-		for(i = 0; sp_banks[i].num_bytes != 0; i++)
+		for(i = 0; sp_banks[i].num_bytes != 0; i++) {
 			sum += sp_banks[i].num_bytes;
-
+			if (memory_size) {
+				if (sum > memory_size) {
+					sp_banks[i].num_bytes -=
+							(sum - memory_size);
+					sum = memory_size;
+					sp_banks[++i].base_addr = 0xdeadbeef;
+					sp_banks[i].num_bytes = 0;
+					break;
+				}
+			}
+		}
 		end_of_phys_memory = sum;
 	}
 
@@ -347,7 +404,8 @@ void setup_arch(char **cmdline_p,
 		*memory_end_p = 0xfd000000;
 	} else {
 		if((sparc_cpu_model == sun4m) ||
-		   (sparc_cpu_model == sun4d))
+		   (sparc_cpu_model == sun4d) ||
+		   (sparc_cpu_model == ap1000))
 			*memory_end_p = srmmu_endmem_fixup(*memory_end_p);
 	}
 not_relevant:
@@ -382,8 +440,12 @@ not_relevant:
 	init_task.mm->mmap->vm_page_prot = PAGE_SHARED;
 	init_task.mm->mmap->vm_start = KERNBASE;
 	init_task.mm->mmap->vm_end = *memory_end_p;
+	init_task.mm->context = (unsigned long) NO_CONTEXT;
 	init_task.tss.kregs = &fake_swapper_regs;
 
+#ifdef CONFIG_SUN_SERIAL
+	*memory_start_p = sun_serial_setup(*memory_start_p); /* set this up ASAP */
+#endif
 	{
 		extern int serial_console;  /* in console.c, of course */
 #if !CONFIG_SUN_SERIAL
@@ -426,8 +488,6 @@ extern char *sparc_fpu_type[];
 
 extern char *smp_info(void);
 
-extern int linux_num_cpus;
-
 int get_cpuinfo(char *buffer)
 {
 	int cpuid=get_cpuid();
@@ -435,6 +495,7 @@ int get_cpuinfo(char *buffer)
 	return sprintf(buffer, "cpu\t\t: %s\n"
             "fpu\t\t: %s\n"
             "promlib\t\t: Version %d Revision %d\n"
+            "prom\t\t: %d.%d\n"
             "type\t\t: %s\n"
 	    "ncpus probed\t: %d\n"
 	    "ncpus active\t: %d\n"
@@ -453,11 +514,7 @@ int get_cpuinfo(char *buffer)
 	    ,
             sparc_cpu_type[cpuid],
             sparc_fpu_type[cpuid],
-#if CONFIG_AP1000
-            0, 0,
-#else
-            romvec->pv_romvers, prom_rev,
-#endif
+            romvec->pv_romvers, prom_rev, romvec->pv_printrev >> 16, (short)romvec->pv_printrev,
             &cputypval,
 	    linux_num_cpus, smp_num_cpus,
 #ifndef __SMP__

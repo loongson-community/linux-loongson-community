@@ -9,6 +9,8 @@
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/ptrace.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/user.h>
 
 #include <asm/uaccess.h>
@@ -255,7 +257,9 @@ static int write_long(struct task_struct * tsk, unsigned long addr,
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 {
 	struct task_struct *child;
+	int res;
 
+	lock_kernel();
 #if 0
 	printk("ptrace(r=%d,pid=%d,addr=%08lx,data=%08lx)\n",
 	       (int) request, (int) pid, (unsigned long) addr,
@@ -263,30 +267,43 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 #endif
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
-		if (current->flags & PF_PTRACED)
-			return -EPERM;
+		if (current->flags & PF_PTRACED) {
+			res = -EPERM;
+			goto out;
+		}
 		/* set the ptrace bit in the process flags. */
 		current->flags |= PF_PTRACED;
-		return 0;
+		res = 0;
+		goto out;
 	}
-	if (pid == 1)		/* you may not mess with init */
-		return -EPERM;
-	if (!(child = get_task(pid)))
-		return -ESRCH;
+	if (pid == 1) {		/* you may not mess with init */
+		res = -EPERM;
+		goto out;
+	}
+	if (!(child = get_task(pid))) {
+		res = -ESRCH;
+		goto out;
+	}
 	if (request == PTRACE_ATTACH) {
-		if (child == current)
-			return -EPERM;
+		if (child == current) {
+			res = -EPERM;
+			goto out;
+		}
 		if ((!child->dumpable ||
 		    (current->uid != child->euid) ||
 		    (current->uid != child->suid) ||
 		    (current->uid != child->uid) ||
 	 	    (current->gid != child->egid) ||
 		    (current->gid != child->sgid) ||
-	 	    (current->gid != child->gid)) && !suser())
-			return -EPERM;
+	 	    (current->gid != child->gid)) && !suser()) {
+			res = -EPERM;
+			goto out;
+		}
 		/* the same process cannot be attached many times */
-		if (child->flags & PF_PTRACED)
-			return -EPERM;
+		if (child->flags & PF_PTRACED) {
+			res = -EPERM;
+			goto out;
+		}
 		child->flags |= PF_PTRACED;
 		if (child->p_pptr != current) {
 			REMOVE_LINKS(child);
@@ -294,31 +311,35 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			SET_LINKS(child);
 		}
 		send_sig(SIGSTOP, child, 1);
-		return 0;
+		res = 0;
+		goto out;
 	}
-	if (!(child->flags & PF_PTRACED))
-		return -ESRCH;
+	if (!(child->flags & PF_PTRACED)) {
+		res = -ESRCH;
+		goto out;
+	}
 	if (child->state != TASK_STOPPED) {
-		if (request != PTRACE_KILL)
-			return -ESRCH;
+		if (request != PTRACE_KILL) {
+			res = -ESRCH;
+			goto out;
+		}
 	}
-	if (child->p_pptr != current)
-		return -ESRCH;
+	if (child->p_pptr != current) {
+		res = -ESRCH;
+		goto out;
+	}
 
 	switch (request) {
 	/* when I and D space are separate, these will need to be fixed. */
 		case PTRACE_PEEKTEXT: /* read word at location addr. */ 
 		case PTRACE_PEEKDATA: {
 			unsigned long tmp;
-			int res;
 
 			res = read_long(child, addr, &tmp);
 			if (res < 0)
-				return res;
-			res = verify_area(VERIFY_WRITE, (void *) data, sizeof(long));
-			if (!res)
-				put_user(tmp,(unsigned long *) data);
-			return res;
+				goto out;
+			res = put_user(tmp,(unsigned long *) data);
+			goto out;
 		}
 
 	/* read the word at location addr in the USER area. */
@@ -326,14 +347,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		case PTRACE_PEEKUSR: {
 			struct pt_regs *regs;
 			unsigned long tmp;
-			int res;
 
 			regs = (struct pt_regs *)
 				(child->tss.ksp - sizeof(struct pt_regs));
-			res = verify_area(VERIFY_WRITE, (void *) data, sizeof(long));
-			if(res < 0)
-				return res;
-			res = tmp = 0;  /* Default return value. */
+			tmp = 0;  /* Default return value. */
 			if(addr < 32 && addr >= 0) {
 				tmp = regs->regs[addr];
 			} else if(addr >= 32 && addr < 64) {
@@ -370,18 +387,18 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				default:
 					tmp = 0;
 					res = -EIO;
-					break;
+					goto out;
 				};
 			}
-			if(!res)
-				put_user(tmp, (unsigned long *) data);
-			return res;
+			res = put_user(tmp, (unsigned long *) data);
+			goto out;
 		}
 
       /* when I and D space are separate, this will have to be fixed. */
 		case PTRACE_POKETEXT: /* write the word at location addr. */
 		case PTRACE_POKEDATA:
-			return write_long(child,addr,data);
+			res = write_long(child,addr,data);
+			goto out;
 
 		case PTRACE_POKEUSR: {
 			struct pt_regs *regs;
@@ -419,20 +436,23 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 					break;
 				};
 			}
-			return res;
+			goto out;
 		}
 
 		case PTRACE_SYSCALL: /* continue and stop at next (return from) syscall */
 		case PTRACE_CONT: { /* restart after signal. */
-			if ((unsigned long) data > NSIG)
-				return -EIO;
+			if ((unsigned long) data > NSIG) {
+				res = -EIO;
+				goto out;
+			}
 			if (request == PTRACE_SYSCALL)
 				child->flags |= PF_TRACESYS;
 			else
 				child->flags &= ~PF_TRACESYS;
 			child->exit_code = data;
 			wake_up_process(child);
-			return data;
+			res = data;
+			goto out;
 		}
 
 /*
@@ -445,24 +465,32 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				wake_up_process(child);
 				child->exit_code = SIGKILL;
 			}
-			return 0;
+			res = 0;
+			goto out;
 		}
 
 		case PTRACE_DETACH: { /* detach a process that was attached. */
-			if ((unsigned long) data > NSIG)
-				return -EIO;
+			if ((unsigned long) data > NSIG) {
+				res = -EIO;
+				goto out;
+			}
 			child->flags &= ~(PF_PTRACED|PF_TRACESYS);
 			wake_up_process(child);
 			child->exit_code = data;
 			REMOVE_LINKS(child);
 			child->p_pptr = child->p_opptr;
 			SET_LINKS(child);
-			return 0;
+			res = 0;
+			goto out;
 		}
 
 		default:
-			return -EIO;
+			res = -EIO;
+			goto out;
 	}
+out:
+	unlock_kernel();
+	return res;
 }
 
 asmlinkage void syscall_trace(void)
@@ -479,7 +507,10 @@ asmlinkage void syscall_trace(void)
 	 * for normal use.  strace only continues with a signal if the
 	 * stopping signal is not SIGTRAP.  -brl
 	 */
-	if (current->exit_code)
+	if (current->exit_code) {
+		spin_lock_irq(&current->sigmask_lock);
 		current->signal |= (1 << (current->exit_code - 1));
+		spin_unlock_irq(&current->sigmask_lock);
+	}
 	current->exit_code = 0;
 }

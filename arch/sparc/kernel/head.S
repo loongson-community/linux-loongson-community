@@ -1,13 +1,15 @@
-/* $Id: head.S,v 1.70 1996/10/31 06:28:29 davem Exp $
+/* $Id: head.S,v 1.81 1997/04/16 07:15:48 davem Exp $
  * head.S: The initial boot code for the Sparc port of Linux.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
  * Copyright (C) 1995 Peter Zaitcev   (Zaitcev@ipmce.su)
  * Copyright (C) 1996 Miguel de Icaza (miguel@nuclecu.unam.mx)
+ * Copyright (C) 1997 Jakub Jelinek   (jj@sunsite.mff.cuni.cz)
  */
 
 #include <linux/version.h>
 #include <linux/config.h>
+#include <linux/init.h>
 
 #include <asm/cprefix.h>
 #include <asm/head.h>
@@ -18,6 +20,7 @@
 #include <asm/page.h>
 #include <asm/kdebug.h>
 #include <asm/winmacro.h>
+#include <asm/errno.h>
 
 	.data
 /* 
@@ -63,10 +66,6 @@ sun4_notsup:
 
 sun4e_notsup:
         .asciz  "Sparc-Linux sun4e support does not exist\n\n"
-	.align 4
-
-sun4u_notsup:
-        .asciz  "Sparc-Linux sun4u support does not exist\n\n"
 	.align 4
 
 	/* The Sparc trap table, bootloader gives us control at _start. */
@@ -162,7 +161,7 @@ t_bad9b:BAD_TRAP(0x9b) BAD_TRAP(0x9c) BAD_TRAP(0x9d) BAD_TRAP(0x9e) BAD_TRAP(0x9
 t_getcc:GETCC_TRAP                          /* Get Condition Codes           */
 t_setcc:SETCC_TRAP                          /* Set Condition Codes           */
 t_bada2:BAD_TRAP(0xa2) BAD_TRAP(0xa3) BAD_TRAP(0xa4) BAD_TRAP(0xa5) BAD_TRAP(0xa6)
-t_bada7:INDIRECT_SOLARIS_SYSCALL(156)
+t_slowi:INDIRECT_SOLARIS_SYSCALL(156)
 t_bada8:BAD_TRAP(0xa8) BAD_TRAP(0xa9) BAD_TRAP(0xaa) BAD_TRAP(0xab)
 t_badac:BAD_TRAP(0xac) BAD_TRAP(0xad) BAD_TRAP(0xae) BAD_TRAP(0xaf) BAD_TRAP(0xb0)
 t_badb1:BAD_TRAP(0xb1) BAD_TRAP(0xb2) BAD_TRAP(0xb3) BAD_TRAP(0xb4) BAD_TRAP(0xb5)
@@ -408,7 +407,7 @@ C_LABEL(cpu3_stack):			.skip 0x2000
  */
 	.globl C_LABEL(bootup_user_stack)
 	.globl C_LABEL(bootup_kernel_stack)
-	.globl C_LABEL(pg0)
+	.globl C_LABEL(pg0), C_LABEL(pg1), C_LABEL(pg2), C_LABEL(pg3)
 	.globl C_LABEL(empty_bad_page)
 	.globl C_LABEL(empty_bad_page_table)
 	.globl C_LABEL(empty_zero_page)
@@ -417,6 +416,9 @@ C_LABEL(bootup_user_stack):		.skip 0x2000
 C_LABEL(bootup_kernel_stack):		.skip 0x2000
 C_LABEL(swapper_pg_dir):		.skip 0x1000
 C_LABEL(pg0):				.skip 0x1000
+C_LABEL(pg1):				.skip 0x1000
+C_LABEL(pg2):				.skip 0x1000
+C_LABEL(pg3):				.skip 0x1000
 C_LABEL(empty_bad_page):		.skip 0x1000
 C_LABEL(empty_bad_page_table):		.skip 0x1000
 C_LABEL(empty_zero_page):		.skip 0x1000
@@ -472,8 +474,11 @@ current_pc:
 1:
 		mov	%o7, %g3
 
-got_pc:
-		mov	%g4, %o7		/* Previous %o7. */
+#ifndef CONFIG_AP1000
+		tst	%o0
+		be	no_sun4u_here
+#endif
+		 mov	%g4, %o7		/* Previous %o7. */
 	
 		mov	%o0, %l0		! stash away romvec
 		mov	%o0, %g7		! put it here too
@@ -737,6 +742,10 @@ go_to_highmem:
 		jmpl	%g1, %g0
 		 nop
 
+/* The code above should be at beginning and we have to take care about
+ * short jumps, as branching to .text.init section from .text is usually
+ * impossible */
+		__INIT
 /* Acquire boot time privileged register values, this will help debugging.
  * I figure out and store nwindows and nwindowsm1 later on.
  */
@@ -852,7 +861,22 @@ got_prop:
 		 nop
 
 sun4m_init:
-	/* All sun4m processors can do hw mul/div/rem, patch 'em. */
+	/* XXX Fucking Cypress... */
+	lda	[%g0] ASI_M_MMUREGS, %g5
+	srl	%g5, 28, %g4
+
+	cmp	%g4, 1
+	bne	1f
+	 srl	%g5, 24, %g4
+
+	and	%g4, 0xf, %g4
+	cmp	%g4, 7		/* This would be a HyperSparc. */
+
+	bne	2f
+	 nop
+
+1:
+
 #define PATCH_IT(dst, src)	\
 	set	(dst), %g5;	\
 	set	(src), %g4;	\
@@ -902,7 +926,7 @@ sun4m_init:
  * clear them so we don't get magic faults later on.
  */
 /* This sucks, apparently this makes Vikings call prom panic, will fix later */
-
+2:
 		rd	%psr, %o1
 		srl	%o1, 28, %o1		! Get a type of the CPU
 
@@ -950,8 +974,8 @@ sun4c_continue_boot:
 		mov	0, %fp			/* And for good luck */
 
 		/* Zero out our BSS section. */
-		set	C_LABEL(edata) , %o0	! First address of BSS
-		set	C_LABEL(end) , %o1	! Last address of BSS
+		set	C_LABEL(__bss_start) , %o0	! First address of BSS
+		set	C_LABEL(end) , %o1		! Last address of BSS
 		add	%o0, 0x1, %o0
 1:	
 		stb	%g0, [%o0]
@@ -967,8 +991,8 @@ sun4c_continue_boot:
 		st	%g6, [%g2]
 
 		set	C_LABEL(bootup_kernel_stack), %g3
-		st	%g3, [%g6 + TASK_KSTACK_PG]
-		st	%g0, [%g6 + THREAD_UMASK]
+		st	%g3, [%g6 + AOFF_task_kernel_stack_page]
+		st	%g0, [%g6 + AOFF_task_tss + AOFF_thread_uwinmask]
 
 /* Compute NWINDOWS and stash it away. Now uses %wim trick explained
  * in the V8 manual. Ok, this method seems to work, Sparc is cool...
@@ -1029,16 +1053,9 @@ sun4c_continue_boot:
 		PATCH_INSN(rtrap_7win_patch4, rtrap_patch4)
 		PATCH_INSN(rtrap_7win_patch5, rtrap_patch5)
 
-#ifdef __SMP__
+		/* Patch for killing user windows from the register file. */
+		PATCH_INSN(kuw_patch1_7win, kuw_patch1)
 
-		/* Patch for returning from an ipi... */
-		PATCH_INSN(rirq_7win_patch1, rirq_patch1)
-		PATCH_INSN(rirq_7win_patch2, rirq_patch2)
-		PATCH_INSN(rirq_7win_patch3, rirq_patch3)
-		PATCH_INSN(rirq_7win_patch4, rirq_patch4)
-		PATCH_INSN(rirq_7win_patch5, rirq_patch5)
-
-#endif
 		/* Now patch the kernel window flush sequences.
 		 * This saves 2 traps on every switch and fork.
 		 */
@@ -1116,18 +1133,96 @@ no_sun4e_here:
 		b	halt_me
 		 nop
 
-no_sun4u_here:
-		ld	[%g7 + 0x68], %o1
-		set	sun4u_notsup, %o0
-		call	%o1
-		 nop
-		b	halt_me
-		 nop
+		__INITDATA
 
+sun4u_1:
+		.asciz "finddevice"
+		.align	4
+sun4u_2:
+		.asciz "/chosen"
+		.align	4
+sun4u_3:
+		.asciz "getprop"
+		.align	4
+sun4u_4:
+		.asciz "stdout"
+		.align	4
+sun4u_5:
+		.asciz "write"
+		.align	4
+sun4u_6:
+        	.asciz  "\n\rOn sun4u you have to use UltraLinux (64bit) kernel\n\rand not a 32bit sun4[cdem] version\n\r\n\r"
+sun4u_6e:
+		.align	4
+sun4u_7:
+		.asciz "exit"
+		.align	8
+sun4u_a1:
+		.word	0, sun4u_1, 0, 1, 0, 1, 0, sun4u_2, 0
+sun4u_r1:
+		.word	0
+sun4u_a2:
+		.word	0, sun4u_3, 0, 4, 0, 1, 0
+sun4u_i2:
+		.word	0, 0, sun4u_4, 0, sun4u_1, 0, 8, 0
+sun4u_r2:
+		.word	0
+sun4u_a3:
+		.word	0, sun4u_5, 0, 3, 0, 1, 0
+sun4u_i3:
+		.word	0, 0, sun4u_6, 0, sun4u_6e - sun4u_6 - 1, 0
+sun4u_r3:
+		.word	0
+sun4u_a4:
+		.word	0, sun4u_7, 0, 0, 0, 0
+sun4u_r4:
+
+		__INIT
+no_sun4u_here:
+		set	sun4u_a1, %o0
+		set	current_pc, %l2
+		cmp	%l2, %g3
+		be	1f
+		 mov	%o4, %l0
+		sub	%g3, %l2, %l6
+		add	%o0, %l6, %o0
+		mov	%o0, %l4
+		mov	sun4u_r4 - sun4u_a1, %l3
+		ld	[%l4], %l5
+2:
+		add	%l4, 4, %l4
+		cmp	%l5, %l2
+		add	%l5, %l6, %l5
+		bgeu,a	3f
+		 st	%l5, [%l4 - 4]
+3:
+		subcc	%l3, 4, %l3
+		bne	2b
+		 ld	[%l4], %l5
+1:
+		call	%l0
+		 mov	%o0, %l1
+
+		ld	[%l1 + (sun4u_r1 - sun4u_a1)], %o1
+		add	%l1, (sun4u_a2 - sun4u_a1), %o0
+		call	%l0
+		 st	%o1, [%o0 + (sun4u_i2 - sun4u_a2)]
+
+		ld	[%l1 + (sun4u_1 - sun4u_a1)], %o1
+		add	%l1, (sun4u_a3 - sun4u_a1), %o0
+		call	%l0
+		st	%o1, [%o0 + (sun4u_i3 - sun4u_a3)]
+
+		call	%l0
+		 add	%l1, (sun4u_a4 - sun4u_a1), %o0
+
+		/* Not reached */
 halt_me:
 		ld	[%g7 + 0x74], %o0
 		call	%o0			! Get us out of here...
 		 nop				! Apparently Solaris is better.
+
+/* Ok, now we continue in the .data/.text sections */
 
 	.data
 	.align 4
@@ -1172,3 +1267,8 @@ C_LABEL(lvl14_save):
 	.word	0
 	.word	t_irq14
 
+        .section        ".fixup",#alloc,#execinstr
+        .globl  __ret_efault
+__ret_efault:
+        ret
+         restore %g0, -EFAULT, %o0

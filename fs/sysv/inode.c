@@ -20,6 +20,7 @@
  *  the superblock.
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/sched.h>
@@ -29,6 +30,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 
@@ -42,7 +44,7 @@ void sysv_put_inode(struct inode *inode)
 }
 
 
-static struct super_operations sysv_sops = { 
+static struct super_operations sysv_sops = {
 	sysv_read_inode,
 	sysv_notify_change,
 	sysv_write_inode,
@@ -72,7 +74,7 @@ static void detected_bs512 (struct super_block *sb)
 	sb->sv_inodes_per_block = 512/64;
 	sb->sv_inodes_per_block_1 = 512/64-1;
 	sb->sv_inodes_per_block_bits = 9-6;
-	sb->sv_toobig_block = 10 + 
+	sb->sv_toobig_block = 10 +
 	  (sb->sv_ind_per_block = 512/4) +
 	  (sb->sv_ind_per_block_2 = (512/4)*(512/4)) +
 	  (sb->sv_ind_per_block_3 = (512/4)*(512/4)*(512/4));
@@ -99,7 +101,7 @@ static void detected_bs1024 (struct super_block *sb)
 	sb->sv_inodes_per_block = 1024/64;
 	sb->sv_inodes_per_block_1 = 1024/64-1;
 	sb->sv_inodes_per_block_bits = 10-6;
-	sb->sv_toobig_block = 10 + 
+	sb->sv_toobig_block = 10 +
 	  (sb->sv_ind_per_block = 1024/4) +
 	  (sb->sv_ind_per_block_2 = (1024/4)*(1024/4)) +
 	  (sb->sv_ind_per_block_3 = (1024/4)*(1024/4)*(1024/4));
@@ -336,7 +338,7 @@ static struct super_block * detected_coherent (struct super_block *sb, struct bu
 	return sb;
 }
 
-struct super_block *sysv_read_super(struct super_block *sb,void *data, 
+struct super_block *sysv_read_super(struct super_block *sb,void *data,
 				     int silent)
 {
 	struct buffer_head *bh;
@@ -669,7 +671,7 @@ repeat:
 	return result;
 }
 
-static struct buffer_head * block_getblk(struct inode * inode, 
+static struct buffer_head * block_getblk(struct inode * inode,
 	struct buffer_head * bh, int nr, int create)
 {
 	struct super_block *sb;
@@ -978,26 +980,24 @@ static struct file_system_type sysv_fs_type[3] = {
 	{sysv_read_super, "coherent", 1, NULL}
 };
 
-int init_sysv_fs(void)
+__initfunc(int init_sysv_fs(void))
 {
 	int i;
 	int ouch;
 
 	for (i = 0; i < 3; i++) {
 		if ((ouch = register_filesystem(&sysv_fs_type[i])) != 0)
-			return ouch;
+			break;
 	}
         return ouch;
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-	int status;
-
-	if ((status = init_sysv_fs()) == 0)
-		register_symtab(0);
-	return status;
+	return init_sysv_fs();
 }
 
 void cleanup_module(void)

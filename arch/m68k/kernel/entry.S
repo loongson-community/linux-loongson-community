@@ -52,6 +52,10 @@
 #include <linux/linkage.h>
 #include <asm/setup.h>
 #include <asm/segment.h>
+#ifdef CONFIG_KGDB
+#include <asm/kgdb.h>
+.globl SYMBOL_NAME(kgdb_registers)
+#endif
 
 LENOSYS = 38
 
@@ -66,7 +70,7 @@ LTASK_BLOCKED	= 16
 LTASK_FLAGS	= 20
 
 /* the following macro is used when enabling interrupts */
-#if defined(CONFIG_ATARI_ONLY)
+#if defined(MACH_ATARI_ONLY)
 	/* block out HSYNC on the atari */
 #define ALLOWINT 0xfbff
 #define	MAX_NOINT_IPL	3
@@ -87,11 +91,23 @@ LFORMATVEC	= 0x2E
  * regs are a2-a6 and d6-d7 preserved by C code
  * the kernel doesn't mess with usp unless it needs to
  */
+#ifndef CONFIG_KGDB
 #define SAVE_ALL			\
 	clrl	%sp@-;    /* stk_adj */	\
 	movel	%d0,%sp@-; /* orig d0 */	\
 	movel	%d0,%sp@-; /* d0 */	\
 	moveml	%d1-%d5/%a0-%a1,%sp@-
+#else
+/* Need to save the "missing" registers for kgdb...
+ */
+#define SAVE_ALL						\
+	clrl	%sp@-;    /* stk_adj */				\
+	movel	%d0,%sp@-; /* orig d0 */			\
+	movel	%d0,%sp@-; /* d0 */				\
+	moveml	%d1-%d5/%a0-%a1,%sp@-;				\
+	moveml	%d6-%d7,SYMBOL_NAME(kgdb_registers)+GDBOFFA_D6;	\
+	moveml	%a2-%a6,SYMBOL_NAME(kgdb_registers)+GDBOFFA_A2
+#endif
 
 #define RESTORE_ALL			\
 	moveml	%sp@+,%a0-%a1/%d1-%d5;	\
@@ -148,37 +164,18 @@ ENTRY(reschedule)
 	pea	SYMBOL_NAME(ret_from_exception)
 	jmp	SYMBOL_NAME(schedule)
 
-ENTRY(system_call)
-	SAVE_ALL
-	movel	#-LENOSYS,LD0(%sp)	| default return value in d0
-					| original D0 is in orig_d0
-	movel	%d0,%d2
-
-	| save top of frame
-	pea	%sp@
-	jbsr	SYMBOL_NAME(set_esp0)
-	addql	#4,%sp
-
-	cmpl	#NR_syscalls,%d2
-	jcc	SYMBOL_NAME(ret_from_exception)
-	lea	SYMBOL_NAME(sys_call_table),%a0
-	movel	%a0@(%d2:l:4),%d3
-	jeq	SYMBOL_NAME(ret_from_exception)
-	movel	SYMBOL_NAME(current_set),%a0
-	btst	#5,%a0@(LTASK_FLAGS+3)	| PF_TRACESYS
-	bnes	1f
-	movel	%d3,%a0
-	jbsr	%a0@
-	movel	%d0,%sp@(LD0)		| save the return value
+badsys:
+	movel	#-LENOSYS,LD0(%sp)
 	jra	SYMBOL_NAME(ret_from_exception)
-1:
+
+do_trace:
+	movel	#-LENOSYS,LD0(%sp)	| needed for strace
 	subql	#4,%sp
 	SAVE_SWITCH_STACK
 	jbsr	SYMBOL_NAME(syscall_trace)
 	RESTORE_SWITCH_STACK
 	addql	#4,%sp
-	movel	%d3,%a0
-	jbsr	%a0@
+	jbsr	@(SYMBOL_NAME(sys_call_table),%d2:l:4)@(0)
 	movel	%d0,%sp@(LD0)		| save the return value
 	subql	#4,%sp			| dummy return address
 	SAVE_SWITCH_STACK
@@ -187,6 +184,24 @@ ENTRY(system_call)
 SYMBOL_NAME_LABEL(ret_from_signal)
 	RESTORE_SWITCH_STACK
 	addql	#4,%sp
+	jra	SYMBOL_NAME(ret_from_exception)
+
+ENTRY(system_call)
+	SAVE_ALL
+	movel	%d0,%d2
+
+	| save top of frame
+	pea	%sp@
+	jbsr	SYMBOL_NAME(set_esp0)
+	addql	#4,%sp
+
+	cmpl	#NR_syscalls,%d2
+	jcc	badsys
+	movel	SYMBOL_NAME(current_set),%a0
+	btst	#5,%a0@(LTASK_FLAGS+3)	| PF_TRACESYS
+	jne	do_trace
+	jbsr	@(SYMBOL_NAME(sys_call_table),%d2:l:4)@(0)
+	movel	%d0,%sp@(LD0)		| save the return value
 
 SYMBOL_NAME_LABEL(ret_from_exception)
 	btst	#5,%sp@(LSR)		| check if returning to kernel
@@ -197,17 +212,8 @@ SYMBOL_NAME_LABEL(ret_from_exception)
 	cmpl	#SYMBOL_NAME(task),%a0	| task[0] cannot have signals
 	jeq	2f
 	bclr	#5,%a0@(LTASK_FLAGS+1)	| check for delayed trace
-	jeq	1f
-	bclr	#7,%sp@(LSR)		| clear trace bit in SR
-	pea	1			| send SIGTRAP
-	movel	%a0,%sp@-
-	pea	5
-	jbsr	SYMBOL_NAME(send_sig)
-	addql	#8,%sp
-	addql	#4,%sp
-	movel	SYMBOL_NAME(current_set),%a0
-
-1:
+	jne	do_delayed_trace
+5:
 	tstl	%a0@(LTASK_STATE)	| state
 	jne	SYMBOL_NAME(reschedule)
 	tstl	%a0@(LTASK_COUNTER)	| counter
@@ -234,6 +240,17 @@ Lsignal_return:
 	addql	#4,%sp
 	RESTORE_ALL
 
+do_delayed_trace:
+	bclr	#7,%sp@(LSR)		| clear trace bit in SR
+	pea	1			| send SIGTRAP
+	movel	%a0,%sp@-
+	pea	5
+	jbsr	SYMBOL_NAME(send_sig)
+	addql	#8,%sp
+	addql	#4,%sp
+	movel	SYMBOL_NAME(current_set),%a0
+	jra	5b
+
 /*
 ** This is the main interrupt handler, responsible for calling process_int()
 */
@@ -243,7 +260,7 @@ SYMBOL_NAME_LABEL(inthandler)
 	movel	%d0,%sp@(LORIG_D0)	| a -1 in the ORIG_D0 field
 					| signifies that the stack frame
 					| is NOT for syscall
-	addql	#1,SYMBOL_NAME(intr_count)
+	addql	#1,SYMBOL_NAME(local_irq_count)
 					|  put exception # in d0
 	bfextu %sp@(LFORMATVEC){#4,#10},%d0
 
@@ -254,27 +271,26 @@ SYMBOL_NAME_LABEL(inthandler)
 
 SYMBOL_NAME_LABEL(ret_from_interrupt)
 	/* check if we need to do software interrupts */
-1:
-	movel	SYMBOL_NAME(intr_count),%d1
+	movel	SYMBOL_NAME(local_irq_count),%d1
 	subql	#1,%d1
 	jne	4f
-	bfextu  %sp@(LSR){#5,#3},%d0    | Check for nested interrupt.
+#if 0
+		bfextu  %sp@(LSR){#5,#3},%d0    | Check for nested interrupt.
 #if MAX_NOINT_IPL > 0
 	cmpiw	#MAX_NOINT_IPL,%d0
 #endif
 	jhi	4f
-2:
+#endif
 	movel	SYMBOL_NAME(bh_active),%d0
 	andl	SYMBOL_NAME(bh_mask),%d0
-	jne	3f
+	jeq	3f
 
-	clrl	SYMBOL_NAME(intr_count)	| deliver signals, reschedule etc..
-	jra	SYMBOL_NAME(ret_from_exception)
-3:	
 	jbsr	SYMBOL_NAME(do_bottom_half)
-	jbra	2b
+3:	
+	clrl	SYMBOL_NAME(local_irq_count)
+	jra	SYMBOL_NAME(ret_from_exception)
 4:
-	movel	%d1,SYMBOL_NAME(intr_count)
+	movel	%d1,SYMBOL_NAME(local_irq_count)
 	RESTORE_ALL
 
 
@@ -338,8 +354,10 @@ SYMBOL_NAME_LABEL(resume)
 	/* save sr */
 	movew	%sr,%a0@(LTSS_SR)
 
+#if 0
 	/* disable interrupts */
 	oriw	#0x0700,%sr
+#endif
 
 	/* save fs (sfc,%dfc) (may be pointing to kernel memory) */
 	movec	%sfc,%d0
@@ -360,18 +378,18 @@ SYMBOL_NAME_LABEL(resume)
 	fsave	%a0@(LTSS_FPCTXT+27*4)
 
 #if defined(CONFIG_M68060)
-#if !defined(CONFIG_M68060_ONLY)
-	btst	#3,SYMBOL_NAME(boot_info)+BI_cputype+3
+#if !defined(CPU_M68060_ONLY)
+	btst	#3,SYMBOL_NAME(m68k_cputype)+3
 	beqs	1f
 #endif
 	/* The 060 FPU keeps status in bits 15-8 of the first longword */
 	tstb	%a0@(LTSS_FPCTXT+27*4+2)
 	jeq	3f
-#if !defined(CONFIG_M68060_ONLY)
+#if !defined(CPU_M68060_ONLY)
 	jra	2f
 #endif
 #endif /* CONFIG_M68060 */
-#if !defined(CONFIG_M68060_ONLY)
+#if !defined(CPU_M68060_ONLY)
 1:	tstb	%a0@(LTSS_FPCTXT+27*4)
 	jeq	3f
 #endif
@@ -387,12 +405,12 @@ SYMBOL_NAME_LABEL(resume)
 	tstb	%d2
 	jne	4f
 
-#if defined(CONFIG_M68020_OR_M68030) && defined(CONFIG_M68040_OR_M68060)
+#if defined(CPU_M68020_OR_M68030) && defined(CPU_M68040_OR_M68060)
 	/* 68040 or 68060 ? */
 	tstl	SYMBOL_NAME(m68k_is040or060)
 	bnes	1f
 #endif
-#if defined(CONFIG_M68020_OR_M68030)
+#if defined(CPU_M68020_OR_M68030)
 	/*
 	 * switch address space
 	 */
@@ -406,49 +424,51 @@ SYMBOL_NAME_LABEL(resume)
 	pmove	%a1@(LTSS_CRP),%crp
 #endif
 
-#if defined(CONFIG_M68020_OR_M68030) && defined(CONFIG_M68040_OR_M68060)
+#if defined(CPU_M68020_OR_M68030) && defined(CPU_M68040_OR_M68060)
 	jra	2f	/* skip m68040 stuff */
 1:
 #endif
-#if defined(CONFIG_M68040_OR_M68060)
+#if defined(CPU_M68040_OR_M68060)
 	/*
 	 * switch address space
 	 */
+	.chip	68040
 
 	/* flush address translation cache (user entries) */
-	.word	0xf510			/* pflushan */
+	pflushan
 
 	/* switch the root pointer */
 	movel	%a1@(LTSS_CRP+4),%d0
-	.long	0x4e7b0806		/* movec d0,urp */
+	movec	%d0,%urp
 
 #if defined (CONFIG_M68060)
 	/* is it a '060 ? */
-	btst	#3,SYMBOL_NAME(boot_info)+BI_cputype+3
+	btst	#3,SYMBOL_NAME(m68k_cputype)+3
 	beqs	2f
 	/* clear user entries in the branch cache */
 	movec	%cacr,%d0
 	orl	#0x00200000,%d0
 	movec	%d0,%cacr
 #endif /* CONFIG_M68060 */
-#endif /* CONFIG_M68040_OR_M68060 */
+	.chip	68k
+#endif /* CPU_M68040_OR_M68060 */
 2:
 4:
 	/* restore floating point context */
 
 #if defined(CONFIG_M68060)
-#if !defined(CONFIG_M68060_ONLY)
-	btst	#3,SYMBOL_NAME(boot_info)+BI_cputype+3
+#if !defined(CPU_M68060_ONLY)
+	btst	#3,SYMBOL_NAME(m68k_cputype)+3
 	beqs	1f
 #endif
 	/* The 060 FPU keeps status in bits 15-8 of the first longword */
 	tstb	%a1@(LTSS_FPCTXT+27*4+2)
 	jeq	3f
-#if !defined(CONFIG_M68060_ONLY)
+#if !defined(CPU_M68060_ONLY)
 	jra	2f
 #endif
 #endif /* CONFIG_M68060 */
-#if !defined(CONFIG_M68060_ONLY)
+#if !defined(CPU_M68060_ONLY)
 1:	tstb	%a1@(LTSS_FPCTXT+27*4)
 	jeq	3f
 #endif	
@@ -592,7 +612,7 @@ SYMBOL_NAME_LABEL(sys_call_table)
 	.long SYMBOL_NAME(sys_ni_syscall)	/* iopl for i386 */ /* 110 */
 	.long SYMBOL_NAME(sys_vhangup)
 	.long SYMBOL_NAME(sys_idle)
-	.long SYMBOL_NAME(sys_ni_syscall)	/* vm86 for i386 */
+	.long SYMBOL_NAME(sys_ni_syscall)	/* vm86old for i386 */
 	.long SYMBOL_NAME(sys_wait4)
 	.long SYMBOL_NAME(sys_swapoff)		/* 115 */
 	.long SYMBOL_NAME(sys_sysinfo)
@@ -644,5 +664,11 @@ SYMBOL_NAME_LABEL(sys_call_table)
 	.long SYMBOL_NAME(sys_nanosleep)
 	.long SYMBOL_NAME(sys_mremap)
 	.long SYMBOL_NAME(sys_setresuid)
-	.long SYMBOL_NAME(sys_getresuid)
-	.space (NR_syscalls-165)*4
+	.long SYMBOL_NAME(sys_getresuid)	/* 165 */
+	.long SYMBOL_NAME(sys_ni_syscall)	/* for vm86 */
+	.long SYMBOL_NAME(sys_query_module)
+	.long SYMBOL_NAME(sys_poll)
+	.long SYMBOL_NAME(sys_nfsservctl)
+	.rept NR_syscalls-(.-SYMBOL_NAME(sys_call_table))/4
+		.long SYMBOL_NAME(sys_ni_syscall)
+	.endr

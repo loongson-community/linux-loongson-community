@@ -6,7 +6,9 @@
  * Laboratory for Computer Science Research Computing Facility
  * Rutgers, The State University of New Jersey
  *
- * $Id: ufs_super.c,v 1.17 1996/09/03 07:15:53 ecd Exp $
+ * Copyright (C) 1996  Eddie C. Dost  (ecd@skynet.be)
+ *
+ * $Id: ufs_super.c,v 1.23 1997/04/16 04:53:39 tdyas Exp $
  *
  */
 
@@ -18,12 +20,14 @@
  * Gertjan van Wingerde <gertjan@cs.vu.nl>
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/ufs_fs.h>
 #include <linux/locks.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 
@@ -48,20 +52,17 @@ static struct file_system_type ufs_fs_type = {
 	ufs_read_super, "ufs", 1, NULL
 };
 
-int
-init_ufs_fs(void)
+__initfunc(int init_ufs_fs(void))
 {
 	return(register_filesystem(&ufs_fs_type));
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-	int status;
-
-	if ((status = init_ufs_fs()) == 0)
-		register_symtab(0);
-	return status;
+	return init_ufs_fs();
 }
 
 void cleanup_module(void)
@@ -136,7 +137,7 @@ ufs_read_super(struct super_block * sb, void * data, int silent)
 		goto ufs_read_super_lose;
 	}
 	/* XXX - redo this so we can free it later... */
-	usb = (struct ufs_superblock *)__get_free_page(GFP_KERNEL); 
+	usb = (struct ufs_superblock *)__get_free_page(GFP_KERNEL);
 	if (usb == NULL) {
 		brelse(bh1);
 		brelse(bh2);
@@ -158,7 +159,7 @@ ufs_read_super(struct super_block * sb, void * data, int silent)
 		ufs_need_swab = 1;
 		sb->s_magic = ufs_swab32(usb->fs_magic);
 		if (sb->s_magic != UFS_MAGIC) {
-	                printk ("ufs_read_super: bad magic number 0x%8.8x "
+	                printk ("ufs_read_super: bad magic number 0x%8.8lx "
 				"on dev %d/%d\n", sb->s_magic,
 				MAJOR(sb->s_dev), MINOR(sb->s_dev));
 
@@ -291,23 +292,35 @@ void ufs_put_super (struct super_block * sb)
 void ufs_statfs(struct super_block * sb, struct statfs * buf, int bufsiz)
 {
 	struct statfs tmp;
+	struct statfs *sp = &tmp;
+	struct ufs_superblock *fsb = sb->u.ufs_sb.s_raw_sb;
+	unsigned long used, avail;
 
         if (sb->u.ufs_sb.s_flags & UFS_DEBUG) {
 		printk("ufs_statfs\n"); /* XXX */
         }
 
-	tmp.f_type = sb->s_magic;
-	tmp.f_bsize = sb->s_blocksize;
-	tmp.f_blocks = ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_dsize);
-	tmp.f_bfree = ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_cstotal.cs_nbfree);
-	tmp.f_bavail =  ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_cstotal.cs_nbfree);
-	tmp.f_files = sb->u.ufs_sb.s_ncg * sb->u.ufs_sb.s_ipg;
-	tmp.f_ffree = ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_cstotal.cs_nifree);
-	tmp.f_fsid.val[0] = ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_id[0]);
-	tmp.f_fsid.val[1] = ufs_swab32(sb->u.ufs_sb.s_raw_sb->fs_id[1]);
-	tmp.f_namelen = UFS_MAXNAMLEN;
+	sp->f_type = sb->s_magic;
+	sp->f_bsize = sb->s_blocksize;
+	sp->f_blocks = ufs_swab32(fsb->fs_dsize);
+	sp->f_bfree = ufs_swab32(fsb->fs_cstotal.cs_nbfree) *
+			ufs_swab32(fsb->fs_frag) +
+			ufs_swab32(fsb->fs_cstotal.cs_nffree);
 
-	copy_to_user(buf, &tmp, bufsiz);
+	avail = sp->f_blocks - (sp->f_blocks / 100) *
+			ufs_swab32(fsb->fs_minfree);
+	used = sp->f_blocks - sp->f_bfree;
+	if (avail > used)
+		sp->f_bavail = avail - used;
+	else
+		sp->f_bavail = 0;
+
+	sp->f_files = sb->u.ufs_sb.s_ncg * sb->u.ufs_sb.s_ipg;
+	sp->f_ffree = ufs_swab32(fsb->fs_cstotal.cs_nifree);
+	sp->f_fsid.val[0] = ufs_swab32(fsb->fs_id[0]);
+	sp->f_fsid.val[1] = ufs_swab32(fsb->fs_id[1]);
+	sp->f_namelen = UFS_MAXNAMLEN;
+
+	copy_to_user(buf, sp, bufsiz);
 	return;
 }
-

@@ -11,6 +11,8 @@
  * Now that /dev/vcs exists, most of this can disappear again.
  */
 
+#include <linux/config.h>
+#include <linux/module.h>
 #include <linux/tty.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
@@ -29,6 +31,8 @@
 
 /* Don't take this from <ctype.h>: 011-015 on the screen aren't spaces */
 #define isspace(c)	((c) == ' ')
+
+extern void poke_blanked_console(void);
 
 /* Variables for selection control. */
 /* Use a dynamic buffer, instead of static (Dec 1994) */
@@ -118,6 +122,7 @@ int set_selection(const unsigned long arg, struct tty_struct *tty, int user)
 	int i, ps, pe;
 
 	do_unblank_screen();
+	poke_blanked_console();
 
 	{ unsigned short *args, xs, ys, xe, ye;
 
@@ -286,10 +291,10 @@ int paste_selection(struct tty_struct *tty)
 	int	c = sel_buffer_lth;
 	int	l;
 	struct vt_struct *vt = (struct vt_struct *) tty->driver_data;
-	
+
 	if (!bp || !c)
 		return 0;
-	do_unblank_screen();
+	poke_blanked_console();
 	add_wait_queue(&vt->paste_wait, &wait);
 	do {
 		current->state = TASK_INTERRUPTIBLE;
@@ -306,3 +311,6 @@ int paste_selection(struct tty_struct *tty)
 	current->state = TASK_RUNNING;
 	return 0;
 }
+
+EXPORT_SYMBOL(set_selection);
+EXPORT_SYMBOL(paste_selection);

@@ -298,7 +298,7 @@ int mem_mmap(struct inode * inode, struct file * file,
 
 		set_pte(src_table, pte_mkdirty(*src_table));
 		set_pte(dest_table, *src_table);
-		mem_map[MAP_NR(pte_page(*src_table))].count++;
+		atomic_inc(&mem_map[MAP_NR(pte_page(*src_table))].count);
 
 		stmp += PAGE_SIZE;
 		dtmp += PAGE_SIZE;
@@ -314,7 +314,7 @@ static struct file_operations proc_mem_operations = {
 	mem_read,
 	mem_write,
 	NULL,		/* mem_readdir */
-	NULL,		/* mem_select */
+	NULL,		/* mem_poll */
 	NULL,		/* mem_ioctl */
 	mem_mmap,	/* mmap */
 	NULL,		/* no special open code */

@@ -30,6 +30,7 @@ static const char *version =
 #include <linux/ioport.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -37,7 +38,7 @@ static const char *version =
 #include "8390.h"
 
 /* A zero-terminated list of I/O addresses to be probed. */
-static unsigned int hppclan_portlist[] =
+static unsigned int hppclan_portlist[] __initdata =
 { 0x300, 0x320, 0x340, 0x280, 0x2C0, 0x200, 0x240, 0};
 
 #define HP_IO_EXTENT	32
@@ -70,8 +71,8 @@ static void hp_block_output(struct device *dev, int count,
 static void hp_init_card(struct device *dev);
 
 /* The map from IRQ number to HP_CONFIGURE register setting. */
-/* My default is IRQ5	   0  1	 2  3  4  5  6	7  8  9 10 11 */
-static char irqmap[16] = { 0, 0, 4, 6, 8,10, 0,14, 0, 4, 2,12,0,0,0,0};
+/* My default is IRQ5	             0  1  2  3  4  5  6  7  8  9 10 11 */
+static char irqmap[16] __initdata= { 0, 0, 4, 6, 8,10, 0,14, 0, 4, 2,12,0,0,0,0};
 
 
 /*	Probe for an HP LAN adaptor.
@@ -82,7 +83,7 @@ struct netdev_entry netcard_drv =
 {"hp", hp_probe1, HP_IO_EXTENT, hppclan_portlist};
 #else
 
-int hp_probe(struct device *dev)
+__initfunc(int hp_probe(struct device *dev))
 {
 	int i;
 	int base_addr = dev ? dev->base_addr : 0;
@@ -104,7 +105,7 @@ int hp_probe(struct device *dev)
 }
 #endif
 
-int hp_probe1(struct device *dev, int ioaddr)
+__initfunc(int hp_probe1(struct device *dev, int ioaddr))
 {
 	int i, board_id, wordmode;
 	const char *name;
@@ -137,7 +138,7 @@ int hp_probe1(struct device *dev, int ioaddr)
 
 	if (ei_debug  &&  version_printed++ == 0)
 		printk(version);
- 
+
 	printk("%s: %s (ID %02x) at %#3x,", dev->name, name, board_id, ioaddr);
 
 	for(i = 0; i < ETHER_ADDR_LEN; i++)
@@ -237,7 +238,7 @@ hp_reset_8390(struct device *dev)
 
 	outb_p(saved_config, hp_base + HP_CONFIGURE);
 	SLOW_DOWN_IO; SLOW_DOWN_IO;
-	
+
 	if ((inb_p(hp_base+NIC_OFFSET+EN0_ISR) & ENISR_RESET) == 0)
 		printk("%s: hp_reset_8390() did not complete.\n", dev->name);
 
@@ -259,14 +260,14 @@ hp_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr, int ring_page)
 	outb_p(ring_page, nic_base + EN0_RSARHI);
 	outb_p(E8390_RREAD+E8390_START, nic_base);
 
-	if (ei_status.word16) 
+	if (ei_status.word16)
 	  insw(nic_base - NIC_OFFSET + HP_DATAPORT, hdr, sizeof(struct e8390_pkt_hdr)>>1);
-	else 
+	else
 	  insb(nic_base - NIC_OFFSET + HP_DATAPORT, hdr, sizeof(struct e8390_pkt_hdr));
 
 	outb_p(saved_config & (~HP_DATAON), nic_base - NIC_OFFSET + HP_CONFIGURE);
 }
-	
+
 /* Block input and output, similar to the Crynwr packet driver. If you are
    porting to a new ethercard look at the packet driver source for hints.
    The HP LAN doesn't use shared memory -- we put the packet
@@ -391,6 +392,9 @@ static struct device dev_hp[MAX_HP_CARDS] = {
 
 static int io[MAX_HP_CARDS] = { 0, };
 static int irq[MAX_HP_CARDS]  = { 0, };
+
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_HP_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_HP_CARDS) "i");
 
 /* This is set up so that only a single autoprobe takes place per call.
 ISA device autoprobes on a running machine are not recommended. */

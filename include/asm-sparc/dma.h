@@ -1,4 +1,4 @@
-/* $Id: dma.h,v 1.22 1996/10/17 05:29:01 davem Exp $
+/* $Id: dma.h,v 1.24 1997/04/10 05:13:21 davem Exp $
  * include/asm-sparc/dma.h
  *
  * Copyright 1995 (C) David S. Miller (davem@caip.rutgers.edu)
@@ -8,6 +8,7 @@
 #define _ASM_SPARC_DMA_H
 
 #include <linux/kernel.h>
+#include <linux/types.h>
 
 #include <asm/vac-ops.h>  /* for invalidate's, etc. */
 #include <asm/sbus.h>
@@ -28,10 +29,10 @@
 
 /* Structure to describe the current status of DMA registers on the Sparc */
 struct sparc_dma_registers {
-  __volatile__ unsigned long cond_reg;   /* DMA condition register */
-  __volatile__ char * st_addr;           /* Start address of this transfer */
-  __volatile__ unsigned long cnt;        /* How many bytes to transfer */
-  __volatile__ unsigned long dma_test;   /* DMA test register */
+  __volatile__ __u32 cond_reg;	/* DMA condition register */
+  __volatile__ __u32 st_addr;	/* Start address of this transfer */
+  __volatile__ __u32 cnt;	/* How many bytes to transfer */
+  __volatile__ __u32 dma_test;	/* DMA test register */
 };
 
 /* DVMA chip revisions */
@@ -74,7 +75,6 @@ extern struct Linux_SBus_DMA *dma_chain;
 #define DMA_ISESC1(dma)      ((dma)->revision == dvmaesc1)
 
 /* Main routines in dma.c */
-extern void dump_dma_regs(struct sparc_dma_registers *);
 extern unsigned long dvma_init(struct linux_sbus *, unsigned long);
 
 /* Fields in the cond_reg register */

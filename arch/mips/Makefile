@@ -60,29 +60,57 @@ ifdef CONFIG_REMOTE_DEBUG
 CFLAGS		:= $(CFLAGS) -g
 endif
 
-CFLAGS		:= $(CFLAGS) -mips2
+#
+# CPU dependand compiler/assembler options for optimization.
+#
+ifdef CONFIG_CPU_R3000
+CFLAGS		:= $(CFLAGS) -mcpu=r3000 -mips1
+endif
+ifdef CONFIG_CPU_R6000
+CFLAGS		:= $(CFLAGS) -mcpu=r6000 -mips2
+endif
+ifdef CONFIG_CPU_R4300
+CFLAGS		:= $(CFLAGS) -mcpu=r4600 -Wa,-mcpu=vr4300 -mips2
+endif
+ifdef CONFIG_CPU_R4X00
+CFLAGS		:= $(CFLAGS) -mcpu=r4600 -mips2
+endif
+ifdef CONFIG_CPU_R5000
+CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2
+endif
+ifdef CONFIG_CPU_R8000
+CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2
+endif
+ifdef CONFIG_CPU_R10000
+CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2
+endif
 
 #
 # Board dependand options and extra files
 #
+ifdef CONFIG_ALGOR_P4032
+CORE_FILES    += arch/mips/algor/algor.o
+SUBDIRS       += arch/mips/algor
+#LOADADDR      += 0x80000000
+endif
 ifdef CONFIG_ACER_PICA_61
-ARCHIVES      += arch/mips/jazz/jazz.o
+CORE_FILES    += arch/mips/jazz/jazz.o
 SUBDIRS       += arch/mips/jazz
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_DECSTATION
-ARCHIVES      += arch/mips/dec/dec.o
+CORE_FILES    += arch/mips/dec/dec.o
 SUBDIRS       += arch/mips/dec
 LINKSCRIPT    += arch/mips/dec/ld.script
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_DESKSTATION_RPC44
-ARCHIVES      += arch/mips/deskstation/deskstation.o
+CORE_FILES    += arch/mips/deskstation/deskstation.o
 SUBDIRS       += arch/mips/deskstation
 LOADADDR      += 0x80100000
 endif
 ifdef CONFIG_DESKSTATION_TYNE
-ARCHIVES      += arch/mips/deskstation/deskstation.o
+CORE_FILES    += arch/mips/deskstation/deskstation.o
 SUBDIRS       += arch/mips/deskstation
 LOADADDR      += 0x80000000
 endif
@@ -90,17 +118,17 @@ ifdef CONFIG_MIPS_MAGNUM_3000
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_MIPS_MAGNUM_4000
-ARCHIVES      += arch/mips/jazz/jazz.o
+CORE_FILES    += arch/mips/jazz/jazz.o
 SUBDIRS       += arch/mips/jazz
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_SNI_RM200_PCI
-ARCHIVES      += arch/mips/sni/sni.o
+CORE_FILES    += arch/mips/sni/sni.o
 SUBDIRS       += arch/mips/sni
 LOADADDR      += 0x80000000
 endif
 ifdef CONFIG_SGI
-ARCHIVES      += arch/mips/sgi/kernel/sgikern.a arch/mips/sgi/prom/promlib.a
+LIBS          += arch/mips/sgi/kernel/sgikern.a arch/mips/sgi/prom/promlib.a
 SUBDIRS       += arch/mips/sgi/kernel arch/mips/sgi/prom
 LOADADDR      += 0x88069000
 HOSTCC        = cc
@@ -133,7 +161,7 @@ endif
 HEAD := arch/mips/kernel/head.o
 
 SUBDIRS := $(SUBDIRS) $(addprefix arch/mips/, kernel mm lib tools)
-ARCHIVES := arch/mips/kernel/kernel.o arch/mips/mm/mm.o $(ARCHIVES)
+CORE_FILES := arch/mips/kernel/kernel.o arch/mips/mm/mm.o $(CORE_FILES)
 LIBS := arch/mips/lib/lib.a $(LIBS) arch/mips/lib/lib.a
 
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot

@@ -17,7 +17,6 @@
  *	length in $0
  *	destination address in $6
  *	source address in $7
- *	exception pointer in $8
  *	return address in $28
  *
  * Outputs:
@@ -33,7 +32,7 @@
 	.section __ex_table,"a";	\
 	.gprel32 99b;			\
 	lda $31, $exit-99b($31);	\
-	.text
+	.previous
 
 	.set noat
 	.align 3

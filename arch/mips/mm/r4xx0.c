@@ -14,7 +14,6 @@
 #include <asm/sgimc.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
 #include <asm/sgialib.h>
@@ -151,11 +150,11 @@ static void r4k_copy_page_d16(unsigned long to, unsigned long from)
 		"lw\t%3,-12(%1)\n\t"
 		"lw\t%4,-8(%1)\n\t"
 		"lw\t%5,-4(%1)\n\t"
-		"sd\t%2,-16(%0)\n\t"
-		"sd\t%3,-12(%0)\n\t"
-		"sd\t%4,-8(%0)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sd\t%5,-4(%0)\n\t"
+		"sw\t%5,-4(%0)\n\t"
 		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
@@ -208,11 +207,11 @@ static void r4k_copy_page_d32(unsigned long to, unsigned long from)
 		"lw\t%3,-12(%1)\n\t"
 		"lw\t%4,-8(%1)\n\t"
 		"lw\t%5,-4(%1)\n\t"
-		"sd\t%2,-16(%0)\n\t"
-		"sd\t%3,-12(%0)\n\t"
-		"sd\t%4,-8(%0)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sd\t%5,-4(%0)\n\t"
+		"sw\t%5,-4(%0)\n\t"
 		".set\tmips0\n\t"
 		".set\tat\n\t"
 		".set\treorder"
@@ -1663,7 +1662,7 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 {
 	page &= PAGE_MASK;
 	if((page >= KSEG0 && page < KSEG1) || (page >= KSEG2)) {
-		unsigned long flags, tmp1, tmp2;
+		unsigned long flags;
 
 #ifdef DEBUG_CACHE
 		/* #if 1 */
@@ -1678,34 +1677,37 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 		blast_dcache32_page(page);
 		blast_dcache32_page(page ^ 0x2000);
 #ifdef CONFIG_SGI
-		/*
-		 * SGI goo.  Have to check this closer ...
-		 */
-		__asm__ __volatile__("
-		.set noreorder
-		.set mips3
-		li	%0, 0x1
-		dsll	%0, 31
-		or	%0, %0, %2
-		lui	%1, 0x9000
-		dsll32	%1, 0
-		or	%0, %0, %1
-		daddu	%1, %0, 0x0fe0
-		li	%2, 0x80
-		mtc0	%2, $12
-		nop; nop; nop; nop;
-1:		sw	$0, 0(%0)
-		bltu	%0, %1, 1b
-		daddu	%0, 32
-		mtc0	$0, $12
-		nop; nop; nop; nop;
-		mtc0	%3, $12
-		nop; nop; nop; nop;
-		.set mips0
-		.set reorder"
-		: "=&r" (tmp1), "=&r" (tmp2),
-		  "=&r" (page), "=&r" (flags)
-		: "2" (page & 0x0007f000), "3" (flags));
+		{
+			unsigned long tmp1, tmp2;
+			/*
+			 * SGI goo.  Have to check this closer ...
+			 */
+			__asm__ __volatile__("
+			.set noreorder
+			.set mips3
+			li	%0, 0x1
+			dsll	%0, 31
+			or	%0, %0, %2
+			lui	%1, 0x9000
+			dsll32	%1, 0
+			or	%0, %0, %1
+			daddu	%1, %0, 0x0fe0
+			li	%2, 0x80
+			mtc0	%2, $12
+			nop; nop; nop; nop;
+1:			sw	$0, 0(%0)
+			bltu	%0, %1, 1b
+			daddu	%0, 32
+			mtc0	$0, $12
+			nop; nop; nop; nop;
+			mtc0	%3, $12
+			nop; nop; nop; nop;
+			.set mips0
+			.set reorder"
+			: "=&r" (tmp1), "=&r" (tmp2),
+			  "=&r" (page), "=&r" (flags)
+			: "2" (page & 0x0007f000), "3" (flags));
+		}
 #endif /* CONFIG_SGI */
 	}
 }
@@ -2452,5 +2454,6 @@ try_again:
 
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
+	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
 	flush_tlb_all();
 }

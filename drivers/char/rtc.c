@@ -50,17 +50,26 @@
 #include <linux/ioport.h>
 #include <linux/fcntl.h>
 #include <linux/mc146818rtc.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
+#include <asm/poll.h>
+
+/* Adjust starting epoch if ARC console time is being used */
+#ifdef CONFIG_RTC_ARC
+#define ARCFUDGE 20 
+#else
+#define ARCFUDGE 0
+#endif
 
 /*
  *	We sponge a minor off of the misc major. No need slurping
- *	up another valuable major dev number for this.
+ *	up another valuable major dev number for this. If you add
+ *	an ioctl, make sure you don't conflict with SPARC's RTC
+ *	ioctls.
  */
-
-#define RTC_MINOR	135
 
 static struct wait_queue *rtc_wait;
 
@@ -75,8 +84,7 @@ static long rtc_read(struct inode *inode, struct file *file,
 static int rtc_ioctl(struct inode *inode, struct file *file,
 			unsigned int cmd, unsigned long arg);
 
-static int rtc_select(struct inode *inode, struct file *file,
-			int sel_type, select_table *wait);
+static unsigned int rtc_poll(struct file *file, poll_table *wait);
 
 void get_rtc_time (struct rtc_time *rtc_tm);
 void get_rtc_alm_time (struct rtc_time *alm_tm);
@@ -336,7 +344,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 			copy_from_user(&rtc_tm, (struct rtc_time*)arg, sizeof(struct rtc_time));
 
-			yrs = rtc_tm.tm_year + 1900;
+			yrs = rtc_tm.tm_year + 1900 + ARCFUDGE;
 			mon = rtc_tm.tm_mon + 1;   /* tm_mon starts at zero */
 			day = rtc_tm.tm_mday;
 			hrs = rtc_tm.tm_hour;
@@ -462,7 +470,7 @@ static int rtc_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static void rtc_release(struct inode *inode, struct file *file)
+static int rtc_release(struct inode *inode, struct file *file)
 {
 
 	/*
@@ -490,16 +498,14 @@ static void rtc_release(struct inode *inode, struct file *file)
 
 	rtc_irq_data = 0;
 	rtc_status &= ~RTC_IS_OPEN;
+	return 0;
 }
 
-static int rtc_select(struct inode *inode, struct file *file,
-			int sel_type, select_table *wait)
+static unsigned int rtc_poll(struct file *file, poll_table *wait)
 {
-	if (sel_type == SEL_IN) {
-		if (rtc_irq_data != 0)
-			return 1;
-		select_wait(&rtc_wait, wait);
-	}
+	poll_wait(&rtc_wait, wait);
+	if (rtc_irq_data != 0)
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -512,7 +518,7 @@ static struct file_operations rtc_fops = {
 	rtc_read,
 	NULL,		/* No write */
 	NULL,		/* No readdir */
-	rtc_select,
+	rtc_poll,
 	rtc_ioctl,
 	NULL,		/* No mmap */
 	rtc_open,
@@ -526,7 +532,7 @@ static struct miscdevice rtc_dev=
 	&rtc_fops
 };
 
-int rtc_init(void)
+__initfunc(int rtc_init(void))
 {
 	unsigned long flags;
 
@@ -726,6 +732,9 @@ void get_rtc_time(struct rtc_time *rtc_tm)
 	 */
 	if (rtc_tm->tm_year <= 69)
 		rtc_tm->tm_year += 100;
+
+	/* if ARCFUDGE == 0, the optimizer should do away with this */
+	rtc_tm->tm_year -= ARCFUDGE;
 
 	rtc_tm->tm_mon--;
 }

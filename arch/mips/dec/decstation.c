@@ -10,7 +10,6 @@
  *	  too specific to the Person Decstattion 5000/2x!!
  */
 
-#include <asm/segment.h>
 #include <asm/dec/decstation.h>
 #include <asm/dec/maxine.h>	/* FIXME: what about other decstations? */
 #include <asm/bootinfo.h>

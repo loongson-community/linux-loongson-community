@@ -5,7 +5,9 @@
  *
  *  Swap reorganised 29.12.95, Stephen Tweedie.
  *  kswapd added: 7.1.96  sct
- *  Version: $Id: vmscan.c,v 1.4.2.2 1996/01/20 18:22:47 linux Exp $
+ *  Removed kswapd_ctl limits, and swap out as many pages as needed
+ *  to bring the system back to free_pages_high: 2.4.97, Rik van Riel.
+ *  Version: $Id: vmscan.c,v 1.23 1997/04/12 04:31:05 davem Exp $
  */
 
 #include <linux/mm.h>
@@ -20,6 +22,7 @@
 #include <linux/fs.h>
 #include <linux/swapctl.h>
 #include <linux/smp_lock.h>
+#include <linux/slab.h>
 
 #include <asm/dma.h>
 #include <asm/system.h> /* for cli()/sti() */
@@ -47,12 +50,6 @@ static struct wait_queue * kswapd_wait = NULL;
  * We avoid doing a reschedule if the pageout daemon is already awake;
  */
 static int kswapd_awake = 0;
-
-/*
- * sysctl-modifiable parameters to control the aggressiveness of the
- * page-searching within the kswapd page recovery daemon.
- */
-kswapd_control_t kswapd_ctl = {4, -1, -1, -1, -1};
 
 static void init_swap_timer(void);
 
@@ -106,15 +103,10 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 			if (vma->vm_ops->swapout(vma, address - vma->vm_start + vma->vm_offset, page_table))
 				kill_proc(pid, SIGBUS, 1);
 		} else {
-			if (page_map->count != 1)
+			if (atomic_read(&page_map->count) != 1)
 				return 0;
-			if (!(entry = get_swap_page())) {
-				/* Aieee!!! Out of swap space! */
-				int retval = -1;
-				if (nr_swapfiles == 0)
-					retval = 0;
-				return retval;
-			}
+			if (!(entry = get_swap_page()))
+				return 0;
 			vma->vm_mm->rss--;
 			flush_cache_page(vma, address);
 			set_pte(page_table, __pte(entry));
@@ -126,7 +118,7 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 		return 1;	/* we slept: the process may not exist any more */
 	}
         if ((entry = find_in_swap_cache(MAP_NR(page))))  {
-		if (page_map->count != 1) {
+		if (atomic_read(&page_map->count) != 1) {
 			set_pte(page_table, pte_mkdirty(pte));
 			printk("Aiee.. duplicated cached swap-cache entry\n");
 			return 0;
@@ -317,9 +309,6 @@ static int swap_out(unsigned int priority, int dma, int wait)
 		if (!--p->swap_cnt)
 			swap_task++;
 		switch (swap_out_process(p, dma, wait)) {
-			/* out of swap space? */
-			case -1:
-				return 0;
 			case 0:
 				if (p->swap_cnt)
 					swap_task++;
@@ -355,9 +344,13 @@ int try_to_free_page(int priority, int dma, int wait)
 				return 1;
 			state = 1;
 		case 1:
-			if (shm_swap(i, dma))
+			if (kmem_cache_reap(i, dma, wait))
 				return 1;
 			state = 2;
+		case 2:
+			if (shm_swap(i, dma))
+				return 1;
+			state = 3;
 		default:
 			if (swap_out(i, dma, wait))
 				return 1;
@@ -376,7 +369,7 @@ int try_to_free_page(int priority, int dma, int wait)
 int kswapd(void *unused)
 {
 	int i;
-	char *revision="$Revision: 1.4.2.2 $", *s, *e;
+	char *revision="$Revision: 1.23 $", *s, *e;
 	
 	current->session = 1;
 	current->pgrp = 1;
@@ -388,11 +381,7 @@ int kswapd(void *unused)
 	 *	and other internals and thus be subject to the SMP locking
 	 *	rules. (On a uniprocessor box this does nothing).
 	 */
-	 
-#ifdef __SMP__
 	lock_kernel();
-	syscall_count++;
-#endif
 
 	/* Give kswapd a realtime priority. */
 	current->policy = SCHED_FIFO;
@@ -416,8 +405,16 @@ int kswapd(void *unused)
 		interruptible_sleep_on(&kswapd_wait);
 		kswapd_awake = 1;
 		swapstats.wakeups++;
-		/* Do the background pageout: */
-		for (i=0; i < kswapd_ctl.maxpages; i++)
+		/* Do the background pageout: 
+		 * We now only swap out as many pages as needed.
+		 * When we are truly low on memory, we swap out
+		 * synchronously (WAIT == 1).  -- Rik.
+		 */
+		while(nr_free_pages < min_free_pages)
+			try_to_free_page(GFP_KERNEL, 0, 1);
+		while((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_low)
+			try_to_free_page(GFP_KERNEL, 0, 1);
+		while((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_high)
 			try_to_free_page(GFP_KERNEL, 0, 0);
 	}
 }
@@ -428,14 +425,31 @@ int kswapd(void *unused)
 
 void swap_tick(void)
 {
-	if ((nr_free_pages + nr_async_pages) < free_pages_low ||
-	    ((nr_free_pages + nr_async_pages) < free_pages_high && 
-	     jiffies >= next_swap_jiffies)) {
-		if (!kswapd_awake && kswapd_ctl.maxpages > 0) {
+	int	want_wakeup = 0;
+	static int	last_wakeup_low = 0;
+
+	if ((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_low) {
+		if (last_wakeup_low)
+			want_wakeup = jiffies >= next_swap_jiffies;
+		else
+			last_wakeup_low = want_wakeup = 1;
+	}
+	else if (((nr_free_pages + atomic_read(&nr_async_pages)) < free_pages_high) && 
+	         jiffies >= next_swap_jiffies) {
+		last_wakeup_low = 0;
+		want_wakeup = 1;
+	}
+
+	if (want_wakeup) { 
+		if (!kswapd_awake) {
 			wake_up(&kswapd_wait);
 			need_resched = 1;
 		}
-		next_swap_jiffies = jiffies + swapout_interval;
+		/* low on memory, we need to start swapping soon */
+		if(last_wakeup_low) 
+			next_swap_jiffies = jiffies;
+		else  
+			next_swap_jiffies = jiffies + swapout_interval;
 	}
 	timer_active |= (1<<SWAP_TIMER);
 }

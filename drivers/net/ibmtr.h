@@ -13,10 +13,9 @@
 #define NOTOK 0
 #define TOKDEBUG 1
 
-#ifndef IBMTR_SHARED_RAM_BASE
-#define IBMTR_SHARED_RAM_BASE 0xD0
-#define IBMTR_SHARED_RAM_SIZE 0x10
-#endif
+#define IBMTR_SHARED_RAM_SIZE 0x10000
+#define IBMTR_IO_EXTENT 4
+#define IBMTR_MAX_ADAPTERS 2
 
 #define CHANNEL_ID      0X1F30
 #define AIP             0X1F00
@@ -40,8 +39,6 @@
 
 #define MMIOStartLocP   0x0a20  /* Primary adapter's starting MMIO area */
 #define MMIOStartLocA   0x0a24  /* Alternate adapter's starting MMIO area */
-
-#define TR_IO_EXTENT	4	/* size of used IO range */
 
 #define GLOBAL_INT_ENABLE 0x02f0
 
@@ -203,10 +200,13 @@ struct tok_info {
 	unsigned short exsap_station_id;
 	unsigned short global_int_enable;
 	struct sk_buff *current_skb;
-	struct tr_statistics tr_stats;
+	struct net_device_stats tr_stats;
 	unsigned char auto_ringspeedsave;
 	open_state open_status;
 	unsigned char readlog_pending;
+	unsigned short adapter_int_enable; /* Adapter-specific int enable */
+        struct timer_list tr_timer;
+	__u32 func_addr;
 };
 
 /* token ring adapter commands */
@@ -215,7 +215,7 @@ struct tok_info {
 #define DIR_OPEN_ADAPTER 	0x03 /* struct dir_open_adapter */
 #define DIR_CLOSE_ADAPTER   	0x04
 #define DIR_SET_GRP_ADDR    	0x06
-#define DIR_SET_FUNC_ADDR   	0x07
+#define DIR_SET_FUNC_ADDR   	0x07 /* struct srb_set_funct_addr */
 #define DIR_READ_LOG 		0x08 /* struct srb_read_log */
 #define DLC_OPEN_SAP 		0x15 /* struct dlc_open_sap */
 #define DLC_CLOSE_SAP       	0x16
@@ -227,8 +227,8 @@ struct tok_info {
 
 /* DIR_OPEN_ADAPTER options */
 #define OPEN_PASS_BCON_MAC 0x0100
-#define NUM_RCV_BUF 16
-#define RCV_BUF_LEN 136
+#define NUM_RCV_BUF 3
+#define RCV_BUF_LEN 1024
 #define DHB_LENGTH 2048
 #define NUM_DHB 2
 #define DLC_MAX_SAP 2
@@ -398,7 +398,7 @@ struct asb_rec {
 };
 
 struct rec_buf {
-	unsigned char reserved1[2];
+  /*	unsigned char reserved1[2]; */
 	__u16 buf_ptr;
 	unsigned char reserved2;
 	__u16 buf_len;
@@ -426,5 +426,13 @@ struct srb_close_adapter {
 	unsigned char command;
 	unsigned char reserved1;
 	unsigned char ret_code;
+};
+
+struct srb_set_funct_addr {
+	unsigned char command;
+	unsigned char reserved1;
+	unsigned char ret_code;
+	unsigned char reserved2[3];
+	__u32 funct_address;
 };
 

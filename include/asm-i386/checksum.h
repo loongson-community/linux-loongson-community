@@ -17,20 +17,55 @@ unsigned int csum_partial(const unsigned char * buff, int len, unsigned int sum)
 
 /*
  * the same as csum_partial, but copies from src while it
- * checksums
+ * checksums, and handles user-space pointer exceptions correctly, when needed.
  *
  * here even more important to align src and dst on a 32-bit (or even
  * better 64-bit) boundary
  */
 
-unsigned int csum_partial_copy( const char *src, char *dst, int len, int sum);
+unsigned int csum_partial_copy_generic( const char *src, char *dst, int len, int sum,
+					int *src_err_ptr, int *dst_err_ptr);
 
+extern __inline__
+unsigned int csum_partial_copy_nocheck ( const char *src, char *dst,
+					int len, int sum)
+{
+	int *src_err_ptr=NULL, *dst_err_ptr=NULL;
+
+	return csum_partial_copy_generic ( src, dst, len, sum, src_err_ptr, dst_err_ptr);
+}
+
+extern __inline__
+unsigned int csum_partial_copy_from_user ( const char *src, char *dst,
+						int len, int sum, int *err_ptr)
+{
+	int *dst_err_ptr=NULL;
+
+	return csum_partial_copy_generic ( src, dst, len, sum, err_ptr, dst_err_ptr);
+}
 
 /*
- * the same as csum_partial, but copies from user space (but on the x86
- * we have just one address space, so this is identical to the above)
+ * This combination is currently not used, but possible:
  */
+
+extern __inline__
+unsigned int csum_partial_copy_to_user ( const char *src, char *dst,
+					int len, int sum, int *err_ptr)
+{
+	int *src_err_ptr=NULL;
+
+	return csum_partial_copy_generic ( src, dst, len, sum, src_err_ptr, err_ptr);
+}
+
+/*
+ * These are the old (and unsafe) way of doing checksums, a warning message will be
+ * printed if they are used and an exeption occurs.
+ *
+ * these functions should go away after some time.
+ */
+
 #define csum_partial_copy_fromuser csum_partial_copy
+unsigned int csum_partial_copy( const char *src, char *dst, int len, int sum);
 
 /*
  *	This is a version of ip_compute_csum() optimized for IP headers,

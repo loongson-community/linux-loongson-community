@@ -83,7 +83,6 @@ then
 	define_bool CONFIG_ALPHA_AVANTI y
 fi
 
-bool 'Echo console messages on /dev/ttyS0 (COM1)' CONFIG_SERIAL_ECHO
 if [ "$CONFIG_PCI" = "y" ]; then
   bool 'TGA Console Support' CONFIG_TGA_CONSOLE
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -92,9 +91,17 @@ if [ "$CONFIG_PCI" = "y" ]; then
 fi
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Kernel support for a.out (ECOFF) binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
+tristate 'Kernel support for Linux/Intel ELF binaries' CONFIG_BINFMT_EM86
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  tristate 'Kernel support for JAVA binaries' CONFIG_BINFMT_JAVA
+fi
+tristate 'Parallel port support' CONFIG_PNP_PARPORT
 endmenu
+
+source drivers/pnp/Config.in
 
 source drivers/block/Config.in
 
@@ -144,6 +151,9 @@ endmenu
 source fs/Config.in
 
 source drivers/char/Config.in
+if [ "$CONFIG_RTC" != "n" ]; then
+  bool '  ARC console time' CONFIG_RTC_ARC y
+fi
 
 mainmenu_option next_comment
 comment 'Sound'

@@ -6,6 +6,7 @@
 
 #undef DEBUG_PROC_TREE
 
+#include <linux/config.h>
 #include <linux/wait.h>
 #include <linux/errno.h>
 #include <linux/signal.h>
@@ -16,9 +17,14 @@
 #include <linux/tty.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/module.h>
 
+#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#include <asm/mmu_context.h>
 
 extern void sem_exit (void);
 extern void acct_process (long exitcode);
@@ -36,18 +42,23 @@ static inline void generate(unsigned long sig, struct task_struct * p)
 	 * be handled immediately (ie non-blocked and untraced)
 	 * and that is ignored (either explicitly or by default)
 	 */
+	spin_lock_irq(&p->sig->siglock);
 	if (!(mask & p->blocked) && !(p->flags & PF_PTRACED)) {
 		/* don't bother with ignored signals (but SIGCHLD is special) */
 		if (sa->sa_handler == SIG_IGN && sig != SIGCHLD)
-			return;
+			goto out;
 		/* some signals are ignored by default.. (but SIGCONT already did its deed) */
 		if ((sa->sa_handler == SIG_DFL) &&
 		    (sig == SIGCONT || sig == SIGCHLD || sig == SIGWINCH || sig == SIGURG))
-			return;
+			goto out;
 	}
+	spin_lock(&p->sigmask_lock);
 	p->signal |= mask;
+	spin_unlock(&p->sigmask_lock);
 	if (p->state == TASK_INTERRUPTIBLE && (p->signal & ~p->blocked))
 		wake_up_process(p);
+out:
+	spin_unlock_irq(&p->sig->siglock);
 }
 
 /*
@@ -60,15 +71,22 @@ void force_sig(unsigned long sig, struct task_struct * p)
 	if (p->sig) {
 		unsigned long mask = 1UL << sig;
 		struct sigaction *sa = p->sig->action + sig;
+
+		spin_lock_irq(&p->sig->siglock);
+
+		spin_lock(&p->sigmask_lock);
 		p->signal |= mask;
 		p->blocked &= ~mask;
+		spin_unlock(&p->sigmask_lock);
+
 		if (sa->sa_handler == SIG_IGN)
 			sa->sa_handler = SIG_DFL;
 		if (p->state == TASK_INTERRUPTIBLE)
 			wake_up_process(p);
+
+		spin_unlock_irq(&p->sig->siglock);
 	}
 }
-		
 
 int send_sig(unsigned long sig,struct task_struct * p,int priv)
 {
@@ -79,24 +97,23 @@ int send_sig(unsigned long sig,struct task_struct * p,int priv)
 	    (current->uid ^ p->suid) && (current->uid ^ p->uid) &&
 	    !suser())
 		return -EPERM;
-	if (!sig)
-		return 0;
-	/*
-	 * Forget it if the process is already zombie'd.
-	 */
-	if (!p->sig)
-		return 0;
-	if ((sig == SIGKILL) || (sig == SIGCONT)) {
-		if (p->state == TASK_STOPPED)
-			wake_up_process(p);
-		p->exit_code = 0;
-		p->signal &= ~( (1<<(SIGSTOP-1)) | (1<<(SIGTSTP-1)) |
-				(1<<(SIGTTIN-1)) | (1<<(SIGTTOU-1)) );
+
+	if (sig && p->sig) {
+		spin_lock_irq(&p->sigmask_lock);
+		if ((sig == SIGKILL) || (sig == SIGCONT)) {
+			if (p->state == TASK_STOPPED)
+				wake_up_process(p);
+			p->exit_code = 0;
+			p->signal &= ~( (1<<(SIGSTOP-1)) | (1<<(SIGTSTP-1)) |
+					(1<<(SIGTTIN-1)) | (1<<(SIGTTOU-1)) );
+		}
+		if (sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU)
+			p->signal &= ~(1<<(SIGCONT-1));
+		spin_unlock_irq(&p->sigmask_lock);
+
+		/* Actually generate the signal */
+		generate(sig,p);
 	}
-	if (sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU)
-		p->signal &= ~(1<<(SIGCONT-1));
-	/* Actually generate the signal */
-	generate(sig,p);
 	return 0;
 }
 
@@ -120,6 +137,12 @@ void release(struct task_struct * p)
 	}
 	for (i=1 ; i<NR_TASKS ; i++)
 		if (task[i] == p) {
+#ifdef __SMP__
+			/* FIXME! Cheesy, but kills the window... -DaveM */
+			while(p->processor != NO_PROC_ID)
+				barrier();
+			spin_unlock_wait(&scheduler_lock);
+#endif
 			nr_tasks--;
 			task[i] = NULL;
 			REMOVE_LINKS(p);
@@ -130,7 +153,7 @@ void release(struct task_struct * p)
 			current->cmin_flt += p->min_flt + p->cmin_flt;
 			current->cmaj_flt += p->maj_flt + p->cmaj_flt;
 			current->cnswap += p->nswap + p->cnswap;
-			kfree(p);
+			free_task_struct(p);
 			return;
 		}
 	panic("trying to release non-existent task");
@@ -152,14 +175,14 @@ int bad_task_ptr(struct task_struct *p)
 			return 0;
 	return 1;
 }
-	
+
 /*
  * This routine scans the pid tree and makes sure the rep invariant still
  * holds.  Used for debugging only, since it's very slow....
  *
  * It looks a lot scarier than it really is.... we're doing nothing more
- * than verifying the doubly-linked list found in p_ysptr and p_osptr, 
- * and checking it corresponds with the process tree defined by p_cptr and 
+ * than verifying the doubly-linked list found in p_ysptr and p_osptr,
+ * and checking it corresponds with the process tree defined by p_cptr and
  * p_pptr;
  */
 void audit_ptree(void)
@@ -240,14 +263,18 @@ int session_of_pgrp(int pgrp)
 	int fallback;
 
 	fallback = -1;
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
  		if (p->session <= 0)
  			continue;
-		if (p->pgrp == pgrp)
-			return p->session;
+		if (p->pgrp == pgrp) {
+			fallback = p->session;
+			break;
+		}
 		if (p->pid == pgrp)
 			fallback = p->session;
 	}
+	read_unlock(&tasklist_lock);
 	return fallback;
 }
 
@@ -257,21 +284,29 @@ int session_of_pgrp(int pgrp)
  */
 int kill_pg(int pgrp, int sig, int priv)
 {
-	struct task_struct *p;
-	int err,retval = -ESRCH;
-	int found = 0;
+	int retval;
 
-	if (sig<0 || sig>32 || pgrp<=0)
-		return -EINVAL;
-	for_each_task(p) {
-		if (p->pgrp == pgrp) {
-			if ((err = send_sig(sig,p,priv)) != 0)
-				retval = err;
-			else
-				found++;
+	retval = -EINVAL;
+	if (sig >= 0 && sig <= 32 && pgrp > 0) {
+		struct task_struct *p;
+		int found = 0;
+
+		retval = -ESRCH;
+		read_lock(&tasklist_lock);
+		for_each_task(p) {
+			if (p->pgrp == pgrp) {
+				int err = send_sig(sig,p,priv);
+				if (err != 0)
+					retval = err;
+				else
+					found++;
+			}
 		}
+		read_unlock(&tasklist_lock);
+		if (found)
+			retval = 0;
 	}
-	return(found ? 0 : retval);
+	return retval;
 }
 
 /*
@@ -281,34 +316,51 @@ int kill_pg(int pgrp, int sig, int priv)
  */
 int kill_sl(int sess, int sig, int priv)
 {
-	struct task_struct *p;
-	int err,retval = -ESRCH;
-	int found = 0;
+	int retval;
 
-	if (sig<0 || sig>32 || sess<=0)
-		return -EINVAL;
-	for_each_task(p) {
-		if (p->session == sess && p->leader) {
-			if ((err = send_sig(sig,p,priv)) != 0)
-				retval = err;
-			else
-				found++;
+	retval = -EINVAL;
+	if (sig >= 0 && sig <= 32 && sess > 0) {
+		struct task_struct *p;
+		int found = 0;
+
+		retval = -ESRCH;
+		read_lock(&tasklist_lock);
+		for_each_task(p) {
+			if (p->leader && p->session == sess) {
+				int err = send_sig(sig,p,priv);
+
+				if (err)
+					retval = err;
+				else
+					found++;
+			}
 		}
+		read_unlock(&tasklist_lock);
+		if (found)
+			retval = 0;
 	}
-	return(found ? 0 : retval);
+	return retval;
 }
 
 int kill_proc(int pid, int sig, int priv)
 {
- 	struct task_struct *p;
+	int retval;
 
-	if (sig<0 || sig>32)
-		return -EINVAL;
-	for_each_task(p) {
-		if (p && p->pid == pid)
-			return send_sig(sig,p,priv);
+	retval = -EINVAL;
+	if (sig >= 0 && sig <= 32) {
+		struct task_struct *p;
+		
+		retval = -ESRCH;
+		read_lock(&tasklist_lock);
+		for_each_task(p) {
+			if (p->pid != pid)
+				continue;
+			retval = send_sig(sig,p,priv);
+			break;
+		}
+		read_unlock(&tasklist_lock);
 	}
-	return(-ESRCH);
+	return retval;
 }
 
 /*
@@ -317,49 +369,58 @@ int kill_proc(int pid, int sig, int priv)
  */
 asmlinkage int sys_kill(int pid,int sig)
 {
-	int err, retval = 0, count = 0;
-
 	if (!pid)
-		return(kill_pg(current->pgrp,sig,0));
+		return kill_pg(current->pgrp,sig,0);
+
 	if (pid == -1) {
+		int retval = 0, count = 0;
 		struct task_struct * p;
+
+		read_lock(&tasklist_lock);
 		for_each_task(p) {
 			if (p->pid > 1 && p != current) {
+				int err;
 				++count;
 				if ((err = send_sig(sig,p,0)) != -EPERM)
 					retval = err;
 			}
 		}
-		return(count ? retval : -ESRCH);
+		read_unlock(&tasklist_lock);
+		return count ? retval : -ESRCH;
 	}
-	if (pid < 0) 
-		return(kill_pg(-pid,sig,0));
+	if (pid < 0)
+		return kill_pg(-pid,sig,0);
+
 	/* Normal kill */
-	return(kill_proc(pid,sig,0));
+	return kill_proc(pid,sig,0);
 }
 
 /*
  * Determine if a process group is "orphaned", according to the POSIX
  * definition in 2.2.2.52.  Orphaned process groups are not to be affected
- * by terminal-generated stop signals.  Newly orphaned process groups are 
+ * by terminal-generated stop signals.  Newly orphaned process groups are
  * to receive a SIGHUP and a SIGCONT.
- * 
+ *
  * "I ask you, have you ever known what it is to be an orphan?"
  */
 static int will_become_orphaned_pgrp(int pgrp, struct task_struct * ignored_task)
 {
 	struct task_struct *p;
 
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
-		if ((p == ignored_task) || (p->pgrp != pgrp) || 
+		if ((p == ignored_task) || (p->pgrp != pgrp) ||
 		    (p->state == TASK_ZOMBIE) ||
 		    (p->p_pptr->pid == 1))
 			continue;
 		if ((p->p_pptr->pgrp != pgrp) &&
-		    (p->p_pptr->session == p->session))
-			return 0;
+		    (p->p_pptr->session == p->session)) {
+			read_unlock(&tasklist_lock);
+ 			return 0;
+		}
 	}
-	return(1);	/* (sighing) "Often!" */
+	read_unlock(&tasklist_lock);
+	return 1;	/* (sighing) "Often!" */
 }
 
 int is_orphaned_pgrp(int pgrp)
@@ -369,21 +430,27 @@ int is_orphaned_pgrp(int pgrp)
 
 static inline int has_stopped_jobs(int pgrp)
 {
+	int retval = 0;
 	struct task_struct * p;
 
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (p->pgrp != pgrp)
 			continue;
-		if (p->state == TASK_STOPPED)
-			return(1);
+		if (p->state != TASK_STOPPED)
+			continue;
+		retval = 1;
+		break;
 	}
-	return(0);
+	read_unlock(&tasklist_lock);
+	return retval;
 }
 
 static inline void forget_original_parent(struct task_struct * father)
 {
 	struct task_struct * p;
 
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (p->p_opptr == father)
 			if (task[smp_num_cpus])	/* init */
@@ -391,6 +458,7 @@ static inline void forget_original_parent(struct task_struct * father)
 			else
 				p->p_opptr = task[0];
 	}
+	read_unlock(&tasklist_lock);
 }
 
 static inline void close_files(struct files_struct * files)
@@ -456,9 +524,8 @@ static inline void __exit_sighand(struct task_struct *tsk)
 
 	if (sig) {
 		tsk->sig = NULL;
-		if (!--sig->count) {
+		if (atomic_dec_and_test(&sig->count))
 			kfree(sig);
-		}
 	}
 }
 
@@ -475,9 +542,7 @@ static inline void __exit_mm(struct task_struct * tsk)
 	if (mm != &init_mm) {
 		flush_cache_mm(mm);
 		flush_tlb_mm(mm);
-#ifdef __mips__
-		mm->context = 0;
-#endif
+		destroy_context(mm);
 		tsk->mm = &init_mm;
 		tsk->swappable = 0;
 		SET_PAGE_DIR(tsk, swapper_pg_dir);
@@ -496,7 +561,7 @@ void exit_mm(struct task_struct *tsk)
 	__exit_mm(tsk);
 }
 
-/* 
+/*
  * Send signals to all our closest relatives so that they know
  * to properly mourn us..
  */
@@ -505,7 +570,7 @@ static void exit_notify(void)
 	struct task_struct * p;
 
 	forget_original_parent(current);
-	/* 
+	/*
 	 * Check to see if any process groups have become orphaned
 	 * as a result of our exiting, and if they have any stopped
 	 * jobs, send them a SIGHUP and then a SIGCONT.  (POSIX 3.2.2.2)
@@ -523,10 +588,10 @@ static void exit_notify(void)
 	}
 	/* Let father know we died */
 	notify_parent(current);
-	
+
 	/*
 	 * This loop does two things:
-	 * 
+	 *
   	 * A.  Make init inherit all the child processes
 	 * B.  Check to see if any process groups have become orphaned
 	 *	as a result of our exiting, and if they have any stopped
@@ -547,7 +612,7 @@ static void exit_notify(void)
 			notify_parent(p);
 		/*
 		 * process group orphan check
-		 * Case ii: Our child is in a different pgrp 
+		 * Case ii: Our child is in a different pgrp
 		 * than we are, and it was the only connection
 		 * outside, so the child pgrp is now orphaned.
 		 */
@@ -565,9 +630,9 @@ static void exit_notify(void)
 
 NORET_TYPE void do_exit(long code)
 {
-	if (intr_count) {
+	if (in_interrupt()) {
+		local_irq_count[smp_processor_id()] = 0;	/* Not really correct */
 		printk("Aiee, killing interrupt handler\n");
-		intr_count = 0;
 	}
 fake_volatile:
 	acct_process(code);
@@ -576,6 +641,9 @@ fake_volatile:
 	sem_exit();
 	kerneld_exit();
 	__exit_mm(current);
+#if CONFIG_AP1000
+	exit_msc(current);
+#endif
 	__exit_files(current);
 	__exit_fs(current);
 	__exit_sighand(current);
@@ -586,10 +654,10 @@ fake_volatile:
 #ifdef DEBUG_PROC_TREE
 	audit_ptree();
 #endif
-	if (current->exec_domain && current->exec_domain->use_count)
-		(*current->exec_domain->use_count)--;
-	if (current->binfmt && current->binfmt->use_count)
-		(*current->binfmt->use_count)--;
+	if (current->exec_domain && current->exec_domain->module)
+		__MOD_DEC_USE_COUNT(current->exec_domain->module);
+	if (current->binfmt && current->binfmt->module)
+		__MOD_DEC_USE_COUNT(current->binfmt->module);
 	schedule();
 /*
  * In order to get rid of the "volatile function does return" message
@@ -609,7 +677,9 @@ fake_volatile:
 
 asmlinkage int sys_exit(int error_code)
 {
+	lock_kernel();
 	do_exit((error_code&0xff)<<8);
+	unlock_kernel();
 }
 
 asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct rusage * ru)
@@ -619,21 +689,21 @@ asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct
 	struct task_struct *p;
 
 	if (stat_addr) {
-		flag = verify_area(VERIFY_WRITE, stat_addr, sizeof(*stat_addr));
-		if (flag)
-			return flag;
+		if(verify_area(VERIFY_WRITE, stat_addr, sizeof(*stat_addr)))
+			return -EFAULT;
 	}
 	if (ru) {
-		flag = verify_area(VERIFY_WRITE, ru, sizeof(*ru));
-		if (flag)
-			return flag;
+		if(verify_area(VERIFY_WRITE, ru, sizeof(*ru)))
+			return -EFAULT;
 	}
+
 	if (options & ~(WNOHANG|WUNTRACED|__WCLONE))
-	    return -EINVAL;
+		return -EINVAL;
 
 	add_wait_queue(&current->wait_chldexit,&wait);
 repeat:
-	flag=0;
+	flag = 0;
+	read_lock(&tasklist_lock);
  	for (p = current->p_cptr ; p ; p = p->p_osptr) {
 		if (pid>0) {
 			if (p->pid != pid)
@@ -655,23 +725,28 @@ repeat:
 					continue;
 				if (!(options & WUNTRACED) && !(p->flags & PF_PTRACED))
 					continue;
+				read_unlock(&tasklist_lock);
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
 				if (stat_addr)
-					put_user((p->exit_code << 8) | 0x7f,
-						stat_addr);
+					__put_user((p->exit_code << 8) | 0x7f,
+						   stat_addr);
 				p->exit_code = 0;
 				retval = p->pid;
 				goto end_wait4;
 			case TASK_ZOMBIE:
 				current->cutime += p->utime + p->cutime;
 				current->cstime += p->stime + p->cstime;
+				read_unlock(&tasklist_lock);
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
 				if (stat_addr)
-					put_user(p->exit_code, stat_addr);
+					__put_user(p->exit_code, stat_addr);
 				retval = p->pid;
 				if (p->p_opptr != p->p_pptr) {
+					/* Note this grabs tasklist_lock
+					 * as a writer... (twice!)
+					 */
 					REMOVE_LINKS(p);
 					p->p_pptr = p->p_opptr;
 					SET_LINKS(p);
@@ -686,6 +761,7 @@ repeat:
 				continue;
 		}
 	}
+	read_unlock(&tasklist_lock);
 	if (flag) {
 		retval = 0;
 		if (options & WNOHANG)

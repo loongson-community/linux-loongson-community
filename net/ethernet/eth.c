@@ -46,27 +46,20 @@
 #include <linux/socket.h>
 #include <linux/in.h>
 #include <linux/inet.h>
+#include <linux/ip.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/errno.h>
 #include <linux/config.h>
+#include <net/dst.h>
 #include <net/arp.h>
 #include <net/sock.h>
 #include <net/ipv6.h>
 
-#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
-#include <linux/in6.h>
-#include <net/ndisc.h>
-#endif
 
 #include <asm/checksum.h>
 
-
-#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
-int (*ndisc_eth_hook) (unsigned char *, struct device *, 
-		       struct sk_buff *) = NULL;
-#endif
 
 void eth_setup(char *str, int *ints)
 {
@@ -150,40 +143,30 @@ int eth_header(struct sk_buff *skb, struct device *dev, unsigned short type,
  *	sk_buff. We now let ARP fill in the other fields.
  */
  
-int eth_rebuild_header(void *buff, struct device *dev, unsigned long dst,
-			struct sk_buff *skb)
+int eth_rebuild_header(struct sk_buff *skb)
 {
-	struct ethhdr *eth = (struct ethhdr *)buff;
+	struct ethhdr *eth = (struct ethhdr *)skb->data;
+	struct device *dev = skb->dev;
+ 	struct neighbour *neigh = NULL;
 
 	/*
 	 *	Only ARP/IP and NDISC/IPv6 are currently supported
 	 */
 	
+ 	if (skb->dst)
+ 		neigh = skb->dst->neighbour;
+ 
+ 	if (neigh)
+ 		return neigh->ops->resolve(eth->h_dest, skb);
+ 
 	switch (eth->h_proto)
 	{
 #ifdef CONFIG_INET
 	case __constant_htons(ETH_P_IP):
-
-		/*
-		 *	Try to get ARP to resolve the header.
-		 */
-
-		return (arp_find(eth->h_dest, dst, dev, dev->pa_addr, skb) ? 
-			1 : 0);
-		break;
-#endif
-
-#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
-	case __constant_htons(ETH_P_IPV6):
-#ifdef CONFIG_IPV6
-		return (ndisc_eth_resolv(eth->h_dest, dev, skb));
-#else
-		if (ndisc_eth_hook)
-			return (ndisc_eth_hook(eth->h_dest, dev, skb));
-#endif
+ 		return arp_find(eth->h_dest, skb);
 #endif	
 	default:
-		printk(KERN_DEBUG 
+		printk(KERN_DEBUG
 		       "%s: unable to resolve type %X addresses.\n", 
 		       dev->name, (int)eth->h_proto);
 		
@@ -250,30 +233,39 @@ unsigned short eth_type_trans(struct sk_buff *skb, struct device *dev)
 	return htons(ETH_P_802_2);
 }
 
-/*
- * Upper level calls this function to bind hardware header cache entry.
- * If the call is successful, then corresponding Address Resolution Protocol
- * (maybe, not ARP) takes responsibility for updating cache content.
- */
-
-void eth_header_cache_bind(struct hh_cache ** hhp, struct device *dev,
-			   unsigned short htype, __u32 daddr)
+int eth_header_cache(struct dst_entry *dst, struct neighbour *neigh,
+		     struct hh_cache *hh)
 {
-	struct hh_cache *hh;
+	unsigned short type = hh->hh_type;
+	struct ethhdr *eth = (struct ethhdr*)hh->hh_data;
+	struct device *dev = dst->dev;
 
-	if (htype != ETH_P_IP)
-	{
-		printk(KERN_DEBUG "eth_header_cache_bind: %04x cache is not implemented\n", htype);
-		return;
+	if (type == ETH_P_802_3)
+		return -1;
+	
+	eth->h_proto = htons(type);
+
+	memcpy(eth->h_source, dev->dev_addr, dev->addr_len);
+
+	if (dev->flags & IFF_LOOPBACK) {
+		memset(eth->h_dest, 0, dev->addr_len);
+		hh->hh_uptodate = 1;
+		return 0;
 	}
-	if (arp_bind_cache(hhp, dev, htype, daddr))
-		return;
-	if ((hh=*hhp) != NULL)
+
+	if (type != ETH_P_IP) 
 	{
-		memcpy(hh->hh_data+6, dev->dev_addr, ETH_ALEN);
-		hh->hh_data[12] = htype>>8;
-		hh->hh_data[13] = htype&0xFF;
+		printk(KERN_DEBUG "%s: unable to resolve type %X addresses.\n",dev->name,(int)eth->h_proto);
+		hh->hh_uptodate = 0;
+		return 0;
 	}
+
+#ifdef CONFIG_INET
+	hh->hh_uptodate = arp_find_1(eth->h_dest, dst, neigh);
+#else
+	hh->hh_uptodate = 0;
+#endif
+	return 0;
 }
 
 /*
@@ -291,20 +283,18 @@ void eth_header_cache_update(struct hh_cache *hh, struct device *dev, unsigned c
 	hh->hh_uptodate = 1;
 }
 
+#ifndef CONFIG_IP_ROUTER
+
 /*
  *	Copy from an ethernet device memory space to an sk_buff while checksumming if IP
  */
  
 void eth_copy_and_sum(struct sk_buff *dest, unsigned char *src, int length, int base)
 {
-#ifdef CONFIG_IP_ROUTER
-	memcpy(dest->data,src,length);
-#else
 	struct ethhdr *eth;
 	struct iphdr *iph;
 	int ip_length;
 
-	IS_SKB(dest);
 	eth=(struct ethhdr *)src;
 	if(eth->h_proto!=htons(ETH_P_IP))
 	{
@@ -328,5 +318,6 @@ void eth_copy_and_sum(struct sk_buff *dest, unsigned char *src, int length, int 
 
 	dest->csum=csum_partial_copy(src+sizeof(struct iphdr)+ETH_HLEN,dest->data+sizeof(struct iphdr)+ETH_HLEN,length,base);
 	dest->ip_summed=1;
-#endif	
 }
+
+#endif /* !(CONFIG_IP_ROUTER) */

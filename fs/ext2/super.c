@@ -32,6 +32,8 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/blkdev.h>
+#include <linux/init.h>
 
 static char error_buf[1024];
 
@@ -129,7 +131,7 @@ void ext2_put_super (struct super_block * sb)
 	return;
 }
 
-static struct super_operations ext2_sops = { 
+static struct super_operations ext2_sops = {
 	ext2_read_inode,
 	NULL,
 	ext2_write_inode,
@@ -377,9 +379,25 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 	unsigned short resuid = EXT2_DEF_RESUID;
 	unsigned short resgid = EXT2_DEF_RESGID;
 	unsigned long logic_sb_block = 1;
+	unsigned long offset = 0;
 	kdev_t dev = sb->s_dev;
+	int blocksize = BLOCK_SIZE;
+	int hblock;
 	int db_count;
 	int i, j;
+
+	/*
+	 * See what the current blocksize for the device is, and
+	 * use that as the blocksize.  Otherwise (or if the blocksize
+	 * is smaller than the default) use the default.
+	 * This is important for devices that have a hardware
+	 * sectorsize that is larger than the default.
+	 */
+	blocksize = get_hardblocksize(dev);
+	if( blocksize == 0 || blocksize < BLOCK_SIZE )
+	  {
+	    blocksize = BLOCK_SIZE;
+	  }
 
 	sb->u.ext2_sb.s_mount_opt = 0;
 	set_opt (sb->u.ext2_sb.s_mount_opt, CHECK_NORMAL);
@@ -391,8 +409,19 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 
 	MOD_INC_USE_COUNT;
 	lock_super (sb);
-	set_blocksize (dev, BLOCK_SIZE);
-	if (!(bh = bread (dev, sb_block, BLOCK_SIZE))) {
+	set_blocksize (dev, blocksize);
+
+	/*
+	 * If the superblock doesn't start on a sector boundary,
+	 * calculate the offset.  FIXME(eric) this doesn't make sense
+	 * that we would have to do this.
+	 */
+	if (blocksize != BLOCK_SIZE) {
+		logic_sb_block = (sb_block*BLOCK_SIZE) / blocksize;
+		offset = (sb_block*BLOCK_SIZE) % blocksize;
+	}
+
+	if (!(bh = bread (dev, logic_sb_block, blocksize))) {
 		sb->s_dev = 0;
 		unlock_super (sb);
 		printk ("EXT2-fs: unable to read superblock\n");
@@ -403,7 +432,7 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 	 * Note: s_es must be initialized s_es as soon as possible because
 	 * some ext2 macro-instructions depend on its value
 	 */
-	es = (struct ext2_super_block *) bh->b_data;
+	es = (struct ext2_super_block *) (((char *)bh->b_data) + offset);
 	sb->u.ext2_sb.s_es = es;
 	sb->s_magic = le16_to_cpu(es->s_magic);
 	if (sb->s_magic != EXT2_SUPER_MAGIC) {
@@ -421,24 +450,34 @@ struct super_block * ext2_read_super (struct super_block * sb, void * data,
 	if (le32_to_cpu(es->s_rev_level) > EXT2_GOOD_OLD_REV) {
 		if (le32_to_cpu(es->s_feature_incompat) & ~EXT2_FEATURE_INCOMPAT_SUPP) {
 			printk("EXT2-fs: %s: couldn't mount because of "
-			       "unsupported optional features.\n", 
+			       "unsupported optional features.\n",
 			       kdevname(dev));
 			goto failed_mount;
 		}
 		if (!(sb->s_flags & MS_RDONLY) &&
 		    (le32_to_cpu(es->s_feature_ro_compat) & ~EXT2_FEATURE_RO_COMPAT_SUPP)) {
 			printk("EXT2-fs: %s: couldn't mount RDWR because of "
-			       "unsupported optional features.\n", 
+			       "unsupported optional features.\n",
 			       kdevname(dev));
 			goto failed_mount;
 		}
 	}
 	sb->s_blocksize_bits = le32_to_cpu(sb->u.ext2_sb.s_es->s_log_block_size) + 10;
 	sb->s_blocksize = 1 << sb->s_blocksize_bits;
-	if (sb->s_blocksize != BLOCK_SIZE && 
-	    (sb->s_blocksize == 1024 || sb->s_blocksize == 2048 ||  
+	if (sb->s_blocksize != BLOCK_SIZE &&
+	    (sb->s_blocksize == 1024 || sb->s_blocksize == 2048 ||
 	     sb->s_blocksize == 4096)) {
-		unsigned long offset;
+		/*
+		 * Make sure the blocksize for the filesystem is larger
+		 * than the hardware sectorsize for the machine.
+		 */
+		hblock = get_hardblocksize(dev);
+		if(    (hblock != 0)
+		    && (sb->s_blocksize < hblock) )
+		{
+			printk("EXT2-fs: blocksize too small for device.\n");
+			goto failed_mount;
+		}
 
 		brelse (bh);
 		set_blocksize (dev, sb->s_blocksize);
@@ -675,7 +714,7 @@ int ext2_remount (struct super_block * sb, int * flags, char * data)
 	else {
 		/*
 		 * Mounting a RDONLY partition read-write, so reread and
-		 * store the current valid flag.  (It may have been changed 
+		 * store the current valid flag.  (It may have been changed
 		 * by e2fsck since we originally mounted the partition.)
 		 */
 		sb->u.ext2_sb.s_mount_state = le16_to_cpu(es->s_state);
@@ -689,19 +728,17 @@ static struct file_system_type ext2_fs_type = {
         ext2_read_super, "ext2", 1, NULL
 };
 
-int init_ext2_fs(void)
+__initfunc(int init_ext2_fs(void))
 {
         return register_filesystem(&ext2_fs_type);
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-	int status;
-
-	if ((status = init_ext2_fs()) == 0)
-		register_symtab(0);
-	return status;
+	return init_ext2_fs();
 }
 
 void cleanup_module(void)

@@ -25,6 +25,7 @@ apricot		YES		PROMISC		YES		Hardware
 arcnet		NO		NO		NO		N/A
 at1700		PROMISC		PROMISC		YES		Software
 atp		PROMISC		PROMISC		YES		Software
+cs89x0		YES		YES		YES		Software
 de4x5		YES		NO		YES		Hardware
 de600		NO		NO		NO		N/A
 de620		PROMISC		PROMISC		YES		Software
@@ -44,9 +45,9 @@ ni65		YES		YES		YES		Software(#)
 seeq		NO		NO		NO		N/A
 sk_g16		NO		NO		YES		N/A
 smc-ultra	YES		YES		YES		Hardware
-sunlance	YES		YES		YES		Software(#)
+sunlance	YES		YES		YES		Hardware
 tulip		YES		YES		YES		Hardware
-wavelan		--------Buggy--------		YES		N/A
+wavelan		YES		PROMISC		YES		Hardware
 wd		YES		YES		YES		Hardware
 znet		YES		YES		YES		Software
 

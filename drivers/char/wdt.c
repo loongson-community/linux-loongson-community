@@ -1,23 +1,28 @@
 /*
- *	Industrial Computer Source WDT500/501 driver for Linux 1.3.x
+ *	Industrial Computer Source WDT500/501 driver for Linux 2.1.x
  *
- *	(c) Copyright 1995	CymruNET Ltd
- *				Innovation Centre
- *				Singleton Park
- *				Swansea
- *				Wales
- *				UK
- *				SA2 8PP
+ *	(c) Copyright 1996 Alan Cox <alan@cymru.net>, All Rights Reserved.
+ *				http://www.cymru.net
  *
- *	http://www.cymru.net
+ *	This program is free software; you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License
+ *	as published by the Free Software Foundation; either version
+ *	2 of the License, or (at your option) any later version.
+ *	
+ *	Neither Alan Cox nor CymruNet Ltd. admit liability nor provide 
+ *	warranty for any of this software. This material is provided 
+ *	"AS-IS" and at no charge.	
  *
- *	This driver is provided under the GNU public license, incorporated
- *	herein by reference. The driver is provided without warranty or 
- *	support.
+ *	(c) Copyright 1995    Alan Cox <alan@lxorguk.ukuu.org.uk>
  *
- *	Release 0.05.
+ *	Release 0.06.
  *
- *	Some changes by Dave Gregorich to fix modularisation and minor bugs.
+ *	Fixes
+ *		Dave Gregorich	:	Modularisation and minor bugs
+ *		Alan Cox	:	Added the watchdog ioctl() stuff
+ *		Alan Cox	:	Fixed the reboot problem (as noted by
+ *					Matt Crocker).
+ *		Alan Cox	:	Added wdt= boot option
  */
 
 #include <linux/config.h>
@@ -28,6 +33,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/miscdevice.h>
+#include <linux/watchdog.h>
 #include "wd501p.h"
 #include <linux/malloc.h>
 #include <linux/ioport.h>
@@ -35,18 +41,36 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
+#include <linux/init.h>
 
 static int wdt_is_open=0;
 
 /*
  *	You must set these - there is no sane way to probe for this board.
+ *	You can use wdt=x,y to set these now.
  */
  
-int io=0x240;
-int irq=14;
+static int io=0x240;
+static int irq=14;
 
 #define WD_TIMO (100*60)		/* 1 minute */
 
+/*
+ *	Setup options
+ */
+ 
+void wdt_setup(char *str, int *ints)
+{
+	if(ints[0]>0)
+	{
+		io=ints[1];
+		if(ints[0]>1)
+			irq=ints[2];
+	}
+}
+ 
 /*
  *	Programming support
  */
@@ -69,7 +93,33 @@ static void wdt_ctr_load(int ctr, int val)
  *	Kernel methods.
  */
  
-static void wdt_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static int wdt_status(void)
+{
+	/*
+	 *	Status register to bit flags
+	 */
+	 
+	int flag=0;
+	unsigned char status=inb_p(WDT_SR);
+	status|=FEATUREMAP1;
+	status&=~FEATUREMAP2;	
+	
+	if(!(status&WDC_SR_TGOOD))
+		flag|=WDIOF_OVERHEAT;
+	if(!(status&WDC_SR_PSUOVER))
+		flag|=WDIOF_POWEROVER;
+	if(!(status&WDC_SR_PSUUNDR))
+		flag|=WDIOF_POWERUNDER;
+	if(!(status&WDC_SR_FANGOOD))
+		flag|=WDIOF_FANFAULT;
+	if(status&WDC_SR_ISOI0)
+		flag|=WDIOF_EXTERN1;
+	if(status&WDC_SR_ISII1)
+		flag|=WDIOF_EXTERN2;
+	return flag;
+}
+
+void wdt_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	/*
 	 *	Read the status register see what is up and
@@ -97,7 +147,7 @@ static void wdt_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		printk(KERN_CRIT "Would Reboot.\n");
 #else		
 		printk(KERN_CRIT "Initiating system reboot.\n");
-		hard_reset_now();
+		machine_restart(NULL);
 #endif		
 #else
 		printk(KERN_CRIT "Reset in 5ms.\n");
@@ -111,14 +161,23 @@ static long long wdt_llseek(struct inode *inode, struct file *file, long long of
 	return -ESPIPE;
 }
 
-static long wdt_write(struct inode *inode, struct file *file, const char *buf, unsigned long count)
+static void wdt_ping(void)
 {
 	/* Write a watchdog value */
 	inb_p(WDT_DC);
 	wdt_ctr_mode(1,2);
 	wdt_ctr_load(1,WD_TIMO);		/* Timeout */
 	outb_p(0, WDT_DC);
-	return count;
+}
+
+static long wdt_write(struct inode *inode, struct file *file, const char *buf, unsigned long count)
+{
+	if(count)
+	{
+		wdt_ping();
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -150,7 +209,41 @@ static long wdt_read(struct inode *inode, struct file *file, char *buf, unsigned
 static int wdt_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	unsigned long arg)
 {
-	return -EINVAL;
+	int i;
+	static struct watchdog_info ident=
+	{
+		WDIOF_OVERHEAT|WDIOF_POWERUNDER|WDIOF_POWEROVER
+			|WDIOF_EXTERN1|WDIOF_EXTERN2|WDIOF_FANFAULT,
+		1,
+		"WDT500/501"
+	};
+	
+	ident.options&=WDT_OPTION_MASK;	/* Mask down to the card we have */
+	switch(cmd)
+	{
+		default:
+			return -ENOIOCTLCMD;
+		case WDIOC_GETSUPPORT:
+			i = verify_area(VERIFY_WRITE, (void*) arg, sizeof(struct watchdog_info));
+			if (i)
+				return i;
+			else
+				return copy_to_user((struct watchdog_info *)arg, &ident, sizeof(ident));
+
+		case WDIOC_GETSTATUS:
+			i = verify_area(VERIFY_WRITE, (void*) arg, sizeof(int));
+			if (i)
+				return i;
+			else 
+			{
+				return put_user(wdt_status(),(int *)arg);
+			}
+		case WDIOC_GETBOOTSTATUS:
+			return put_user(0, (int *)arg);
+		case WDIOC_KEEPALIVE:
+			wdt_ping();
+			return 0;
+	}
 }
 
 static int wdt_open(struct inode *inode, struct file *file)
@@ -183,7 +276,7 @@ static int wdt_open(struct inode *inode, struct file *file)
 	}
 }
 
-static void wdt_release(struct inode *inode, struct file *file)
+static int wdt_release(struct inode *inode, struct file *file)
 {
 	if(MINOR(inode->i_rdev)==WATCHDOG_MINOR)
 	{
@@ -194,8 +287,25 @@ static void wdt_release(struct inode *inode, struct file *file)
 		wdt_is_open=0;
 	}
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
+/*
+ *	Notifier for system down
+ */
+
+static int wdt_notify_sys(struct notifier_block *this, unsigned long code,
+	void *unused)
+{
+	if(code==SYS_DOWN || code==SYS_HALT)
+	{
+		/* Turn the card off */
+		inb_p(WDT_DC);
+		wdt_ctr_load(2,0);
+	}
+	return NOTIFY_DONE;
+}
+ 
 /*
  *	Kernel Interfaces
  */
@@ -229,23 +339,21 @@ static struct miscdevice temp_miscdev=
 };
 #endif
 
+/*
+ *	The WDT card needs to learn about soft shutdowns in order to
+ *	turn the timebomb registers off. 
+ */
+ 
+static struct notifier_block wdt_notifier=
+{
+	wdt_notify_sys,
+	NULL,
+	0
+};
+
 #ifdef MODULE
 
-int init_module(void)
-{
-	printk("WDT501-P module at %X(Interrupt %d)\n", io,irq);
-	if(request_irq(irq, wdt_interrupt, SA_INTERRUPT, "wdt501p", NULL))
-	{
-		printk("IRQ %d is not free.\n", irq);
-		return -EIO;
-	}
-	misc_register(&wdt_miscdev);
-#ifdef CONFIG_WDT_501	
-	misc_register(&temp_miscdev);
-#endif	
-	request_region(io, 8, "wdt501");
-	return 0;
-}
+#define wdt_init init_module
 
 void cleanup_module(void)
 {
@@ -253,13 +361,14 @@ void cleanup_module(void)
 #ifdef CONFIG_WDT_501	
 	misc_deregister(&temp_miscdev);
 #endif	
+	notifier_chain_unregister(&boot_notifier_list, &wdt_notifier);
 	release_region(io,8);
 	free_irq(irq, NULL);
 }
 
-#else
+#endif
 
-int wdt_init(void)
+__initfunc(int wdt_init(void))
 {
 	printk("WDT500/501-P driver at %X(Interrupt %d)\n", io,irq);
 	if(request_irq(irq, wdt_interrupt, SA_INTERRUPT, "wdt501p", NULL))
@@ -272,7 +381,7 @@ int wdt_init(void)
 	misc_register(&temp_miscdev);
 #endif	
 	request_region(io, 8, "wdt501");
+	notifier_chain_register(&boot_notifier_list, &wdt_notifier);
 	return 0;
 }
 
-#endif

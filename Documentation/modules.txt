@@ -49,7 +49,7 @@ the official kernel sources, you will certainly like this option...
 
 Here is a sample of the available modules included in the kernel sources:
 
-	Most filesystems: minix, xiafs, msdos, umsdos, sysv, isofs, hpfs,
+	Most filesystems: minix, msdos, umsdos, sysv, isofs, hpfs,
 			  smbfs, nfs
 
 	Mid-level SCSI support (required by top and low level scsi drivers).
@@ -63,6 +63,7 @@ Here is a sample of the available modules included in the kernel sources:
 		aztcd:     Aztech,Orchid,Okano,Wearnes
 		cm206:     Philips/LMS CM206
 		gscd:      Goldstar GCDR-420
+		bpcd:      MicroSolutions backpack CDrom
 		mcd, mcdx: Mitsumi LU005, FX001
 		optcd:     Optics Storage Dolphin 8000AT
 		sjcd:      Sanyo CDR-H94A

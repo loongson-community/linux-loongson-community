@@ -15,7 +15,6 @@
 #include <asm/offset.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>

@@ -2,10 +2,6 @@
  * SNI RM200 PCI specific interrupt handler code.
  *
  * Copyright (C) 1994, 1995, 1996 by Ralf Baechle
- *
- * This is a verbose copy of the Tyne/rPC44 interrupt handler.  We
- * don't share the code because the SNI machine has some extra interrupt
- * features that want to be supported.
  */
 #include <asm/asm.h>
 #include <linux/config.h>
@@ -15,7 +11,6 @@
 #include <asm/sni.h>
 #include <asm/stackframe.h>
 
-		.text
 		.set	noreorder
 		.set	noat
 		.align	5
@@ -23,6 +18,9 @@
 		SAVE_ALL
 		REG_S	sp,PT_OR2(sp)
 		CLI
+		/*
+		 * Asume we received an interrupt from the PCI ASIC.
+		 */
 		.set	at
 		lui	s0,%hi(SNI_PORT_BASE)
 		li	a0,0x0f
@@ -42,8 +40,6 @@
 		or	t0,s1
 		sb	t0,%lo(cache_21)(s4)
 		sb	t0,%lo(SNI_PORT_BASE+0x21)(s0)
-		lui	s3,%hi(intr_count)
-		lw	s7,%lo(intr_count)(s3)
 		li	t2,0x20
 		sb	t2,%lo(SNI_PORT_BASE+0x20)(s0)
 		/*
@@ -53,10 +49,8 @@
 		sll	t2,a0,PTRLOG
 		addu	t3,t2
 		LONG_L	t3,(t3)
-		addiu	t0,s7,1
 		jalr	t3
-		sw	t0,%lo(intr_count)(s3)
-		sw	s7,%lo(intr_count)(s3)
+		nop					# delay slot
 		/*
 		 * Unblock first pic
 		 */
@@ -89,8 +83,6 @@ poll_second:	li	a0,0x0f
 		sb	t3,%lo(SNI_PORT_BASE+0xa1)(s0)
 		li	t3,0x20
 		sb	t3,%lo(SNI_PORT_BASE+0xa0)(s0)
-		lui	s3,%hi(intr_count)
-		lw	s7,%lo(intr_count)(s3)
 		sb	t3,%lo(SNI_PORT_BASE+0x20)(s0)
 		/*
 		 * Now call the real handler
@@ -100,10 +92,8 @@ poll_second:	li	a0,0x0f
 		sll	t2,a0,PTRLOG
 		addu	t3,t2
 		LONG_L	t3,(t3)
-		addiu	t0,s7,1
 		jalr	t3
-		sw	t0,%lo(intr_count)(s3)		# delay slot
-		sw	s7,%lo(intr_count)(s3)
+		nop					# delay slot
 		/*
 		 * Unblock second pic
 		 */
@@ -119,8 +109,9 @@ poll_second:	li	a0,0x0f
 /*
  * FIXME:  This is definatly wrong but I'll have to do it this way
  *         'till I get more hardware info.
+ * XXX: Apparently the Lance is attached to interrupt #5.
  */
-#ifdef CONFIG_LANCE32
+#ifdef CONFIG_PCNET32
 
 /*
  * FIXME: detect this address
@@ -146,8 +137,9 @@ poll_second:	li	a0,0x0f
 		ori	t0,0x041f
 		xori	t0,0x041e
 		mtc0	t0,CP0_STATUS
+		li	a0,PCIMT_IRQ_ETHERNET
 		jal	do_IRQ
-		li	a0,10				# delay slot
+		 move	a1,sp				# delay slot
 		sh	s0,LANCE_BASE+LANCE_ADDR
 		mfc0	t0,CP0_STATUS
 		ori	t0,0x0401
@@ -156,11 +148,12 @@ poll_second:	li	a0,0x0f
 		j	ret_from_sys_call
 		nop					# delay slot
 
-#endif /* CONFIG_LANCE32 */
+#endif /* CONFIG_PCNET32 */
 
 /*
  * FIXME:  This is definatly wrong but I'll have to do it this way
  *         'till I get more hardware info.
+ * XXX: Apparently the NCR is attached to interrupt #2.
  */
 #ifdef CONFIG_SCSI_NCR53C8XX
 

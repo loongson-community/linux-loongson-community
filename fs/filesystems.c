@@ -10,9 +10,7 @@
 #include <linux/fs.h>
 
 #include <linux/minix_fs.h>
-#include <linux/ext_fs.h>
 #include <linux/ext2_fs.h>
-#include <linux/xia_fs.h>
 #include <linux/msdos_fs.h>
 #include <linux/umsdos_fs.h>
 #include <linux/proc_fs.h>
@@ -24,38 +22,44 @@
 #include <linux/ncp_fs.h>
 #include <linux/affs_fs.h>
 #include <linux/ufs_fs.h>
+#include <linux/romfs_fs.h>
+#include <linux/auto_fs.h>
 #include <linux/major.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#ifdef CONFIG_KERNELD
+#include <linux/kerneld.h>
+#endif
 
 extern void device_setup(void);
 extern void binfmt_setup(void);
+extern void free_initmem(void);
 
 /* This may be used only once, enforced by 'static int callable' */
 asmlinkage int sys_setup(void)
 {
 	static int callable = 1;
+	int err = -1;
 
+	lock_kernel();
 	if (!callable)
-		return -1;
+		goto out;
 	callable = 0;
-
+	
 	device_setup();
 
 	binfmt_setup();
-
-#ifdef CONFIG_EXT_FS
-	init_ext_fs();
-#endif
 
 #ifdef CONFIG_EXT2_FS
 	init_ext2_fs();
 #endif
 
-#ifdef CONFIG_XIA_FS
-	init_xiafs_fs();
-#endif
-
 #ifdef CONFIG_MINIX_FS
 	init_minix_fs();
+#endif
+
+#ifdef CONFIG_ROMFS_FS
+	init_romfs_fs();
 #endif
 
 #ifdef CONFIG_UMSDOS_FS
@@ -76,6 +80,10 @@ asmlinkage int sys_setup(void)
 
 #ifdef CONFIG_PROC_FS
 	init_proc_fs();
+#endif
+
+#ifdef CONFIG_LOCKD
+	nlmxdr_init();
 #endif
 
 #ifdef CONFIG_NFS_FS
@@ -110,6 +118,46 @@ asmlinkage int sys_setup(void)
 	init_ufs_fs();
 #endif
 
+#ifdef CONFIG_AUTOFS_FS
+	init_autofs_fs();
+#endif
+
 	mount_root();
-	return 0;
+	
+	free_initmem();
+	
+	err = 0;
+out:
+	unlock_kernel();
+	return err;
 }
+
+#ifndef CONFIG_NFSD
+#ifdef CONFIG_NFSD_MODULE
+int (*do_nfsservctl)(int, void *, void *) = NULL;
+#endif
+int
+asmlinkage sys_nfsservctl(int cmd, void *argp, void *resp)
+{
+#ifndef CONFIG_NFSD_MODULE
+	return -ENOSYS;
+#else
+	int ret = -ENOSYS;
+	
+	lock_kernel();
+	if (do_nfsservctl) {
+		ret = do_nfsservctl(cmd, argp, resp);
+		goto out;
+	}
+#ifdef CONFIG_KERNELD
+	if (request_module ("nfsd") == 0) {
+		if (do_nfsservctl)
+			ret = do_nfsservctl(cmd, argp, resp);
+	}
+#endif /* CONFIG_KERNELD */
+out:
+	unlock_kernel();
+	return ret;
+#endif /* CONFIG_NFSD_MODULE */
+}
+#endif /* CONFIG_NFSD */

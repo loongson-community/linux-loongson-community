@@ -12,6 +12,8 @@
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/swap.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
@@ -21,6 +23,7 @@ asmlinkage int sys_sysinfo(struct sysinfo *info)
 
 	memset((char *)&val, 0, sizeof(struct sysinfo));
 
+	cli();
 	val.uptime = jiffies / HZ;
 
 	val.loads[0] = avenrun[0] << (SI_LOAD_SHIFT - FSHIFT);
@@ -28,6 +31,7 @@ asmlinkage int sys_sysinfo(struct sysinfo *info)
 	val.loads[2] = avenrun[2] << (SI_LOAD_SHIFT - FSHIFT);
 
 	val.procs = nr_tasks-1;
+	sti();
 
 	si_meminfo(&val);
 	si_swapinfo(&val);

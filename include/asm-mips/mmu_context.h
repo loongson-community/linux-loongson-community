@@ -44,4 +44,22 @@ extern inline void get_mmu_context(struct task_struct *p)
 	}
 }
 
+/*
+ * Initialize the context related info for a new mm_struct
+ * instance.
+ */
+extern inline void init_new_context(struct mm_struct *mm)
+{
+	mm->context = 0;
+}
+
+/*
+ * Destroy context related info for an mm_struct that is about
+ * to be put to rest.
+ */
+extern inline void destroy_context(struct mm_struct *mm)
+{
+	mm->context = 0;
+}
+
 #endif /* __ASM_MIPS_MMU_CONTEXT_H */

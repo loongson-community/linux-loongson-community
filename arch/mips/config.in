@@ -13,6 +13,7 @@ mainmenu_option next_comment
 comment 'Machine selection'
 bool 'Support for Acer PICA 1 chipset' CONFIG_ACER_PICA_61
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool 'Support for Algorithmics P4032' CONFIG_ALGOR_P4032
   bool 'Support for DECstation' CONFIG_DECSTATION
   bool 'Support for Deskstation RPC44' CONFIG_DESKSTATION_RPC44
   bool 'Support for Deskstation Tyne' CONFIG_DESKSTATION_TYNE
@@ -33,6 +34,24 @@ if [ "$CONFIG_ACER_PICA_61" = "y" -o \
      "$CONFIG_MIPS_MAGNUM_4000" = "y" ]; then
 	define_bool CONFIG_MIPS_JAZZ y
 fi
+unset CONFIG_PCI
+if [ "$CONFIG_SNI_RM200_PCI" = "y" -o \
+     "$CONFIG_ALGOR_P4032" = "y" ]; then
+	define_bool CONFIG_PCI y
+fi
+endmenu
+
+mainmenu_option next_comment
+comment 'CPU selection'
+
+choice 'CPU type' \
+	"R3000 CONFIG_CPU_R3000	\
+	 R6000 CONFIG_CPU_R6000	\
+	 R4300 CONFIG_CPU_R4300	\
+	 R4x00 CONFIG_CPU_R4X00	\
+	 R5000 CONFIG_CPU_R5000	\
+	 R8000 CONFIG_CPU_R8000	\
+	 R10000 CONFIG_CPU_R10000" R4x00
 endmenu
 
 mainmenu_option next_comment
@@ -49,8 +68,17 @@ if [ "$CONFIG_CPU_LITTLE_ENDIAN" = "n" ]; then
 fi
 define_bool CONFIG_BINFMT_ELF y
 define_bool CONFIG_BINFMT_AOUT n
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  tristate 'Kernel support for JAVA binaries' CONFIG_BINFMT_JAVA
+fi
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'Sysctl support' CONFIG_SYSCTL
+
+if [ "$CONFIG_SGI" != "y" ]; then
+  tristate 'Parallel port support' CONFIG_PNP_PARPORT
+fi
+
 endmenu
 
 mainmenu_option next_comment
@@ -60,12 +88,12 @@ if [ "$CONFIG_MODULES" = "y" ]; then
   bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
   bool 'Kernel daemon support (e.g. autoload of modules)' CONFIG_KERNELD
 fi
-endmenu
 
+#
 # All SGI block devices are SCSI based AFAIK. -davem
 #
 if [ "$CONFIG_SGI" != "y" ]; then
-	source drivers/block/Config.in
+  source drivers/block/Config.in
 fi
 
 if [ "$CONFIG_NET" = "y" ]; then
@@ -78,9 +106,7 @@ comment 'SCSI support'
 tristate 'SCSI support' CONFIG_SCSI
 
 if [ "$CONFIG_SCSI" != "n" ]; then
-	if [ "$CONFIG_SGI" = "n" ]; then
-		source drivers/scsi/Config.in
-	else
+	if [ "$CONFIG_SGI" = "y" ]; then
 		comment 'SCSI support type (disk, tape, CDrom)'
 
 		dep_tristate 'SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
@@ -94,10 +120,12 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 
 		bool 'Verbose SCSI error reporting' CONFIG_SCSI_CONSTANTS
 
-		mainmenu_option next_comment
+		#mainmenu_option next_comment
 		comment 'SCSI low-level drivers'
 
 		dep_tristate 'SGI wd93 Scsi Driver' CONFIG_SCSI_SGIWD93 $CONFIG_SCSI
+	else
+		source drivers/scsi/Config.in
 	fi
 fi
 endmenu
@@ -127,7 +155,7 @@ if [ "$CONFIG_NET" = "y" ]; then
   endmenu
 fi
 
-if [ "$CONFIG_SGI" = "n" ]; then
+if [ "$CONFIG_SGI" != "y" ]; then
 	mainmenu_option next_comment
 	comment 'ISDN subsystem'
 
@@ -149,7 +177,7 @@ fi
 
 source fs/Config.in
 
-if [ "$CONFIG_SGI" = "n" ]; then
+if [ "$CONFIG_SGI" != "y" ]; then
 	source drivers/char/Config.in
 
 	mainmenu_option next_comment

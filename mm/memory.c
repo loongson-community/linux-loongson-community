@@ -51,6 +51,7 @@
 #include <asm/string.h>
 
 unsigned long max_mapnr = 0;
+unsigned long num_physpages = 0;
 void * high_memory = NULL;
 
 /*
@@ -136,10 +137,8 @@ void clear_page_tables(struct task_struct * tsk)
 		printk("%s trying to clear kernel page-directory: not good\n", tsk->comm);
 		return;
 	}
-	flush_cache_mm(tsk->mm);
 	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
 		free_one_pgd(page_dir + i);
-	flush_tlb_mm(tsk->mm);
 }
 
 /*
@@ -170,10 +169,8 @@ int new_page_tables(struct task_struct * tsk)
 	if (!(new_pg = pgd_alloc()))
 		return -ENOMEM;
 	page_dir = pgd_offset(&init_mm, 0);
-	flush_cache_mm(tsk->mm);
 	memcpy(new_pg + USER_PTRS_PER_PGD, page_dir + USER_PTRS_PER_PGD,
 	       (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof (pgd_t));
-	flush_tlb_mm(tsk->mm);
 	SET_PAGE_DIR(tsk, new_pg);
 	tsk->mm->pgd = new_pg;
 	return 0;
@@ -202,7 +199,7 @@ static inline void copy_one_pte(pte_t * old_pte, pte_t * new_pte, int cow)
 		pte = pte_mkdirty(pte);
 	set_pte(new_pte, pte_mkold(pte));
 	set_pte(old_pte, pte);
-	mem_map[page_nr].count++;
+	atomic_inc(&mem_map[page_nr].count);
 }
 
 static inline int copy_pte_range(pmd_t *dst_pmd, pmd_t *src_pmd, unsigned long address, unsigned long size, int cow)
@@ -285,17 +282,12 @@ int copy_page_range(struct mm_struct *dst, struct mm_struct *src,
 	cow = (vma->vm_flags & (VM_SHARED | VM_WRITE)) == VM_WRITE;
 	src_pgd = pgd_offset(src, address);
 	dst_pgd = pgd_offset(dst, address);
-	flush_cache_range(src, vma->vm_start, vma->vm_end);
-	flush_cache_range(dst, vma->vm_start, vma->vm_end);
 	while (address < end) {
 		error = copy_pmd_range(dst_pgd++, src_pgd++, address, end - address, cow);
 		if (error)
 			break;
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 	}
-	/* Note that the src ptes get c-o-w treatment, so they change too. */
-	flush_tlb_range(src, vma->vm_start, vma->vm_end);
-	flush_tlb_range(dst, vma->vm_start, vma->vm_end);
 	return error;
 }
 
@@ -379,20 +371,17 @@ static inline void zap_pmd_range(pgd_t * dir, unsigned long address, unsigned lo
 /*
  * remove user pages in a given range.
  */
-int zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size)
+void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size)
 {
 	pgd_t * dir;
 	unsigned long end = address + size;
 
 	dir = pgd_offset(mm, address);
-	flush_cache_range(mm, end - size, end);
 	while (address < end) {
 		zap_pmd_range(dir, address, end - address);
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
 	}
-	flush_tlb_range(mm, end - size, end);
-	return 0;
 }
 
 static inline void zeromap_pte_range(pte_t * pte, unsigned long address, unsigned long size, pte_t zero_pte)
@@ -557,7 +546,7 @@ unsigned long put_dirty_page(struct task_struct * tsk, unsigned long page, unsig
 
 	if (MAP_NR(page) >= max_mapnr)
 		printk("put_dirty_page: trying to put page %08lx at %08lx\n",page,address);
-	if (mem_map[MAP_NR(page)].count != 1)
+	if (atomic_read(&mem_map[MAP_NR(page)].count) != 1)
 		printk("mem_map disagrees with %08lx at %08lx\n",page,address);
 	pgd = pgd_offset(tsk->mm,address);
 	pmd = pmd_alloc(pgd, address);
@@ -579,7 +568,7 @@ unsigned long put_dirty_page(struct task_struct * tsk, unsigned long page, unsig
 	}
 	flush_page_to_ram(page);
 	set_pte(pte, pte_mkwrite(pte_mkdirty(mk_pte(page, PAGE_COPY))));
-/* no need for invalidate */
+/* no need for flush_tlb */
 	return page;
 }
 
@@ -632,7 +621,7 @@ void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	/*
 	 * Do we need to copy?
 	 */
-	if (mem_map[MAP_NR(old_page)].count != 1) {
+	if (atomic_read(&mem_map[MAP_NR(old_page)].count) != 1) {
 		if (new_page) {
 			if (PageReserved(mem_map + MAP_NR(old_page)))
 				++vma->vm_mm->rss;
@@ -730,13 +719,17 @@ void vmtruncate(struct inode * inode, unsigned long offset)
 		return;
 	mpnt = inode->i_mmap;
 	do {
+		struct mm_struct *mm = mpnt->vm_mm;
 		unsigned long start = mpnt->vm_start;
-		unsigned long len = mpnt->vm_end - start;
+		unsigned long end = mpnt->vm_end;
+		unsigned long len = end - start;
 		unsigned long diff;
 
 		/* mapping wholly truncated? */
 		if (mpnt->vm_offset >= offset) {
-			zap_page_range(mpnt->vm_mm, start, len);
+			flush_cache_range(mm, start, end);
+			zap_page_range(mm, start, len);
+			flush_tlb_range(mm, start, end);
 			continue;
 		}
 		/* mapping wholly unaffected? */
@@ -750,7 +743,9 @@ void vmtruncate(struct inode * inode, unsigned long offset)
 			partial_clear(mpnt, start);
 			start = (start + ~PAGE_MASK) & PAGE_MASK;
 		}
-		zap_page_range(mpnt->vm_mm, start, len);
+		flush_cache_range(mm, start, end);
+		zap_page_range(mm, start, len);
+		flush_tlb_range(mm, start, end);
 	} while ((mpnt = mpnt->vm_next_share) != inode->i_mmap);
 }
 
@@ -771,7 +766,8 @@ static inline void do_swap_page(struct task_struct * tsk,
 		free_page(pte_page(page));
 		return;
 	}
-	if (mem_map[MAP_NR(pte_page(page))].count > 1 && !(vma->vm_flags & VM_SHARED))
+	if (atomic_read(&mem_map[MAP_NR(pte_page(page))].count) > 1 &&
+	    !(vma->vm_flags & VM_SHARED))
 		page = pte_wrprotect(page);
 	++vma->vm_mm->rss;
 	++tsk->maj_flt;
@@ -839,7 +835,8 @@ void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	entry = mk_pte(page, vma->vm_page_prot);
 	if (write_access) {
 		entry = pte_mkwrite(pte_mkdirty(entry));
-	} else if (mem_map[MAP_NR(page)].count > 1 && !(vma->vm_flags & VM_SHARED))
+	} else if (atomic_read(&mem_map[MAP_NR(page)].count) > 1 &&
+		   !(vma->vm_flags & VM_SHARED))
 		entry = pte_wrprotect(entry);
 	put_page(page_table, entry);
 	/* no need to invalidate: a not-present page shouldn't be cached */

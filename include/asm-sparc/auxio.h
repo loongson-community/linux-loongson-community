@@ -1,4 +1,4 @@
-/* $Id: auxio.h,v 1.14 1996/10/31 06:29:10 davem Exp $
+/* $Id: auxio.h,v 1.16 1997/01/31 23:26:05 tdyas Exp $
  * auxio.h:  Definitions and code for the Auxiliary I/O register.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -56,6 +56,8 @@ extern __inline__ void set_auxio(unsigned char bits_on, unsigned char bits_off)
 		*AUXREG = ((regval | bits_on) & ~bits_off) | AUXIO_ORMEIN;
 		break;
 	case sun4m:
+		if(!AUXREG)
+			break;     /* VME chassic sun4m, no auxio. */
 		regval = *AUXREG;
 		*AUXREG = ((regval | bits_on) & ~bits_off) | AUXIO_ORMEIN4M;
 		break;
@@ -66,5 +68,14 @@ extern __inline__ void set_auxio(unsigned char bits_on, unsigned char bits_off)
 	restore_flags(flags);
 }
 #endif /* !(__ASSEMBLY__) */
+
+
+/* AUXIO2 (Power Off Control) */
+extern __volatile__ unsigned char * auxio_power_register;
+
+#define	AUXIO_POWER_DETECT_FAILURE	32
+#define	AUXIO_POWER_CLEAR_FAILURE	2
+#define	AUXIO_POWER_OFF			1
+
 
 #endif /* !(_SPARC_AUXIO_H) */

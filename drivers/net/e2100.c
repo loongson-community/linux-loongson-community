@@ -43,6 +43,7 @@ static const char *version =
 #include <linux/ioport.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/system.h>
@@ -59,7 +60,7 @@ static int e21_probe_list[] = {0x300, 0x280, 0x380, 0x220, 0};
 #define E21_MEM_ENABLE	0x10
 #define  E21_MEM_ON		0x05	/* Enable memory in 16 bit mode. */
 #define  E21_MEM_ON_8	0x07	/* Enable memory in  8 bit mode. */
-#define E21_MEM_BASE	0x11	
+#define E21_MEM_BASE	0x11
 #define E21_IRQ_LOW		0x12	/* The low three bits of the IRQ number. */
 #define E21_IRQ_HIGH	0x14	/* The high IRQ bit and media select ...  */
 #define E21_MEDIA		0x14	/* (alias). */
@@ -115,7 +116,7 @@ static int e21_close(struct device *dev);
 	station address).
  */
 
-int e2100_probe(struct device *dev)
+__initfunc(int e2100_probe(struct device *dev))
 {
 	int *port;
 	int base_addr = dev->base_addr;
@@ -135,7 +136,7 @@ int e2100_probe(struct device *dev)
 	return ENODEV;
 }
 
-int e21_probe1(struct device *dev, int ioaddr)
+__initfunc(int e21_probe1(struct device *dev, int ioaddr))
 {
 	int i, status;
 	unsigned char *station_addr = dev->dev_addr;
@@ -226,7 +227,7 @@ int e21_probe1(struct device *dev, int ioaddr)
 	   over the 128K region! */
 	if (dev->mem_start == 0)
 		dev->mem_start = 0xd0000;
-	
+
 #ifdef notdef
 	/* These values are unused.  The E2100 has a 2K window into the packet
 	   buffer.  The window can be set to start on any page boundary. */
@@ -397,6 +398,11 @@ static int io[MAX_E21_CARDS] = { 0, };
 static int irq[MAX_E21_CARDS]  = { 0, };
 static int mem[MAX_E21_CARDS] = { 0, };
 static int xcvr[MAX_E21_CARDS] = { 0, };		/* choose int. or ext. xcvr */
+
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_E21_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_E21_CARDS) "i");
+MODULE_PARM(mem, "1-" __MODULE_STRING(MAX_E21_CARDS) "i");
+MODULE_PARM(xcvr, "1-" __MODULE_STRING(MAX_E21_CARDS) "i");
 
 /* This is set up so that only a single autoprobe takes place per call.
 ISA device autoprobes on a running machine are not recommended. */

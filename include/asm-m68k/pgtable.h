@@ -1,7 +1,7 @@
 #ifndef _M68K_PGTABLE_H
 #define _M68K_PGTABLE_H
 
-#include<asm/setup.h>
+#include <asm/setup.h>
 
 #ifndef __ASSEMBLY__
 
@@ -10,25 +10,192 @@
  * the m68k page table tree.
  */
 
+/* For virtual address to physical address conversion */
+extern unsigned long mm_vtop(unsigned long addr) __attribute__ ((const));
+extern unsigned long mm_ptov(unsigned long addr) __attribute__ ((const));
+#define VTOP(addr)  (mm_vtop((unsigned long)(addr)))
+#define PTOV(addr)  (mm_ptov((unsigned long)(addr)))
+
+/*
+ * Cache handling functions
+ */
+
+#define flush_icache()					\
+do {							\
+	if (CPU_IS_040_OR_060)				\
+		asm __volatile__ ("nop\n\t"		\
+				  ".chip 68040\n\t"	\
+				  "cinva %%ic\n\t"	\
+				  ".chip 68k");		\
+	else {						\
+		unsigned long _tmp;			\
+		asm __volatile__ ("movec %%cacr,%0\n\t"	\
+		     "orw %1,%0\n\t"			\
+		     "movec %0,%%cacr"			\
+		     : "=&d" (_tmp)			\
+		     : "id" (FLUSH_I));			\
+	}						\
+} while (0)
+
+/*
+ * invalidate the cache for the specified memory range.
+ * It starts at the physical address specified for
+ * the given number of bytes.
+ */
+extern void cache_clear (unsigned long paddr, int len);
+/*
+ * push any dirty cache in the specified memory range.
+ * It starts at the physical address specified for
+ * the given number of bytes.
+ */
+extern void cache_push (unsigned long paddr, int len);
+
+/*
+ * push and invalidate pages in the specified user virtual
+ * memory range.
+ */
+extern void cache_push_v (unsigned long vaddr, int len);
+
+/* cache code */
+#define FLUSH_I_AND_D	(0x00000808)
+#define FLUSH_I 	(0x00000008)
+
+/* This is needed whenever the virtual mapping of the current
+   process changes.  */
+#define __flush_cache_all()						\
+    do {								\
+	if (CPU_IS_040_OR_060)						\
+		__asm__ __volatile__ ("nop\n\t"				\
+				      ".chip 68040\n\t"			\
+				      "cpusha %dc\n\t"			\
+				      ".chip 68k");			\
+	else {								\
+		unsigned long _tmp;					\
+		__asm__ __volatile__ ("movec %%cacr,%0\n\t"		\
+				      "orw %1,%0\n\t"			\
+				      "movec %0,%%cacr"			\
+				      : "=&d" (_tmp)			\
+				      : "di" (FLUSH_I_AND_D));		\
+	}								\
+    } while (0)
+
+#define __flush_cache_030()						\
+    do {								\
+	if (CPU_IS_020_OR_030) {					\
+		unsigned long _tmp;					\
+		__asm__ __volatile__ ("movec %%cacr,%0\n\t"		\
+				      "orw %1,%0\n\t"			\
+				      "movec %0,%%cacr"			\
+				      : "=&d" (_tmp)			\
+				      : "di" (FLUSH_I_AND_D));		\
+	}								\
+    } while (0)
+
+#define flush_cache_all() __flush_cache_all()
+
+extern inline void flush_cache_mm(struct mm_struct *mm)
+{
+#if FLUSH_VIRTUAL_CACHE_040
+	if (mm == current->mm) __flush_cache_all();
+#else
+	if (mm == current->mm) __flush_cache_030();
+#endif
+}
+
+extern inline void flush_cache_range(struct mm_struct *mm,
+				     unsigned long start,
+				     unsigned long end)
+{
+	if (mm == current->mm){
+#if FLUSH_VIRTUAL_CACHE_040
+	    if (CPU_IS_040_OR_060)
+	        cache_push_v(start, end-start);
+	    else
+#endif
+	        __flush_cache_030();
+	}
+}
+
+extern inline void flush_cache_page(struct vm_area_struct *vma,
+				    unsigned long vmaddr)
+{
+	if (vma->vm_mm == current->mm){
+#if FLUSH_VIRTUAL_CACHE_040
+	    if (CPU_IS_040_OR_060)
+	        cache_push_v(vmaddr, PAGE_SIZE);
+	    else
+#endif
+	        __flush_cache_030();
+	}
+}
+
+/* Push the page at kernel virtual address and clear the icache */
+extern inline void flush_page_to_ram (unsigned long address)
+{
+    if (CPU_IS_040_OR_060) {
+	__asm__ __volatile__ ("nop\n\t"
+			      ".chip 68040\n\t"
+			      "cpushp %%dc,(%0)\n\t"
+			      "cinvp %%ic,(%0)\n\t"
+			      ".chip 68k"
+			      : : "a" (VTOP(address)));
+    }
+    else {
+	unsigned long _tmp;
+	__asm volatile ("movec %%cacr,%0\n\t"
+			"orw %1,%0\n\t"
+			"movec %0,%%cacr"
+			: "=&d" (_tmp)
+			: "di" (FLUSH_I));
+    }
+}
+
+/* Push n pages at kernel virtual address and clear the icache */
+extern inline void flush_pages_to_ram (unsigned long address, int n)
+{
+    if (CPU_IS_040_OR_060) {
+	while (n--) {
+	    __asm__ __volatile__ ("nop\n\t"
+				  ".chip 68040\n\t"
+				  "cpushp %%dc,(%0)\n\t"
+				  "cinvp %%ic,(%0)\n\t"
+				  ".chip 68k"
+				  : : "a" (VTOP(address)));
+	    address += PAGE_SIZE;
+	}
+    }
+    else {
+	unsigned long _tmp;
+	__asm volatile ("movec %%cacr,%0\n\t"
+			"orw %1,%0\n\t"
+			"movec %0,%%cacr"
+			: "=&d" (_tmp)
+			: "di" (FLUSH_I));
+    }
+}
+
 /*
  * flush all atc entries (user-space entries only for the 680[46]0).
  */
 static inline void __flush_tlb(void)
 {
 	if (CPU_IS_040_OR_060)
-		__asm__ __volatile__(".word 0xf510\n"::); /* pflushan */
+		__asm__ __volatile__(".chip 68040\n\t"
+				     "pflushan\n\t"
+				     ".chip 68k");
 	else
-		__asm__ __volatile__("pflusha\n"::);
+		__asm__ __volatile__("pflusha");
 }
 
 static inline void __flush_tlb_one(unsigned long addr)
 {
 	if (CPU_IS_040_OR_060) {
-		register unsigned long a0 __asm__ ("a0") = addr;
-		__asm__ __volatile__(".word 0xf508" /* pflush (%a0) */
-				     : : "a" (a0));
+		__asm__ __volatile__(".chip 68040\n\t"
+				     "pflush (%0)\n\t"
+				     ".chip 68k"
+				     : : "a" (addr));
 	} else
-		__asm__ __volatile__("pflush #0,#0,(%0)" : : "a" (addr));
+		__asm__ __volatile__("pflush #0,#4,(%0)" : : "a" (addr));
 }
 
 #define flush_tlb() __flush_tlb()
@@ -39,9 +206,11 @@ static inline void __flush_tlb_one(unsigned long addr)
 static inline void flush_tlb_all(void)
 {
 	if (CPU_IS_040_OR_060)
-		__asm__ __volatile__(".word 0xf518\n"::); /* pflusha */
+		__asm__ __volatile__(".chip 68040\n\t"
+				     "pflusha\n\t"
+				     ".chip 68k");
 	else
-		__asm__ __volatile__("pflusha\n"::);
+		__asm__ __volatile__("pflusha");
 }
 
 static inline void flush_tlb_mm(struct mm_struct *mm)
@@ -64,14 +233,27 @@ static inline void flush_tlb_range(struct mm_struct *mm,
 		__flush_tlb();
 }
 
+extern inline void flush_tlb_kernel_page(unsigned long addr)
+{
+	if (CPU_IS_040_OR_060) {
+		unsigned long old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		__asm__ __volatile__(".chip 68040\n\t"
+				     "pflush (%0)\n\t"
+				     ".chip 68k"
+				     : : "a" (addr));
+		set_fs(old_fs);
+	} else
+		__asm__ __volatile__("pflush #4,#4,(%0)" : : "a" (addr));
+}
+
 /* Certain architectures need to do special things when pte's
  * within a page table are directly modified.  Thus, the following
  * hook is made available.
  */
-#define set_pte(pteptr, pteval) do{	\
-	((*(pteptr)) = (pteval));	\
-	if (CPU_IS_060)			\
-		__asm__ __volatile__(".word 0xf518\n"::); /* pflusha */ \
+#define set_pte(pteptr, pteval)					\
+	do{							\
+		*(pteptr) = (pteval);				\
 	} while(0)
 
 
@@ -152,9 +334,9 @@ typedef pte_table pte_tablepage[PTE_TABLES_PER_PAGE];
  * and initialized in head.S */
 extern int m68k_pgtable_cachemode;
 
-#if defined(CONFIG_M68040_OR_M68060_ONLY)
+#if defined(CPU_M68040_OR_M68060_ONLY)
 #define mm_cachebits _PAGE_CACHE040
-#elif defined(CONFIG_M68020_OR_M68030_ONLY)
+#elif defined(CPU_M68020_OR_M68030_ONLY)
 #define mm_cachebits 0
 #else
 extern unsigned long mm_cachebits;
@@ -225,12 +407,6 @@ extern pte_t * __bad_pagetable(void);
 /* to find an entry in a page-table */
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
-
-/* For virtual address to physical address conversion */
-extern unsigned long mm_vtop(unsigned long addr) __attribute__ ((const));
-extern unsigned long mm_ptov(unsigned long addr) __attribute__ ((const));
-#define VTOP(addr)  (mm_vtop((unsigned long)(addr)))
-#define PTOV(addr)  (mm_ptov((unsigned long)(addr)))
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -334,18 +510,19 @@ extern inline void SET_PAGE_DIR(struct task_struct * tsk, pgd_t * pgdir)
 	tsk->tss.crp[1] = VTOP(pgdir);
 	if (tsk == current) {
 		if (CPU_IS_040_OR_060)
-			__asm__ __volatile__ ("movel %0@,%/d0\n\t"
-					      ".long 0x4e7b0806\n\t"
-					      /* movec d0,urp */
-					      : : "a" (&tsk->tss.crp[1])
-					      : "d0");
-		else
-			__asm__ __volatile__ ("movec  %/cacr,%/d0\n\t"
-					      "oriw #0x0808,%/d0\n\t"
-					      "movec %/d0,%/cacr\n\t"
-					      "pmove %0@,%/crp\n\t"
-					      : : "a" (&tsk->tss.crp[0])
-					      : "d0");
+			__asm__ __volatile__ (".chip 68040\n\t"
+					      "movec %0,%%urp\n\t"
+					      ".chip 68k"
+					      : : "r" (tsk->tss.crp[1]));
+		else {
+			unsigned long tmp;
+			__asm__ __volatile__ ("movec  %%cacr,%0\n\t"
+					      "orw #0x0808,%0\n\t"
+					      "movec %0,%%cacr\n\t"
+					      "pmove %1,%%crp\n\t"
+					      : "=d" (tmp)
+					      : "m" (tsk->tss.crp[0]));
+		}
 	}
 }
 
@@ -384,18 +561,16 @@ extern inline pte_t * pte_offset(pmd_t * pmdp, unsigned long address)
  * if any.
  */
 
-extern inline void nocache_page (unsigned long vaddr)
+/* Prior to calling these routines, the page should have been flushed
+ * from both the cache and ATC, or the CPU might not notice that the
+ * cache setting for the page has been changed. -jskov
+ */
+static inline void nocache_page (unsigned long vaddr)
 {
 	if (CPU_IS_040_OR_060) {
 		pgd_t *dir;
 		pmd_t *pmdp;
 		pte_t *ptep;
-
-		if(CPU_IS_060)
-			__asm__ __volatile__ ("movel %0,%/a0\n\t"
-					      ".word 0xf470"
-					      : : "g" (VTOP(vaddr))
-					      : "a0");
 
 		dir = pgd_offset_k(vaddr);
 		pmdp = pmd_offset(dir,vaddr);
@@ -438,6 +613,8 @@ extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
 		if (pmd_none(*pmd)) {
 			if (page) {
 				memset((void *) page, 0, PAGE_SIZE);
+				flush_page_to_ram((unsigned long)page);
+				flush_tlb_kernel_page((unsigned long)page);
 				nocache_page((unsigned long)page);
 				pmd_set(pmd,page);
 				return page + address;
@@ -501,6 +678,7 @@ extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
 		pte_t * page = (pte_t *) get_free_page(GFP_KERNEL);
 		if (pmd_none(*pmd)) {
 			if (page) {
+				flush_tlb_kernel_page((unsigned long)page);
 				nocache_page((unsigned long)page);
 				pmd_set(pmd, page);
 				return page + address;
@@ -554,139 +732,6 @@ extern inline void pgd_free(pgd_t * pgd)
 extern inline pgd_t * pgd_alloc(void)
 {
 	return (pgd_t *)get_pointer_table ();
-}
-
-#define flush_icache() \
-do { \
-	if (CPU_IS_040_OR_060) \
-		asm __volatile__ ("nop; .word 0xf498 /* cinva %%ic */"); \
-	else \
-		asm __volatile__ ("movec %/cacr,%/d0;" \
-		     "oriw %0,%/d0;" \
-		     "movec %/d0,%/cacr" \
-		     : /* no outputs */ \
-		     : "i" (FLUSH_I) \
-		     : "d0"); \
-} while (0)
-
-/*
- * invalidate the cache for the specified memory range.
- * It starts at the physical address specified for
- * the given number of bytes.
- */
-extern void cache_clear (unsigned long paddr, int len);
-/*
- * push any dirty cache in the specified memory range.
- * It starts at the physical address specified for
- * the given number of bytes.
- */
-extern void cache_push (unsigned long paddr, int len);
-
-/*
- * push and invalidate pages in the specified user virtual
- * memory range.
- */
-extern void cache_push_v (unsigned long vaddr, int len);
-
-/* cache code */
-#define FLUSH_I_AND_D	(0x00000808)
-#define FLUSH_I 	(0x00000008)
-
-/* This is needed whenever the virtual mapping of the current
-   process changes.  */
-#define __flush_cache_all()						\
-    do {								\
-	if (CPU_IS_040_OR_060)					        \
-               __asm__ __volatile__ ("nop; .word 0xf478\n" ::);         \
-        else                                                            \
-	       __asm__ __volatile__ ("movec %%cacr,%%d0\n\t"		\
-				     "orw %0,%%d0\n\t"			\
-				     "movec %%d0,%%cacr"		\
-				     : : "di" (FLUSH_I_AND_D) : "d0");	\
-    } while (0)
-
-#define __flush_cache_030()						\
-    do {								\
-	if (CPU_IS_020_OR_030)					\
-	       __asm__ __volatile__ ("movec %%cacr,%%d0\n\t"		\
-				     "orw %0,%%d0\n\t"			\
-				     "movec %%d0,%%cacr"		\
-				     : : "di" (FLUSH_I_AND_D) : "d0");	\
-    } while (0)
-
-#define flush_cache_all() __flush_cache_all()
-
-extern inline void flush_cache_mm(struct mm_struct *mm)
-{
-#if FLUSH_VIRTUAL_CACHE_040
-	if (mm == current->mm) __flush_cache_all();
-#else
-	if (mm == current->mm) __flush_cache_030();
-#endif
-}
-
-extern inline void flush_cache_range(struct mm_struct *mm,
-				     unsigned long start,
-				     unsigned long end)
-{
-	if (mm == current->mm){
-#if FLUSH_VIRTUAL_CACHE_040
-	    if (CPU_IS_040_OR_060)
-	        cache_push_v(start, end-start);
-	    else
-#endif
-	        __flush_cache_030();
-	}
-}
-
-extern inline void flush_cache_page(struct vm_area_struct *vma,
-				    unsigned long vmaddr)
-{
-	if (vma->vm_mm == current->mm){
-#if FLUSH_VIRTUAL_CACHE_040
-	    if (CPU_IS_040_OR_060)
-	        cache_push_v(vmaddr, PAGE_SIZE);
-	    else
-#endif
-	        __flush_cache_030();
-	}
-}
-
-/* Push the page at kernel virtual address and clear the icache */
-extern inline void flush_page_to_ram (unsigned long address)
-{
-    if (CPU_IS_040_OR_060) {
-	register unsigned long tmp __asm ("a0") = VTOP(address);
-	__asm__ __volatile__ ("nop\n\t"
-			      ".word 0xf470 /* cpushp %%dc,(%0) */\n\t"
-			      ".word 0xf490 /* cinvp %%ic,(%0) */"
-			      : : "a" (tmp));
-    }
-    else
-	__asm volatile ("movec %%cacr,%%d0\n\t"
-			"orw %0,%%d0\n\t"
-			"movec %%d0,%%cacr"
-			: : "di" (FLUSH_I) : "d0");
-}
-
-/* Push n pages at kernel virtual address and clear the icache */
-extern inline void flush_pages_to_ram (unsigned long address, int n)
-{
-    if (CPU_IS_040_OR_060) {
-	while (n--) {
-	    register unsigned long tmp __asm ("a0") = VTOP(address);
-	    __asm__ __volatile__ ("nop\n\t"
-				  ".word 0xf470 /* cpushp %%dc,(%0) */\n\t"
-				  ".word 0xf490 /* cinvp %%ic,(%0) */"
-				  : : "a" (tmp));
-	    address += PAGE_SIZE;
-	}
-    }
-    else
-	__asm volatile ("movec %%cacr,%%d0\n\t"
-			"orw %0,%%d0\n\t"
-			"movec %%d0,%%cacr"
-			: : "di" (FLUSH_I) : "d0");
 }
 
 /*

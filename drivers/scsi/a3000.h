@@ -1,6 +1,6 @@
 #ifndef A3000_H
 
-/* $Id: a3000.h,v 1.3 1996/04/25 20:58:09 root Exp root $
+/* $Id: a3000.h,v 1.4 1997/01/19 23:07:10 davem Exp $
  *
  * Header file for the Amiga 3000 built-in SCSI controller for Linux
  *
@@ -11,6 +11,7 @@
 #include <linux/types.h>
 
 int a3000_detect(Scsi_Host_Template *);
+int a3000_release(struct Scsi_Host *);
 const char *wd33c93_info(void);
 int wd33c93_queuecommand(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
 int wd33c93_abort(Scsi_Cmnd *);
@@ -33,12 +34,12 @@ int wd33c93_reset(Scsi_Cmnd *, unsigned int);
 extern struct proc_dir_entry proc_scsi_a3000;
 
 #define A3000_SCSI {  /* next */                NULL,            \
-		      /* usage_count */         NULL,	         \
+		      /* module */         NULL,	         \
 		      /* proc_dir_entry */      &proc_scsi_a3000, \
 		      /* proc_info */           NULL,            \
 		      /* name */                "Amiga 3000 built-in SCSI", \
 		      /* detect */              a3000_detect,    \
-		      /* release */             NULL,            \
+		      /* release */             a3000_release,   \
 		      /* info */                NULL,	         \
 		      /* command */             NULL,            \
 		      /* queuecommand */        wd33c93_queuecommand, \
@@ -52,13 +53,13 @@ extern struct proc_dir_entry proc_scsi_a3000;
 		      /* cmd_per_lun */	        CMD_PER_LUN,     \
 		      /* present */             0,               \
 		      /* unchecked_isa_dma */   0,               \
-		      /* use_clustering */      DISABLE_CLUSTERING }
+		      /* use_clustering */      ENABLE_CLUSTERING }
 #else
 
 /*
  * if the transfer address ANDed with this results in a non-zero
  * result, then we can't use DMA.
- */ 
+ */
 #define A3000_XFER_MASK  (0x00000003)
 
 typedef struct {

@@ -24,7 +24,7 @@ static char *version = "3c59x.c:v0.25 5/17/96 becker@cesdis.gsfc.nasa.gov\n";
    Tx process.  Bus master transfers are always disabled by default, but
    iff this is set they may be turned on using 'options'. */
 #define VORTEX_BUS_MASTER
-
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/kernel.h>
@@ -36,8 +36,13 @@ static char *version = "3c59x.c:v0.25 5/17/96 becker@cesdis.gsfc.nasa.gov\n";
 #include <linux/ioport.h>
 #include <linux/malloc.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
+
+#ifdef CONFIG_PCI
 #include <linux/pci.h>
 #include <linux/bios32.h>
+#endif
+
 #include <linux/timer.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -74,12 +79,15 @@ struct netdev_entry tc59x_drv =
 #endif
 
 #ifdef VORTEX_DEBUG
-int vortex_debug = VORTEX_DEBUG;
+static int vortex_debug = VORTEX_DEBUG;
 #else
-int vortex_debug = 1;
+static int vortex_debug = 1;
 #endif
 
-static int product_ids[] = {0x5900, 0x5950, 0x5951, 0x5952, 0, 0};
+#ifdef CONFIG_PCI
+static int product_ids[] __initdata = {0x5900, 0x5950, 0x5951, 0x5952, 0, 0};
+#endif
+
 static const char *product_names[] = {
 	"3c590 Vortex 10Mbps",
 	"3c595 Vortex 100baseTX",
@@ -233,7 +241,7 @@ struct vortex_private {
 	char devname[8];			/* "ethN" string, also for kernel debug. */
 	const char *product_name;
 	struct device *next_module;
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	struct sk_buff *tx_skb;		/* Packet being eaten by bus master ctrl.  */
 	struct timer_list timer;	/* Media selection timer. */
 	int options;				/* User-settable misc. driver options. */
@@ -276,7 +284,7 @@ static int vortex_rx(struct device *dev);
 static void vortex_interrupt IRQ(int irq, void *dev_id, struct pt_regs *regs);
 static int vortex_close(struct device *dev);
 static void update_stats(int addr, struct device *dev);
-static struct enet_statistics *vortex_get_stats(struct device *dev);
+static struct net_device_stats *vortex_get_stats(struct device *dev);
 static void set_rx_mode(struct device *dev);
 
 
@@ -319,7 +327,7 @@ init_module(void)
 }
 
 #else
-int tc59x_probe(struct device *dev)
+__initfunc(int tc59x_probe(struct device *dev))
 {
 	int cards_found = 0;
 
@@ -332,10 +340,11 @@ int tc59x_probe(struct device *dev)
 }
 #endif  /* not MODULE */
 
-static int vortex_scan(struct device *dev)
+__initfunc(static int vortex_scan(struct device *dev))
 {
 	int cards_found = 0;
 
+#ifdef CONFIG_PCI
 	if (pcibios_present()) {
 		static int pci_index = 0;
 		static int board_index = 0;
@@ -388,6 +397,7 @@ static int vortex_scan(struct device *dev)
 			}
 		}
 	}
+#endif /* CONFIG_PCI */
 
 	/* Now check all slots of the EISA bus. */
 	if (EISA_bus) {
@@ -411,8 +421,8 @@ static int vortex_scan(struct device *dev)
 	return cards_found;
 }
 
-static int vortex_found_device(struct device *dev, int ioaddr, int irq,
-							   int product_index, int options)
+__initfunc(static int vortex_found_device(struct device *dev, int ioaddr, int irq,
+							   int product_index, int options))
 {
 	struct vortex_private *vp;
 
@@ -471,7 +481,7 @@ static int vortex_found_device(struct device *dev, int ioaddr, int irq,
 	return 0;
 }
 
-static int vortex_probe1(struct device *dev)
+__initfunc(static int vortex_probe1(struct device *dev))
 {
 	int ioaddr = dev->base_addr;
 	struct vortex_private *vp = (struct vortex_private *)dev->priv;
@@ -1067,8 +1077,7 @@ vortex_close(struct device *dev)
 	return 0;
 }
 
-static struct enet_statistics *
-vortex_get_stats(struct device *dev)
+static struct net_device_stats *vortex_get_stats(struct device *dev)
 {
 	struct vortex_private *vp = (struct vortex_private *)dev->priv;
 	unsigned long flags;

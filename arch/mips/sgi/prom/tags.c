@@ -8,7 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 
-#include <asm/segment.h>
+#include <asm/addrspace.h>
 #include <asm/sgialib.h>
 #include <asm/bootinfo.h>
 #include <asm/sgimc.h>

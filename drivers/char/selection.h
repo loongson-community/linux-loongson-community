@@ -62,7 +62,7 @@ extern void putconsxy(int currcons, char *p);
 
 #include <linux/config.h>
 
-#ifdef CONFIG_TGA_CONSOLE
+#if defined(CONFIG_TGA_CONSOLE)
 
 extern int tga_blitc(unsigned int, unsigned long);
 extern unsigned long video_mem_term;
@@ -73,10 +73,6 @@ extern unsigned long video_mem_term;
  * TGA is *not* a character/attribute cell device; font bitmaps must be rendered
  * to the screen pixels.
  *
- * The "unsigned short * addr" is *ALWAYS* a kernel virtual address, either
- * of the VC's backing store, or the "shadow screen" memory where the screen
- * contents are kept, as the TGA frame buffer is *not* char/attr cells.
- *
  * We must test for an Alpha kernel virtual address that falls within
  *  the "shadow screen" memory. This condition indicates we really want 
  *  to write to the screen, so, we do... :-)
@@ -86,10 +82,10 @@ extern unsigned long video_mem_term;
  */
 static inline void scr_writew(unsigned short val, unsigned short * addr)
 {
-	/*
-	 * always deposit the char/attr, then see if it was to "screen" mem.
+        /*
+         * always deposit the char/attr, then see if it was to "screen" mem.
 	 * if so, then render the char/attr onto the real screen.
-	 */
+         */
         *addr = val;
         if ((unsigned long)addr < video_mem_term &&
 	    (unsigned long)addr >= video_mem_base) {
@@ -101,7 +97,9 @@ static inline unsigned short scr_readw(unsigned short * addr)
 {
 	return *addr;
 }
+
 #elif defined (CONFIG_SGI)
+
 #include "vt_kern.h"
 #include <linux/kd.h>
 extern void newport_blitc(unsigned short, unsigned long);
@@ -171,7 +169,38 @@ static inline unsigned short scr_readw(unsigned short * addr)
 {
 	return *addr;
 }
-#else /* CONFIG_VIDEO_G364 */
+
+#elif defined(CONFIG_SUN_CONSOLE)
+
+#include "vt_kern.h"
+#include <linux/kd.h>
+extern int sun_blitc(unsigned int, unsigned long);
+extern void memsetw(void * s, unsigned short c, unsigned int count);
+extern void memcpyw(unsigned short *to, unsigned short *from, unsigned int count);
+extern unsigned long video_mem_term;
+
+/* Basically the same as the TGA stuff. */
+static inline void scr_writew(unsigned short val, unsigned short * addr)
+{
+        /*
+         * always deposit the char/attr, then see if it was to "screen" mem.
+	 * if so, then render the char/attr onto the real screen.
+         */
+	if (*addr != val) {
+        	*addr = val;
+		if ((unsigned long)addr < video_mem_term &&
+		    (unsigned long)addr >= video_mem_base &&
+		    vt_cons [fg_console]->vc_mode == KD_TEXT)
+			sun_blitc(val, (unsigned long) addr);
+	}
+}
+
+static inline unsigned short scr_readw(unsigned short * addr)
+{
+	return *addr;
+}
+
+#else
 
 /*
  * normal VGA console access
@@ -217,7 +246,7 @@ static inline unsigned short scr_readw(unsigned short * addr)
 
 #endif /* CONFIG_TGA_CONSOLE */
 
-#ifndef CONFIG_SGI
+#if !defined(CONFIG_SUN_CONSOLE) && !defined(CONFIG_SGI)
 static inline void memsetw(void * s, unsigned short c, unsigned int count)
 {
 	unsigned short * addr = (unsigned short *) s;
@@ -238,4 +267,4 @@ static inline void memcpyw(unsigned short *to, unsigned short *from,
 		scr_writew(scr_readw(from++), to++);
 	}
 }
-#endif /* CONFIG_SUN_CONSOLE */
+#endif /* !defined(CONFIG_SUN_CONSOLE) && !defined(CONFIG_SGI) */

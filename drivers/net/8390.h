@@ -59,6 +59,7 @@ struct ei_device {
   void (*get_8390_hdr)(struct device *, struct e8390_pkt_hdr *, int);
   void (*block_output)(struct device *, int, const unsigned char *, int);
   void (*block_input)(struct device *, int, struct sk_buff *, int);
+  unsigned char mcfilter[8];
   unsigned open:1;
   unsigned word16:1;  /* We have the 16-bit (vs 8-bit) version of the card. */
   unsigned txing:1;		/* Transmit Active */
@@ -74,7 +75,7 @@ struct ei_device {
   unsigned char reg5;		/* Register '5' in a WD8013 */
   unsigned char saved_irq;	/* Original dev->irq value. */
   /* The new statistics table. */
-  struct enet_statistics stat;
+  struct net_device_stats stat;
 };
 
 /* The maximum number of 8390 interrupt service routines called per IRQ. */

@@ -11,16 +11,30 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
-#ifndef __alpha__
+/*
+ * Revalidate the inode. This is required for proper NFS attribute caching.
+ */
+static __inline__ int
+do_revalidate(struct inode *inode)
+{
+	if (inode->i_op && inode->i_op->revalidate)
+		return inode->i_op->revalidate(inode);
+	return 0;
+}
+
+
+#if !defined(__alpha__) && !defined(__sparc__)
 
 /*
  * For backward compatibility?  Maybe this should be moved
  * into arch/i386 instead?
  */
-static void cp_old_stat(struct inode * inode, struct __old_kernel_stat * statbuf)
+static int cp_old_stat(struct inode * inode, struct __old_kernel_stat * statbuf)
 {
 	struct __old_kernel_stat tmp;
 
@@ -39,12 +53,12 @@ static void cp_old_stat(struct inode * inode, struct __old_kernel_stat * statbuf
 	tmp.st_atime = inode->i_atime;
 	tmp.st_mtime = inode->i_mtime;
 	tmp.st_ctime = inode->i_ctime;
-	copy_to_user(statbuf,&tmp,sizeof(tmp));
+	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
 #endif
 
-static void cp_new_stat(struct inode * inode, struct stat * statbuf)
+static int cp_new_stat(struct inode * inode, struct stat * statbuf)
 {
 	struct stat tmp;
 	unsigned int blocks, indirect;
@@ -99,10 +113,10 @@ static void cp_new_stat(struct inode * inode, struct stat * statbuf)
 		tmp.st_blocks = inode->i_blocks;
 		tmp.st_blksize = inode->i_blksize;
 	}
-	copy_to_user(statbuf,&tmp,sizeof(tmp));
+	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__sparc__)
 /*
  * For backward compatibility?  Maybe this should be moved
  * into arch/i386 instead?
@@ -112,15 +126,16 @@ asmlinkage int sys_stat(char * filename, struct __old_kernel_stat * statbuf)
 	struct inode * inode;
 	int error;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	error = namei(filename,&inode);
 	if (error)
-		return error;
-	cp_old_stat(inode,statbuf);
+		goto out;
+	if ((error = do_revalidate(inode)) == 0)
+		error = cp_old_stat(inode,statbuf);
 	iput(inode);
-	return 0;
+out:
+	unlock_kernel();
+	return error;
 }
 #endif
 
@@ -129,18 +144,19 @@ asmlinkage int sys_newstat(char * filename, struct stat * statbuf)
 	struct inode * inode;
 	int error;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	error = namei(filename,&inode);
 	if (error)
-		return error;
-	cp_new_stat(inode,statbuf);
+		goto out;
+	if ((error = do_revalidate(inode)) == 0)
+		error = cp_new_stat(inode,statbuf);
 	iput(inode);
-	return 0;
+out:
+	unlock_kernel();
+	return error;
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__sparc__)
 
 /*
  * For backward compatibility?  Maybe this should be moved
@@ -151,15 +167,16 @@ asmlinkage int sys_lstat(char * filename, struct __old_kernel_stat * statbuf)
 	struct inode * inode;
 	int error;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	error = lnamei(filename,&inode);
 	if (error)
-		return error;
-	cp_old_stat(inode,statbuf);
+		goto out;
+	if ((error = do_revalidate(inode)) == 0)
+		error = cp_old_stat(inode,statbuf);
 	iput(inode);
-	return 0;
+out:
+	unlock_kernel();
+	return error;
 }
 
 #endif
@@ -169,18 +186,19 @@ asmlinkage int sys_newlstat(char * filename, struct stat * statbuf)
 	struct inode * inode;
 	int error;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	error = lnamei(filename,&inode);
 	if (error)
-		return error;
-	cp_new_stat(inode,statbuf);
+		goto out;
+	if ((error = do_revalidate(inode)) == 0)
+		error = cp_new_stat(inode,statbuf);
 	iput(inode);
-	return 0;
+out:
+	unlock_kernel();
+	return error;
 }
 
-#ifndef __alpha__
+#if !defined(__alpha__) && !defined(__sparc__)
 
 /*
  * For backward compatibility?  Maybe this should be moved
@@ -190,15 +208,16 @@ asmlinkage int sys_fstat(unsigned int fd, struct __old_kernel_stat * statbuf)
 {
 	struct file * f;
 	struct inode * inode;
-	int error;
+	int ret = -EBADF;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	if (fd >= NR_OPEN || !(f=current->files->fd[fd]) || !(inode=f->f_inode))
-		return -EBADF;
-	cp_old_stat(inode,statbuf);
-	return 0;
+		goto out;
+	if ((ret = do_revalidate(inode)) == 0)
+		ret = cp_old_stat(inode,statbuf);
+out:
+	unlock_kernel();
+	return ret;
 }
 
 #endif
@@ -207,33 +226,40 @@ asmlinkage int sys_newfstat(unsigned int fd, struct stat * statbuf)
 {
 	struct file * f;
 	struct inode * inode;
-	int error;
+	int err = -EBADF;
 
-	error = verify_area(VERIFY_WRITE,statbuf,sizeof (*statbuf));
-	if (error)
-		return error;
+	lock_kernel();
 	if (fd >= NR_OPEN || !(f=current->files->fd[fd]) || !(inode=f->f_inode))
-		return -EBADF;
-	cp_new_stat(inode,statbuf);
-	return 0;
+		goto out;
+	if ((err = do_revalidate(inode)) == 0)
+		err = cp_new_stat(inode,statbuf);
+out:
+	unlock_kernel();
+	return err;
 }
 
 asmlinkage int sys_readlink(const char * path, char * buf, int bufsiz)
 {
 	struct inode * inode;
-	int error;
+	int error = -EINVAL;
 
+	lock_kernel();
 	if (bufsiz <= 0)
-		return -EINVAL;
+		goto out;
 	error = verify_area(VERIFY_WRITE,buf,bufsiz);
 	if (error)
-		return error;
+		goto out;
 	error = lnamei(path,&inode);
 	if (error)
-		return error;
-	if (!inode->i_op || !inode->i_op->readlink) {
+		goto out;
+	error = -EINVAL;
+	if (!inode->i_op || !inode->i_op->readlink
+	 || (error = do_revalidate(inode)) < 0) {
 		iput(inode);
-		return -EINVAL;
+		goto out;
 	}
-	return inode->i_op->readlink(inode,buf,bufsiz);
+	error = inode->i_op->readlink(inode,buf,bufsiz);
+out:
+	unlock_kernel();
+	return error;
 }

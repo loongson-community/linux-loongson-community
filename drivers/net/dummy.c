@@ -29,7 +29,6 @@
 */
 
 /* To have statistics (just packets sent) define this */
-#undef DUMMY_STATS
 
 #include <linux/module.h>
 
@@ -43,6 +42,7 @@
 #include <linux/in.h>
 #include <linux/malloc.h>
 #include <linux/string.h>
+#include <linux/init.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -54,9 +54,7 @@
 #include <linux/skbuff.h>
 
 static int dummy_xmit(struct sk_buff *skb, struct device *dev);
-#ifdef DUMMY_STATS
-static struct enet_statistics *dummy_get_stats(struct device *dev);
-#endif
+static struct net_device_stats *dummy_get_stats(struct device *dev);
 
 static int dummy_open(struct device *dev)
 {
@@ -70,73 +68,64 @@ static int dummy_close(struct device *dev)
 	return 0;
 }
 
-
-int dummy_init(struct device *dev)
+/* fake multicast ability */
+static void set_multicast_list(struct device *dev)
 {
-/* I commented this out as bootup is noisy enough anyway and this driver
-   seems pretty reliable 8) 8) 8) */
-/*	printk ( KERN_INFO "Dummy net driver (94/05/27 v1.0)\n" ); */
+}
 
+__initfunc(int dummy_init(struct device *dev))
+{
 	/* Initialize the device structure. */
 	dev->hard_start_xmit	= dummy_xmit;
 
-#if DUMMY_STATS
-	dev->priv = kmalloc(sizeof(struct enet_statistics), GFP_KERNEL);
+	dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL);
 	if (dev->priv == NULL)
 		return -ENOMEM;
-	memset(dev->priv, 0, sizeof(struct enet_statistics));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 	dev->get_stats		= dummy_get_stats;
-#endif
 
 	dev->open = dummy_open;
 	dev->stop = dummy_close;
+	dev->set_multicast_list = set_multicast_list;
 
 	/* Fill in the fields of the device structure with ethernet-generic values. */
 	ether_setup(dev);
+	dev->tx_queue_len = 0;
 	dev->flags |= IFF_NOARP;
 
 	return 0;
 }
 
-static int
-dummy_xmit(struct sk_buff *skb, struct device *dev)
+static int dummy_xmit(struct sk_buff *skb, struct device *dev)
 {
-#if DUMMY_STATS
-	struct enet_statistics *stats;
-#endif
-
-	if (skb == NULL || dev == NULL)
-		return 0;
-
+	struct net_device_stats *stats;
 	dev_kfree_skb(skb, FREE_WRITE);
 
-#if DUMMY_STATS
-	stats = (struct enet_statistics *)dev->priv;
+	stats = (struct net_device_stats *)dev->priv;
 	stats->tx_packets++;
-#endif
+	stats->tx_bytes+=skb->len;
 
 	return 0;
 }
 
-#if DUMMY_STATS
-static struct enet_statistics *
-dummy_get_stats(struct device *dev)
+static struct net_device_stats *dummy_get_stats(struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics*) dev->priv;
+	struct net_device_stats *stats = (struct net_device_stats *) dev->priv;
 	return stats;
 }
-#endif
 
 #ifdef MODULE
 
-static int dummy_probe(struct device *dev)
+__initfunc(static int dummy_probe(struct device *dev))
 {
 	dummy_init(dev);
 	return 0;
 }
 
+static char dummy_name[16];
+
 static struct device dev_dummy = {
-	"dummy0\0   ", 
+		dummy_name, 	/* Needs to be writeable */
 		0, 0, 0, 0,
 	 	0x0, 0,
 	 	0, 0, 0, NULL, dummy_probe };
@@ -144,16 +133,9 @@ static struct device dev_dummy = {
 int init_module(void)
 {
 	/* Find a name for this unit */
-	int ct= 1;
-	
-	while(dev_get(dev_dummy.name)!=NULL && ct<100)
-	{
-		sprintf(dev_dummy.name,"dummy%d",ct);
-		ct++;
-	}
-	if(ct==100)
-		return -ENFILE;
-	
+	int err=dev_alloc_name(&dev_dummy,"dummy%d");
+	if(err)
+		return err;
 	if (register_netdev(&dev_dummy) != 0)
 		return -EIO;
 	return 0;

@@ -15,6 +15,8 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
@@ -27,6 +29,10 @@
 #include <linux/unistd.h>
 #include <linux/delay.h>
 #include <linux/smp.h>
+#include <linux/reboot.h>
+#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
+#include <linux/apm_bios.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -34,7 +40,11 @@
 #include <asm/io.h>
 #include <asm/ldt.h>
 
+#ifdef __SMP__
+asmlinkage void ret_from_smpfork(void) __asm__("ret_from_smpfork");
+#else
 asmlinkage void ret_from_sys_call(void) __asm__("ret_from_sys_call");
+#endif
 
 #ifdef CONFIG_APM
 extern int  apm_do_idle(void);
@@ -91,10 +101,13 @@ static void hard_idle(void)
 asmlinkage int sys_idle(void)
 {
         unsigned long start_idle = 0;
+	int ret = -EPERM;
 
+	lock_kernel();
 	if (current->pid != 0)
-		return -EPERM;
+		goto out;
 	/* endless idle loop with no priority at all */
+	current->priority = -100;
 	current->counter = -100;
 	for (;;) 
 	{
@@ -114,31 +127,18 @@ asmlinkage int sys_idle(void)
 			if (hlt_works_ok && !hlt_counter && !need_resched)
 		        	__asm__("hlt");
 		}
+		run_task_queue(&tq_scheduler);
 		if (need_resched) 
 			start_idle = 0;
 		schedule();
 	}
+	ret = 0;
+out:
+	unlock_kernel();
+	return ret;
 }
 
 #else
-
-/*
- *	In the SMP world we hlt outside of kernel syscall rather than within
- *	so as to get the right locking semantics.
- */
- 
-asmlinkage int sys_idle(void)
-{
-	if(current->pid != 0)
-		return -EPERM;
-#ifdef __SMP_PROF__
-	smp_spins_sys_idle[smp_processor_id()]+=
-	  smp_spins_syscall_cur[smp_processor_id()];
-#endif
-	current->counter= -100;
-	schedule();
-	return 0;
-}
 
 /*
  *	This is being executed in task 0 'user space'.
@@ -146,33 +146,30 @@ asmlinkage int sys_idle(void)
 
 int cpu_idle(void *unused)
 {
+	current->priority = -100;
 	while(1)
 	{
 		if(cpu_data[smp_processor_id()].hlt_works_ok && !hlt_counter && !need_resched)
 			__asm("hlt");
-                if(0==(0x7fffffff & smp_process_available)) 
-                	continue;
-                while(0x80000000 & smp_process_available);
-	        cli();
-                while(set_bit(31,&smp_process_available))
-                	while(test_bit(31,&smp_process_available))
-                {
-                	/*
-                	 *	Oops.. This is kind of important in some cases...
-                	 */
-                	if(clear_bit(smp_processor_id(), &smp_invalidate_needed))
-                		local_flush_tlb();
-                }
-                if (0==(0x7fffffff & smp_process_available)){
-                        clear_bit(31,&smp_process_available);
-                        sti();
-                        continue;
-                }
-                smp_process_available--;
-                clear_bit(31,&smp_process_available);
-                sti();
-		idle();
+		/*
+		 * tq_scheduler currently assumes we're running in a process
+		 * context (ie that we hold the kernel lock..)
+		 */
+		if (tq_scheduler) {
+			lock_kernel();
+			run_task_queue(&tq_scheduler);
+			unlock_kernel();
+		}
+		/* endless idle loop with no priority at all */
+		current->counter = -100;
+		schedule();
 	}
+}
+
+asmlinkage int sys_idle(void)
+{
+	cpu_idle(NULL);
+	return 0;
 }
 
 #endif
@@ -184,16 +181,90 @@ int cpu_idle(void *unused)
  */
 static long no_idt[2] = {0, 0};
 static int reboot_mode = 0;
+static int reboot_thru_bios = 0;
 
 void reboot_setup(char *str, int *ints)
 {
-	int mode = 0;
-
-	/* "w" for "warm" reboot (no memory testing etc) */
-	if (str[0] == 'w')
-		mode = 0x1234;
-	reboot_mode = mode;
+	while(1) {
+		switch (*str) {
+		case 'w': /* "warm" reboot (no memory testing etc) */
+			reboot_mode = 0x1234;
+			break;
+		case 'c': /* "cold" reboot (with memory testing etc) */
+			reboot_mode = 0x0;
+			break;
+		case 'b': /* "bios" reboot by jumping through the BIOS */
+			reboot_thru_bios = 1;
+			break;
+		case 'h': /* "hard" reboot by toggling RESET and/or crashing the CPU */
+			reboot_thru_bios = 0;
+			break;
+		}
+		if((str = strchr(str,',')) != NULL)
+			str++;
+		else
+			break;
+	}
 }
+
+
+/* The following code and data reboots the machine by switching to real
+   mode and jumping to the BIOS reset entry point, as if the CPU has
+   really been reset.  The previous version asked the keyboard
+   controller to pulse the CPU reset line, which is more thorough, but
+   doesn't work with at least one type of 486 motherboard.  It is easy
+   to stop this code working; hence the copious comments. */
+
+static unsigned long long
+real_mode_gdt_entries [3] =
+{
+	0x0000000000000000ULL,	/* Null descriptor */
+	0x00009a000000ffffULL,	/* 16-bit real-mode 64k code at 0x00000000 */
+	0x000092000100ffffULL		/* 16-bit real-mode 64k data at 0x00000100 */
+};
+
+static struct
+{
+	unsigned short       size __attribute__ ((packed));
+	unsigned long long * base __attribute__ ((packed));
+}
+real_mode_gdt = { sizeof (real_mode_gdt_entries) - 1, real_mode_gdt_entries },
+real_mode_idt = { 0x3ff, 0 };
+
+/* This is 16-bit protected mode code to disable paging and the cache,
+   switch to real mode and jump to the BIOS reset code.
+
+   The instruction that switches to real mode by writing to CR0 must be
+   followed immediately by a far jump instruction, which set CS to a
+   valid value for real mode, and flushes the prefetch queue to avoid
+   running instructions that have already been decoded in protected
+   mode.
+
+   Clears all the flags except ET, especially PG (paging), PE
+   (protected-mode enable) and TS (task switch for coprocessor state
+   save).  Flushes the TLB after paging has been disabled.  Sets CD and
+   NW, to disable the cache on a 486, and invalidates the cache.  This
+   is more like the state of a 486 after reset.  I don't know if
+   something else should be done for other chips.
+
+   More could be done here to set up the registers as if a CPU reset had
+   occurred; hopefully real BIOSes don't assume much. */
+
+static unsigned char real_mode_switch [] =
+{
+	0x66, 0x0f, 0x20, 0xc0,			/*    movl  %cr0,%eax        */
+	0x66, 0x83, 0xe0, 0x11,			/*    andl  $0x00000011,%eax */
+	0x66, 0x0d, 0x00, 0x00, 0x00, 0x60,		/*    orl   $0x60000000,%eax */
+	0x66, 0x0f, 0x22, 0xc0,			/*    movl  %eax,%cr0        */
+	0x66, 0x0f, 0x22, 0xd8,			/*    movl  %eax,%cr3        */
+	0x66, 0x0f, 0x20, 0xc3,			/*    movl  %cr0,%ebx        */
+	0x66, 0x81, 0xe3, 0x00, 0x00, 0x00, 0x60,	/*    andl  $0x60000000,%ebx */
+	0x74, 0x02,					/*    jz    f                */
+	0x0f, 0x08,					/*    invd                   */
+	0x24, 0x10,					/* f: andb  $0x10,al         */
+	0x66, 0x0f, 0x22, 0xc0,			/*    movl  %eax,%cr0        */
+	0xea, 0x00, 0x00, 0xff, 0xff			/*    ljmp  $0xffff,$0x0000  */
+};
 
 static inline void kb_wait(void)
 {
@@ -204,23 +275,121 @@ static inline void kb_wait(void)
 			break;
 }
 
-void hard_reset_now(void)
+void machine_restart(char * __unused)
 {
-	int i, j;
 
-	sti();
-	*((unsigned short *)__va(0x472)) = reboot_mode;
-	for (;;) {
-		for (i=0; i<100; i++) {
-			kb_wait();
-			for(j = 0; j < 100000 ; j++)
-				/* nothing */;
-			outb(0xfe,0x64);	 /* pulse reset low */
-			udelay(100);
+	if(!reboot_thru_bios) {
+#if 0
+		sti();
+#endif
+		/* rebooting needs to touch the page at absolute addr 0 */
+		*((unsigned short *)__va(0x472)) = reboot_mode;
+		for (;;) {
+			int i;
+			for (i=0; i<100; i++) {
+				int j;
+				kb_wait();
+				for(j = 0; j < 100000 ; j++)
+					/* nothing */;
+				outb(0xfe,0x64);         /* pulse reset low */
+				udelay(10);
+			}
+			__asm__ __volatile__("\tlidt %0": "=m" (no_idt));
 		}
-		__asm__ __volatile__("\tlidt %0": "=m" (no_idt));
 	}
+
+	cli ();
+
+	/* Write zero to CMOS register number 0x0f, which the BIOS POST
+	   routine will recognize as telling it to do a proper reboot.  (Well
+	   that's what this book in front of me says -- it may only apply to
+	   the Phoenix BIOS though, it's not clear).  At the same time,
+	   disable NMIs by setting the top bit in the CMOS address register,
+	   as we're about to do peculiar things to the CPU.  I'm not sure if
+	   `outb_p' is needed instead of just `outb'.  Use it to be on the
+	   safe side. */
+
+	outb_p (0x8f, 0x70);
+	outb_p (0x00, 0x71);
+
+	/* Remap the kernel at virtual address zero, as well as offset zero
+	   from the kernel segment.  This assumes the kernel segment starts at
+	   virtual address 0xc0000000. */
+
+	memcpy (swapper_pg_dir, swapper_pg_dir + 768,
+		sizeof (swapper_pg_dir [0]) * 256);
+
+	/* Make sure the first page is mapped to the start of physical memory.
+	   It is normally not mapped, to trap kernel NULL pointer dereferences. */
+
+	pg0 [0] = 7;
+
+	/* Use `swapper_pg_dir' as our page directory.  Don't bother with
+	   `SET_PAGE_DIR' because interrupts are disabled and we're rebooting.
+	   This instruction flushes the TLB. */
+
+	__asm__ __volatile__ ("movl %0,%%cr3" : : "a" (swapper_pg_dir) : "memory");
+
+	/* Write 0x1234 to absolute memory location 0x472.  The BIOS reads
+	   this on booting to tell it to "Bypass memory test (also warm
+	   boot)".  This seems like a fairly standard thing that gets set by
+	   REBOOT.COM programs, and the previous reset routine did this
+	   too. */
+
+	*((unsigned short *)0x472) = reboot_mode;
+
+	/* For the switch to real mode, copy some code to low memory.  It has
+	   to be in the first 64k because it is running in 16-bit mode, and it
+	   has to have the same physical and virtual address, because it turns
+	   off paging.  Copy it near the end of the first page, out of the way
+	   of BIOS variables. */
+
+	memcpy ((void *) (0x1000 - sizeof (real_mode_switch)),
+		real_mode_switch, sizeof (real_mode_switch));
+
+	/* Set up the IDT for real mode. */
+
+	__asm__ __volatile__ ("lidt %0" : : "m" (real_mode_idt));
+
+	/* Set up a GDT from which we can load segment descriptors for real
+	   mode.  The GDT is not used in real mode; it is just needed here to
+	   prepare the descriptors. */
+
+	__asm__ __volatile__ ("lgdt %0" : : "m" (real_mode_gdt));
+
+	/* Load the data segment registers, and thus the descriptors ready for
+	   real mode.  The base address of each segment is 0x100, 16 times the
+	   selector value being loaded here.  This is so that the segment
+	   registers don't have to be reloaded after switching to real mode:
+	   the values are consistent for real mode operation already. */
+
+	__asm__ __volatile__ ("movw $0x0010,%%ax\n"
+				"\tmovw %%ax,%%ds\n"
+				"\tmovw %%ax,%%es\n"
+				"\tmovw %%ax,%%fs\n"
+				"\tmovw %%ax,%%gs\n"
+				"\tmovw %%ax,%%ss" : : : "eax");
+
+	/* Jump to the 16-bit code that we copied earlier.  It disables paging
+	   and the cache, switches to real mode, and jumps to the BIOS reset
+	   entry point. */
+
+	__asm__ __volatile__ ("ljmp $0x0008,%0"
+				:
+				: "i" ((void *) (0x1000 - sizeof (real_mode_switch))));
 }
+
+void machine_halt(void)
+{
+}
+
+void machine_power_off(void)
+{
+#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
+	apm_set_power_state(APM_STATE_OFF);
+#endif
+}
+
 
 void show_regs(struct pt_regs * regs)
 {
@@ -298,7 +467,7 @@ void release_thread(struct task_struct *dead_task)
 {
 }
 
-void copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
+int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	struct task_struct * p, struct pt_regs * regs)
 {
 	int i;
@@ -309,19 +478,24 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	p->tss.ss = KERNEL_DS;
 	p->tss.ds = KERNEL_DS;
 	p->tss.fs = USER_DS;
-	p->tss.gs = KERNEL_DS;
+	p->tss.gs = USER_DS;
 	p->tss.ss0 = KERNEL_DS;
 	p->tss.esp0 = p->kernel_stack_page + PAGE_SIZE;
 	p->tss.tr = _TSS(nr);
 	childregs = ((struct pt_regs *) (p->kernel_stack_page + PAGE_SIZE)) - 1;
 	p->tss.esp = (unsigned long) childregs;
+#ifdef __SMP__
+	p->tss.eip = (unsigned long) ret_from_smpfork;
+	p->tss.eflags = regs->eflags & 0xffffcdff;  /* iopl always 0 for a new process */
+#else
 	p->tss.eip = (unsigned long) ret_from_sys_call;
+	p->tss.eflags = regs->eflags & 0xffffcfff;  /* iopl always 0 for a new process */
+#endif
 	p->tss.ebx = (unsigned long) p;
 	*childregs = *regs;
 	childregs->eax = 0;
 	childregs->esp = esp;
 	p->tss.back_link = 0;
-	p->tss.eflags = regs->eflags & 0xffffcfff;	/* iopl is always 0 for a new process */
 	p->tss.ldt = _LDT(nr);
 	if (p->ldt) {
 		p->ldt = (struct desc_struct*) vmalloc(LDT_ENTRIES*LDT_ENTRY_SIZE);
@@ -338,6 +512,7 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 		p->tss.io_bitmap[i] = ~0;
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0 ; frstor %0":"=m" (p->tss.i387));
+	return 0;
 }
 
 /*
@@ -409,19 +584,28 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 
 asmlinkage int sys_fork(struct pt_regs regs)
 {
-	return do_fork(SIGCHLD, regs.esp, &regs);
+	int ret;
+
+	lock_kernel();
+	ret = do_fork(SIGCHLD, regs.esp, &regs);
+	unlock_kernel();
+	return ret;
 }
 
 asmlinkage int sys_clone(struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
+	int ret;
 
+	lock_kernel();
 	clone_flags = regs.ebx;
 	newsp = regs.ecx;
 	if (!newsp)
 		newsp = regs.esp;
-	return do_fork(clone_flags, newsp, &regs);
+	ret = do_fork(clone_flags, newsp, &regs);
+	unlock_kernel();
+	return ret;
 }
 
 /*
@@ -432,10 +616,13 @@ asmlinkage int sys_execve(struct pt_regs regs)
 	int error;
 	char * filename;
 
+	lock_kernel();
 	error = getname((char *) regs.ebx, &filename);
 	if (error)
-		return error;
+		goto out;
 	error = do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
 	putname(filename);
+out:
+	unlock_kernel();
 	return error;
 }

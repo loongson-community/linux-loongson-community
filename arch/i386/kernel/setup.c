@@ -22,6 +22,7 @@
 #include <linux/ioport.h>
 #include <linux/delay.h>
 #include <linux/config.h>
+#include <linux/init.h>
 #ifdef CONFIG_APM
 #include <linux/apm_bios.h>
 #endif
@@ -53,6 +54,12 @@ char hlt_works_ok = 1;		/* set if the "hlt" instruction works */
  * Bus types ..
  */
 int EISA_bus = 0;
+int MCA_bus = 0;
+
+/* for MCA, but anyone else can use it if they want */
+unsigned int machine_id = 0;
+unsigned int machine_submodel_id = 0;
+unsigned int BIOS_revision = 0;
 
 /*
  * Setup options
@@ -62,6 +69,10 @@ struct screen_info screen_info;
 #ifdef CONFIG_APM
 struct apm_bios_info apm_bios_info;
 #endif
+struct sys_desc_table_struct {
+	unsigned short length;
+	unsigned char table[0];
+};
 
 unsigned char aux_device_present;
 
@@ -94,6 +105,7 @@ extern char empty_zero_page[PAGE_SIZE];
 #define KERNEL_START (*(unsigned long *) (PARAM+0x214))
 #define INITRD_START (*(unsigned long *) (PARAM+0x218))
 #define INITRD_SIZE (*(unsigned long *) (PARAM+0x21c))
+#define SYS_DESC_TABLE (*(struct sys_desc_table_struct*)(PARAM+0x220))
 #define COMMAND_LINE ((char *) (PARAM+2048))
 #define COMMAND_LINE_SIZE 256
 
@@ -104,8 +116,8 @@ extern char empty_zero_page[PAGE_SIZE];
 static char command_line[COMMAND_LINE_SIZE] = { 0, };
        char saved_command_line[COMMAND_LINE_SIZE];
 
-void setup_arch(char **cmdline_p,
-	unsigned long * memory_start_p, unsigned long * memory_end_p)
+__initfunc(void setup_arch(char **cmdline_p,
+	unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	unsigned long memory_start, memory_end;
 	char c = ' ', *to = command_line, *from = COMMAND_LINE;
@@ -124,17 +136,23 @@ void setup_arch(char **cmdline_p,
 #ifdef CONFIG_APM
 	apm_bios_info = APM_BIOS_INFO;
 #endif
+	if( SYS_DESC_TABLE.length != 0 ) {
+		MCA_bus = SYS_DESC_TABLE.table[3] &0x2;
+		machine_id = SYS_DESC_TABLE.table[0];
+		machine_submodel_id = SYS_DESC_TABLE.table[1];
+		BIOS_revision = SYS_DESC_TABLE.table[2];
+	}
 	aux_device_present = AUX_DEVICE_INFO;
+#ifdef STANDARD_MEMORY_BIOS_CALL
 	memory_end = (1<<20) + (EXT_MEM_K<<10);
+#else
+	memory_end = (1<<20) + (EXT_MEM_K*64L*1024L);	/* 64kb chunks */
+#endif
 	memory_end &= PAGE_MASK;
 #ifdef CONFIG_BLK_DEV_RAM
 	rd_image_start = RAMDISK_FLAGS & RAMDISK_IMAGE_START_MASK;
 	rd_prompt = ((RAMDISK_FLAGS & RAMDISK_PROMPT_FLAG) != 0);
 	rd_doload = ((RAMDISK_FLAGS & RAMDISK_LOAD_FLAG) != 0);
-#endif
-#ifdef CONFIG_MAX_16M
-	if (memory_end > 16*1024*1024)
-		memory_end = 16*1024*1024;
 #endif
 	if (!MOUNT_ROOT_RDONLY)
 		root_mountflags &= ~MS_RDONLY;
@@ -199,7 +217,7 @@ void setup_arch(char **cmdline_p,
 	/* request io space for devices used on all i[345]86 PC'S */
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
-	request_region(0x80,0x20,"dma page reg");
+	request_region(0x80,0x10,"dma page reg");
 	request_region(0xc0,0x20,"dma2");
 	request_region(0xf0,0x10,"npu");
 }
@@ -218,7 +236,8 @@ static const char * i486model(unsigned int nr)
 static const char * i586model(unsigned int nr)
 {
 	static const char *model[] = {
-		"0", "Pentium 60/66","Pentium 75+","OverDrive PODP5V83"
+		"0", "Pentium 60/66","Pentium 75+","OverDrive PODP5V83",
+		"Pentium MMX"
 	};
 	if (nr < sizeof(model)/sizeof(char *))
 		return model[nr];

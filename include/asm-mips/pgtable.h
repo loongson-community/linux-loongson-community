@@ -347,6 +347,9 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 }
 
+/* to find an entry in a kernel page-table-directory */
+#define pgd_offset_k(address) pgd_offset(&init_mm, address)
+
 /* to find an entry in a page-table-directory */
 extern inline pgd_t *pgd_offset(struct mm_struct *mm, unsigned long address)
 {
@@ -376,6 +379,8 @@ extern inline void pte_free_kernel(pte_t *pte)
 	free_page((unsigned long) pte);
 }
 
+extern const char bad_pmd_string[];
+
 extern inline pte_t *pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 {
 	address = (address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1);
@@ -392,7 +397,7 @@ extern inline pte_t *pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 		free_page((unsigned long) page);
 	}
 	if (pmd_bad(*pmd)) {
-		printk("Bad pmd in pte_alloc_kernel: %08lx\n", pmd_val(*pmd));
+		printk(bad_pmd_string, pmd_val(*pmd));
 		pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 		return NULL;
 	}
@@ -434,7 +439,7 @@ extern inline pte_t *pte_alloc(pmd_t *pmd, unsigned long address)
 		free_page((unsigned long) page);
 	}
 	if (pmd_bad(*pmd)) {
-		printk("Bad pmd in pte_alloc: %08lx\n", pmd_val(*pmd));
+		printk(bad_pmd_string, pmd_val(*pmd));
 		pmd_set(pmd, (pte_t *) BAD_PAGETABLE);
 		return NULL;
 	}
@@ -756,21 +761,6 @@ extern inline void set_context(unsigned long val)
 		".set mips2\n\t"
 		".set reorder"
 		: : "r" (val));
-}
-
-/* Kernel stack allocation/freeing. */
-extern inline unsigned long alloc_kernel_stack(void)
-{
-	unsigned long stack;
-	stack = __get_free_pages(GFP_KERNEL, 1, 0);
-	memset((void *)stack, 0, (size_t) KERNEL_STACK_SIZE);
-
-	return stack;
-}
-
-extern inline void free_kernel_stack(unsigned long stack)
-{
-	free_pages(stack, 1);
 }
 
 #endif /* !defined (__LANGUAGE_ASSEMBLY__) */

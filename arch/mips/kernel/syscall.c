@@ -17,6 +17,8 @@
 #include <linux/config.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/mman.h>
 #include <linux/sched.h>
 #include <linux/unistd.h>
@@ -35,35 +37,49 @@ extern unsigned char sys_narg_table[];
 asmlinkage int sys_pipe(struct pt_regs *regs)
 {
 	int fd[2];
-	int error;
+	int error, res;
 
+	lock_kernel();
 	error = do_pipe(fd);
-	if (error)
-		return error;
+	if (error) {
+		res = error;
+		goto out;
+	}
 	regs->regs[3] = fd[1];
-	return fd[0];
+	res = fd[0];
+out:
+	unlock_kernel();
+	return res;
 }
 
 asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
                                   int flags, int fd, off_t offset)
 {
 	struct file * file = NULL;
+	unsigned long res;
 
+	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
 		if (fd >= NR_OPEN || !(file = current->files->fd[fd]))
 			return -EBADF;
 	}
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
-	return do_mmap(file, addr, len, prot, flags, offset);
+	res = do_mmap(file, addr, len, prot, flags, offset);
+
+	unlock_kernel();
+	return res;
 }
 
 asmlinkage int sys_idle(void)
 {
-	if (current->pid != 0)
-		return -EPERM;
+        int ret = -EPERM;
 
+	lock_kernel();
+	if (current->pid != 0)
+		goto out;
 	/* endless idle loop with no priority at all */
+	current->priority = -100;
 	current->counter = -100;
 	for (;;) {
 		/*
@@ -76,25 +92,38 @@ asmlinkage int sys_idle(void)
 			__asm__(".set\tmips3\n\t"
 				"wait\n\t"
 				".set\tmips0\n\t");
+		run_task_queue(&tq_scheduler);
 		schedule();
 	}
+out:
+	unlock_kernel();
+	return ret;
 }
 
 asmlinkage int sys_fork(struct pt_regs *regs)
 {
-	return do_fork(SIGCHLD, regs->regs[29], regs);
+	int res;
+
+	lock_kernel();
+	res = do_fork(SIGCHLD, regs->regs[29], regs);
+	unlock_kernel();
+	return res;
 }
 
 asmlinkage int sys_clone(struct pt_regs *regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
+	int res;
 
+	lock_kernel();
 	clone_flags = regs->regs[4];
 	newsp = regs->regs[5];
 	if (!newsp)
 		newsp = regs->regs[29];
-	return do_fork(clone_flags, newsp, regs);
+	res = do_fork(clone_flags, newsp, regs);
+	unlock_kernel();
+	return res;
 }
 
 /*
@@ -102,20 +131,25 @@ asmlinkage int sys_clone(struct pt_regs *regs)
  */
 asmlinkage int sys_execve(struct pt_regs *regs)
 {
-	int error;
+	int res;
 	char * filename;
 
-	error = getname((char *) (long)regs->regs[4], &filename);
-	if (error)
-		return error;
-	error = do_execve(filename, (char **) (long)regs->regs[5],
-	                  (char **) (long)regs->regs[6], regs);
+	lock_kernel();
+	res = getname((char *) (long)regs->regs[4], &filename);
+	if (res)
+		goto out;
+	res = do_execve(filename, (char **) (long)regs->regs[5],
+	                (char **) (long)regs->regs[6], regs);
 	putname(filename);
-	return error;
+
+out:
+	unlock_kernel();
+	return res;
 }
 
 /*
  * Do the indirect syscall syscall.
+ * Don't care about kernel locking; the actual syscall will do it.
  */
 asmlinkage int sys_syscall(struct pt_regs *regs)
 {
@@ -184,6 +218,7 @@ asmlinkage int sys_syscall(struct pt_regs *regs)
 /*
  * If we ever come here the user sp is bad.  Zap the process right away.
  * Due to the bad stack signaling wouldn't work.
+ * XXX kernel locking???
  */
 asmlinkage void bad_stack(void)
 {
@@ -204,6 +239,9 @@ static char *irix_sys_names[] = {
 };
 #endif
 
+/*
+ * This isn't entirely correct with respect to kernel locking ...
+ */
 void do_sys(struct pt_regs *regs)
 {
 	unsigned long syscallnr, usp;

@@ -25,6 +25,8 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/timex.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
@@ -64,6 +66,8 @@ asmlinkage int sys_time(int * tloc)
 {
 	int i;
 
+	/* SMP: This is fairly trivial. We grab CURRENT_TIME and 
+	   stuff it to user space. No side effects */
 	i = CURRENT_TIME;
 	if (tloc) {
 		if (put_user(i,tloc))
@@ -78,6 +82,7 @@ asmlinkage int sys_time(int * tloc)
  * why not move it into the appropriate arch directory (for those
  * architectures that need it).
  */
+ 
 asmlinkage int sys_stime(int * tptr)
 {
 	int value;
@@ -154,6 +159,7 @@ asmlinkage int sys_settimeofday(struct timeval *tv, struct timezone *tz)
 
 	if (!suser())
 		return -EPERM;
+		
 	if (tv) {
 		if (copy_from_user(&new_tv, tv, sizeof(*tv)))
 			return -EFAULT;
@@ -161,6 +167,8 @@ asmlinkage int sys_settimeofday(struct timeval *tv, struct timezone *tz)
 	if (tz) {
 		if (copy_from_user(&new_tz, tz, sizeof(*tz)))
 			return -EFAULT;
+
+		/* SMP safe, global irq locking makes it work. */
 		sys_tz = new_tz;
 		if (firsttime) {
 			firsttime = 0;
@@ -169,7 +177,12 @@ asmlinkage int sys_settimeofday(struct timeval *tv, struct timezone *tz)
 		}
 	}
 	if (tv)
+	{
+		/* SMP safe, again the code in arch/foo/time.c should
+		 * globally block out interrupts when it runs.
+		 */
 		do_settimeofday(&new_tv);
+	}
 	return 0;
 }
 
@@ -197,37 +210,32 @@ void (*hardpps_ptr)(struct timeval *) = (void (*)(struct timeval *))0;
 asmlinkage int sys_adjtimex(struct timex *txc_p)
 {
         long ltemp, mtemp, save_adjust;
-	int error;
-
-	/* Local copy of parameter */
-	struct timex txc;
+	struct timex txc;		/* Local copy of parameter */
 
 	/* Copy the user data space into the kernel copy
 	 * structure. But bear in mind that the structures
 	 * may change
 	 */
-	error = copy_from_user(&txc, txc_p, sizeof(struct timex));
-	if (error)
-		return -EFAULT;	
+	if(copy_from_user(&txc, txc_p, sizeof(struct timex)))
+		return -EFAULT;
 
 	/* In order to modify anything, you gotta be super-user! */
 	if (txc.modes && !suser())
 		return -EPERM;
-
-	/* Now we validate the data before disabling interrupts
-	 */
+		
+	/* Now we validate the data before disabling interrupts */
 
 	if (txc.modes != ADJ_OFFSET_SINGLESHOT && (txc.modes & ADJ_OFFSET))
 	  /* adjustment Offset limited to +- .512 seconds */
-	  if (txc.offset <= - MAXPHASE || txc.offset >= MAXPHASE )
-	    return -EINVAL;
+		if (txc.offset <= - MAXPHASE || txc.offset >= MAXPHASE )
+			return -EINVAL;	
 
 	/* if the quartz is off by more than 10% something is VERY wrong ! */
 	if (txc.modes & ADJ_TICK)
-	  if (txc.tick < 900000/HZ || txc.tick > 1100000/HZ)
-	    return -EINVAL;
+		if (txc.tick < 900000/HZ || txc.tick > 1100000/HZ)
+			return -EINVAL;
 
-	cli();
+	cli(); /* SMP: global cli() is enough protection. */
 
 	/* Save for later - semantics of adjtime is to return old value */
 	save_adjust = time_adjust;

@@ -22,6 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/time.h>
 #include <linux/delay.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -32,7 +33,16 @@
 #include <linux/timex.h>
 #include <linux/config.h>
 
+/*
+ * for x86_do_profile()
+ */
+#include "irq.h"
+
 extern int setup_x86_irq(int, struct irqaction *);
+extern volatile unsigned long lost_ticks;
+
+/* change this if you have some constant time drift */
+#define USECS_PER_JIFFY (1000020/HZ)
 
 #ifndef	CONFIG_APM	/* cycle counter may be unreliable */
 /* Cycle counter value at the previous timer interrupt.. */
@@ -41,38 +51,28 @@ static struct {
 	unsigned long high;
 } init_timer_cc, last_timer_cc;
 
-/*
- * This is more assembly than C, but it's also rather
- * timing-critical and we have to use assembler to get
- * reasonable 64-bit arithmetic
- */
 static unsigned long do_fast_gettimeoffset(void)
 {
 	register unsigned long eax asm("ax");
 	register unsigned long edx asm("dx");
-	unsigned long tmp, quotient, low_timer, missing_time;
+	unsigned long tmp, quotient, low_timer;
 
-	/* Last jiffy when do_fast_gettimeoffset() was called.. */
+	/* Last jiffy when do_fast_gettimeoffset() was called. */
 	static unsigned long last_jiffies=0;
 
-	/* Cached "clocks per usec" value.. */
+	/*
+	 * Cached "1/(clocks per usec)*2^32" value. 
+	 * It has to be recalculated once each jiffy.
+	 */
 	static unsigned long cached_quotient=0;
 
-	/* The "clocks per usec" value is calculated once each jiffy */
 	tmp = jiffies;
+
 	quotient = cached_quotient;
 	low_timer = last_timer_cc.low;
-	missing_time = 0;
+
 	if (last_jiffies != tmp) {
 		last_jiffies = tmp;
-		/*
-		 * test for hanging bottom handler (this means xtime is not 
-		 * updated yet)
-		 */
-		if (test_bit(TIMER_BH, &bh_active) )
-		{
-			missing_time = 1000020/HZ;
-		}
 
 		/* Get last timer tick in absolute kernel time */
 		eax = low_timer;
@@ -86,14 +86,16 @@ static unsigned long do_fast_gettimeoffset(void)
 		 * Divide the 64-bit time with the 32-bit jiffy counter,
 		 * getting the quotient in clocks.
 		 *
-		 * Giving quotient = "average internal clocks per usec"
+		 * Giving quotient = "1/(average internal clocks per usec)*2^32"
+		 * we do this '1/...' trick to get the 'mull' into the critical 
+		 * path. 'mull' is much faster than divl (10 vs. 41 clocks)
 		 */
 		__asm__("divl %2"
 			:"=a" (eax), "=d" (edx)
 			:"r" (tmp),
 			 "0" (eax), "1" (edx));
 
-		edx = 1000020/HZ;
+		edx = USECS_PER_JIFFY;
 		tmp = eax;
 		eax = 0;
 
@@ -114,7 +116,7 @@ static unsigned long do_fast_gettimeoffset(void)
 	eax -= low_timer;
 
 	/*
-	 * Time offset = (1000020/HZ * time_low) / quotient.
+	 * Time offset = (USECS_PER_JIFFY * time_low) * quotient.
 	 */
 
 	__asm__("mull %2"
@@ -123,15 +125,13 @@ static unsigned long do_fast_gettimeoffset(void)
 		 "0" (eax), "1" (edx));
 
 	/*
- 	 * Due to rounding errors (and jiffies inconsistencies),
-	 * we need to check the result so that we'll get a timer
-	 * that is monotonic.
+ 	 * Due to possible jiffies inconsistencies, we need to check 
+	 * the result so that we'll get a timer that is monotonic.
 	 */
-	if (edx >= 1000020/HZ)
-		edx = 1000020/HZ-1;
+	if (edx >= USECS_PER_JIFFY)
+		edx = USECS_PER_JIFFY-1;
 
-	eax = edx + missing_time;
-	return eax;
+	return edx;
 }
 #endif
 
@@ -172,8 +172,8 @@ static unsigned long do_fast_gettimeoffset(void)
 static unsigned long do_slow_gettimeoffset(void)
 {
 	int count;
-	static int count_p = 0;
-	unsigned long offset = 0;
+
+	static int count_p = LATCH;    /* for the first call after boot */
 	static unsigned long jiffies_p = 0;
 
 	/*
@@ -183,59 +183,75 @@ static unsigned long do_slow_gettimeoffset(void)
 
 	/* timer count may underflow right here */
 	outb_p(0x00, 0x43);	/* latch the count ASAP */
-	count = inb_p(0x40);	/* read the latched count */
-	count |= inb(0x40) << 8;
 
+	count = inb_p(0x40);	/* read the latched count */
+
+	/*
+	 * We do this guaranteed double memory access instead of a _p 
+	 * postfix in the previous port access. Wheee, hackady hack
+	 */
  	jiffies_t = jiffies;
+
+	count |= inb_p(0x40) << 8;
 
 	/*
 	 * avoiding timer inconsistencies (they are rare, but they happen)...
-	 * there are three kinds of problems that must be avoided here:
+	 * there are two kinds of problems that must be avoided here:
 	 *  1. the timer counter underflows
 	 *  2. hardware problem with the timer, not giving us continuous time,
 	 *     the counter does small "jumps" upwards on some Pentium systems,
-	 *     thus causes time warps
-	 *  3. we are after the timer interrupt, but the bottom half handler
-	 *     hasn't executed yet.
+	 *     (see c't 95/10 page 335 for Neptun bug.)
 	 */
-	if( count > count_p ) {
-		if( jiffies_t == jiffies_p ) {
-			if( count > LATCH-LATCH/100 )
-				offset = TICK_SIZE;
-			else
+
+/* you can safely undefine this if you dont have the Neptun chipset */
+
+#define BUGGY_NEPTUN_TIMER
+
+	if( jiffies_t == jiffies_p ) {
+		if( count > count_p ) {
+			/* the nutcase */
+
+			outb_p(0x0A, 0x20);
+
+			/* assumption about timer being IRQ1 */
+			if( inb(0x20) & 0x01 ) {
 				/*
-				 * argh, the timer is bugging we cant do nothing 
-				 * but to give the previous clock value.
+				 * We cannot detect lost timer interrupts ... 
+				 * well, thats why we call them lost, dont we? :)
+				 * [hmm, on the Pentium and Alpha we can ... sort of]
 				 */
-				count = count_p;
-		} else {
-			if( test_bit(TIMER_BH, &bh_active) ) {
-				/*
-				 * we have detected a counter underflow.
-			 	 */
-				offset = TICK_SIZE;
-				count_p = count;		
+				count -= LATCH;
 			} else {
-				count_p = count;
-				jiffies_p = jiffies_t;
+#ifdef BUGGY_NEPTUN_TIMER
+				/*
+				 * for the Neptun bug we know that the 'latch'
+				 * command doesnt latch the high and low value
+				 * of the counter atomically. Thus we have to 
+				 * substract 256 from the counter 
+				 * ... funny, isnt it? :)
+				 */
+
+				count -= 256;
+#else
+				printk("do_slow_gettimeoffset(): hardware timer problem?\n");
+#endif
 			}
 		}
-	} else {
-		count_p = count;
+	} else
 		jiffies_p = jiffies_t;
- 	}
 
+	count_p = count;
 
 	count = ((LATCH-1) - count) * TICK_SIZE;
 	count = (count + LATCH/2) / LATCH;
 
-	return offset + count;
+	return count;
 }
 
 /*
  * this is only used if we have fast gettimeoffset:
  */
-void do_x86_get_fast_time(struct timeval * tv)
+static void do_x86_get_fast_time(struct timeval * tv)
 {
 	do_gettimeofday(tv);
 }
@@ -253,11 +269,20 @@ void do_gettimeofday(struct timeval *tv)
 	cli();
 	*tv = xtime;
 	tv->tv_usec += do_gettimeoffset();
+
+	/*
+	 * xtime is atomically updated in timer_bh. lost_ticks is
+	 * nonzero if the timer bottom half hasnt executed yet.
+	 */
+	if (lost_ticks)
+		tv->tv_usec += USECS_PER_JIFFY;
+
+	restore_flags(flags);
+
 	if (tv->tv_usec >= 1000000) {
 		tv->tv_usec -= 1000000;
 		tv->tv_sec++;
 	}
-	restore_flags(flags);
 }
 
 void do_settimeofday(struct timeval *tv)
@@ -352,6 +377,14 @@ static long last_rtc_update = 0;
 static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	do_timer(regs);
+/*
+ * In the SMP case we use the local APIC timer interrupt to do the
+ * profiling.
+ */
+#ifndef __SMP__
+	if (!user_mode(regs))
+		x86_do_profile(regs->eip);
+#endif
 
 	/*
 	 * If we have an externally synchronized Linux clock, then update
@@ -365,12 +398,29 @@ static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	    last_rtc_update = xtime.tv_sec;
 	  else
 	    last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
+#if 0
 	/* As we return to user mode fire off the other CPU schedulers.. this is 
 	   basically because we don't yet share IRQ's around. This message is
 	   rigged to be safe on the 386 - basically it's a hack, so don't look
 	   closely for now.. */
-	/*smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0); */
+	smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0);
+#endif
 	    
+#ifdef CONFIG_MCA
+	if( MCA_bus ) {
+		/* The PS/2 uses level-triggered interrupts.  You can't
+		turn them off, nor would you want to (any attempt to
+		enable edge-triggered interrupts usually gets intercepted by a
+		special hardware circuit).  Hence we have to acknowledge
+		the timer interrupt.  Through some incredibly stupid
+		design idea, the reset for IRQ 0 is done by setting the
+		high bit of the PPI port B (0x61).  Note that some PS/2s,
+		notably the 55SX, work fine if this is removed.  */
+
+		irq = inb_p( 0x61 );	/* read the current state */
+		outb_p( irq|0x80, 0x61 );	/* reset the IRQ */
+	}
+#endif
 }
 
 #ifndef	CONFIG_APM	/* cycle counter may be unreliable */
@@ -420,6 +470,7 @@ static inline unsigned long mktime(unsigned int year, unsigned int mon,
 	  )*60 + sec; /* finally seconds */
 }
 
+/* not static: needed by APM */
 unsigned long get_cmos_time(void)
 {
 	unsigned int year, mon, day, hour, min, sec;
@@ -461,7 +512,8 @@ unsigned long get_cmos_time(void)
 
 static struct irqaction irq0  = { timer_interrupt, 0, 0, "timer", NULL, NULL};
 
-void time_init(void)
+
+__initfunc(void time_init(void))
 {
 	xtime.tv_sec = get_cmos_time();
 	xtime.tv_usec = 0;

@@ -1,10 +1,10 @@
 /*
- *	NET/ROM release 004
+ *	NET/ROM release 006
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 1.2.1 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -59,7 +59,7 @@ static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
 		skb_queue_tail(&sk->protinfo.nr->frag_queue, skb);
 		return 0;
 	}
-	
+
 	if (!more && sk->protinfo.nr->fraglen > 0) {	/* End of fragment */
 		sk->protinfo.nr->fraglen += skb->len;
 		skb_queue_tail(&sk->protinfo.nr->frag_queue, skb);
@@ -67,10 +67,6 @@ static int nr_queue_rx_frame(struct sock *sk, struct sk_buff *skb, int more)
 		if ((skbn = alloc_skb(sk->protinfo.nr->fraglen, GFP_ATOMIC)) == NULL)
 			return 1;
 
-		skbn->free = 1;
-		skbn->arp  = 1;
-		skbn->sk   = sk;
-		sk->rmem_alloc += skbn->truesize;
 		skbn->h.raw = skbn->data;
 
 		skbo = skb_dequeue(&sk->protinfo.nr->frag_queue);
@@ -99,7 +95,6 @@ static int nr_state1_machine(struct sock *sk, struct sk_buff *skb, int frametype
 	switch (frametype) {
 
 		case NR_CONNACK:
-			nr_calculate_rtt(sk);
 			sk->protinfo.nr->your_index = skb->data[17];
 			sk->protinfo.nr->your_id    = skb->data[18];
 			sk->protinfo.nr->t1timer    = 0;
@@ -111,7 +106,7 @@ static int nr_state1_machine(struct sock *sk, struct sk_buff *skb, int frametype
 			sk->protinfo.nr->vl	    = 0;
 			sk->protinfo.nr->state      = NR_STATE_3;
 			sk->protinfo.nr->n2count    = 0;
-			sk->window                  = skb->data[20];
+			sk->protinfo.nr->window     = skb->data[20];
 			sk->state                   = TCP_ESTABLISHED;
 			/* For WAIT_SABM connections we will produce an accept ready socket here */
 			if (!sk->dead)
@@ -215,10 +210,10 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 		case NR_INFOACK | NR_NAK_FLAG:
 		case NR_INFOACK | NR_NAK_FLAG | NR_CHOKE_FLAG:
 			if (frametype & NR_CHOKE_FLAG) {
-				sk->protinfo.nr->condition |= PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->condition |= NR_COND_PEER_RX_BUSY;
 				sk->protinfo.nr->t4timer = sk->protinfo.nr->t4;
 			} else {
-				sk->protinfo.nr->condition &= ~PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->condition &= ~NR_COND_PEER_RX_BUSY;
 				sk->protinfo.nr->t4timer = 0;
 			}
 			if (!nr_validate_nr(sk, nr)) {
@@ -228,14 +223,14 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 				nr_frames_acked(sk, nr);
 				nr_send_nak_frame(sk);
 			} else {
-				if (sk->protinfo.nr->condition & PEER_RX_BUSY_CONDITION) {
+				if (sk->protinfo.nr->condition & NR_COND_PEER_RX_BUSY) {
 					nr_frames_acked(sk, nr);
 				} else {
 					nr_check_iframes_acked(sk, nr);
 				}
 			}
 			break;
-			
+
 		case NR_INFO:
 		case NR_INFO | NR_NAK_FLAG:
 		case NR_INFO | NR_CHOKE_FLAG:
@@ -245,10 +240,10 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 		case NR_INFO | NR_NAK_FLAG | NR_MORE_FLAG:
 		case NR_INFO | NR_NAK_FLAG | NR_CHOKE_FLAG | NR_MORE_FLAG:
 			if (frametype & NR_CHOKE_FLAG) {
-				sk->protinfo.nr->condition |= PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->condition |= NR_COND_PEER_RX_BUSY;
 				sk->protinfo.nr->t4timer = sk->protinfo.nr->t4;
 			} else {
-				sk->protinfo.nr->condition &= ~PEER_RX_BUSY_CONDITION;
+				sk->protinfo.nr->condition &= ~NR_COND_PEER_RX_BUSY;
 				sk->protinfo.nr->t4timer = 0;
 			}
 			if (nr_validate_nr(sk, nr)) {
@@ -256,7 +251,7 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 					nr_frames_acked(sk, nr);
 					nr_send_nak_frame(sk);
 				} else {
-					if (sk->protinfo.nr->condition & PEER_RX_BUSY_CONDITION) {
+					if (sk->protinfo.nr->condition & NR_COND_PEER_RX_BUSY) {
 						nr_frames_acked(sk, nr);
 					} else {
 						nr_check_iframes_acked(sk, nr);
@@ -265,7 +260,7 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 			}
 			queued = 1;
 			skb_queue_head(&sk->protinfo.nr->reseq_queue, skb);
-			if (sk->protinfo.nr->condition & OWN_RX_BUSY_CONDITION)
+			if (sk->protinfo.nr->condition & NR_COND_OWN_RX_BUSY)
 				break;
 			skb_queue_head_init(&temp_queue);
 			do {
@@ -276,13 +271,12 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 						if (nr_queue_rx_frame(sk, skbn, frametype & NR_MORE_FLAG) == 0) {
 							sk->protinfo.nr->vr = (sk->protinfo.nr->vr + 1) % NR_MODULUS;
 						} else {
-							sk->protinfo.nr->condition |= OWN_RX_BUSY_CONDITION;
+							sk->protinfo.nr->condition |= NR_COND_OWN_RX_BUSY;
 							skb_queue_tail(&temp_queue, skbn);
 						}
 					} else if (nr_in_rx_window(sk, ns)) {
 						skb_queue_tail(&temp_queue, skbn);
 					} else {
-						skbn->free = 1;
 						kfree_skb(skbn, FREE_READ);
 					}
 				}
@@ -293,12 +287,12 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 			/*
 			 * Window is full, ack it immediately.
 			 */
-			if (((sk->protinfo.nr->vl + sk->window) % NR_MODULUS) == sk->protinfo.nr->vr) {
+			if (((sk->protinfo.nr->vl + sk->protinfo.nr->window) % NR_MODULUS) == sk->protinfo.nr->vr) {
 				nr_enquiry_response(sk);
 			} else {
-				if (!(sk->protinfo.nr->condition & ACK_PENDING_CONDITION)) {
+				if (!(sk->protinfo.nr->condition & NR_COND_ACK_PENDING)) {
 					sk->protinfo.nr->t2timer = sk->protinfo.nr->t2;
-					sk->protinfo.nr->condition |= ACK_PENDING_CONDITION;
+					sk->protinfo.nr->condition |= NR_COND_ACK_PENDING;
 				}
 			}
 			break;
@@ -314,7 +308,7 @@ static int nr_state3_machine(struct sock *sk, struct sk_buff *skb, int frametype
 int nr_process_rx_frame(struct sock *sk, struct sk_buff *skb)
 {
 	int queued = 0, frametype;
-	
+
 	if (sk->protinfo.nr->state == NR_STATE_0)
 		return 0;
 
@@ -322,8 +316,7 @@ int nr_process_rx_frame(struct sock *sk, struct sk_buff *skb)
 
 	frametype = skb->data[19];
 
-	switch (sk->protinfo.nr->state)
-	{
+	switch (sk->protinfo.nr->state) {
 		case NR_STATE_1:
 			queued = nr_state1_machine(sk, skb, frametype);
 			break;

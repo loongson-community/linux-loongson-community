@@ -13,7 +13,7 @@
 
 all: sni.o
 O_TARGET := sni.o
-O_OBJS	 := hw-access.o int-handler.o reset.o setup.o
+O_OBJS	 := hw-access.o int-handler.o pci.o reset.o setup.o
 
 int-handler.o: int-handler.S
 

@@ -33,7 +33,7 @@ struct linux_binprm{
  */
 struct linux_binfmt {
 	struct linux_binfmt * next;
-	long *use_count;
+	struct module *module;
 	int (*load_binary)(struct linux_binprm *, struct  pt_regs * regs);
 	int (*load_shlib)(int fd);
 	int (*core_dump)(long signr, struct pt_regs * regs);
@@ -48,10 +48,12 @@ extern int read_exec(struct inode *inode, unsigned long offset,
 extern int open_inode(struct inode * inode, int mode);
 
 extern int init_elf_binfmt(void);
+extern int init_elf32_binfmt(void);
 extern int init_irix_binfmt(void);
 extern int init_aout_binfmt(void);
 extern int init_script_binfmt(void);
 extern int init_java_binfmt(void);
+extern int init_em86_binfmt(void);
 
 extern int prepare_binprm(struct linux_binprm *);
 extern void remove_arg_zero(struct linux_binprm *);

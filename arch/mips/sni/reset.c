@@ -4,7 +4,9 @@
  *  Reset a SNI machine.
  */
 #include <asm/io.h>
+#include <asm/reboot.h>
 #include <asm/system.h>
+#include <asm/sni.h>
 
 /*
  * This routine reboots the machine by asking the keyboard
@@ -21,11 +23,13 @@ kb_wait(void)
 			break;
 }
 
-void
-sni_hard_reset_now(void)
+/* XXX This ends up at the ARC firmware prompt ...  */
+void sni_machine_restart(char *command)
 {
 	int i, j;
 
+	/* This does a normal via the keyboard controller like a PC.
+	   We can do that easier ...  */
 	sti();
 	for (;;) {
 		for (i=0; i<100; i++) {
@@ -35,4 +39,13 @@ sni_hard_reset_now(void)
 			outb_p(0xfe,0x64);	 /* pulse reset low */
 		}
 	}
+}
+
+void sni_machine_halt(void)
+{
+}
+
+void sni_machine_power_off(void)
+{
+	*(volatile unsigned char *)PCIMT_CSWCSM = 0xfd;
 }

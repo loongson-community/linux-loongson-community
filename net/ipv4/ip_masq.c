@@ -16,7 +16,7 @@
  *	Nigel Metheringham	:	Checksum checking of masqueraded data
  *	Nigel Metheringham	:	Better handling of timeouts of TCP conns
  *
- *	
+ *
  */
 
 #include <linux/config.h>
@@ -66,7 +66,7 @@ static __u16 masq_port = PORT_MASQ_BEGIN;
  *
  *	Greater values could lower MASQ_EXPIRATION setting as a way to
  *	manage 'masq_entries resource'.
- *	
+ *
  */
 
 int ip_masq_free_ports[2] = {
@@ -74,15 +74,11 @@ int ip_masq_free_ports[2] = {
         PORT_MASQ_END - PORT_MASQ_BEGIN 	/* TCP */
 };
 
-static struct symbol_table ip_masq_syms = {
-#include <linux/symtab_begin.h>
-	X(ip_masq_new),
-        X(ip_masq_set_expire),
-        X(ip_masq_free_ports),
-	X(ip_masq_expire),
-	X(ip_masq_out_get_2),
-#include <linux/symtab_end.h>
-};
+EXPORT_SYMBOL(ip_masq_new);
+EXPORT_SYMBOL(ip_masq_set_expire);
+EXPORT_SYMBOL(ip_masq_free_ports);
+EXPORT_SYMBOL(ip_masq_expire);
+EXPORT_SYMBOL(ip_masq_out_get_2);
 
 /*
  *	2 ip_masq hash tables: for input and output pkts lookups.
@@ -126,7 +122,7 @@ ip_masq_hash(struct ip_masq *ms)
         unsigned hash;
 
         if (ms->flags & IP_MASQ_F_HASHED) {
-                printk("ip_masq_hash(): request for already hashed\n");
+                printk(KERN_INFO "ip_masq_hash(): request for already hashed\n");
                 return 0;
         }
         /*
@@ -159,7 +155,7 @@ static __inline__ int ip_masq_unhash(struct ip_masq *ms)
         unsigned hash;
         struct ip_masq ** ms_p;
         if (!(ms->flags & IP_MASQ_F_HASHED)) {
-                printk("ip_masq_unhash(): request for unhash flagged\n");
+                printk(KERN_INFO "ip_masq_unhash(): request for unhash flagged\n");
                 return 0;
         }
         /*
@@ -323,7 +319,7 @@ static void masq_expire(unsigned long data)
 			masq_proto_name(ms->protocol),
 			ntohl(ms->saddr),ntohs(ms->sport));
 #endif
-	
+
 	save_flags(flags);
 	cli();
 
@@ -353,14 +349,14 @@ struct ip_masq * ip_masq_new(struct device *dev, int proto, __u32 saddr, __u16 s
 
         if (*free_ports_p == 0) {
                 if (++n_fails < 5)
-                        printk("ip_masq_new(proto=%s): no free ports.\n",
+                        printk(KERN_ERR "ip_masq_new(proto=%s): no free ports.\n",
                                masq_proto_name(proto));
                 return NULL;
         }
         ms = (struct ip_masq *) kmalloc(sizeof(struct ip_masq), GFP_ATOMIC);
         if (ms == NULL) {
                 if (++n_fails < 5)
-                        printk("ip_masq_new(proto=%s): no memory available.\n",
+                        printk(KERN_ERR "ip_masq_new(proto=%s): no memory available.\n",
                                masq_proto_name(proto));
                 return NULL;
         }
@@ -378,49 +374,49 @@ struct ip_masq * ip_masq_new(struct device *dev, int proto, __u32 saddr, __u16 s
 
         if (proto == IPPROTO_UDP)
                 ms->flags |= IP_MASQ_F_NO_DADDR;
-        
+
         /* get masq address from rif */
         ms->maddr	   = dev->pa_addr;
 
         for (ports_tried = 0; ports_tried < *free_ports_p; ports_tried++){
                 save_flags(flags);
                 cli();
-                
+
 		/*
                  *	Try the next available port number
                  */
-                
+
 		ms->mport = htons(masq_port++);
 		if (masq_port==PORT_MASQ_END) masq_port = PORT_MASQ_BEGIN;
-                
+
                 restore_flags(flags);
-                
+
                 /*
                  *	lookup to find out if this port is used.
                  */
-                
+
                 mst = ip_masq_getbym(proto, ms->maddr, ms->mport);
                 if (mst == NULL) {
                         save_flags(flags);
                         cli();
-                
+
                         if (*free_ports_p == 0) {
                                 restore_flags(flags);
                                 break;
                         }
                         (*free_ports_p)--;
                         ip_masq_hash(ms);
-                        
+
                         restore_flags(flags);
-                        
+
                         ip_masq_bind_app(ms);
                         n_fails = 0;
                         return ms;
                 }
         }
-        
+
         if (++n_fails < 5)
-                printk("ip_masq_new(proto=%s): could not get free masq entry (free=%d).\n",
+                printk(KERN_ERR "ip_masq_new(proto=%s): could not get free masq entry (free=%d).\n",
                        masq_proto_name(ms->protocol), *free_ports_p);
         kfree_s(ms, sizeof(*ms));
         return NULL;
@@ -451,11 +447,11 @@ static void recalc_check(struct udphdr *uh, __u32 saddr,
 	if(uh->check==0)
 		uh->check=0xFFFF;
 }
-	
+
 int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
 {
 	struct sk_buff  *skb=*skb_ptr;
-	struct iphdr	*iph = skb->h.iph;
+	struct iphdr	*iph = skb->nh.iph;
 	__u16	*portptr;
 	struct ip_masq	*ms;
 	int		size;
@@ -489,7 +485,7 @@ int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
 	/*
 	 *	Nope, not found, create a new entry for it
 	 */
-	
+
 	if (ms==NULL)
 	{
                 ms = ip_masq_new(dev, iph->protocol,
@@ -503,8 +499,8 @@ int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
  	/*
  	 *	Change the fragments origin
  	 */
- 	
- 	size = skb->len - ((unsigned char *)portptr - skb->h.raw);
+
+ 	size = skb->len - ((unsigned char *)portptr - skb->nh.raw);
         /*
          *	Set iph addr and port from ip_masq obj.
          */
@@ -521,15 +517,15 @@ int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
                  *	skb has possibly changed, update pointers.
                  */
                 skb = *skb_ptr;
-                iph = skb->h.iph;
+                iph = skb->nh.iph;
                 portptr = (__u16 *)&(((char *)iph)[iph->ihl*4]);
-                size = skb->len - ((unsigned char *)portptr-skb->h.raw);
+                size = skb->len - ((unsigned char *)portptr-skb->nh.raw);
         }
 
  	/*
  	 *	Adjust packet accordingly to protocol
  	 */
- 	
+
  	if (iph->protocol==IPPROTO_UDP)
  	{
                 timeout = ip_masq_expire->udp_timeout;
@@ -566,8 +562,10 @@ int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
  		else timeout = ip_masq_expire->tcp_timeout;
 
 		skb->csum = csum_partial((void *)(th + 1), size - sizeof(*th), 0);
-		tcp_v4_check(th, size, iph->saddr, iph->daddr,
-			     skb->csum);
+		th->check = 0;
+		th->check = tcp_v4_check(th, size, iph->saddr, iph->daddr,
+					 csum_partial((char *)th, sizeof(*th),
+						      skb->csum));
  	}
         ip_masq_set_expire(ms, timeout);
  	ip_send_check(iph);
@@ -590,7 +588,7 @@ int ip_fw_masquerade(struct sk_buff **skb_ptr, struct device *dev)
 int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
 {
         struct sk_buff 	*skb   = *skb_p;
- 	struct iphdr	*iph   = skb->h.iph;
+ 	struct iphdr	*iph   = skb->nh.iph;
 	struct icmphdr  *icmph = (struct icmphdr *)((char *)iph + (iph->ihl<<2));
 	struct iphdr    *ciph;	/* The ip header contained within the ICMP */
 	__u16	        *pptr;	/* port numbers from TCP/UDP contained header */
@@ -603,7 +601,7 @@ int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
  		ntohl(iph->saddr), ntohl(iph->daddr));
 #endif
 
-	/* 
+	/*
 	 * Work through seeing if this is for us.
 	 * These checks are supposed to be in an order that
 	 * means easy things are checked first to speed up
@@ -623,8 +621,8 @@ int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
 	if ((ciph->protocol != IPPROTO_UDP) && (ciph->protocol != IPPROTO_TCP))
 		return 0;
 
-	/* 
-	 * Find the ports involved - this packet was 
+	/*
+	 * Find the ports involved - this packet was
 	 * incoming so the ports are right way round
 	 * (but reversed relative to outer IP header!)
 	 */
@@ -634,10 +632,10 @@ int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
  		return 0;
 
 	/* Ensure the checksum is correct */
-	if (ip_compute_csum((unsigned char *) icmph, len)) 
+	if (ip_compute_csum((unsigned char *) icmph, len))
 	{
 		/* Failed checksum! */
-		printk(KERN_INFO "MASQ: forward ICMP: failed checksum from %s!\n", 
+		printk(KERN_INFO "MASQ: forward ICMP: failed checksum from %s!\n",
 		       in_ntoa(iph->saddr));
 		return(-1);
 	}
@@ -658,11 +656,11 @@ int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
 	/* First change the source IP address, and recalc checksum */
 	iph->saddr = ms->maddr;
 	ip_send_check(iph);
-	
+
 	/* Now change the *dest* address in the contained IP */
 	ciph->daddr = ms->maddr;
 	ip_send_check(ciph);
-	
+
 	/* the TCP/UDP dest port - cannot redo check */
 	pptr[1] = ms->mport;
 
@@ -689,7 +687,7 @@ int ip_fw_masq_icmp(struct sk_buff **skb_p, struct device *dev)
 int ip_fw_demasq_icmp(struct sk_buff **skb_p, struct device *dev)
 {
         struct sk_buff 	*skb   = *skb_p;
- 	struct iphdr	*iph   = skb->h.iph;
+ 	struct iphdr	*iph   = skb->nh.iph;
 	struct icmphdr  *icmph = (struct icmphdr *)((char *)iph + (iph->ihl<<2));
 	struct iphdr    *ciph;	/* The ip header contained within the ICMP */
 	__u16	        *pptr;	/* port numbers from TCP/UDP contained header */
@@ -714,8 +712,8 @@ int ip_fw_demasq_icmp(struct sk_buff **skb_p, struct device *dev)
 	if ((ciph->protocol != IPPROTO_UDP) && (ciph->protocol != IPPROTO_TCP))
 		return 0;
 
-	/* 
-	 * Find the ports involved - remember this packet was 
+	/*
+	 * Find the ports involved - remember this packet was
 	 * *outgoing* so the ports are reversed (and addresses)
 	 */
 	pptr = (__u16 *)&(((char *)ciph)[ciph->ihl*4]);
@@ -724,10 +722,10 @@ int ip_fw_demasq_icmp(struct sk_buff **skb_p, struct device *dev)
  		return 0;
 
 	/* Ensure the checksum is correct */
-	if (ip_compute_csum((unsigned char *) icmph, len)) 
+	if (ip_compute_csum((unsigned char *) icmph, len))
 	{
 		/* Failed checksum! */
-		printk(KERN_INFO "MASQ: reverse ICMP: failed checksum from %s!\n", 
+		printk(KERN_INFO "MASQ: reverse ICMP: failed checksum from %s!\n",
 		       in_ntoa(iph->saddr));
 		return(-1);
 	}
@@ -748,11 +746,11 @@ int ip_fw_demasq_icmp(struct sk_buff **skb_p, struct device *dev)
 	/* First change the dest IP address, and recalc checksum */
 	iph->daddr = ms->saddr;
 	ip_send_check(iph);
-	
+
 	/* Now change the *source* address in the contained IP */
 	ciph->saddr = ms->saddr;
 	ip_send_check(ciph);
-	
+
 	/* the TCP/UDP source port - cannot redo check */
 	pptr[0] = ms->sport;
 
@@ -782,7 +780,7 @@ int ip_fw_demasq_icmp(struct sk_buff **skb_p, struct device *dev)
 int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
 {
         struct sk_buff 	*skb = *skb_p;
- 	struct iphdr	*iph = skb->h.iph;
+ 	struct iphdr	*iph = skb->nh.iph;
  	__u16	*portptr;
  	struct ip_masq	*ms;
 	unsigned short len;
@@ -804,7 +802,7 @@ int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
 			/* No UDP checksum */
 			break;
 
-		switch (skb->ip_summed) 
+		switch (skb->ip_summed)
 		{
 			case CHECKSUM_NONE:
 				skb->csum = csum_partial((char *)portptr, len, 0);
@@ -812,7 +810,7 @@ int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
 				if (csum_tcpudp_magic(iph->saddr, iph->daddr, len,
 						      iph->protocol, skb->csum))
 				{
-					printk(KERN_INFO "MASQ: failed TCP/UDP checksum from %s!\n", 
+					printk(KERN_INFO "MASQ: failed TCP/UDP checksum from %s!\n",
 					       in_ntoa(iph->saddr));
 					return -1;
 				}
@@ -877,7 +875,7 @@ int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
                          */
 
                         skb = *skb_p;
-                        iph = skb->h.iph;
+                        iph = skb->nh.iph;
                         portptr = (__u16 *)&(((char *)iph)[iph->ihl*4]);
                         len = ntohs(iph->tot_len) - (iph->ihl * 4);
                 }
@@ -899,12 +897,13 @@ int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
                                                  len - sizeof(struct tcphdr), 0);
 			th = (struct tcphdr *) portptr;
 			th->check = 0;
+                        th->check = tcp_v4_check(th, len, iph->saddr,
+						 iph->daddr,
+						 csum_partial((char *)th,
+							      sizeof(*th),
+				     			      skb->csum));
 
-                        tcp_v4_check(th, len, iph->saddr, iph->daddr,
-				     skb->csum);
-			
 			/* Check if TCP FIN or RST */
-			
 			if (th->fin)
 			{
 				ms->flags |= IP_MASQ_F_SAW_FIN_IN;
@@ -913,7 +912,7 @@ int ip_fw_demasquerade(struct sk_buff **skb_p, struct device *dev)
 			{
 				ms->flags |= IP_MASQ_F_SAW_RST;
 			}
-			
+
 			/* Now set the timeouts */
 			if (ms->flags & IP_MASQ_F_SAW_RST)
 			{
@@ -950,18 +949,18 @@ static int ip_msqhst_procinfo(char *buffer, char **start, off_t offset,
 	char temp[129];
         int idx = 0;
 	int len=0;
-	
-	if (offset < 128) 
+
+	if (offset < 128)
 	{
 		sprintf(temp,
 			"Prc FromIP   FPrt ToIP     TPrt Masq Init-seq  Delta PDelta Expires (free=%d,%d)",
-			ip_masq_free_ports[0], ip_masq_free_ports[1]); 
+			ip_masq_free_ports[0], ip_masq_free_ports[1]);
 		len = sprintf(buffer, "%-127s\n", temp);
 	}
 	pos = 128;
 	save_flags(flags);
 	cli();
-        
+
         for(idx = 0; idx < IP_MASQ_TAB_SIZE; idx++)
         for(ms = ip_masq_m_tab[idx]; ms ; ms = ms->m_link)
 	{
@@ -999,24 +998,23 @@ done:
 	return len;
 }
 
-#ifdef CONFIG_PROC_FS        
+#ifdef CONFIG_PROC_FS
 static struct proc_dir_entry proc_net_ipmsqhst = {
 	PROC_NET_IPMSQHST, 13, "ip_masquerade",
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_net_inode_operations,
 	ip_msqhst_procinfo
 };
-#endif	
+#endif
 
 /*
  *	Initialize ip masquerading
  */
 int ip_masq_init(void)
 {
-        register_symtab (&ip_masq_syms);
-#ifdef CONFIG_PROC_FS        
+#ifdef CONFIG_PROC_FS
 	proc_net_register(&proc_net_ipmsqhst);
-#endif	
+#endif
         ip_masq_app_init();
 
         return 0;

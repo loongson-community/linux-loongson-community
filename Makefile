@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 14
+SUBLEVEL = 36
 
 ARCH = mips
 
@@ -40,6 +40,7 @@ STRIP	=$(CROSS_COMPILE)strip
 OBJCOPY	=$(CROSS_COMPILE)objcopy
 OBJDUMP =$(CROSS_COMPILE)objdump
 MAKE	=make
+GENKSYMS=/sbin/genksyms
 
 all:	do-it-all
 
@@ -114,10 +115,12 @@ endif
 # Include the make variables (CC, etc...)
 #
 
-ARCHIVES	=kernel/kernel.o mm/mm.o fs/fs.o ipc/ipc.o net/network.a
+CORE_FILES	=kernel/kernel.o mm/mm.o fs/fs.o ipc/ipc.o
 FILESYSTEMS	=fs/filesystems.a
+NETWORKS	=net/network.a
 DRIVERS		=drivers/block/block.a \
-		 drivers/char/char.a
+		 drivers/char/char.a \
+	         drivers/pnp/pnp.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
 
@@ -177,15 +180,23 @@ boot: vmlinux
 
 vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 	$(LD) $(LINKFLAGS) $(HEAD) init/main.o init/version.o \
-		$(ARCHIVES) \
+		$(CORE_FILES) \
 		$(FILESYSTEMS) \
+		$(NETWORKS) \
 		$(DRIVERS) \
-		$(LIBS) -o vmlinux
-	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System.map
+		$(LIBS) \
+		-o vmlinux
+	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)\|\(\.\.ng$$\)' | sort > System.map
 
 symlinks:
 	rm -f include/asm
 	( cd include ; ln -sf asm-$(ARCH) asm)
+	@if [ ! -d modules ]; then \
+		mkdir modules; \
+	fi
+	@if [ ! -d include/linux/modules ]; then \
+		mkdir include/linux/modules; \
+	fi
 
 oldconfig: symlinks
 	$(CONFIG_SHELL) scripts/Configure -d arch/$(ARCH)/config.in
@@ -319,7 +330,7 @@ clean:	archclean
 	rm -f core `find . -type f -name 'core' -print`
 	rm -f vmlinux System.map
 	rm -f .tmp* drivers/sound/configure
-	rm -f modules/*
+	rm -f `find modules/ -type f -print`
 	rm -f submenu*
 
 mrproper: clean
@@ -327,6 +338,9 @@ mrproper: clean
 	rm -f drivers/sound/local.h drivers/sound/.defines
 	rm -f drivers/scsi/aic7xxx_asm drivers/scsi/aic7xxx_seq.h
 	rm -f drivers/char/uni_hash.tbl drivers/char/conmakehash
+	rm -f drivers/net/soundmodem/sm_tbl_{afsk1200,afsk2666,fsk9600}.h
+	rm -f drivers/net/soundmodem/sm_tbl_{hapn4800,psk4800}.h
+	rm -f drivers/net/soundmodem/gentbl
 	rm -f .version .config* config.in config.old
 	rm -f scripts/tkparse scripts/kconfig.tk scripts/kconfig.tmp
 	rm -f scripts/lxdialog/*.o scripts/lxdialog/lxdialog
@@ -335,7 +349,8 @@ mrproper: clean
 	rm -f .depend `find . -name .depend -print`
 	rm -f .hdepend scripts/mkdep
 	rm -f $(TOPDIR)/include/linux/modversions.h
-	rm -f $(TOPDIR)/include/linux/modules/*
+	rm -rf $(TOPDIR)/include/linux/modules
+	rm -rf modules
 
 
 distclean: mrproper

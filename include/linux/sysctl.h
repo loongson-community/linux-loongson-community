@@ -28,61 +28,80 @@ struct __sysctl_args {
 /* For internal pattern-matching use only: */
 #ifdef __KERNEL__
 #define CTL_ANY		-1	/* Matches any name */
-#define CTL_NONE		0
+#define CTL_NONE	0
 #endif
 
-#define CTL_KERN	1	/* General kernel info and control */
-#define CTL_VM		2	/* VM management */
-#define CTL_NET		3	/* Networking */
-#define CTL_PROC	4	/* Process info */
-#define CTL_FS		5	/* Filesystems */
-#define CTL_DEBUG	6	/* Debugging */
-#define CTL_DEV		7	/* Devices */
-#define CTL_MAXID	8
+enum
+{
+	CTL_KERN=1,		/* General kernel info and control */
+	CTL_VM,			/* VM management */
+	CTL_NET,		/* Networking */
+	CTL_PROC,		/* Process info */
+	CTL_FS,			/* Filesystems */
+	CTL_DEBUG,		/* Debugging */
+	CTL_DEV,		/* Devices */
+};
+
 
 /* CTL_KERN names: */
-#define KERN_OSTYPE	1	/* string: system version */
-#define KERN_OSRELEASE	2	/* string: system release */
-#define KERN_OSREV	3	/* int: system revision */
-#define KERN_VERSION	4	/* string: compile time info */
-#define KERN_SECUREMASK 5	/* struct: maximum rights mask */
-#define KERN_PROF 	6	/* table: profiling information */
-#define KERN_NODENAME   7
-#define KERN_DOMAINNAME 8
-#define KERN_NRINODE	9
-#define KERN_MAXINODE	10
-#define KERN_NRFILE	11
-#define KERN_MAXFILE	12
-#define KERN_MAXID	13
-#define KERN_SECURELVL	14	/* int: system security level */
-#define KERN_PANIC	15	/* int: panic timeout */
-#define KERN_REALROOTDEV 16	/* real root device to mount after initrd */
-#define KERN_NFSRNAME	17	/* NFS root name */
-#define KERN_NFSRADDRS	18	/* NFS root addresses */
-#define KERN_JAVA_INTERPRETER 19 /* path to Java(tm) interpreter */
-#define KERN_JAVA_APPLETVIEWER 20 /* path to Java(tm) appletviewer */
+enum
+{
+	KERN_OSTYPE=1,		/* string: system version */
+	KERN_OSRELEASE,		/* string: system release */
+	KERN_OSREV,		/* int: system revision */
+	KERN_VERSION,		/* string: compile time info */
+	KERN_SECUREMASK,	/* struct: maximum rights mask */
+	KERN_PROF,		/* table: profiling information */
+	KERN_NODENAME,
+	KERN_DOMAINNAME,
+	KERN_NRINODE,
+	KERN_MAXINODE,
+	KERN_NRFILE,
+	KERN_MAXFILE,
+	KERN_SECURELVL,		/* int: system security level */
+	KERN_PANIC,		/* int: panic timeout */
+	KERN_REALROOTDEV,	/* real root device to mount after initrd */
+	KERN_NFSRNAME,		/* NFS root name */
+	KERN_NFSRADDRS,		/* NFS root addresses */
+	KERN_JAVA_INTERPRETER,	/* path to Java(tm) interpreter */
+	KERN_JAVA_APPLETVIEWER,	/* path to Java(tm) appletviewer */
+	KERN_SPARC_REBOOT,	/* reboot command on Sparc */
+	KERN_CTLALTDEL,		/* int: allow ctl-alt-del to reboot */
+	KERN_PRINTK,            /* sturct: control printk logging parameters */
+};
+
 
 /* CTL_VM names: */
-#define VM_SWAPCTL	1	/* struct: Set vm swapping control */
-#define VM_KSWAPD	2	/* struct: control background pageout */
-#define VM_FREEPG	3	/* struct: Set free page thresholds */
-#define VM_BDFLUSH	4	/* struct: Control buffer cache flushing */
-#define VM_MAXID	5
+enum
+{
+	VM_SWAPCTL=1,		/* struct: Set vm swapping control */
+	VM_KSWAPD,		/* struct: control background pageout */
+	VM_SWAPOUT,		/* int: Background pageout interval */
+	VM_FREEPG,		/* struct: Set free page thresholds */
+	VM_BDFLUSH,		/* struct: Control buffer cache flushing */
+	VM_OVERCOMMIT_MEMORY,	/* Turn off the virtual memory safety limit */
+};
+
 
 /* CTL_NET names: */
-#define NET_CORE        1
-#define NET_ETHER       2
-#define NET_802         3
-#define NET_UNIX        4
-#define NET_IPV4        5
-#define NET_IPX         6
-#define NET_ATALK       7
-#define NET_NETROM      8
-#define NET_AX25        9
-#define NET_BRIDGE	10
-#define NET_IPV6	11
-#define NET_ROSE	12
-#define NET_X25		13
+enum
+{
+	NET_CORE=1,
+	NET_ETHER,
+	NET_802,
+	NET_UNIX,
+	NET_IPV4,
+	NET_IPX,
+	NET_ATALK,
+	NET_NETROM,
+	NET_AX25,
+	NET_BRIDGE,
+	NET_IPV6,
+	NET_ROSE,
+	NET_X25,
+	NET_TR,
+};
+
 
 /* /proc/sys/net/core */
 
@@ -93,52 +112,121 @@ struct __sysctl_args {
 /* /proc/sys/net/unix */
 
 /* /proc/sys/net/ipv4 */
-#define NET_IPV4_ARP_RES_TIME           1
-#define NET_IPV4_ARP_DEAD_RES_TIME      2
-#define NET_IPV4_ARP_MAX_TRIES          3
-#define NET_IPV4_ARP_TIMEOUT            4
-#define NET_IPV4_ARP_CHECK_INTERVAL     5
-#define NET_IPV4_ARP_CONFIRM_INTERVAL   6
-#define NET_IPV4_ARP_CONFIRM_TIMEOUT	7
-#define NET_IPV4_TCP_VEGAS_CONG_AVOID   8
+enum
+{
+	NET_IPV4_ARP_RES_TIME=1,
+	NET_IPV4_ARP_DEAD_RES_TIME,
+	NET_IPV4_ARP_MAX_TRIES,
+	NET_IPV4_ARP_TIMEOUT,
+	NET_IPV4_ARP_CHECK_INTERVAL,
+	NET_IPV4_ARP_CONFIRM_INTERVAL,
+	NET_IPV4_ARP_CONFIRM_TIMEOUT,
+	NET_IPV4_TCP_HOE_RETRANSMITS,
+	NET_IPV4_TCP_SACK,
+	NET_IPV4_TCP_TSACK,
+	NET_IPV4_TCP_TIMESTAMPS,
+	NET_IPV4_TCP_WINDOW_SCALING,
+	NET_IPV4_TCP_VEGAS_CONG_AVOID,
+	NET_IPV4_FORWARDING,
+	NET_IPV4_DEFAULT_TTL,
+	NET_IPV4_RFC1812_FILTER,
+	NET_IPV4_LOG_MARTIANS,
+	NET_IPV4_SOURCE_ROUTE,
+	NET_IPV4_ADDRMASK_AGENT,
+	NET_IPV4_BOOTP_AGENT,
+	NET_IPV4_BOOTP_RELAY,
+	NET_IPV4_FIB_MODEL,
+	NET_IPV4_NO_PMTU_DISC,
+	NET_IPV4_ACCEPT_REDIRECTS,
+	NET_IPV4_SECURE_REDIRECTS,
+	NET_IPV4_RFC1620_REDIRECTS,
+};
+
 
 /* /proc/sys/net/ipv6 */
-#define NET_IPV6_FORWARDING		1
-#define NET_IPV6_HOPLIMIT		2
+enum {
+	NET_IPV6_FORWARDING = 1,
+	NET_IPV6_HOPLIMIT,
+
+	NET_IPV6_ACCEPT_RA,
+	NET_IPV6_ACCEPT_REDIRECTS,
+
+	NET_IPV6_ND_MAX_MCAST_SOLICIT,
+	NET_IPV6_ND_MAX_UCAST_SOLICIT,
+	NET_IPV6_ND_RETRANS_TIME,
+	NET_IPV6_ND_REACHABLE_TIME,
+	NET_IPV6_ND_DELAY_PROBE_TIME,
+
+	NET_IPV6_AUTOCONF,
+	NET_IPV6_DAD_TRANSMITS,
+	NET_IPV6_RTR_SOLICITS,
+	NET_IPV6_RTR_SOLICIT_INTERVAL,
+	NET_IPV6_RTR_SOLICIT_DELAY,
+};
+
 /* /proc/sys/net/ipx */
 
 /* /proc/sys/net/appletalk */
 
 /* /proc/sys/net/netrom */
-#define	NET_NETROM_DEFAULT_PATH_QUALITY			1
-#define	NET_NETROM_OBSOLESCENCE_COUNT_INITIALISER	2
-#define	NET_NETROM_NETWORK_TTL_INITIALISER		3
-#define	NET_NETROM_TRANSPORT_TIMEOUT			4
-#define	NET_NETROM_TRANSPORT_MAXIMUM_TRIES		5
-#define	NET_NETROM_TRANSPORT_ACKNOWLEDGE_DELAY		6
-#define	NET_NETROM_TRANSPORT_BUSY_DELAY			7
-#define	NET_NETROM_TRANSPORT_REQUESTED_WINDOW_SIZE	8
-#define	NET_NETROM_TRANSPORT_NO_ACTIVITY_TIMEOUT	9
-#define	NET_NETROM_TRANSPORT_PACKET_LENGTH		10
-#define	NET_NETROM_ROUTING_CONTROL			11
+enum {
+	NET_NETROM_DEFAULT_PATH_QUALITY = 1,
+	NET_NETROM_OBSOLESCENCE_COUNT_INITIALISER,
+	NET_NETROM_NETWORK_TTL_INITIALISER,
+	NET_NETROM_TRANSPORT_TIMEOUT,
+	NET_NETROM_TRANSPORT_MAXIMUM_TRIES,
+	NET_NETROM_TRANSPORT_ACKNOWLEDGE_DELAY,
+	NET_NETROM_TRANSPORT_BUSY_DELAY,
+	NET_NETROM_TRANSPORT_REQUESTED_WINDOW_SIZE,
+	NET_NETROM_TRANSPORT_NO_ACTIVITY_TIMEOUT,
+	NET_NETROM_ROUTING_CONTROL,
+	NET_NETROM_LINK_FAILS_COUNT
+};
 
 /* /proc/sys/net/ax25 */
-/* Values are generated dynamically */
+enum {
+	NET_AX25_IP_DEFAULT_MODE = 1,
+	NET_AX25_DEFAULT_MODE,
+	NET_AX25_BACKOFF_TYPE,
+	NET_AX25_CONNECT_MODE,
+	NET_AX25_STANDARD_WINDOW,
+	NET_AX25_EXTENDED_WINDOW,
+	NET_AX25_T1_TIMEOUT,
+	NET_AX25_T2_TIMEOUT,
+	NET_AX25_T3_TIMEOUT,
+	NET_AX25_IDLE_TIMEOUT,
+	NET_AX25_N2,
+	NET_AX25_PACLEN,
+	NET_AX25_PROTOCOL,
+	NET_AX25_DAMA_SLAVE_TIMEOUT
+};
 
 /* /proc/sys/net/rose */
-#define	NET_ROSE_RESTART_REQUEST_TIMEOUT		1
-#define	NET_ROSE_CALL_REQUEST_TIMEOUT			2
-#define	NET_ROSE_RESET_REQUEST_TIMEOUT			3
-#define	NET_ROSE_CLEAR_REQUEST_TIMEOUT			4
-#define	NET_ROSE_NO_ACTIVITY_TIMEOUT			5
-#define	NET_ROSE_ROUTING_CONTROL			6
+enum {
+	NET_ROSE_RESTART_REQUEST_TIMEOUT = 1,
+	NET_ROSE_CALL_REQUEST_TIMEOUT,
+	NET_ROSE_RESET_REQUEST_TIMEOUT,
+	NET_ROSE_CLEAR_REQUEST_TIMEOUT,
+	NET_ROSE_NO_ACTIVITY_TIMEOUT,
+	NET_ROSE_ACK_HOLD_BACK_TIMEOUT,
+	NET_ROSE_ROUTING_CONTROL,
+	NET_ROSE_LINK_FAIL_TIMEOUT
+};
 
 /* /proc/sys/net/x25 */
-#define	NET_X25_RESTART_REQUEST_TIMEOUT			1
-#define	NET_X25_CALL_REQUEST_TIMEOUT			2
-#define	NET_X25_RESET_REQUEST_TIMEOUT			3
-#define	NET_X25_CLEAR_REQUEST_TIMEOUT			4
-#define	NET_X25_ACK_HOLDBACK_TIMEOUT			5
+enum {
+	NET_X25_RESTART_REQUEST_TIMEOUT = 1,
+	NET_X25_CALL_REQUEST_TIMEOUT,
+	NET_X25_RESET_REQUEST_TIMEOUT,
+	NET_X25_CLEAR_REQUEST_TIMEOUT,
+	NET_X25_ACK_HOLD_BACK_TIMEOUT
+};
+
+/* /proc/sys/net/token-ring */
+enum
+{
+	NET_TR_RIF_TIMEOUT=1
+};
 
 /* CTL_PROC names: */
 
@@ -151,7 +239,7 @@ struct __sysctl_args {
 #ifdef __KERNEL__
 
 extern asmlinkage int sys_sysctl(struct __sysctl_args *);
-extern void init_sysctl(void);
+extern void sysctl_init(void);
 
 typedef struct ctl_table ctl_table;
 

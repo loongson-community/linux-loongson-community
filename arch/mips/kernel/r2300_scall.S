@@ -16,7 +16,6 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 
 /*
@@ -29,7 +28,6 @@
  * a2 (int)               number of arguments to syscall
  */
 	.set	noreorder
-	.text
 NESTED(r2300_do_syscalls, 32, sp)
 	subu	sp,32
 	sw	ra,28(sp)
@@ -83,4 +81,4 @@ dst:		PTR	0b, 1b, 2b, 3b, 4b, 5b, 6b, 7b
 		PTR	7b,bad_stack
 		PTR	6b,bad_stack
 		PTR	5b,bad_stack
-		.text
+		.previous

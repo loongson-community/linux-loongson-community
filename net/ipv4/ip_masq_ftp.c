@@ -5,21 +5,22 @@
  * Version:	@(#)ip_masq_ftp.c 0.01   02/05/96
  *
  * Author:	Wouter Gadeyne
- *		
+ *
  *
  * Fixes:
  *	Wouter Gadeyne		:	Fixed masquerading support of ftp PORT commands
  * 	Juan Jose Ciarlante	:	Code moved and adapted from ip_fw.c
- *	
+ *
  *
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
- *	
+ *
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <asm/system.h>
 #include <linux/types.h>
@@ -63,7 +64,7 @@ masq_ftp_out (struct ip_masq_app *mapp, struct ip_masq *ms, struct sk_buff **skb
 	int diff;
 
         skb = *skb_p;
-	iph = skb->h.iph;
+	iph = skb->nh.iph;
         th = (struct tcphdr *)&(((char *)iph)[iph->ihl*4]);
         data = (char *)&th[1];
 
@@ -100,14 +101,14 @@ masq_ftp_out (struct ip_masq_app *mapp, struct ip_masq *ms, struct sk_buff **skb
 		port = (p5<<8) | p6;
 #if DEBUG_CONFIG_IP_MASQ_FTP
 		printk("PORT %X:%X detected\n",from,port);
-#endif	
+#endif
 		/*
 		 * Now update or create an masquerade entry for it
 		 */
 #if DEBUG_CONFIG_IP_MASQ_FTP
 		printk("protocol %d %lX:%X %X:%X\n", iph->protocol, htonl(from), htons(port), iph->daddr, 0);
 
-#endif	
+#endif
 		n_ms = ip_masq_out_get_2(iph->protocol,
 					 htonl(from), htons(port),
 					 iph->daddr, 0);
@@ -120,7 +121,7 @@ masq_ftp_out (struct ip_masq_app *mapp, struct ip_masq *ms, struct sk_buff **skb
 					   htonl(from), htons(port),
 					   iph->daddr, 0,
 					   IP_MASQ_F_NO_DPORT);
-					
+
 			if (n_ms==NULL)
 				return 0;
 		}
@@ -142,18 +143,18 @@ masq_ftp_out (struct ip_masq_app *mapp, struct ip_masq *ms, struct sk_buff **skb
 		buf_len = strlen(buf);
 #if DEBUG_CONFIG_IP_MASQ_FTP
 		printk("new PORT %X:%X\n",from,port);
-#endif	
+#endif
 
 		/*
 		 * Calculate required delta-offset to keep TCP happy
 		 */
-		
+
 		diff = buf_len - (data-p);
-		
+
 		/*
 		 *	No shift.
 		 */
-		
+
 		if (diff==0)
 		{
 			/*
@@ -201,19 +202,19 @@ int ip_masq_ftp_done(void)
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
 
 int init_module(void)
 {
         if (ip_masq_ftp_init() != 0)
                 return -EIO;
-        register_symtab(0);
         return 0;
 }
 
 void cleanup_module(void)
 {
         if (ip_masq_ftp_done() != 0)
-                printk("ip_masq_ftp: can't remove module");
+                printk(KERN_INFO "ip_masq_ftp: can't remove module");
 }
 
 #endif /* MODULE */

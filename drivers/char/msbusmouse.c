@@ -40,6 +40,8 @@
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/random.h>
+#include <linux/poll.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -97,15 +99,16 @@ static int fasync_mouse(struct inode *inode, struct file *filp, int on)
 	return 0;
 }
 
-static void release_mouse(struct inode * inode, struct file * file)
+static int release_mouse(struct inode * inode, struct file * file)
 {
 	fasync_mouse(inode, file, 0);
 	if (--mouse.active)
-		return;
+		return 0;
 	MS_MSE_INT_OFF();
 	mouse.ready = 0; 
 	free_irq(mouse_irq, NULL);
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
 static int open_mouse(struct inode * inode, struct file * file)
@@ -155,13 +158,11 @@ static long read_mouse(struct inode * inode, struct file * file,
 	return i;	
 }
 
-static int mouse_select(struct inode *inode, struct file *file, int sel_type, select_table * wait)
+static unsigned int mouse_poll(struct file *file, poll_table * wait)
 {
-	if (sel_type != SEL_IN)
-		return 0;
+	poll_wait(&mouse.wait, wait);
 	if (mouse.ready) 
-		return 1;
-	select_wait(&mouse.wait,wait);
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -170,7 +171,7 @@ struct file_operations ms_bus_mouse_fops = {
 	read_mouse,
 	write_mouse,
 	NULL, 		/* mouse_readdir */
-	mouse_select, 	/* mouse_select */
+	mouse_poll, 	/* mouse_poll */
 	NULL, 		/* mouse_ioctl */
 	NULL,		/* mouse_mmap */
 	open_mouse,
@@ -183,7 +184,7 @@ static struct miscdevice ms_bus_mouse = {
 	MICROSOFT_BUSMOUSE, "msbusmouse", &ms_bus_mouse_fops
 };
 
-int ms_bus_mouse_init(void)
+__initfunc(int ms_bus_mouse_init(void))
 {
 	int mse_byte, i;
 

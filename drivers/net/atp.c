@@ -96,6 +96,7 @@ static const char *version =
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -139,7 +140,7 @@ static void net_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static void read_block(short ioaddr, int length, unsigned char *buffer, int data_mode);
 static int net_close(struct device *dev);
-static struct enet_statistics *net_get_stats(struct device *dev);
+static struct net_device_stats *net_get_stats(struct device *dev);
 static void set_multicast_list(struct device *dev);
 
 
@@ -149,8 +150,8 @@ static void set_multicast_list(struct device *dev);
    If dev->base_addr == 2, allocate space for the device and return success
    (detachable devices only).
    */
-int
-atp_init(struct device *dev)
+__initfunc(int
+atp_init(struct device *dev))
 {
 	int *port, ports[] = {0x378, 0x278, 0x3bc, 0};
 	int base_addr = dev->base_addr;
@@ -172,7 +173,7 @@ atp_init(struct device *dev)
 	return ENODEV;
 }
 
-static int atp_probe1(struct device *dev, short ioaddr)
+__initfunc(static int atp_probe1(struct device *dev, short ioaddr))
 {
 	int saved_ctrl_reg, status;
 
@@ -258,7 +259,7 @@ static int atp_probe1(struct device *dev, short ioaddr)
 }
 
 /* Read the station address PROM, usually a word-wide EEPROM. */
-static void get_node_ID(struct device *dev)
+__initfunc(static void get_node_ID(struct device *dev))
 {
 	short ioaddr = dev->base_addr;
 	int sa_offset = 0;
@@ -290,7 +291,7 @@ static void get_node_ID(struct device *dev)
  * DO :	 _________X_______X
  */
 
-static unsigned short eeprom_op(short ioaddr, unsigned int cmd)
+__initfunc(static unsigned short eeprom_op(short ioaddr, unsigned int cmd))
 {
 	unsigned eedata_out = 0;
 	int num_bits = EE_CMD_SIZE;
@@ -432,14 +433,6 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 		hardware_init(dev);
 		dev->tbusy=0;
 		dev->trans_start = jiffies;
-	}
-
-	/* If some higher layer thinks we've missed an tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
 	}
 
 	/* Block a timer-based transmit from overlapping.  This could better be
@@ -747,8 +740,7 @@ net_close(struct device *dev)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct enet_statistics *
-net_get_stats(struct device *dev)
+static struct net_device_stats *net_get_stats(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	return &lp->stats;
@@ -762,7 +754,7 @@ static void set_multicast_list(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	short ioaddr = dev->base_addr;
-	int num_addrs=dev->mc_list;
+	int num_addrs=dev->mc_count;
 	
 	if(dev->flags&(IFF_ALLMULTI|IFF_PROMISC))
 		num_addrs=1;

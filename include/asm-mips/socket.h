@@ -11,43 +11,42 @@
  */
 #define SOL_SOCKET	0xffff
 
-enum
-{
-    SO_DEBUG = 0x0001,		/* Record debugging information.  */
-    SO_REUSEADDR = 0x0004,	/* Allow reuse of local addresses.  */
-    SO_KEEPALIVE = 0x0008,	/* Keep connections alive and send
+#define SO_DEBUG	0x0001	/* Record debugging information.  */
+#define SO_REUSEADDR	0x0004	/* Allow reuse of local addresses.  */
+#define SO_KEEPALIVE	0x0008	/* Keep connections alive and send
 				   SIGPIPE when they die.  */
-    SO_DONTROUTE = 0x0010,	/* Don't do local routing.  */
-    SO_BROADCAST = 0x0020,	/* Allow transmission of
+#define SO_DONTROUTE	0x0010	/* Don't do local routing.  */
+#define SO_BROADCAST	0x0020	/* Allow transmission of
 				   broadcast messages.  */
-    SO_LINGER = 0x0080,		/* Block on close of a reliable
+#define SO_LINGER	0x0080	/* Block on close of a reliable
 				   socket to transmit pending data.  */
-    SO_OOBINLINE = 0x0100,	/* Receive out-of-band data in-band.  */
+#define SO_OOBINLINE 0x0100	/* Receive out-of-band data in-band.  */
 #if 0
-To add: SO_REUSEPORT = 0x0200,	/* Allow local address and port reuse.  */
+To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #endif
 
-    SO_TYPE = 0x1008,		/* Compatible name for SO_STYLE.  */
-    SO_STYLE = SO_TYPE,		/* Synonym */
-    SO_ERROR = 0x1007,		/* get error status and clear */
-    SO_SNDBUF = 0x1001,		/* Send buffer size. */
-    SO_RCVBUF = 0x1002,		/* Receive buffer. */
-    SO_SNDLOWAT = 0x1003,	/* send low-water mark */
-    SO_RCVLOWAT = 0x1004,	/* receive low-water mark */
-    SO_SNDTIMEO = 0x1005,	/* send timeout */
-    SO_RCVTIMEO = 0x1006,	/* receive timeout */
+#define SO_TYPE		0x1008	/* Compatible name for SO_STYLE.  */
+#define SO_STYLE	SO_TYPE	/* Synonym */
+#define SO_ERROR	0x1007	/* get error status and clear */
+#define SO_SNDBUF	0x1001	/* Send buffer size. */
+#define SO_RCVBUF	0x1002	/* Receive buffer. */
+#define SO_SNDLOWAT	0x1003	/* send low-water mark */
+#define SO_RCVLOWAT	0x1004	/* receive low-water mark */
+#define SO_SNDTIMEO	0x1005	/* send timeout */
+#define SO_RCVTIMEO 	0x1006	/* receive timeout */
 
 /* linux-specific, might as well be the same as on i386 */
-    SO_NO_CHECK = 11,
-    SO_PRIORITY = 12,
-    SO_BSDCOMPAT = 14,
-};
+#define SO_NO_CHECK	11
+#define SO_PRIORITY	12
+#define SO_BSDCOMPAT	14
 
-/*
- * Weird.  The existing SVr4 port to MIPS use two different definitions for
- * SOCK_STREAM and SOCK_DGRAM with swapped values.  I choose to be compatible
- * with the newer definitions though that looks wrong ...
- */
+#define SO_PASSCRED	17
+#define SO_PEERCRED	18
+
+/* Security levels - as per NRL IPv6 - don't actually do anything */
+#define SO_SECURITY_AUTHENTICATION		22
+#define SO_SECURITY_ENCRYPTION_TRANSPORT	23
+#define SO_SECURITY_ENCRYPTION_NETWORK		24
 
 /* Types of sockets.  */
 enum __socket_type

@@ -1,9 +1,9 @@
 /*
  *	G8BPQ compatible "AX.25 via ethernet" driver release 003
  *
- *	This is ALPHA test software. This code may break your machine, randomly 
- *	fail to work with new releases, misbehave and/or generally screw up. 
- *	It might even work. 
+ *	This is ALPHA test software. This code may break your machine, randomly
+ *	fail to work with new releases, misbehave and/or generally screw up.
+ *	It might even work.
  *
  *	This code REQUIRES 2.0.0 or higher/ NET3.029
  *
@@ -15,11 +15,11 @@
  *
  *	This is a "pseudo" network driver to allow AX.25 over Ethernet
  *	using G8BPQ encapsulation. It has been extracted from the protocol
- *	implementation because 
+ *	implementation because
  *
  *		- things got unreadable within the protocol stack
  *		- to cure the protocol stack from "feature-ism"
- *		- a protocol implementation shouldn't need to know on 
+ *		- a protocol implementation shouldn't need to know on
  *		  which hardware it is running
  *		- user-level programs like the AX.25 utilities shouldn't
  *		  need to know about the hardware.
@@ -28,7 +28,7 @@
  *		- to have room for extensions
  *		- it just deserves to "live" as an own driver
  *
- *	This driver can use any ethernet destination address, and can be 
+ *	This driver can use any ethernet destination address, and can be
  *	limited to accept frames from one dedicated ethernet card only.
  *
  *	Note that the driver sets up the BPQ devices automagically on
@@ -44,7 +44,7 @@
  *	probably some buffering, and /voila/...
  *
  *	History
- *	BPQ   001	Joerg(DL1BKE)		Extracted BPQ code from AX.25 
+ *	BPQ   001	Joerg(DL1BKE)		Extracted BPQ code from AX.25
  *						protocol stack and added my own
  *						yet existing patches
  *	BPQ   002	Joerg(DL1BKE)		Scan network device list on
@@ -53,6 +53,8 @@
  *						and accepted source address
  *						can be configured by an ioctl()
  *						call.
+ *						Fixed to match Linux networking
+ *						changes - 2.1.15.
  */
 
 #include <linux/config.h>
@@ -80,6 +82,7 @@
 #include <linux/firewall.h>
 #include <linux/module.h>
 #include <linux/net_alias.h>
+#include <linux/init.h>
 
 #include <net/ip.h>
 #include <net/arp.h>
@@ -120,7 +123,7 @@ static struct bpqdev {
 	char   ethname[14];		/* ether device name */
 	struct device *ethdev;		/* link to ethernet device */
 	struct device axdev;		/* bpq device (bpq#) */
-	struct enet_statistics stats;	/* some statistics */
+	struct net_device_stats stats;	/* some statistics */
 	char   dest_addr[6];		/* ether destination address */
 	char   acpt_addr[6];		/* accept ether frames from this address only */
 } *bpq_devices = NULL;
@@ -135,7 +138,7 @@ static struct bpqdev {
 static __inline__ struct device *bpq_get_ether_dev(struct device *dev)
 {
 	struct bpqdev *bpq;
-	
+
 	bpq = (struct bpqdev *)dev->priv;
 
 	return (bpq != NULL) ? bpq->ethdev : NULL;
@@ -175,7 +178,7 @@ static int bpq_check_devices(struct device *dev)
 	struct bpqdev *bpq, *bpq_prev;
 	int result = 0;
 	unsigned long flags;
-	
+
 	save_flags(flags);
 	cli();
 
@@ -187,7 +190,7 @@ static int bpq_check_devices(struct device *dev)
 				bpq_prev->next = bpq->next;
 			else
 				bpq_devices = bpq->next;
-				
+
 			if (&bpq->axdev == dev)
 				result = 1;
 
@@ -197,9 +200,9 @@ static int bpq_check_devices(struct device *dev)
 
 		bpq_prev = bpq;
 	}
-	
+
 	restore_flags(flags);
-	
+
 	return result;
 }
 
@@ -218,7 +221,7 @@ static int bpq_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *
 	struct bpqdev *bpq;
 
 	skb->sk = NULL;		/* Initially we don't know who it's for */
-	
+
 	dev = bpq_get_ax25_dev(dev);
 
 	if (dev == NULL || dev->start == 0) {
@@ -239,16 +242,17 @@ static int bpq_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *
 		return 0;
 	}
 
-	((struct bpqdev *)dev->priv)->stats.rx_packets++;
-
 	len = skb->data[0] + skb->data[1] * 256 - 5;
 
 	skb_pull(skb, 2);	/* Remove the length bytes */
 	skb_trim(skb, len);	/* Set the length of the data */
 
+	((struct bpqdev *)dev->priv)->stats.rx_packets++;
+	((struct bpqdev *)dev->priv)->stats.rx_bytes+=len;
+
 	ptr = skb_push(skb, 1);
 	*ptr = 0;
-	
+
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_AX25);
 	skb->mac.raw = skb->data;
@@ -267,7 +271,7 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 	unsigned char *ptr;
 	struct bpqdev *bpq;
 	int size;
-	
+
 	/*
 	 * Just to be *really* sure not to send anything if the interface
 	 * is down, the ethernet device may have gone.
@@ -280,9 +284,9 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 
 	skb_pull(skb, 1);
 	size = skb->len;
-	
-	/* 
-	 * The AX.25 code leaves enough room for the ethernet header, but 
+
+	/*
+	 * The AX.25 code leaves enough room for the ethernet header, but
 	 * sendto() does not.
 	 */
 	if (skb_headroom(skb) < AX25_BPQ_HEADER_LEN) {	/* Ough! */
@@ -294,29 +298,25 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 			return -ENOMEM;
 		}
 
-		newskb->free = 1;
 		newskb->arp  = 1;
-		newskb->sk   = skb->sk;
+		if (skb->sk)
+			skb_set_owner_w(newskb, skb->sk);
 
 		skb_reserve(newskb, AX25_BPQ_HEADER_LEN);
 		memcpy(skb_put(newskb, size), skb->data, size);
 		dev_kfree_skb(skb, FREE_WRITE);
 		skb = newskb;
-
-		if (skb->sk != NULL)
-			atomic_add(skb->truesize, &skb->sk->wmem_alloc);
 	}
-	
+
 	skb->protocol = htons(ETH_P_AX25);
 
 	ptr = skb_push(skb, 2);
 
 	*ptr++ = (size + 5) % 256;
 	*ptr++ = (size + 5) / 256;
-	
+
 	bpq = (struct bpqdev *)dev->priv;
-	bpq->stats.tx_packets++;
-	
+
 	if ((dev = bpq_get_ether_dev(dev)) == NULL) {
 		bpq->stats.tx_dropped++;
 		dev_kfree_skb(skb, FREE_WRITE);
@@ -325,29 +325,24 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 
 	skb->dev = dev;
 	dev->hard_header(skb, dev, ETH_P_BPQ, bpq->dest_addr, NULL, 0);
+	bpq->stats.tx_packets++;
+	bpq->stats.tx_bytes+=skb->len;
+  
+	dev_queue_xmit(skb);
 
-	return dev->hard_start_xmit(skb, dev);
+	return 0;
 }
 
 /*
  *	Statistics
  */
-static struct enet_statistics * bpq_get_stats(struct device *dev)
+static struct net_device_stats *bpq_get_stats(struct device *dev)
 {
 	struct bpqdev *bpq;
 
 	bpq = (struct bpqdev *)dev->priv;
 
 	return &bpq->stats;
-}
-
-
-/*
- *	Rebuild header...
- */
-static int bpq_rebuild_header(void *buff, struct device *dev, unsigned long raddr, struct sk_buff *skb)
-{
-	return ax25_rebuild_header((unsigned char *)buff, dev, raddr, skb);
 }
 
 /*
@@ -378,10 +373,10 @@ static int bpq_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 
 	if (!suser())
 		return -EPERM;
-	
+
 	if (bpq == NULL)		/* woops! */
 		return -ENODEV;
-	
+
 	switch (cmd) {
 		case SIOCSBPQETHOPT:
 			if ((err = verify_area(VERIFY_WRITE, ifr->ifr_data, sizeof(struct bpq_req))) != 0)
@@ -393,9 +388,9 @@ static int bpq_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 				default:
 					return -EINVAL;
 			}
-			
+
 			break;
-			
+
 		case SIOCSBPQETHADDR:
 			if ((err = verify_area(VERIFY_READ, ethaddr, sizeof(struct bpq_ethaddr))) != 0)
 				return err;
@@ -417,7 +412,7 @@ static int bpq_open(struct device *dev)
 {
 	if (bpq_check_devices(dev))
 		return -ENODEV;		/* oops, it's gone */
-	
+
 	dev->tbusy = 0;
 	dev->start = 1;
 
@@ -454,10 +449,10 @@ static int bpq_dev_init(struct device *dev)
 static char * bpq_print_ethaddr(unsigned char *e)
 {
 	static char buf[18];
-	
-	sprintf(buf, "%2.2X:%2.2X:%2.2X:%2.2X:%2.2X:%2.2X", 
+
+	sprintf(buf, "%2.2X:%2.2X:%2.2X:%2.2X:%2.2X:%2.2X",
 		e[0], e[1], e[2], e[3], e[4], e[5]);
-		
+
 	return buf;
 }
 
@@ -467,7 +462,7 @@ int bpq_get_info(char *buffer, char **start, off_t offset, int length, int dummy
 	int len     = 0;
 	off_t pos   = 0;
 	off_t begin = 0;
-  
+
 	cli();
 
 	len += sprintf(buffer, "dev   ether      destination        accept from\n");
@@ -486,7 +481,7 @@ int bpq_get_info(char *buffer, char **start, off_t offset, int length, int dummy
 			len   = 0;
 			begin = pos;
 		}
-		
+
 		if (pos > offset + length)
 			break;
 	}
@@ -499,7 +494,7 @@ int bpq_get_info(char *buffer, char **start, off_t offset, int length, int dummy
 	if (len > length) len = length;
 
 	return len;
-} 
+}
 
 
 /* ------------------------------------------------------------------------ */
@@ -513,12 +508,12 @@ static int bpq_new_device(struct device *dev)
 	int k;
 	unsigned char *buf;
 	struct bpqdev *bpq, *bpq2;
-	
+
 	if ((bpq = (struct bpqdev *)kmalloc(sizeof(struct bpqdev), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
-		
+
 	memset(bpq, 0, sizeof(struct bpqdev));
-	
+
 	bpq->ethdev = dev;
 
 	bpq->ethname[sizeof(bpq->ethname)-1] = '\0';
@@ -543,7 +538,7 @@ static int bpq_new_device(struct device *dev)
 		kfree(bpq);
 		return -ENODEV;
 	}
-	
+
 	dev->priv = (void *)bpq;	/* pointer back */
 	dev->name = buf;
 	dev->init = bpq_dev_init;
@@ -553,12 +548,9 @@ static int bpq_new_device(struct device *dev)
                 return -EIO;
         }
 
-	for (k=0; k < DEV_NUMBUFFS; k++)
-		skb_queue_head_init(&dev->buffs[k]);
+	dev_init_buffers(dev);
 
 	dev->hard_start_xmit = bpq_xmit;
-	dev->hard_header     = ax25_encapsulate;
-	dev->rebuild_header  = bpq_rebuild_header;
 	dev->open	     = bpq_open;
 	dev->stop	     = bpq_close;
 	dev->set_mac_address = bpq_set_mac_address;
@@ -579,11 +571,16 @@ static int bpq_new_device(struct device *dev)
 	dev->pa_alen    = 4;
 #endif
 
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
+	dev->hard_header     = ax25_encapsulate;
+	dev->rebuild_header  = ax25_rebuild_header;
+#endif
+
 	dev->type            = ARPHRD_AX25;
 	dev->hard_header_len = AX25_MAX_HEADER_LEN + AX25_BPQ_HEADER_LEN;
 	dev->mtu             = AX25_DEF_PACLEN;
 	dev->addr_len        = AX25_ADDR_LEN;
-	
+
 	cli();
 
 	if (bpq_devices == NULL) {
@@ -592,7 +589,7 @@ static int bpq_new_device(struct device *dev)
 		for (bpq2 = bpq_devices; bpq2->next != NULL; bpq2 = bpq2->next);
 		bpq2->next = bpq;
 	}
-	
+
 	sti();
 
 	return 0;
@@ -605,7 +602,7 @@ static int bpq_new_device(struct device *dev)
 static int bpq_device_event(struct notifier_block *this,unsigned long event, void *ptr)
 {
 	struct device *dev = (struct device *)ptr;
-	
+
 	if (!dev_is_ethdev(dev))
 		return NOTIFY_DONE;
 
@@ -636,7 +633,7 @@ static int bpq_device_event(struct notifier_block *this,unsigned long event, voi
  * Initialize driver. To be called from af_ax25 if not compiled as a
  * module
  */
-int bpq_init(void)
+__initfunc(int bpq_init(void))
 {
 	struct device *dev;
 
@@ -665,10 +662,10 @@ int bpq_init(void)
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-	register_symtab(NULL);
-
 	return bpq_init();
 }
 
@@ -682,7 +679,7 @@ void cleanup_module(void)
 
 #ifdef CONFIG_PROC_FS
 	proc_net_unregister(PROC_NET_AX25_BPQETHER);
-#endif	
+#endif
 
 	for (bpq = bpq_devices; bpq != NULL; bpq = bpq->next)
 		unregister_netdev(&bpq->axdev);

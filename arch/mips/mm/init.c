@@ -26,7 +26,6 @@
 #include <asm/jazzdma.h>
 #include <asm/vector.h>
 #include <asm/system.h>
-#include <asm/segment.h>
 #include <asm/pgtable.h>
 #ifdef CONFIG_SGI
 #include <asm/sgialib.h>
@@ -34,6 +33,8 @@
 
 extern void deskstation_tyne_dma_init(void);
 extern void show_net_buffers(void);
+
+const char bad_pmd_string[] = "Bad pmd in pte_alloc: %08lx\n";
 
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 {
@@ -181,10 +182,10 @@ void show_mem(void)
 		total++;
 		if (PageReserved(mem_map+i))
 			reserved++;
-		else if (!mem_map[i].count)
+		else if (!atomic_read(&mem_map[i].count))
 			free++;
 		else
-			shared += mem_map[i].count-1;
+			shared += atomic_read(&mem_map[i].count) - 1;
 	}
 	printk("%d pages of RAM\n", total);
 	printk("%d free pages\n", free);
@@ -217,7 +218,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 #endif
 
 	end_mem &= PAGE_MASK;
-	max_mapnr = MAP_NR(end_mem);
+	max_mapnr = num_physpages = MAP_NR(end_mem);
 	high_memory = (void *)end_mem;
 
 	/* clear the zero-page */
@@ -243,7 +244,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 
 
 #ifdef CONFIG_SGI
-	prom_fixup_mem_map(start_mem, high_memory);
+	prom_fixup_mem_map(start_mem, (unsigned long)high_memory);
 #endif
 
 #ifdef CONFIG_DESKSTATION_TYNE
@@ -267,7 +268,7 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 				datapages++;
 			continue;
 		}
-		mem_map[MAP_NR(tmp)].count = 1;
+		atomic_set(&mem_map[MAP_NR(tmp)].count, 1);
 #ifdef CONFIG_BLK_DEV_INITRD
 		if (!initrd_start || (tmp < initrd_start || tmp >=
 		    initrd_end))
@@ -284,6 +285,11 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	return;
 }
 
+void free_initmem(void)
+{
+	/* To be written */
+}
+
 void si_meminfo(struct sysinfo *val)
 {
 	int i;
@@ -297,9 +303,9 @@ void si_meminfo(struct sysinfo *val)
 		if (PageReserved(mem_map+i))
 			continue;
 		val->totalram++;
-		if (!mem_map[i].count)
+		if (!atomic_read(&mem_map[i].count))
 			continue;
-		val->sharedram += mem_map[i].count-1;
+		val->sharedram += atomic_read(&mem_map[i].count) - 1;
 	}
 	val->totalram <<= PAGE_SHIFT;
 	val->sharedram <<= PAGE_SHIFT;

@@ -1,4 +1,4 @@
-/* $Id: rtrap.S,v 1.39 1996/10/28 07:49:01 davem Exp $
+/* $Id: rtrap.S,v 1.46 1997/04/01 02:21:48 davem Exp $
  * rtrap.S: Return from Sparc trap low-level code.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -46,31 +46,26 @@ rtrap_7win_patch5:	and	%g1, 0x7f, %g1
 
 	.globl	ret_trap_entry, rtrap_patch1, rtrap_patch2
 	.globl	rtrap_patch3, rtrap_patch4, rtrap_patch5
+	.globl	C_LABEL(ret_trap_lockless_ipi)
 ret_trap_entry:
-	sethi	%hi(C_LABEL(intr_count)), %g2
-	ld	[%g2 + %lo(C_LABEL(intr_count))], %g3
-	orcc	%g0, %g3, %g0
-	bne	0f
-	 sethi	%hi(C_LABEL(bh_active)), %l3
+	sethi	%hi(C_LABEL(bh_active)), %l3
 	sethi	%hi(C_LABEL(bh_mask)), %l4
-9:
 	ld	[%l4 + %lo(C_LABEL(bh_mask))], %g5
 	ld	[%l3 + %lo(C_LABEL(bh_active))], %g4
-	sethi	%hi(C_LABEL(intr_count)), %l7
 	andcc	%g4, %g5, %g0
-	be	0f
-	 mov	1, %g7
+	be	C_LABEL(ret_trap_lockless_ipi)
+	 nop
 	call	C_LABEL(do_bottom_half)
-	 st	%g7, [%l7 + %lo(C_LABEL(intr_count))]
-	b	9b
-	 st	%g0, [%l7 + %lo(C_LABEL(intr_count))]
-0:
+	 nop
+
+C_LABEL(ret_trap_lockless_ipi):
 	andcc	%t_psr, PSR_PS, %g0
 	be	1f
 	 sethi	%hi(C_LABEL(need_resched)), %twin_tmp1
 
+	wr	%t_psr, 0x0, %psr
 	b	ret_trap_kernel
-	 wr	%t_psr, 0x0, %psr
+	 nop
 
 1:
 	ld	[%twin_tmp1 + %lo(C_LABEL(need_resched))], %g2
@@ -83,8 +78,8 @@ ret_trap_entry:
 	 nop
 
 signal_p:
-	ld	[%curptr + TASK_SIGNAL], %g2
-	ld	[%curptr + TASK_BLOCKED], %o0
+	ld	[%curptr + AOFF_task_signal], %g2
+	ld	[%curptr + AOFF_task_blocked], %o0
 	andncc	%g2, %o0, %g0
 	be,a	ret_trap_continue
 	 ld	[%sp + REGWIN_SZ + PT_PSR], %t_psr
@@ -99,8 +94,9 @@ signal_p:
 	clr	%l6
 ret_trap_continue:
 	wr	%t_psr, 0x0, %psr
+	WRITE_PAUSE
 
-	ld	[%curptr + THREAD_W_SAVED], %twin_tmp1
+	ld	[%curptr + AOFF_task_tss + AOFF_thread_w_saved], %twin_tmp1
 	orcc	%g0, %twin_tmp1, %g0
 	be	ret_trap_nobufwins
 	 nop
@@ -123,7 +119,7 @@ ret_trap_nobufwins:
 	/* If there are already live user windows in the
 	 * set we can return from trap safely.
 	 */
-	ld	[%curptr + THREAD_UMASK], %twin_tmp1
+	ld	[%curptr + AOFF_task_tss + AOFF_thread_uwinmask], %twin_tmp1
 	orcc	%g0, %twin_tmp1, %g0
 	bne	ret_trap_userwins_ok
 	 nop
@@ -162,8 +158,6 @@ ret_trap_userwins_ok:
 	LOAD_PT_YREG(sp, g1)
 	LOAD_PT_GLOBALS(sp)
 
-	LEAVE_SYSCALL
-
 	wr	%t_psr, 0x0, %psr
 	WRITE_PAUSE
 
@@ -176,7 +170,6 @@ ret_trap_unaligned_pc:
 	ld	[%sp + REGWIN_SZ + PT_PSR], %o3
 
 	wr	%t_wim, 0x0, %wim		! or else...
-	WRITE_PAUSE
 
 	wr	%t_psr, PSR_ET, %psr
 	WRITE_PAUSE
@@ -203,7 +196,6 @@ rtrap_patch4:	srl	%g2, 7,  %g2
 rtrap_patch5:	and	%g1, 0xff, %g1
 
 	wr	%g1, 0x0, %wim
-	WRITE_PAUSE
 
 	/* Grrr, make sure we load from the right %sp... */
 	LOAD_PT_ALL(sp, t_psr, t_pc, t_npc, g1)
@@ -219,8 +211,6 @@ rtrap_patch5:	and	%g1, 0xff, %g1
 1:
 	LOAD_PT_ALL(sp, t_psr, t_pc, t_npc, g1)
 2:
-	LEAVE_SYSCALL
-
 	wr	%t_psr, 0x0, %psr
 	WRITE_PAUSE
 
@@ -229,7 +219,6 @@ rtrap_patch5:	and	%g1, 0xff, %g1
 
 ret_trap_user_stack_is_bolixed:
 	wr	%t_wim, 0x0, %wim
-	WRITE_PAUSE
 
 	wr	%t_psr, PSR_ET, %psr
 	WRITE_PAUSE

@@ -10,7 +10,6 @@
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/sgialib.h>
 
@@ -80,11 +79,11 @@ static void r2300_copy_page(unsigned long to, unsigned long from)
 		"lw\t%3,-12(%1)\n\t"
 		"lw\t%4,-8(%1)\n\t"
 		"lw\t%5,-4(%1)\n\t"
-		"sd\t%2,-16(%0)\n\t"
-		"sd\t%3,-12(%0)\n\t"
-		"sd\t%4,-8(%0)\n\t"
+		"sw\t%2,-16(%0)\n\t"
+		"sw\t%3,-12(%0)\n\t"
+		"sw\t%4,-8(%0)\n\t"
 		"bne\t$1,%0,1b\n\t"
-		"sd\t%5,-4(%0)\n\t"
+		"sw\t%5,-4(%0)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		:"=r" (dummy1), "=r" (dummy2),

@@ -1,5 +1,5 @@
 #define AZT_VERSION "2.50"
-/*      $Id: aztcd.c,v 2.50 1996/05/17 16:19:03 root Exp root $
+/*      $Id: aztcd.c,v 1.16 1997/01/26 07:12:53 davem Exp $
 	linux/drivers/block/aztcd.c - Aztech CD268 CDROM driver
 
 	Copyright (C) 1994,95,96 Werner Zimmermann(zimmerma@rz.fht-esslingen.de)
@@ -268,6 +268,7 @@ static int azt_mode = -1;
 static volatile int azt_read_count = 1;
 
 static int azt_port = AZT_BASE_ADDR;
+MODULE_PARM(azt_port, "i");
 
 static char  azt_cont = 0;
 static char  azt_init_end = 0;
@@ -329,7 +330,7 @@ static void azt_transfer(void);
 static void do_aztcd_request(void);
 static void azt_invalidate_buffers(void);
 int         aztcd_open(struct inode *ip, struct file *fp);
-static void aztcd_release(struct inode * inode, struct file * file);
+static int  aztcd_release(struct inode * inode, struct file * file);
 int         aztcd_init(void);
 #ifdef MODULE
  int        init_module(void);
@@ -340,7 +341,7 @@ static struct file_operations azt_fops = {
 	block_read,             /* read - general block-dev read */
 	block_write,            /* write - general block-dev write */
 	NULL,                   /* readdir - bad */
-	NULL,                   /* select */
+	NULL,                   /* poll */
 	aztcd_ioctl,            /* ioctl */
 	NULL,                   /* mmap */
 	aztcd_open,             /* open */
@@ -1541,7 +1542,7 @@ int aztcd_open(struct inode *ip, struct file *fp)
 /*
  * On close, we flush all azt blocks from the buffer cache.
  */
-static void aztcd_release(struct inode * inode, struct file * file)
+static int aztcd_release(struct inode * inode, struct file * file)
 { 
 #ifdef AZT_DEBUG
   printk("aztcd: executing aztcd_release\n");
@@ -1557,7 +1558,7 @@ static void aztcd_release(struct inode * inode, struct file * file)
            aztSendCmd(ACMD_EJECT);
         CLEAR_TIMER;
   }
-  return;
+  return 0;
 }
 
 

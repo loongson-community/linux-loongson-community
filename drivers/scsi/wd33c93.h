@@ -2,7 +2,7 @@
  *    wd33c93.h -  Linux device driver definitions for the
  *                 Commodore Amiga A2091/590 SCSI controller card
  *
- *    IMPORTANT: This file is for version 1.21 - 20/Mar/1996
+ *    IMPORTANT: This file is for version 1.24 - 29/Jan/1997
  *
  * Copyright (c) 1996 John Shifflett, GeoLog Consulting
  *    john@geolog.com
@@ -23,6 +23,22 @@
 #define WD33C93_H
 
 #include <linux/config.h>
+
+#define PROC_INTERFACE     /* add code for /proc/scsi/wd33c93/xxx interface */
+#ifdef  PROC_INTERFACE
+#define PROC_STATISTICS    /* add code for keeping various real time stats */
+#endif
+
+#define SYNC_DEBUG         /* extra info on sync negotiation printed */
+#define DEBUGGING_ON       /* enable command-line debugging bitmask */
+#define DEBUG_DEFAULTS 0   /* default debugging bitmask */
+
+
+#ifdef DEBUGGING_ON
+#define DB(f,a) if (hostdata->args & (f)) a;
+#else
+#define DB(f,a)
+#endif
 
 #define uchar unsigned char
 
@@ -183,7 +199,7 @@ typedef int (*dma_setup_t) (Scsi_Cmnd *SCpnt, int dir_in);
 typedef void (*dma_stop_t) (struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 			    int status);
 
-#define DEFAULT_SX_PER   500     /* (ns) fairly safe */
+#define DEFAULT_SX_PER   376     /* (ns) fairly safe */
 #define DEFAULT_SX_OFF   0       /* aka async */
 
 #define OPTIMUM_SX_PER   252     /* (ns) best we can do (mult-of-4) */
@@ -207,6 +223,7 @@ struct WD33C93_hostdata {
 	int              dma_dir;          /* data transfer dir. */
 	dma_setup_t      dma_setup;
 	dma_stop_t       dma_stop;
+	unsigned int     dma_xfer_mask;
 	uchar            *dma_bounce_buffer;
 	unsigned int     dma_bounce_len;
 	uchar            dma_buffer_pool;  /* FEF: buffer from chip_ram? */
@@ -228,9 +245,14 @@ struct WD33C93_hostdata {
 	uchar            sync_xfer[8];     /* sync_xfer reg settings per target */
 	uchar            sync_stat[8];     /* status of sync negotiation per target */
 	uchar            no_sync;          /* bitmask: don't do sync on these targets */
-#if 0
+	uchar            no_dma;           /* set this flag to disable DMA */
 	uchar            proc;             /* bitmask: what's in proc output */
-#endif
+	unsigned long    cmd_cnt[8];       /* # of commands issued per target */
+	unsigned long    int_cnt;          /* # of interrupts serviced */
+	unsigned long    pio_cnt;          /* # of pio data transfers */
+	unsigned long    dma_cnt;          /* # of DMA data transfers */
+	unsigned long    disc_allowed_cnt[8]; /* # of disconnects allowed per target */
+	unsigned long    disc_done_cnt[8]; /* # of disconnects done per target*/
 };
 
 #define CMDHOSTDATA(cmd)   ((struct WD33C93_hostdata *) (cmd)->host->hostdata)
@@ -292,7 +314,7 @@ struct WD33C93_hostdata {
 /* defines for hostdata->proc */
 #define PR_VERSION   (1<<0)
 #define PR_INFO      (1<<1)
-#define PR_TOTALS    (1<<2)
+#define PR_STATISTICS (1<<2)
 #define PR_CONNECTED (1<<3)
 #define PR_INPUTQ    (1<<4)
 #define PR_DISCQ     (1<<5)
@@ -310,10 +332,6 @@ int wd33c93_proc_info(char *, char **, off_t, int, int, int);
 int wd33c93_reset (Scsi_Cmnd *, unsigned int);
 #else
 int wd33c93_reset (Scsi_Cmnd *);
-#endif
-
-#if 0
-struct proc_dir_entry proc_scsi_wd33c93;
 #endif
 
 #endif /* WD33C93_H */

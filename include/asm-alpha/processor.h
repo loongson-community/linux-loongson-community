@@ -12,6 +12,11 @@
  */
 #define TASK_SIZE (0x40000000000UL)
 
+/* This decides where the kernel will search for a free chunk of vm
+ * space during mmap's.
+ */
+#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
+
 /*
  * Bus types
  */
@@ -37,6 +42,7 @@ struct thread_struct {
 
 	/* the fields below are Linux-specific: */
 	/* bit 1..5: IEEE_TRAP_ENABLE bits (see fpu.h) */
+	/* bit 6..8: UAC bits (see sysinfo.h) */
 	unsigned long flags;
 	/* perform syscall argument validation (get/set_fs) */
 	unsigned long fs;
@@ -52,9 +58,6 @@ struct thread_struct {
 	0, \
 	0 \
 }
-
-#define alloc_kernel_stack()    __get_free_page(GFP_KERNEL)
-#define free_kernel_stack(page) free_page((page))
 
 #include <asm/ptrace.h>
 
@@ -78,6 +81,15 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
  * Do necessary setup to start up a newly executed thread.
  */
 extern void start_thread(struct pt_regs *, unsigned long, unsigned long);
+
+/* Free all resources held by a thread. */
+extern void release_thread(struct task_struct *);
+
+/* Allocation and freeing of basic task resources. */
+#define alloc_task_struct()	kmalloc(sizeof(struct task_struct), GFP_KERNEL)
+#define alloc_kernel_stack(p)	__get_free_page(GFP_KERNEL)
+#define free_task_struct(p)	kfree(p)
+#define free_kernel_stack(page) free_page((page))
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)

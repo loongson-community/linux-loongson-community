@@ -22,6 +22,8 @@
 #include <linux/locks.h>
 #include <linux/pagemap.h>
 #include <linux/swap.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 #include <asm/pgtable.h>
@@ -129,7 +131,7 @@ int shrink_mmap(int priority, int dma)
 {
 	static unsigned long clock = 0;
 	struct page * page;
-	unsigned long limit = max_mapnr;
+	unsigned long limit = num_physpages;
 	struct buffer_head *tmp, *bh;
 	int count_max, count_min;
 
@@ -166,7 +168,7 @@ int shrink_mmap(int priority, int dma)
 		   buffer cache; we'd have to modify the following
 		   test to allow for that case. */
 
-		switch (page->count) {
+		switch (atomic_read(&page->count)) {
 			case 1:
 				/* If it has been referenced recently, don't free it */
 				if (clear_bit(PG_referenced, &page->flags))
@@ -212,7 +214,7 @@ next:
 unsigned long page_unuse(unsigned long page)
 {
 	struct page * p = mem_map + MAP_NR(page);
-	int count = p->count;
+	int count = atomic_read(&p->count);
 
 	if (count != 2)
 		return count;
@@ -258,7 +260,7 @@ static inline void add_to_page_cache(struct page * page,
 	struct inode * inode, unsigned long offset,
 	struct page **hash)
 {
-	page->count++;
+	atomic_inc(&page->count);
 	page->flags &= ~((1 << PG_uptodate) | (1 << PG_error));
 	page->offset = offset;
 	add_page_to_inode_queue(inode, page);
@@ -751,7 +753,7 @@ page_read_error:
 	filp->f_reada = 1;
 	if (page_cache)
 		free_page(page_cache);
-	if (!IS_RDONLY(inode)) {
+	if (DO_UPDATE_ATIME(inode)) {
 		inode->i_atime = CURRENT_TIME;
 		inode->i_dirt = 1;
 	}
@@ -1000,7 +1002,7 @@ static pte_t filemap_swapin(struct vm_area_struct * vma,
 {
 	unsigned long page = SWP_OFFSET(entry);
 
-	mem_map[page].count++;
+	atomic_inc(&mem_map[page].count);
 	page = (page << PAGE_SHIFT) + PAGE_OFFSET;
 	return mk_pte(page,vma->vm_page_prot);
 }
@@ -1023,7 +1025,7 @@ static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 		set_pte(ptep, pte_mkclean(pte));
 		flush_tlb_page(vma, address);
 		page = pte_page(pte);
-		mem_map[MAP_NR(page)].count++;
+		atomic_inc(&mem_map[MAP_NR(page)].count);
 	} else {
 		if (pte_none(pte))
 			return 0;
@@ -1188,7 +1190,7 @@ int generic_file_mmap(struct inode * inode, struct file * file, struct vm_area_s
 		return -EACCES;
 	if (!inode->i_op || !inode->i_op->readpage)
 		return -ENOEXEC;
-	if (!IS_RDONLY(inode)) {
+	if (DO_UPDATE_ATIME(inode)) {
 		inode->i_atime = CURRENT_TIME;
 		inode->i_dirt = 1;
 	}
@@ -1224,18 +1226,20 @@ asmlinkage int sys_msync(unsigned long start, size_t len, int flags)
 {
 	unsigned long end;
 	struct vm_area_struct * vma;
-	int unmapped_error, error;
+	int unmapped_error, error = -EINVAL;
 
+	lock_kernel();
 	if (start & ~PAGE_MASK)
-		return -EINVAL;
+		goto out;
 	len = (len + ~PAGE_MASK) & PAGE_MASK;
 	end = start + len;
 	if (end < start)
-		return -EINVAL;
+		goto out;
 	if (flags & ~(MS_ASYNC | MS_INVALIDATE | MS_SYNC))
-		return -EINVAL;
+		goto out;
+	error = 0;
 	if (end == start)
-		return 0;
+		goto out;
 	/*
 	 * If the interval [start,end) covers some unmapped address ranges,
 	 * just ignore them, but return -EFAULT at the end.
@@ -1244,8 +1248,9 @@ asmlinkage int sys_msync(unsigned long start, size_t len, int flags)
 	unmapped_error = 0;
 	for (;;) {
 		/* Still start < end. */
+		error = -EFAULT;
 		if (!vma)
-			return -EFAULT;
+			goto out;
 		/* Here start < vma->vm_end. */
 		if (start < vma->vm_start) {
 			unmapped_error = -EFAULT;
@@ -1256,15 +1261,134 @@ asmlinkage int sys_msync(unsigned long start, size_t len, int flags)
 			if (start < end) {
 				error = msync_interval(vma, start, end, flags);
 				if (error)
-					return error;
+					goto out;
 			}
-			return unmapped_error;
+			error = unmapped_error;
+			goto out;
 		}
 		/* Here vma->vm_start <= start < vma->vm_end < end. */
 		error = msync_interval(vma, start, vma->vm_end, flags);
 		if (error)
-			return error;
+			goto out;
 		start = vma->vm_end;
 		vma = vma->vm_next;
 	}
+out:
+	unlock_kernel();
+	return error;
+}
+
+/*
+ * Write to a file through the page cache. This is mainly for the
+ * benefit of NFS and possibly other network-based file systems.
+ *
+ * We currently put everything into the page cache prior to writing it.
+ * This is not a problem when writing full pages. With partial pages,
+ * however, we first have to read the data into the cache, then
+ * dirty the page, and finally schedule it for writing. Alternatively, we
+ * could write-through just the portion of data that would go into that
+ * page, but that would kill performance for applications that write data
+ * line by line, and it's prone to race conditions.
+ *
+ * Note that this routine doesn't try to keep track of dirty pages. Each
+ * file system has to do this all by itself, unfortunately.
+ *							okir@monad.swb.de
+ */
+long
+generic_file_write(struct inode *inode, struct file *file, const char *buf, unsigned long count)
+{
+	struct page	*page, **hash;
+	unsigned long	page_cache = 0;
+	unsigned long	ppos, offset;
+	unsigned int	bytes, written;
+	unsigned long	pos;
+	int		status, sync, didread = 0;
+
+	if (!inode->i_op || !inode->i_op->updatepage)
+		return -EIO;
+
+	sync    = file->f_flags & O_SYNC;
+	pos     = file->f_pos;
+	written = 0;
+	status  = 0;
+
+	if (file->f_flags & O_APPEND)
+		pos = inode->i_size;
+
+	while (count) {
+		/*
+		 * Try to find the page in the cache. If it isn't there,
+		 * allocate a free page.
+		 */
+		offset = (pos & ~PAGE_MASK);
+		ppos = pos & PAGE_MASK;
+
+		if ((bytes = PAGE_SIZE - offset) > count)
+			bytes = count;
+
+		hash = page_hash(inode, ppos);
+		if (!(page = __find_page(inode, ppos, *hash))) {
+			if (!page_cache) {
+				page_cache = __get_free_page(GFP_KERNEL);
+				if (!page_cache) {
+					status = -ENOMEM;
+					break;
+				}
+				continue;
+			}
+			page = mem_map + MAP_NR(page_cache);
+			add_to_page_cache(page, inode, ppos, hash);
+			page_cache = 0;
+		}
+
+lockit:
+		while (set_bit(PG_locked, &page->flags))
+			wait_on_page(page);
+
+		/*
+		 * If the page is not uptodate, and we're writing less
+		 * than a full page of data, we may have to read it first.
+		 * However, don't bother with reading the page when it's
+		 * after the current end of file.
+		 */
+		if (!PageUptodate(page)) {
+			/* Already tried to read it twice... too bad */
+			if (didread > 1) {
+				status = -EIO;
+				break;
+			}
+			if (bytes < PAGE_SIZE && ppos < inode->i_size) {
+				/* readpage implicitly unlocks the page */
+				status = inode->i_op->readpage(inode, page);
+				if (status < 0)
+					break;
+				didread++;
+				goto lockit;
+			}
+			set_bit(PG_uptodate, &page->flags);
+		}
+		didread = 0;
+
+		/* Alright, the page is there, and we've locked it. Now
+		 * update it. */
+		status = inode->i_op->updatepage(inode, page, buf,
+							offset, bytes, sync);
+		free_page(page_address(page));
+		if (status < 0)
+			break;
+
+		written += status;
+		count -= status;
+		pos += status;
+		buf += status;
+	}
+	file->f_pos = pos;
+	if (pos > inode->i_size)
+		inode->i_size = pos;
+
+	if (page_cache)
+		free_page(page_cache);
+	if (written)
+		return written;
+	return status;
 }

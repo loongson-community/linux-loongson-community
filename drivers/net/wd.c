@@ -20,7 +20,7 @@
 
 	Paul Gortmaker	: multiple card support for module users, support
 			  for non-standard memory sizes.
-			 
+
 
 */
 
@@ -33,6 +33,7 @@ static const char *version =
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include <linux/init.h>
 #include <asm/io.h>
 #include <asm/system.h>
 
@@ -41,7 +42,7 @@ static const char *version =
 #include "8390.h"
 
 /* A zero-terminated list of I/O addresses to be probed. */
-static unsigned int wd_portlist[] =
+static unsigned int wd_portlist[] __initdata =
 {0x300, 0x280, 0x380, 0x240, 0};
 
 int wd_probe(struct device *dev);
@@ -85,7 +86,7 @@ struct netdev_entry wd_drv =
 {"wd", wd_probe1, WD_IO_EXTENT, wd_portlist};
 #else
 
-int wd_probe(struct device *dev)
+__initfunc(int wd_probe(struct device *dev))
 {
 	int i;
 	int base_addr = dev ? dev->base_addr : 0;
@@ -107,7 +108,7 @@ int wd_probe(struct device *dev)
 }
 #endif
 
-int wd_probe1(struct device *dev, int ioaddr)
+__initfunc(int wd_probe1(struct device *dev, int ioaddr))
 {
 	int i;
 	int checksum = 0;
@@ -259,7 +260,7 @@ int wd_probe1(struct device *dev, int ioaddr)
 	}
 
 	/* Allocate dev->priv and fill in 8390 specific dev fields. */
-	if (ethdev_init(dev)) {	
+	if (ethdev_init(dev)) {
 		printk (" unable to get memory for dev->priv.\n");
 		free_irq(dev->irq, NULL);
 		return -ENOMEM;
@@ -451,6 +452,11 @@ static int io[MAX_WD_CARDS] = { 0, };
 static int irq[MAX_WD_CARDS]  = { 0, };
 static int mem[MAX_WD_CARDS] = { 0, };
 static int mem_end[MAX_WD_CARDS] = { 0, };	/* for non std. mem size */
+
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_WD_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_WD_CARDS) "i");
+MODULE_PARM(mem, "1-" __MODULE_STRING(MAX_WD_CARDS) "i");
+MODULE_PARM(mem_end, "1-" __MODULE_STRING(MAX_WD_CARDS) "i");
 
 /* This is set up so that only a single autoprobe takes place per call.
 ISA device autoprobes on a running machine are not recommended. */

@@ -1,4 +1,4 @@
-/* $Id: viking.h,v 1.16 1996/08/29 09:49:10 davem Exp $
+/* $Id: viking.h,v 1.19 1997/04/20 14:11:48 ecd Exp $
  * viking.h:  Defines specific to the GNU/Viking MBUS module.
  *            This is SRMMU stuff.
  *
@@ -9,6 +9,7 @@
 
 #include <asm/asi.h>
 #include <asm/mxcc.h>
+#include <asm/pgtsrmmu.h>
 
 /* Bits in the SRMMU control register for GNU/Viking modules.
  *
@@ -107,6 +108,8 @@
 #define VIKING_PTAG_DIRTY   0x00010000   /* Block has been modified */
 #define VIKING_PTAG_SHARED  0x00000100   /* Shared with some other cache */
 
+#ifndef __ASSEMBLY__
+
 extern __inline__ void viking_flush_icache(void)
 {
 	__asm__ __volatile__("sta %%g0, [%%g0] %0\n\t" : :
@@ -190,9 +193,50 @@ extern __inline__ void viking_mxcc_turn_off_parity(unsigned long *mregp,
 			      "1:\n\t" : :
 			      "r" (mreg), "r" (mxcc_creg),
 			      "r" (MXCC_CREG), "i" (ASI_M_MMUREGS),
-			      "i" (ASI_M_MXCC) : "g2");
+			      "i" (ASI_M_MXCC) : "g2", "cc");
 	*mregp = mreg;
 	*mxcc_cregp = mxcc_creg;
 }
+
+extern __inline__ unsigned long viking_hwprobe(unsigned long vaddr)
+{
+	unsigned long val;
+
+	vaddr &= PAGE_MASK;
+	/* Probe all MMU entries. */
+	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
+			     "=r" (val) :
+			     "r" (vaddr | 0x400), "i" (ASI_M_FLUSH_PROBE));
+	if (!val)
+		return 0;
+
+	/* Probe region. */
+	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
+			     "=r" (val) :
+			     "r" (vaddr | 0x200), "i" (ASI_M_FLUSH_PROBE));
+	if ((val & SRMMU_ET_MASK) == SRMMU_ET_PTE) {
+		vaddr &= ~SRMMU_PGDIR_MASK;
+		vaddr >>= PAGE_SHIFT;
+		return val | (vaddr << 8);
+	}
+
+	/* Probe segment. */
+	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
+			     "=r" (val) :
+			     "r" (vaddr | 0x100), "i" (ASI_M_FLUSH_PROBE));
+	if ((val & SRMMU_ET_MASK) == SRMMU_ET_PTE) {
+		vaddr &= ~SRMMU_PMD_MASK;
+		vaddr >>= PAGE_SHIFT;
+		return val | (vaddr << 8);
+	}
+
+	/* Probe page. */
+	__asm__ __volatile__("lda [%1] %2, %0\n\t" :
+			     "=r" (val) :
+			     "r" (vaddr), "i" (ASI_M_FLUSH_PROBE));
+	return val;
+}
+
+#endif /* !__ASSEMBLY__ */
 
 #endif /* !(_SPARC_VIKING_H) */

@@ -1,10 +1,10 @@
 /*
- *	NET/ROM release 004
+ *	NET/ROM release 006
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 1.2.1 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -43,37 +43,20 @@
 static void nr_timer(unsigned long);
 
 /*
- *	Linux set/reset timer routines
+ *	Linux set timer
  */
 void nr_set_timer(struct sock *sk)
 {
 	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
-	del_timer(&sk->timer);
-	restore_flags(flags);
 
-	sk->timer.next     = sk->timer.prev = NULL;	
-	sk->timer.data     = (unsigned long)sk;
-	sk->timer.function = &nr_timer;
-
-	sk->timer.expires = jiffies+10;
-	add_timer(&sk->timer);
-}
-
-static void nr_reset_timer(struct sock *sk)
-{
-	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
+	save_flags(flags); cli();
 	del_timer(&sk->timer);
 	restore_flags(flags);
 
 	sk->timer.data     = (unsigned long)sk;
 	sk->timer.function = &nr_timer;
-	sk->timer.expires  = jiffies+10;
+	sk->timer.expires  = jiffies + (HZ / 10);
+
 	add_timer(&sk->timer);
 }
 
@@ -102,11 +85,12 @@ static void nr_timer(unsigned long param)
 			/*
 			 * Check for the state of the receive buffer.
 			 */
-			if (sk->rmem_alloc < (sk->rcvbuf / 2) && (sk->protinfo.nr->condition & OWN_RX_BUSY_CONDITION)) {
-				sk->protinfo.nr->condition &= ~OWN_RX_BUSY_CONDITION;
-				nr_write_internal(sk, NR_INFOACK);
-				sk->protinfo.nr->condition &= ~ACK_PENDING_CONDITION;
+			if (atomic_read(&sk->rmem_alloc) < (sk->rcvbuf / 2) &&
+			    (sk->protinfo.nr->condition & NR_COND_OWN_RX_BUSY)) {
+				sk->protinfo.nr->condition &= ~NR_COND_OWN_RX_BUSY;
+				sk->protinfo.nr->condition &= ~NR_COND_ACK_PENDING;
 				sk->protinfo.nr->vl         = sk->protinfo.nr->vr;
+				nr_write_internal(sk, NR_INFOACK);
 				break;
 			}
 			/*
@@ -121,19 +105,19 @@ static void nr_timer(unsigned long param)
 
 	if (sk->protinfo.nr->t2timer > 0 && --sk->protinfo.nr->t2timer == 0) {
 		if (sk->protinfo.nr->state == NR_STATE_3) {
-			if (sk->protinfo.nr->condition & ACK_PENDING_CONDITION) {
-				sk->protinfo.nr->condition &= ~ACK_PENDING_CONDITION;
+			if (sk->protinfo.nr->condition & NR_COND_ACK_PENDING) {
+				sk->protinfo.nr->condition &= ~NR_COND_ACK_PENDING;
 				nr_enquiry_response(sk);
 			}
 		}
 	}
 
 	if (sk->protinfo.nr->t4timer > 0 && --sk->protinfo.nr->t4timer == 0) {
-		sk->protinfo.nr->condition &= ~PEER_RX_BUSY_CONDITION;
+		sk->protinfo.nr->condition &= ~NR_COND_PEER_RX_BUSY;
 	}
 
 	if (sk->protinfo.nr->t1timer == 0 || --sk->protinfo.nr->t1timer > 0) {
-		nr_reset_timer(sk);
+		nr_set_timer(sk);
 		return;
 	}
 
@@ -187,7 +171,7 @@ static void nr_timer(unsigned long param)
 			break;
 	}
 
-	sk->protinfo.nr->t1timer = sk->protinfo.nr->t1 = nr_calculate_t1(sk);
+	sk->protinfo.nr->t1timer = sk->protinfo.nr->t1;
 
 	nr_set_timer(sk);
 }

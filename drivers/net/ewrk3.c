@@ -76,14 +76,14 @@
     kernel with the ewrk3 configuration turned off and reboot.
     5) insmod ewrk3.o
           [Alan Cox: Changed this so you can insmod ewrk3.o irq=x io=y]
-    6) run the net startup bits for your new eth?? interface manually 
-    (usually /etc/rc.inet[12] at boot time). 
+    6) run the net startup bits for your new eth?? interface manually
+    (usually /etc/rc.inet[12] at boot time).
     7) enjoy!
 
     Note that autoprobing is not allowed in loadable modules - the system is
     already up and running and you're messing with interrupts.
 
-    To unload a module, turn off the associated interface 
+    To unload a module, turn off the associated interface
     'ifconfig eth?? down' then 'rmmod ewrk3'.
 
     Promiscuous   mode has been  turned  off  in this driver,   but  all the
@@ -105,9 +105,9 @@
     ----------------
 
     Version   Date        Description
-  
+
       0.1     26-aug-94   Initial writing. ALPHA code release.
-      0.11    31-aug-94   Fixed: 2k mode memory base calc., 
+      0.11    31-aug-94   Fixed: 2k mode memory base calc.,
                                  LeMAC version calc.,
 				 IRQ vector assignments during autoprobe.
       0.12    31-aug-94   Tested working on LeMAC2 (DE20[345]-AC) card.
@@ -128,7 +128,7 @@
                           Added verify_area() calls in ewrk3_ioctl() from
                           suggestion by <heiko@colossus.escape.de>.
 			  Add new multicasting code.
-      0.41    20-Jan-96   Fix IRQ set up problem reported by 
+      0.41    20-Jan-96   Fix IRQ set up problem reported by
                           <kenneth@bbs.sas.ntu.ac.sg>.
       0.42    22-Apr-96	  Fix alloc_device() bug <jari@markkus2.fimr.fi>
       0.43    16-Aug-96	  Update alloc_device() to conform to de4x5.c
@@ -149,6 +149,7 @@ static const char *version = "ewrk3.c:v0.43 96/8/16 davies@maniac.ultranet.com\n
 #include <linux/malloc.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
+#include <linux/init.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/dma.h>
@@ -196,7 +197,7 @@ static int ewrk3_debug = 1;
 #define MAX_NUM_EWRK3S 21
 #endif
 
-#ifndef EWRK3_EISA_IO_PORTS 
+#ifndef EWRK3_EISA_IO_PORTS
 #define EWRK3_EISA_IO_PORTS 0x0c00      /* I/O port base address, slot 0 */
 #endif
 
@@ -257,7 +258,7 @@ struct ewrk3_private {
     char adapter_name[80];              /* Name exported to /proc/ioports */
     u_long shmem_base;                  /* Shared memory start address */
     u_long shmem_length;                /* Shared memory window length */
-    struct enet_statistics stats;       /* Public stats */
+    struct net_device_stats stats;       /* Public stats */
     struct {
       u32 bins[EWRK3_PKT_STAT_SZ]; /* Private stats counters */
       u32 unicast;
@@ -291,7 +292,7 @@ static int    ewrk3_open(struct device *dev);
 static int    ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev);
 static void   ewrk3_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static int    ewrk3_close(struct device *dev);
-static struct enet_statistics *ewrk3_get_stats(struct device *dev);
+static struct net_device_stats *ewrk3_get_stats(struct device *dev);
 static void   set_multicast_list(struct device *dev);
 static int    ewrk3_ioctl(struct device *dev, struct ifreq *rq, int cmd);
 
@@ -344,7 +345,7 @@ static int num_ewrk3s = 0, num_eth = 0;
 
 
 
-int ewrk3_probe(struct device *dev)
+__initfunc(int ewrk3_probe(struct device *dev))
 {
   int tmp = num_ewrk3s, status = -ENODEV;
   u_long iobase = dev->base_addr;
@@ -358,7 +359,7 @@ int ewrk3_probe(struct device *dev)
     eisa_probe(dev, iobase);
 
     if ((tmp == num_ewrk3s) && (iobase != 0) && loading_module) {
-      printk("%s: ewrk3_probe() cannot find device at 0x%04lx.\n", dev->name, 
+      printk("%s: ewrk3_probe() cannot find device at 0x%04lx.\n", dev->name,
 	                                                               iobase);
     }
 
@@ -375,8 +376,8 @@ int ewrk3_probe(struct device *dev)
   return status;
 }
 
-static int
-ewrk3_hw_init(struct device *dev, u_long iobase)
+__initfunc(static int
+ewrk3_hw_init(struct device *dev, u_long iobase))
 {
   struct ewrk3_private *lp;
   int i, status=0;
@@ -419,7 +420,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
       EthwrkSignature(name, eeprom_image);
       if (*name != '\0') {                         /* found a EWRK3 device */
 	dev->base_addr = iobase;
-      
+
 	if (iobase > 0x400) {
 	  outb(eisa_cr, EISA_CR);                  /* Rewrite the EISA CR */
 	}
@@ -433,12 +434,12 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 	  hard_strapped = 1;
 	} else if ((iobase&0x0fff)==EWRK3_EISA_IO_PORTS) {
 	                                           /* EISA slot address */
-	  printk("%s: %s at %#4lx (EISA slot %ld)", 
+	  printk("%s: %s at %#4lx (EISA slot %ld)",
 	                         dev->name, name, iobase, ((iobase>>12)&0x0f));
 	} else {                                   /* ISA port address */
 	  printk("%s: %s at %#4lx", dev->name, name, iobase);
 	}
-	
+
 	if (!status) {
 	  printk(", h/w address ");
 	  if (lemac!=LeMAC2) DevicePresent(iobase);/* need after EWRK3_INIT */
@@ -470,7 +471,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 	    cr |= eeprom_image[EEPROM_MISC0] & ENA_16;
 	    outb(cr, EWRK3_CR);
 
-	    /* 
+	    /*
 	    ** Determine the base address and window length for the EWRK3
 	    ** RAM from the memory base register.
 	    */
@@ -490,7 +491,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 		status = -ENXIO;
 	      }
 	    }
-	  
+
 	    /*
 	    ** See the top of this source code for comments about
 	    ** uncommenting this line.
@@ -506,9 +507,9 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 	      } else {
 		printk("      is in I/O only mode");
 	      }
-	    
+
 	      /* private area & initialise */
-	      dev->priv = (void *) kmalloc(sizeof(struct ewrk3_private), 
+	      dev->priv = (void *) kmalloc(sizeof(struct ewrk3_private),
 					                           GFP_KERNEL);
 	      if (dev->priv == NULL) {
 		return -ENOMEM;
@@ -521,40 +522,40 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 	      lp->hard_strapped = hard_strapped;
 
 	      lp->mPage = 64;
-	      if (cmr & CMR_DRAM) lp->mPage <<= 1 ;/* 2 DRAMS on module */ 
+	      if (cmr & CMR_DRAM) lp->mPage <<= 1 ;/* 2 DRAMS on module */
 
 	      sprintf(lp->adapter_name,"%s (%s)", name, dev->name);
 	      request_region(iobase, EWRK3_TOTAL_SIZE, lp->adapter_name);
 
 	      lp->irq_mask = ICR_TNEM|ICR_TXDM|ICR_RNEM|ICR_RXDM;
-	      
+
 	      if (!hard_strapped) {
 		/*
 		** Enable EWRK3 board interrupts for autoprobing
 		*/
 		icr |= ICR_IE;	                   /* Enable interrupts */
 		outb(icr, EWRK3_ICR);
-	    
+
 		/* The DMA channel may be passed in on this parameter. */
 		dev->dma = 0;
-	
+
 		/* To auto-IRQ we enable the initialization-done and DMA err,
 		   interrupts. For now we will always get a DMA error. */
 		if (dev->irq < 2) {
 #ifndef MODULE
 		  u_char irqnum;
-	      
+
 		  autoirq_setup(0);
 
-		  /* 
+		  /*
 		  ** Trigger a TNE interrupt.
 		  */
 		  icr |=ICR_TNEM;
 		  outb(1,EWRK3_TDQ);          /* Write to the TX done queue */
 		  outb(icr, EWRK3_ICR);       /* Unmask the TXD interrupt */
-	      
+
 		  irqnum = irq[((icr & IRQ_SEL) >> 4)];
-	      
+
 		  dev->irq = autoirq_report(1);
 		  if ((dev->irq) && (irqnum == dev->irq)) {
 		    printk(" and uses IRQ%d.\n", dev->irq);
@@ -568,7 +569,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
 		    }
 		    status = -ENXIO;
 		  }
-		
+
 		  DISABLE_IRQs;                 /* Mask all interrupts */
 
 #endif /* MODULE */
@@ -591,7 +592,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
       if (ewrk3_debug > 1) {
 	printk(version);
       }
-      
+
       /* The EWRK3-specific entries in the device structure. */
       dev->open = &ewrk3_open;
       dev->hard_start_xmit = &ewrk3_queue_pkt;
@@ -601,7 +602,7 @@ ewrk3_hw_init(struct device *dev, u_long iobase)
       dev->do_ioctl = &ewrk3_ioctl;
 
       dev->mem_start = 0;
-	
+
       /* Fill in the generic field of the device structure. */
       ether_setup(dev);
     }
@@ -634,8 +635,8 @@ ewrk3_open(struct device *dev)
       status = -EAGAIN;
     } else {
 
-      /* 
-      ** Re-initialize the EWRK3... 
+      /*
+      ** Re-initialize the EWRK3...
       */
       ewrk3_init(dev);
 
@@ -660,7 +661,7 @@ ewrk3_open(struct device *dev)
 	printk("  fmqc: 0x%02x\n", inb(EWRK3_FMQC));
       }
 
-      dev->tbusy = 0;                         
+      dev->tbusy = 0;
       dev->start = 1;
       dev->interrupt = UNMASK_INTERRUPTS;
 
@@ -692,9 +693,9 @@ ewrk3_init(struct device *dev)
   struct ewrk3_private *lp = (struct ewrk3_private *)dev->priv;
   u_char csr, page;
   u_long iobase = dev->base_addr;
-  
-  /* 
-  ** Enable any multicasts 
+
+  /*
+  ** Enable any multicasts
   */
   set_multicast_list(dev);
 
@@ -718,7 +719,7 @@ ewrk3_init(struct device *dev)
   START_EWRK3;                              /* Enable the TX and/or RX */
 }
 
-/* 
+/*
 ** Writes a socket buffer to the free page queue
 */
 static int
@@ -737,7 +738,7 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
     } else if (!lp->hard_strapped) {
       printk("%s: transmit timed/locked out, status %04x, resetting.\n",
 	                                           dev->name, inb(EWRK3_CSR));
-	
+
       /*
       ** Mask all board interrupts
       */
@@ -762,16 +763,16 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
     dev_tint(dev);
   } else if (skb->len > 0) {
 
-    /* 
+    /*
     ** Block a timer-based transmit from overlapping.  This could better be
-    ** done with atomic_swap(1, dev->tbusy), but set_bit() works as well. 
+    ** done with atomic_swap(1, dev->tbusy), but set_bit() works as well.
     */
     if (set_bit(0, (void*)&dev->tbusy) != 0)
       printk("%s: Transmitter access conflict.\n", dev->name);
 
     DISABLE_IRQs;                      /* So that the page # remains correct */
-    
-    /* 
+
+    /*
     ** Get a free page from the FMQ when resources are available
     */
     if (inb(EWRK3_FMQC) > 0) {
@@ -801,7 +802,7 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
 
 	if (!status) {
 
-          /* 
+          /*
 	  ** Set up the buffer control structures and copy the data from
 	  ** the socket buffer to the shared memory .
 	  */
@@ -809,7 +810,7 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
 	  if (lp->shmem_length == IO_ONLY) {
 	    int i;
 	    u_char *p = skb->data;
-	    
+
 	    outb((char)(TCR_QMODE | TCR_PAD | TCR_IFC), EWRK3_DATA);
 	    outb((char)(skb->len & 0xff), EWRK3_DATA);
 	    outb((char)((skb->len >> 8) & 0xff), EWRK3_DATA);
@@ -858,7 +859,7 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
       printk("ewrk3_queue_pkt(): No free resources...\n");
       printk("ewrk3_queue_pkt(): CSR: %02x ICR: %02x FMQC: %02x\n",inb(EWRK3_CSR),inb(EWRK3_ICR),inb(EWRK3_FMQC));
     }
-    
+
     /* Check for free resources: clear 'tbusy' if there are some */
     if (inb(EWRK3_FMQC) > 0) {
       dev->tbusy = 0;
@@ -871,7 +872,7 @@ ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
 }
 
 /*
-** The EWRK3 interrupt handler. 
+** The EWRK3 interrupt handler.
 */
 static void
 ewrk3_interrupt(int irq, void *dev_id, struct pt_regs * regs)
@@ -895,8 +896,8 @@ ewrk3_interrupt(int irq, void *dev_id, struct pt_regs * regs)
       /* get the interrupt information */
       csr = inb(EWRK3_CSR);
 
-      /* 
-      ** Mask the EWRK3 board interrupts and turn on the LED 
+      /*
+      ** Mask the EWRK3 board interrupts and turn on the LED
       */
       DISABLE_IRQs;
 
@@ -1017,8 +1018,8 @@ ewrk3_rx(struct device *dev)
 	      memcpy_fromio(p, buf, pkt_len);
 	    }
 
-	    /* 
-	    ** Notify the upper protocol layers that there is another 
+	    /*
+	    ** Notify the upper protocol layers that there is another
 	    ** packet to handle
 	    */
 	    skb->protocol=eth_type_trans(skb,dev);
@@ -1131,7 +1132,7 @@ ewrk3_close(struct device *dev)
 	   dev->name, inb(EWRK3_CSR));
   }
 
-  /* 
+  /*
   ** We stop the EWRK3 here... mask interrupts and stop TX & RX
   */
   DISABLE_IRQs;
@@ -1150,7 +1151,7 @@ ewrk3_close(struct device *dev)
 
   if (!lp->hard_strapped) {
     free_irq(dev->irq, NULL);
-    
+
     irq2dev_map[dev->irq] = 0;
   }
 
@@ -1159,21 +1160,18 @@ ewrk3_close(struct device *dev)
   return 0;
 }
 
-static struct enet_statistics *
-ewrk3_get_stats(struct device *dev)
+static struct net_device_stats *ewrk3_get_stats(struct device *dev)
 {
-  struct ewrk3_private *lp = (struct ewrk3_private *)dev->priv;
+	struct ewrk3_private *lp = (struct ewrk3_private *)dev->priv;
 
-  /* Null body since there is no framing error counter */
-    
-  return &lp->stats;
+	/* Null body since there is no framing error counter */
+	return &lp->stats;
 }
 
 /*
 ** Set or clear the multicast filter for this adapter.
 */
-static void
-set_multicast_list(struct device *dev)
+static void set_multicast_list(struct device *dev)
 {
   struct ewrk3_private *lp = (struct ewrk3_private *)dev->priv;
   u_long iobase = dev->base_addr;
@@ -1181,7 +1179,7 @@ set_multicast_list(struct device *dev)
 
   if (irq2dev_map[dev->irq] != NULL) {
     csr = inb(EWRK3_CSR);
-    
+
     if (lp->shmem_length == IO_ONLY) {
       lp->mctbl = (char *) PAGE0_HTE;
     } else {
@@ -1242,11 +1240,11 @@ static void SetMulticastFilter(struct device *dev)
     if (lp->shmem_length == IO_ONLY) {
       for (i=0; i<(HASH_TABLE_LEN >> 4) - 1; i++) {
 	outb(0x00, EWRK3_DATA);
-      } 
+      }
       outb(0x80, EWRK3_DATA); i++;           /* insert the broadcast bit */
       for (; i<(HASH_TABLE_LEN >> 3); i++) {
 	outb(0x00, EWRK3_DATA);
-      } 
+      }
     } else {
       memset_io(lp->mctbl, 0, (HASH_TABLE_LEN >> 3));
       writeb(0x80, (char *)(lp->mctbl + (HASH_TABLE_LEN >> 4) - 1));
@@ -1256,10 +1254,10 @@ static void SetMulticastFilter(struct device *dev)
     for (i=0;i<dev->mc_count;i++) {          /* for each address in the list */
       addrs=dmi->dmi_addr;
       dmi=dmi->next;
-      if ((*addrs & 0x01) == 1) {            /* multicast address? */ 
+      if ((*addrs & 0x01) == 1) {            /* multicast address? */
 	crc = 0xffffffff;                    /* init CRC for each address */
 	for (byte=0;byte<ETH_ALEN;byte++) {  /* for each address byte */
-	                                     /* process each address bit */ 
+	                                     /* process each address bit */
 	  for (bit = *addrs++,j=0;j<8;j++, bit>>=1) {
 	    crc = (crc >> 1) ^ (((crc ^ bit) & 0x01) ? poly : 0);
 	  }
@@ -1276,7 +1274,7 @@ static void SetMulticastFilter(struct device *dev)
 	  tmp = inb(EWRK3_DATA);
 	  tmp |= bit;
 	  outw((short)((long)lp->mctbl) + byte, EWRK3_PIR1);
-	  outb(tmp, EWRK3_DATA); 
+	  outb(tmp, EWRK3_DATA);
 	} else {
 	  writeb(readb(lp->mctbl + byte) | bit, lp->mctbl + byte);
 	}
@@ -1292,7 +1290,7 @@ static void SetMulticastFilter(struct device *dev)
 /*
 ** ISA bus I/O device probe
 */
-static void isa_probe(struct device *dev, u_long ioaddr)
+__initfunc(static void isa_probe(struct device *dev, u_long ioaddr))
 {
   int i = num_ewrk3s, maxSlots;
   u_long iobase;
@@ -1309,7 +1307,7 @@ static void isa_probe(struct device *dev, u_long ioaddr)
   }
 
   for (; (i<maxSlots) && (dev!=NULL);iobase+=EWRK3_IOP_INC, i++) {
-    if (!check_region(iobase, EWRK3_TOTAL_SIZE)) {    
+    if (!check_region(iobase, EWRK3_TOTAL_SIZE)) {
       if (DevicePresent(iobase) == 0) {
 	if ((dev = alloc_device(dev, iobase)) != NULL) {
 	  if (ewrk3_hw_init(dev, iobase) == 0) {
@@ -1330,7 +1328,7 @@ static void isa_probe(struct device *dev, u_long ioaddr)
 ** EISA bus I/O device probe. Probe from slot 1 since slot 0 is usually
 ** the motherboard.
 */
-static void eisa_probe(struct device *dev, u_long ioaddr)
+__initfunc(static void eisa_probe(struct device *dev, u_long ioaddr))
 {
   int i, maxSlots;
   u_long iobase;
@@ -1375,15 +1373,15 @@ static void eisa_probe(struct device *dev, u_long ioaddr)
 ** are not available then insert a new device structure at the end of
 ** the current list.
 */
-static struct device *
-alloc_device(struct device *dev, u_long iobase)
+__initfunc(static struct device *
+alloc_device(struct device *dev, u_long iobase))
 {
     struct device *adev = NULL;
     int fixed = 0, new_dev = 0;
 
     num_eth = ewrk3_dev_index(dev->name);
     if (loading_module) return dev;
-    
+
     while (1) {
 	if (((dev->base_addr == EWRK3_NDA) || (dev->base_addr==0)) && !adev) {
 	    adev=dev;
@@ -1406,13 +1404,13 @@ alloc_device(struct device *dev, u_long iobase)
 	new_dev = 0;
     }
 
-    if (((dev->next == NULL) &&  
+    if (((dev->next == NULL) &&
 	((dev->base_addr != EWRK3_NDA) && (dev->base_addr != 0)) && !fixed) ||
 	new_dev) {
 	num_eth++;                         /* New device */
 	dev = insert_device(dev, iobase, ewrk3_probe);
     }
-    
+
     return dev;
 }
 
@@ -1420,8 +1418,8 @@ alloc_device(struct device *dev, u_long iobase)
 ** If at end of eth device list and can't use current entry, malloc
 ** one up. If memory could not be allocated, print an error message.
 */
-static struct device *
-insert_device(struct device *dev, u_long iobase, int (*init)(struct device *))
+__initfunc(static struct device *
+insert_device(struct device *dev, u_long iobase, int (*init)(struct device *)))
 {
     struct device *new;
 
@@ -1446,8 +1444,8 @@ insert_device(struct device *dev, u_long iobase, int (*init)(struct device *))
     return dev;
 }
 
-static int
-ewrk3_dev_index(char *s)
+__initfunc(static int
+ewrk3_dev_index(char *s))
 {
     int i=0, j=0;
 
@@ -1497,7 +1495,7 @@ static int Write_EEPROM(short data, u_long iobase, u_char eaddr)
 /*
 ** Look for a particular board name in the on-board EEPROM.
 */
-static void EthwrkSignature(char *name, char *eeprom_image)
+__initfunc(static void EthwrkSignature(char *name, char *eeprom_image))
 {
   u_long i,j,k;
   char *signatures[] = EWRK3_SIGNATURE;
@@ -1525,7 +1523,7 @@ static void EthwrkSignature(char *name, char *eeprom_image)
 /*
 ** Look for a special sequence in the Ethernet station address PROM that
 ** is common across all EWRK3 products.
-** 
+**
 ** Search the Ethernet address ROM for the signature. Since the ROM address
 ** counter can start at an arbitrary point, the search must include the entire
 ** probe sequence length plus the (length_of_the_signature - 1).
@@ -1534,7 +1532,7 @@ static void EthwrkSignature(char *name, char *eeprom_image)
 ** ethernet address for later read out.
 */
 
-static int DevicePresent(u_long iobase)
+__initfunc(static int DevicePresent(u_long iobase))
 {
   union {
     struct {
@@ -1571,7 +1569,7 @@ static int DevicePresent(u_long iobase)
   return status;
 }
 
-static u_char get_hw_addr(struct device *dev, u_char *eeprom_image, char chipType)
+__initfunc(static u_char get_hw_addr(struct device *dev, u_char *eeprom_image, char chipType))
 {
   int i, j, k;
   u_short chksum;
@@ -1617,7 +1615,7 @@ static u_char get_hw_addr(struct device *dev, u_char *eeprom_image, char chipTyp
 /*
 ** Look for a particular board name in the EISA configuration space
 */
-static int EISA_signature(char *name, s32 eisa_id)
+__initfunc(static int EISA_signature(char *name, s32 eisa_id))
 {
   u_long i;
   char *signatures[] = EWRK3_SIGNATURE;
@@ -1737,7 +1735,7 @@ static int ewrk3_ioctl(struct device *dev, struct ifreq *rq, int cmd)
 	memcpy_fromio(tmp.addr, (char *)(lp->shmem_base + PAGE0_HTE), (HASH_TABLE_LEN >> 3));
       }
       ioc->len = (HASH_TABLE_LEN >> 3);
-      copy_to_user(ioc->data, tmp.addr, ioc->len); 
+      copy_to_user(ioc->data, tmp.addr, ioc->len);
     }
     lp->lock = 0;                               /* Unlock the page register */
 
@@ -1776,7 +1774,7 @@ static int ewrk3_ioctl(struct device *dev, struct ifreq *rq, int cmd)
     cli();
     ioc->len = sizeof(lp->pktStats);
     if (!(status=verify_area(VERIFY_WRITE, ioc->data, ioc->len))) {
-      copy_to_user(ioc->data, &lp->pktStats, ioc->len); 
+      copy_to_user(ioc->data, &lp->pktStats, ioc->len);
     }
     sti();
 
@@ -1880,9 +1878,12 @@ static struct device thisEthwrk = {
   0, 0, 0, 0,
   0x300, 5,   /* I/O address, IRQ */
   0, 0, 0, NULL, ewrk3_probe };
-	
+
 static int io=0x300;	/* <--- EDIT THESE LINES FOR YOUR CONFIGURATION */
 static int irq=5;	/* or use the insmod io= irq= options 		*/
+
+MODULE_PARM(io, "i");
+MODULE_PARM(irq, "i");
 
 int
 init_module(void)
@@ -1916,4 +1917,3 @@ cleanup_module(void)
  *  compile-command: "gcc -D__KERNEL__ -DMODULE -I/linux/include -Wall -Wstrict-prototypes -fomit-frame-pointer -fno-strength-reduce -malign-loops=2 -malign-jumps=2 -malign-functions=2 -O2 -m486 -c ewrk3.c"
  * End:
  */
-

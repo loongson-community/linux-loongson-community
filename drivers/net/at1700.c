@@ -48,13 +48,14 @@ static const char *version =
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
 /* This unusual address order is used to verify the CONFIG register. */
-static int at1700_probe_list[] =
+static int at1700_probe_list[] __initdata =
 {0x260, 0x280, 0x2a0, 0x240, 0x340, 0x320, 0x380, 0x300, 0};
 
 /* use 0 for production, 1 for verification, >2 for debug */
@@ -67,7 +68,7 @@ typedef unsigned char uchar;
 
 /* Information that need to be kept for each board. */
 struct net_local {
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	uint tx_started:1;			/* Number of packet on the Tx queue. */
 	uchar tx_queue;				/* Number of packet on the Tx queue. */
 	ushort tx_queue_len;		/* Current length of the Tx queue. */
@@ -120,7 +121,7 @@ static int	net_send_packet(struct sk_buff *skb, struct device *dev);
 static void net_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void net_rx(struct device *dev);
 static int net_close(struct device *dev);
-static struct enet_statistics *net_get_stats(struct device *dev);
+static struct net_device_stats *net_get_stats(struct device *dev);
 static void set_multicast_list(struct device *dev);
 
 
@@ -136,8 +137,8 @@ static void set_multicast_list(struct device *dev);
 struct netdev_entry at1700_drv =
 {"at1700", at1700_probe1, AT1700_IO_EXTENT, at1700_probe_list};
 #else
-int
-at1700_probe(struct device *dev)
+__initfunc(int
+at1700_probe(struct device *dev))
 {
 	int i;
 	int base_addr = dev ? dev->base_addr : 0;
@@ -167,7 +168,7 @@ at1700_probe(struct device *dev)
    that can be done is checking a few bits and then diving right into an
    EEPROM read. */
 
-int at1700_probe1(struct device *dev, short ioaddr)
+__initfunc(int at1700_probe1(struct device *dev, short ioaddr))
 {
 	char irqmap[8] = {3, 4, 5, 9, 10, 11, 14, 15};
 	unsigned int i, irq;
@@ -265,17 +266,17 @@ int at1700_probe1(struct device *dev, short ioaddr)
 
 	dev->open		= net_open;
 	dev->stop		= net_close;
-	dev->hard_start_xmit = net_send_packet;
-	dev->get_stats	= net_get_stats;
+	dev->hard_start_xmit	= net_send_packet;
+	dev->get_stats		= net_get_stats;
 	dev->set_multicast_list = &set_multicast_list;
 
 	/* Fill in the fields of 'dev' with ethernet-generic values. */
-	   
+
 	ether_setup(dev);
 	return 0;
 }
 
-static int read_eeprom(int ioaddr, int location)
+__initfunc(static int read_eeprom(int ioaddr, int location))
 {
 	int i;
 	unsigned short retval = 0;
@@ -283,9 +284,9 @@ static int read_eeprom(int ioaddr, int location)
 	short ee_daddr = ioaddr + EEPROM_Data;
 	int read_cmd = location | EE_READ_CMD;
 	short ctrl_val = EE_CS;
-	
+
 	outb(ctrl_val, ee_addr);
-	
+
 	/* Shift the read command bits out. */
 	for (i = 9; i >= 0; i--) {
 		short dataval = (read_cmd & (1 << i)) ? EE_DATA_WRITE : 0;
@@ -296,7 +297,7 @@ static int read_eeprom(int ioaddr, int location)
 		eeprom_delay();
 	}
 	outb(EE_CS, ee_addr);
-	
+
 	for (i = 16; i > 0; i--) {
 		outb(EE_CS | EE_SHIFT_CLK, ee_addr);
 		eeprom_delay();
@@ -392,14 +393,6 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 		lp->tx_queue_len = 0;
 	}
 
-	/* If some higher layer thinks we've missed an tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
 	/* Block a timer-based transmit from overlapping.  This could better be
 	   done with atomic_swap(1, dev->tbusy), but set_bit() works as well. */
 	if (set_bit(0, (void*)&dev->tbusy) != 0)
@@ -410,7 +403,7 @@ net_send_packet(struct sk_buff *skb, struct device *dev)
 
 		/* Turn off the possible Tx interrupts. */
 		outb(0x00, ioaddr + TX_INTR);
-		
+
 		outw(length, ioaddr + DATAPORT);
 		outsw(ioaddr + DATAPORT, buf, (length + 1) >> 1);
 
@@ -563,7 +556,7 @@ net_rx(struct device *dev)
 		}
 
 		if (net_debug > 5)
-			printk("%s: Exint Rx packet with mode %02x after %d ticks.\n", 
+			printk("%s: Exint Rx packet with mode %02x after %d ticks.\n",
 				   dev->name, inb(ioaddr + RX_MODE), i);
 	}
 	return;
@@ -592,8 +585,8 @@ static int net_close(struct device *dev)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct enet_statistics *
-net_get_stats(struct device *dev)
+   
+static struct net_device_stats *net_get_stats(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 
@@ -614,17 +607,17 @@ static void
 set_multicast_list(struct device *dev)
 {
 	short ioaddr = dev->base_addr;
-	if (dev->mc_count || dev->flags&(IFF_PROMISC|IFF_ALLMULTI)) 
+	if (dev->mc_count || dev->flags&(IFF_PROMISC|IFF_ALLMULTI))
 	{
 		/*
 		 *	We must make the kernel realise we had to move
 		 *	into promisc mode or we start all out war on
 		 *	the cable. - AC
 		 */
-		dev->flags|=IFF_PROMISC;		
-	
+		dev->flags|=IFF_PROMISC;
+
 		outb(3, ioaddr + RX_MODE);	/* Enable promiscuous mode */
-	} 
+	}
 	else
 		outb(2, ioaddr + RX_MODE);	/* Disable promiscuous, use normal mode */
 }
@@ -638,6 +631,8 @@ static struct device dev_at1700 = {
 
 static int io = 0x260;
 static int irq = 0;
+MODULE_PARM(io, "i");
+MODULE_PARM(irq, "i");
 
 int init_module(void)
 {

@@ -23,13 +23,14 @@
 #include <linux/locks.h>
 #include <linux/stat.h>
 #include <linux/string.h>
+#include <linux/init.h>
 #include <asm/bitops.h>
 #include <asm/uaccess.h>
 
 #include "hpfs.h"
 #include "hpfs_caps.h"
 
-/* 
+/*
  * HPFS is a mixture of 512-byte blocks and 2048-byte blocks.  The 2k blocks
  * are used for directories and bitmaps.  For bmap to work, we must run the
  * file system with 512-byte blocks.  The 2k blocks are assembled in buffers
@@ -115,7 +116,7 @@
  * seen -- in fact noncontiguous files are seldom seen.  I think this is
  * partly the open() call that lets programs specify the length of an
  * output file when they know it, and partly because HPFS.IFS really is
- * very good at resisting fragmentation. 
+ * very good at resisting fragmentation.
  */
 
 /* notation */
@@ -153,7 +154,7 @@ static const struct file_operations hpfs_file_ops =
 	hpfs_file_read,			/* read */
 	NULL,				/* write */
 	NULL,				/* readdir - bad */
-	NULL,				/* select - default */
+	NULL,				/* poll - default */
 	NULL,				/* ioctl - default */
 	generic_file_mmap,		/* mmap */
 	NULL,				/* no special open is needed */
@@ -197,7 +198,7 @@ static const struct file_operations hpfs_dir_ops =
 	hpfs_dir_read,			/* read */
 	NULL,				/* write - bad */
 	hpfs_readdir,			/* readdir */
-	NULL,				/* select - default */
+	NULL,				/* poll - default */
 	NULL,				/* ioctl - default */
 	NULL,				/* mmap */
 	NULL,				/* no special open code */
@@ -298,7 +299,7 @@ static inline fnode_secno ino_secno(ino_t ino)
 }
 
 /*
- * test for directory's inode number 
+ * test for directory's inode number
  */
 
 static inline int ino_is_dir(ino_t ino)
@@ -606,7 +607,7 @@ static int parse_opts(char *opts, uid_t *uid, gid_t *gid, umode_t *umask,
 			else
 				return 0;
 		}
-		else if (!strcmp(p,"nocheck")) 
+		else if (!strcmp(p,"nocheck"))
 			*nocheck=1;
 		else
 			return 1;
@@ -1043,7 +1044,7 @@ static secno hpfs_bmap(struct inode *inode, unsigned file_secno)
  * Search allocation tree *b for the given file sector number and return
  * the disk sector number.  Buffer *bhp has the tree in it, and can be
  * reused for subtrees when access to *b is no longer needed.
- * *bhp is busy on entry and exit. 
+ * *bhp is busy on entry and exit.
  */
 
 static secno bplus_lookup(struct inode *inode, struct bplus_header *b,
@@ -1342,7 +1343,7 @@ static struct hpfs_dirent *map_dirent(struct inode *inode, dnode_secno dno,
  *     0 => .   -1 => ..   1 1.1 ... 8.9 9 => files  -2 => eof
  *
  * The directory inode caches one position-to-dnode correspondence so
- * we won't have to repeatedly scan the top levels of the tree. 
+ * we won't have to repeatedly scan the top levels of the tree.
  */
 
 /*
@@ -1427,7 +1428,7 @@ static int hpfs_readdir(struct inode *inode, struct file *filp, void * dirent,
 
 /*
  * Map the dir entry at subtree coordinates given by *posp, and
- * increment *posp to point to the following dir entry. 
+ * increment *posp to point to the following dir entry.
  */
 
 static struct hpfs_dirent *map_pos_dirent(struct inode *inode, loff_t *posp,
@@ -1748,19 +1749,17 @@ static struct file_system_type hpfs_fs_type = {
         hpfs_read_super, "hpfs", 1, NULL
 };
 
-int init_hpfs_fs(void)
+__initfunc(int init_hpfs_fs(void))
 {
         return register_filesystem(&hpfs_fs_type);
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-	int status;
-
-	if ((status = init_hpfs_fs()) == 0)
-		register_symtab(0);
-	return status;
+	return init_hpfs_fs();
 }
 
 void cleanup_module(void)
@@ -1769,4 +1768,3 @@ void cleanup_module(void)
 }
 
 #endif
-

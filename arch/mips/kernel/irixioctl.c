@@ -52,11 +52,11 @@ static struct tty_struct *get_real_tty(struct tty_struct *tp)
 
 asmlinkage int irix_ioctl(int fd, unsigned long cmd, unsigned long arg)
 {
-	unsigned long *data;
 	struct tty_struct *tp, *rtp;
 	int error = 0;
 	int old_fs;
 
+	lock_kernel();
 #ifdef DEBUG_IOCTLS
 	printk("[%s:%d] irix_ioctl(%d, ", current->comm, current->pid, fd);
 #endif
@@ -250,5 +250,6 @@ asmlinkage int irix_ioctl(int fd, unsigned long cmd, unsigned long arg)
 #ifdef DEBUG_IOCTLS
 	printk("error=%d\n", error);
 #endif
+	unlock_kernel();
 	return error;
 }

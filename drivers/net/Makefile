@@ -7,6 +7,10 @@
 # are difficult for users to deal with.
 include CONFIG
 
+SUB_DIRS     := 
+MOD_SUB_DIRS := $(SUB_DIRS)
+ALL_SUB_DIRS := $(SUB_DIRS)
+
 L_TARGET := net.a
 L_OBJS   := auto_irq.o
 M_OBJS   :=
@@ -49,15 +53,23 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SHAPER),y)
+L_OBJS += shaper.o
+else
+  ifeq ($(CONFIG_SHAPER),m)
+  M_OBJS += shaper.o
+  endif
+endif
+
 ifeq ($(CONFIG_SK_G16),y)
 L_OBJS += sk_g16.o
 endif
 
 ifeq ($(CONFIG_NET_IPIP),y)
-L_OBJS += new_tunnel.o
+L_OBJS += tunnel.o
 else
   ifeq ($(CONFIG_NET_IPIP),m)
-  M_OBJS += new_tunnel.o
+  M_OBJS += tunnel.o
   endif
 endif
 
@@ -66,14 +78,6 @@ L_OBJS += hp100.o
 else
   ifeq ($(CONFIG_HP100),m)
   M_OBJS += hp100.o
-  endif
-endif
-
-ifeq ($(CONFIG_WIC),y)
-L_OBJS += wic.o
-else
-  ifeq ($(CONFIG_WIC),m)
-  M_OBJS += wic.o
   endif
 endif
 
@@ -139,6 +143,9 @@ endif
 ifeq ($(CONFIG_ULTRA),y)
 L_OBJS += smc-ultra.o
 CONFIG_8390_BUILTIN = y
+  ifeq ($(CONFIG_MCA),y)
+  L_OBJS += smc-mca.o
+  endif
 else
   ifeq ($(CONFIG_ULTRA),m)
   CONFIG_8390_MODULE = y
@@ -155,6 +162,17 @@ else
   M_OBJS += e2100.o
   endif
 endif
+
+ifeq ($(CONFIG_ES3210),y)
+L_OBJS += es3210.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ES3210),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += es3210.o
+  endif
+endif
+
 
 ifeq ($(CONFIG_PLIP),y)
 L_OBJS += plip.o
@@ -233,35 +251,56 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_DE620),y)
-L_OBJS += de620.o
-else
-  ifeq ($(CONFIG_DE620),m)
-  M_OBJS += de620.o
-  endif
-endif
-
 ifeq ($(CONFIG_AT1500),y)
 L_OBJS += lance.o
+endif
+
+ifeq ($(CONFIG_LANCE),y)
+L_OBJS += lance.o
+endif
+
+ifeq ($(CONFIG_PCNET32),y)
+L_OBJS += pcnet32.o
 endif
 
 ifeq ($(CONFIG_DEFXX),y)
 L_OBJS += defxx.o
 endif
 
-ifeq ($(CONFIG_LANCE),y)
-L_OBJS += lance.o
-  ifeq ($(CONFIG_LANCE32),y)
-  L_OBJS += lance32.o
-  endif
-endif
-
 ifeq ($(CONFIG_SUNLANCE),y)
 L_OBJS += sunlance.o
+else
+  ifeq ($(CONFIG_SUNLANCE),m)
+  M_OBJS += sunlance.o
+  endif
 endif
 
 ifeq ($(CONFIG_SGISEEQ), y)
 L_OBJS += sgiseeq.o
+endif
+
+ifeq ($(CONFIG_HAPPYMEAL),y)
+L_OBJS += sunhme.o
+else
+  ifeq ($(CONFIG_HAPPYMEAL),m)
+  M_OBJS += sunhme.o
+  endif
+endif
+
+ifeq ($(CONFIG_SUNQE),y)
+L_OBJS += sunqe.o
+else
+  ifeq ($(CONFIG_SUNQE),m)
+  M_OBJS += sunqe.o
+  endif
+endif
+
+ifeq ($(CONFIG_MYRI_SBUS),y)
+L_OBJS += myri_sbus.o
+else
+  ifeq ($(CONFIG_MYRI_SBUS),m)
+  M_OBJS += myri_sbus.o
+  endif
 endif
 
 ifeq ($(CONFIG_AT1700),y)
@@ -296,6 +335,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ELMC),y)
+L_OBJS += 3c523.o
+else
+  ifeq ($(CONFIG_ELMC),m)
+  M_OBJS += 3c523.o
+  endif
+endif
+
 ifeq ($(CONFIG_EL3),y)
 L_OBJS += 3c509.o
 else
@@ -325,6 +372,14 @@ L_OBJS += eepro.o
 else
   ifeq ($(CONFIG_EEXPRESS_PRO),m)
   M_OBJS += eepro.o
+  endif
+endif
+
+ifeq ($(CONFIG_EEXPRESS_PRO100),y)
+L_OBJS += eepro100.o
+else
+  ifeq ($(CONFIG_EEXPRESS_PRO100),m)
+  M_OBJS += eepro100.o
   endif
 endif
 
@@ -474,6 +529,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_LAPBETHER),y)
+L_OBJS += lapbether.o
+else
+  ifeq ($(CONFIG_LAPBETHER),m)
+  M_OBJS += lapbether.o
+  endif
+endif
+
 # If anything built-in uses slhc, then build it into the kernel also.
 # If not, but a module uses it, build as a module.
 ifdef CONFIG_SLHC_BUILTIN
@@ -515,6 +578,22 @@ L_OBJS += atarilance.o
 else
   ifeq ($(CONFIG_ATARILANCE),m)
   M_OBJS += atarilance.o
+  endif
+endif
+
+ifeq ($(CONFIG_ATARI_BIONET),y)
+L_OBJS += atari_bionet.o
+else
+  ifeq ($(CONFIG_ATARI_BIONET),m)
+  M_OBJS += atari_bionet.o
+  endif
+endif
+
+ifeq ($(CONFIG_ATARI_PAMSNET),y)
+L_OBJS += atari_pamsnet.o
+else
+  ifeq ($(CONFIG_ATARI_PAMSNET),m)
+  M_OBJS += atari_pamsnet.o
   endif
 endif
 
@@ -566,6 +645,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_CS89x0),y)
+L_OBJS += cs89x0.o
+else
+  ifeq ($(CONFIG_CS89x0),m)
+  M_OBJS += cs89x0.o
+  endif
+endif
+
+ifeq ($(CONFIG_LTPC),y)
+L_OBJS += ltpc.o
+else
+  ifeq ($(CONFIG_LTPC),m)
+  M_OBJS += ltpc.o
+  endif
+endif
+
 ifeq ($(CONFIG_BAYCOM),y)
 L_OBJS += baycom.o
 CONFIG_HDLCDRV_BUILTIN = y
@@ -577,12 +672,14 @@ else
 endif
 
 ifeq ($(CONFIG_SOUNDMODEM),y)
-L_OBJS += soundmodem.o
+ALL_SUB_DIRS += soundmodem
+SUB_DIRS += soundmodem
 CONFIG_HDLCDRV_BUILTIN = y
 else
   ifeq ($(CONFIG_SOUNDMODEM),m)
   CONFIG_HDLCDRV_MODULE = y
-  M_OBJS += soundmodem.o
+  ALL_SUB_DIRS += soundmodem
+  MOD_SUB_DIRS += soundmodem
   endif
 endif
 
@@ -596,6 +693,28 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VENDOR_SANGOMA),y)
+  M_OBJS += sdladrv.o
+  M_OBJS += wanpipe.o
+  WANPIPE_OBJS = sdlamain.o
+  ifeq ($(CONFIG_WANPIPE_X25),y)
+    WANPIPE_OBJS += sdla_x25.o
+  endif
+  ifeq ($(CONFIG_WANPIPE_FR),y)
+    WANPIPE_OBJS += sdla_fr.o
+  endif
+  ifeq ($(CONFIG_WANPIPE_PPP),y)
+    WANPIPE_OBJS += sdla_ppp.o
+  endif
+endif
+
+ifeq ($(CONFIG_X25_ASY),y)
+L_OBJS += x25_asy.o
+else
+  ifeq ($(CONFIG_X25_ASY),m)
+  M_OBJS += x25_asy.o
+  endif
+endif
 
 include $(TOPDIR)/Rules.make
 
@@ -661,7 +780,24 @@ sdla.o: sdla.c CONFIG
 
 dlci.o: dlci.c CONFIG
 
+sdladrv.o: sdladrv.c CONFIG
+
+wanpipe.o: $(WANPIPE_OBJS)
+	ld -r -o $@ $^
+
+sdlamain.o: sdlamain.c CONFIG
+
+sdla_x25.o: sdla_x25.c CONFIG
+
+sdla_fr.o: sdla_fr.c CONFIG
+
+sdla_ppp.o: sdla_ppp.c CONFIG
+
 dgrs.o: dgrs.c dgrs.h CONFIG
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
+ltpc.o: ltpc.c ltpc.h CONFIG
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
+
 tulip.o: tulip.c CONFIG
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(TULIP_OPTS) -c $<

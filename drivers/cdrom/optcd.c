@@ -1,5 +1,5 @@
 /*	linux/drivers/cdrom/optcd.c - Optics Storage 8000 AT CDROM driver
-	$Id: optcd.c,v 1.29 1996/02/22 22:38:30 root Exp $
+	$Id: optcd.c,v 1.11 1997/01/26 07:13:00 davem Exp $
 
 	Copyright (C) 1995 Leo Spiekman (spiekman@dutette.et.tudelft.nl)
 
@@ -106,7 +106,7 @@ static void debug(int debug_this, const char* fmt, ...)
 
 #define optcd_port optcd			/* Needed for the modutils. */
 static short optcd_port = OPTCD_PORTBASE;	/* I/O base of drive. */
-
+MODULE_PARM(optcd_port, "h");
 /* Drive registers, read */
 #define DATA_PORT	optcd_port	/* Read data/status */
 #define STATUS_PORT	optcd_port+1	/* Indicate data/status availability */
@@ -1914,7 +1914,7 @@ static int opt_open(struct inode *ip, struct file *fp)
 
 
 /* Release device special file; flush all blocks from the buffer cache */
-static void opt_release(struct inode *ip, struct file *fp)
+static int opt_release(struct inode *ip, struct file *fp)
 {
 	int status;
 
@@ -1939,6 +1939,7 @@ static void opt_release(struct inode *ip, struct file *fp)
 		CLEAR_REQ_TIMER;
 	}
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
 
@@ -2002,7 +2003,7 @@ static struct file_operations opt_fops = {
 	block_read,		/* read - general block-dev read */
 	block_write,		/* write - general block-dev write */
 	NULL,			/* readdir - bad */
-	NULL,			/* select */
+	NULL,			/* poll */
 	opt_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	opt_open,		/* open */

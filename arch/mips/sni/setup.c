@@ -12,12 +12,15 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/timex.h>
+#include <linux/pci.h>
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/processor.h>
+#include <asm/reboot.h>
 #include <asm/sni.h>
 #include <asm/vector.h>
+#include <asm/pci.h>
 
 /*
  * Initial irq handlers.
@@ -32,7 +35,10 @@ static struct irqaction irq2  = { no_action, 0, 0, "cascade", NULL, NULL};
 extern asmlinkage void sni_rm200_pci_handle_int(void);
 extern asmlinkage void sni_fd_cacheflush(const void *addr, size_t size);
 extern struct feature sni_rm200_pci_feature;
-extern void sni_hard_reset_now(void);
+
+extern void sni_machine_restart(char *command);
+extern void sni_machine_halt(void);
+extern void sni_machine_power_off(void);
 
 static void
 sni_irq_setup(void)
@@ -61,7 +67,31 @@ static void sni_rm200_pci_time_init(struct irqaction *irq)
 }
 
 unsigned char aux_device_present;
+unsigned long sni_rm200_pcibios_init (unsigned long memory_start,
+                                      unsigned long memory_end);
 
+/*
+ * A bit more gossip about the iron we're running on ...
+ */
+static inline void sni_pcimt_detect(void)
+{
+	char boardtype[80];
+	unsigned char csmsr;
+	char *p = boardtype;
+	int asic;
+
+	csmsr = *(volatile unsigned char *)PCIMT_CSMSR;
+
+	p += sprintf(p, "%s PCI", (csmsr & 0x80) ? "RM200" : "RM300");
+	if ((csmsr & 0x80) == 0)
+		p += sprintf(p, ", board revision %s",
+		             (csmsr & 0x20) ? "D" : "C");
+	asic = csmsr & 0x80;
+	asic = (csmsr & 0x08) ? asic : !asic;
+	p += sprintf(p, ", ASIC PCI Rev %s", asic ? "1.0" : "1.1");
+	printk("%s.\n", boardtype);
+}
+	
 void
 sni_rm200_pci_setup(void)
 {
@@ -91,6 +121,8 @@ sni_rm200_pci_setup(void)
 		}
 	}
 
+	sni_pcimt_detect();
+
 	irq_setup = sni_irq_setup;
 	fd_cacheflush = sni_fd_cacheflush;	// Will go away
 	feature = &sni_rm200_pci_feature;
@@ -98,12 +130,24 @@ sni_rm200_pci_setup(void)
 	isa_slot_offset = 0xb0000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
+	/* XXX FIXME: CONFIG_RTC */
 	request_region(0x70,0x10,"rtc");
+	request_region(0x80,0x10,"dma page reg");
+	request_region(0xc0,0x20,"dma2");
 	board_time_init = sni_rm200_pci_time_init;
 
-	hard_reset_now = sni_hard_reset_now;
+	_machine_restart = sni_machine_restart;
+	_machine_halt = sni_machine_halt;
+	_machine_power_off = sni_machine_power_off;
 
 	if (mips_machtype == MACH_SNI_RM200_PCI)
 		EISA_bus = 1;
 	aux_device_present = 0xaa;
+
+	/*
+	 * Some cluefull person has placed the PCI config data directly in
+	 * the I/O port space ...
+	 */
+	request_region(0xcfc,0x04,"PCI config data");
+	_pcibios_init = sni_rm200_pcibios_init;
 }

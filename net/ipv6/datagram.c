@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: datagram.c,v 1.3 1996/10/11 16:03:05 roque Exp $
+ *	$Id: datagram.c,v 1.10 1997/04/14 05:39:42 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -19,90 +19,51 @@
 #include <linux/sockios.h>
 #include <linux/in6.h>
 #include <linux/ipv6.h>
+#include <linux/route.h>
 
 #include <net/ipv6.h>
 #include <net/ndisc.h>
-#include <net/ipv6_route.h>
 #include <net/addrconf.h>
 #include <net/transp_v6.h>
-
 
 int datagram_recv_ctl(struct sock *sk, struct msghdr *msg, struct sk_buff *skb)
 {
 	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
-	struct ipv6_options *opt = (struct ipv6_options *) skb->proto_priv;
-	struct cmsghdr *cmsg = msg->msg_control;
-	int len = msg->msg_controllen;
-
-	msg->msg_controllen = 0;
+	struct ipv6_options *opt = (struct ipv6_options *) skb->cb;
 	
-	if (np->rxinfo && (len >= sizeof(struct cmsghdr) +
-			   sizeof(struct in6_pktinfo)))
-	{
-		struct in6_pktinfo *src_info;
-		struct inet6_dev *in6_dev;
+	if (np->rxinfo) {
+		struct in6_pktinfo src_info;
 
-		cmsg->cmsg_len = (sizeof(struct cmsghdr) + 
-				  sizeof(struct in6_pktinfo));
-		cmsg->cmsg_level = SOL_IPV6;
-		cmsg->cmsg_type = IPV6_RXINFO;
-
-		src_info = (struct in6_pktinfo *) cmsg->cmsg_data;
-		in6_dev = ipv6_get_idev(skb->dev);
-
-		if (in6_dev == NULL)
-		{
-			printk(KERN_DEBUG "recv_ctl: unknown device\n");
-			return -ENODEV;
-		}
-
-		src_info->ipi6_ifindex = in6_dev->if_index;
-		ipv6_addr_copy(&src_info->ipi6_addr,
-			       &skb->ipv6_hdr->daddr);
-
-		len -= cmsg->cmsg_len;
-		msg->msg_controllen += cmsg->cmsg_len;
-		cmsg = (struct cmsghdr *)((u8*) cmsg + cmsg->cmsg_len);
+		src_info.ipi6_ifindex = skb->dev->ifindex;
+		ipv6_addr_copy(&src_info.ipi6_addr, &skb->nh.ipv6h->daddr);
+		put_cmsg(msg, SOL_IPV6, IPV6_RXINFO, sizeof(src_info), &src_info);
 	}
 
-	if (opt->srcrt)
-	{
+	if (np->rxhlim) {
+		int hlim = skb->nh.ipv6h->hop_limit;
+		put_cmsg(msg, SOL_IPV6, IPV6_HOPLIMIT, sizeof(hlim), &hlim);
+	}
+
+	if (opt->srcrt) {
 		int hdrlen = sizeof(struct rt0_hdr) + (opt->srcrt->hdrlen << 3);
 
-		if (len >= sizeof(struct cmsghdr) + hdrlen)
-		{
-			struct rt0_hdr *rt0;
-
-			cmsg->cmsg_len = sizeof(struct cmsghdr) + hdrlen;
-			cmsg->cmsg_level = SOL_IPV6;
-			cmsg->cmsg_type = IPV6_RXINFO;
-		
-			rt0 = (struct rt0_hdr *) cmsg->cmsg_data;
-			memcpy(rt0, opt->srcrt, hdrlen);
-
-			len -= cmsg->cmsg_len;
-			msg->msg_controllen += cmsg->cmsg_len;
-			cmsg = (struct cmsghdr *)((u8*) cmsg + cmsg->cmsg_len);
-		}
+		put_cmsg(msg, SOL_IPV6, IPV6_RXSRCRT, hdrlen, opt->srcrt);
 	}
 	return 0;
 }
-			 
 
 int datagram_send_ctl(struct msghdr *msg, struct device **src_dev,
-		      struct in6_addr **src_addr, struct ipv6_options *opt)
+		      struct in6_addr **src_addr, struct ipv6_options *opt, 
+		      int *hlimit)
 {
-	struct inet6_dev *in6_dev = NULL;
 	struct in6_pktinfo *src_info;
 	struct cmsghdr *cmsg;
 	struct ipv6_rt_hdr *rthdr;
 	int len;
-	int err = -EINVAL;
+	int err = 0;
 
-	for (cmsg = msg->msg_control; cmsg; cmsg = cmsg_nxthdr(msg, cmsg))
-	{
-		if (cmsg->cmsg_level != SOL_IPV6)
-		{
+	for (cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg)) {
+		if (cmsg->cmsg_level != SOL_IPV6) {
 			printk(KERN_DEBUG "cmsg_level %d\n", cmsg->cmsg_level);
 			continue;
 		}
@@ -111,50 +72,43 @@ int datagram_send_ctl(struct msghdr *msg, struct device **src_dev,
 
 		case IPV6_TXINFO:
 			if (cmsg->cmsg_len < (sizeof(struct cmsghdr) +
-					      sizeof(struct in6_pktinfo)))
-			{
+					      sizeof(struct in6_pktinfo))) {
+				err = -EINVAL;
 				goto exit_f;
 			}
 
 			src_info = (struct in6_pktinfo *) cmsg->cmsg_data;
 			
-			if (src_info->ipi6_ifindex)
-			{
-				in6_dev = ipv6_dev_by_index(src_info->ipi6_ifindex);
-				if (in6_dev == NULL)
-				{
-					goto exit_f;
-				}
+			if (src_info->ipi6_ifindex) {
+				int index = src_info->ipi6_ifindex;
 
-				*src_dev = in6_dev->dev;
+				*src_dev = dev_get_by_index(index);
 			}
 			
-			if (!ipv6_addr_any(&src_info->ipi6_addr))
-			{
+			if (!ipv6_addr_any(&src_info->ipi6_addr)) {
 				struct inet6_ifaddr *ifp;
 
 				ifp = ipv6_chk_addr(&src_info->ipi6_addr);
 
-				if ( ifp == NULL)
-				{
+				if (ifp == NULL) {
+					err = -EINVAL;
 					goto exit_f;
 				}
 
 				*src_addr = &src_info->ipi6_addr;
-				err = 0;
 			}
 
 			break;
 			
-		case SCM_SRCRT:
+		case IPV6_RXSRCRT:
 
 			len = cmsg->cmsg_len;
 
 			len -= sizeof(struct cmsghdr);
 
 			/* validate option length */
-			if (len < sizeof(struct ipv6_rt_hdr))
-			{
+			if (len < sizeof(struct ipv6_rt_hdr)) {
+				err = -EINVAL;
 				goto exit_f;
 			}
 
@@ -163,34 +117,48 @@ int datagram_send_ctl(struct msghdr *msg, struct device **src_dev,
 			/*
 			 *	TYPE 0
 			 */
-			if (rthdr->type)
-			{
+			if (rthdr->type) {
+				err = -EINVAL;
 				goto exit_f;
 			}
 
-			if (((rthdr->hdrlen + 1) << 3) < len)
-			{				
+			if (((rthdr->hdrlen + 1) << 3) < len) {
+				err = -EINVAL;
 				goto exit_f;
 			}
 
 			/* segments left must also match */
-			if ((rthdr->hdrlen >> 1) != rthdr->segments_left)
-			{
+			if ((rthdr->hdrlen >> 1) != rthdr->segments_left) {
+				err = -EINVAL;
 				goto exit_f;
 			}
 			
 			opt->opt_nflen += ((rthdr->hdrlen + 1) << 3);
 			opt->srcrt = rthdr;
-			err = 0;
 
 			break;
+			
+		case IPV6_HOPLIMIT:
+
+			len = cmsg->cmsg_len;
+			len -= sizeof(struct cmsghdr);
+			
+			if (len < sizeof(int)) {
+				err = -EINVAL;
+				goto exit_f;
+			}
+
+			*hlimit = *((int *) cmsg->cmsg_data);
+			break;
+
 		default:
 			printk(KERN_DEBUG "invalid cmsg type: %d\n",
 			       cmsg->cmsg_type);
+			err = -EINVAL;
 			break;
-		}
+		};
 	}
 
-  exit_f:
+exit_f:
 	return err;
 }

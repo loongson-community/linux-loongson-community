@@ -48,9 +48,10 @@ struct inode_operations nfs_symlink_inode_operations = {
 static int nfs_follow_link(struct inode *dir, struct inode *inode,
 			   int flag, int mode, struct inode **res_inode)
 {
-	int error, *mem;
+	int error;
 	unsigned int len;
 	char *res, *res2;
+	void *mem;
 
 	*res_inode = NULL;
 	if (!dir) {
@@ -95,9 +96,12 @@ static int nfs_follow_link(struct inode *dir, struct inode *inode,
 
 static int nfs_readlink(struct inode *inode, char *buffer, int buflen)
 {
-	int error, *mem;
+	int error;
 	unsigned int len;
 	char *res;
+	void *mem;
+
+	dfprintk(VFS, "nfs: readlink(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
 	if (!S_ISLNK(inode->i_mode)) {
 		iput(inode);

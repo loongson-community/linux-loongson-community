@@ -35,7 +35,7 @@
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
+ *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  *****************************************************************************/
 static const char *version =
@@ -131,6 +131,7 @@ static const char *version =
 #include <linux/ptrace.h>
 #include <asm/system.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 
 #include <linux/inet.h>
 #include <linux/netdevice.h>
@@ -140,7 +141,6 @@ static const char *version =
 /* Constant definitions for the DE-620 registers, commands and bits */
 #include "de620.h"
 
-#define netstats enet_statistics
 typedef unsigned char byte;
 
 /*******************************************************
@@ -192,6 +192,13 @@ static int clone = DE620_CLONE;
 
 static unsigned int de620_debug = DE620_DEBUG;
 
+MODULE_PARM(bnc, "i");
+MODULE_PARM(utp, "i");
+MODULE_PARM(io, "i");
+MODULE_PARM(irq, "i");
+MODULE_PARM(clone, "i");
+MODULE_PARM(de620_debug, "i");
+
 /***********************************************
  *                                             *
  * Index to functions, as function prototypes. *
@@ -205,7 +212,7 @@ static unsigned int de620_debug = DE620_DEBUG;
 /* Put in the device structure. */
 static int	de620_open(struct device *);
 static int	de620_close(struct device *);
-static struct netstats *get_stats(struct device *);
+static struct	net_device_stats *get_stats(struct device *);
 static void	de620_set_multicast_list(struct device *);
 static int	de620_start_xmit(struct sk_buff *, struct device *);
 
@@ -470,10 +477,9 @@ de620_close(struct device *dev)
  * Return current statistics
  *
  */
-static struct netstats *
-get_stats(struct device *dev)
+static struct net_device_stats *get_stats(struct device *dev)
 {
-	return (struct netstats *)(dev->priv);
+	return (struct net_device_stats *)(dev->priv);
 }
 
 /*********************************************
@@ -485,18 +491,18 @@ get_stats(struct device *dev)
 
 static void de620_set_multicast_list(struct device *dev)
 {
-	if (dev->mc_count || dev->flags&(IFF_ALLMULTI|IFF_PROMISC)) 
+	if (dev->mc_count || dev->flags&(IFF_ALLMULTI|IFF_PROMISC))
 	{ /* Enable promiscuous mode */
 		/*
 		 *	We must make the kernel realise we had to move
 		 *	into promisc mode or we start all out war on
 		 *	the cable. - AC
 		 */
-		dev->flags|=IFF_PROMISC;		
-	
+		dev->flags|=IFF_PROMISC;
+
 		de620_set_register(dev, W_TCR, (TCR_DEF & ~RXPBM) | RXALL);
 	}
-	else 
+	else
 	{ /* Disable promiscuous mode, use normal mode */
 		de620_set_register(dev, W_TCR, TCR_DEF);
 	}
@@ -515,17 +521,6 @@ de620_start_xmit(struct sk_buff *skb, struct device *dev)
 	int tickssofar;
 	byte *buffer = skb->data;
 	byte using_txbuf;
-
-	/*
-	 * If some higher layer thinks we've missed a
-	 * tx-done interrupt we are passed NULL.
-	 * Caution: dev_tint() handles the cli()/sti() itself.
-	 */
-
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
 
 	using_txbuf = de620_tx_buffs(dev); /* Peek at the adapter */
 	dev->tbusy = (using_txbuf == (TXBF0 | TXBF1)); /* Boolean! */
@@ -583,10 +578,10 @@ de620_start_xmit(struct sk_buff *skb, struct device *dev)
 	dev->trans_start = jiffies;
 	dev->tbusy = (using_txbuf == (TXBF0 | TXBF1)); /* Boolean! */
 
-	((struct netstats *)(dev->priv))->tx_packets++;
-	
+	((struct net_device_stats *)(dev->priv))->tx_packets++;
+
 	restore_flags(flags); /* interrupts maybe back on */
-	
+
 	dev_kfree_skb (skb, FREE_WRITE);
 
 	return 0;
@@ -674,7 +669,7 @@ de620_rx_intr(struct device *dev)
 		printk("%s: Ring overrun? Restoring...\n", dev->name);
 		/* You win some, you loose some. And sometimes plenty... */
 		adapter_init(dev);
-		((struct netstats *)(dev->priv))->rx_over_errors++;
+		((struct net_device_stats *)(dev->priv))->rx_over_errors++;
 		return 0;
 	}
 
@@ -694,7 +689,7 @@ de620_rx_intr(struct device *dev)
 		next_rx_page = header_buf.Rx_NextPage; /* at least a try... */
 		de620_send_command(dev, W_DUMMY);
 		de620_set_register(dev, W_NPRF, next_rx_page);
-		((struct netstats *)(dev->priv))->rx_over_errors++;
+		((struct net_device_stats *)(dev->priv))->rx_over_errors++;
 		return 0;
 	}
 	next_rx_page = pagelink;
@@ -708,12 +703,12 @@ de620_rx_intr(struct device *dev)
 		if (skb == NULL) { /* Yeah, but no place to put it... */
 			printk("%s: Couldn't allocate a sk_buff of size %d.\n",
 				dev->name, size);
-			((struct netstats *)(dev->priv))->rx_dropped++;
+			((struct net_device_stats *)(dev->priv))->rx_dropped++;
 		}
 		else { /* Yep! Go get it! */
 			skb_reserve(skb,2);	/* Align */
 			skb->dev = dev;
-			skb->free = 1;
+			skb->used = 0;
 			/* skb->data points to the start of sk_buff data area */
 			buffer = skb_put(skb,size);
 			/* copy the packet into the buffer */
@@ -722,7 +717,7 @@ de620_rx_intr(struct device *dev)
 			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb); /* deliver it "upstairs" */
 			/* count all receives */
-			((struct netstats *)(dev->priv))->rx_packets++;
+			((struct net_device_stats *)(dev->priv))->rx_packets++;
 		}
 	}
 
@@ -828,10 +823,10 @@ adapter_init(struct device *dev)
  *
  * Check if there is a DE-620 connected
  */
-int
-de620_probe(struct device *dev)
+__initfunc(int
+de620_probe(struct device *dev))
 {
-	static struct netstats de620_netstats;
+	static struct net_device_stats de620_netstats;
 	int i;
 	byte checkbyte = 0xa5;
 
@@ -885,10 +880,9 @@ de620_probe(struct device *dev)
 		printk(" UTP)\n");
 
 	/* Initialize the device structure. */
-	/*dev->priv = kmalloc(sizeof(struct netstats), GFP_KERNEL);*/
 	dev->priv = &de620_netstats;
 
-	memset(dev->priv, 0, sizeof(struct netstats));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 	dev->get_stats = get_stats;
 	dev->open = de620_open;
 	dev->stop = de620_close;
@@ -897,7 +891,7 @@ de620_probe(struct device *dev)
 	/* base_addr and irq are already set, see above! */
 
 	ether_setup(dev);
-	
+
 	/* dump eeprom */
 	if (de620_debug) {
 		printk("\nEEPROM contents:\n");
@@ -922,8 +916,8 @@ de620_probe(struct device *dev)
  */
 #define sendit(dev,data) de620_set_register(dev, W_EIP, data | EIPRegister);
 
-static unsigned short
-ReadAWord(struct device *dev, int from)
+__initfunc(static unsigned short
+ReadAWord(struct device *dev, int from))
 {
 	unsigned short data;
 	int nbits;
@@ -965,8 +959,8 @@ ReadAWord(struct device *dev, int from)
 	return data;
 }
 
-static int
-read_eeprom(struct device *dev)
+__initfunc(static int
+read_eeprom(struct device *dev))
 {
 	unsigned short wrd;
 

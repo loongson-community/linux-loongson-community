@@ -13,6 +13,7 @@
 #include <linux/interrupt.h>
 #include <asm/irq.h>
 #include <asm/jazz.h>
+#include <asm/reboot.h>
 #include <asm/vector.h>
 #include <asm/io.h>
 
@@ -29,7 +30,10 @@ static struct irqaction irq2  = { no_action, 0, 0, "cascade", NULL, NULL};
 extern asmlinkage void jazz_handle_int(void);
 extern asmlinkage void jazz_fd_cacheflush(const void *addr, size_t size);
 extern struct feature jazz_feature;
-extern void jazz_hard_reset_now(void);
+
+extern void jazz_machine_restart(char *command);
+extern void jazz_machine_halt(void);
+extern void jazz_machine_power_off(void);
 
 static void
 jazz_irq_setup(void)
@@ -60,6 +64,11 @@ jazz_setup(void)
 	isa_slot_offset = 0xe3000000;
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
+	request_region(0x80,0x10,"dma page reg");
+	request_region(0xc0,0x20,"dma2");
 	/* The RTC is outside the port address space */
-	hard_reset_now = jazz_hard_reset_now;
+
+	_machine_restart = jazz_machine_restart;
+	_machine_halt = jazz_machine_halt;
+	_machine_power_off = jazz_machine_power_off;
 }

@@ -28,6 +28,7 @@
 #include <linux/string.h>
 #include <linux/ioport.h>
 #include <linux/random.h>
+#include <linux/init.h>
 
 #include <asm/bitops.h>
 
@@ -66,13 +67,19 @@ static int send_data(unsigned char data);
 
 #include <asm/system.h>
 
-extern void poke_blanked_console(void);
 extern void ctrl_alt_del(void);
 extern void reset_vc(unsigned int new_console);
 extern void scrollback(int);
 extern void scrollfront(int);
 
 unsigned char kbd_read_mask = 0x01;	/* modified by psaux.c */
+
+struct wait_queue * keypress_wait = NULL;
+
+void keyboard_wait_for_keypress(void)
+{
+	sleep_on(&keypress_wait);
+}
 
 /*
  * global state includes the following, and various static variables
@@ -1190,7 +1197,7 @@ static void kbd_bh(void)
 	}
 }
 
-int kbd_init(void)
+__initfunc(int kbd_init(void))
 {
 	int i;
 	struct kbd_struct kbd0;

@@ -10,15 +10,16 @@
  */
 #include <stdarg.h>
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/smp.h>
+#include <linux/reboot.h>
 
 #include <asm/sgialib.h>
 
 asmlinkage void sys_sync(void);	/* it's really int */
-extern void do_unblank_screen(void);
+extern void unblank_console(void);
 extern int C_A_D;
 
 int panic_timeout = 0;
@@ -43,9 +44,12 @@ NORET_TYPE void panic(const char * fmt, ...)
 	else
 		sys_sync();
 
-	do_unblank_screen();
+#ifdef __SMP__
+	smp_message_pass(MSG_ALL_BUT_SELF, MSG_STOP_CPU, 0, 0);
+#endif
 
-#ifdef CONFIG_SGI
+	unblank_console();
+
 	if (panic_timeout > 0)
 	{
 		int i;
@@ -54,17 +58,20 @@ NORET_TYPE void panic(const char * fmt, ...)
 	 	 * Delay timeout seconds before rebooting the machine. 
 		 * We can't use the "normal" timers since we just panicked..
 	 	 */
-		prom_printf(KERN_EMERG "Rebooting in %d seconds..",panic_timeout);
+		printk(KERN_EMERG "Rebooting in %d seconds..",panic_timeout);
 		for(i = 0; i < (panic_timeout*1000); i++)
 			udelay(1000);
-		hard_reset_now();
+		/*
+		 *	Should we run the reboot notifier. For the moment Im
+		 *	choosing not too. It might crash, be corrupt or do
+		 *	more harm than good for other reasons.
+		 */
+		machine_restart(NULL);
 	}
-#if 0
-	printk("Hit a key\n");
-	prom_getchar();
-	romvec->imode();
+#ifdef __sparc__
+	printk("Press L1-A to return to the boot prom\n");
 #endif
-#endif
+	sti();
 	for(;;);
 }
 

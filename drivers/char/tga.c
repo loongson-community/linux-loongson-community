@@ -10,6 +10,7 @@
  * This module exports the console io support for DEC's TGA
  */
 
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
@@ -37,8 +38,7 @@
 #include "selection.h"
 #include "console_struct.h"
 
-extern void register_console(void (*proc)(const char *));
-extern void console_print(const char *);
+extern struct console vt_console_driver;
 
 /* TGA hardware description (minimal) */
 /*
@@ -323,6 +323,11 @@ con_type_init(unsigned long kmem_start, const char **display_desc)
 	return kmem_start;
 }
 
+void
+con_type_init_finish(void)
+{
+}
+
 /*
  * NOTE: get_scrmem() and set_scrmem() are here only because
  * the VGA version of set_scrmem() has some direct VGA references.
@@ -480,7 +485,9 @@ tga_console_init(void)
 	/*
 	 * FINALLY, we can register TGA as console (whew!)
 	 */
-	register_console(console_print);
+#ifdef CONFIG_VT_CONSOLE
+	register_console(&vt_console_driver);
+#endif
 }
 
 unsigned char PLLbits[7] = { 0x80, 0x04, 0x00, 0x24, 0x44, 0x80, 0xb8 };

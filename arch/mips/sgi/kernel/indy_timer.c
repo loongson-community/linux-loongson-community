@@ -15,7 +15,6 @@
 #include <linux/kernel_stat.h>
 
 #include <asm/bootinfo.h>
-#include <asm/segment.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/ptrace.h>

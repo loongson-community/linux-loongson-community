@@ -69,6 +69,7 @@ static const char *version = "znet.c:v1.02 9/23/94 becker@cesdis.gsfc.nasa.gov\n
 #include <linux/errno.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
+#include <linux/init.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -121,7 +122,7 @@ static unsigned int znet_debug = ZNET_DEBUG;
 #define net_local znet_private
 struct znet_private {
 	int rx_dma, tx_dma;
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	/* The starting, current, and end pointers for the packet buffers. */
 	ushort *rx_start, *rx_cur, *rx_end;
 	ushort *tx_start, *tx_cur, *tx_end;
@@ -185,7 +186,7 @@ static int	znet_send_packet(struct sk_buff *skb, struct device *dev);
 static void	znet_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void	znet_rx(struct device *dev);
 static int	znet_close(struct device *dev);
-static struct enet_statistics *net_get_stats(struct device *dev);
+static struct net_device_stats *net_get_stats(struct device *dev);
 static void set_multicast_list(struct device *dev);
 static void hardware_init(struct device *dev);
 static void update_stop_hit(short ioaddr, unsigned short rx_stop_offset);
@@ -199,7 +200,7 @@ static struct sigaction znet_sigaction = { &znet_interrupt, 0, 0, NULL, };
    BIOS area.  We just scan for the signature, and pull the vital parameters
    out of the structure. */
 
-int znet_probe(struct device *dev)
+__initfunc(int znet_probe(struct device *dev))
 {
 	int i;
 	struct netidblk *netinfo;
@@ -317,6 +318,7 @@ static int znet_open(struct device *dev)
 static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 {
 	int ioaddr = dev->base_addr;
+	struct net_local *lp = (struct net_local *)dev->priv;
 
 	if (znet_debug > 4)
 		printk(KERN_DEBUG "%s: ZNet_send_packet(%ld).\n", dev->name, dev->tbusy);
@@ -340,11 +342,6 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 		hardware_init(dev);
 	}
 
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
 	/* Check that the part hasn't reset itself, probably from suspend. */
 	outb(CMD0_STAT0, ioaddr);
 	if (inw(ioaddr) == 0x0010
@@ -361,6 +358,8 @@ static int znet_send_packet(struct sk_buff *skb, struct device *dev)
 		unsigned char *buf = (void *)skb->data;
 		ushort *tx_link = zn.tx_cur - 1;
 		ushort rnd_len = (length + 1)>>1;
+		
+		lp->stats.tx_bytes+=length;
 
 		{
 			short dma_port = ((zn.tx_dma&3)<<2) + IO_DMA2_BASE;
@@ -616,7 +615,7 @@ static int znet_close(struct device *dev)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct enet_statistics *net_get_stats(struct device *dev)
+static struct net_device_stats *net_get_stats(struct device *dev)
 {
 		struct net_local *lp = (struct net_local *)dev->priv;
 

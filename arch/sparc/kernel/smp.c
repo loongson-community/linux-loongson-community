@@ -5,49 +5,46 @@
 
 #include <asm/head.h>
 #include <asm/ptrace.h>
+#include <asm/atomic.h>
 
 #include <linux/kernel.h>
 #include <linux/tasks.h>
 #include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/interrupt.h>
+#include <linux/kernel_stat.h>
 
 #include <asm/delay.h>
 #include <asm/irq.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/oplib.h>
+#include <asm/atops.h>
+#include <asm/spinlock.h>
+#include <asm/hardirq.h>
+#include <asm/softirq.h>
+
+#define IRQ_RESCHEDULE		13
+#define IRQ_STOP_CPU		14
+#define IRQ_CROSS_CALL		15
 
 extern ctxd_t *srmmu_ctx_table_phys;
 extern int linux_num_cpus;
 
-struct tlog {
-	unsigned long pc;
-	unsigned long psr;
-};
-
-struct tlog trap_log[4][256];
-unsigned long trap_log_ent[4] = { 0, 0, 0, 0, };
-
 extern void calibrate_delay(void);
 
-volatile unsigned long stuck_pc = 0;
 volatile int smp_processors_ready = 0;
 
-int smp_found_config = 0;
 unsigned long cpu_present_map = 0;
 int smp_num_cpus = 1;
 int smp_threads_ready=0;
 unsigned char mid_xlate[NR_CPUS] = { 0, 0, 0, 0, };
 volatile unsigned long cpu_callin_map[NR_CPUS] = {0,};
-volatile unsigned long smp_invalidate_needed[NR_CPUS] = { 0, };
 volatile unsigned long smp_spinning[NR_CPUS] = { 0, };
+unsigned long smp_proc_in_lock[NR_CPUS] = { 0, };
 struct cpuinfo_sparc cpu_data[NR_CPUS];
-unsigned char boot_cpu_id = 0;
+static unsigned char boot_cpu_id = 0;
 static int smp_activated = 0;
-static volatile unsigned char smp_cpu_in_msg[NR_CPUS];
-static volatile unsigned long smp_msg_data;
-static volatile int smp_src_cpu;
-static volatile int smp_msg_id;
 volatile int cpu_number_map[NR_CPUS];
 volatile int cpu_logical_map[NR_CPUS];
 
@@ -58,10 +55,8 @@ volatile int cpu_logical_map[NR_CPUS];
  * compared to the Alpha and the intel no?  Most Sparcs have 'swap'
  * instruction which is much better...
  */
-klock_t kernel_flag = KLOCK_CLEAR;
-volatile unsigned char active_kernel_processor = NO_PROC_ID;
-volatile unsigned long kernel_counter = 0;
-volatile unsigned long syscall_count = 0;
+struct klock_info klock_info = { KLOCK_CLEAR, 0 };
+
 volatile unsigned long ipi_count;
 #ifdef __SMP_PROF__
 volatile unsigned long smp_spins[NR_CPUS]={0};
@@ -74,7 +69,6 @@ volatile unsigned long smp_idle_count[1+NR_CPUS]={0,};
 volatile unsigned long smp_idle_map=0;
 #endif
 
-volatile unsigned long smp_proc_in_lock[NR_CPUS] = {0,};
 volatile int smp_process_available=0;
 
 /*#define SMP_DEBUG*/
@@ -89,15 +83,20 @@ static volatile int smp_commenced = 0;
 
 static char smp_buf[512];
 
+/* Not supported on Sparc yet. */
+void smp_setup(char *str, int *ints)
+{
+}
+
 char *smp_info(void)
 {
 	sprintf(smp_buf,
 "        CPU0\t\tCPU1\t\tCPU2\t\tCPU3\n"
 "State:  %s\t\t%s\t\t%s\t\t%s\n",
-(cpu_present_map & 1) ? ((active_kernel_processor == 0) ? "akp" : "online") : "offline",
-(cpu_present_map & 2) ? ((active_kernel_processor == 1) ? "akp" : "online") : "offline",
-(cpu_present_map & 4) ? ((active_kernel_processor == 2) ? "akp" : "online") : "offline",
-(cpu_present_map & 8) ? ((active_kernel_processor == 3) ? "akp" : "online") : "offline");
+(cpu_present_map & 1) ? ((klock_info.akp == 0) ? "akp" : "online") : "offline",
+(cpu_present_map & 2) ? ((klock_info.akp == 1) ? "akp" : "online") : "offline",
+(cpu_present_map & 4) ? ((klock_info.akp == 2) ? "akp" : "online") : "offline",
+(cpu_present_map & 8) ? ((klock_info.akp == 3) ? "akp" : "online") : "offline");
 	return smp_buf;
 }
 
@@ -141,40 +140,47 @@ void smp_commence(void)
 	local_flush_tlb_all();
 }
 
+static void smp_setup_percpu_timer(void);
+
 void smp_callin(void)
 {
 	int cpuid = smp_processor_id();
 
-	sti();
 	local_flush_cache_all();
 	local_flush_tlb_all();
+	set_irq_udt(mid_xlate[boot_cpu_id]);
+
+	/* Get our local ticker going. */
+	smp_setup_percpu_timer();
+
 	calibrate_delay();
 	smp_store_cpu_info(cpuid);
 	local_flush_cache_all();
 	local_flush_tlb_all();
-	cli();
 
 	/* Allow master to continue. */
 	swap((unsigned long *)&cpu_callin_map[cpuid], 1);
 	local_flush_cache_all();
 	local_flush_tlb_all();
-	while(!smp_commenced)
+
+	while(!task[cpuid] || current_set[cpuid] != task[cpuid])
 		barrier();
-	local_flush_cache_all();
-	local_flush_tlb_all();
 
 	/* Fix idle thread fields. */
 	__asm__ __volatile__("ld [%0], %%g6\n\t"
-			     : : "r" (&current_set[smp_processor_id()])
+			     : : "r" (&current_set[cpuid])
 			     : "memory" /* paranoid */);
 	current->mm->mmap->vm_page_prot = PAGE_SHARED;
 	current->mm->mmap->vm_start = PAGE_OFFSET;
 	current->mm->mmap->vm_end = init_task.mm->mmap->vm_end;
+	
+	while(!smp_commenced)
+		barrier();
 
 	local_flush_cache_all();
 	local_flush_tlb_all();
 
-	sti();
+	__sti();
 }
 
 void cpu_panic(void)
@@ -194,15 +200,15 @@ void smp_boot_cpus(void)
 {
 	int cpucount = 0;
 	int i = 0;
+	int first, prev;
 
 	printk("Entering SMP Mode...\n");
 
 	penguin_ctable.which_io = 0;
-	penguin_ctable.phys_addr = (char *) srmmu_ctx_table_phys;
+	penguin_ctable.phys_addr = (unsigned int) srmmu_ctx_table_phys;
 	penguin_ctable.reg_size = 0;
 
-	sti();
-	cpu_present_map |= (1 << smp_processor_id());
+	__sti();
 	cpu_present_map = 0;
 	for(i=0; i < linux_num_cpus; i++)
 		cpu_present_map |= (1<<i);
@@ -213,9 +219,10 @@ void smp_boot_cpus(void)
 	mid_xlate[boot_cpu_id] = (linux_cpus[boot_cpu_id].mid & ~8);
 	cpu_number_map[boot_cpu_id] = 0;
 	cpu_logical_map[0] = boot_cpu_id;
-	active_kernel_processor = boot_cpu_id;
+	klock_info.akp = boot_cpu_id;
 	smp_store_cpu_info(boot_cpu_id);
-	set_irq_udt(0);
+	set_irq_udt(mid_xlate[boot_cpu_id]);
+	smp_setup_percpu_timer();
 	local_flush_cache_all();
 	if(linux_num_cpus == 1)
 		return;  /* Not an MP box. */
@@ -275,131 +282,75 @@ void smp_boot_cpus(void)
 		smp_activated = 1;
 		smp_num_cpus = cpucount + 1;
 	}
+
+	/* Setup CPU list for IRQ distribution scheme. */
+	first = prev = -1;
+	for(i = 0; i < NR_CPUS; i++) {
+		if(cpu_present_map & (1 << i)) {
+			if(first == -1)
+				first = i;
+			if(prev != -1)
+				cpu_data[i].next = i;
+			cpu_data[i].mid = mid_xlate[i];
+			prev = i;
+		}
+	}
+	cpu_data[prev].next = first;
+
+	/* Ok, they are spinning and ready to go. */
 	smp_processors_ready = 1;
 }
 
-static inline void send_ipi(unsigned long target_map, int irq)
+/* At each hardware IRQ, we get this called to forward IRQ reception
+ * to the next processor.  The caller must disable the IRQ level being
+ * serviced globally so that there are no double interrupts received.
+ */
+void smp_irq_rotate(int cpu)
 {
-	int i;
-
-	for(i = 0; i < 4; i++) {
-		if((1<<i) & target_map)
-			set_cpu_int(mid_xlate[i], irq);
-	}
+	if(smp_processors_ready)
+		set_irq_udt(cpu_data[cpu_data[cpu].next].mid);
 }
 
-/*
- * A non wait message cannot pass data or cpu source info. This current
- * setup is only safe because the kernel lock owner is the only person
- * who can send a message.
- *
- * Wrapping this whole block in a spinlock is not the safe answer either.
- * A processor may get stuck with irq's off waiting to send a message and
- * thus not replying to the person spinning for a reply....
- *
- * On the Sparc we use NMI's for all messages except reschedule.
+/* Cross calls, in order to work efficiently and atomically do all
+ * the message passing work themselves, only stopcpu and reschedule
+ * messages come through here.
  */
-
-static volatile int message_cpu = NO_PROC_ID;
-
 void smp_message_pass(int target, int msg, unsigned long data, int wait)
 {
-	unsigned long target_map;
-	int p = smp_processor_id();
-	int irq = 15;
-	int i;
+	static unsigned long smp_cpu_in_msg[NR_CPUS];
+	unsigned long mask;
+	int me = smp_processor_id();
+	int irq, i;
 
-	/* Before processors have been placed into their initial
-	 * patterns do not send messages.
-	 */
-	if(!smp_processors_ready)
-		return;
-
-	/* Skip the reschedule if we are waiting to clear a
-	 * message at this time. The reschedule cannot wait
-	 * but is not critical.
-	 */
 	if(msg == MSG_RESCHEDULE) {
-		irq = 13;
-		if(smp_cpu_in_msg[p])
+		irq = IRQ_RESCHEDULE;
+
+		if(smp_cpu_in_msg[me])
 			return;
-	}
-
-	/* Sanity check we don't re-enter this across CPU's. Only the kernel
-	 * lock holder may send messages. For a STOP_CPU we are bringing the
-	 * entire box to the fastest halt we can.. A reschedule carries
-	 * no data and can occur during a flush.. guess what panic
-	 * I got to notice this bug...
-	 */
-	if(message_cpu != NO_PROC_ID && msg != MSG_STOP_CPU && msg != MSG_RESCHEDULE) {
-		printk("CPU #%d: Message pass %d but pass in progress by %d of %d\n",
-		      smp_processor_id(),msg,message_cpu, smp_msg_id);
-
-		/* I don't know how to gracefully die so that debugging
-		 * this doesn't completely eat up my filesystems...
-		 * let's try this...
-		 */
-		smp_cpu_in_msg[p] = 0; /* In case we come back here... */
-		intr_count = 0;        /* and so panic don't barf... */
-		smp_swap(&message_cpu, NO_PROC_ID); /* push the store buffer */
-		sti();
-		printk("spinning, please L1-A, type ctrace and send output to davem\n");
-		while(1)
-			barrier();
-	}
-	smp_swap(&message_cpu, smp_processor_id()); /* store buffers... */
-
-	/* We are busy. */
-	smp_cpu_in_msg[p]++;
-
-	/* Reschedule is currently special. */
-	if(msg != MSG_RESCHEDULE) {
-		smp_src_cpu = p;
-		smp_msg_id = msg;
-		smp_msg_data = data;
-	}
-
-#if 0
-	printk("SMP message pass from cpu %d to cpu %d msg %d\n", p, target, msg);
-#endif
-
-	/* Set the target requirement. */
-	for(i = 0; i < smp_num_cpus; i++)
-		swap((unsigned long *) &cpu_callin_map[i], 0);
-	if(target == MSG_ALL_BUT_SELF) {
-		target_map = (cpu_present_map & ~(1<<p));
-		swap((unsigned long *) &cpu_callin_map[p], 1);
-	} else if(target == MSG_ALL) {
-		target_map = cpu_present_map;
+	} else if(msg == MSG_STOP_CPU) {
+		irq = IRQ_STOP_CPU;
 	} else {
-		for(i = 0; i < smp_num_cpus; i++)
-			if(i != target)
-				swap((unsigned long *) &cpu_callin_map[i], 1);
-		target_map = (1<<target);
+		goto barf;
 	}
 
-	/* Fire it off. */
-	send_ipi(target_map, irq);
-
-	switch(wait) {
-	case 1:
-		for(i = 0; i < smp_num_cpus; i++)
-			while(!cpu_callin_map[i])
-				barrier();
-		break;
-	case 2:
-		for(i = 0; i < smp_num_cpus; i++)
-			while(smp_invalidate_needed[i])
-				barrier();
-		break;
-	case 3:
-		/* For cross calls we hold message_cpu and smp_cpu_in_msg[]
-		 * until all processors disperse.  Else we have _big_ problems.
-		 */
-		return;
+	smp_cpu_in_msg[me]++;
+	if(target == MSG_ALL_BUT_SELF || target == MSG_ALL) {
+		mask = cpu_present_map;
+		if(target == MSG_ALL_BUT_SELF)
+			mask &= ~(1 << me);
+		for(i = 0; i < 4; i++) {
+			if(mask & (1 << i))
+				set_cpu_int(mid_xlate[i], irq);
+		}
+	} else {
+		set_cpu_int(mid_xlate[target], irq);
 	}
-	smp_cpu_in_msg[p]--;
-	message_cpu = NO_PROC_ID;
+	smp_cpu_in_msg[me]--;
+
+	return;
+barf:
+	printk("Yeeee, trying to send SMP msg(%d) on cpu %d\n", msg, me);
+	panic("Bogon SMP message pass.");
 }
 
 struct smp_funcall {
@@ -419,29 +370,20 @@ struct smp_funcall {
 
 #define CCALL_TIMEOUT   5000000 /* enough for initial testing */
 
-/* #define DEBUG_CCALL */
+static spinlock_t cross_call_lock = SPIN_LOCK_UNLOCKED;
 
-/* Some nice day when we really thread the kernel I'd like to synchronize
- * this with either a broadcast conditional variable, a resource adaptive
- * generic mutex, or a convoy semaphore scheme of some sort.  No reason
- * we can't let multiple processors in here if the appropriate locking
- * is done.  Note that such a scheme assumes we will have a
- * prioritized ipi scheme using different software level irq's.
- */
+/* Cross calls must be serialized, at least currently. */
 void smp_cross_call(smpfunc_t func, unsigned long arg1, unsigned long arg2,
 		    unsigned long arg3, unsigned long arg4, unsigned long arg5)
 {
 	unsigned long me = smp_processor_id();
-	unsigned long flags;
+	unsigned long flags, mask;
 	int i, timeout;
 
-#ifdef DEBUG_CCALL
-	printk("xc%d<", me);
-#endif
 	if(smp_processors_ready) {
-		save_and_cli(flags);
-		if(me != active_kernel_processor)
-			goto cross_call_not_master;
+		__save_flags(flags);
+		__cli();
+		spin_lock(&cross_call_lock);
 
 		/* Init function glue. */
 		ccall_info.func = func;
@@ -460,7 +402,11 @@ void smp_cross_call(smpfunc_t func, unsigned long arg1, unsigned long arg2,
 		ccall_info.processors_out[me] = 1;
 
 		/* Fire it off. */
-		smp_message_pass(MSG_ALL_BUT_SELF, MSG_CROSS_CALL, 0, 3);
+		mask = (cpu_present_map & ~(1 << me));
+		for(i = 0; i < 4; i++) {
+			if(mask & (1 << i))
+				set_cpu_int(mid_xlate[i], IRQ_CROSS_CALL);
+		}
 
 		/* For debugging purposes right now we can timeout
 		 * on both callin and callexit.
@@ -472,9 +418,6 @@ void smp_cross_call(smpfunc_t func, unsigned long arg1, unsigned long arg2,
 			if(!ccall_info.processors_in[i])
 				goto procs_time_out;
 		}
-#ifdef DEBUG_CCALL
-		printk("I");
-#endif
 
 		/* Run local copy. */
 		func(arg1, arg2, arg3, arg4, arg5);
@@ -487,32 +430,19 @@ void smp_cross_call(smpfunc_t func, unsigned long arg1, unsigned long arg2,
 			if(!ccall_info.processors_out[i])
 				goto procs_time_out;
 		}
-#ifdef DEBUG_CCALL
-		printk("O>");
-#endif
-		/* See wait case 3 in smp_message_pass()... */
-		smp_cpu_in_msg[me]--;
-		message_cpu = NO_PROC_ID;
-		restore_flags(flags);
+		spin_unlock(&cross_call_lock);
+		__restore_flags(flags);
 		return; /* made it... */
 
 procs_time_out:
 		printk("smp: Wheee, penguin drops off the bus\n");
-		smp_cpu_in_msg[me]--;
-		message_cpu = NO_PROC_ID;
-		restore_flags(flags);
+		spin_unlock(&cross_call_lock);
+		__restore_flags(flags);
 		return; /* why me... why me... */
 	}
 
 	/* Just need to run local copy. */
 	func(arg1, arg2, arg3, arg4, arg5);
-	return;
-
-cross_call_not_master:
-	printk("Cross call initiated by non master cpu\n");
-	printk("akp=%x me=%08lx\n", active_kernel_processor, me);
-	restore_flags(flags);
-	panic("penguin cross call");
 }
 
 void smp_flush_cache_all(void)
@@ -558,93 +488,128 @@ void smp_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 void smp_flush_page_to_ram(unsigned long page)
 { xc1((smpfunc_t) local_flush_page_to_ram, page); }
 
+void smp_flush_sig_insns(struct mm_struct *mm, unsigned long insn_addr)
+{ xc2((smpfunc_t) local_flush_sig_insns, (unsigned long) mm, insn_addr); }
+
 /* Reschedule call back. */
 void smp_reschedule_irq(void)
 {
-	if(smp_processor_id() != active_kernel_processor)
-		panic("SMP Reschedule on CPU #%d, but #%d is active.\n",
-		      smp_processor_id(), active_kernel_processor);
-
 	need_resched=1;
 }
 
-/* XXX FIXME: this still doesn't work right... XXX */
-
-/* #define DEBUG_CAPTURE */
-
-static volatile unsigned long release = 1;
-static volatile int capture_level = 0;
-
-void smp_capture(void)
+/* Running cross calls. */
+void smp_cross_call_irq(void)
 {
-	unsigned long flags;
+	int i = smp_processor_id();
 
-	if(!smp_activated || !smp_commenced)
-		return;
-#ifdef DEBUG_CAPTURE
-	printk("C<%d>", smp_processor_id());
-#endif
-	save_and_cli(flags);
-	if(!capture_level) {
-		release = 0;
-		smp_message_pass(MSG_ALL_BUT_SELF, MSG_CAPTURE, 0, 1);
-	}
-	capture_level++;
-	restore_flags(flags);
+	ccall_info.processors_in[i] = 1;
+	ccall_info.func(ccall_info.arg1, ccall_info.arg2, ccall_info.arg3,
+			ccall_info.arg4, ccall_info.arg5);
+	ccall_info.processors_out[i] = 1;
 }
 
-void smp_release(void)
+/* Stopping processors. */
+void smp_stop_cpu_irq(void)
 {
-	unsigned long flags;
+	__sti();
+	while(1)
+		barrier();
+}
+
+/* Protects counters touched during level14 ticker */
+spinlock_t ticker_lock = SPIN_LOCK_UNLOCKED;
+
+/* 32-bit Sparc specific profiling function. */
+static inline void sparc_do_profile(unsigned long pc)
+{
+	if(prof_buffer && current->pid) {
+		extern int _stext;
+
+		pc -= (unsigned long) &_stext;
+		pc >>= prof_shift;
+
+		spin_lock(&ticker_lock);
+		if(pc < prof_len)
+			prof_buffer[pc]++;
+		else
+			prof_buffer[prof_len - 1]++;
+		spin_unlock(&ticker_lock);
+	}
+}
+
+volatile unsigned long smp_local_timer_ticks[1+NR_CPUS]={0,};
+
+unsigned int prof_multiplier[NR_CPUS];
+unsigned int prof_counter[NR_CPUS];
+
+extern void update_one_process(struct task_struct *p, unsigned long ticks,
+			       unsigned long user, unsigned long system);
+
+void smp_percpu_timer_interrupt(struct pt_regs *regs)
+{
+	int cpu = smp_processor_id();
+
+	clear_profile_irq(mid_xlate[cpu]);
+	if(!user_mode(regs))
+		sparc_do_profile(regs->pc);
+	if(!--prof_counter[cpu]) {
+		int user = user_mode(regs);
+		if(current->pid) {
+			update_one_process(current, 1, user, !user);
+
+			if(--current->counter < 0) {
+				current->counter = 0;
+				need_resched = 1;
+			}
+
+			spin_lock(&ticker_lock);
+			if(user) {
+				if(current->priority < DEF_PRIORITY)
+					kstat.cpu_nice++;
+				else
+					kstat.cpu_user++;
+			} else {
+				kstat.cpu_system++;
+			}
+			spin_unlock(&ticker_lock);
+		}
+		prof_counter[cpu] = prof_multiplier[cpu];
+	}
+#ifdef __SMP_PROF__
+	smp_local_timer_ticks[cpu]++;
+#endif
+}
+
+extern unsigned int lvl14_resolution;
+
+static void smp_setup_percpu_timer(void)
+{
+	int cpu = smp_processor_id();
+
+	prof_counter[cpu] = prof_multiplier[cpu] = 1;
+	load_profile_irq(mid_xlate[cpu], lvl14_resolution);
+
+	if(cpu == boot_cpu_id)
+		enable_pil_irq(14);
+}
+
+int setup_profiling_timer(unsigned int multiplier)
+{
 	int i;
+	unsigned long flags;
 
-	if(!smp_activated || !smp_commenced)
-		return;
-#ifdef DEBUG_CAPTURE
-	printk("R<%d>", smp_processor_id());
-#endif
+	/* Prevent level14 ticker IRQ flooding. */
+	if((!multiplier) || (lvl14_resolution / multiplier) < 500)
+		return -EINVAL;
+
 	save_and_cli(flags);
-	if(!(capture_level - 1)) {
-		release = 1;
-		for(i = 0; i < smp_num_cpus; i++)
-			while(cpu_callin_map[i])
-				barrier();
+	for(i = 0; i < NR_CPUS; i++) {
+		if(cpu_present_map & (1 << i)) {
+			load_profile_irq(mid_xlate[i], lvl14_resolution / multiplier);
+			prof_multiplier[i] = multiplier;
+		}
 	}
-	capture_level -= 1;
 	restore_flags(flags);
-}
 
-/* Park a processor, we must watch for more IPI's to invalidate
- * our cache's and TLB's. And also note we can only wait for
- * "lock-less" IPI's and process those, as a result of such IPI's
- * being non-maskable traps being on is enough to receive them.
- */
-
-/* Message call back. */
-void smp_message_irq(void)
-{
-	int i=smp_processor_id();
-
-	switch(smp_msg_id) {
-	case MSG_CROSS_CALL:
-		/* Do it to it. */
-		ccall_info.processors_in[i] = 1;
-		ccall_info.func(ccall_info.arg1, ccall_info.arg2, ccall_info.arg3,
-				ccall_info.arg4, ccall_info.arg5);
-		ccall_info.processors_out[i] = 1;
-		break;
-
-		/*
-		 *	Halt other CPU's for a panic or reboot
-		 */
-	case MSG_STOP_CPU:
-		sti();
-		while(1)
-			barrier();
-
-	default:
-		printk("CPU #%d sent invalid cross CPU message to CPU #%d: %X(%lX).\n",
-		       smp_src_cpu,smp_processor_id(),smp_msg_id,smp_msg_data);
-		break;
-	}
+	return 0;
 }

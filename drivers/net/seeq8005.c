@@ -40,6 +40,7 @@ static const char *version =
 #include <linux/in.h>
 #include <linux/malloc.h>
 #include <linux/string.h>
+#include <linux/init.h>
 #include <asm/system.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -53,7 +54,7 @@ static const char *version =
 
 /* First, a few definitions that the brave might change. */
 /* A zero-terminated list of I/O addresses to be probed. */
-static unsigned int seeq8005_portlist[] =
+static unsigned int seeq8005_portlist[] __initdata =
    { 0x300, 0x320, 0x340, 0x360, 0};
 
 /* use 0 for production, 1 for verification, >2 for debug */
@@ -64,7 +65,7 @@ static unsigned int net_debug = NET_DEBUG;
 
 /* Information that need to be kept for each board. */
 struct net_local {
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	unsigned short receive_ptr;		/* What address in packet memory do we expect a recv_pkt_header? */
 	long open_time;				/* Useless example local info. */
 };
@@ -84,14 +85,14 @@ static int seeq8005_send_packet(struct sk_buff *skb, struct device *dev);
 static void seeq8005_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void seeq8005_rx(struct device *dev);
 static int seeq8005_close(struct device *dev);
-static struct enet_statistics *seeq8005_get_stats(struct device *dev);
+static struct net_device_stats *seeq8005_get_stats(struct device *dev);
 static void set_multicast_list(struct device *dev);
 
 /* Example routines you must write ;->. */
 #define tx_done(dev)	(inw(SEEQ_STATUS) & SEEQSTAT_TX_ON)
-extern void hardware_send_packet(struct device *dev, char *buf, int length);
+static void hardware_send_packet(struct device *dev, char *buf, int length);
 extern void seeq8005_init(struct device *dev, int startp);
-inline void wait_for_buffer(struct device *dev);
+static inline void wait_for_buffer(struct device *dev);
 
 
 /* Check for a network adaptor of this type, and return '0' iff one exists.
@@ -106,8 +107,8 @@ inline void wait_for_buffer(struct device *dev);
 struct netdev_entry seeq8005_drv =
 {"seeq8005", seeq8005_probe1, SEEQ8005_IO_EXTENT, seeq8005_portlist};
 #else
-int
-seeq8005_probe(struct device *dev)
+__initfunc(int
+seeq8005_probe(struct device *dev))
 {
 	int i;
 	int base_addr = dev ? dev->base_addr : 0;
@@ -133,7 +134,7 @@ seeq8005_probe(struct device *dev)
    probes on the ISA bus.  A good device probes avoids doing writes, and
    verifies that the correct device exists and functions.  */
 
-static int seeq8005_probe1(struct device *dev, int ioaddr)
+__initfunc(static int seeq8005_probe1(struct device *dev, int ioaddr))
 {
 	static unsigned version_printed = 0;
 	int i,j;
@@ -389,14 +390,6 @@ seeq8005_send_packet(struct sk_buff *skb, struct device *dev)
 		dev->trans_start = jiffies;
 	}
 
-	/* If some higher layer thinks we've missed an tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
 	/* Block a timer-based transmit from overlapping.  This could better be
 	   done with atomic_swap(1, dev->tbusy), but set_bit() works as well. */
 	if (set_bit(0, (void*)&dev->tbusy) != 0)
@@ -593,8 +586,7 @@ seeq8005_close(struct device *dev)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct enet_statistics *
-seeq8005_get_stats(struct device *dev)
+static struct net_device_stats *seeq8005_get_stats(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 
@@ -690,7 +682,7 @@ void seeq8005_init(struct device *dev, int startp)
 }	
 
 
-void hardware_send_packet(struct device * dev, char *buf, int length)
+static void hardware_send_packet(struct device * dev, char *buf, int length)
 {
 	int ioaddr = dev->base_addr;
 	int status = inw(SEEQ_STATUS);

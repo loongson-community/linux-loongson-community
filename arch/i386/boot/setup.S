@@ -27,12 +27,12 @@
 ! Video handling moved to video.S by Martin Mares, March 1996
 ! <mj@k332.feld.cvut.cz>
 
-! NOTE! These had better be the same as in bootsect.s!
 #define __ASSEMBLY__
 #include <linux/config.h>
 #include <asm/segment.h>
 #include <linux/version.h>
 #include <linux/compile.h>
+#include <asm/boot.h>
 
 ! Signature words to ensure LILO loaded us right
 #define SIG1	0xAA55
@@ -79,23 +79,32 @@ type_of_loader:	.byte	0		! = 0, old one (LILO, Loadlin,
 					!	T=3 for SYSLX
 					!	T=4 for ETHERBOOT
 					!       V = version
-loadflags:	.byte	0	! unused bits =0 (reserved for future development)
+loadflags:			! flags, unused bits must be zero (RFU)
 LOADED_HIGH	= 1		! bit within loadflags,
 				! if set, then the kernel is loaded high
 CAN_USE_HEAP	= 0x80		! if set, the loader also has set heap_end_ptr
 				! to tell how much space behind setup.S
 				| can be used for heap purposes.
 				! Only the loader knows what is free!
+#ifndef __BIG_KERNEL__
+		.byte	0x00
+#else
+		.byte	LOADED_HIGH
+#endif
+
 setup_move_size: .word  0x8000	! size to move, when we (setup) are not
 				! loaded at 0x90000. We will move ourselves
 				! to 0x90000 then just before jumping into
 				! the kernel. However, only the loader
 				! know how much of data behind us also needs
 				! to be loaded.
-code32_start:	.long	0x1000		! here loaders can put a different
+code32_start:				! here loaders can put a different
 					! start address for 32-bit code.
-					!   0x1000 = default for zImage
-					! 0x100000 = default for big kernel
+#ifndef __BIG_KERNEL__
+		.long	0x1000		!   0x1000 = default for zImage
+#else
+		.long	0x100000	! 0x100000 = default for big kernel
+#endif
 ramdisk_image:	.long	0	! address of loaded ramdisk image
 				! Here the loader (or kernel generator) puts
 				! the 32-bit address were it loaded the image.
@@ -232,9 +241,53 @@ loader_panic_mess:
 loader_ok:
 ! Get memory size (extended mem, kB)
 
+#ifdef STANDARD_MEMORY_BIOS_CALL
 	mov	ah,#0x88
 	int	0x15
 	mov	[2],ax
+#else
+	push	ax
+	push	cx
+	push	dx
+				! which bootloader ?
+	seg cs
+	mov	al,byte ptr type_of_loader
+	and	al,#0xf0
+	cmp	al,#0x10
+	jne	try_xe801	! not Loadlin
+	seg cs
+	cmp	byte ptr type_of_loader,#0x16
+	jbe	oldstylemem	! Loadlin <= 1.6 don't like that
+try_xe801:
+	mov	ax,#0xe801
+	int	0x15
+	jc	oldstylemem
+
+! memory size is (ax+(64*bx)) * 1024; we store bx+(ax/64)
+
+	mov	[2],bx		! store extended memory size
+	xor	dx,dx
+	mov	cx,#64		! convert lower memory size from K into
+	div	cx		! 64k chunks.
+
+	add	[2],ax		! add lower memory into total size.
+	jmp	gotmem
+
+oldstylemem:
+	mov	ah,#0x88
+	int	0x15
+	or	ax,ax		! some BIOSes report ZERO for 64meg
+	mov	word ptr [2],#0x400
+	jz	gotmem
+	mov	cx,#64		! got memory size in kbytes, so we need to
+	xor	dx,dx		! adjust to 64k chunks for the system.
+	div	cx
+	mov	[2],ax
+gotmem:
+	pop	dx
+	pop	cx
+	pop	ax
+#endif
 
 ! Set the keyboard repeat rate to the max
 
@@ -293,6 +346,33 @@ no_disk1:
 	rep
 	stosb
 is_disk1:
+
+! check for Micro Channel (MCA) bus
+	mov ax,cs		! aka #SETUPSEG
+	sub ax,#DELTA_INITSEG	! aka #INITSEG
+	mov ds,ax
+	mov ds,ax
+	xor ax,ax
+	mov [0x220], ax		! set table length to 0
+	mov ah, #0xc0
+	stc
+	int 0x15		! puts feature table at es:bx
+	jc no_mca
+	push ds
+	mov ax,es
+	mov ds,ax
+	mov ax,cs		! aka #SETUPSEG
+	sub ax, #DELTA_INITSEG	! aka #INITSEG
+	mov es,ax
+	mov si,bx
+	mov di,#0x220
+	mov cx,(si)
+	add cx,#2		! table length is a short
+	rep
+	movsb
+	pop ds
+
+no_mca:
 
 ! Check for PS/2 pointing device
 

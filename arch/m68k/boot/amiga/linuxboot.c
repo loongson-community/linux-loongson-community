@@ -20,6 +20,24 @@
  *  This file is subject to the terms and conditions of the GNU General Public
  *  License.  See the file COPYING in the main directory of this archive
  *  for more details.
+ *
+ *  History:
+ *	03 Feb 1997 Implemented kernel decompression (Geert, based on Roman's
+ *		    code for ataboot)
+ *	30 Dec 1996 Reverted the CPU detection to the old scheme
+ *		    New boot parameter override scheme (Geert)
+ *      27 Nov 1996 Compatibility with bootinfo interface version 1.0 (Geert)
+ *       9 Sep 1996 Rewritten option parsing
+ *		    New parameter passing to linuxboot() (linuxboot_args)
+ *		    (Geert)
+ *	18 Aug 1996 Updated for the new boot information structure (Geert)
+ *	10 Jan 1996 The real Linux/m68k boot code moved to linuxboot.[ch]
+ *		    (Geert)
+ *	11 Jul 1995 Support for ELF kernel (untested!) (Andreas)
+ *	 7 Mar 1995 Memory block sizes are rounded to a multiple of 256K
+ *		    instead of 1M (Geert)
+ *	31 May 1994 Memory thrash problem solved (Geert)
+ *	11 May 1994 A3640 MapROM check (Geert)
  */
 
 
@@ -27,6 +45,10 @@
 #error GNU CC is required to compile this program
 #endif /* __GNUC__ */
 
+
+#define BOOTINFO_COMPAT_1_0	/* bootinfo interface version 1.0 compatible */
+/* support compressed kernels? */
+#define ZKERNEL
 
 #include <stddef.h>
 #include <string.h>
@@ -36,8 +58,7 @@
 #include <linux/a.out.h>
 #include <linux/elf.h>
 #include <linux/linkage.h>
-#include <asm/setup.h>
-#include <asm/amigatypes.h>
+#include <asm/bootinfo.h>
 #include <asm/amigahw.h>
 #include <asm/page.h>
 
@@ -48,22 +69,36 @@
 #define custom ((*(volatile struct CUSTOM *)(CUSTOM_PHYSADDR)))
 
 /* temporary stack size */
-#define TEMP_STACKSIZE  (256)
+#define TEMP_STACKSIZE	(256)
+
+#define DEFAULT_BAUD	(9600)
 
 extern char copyall, copyallend;
 
 static struct exec kexec;
 static Elf32_Ehdr kexec_elf;
-static struct bootinfo bi;
-
 static const struct linuxboot_args *linuxboot_args;
+
+/* Bootinfo */
+struct amiga_bootinfo bi;
+
+#ifdef BOOTINFO_COMPAT_1_0
+static struct compat_bootinfo compat_bootinfo;
+#endif /* BOOTINFO_COMPAT_1_0 */
+
+#define MAX_BI_SIZE	(4096)
+static u_long bi_size;
+static union {
+    struct bi_record record;
+    u_char fake[MAX_BI_SIZE];
+} bi_union;
 
 #define kernelname	linuxboot_args->kernelname
 #define ramdiskname	linuxboot_args->ramdiskname
-#define commandline	linuxboot_args->commandline
 #define debugflag	linuxboot_args->debugflag
 #define keep_video	linuxboot_args->keep_video
 #define reset_boards	linuxboot_args->reset_boards
+#define baud		linuxboot_args->baud
 
 #define Puts		linuxboot_args->puts
 #define GetChar		linuxboot_args->getchar
@@ -75,23 +110,38 @@ static const struct linuxboot_args *linuxboot_args;
 #define Close		linuxboot_args->close
 #define FileSize	linuxboot_args->filesize
 #define Sleep		linuxboot_args->sleep
-#define ModifyBootinfo	linuxboot_args->modify_bootinfo
-
 
     /*
      *  Function Prototypes
      */
 
 static u_long get_chipset(void);
-static u_long get_cpu(void);
+static void get_processor(u_long *cpu, u_long *fpu, u_long *mmu);
 static u_long get_model(u_long chipset);
 static int probe_resident(const char *name);
 static int probe_resource(const char *name);
+static int create_bootinfo(void);
+#ifdef BOOTINFO_COMPAT_1_0
+static int create_compat_bootinfo(void);
+#endif /* BOOTINFO_COMPAT_1_0 */
+static int add_bi_record(u_short tag, u_short size, const void *data);
+static int add_bi_string(u_short tag, const u_char *s);
 static int check_bootinfo_version(const char *memptr);
 static void start_kernel(void (*startfunc)(), char *stackp, char *memptr,
 			 u_long start_mem, u_long mem_size, u_long rd_size,
 			 u_long kernel_size) __attribute__ ((noreturn));
 asmlinkage u_long maprommed(void);
+asmlinkage u_long check346(void);
+#ifdef ZKERNEL
+static int load_zkernel(int fd);
+static int KRead(int fd, void *buf, int cnt);
+static int KSeek(int fd, int offset);
+static int KClose(int fd);
+#else
+#define KRead		Read
+#define KSeek		Seek
+#define KClose		Close
+#endif
 
 
     /*
@@ -126,7 +176,7 @@ static struct boardreset boardresetdb[] = {
 };
 #define NUM_BOARDRESET	sizeof(boardresetdb)/sizeof(*boardresetdb)
 
-static void (*boardresetfuncs[NUM_AUTO])(const struct ConfigDev *cd);
+static void (*boardresetfuncs[ZORRO_NUM_AUTO])(const struct ConfigDev *cd);
 
 
 const char *amiga_models[] = {
@@ -151,7 +201,7 @@ const u_long last_amiga_model = AMI_DRACO;
 
 u_long linuxboot(const struct linuxboot_args *args)
 {
-    int kfd = -1, rfd = -1, elf_kernel = 0;
+    int kfd = -1, rfd = -1, elf_kernel = 0, do_fast, do_chip;
     int i, j;
     const struct MemHeader *mnp;
     struct ConfigDev *cdp = NULL;
@@ -159,11 +209,13 @@ u_long linuxboot(const struct linuxboot_args *args)
     u_long *stack = NULL;
     u_long fast_total, model_mask, startcodesize, start_mem, mem_size, rd_size;
     u_long kernel_size;
+    u_int realbaud;
     u_long memreq = 0, text_offset = 0;
     Elf32_Phdr *kernel_phdrs = NULL;
     void (*startfunc)(void);
     u_short manuf;
     u_char prod;
+    void *bi_ptr;
 
     linuxboot_args = args;
 
@@ -171,37 +223,42 @@ u_long linuxboot(const struct linuxboot_args *args)
     Puts("\nLinux/m68k Amiga Bootstrap version " AMIBOOT_VERSION "\n");
     Puts("Copyright 1993,1994 by Hamish Macdonald and Greg Harp\n\n");
 
+    /* Note: Initial values in bi override detected values */
+    bi = args->bi;
+
     /* machine is Amiga */
     bi.machtype = MACH_AMIGA;
 
     /* determine chipset */
-    bi.bi_amiga.chipset = get_chipset();
+    if (!bi.chipset)
+	bi.chipset = get_chipset();
 
-    /* determine CPU type */
-    bi.cputype = get_cpu();
+    /* determine CPU, FPU and MMU type */
+    if (!bi.cputype)
+	get_processor(&bi.cputype, &bi.fputype, &bi.mmutype);
 
     /* determine Amiga model */
-    bi.bi_amiga.model = get_model(bi.bi_amiga.chipset);
-    model_mask = (bi.bi_amiga.model != AMI_UNKNOWN) ? 1<<bi.bi_amiga.model : 0;
+    if (!bi.model)
+	bi.model = get_model(bi.chipset);
+    model_mask = (bi.model != AMI_UNKNOWN) ? 1<<bi.model : 0;
 
     /* Memory & AutoConfig based on 'unix_boot.c' by C= */
 
     /* find all of the autoconfig boards in the system */
-    bi.bi_amiga.num_autocon = 0;
-    for (i = 0; (cdp = (struct ConfigDev *)FindConfigDev(cdp, -1, -1)); i++) {
-	if (bi.bi_amiga.num_autocon < NUM_AUTO) {
-	    /* copy the contents of each structure into our boot info */
-	    memcpy(&bi.bi_amiga.autocon[bi.bi_amiga.num_autocon], cdp,
-		   sizeof(struct ConfigDev));
-	    /* count this device */
-	    bi.bi_amiga.num_autocon++;
-	} else
-	    Printf("Warning: too many AutoConfig devices. Ignoring device at "
-		   "0x%08lx\n", cdp->cd_BoardAddr);
-    }
+    if (!bi.num_autocon)
+	for (i = 0; (cdp = (struct ConfigDev *)FindConfigDev(cdp, -1, -1)); i++)
+	    if (bi.num_autocon < ZORRO_NUM_AUTO)
+		/* copy the contents of each structure into our boot info and
+		   count this device */
+		memcpy(&bi.autocon[bi.num_autocon++], cdp,
+		       sizeof(struct ConfigDev));
+	    else
+		Printf("Warning: too many AutoConfig devices. Ignoring device at "
+		       "0x%08lx\n", cdp->cd_BoardAddr);
 
+    do_fast = bi.num_memory ? 0 : 1;
+    do_chip = bi.chip_size ? 0 : 1;
     /* find out the memory in the system */
-    bi.num_memory = 0;
     for (mnp = (struct MemHeader *)SysBase->MemList.lh_Head;
 	 mnp->mh_Node.ln_Succ;
 	 mnp = (struct MemHeader *)mnp->mh_Node.ln_Succ) {
@@ -240,7 +297,7 @@ u_long linuxboot(const struct linuxboot_args *args)
 	mh.mh_Lower = (void *)((u_long)mh.mh_Lower & 0xfffff000);
 
 	/* if fast memory */
-	if (mh.mh_Attributes & MEMF_FAST) {
+	if (do_fast && mh.mh_Attributes & MEMF_FAST) {
 	    /* set the size value to the size of this block and mask off to a
 	       256K increment */
 	    u_long size = ((u_long)mh.mh_Upper-(u_long)mh.mh_Lower)&0xfffc0000;
@@ -253,38 +310,36 @@ u_long linuxboot(const struct linuxboot_args *args)
 		    bi.num_memory++;
 		} else
 		    Printf("Warning: too many memory blocks. Ignoring block "
-			   "of %ldK at 0x%08x\n", size>>10,
+		    	   "of %ldK at 0x%08x\n", size>>10,
 			   (u_long)mh.mh_Lower);
-	} else if (mh.mh_Attributes & MEMF_CHIP)
+	} else if (do_chip && mh.mh_Attributes & MEMF_CHIP)
 	    /* if CHIP memory, record the size */
-	    bi.bi_amiga.chip_size = (u_long)mh.mh_Upper;
+	    bi.chip_size = (u_long)mh.mh_Upper;
     }
 
     /* get info from ExecBase */
-    bi.bi_amiga.vblank = SysBase->VBlankFrequency;
-    bi.bi_amiga.psfreq = SysBase->PowerSupplyFrequency;
-    bi.bi_amiga.eclock = SysBase->ex_EClockFrequency;
+    if (!bi.vblank)
+	bi.vblank = SysBase->VBlankFrequency;
+    if (!bi.psfreq)
+	bi.psfreq = SysBase->PowerSupplyFrequency;
+    if (!bi.eclock)
+	bi.eclock = SysBase->ex_EClockFrequency;
 
-    /* copy command line options into the kernel command line */
-    strncpy(bi.command_line, commandline, CL_SIZE);
-    bi.command_line[CL_SIZE-1] = '\0';
-
-
-    /* modify the bootinfo, e.g. to change the memory configuration */
-    if (ModifyBootinfo && !ModifyBootinfo(&bi))
-	goto Fail;
-
+    /* serial port */
+    if (!bi.serper) {
+	realbaud = baud ? baud : DEFAULT_BAUD;
+	bi.serper = (5*bi.eclock+realbaud/2)/realbaud-1;
+    }
 
     /* display Amiga model */
-    if (bi.bi_amiga.model >= first_amiga_model &&
-	bi.bi_amiga.model <= last_amiga_model)
-	Printf("%s ", amiga_models[bi.bi_amiga.model-first_amiga_model]);
+    if (bi.model >= first_amiga_model && bi.model <= last_amiga_model)
+	Printf("%s ", amiga_models[bi.model-first_amiga_model]);
     else
 	Puts("Amiga ");
 
     /* display the CPU type */
     Puts("CPU: ");
-    switch (bi.cputype & CPU_MASK) {
+    switch (bi.cputype) {
 	case CPU_68020:
 	    Puts("68020 (Do you have an MMU?)");
 	    break;
@@ -302,7 +357,7 @@ u_long linuxboot(const struct linuxboot_args *args)
 	    Printf("SysBase->AttnFlags = 0x%08lx\n", SysBase->AttnFlags);
 	    goto Fail;
     }
-    switch (bi.cputype & ~CPU_MASK) {
+    switch (bi.fputype) {
 	case FPU_68881:
 	    Puts(" with 68881 FPU");
 	    break;
@@ -319,7 +374,7 @@ u_long linuxboot(const struct linuxboot_args *args)
     }
 
     /* display the chipset */
-    switch(bi.bi_amiga.chipset) {
+    switch (bi.chipset) {
 	case CS_STONEAGE:
 	    Puts(", old or unknown chipset");
 	    break;
@@ -340,21 +395,21 @@ u_long linuxboot(const struct linuxboot_args *args)
     Printf("Command line is '%s'\n", bi.command_line);
 
     /* display the clock statistics */
-    Printf("Vertical Blank Frequency: %ldHz\n", bi.bi_amiga.vblank);
-    Printf("Power Supply Frequency: %ldHz\n", bi.bi_amiga.psfreq);
-    Printf("EClock Frequency: %ldHz\n\n", bi.bi_amiga.eclock);
+    Printf("Vertical Blank Frequency: %ldHz\n", bi.vblank);
+    Printf("Power Supply Frequency: %ldHz\n", bi.psfreq);
+    Printf("EClock Frequency: %ldHz\n\n", bi.eclock);
 
     /* display autoconfig devices */
-    if (bi.bi_amiga.num_autocon) {
-	Printf("Found %ld AutoConfig Device%s\n", bi.bi_amiga.num_autocon,
-	       bi.bi_amiga.num_autocon > 1 ? "s" : "");
-	for (i = 0; i < bi.bi_amiga.num_autocon; i++) {
+    if (bi.num_autocon) {
+	Printf("Found %ld AutoConfig Device%s\n", bi.num_autocon,
+	       bi.num_autocon > 1 ? "s" : "");
+	for (i = 0; i < bi.num_autocon; i++) {
 	    Printf("Device %ld: addr = 0x%08lx", i,
-		   (u_long)bi.bi_amiga.autocon[i].cd_BoardAddr);
+		   (u_long)bi.autocon[i].cd_BoardAddr);
 	    boardresetfuncs[i] = NULL;
 	    if (reset_boards) {
-		manuf = bi.bi_amiga.autocon[i].cd_Rom.er_Manufacturer;
-		prod = bi.bi_amiga.autocon[i].cd_Rom.er_Product;
+		manuf = bi.autocon[i].cd_Rom.er_Manufacturer;
+		prod = bi.autocon[i].cd_Rom.er_Product;
 		for (j = 0; j < NUM_BOARDRESET; j++)
 		    if ((manuf == boardresetdb[j].manuf) &&
 			(prod == boardresetdb[j].prod)) {
@@ -383,7 +438,7 @@ u_long linuxboot(const struct linuxboot_args *args)
     }
 
     /* display chip memory size */
-    Printf("%ldK of CHIP memory\n", bi.bi_amiga.chip_size>>10);
+    Printf("%ldK of CHIP memory\n", bi.chip_size>>10);
 
     start_mem = bi.memory[0].addr;
     mem_size = bi.memory[0].size;
@@ -392,7 +447,7 @@ u_long linuxboot(const struct linuxboot_args *args)
     Printf("\nThe kernel will be located at 0x%08lx\n", start_mem);
 
     /* verify that there is enough Chip RAM */
-    if (bi.bi_amiga.chip_size < 512*1024) {
+    if (bi.chip_size < 512*1024) {
 	Puts("Not enough Chip RAM in this system.  Aborting...\n");
 	goto Fail;
     }
@@ -414,21 +469,38 @@ u_long linuxboot(const struct linuxboot_args *args)
 	    goto Fail;
 	}
 	/* record ramdisk size */
-	bi.ramdisk_size = (size+1023)>>10;
+	bi.ramdisk.size = size;
     } else
-	bi.ramdisk_size = 0;
-    rd_size = bi.ramdisk_size<<10;
-    bi.ramdisk_addr = start_mem+mem_size-rd_size;
+	bi.ramdisk.size = 0;
+    rd_size = bi.ramdisk.size;
+    bi.ramdisk.addr = (u_long)start_mem+mem_size-rd_size;
+
+    /* create the bootinfo structure */
+    if (!create_bootinfo())
+	goto Fail;
 
     /* open kernel executable and read exec header */
     if ((kfd = Open(kernelname)) == -1) {
 	Printf("Unable to open kernel file `%s'\n", kernelname);
 	goto Fail;
     }
-    if (Read(kfd, (void *)&kexec, sizeof(kexec)) != sizeof(kexec)) {
+    if (KRead(kfd, (void *)&kexec, sizeof(kexec)) != sizeof(kexec)) {
 	Puts("Unable to read exec header from kernel file\n");
 	goto Fail;
     }
+
+#ifdef ZKERNEL
+    if (((unsigned char *)&kexec)[0] == 037 &&
+	(((unsigned char *)&kexec)[1] == 0213 ||
+	 ((unsigned char *)&kexec)[1] == 0236)) {
+	/* That's a compressed kernel */
+	Puts("Kernel is compressed\n");
+	if (load_zkernel(kfd)) {
+	    Puts("Decompression error -- aborting\n");
+	    goto Fail;
+	}
+    }
+#endif
 
     switch (N_MAGIC(kexec)) {
 	case ZMAGIC:
@@ -447,8 +519,8 @@ u_long linuxboot(const struct linuxboot_args *args)
 
 	default:
 	    /* Try to parse it as an ELF header */
-	    Seek(kfd, 0);
-	    if ((Read(kfd, (void *)&kexec_elf, sizeof(kexec_elf)) ==
+	    KSeek(kfd, 0);
+	    if ((KRead(kfd, (void *)&kexec_elf, sizeof(kexec_elf)) ==
 		 sizeof(kexec_elf)) &&
 		 (memcmp(&kexec_elf.e_ident[EI_MAG0], ELFMAG, SELFMAG) == 0)) {
 		elf_kernel = 1;
@@ -469,8 +541,8 @@ u_long linuxboot(const struct linuxboot_args *args)
 		    Puts("Unable to allocate memory for program headers\n");
 		    goto Fail;
 		}
-		Seek(kfd, kexec_elf.e_phoff);
-		if (Read(kfd, (void *)kernel_phdrs,
+		KSeek(kfd, kexec_elf.e_phoff);
+		if (KRead(kfd, (void *)kernel_phdrs,
 			 kexec_elf.e_phnum*sizeof(*kernel_phdrs)) !=
 		    kexec_elf.e_phnum*sizeof(*kernel_phdrs)) {
 		    Puts("Unable to read program headers from kernel file\n");
@@ -511,7 +583,11 @@ u_long linuxboot(const struct linuxboot_args *args)
 	kernel_size = max_addr-min_addr;
     } else
 	kernel_size = kexec.a_text+kexec.a_data+kexec.a_bss;
-    memreq = kernel_size+sizeof(struct bootinfo)+rd_size;
+    memreq = kernel_size+bi_size+rd_size;
+#ifdef BOOTINFO_COMPAT_1_0
+    if (sizeof(compat_bootinfo) > bi_size)
+	memreq = kernel_size+sizeof(compat_bootinfo)+rd_size;
+#endif /* BOOTINFO_COMPAT_1_0 */
     if (!(memptr = (char *)AllocMem(memreq, MEMF_FAST | MEMF_PUBLIC |
 					    MEMF_CLEAR))) {
 	Puts("Unable to allocate memory\n");
@@ -521,48 +597,63 @@ u_long linuxboot(const struct linuxboot_args *args)
     /* read the text and data segments from the kernel image */
     if (elf_kernel)
 	for (i = 0; i < kexec_elf.e_phnum; i++) {
-	    if (Seek(kfd, kernel_phdrs[i].p_offset) == -1) {
+	    if (KSeek(kfd, kernel_phdrs[i].p_offset) == -1) {
 		Printf("Failed to seek to segment %ld\n", i);
 		goto Fail;
 	    }
-	    if (Read(kfd, memptr+kernel_phdrs[i].p_vaddr-PAGE_SIZE,
-		     kernel_phdrs[i].p_filesz) != kernel_phdrs[i].p_filesz) {
+	    if (KRead(kfd, memptr+kernel_phdrs[i].p_vaddr-PAGE_SIZE,
+		      kernel_phdrs[i].p_filesz) != kernel_phdrs[i].p_filesz) {
 		Printf("Failed to read segment %ld\n", i);
 		goto Fail;
 	    }
 	}
     else {
-	if (Seek(kfd, text_offset) == -1) {
-	    Printf("Failed to seek to text\n");
+	if (KSeek(kfd, text_offset) == -1) {
+	    Puts("Failed to seek to text\n");
 	    goto Fail;
 	}
-	if (Read(kfd, memptr, kexec.a_text) != kexec.a_text) {
-	    Printf("Failed to read text\n");
+	if (KRead(kfd, memptr, kexec.a_text) != kexec.a_text) {
+	    Puts("Failed to read text\n");
 	    goto Fail;
 	}
 	/* data follows immediately after text */
-	if (Read(kfd, memptr+kexec.a_text, kexec.a_data) != kexec.a_data) {
-	    Printf("Failed to read data\n");
+	if (KRead(kfd, memptr+kexec.a_text, kexec.a_data) != kexec.a_data) {
+	    Puts("Failed to read data\n");
 	    goto Fail;
 	}
     }
-    Close(kfd);
+    KClose(kfd);
     kfd = -1;
 
     /* Check kernel's bootinfo version */
-    if (!check_bootinfo_version(memptr))
-	goto Fail;
+    switch (check_bootinfo_version(memptr)) {
+	case BI_VERSION_MAJOR(AMIGA_BOOTI_VERSION):
+	    bi_ptr = &bi_union.record;
+	    break;
+
+#ifdef BOOTINFO_COMPAT_1_0
+	case BI_VERSION_MAJOR(COMPAT_AMIGA_BOOTI_VERSION):
+	    if (!create_compat_bootinfo())
+		goto Fail;
+	    bi_ptr = &compat_bootinfo;
+	    bi_size = sizeof(compat_bootinfo);
+	    break;
+#endif /* BOOTINFO_COMPAT_1_0 */
+
+	default:
+	    goto Fail;
+    }
 
     /* copy the bootinfo to the end of the kernel image */
-    memcpy((void *)(memptr+kernel_size), &bi, sizeof(struct bootinfo));
+    memcpy((void *)(memptr+kernel_size), bi_ptr, bi_size);
 
     if (ramdiskname) {
 	if ((rfd = Open(ramdiskname)) == -1) {
 	    Printf("Unable to open ramdisk file `%s'\n", ramdiskname);
 	    goto Fail;
 	}
-	if (Read(rfd, memptr+kernel_size+sizeof(bi), rd_size) != rd_size) {
-	    Printf("Failed to read ramdisk file\n");
+	if (Read(rfd, memptr+kernel_size+bi_size, rd_size) != rd_size) {
+	    Puts("Failed to read ramdisk file\n");
 	    goto Fail;
 	}
 	Close(rfd);
@@ -587,9 +678,9 @@ u_long linuxboot(const struct linuxboot_args *args)
     memcpy(startfunc, &copyall, startcodesize);
 
     if (debugflag) {
-	if (bi.ramdisk_size)
+	if (bi.ramdisk.size)
 	    Printf("RAM disk at 0x%08lx, size is %ldK\n",
-		   (u_long)memptr+kernel_size, bi.ramdisk_size);
+		   (u_long)memptr+kernel_size, bi.ramdisk.size>>10);
 
 	if (elf_kernel) {
 	    PutChar('\n');
@@ -611,9 +702,10 @@ u_long linuxboot(const struct linuxboot_args *args)
 							   kexec.a_entry);
 
 	Printf("ramdisk dest top is 0x%08lx\n", start_mem+mem_size);
-	Printf("ramdisk lower limit is 0x%08lx\n", (u_long)memptr+kernel_size);
+	Printf("ramdisk lower limit is 0x%08lx\n",
+	       (u_long)(memptr+kernel_size));
 	Printf("ramdisk src top is 0x%08lx\n",
-	       (u_long)memptr+kernel_size+rd_size);
+	       (u_long)(memptr+kernel_size)+rd_size);
 
 	Puts("\nType a key to continue the Linux/m68k boot...");
 	GetChar();
@@ -631,9 +723,9 @@ u_long linuxboot(const struct linuxboot_args *args)
 
     /* reset nasty Zorro boards */
     if (reset_boards)
-	for (i = 0; i < bi.bi_amiga.num_autocon; i++)
+	for (i = 0; i < bi.num_autocon; i++)
 	    if (boardresetfuncs[i])
-		boardresetfuncs[i](&bi.bi_amiga.autocon[i]);
+		boardresetfuncs[i](&bi.autocon[i]);
 
     /* Turn off all DMA */
     custom.dmacon = DMAF_ALL | DMAF_MASTER;
@@ -654,7 +746,7 @@ u_long linuxboot(const struct linuxboot_args *args)
     /* Clean up and exit in case of a failure */
 Fail:
     if (kfd != -1)
-	Close(kfd);
+	KClose(kfd);
     if (rfd != -1)
 	Close(rfd);
     if (memptr)
@@ -696,31 +788,28 @@ static u_long get_chipset(void)
      *	Determine the CPU Type
      */
 
-static u_long get_cpu(void)
+static void get_processor(u_long *cpu, u_long *fpu, u_long *mmu)
 {
-    u_long cpu = 0;
-
-    if (SysBase->AttnFlags & AFF_68060) {
-	cpu = CPU_68060;
+    *cpu = *fpu = 0;
+    if (SysBase->AttnFlags & AFF_68060)
+	*cpu = CPU_68060;
+    else if (SysBase->AttnFlags & AFF_68040)
+	*cpu = CPU_68040;
+    else if (SysBase->AttnFlags & AFF_68030)
+	*cpu = CPU_68030;
+    else if (SysBase->AttnFlags & AFF_68020)
+	*cpu = CPU_68020;
+    if (*cpu == CPU_68040 || *cpu == CPU_68060) {
 	if (SysBase->AttnFlags & AFF_FPU40)
-	    cpu |= FPU_68060;
-    } else if (SysBase->AttnFlags & AFF_68040) {
-	cpu = CPU_68040;
-	if (SysBase->AttnFlags & AFF_FPU40)
-	    cpu |= FPU_68040;
+	    *fpu = *cpu;
     } else {
-	if (SysBase->AttnFlags & AFF_68030)
-	    cpu = CPU_68030;
-	else if (SysBase->AttnFlags & AFF_68020)
-	    cpu = CPU_68020;
 	if (SysBase->AttnFlags & AFF_68882)
-	    cpu |= FPU_68882;
+	    *fpu = FPU_68882;
 	else if (SysBase->AttnFlags & AFF_68881)
-	    cpu |= FPU_68881;
+	    *fpu = FPU_68881;
     }
-    return(cpu);
+    *mmu = *cpu;
 }
-
 
     /*
      *	Determine the Amiga Model
@@ -737,7 +826,7 @@ static u_long get_model(u_long chipset)
     else {
 	if (debugflag)
 	    Puts("    Chipset: ");
-	switch(chipset) {
+	switch (chipset) {
 	    case CS_STONEAGE:
 		if (debugflag)
 		    Puts("Old or unknown\n");
@@ -810,7 +899,7 @@ static int probe_resident(const char *name)
 	if (res)
 	    Printf("0x%08lx\n", res);
 	else
-	    Printf("not present\n");
+	    Puts("not present\n");
     return(res ? TRUE : FALSE);
 }
 
@@ -830,9 +919,176 @@ static int probe_resource(const char *name)
 	if (res)
 	    Printf("0x%08lx\n", res);
 	else
-	    Printf("not present\n");
+	    Puts("not present\n");
     return(res ? TRUE : FALSE);
 }
+
+
+    /*
+     *  Create the Bootinfo structure
+     */
+
+static int create_bootinfo(void)
+{
+    int i;
+    struct bi_record *record;
+
+    /* Initialization */
+    bi_size = 0;
+
+    /* Generic tags */
+    if (!add_bi_record(BI_MACHTYPE, sizeof(bi.machtype), &bi.machtype))
+	return(0);
+    if (!add_bi_record(BI_CPUTYPE, sizeof(bi.cputype), &bi.cputype))
+	return(0);
+    if (!add_bi_record(BI_FPUTYPE, sizeof(bi.fputype), &bi.fputype))
+	return(0);
+    if (!add_bi_record(BI_MMUTYPE, sizeof(bi.mmutype), &bi.mmutype))
+	return(0);
+    for (i = 0; i < bi.num_memory; i++)
+	if (!add_bi_record(BI_MEMCHUNK, sizeof(bi.memory[i]), &bi.memory[i]))
+	    return(0);
+    if (bi.ramdisk.size)
+	if (!add_bi_record(BI_RAMDISK, sizeof(bi.ramdisk), &bi.ramdisk))
+	    return(0);
+    if (!add_bi_string(BI_COMMAND_LINE, bi.command_line))
+	return(0);
+
+    /* Amiga tags */
+    if (!add_bi_record(BI_AMIGA_MODEL, sizeof(bi.model), &bi.model))
+	return(0);
+    for (i = 0; i < bi.num_autocon; i++)
+	if (!add_bi_record(BI_AMIGA_AUTOCON, sizeof(bi.autocon[i]),
+			    &bi.autocon[i]))
+	    return(0);
+    if (!add_bi_record(BI_AMIGA_CHIP_SIZE, sizeof(bi.chip_size), &bi.chip_size))
+	return(0);
+    if (!add_bi_record(BI_AMIGA_VBLANK, sizeof(bi.vblank), &bi.vblank))
+	return(0);
+    if (!add_bi_record(BI_AMIGA_PSFREQ, sizeof(bi.psfreq), &bi.psfreq))
+	return(0);
+    if (!add_bi_record(BI_AMIGA_ECLOCK, sizeof(bi.eclock), &bi.eclock))
+	return(0);
+    if (!add_bi_record(BI_AMIGA_CHIPSET, sizeof(bi.chipset), &bi.chipset))
+	return(0);
+    if (!add_bi_record(BI_AMIGA_SERPER, sizeof(bi.serper), &bi.serper))
+	return(0);
+
+    /* Trailer */
+    record = (struct bi_record *)((u_long)&bi_union.record+bi_size);
+    record->tag = BI_LAST;
+    bi_size += sizeof(bi_union.record.tag);
+
+    return(1);
+}
+
+
+    /*
+     *  Add a Record to the Bootinfo Structure
+     */
+
+static int add_bi_record(u_short tag, u_short size, const void *data)
+{
+    struct bi_record *record;
+    u_int size2;
+
+    size2 = (sizeof(struct bi_record)+size+3)&-4;
+    if (bi_size+size2+sizeof(bi_union.record.tag) > MAX_BI_SIZE) {
+	Puts("Can't add bootinfo record. Ask a wizard to enlarge me.\n");
+	return(0);
+    }
+    record = (struct bi_record *)((u_long)&bi_union.record+bi_size);
+    record->tag = tag;
+    record->size = size2;
+    memcpy(record->data, data, size);
+    bi_size += size2;
+    return(1);
+}
+
+
+    /*
+     *  Add a String Record to the Bootinfo Structure
+     */
+
+static int add_bi_string(u_short tag, const u_char *s)
+{
+    return(add_bi_record(tag, strlen(s)+1, (void *)s));
+}
+
+
+#ifdef BOOTINFO_COMPAT_1_0
+
+    /*
+     *  Create the Bootinfo structure for backwards compatibility mode
+     */
+
+static int create_compat_bootinfo(void)
+{
+    u_int i;
+
+    compat_bootinfo.machtype = bi.machtype;
+    if (bi.cputype & CPU_68020)
+	compat_bootinfo.cputype = COMPAT_CPU_68020;
+    else if (bi.cputype & CPU_68030)
+	compat_bootinfo.cputype = COMPAT_CPU_68030;
+    else if (bi.cputype & CPU_68040)
+	compat_bootinfo.cputype = COMPAT_CPU_68040;
+    else if (bi.cputype & CPU_68060)
+	compat_bootinfo.cputype = COMPAT_CPU_68060;
+    else {
+	Printf("CPU type 0x%08lx not supported by kernel\n", bi.cputype);
+	return(0);
+    }
+    if (bi.fputype & FPU_68881)
+	compat_bootinfo.cputype |= COMPAT_FPU_68881;
+    else if (bi.fputype & FPU_68882)
+	compat_bootinfo.cputype |= COMPAT_FPU_68882;
+    else if (bi.fputype & FPU_68040)
+	compat_bootinfo.cputype |= COMPAT_FPU_68040;
+    else if (bi.fputype & FPU_68060)
+	compat_bootinfo.cputype |= COMPAT_FPU_68060;
+    else {
+	Printf("FPU type 0x%08lx not supported by kernel\n", bi.fputype);
+	return(0);
+    }
+    compat_bootinfo.num_memory = bi.num_memory;
+    if (compat_bootinfo.num_memory > COMPAT_NUM_MEMINFO) {
+	Printf("Warning: using only %ld blocks of memory\n",
+	       COMPAT_NUM_MEMINFO);
+	compat_bootinfo.num_memory = COMPAT_NUM_MEMINFO;
+    }
+    for (i = 0; i < compat_bootinfo.num_memory; i++) {
+	compat_bootinfo.memory[i].addr = bi.memory[i].addr;
+	compat_bootinfo.memory[i].size = bi.memory[i].size;
+    }
+    if (bi.ramdisk.size) {
+	compat_bootinfo.ramdisk_size = (bi.ramdisk.size+1023)/1024;
+	compat_bootinfo.ramdisk_addr = bi.ramdisk.addr;
+    } else {
+	compat_bootinfo.ramdisk_size = 0;
+	compat_bootinfo.ramdisk_addr = 0;
+    }
+    strncpy(compat_bootinfo.command_line, bi.command_line, COMPAT_CL_SIZE);
+    compat_bootinfo.command_line[COMPAT_CL_SIZE-1] = '\0';
+
+    compat_bootinfo.bi_amiga.model = bi.model;
+    compat_bootinfo.bi_amiga.num_autocon = bi.num_autocon;
+    if (compat_bootinfo.bi_amiga.num_autocon > COMPAT_NUM_AUTO) {
+	Printf("Warning: using only %ld AutoConfig devices\n",
+	       COMPAT_NUM_AUTO);
+	compat_bootinfo.bi_amiga.num_autocon = COMPAT_NUM_AUTO;
+    }
+    for (i = 0; i < compat_bootinfo.bi_amiga.num_autocon; i++)
+	compat_bootinfo.bi_amiga.autocon[i] = bi.autocon[i];
+    compat_bootinfo.bi_amiga.chip_size = bi.chip_size;
+    compat_bootinfo.bi_amiga.vblank = bi.vblank;
+    compat_bootinfo.bi_amiga.psfreq = bi.psfreq;
+    compat_bootinfo.bi_amiga.eclock = bi.eclock;
+    compat_bootinfo.bi_amiga.chipset = bi.chipset;
+    compat_bootinfo.bi_amiga.hw_present = 0;
+    return(1);
+}
+#endif /* BOOTINFO_COMPAT_1_0 */
 
 
     /*
@@ -852,7 +1108,7 @@ static int check_bootinfo_version(const char *memptr)
 		break;
 	    }
     if (!version)
-	Printf("Kernel has no bootinfo version info, assuming 0.0\n");
+	Puts("Kernel has no bootinfo version info, assuming 0.0\n");
 
     kernel_major = BI_VERSION_MAJOR(version);
     kernel_minor = BI_VERSION_MINOR(version);
@@ -863,16 +1119,27 @@ static int check_bootinfo_version(const char *memptr)
     Printf("Kernel's bootinfo version   : %ld.%ld\n", kernel_major,
 	   kernel_minor);
 
-    if (kernel_major != boots_major) {
-	Printf("\nThis bootstrap is too %s for this kernel!\n",
-	       boots_major < kernel_major ? "old" : "new");
-	return(0);
+    switch (kernel_major) {
+	case BI_VERSION_MAJOR(AMIGA_BOOTI_VERSION):
+	    if (kernel_minor > boots_minor) {
+		Puts("Warning: Bootinfo version of bootstrap and kernel "
+		       "differ!\n");
+		Puts("         Certain features may not work.\n");
+	    }
+	    break;
+
+#ifdef BOOTINFO_COMPAT_1_0
+	case BI_VERSION_MAJOR(COMPAT_AMIGA_BOOTI_VERSION):
+	    Puts("(using backwards compatibility mode)\n");
+	    break;
+#endif /* BOOTINFO_COMPAT_1_0 */
+
+	default:
+	    Printf("\nThis bootstrap is too %s for this kernel!\n",
+		   boots_major < kernel_major ? "old" : "new");
+	    return(0);
     }
-    if (kernel_minor > boots_minor) {
-	Printf("Warning: Bootinfo version of bootstrap and kernel differ!\n" );
-	Printf("         Certain features may not work.\n");
-    }
-    return(1);
+    return(kernel_major);
 }
 
 
@@ -891,7 +1158,7 @@ static void start_kernel(void (*startfunc)(), char *stackp, char *memptr,
     register u_long d0 __asm("d0") = mem_size;
     register u_long d1 __asm("d1") = rd_size;
     register u_long d2 __asm("d2") = kernel_size;
-    register u_long d3 __asm("d3") = sizeof(struct bootinfo);
+    register u_long d3 __asm("d3") = bi_size;
 
     __asm __volatile ("movel a2,sp;"
 		      "jmp a0@"
@@ -915,7 +1182,7 @@ static void start_kernel(void (*startfunc)(), char *stackp, char *memptr,
      *	    d0 = mem_size
      *	    d1 = rd_size
      *	    d2 = kernel_size
-     *	    d3 = sizeof(struct bootinfo)
+     *	    d3 = bi_size
      */
 
 asm(".text\n"
@@ -931,10 +1198,10 @@ SYMBOL_NAME_STR(copyall) ":
 	moveb	a0@+,a1@+	|  *dest++ = *src++;
 	jra	1b
 2:
-				| /* copy early bootinfo to end of bss */
+				| /* copy bootinfo to end of bss */
 	movel	a3,a0		| src = (u_long *)(memptr+kernel_size);
 	addl	d2,a0		| dest = end of bss (already in a1)
-	movel	d3,d7		| count = sizeof(struct bootinfo)
+	movel	d3,d7		| count = bi_size
 	subql	#1,d7
 1:	moveb	a0@+,a1@+	| while (--count > -1)
 	dbra	d7,1b		|     *dest++ = *src++
@@ -944,7 +1211,7 @@ SYMBOL_NAME_STR(copyall) ":
 	movel	a4,a1		| dest = (u_long *)(start_mem+mem_size);
 	addl	d0,a1
 	movel	a3,a2		| limit = (u_long *)(memptr+kernel_size +
-	addl	d2,a2		|		     sizeof(struct bootinfo));
+	addl	d2,a2		|		     bi_size);
 	addl	d3,a2
 	movel	a2,a0		| src = (u_long *)((u_long)limit+rd_size);
 	addl	d1,a0
@@ -1114,7 +1381,7 @@ static void reset_hydra(const struct ConfigDev *cd)
     Disable();
  
     *nic_cr = 0x21;	/* nic command register: software reset etc. */
-    while(((*nic_isr & 0x80) == 0) && --n)  /* wait for reset to complete */
+    while (((*nic_isr & 0x80) == 0) && --n)  /* wait for reset to complete */
 	;
  
     Enable();
@@ -1126,3 +1393,294 @@ static void reset_a2060(const struct ConfigDev *cd)
 #error reset_a2060: not yet implemented
 }
 #endif
+
+
+#ifdef ZKERNEL
+
+#define	ZFILE_CHUNK_BITS	16  /* chunk is 64 KB */
+#define	ZFILE_CHUNK_SIZE	(1 << ZFILE_CHUNK_BITS)
+#define	ZFILE_CHUNK_MASK	(ZFILE_CHUNK_SIZE-1)
+#define	ZFILE_N_CHUNKS		(2*1024*1024/ZFILE_CHUNK_SIZE)
+
+/* variables for storing the uncompressed data */
+static char *ZFile[ZFILE_N_CHUNKS];
+static int ZFileSize = 0;
+static int ZFpos = 0;
+static int Zwpos = 0;
+
+static int Zinfd = 0;	     /* fd of compressed file */
+
+/*
+ * gzip declarations
+ */
+
+#define OF(args)  args
+
+#define memzero(s, n)     memset ((s), 0, (n))
+
+typedef unsigned char  uch;
+typedef unsigned short ush;
+typedef unsigned long  ulg;
+
+#define INBUFSIZ 4096
+#define WSIZE 0x8000    /* window size--must be a power of two, and */
+			/*  at least 32K for zip's deflate method */
+
+static uch *inbuf;
+static uch *window;
+
+static unsigned insize = 0;  /* valid bytes in inbuf */
+static unsigned inptr = 0;   /* index of next byte to be processed in inbuf */
+static unsigned outcnt = 0;  /* bytes in output buffer */
+static int exit_code = 0;
+static long bytes_out = 0;
+
+#define get_byte()  (inptr < insize ? inbuf[inptr++] : fill_inbuf())
+		
+/* Diagnostic functions (stubbed out) */
+#define Assert(cond,msg)
+#define Trace(x)
+#define Tracev(x)
+#define Tracevv(x)
+#define Tracec(c,x)
+#define Tracecv(c,x)
+
+#define STATIC static
+
+static int  fill_inbuf(void);
+static void flush_window(void);
+static void error(char *m);
+static void gzip_mark(void **);
+static void gzip_release(void **);
+
+#define malloc(x)	AllocVec(x, MEMF_FAST | MEMF_PUBLIC)
+#define free(x)		FreeVec(x)
+
+#ifdef LILO
+#include "inflate.c"
+#else
+#include "../../../../lib/inflate.c"
+#endif
+
+static void gzip_mark(void **ptr)
+{
+}
+
+static void gzip_release(void **ptr)
+{
+}
+
+
+/*
+ * Fill the input buffer. This is called only when the buffer is empty
+ * and at least one byte is really needed.
+ */
+static int fill_inbuf(void)
+{
+    if (exit_code)
+	return -1;
+
+    insize = Read(Zinfd, inbuf, INBUFSIZ);
+    if (insize <= 0)
+	return -1;
+
+    inptr = 1;
+    return(inbuf[0]);
+}
+
+/*
+ * Write the output window window[0..outcnt-1] and update crc and bytes_out.
+ * (Used for the decompressed data only.)
+ */
+static void flush_window(void)
+{
+    ulg c = crc;         /* temporary variable */
+    unsigned n;
+    uch *in, ch;
+    int chunk = Zwpos >> ZFILE_CHUNK_BITS;
+
+    if (exit_code)
+	return;
+
+    if (chunk >= ZFILE_N_CHUNKS) {
+	error("Compressed image too large! Aborting.\n");
+	return;
+    }
+    if (!ZFile[chunk]) {
+	if (!(ZFile[chunk] = (char *)AllocMem(ZFILE_CHUNK_SIZE,
+					      MEMF_FAST | MEMF_PUBLIC))) {
+	    error("Out of memory for decompresing kernel image\n");
+	    return;
+	}
+    }
+    memcpy(ZFile[chunk] + (Zwpos & ZFILE_CHUNK_MASK), window, outcnt);
+    Zwpos += outcnt;
+    
+#define	DISPLAY_BITS 10
+    if ((Zwpos & ((1 << DISPLAY_BITS)-1)) == 0)
+	PutChar('.');
+    
+    in = window;
+    for (n = 0; n < outcnt; n++) {
+	ch = *in++;
+	c = crc_32_tab[((int)c ^ ch) & 0xff] ^ (c >> 8);
+    }
+    crc = c;
+    bytes_out += (ulg)outcnt;
+    outcnt = 0;
+}
+
+static void error(char *x)
+{
+    Printf("\n%s", x);
+    exit_code = 1;
+}
+
+static inline int call_sub(int (*func)(void), void *stackp)
+{
+    register int _res __asm("d0");
+    register int (*a0)(void) __asm("a0") = func;
+    register int (*a1)(void) __asm("a1") = stackp;
+
+    __asm __volatile ("movel sp,a2;"
+    		      "movel a1,sp;"
+    		      "jsr a0@;"
+    		      "movel a2,sp"
+		      : "=r" (_res)
+		      : "r" (a0), "r" (a1)
+		      : "a0", "a1", "a2", "d0", "d1", "memory");
+    return(_res);
+}
+
+static int load_zkernel(int fd)
+{
+    int i, err = -1;
+#define ZSTACKSIZE	(16384)
+    u_long *zstack;
+    
+    for (i = 0; i < ZFILE_N_CHUNKS; ++i)
+	ZFile[i] = NULL;
+    Zinfd = fd;
+    Seek(fd, 0);
+    
+    if (!(inbuf = (uch *)AllocMem(INBUFSIZ, MEMF_FAST | MEMF_PUBLIC)))
+	Puts("Couldn't allocate gunzip buffer\n");
+    else {
+	if (!(window = (uch *)AllocMem(WSIZE, MEMF_FAST | MEMF_PUBLIC)))
+	    Puts("Couldn't allocate gunzip window\n");
+	else {
+	    if (!(zstack = (u_long *)AllocMem(ZSTACKSIZE,
+	    				      MEMF_FAST | MEMF_PUBLIC)))
+		Puts("Couldn't allocate gunzip stack\n");
+	    else {
+		Puts("Uncompressing kernel image ");
+		makecrc();
+		if (!(err = call_sub(gunzip, (char *)zstack+ZSTACKSIZE)))
+		    Puts("done\n");
+		ZFileSize = Zwpos;
+		FreeMem(zstack, ZSTACKSIZE);
+	    }
+	    FreeMem(window, WSIZE);
+	    window = NULL;
+	}
+	FreeMem(inbuf, INBUFSIZ);
+	inbuf = NULL;
+    }
+    Close(Zinfd);	/* input file not needed anymore */
+    return(err);
+}
+
+
+/* Note about the read/lseek wrapper and its memory management: It assumes
+ * that all seeks are only forward, and thus data already read or skipped can
+ * be freed. This is true for current organization of bootstrap and kernels.
+ * Little exception: The struct kexec at the start of the file. After reading
+ * it, there may be a seek back to the end of the file. But this currently
+ * doesn't hurt. (Roman)
+ */
+
+static int KRead(int fd, void *buf, int cnt)
+{
+    unsigned done = 0;
+	
+    if (!ZFileSize)
+	return(Read(fd, buf, cnt));
+    
+    if (ZFpos + cnt > ZFileSize)
+	cnt = ZFileSize - ZFpos;
+    
+    while (cnt > 0) {
+	unsigned chunk = ZFpos >> ZFILE_CHUNK_BITS;
+	unsigned endchunk = (chunk+1) << ZFILE_CHUNK_BITS;
+	unsigned n = cnt;
+
+	if (ZFpos + n > endchunk)
+	    n = endchunk - ZFpos;
+	memcpy(buf, ZFile[chunk] + (ZFpos & ZFILE_CHUNK_MASK), n);
+	cnt -= n;
+	buf += n;
+	done += n;
+	ZFpos += n;
+
+	if (ZFpos == endchunk) {
+	    FreeMem(ZFile[chunk], ZFILE_CHUNK_SIZE);
+	    ZFile[chunk] = NULL;
+	}
+    }
+
+    return(done);
+}
+
+
+static int KSeek(int fd, int offset)
+{
+    unsigned oldpos, oldchunk, newchunk;
+
+    if (!ZFileSize)
+	return(Seek(fd, offset));
+
+    oldpos = ZFpos;
+    ZFpos = offset;
+    if (ZFpos < 0) {
+	ZFpos = 0;
+	return(-1);
+    } else if (ZFpos > ZFileSize) {
+	ZFpos = ZFileSize;
+	return(-1);
+    }
+
+    /* free memory of skipped-over data */
+    oldchunk = oldpos >> ZFILE_CHUNK_BITS;
+    newchunk = ZFpos  >> ZFILE_CHUNK_BITS;
+    while(oldchunk < newchunk) {
+	if (ZFile[oldchunk]) {
+	    FreeMem(ZFile[oldchunk], ZFILE_CHUNK_SIZE);
+	    ZFile[oldchunk] = NULL;
+	}
+	++oldchunk;
+    }
+    return(ZFpos);
+}
+
+
+static void free_zfile(void)
+{
+    int i;
+
+    for (i = 0; i < ZFILE_N_CHUNKS; ++i)
+	if (ZFile[i]) {
+	    FreeMem(ZFile[i], ZFILE_CHUNK_SIZE);
+	    ZFile[i] = NULL;
+	}
+}
+
+static int KClose(int fd)
+{
+    if (ZFileSize) {
+	free_zfile();
+	ZFileSize = 0;
+    } else
+	Close(fd);
+    return(0);
+}
+#endif /* ZKERNEL */

@@ -1,59 +1,58 @@
-#include <linux/in.h>
+/*#include <linux/in.h>*/
+#include <linux/autoconf.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
-void sys_iopl(void) { _panic("sys_iopl"); }
-void sys_vm86(void) { _panic("sys_vm86"); }
-void sys_modify_ldt(void) { _panic("sys_modify_ldt"); }
-
-void sys_ipc(void) {_panic("sys_ipc"); }
-void sys_newselect(void) {_panic("sys_newselect"); }
-
-halt()
+void sys_iopl(void)
 {
-	printk("\n...Halt!\n");
-	abort();
+	lock_kernel();
+	panic("sys_iopl");
+	unlock_kernel();
+}
+void sys_vm86(void)
+{
+	lock_kernel();
+	panic("sys_vm86");
+	unlock_kernel();
+}
+void sys_modify_ldt(void)
+{
+	lock_kernel();
+	panic("sys_modify_ldt");
+	unlock_kernel();
 }
 
-_panic(char *msg)
+void sys_ipc(void)
 {
-	printk("Panic: %s\n", msg);
-	printk("Panic: %s\n", msg);
-	abort();
+	lock_kernel();
+	panic("sys_ipc");
+	unlock_kernel();
 }
 
-_warn(char *msg)
+void sys_newselect(void)
 {
-	printk("*** Warning: %s UNIMPLEMENTED!\n", msg);
+	lock_kernel();
+	panic("sys_newselect");
+	unlock_kernel();
 }
 
-
-void
-saved_command_line(void)
-{
-	panic("saved_command_line");
-}
-
-void
-KSTK_EIP(void)
-{
-	panic("KSTK_EIP");
-}
-
-void
-KSTK_ESP(void)
-{
-	panic("KSTK_ESP");
-}
-
+#ifndef CONFIG_MODULES
 void
 scsi_register_module(void)
 {
+	lock_kernel();
 	panic("scsi_register_module");
+	unlock_kernel();
 }
 
 void
 scsi_unregister_module(void)
 {
+	lock_kernel();
 	panic("scsi_unregister_module");
+	unlock_kernel();
 }
+#endif
+
 
 

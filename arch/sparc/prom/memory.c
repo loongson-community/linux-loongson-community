@@ -1,4 +1,4 @@
-/* $Id: memory.c,v 1.8 1996/07/12 05:14:56 tridge Exp $
+/* $Id: memory.c,v 1.10 1997/03/18 17:58:27 jj Exp $
  * memory.c: Prom routine for acquiring various bits of information
  *           about RAM on the machine, both virtual and physical.
  *
@@ -7,6 +7,7 @@
 
 #include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/init.h>
 
 #include <asm/openprom.h>
 #include <asm/oplib.h>
@@ -36,8 +37,8 @@ struct linux_mem_v0 prom_memlist;
 /* Internal Prom library routine to sort a linux_mlist_v0 memory
  * list.  Used below in initialization.
  */
-void
-prom_sortmemlist(struct linux_mlist_v0 *thislist)
+__initfunc(static void
+prom_sortmemlist(struct linux_mlist_v0 *thislist))
 {
 	int swapi = 0;
 	int i, mitr, tmpsize;
@@ -66,8 +67,7 @@ prom_sortmemlist(struct linux_mlist_v0 *thislist)
 }
 
 /* Initialize the memory lists based upon the prom version. */
-void
-prom_meminit(void)
+__initfunc(void prom_meminit(void))
 {
 	int node = 0;
 	unsigned int iter, num_regs;
@@ -107,7 +107,6 @@ prom_meminit(void)
 		break;
 	case PROM_V2:
 	case PROM_V3:
-	case PROM_P1275:
 		/* Grrr, have to traverse the prom device tree ;( */
 		node = prom_getchild(prom_root_node);
 		node = prom_searchsiblings(node, "memory");

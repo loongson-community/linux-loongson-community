@@ -143,6 +143,7 @@
 #include <asm/system.h>
 #include <asm/dma.h>
 #include <asm/io.h>
+#include <asm/irq.h>
 #include <linux/ioport.h>
 #include <linux/proc_fs.h>
 #include <linux/blk.h>
@@ -215,7 +216,7 @@ typedef struct adapter {
  * Note that if SA_INTERRUPT is not used, wd7000_intr_handle must be
  * changed to pick up the IRQ level correctly.
  */
-Adapter *irq2host[16] = {NULL};	/* Possible IRQs are 0-15 */
+static Adapter *irq2host[NR_IRQS] = {NULL};
 
 /*
  * (linear) base address for ROM BIOS
@@ -1299,8 +1300,9 @@ int wd7000_detect (Scsi_Host_Template *tpnt)
 		        break;
 
 		if ((i == pass) &&
-		    !memcmp ((void *) (wd7000_biosaddr[biosaddr_ptr] +
-		             signatures[sig_ptr].ofs), signatures[sig_ptr].sig,
+		    check_signature(wd7000_biosaddr[biosaddr_ptr] +
+		             signatures[sig_ptr].ofs,
+			     signatures[sig_ptr].sig,
 		             signatures[sig_ptr].len))
 		    goto bios_matched;
 	    }
@@ -1462,7 +1464,7 @@ int wd7000_abort(Scsi_Cmnd * SCpnt)
 /*
  *  I also have no idea how to do a reset...
  */
-int wd7000_reset(Scsi_Cmnd * SCpnt)
+int wd7000_reset(Scsi_Cmnd * SCpnt, unsigned int ignored)
 {
     return SCSI_RESET_PUNT;
 }

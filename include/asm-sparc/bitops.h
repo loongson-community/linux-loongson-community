@@ -1,4 +1,4 @@
-/* $Id: bitops.h,v 1.36 1996/09/29 22:57:21 davem Exp $
+/* $Id: bitops.h,v 1.46 1997/04/13 06:38:24 davem Exp $
  * bitops.h: Bit string operations on the Sparc.
  *
  * Copyright 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -97,86 +97,55 @@ extern __inline__ unsigned long change_bit(unsigned long nr, void *addr)
 
 extern __inline__ unsigned long set_bit(unsigned long nr, __SMPVOL void *addr)
 {
-	int mask;
-	unsigned long *ADDR = (unsigned long *) addr;
-
-	ADDR += nr >> 5;
+	register unsigned long mask asm("g2");
+	register unsigned long *ADDR asm("g1");
+	ADDR = ((unsigned long *) addr) + (nr >> 5);
 	mask = 1 << (nr & 31);
 	__asm__ __volatile__("
-	rd	%%psr, %%g3
-	andcc	%%g3, %3, %%g0
-	be,a	1f
-	 wr	%%g3, %3, %%psr
-1:	ld	[%0], %%g4
-	or	%%g4, %2, %%g2
-	andcc	%%g3, %3, %%g0
-	st	%%g2, [%0]
-	be,a	1f
-	 wr	%%g3, 0x0, %%psr
-1:	nop
-	and	%%g4, %2, %0
-	"
-	: "=&r" (ADDR)
-	: "0" (ADDR), "r" (mask), "i" (PSR_PIL)
-	: "g2", "g3", "g4");
+	mov	%%o7, %%g4
+	call	___set_bit
+	 add	%%o7, 8, %%o7
+"	: "=&r" (mask)
+	: "0" (mask), "r" (ADDR)
+	: "g3", "g4", "g5", "g7", "cc");
 
-	return (unsigned long) ADDR;
+	return mask;
 }
 
 extern __inline__ unsigned long clear_bit(unsigned long nr, __SMPVOL void *addr)
 {
-	int mask;
-	unsigned long *ADDR = (unsigned long *) addr;
+	register unsigned long mask asm("g2");
+	register unsigned long *ADDR asm("g1");
 
-	ADDR += nr >> 5;
+	ADDR = ((unsigned long *) addr) + (nr >> 5);
 	mask = 1 << (nr & 31);
 	__asm__ __volatile__("
-	rd	%%psr, %%g3
-	andcc	%%g3, %3, %%g0
-	be,a	1f
-	 wr	%%g3, %3, %%psr
-1:	ld	[%0], %%g4
-	andn	%%g4, %2, %%g2
-	andcc	%%g3, %3, %%g0
-	st	%%g2, [%0]
-	be,a	1f
-	wr	%%g3, 0x0, %%psr
-1:	nop
-	and	%%g4, %2, %0
-	"
-	: "=&r" (ADDR)
-	: "0" (ADDR), "r" (mask), "i" (PSR_PIL)
-	: "g2", "g3", "g4");
+	mov	%%o7, %%g4
+	call	___clear_bit
+	 add	%%o7, 8, %%o7
+"	: "=&r" (mask)
+	: "0" (mask), "r" (ADDR)
+	: "g3", "g4", "g5", "g7", "cc");
 
-	return (unsigned long) ADDR;
+	return mask;
 }
 
 extern __inline__ unsigned long change_bit(unsigned long nr, __SMPVOL void *addr)
 {
-	int mask;
-	unsigned long *ADDR = (unsigned long *) addr;
+	register unsigned long mask asm("g2");
+	register unsigned long *ADDR asm("g1");
 
-	ADDR += nr >> 5;
+	ADDR = ((unsigned long *) addr) + (nr >> 5);
 	mask = 1 << (nr & 31);
 	__asm__ __volatile__("
-	rd	%%psr, %%g3
-	andcc	%%g3, %3, %%g0
-	be,a	1f
-	 wr	%%g3, %3, %%psr
-1:	ld	[%0], %%g4
-	xor	%%g4, %2, %%g2
-	andcc	%%g3, %3, %%g0
-	st	%%g2, [%0]
-	be,a	1f
-	 wr	%%g3, 0x0, %%psr
-1:	nop
-	and	%%g4, %2, %0
-	"
-	: "=&r" (ADDR)
-	: "0" (ADDR), "r" (mask), "i" (PSR_PIL)
-	: "g2", "g3", "g4");
+	mov	%%o7, %%g4
+	call	___change_bit
+	 add	%%o7, 8, %%o7
+"	: "=&r" (mask)
+	: "0" (mask), "r" (ADDR)
+	: "g3", "g4", "g5", "g7", "cc");
 
-	return (unsigned long) ADDR;
+	return mask;
 }
 
 #endif /* __KERNEL__ */
@@ -249,7 +218,7 @@ found_middle:
 
 #ifndef __KERNEL__
 
-extern __inline__ int __ext2_set_bit(int nr, void *addr)
+extern __inline__ int set_le_bit(int nr, void *addr)
 {
 	int		mask;
 	unsigned char	*ADDR = (unsigned char *) addr;
@@ -269,7 +238,7 @@ extern __inline__ int __ext2_set_bit(int nr, void *addr)
 	return (int) ADDR;
 }
 
-extern __inline__ int __ext2_clear_bit(int nr, void *addr)
+extern __inline__ int clear_le_bit(int nr, void *addr)
 {
 	int		mask;
 	unsigned char	*ADDR = (unsigned char *) addr;
@@ -293,65 +262,45 @@ extern __inline__ int __ext2_clear_bit(int nr, void *addr)
 
 /* Now for the ext2 filesystem bit operations and helper routines. */
 
-extern __inline__ int __ext2_set_bit(int nr,void * addr)
+extern __inline__ int set_le_bit(int nr,void * addr)
 {
-	int		mask;
-	unsigned char	*ADDR = (unsigned char *) addr;
+	register int mask asm("g2");
+	register unsigned char *ADDR asm("g1");
 
-	ADDR += nr >> 3;
+	ADDR = ((unsigned char *) addr) + (nr >> 3);
 	mask = 1 << (nr & 0x07);
 	__asm__ __volatile__("
-	rd	%%psr, %%g3
-	andcc	%%g3, %3, %%g0
-	be,a	1f
-	 wr	%%g3, %3, %%psr
-1:	ldub	[%0], %%g4
-	or	%%g4, %2, %%g2
-	andcc	%%g3, %3, %%g0
-	stb	%%g2, [%0]
-	be,a	1f
-	 wr	%%g3, 0x0, %%psr
-1:	nop
-	and	%%g4, %2, %0
-	"
-	: "=&r" (ADDR)
-	: "0" (ADDR), "r" (mask), "i" (PSR_PIL)
-	: "g2", "g3", "g4");
+	mov	%%o7, %%g4
+	call	___set_le_bit
+	 add	%%o7, 8, %%o7
+"	: "=&r" (mask)
+	: "0" (mask), "r" (ADDR)
+	: "g3", "g4", "g5", "g7", "cc");
 
-	return (int) ADDR;
+	return mask;
 }
 
-extern __inline__ int __ext2_clear_bit(int nr, void * addr)
+extern __inline__ int clear_le_bit(int nr, void * addr)
 {
-	int		mask;
-	unsigned char	*ADDR = (unsigned char *) addr;
+	register int mask asm("g2");
+	register unsigned char *ADDR asm("g1");
 
-	ADDR += nr >> 3;
+	ADDR = ((unsigned char *) addr) + (nr >> 3);
 	mask = 1 << (nr & 0x07);
 	__asm__ __volatile__("
-	rd	%%psr, %%g3
-	andcc	%%g3, %3, %%g0
-	be,a	1f
-	 wr	%%g3, %3, %%psr
-1:	ldub	[%0], %%g4
-	andn	%%g4, %2, %%g2
-	andcc	%%g3, %3, %%g0
-	stb	%%g2, [%0]
-	be,a	1f
-	wr	%%g3, 0x0, %%psr
-1:	nop
-	and	%%g4, %2, %0
-	"
-	: "=&r" (ADDR)
-	: "0" (ADDR), "r" (mask), "i" (PSR_PIL)
-	: "g2", "g3", "g4");
+	mov	%%o7, %%g4
+	call	___clear_le_bit
+	 add	%%o7, 8, %%o7
+"	: "=&r" (mask)
+	: "0" (mask), "r" (ADDR)
+	: "g3", "g4", "g5", "g7", "cc");
 
-	return (int) ADDR;
+	return mask;
 }
 
 #endif /* __KERNEL__ */
 
-extern __inline__ int __ext2_test_bit(int nr, __const__ void * addr)
+extern __inline__ int test_le_bit(int nr, __const__ void * addr)
 {
 	int			mask;
 	__const__ unsigned char	*ADDR = (__const__ unsigned char *) addr;
@@ -361,21 +310,24 @@ extern __inline__ int __ext2_test_bit(int nr, __const__ void * addr)
 	return ((mask & *ADDR) != 0);
 }
 
-extern __inline__ unsigned short __swab16(unsigned short value)
-{
-        return ((value >> 8) | (value << 8));
-}     
+#ifdef __KERNEL__
+
+#define ext2_set_bit   set_le_bit
+#define ext2_clear_bit clear_le_bit
+#define ext2_test_bit  test_le_bit
+
+#endif /* __KERNEL__ */
+
+#define find_first_zero_le_bit(addr, size) \
+        find_next_zero_le_bit((addr), (size), 0)
 
 extern __inline__ unsigned long __swab32(unsigned long value)
 {
-        return ((value >> 24) | ((value >> 8) & 0xff00) |
-               ((value << 8) & 0xff0000) | (value << 24));
+	return((value>>24) | ((value>>8)&0xff00) |
+	       ((value<<8)&0xff0000) | (value<<24));
 }     
 
-#define __ext2_find_first_zero_bit(addr, size) \
-        __ext2_find_next_zero_bit((addr), (size), 0)
-
-extern __inline__ unsigned long __ext2_find_next_zero_bit(void *addr, unsigned long size, unsigned long offset)
+extern __inline__ unsigned long find_next_zero_le_bit(void *addr, unsigned long size, unsigned long offset)
 {
 	unsigned long *p = ((unsigned long *) addr) + (offset >> 5);
 	unsigned long result = offset & ~31UL;
@@ -411,5 +363,17 @@ found_middle:
 	return result + ffz(__swab32(tmp));
 }
 
-#endif /* defined(_SPARC_BITOPS_H) */
+#ifdef __KERNEL__
 
+#define ext2_find_first_zero_bit     find_first_zero_le_bit
+#define ext2_find_next_zero_bit      find_next_zero_le_bit
+
+/* Bitmap functions for the minix filesystem.  */
+#define minix_set_bit(nr,addr) set_bit(nr,addr)
+#define minix_clear_bit(nr,addr) clear_bit(nr,addr)
+#define minix_test_bit(nr,addr) test_bit(nr,addr)
+#define minix_find_first_zero_bit(addr,size) find_first_zero_bit(addr,size)
+
+#endif /* __KERNEL__ */
+
+#endif /* defined(_SPARC_BITOPS_H) */

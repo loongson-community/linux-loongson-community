@@ -186,11 +186,12 @@ static int ioctl_command(Scsi_Device *dev, Scsi_Ioctl_Command *sic)
     /*
      * The structure that we are passed should look like:
      *
-     * struct sdata{
+     * struct sdata {
      *	unsigned int inlen;
      *	unsigned int outlen;
      *	unsigned char  cmd[];  # However many bytes are used for cmd.
      *	unsigned char  data[];
+     * };
      */
     get_user(inlen, &sic->inlen);
     get_user(outlen, &sic->outlen);
@@ -246,7 +247,12 @@ static int ioctl_command(Scsi_Device *dev, Scsi_Ioctl_Command *sic)
 	retries = 1;
 	break;
       case START_STOP:
-	timeout =  60 * HZ;	/* 60 seconds */
+	timeout =  2 * 60 * HZ;	/* 2 minutes */
+	retries = 1;
+	break;
+      case MOVE_MEDIUM:
+      case READ_ELEMENT_STATUS:
+	timeout =  5 * 60 * HZ;	/* 5 minutes */
 	retries = 1;
 	break;
       default:

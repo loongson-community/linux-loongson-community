@@ -19,6 +19,7 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/random.h>
+#include <linux/init.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -34,34 +35,25 @@ void isdn_init(void);
 void pcwatchdog_init(void);
 #endif
 
-static long read_ram(struct inode * inode, struct file * file,
-	char * buf, unsigned long count)
-{
-	return -EIO;
-}
-
-static long write_ram(struct inode * inode, struct file * file,
-	const char * buf, unsigned long count)
-{
-	return -EIO;
-}
-
+/*
+ * This funcion reads the *physical* memory. The f_pos points directly to the 
+ * memory location. 
+ */
 static long read_mem(struct inode * inode, struct file * file,
 	char * buf, unsigned long count)
 {
 	unsigned long p = file->f_pos;
 	unsigned long end_mem;
-	int read;
+	unsigned long read;
 
-	if (count < 0)
-		return -EINVAL;
 	end_mem = __pa(high_memory);
 	if (p >= end_mem)
 		return 0;
 	if (count > end_mem - p)
 		count = end_mem - p;
 	read = 0;
-#if defined(__sparc__) /* we don't have page 0 mapped on sparc.. */
+#if defined(__sparc__) || defined(__mc68000__)
+	/* we don't have page 0 mapped on sparc and m68k.. */
 	while (p < PAGE_SIZE && count > 0) {
 		put_user(0,buf);
 		buf++;
@@ -81,17 +73,16 @@ static long write_mem(struct inode * inode, struct file * file,
 {
 	unsigned long p = file->f_pos;
 	unsigned long end_mem;
-	int written;
+	unsigned long written;
 
-	if (count < 0)
-		return -EINVAL;
 	end_mem = __pa(high_memory);
 	if (p >= end_mem)
 		return 0;
 	if (count > end_mem - p)
 		count = end_mem - p;
 	written = 0;
-#if defined(__sparc__) /* we don't have page 0 mapped on sparc.. */
+#if defined(__sparc__) || defined(__mc68000__)
+	/* we don't have page 0 mapped on sparc and m68k.. */
 	while (p < PAGE_SIZE && count > 0) {
 		/* Hmm. Do something? */
 		buf++;
@@ -130,19 +121,70 @@ static int mmap_mem(struct inode * inode, struct file * file, struct vm_area_str
 	return 0;
 }
 
+/*
+ * This function reads the *virtual* memory as seen by the kernel.
+ */
 static long read_kmem(struct inode *inode, struct file *file,
 	char *buf, unsigned long count)
 {
-	int read1, read2;
+	unsigned long p = file->f_pos;
+	unsigned long read = 0;
+	long virtr;
+		
+	if (p < (unsigned long) high_memory) { 
+		unsigned long tmp;
+		
+		if (count > (unsigned long) high_memory - p)
+			tmp = (unsigned long) high_memory - p;
+		else
+			tmp = count;
+		read = tmp;
+#if defined(__sparc__) /* we don't have page 0 mapped on sparc.. */
+		while (p < PAGE_SIZE && tmp > 0) {
+			put_user(0,buf);
+			buf++;
+			p++;
+			tmp--;
+		}
+#endif
+		copy_to_user(buf, (char *) p, tmp);
+		buf += tmp;
+	}
 
-	read1 = read_mem(inode, file, buf, count);
-	if (read1 < 0)
-		return read1;
-	read2 = vread(buf + read1, (char *) ((unsigned long) file->f_pos), count - read1);
-	if (read2 < 0)
-		return read2;
-	file->f_pos += read2;
-	return read1 + read2;
+	virtr = vread(buf, (char *) (unsigned long) file->f_pos, count - read);
+	if (virtr < 0)
+		return virtr;
+	file->f_pos += virtr + read;
+	return virtr + read;
+}
+
+/*
+ * This function writes to the *virtual* memory as seen by the kernel.
+ */
+static long write_kmem(struct inode * inode, struct file * file,
+	const char * buf, unsigned long count)
+{
+	unsigned long p = file->f_pos;
+	unsigned long written;
+
+	if (p >= (unsigned long) high_memory)
+		return 0;
+	if (count > (unsigned long) high_memory - p)
+		count = (unsigned long) high_memory - p;
+	written = 0;
+#if defined(__sparc__) /* we don't have page 0 mapped on sparc.. */
+	while (p < PAGE_SIZE && count > 0) {
+		/* Hmm. Do something? */
+		buf++;
+		p++;
+		count--;
+		written++;
+	}
+#endif
+	copy_from_user((char *) p, buf, count);
+	written += count;
+	file->f_pos += written;
+	return count;
 }
 
 static long read_port(struct inode * inode, struct file * file,
@@ -190,14 +232,39 @@ static long write_null(struct inode * inode, struct file * file,
 }
 
 /*
- * For fun, somebody might look into using the MMU for this.
- * NOTE! It's not trivial: you have to check that the mapping
- * is a private mapping and if so you can just map in the
- * zero page directly. But shared mappings _have_ to use the
- * physical copy.
+ * For fun, we are using the MMU for this.
  */
 static inline unsigned long read_zero_pagealigned(char * buf, unsigned long size)
 {
+	struct vm_area_struct * curr_vma;
+	unsigned long addr=(unsigned long)buf;
+
+/*
+ * First we take the most obvious case: when we have one VM area to deal with,
+ * and it's privately mapped.
+ */
+	curr_vma = find_vma(current->mm, addr);
+
+	if ( !(curr_vma->vm_flags & VM_SHARED) &&
+	      (addr + size <= curr_vma->vm_end) ) {
+
+		flush_cache_range(current->mm, addr, addr + size);
+		zap_page_range(current->mm, addr, size);
+        	zeromap_page_range(addr, size, PAGE_COPY);
+        	flush_tlb_range(current->mm, addr, addr + size);
+
+		return 0;
+	}
+
+/*
+ * Ooops, the shared case is hard. Lets do the conventional
+ *        zeroing.
+ *
+ * FIXME: same for the multiple-vma case, we dont handle it
+ *	  now for simplicity, although it's much easier than
+ *	  the shared case. Not that it should happen often ...
+ */ 
+
 	do {
 		if (clear_user(buf, PAGE_SIZE))
 			break;
@@ -206,6 +273,7 @@ static inline unsigned long read_zero_pagealigned(char * buf, unsigned long size
 		buf += PAGE_SIZE;
 		size -= PAGE_SIZE;
 	} while (size);
+
 	return size;
 }
 
@@ -296,30 +364,16 @@ static long long memory_lseek(struct inode * inode, struct file * file,
 	return file->f_pos;
 }
 
-#define write_kmem	write_mem
 #define mmap_kmem	mmap_mem
 #define zero_lseek	null_lseek
 #define write_zero	write_null
-
-static struct file_operations ram_fops = {
-	memory_lseek,
-	read_ram,
-	write_ram,
-	NULL,		/* ram_readdir */
-	NULL,		/* ram_select */
-	NULL,		/* ram_ioctl */
-	NULL,		/* ram_mmap */
-	NULL,		/* no special open code */
-	NULL,		/* no special release code */
-	NULL		/* fsync */
-};
 
 static struct file_operations mem_fops = {
 	memory_lseek,
 	read_mem,
 	write_mem,
 	NULL,		/* mem_readdir */
-	NULL,		/* mem_select */
+	NULL,		/* mem_poll */
 	NULL,		/* mem_ioctl */
 	mmap_mem,
 	NULL,		/* no special open code */
@@ -332,7 +386,7 @@ static struct file_operations kmem_fops = {
 	read_kmem,
 	write_kmem,
 	NULL,		/* kmem_readdir */
-	NULL,		/* kmem_select */
+	NULL,		/* kmem_poll */
 	NULL,		/* kmem_ioctl */
 	mmap_kmem,
 	NULL,		/* no special open code */
@@ -345,7 +399,7 @@ static struct file_operations null_fops = {
 	read_null,
 	write_null,
 	NULL,		/* null_readdir */
-	NULL,		/* null_select */
+	NULL,		/* null_poll */
 	NULL,		/* null_ioctl */
 	NULL,		/* null_mmap */
 	NULL,		/* no special open code */
@@ -358,7 +412,7 @@ static struct file_operations port_fops = {
 	read_port,
 	write_port,
 	NULL,		/* port_readdir */
-	NULL,		/* port_select */
+	NULL,		/* port_poll */
 	NULL,		/* port_ioctl */
 	NULL,		/* port_mmap */
 	NULL,		/* no special open code */
@@ -371,7 +425,7 @@ static struct file_operations zero_fops = {
 	read_zero,
 	write_zero,
 	NULL,		/* zero_readdir */
-	NULL,		/* zero_select */
+	NULL,		/* zero_poll */
 	NULL,		/* zero_ioctl */
 	mmap_zero,
 	NULL,		/* no special open code */
@@ -383,7 +437,7 @@ static struct file_operations full_fops = {
 	read_full,
 	write_full,
 	NULL,		/* full_readdir */
-	NULL,		/* full_select */
+	NULL,		/* full_poll */
 	NULL,		/* full_ioctl */	
 	NULL,		/* full_mmap */
 	NULL,		/* no special open code */
@@ -393,9 +447,6 @@ static struct file_operations full_fops = {
 static int memory_open(struct inode * inode, struct file * filp)
 {
 	switch (MINOR(inode->i_rdev)) {
-		case 0:
-			filp->f_op = &ram_fops;
-			break;
 		case 1:
 			filp->f_op = &mem_fops;
 			break;
@@ -433,7 +484,7 @@ static struct file_operations memory_fops = {
 	NULL,		/* read */
 	NULL,		/* write */
 	NULL,		/* readdir */
-	NULL,		/* select */
+	NULL,		/* poll */
 	NULL,		/* ioctl */
 	NULL,		/* mmap */
 	memory_open,	/* just a selector for the real open */
@@ -441,7 +492,7 @@ static struct file_operations memory_fops = {
 	NULL		/* fsync */
 };
 
-int chr_dev_init(void)
+__initfunc(int chr_dev_init(void))
 {
 	if (register_chrdev(MEM_MAJOR,"mem",&memory_fops))
 		printk("unable to get major %d for memory devs\n", MEM_MAJOR);
@@ -453,6 +504,7 @@ int chr_dev_init(void)
 #if defined (CONFIG_BUSMOUSE) || defined(CONFIG_UMISC) || \
     defined (CONFIG_PSMOUSE) || defined (CONFIG_MS_BUSMOUSE) || \
     defined (CONFIG_ATIXL_BUSMOUSE) || defined(CONFIG_SOFT_WATCHDOG) || \
+    defined (CONFIG_AMIGAMOUSE) || defined (CONFIG_ATARIMOUSE) || \
     defined (CONFIG_PCWATCHDOG) || \
     defined (CONFIG_APM) || defined (CONFIG_RTC) || defined (CONFIG_SUN_MOUSE)
 	misc_init();

@@ -4,9 +4,9 @@
 
 	Contact Avery at: apenwarr@foxnet.net or
 	RR #5 Pole Line Road, Thunder Bay, ON, Canada P7C 5M9
-	
+
 	**********************
-	
+
 	The original copyright was as follows:
 
 	skeleton.c Written 1993 by Donald Becker.
@@ -14,9 +14,9 @@
         Director, National Security Agency.  This software may only be used
         and distributed according to the terms of the GNU Public License as
         modified by SRC, incorporated herein by reference.
-         
+
 	**********************
-	
+
 	v2.60 ALPHA (96/11/23)
 	  - Added patch from Vojtech Pavlik <vojtech@atrey.karlin.mff.cuni.cz>
 	    and Martin Mares <mj@k332.feld.cvut.cz> to make the driver work
@@ -43,13 +43,13 @@
 	The following has been SUMMARIZED.  The complete ChangeLog is
 	available in the full Linux-ARCnet package at
 		http://www.foxnet.net/~apenwarr/arcnet
-		
+
 	v2.50 (96/02/24)
 	  - Massively improved autoprobe routines; they now work even as a
 	    module.  Thanks to Vojtech Pavlik <Vojtech.Pavlik@st.mff.cuni.cz>
 	    for his ideas and help in this area.
 	  - Changed printk's around quite a lot.
-	
+
 	v2.22 (95/12/08)
 	  - Major cleanups, speedups, and better code-sharing.
 	  - Eliminated/changed many useless/meaningless/scary debug messages
@@ -73,7 +73,7 @@
 	    send "Ethernet-Encapsulation" packets, which are compatible with
 	    Windows for Workgroups and LAN Manager, and possibly other
 	    software.  See the README for more information.
-	  
+
 	v1.02 (95/06/21)
           - A fix to make "exception" packets sent from Linux receivable
 	    on other systems.  (The protocol_id byte was sometimes being set
@@ -84,13 +84,13 @@
 	  - Fixed some IPX-related bugs. (Thanks to Tomasz Motylewski
             <motyl@tichy.ch.uj.edu.pl> for the patches to make arcnet work
             with dosemu!)
-            
+
 	v1.00 (95/02/15)
 	  - Initial non-alpha release.
-	
-	
+
+
 	TO DO: (semi-prioritized)
-	
+
          - Use cleaner "architecture-independent" shared memory access.
            This is half-done in ARCnet 2.60, but still uses some
            undocumented i386 stuff.  (We shouldn't call phys_to_virt,
@@ -115,10 +115,10 @@
          - Try to implement promiscuous (receive-all-packets) mode available
            on some newer cards with COM20020 and similar chips.  I don't have
            one, but SMC sent me the specs.
-         - ATA protocol support?? 
+         - ATA protocol support??
          - VINES TCP/IP encapsulation?? (info needed)
 
-           
+
 	Sources:
 	 - Crynwr arcnet.com/arcether.com packet drivers.
 	 - arcnet.c v0.00 dated 1/1/94 and apparently by
@@ -139,7 +139,7 @@
 static const char *version =
  "arcnet.c: v2.60 96/11/23 Avery Pennarun <apenwarr@foxnet.net>\n";
 
- 
+
 
 #include <linux/module.h>
 #include <linux/config.h>
@@ -162,6 +162,7 @@ static const char *version =
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/bitops.h>
@@ -178,7 +179,7 @@ static const char *version =
  */
 #undef RIM_I_MODE
 
-/* Normally, the ARCnet device needs to be assigned a name (default arc0). 
+/* Normally, the ARCnet device needs to be assigned a name (default arc0).
  * Ethernet devices have a function to automatically try eth0, eth1, etc
  * until a free name is found.  To name the ARCnet device using an "eth?"
  * device name, define this option.
@@ -206,9 +207,9 @@ static const char *version =
  * usually happens when a new computer on the network is powered on or when
  * the cable is broken.
  *
- * Define DETECT_RECONFIGS if you want to detect network reconfigurations. 
+ * Define DETECT_RECONFIGS if you want to detect network reconfigurations.
  * Recons may be a real nuisance on a larger ARCnet network; if you are a
- * network administrator you probably would like to count them. 
+ * network administrator you probably would like to count them.
  * Reconfigurations will be recorded in stats.tx_carrier_errors (the last
  * field of the /proc/net/dev file).
  *
@@ -317,7 +318,7 @@ int arcnet_debug = ARCNET_DEBUG;
  * results in the cleanest mess possible.
  */
 #define ADEV lp->adev
- 
+
 #ifdef CONFIG_ARCNET_ETH
  #define EDEV lp->edev
 #else
@@ -481,7 +482,7 @@ struct ClientData
 	 */
 	u_char  saddr,		/* Source address - needed for IPX */
 		daddr;		/* Destination address */
-	
+
 	/* data that IS part of real packet */
 	u_char	protocol_id,	/* ARC_P_IP, ARC_P_ARP, etc */
 		split_flag;	/* for use with split packets */
@@ -502,7 +503,7 @@ struct S_ClientData
 	u_char  saddr,		/* Source address - needed for IPX */
 		daddr,		/* Destination address */
 		junk;		/* padding to make an even length */
-	
+
 	/* data that IS part of real packet */
 	u_char	protocol_id;	/* ARC_P_IP, ARC_P_ARP, etc */
 };
@@ -535,7 +536,7 @@ struct Outgoing
 
 /* Information that needs to be kept for each board. */
 struct arcnet_local {
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	u_short sequence;	/* sequence number (incs with each packet) */
 	u_char stationid,	/* our 8-bit station address */
 		recbuf,		/* receive buffer # (0 or 1) */
@@ -554,11 +555,11 @@ struct arcnet_local {
 	int num_recons,		/* number of RECONs between first and last. */
 	    network_down;	/* do we think the network is down? */
 #endif
-	
+
 	struct timer_list timer; /* the timer interrupt struct */
 	struct Incoming incoming[256];	/* one from each address */
 	struct Outgoing outgoing; /* packet currently being sent */
-	
+
 	struct device *adev;	/* RFC1201 protocol device */
 
 #ifdef CONFIG_ARCNET_ETH
@@ -609,12 +610,11 @@ static void arcnet_rx(struct device *dev,int recbuf);
 static void arcnetA_rx(struct device *dev,u_char *buf,
 	int length,u_char saddr, u_char daddr);
 
-static struct enet_statistics *arcnet_get_stats(struct device *dev);
+static struct net_device_stats *arcnet_get_stats(struct device *dev);
 
 int arcnetA_header(struct sk_buff *skb,struct device *dev,
 		unsigned short type,void *daddr,void *saddr,unsigned len);
-int arcnetA_rebuild_header(void *eth,struct device *dev,unsigned long raddr,
-		struct sk_buff *skb);
+int arcnetA_rebuild_header(struct sk_buff *skb);
 unsigned short arcnetA_type_trans(struct sk_buff *skb,struct device *dev);
 
 #ifdef CONFIG_ARCNET_ETH
@@ -635,8 +635,7 @@ static void arcnetS_rx(struct device *dev,u_char *buf,
 	int length,u_char saddr, u_char daddr);
 int arcnetS_header(struct sk_buff *skb,struct device *dev,
 		unsigned short type,void *daddr,void *saddr,unsigned len);
-int arcnetS_rebuild_header(void *eth,struct device *dev,unsigned long raddr,
-		struct sk_buff *skb);
+int arcnetS_rebuild_header(struct sk_buff *skb);
 unsigned short arcnetS_type_trans(struct sk_buff *skb,struct device *dev);
 #endif
 
@@ -657,13 +656,13 @@ void cleanup_module(void);
  ****************************************************************************/
 
 /* Dump the contents of an sk_buff
- */ 
+ */
 #if ARCNET_DEBUG_MAX & D_SKB
 void arcnet_dump_skb(struct device *dev,struct sk_buff *skb,char *desc)
 {
 	int i;
 	long flags;
-	
+
 	save_flags(flags);
 	cli();
 	printk(KERN_DEBUG "%6s: skb dump (%s) follows:",dev->name,desc);
@@ -685,7 +684,7 @@ void arcnet_dump_packet(struct device *dev,u_char *buffer,int ext,char *desc)
 {
 	int i;
 	long flags;
-	
+
 	save_flags(flags);
 	cli();
 	printk(KERN_DEBUG "%6s: packet dump (%s) follows:",dev->name,desc);
@@ -698,7 +697,7 @@ void arcnet_dump_packet(struct device *dev,u_char *buffer,int ext,char *desc)
 	printk("\n");
 	restore_flags(flags);
 }
-#endif 
+#endif
 
 /****************************************************************************
  *                                                                          *
@@ -713,27 +712,27 @@ void arcnet_dump_packet(struct device *dev,u_char *buffer,int ext,char *desc)
  * need to be passed a specific shmem address, IRQ, and node ID (stored in
  * dev->base_addr)
  */
-int arcnet_probe(struct device *dev)
+__initfunc(int arcnet_probe(struct device *dev))
 {
 	BUGLVL(D_NORMAL) printk(version);
 	BUGMSG(D_NORMAL,"Compiled for ARCnet RIM I (autoprobe disabled)\n");
 	BUGMSG(D_NORMAL,"Given: node %02lXh, shmem %lXh, irq %d\n",
 		dev->base_addr,dev->mem_start,dev->irq);
-	
+
 	if (dev->mem_start<=0 || dev->irq<=0)
 	{
 		BUGMSG(D_NORMAL,"No autoprobe for RIM I; you "
 			"must specify the shmem and irq!\n");
 		return -ENODEV;
 	}
-	
+
 	if (dev->base_addr<=0 || dev->base_addr>255)
 	{
 		BUGMSG(D_NORMAL,"You need to specify your card's station "
 			"ID!\n");
 		return -ENODEV;
 	}
-	
+
 	return arcnet_found(dev,dev->base_addr,dev->irq,dev->mem_start);
 }
 
@@ -751,11 +750,13 @@ int arcnet_probe(struct device *dev)
  *
  * FIXME: grab all devices in one shot and eliminate the big static array.
  */
-int arcnet_probe(struct device *dev)
+
+static int ports[(0x3f0 - 0x200) / 16 + 1] __initdata;
+static u_long shmems[(0xFF800 - 0xA0000) / 2048 + 1] __initdata;
+
+__initfunc(int arcnet_probe(struct device *dev))
 {
 	static int init_once = 0;
-	static int ports[(0x3f0 - 0x200) / 16 + 1];
-	static u_long shmems[(0xFF800 - 0xA0000) / 2048 + 1];
 	static int numports=sizeof(ports)/sizeof(ports[0]),
 	    	   numshmems=sizeof(shmems)/sizeof(shmems[0]);
 
@@ -764,7 +765,7 @@ int arcnet_probe(struct device *dev)
 	unsigned long airqmask;
 	int *port;
 	u_long *shmem;
-	
+
 	if (!init_once)
 	{
 		for (count=0x200; count<=0x3f0; count+=16)
@@ -780,7 +781,7 @@ int arcnet_probe(struct device *dev)
 		sizeof(ports),sizeof(shmems),
 		sizeof(ports)+sizeof(shmems));
 
-	
+
 #if 1
 	BUGLVL(D_EXTRA)
 	{
@@ -803,13 +804,13 @@ int arcnet_probe(struct device *dev)
 	}
 	else if (dev->base_addr > 0)	/* Don't probe at all. */
 		return -ENXIO;
-		
+
 	if (dev->mem_start)
 	{
 		shmems[0]=dev->mem_start;
 		numshmems=1;
 	}
-	
+
 
 	/* Stage 1: abandon any reserved ports, or ones with status==0xFF
 	 * (empty), and reset any others by reading the reset port.
@@ -826,9 +827,9 @@ int arcnet_probe(struct device *dev)
 			numprint=1;
 		}
 		BUGMSG2(D_INIT,"%Xh ",*port);
-		
+
 		ioaddr=*port;
-		
+
 		if (check_region(*port, ARCNET_TOTAL_SIZE))
 		{
 			BUGMSG2(D_INIT_REASONS,"(check_region)\n");
@@ -839,7 +840,7 @@ int arcnet_probe(struct device *dev)
 			port--;
 			continue;
 		}
-		
+
 		if (ARCSTATUS == 0xFF)
 		{
 			BUGMSG2(D_INIT_REASONS,"(empty)\n");
@@ -850,7 +851,7 @@ int arcnet_probe(struct device *dev)
 			port--;
 			continue;
 		}
-		
+
 		ARCRESET;	/* begin resetting card */
 
 		BUGMSG2(D_INIT_REASONS,"\n");
@@ -858,13 +859,13 @@ int arcnet_probe(struct device *dev)
 		BUGLVL(D_INIT_REASONS) numprint=0;
 	}
 	BUGMSG2(D_INIT,"\n");
-	
+
 	if (!numports)
 	{
 		BUGMSG(D_NORMAL,"Stage 1: No ARCnet cards found.\n");
 		return -ENODEV;
 	}
-	
+
 
 	/* Stage 2: we have now reset any possible ARCnet cards, so we can't
 	 * do anything until they finish.  If D_INIT, print the list of
@@ -885,7 +886,7 @@ int arcnet_probe(struct device *dev)
 	}
 	BUGMSG2(D_INIT,"\n");
 	JIFFER(RESETtime);
-	
+
 
 	/* Stage 3: abandon any shmem addresses that don't have the signature
 	 * 0xD1 byte in the right place, or are read-only.
@@ -904,9 +905,9 @@ int arcnet_probe(struct device *dev)
 			numprint=1;
 		}
 		BUGMSG2(D_INIT,"%lXh ",*shmem);
-		
+
 		ptr=(u_long)(*shmem);
-		
+
 		if (readb(ptr) != TESTvalue)
 		{
 			BUGMSG2(D_INIT_REASONS,"(mem=%02Xh, not %02Xh)\n",
@@ -918,7 +919,7 @@ int arcnet_probe(struct device *dev)
 			shmem--;
 			continue;
 		}
-		
+
 		/* By writing 0x42 to the TESTvalue location, we also make
 		 * sure no "mirror" shmem areas show up - if they occur
 		 * in another pass through this loop, they will be discarded
@@ -934,7 +935,7 @@ int arcnet_probe(struct device *dev)
 			shmem--;
 			continue;
 		}
-		
+
 		BUGMSG2(D_INIT_REASONS,"\n");
 		BUGMSG(D_INIT_REASONS,"Stage 3: ");
 		BUGLVL(D_INIT_REASONS) numprint=0;
@@ -964,7 +965,7 @@ int arcnet_probe(struct device *dev)
 		BUGMSG2(D_INIT,"%lXh ",*shmem);
 	}
 	BUGMSG2(D_INIT,"\n");
-	
+
 
 	/* Stage 5: for any ports that have the correct status, can disable
 	 * the RESET flag, and (if no irq is given) generate an autoirq,
@@ -985,10 +986,10 @@ int arcnet_probe(struct device *dev)
 			numprint=1;
 		}
 		BUGMSG2(D_INIT,"%Xh ",*port);
-		
+
 		ioaddr=*port;
 		status=ARCSTATUS;
-		
+
 		if ((status & 0x9D)
 			!= (NORXflag|RECONflag|TXFREEflag|RESETflag))
 		{
@@ -1029,7 +1030,7 @@ int arcnet_probe(struct device *dev)
 			udelay(1);
 			AINTMASK(0);
 			airq = probe_irq_off(airqmask);
-	
+
 			if (airq<=0)
 			{
 				BUGMSG2(D_INIT_REASONS,"(airq=%d)\n",airq);
@@ -1045,10 +1046,10 @@ int arcnet_probe(struct device *dev)
 		{
 			airq=dev->irq;
 		}
-		
+
 		BUGMSG2(D_INIT,"(%d,", airq);
 		openparen=1;
-		
+
 		/* Everything seems okay.  But which shmem, if any, puts
 		 * back its signature byte when the card is reset?
 		 *
@@ -1076,7 +1077,7 @@ int arcnet_probe(struct device *dev)
 		{
 			u_long ptr;
 			ptr=(u_long)(*shmem);
-			
+
 			if (readb(ptr) == TESTvalue)	/* found one */
 			{
 				BUGMSG2(D_INIT,"%lXh)\n", *shmem);
@@ -1089,7 +1090,7 @@ int arcnet_probe(struct device *dev)
 				/* remove shmem from the list */
 				*shmem=shmems[numshmems-1];
 				numshmems--;
-				
+
 				break;
 			}
 			else
@@ -1117,7 +1118,7 @@ int arcnet_probe(struct device *dev)
 	 */
 	for (shmem = &shmems[0]; shmem-shmems<numshmems; shmem++)
 		writeb(TESTvalue,*shmem);
-		
+
 	if (retval) BUGMSG(D_NORMAL,"Stage 5: No ARCnet cards found.\n");
 	return retval;
 }
@@ -1128,12 +1129,12 @@ int arcnet_probe(struct device *dev)
 /* Set up the struct device associated with this card.  Called after
  * probing succeeds.
  */
-int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
+__initfunc(int arcnet_found(struct device *dev,int port,int airq, u_long shmem))
 {
 	u_long first_mirror,last_mirror;
 	struct arcnet_local *lp;
 	int mirror_size;
-	
+
 	/* reserve the irq */
 	if (request_irq(airq,&arcnet_interrupt,0,"arcnet",NULL))
 	{
@@ -1152,9 +1153,9 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 	request_region(port,ARCNET_TOTAL_SIZE,"arcnet");
 	dev->base_addr=port;
 #endif
-	
+
 	/* find the real shared memory start/end points, including mirrors */
-	
+
 	#define BUFFER_SIZE (512)
 	#define MIRROR_SIZE (BUFFER_SIZE*4)
 
@@ -1167,7 +1168,7 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 	    && readb(shmem-mirror_size)!=TESTvalue
 	    && readb(shmem-2*mirror_size)==TESTvalue)
 		mirror_size*=2;
-	
+
 	first_mirror=last_mirror=shmem;
 	while (readb(first_mirror)==TESTvalue) first_mirror-=mirror_size;
 	first_mirror+=mirror_size;
@@ -1179,9 +1180,9 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 	dev->mem_end=last_mirror+MIRROR_SIZE-1;
 	dev->rmem_start=dev->mem_start+BUFFER_SIZE*0;
 	dev->rmem_end=dev->mem_start+BUFFER_SIZE*2-1;
-	 
+
 	/* Initialize the rest of the device structure. */
-	
+
 	dev->priv = kmalloc(sizeof(struct arcnet_local), GFP_KERNEL);
 	if (dev->priv == NULL)
 	{
@@ -1192,7 +1193,7 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 	}
 	memset(dev->priv,0,sizeof(struct arcnet_local));
 	lp=(struct arcnet_local *)(dev->priv);
-	
+
 	dev->open=arcnet_open;
 	dev->stop=arcnet_close;
 	dev->hard_start_xmit=arcnetA_send_packet;
@@ -1203,7 +1204,7 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 	 * values.
 	 */
 	arcnet_setup(dev);
-	
+
 	/* And now fill particular fields with arcnet values */
 	dev->mtu=1500; /* completely arbitrary - agrees with ether, though */
 	dev->hard_header_len=sizeof(struct ClientData);
@@ -1232,7 +1233,7 @@ int arcnet_found(struct device *dev,int port,int airq, u_long shmem)
 		lp->stationid,
 		dev->base_addr,dev->irq,dev->mem_start,
 		(dev->mem_end-dev->mem_start+1)/mirror_size,mirror_size);
-		
+
 	return 0;
 }
 
@@ -1249,11 +1250,11 @@ int arcnet_reset(struct device *dev,int reset_delay)
 	struct arcnet_local *lp=(struct arcnet_local *)dev->priv;
 	short ioaddr=IOADDR;
 	int delayval,recbuf=lp->recbuf;
-	
+
 	/* no IRQ's, please! */
 	lp->intmask=0;
 	SETMASK;
-	
+
 	BUGMSG(D_INIT,"Resetting %s (status=%Xh)\n",
 			dev->name,ARCSTATUS);
 
@@ -1273,7 +1274,7 @@ int arcnet_reset(struct device *dev,int reset_delay)
 		BUGMSG(D_NORMAL,"reset failed: TESTvalue not present.\n");
 		return 1;
 	}
-	
+
 	/* clear out status variables */
 	recbuf=lp->recbuf=0;
 	lp->txbuf=2;
@@ -1286,7 +1287,7 @@ int arcnet_reset(struct device *dev,int reset_delay)
 	BUGLVL(D_DURING)
 		memset_io(dev->mem_start,0x42,2048);
 #endif
-	
+
 	/* and enable receive of our first packet to the first buffer */
 	EnableReceiver();
 
@@ -1296,7 +1297,7 @@ int arcnet_reset(struct device *dev,int reset_delay)
 	lp->intmask|=RECONflag;
 #endif
 	SETMASK;
-	
+
 	/* done!  return success. */
 	return 0;
 }
@@ -1310,11 +1311,10 @@ int arcnet_reset(struct device *dev,int reset_delay)
  *
  * Intelligent defaults?!  Nah.
  */
+
 void arcnet_setup(struct device *dev)
 {
-	int i;
-	for (i=0; i<DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
+	dev_init_buffers(dev);
 
 	dev->broadcast[0]	= 0x00;	/* for us, broadcasts are address 0 */
 	dev->addr_len		= 1;
@@ -1338,7 +1338,7 @@ void arcnet_setup(struct device *dev)
  * Open and close the driver                                                *
  *                                                                          *
  ****************************************************************************/
- 
+
 
 /* Open/initialize the board.  This is called sometime after booting when
  * the 'ifconfig' program is run.
@@ -1352,7 +1352,7 @@ arcnet_open(struct device *dev)
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	int ioaddr=IOADDR;
-	
+
 	if (dev->metric>=1000)
 	{
 		arcnet_debug=dev->metric-1000;
@@ -1361,7 +1361,7 @@ arcnet_open(struct device *dev)
 	}
 
 	BUGMSG(D_INIT,"arcnet_open: resetting card.\n");
-	
+
 #ifdef FAST_IFCONFIG
 	/* try to put the card in a defined state - if it fails the first
 	 * time, actually reset it.
@@ -1374,17 +1374,17 @@ arcnet_open(struct device *dev)
 	if (arcnet_reset(dev,1) && arcnet_reset(dev,1))
 		return -ENODEV;
 #endif
-	
+
 	dev->tbusy=0;
 	dev->interrupt=0;
 	lp->intx=0;
 	lp->in_txhandler=0;
-	
+
 	/* The RFC1201 driver is the default - just store */
 	lp->adev=dev;
 	BUGMSG(D_NORMAL,"ARCnet RFC1201 protocol initialized.\n");
 
-#ifdef CONFIG_ARCNET_ETH	
+#ifdef CONFIG_ARCNET_ETH
 	/* Initialize the ethernet-encap protocol driver */
 	lp->edev=(struct device *)kmalloc(sizeof(struct device),GFP_KERNEL);
 	if (lp->edev == NULL)
@@ -1417,7 +1417,7 @@ arcnet_open(struct device *dev)
 
 	/* we're started */
 	START=1;
-	
+
 	/* make sure we're ready to receive IRQ's.
 	 * arcnet_reset sets this for us, but if we receive one before
 	 * START is set to 1, it could be ignored.  So, we turn IRQ's
@@ -1429,7 +1429,7 @@ arcnet_open(struct device *dev)
 			 * necessary)
 			 */
 	SETMASK;
-	
+
 	MOD_INC_USE_COUNT;
 	return 0;
 }
@@ -1442,7 +1442,7 @@ arcnet_close(struct device *dev)
 {
 	int ioaddr=IOADDR;
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
-	
+
 	TBUSY=1;
 	START=0;
 
@@ -1458,10 +1458,10 @@ arcnet_close(struct device *dev)
 
 	/* reset more flags */
 	INTERRUPT=0;
-	
+
 	/* do NOT free lp->adev!!  It's static! */
 	lp->adev=NULL;
-	
+
 #ifdef CONFIG_ARCNET_ETH
 	/* free the ethernet-encap protocol device */
 	lp->edev->priv=NULL;
@@ -1503,10 +1503,10 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	int ioaddr=IOADDR;
-	
+
 	BUGMSG(D_DURING,"transmit requested (status=%Xh, inTX=%d)\n",
 			ARCSTATUS,lp->intx);
-			
+
 	if (lp->in_txhandler)
 	{
 		BUGMSG(D_NORMAL,"send_packet called while in txhandler!\n");
@@ -1528,8 +1528,8 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 		int tickssofar = jiffies - dev->trans_start;
 		/*int recbuf=lp->recbuf;*/
 		int status=ARCSTATUS;
-		
-		if (tickssofar < TX_TIMEOUT) 
+
+		if (tickssofar < TX_TIMEOUT)
 		{
 			BUGMSG(D_DURING,"premature kickme! (status=%Xh ticks=%d o.skb=%ph numsegs=%d segnum=%d\n",
 					status,tickssofar,lp->outgoing.skb,
@@ -1540,7 +1540,7 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 
 		lp->intmask &= ~TXFREEflag;
 		SETMASK;
-		
+
 		if (status&TXFREEflag)	/* transmit _DID_ finish */
 		{
 			BUGMSG(D_NORMAL,"tx timeout - missed IRQ? (status=%Xh, ticks=%d, mask=%Xh, dest=%02Xh)\n",
@@ -1563,7 +1563,7 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 			lp->stats.tx_dropped++;
 		}
 		lp->outgoing.skb=NULL;
-		
+
 		TBUSY=0;
 		lp->txready=0;
 		lp->sending=0;
@@ -1571,17 +1571,6 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 		return 1;
 	}
 
-	/* If some higher layer thinks we've missed a tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-	if (skb == NULL) {
-		BUGMSG(D_NORMAL,"tx passed null skb (status=%Xh, inTX=%d, tickssofar=%ld)\n",
-			ARCSTATUS,lp->intx,jiffies-dev->trans_start);
-		lp->stats.tx_errors++;
-		dev_tint(dev);
-		return 0;
-	}
-	
 	if (lp->txready)	/* transmit already in progress! */
 	{
 		BUGMSG(D_NORMAL,"trying to start new packet while busy! (status=%Xh)\n",
@@ -1593,7 +1582,7 @@ arcnet_send_packet_bad(struct sk_buff *skb, struct device *dev)
 		lp->stats.tx_errors++;
 		lp->stats.tx_fifo_errors++;
 		lp->txready=0;	/* we definitely need this line! */
-		
+
 		return 1;
 	}
 
@@ -1622,24 +1611,24 @@ arcnetA_send_packet(struct sk_buff *skb, struct device *dev)
 	struct Outgoing *out=&(lp->outgoing);
 
 	lp->intx++;
-	
+
 	bad=arcnet_send_packet_bad(skb,dev);
 	if (bad)
 	{
 		lp->intx--;
 		return bad;
 	}
-	
+
 	TBUSY=1;
-	
+
 	out->length = 1 < skb->len ? skb->len : 1;
 	out->hdr=(struct ClientData*)skb->data;
 	out->skb=skb;
-		
+
 	BUGLVL(D_SKB) arcnet_dump_skb(dev,skb,"tx");
 
 	out->hdr->sequence=(lp->sequence++);
-	
+
 	/* fits in one packet? */
 	if (out->length-EXTRA_CLIENTDATA<=XMTU)
 	{
@@ -1660,7 +1649,7 @@ arcnetA_send_packet(struct sk_buff *skb, struct device *dev)
 		/* done right away */
 		dev_kfree_skb(out->skb,FREE_WRITE);
 		out->skb=NULL;
-					
+
 		if (arcnet_go_tx(dev,1))
 		{
 			/* inform upper layers */
@@ -1677,7 +1666,7 @@ arcnetA_send_packet(struct sk_buff *skb, struct device *dev)
 		out->dataleft=out->length-sizeof(struct ClientData);
 		out->numsegs=(out->dataleft+maxsegsize-1)/maxsegsize;
 		out->segnum=0;
-		
+
 		BUGMSG(D_TX,"packet (%d bytes) split into %d fragments:\n",
 			out->length,out->numsegs);
 
@@ -1696,7 +1685,7 @@ arcnetA_send_packet(struct sk_buff *skb, struct device *dev)
 				arcnet_go_tx(dev,1);
 			}
 		}
-		
+
 		/* if segnum==numsegs, the transmission is finished;
 		 * free the skb right away.
 		 */
@@ -1712,7 +1701,7 @@ arcnetA_send_packet(struct sk_buff *skb, struct device *dev)
 
 	dev->trans_start=jiffies;
 	lp->intx--;
-	
+
 	/* make sure we didn't ignore a TX IRQ while we were in here */
 	lp->intmask |= TXFREEflag;
 	SETMASK;
@@ -1730,16 +1719,16 @@ static void arcnetA_continue_tx(struct device *dev)
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	int ioaddr=IOADDR,maxsegsize=XMTU-4;
 	struct Outgoing *out=&(lp->outgoing);
-	
+
 	BUGMSG(D_DURING,"continue_tx called (status=%Xh, intx=%d, intxh=%d, intmask=%Xh\n",
 		ARCSTATUS,lp->intx,lp->in_txhandler,lp->intmask);
-	
+
 	if (lp->txready)
 	{
 		BUGMSG(D_NORMAL,"continue_tx: called with packet in buffer!\n");
 		return;
 	}
-	
+
 	if (out->segnum>=out->numsegs)
 	{
 		BUGMSG(D_NORMAL,"continue_tx: building segment %d of %d!\n",
@@ -1753,7 +1742,7 @@ static void arcnetA_continue_tx(struct device *dev)
 
 	out->seglen=maxsegsize;
 	if (out->seglen>out->dataleft) out->seglen=out->dataleft;
-			
+
 	BUGMSG(D_TX,"building packet #%d (%d bytes) of %d (%d total), splitflag=%d\n",
 		out->segnum+1,out->seglen,out->numsegs,
 		out->length,out->hdr->split_flag);
@@ -1761,7 +1750,7 @@ static void arcnetA_continue_tx(struct device *dev)
 	arcnetAS_prepare_tx(dev,((char *)out->hdr)+EXTRA_CLIENTDATA,
 		sizeof(struct ClientData)-EXTRA_CLIENTDATA,
 		out->data,out->seglen,out->hdr->daddr,1);
-		
+
 	out->dataleft-=out->seglen;
 	out->data+=out->seglen;
 	out->segnum++;
@@ -1777,16 +1766,16 @@ arcnetAS_prepare_tx(struct device *dev,u_char *hdr,int hdrlen,
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	struct ClientData *arcsoft;
-	union ArcPacket *arcpacket = 
+	union ArcPacket *arcpacket =
 		(union ArcPacket *)phys_to_virt(dev->mem_start+512*(lp->txbuf^1));
 	int offset;
-	
+
 #ifdef SLOW_XMIT_COPY
 	char *iptr,*iend,*optr;
 #endif
-	
+
 	lp->txbuf=lp->txbuf^1;	/* XOR with 1 to alternate between 2 and 3 */
-	
+
 	length+=hdrlen;
 
 	BUGMSG(D_TX,"arcnetAS_prep_tx: hdr:%ph, length:%d, data:%ph\n",
@@ -1811,7 +1800,7 @@ arcnetAS_prepare_tx(struct device *dev,u_char *hdr,int hdrlen,
 	{
 		arcpacket->hardheader.offset1=0;
 		arcpacket->hardheader.offset2=offset=512-length;
-		
+
 		arcsoft=(struct ClientData *)
 			(&arcpacket->raw[offset]);
 	}
@@ -1821,7 +1810,7 @@ arcnetAS_prepare_tx(struct device *dev,u_char *hdr,int hdrlen,
 		arcpacket->hardheader.offset2=offset=512-length-4;
 		arcsoft=(struct ClientData *)
 			(&arcpacket->raw[offset+4]);
-		
+
 		/* exception-specific stuff - these four bytes
 		 * make the packet long enough to fit in a 512-byte
 		 * frame.
@@ -1859,10 +1848,10 @@ arcnetAS_prepare_tx(struct device *dev,u_char *hdr,int hdrlen,
 	memcpy((u_char*)arcsoft+hdrlen,
 		data,length-hdrlen);
 #endif
-		
+
 	BUGMSG(D_DURING,"transmitting packet to station %02Xh (%d bytes)\n",
 			daddr,length);
-			
+
 	BUGLVL(D_TX) arcnet_dump_packet(dev,arcpacket->raw,length>MTU,"tx");
 	lp->lastload_dest=daddr;
 	lp->txready=lp->txbuf;	/* packet is ready for sending */
@@ -1896,7 +1885,7 @@ arcnet_go_tx(struct device *dev,int enable_irq)
 		}
 		return 0;
 	}
-	
+
 	/* start sending */
 	ACOMMAND(TXcmd|(lp->txready<<3));
 
@@ -1932,14 +1921,14 @@ arcnet_interrupt(int irq,void *dev_id,struct pt_regs *regs)
 {
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	int ioaddr;
-	
+
 	if (dev==NULL)
 	{
 		BUGLVL(D_DURING)
 			printk(KERN_DEBUG "arcnet: irq %d for unknown device.\n", irq);
 		return;
 	}
-	
+
 	BUGMSG(D_DURING,"in arcnet_interrupt\n");
 
 	/* RESET flag was enabled - if !dev->start, we must clear it right
@@ -1963,7 +1952,7 @@ arcnet_interrupt(int irq,void *dev_id,struct pt_regs *regs)
  */
 static void
 arcnet_inthandler(struct device *dev)
-{	
+{
 	struct arcnet_local *lp=(struct arcnet_local *)dev->priv;
 	int ioaddr=IOADDR, status, boguscount = 3, didsomething;
 
@@ -1972,7 +1961,7 @@ arcnet_inthandler(struct device *dev)
 		BUGMSG(D_NORMAL,"DRIVER PROBLEM!  Nested arcnet interrupts!\n");
 		return;	/* don't even try. */
 	}
-	
+
 	AINTMASK(0);
 	INTERRUPT = 1;
 
@@ -1983,7 +1972,7 @@ arcnet_inthandler(struct device *dev)
 	{
 		status = ARCSTATUS;
 		didsomething=0;
-	
+
 
 		/* RESET flag was enabled - card is resetting and if RX
 		 * is disabled, it's NOT because we just got a packet.
@@ -1993,12 +1982,12 @@ arcnet_inthandler(struct device *dev)
 			BUGMSG(D_NORMAL,"spurious reset (status=%Xh)\n",
 					status);
 			arcnet_reset(dev,0);
-			
+
 			/* all other flag values are just garbage */
 			break;
 		}
-		
-		
+
+
 		/* RX is inhibited - we must have received something. */
 		if (status & lp->intmask & NORXflag)
 		{
@@ -2014,14 +2003,14 @@ arcnet_inthandler(struct device *dev)
 			arcnet_rx(dev,!recbuf);
 			didsomething++;
 		}
-		
+
 		/* it can only be an xmit-done irq if we're xmitting :) */
 		/*if (status&TXFREEflag && !lp->in_txhandler && lp->sending)*/
 		if (status & lp->intmask & TXFREEflag)
 		{
 			struct Outgoing *out=&(lp->outgoing);
 			int was_sending=lp->sending;
-			
+
 			lp->intmask &= ~TXFREEflag;
 
 			lp->in_txhandler++;
@@ -2029,7 +2018,7 @@ arcnet_inthandler(struct device *dev)
 
 			BUGMSG(D_DURING,"TX IRQ (stat=%Xh, numsegs=%d, segnum=%d, skb=%ph)\n",
 					status,out->numsegs,out->segnum,out->skb);
-					
+
 			if (was_sending && !(status&TXACKflag))
 			{
 				if (lp->lasttrans_dest != 0)
@@ -2050,7 +2039,7 @@ arcnet_inthandler(struct device *dev)
 			/* send packet if there is one */
 			arcnet_go_tx(dev,0);
 			didsomething++;
-			
+
 			if (lp->intx)
 			{
 				BUGMSG(D_DURING,"TXDONE while intx! (status=%Xh, intx=%d)\n",
@@ -2062,7 +2051,7 @@ arcnet_inthandler(struct device *dev)
 			if (!lp->outgoing.skb)
 			{
 				BUGMSG(D_DURING,"TX IRQ done: no split to continue.\n");
-				
+
 				/* inform upper layers */
 				if (!lp->txready && IF_TBUSY)
 				{
@@ -2072,7 +2061,7 @@ arcnet_inthandler(struct device *dev)
 				lp->in_txhandler--;
 				continue;
 			}
-			
+
 			/* if more than one segment, and not all segments
 			 * are done, then continue xmit.
 			 */
@@ -2115,29 +2104,29 @@ arcnet_inthandler(struct device *dev)
 		{
 			ACOMMAND(CFLAGScmd|CONFIGclear);
 			lp->stats.tx_carrier_errors++;
-			
+
 			#ifdef SHOW_RECONFIGS
 			BUGMSG(D_NORMAL,"Network reconfiguration detected (status=%Xh)\n",
 					status);
 			#endif /* SHOW_RECONFIGS */
-			
+
 			#ifdef RECON_THRESHOLD
 			/* is the RECON info empty or old? */
-			if (!lp->first_recon || !lp->last_recon || 
+			if (!lp->first_recon || !lp->last_recon ||
 				jiffies-lp->last_recon > HZ*10)
 			{
 				if (lp->network_down)
 					BUGMSG(D_NORMAL,"reconfiguration detected: cabling restored?\n");
 				lp->first_recon=lp->last_recon=jiffies;
 				lp->num_recons=lp->network_down=0;
-				
+
 				BUGMSG(D_DURING,"recon: clearing counters.\n");
 			}
 			else /* add to current RECON counter */
 			{
 				lp->last_recon=jiffies;
 				lp->num_recons++;
-				
+
 				BUGMSG(D_DURING,"recon: counter=%d, time=%lds, net=%d\n",
 					lp->num_recons,
 					(lp->last_recon-lp->first_recon)/HZ,
@@ -2176,7 +2165,7 @@ arcnet_inthandler(struct device *dev)
 				BUGMSG(D_NORMAL,"cabling restored?\n");
 			lp->first_recon=lp->last_recon=0;
 			lp->num_recons=lp->network_down=0;
-			
+
 			BUGMSG(D_DURING,"not recon: clearing counters anyway.\n");
 		}
 		#endif
@@ -2214,12 +2203,12 @@ arcnet_rx(struct device *dev,int recbuf)
 	u_char *arcsoft;
 	short length,offset;
 	u_char daddr,saddr;
-	
+
 	lp->stats.rx_packets++;
 
 	saddr=arcpacket->hardheader.source;
 	daddr=arcpacket->hardheader.destination;
-	
+
 	/* if source is 0, it's a "used" packet! */
 	if (saddr==0)
 	{
@@ -2229,7 +2218,7 @@ arcnet_rx(struct device *dev,int recbuf)
 		return;
 	}
 	arcpacket->hardheader.source=0;
-	
+
 	if (arcpacket->hardheader.offset1) /* Normal Packet */
 	{
 		offset=arcpacket->hardheader.offset1;
@@ -2243,7 +2232,7 @@ arcnet_rx(struct device *dev,int recbuf)
 
 		length=512-offset;
 	}
-	
+
        	BUGMSG(D_DURING,"received packet from %02Xh to %02Xh (%d bytes)\n",
        			saddr,daddr,length);
 
@@ -2309,10 +2298,10 @@ arcnetA_rx(struct device *dev,u_char *buf,
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	struct sk_buff *skb;
 	struct ClientData *arcsoft,*soft;
-	
+
 	BUGMSG(D_DURING,"it's an RFC1201 packet (length=%d)\n",
 			length);
-			
+
 	/* compensate for EXTRA_CLIENTDATA (which isn't actually in the
 	 * packet)
 	 */
@@ -2328,14 +2317,14 @@ arcnetA_rx(struct device *dev,u_char *buf,
 			((u_char *)arcsoft + 4);
 		length-=4;
 	}
-	
+
 	if (!arcsoft->split_flag)		/* not split */
 	{
 		struct Incoming *in=&lp->incoming[saddr];
 
 		BUGMSG(D_RX,"incoming is not split (splitflag=%d)\n",
 			arcsoft->split_flag);
-			
+
 		if (in->skb)	/* already assembling one! */
         	{
         		BUGMSG(D_EXTRA,"aborting assembly (seq=%d) for unsplit packet (splitflag=%d, seq=%d)\n",
@@ -2346,7 +2335,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
         		lp->stats.rx_missed_errors++;
         		in->skb=NULL;
         	}
-        	
+
         	in->sequence=arcsoft->sequence;
 
          	skb = alloc_skb(length, GFP_ATOMIC);
@@ -2356,16 +2345,16 @@ arcnetA_rx(struct device *dev,u_char *buf,
          		return;
          	}
          	soft=(struct ClientData *)skb->data;
-         	
+
          	skb->len = length;
          	skb->dev = dev;
-         	
+
          	memcpy((u_char *)soft+EXTRA_CLIENTDATA,
          		(u_char *)arcsoft+EXTRA_CLIENTDATA,
          		length-EXTRA_CLIENTDATA);
          	soft->daddr=daddr;
          	soft->saddr=saddr;
-         	
+
          	/* ARP packets have problems when sent from DOS.
          	 * source address is always 0 on some systems!  So we take
          	 * the hardware source addr (which is impossible to fumble)
@@ -2380,7 +2369,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
          		if (arp->ar_hln==1 && arp->ar_pln==4)
          		{
          			char *cptr=(char *)(arp)+sizeof(struct arphdr);
-         			
+
          			if (!*cptr)	/* is saddr = 00? */
          			{
          				BUGMSG(D_EXTRA,"ARP source address was 00h, set to %02Xh.\n",
@@ -2402,7 +2391,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
          			lp->stats.rx_crc_errors++;
          		}
          	}
-         	
+
 		BUGLVL(D_SKB) arcnet_dump_skb(dev,skb,"rx");
 
 		skb->protocol=arcnetA_type_trans(skb,dev);
@@ -2427,9 +2416,9 @@ arcnetA_rx(struct device *dev,u_char *buf,
 	          * ARCnet card possible on the network.  Seems rather like
 	          * a waste of memory.  Necessary?
 	          */
-	          
+
 	        struct Incoming *in=&lp->incoming[saddr];
-	        
+
 	        BUGMSG(D_RX,"packet is split (splitflag=%d, seq=%d)\n",
 	        	arcsoft->split_flag,in->sequence);
 
@@ -2444,7 +2433,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
 	        	lp->stats.rx_missed_errors++;
 	        	in->lastpacket=in->numpackets=0;
 	        }
-	          
+
 	        if (arcsoft->split_flag & 1)	/* first packet in split */
 	        {
 	        	BUGMSG(D_RX,"brand new splitpacket (splitflag=%d)\n",
@@ -2462,7 +2451,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
 			in->sequence=arcsoft->sequence;
 	        	in->numpackets=((unsigned)arcsoft->split_flag>>1)+2;
 	        	in->lastpacket=1;
-	        	
+
 	        	if (in->numpackets>16)
 	        	{
 	        		BUGMSG(D_EXTRA,"incoming packet more than 16 segments; dropping. (splitflag=%d)\n",
@@ -2471,7 +2460,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
 	        		lp->stats.rx_length_errors++;
 	        		return;
 	        	}
-	        
+
                 	in->skb=skb=alloc_skb(508*in->numpackets
                 			+ sizeof(struct ClientData),
 	                		GFP_ATOMIC);
@@ -2480,14 +2469,9 @@ arcnetA_rx(struct device *dev,u_char *buf,
                 		lp->stats.rx_dropped++;
                 		return;
                 	}
-	                		
-	                /* I don't know what this is for, but it DOES avoid
-	                 * warnings...
-	                 */
-	                skb->free=1;
-	                
+
                 	soft=(struct ClientData *)skb->data;
-                	
+
                 	skb->len=sizeof(struct ClientData);
                 	skb->dev=dev;
 
@@ -2502,7 +2486,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
 
 			/* if we're not assembling, there's no point
 			 * trying to continue.
-			 */			
+			 */
 			if (!in->skb)
 			{
 				BUGMSG(D_EXTRA,"can't continue split without starting first! (splitflag=%d, seq=%d)\n",
@@ -2524,7 +2508,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
 					lp->stats.rx_frame_errors++;
 					return;
 				}
-				
+
 				/* "bad" duplicate, kill reassembly */
 				BUGMSG(D_EXTRA,"out-of-order splitpacket, reassembly (seq=%d) aborted (splitflag=%d, seq=%d)\n",
 					in->sequence,arcsoft->split_flag,
@@ -2539,18 +2523,18 @@ arcnetA_rx(struct device *dev,u_char *buf,
 
 	               	soft=(struct ClientData *)in->skb->data;
 	        }
-	        
+
 	        skb=in->skb;
-	        
+
 	        memcpy(skb->data+skb->len,
 	               (u_char *)arcsoft+sizeof(struct ClientData),
 	               length-sizeof(struct ClientData));
 
          	skb->len+=length-sizeof(struct ClientData);
-         	
+
          	soft->daddr=daddr;
          	soft->saddr=saddr;
-         	
+
          	/* are we done? */
          	if (in->lastpacket == in->numpackets)
          	{
@@ -2563,11 +2547,11 @@ arcnetA_rx(struct device *dev,u_char *buf,
          		{
 	         		in->skb=NULL;
         	 		in->lastpacket=in->numpackets=0;
-			
+
 				BUGLVL(D_SKB) arcnet_dump_skb(dev,skb,"rx");
-			
+
 				skb->protocol=arcnetA_type_trans(skb,dev);
-				
+
 	         		netif_rx(skb);
 	         	}
         	}
@@ -2588,8 +2572,7 @@ arcnetA_rx(struct device *dev,u_char *buf,
  * closed.
  */
 
-static struct enet_statistics *
-arcnet_get_stats(struct device *dev)
+static struct net_device_stats *arcnet_get_stats(struct device *dev)
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 
@@ -2656,7 +2639,7 @@ int arcnetA_header(struct sk_buff *skb,struct device *dev,
 		lp->stats.tx_errors++;
 		lp->stats.tx_aborted_errors++;
 		return 0;
-	}	
+	}
 
 	/*
 	 * Set the source hardware address.
@@ -2682,7 +2665,7 @@ int arcnetA_header(struct sk_buff *skb,struct device *dev,
 	}
 	else
 		head->daddr=0;	/* better fill one in anyway */
-		
+
 	return -dev->hard_header_len;
 }
 
@@ -2692,18 +2675,20 @@ int arcnetA_header(struct sk_buff *skb,struct device *dev,
  * (or in future other address resolution) has completed on this
  * sk_buff. We now let ARP fill in the other fields.
  */
-int arcnetA_rebuild_header(void *buff,struct device *dev,unsigned long dst,
-		struct sk_buff *skb)
+int arcnetA_rebuild_header(struct sk_buff *skb)
 {
-	struct ClientData *head = (struct ClientData *)buff;
+	struct ClientData *head = (struct ClientData *)skb->data;
+	struct device *dev=skb->dev;
 	struct arcnet_local *lp=(struct arcnet_local *)(dev->priv);
 	int status;
 
 	/*
 	 * Only ARP and IP are currently supported
+	 *
+	 * FIXME: Anyone want to spec IPv6 over ARCnet ?
 	 */
-	 
-	if(head->protocol_id != ARC_P_IP) 
+
+	if(head->protocol_id != ARC_P_IP)
 	{
 		BUGMSG(D_NORMAL,"I don't understand protocol type %d (%Xh) addresses!\n",
 			head->protocol_id,head->protocol_id);
@@ -2717,16 +2702,16 @@ int arcnetA_rebuild_header(void *buff,struct device *dev,unsigned long dst,
 	/*
 	 * Try to get ARP to resolve the header.
 	 */
-#ifdef CONFIG_INET	 
+#ifdef CONFIG_INET
 	BUGMSG(D_DURING,"rebuild header from %d to %d; protocol %Xh\n",
 			head->saddr,head->daddr,head->protocol_id);
-	status=arp_find(&(head->daddr), dst, dev, dev->pa_addr, skb)? 1 : 0;
+	status=arp_find(&(head->daddr),skb)? 1 : 0;
 	BUGMSG(D_DURING," rebuilt: from %d to %d; protocol %Xh\n",
 			head->saddr,head->daddr,head->protocol_id);
 	return status;
 #else
-	return 0;	
-#endif	
+	return 0;
+#endif
 }
 
 
@@ -2743,7 +2728,7 @@ unsigned short arcnetA_type_trans(struct sk_buff *skb,struct device *dev)
 	skb->mac.raw=skb->data;
 	skb_pull(skb,dev->hard_header_len);
 	head=(struct ClientData *)skb->mac.raw;
-	
+
 	if (head->daddr==0)
 		skb->pkt_type=PACKET_BROADCAST;
 	else if (dev->flags&IFF_PROMISC)
@@ -2752,7 +2737,7 @@ unsigned short arcnetA_type_trans(struct sk_buff *skb,struct device *dev)
 		if (head->daddr != dev->dev_addr[0])
 			skb->pkt_type=PACKET_OTHERHOST;
 	}
-	
+
 	/* now return the protocol number */
 	switch (head->protocol_id)
 	{
@@ -2795,7 +2780,7 @@ static int arcnetE_init(struct device *dev)
 	dev->hard_start_xmit=arcnetE_send_packet;
 
 	BUGMSG(D_NORMAL,"ARCnet Ethernet-Encap protocol initialized.\n");
-			
+
 	return 0;
 }
 
@@ -2816,13 +2801,13 @@ arcnetE_send_packet(struct sk_buff *skb, struct device *dev)
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	int ioaddr=IOADDR,bad;
-	union ArcPacket *arcpacket = 
+	union ArcPacket *arcpacket =
 		(union ArcPacket *)phys_to_virt(dev->mem_start+512*(lp->txbuf^1));
 	u_char *arcsoft,daddr;
 	short offset,length=skb->len+1;
 
 	lp->intx++;
-	
+
 	bad=arcnet_send_packet_bad(skb,dev);
 	if (bad)
 	{
@@ -2831,7 +2816,7 @@ arcnetE_send_packet(struct sk_buff *skb, struct device *dev)
 	}
 
 	TBUSY=1;
-		
+
 	if (length>XMTU)
 	{
 		BUGMSG(D_NORMAL,"MTU must be <= 493 for ethernet encap (length=%d).\n",
@@ -2842,7 +2827,7 @@ arcnetE_send_packet(struct sk_buff *skb, struct device *dev)
 		lp->intx--;
 		return 0;
 	}
-		
+
 	BUGMSG(D_DURING,"starting tx sequence...\n");
 
 	lp->txbuf=lp->txbuf^1; /* XOR with 1 to alternate btw 2 & 3 */
@@ -2872,25 +2857,25 @@ arcnetE_send_packet(struct sk_buff *skb, struct device *dev)
 	{
 		arcpacket->hardheader.offset1=(offset-=256);
 	}
-	
+
 	BUGMSG(D_DURING," length=%Xh, offset=%Xh, offset1=%Xh, offset2=%Xh\n",
 			length,offset,arcpacket->hardheader.offset1,
 			arcpacket->hardheader.offset2);
-	
+
 	arcsoft=&arcpacket->raw[offset];
 	arcsoft[0]=ARC_P_ETHER;
 	arcsoft++;
-		
+
 	/* copy the packet into ARCnet shmem
 	 *  - the first bytes of ClientData header are skipped
 	 */
 	BUGMSG(D_DURING,"ready to memcpy\n");
-	
+
 	memcpy(arcsoft,skb->data,skb->len);
-		
+
 	BUGMSG(D_DURING,"transmitting packet to station %02Xh (%d bytes)\n",
 			daddr,length);
-				
+
 	BUGLVL(D_TX) arcnet_dump_packet(dev,arcpacket->raw,length>=240,"tx");
 
 	lp->lastload_dest=daddr;
@@ -2907,7 +2892,7 @@ arcnetE_send_packet(struct sk_buff *skb, struct device *dev)
 
 	dev->trans_start=jiffies;
 	lp->intx--;
-	
+
 	/* make sure we didn't ignore a TX IRQ while we were in here */
 	lp->intmask |= TXFREEflag;
 	SETMASK;
@@ -2924,7 +2909,7 @@ arcnetE_rx(struct device *dev,u_char *arcsoft,
 {
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	struct sk_buff *skb;
-	
+
 	BUGMSG(D_DURING,"it's an ethernet-encap packet (length=%d)\n",
 			length);
 
@@ -2934,16 +2919,16 @@ arcnetE_rx(struct device *dev,u_char *arcsoft,
        		lp->stats.rx_dropped++;
        		return;
        	}
-       	
+
        	skb->len = length;
        	skb->dev = dev;
-       	
+
        	memcpy(skb->data,(u_char *)arcsoft+1,length-1);
 
         BUGLVL(D_SKB) arcnet_dump_skb(dev,skb,"rx");
 
 	skb->protocol=eth_type_trans(skb,dev);
-        
+
         netif_rx(skb);
 }
 
@@ -2963,7 +2948,7 @@ static int arcnetS_init(struct device *dev)
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 
 	arcnet_setup(dev);
-       
+
 	/* And now fill particular fields with arcnet values */
 	dev->dev_addr[0]=lp->stationid;
 	dev->hard_header_len=sizeof(struct S_ClientData);
@@ -2999,14 +2984,14 @@ arcnetS_send_packet(struct sk_buff *skb, struct device *dev)
 	struct S_ClientData *hdr=(struct S_ClientData *)skb->data;
 
 	lp->intx++;
-	
+
 	bad=arcnet_send_packet_bad(skb,dev);
 	if (bad)
 	{
 		lp->intx--;
 		return bad;
 	}
-	
+
 	TBUSY=1;
 
 	length = 1 < skb->len ? skb->len : 1;
@@ -3025,7 +3010,7 @@ arcnetS_send_packet(struct sk_buff *skb, struct device *dev)
 
 		/* done right away */
 		dev_kfree_skb(skb,FREE_WRITE);
-				
+
 		if (arcnet_go_tx(dev,1))
 		{
 			/* inform upper layers */
@@ -3040,7 +3025,7 @@ arcnetS_send_packet(struct sk_buff *skb, struct device *dev)
 		dev_kfree_skb(skb,FREE_WRITE);
 		lp->stats.tx_dropped++;
 		TBUSY=0;
-		mark_bh(NET_BH);	
+		mark_bh(NET_BH);
 	}
 
 	dev->trans_start=jiffies;
@@ -3054,7 +3039,7 @@ arcnetS_send_packet(struct sk_buff *skb, struct device *dev)
 }
 
 
-/* Packet receiver for RFC1051 packets; 
+/* Packet receiver for RFC1051 packets;
  */
 static void
 arcnetS_rx(struct device *dev,u_char *buf,
@@ -3063,16 +3048,16 @@ arcnetS_rx(struct device *dev,u_char *buf,
 	struct arcnet_local *lp = (struct arcnet_local *)dev->priv;
 	struct sk_buff *skb;
 	struct S_ClientData *arcsoft,*soft;
-	
+
 	arcsoft=(struct S_ClientData *)(buf-S_EXTRA_CLIENTDATA);
 	length+=S_EXTRA_CLIENTDATA;
-	
+
 	BUGMSG(D_DURING,"it's an RFC1051 packet (length=%d)\n",
 			length);
-			
-	
-			
-	{    /* was "if not split" in A protocol, S is never split */	
+
+
+
+	{    /* was "if not split" in A protocol, S is never split */
 
          	skb = alloc_skb(length, GFP_ATOMIC);
          	if (skb == NULL) {
@@ -3085,14 +3070,14 @@ arcnetS_rx(struct device *dev,u_char *buf,
 		memcpy((u_char *)soft + sizeof(struct S_ClientData)
 				- S_EXTRA_CLIENTDATA,
 			(u_char *)arcsoft + sizeof(struct S_ClientData)
-				- S_EXTRA_CLIENTDATA, 
+				- S_EXTRA_CLIENTDATA,
 			length - sizeof(struct S_ClientData)
 				+ S_EXTRA_CLIENTDATA);
 		soft->protocol_id=arcsoft->protocol_id;
          	soft->daddr=daddr;
          	soft->saddr=saddr;
          	skb->dev = dev;  /* is already lp->sdev */
-         	
+
 		BUGLVL(D_SKB) arcnet_dump_skb(dev,skb,"rx");
 
 		skb->protocol=arcnetS_type_trans(skb,dev);
@@ -3131,7 +3116,7 @@ int arcnetS_header(struct sk_buff *skb,struct device *dev,
 		lp->stats.tx_errors++;
 		lp->stats.tx_aborted_errors++;
 		return 0;
-	}	
+	}
 
 	/*
 	 * Set the source hardware address.
@@ -3154,7 +3139,7 @@ int arcnetS_header(struct sk_buff *skb,struct device *dev,
 	}
 	else
 		head->daddr=0;	/* better fill one in anyway */
-		
+
 	return -dev->hard_header_len;
 }
 
@@ -3163,17 +3148,17 @@ int arcnetS_header(struct sk_buff *skb,struct device *dev,
  * (or in future other address resolution) has completed on this
  * sk_buff. We now let ARP fill in the other fields.
  */
-int arcnetS_rebuild_header(void *buff,struct device *dev,unsigned long dst,
-		struct sk_buff *skb)
+int arcnetS_rebuild_header(struct sk_buff *skb)
 {
-	struct S_ClientData *head = (struct S_ClientData *)buff;
+	struct device *dev=skb->dev;
+	struct S_ClientData *head = (struct S_ClientData *)skb->data;
 	struct arcnet_local *lp=(struct arcnet_local *)(dev->priv);
 
 	/*
 	 * Only ARP and IP are currently supported
 	 */
-	 
-	if(head->protocol_id != ARC_P_IP_RFC1051) 
+
+	if(head->protocol_id != ARC_P_IP_RFC1051)
 	{
 		BUGMSG(D_NORMAL,"I don't understand protocol type %d (%Xh) addresses!\n",
 			head->protocol_id,head->protocol_id);
@@ -3187,14 +3172,14 @@ int arcnetS_rebuild_header(void *buff,struct device *dev,unsigned long dst,
 	/*
 	 * Try to get ARP to resolve the header.
 	 */
-#ifdef CONFIG_INET	 
-	return arp_find(&(head->daddr), dst, dev, dev->pa_addr, skb)? 1 : 0;
+#ifdef CONFIG_INET
+	return arp_find(&(head->daddr),skb)? 1 : 0;
 #else
-	return 0;	
-#endif	
+	return 0;
+#endif
 }
 
-		
+
 /* Determine a packet's protocol ID.
  *
  * With ARCnet we have to convert everything to Ethernet-style stuff.
@@ -3208,7 +3193,7 @@ unsigned short arcnetS_type_trans(struct sk_buff *skb,struct device *dev)
 	skb->mac.raw=skb->data;
 	skb_pull(skb,dev->hard_header_len);
 	head=(struct S_ClientData *)skb->mac.raw;
-	
+
 	if (head->daddr==0)
 		skb->pkt_type=PACKET_BROADCAST;
 	else if (dev->flags&IFF_PROMISC)
@@ -3217,7 +3202,7 @@ unsigned short arcnetS_type_trans(struct sk_buff *skb,struct device *dev)
 		if (head->daddr != dev->dev_addr[0])
 			skb->pkt_type=PACKET_OTHERHOST;
 	}
-	
+
 	/* now return the protocol number */
 	switch (head->protocol_id)
 	{
@@ -3251,13 +3236,17 @@ static struct device thiscard = {
   0, 0,  /* I/O address, IRQ */
   0, 0, 0, NULL, arcnet_probe
 };
-	
-	
+
+
 static int io=0x0;	/* <--- EDIT THESE LINES FOR YOUR CONFIGURATION */
 static int irqnum=0;	/* or use the insmod io= irq= shmem= options */
 static int irq=0;
 static int shmem=0;
 static char *device = NULL;	/* use eg. device="arc1" to change name */
+
+MODULE_PARM(io, "i");
+MODULE_PARM(irqnum, "i");
+MODULE_PARM(shmem, "i");
 
 #ifdef RIM_I_MODE
   static int node=0;	/* you must specify the node ID for RIM I cards */
@@ -3277,7 +3266,7 @@ int init_module(void)
 	#endif
 
 	dev->base_addr=io;
-	
+
 	if (irq) irqnum=irq;
 	dev->irq=irqnum;
 	if (dev->irq==2) dev->irq=9;
@@ -3315,7 +3304,7 @@ void cleanup_module(void)
 		irq2dev_map[dev->irq] = NULL;
 		free_irq(dev->irq,NULL);
 	}
-	
+
 	if (dev->base_addr) RELEASE_REGION(dev->base_addr,ARCNET_TOTAL_SIZE);
 	unregister_netdev(dev);
 	kfree(dev->priv);

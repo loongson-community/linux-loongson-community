@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.51 1996/10/27 08:55:32 davem Exp $ */
+/* $Id: pgtable.h,v 1.60 1997/04/14 17:05:16 jj Exp $ */
 #ifndef _SPARC_PGTABLE_H
 #define _SPARC_PGTABLE_H
 
@@ -26,10 +26,6 @@ extern void (*quick_kernel_fault)(unsigned long);
    This procedure can be used until the call to mem_init(). */
 extern void *sparc_init_alloc(unsigned long *kbrk, unsigned long size);
 
-/* mmu-specific process creation/cloning/etc hooks. */
-extern void (*mmu_exit_hook)(void);
-extern void (*mmu_flush_hook)(void);
-
 /* translate between physical and virtual addresses */
 extern unsigned long (*mmu_v2p)(unsigned long);
 extern unsigned long (*mmu_p2v)(unsigned long);
@@ -43,11 +39,11 @@ struct mmu_sglist {
 	char *addr;
 	char *__dont_touch;
 	unsigned int len;
-	char *dvma_addr;
+	__u32 dvma_addr;
 };
-extern char *(*mmu_get_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
+extern __u32 (*mmu_get_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
 extern void  (*mmu_get_scsi_sgl)(struct mmu_sglist *, int, struct linux_sbus *sbus);
-extern void  (*mmu_release_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
+extern void  (*mmu_release_scsi_one)(__u32, unsigned long, struct linux_sbus *sbus);
 extern void  (*mmu_release_scsi_sgl)(struct mmu_sglist *, int, struct linux_sbus *sbus);
 
 extern void  (*mmu_map_dma_area)(unsigned long addr, int len);
@@ -105,6 +101,9 @@ extern pgd_t swapper_pg_dir[1024];
  * holds the same as on the i386.
  */
 extern pte_t pg0[1024];
+extern pte_t pg1[1024];
+extern pte_t pg2[1024];
+extern pte_t pg3[1024];
 
 extern unsigned long ptr_in_current_pgd;
 
@@ -213,6 +212,9 @@ extern void (*pgd_set)(pgd_t *, pmd_t *);
 
 extern pte_t (*pte_modify)(pte_t, pgprot_t);
 
+/* to find an entry in a kernel page-table-directory */
+#define pgd_offset_k(address) pgd_offset(&init_mm, address)
+
 /* to find an entry in a page-table-directory */
 extern pgd_t * (*pgd_offset)(struct mm_struct *, unsigned long);
 
@@ -272,6 +274,8 @@ extern void (*local_flush_tlb_page)(struct vm_area_struct *, unsigned long addre
 
 extern void (*local_flush_page_to_ram)(unsigned long address);
 
+extern void (*local_flush_sig_insns)(struct mm_struct *mm, unsigned long insn_addr);
+
 extern void smp_flush_cache_all(void);
 extern void smp_flush_cache_mm(struct mm_struct *mm);
 extern void smp_flush_cache_range(struct mm_struct *mm,
@@ -286,6 +290,7 @@ extern void smp_flush_tlb_range(struct mm_struct *mm,
 				  unsigned long end);
 extern void smp_flush_tlb_page(struct vm_area_struct *mm, unsigned long page);
 extern void smp_flush_page_to_ram(unsigned long page);
+extern void smp_flush_sig_insns(struct mm_struct *mm, unsigned long insn_addr);
 #endif
 
 extern void (*flush_cache_all)(void);
@@ -300,6 +305,8 @@ extern void (*flush_tlb_range)(struct mm_struct *, unsigned long start, unsigned
 extern void (*flush_tlb_page)(struct vm_area_struct *, unsigned long address);
 
 extern void (*flush_page_to_ram)(unsigned long page);
+
+extern void (*flush_sig_insns)(struct mm_struct *mm, unsigned long insn_addr);
 
 /* The permissions for pgprot_val to make a page mapped on the obio space */
 extern unsigned int pg_iobits;
@@ -329,9 +336,9 @@ extern void (*update_mmu_cache)(struct vm_area_struct *vma, unsigned long addres
 
 extern int invalid_segment;
 
-#define SWP_TYPE(entry) (((entry)>>2) & 0x7f)
-#define SWP_OFFSET(entry) (((entry) >> 9) & 0x7ffff)
-#define SWP_ENTRY(type,offset) (((type) << 2) | ((offset) << 9))
+#define SWP_TYPE(entry) (((entry) >> 2) & 0x7f)
+#define SWP_OFFSET(entry) (((entry) >> 9) & 0x3ffff)
+#define SWP_ENTRY(type,offset) ((((type) & 0x7f) << 2) | (((offset) & 0x3ffff) << 9))
 
 struct ctx_list {
 	struct ctx_list *next;
@@ -360,5 +367,31 @@ extern __inline__ void add_to_ctx_list(struct ctx_list *head, struct ctx_list *e
 }
 #define add_to_free_ctxlist(entry) add_to_ctx_list(&ctx_free, entry)
 #define add_to_used_ctxlist(entry) add_to_ctx_list(&ctx_used, entry)
+
+extern __inline__ unsigned int
+__get_phys (unsigned long addr)
+{
+	switch (sparc_cpu_model){
+	case sun4c:
+		return sun4c_get_pte (addr) << PAGE_SHIFT;
+	case sun4m:
+		return ((srmmu_get_pte (addr) & 0xffffff00) << 4);
+	default:
+		return 0;
+	}
+}
+
+extern __inline__ int
+__get_iospace (unsigned long addr)
+{
+	switch (sparc_cpu_model){
+	case sun4c:
+		return -1; /* Don't check iospace on sun4c */
+	case sun4m:
+		return (srmmu_get_pte (addr) >> 28);
+	default:
+		return -1;
+	}
+}
 
 #endif /* !(_SPARC_PGTABLE_H) */

@@ -13,6 +13,8 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
@@ -25,12 +27,20 @@
 #include <linux/stat.h>
 #include <linux/mman.h>
 #include <linux/elfcore.h>
+#include <linux/reboot.h>
+
+#ifdef CONFIG_RTC
+#include <linux/mc146818rtc.h>
+#endif
 
 #include <asm/reg.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/io.h>
 
+/*
+ * No need to acquire the kernel lock, we're entirely local..
+ */
 asmlinkage int sys_sethae(unsigned long hae, unsigned long a1, unsigned long a2,
 	unsigned long a3, unsigned long a4, unsigned long a5,
 	struct pt_regs regs)
@@ -41,24 +51,57 @@ asmlinkage int sys_sethae(unsigned long hae, unsigned long a1, unsigned long a2,
 
 asmlinkage int sys_idle(void)
 {
+	int ret = -EPERM;
+
+	lock_kernel();
 	if (current->pid != 0)
-		return -EPERM;
+		goto out;
 
 	/* endless idle loop with no priority at all */
 	current->counter = -100;
 	for (;;) {
 		schedule();
 	}
+	ret = 0;
+out:
+	unlock_kernel();
+	return ret;
 }
 
-void hard_reset_now(void)
+void machine_restart(char * __unused)
 {
+#ifdef CONFIG_RTC  /* reset rtc to defaults */
+	unsigned char control;
+	unsigned long flags;
+
+	/* i'm not sure if i really need to disable interrupts here */
+	save_flags(flags);
+	cli();
+ 	/* reset periodic interrupt frequency */
+        CMOS_WRITE(0x26, RTC_FREQ_SELECT);
+
+	/* turn on periodic interrupts */
+	control = CMOS_READ(RTC_CONTROL);
+	control |= RTC_PIE;
+	CMOS_WRITE(control, RTC_CONTROL);	
+        CMOS_READ(RTC_INTR_FLAGS);
+	restore_flags(flags);
+#endif
+
 #if defined(CONFIG_ALPHA_SRM) && defined(CONFIG_ALPHA_ALCOR)
 	/* who said DEC engineer's have no sense of humor? ;-)) */
 	*(int *) GRU_RESET = 0x0000dead;
 	mb();
 #endif
 	halt();
+}
+
+void machine_halt(void)
+{
+}
+
+void machine_power_off(void)
+{
 }
 
 void show_regs(struct pt_regs * regs)
@@ -133,7 +176,7 @@ extern void ret_from_sys_call(void);
  * Use the passed "regs" pointer to determine how much space we need
  * for a kernel fork().
  */
-void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
+int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	struct task_struct * p, struct pt_regs * regs)
 {
 	struct pt_regs * childregs;
@@ -159,6 +202,8 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	p->tss.pal_flags = 1;	/* set FEN, clear everything else */
 	p->tss.flags = current->tss.flags;
 	p->mm->context = 0;
+
+	return 0;
 }
 
 /*
@@ -244,10 +289,13 @@ asmlinkage int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
 	int error;
 	char * filename;
 
+	lock_kernel();
 	error = getname((char *) a0, &filename);
 	if (error)
-		return error;
+		goto out;
 	error = do_execve(filename, (char **) a1, (char **) a2, &regs);
 	putname(filename);
+out:
+	unlock_kernel();
 	return error;
 }

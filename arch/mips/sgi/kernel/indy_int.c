@@ -25,7 +25,6 @@
 #include <asm/system.h>
 #include <asm/vector.h>
 
-#include <asm/segment.h>
 #include <asm/ptrace.h>
 #include <asm/processor.h>
 #include <asm/sgi.h>
@@ -172,6 +171,10 @@ void enable_irq(unsigned int irq_nr)
 	}
 }
 
+#if 0
+/*
+ * Currently unused.
+ */
 static void local_unex(int irq, void *data, struct pt_regs *regs)
 {
 	printk("Whee: unexpected local IRQ at %08lx\n",
@@ -180,6 +183,7 @@ static void local_unex(int irq, void *data, struct pt_regs *regs)
 	       ioc_icontrol->istat0, ioc_icontrol->istat1,
 	       ioc_icontrol->vmeistat);
 }
+#endif
 
 static struct irqaction *local_irq_action[24] = {
 	NULL, NULL, NULL, NULL,
@@ -260,6 +264,7 @@ int get_irq_list(char *buf)
  */
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
+	lock_kernel();
 	struct irqaction * action = *(irq + irq_action);
 	kstat.interrupts[irq]++;
 	printk("Got irq %d, press a key.", irq);
@@ -271,6 +276,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 		action->handler(irq, action->dev_id, regs);
 		action = action->next;
         }
+	unlock_kernel();
 }
 
 /*
@@ -282,6 +288,7 @@ asmlinkage void do_fast_IRQ(int irq)
 {
 	struct irqaction * action = *(irq + irq_action);
 
+	lock_kernel();
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();
 	romvec->imode();
@@ -292,6 +299,7 @@ asmlinkage void do_fast_IRQ(int irq)
 		action->handler(irq, action->dev_id, NULL);
 		action = action->next;
         }
+	unlock_kernel();
 }
 
 int request_local_irq(unsigned int lirq, void (*func)(int, void *, struct pt_regs *),

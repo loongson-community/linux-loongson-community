@@ -38,6 +38,7 @@
 unsigned char cache_21 = 0xff;
 unsigned char cache_A1 = 0xff;
 
+unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 
 /*
@@ -99,11 +100,11 @@ extern void interrupt(void);
 extern void fast_interrupt(void);
 extern void bad_interrupt(void);
 
-static struct irqaction *irq_action[16] = {
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL
+static struct irqaction *irq_action[32] = {
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 int get_irq_list(char *buf)
@@ -111,7 +112,7 @@ int get_irq_list(char *buf)
 	int i, len = 0;
 	struct irqaction * action;
 
-	for (i = 0 ; i < 16 ; i++) {
+	for (i = 0 ; i < 32 ; i++) {
 		action = irq_action[i];
 		if (!action) 
 			continue;
@@ -129,6 +130,15 @@ int get_irq_list(char *buf)
 	return len;
 }
 
+atomic_t __mips_bh_counter;
+
+#ifdef __SMP__
+#error Send superfluous SMP boxes to ralf@uni-koblenz.de
+#else
+#define irq_enter(cpu, irq)     (++local_irq_count[cpu])
+#define irq_exit(cpu, irq)      (--local_irq_count[cpu])
+#endif
+
 /*
  * do_IRQ handles IRQ's that have been installed without the
  * SA_INTERRUPT flag: it uses the full signal-handling return
@@ -139,18 +149,28 @@ int get_irq_list(char *buf)
 asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 {
 	struct irqaction * action = *(irq + irq_action);
+	int do_random, cpu = smp_processor_id();
+
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
+
 #ifdef CONFIG_SGI
 	prom_printf("Got irq %d, press a key.", irq);
 	prom_getchar();
 	romvec->imode();
 #endif
+	/* slow interrupts run with interrupts enabled */
+	sti();
+	action = *(irq + irq_action);
+	do_random = 0;
         while (action) {
-		if (action->flags & SA_SAMPLE_RANDOM)
-			add_interrupt_randomness(irq);
+		do_random |= action->flags;
 		action->handler(irq, action->dev_id, regs);
 		action = action->next;
         }
+	if (do_random & SA_SAMPLE_RANDOM)
+		add_interrupt_randomness(irq);
+	irq_exit(cpu, irq);
 }
 
 /*
@@ -160,15 +180,21 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
  */
 asmlinkage void do_fast_IRQ(int irq)
 {
-	struct irqaction * action = *(irq + irq_action);
+	struct irqaction * action;
+	int do_random, cpu = smp_processor_id();
 
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
-        while (action) {
-		if (action->flags & SA_SAMPLE_RANDOM)
-			add_interrupt_randomness(irq);
+	action = *(irq + irq_action);
+	do_random = 0;
+	while (action) {
+		do_random |= action->flags;
 		action->handler(irq, action->dev_id, NULL);
 		action = action->next;
-        }
+	}
+	if (do_random & SA_SAMPLE_RANDOM)
+		add_interrupt_randomness(irq);
+	irq_exit(cpu, irq);
 }
 
 /*
@@ -228,7 +254,7 @@ int request_irq(unsigned int irq,
 	int retval;
 	struct irqaction * action;
 
-	if (irq > 15)
+	if (irq > 31)
 		return -EINVAL;
 	if (!handler)
 		return -EINVAL;
@@ -256,7 +282,7 @@ void free_irq(unsigned int irq, void *dev_id)
 	struct irqaction * action, **p;
 	unsigned long flags;
 
-	if (irq > 15) {
+	if (irq > 31) {
 		printk("Trying to free IRQ%d\n",irq);
 		return;
 	}
@@ -284,7 +310,7 @@ unsigned long probe_irq_on (void)
 	unsigned int i, irqs = 0, irqmask;
 	unsigned long delay;
 
-	/* first, enable any unassigned irqs */
+	/* first, enable any unassigned (E)ISA irqs */
 	for (i = 15; i > 0; i--) {
 		if (!irq_action[i]) {
 			enable_irq(i);
@@ -322,7 +348,7 @@ void init_IRQ(void)
 {
 	int i;
 
-	for (i = 0; i < 16 ; i++)
+	for (i = 0; i < 32 ; i++)
 		set_int_vector(i, bad_interrupt);
 	irq_setup();
 }

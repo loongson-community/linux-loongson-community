@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -9,7 +10,7 @@
 #include <sys/mman.h>
 
 char *filename, *command, __depname[256] = "\n\t@touch ";
-int needsconfig, hasconfig, hasdep;
+int needsconfig, hasconfig, hasmodules, hasdep;
 
 #define depname (__depname+9)
 
@@ -26,20 +27,18 @@ static void handle_include(int type, char *name, int len)
 	int plen;
 	struct path_struct *path = path_array+type;
 
-	if (!type) {
-		if (memcmp(name, "linux/", 6) &&
-		    memcmp(name, "asm/", 4) &&
-		    memcmp(name, "net/", 4) &&
-		    memcmp(name, "scsi/", 5))
-			return;
-		if (len == 14 && !memcmp(name, "linux/config.h", len))
+	if (len == 14)
+		if (!memcmp(name, "linux/config.h", len))
 			hasconfig = 1;
-	}
+		else if (!memcmp(name, "linux/module.h", len))
+			hasmodules = 1;
 
 	plen = path->len;
 	memcpy(path->buffer+plen, name, len);
 	len += plen;
 	path->buffer[len] = '\0';
+	if (access(path->buffer, F_OK))
+		return;
 
 	if (!hasdep) {
 		hasdep = 1;
@@ -128,6 +127,7 @@ preproc:
 	CASE(' ',preproc);
 	CASE('\t',preproc);
 	CASE('i',i_preproc);
+	CASE('e',e_preproc);
 	GETNEXT
 
 skippreproc:
@@ -139,6 +139,15 @@ skippreproc:
 skippreprocslash:
 	GETNEXT;
 	GETNEXT;
+	goto skippreproc;
+
+e_preproc:
+	GETNEXT
+	NOTCASE('l',skippreproc);
+	GETNEXT
+	NOTCASE('i',skippreproc);
+	GETNEXT
+	CASE('f',if_line);
 	goto skippreproc;
 
 i_preproc:
@@ -236,10 +245,15 @@ static void do_depend(void)
 	struct stat st;
 
 	if (fd < 0) {
-		perror("mkdep: open");
+		if (errno != ENOENT)
+			perror(filename);
 		return;
 	}
 	fstat(fd, &st);
+	if (st.st_size == 0) {
+		fprintf(stderr,"%s is empty\n",filename);
+		return;
+	}
 	mapsize = st.st_size + 2*sizeof(unsigned long);
 	mapsize = (mapsize+pagesizem1) & ~pagesizem1;
 	map = mmap(NULL, mapsize, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -288,9 +302,9 @@ int main(int argc, char **argv)
 					command = "";
 			}
 		}
-		needsconfig = hasconfig = hasdep = 0;
+		needsconfig = hasconfig = hasmodules = hasdep = 0;
 		do_depend();
-		if (hasconfig && !needsconfig)
+		if (hasconfig && !hasmodules && !needsconfig)
 			fprintf(stderr, "%s doesn't need config\n", filename);
 	}
 	return 0;

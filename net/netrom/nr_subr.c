@@ -1,10 +1,10 @@
 /*
- *	NET/ROM release 004
+ *	NET/ROM release 006
  *
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 1.2.1 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -16,7 +16,7 @@
  *	NET/ROM 001	Jonathan(G4KLX)	Cloned from ax25_subr.c
  *	NET/ROM	003	Jonathan(G4KLX)	Added G8BPQ NET/ROM extensions.
  */
- 
+
 #include <linux/config.h>
 #if defined(CONFIG_NETROM) || defined(CONFIG_NETROM_MODULE)
 #include <linux/errno.h>
@@ -48,25 +48,17 @@ void nr_clear_queues(struct sock *sk)
 {
 	struct sk_buff *skb;
 
-	while ((skb = skb_dequeue(&sk->write_queue)) != NULL) {
-		skb->sk   = sk;
-		skb->free = 1;
+	while ((skb = skb_dequeue(&sk->write_queue)) != NULL)
 		kfree_skb(skb, FREE_WRITE);
-	}
 
-	while ((skb = skb_dequeue(&sk->protinfo.nr->ack_queue)) != NULL) {
-		skb->sk   = sk;
-		skb->free = 1;
+	while ((skb = skb_dequeue(&sk->protinfo.nr->ack_queue)) != NULL)
 		kfree_skb(skb, FREE_WRITE);
-	}
 
-	while ((skb = skb_dequeue(&sk->protinfo.nr->reseq_queue)) != NULL) {
+	while ((skb = skb_dequeue(&sk->protinfo.nr->reseq_queue)) != NULL)
 		kfree_skb(skb, FREE_READ);
-	}
 
-	while ((skb = skb_dequeue(&sk->protinfo.nr->frag_queue)) != NULL) {
+	while ((skb = skb_dequeue(&sk->protinfo.nr->frag_queue)) != NULL)
 		kfree_skb(skb, FREE_READ);
-	}
 }
 
 /*
@@ -84,8 +76,6 @@ void nr_frames_acked(struct sock *sk, unsigned short nr)
 	if (sk->protinfo.nr->va != nr) {
 		while (skb_peek(&sk->protinfo.nr->ack_queue) != NULL && sk->protinfo.nr->va != nr) {
 		        skb = skb_dequeue(&sk->protinfo.nr->ack_queue);
-		        skb->sk   = sk;
-			skb->free = 1;
 			kfree_skb(skb, FREE_WRITE);
 			sk->protinfo.nr->va = (sk->protinfo.nr->va + 1) % NR_MODULUS;
 		}
@@ -122,7 +112,7 @@ int nr_validate_nr(struct sock *sk, unsigned short nr)
 		if (nr == vc) return 1;
 		vc = (vc + 1) % NR_MODULUS;
 	}
-	
+
 	if (nr == sk->protinfo.nr->vs) return 1;
 
 	return 0;
@@ -134,7 +124,7 @@ int nr_validate_nr(struct sock *sk, unsigned short nr)
 int nr_in_rx_window(struct sock *sk, unsigned short ns)
 {
 	unsigned short vc = sk->protinfo.nr->vr;
-	unsigned short vt = (sk->protinfo.nr->vl + sk->window) % NR_MODULUS;
+	unsigned short vt = (sk->protinfo.nr->vl + sk->protinfo.nr->window) % NR_MODULUS;
 
 	while (vc != vt) {
 		if (ns == vc) return 1;
@@ -155,7 +145,7 @@ void nr_write_internal(struct sock *sk, int frametype)
 	int len, timeout;
 
 	len = AX25_BPQ_HEADER_LEN + AX25_MAX_HEADER_LEN + NR_NETWORK_LEN + NR_TRANSPORT_LEN;
-	
+
 	switch (frametype & 0x0F) {
 		case NR_CONNREQ:
 			len += 17;
@@ -171,7 +161,7 @@ void nr_write_internal(struct sock *sk, int frametype)
 			printk(KERN_ERR "nr_write_internal: invalid frame type %d\n", frametype);
 			return;
 	}
-	
+
 	if ((skb = alloc_skb(len, GFP_ATOMIC)) == NULL)
 		return;
 
@@ -185,22 +175,22 @@ void nr_write_internal(struct sock *sk, int frametype)
 	switch (frametype & 0x0F) {
 
 		case NR_CONNREQ:
-			timeout  = (sk->protinfo.nr->rtt / PR_SLOWHZ) * 2;
+			timeout  = sk->protinfo.nr->t1 / NR_SLOWHZ;
 			*dptr++  = sk->protinfo.nr->my_index;
 			*dptr++  = sk->protinfo.nr->my_id;
 			*dptr++  = 0;
 			*dptr++  = 0;
 			*dptr++  = frametype;
-			*dptr++  = sk->window;
+			*dptr++  = sk->protinfo.nr->window;
 			memcpy(dptr, &sk->protinfo.nr->user_addr, AX25_ADDR_LEN);
-			dptr[6] &= ~LAPB_C;
-			dptr[6] &= ~LAPB_E;
-			dptr[6] |= SSSID_SPARE;
+			dptr[6] &= ~AX25_CBIT;
+			dptr[6] &= ~AX25_EBIT;
+			dptr[6] |= AX25_SSSID_SPARE;
 			dptr    += AX25_ADDR_LEN;
 			memcpy(dptr, &sk->protinfo.nr->source_addr, AX25_ADDR_LEN);
-			dptr[6] &= ~LAPB_C;
-			dptr[6] &= ~LAPB_E;
-			dptr[6] |= SSSID_SPARE;
+			dptr[6] &= ~AX25_CBIT;
+			dptr[6] &= ~AX25_EBIT;
+			dptr[6] |= AX25_SSSID_SPARE;
 			dptr    += AX25_ADDR_LEN;
 			*dptr++  = timeout % 256;
 			*dptr++  = timeout / 256;
@@ -212,7 +202,7 @@ void nr_write_internal(struct sock *sk, int frametype)
 			*dptr++ = sk->protinfo.nr->my_index;
 			*dptr++ = sk->protinfo.nr->my_id;
 			*dptr++ = frametype;
-			*dptr++ = sk->window;
+			*dptr++ = sk->protinfo.nr->window;
 			if (sk->protinfo.nr->bpqext) *dptr++ = sysctl_netrom_network_ttl_initialiser;
 			break;
 
@@ -233,8 +223,6 @@ void nr_write_internal(struct sock *sk, int frametype)
 			*dptr++ = frametype;
 			break;
 	}
-
-	skb->free = 1;
 
 	nr_transmit_buffer(sk, skb);
 }
@@ -259,15 +247,15 @@ void nr_transmit_dm(struct sk_buff *skb)
 	dptr = skb_put(skbn, NR_NETWORK_LEN + NR_TRANSPORT_LEN);
 
 	memcpy(dptr, skb->data + 7, AX25_ADDR_LEN);
-	dptr[6] &= ~LAPB_C;
-	dptr[6] &= ~LAPB_E;
-	dptr[6] |= SSSID_SPARE;
+	dptr[6] &= ~AX25_CBIT;
+	dptr[6] &= ~AX25_EBIT;
+	dptr[6] |= AX25_SSSID_SPARE;
 	dptr += AX25_ADDR_LEN;
 	
 	memcpy(dptr, skb->data + 0, AX25_ADDR_LEN);
-	dptr[6] &= ~LAPB_C;
-	dptr[6] |= LAPB_E;
-	dptr[6] |= SSSID_SPARE;
+	dptr[6] &= ~AX25_CBIT;
+	dptr[6] |= AX25_EBIT;
+	dptr[6] |= AX25_SSSID_SPARE;
 	dptr += AX25_ADDR_LEN;
 
 	*dptr++ = sysctl_netrom_network_ttl_initialiser;
@@ -279,49 +267,8 @@ void nr_transmit_dm(struct sk_buff *skb)
 	*dptr++ = NR_CONNACK | NR_CHOKE_FLAG;
 	*dptr++ = 0;
 
-	skbn->free = 1;
-	skbn->sk   = NULL;
-
 	if (!nr_route_frame(skbn, NULL))
 		kfree_skb(skbn, FREE_WRITE);
-}
-
-/*
- *	Exponential backoff for NET/ROM
- */
-unsigned short nr_calculate_t1(struct sock *sk)
-{
-	int n, t;
-	
-	for (t = 2, n = 0; n < sk->protinfo.nr->n2count; n++)
-		t *= 2;
-
-	if (t > 8) t = 8;
-
-	return t * sk->protinfo.nr->rtt;
-}
-
-/*
- *	Calculate the Round Trip Time
- */
-void nr_calculate_rtt(struct sock *sk)
-{
-	if (sk->protinfo.nr->t1timer > 0 && sk->protinfo.nr->n2count == 0)
-		sk->protinfo.nr->rtt = (9 * sk->protinfo.nr->rtt + sk->protinfo.nr->t1 - sk->protinfo.nr->t1timer) / 10;
-
-#ifdef	NR_T1CLAMPLO
-	/* Don't go below one tenth of a second */
-	if (sk->protinfo.nr->rtt < (NR_T1CLAMPLO))
-		sk->protinfo.nr->rtt = (NR_T1CLAMPLO);
-#else   /* Failsafe - some people might have sub 1/10th RTTs :-) **/
-        if (sk->protinfo.nr->rtt == 0)
-                sk->protinfo.nr->rtt = PR_SLOWHZ;
-#endif
-#ifdef  NR_T1CLAMPHI
-        /* OR above clamped seconds **/
-        if (sk->protinfo.nr->rtt > (NR_T1CLAMPHI))
-                sk->protinfo.nr->rtt = (NR_T1CLAMPHI);
-#endif
 }
 
 #endif

@@ -41,6 +41,7 @@
 #include <linux/sched.h>
 #include <linux/minix_fs.h>
 #include <linux/ext2_fs.h>
+#include <linux/romfs_fs.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -100,6 +101,7 @@ int rd_image_start = 0;		/* starting block # of image */
 #ifdef CONFIG_BLK_DEV_INITRD
 unsigned long initrd_start,initrd_end;
 int mount_initrd = 1;		/* zero if initrd should not be mounted */
+int initrd_below_start_ok = 0;
 #endif
 #endif
 
@@ -194,14 +196,15 @@ static long initrd_read(struct inode *inode,struct file *file,
 }
 
 
-static void initrd_release(struct inode *inode,struct file *file)
+static int initrd_release(struct inode *inode,struct file *file)
 {
 	unsigned long i;
 
-	if (--initrd_users) return;
+	if (--initrd_users) return 0;
 	for (i = initrd_start; i < initrd_end; i += PAGE_SIZE)
 		free_page(i);
 	initrd_start = 0;
+	return 0;
 }
 
 
@@ -210,7 +213,7 @@ static struct file_operations initrd_fops = {
 	initrd_read,	/* read */
 	NULL,		/* write */
 	NULL,		/* readdir */
-	NULL,		/* select */
+	NULL,		/* poll */
 	NULL, 		/* ioctl */
 	NULL,		/* mmap */
 	NULL,		/* open */
@@ -241,9 +244,10 @@ static int rd_open(struct inode * inode, struct file * filp)
 }
 
 #ifdef MODULE
-static void rd_release(struct inode * inode, struct file * filp)
+static int rd_release(struct inode * inode, struct file * filp)
 {
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 #endif
 
@@ -252,7 +256,7 @@ static struct file_operations fd_fops = {
 	block_read,	/* read - block dev read */
 	block_write,	/* write - block dev write */
 	NULL,		/* readdir - not here! */
-	NULL,		/* select */
+	NULL,		/* poll */
 	rd_ioctl, 	/* ioctl */
 	NULL,		/* mmap */
 	rd_open,	/* open */
@@ -327,6 +331,7 @@ void cleanup_module(void)
  * We currently check for the following magic numbers:
  * 	minix
  * 	ext2
+ *	romfs
  * 	gzip
  */
 int
@@ -335,6 +340,7 @@ identify_ramdisk_image(kdev_t device, struct file *fp, int start_block)
 	const int size = 512;
 	struct minix_super_block *minixsb;
 	struct ext2_super_block *ext2sb;
+	struct romfs_super_block *romfsb;
 	int nblocks = -1;
 	int max_blocks;
 	unsigned char *buf;
@@ -345,6 +351,7 @@ identify_ramdisk_image(kdev_t device, struct file *fp, int start_block)
 
 	minixsb = (struct minix_super_block *) buf;
 	ext2sb = (struct ext2_super_block *) buf;
+	romfsb = (struct romfs_super_block *) buf;
 	memset(buf, 0xe5, size);
 
 	/*
@@ -364,6 +371,16 @@ identify_ramdisk_image(kdev_t device, struct file *fp, int start_block)
 		       "RAMDISK: Compressed image found at block %d\n",
 		       start_block);
 		nblocks = 0;
+		goto done;
+	}
+
+	/* romfs is at block zero too */
+	if (romfsb->word0 == ROMSB_WORD0 &&
+	    romfsb->word1 == ROMSB_WORD1) {
+		printk(KERN_NOTICE
+		       "RAMDISK: Romfs filesystem found at block %d\n",
+		       start_block);
+		nblocks = (ntohl(romfsb->size)+BLOCK_SIZE-1)>>BLOCK_SIZE_BITS;
 		goto done;
 	}
 
@@ -388,13 +405,14 @@ identify_ramdisk_image(kdev_t device, struct file *fp, int start_block)
 	}
 
 	/* Try ext2 */
-	if (ext2sb->s_magic == EXT2_SUPER_MAGIC) {
+	if (ext2sb->s_magic == cpu_to_le16(EXT2_SUPER_MAGIC)) {
 		printk(KERN_NOTICE
 		       "RAMDISK: Ext2 filesystem found at block %d\n",
 		       start_block);
-		nblocks = ext2sb->s_blocks_count;
+		nblocks = le32_to_cpu(ext2sb->s_blocks_count);
 		goto done;
 	}
+
 	printk(KERN_NOTICE
 	       "RAMDISK: Couldn't find valid ramdisk image starting at %d.\n",
 	       start_block);
@@ -564,7 +582,7 @@ static uch *window;
 static unsigned insize = 0;  /* valid bytes in inbuf */
 static unsigned inptr = 0;   /* index of next byte to be processed in inbuf */
 static unsigned outcnt = 0;  /* bytes in output buffer */
-static exit_code = 0;
+static int exit_code = 0;
 static long bytes_out = 0;
 static struct file *crd_infp, *crd_outfp;
 

@@ -32,7 +32,7 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/irq.h>
-#include <asm/zorro.h>
+#include <linux/zorro.h>
 #include <asm/pgtable.h>
 #include <linux/fb.h>
 #include "s3blit.h"
@@ -235,6 +235,7 @@ struct fb_info *Cyber_fb_init(long *mem_start); /* Through amiga_fb_init() */
 static int Cyberfb_switch(int con);
 static int Cyberfb_updatevar(int con);
 static void Cyberfb_blank(int blank);
+static int Cyberfb_setcmap(struct fb_cmap *cmap, int con);
 
 
    /*
@@ -424,6 +425,7 @@ static int Cyber_encode_fix(struct fb_fix_screeninfo *fix,
    fix->xpanstep = 0;
    fix->ypanstep = 0;
    fix->ywrapstep = 0;
+   fix->line_length = 0;
 
    for (i = 0; i < arraysize(fix->reserved); i++)
       fix->reserved[i] = 0;
@@ -896,10 +898,10 @@ static void memcpy_fs(int fsfromto, void *to, void *from, int len)
          memcpy(to, from, len);
          return;
       case 1:
-         memcpy_fromfs(to, from, len);
+         copy_from_user(to, from, len);
          return;
       case 2:
-         memcpy_tofs(to, from, len);
+         copy_to_user(to, from, len);
          return;
    }
 }
@@ -1178,6 +1180,7 @@ struct fb_info *Cyber_fb_init(long *mem_start)
    fb_info.switch_con = &Cyberfb_switch;
    fb_info.updatevar = &Cyberfb_updatevar;
    fb_info.blank = &Cyberfb_blank;
+   fb_info.setcmap = &Cyberfb_setcmap;
 
    do_fb_set_var(&Cyber_fb_predefined[0], 1);
    Cyber_fb_get_var(&disp[0].var, -1);
@@ -1221,6 +1224,16 @@ static int Cyberfb_updatevar(int con)
 static void Cyberfb_blank(int blank)
 {
    fbhw->blank(blank);
+}
+
+
+   /*
+    *    Set the colormap
+    */
+
+static int Cyberfb_setcmap(struct fb_cmap *cmap, int con)
+{
+   return(Cyber_fb_set_cmap(cmap, 1, con));
 }
 
 

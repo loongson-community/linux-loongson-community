@@ -130,6 +130,7 @@ static const char *version =
 #include <asm/dma.h>
 #include <asm/uaccess.h>
 #include <linux/errno.h>              
+#include <linux/init.h>
 
 #include <linux/netdevice.h>
 #include <linux/if.h>
@@ -155,12 +156,7 @@ static int eql_close(struct device *dev); /*  */
 static int eql_ioctl(struct device *dev, struct ifreq *ifr, int cmd); /*  */
 static int eql_slave_xmit(struct sk_buff *skb, struct device *dev); /*  */
 
-static struct enet_statistics *eql_get_stats(struct device *dev); /*  */
-static int eql_header(struct sk_buff *skb, struct device *dev, 
-		      unsigned short type, void *daddr, void *saddr, 
-		      unsigned len); /*  */
-static int eql_rebuild_header(void *buff, struct device *dev, 
-			      unsigned long raddr, struct sk_buff *skb); /*  */
+static struct net_device_stats *eql_get_stats(struct device *dev); /*  */
 
 /* ioctl() handlers
    ---------------- */
@@ -213,12 +209,11 @@ static void eql_timer(unsigned long param);	/*  */
    ---------------------------------------------------------
    */
 
-int eql_init(struct device *dev)
+__initfunc(int eql_init(struct device *dev))
 {
 	static unsigned version_printed = 0;
 	/* static unsigned num_masters     = 0; */
 	equalizer_t *eql = 0;
-	int i;
 
 	if ( version_printed++ == 0 && eql_debug > 0)
 		printk(version);
@@ -231,14 +226,14 @@ int eql_init(struct device *dev)
 	memset (dev->priv, 0, sizeof (equalizer_t));
 	eql = (equalizer_t *) dev->priv;
 
-	eql->stats = kmalloc (sizeof (struct enet_statistics), GFP_KERNEL);
+	eql->stats = kmalloc (sizeof (struct net_device_stats), GFP_KERNEL);
 	if (eql->stats == NULL) 
 	{
 		kfree(dev->priv);
 		dev->priv = NULL;
 		return -ENOMEM;
 	}
-	memset (eql->stats, 0, sizeof (struct enet_statistics));
+	memset (eql->stats, 0, sizeof (struct net_device_stats));
 
 	init_timer (&eql->timer);
 	eql->timer.data     	= (unsigned long) dev->priv;
@@ -254,16 +249,11 @@ int eql_init(struct device *dev)
   
   	/*
   	 *	Fill in the fields of the device structure with 
-	 *	eql-generic values. This should be in a common 
-	 *	file instead of per-driver.  
+	 *	eql-generic values. 
 	 */
 
-	for (i = 0; i < DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
-
-	dev->hard_header	= eql_header; 
-	dev->rebuild_header	= eql_rebuild_header;
-
+	dev_init_buffers(dev);
+	
 	/*
 	 *	Now we undo some of the things that eth_setup does
 	 * 	that we don't like 
@@ -385,11 +375,13 @@ static int eql_slave_xmit(struct sk_buff *skb, struct device *dev)
 	{
 #ifdef EQL_DEBUG
 		if (eql_debug >= 100)
-			printk ("%s: %d slaves xmitng %ld B %s\n", 
+			printk ("%s: %d slaves xmitng %d B %s\n", 
 				dev->name, eql_number_slaves (eql->queue), skb->len,
 				slave_dev->name);
 #endif
-		dev_queue_xmit (skb, slave_dev, 1);
+		skb->dev = slave_dev;
+		skb->priority = 1;
+		dev_queue_xmit (skb);
 		eql->stats->tx_packets++;
 		slave->bytes_queued += skb->len; 
 	}
@@ -407,25 +399,10 @@ static int eql_slave_xmit(struct sk_buff *skb, struct device *dev)
 }
 
 
-static struct enet_statistics * eql_get_stats(struct device *dev)
+static struct net_device_stats * eql_get_stats(struct device *dev)
 {
 	equalizer_t *eql = (equalizer_t *) dev->priv;
 	return eql->stats;
-}
-
-
-static int  eql_header(struct sk_buff *skb, struct device *dev, 
-	   unsigned short type, void *daddr, void *saddr, 
-	   unsigned len)
-{
-	return 0;
-}
-
-
-static int eql_rebuild_header(void *buff, struct device *dev, 
-		   unsigned long raddr, struct sk_buff *skb)
-{
-	return 0;
 }
 
 /*

@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/swap.h>
 #include <linux/smp.h>
+#include <linux/init.h>
 #ifdef CONFIG_BLK_DEV_INITRD
 #include <linux/blk.h>
 #endif
@@ -25,6 +26,8 @@
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/dma.h>
+
+const char bad_pmd_string[] = "Bad pmd in pte_alloc: %08lx\n";
 
 extern void die_if_kernel(char *,struct pt_regs *,long);
 extern void show_net_buffers(void);
@@ -79,10 +82,10 @@ void show_mem(void)
 		total++;
 		if (PageReserved(mem_map+i))
 			reserved++;
-		else if (!mem_map[i].count)
+		else if (!atomic_read(&mem_map[i].count))
 			free++;
 		else
-			shared += mem_map[i].count-1;
+			shared += atomic_read(&mem_map[i].count) - 1;
 	}
 	printk("%d pages of RAM\n",total);
 	printk("%d free pages\n",free);
@@ -96,6 +99,53 @@ void show_mem(void)
 
 extern unsigned long free_area_init(unsigned long, unsigned long);
 
+/* References to section boundaries */
+
+extern char _text, _etext, _edata, __bss_start, _end;
+extern char __init_begin, __init_end;
+
+#define X86_CR4_VME		0x0001		/* enable vm86 extensions */
+#define X86_CR4_PVI		0x0002		/* virtual interrupts flag enable */
+#define X86_CR4_TSD		0x0004		/* disable time stamp at ipl 3 */
+#define X86_CR4_DE		0x0008		/* enable debugging extensions */
+#define X86_CR4_PSE		0x0010		/* enable page size extensions */
+#define X86_CR4_PAE		0x0020		/* enable physical address extensions */
+#define X86_CR4_MCE		0x0040		/* Machine check enable */
+#define X86_CR4_PGE		0x0080		/* enable global pages */
+#define X86_CR4_PCE		0x0100		/* enable performance counters at ipl 3 */
+
+#define X86_FEATURE_FPU		0x0001		/* internal FPU */
+#define X86_FEATURE_VME		0x0002		/* vm86 extensions */
+#define X86_FEATURE_DE		0x0004		/* debugging extensions */
+#define X86_FEATURE_PSE		0x0008		/* Page size extensions */
+#define X86_FEATURE_TSC		0x0010		/* Time stamp counter */
+#define X86_FEATURE_MSR		0x0020		/* RDMSR/WRMSR */
+#define X86_FEATURE_PAE		0x0040		/* Physical address extension */
+#define X86_FEATURE_MCE		0x0080		/* Machine check exception */
+#define X86_FEATURE_CXS		0x0100		/* cmpxchg8 available */
+#define X86_FEATURE_APIC	0x0200		/* internal APIC */
+#define X86_FEATURE_10		0x0400
+#define X86_FEATURE_11		0x0800
+#define X86_FEATURE_MTRR	0x1000		/* memory type registers */
+#define X86_FEATURE_PGE		0x2000		/* Global page */
+#define X86_FEATURE_MCA		0x4000		/* Machine Check Architecture */
+#define X86_FEATURE_CMOV	0x8000		/* Cmov/fcomi */
+
+#ifdef GAS_KNOWS_CR4
+#define read_cr4	"movl %%cr4,%%eax"
+#define write_cr4	"movl %%eax,%%cr4"
+#else
+#define read_cr4	".byte 0x0f,0x20,0xe0"
+#define write_cr4	".byte 0x0f,0x22,0xe0"
+#endif
+
+#define set_in_cr4(x) \
+__asm__(read_cr4 "\n\t" \
+	"orl %0,%%eax\n\t" \
+	write_cr4 \
+	: : "i" (x) \
+	:"ax");
+
 /*
  * paging_init() sets up the page tables - note that the first 4MB are
  * already mapped by head.S.
@@ -103,7 +153,7 @@ extern unsigned long free_area_init(unsigned long, unsigned long);
  * This routines also unmaps the page at virtual kernel address 0, so
  * that we can trap those pesky NULL-reference errors in the kernel.
  */
-unsigned long paging_init(unsigned long start_mem, unsigned long end_mem)
+__initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_mem))
 {
 	pgd_t * pg_dir;
 	pte_t * pg_table;
@@ -146,40 +196,38 @@ unsigned long paging_init(unsigned long start_mem, unsigned long end_mem)
 	pg_dir = swapper_pg_dir;
 	/* unmap the original low memory mappings */
 	pgd_val(pg_dir[0]) = 0;
+
+	/* Map whole memory from 0xC0000000 */
+
 	while (address < end_mem) {
 		/*
-		 * The following code enabled 4MB page tables for the
-		 * Intel Pentium cpu, unfortunately the SMP kernel can't
-		 * handle the 4MB page table optimizations yet
+		 * If we're running on a Pentium CPU, we can use the 4MB
+		 * page tables. 
+		 *
+		 * The page tables we create span up to the next 4MB
+		 * virtual memory boundary, but that's OK as we won't
+		 * use that memory anyway.
 		 */
-#ifndef __SMP__
-		/*
-		 * This will create page tables that
-		 * span up to the next 4MB virtual
-		 * memory boundary, but that's ok,
-		 * we won't use that memory anyway.
-		 */
-		if (x86_capability & 8) {
-#ifdef GAS_KNOWS_CR4
-			__asm__("movl %%cr4,%%eax\n\t"
-				"orl $16,%%eax\n\t"
-				"movl %%eax,%%cr4"
-				: : :"ax");
-#else
-			__asm__(".byte 0x0f,0x20,0xe0\n\t"
-				"orl $16,%%eax\n\t"
-				".byte 0x0f,0x22,0xe0"
-				: : :"ax");
-#endif
+		if (x86_capability & X86_FEATURE_PSE) {
+			unsigned long __pe;
+
+			set_in_cr4(X86_CR4_PSE);
 			wp_works_ok = 1;
+			__pe = _PAGE_TABLE + _PAGE_4M + __pa(address);
+			/* Make it "global" too if supported */
+			if (x86_capability & X86_FEATURE_PGE) {
+				set_in_cr4(X86_CR4_PGE);
+				__pe += _PAGE_GLOBAL;
+			}
 			pgd_val(pg_dir[768]) = _PAGE_TABLE + _PAGE_4M + __pa(address);
 			pg_dir++;
 			address += 4*1024*1024;
 			continue;
 		}
-#endif
-		/* map the memory at virtual addr 0xC0000000 */
-		/* pg_table is physical at this point */
+		/*
+		 * We're on a [34]86, use normal page tables.
+		 * pg_table is physical at this point
+		 */
 		pg_table = (pte_t *) (PAGE_MASK & pgd_val(pg_dir[768]));
 		if (!pg_table) {
 			pg_table = (pte_t *) __pa(start_mem);
@@ -202,18 +250,18 @@ unsigned long paging_init(unsigned long start_mem, unsigned long end_mem)
 	return free_area_init(start_mem, end_mem);
 }
 
-void mem_init(unsigned long start_mem, unsigned long end_mem)
+__initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 {
 	unsigned long start_low_mem = PAGE_SIZE;
 	int codepages = 0;
 	int reservedpages = 0;
 	int datapages = 0;
+	int initpages = 0;
 	unsigned long tmp;
-	extern int _etext;
 
 	end_mem &= PAGE_MASK;
 	high_memory = (void *) end_mem;
-	max_mapnr = MAP_NR(end_mem);
+	max_mapnr = num_physpages = MAP_NR(end_mem);
 
 	/* clear the zero-page */
 	memset(empty_zero_page, 0, PAGE_SIZE);
@@ -224,6 +272,9 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 #ifdef __SMP__
 	/*
 	 * But first pinch a few for the stack/trampoline stuff
+	 *	FIXME: Don't need the extra page at 4K, but need to fix
+	 *	trampoline before removing it. (see the GDT stuff)
+	 *
 	 */
 	start_low_mem += PAGE_SIZE;				/* 32bit startup code */
 	start_low_mem = smp_alloc_memory(start_low_mem); 	/* AP processor stacks */
@@ -248,44 +299,72 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 		if (tmp >= MAX_DMA_ADDRESS)
 			clear_bit(PG_DMA, &mem_map[MAP_NR(tmp)].flags);
 		if (PageReserved(mem_map+MAP_NR(tmp))) {
-			if (tmp >= 0xA0000+PAGE_OFFSET && tmp < 0x100000+PAGE_OFFSET)
-				reservedpages++;
-			else if (tmp < (unsigned long) &_etext)
-				codepages++;
-			else
+			if (tmp >= (unsigned long) &_text && tmp < (unsigned long) &_edata) {
+				if (tmp < (unsigned long) &_etext)
+					codepages++;
+				else
+					datapages++;
+			} else if (tmp >= (unsigned long) &__init_begin
+				   && tmp < (unsigned long) &__init_end)
+				initpages++;
+			else if (tmp >= (unsigned long) &__bss_start
+				 && tmp < (unsigned long) start_mem)
 				datapages++;
+			else
+				reservedpages++;
 			continue;
 		}
-		mem_map[MAP_NR(tmp)].count = 1;
+		atomic_set(&mem_map[MAP_NR(tmp)].count, 1);
 #ifdef CONFIG_BLK_DEV_INITRD
 		if (!initrd_start || (tmp < initrd_start || tmp >=
 		    initrd_end))
 #endif
 			free_page(tmp);
 	}
-	printk("Memory: %luk/%luk available (%dk kernel code, %dk reserved, %dk data)\n",
+	printk("Memory: %luk/%luk available (%dk kernel code, %dk reserved, %dk data, %dk init)\n",
 		(unsigned long) nr_free_pages << (PAGE_SHIFT-10),
 		max_mapnr << (PAGE_SHIFT-10),
 		codepages << (PAGE_SHIFT-10),
 		reservedpages << (PAGE_SHIFT-10),
-		datapages << (PAGE_SHIFT-10));
+		datapages << (PAGE_SHIFT-10),
+		initpages << (PAGE_SHIFT-10));
 /* test if the WP bit is honoured in supervisor mode */
 	if (wp_works_ok < 0) {
 		unsigned char tmp_reg;
+		unsigned long old = pg0[0];
+		printk("Checking if this processor honours the WP bit even in supervisor mode... ");
 		pg0[0] = pte_val(mk_pte(PAGE_OFFSET, PAGE_READONLY));
 		local_flush_tlb();
+		current->mm->mmap->vm_start += PAGE_SIZE;
 		__asm__ __volatile__(
 			"movb %0,%1 ; movb %1,%0"
 			:"=m" (*(char *) __va(0)),
 			 "=q" (tmp_reg)
 			:/* no inputs */
 			:"memory");
-		pg0[0] = pte_val(mk_pte(PAGE_OFFSET, PAGE_KERNEL));
+		pg0[0] = old;
 		local_flush_tlb();
-		if (wp_works_ok < 0)
+		current->mm->mmap->vm_start -= PAGE_SIZE;
+		if (wp_works_ok < 0) {
 			wp_works_ok = 0;
+			printk("No.\n");
+		} else
+			printk("Ok.\n");
 	}
 	return;
+}
+
+void free_initmem(void)
+{
+	unsigned long addr;
+	
+	addr = (unsigned long)(&__init_begin);
+	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
+		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
+		atomic_set(&mem_map[MAP_NR(addr)].count, 1);
+		free_page(addr);
+	}
+	printk ("Freeing unused kernel memory: %dk freed\n", (&__init_end - &__init_begin) >> 10);
 }
 
 void si_meminfo(struct sysinfo *val)
@@ -301,9 +380,9 @@ void si_meminfo(struct sysinfo *val)
 		if (PageReserved(mem_map+i))
 			continue;
 		val->totalram++;
-		if (!mem_map[i].count)
+		if (!atomic_read(&mem_map[i].count))
 			continue;
-		val->sharedram += mem_map[i].count-1;
+		val->sharedram += atomic_read(&mem_map[i].count) - 1;
 	}
 	val->totalram <<= PAGE_SHIFT;
 	val->sharedram <<= PAGE_SHIFT;

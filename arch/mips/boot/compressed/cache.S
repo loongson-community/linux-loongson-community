@@ -18,7 +18,6 @@
 #include <asm/asm.h>
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
-#include <asm/segment.h>
 
 /*
  * Some bits in the config register

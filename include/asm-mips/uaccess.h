@@ -85,6 +85,24 @@ extern inline int verify_area(int type, const void * addr, unsigned long size)
 #define __put_user(x,ptr) __put_user_nocheck((x),(ptr),sizeof(*(ptr)))
 #define __get_user(x,ptr) __get_user_nocheck((x),(ptr),sizeof(*(ptr)))
 
+/*
+ * The "xxx_ret" versions return constant specified in third argument, if
+ * something bad happens. These macros can be optimized for the
+ * case of just returning from the function xxx_ret is used.
+ */
+
+#define put_user_ret(x,ptr,ret) ({ \
+if (put_user(x,ptr)) return ret; })
+
+#define get_user_ret(x,ptr,ret) ({ \
+if (get_user(x,ptr)) return ret; })
+
+#define __put_user_ret(x,ptr,ret) ({ \
+if (__put_user(x,ptr)) return ret; })
+
+#define __get_user_ret(x,ptr,ret) ({ \
+if (__get_user(x,ptr)) return ret; })
+
 struct __large_struct { unsigned long buf[100]; };
 #define __m(x) (*(struct __large_struct *)(x))
 
@@ -132,9 +150,10 @@ __asm__ __volatile__( \
 	"li\t%0,%4\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
+	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
-	".text" \
+	".previous" \
 	:"=r" (__gu_err), "=r" (__gu_val) \
 	:"0" (__gu_err), "o" (__m(__gu_addr)), "i" (-EFAULT) \
 	:"$1"); })
@@ -166,9 +185,10 @@ __asm__ __volatile__( \
 	"la\t$1,2b\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
+	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
-	".text" \
+	".previous" \
 	:"=r" (__gu_err), "=r" (__gu_val) \
 	:"o" (__m(__gu_addr)) \
 	:"$1"); })
@@ -201,9 +221,10 @@ __asm__ __volatile__( \
 	"li\t%0,%3\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
+	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
-	".text" \
+	".previous" \
 	:"=r" (__pu_err) \
 	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT) \
 	:"$1"); })
@@ -235,14 +256,31 @@ __asm__ __volatile__( \
 	"la\t$1,2b\n\t" \
 	"jr\t$1\n\t" \
 	".set\tat\n\t" \
+	".previous\n\t" \
 	".section\t__ex_table,\"a\"\n\t" \
 	STR(PTR)"\t1b,3b\n\t" \
-	".text" \
+	".previous" \
 	:"=r" (__pu_err) \
 	:"r" (__pu_val), "o" (__m(__pu_addr)) \
 	:"$1"); })
 
 extern void __put_user_unknown(void);
+
+#define copy_to_user_ret(to,from,n,retval) ({ \
+if (copy_to_user(to,from,n)) \
+        return retval; \
+})
+
+#define copy_from_user_ret(to,from,n,retval) ({ \
+if (copy_from_user(to,from,n)) \
+        return retval; \
+})
+
+#define __copy_to_user(to,from,n)                       \
+         __copy_user((to),(from),(n))
+
+#define __copy_from_user(to,from,n)                     \
+         __copy_user((to),(from),(n))
 
 #define __clear_user(addr,size) \
 ({ \
@@ -258,9 +296,10 @@ extern void __put_user_unknown(void);
 		"la\t$1,2b\n\t" \
 		"jr\t$1\n\t" \
 		".set\tat\n\t" \
+		".previous\n\t" \
 		".section\t__ex_table,\"a\"\n\t" \
 		STR(PTR)"\t1b,3b\n\t" \
-		".text" \
+		".previous" \
 		:"=r" (addr), "=r" (__cu_end) \
 		:"0" (addr), "1" (addr + size - 1), "i" (-EFAULT) \
 		:"$1","memory"); \
@@ -292,10 +331,7 @@ extern long __strlen_user(const char *);
 
 extern inline long strlen_user(const char *str)
 {
-	long len = __strlen_user(str);
-	if (!access_ok(VERIFY_READ, str, len))
-		len = 0;
-	return len;
+	return access_ok(VERIFY_READ,str,0) ? __strlen_user(str) : 0;
 }
 
 struct exception_table_entry

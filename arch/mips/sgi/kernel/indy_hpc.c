@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
 
-#include <asm/segment.h>
+#include <asm/addrspace.h>
 #include <asm/ptrace.h>
 #include <asm/processor.h>
 #include <asm/sgihpc.h>

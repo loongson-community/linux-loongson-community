@@ -72,11 +72,15 @@ struct atalk_sock
 
 #ifdef __KERNEL__
 
+#include <asm/byteorder.h>
+
 struct ddpehdr
 {
-	/* FIXME for bigendians */
-	/*__u16	deh_pad:2,deh_hops:4,deh_len:10;*/
-	__u16	deh_len:10,deh_hops:4,deh_pad:2;
+#ifdef __LITTLE_ENDIAN_BITFIELD
+	__u16	deh_len:10, deh_hops:4, deh_pad:2;
+#else
+	__u16	deh_pad:2, deh_hops:4, deh_len:10;
+#endif
 	__u16	deh_sum;
 	__u16	deh_dnet;
 	__u16	deh_snet;
@@ -88,13 +92,16 @@ struct ddpehdr
 };
 
 /*
- *	Unused (and currently unsupported)
+ *	Short form header
  */
  
 struct ddpshdr
 {
-	/* FIXME for bigendians */
+#ifdef __LITTLE_ENDIAN_BITFIELD
 	__u16	dsh_len:10, dsh_pad:6;
+#else
+	__u16	dsh_pad:6, dsh_len:10;
+#endif
 	__u8	dsh_dport;
 	__u8	dsh_sport;
 	/* And netatalk apps expect to stick the type in themselves */
@@ -125,8 +132,6 @@ struct elapaarp
 	__u8	pa_dst_node		__attribute__ ((packed));	
 };
 
-typedef struct sock	atalk_socket;
-
 #define AARP_EXPIRY_TIME	(5*60*HZ)	/* Not specified - how long till we drop a resolved entry */
 #define AARP_HASH_SIZE		16		/* Size of hash table */
 #define AARP_TICK_TIME		(HZ/5)		/* Fast retransmission timer when resolving */
@@ -136,7 +141,16 @@ typedef struct sock	atalk_socket;
 extern struct datalink_proto *ddp_dl, *aarp_dl;
 extern void aarp_proto_init(void);
 /* Inter module exports */
-extern struct atalk_iface *atalk_find_dev(struct device *dev);
+
+/*
+ *	Give a device find its atif control structure
+ */
+
+extern __inline__ struct atalk_iface *atalk_find_dev(struct device *dev)
+{
+	return dev->atalk_ptr;
+}
+
 extern struct at_addr *atalk_find_dev_addr(struct device *dev);
 extern int aarp_send_ddp(struct device *dev,struct sk_buff *skb, struct at_addr *sa, void *hwaddr);
 extern void aarp_send_probe(struct device *dev, struct at_addr *addr);

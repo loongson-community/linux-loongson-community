@@ -14,11 +14,16 @@
 #include <linux/signal.h>
 #include <linux/string.h>
 #include <linux/fcntl.h>
+#include <linux/poll.h>
+#include <linux/random.h>
+#include <linux/init.h>
+
 #include <asm/kbio.h>
 #include <asm/vuid_event.h>
 #include <asm/delay.h>
 #include <asm/bitops.h>
 #include <asm/oplib.h>
+#include <asm/uaccess.h>
 
 #include "../../char/kbd_kern.h"
 #include "../../char/diacr.h"
@@ -58,7 +63,15 @@ extern void reset_vc(unsigned int new_console);
 extern void scrollback(int);
 extern void scrollfront(int);
 
-unsigned char kbd_read_mask = 0x01;	/* modified by psaux.c */
+unsigned char kbd_read_mask = 0x01;	  /* modified by psaux.c */
+unsigned char aux_device_present = 0x00;  /* To make kernel/ksyms.c happy */
+
+struct wait_queue * keypress_wait = NULL;
+
+void keyboard_wait_for_keypress(void)
+{
+	sleep_on(&keypress_wait);
+}
 
 /*
  * global state includes the following, and various static variables
@@ -89,6 +102,9 @@ struct kbd_struct kbd_table[MAX_NR_CONSOLES];
 static struct tty_struct **ttytab;
 static struct kbd_struct * kbd = kbd_table;
 static struct tty_struct * tty = NULL;
+static int compose_led_on = 0;
+static int kbd_delay_ticks = HZ / 5;
+static int kbd_rate_ticks = HZ / 20;
 
 extern void compute_shiftstate(void);
 
@@ -141,8 +157,8 @@ volatile unsigned char sunkbd_type;
 #define SUNKBD_TYPE3        0x03
 #define SUNKBD_TYPE4        0x04
 
-#define SUNKBD_LOUT_TYP4    0x00
-#define SUNKBD_LOUT_TYP5    0x22
+#define SUNKBD_LOUT_TYP4    	0x00
+#define SUNKBD_LOUT_TYP5_MASK   0x20
 
 volatile int kbd_reset_pending;
 volatile int kbd_layout_pending;
@@ -213,6 +229,8 @@ static inline unsigned char vcleds_to_sunkbd(unsigned char vcleds)
 		retval |= LED_NLOCK;
 	if(vcleds & (1<<VC_CAPSLOCK))
 		retval |= LED_CLOCK;
+	if(compose_led_on)
+		retval |= LED_CMPOSE;
 	return retval;
 }
 
@@ -331,6 +349,21 @@ static unsigned char e0_keys[128] = {
   0, 0, 0, 0, 0, 0, 0, 0			      /* 0x78-0x7f */
 };
 
+/* we use this map to determine if a particular key should not be
+   autorepeated. We don't autorepeat CONTROL, LSHIFT, CAPS,
+   ALT, LMETA, RSHIFT, RMETA, ALTG and COMPOSE */
+static unsigned char norepeat_keys[128] = {
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,  /* 0x00-0x0f */
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x10-0x1f */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x20-0x2f */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f */
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,  /* 0x40-0x4f */
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f */
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,  /* 0x60-0x6f */
+	0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0,  /* 0x70-0x7f */
+};
+
+
 int setkeycode(unsigned int scancode, unsigned int keycode)
 {
 	if (scancode < SC_LIM || scancode > 255 || keycode > 127)
@@ -350,7 +383,7 @@ int getkeycode(unsigned int scancode)
 	    e0_keys[scancode - 128];
 }
 
-void sunkbd_inchar(unsigned char ch, unsigned char status, struct pt_regs *regs);
+void sunkbd_inchar(unsigned char ch, struct pt_regs *regs);
 static void keyboard_timer (unsigned long ignored);
 
 static struct timer_list
@@ -367,16 +400,18 @@ keyboard_timer (unsigned long ignored)
 	save_flags(flags); cli();
 
 	/* Auto repeat: send regs = 0 to indicate autorepeat */
-	sunkbd_inchar (last_keycode, 0, 0);
+	sunkbd_inchar (last_keycode, 0);
 	del_timer (&auto_repeat_timer);
-	auto_repeat_timer.expires = jiffies + HZ/20;
-	add_timer (&auto_repeat_timer);
+	if (kbd_rate_ticks) {
+		auto_repeat_timer.expires = jiffies + kbd_rate_ticks;
+		add_timer (&auto_repeat_timer);
+	}
 	restore_flags(flags);
 }
 
 /* #define SKBD_DEBUG */
 /* This is our keyboard 'interrupt' routine. */
-void sunkbd_inchar(unsigned char ch, unsigned char status, struct pt_regs *regs)
+void sunkbd_inchar(unsigned char ch, struct pt_regs *regs)
 {
 	unsigned char keycode;
 	char up_flag;                          /* 0 or SUNKBD_UBIT */
@@ -401,7 +436,9 @@ void sunkbd_inchar(unsigned char ch, unsigned char status, struct pt_regs *regs)
 		kbd_layout_pending = 0;
 		return;
 	} else if(ch == SKBD_ALLUP) {
-		/* eat it */
+		del_timer (&auto_repeat_timer);
+		memset(key_down, 0, sizeof(key_down));
+		compute_shiftstate();
 		return;
 	}
 #ifdef SKBD_DEBUG
@@ -413,11 +450,13 @@ void sunkbd_inchar(unsigned char ch, unsigned char status, struct pt_regs *regs)
 #endif
 
 	/* Whee, a real character. */
-	if (regs){
+	if(regs) {
 		pt_regs = regs;
 		last_keycode = keycode = ch;
-	} else
+	} else {
 		keycode = ch;
+	}
+	add_keyboard_randomness(keycode);
 	
 	mark_bh(KEYBOARD_BH);
 	do_poke_blanked_console = 1;
@@ -441,8 +480,13 @@ void sunkbd_inchar(unsigned char ch, unsigned char status, struct pt_regs *regs)
 		rep = 0;
 		clear_bit(keycode, key_down);
 	} else {
-		auto_repeat_timer.expires = jiffies+HZ/5;
-		add_timer (&auto_repeat_timer);
+		if (!norepeat_keys[keycode]) {
+			if (kbd_rate_ticks) {
+				auto_repeat_timer.expires =
+						jiffies + kbd_delay_ticks;
+				add_timer (&auto_repeat_timer);
+			}
+		}
 		rep = set_bit(keycode, key_down);
 	}
 
@@ -661,6 +705,8 @@ static void boot_it(void)
 static void compose(void)
 {
 	dead_key_next = 1;
+	compose_led_on = 1;
+	set_leds();
 }
 
 int spawnpid, spawnsig;
@@ -718,8 +764,11 @@ static void do_self(unsigned char value, char up_flag)
 	if (up_flag)
 		return;		/* no action, if this is a key release */
 
-	if (diacr)
+	if (diacr) {
 		value = handle_diacr(value);
+		compose_led_on = 0;
+		set_leds();
+	}
 
 	if (dead_key_next) {
 		dead_key_next = 0;
@@ -782,7 +831,7 @@ static void do_cons(unsigned char value, char up_flag)
 {
 	if (up_flag)
 		return;
-	want_console = value;
+	set_console(value);
 }
 
 static void do_fn(unsigned char value, char up_flag)
@@ -971,6 +1020,7 @@ static void do_lock(unsigned char value, char up_flag)
  */
 
 static unsigned char ledstate = 0xff; /* undefined */
+static unsigned char sunkbd_ledstate = 0xff; /* undefined */
 static unsigned char ledioctl;
 
 unsigned char getledstate(void) {
@@ -1050,15 +1100,56 @@ static inline unsigned char getleds(void){
 static void kbd_bh(void)
 {
 	unsigned char leds = getleds();
+	unsigned char kbd_leds = vcleds_to_sunkbd(leds);
 
-	if (leds != ledstate) {
+	if (kbd_leds != sunkbd_ledstate) {
 		ledstate = leds;
+		sunkbd_ledstate = kbd_leds;
 		send_cmd(SKBDCMD_SETLED);
-		send_cmd(vcleds_to_sunkbd(leds));
+		send_cmd(kbd_leds);
 	}
 }
 
-int kbd_init(void)
+/* Support for keyboard "beeps". */ 
+
+/* Timer routine to turn off the beep after the interval expires. */
+static void sunkbd_kd_nosound(unsigned long __unused)
+{
+	send_cmd(SKBDCMD_BELLOFF);
+}
+
+/*
+ * Initiate a keyboard beep. If the frequency is zero, then we stop
+ * the beep. Any other frequency will start a monotone beep. The beep
+ * will be stopped by a timer after "ticks" jiffies. If ticks is 0,
+ * then we do not start a timer.
+ */
+static void sunkbd_kd_mksound(unsigned int hz, unsigned int ticks)
+{
+	unsigned long flags;
+	static struct timer_list sound_timer = { NULL, NULL, 0, 0,
+						 sunkbd_kd_nosound };
+
+	save_flags(flags);
+	cli();
+
+	del_timer(&sound_timer);
+
+	if (hz) {
+		send_cmd(SKBDCMD_BELLON);
+		if (ticks) {
+			sound_timer.expires = jiffies + ticks;
+			add_timer(&sound_timer);
+		}
+	} else
+		send_cmd(SKBDCMD_BELLOFF);
+
+	restore_flags(flags);
+}
+
+extern void (*kd_mksound)(unsigned int hz, unsigned int ticks);
+
+__initfunc(int kbd_init(void))
 {
 	int i, opt_node;
 	struct kbd_struct kbd0;
@@ -1074,6 +1165,8 @@ int kbd_init(void)
 		kbd_table[i] = kbd0;
 
 	ttytab = console_driver.table;
+
+	kd_mksound = sunkbd_kd_mksound;
 
 	/* XXX Check keyboard-click? property in 'options' PROM node XXX */
 	if(sparc_cpu_model != sun4) {
@@ -1098,6 +1191,7 @@ int kbd_init(void)
 static Firm_event kbd_queue [KBD_QSIZE];
 static int kbd_head, kbd_tail;
 char kbd_opened;
+static int kbd_active = 0;
 static struct wait_queue *kbd_wait;
 static struct fasync_struct *kb_fasync;
 
@@ -1119,8 +1213,8 @@ push_kbd (int scan)
 	wake_up_interruptible (&kbd_wait);
 }
 
-static int
-kbd_read (struct inode *inode, struct file *f, char *buffer, int count)
+static long
+kbd_read (struct inode *inode, struct file *f, char *buffer, unsigned long count)
 {
 	struct wait_queue wait = { current, NULL };
 	char *end, *p;
@@ -1141,7 +1235,7 @@ kbd_read (struct inode *inode, struct file *f, char *buffer, int count)
 	end = buffer+count;
 	p = buffer;
 	for (; p < end && kbd_head != kbd_tail; p += sizeof (Firm_event)){
-		*(Firm_event *)p = kbd_queue [kbd_tail];
+		copy_to_user_ret((Firm_event *)p, &kbd_queue [kbd_tail], sizeof(Firm_event), -EFAULT);
 #ifdef KBD_DEBUG
 		printk ("[%s]", kbd_queue [kbd_tail].value == VKEY_UP ? "UP" : "DOWN");
 #endif
@@ -1163,47 +1257,40 @@ kbd_fasync (struct inode *inode, struct file *filp, int on)
 	return 0;
 }
 
-static int
-kbd_select (struct inode *i, struct file *f, int sel_type, select_table *wait)
+static unsigned int kbd_poll (struct file *f, poll_table *wait)
 {
-	if (sel_type != SEL_IN)
-		return 0;
+	poll_wait(&kbd_wait, wait);
 	if (kbd_head != kbd_tail)
-		return 1;
-	select_wait (&kbd_wait, wait);
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
 static int
 kbd_ioctl (struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)
 {
+	unsigned char c;
+	unsigned char leds = 0;
+	int value;
+
 	switch (cmd){
-	case KIOCTYPE:	          /* return keyboard type */
-		if (verify_area (VERIFY_WRITE, (void *)arg, sizeof (int)))
-			return -EFAULT;
-	        *(int *) arg = sunkbd_type;
+	case KIOCTYPE:		  /* return keyboard type */
+		put_user_ret(sunkbd_type, (int *) arg, -EFAULT);
 		break;
 	case KIOCGTRANS:
-		if (verify_area (VERIFY_WRITE, (void *) arg, sizeof (int)))
-			return -EFAULT;
-	        *(int *) arg = TR_UNTRANS_EVENT;
+		put_user_ret(TR_UNTRANS_EVENT, (int *) arg, -EFAULT);
 		break;
 	case KIOCTRANS:
-		if (verify_area (VERIFY_READ, (void *) arg, sizeof (int)))
-			return -EFAULT;
-	        if (*(int *) arg != TR_UNTRANS_EVENT)
+		get_user_ret(value, (int *) arg, -EFAULT);
+		if (value != TR_UNTRANS_EVENT)
 			return -EINVAL;
 		break;
 	case KIOCLAYOUT:
-		if (verify_area (VERIFY_WRITE, (void *) arg, sizeof (int)))
-			return -EFAULT;
-	        *(int *) arg = sunkbd_layout;
+		put_user_ret(sunkbd_layout, (int *) arg, -EFAULT);
 		break;
 	case KIOCSDIRECT:
-		if (verify_area (VERIFY_WRITE, (void *) arg, sizeof (int)))
-			return -EFAULT;
 #ifndef CODING_NEW_DRIVER
-		if (*(int *) arg)
+		get_user_ret(value, (int *) arg, -EFAULT);
+		if(value)
 			kbd_redirected = fg_console + 1;
 		else
 			kbd_redirected = 0;
@@ -1211,16 +1298,75 @@ kbd_ioctl (struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)
 #endif
 		break;
 	case KIOCCMD:
-		/* Need to support beep on/off, keyclick on/off */
+		get_user_ret(value, (int *) arg, -EFAULT);
+		c = (unsigned char) value;
+		switch (c) {
+			case SKBDCMD_CLICK:
+			case SKBDCMD_NOCLICK:
+				send_cmd(c);
+				return 0;
+			case SKBDCMD_BELLON:
+				kd_mksound(1,0);
+				return 0;
+			case SKBDCMD_BELLOFF:
+				kd_mksound(0,0);
+				return 0;
+			default:
+				return -EINVAL;
+		}
+	case KIOCSLED:
+		get_user_ret(c, (unsigned char *) arg, -EFAULT);
+			
+		if (c & LED_SCRLCK) leds |= (1 << VC_SCROLLOCK);
+		if (c & LED_NLOCK) leds |= (1 << VC_NUMLOCK);
+		if (c & LED_CLOCK) leds |= (1 << VC_CAPSLOCK);
+		compose_led_on = !!(c & LED_CMPOSE);
+		setledstate(kbd_table + fg_console, leds);
+		break;
+	case KIOCGLED:
+		put_user_ret(vcleds_to_sunkbd(getleds()), (unsigned char *) arg, -EFAULT);
+		break;
+	case KIOCGRATE:
+	{
+		struct kbd_rate rate;
+
+		rate.delay = kbd_delay_ticks;
+		if (kbd_rate_ticks)
+			rate.rate = HZ / kbd_rate_ticks;
+		else
+			rate.rate = 0;
+
+		copy_to_user_ret((struct kbd_rate *)arg, &rate,
+				 sizeof(struct kbd_rate), -EFAULT);
+
 		return 0;
+	}
+	case KIOCSRATE:
+	{
+		struct kbd_rate rate;
+
+		if (verify_area(VERIFY_READ, (void *)arg,
+				sizeof(struct kbd_rate)))
+			return -EFAULT;
+		copy_from_user(&rate, (struct kbd_rate *)arg,
+			       sizeof(struct kbd_rate));
+
+		if (rate.rate > 50)
+			return -EINVAL;
+		if (rate.rate == 0)
+			kbd_rate_ticks = 0;
+		else
+			kbd_rate_ticks = HZ / rate.rate;
+		kbd_delay_ticks = rate.delay;
+
+		return 0;
+	}
 	case FIONREAD:		/* return number of bytes in kbd queue */
 	{
 		int count;
 		
-		if (verify_area (VERIFY_WRITE, (void *) arg, sizeof (int)))
-			return -EFAULT;
 		count = kbd_head - kbd_tail;
-		* (int *)arg = (count < 0) ? KBD_QSIZE - count : count;
+		put_user_ret((count < 0) ? KBD_QSIZE - count : count, (int *) arg, -EFAULT);
 		return 0;
 	}
 	default:
@@ -1233,22 +1379,30 @@ kbd_ioctl (struct inode *i, struct file *f, unsigned int cmd, unsigned long arg)
 static int
 kbd_open (struct inode *i, struct file *f)
 {
+	kbd_active++;
+
 	if (kbd_opened)
 		return 0;
+
 	kbd_opened = fg_console + 1;
 	kbd_head = kbd_tail = 0;
 	return 0;
 }
 
-static void
+static int
 kbd_close (struct inode *i, struct file *f)
 {
+	if (--kbd_active)
+		return 0;
+
 	if (kbd_redirected)
 		kbd_table [kbd_opened-1].kbdmode = VC_XLATE;
+
 	kbd_redirected = 0;
 	kbd_opened = 0;
 
 	kbd_fasync (i, f, 0);
+	return 0;
 }
 
 static struct
@@ -1258,7 +1412,7 @@ file_operations kbd_fops =
 	kbd_read,		/* read */
 	NULL,			/* write */
 	NULL,			/* readdir */
-	kbd_select,		/* select */
+	kbd_poll,		/* poll */
 	kbd_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	kbd_open,		/* open */
@@ -1269,8 +1423,7 @@ file_operations kbd_fops =
 	NULL,			/* revalidate */
 };
 
-void
-keyboard_zsinit(void)
+__initfunc(void keyboard_zsinit(void))
 {
 	int timeout = 0;
 
@@ -1295,15 +1448,18 @@ keyboard_zsinit(void)
 		while(timeout++ < 500000)
 			barrier();
 		printk("Sun TYPE %d keyboard detected ",
-		       ((sunkbd_layout==SUNKBD_LOUT_TYP5) ? 5 : 4));
+		       ((sunkbd_layout & SUNKBD_LOUT_TYP5_MASK) ? 5 : 4));
 	}
 	if(sunkbd_type == SUNKBD_TYPE2)
 		sunkbd_clickp = 0;
 
-	if(sunkbd_clickp)
+	if(sunkbd_clickp) {
+		send_cmd(SKBDCMD_CLICK);
 		printk("with keyclick\n");
-	else
+	} else {
+		send_cmd(SKBDCMD_NOCLICK);
 		printk("without keyclick\n");
+	}
 
 	/* Dork with led lights, then turn them all off */
 	send_cmd(SKBDCMD_SETLED); send_cmd(0xf); /* All on */

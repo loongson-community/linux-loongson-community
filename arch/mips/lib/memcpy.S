@@ -10,7 +10,6 @@
 
 #include <asm/asm.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 
 #define MOVE_BIGCHUNK(src, dst, offset, t0, t1, t2, t3, t4, t5) \
 	lw	t0, (offset + 0x18)(src); \

@@ -46,6 +46,8 @@
 #include <linux/malloc.h>
 #include <linux/miscdevice.h>
 #include <linux/random.h>
+#include <linux/poll.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -340,11 +342,11 @@ static void qp_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 #endif
 
 
-static void release_aux(struct inode * inode, struct file * file)
+static int release_aux(struct inode * inode, struct file * file)
 {
 	fasync_aux(inode, file, 0);
 	if (--aux_count)
-		return;
+		return 0;
 	/* disable kbd bh to avoid mixing of cmd bytes */
 	disable_bh(KEYBOARD_BH);
 	aux_write_cmd(AUX_INTS_OFF);		/* disable controller ints */
@@ -353,28 +355,34 @@ static void release_aux(struct inode * inode, struct file * file)
  	poll_aux_status();
 	/* reenable kbd bh */
 	enable_bh(KEYBOARD_BH);
+#ifdef CONFIG_MCA
+	free_irq(AUX_IRQ, inode);
+#else
 #ifndef CONFIG_SGI
 	free_irq(AUX_IRQ, NULL);
 #endif
+#endif
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
 #ifdef CONFIG_82C710_MOUSE
-static void release_qp(struct inode * inode, struct file * file)
+static int release_qp(struct inode * inode, struct file * file)
 {
 	unsigned char status;
 
 	fasync_aux(inode, file, 0);
-	if (--qp_count)
-		return;
-	if (!poll_qp_status())
-		printk("Warning: Mouse device busy in release_qp()\n");
-	status = inb_p(qp_status);
-	outb_p(status & ~(QP_ENABLE|QP_INTS_ON), qp_status);
-	if (!poll_qp_status())
-		printk("Warning: Mouse device busy in release_qp()\n");
-	free_irq(QP_IRQ, NULL);
-	MOD_DEC_USE_COUNT;
+	if (!--qp_count) {
+		if (!poll_qp_status())
+			printk("Warning: Mouse device busy in release_qp()\n");
+		status = inb_p(qp_status);
+		outb_p(status & ~(QP_ENABLE|QP_INTS_ON), qp_status);
+		if (!poll_qp_status())
+			printk("Warning: Mouse device busy in release_qp()\n");
+		free_irq(QP_IRQ, NULL);
+		MOD_DEC_USE_COUNT;
+	}
+	return 0;
 }
 #endif
 
@@ -404,11 +412,15 @@ static int open_aux(struct inode * inode, struct file * file)
 		return -EBUSY;
 	}
 	queue->head = queue->tail = 0;		/* Flush input queue */
+#ifdef CONFIG_MCA
+	if (request_irq(AUX_IRQ, aux_interrupt, MCA_bus ? SA_SHIRQ : 0, "PS/2 Mouse", inode)) {
+#else
 #ifndef CONFIG_SGI
 	if (request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)) {
 		aux_count--;
 		return -EBUSY;
 	}
+#endif
 #endif
 	MOD_INC_USE_COUNT;
 	/* disable kbd bh to avoid mixing of cmd bytes */
@@ -571,13 +583,11 @@ repeat:
 }
 
 
-static int aux_select(struct inode *inode, struct file *file, int sel_type, select_table * wait)
+static unsigned int aux_poll(struct file *file, poll_table * wait)
 {
-	if (sel_type != SEL_IN)
-		return 0;
+	poll_wait(&queue->proc_list, wait);
 	if (aux_ready)
-		return 1;
-	select_wait(&queue->proc_list, wait);
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -587,7 +597,7 @@ struct file_operations psaux_fops = {
 	read_aux,
 	write_aux,
 	NULL, 		/* readdir */
-	aux_select,
+	aux_poll,
 	NULL, 		/* ioctl */
 	NULL,		/* mmap */
 	open_aux,
@@ -605,7 +615,7 @@ static struct miscdevice psaux_mouse = {
 	PSMOUSE_MINOR, "ps2aux", &psaux_fops
 };
 
-int psaux_init(void)
+__initfunc(int psaux_init(void))
 {
 	int qp_found = 0;
 
@@ -626,7 +636,9 @@ int psaux_init(void)
 #endif
 		printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
 	 	aux_present = 1;
+#ifdef CONFIG_VT
 		kbd_read_mask = AUX_OBUF_FULL;
+#endif
 	} else {
 		return -EIO;
 	}
@@ -731,7 +743,7 @@ static inline unsigned char read_710(unsigned char index)
  * See if we can find a 82C710 device. Read mouse address.
  */
 
-static int probe_qp(void)
+__initfunc(static int probe_qp(void))
 {
 	outb_p(0x55, 0x2fa);			/* Any value except 9, ff or 36 */
 	outb_p(0xaa, 0x3fa);			/* Inverse of 55 */

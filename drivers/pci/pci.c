@@ -47,6 +47,11 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( NCR,		NCR_53C820,	"53c820"),
 	DEVICE( NCR,		NCR_53C825,	"53c825"),
 	DEVICE( NCR,		NCR_53C815,	"53c815"),
+	DEVICE( NCR,		NCR_53C860,	"53c860"),
+	DEVICE( NCR,		NCR_53C896,	"53c896"),
+	DEVICE( NCR,		NCR_53C895,	"53c895"),
+	DEVICE( NCR,		NCR_53C885,	"53c885"),
+	DEVICE( NCR,		NCR_53C875,	"53c875"),
 	DEVICE( ATI,		ATI_68800,      "68800AX"),
 	DEVICE( ATI,		ATI_215CT222,   "215CT222"),
 	DEVICE( ATI,		ATI_210888CX,   "210888CX"),
@@ -61,6 +66,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( TSENG,		TSENG_W32P_b,	"ET4000W32P rev B"),
 	DEVICE( TSENG,		TSENG_W32P_c,	"ET4000W32P rev C"),
 	DEVICE( TSENG,		TSENG_W32P_d,	"ET4000W32P rev D"),
+	DEVICE( TSENG,		TSENG_ET6000,	"ET6000"),
 	DEVICE( WEITEK,		WEITEK_P9000,	"P9000"),
 	DEVICE( WEITEK,		WEITEK_P9100,	"P9100"),
 	BRIDGE( DEC,		DEC_BRD,	"DC21050", 		0x00),
@@ -71,6 +77,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( DEC,		DEC_TULIP_PLUS,	"DC21041"),
 	DEVICE( DEC,		DEC_21052,	"DC21052"),
 	DEVICE( DEC,		DEC_21152,	"DC21152"),
+	DEVICE( CIRRUS,		CIRRUS_7548,	"GD 7548"),
 	DEVICE( CIRRUS,		CIRRUS_5430,	"GD 5430"),
 	DEVICE( CIRRUS,		CIRRUS_5434_4,	"GD 5434"),
 	DEVICE( CIRRUS,		CIRRUS_5434_8,	"GD 5434"),
@@ -87,10 +94,12 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( TRIDENT,	TRIDENT_9660,	"TG 9660"),
 	DEVICE( AI,		AI_M1435,	"M1435"),
 	DEVICE( MATROX,		MATROX_MGA_2,	"Atlas PX2085"),
-	DEVICE( MATROX,		MATROX_MIL     ,"Millennium"),
+	DEVICE( MATROX,		MATROX_MIL,	"Millennium"),
+	DEVICE( MATROX,		MATROX_MYS,	"Mystique"),
 	DEVICE( MATROX,		MATROX_MGA_IMP,	"MGA Impression"),
 	DEVICE( CT,		CT_65545,	"65545"),
 	DEVICE( CT,		CT_65548,	"65548"),
+	DEVICE(	CT,		CT_65550,	"65550"),
 	DEVICE( MIRO,		MIRO_36050,	"ZR36050"),
 	DEVICE( FD,		FD_36C70,	"TMC-18C30"),
 	DEVICE( SI,		SI_6201,	"6201"),
@@ -117,6 +126,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( BUSLOGIC,	BUSLOGIC_MULTIMASTER,    "MultiMaster"),
 	DEVICE( BUSLOGIC,	BUSLOGIC_FLASHPOINT,     "FlashPoint"),
 	DEVICE( OAK,		OAK_OTI107,	"OTI107"),
+	DEVICE( WINBOND2,	WINBOND2_89C940,"NE2000-PCI"),
 	DEVICE( PROMISE,	PROMISE_5300,	"DC5030"),
 	DEVICE( N9,		N9_I128,	"Imagine 128"),
 	DEVICE( N9,		N9_I128_2,	"Imagine 128v2"),
@@ -147,6 +157,8 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( 3COM,		3COM_3C595TX,	"3C595 100bTX"),
 	DEVICE( 3COM,		3COM_3C595T4,	"3C595 100bT4"),
 	DEVICE( 3COM,		3COM_3C595MII,	"3C595 100b-MII"),
+	DEVICE( 3COM,		3COM_3C900TPO,	"3C900 10bTPO"),
+	DEVICE( 3COM,		3COM_3C905TX,	"3C905 100bTX"),
 	DEVICE( AL,		AL_M1445,	"M1445"),
 	DEVICE( AL,		AL_M1449,	"M1449"),
 	DEVICE( AL,		AL_M1451,	"M1451"),
@@ -155,6 +167,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( AL,		AL_M1511,	"M1511"),
 	DEVICE( AL,		AL_M1513,	"M1513"),
 	DEVICE( AL,		AL_M4803,	"M4803"),
+	DEVICE( NEOMAGIC,       NEOMAGIC_MAGICGRAPH_NM2070,     "Magicgraph NM2070"),
 	DEVICE( ASP,		ASP_ABP940,	"ABP940"),
 	DEVICE( CERN,		CERN_SPSB_PMC,	"STAR/RD24 SCI-PCI (PMC)"),
 	DEVICE( CERN,		CERN_SPSB_PCI,	"STAR/RD24 SCI-PCI (PMC)"),
@@ -162,6 +175,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( TEKRAM2,	TEKRAM2_690c,	"DC690c"),
 	DEVICE( AMCC,		AMCC_MYRINET,	"Myrinet PCI (M2-PCI-32)"),
 	DEVICE( INTERG,		INTERG_1680,	"IGA-1680"),
+	DEVICE( INTERG,         INTERG_1682,    "IGA-1682"),
 	DEVICE( REALTEK,	REALTEK_8029,	"8029"),
 	DEVICE( INIT,		INIT_320P,	"320 P"),
 	DEVICE( VIA,		VIA_82C505,	"VT 82C505"),
@@ -191,12 +205,13 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( ALLIANCE,	ALLIANCE_PROMOTIO, "Promotion-6410"),
 	DEVICE( ALLIANCE,	ALLIANCE_PROVIDEO, "Provideo"),
 	DEVICE( VMIC,		VMIC_VME,	"VMIVME-7587"),
- 	DEVICE( DIGI,		DIGI_RIGHTSWITCH, "Digi RightSwitch SE-6"),
+ 	DEVICE( DIGI,		DIGI_RIGHTSWITCH, "RightSwitch SE-6"),
 	DEVICE( MUTECH,		MUTECH_MV1000,	"MV-1000"),
 	DEVICE( ZEITNET,	ZEITNET_1221,	"1221"),
 	DEVICE( ZEITNET,	ZEITNET_1225,	"1225"),
 	DEVICE( SPECIALIX,	SPECIALIX_XIO,	"XIO/SIO host"),
 	DEVICE( SPECIALIX,	SPECIALIX_RIO,	"RIO host"),
+	DEVICE( COMPEX,		COMPEX_RL2000,	"ReadyLink 2000"),
 	DEVICE( RP,             RP8OCTA,        "RocketPort 8 Oct"),
 	DEVICE( RP,             RP8INTF,        "RocketPort 8 Intf"),
 	DEVICE( RP,             RP16INTF,       "RocketPort 16 Intf"),
@@ -205,6 +220,11 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( CYCLADES,	CYCLOM_Y_Hi,	"Cyclom-Y above 1Mbyte"),
 	DEVICE( CYCLADES,	CYCLOM_Z_Lo,	"Cyclom-Z below 1Mbyte"),
 	DEVICE( CYCLADES,	CYCLOM_Z_Hi,	"Cyclom-Z above 1Mbyte"),
+	DEVICE( OPTIBASE,	OPTIBASE_FORGE,	"MPEG Forge"),
+	DEVICE( OPTIBASE,	OPTIBASE_FUSION,"MPEG Fusion"),
+	DEVICE( OPTIBASE,	OPTIBASE_VPLEX,	"VideoPlex"),
+	DEVICE( OPTIBASE,	OPTIBASE_VPLEXCC,"VideoPlex CC"),
+	DEVICE( OPTIBASE,	OPTIBASE_VQUEST,"VideoQuest"),
 	DEVICE( SYMPHONY,	SYMPHONY_101,	"82C101"),
 	DEVICE( TEKRAM,		TEKRAM_DC290,	"DC-290"),
 	DEVICE( 3DLABS,		3DLABS_300SX,	"GLINT 300SX"),
@@ -233,13 +253,17 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( INTEL,		INTEL_82437,	"82437"),
 	DEVICE( INTEL,		INTEL_82371_0,	"82371 Triton PIIX"),
 	DEVICE( INTEL,		INTEL_82371_1,	"82371 Triton PIIX"),
+	DEVICE( INTEL,		INTEL_430MX_0,	"Triton I"),
+	DEVICE( INTEL,		INTEL_430MX_1,	"Triton I"),
 	DEVICE( INTEL,		INTEL_82441,	"82441FX Natoma"),
 	DEVICE( INTEL,		INTEL_82439,	"82439HX Triton II"),
 	DEVICE(	INTEL,		INTEL_82371SB_0,"82371SB Natoma/Triton II PIIX3"),
 	DEVICE(	INTEL,		INTEL_82371SB_1,"82371SB Natoma/Triton II PIIX3"),
 	DEVICE( INTEL,		INTEL_82371SB_2,"82371SB Natoma/Triton II PIIX3"),
 	DEVICE( INTEL,		INTEL_82437VX,	"82437VX Triton II"),
+	DEVICE( INTEL,		INTEL_82371AB,	"82371AB 430TX PIIX4"),
 	DEVICE( INTEL,		INTEL_P6,	"Orion P6"),
+	DEVICE(	KTI,		KTI_ET32P2,	"ET32P2"),
 	DEVICE( ADAPTEC,	ADAPTEC_7850,	"AIC-7850"),
 	DEVICE( ADAPTEC,	ADAPTEC_7855,	"AIC-7855"),
 	DEVICE( ADAPTEC,	ADAPTEC_7860,	"AIC-7860"),
@@ -255,8 +279,9 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( ADAPTEC,	ADAPTEC_7883,	"AIC-7883U"),
 	DEVICE( ADAPTEC,	ADAPTEC_7884,	"AIC-7884U"),
   	DEVICE( ATRONICS,	ATRONICS_2015,	"IDE-2015PL"),
-	DEVICE( HER,		HER_STING,	"Stingray"),
-	DEVICE( HER,		HER_STINGARK,	"Stingray ARK 2000PV")
+	DEVICE( ARK,		ARK_STING,	"Stingray"),
+	DEVICE( ARK,		ARK_STINGARK,	"Stingray ARK 2000PV"),
+	DEVICE( ARK,		ARK_2000MT,	"2000MT")
 };
 
 
@@ -479,6 +504,7 @@ const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_SGS:		return "SGS Thomson";
 	      case PCI_VENDOR_ID_BUSLOGIC:	return "BusLogic";
 	      case PCI_VENDOR_ID_OAK: 		return "OAK";
+	      case PCI_VENDOR_ID_WINBOND2:	return "Winbond";
 	      case PCI_VENDOR_ID_PROMISE:	return "Promise Technology";
 	      case PCI_VENDOR_ID_N9:		return "Number Nine";
 	      case PCI_VENDOR_ID_UMC:		return "UMC";
@@ -496,6 +522,7 @@ const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_WINBOND:	return "Winbond";
 	      case PCI_VENDOR_ID_3COM:		return "3Com";
 	      case PCI_VENDOR_ID_AL:		return "Acer Labs";
+	      case PCI_VENDOR_ID_NEOMAGIC:	return "Neomagic";
 	      case PCI_VENDOR_ID_ASP:		return "Advanced System Products";
 	      case PCI_VENDOR_ID_CERN:		return "CERN";
 	      case PCI_VENDOR_ID_IMS:		return "IMS";
@@ -512,21 +539,25 @@ const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_PLX:		return "PLX";
 	      case PCI_VENDOR_ID_ALLIANCE:	return "Alliance";
 	      case PCI_VENDOR_ID_VMIC:		return "VMIC";
+	      case PCI_VENDOR_ID_DIGI:		return "Digi Intl.";
 	      case PCI_VENDOR_ID_MUTECH:	return "Mutech";
 	      case PCI_VENDOR_ID_TOSHIBA:	return "Toshiba";
 	      case PCI_VENDOR_ID_ZEITNET:	return "ZeitNet";
 	      case PCI_VENDOR_ID_SPECIALIX:	return "Specialix";
+	      case PCI_VENDOR_ID_COMPEX:	return "Compex";
 	      case PCI_VENDOR_ID_RP:		return "Comtrol";
 	      case PCI_VENDOR_ID_CYCLADES:	return "Cyclades";
+	      case PCI_VENDOR_ID_OPTIBASE:	return "Optibase";
 	      case PCI_VENDOR_ID_SYMPHONY:	return "Symphony";
 	      case PCI_VENDOR_ID_TEKRAM:	return "Tekram";
 	      case PCI_VENDOR_ID_3DLABS:	return "3Dlabs";
 	      case PCI_VENDOR_ID_AVANCE:	return "Avance";
 	      case PCI_VENDOR_ID_S3:		return "S3 Inc.";
 	      case PCI_VENDOR_ID_INTEL:		return "Intel";
+	      case PCI_VENDOR_ID_KTI:		return "KTI";
 	      case PCI_VENDOR_ID_ADAPTEC:	return "Adaptec";
 	      case PCI_VENDOR_ID_ATRONICS:	return "Atronics";
-	      case PCI_VENDOR_ID_HER:		return "Hercules";
+	      case PCI_VENDOR_ID_ARK:		return "ARK Logic";
 	      default:				return "Unknown vendor";
 	}
 }
@@ -893,29 +924,47 @@ static unsigned int scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			pcibios_write_config_word(bus->number, devfn,
 						  PCI_STATUS, 0xffff);
 			/*
-			 * Configure the bus numbers for this bridge:
+			 * Read the existing primary/secondary/subordinate bus
+			 * number configuration to determine if the PCI bridge
+			 * has already been configured by the system.  If so,
+			 * do not modify the configuration, merely note it.
 			 */
 			pcibios_read_config_dword(bus->number, devfn, 0x18,
 						  &buses);
-			buses &= 0xff000000;
-			buses |= (((unsigned int)(child->primary)     <<  0) |
-				  ((unsigned int)(child->secondary)   <<  8) |
-				  ((unsigned int)(child->subordinate) << 16));
-			pcibios_write_config_dword(bus->number, devfn, 0x18,
-						   buses);
-			/*
-			 * Now we can scan all subordinate buses:
-			 */
-			max = scan_bus(child, mem_startp);
-			/*
-			 * Set the subordinate bus number to its real
-			 * value:
-			 */
-			child->subordinate = max;
-			buses = (buses & 0xff00ffff)
-			  | ((unsigned int)(child->subordinate) << 16);
-			pcibios_write_config_dword(bus->number, devfn, 0x18,
-						   buses);
+			if ((buses & 0xFFFFFF) != 0)
+			  {
+			    child->primary = buses & 0xFF;
+			    child->secondary = (buses >> 8) & 0xFF;
+			    child->subordinate = (buses >> 16) & 0xFF;
+			    child->number = child->secondary;
+			    max = scan_bus(child, mem_startp);
+			  }
+			else
+			  {
+			    /*
+			     * Configure the bus numbers for this bridge:
+			     */
+			    buses &= 0xff000000;
+			    buses |=
+			      (((unsigned int)(child->primary)     <<  0) |
+			       ((unsigned int)(child->secondary)   <<  8) |
+			       ((unsigned int)(child->subordinate) << 16));
+			    pcibios_write_config_dword(bus->number, devfn, 0x18,
+						       buses);
+			    /*
+			     * Now we can scan all subordinate buses:
+			     */
+			    max = scan_bus(child, mem_startp);
+			    /*
+			     * Set the subordinate bus number to its real
+			     * value:
+			     */
+			    child->subordinate = max;
+			    buses = (buses & 0xff00ffff)
+			      | ((unsigned int)(child->subordinate) << 16);
+			    pcibios_write_config_dword(bus->number, devfn, 0x18,
+						       buses);
+			  }
 			pcibios_write_config_word(bus->number, devfn,
 						  PCI_COMMAND, cr);
 		}

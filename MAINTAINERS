@@ -28,7 +28,7 @@ trivial patch so apply some common sense.
 	job the maintainers (and especially Linus) do is to keep things
 	looking the same. Sometimes this means that the clever hack in
 	your driver to get around a problem actual needs to become a
-	generalised kernel feature ready for next time.
+	generalized kernel feature ready for next time.
 
 	PLEASE try to include any credit lines you want added with the
 	patch. It avoids people being missed off by mistake and makes
@@ -43,11 +43,7 @@ trivial patch so apply some common sense.
 
 7.	Happy hacking.
 
-
-[This file is new: I've just put the existing network contacts in, other
- people please add yourselves] -- AC
-
-		-----------------------------------
+ 		-----------------------------------
 
 Maintainers List (try to look for most precise areas first)
 
@@ -85,6 +81,7 @@ P:	Paul Gortmaker
 M	gpg109@rsphy1.anu.edu.au
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
+W:	http://rsphy1.anu.edu.au/~gpg109/ne2000.html
 
 ETHEREXPRESS-16 NETWORK DRIVER
 P:	Philip Blundell
@@ -105,16 +102,27 @@ L:	linux-net@vger.rutgers.edu
 W:	http://www.dgii.com/linux/
 S:	Maintained
 
+WAVELAN NETWORK DRIVER & WIRELESS EXTENSIONS
+P:	Jean Tourrilhes
+M:	jt@hplb.hpl.hp.com
+S:	Maintained
+
 APM DRIVER
 P:	Rik Faith & Stephen Rothwell
 M:	faith@cs.unc.edu, Stephen.Rothwell@canb.auug.org.au
 L:	linux-laptop@vger.rutgers.edu
 S:	Maintained
 
+TOKEN-RING NETWORK DRIVER
+P:	Paul Norton
+M:	pnorton@cts.com
+L:	linux-net@vger.rutgers.edu
+S:	Maintained
+
 APPLETALK NETWORK LAYER
 P:	Alan Cox & University Of Michigan
-M:	net-patches@lxorguk.ukuu.org.uk, Cc: netatalk@umich.edu
-L:	[Someone fill in the netatalk list here]
+M:	net-patches@lxorguk.ukuu.org.uk
+L:	netatalk@umich.edu
 S:	Maintained
 
 AX.25 NETWORK LAYER
@@ -124,21 +132,22 @@ L:	linux-hams@vger.rutgers.edu
 S:	Maintained
 
 DAMA SLAVE for AX.25
-P: Joerg Reuter
-M: jreuter@lykos.oche.de
-L: linux-hams@vger.rutgers.edu
-S: Maintained
+P:	Joerg Reuter
+M:	jreuter@lykos.oche.de
+L:	linux-hams@vger.rutgers.edu
+S:	Maintained
 
 Z8530 DRIVER FOR AX.25
-P: Joerg Reuter
-M: jreuter@lykos.oche.de
-L: linux-hams@vger.rutgers.edu
-S: Maintained
+P:	Joerg Reuter
+M:	jreuter@lykos.oche.de
+L:	linux-hams@vger.rutgers.edu
+S:	Maintained
 
 BUSLOGIC SCSI DRIVER
 P:	Leonard N. Zubkoff
 M:	Leonard N. Zubkoff <lnz@dandelion.com>
 L:	linux-scsi@vger.rutgers.edu
+W:	http://www.dandelion.com/Linux/
 S:	Maintained
 
 CYCLADES ASYNC MUX DRIVER
@@ -190,7 +199,7 @@ L:	linux-scsi@vger.rutgers.edu
 S:	Odd fixes (e.g., new signatures)
 
 SCSI TAPE DRIVER
-P:	Kai Mäkisara
+P:	Kai Mdkisara
 M:	Kai.Makisara@metla.fi
 L:	linux-scsi@vger.rutgers.edu
 S:	Maintained
@@ -247,7 +256,7 @@ S:	Maintained
 
 NCP FILESYSTEM:
 P:	Volker Lendecke
-M:	lendecke@namu01.Num.Math.Uni-Goettingen.de
+M:	lendecke@Math.Uni-Goettingen.de
 L:	linware@sh.cvut.cz
 S:	Maintained
 
@@ -261,11 +270,20 @@ NETWORKING [GENERAL]:
 P:	Alan Cox
 M:	net-patches@lxorguk.ukuu.org.uk
 L:	linux-net@vger.rutgers.edu
-S:	Odd Fixes <-> Maintained subject to workloads
+W:	http://www.uk.linux.org/NetNews.html
+S:	Maintained
+
+NETWORKING [IPv4/IPv6]:
+P:	David S. Miller
+M:	davem@caip.rutgers.edu
+P:	Eric Schenk
+M:	Eric.Schenk@dna.lth.se
+L:	netdev@roxanne.nuclecu.unam.mx
+S:	Maintained
 
 PPP PROTOCOL DRIVERS AND COMPRESSORS
 P:	Al Longyear
-M:	longyear@netcom.com, Cc: longyear@sii.com
+M:	longyear@pobox.com
 L:	linux-ppp@vger.rutgers.edu
 S:	Maintained
 
@@ -281,11 +299,18 @@ M:	cheshire@cs.stanford.edu
 W:	http://mosquitonet.Stanford.EDU/strip.html
 S:	Maintained
 
+WAN ROUTER AND SANGOMA WANPIPE DRIVERS (X.25, FRAME RELAY, PPP)
+P:     Gene Kozin
+M:     genek@compuserve.com
+M:     dm@sangoma.com
+W:     http://www.sangoma.com
+S:     Supported
+
 SMB FILESYSTEM:
 P:	Volker Lendecke
-M:	lendecke@namu01.Num.Math.Uni-Goettingen.de
+M:	lendecke@Math.Uni-Goettingen.de
 L:	samba@listproc.anu.edu.au
-S:	Odd Fixes
+S:	Maintained
 
 SMP: (except SPARC)
 P:	Alan Cox
@@ -294,9 +319,15 @@ L:	linux-smp@vger.rutgers.edu
 S:	Maintained
 
 SPARC:
-P:	Eddie C. Dost
-M:	ecd@skynet.be
+P:	David S. Miller
+M:	davem@caip.rutgers.edu
 L:	sparclinux@vger.rutgers.edu
+S:	Maintained
+
+SCSI SUBSYSTEM
+P:	Leonard N. Zubkoff
+M:	Leonard N. Zubkoff <lnz@dandelion.com>
+L:	linux-scsi@vger.rutgers.edu
 S:	Maintained
 
 SVGA HANDLING:
@@ -324,6 +355,13 @@ M:	begemot@bgm.rosprint.net
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+HAYES ESP SERIAL DRIVER:
+P:	Andrew J. Robinson
+M:	arobinso@nyx.net
+L:	linux-kernel@vger.rutgers.edu
+W:	http://www.nyx.net/~arobinso
+S:	Maintainted
+
 MOUSE AND MISC DEVICES [GENERAL]
 P:	Alessandro Rubini
 M:	rubini@ipvvis.unipv.it
@@ -336,9 +374,19 @@ M:	roadcapw@cfw.com
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
-LANCE AND LANCE32 NETWORK DRIVER
+CONFIGURE.HELP
+P:	Axel Boldt
+M:	boldt@math.ucsb.edu
+S:	Maintained
+
+PCI ID DATABASE
+P:	Jens Maurer
+M:	jmaurer@cck.uni-kl.de
+S:	Maintained
+
+PCNET32 NETWORK DRIVER
 P:	Thomas Bogendoerfer
-M:	tsbogend@bigbug.franken.de
+M:	tsbogend@alpha.franken.de
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
@@ -366,6 +414,19 @@ M:	emoenke@gwdg.de
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
+PARALLEL PORT SHARING SUPPORT
+P:	Phil Blundell
+M:	Philip.Blundell@pobox.com
+P:	Tim Waugh
+M:	tmw20@cyberelk.demon.co.uk
+P:	David Campbell
+M:	campbell@tirian.che.curtin.edu.au
+L:	linux-parport@torque.net
+L:	pnp-list@redhat.com
+W:	http://www.cyberelk.demon.co.uk/parport.html
+W:	http://www.cage.curtin.edu.au/~campbell/parbus/
+S:	Maintained
+
 FPU EMULATOR
 P:	Bill Metzenthen
 M:	billm@suburbia.net
@@ -377,6 +438,18 @@ P:	John A. Martin
 M:	jam@acm.org
 S:	Maintained
 
+KERNEL AUTOMOUNTER (AUTOFS)
+P:	H. Peter Anvin
+M:	hpa@zytor.com
+L:	autofs@linux.kernel.org
+S:	Maintained
+
+DEVICE NUMBER REGISTRY
+P:	H. Peter Anvin
+M:	hpa@zytor.com
+L:	linux-kernel@vger.rutgers.edu
+S:	Maintained
+
 REST:
 P:	Linus Torvalds
-S:	Buried alive in email
+S:	Buried alive in diapers

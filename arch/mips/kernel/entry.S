@@ -18,7 +18,6 @@
 
 #include <asm/asm.h>
 #include <asm/errno.h>
-#include <asm/segment.h>
 #include <asm/mipsregs.h>
 #include <asm/mipsconfig.h>
 #include <asm/page.h>
@@ -30,18 +29,6 @@
 #include <asm/unistd.h>
 
 /*
- * These are offsets into the task-struct.
- */
-state		=  0
-counter		=  4
-priority	=  8
-signal		= 12
-blocked		= 16
-flags		= 20
-errno		= 24
-exec_domain	= 60
-
-/*
  * Heia ...  The %lo, %hi and %HI stuff is too strong for the ELF assembler
  * and the ABI to cope with ...
  */
@@ -49,53 +36,40 @@ exec_domain	= 60
 		.set	noreorder
 		.set	mips3
 		.align 4
+/* XXX cli/sti ??? */
 handle_bottom_half:
-		lui	s0,%hi(intr_count)
-		lw	s1,%lo(intr_count)(s0)
 		mfc0	s3,CP0_STATUS		# Enable IRQs
-		addiu	s2,s1, 1
-		sw	s2,%lo(intr_count)(s0)
 		ori	t0,s3, 0x1f
 		xori	t0,0x1e
 
 		jal	do_bottom_half
 		 mtc0	t0,CP0_STATUS
 
-		mtc0	s3,CP0_STATUS		# Restore old IRQ state
-
 		b	9f
-		 sw	s1,%lo(intr_count)(s0)
+		 mtc0	s3,CP0_STATUS		# Restore old IRQ state
 
 reschedule:
 		jal	schedule 
 		 nop
 
 EXPORT(ret_from_sys_call)
-		lw	t0,intr_count		# bottom half
-		bnez	t0,return
-9:
+
 		 lw	t0,bh_mask
 		lw	t1,bh_active		# unused delay slot
 		and	t0,t1
 		bnez	t0,handle_bottom_half
-		 lw	t0,PT_STATUS(sp)	# returning to kernel mode?
+9:		 lw	t0,PT_STATUS(sp)	# returning to kernel mode?
 
 		andi	t1,t0, 0x10
 		beqz	t1,return		# -> yes
-		 mfc0	t0,CP0_STATUS
-
-		lw	t1,need_resched
-		ori	t0,0x1f			# enable irqs
-		xori	t0,0x1e
+		 lw	t1,need_resched
 		bnez	t1,reschedule
-		 mtc0	t0,CP0_STATUS
-
-		lw	s0,current_set
+		 lw	s0,current_set
 		lw	t0,task
-		lw	a0,blocked(s0)
+		lw	a0,TASK_BLOCKED(s0)
 
 		beq	s0,t0,return		# task[0] cannot have signals
-		 lw	t0,signal(s0)		# save blocked in a0 for signals
+		 lw	t0,TASK_SIGNAL(s0)
 
 		nor	t1,zero,a0
 		and	t1,t0,t1
@@ -159,11 +133,7 @@ NESTED(fast_interrupt, PT_SIZE, sp)
 		 * Don't return & unblock the pic
 		 */
 LEAF(bad_interrupt)
-		lw	t0,%lo(intr_count)(s3)
-		subu	t0,1
-
 		j	return
-		 sw	t0,%lo(intr_count)(s3)
 		END(bad_interrupt)
 
 		.text
@@ -214,9 +184,8 @@ LEAF(spurious_interrupt)
 		.data;                                                  \
 EXPORT(exception_count_##exception);                                    \
 		.word	0;                                              \
-		.text;
+		.previous;
 #define BUILD_HANDLER(exception,handler,clear,verbose)                  \
-		.text;                                                  \
 		.align	5;                                              \
 		NESTED(handle_##exception, PT_SIZE, sp);                \
 		.set	noat;                                           \

@@ -40,6 +40,7 @@
 #endif /* CONFIG_AMIGA */
 
 #ifdef CONFIG_ATARI
+#include <linux/interrupt.h>	/* intr_count */
 #include <asm/atarihw.h>
 #include <asm/atarihdreg.h>
 #include <asm/atariints.h>
@@ -362,7 +363,7 @@ static __inline__ void ide_release_region (ide_ioreg_t from, unsigned int extent
 
 #endif /* CONFIG_ATARI */
 
-static __inline__ int ide_ack_intr (ide_ioreg_t base_port, ide_ioreg_t irq_port)
+static __inline__ int ide_ack_intr (ide_ioreg_t status_port, ide_ioreg_t irq_port)
 {
 #ifdef CONFIG_AMIGA
 	if (MACH_IS_AMIGA) {
@@ -371,7 +372,7 @@ static __inline__ int ide_ack_intr (ide_ioreg_t base_port, ide_ioreg_t irq_port)
 		if (!(ch & 0x80))
 			return(0);
 		if (AMIGAHW_PRESENT(A1200_IDE)) {
-			(void) inb(base_port);
+			(void) inb(status_port);
 			outb(0x7c | (ch & 0x03), irq_port);
 		}
 	}
@@ -479,7 +480,7 @@ static __inline__ void ide_get_lock (int *ide_lock, void (*handler)(int, void *,
 #ifdef CONFIG_ATARI
 	if (MACH_IS_ATARI) {
 		if (*ide_lock == 0) {
-			if (intr_count > 0)
+			if (in_interrupt() > 0)
 				panic( "Falcon IDE hasn't ST-DMA lock in interrupt" );
 			stdma_lock(handler, data);
 			*ide_lock = 1;
@@ -506,12 +507,12 @@ static __inline__ void ide_get_lock (int *ide_lock, void (*handler)(int, void *,
 #if defined(CONFIG_ATARI) && !defined(CONFIG_AMIGA)
 #define	ide_sti()					\
     do {						\
-	if (!intr_count) sti();				\
+	if (!in_interrupt()) sti();			\
     } while(0)
 #elif defined(CONFIG_ATARI)
-#define	ide_sti()					\
-    do {						\
-	if (!MACH_IS_ATARI || !intr_count) sti();	\
+#define	ide_sti()						\
+    do {							\
+	if (!MACH_IS_ATARI || !in_interrupt()) sti();		\
     } while(0)
 #else /* !defined(CONFIG_ATARI) */
 #define	ide_sti()	sti()

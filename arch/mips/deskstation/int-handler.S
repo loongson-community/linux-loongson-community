@@ -38,8 +38,6 @@
 		or	t0,s1
 		sb	t0,%lo(cache_21)(s4)
 		sb	t0,%lo(PORT_BASE+0x21)(s0)
-		lui	s3,%hi(intr_count)
-		lw	s7,%lo(intr_count)(s3)
 		li	t2,0x20
 		sb	t2,%lo(PORT_BASE+0x20)(s0)
 		/*
@@ -49,10 +47,8 @@
 		sll	t2,a0,PTRLOG
 		addu	t3,t2
 		LONG_L	t3,(t3)
-		addiu	t0,s7,1
 		jalr	t3
-		sw	t0,%lo(intr_count)(s3)
-		sw	s7,%lo(intr_count)(s3)
+		nop					# delay slot
 		/*
 		 * Unblock first pic
 		 */
@@ -85,8 +81,6 @@ poll_second:	li	a0,0x0f
 		sb	t3,%lo(PORT_BASE+0xa1)(s0)
 		li	t3,0x20
 		sb	t3,%lo(PORT_BASE+0xa0)(s0)
-		lui	s3,%hi(intr_count)
-		lw	s7,%lo(intr_count)(s3)
 		sb	t3,%lo(PORT_BASE+0x20)(s0)
 		/*
 		 * Now call the real handler
@@ -96,16 +90,13 @@ poll_second:	li	a0,0x0f
 		sll	t2,a0,PTRLOG
 		addu	t3,t2
 		LONG_L	t3,(t3)
-		addiu	t0,s7,1
 		jalr	t3
-		sw	t0,%lo(intr_count)(s3)		# delay slot
-		sw	s7,%lo(intr_count)(s3)
+		nop					# delay slot
 		/*
 		 * Unblock second pic
 		 */
 		lb	t1,%lo(PORT_BASE+0xa1)(s0)
 		lb	t1,%lo(cache_A1)(s4)
-		subu	t0,1
 		nor	s1,zero,s1
 		and	t1,t1,s1
 		sb	t1,%lo(cache_A1)(s4)

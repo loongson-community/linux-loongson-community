@@ -9,6 +9,7 @@
  * to the console.  Added hook for sending the console messages
  * elsewhere, in preparation for a serial line console (someday).
  * Ted Ts'o, 2/11/93.
+ * Modified for sysctl support, 1/8/97, Chris Horn.
  */
 
 #include <stdarg.h>
@@ -21,14 +22,15 @@
 #include <linux/mm.h>
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/console.h>
 
 #include <asm/uaccess.h>
 
 #define LOG_BUF_LEN	8192
 
 static char buf[1024];
-
-extern void console_print(const char *);
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL 4 /* KERN_WARNING */
@@ -39,9 +41,14 @@ extern void console_print(const char *);
 
 unsigned long log_size = 0;
 struct wait_queue * log_wait = NULL;
-int console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
 
-static void (*console_print_proc)(const char *) = 0;
+/* Keep together for sysctl support */
+int console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
+int default_message_loglevel = DEFAULT_MESSAGE_LOGLEVEL;
+int minimum_console_loglevel = MINIMUM_CONSOLE_LOGLEVEL;
+int default_console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
+
+struct console *console_drivers = NULL;
 static char log_buf[LOG_BUF_LEN];
 static unsigned long log_start = 0;
 static unsigned long logged_chars = 0;
@@ -64,87 +71,103 @@ asmlinkage int sys_syslog(int type, char * buf, int len)
 	unsigned long i, j, count;
 	int do_clear = 0;
 	char c;
-	int error;
+	int error = -EPERM;
 
+	lock_kernel();
 	if ((type != 3) && !suser())
-		return -EPERM;
+		goto out;
+	error = 0;
 	switch (type) {
-		case 0:		/* Close log */
-			return 0;
-		case 1:		/* Open log */
-			return 0;
-		case 2:		/* Read from log */
-			if (!buf || len < 0)
-				return -EINVAL;
-			if (!len)
-				return 0;
-			error = verify_area(VERIFY_WRITE,buf,len);
-			if (error)
-				return error;
-			cli();
-			while (!log_size) {
-				if (current->signal & ~current->blocked) {
-					sti();
-					return -ERESTARTSYS;
-				}
-				interruptible_sleep_on(&log_wait);
-			}
-			i = 0;
-			while (log_size && i < len) {
-				c = *((char *) log_buf+log_start);
-				log_start++;
-				log_size--;
-				log_start &= LOG_BUF_LEN-1;
+	case 0:		/* Close log */
+		break;
+	case 1:		/* Open log */
+		break;
+	case 2:		/* Read from log */
+		error = -EINVAL;
+		if (!buf || len < 0)
+			goto out;
+		error = 0;
+		if (!len)
+			goto out;
+		error = verify_area(VERIFY_WRITE,buf,len);
+		if (error)
+			goto out;
+		cli();
+		error = -ERESTARTSYS;
+		while (!log_size) {
+			if (current->signal & ~current->blocked) {
 				sti();
-				put_user(c,buf);
-				buf++;
-				i++;
-				cli();
+				goto out;
 			}
+			interruptible_sleep_on(&log_wait);
+		}
+		i = 0;
+		while (log_size && i < len) {
+			c = *((char *) log_buf+log_start);
+			log_start++;
+			log_size--;
+			log_start &= LOG_BUF_LEN-1;
 			sti();
-			return i;
-		case 4:		/* Read/clear last kernel messages */
-			do_clear = 1; 
-			/* FALL THRU */
-		case 3:		/* Read last kernel messages */
-			if (!buf || len < 0)
-				return -EINVAL;
-			if (!len)
-				return 0;
-			error = verify_area(VERIFY_WRITE,buf,len);
-			if (error)
-				return error;
-			count = len;
-			if (count > LOG_BUF_LEN)
-				count = LOG_BUF_LEN;
-			if (count > logged_chars)
-				count = logged_chars;
-			j = log_start + log_size - count;
-			for (i = 0; i < count; i++) {
-				c = *((char *) log_buf+(j++ & (LOG_BUF_LEN-1)));
-				put_user(c, buf++);
-			}
-			if (do_clear)
-				logged_chars = 0;
-			return i;
-		case 5:		/* Clear ring buffer */
+			put_user(c,buf);
+			buf++;
+			i++;
+			cli();
+		}
+		sti();
+		error = i;
+		break;
+	case 4:		/* Read/clear last kernel messages */
+		do_clear = 1; 
+		/* FALL THRU */
+	case 3:		/* Read last kernel messages */
+		error = -EINVAL;
+		if (!buf || len < 0)
+			goto out;
+		error = 0;
+		if (!len)
+			goto out;
+		error = verify_area(VERIFY_WRITE,buf,len);
+		if (error)
+			goto out;
+		count = len;
+		if (count > LOG_BUF_LEN)
+			count = LOG_BUF_LEN;
+		if (count > logged_chars)
+			count = logged_chars;
+		j = log_start + log_size - count;
+		for (i = 0; i < count; i++) {
+			c = *((char *) log_buf+(j++ & (LOG_BUF_LEN-1)));
+			put_user(c, buf++);
+		}
+		if (do_clear)
 			logged_chars = 0;
-			return 0;
-		case 6:		/* Disable logging to console */
-			console_loglevel = MINIMUM_CONSOLE_LOGLEVEL;
-			return 0;
-		case 7:		/* Enable logging to console */
-			console_loglevel = DEFAULT_CONSOLE_LOGLEVEL;
-			return 0;
-		case 8:
-			if (len < 1 || len > 8)
-				return -EINVAL;
-			if (len < MINIMUM_CONSOLE_LOGLEVEL)
-				len = MINIMUM_CONSOLE_LOGLEVEL;
-			console_loglevel = len;
-			return 0;
+		error = i;
+		break;
+	case 5:		/* Clear ring buffer */
+		logged_chars = 0;
+		break;
+	case 6:		/* Disable logging to console */
+		console_loglevel = minimum_console_loglevel;
+		break;
+	case 7:		/* Enable logging to console */
+		console_loglevel = default_console_loglevel;
+		break;
+	case 8:
+		error = -EINVAL;
+		if (len < 1 || len > 8)
+			goto out;
+		if (len < minimum_console_loglevel)
+			len = minimum_console_loglevel;
+		console_loglevel = len;
+		error = 0;
+		break;
+	default:
+		error = -EINVAL;
+		break;
 	}
-	return -EINVAL;
+out:
+	unlock_kernel();
+	return error;
 }
 
 
@@ -153,11 +176,12 @@ asmlinkage int printk(const char *fmt, ...)
 	va_list args;
 	int i;
 	char *msg, *p, *buf_end;
-	static char msg_level = -1;
+	int line_feed;
+	static signed char msg_level = -1;
 	long flags;
 
-	save_flags(flags);
-	cli();
+	__save_flags(flags);
+	__cli();
 	va_start(args, fmt);
 	i = vsprintf(buf + 3, fmt, args); /* hopefully i < sizeof(buf)-4 */
 	buf_end = buf + 3 + i;
@@ -173,12 +197,13 @@ asmlinkage int printk(const char *fmt, ...)
 			) {
 				p -= 3;
 				p[0] = '<';
-				p[1] = DEFAULT_MESSAGE_LOGLEVEL + '0';
+				p[1] = default_message_loglevel + '0';
 				p[2] = '>';
 			} else
 				msg += 3;
 			msg_level = p[1] - '0';
 		}
+		line_feed = 0;
 		for (; p < buf_end; p++) {
 			log_buf[(log_start+log_size) & (LOG_BUF_LEN-1)] = *p;
 			if (log_size < LOG_BUF_LEN)
@@ -188,21 +213,46 @@ asmlinkage int printk(const char *fmt, ...)
 				log_start &= LOG_BUF_LEN-1;
 			}
 			logged_chars++;
-			if (*p == '\n')
+			if (*p == '\n') {
+				line_feed = 1;
 				break;
+			}
 		}
-		if (msg_level < console_loglevel && console_print_proc) {
-			char tmp = p[1];
-			p[1] = '\0';
-			(*console_print_proc)(msg);
-			p[1] = tmp;
+		if (msg_level < console_loglevel && console_drivers) {
+			struct console *c = console_drivers;
+			while(c) {
+				if (c->write)
+					c->write(msg, p - msg + line_feed);
+				c = c->next;
+			}
 		}
-		if (*p == '\n')
+		if (line_feed)
 			msg_level = -1;
 	}
-	restore_flags(flags);
+	__restore_flags(flags);
 	wake_up_interruptible(&log_wait);
 	return i;
+}
+
+void console_print(const char *s)
+{
+	struct console *c = console_drivers;
+	int len = strlen(s);
+	while(c) {
+		if (c->write)
+			c->write(s, len);
+		c = c->next;
+	}
+}
+
+void unblank_console(void)
+{
+	struct console *c = console_drivers;
+	while(c) {
+		if (c->unblank)
+			c->unblank();
+		c = c->next;
+	}
 }
 
 /*
@@ -211,15 +261,16 @@ asmlinkage int printk(const char *fmt, ...)
  * print any messages that were printed by the kernel before the
  * console driver was initialized.
  */
-void register_console(void (*proc)(const char *))
+void register_console(struct console * console)
 {
-	int	i,j;
+	int	i,j,len;
 	int	p = log_start;
 	char	buf[16];
-	char	msg_level = -1;
+	signed char msg_level = -1;
 	char	*q;
 
-	console_print_proc = proc;
+	console->next = console_drivers;
+	console_drivers = console;
 
 	for (i=0,j=0; i < log_size; i++) {
 		buf[j++] = log_buf[p];
@@ -228,12 +279,14 @@ void register_console(void (*proc)(const char *))
 			continue;
 		buf[j] = 0;
 		q = buf;
+		len = j;
 		if (msg_level < 0) {
 			msg_level = buf[1] - '0';
 			q = buf + 3;
+			len -= 3;
 		}
 		if (msg_level < console_loglevel)
-			(*proc)(q);
+			console->write(q, len);
 		if (buf[j-1] == '\n')
 			msg_level = -1;
 		j = 0;

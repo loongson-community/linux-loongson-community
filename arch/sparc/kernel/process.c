@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.77 1996/11/03 08:25:43 davem Exp $
+/*  $Id: process.c,v 1.93 1997/04/11 08:55:40 davem Exp $
  *  linux/arch/sparc/kernel/process.c
  *
  *  Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -23,6 +23,9 @@
 #include <linux/user.h>
 #include <linux/a.out.h>
 #include <linux/config.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/reboot.h>
 
 #include <asm/auxio.h>
 #include <asm/oplib.h>
@@ -40,63 +43,90 @@ extern void fpsave(unsigned long *, unsigned long *, void *, unsigned long *);
 
 #ifndef __SMP__
 
+#define SUN4C_FAULT_HIGH 100
+
 /*
  * the idle loop on a Sparc... ;)
  */
 asmlinkage int sys_idle(void)
 {
+	int ret = -EPERM;
+
+	lock_kernel();
 	if (current->pid != 0)
-		return -EPERM;
+		goto out;
 
 	/* endless idle loop with no priority at all */
+	current->priority = -100;
 	current->counter = -100;
 	for (;;) {
+		if (sparc_cpu_model == sun4c) {
+			static int count = HZ;
+			static unsigned long last_jiffies = 0;
+			static unsigned long last_faults = 0;
+			static unsigned long fps = 0;
+			unsigned long now;
+			unsigned long faults;
+			unsigned long flags;
+
+			extern unsigned long sun4c_kernel_faults;
+			extern void sun4c_grow_kernel_ring(void);
+
+			save_and_cli(flags);
+			now = jiffies;
+			count -= (now - last_jiffies);
+			last_jiffies = now;
+			if (count < 0) {
+				count += HZ;
+				faults = sun4c_kernel_faults;
+				fps = (fps + (faults - last_faults)) >> 1;
+				last_faults = faults;
+#if 0
+				printk("kernel faults / second = %d\n", fps);
+#endif
+				if (fps >= SUN4C_FAULT_HIGH) {
+					sun4c_grow_kernel_ring();
+				}
+			}
+			restore_flags(flags);
+		}
 		schedule();
 	}
-	return 0;
+	ret = 0;
+out:
+	unlock_kernel();
+	return ret;
 }
 
 #else
 
-/*
- * the idle loop on a SparcMultiPenguin...
- */
-asmlinkage int sys_idle(void)
-{
-	if (current->pid != 0)
-		return -EPERM;
-
-	/* endless idle loop with no priority at all */
-	current->counter = -100;
-	schedule();
-	return 0;
-}
-
 /* This is being executed in task 0 'user space'. */
 int cpu_idle(void *unused)
 {
-	volatile int *spap = &smp_process_available;
-	volatile int cval;
-
+	current->priority = -100;
 	while(1) {
-		if(0==*spap)
-			continue;
-		cli();
-		/* Acquire exclusive access. */
-		while((cval = smp_swap(spap, -1)) == -1)
-			while(*spap == -1)
-				;
-                if (0==cval) {
-			/* ho hum, release it. */
-			*spap = 0;
-			sti();
-                        continue;
-                }
-		/* Something interesting happened, whee... */
-		*spap = (cval - 1);
-		sti();
-		idle();
+		/*
+		 * tq_scheduler currently assumes we're running in a process
+		 * context (ie that we hold the kernel lock..)
+		 */
+		if (tq_scheduler) {
+			lock_kernel();
+			run_task_queue(&tq_scheduler);
+			unlock_kernel();
+		}
+		/* endless idle loop with no priority at all */
+		current->counter = -100;
+		schedule();
 	}
+}
+
+asmlinkage int sys_idle(void)
+{
+	if(current->pid != 0)
+		return -EPERM;
+
+	cpu_idle(NULL);
+	return 0;
 }
 
 #endif
@@ -108,7 +138,7 @@ extern void console_restore_palette (void);
 extern int serial_console;
 #endif
 
-void halt_now(void)
+void machine_halt(void)
 {
 	sti();
 	udelay(8000);
@@ -121,7 +151,7 @@ void halt_now(void)
 	panic("Halt failed!");
 }
 
-void hard_reset_now(void)
+void machine_restart(char * cmd)
 {
 	char *p;
 	
@@ -135,10 +165,19 @@ void hard_reset_now(void)
 	if (!serial_console)
 		console_restore_palette ();
 #endif
+	if (cmd)
+		prom_reboot(cmd);
 	if (*reboot_command)
-		prom_reboot (reboot_command);
+		prom_reboot(reboot_command);
 	prom_feval ("reset");
 	panic("Reboot failed!");
+}
+
+void machine_power_off(void)
+{
+	if (auxio_power_register)
+		*auxio_power_register |= AUXIO_POWER_OFF;
+	machine_halt();
 }
 
 void show_regwindow(struct reg_window *rw)
@@ -183,6 +222,9 @@ void show_stackframe(struct sparc_stackf *sf)
 
 void show_regs(struct pt_regs * regs)
 {
+#if __MPP__
+	printk("CID: %d\n",mpp_cid());
+#endif
         printk("PSR: %08lx PC: %08lx NPC: %08lx Y: %08lx\n", regs->psr,
 	       regs->pc, regs->npc, regs->y);
 	printk("g0: %08lx g1: %08lx g2: %08lx g3: %08lx\n",
@@ -245,7 +287,6 @@ void show_thread(struct thread_struct *tss)
  */
 void exit_thread(void)
 {
-	flush_user_windows();
 #ifndef __SMP__
 	if(last_task_used_math == current) {
 #else
@@ -261,18 +302,16 @@ void exit_thread(void)
 		current->flags &= ~PF_USEDFPU;
 #endif
 	}
-	mmu_exit_hook();
 }
 
 void flush_thread(void)
 {
-	/* Make sure old user windows don't get in the way. */
-	flush_user_windows();
 	current->tss.w_saved = 0;
-	current->tss.uwinmask = 0;
 	current->tss.sstk_info.cur_status = 0;
 	current->tss.sstk_info.the_stack = 0;
 
+	/* No new signal delivery by default */
+	current->tss.new_signal = 0;
 #ifndef __SMP__
 	if(last_task_used_math == current) {
 #else
@@ -289,9 +328,9 @@ void flush_thread(void)
 #endif
 	}
 
-	mmu_flush_hook();
 	/* Now, this task is no longer a kernel thread. */
 	current->tss.flags &= ~SPARC_FLAG_KTHREAD;
+	current->tss.current_ds = USER_DS;
 }
 
 static __inline__ void copy_regs(struct pt_regs *dst, struct pt_regs *src)
@@ -371,7 +410,11 @@ clone_stackframe(struct sparc_stackf *dst, struct sparc_stackf *src)
  *       allocate the task_struct and kernel stack in
  *       do_fork().
  */
-extern void ret_sys_call(void);
+#ifdef __SMP__
+extern void ret_from_smpfork(void);
+#else
+extern void ret_from_syscall(void);
+#endif
 
 int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 		struct task_struct *p, struct pt_regs *regs)
@@ -404,8 +447,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 	copy_regwin(new_stack, (((struct reg_window *) regs) - 1));
 
 	p->tss.ksp = p->saved_kernel_stack = (unsigned long) new_stack;
-	p->tss.kpc = (((unsigned long) ret_sys_call) - 0x8);
+#ifdef __SMP__
+	p->tss.kpc = (((unsigned long) ret_from_smpfork) - 0x8);
+	p->tss.kpsr = current->tss.fork_kpsr | PSR_PIL;
+#else
+	p->tss.kpc = (((unsigned long) ret_from_syscall) - 0x8);
 	p->tss.kpsr = current->tss.fork_kpsr;
+#endif
 	p->tss.kwim = current->tss.fork_kwim;
 	p->tss.kregs = childregs;
 
@@ -513,11 +561,14 @@ asmlinkage int sparc_execve(struct pt_regs *regs)
 	if(regs->u_regs[UREG_G1] == 0)
 		base = 1;
 
+	lock_kernel();
 	error = getname((char *) regs->u_regs[base + UREG_I0], &filename);
 	if(error)
-		return error;
+		goto out;
 	error = do_execve(filename, (char **) regs->u_regs[base + UREG_I1],
 			  (char **) regs->u_regs[base + UREG_I2], regs);
 	putname(filename);
+out:
+	unlock_kernel();
 	return error;
 }

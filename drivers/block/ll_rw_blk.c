@@ -16,6 +16,7 @@
 #include <linux/config.h>
 #include <linux/locks.h>
 #include <linux/mm.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -81,6 +82,16 @@ int * blksize_size[MAX_BLKDEV] = { NULL, NULL, };
  */
 int * hardsect_size[MAX_BLKDEV] = { NULL, NULL, };
 
+static inline struct request **get_queue(kdev_t dev)
+{
+	int major = MAJOR(dev);
+	struct blk_dev_struct *bdev = blk_dev + major;
+
+	if (bdev->queue)
+		return bdev->queue(dev);
+	return &blk_dev[major].current_request;
+}
+
 /*
  * remove the plug and let it rip..
  */
@@ -94,7 +105,7 @@ void unplug_device(void * data)
 	if (dev->current_request == &dev->plug) {
 		struct request * next = dev->plug.next;
 		dev->current_request = next;
-		if (next) {
+		if (next || dev->queue) {
 			dev->plug.next = NULL;
 			(dev->request_fn)();
 		}
@@ -111,8 +122,10 @@ void unplug_device(void * data)
  */
 static inline void plug_device(struct blk_dev_struct * dev)
 {
+	if (dev->current_request)
+		return;
 	dev->current_request = &dev->plug;
-	queue_task_irq_off(&dev->plug_tq, &tq_disk);
+	queue_task(&dev->plug_tq, &tq_disk);
 }
 
 /*
@@ -233,7 +246,7 @@ static inline void drive_stat_acct(int cmd, unsigned long nr_sectors,
 
 void add_request(struct blk_dev_struct * dev, struct request * req)
 {
-	struct request * tmp;
+	struct request * tmp, **current_request;
 	short		 disk_index;
 
 	switch (MAJOR(req->rq_dev)) {
@@ -255,12 +268,14 @@ void add_request(struct blk_dev_struct * dev, struct request * req)
 	}
 
 	req->next = NULL;
+	current_request = get_queue(req->rq_dev);
 	cli();
 	if (req->bh)
 		mark_buffer_clean(req->bh);
-	if (!(tmp = dev->current_request)) {
-		dev->current_request = req;
-		(dev->request_fn)();
+	if (!(tmp = *current_request)) {
+		*current_request = req;
+		if (dev->current_request != &dev->plug)
+			(dev->request_fn)();
 		sti();
 		return;
 	}
@@ -358,10 +373,11 @@ static void make_request(int major,int rw, struct buffer_head * bh)
 	 * Try to coalesce the new request with old requests
 	 */
 	cli();
-	req = blk_dev[major].current_request;
+	req = *get_queue(bh->b_rdev);
 	if (!req) {
 		/* MD and loop can't handle plugging without deadlocking */
-		if (major != MD_MAJOR && major != LOOP_MAJOR)
+		if (major != MD_MAJOR && major != LOOP_MAJOR && 
+		    major != DDV_MAJOR)
 			plug_device(blk_dev + major);
 	} else switch (major) {
 	     case IDE0_MAJOR:	/* same as HD_MAJOR */
@@ -369,6 +385,7 @@ static void make_request(int major,int rw, struct buffer_head * bh)
 	     case FLOPPY_MAJOR:
 	     case IDE2_MAJOR:
 	     case IDE3_MAJOR:
+	     case ACSI_MAJOR:
 		/*
 		 * The scsi disk and cdrom drivers completely remove the request
 		 * from the queue when they start processing an entry.  For this
@@ -378,7 +395,8 @@ static void make_request(int major,int rw, struct buffer_head * bh)
 		 * All other drivers need to jump over the first entry, as that
 		 * entry may be busy being processed and we thus can't change it.
 		 */
-	        req = req->next;
+		if (req == blk_dev[major].current_request)
+	        	req = req->next;
 		if (!req)
 			break;
 		/* fall through */
@@ -568,7 +586,7 @@ void ll_rw_swap_file(int rw, kdev_t dev, unsigned int *b, int nb, char *buf)
 		for (; j < 8 && i < nb; j++, i++, buf += buffersize)
 		{
 		        rdev = dev;
-			rsector = (b[i] * buffersize) >> 9;
+			rsector = b[i] * (buffersize >> 9);
 #ifdef CONFIG_BLK_DEV_MD
 			if (major==MD_MAJOR &&
 			    md_map (MINOR(dev), &rdev,
@@ -607,13 +625,21 @@ void ll_rw_swap_file(int rw, kdev_t dev, unsigned int *b, int nb, char *buf)
 	}
 }
 
-int blk_dev_init(void)
+#ifdef CONFIG_BLK_DEV_EZ
+extern void ez_init( void );
+#endif
+#ifdef CONFIG_BPCD
+extern void bpcd_init( void );
+#endif
+
+__initfunc(int blk_dev_init(void))
 {
 	struct request * req;
 	struct blk_dev_struct *dev;
 
 	for (dev = blk_dev + MAX_BLKDEV; dev-- != blk_dev;) {
 		dev->request_fn      = NULL;
+		dev->queue           = NULL;
 		dev->current_request = NULL;
 		dev->plug.rq_status  = RQ_INACTIVE;
 		dev->plug.cmd        = -1;
@@ -628,6 +654,9 @@ int blk_dev_init(void)
 		req->next = NULL;
 	}
 	memset(ro_bits,0,sizeof(ro_bits));
+#ifdef CONFIG_AMIGA_Z2RAM
+	z2_init();
+#endif
 #ifdef CONFIG_BLK_DEV_RAM
 	rd_init();
 #endif
@@ -643,19 +672,28 @@ int blk_dev_init(void)
 #ifdef CONFIG_BLK_DEV_HD
 	hd_init();
 #endif
+#ifdef CONFIG_BLK_DEV_PS2
+	ps2esdi_init();
+#endif
 #ifdef CONFIG_BLK_DEV_XD
 	xd_init();
+#endif
+#ifdef CONFIG_BLK_DEV_EZ
+	ez_init();
 #endif
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
-#ifndef CONFIG_SGI
+#if !defined(CONFIG_SGI) && !defined (__mc68000__)
 	outb_p(0xc, 0x3f2);
 #endif
 #endif
 #ifdef CONFIG_CDU31A
 	cdu31a_init();
 #endif CONFIG_CDU31A
+#ifdef CONFIG_ATARI_ACSI
+	acsi_init();
+#endif CONFIG_ATARI_ACSI
 #ifdef CONFIG_MCD
 	mcd_init();
 #endif CONFIG_MCD
@@ -674,6 +712,9 @@ int blk_dev_init(void)
 #ifdef CONFIG_GSCD
 	gscd_init();
 #endif CONFIG_GSCD
+#ifdef CONFIG_BPCD
+	bpcd_init();
+#endif CONFIG_BPCD
 #ifdef CONFIG_CM206
 	cm206_init();
 #endif
@@ -686,5 +727,11 @@ int blk_dev_init(void)
 #ifdef CONFIG_BLK_DEV_MD
 	md_init();
 #endif CONFIG_BLK_DEV_MD
+#ifdef CONFIG_APBLOCK
+	ap_init();
+#endif
+#ifdef CONFIG_DDV
+	ddv_init();
+#endif
 	return 0;
 }

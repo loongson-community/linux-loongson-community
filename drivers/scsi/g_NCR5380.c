@@ -103,7 +103,8 @@
 #include "NCR5380.h"
 #include "constants.h"
 #include "sd.h"
-#include<linux/stat.h>
+#include <linux/stat.h>
+#include <linux/init.h>
 
 struct proc_dir_entry proc_scsi_g_ncr5380 = {
     PROC_SCSI_GENERIC_NCR5380, 9, "g_NCR5380",
@@ -124,9 +125,9 @@ static struct override {
     int board;	/* Use NCR53c400, Ricoh, etc. extensions ? */
 } overrides 
 #ifdef GENERIC_NCR5380_OVERRIDE 
-    [] = GENERIC_NCR5380_OVERRIDE
+    [] __initdata = GENERIC_NCR5380_OVERRIDE
 #else
-    [1] = {{0,},};
+    [1] __initdata = {{0,},};
 #endif
 
 #define NO_OVERRIDES (sizeof(overrides) / sizeof(struct override))
@@ -142,7 +143,7 @@ static struct override {
  *
  */
 
-static void internal_setup(int board, char *str, int *ints) {
+__initfunc(static void internal_setup(int board, char *str, int *ints)) {
     static int commandline_current = 0;
     switch (board) {
     case BOARD_NCR5380:
@@ -178,7 +179,7 @@ static void internal_setup(int board, char *str, int *ints) {
  * 	equal to the number of ints.
  */
 
-void generic_NCR5380_setup (char *str, int *ints) {
+__initfunc(void generic_NCR5380_setup (char *str, int *ints)) {
     internal_setup (BOARD_NCR5380, str, ints);
 }
 
@@ -191,7 +192,7 @@ void generic_NCR5380_setup (char *str, int *ints) {
  * 	equal to the number of ints.
  */
 
-void generic_NCR53C400_setup (char *str, int *ints) {
+__initfunc(void generic_NCR53C400_setup (char *str, int *ints)) {
     internal_setup (BOARD_NCR53C400, str, ints);
 }
 
@@ -207,7 +208,7 @@ void generic_NCR53C400_setup (char *str, int *ints) {
  *
  */
 
-int generic_NCR5380_detect(Scsi_Host_Template * tpnt) {
+__initfunc(int generic_NCR5380_detect(Scsi_Host_Template * tpnt)) {
     static int current_override = 0;
     int count;
     int flags = 0;
@@ -330,8 +331,11 @@ static inline int NCR5380_pread (struct Scsi_Host *instance, unsigned char *dst,
 {
     int blocks = len / 128;
     int start = 0;
-    int i;
     int bl;
+#ifdef CONFIG_SCSI_G_NCR5380_PORT
+    int i;
+#endif 
+
     NCR5380_local_declare();
 
     NCR5380_setup(instance);
@@ -606,21 +610,6 @@ static int sprint_Scsi_Cmnd (char* buffer, int len, Scsi_Cmnd *cmd) {
     return len-start;
 }
 
-const char *const private_scsi_device_types[] =
-{
-    "Direct-Access    ",
-    "Sequential-Access",
-    "Printer          ",
-    "Processor        ",
-    "WORM             ",
-    "CD-ROM           ",
-    "Scanner          ",
-    "Optical Device   ",
-    "Medium Changer   ",
-    "Communications   "
-};
-#define MAX_SCSI_DEVICE_CODE sizeof(private_scsi_device_types)/sizeof(char*)
-
 int generic_NCR5380_proc_info(char* buffer, char** start, off_t offset, int length, int hostno, int inout)
 {
     int len = 0;
@@ -631,7 +620,8 @@ int generic_NCR5380_proc_info(char* buffer, char** start, off_t offset, int leng
 	Scsi_Device *dev;
     Scsi_Cmnd *ptr;
     struct NCR5380_hostdata *hostdata;
-
+    extern const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE];
+    
     cli();
 
     for (scsi_ptr = first_instance; scsi_ptr; scsi_ptr=scsi_ptr->next)
@@ -674,7 +664,7 @@ int generic_NCR5380_proc_info(char* buffer, char** start, off_t offset, int leng
 	    long tr = hostdata->time_read[dev->id] / HZ;
 	    long tw = hostdata->time_write[dev->id] / HZ;
 
-	    PRINTP("  T:%d %s " ANDP dev->id ANDP (dev->type < MAX_SCSI_DEVICE_CODE) ? private_scsi_device_types[(int)dev->type] : "Unknown");
+	    PRINTP("  T:%d %s " ANDP dev->id ANDP (dev->type < MAX_SCSI_DEVICE_CODE) ? scsi_device_types[(int)dev->type] : "Unknown");
 	    for (i=0; i<8; i++)
 		if (dev->vendor[i] >= 0x20)
 		    *(buffer+(len++)) = dev->vendor[i];

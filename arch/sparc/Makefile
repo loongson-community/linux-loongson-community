@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.20 1996/04/16 08:02:50 davem Exp $
+# $Id: Makefile,v 1.27 1997/04/07 06:54:08 davem Exp $
 # sparc/Makefile
 #
 # Makefile for the architecture dependent flags and dependencies on the
@@ -15,28 +15,33 @@ SHELL  =/bin/bash
 # Uncomment the first CFLAGS if you are doing kgdb source level
 # debugging of the kernel to get the proper debugging information.
 
-#CFLAGS := $(CFLAGS) -g -pipe
-CFLAGS := $(CFLAGS) -pipe
+#CFLAGS := $(CFLAGS) -g -pipe -fcall-used-g5 -fcall-used-g7
+CFLAGS := $(CFLAGS) -pipe -fcall-used-g5 -fcall-used-g7
 
-LINKFLAGS = -N -Ttext 0xf0004000
+#LINKFLAGS = -N -Ttext 0xf0004000
+LINKFLAGS = -T arch/sparc/vmlinux.lds
 
 HEAD := arch/sparc/kernel/head.o
 
 SUBDIRS := $(SUBDIRS) arch/sparc/kernel arch/sparc/lib arch/sparc/mm \
 	arch/sparc/prom
 
-ARCHIVES := arch/sparc/kernel/kernel.o arch/sparc/mm/mm.o $(ARCHIVES)
+CORE_FILES := arch/sparc/kernel/kernel.o arch/sparc/mm/mm.o $(CORE_FILES)
 
 LIBS := $(TOPDIR)/lib/lib.a $(LIBS) $(TOPDIR)/arch/sparc/prom/promlib.a \
 	$(TOPDIR)/arch/sparc/lib/lib.a
 
 ifdef CONFIG_AP1000
-SUBDIRS := $(SUBDIRS) arch/sparc/ap1000
-ARCHIVES := $(TOPDIR)/arch/sparc/ap1000/ap1000lib.o $(ARCHIVES) 
+SUBDIRS := $(SUBDIRS) arch/sparc/ap1000 mpp
+CORE_FILES := $(TOPDIR)/arch/sparc/ap1000/ap1000lib.o \
+	      $(TOPDIR)/mpp/mpplib.o $(CORE_FILES) 
 DRIVERS := $(DRIVERS) drivers/ap1000/ap1000.a
+CFLAGS := $(CFLAGS) -D__MPP__=1
 endif
 
 archclean:
-	rm -f $(TOPDIR)/arch/sparc/boot/boot
 
 archdep:
+
+check_asm:
+	$(MAKE) -C arch/sparc/kernel check_asm

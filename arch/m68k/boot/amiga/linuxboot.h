@@ -24,14 +24,42 @@
 
 
 #include <asm/setup.h>
-#include <asm/zorro.h>
+#include <linux/zorro.h>
 
 
     /*
      *  Amiboot Version
      */
 
-#define AMIBOOT_VERSION		"4.0"
+#define AMIBOOT_VERSION		"5.4"
+
+
+    /*
+     *  Amiga Bootinfo Definitions
+     *
+     *  All limits herein are `soft' limits, i.e. they don't put constraints
+     *  on the actual parameters in the kernel.
+     */
+
+struct amiga_bootinfo {
+    u_long machtype;			/* machine type = MACH_AMIGA */
+    u_long cputype;			/* system CPU */
+    u_long fputype;			/* system FPU */
+    u_long mmutype;			/* system MMU */
+    int num_memory;			/* # of memory blocks found */
+    struct mem_info memory[NUM_MEMINFO];/* memory description */
+    struct mem_info ramdisk;		/* ramdisk description */
+    char command_line[CL_SIZE];		/* kernel command line parameters */
+    u_long model;			/* Amiga Model */
+    int num_autocon;			/* # of autoconfig devices found */
+    struct ConfigDev autocon[ZORRO_NUM_AUTO];	/* autoconfig devices */
+    u_long chip_size;			/* size of chip memory (bytes) */
+    u_char vblank;			/* VBLANK frequency */
+    u_char psfreq;			/* power supply frequency */
+    u_long eclock;			/* EClock frequency */
+    u_long chipset;			/* native chipset present */
+    u_short serper;			/* serial port period */
+};
 
 
     /*
@@ -39,12 +67,13 @@
      */
 
 struct linuxboot_args {
+    struct amiga_bootinfo bi;	/* Initial values override detected values */
     const char *kernelname;
     const char *ramdiskname;
-    const char *commandline;
     int debugflag;
     int keep_video;
     int reset_boards;
+    u_int baud;
     void (*puts)(const char *str);
     long (*getchar)(void);
     void (*putchar)(char c);
@@ -55,7 +84,6 @@ struct linuxboot_args {
     void (*close)(int fd);
     int (*filesize)(const char *path);
     void (*sleep)(u_long micros);
-    int (*modify_bootinfo)(struct bootinfo *bi);
 };
 
 

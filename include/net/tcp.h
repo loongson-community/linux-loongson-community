@@ -20,8 +20,73 @@
 
 #include <linux/config.h>
 #include <linux/tcp.h>
+#include <linux/slab.h>
 #include <net/checksum.h>
 
+/* This is for all connections with a full identity, no wildcards.
+ * New scheme, half the table is for TIME_WAIT, the other half is
+ * for the rest.  I'll experiment with dynamic table growth later.
+ */
+#define TCP_HTABLE_SIZE		1024
+
+/* This is for listening sockets, thus all sockets which possess wildcards. */
+#define TCP_LHTABLE_SIZE	32	/* Yes, really, this is all you need. */
+
+/* This is for all sockets, to keep track of the local port allocations. */
+#define TCP_BHTABLE_SIZE	64
+
+/* tcp_ipv4.c: These need to be shared by v4 and v6 because the lookup
+ *             and hashing code needs to work with different AF's yet
+ *             the port space is shared.
+ */
+extern struct sock *tcp_established_hash[TCP_HTABLE_SIZE];
+extern struct sock *tcp_listening_hash[TCP_LHTABLE_SIZE];
+extern struct sock *tcp_bound_hash[TCP_BHTABLE_SIZE];
+
+/* These are AF independant. */
+static __inline__ int tcp_bhashfn(__u16 lport)
+{
+	return (lport ^ (lport >> 7)) & (TCP_BHTABLE_SIZE - 1);
+}
+
+static __inline__ int tcp_sk_bhashfn(struct sock *sk)
+{
+	__u16 lport = sk->num;
+	return tcp_bhashfn(lport);
+}
+
+/* These can have wildcards, don't try too hard. */
+static __inline__ int tcp_lhashfn(unsigned short num)
+{
+	return num & (TCP_LHTABLE_SIZE - 1);
+}
+
+static __inline__ int tcp_sk_listen_hashfn(struct sock *sk)
+{
+	return tcp_lhashfn(sk->num);
+}
+
+/* Only those holding the sockhash lock call these two things here.
+ * Note the slightly gross overloading of sk->prev, AF_UNIX is the
+ * only other main benefactor of that member of SK, so who cares.
+ */
+static __inline__ void tcp_sk_bindify(struct sock *sk)
+{
+	int hashent = tcp_sk_bhashfn(sk);
+	struct sock **htable = &tcp_bound_hash[hashent];
+
+	if((sk->bind_next = *htable) != NULL)
+		(*htable)->bind_pprev = &sk->bind_next;
+	*htable = sk;
+	sk->bind_pprev = htable;
+}
+
+static __inline__ void tcp_sk_unbindify(struct sock *sk)
+{
+	if(sk->bind_next)
+		sk->bind_next->bind_pprev = sk->bind_pprev;
+	*(sk->bind_pprev) = sk->bind_next;
+}
 
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 #define NETHDR_SIZE	sizeof(struct ipv6hdr)
@@ -31,11 +96,13 @@
 
 /*
  * 40 is maximal IP options size
- * 4  is TCP option size (MSS)
+ * 20 is the maximum TCP options size we can currently construct on a SYN.
+ * 40 is the maximum possible TCP options size.
  */
 
-#define MAX_SYN_SIZE	(NETHDR_SIZE + sizeof(struct tcphdr) + 4 + MAX_HEADER + 15)
+#define MAX_SYN_SIZE	(NETHDR_SIZE + sizeof(struct tcphdr) + 20 + MAX_HEADER + 15)
 #define MAX_FIN_SIZE	(NETHDR_SIZE + sizeof(struct tcphdr) + MAX_HEADER + 15)
+#define BASE_ACK_SIZE	(NETHDR_SIZE + MAX_HEADER + 15)
 #define MAX_ACK_SIZE	(NETHDR_SIZE + sizeof(struct tcphdr) + MAX_HEADER + 15)
 #define MAX_RESET_SIZE	(NETHDR_SIZE + sizeof(struct tcphdr) + MAX_HEADER + 15)
 
@@ -80,9 +147,9 @@
 #define TCP_PROBEWAIT_LEN (1*HZ)/* time to wait between probes when
 				 * I've got something to write and
 				 * there is no window			*/
-#define TCP_KEEPALIVE_TIME (180*60*HZ)	/* two hours */
-#define TCP_KEEPALIVE_PROBES	9	/* Max of 9 keepalive probes	*/
-#define TCP_KEEPALIVE_PERIOD (75*HZ)	/* period of keepalive check	*/
+#define TCP_KEEPALIVE_TIME (180*60*HZ)		/* two hours */
+#define TCP_KEEPALIVE_PROBES	9		/* Max of 9 keepalive probes	*/
+#define TCP_KEEPALIVE_PERIOD ((75*HZ)>>2)	/* period of keepalive check	*/
 #define TCP_NO_CHECK	0	/* turn to one if you want the default
 				 * to be no checksum			*/
 
@@ -99,6 +166,8 @@
  *	We don't use these yet, but they are for PAWS and big windows
  */
 #define TCPOPT_WINDOW		3	/* Window scaling */
+#define TCPOPT_SACK_PERM        4       /* SACK Permitted */
+#define TCPOPT_SACK             5       /* SACK Block */
 #define TCPOPT_TIMESTAMP	8	/* Better RTT estimations/PAWS */
 
 /*
@@ -107,8 +176,15 @@
 
 #define TCPOLEN_MSS            4
 #define TCPOLEN_WINDOW         3
+#define TCPOLEN_SACK_PERM      2
 #define TCPOLEN_TIMESTAMP      10
 
+/*
+ *      TCP option flags for parsed options.
+ */
+
+#define TCPOPTF_SACK_PERM       1
+#define TCPOPTF_TIMESTAMP       2
 
 /*
  *	TCP Vegas constants
@@ -125,35 +201,49 @@ struct or_calltable {
 	void (*destructor)	(struct open_request *req);
 };
 
-struct open_request {
-	struct open_request	*dl_next;
-	struct open_request	*dl_prev;
-	__u32			rcv_isn;
-	__u32			snt_isn;
-	__u16			mss;
-	__u16			rmt_port;
-	unsigned long		expires;
-	int			retrans;
-	struct or_calltable	*class;
-	struct sock		*sk;
-};
-
 struct tcp_v4_open_req {
-	struct open_request	req;
 	__u32			loc_addr;
 	__u32			rmt_addr;
-	struct options		*opt;
+	struct ip_options	*opt;
 };
 
 #if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
 struct tcp_v6_open_req {
-	struct open_request	req;
 	struct in6_addr		loc_addr;
 	struct in6_addr		rmt_addr;
 	struct ipv6_options	*opt;
 	struct device		*dev;
 };
 #endif
+
+struct open_request {
+	struct open_request	*dl_next;
+	struct open_request	**dl_pprev;
+	__u32			rcv_isn;
+	__u32			snt_isn;
+	__u16			rmt_port;
+	__u16			mss;
+	__u8			snd_wscale;
+	char			sack_ok;
+	char			tstamp_ok;
+	__u32			ts_recent;
+	unsigned long		expires;
+	int			retrans;
+	struct or_calltable	*class;
+	struct sock		*sk;
+	union {
+		struct tcp_v4_open_req v4_req;
+#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
+		struct tcp_v6_open_req v6_req;
+#endif
+	} af;
+};
+
+/* SLAB cache for open requests. */
+extern kmem_cache_t *tcp_openreq_cachep;
+
+#define tcp_openreq_alloc()	kmem_cache_alloc(tcp_openreq_cachep, SLAB_ATOMIC)
+#define tcp_openreq_free(req)	kmem_cache_free(tcp_openreq_cachep, req)
 
 /*
  *	Pointers to address related TCP functions
@@ -164,10 +254,7 @@ struct tcp_func {
 	int			(*build_net_header)	(struct sock *sk, 
 							 struct sk_buff *skb);
 
-	void			(*queue_xmit)		(struct sock *sk, 
-							 struct device *dev,
-							 struct sk_buff *skb, 
-							 int free);
+	void			(*queue_xmit)		(struct sk_buff *skb);
 
 	void			(*send_check)		(struct sock *sk,
 							 struct tcphdr *th,
@@ -208,6 +295,8 @@ struct tcp_func {
 	void			(*addr2sockaddr)	(struct sock *sk,
 							 struct sockaddr *);
 
+	void			(*send_reset)		(struct sk_buff *skb);
+
 	int sockaddr_len;
 };
 
@@ -237,24 +326,18 @@ extern __inline int between(__u32 seq1, __u32 seq2, __u32 seq3)
 extern struct proto tcp_prot;
 extern struct tcp_mib tcp_statistics;
 
-extern void			tcp_v4_err(int type, int code,
-					   unsigned char *header, __u32 info,
-					   __u32 daddr, __u32 saddr,
-					   struct inet_protocol *protocol,
-					   int len);
+extern unsigned short		tcp_good_socknum(void);
+
+extern void			tcp_v4_err(struct sk_buff *skb,
+					   unsigned char *);
 
 extern void			tcp_shutdown (struct sock *sk, int how);
 
-extern int			tcp_v4_rcv(struct sk_buff *skb, 
-					   struct device *dev,
-					   struct options *opt, __u32 daddr,
-					   unsigned short len, __u32 saddr, 
-					   int redo,
-					   struct inet_protocol *protocol);
+extern int			tcp_v4_rcv(struct sk_buff *skb,
+					   unsigned short len);
 
 extern int			tcp_do_sendmsg(struct sock *sk, 
 					       int iovlen, struct iovec *iov,
-					       int len, int nonblock, 
 					       int flags);
 
 extern int			tcp_ioctl(struct sock *sk, 
@@ -266,7 +349,7 @@ extern int			tcp_rcv_state_process(struct sock *sk,
 						      struct tcphdr *th,
 						      void *opt, __u16 len);
 
-extern void			tcp_rcv_established(struct sock *sk, 
+extern int			tcp_rcv_established(struct sock *sk, 
 						    struct sk_buff *skb,
 						    struct tcphdr *th, 
 						    __u16 len);
@@ -274,8 +357,7 @@ extern void			tcp_rcv_established(struct sock *sk,
 extern void			tcp_close(struct sock *sk, 
 					  unsigned long timeout);
 extern struct sock *		tcp_accept(struct sock *sk, int flags);
-extern int			tcp_select(struct sock *sk, int sel_type, 
-					   select_table *wait);
+extern unsigned int		tcp_poll(struct socket *sock, poll_table *wait);
 extern int			tcp_getsockopt(struct sock *sk, int level, 
 					       int optname, char *optval, 
 					       int *optlen);
@@ -288,7 +370,7 @@ extern int			tcp_recvmsg(struct sock *sk,
 					    int len, int nonblock, 
 					    int flags, int *addr_len);
 
-extern int			tcp_parse_options(struct tcphdr *th);
+extern void			tcp_parse_options(struct tcphdr *th, struct tcp_opt *tp);
 
 /*
  *	TCP v4 functions exported for the inet6 API
@@ -312,8 +394,9 @@ extern struct sock *		tcp_v4_syn_recv_sock(struct sock *sk,
 						     struct sk_buff *skb,
 						     struct open_request *req);
 
-extern int			tcp_v4_backlog_rcv(struct sock *sk,
-						   struct sk_buff *skb);
+extern int			tcp_v4_do_rcv(struct sock *sk,
+					      struct sk_buff *skb);
+
 extern int			tcp_v4_connect(struct sock *sk,
 					       struct sockaddr *uaddr,
 					       int addr_len);
@@ -334,9 +417,6 @@ extern int  tcp_send_synack(struct sock *);
 extern int  tcp_send_skb(struct sock *, struct sk_buff *);
 extern void tcp_send_ack(struct sock *sk);
 extern void tcp_send_delayed_ack(struct sock *sk, int max_timeout);
-
-/* tcp_input.c */
-extern void tcp_cache_zap(void);
 
 /* CONFIG_IP_TRANSPARENT_PROXY */
 extern int tcp_chkaddr(struct sk_buff *);
@@ -442,66 +522,84 @@ static __inline__ void tcp_set_state(struct sock *sk, int state)
 	sk->state = state;
 
 #ifdef STATE_TRACE
-	if(sk->debug)
-		printk("TCP sk=%p, State %s -> %s\n",sk, statename[oldstate],statename[state]);
+	SOCK_DEBUG(sk, "TCP sk=%p, State %s -> %s\n",sk, statename[oldstate],statename[state]);
 #endif	
 
 	switch (state) {
 	case TCP_ESTABLISHED:
-		if (oldstate != TCP_ESTABLISHED) {
+		if (oldstate != TCP_ESTABLISHED)
 			tcp_statistics.TcpCurrEstab++;
-		}
 		break;
 
 	case TCP_CLOSE:
-		tcp_cache_zap();
 		/* Should be about 2 rtt's */
 		net_reset_timer(sk, TIME_DONE, min(tp->srtt * 2, TCP_DONE_TIME));
 		/* fall through */
 	default:
 		if (oldstate==TCP_ESTABLISHED)
 			tcp_statistics.TcpCurrEstab--;
+		if (state == TCP_TIME_WAIT)
+			sk->prot->rehash(sk);
 	}
+}
+
+/*
+ * Construct a tcp options header for a SYN or SYN_ACK packet.
+ * If this is every changed make sure to change the definition of
+ * MAX_SYN_SIZE to match the new maximum number of options that you
+ * can generate.
+ * FIXME: This is completely disgusting.
+ * This is probably a good candidate for a bit of assembly magic.
+ * It would be especially magical to compute the checksum for this
+ * stuff on the fly here.
+ */
+extern __inline__ int tcp_syn_build_options(struct sk_buff *skb, int mss, int sack, int ts, int wscale)
+{
+	int count = 4 + (wscale ? 4 : 0) +  ((ts || sack) ? 4 : 0) +  (ts ? 8 : 0);
+	unsigned char *optr = skb_put(skb,count);
+	__u32 *ptr = (__u32 *)optr;
+
+	/*
+	 * We always get an MSS option.
+	 */
+	*ptr++ = htonl((TCPOPT_MSS << 24) | (TCPOLEN_MSS << 16) | mss);
+	if (ts) {
+		if (sack) {
+			*ptr++ = htonl((TCPOPT_SACK_PERM << 24) | (TCPOLEN_SACK_PERM << 16)
+					| (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
+			*ptr++ = htonl(jiffies);	/* TSVAL */
+			*ptr++ = htonl(0);		/* TSECR */
+		} else {
+			*ptr++ = htonl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16)
+					| (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
+			*ptr++ = htonl(jiffies);	/* TSVAL */
+			*ptr++ = htonl(0);		/* TSECR */
+		}
+	} else if (sack) {
+		*ptr++ = htonl((TCPOPT_SACK_PERM << 24) | (TCPOLEN_SACK_PERM << 16)
+				| (TCPOPT_NOP << 8) | TCPOPT_NOP);
+	}
+	if (wscale)
+		*ptr++ = htonl((TCPOPT_WINDOW << 24) | (TCPOLEN_WINDOW << 16) | wscale);
+	skb->csum = csum_partial(optr, count, 0);
+	return count;
 }
 
 extern __inline__ void tcp_synq_unlink(struct tcp_opt *tp, struct open_request *req)
 {
-	if (req->dl_next == req)
-	{
-		tp->syn_wait_queue = NULL;
-	}
+	if(req->dl_next)
+		req->dl_next->dl_pprev = req->dl_pprev;
 	else
-	{
-		req->dl_prev->dl_next = req->dl_next;
-		req->dl_next->dl_prev = req->dl_prev;
-		
-		if (tp->syn_wait_queue == req)
-		{
-			tp->syn_wait_queue = req->dl_next;
-		}
-	}
-
-	req->dl_prev = req->dl_next = NULL;
+		tp->syn_wait_last = req->dl_pprev;
+	*req->dl_pprev = req->dl_next;
 }
 
 extern __inline__ void tcp_synq_queue(struct tcp_opt *tp, struct open_request *req)
 {
-	if (!tp->syn_wait_queue)
-	{
-		req->dl_next = req;
-		req->dl_prev = req;
-		tp->syn_wait_queue = req;
-	}
-	else
-	{
-		struct open_request *list = tp->syn_wait_queue;
-		
-		req->dl_next = list;
-		req->dl_prev = list->dl_prev;
-		list->dl_prev->dl_next = req;
-		list->dl_prev = req;
-	}
-
+	req->dl_next = NULL;
+	req->dl_pprev = tp->syn_wait_last;
+	*tp->syn_wait_last = req;
+	tp->syn_wait_last = &req->dl_next;
 }
 
 extern void __tcp_inc_slow_timer(struct tcp_sl_timer *slt);
@@ -509,7 +607,7 @@ extern __inline__ void tcp_inc_slow_timer(int timer)
 {
 	struct tcp_sl_timer *slt = &tcp_slt_array[timer];
 	
-	if (slt->count == 0)
+	if (atomic_read(&slt->count) == 0)
 	{
 		__tcp_inc_slow_timer(slt);
 	}
@@ -525,4 +623,3 @@ extern __inline__ void tcp_dec_slow_timer(int timer)
 }
 
 #endif	/* _TCP_H */
-

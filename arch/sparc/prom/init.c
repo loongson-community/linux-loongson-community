@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.7 1996/04/04 16:31:00 tridge Exp $
+/* $Id: init.c,v 1.11 1997/03/18 17:58:24 jj Exp $
  * init.c:  Initialize internal variables used by the PROM
  *          library functions.
  *
@@ -7,6 +7,7 @@
 
 #include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/init.h>
 
 #include <asm/openprom.h>
 #include <asm/oplib.h>
@@ -17,6 +18,8 @@ unsigned int prom_rev, prom_prev;
 
 /* The root node of the prom device tree. */
 int prom_root_node;
+
+int prom_stdin, prom_stdout;
 
 /* Pointer to the device tree operations structure. */
 struct linux_nodeops *prom_nodeops;
@@ -29,17 +32,15 @@ struct linux_nodeops *prom_nodeops;
 extern void prom_meminit(void);
 extern void prom_ranges_init(void);
 
-void
-prom_init(struct linux_romvec *rp)
+__initfunc(void prom_init(struct linux_romvec *rp))
 {
+#if CONFIG_AP1000
+	extern struct linux_romvec *ap_prom_init(void);
+	rp = ap_prom_init();
+#endif
+
 	romvec = rp;
 
-#if CONFIG_AP1000
-        prom_vers = PROM_AP1000;
-        prom_meminit();
-        prom_ranges_init();
-	return;
-#endif
 	switch(romvec->pv_romvers) {
 	case 0:
 		prom_vers = PROM_V0;
@@ -50,11 +51,10 @@ prom_init(struct linux_romvec *rp)
 	case 3:
 		prom_vers = PROM_V3;
 		break;
-	case 4:
-		prom_vers = PROM_P1275;
-		prom_printf("PROMLIB: Sun IEEE Prom not supported yet\n");
-		prom_halt();
+	case 42: /* why not :-) */
+		prom_vers = PROM_AP1000;
 		break;
+
 	default:
 		prom_printf("PROMLIB: Bad PROM version %d\n",
 			    romvec->pv_romvers);
@@ -74,6 +74,11 @@ prom_init(struct linux_romvec *rp)
 	   (((unsigned long) prom_nodeops) == -1))
 		prom_halt();
 
+	if(prom_vers == PROM_V2 || prom_vers == PROM_V3) {
+		prom_stdout = *romvec->pv_v2bootargs.fd_stdout;
+		prom_stdin  = *romvec->pv_v2bootargs.fd_stdin;
+	}
+	
 	prom_meminit();
 
 	prom_ranges_init();

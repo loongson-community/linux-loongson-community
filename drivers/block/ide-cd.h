@@ -15,15 +15,6 @@
 #endif
 
 
-/* Turn this on to have the driver print out the meanings of the
-   ATAPI error codes.  This will use up additional kernel-space
-   memory, though. */
-
-#ifndef VERBOSE_IDE_CD_ERRORS
-#define VERBOSE_IDE_CD_ERRORS 0
-#endif
-
-
 /* Turning this on will remove code to work around various nonstandard
    ATAPI implementations.  If you know your drive follows the standard,
    this will give you a slightly smaller kernel. */
@@ -76,6 +67,7 @@
 #define ALLOW_MEDIUM_REMOVAL    0x1e
 #define READ_CAPACITY		0x25
 #define READ_10                 0x28
+#define SEEK			0x2b
 #define MODE_SENSE_10           0x5a
 #define MODE_SELECT_10          0x55
 #define READ_CD                 0xbe
@@ -125,7 +117,8 @@ struct ide_cd_config_flags {
 	__u8 is_changer       : 1; /* Drive is a changer. */
 	__u8 supp_disc_present: 1; /* Changer can report exact contents
 				      of slots. */
-	__u8 reserved         : 7;
+	__u8 seeking          : 1; /* Seeking in progress */
+	__u8 reserved         : 6;
 };
 #define CDROM_CONFIG_FLAGS(drive) ((struct ide_cd_config_flags *)&((drive)->bios_cyl))
 
@@ -383,6 +376,8 @@ struct cdrom_info {
 	struct request request_sense_request;
 	struct packet_command request_sense_pc;
 	int dma;
+	unsigned long last_block;
+	unsigned long start_seek;
 	/* Buffer to hold mechanism status and changer slot table. */
 	struct atapi_changer_info *changer_info;
 

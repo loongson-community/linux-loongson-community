@@ -22,11 +22,14 @@ unexport O_TARGET
 unexport O_OBJS
 unexport L_OBJS
 unexport M_OBJS
+# intermediate objects that form part of a module
+unexport MI_OBJS
 unexport ALL_MOBJS
 # objects that export symbol tables
 unexport OX_OBJS
 unexport LX_OBJS
 unexport MX_OBJS
+unexport MIX_OBJS
 unexport SYMTAB_OBJS
 
 unexport MOD_LIST_NAME
@@ -43,6 +46,9 @@ first_rule: sub_dirs
 
 %.s: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -S $< -o $@
+
+%.i: %.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -E $< > $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
@@ -67,7 +73,7 @@ ifneq "$(strip $(ALL_O))" ""
 else
 	$(AR) rcs $@
 endif
-endif
+endif # O_TARGET
 
 #
 # Rule to compile a set of .o files into one .a file
@@ -82,8 +88,7 @@ endif
 # This make dependencies quickly
 #
 fastdep: dummy
-	if [ -n "$(wildcard *.[chS])" ]; then \
-	$(TOPDIR)/scripts/mkdep *.[chS] > .depend; fi
+	$(TOPDIR)/scripts/mkdep *.[chS] > .depend
 ifdef ALL_SUB_DIRS
 	set -e; for i in $(ALL_SUB_DIRS); do $(MAKE) -C $$i fastdep; done
 endif
@@ -103,9 +108,12 @@ ALL_MOBJS = $(MX_OBJS) $(M_OBJS)
 ifneq "$(strip $(ALL_MOBJS))" ""
 PDWN=$(shell $(CONFIG_SHELL) $(TOPDIR)/scripts/pathdown.sh)
 endif
-modules: $(ALL_MOBJS) dummy
+modules: $(ALL_MOBJS) $(MIX_OBJS) $(MI_OBJS) dummy
 ifdef MOD_SUB_DIRS
 	set -e; for i in $(MOD_SUB_DIRS); do $(MAKE) -C $$i modules; done
+endif
+ifdef MOD_IN_SUB_DIRS
+	set -e; for i in $(MOD_IN_SUB_DIRS); do $(MAKE) -C $$i modules; done
 endif
 ifneq "$(strip $(MOD_LIST_NAME))" ""
 	rm -f $$TOPDIR/modules/$(MOD_LIST_NAME)
@@ -115,6 +123,9 @@ ifdef MOD_SUB_DIRS
 endif
 ifneq "$(strip $(ALL_MOBJS))" ""
 	echo $(ALL_MOBJS) >> $$TOPDIR/modules/$(MOD_LIST_NAME)
+endif
+ifneq "$(strip $(MOD_TO_LIST))" ""
+	echo $(MOD_TO_LIST) >> $$TOPDIR/modules/$(MOD_LIST_NAME)
 endif
 endif
 ifneq "$(strip $(ALL_MOBJS))" ""
@@ -140,56 +151,58 @@ script:
 # Separate the object into "normal" objects and "exporting" objects
 # Exporting objects are: all objects that define symbol tables
 #
+ifdef CONFIG_MODULES
+
+SYMTAB_OBJS = $(LX_OBJS) $(OX_OBJS) $(MX_OBJS) $(MIX_OBJS)
+
 ifdef CONFIG_MODVERSIONS
-SYMTAB_OBJS = $(LX_OBJS) $(OX_OBJS) $(MX_OBJS)
 ifneq "$(strip $(SYMTAB_OBJS))" ""
 
 MODINCL = $(TOPDIR)/include/linux/modules
 
-# The -w option (enable warnings) for /bin/genksyms will return here in 2.1
+# The -w option (enable warnings) for genksyms will return here in 2.1
 $(MODINCL)/%.ver: %.c
-	@if [ ! -x /sbin/genksyms ]; then echo "Please read: Documentation/modules.txt"; fi
-	$(CC) $(CFLAGS) -E -D__GENKSYMS__ $< | /sbin/genksyms $(MODINCL)
-
+	$(CC) $(CFLAGS) -E -D__GENKSYMS__ $<\
+	| $(GENKSYMS) -k $(VERSION).$(PATCHLEVEL).$(SUBLEVEL) > $@.tmp
+	mv $@.tmp $@
+	
 $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver)): $(TOPDIR)/include/linux/autoconf.h
 
 $(TOPDIR)/include/linux/modversions.h: $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver))
 	@echo updating $(TOPDIR)/include/linux/modversions.h
-	@(echo "#ifdef MODVERSIONS";\
-	echo "#undef  CONFIG_MODVERSIONS";\
-	echo "#define CONFIG_MODVERSIONS";\
-	echo "#ifndef _set_ver";\
-	echo "#define _set_ver(sym,vers) sym ## _R ## vers";\
-	echo "#endif";\
-	cd $(TOPDIR)/include/linux/modules; for f in *.ver;\
-	do echo "#include <linux/modules/$${f}>"; done; \
-	echo "#undef  CONFIG_MODVERSIONS";\
-	echo "#endif") \
-	> $(TOPDIR)/include/linux/modversions.h
-
-$(MX_OBJS): $(TOPDIR)/include/linux/modversions.h
-	$(CC) $(CFLAGS) -DEXPORT_SYMTAB -c $(@:.o=.c)
-
-$(LX_OBJS) $(OX_OBJS): $(TOPDIR)/include/linux/modversions.h
-	$(CC) $(CFLAGS) -DMODVERSIONS -DEXPORT_SYMTAB -c $(@:.o=.c)
+	@(echo "#ifndef _LINUX_MODVERSIONS_H";\
+	  echo "#define _LINUX_MODVERSIONS_H"; \
+	  echo "#include <linux/modsetver.h>"; \
+	  cd $(TOPDIR)/include/linux/modules; \
+	  for f in *.ver; do \
+	    if [ -f $$f ]; then echo "#include <linux/modules/$${f}>"; fi; \
+	  done; \
+	  echo "#endif"; \
+	) > $@
 
 dep fastdep: $(TOPDIR)/include/linux/modversions.h
 
-endif
+endif # SYMTAB_OBJS 
+
 $(M_OBJS): $(TOPDIR)/include/linux/modversions.h
 ifdef MAKING_MODULES
 $(O_OBJS) $(L_OBJS): $(TOPDIR)/include/linux/modversions.h
 endif
-# This is needed to ensure proper dependency for multipart modules such as
-# fs/ext.o.  (Otherwise, not all subobjects will be recompiled when
-# version information changes.)
 
 else
 
 $(TOPDIR)/include/linux/modversions.h:
-	@touch $(TOPDIR)/include/linux/modversions.h
+	@echo "#include <linux/modsetver.h>" > $@
 
+endif # CONFIG_MODVERSIONS
+
+ifneq "$(strip $(SYMTAB_OBJS))" ""
+$(SYMTAB_OBJS): $(TOPDIR)/include/linux/modversions.h $(SYMTAB_OBJS:.o=.c)
+	$(CC) $(CFLAGS) -DEXPORT_SYMTAB -c $(@:.o=.c)
 endif
+
+endif # CONFIG_MODULES
+
 
 #
 # include dependency files they exist

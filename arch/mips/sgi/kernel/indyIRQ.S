@@ -60,7 +60,6 @@
 	CLI
 	.set	at
 	mfc0	s0, CP0_CAUSE		# get irq mask
-	lui	s3, %hi(intr_count)
 
 	/* First we check for r4k counter/timer IRQ. */
 	andi	a0, s0, CAUSEF_IP7
@@ -68,56 +67,48 @@
 	 andi	a0, s0, CAUSEF_IP2	# delay slot, check local level zero
 
 	/* Wheee, a timer interrupt. */
-	lw	s7, %lo(intr_count)(s3)
 	move	a0, sp
 	addiu	t0, s7, 1
 	jal	indy_timer_interrupt
-	 sw	t0, %lo(intr_count)(s3)	# delay slot, set intr_count
+	 nop				# delay slot
 
 	j	ret_from_sys_call
-	 sw	s7, %lo(intr_count)(s3)	# delay slot, restore intr_count
+	 nop				# delay slot
 
 1:
 	beq	a0, zero, 1f
 	 andi	a0, s0, CAUSEF_IP3	# delay slot, check local level one
 
 	/* Wheee, local level zero interrupt. */
-	lw	s7, %lo(intr_count)(s3)
-	move	a0, sp
-	addiu	t0, s7, 1
-
 	jal	indy_local0_irqdispatch
-	 sw	t0, %lo(intr_count)(s3)
+	 move	a0, sp			# delay slot
 
 	j	ret_from_sys_call
-	 sw	s7, %lo(intr_count)(s3)	# delay slot, restore intr_count
+	 nop				# delay slot
 
 1:
 	beq	a0, zero, 1f
 	 andi	a0, s0, CAUSEF_IP6	# delay slot, check bus error
 
 	/* Wheee, local level one interrupt. */
-	lw	s7, %lo(intr_count)(s3)
 	move	a0, sp
-	addiu	t0, s7, 1
 	jal	indy_local1_irqdispatch
-	 sw	t0, %lo(intr_count)(s3)
+	 nop
 
 	j	ret_from_sys_call
-	 sw	s7, %lo(intr_count)(s3)
+	 nop
 
 1:
 	beq	a0, zero, 1f
-	 lw	s7, %lo(intr_count)(s3)
+	 nop
 
 	/* Wheee, an asynchronous bus error... */
-	addiu	t0, s7, 1
 	move	a0, sp
 	jal	indy_buserror_irq
-	 sw	t0, %lo(intr_count)(s3)
+	 nop
 
 	j	ret_from_sys_call
-	 sw	s7, %lo(intr_count)(s3)	
+	 nop
 
 1:
 	/* Here by mistake?  This is possible, what can happen
@@ -131,8 +122,8 @@
 	/* Must be one of the 8254 timers... */
 	move	a0, sp
 	jal	indy_8254timer_irq
-	 sw	t0, %lo(intr_count)(s3)
+	 nop
 1:
 	j	ret_from_sys_call
-	 sw	s7, %lo(intr_count)(s3)
+	 nop
 	END(indyIRQ)

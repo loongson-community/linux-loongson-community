@@ -449,6 +449,15 @@ found_middle:
 #define ext2_find_first_zero_bit(addr, size) find_first_zero_bit((addr), (size))
 #define ext2_find_next_zero_bit(addr, size, offset) \
                 find_next_zero_bit((addr), (size), (offset))
-#endif
+ 
+/*
+ * Bitmap functions for the minix filesystem.
+ * FIXME: These assume that Minix uses the native byte/bitorder.
+ */
+#define minix_set_bit(nr,addr) set_bit(nr,addr)
+#define minix_clear_bit(nr,addr) clear_bit(nr,addr)
+#define minix_test_bit(nr,addr) test_bit(nr,addr)
+#define minix_find_first_zero_bit(addr,size) find_first_zero_bit(addr,size)
+#endif /* __KERNEL__ */
 
 #endif /* __ASM_MIPS_BITOPS_H */

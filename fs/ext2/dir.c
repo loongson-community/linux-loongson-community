@@ -39,7 +39,7 @@ static struct file_operations ext2_dir_operations = {
 	ext2_dir_read,		/* read */
 	NULL,			/* write - bad */
 	ext2_readdir,		/* readdir */
-	NULL,			/* select - default */
+	NULL,			/* poll - default */
 	ext2_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	NULL,			/* no special open code */
@@ -211,7 +211,7 @@ revalidate:
 		offset = 0;
 		brelse (bh);
 	}
-	if (!IS_RDONLY(inode)) {
+	if (DO_UPDATE_ATIME(inode)) {
 		inode->i_atime = CURRENT_TIME;
 		inode->i_dirt = 1;
 	}

@@ -146,11 +146,7 @@ loc_floppy:	PANIC("Unimplemented loc_floppy handler")
 /*
  * Now call the real handler
  */
-loc_call:	lui	s3,%hi(intr_count)
-		lw	t2,%lo(intr_count)(s3)
-		la	t0,IRQ_vectors			# delay slot
-		addiu	t2,1
-		sw	t2,%lo(intr_count)(s3)
+loc_call:	la	t0,IRQ_vectors			# delay slot
 
 		/*
 		 * Temporarily disable interrupt source
@@ -168,13 +164,11 @@ loc_call:	lui	s3,%hi(intr_count)
 		 * Reenable interrupt
 		 */
 /*		lhu	t2,JAZZ_IO_IRQ_ENABLE */
-		lw	t1,%lo(intr_count)(s3) # delay slot
 		or	t2,s1
 /*		sh	t2,JAZZ_IO_IRQ_ENABLE */
 
-		subu	t1,1
 		jr	v0
-		sw	t1,%lo(intr_count)(s3)
+		nop				# delay slot
 
 ll_tc3:		PANIC("Unimplemented tc3 interrupt handler")
 
@@ -199,11 +193,7 @@ ll_reset:	li	a0,0
 /*
  * Now call the real handler
  */
-call_real:	lui	s3,%hi(intr_count)
-		lw	t2,%lo(intr_count)(s3)
-		la	t0,IRQ_vectors			# delay slot
-		addiu	t2,1
-		sw	t2,%lo(intr_count)(s3)
+call_real:	la	t0,IRQ_vectors			# delay slot
 
 		/*
 		 * temporarily disable interrupt
@@ -224,11 +214,8 @@ call_real:	lui	s3,%hi(intr_count)
 		or	t2,s1
 		mtc0	t2,CP0_STATUS
 
-		lw	t2,%lo(intr_count)(s3)
-		subu	t2,1
-
 		jr	v0
-		sw	t2,%lo(intr_count)(s3)	# delay slot
+		nop				# delay slot
 
 /*
  * Just for debugging... load a0 with address of the point inside the

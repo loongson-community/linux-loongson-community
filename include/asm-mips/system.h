@@ -67,6 +67,23 @@ __asm__ __volatile__(                    \
 	: /* no inputs */                \
 	: "memory")
 
+#define save_and_cli(x)                  \
+__asm__ __volatile__(                    \
+	".set\tnoreorder\n\t"            \
+	".set\tnoat\n\t"                 \
+	"mfc0\t%0,$12\n\t"               \
+	"ori\t$1,%0,1\n\t"               \
+	"xori\t$1,1\n\t"                 \
+	"mtc0\t$1,$12\n\t"               \
+	"nop\n\t"                        \
+	"nop\n\t"                        \
+	"nop\n\t"                        \
+	".set\tat\n\t"                   \
+	".set\treorder"                  \
+	: "=r" (x)                       \
+	: /* no inputs */                \
+	: "$1", "memory")
+
 extern void __inline__
 restore_flags(int flags)
 {
@@ -234,10 +251,5 @@ extern unsigned long exception_handlers[32];
 
 #define set_except_vector(n,addr) \
 	exception_handlers[n] = (unsigned long) (addr)
-
-/*
- * Reset the machine.
- */
-extern void (*hard_reset_now)(void);
 
 #endif /* __ASM_MIPS_SYSTEM_H */

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.12 1996/10/27 08:36:26 davem Exp $
+# $Id: Makefile,v 1.23 1997/04/18 05:44:39 davem Exp $
 # Makefile for Sparc library files..
 #
 
@@ -6,7 +6,12 @@ CFLAGS := $(CFLAGS) -ansi
 
 OBJS  = mul.o rem.o sdiv.o udiv.o umul.o urem.o ashrdi3.o memcpy.o memset.o \
         strlen.o checksum.o blockops.o memscan.o memcmp.o strncmp.o \
-	strncpy_from_user.o
+	strncpy_from_user.o divdi3.o udivdi3.o strlen_user.o \
+	copy_user.o locks.o atomic.o bitops.o
+
+ifdef SMP
+OBJS += irqlock.o
+endif
 
 lib.a: $(OBJS)
 	$(AR) rcs lib.a $(OBJS)
@@ -30,14 +35,53 @@ strncmp.o: strncmp.S
 strncpy_from_user.o: strncpy_from_user.S
 	$(CC) -D__ASSEMBLY__ -ansi -c -o strncpy_from_user.o strncpy_from_user.S
 
+strlen_user.o: strlen_user.S
+	$(CC) -D__ASSEMBLY__ -ansi -c -o strlen_user.o strlen_user.S
+
+copy_user.o: copy_user.S
+	$(CC) -D__ASSEMBLY__ -ansi -c -o copy_user.o copy_user.S
+
 blockops.o: blockops.S
 	$(CC) -ansi -c -o blockops.o blockops.S
 
 memset.o: memset.S
 	$(CC) -D__ASSEMBLY__ -ansi -c -o memset.o memset.S
 
+ifdef SMP
+
+locks.o: locks.S
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o locks.o locks.S
+
+atomic.o: atomic.S
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o atomic.o atomic.S
+
+bitops.o: bitops.S
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o bitops.o bitops.S
+
+irqlock.o: irqlock.S
+	$(CC) -D__ASSEMBLY__ $(AFLAGS) -ansi -c -o irqlock.o irqlock.S
+
+else
+
+locks.o: locks.S
+	$(CC) -D__ASSEMBLY__ -ansi -c -o locks.o locks.S
+
+atomic.o: atomic.S
+	$(CC) -D__ASSEMBLY__ -ansi -c -o atomic.o atomic.S
+
+bitops.o: bitops.S
+	$(CC) -D__ASSEMBLY__ -ansi -c -o bitops.o bitops.S
+
+endif
+
 strlen.o: strlen.S
 	$(CC) -ansi -c -o strlen.o strlen.S
+
+divdi3.o: divdi3.S
+	$(CC) -ansi -c -o divdi3.o divdi3.S
+
+udivdi3.o: udivdi3.S
+	$(CC) -ansi -c -o udivdi3.o udivdi3.S
 
 mul.o: mul.S
 	$(CC) -c -o mul.o mul.S

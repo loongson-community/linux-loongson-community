@@ -13,7 +13,8 @@ IPV4_OBJS := utils.o route.o proc.o timer.o protocol.o packet.o \
 	     ip_output.o ip_sockglue.o \
 	     tcp.o tcp_input.o tcp_output.o tcp_timer.o tcp_ipv4.o\
 	     raw.o udp.o arp.o icmp.o devinet.o af_inet.o igmp.o ip_fw.o \
-	     sysctl_net_ipv4.o
+	     sysctl_net_ipv4.o fib.o ip_nat_dumb.o
+IPV4X_OBJS :=
 
 MOD_LIST_NAME := IPV4_MODULES
 M_OBJS :=
@@ -39,8 +40,8 @@ else
 endif
 
 ifeq ($(CONFIG_IP_MASQUERADE),y)
-IPV4_OBJS += ip_masq.o ip_masq_app.o
-M_OBJS += ip_masq_ftp.o ip_masq_irc.o ip_masq_raudio.o
+IPV4X_OBJS += ip_masq.o ip_masq_app.o
+M_OBJS += ip_masq_ftp.o ip_masq_irc.o ip_masq_raudio.o ip_masq_quake.o
 endif
 
 ifeq ($(CONFIG_IP_ALIAS),y)
@@ -53,6 +54,7 @@ endif
 
 ifdef CONFIG_INET
 O_OBJS := $(IPV4_OBJS)
+OX_OBJS := $(IPV4X_OBJS)
 endif
 
 include $(TOPDIR)/Rules.make

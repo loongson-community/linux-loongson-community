@@ -118,7 +118,7 @@ symbol		=	value
 #define	TEXT(msg)                                       \
 		.data;                                  \
 8:		.asciiz	msg;                            \
-		.text;
+		.previous;
 
 /*
  * Build text tables
@@ -126,9 +126,10 @@ symbol		=	value
 #define TTABLE(string)                                  \
 		.text;                                  \
 		.word	1f;                             \
+		.previous;                              \
 		.data;                                  \
 1:		.asciz	string;                         \
-		.text
+		.previous
 
 /*
  * MIPS IV pref instruction.

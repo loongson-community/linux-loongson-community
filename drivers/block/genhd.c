@@ -24,9 +24,8 @@
 #include <linux/kernel.h>
 #include <linux/major.h>
 #include <linux/string.h>
-#ifdef CONFIG_BLK_DEV_INITRD
 #include <linux/blk.h>
-#endif
+#include <linux/init.h>
 
 #include <asm/system.h>
 
@@ -37,10 +36,16 @@
  */
 #include <asm/unaligned.h>
 
-#define SYS_IND(p)	get_unaligned(&p->sys_ind)
-#define NR_SECTS(p)	get_unaligned(&p->nr_sects)
-#define START_SECT(p)	get_unaligned(&p->start_sect)
+#define SYS_IND(p)	(get_unaligned(&p->sys_ind))
+#define NR_SECTS(p)	({ __typeof__(p->nr_sects) __a =	\
+				get_unaligned(&p->nr_sects);	\
+				le32_to_cpu(__a); \
+			})
 
+#define START_SECT(p)	({ __typeof__(p->start_sect) __a =	\
+				get_unaligned(&p->start_sect);	\
+				le32_to_cpu(__a); \
+			})
 
 struct gendisk *gendisk_head = NULL;
 
@@ -103,6 +108,52 @@ static inline int is_extended_partition(struct partition *p)
 		SYS_IND(p) == LINUX_EXTENDED_PARTITION);
 }
 
+static unsigned int get_ptable_blocksize(kdev_t dev)
+{
+  int ret = 1024;
+
+  /*
+   * See whether the low-level driver has given us a minumum blocksize.
+   * If so, check to see whether it is larger than the default of 1024.
+   */
+  if (!blksize_size[MAJOR(dev)])
+    {
+      return ret;
+    }
+
+  /*
+   * Check for certain special power of two sizes that we allow.
+   * With anything larger than 1024, we must force the blocksize up to
+   * the natural blocksize for the device so that we don't have to try
+   * and read partial sectors.  Anything smaller should be just fine.
+   */
+  switch( blksize_size[MAJOR(dev)][MINOR(dev)] )
+    {
+    case 2048:
+      ret = 2048;
+      break;
+    case 4096:
+      ret = 4096;
+      break;
+    case 8192:
+      ret = 8192;
+      break;
+    case 1024:
+    case 512:
+    case 256:
+    case 0:
+      /*
+       * These are all OK.
+       */
+      break;
+    default:
+      panic("Strange blocksize for partition table\n");
+    }
+
+  return ret;
+
+}
+
 #ifdef CONFIG_MSDOS_PARTITION
 /*
  * Create devices for each logical partition in an extended partition.
@@ -114,6 +165,8 @@ static inline int is_extended_partition(struct partition *p)
  * We do not create a Linux partition for the partition tables, but
  * only for the actual data partitions.
  */
+
+#define MSDOS_LABEL_MAGIC		0xAA55
 
 static void extended_partition(struct gendisk *hd, kdev_t dev)
 {
@@ -130,7 +183,7 @@ static void extended_partition(struct gendisk *hd, kdev_t dev)
 	while (1) {
 		if ((current_minor & mask) == 0)
 			return;
-		if (!(bh = bread(dev,0,1024)))
+		if (!(bh = bread(dev,0,get_ptable_blocksize(dev))))
 			return;
 	  /*
 	   * This block is from a device that we're about to stomp on.
@@ -138,7 +191,7 @@ static void extended_partition(struct gendisk *hd, kdev_t dev)
 	   */
 		bh->b_state = 0;
 
-		if (*(unsigned short *) (bh->b_data+510) != 0xAA55)
+		if (le16_to_cpu(*(unsigned short *) (bh->b_data+510)) != MSDOS_LABEL_MAGIC)
 			goto done;
 
 		p = (struct partition *) (0x1BE + bh->b_data);
@@ -214,7 +267,7 @@ static void bsd_disklabel_partition(struct gendisk *hd, kdev_t dev)
 	struct bsd_partition *p;
 	int mask = (1 << hd->minor_shift) - 1;
 
-	if (!(bh = bread(dev,0,1024)))
+	if (!(bh = bread(dev,0,get_ptable_blocksize(dev))))
 		return;
 	bh->b_state = 0;
 	l = (struct bsd_disklabel *) (bh->b_data+512);
@@ -251,7 +304,7 @@ static int msdos_partition(struct gendisk *hd, kdev_t dev, unsigned long first_s
 
 read_mbr:
 #endif
-	if (!(bh = bread(dev,0,1024))) {
+	if (!(bh = bread(dev,0,get_ptable_blocksize(dev)))) {
 		printk(" unable to read partition table\n");
 		return -1;
 	}
@@ -263,7 +316,7 @@ read_mbr:
 #ifdef CONFIG_BLK_DEV_IDE
 check_table:
 #endif
-	if (*(unsigned short *)  (0x1fe + data) != 0xAA55) {
+	if (le16_to_cpu(*(unsigned short *) (0x1fe + data)) != MSDOS_LABEL_MAGIC) {
 		brelse(bh);
 		return 0;
 	}
@@ -275,7 +328,7 @@ check_table:
 		 * Look for various forms of IDE disk geometry translation
 		 */
 		extern int ide_xlate_1024(kdev_t, int, const char *);
-		unsigned int sig = *(unsigned short *)(data + 2);
+		unsigned int sig = le16_to_cpu(*(unsigned short *)(data + 2));
 		if (SYS_IND(p) == EZD_PARTITION) {
 			/*
 			 * The remainder of the disk must be accessed using
@@ -305,12 +358,10 @@ check_table:
 				brelse(bh);
 				goto read_mbr;	/* start over with new MBR */
 			}
-		} else if (sig <= 0x1ae && *(unsigned short *)(data + sig) == 0x55AA
-			 && (1 & *(unsigned char *)(data + sig + 2)) ) 
-		{
-			/*
-			 * DM6 signature in MBR, courtesy of OnTrack
-			 */
+		} else if (sig <= 0x1ae &&
+			   le16_to_cpu(*(unsigned short *)(data + sig)) == 0x55AA &&
+			   (1 & *(unsigned char *)(data + sig + 2))) {
+			/* DM6 signature in MBR, courtesy of OnTrack */
 			(void) ide_xlate_1024 (dev, 0, " [DM6:MBR]");
 		} else if (SYS_IND(p) == DM6_AUX1PARTITION || SYS_IND(p) == DM6_AUX3PARTITION) {
 			/*
@@ -373,7 +424,7 @@ check_table:
 	/*
 	 *  Check for old-style Disk Manager partition table
 	 */
-	if (*(unsigned short *) (data+0xfc) == 0x55AA) {
+	if (le16_to_cpu(*(unsigned short *) (data+0xfc)) == MSDOS_LABEL_MAGIC) {
 		p = (struct partition *) (0x1be + data);
 		for (i = 4 ; i < 16 ; i++, current_minor++) {
 			p--;
@@ -432,7 +483,7 @@ static int osf_partition(struct gendisk *hd, unsigned int dev, unsigned long fir
 	struct d_partition * partition;
 #define DISKLABELMAGIC (0x82564557UL)
 
-	if (!(bh = bread(dev,0,1024))) {
+	if (!(bh = bread(dev,0,get_ptable_blocksize(dev)))) {
 		printk("unable to read partition table\n");
 		return -1;
 	}
@@ -492,35 +543,22 @@ static int sun_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 		unsigned short csum;       /* Label xor'd checksum */
 	} * label;		
 	struct sun_partition *p;
-	int other_endian;
 	unsigned long spc;
 #define SUN_LABEL_MAGIC          0xDABE
-#define SUN_LABEL_MAGIC_SWAPPED  0xBEDA
-/* No need to optimize these macros since they are called only when reading
- * the partition table. This occurs only at each disk change. */
-#define SWAP16(x)  (other_endian ? (((__u16)(x) & 0xFF) << 8) \
-				 | (((__u16)(x) & 0xFF00) >> 8) \
-				 : (__u16)(x))
-#define SWAP32(x)  (other_endian ? (((__u32)(x) & 0xFF) << 24) \
-				 | (((__u32)(x) & 0xFF00) << 8) \
-				 | (((__u32)(x) & 0xFF0000) >> 8) \
-				 | (((__u32)(x) & 0xFF000000) >> 24) \
-				 : (__u32)(x))
 
-	if(!(bh = bread(dev, 0, 1024))) {
+	if(!(bh = bread(dev, 0, get_ptable_blocksize(dev)))) {
 		printk("Dev %s: unable to read partition table\n",
 		       kdevname(dev));
 		return -1;
 	}
 	label = (struct sun_disklabel *) bh->b_data;
 	p = label->partitions;
-	if (label->magic != SUN_LABEL_MAGIC && label->magic != SUN_LABEL_MAGIC_SWAPPED) {
+	if (be16_to_cpu(label->magic) != SUN_LABEL_MAGIC) {
 		printk("Dev %s Sun disklabel: bad magic %04x\n",
-		       kdevname(dev), label->magic);
+		       kdevname(dev), be16_to_cpu(label->magic));
 		brelse(bh);
 		return 0;
 	}
-	other_endian = (label->magic == SUN_LABEL_MAGIC_SWAPPED);
 	/* Look at the checksum */
 	ush = ((unsigned short *) (label+1)) - 1;
 	for(csum = 0; ush >= ((unsigned short *) label);)
@@ -532,22 +570,20 @@ static int sun_partition(struct gendisk *hd, kdev_t dev, unsigned long first_sec
 		return 0;
 	}
 	/* All Sun disks have 8 partition entries */
-	spc = SWAP16(label->ntrks) * SWAP16(label->nsect);
+	spc = be16_to_cpu(label->ntrks) * be16_to_cpu(label->nsect);
 	for(i=0; i < 8; i++, p++) {
 		unsigned long st_sector;
 
 		/* We register all partitions, even if zero size, so that
 		 * the minor numbers end up ok as per SunOS interpretation.
 		 */
-		st_sector = first_sector + SWAP32(p->start_cylinder) * spc;
-		add_partition(hd, current_minor, st_sector, SWAP32(p->num_sectors));
+		st_sector = first_sector + be32_to_cpu(p->start_cylinder) * spc;
+		add_partition(hd, current_minor, st_sector, be32_to_cpu(p->num_sectors));
 		current_minor++;
 	}
 	printk("\n");
 	brelse(bh);
 	return 1;
-#undef SWAP16
-#undef SWAP32
 }
 
 #endif /* CONFIG_SUN_PARTITION */
@@ -776,7 +812,7 @@ void resetup_one_dev(struct gendisk *dev, int drive)
 	}
 }
 
-static void setup_dev(struct gendisk *dev)
+static inline void setup_dev(struct gendisk *dev)
 {
 	int i, drive;
 	int end_minor	= dev->max_nr * dev->max_p;
@@ -799,12 +835,18 @@ static void setup_dev(struct gendisk *dev)
 	}
 }
 
-void device_setup(void)
+__initfunc(void device_setup(void))
 {
 	extern void console_map_init(void);
+#ifdef CONFIG_PNP_PARPORT
+	extern int pnp_parport_init(void);
+#endif
 	struct gendisk *p;
 	int nr=0;
 
+#ifdef CONFIG_PNP_PARPORT
+	pnp_parport_init();
+#endif
 	chr_dev_init();
 	blk_dev_init();
 	sti();
@@ -814,7 +856,9 @@ void device_setup(void)
 #ifdef CONFIG_INET
 	net_dev_init();
 #endif
+#ifdef CONFIG_VT
 	console_map_init();
+#endif
 
 	for (p = gendisk_head ; p ; p=p->next) {
 		setup_dev(p);

@@ -30,6 +30,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/proc_fs.h>
+#include <linux/init.h>
 
 #include "scsi.h"
 
@@ -145,6 +146,10 @@
 #include "wd7000.h"
 #endif
 
+#ifdef CONFIG_SCSI_IBMMCA
+#include "ibmmca.h"
+#endif
+
 #ifdef CONFIG_SCSI_EATA
 #include "eata.h"
 #endif
@@ -169,13 +174,21 @@
 #include "sgiwd93.h"
 #endif
 
+#ifdef CONFIG_SCSI_QLOGICPTI
+#include "qlogicpti.h"
+#endif
+
+#ifdef CONFIG_BLK_DEV_IDESCSI
+#include "ide-scsi.h"
+#endif
+
 #ifdef CONFIG_SCSI_DEBUG
 #include "scsi_debug.h"
 #endif
 
 
 /*
-static const char RCSid[] = "$Header: /export/home0/cvs/linux/drivers/scsi/hosts.c,v 1.5 1996/08/12 11:11:54 dm Exp $";
+static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
 */
 
 /*
@@ -295,6 +308,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_7000FASST
     WD7000,
 #endif
+#ifdef CONFIG_SCSI_IBMMCA
+    IBMMCA,
+#endif
 #ifdef CONFIG_SCSI_EATA
     EATA,
 #endif
@@ -306,6 +322,12 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_SUNESP
     SCSI_SPARC_ESP,
+#endif
+#ifdef CONFIG_SCSI_QLOGICPTI
+    QLOGICPTI,
+#endif
+#ifdef CONFIG_BLK_DEV_IDESCSI
+    IDESCSI,
 #endif
 #ifdef CONFIG_SCSI_SGIWD93
     SGIWD93_SCSI,
@@ -419,7 +441,7 @@ scsi_register_device(struct Scsi_Device_Template * sdpnt)
     return 0;
 }
 
-unsigned int scsi_init()
+__initfunc(unsigned int scsi_init(void))
 {
     static int called = 0;
     int i, pcount;

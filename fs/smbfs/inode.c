@@ -5,6 +5,7 @@
  *
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/sched.h>
@@ -18,6 +19,7 @@
 #include <linux/locks.h>
 #include <linux/fcntl.h>
 #include <linux/malloc.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -431,18 +433,17 @@ static struct file_system_type smb_fs_type =
 	smb_read_super, "smbfs", 0, NULL
 };
 
-int
-init_smb_fs(void)
+__initfunc(int init_smb_fs(void))
 {
 	return register_filesystem(&smb_fs_type);
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int
 init_module(void)
 {
-	int status;
-
 	DPRINTK("smbfs: init_module called\n");
 
 #ifdef DEBUG_SMB_MALLOC
@@ -453,9 +454,7 @@ init_module(void)
 
 	smb_init_dir_cache();
 
-	if ((status = init_smb_fs()) == 0)
-		register_symtab(0);
-	return status;
+	return init_smb_fs();
 }
 
 void

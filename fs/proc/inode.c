@@ -12,12 +12,19 @@
 #include <linux/stat.h>
 #include <linux/locks.h>
 #include <linux/limits.h>
+#include <linux/config.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
 static void proc_put_inode(struct inode *inode)
 {
+#ifdef CONFIG_SUN_OPENPROMFS_MODULE
+	if ((inode->i_ino >= PROC_OPENPROM_FIRST)
+	    && (inode->i_ino < PROC_OPENPROM_FIRST + PROC_NOPENPROM)
+	    && proc_openprom_use)
+		(*proc_openprom_use)(inode, 0);
+#endif	
 	if (inode->i_nlink)
 		return;
 	inode->i_size = 0;
@@ -74,6 +81,14 @@ static int parse_options(char *options,uid_t *uid,gid_t *gid)
 struct inode * proc_get_inode(struct super_block * s, int ino, struct proc_dir_entry * de)
 {
 	struct inode * inode = iget(s, ino);
+	struct task_struct *p;
+	
+#ifdef CONFIG_SUN_OPENPROMFS_MODULE
+	if ((inode->i_ino >= PROC_OPENPROM_FIRST)
+	    && (inode->i_ino < PROC_OPENPROM_FIRST + PROC_NOPENPROM)
+	    && proc_openprom_use)
+		(*proc_openprom_use)(inode, 1);
+#endif	
 	if (inode && inode->i_sb == s) {
 		inode->u.generic_ip = (void *) de;
 		if (de) {
@@ -92,13 +107,20 @@ struct inode * proc_get_inode(struct super_block * s, int ino, struct proc_dir_e
 				de->fill_inode(inode);
 		}
 	}
+	/*
+	 * Fixup the root inode's nlink value
+	 */
+	if (inode->i_ino == PROC_ROOT_INO) {
+		for_each_task(p)
+			if (p && p->pid)
+				inode->i_nlink++;
+	}
 	return inode;
 }			
 
 struct super_block *proc_read_super(struct super_block *s,void *data, 
 				    int silent)
 {
-	proc_root_init();
 	lock_super(s);
 	s->s_blocksize = 1024;
 	s->s_blocksize_bits = 10;
@@ -135,103 +157,32 @@ void proc_read_inode(struct inode * inode)
 	struct task_struct * p;
 	int i;
 	
+	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
+	inode->i_blocks = 0;
+	inode->i_blksize = 1024;
+	ino = inode->i_ino;
+	if (ino >= PROC_OPENPROM_FIRST && ino < PROC_OPENPROM_FIRST + PROC_NOPENPROM)
+		return;
 	inode->i_op = NULL;
 	inode->i_mode = 0;
 	inode->i_uid = 0;
 	inode->i_gid = 0;
 	inode->i_nlink = 1;
 	inode->i_size = 0;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
-	inode->i_blocks = 0;
-	inode->i_blksize = 1024;
-	ino = inode->i_ino;
 	pid = ino >> 16;
+	if (!pid)
+		return;
 	p = task[0];
 	for (i = 0; i < NR_TASKS ; i++)
 		if ((p = task[i]) && (p->pid == pid))
 			break;
 	if (!p || i >= NR_TASKS)
 		return;
-	if (ino == PROC_ROOT_INO) {
-		inode->i_mode = S_IFDIR | S_IRUGO | S_IXUGO;
-		inode->i_nlink = 2;
-		for (i = 1 ; i < NR_TASKS ; i++)
-			if (task[i])
-				inode->i_nlink++;
-		return;
-	}
 
-	if (!pid) {
-		switch (ino) {
-			case PROC_KMSG:
-				inode->i_mode = S_IFREG | S_IRUSR;
-				inode->i_op = &proc_kmsg_inode_operations;
-				break;
-			case PROC_NET:
-				inode->i_nlink = 2;
-				break;
-			case PROC_SCSI:
-                                inode->i_mode = S_IFDIR | S_IRUGO | S_IXUGO;
-                                inode->i_nlink = 2;
-                                inode->i_op = &proc_scsi_inode_operations;
-                                break;
-			case PROC_KCORE:
-				inode->i_mode = S_IFREG | S_IRUSR;
-				inode->i_op = &proc_kcore_inode_operations;
-				inode->i_size = (MAP_NR(high_memory) << PAGE_SHIFT) + PAGE_SIZE;
-				break;
-			case PROC_PROFILE:
-				inode->i_mode = S_IFREG | S_IRUGO | S_IWUSR;
-				inode->i_op = &proc_profile_inode_operations;
-				inode->i_size = (1+prof_len) * sizeof(unsigned long);
-				break;
-			default:
-				inode->i_mode = S_IFREG | S_IRUGO;
-				inode->i_op = &proc_array_inode_operations;
-				break;
-		}
-		return;
-	}
 	ino &= 0x0000ffff;
 	if (ino == PROC_PID_INO || p->dumpable) {
 		inode->i_uid = p->euid;
 		inode->i_gid = p->egid;
-	}
-	switch (ino) {
-		case PROC_PID_INO:
-			inode->i_nlink = 4;
-			return;
-		case PROC_PID_MEM:
-			inode->i_op = &proc_mem_inode_operations;
-			inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR;
-			return;
-		case PROC_PID_CWD:
-		case PROC_PID_ROOT:
-		case PROC_PID_EXE:
-			inode->i_op = &proc_link_inode_operations;
-			inode->i_size = 64;
-			inode->i_mode = S_IFLNK | S_IRWXU;
-			return;
-		case PROC_PID_FD:
-			inode->i_mode = S_IFDIR | S_IRUSR | S_IXUSR;
-			inode->i_op = &proc_fd_inode_operations;
-			inode->i_nlink = 2;
-			return;
-		case PROC_PID_ENVIRON:
-			inode->i_mode = S_IFREG | S_IRUSR;
-			inode->i_op = &proc_array_inode_operations;
-			return;
-		case PROC_PID_CMDLINE:
-		case PROC_PID_STATUS:
-		case PROC_PID_STAT:
-		case PROC_PID_STATM:
-			inode->i_mode = S_IFREG | S_IRUGO;
-			inode->i_op = &proc_array_inode_operations;
-			return;
-		case PROC_PID_MAPS:
-			inode->i_mode = S_IFIFO | S_IRUGO;
-			inode->i_op = &proc_arraylong_inode_operations;
-			return;
 	}
 	switch (ino >> 8) {
 		case PROC_PID_FD_DIR:

@@ -1,11 +1,12 @@
 /*
- *  linux/arch/mips/kernel/tags.c
+ *  linux/arch/mips/lib/tags.c
  *
  *  Copyright (C) 1996  Stoned Elipot
  */
 #include <linux/stddef.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 
 /*

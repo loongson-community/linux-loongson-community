@@ -10,7 +10,6 @@
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/segment.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
 #include <asm/sgialib.h>

@@ -20,11 +20,8 @@
 #include <asm/atomic.h>
 #include <asm/types.h>
 
-#define CONFIG_SKB_CHECK 0
-
 #define HAVE_ALLOC_SKB		/* For the drivers to know */
 #define HAVE_ALIGNABLE_SKB	/* Ditto 8)		   */
-
 
 #define FREE_READ	1
 #define FREE_WRITE	0
@@ -39,71 +36,61 @@ struct sk_buff_head
 	struct sk_buff	* prev;
 	__u32		qlen;		/* Must be same length as a pointer
 					   for using debugging */
-#if CONFIG_SKB_CHECK
-	int		magic_debug_cookie;
-#endif
 };
-
 
 struct sk_buff 
 {
 	struct sk_buff	* next;			/* Next buffer in list 				*/
 	struct sk_buff	* prev;			/* Previous buffer in list 			*/
 	struct sk_buff_head * list;		/* List we are on				*/
-#if CONFIG_SKB_CHECK
-	int		magic_debug_cookie;
-#endif
-	struct sk_buff	*link3;			/* Link for IP protocol level buffer chains 	*/
 	struct sock	*sk;			/* Socket we are owned by 			*/
 	unsigned long	when;			/* used to compute rtt's			*/
 	struct timeval	stamp;			/* Time we arrived				*/
 	struct device	*dev;			/* Device we arrived on/are leaving by		*/
-	union 
+
+	/* Transport layer header */
+	union
 	{
 		struct tcphdr	*th;
-		struct ethhdr	*eth;
-		struct iphdr	*iph;
 		struct udphdr	*uh;
+		struct icmphdr	*icmph;
+		struct igmphdr	*igmph;
+		struct iphdr	*ipiph;
+		struct spxhdr	*spxh;
 		unsigned char	*raw;
-		/* for passing file handles in a unix domain socket */
-		void *filp;
 	} h;
+
+	/* Network layer header */
+	union
+	{
+		struct iphdr	*iph;
+		struct ipv6hdr	*ipv6h;
+		struct arphdr	*arph;
+		struct ipxhdr	*ipxh;
+		unsigned char	*raw;
+	} nh;
   
+	/* Link layer header */
 	union 
 	{	
-		/* As yet incomplete physical layer views */
-	  	unsigned char 	*raw;
 	  	struct ethhdr	*ethernet;
+	  	unsigned char 	*raw;
 	} mac;
-  
-	struct iphdr	*ip_hdr;		/* For IPPROTO_RAW 				*/
-#if defined(CONFIG_IPV6) || defined (CONFIG_IPV6_MODULE)
-	struct ipv6hdr	*ipv6_hdr;
-	
-	/* 
-	 *	It would be inefficient to store the nexthop address in every
-	 *	skb. Instead we store a pointer to the respective neighbour
-	 *	cache entry. This might make ndisc cache management harder.
-	 */
 
-	struct neighbour *nexthop;
-#endif		
-	unsigned int 	len;			/* Length of actual data			*/
-	unsigned int	csum;			/* Checksum 					*/
-	__u32		saddr;			/* IP source address				*/
-	__u32		daddr;			/* IP target address				*/
-	__u32		raddr;			/* IP next hop address				*/
+	struct  dst_entry *dst;
+	char    	cb[32];
+
 	__u32		seq;			/* TCP sequence number				*/
 	__u32		end_seq;		/* seq [+ fin] [+ syn] + datalen		*/
 	__u32		ack_seq;		/* TCP ack sequence number			*/
-	unsigned char	proto_priv[16];	        /* Protocol private data			*/
-	volatile char 	acked,			/* Are we acked ?				*/
-			used,			/* Are we in use ?				*/
-			free,			/* How to free this buffer			*/
+  
+	unsigned int 	len;			/* Length of actual data			*/
+	unsigned int	csum;			/* Checksum 					*/
+	volatile char 	used,			/* Are we in use ?				*/
 			arp;			/* Has IP/ARP resolution finished		*/
 	unsigned char	tries,			/* Times tried					*/
-  			lock,			/* Are we locked ?				*/
-  			localroute,		/* Local routing asserted for this frame	*/
+  			inclone,		/* Inline clone					*/
+  			priority,
   			pkt_type,		/* Packet class					*/
   			pkt_bridged,		/* Tracker for bridging 			*/
   			ip_summed;		/* Driver fed us an IP checksum			*/
@@ -112,9 +99,10 @@ struct sk_buff
 #define PACKET_MULTICAST	2		/* To group					*/
 #define PACKET_OTHERHOST	3		/* To someone else 				*/
 #define PACKET_NDISC		17		/* Outgoing NDISC packet			*/
-	unsigned short	users;			/* User count - see datagram.c,tcp.c 		*/
+	atomic_t	users;			/* User count - see datagram.c,tcp.c 		*/
 	unsigned short	protocol;		/* Packet protocol from driver. 		*/
-	unsigned short	truesize;		/* Buffer size 					*/
+	unsigned short	security;		/* Security level of packet			*/
+	unsigned int	truesize;		/* Buffer size 					*/
 
 	atomic_t	count;			/* reference count				*/
 	struct sk_buff	*data_skb;		/* Link to the actual data skb			*/
@@ -123,10 +111,16 @@ struct sk_buff
 	unsigned char	*tail;			/* Tail pointer					*/
 	unsigned char 	*end;			/* End pointer					*/
 	void 		(*destructor)(struct sk_buff *);	/* Destruct function		*/
-	__u16		redirport;		/* Redirect port				*/
-	__u16		inclone;		/* Inline clone	*/
 #define SKB_CLONE_ORIG		1
 #define SKB_CLONE_INLINE	2
+	
+#if defined(CONFIG_SHAPER) || defined(CONFIG_SHAPER_MODULE)
+	__u32		shapelatency;		/* Latency on frame */
+	__u32		shapeclock;		/* Time it should go out */
+	__u32		shapelen;		/* Frame length in clocks */
+	__u32		shapestamp;		/* Stamp for shaper    */
+	__u16		shapepend;		/* Pending */
+#endif
 };
 
 #ifdef CONFIG_SKB_LARGE
@@ -135,12 +129,6 @@ struct sk_buff
 #else
 #define SK_WMEM_MAX	32767
 #define SK_RMEM_MAX	32767
-#endif
-
-#if CONFIG_SKB_CHECK
-#define SK_FREED_SKB	0x0DE2C0DE
-#define SK_GOOD_SKB	0xDEC0DED1
-#define SK_HEAD_SKB	0x12231298
 #endif
 
 #ifdef __KERNEL__
@@ -154,7 +142,7 @@ struct sk_buff
 #if 0
 extern void			print_skb(struct sk_buff *);
 #endif
-extern void			kfree_skb(struct sk_buff *skb, int rw);
+extern void			__kfree_skb(struct sk_buff *skb);
 extern void			skb_queue_head_init(struct sk_buff_head *list);
 extern void			skb_queue_head(struct sk_buff_head *list,struct sk_buff *buf);
 extern void			skb_queue_tail(struct sk_buff_head *list,struct sk_buff *buf);
@@ -169,10 +157,8 @@ extern struct sk_buff *		dev_alloc_skb(unsigned int size);
 extern void			kfree_skbmem(struct sk_buff *skb);
 extern struct sk_buff *		skb_clone(struct sk_buff *skb, int priority);
 extern struct sk_buff *		skb_copy(struct sk_buff *skb, int priority);
-extern void			skb_device_lock(struct sk_buff *skb);
-extern void			skb_device_unlock(struct sk_buff *skb);
-extern void			dev_kfree_skb(struct sk_buff *skb, int mode);
-extern int			skb_device_locked(struct sk_buff *skb);
+extern struct sk_buff *		skb_realloc_headroom(struct sk_buff *skb, int newheadroom);
+#define dev_kfree_skb(a, b)	kfree_skb((a), (b))
 extern unsigned char *		skb_put(struct sk_buff *skb, unsigned int len);
 extern unsigned char *		skb_push(struct sk_buff *skb, unsigned int len);
 extern unsigned char *		skb_pull(struct sk_buff *skb, unsigned int len);
@@ -186,10 +172,33 @@ extern __inline__ int skb_queue_empty(struct sk_buff_head *list)
 	return (list->next == (struct sk_buff *) list);
 }
 
+extern __inline__ void kfree_skb(struct sk_buff *skb, int rw)
+{
+	if (atomic_dec_and_test(&skb->users))
+		__kfree_skb(skb);
+}
+
+extern __inline__ int skb_cloned(struct sk_buff *skb)
+{
+	return (atomic_read(&skb->data_skb->count) != 1);
+}
+
+extern __inline__ int skb_shared(struct sk_buff *skb)
+{
+	return (atomic_read(&skb->users) != 1);
+}
+
+/*
+ *	Copy shared buffers into a new sk_buff. We effectively do COW on
+ *	packets to handle cases where we have a local reader and forward
+ *	and a couple of other messy ones. The normal one is tcpdumping
+ *	a packet thats being forwarded.
+ */
+ 
 extern __inline__ struct sk_buff *skb_unshare(struct sk_buff *skb, int pri, int dir)
 {
 	struct sk_buff *nskb;
-	if(skb->users==1)
+	if(!skb_cloned(skb))
 		return skb;
 	nskb=skb_copy(skb, pri);
 	kfree_skb(skb, dir);	/* Free our shared copy */
@@ -202,6 +211,7 @@ extern __inline__ struct sk_buff *skb_unshare(struct sk_buff *skb, int pri, int 
  *	list and someone else may run off with it. For an interrupt
  *	type system cli() peek the buffer copy the data and sti();
  */
+ 
 extern __inline__ struct sk_buff *skb_peek(struct sk_buff_head *list_)
 {
 	struct sk_buff *list = ((struct sk_buff *)list_)->next;
@@ -218,14 +228,6 @@ extern __inline__ __u32 skb_queue_len(struct sk_buff_head *list_)
 {
 	return(list_->qlen);
 }
-
-#if CONFIG_SKB_CHECK
-extern int 			skb_check(struct sk_buff *skb,int,int, char *);
-#define IS_SKB(skb)		skb_check((skb), 0, __LINE__,__FILE__)
-#define IS_SKB_HEAD(skb)	skb_check((skb), 1, __LINE__,__FILE__)
-#else
-#define IS_SKB(skb)		
-#define IS_SKB_HEAD(skb)	
 
 extern __inline__ void skb_queue_head_init(struct sk_buff_head *list)
 {
@@ -422,7 +424,7 @@ extern __inline__ unsigned char *skb_put(struct sk_buff *skb, unsigned int len)
 	{
 		__label__ here;
 		panic(skb_put_errstr,&&here,len);
-here:
+here:          ;
 	}
 	return tmp;
 }
@@ -436,7 +438,7 @@ extern __inline__ unsigned char *skb_push(struct sk_buff *skb, unsigned int len)
 	{
 		__label__ here;
 		panic(skb_push_errstr, &&here,len);
-here:
+here:          ;
 	}
 	return skb->data;
 }
@@ -474,10 +476,43 @@ extern __inline__ void skb_trim(struct sk_buff *skb, unsigned int len)
 	}
 }
 
-#endif
+/* dev_tint can lock buffer at any moment,
+ * so that cli(), unlink it and sti(),
+ * now it is safe.
+ */
+
+extern __inline__ int skb_steal(struct sk_buff *skb)
+{
+	unsigned long flags;
+
+	save_flags(flags);
+	cli();
+	if (skb->next) {
+		skb_unlink(skb);
+		atomic_dec(&skb->users);
+	}
+	restore_flags(flags);
+	return 1;
+}
+
+extern __inline__ void __skb_steal(struct sk_buff *skb)
+{
+	if (skb->next) {
+		skb_unlink(skb);
+		atomic_dec(&skb->users);
+	}
+}
+
+extern __inline__ void skb_orphan(struct sk_buff *skb)
+{
+	if (skb->destructor)
+		skb->destructor(skb);
+	skb->destructor = NULL;
+	skb->sk = NULL;
+}
 
 extern struct sk_buff *		skb_recv_datagram(struct sock *sk,unsigned flags,int noblock, int *err);
-extern int			datagram_select(struct sock *sk, int sel_type, select_table *wait);
+extern unsigned int		datagram_poll(struct socket *sock, poll_table *wait);
 extern int			skb_copy_datagram(struct sk_buff *from, int offset, char *to,int size);
 extern int			skb_copy_datagram_iovec(struct sk_buff *from, int offset, struct iovec *to,int size);
 extern void			skb_free_datagram(struct sock * sk, struct sk_buff *skb);

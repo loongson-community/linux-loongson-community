@@ -48,14 +48,15 @@ static char *version = "3c509.c:1.07 6/15/95 becker@cesdis.gsfc.nasa.gov\n";
 #include <linux/skbuff.h>
 #include <linux/config.h>	/* for CONFIG_MCA */
 #include <linux/delay.h>	/* for udelay() */
+#include <linux/init.h>
 
 #include <asm/bitops.h>
 #include <asm/io.h>
 
 #ifdef EL3_DEBUG
-int el3_debug = EL3_DEBUG;
+static int el3_debug = EL3_DEBUG;
 #else
-int el3_debug = 2;
+static int el3_debug = 2;
 #endif
 
 /* To minimize the size of the driver source I only define operating
@@ -110,7 +111,7 @@ enum RxFilter {
 #define SKB_QUEUE_SIZE	64
 
 struct el3_private {
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	/* skb send-queue */
 	int head, size;
 	struct sk_buff *queue[SKB_QUEUE_SIZE];
@@ -123,7 +124,7 @@ static int el3_open(struct device *dev);
 static int el3_start_xmit(struct sk_buff *skb, struct device *dev);
 static void el3_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void update_stats(int addr, struct device *dev);
-static struct enet_statistics *el3_get_stats(struct device *dev);
+static struct net_device_stats *el3_get_stats(struct device *dev);
 static int el3_rx(struct device *dev);
 static int el3_close(struct device *dev);
 #ifdef HAVE_MULTICAST
@@ -132,7 +133,7 @@ static void set_multicast_list(struct device *dev);
 
 
 
-int el3_probe(struct device *dev)
+__initfunc(int el3_probe(struct device *dev))
 {
 	short lrs_state = 0xff, i;
 	ushort ioaddr, irq, if_port;
@@ -167,7 +168,11 @@ int el3_probe(struct device *dev)
 		}
 	}
 
-#ifdef CONFIG_MCA
+/*
+ * This has to be coded according to Documentation/mca.txt before
+ * this driver can be used with the 3c529 MCA cards.
+ */
+#if 0 /* #ifdef CONFIG_MCA */
 	if (MCA_bus) {
 		mca_adaptor_select_mode(1);
 		for (i = 0; i < 8; i++)
@@ -308,7 +313,7 @@ int el3_probe(struct device *dev)
 /* Read a word from the EEPROM using the regular EEPROM access register.
    Assume that we are in register window zero.
  */
-static ushort read_eeprom(short ioaddr, int index)
+__initfunc(static ushort read_eeprom(short ioaddr, int index))
 {
 	outw(EEPROM_READ + index, ioaddr + 10);
 	/* Pause for at least 162 us. for the read to take place. */
@@ -317,7 +322,7 @@ static ushort read_eeprom(short ioaddr, int index)
 }
 
 /* Read a word from the EEPROM when in the ISA ID probe state. */
-static ushort id_read_eeprom(int index)
+__initfunc(static ushort id_read_eeprom(int index))
 {
 	int bit, word = 0;
 
@@ -327,7 +332,7 @@ static ushort id_read_eeprom(int index)
 
 	/* Pause for at least 162 us. for the read to take place. */
 	udelay (300);
-	
+
 	for (bit = 15; bit >= 0; bit--)
 		word = (word << 1) + (inb(id_port) & 0x01);
 
@@ -417,8 +422,7 @@ el3_open(struct device *dev)
 	return 0;					/* Always succeed */
 }
 
-static int
-el3_start_xmit(struct sk_buff *skb, struct device *dev)
+static int el3_start_xmit(struct sk_buff *skb, struct device *dev)
 {
 	struct el3_private *lp = (struct el3_private *)dev->priv;
 	int ioaddr = dev->base_addr;
@@ -439,14 +443,6 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 		outw(TxEnable, ioaddr + EL3_CMD);
 		dev->tbusy = 0;
 	}
-
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
-	if (skb->len <= 0)
-		return 0;
 
 	if (el3_debug > 4) {
 		printk("%s: el3_start_xmit(length = %u) called, status %4.4x.\n",
@@ -475,6 +471,7 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 	if (set_bit(0, (void*)&dev->tbusy) != 0)
 		printk("%s: Transmitter access conflict.\n", dev->name);
 	else {
+		lp->stats.tx_bytes+=skb->len;
 		/* Put out the doubleword header... */
 		outw(skb->len, ioaddr + TX_FIFO);
 		outw(0x00, ioaddr + TX_FIFO);
@@ -585,8 +582,7 @@ el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 
-static struct enet_statistics *
-el3_get_stats(struct device *dev)
+static struct net_device_stats *el3_get_stats(struct device *dev)
 {
 	struct el3_private *lp = (struct el3_private *)dev->priv;
 	unsigned long flags;
@@ -672,7 +668,9 @@ el3_rx(struct device *dev)
 				skb->protocol=eth_type_trans(skb,dev);
 				netif_rx(skb);
 				outw(RxDiscard, ioaddr + EL3_CMD); /* Pop top Rx packet. */
+				lp->stats.rx_bytes+=skb->len;
 				lp->stats.rx_packets++;
+				lp->stats.rx_bytes+=pkt_len;
 				continue;
 			} else if (el3_debug)
 				printk("%s: Couldn't allocate a sk_buff of size %d.\n",
@@ -768,6 +766,8 @@ static struct device dev_3c509[MAX_3C_CARDS] = {
 
 static int io[MAX_3C_CARDS] = { 0, };
 static int irq[MAX_3C_CARDS]  = { 0, };
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_3C_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_3C_CARDS) "i");
 
 int
 init_module(void)

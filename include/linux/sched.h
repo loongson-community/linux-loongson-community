@@ -104,6 +104,17 @@ struct sched_param {
 
 #ifdef __KERNEL__
 
+#include <asm/spinlock.h>
+
+/*
+ * This serializes "schedule()" and also protects
+ * the run-queue from deletions/modifications (but
+ * _adding_ to the beginning of the run-queue has
+ * a separate lock).
+ */
+extern rwlock_t tasklist_lock;
+extern spinlock_t scheduler_lock;
+
 extern void sched_init(void);
 extern void show_state(void);
 extern void trap_init(void);
@@ -127,7 +138,7 @@ struct files_struct {
 
 struct fs_struct {
 	int count;
-	unsigned short umask;
+	int umask;
 	struct inode * root, * pwd;
 };
 
@@ -163,13 +174,16 @@ struct mm_struct {
 		&init_mmap, &init_mmap, MUTEX }
 
 struct signal_struct {
-	int count;
-	struct sigaction action[32];
+	atomic_t		count;
+	struct sigaction	action[32];
+	spinlock_t		siglock;
 };
 
+
 #define INIT_SIGNALS { \
-		1, \
-		{ {0,}, } }
+		ATOMIC_INIT(1), \
+		{ {0,}, }, \
+		SPIN_LOCK_UNLOCKED }
 
 struct task_struct {
 /* these are hardcoded - don't touch */
@@ -245,11 +259,12 @@ struct task_struct {
 	struct mm_struct *mm;
 /* signal handlers */
 	struct signal_struct *sig;
-#ifdef __SMP__
+/* SMP state */
 	int processor;
 	int last_processor;
 	int lock_depth;		/* Lock depth. We can context switch in and out of holding a syscall kernel lock... */	
-#endif	
+	/* Spinlocks for various pieces or per-task state. */
+	spinlock_t sigmask_lock;	/* Protects signal and blocked */
 };
 
 /*
@@ -269,6 +284,7 @@ struct task_struct {
 
 #define PF_USEDFPU	0x00100000	/* Process used the FPU this quantum (SMP only) */
 #define PF_DTRACE	0x00200000	/* delayed trace (used on m68k) */
+#define PF_ONSIGSTK	0x00400000	/* works on signal stack (m68k only) */
 
 /*
  * Limit the stack by to some sane default: root can always
@@ -310,22 +326,16 @@ struct task_struct {
 /* files */	&init_files, \
 /* mm */	&init_mm, \
 /* signals */	&init_signals, \
+/* SMP */	0,0,0, \
 }
 
 extern struct   mm_struct init_mm;
 extern struct task_struct init_task;
 extern struct task_struct *task[NR_TASKS];
 extern struct task_struct *last_task_used_math;
-extern struct task_struct *current_set[NR_CPUS];
-/*
- *	On a single processor system this comes out as current_set[0] when cpp
- *	has finished with it, which gcc will optimise away.
- *      Ralf:  It won't.  On MIPS something like
- *              la      reg,current_set
- *              lw      reg,(reg)
- *      will be generated which is one cycle to much.  FIXME somewhen laaater.
- */
-#define current (current_set[smp_processor_id()])	/* Current on this processor */
+
+#include <asm/current.h>
+
 extern unsigned long volatile jiffies;
 extern unsigned long itimer_ticks;
 extern unsigned long itimer_next;
@@ -374,7 +384,7 @@ extern inline int suser(void)
 	return 0;
 }
 
-extern void copy_thread(int, unsigned long, unsigned long, struct task_struct *, struct pt_regs *);
+extern int  copy_thread(int, unsigned long, unsigned long, struct task_struct *, struct pt_regs *);
 extern void flush_thread(void);
 extern void exit_thread(void);
 
@@ -382,11 +392,9 @@ extern void exit_mm(struct task_struct *);
 extern void exit_fs(struct task_struct *);
 extern void exit_files(struct task_struct *);
 extern void exit_sighand(struct task_struct *);
-extern void release_thread(struct task_struct *);
 
 extern int do_execve(char *, char **, char **, struct pt_regs *);
 extern int do_fork(unsigned long, unsigned long, struct pt_regs *);
-
 
 /* See if we have a valid user level fd.
  * If it makes sense, return the file structure it references.
@@ -417,14 +425,15 @@ extern inline void __add_wait_queue(struct wait_queue ** p, struct wait_queue * 
 	wait->next = next;
 }
 
+extern spinlock_t waitqueue_lock;
+
 extern inline void add_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
 {
 	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	spin_lock_irqsave(&waitqueue_lock, flags);
 	__add_wait_queue(p, wait);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&waitqueue_lock, flags);
 }
 
 extern inline void __remove_wait_queue(struct wait_queue ** p, struct wait_queue * wait)
@@ -445,19 +454,18 @@ extern inline void remove_wait_queue(struct wait_queue ** p, struct wait_queue *
 {
 	unsigned long flags;
 
-	save_flags(flags);
-	cli();
+	spin_lock_irqsave(&waitqueue_lock, flags);
 	__remove_wait_queue(p, wait);
-	restore_flags(flags);
+	spin_unlock_irqrestore(&waitqueue_lock, flags); 
 }
 
-extern inline void select_wait(struct wait_queue ** wait_address, select_table * p)
+extern inline void poll_wait(struct wait_queue ** wait_address, poll_table * p)
 {
-	struct select_table_entry * entry;
+	struct poll_table_entry * entry;
 
 	if (!p || !wait_address)
 		return;
-	if (p->nr >= __MAX_SELECT_TABLE_ENTRIES)
+	if (p->nr >= __MAX_POLL_TABLE_ENTRIES)
 		return;
  	entry = p->entry + p->nr;
 	entry->wait_address = wait_address;
@@ -468,10 +476,10 @@ extern inline void select_wait(struct wait_queue ** wait_address, select_table *
 }
 
 #define REMOVE_LINKS(p) do { unsigned long flags; \
-	save_flags(flags) ; cli(); \
+	write_lock_irqsave(&tasklist_lock, flags); \
 	(p)->next_task->prev_task = (p)->prev_task; \
 	(p)->prev_task->next_task = (p)->next_task; \
-	restore_flags(flags); \
+	write_unlock_irqrestore(&tasklist_lock, flags); \
 	if ((p)->p_osptr) \
 		(p)->p_osptr->p_ysptr = (p)->p_ysptr; \
 	if ((p)->p_ysptr) \
@@ -481,12 +489,12 @@ extern inline void select_wait(struct wait_queue ** wait_address, select_table *
 	} while (0)
 
 #define SET_LINKS(p) do { unsigned long flags; \
-	save_flags(flags); cli(); \
+	write_lock_irqsave(&tasklist_lock, flags); \
 	(p)->next_task = &init_task; \
 	(p)->prev_task = init_task.prev_task; \
 	init_task.prev_task->next_task = (p); \
 	init_task.prev_task = (p); \
-	restore_flags(flags); \
+	write_unlock_irqrestore(&tasklist_lock, flags); \
 	(p)->p_ysptr = NULL; \
 	if (((p)->p_osptr = (p)->p_pptr->p_cptr) != NULL) \
 		(p)->p_osptr->p_ysptr = p; \

@@ -45,4 +45,4 @@ fault:		li		v0,-EFAULT
 
 		.section	__ex_table,"a"
 		PTR		1b,fault
-		.text
+		.previous

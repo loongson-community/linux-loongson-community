@@ -108,6 +108,25 @@ extern unsigned long search_exception_table(unsigned long);
 #define __put_user(x,ptr) \
   __put_user_nocheck((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
 
+/*
+ * The "xxx_ret" versions return constant specified in third argument, if
+ * something bad happens. These macros can be optimized for the
+ * case of just returning from the function xxx_ret is used.
+ */
+
+#define put_user_ret(x,ptr,ret) ({ \
+if (put_user(x,ptr)) return ret; })
+
+#define get_user_ret(x,ptr,ret) ({ \
+if (get_user(x,ptr)) return ret; })
+
+#define __put_user_ret(x,ptr,ret) ({ \
+if (__put_user(x,ptr)) return ret; })
+
+#define __get_user_ret(x,ptr,ret) ({ \
+if (__get_user(x,ptr)) return ret; })
+
+
 
 extern long __put_user_bad(void);
 
@@ -153,10 +172,11 @@ struct __large_struct { unsigned long buf[100]; };
 		".section .fixup,\"ax\"\n"			\
 		"3:	movl %3,%0\n"				\
 		"	jmp 2b\n"				\
+		".previous\n"					\
 		".section __ex_table,\"a\"\n"			\
 		"	.align 4\n"				\
 		"	.long 1b,3b\n"				\
-		".text"						\
+		".previous"					\
 		: "=r"(err)					\
 		: ltype (x), "m"(__m(addr)), "i"(-EFAULT), "0"(err))
 
@@ -200,10 +220,11 @@ do {									\
 		"3:	movl %3,%0\n"				\
 		"	xor"itype" %"rtype"1,%"rtype"1\n"	\
 		"	jmp 2b\n"				\
+		".previous\n"					\
 		".section __ex_table,\"a\"\n"			\
 		"	.align 4\n"				\
 		"	.long 1b,3b\n"				\
-		".text"						\
+		".previous"					\
 		: "=r"(err), ltype (x)				\
 		: "m"(__m(addr)), "i"(-EFAULT), "0"(err))
 
@@ -222,11 +243,12 @@ do {									\
 		".section .fixup,\"ax\"\n"				\
 		"3:	lea 0(%1,%0,4),%0\n"				\
 		"	jmp 2b\n"					\
+		".previous\n"						\
 		".section __ex_table,\"a\"\n"				\
 		"	.align 4\n"					\
 		"	.long 0b,3b\n"					\
 		"	.long 1b,2b\n"					\
-		".text"							\
+		".previous"						\
 		: "=c"(size)						\
 		: "r"(size & 3), "0"(size / 4), "D"(to), "S"(from)	\
 		: "di", "si", "memory")
@@ -242,10 +264,11 @@ do {								\
 			".section .fixup,\"ax\"\n"		\
 			"2:	shl $2,%0\n"			\
 			"	jmp 1b\n"			\
+			".previous\n"				\
 			".section __ex_table,\"a\"\n"		\
 			"	.align 4\n"			\
 			"	.long 0b,2b\n"			\
-			".text"					\
+			".previous"				\
 			: "=c"(size)				\
 			: "S"(from), "D"(to), "0"(size/4)	\
 			: "di", "si", "memory");		\
@@ -259,11 +282,12 @@ do {								\
 			"3:	shl $2,%0\n"			\
 			"4:	incl %0\n"			\
 			"	jmp 2b\n"			\
+			".previous\n"				\
 			".section __ex_table,\"a\"\n"		\
 			"	.align 4\n"			\
 			"	.long 0b,3b\n"			\
 			"	.long 1b,4b\n"			\
-			".text"					\
+			".previous"				\
 			: "=c"(size)				\
 			: "S"(from), "D"(to), "0"(size/4)	\
 			: "di", "si", "memory");		\
@@ -277,11 +301,12 @@ do {								\
 			"3:	shl $2,%0\n"			\
 			"4:	addl $2,%0\n"			\
 			"	jmp 2b\n"			\
+			".previous\n"				\
 			".section __ex_table,\"a\"\n"		\
 			"	.align 4\n"			\
 			"	.long 0b,3b\n"			\
 			"	.long 1b,4b\n"			\
-			".text"					\
+			".previous"				\
 			: "=c"(size)				\
 			: "S"(from), "D"(to), "0"(size/4)	\
 			: "di", "si", "memory");		\
@@ -297,12 +322,13 @@ do {								\
 			"5:	addl $2,%0\n"			\
 			"6:	incl %0\n"			\
 			"	jmp 3b\n"			\
+			".previous\n"				\
 			".section __ex_table,\"a\"\n"		\
 			"	.align 4\n"			\
 			"	.long 0b,4b\n"			\
 			"	.long 1b,5b\n"			\
 			"	.long 2b,6b\n"			\
-			".text"					\
+			".previous"				\
 			: "=c"(size)				\
 			: "S"(from), "D"(to), "0"(size/4)	\
 			: "di", "si", "memory");		\
@@ -342,6 +368,33 @@ __constant_copy_from_user(void *to, const void *from, unsigned long n)
 	return n;
 }
 
+static inline unsigned long
+__generic_copy_to_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__copy_user(to,from,n);
+	return n;
+}
+
+static inline unsigned long
+__constant_copy_to_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__constant_copy_user(to,from,n);
+	return n;
+}
+
+static inline unsigned long
+__generic_copy_from_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__copy_user(to,from,n);
+	return n;
+}
+
+static inline unsigned long
+__constant_copy_from_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__constant_copy_user(to,from,n);
+	return n;
+}
 
 #define copy_to_user(to,from,n)				\
 	(__builtin_constant_p(n) ?			\
@@ -353,12 +406,32 @@ __constant_copy_from_user(void *to, const void *from, unsigned long n)
 	 __constant_copy_from_user((to),(from),(n)) :	\
 	 __generic_copy_from_user((to),(from),(n)))
 
+#define copy_to_user_ret(to,from,n,retval) ({ \
+if (copy_to_user(to,from,n)) \
+	return retval; \
+})
+
+#define copy_from_user_ret(to,from,n,retval) ({ \
+if (copy_from_user(to,from,n)) \
+	return retval; \
+})
+
+#define __copy_to_user(to,from,n)			\
+	(__builtin_constant_p(n) ?			\
+	 __constant_copy_to_user_nocheck((to),(from),(n)) :	\
+	 __generic_copy_to_user_nocheck((to),(from),(n)))
+
+#define __copy_from_user(to,from,n)			\
+	(__builtin_constant_p(n) ?			\
+	 __constant_copy_from_user_nocheck((to),(from),(n)) :	\
+	 __generic_copy_from_user_nocheck((to),(from),(n)))
+
 
 /*
  * Zero Userspace
  */
 
-#define __clear_user(addr,size)						\
+#define __do_clear_user(addr,size)						\
 	__asm__ __volatile__(						\
 		"0:	rep; stosl\n"					\
 		"	movl %1,%0\n"					\
@@ -367,11 +440,12 @@ __constant_copy_from_user(void *to, const void *from, unsigned long n)
 		".section .fixup,\"ax\"\n"				\
 		"3:	lea 0(%1,%0,4),%0\n"				\
 		"	jmp 2b\n"					\
+		".previous\n"						\
 		".section __ex_table,\"a\"\n"				\
 		"	.align 4\n"					\
 		"	.long 0b,3b\n"					\
 		"	.long 1b,2b\n"					\
-		".text"							\
+		".previous"						\
 		: "=c"(size)						\
 		: "r"(size & 3), "0"(size / 4), "D"(addr), "a"(0)	\
 		: "di")
@@ -380,7 +454,14 @@ static inline unsigned long
 clear_user(void *to, unsigned long n)
 {
 	if (access_ok(VERIFY_WRITE, to, n))
-		__clear_user(to, n);
+		__do_clear_user(to, n);
+	return n;
+}
+
+static inline unsigned long
+__clear_user(void *to, unsigned long n)
+{
+	__do_clear_user(to, n);
 	return n;
 }
 
@@ -389,7 +470,7 @@ clear_user(void *to, unsigned long n)
  * Copy a null terminated string from userspace.
  */
 
-#define __strncpy_from_user(dst,src,count,res)				   \
+#define __do_strncpy_from_user(dst,src,count,res)			   \
 	__asm__ __volatile__(						   \
 		"	testl %1,%1\n"					   \
 		"	jz 2f\n"					   \
@@ -404,20 +485,29 @@ clear_user(void *to, unsigned long n)
 		".section .fixup,\"ax\"\n"				   \
 		"3:	movl %2,%0\n"					   \
 		"	jmp 2b\n"					   \
+		".previous\n"						   \
 		".section __ex_table,\"a\"\n"				   \
 		"	.align 4\n"					   \
 		"	.long 0b,3b\n"					   \
-		".text"							   \
+		".previous"						   \
 		: "=d"(res), "=c"(count)				   \
 		: "i"(-EFAULT), "0"(count), "1"(count), "S"(src), "D"(dst) \
 		: "si", "di", "ax", "memory")
+
+static inline long
+__strncpy_from_user(char *dst, const char *src, long count)
+{
+	long res;
+	__do_strncpy_from_user(dst, src, count, res);
+	return res;
+}
 
 static inline long
 strncpy_from_user(char *dst, const char *src, long count)
 {
 	long res = -EFAULT;
 	if (access_ok(VERIFY_READ, src, 1))
-		__strncpy_from_user(dst, src, count, res);
+		__do_strncpy_from_user(dst, src, count, res);
 	return res;
 }
 
@@ -438,10 +528,11 @@ extern inline long strlen_user(const char *s)
 		".section .fixup,\"ax\"\n"
 		"2:	xorl %0,%0\n"
 		"	jmp 1b\n"
+		".previous\n"
 		".section __ex_table,\"a\"\n"
 		"	.align 4\n"
 		"	.long 0b,2b\n"
-		".text"
+		".previous"
 		:"=c" (res), "=D" (s)
 		:"1" (s), "a" (0), "0" (-__addr_ok(s)));
 	return res & -__addr_ok(s);

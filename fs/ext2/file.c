@@ -38,7 +38,7 @@
 
 static long long ext2_file_lseek(struct inode *, struct file *, long long, int);
 static long ext2_file_write (struct inode *, struct file *, const char *, unsigned long);
-static void ext2_release_file (struct inode *, struct file *);
+static int ext2_release_file (struct inode *, struct file *);
 
 /*
  * We have mostly NULL's here: the current defaults are ok for
@@ -49,7 +49,7 @@ static struct file_operations ext2_file_operations = {
 	generic_file_read,	/* read */
 	ext2_file_write,	/* write */
 	NULL,			/* readdir - bad */
-	NULL,			/* select - default */
+	NULL,			/* poll - default */
 	ext2_ioctl,		/* ioctl */
 	generic_file_mmap,	/* mmap */
 	NULL,			/* no special open is needed */
@@ -120,7 +120,7 @@ static inline void remove_suid(struct inode *inode)
 
 	/* was any of the uid bits set? */
 	mode &= inode->i_mode;
-	if (mode && suser()) {
+	if (mode && !suser()) {
 		inode->i_mode &= ~mode;
 		inode->i_dirt = 1;
 	}
@@ -260,8 +260,9 @@ static long ext2_file_write (struct inode * inode, struct file * filp,
  * from ext2_open: open gets called at every open, but release
  * gets called only when /all/ the files are closed.
  */
-static void ext2_release_file (struct inode * inode, struct file * filp)
+static int ext2_release_file (struct inode * inode, struct file * filp)
 {
 	if (filp->f_mode & 2)
 		ext2_discard_prealloc (inode);
+	return 0;
 }

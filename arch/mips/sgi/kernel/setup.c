@@ -18,6 +18,10 @@
 
 extern int serial_console; /* in console.c, of course */
 
+extern void sgi_machine_restart(char *command);
+extern void sgi_machine_halt(void);
+extern void sgi_machine_power_off(void);
+
 struct feature sgi_feature = {
 };
 
@@ -47,7 +51,10 @@ void sgi_setup(void)
 
 	irq_setup = sgi_irq_setup;
 	feature = &sgi_feature;
-	hard_reset_now = acn_hard_reset_now;
+
+	_machine_restart = sgi_machine_restart;
+	_machine_halt = sgi_machine_halt;
+	_machine_power_off = sgi_machine_power_off;
 
 	/* register_console(sgi_print); */
 

@@ -4,7 +4,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -21,9 +20,10 @@
 #include <linux/fcntl.h>
 #include <linux/acct.h>
 #include <linux/tty.h>
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-#include <linux/apm_bios.h>
-#endif
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -31,7 +31,29 @@
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes
  */
+
 int C_A_D = 1;
+
+
+/*
+ *	Notifier list for kernel code which wants to be called
+ *	at shutdown. This is used to stop any idling DMA operations
+ *	and the like. 
+ */
+
+struct notifier_block *reboot_notifier_list = NULL;
+
+int register_reboot_notifier(struct notifier_block * nb)
+{
+	return notifier_chain_register(&reboot_notifier_list, nb);
+}
+
+int unregister_reboot_notifier(struct notifier_block * nb)
+{
+	return notifier_chain_unregister(&reboot_notifier_list, nb);
+}
+
+
 
 extern void adjust_clock(void);
 
@@ -65,13 +87,14 @@ static int proc_sel(struct task_struct *p, int which, int who)
 asmlinkage int sys_setpriority(int which, int who, int niceval)
 {
 	struct task_struct *p;
-	int error = ESRCH;
 	unsigned int priority;
+	int error;
 
 	if (which > 2 || which < 0)
 		return -EINVAL;
 
 	/* normalize: avoid signed division (rounding problems) */
+	error = ESRCH;
 	priority = niceval;
 	if (niceval < 0)
 		priority = -niceval;
@@ -85,6 +108,7 @@ asmlinkage int sys_setpriority(int which, int who, int niceval)
 			priority = 1;
 	}
 
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (!proc_sel(p, which, who))
 			continue;
@@ -100,6 +124,8 @@ asmlinkage int sys_setpriority(int which, int who, int niceval)
 		else
 			p->priority = priority;
 	}
+	read_unlock(&tasklist_lock);
+
 	return -error;
 }
 
@@ -116,12 +142,14 @@ asmlinkage int sys_getpriority(int which, int who)
 	if (which > 2 || which < 0)
 		return -EINVAL;
 
+	read_lock(&tasklist_lock);
 	for_each_task (p) {
 		if (!proc_sel(p, which, who))
 			continue;
 		if (p->priority > max_prio)
 			max_prio = p->priority;
 	}
+	read_unlock(&tasklist_lock);
 
 	/* scale the priority from timeslice to 0..40 */
 	if (max_prio > 0)
@@ -169,7 +197,7 @@ asmlinkage int sys_prof(void)
 
 #endif
 
-extern asmlinkage sys_kill(int, int);
+extern asmlinkage int sys_kill(int, int);
 
 /*
  * Reboot system call: for obvious reasons only root may call it,
@@ -178,29 +206,70 @@ extern asmlinkage sys_kill(int, int);
  * You can also set the meaning of the ctrl-alt-del-key here.
  *
  * reboot doesn't sync: do that yourself before calling this.
+ *
  */
-asmlinkage int sys_reboot(int magic, int magic_too, int flag)
+asmlinkage int sys_reboot(int magic1, int magic2, int cmd, void * arg)
 {
+	char buffer[256];
+
+	/* We only trust the superuser with rebooting the system. */
 	if (!suser())
 		return -EPERM;
-	if (magic != 0xfee1dead || magic_too != 672274793)
+
+	/* For safety, we require "magic" arguments. */
+	if (magic1 != LINUX_REBOOT_MAGIC1 ||
+	    (magic2 != LINUX_REBOOT_MAGIC2 && magic2 != LINUX_REBOOT_MAGIC2A))
 		return -EINVAL;
-	if (flag == 0x01234567)
-		hard_reset_now();
-	else if (flag == 0x89ABCDEF)
+
+	lock_kernel();
+	switch (cmd) {
+	case LINUX_REBOOT_CMD_RESTART:
+		notifier_call_chain(&reboot_notifier_list, SYS_RESTART, NULL);
+		printk(KERN_EMERG "Restarting system.\n");
+		machine_restart(NULL);
+		break;
+
+	case LINUX_REBOOT_CMD_CAD_ON:
 		C_A_D = 1;
-	else if (!flag)
+		break;
+
+	case LINUX_REBOOT_CMD_CAD_OFF:
 		C_A_D = 0;
-	else if (flag == 0xCDEF0123) {
-		printk(KERN_EMERG "System halted\n");
-		sys_kill(-1, SIGKILL);
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-		apm_set_power_state(APM_STATE_OFF);
-#endif
+		break;
+
+	case LINUX_REBOOT_CMD_HALT:
+		notifier_call_chain(&reboot_notifier_list, SYS_HALT, NULL);
+		printk(KERN_EMERG "System halted.\n");
+		machine_halt();
 		do_exit(0);
-	} else
+		break;
+
+	case LINUX_REBOOT_CMD_POWER_OFF:
+		notifier_call_chain(&reboot_notifier_list, SYS_POWER_OFF, NULL);
+		printk(KERN_EMERG "Power down.\n");
+		machine_power_off();
+		do_exit(0);
+		break;
+
+	case LINUX_REBOOT_CMD_RESTART2:
+		if (strncpy_from_user(&buffer[0], (char *)arg, sizeof(buffer) - 1) < 0) {
+			unlock_kernel();
+			return -EFAULT;
+		}
+		buffer[sizeof(buffer) - 1] = '\0';
+
+		notifier_call_chain(&reboot_notifier_list, SYS_RESTART, buffer);
+		printk(KERN_EMERG "Restarting system with command '%s'.\n", buffer);
+		machine_restart(buffer);
+		break;
+
+	default:
+		unlock_kernel();
 		return -EINVAL;
-	return (0);
+		break;
+	};
+	unlock_kernel();
+	return 0;
 }
 
 /*
@@ -210,9 +279,10 @@ asmlinkage int sys_reboot(int magic, int magic_too, int flag)
  */
 void ctrl_alt_del(void)
 {
-	if (C_A_D)
-		hard_reset_now();
-	else
+	if (C_A_D) {
+		notifier_call_chain(&reboot_notifier_list, SYS_RESTART, NULL);
+		machine_restart(NULL);
+	} else
 		kill_proc(1, SIGINT, 1);
 }
 	
@@ -231,6 +301,9 @@ void ctrl_alt_del(void)
  * The general idea is that a program which uses just setregid() will be
  * 100% compatible with BSD.  A program which uses just setgid() will be
  * 100% compatible with POSIX w/ Saved ID's. 
+ *
+ * SMP: There are not races, the gid's are checked only by filesystem
+ *      operations (as far as semantic preservation is concerned).
  */
 asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
 {
@@ -243,7 +316,7 @@ asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
 		    suser())
 			current->gid = rgid;
 		else
-			return(-EPERM);
+			return -EPERM;
 	}
 	if (egid != (gid_t) -1) {
 		if ((old_rgid == egid) ||
@@ -253,7 +326,7 @@ asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
 			current->fsgid = current->egid = egid;
 		else {
 			current->gid = old_rgid;
-			return(-EPERM);
+			return -EPERM;
 		}
 	}
 	if (rgid != (gid_t) -1 ||
@@ -267,6 +340,8 @@ asmlinkage int sys_setregid(gid_t rgid, gid_t egid)
 
 /*
  * setgid() is implemented like SysV w/ SAVED_IDS 
+ *
+ * SMP: Same implicit races as above.
  */
 asmlinkage int sys_setgid(gid_t gid)
 {
@@ -278,6 +353,7 @@ asmlinkage int sys_setgid(gid_t gid)
 		current->egid = current->fsgid = gid;
 	else
 		return -EPERM;
+
 	if (current->egid != old_egid)
 		current->dumpable = 0;
 	return 0;
@@ -329,66 +405,70 @@ int acct_process(long exitcode)
 
 asmlinkage int sys_acct(const char *name)
 {
-   struct inode *inode = (struct inode *)0;
-   char *tmp;
-   int error;
+	struct inode *inode = (struct inode *)0;
+	char *tmp;
+	int error = -EPERM;
 
-   if (!suser())
-      return -EPERM;
+	lock_kernel();
+	if (!suser())
+		goto out;
 
-   if (name == (char *)0) {
-      if (acct_active) {
-         if (acct_file.f_op->release)
-            acct_file.f_op->release(acct_file.f_inode, &acct_file);
+	if (name == (char *)0) {
+		if (acct_active) {
+			if (acct_file.f_op->release)
+				acct_file.f_op->release(acct_file.f_inode, &acct_file);
 
-         if (acct_file.f_inode != (struct inode *) 0)
-            iput(acct_file.f_inode);
+			if (acct_file.f_inode != (struct inode *) 0)
+				iput(acct_file.f_inode);
 
-         acct_active = 0;
-      }
-      return 0;
-   } else {
-      if (!acct_active) {
+			acct_active = 0;
+		}
+		error = 0;
+	} else {
+		error = -EBUSY;
+		if (!acct_active) {
+			if ((error = getname(name, &tmp)) != 0)
+				goto out;
 
-         if ((error = getname(name, &tmp)) != 0)
-            return (error);
+			error = open_namei(tmp, O_RDWR, 0600, &inode, 0);
+			putname(tmp);
+			if (error)
+				goto out;
 
-         error = open_namei(tmp, O_RDWR, 0600, &inode, 0);
-         putname(tmp);
+			error = -EACCES;
+			if (!S_ISREG(inode->i_mode)) {
+				iput(inode);
+				goto out;
+			}
 
-         if (error)
-            return (error);
+			error = -EIO;
+			if (!inode->i_op || !inode->i_op->default_file_ops || 
+			    !inode->i_op->default_file_ops->write) {
+				iput(inode);
+				goto out;
+			}
 
-         if (!S_ISREG(inode->i_mode)) {
-            iput(inode);
-            return -EACCES;
-         }
+			acct_file.f_mode = 3;
+			acct_file.f_flags = 0;
+			acct_file.f_count = 1;
+			acct_file.f_inode = inode;
+			acct_file.f_pos = inode->i_size;
+			acct_file.f_reada = 0;
+			acct_file.f_op = inode->i_op->default_file_ops;
 
-         if (!inode->i_op || !inode->i_op->default_file_ops || 
-             !inode->i_op->default_file_ops->write) {
-            iput(inode);
-            return -EIO;
-         }
+			if(acct_file.f_op->open)
+				if(acct_file.f_op->open(acct_file.f_inode, &acct_file)) {
+					iput(inode);
+					goto out;
+				}
 
-         acct_file.f_mode = 3;
-         acct_file.f_flags = 0;
-         acct_file.f_count = 1;
-         acct_file.f_inode = inode;
-         acct_file.f_pos = inode->i_size;
-         acct_file.f_reada = 0;
-         acct_file.f_op = inode->i_op->default_file_ops;
-
-         if (acct_file.f_op->open)
-            if (acct_file.f_op->open(acct_file.f_inode, &acct_file)) {
-               iput(inode);
-               return -EIO;
-            }
-
-         acct_active = 1;
-         return 0;
-      } else
-         return -EBUSY;
-   }
+			acct_active = 1;
+			error = 0;
+		}
+	}
+out:
+	unlock_kernel();
+	return error;
 }
 
 #ifndef __alpha__
@@ -443,16 +523,18 @@ asmlinkage int sys_old_syscall(void)
  */
 asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 {
-	int old_ruid = current->uid;
-	int old_euid = current->euid;
+	int old_ruid;
+	int old_euid;
 
+	old_ruid = current->uid;
+	old_euid = current->euid;
 	if (ruid != (uid_t) -1) {
 		if ((old_ruid == ruid) || 
 		    (current->euid==ruid) ||
 		    suser())
 			current->uid = ruid;
 		else
-			return(-EPERM);
+			return -EPERM;
 	}
 	if (euid != (uid_t) -1) {
 		if ((old_ruid == euid) ||
@@ -462,7 +544,7 @@ asmlinkage int sys_setreuid(uid_t ruid, uid_t euid)
 			current->fsuid = current->euid = euid;
 		else {
 			current->uid = old_ruid;
-			return(-EPERM);
+			return -EPERM;
 		}
 	}
 	if (ruid != (uid_t) -1 ||
@@ -495,9 +577,10 @@ asmlinkage int sys_setuid(uid_t uid)
 		current->fsuid = current->euid = uid;
 	else
 		return -EPERM;
+
 	if (current->euid != old_euid)
 		current->dumpable = 0;
-	return(0);
+	return 0;
 }
 
 
@@ -538,6 +621,7 @@ asmlinkage int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 	if (!(retval = put_user(current->uid, ruid)) &&
 	    !(retval = put_user(current->euid, euid)))
 		retval = put_user(current->suid, suid);
+
 	return retval;
 }
 
@@ -550,13 +634,15 @@ asmlinkage int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
  */
 asmlinkage int sys_setfsuid(uid_t uid)
 {
-	int old_fsuid = current->fsuid;
+	int old_fsuid;
 
+	old_fsuid = current->fsuid;
 	if (uid == current->uid || uid == current->euid ||
 	    uid == current->suid || uid == current->fsuid || suser())
 		current->fsuid = uid;
 	if (current->fsuid != old_fsuid)
 		current->dumpable = 0;
+
 	return old_fsuid;
 }
 
@@ -565,29 +651,35 @@ asmlinkage int sys_setfsuid(uid_t uid)
  */
 asmlinkage int sys_setfsgid(gid_t gid)
 {
-	int old_fsgid = current->fsgid;
+	int old_fsgid;
 
+	old_fsgid = current->fsgid;
 	if (gid == current->gid || gid == current->egid ||
 	    gid == current->sgid || gid == current->fsgid || suser())
 		current->fsgid = gid;
 	if (current->fsgid != old_fsgid)
 		current->dumpable = 0;
+
 	return old_fsgid;
 }
 
 asmlinkage long sys_times(struct tms * tbuf)
 {
-	int error;
-	if (tbuf) {
-		error = put_user(current->utime,&tbuf->tms_utime);
-		if (!error)
-			error = put_user(current->stime,&tbuf->tms_stime);
-		if (!error)
-			error = put_user(current->cutime,&tbuf->tms_cutime);
-		if (!error)
-			error =	put_user(current->cstime,&tbuf->tms_cstime);
-		if (error)
-			return error;	
+	/*
+	 *	In the SMP world we might just be unlucky and have one of
+	 *	the times increment as we use it. Since the value is an
+	 *	atomically safe type this is just fine. Conceptually its
+	 *	as if the syscall took an instant longer to occur.
+	 */
+	if (tbuf) 
+	{
+		/* ?? use copy_to_user() */
+		if(!access_ok(VERIFY_READ, tbuf, sizeof(struct tms)) ||
+		   __put_user(current->utime,&tbuf->tms_utime)||
+		   __put_user(current->stime,&tbuf->tms_stime) ||
+		   __put_user(current->cutime,&tbuf->tms_cutime) ||
+		   __put_user(current->cstime,&tbuf->tms_cstime))
+			return -EFAULT;
 	}
 	return jiffies;
 }
@@ -604,9 +696,11 @@ asmlinkage long sys_times(struct tms * tbuf)
  * Auch. Had to add the 'did_exec' flag to conform completely to POSIX.
  * LBT 04.03.94
  */
+
 asmlinkage int sys_setpgid(pid_t pid, pid_t pgid)
 {
 	struct task_struct * p;
+	int err = -EINVAL;
 
 	if (!pid)
 		pid = current->pid;
@@ -614,82 +708,123 @@ asmlinkage int sys_setpgid(pid_t pid, pid_t pgid)
 		pgid = pid;
 	if (pgid < 0)
 		return -EINVAL;
+
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
-		if (p->pid == pid)
+		if (p->pid == pid) {
+			/* NOTE: I haven't dropped tasklist_lock, this is
+			 *       on purpose. -DaveM
+			 */
 			goto found_task;
+		}
 	}
+	read_unlock(&tasklist_lock);
 	return -ESRCH;
 
 found_task:
+	/* From this point forward we keep holding onto the tasklist lock
+	 * so that our parent does not change from under us. -DaveM
+	 */
+	err = -ESRCH;
 	if (p->p_pptr == current || p->p_opptr == current) {
+		err = -EPERM;
 		if (p->session != current->session)
-			return -EPERM;
+			goto out;
+		err = -EACCES;
 		if (p->did_exec)
-			return -EACCES;
+			goto out;
 	} else if (p != current)
-		return -ESRCH;
+		goto out;
+	err = -EPERM;
 	if (p->leader)
-		return -EPERM;
+		goto out;
 	if (pgid != pid) {
 		struct task_struct * tmp;
 		for_each_task (tmp) {
 			if (tmp->pgrp == pgid &&
-			 tmp->session == current->session)
+			    tmp->session == current->session)
 				goto ok_pgid;
 		}
-		return -EPERM;
+		goto out;
 	}
 
 ok_pgid:
 	p->pgrp = pgid;
-	return 0;
+	err = 0;
+out:
+	/* All paths lead to here, thus we are safe. -DaveM */
+	read_unlock(&tasklist_lock);
+	return err;
 }
 
 asmlinkage int sys_getpgid(pid_t pid)
 {
-	struct task_struct * p;
-
-	if (!pid)
+	if (!pid) {
 		return current->pgrp;
-	for_each_task(p) {
-		if (p->pid == pid)
-			return p->pgrp;
+	} else {
+		struct task_struct *p;
+		int ret = -ESRCH;
+
+		read_lock(&tasklist_lock);
+		for_each_task(p) {
+			if (p->pid == pid) {
+				ret = p->pgrp;
+				break;
+			}
+		}
+		read_unlock(&tasklist_lock);
+		return ret;
 	}
-	return -ESRCH;
 }
 
 asmlinkage int sys_getpgrp(void)
 {
+	/* SMP - assuming writes are word atomic this is fine */
 	return current->pgrp;
 }
 
 asmlinkage int sys_getsid(pid_t pid)
 {
 	struct task_struct * p;
+	int ret;
 
-	if (!pid)
-		return current->session;
-	for_each_task(p) {
-		if (p->pid == pid)
-			return p->session;
+	/* SMP: The 'self' case requires no lock */
+	if (!pid) {
+		ret = current->session;
+	} else {
+		ret = -ESRCH;
+
+		read_lock(&tasklist_lock);
+		for_each_task(p) {
+			if (p->pid == pid) {
+				ret = p->session;
+				break;
+			}
+		}
+		read_unlock(&tasklist_lock);
 	}
-	return -ESRCH;
+	return ret;
 }
 
 asmlinkage int sys_setsid(void)
 {
 	struct task_struct * p;
+	int err = -EPERM;
 
+	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (p->pgrp == current->pid)
-		        return -EPERM;
+		        goto out;
 	}
 
 	current->leader = 1;
 	current->session = current->pgrp = current->pid;
 	current->tty = NULL;
 	current->tty_old_pgrp = 0;
-	return current->pgrp;
+	err = current->pgrp;
+out:
+	read_unlock(&tasklist_lock);
+	return err;
 }
 
 /*
@@ -698,6 +833,11 @@ asmlinkage int sys_setsid(void)
 asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
 {
 	int i;
+	
+	/*
+	 *	SMP: Nobody else can change our grouplist. Thus we are
+	 *	safe.
+	 */
 
 	if (gidsetsize < 0)
 		return -EINVAL;
@@ -711,21 +851,21 @@ asmlinkage int sys_getgroups(int gidsetsize, gid_t *grouplist)
 	return i;
 }
 
+/*
+ *	SMP: Our groups are not shared. We can copy to/from them safely
+ *	without another task interfering.
+ */
+ 
 asmlinkage int sys_setgroups(int gidsetsize, gid_t *grouplist)
 {
-	int	err;
-
 	if (!suser())
 		return -EPERM;
 	if ((unsigned) gidsetsize > NGROUPS)
 		return -EINVAL;
-	err = copy_from_user(current->groups, grouplist, gidsetsize * sizeof(gid_t));
-	if (err) {
-		gidsetsize = 0;
-		err = -EFAULT;
-	} 
+	if(copy_from_user(current->groups, grouplist, gidsetsize * sizeof(gid_t)))
+		return -EFAULT;
 	current->ngroups = gidsetsize;
-	return err;
+	return 0;
 }
 
 int in_group_p(gid_t grp)
@@ -762,53 +902,49 @@ asmlinkage int sys_newuname(struct new_utsname * name)
  * Move these to arch dependent dir since they are for
  * backward compatibility only?
  */
+
+#ifndef __sparc__
 asmlinkage int sys_uname(struct old_utsname * name)
 {
-	int error = -EFAULT;;
 	if (name && !copy_to_user(name, &system_utsname, sizeof (*name)))
-		error = 0;
-	return error;
+		return 0;
+	return -EFAULT;
 }
+#endif
 
 asmlinkage int sys_olduname(struct oldold_utsname * name)
 {
 	int error;
+
 	if (!name)
 		return -EFAULT;
-	error = copy_to_user(&name->sysname,&system_utsname.sysname,__OLD_UTS_LEN);
-	if (!error)
-		error = put_user(0,name->sysname+__OLD_UTS_LEN);
-	if (!error)
-		error = copy_to_user(&name->nodename,&system_utsname.nodename,__OLD_UTS_LEN);
-	if (!error)
-		error = put_user(0,name->nodename+__OLD_UTS_LEN);
-	if (!error)
-		error = copy_to_user(&name->release,&system_utsname.release,__OLD_UTS_LEN);
-	if (!error)
-		error = put_user(0,name->release+__OLD_UTS_LEN);
-	if (!error)
-		error = copy_to_user(&name->version,&system_utsname.version,__OLD_UTS_LEN);
-	if (!error)
-		error = put_user(0,name->version+__OLD_UTS_LEN);
-	if (!error)
-		error = copy_to_user(&name->machine,&system_utsname.machine,__OLD_UTS_LEN);
-	if (!error)
-		error = put_user(0,name->machine+__OLD_UTS_LEN);
-	return error ? -EFAULT : 0;
+	if (!access_ok(VERIFY_WRITE,name,sizeof(struct oldold_utsname)))
+		return -EFAULT;
+  
+	error = __copy_to_user(&name->sysname,&system_utsname.sysname,__OLD_UTS_LEN);
+	error -= __put_user(0,name->sysname+__OLD_UTS_LEN);
+	error -= __copy_to_user(&name->nodename,&system_utsname.nodename,__OLD_UTS_LEN);
+	error -= __put_user(0,name->nodename+__OLD_UTS_LEN);
+	error -= __copy_to_user(&name->release,&system_utsname.release,__OLD_UTS_LEN);
+	error -= __put_user(0,name->release+__OLD_UTS_LEN);
+	error -= __copy_to_user(&name->version,&system_utsname.version,__OLD_UTS_LEN);
+	error -= __put_user(0,name->version+__OLD_UTS_LEN);
+	error -= __copy_to_user(&name->machine,&system_utsname.machine,__OLD_UTS_LEN);
+	error = __put_user(0,name->machine+__OLD_UTS_LEN);
+	error = error ? -EFAULT : 0;
+
+	return error;
 }
 
 #endif
 
 asmlinkage int sys_sethostname(char *name, int len)
 {
-	int error;
-
 	if (!suser())
 		return -EPERM;
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
-	error = copy_from_user(system_utsname.nodename, name, len);
-	if (error)
+	if(copy_from_user(system_utsname.nodename, name, len))
 		return -EFAULT;
 	system_utsname.nodename[len] = 0;
 	return 0;
@@ -820,7 +956,7 @@ asmlinkage int sys_gethostname(char *name, int len)
 
 	if (len < 0)
 		return -EINVAL;
-	i = 1+strlen(system_utsname.nodename);
+	i = 1 + strlen(system_utsname.nodename);
 	if (i > len)
 		i = len;
 	return copy_to_user(name, system_utsname.nodename, i) ? -EFAULT : 0;
@@ -832,14 +968,11 @@ asmlinkage int sys_gethostname(char *name, int len)
  */
 asmlinkage int sys_setdomainname(char *name, int len)
 {
-	int error;
-	
 	if (!suser())
 		return -EPERM;
 	if (len < 0 || len > __NEW_UTS_LEN)
 		return -EINVAL;
-	error = copy_from_user(system_utsname.domainname, name, len);
-	if (error)
+	if(copy_from_user(system_utsname.domainname, name, len))
 		return -EFAULT;
 	system_utsname.domainname[len] = 0;
 	return 0;
@@ -849,20 +982,19 @@ asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim)
 {
 	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
-	return copy_to_user(rlim, current->rlim + resource, sizeof(*rlim)) 
-			? -EFAULT : 0 ;
+	else
+		return copy_to_user(rlim, current->rlim + resource, sizeof(*rlim))
+			? -EFAULT : 0;
 }
 
 asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim)
 {
 	struct rlimit new_rlim, *old_rlim;
-	int err;
 
 	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
-	err = copy_from_user(&new_rlim, rlim, sizeof(*rlim));
-	if (err)
-		return -EFAULT;	
+	if(copy_from_user(&new_rlim, rlim, sizeof(*rlim)))
+		return -EFAULT;
 	old_rlim = current->rlim + resource;
 	if (((new_rlim.rlim_cur > old_rlim->rlim_max) ||
 	     (new_rlim.rlim_max > old_rlim->rlim_max)) &&
@@ -883,6 +1015,13 @@ asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim)
  * make sense to do this.  It will make moving the rest of the information
  * a lot simpler!  (Which we're not doing right now because we're not
  * measuring them yet).
+ *
+ * This is SMP safe.  Either we are called from sys_getrusage on ourselves
+ * below (we know we aren't going to exit/disappear and only we change our
+ * rusage counters), or we are called from wait4() on a process which is
+ * either stopped or zombied.  In the zombied case the task won't get
+ * reaped till shortly after the call to getrusage(), in both cases the
+ * task being examined is in a frozen state so the counters won't change.
  */
 int getrusage(struct task_struct *p, int who, struct rusage *ru)
 {
@@ -930,8 +1069,6 @@ asmlinkage int sys_getrusage(int who, struct rusage *ru)
 
 asmlinkage int sys_umask(int mask)
 {
-	int old = current->fs->umask;
-
-	current->fs->umask = mask & S_IRWXUGO;
-	return (old);
+	mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
+	return mask;
 }

@@ -1,4 +1,4 @@
-/* $Id: loadmmu.c,v 1.36 1996/10/27 08:36:46 davem Exp $
+/* $Id: loadmmu.c,v 1.46 1997/04/10 05:12:51 davem Exp $
  * loadmmu.c:  This code loads up all the mm function pointers once the
  *             machine type has been determined.  It also sets the static
  *             mmu values such as PAGE_NONE, etc.
@@ -8,12 +8,17 @@
 
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/init.h>
+#include <linux/config.h>
 
 #include <asm/system.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
+#include <asm/a.out.h>
+#include <asm/mmu_context.h>
 
 unsigned long page_offset = 0xf0000000;
+unsigned long stack_top = 0xf0000000 - PAGE_SIZE;
 
 struct ctx_list *ctx_list_pool;
 struct ctx_list ctx_free;
@@ -26,8 +31,8 @@ void (*free_task_struct)(struct task_struct *tsk);
 
 void (*quick_kernel_fault)(unsigned long);
 
-void (*mmu_exit_hook)(void);
-void (*mmu_flush_hook)(void);
+void (*init_new_context)(struct mm_struct *mm);
+void (*destroy_context)(struct mm_struct *mm);
 
 /* translate between physical and virtual addresses */
 unsigned long (*mmu_v2p)(unsigned long);
@@ -36,9 +41,9 @@ unsigned long (*mmu_p2v)(unsigned long);
 char *(*mmu_lockarea)(char *, unsigned long);
 void  (*mmu_unlockarea)(char *, unsigned long);
 
-char *(*mmu_get_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
+__u32 (*mmu_get_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
 void  (*mmu_get_scsi_sgl)(struct mmu_sglist *, int, struct linux_sbus *sbus);
-void  (*mmu_release_scsi_one)(char *, unsigned long, struct linux_sbus *sbus);
+void  (*mmu_release_scsi_one)(__u32, unsigned long, struct linux_sbus *sbus);
 void  (*mmu_release_scsi_sgl)(struct mmu_sglist *, int, struct linux_sbus *sbus);
 
 void  (*mmu_map_dma_area)(unsigned long addr, int len);
@@ -58,6 +63,7 @@ void (*local_flush_tlb_range)(struct mm_struct *, unsigned long start,
 			      unsigned long end);
 void (*local_flush_tlb_page)(struct vm_area_struct *, unsigned long address);
 void (*local_flush_page_to_ram)(unsigned long address);
+void (*local_flush_sig_insns)(struct mm_struct *mm, unsigned long insn_addr);
 #endif
 
 void (*flush_cache_all)(void);
@@ -73,6 +79,8 @@ void (*flush_tlb_range)(struct mm_struct *, unsigned long start,
 void (*flush_tlb_page)(struct vm_area_struct *, unsigned long address);
 
 void (*flush_page_to_ram)(unsigned long page);
+
+void (*flush_sig_insns)(struct mm_struct *mm, unsigned long insn_addr);
 
 void (*set_pte)(pte_t *pteptr, pte_t pteval);
 
@@ -145,8 +153,7 @@ char *(*mmu_info)(void);
 extern void ld_mmu_sun4c(void);
 extern void ld_mmu_srmmu(void);
 
-void
-load_mmu(void)
+__initfunc(void load_mmu(void))
 {
 	switch(sparc_cpu_model) {
 	case sun4c:
@@ -156,6 +163,11 @@ load_mmu(void)
 	case sun4d:
 		ld_mmu_srmmu();
 		break;
+	case ap1000:
+#if CONFIG_AP1000
+		ld_mmu_apmmu();
+		break;
+#endif
 	default:
 		printk("load_mmu:MMU support not available for this architecture\n");
 		printk("load_mmu:sparc_cpu_model = %d\n", (int) sparc_cpu_model);

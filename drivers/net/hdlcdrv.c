@@ -28,14 +28,16 @@
  *
  *  History:
  *   0.1  21.09.96  Started
- *        18.10.96  Changed to new user space access routines (copy_{to,from}_user)
+ *        18.10.96  Changed to new user space access routines 
+ *                  (copy_{to,from}_user)
+ *   0.2  21.11.96  various small changes
+ *   0.3  03.03.97  fixed (hopefully) IP not working with ax.25 as a module
  */
 
 /*****************************************************************************/
 
-#include <linux/module.h>
-
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/types.h>
 #include <linux/net.h>
 #include <linux/in.h>
@@ -43,18 +45,77 @@
 #include <linux/malloc.h>
 #include <linux/errno.h>
 #include <asm/bitops.h>
-#include <asm/uaccess.h>
+
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/hdlcdrv.h>
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
+/* prototypes for ax25_encapsulate and ax25_rebuild_header */
+#include <net/ax25.h> 
+#endif /* CONFIG_AX25 || CONFIG_AX25_MODULE */
 
 /* make genksyms happy */
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <linux/net_alias.h>
+
+/* --------------------------------------------------------------------- */
+
+/*
+ * currently this module is supposed to support both module styles, i.e.
+ * the old one present up to about 2.1.9, and the new one functioning
+ * starting with 2.1.21. The reason is I have a kit allowing to compile
+ * this module also under 2.0.x which was requested by several people.
+ * This will go in 2.2
+ */
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= 0x20100
+#include <asm/uaccess.h>
+#else
+#include <asm/segment.h>
+#include <linux/mm.h>
+
+#undef put_user
+#undef get_user
+
+#define put_user(x,ptr) ({ __put_user((unsigned long)(x),(ptr),sizeof(*(ptr))); 0; })
+#define get_user(x,ptr) ({ x = ((__typeof__(*(ptr)))__get_user((ptr),sizeof(*(ptr)))); 0; })
+
+extern inline int copy_from_user(void *to, const void *from, unsigned long n)
+{
+        int i = verify_area(VERIFY_READ, from, n);
+        if (i)
+                return i;
+        memcpy_fromfs(to, from, n);
+        return 0;
+}
+
+extern inline int copy_to_user(void *to, const void *from, unsigned long n)
+{
+        int i = verify_area(VERIFY_WRITE, to, n);
+        if (i)
+                return i;
+        memcpy_tofs(to, from, n);
+        return 0;
+}
+#endif
+
+/* --------------------------------------------------------------------- */
+
+#if LINUX_VERSION_CODE < 0x20115
+extern __inline__ void dev_init_buffers(struct device *dev)
+{
+        int i;
+        for(i=0;i<DEV_NUMBUFFS;i++)
+        {
+                skb_queue_head_init(&dev->buffs[i]);
+        }
+}
+#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -168,7 +229,7 @@ static int calc_crc_ccitt(const unsigned char *buf, int cnt)
 
 /* ---------------------------------------------------------------------- */
 
-#define tenms_to_2flags(s,tenms) ((tenms * s->ops->bitrate) / 100 / 16)
+#define tenms_to_2flags(s,tenms) ((tenms * s->par.bitrate) / 100 / 16)
 
 /* ---------------------------------------------------------------------- */
 /*
@@ -216,7 +277,6 @@ static void hdlc_rx_flag(struct device *dev, struct hdlcdrv_state *s)
 	memcpy(cp, s->hdlcrx.buffer, pkt_len - 1);
 	skb->protocol = htons(ETH_P_AX25);
 	skb->mac.raw = skb->data;
-	IS_SKB(skb);
 	netif_rx(skb);
 	s->stats.rx_packets++;
 }
@@ -516,7 +576,11 @@ static int hdlcdrv_set_mac_address(struct device *dev, void *addr)
 
 /* --------------------------------------------------------------------- */
 
+#if LINUX_VERSION_CODE >= 0x20119
+static struct net_device_stats *hdlcdrv_get_stats(struct device *dev)
+#else
 static struct enet_statistics *hdlcdrv_get_stats(struct device *dev)
+#endif
 {
 	struct hdlcdrv_state *sm;
 
@@ -623,8 +687,8 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 	s = (struct hdlcdrv_state *)dev->priv;
 
 	if (cmd != SIOCDEVPRIVATE) {
-		if (s->ops->ioctl)
-			return s->ops->ioctl(dev, ifr, cmd);
+		if (s->ops && s->ops->ioctl)
+			return s->ops->ioctl(dev, ifr, &bi, cmd);
 		return -ENOIOCTLCMD;
 	}
 	if (copy_from_user(&bi, ifr->ifr_data, sizeof(bi)))
@@ -632,8 +696,8 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 
 	switch (bi.cmd) {
 	default:
-		if (s->ops->ioctl)
-			return s->ops->ioctl(dev, ifr, cmd);
+		if (s->ops && s->ops->ioctl)
+			return s->ops->ioctl(dev, ifr, &bi, cmd);
 		return -ENOIOCTLCMD;
 
 	case HDLCDRVCTL_GETCHANNELPAR:
@@ -659,6 +723,7 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 		bi.data.mp.iobase = dev->base_addr;
 		bi.data.mp.irq = dev->irq;
 		bi.data.mp.dma = dev->dma;
+		bi.data.mp.dma2 = s->ptt_out.dma2;
 		bi.data.mp.seriobase = s->ptt_out.seriobase;
 		bi.data.mp.pariobase = s->ptt_out.pariobase;
 		bi.data.mp.midiiobase = s->ptt_out.midiiobase;
@@ -670,6 +735,7 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 		dev->base_addr = bi.data.mp.iobase;
 		dev->irq = bi.data.mp.irq;
 		dev->dma = bi.data.mp.dma;
+		s->ptt_out.dma2 = bi.data.mp.dma2;
 		s->ptt_out.seriobase = bi.data.mp.seriobase;
 		s->ptt_out.pariobase = bi.data.mp.pariobase;
 		s->ptt_out.midiiobase = bi.data.mp.midiiobase;
@@ -679,11 +745,23 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 		bi.data.cs.ptt = hdlcdrv_ptt(s);
 		bi.data.cs.dcd = s->hdlcrx.dcd;
 		bi.data.cs.ptt_keyed = s->ptt_keyed;
-		bi.data.cs.stats = s->stats;
+		bi.data.cs.tx_packets = s->stats.tx_packets;
+		bi.data.cs.tx_errors = s->stats.tx_errors;
+		bi.data.cs.rx_packets = s->stats.rx_packets;
+		bi.data.cs.rx_errors = s->stats.rx_errors;
+		break;		
+
+	case HDLCDRVCTL_OLDGETSTAT:
+		bi.data.ocs.ptt = hdlcdrv_ptt(s);
+		bi.data.ocs.dcd = s->hdlcrx.dcd;
+		bi.data.ocs.ptt_keyed = s->ptt_keyed;
+#if LINUX_VERSION_CODE < 0x20100
+		bi.data.ocs.stats = s->stats;
+#endif
 		break;		
 
 	case HDLCDRVCTL_CALIBRATE:
-		s->hdlctx.calibrate = bi.data.calibrate * s->ops->bitrate / 16;
+		s->hdlctx.calibrate = bi.data.calibrate * s->par.bitrate / 16;
 		return 0;
 
 	case HDLCDRVCTL_GETSAMPLES:
@@ -712,38 +790,21 @@ static int hdlcdrv_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 		break;		
 #endif /* HDLCDRV_DEBUG */
 
+	case HDLCDRVCTL_DRIVERNAME:
+		if (s->ops && s->ops->drvname) {
+			strncpy(bi.data.drivername, s->ops->drvname, 
+				sizeof(bi.data.drivername));
+			break;
+		}
+		bi.data.drivername[0] = '\0';
+		break;
+		
 	}
 	if (copy_to_user(ifr->ifr_data, &bi, sizeof(bi)))
 		return -EFAULT;
 	return 0;
 
 }
-
-/* --------------------------------------------------------------------- */
-/*
- * Fill in the MAC-level header 
- */
-
-#ifdef CONFIG_AX25
-static int hdlcdrv_header(struct sk_buff *skb, struct device *dev, 
-			 unsigned short type, void *daddr, void *saddr, 
-			 unsigned len)
-{
-        return ax25_encapsulate(skb, dev, type, daddr, saddr, len);
-}
-
-/* --------------------------------------------------------------------- */
-/*
- * Rebuild the MAC-level header
- */
-
-static int hdlcdrv_rebuild_header(void *buff, struct device *dev,
-				 unsigned long raddr,
-				 struct sk_buff *skb)
-{
-        return ax25_rebuild_header(buff, dev, raddr, skb);
-}
-#endif /* CONFIG_AX25 */
 
 /* --------------------------------------------------------------------- */
 
@@ -756,8 +817,9 @@ static int hdlcdrv_rebuild_header(void *buff, struct device *dev,
  */
 static int hdlcdrv_probe(struct device *dev)
 {
-	struct hdlcdrv_channel_params dflt_ch_params = { 20, 2, 10, 40, 0 };
-	int i;
+	const struct hdlcdrv_channel_params dflt_ch_params = { 
+		20, 2, 10, 40, 0 
+	};
 	struct hdlcdrv_state *s;
 
 	if (!dev)
@@ -803,18 +865,18 @@ static int hdlcdrv_probe(struct device *dev)
 	dev->get_stats = hdlcdrv_get_stats;
 
 	/* Fill in the fields of the device structure */
-	for (i=0; i < DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
+
+	dev_init_buffers(dev);
 
 	skb_queue_head_init(&s->send_queue);
 	
-#ifdef CONFIG_AX25
-	dev->hard_header = hdlcdrv_header;
-	dev->rebuild_header = hdlcdrv_rebuild_header;
-#else /* CONFIG_AX25 */
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
+	dev->hard_header = ax25_encapsulate;
+	dev->rebuild_header = ax25_rebuild_header;
+#else /* CONFIG_AX25 || CONFIG_AX25_MODULE */
 	dev->hard_header = NULL;
 	dev->rebuild_header = NULL;
-#endif /* CONFIG_AX25 */
+#endif /* CONFIG_AX25 || CONFIG_AX25_MODULE */
 	dev->set_mac_address = hdlcdrv_set_mac_address;
 	
 	dev->type = ARPHRD_AX25;           /* AF_AX25 device */
@@ -901,6 +963,16 @@ int hdlcdrv_unregister_hdlcdrv(struct device *dev)
 
 /* --------------------------------------------------------------------- */
 
+#if LINUX_VERSION_CODE >= 0x20115
+
+EXPORT_SYMBOL(hdlcdrv_receiver);
+EXPORT_SYMBOL(hdlcdrv_transmitter);
+EXPORT_SYMBOL(hdlcdrv_arbitrate);
+EXPORT_SYMBOL(hdlcdrv_register_hdlcdrv);
+EXPORT_SYMBOL(hdlcdrv_unregister_hdlcdrv);
+
+#else
+
 static struct symbol_table hdlcdrv_syms = {
 #include <linux/symtab_begin.h>
         X(hdlcdrv_receiver),
@@ -911,16 +983,28 @@ static struct symbol_table hdlcdrv_syms = {
 #include <linux/symtab_end.h>
 };
 
+#endif
+
 /* --------------------------------------------------------------------- */
 
 #ifdef MODULE
 
+#if LINUX_VERSION_CODE >= 0x20115
+
+MODULE_AUTHOR("Thomas M. Sailer, sailer@ife.ee.ethz.ch, hb9jnx@hb9w.che.eu");
+MODULE_DESCRIPTION("Packet Radio network interface HDLC encoder/decoder");
+
+#endif
+
+/* --------------------------------------------------------------------- */
+
 int init_module(void)
 {
-	printk(KERN_INFO "hdlcdrv: v0.1 (C) 1996 Thomas Sailer HB9JNX/AE4WA\n");
-	printk(KERN_INFO "hdlcdrv: compiled %s %s\n", __TIME__, __DATE__);
-
+	printk(KERN_INFO "hdlcdrv: (C) 1996 Thomas Sailer HB9JNX/AE4WA\n");
+	printk(KERN_INFO "hdlcdrv: version 0.3 compiled " __TIME__ " " __DATE__ "\n");
+#if LINUX_VERSION_CODE < 0x20115
         register_symtab(&hdlcdrv_syms);
+#endif
 	return 0;
 }
 

@@ -1,5 +1,5 @@
 /*
- *	hdlcdrv.h  -- HDLC packet radio network driver.
+ * hdlcdrv.h  -- HDLC packet radio network driver.
  * The Linux soundcard driver for 1200 baud and 9600 baud packet radio
  * (C) 1996 by Thomas Sailer, HB9JNX/AE4WA
  */
@@ -7,8 +7,12 @@
 #ifndef _HDLCDRV_H
 #define _HDLCDRV_H
 
+#include <linux/version.h>
 #include <linux/sockios.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < 0x20119
 #include <linux/if_ether.h>
+#endif
 #include <linux/netdevice.h>
 
 /* -------------------------------------------------------------------- */
@@ -20,6 +24,7 @@ struct hdlcdrv_params {
 	int iobase;
 	int irq;
 	int dma;
+	int dma2;
 	int seriobase;
 	int pariobase;
 	int midiiobase;
@@ -34,11 +39,23 @@ struct hdlcdrv_channel_params {
 	               /* this just makes them send even if DCD is on */
 };	
 
+struct hdlcdrv_old_channel_state {
+  	int ptt;
+  	int dcd;
+  	int ptt_keyed;
+#if LINUX_VERSION_CODE < 0x20100
+  	struct enet_statistics stats;
+#endif
+};
+
 struct hdlcdrv_channel_state {
-	int ptt;
-	int dcd;
-	int ptt_keyed;
-	struct enet_statistics stats;
+ 	int ptt;
+ 	int dcd;
+ 	int ptt_keyed;
+ 	unsigned long tx_packets;
+ 	unsigned long tx_errors;
+ 	unsigned long rx_packets;
+ 	unsigned long rx_errors;
 };
 
 struct hdlcdrv_ioctl {
@@ -47,8 +64,11 @@ struct hdlcdrv_ioctl {
 		struct hdlcdrv_params mp;
 		struct hdlcdrv_channel_params cp;
 		struct hdlcdrv_channel_state cs;
+		struct hdlcdrv_old_channel_state ocs;
 		unsigned int calibrate;
 		unsigned char bits;
+		char modename[128];
+		char drivername[32];
 	} data;
 };
 
@@ -57,18 +77,39 @@ struct hdlcdrv_ioctl {
 /*
  * ioctl values
  */
-#define HDLCDRVCTL_GETMODEMPAR      0
-#define HDLCDRVCTL_SETMODEMPAR      1
-#define HDLCDRVCTL_GETCHANNELPAR    2
-#define HDLCDRVCTL_SETCHANNELPAR    3
-#define HDLCDRVCTL_GETSTAT          4
-#define HDLCDRVCTL_CALIBRATE        5
+#define HDLCDRVCTL_GETMODEMPAR       0
+#define HDLCDRVCTL_SETMODEMPAR       1
+#define HDLCDRVCTL_MODEMPARMASK      2  /* not handled by hdlcdrv */
+#define HDLCDRVCTL_GETCHANNELPAR    10
+#define HDLCDRVCTL_SETCHANNELPAR    11
+#define HDLCDRVCTL_OLDGETSTAT       20
+#define HDLCDRVCTL_CALIBRATE        21
+#define HDLCDRVCTL_GETSTAT          22
 
 /*
  * these are mainly for debugging purposes
  */
-#define HDLCDRVCTL_GETSAMPLES       10
-#define HDLCDRVCTL_GETBITS          11
+#define HDLCDRVCTL_GETSAMPLES       30
+#define HDLCDRVCTL_GETBITS          31
+
+/*
+ * not handled by hdlcdrv, but by its depending drivers
+ */
+#define HDLCDRVCTL_GETMODE          40
+#define HDLCDRVCTL_SETMODE          41
+#define HDLCDRVCTL_MODELIST         42
+#define HDLCDRVCTL_DRIVERNAME       43
+
+/*
+ * mask of needed modem parameters, returned by HDLCDRVCTL_MODEMPARMASK
+ */
+#define HDLCDRV_PARMASK_IOBASE      (1<<0)
+#define HDLCDRV_PARMASK_IRQ         (1<<1)
+#define HDLCDRV_PARMASK_DMA         (1<<2)
+#define HDLCDRV_PARMASK_DMA2        (1<<3)
+#define HDLCDRV_PARMASK_SERIOBASE   (1<<4)
+#define HDLCDRV_PARMASK_PARIOBASE   (1<<5)
+#define HDLCDRV_PARMASK_MIDIIOBASE  (1<<6)
 
 /* -------------------------------------------------------------------- */
 
@@ -79,7 +120,7 @@ struct hdlcdrv_ioctl {
 #define HDLCDRV_HDLCBUFFER  16 /* should be a power of 2 for speed reasons */
 #define HDLCDRV_BITBUFFER  256 /* should be a power of 2 for speed reasons */
 #undef HDLCDRV_LOOPBACK  /* define for HDLC debugging purposes */
-#undef HDLCDRV_DEBUG
+#define HDLCDRV_DEBUG
 
 /* maximum packet length, excluding CRC */
 #define HDLCDRV_MAXFLEN             400	
@@ -133,13 +174,15 @@ struct hdlcdrv_ops {
 	/*
 	 * first some informations needed by the hdlcdrv routines
 	 */
-	int bitrate;
+	const char *drvname;
+	const char *drvinfo;
 	/*
 	 * the routines called by the hdlcdrv routines
 	 */
 	int (*open)(struct device *);
 	int (*close)(struct device *);
-	int (*ioctl)(struct device *, struct ifreq *, int);
+	int (*ioctl)(struct device *, struct ifreq *, 
+		     struct hdlcdrv_ioctl *, int);
 };
 
 struct hdlcdrv_state {
@@ -149,7 +192,12 @@ struct hdlcdrv_state {
 
 	const struct hdlcdrv_ops *ops;
 
+	struct {
+		int bitrate;
+	} par;
+
 	struct hdlcdrv_pttoutput {
+		int dma2;
 		int seriobase;
 		int pariobase;
 		int midiiobase;
@@ -201,7 +249,11 @@ struct hdlcdrv_state {
 	struct hdlcdrv_bitbuffer bitbuf_hdlc;
 #endif /* HDLCDRV_DEBUG */
 
+#if LINUX_VERSION_CODE < 0x20119
 	struct enet_statistics stats;
+#else
+	struct net_device_stats stats;
+#endif
 	int ptt_keyed;
 
 	struct sk_buff_head send_queue;  /* Packets awaiting transmission */
@@ -262,12 +314,12 @@ extern inline void hdlcdrv_hbuf_put(struct hdlcdrv_hdlcbuffer *hb,
 
 /* -------------------------------------------------------------------- */
 
-extern void hdlcdrv_putbits(struct hdlcdrv_state *s, unsigned int bits)
+extern inline void hdlcdrv_putbits(struct hdlcdrv_state *s, unsigned int bits)
 {
 	hdlcdrv_hbuf_put(&s->hdlcrx.hbuf, bits);
 }
 
-extern unsigned int hdlcdrv_getbits(struct hdlcdrv_state *s)
+extern inline unsigned int hdlcdrv_getbits(struct hdlcdrv_state *s)
 {
 	unsigned int ret;
 
@@ -285,19 +337,19 @@ extern unsigned int hdlcdrv_getbits(struct hdlcdrv_state *s)
 	return ret;
 }
 
-extern void hdlcdrv_channelbit(struct hdlcdrv_state *s, unsigned int bit)
+extern inline void hdlcdrv_channelbit(struct hdlcdrv_state *s, unsigned int bit)
 {
 #ifdef HDLCDRV_DEBUG
 	hdlcdrv_add_bitbuffer(&s->bitbuf_channel, bit);
 #endif /* HDLCDRV_DEBUG */
 }
 
-extern void hdlcdrv_setdcd(struct hdlcdrv_state *s, int dcd)
+extern inline void hdlcdrv_setdcd(struct hdlcdrv_state *s, int dcd)
 {
 	s->hdlcrx.dcd = !!dcd;
 }
 
-extern int hdlcdrv_ptt(struct hdlcdrv_state *s)
+extern inline int hdlcdrv_ptt(struct hdlcdrv_state *s)
 {
 	return s->hdlctx.ptt || (s->hdlctx.calibrate > 0);
 }

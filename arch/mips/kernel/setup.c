@@ -23,13 +23,16 @@
 #ifdef CONFIG_BLK_DEV_RAM
 #include <linux/blk.h>
 #endif
+#ifdef CONFIG_RTC
+#include <linux/ioport.h>
+#include <linux/timex.h>
+#endif
 
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
 #include <asm/io.h>
 #include <asm/vector.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
 #ifdef CONFIG_SGI
@@ -61,11 +64,6 @@ char wait_available;
  * This flag is set if a EISA slots are available.
  */
 int EISA_bus = 0;
-
-/*
- * Do a hardware reset.
- */
-void (*hard_reset_now)(void);
 
 /*
  * Milo passes some information to the kernel that looks like as if it

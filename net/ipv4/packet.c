@@ -96,7 +96,6 @@ int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_type *pt)
 	 
 	if(sock_queue_rcv_skb(sk,skb)<0)
 	{
-		skb->sk = NULL;
 		kfree_skb(skb, FREE_READ);
 		return 0;
 	}
@@ -113,8 +112,7 @@ int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_type *pt)
  *	protocol layers and you must therefore supply it with a complete frame
  */
  
-static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len,
-	      int noblock, int flags)
+static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 {
 	struct sk_buff *skb;
 	struct device *dev;
@@ -126,7 +124,7 @@ static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len,
 	 *	Check the flags. 
 	 */
 
-	if (flags) 
+	if (msg->msg_flags&~MSG_DONTWAIT) 
 		return(-EINVAL);
 
 	/*
@@ -179,11 +177,11 @@ static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len,
 	 *	Fill it in 
 	 */
 	 
-	skb->sk = sk;
-	skb->free = 1;
 	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);
 	skb->arp = 1;	/* No ARP needs doing on this (complete) frame */
 	skb->protocol = proto;
+	skb->dev = dev;
+	skb->priority = sk->priority;
 
 	/*
 	 *	Now send it
@@ -207,7 +205,7 @@ static int packet_sendmsg(struct sock *sk, struct msghdr *msg, int len,
 		return err;
 	}
 		
-	dev_queue_xmit(skb, dev, sk->priority);
+	dev_queue_xmit(skb);
 	return(len);
 }
 
@@ -250,6 +248,7 @@ static void packet_close(struct sock *sk, unsigned long timeout)
 	}
 	
 	release_sock(sk);
+	sk->dead = 1;
 	destroy_sock(sk);
 }
 
@@ -492,27 +491,33 @@ int packet_recvmsg(struct sock *sk, struct msghdr *msg, int len,
  
 struct proto packet_prot = 
 {
-	packet_close,
-	NULL,
-	NULL,			/* accept */
-	NULL,
-	NULL,
-	NULL,
-	datagram_select,
-	NULL,			/* No ioctl */
-	packet_init,
-	NULL,
-	NULL,
-	NULL,			/* No set/get socket options */
-	NULL,
-	packet_sendmsg,		/* Sendmsg */
-	packet_recvmsg,		/* Recvmsg */
-	packet_bind,		/* Bind */
-	NULL,			/* Backlog_rcv */
-	128,
-	0,
-	"PACKET",
-	0, 0
+	(struct sock *)&packet_prot,	/* sklist_next */
+	(struct sock *)&packet_prot,	/* sklist_prev */
+	packet_close,			/* close */
+	NULL,				/* connect */
+	NULL,				/* accept */
+	NULL,				/* retransmit */
+	NULL,				/* write_wakeup */
+	NULL,				/* read_wakeup */
+	datagram_poll,			/* poll */
+	NULL,				/* ioctl */
+	packet_init,			/* init */
+	NULL,				/* destroy */
+	NULL,				/* shutdown */
+	NULL,				/* setsockopt */
+	NULL,				/* getsockopt */
+	packet_sendmsg,			/* Sendmsg */
+	packet_recvmsg,			/* Recvmsg */
+	packet_bind,			/* bind */
+	NULL,				/* backlog_rcv */
+	NULL,				/* hash */
+	NULL,				/* unhash */
+	NULL,				/* rehash */
+	NULL,				/* good_socknum */
+	NULL,				/* verify_bind */
+	128,				/* max_header */
+	0,				/* retransmits */
+	"PACKET",			/* name */
+	0,				/* inuse */
+	0				/* highestinuse */
 };
-
-	

@@ -15,13 +15,17 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/slab.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
 #include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/module.h>
 
 #include <asm/system.h>
 #include <asm/pgtable.h>
+#include <asm/mmu_context.h>
 #include <asm/uaccess.h>
 
 int nr_tasks=1;
@@ -43,11 +47,15 @@ static inline int find_empty_process(void)
 		max_tasks--;	/* count the new process.. */
 		if (max_tasks < nr_tasks) {
 			struct task_struct *p;
+			read_lock(&tasklist_lock);
 			for_each_task (p) {
 				if (p->uid == current->uid)
-					if (--max_tasks < 0)
+					if (--max_tasks < 0) {
+						read_unlock(&tasklist_lock);
 						return -EAGAIN;
+					}
 			}
+			read_unlock(&tasklist_lock);
 		}
 	}
 	for (i = 0 ; i < NR_TASKS ; i++) {
@@ -63,6 +71,8 @@ static int get_pid(unsigned long flags)
 
 	if (flags & CLONE_PID)
 		return current->pid;
+
+	read_lock(&tasklist_lock);
 repeat:
 	if ((++last_pid) & 0xffff8000)
 		last_pid=1;
@@ -72,6 +82,8 @@ repeat:
 		    p->session == last_pid)
 			goto repeat;
 	}
+	read_unlock(&tasklist_lock);
+
 	return last_pid;
 }
 
@@ -81,10 +93,12 @@ static inline int dup_mmap(struct mm_struct * mm)
 
 	mm->mmap = NULL;
 	p = &mm->mmap;
+	flush_cache_mm(current->mm);
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
-		tmp = (struct vm_area_struct *) kmalloc(sizeof(struct vm_area_struct), GFP_KERNEL);
+		tmp = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
 		if (!tmp) {
 			exit_mmap(mm);
+			flush_tlb_mm(current->mm);
 			return -ENOMEM;
 		}
 		*tmp = *mpnt;
@@ -100,6 +114,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 		}
 		if (copy_page_range(mm, current->mm, tmp)) {
 			exit_mmap(mm);
+			flush_tlb_mm(current->mm);
 			return -ENOMEM;
 		}
 		if (tmp->vm_ops && tmp->vm_ops->open)
@@ -107,6 +122,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 		*p = tmp;
 		p = &tmp->vm_next;
 	}
+	flush_tlb_mm(current->mm);
 	build_mmap_avl(mm);
 	return 0;
 }
@@ -118,9 +134,7 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 		if (!mm)
 			return -1;
 		*mm = *current->mm;
-#ifdef __mips__
-		mm->context = 0;
-#endif
+		init_new_context(mm);
 		mm->count = 1;
 		mm->def_flags = 0;
 		tsk->mm = mm;
@@ -128,15 +142,17 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 		tsk->cmin_flt = tsk->cmaj_flt = 0;
 		tsk->nswap = tsk->cnswap = 0;
 		if (new_page_tables(tsk))
-			return -1;
+			goto free_mm;
 		if (dup_mmap(mm)) {
 			free_page_tables(mm);
+free_mm:
+			kfree(mm);
 			return -1;
 		}
 		return 0;
 	}
-	SET_PAGE_DIR(tsk, current->mm->pgd);
 	current->mm->count++;
+	SET_PAGE_DIR(tsk, current->mm->pgd);
 	return 0;
 }
 
@@ -174,7 +190,7 @@ static inline int copy_files(unsigned long clone_flags, struct task_struct * tsk
 	tsk->files = newf;
 	if (!newf)
 		return -1;
-			
+
 	newf->count = 1;
 	newf->close_on_exec = oldf->close_on_exec;
 	newf->open_fds = oldf->open_fds;
@@ -195,13 +211,14 @@ static inline int copy_files(unsigned long clone_flags, struct task_struct * tsk
 static inline int copy_sighand(unsigned long clone_flags, struct task_struct * tsk)
 {
 	if (clone_flags & CLONE_SIGHAND) {
-		current->sig->count++;
+		atomic_inc(&current->sig->count);
 		return 0;
 	}
 	tsk->sig = kmalloc(sizeof(*tsk->sig), GFP_KERNEL);
 	if (!tsk->sig)
 		return -1;
-	tsk->sig->count = 1;
+	spin_lock_init(&tsk->sig->siglock);
+	atomic_set(&tsk->sig->count, 1);
 	memcpy(tsk->sig->action, current->sig->action, sizeof(tsk->sig->action));
 	return 0;
 }
@@ -218,10 +235,11 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	unsigned long new_stack;
 	struct task_struct *p;
 
-	p = (struct task_struct *) kmalloc(sizeof(*p), GFP_KERNEL);
+	lock_kernel();
+	p = alloc_task_struct();
 	if (!p)
 		goto bad_fork;
-	new_stack = alloc_kernel_stack();
+	new_stack = alloc_kernel_stack(p);
 	if (!new_stack)
 		goto bad_fork_free_p;
 	error = -EAGAIN;
@@ -231,10 +249,10 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 
 	*p = *current;
 
-	if (p->exec_domain && p->exec_domain->use_count)
-		(*p->exec_domain->use_count)++;
-	if (p->binfmt && p->binfmt->use_count)
-		(*p->binfmt->use_count)++;
+	if (p->exec_domain && p->exec_domain->module)
+		__MOD_INC_USE_COUNT(p->exec_domain->module);
+	if (p->binfmt && p->binfmt->module)
+		__MOD_INC_USE_COUNT(p->binfmt->module);
 
 	p->did_exec = 0;
 	p->swappable = 0;
@@ -260,8 +278,8 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->cutime = p->cstime = 0;
 #ifdef __SMP__
 	p->processor = NO_PROC_ID;
-	p->lock_depth = 1;
 #endif
+	p->lock_depth = 0;
 	p->start_time = jiffies;
 	task[nr] = p;
 	SET_LINKS(p);
@@ -277,16 +295,33 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 		goto bad_fork_cleanup_fs;
 	if (copy_mm(clone_flags, p))
 		goto bad_fork_cleanup_sighand;
-	copy_thread(nr, clone_flags, usp, p, regs);
+	error = copy_thread(nr, clone_flags, usp, p, regs);
+	if (error)
+		goto bad_fork_cleanup_sighand;
 	p->semundo = NULL;
 
 	/* ok, now we should be set up.. */
 	p->swappable = 1;
 	p->exit_signal = clone_flags & CSIGNAL;
-	p->counter = current->counter >> 1;
-	wake_up_process(p);			/* do this last, just in case */
+
+	/*
+	 * "share" dynamic priority between parent and child, thus the
+	 * total amount of dynamic priorities in the system doesnt change,
+	 * more scheduling fairness. This is only important in the first
+	 * timeslice, on the long run the scheduling behaviour is unchanged.
+	 */
+	current->counter >>= 1;
+	p->counter = current->counter;
+
+	if(p->pid) {
+		wake_up_process(p);		/* do this last, just in case */
+	} else {
+		p->state = TASK_RUNNING;
+		p->next_run = p->prev_run = p;
+	}
 	++total_forks;
-	return p->pid;
+	error = p->pid;
+	goto fork_out;
 
 bad_fork_cleanup_sighand:
 	exit_sighand(p);
@@ -295,17 +330,19 @@ bad_fork_cleanup_fs:
 bad_fork_cleanup_files:
 	exit_files(p);
 bad_fork_cleanup:
-	if (p->exec_domain && p->exec_domain->use_count)
-		(*p->exec_domain->use_count)--;
-	if (p->binfmt && p->binfmt->use_count)
-		(*p->binfmt->use_count)--;
+	if (p->exec_domain && p->exec_domain->module)
+		__MOD_DEC_USE_COUNT(p->exec_domain->module);
+	if (p->binfmt && p->binfmt->module)
+		__MOD_DEC_USE_COUNT(p->binfmt->module);
 	task[nr] = NULL;
 	REMOVE_LINKS(p);
 	nr_tasks--;
 bad_fork_free_stack:
 	free_kernel_stack(new_stack);
 bad_fork_free_p:
-	kfree(p);
+	free_task_struct(p);
 bad_fork:
+fork_out:
+	unlock_kernel();
 	return error;
 }

@@ -9,7 +9,7 @@
 
 MOD_SUB_DIRS := ipv4
 ALL_SUB_DIRS := 802 ax25 bridge core ethernet ipv4 ipv6 ipx unix appletalk \
-		netrom rose #decnet
+		netrom rose lapb x25 wanrouter sunrpc #decnet
 SUB_DIRS     := core ethernet unix
 MOD_LIST_NAME := NET_MISC_MODULES
 
@@ -49,6 +49,30 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_WAN_ROUTER),y)
+SUB_DIRS += wanrouter
+else
+  ifeq ($(CONFIG_WAN_ROUTER),m)
+  MOD_SUB_DIRS += wanrouter
+  endif
+endif
+
+ifeq ($(CONFIG_X25),y)
+SUB_DIRS += x25
+else
+  ifeq ($(CONFIG_X25),m)
+  MOD_SUB_DIRS += x25
+  endif
+endif
+
+ifeq ($(CONFIG_LAPB),y)
+SUB_DIRS += lapb
+else
+  ifeq ($(CONFIG_LAPB),m)
+  MOD_SUB_DIRS += lapb
+  endif
+endif
+
 ifeq ($(CONFIG_NETROM),y)
 SUB_DIRS += netrom
 else
@@ -73,15 +97,35 @@ else
   endif
 endif
 
-L_TARGET     := network.a
-L_OBJS	     := socket.o protocols.o sysctl_net.o $(join $(SUB_DIRS),$(SUB_DIRS:%=/%.o))
+ifeq ($(CONFIG_SUNRPC),y)
+SUB_DIRS += sunrpc
+else
+  ifeq ($(CONFIG_SUNRPC),m)
+  MOD_SUB_DIRS += sunrpc
+  endif
+endif
+
+# We must attach netsyms.o to socket.o, as otherwise there is nothing
+# to pull the object file from the archive.
+
+SOCK         := socket.o
 ifeq ($(CONFIG_NET),y)
 ifeq ($(CONFIG_MODULES),y)
-LX_OBJS = netsyms.o
+O_TARGET     := sock_n_syms.o
+O_OBJS       := socket.o
+OX_OBJS      := netsyms.o
+SOCK         := $(O_TARGET)
 endif
 endif
 
+L_TARGET     := network.a
+L_OBJS	     := $(SOCK) protocols.o $(join $(SUB_DIRS),$(SUB_DIRS:%=/%.o))
+
 M_OBJS	     :=
+
+ifeq ($(CONFIG_SYSCTL),y)
+L_OBJS += sysctl_net.o
+endif
 
 CONFIG_NETLINK_BUILTIN :=
 CONFIG_NETLINK_MODULE :=

@@ -13,6 +13,7 @@
 #include <linux/stat.h>
 #include <linux/malloc.h>
 #include <linux/binfmts.h>
+#include <linux/init.h>
 
 #define _PATH_JAVA	"/usr/bin/java"
 #define _PATH_APPLET	"/usr/bin/appletviewer"
@@ -144,7 +145,7 @@ static struct linux_binfmt java_format = {
 #ifndef MODULE
 	NULL, 0, load_java, NULL, NULL
 #else
-	NULL, &mod_use_count_, load_java, NULL, NULL
+	NULL, &__this_module, load_java, NULL, NULL
 #endif
 };
 
@@ -161,11 +162,12 @@ static struct linux_binfmt applet_format = {
 #ifndef MODULE
 	NULL, 0, load_applet, NULL, NULL
 #else
-	NULL, &mod_use_count_, load_applet, NULL, NULL
+	NULL, &__this_module, load_applet, NULL, NULL
 #endif
 };
 
-int init_java_binfmt(void) {
+__initfunc(int init_java_binfmt(void))
+{
 	register_binfmt(&java_format);
 	return register_binfmt(&applet_format);
 }

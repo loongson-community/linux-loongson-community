@@ -4,7 +4,7 @@
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 2.1.0 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -44,37 +44,20 @@
 static void rose_link_timer(unsigned long);
 
 /*
- *	Linux set/reset timer routines
+ *	Linux set timer
  */
-static void rose_link_set_timer(struct rose_neigh *neigh)
+void rose_link_set_timer(struct rose_neigh *neigh)
 {
 	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
-	del_timer(&neigh->timer);
-	restore_flags(flags);
 
-	neigh->timer.next     = neigh->timer.prev = NULL;	
-	neigh->timer.data     = (unsigned long)neigh;
-	neigh->timer.function = &rose_link_timer;
-
-	neigh->timer.expires  = jiffies + 10;
-	add_timer(&neigh->timer);
-}
-
-static void rose_link_reset_timer(struct rose_neigh *neigh)
-{
-	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
+	save_flags(flags); cli();
 	del_timer(&neigh->timer);
 	restore_flags(flags);
 
 	neigh->timer.data     = (unsigned long)neigh;
 	neigh->timer.function = &rose_link_timer;
-	neigh->timer.expires  = jiffies + 10;
+	neigh->timer.expires  = jiffies + (HZ / 10);
+
 	add_timer(&neigh->timer);
 }
 
@@ -88,19 +71,56 @@ static void rose_link_timer(unsigned long param)
 {
 	struct rose_neigh *neigh = (struct rose_neigh *)param;
 
-	if (neigh->t0timer == 0 || --neigh->t0timer > 0) {
-		rose_link_reset_timer(neigh);
-		return;
+	if (neigh->ftimer > 0)
+		neigh->ftimer--;
+
+	if (neigh->t0timer > 0) {
+		neigh->t0timer--;
+
+		if (neigh->t0timer == 0) {
+			rose_transmit_restart_request(neigh);
+			neigh->t0timer = sysctl_rose_restart_request_timeout;
+		}
 	}
 
-	/*
-	 * T0 for a link has expired.
-	 */
-	rose_transmit_restart_request(neigh);
+	if (neigh->ftimer > 0 || neigh->t0timer > 0)
+		rose_link_set_timer(neigh);
+	else
+		del_timer(&neigh->timer);
+}
 
-	neigh->t0timer = neigh->t0;
+/*
+ *	Interface to ax25_send_frame. Changes my level 2 callsign depending
+ *	on whether we have a global ROSE callsign or use the default port
+ *	callsign.
+ */
+static int rose_send_frame(struct sk_buff *skb, struct rose_neigh *neigh)
+{
+	ax25_address *rose_call;
 
-	rose_link_set_timer(neigh);
+	if (ax25cmp(&rose_callsign, &null_ax25_address) == 0)
+		rose_call = (ax25_address *)neigh->dev->dev_addr;
+	else
+		rose_call = &rose_callsign;
+
+	return ax25_send_frame(skb, 256, rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
+}
+
+/*
+ *	Interface to ax25_link_up. Changes my level 2 callsign depending
+ *	on whether we have a global ROSE callsign or use the default port
+ *	callsign.
+ */
+static int rose_link_up(struct rose_neigh *neigh)
+{
+	ax25_address *rose_call;
+
+	if (ax25cmp(&rose_callsign, &null_ax25_address) == 0)
+		rose_call = (ax25_address *)neigh->dev->dev_addr;
+	else
+		rose_call = &rose_callsign;
+
+	return ax25_link_up(rose_call, &neigh->callsign, neigh->digipeat, neigh->dev);
 }
 
 /*
@@ -127,7 +147,7 @@ void rose_link_rx_restart(struct sk_buff *skb, struct rose_neigh *neigh, unsigne
 		case ROSE_DIAGNOSTIC:
 			printk(KERN_WARNING "rose: diagnostic #%d\n", skb->data[3]);
 			break;
-			
+
 		default:
 			printk(KERN_WARNING "rose: received unknown %02X with LCI 000\n", frametype);
 			break;
@@ -135,7 +155,7 @@ void rose_link_rx_restart(struct sk_buff *skb, struct rose_neigh *neigh, unsigne
 
 	if (neigh->restarted) {
 		while ((skbn = skb_dequeue(&neigh->queue)) != NULL)
-			if (!ax25_send_frame(skbn, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+			if (!rose_send_frame(skbn, neigh))
 				kfree_skb(skbn, FREE_WRITE);
 	}
 }
@@ -159,16 +179,13 @@ void rose_transmit_restart_request(struct rose_neigh *neigh)
 	dptr = skb_put(skb, ROSE_MIN_LEN + 3);
 
 	*dptr++ = AX25_P_ROSE;
-	*dptr++ = GFI;
+	*dptr++ = ROSE_GFI;
 	*dptr++ = 0x00;
 	*dptr++ = ROSE_RESTART_REQUEST;
 	*dptr++ = 0x00;
 	*dptr++ = 0;
 
-	skb->free = 1;
-	skb->sk   = NULL;
-
-	if (!ax25_send_frame(skb, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+	if (!rose_send_frame(skb, neigh))
 		kfree_skb(skb, FREE_WRITE);
 }
 
@@ -191,14 +208,11 @@ void rose_transmit_restart_confirmation(struct rose_neigh *neigh)
 	dptr = skb_put(skb, ROSE_MIN_LEN + 1);
 
 	*dptr++ = AX25_P_ROSE;
-	*dptr++ = GFI;
+	*dptr++ = ROSE_GFI;
 	*dptr++ = 0x00;
 	*dptr++ = ROSE_RESTART_CONFIRMATION;
 
-	skb->free = 1;
-	skb->sk   = NULL;
-
-	if (!ax25_send_frame(skb, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+	if (!rose_send_frame(skb, neigh))
 		kfree_skb(skb, FREE_WRITE);
 }
 
@@ -221,15 +235,12 @@ void rose_transmit_diagnostic(struct rose_neigh *neigh, unsigned char diag)
 	dptr = skb_put(skb, ROSE_MIN_LEN + 2);
 
 	*dptr++ = AX25_P_ROSE;
-	*dptr++ = GFI;
+	*dptr++ = ROSE_GFI;
 	*dptr++ = 0x00;
 	*dptr++ = ROSE_DIAGNOSTIC;
 	*dptr++ = diag;
 
-	skb->free = 1;
-	skb->sk   = NULL;
-
-	if (!ax25_send_frame(skb, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+	if (!rose_send_frame(skb, neigh))
 		kfree_skb(skb, FREE_WRITE);
 }
 
@@ -253,16 +264,13 @@ void rose_transmit_clear_request(struct rose_neigh *neigh, unsigned int lci, uns
 	dptr = skb_put(skb, ROSE_MIN_LEN + 3);
 
 	*dptr++ = AX25_P_ROSE;
-	*dptr++ = ((lci >> 8) & 0x0F) | GFI;
+	*dptr++ = ((lci >> 8) & 0x0F) | ROSE_GFI;
 	*dptr++ = ((lci >> 0) & 0xFF);
 	*dptr++ = ROSE_CLEAR_REQUEST;
 	*dptr++ = cause;
 	*dptr++ = 0x00;
 
-	skb->free = 1;
-	skb->sk   = NULL;
-
-	if (!ax25_send_frame(skb, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+	if (!rose_send_frame(skb, neigh))
 		kfree_skb(skb, FREE_WRITE);
 }
 
@@ -270,29 +278,24 @@ void rose_transmit_link(struct sk_buff *skb, struct rose_neigh *neigh)
 {
 	unsigned char *dptr;
 
-#ifdef CONFIG_FIREWALL
-	if (call_fw_firewall(PF_ROSE, skb->dev, skb->data, NULL) != FW_ACCEPT)
+	if (call_fw_firewall(PF_ROSE, skb->dev, skb->data, NULL,&skb) != FW_ACCEPT)
 		return;
-#endif
 
-	if (!ax25_link_up((ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->dev))
+	if (!rose_link_up(neigh))
 		neigh->restarted = 0;
 
 	dptr = skb_push(skb, 1);
 	*dptr++ = AX25_P_ROSE;
 
-	skb->arp  = 1;
-	skb->free = 1;
-
 	if (neigh->restarted) {
-		if (!ax25_send_frame(skb, (ax25_address *)neigh->dev->dev_addr, &neigh->callsign, neigh->digipeat, neigh->dev))
+		if (!rose_send_frame(skb, neigh))
 			kfree_skb(skb, FREE_WRITE);
 	} else {
 		skb_queue_tail(&neigh->queue, skb);
-		
+
 		if (neigh->t0timer == 0) {
 			rose_transmit_restart_request(neigh);
-			neigh->t0timer = neigh->t0;
+			neigh->t0timer = sysctl_rose_restart_request_timeout;
 			rose_link_set_timer(neigh);
 		}
 	}

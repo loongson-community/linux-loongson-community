@@ -17,6 +17,7 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/malloc.h>
+#include <linux/init.h>
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>
@@ -110,24 +111,24 @@ static void sun4c_clear_clock_irq(void)
 	clear_intr = sun4c_timers->timer_limit10;
 }
 
-static void sun4c_clear_profile_irq(void)
+static void sun4c_clear_profile_irq(int cpu)
 {
 	/* Errm.. not sure how to do this.. */
 }
 
-static void sun4c_load_profile_irq(unsigned int limit)
+static void sun4c_load_profile_irq(int cpu, unsigned int limit)
 {
 	/* Errm.. not sure how to do this.. */
 }
 
-static void sun4c_init_timers(void (*counter_fn)(int, void *, struct pt_regs *))
+__initfunc(static void sun4c_init_timers(void (*counter_fn)(int, void *, struct pt_regs *)))
 {
 	int irq;
 
 	/* Map the Timer chip, this is implemented in hardware inside
 	 * the cache chip on the sun4c.
 	 */
-	sun4c_timers = sparc_alloc_io ((void *) SUN4C_TIMER_PHYSADDR, 0,
+	sun4c_timers = sparc_alloc_io (SUN4C_TIMER_PHYSADDR, 0,
 				       sizeof(struct sun4c_timer_info),
 				       "timer", 0x0, 0x0);
     
@@ -155,7 +156,7 @@ static void sun4c_init_timers(void (*counter_fn)(int, void *, struct pt_regs *))
 static void sun4c_nop(void) {}
 #endif
 
-void sun4c_init_IRQ(void)
+__initfunc(void sun4c_init_IRQ(void))
 {
 	struct linux_prom_registers int_regs[2];
 	int ie_node;
@@ -173,6 +174,8 @@ void sun4c_init_IRQ(void)
 						   int_regs[0].which_io, 0x0);
 	enable_irq = sun4c_enable_irq;
 	disable_irq = sun4c_disable_irq;
+	enable_pil_irq = sun4c_enable_irq;
+	disable_pil_irq = sun4c_disable_irq;
 	clear_clock_irq = sun4c_clear_clock_irq;
 	clear_profile_irq = sun4c_clear_profile_irq;
 	load_profile_irq = sun4c_load_profile_irq;
@@ -183,5 +186,5 @@ void sun4c_init_IRQ(void)
 	set_irq_udt = (void (*) (int))sun4c_nop;
 #endif
 	*interrupt_enable = (SUN4C_INT_ENABLE);
-	sti();
+	/* Cannot enable interrupts until OBP ticker is disabled. */
 }

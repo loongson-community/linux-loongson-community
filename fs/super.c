@@ -30,6 +30,8 @@
 #include <linux/string.h>
 #include <linux/locks.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/fd.h>
 
 #include <asm/system.h>
@@ -46,7 +48,6 @@
 
 extern void wait_for_keypress(void);
 extern struct file_operations * get_blkfops(unsigned int major);
-extern void blkdev_release (struct inode *);
 
 extern int root_mountflags;
 
@@ -98,7 +99,7 @@ struct vfsmount *add_vfsmnt(kdev_t dev, const char *dev_name, const char *dir_na
 	memset(lptr, 0, sizeof(struct vfsmount));
 
 	lptr->mnt_dev = dev;
-	lptr->mnt_sem.count = 1;
+	sema_init(&lptr->mnt_sem, 1);
 	if (dev_name && !getname(dev_name, &tmp)) {
 		if ((lptr->mnt_devname =
 		    (char *) kmalloc(strlen(tmp)+1, GFP_KERNEL)) != (char *)NULL)
@@ -213,7 +214,7 @@ static int fs_index(const char * __name)
 static int fs_name(unsigned int index, char * buf)
 {
 	struct file_system_type * tmp;
-	int err, len;
+	int len;
 
 	tmp = file_systems;
 	while (tmp && index > 0) {
@@ -223,11 +224,7 @@ static int fs_name(unsigned int index, char * buf)
 	if (!tmp)
 		return -EINVAL;
 	len = strlen(tmp->name) + 1;
-	err = verify_area(VERIFY_WRITE, buf, len);
-	if (err)
-		return err;
-	copy_to_user(buf, tmp->name, len);
-	return 0;
+	return copy_to_user(buf, tmp->name, len) ? -EFAULT : 0;
 }
 
 static int fs_maxindex(void)
@@ -250,6 +247,7 @@ asmlinkage int sys_sysfs(int option, ...)
 	int retval = -EINVAL;
 	unsigned int index;
 
+	lock_kernel();
 	va_start(args, option);
 	switch (option) {
 		case 1:
@@ -266,6 +264,7 @@ asmlinkage int sys_sysfs(int option, ...)
 			break;
 	}
 	va_end(args);
+	unlock_kernel();
 	return retval;
 }
 
@@ -278,6 +277,7 @@ static struct proc_fs_info {
 	{ MS_NODEV, ",nodev" },
 	{ MS_SYNCHRONOUS, ",sync" },
 	{ MS_MANDLOCK, ",mand" },
+	{ MS_NOATIME, ",noatime" },
 #ifdef MS_NOSUB			/* Can't find this except in mount.c */
 	{ MS_NOSUB, ",nosub" },
 #endif
@@ -325,6 +325,7 @@ int get_filesystem_info( char *buf )
 				len += sprintf(buf+len, ",wsize=%d",
 					       nfss->wsize);
 			}
+#if 0
 			if (nfss->timeo != 7*HZ/10) {
 				len += sprintf(buf+len, ",timeo=%d",
 					       nfss->timeo*10/HZ);
@@ -333,6 +334,7 @@ int get_filesystem_info( char *buf )
 				len += sprintf(buf+len, ",retrans=%d",
 					       nfss->retrans);
 			}
+#endif
 			if (nfss->acregmin != 3*HZ) {
 				len += sprintf(buf+len, ",acregmin=%d",
 					       nfss->acregmin/HZ);
@@ -476,18 +478,15 @@ asmlinkage int sys_ustat(dev_t dev, struct ustat * ubuf)
         struct ustat tmp;
         struct statfs sbuf;
         unsigned long old_fs;
-        int error;
+	int err = -EINVAL;
 
+	lock_kernel();
         s = get_super(to_kdev_t(dev));
         if (s == NULL)
-                return -EINVAL;
-
+                goto out;
+	err = -ENOSYS;
         if (!(s->s_op->statfs))
-                return -ENOSYS;
-
-        error = verify_area(VERIFY_WRITE,ubuf,sizeof(struct ustat));
-        if (error)
-                return error;
+                goto out;
 
         old_fs = get_fs();
         set_fs(get_ds());
@@ -498,8 +497,10 @@ asmlinkage int sys_ustat(dev_t dev, struct ustat * ubuf)
         tmp.f_tfree = sbuf.f_bfree;
         tmp.f_tinode = sbuf.f_ffree;
 
-        copy_to_user(ubuf,&tmp,sizeof(struct ustat));
-        return 0;
+        err = copy_to_user(ubuf,&tmp,sizeof(struct ustat)) ? -EFAULT : 0;
+out:
+	unlock_kernel();
+	return err;
 }
 
 static struct super_block * read_super(kdev_t dev,const char *name,int flags,
@@ -559,10 +560,9 @@ kdev_t get_unnamed_dev(void)
 
 void put_unnamed_dev(kdev_t dev)
 {
-	if (!dev)
+	if (!dev || MAJOR(dev) != UNNAMED_MAJOR)
 		return;
-	if (MAJOR(dev) == UNNAMED_MAJOR &&
-	    clear_bit(MINOR(dev), unnamed_dev_in_use))
+	if (clear_bit(MINOR(dev), unnamed_dev_in_use))
 		return;
 	printk("VFS: put_unnamed_dev: freeing unused device %s\n",
 			kdevname(dev));
@@ -635,27 +635,30 @@ asmlinkage int sys_umount(char * name)
 {
 	struct inode * inode;
 	kdev_t dev;
-	int retval;
+	int retval = -EPERM;
 	struct inode dummy_inode;
 
+	lock_kernel();
 	if (!suser())
-		return -EPERM;
+		goto out;
 	retval = namei(name, &inode);
 	if (retval) {
 		retval = lnamei(name, &inode);
 		if (retval)
-			return retval;
+			goto out;
 	}
 	if (S_ISBLK(inode->i_mode)) {
 		dev = inode->i_rdev;
+		retval = -EACCES;
 		if (IS_NODEV(inode)) {
 			iput(inode);
-			return -EACCES;
+			goto out;
 		}
 	} else {
+		retval = -EINVAL;
 		if (!inode->i_sb || inode != inode->i_sb->s_mounted) {
 			iput(inode);
-			return -EINVAL;
+			goto out;
 		}
 		dev = inode->i_sb->s_dev;
 		iput(inode);
@@ -663,25 +666,26 @@ asmlinkage int sys_umount(char * name)
 		dummy_inode.i_rdev = dev;
 		inode = &dummy_inode;
 	}
+	retval = -ENXIO;
 	if (MAJOR(dev) >= MAX_BLKDEV) {
 		iput(inode);
-		return -ENXIO;
+		goto out;
 	}
 	retval = do_umount(dev,0);
 	if (!retval) {
 		fsync_dev(dev);
 		if (dev != ROOT_DEV) {
 			blkdev_release (inode);
-			if (MAJOR(dev) == UNNAMED_MAJOR)
-				put_unnamed_dev(dev);
+			put_unnamed_dev(dev);
 		}
 	}
 	if (inode != &dummy_inode)
 		iput(inode);
-	if (retval)
-		return retval;
-	fsync_dev(dev);
-	return 0;
+	if (!retval)
+		fsync_dev(dev);
+out:
+	unlock_kernel();
+	return retval;
 }
 
 /*
@@ -757,6 +761,7 @@ static int do_remount_sb(struct super_block *sb, int flags, char *data)
 	if ((flags & MS_RDONLY) && !(sb->s_flags & MS_RDONLY))
 		if (!fs_may_remount_ro(sb->s_dev))
 			return -EBUSY;
+	sb->s_flags = (flags & ~MS_RDONLY) | (sb->s_flags & MS_RDONLY);
 	if (sb->s_op && sb->s_op->remount_fs) {
 		retval = sb->s_op->remount_fs(sb, &flags, data);
 		if (retval)
@@ -808,7 +813,10 @@ static int copy_mount_options (const void * data, unsigned long *where)
 	if (!(page = __get_free_page(GFP_KERNEL))) {
 		return -ENOMEM;
 	}
-	copy_from_user((void *) page,data,i);
+	if (copy_from_user((void *) page,data,i)) {
+		free_page(page); 
+		return -EFAULT;
+	}
 	*where = page;
 	return 0;
 }
@@ -822,9 +830,9 @@ static int copy_mount_options (const void * data, unsigned long *where)
  * information (or be NULL).
  *
  * NOTE! As old versions of mount() didn't use this setup, the flags
- * has to have a special 16-bit magic number in the hight word:
+ * have to have a special 16-bit magic number in the high word:
  * 0xC0ED. If this magic word isn't present, the flags and data info
- * isn't used, as the syscall assumes we are talking to an older
+ * aren't used, as the syscall assumes we are talking to an older
  * version that didn't understand them.
  */
 asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
@@ -834,54 +842,60 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 	struct inode * inode;
 	struct file_operations * fops;
 	kdev_t dev;
-	int retval;
+	int retval = -EPERM;
 	const char * t;
 	unsigned long flags = 0;
 	unsigned long page = 0;
 
+	lock_kernel();
 	if (!suser())
-		return -EPERM;
+		goto out;
 	if ((new_flags &
 	     (MS_MGC_MSK | MS_REMOUNT)) == (MS_MGC_VAL | MS_REMOUNT)) {
 		retval = copy_mount_options (data, &page);
 		if (retval < 0)
-			return retval;
+			goto out;
 		retval = do_remount(dir_name,
 				    new_flags & ~MS_MGC_MSK & ~MS_REMOUNT,
 				    (char *) page);
 		free_page(page);
-		return retval;
+		goto out;
 	}
 	retval = copy_mount_options (type, &page);
 	if (retval < 0)
-		return retval;
+		goto out;
 	fstype = get_fs_type((char *) page);
 	free_page(page);
+	retval = -ENODEV;
 	if (!fstype)		
-		return -ENODEV;
+		goto out;
 	t = fstype->name;
 	fops = NULL;
 	if (fstype->requires_dev) {
 		retval = namei(dev_name, &inode);
 		if (retval)
-			return retval;
+			goto out;
+		retval = -ENOTBLK;
 		if (!S_ISBLK(inode->i_mode)) {
 			iput(inode);
-			return -ENOTBLK;
+			goto out;
 		}
+		retval = -EACCES;
 		if (IS_NODEV(inode)) {
 			iput(inode);
-			return -EACCES;
+			goto out;
 		}
 		dev = inode->i_rdev;
+		retval = -ENXIO;
 		if (MAJOR(dev) >= MAX_BLKDEV) {
 			iput(inode);
-			return -ENXIO;
+			goto out;
 		}
 		fops = get_blkfops(MAJOR(dev));
+		retval = -ENOTBLK;
 		if (!fops) {
 			iput(inode);
-			return -ENOTBLK;
+			goto out;
 		}
 		if (fops->open) {
 			struct file dummy;	/* allows read-write or read-only flag */
@@ -891,13 +905,14 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 			retval = fops->open(inode, &dummy);
 			if (retval) {
 				iput(inode);
-				return retval;
+				goto out;
 			}
 		}
 
 	} else {
+		retval = -EMFILE;
 		if (!(dev = get_unnamed_dev()))
-			return -EMFILE;
+			goto out;
 		inode = NULL;
 	}
 	page = 0;
@@ -905,15 +920,20 @@ asmlinkage int sys_mount(char * dev_name, char * dir_name, char * type,
 		flags = new_flags & ~MS_MGC_MSK;
 		retval = copy_mount_options(data, &page);
 		if (retval < 0) {
+			put_unnamed_dev(dev);
 			iput(inode);
-			return retval;
+			goto out;
 		}
 	}
 	retval = do_mount(dev,dev_name,dir_name,t,flags,(void *) page);
 	free_page(page);
-	if (retval && fops && fops->release)
+	if (retval && fops && fops->release) {
 		fops->release(inode, NULL);
+		put_unnamed_dev(dev);
+	}
 	iput(inode);
+out:
+	unlock_kernel();
 	return retval;
 }
 

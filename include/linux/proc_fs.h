@@ -1,6 +1,7 @@
 #ifndef _LINUX_PROC_FS_H
 #define _LINUX_PROC_FS_H
 
+#include <linux/config.h>
 #include <linux/fs.h>
 #include <linux/malloc.h>
 
@@ -21,6 +22,7 @@ enum root_directory_inos {
 	PROC_VERSION,
 	PROC_CPUINFO,
 	PROC_PCI,
+	PROC_MCA,
 	PROC_SELF,	/* will change inode # */
 	PROC_NET,
         PROC_SCSI,
@@ -41,9 +43,13 @@ enum root_directory_inos {
 	PROC_CMDLINE,
 	PROC_SYS,
 	PROC_MTAB,
+	PROC_SWAP,
 	PROC_MD,
 	PROC_RTC,
-	PROC_LOCKS
+	PROC_LOCKS,
+	PROC_ZORRO,
+	PROC_SLABINFO,
+	PROC_PARPORT
 };
 
 enum pid_directory_inos {
@@ -58,7 +64,10 @@ enum pid_directory_inos {
 	PROC_PID_CMDLINE,
 	PROC_PID_STAT,
 	PROC_PID_STATM,
-	PROC_PID_MAPS
+	PROC_PID_MAPS,
+#if CONFIG_AP1000
+	PROC_PID_RINGBUF,
+#endif
 };
 
 enum pid_subdirectory_inos {
@@ -69,10 +78,16 @@ enum net_directory_inos {
 	PROC_NET_UNIX = 128,
 	PROC_NET_ARP,
 	PROC_NET_ROUTE,
+	PROC_NET_RTCLASSES,
+	PROC_NET_RTLOCAL,
+	PROC_NET_RTRULES,
 	PROC_NET_DEV,
 	PROC_NET_RAW,
+	PROC_NET_RAW6,
 	PROC_NET_TCP,
+	PROC_NET_TCP6,
 	PROC_NET_UDP,
+	PROC_NET_UDP6,
 	PROC_NET_SNMP,
 	PROC_NET_RARP,
 	PROC_NET_IGMP,
@@ -83,7 +98,7 @@ enum net_directory_inos {
 	PROC_NET_IPFWOUT,
 	PROC_NET_IPACCT,
 	PROC_NET_IPMSQHST,
-	PROC_NET_WAVELAN,
+	PROC_NET_WIRELESS,
 	PROC_NET_IPX_INTERFACE,
 	PROC_NET_IPX_ROUTE,
 	PROC_NET_IPX,
@@ -97,13 +112,16 @@ enum net_directory_inos {
 	PROC_NET_NR_NEIGH,
 	PROC_NET_NR,
 	PROC_NET_SOCKSTAT,
+	PROC_NET_SOCKSTAT6,
 	PROC_NET_RTCACHE,
 	PROC_NET_AX25_BPQETHER,
 	PROC_NET_ALIAS_TYPES,
 	PROC_NET_ALIASES,
 	PROC_NET_IP_MASQ_APP,
 	PROC_NET_RT6,
+	PROC_NET_RT6_TREE,
 	PROC_NET_RT6_STATS,
+	PROC_NET_NDISC,
 	PROC_NET_STRIP_STATUS,
 	PROC_NET_STRIP_TRACE,
 	PROC_NET_Z8530,
@@ -111,6 +129,11 @@ enum net_directory_inos {
 	PROC_NET_RS_NEIGH,
 	PROC_NET_RS_ROUTES,
 	PROC_NET_RS,
+	PROC_NET_CL2LLC,
+	PROC_NET_X25_LINKS,
+	PROC_NET_X25_ROUTES,
+	PROC_NET_X25,
+	PROC_NET_TR_RIF,
 	PROC_NET_LAST
 };
 
@@ -137,16 +160,19 @@ enum scsi_directory_inos {
 	PROC_SCSI_NCR53C8XX,
 	PROC_SCSI_ULTRASTOR,
 	PROC_SCSI_7000FASST,
+	PROC_SCSI_IBMMCA,
 	PROC_SCSI_EATA2X,
 	PROC_SCSI_AM53C974,
 	PROC_SCSI_SSC,
 	PROC_SCSI_NCR53C406A,
 	PROC_SCSI_PPA,
 	PROC_SCSI_ESP,
+	PROC_SCSI_QLOGICPTI,
 	PROC_SCSI_A3000,
 	PROC_SCSI_A2091,
 	PROC_SCSI_GVP11,
 	PROC_SCSI_ATARI,
+	PROC_SCSI_IDESCSI,
 	PROC_SCSI_SGIWD93,
 	PROC_SCSI_SCSI_DEBUG,	
 	PROC_SCSI_NOT_PRESENT,
@@ -154,10 +180,24 @@ enum scsi_directory_inos {
 	PROC_SCSI_LAST = (PROC_SCSI_FILE + 16) /* won't ever see more than */
 };                                             /* 16 HBAs in one machine   */
 
+enum mca_directory_inos {
+	PROC_MCA_MACHINE = (PROC_SCSI_LAST+1),
+	PROC_MCA_REGISTERS,
+	PROC_MCA_VIDEO,
+	PROC_MCA_SCSI,
+	PROC_MCA_SLOT,	/* the 8 adapter slots */
+	PROC_MCA_LAST = (PROC_MCA_SLOT + 8)
+};
+
 /* Finally, the dynamically allocatable proc entries are reserved: */
 
 #define PROC_DYNAMIC_FIRST 4096
 #define PROC_NDYNAMIC      4096
+#define PROC_OPENPROM_FIRST (PROC_DYNAMIC_FIRST+PROC_NDYNAMIC)
+#define PROC_OPENPROM	   PROC_OPENPROM_FIRST
+#define PROC_NOPENPROM	   4096
+#define PROC_OPENPROMD_FIRST (PROC_OPENPROM_FIRST+PROC_NOPENPROM)
+#define PROC_NOPENPROMD	   4096
 
 #define PROC_SUPER_MAGIC 0x9fa0
 
@@ -190,17 +230,23 @@ struct proc_dir_entry {
 	void (*fill_inode)(struct inode *);
 	struct proc_dir_entry *next, *parent, *subdir;
 	void *data;
+	int (*read_proc)(char *page, char **start, off_t off,
+			 int count, int *eof, void *data);
+	int (*write_proc)(struct file *file, const char *buffer,
+			  unsigned long count, void *data);
 };
 
 extern int (* dispatch_scsi_info_ptr) (int ino, char *buffer, char **start,
 				off_t offset, int length, int inout);
 
 extern struct proc_dir_entry proc_root;
-extern struct proc_dir_entry proc_net;
-extern struct proc_dir_entry proc_scsi;
+extern struct proc_dir_entry *proc_net;
+extern struct proc_dir_entry *proc_scsi;
 extern struct proc_dir_entry proc_sys;
+extern struct proc_dir_entry proc_openprom;
 extern struct proc_dir_entry proc_pid;
 extern struct proc_dir_entry proc_pid_fd;
+extern struct proc_dir_entry proc_mca;
 
 extern struct inode_operations proc_scsi_inode_operations;
 
@@ -209,18 +255,16 @@ extern void proc_base_init(void);
 extern void proc_net_init(void);
 
 extern int proc_register(struct proc_dir_entry *, struct proc_dir_entry *);
-extern int proc_register_dynamic(struct proc_dir_entry *, 
-				 struct proc_dir_entry *);
 extern int proc_unregister(struct proc_dir_entry *, int);
 
 static inline int proc_net_register(struct proc_dir_entry * x)
 {
-	return proc_register(&proc_net, x);
+	return proc_register(proc_net, x);
 }
 
 static inline int proc_net_unregister(int x)
 {
-	return proc_unregister(&proc_net, x);
+	return proc_unregister(proc_net, x);
 }
 
 static inline int proc_scsi_register(struct proc_dir_entry *driver, 
@@ -228,7 +272,7 @@ static inline int proc_scsi_register(struct proc_dir_entry *driver,
 {
     x->ops = &proc_scsi_inode_operations;
     if(x->low_ino < PROC_SCSI_FILE){
-	return(proc_register(&proc_scsi, x));
+	return(proc_register(proc_scsi, x));
     }else{
 	return(proc_register(driver, x));
     }
@@ -239,7 +283,7 @@ static inline int proc_scsi_unregister(struct proc_dir_entry *driver, int x)
     extern void scsi_init_free(char *ptr, unsigned int size);
 
     if(x <= PROC_SCSI_FILE)
-	return(proc_unregister(&proc_scsi, x));
+	return(proc_unregister(proc_scsi, x));
     else {
 	struct proc_dir_entry **p = &driver->subdir, *dp;
 	int ret;
@@ -273,10 +317,30 @@ extern int proc_match(int, const char *, struct proc_dir_entry *);
 extern int proc_readdir(struct inode *, struct file *, void *, filldir_t);
 extern int proc_lookup(struct inode *, const char *, int, struct inode **);
 
+struct openpromfs_dev {
+ 	struct openpromfs_dev *next;
+ 	u32 node;
+ 	ino_t inode;
+ 	kdev_t rdev;
+ 	mode_t mode;
+ 	char name[32];
+};
+extern struct inode_operations *
+proc_openprom_register(int (*readdir)(struct inode *, struct file *, void *, filldir_t),
+		       int (*lookup)(struct inode *, const char *, int, struct inode **),
+		       void (*use)(struct inode *, int),
+		       struct openpromfs_dev ***);
+extern void proc_openprom_deregister(void);
+extern void (*proc_openprom_use)(struct inode *,int);
+extern int proc_openprom_regdev(struct openpromfs_dev *);
+extern int proc_openprom_unregdev(struct openpromfs_dev *);
+  
 extern struct inode_operations proc_dir_inode_operations;
+extern struct inode_operations proc_file_inode_operations;
 extern struct inode_operations proc_net_inode_operations;
 extern struct inode_operations proc_netdir_inode_operations;
 extern struct inode_operations proc_scsi_inode_operations;
+extern struct inode_operations proc_openprom_inode_operations;
 extern struct inode_operations proc_mem_inode_operations;
 extern struct inode_operations proc_sys_inode_operations;
 extern struct inode_operations proc_array_inode_operations;
@@ -286,5 +350,21 @@ extern struct inode_operations proc_profile_inode_operations;
 extern struct inode_operations proc_kmsg_inode_operations;
 extern struct inode_operations proc_link_inode_operations;
 extern struct inode_operations proc_fd_inode_operations;
-
+#if CONFIG_AP1000
+extern struct inode_operations proc_ringbuf_inode_operations;
 #endif
+#endif
+
+/*
+ * generic.c
+ */
+struct proc_dir_entry *create_proc_entry(const char *name, mode_t mode,
+					 struct proc_dir_entry *parent);
+void remove_proc_entry(const char *name, struct proc_dir_entry *parent);
+
+/*
+ * proc_tty.c
+ */
+extern void proc_tty_init(void);
+extern void proc_tty_register_driver(struct tty_driver *driver);
+extern void proc_tty_unregister_driver(struct tty_driver *driver);

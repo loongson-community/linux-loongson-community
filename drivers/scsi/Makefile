@@ -10,6 +10,7 @@ L_TARGET := scsi.a
 L_OBJS   := 
 M_OBJS   := 
 MX_OBJS  := 
+MIX_OBJS :=
 MOD_LIST_NAME := SCSI_MODULES
 SCSI_SRCS = $(wildcard $(L_OBJS:%.o=%.c))
 
@@ -30,14 +31,22 @@ TOPDIR = ../..
 endif
 
 ifeq ($(CONFIG_SCSI),y)
-L_OBJS += hosts.o scsi.o scsi_ioctl.o constants.o scsicam.o
+  # We must attach scsi_syms.o to scsi.o, as otherwise there is nothing to
+  # pull the object file from the archive.
+  SCSI=scsi.o
+  ifeq ($(CONFIG_MODULES),y)
+    O_TARGET := scsi_n_syms.o
+    O_OBJS   := scsi.o
+    OX_OBJS  := scsi_syms.o
+    SCSI     := $(O_TARGET)
+  endif
+  L_OBJS += $(SCSI) hosts.o scsi_ioctl.o constants.o scsicam.o
   ifeq ($(CONFIG_PROC_FS),y)
     L_OBJS += scsi_proc.o
   endif
-LX_OBJS += scsi_syms.o
 else
   ifeq ($(CONFIG_SCSI),m)
-    MX_OBJS += scsi_syms.o
+    MIX_OBJS += scsi_syms.o
     M_OBJS += scsi_mod.o
   endif
 endif
@@ -232,6 +241,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_QLOGICPTI),y)
+L_OBJS += qlogicpti.o
+else
+  ifeq ($(CONFIG_SCSI_QLOGICPTI),m)
+  M_OBJS += qlogicpti.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_DEBUG),y)
 L_OBJS += scsi_debug.o
 else
@@ -258,10 +275,8 @@ endif
 
 ifeq ($(CONFIG_SCSI_GENERIC_NCR5380),y)
 L_OBJS += g_NCR5380.o
-EXTRA_CFLAGS = -DGENERIC_NCR5380_OVERRIDE="{{(NCR5380_map_type)0x350,5,0, BOARD_NCR53C400}};"
 else
   ifeq ($(CONFIG_SCSI_GENERIC_NCR5380),m)
-  EXTRA_CFLAGS = -DGENERIC_NCR5380_OVERRIDE="{{(NCR5380_map_type)0x350,5,0, BOARD_NCR53C400}};"
   M_OBJS += g_NCR5380.o
   endif
 endif
@@ -315,6 +330,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_IBMMCA),y)
+L_OBJS += ibmmca.o
+else
+  ifeq ($(CONFIG_SCSI_IBMMCA),m)
+  M_OBJS += ibmmca.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_T128),y)
 L_OBJS += t128.o
 else
@@ -355,7 +378,21 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_BLK_DEV_IDESCSI),y)
+L_OBJS += ide-scsi.o
+else
+  ifeq ($(CONFIG_BLK_DEV_IDESCSI),m)
+  M_OBJS += ide-scsi.o
+  endif
+endif
+
 include $(TOPDIR)/Rules.make
+
+BusLogic.o: BusLogic.c FlashPoint.c
+	$(CC) $(CFLAGS) -c BusLogic.c -o BusLogic.O
+	$(CC) $(CFLAGS) -c FlashPoint.c -o FlashPoint.O
+	$(LD) -r -o BusLogic.o BusLogic.O FlashPoint.O
+	rm -f BusLogic.O FlashPoint.O
 
 aha152x.o: aha152x.c
 	$(CC) $(CFLAGS) $(AHA152X) -c aha152x.c 
@@ -368,7 +405,7 @@ aic7xxx_seq.h:	aic7xxx_asm aic7xxx.seq
 	./aic7xxx_asm -o $@ aic7xxx.seq
 
 seagate.o: seagate.c
-	$(CC) $(CFLAGS) -DARBITRATE -DSLOW_HANDSHAKE -DFAST32 -c seagate.c 
+	$(CC) $(CFLAGS) -DARBITRATE -DSLOW_HANDSHAKE -DFAST32 -DPARITY -c seagate.c 
 
 # For debugging, use the -g flag
 53c7,8xx.o : 53c7,8xx.c
@@ -384,9 +421,9 @@ seagate.o: seagate.c
 ncr53c8xx.o : ncr53c8xx.c
 	$(CC) $(CFLAGS) -c ncr53c8xx.c
 
-scsi_mod.o: $(MX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o \
+scsi_mod.o: $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o \
 		scsicam.o scsi_proc.o
-	$(LD) $(LD_RFLAG) -r -o $@ $(MX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o scsicam.o scsi_proc.o
+	$(LD) $(LD_RFLAG) -r -o $@ $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o scsicam.o scsi_proc.o
 
 sr_mod.o: sr.o sr_ioctl.o $(SR_VENDOR)
 	$(LD) $(LD_RFLAG) -r -o $@ sr.o sr_ioctl.o $(SR_VENDOR)

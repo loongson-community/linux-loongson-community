@@ -50,7 +50,6 @@
 #include <linux/delay.h>
 #include <linux/config.h>
 #include <linux/interrupt.h>
-#include <asm/setup.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/irq.h>
@@ -606,6 +605,8 @@ static long vfmin = 50, vfmax = 90, hfmin = 15000, hfmax = 38000;
 #define SPRITEMEMSIZE		(64*64/4) /* max 64*64*4 */
 #define DUMMYSPRITEMEMSIZE	(8)
 
+#define CHIPRAM_SAFETY_LIMIT	(16384)
+
 static u_long videomemory, spritememory;
 static u_long videomemorysize;
 
@@ -639,7 +640,7 @@ typedef union {
 	u_short w[2];
 } copins;
 
-struct copdisplay {
+static struct copdisplay {
 	copins *init;
 	copins *wait;
 	copins *list[2][2];
@@ -662,7 +663,7 @@ static u_short *lofsprite, *shfsprite, *dummysprite;
 	 * Current Video Mode
 	 */
 
-struct amiga_fb_par {
+static struct amiga_fb_par {
 
 	/* General Values */
 
@@ -835,7 +836,7 @@ static char *amiga_fb_modenames[] = {
 	"user0", "user1", "user2", "user3", "user4", "user5", "user6", "user7"
 };
 
-struct fb_var_screeninfo amiga_fb_predefined[] = {
+static struct fb_var_screeninfo amiga_fb_predefined[] = {
 
 	/*
 	 * Autodetect (Default) Video Mode
@@ -1241,6 +1242,7 @@ struct fb_info *amiga_fb_init(long *mem_start);
 static int amifbcon_switch(int con);
 static int amifbcon_updatevar(int con);
 static void amifbcon_blank(int blank);
+static int amifbcon_setcmap(struct fb_cmap *cmap, int con);
 
 	/*
 	 * Internal routines
@@ -1314,7 +1316,15 @@ extern void Cyber_video_setup(char *options, int *ints);
 extern struct fb_info *Cyber_fb_init(long *mem_start);
 
 static int amifb_Cyber = 0;
-#endif /* CONFIG_FB_CYBER */
+#endif
+
+#ifdef CONFIG_FB_RETINAZ3			/* RetinaZ3 */
+extern int retz3_probe(void);
+extern void retz3_video_setup(char *options, int *ints);
+extern struct fb_info *retz3_fb_init(long *mem_start);
+
+static int amifb_retz3 = 0;
+#endif
 
 #ifdef CONFIG_GSP_RESOLVER			/* DMI Resolver */
 extern int resolver_probe(void);
@@ -1322,7 +1332,7 @@ extern void resolver_video_setup(char *options, int *ints);
 extern struct fb_info *resolver_fb_init(long *mem_start);
 
 static int amifb_resolver = 0;
-#endif /* CONFIG_GSP_RESOLVER */
+#endif
 
 static struct fb_ops amiga_fb_ops = {
 	amiga_fb_get_fix, amiga_fb_get_var, amiga_fb_set_var, amiga_fb_get_cmap,
@@ -1346,7 +1356,15 @@ void amiga_video_setup(char *options, int *ints)
 			Cyber_video_setup(options, ints);
 			return;
 		}
-#endif /* CONFIG_FB_CYBER */
+#endif
+#ifdef CONFIG_FB_RETINAZ3
+	if (options && *options)
+		if (!strncmp(options, "retz3", 5) && retz3_probe()) {
+			amifb_retz3 = 1;
+			retz3_video_setup(options, ints);
+			return;
+		}
+#endif
 #ifdef CONFIG_GSP_RESOLVER
 	if (options && *options)
 		if (!strncmp(options, "resolver", 5) && resolver_probe()) {
@@ -1796,7 +1814,14 @@ struct fb_info *amiga_fb_init(long *mem_start)
 #ifdef CONFIG_FB_CYBER
 	if (amifb_Cyber)
 		return Cyber_fb_init(mem_start);
-#endif /* CONFIG_FB_CYBER */
+#endif
+#ifdef CONFIG_FB_RETINAZ3
+	if (amifb_retz3){
+		custom.dmacon = DMAF_MASTER | DMAF_RASTER | DMAF_COPPER |
+				DMAF_BLITTER | DMAF_SPRITE;
+		return retz3_fb_init(mem_start);
+	}
+#endif
 #ifdef CONFIG_GSP_RESOLVER
 	if (amifb_resolver){
 		custom.dmacon = DMAF_MASTER | DMAF_RASTER | DMAF_COPPER |
@@ -1814,7 +1839,7 @@ struct fb_info *amiga_fb_init(long *mem_start)
 
 	custom.dmacon = DMAF_ALL | DMAF_MASTER;
 
-	switch (boot_info.bi_amiga.chipset) {
+	switch (amiga_chipset) {
 #ifdef CONFIG_AMIFB_OCS
 		case CS_OCS:
 			strcat(amiga_fb_name, "OCS");
@@ -1825,7 +1850,7 @@ default_chipset:
 			maxdepth[TAG_LORES] = 6;
 			maxfmode = TAG_FMODE_1;
 			if (!amifb_usermode)		/* Set the Default Video Mode */
-				get_video_mode(boot_info.bi_un.bi_ami.vblank == 50 ?
+				get_video_mode(amiga_vblank == 50 ?
 				               DEFMODE_PAL : DEFMODE_NTSC);
 			videomemorysize = VIDEOMEMSIZE_OCS;
 			break;
@@ -1841,13 +1866,14 @@ default_chipset:
 			maxfmode = TAG_FMODE_1;
 			if (!amifb_usermode) {		/* Set the Default Video Mode */
 				if (AMIGAHW_PRESENT(AMBER_FF))
-					get_video_mode(boot_info.bi_un.bi_ami.vblank == 50 ?
+					get_video_mode(amiga_vblank == 50 ?
 					               DEFMODE_AMBER_PAL : DEFMODE_AMBER_NTSC);
 				else
-					get_video_mode(boot_info.bi_un.bi_ami.vblank == 50 ?
+					get_video_mode(amiga_vblank == 50 ?
 					               DEFMODE_PAL : DEFMODE_NTSC);
 			}
-			if (boot_info.bi_amiga.chip_size > 1048576)
+			if (amiga_chip_avail()-CHIPRAM_SAFETY_LIMIT >
+			    VIDEOMEMSIZE_ECS_1M)
 				videomemorysize = VIDEOMEMSIZE_ECS_2M;
 			else
 				videomemorysize = VIDEOMEMSIZE_ECS_1M;
@@ -1864,7 +1890,8 @@ default_chipset:
 			maxfmode = TAG_FMODE_4;
 			if (!amifb_usermode)		/* Set the Default Video Mode */
 				get_video_mode(DEFMODE_AGA);
-			if (boot_info.bi_amiga.chip_size > 1048576)
+			if (amiga_chip_avail()-CHIPRAM_SAFETY_LIMIT >
+			    VIDEOMEMSIZE_AGA_1M)
 				videomemorysize = VIDEOMEMSIZE_AGA_2M;
 			else
 				videomemorysize = VIDEOMEMSIZE_AGA_1M;
@@ -1940,11 +1967,11 @@ default_chipset:
 
 	check_default_mode();
 
-	if (request_irq(IRQ3, amifb_interrupt, IRQ_FLG_LOCK,
+	if (request_irq(IRQ_AMIGA_AUTO_3, amifb_interrupt, IRQ_FLG_LOCK,
 	                "fb vertb handler", NULL))
 		panic("Couldn't add vblank interrupt\n");
-	ami_intena_vals[IRQ_IDX(IRQ_AMIGA_VERTB)] = IF_COPER;
-	ami_intena_vals[IRQ_IDX(IRQ_AMIGA_COPPER)] = 0;
+	ami_intena_vals[IRQ_AMIGA_VERTB] = IF_COPER;
+	ami_intena_vals[IRQ_AMIGA_COPPER] = 0;
 	custom.intena = IF_VERTB;
 	custom.intena = IF_SETCLR | IF_COPER;
 
@@ -1954,6 +1981,7 @@ default_chipset:
 	fb_info.switch_con = &amifbcon_switch;
 	fb_info.updatevar = &amifbcon_updatevar;
 	fb_info.blank = &amifbcon_blank;
+	fb_info.setcmap = &amifbcon_setcmap;
 
 	amiga_fb_set_var(&amiga_fb_predefined[0], 0);
 
@@ -1990,6 +2018,15 @@ static int amifbcon_updatevar(int con)
 static void amifbcon_blank(int blank)
 {
 	do_blank = blank ? blank : -1;
+}
+
+	/*
+	 * Set the colormap
+	 */
+
+static int amifbcon_setcmap(struct fb_cmap *cmap, int con)
+{
+	return(amiga_fb_set_cmap(cmap, 1, con));
 }
 
 /* ---------------------------- Generic routines ---------------------------- */
@@ -2210,10 +2247,11 @@ static void amifb_interrupt(int irq, void *dev_id, struct pt_regs *fp)
 {
 	u_short ints = custom.intreqr & custom.intenar;
 	static struct irq_server server = {0, 0};
+	unsigned long flags;
 
 	if (ints & IF_BLIT) {
 		custom.intreq = IF_BLIT;
-		amiga_do_irq(IRQ_IDX(IRQ_AMIGA_BLIT), fp);
+		amiga_do_irq(IRQ_AMIGA_BLIT, fp);
 	}
 
 	if (ints & IF_COPER) {
@@ -2237,8 +2275,11 @@ static void amifb_interrupt(int irq, void *dev_id, struct pt_regs *fp)
 				ami_set_sprite();
 		}
 
-		if (get_vbpos() < down2(currentpar.diwstrt_v - 4))
+		save_flags(flags);
+		cli();
+		if (get_vbpos() < down2(currentpar.diwstrt_v - 6))
 			custom.copjmp2 = 0;
+		restore_flags(flags);
 
 		if (do_blank) {
 			ami_do_blank();
@@ -2249,7 +2290,7 @@ static void amifb_interrupt(int irq, void *dev_id, struct pt_regs *fp)
 			ami_reinit_copper();
 			do_vmode_full = 0;
 		}
-		amiga_do_irq_list(IRQ_IDX(IRQ_AMIGA_VERTB), fp, &server);
+		amiga_do_irq_list(IRQ_AMIGA_VERTB, fp, &server);
 	}
 
 	if (ints & IF_VERTB) {
@@ -2504,7 +2545,7 @@ static int ami_decode_var(struct fb_var_screeninfo *var,
 			           AMIGAHW_PRESENT(AGNUS_HR_NTSC)) {
 				par->beamcon0 = BMC0_PAL;
 				par->hsstop = 1;
-			} else if (boot_info.bi_un.bi_ami.vblank != 50)
+			} else if (amiga_vblank != 50)
 				return -EINVAL;
 		} else {
 			/* NTSC video mode
@@ -2526,7 +2567,7 @@ static int ami_decode_var(struct fb_var_screeninfo *var,
 			           AMIGAHW_PRESENT(AGNUS_HR_NTSC)) {
 				par->beamcon0 = 0;
 				par->hsstop = 1;
-			} else if (boot_info.bi_un.bi_ami.vblank != 60)
+			} else if (amiga_vblank != 60)
 				return -EINVAL;
 		}
 		if (IS_OCS) {

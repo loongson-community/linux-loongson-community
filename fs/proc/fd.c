@@ -21,7 +21,7 @@ static struct file_operations proc_fd_operations = {
 	NULL,			/* read - bad */
 	NULL,			/* write - bad */
 	proc_readfd,		/* readdir */
-	NULL,			/* select - default */
+	NULL,			/* poll - default */
 	NULL,			/* ioctl - default */
 	NULL,			/* mmap */
 	NULL,			/* no special open code */
@@ -106,7 +106,13 @@ static int proc_lookupfd(struct inode * dir, const char * name, int len,
 	if (!pid || i >= NR_TASKS)
 		return -ENOENT;
 
-	if (fd >= NR_OPEN || !p->files->fd[fd] || !p->files->fd[fd]->f_inode)
+	/*
+	 *	File handle is invalid if it is out of range, if the process
+	 *	has no files (Zombie) if the file is closed, or if its inode
+	 *	is NULL
+	 */
+
+ 	if (fd >= NR_OPEN || !p->files || !p->files->fd[fd] || !p->files->fd[fd]->f_inode)
 	  return -ENOENT;
 
 	ino = (pid << 16) + (PROC_PID_FD_DIR << 8) + fd;

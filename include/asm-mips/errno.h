@@ -139,6 +139,12 @@
 #define ECANCELED	158	/* AIO operation canceled */
 
 /*
+ * These error are Linux extensions.
+ */
+#define ENOMEDIUM	159	/* No medium found */
+#define EMEDIUMTYPE	160	/* Wrong medium type */
+
+/*
  * IRIX 5 error number start from 1000.
  * Stupid enough; ECANCELED gets redefined with a different value ...
 #define ECANCELED       1000

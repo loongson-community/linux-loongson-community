@@ -23,7 +23,16 @@
  */
 #define __atomic_fool_gcc(x) (*(struct { int a[100]; } *)x)
 
-typedef int atomic_t;
+#ifdef __SMP__
+typedef struct { volatile int counter; } atomic_t;
+#else
+typedef struct { int counter; } atomic_t;
+#endif
+
+#define ATOMIC_INIT(i)    { (i) }
+
+#define atomic_read(v)	((v)->counter)
+#define atomic_set(v,i)	((v)->counter = (i))
 
 #if (_MIPS_ISA == _MIPS_ISA_MIPS1)
 
@@ -33,7 +42,7 @@ typedef int atomic_t;
  * The MIPS I implementation is only atomic with respect to
  * interrupts.  R3000 based multiprocessor machines are rare anyway ...
  */
-extern __inline__ void atomic_add(atomic_t i, atomic_t * v)
+extern __inline__ void atomic_add(int i, volatile atomic_t * v)
 {
 	int	flags;
 
@@ -43,7 +52,7 @@ extern __inline__ void atomic_add(atomic_t i, atomic_t * v)
 	restore_flags(flags);
 }
 
-extern __inline__ void atomic_sub(atomic_t i, atomic_t * v)
+extern __inline__ void atomic_sub(int i, volatile atomic_t * v)
 {
 	int	flags;
 
@@ -53,7 +62,7 @@ extern __inline__ void atomic_sub(atomic_t i, atomic_t * v)
 	restore_flags(flags);
 }
 
-extern __inline__ int atomic_add_return(atomic_t i, atomic_t * v)
+extern __inline__ int atomic_add_return(int i, atomic_t * v)
 {
 	int	temp, flags;
 
@@ -67,7 +76,7 @@ extern __inline__ int atomic_add_return(atomic_t i, atomic_t * v)
 	return temp;
 }
 
-extern __inline__ int atomic_sub_return(atomic_t i, atomic_t * v)
+extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 {
 	int	temp, flags;
 
@@ -88,7 +97,7 @@ extern __inline__ int atomic_sub_return(atomic_t i, atomic_t * v)
  * ... while for MIPS II and better we can use ll/sc instruction.  This
  * implementation is SMP safe ...
  */
-extern __inline__ void atomic_add(atomic_t i, atomic_t * v)
+extern __inline__ void atomic_add(int i, volatile atomic_t * v)
 {
 	unsigned long temp;
 
@@ -103,7 +112,7 @@ extern __inline__ void atomic_add(atomic_t i, atomic_t * v)
 		 "m" (__atomic_fool_gcc(v)));
 }
 
-extern __inline__ void atomic_sub(atomic_t i, atomic_t * v)
+extern __inline__ void atomic_sub(int i, volatile atomic_t * v)
 {
 	unsigned long temp;
 
@@ -121,7 +130,7 @@ extern __inline__ void atomic_sub(atomic_t i, atomic_t * v)
 /*
  * Same as above, but return the result value
  */
-extern __inline__ int atomic_add_return(atomic_t i, atomic_t * v)
+extern __inline__ int atomic_add_return(int i, atomic_t * v)
 {
 	unsigned long temp, result;
 
@@ -142,7 +151,7 @@ extern __inline__ int atomic_add_return(atomic_t i, atomic_t * v)
 	return result;
 }
 
-extern __inline__ int atomic_sub_return(atomic_t i, atomic_t * v)
+extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 {
 	unsigned long temp, result;
 

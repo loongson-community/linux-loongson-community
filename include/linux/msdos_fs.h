@@ -7,6 +7,9 @@
 #include <linux/fs.h>
 #include <linux/stat.h>
 #include <linux/fd.h>
+#include <linux/config.h>
+
+#include <asm/byteorder.h>
 
 #define MSDOS_ROOT_INO  1 /* == MINIX_ROOT_INO */
 #define SECTOR_SIZE     512 /* sector size (bytes) */
@@ -69,6 +72,14 @@
 
 #define MSDOS_FAT12 4078 /* maximum number of clusters in a 12 bit FAT */
 
+#ifdef CONFIG_ATARI
+#define EOF_FAT12 0xFFF		/* Atari GEMDOS fs uses a different EOF */
+#define EOF_FAT16 0xFFFF
+#else
+#define EOF_FAT12 0xFF8		/* standard EOF */
+#define EOF_FAT16 0xFFF8
+#endif
+
 /*
  * Inode flags
  */
@@ -87,11 +98,10 @@
  * BE = big-endian, c: W = word (16 bits), L = longword (32 bits)
  */
 
-#define CF_LE_W(v) (v)
-#define CF_LE_L(v) (v)
-#define CT_LE_W(v) (v)
-#define CT_LE_L(v) (v)
-
+#define CF_LE_W(v) le16_to_cpu(v)
+#define CF_LE_L(v) le32_to_cpu(v)
+#define CT_LE_W(v) cpu_to_le16(v)
+#define CT_LE_L(v) cpu_to_le32(v)
 
 struct msdos_boot_sector {
 	__s8	ignored[3];	/* Boot strap short or near jump */

@@ -31,12 +31,14 @@ struct in6_addr
 	union 
 	{
 		__u8		u6_addr8[16];
+		__u16		u6_addr16[8];
 		__u32		u6_addr32[4];
 #if (~0UL) > 0xffffffff
 		__u64		u6_addr64[2];
 #endif
 	} in6_u;
 #define s6_addr			in6_u.u6_addr8
+#define s6_addr16		in6_u.u6_addr16
 #define s6_addr32		in6_u.u6_addr32
 #define s6_addr64		in6_u.u6_addr64
 };
@@ -86,6 +88,18 @@ struct ipv6_mreq {
 #define IPV6_PRIORITY_15		0x0f00
 
 /*
+ *	IPV6 extension headers
+ */
+#define IPPROTO_HOPOPTS		0	/* IPv6 hop-by-hop options	*/
+#define IPPROTO_ROUTING		43	/* IPv6 routing header		*/
+#define IPPROTO_FRAGMENT	44	/* IPv6 fragmentation header	*/
+#define IPPROTO_ESP		50	/* encapsulating security payload */
+#define IPPROTO_AH		51	/* authentication header	*/
+#define IPPROTO_ICMPV6		58	/* ICMPv6			*/
+#define IPPROTO_NONE		59	/* IPv6 no next header		*/
+#define IPPROTO_DSTOPTS		60	/* IPv6 destination options	*/
+
+/*
  *	IPV6 socket options
  */
 
@@ -96,6 +110,7 @@ struct ipv6_mreq {
 #define IPV6_RXSRCRT		5
 #define IPV6_PKTOPTIONS		6
 #define IPV6_CHECKSUM		7
+#define IPV6_HOPLIMIT		8
 
 /*
  *	Alternative names

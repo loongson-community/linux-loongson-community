@@ -127,26 +127,26 @@ asmlinkage int do_sigreturn(unsigned long __unused)
 	    /* Verify the frame format.  */
 	    if (!CPU_IS_060 && (context.sc_fpstate[0] != fpu_version))
 	      goto badframe;
-	    if (boot_info.cputype & FPU_68881)
+	    if (m68k_fputype & FPU_68881)
 	      {
 		if (context.sc_fpstate[1] != 0x18
 		    && context.sc_fpstate[1] != 0xb4)
 		  goto badframe;
 	      }
-	    else if (boot_info.cputype & FPU_68882)
+	    else if (m68k_fputype & FPU_68882)
 	      {
 		if (context.sc_fpstate[1] != 0x38
 		    && context.sc_fpstate[1] != 0xd4)
 		  goto badframe;
 	      }
-	    else if (boot_info.cputype & FPU_68040)
+	    else if (m68k_fputype & FPU_68040)
 	      {
 		if (!(context.sc_fpstate[1] == 0x00 ||
                       context.sc_fpstate[1] == 0x28 ||
                       context.sc_fpstate[1] == 0x60))
 		  goto badframe;
 	      }
-	    else if (boot_info.cputype & FPU_68060)
+	    else if (m68k_fputype & FPU_68060)
 	      {
 		if (!(context.sc_fpstate[3] == 0x00 ||
                       context.sc_fpstate[3] == 0x60 ||
@@ -174,7 +174,7 @@ asmlinkage int do_sigreturn(unsigned long __unused)
 
 	if (context.sc_usp != fp+fsize)
 		current->flags &= ~PF_ONSIGSTK;
-	
+
 	/* OK.	Make room on the supervisor stack for the extra junk,
 	 * if necessary.
 	 */
@@ -200,7 +200,7 @@ asmlinkage int do_sigreturn(unsigned long __unused)
 			 "   .align 4\n"
 			 "   .long 2b,4b\n"
 			 "   .long 3b,4b\n"
-			 ".text"
+			 ".previous"
 			 : /* no outputs, it doesn't ever return */
 			 : "a" (sw), "d" (fsize), "d" (frame_offset/4-1),
 			   "n" (frame_offset), "a" (fp)
@@ -261,8 +261,8 @@ badframe:
 
 #define UFRAME_SIZE(fs) (sizeof(struct sigcontext)/4 + 6 + fs/4)
 
-static void setup_frame (struct sigaction * sa, struct pt_regs *regs,
-			 int signr, unsigned long oldmask)
+static inline void setup_frame (struct sigaction * sa, struct pt_regs *regs,
+				int signr, unsigned long oldmask)
 {
 	struct sigcontext context;
 	unsigned long *frame, *tframe;
@@ -291,20 +291,23 @@ static void setup_frame (struct sigaction * sa, struct pt_regs *regs,
 	tframe = frame;
 
 	/* return address points to code on stack */
-	put_user((ulong)(frame+4), tframe); tframe++;
+
+	if(put_user((ulong)(frame+4), tframe))
+		do_exit(SIGSEGV);
+	tframe++;
 	if (current->exec_domain && current->exec_domain->signal_invmap)
-	    put_user(current->exec_domain->signal_invmap[signr], tframe);
+	    __put_user(current->exec_domain->signal_invmap[signr], tframe);
 	else
-	    put_user(signr, tframe);
+	    __put_user(signr, tframe);
 	tframe++;
 
-	put_user(regs->vector, tframe); tframe++;
+	__put_user(regs->vector, tframe); tframe++;
 	/* "scp" parameter.  points to sigcontext */
-	put_user((ulong)(frame+6), tframe); tframe++;
+	__put_user((ulong)(frame+6), tframe); tframe++;
 
 /* set up the return code... */
-	put_user(0xdefc0014,tframe); tframe++; /* addaw #20,sp */
-	put_user(0x70774e40,tframe); tframe++; /* moveq #119,d0; trap #0 */
+	__put_user(0xdefc0014,tframe); tframe++; /* addaw #20,sp */
+	__put_user(0x70774e40,tframe); tframe++; /* moveq #119,d0; trap #0 */
 
 /* Flush caches so the instructions will be correctly executed. (MA) */
 	cache_push_v ((unsigned long)frame, (int)tframe - (int)frame);
@@ -360,9 +363,9 @@ static void setup_frame (struct sigaction * sa, struct pt_regs *regs,
 
 /*
  * OK, we're invoking a handler
- */	
-static void handle_signal(unsigned long signr, struct sigaction *sa,
-			  unsigned long oldmask, struct pt_regs *regs)
+ */
+static inline void handle_signal(unsigned long signr, struct sigaction *sa,
+				 unsigned long oldmask, struct pt_regs *regs)
 {
 	/* are we from a system call? */
 	if (regs->orig_d0 >= 0) {
@@ -482,7 +485,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs *regs)
 					continue;
 				current->state = TASK_STOPPED;
 				current->exit_code = signr;
-				if (!(current->p_pptr->sig->action[SIGCHLD-1].sa_flags & 
+				if (!(current->p_pptr->sig->action[SIGCHLD-1].sa_flags &
 				      SA_NOCLDSTOP))
 					notify_parent(current);
 				schedule();

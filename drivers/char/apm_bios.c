@@ -59,6 +59,7 @@
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/poll.h>
 
 #include <linux/types.h>
 #include <linux/stddef.h>
@@ -72,13 +73,10 @@
 #endif
 #include <linux/miscdevice.h>
 #include <linux/apm_bios.h>
+#include <linux/init.h>
 
-static struct symbol_table	apm_syms = {
-#include <linux/symtab_begin.h>
-	X(apm_register_callback),
-	X(apm_unregister_callback),
-#include <linux/symtab_end.h>
-};
+EXPORT_SYMBOL(apm_register_callback);
+EXPORT_SYMBOL(apm_unregister_callback);
 
 extern unsigned long get_cmos_time(void);
 
@@ -89,7 +87,7 @@ extern unsigned long get_cmos_time(void);
 #define	APM_MINOR_DEV	134
 
 /* Configurable options:
- *  
+ *
  * CONFIG_APM_IGNORE_USER_SUSPEND: define to ignore USER SUSPEND requests.
  * This is necessary on the NEC Versa M series, which generates these when
  * resuming from SYSTEM SUSPEND.  However, enabling this on other laptops
@@ -304,10 +302,9 @@ static void	check_events(void);
 static void	do_apm_timer(unsigned long);
 
 static int	do_open(struct inode *, struct file *);
-static void	do_release(struct inode *, struct file *);
+static int	do_release(struct inode *, struct file *);
 static long	do_read(struct inode *, struct file *, char *, unsigned long);
-static int	do_select(struct inode *, struct file *, int,
-			  select_table *);
+static unsigned int do_poll(struct file *, poll_table *);
 static int	do_ioctl(struct inode *, struct file *, u_int, u_long);
 
 #ifdef CONFIG_PROC_FS
@@ -364,7 +361,7 @@ static struct file_operations apm_bios_fops = {
 	do_read,
 	NULL,		/* write */
 	NULL,		/* readdir */
-	do_select,
+	do_poll,
 	do_ioctl,
 	NULL,		/* mmap */
 	do_open,
@@ -378,12 +375,6 @@ static struct miscdevice apm_device = {
 	"apm",
 	&apm_bios_fops
 };
-
-#ifdef CONFIG_PROC_FS
-static struct proc_dir_entry	apm_proc_entry = {
-        0, 3, "apm", S_IFREG | S_IRUGO, 1, 0, 0, 0, 0, apm_get_info
-};
-#endif
 
 typedef struct callback_list_t {
 	int (*				callback)(apm_event_t);
@@ -461,7 +452,7 @@ static int apm_set_display_power_state(u_short state)
 
 #ifdef CONFIG_APM_DO_ENABLE
 /* Called by apm_setup if apm_enabled will be true. */
-static int apm_enable_power_management(void)
+static inline int apm_enable_power_management(void)
 {
 	u_short	error;
 
@@ -484,7 +475,7 @@ static int apm_get_power_status(u_short *status, u_short *bat, u_short *life)
 	return APM_SUCCESS;
 }
 
-static int apm_engage_power_management(u_short device)
+static inline int apm_engage_power_management(u_short device)
 {
 	u_short	error;
 
@@ -564,7 +555,7 @@ void apm_unregister_callback(int (*callback)(apm_event_t))
 	*ptr = old->next;
 	kfree_s(old, sizeof(callback_list_t));
 }
-	
+
 static int queue_empty(struct apm_bios_struct * as)
 {
 	return as->event_head == as->event_tail;
@@ -579,7 +570,7 @@ static apm_event_t get_queued_event(struct apm_bios_struct * as)
 static int queue_event(apm_event_t event, struct apm_bios_struct *sender)
 {
 	struct apm_bios_struct *	as;
-	
+
 	if (user_list == NULL)
 		return 0;
 	for (as = user_list; as != NULL; as = as->next) {
@@ -635,7 +626,7 @@ static void suspend(void)
 	clock_cmos_diff += CURRENT_TIME;
 	got_clock_diff = 1;
 	restore_flags(flags);
-	
+
 	err = apm_set_power_state(APM_STATE_SUSPEND);
 	if (err)
 		apm_error("suspend", err);
@@ -673,7 +664,7 @@ static void send_event(apm_event_t event, apm_event_t undo,
 {
 	callback_list_t *	call;
 	callback_list_t *	fix;
-    
+
 	for (call = callback_list; call != NULL; call = call->next) {
 		if (call->callback(event) && undo) {
 			for (fix = callback_list; fix != call; fix = fix->next)
@@ -796,7 +787,7 @@ void apm_do_busy(void)
 
 	if (!apm_enabled)
 		return;
-	
+
 #ifndef ALWAYS_CALL_BUSY
 	if (!clock_slowed)
 		return;
@@ -869,19 +860,16 @@ repeat:
 	return 0;
 }
 
-static int do_select(struct inode *inode, struct file *fp, int sel_type,
-		     select_table * wait)
+static unsigned int do_poll(struct file *fp, poll_table * wait)
 {
-	struct apm_bios_struct *	as;
+	struct apm_bios_struct * as;
 
 	as = fp->private_data;
 	if (check_apm_bios_struct(as, "select"))
 		return 0;
-	if (sel_type != SEL_IN)
-		return 0;
+	poll_wait(&process_list, wait);
 	if (!queue_empty(as))
-		return 1;
-	select_wait(&process_list, wait);
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -924,14 +912,14 @@ static int do_ioctl(struct inode * inode, struct file *filp,
 	return 0;
 }
 
-static void do_release(struct inode * inode, struct file * filp)
+static int do_release(struct inode * inode, struct file * filp)
 {
 	struct apm_bios_struct *	as;
 
 	as = filp->private_data;
 	filp->private_data = NULL;
 	if (check_apm_bios_struct(as, "release"))
-		return;
+		return 0;
 	if (as->standbys_pending > 0) {
 		standbys_pending -= as->standbys_pending;
 		if (standbys_pending <= 0)
@@ -957,6 +945,7 @@ static void do_release(struct inode * inode, struct file * filp)
 			as1->next = as->next;
 	}
 	kfree_s(as, sizeof(*as));
+	return 0;
 }
 
 static int do_open(struct inode * inode, struct file * filp)
@@ -1054,7 +1043,7 @@ int apm_get_info(char *buf, char **start, off_t fpos, int length, int dummy)
 	      Number of remaining minutes or seconds
 	      -1: Unknown
 	   8) min = minutes; sec = seconds */
-	    
+
 	p += sprintf(p, "%s %d.%d 0x%02x 0x%02x 0x%02x 0x%02x %d%% %d %s\n",
 		     driver_version,
 		     (apm_bios_info.version >> 8) & 0xff,
@@ -1071,7 +1060,7 @@ int apm_get_info(char *buf, char **start, off_t fpos, int length, int dummy)
 }
 #endif
 
-void apm_bios_init(void)
+__initfunc(void apm_bios_init(void))
 {
 	unsigned short	bx;
 	unsigned short	cx;
@@ -1079,6 +1068,7 @@ void apm_bios_init(void)
 	unsigned short	error;
 	char *		power_stat;
 	char *		bat_stat;
+	static struct proc_dir_entry *ent;
 
 	if (apm_bios_info.version == 0) {
 		printk("APM BIOS not found.\n");
@@ -1176,7 +1166,7 @@ void apm_bios_init(void)
 			if (dx == 0xffff)
 				printk("unknown\n");
 			else {
-				if ((dx & 0x8000)) 
+				if ((dx & 0x8000))
 					printk("%d minutes\n", dx & 0x7ffe );
 				else
 					printk("%d seconds\n", dx & 0x7fff );
@@ -1202,10 +1192,9 @@ void apm_bios_init(void)
 	apm_timer.expires = APM_CHECK_TIMEOUT + jiffies;
 	add_timer(&apm_timer);
 
-	register_symtab(&apm_syms);
-
 #ifdef CONFIG_PROC_FS
-	proc_register_dynamic(&proc_root, &apm_proc_entry);
+	ent = create_proc_entry("apm", 0, 0);
+	ent->get_info = apm_get_info;
 #endif
 
 	misc_register(&apm_device);

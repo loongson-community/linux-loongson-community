@@ -71,6 +71,24 @@ extern inline int verify_area(int type, const void * addr, unsigned long size)
   __put_user_nocheck((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
 #define __get_user(x,ptr) \
   __get_user_nocheck((x),(ptr),sizeof(*(ptr)))
+  
+/*
+ * The "xxx_ret" versions return constant specified in third argument, if
+ * something bad happens. These macros can be optimized for the
+ * case of just returning from the function xxx_ret is used.
+ */
+
+#define put_user_ret(x,ptr,ret) ({ \
+if (put_user(x,ptr)) return ret; })
+
+#define get_user_ret(x,ptr,ret) ({ \
+if (get_user(x,ptr)) return ret; })
+
+#define __put_user_ret(x,ptr,ret) ({ \
+if (__put_user(x,ptr)) return ret; })
+
+#define __get_user_ret(x,ptr,ret) ({ \
+if (__get_user(x,ptr)) return ret; })
 
 /*
  * The "lda %1, 2b-1b(%0)" bits are magic to get the assembler to
@@ -122,7 +140,7 @@ struct __large_struct { unsigned long buf[100]; };
 	".section __ex_table,\"a\"\n"			\
 	"	.gprel32 1b\n"				\
 	"	lda %0, 2b-1b(%1)\n"			\
-	".text"						\
+	".previous"					\
 		: "=r"(__gu_val), "=r"(__gu_err)	\
 		: "m"(__m(addr)), "1"(__gu_err))
 
@@ -132,7 +150,7 @@ struct __large_struct { unsigned long buf[100]; };
 	".section __ex_table,\"a\"\n"			\
 	"	.gprel32 1b\n"				\
 	"	lda %0, 2b-1b(%1)\n"			\
-	".text"						\
+	".previous"					\
 		: "=r"(__gu_val), "=r"(__gu_err)	\
 		: "m"(__m(addr)), "1"(__gu_err))
 
@@ -145,7 +163,7 @@ struct __large_struct { unsigned long buf[100]; };
 	".section __ex_table,\"a\"\n"			\
 	"	.gprel32 1b\n"				\
 	"	lda %0, 2b-1b(%1)\n"			\
-	".text"						\
+	".previous"					\
 		: "=r"(__gu_val), "=r"(__gu_err)	\
 		: "m"(__m(addr)), "1"(__gu_err))
 
@@ -155,7 +173,7 @@ struct __large_struct { unsigned long buf[100]; };
 	".section __ex_table,\"a\"\n"			\
 	"	.gprel32 1b\n"				\
 	"	lda %0, 2b-1b(%1)\n"			\
-	".text"						\
+	".previous"					\
 		: "=r"(__gu_val), "=r"(__gu_err)	\
 		: "m"(__m(addr)), "1"(__gu_err))
 #else
@@ -176,7 +194,7 @@ struct __large_struct { unsigned long buf[100]; };
 	"	lda %0, 3b-1b(%2)\n"					\
 	"	.gprel32 2b\n"						\
 	"	lda %0, 2b-1b(%2)\n"					\
-	".text"								\
+	".previous"							\
 		: "=&r"(__gu_val), "=&r"(__gu_tmp), "=r"(__gu_err)	\
 		: "r"(addr), "2"(__gu_err));				\
 }
@@ -188,7 +206,7 @@ struct __large_struct { unsigned long buf[100]; };
 	".section __ex_table,\"a\"\n"					\
 	"	.gprel32 1b\n"						\
 	"	lda %0, 2b-1b(%1)\n"					\
-	".text"								\
+	".previous"							\
 		: "=&r"(__gu_val), "=r"(__gu_err)			\
 		: "r"(addr), "1"(__gu_err))
 #endif
@@ -236,7 +254,7 @@ __asm__ __volatile__("1: stq %r2,%1\n"				\
 	".section __ex_table,\"a\"\n"				\
 	"	.gprel32 1b\n"					\
 	"	lda $31,2b-1b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err)				\
 		: "m" (__m(addr)), "rJ" (x), "0"(__pu_err))
 
@@ -246,7 +264,7 @@ __asm__ __volatile__("1: stl %r2,%1\n"				\
 	".section __ex_table,\"a\"\n"				\
 	"	.gprel32 1b\n"					\
 	"	lda $31,2b-1b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err)				\
 		: "m"(__m(addr)), "rJ"(x), "0"(__pu_err))
 
@@ -259,7 +277,7 @@ __asm__ __volatile__("1: stw %r2,%1\n"				\
 	".section __ex_table,\"a\"\n"				\
 	"	.gprel32 1b\n"					\
 	"	lda $31,2b-1b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err)				\
 		: "m"(__m(addr)), "rJ"(x), "0"(__pu_err))
 
@@ -269,7 +287,7 @@ __asm__ __volatile__("1: stb %r2,%1\n"				\
 	".section __ex_table,\"a\"\n"				\
 	"	.gprel32 1b\n"					\
 	"	lda $31,2b-1b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err)				\
 		: "m"(__m(addr)), "rJ"(x), "0"(__pu_err))
 #else
@@ -300,7 +318,7 @@ __asm__ __volatile__("1: stb %r2,%1\n"				\
 	"	lda $31, 5b-3b(%0)\n"				\
 	"	.gprel32 4b\n"					\
 	"	lda $31, 5b-4b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err), "=&r"(__pu_tmp1),		\
 		  "=&r"(__pu_tmp2), "=&r"(__pu_tmp3),		\
 		  "=&r"(__pu_tmp4)				\
@@ -322,7 +340,7 @@ __asm__ __volatile__("1: stb %r2,%1\n"				\
 	"	lda $31, 3b-1b(%0)\n"				\
 	"	.gprel32 2b\n"					\
 	"	lda $31, 3b-2b(%0)\n"				\
-	".text"							\
+	".previous"						\
 		: "=r"(__pu_err),				\
 	  	  "=&r"(__pu_tmp1), "=&r"(__pu_tmp2)		\
 		: "r"((unsigned long)(x)), "r"(addr), "0"(__pu_err)); \
@@ -334,10 +352,27 @@ __asm__ __volatile__("1: stb %r2,%1\n"				\
  * Complex access routines
  */
 
+#define __copy_to_user(to,from,n)   __copy_tofrom_user_nocheck((to),(from),(n))
+#define __copy_from_user(to,from,n) __copy_tofrom_user_nocheck((to),(from),(n))
+
 #define copy_to_user(to,from,n)   __copy_tofrom_user((to),(from),(n),__cu_to)
 #define copy_from_user(to,from,n) __copy_tofrom_user((to),(from),(n),__cu_from)
 
 extern void __copy_user(void);
+
+#define __copy_tofrom_user_nocheck(to,from,n)				\
+({									\
+	register void * __cu_to __asm__("$6") = (to);			\
+	register const void * __cu_from __asm__("$7") = (from);		\
+	register long __cu_len __asm__("$0") = (n);			\
+	__asm__ __volatile__(						\
+		"jsr $28,(%3),__copy_user"				\
+		: "=r" (__cu_len), "=r" (__cu_from), "=r" (__cu_to)	\
+		: "r" (__copy_user), "0" (__cu_len),			\
+		  "1" (__cu_from), "2" (__cu_to)			\
+		: "$1","$2","$3","$4","$5","$28","memory");		\
+	__cu_len;							\
+})
 
 #define __copy_tofrom_user(to,from,n,v)					    \
 ({									    \
@@ -353,6 +388,16 @@ extern void __copy_user(void);
 			: "$1","$2","$3","$4","$5","$28","memory");	    \
 	}								    \
 	__cu_len;							    \
+})
+
+#define copy_to_user_ret(to,from,n,retval) ({ \
+if (copy_to_user(to,from,n)) \
+	return retval; \
+})
+
+#define copy_from_user_ret(to,from,n,retval) ({ \
+if (copy_from_user(to,from,n)) \
+	return retval; \
 })
 
 extern void __clear_user(void);

@@ -107,6 +107,10 @@ static struct sjcd_play_msf sjcd_playing;
 
 static int sjcd_base = SJCD_BASE_ADDR;
 
+#ifdef MODULE
+MODULE_PARM(sjcd_base, "i");
+#endif
+
 static struct wait_queue *sjcd_waitq = NULL;
 
 /*
@@ -1381,7 +1385,7 @@ int sjcd_open( struct inode *ip, struct file *fp ){
 /*
  * On close, we flush all sjcd blocks from the buffer cache.
  */
-static void sjcd_release( struct inode *inode, struct file *file ){
+static int sjcd_release( struct inode *inode, struct file *file ){
   int s;
 
 #if defined( SJCD_TRACE )
@@ -1409,6 +1413,7 @@ static void sjcd_release( struct inode *inode, struct file *file ){
       }
     }
   }
+  return 0;
 }
 
 /*
@@ -1419,7 +1424,7 @@ static struct file_operations sjcd_fops = {
   block_read,         /* read - general block-dev read */
   block_write,        /* write - general block-dev write */
   NULL,               /* readdir - bad */
-  NULL,               /* select */
+  NULL,               /* poll */
   sjcd_ioctl,         /* ioctl */
   NULL,               /* mmap */
   sjcd_open,          /* open */

@@ -20,14 +20,7 @@
 #endif
 
 #ifdef __ASM_MIPS_SIGNAL_H
-/*
- * This is what we should really use but the kernel can't handle
- * a non-scalar type yet.  Since we use 64 signals only anyway we
- * just use __u64 and pad another 64 bits in the kernel for now ...
- */
-typedef struct {
-	unsigned int	__sigbits[4];
-} sigset_t;
+typedef unsigned long sigset_t;
 #endif /* __ASM_MIPS_SIGNAL_H */
 
 #if !defined (___nsig_defined) && \
@@ -142,6 +135,7 @@ struct sigaction {
 	unsigned int	sa_flags;
 	__sighandler_t	sa_handler;
 	sigset_t	sa_mask;
+	unsigned int	__pad0[3];	/* reserved, keep size constant */
 
 	/* Abi says here follows reserved int[2] */
 	void		(*sa_restorer)(void);
@@ -150,53 +144,13 @@ struct sigaction {
 	 * For 32 bit code we have to pad struct sigaction to get
 	 * constant size for the ABI
 	 */
-	int		pad0[1];	/* reserved */
+	int		__pad1[1];	/* reserved */
 #endif
 };
 
 #ifdef __KERNEL__
 #include <asm/sigcontext.h>
-/*
- * This type is used by the kernel internal for it's sigsets.
- */
-typedef unsigned long k_sigset_t;
-
-extern __inline__ k_sigset_t *
-to_k_sigset_t(sigset_t *set)
-{
-	return (k_sigset_t *) set->__sigbits;
-}
-
-#define copy_sigbits32(set, bits)  ((set)->__sigbits[0] = (bits))
-
-/*
- * Clear a userland sigset_t.
- */
-extern __inline__ void
-u_sigemptyset (sigset_t *set)
-{
-	set->__sigbits[0] = set->__sigbits[1] =
-	set->__sigbits[2] = set->__sigbits[3] = 0;
-}
-
-/*
- * Add/delete sigbits from a k_sigset_t.
- */
-#define	__KSSMASK(nr)	(1 << ((nr) - 1))
-
-extern __inline__ void
-k_sigaddset (k_sigset_t *set, int sig)
-{
-	*set |= __KSSMASK (sig);
-}
-
-extern __inline__ void
-k_sigdelset (k_sigset_t *set, int sig)
-{
-	*set &= ~__KSSMASK (sig);
-}
-
-#endif /* __KERNEL__ */
+#endif
 
 #if defined (__KERNEL__) || defined (__USE_MISC)
 /*

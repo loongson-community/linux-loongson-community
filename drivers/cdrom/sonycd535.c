@@ -198,6 +198,7 @@ static int do_sony_cmd(Byte * cmd, int nCmd, Byte status[2],
 /* The base I/O address of the Sony Interface.  This is a variable (not a
    #define) so it can be easily changed via some future ioctl() */
 static unsigned int sony535_cd_base_io = CDU535_ADDRESS;
+MODULE_PARM(sony535_cd_base_io, "i");
 
 /*
  * The following are I/O addresses of the various registers for the drive.  The
@@ -1433,7 +1434,7 @@ cdu_open(struct inode *inode,
  * Close the drive.  Spin it down if no task is using it.  The spin
  * down will fail if playing audio, so audio play is OK.
  */
-static void
+static int
 cdu_release(struct inode *inode,
 			struct file *filp)
 {
@@ -1459,6 +1460,7 @@ cdu_release(struct inode *inode,
 		do_sony_cmd(&cmd_no, 1, status, NULL, 0, 0);
 #endif
 	}
+	return 0;
 }
 
 
@@ -1468,7 +1470,7 @@ static struct file_operations cdu_fops =
 	block_read,					/* read - general block-dev read */
 	block_write,				/* write - general block-dev write */
 	NULL,						/* readdir - bad */
-	NULL,						/* select */
+	NULL,						/* poll */
 	cdu_ioctl,					/* ioctl */
 	NULL,						/* mmap */
 	cdu_open,					/* open */

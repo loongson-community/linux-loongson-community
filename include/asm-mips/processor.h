@@ -19,9 +19,6 @@
  */
 extern char wait_available;		/* only available on R4[26]00 */
 
-extern unsigned long intr_count;
-extern unsigned long event;
-
 /*
  * Bus types (default is ISA, but people can check others with these..)
  * MCA_bus hardcoded to 0 for now.
@@ -46,6 +43,11 @@ extern int EISA_bus;
  * implementations will "only" be able to use 1TB ...
  */
 #define TASK_SIZE	(0x80000000UL)
+
+/* This decides where the kernel will search for a free chunk of vm
+ * space during mmap's.
+ */
+#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
 
 /*
  * Size of io_bitmap in longwords: 32 is ports 0-0x3ff.
@@ -139,6 +141,10 @@ struct thread_struct {
 #define KERNEL_STACK_SIZE 8192
 
 #if !defined (__LANGUAGE_ASSEMBLY__)
+
+/* Free all resources held by a thread. */
+extern void release_thread(struct task_struct *);
+
 /*
  * Return saved PC of a blocked thread.
  */
@@ -152,13 +158,20 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
  */
 extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
 
-#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
-
 /*
  * Does the process account for user or for system time?
  */
 #define USES_USER_TIME(regs) (!((regs)->cp0_status & 0x18))
 
+/* Allocation and freeing of basic task resources. */
+#define alloc_task_struct()    kmalloc(sizeof(struct task_struct), GFP_KERNEL)
+#define free_task_struct(p)    kfree(p)
+
+/* Kernel stack allocation/freeing. */
+extern unsigned long alloc_kernel_stack(struct task_struct *tsk);
+extern void free_kernel_stack(unsigned long stack);
+
+#endif /* !defined (__LANGUAGE_ASSEMBLY__) */
 #endif /* __KERNEL__ */
 
 /*

@@ -23,14 +23,15 @@ comment 'General setup'
 
 bool 'Kernel math emulation' CONFIG_MATH_EMULATION
 bool 'Networking support' CONFIG_NET
-bool 'Limit memory to low 16MB' CONFIG_MAX_16M
 bool 'PCI bios support' CONFIG_PCI
 if [ "$CONFIG_PCI" = "y" ]; then
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
     bool '   PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
   fi
 fi
+bool 'MCA support' CONFIG_MCA
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Kernel support for a.out binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -43,7 +44,12 @@ choice 'Processor type' \
 	 Pentium	CONFIG_M586	\
 	 PPro		CONFIG_M686" Pentium
 bool 'Video mode selection support' CONFIG_VIDEO_SELECT
+
+tristate 'Parallel port support' CONFIG_PNP_PARPORT
+
 endmenu
+
+source drivers/pnp/Config.in
 
 source drivers/block/Config.in
 

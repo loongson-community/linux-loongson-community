@@ -26,7 +26,7 @@
 #define PER_IRIX64              (0x000a | STICKY_TIMEOUTS) /* IRIX6 64-bit     */
 
 /* Prototype for an lcall7 syscall handler. */
-typedef asmlinkage void (*lcall7_func)(struct pt_regs *);
+typedef void (*lcall7_func)(struct pt_regs *);
 
 
 /* Description of an execution domain - personality range supported,
@@ -40,7 +40,7 @@ struct exec_domain {
 	unsigned char pers_low, pers_high;
 	unsigned long * signal_map;
 	unsigned long * signal_invmap;
-	long *use_count;
+	struct module * module;
 	struct exec_domain *next;
 };
 

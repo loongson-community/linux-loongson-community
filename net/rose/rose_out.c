@@ -4,7 +4,7 @@
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 2.1.0 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -49,7 +49,7 @@ void rose_output(struct sock *sk, struct sk_buff *skb)
 	unsigned char header[ROSE_MIN_LEN];
 	int err, frontlen, len;
 
-	if (skb->len - ROSE_MIN_LEN > ROSE_PACLEN) {
+	if (skb->len - ROSE_MIN_LEN > ROSE_MAX_PACKET_SIZE) {
 		/* Save a copy of the Header */
 		memcpy(header, skb->data, ROSE_MIN_LEN);
 		skb_pull(skb, ROSE_MIN_LEN);
@@ -57,16 +57,12 @@ void rose_output(struct sock *sk, struct sk_buff *skb)
 		frontlen = skb_headroom(skb);
 
 		while (skb->len > 0) {
-			if ((skbn = sock_alloc_send_skb(sk, frontlen + ROSE_PACLEN, 0, 0, &err)) == NULL)
+			if ((skbn = sock_alloc_send_skb(sk, frontlen + ROSE_MAX_PACKET_SIZE, 0, 0, &err)) == NULL)
 				return;
-
-			skbn->sk   = sk;
-			skbn->free = 1;
-			skbn->arp  = 1;
 
 			skb_reserve(skbn, frontlen);
 
-			len = (ROSE_PACLEN > skb->len) ? skb->len : ROSE_PACLEN;
+			len = (ROSE_MAX_PACKET_SIZE > skb->len) ? skb->len : ROSE_MAX_PACKET_SIZE;
 
 			/* Copy the user data */
 			memcpy(skb_put(skbn, len), skb->data, len);
@@ -77,12 +73,11 @@ void rose_output(struct sock *sk, struct sk_buff *skb)
 			memcpy(skbn->data, header, ROSE_MIN_LEN);
 
 			if (skb->len > 0)
-				skbn->data[2] |= M_BIT;
-		
+				skbn->data[2] |= ROSE_M_BIT;
+
 			skb_queue_tail(&sk->write_queue, skbn); /* Throw it on the queue */
 		}
-		
-		skb->free = 1;
+
 		kfree_skb(skb, FREE_WRITE);
 	} else {
 		skb_queue_tail(&sk->write_queue, skb);		/* Throw it on the queue */
@@ -109,55 +104,36 @@ static void rose_send_iframe(struct sock *sk, struct sk_buff *skb)
 
 void rose_kick(struct sock *sk)
 {
-	struct sk_buff *skb, *skbn;
-	int last = 1;
-	unsigned short start, end, next;
+	struct sk_buff *skb;
+	unsigned short end;
 
 	del_timer(&sk->timer);
 
-	start = (skb_peek(&sk->protinfo.rose->ack_queue) == NULL) ? sk->protinfo.rose->va : sk->protinfo.rose->vs;
-	end   = (sk->protinfo.rose->va + sk->window) % ROSE_MODULUS;
+	end = (sk->protinfo.rose->va + ROSE_MAX_WINDOW_SIZE) % ROSE_MODULUS;
 
-	if (!(sk->protinfo.rose->condition & PEER_RX_BUSY_CONDITION) &&
-	    start != end                                  &&
+	if (!(sk->protinfo.rose->condition & ROSE_COND_PEER_RX_BUSY) &&
+	    sk->protinfo.rose->vs != end                             &&
 	    skb_peek(&sk->write_queue) != NULL) {
-
-		sk->protinfo.rose->vs = start;
-
 		/*
 		 * Transmit data until either we're out of data to send or
 		 * the window is full.
 		 */
 
-		/*
-		 * Dequeue the frame and copy it.
-		 */
 		skb  = skb_dequeue(&sk->write_queue);
 
 		do {
-			if ((skbn = skb_clone(skb, GFP_ATOMIC)) == NULL) {
-				skb_queue_head(&sk->write_queue, skb);
-				break;
-			}
-
-			next = (sk->protinfo.rose->vs + 1) % ROSE_MODULUS;
-			last = (next == end);
-
 			/*
-			 * Transmit the frame copy.
+			 * Transmit the frame.
 			 */
-			rose_send_iframe(sk, skbn);
+			rose_send_iframe(sk, skb);
 
-			sk->protinfo.rose->vs = next;
+			sk->protinfo.rose->vs = (sk->protinfo.rose->vs + 1) % ROSE_MODULUS;
 
-			/*
-			 * Requeue the original data frame.
-			 */
-			skb_queue_tail(&sk->protinfo.rose->ack_queue, skb);
+		} while (sk->protinfo.rose->vs != end && (skb = skb_dequeue(&sk->write_queue)) != NULL);
 
-		} while (!last && (skb = skb_dequeue(&sk->write_queue)) != NULL);
-
-		sk->protinfo.rose->vl = sk->protinfo.rose->vr;
+		sk->protinfo.rose->vl         = sk->protinfo.rose->vr;
+		sk->protinfo.rose->condition &= ~ROSE_COND_ACK_PENDING;
+		sk->protinfo.rose->timer      = 0;
 	}
 
 	rose_set_timer(sk);
@@ -170,23 +146,23 @@ void rose_kick(struct sock *sk)
 
 void rose_enquiry_response(struct sock *sk)
 {
-	if (sk->protinfo.rose->condition & OWN_RX_BUSY_CONDITION) {
+	if (sk->protinfo.rose->condition & ROSE_COND_OWN_RX_BUSY)
 		rose_write_internal(sk, ROSE_RNR);
-	} else {
+	else
 		rose_write_internal(sk, ROSE_RR);
-	}
 
-	sk->protinfo.rose->vl = sk->protinfo.rose->vr;
+	sk->protinfo.rose->vl         = sk->protinfo.rose->vr;
+	sk->protinfo.rose->condition &= ~ROSE_COND_ACK_PENDING;
+	sk->protinfo.rose->timer      = 0;
 }
 
 void rose_check_iframes_acked(struct sock *sk, unsigned short nr)
 {
 	if (sk->protinfo.rose->vs == nr) {
-		rose_frames_acked(sk, nr);
+		sk->protinfo.rose->va = nr;
 	} else {
-		if (sk->protinfo.rose->va != nr) {
-			rose_frames_acked(sk, nr);
-		}
+		if (sk->protinfo.rose->va != nr)
+			sk->protinfo.rose->va = nr;
 	}
 }
 

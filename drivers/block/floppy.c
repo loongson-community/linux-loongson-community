@@ -260,7 +260,7 @@ static inline int DRIVE(kdev_t x) {
  * current disk size is unknown.
  * [Now it is rather a minimum]
  */
-#define MAX_DISK_SIZE 2 /* 3984*/
+#define MAX_DISK_SIZE 4 /* 3984*/
 
 #define K_64	0x10000		/* 64KB */
 
@@ -681,7 +681,7 @@ static int disk_change(int drive)
 				DPRINT("Disk type is undefined after "
 				       "disk change\n");
 			current_type[drive] = NULL;
-			floppy_sizes[TOMINOR(current_drive)] = MAX_DISK_SIZE;
+			floppy_sizes[TOMINOR(drive)] = MAX_DISK_SIZE;
 		}
 
 		/*USETF(FD_DISK_NEWCHANGE);*/
@@ -905,7 +905,7 @@ static struct tq_struct floppy_tq =
 static void schedule_bh( void (*handler)(void*) )
 {
 	floppy_tq.routine = (void *)(void *) handler;
-	queue_task_irq(&floppy_tq, &tq_immediate);
+	queue_task(&floppy_tq, &tq_immediate);
 	mark_bh(IMMEDIATE_BH);
 }
 
@@ -1042,7 +1042,7 @@ static void setup_DMA(void)
 	floppy_disable_hlt();
 }
 
-void show_floppy(void);
+static void show_floppy(void);
 
 /* waits until the fdc becomes ready */
 static int wait_til_ready(void)
@@ -1633,7 +1633,7 @@ static void print_result(char *message, int inr)
 	printk("\n");
 }
 
-/* interrupt handler */
+/* interrupt handler. Note that this can be called externally on the Sparc */
 void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	void (*handler)(void) = DEVICE_INTR;
@@ -1678,10 +1678,13 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 		} while ((ST0 & 0x83) != UNIT(current_drive) && inr == 2);
 	}
 	if (handler) {
-		if(intr_count >= 2)
-				schedule_bh( (void *)(void *) handler);
-		else
-				handler();
+		if(softirq_trylock()) {
+			/* got the lock, call the handler immediately */
+			handler();
+			softirq_endlock();
+		} else
+			/* we interrupted a bottom half. Defer handler */
+			schedule_bh( (void *)(void *) handler);
 	} else
 		FDCS->reset = 1;
 	is_alive("normal interrupt end");
@@ -1736,7 +1739,7 @@ static void reset_fdc(void)
 	}
 }
 
-void show_floppy(void)
+static void show_floppy(void)
 {
 	int i;
 
@@ -2254,7 +2257,8 @@ static void rw_interrupt(void)
 				return;
 			}
 			current_type[current_drive] = _floppy;
-			floppy_sizes[TOMINOR(current_drive) ]= _floppy->size>>1;
+			floppy_sizes[TOMINOR(current_drive) ]= 
+				(_floppy->size+1)>>1;
 			break;
 	}
 
@@ -2263,7 +2267,7 @@ static void rw_interrupt(void)
 			DPRINT("Auto-detected floppy type %s in fd%d\n",
 				_floppy->name,current_drive);
 		current_type[current_drive] = _floppy;
-		floppy_sizes[TOMINOR(current_drive)] = _floppy->size >> 1;
+		floppy_sizes[TOMINOR(current_drive)] = (_floppy->size+1) >> 1;
 		probing = 0;
 	}
 
@@ -2452,8 +2456,13 @@ static int make_raw_rw_request(void)
 
 	TRACK = CURRENT->sector / max_sector;
 	sector_t = CURRENT->sector % max_sector;
-	if (_floppy->track && TRACK >= _floppy->track)
-		return 0;
+	if (_floppy->track && TRACK >= _floppy->track) {
+		if(CURRENT->current_nr_sectors & 1) {
+			current_count_sectors = 1;
+			return 1;
+		} else
+			return 0;
+	}
 	HEAD = sector_t / _floppy->sect;
 
 	if (((_floppy->stretch & FD_SWAPSIDES) || TESTF(FD_NEED_TWADDLE)) &&
@@ -3109,7 +3118,7 @@ static inline int set_geometry(unsigned int cmd, struct floppy_struct *g,
 		floppy_type[type].name="user format";
 		for (cnt = type << 2; cnt < (type << 2) + 4; cnt++)
 			floppy_sizes[cnt]= floppy_sizes[cnt+0x80]=
-				floppy_type[type].size>>1;
+				(floppy_type[type].size+1)>>1;
 		process_fd_request();
 		for (cnt = 0; cnt < N_DRIVE; cnt++){
 			if (ITYPE(drive_state[cnt].fd_device) == type &&
@@ -3128,7 +3137,7 @@ static inline int set_geometry(unsigned int cmd, struct floppy_struct *g,
 		if (buffer_drive == drive)
 			SUPBOUND(buffer_max, user_params[drive].sect);
 		current_type[drive] = &user_params[drive];
-		floppy_sizes[drive] = user_params[drive].size >> 1;
+		floppy_sizes[drive] = (user_params[drive].size+1) >> 1;
 		if (cmd == FDDEFPRM)
 			DRS->keep_data = -1;
 		else
@@ -3147,7 +3156,7 @@ static inline int set_geometry(unsigned int cmd, struct floppy_struct *g,
 }
 
 /* handle obsolete ioctl's */
-int ioctl_table[]= {
+static int ioctl_table[]= {
 	FDCLRPRM,
 	FDSETPRM,
 	FDDEFPRM,
@@ -3488,7 +3497,7 @@ static long floppy_write(struct inode * inode, struct file * filp,
 	return ret;
 }
 
-static void floppy_release(struct inode * inode, struct file * filp)
+static int floppy_release(struct inode * inode, struct file * filp)
 {
 	int drive;
 
@@ -3506,6 +3515,7 @@ static void floppy_release(struct inode * inode, struct file * filp)
 		UDRS->fd_ref = 0;
 	}
 	floppy_release_irq_and_dma();
+	return 0;
 }
 
 /*
@@ -3699,7 +3709,7 @@ static struct file_operations floppy_fops = {
 	floppy_read,		/* read - general block-dev read */
 	floppy_write,		/* write - general block-dev write */
 	NULL,		       	/* readdir - bad */
-	NULL,			/* select */
+	NULL,			/* poll */
 	fd_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	floppy_open,		/* open */
@@ -3795,23 +3805,20 @@ static char get_fdc_version(void)
 
 /* lilo configuration */
 
-/* we make the invert_dcl function global. One day, somebody might
- * want to centralize all thinkpad related options into one lilo option,
- * there are just so many thinkpad related quirks! */
-void floppy_invert_dcl(int *ints,int param)
+static void floppy_set_flags(int *ints,int param, int param2)
 {
 	int i;
 
 	for (i=0; i < ARRAY_SIZE(default_drive_params); i++){
 		if (param)
-			default_drive_params[i].params.flags |= 0x80;
+			default_drive_params[i].params.flags |= param2;
 		else
-			default_drive_params[i].params.flags &= ~0x80;
+			default_drive_params[i].params.flags &= ~param2;
 	}
-	DPRINT("Configuring drives for inverted dcl\n");
+	DPRINT("%s flag 0x%x\n", param2 ? "Setting" : "Clearing", param);
 }
 
-static void daring(int *ints,int param)
+static void daring(int *ints,int param, int param2)
 {
 	int i;
 
@@ -3827,7 +3834,7 @@ static void daring(int *ints,int param)
 	DPRINT("Assuming %s floppy hardware\n", param ? "standard" : "broken");
 }
 
-static void set_cmos(int *ints, int dummy)
+static void set_cmos(int *ints, int dummy, int dummy2)
 {
 	int current_drive=0;
 
@@ -3853,34 +3860,39 @@ static void set_cmos(int *ints, int dummy)
 
 static struct param_table {
 	const char *name;
-	void (*fn)(int *ints, int param);
+	void (*fn)(int *ints, int param, int param2);
 	int *var;
 	int def_param;
+	int param2;
 } config_params[]={
-	{ "allowed_drive_mask", 0, &allowed_drive_mask, 0xff },
-	{ "all_drives", 0, &allowed_drive_mask, 0xff },
-	{ "asus_pci", 0, &allowed_drive_mask, 0x33 },
+	{ "allowed_drive_mask", 0, &allowed_drive_mask, 0xff, 0}, /* obsolete */
+	{ "all_drives", 0, &allowed_drive_mask, 0xff, 0 }, /* obsolete */
+	{ "asus_pci", 0, &allowed_drive_mask, 0x33, 0},
 
-	{ "daring", daring, 0, 1},
+	{ "daring", daring, 0, 1, 0},
 
-	{ "two_fdc",  0, &FDC2, 0x370 },
-	{ "one_fdc", 0, &FDC2, 0 },
+	{ "two_fdc",  0, &FDC2, 0x370, 0 },
+	{ "one_fdc", 0, &FDC2, 0, 0 },
 
-	{ "thinkpad", floppy_invert_dcl, 0, 1 },
+	{ "thinkpad", floppy_set_flags, 0, 1, FD_INVERTED_DCL },
+	{ "broken_dcl", floppy_set_flags, 0, 1, FD_BROKEN_DCL },
+	{ "messages", floppy_set_flags, 0, 1, FTD_MSG },
+	{ "silent_dcl_clear", floppy_set_flags, 0, 1, FD_SILENT_DCL_CLEAR },
+	{ "debug", floppy_set_flags, 0, 1, FD_DEBUG },
 
-	{ "nodma", 0, &use_virtual_dma, 1 },
-	{ "omnibook", 0, &use_virtual_dma, 1 },
-	{ "dma", 0, &use_virtual_dma, 0 },
+	{ "nodma", 0, &use_virtual_dma, 1, 0 },
+	{ "omnibook", 0, &use_virtual_dma, 1, 0 },
+	{ "dma", 0, &use_virtual_dma, 0, 0 },
 
-	{ "fifo_depth", 0, &fifo_depth, 0xa },
-	{ "nofifo", 0, &no_fifo, 0x20 },
-	{ "usefifo", 0, &no_fifo, 0 },
+	{ "fifo_depth", 0, &fifo_depth, 0xa, 0 },
+	{ "nofifo", 0, &no_fifo, 0x20, 0 },
+	{ "usefifo", 0, &no_fifo, 0, 0 },
 
-	{ "cmos", set_cmos, 0, 0 },
+	{ "cmos", set_cmos, 0, 0, 0 },
 
-	{ "unexpected_interrupts", 0, &print_unex, 1 },
-	{ "no_unexpected_interrupts", 0, &print_unex, 0 },
-	{ "L40SX", 0, &print_unex, 0 } };
+	{ "unexpected_interrupts", 0, &print_unex, 1, 0 },
+	{ "no_unexpected_interrupts", 0, &print_unex, 0, 0 },
+	{ "L40SX", 0, &print_unex, 0, 0 } };
 
 #define FLOPPY_SETUP
 void floppy_setup(char *str, int *ints)
@@ -3895,7 +3907,9 @@ void floppy_setup(char *str, int *ints)
 				else
 					param = config_params[i].def_param;
 				if(config_params[i].fn)
-					config_params[i].fn(ints,param);
+					config_params[i].
+						fn(ints,param,
+						   config_params[i].param2);
 				if(config_params[i].var) {
 					DPRINT("%s=%d\n", str, param);
 					*config_params[i].var = param;
@@ -3915,10 +3929,12 @@ void floppy_setup(char *str, int *ints)
 	DPRINT("Read linux/drivers/block/README.fd\n");
 }
 
+static int have_no_fdc= -EIO;
+
 int floppy_init(void)
 {
 	int i,unit,drive;
-	int have_no_fdc= -EIO;
+
 
 	raw_cmd = 0;
 
@@ -3929,7 +3945,7 @@ int floppy_init(void)
 
 	for (i=0; i<256; i++)
 		if (ITYPE(i))
-			floppy_sizes[i] = floppy_type[ITYPE(i)].size >> 1;
+			floppy_sizes[i] = (floppy_type[ITYPE(i)].size+1) >> 1;
 		else
 			floppy_sizes[i] = MAX_DISK_SIZE;
 
@@ -4062,7 +4078,9 @@ static int floppy_grab_irq_and_dma(void)
 static void floppy_release_irq_and_dma(void)
 {
 #ifdef FLOPPY_SANITY_CHECK
+#ifndef __sparc__
 	int drive;
+#endif
 #endif
 	long tmpsize;
 	unsigned long tmpaddr;
@@ -4095,9 +4113,11 @@ static void floppy_release_irq_and_dma(void)
 	}
 
 #ifdef FLOPPY_SANITY_CHECK
+#ifndef __sparc__
 	for (drive=0; drive < N_FDC * 4; drive++)
 		if (motor_off_timer[drive].next)
 			printk("motor off timer %d still active\n", drive);
+#endif
 
 	if (fd_timeout.next)
 		printk("floppy timer still active:%s\n", timeout_message);
@@ -4180,7 +4200,7 @@ extern "C" {
 #endif
 int init_module(void)
 {
-	printk(KERN_INFO "inserting floppy driver for %s\n", kernel_version);
+	printk(KERN_INFO "inserting floppy driver for " UTS_RELEASE "\n");
 		
 	if(floppy)
 		parse_floppy_cfg_string(floppy);
@@ -4207,6 +4227,12 @@ void cleanup_module(void)
 	dummy = fd_eject(0);
 }
 
+MODULE_PARM(floppy,"s");
+MODULE_PARM(FLOPPY_IRQ,"i");
+MODULE_PARM(FLOPPY_DMA,"i");
+MODULE_AUTHOR("Alain L. Knaff");
+MODULE_SUPPORTED_DEVICE("fd");
+
 #ifdef __cplusplus
 }
 #endif
@@ -4218,6 +4244,8 @@ void cleanup_module(void)
 void floppy_eject(void)
 {
 	int dummy;
+	if(have_no_fdc)
+		return;
 	floppy_grab_irq_and_dma();
 	lock_fdc(MAXTIMEOUT,0);
 	dummy=fd_eject(0);

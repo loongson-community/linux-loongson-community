@@ -14,12 +14,15 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
+#include <linux/reboot.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -34,19 +37,38 @@ asmlinkage void ret_from_exception(void);
  */
 asmlinkage int sys_idle(void)
 {
+	int ret = -EPERM;
+
+	lock_kernel();
 	if (current->pid != 0)
-		return -EPERM;
+		goto out;
 
 	/* endless idle loop with no priority at all */
+	current->priority = -100;
 	current->counter = -100;
 	for (;;)
 		schedule();
+	ret = 0;
+out:
+	unlock_kernel();
+	return ret;
 }
 
-void hard_reset_now(void)
+void machine_restart(char * __unused)
 {
 	if (mach_reset)
 		mach_reset();
+}
+
+void machine_halt(void)
+{
+}
+
+void machine_power_off(void)
+{
+#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
+	apm_set_power_state(APM_STATE_OFF);
+#endif
 }
 
 void show_regs(struct pt_regs * regs)
@@ -86,27 +108,36 @@ void flush_thread(void)
 
 asmlinkage int m68k_fork(struct pt_regs *regs)
 {
-	return do_fork(SIGCHLD, rdusp(), regs);
+	int ret;
+
+	lock_kernel();
+	ret = do_fork(SIGCHLD, rdusp(), regs);
+	unlock_kernel();
+	return ret;
 }
 
 asmlinkage int m68k_clone(struct pt_regs *regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
+	int ret;
 
+	lock_kernel();
 	/* syscall2 puts clone_flags in d1 and usp in d2 */
 	clone_flags = regs->d1;
 	newsp = regs->d2;
 	if (!newsp)
 	  newsp  = rdusp();
-	return do_fork(clone_flags, newsp, regs);
+	ret = do_fork(clone_flags, newsp, regs);
+	unlock_kernel();
+	return ret;
 }
 
 void release_thread(struct task_struct *dead_task)
 {
 }
 
-void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
+int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		 struct task_struct * p, struct pt_regs * regs)
 {
 	struct pt_regs * childregs;
@@ -145,11 +176,13 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 			: "memory");
 	/* Restore the state in case the fpu was busy */
 	asm volatile ("frestore %0" : : "m" (p->tss.fpstate[0]));
+
+	return 0;
 }
 
 /* Fill in the fpu structure for a core dump.  */
 
-int dump_fpu (struct user_m68kfp_struct *fpu)
+int dump_fpu (struct pt_regs *regs, struct user_m68kfp_struct *fpu)
 {
   char fpustate[216];
 
@@ -187,7 +220,7 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 	if (dump->start_stack < TASK_SIZE)
 		dump->u_ssize = ((unsigned long) (TASK_SIZE - dump->start_stack)) >> PAGE_SHIFT;
 
-	dump->u_ar0 = (struct pt_regs *)(((int)(&dump->regs)) -((int)(dump)));
+	dump->u_ar0 = (struct user_regs_struct *)((int)&dump->regs - (int)dump);
 	sw = ((struct switch_stack *)regs) - 1;
 	dump->regs.d1 = regs->d1;
 	dump->regs.d2 = regs->d2;
@@ -210,7 +243,7 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 	dump->regs.pc = regs->pc;
 	dump->regs.fmtvec = (regs->format << 12) | regs->vector;
 	/* dump floating point stuff */
-	dump->u_fpvalid = dump_fpu (&dump->m68kfp);
+	dump->u_fpvalid = dump_fpu (regs, &dump->m68kfp);
 }
 
 /*
@@ -222,10 +255,13 @@ asmlinkage int sys_execve(char *name, char **argv, char **envp)
 	char * filename;
 	struct pt_regs *regs = (struct pt_regs *) &name;
 
+	lock_kernel();
 	error = getname(name, &filename);
 	if (error)
-		return error;
+		goto out;
 	error = do_execve(filename, argv, envp, regs);
 	putname(filename);
+out:
+	unlock_kernel();
 	return error;
 }

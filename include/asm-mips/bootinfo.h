@@ -284,6 +284,7 @@ void bi_TagWalk(void);
 
 /* screen info will dissapear... soon */
 #define DEFAULT_SCREEN_INFO {0, 0, {0, 0, }, 0, 0, 158, 0, 0, 0, 62, 0, 16}
+#define DEFAULT_DRIVE_INFO { {0,}}
 
 #else
 

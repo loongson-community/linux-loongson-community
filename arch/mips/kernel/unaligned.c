@@ -85,6 +85,9 @@
  */
 #include <linux/mm.h>
 #include <linux/signal.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+
 #include <asm/branch.h>
 #include <asm/byteorder.h>
 #include <asm/inst.h>
@@ -169,7 +172,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			:"=&r" (value)
 			:"r" (addr), "i" (&&fault)
 			:"$1");
@@ -190,7 +193,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			:"=&r" (value)
 			:"r" (addr), "i" (&&fault));
 			regs->regs[insn.i_format.rt] = value;
@@ -214,7 +217,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			:"=&r" (value)
 			:"r" (addr), "i" (&&fault)
 			:"$1");
@@ -235,7 +238,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			:"=&r" (value)
 			:"r" (addr), "i" (&&fault));
 		value &= 0xffffffff;
@@ -258,7 +261,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			:"=&r" (value)
 			:"r" (addr), "i" (&&fault));
 		regs->regs[insn.i_format.rt] = value;
@@ -285,7 +288,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			: /* no outputs */
 			:"r" (value), "r" (addr), "i" (&&fault)
 			:"$1");
@@ -306,7 +309,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			: /* no outputs */
 			:"r" (value), "r" (addr), "i" (&&fault));
 		return;
@@ -328,7 +331,7 @@ emulate_load_store_insn(struct pt_regs *regs, unsigned long addr, unsigned long 
 			".section\t__ex_table,\"a\"\n\t"
 			STR(PTR)"\t1b,%2\n\t"
 			STR(PTR)"\t2b,%2\n\t"
-			".text"
+			".previous"
 			: /* no outputs */
 			:"r" (value), "r" (addr), "i" (&&fault));
 		return;
@@ -406,6 +409,7 @@ do_ade(struct pt_regs *regs)
 	register_t badvaddr __attribute__ ((unused)) = regs->cp0_badvaddr;
 	char *adels;
 
+	lock_kernel();
 	adels = (((regs->cp0_cause & CAUSEF_EXCCODE) >>
                   CAUSEB_EXCCODE) == 4) ? "adel" : "ades";
 
@@ -444,11 +448,11 @@ do_ade(struct pt_regs *regs)
 #endif /* CONF_LOG_UNALIGNED_ACCESSES */
 
 	if (compute_return_epc(regs))
-		return;
+		goto out;
 	if(current->tss.mflags & MF_FIXADE) {
 		pc += ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
 		fix_ade(regs, pc);
-		return;
+		goto out;
 	}
 
 #ifdef CONF_DEBUG_EXCEPTIONS
@@ -456,4 +460,8 @@ do_ade(struct pt_regs *regs)
 #endif
 
 	force_sig(SIGBUS, current);
+
+out:
+	unlock_kernel();
+	return;
 }

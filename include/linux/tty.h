@@ -219,7 +219,7 @@ struct tty_struct {
 	unsigned long flags;
 	int count;
 	struct winsize winsize;
-	unsigned char stopped:1, hw_stopped:1, packet:1;
+	unsigned char stopped:1, hw_stopped:1, flow_stopped:1, packet:1;
 	unsigned char ctrl_status;
 
 	struct tty_struct *link;
@@ -286,7 +286,6 @@ extern struct tty_ldisc ldiscs[];
 extern int fg_console, last_console, want_console;
 
 extern int kmsg_redirect;
-extern struct wait_queue * keypress_wait;
 
 extern unsigned long con_init(unsigned long);
 
@@ -300,6 +299,7 @@ extern int cy_init(void);
 extern int stl_init(void);
 extern int stli_init(void);
 extern int riscom8_init(void);
+extern int espserial_init(void);
 
 extern int tty_paranoia_check(struct tty_struct *tty, kdev_t device,
 			      const char *routine);
@@ -335,17 +335,18 @@ extern int n_tty_ioctl(struct tty_struct * tty, struct file * file,
 
 /* serial.c */
 
-extern int  rs_open(struct tty_struct * tty, struct file * filp);
+extern long serial_console_init(long kmem_start, long kmem_end);
 
-/* pty.c */
+/* pcxx.c */
 
-extern int  pty_open(struct tty_struct * tty, struct file * filp);
 extern int pcxe_open(struct tty_struct *tty, struct file *filp);
 
 /* console.c */
 
-extern int con_open(struct tty_struct * tty, struct file * filp);
 extern void update_screen(int new_console);
+
+/* printk.c */
+
 extern void console_print(const char *);
 
 /* vt.c */

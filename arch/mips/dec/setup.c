@@ -13,6 +13,7 @@
 #include <linux/timex.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/reboot.h>
 #include <asm/vector.h>
 
 extern struct feature decstation_feature;
@@ -31,6 +32,10 @@ static void dec_time_init(struct irqaction *irq)
 	pmax_printf("Please write the time init code for the DECStation!\n");
 }
 
+extern void dec_machine_restart(char *command);
+extern void dec_machine_halt(void);
+extern void dec_machine_power_off(void).
+
 void
 decstation_setup(void)
 {
@@ -38,4 +43,8 @@ decstation_setup(void)
 	board_time_init = dec_time_init;
 	/* FIXME: Setup fd_cacheflush */
 	feature = &decstation_feature;		/* FIXME: Will go away */
+
+	_machine_restart = dec_machine_restart;
+	_machine_halt = dec_machine_halt;
+	_machine_power_off = dec_machine_power_off;
 }

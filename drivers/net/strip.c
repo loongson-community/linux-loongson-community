@@ -1621,20 +1621,12 @@ static unsigned char *strip_make_packet(unsigned char *ptr, struct strip *strip_
      */
     if (haddr.c[0] == 0xFF)
     {
-        /*IPaddr a;
-        a.l = strip_info->dev.pa_brdaddr;
-        printk(KERN_INFO "%s: Broadcast packet! Sending to %d.%d.%d.%d\n",
-                strip_info->dev.name, a.b[0], a.b[1], a.b[2], a.b[3]);*/
-
-        if (!arp_query(haddr.c, strip_info->dev.pa_brdaddr, &strip_info->dev))
-        {
-            /*IPaddr a;
-            a.l = strip_info->dev.pa_brdaddr;
-            printk(KERN_INFO "%s: No ARP cache entry for %d.%d.%d.%d\n",
-                strip_info->dev.name, a.b[0], a.b[1], a.b[2], a.b[3]);
-            strip_info->tx_dropped++;*/
-            return(NULL);
-        }
+	    memcpy(haddr.c, strip_info->dev.broadcast, sizeof(haddr));
+	    if (haddr.c[0] == 0xFF)
+	    {
+		    strip_info->tx_dropped++;
+		    return(NULL);
+	    }
     }
 
     *ptr++ = '*';
@@ -1804,17 +1796,16 @@ static int strip_header(struct sk_buff *skb, struct device *dev,
  * or non-zero if it needs more time to do an address lookup
  */
 
-static int strip_rebuild_header(void *buff, struct device *dev,
-        unsigned long dst, struct sk_buff *skb)
+static int strip_rebuild_header(struct sk_buff *skb)
 {
-    STRIP_Header *header = (STRIP_Header *)buff;
+    STRIP_Header *header = (STRIP_Header *)skb->data;
 
-    /*printk(KERN_INFO "%s: strip_rebuild_header\n", dev->name);*/
+    /*printk(KERN_INFO "%s: strip_rebuild_header\n", skb->dev->name);*/
 
 #ifdef CONFIG_INET
     /* Arp find returns zero if if knows the address, */
     /* or if it doesn't know the address it sends an ARP packet and returns non-zero */
-    return arp_find(header->dst_addr.c, dst, dev, dev->pa_addr, skb)? 1 : 0;
+    return arp_find(header->dst_addr.c, skb)? 1 : 0;
 #else
     return 0;
 #endif
@@ -2293,12 +2284,12 @@ static int strip_set_dev_mac_address(struct device *dev, void *addr)
     return -1;        /* You cannot override a Metricom radio's address */
 }
 
-static struct enet_statistics *strip_get_stats(struct device *dev)
+static struct net_device_stats *strip_get_stats(struct device *dev)
 {
-    static struct enet_statistics stats;
+    static struct net_device_stats stats;
     struct strip *strip_info = (struct strip *)(dev->priv);
 
-    memset(&stats, 0, sizeof(struct enet_statistics));
+    memset(&stats, 0, sizeof(struct net_device_stats));
 
     stats.rx_packets     = strip_info->rx_packets;
     stats.tx_packets     = strip_info->tx_packets;
@@ -2354,12 +2345,6 @@ static int strip_open_low(struct device *dev)
     strip_info->sx_count = 0;
     strip_info->tx_left  = 0;
 
-    /*
-     * Needed because address '0' is special
-     */
-
-    if (dev->pa_addr == 0)
-        dev->pa_addr=ntohl(0xC0A80001);
     dev->tbusy  = 0;
     dev->start  = 1;
 
@@ -2414,8 +2399,6 @@ static int strip_close_low(struct device *dev)
 
 static int strip_dev_init(struct device *dev)
 {
-    int i;
-
     /*
      * Finish setting up the DEVICE info.
      */
@@ -2446,8 +2429,7 @@ static int strip_dev_init(struct device *dev)
      * Pointer to the interface buffers.
      */
 
-    for (i = 0; i < DEV_NUMBUFFS; i++)
-        skb_queue_head_init(&dev->buffs[i]);
+   dev_init_buffers(dev);
 
     /*
      * Pointers to interface service routines.
@@ -2754,7 +2736,7 @@ int strip_init_ctrl_dev(struct device *dummy)
     strip_ldisc.read         = NULL;
     strip_ldisc.write        = NULL;
     strip_ldisc.ioctl        = strip_ioctl;
-    strip_ldisc.select       = NULL;
+    strip_ldisc.poll         = NULL;
     strip_ldisc.receive_buf  = strip_receive_buf;
     strip_ldisc.receive_room = strip_receive_room;
     strip_ldisc.write_wakeup = strip_write_some_more;

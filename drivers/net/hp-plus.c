@@ -30,6 +30,7 @@ static const char *version =
 #include <linux/ioport.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -38,7 +39,7 @@ static const char *version =
 #include "8390.h"
 
 /* A zero-terminated list of I/O addresses to be probed. */
-static unsigned int hpplus_portlist[] =
+static unsigned int hpplus_portlist[] __initdata =
 {0x200, 0x240, 0x280, 0x2C0, 0x300, 0x320, 0x340, 0};
 
 /*
@@ -67,7 +68,7 @@ static unsigned int hpplus_portlist[] =
 */
 
 #define HP_ID			0x00	/* ID register, always 0x4850. */
-#define HP_PAGING		0x02	/* Registers visible @ 8-f, see PageName. */ 
+#define HP_PAGING		0x02	/* Registers visible @ 8-f, see PageName. */
 #define HPP_OPTION		0x04	/* Bitmapped options, see HP_Option.	*/
 #define HPP_OUT_ADDR	0x08	/* I/O output location in Perf_Page.	*/
 #define HPP_IN_ADDR		0x0A	/* I/O input location in Perf_Page.		*/
@@ -84,7 +85,7 @@ enum PageName {
 	MAC_Page = 1,				/* The ethernet address (+checksum). */
 	HW_Page = 2,				/* EEPROM-loaded hardware parameters. */
 	LAN_Page = 4,				/* Transceiver selection, testing, etc. */
-	ID_Page = 6 }; 
+	ID_Page = 6 };
 
 /* The bit definitions for the HPP_OPTION register. */
 enum HP_Option {
@@ -121,7 +122,7 @@ struct netdev_entry hpplus_drv =
 {"hpplus", hpp_probe1, HP_IO_EXTENT, hpplus_portlist};
 #else
 
-int hp_plus_probe(struct device *dev)
+__initfunc(int hp_plus_probe(struct device *dev))
 {
 	int i;
 	int base_addr = dev ? dev->base_addr : 0;
@@ -144,7 +145,7 @@ int hp_plus_probe(struct device *dev)
 #endif
 
 /* Do the interesting part of the probe at a single address. */
-int hpp_probe1(struct device *dev, int ioaddr)
+__initfunc(int hpp_probe1(struct device *dev, int ioaddr))
 {
 	int i;
 	unsigned char checksum = 0;
@@ -424,6 +425,9 @@ static struct device dev_hpp[MAX_HPP_CARDS] = {
 
 static int io[MAX_HPP_CARDS] = { 0, };
 static int irq[MAX_HPP_CARDS]  = { 0, };
+
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_HPP_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_HPP_CARDS) "i");
 
 /* This is set up so that only a single autoprobe takes place per call.
 ISA device autoprobes on a running machine are not recommended. */

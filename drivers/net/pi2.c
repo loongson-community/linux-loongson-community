@@ -39,7 +39,7 @@
    		       init() so it doesn't migrate module based ethernet cards up
    		       to eth2 Took out the old module ideas as they are no longer
    		       relevant to the PI driver.
-   July 16, 1994 (dp)  Fixed the B channel rx overrun problem ac referred to 
+   July 16, 1994 (dp)  Fixed the B channel rx overrun problem ac referred to
    		       above. Also added a bit of a hack to improve the maximum
    	               baud rate on the B channel (Search for STUFF2). Included
    		       ioctl stuff from John Paul Morrison. version 0.6 ALPHA
@@ -51,9 +51,10 @@
                        version 0.8 ALPHA
    July 17, 1995 (ac)  Finally polishing of AX25.030+ support
    Oct  29, 1995 (ac)  A couple of minor fixes before this, and this release changes
-   		       to the proper set_mac_address semantics which will break 
+   		       to the proper set_mac_address semantics which will break
    		       a few programs I suspect.
    Aug  18, 1996 (jsn) Converted to be used as a module.
+   Dec  13, 1996 (jsn) Fixed to match Linux networking changes.
 */
 
 /* The following #define invokes a hack that will improve performance (baud)
@@ -86,6 +87,7 @@
    the PI2 - but it's safer to leave it in. */
 #define REALLY_SLOW_IO 1
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -109,7 +111,8 @@
 #include <linux/skbuff.h>
 #include <linux/timer.h>
 #include <linux/if_arp.h>
-#include "pi2.h"
+#include <linux/pi2.h>
+#include <linux/init.h>
 #include "z8530.h"
 #include <net/ax25.h>
 
@@ -122,16 +125,16 @@ struct mbuf {
 /*
  *	The actual devices we will use
  */
- 
+
 /*
  *	PI device declarations.
  */
- 
+
 static int pi0_preprobe(struct device *dev){return 0;}	/* Dummy probe function */
 static struct device pi0a = { "pi0a", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, pi0_preprobe };
 static struct device pi0b = { "pi0b", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, pi0_preprobe };
 
- 
+
 /* The number of low I/O ports used by the card. */
 #define PI_TOTAL_SIZE	8
 
@@ -144,7 +147,7 @@ static int pi_send_packet(struct sk_buff *skb, struct device *dev);
 static void pi_interrupt(int reg_ptr, void *dev_id, struct pt_regs *regs);
 static int pi_close(struct device *dev);
 static int pi_ioctl(struct device *dev, struct ifreq *ifr, int cmd);
-static struct enet_statistics *pi_get_stats(struct device *dev);
+static struct net_device_stats *pi_get_stats(struct device *dev);
 static void rts(struct pi_local *lp, int x);
 static void b_rxint(struct device *dev, struct pi_local *lp);
 static void b_txint(struct pi_local *lp);
@@ -162,69 +165,71 @@ static char ax25_test[7] =
 
 static int ext2_secrm_seed = 152;	/* Random generator base */
 
-static inline unsigned char random(void)
+extern inline unsigned char random(void)
 {
-    return (unsigned char) (ext2_secrm_seed = ext2_secrm_seed
+	return (unsigned char) (ext2_secrm_seed = ext2_secrm_seed
 			    * 69069l + 1);
 }
 
-static inline void wrtscc(int cbase, int ctl, int sccreg, int val)
+extern inline void wrtscc(int cbase, int ctl, int sccreg, int val)
 {
-    /* assume caller disables interrupts! */
-    outb_p(0, cbase + DMAEN);	/* Disable DMA while we touch the scc */
-    outb_p(sccreg, ctl);	/* Select register */
-    outb_p(val, ctl);		/* Output value */
-    outb_p(1, cbase + DMAEN);	/* Enable DMA */
+	/* assume caller disables interrupts! */
+	outb_p(0, cbase + DMAEN);	/* Disable DMA while we touch the scc */
+	outb_p(sccreg, ctl);		/* Select register */
+	outb_p(val, ctl);		/* Output value */
+	outb_p(1, cbase + DMAEN);	/* Enable DMA */
 }
 
-static inline int rdscc(int cbase, int ctl, int sccreg)
+extern inline int rdscc(int cbase, int ctl, int sccreg)
 {
-    int retval;
+	int retval;
 
-    /* assume caller disables interrupts! */
-    outb_p(0, cbase + DMAEN);	/* Disable DMA while we touch the scc */
-    outb_p(sccreg, ctl);	/* Select register */
-    retval = inb_p(ctl);
-    outb_p(1, cbase + DMAEN);	/* Enable DMA */
-    return retval;
+	/* assume caller disables interrupts! */
+	outb_p(0, cbase + DMAEN);	/* Disable DMA while we touch the scc */
+	outb_p(sccreg, ctl);	/* Select register */
+	retval = inb_p(ctl);
+	outb_p(1, cbase + DMAEN);	/* Enable DMA */
+	return retval;
 }
 
 static void switchbuffers(struct pi_local *lp)
 {
-    if (lp->rcvbuf == lp->rxdmabuf1)
-	lp->rcvbuf = lp->rxdmabuf2;
-    else
-	lp->rcvbuf = lp->rxdmabuf1;
+	if (lp->rcvbuf == lp->rxdmabuf1)
+		lp->rcvbuf = lp->rxdmabuf2;
+	else
+		lp->rcvbuf = lp->rxdmabuf1;
 }
 
 static void hardware_send_packet(struct pi_local *lp, struct sk_buff *skb)
 {
-    char kickflag;
-    unsigned long flags;
+	char kickflag;
+	unsigned long flags;
 
-    lp->stats.tx_packets++;
+	lp->stats.tx_packets++;
 
-    save_flags(flags);
-    cli();
-    kickflag = (skb_peek(&lp->sndq) == NULL) && (lp->sndbuf == NULL);
-    restore_flags(flags);
+	save_flags(flags);
+	cli();
+	kickflag = (skb_peek(&lp->sndq) == NULL) && (lp->sndbuf == NULL);
+	restore_flags(flags);
 
-    skb_queue_tail(&lp->sndq, skb);
-    if (kickflag) {
-	/* simulate interrupt to xmit */
-	switch (lp->base & 2) {
-	case 2:
-	    a_txint(lp);	/* process interrupt */
-	    break;
-	case 0:
-	    save_flags(flags);
-	    cli();
-	    if (lp->tstate == IDLE)
-		b_txint(lp);
-	    restore_flags(flags);
-	    break;
+	skb_queue_tail(&lp->sndq, skb);
+	if (kickflag) 
+	{
+		/* simulate interrupt to xmit */
+		switch (lp->base & 2) 
+		{
+			case 2:
+				a_txint(lp);	/* process interrupt */
+				break;
+			case 0:
+				save_flags(flags);
+				cli();
+				if (lp->tstate == IDLE)
+					b_txint(lp);
+				restore_flags(flags);
+				break;
+		}
 	}
-    }
 }
 
 static void setup_rx_dma(struct pi_local *lp)
@@ -560,7 +565,6 @@ static void a_rxint(struct device *dev, struct pi_local *lp)
 		   pkt_len - 1);
 	    skb->protocol=htons(ETH_P_AX25);
 	    skb->mac.raw=skb->data;
-	    IS_SKB(skb);
 	    netif_rx(skb);
 	    lp->stats.rx_packets++;
 	}			/* end good frame */
@@ -648,7 +652,6 @@ static void b_rxint(struct device *dev, struct pi_local *lp)
 		memcpy(cfix, lp->rcvbuf->data, pkt_len - 1);
 		skb->protocol=ntohs(ETH_P_AX25);
 		skb->mac.raw=skb->data;
-		IS_SKB(skb);
 		netif_rx(skb);
 		lp->stats.rx_packets++;
 		/* packet queued - initialize buffer for next frame */
@@ -686,7 +689,7 @@ static void b_txint(struct pi_local *lp)
              * Tx OFF now - flag should have gone
              */
 	    rts(lp, OFF);
-	 
+
 	    restore_flags(flags);
 	    return;
 	}
@@ -829,7 +832,7 @@ static void b_exint(struct pi_local *lp)
 	    c = *lp->txptr++;
 	    /* Wait for tx buffer empty */
 	    while((rdscc(lp->cardbase, cmd, R0) & 0x04) == 0)
-		;   
+		;
 	    wrtscc(lp->cardbase, cmd, R8, c);
 	}
 #endif
@@ -894,7 +897,7 @@ static void b_exint(struct pi_local *lp)
 	    c = *lp->txptr++;
 	    /* Wait for tx buffer empty */
 	    while((rdscc(lp->cardbase, cmd, R0) & 0x04) == 0)
-		;   
+		;
 	    wrtscc(lp->cardbase, cmd, R8, c);
 	}
 #endif
@@ -929,7 +932,7 @@ static void b_exint(struct pi_local *lp)
 /* Probe for a PI card. */
 /* This routine also initializes the timer chip */
 
-static int hw_probe(int ioaddr)
+__initfunc(static int hw_probe(int ioaddr))
 {
     int time = 1000;		/* Number of milliseconds for test */
     unsigned long start_time, end_time;
@@ -1065,20 +1068,6 @@ static void rts(struct pi_local *lp, int x)
     }
 }
 
-/* Fill in the MAC-level header. */
-static int pi_header(struct sk_buff *skb, struct device *dev, unsigned short type,
-	     void *daddr, void *saddr, unsigned len)
-{
-    return ax25_encapsulate(skb, dev, type, daddr, saddr, len);
-}
-
-/* Rebuild the MAC-level header. */
-static int pi_rebuild_header(void *buff, struct device *dev, unsigned long raddr,
-			     struct sk_buff *skb)
-{
-    return ax25_rebuild_header(buff, dev, raddr, skb);
-}
-
 static void scc_init(struct device *dev)
 {
     unsigned long flags;
@@ -1198,13 +1187,12 @@ static void chipset_init(struct device *dev)
 }
 
 
-int pi_init(void)
+__initfunc(int pi_init(void))
 {
     int *port;
     int ioaddr = 0;
     int card_type = 0;
-    int ports[] =
-    {0x380, 0x300, 0x320, 0x340, 0x360, 0x3a0, 0};
+    int ports[] = {0x380, 0x300, 0x320, 0x340, 0x360, 0x3a0, 0};
 
     printk(KERN_INFO "PI: V0.8 ALPHA April 23 1995 David Perry (dp@hydra.carleton.ca)\n");
 
@@ -1237,9 +1225,9 @@ int pi_init(void)
        be rejected by get_dma_buffer().
     */
     register_netdev(&pi0a);
-    
+
     pi0a.priv = kmalloc(sizeof(struct pi_local) + (DMA_BUFF_SIZE + sizeof(struct mbuf)) * 4, GFP_KERNEL | GFP_DMA);
-			
+
     pi0a.dma = PI_DMA;
     pi0a.base_addr = ioaddr + 2;
     pi0a.irq = 0;
@@ -1256,7 +1244,7 @@ int pi_init(void)
     pi_probe(&pi0b, card_type);
 
     pi0b.irq = pi0a.irq;	/* IRQ is shared */
-    
+
     return 0;
 }
 
@@ -1295,7 +1283,6 @@ static int pi_probe(struct device *dev, int card_type)
 {
     short ioaddr;
     struct pi_local *lp;
-    int i;
     unsigned long flags;
     unsigned long mem_ptr;
 
@@ -1412,12 +1399,14 @@ static int pi_probe(struct device *dev, int card_type)
     dev->get_stats = pi_get_stats;
 
     /* Fill in the fields of the device structure */
-    for (i = 0; i < DEV_NUMBUFFS; i++)
-	skb_queue_head_init(&dev->buffs[i]);
 
+    dev_init_buffers(dev);
+    
+#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE)
+    dev->hard_header    = ax25_encapsulate;
+    dev->rebuild_header = ax25_rebuild_header;
+#endif
 
-    dev->hard_header = pi_header;
-    dev->rebuild_header = pi_rebuild_header;
     dev->set_mac_address = pi_set_mac_address;
 
     dev->type = ARPHRD_AX25;			/* AF_AX25 device */
@@ -1491,13 +1480,6 @@ static int pi_send_packet(struct sk_buff *skb, struct device *dev)
 {
     struct pi_local *lp = (struct pi_local *) dev->priv;
 
-    /* If some higher layer thinks we've missed an tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-    if (skb == NULL) {
-	dev_tint(dev);
-	return 0;
-    }
     hardware_send_packet(lp, skb);
     dev->trans_start = jiffies;
 
@@ -1520,7 +1502,7 @@ static void pi_interrupt(int reg_ptr, void *dev_id, struct pt_regs *regs)
 	printk(KERN_ERR "PI: pi_interrupt(): irq %d for unknown device.\n", irq);
 	return;
     }
-#endif    
+#endif
     /* Read interrupt status register (only valid from channel A)
      * Process all pending interrupts in while loop
      */
@@ -1601,7 +1583,7 @@ static int pi_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
     int ret = verify_area(VERIFY_WRITE, ifr->ifr_data, sizeof(struct pi_req));
     if (ret)
 	return ret;
-	
+
     if(cmd!=SIOCDEVPRIVATE)
     	return -EINVAL;
 
@@ -1638,7 +1620,7 @@ static int pi_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 	   pi_close(dev);
 	   free_dma(lp->dmachan);
 	   dev->dma = lp->dmachan = rq.dmachan;
-	   if (request_dma(lp->dmachan,"pi2")) 
+	   if (request_dma(lp->dmachan,"pi2"))
 		ret = -EAGAIN;
 	   pi_open(dev);
 	   restore_flags(flags);
@@ -1673,18 +1655,18 @@ static int pi_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct netstats *
- pi_get_stats(struct device *dev)
+static struct net_device_stats *pi_get_stats(struct device *dev)
 {
-    struct pi_local *lp = (struct pi_local *) dev->priv;
+	struct pi_local *lp = (struct pi_local *) dev->priv;
 
-    return &lp->stats;
+	return &lp->stats;
 }
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
+
 int init_module(void)
 {
-    register_symtab(NULL);
     return pi_init();
 }
 

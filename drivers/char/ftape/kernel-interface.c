@@ -58,7 +58,7 @@ static int busy_flag = 0;
 static int old_sigmask;
 
 static int ftape_open(struct inode *ino, struct file *filep);
-static void ftape_close(struct inode *ino, struct file *filep);
+static int ftape_close(struct inode *ino, struct file *filep);
 static int ftape_ioctl(struct inode *ino, struct file *filep,
 		       unsigned int command, unsigned long arg);
 static long ftape_read(struct inode *ino, struct file *fp,
@@ -72,7 +72,7 @@ static struct file_operations ftape_cdev =
 	ftape_read,		/* read */
 	ftape_write,		/* write */
 	NULL,			/* readdir */
-	NULL,			/* select */
+	NULL,			/* poll */
 	ftape_ioctl,		/* ioctl */
 	NULL,			/* mmap */
 	ftape_open,		/* open */
@@ -116,6 +116,7 @@ void dmafree(void *addr, int order)
  */
 
 #ifdef MODULE
+EXPORT_NO_SYMBOLS;
 #define ftape_init init_module
 #endif
 
@@ -128,16 +129,16 @@ int ftape_init(void)
 	printk(KERN_INFO "ftape-2.08 960314\n"
 	       KERN_INFO " (c) 1993-1995 Bas Laarhoven (bas@vimec.nl)\n"
 	       KERN_INFO " (c) 1995-1996 Kai Harrekilde-Petersen (khp@dolphinics.no)\n"
-	KERN_INFO " QIC-117 driver for QIC-40/80/3010/3020 tape drives\n"
-	       KERN_INFO " Compiled for kernel version %s"
+	       KERN_INFO " QIC-117 driver for QIC-40/80/3010/3020 tape drives\n"
+	       KERN_INFO " Compiled for kernel version " UTS_RELEASE
 #ifdef MODVERSIONS
 	       " with versioned symbols"
 #endif
-	       "\n", kernel_version);
+	       "\n");
 #else /* !MODULE */
 	/* print a short no-nonsense boot message */
 	printk("ftape-2.08 960314 for Linux 1.3.70\n");
-#endif				/* MODULE */
+#endif /* MODULE */
 	TRACE(3, "installing QIC-117 ftape driver...");
 	if (register_chrdev(QIC117_TAPE_MAJOR, "ft", &ftape_cdev)) {
 		TRACE(1, "register_chrdev failed");
@@ -175,9 +176,7 @@ int ftape_init(void)
 	udelay_calibrate();	/* must be before fdc_wait_calibrate ! */
 	fdc_wait_calibrate();
 	TRACE_EXIT;
-#ifdef MODULE
-	register_symtab(0);	/* remove global ftape symbols */
-#endif
+
 	return 0;
 }
 
@@ -261,7 +260,7 @@ static int ftape_open(struct inode *ino, struct file *filep)
 
 /*      Close ftape device
  */
-static void ftape_close(struct inode *ino, struct file *filep)
+static int ftape_close(struct inode *ino, struct file *filep)
 {
 	TRACE_FUN(4, "ftape_close");
 	int result;
@@ -269,7 +268,7 @@ static void ftape_close(struct inode *ino, struct file *filep)
 	if (!busy_flag || MINOR(ino->i_rdev) != ftape_unit) {
 		TRACE(1, "failed: not busy or wrong unit");
 		TRACE_EXIT;
-		return;		/* keep busy_flag !(?) */
+		return 0;		/* keep busy_flag !(?) */
 	}
 	current->blocked = _BLOCK_ALL;
 	result = _ftape_close();
@@ -282,6 +281,7 @@ static void ftape_close(struct inode *ino, struct file *filep)
 	current->blocked = old_sigmask;		/* restore before open state */
 	TRACE_EXIT;
 	MOD_DEC_USE_COUNT;	/* unlock module in memory */
+	return 0;
 }
 
 /*      Ioctl for ftape device

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.23 1996/10/28 01:24:40 davem Exp $
+# $Id: config.in,v 1.35 1997/04/07 06:54:09 davem Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -21,6 +21,9 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
+define_bool CONFIG_VT y
+define_bool CONFIG_VT_CONSOLE y
+
 bool 'Support for AP1000 multicomputer' CONFIG_AP1000
 
 if [ "$CONFIG_AP1000" = "y" ]; then
@@ -28,7 +31,7 @@ if [ "$CONFIG_AP1000" = "y" ]; then
 	define_bool CONFIG_APFDDI y
 	define_bool CONFIG_APBLOCK y
 	define_bool CONFIG_APBIF y
-	define_bool CONFIG_DDV y
+	tristate 'OPIU DDV Driver' CONFIG_DDV
 else
 	# Global things across all Sun machines.
 	define_bool CONFIG_SBUS y
@@ -41,11 +44,13 @@ else
 	define_bool CONFIG_SUN_AUXIO y
 	define_bool CONFIG_SUN_IO y
 	source drivers/sbus/char/Config.in
+	source drivers/sbus/audio/Config.in
 fi
 
 tristate 'Openprom tree appears in /proc/openprom (EXPERIMENTAL)' CONFIG_SUN_OPENPROMFS
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Kernel support for a.out binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -62,6 +67,7 @@ bool 'Multiple devices driver support' CONFIG_BLK_DEV_MD
 if [ "$CONFIG_BLK_DEV_MD" = "y" ]; then
   tristate '   Linear (append) mode' CONFIG_MD_LINEAR
   tristate '   RAID-0 (striping) mode' CONFIG_MD_STRIPED
+#  tristate '   RAID-1 (mirroring) mode' CONFIG_MD_MIRRORING
 fi
 
 tristate 'RAM disk support' CONFIG_BLK_DEV_RAM
@@ -88,6 +94,9 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 	dep_tristate 'SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
 	dep_tristate 'SCSI tape support' CONFIG_CHR_DEV_ST $CONFIG_SCSI
 	dep_tristate 'SCSI CDROM support' CONFIG_BLK_DEV_SR $CONFIG_SCSI
+	if [ "$CONFIG_BLK_DEV_SR" != "n" ]; then
+	  bool '  Enable vendor-specific extentions (for SCSI CDROM)' CONFIG_BLK_DEV_SR_VENDOR
+	fi
 	dep_tristate 'SCSI generic support' CONFIG_CHR_DEV_SG $CONFIG_SCSI
 
 	comment 'Some SCSI devices (e.g. CD jukebox) support multiple LUNs'
@@ -100,6 +109,7 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 	comment 'SCSI low-level drivers'
 
 	bool 'Sparc ESP Scsi Driver' CONFIG_SCSI_SUNESP $CONFIG_SCSI
+	tristate 'PTI Qlogic,ISP Driver' CONFIG_SCSI_QLOGICPTI $CONFIG_SCSI
 	endmenu
 fi
 endmenu
@@ -121,8 +131,10 @@ if [ "$CONFIG_NET" = "y" ]; then
 		  bool ' Keepalive and linefill' CONFIG_SLIP_SMART
 		  bool ' Six bit SLIP encapsulation' CONFIG_SLIP_MODE_SLIP6
 		fi
-		bool 'Sun LANCE support' CONFIG_SUNLANCE
-		bool 'Sun Happy Meal 10/100baseT support' CONFIG_HAPPYMEAL
+		tristate 'Sun LANCE support' CONFIG_SUNLANCE
+		tristate 'Sun Happy Meal 10/100baseT support' CONFIG_HAPPYMEAL
+		tristate 'Sun QuadEthernet support' CONFIG_SUNQE
+		tristate 'MyriCOM Gigabit Ethernet support' CONFIG_MYRI_SBUS
 #		bool 'FDDI driver support' CONFIG_FDDI
 #		if [ "$CONFIG_FDDI" = "y" ]; then
 #		fi

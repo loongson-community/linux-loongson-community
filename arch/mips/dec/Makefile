@@ -13,7 +13,7 @@
 
 all: dec.o
 O_TARGET := dec.o
-O_OBJS	 := boot.o int-handler.o decstation.o hw-access.o setup.o
+O_OBJS	 := boot.o int-handler.o decstation.o hw-access.o reset.o setup.o
 
 boot.o:	boot.S
 

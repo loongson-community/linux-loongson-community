@@ -13,6 +13,8 @@
 #include <linux/ptrace.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
@@ -41,8 +43,9 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long writeaccess,
 	struct mm_struct *mm = tsk->mm;
 	unsigned long fixup;
 
+	lock_kernel();
 #if 0
-	printk("[%s:%d:%08lx:%ld:%08lx]", current->comm, current->pid,
+	printk("[%s:%d:%08lx:%ld:%08lx]\n", current->comm, current->pid,
 	       address, writeaccess, regs->cp0_epc);
 #endif
 	down(&mm->mmap_sem);
@@ -70,7 +73,7 @@ good_area:
 	handle_mm_fault(vma, address, writeaccess);
 	up(&mm->mmap_sem);
 
-	return;
+	goto out;
 
 /*
  * Something tried to access memory that isn't in our memory map..
@@ -84,10 +87,10 @@ bad_area:
 	if (fixup) {
 		long new_epc;
 		new_epc = fixup_exception(dpf_reg, fixup, regs->cp0_epc);
-		printk("Taking exception at %lx (%lx)\n",
+		printk(KERN_DEBUG "Exception at [<%lx>] (%lx)\n",
 		       regs->cp0_epc, new_epc);
 		regs->cp0_epc = new_epc;
-		return;
+		goto out;
 	}
 
 	if (user_mode(regs)) {
@@ -106,7 +109,7 @@ bad_area:
 		current->tss.cp0_badvaddr = address;
 		current->tss.error_code = writeaccess;
 		force_sig(SIGSEGV, tsk);
-		return;
+		goto out;
 	}
 	/*
 	 * Oops. The kernel tried to access some bad page. We'll have to
@@ -116,4 +119,6 @@ bad_area:
 	       "address %08lx, epc == %08lx\n", address, regs->cp0_epc);
 	die_if_kernel("Oops", regs, writeaccess);
 	do_exit(SIGKILL);
+out:
+	unlock_kernel();
 }

@@ -10,6 +10,8 @@
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/utsname.h>
@@ -18,12 +20,6 @@
 #include <asm/pgtable.h>
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
-
-static inline size_t
-strnlen_user(const char *s, size_t count)
-{
-	return strnlen(s, count);
-}
 
 /*
  * How long a hostname can we get from user space?
@@ -53,44 +49,65 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 {
 	int	*p;
 	char	*name;
-	int	flags, tmp, len, retval = -EINVAL;
+	int	flags, tmp, len, retval;
 
+	lock_kernel();
 	switch(cmd)
 	{
 	case SETNAME:
-		if (!suser())
-			return -EPERM;
+		if (!suser()) {
+			retval = -EPERM;
+			goto out;
+		}
 		name = (char *) arg1;
-		len = get_max_hostname((unsigned long)name);
-		if (retval < 0)
-			return len;
-		len = strnlen_user(name, retval);
+		len = strlen_user(name);
+		if (len < 0)
+			retval = len;
+			goto out;
 		if (len == 0 || len > __NEW_UTS_LEN)
-			return -EINVAL;
+			retval = -EINVAL;
+			goto out;
 		copy_from_user(system_utsname.nodename, name, len);
 		system_utsname.nodename[len] = '\0';
-		return 0;
+		retval = 0;
+		goto out;
+
 	case MIPS_ATOMIC_SET:
+		/* This is broken in case of page faults and SMP ...
+		   Risc/OS fauls after maximum 20 tries with EAGAIN.  */
 		p = (int *) arg1;
 		retval = verify_area(VERIFY_WRITE, p, sizeof(*p));
-		if(retval)
-			return -EINVAL;
+		if (retval)
+			goto out;
 		save_flags(flags);
 		cli();
 		retval = *p;
 		*p = arg2;
 		restore_flags(flags);
-		return retval;
+		goto out;
+
 	case MIPS_FIXADE:
 		tmp = current->tss.mflags & ~3;
 		current->tss.mflags = tmp | (arg1 & 3);
 		retval = 0;
-		break;
+		goto out;
+
 	case FLUSH_CACHE:
 		flush_cache_all();
-		break;
+		retval = 0;
+		goto out;
+
+	case MIPS_RDNVRAM:
+		retval = -EIO;
+		goto out;
+
+	default:
+		retval = -EINVAL;
+		goto out;
 	}
 
+out:
+	unlock_kernel();
 	return retval;
 }
 
@@ -101,37 +118,4 @@ asmlinkage int
 sys_cachectl(char *addr, int nbytes, int op)
 {
 	return -ENOSYS;
-}
-
-/* For emulation of various binary types, and their shared libs,
- * we need this.
- */
-
-extern int do_open_namei(const char *pathname, int flag, int mode,
-			 struct inode **res_inode, struct inode *base);
-
-/* Only one at this time. */
-#define IRIX32_EMUL "/usr/gnemul/irix"
-
-int open_namei(const char *pathname, int flag, int mode,
-	       struct inode **res_inode, struct inode *base)
-{
-	if(!base && (current->personality == PER_IRIX32) &&
-	   *pathname == '/') {
-		struct inode *emul_ino;
-		const char *p = pathname;
-		char *emul_path = IRIX32_EMUL;
-		int v;
-
-		while (*p == '/')
-			p++;
-
-		if(do_open_namei (emul_path, flag, mode, &emul_ino, NULL) >= 0 &&
-		   emul_ino) {
-			v = do_open_namei (p, flag, mode, res_inode, emul_ino);
-			if(v >= 0)
-				return v;
-		}
-	}
-	return do_open_namei (pathname, flag, mode, res_inode, base);
 }

@@ -6,6 +6,8 @@
  */
 
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/sched.h>
 #include <linux/head.h>
 #include <linux/kernel.h>
@@ -16,6 +18,7 @@
 #include <linux/swap.h>
 #include <linux/fs.h>
 #include <linux/swapctl.h>
+#include <linux/malloc.h>
 #include <linux/blkdev.h> /* for blk_size */
 #include <linux/vmalloc.h>
 
@@ -83,7 +86,9 @@ unsigned long get_swap_page(void)
 
 	type = swap_list.next;
 	if (type < 0)
-	  return 0;
+		return 0;
+	if (nr_swap_pages == 0)
+		return 0;
 
 	while (1) {
 		p = &swap_info[type];
@@ -317,17 +322,18 @@ static int try_to_unuse(unsigned int type)
 
 asmlinkage int sys_swapoff(const char * specialfile)
 {
-	struct swap_info_struct * p;
+	struct swap_info_struct * p = NULL;
 	struct inode * inode;
 	struct file filp;
 	int i, type, prev;
-	int err;
+	int err = -EPERM;
 
+	lock_kernel();
 	if (!suser())
-		return -EPERM;
+		goto out;
 	err = namei(specialfile,&inode);
 	if (err)
-		return err;
+		goto out;
 	prev = -1;
 	for (type = swap_list.head; type >= 0; type = swap_info[type].next) {
 		p = swap_info + type;
@@ -343,9 +349,10 @@ asmlinkage int sys_swapoff(const char * specialfile)
 		}
 		prev = type;
 	}
+	err = -EINVAL;
 	if (type < 0){
 		iput(inode);
-		return -EINVAL;
+		goto out;
 	}
 	if (prev < 0) {
 		swap_list.head = p->next;
@@ -370,7 +377,7 @@ asmlinkage int sys_swapoff(const char * specialfile)
 		else
 			swap_info[prev].next = p - swap_info;
 		p->flags = SWP_WRITEOK;
-		return err;
+		goto out;
 	}
 	if(p->swap_device){
 		memset(&filp, 0, sizeof(filp));		
@@ -387,6 +394,8 @@ asmlinkage int sys_swapoff(const char * specialfile)
 
 	nr_swap_pages -= p->pages;
 	iput(p->swap_file);
+	if (p->swap_filename)
+		kfree(p->swap_filename);
 	p->swap_file = NULL;
 	p->swap_device = 0;
 	vfree(p->swap_map);
@@ -394,7 +403,41 @@ asmlinkage int sys_swapoff(const char * specialfile)
 	free_page((long) p->swap_lockmap);
 	p->swap_lockmap = NULL;
 	p->flags = 0;
-	return 0;
+	err = 0;
+out:
+	unlock_kernel();
+	return err;
+}
+
+int get_swaparea_info(char *buf)
+{
+	struct swap_info_struct *ptr = swap_info;
+	int i, j, len = 0, usedswap;
+
+	len += sprintf(buf, "Filename\t\t\tType\t\tSize\tUsed\tPriority\n");
+	for (i = 0 ; i < nr_swapfiles ; i++, ptr++)
+		if (ptr->flags & SWP_USED) {
+			if (ptr->swap_filename)
+				len += sprintf(buf + len, "%-31s ", ptr->swap_filename);
+			else
+				len += sprintf(buf + len, "(null)\t\t\t");
+			if (ptr->swap_file)
+				len += sprintf(buf + len, "file\t\t");
+			else
+				len += sprintf(buf + len, "partition\t");
+			usedswap = 0;
+			for (j = 0; j < ptr->max; ++j)
+				switch (ptr->swap_map[j]) {
+					case 128:
+					case 0:
+						continue;
+					default:
+						usedswap++;
+				}
+			len += sprintf(buf + len, "%d\t%d\t%d\n", ptr->pages << (PAGE_SHIFT - 10), 
+				usedswap << (PAGE_SHIFT - 10), ptr->prio);
+		}
+	return len;
 }
 
 /*
@@ -408,22 +451,25 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 	struct inode * swap_inode;
 	unsigned int type;
 	int i, j, prev;
-	int error;
+	int error = -EPERM;
+	char *tmp;
 	struct file filp;
 	static int least_priority = 0;
 
-	memset(&filp, 0, sizeof(filp));
+	lock_kernel();
 	if (!suser())
-		return -EPERM;
+		goto out;
+	memset(&filp, 0, sizeof(filp));
 	p = swap_info;
 	for (type = 0 ; type < nr_swapfiles ; type++,p++)
 		if (!(p->flags & SWP_USED))
 			break;
 	if (type >= MAX_SWAPFILES)
-		return -EPERM;
+		goto out;
 	if (type >= nr_swapfiles)
 		nr_swapfiles = type+1;
 	p->flags = SWP_USED;
+	p->swap_filename = NULL;
 	p->swap_file = NULL;
 	p->swap_device = 0;
 	p->swap_map = NULL;
@@ -531,12 +577,19 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 		prev = i;
 	}
 	p->next = i;
+	if (!getname(specialfile, &tmp)) {
+		if ((p->swap_filename =
+		    (char *) kmalloc(strlen(tmp)+1, GFP_KERNEL)) != (char *)NULL)
+			strcpy(p->swap_filename, tmp);
+		putname(tmp);
+	}
 	if (prev < 0) {
 		swap_list.head = swap_list.next = p - swap_info;
 	} else {
 		swap_info[prev].next = p - swap_info;
 	}
-	return 0;
+	error = 0;
+	goto out;
 bad_swap:
 	if(filp.f_op && filp.f_op->release)
 		filp.f_op->release(filp.f_inode,&filp);
@@ -549,6 +602,8 @@ bad_swap_2:
 	p->swap_map = NULL;
 	p->swap_lockmap = NULL;
 	p->flags = 0;
+out:
+	unlock_kernel();
 	return error;
 }
 

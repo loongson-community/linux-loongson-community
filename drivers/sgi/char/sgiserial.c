@@ -21,10 +21,10 @@
 #include <asm/irq.h>
 #include <asm/sgialib.h>
 #include <asm/system.h>
-#include <asm/segment.h>
 #include <asm/bitops.h>
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
+#include <asm/uaccess.h>
 
 #include "sgiserial.h"
 
@@ -1032,7 +1032,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 
 		if (from_user) {
 			down(&tmp_buf_sem);
-			memcpy_fromfs(tmp_buf, buf, c);
+			copy_from_user(tmp_buf, buf, c);
 			c = MIN(c, MIN(SERIAL_XMIT_SIZE - info->xmit_cnt - 1,
 				       SERIAL_XMIT_SIZE - info->xmit_head));
 			memcpy(info->xmit_buf + info->xmit_head, tmp_buf, c);
@@ -1180,8 +1180,7 @@ static int get_serial_info(struct sgi_serial * info,
 	tmp.close_delay = info->close_delay;
 	tmp.closing_wait = info->closing_wait;
 	tmp.custom_divisor = info->custom_divisor;
-	memcpy_tofs(retinfo,&tmp,sizeof(*retinfo));
-	return 0;
+	return copy_to_user(retinfo,&tmp,sizeof(*retinfo));
 }
 
 static int set_serial_info(struct sgi_serial * info,
@@ -1193,7 +1192,7 @@ static int set_serial_info(struct sgi_serial * info,
 
 	if (!new_info)
 		return -EFAULT;
-	memcpy_fromfs(&new_serial,new_info,sizeof(new_serial));
+	copy_from_user(&new_serial,new_info,sizeof(new_serial));
 	old_info = *info;
 
 	if (!suser()) {
@@ -1249,8 +1248,7 @@ static int get_lsr_info(struct sgi_serial * info, unsigned int *value)
 	status = info->zs_channel->control;
 	junk = ioc_icontrol->istat0;
 	sti();
-	put_user(status,value);
-	return 0;
+	return put_user(status,value);
 }
 
 /*
@@ -1306,11 +1304,13 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 			error = verify_area(VERIFY_WRITE, (void *) arg,sizeof(long));
 			if (error)
 				return error;
-			put_fs_long(C_CLOCAL(tty) ? 1 : 0,
-				    (unsigned long *) arg);
+			put_user(C_CLOCAL(tty) ? 1 : 0,
+			         (unsigned long *) arg);
 			return 0;
 		case TIOCSSOFTCAR:
-			arg = get_fs_long((unsigned long *) arg);
+			error = get_user(arg, (unsigned long *)arg);
+			if (error)
+				return error;
 			tty->termios->c_cflag =
 				((tty->termios->c_cflag & ~CLOCAL) |
 				 (arg ? CLOCAL : 0));
@@ -1338,7 +1338,7 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 						sizeof(struct sgi_serial));
 			if (error)
 				return error;
-			memcpy_tofs((struct sun_serial *) arg,
+			copy_to_user((struct sun_serial *) arg,
 				    info, sizeof(struct sgi_serial));
 			return 0;
 			

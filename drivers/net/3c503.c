@@ -19,7 +19,7 @@
     EtherLink II Technical Reference Manual,
     EtherLink II/16 Technical Reference Manual Supplement,
     3Com Corporation, 5400 Bayfront Plaza, Santa Clara CA 95052-8145
-    
+
     The Crynwr 3c503 packet driver.
 
     Changelog:
@@ -42,6 +42,7 @@ static const char *version =
 #include <linux/delay.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/system.h>
@@ -49,14 +50,14 @@ static const char *version =
 
 #include "8390.h"
 #include "3c503.h"
-#define WRD_COUNT 4 
+#define WRD_COUNT 4
 
 int el2_probe(struct device *dev);
 int el2_pio_probe(struct device *dev);
 int el2_probe1(struct device *dev, int ioaddr);
 
 /* A zero-terminated list of I/O addresses to be probed in PIO mode. */
-static unsigned int netcard_portlist[] =
+static unsigned int netcard_portlist[] __initdata =
 	{ 0x300,0x310,0x330,0x350,0x250,0x280,0x2a0,0x2e0,0};
 
 #define EL2_IO_EXTENT	16
@@ -89,8 +90,8 @@ static void el2_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr,
    If the ethercard isn't found there is an optional probe for
    ethercard jumpered to programmed-I/O mode.
    */
-int
-el2_probe(struct device *dev)
+__initfunc(int
+el2_probe(struct device *dev))
 {
     int *addr, addrs[] = { 0xddffe, 0xd9ffe, 0xcdffe, 0xc9ffe, 0};
     int base_addr = dev->base_addr;
@@ -124,8 +125,8 @@ el2_probe(struct device *dev)
 #ifndef HAVE_DEVLIST
 /*  Try all of the locations that aren't obviously empty.  This touches
     a lot of locations, and is much riskier than the code above. */
-int
-el2_pio_probe(struct device *dev)
+__initfunc(int
+el2_pio_probe(struct device *dev))
 {
     int i;
     int base_addr = dev ? dev->base_addr : 0;
@@ -150,8 +151,8 @@ el2_pio_probe(struct device *dev)
 /* Probe for the Etherlink II card at I/O port base IOADDR,
    returning non-zero on success.  If found, set the station
    address and memory parameters in DEVICE. */
-int
-el2_probe1(struct device *dev, int ioaddr)
+__initfunc(int
+el2_probe1(struct device *dev, int ioaddr))
 {
     int i, iobase_reg, membase_reg, saved_406, wordlength;
     static unsigned version_printed = 0;
@@ -277,9 +278,9 @@ el2_probe1(struct device *dev, int ioaddr)
     /*
 	Divide up the memory on the card. This is the same regardless of
 	whether shared-mem or PIO is used. For 16 bit cards (16kB RAM),
-	we use the entire 8k of bank1 for an Rx ring. We only use 3k 
+	we use the entire 8k of bank1 for an Rx ring. We only use 3k
 	of the bank0 for 2 full size Tx packet slots. For 8 bit cards,
-	(8kB RAM) we use 3kB of bank1 for two Tx slots, and the remaining 
+	(8kB RAM) we use 3kB of bank1 for two Tx slots, and the remaining
 	5kB for an Rx ring.  */
 
     if (wordlength) {
@@ -440,7 +441,7 @@ el2_block_output(struct device *dev, int count,
 
     if (ei_status.word16)      /* Tx packets go into bank 0 on EL2/16 card */
 	outb(EGACFR_RSEL|EGACFR_TCM, E33G_GACFR);
-    else 
+    else
 	outb(EGACFR_NORM, E33G_GACFR);
 
     if (dev->mem_start) {	/* Shared memory transfer */
@@ -473,7 +474,7 @@ el2_block_output(struct device *dev, int count,
  */
     wrd = (unsigned short int *) buf;
     count  = (count + 1) >> 1;
-    for(;;) 
+    for(;;)
     {
         boguscount = 0x1000;
         while ((inb(E33G_STATUS) & ESTAT_DPRDY) == 0)
@@ -582,14 +583,14 @@ el2_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_off
  *  can read one extra byte without clobbering anything in the kernel because
  *  this would only occur on an odd byte-count and allocation of skb->data
  *  is word-aligned. Variable 'count' is NOT checked. Caller must check
- *  for a valid count. 
+ *  for a valid count.
  *  [This is currently quite safe.... but if one day the 3c503 explodes
  *   you know where to come looking ;)]
  */
 
     buf =  (unsigned short int *) skb->data;
     count =  (count + 1) >> 1;
-    for(;;) 
+    for(;;)
     {
         boguscount = 0x1000;
         while ((inb(E33G_STATUS) & ESTAT_DPRDY) == 0)
@@ -602,7 +603,7 @@ el2_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_off
             }
         }
         if(count > WRD_COUNT)
-        { 
+        {
             insw(E33G_FIFOH, buf, WRD_COUNT);
             buf   += WRD_COUNT;
             count -= WRD_COUNT;
@@ -634,6 +635,9 @@ static struct device dev_el2[MAX_EL2_CARDS] = {
 static int io[MAX_EL2_CARDS] = { 0, };
 static int irq[MAX_EL2_CARDS]  = { 0, };
 static int xcvr[MAX_EL2_CARDS] = { 0, };	/* choose int. or ext. xcvr */
+MODULE_PARM(io, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
+MODULE_PARM(xcvr, "1-" __MODULE_STRING(MAX_EL2_CARDS) "i");
 
 /* This is set up so that only a single autoprobe takes place per call.
 ISA device autoprobes on a running machine are not recommended. */

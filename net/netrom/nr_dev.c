@@ -1,10 +1,10 @@
 /*
- *	NET/ROM release 004
+ *	NET/ROM release 006
  *
- *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
- *	releases, misbehave and/or generally screw up. It might even work. 
+ *	This is ALPHA test software. This code may break your machine, randomly fail to work with new
+ *	releases, misbehave and/or generally screw up. It might even work.
  *
- *	This code REQUIRES 1.3.0 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -18,10 +18,12 @@
  *	NET/ROM 003	Jonathan(G4KLX)	Put nr_rebuild_header into line with
  *					ax25_rebuild_header
  *	NET/ROM 004	Jonathan(G4KLX)	Callsign registration with AX.25.
+ *	NET/ROM 006	Hans(PE1AYX)	Fixed interface to IP layer.
  */
 
 #include <linux/config.h>
 #if defined(CONFIG_NETROM) || defined(CONFIG_NETROM_MODULE)
+#define __NO_VERSION__
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/kernel.h>
@@ -59,7 +61,7 @@
 
 int nr_rx_ip(struct sk_buff *skb, struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
 
 	if (!dev->start) {
 		stats->rx_errors++;
@@ -67,12 +69,16 @@ int nr_rx_ip(struct sk_buff *skb, struct device *dev)
 	}
 
 	stats->rx_packets++;
+	stats->rx_bytes += skb->len;
+
 	skb->protocol = htons(ETH_P_IP);
 
 	/* Spoof incoming device */
-	skb->dev = dev;
+	skb->dev      = dev;
+	skb->h.raw    = skb->data;
+	skb->nh.raw   = skb->data;
+	skb->pkt_type = PACKET_HOST;
 
-	skb->h.raw = skb->data;
 	ip_rcv(skb, skb->dev, NULL);
 
 	return 1;
@@ -84,16 +90,16 @@ static int nr_header(struct sk_buff *skb, struct device *dev, unsigned short typ
 	unsigned char *buff = skb_push(skb, NR_NETWORK_LEN + NR_TRANSPORT_LEN);
 
 	memcpy(buff, (saddr != NULL) ? saddr : dev->dev_addr, dev->addr_len);
-	buff[6] &= ~LAPB_C;
-	buff[6] &= ~LAPB_E;
-	buff[6] |= SSSID_SPARE;
+	buff[6] &= ~AX25_CBIT;
+	buff[6] &= ~AX25_EBIT;
+	buff[6] |= AX25_SSSID_SPARE;
 	buff    += AX25_ADDR_LEN;
 
 	if (daddr != NULL)
 		memcpy(buff, daddr, dev->addr_len);
-	buff[6] &= ~LAPB_C;
-	buff[6] |= LAPB_E;
-	buff[6] |= SSSID_SPARE;
+	buff[6] &= ~AX25_CBIT;
+	buff[6] |= AX25_EBIT;
+	buff[6] |= AX25_SSSID_SPARE;
 	buff    += AX25_ADDR_LEN;
 
 	*buff++ = sysctl_netrom_network_ttl_initialiser;
@@ -106,49 +112,48 @@ static int nr_header(struct sk_buff *skb, struct device *dev, unsigned short typ
 
 	if (daddr != NULL)
 		return 37;
-	
-	return -37;	
+
+	return -37;
 }
 
-static int nr_rebuild_header(void *buff, struct device *dev,
-	unsigned long raddr, struct sk_buff *skb)
+static int nr_rebuild_header(struct sk_buff *skb)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
-	unsigned char *bp = (unsigned char *)buff;
+	struct device *dev = skb->dev;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
 	struct sk_buff *skbn;
+	unsigned char *bp = skb->data;
 
-	if (!arp_query(bp + 7, raddr, dev)) {
-		dev_kfree_skb(skb, FREE_WRITE);
+	if (!arp_find(bp + 7, skb)) {
+		kfree_skb(skb, FREE_WRITE);
 		return 1;
 	}
 
-	bp[6] &= ~LAPB_C;
-	bp[6] &= ~LAPB_E;
-	bp[6] |= SSSID_SPARE;
+	bp[6] &= ~AX25_CBIT;
+	bp[6] &= ~AX25_EBIT;
+	bp[6] |= AX25_SSSID_SPARE;
 	bp    += AX25_ADDR_LEN;
-	
-	bp[6] &= ~LAPB_C;
-	bp[6] |= LAPB_E;
-	bp[6] |= SSSID_SPARE;
+
+	bp[6] &= ~AX25_CBIT;
+	bp[6] |= AX25_EBIT;
+	bp[6] |= AX25_SSSID_SPARE;
 
 	if ((skbn = skb_clone(skb, GFP_ATOMIC)) == NULL) {
-		dev_kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb, FREE_WRITE);
 		return 1;
 	}
 
-	skbn->sk = skb->sk;
-	
-	if (skbn->sk != NULL)
-		atomic_add(skbn->truesize, &skbn->sk->wmem_alloc);
+	if (skb->sk != NULL)
+		skb_set_owner_w(skbn, skb->sk);
 
-	dev_kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb, FREE_WRITE);
 
 	if (!nr_route_frame(skbn, NULL)) {
-		dev_kfree_skb(skbn, FREE_WRITE);
+		kfree_skb(skbn, FREE_WRITE);
 		stats->tx_errors++;
 	}
 
 	stats->tx_packets++;
+	stats->tx_bytes += skbn->len;
 
 	return 1;
 }
@@ -160,7 +165,7 @@ static int nr_set_mac_address(struct device *dev, void *addr)
 	ax25_listen_release((ax25_address *)dev->dev_addr, NULL);
 
 	memcpy(dev->dev_addr, sa->sa_data, dev->addr_len);
-	
+
 	ax25_listen_register((ax25_address *)dev->dev_addr, NULL);
 
 	return 0;
@@ -192,7 +197,7 @@ static int nr_close(struct device *dev)
 
 static int nr_xmit(struct sk_buff *skb, struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
 
 	if (skb == NULL || dev == NULL)
 		return 0;
@@ -214,7 +219,7 @@ static int nr_xmit(struct sk_buff *skb, struct device *dev)
 
 	sti();
 
-	dev_kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb, FREE_WRITE);
 
 	stats->tx_errors++;
 
@@ -225,16 +230,14 @@ static int nr_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
 }
 
-static struct enet_statistics *nr_get_stats(struct device *dev)
+static struct net_device_stats *nr_get_stats(struct device *dev)
 {
-	return (struct enet_statistics *)dev->priv;
+	return (struct net_device_stats *)dev->priv;
 }
 
 int nr_init(struct device *dev)
 {
-	int i;
-
-	dev->mtu		= 236;		/* MTU			*/
+	dev->mtu		= NR_MAX_PACKET_SIZE;
 	dev->tbusy		= 0;
 	dev->hard_start_xmit	= nr_xmit;
 	dev->open		= nr_open;
@@ -256,74 +259,16 @@ int nr_init(struct device *dev)
 	dev->pa_mask		= 0;
 	dev->pa_alen		= sizeof(unsigned long);
 
-	if ((dev->priv = kmalloc(sizeof(struct enet_statistics), GFP_KERNEL)) == NULL)
+	if ((dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
-	memset(dev->priv, 0, sizeof(struct enet_statistics));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 
 	dev->get_stats = nr_get_stats;
 
-	/* Fill in the generic fields of the device structure. */
-	for (i = 0; i < DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
+	dev_init_buffers(dev);
 
 	return 0;
 };
-
-#ifdef MODULE
-extern struct proto_ops nr_proto_ops;
-extern struct notifier_block nr_dev_notifier;
-
-static struct device dev_nr[] = {
-	{"nr0", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, nr_init},
-	{"nr1", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, nr_init},
-	{"nr2", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, nr_init},
-	{"nr3", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, nr_init}
-};
-
-int init_module(void)
-{
-	int i;
-
-	for (i = 0; i < 4; i++)
-		register_netdev(&dev_nr[i]);
-
-	register_symtab(NULL);
-
-	nr_proto_init(NULL);
-	
-	return 0;
-}
-
-void cleanup_module(void)
-{
-	int i;
-
-#ifdef CONFIG_PROC_FS
-	proc_net_unregister(PROC_NET_NR);
-	proc_net_unregister(PROC_NET_NR_NEIGH);
-	proc_net_unregister(PROC_NET_NR_NODES);
-#endif
-	nr_rt_free();
-
-	ax25_protocol_release(AX25_P_NETROM);
-	ax25_linkfail_release(nr_link_failed);
-
-	unregister_netdevice_notifier(&nr_dev_notifier);
-
-	nr_unregister_sysctl();
-
-	sock_unregister(nr_proto_ops.family);
-	
-	for (i = 0; i < 4; i++) {
-		if (dev_nr[i].priv != NULL) {
-			kfree(dev_nr[i].priv);
-			dev_nr[i].priv = NULL;
-			unregister_netdev(&dev_nr[i]);
-		}
-	}
-}
-
-#endif
 
 #endif

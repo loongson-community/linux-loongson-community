@@ -41,10 +41,12 @@
 #include <linux/signal.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
+#include <linux/poll.h>
 #include <linux/miscdevice.h>
 #include <linux/random.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
+#include <linux/init.h>
 
 #include <asm/io.h>
 #include <asm/uaccess.h>
@@ -118,14 +120,15 @@ static int fasync_mouse(struct inode *inode, struct file *filp, int on)
  * close access to the mouse
  */
 
-static void close_mouse(struct inode * inode, struct file * file)
+static int close_mouse(struct inode * inode, struct file * file)
 {
 	fasync_mouse(inode, file, 0);
 	if (--mouse.active)
-		return;
+		return 0;
 	MSE_INT_OFF();
 	free_irq(mouse_irq, NULL);
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
 /*
@@ -216,15 +219,13 @@ static long read_mouse(struct inode * inode, struct file * file,
 }
 
 /*
- * select for mouse input
+ * poll for mouse input
  */
-static int mouse_select(struct inode *inode, struct file *file, int sel_type, select_table * wait)
+static unsigned int mouse_poll(struct file *file, poll_table * wait)
 {
-	if (sel_type == SEL_IN) {
-	    	if (mouse.ready)
-			return 1;
-		select_wait(&mouse.wait, wait);
-    	}
+	poll_wait(&mouse.wait, wait);
+	if (mouse.ready)
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -233,7 +234,7 @@ struct file_operations bus_mouse_fops = {
 	read_mouse,
 	write_mouse,
 	NULL, 		/* mouse_readdir */
-	mouse_select, 	/* mouse_select */
+	mouse_poll, 	/* mouse_poll */
 	NULL, 		/* mouse_ioctl */
 	NULL,		/* mouse_mmap */
 	open_mouse,
@@ -246,7 +247,7 @@ static struct miscdevice bus_mouse = {
 	LOGITECH_BUSMOUSE, "busmouse", &bus_mouse_fops
 };
 
-int bus_mouse_init(void)
+__initfunc(int bus_mouse_init(void))
 {
 	if (check_region(LOGIBM_BASE, LOGIBM_EXTENT)) {
 	  mouse.present = 0;

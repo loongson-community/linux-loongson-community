@@ -42,14 +42,14 @@ static long affs_file_write(struct inode *inode, struct file *filp, const char *
 static long affs_file_write_ofs(struct inode *inode, struct file *filp, const char *buf,
 				unsigned long count);
 static int affs_open_file(struct inode *inode, struct file *filp);
-static void affs_release_file(struct inode *inode, struct file *filp);
+static int affs_release_file(struct inode *inode, struct file *filp);
 
 static struct file_operations affs_file_operations = {
 	NULL,			/* lseek - default */
 	generic_file_read,	/* read */
 	affs_file_write,	/* write */
 	NULL,			/* readdir - bad */
-	NULL,			/* select - default */
+	NULL,			/* poll - default */
 	NULL,			/* ioctl - default */
 	generic_file_mmap,	/* mmap */
 	affs_open_file,		/* special open is needed */
@@ -83,7 +83,7 @@ static struct file_operations affs_file_operations_ofs = {
 	affs_file_read_ofs,	/* read */
 	affs_file_write_ofs,	/* write */
 	NULL,			/* readdir - bad */
-	NULL,			/* select - default */
+	NULL,			/* poll - default */
 	NULL,			/* ioctl - default */
 	NULL,			/* mmap */
 	affs_open_file,		/* special open is needed */
@@ -883,7 +883,7 @@ affs_open_file(struct inode *inode, struct file *filp)
 	return error;
 }
 
-static void
+static int
 affs_release_file(struct inode *inode, struct file *filp)
 {
 	struct affs_zone	*zone;
@@ -913,4 +913,5 @@ affs_release_file(struct inode *inode, struct file *filp)
 		}
 	}
 	unlock_super(inode->i_sb);
+	return 0;
 }

@@ -16,7 +16,6 @@
 #include <asm/regdef.h>
 #include <asm/sigcontext.h>
 
-	.text
 	.set	mips3
 	.set	noreorder
 	/* Save floating point context */

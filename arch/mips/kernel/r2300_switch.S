@@ -16,7 +16,6 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 
 #include <asm/asmmacro.h>

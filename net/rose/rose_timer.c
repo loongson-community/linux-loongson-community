@@ -4,7 +4,7 @@
  *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
  *	releases, misbehave and/or generally screw up. It might even work. 
  *
- *	This code REQUIRES 2.1.0 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -43,37 +43,20 @@
 static void rose_timer(unsigned long);
 
 /*
- *	Linux set/reset timer routines
+ *	Linux set timer
  */
 void rose_set_timer(struct sock *sk)
 {
 	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
-	del_timer(&sk->timer);
-	restore_flags(flags);
 
-	sk->timer.next     = sk->timer.prev = NULL;	
-	sk->timer.data     = (unsigned long)sk;
-	sk->timer.function = &rose_timer;
-
-	sk->timer.expires = jiffies + 10;
-	add_timer(&sk->timer);
-}
-
-static void rose_reset_timer(struct sock *sk)
-{
-	unsigned long flags;
-	
-	save_flags(flags);
-	cli();
+	save_flags(flags); cli();
 	del_timer(&sk->timer);
 	restore_flags(flags);
 
 	sk->timer.data     = (unsigned long)sk;
 	sk->timer.function = &rose_timer;
-	sk->timer.expires  = jiffies + 10;
+	sk->timer.expires  = jiffies + (HZ / 10);
+
 	add_timer(&sk->timer);
 }
 
@@ -102,9 +85,12 @@ static void rose_timer(unsigned long param)
 			/*
 			 * Check for the state of the receive buffer.
 			 */
-			if (sk->rmem_alloc < (sk->rcvbuf / 2) && (sk->protinfo.rose->condition & OWN_RX_BUSY_CONDITION)) {
-				sk->protinfo.rose->condition &= ~OWN_RX_BUSY_CONDITION;
+			if (atomic_read(&sk->rmem_alloc) < (sk->rcvbuf / 2) &&
+			    (sk->protinfo.rose->condition & ROSE_COND_OWN_RX_BUSY)) {
+				sk->protinfo.rose->condition &= ~ROSE_COND_OWN_RX_BUSY;
+				sk->protinfo.rose->condition &= ~ROSE_COND_ACK_PENDING;
 				sk->protinfo.rose->vl         = sk->protinfo.rose->vr;
+				sk->protinfo.rose->timer      = 0;
 				rose_write_internal(sk, ROSE_RR);
 				break;
 			}
@@ -119,15 +105,22 @@ static void rose_timer(unsigned long param)
 	}
 
 	if (sk->protinfo.rose->timer == 0 || --sk->protinfo.rose->timer > 0) {
-		rose_reset_timer(sk);
+		rose_set_timer(sk);
 		return;
 	}
 
 	/*
-	 * Timer has expired, it may have been T1, T2, or T3. We can tell
+	 * Timer has expired, it may have been T1, T2, T3 or HB. We can tell
 	 * by the socket state.
 	 */
 	switch (sk->protinfo.rose->state) {
+		case ROSE_STATE_3:	/* HB */
+			if (sk->protinfo.rose->condition & ROSE_COND_ACK_PENDING) {
+				sk->protinfo.rose->condition &= ~ROSE_COND_ACK_PENDING;
+				rose_enquiry_response(sk);
+			}
+			break;
+
 		case ROSE_STATE_1:	/* T1 */
 		case ROSE_STATE_4:	/* T2 */
 			rose_write_internal(sk, ROSE_CLEAR_REQUEST);

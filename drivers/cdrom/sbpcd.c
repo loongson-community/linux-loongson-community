@@ -442,6 +442,7 @@ static int sbpcd[] =
 #else
 static int sbpcd[] = {CDROM_PORT, SBPRO}; /* probe with user's setup only */
 #endif
+MODULE_PARM(sbpcd, "2i");
 
 #define NUM_PROBE  (sizeof(sbpcd) / sizeof(int))
 
@@ -5199,7 +5200,7 @@ static int sbpcd_open(struct inode *ip, struct file *fp)
 /*
  *  On close, we flush all sbp blocks from the buffer cache.
  */
-static void sbpcd_release(struct inode * ip, struct file * file)
+static int sbpcd_release(struct inode * ip, struct file * file)
 {
 	int i;
 	
@@ -5207,7 +5208,7 @@ static void sbpcd_release(struct inode * ip, struct file * file)
 	if ((i<0) || (i>=NR_SBPCD) || (D_S[i].drv_id==-1))
 	{
 		msg(DBG_INF, "release: bad device: %04X\n", ip->i_rdev);
-		return;
+		return 0;
 	}
 	down(&ioctl_read_sem);
 	switch_drive(i);
@@ -5235,6 +5236,7 @@ static void sbpcd_release(struct inode * ip, struct file * file)
 		}
 	}
 	up(&ioctl_read_sem);
+	return 0;
 }
 /*==========================================================================*/
 /*
@@ -5246,7 +5248,7 @@ static struct file_operations sbpcd_fops =
 	block_read,             /* read - general block-dev read */
 	block_write,            /* write - general block-dev write */
 	NULL,                   /* readdir - bad */
-	NULL,                   /* select */
+	NULL,                   /* poll */
 	sbpcd_ioctl,            /* ioctl */
 	NULL,                   /* mmap */
 	sbpcd_open,             /* open */

@@ -192,8 +192,6 @@ extern void smp_message_irq(int cpl, void *dev_id, struct pt_regs *regs);
 extern void smp_reschedule_irq(int cpl, struct pt_regs *regs);
 extern unsigned long ipi_count;
 extern void smp_invalidate_rcv(void);		/* Process an NMI */
-extern volatile unsigned long kernel_counter;
-extern volatile unsigned long syscall_count;
 
 /*
  *	General functions that each host system must provide.
@@ -204,7 +202,7 @@ extern void smp_boot_cpus(void);
 extern void smp_store_cpu_info(int id);		/* Store per cpu info (like the initial udelay numbers */
 
 extern volatile unsigned long smp_proc_in_lock[NR_CPUS]; /* for computing process time */
-extern volatile unsigned long smp_process_available;
+extern volatile int smp_process_available;
 
 /*
  *	APIC handlers: Note according to the Intel specification update
@@ -229,10 +227,11 @@ extern __inline unsigned long apic_read(unsigned long reg)
  *	cpu id from the config and set up a fake apic_reg pointer so that before we activate
  *	the apic we get the right answer). Hopefully other processors are more sensible 8)
  */
- 
+
 extern __inline int smp_processor_id(void)
 {
-	return GET_APIC_ID(apic_read(APIC_ID));
+	/* we don't want to mark this access volatile - bad code generation */
+	return GET_APIC_ID(*(unsigned long *)(apic_reg+APIC_ID));
 }
 
 #endif /* !ASSEMBLY */

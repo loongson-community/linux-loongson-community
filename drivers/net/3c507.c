@@ -59,6 +59,7 @@ static const char *version =
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/malloc.h>
+#include <linux/init.h>
 
 
 /* use 0 for production, 1 for verification, 2..7 for debug */
@@ -68,7 +69,7 @@ static const char *version =
 static unsigned int net_debug = NET_DEBUG;
 
 /* A zero-terminated list of common I/O addresses to be probed. */
-static unsigned int netcard_portlist[] =
+static unsigned int netcard_portlist[] __initdata =
 	{ 0x300, 0x320, 0x340, 0x280, 0};
 
 /*
@@ -115,7 +116,7 @@ enum commands {
 
 /* Information that need to be kept for each board. */
 struct net_local {
-	struct enet_statistics stats;
+	struct net_device_stats stats;
 	int last_restart;
 	ushort rx_head;
 	ushort rx_tail;
@@ -152,15 +153,15 @@ struct net_local {
 
 /*  Since the 3c507 maps the shared memory window so that the last byte is
 	at 82586 address FFFF, the first byte is at 82586 address 0, 16K, 32K, or
-	48K corresponding to window sizes of 64K, 48K, 32K and 16K respectively. 
+	48K corresponding to window sizes of 64K, 48K, 32K and 16K respectively.
 	We can account for this be setting the 'SBC Base' entry in the ISCP table
 	below for all the 16 bit offset addresses, and also adding the 'SCB Base'
 	value to all 24 bit physical addresses (in the SCP table and the TX and RX
 	Buffer Descriptors).
-					-Mark	
+					-Mark
 	*/
 #define SCB_BASE		((unsigned)64*1024 - (dev->mem_end - dev->mem_start))
- 
+
 /*
   What follows in 'init_words[]' is the "program" that is downloaded to the
   82586 memory.	 It's mostly tables and command blocks, and starts at the
@@ -200,7 +201,7 @@ struct net_local {
   That's it: only 86 bytes to set up the beast, including every extra
   command available.  The 170 byte buffer at DUMP_DATA is shared between the
   Dump command (called only by the diagnostic program) and the SetMulticastList
-  command. 
+  command.
 
   To complete the memory setup you only have to write the station address at
   SA_OFFSET and create the Tx & Rx buffer lists.
@@ -229,7 +230,7 @@ struct net_local {
 
   */
 
-unsigned short init_words[] = {
+static unsigned short init_words[] = {
 	/*	System Configuration Pointer (SCP). */
 	0x0000,					/* Set bus size to 16 bits. */
 	0,0,					/* pad words. */
@@ -283,10 +284,10 @@ static int	el16_send_packet(struct sk_buff *skb, struct device *dev);
 static void	el16_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 static void el16_rx(struct device *dev);
 static int	el16_close(struct device *dev);
-static struct enet_statistics *el16_get_stats(struct device *dev);
+static struct net_device_stats *el16_get_stats(struct device *dev);
 
 static void hardware_send_packet(struct device *dev, void *buf, short length);
-void init_82586_mem(struct device *dev);
+static void init_82586_mem(struct device *dev);
 
 
 #ifdef HAVE_DEVLIST
@@ -300,8 +301,8 @@ struct netdev_entry netcard_drv =
 	If dev->base_addr == 2, (detachable devices only) allocate space for the
 	device and return success.
 	*/
-int
-el16_probe(struct device *dev)
+
+__initfunc(int el16_probe(struct device *dev))
 {
 	int base_addr = dev ? dev->base_addr : 0;
 	int i;
@@ -322,7 +323,7 @@ el16_probe(struct device *dev)
 	return ENODEV;
 }
 
-int el16_probe1(struct device *dev, int ioaddr)
+__initfunc(int el16_probe1(struct device *dev, int ioaddr))
 {
 	static unsigned char init_ID_done = 0, version_printed = 0;
 	int i, irq, irqval;
@@ -357,7 +358,7 @@ int el16_probe1(struct device *dev, int ioaddr)
 	printk("%s: 3c507 at %#x,", dev->name, ioaddr);
 
 	/* We should make a few more checks here, like the first three octets of
-	   the S.A. for the manufacturer's code. */ 
+	   the S.A. for the manufacturer's code. */
 
 	irq = inb(ioaddr + IRQ_CONFIG) & 0x0f;
 
@@ -366,7 +367,7 @@ int el16_probe1(struct device *dev, int ioaddr)
 		printk ("unable to get IRQ %d (irqval=%d).\n", irq, irqval);
 		return EAGAIN;
 	}
-	
+
 	/* We've committed to using the board, and can start filling in *dev. */
 	request_region(ioaddr, EL16_IO_EXTENT, "3c507");
 	dev->base_addr = ioaddr;
@@ -422,16 +423,13 @@ int el16_probe1(struct device *dev, int ioaddr)
 	dev->get_stats	= el16_get_stats;
 
 	ether_setup(dev);	/* Generic ethernet behaviour */
-	
+
 	dev->flags&=~IFF_MULTICAST;	/* Multicast doesn't work */
 
 	return 0;
 }
 
-
-
-static int
-el16_open(struct device *dev)
+static int el16_open(struct device *dev)
 {
 	irq2dev_map[dev->irq] = dev;
 
@@ -447,14 +445,14 @@ el16_open(struct device *dev)
 	return 0;
 }
 
-static int
-el16_send_packet(struct sk_buff *skb, struct device *dev)
+static int el16_send_packet(struct sk_buff *skb, struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	int ioaddr = dev->base_addr;
 	short *shmem = (short*)dev->mem_start;
 
-	if (dev->tbusy) {
+	if (dev->tbusy) 
+	{
 		/* If we get here, some higher level has decided we are broken.
 		   There should really be a "kick me" function call instead. */
 		int tickssofar = jiffies - dev->trans_start;
@@ -480,21 +478,15 @@ el16_send_packet(struct sk_buff *skb, struct device *dev)
 		dev->trans_start = jiffies;
 	}
 
-	/* If some higher layer thinks we've missed an tx-done interrupt
-	   we are passed NULL. Caution: dev_tint() handles the cli()/sti()
-	   itself. */
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
 	/* Block a timer-based transmit from overlapping. */
 	if (set_bit(0, (void*)&dev->tbusy) != 0)
 		printk("%s: Transmitter access conflict.\n", dev->name);
-	else {
+	else
+	{
 		short length = ETH_ZLEN < skb->len ? skb->len : ETH_ZLEN;
 		unsigned char *buf = skb->data;
 
+		lp->stats.tx_bytes+=length;
 		/* Disable the 82586's input to the interrupt line. */
 		outb(0x80, ioaddr + MISC_CTRL);
 		hardware_send_packet(dev, buf, length);
@@ -509,30 +501,29 @@ el16_send_packet(struct sk_buff *skb, struct device *dev)
 
 	return 0;
 }
-
+
 /*	The typical workload of the driver:
 	Handle the network interface interrupts. */
-static void
-el16_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static void el16_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct device *dev = (struct device *)(irq2dev_map[irq]);
 	struct net_local *lp;
 	int ioaddr, status, boguscount = 0;
 	ushort ack_cmd = 0;
 	ushort *shmem;
-	
+
 	if (dev == NULL) {
 		printk ("net_interrupt(): irq %d for unknown device.\n", irq);
 		return;
 	}
 	dev->interrupt = 1;
-	
+
 	ioaddr = dev->base_addr;
 	lp = (struct net_local *)dev->priv;
 	shmem = ((ushort*)dev->mem_start);
-	
+
 	status = shmem[iSCB_STATUS>>1];
-	
+
 	if (net_debug > 4) {
 		printk("%s: 3c507 interrupt, status %4.4x.\n", dev->name, status);
 	}
@@ -588,8 +579,9 @@ el16_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		ack_cmd |= CUC_RESUME;
 	}
 
-	if ((status & 0x0070) != 0x0040  &&  dev->start) {
-	  static void init_rx_bufs(struct device *);
+	if ((status & 0x0070) != 0x0040  &&  dev->start) 
+	{
+		static void init_rx_bufs(struct device *);
 		/* The Rx unit is not ready, it must be hung.  Restart the receiver by
 		   initializing the rx buffers, and issuing an Rx start command. */
 		if (net_debug)
@@ -612,8 +604,7 @@ el16_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	return;
 }
 
-static int
-el16_close(struct device *dev)
+static int el16_close(struct device *dev)
 {
 	int ioaddr = dev->base_addr;
 	ushort *shmem = (short*)dev->mem_start;
@@ -642,8 +633,7 @@ el16_close(struct device *dev)
 
 /* Get the current statistics.	This may be called with the card open or
    closed. */
-static struct enet_statistics *
-el16_get_stats(struct device *dev)
+static struct net_device_stats *el16_get_stats(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 
@@ -653,15 +643,14 @@ el16_get_stats(struct device *dev)
 }
 
 /* Initialize the Rx-block list. */
-static void
-init_rx_bufs(struct device *dev)
+static void init_rx_bufs(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	unsigned short *write_ptr;
 	unsigned short SCB_base = SCB_BASE;
 
 	int cur_rxbuf = lp->rx_head = RX_BUF_START;
-	
+
 	/* Initialize each Rx frame + data buffer. */
 	do {	/* While there is room for one more. */
 
@@ -678,18 +667,18 @@ init_rx_bufs(struct device *dev)
 		*write_ptr++ = 0x0000;
 		*write_ptr++ = 0x0000;
 		*write_ptr++ = 0x0000;				/* Pad for protocol. */
-		
+
 		*write_ptr++ = 0x0000;				/* Buffer: Actual count */
 		*write_ptr++ = -1;					/* Buffer: Next (none). */
 		*write_ptr++ = cur_rxbuf + 0x20 + SCB_base;	/* Buffer: Address low */
 		*write_ptr++ = 0x0000;
 		/* Finally, the number of bytes in the buffer. */
 		*write_ptr++ = 0x8000 + RX_BUF_SIZE-0x20;
-		
+
 		lp->rx_tail = cur_rxbuf;
 		cur_rxbuf += RX_BUF_SIZE;
 	} while (cur_rxbuf <= RX_BUF_END - RX_BUF_SIZE);
-	
+
 	/* Terminate the list by setting the EOL bit, and wrap the pointer to make
 	   the list a ring. */
 	write_ptr = (unsigned short *)
@@ -699,8 +688,7 @@ init_rx_bufs(struct device *dev)
 
 }
 
-void
-init_82586_mem(struct device *dev)
+static void init_82586_mem(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	short ioaddr = dev->base_addr;
@@ -758,8 +746,7 @@ init_82586_mem(struct device *dev)
 	return;
 }
 
-static void
-hardware_send_packet(struct device *dev, void *buf, short length)
+static void hardware_send_packet(struct device *dev, void *buf, short length)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	short ioaddr = dev->base_addr;
@@ -804,8 +791,7 @@ hardware_send_packet(struct device *dev, void *buf, short length)
 		dev->tbusy = 0;
 }
 
-static void
-el16_rx(struct device *dev)
+static void el16_rx(struct device *dev)
 {
 	struct net_local *lp = (struct net_local *)dev->priv;
 	short *shmem = (short*)dev->mem_start;
@@ -847,13 +833,13 @@ el16_rx(struct device *dev)
 				lp->stats.rx_dropped++;
 				break;
 			}
-			
+
 			skb_reserve(skb,2);
 			skb->dev = dev;
 
 			/* 'skb->data' points to the start of sk_buff data area. */
 			memcpy(skb_put(skb,pkt_len), data_frame + 5, pkt_len);
-		
+
 			skb->protocol=eth_type_trans(skb,dev);
 			netif_rx(skb);
 			lp->stats.rx_packets++;
@@ -885,6 +871,8 @@ static struct device dev_3c507 = {
 
 static int io = 0x300;
 static int irq = 0;
+MODULE_PARM(io, "i");
+MODULE_PARM(irq, "i");
 
 int init_module(void)
 {

@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/tasks.h>
 #include <linux/config.h>
+#include <linux/init.h>
 
 #include <asm/page.h>
 #include <asm/oplib.h>
@@ -20,19 +21,13 @@ extern void cpu_probe(void);
 extern void clock_stop_probe(void); /* tadpole.c */
 extern void sun4c_probe_memerr_reg(void);
 
-unsigned long
-device_scan(unsigned long mem_start)
+__initfunc(unsigned long
+device_scan(unsigned long mem_start))
 {
 	char node_str[128];
 	int nd, prom_node_cpu, thismid;
 	int cpu_nds[NCPUS];  /* One node for each cpu */
 	int cpu_ctr = 0;
-
-#if CONFIG_AP1000
-        printk("Not scanning device list for CPUs\n");
-	linux_num_cpus = 1;
-	return mem_start;
-#endif
 
 	prom_getstring(prom_root_node, "device_type", node_str, sizeof(node_str));
 
@@ -69,10 +64,12 @@ device_scan(unsigned long mem_start)
 	linux_num_cpus = cpu_ctr;
 
 	cpu_probe();
-#if CONFIG_SUN_AUXIO
+#ifdef CONFIG_SUN_AUXIO
 	{
-	  extern void auxio_probe(void);
-	  auxio_probe();
+		extern void auxio_probe(void);
+		extern void auxio_power_probe(void);
+		auxio_probe();
+		auxio_power_probe();
 	}
 #endif
 	clock_stop_probe();

@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-.S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
@@ -15,9 +13,10 @@ all:	kernel.o head.o
 EXTRA_ASFLAGS = -mips3 -mcpu=r4000
 O_TARGET := kernel.o
 O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \
-	   ioport.o setup.o syscall.o sysmips.o bios32.o ipc.o ksyms.o \
+	   ioport.o pci.o reset.o setup.o syscall.o sysmips.o ipc.o \
 	   r4k_switch.o r4k_misc.o r4k_scall.o r4k_fpu.o r2300_switch.o \
 	   r2300_misc.o r2300_scall.o r2300_fpu.o r6000_fpu.o unaligned.o
+OX_OBJS := mips_ksyms.o
 
 #
 # SGI's have very different interrupt/timer hardware.

@@ -3,20 +3,22 @@
  *
  *	Jonathan Naylor G4KLX	25/8/96
  */
- 
+
 #ifndef _ROSE_H
 #define _ROSE_H 
 #include <linux/rose.h>
+
+#define	ROSE_SLOWHZ			10	/* Run timing at 1/10 second */
 
 #define	ROSE_ADDR_LEN			5
 
 #define	ROSE_MIN_LEN			3
 
-#define	GFI				0x10
-#define	Q_BIT				0x80
-#define	D_BIT				0x40
-#define	M_BIT				0x10
- 
+#define	ROSE_GFI			0x10
+#define	ROSE_Q_BIT			0x80
+#define	ROSE_D_BIT			0x40
+#define	ROSE_M_BIT			0x10
+
 #define	ROSE_CALL_REQUEST		0x0B
 #define	ROSE_CALL_ACCEPTED		0x0F
 #define	ROSE_CLEAR_REQUEST		0x13
@@ -38,32 +40,41 @@
 
 /* Define Link State constants. */
 
-#define ROSE_STATE_0		0		/* Ready */
-#define ROSE_STATE_1		1		/* Awaiting Call Accepted */
-#define ROSE_STATE_2		2		/* Awaiting Clear Confirmation */
-#define ROSE_STATE_3		3		/* Data Transfer */
-#define	ROSE_STATE_4		4		/* Awaiting Reset Confirmation */
+enum {
+	ROSE_STATE_0,			/* Ready */
+	ROSE_STATE_1,			/* Awaiting Call Accepted */
+	ROSE_STATE_2,			/* Awaiting Clear Confirmation */
+	ROSE_STATE_3,			/* Data Transfer */
+	ROSE_STATE_4			/* Awaiting Reset Confirmation */
+};
 
-#define ROSE_DEFAULT_T0		(180 * PR_SLOWHZ)	/* Default T10 T20 value */
-#define ROSE_DEFAULT_T1		(200 * PR_SLOWHZ)	/* Default T11 T21 value */
-#define ROSE_DEFAULT_T2		(180 * PR_SLOWHZ)	/* Default T12 T22 value */
-#define	ROSE_DEFAULT_T3		(180 * PR_SLOWHZ)	/* Default T13 T23 value */
-#define	ROSE_DEFAULT_IDLE	(20 * 60 * PR_SLOWHZ)	/* Default No Activity value */
-#define	ROSE_DEFAULT_WINDOW	2			/* Default Window Size	*/
-#define ROSE_MODULUS 		8
-#define ROSE_MAX_WINDOW_SIZE	7			/* Maximum Window Allowable */
-#define	ROSE_PACLEN		128			/* Default Packet Length */
+#define ROSE_DEFAULT_T0			(180 * ROSE_SLOWHZ)	/* Default T10 T20 value */
+#define ROSE_DEFAULT_T1			(200 * ROSE_SLOWHZ)	/* Default T11 T21 value */
+#define ROSE_DEFAULT_T2			(180 * ROSE_SLOWHZ)	/* Default T12 T22 value */
+#define	ROSE_DEFAULT_T3			(180 * ROSE_SLOWHZ)	/* Default T13 T23 value */
+#define	ROSE_DEFAULT_HB			(5 * ROSE_SLOWHZ)	/* Default Holdback value */
+#define	ROSE_DEFAULT_IDLE		(20 * 60 * ROSE_SLOWHZ)	/* Default No Activity value */
+#define	ROSE_DEFAULT_ROUTING		1			/* Default routing flag */
+#define	ROSE_DEFAULT_FAIL_TIMEOUT	(120 * ROSE_SLOWHZ)	/* Time until link considered usable */
 
-#define	FAC_NATIONAL		0x00
-#define	FAC_CCITT		0x0F
+#define ROSE_MODULUS 			8
+#define ROSE_MAX_WINDOW_SIZE		2			/* Maximum Window Allowable */
+#define	ROSE_MAX_PACKET_SIZE		128			/* Maximum Packet Length */
 
-#define	FAC_NATIONAL_RAND	0x7F
-#define	FAC_NATIONAL_FLAGS	0x3F
-#define	FAC_NATIONAL_DEST_DIGI	0xE9
-#define	FAC_NATIONAL_SRC_DIGI	0xEB
+#define	ROSE_COND_ACK_PENDING		0x01
+#define	ROSE_COND_PEER_RX_BUSY		0x02
+#define	ROSE_COND_OWN_RX_BUSY		0x04
 
-#define	FAC_CCITT_DEST_NSAP	0xC9
-#define	FAC_CCITT_SRC_NSAP	0xCB
+#define	FAC_NATIONAL			0x00
+#define	FAC_CCITT			0x0F
+
+#define	FAC_NATIONAL_RAND		0x7F
+#define	FAC_NATIONAL_FLAGS		0x3F
+#define	FAC_NATIONAL_DEST_DIGI		0xE9
+#define	FAC_NATIONAL_SRC_DIGI		0xEB
+
+#define	FAC_CCITT_DEST_NSAP		0xC9
+#define	FAC_CCITT_SRC_NSAP		0xCB
 
 struct rose_neigh {
 	struct rose_neigh *next;
@@ -74,14 +85,14 @@ struct rose_neigh {
 	unsigned int      number;
 	int               restarted;
 	struct sk_buff_head queue;
-	unsigned short    t0, t0timer;
+	unsigned short    t0timer, ftimer;
 	struct timer_list timer;
 };
 
 struct rose_node {
 	struct rose_node  *next;
 	rose_address      address;
-	unsigned char     which;
+	unsigned short    mask;
 	unsigned char     count;
 	struct rose_neigh *neighbour[3];
 };
@@ -104,21 +115,24 @@ typedef struct {
 	unsigned char		state, condition, hdrincl;
 	unsigned short		vs, vr, va, vl;
 	unsigned short		timer;
-	unsigned short		t1, t2, t3, idle;
+	unsigned short		t1, t2, t3, hb, idle;
 	unsigned short		fraglen;
-	struct sk_buff_head	ack_queue;
 	struct sk_buff_head	frag_queue;
 	struct sock		*sk;		/* Backlink to socket */
 } rose_cb;
 
 /* af_rose.c */
+extern ax25_address rose_callsign;
 extern int  sysctl_rose_restart_request_timeout;
 extern int  sysctl_rose_call_request_timeout;
 extern int  sysctl_rose_reset_request_timeout;
 extern int  sysctl_rose_clear_request_timeout;
 extern int  sysctl_rose_no_activity_timeout;
+extern int  sysctl_rose_ack_hold_back_timeout;
 extern int  sysctl_rose_routing_control;
+extern int  sysctl_rose_link_fail_timeout;
 extern int  rosecmp(rose_address *, rose_address *);
+extern int  rosecmpm(rose_address *, rose_address *, unsigned short);
 extern char *rose2asc(rose_address *);
 extern struct sock *rose_find_socket(unsigned int, struct device *);
 extern unsigned int rose_new_lci(struct device *);
@@ -135,6 +149,7 @@ extern int  rose_init(struct device *);
 extern int  rose_process_rx_frame(struct sock *, struct sk_buff *);
 
 /* rose_link.c */
+extern void rose_link_set_timer(struct rose_neigh *);
 extern void rose_link_rx_restart(struct sk_buff *, struct rose_neigh *, unsigned short);
 extern void rose_transmit_restart_request(struct rose_neigh *);
 extern void rose_transmit_restart_confirmation(struct rose_neigh *);
@@ -165,8 +180,6 @@ extern void rose_rt_free(void);
 
 /* rose_subr.c */
 extern void rose_clear_queues(struct sock *);
-extern void rose_frames_acked(struct sock *, unsigned short);
-extern void rose_requeue_frames(struct sock *);
 extern int  rose_validate_nr(struct sock *, unsigned short);
 extern void rose_write_internal(struct sock *, int);
 extern int  rose_decode(struct sk_buff *, int *, int *, int *, int *, int *);

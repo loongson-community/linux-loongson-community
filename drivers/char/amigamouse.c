@@ -11,13 +11,13 @@
  *
  * Heavily modified by David Giller
  *   changed from queue- to counter- driven
- *   hacked out a (probably incorrect) mouse_select
+ *   hacked out a (probably incorrect) mouse_poll
  *
  * Modified again by Nathan Laredo to interface with
  *   0.96c-pl1 IRQ handling changes (13JUL92)
- *   didn't bother touching select code.
+ *   didn't bother touching poll code.
  *
- * Modified the select() code blindly to conform to the VFS
+ * Modified the poll() code blindly to conform to the VFS
  *   requirements. 92.07.14 - Linus. Somebody should test it out.
  *
  * Modified by Johan Myreen to make room for other mice (9AUG92)
@@ -26,6 +26,10 @@
  *   renamed this file mouse.c => busmouse.c
  *
  * Modified for use in the 1.3 kernels by Jes Sorensen.
+ *
+ * Moved the isr-allocation to the mouse_{open,close} calls, as there
+ *   is no reason to service the mouse in the vertical blank isr if
+ *   the mouse is not in use.             Jes Sorensen
  */
 
 #include <linux/module.h>
@@ -38,14 +42,16 @@
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/random.h>
+#include <linux/poll.h>
+#include <linux/init.h>
 
+#include <asm/setup.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/irq.h>
 #include <asm/amigamouse.h>
 #include <asm/amigahw.h>
 #include <asm/amigaints.h>
-#include <asm/bootinfo.h>
 
 #define MSE_INT_ON()	mouseint_allowed = 1
 #define MSE_INT_OFF()	mouseint_allowed = 0
@@ -55,7 +61,7 @@ static struct mouse_status mouse;
 
 static int mouseint_allowed;
 
-static void mouse_interrupt(int irq, struct pt_regs *fp, void *dummy)
+static void mouse_interrupt(int irq, void *dummy, struct pt_regs *fp)
 {
 	static int lastx=0, lasty=0;
 	int dx, dy;
@@ -167,13 +173,15 @@ static int fasync_mouse(struct inode *inode, struct file *filp, int on)
  * close access to the mouse
  */
 
-static void close_mouse(struct inode * inode, struct file * file)
+static int release_mouse(struct inode * inode, struct file * file)
 {
 	fasync_mouse(inode, file, 0);
 	if (--mouse.active)
-	  return;
+		return 0;
+	free_irq(IRQ_AMIGA_VERTB, mouse_interrupt);
 	MSE_INT_OFF();
 	MOD_DEC_USE_COUNT;
+	return 0;
 }
 
 /*
@@ -183,25 +191,37 @@ static void close_mouse(struct inode * inode, struct file * file)
 
 static int open_mouse(struct inode * inode, struct file * file)
 {
-  if (!mouse.present)
-    return -EINVAL;
-  if (mouse.active++)
-    return 0;
-  mouse.ready = 0;
-  mouse.dx = 0;
-  mouse.dy = 0;
-  mouse.buttons = 0x87;
-  mouse.active = 1;
-  MOD_INC_USE_COUNT;
-  MSE_INT_ON();
-  return 0;
+	if (!mouse.present)
+		return -EINVAL;
+	if (mouse.active++)
+		return 0;
+	/*
+	 *  use VBL to poll mouse deltas
+	 */
+
+	if(request_irq(IRQ_AMIGA_VERTB, mouse_interrupt, 0,
+	               "Amiga mouse", mouse_interrupt)) {
+		mouse.present = 0;
+		printk(KERN_INFO "Installing Amiga mouse failed.\n");
+		return -EIO;
+	}
+
+	mouse.ready = 0;
+	mouse.dx = 0;
+	mouse.dy = 0;
+	mouse.buttons = 0x87;
+	mouse.active = 1;
+	MOD_INC_USE_COUNT;
+	MSE_INT_ON();
+	return 0;
 }
 
 /*
  * writes are disallowed
  */
 
-static int write_mouse(struct inode * inode, struct file * file, const char * buffer, int count)
+static long write_mouse(struct inode * inode, struct file * file,
+			const char * buffer, unsigned long count)
 {
 	return -EINVAL;
 }
@@ -210,7 +230,8 @@ static int write_mouse(struct inode * inode, struct file * file, const char * bu
  * read mouse data.  Currently never blocks.
  */
 
-static int read_mouse(struct inode * inode, struct file * file, char * buffer, int count)
+static long read_mouse(struct inode * inode, struct file * file,
+		       char * buffer, unsigned long count)
 {
 	int r;
 	int dx;
@@ -227,8 +248,8 @@ static int read_mouse(struct inode * inode, struct file * file, char * buffer, i
 	/*
 	 * Obtain the current mouse parameters and limit as appropriate for
 	 * the return data format.  Interrupts are only disabled while 
-	 * obtaining the parameters, NOT during the puts_fs_byte() calls,
-	 * so paging in put_fs_byte() does not effect mouse tracking.
+	 * obtaining the parameters, NOT during the puts_user() calls,
+	 * so paging in put_user() does not effect mouse tracking.
 	 */
 
 	MSE_INT_OFF();
@@ -250,25 +271,23 @@ static int read_mouse(struct inode * inode, struct file * file, char * buffer, i
 	mouse.ready = 0;
 	MSE_INT_ON();
 
-	put_fs_byte(buttons | 0x80, buffer);
-	put_fs_byte((char)dx, buffer + 1);
-	put_fs_byte((char)dy, buffer + 2);
+	put_user(buttons | 0x80, buffer);
+	put_user((char)dx, buffer + 1);
+	put_user((char)dy, buffer + 2);
 	for (r = 3; r < count; r++)
-	    put_fs_byte(0x00, buffer + r);
+	    put_user(0x00, buffer + r);
 	return r;
 }
 
 /*
- * select for mouse input
+ * poll for mouse input
  */
 
-static int mouse_select(struct inode *inode, struct file *file, int sel_type, select_table * wait)
+static unsigned int mouse_poll(struct file *file, poll_table * wait)
 {
-	if (sel_type == SEL_IN) {
-	    	if (mouse.ready)
-			return 1;
-		select_wait(&mouse.wait, wait);
-    	}
+	poll_wait(&mouse.wait, wait);
+	if (mouse.ready)
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -277,11 +296,11 @@ struct file_operations amiga_mouse_fops = {
 	read_mouse,
 	write_mouse,
 	NULL, 		/* mouse_readdir */
-	mouse_select, 	/* mouse_select */
+	mouse_poll, 	/* mouse_poll */
 	NULL, 		/* mouse_ioctl */
 	NULL,		/* mouse_mmap */
 	open_mouse,
-	close_mouse,
+	release_mouse,
 	NULL,
 	fasync_mouse,
 };
@@ -290,7 +309,7 @@ static struct miscdevice amiga_mouse = {
 	AMIGAMOUSE_MINOR, "amigamouse", &amiga_mouse_fops
 };
 
-int amiga_mouse_init(void)
+__initfunc(int amiga_mouse_init(void))
 {
 	if (!MACH_IS_AMIGA || !AMIGAHW_PRESENT(AMI_MOUSE))
 		return -ENODEV;
@@ -306,17 +325,6 @@ int amiga_mouse_init(void)
 	mouse.dy = 0;
 	mouse.wait = NULL;
 
-	/*
-	 *  use VBL to poll mouse deltas
-	 */
-
-	if(!add_isr(IRQ_AMIGA_VERTB, mouse_interrupt, 0, NULL, "Amiga mouse"))
-	{
-		mouse.present = 0;
-		printk(KERN_INFO "Installing Amiga mouse failed.\n");
-		return -EIO;
-	}
-
 	mouse.present = 1;
 
 	printk(KERN_INFO "Amiga mouse installed.\n");
@@ -325,7 +333,7 @@ int amiga_mouse_init(void)
 }
 
 #ifdef MODULE
-#include <asm/bootinfo.h>
+#include <asm/setup.h>
 
 int init_module(void)
 {
@@ -334,7 +342,6 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-  remove_isr(IRQ_AMIGA_VERTB, mouse_interrupt, NULL);
-  misc_deregister(&amiga_mouse);
+	misc_deregister(&amiga_mouse);
 }
 #endif

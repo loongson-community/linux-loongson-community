@@ -153,7 +153,7 @@ struct ip_fw *ip_acct_chain;
 static struct ip_fw **chains[] =
 	{&ip_fw_fwd_chain, &ip_fw_in_chain, &ip_fw_out_chain, &ip_acct_chain};
 #endif /* CONFIG_IP_ACCT || CONFIG_IP_FIREWALL */
-
+ 
 #ifdef CONFIG_IP_FIREWALL
 int ip_fw_fwd_policy=IP_FW_F_ACCEPT;
 int ip_fw_in_policy=IP_FW_F_ACCEPT;
@@ -209,9 +209,9 @@ extern inline int port_match(unsigned short *portptr,int nports,unsigned short p
 int ip_fw_chk(struct iphdr *ip, struct device *rif, __u16 *redirport, struct ip_fw *chain, int policy, int mode)
 {
 	struct ip_fw *f;
-	struct tcphdr		*tcp=(struct tcphdr *)((unsigned long *)ip+ip->ihl);
-	struct udphdr		*udp=(struct udphdr *)((unsigned long *)ip+ip->ihl);
-	struct icmphdr		*icmp=(struct icmphdr *)((unsigned long *)ip+ip->ihl);
+	struct tcphdr		*tcp=(struct tcphdr *)((__u32 *)ip+ip->ihl);
+	struct udphdr		*udp=(struct udphdr *)((__u32 *)ip+ip->ihl);
+	struct icmphdr		*icmp=(struct icmphdr *)((__u32 *)ip+ip->ihl);
 	__u32			src, dst;
 	__u16			src_port=0xFFFF, dst_port=0xFFFF, icmp_type=0xFF;
 	unsigned short		f_prt=0, prt;
@@ -571,7 +571,7 @@ int ip_fw_chk(struct iphdr *ip, struct device *rif, __u16 *redirport, struct ip_
 			answer = FW_BLOCK;
 
 #ifdef CONFIG_IP_FIREWALL_NETLINK
-		if(answer == FW_REJECT || answer == FW_BLOCK)
+		if((policy&IP_FW_F_PRN) && (answer == FW_REJECT || answer == FW_BLOCK))
 		{
 			struct sk_buff *skb=alloc_skb(128, GFP_ATOMIC);
 			if(skb)
@@ -1196,17 +1196,17 @@ static int ip_fw_fwd_procinfo(char *buffer, char **start, off_t offset,
  *	Interface to the generic firewall chains.
  */
  
-int ipfw_input_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg)
+int ipfw_input_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg, struct sk_buff **pskb)
 {
 	return ip_fw_chk(phdr, dev, arg, ip_fw_in_chain, ip_fw_in_policy, IP_FW_MODE_FW);
 }
 
-int ipfw_output_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg)
+int ipfw_output_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg, struct sk_buff **pskb)
 {
 	return ip_fw_chk(phdr, dev, arg, ip_fw_out_chain, ip_fw_out_policy, IP_FW_MODE_FW);
 }
 
-int ipfw_forward_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg)
+int ipfw_forward_check(struct firewall_ops *this, int pf, struct device *dev, void *phdr, void *arg, struct sk_buff **pskb)
 {
 	return ip_fw_chk(phdr, dev, arg, ip_fw_fwd_chain, ip_fw_fwd_policy, IP_FW_MODE_FW);
 }
@@ -1297,6 +1297,7 @@ static struct proc_dir_entry proc_net_ipfwfwd = {
 #endif
 #endif
 
+
 void ip_fw_init(void)
 {
 #ifdef CONFIG_PROC_FS
@@ -1308,24 +1309,19 @@ void ip_fw_init(void)
 
 	if(register_firewall(PF_INET,&ipfw_ops)<0)
 		panic("Unable to register IP firewall.\n");
-
 #ifdef CONFIG_PROC_FS		
 	proc_net_register(&proc_net_ipfwin);
 	proc_net_register(&proc_net_ipfwout);
 	proc_net_register(&proc_net_ipfwfwd);
 #endif
 #endif
-#ifdef CONFIG_IP_MASQUERADE
-        
-        /*
-         *	Initialize masquerading. 
-         */
-        
-        ip_masq_init();
-#endif
-        
+
 #if defined(CONFIG_IP_ACCT) || defined(CONFIG_IP_FIREWALL)
 	/* Register for device up/down reports */
 	register_netdevice_notifier(&ipfw_dev_notifier);
 #endif
+
+#ifdef CONFIG_IP_FIREWALL_NETLINK
+   netlink_attach(NETLINK_FIREWALL, netlink_donothing); /* XXX */
+#endif /* CONFIG_IP_FIREWALL_NETLINK */
 }

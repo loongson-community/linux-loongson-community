@@ -27,6 +27,7 @@
 #include <linux/tty_flip.h>
 #include <linux/mm.h>
 #include <linux/random.h>
+#include <linux/init.h>
 
 #include <asm/bitops.h>
 #include <asm/machdep.h>
@@ -76,6 +77,13 @@ extern void scrollfront(int);
 extern int vc_cons_allocated(unsigned int);
 
 unsigned char kbd_read_mask = 0x01;	/* modified by psaux.c */
+
+struct wait_queue * keypress_wait = NULL;
+
+void keyboard_wait_for_keypress(void)
+{
+	sleep_on(&keypress_wait);
+}
 
 /*
  * global state includes the following, and various static variables
@@ -841,7 +849,7 @@ static void kbd_bh(void)
 	}
 }
 
-int kbd_init(void)
+__initfunc(int kbd_init(void))
 {
 	int i;
 	struct kbd_struct kbd0;

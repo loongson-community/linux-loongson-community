@@ -18,7 +18,7 @@
 #include <linux/mm.h>
 #include <linux/version.h>
 
-#include <asm/segment.h>
+#include <asm/uaccess.h>
 #include <asm/system.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -412,7 +412,7 @@ int set_get_font(char * arg, int set, int ch512)
 		memset (arg, 0, cmapsz);
 		for (i = 0; i < 256; i++) {
 			for (line = 0; line < CHAR_HEIGHT; line++)
-				put_user (vga_font [i], arg+(i*32+line));
+				__put_user (vga_font [i], arg+(i*32+line));
 		}
 		return 0;
 	}
@@ -420,8 +420,8 @@ int set_get_font(char * arg, int set, int ch512)
         /* set the font */
 	for (i = 0; i < 256; i++) {
 		for (line = 0; line < CHAR_HEIGHT; line++) {
-			vga_font [i*CHAR_HEIGHT + line] =
-				(get_user (arg + (i * 32 + line)));
+			__get_user(vga_font [i*CHAR_HEIGHT + line],
+			           arg + (i * 32 + line));
 		}
 	}
 	return 0;
@@ -443,13 +443,13 @@ int set_get_cmap(unsigned char * arg, int set)
 
 	for (i=0; i<16; i++) {
 		if (set) {
-			default_red[i] = get_user(arg++) ;
-			default_grn[i] = get_user(arg++) ;
-			default_blu[i] = get_user(arg++) ;
+			__get_user(default_red[i], arg++);
+			__get_user(default_grn[i], arg++);
+			__get_user(default_blu[i], arg++);
 		} else {
-			put_user (default_red[i], arg++) ;
-			put_user (default_grn[i], arg++) ;
-			put_user (default_blu[i], arg++) ;
+			__put_user (default_red[i], arg++);
+			__put_user (default_grn[i], arg++);
+			__put_user (default_blu[i], arg++);
 		}
 	}
 	if (set) {

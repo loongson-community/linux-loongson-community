@@ -17,6 +17,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
+#include <asm/reboot.h>
 #include <asm/vector.h>
 
 /*
@@ -33,7 +34,10 @@ extern asmlinkage void deskstation_handle_int(void);
 extern asmlinkage void deskstation_fd_cacheflush(const void *addr, size_t size);
 extern struct feature deskstation_tyne_feature;
 extern struct feature deskstation_rpc44_feature;
-extern void deskstation_hard_reset_now(void);
+
+extern void deskstation_machine_reboot(void);
+extern void deskstation_machine_halt(void);
+extern void deskstation_machine_power_off(void);
 
 #ifdef CONFIG_DESKSTATION_TYNE
 unsigned long mips_dma_cache_size = 0;
@@ -103,4 +107,6 @@ deskstation_setup(void)
 	request_region(0x00,0x20,"dma1");
 	request_region(0x40,0x20,"timer");
 	request_region(0x70,0x10,"rtc");
+	request_region(0x80,0x10,"dma page reg");
+	request_region(0xc0,0x20,"dma2");
 }

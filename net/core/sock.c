@@ -95,6 +95,7 @@
 #include <linux/net.h>
 #include <linux/fcntl.h>
 #include <linux/mm.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 
 #include <asm/uaccess.h>
@@ -113,6 +114,7 @@
 #include <net/sock.h>
 #include <net/raw.h>
 #include <net/icmp.h>
+#include <linux/ipsec.h>
 
 #define min(a,b)	((a)<(b)?(a):(b))
 
@@ -121,15 +123,16 @@
  *	at the socket level. Everything here is generic.
  */
 
-int sock_setsockopt(struct sock *sk, int level, int optname,
+int sock_setsockopt(struct socket *sock, int level, int optname,
 		    char *optval, int optlen)
 {
+	struct sock *sk=sock->sk;
 	int val;
 	int valbool;
 	int err;
 	struct linger ling;
 	int ret = 0;
-
+	
 	/*
 	 *	Options without arguments
 	 */
@@ -143,8 +146,13 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 	}
 #endif	
 		
-  	if (optval == NULL) 
+  	if(optlen<sizeof(int)) {
+#if 1 /* DaveM Debugging */
+		printk("sock_setsockopt: optlen is %d, going on anyways.\n", optlen);
+#else
   		return(-EINVAL);
+#endif
+	}
   	
 	err = get_user(val, (int *)optval);
 	if (err)
@@ -157,7 +165,7 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 		case SO_DEBUG:	
 			if(val && !suser())
 			{
-				ret = -EPERM;
+				ret = -EACCES;
 			}
 			else
 				sk->debug=valbool;
@@ -176,23 +184,34 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 			sk->broadcast=valbool;
 			break;
 		case SO_SNDBUF:
+			/*
+			 *	The spec isnt clear if ENOBUFS or EINVAL
+			 *	is best
+			 */
+			 
 			if(val > SK_WMEM_MAX*2)
-				val = SK_WMEM_MAX*2;
-			if(val < 256)
-				val = 256;
+				return -EINVAL;
+			/*
+			 *	Once this is all 32bit values we can
+			 *	drop this check.
+			 */
 			if(val > 65535)
-				val = 65535;
-			sk->sndbuf = val;
+				return -EINVAL;
+			sk->sndbuf = max(val,2048);
+			/*
+			 *	Wake up sending tasks if we
+			 *	upped the value.
+			 */
+			sk->write_space(sk);
 			break;
 
 		case SO_RCVBUF:
 			if(val > SK_RMEM_MAX*2)
-			 	val = SK_RMEM_MAX*2;
-			if(val < 256)
-				val = 256;
+				return -EINVAL;
+			/* Can go soon: FIXME */
 			if(val > 65535)
-				val = 65535;
-			sk->rcvbuf = val;
+				return -EINVAL;
+			sk->rcvbuf = max(val,256);
 			break;
 
 		case SO_KEEPALIVE:
@@ -215,17 +234,15 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 
 		case SO_PRIORITY:
 			if (val >= 0 && val < DEV_NUMBUFFS) 
-			{
 				sk->priority = val;
-			} 
 			else
-			{
 				return(-EINVAL);
-			}
 			break;
 
 
 		case SO_LINGER:
+			if(optlen<sizeof(ling))
+				return -EINVAL;	/* 1003.1g */
 			err = copy_from_user(&ling,optval,sizeof(ling));
 			if (err)
 			{
@@ -244,8 +261,55 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 		case SO_BSDCOMPAT:
 			sk->bsdism = valbool;
 			break;
+
+		case SO_PASSCRED:
+			sock->passcred = valbool;
+			break;
 			
-		/* We implementation the SO_SNDLOWAT etc to
+			
+#ifdef CONFIG_NET_SECURITY			
+		/*
+		 *	FIXME: make these error things that are not
+		 *	available!
+		 */
+		 
+		case SO_SECURITY_AUTHENTICATION:
+			if(val<=IPSEC_LEVEL_DEFAULT)
+			{
+				sk->authentication=val;
+				return 0;
+			}
+			if(net_families[sock->ops->family]->authentication)
+				sk->authentication=val;
+			else
+				return -EINVAL;
+			break;
+			
+		case SO_SECURITY_ENCRYPTION_TRANSPORT:
+			if(val<=IPSEC_LEVEL_DEFAULT)
+			{
+				sk->encryption=val;
+				return 0;
+			}
+			if(net_families[sock->ops->family]->encryption)
+				sk->encryption = val;
+			else
+				return -EINVAL;
+			break;
+			
+		case SO_SECURITY_ENCRYPTION_NETWORK:
+			if(val<=IPSEC_LEVEL_DEFAULT)
+			{
+				sk->encrypt_net=val;
+				return 0;
+			}
+			if(net_families[sock->ops->family]->encrypt_net)
+				sk->encrypt_net = val;
+			else
+				return -EINVAL;
+			break;
+#endif
+		/* We implement the SO_SNDLOWAT etc to
 		   not be settable (1003.1g 5.3) */
 		default:
 		  	return(-ENOPROTOOPT);
@@ -254,141 +318,218 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 }
 
 
-int sock_getsockopt(struct sock *sk, int level, int optname,
-		   char *optval, int *optlen)
-{		
-  	int val;
-  	int err;
-  	struct linger ling;
+int sock_getsockopt(struct socket *sock, int level, int optname,
+		    char *optval, int *optlen)
+{
+	struct sock *sk = sock->sk;
+	
+	union
+	{
+  		int val;
+  		struct linger ling;
+		struct timeval tm;
+	} v;
+	
+	int lv=sizeof(int),len;
+  	
+  	if(get_user(len,optlen))
+  		return -EFAULT;
 
   	switch(optname) 
   	{
 		case SO_DEBUG:		
-			val = sk->debug;
+			v.val = sk->debug;
 			break;
 		
 		case SO_DONTROUTE:
-			val = sk->localroute;
+			v.val = sk->localroute;
 			break;
 		
 		case SO_BROADCAST:
-			val= sk->broadcast;
+			v.val= sk->broadcast;
 			break;
 
 		case SO_SNDBUF:
-			val=sk->sndbuf;
+			v.val=sk->sndbuf;
 			break;
 		
 		case SO_RCVBUF:
-			val =sk->rcvbuf;
+			v.val =sk->rcvbuf;
 			break;
 
 		case SO_REUSEADDR:
-			val = sk->reuse;
+			v.val = sk->reuse;
 			break;
 
 		case SO_KEEPALIVE:
-			val = sk->keepopen;
+			v.val = sk->keepopen;
 			break;
 
 		case SO_TYPE:
-			val = sk->type;		  		
+			v.val = sk->type;		  		
 			break;
 
 		case SO_ERROR:
-			val = -sock_error(sk);
-			if(val==0)
-				val=xchg(&sk->err_soft,0);
+			v.val = -sock_error(sk);
+			if(v.val==0)
+				v.val=xchg(&sk->err_soft,0);
 			break;
 
 		case SO_OOBINLINE:
-			val = sk->urginline;
+			v.val = sk->urginline;
 			break;
 	
 		case SO_NO_CHECK:
-			val = sk->no_check;
+			v.val = sk->no_check;
 			break;
 
 		case SO_PRIORITY:
-			val = sk->priority;
+			v.val = sk->priority;
 			break;
 		
 		case SO_LINGER:	
-			err = put_user(sizeof(ling), optlen);
-			if (!err) {
-				ling.l_onoff=sk->linger;
-				ling.l_linger=sk->lingertime;
-				err = copy_to_user(optval,&ling,sizeof(ling));
-				if (err)
-				    err = -EFAULT;
-			}
-			return err;
-		
+			lv=sizeof(v.ling);
+			v.ling.l_onoff=sk->linger;
+ 			v.ling.l_linger=sk->lingertime;
+			break;
+					
 		case SO_BSDCOMPAT:
-			val = sk->bsdism;
+			v.val = sk->bsdism;
 			break;
 			
 		case SO_RCVTIMEO:
 		case SO_SNDTIMEO:
-		{
-			static struct timeval tm={0,0};
-			return copy_to_user(optval,&tm,sizeof(tm));
-		}
+			lv=sizeof(struct timeval);
+			v.tm.tv_sec=0;
+			v.tm.tv_usec=0;
+			break;
+
 		case SO_RCVLOWAT:
 		case SO_SNDLOWAT:
-			val=1;
+			v.val=1;
 
+		case SO_PASSCRED:
+			v.val = sock->passcred;
+			break;
+
+		case SO_PEERCRED:
+			lv=sizeof(sk->peercred);
+			len=min(len, lv);
+			if(copy_to_user((void*)optval, &sk->peercred, len))
+				return -EFAULT;
+			goto lenout;
+			
+#ifdef CONFIG_NET_SECURITY			
+			
+		case SO_SECURITY_AUTHENTICATION:
+			v.val = sk->authentication;
+			break;
+			
+		case SO_SECURITY_ENCRYPTION_TRANSPORT:
+			v.val = sk->encryption;
+			break;
+			
+		case SO_SECURITY_ENCRYPTION_NETWORK:
+			v.val = sk->encrypt_net;
+			break;
+#endif
 		default:
 			return(-ENOPROTOOPT);
 	}
-  	err = put_user(sizeof(int), optlen);
-	if (!err)
-		err = put_user(val,(unsigned int *)optval);
-
-  	return err;
+	len=min(len,lv);
+	if(copy_to_user(optval,&v,len))
+		return -EFAULT;
+lenout:
+  	if(put_user(len, optlen))
+  		return -EFAULT;
+  	return 0;
 }
 
+static kmem_cache_t *sk_cachep;
+
+/*
+ *	All socket objects are allocated here. This is for future
+ *	usage.
+ */
+ 
 struct sock *sk_alloc(int priority)
 {
-	struct sock *sk=(struct sock *)kmalloc(sizeof(*sk), priority);
-	if(!sk)
-		return NULL;
-	memset(sk, 0, sizeof(*sk));
+	struct sock *sk = kmem_cache_alloc(sk_cachep, priority);
+
+	if(sk)
+		memset(sk, 0, sizeof(struct sock));
 	return sk;
 }
 
 void sk_free(struct sock *sk)
 {
-	kfree_s(sk,sizeof(*sk));
+	kmem_cache_free(sk_cachep, sk);
+}
+
+void sk_init(void)
+{
+	sk_cachep = kmem_cache_create("sock", sizeof(struct sock), 0,
+				      SLAB_HWCACHE_ALIGN, 0, 0);
+}
+
+/*
+ *	Simple resource managers for sockets.
+ */
+ 
+void sock_wfree(struct sk_buff *skb)
+{
+	struct sock *sk = skb->sk;
+#if 1
+	if (!sk) {
+		printk(KERN_DEBUG "sock_wfree: sk==NULL\n");
+		return;
+	}
+#endif
+	/* In case it might be waiting for more memory. */
+	atomic_sub(skb->truesize, &sk->wmem_alloc);
+	sk->write_space(sk);
+}
+
+
+void sock_rfree(struct sk_buff *skb)
+{
+	struct sock *sk = skb->sk;
+#if 1
+	if (!sk) {
+		printk(KERN_DEBUG "sock_rfree: sk==NULL\n");
+		return;
+	}
+#endif
+	atomic_sub(skb->truesize, &sk->rmem_alloc);
 }
 
 
 struct sk_buff *sock_wmalloc(struct sock *sk, unsigned long size, int force, int priority)
 {
-	if (sk) {
-		if (force || sk->wmem_alloc < sk->sndbuf) {
-			struct sk_buff * skb = alloc_skb(size, priority);
-			if (skb)
-				atomic_add(skb->truesize, &sk->wmem_alloc);
-			return skb;
+	if (force || atomic_read(&sk->wmem_alloc) < sk->sndbuf) {
+		struct sk_buff * skb = alloc_skb(size, priority);
+		if (skb) {
+			atomic_add(skb->truesize, &sk->wmem_alloc);
+			skb->destructor = sock_wfree;
+			skb->sk = sk;
 		}
-		return NULL;
+		return skb;
 	}
-	return alloc_skb(size, priority);
+	return NULL;
 }
 
 struct sk_buff *sock_rmalloc(struct sock *sk, unsigned long size, int force, int priority)
 {
-	if (sk) {
-		if (force || sk->rmem_alloc < sk->rcvbuf) {
-			struct sk_buff *skb = alloc_skb(size, priority);
-			if (skb)
-				atomic_add(skb->truesize, &sk->rmem_alloc);
-			return skb;
+	if (force || atomic_read(&sk->rmem_alloc) < sk->rcvbuf) {
+		struct sk_buff *skb = alloc_skb(size, priority);
+		if (skb) {
+			atomic_add(skb->truesize, &sk->rmem_alloc);
+			skb->destructor = sock_rfree;
+			skb->sk = sk;
 		}
-		return NULL;
+		return skb;
 	}
-	return alloc_skb(size, priority);
+	return NULL;
 }
 
 
@@ -398,9 +539,9 @@ unsigned long sock_rspace(struct sock *sk)
 
 	if (sk != NULL) 
 	{
-		if (sk->rmem_alloc >= sk->rcvbuf-2*MIN_WINDOW) 
+		if (atomic_read(&sk->rmem_alloc) >= sk->rcvbuf-2*MIN_WINDOW) 
 			return(0);
-		amt = min((sk->rcvbuf-sk->rmem_alloc)/2-MIN_WINDOW, MAX_WINDOW);
+		amt = min((sk->rcvbuf-atomic_read(&sk->rmem_alloc))/2-MIN_WINDOW, MAX_WINDOW);
 		if (amt < 0) 
 			return(0);
 		return(amt);
@@ -415,42 +556,14 @@ unsigned long sock_wspace(struct sock *sk)
 	{
 		if (sk->shutdown & SEND_SHUTDOWN)
 			return(0);
-		if (sk->wmem_alloc >= sk->sndbuf)
+		if (atomic_read(&sk->wmem_alloc) >= sk->sndbuf)
 			return(0);
-		return sk->sndbuf - sk->wmem_alloc;
+		return sk->sndbuf - atomic_read(&sk->wmem_alloc);
 	}
 	return(0);
 }
 
 
-void sock_wfree(struct sock *sk, struct sk_buff *skb)
-{
-	int s=skb->truesize;
-#if CONFIG_SKB_CHECK
-	IS_SKB(skb);
-#endif
-	kfree_skbmem(skb);
-	if (sk) 
-	{
-		/* In case it might be waiting for more memory. */
-		sk->write_space(sk);
-		atomic_sub(s, &sk->wmem_alloc);
-	}
-}
-
-
-void sock_rfree(struct sock *sk, struct sk_buff *skb)
-{
-	int s=skb->truesize;
-#if CONFIG_SKB_CHECK
-	IS_SKB(skb);
-#endif	
-	kfree_skbmem(skb);
-	if (sk) 
-	{
-		atomic_sub(s, &sk->rmem_alloc);
-	}
-}
 
 /*
  *	Generic send/receive buffer handlers
@@ -459,22 +572,21 @@ void sock_rfree(struct sock *sk, struct sk_buff *skb)
 struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size, unsigned long fallback, int noblock, int *errcode)
 {
 	struct sk_buff *skb;
-	int err;
 
 	do
 	{
 		if(sk->err!=0)
 		{
-			cli();
-			err= -sk->err;
-			sk->err=0;
-			sti();
-			*errcode=err;
+			*errcode=xchg(&sk->err,0);
 			return NULL;
 		}
 		
 		if(sk->shutdown&SEND_SHUTDOWN)
-		{
+		{	
+			/*
+			 *	FIXME: Check 1003.1g should we deliver
+			 *	a signal here ???
+			 */
 			*errcode=-EPIPE;
 			return NULL;
 		}
@@ -509,7 +621,7 @@ struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size, unsigne
 				*errcode=-EPIPE;
 				return NULL;
 			}
-			tmp = sk->wmem_alloc;
+			tmp = atomic_read(&sk->wmem_alloc);
 			cli();
 			if(sk->shutdown&SEND_SHUTDOWN)
 			{
@@ -519,7 +631,7 @@ struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size, unsigne
 			}
 			
 #if 1
-			if( tmp <= sk->wmem_alloc)
+			if( tmp <= atomic_read(&sk->wmem_alloc))
 #else
 			/* ANK: Line above seems either incorrect
 			 *	or useless. sk->wmem_alloc has a tiny chance to change
@@ -529,7 +641,7 @@ struct sk_buff *sock_alloc_send_skb(struct sock *sk, unsigned long size, unsigne
 			 *	In any case I'd delete this check at all, or
 			 *	change it to:
 			 */
-			if (sk->wmem_alloc + size >= sk->sndbuf) 
+			if (atomic_read(&sk->wmem_alloc) + size >= sk->sndbuf) 
 #endif
 			{
 				sk->socket->flags &= ~SO_NOSPACE;
@@ -565,4 +677,217 @@ void __release_sock(struct sock *sk)
 	}
 	end_bh_atomic();
 #endif  
+}
+
+
+/*
+ *	Generic socket manager library. Most simpler socket families
+ *	use this to manage their socket lists. At some point we should
+ *	hash these. By making this generic we get the lot hashed for free.
+ */
+ 
+void sklist_remove_socket(struct sock **list, struct sock *sk)
+{
+	unsigned long flags;
+	struct sock *s;
+
+	save_flags(flags);
+	cli();
+
+	s= *list;
+	if(s==sk)
+	{
+		*list = s->next;
+		restore_flags(flags);
+		return;
+	}
+	while(s && s->next)
+	{
+		if(s->next==sk)
+		{
+			s->next=sk->next;
+			restore_flags(flags);
+			return;
+		}
+		s=s->next;
+	}
+	restore_flags(flags);
+}
+
+void sklist_insert_socket(struct sock **list, struct sock *sk)
+{
+	unsigned long flags;
+	save_flags(flags);
+	cli();
+	sk->next= *list;
+	*list=sk;
+	restore_flags(flags);
+}
+
+/*
+ *	This is only called from user mode. Thus it protects itself against
+ *	interrupt users but doesn't worry about being called during work.
+ *	Once it is removed from the queue no interrupt or bottom half will
+ *	touch it and we are (fairly 8-) ) safe.
+ */
+
+void sklist_destroy_socket(struct sock **list, struct sock *sk);
+
+/*
+ *	Handler for deferred kills.
+ */
+
+static void sklist_destroy_timer(unsigned long data)
+{
+	struct sock *sk=(struct sock *)data;
+	sklist_destroy_socket(NULL,sk);
+}
+
+/*
+ *	Destroy a socket. We pass NULL for a list if we know the
+ *	socket is not on a list.
+ */
+ 
+void sklist_destroy_socket(struct sock **list,struct sock *sk)
+{
+	struct sk_buff *skb;
+	if(list)
+		sklist_remove_socket(list, sk);
+
+	while((skb=skb_dequeue(&sk->receive_queue))!=NULL)
+	{
+		kfree_skb(skb,FREE_READ);
+	}
+
+	if(atomic_read(&sk->wmem_alloc) == 0 &&
+	   atomic_read(&sk->rmem_alloc) == 0 &&
+	   sk->dead)
+	{
+		sk_free(sk);
+	}
+	else
+	{
+		/*
+		 *	Someone is using our buffers still.. defer
+		 */
+		init_timer(&sk->timer);
+		sk->timer.expires=jiffies+10*HZ;
+		sk->timer.function=sklist_destroy_timer;
+		sk->timer.data = (unsigned long)sk;
+		add_timer(&sk->timer);
+	}
+}
+
+/*
+ *	Support routines for general vectors
+ */
+
+/*
+ *	Socket with no special fcntl calls.
+ */ 
+ 
+int sock_no_fcntl(struct socket *sock, unsigned int cmd, unsigned long arg)
+{
+	struct sock *sk = sock->sk;
+
+	switch(cmd)
+	{
+		case F_SETOWN:
+			/*
+			 * This is a little restrictive, but it's the only
+			 * way to make sure that you can't send a sigurg to
+			 * another process.
+			 */
+			if (!suser() && current->pgrp != -arg &&
+				current->pid != arg) return(-EPERM);
+			sk->proc = arg;
+			return(0);
+		case F_GETOWN:
+			return(sk->proc);
+		default:
+			return(-EINVAL);
+	}
+}
+
+/*
+ *	Default socket getsockopt / setsockopt
+ */
+ 
+int sock_no_setsockopt(struct socket *sock, int level, int optname,
+		    char *optval, int optlen)
+{
+	return -EOPNOTSUPP;
+}
+
+int sock_no_getsockopt(struct socket *sock, int level, int optname,
+		    char *optval, int *optlen)
+{
+	return -EOPNOTSUPP;
+}
+
+int sock_no_listen(struct socket *sock, int backlog)
+{
+	return -EOPNOTSUPP;
+}
+
+/*
+ *	Default Socket Callbacks
+ */
+
+void sock_def_callback1(struct sock *sk)
+{
+	if(!sk->dead)
+		wake_up_interruptible(sk->sleep);
+}
+
+void sock_def_callback2(struct sock *sk, int len)
+{
+	if(!sk->dead)
+	{
+		wake_up_interruptible(sk->sleep);
+		sock_wake_async(sk->socket,1);
+	}
+}
+
+void sock_def_callback3(struct sock *sk)
+{
+	if(!sk->dead)
+	{
+		wake_up_interruptible(sk->sleep);
+		sock_wake_async(sk->socket, 2);
+	}
+}
+
+void sock_init_data(struct socket *sock, struct sock *sk)
+{
+	skb_queue_head_init(&sk->receive_queue);
+	skb_queue_head_init(&sk->write_queue);
+	skb_queue_head_init(&sk->back_log);
+	skb_queue_head_init(&sk->error_queue);
+	
+	init_timer(&sk->timer);
+	
+	sk->allocation	=	GFP_KERNEL;
+	sk->rcvbuf	=	SK_RMEM_MAX;
+	sk->sndbuf	=	SK_WMEM_MAX;
+	sk->priority	=	SOPRI_NORMAL;
+	sk->state 	= 	TCP_CLOSE;
+	sk->zapped	=	1;
+	sk->socket	=	sock;
+	if(sock)
+	{
+		sk->type	=	sock->type;
+		sk->sleep	=	&sock->wait;
+		sock->sk	=	sk;
+	}
+
+	sk->state_change	=	sock_def_callback1;
+	sk->data_ready		=	sock_def_callback2;
+	sk->write_space		=	sock_def_callback3;
+	sk->error_report	=	sock_def_callback1;
+
+	sk->peercred.pid 	=	0;
+	sk->peercred.uid	=	-1;
+	sk->peercred.gid	=	-1;
+
 }

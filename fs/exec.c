@@ -26,6 +26,7 @@
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/slab.h>
 #include <linux/mman.h>
 #include <linux/a.out.h>
 #include <linux/errno.h>
@@ -38,10 +39,14 @@
 #include <linux/malloc.h>
 #include <linux/binfmts.h>
 #include <linux/personality.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#include <asm/mmu_context.h>
 
 #include <linux/config.h>
 #ifdef CONFIG_KERNELD
@@ -61,7 +66,7 @@ asmlinkage int sys_brk(unsigned long);
 
 static struct linux_binfmt *formats = (struct linux_binfmt *) NULL;
 
-void binfmt_setup(void)
+__initfunc(void binfmt_setup(void))
 {
 #ifdef CONFIG_BINFMT_ELF
 	init_elf_binfmt();
@@ -71,6 +76,10 @@ void binfmt_setup(void)
 	init_irix_binfmt();
 #endif
 
+#ifdef CONFIG_BINFMT_ELF32
+	init_elf32_binfmt();
+#endif
+
 #ifdef CONFIG_BINFMT_AOUT
 	init_aout_binfmt();
 #endif
@@ -78,6 +87,11 @@ void binfmt_setup(void)
 #ifdef CONFIG_BINFMT_JAVA
 	init_java_binfmt();
 #endif
+
+#ifdef CONFIG_BINFMT_EM86
+	init_em86_binfmt();
+#endif
+
 	/* This cannot be configured out of the kernel */
 	init_script_binfmt();
 }
@@ -161,9 +175,11 @@ asmlinkage int sys_uselib(const char * library)
 	struct file * file;
 	struct linux_binfmt * fmt;
 
+	lock_kernel();
 	fd = sys_open(library, 0, 0);
+	retval = fd;
 	if (fd < 0)
-		return fd;
+		goto out;
 	file = current->files->fd[fd];
 	retval = -ENOEXEC;
 	if (file && file->f_inode && file->f_op && file->f_op->read) {
@@ -177,6 +193,8 @@ asmlinkage int sys_uselib(const char * library)
 		}
 	}
 	sys_close(fd);
+out:
+	unlock_kernel();
   	return retval;
 }
 
@@ -289,7 +307,7 @@ unsigned long setup_arg_pages(unsigned long p, struct linux_binprm * bprm)
 		bprm->loader += stack_base;
 	bprm->exec += stack_base;
 
-	mpnt = (struct vm_area_struct *)kmalloc(sizeof(*mpnt), GFP_KERNEL);
+	mpnt = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
 	if (mpnt) {
 		mpnt->vm_mm = current->mm;
 		mpnt->vm_start = PAGE_MASK & (unsigned long) p;
@@ -377,6 +395,7 @@ static void exec_mmap(void)
 			return;
 		}
 		*mm = *current->mm;
+		init_new_context(mm);
 		mm->def_flags = 0;	/* should future lockings be kept? */
 		mm->count = 1;
 		mm->mmap = NULL;
@@ -388,8 +407,10 @@ static void exec_mmap(void)
 		new_page_tables(current);
 		return;
 	}
+	flush_cache_mm(current->mm);
 	exit_mmap(current->mm);
 	clear_page_tables(current);
+	flush_tlb_mm(current->mm);
 }
 
 /*
@@ -403,7 +424,7 @@ static inline void flush_old_signals(struct signal_struct *sig)
 	struct sigaction * sa = sig->action;
 
 	for (i=32 ; i != 0 ; i--) {
-		u_sigemptyset(&sa->sa_mask);
+		sa->sa_mask = 0;
 		sa->sa_flags = 0;
 		if (sa->sa_handler != SIG_IGN)
 			sa->sa_handler = NULL;
@@ -517,7 +538,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 		if (IS_NOSUID(bprm->inode)
 		    || (current->flags & PF_PTRACED)
 		    || (current->fs->count > 1)
-		    || (current->sig->count > 1)
+		    || (atomic_read(&current->sig->count) > 1)
 		    || (current->files->count > 1)) {
 			if (!suser())
 				return -EPERM;
@@ -607,7 +628,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 			    printable(bprm->buf[2]) &&
 			    printable(bprm->buf[3]))
 				break; /* -ENOEXEC */
-			sprintf(modname, "binfmt-%hd", *(short*)(&bprm->buf));
+			sprintf(modname, "binfmt-%04x", *(unsigned short *)(&bprm->buf[2]));
 			request_module(modname);
 #endif
 		}

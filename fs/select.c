@@ -1,5 +1,5 @@
 /*
- * This file contains the procedures for the handling of select
+ * This file contains the procedures for the handling of select and poll
  *
  * Created for Linux based loosely upon Mathius Lattner's minix
  * patches by Peter MacDonald. Heavily edited by Linus.
@@ -21,11 +21,16 @@
 #include <linux/errno.h>
 #include <linux/personality.h>
 #include <linux/mm.h>
+#include <linux/malloc.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
+#include <asm/poll.h>
 
 #define ROUND_UP(x,y) (((x)+(y)-1)/(y))
+#define DEFAULT_POLLMASK (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM)
 
 /*
  * Ok, Peter made a complicated, but straightforward multiple_wait() function.
@@ -34,20 +39,20 @@
  * understand what I'm doing here, then you understand how the linux
  * sleep/wakeup mechanism works.
  *
- * Two very simple procedures, select_wait() and free_wait() make all the work.
- * select_wait() is an inline-function defined in <linux/sched.h>, as all select
- * functions have to call it to add an entry to the select table.
+ * Two very simple procedures, poll_wait() and free_wait() make all the work.
+ * poll_wait() is an inline-function defined in <linux/sched.h>, as all select/poll
+ * functions have to call it to add an entry to the poll table.
  */
 
 /*
- * I rewrote this again to make the select_table size variable, take some
+ * I rewrote this again to make the poll_table size variable, take some
  * more shortcuts, improve responsiveness, and remove another race that
  * Linus noticed.  -- jrs
  */
 
-static void free_wait(select_table * p)
+static void free_wait(poll_table * p)
 {
-	struct select_table_entry * entry = p->entry + p->nr;
+	struct poll_table_entry * entry = p->entry + p->nr;
 
 	while (p->nr > 0) {
 		p->nr--;
@@ -57,53 +62,31 @@ static void free_wait(select_table * p)
 }
 
 /*
- * The check function checks the ready status of a file using the vfs layer.
+ * For the kernel fd_set we use a fixed set-size for allocation purposes.
+ * This set-size doesn't necessarily bear any relation to the size the user
+ * uses, but should preferably obviously be larger than any possible user
+ * size (NR_OPEN bits).
  *
- * If the file was not ready we were added to its wait queue.  But in
- * case it became ready just after the check and just before it called
- * select_wait, we call it again, knowing we are already on its
- * wait queue this time.  The second call is not necessary if the
- * select_table is NULL indicating an earlier file check was ready
- * and we aren't going to sleep on the select_table.  -- jrs
+ * We need 6 bitmaps (in/out/ex for both incoming and outgoing), and we
+ * allocate one page for all the bitmaps. Thus we have 8*PAGE_SIZE bits,
+ * to be divided by 6. And we'd better make sure we round to a full
+ * long-word (in fact, we'll round to 64 bytes).
  */
-
-static inline int __check(
-	int (*select) (struct inode *, struct file *, int, select_table *),
-	struct inode *inode,
-	struct file *file,
-	int flag,
-	select_table * wait)
-{
-	return select(inode, file, flag, wait) ||
-		(wait && select(inode, file, flag, NULL));
-}
-
-#define check(flag,wait,file) \
-(((file)->f_op && (file)->f_op->select) ? \
- __check((file)->f_op->select,(file)->f_inode,file,flag,wait) \
- : \
- (flag != SEL_EX))
-
-/*
- * Due to kernel stack usage, we use a _limited_ fd_set type here, and once
- * we really start supporting >256 file descriptors we'll probably have to
- * allocate the kernel fd_set copies dynamically.. (The kernel select routines
- * are careful to touch only the defined low bits of any fd_set pointer, this
- * is important for performance too).
- */
-typedef unsigned long limited_fd_set[NR_OPEN/(8*(sizeof(unsigned long)))];
+#define KFDS_64BLOCK ((PAGE_SIZE/(6*64))*64)
+#define KFDS_NR (KFDS_64BLOCK*8 > NR_OPEN ? NR_OPEN : KFDS_64BLOCK*8)
+typedef unsigned long kernel_fd_set[KFDS_NR/(8*sizeof(unsigned long))];
 
 typedef struct {
-	limited_fd_set in, out, ex;
-	limited_fd_set res_in, res_out, res_ex;
+	kernel_fd_set in, out, ex;
+	kernel_fd_set res_in, res_out, res_ex;
 } fd_set_buffer;
 
 #define __IN(in)	(in)
-#define __OUT(in)	(in + sizeof(limited_fd_set)/sizeof(unsigned long))
-#define __EX(in)	(in + 2*sizeof(limited_fd_set)/sizeof(unsigned long))
-#define __RES_IN(in)	(in + 3*sizeof(limited_fd_set)/sizeof(unsigned long))
-#define __RES_OUT(in)	(in + 4*sizeof(limited_fd_set)/sizeof(unsigned long))
-#define __RES_EX(in)	(in + 5*sizeof(limited_fd_set)/sizeof(unsigned long))
+#define __OUT(in)	(in + sizeof(kernel_fd_set)/sizeof(unsigned long))
+#define __EX(in)	(in + 2*sizeof(kernel_fd_set)/sizeof(unsigned long))
+#define __RES_IN(in)	(in + 3*sizeof(kernel_fd_set)/sizeof(unsigned long))
+#define __RES_OUT(in)	(in + 4*sizeof(kernel_fd_set)/sizeof(unsigned long))
+#define __RES_EX(in)	(in + 5*sizeof(kernel_fd_set)/sizeof(unsigned long))
 
 #define BITS(in)	(*__IN(in)|*__OUT(in)|*__EX(in))
 
@@ -154,11 +137,15 @@ get_max:
 #define ISSET(i,m)	(((i)&*(m)) != 0)
 #define SET(i,m)	(*(m) |= (i))
 
+#define POLLIN_SET (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
+#define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR)
+#define POLLEX_SET (POLLPRI)
+
 static int do_select(int n, fd_set_buffer *fds)
 {
 	int retval;
-	select_table wait_table, *wait;
-	struct select_table_entry *entry;
+	poll_table wait_table, *wait;
+	struct poll_table_entry *entry;
 	int i;
 
 	retval = max_select_fd(n, fds);
@@ -166,7 +153,8 @@ static int do_select(int n, fd_set_buffer *fds)
 		goto out;
 	n = retval;
 	retval = -ENOMEM;
-	if(!(entry = (struct select_table_entry*) __get_free_page(GFP_KERNEL)))
+	entry = (struct poll_table_entry *) __get_free_page(GFP_KERNEL);
+	if (!entry)
 		goto out;
 	retval = 0;
 	wait_table.nr = 0;
@@ -178,20 +166,30 @@ static int do_select(int n, fd_set_buffer *fds)
 		for (i = 0 ; i < n ; i++,fd++) {
 			unsigned long bit = BIT(i);
 			unsigned long *in = MEM(i,fds->in);
-			if (ISSET(bit,__IN(in)) && check(SEL_IN,wait,*fd)) {
-				SET(bit, __RES_IN(in));
-				retval++;
-				wait = NULL;
-			}
-			if (ISSET(bit,__OUT(in)) && check(SEL_OUT,wait,*fd)) {
-				SET(bit, __RES_OUT(in));
-				retval++;
-				wait = NULL;
-			}
-			if (ISSET(bit,__EX(in)) && check(SEL_EX,wait,*fd)) {
-				SET(bit, __RES_EX(in));
-				retval++;
-				wait = NULL;
+
+			if (bit & BITS(in)) {
+				struct file * file = *fd;
+				unsigned int mask = POLLNVAL;
+				if (file) {
+					mask = DEFAULT_POLLMASK;
+					if (file->f_op && file->f_op->poll)
+						mask = file->f_op->poll(file, wait);
+				}
+				if ((mask & POLLIN_SET) && ISSET(bit, __IN(in))) {
+					SET(bit, __RES_IN(in));
+					retval++;
+					wait = NULL;
+				}
+				if ((mask & POLLOUT_SET) && ISSET(bit, __OUT(in))) {
+					SET(bit, __RES_OUT(in));
+					retval++;
+					wait = NULL;
+				}
+				if ((mask & POLLEX_SET) && ISSET(bit, __EX(in))) {
+					SET(bit, __RES_EX(in));
+					retval++;
+					wait = NULL;
+				}
 			}
 		}
 		wait = NULL;
@@ -284,18 +282,21 @@ __zero_fd_set((nr)-1, (unsigned long *) (fdp))
  */
 asmlinkage int sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp)
 {
-	int error;
-	fd_set_buffer fds;
+	int error = -EINVAL;
+	fd_set_buffer *fds;
 	unsigned long timeout;
 
-	error = -EINVAL;
+	lock_kernel();
+	fds = (fd_set_buffer *) __get_free_page(GFP_KERNEL);
+	if (!fds)
+		goto out;
 	if (n < 0)
 		goto out;
-	if (n > NR_OPEN)
-		n = NR_OPEN;
-	if ((error = get_fd_set(n, inp, &fds.in)) ||
-	    (error = get_fd_set(n, outp, &fds.out)) ||
-	    (error = get_fd_set(n, exp, &fds.ex))) goto out;
+	if (n > KFDS_NR)
+		n = KFDS_NR;
+	if ((error = get_fd_set(n, inp, &fds->in)) ||
+	    (error = get_fd_set(n, outp, &fds->out)) ||
+	    (error = get_fd_set(n, exp, &fds->ex))) goto out;
 	timeout = ~0UL;
 	if (tvp) {
 		error = verify_area(VERIFY_WRITE, tvp, sizeof(*tvp));
@@ -311,11 +312,11 @@ asmlinkage int sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct 
 		if (timeout)
 			timeout += jiffies + 1;
 	}
-	zero_fd_set(n, &fds.res_in);
-	zero_fd_set(n, &fds.res_out);
-	zero_fd_set(n, &fds.res_ex);
+	zero_fd_set(n, &fds->res_in);
+	zero_fd_set(n, &fds->res_out);
+	zero_fd_set(n, &fds->res_ex);
 	current->timeout = timeout;
-	error = do_select(n, &fds);
+	error = do_select(n, fds);
 	timeout = current->timeout - jiffies - 1;
 	current->timeout = 0;
 	if ((long) timeout < 0)
@@ -334,9 +335,107 @@ asmlinkage int sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct 
 			goto out;
 		error = 0;
 	}
-	set_fd_set(n, inp, &fds.res_in);
-	set_fd_set(n, outp, &fds.res_out);
-	set_fd_set(n, exp, &fds.res_ex);
+	set_fd_set(n, inp, &fds->res_in);
+	set_fd_set(n, outp, &fds->res_out);
+	set_fd_set(n, exp, &fds->res_ex);
 out:
+	free_page((unsigned long) fds);
+	unlock_kernel();
 	return error;
+}
+
+static int do_poll(unsigned int nfds, struct pollfd *fds, poll_table *wait)
+{
+	int count;
+	struct file ** fd = current->files->fd;
+
+	count = 0;
+	for (;;) {
+		unsigned int j;
+		struct pollfd * fdpnt;
+
+		current->state = TASK_INTERRUPTIBLE;
+		for (fdpnt = fds, j = 0; j < nfds; j++, fdpnt++) {
+			unsigned int i;
+			unsigned int mask;
+			struct file * file;
+
+			mask = POLLNVAL;
+			i = fdpnt->fd;
+			if (i < NR_OPEN && (file = fd[i]) != NULL) {
+				mask = DEFAULT_POLLMASK;
+				if (file->f_op && file->f_op->poll)
+					mask = file->f_op->poll(file, wait);
+				mask &= fdpnt->events | POLLERR | POLLHUP;
+			}
+			if (mask) {
+				wait = NULL;
+				count++;
+			}
+			fdpnt->revents = mask;
+		}
+
+		wait = NULL;
+		if (count || !current->timeout || (current->signal & ~current->blocked))
+			break;
+		schedule();
+	}
+	current->state = TASK_RUNNING;
+	return count;
+}
+
+asmlinkage int sys_poll(struct pollfd * ufds, unsigned int nfds, int timeout)
+{
+	int i, count, fdcount, err;
+	struct pollfd * fds, *fds1;
+	poll_table wait_table;
+	struct poll_table_entry *entry;
+
+	lock_kernel();
+	err = -ENOMEM;
+	entry = (struct poll_table_entry *) __get_free_page(GFP_KERNEL);
+	if (!entry)
+		goto out;
+	fds = (struct pollfd *) kmalloc(nfds*sizeof(struct pollfd), GFP_KERNEL);
+	if (!fds) {
+		free_page((unsigned long) entry);
+		goto out;
+	}
+
+	err = -EFAULT;
+	if (copy_from_user(fds, ufds, nfds*sizeof(struct pollfd))) {
+		free_page((unsigned long)entry);
+		kfree(fds);
+		goto out;
+	}
+
+	if (timeout < 0)
+		timeout = 0x7fffffff;
+	else if (timeout)
+		timeout = ((unsigned long)timeout*HZ+999)/1000+jiffies+1;
+	current->timeout = timeout;
+
+	count = 0;
+	wait_table.nr = 0;
+	wait_table.entry = entry;
+
+	fdcount = do_poll(nfds, fds, &wait_table);
+	current->timeout = 0;
+
+	free_wait(&wait_table);
+	free_page((unsigned long) entry);
+
+	/* OK, now copy the revents fields back to user space. */
+	fds1 = fds;
+	for(i=0; i < (int)nfds; i++, ufds++, fds++) {
+		__put_user(fds->revents, &ufds->revents);
+	}
+	kfree(fds1);
+	if (!fdcount && (current->signal & ~current->blocked))
+		err = -EINTR;
+	else
+		err = fdcount;
+out:
+	unlock_kernel();
+	return err;
 }

@@ -4,6 +4,7 @@
 
 #include <linux/kernel.h>
 #include <asm/bitops.h>
+#include <asm/atomic.h>
 
 struct irqaction {
 	void (*handler)(int, void *, struct pt_regs *);
@@ -14,7 +15,7 @@ struct irqaction {
 	struct irqaction *next;
 };
 
-extern unsigned long intr_count;
+extern volatile unsigned char bh_running;
 
 extern int bh_mask_count[32];
 extern unsigned long bh_active;
@@ -33,6 +34,7 @@ enum {
 	DIGI_BH,
 	SERIAL_BH,
 	RISCOM8_BH,
+	ESP_BH,
 	NET_BH,
 	IMMEDIATE_BH,
 	KEYBOARD_BH,
@@ -40,49 +42,8 @@ enum {
 	CM206_BH
 };
 
-extern inline void init_bh(int nr, void (*routine)(void))
-{
-	bh_base[nr] = routine;
-	bh_mask_count[nr] = 0;
-	bh_mask |= 1 << nr;
-}
-
-extern inline void mark_bh(int nr)
-{
-	set_bit(nr, &bh_active);
-}
-
-/*
- * These use a mask count to correctly handle
- * nested disable/enable calls
- */
-extern inline void disable_bh(int nr)
-{
-	bh_mask &= ~(1 << nr);
-	bh_mask_count[nr]++;
-}
-
-extern inline void enable_bh(int nr)
-{
-	if (!--bh_mask_count[nr])
-		bh_mask |= 1 << nr;
-}
-
-/*
- * start_bh_atomic/end_bh_atomic also nest
- * naturally by using a counter
- */
-extern inline void start_bh_atomic(void)
-{
-	intr_count++;
-	barrier();
-}
-
-extern inline void end_bh_atomic(void)
-{
-	barrier();
-	intr_count--;
-}
+#include <asm/hardirq.h>
+#include <asm/softirq.h>
 
 /*
  * Autoprobing for irqs:

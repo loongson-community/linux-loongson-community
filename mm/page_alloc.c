@@ -5,6 +5,7 @@
  *  Swap reorganised 29.12.95, Stephen Tweedie
  */
 
+#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/head.h>
@@ -34,7 +35,13 @@ int nr_free_pages = 0;
  * of different sizes
  */
 
+#if CONFIG_AP1000
+/* the AP+ needs to allocate 8MB contiguous, aligned chunks of ram
+   for the ring buffers */
+#define NR_MEM_LISTS 12
+#else
 #define NR_MEM_LISTS 6
+#endif
 
 /* The start of this MUST match the start of "struct page" */
 struct free_area_struct {
@@ -183,7 +190,7 @@ do { unsigned long size = 1 << high; \
 		index += size; \
 		map += size; \
 	} \
-	map->count = 1; \
+	atomic_set(&map->count, 1); \
 	map->age = PAGE_INITIAL_AGE; \
 } while (0)
 
@@ -194,7 +201,8 @@ unsigned long __get_free_pages(int priority, unsigned long order, int dma)
 
 	if (order >= NR_MEM_LISTS)
 		return 0;
-	if (intr_count && priority != GFP_ATOMIC) {
+
+	if (in_interrupt() && priority != GFP_ATOMIC) {
 		static int count = 0;
 		if (++count < 5) {
 			printk("gfp called nonatomically from interrupt %p\n",
@@ -202,6 +210,7 @@ unsigned long __get_free_pages(int priority, unsigned long order, int dma)
 			priority = GFP_ATOMIC;
 		}
 	}
+
 	reserved_pages = 5;
 	if (priority != GFP_NFS)
 		reserved_pages = min_free_pages;
@@ -239,7 +248,7 @@ void show_free_areas(void)
 			nr ++;
 		}
 		total += nr * ((PAGE_SIZE>>10) << order);
-		printk("%lu*%lukB ", nr, (PAGE_SIZE>>10) << order);
+		printk("%lu*%lukB ", nr, (unsigned long)((PAGE_SIZE>>10) << order));
 	}
 	restore_flags(flags);
 	printk("= %lukB)\n", total);
@@ -267,8 +276,8 @@ unsigned long free_area_init(unsigned long start_mem, unsigned long end_mem)
 	 * with a minimum of 16 pages. This is totally arbitrary
 	 */
 	i = (end_mem - PAGE_OFFSET) >> (PAGE_SHIFT+7);
-	if (i < 16)
-		i = 16;
+	if (i < 48)
+		i = 48;
 	min_free_pages = i;
 	free_pages_low = i + (i>>1);
 	free_pages_high = i + i;
@@ -279,6 +288,7 @@ unsigned long free_area_init(unsigned long start_mem, unsigned long end_mem)
 	memset(mem_map, 0, start_mem - (unsigned long) mem_map);
 	do {
 		--p;
+		atomic_set(&p->count, 0);
 		p->flags = (1 << PG_DMA) | (1 << PG_reserved);
 		p->map_nr = p - mem_map;
 	} while (p > mem_map);

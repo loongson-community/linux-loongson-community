@@ -122,7 +122,9 @@ S: 6369 BG Simpelveld
 S: The Netherlands
 
 N: Hennus Bergman
-E: hennus@sky.ow.nl [My uucp-fed Linux box at home]
+E: hennus@cybercomm.nl
+W: http://www.cybercomm.nl/~hennus/
+P: 1024/77D50909 76 99 FD 31 91 E1 96 1C  90 BB 22 80 62 F6 BD 63
 D: Author and maintainer of the QIC-02 tape driver
 S: The Netherlands
 
@@ -131,17 +133,16 @@ E: bir7@leland.Stanford.Edu
 D: Original author of the Linux networking code
 
 N: Philip Blundell
-E: pjb27@cam.ac.uk 
-E: pb@nexus.co.uk
-E: phil@tazenda.demon.co.uk
+E: Philip.Blundell@pobox.com
 D: Device driver hacking (especially EtherExpress16/3C505 net cards)
 D: Some Linux/ARM stuff
-S: Trinity College
-S: Cambridge, UK. CB2 1TQ
+D: Co-architect of the parallel port sharing system
+S: 201 Gilbert Road
+S: Cambridge, UK. CB4 3PA
 
 N: Thomas Bogendoerfer
-E: tsbogend@bigbug.franken.de
-D: Lance32 driver
+E: tsbogend@alpha.franken.de
+D: PCnet32 driver
 D: strace for Linux/Alpha
 S: Baumgartenweg 5
 S: 91452 Wilhermsdorf
@@ -192,7 +193,7 @@ S: United Kingdom
 N: Remy Card
 E: Remy.Card@masi.ibp.fr
 E: Remy.Card@linux.org
-D: Extended file system designer and developer
+D: Extended file system [defunct] designer and developer
 D: Second extended file system designer and developer
 S: Institut Blaise Pascal
 S: 4 Place Jussieu
@@ -256,14 +257,12 @@ S: Australia
 
 N: Alan Cox
 E: alan@lxorguk.ukuu.org.uk (linux related - except big patches)
-E: iialan@www.linux.org.uk (linux.org.uk/big patches)
+E: iialan@www.uk.linux.org (linux.org.uk/big patches)
 E: alan@cymru.net (commercial CymruNET stuff)
-E: gw4pts@gw4pts.ampr.org (amateur radio stuff)
-E: GW4PTS@GB7SWN (packet radio)
-E: Please don't use iialan@iifeak.swan.ac.uk for Linux stuff
-S: c/o 3Com/I^2IT Limited
+E: Alan.Cox@linux.org (if others fail)
+S: CymruNet Limited
 S: The Innovation Centre
-S: University Of Wales
+S: Singleton Park
 S: Swansea, SA2 8PP
 S: Wales, UK
 D: NET2Debugged/NET3 author
@@ -308,7 +307,9 @@ D: Second extended file system co-designer
 N: Terry Dawson
 E: terry@perf.no.itg.telecom.com.au
 E: terry@albert.vk2ktj.ampr.org (Amateur Radio use only)
+D: trivial hack to add variable address length routing to Rose.
 D: AX25-HOWTO, HAM-HOWTO, IPX-HOWTO, NET-2-HOWTO
+D: ax25-utils maintainer.
 
 N: Todd J. Derr
 E: tjd@fore.com
@@ -349,7 +350,7 @@ E: drew@PoohSticks.ORG
 D: SCSI code
 D: Assorted snippets elsewhere
 D: Boot sector "..." printing
-S: 2255 Spruce
+S: 2037 Walnut #6
 S: Boulder, Colorado 80302
 S: USA
 
@@ -389,6 +390,14 @@ E: r.faith@ieee.org
 D: Author: Future Domain TMC-16x0 SCSI driver
 D: Debugging: SCSI code; Cyclades serial driver; APM driver
 D: Debugging: XFree86 Mach 32 server, accelerated server code
+
+N: János Farkas
+E: chexum@shadow.banki.hu
+D: romfs, various (mostly networking) fixes
+P: 1024/F81FB2E1 41 B7 E4 E6 3E D4 A6 71  6D 9C F3 9F F2 BF DF 6E
+S: Madarász Viktor utca 25
+S: 1131 Budapest
+S: Hungary
 
 N: Jürgen Fischer
 E: fischer@et-inf.fho-emden.de (=?iso-8859-1?q?J=FCrgen?= Fischer)
@@ -497,7 +506,8 @@ S: USA
 
 N: Grant Guenther
 E: grant@torque.net
-D: Iomega PPA / ZIP driver
+D: drivers for parallel port devices: ppa, ez, bpcd
+D: original architect of the parallel-port sharing scheme. 
 S: 906-1001 Bay St.
 S: Toronto, Ontario, M5S 3A6 
 S: Canada
@@ -544,14 +554,13 @@ E: ajh@primag.co.uk
 D: Selection mechanism
 
 N: Jochen Hein
-E: jochen.hein@informatik.tu-clausthal.de
+E: jochen.hein@delphi.central.de
 P: 1024/4A27F015 25 72 FB E3 85 9F DE 3B  CB 0A DA DA 40 77 05 6C
 D: National Language Support
-D: German Support-Disks for SLS/Slackware called SLT
 D: Linux Internationalization Project
-D: DOSemu
-S: Muehlenweg 19
-S: 34266 Niestetal
+D: German Localization for Linux and GNU software
+S: Frankenstraße
+S: 34131 Kassel
 S: Germany
 
 N: Richard Henderson
@@ -621,6 +630,13 @@ S: Panoramastrasse 18
 S: D-69126 Heidelberg
 S: Germany
 
+N: Christopher Horn
+E: chorn@warwick.net
+D: Miscellaneous sysctl hacks
+S: 36 Mudtown Road
+S: Wantage, NJ 07461
+S: USA
+
 N: Miguel de Icaza Amozurrutia
 E: miguel@nuclecu.unam.mx
 D: Linux/SPARC team, Midnight Commander maintainer
@@ -653,6 +669,16 @@ S: Reading
 S: RG6 2NU
 S: United Kingdom
 
+N: Jakub Jelinek
+E: jj@sunsite.mff.cuni.cz
+W: http://sunsite.mff.cuni.cz/~jj
+P: 1024/0F7623C5 53 95 71 3C EB 73 99 97  02 49 40 47 F9 19 68 20
+D: Sparc hacker, SILO, mc
+D: Maintain sunsite.mff.cuni.cz
+S: Na Orechovce 7
+S: 160 00 Praha 6
+S: Czech Republic
+
 N: Michael K. Johnson
 E: johnsonm@redhat.com
 W: http://www.redhat.com/~johnsonm
@@ -668,9 +694,11 @@ S: Chapel Hill, North Carolina 27514-4818
 S: USA
 
 N: Bernhard Kaindl
+E: bkaindl@netway.at
 E: edv@bartelt.via.at
 D: Author of a menu based configuration tool, kmenu, which 
 D: is the predecessor of 'make menuconfig' and 'make xconfig'.
+D: digiboard driver update(modularisation work and 2.1.x upd)
 S: Tallak 95
 S: 8103 Rein
 S: Austria
@@ -737,6 +765,16 @@ S: Kruislaan 419
 S: 1098 VA Amsterdam 
 S: The Netherlands
 
+N: Gene Kozin
+E: 74604.152@compuserve.com
+W: http://www.sangoma.com
+D: WAN Router & Sangoma WAN drivers
+S: Sangoma Technologies Inc.
+S: 7170 Warden Avenue, Unit 2
+S: Markham, Ontario
+S: L3R 8B2
+S: Canada
+
 N: Gero Kuhlmann
 E: gero@gkminix.han.de
 D: mounting root via NFS
@@ -764,6 +802,13 @@ E: lam836@cs.cuhk.hk
 D: Author of the dialog utility, foundation
 D: for Menuconfig's lxdialog.
 
+N: David van Leeuwen
+E: david@tm.tno.nl
+D: Philips/LMS cm206 cdrom driver, generic cdrom driver
+S: Scheltemalaan 14
+S: 3817 KS Amersfoort
+S: The Netherlands
+
 N: Volker Lendecke
 E: lendecke@namu01.Num.Math.Uni-Goettingen.de
 D: Kernel smbfs (to mount WfW, NT and OS/2 network drives.)
@@ -781,7 +826,8 @@ S: Australia
 
 N: Hans Lermen
 E: lermen@elserv.ffm.fgan.de
-D: Author of the LOADLIN Linux loader
+D: Author of the LOADLIN Linux loader, hacking on boot stuff
+D: Co-ordinator of DOSEMU releases
 S: Am Muehlenweg 38
 S: D53424 Remagen
 S: Germany
@@ -843,7 +889,7 @@ D: Initial implementation of VC's, pty's and select()
 N: James B. MacLean
 E: macleajb@ednet.ns.ca
 W: http://www.ednet.ns.ca/~macleajb/dosemu.html
-D: Coordinator of DOSEMU releases
+D: Former Co-ordinator of DOSEMU releases
 D: Program in DOSEMU
 S: PO BOX 220, HFX. CENTRAL
 S: Halifax, Nova Scotia
@@ -859,8 +905,9 @@ S: Australia
 
 N: Martin Mares
 E: mj@k332.feld.cvut.cz
+W: http://atrey.karlin.mff.cuni.cz/~mj/
 D: BIOS video mode handling code
-D: Miscellaneous kernel fixes
+D: Miscellaneous kernel fixes and hacks
 D: MOXA C-218 serial board driver
 D: BOOTP support
 S: Kankovskeho 1241
@@ -923,11 +970,8 @@ S: The White House, Melbourne Street, LEEDS
 S: LS2  7PS,   UK
 
 N: Craig Metz
-E: cmetz@tjhsst.edu
-D: Some of PAS 16 mixer & PCM support
-S: 12305 Country Ridge Lane
-S: Fairfax, Virginia 22033
-S: USA
+E: cmetz@inner.net
+D: Some of PAS 16 mixer & PCM support, inet6-apps
 
 N: William (Bill) Metzenthen
 E: billm@suburbia.net
@@ -1010,8 +1054,8 @@ S: Finland
 N: Jonathan Naylor
 E: jsn@cs.nott.ac.uk
 E: g4klx@amsat.org
-E: G4KLX@GB7DAD (Packet Radio)
-D: AX.25 and NET/ROM protocol suites
+D: AX.25, NET/ROM and ROSE amateur radio protocol suites
+D: CCITT X.25 PLP and LAPB.
 S: 24 Castle View Drive
 S: Cromford
 S: Matlock
@@ -1061,6 +1105,10 @@ S: FEC 313
 S: University of New Mexico
 S: Albuquerque, NM  87131
 S: USA
+
+N: David Parsons
+E: orc@pell.chi.il.us
+D: improved memory detection code.
 
 N: Avery Pennarun
 E: apenwarr@foxnet.net
@@ -1145,6 +1193,11 @@ D: Author of menu based configuration tool, Menuconfig.
 S: 1407 Broad Street
 S: Waynesboro, Virginia  22980
 S: USA
+
+N: Andrew J. Robinson
+E: arobinso@nyx.net
+W: http://www.nyx.net/~arobinso
+D: Hayes ESP serial port driver
 
 N: Florian La Roche
 E: rzsfl@rz.uni-sb.de
@@ -1342,9 +1395,9 @@ E: Linus.Torvalds@Helsinki.FI
 W: http://www.cs.helsinki.fi/~torvalds/
 P: 1024/A86B35C5 96 54 50 29 EC 11 44 7A  BE 67 3C 24 03 13 62 C8
 D: Original kernel hacker
-S: Kalevankatu 55 B 37
-S: 00180 Helsinki
-S: Finland
+S: 3665 Benton Street #36
+S: Santa Clara, California 95051
+S: USA
 
 N: Jeff Tranter
 E: Jeff_Tranter@Mitel.COM
@@ -1470,6 +1523,13 @@ S: Kruislaan 419
 S: 1098 VA Amsterdam 
 S: The Netherlands
 
+N: Tim Waugh
+E: tmw20@cyberelk.demon.co.uk
+D: Co-architect of the parallel-port sharing system
+S: 51 Frensham Road
+S: Southsea
+S: Hampshire, UK. PO4 8AE
+
 N: Juergen Weigert
 E: jnweiger@immd4.informatik.uni-erlangen.de
 D: The Linux Support Team Erlangen
@@ -1547,7 +1607,7 @@ S: The Netherlands
 
 N: Frank Xia
 E: qx@math.columbia.edu
-D: Xiafs filesystem
+D: Xiafs filesystem [defunct]
 S: 542 West 112th Street, 5N
 S: New York, New York 10025
 S: USA

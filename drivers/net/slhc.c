@@ -77,6 +77,7 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <linux/mm.h>
+#include <linux/init.h>
 #include <net/checksum.h>
 #include <net/slhc_vj.h>
 #include <asm/unaligned.h>
@@ -87,7 +88,6 @@ static unsigned char *encode(unsigned char *cp, unsigned short n);
 static long decode(unsigned char **cpp);
 static unsigned char * put16(unsigned char *cp, unsigned short x);
 static unsigned short pull16(unsigned char **cpp);
-static void export_slhc_syms(void);
 
 /* Initialize compression data structure
  *	slots must be in range 0 to 255 (zero meaning no compression)
@@ -720,30 +720,20 @@ void slhc_o_status(struct slcompress *comp)
 	}
 }
 
-static struct symbol_table slhc_syms = {
 /* Should this be surrounded with "#ifdef CONFIG_MODULES" ? */
-#include <linux/symtab_begin.h>
-        /* VJ header compression */
-        X(slhc_init),
-        X(slhc_free),
-        X(slhc_remember),
-        X(slhc_compress),
-        X(slhc_uncompress),
-        X(slhc_toss),
-#include <linux/symtab_end.h>
-};
-
-static void export_slhc_syms(void)
-{
-	register_symtab(&slhc_syms);
-}
+/* VJ header compression */
+EXPORT_SYMBOL(slhc_init);
+EXPORT_SYMBOL(slhc_free);
+EXPORT_SYMBOL(slhc_remember);
+EXPORT_SYMBOL(slhc_compress);
+EXPORT_SYMBOL(slhc_uncompress);
+EXPORT_SYMBOL(slhc_toss);
 
 #ifdef MODULE
 
 int init_module(void)
 {
 	printk(KERN_INFO "CSLIP: code copyright 1989 Regents of the University of California\n");
-	export_slhc_syms();
 	return 0;
 }
 
@@ -751,11 +741,12 @@ void cleanup_module(void)
 {
 	return;
 }
+
 #else /* MODULE */
 
-void slhc_install(void)
+__initfunc(void slhc_install(void))
 {
-	export_slhc_syms();
 }
-#endif
+
+#endif /* MODULE */
 #endif /* CONFIG_INET */

@@ -12,6 +12,8 @@
 #include <linux/ptrace.h>
 #include <linux/unistd.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 
@@ -19,61 +21,70 @@
 
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
-#if !defined(__alpha__) && !defined(__mips__)
+#ifndef __alpha__
 
 /*
  * This call isn't used by all ports, in particular, the Alpha
  * uses osf_sigprocmask instead.  Maybe it should be moved into
  * arch-dependent dir?
+ *
+ * We don't need to get the kernel lock - this is all local to this
+ * particular thread.. (and that's good, because this is _heavily_
+ * used by various programs)
+ *
+ * No SMP locking would prevent the inherent races present in this
+ * routine, thus we do not perform any locking at all.
  */
 asmlinkage int sys_sigprocmask(int how, sigset_t *set, sigset_t *oset)
 {
-	sigset_t new_set, old_set = current->blocked;
-	int error;
+	sigset_t old_set = current->blocked;
 
 	if (set) {
-		error = get_user(new_set, set);
-		if (error)
-			return error;	
+		sigset_t new_set;
+
+		if(get_user(new_set, set))
+			return -EFAULT;
+
 		new_set &= _BLOCKABLE;
 		switch (how) {
-		case SIG_BLOCK:
-			current->blocked |= new_set;
-			break;
-		case SIG_UNBLOCK:
-			current->blocked &= ~new_set;
-			break;
-		case SIG_SETMASK:
-			current->blocked = new_set;
-			break;
 		default:
 			return -EINVAL;
+		case SIG_BLOCK:
+			new_set |= old_set;
+			break;
+		case SIG_UNBLOCK:
+			new_set = old_set & ~new_set;
+			break;
+		case SIG_SETMASK:
+			break;
 		}
+		current->blocked = new_set;
 	}
 	if (oset) {
-		error = put_user(old_set, oset);
-		if (error)
-			return error;	
+		if(put_user(old_set, oset))
+			return -EFAULT;
 	}
 	return 0;
 }
-#endif
-
-#ifndef __alpha__
 
 /*
  * For backwards compatibility?  Functionality superseded by sigprocmask.
  */
 asmlinkage int sys_sgetmask(void)
 {
+	/* SMP safe */
 	return current->blocked;
 }
 
 asmlinkage int sys_ssetmask(int newmask)
 {
-	int old=current->blocked;
+	int old;
 
+	spin_lock_irq(&current->sigmask_lock);
+	old = current->blocked;
 	current->blocked = newmask & _BLOCKABLE;
+	spin_unlock_irq(&current->sigmask_lock);
+
 	return old;
 }
 
@@ -81,8 +92,13 @@ asmlinkage int sys_ssetmask(int newmask)
 
 asmlinkage int sys_sigpending(sigset_t *set)
 {
-	return put_user(current->blocked & current->signal,
-	                /* Hack */(unsigned long *)set);
+	int ret;
+
+	/* fill in "set" with signals pending but blocked. */
+	spin_lock_irq(&current->sigmask_lock);
+	ret = put_user(current->blocked & current->signal, set);
+	spin_unlock_irq(&current->sigmask_lock);
+	return ret;
 }
 
 /*
@@ -99,22 +115,24 @@ asmlinkage int sys_sigpending(sigset_t *set)
  * Note the silly behaviour of SIGCHLD: SIG_IGN means that the signal
  * isn't actually ignored, but does automatic child reaping, while
  * SIG_DFL is explicitly said by POSIX to force the signal to be ignored..
+ *
+ * All callers of check_pending must be holding current->sig->siglock.
  */
-static inline void check_pending(int signum)
+inline void check_pending(int signum)
 {
 	struct sigaction *p;
 
 	p = signum - 1 + current->sig->action;
+	spin_lock(&current->sigmask_lock);
 	if (p->sa_handler == SIG_IGN) {
-		k_sigdelset(&current->signal, signum);
-		return;
-	}
-	if (p->sa_handler == SIG_DFL) {
-		if (signum != SIGCONT && signum != SIGCHLD && signum != SIGWINCH)
-			return;
-		k_sigdelset(&current->signal, signum);
-		return;
+		current->signal &= ~_S(signum);
+	} else if (p->sa_handler == SIG_DFL) {
+		if (signum == SIGCONT ||
+		    signum == SIGCHLD ||
+		    signum != SIGWINCH)
+			current->signal &= ~_S(signum);
 	}	
+	spin_unlock(&current->sigmask_lock);
 }
 
 #if !defined(__alpha__) && !defined(__mips__)
@@ -123,69 +141,65 @@ static inline void check_pending(int signum)
  */
 asmlinkage unsigned long sys_signal(int signum, __sighandler_t handler)
 {
-	int err;
 	struct sigaction tmp;
 
-	/*
-	 * HACK: We still cannot handle signals > 32 due to the limited
-	 *       size of ksigset_t (which will go away).
-	 */
-	if (signum > 32)
-		return -EINVAL;
-	if (signum<1 || signum>_NSIG)
+	if (signum<1 || signum>32)
 		return -EINVAL;
 	if (signum==SIGKILL || signum==SIGSTOP)
 		return -EINVAL;
 	if (handler != SIG_DFL && handler != SIG_IGN) {
-		err = verify_area(VERIFY_READ, handler, 1);
-		if (err)
-			return err;
+		if(verify_area(VERIFY_READ, handler, 1))
+			return -EFAULT;
 	}
+
 	memset(&tmp, 0, sizeof(tmp));
 	tmp.sa_handler = handler;
 	tmp.sa_flags = SA_ONESHOT | SA_NOMASK;
+
+	spin_lock_irq(&current->sig->siglock);
 	handler = current->sig->action[signum-1].sa_handler;
 	current->sig->action[signum-1] = tmp;
 	check_pending(signum);
+	spin_unlock_irq(&current->sig->siglock);
+
 	return (unsigned long) handler;
 }
 #endif /* !defined(__alpha__) && !defined(__mips__) */
 
+#ifndef __sparc__
 asmlinkage int sys_sigaction(int signum, const struct sigaction * action,
 	struct sigaction * oldaction)
 {
 	struct sigaction new_sa, *p;
 
-	/*
-	 * HACK: We still cannot handle signals > 32 due to the limited
-	 *       size of ksigset_t (which will go away).
-	 */
-	if (signum > 32)
+	if (signum < 1 || signum > 32)
 		return -EINVAL;
-	if (signum<1 || signum>_NSIG)
-		return -EINVAL;
+
 	p = signum - 1 + current->sig->action;
+
 	if (action) {
-		int err = verify_area(VERIFY_READ, action, sizeof(*action));
-		if (err)
-			return err;
+		if (copy_from_user(&new_sa, action, sizeof(struct sigaction)))
+			return -EFAULT;
 		if (signum==SIGKILL || signum==SIGSTOP)
 			return -EINVAL;
-		if (copy_from_user(&new_sa, action, sizeof(struct sigaction)))
-			return -EFAULT;	
-		if (new_sa.sa_handler != SIG_DFL && new_sa.sa_handler != SIG_IGN) {
-			err = verify_area(VERIFY_READ, new_sa.sa_handler, 1);
-			if (err)
-				return err;
-		}
 	}
+
 	if (oldaction) {
+		/* In the clone() case we could copy half consistant
+		 * state to the user, however this could sleep and
+		 * deadlock us if we held the signal lock on SMP.  So for
+		 * now I take the easy way out and do no locking.
+		 */
 		if (copy_to_user(oldaction, p, sizeof(struct sigaction)))
 			return -EFAULT;
 	}
+
 	if (action) {
+		spin_lock_irq(&current->sig->siglock);
 		*p = new_sa;
 		check_pending(signum);
+		spin_unlock_irq(&current->sig->siglock);
 	}
 	return 0;
 }
+#endif

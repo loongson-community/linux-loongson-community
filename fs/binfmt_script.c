@@ -10,6 +10,7 @@
 #include <linux/stat.h>
 #include <linux/malloc.h>
 #include <linux/binfmts.h>
+#include <linux/init.h>
 
 static int do_load_script(struct linux_binprm *bprm,struct pt_regs *regs)
 {
@@ -76,7 +77,6 @@ static int do_load_script(struct linux_binprm *bprm,struct pt_regs *regs)
 	/*
 	 * OK, now restart the process with the interpreter's inode.
 	 */
-	bprm->filename = interp;
 	retval = open_namei(interp, 0, 0, &bprm->inode, NULL);
 	if (retval)
 		return retval;
@@ -100,11 +100,12 @@ struct linux_binfmt script_format = {
 #ifndef MODULE
 	NULL, 0, load_script, NULL, NULL
 #else
-	NULL, &mod_use_count_, load_script, NULL, NULL
+	NULL, &__this_module, load_script, NULL, NULL
 #endif
 };
 
-int init_script_binfmt(void) {
+__initfunc(int init_script_binfmt(void))
+{
 	return register_binfmt(&script_format);
 }
 

@@ -27,7 +27,7 @@
 
 /* Fixed constants first: */
 #undef NR_OPEN
-#define NR_OPEN 256
+#define NR_OPEN 1024
 
 #define NR_SUPER 64
 #define BLOCK_SIZE 1024
@@ -36,7 +36,7 @@
 /* And dynamically-tunable limits and defaults: */
 extern int max_inodes, nr_inodes;
 extern int max_files, nr_files;
-#define NR_INODE 3072	/* this should be bigger than NR_FILE */
+#define NR_INODE 4096	/* this should be bigger than NR_FILE */
 #define NR_FILE 1024	/* this can well be larger on a larger system */
 
 #define MAY_EXEC 1
@@ -73,6 +73,7 @@ extern int max_files, nr_files;
 #define S_WRITE		128	/* Write on file/directory/symlink */
 #define S_APPEND	256	/* Append-only file */
 #define S_IMMUTABLE	512	/* Immutable file */
+#define MS_NOATIME	1024	/* Do not update access times. */
 
 /*
  * Flags that can be altered by MS_REMOUNT
@@ -94,6 +95,7 @@ extern int max_files, nr_files;
  * Exception: MS_RDONLY is always applied to the entire file system.
  */
 #define IS_RDONLY(inode) (((inode)->i_sb) && ((inode)->i_sb->s_flags & MS_RDONLY))
+#define DO_UPDATE_ATIME(inode) (!((inode)->i_flags & MS_NOATIME) && !IS_RDONLY(inode))
 #define IS_NOSUID(inode) ((inode)->i_flags & MS_NOSUID)
 #define IS_NODEV(inode) ((inode)->i_flags & MS_NODEV)
 #define IS_NOEXEC(inode) ((inode)->i_flags & MS_NOEXEC)
@@ -126,7 +128,7 @@ extern int max_files, nr_files;
 #include <asm/bitops.h>
 
 extern void buffer_init(void);
-extern unsigned long inode_init(unsigned long start, unsigned long end);
+extern void inode_init(void);
 extern unsigned long file_table_init(unsigned long start, unsigned long end);
 extern unsigned long name_cache_init(unsigned long start, unsigned long end);
 
@@ -177,7 +179,7 @@ struct buffer_head {
 	unsigned long b_lru_time;       /* Time when this buffer was 
 					 * last used. */
 	struct wait_queue * b_wait;
-	struct buffer_head * b_prev;		/* doubly linked list of hash-queue */
+	struct buffer_head ** b_pprev;		/* doubly linked list of hash-queue */
 	struct buffer_head * b_prev_free;	/* doubly linked list of buffers */
 	struct buffer_head * b_reqnext;		/* request queue */
 };
@@ -219,17 +221,16 @@ static inline int buffer_protected(struct buffer_head * bh)
 
 #include <linux/pipe_fs_i.h>
 #include <linux/minix_fs_i.h>
-#include <linux/ext_fs_i.h>
 #include <linux/ext2_fs_i.h>
 #include <linux/hpfs_fs_i.h>
 #include <linux/msdos_fs_i.h>
 #include <linux/umsdos_fs_i.h>
 #include <linux/iso_fs_i.h>
 #include <linux/nfs_fs_i.h>
-#include <linux/xia_fs_i.h>
 #include <linux/sysv_fs_i.h>
 #include <linux/affs_fs_i.h>
 #include <linux/ufs_fs_i.h>
+#include <linux/romfs_fs_i.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -269,8 +270,13 @@ struct iattr {
 #include <linux/quota.h>
 
 struct inode {
-	kdev_t		i_dev;
+	struct inode 	*i_hash_next;
+	struct inode	**i_hash_pprev;
+	struct inode	*i_next;
+	struct inode	**i_pprev;
 	unsigned long	i_ino;
+	kdev_t		i_dev;
+	unsigned short	i_count;
 	umode_t		i_mode;
 	nlink_t		i_nlink;
 	uid_t		i_uid;
@@ -292,11 +298,8 @@ struct inode {
 	struct vm_area_struct *i_mmap;
 	struct page *i_pages;
 	struct dquot *i_dquot[MAXQUOTAS];
-	struct inode *i_next, *i_prev;
-	struct inode *i_hash_next, *i_hash_prev;
 	struct inode *i_bound_to, *i_bound_by;
 	struct inode *i_mount;
-	unsigned short i_count;
 	unsigned short i_flags;
 	unsigned char i_lock;
 	unsigned char i_dirt;
@@ -308,17 +311,16 @@ struct inode {
 	union {
 		struct pipe_inode_info pipe_i;
 		struct minix_inode_info minix_i;
-		struct ext_inode_info ext_i;
 		struct ext2_inode_info ext2_i;
 		struct hpfs_inode_info hpfs_i;
 		struct msdos_inode_info msdos_i;
 		struct umsdos_inode_info umsdos_i;
 		struct iso_inode_info isofs_i;
 		struct nfs_inode_info nfs_i;
-		struct xiafs_inode_info xiafs_i;
 		struct sysv_inode_info sysv_i;
 		struct affs_inode_info affs_i;
 		struct ufs_inode_info ufs_i;
+		struct romfs_inode_info romfs_i;
 		struct socket socket_i;
 		void * generic_ip;
 	} u;
@@ -342,6 +344,7 @@ struct file {
 #define FL_FLOCK	2
 #define FL_BROKEN	4	/* broken flock() emulation */
 #define FL_ACCESS	8	/* for processes suspended by mandatory locking */
+#define FL_LOCKD	16	/* lock held by rpc.lockd */
 
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
@@ -349,20 +352,33 @@ struct file_lock {
 	struct file_lock *fl_prevlink;	/* used to simplify lock removal */
 	struct file_lock *fl_nextblock; /* circular list of blocked processes */
 	struct file_lock *fl_prevblock;
-	struct task_struct *fl_owner;
+	void *fl_owner;			/* usu. the process' task_struct */
+	unsigned int fl_pid;
 	struct wait_queue *fl_wait;
 	struct file *fl_file;
 	unsigned char fl_flags;
 	unsigned char fl_type;
 	off_t fl_start;
 	off_t fl_end;
+
+	void (*fl_notify)(struct file_lock *);	/* unblock callback */
+
+	union {
+		struct nfs_lock_info	nfs_fl;
+	} fl_u;
 };
+
+extern struct file_lock		*file_lock_table;
 
 #include <linux/fcntl.h>
 
 extern int fcntl_getlk(unsigned int fd, struct flock *l);
 extern int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l);
 extern void locks_remove_locks(struct task_struct *task, struct file *filp);
+extern struct file_lock *posix_test_lock(struct file *, struct file_lock *);
+extern int posix_lock_file(struct file *, struct file_lock *, unsigned int);
+extern void posix_block_lock(struct file_lock *, struct file_lock *);
+extern void posix_unblock_lock(struct file_lock *);
 
 #include <linux/stat.h>
 
@@ -409,16 +425,15 @@ struct fasync_struct {
 extern int fasync_helper(struct inode *, struct file *, int, struct fasync_struct **);
 
 #include <linux/minix_fs_sb.h>
-#include <linux/ext_fs_sb.h>
 #include <linux/ext2_fs_sb.h>
 #include <linux/hpfs_fs_sb.h>
 #include <linux/msdos_fs_sb.h>
 #include <linux/iso_fs_sb.h>
 #include <linux/nfs_fs_sb.h>
-#include <linux/xia_fs_sb.h>
 #include <linux/sysv_fs_sb.h>
 #include <linux/affs_fs_sb.h>
 #include <linux/ufs_fs_sb.h>
+#include <linux/romfs_fs_sb.h>
 
 struct super_block {
 	kdev_t s_dev;
@@ -438,16 +453,15 @@ struct super_block {
 	struct wait_queue * s_wait;
 	union {
 		struct minix_sb_info minix_sb;
-		struct ext_sb_info ext_sb;
 		struct ext2_sb_info ext2_sb;
 		struct hpfs_sb_info hpfs_sb;
 		struct msdos_sb_info msdos_sb;
 		struct isofs_sb_info isofs_sb;
 		struct nfs_sb_info nfs_sb;
-		struct xiafs_sb_info xiafs_sb;
 		struct sysv_sb_info sysv_sb;
 		struct affs_sb_info affs_sb;
 		struct ufs_sb_info ufs_sb;
+		struct romfs_sb_info romfs_sb;
 		void *generic_sbp;
 	} u;
 };
@@ -465,15 +479,16 @@ struct file_operations {
 	long (*read) (struct inode *, struct file *, char *, unsigned long);
 	long (*write) (struct inode *, struct file *, const char *, unsigned long);
 	int (*readdir) (struct inode *, struct file *, void *, filldir_t);
-	int (*select) (struct inode *, struct file *, int, select_table *);
+	unsigned int (*poll) (struct file *, poll_table *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
 	int (*mmap) (struct inode *, struct file *, struct vm_area_struct *);
 	int (*open) (struct inode *, struct file *);
-	void (*release) (struct inode *, struct file *);
+	int (*release) (struct inode *, struct file *);
 	int (*fsync) (struct inode *, struct file *);
 	int (*fasync) (struct inode *, struct file *, int);
 	int (*check_media_change) (kdev_t dev);
 	int (*revalidate) (kdev_t dev);
+	int (*lock) (struct inode *, struct file *, int, struct file_lock *);
 };
 
 struct inode_operations {
@@ -495,6 +510,9 @@ struct inode_operations {
 	void (*truncate) (struct inode *);
 	int (*permission) (struct inode *, int);
 	int (*smap) (struct inode *,int);
+	int (*updatepage) (struct inode *, struct page *, const char *,
+				unsigned long, unsigned int, int);
+	int (*revalidate) (struct inode *);
 };
 
 struct super_operations {
@@ -539,7 +557,7 @@ extern int do_truncate(struct inode *, unsigned long);
 extern int register_blkdev(unsigned int, const char *, struct file_operations *);
 extern int unregister_blkdev(unsigned int major, const char * name);
 extern int blkdev_open(struct inode * inode, struct file * filp);
-extern void blkdev_release (struct inode * inode);
+extern int blkdev_release (struct inode * inode);
 extern struct file_operations def_blk_fops;
 extern struct inode_operations blkdev_inode_operations;
 
@@ -571,20 +589,17 @@ extern struct super_block super_blocks[NR_SUPER];
 
 extern void refile_buffer(struct buffer_head * buf);
 extern void set_writetime(struct buffer_head * buf, int flag);
-extern void refill_freelist(int size);
 extern int try_to_free_buffer(struct buffer_head*, struct buffer_head**, int);
 
 extern int nr_buffers;
 extern int buffermem;
 extern int nr_buffer_heads;
 
-#define BUF_CLEAN 0
-#define BUF_UNSHARED 1 /* Buffers that were shared but are not any more */
-#define BUF_LOCKED 2   /* Buffers scheduled for write */
-#define BUF_LOCKED1 3  /* Supers, inodes */
-#define BUF_DIRTY 4    /* Dirty buffers, not yet scheduled for write */
-#define BUF_SHARED 5   /* Buffers shared */
-#define NR_LIST 6
+#define BUF_CLEAN	0
+#define BUF_LOCKED	1	/* Buffers scheduled for write */
+#define BUF_LOCKED1	2	/* Supers, inodes */
+#define BUF_DIRTY	3	/* Dirty buffers, not yet scheduled for write */
+#define NR_LIST		4
 
 void mark_buffer_uptodate(struct buffer_head * bh, int on);
 
@@ -654,6 +669,7 @@ extern inline void bforget(struct buffer_head *buf)
 		__bforget(buf);
 }
 extern void set_blocksize(kdev_t dev, int size);
+extern unsigned int get_hardblocksize(kdev_t dev);
 extern struct buffer_head * bread(kdev_t dev, int block, int size);
 extern struct buffer_head * breada(kdev_t dev,int block, int size, 
 				   unsigned int pos, unsigned int filesize);
@@ -663,6 +679,7 @@ extern int brw_page(int, struct page *, kdev_t, int [], int, int);
 extern int generic_readpage(struct inode *, struct page *);
 extern int generic_file_mmap(struct inode *, struct file *, struct vm_area_struct *);
 extern long generic_file_read(struct inode *, struct file *, char *, unsigned long);
+extern long generic_file_write(struct inode *, struct file *, const char *, unsigned long);
 
 extern void put_super(kdev_t dev);
 unsigned long generate_cluster(kdev_t dev, int b[], int size);

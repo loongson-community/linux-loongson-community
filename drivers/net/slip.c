@@ -70,6 +70,7 @@
 #include <linux/skbuff.h>
 #include <linux/if_arp.h>
 #include <linux/if_slip.h>
+#include <linux/init.h>
 #include "slip.h"
 #ifdef CONFIG_INET
 #include <linux/ip.h>
@@ -90,7 +91,9 @@ typedef struct slip_ctrl {
 	struct device	dev;		/* the device			*/
 } slip_ctrl_t;
 static slip_ctrl_t	**slip_ctrls = NULL;
+
 int slip_maxdev = SL_NRUNIT;		/* Can be overridden with insmod! */
+MODULE_PARM(slip_maxdev, "i");
 
 static struct tty_ldisc	sl_ldisc;
 
@@ -109,7 +112,7 @@ static void sl_outfill(unsigned long sls);
 static inline struct slip *
 sl_alloc(void)
 {
-	slip_ctrl_t *slp;
+	slip_ctrl_t *slp = NULL;
 	int i;
 
 	if (slip_ctrls == NULL) return NULL;	/* Master array missing ! */
@@ -291,7 +294,7 @@ static void sl_changedmtu(struct slip *sl)
 		}
 	}
 	sl->mtu      = dev->mtu;
-	
+
 	sl->buffsize = len;
 
 	restore_flags(flags);
@@ -310,7 +313,7 @@ static void sl_changedmtu(struct slip *sl)
 }
 
 
-/* Set the "sending" flag.  This must be atomic, hence the ASM. */
+/* Set the "sending" flag.  This must be atomic hence the set_bit. */
 static inline void
 sl_lock(struct slip *sl)
 {
@@ -370,6 +373,8 @@ sl_bump(struct slip *sl)
 	}
 #endif  /* SL_INCLUDE_CSLIP */
 
+	sl->rx_bytes+=count;
+	
 	skb = dev_alloc_skb(count);
 	if (skb == NULL)  {
 		printk("%s: memory squeeze, dropping packet.\n", sl->dev->name);
@@ -506,8 +511,10 @@ sl_xmit(struct sk_buff *skb, struct device *dev)
 	}
 
 	/* We were not busy, so we are now... :-) */
-	if (skb != NULL) {
+	if (skb != NULL) 
+	{
 		sl_lock(sl);
+		sl->tx_bytes+=skb->len;
 		sl_encaps(sl, skb->data, skb->len);
 		dev_kfree_skb(skb, FREE_WRITE);
 	}
@@ -516,24 +523,6 @@ sl_xmit(struct sk_buff *skb, struct device *dev)
 
 
 /* Return the frame type ID.  This is normally IP but maybe be AX.25. */
-
-/* Fill in the MAC-level header. Not used by SLIP. */
-static int
-sl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
-	  void *daddr, void *saddr, unsigned len)
-{
-	return 0;
-}
-
-
-/* Rebuild the MAC-level header.  Not used by SLIP. */
-static int
-sl_rebuild_header(void *buff, struct device *dev, unsigned long raddr,
-		  struct sk_buff *skb)
-{
-	return 0;
-}
-
 
 /* Open the low-level part of the SLIP channel. Easy! */
 static int
@@ -589,11 +578,11 @@ sl_open(struct device *dev)
 	sl->xbits    = 0;
 #endif
 	sl->flags   &= (1 << SLF_INUSE);      /* Clear ESCAPE & ERROR flags */
-#ifdef CONFIG_SLIP_SMART	
+#ifdef CONFIG_SLIP_SMART
 	sl->keepalive=0;		/* no keepalive by default = VSV */
 	init_timer(&sl->keepalive_timer);	/* initialize timer_list struct */
 	sl->keepalive_timer.data=(unsigned long)sl;
-	sl->keepalive_timer.function=sl_keepalive;	
+	sl->keepalive_timer.function=sl_keepalive;
 	sl->outfill=0;			/* & outfill too */
 	init_timer(&sl->outfill_timer);
 	sl->outfill_timer.data=(unsigned long)sl;
@@ -635,14 +624,13 @@ sl_close(struct device *dev)
 	sl->tty->flags &= ~(1 << TTY_DO_WRITE_WAKEUP);
 	dev->tbusy = 1;
 	dev->start = 0;
-	
+
 /*	dev->flags &= ~IFF_UP; */
 
 	return 0;
 }
 
-static int
-slip_receive_room(struct tty_struct *tty)
+static int slip_receive_room(struct tty_struct *tty)
 {
 	return 65536;  /* We can handle an infinite amount of data. :-) */
 }
@@ -653,8 +641,8 @@ slip_receive_room(struct tty_struct *tty)
  * a block of SLIP data has been received, which can now be decapsulated
  * and sent on to some IP layer for further processing.
  */
-static void
-slip_receive_buf(struct tty_struct *tty, const unsigned char *cp, char *fp, int count)
+ 
+static void slip_receive_buf(struct tty_struct *tty, const unsigned char *cp, char *fp, int count)
 {
 	struct slip *sl = (struct slip *) tty->disc_data;
 
@@ -727,7 +715,7 @@ slip_open(struct tty_struct *tty)
 	if ((err = sl_open(sl->dev)))  {
 		return err;
 	}
-	
+
 	MOD_INC_USE_COUNT;
 
 	/* Done.  We have linked the TTY line to a channel. */
@@ -752,7 +740,7 @@ slip_close(struct tty_struct *tty)
 	}
 
 	(void) dev_close(sl->dev);
-	
+
 	tty->disc_data = 0;
 	sl->tty = NULL;
 	/* VSV = very important to remove timers */
@@ -768,19 +756,21 @@ slip_close(struct tty_struct *tty)
 }
 
 
-static struct enet_statistics *
+static struct net_device_stats *
 sl_get_stats(struct device *dev)
 {
-	static struct enet_statistics stats;
+	static struct net_device_stats stats;
 	struct slip *sl = (struct slip*)(dev->priv);
 #ifdef SL_INCLUDE_CSLIP
 	struct slcompress *comp;
 #endif
 
-	memset(&stats, 0, sizeof(struct enet_statistics));
+	memset(&stats, 0, sizeof(struct net_device_stats));
 
 	stats.rx_packets     = sl->rx_packets;
 	stats.tx_packets     = sl->tx_packets;
+	stats.rx_bytes	     = sl->rx_bytes;
+	stats.tx_bytes	     = sl->tx_bytes;
 	stats.rx_dropped     = sl->rx_dropped;
 	stats.tx_dropped     = sl->tx_dropped;
 	stats.tx_errors      = sl->tx_errors;
@@ -844,8 +834,7 @@ slip_esc(unsigned char *s, unsigned char *d, int len)
 	return (ptr - d);
 }
 
-static void
-slip_unesc(struct slip *sl, unsigned char s)
+static void slip_unesc(struct slip *sl, unsigned char s)
 {
 
 	switch(s) {
@@ -1034,7 +1023,7 @@ slip_ioctl(struct tty_struct *tty, void *file, int cmd, void *arg)
 		}
 		get_user(tmp,(int *)arg);
                 if (tmp > 255) /* max for unchar */
-			return -EINVAL; 
+			return -EINVAL;
 		if ((sl->keepalive = (unchar) tmp) != 0) {
 			sl->keepalive_timer.expires=jiffies+sl->keepalive*HZ;
 			add_timer(&sl->keepalive_timer);
@@ -1075,7 +1064,7 @@ slip_ioctl(struct tty_struct *tty, void *file, int cmd, void *arg)
 		put_user(sl->outfill, (int *)arg);
 		return 0;
 	/* VSV changes end */
-#endif	
+#endif
 
 	/* Allow stty to read, but not set, the serial port */
 	case TCGETS:
@@ -1099,7 +1088,7 @@ static int sl_open_dev(struct device *dev)
 #ifdef MODULE
 static int slip_init_ctrl_dev(void)
 #else	/* !MODULE */
-int slip_init_ctrl_dev(struct device *dummy)
+__initfunc(int slip_init_ctrl_dev(struct device *dummy))
 #endif	/* !MODULE */
 {
 	int status;
@@ -1117,21 +1106,22 @@ int slip_init_ctrl_dev(struct device *dummy)
 #endif
 #ifdef CONFIG_SLIP_SMART
 	printk(KERN_INFO "SLIP linefill/keepalive option.\n");
-#endif	
+#endif
 
 	slip_ctrls = (slip_ctrl_t **) kmalloc(sizeof(void*)*slip_maxdev, GFP_KERNEL);
-	if (slip_ctrls == NULL) 
+	if (slip_ctrls == NULL)
 	{
 		printk("SLIP: Can't allocate slip_ctrls[] array!  Uaargh! (-> No SLIP available)\n");
 		return -ENOMEM;
 	}
-	
+
 	/* Clear the pointer array, we allocate devices when we need them */
 	memset(slip_ctrls, 0, sizeof(void*)*slip_maxdev); /* Pointers */
 
 	/* Fill in our line protocol discipline, and register it */
 	memset(&sl_ldisc, 0, sizeof(sl_ldisc));
 	sl_ldisc.magic  = TTY_LDISC_MAGIC;
+	sl_ldisc.name   = "slip";
 	sl_ldisc.flags  = 0;
 	sl_ldisc.open   = slip_open;
 	sl_ldisc.close  = slip_close;
@@ -1139,7 +1129,7 @@ int slip_init_ctrl_dev(struct device *dummy)
 	sl_ldisc.write  = NULL;
 	sl_ldisc.ioctl  = (int (*)(struct tty_struct *, struct file *,
 				   unsigned int, unsigned long)) slip_ioctl;
-	sl_ldisc.select = NULL;
+	sl_ldisc.poll   = NULL;
 	sl_ldisc.receive_buf = slip_receive_buf;
 	sl_ldisc.receive_room = slip_receive_room;
 	sl_ldisc.write_wakeup = slip_write_wakeup;
@@ -1159,41 +1149,39 @@ int slip_init_ctrl_dev(struct device *dummy)
       }
 
 
-/* Initialize the SLIP driver.  Called by DDI. */
-int
-slip_init(struct device *dev)
+/* Initialise the SLIP driver.  Called by the device init code */
+
+int slip_init(struct device *dev)
 {
 	struct slip *sl = (struct slip*)(dev->priv);
-	int i;
 
 	if (sl == NULL)		/* Allocation failed ?? */
 	  return -ENODEV;
 
 	/* Set up the "SLIP Control Block". (And clear statistics) */
-	
+
 	memset(sl, 0, sizeof (struct slip));
 	sl->magic  = SLIP_MAGIC;
 	sl->dev	   = dev;
-	
-	/* Finish setting up the DEVICE info. */
+
+	/*
+	 *	Finish setting up the DEVICE info. 
+	 */
+	 
 	dev->mtu		= SL_MTU;
 	dev->hard_start_xmit	= sl_xmit;
 	dev->open		= sl_open_dev;
 	dev->stop		= sl_close;
-	dev->hard_header	= sl_header;
 	dev->get_stats	        = sl_get_stats;
 	dev->hard_header_len	= 0;
 	dev->addr_len		= 0;
 	dev->type		= ARPHRD_SLIP + SL_MODE_DEFAULT;
 	dev->tx_queue_len	= 10;
-	dev->rebuild_header	= sl_rebuild_header;
 
-	for (i = 0; i < DEV_NUMBUFFS; i++)  {
-		skb_queue_head_init(&dev->buffs[i]);
-	}
-
+	dev_init_buffers(dev);
+	
 	/* New-style flags. */
-	dev->flags		= 0;
+	dev->flags		= IFF_NOARP|IFF_MULTICAST;
 	dev->family		= AF_INET;
 	dev->pa_addr		= 0;
 	dev->pa_brdaddr	        = 0;
@@ -1215,16 +1203,16 @@ cleanup_module(void)
 {
 	int i;
 
-	if (slip_ctrls != NULL) 
+	if (slip_ctrls != NULL)
 	{
-		for (i = 0; i < slip_maxdev; i++)  
+		for (i = 0; i < slip_maxdev; i++)
 		{
 			if (slip_ctrls[i])
 			{
 				/*
 				 * VSV = if dev->start==0, then device
 				 * unregistered while close proc.
-				 */ 
+				 */
 				if (slip_ctrls[i]->dev.start)
 					unregister_netdev(&(slip_ctrls[i]->dev));
 
@@ -1235,7 +1223,7 @@ cleanup_module(void)
 		kfree(slip_ctrls);
 		slip_ctrls = NULL;
 	}
-	if ((i = tty_register_ldisc(N_SLIP, NULL)))  
+	if ((i = tty_register_ldisc(N_SLIP, NULL)))
 	{
 		printk("SLIP: can't unregister line discipline (err = %d)\n", i);
 	}
@@ -1247,7 +1235,7 @@ cleanup_module(void)
  * This is start of the code for multislip style line checking
  * added by Stanislav Voronyi. All changes before marked VSV
  */
- 
+
 static void sl_outfill(unsigned long sls)
 {
 	struct slip *sl=(struct slip *)sls;
@@ -1267,7 +1255,7 @@ static void sl_outfill(unsigned long sls)
 #endif
 			/* put END into tty queue. Is it right ??? */
 			if (!test_bit(0, (void *) &sl->dev->tbusy))
-			{ 
+			{
 				/* if device busy no outfill */
 				sl->tty->driver.write(sl->tty, 0, &s, 1);
 			}

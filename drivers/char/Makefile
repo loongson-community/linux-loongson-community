@@ -20,9 +20,12 @@ FONTMAPFILE = cp437.uni
 
 L_TARGET := char.a
 M_OBJS   :=
-L_OBJS   := tty_io.o n_tty.o console.o \
-	tty_ioctl.o pty.o vt.o mem.o vc_screen.o random.o \
-	consolemap.o selection.o
+L_OBJS   := tty_io.o n_tty.o tty_ioctl.o pty.o mem.o random.o
+
+ifdef CONFIG_VT
+L_OBJS += console.o vt.o vc_screen.o consolemap.o
+LX_OBJS += selection.o
+endif
 
 ifeq ($(CONFIG_SERIAL),y)
   ifndef CONFIG_SUN_SERIAL
@@ -37,7 +40,19 @@ else
 endif
 
 ifndef CONFIG_SUN_KEYBOARD
+ifdef CONFIG_VT
 L_OBJS += keyboard.o defkeymap.o
+endif
+endif
+
+ifeq ($(CONFIG_ATARI_DSP56K),y)
+L_OBJS += dsp56k.o
+S = y
+else
+  ifeq ($(CONFIG_ATARI_DSP56K),m)
+  M_OBJS += dsp56k.o
+  SM = y
+  endif
 endif
 
 ifeq ($(CONFIG_DIGI),y)
@@ -77,6 +92,14 @@ L_OBJS += riscom8.o
 else
   ifeq ($(CONFIG_RISCOM8),m)
   M_OBJS += riscom8.o
+  endif
+endif
+
+ifeq ($(CONFIG_ESPSERIAL),y)
+L_OBJS += esp.o
+else
+  ifeq ($(CONFIG_ESPSERIAL),m)
+  M_OBJS += esp.o
   endif
 endif
 
@@ -153,8 +176,36 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_AMIGAMOUSE),y)
+M = y
+L_OBJS += amigamouse.o
+else
+  ifeq ($(CONFIG_AMIGAMOUSE),m)
+    M_OBJS += amigamouse.o
+    MM = m
+  endif
+endif
+
+ifeq ($(CONFIG_ATARIMOUSE),y)
+M = y
+L_OBJS += atarimouse.o
+else
+  ifeq ($(CONFIG_ATARIMOUSE),m)
+    M_OBJS += atarimouse.o
+    MM = m
+  endif
+endif
+
 ifdef CONFIG_SUN_MOUSE
 M = y
+endif
+
+ifeq ($(CONFIG_SUN_OPENPROMIO),y)
+M = y
+else
+  ifeq ($(CONFIG_SUN_OPENPROMIO),m)
+  MM = m
+  endif
 endif
 
 ifeq ($(CONFIG_WDT),y)
@@ -172,8 +223,12 @@ M = y
 L_OBJS += rtc.o
 endif
 
-ifdef CONFIG_QIC02_TAPE
-L_OBJS += tpqic02.o 
+ifeq ($(CONFIG_QIC02_TAPE),y)
+L_OBJS += tpqic02.o
+else
+  ifeq ($(CONFIG_QIC02_TAPE),m)
+  M_OBJS += tpqic02.o
+  endif
 endif
 
 ifeq ($(CONFIG_FTAPE),y)
@@ -198,14 +253,16 @@ else
   endif
 endif
   
-ifdef CONFIG_TGA_CONSOLE
-L_OBJS += tga.o
-else
- ifndef CONFIG_SUN_CONSOLE
-  ifndef CONFIG_VIDEO_G364
-    ifndef CONFIG_SGI
-    L_OBJS += vga.o vesa_blank.o
-    endif
+ifdef CONFIG_VT
+ ifdef CONFIG_TGA_CONSOLE
+ L_OBJS += tga.o
+ else
+  ifndef CONFIG_SUN_CONSOLE
+   ifndef CONFIG_VIDEO_G364
+     ifndef CONFIG_SGI
+     L_OBJS += vga.o vesa_blank.o
+     endif
+   endif
   endif
  endif
 endif
@@ -221,3 +278,6 @@ conmakehash: conmakehash.c
 
 uni_hash.tbl: $(FONTMAPFILE) conmakehash
 	./conmakehash $(FONTMAPFILE) > uni_hash.tbl
+
+defkeymap.c: defkeymap.map
+	loadkeys --mktable defkeymap.map > defkeymap.c

@@ -15,40 +15,60 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/bitops.h>
+#include <asm/atomic.h>
 
-unsigned long intr_count = 0;
+/* intr_count died a painless death... -DaveM */
 
 int bh_mask_count[32];
 unsigned long bh_active = 0;
 unsigned long bh_mask = 0;
 void (*bh_base[32])(void);
 
+/*
+ * This needs to make sure that only one bottom half handler
+ * is ever active at a time. We do this without locking by
+ * doing an atomic increment on the intr_count, and checking
+ * (nonatomically) against 1. Only if it's 1 do we schedule
+ * the bottom half.
+ *
+ * Note that the non-atomicity of the test (as opposed to the
+ * actual update) means that the test may fail, and _nobody_
+ * runs the handlers if there is a race that makes multiple
+ * CPU's get here at the same time. That's ok, we'll run them
+ * next time around.
+ */
+static inline void run_bottom_halves(void)
+{
+	unsigned long active;
+	void (**bh)(void);
+
+	active = get_active_bhs();
+	clear_active_bhs(active);
+	bh = bh_base;
+	do {
+		if (active & 1)
+			(*bh)();
+		bh++;
+		active >>= 1;
+	} while (active);
+}
 
 asmlinkage void do_bottom_half(void)
 {
-	unsigned long active;
-	unsigned long mask, left;
-	void (**bh)(void);
+	int cpu = smp_processor_id();
 
-	sti();
-	bh = bh_base;
-	active = bh_active & bh_mask;
-	for (mask = 1, left = ~0 ; left & active ; bh++,mask += mask,left += left) {
-		if (mask & active) {
-			void (*fn)(void);
-			bh_active &= ~mask;
-			fn = *bh;
-			if (!fn)
-				goto bad_bh;
-			fn();
+	if (hardirq_trylock(cpu)) {
+		if (softirq_trylock()) {
+			run_bottom_halves();
+			softirq_endlock();
 		}
+		hardirq_endlock(cpu);
 	}
-	return;
-bad_bh:
-	printk ("irq.c:bad bottom half entry %08lx\n", mask);
 }

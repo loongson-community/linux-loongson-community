@@ -18,18 +18,10 @@ COMPILE_ARCH = $(shell uname -m)
 
 # override top level makefile
 AS += -m68020
-ifdef CONFIG_KERNEL_ELF
 LD += -m m68kelf
 ifneq ($(COMPILE_ARCH),$(ARCH))
 	# prefix for cross-compiling binaries
 	CROSS_COMPILE = m68k-linux-
-endif
-else
-LD += -m m68klinux
-ifneq ($(COMPILE_ARCH),$(ARCH))
-	# prefix for cross-compiling binaries
-	CROSS_COMPILE = m68k-linuxaout-
-endif
 endif
 
 #
@@ -42,53 +34,58 @@ endif
 # -qmagic (we need to remove the 32 byte header for bootup purposes)
 #
 
-ifdef CONFIG_KERNEL_ELF
 LINKFLAGS = -Ttext 0x1000
-else
-LINKFLAGS = -qmagic -Ttext 0xFE0
-endif
 
-CFLAGS := $(CFLAGS) -pipe
+CFLAGS := $(CFLAGS) -pipe -fno-strength-reduce
 
 ifdef CONFIG_OPTIMIZE_040
 CFLAGS := $(CFLAGS) -m68040
 endif
 
 ifdef CONFIG_OPTIMIZE_060
-CFLAGS := $(CFLAGS) -m68020-40 -Wa,-m68060
+CFLAGS := $(CFLAGS) -m68020-40
+endif
+
+ifdef CONFIG_KGDB
+# If configured for kgdb support, include debugging infos and keep the
+# frame pointer
+CFLAGS := $(subst -fomit-frame-pointer,,$(CFLAGS)) -g
 endif
 
 HEAD := arch/m68k/kernel/head.o
 
-SUBDIRS += arch/m68k/kernel arch/m68k/mm arch/m68k/console arch/m68k/lib
-ARCHIVES := arch/m68k/kernel/kernel.o arch/m68k/mm/mm.o $(ARCHIVES)
+SUBDIRS += arch/m68k/kernel arch/m68k/mm arch/m68k/lib
+CORE_FILES := arch/m68k/kernel/kernel.o arch/m68k/mm/mm.o $(CORE_FILES)
 LIBS += arch/m68k/lib/lib.a
 
 ifdef CONFIG_AMIGA
-ARCHIVES := $(ARCHIVES) arch/m68k/amiga/amiga.o
+CORE_FILES := $(CORE_FILES) arch/m68k/amiga/amiga.o
 SUBDIRS := $(SUBDIRS) arch/m68k/amiga
 endif
 
 ifdef CONFIG_ATARI
-ARCHIVES := $(ARCHIVES) arch/m68k/atari/atari.o
+CORE_FILES := $(CORE_FILES) arch/m68k/atari/atari.o
 SUBDIRS := $(SUBDIRS) arch/m68k/atari
 endif
 
 ifdef CONFIG_MAC
-ARCHIVES := $(ARCHIVES) arch/m68k/mac/mac.o
+CORE_FILES := $(CORE_FILES) arch/m68k/mac/mac.o
 SUBDIRS := $(SUBDIRS) arch/m68k/mac
 endif
 
+ifdef CONFIG_VT
 # add in console.a after {amiga,atari}.o that need it
-ARCHIVES := $(ARCHIVES) arch/m68k/console/console.a
+CORE_FILES := $(CORE_FILES) arch/m68k/console/console.a
+SUBDIRS := $(SUBDIRS) arch/m68k/console
+endif
 
 ifdef CONFIG_M68040
-ARCHIVES := $(ARCHIVES) arch/m68k/fpsp040/fpsp.o
+CORE_FILES := $(CORE_FILES) arch/m68k/fpsp040/fpsp.o
 SUBDIRS := $(SUBDIRS) arch/m68k/fpsp040
 endif
 
 ifdef CONFIG_M68060
-ARCHIVES := $(ARCHIVES) arch/m68k/ifpsp060/ifpsp.o
+CORE_FILES := $(CORE_FILES) arch/m68k/ifpsp060/ifpsp.o
 SUBDIRS := $(SUBDIRS) arch/m68k/ifpsp060
 endif
 
@@ -101,10 +98,24 @@ lilo:	vmlinux
 	cp System.map $(INSTALL_PATH)/System.map
 	if [ -x /sbin/lilo ]; then /sbin/lilo; else /etc/lilo/install; fi
 
-bootstrap:
+zImage compressed: vmlinux.gz
+
+vmlinux.gz: vmlinux
+
+ifdef CONFIG_KGDB
+	cp vmlinux vmlinux.tmp
+	$(STRIP) vmlinux.tmp
+	gzip -9c vmlinux.tmp >vmlinux.gz
+	rm vmlinux.tmp
+else
+	gzip -9c vmlinux >vmlinux.gz
+endif
+
+bootstrap: dummy
 	@$(MAKEBOOT) bootstrap
 
 archclean:
+	rm -f vmlinux.gz
 	@$(MAKEBOOT) clean
 
 archdep:

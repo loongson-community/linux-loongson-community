@@ -201,3 +201,8 @@ SYS(sys_setsockopt, 5)
 SYS(sys_shutdown, 2)
 SYS(sys_socket, 3)
 SYS(sys_socketpair, 4)
+SYS(sys_setresuid, 3)				/* 4185 */
+SYS(sys_getresuid, 3)
+SYS(sys_query_module, 5)
+SYS(sys_poll, 3)
+SYS(sys_nfsservctl, 3)

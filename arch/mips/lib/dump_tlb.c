@@ -15,7 +15,6 @@
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/segment.h>
 
 void
 dump_tlb(int first, int last)

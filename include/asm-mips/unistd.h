@@ -1174,11 +1174,14 @@
 #define __NR_socketpair			(__NR_Linux + 184)
 #define __NR_setresuid			(__NR_Linux + 185)
 #define __NR_getresuid			(__NR_Linux + 186)
+#define __NR_query_module		(__NR_Linux + 187)
+#define __NR_poll			(__NR_Linux + 188)
+#define __NR_nfsservctl			(__NR_Linux + 189)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		186
+#define __NR_Linux_syscalls		189
 
 #ifndef __LANGUAGE_ASSEMBLY__
 

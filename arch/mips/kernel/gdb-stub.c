@@ -70,7 +70,6 @@
 
 #include <asm/asm.h>
 #include <asm/mipsregs.h>
-#include <asm/segment.h>
 #include <asm/cachectl.h>
 #include <asm/system.h>
 #include <asm/gdb-stub.h>

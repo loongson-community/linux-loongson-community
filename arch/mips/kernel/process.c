@@ -24,7 +24,6 @@
 #include <linux/a.out.h>
 
 #include <asm/bootinfo.h>
-#include <asm/segment.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/mipsregs.h>
@@ -65,7 +64,7 @@ void release_thread(struct task_struct *dead_task)
 {
 }
 
-void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
+int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
                  struct task_struct * p, struct pt_regs * regs)
 {
 	struct pt_regs * childregs;
@@ -106,6 +105,8 @@ void copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
                             ~(ST0_CU3|ST0_CU2|ST0_CU1|ST0_KSU|ST0_ERL|ST0_EXL);
 	childregs->cp0_status &= ~(ST0_CU3|ST0_CU2|ST0_CU1);
 	p->mm->context = 0;
+
+	return 0;
 }
 
 /* Fill in the fpu structure for a core dump.. */

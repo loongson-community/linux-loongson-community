@@ -26,7 +26,12 @@
 #include <asm/bitops.h>
 #include <asm/dma.h>
 
-extern void timer_interrupt(struct pt_regs * regs);
+#define RTC_IRQ    8
+#ifdef CONFIG_RTC
+#define TIMER_IRQ  0        /* timer is the pit */
+#else
+#define TIMER_IRQ  RTC_IRQ  /* the timer is, in fact, the rtc */
+#endif
 
 #if NR_IRQS > 64
 #  error Unable to handle more than 64 irq levels.
@@ -52,7 +57,6 @@ extern void timer_interrupt(struct pt_regs * regs);
  *	16..32	PCI interrupts 0..31 (int at I/O port 804)
  */
 static unsigned long irq_mask = ~0UL;
-
 
 /*
  * Update the hardware with the irq mask passed in MASK.  The function
@@ -133,6 +137,7 @@ void enable_irq(unsigned int irq_nr)
 /*
  * Initial irq handlers.
  */
+static struct irqaction timer_irq = { NULL, 0, 0, NULL, NULL, NULL};
 static struct irqaction *irq_action[NR_IRQS];
 
 int get_irq_list(char *buf)
@@ -144,7 +149,7 @@ int get_irq_list(char *buf)
 		action = irq_action[i];
 		if (!action) 
 			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
+		len += sprintf(buf+len, "%2d: %10u %c %s",
 			i, kstat.interrupts[i],
 			(action->flags & SA_INTERRUPT) ? '+' : ' ',
 			action->name);
@@ -212,7 +217,10 @@ int request_irq(unsigned int irq,
 		shared = 1;
 	}
 
-	action = (struct irqaction *)kmalloc(sizeof(struct irqaction),
+        if (irq == TIMER_IRQ)
+ 		action = &timer_irq;
+        else
+		action = (struct irqaction *)kmalloc(sizeof(struct irqaction),
 					     GFP_KERNEL);
 	if (!action)
 		return -ENOMEM;
@@ -274,6 +282,16 @@ static inline void handle_nmi(struct pt_regs * regs)
 	printk("61=%02x, 461=%02x\n", inb(0x61), inb(0x461));
 }
 
+unsigned int local_irq_count[NR_CPUS];
+atomic_t __alpha_bh_counter;
+
+#ifdef __SMP__
+#error Me no hablo Alpha SMP
+#else
+#define irq_enter(cpu, irq)	(++local_irq_count[cpu])
+#define irq_exit(cpu, irq)	(--local_irq_count[cpu])
+#endif
+
 static void unexpected_irq(int irq, struct pt_regs * regs)
 {
 	struct irqaction *action;
@@ -302,27 +320,32 @@ static void unexpected_irq(int irq, struct pt_regs * regs)
 static inline void handle_irq(int irq, struct pt_regs * regs)
 {
 	struct irqaction * action = irq_action[irq];
+	int cpu = smp_processor_id();
 
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
 	if (!action) {
 		unexpected_irq(irq, regs);
-		return;
+	} else {
+		do {
+			action->handler(irq, action->dev_id, regs);
+			action = action->next;
+		} while (action);
 	}
-	do {
-		action->handler(irq, action->dev_id, regs);
-		action = action->next;
-	} while (action);
+	irq_exit(cpu, irq);
 }
 
 static inline void device_interrupt(int irq, int ack, struct pt_regs * regs)
 {
 	struct irqaction * action;
+	int cpu = smp_processor_id();
 
 	if ((unsigned) irq > NR_IRQS) {
 		printk("device_interrupt: unexpected interrupt %d\n", irq);
 		return;
 	}
 
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq]++;
 	action = irq_action[irq];
 	/*
@@ -336,15 +359,16 @@ static inline void device_interrupt(int irq, int ack, struct pt_regs * regs)
 	 */
 	mask_irq(ack);
 	ack_irq(ack);
-	if (!action)
-		return;
-	if (action->flags & SA_SAMPLE_RANDOM)
-		add_interrupt_randomness(irq);
-	do {
-		action->handler(irq, action->dev_id, regs);
-		action = action->next;
-	} while (action);
-	unmask_irq(ack);
+	if (action) {
+		if (action->flags & SA_SAMPLE_RANDOM)
+			add_interrupt_randomness(irq);
+		do {
+			action->handler(irq, action->dev_id, regs);
+			action = action->next;
+		} while (action);
+		unmask_irq(ack);
+	}
+	irq_exit(cpu, irq);
 }
 
 #ifdef CONFIG_PCI
@@ -646,7 +670,9 @@ int probe_irq_off(unsigned long irqs)
 {
 	int i;
 	
-	irqs &= irq_mask & ~1;	/* always mask out irq 0---it's the unused timer */
+        /* as irq 0 & 8 handling don't use this function, i didn't
+	 * bother changing the following: */
+        irqs &= irq_mask & ~1;  /* always mask out irq 0---it's the unused timer */
 #ifdef CONFIG_ALPHA_P2K
 	irqs &= ~(1 << 8);	/* mask out irq 8 since that's the unused RTC input to PIC */
 #endif
@@ -686,7 +712,7 @@ asmlinkage void do_entInt(unsigned long type, unsigned long vector, unsigned lon
 			printk("Interprocessor interrupt? You must be kidding\n");
 			break;
 		case 1:
-			timer_interrupt(&regs);
+		        handle_irq(RTC_IRQ, &regs);
 			return;
 		case 2:
 			machine_check(vector, la_ptr, &regs);

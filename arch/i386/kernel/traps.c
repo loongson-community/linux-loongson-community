@@ -20,6 +20,9 @@
 #include <linux/config.h>
 #include <linux/timer.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -38,10 +41,29 @@ static inline void console_verbose(void)
 #define DO_ERROR(trapnr, signr, str, name, tsk) \
 asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
 { \
+	lock_kernel(); \
 	tsk->tss.error_code = error_code; \
 	tsk->tss.trap_no = trapnr; \
 	force_sig(signr, tsk); \
 	die_if_kernel(str,regs,error_code); \
+	unlock_kernel(); \
+}
+
+#define DO_VM86_ERROR(trapnr, signr, str, name, tsk) \
+asmlinkage void do_##name(struct pt_regs * regs, long error_code) \
+{ \
+	lock_kernel(); \
+	if (regs->eflags & VM_MASK) { \
+		if (!handle_vm86_trap((struct kernel_vm86_regs *) regs, error_code, trapnr)) \
+			goto out; \
+		/* else fall through */ \
+	} \
+	tsk->tss.error_code = error_code; \
+	tsk->tss.trap_no = trapnr; \
+	force_sig(signr, tsk); \
+	die_if_kernel(str,regs,error_code); \
+out: \
+	unlock_kernel(); \
 }
 
 #define get_seg_byte(seg,addr) ({ \
@@ -93,7 +115,7 @@ int kstack_depth_to_print = 24;
 #define VMALLOC_OFFSET (8*1024*1024)
 #define MODULE_RANGE (8*1024*1024)
 
-/*static*/ void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+static void show_registers(struct pt_regs *regs)
 {
 	int i;
 	unsigned long esp;
@@ -103,14 +125,10 @@ int kstack_depth_to_print = 24;
 
 	esp = (unsigned long) &regs->esp;
 	ss = KERNEL_DS;
-	if ((regs->eflags & VM_MASK) || (3 & regs->xcs) == 3)
-		return;
 	if (regs->xcs & 3) {
 		esp = regs->esp;
 		ss = regs->xss & 0xffff;
 	}
-	console_verbose();
-	printk("%s: %04lx\n", str, err & 0xffff);
 	printk("CPU:    %d\n", smp_processor_id());
 	printk("EIP:    %04x:[<%08lx>]\nEFLAGS: %08lx\n", 0xffff & regs->xcs,regs->eip,regs->eflags);
 	printk("eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
@@ -161,15 +179,24 @@ int kstack_depth_to_print = 24;
 	for(i=0;i<20;i++)
 		printk("%02x ",0xff & get_seg_byte(regs->xcs & 0xffff,(i+(char *)regs->eip)));
 	printk("\n");
+}	
+
+/*static*/ void die_if_kernel(const char * str, struct pt_regs * regs, long err)
+{
+	if ((regs->eflags & VM_MASK) || (3 & regs->xcs) == 3)
+		return;
+	console_verbose();
+	printk("%s: %04lx\n", str, err & 0xffff);
+	show_registers(regs);
 	do_exit(SIGSEGV);
 }
 
-DO_ERROR( 0, SIGFPE,  "divide error", divide_error, current)
-DO_ERROR( 3, SIGTRAP, "int3", int3, current)
-DO_ERROR( 4, SIGSEGV, "overflow", overflow, current)
-DO_ERROR( 5, SIGSEGV, "bounds", bounds, current)
+DO_VM86_ERROR( 0, SIGFPE,  "divide error", divide_error, current)
+DO_VM86_ERROR( 3, SIGTRAP, "int3", int3, current)
+DO_VM86_ERROR( 4, SIGSEGV, "overflow", overflow, current)
+DO_VM86_ERROR( 5, SIGSEGV, "bounds", bounds, current)
 DO_ERROR( 6, SIGILL,  "invalid operand", invalid_op, current)
-DO_ERROR( 7, SIGSEGV, "device not available", device_not_available, current)
+DO_VM86_ERROR( 7, SIGSEGV, "device not available", device_not_available, current)
 DO_ERROR( 8, SIGSEGV, "double fault", double_fault, current)
 DO_ERROR( 9, SIGFPE,  "coprocessor segment overrun", coprocessor_segment_overrun, last_task_used_math)
 DO_ERROR(10, SIGSEGV, "invalid TSS", invalid_TSS, current)
@@ -177,21 +204,40 @@ DO_ERROR(11, SIGBUS,  "segment not present", segment_not_present, current)
 DO_ERROR(12, SIGBUS,  "stack segment", stack_segment, current)
 DO_ERROR(17, SIGSEGV, "alignment check", alignment_check, current)
 DO_ERROR(18, SIGSEGV, "reserved", reserved, current)
+/* I don't have documents for this but it does seem to cover the cache
+   flush from user space exception some people get. */
+DO_ERROR(19, SIGSEGV, "cache flush denied", cache_flush_denied, current)
+
+asmlinkage void cache_flush_denied(struct pt_regs * regs, long error_code)
+{
+	if (regs->eflags & VM_MASK) {
+		handle_vm86_fault((struct kernel_vm86_regs *) regs, error_code);
+		return;
+	}
+	die_if_kernel("cache flush denied",regs,error_code);
+	current->tss.error_code = error_code;
+	current->tss.trap_no = 19;
+	force_sig(SIGSEGV, current);
+}
 
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
+	lock_kernel();
 	if (regs->eflags & VM_MASK) {
-		handle_vm86_fault((struct vm86_regs *) regs, error_code);
-		return;
+		handle_vm86_fault((struct kernel_vm86_regs *) regs, error_code);
+		goto out;
 	}
 	die_if_kernel("general protection",regs,error_code);
 	current->tss.error_code = error_code;
 	current->tss.trap_no = 13;
 	force_sig(SIGSEGV, current);	
+out:
+	unlock_kernel();
 }
 
 asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 {
+	printk("NMI\n"); show_registers(regs);
 #ifdef CONFIG_SMP_NMI_INVAL
 	smp_flush_tlb_rcv();
 #else
@@ -205,9 +251,10 @@ asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 
 asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 {
+	lock_kernel();
 	if (regs->eflags & VM_MASK) {
-		handle_vm86_debug((struct vm86_regs *) regs, error_code);
-		return;
+		handle_vm86_trap((struct kernel_vm86_regs *) regs, error_code, 1);
+		goto out;
 	}
 	force_sig(SIGTRAP, current);
 	current->tss.trap_no = 1;
@@ -217,9 +264,11 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 		__asm__("movl %0,%%db7"
 			: /* no output */
 			: "r" (0));
-		return;
+		goto out;
 	}
 	die_if_kernel("debug",regs,error_code);
+out:
+	unlock_kernel();
 }
 
 /*
@@ -231,6 +280,7 @@ void math_error(void)
 {
 	struct task_struct * task;
 
+	lock_kernel();
 	clts();
 #ifdef __SMP__
 	task = current;
@@ -239,7 +289,7 @@ void math_error(void)
 	last_task_used_math = NULL;
 	if (!task) {
 		__asm__("fnclex");
-		return;
+		goto out;
 	}
 #endif
 	/*
@@ -252,6 +302,10 @@ void math_error(void)
 	force_sig(SIGFPE, task);
 	task->tss.trap_no = 16;
 	task->tss.error_code = 0;
+#ifndef __SMP__
+out:
+#endif
+	unlock_kernel();
 }
 
 asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
@@ -312,15 +366,17 @@ asmlinkage void math_state_restore(void)
 
 asmlinkage void math_emulate(long arg)
 {
-  printk("math-emulation not enabled and no coprocessor found.\n");
-  printk("killing %s.\n",current->comm);
-  force_sig(SIGFPE,current);
-  schedule();
+	lock_kernel();
+	printk("math-emulation not enabled and no coprocessor found.\n");
+	printk("killing %s.\n",current->comm);
+	force_sig(SIGFPE,current);
+	schedule();
+	unlock_kernel();
 }
 
 #endif /* CONFIG_MATH_EMULATION */
 
-void trap_init(void)
+__initfunc(void trap_init(void))
 {
 	int i;
 	struct desc_struct * p;

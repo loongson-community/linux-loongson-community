@@ -33,6 +33,7 @@
 #include <linux/console.h>
 #include <linux/interrupt.h>
 
+#include <asm/bootinfo.h>
 #include <asm/setup.h>
 #include <asm/atarihw.h>
 #include <asm/atarihdreg.h>
@@ -44,7 +45,16 @@
 #include <asm/pgtable.h>
 #include <asm/machdep.h>
 
-extern void atari_sched_init(void (*)(int, void *, struct pt_regs *));
+#ifdef CONFIG_KGDB
+#include <asm/kgdb.h>
+#endif
+
+u_long atari_mch_cookie;
+struct atari_hw_present atari_hw_present;
+
+extern char m68k_debug_device[];
+
+static void atari_sched_init(void (*)(int, void *, struct pt_regs *));
 /* atari specific keyboard functions */
 extern int atari_keyb_init(void);
 extern int atari_kbdrate (struct kbd_repeat *);
@@ -53,29 +63,37 @@ extern void atari_kbd_leds (unsigned int);
 extern void atari_init_IRQ (void);
 extern int atari_request_irq (unsigned int irq, void (*handler)(int, void *, struct pt_regs *),
                               unsigned long flags, const char *devname, void *dev_id);
-extern int atari_free_irq (unsigned int irq, void *dev_id);
+extern void atari_free_irq (unsigned int irq, void *dev_id);
 extern void atari_enable_irq (unsigned int);
 extern void atari_disable_irq (unsigned int);
 extern int atari_get_irq_list (char *buf);
+static void atari_get_model(char *model);
+static int atari_get_hardware_list(char *buffer);
 /* atari specific timer functions */
-extern unsigned long atari_gettimeoffset (void);
-extern void atari_mste_gettod (int *, int *, int *, int *, int *, int *);
-extern void atari_gettod (int *, int *, int *, int *, int *, int *);
-extern int atari_mste_hwclk (int, struct hwclk_time *);
-extern int atari_hwclk (int, struct hwclk_time *);
-extern int atari_mste_set_clock_mmss (unsigned long);
-extern int atari_set_clock_mmss (unsigned long);
+static unsigned long atari_gettimeoffset (void);
+static void atari_mste_gettod (int *, int *, int *, int *, int *, int *);
+static void atari_gettod (int *, int *, int *, int *, int *, int *);
+static int atari_mste_hwclk (int, struct hwclk_time *);
+static int atari_hwclk (int, struct hwclk_time *);
+static int atari_mste_set_clock_mmss (unsigned long);
+static int atari_set_clock_mmss (unsigned long);
 extern void atari_mksound( unsigned int count, unsigned int ticks );
-extern void atari_reset( void );
+static void atari_reset( void );
 #ifdef CONFIG_BLK_DEV_FD
 extern int atari_floppy_init (void);
 extern void atari_floppy_setup(char *, int *);
 #endif
-extern void atari_waitbut (void);
 extern struct consw fb_con;
 extern struct fb_info *atari_fb_init(long *);
-extern void atari_debug_init (void);
+static void atari_debug_init(void);
 extern void atari_video_setup(char *, int *);
+
+static struct console atari_console_driver;
+
+/* Can be set somewhere, if a SCC master reset has already be done and should
+ * not be repeated; used by kgdb */
+int atari_SCC_reset_done = 0;
+
 
 extern void (*kd_mksound)(unsigned int, unsigned int);
 
@@ -205,8 +223,36 @@ static int scc_test( volatile char *ctla )
 	return( 1 );
 }
 
+
+    /*
+     *  Parse an Atari-specific record in the bootinfo
+     */
+
+int atari_parse_bootinfo(const struct bi_record *record)
+{
+    int unknown = 0;
+    const u_long *data = record->data;
+
+    switch (record->tag) {
+	case BI_ATARI_MCH_COOKIE:
+	    atari_mch_cookie = *data;
+	    break;
+	default:
+	    unknown = 1;
+    }
+    return(unknown);
+}
+
+    /*
+     *  Setup the Atari configuration info
+     */
+
 void config_atari(void)
 {
+    memset(&atari_hw_present, 0, sizeof(atari_hw_present));
+
+    atari_debug_init();
+
     mach_sched_init      = atari_sched_init;
     mach_keyb_init       = atari_keyb_init;
     mach_kbdrate         = atari_kbdrate;
@@ -214,21 +260,20 @@ void config_atari(void)
     mach_init_IRQ        = atari_init_IRQ;
     mach_request_irq     = atari_request_irq;
     mach_free_irq        = atari_free_irq;
-    mach_enable_irq      = atari_enable_irq;
-    mach_disable_irq     = atari_disable_irq;
+    enable_irq           = atari_enable_irq;
+    disable_irq          = atari_disable_irq;
+    mach_get_model	 = atari_get_model;
+    mach_get_hardware_list = atari_get_hardware_list;
     mach_get_irq_list	 = atari_get_irq_list;
     mach_gettimeoffset   = atari_gettimeoffset;
-    mach_mksound         = atari_mksound;
     mach_reset           = atari_reset;
 #ifdef CONFIG_BLK_DEV_FD
     mach_floppy_init	 = atari_floppy_init;
     mach_floppy_setup	 = atari_floppy_setup;
 #endif
     conswitchp	         = &fb_con;
-    waitbut		 = atari_waitbut;
     mach_fb_init         = atari_fb_init;
     mach_max_dma_address = 0xffffff;
-    mach_debug_init	 = atari_debug_init;
     mach_video_setup	 = atari_video_setup;
     kd_mksound		 = atari_mksound;
 
@@ -237,7 +282,7 @@ void config_atari(void)
      */
 
     printk( "Atari hardware found: " );
-    if (is_medusa) {
+    if (is_medusa || is_hades) {
         /* There's no Atari video hardware on the Medusa, but all the
          * addresses below generate a DTACK so no bus error occurs! */
     }
@@ -279,7 +324,7 @@ void config_atari(void)
 	ATARIHW_SET(SCSI_DMA);
         printk( "TT_SCSI_DMA " );
     }
-    if (hwreg_present( &st_dma.dma_hi )) {
+    if (!is_hades && hwreg_present( &st_dma.dma_hi )) {
 	ATARIHW_SET(STND_DMA);
         printk( "STND_DMA " );
     }
@@ -301,13 +346,17 @@ void config_atari(void)
 	ATARIHW_SET(YM_2149);
         printk( "YM2149 " );
     }
-    if (!is_medusa && hwreg_present( &tt_dmasnd.ctrl )) {
+    if (!is_medusa && !is_hades && hwreg_present( &tt_dmasnd.ctrl )) {
 	ATARIHW_SET(PCM_8BIT);
         printk( "PCM " );
     }
-    if (hwreg_present( (void *)(0xffff8940) )) {
+    if (!is_hades && hwreg_present( &codec.unused5 )) {
 	ATARIHW_SET(CODEC);
         printk( "CODEC " );
+    }
+    if (hwreg_present( &dsp56k_host_interface.icr )) {
+	ATARIHW_SET(DSP56K);
+        printk( "DSP56K " );
     }
     if (hwreg_present( &tt_scc_dma.dma_ctrl ) &&
 #if 0
@@ -315,7 +364,7 @@ void config_atari(void)
 	(tt_scc_dma.dma_ctrl = 0x01, (tt_scc_dma.dma_ctrl & 1) == 1) &&
 	(tt_scc_dma.dma_ctrl = 0x00, (tt_scc_dma.dma_ctrl & 1) == 0)
 #else
-	!is_medusa
+	!is_medusa && !is_hades
 #endif
 	) {
 	ATARIHW_SET(SCC_DMA);
@@ -329,7 +378,12 @@ void config_atari(void)
 	ATARIHW_SET( ST_ESCC );
 	printk( "ST_ESCC " );
     }
-    if (hwreg_present( &tt_scu.sys_mask )) {
+    if (is_hades)
+    {
+        ATARIHW_SET( VME );
+        printk( "VME " );
+    }
+    else if (hwreg_present( &tt_scu.sys_mask )) {
 	ATARIHW_SET(SCU);
 	/* Assume a VME bus if there's a SCU */
 	ATARIHW_SET( VME );
@@ -339,7 +393,7 @@ void config_atari(void)
 	ATARIHW_SET(ANALOG_JOY);
         printk( "ANALOG_JOY " );
     }
-    if (hwreg_present( blitter.halftone )) {
+    if (!is_hades && hwreg_present( blitter.halftone )) {
 	ATARIHW_SET(BLITTER);
         printk( "BLITTER " );
     }
@@ -348,7 +402,7 @@ void config_atari(void)
         printk( "IDE " );
     }
 #if 1 /* This maybe wrong */
-    if (!is_medusa &&
+    if (!is_medusa && !is_hades &&
 	hwreg_present( &tt_microwire.data ) &&
 	hwreg_present( &tt_microwire.mask ) &&
 	(tt_microwire.mask = 0x7ff,
@@ -366,20 +420,20 @@ void config_atari(void)
         mach_hwclk = atari_hwclk;
         mach_set_clock_mmss = atari_set_clock_mmss;
     }
-    if (hwreg_present( &mste_rtc.sec_ones)) {
+    if (!is_hades && hwreg_present( &mste_rtc.sec_ones)) {
 	ATARIHW_SET(MSTE_CLK);
         printk( "MSTE_CLK ");
         mach_gettod = atari_mste_gettod;
         mach_hwclk = atari_mste_hwclk;
         mach_set_clock_mmss = atari_mste_set_clock_mmss;
     }
-    if (!is_medusa &&
+    if (!is_medusa && !is_hades &&
 	hwreg_present( &dma_wd.fdc_speed ) &&
 	hwreg_write( &dma_wd.fdc_speed, 0 )) {
 	    ATARIHW_SET(FDCSPEED);
 	    printk( "FDC_SPEED ");
     }
-    if (!ATARIHW_PRESENT(ST_SCSI)) {
+    if (!is_hades && !ATARIHW_PRESENT(ST_SCSI)) {
 	ATARIHW_SET(ACSI);
         printk( "ACSI " );
     }
@@ -390,9 +444,11 @@ void config_atari(void)
          * translation (the one that must not be turned off in
          * head.S...)
          */
-        __asm__ volatile ("moveq #0,%/d0;"
-                          ".long 0x4e7b0004;"	/* movec d0,itt0 */
-                          ".long 0x4e7b0006;"	/* movec d0,dtt0 */
+        __asm__ volatile ("moveq #0,%/d0\n\t"
+                          ".chip 68040\n\t"
+			  "movec %%d0,%%itt0\n\t"
+			  "movec %%d0,%%dtt0\n\t"
+			  ".chip 68k"
 						  : /* no outputs */
 						  : /* no inputs */
 						  : "d0");
@@ -416,13 +472,18 @@ void config_atari(void)
         tt1_val = 0xfe008543;	/* Translate 0xfexxxxxx, enable, cache
                                  * inhibit, read and write, FDC mask = 3,
                                  * FDC val = 4 -> Supervisor only */
-        __asm__ __volatile__ ( "pmove	%0@,%/tt1" : : "a" (&tt1_val) );
+        __asm__ __volatile__ ( ".chip 68030\n\t"
+				"pmove	%0@,%/tt1\n\t"
+				".chip 68k"
+				: : "a" (&tt1_val) );
     }
     else {
         __asm__ __volatile__
             ( "movel %0,%/d0\n\t"
-              ".long 0x4e7b0005\n\t"	/* movec d0,itt1 */
-              ".long 0x4e7b0007"	/* movec d0,dtt1 */
+	      ".chip 68040\n\t"
+	      "movec %%d0,%%itt1\n\t"
+	      "movec %%d0,%%dtt1\n\t"
+	      ".chip 68k"
               :
               : "g" (0xfe00a040)	/* Translate 0xfexxxxxx, enable,
                                          * supervisor only, non-cacheable/
@@ -432,7 +493,7 @@ void config_atari(void)
     }
 }
 
-void atari_sched_init(void (*timer_routine)(int, void *, struct pt_regs *))
+static void atari_sched_init(void (*timer_routine)(int, void *, struct pt_regs *))
 {
     /* set Timer C data Register */
     mfp.tim_dt_c = INT_TICKS;
@@ -448,7 +509,7 @@ void atari_sched_init(void (*timer_routine)(int, void *, struct pt_regs *))
 #define TICK_SIZE 10000
   
 /* This is always executed with interrupts disabled.  */
-unsigned long atari_gettimeoffset (void)
+static unsigned long atari_gettimeoffset (void)
 {
   unsigned long ticks, offset = 0;
 
@@ -511,8 +572,8 @@ mste_write(struct MSTE_RTC *val)
 	} while(0)
 
 
-void atari_mste_gettod (int *yearp, int *monp, int *dayp,
-			int *hourp, int *minp, int *secp)
+static void atari_mste_gettod (int *yearp, int *monp, int *dayp,
+			       int *hourp, int *minp, int *secp)
 {
     int hr24=0, hour;
     struct MSTE_RTC val;
@@ -538,8 +599,8 @@ void atari_mste_gettod (int *yearp, int *monp, int *dayp,
 }
 
   
-void atari_gettod (int *yearp, int *monp, int *dayp,
-		   int *hourp, int *minp, int *secp)
+static void atari_gettod (int *yearp, int *monp, int *dayp,
+			  int *hourp, int *minp, int *secp)
 {
     unsigned char	ctrl;
     unsigned short tos_version;
@@ -585,13 +646,13 @@ void atari_gettod (int *yearp, int *monp, int *dayp,
        we use the fact that in head.S we have set up a mapping
        0xFFxxxxxx -> 0x00xxxxxx, so that the first 16MB is accessible
        in the last 16MB of the address space. */
-    tos_version = is_medusa ? 0xfff : *(unsigned short *)0xFF000002;
+    tos_version = (is_medusa || is_hades) ? 0xfff : *(unsigned short *)0xFF000002;
     *yearp += (tos_version < 0x306) ? 70 : 68;
 }
 
 #define HWCLK_POLL_INTERVAL	5
 
-int atari_mste_hwclk( int op, struct hwclk_time *t )
+static int atari_mste_hwclk( int op, struct hwclk_time *t )
 {
     int hour, year;
     int hr24=0;
@@ -650,7 +711,7 @@ int atari_mste_hwclk( int op, struct hwclk_time *t )
     return 0;
 }
 
-int atari_hwclk( int op, struct hwclk_time *t )
+static int atari_hwclk( int op, struct hwclk_time *t )
 {
     int sec=0, min=0, hour=0, day=0, mon=0, year=0, wday=0; 
     unsigned long 	flags;
@@ -660,7 +721,7 @@ int atari_hwclk( int op, struct hwclk_time *t )
 
     /* Tos version at Physical 2.  See above for explanation why we
        cannot use PTOV(2).  */
-    tos_version = is_medusa ? 0xfff : *(unsigned short *)0xff000002;
+    tos_version = (is_medusa || is_hades) ? 0xfff : *(unsigned short *)0xff000002;
 
     ctrl = RTC_READ(RTC_CONTROL); /* control registers are
                                    * independent from the UIP */
@@ -777,7 +838,7 @@ int atari_hwclk( int op, struct hwclk_time *t )
 }
 
 
-int atari_mste_set_clock_mmss (unsigned long nowtime)
+static int atari_mste_set_clock_mmss (unsigned long nowtime)
 {
     short real_seconds = nowtime % 60, real_minutes = (nowtime / 60) % 60;
     struct MSTE_RTC val;
@@ -800,7 +861,7 @@ int atari_mste_set_clock_mmss (unsigned long nowtime)
     return 0;
 }
 
-int atari_set_clock_mmss (unsigned long nowtime)
+static int atari_set_clock_mmss (unsigned long nowtime)
 {
     int retval = 0;
     short real_seconds = nowtime % 60, real_minutes = (nowtime / 60) % 60;
@@ -839,13 +900,6 @@ int atari_set_clock_mmss (unsigned long nowtime)
     return retval;
 }
 
-
-void atari_waitbut (void)
-{
-    /* sorry, no-op */
-}
-
-
 static inline void ata_mfp_out (char c)
 {
     while (!(mfp.trn_stat & 0x80)) /* wait for tx buf empty */
@@ -853,12 +907,12 @@ static inline void ata_mfp_out (char c)
     mfp.usart_dta = c;
 }
 
-void ata_mfp_print (const char *str)
+static void atari_mfp_console_write (const char *str, unsigned int count)
 {
-    for( ; *str; ++str ) {
+    while (count--) {
 	if (*str == '\n')
 	    ata_mfp_out( '\r' );
-	ata_mfp_out( *str );
+	ata_mfp_out( *str++ );
     }
 }
 
@@ -871,12 +925,12 @@ static inline void ata_scc_out (char c)
     scc.cha_b_data = c;
 }
 
-void ata_scc_print (const char *str)
+static void atari_scc_console_write (const char *str, unsigned int count)
 {
-    for( ; *str; ++str ) {
+    while (count--) {
 	if (*str == '\n')
 	    ata_scc_out( '\r' );
-	ata_scc_out( *str );
+	ata_scc_out( *str++ );
     }
 }
 
@@ -901,20 +955,20 @@ static int ata_par_out (char c)
     return( 1 );
 }
 
-void ata_par_print (const char *str)
+static void atari_par_console_write (const char *str, unsigned int count)
 {
     static int printer_present = 1;
 
     if (!printer_present)
 	return;
 
-    for( ; *str; ++str ) {
+    while (count--) {
 	if (*str == '\n')
 	    if (!ata_par_out( '\r' )) {
 		printer_present = 0;
 		return;
 	    }
-	if (!ata_par_out( *str )) {
+	if (!ata_par_out( *str++ )) {
 	    printer_present = 0;
 	    return;
 	}
@@ -922,15 +976,18 @@ void ata_par_print (const char *str)
 }
 
 
-void atari_debug_init( void )
+static void atari_debug_init(void)
 {
-    extern void (*debug_print_proc)(const char *);
-    extern char m68k_debug_device[];
-    
+#ifdef CONFIG_KGDB
+	/* if the m68k_debug_device is used by the GDB stub, do nothing here */
+	if (kgdb_initialized)
+		return(NULL);
+#endif
+
     if (!strcmp( m68k_debug_device, "ser" )) {
 	/* defaults to ser2 for a Falcon and ser1 otherwise */
 	strcpy( m68k_debug_device, 
-		((boot_info.bi_atari.mch_cookie >> 16) == ATARI_MCH_FALCON) ?
+		((atari_mch_cookie >> 16) == ATARI_MCH_FALCON) ?
 		"ser2" : "ser1" );
 
     }
@@ -943,7 +1000,7 @@ void atari_debug_init( void )
 	mfp.tim_dt_d   = 2;     /* 9600 bps */
 	mfp.tim_ct_cd |= 0x01;  /* start timer D, 1:4 */
 	mfp.trn_stat  |= 0x01;  /* enable TX */
-	debug_print_proc = ata_mfp_print;
+	atari_console_driver.write = atari_mfp_console_write;
     }
     else if (!strcmp( m68k_debug_device, "ser2" )) {
 	/* SCC Modem2 serial port */
@@ -969,7 +1026,7 @@ void atari_debug_init( void )
 	    scc.cha_b_ctrl = *p++;
 	    MFPDELAY();
 	}
-	debug_print_proc = ata_scc_print;
+	atari_console_driver.write = atari_scc_console_write;
     }
     else if (!strcmp( m68k_debug_device, "par" )) {
 	/* parallel printer */
@@ -980,29 +1037,10 @@ void atari_debug_init( void )
 	sound_ym.wd_data = 0;          /* no char */
 	sound_ym.rd_data_reg_sel = 14; /* select port A */
 	sound_ym.wd_data = sound_ym.rd_data_reg_sel | 0x20; /* strobe H */
-	debug_print_proc = ata_par_print;
+	atari_console_driver.write = atari_par_console_write;
     }
-    else
-	debug_print_proc = NULL;
-}
-
-
-void ata_serial_print (const char *str)
-{
-  int c;
-
-  while (c = *str++, c != 0)
-    {
-      if (c == '\n')
-	{
-	  while (!(mfp.trn_stat & (1 << 7)))
-	    barrier ();
-	  mfp.usart_dta = '\r';
-	}
-      while (!(mfp.trn_stat & (1 << 7)))
-	barrier ();
-      mfp.usart_dta = c;
-    }
+    if (atari_console_driver.write)
+	register_console(&atari_console_driver);
 }
 
 /* ++roman:
@@ -1036,14 +1074,15 @@ void ata_serial_print (const char *str)
   
 /* ++andreas: no need for complicated code, just depend on prefetch */
 
-void atari_reset (void)
+static void atari_reset (void)
 {
     long tc_val = 0;
     long reset_addr;
 
     /* On the Medusa, phys. 0x4 may contain garbage because it's no
        ROM.  See above for explanation why we cannot use PTOV(4). */
-    reset_addr = is_medusa ? 0xe00030 : *(unsigned long *) 0xff000004;
+    reset_addr = is_hades ? 0x7fe00030 :
+                 (is_medusa ? 0xe00030 : *(unsigned long *) 0xff000004);
 
     acia.key_ctrl = ACIA_RESET;             /* reset ACIA for switch off OverScan, if it's active */
 
@@ -1062,7 +1101,9 @@ void atari_reset (void)
 	    /* 68060: clear PCR to turn off superscalar operation */
 	    __asm__ __volatile__
 		("moveq	#0,%/d0\n\t"
-		 ".long	0x4e7b0808"	/* movec d0,pcr */
+		 ".chip 68060\n\t"
+		 "movec %%d0,%%pcr\n\t"
+		 ".chip 68k"
 		 : : : "d0" );
 	}
 	    
@@ -1070,8 +1111,10 @@ void atari_reset (void)
             ("movel    %0,%/d0\n\t"
              "andl     #0xff000000,%/d0\n\t"
              "orw      #0xe020,%/d0\n\t"   /* map 16 MB, enable, cacheable */
-             ".long    0x4e7b0004\n\t"   /* movec d0,itt0 */
-             ".long    0x4e7b0006\n\t"   /* movec d0,dtt0 */
+             ".chip 68040\n\t"
+	     "movec    %%d0,%%itt0\n\t"
+             "movec    %%d0,%%dtt0\n\t"
+	     ".chip 68k\n\t"
              "jmp   %0@\n\t"
              : /* no outputs */
              : "a" (jmp_addr040)
@@ -1080,9 +1123,11 @@ void atari_reset (void)
         __asm__ __volatile__
           ("moveq #0,%/d0\n\t"
 	   "nop\n\t"
-	   ".word 0xf4d8\n\t"		/* cinva i/d */
-	   ".word 0xf518\n\t"		/* pflusha */
-           ".long 0x4e7b0003\n\t"	/* movec d0,tc */
+	   ".chip 68040\n\t"
+	   "cinva %%bc\n\t"
+	   "pflusha\n\t"
+	   "movec %%d0,%%tc\n\t"
+	   ".chip 68k\n\t"
            "jmp %0@"
            : /* no outputs */
            : "a" (reset_addr)
@@ -1097,10 +1142,10 @@ void atari_reset (void)
 }
 
 
-void atari_get_model(char *model)
+static void atari_get_model(char *model)
 {
     strcpy(model, "Atari ");
-    switch (boot_info.bi_atari.mch_cookie >> 16) {
+    switch (atari_mch_cookie >> 16) {
 	case ATARI_MCH_ST:
 	    if (ATARIHW_PRESENT(MSTE_CLK))
 		strcat (model, "Mega ST");
@@ -1108,7 +1153,7 @@ void atari_get_model(char *model)
 		strcat (model, "ST");
 	    break;
 	case ATARI_MCH_STE:
-	    if ((boot_info.bi_atari.mch_cookie & 0xffff) == 0x10)
+	    if ((atari_mch_cookie & 0xffff) == 0x10)
 		strcat (model, "Mega STE");
 	    else
 		strcat (model, "STE");
@@ -1117,6 +1162,8 @@ void atari_get_model(char *model)
 	    if (is_medusa)
 		/* Medusa has TT _MCH cookie */
 		strcat (model, "Medusa");
+	    else if (is_hades)
+		strcat(model, "Hades");
 	    else
 		strcat (model, "TT");
 	    break;
@@ -1125,21 +1172,20 @@ void atari_get_model(char *model)
 	    break;
 	default:
 	    sprintf (model + strlen (model), "(unknown mach cookie 0x%lx)",
-		     boot_info.bi_atari.mch_cookie);
+		     atari_mch_cookie);
 	    break;
     }
 }
 
 
-int atari_get_hardware_list(char *buffer)
+static int atari_get_hardware_list(char *buffer)
 {
     int len = 0, i;
 
-    for (i = 0; i < boot_info.num_memory; i++)
+    for (i = 0; i < m68k_num_memory; i++)
 	len += sprintf (buffer+len, "\t%3ld MB at 0x%08lx (%s)\n",
-			boot_info.memory[i].size >> 20,
-			boot_info.memory[i].addr,
-			(boot_info.memory[i].addr & 0xff000000 ?
+			m68k_memory[i].size >> 20, m68k_memory[i].addr,
+			(m68k_memory[i].addr & 0xff000000 ?
 			 "alternate RAM" : "ST-RAM"));
 
 #define ATARIHW_ANNOUNCE(name,str)				\
@@ -1174,6 +1220,7 @@ int atari_get_hardware_list(char *buffer)
     ATARIHW_ANNOUNCE(SCU, "System Control Unit");
     ATARIHW_ANNOUNCE(BLITTER, "Blitter");
     ATARIHW_ANNOUNCE(VME, "VME Bus");
+    ATARIHW_ANNOUNCE(DSP56K, "DSP56001 processor");
 
     return(len);
 }

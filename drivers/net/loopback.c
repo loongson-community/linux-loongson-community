@@ -39,6 +39,7 @@
 #include <linux/errno.h>
 #include <linux/fcntl.h>
 #include <linux/in.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -60,35 +61,32 @@
  */
 static int loopback_xmit(struct sk_buff *skb, struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
-	int unlock=1;
-  
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
+
+	/*
+	 *	Take this out if the debug says its ok
+	 */
+	   
 	if (skb == NULL || dev == NULL) 
-		return(0);
+		printk(KERN_DEBUG "loopback fed NULL data - splat\n");
 
 	/*
 	 *	Optimise so buffers with skb->free=1 are not copied but
 	 *	instead are lobbed from tx queue to rx queue 
 	 */
 
-	if(skb->free==0)
+	if(atomic_read(&skb->users) != 1)
 	{
 	  	struct sk_buff *skb2=skb;
 	  	skb=skb_clone(skb, GFP_ATOMIC);		/* Clone the buffer */
-	  	dev_kfree_skb(skb2, FREE_WRITE);
-	  	if(skb==NULL)
-	  		return 0;
-  		unlock=0;
+	  	if(skb==NULL) {
+			kfree_skb(skb2, FREE_WRITE);
+			return 0;
+		}
+	  	kfree_skb(skb2, FREE_WRITE);
 	}
-	else if(skb->sk)
-	{
-	  	/*
-	  	 *	Packet sent but looped back around. Cease to charge
-	  	 *	the socket for the frame.
-	  	 */
-		atomic_sub(skb->truesize, &skb->sk->wmem_alloc);
-	  	skb->sk->write_space(skb->sk);
-	}
+	else
+		skb_orphan(skb);
 
 	skb->protocol=eth_type_trans(skb,dev);
 	skb->dev=dev;
@@ -96,18 +94,18 @@ static int loopback_xmit(struct sk_buff *skb, struct device *dev)
 	skb->ip_summed = CHECKSUM_UNNECESSARY;
 #endif
 	netif_rx(skb);
-	if(unlock)
-	  	skb_device_unlock(skb);
-  
+
+	stats->rx_bytes+=skb->len;
+	stats->tx_bytes+=skb->len;
 	stats->rx_packets++;
 	stats->tx_packets++;
 
 	return(0);
 }
 
-static struct enet_statistics *get_stats(struct device *dev)
+static struct net_device_stats *get_stats(struct device *dev)
 {
-	return (struct enet_statistics *)dev->priv;
+	return (struct net_device_stats *)dev->priv;
 }
 
 static int loopback_open(struct device *dev)
@@ -117,17 +115,17 @@ static int loopback_open(struct device *dev)
 }
 
 /* Initialize the rest of the LOOPBACK device. */
-int loopback_init(struct device *dev)
+__initfunc(int loopback_init(struct device *dev))
 {
-	int i;
-
 	dev->mtu		= LOOPBACK_MTU;
 	dev->tbusy		= 0;
 	dev->hard_start_xmit	= loopback_xmit;
 	dev->hard_header	= eth_header;
+	dev->hard_header_cache	= eth_header_cache;
+	dev->header_cache_update= eth_header_cache_update;
 	dev->hard_header_len	= ETH_HLEN;		/* 14			*/
 	dev->addr_len		= ETH_ALEN;		/* 6			*/
-	dev->tx_queue_len	= 50000;		/* No limit on loopback */
+	dev->tx_queue_len	= 0;
 	dev->type		= ARPHRD_LOOPBACK;	/* 0x0001		*/
 	dev->rebuild_header	= eth_rebuild_header;
 	dev->open		= loopback_open;
@@ -139,18 +137,17 @@ int loopback_init(struct device *dev)
 	dev->pa_mask		= in_aton("255.0.0.0");
 	dev->pa_alen		= 4;
 #endif  
-	dev->priv = kmalloc(sizeof(struct enet_statistics), GFP_KERNEL);
+	dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL);
 	if (dev->priv == NULL)
 			return -ENOMEM;
-	memset(dev->priv, 0, sizeof(struct enet_statistics));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 	dev->get_stats = get_stats;
 
 	/*
 	 *	Fill in the generic fields of the device structure. 
 	 */
    
-	for (i = 0; i < DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
+	dev_init_buffers(dev);
   
 	return(0);
 };

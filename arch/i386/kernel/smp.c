@@ -19,6 +19,12 @@
  *		Alan Cox	:	By repeated request 8) - Total BogoMIP report.
  *		Greg Wright	:	Fix for kernel stacks panic.
  *		Erich Boleyn	:	MP v1.4 and additional changes.
+ *	Matthias Sattler	:	Changes for 2.1 kernel map.
+ *	Michel Lespinasse	:	Changes for 2.1 kernel map.
+ *	Michael Chastain	:	Change trampoline.S to gnu as.
+ *		Alan Cox	:	Dumb bug: 'B' step PPro's are fine
+ *		Ingo Molnar	:	Added APIC timers, based on code
+ *					from Jose Renau
  */
 
 #include <linux/kernel.h>
@@ -31,11 +37,62 @@
 #include <linux/mc146818rtc.h>
 #include <asm/i82489.h>
 #include <linux/smp.h>
+#include <linux/smp_lock.h>
+#include <linux/interrupt.h>
+#include <linux/init.h>
 #include <asm/pgtable.h>
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
 #include <asm/smp.h>
+#include <asm/io.h>
 
+#include "irq.h"
+
+extern unsigned long start_kernel, _etext;
+extern void update_one_process( struct task_struct *p,
+                                unsigned long ticks, unsigned long user,
+                                unsigned long system);
+void setup_APIC_clock (void);
+
+/*
+ *	Some notes on processor bugs:
+ *
+ *	Pentium and Pentium Pro (and all CPU's) have bugs. The Linux issues
+ *	for SMP are handled as follows.
+ *
+ *	Pentium Pro
+ *		Occasional delivery of 'spurious interrupt' as trap #16. This
+ *	is very very rare. The kernel logs the event and recovers
+ *
+ *	Pentium
+ *		There is a marginal case where REP MOVS on 100MHz SMP
+ *	machines with B stepping processors can fail. XXX should provide
+ *	an L1cache=Writethrough or L1cache=off option. 
+ *
+ *		B stepping CPU's may hang. There are hardware work arounds
+ *	for this. We warn about it in case your board doesnt have the work
+ *	arounds. Basically thats so I can tell anyone with a B stepping
+ *	CPU and SMP problems "tough".
+ *
+ *	Specific items [From Pentium Processor Specification Update]
+ *
+ *	1AP.	Linux doesn't use remote read
+ *	2AP.	Linux doesn't trust APIC errors
+ *	3AP.	We work around this
+ *	4AP.	Linux never generated 3 interrupts of the same priority
+ *		to cause a lost local interrupt.
+ *	5AP.	Remote read is never used
+ *	9AP.	XXX NEED TO CHECK WE HANDLE THIS XXX
+ *	10AP.	XXX NEED TO CHECK WE HANDLE THIS XXX
+ *	11AP.	Linux read the APIC between writes to avoid this, as per
+ *		the documentation. Make sure you preserve this as it affects
+ *		the C stepping chips too.
+ *
+ *	If this sounds worrying believe me these bugs are ___RARE___ and
+ *	there's about nothing of note with C stepping upwards.
+ */
+ 
+ 
 /*
  *	Why isn't this somewhere standard ??
  */
@@ -47,7 +104,9 @@ extern __inline int max(int a,int b)
 	return b;
 }
 
+static int smp_b_stepping = 0;				/* Set if we find a B stepping CPU			*/
 
+static int max_cpus = -1;				/* Setup configured maximum number of CPUs to activate	*/
 int smp_found_config=0;					/* Have we found an SMP box 				*/
 
 unsigned long cpu_present_map = 0;			/* Bitmask of existing CPU's 				*/
@@ -57,6 +116,7 @@ volatile int cpu_number_map[NR_CPUS];			/* which CPU maps to which logical numbe
 volatile int cpu_logical_map[NR_CPUS];			/* which logical number maps to which CPU		*/
 volatile unsigned long cpu_callin_map[NR_CPUS] = {0,};	/* We always use 0 the rest is ready for parallel delivery */
 volatile unsigned long smp_invalidate_needed;		/* Used for the invalidate map that's also checked in the spinlock */
+volatile unsigned long kstack_ptr;			/* Stack vector for booting CPU's			*/
 struct cpuinfo_x86 cpu_data[NR_CPUS];			/* Per cpu bogomips and other parameters 		*/
 static unsigned int num_processors = 1;			/* Internal processor count				*/
 static unsigned long io_apic_addr = 0xFEC00000;		/* Address of the I/O apic (not yet used) 		*/
@@ -65,16 +125,13 @@ static unsigned char *kstack_base,*kstack_end;		/* Kernel stack list pointers 		
 static int smp_activated = 0;				/* Tripped once we need to start cross invalidating 	*/
 int apic_version[NR_CPUS];				/* APIC version number					*/
 static volatile int smp_commenced=0;			/* Tripped when we start scheduling 		    	*/
-unsigned long apic_addr=0xFEE00000;			/* Address of APIC (defaults to 0xFEE00000)		*/
+unsigned long apic_addr = 0xFEE00000;			/* Address of APIC (defaults to 0xFEE00000)		*/
 unsigned long nlong = 0;				/* dummy used for apic_reg address + 0x20		*/
 unsigned char *apic_reg=((unsigned char *)(&nlong))-0x20;/* Later set to the ioremap() of the APIC 		*/
 unsigned long apic_retval;				/* Just debugging the assembler.. 			*/
 unsigned char *kernel_stacks[NR_CPUS];			/* Kernel stack pointers for CPU's (debugging)		*/
 
 static volatile unsigned char smp_cpu_in_msg[NR_CPUS];	/* True if this processor is sending an IPI		*/
-static volatile unsigned long smp_msg_data;		/* IPI data pointer					*/
-static volatile int smp_src_cpu;			/* IPI sender processor					*/
-static volatile int smp_msg_id;				/* Message being sent					*/
 
 volatile unsigned long kernel_flag=0;			/* Kernel spinlock 					*/
 volatile unsigned char active_kernel_processor = NO_PROC_ID;	/* Processor holding kernel spinlock		*/
@@ -88,13 +145,17 @@ volatile unsigned long smp_spins_syscall[NR_CPUS]={0};  /* Count syscall spins  
 volatile unsigned long smp_spins_syscall_cur[NR_CPUS]={0};/* Count spins for the actual syscall                 */
 volatile unsigned long smp_spins_sys_idle[NR_CPUS]={0}; /* Count spins for sys_idle 				*/
 volatile unsigned long smp_idle_count[1+NR_CPUS]={0,};	/* Count idle ticks					*/
+
+/* Count local APIC timer ticks */
+volatile unsigned long smp_local_timer_ticks[1+NR_CPUS]={0,};
+
 #endif
 #if defined (__SMP_PROF__)
 volatile unsigned long smp_idle_map=0;			/* Map for idle processors 				*/
 #endif
 
 volatile unsigned long  smp_proc_in_lock[NR_CPUS] = {0,};/* for computing process time */
-volatile unsigned long smp_process_available=0;
+volatile int smp_process_available=0;
 
 /*#define SMP_DEBUG*/
 
@@ -104,6 +165,35 @@ volatile unsigned long smp_process_available=0;
 #define SMP_PRINTK(x)
 #endif
 
+/*
+ *	Setup routine for controlling SMP activation
+ *
+ *	Command-line option of "nosmp" or "maxcpus=0" will disable SMP
+ *      activation entirely (the MPS table probe still happens, though).
+ *
+ *	Command-line option of "maxcpus=<NUM>", where <NUM> is an integer
+ *	greater than 0, limits the maximum number of CPUs activated in
+ *	SMP mode to <NUM>.
+ */
+
+__initfunc(void smp_setup(char *str, int *ints))
+{
+	if (ints && ints[0] > 0)
+		max_cpus = ints[1];
+	else
+		max_cpus = 0;
+}
+
+static inline void ack_APIC_irq (void)
+{
+	/* Clear the IPI */
+
+	/* Dummy read */
+	apic_read(APIC_SPIV);
+
+	/* Docs say use 0 for future compatibility */
+	apic_write(APIC_EOI, 0);
+}
 
 /* 
  *	Checksum an MP configuration block.
@@ -148,7 +238,7 @@ static char *mpc_family(int family,int model)
  *	Read the MPC
  */
 
-static int smp_read_mpc(struct mp_config_table *mpc)
+__initfunc(static int smp_read_mpc(struct mp_config_table *mpc))
 {
 	char str[16];
 	int count=sizeof(*mpc);
@@ -183,7 +273,7 @@ static int smp_read_mpc(struct mp_config_table *mpc)
 	printk("APIC at: 0x%lX\n",mpc->mpc_lapic);
 
 	/* set the local APIC address */
-	apic_addr = mpc->mpc_lapic;
+	apic_addr = (unsigned long)phys_to_virt((unsigned long)mpc->mpc_lapic);
 	
 	/*
 	 *	Now process the configuration blocks.
@@ -259,7 +349,7 @@ static int smp_read_mpc(struct mp_config_table *mpc)
 	                                printk("I/O APIC #%d Version %d at 0x%lX.\n",
 	                                	m->mpc_apicid,m->mpc_apicver,
 	                                	m->mpc_apicaddr);
-	                                io_apic_addr = m->mpc_apicaddr;
+	                                io_apic_addr = (unsigned long)phys_to_virt(m->mpc_apicaddr);
 	                        }
                                 mpt+=sizeof(*m);
                                 count+=sizeof(*m); 
@@ -293,9 +383,9 @@ static int smp_read_mpc(struct mp_config_table *mpc)
  *	Scan the memory blocks for an SMP configuration block.
  */
  
-int smp_scan_config(unsigned long base, unsigned long length)
+__initfunc(int smp_scan_config(unsigned long base, unsigned long length))
 {
-	unsigned long *bp=(unsigned long *)base;
+	unsigned long *bp=phys_to_virt(base);
 	struct intel_mp_floating *mpf;
 	
 	SMP_PRINTK(("Scan SMP from %p for %ld bytes.\n",
@@ -422,6 +512,7 @@ int smp_scan_config(unsigned long base, unsigned long length)
 				 */
 				nlong = boot_cpu_id<<24;	/* Dummy 'self' for bootup */
 				cpu_logical_map[0] = boot_cpu_id;
+				global_irq_holder = boot_cpu_id;
 
 				printk("Processors: %d\n", num_processors);
 				/*
@@ -441,9 +532,8 @@ int smp_scan_config(unsigned long base, unsigned long length)
  *	Trampoline 80x86 program as an array.
  */
 
-static unsigned char trampoline_data[]={ 
-#include  "trampoline.hex"
-};
+extern unsigned char trampoline_data [];
+extern unsigned char trampoline_end  [];
 
 /*
  *	Currently trivial. Write the real->protected mode
@@ -451,9 +541,9 @@ static unsigned char trampoline_data[]={
  *	has made sure it's suitably aligned.
  */
  
-static void install_trampoline(unsigned char *mp)
+__initfunc(static void install_trampoline(unsigned char *mp))
 {
-	memcpy(mp,trampoline_data,sizeof(trampoline_data));
+	memcpy(mp, trampoline_data, trampoline_end - trampoline_data);
 }
 
 /*
@@ -463,16 +553,17 @@ static void install_trampoline(unsigned char *mp)
  *	other things).
  */
  
-unsigned long smp_alloc_memory(unsigned long mem_base)
+__initfunc(unsigned long smp_alloc_memory(unsigned long mem_base))
 {
 	int size=(num_processors-1)*PAGE_SIZE;		/* Number of stacks needed */
+
 	/*
 	 *	Our stacks have to be below the 1Mb line, and mem_base on entry
 	 *	is 4K aligned.
 	 */
 	 
-	if(mem_base+size>=0x9F000)
-		panic("smp_alloc_memory: Insufficient low memory for kernel stacks.\n");
+	if(virt_to_phys((void *)(mem_base+size))>=0x9F000)
+		panic("smp_alloc_memory: Insufficient low memory for kernel stacks 0x%lx.\n", mem_base);
 	kstack_base=(void *)mem_base;
 	mem_base+=size;
 	kstack_end=(void *)mem_base;
@@ -483,7 +574,7 @@ unsigned long smp_alloc_memory(unsigned long mem_base)
  *	Hand out stacks one at a time.
  */
  
-static void *get_kernel_stack(void)
+__initfunc(static void *get_kernel_stack(void))
 {
 	void *stack=kstack_base;
 	if(kstack_base>=kstack_end)
@@ -498,13 +589,18 @@ static void *get_kernel_stack(void)
  *	a given CPU
  */
  
-void smp_store_cpu_info(int id)
+__initfunc(void smp_store_cpu_info(int id))
 {
 	struct cpuinfo_x86 *c=&cpu_data[id];
 	c->hard_math=hard_math;			/* Always assumed same currently */
 	c->x86=x86;
 	c->x86_model=x86_model;
 	c->x86_mask=x86_mask;
+	/*
+	 *	Mask B, Pentium, but not Pentium MMX
+	 */
+	if(x86_mask>=1 && x86_mask<=4 && x86==5 && (x86_model>=0&&x86_model<=3))
+		smp_b_stepping=1;		/* Remember we have B step Pentia with bugs */
 	c->x86_capability=x86_capability;
 	c->fdiv_bug=fdiv_bug;
 	c->wp_works_ok=wp_works_ok;		/* Always assumed the same currently */
@@ -524,15 +620,16 @@ void smp_store_cpu_info(int id)
  *	we use to track CPU's as they power up.
  */
 
-void smp_commence(void)
+__initfunc(void smp_commence(void))
 {
 	/*
 	 *	Lets the callin's below out of their loop.
 	 */
+	SMP_PRINTK(("Setting commenced=1, go go go\n"));
 	smp_commenced=1;
 }
- 
-void smp_callin(void)
+
+__initfunc(void smp_callin(void))
 {
 	extern void calibrate_delay(void);
 	int cpuid=GET_APIC_ID(apic_read(APIC_ID));
@@ -546,11 +643,19 @@ void smp_callin(void)
  	l=apic_read(APIC_SPIV);
  	l|=(1<<8);		/* Enable */
  	apic_write(APIC_SPIV,l);
+
+	/*
+	 * Set up our APIC timer. 
+	 */
+	setup_APIC_clock ();
+
  	sti();
 	/*
 	 *	Get our bogomips.
 	 */	
 	calibrate_delay();
+	SMP_PRINTK(("Stack at about %p\n",&cpuid));
+	
 	/*
 	 *	Save our processor parameters
 	 */
@@ -563,28 +668,37 @@ void smp_callin(void)
 	 *	Until we are ready for SMP scheduling
 	 */
 	load_ldt(0);
-/*	printk("Testing faulting...\n");
-	*(long *)0=1;		 OOPS... */
 	local_flush_tlb();
-	while(!smp_commenced);
-	if (cpu_number_map[cpuid] == -1)
-		while(1);
-	local_flush_tlb();
-	SMP_PRINTK(("Commenced..\n"));
 	
+	while (cpu_number_map[cpuid] == -1)
+		barrier();
+
+	while(!task[cpuid] || current_set[cpuid] != task[cpu_number_map[cpuid]])
+		barrier();
+
+	local_flush_tlb();
 	load_TR(cpu_number_map[cpuid]);
-/*	while(1);*/
+
+	while(!smp_commenced)
+		barrier();
+	
+	local_flush_tlb();
+	
+	SMP_PRINTK(("Commenced..\n"));
+	local_flush_tlb();
+	sti();
 }
 
 /*
- *	Cycle through the processors sending pentium IPI's to boot each.
+ *	Cycle through the processors sending APIC IPI's to boot each.
  */
  
-void smp_boot_cpus(void)
+__initfunc(void smp_boot_cpus(void))
 {
 	int i;
 	int cpucount=0;
 	unsigned long cfg;
+	pgd_t maincfg;
 	void *stack;
 	extern unsigned long init_user_stack[];
 	
@@ -606,6 +720,16 @@ void smp_boot_cpus(void)
 	cpu_present_map |= (1 << smp_processor_id());
 	cpu_number_map[boot_cpu_id] = 0;
 	active_kernel_processor=boot_cpu_id;
+
+	/*
+	 *	If SMP should be disabled, then really disable it!
+	 */
+
+	if (!max_cpus && smp_found_config)
+	{
+		smp_found_config = 0;
+		printk("SMP mode deactivated, forcing use of dummy APIC emulation.\n");
+	}
 
 	/*
 	 *	If we don't conform to the Intel MPS standard, get out
@@ -671,7 +795,12 @@ void smp_boot_cpus(void)
 	apic_write(APIC_SPIV,cfg);
 
 	udelay(10);
-			
+
+	/*
+	 * Set up our local APIC timer:
+	 */			
+	setup_APIC_clock ();
+
 	/*
 	 *	Now scan the cpu present map and fire up the other CPUs.
 	 */
@@ -686,7 +815,8 @@ void smp_boot_cpus(void)
 		if (i == boot_cpu_id)
 			continue;
 		
-		if (cpu_present_map & (1 << i))
+		if ((cpu_present_map & (1 << i))
+		    && (max_cpus < 0 || max_cpus > cpucount+1))
 		{
 			unsigned long send_status, accept_status;
 			int timeout, num_starts, j;
@@ -698,7 +828,8 @@ void smp_boot_cpus(void)
 			stack=get_kernel_stack();	/* We allocated these earlier */
 			if(stack==NULL)
 				panic("No memory for processor stacks.\n");
-			kernel_stacks[i]=stack;
+				
+			kernel_stacks[i]=(void *)phys_to_virt((unsigned long)stack);
 			install_trampoline(stack);
 
 			printk("Booting processor %d stack %p: ",i,stack);			/* So we set what's up   */
@@ -719,8 +850,11 @@ void smp_boot_cpus(void)
 			CMOS_WRITE(0xa, 0xf);
 			pg0[0]=7;
 			local_flush_tlb();
-			*((volatile unsigned short *) 0x469) = ((unsigned long)stack)>>4;
-			*((volatile unsigned short *) 0x467) = 0;
+			SMP_PRINTK(("1.\n"));
+			*((volatile unsigned short *) phys_to_virt(0x469)) = ((unsigned long)stack)>>4;
+			SMP_PRINTK(("2.\n"));
+			*((volatile unsigned short *) phys_to_virt(0x467)) = 0;
+			SMP_PRINTK(("3.\n"));
 			
 			/*
 			 *	Protect it again
@@ -728,6 +862,17 @@ void smp_boot_cpus(void)
 			 
 			pg0[0]= cfg;
 			local_flush_tlb();
+
+			/*	walken modif
+			 *	enable mapping of the first 4M at virtual
+			 *	address zero
+			 */
+
+			maincfg=swapper_pg_dir[0];
+			((unsigned long *)swapper_pg_dir)[0]=0x102007;
+
+			/* no need to local_flush_tlb :
+			   we are setting this up for the slave processor ! */
 
 			/*
 			 *	Be paranoid about clearing APIC errors.
@@ -800,7 +945,8 @@ void smp_boot_cpus(void)
 				SMP_PRINTK(("Sending STARTUP #%d.\n",j));
 
 				apic_write(APIC_ESR, 0);
-			
+				SMP_PRINTK(("After apic_write.\n"));
+
 				/*
 				 *	STARTUP IPI
 				 */
@@ -812,11 +958,14 @@ void smp_boot_cpus(void)
 				cfg&=~0xCDFFF;								/* Clear bits 		*/
 				cfg |= (APIC_DEST_FIELD
 					| APIC_DEST_DM_STARTUP
-					| (((int) stack) >> 12) );					/* Boot on the stack 	*/		
+					| (((int)virt_to_phys(stack)) >> 12));					/* Boot on the stack 	*/		
+				SMP_PRINTK(("Before start apic_write.\n"));
 				apic_write(APIC_ICR, cfg);						/* Kick the second 	*/
 
+				SMP_PRINTK(("Startup point 1.\n"));
 				timeout = 0;
 				do {
+				        SMP_PRINTK(("Sleeping.\n")); udelay(1000000);	
 					udelay(10);
 				} while ( (send_status = (apic_read(APIC_ICR) & 0x1000))
 					  && (timeout++ < 1000));
@@ -824,6 +973,7 @@ void smp_boot_cpus(void)
 
 				accept_status = (apic_read(APIC_ESR) & 0xEF);
 			}
+			SMP_PRINTK(("After Startup.\n"));
 
 			if (send_status)		/* APIC never delivered?? */
 				printk("APIC never delivered???\n");
@@ -847,15 +997,24 @@ void smp_boot_cpus(void)
 				}
 				else
 				{
-					if(*((volatile unsigned char *)8192)==0xA5)
+					if(*((volatile unsigned char *)phys_to_virt(8192))==0xA5)
 						printk("Stuck ??\n");
 					else
 						printk("Not responding.\n");
 				}
 			}
+			SMP_PRINTK(("CPU has booted.\n"));
+
+                        /*      walken modif
+                         *      restore mapping of the first 4M
+                         */
+
+                        swapper_pg_dir[0]=maincfg;
+                        
+                        local_flush_tlb();
 
 			/* mark "stuck" area as not stuck */
-			*((volatile unsigned long *)8192) = 0;
+			*((volatile unsigned long *)phys_to_virt(8192)) = 0;
 		}
 		
 		/* 
@@ -885,7 +1044,7 @@ void smp_boot_cpus(void)
 
 	CMOS_WRITE(0, 0xf);
 
-	*((volatile long *) 0x467) = 0;
+	*((volatile long *) phys_to_virt(0x467)) = 0;
 
 	/*
 	 *	Restore old page 0 entry.
@@ -898,6 +1057,7 @@ void smp_boot_cpus(void)
 	 *	Allow the user to impress friends.
 	 */
 	
+	SMP_PRINTK(("Before bogomips.\n"));
 	if(cpucount==0)
 	{
 		printk("Error: only one processor found.\n");
@@ -915,11 +1075,14 @@ void smp_boot_cpus(void)
 			cpucount+1, 
 			(bogosum+2500)/500000,
 			((bogosum+2500)/5000)%100);
+		SMP_PRINTK(("Before bogocount - setting activated=1.\n"));
 		smp_activated=1;
 		smp_num_cpus=cpucount+1;
 	}
+	if(smp_b_stepping)
+		printk("WARNING: SMP operation may be unreliable with B stepping processors.\n");
+	SMP_PRINTK(("Boot done.\n"));
 }
-
 
 /*
  *	A non wait message cannot pass data or cpu source info. This current setup
@@ -936,12 +1099,12 @@ void smp_boot_cpus(void)
  
 void smp_message_pass(int target, int msg, unsigned long data, int wait)
 {
+	unsigned long flags;
 	unsigned long cfg;
 	unsigned long target_map;
 	int p=smp_processor_id();
-	int irq=0x2d;								/* IRQ 13 */
+	int irq;
 	int ct=0;
-	static volatile int message_cpu = NO_PROC_ID;
 
 	/*
 	 *	During boot up send no messages
@@ -956,11 +1119,25 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 *	message at this time. The reschedule cannot wait
 	 *	but is not critical.
 	 */
-	
-	if(msg==MSG_RESCHEDULE)							/* Reschedules we do via trap 0x30 */
-	{
-		irq=0x30;
-		if(smp_cpu_in_msg[p])
+
+	switch (msg) {
+		case MSG_RESCHEDULE:	
+			irq = 0x30;
+			if (smp_cpu_in_msg[p])
+				return;
+			break;
+
+		case MSG_INVALIDATE_TLB:
+			/* make this a NMI some day */
+			irq = 0x31;
+			break;
+
+		case MSG_STOP_CPU:
+			irq = 0x40;
+			break;
+
+		default:
+			printk("Unknown SMP message %d\n", msg);
 			return;
 	}
 
@@ -972,30 +1149,11 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 *	I got to notice this bug...
 	 */
 	 
-	if(message_cpu!=NO_PROC_ID && msg!=MSG_STOP_CPU && msg!=MSG_RESCHEDULE)
-	{
-		panic("CPU #%d: Message pass %d but pass in progress by %d of %d\n",
-			smp_processor_id(),msg,message_cpu, smp_msg_id);
-	}
-	message_cpu=smp_processor_id();
-	
-
 	/*
 	 *	We are busy
 	 */
 	 	
 	smp_cpu_in_msg[p]++;
-	
-	/*
-	 *	Reschedule is currently special
-	 */
-	 
-	if(msg!=MSG_RESCHEDULE)
-	{
-		smp_src_cpu=p;
-		smp_msg_id=msg;
-		smp_msg_data=data;
-	}
 	
 /*	printk("SMP message pass #%d to %d of %d\n",
 		p, msg, target);*/
@@ -1019,12 +1177,14 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 */
 	 
 	if(ct==1000)
-		printk("CPU #%d: previous IPI still not cleared after 10mS", smp_processor_id());
+		printk("CPU #%d: previous IPI still not cleared after 10mS\n", p);
 		
 	/*
 	 *	Program the APIC to deliver the IPI
 	 */
-	 
+
+	__save_flags(flags);
+	__cli();
 	cfg=apic_read(APIC_ICR2);
 	cfg&=0x00FFFFFF;
 	apic_write(APIC_ICR2, cfg|SET_APIC_DEST_FIELD(target));			/* Target chip     		*/
@@ -1040,7 +1200,7 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	{
 		cfg|=APIC_DEST_ALLBUT;
 		target_map=cpu_present_map;
-		cpu_callin_map[0]=(1<<smp_src_cpu);
+		cpu_callin_map[0]=(1<<p);
 	}
 	else if(target==MSG_ALL)
 	{
@@ -1058,7 +1218,8 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 *	Send the IPI. The write to APIC_ICR fires this off.
 	 */
 	 
-	apic_write(APIC_ICR, cfg);	
+	apic_write(APIC_ICR, cfg);
+	__restore_flags(flags);
 	
 	/*
 	 *	Spin waiting for completion
@@ -1066,11 +1227,30 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 
 	switch(wait)
 	{
+		int stuck;
 		case 1:
-			while(cpu_callin_map[0]!=target_map);		/* Spin on the pass		*/
+			stuck = 50000000;
+			while(cpu_callin_map[0]!=target_map) {
+				--stuck;
+				if (!stuck) {
+					printk("stuck on target_map IPI wait\n");
+					break;
+				}
+			}
 			break;
 		case 2:
-			while(smp_invalidate_needed);			/* Wait for invalidate map to clear */
+			stuck = 50000000;
+			/* Wait for invalidate map to clear */
+			while (smp_invalidate_needed) {
+				/* Take care of "crossing" invalidates */
+				if (test_bit(p, &smp_invalidate_needed))
+					clear_bit(p, &smp_invalidate_needed);
+				--stuck;
+				if (!stuck) {
+					printk("stuck on smp_invalidate_needed IPI wait\n");
+					break;
+				}
+			}
 			break;
 	}
 	
@@ -1079,7 +1259,6 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 	 */
 	 
 	smp_cpu_in_msg[p]--;
-	message_cpu=NO_PROC_ID;
 }
 
 /*
@@ -1091,10 +1270,12 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 void smp_flush_tlb(void)
 {
 	unsigned long flags;
-	if(smp_activated && smp_processor_id()!=active_kernel_processor)
-		panic("CPU #%d:Attempted flush tlb IPI when not AKP(=%d)\n",smp_processor_id(),active_kernel_processor);
+	if(smp_activated && smp_processor_id()!=active_kernel_processor) {
+		printk("CPU #%d:Attempted flush tlb IPI when not AKP(=%d)\n",smp_processor_id(),active_kernel_processor);
+		*(char *)0=0;
+	}
 /*	printk("SMI-");*/
-	
+
 	/*
 	 *	The assignment is safe because it's volatile so the compiler cannot reorder it,
 	 *	because the i586 has strict memory ordering and because only the kernel lock holder
@@ -1102,15 +1283,15 @@ void smp_flush_tlb(void)
 	 *	bus locked or.
 	 */
 	
-	smp_invalidate_needed=cpu_present_map&~(1<<smp_processor_id());
+	smp_invalidate_needed=cpu_present_map;
 	
 	/*
 	 *	Processors spinning on the lock will see this IRQ late. The smp_invalidate_needed map will
 	 *	ensure they don't do a spurious flush tlb or miss one.
 	 */
 	 
-	save_flags(flags);
-	cli();
+	__save_flags(flags);
+	__cli();
 	smp_message_pass(MSG_ALL_BUT_SELF, MSG_INVALIDATE_TLB, 0L, 2);
 	
 	/*
@@ -1119,7 +1300,7 @@ void smp_flush_tlb(void)
 	 
 	local_flush_tlb();
 	
-	restore_flags(flags);
+	__restore_flags(flags);
 	
 	/*
 	 *	Completed.
@@ -1128,77 +1309,410 @@ void smp_flush_tlb(void)
 /*	printk("SMID\n");*/
 }
 
+/*
+ * Local timer interrupt handler. It does both profiling and
+ * process statistics/rescheduling.
+ *
+ * We do profiling in every local tick, statistics/rescheduling
+ * happen only every 'profiling multiplier' ticks. The default
+ * multiplier is 1 and it can be changed by writing a 4 bytes multiplier
+ * value into /proc/profile.
+ */
+
+unsigned int prof_multiplier[NR_CPUS];
+unsigned int prof_counter[NR_CPUS];
+
+static inline void smp_local_timer_interrupt(struct pt_regs * regs)
+{
+	int cpu = smp_processor_id();
+
+	/*
+	 * The profiling function is SMP safe. (nothing can mess
+	 * around with "current", and the profiling counters are
+	 * updated with atomic operations). This is especially
+	 * useful with a profiling multiplier != 1
+	 */
+	if (!user_mode(regs))
+		x86_do_profile (regs->eip);
+
+	if (!--prof_counter[cpu]) {
+		int user=0,system=0;
+		struct task_struct * p = current;
+
+		/*
+		 * After doing the above, we need to make like
+		 * a normal interrupt - otherwise timer interrupts
+		 * ignore the global interrupt lock, which is the
+		 * WrongThing (tm) to do.
+		 */
+
+		if (user_mode(regs))
+			user=1;
+		else
+			system=1;
+
+		irq_enter(cpu, 0);
+		if (p->pid) {
+
+			update_one_process(p, 1, user, system);
+
+			p->counter -= 1;
+			if (p->counter < 0) {
+				p->counter = 0;
+				need_resched = 1;
+			}
+			if (p->priority < DEF_PRIORITY)
+				kstat.cpu_nice += user;
+			else
+				kstat.cpu_user += user;
+
+			kstat.cpu_system += system;
+		
+		} else {
+#ifdef __SMP_PROF__
+			if (test_bit(cpu,&smp_idle_map))
+				smp_idle_count[cpu]++;
+#endif
+		}
+		prof_counter[cpu]=prof_multiplier[cpu];
+
+		irq_exit(cpu, 0);
+	}
+
+#ifdef __SMP_PROF__
+	smp_local_timer_ticks[cpu]++;
+#endif
+	/*
+	 * We take the 'long' return path, and there every subsystem
+	 * grabs the apropriate locks (kernel lock/ irq lock).
+	 *
+	 * FIXME: we want to decouple profiling from the 'long path'.
+	 *
+	 * Currently this isnt too much of an issue (performancewise),
+	 * we can take more than 100K local irqs per second on a 100 MHz P5.
+	 * [ although we notice need_resched too early, thus the way we
+	 *   schedule (deliver signals and handle bhs) changes. ]
+	 *
+	 * Possibly we could solve these problems with 'smart irqs'.
+	 */
+}
+
+/*
+ * Local APIC timer interrupt. This is the most natural way for doing
+ * local interrupts, but local timer interrupts can be emulated by
+ * broadcast interrupts too. [in case the hw doesnt support APIC timers]
+ */
+void smp_apic_timer_interrupt(struct pt_regs * regs)
+{
+	/*
+	 * NOTE! We'd better ACK the irq immediately,
+	 * because timer handling can be slow, and we
+	 * want to be able to accept NMI tlb invalidates
+	 * during this time.
+	 */
+	ack_APIC_irq ();
+
+	smp_local_timer_interrupt(regs);
+}
+
 /*	
  *	Reschedule call back
  */
-
-void smp_reschedule_irq(int cpl, struct pt_regs *regs)
+asmlinkage void smp_reschedule_interrupt(void)
 {
-#ifdef DEBUGGING_SMP_RESCHED
-	static int ct=0;
-	if(ct==0)
-	{
-		printk("Beginning scheduling on CPU#%d\n",smp_processor_id());
-		ct=1;
-	}
-#endif	
-	if(smp_processor_id()!=active_kernel_processor)
-		panic("SMP Reschedule on CPU #%d, but #%d is active.\n",
-			smp_processor_id(), active_kernel_processor);
+	int cpu = smp_processor_id();
 
-	need_resched=1;
-
+	ack_APIC_irq();
 	/*
-	 *	Clear the IPI
+	 * This looks silly, but we actually do need to wait
+	 * for the global interrupt lock.
 	 */
-	apic_read(APIC_SPIV);		/* Dummy read */
-	apic_write(APIC_EOI, 0);	/* Docs say use 0 for future compatibility */
+	irq_enter(cpu, 0);
+	need_resched=1;
+	irq_exit(cpu, 0);
+}
+
+/*
+ * Invalidate call-back
+ */
+asmlinkage void smp_invalidate_interrupt(void)
+{
+	if (clear_bit(smp_processor_id(), &smp_invalidate_needed))
+		local_flush_tlb();
+
+	ack_APIC_irq ();
 }	
 
 /*
- *	Message call back.
+ *	CPU halt call-back
  */
- 
-void smp_message_irq(int cpl, void *dev_id, struct pt_regs *regs)
+asmlinkage void smp_stop_cpu_interrupt(void)
 {
-	int i=smp_processor_id();
-/*	static int n=0;
-	if(n++<NR_CPUS)
-		printk("IPI %d->%d(%d,%ld)\n",smp_src_cpu,i,smp_msg_id,smp_msg_data);*/
-	switch(smp_msg_id)
-	{
-		case 0:	/* IRQ 13 testing - boring */
-			return;
-			
-		/*
-		 *	A TLB flush is needed.
-		 */
-		 
-		case MSG_INVALIDATE_TLB:
-			if(clear_bit(i,(unsigned long *)&smp_invalidate_needed))
-				local_flush_tlb();
-			set_bit(i, (unsigned long *)&cpu_callin_map[0]);
-		/*	cpu_callin_map[0]|=1<<smp_processor_id();*/
-			break;
-			
-		/*
-		 *	Halt other CPU's for a panic or reboot
-		 */
-		case MSG_STOP_CPU:
-			while(1)
-			{
-				if(cpu_data[smp_processor_id()].hlt_works_ok)
-					__asm__("hlt");
-			}
-		default:
-			printk("CPU #%d sent invalid cross CPU message to CPU #%d: %X(%lX).\n",
-				smp_src_cpu,smp_processor_id(),smp_msg_id,smp_msg_data);
-			break;
-	}
-	/*
-	 *	Clear the IPI, so we can receive future IPI's
-	 */
-	 
-	apic_read(APIC_SPIV);		/* Dummy read */
-	apic_write(APIC_EOI, 0);	/* Docs say use 0 for future compatibility */
+	if (cpu_data[smp_processor_id()].hlt_works_ok)
+		for(;;) __asm__("hlt");
+	for  (;;) ;
 }
+
+/*
+ * This part sets up the APIC 32 bit clock in LVTT1, with HZ interrupts
+ * per second. We assume that the caller has already set up the local
+ * APIC at apic_addr.
+ *
+ * The APIC timer is not exactly sync with the external timer chip, it
+ * closely follows bus clocks.
+ */
+
+#define RTDSC(x)	__asm__ __volatile__ (  ".byte 0x0f,0x31" \
+				:"=a" (((unsigned long*)&x)[0]),  \
+				 "=d" (((unsigned long*)&x)[1]))
+
+/*
+ * The timer chip is already set up at HZ interrupts per second here,
+ * but we do not accept timer interrupts yet. We only allow the BP
+ * to calibrate.
+ */
+static unsigned int get_8254_timer_count (void)
+{
+	unsigned int count;
+
+        outb_p(0x00, 0x43);
+	count = inb_p(0x40);
+	count |= inb_p(0x40) << 8;
+
+	return count;
+}
+
+/*
+ * This function sets up the local APIC timer, with a timeout of
+ * 'clocks' APIC bus clock. During calibration we actually call
+ * this function twice, once with a bogus timeout value, second
+ * time for real. The other (noncalibrating) CPUs call this
+ * function only once, with the real value.
+ *
+ * We are strictly in irqs off mode here, as we do not want to
+ * get an APIC interrupt go off accidentally.
+ *
+ * We do reads before writes even if unnecessary, to get around the
+ * APIC double write bug.
+ */
+
+#define APIC_DIVISOR 16
+
+void setup_APIC_timer (unsigned int clocks)
+{
+	unsigned long lvtt1_value; 
+	unsigned int tmp_value;
+
+	/*
+	 * Unfortunately the local APIC timer cannot be set up into NMI
+	 * mode. With the IO APIC we can re-route the external timer
+	 * interrupt and broadcast it as an NMI to all CPUs, so no pain.
+	 *
+	 * NOTE: this trap vector (0x41) and the gate in BUILD_SMP_TIMER_INTERRUPT
+	 * should be the same ;)
+	 */
+	tmp_value = apic_read(APIC_LVTT);
+	lvtt1_value = APIC_LVT_TIMER_PERIODIC | 0x41;
+	apic_write(APIC_LVTT , lvtt1_value);
+
+	/*
+	 * Divide PICLK by 16
+	 */
+	tmp_value = apic_read(APIC_TDCR);
+	apic_write(APIC_TDCR , (tmp_value & ~APIC_TDR_DIV_1 )
+				 | APIC_TDR_DIV_16);
+
+	tmp_value = apic_read(APIC_TMICT);
+	apic_write(APIC_TMICT, clocks/APIC_DIVISOR);
+}
+
+void wait_8254_wraparound (void)
+{
+	unsigned int curr_count, prev_count=~0;
+	int delta;
+
+	curr_count = get_8254_timer_count();
+
+	do {
+		prev_count = curr_count;
+		curr_count = get_8254_timer_count();
+		delta = curr_count-prev_count;
+
+	/*
+	 * This limit for delta seems arbitrary, but it isnt, it's
+	 * slightly above the level of error a buggy Mercury/Neptune
+	 * chipset timer can cause.
+	 */
+
+	} while (delta<300);
+}
+
+/*
+ * In this function we calibrate APIC bus clocks to the external
+ * timer. Unfortunately we cannot use jiffies and the timer irq
+ * to calibrate, since some later bootup code depends on getting
+ * the first irq? Ugh.
+ *
+ * We want to do the calibration only once since we
+ * want to have local timer irqs syncron. CPUs connected
+ * by the same APIC bus have the very same bus frequency.
+ * And we want to have irqs off anyways, no accidental
+ * APIC irq that way.
+ */
+
+int calibrate_APIC_clock (void)
+{
+	unsigned long long t1,t2;
+	long tt1,tt2;
+	long calibration_result;
+
+	printk("calibrating APIC timer ... ");
+
+	/*
+	 * Put whatever arbitrary (but long enough) timeout
+	 * value into the APIC clock, we just want to get the
+	 * counter running for calibration.
+	 */
+	setup_APIC_timer(1000000000);
+
+	/*
+	 * The timer chip counts down to zero. Lets wait
+	 * for a wraparound to start exact measurement:
+	 * (the current tick might have been already half done)
+	 */
+
+	wait_8254_wraparound ();
+
+	/*
+	 * We wrapped around just now, lets start:
+	 */
+	RTDSC(t1);
+	tt1=apic_read(APIC_TMCCT);
+
+	/*
+	 * lets wait until we get to the next wrapround:
+	 */
+	wait_8254_wraparound ();
+
+	tt2=apic_read(APIC_TMCCT);
+	RTDSC(t2);
+
+	/*
+	 * The APIC bus clock counter is 32 bits only, it
+	 * might have overflown, but note that we use signed
+	 * longs, thus no extra care needed.
+	 *
+	 * underflown to be exact, as the timer counts down ;)
+	 */
+
+	calibration_result = (tt1-tt2)*APIC_DIVISOR;
+
+	printk("\n..... %ld CPU clocks in 1 timer chip tick.\n",
+			 (unsigned long)(t2-t1));
+
+	printk("..... %ld APIC bus clocks in 1 timer chip tick.\n",
+			 calibration_result);
+
+
+	printk("..... CPU clock speed is %ld.%ld MHz.\n", 
+		((long)(t2-t1))/(1000000/HZ),
+		((long)(t2-t1))%(1000000/HZ)  );
+
+	printk("..... APIC bus clock speed is %ld.%ld MHz.\n", 
+		calibration_result/(1000000/HZ),
+		calibration_result%(1000000/HZ)  );
+
+	return calibration_result;
+}
+
+static unsigned int calibration_result;
+
+void setup_APIC_clock (void)
+{
+	int cpu = smp_processor_id();
+	unsigned long flags; 
+
+	static volatile int calibration_lock;
+
+	save_flags(flags);
+	cli();
+
+	printk("setup_APIC_clock() called.\n");
+
+	/*
+	 * [ setup_APIC_clock() is called from all CPUs, but we want
+	 *   to do this part of the setup only once ... and it fits
+	 *   here best ]
+	 */
+	if (!set_bit(0,&calibration_lock)) {
+
+		calibration_result=calibrate_APIC_clock();
+		/*
+	 	 * Signal completion to the other CPU[s]:
+	 	 */
+		calibration_lock = 3;
+
+	} else {
+		/*
+		 * Other CPU is calibrating, wait for finish:
+		 */
+		printk("waiting for other CPU calibrating APIC timer ... ");
+		while (calibration_lock == 1);
+		printk("done, continuing.\n");
+	}
+
+/*
+ * Now set up the timer for real. Profiling multiplier is 1.
+ */
+	setup_APIC_timer (calibration_result);
+
+	prof_counter[cpu] = prof_multiplier[cpu] = 1;
+
+	/*
+	 * FIXME: i sporadically see booting problems (keyboard irq is
+	 * lost, looks like the  timer irq isnt working or some irq
+	 * lock is messed up). Once we reboot the bug doesnt showu
+	 * up anymore.
+	 *
+	 * i'm quite certain it's a timing problem/race condition in
+	 * the bootup logic, not a hw bug. It might have been gone
+	 * meanwhile, tell me if you see it.
+	 */
+
+	ack_APIC_irq ();
+
+	restore_flags(flags);
+}
+
+/*
+ * the frequency of the profiling timer can be changed
+ * by writing 4 bytes into /proc/profile.
+ *
+ * usually you want to run this on all CPUs ;)
+ */
+int setup_profiling_timer (unsigned int multiplier)
+{
+	int cpu = smp_processor_id();
+	unsigned long flags;
+
+	/*
+	 * Sanity check. [at least 500 APIC cycles should be
+	 * between APIC interrupts as a rule of thumb, rather be
+	 * careful as irq flooding renders the system unusable]
+	 */
+	if ( (!multiplier) || (calibration_result/multiplier < 500))
+		return -EINVAL;
+
+	save_flags(flags);
+	cli();
+	setup_APIC_timer (calibration_result/multiplier);
+	prof_multiplier[cpu]=multiplier;
+	restore_flags(flags);
+
+	return 0;
+}
+
+#undef APIC_DIVISOR
+#undef RTDSC
+
+

@@ -17,7 +17,6 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 
 #define NOTLB_OPTIMIZE /* If you are paranoid, define this. */
@@ -105,7 +104,6 @@
 			   _PAGE_VALID | _PAGE_DIRTY); \
 	sw	pte, (ptr);
 
-	.text
 	.set	noreorder
 	.set	mips3
 

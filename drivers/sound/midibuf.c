@@ -4,7 +4,7 @@
  * Device file manager for /dev/midi#
  */
 /*
- * Copyright (C) by Hannu Savolainen 1993-1996
+ * Copyright (C) by Hannu Savolainen 1993-1997
  *
  * OSS/Free for Linux is distributed under the GNU GENERAL PUBLIC LICENSE (GPL)
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
@@ -83,7 +83,7 @@ static volatile int open_devs = 0;
 	  restore_flags(flags); \
 	}
 
-void
+static void
 drain_midi_queue (int dev)
 {
 
@@ -483,13 +483,13 @@ MIDIbuf_ioctl (int dev, struct fileinfo *file,
       {
 
       case SNDCTL_MIDI_PRETIME:
-	get_user (val, (int *) arg);
+	val = *(int *) arg;
 	if (val < 0)
 	  val = 0;
 
 	val = (HZ * val) / 10;
 	parms[dev].prech_timeout = val;
-	return ioctl_out (arg, val);
+	return (*(int *) arg = val);
 	break;
 
       default:
@@ -498,7 +498,7 @@ MIDIbuf_ioctl (int dev, struct fileinfo *file,
 }
 
 int
-MIDIbuf_select (int dev, struct fileinfo *file, int sel_type, select_table * wait)
+MIDIbuf_select (int dev, struct fileinfo *file, int sel_type, poll_table * wait)
 {
   dev = dev >> 4;
 
@@ -509,7 +509,7 @@ MIDIbuf_select (int dev, struct fileinfo *file, int sel_type, select_table * wai
 	{
 
 	  input_sleep_flag[dev].opts = WK_SLEEP;
-	  select_wait (&input_sleeper[dev], wait);
+	  poll_wait (&input_sleeper[dev], wait);
 	  return 0;
 	}
       return 1;
@@ -520,7 +520,7 @@ MIDIbuf_select (int dev, struct fileinfo *file, int sel_type, select_table * wai
 	{
 
 	  midi_sleep_flag[dev].opts = WK_SLEEP;
-	  select_wait (&midi_sleeper[dev], wait);
+	  poll_wait (&midi_sleeper[dev], wait);
 	  return 0;
 	}
       return 1;

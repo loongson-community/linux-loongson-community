@@ -7,6 +7,8 @@
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
 #include <linux/errno.h>
@@ -23,77 +25,37 @@
 
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
-asmlinkage int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options);
+asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
+                         int options, unsigned long *ru);
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs *regs);
 extern asmlinkage void (*save_fp_context)(struct sigcontext *sc);
 extern asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
 
-asmlinkage int sys_sigprocmask(int how, sigset_t *set, sigset_t *oset)
-{
-	k_sigset_t new_set, old_set = current->blocked;
-	int error;
-
-	if (set) {
-		error = verify_area(VERIFY_READ, set, sizeof(sigset_t));
-		if (error)
-			return error;
-		new_set = *to_k_sigset_t(set) & _BLOCKABLE;
-		switch (how) {
-		case SIG_BLOCK:
-			current->blocked |= new_set;
-			break;
-		case SIG_UNBLOCK:
-			current->blocked &= ~new_set;
-			break;
-		case SIG_SETMASK:
-			current->blocked = new_set;
-			break;
-		/*
-		 * SGI goodie: Just set the low 32 bits of 'blocked' even
-		 * for 128 bit sigset_t.
-		 */
-		case SIG_SETMASK32:
-			current->blocked = new_set;
-			break;
-		default:
-			return -EINVAL;
-		}
-	}
-	if (oset) {
-		error = verify_area(VERIFY_WRITE, oset, sizeof(sigset_t));
-		if (error)
-			return error;
-		put_user(old_set, &oset->__sigbits[0]);
-		put_user(0, &oset->__sigbits[1]);
-		put_user(0, &oset->__sigbits[2]);
-		put_user(0, &oset->__sigbits[3]);
-	}
-	return 0;
-}
-
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
+ * Unlike on Intel we pass a sigset_t *, not sigset_t.
  */
 asmlinkage int sys_sigsuspend(struct pt_regs *regs)
 {
-	unsigned int mask;
-	sigset_t *uset;
-	k_sigset_t kset;
+	unsigned long mask;
+	sigset_t *uset, set;
 
-	mask = current->blocked;
 	uset = (sigset_t *)(long) regs->regs[4];
-	if (verify_area(VERIFY_READ, uset, sizeof(sigset_t)))
+	if (get_user(set, uset))
 		return -EFAULT;
-	kset = *to_k_sigset_t(uset);
-	current->blocked = kset & _BLOCKABLE;
+
+	spin_lock_irq(&current->sigmask_lock);
+	mask = current->blocked;
+	current->blocked = set & _BLOCKABLE;
+	spin_unlock_irq(&current->sigmask_lock);
+
 	regs->regs[2] = -EINTR;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(mask,regs))
+		if (do_signal(mask, regs))
 			return -EINTR;
 	}
-
 	return -EINTR;
 }
 
@@ -102,17 +64,12 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	struct sigcontext *context;
 	int i;
 
-	/*
-	 * We don't support fixing ADEL/ADES exceptions for signal stack frames.
-	 * No big loss - who doesn't care about the alignment of this stack
-	 * really deserves to loose.
-	 */
 	context = (struct sigcontext *)(long) regs->regs[29];
 	if (!access_ok(VERIFY_READ, context, sizeof(struct sigcontext)) ||
 	    (regs->regs[29] & (SZREG - 1)))
 		goto badframe;
 
-	current->blocked = context->sc_sigset.__sigbits[0] & _BLOCKABLE;
+	current->blocked = context->sc_sigset & _BLOCKABLE;
 	regs->cp0_epc = context->sc_pc;
 
 	/*
@@ -140,7 +97,7 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	asm __volatile__(
+	__asm__ __volatile__(
 		"move\t$29,%0\n\t"
 		"j\tret_from_sys_call"
 		:/* no outputs */
@@ -148,7 +105,9 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	/* Unreached */
 
 badframe:
+	lock_kernel();
 	do_exit(SIGSEGV);
+	unlock_kernel();
 }
 
 /*
@@ -201,7 +160,7 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 
 	/* We realign the stack to an adequate boundary for the architecture. */
 	if (verify_area(VERIFY_WRITE, frame, sizeof (struct sc)))
-		do_exit(SIGSEGV);
+		goto segv_and_exit;
 	frame = (struct sc *)((unsigned long)frame & ALMASK);
 	sc = &frame->scc;
 
@@ -235,10 +194,10 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	__put_user(regs->lo, &sc->sc_mdlo);
 	__put_user(regs->cp0_cause, &sc->sc_cause);
 	__put_user((regs->cp0_status & ST0_CU1) != 0, &sc->sc_ownedfp);
-	__put_user(oldmask, &sc->sc_sigset.__sigbits[0]);
-	__put_user(0, &sc->sc_sigset.__sigbits[1]);
-	__put_user(0, &sc->sc_sigset.__sigbits[2]);
-	__put_user(0, &sc->sc_sigset.__sigbits[3]);
+	__put_user(oldmask, &sc->sc_sigset);
+	__put_user(0, &sc->__pad0[0]);
+	__put_user(0, &sc->__pad0[1]);
+	__put_user(0, &sc->__pad0[2]);
 
 	regs->regs[4] = signr;				/* Arguments for handler */
 	regs->regs[5] = 0;				/* For now. */
@@ -247,6 +206,11 @@ static void setup_frame(struct sigaction * sa, struct pt_regs *regs,
 	regs->regs[31] = (unsigned long) frame->code;	/* Return address */
 	regs->cp0_epc = (unsigned long) sa->sa_handler;	/* "return" to the first handler */
 	regs->regs[25] = regs->cp0_epc;			/* PIC shit... */
+
+segv_and_exit:
+	lock_kernel();
+	do_exit(SIGSEGV);
+	unlock_kernel();
 }
 
 static inline void handle_signal(unsigned long signr, struct sigaction *sa,
@@ -256,9 +220,11 @@ static inline void handle_signal(unsigned long signr, struct sigaction *sa,
 
 	if (sa->sa_flags & SA_ONESHOT)
 		sa->sa_handler = NULL;
-	if (!(sa->sa_flags & SA_NOMASK))
-		current->blocked |=
-			((*to_k_sigset_t(&sa->sa_mask) | _S(signr)) & _BLOCKABLE);
+	if (!(sa->sa_flags & SA_NOMASK)) {
+		spin_lock_irq(&current->sigmask_lock);
+		current->blocked |= (sa->sa_mask | _S(signr)) & _BLOCKABLE;
+		spin_unlock_irq(&current->sigmask_lock);
+	}
 }
 
 static inline void syscall_restart(unsigned long r0, unsigned long or2,
@@ -319,7 +285,9 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			if (signr == SIGSTOP)
 				continue;
 			if (_S(signr) & current->blocked) {
+				spin_lock_irq(&current->sigmask_lock);
 				current->signal |= _S(signr);
+				spin_unlock_irq(&current->sigmask_lock);
 				continue;
 			}
 			sa = current->sig->action + signr - 1;
@@ -328,7 +296,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			if (signr != SIGCHLD)
 				continue;
 			/* check for SIGCHLD: it's special */
-			while (sys_waitpid(-1,NULL,WNOHANG) > 0)
+			while (sys_wait4(-1,NULL,WNOHANG, NULL) > 0)
 				/* nothing */;
 			continue;
 		}
@@ -350,7 +318,6 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				schedule();
 				continue;
 
-			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGIOT: case SIGFPE: case SIGSEGV: case SIGBUS:
 				if (current->binfmt && current->binfmt->core_dump) {
 					if (current->binfmt->core_dump(signr, regs))
@@ -358,25 +325,23 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				}
 				/* fall through */
 			default:
+				spin_lock_irq(&current->sigmask_lock);
 				current->signal |= _S(signr & 0x7f);
+				spin_unlock_irq(&current->sigmask_lock);
+
 				current->flags |= PF_SIGNALED;
+
+				lock_kernel(); /* 8-( */
 				do_exit(signr);
+				unlock_kernel();
 			}
 		}
 		/*
 		 * OK, we're invoking a handler
 		 */
-#if 0
-		printk("[%s:%d] send sig1: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
-		       current->comm, current->pid, r0, r7, regs->regs[2]);
-#endif
 		if(r0)
 			syscall_restart(r0, regs->orig_reg2,
 					r7, regs, sa);
-#if 0
-		printk("send sig2: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
-		       r0, r7, regs->regs[2]);
-#endif
 		handle_signal(signr, sa, oldmask, regs);
 		return 1;
 	}
@@ -385,10 +350,6 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 	 * dies here!!!  The li instruction, a single machine instruction,
 	 * must directly be followed by the syscall instruction.
 	 */
-#if 0
-	printk("[%s:%d] send sig3: r0[%08lx] r7[%08lx] reg[2]=%08lx\n",
-	       current->comm, current->pid, r0, r7, regs->regs[2]);
-#endif
 	if (r0 &&
 	    (regs->regs[2] == ERESTARTNOHAND ||
 	     regs->regs[2] == ERESTARTSYS ||

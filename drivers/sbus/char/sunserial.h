@@ -1,6 +1,8 @@
-/* serial.h: Definitions for the Sparc Zilog serial driver.
+/* $Id: sunserial.h,v 1.9 1997/04/12 23:33:12 ecd Exp $
+ * serial.h: Definitions for the Sparc Zilog serial driver.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
+ * Copyright (C) 1996 Eddie C. Dost   (ecd@skynet.be)
  */
 #ifndef _SPARC_SERIAL_H
 #define _SPARC_SERIAL_H
@@ -66,9 +68,7 @@ struct serial_struct {
 #define ZILOG_SPLIT_TERMIOS 0x0008 /* Separate termios for dialin/callout */
 
 #define ZILOG_SPD_MASK	0x0030
-#define ZILOG_SPD_HI	0x0010	/* Use 56000 instead of 38400 bps */
-
-#define ZILOG_SPD_VHI	0x0020  /* Use 115200 instead of 38400 bps */
+#define ZILOG_SPD_HI	0x0010	/* Use 76800 instead of 38400 bps */
 #define ZILOG_SPD_CUST	0x0030  /* Use user-specified divisor */
 
 #define ZILOG_SKIP_TEST	0x0040 /* Skip UART test during autoconfiguration */
@@ -114,6 +114,9 @@ struct sun_serial {
 	char kgdb_channel;  /* Kgdb is running on this channel */
 	char is_cons;       /* Is this our console. */
 
+	char channelA;      /* This is channel A. */
+	char parity_mask;   /* Mask out parity bits in data register. */
+
 	/* We need to know the current clock divisor
 	 * to read the bps rate the chip has currently
 	 * loaded.
@@ -123,9 +126,6 @@ struct sun_serial {
 
 	/* Current write register values */
 	unsigned char curregs[NUM_ZSREGS];
-
-	/* Values we need to set next opportunity */
-	unsigned char pendregs[NUM_ZSREGS];
 
 	char change_needed;
 
@@ -231,6 +231,7 @@ struct sun_serial {
 #define	RxINT_FCERR	0x8	/* Rx Int on First Character Only or Error */
 #define	INT_ALL_Rx	0x10	/* Int on all Rx Characters or error */
 #define	INT_ERR_Rx	0x18	/* Int on error only */
+#define RxINT_MASK	0x18
 
 #define	WT_RDY_RT	0x20	/* Wait/Ready on R/T */
 #define	WT_FN_RDYFN	0x40	/* Wait/FN/Ready FN */
@@ -240,7 +241,7 @@ struct sun_serial {
 
 /* Write Register 3 */
 
-#define	RxENABLE	0x1	/* Rx Enable */
+#define	RxENAB  	0x1	/* Rx Enable */
 #define	SYNC_L_INH	0x2	/* Sync Character Load Inhibit */
 #define	ADD_SM		0x4	/* Address Search Mode (SDLC) */
 #define	RxCRC_ENAB	0x8	/* Rx CRC Enable */
@@ -250,10 +251,11 @@ struct sun_serial {
 #define	Rx7		0x40	/* Rx 7 Bits/Character */
 #define	Rx6		0x80	/* Rx 6 Bits/Character */
 #define	Rx8		0xc0	/* Rx 8 Bits/Character */
+#define RxN_MASK	0xc0
 
 /* Write Register 4 */
 
-#define	PAR_ENA		0x1	/* Parity Enable */
+#define	PAR_ENAB	0x1	/* Parity Enable */
 #define	PAR_EVEN	0x2	/* Parity Even/Odd* */
 
 #define	SYNC_ENAB	0	/* Sync Modes Enable */
@@ -282,6 +284,7 @@ struct sun_serial {
 #define	Tx7		0x20	/* Tx 7 bits/character */
 #define	Tx6		0x40	/* Tx 6 bits/character */
 #define	Tx8		0x60	/* Tx 8 bits/character */
+#define TxN_MASK	0x60
 #define	DTR		0x80	/* DTR */
 
 /* Write Register 6 (Sync bits 0-7/SDLC Address Field) */
@@ -334,7 +337,7 @@ struct sun_serial {
 /* Write Register 13 (upper byte of baud rate generator time constant) */
 
 /* Write Register 14 (Misc control bits) */
-#define	BRENABL	1	/* Baud rate generator enable */
+#define	BRENAB 	1	/* Baud rate generator enable */
 #define	BRSRC	2	/* Baud rate generator source */
 #define	DTRREQ	4	/* DTR/Request function */
 #define	AUTOECHO 8	/* Auto Echo */
@@ -361,7 +364,7 @@ struct sun_serial {
 #define	ZCOUNT		0x2	/* Zero count */
 #define	Tx_BUF_EMP	0x4	/* Tx Buffer empty */
 #define	DCD		0x8	/* DCD */
-#define	SYNC_HUNT	0x10	/* Sync/hunt */
+#define	SYNC		0x10	/* Sync/hunt */
 #define	CTS		0x20	/* CTS */
 #define	TxEOM		0x40	/* Tx underrun */
 #define	BRK_ABRT	0x80	/* Break/Abort */
@@ -384,6 +387,15 @@ struct sun_serial {
 #define	END_FR		0x80	/* End of Frame (SDLC) */
 
 /* Read Register 2 (channel b only) - Interrupt vector */
+#define CHB_Tx_EMPTY	0x00
+#define CHB_EXT_STAT	0x02
+#define CHB_Rx_AVAIL	0x04
+#define CHB_SPECIAL	0x06
+#define CHA_Tx_EMPTY	0x08
+#define CHA_EXT_STAT	0x0a
+#define CHA_Rx_AVAIL	0x0c
+#define CHA_SPECIAL	0x0e
+#define STATUS_MASK	0x0e
 
 /* Read Register 3 (interrupt pending register) ch a only */
 #define	CHBEXT	0x1		/* Channel B Ext/Stat IP */
@@ -408,7 +420,12 @@ struct sun_serial {
 /* Read Register 15 (value of WR 15) */
 
 /* Misc macros */
-#define ZS_CLEARERR(channel)    (channel->control = ERR_RES)
+#define ZS_CLEARERR(channel)    do { channel->control = ERR_RES; \
+				     udelay(5); } while(0)
+
+#define ZS_CLEARSTAT(channel)   do { channel->control = RES_EXT_INT; \
+				     udelay(5); } while(0)
+
 #define ZS_CLEARFIFO(channel)   do { volatile unsigned char garbage; \
 				     garbage = channel->data; \
 				     udelay(2); \

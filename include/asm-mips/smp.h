@@ -1,9 +1,6 @@
-/*
- * This file is subject to the terms and conditions of the GNU General Public
- * License.  See the file "COPYING" in the main directory of this archive
- * for more details.
- *
- * Copyright (C) 1996  Ralf Baechle
- *
- * Linux/MIPS SMP support.  Just a dummy to make building possible.
- */
+#ifndef __ASM_MIPS_SMP_H
+#define __ASM_MIPS_SMP_H
+
+/* We'll get here eventually.. */
+
+#endif /* __ASM_MIPS_SMP_H */

@@ -6,9 +6,7 @@ comment 'Filesystems'
 
 bool	 'Quota support' CONFIG_QUOTA
 tristate 'Minix fs support' CONFIG_MINIX_FS
-tristate 'Extended fs support' CONFIG_EXT_FS
 tristate 'Second extended fs support' CONFIG_EXT2_FS
-tristate 'xiafs filesystem support' CONFIG_XIA_FS
 
 # msdos filesystems
 tristate 'DOS FAT fs support' CONFIG_FAT_FS
@@ -26,6 +24,19 @@ if [ "$CONFIG_INET" = "y" ]; then
       bool '      RARP support' CONFIG_RNFS_RARP
     fi
   fi
+  tristate 'NFS server support' CONFIG_NFSD
+  if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
+    define_bool CONFIG_SUNRPC y
+    define_bool CONFIG_LOCKD y
+  else
+    if [ "$CONFIG_NFS_FS" = "m" -o "$CONFIG_NFSD" = "m" ]; then
+      define_bool CONFIG_SUNRPC m
+      define_bool CONFIG_LOCKD m
+    else
+      define_bool CONFIG_SUNRPC n
+      define_bool CONFIG_LOCKD n
+    fi
+  fi
   tristate 'SMB filesystem support (to mount WfW shares etc..)' CONFIG_SMB_FS
   if [ "$CONFIG_SMB_FS" != "n" ]; then
     bool 'SMB Win95 bug work-around' CONFIG_SMB_WIN95
@@ -38,6 +49,8 @@ tristate 'ISO9660 cdrom filesystem support' CONFIG_ISO9660_FS
 tristate 'OS/2 HPFS filesystem support (read only)' CONFIG_HPFS_FS
 tristate 'System V and Coherent filesystem support' CONFIG_SYSV_FS
 tristate 'Amiga FFS filesystem support' CONFIG_AFFS_FS
+tristate 'ROM filesystem support' CONFIG_ROMFS_FS
+tristate 'Kernel automounter support (experimental)' CONFIG_AUTOFS_FS
 if [ "$CONFIG_AFFS_FS" != "n" ]; then
   define_bool CONFIG_AMIGA_PARTITION y
 fi
@@ -47,3 +60,4 @@ if [ "$CONFIG_UFS_FS" != "n" ]; then
   bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
 fi
 endmenu
+

@@ -43,6 +43,7 @@ struct sigcontext {
 	unsigned int       sc_badvaddr;		/* Unused */
 
 	sigset_t           sc_sigset;
+	unsigned long      __pad0[3];		/* pad for constant size */
 };
 #endif
 

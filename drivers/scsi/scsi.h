@@ -23,6 +23,7 @@
 
 #include <linux/random.h>
 
+#include <asm/hardirq.h>
 
 /*
  * Some defs, in case these are not defined elsewhere.
@@ -34,6 +35,7 @@
 # define FALSE 0
 #endif
 
+#define MAX_SCSI_DEVICE_CODE 10
 
 extern void scsi_make_blocked_list(void);
 extern volatile int in_scan_scsis;
@@ -178,6 +180,7 @@ typedef struct scsi_device {
     unsigned disconnect:1;          /* can disconnect */
     unsigned soft_reset:1;          /* Uses soft reset option */
     unsigned sync:1;                /* Negotiate for sync transfers */
+    unsigned wide:1;                /* Negotiate for WIDE transfers */
     unsigned single_lun:1;          /* Indicates we should only allow I/O to
                                      * one of the luns for the device at a 
                                      * time. */
@@ -213,18 +216,8 @@ extern Scsi_Device * scsi_devices;
 
 extern int scsi_dev_init (void);
 
-struct scatterlist {
-    char *  address;    /* Location data is to be transferred to */
-    char * alt_address; /* Location of actual if address is a 
-			 * dma indirect buffer.  NULL otherwise */
-    unsigned int length;
-};
+#include <asm/scatterlist.h>
 
-#ifdef __alpha__
-# define ISA_DMA_THRESHOLD (~0UL)
-#else
-# define ISA_DMA_THRESHOLD (0x00ffffff)
-#endif
 #define CONTIGUOUS_BUFFERS(X,Y) ((X->b_data+X->b_size) == Y->b_data)
 
 
@@ -559,7 +552,7 @@ static Scsi_Cmnd * end_scsi_request(Scsi_Cmnd * SCpnt, int uptodate, int sectors
 	for(;;) {			            \
 	current->state = TASK_UNINTERRUPTIBLE;	    \
 	if (CONDITION) {		            \
-            if (intr_count)	                    \
+            if (in_interrupt())	                    \
 	        panic("scsi: trying to call schedule() in interrupt" \
 		      ", file %s, line %d.\n", __FILE__, __LINE__);  \
 	    schedule();			\

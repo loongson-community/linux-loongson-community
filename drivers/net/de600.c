@@ -36,7 +36,7 @@ static const char *version =
  *
  *	You should have received a copy of the GNU General Public License
  *	along with this program; if not, write to the Free Software
- *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. 
+ *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  **************************************************************/
 /* Add another "; SLOW_DOWN_IO" here if your adapter won't work OK: */
@@ -88,7 +88,6 @@ static const char *version =
 #define DE600_DEBUG 0
 #define PRINTK(x) /**/
 #endif
-unsigned int de600_debug = DE600_DEBUG;
 
 #include <linux/module.h>
 
@@ -104,18 +103,21 @@ unsigned int de600_debug = DE600_DEBUG;
 #include <linux/ptrace.h>
 #include <asm/system.h>
 #include <linux/errno.h>
+#include <linux/init.h>
 
 #include <linux/inet.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 
+static unsigned int de600_debug = DE600_DEBUG;
+MODULE_PARM(de600_debug, "i");
+
 #ifdef FAKE_SMALL_MAX
 static unsigned long de600_rspace(struct sock *sk);
 #include <net/sock.h>
 #endif
 
-#define netstats enet_statistics
 typedef unsigned char byte;
 
 /**************************************************
@@ -243,7 +245,7 @@ static byte	de600_read_byte(unsigned char type, struct device *dev);
 /* Put in the device structure. */
 static int	de600_open(struct device *dev);
 static int	de600_close(struct device *dev);
-static struct netstats *get_stats(struct device *dev);
+static struct net_device_stats *get_stats(struct device *dev);
 static int	de600_start_xmit(struct sk_buff *skb, struct device *dev);
 
 /* Dispatch from interrupts. */
@@ -373,10 +375,10 @@ de600_close(struct device *dev)
 	return 0;
 }
 
-static struct netstats *
+static struct net_device_stats *
 get_stats(struct device *dev)
 {
-    return (struct netstats *)(dev->priv);
+    return (struct net_device_stats *)(dev->priv);
 }
 
 static inline void
@@ -400,17 +402,6 @@ de600_start_xmit(struct sk_buff *skb, struct device *dev)
 	int	len;
 	int	tickssofar;
 	byte	*buffer = skb->data;
-
-	/*
-	 * If some higher layer thinks we've missed a
-	 * tx-done interrupt we are passed NULL.
-	 * Caution: dev_tint() handles the cli()/sti() itself.
-	 */
-
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
 
 	if (free_tx_pages <= 0) {	/* Do timeouts, to avoid hangs. */
 		tickssofar = jiffies - dev->trans_start;
@@ -468,9 +459,9 @@ de600_start_xmit(struct sk_buff *skb, struct device *dev)
 		dev->tbusy = !free_tx_pages;
 		select_prn();
 	}
-	
+
 	sti(); /* interrupts back on */
-	
+
 #ifdef FAKE_SMALL_MAX
 	/* This will "patch" the socket TCP proto at an early moment */
 	if (skb->sk && (skb->sk->protocol == IPPROTO_TCP) &&
@@ -555,7 +546,7 @@ de600_tx_intr(struct device *dev, int irq_status)
 	if (!(irq_status & TX_FAILED16)) {
 		tx_fifo_out = (tx_fifo_out + 1) % TX_PAGES;
 		++free_tx_pages;
-		((struct netstats *)(dev->priv))->tx_packets++;
+		((struct net_device_stats *)(dev->priv))->tx_packets++;
 		dev->tbusy = 0;
 	}
 
@@ -613,7 +604,7 @@ de600_rx_intr(struct device *dev)
 
 	skb->dev = dev;
 	skb_reserve(skb,2);	/* Align */
-	
+
 	/* 'skb->data' points to the start of sk_buff data area. */
 	buffer = skb_put(skb,size);
 
@@ -621,11 +612,11 @@ de600_rx_intr(struct device *dev)
 	de600_setup_address(read_from, RW_ADDR);
 	for (i = size; i > 0; --i, ++buffer)
 		*buffer = de600_read_byte(READ_DATA, dev);
-	
-	((struct netstats *)(dev->priv))->rx_packets++; /* count all receives */
+
+	((struct net_device_stats *)(dev->priv))->rx_packets++; /* count all receives */
 
 	skb->protocol=eth_type_trans(skb,dev);
-	
+
 	netif_rx(skb);
 	/*
 	 * If any worth-while packets have been received, netif_rx()
@@ -634,12 +625,12 @@ de600_rx_intr(struct device *dev)
 	 */
 }
 
-int
-de600_probe(struct device *dev)
+__initfunc(int
+de600_probe(struct device *dev))
 {
 	int	i;
-	static struct netstats de600_netstats;
-	/*dev->priv = kmalloc(sizeof(struct netstats), GFP_KERNEL);*/
+	static struct net_device_stats de600_netstats;
+	/*dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL);*/
 
 	printk("%s: D-Link DE-600 pocket adapter", dev->name);
 	/* Alpha testers must have the version number to report bugs. */
@@ -696,10 +687,9 @@ de600_probe(struct device *dev)
 	printk("\n");
 
 	/* Initialize the device structure. */
-	/*dev->priv = kmalloc(sizeof(struct netstats), GFP_KERNEL);*/
 	dev->priv = &de600_netstats;
 
-	memset(dev->priv, 0, sizeof(struct netstats));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 	dev->get_stats = get_stats;
 
 	dev->open = de600_open;
@@ -707,9 +697,9 @@ de600_probe(struct device *dev)
 	dev->hard_start_xmit = &de600_start_xmit;
 
 	ether_setup(dev);
-	
+
 	dev->flags&=~IFF_MULTICAST;
-	
+
 	select_prn();
 	return 0;
 }
@@ -815,8 +805,8 @@ de600_rspace(struct sock *sk)
   	sk->max_unacked = DE600_MAX_WINDOW - DE600_TCP_WINDOW_DIFF;
  */
 
-	if (sk->rmem_alloc >= sk->rcvbuf-2*DE600_MIN_WINDOW) return(0);
-	amt = min((sk->rcvbuf-sk->rmem_alloc)/2/*-DE600_MIN_WINDOW*/, DE600_MAX_WINDOW);
+	if (atomic_read(&sk->rmem_alloc) >= sk->rcvbuf-2*DE600_MIN_WINDOW) return(0);
+	amt = min((sk->rcvbuf-atomic_read(&sk->rmem_alloc))/2/*-DE600_MIN_WINDOW*/, DE600_MAX_WINDOW);
 	if (amt < 0) return(0);
 	return(amt);
   }

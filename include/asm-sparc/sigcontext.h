@@ -1,6 +1,6 @@
-/* $Id: sigcontext.h,v 1.9 1996/10/27 08:55:42 davem Exp $ */
-#ifndef _ASMsparc_SIGCONTEXT_H
-#define _ASMsparc_SIGCONTEXT_H
+/* $Id: sigcontext.h,v 1.12 1997/03/03 16:51:52 jj Exp $ */
+#ifndef __SPARC_SIGCONTEXT_H
+#define __SPARC_SIGCONTEXT_H
 
 #include <asm/ptrace.h>
 
@@ -36,7 +36,22 @@ struct sigcontext {
 	/* Windows to restore after signal */
 	struct reg_window sigc_wbuf[SUNOS_MAXWIN];
 };
+
+typedef struct {
+	struct pt_regs	si_regs;
+	int		si_mask;
+} __siginfo_t;
+
+typedef struct {
+	unsigned   long si_float_regs [32];
+	unsigned   long si_fsr;
+	unsigned   long si_fpqdepth;
+	struct {
+		unsigned long *insn_addr;
+		unsigned long insn;
+	} si_fpqueue [16];
+} __siginfo_fpu_t;
+
 #endif /* !(__ASSEMBLY__) */
 
-#endif /* !(_ASMsparc_SIGCONTEXT_H) */
-
+#endif /* !(__SPARC_SIGCONTEXT_H) */

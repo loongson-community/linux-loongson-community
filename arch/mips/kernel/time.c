@@ -22,6 +22,11 @@
 #include <linux/mc146818rtc.h>
 #include <linux/timex.h>
 
+extern volatile unsigned long lost_ticks;
+
+/* change this if you have some constant time drift */
+#define USECS_PER_JIFFY (1000020/HZ)
+
 /* This function must be called with interrupts disabled 
  * It was inspired by Steve McCanne's microtime-i386 for BSD.  -- jrs
  * 
@@ -59,22 +64,64 @@
 static unsigned long do_slow_gettimeoffset(void)
 {
 	int count;
-	unsigned long offset = 0;
+
+	static int count_p = LATCH;    /* for the first call after boot */
+	static unsigned long jiffies_p = 0;
+
+	/*
+	 * cache volatile jiffies temporarily; we have IRQs turned off. 
+	 */
+	unsigned long jiffies_t;
 
 	/* timer count may underflow right here */
 	outb_p(0x00, 0x43);	/* latch the count ASAP */
+
 	count = inb_p(0x40);	/* read the latched count */
-	count |= inb(0x40) << 8;
-	/* we know probability of underflow is always MUCH less than 1% */
-	if (count > (LATCH - LATCH/100)) {
-		/* check for pending timer interrupt */
-		outb_p(0x0a, 0x20);
-		if (inb(0x20) & 1)
-			offset = TICK_SIZE;
-	}
+
+	/*
+	 * We do this guaranteed double memory access instead of a _p 
+	 * postfix in the previous port access. Wheee, hackady hack
+	 */
+ 	jiffies_t = jiffies;
+
+	count |= inb_p(0x40) << 8;
+
+	/*
+	 * avoiding timer inconsistencies (they are rare, but they happen)...
+	 * there are two kinds of problems that must be avoided here:
+	 *  1. the timer counter underflows
+	 *  2. hardware problem with the timer, not giving us continuous time,
+	 *     the counter does small "jumps" upwards on some Pentium systems,
+	 *     (see c't 95/10 page 335 for Neptun bug.)
+	 */
+
+	if( jiffies_t == jiffies_p ) {
+		if( count > count_p ) {
+			/* the nutcase */
+
+			outb_p(0x0A, 0x20);
+
+			/* assumption about timer being IRQ1 */
+			if( inb(0x20) & 0x01 ) {
+				/*
+				 * We cannot detect lost timer interrupts ... 
+				 * well, thats why we call them lost, dont we? :)
+				 * [hmm, on the Pentium and Alpha we can ... sort of]
+				 */
+				count -= LATCH;
+			} else {
+				printk("do_slow_gettimeoffset(): hardware timer problem?\n");
+			}
+		}
+	} else
+		jiffies_p = jiffies_t;
+
+	count_p = count;
+
 	count = ((LATCH-1) - count) * TICK_SIZE;
 	count = (count + LATCH/2) / LATCH;
-	return offset + count;
+
+	return count;
 }
 
 static unsigned long (*do_gettimeoffset)(void) = do_slow_gettimeoffset;
@@ -90,11 +137,20 @@ void do_gettimeofday(struct timeval *tv)
 	cli();
 	*tv = xtime;
 	tv->tv_usec += do_gettimeoffset();
+
+	/*
+	 * xtime is atomically updated in timer_bh. lost_ticks is
+	 * nonzero if the timer bottom half hasnt executed yet.
+	 */
+	if (lost_ticks)
+		tv->tv_usec += USECS_PER_JIFFY;
+
+	restore_flags(flags);
+
 	if (tv->tv_usec >= 1000000) {
 		tv->tv_usec -= 1000000;
 		tv->tv_sec++;
 	}
-	restore_flags(flags);
 }
 
 void do_settimeofday(struct timeval *tv)
@@ -167,7 +223,7 @@ static int set_rtc_mmss(unsigned long nowtime)
 
 	/* The following flags have to be released exactly in this order,
 	 * otherwise the DS12887 (popular MC146818A clone with integrated
-	 * battery and crystal) will not reset the oscillator and will not
+	 * battery and quartz) will not reset the oscillator and will not
 	 * update precisely 500 ms later. You won't find this mentioned in
 	 * the Dallas Semiconductor data sheets, but who believes data
 	 * sheets anyway ...                           -- Markus Kuhn
@@ -205,7 +261,7 @@ static void timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	   basically because we don't yet share IRQ's around. This message is
 	   rigged to be safe on the 386 - basically it's a hack, so don't look
 	   closely for now.. */
-	smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0); 
+	/*smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0); */
 }
 
 /* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -281,7 +337,7 @@ void time_init(void)
 	if ((year += 1900) < 1970)
 		year += 100;
 #else
-	/* true for all MIPS machines? */
+	/* Acer PICA clock starts from 1980.  True for all MIPS machines?  */
 	year += 1980;
 #endif
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);

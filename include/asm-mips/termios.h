@@ -81,6 +81,8 @@ struct termio {
 #define TIOCM_RNG	0x200		/* ring */
 #define TIOCM_RI	TIOCM_RNG
 #define TIOCM_DSR	0x400		/* data set ready */
+#define TIOCM_OUT1	0x2000
+#define TIOCM_OUT2	0x4000
 
 /* line disciplines */
 #define N_TTY		0
@@ -89,6 +91,7 @@ struct termio {
 #define N_PPP		3
 #define N_STRIP		4
 #define N_AX25		5
+#define N_X25		6		/* X.25 async */
 
 #ifdef __KERNEL__
 
@@ -97,31 +100,36 @@ struct termio {
 /*
  * Translate a "termio" structure into a "termios". Ugh.
  */
-extern inline void trans_from_termio(struct termio * termio,
-	struct termios * termios)
-{
-#define SET_LOW_BITS(x,y)	((x) = (0xffff0000 & (x)) | (y))
-	SET_LOW_BITS(termios->c_iflag, termio->c_iflag);
-	SET_LOW_BITS(termios->c_oflag, termio->c_oflag);
-	SET_LOW_BITS(termios->c_cflag, termio->c_cflag);
-	SET_LOW_BITS(termios->c_lflag, termio->c_lflag);
-#undef SET_LOW_BITS
-	memcpy(termios->c_cc, termio->c_cc, NCC);
-}
+#define user_termio_to_kernel_termios(termios, termio) \
+({ \
+	unsigned short tmp; \
+	get_user(tmp, &(termio)->c_iflag); \
+	(termios)->c_iflag = (0xffff0000 & ((termios)->c_iflag)) | tmp; \
+	get_user(tmp, &(termio)->c_oflag); \
+	(termios)->c_oflag = (0xffff0000 & ((termios)->c_oflag)) | tmp; \
+	get_user(tmp, &(termio)->c_cflag); \
+	(termios)->c_cflag = (0xffff0000 & ((termios)->c_cflag)) | tmp; \
+	get_user(tmp, &(termio)->c_lflag); \
+	(termios)->c_lflag = (0xffff0000 & ((termios)->c_lflag)) | tmp; \
+	get_user((termios)->c_line, &(termio)->c_line); \
+	copy_from_user((termios)->c_cc, (termio)->c_cc, NCC); \
+})
 
 /*
  * Translate a "termios" structure into a "termio". Ugh.
  */
-extern inline void trans_to_termio(struct termios * termios,
-	struct termio * termio)
-{
-	termio->c_iflag = termios->c_iflag;
-	termio->c_oflag = termios->c_oflag;
-	termio->c_cflag = termios->c_cflag;
-	termio->c_lflag = termios->c_lflag;
-	termio->c_line	= termios->c_line;
-	memcpy(termio->c_cc, termios->c_cc, NCC);
-}
+#define kernel_termios_to_user_termio(termio, termios) \
+({ \
+	put_user((termios)->c_iflag, &(termio)->c_iflag); \
+	put_user((termios)->c_oflag, &(termio)->c_oflag); \
+	put_user((termios)->c_cflag, &(termio)->c_cflag); \
+	put_user((termios)->c_lflag, &(termio)->c_lflag); \
+	put_user((termios)->c_line, &(termio)->c_line); \
+	copy_to_user((termio)->c_cc, (termios)->c_cc, NCC); \
+})
+
+#define user_termios_to_kernel_termios(k, u) copy_from_user(k, u, sizeof(struct termios))
+#define kernel_termios_to_user_termios(u, k) copy_to_user(u, k, sizeof(struct termios))
 
 #endif /* defined(__KERNEL__) */
 

@@ -77,7 +77,7 @@ int is_binary(char conversion,char *extension)
 /* (rename might deadlock before detecting cross-FS moves.) */
 
 static struct wait_queue *creation_wait = NULL;
-static creation_lock = 0;
+static int creation_lock = 0;
 
 
 void fat_lock_creation(void)
@@ -140,7 +140,7 @@ printk("free cluster: %d\n",nr);
 		return -ENOSPC;
 	}
 	fat_access(sb,nr,MSDOS_SB(sb)->fat_bits == 12 ?
-	    0xff8 : 0xfff8);
+	    EOF_FAT12 : EOF_FAT16);
 	if (MSDOS_SB(sb)->free_clusters != -1)
 		MSDOS_SB(sb)->free_clusters--;
 	unlock_fat(sb);
@@ -258,6 +258,9 @@ void fat_date_unix2dos(int unix_date,unsigned short *time,
 {
 	int day,year,nl_day,month;
 
+	if (sys_tz.tz_dsttime) {
+		unix_date += 3600;
+	}
 	unix_date -= sys_tz.tz_minuteswest*60;
 	*time = (unix_date % 60)/2+(((unix_date/60) % 60) << 5)+
 	    (((unix_date/3600) % 24) << 11);

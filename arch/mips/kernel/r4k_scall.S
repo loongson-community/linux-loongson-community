@@ -16,10 +16,8 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/regdef.h>
-#include <asm/segment.h>
 #include <asm/stackframe.h>
 
-	.text
 	.set	noreorder
 	.set	mips3
 	.align	5
@@ -71,4 +69,4 @@ dst:		PTR	0b, 1b, 2b, 3b, 4b, 5b, 6b, 7b
 		PTR	7b,bad_stack
 		PTR	6b,bad_stack
 		PTR	5b,bad_stack
-		.text
+		.previous

@@ -8,6 +8,7 @@
 #define __ASM_M68K_PROCESSOR_H
 
 #include <asm/segment.h>
+#include <asm/fpu.h>
 
 /*
  * User space process size: 3.75GB. This is hardcoded into a few places,
@@ -15,14 +16,16 @@
  */
 #define TASK_SIZE	(0xF0000000UL)
 
+/* This decides where the kernel will search for a free chunk of vm
+ * space during mmap's.
+ */
+#define TASK_UNMAPPED_BASE	0xC0000000UL
+
 /*
  * Bus types
  */
 #define EISA_bus 0
 #define MCA_bus 0
-
-/* MAX floating point unit state size (FSAVE/FRESTORE) */
-#define FPSTATESIZE   (216/sizeof(unsigned char))
 
 /* 
  * if you change this structure, you must change the code and offsets
@@ -49,9 +52,6 @@ struct thread_struct {
 	{0, 0}, 0, {0,}, {0, 0, 0}, {0,}, \
 }
 
-#define alloc_kernel_stack()    __get_free_page(GFP_KERNEL)
-#define free_kernel_stack(page) free_page((page))
-
 /*
  * Do necessary setup to start up a newly executed thread.
  */
@@ -61,7 +61,9 @@ static inline void start_thread(struct pt_regs * regs, unsigned long pc,
 	unsigned long nilstate = 0;
 
 	/* clear floating point state */
-	__asm__ __volatile__ ("frestore %0@" : : "a" (&nilstate));
+	__asm__ __volatile__ (".chip 68k/68881\n\t"
+			      "frestore %0@\n\t"
+			      ".chip 68k" : : "a" (&nilstate));
 
 	/* reads from user space */
 	set_fs(USER_DS);
@@ -71,13 +73,30 @@ static inline void start_thread(struct pt_regs * regs, unsigned long pc,
 	wrusp(usp);
 }
 
+/* Free all resources held by a thread. */
+extern void release_thread(struct task_struct *);
+
 /*
  * Return saved PC of a blocked thread.
  */
 extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
-	return ((unsigned long *)((struct switch_stack *)t->ksp)->a6)[1];
+	extern int sys_pause(void);
+	extern void schedule(void);
+	struct switch_stack *sw = (struct switch_stack *)t->ksp;
+	/* Check whether the thread is blocked in resume() */
+	if (sw->retpc >= (unsigned long)schedule &&
+	    sw->retpc < (unsigned long)sys_pause)
+		return ((unsigned long *)sw->a6)[1];
+	else
+		return sw->retpc;
 }
+
+/* Allocation and freeing of basic task resources. */
+#define alloc_task_struct()	kmalloc(sizeof(struct task_struct), GFP_KERNEL)
+#define alloc_kernel_stack(p)	__get_free_page(GFP_KERNEL)
+#define free_task_struct(p)	kfree(p)
+#define free_kernel_stack(page) free_page((page))
 
 /*
  * Return_address is a replacement for __builtin_return_address(count)

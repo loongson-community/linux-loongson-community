@@ -30,7 +30,9 @@
   Paul Gortmaker	: exchange static int ei_pingpong for a #define,
 			  also add better Tx error handling.
   Paul Gortmaker	: rewrite Rx overrun handling as per NS specs.
-  Alexey Kuznetsov	: use the software multicast filter.
+  Alexey Kuznetsov	: use the 8390's six bit hash multicast filter.
+  Paul Gortmaker	: tweak ANK's above multicast changes a bit.
+  Paul Gortmaker	: update packet statistics for v2.1.x
 
 
   Sources:
@@ -56,6 +58,7 @@ static const char *version =
 #include <linux/fcntl.h>
 #include <linux/in.h>
 #include <linux/interrupt.h>
+#include <linux/init.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -151,6 +154,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 		if (tickssofar < TX_TIMEOUT ||	(tickssofar < (TX_TIMEOUT+5) && ! (txsr & ENTSR_PTX))) {
 			return 1;
 		}
+		ei_local->stat.tx_errors++;
 		isr = inb(e8390_base+EN0_ISR);
 		if (dev->start == 0) {
 			printk("%s: xmit on stopped card\n", dev->name);
@@ -159,8 +163,8 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 
 		/*
 		 * Note that if the Tx posted a TX_ERR interrupt, then the
-		 * error will have been handled from the interrupt handler.
-		 * and not here.
+		 * error will have been handled from the interrupt handler
+		 * and not here. Error statistics are handled there as well.
 		 */
 
 		printk(KERN_DEBUG "%s: Tx timed out, %s TSR=%#2x, ISR=%#2x, t=%d.\n",
@@ -178,29 +182,20 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 		dev->trans_start = jiffies;
     }
     
-    /* Sending a NULL skb means some higher layer thinks we've missed an
-       tx-done interrupt. Caution: dev_tint() handles the cli()/sti()
-       itself. */
-    if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-    }
-    
     length = skb->len;
-    if (skb->len <= 0)
-		return 0;
 
     /* Mask interrupts from the ethercard. */
     outb_p(0x00, e8390_base + EN0_IMR);
     if (dev->interrupt) {
 	printk("%s: Tx request while isr active.\n",dev->name);
 	outb_p(ENISR_ALL, e8390_base + EN0_IMR);
+	ei_local->stat.tx_errors++;
 	return 1;
     }
     ei_local->irqlock = 1;
 
     send_length = ETH_ZLEN < length ? length : ETH_ZLEN;
-
+    
 #ifdef EI_PINGPONG
 
     /*
@@ -230,6 +225,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
 	ei_local->irqlock = 0;
 	dev->tbusy = 1;
 	outb_p(ENISR_ALL, e8390_base + EN0_IMR);
+	ei_local->stat.tx_errors++;
 	return 1;
     }
 
@@ -277,6 +273,7 @@ static int ei_start_xmit(struct sk_buff *skb, struct device *dev)
     outb_p(ENISR_ALL, e8390_base + EN0_IMR);
 
     dev_kfree_skb (skb, FREE_WRITE);
+    ei_local->stat.tx_bytes += send_length;
     
     return 0;
 }
@@ -400,14 +397,12 @@ static void ei_tx_err(struct device *dev)
 
     if (tx_was_aborted)
 		ei_tx_intr(dev);
-
-    /*
-     * Note: NCR reads zero on 16 collisions so we add them
-     * in by hand. Somebody might care...
-     */
-    if (txsr & ENTSR_ABT)
-	ei_local->stat.collisions += 16;
-	
+    else {
+		ei_local->stat.tx_errors++;
+		if (txsr & ENTSR_CRS) ei_local->stat.tx_carrier_errors++;
+		if (txsr & ENTSR_CDH) ei_local->stat.tx_heartbeat_errors++;
+		if (txsr & ENTSR_OWC) ei_local->stat.tx_window_errors++;
+    }
 }
 
 /* We have finished a transmit: check for errors and then trigger the next
@@ -474,7 +469,10 @@ static void ei_tx_intr(struct device *dev)
 	ei_local->stat.tx_packets++;
     else {
 	ei_local->stat.tx_errors++;
-	if (status & ENTSR_ABT) ei_local->stat.tx_aborted_errors++;
+	if (status & ENTSR_ABT) {
+		ei_local->stat.tx_aborted_errors++;
+		ei_local->stat.collisions += 16;
+	}
 	if (status & ENTSR_CRS) ei_local->stat.tx_carrier_errors++;
 	if (status & ENTSR_FU)  ei_local->stat.tx_fifo_errors++;
 	if (status & ENTSR_CDH) ei_local->stat.tx_heartbeat_errors++;
@@ -497,7 +495,7 @@ static void ei_receive(struct device *dev)
     int num_rx_pages = ei_local->stop_page-ei_local->rx_start_page;
     
     while (++rx_pkt_count < 10) {
-		int pkt_len;
+		int pkt_len, pkt_stat;
 		
 		/* Get the rx page (incoming packet pointer). */
 		outb_p(E8390_NODMA+E8390_PAGE1, e8390_base + E8390_CMD);
@@ -522,6 +520,7 @@ static void ei_receive(struct device *dev)
 		ei_get_8390_hdr(dev, &rx_frame, this_frame);
 		
 		pkt_len = rx_frame.count - sizeof(struct e8390_pkt_hdr);
+		pkt_stat = rx_frame.status;
 		
 		next_frame = this_frame + 1 + ((pkt_len+4)>>8);
 		
@@ -544,7 +543,8 @@ static void ei_receive(struct device *dev)
 					   dev->name, rx_frame.count, rx_frame.status,
 					   rx_frame.next);
 			ei_local->stat.rx_errors++;
-		} else if ((rx_frame.status & 0x0F) == ENRSR_RXOK) {
+			ei_local->stat.rx_length_errors++;
+		} else if ((pkt_stat & 0x0F) == ENRSR_RXOK) {
 			struct sk_buff *skb;
 			
 			skb = dev_alloc_skb(pkt_len+2);
@@ -562,14 +562,18 @@ static void ei_receive(struct device *dev)
 				skb->protocol=eth_type_trans(skb,dev);
 				netif_rx(skb);
 				ei_local->stat.rx_packets++;
+				ei_local->stat.rx_bytes += pkt_len;
+				if (pkt_stat & ENRSR_PHY)
+					ei_local->stat.multicast++;
 			}
 		} else {
-			int errs = rx_frame.status;
 			if (ei_debug)
 				printk("%s: bogus packet: status=%#2x nxpg=%#2x size=%d\n",
 					   dev->name, rx_frame.status, rx_frame.next,
 					   rx_frame.count);
-			if (errs & ENRSR_FO)
+			ei_local->stat.rx_errors++;
+			/* NB: The NIC counts CRC, frame and missed errors. */
+			if (pkt_stat & ENRSR_FO)
 				ei_local->stat.rx_fifo_errors++;
 		}
 		next_frame = rx_frame.next;
@@ -662,7 +666,7 @@ static void ei_rx_overrun(struct device *dev)
 	
 }
 
-static struct enet_statistics *get_stats(struct device *dev)
+static struct net_device_stats *get_stats(struct device *dev)
 {
     short ioaddr = dev->base_addr;
     struct ei_device *ei_local = (struct ei_device *) dev->priv;
@@ -679,79 +683,96 @@ static struct enet_statistics *get_stats(struct device *dev)
 }
 
 /*
- *	Set or clear the multicast filter for this adaptor.
- *	(Don't assume 8bit char..)
+ * Update the given Autodin II CRC value with another data byte.
  */
- 
-extern inline __u32 upd_8390_crc(__u8 b, __u32 x)
+static inline u32 update_crc(u8 byte, u32 current_crc)
 {
-	int i;
-	__u8 ah=0;
-	for(i=0;i<8;i++)
-	{
-		__u8 carry = (x>>31);
-		x<<=1;
-		ah = ((ah<<1)|carry)^b;
-		
-		if(ah&1)
-			x^=0x04C11DB7;
-		ah>>=1;
-		b>>=1;
+	int bit;
+	u8 ah = 0;
+
+	for (bit=0; bit<8; bit++) {
+		u8 carry = (current_crc>>31);
+		current_crc <<= 1;
+		ah = ((ah<<1) | carry) ^ byte;
+		if (ah&1)
+			current_crc ^= 0x04C11DB7;	/* CRC polynomial */
+		ah >>= 1;
+		byte >>= 1;
 	}
-	return x;
+	return current_crc;
 }
 
-extern __inline void make_8390_mc_bits(__u8 *bits, struct device *dev)
+/*
+ * Form the 64 bit 8390 multicast table from the linked list of addresses
+ * associated with this dev structure.
+ */
+static inline void make_mc_bits(u8 *bits, struct device *dev)
 {
 	struct dev_mc_list *dmi;
-	memset(bits,0,8);
-	
-	for(dmi=dev->mc_list;dmi!=NULL;dmi=dmi->next)
-	{
+
+	for (dmi=dev->mc_list; dmi; dmi=dmi->next) {
 		int i;
-		__u32 x;
-		if(dmi->dmi_addrlen!=6)
-			continue;	/* !! */
-		x=0xFFFFFFFFUL;
-		for(i=0;i<6;i++)
-			x = upd_8390_crc(dmi->dmi_addr[i],x);
-		bits[x>>29] |= (1<<((x>>26)&7));
+		u32 crc;
+		if (dmi->dmi_addrlen != ETH_ALEN) {
+			printk(KERN_INFO "%s: invalid multicast address length given.\n", dev->name);
+			continue;
+		}
+		crc = 0xffffffff;	/* initial CRC value */
+		for (i=0; i<ETH_ALEN; i++)
+			crc = update_crc(dmi->dmi_addr[i], crc);
+		/* 
+		 * The 8390 uses the 6 most significant bits of the
+		 * CRC to index the multicast table.
+		 */
+		bits[crc>>29] |= (1<<((crc>>26)&7));
 	}
 }
 
+/*
+ *	Set or clear the multicast filter for this adaptor.
+ */
+ 
 static void set_multicast_list(struct device *dev)
 {
 	short ioaddr = dev->base_addr;
-    
+	int i;
+	unsigned long flags;
+	struct ei_device *ei = (struct ei_device*)dev->priv;
+
+	if (!(dev->flags&(IFF_PROMISC|IFF_ALLMULTI))) {
+		memset(ei->mcfilter, 0, 8);
+		if (dev->mc_list)
+			make_mc_bits(ei->mcfilter, dev);
+	} else
+		memset(ei->mcfilter, 0xFF, 8);	/* mcast set to accept-all */
+
+	/* 
+	 * DP8390 manuals don't specify any magic sequence for altering
+	 * the multicast regs on an already running card. To be safe, we
+	 * ensure multicast mode is off prior to loading up the new hash
+	 * table. If this proves to be not enough, we can always resort
+	 * to stopping the NIC, loading the table and then restarting.
+	 */
+	if (dev->start)
+		outb_p(E8390_RXCONFIG, ioaddr + EN0_RXCR);
+	save_flags(flags);
+	cli();
+	outb_p(E8390_NODMA + E8390_PAGE1, ioaddr + E8390_CMD);
+	for(i = 0; i < 8; i++)
+		outb_p(ei->mcfilter[i], ioaddr + EN1_MULT + i);
+	outb_p(E8390_NODMA + E8390_PAGE0, ioaddr + E8390_CMD);
+	restore_flags(flags);
+
 	if(dev->flags&IFF_PROMISC)
-	{
 		outb_p(E8390_RXCONFIG | 0x18, ioaddr + EN0_RXCR);
-	}
-	else if((dev->flags&IFF_ALLMULTI)||dev->mc_list)
-	{
-		unsigned long flags;
-		__u8 mc_bits[8];
-		int i;
-		
-		if(dev->flags&IFF_ALLMULTI)
-			memset(mc_bits,0xFF,8);
-		else
-			make_8390_mc_bits(mc_bits,dev);
-		save_flags(flags);
-		cli();
-		outb_p(E8390_NODMA + E8390_PAGE1 + E8390_STOP, ioaddr);
-		for(i = 0; i < 8; i++)
-				outb_p(mc_bits[i], ioaddr + EN1_MULT + i);
-		outb_p(E8390_NODMA + E8390_PAGE0 + E8390_START, ioaddr);
+	else if(dev->flags&IFF_ALLMULTI || dev->mc_list)
 		outb_p(E8390_RXCONFIG | 0x08, ioaddr + EN0_RXCR);
-		restore_flags(flags);
-	} 
 	else
 		outb_p(E8390_RXCONFIG, ioaddr + EN0_RXCR);
 }
 
 /* Initialize the rest of the 8390 device structure. */
-int ethdev_init(struct device *dev)
+__initfunc(int ethdev_init(struct device *dev))
 {
     if (ei_debug > 1)
 		printk(version);
@@ -806,20 +827,15 @@ void NS8390_init(struct device *dev, int startp)
     outb_p(0xFF, e8390_base + EN0_ISR);
     outb_p(0x00,  e8390_base + EN0_IMR);
     
-    /* Copy the station address into the DS8390 registers,
-       and set the multicast hash bitmap to receive all multicasts. */
+    /* Copy the station address into the DS8390 registers. */
     save_flags(flags);
     cli();
     outb_p(E8390_NODMA + E8390_PAGE1 + E8390_STOP, e8390_base); /* 0x61 */
     for(i = 0; i < 6; i++) {
 		outb_p(dev->dev_addr[i], e8390_base + EN1_PHYS + i);
     }
-    /* Initialize the multicast list to accept-all.  If we enable multicast
-       the higher levels can do the filtering. */
-    for(i = 0; i < 8; i++)
-		outb_p(0xff, e8390_base + EN1_MULT + i);
     
-    outb_p(ei_local->rx_start_page,	 e8390_base + EN1_CURPAG);
+    outb_p(ei_local->rx_start_page, e8390_base + EN1_CURPAG);
     outb_p(E8390_NODMA+E8390_PAGE0+E8390_STOP, e8390_base);
     restore_flags(flags);
     dev->tbusy = 0;
@@ -833,8 +849,7 @@ void NS8390_init(struct device *dev, int startp)
 		outb_p(E8390_TXCONFIG, e8390_base + EN0_TXCR); /* xmit on. */
 		/* 3c503 TechMan says rxconfig only after the NIC is started. */
 		outb_p(E8390_RXCONFIG,	e8390_base + EN0_RXCR); /* rx on,  */
-		dev->set_multicast_list(dev);		/* Get the multicast status right if this
-							   was a reset. */
+		set_multicast_list(dev);	/* (re)load the mcast table */
     }
     return;
 }

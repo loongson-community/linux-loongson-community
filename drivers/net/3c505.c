@@ -3,7 +3,7 @@
  *      By Craig Southeren, Juha Laiho and Philip Blundell
  *
  * 3c505.c      This module implements an interface to the 3Com
- *              Etherlink Plus (3c505) ethernet card. Linux device 
+ *              Etherlink Plus (3c505) ethernet card. Linux device
  *              driver interface reverse engineered from the Linux 3C509
  *              device drivers. Some 3C505 information gleaned from
  *              the Crynwr packet driver. Still this driver would not
@@ -78,11 +78,11 @@
 
 /* This driver may now work with revision 2.x hardware, since all the read
  * operations on the HCR have been removed (we now keep our own softcopy).
- * But I don't have an old card to test it on.  
- * 
+ * But I don't have an old card to test it on.
+ *
  * This has had the bad effect that the autoprobe routine is now a bit
  * less friendly to other devices.  However, it was never very good.
- * before, so I doubt it will hurt anybody.  
+ * before, so I doubt it will hurt anybody.
  */
 
 /* The driver is a mess.  I took Craig's and Juha's code, and hacked it firstly
@@ -108,6 +108,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/init.h>
 
 #include "3c505.h"
 
@@ -178,7 +179,7 @@ static const int elp_debug = 0;
  * Last element MUST BE 0!
  *****************************************************************/
 
-static const int addr_list[] = {0x300, 0x280, 0x310, 0};
+static const int addr_list[] __initdata = {0x300, 0x280, 0x310, 0};
 
 /* Dma Memory related stuff */
 
@@ -378,7 +379,7 @@ static inline void prime_rx(struct device *dev)
 /*****************************************************************
  *
  * send_pcb
- *   Send a PCB to the adapter. 
+ *   Send a PCB to the adapter.
  *
  *	output byte to command reg  --<--+
  *	wait until HCRE is non zero      |
@@ -450,7 +451,9 @@ static int send_pcb(struct device *dev, pcb_struct * pcb)
 			return TRUE;
 			break;
 		case ASF_PCB_NAK:
-			printk("%s: send_pcb got NAK\n", dev->name);
+#ifdef ELP_DEBUG
+			printk(KERN_DEBUG "%s: send_pcb got NAK\n", dev->name);
+#endif
 			goto abort;
 			break;
 		}
@@ -621,6 +624,7 @@ static void receive_packet(struct device *dev, int len)
 	if (set_bit(0, (void *) &adapter->dmaing))
 		printk("%s: rx blocked, DMA in progress, dir %d\n", dev->name, adapter->current_dma.direction);
 
+	skb->dev = dev;
 	adapter->current_dma.direction = 0;
 	adapter->current_dma.length = rlen;
 	adapter->current_dma.skb = skb;
@@ -698,12 +702,12 @@ static void elp_interrupt(int irq, void *dev_id, struct pt_regs *reg_ptr)
 			} else {
 				struct sk_buff *skb = adapter->current_dma.skb;
 				if (skb) {
-				  skb->dev = dev;
 				  if (adapter->current_dma.target) {
 				    /* have already done the skb_put() */
 				    memcpy(adapter->current_dma.target, adapter->dma_buffer, adapter->current_dma.length);
 				  }
 				  skb->protocol = eth_type_trans(skb,dev);
+				  adapter->stats.rx_bytes += skb->len;
 				  netif_rx(skb);
 				}
 			}
@@ -907,7 +911,7 @@ static int elp_open(struct device *dev)
 	dev->interrupt = 0;
 
 	/*
-	 *  transmitter not busy 
+	 *  transmitter not busy
 	 */
 	dev->tbusy = 0;
 
@@ -1032,8 +1036,9 @@ static int send_packet(struct device *dev, struct sk_buff *skb)
 			printk("%s: transmit blocked\n", dev->name);
 		return FALSE;
 	}
-	adapter = dev->priv;
 
+	adapter->stats.tx_bytes += nlen;
+	
 	/*
 	 * send the adapter a transmit packet command. Ignore segment and offset
 	 * and make sure the length is even
@@ -1111,15 +1116,6 @@ static int elp_start_xmit(struct sk_buff *skb, struct device *dev)
 		adapter->stats.tx_dropped++;
 	}
 
-	/* Some upper layer thinks we've missed a tx-done interrupt */
-	if (skb == NULL) {
-		dev_tint(dev);
-		return 0;
-	}
-
-	if (skb->len <= 0)
-		return 0;
-
 	if (elp_debug >= 3)
 		printk("%s: request to send packet of length %d\n", dev->name, (int) skb->len);
 
@@ -1156,7 +1152,7 @@ static int elp_start_xmit(struct sk_buff *skb, struct device *dev)
  *
  ******************************************************/
 
-static struct enet_statistics *elp_get_stats(struct device *dev)
+static struct net_device_stats *elp_get_stats(struct device *dev)
 {
 	elp_device *adapter = (elp_device *) dev->priv;
 
@@ -1310,7 +1306,7 @@ static void elp_set_mc_list(struct device *dev)
  *
  ******************************************************/
 
-static void elp_init(struct device *dev)
+static inline void elp_init(struct device *dev)
 {
 	elp_device *adapter = dev->priv;
 
@@ -1329,7 +1325,7 @@ static void elp_init(struct device *dev)
 	/*
 	 * setup ptr to adapter specific information
 	 */
-	memset(&(adapter->stats), 0, sizeof(struct enet_statistics));
+	memset(&(adapter->stats), 0, sizeof(struct net_device_stats));
 
 	/*
 	 * memory information
@@ -1343,7 +1339,7 @@ static void elp_init(struct device *dev)
  * Called only by elp_autodetect
  ************************************************************/
 
-static int elp_sense(struct device *dev)
+__initfunc(static int elp_sense(struct device *dev))
 {
 	int timeout;
 	int addr = dev->base_addr;
@@ -1362,7 +1358,7 @@ static int elp_sense(struct device *dev)
 	if (orig_HSR == 0xff) {
 		if (elp_debug > 0)
 			printk(notfound_msg, 1);
-		return -1;	
+		return -1;
 	}
 	/* Enable interrupts - we need timers! */
 	save_flags(flags);
@@ -1410,7 +1406,7 @@ static int elp_sense(struct device *dev)
  * Called only by eplus_probe
  *************************************************************/
 
-static int elp_autodetect(struct device *dev)
+__initfunc(static int elp_autodetect(struct device *dev))
 {
 	int idx = 0;
 
@@ -1454,7 +1450,7 @@ static int elp_autodetect(struct device *dev)
  * work at all if it was in a weird state).
  */
 
-int elplus_probe(struct device *dev)
+__initfunc(int elplus_probe(struct device *dev))
 {
 	elp_device *adapter;
 	int i, tries, tries1, timeout, okay;
@@ -1594,7 +1590,7 @@ int elplus_probe(struct device *dev)
 			dev->dma = dev->mem_start & 7;
 		}
 		else {
-			printk(KERN_WARNING "%s: warning, DMA channel not specified, using default\n", dev->name); 
+			printk(KERN_WARNING "%s: warning, DMA channel not specified, using default\n", dev->name);
 			dev->dma = ELP_DMA;
 		}
 	}
@@ -1669,6 +1665,9 @@ static struct device dev_3c505[ELP_MAX_CARDS] =
 static int io[ELP_MAX_CARDS] = { 0, };
 static int irq[ELP_MAX_CARDS] = { 0, };
 static int dma[ELP_MAX_CARDS] = { 0, };
+MODULE_PARM(io, "1-" __MODULE_STRING(ELP_MAX_CARDS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(ELP_MAX_CARDS) "i");
+MODULE_PARM(dma, "1-" __MODULE_STRING(ELP_MAX_CARDS) "i");
 
 int init_module(void)
 {
@@ -1702,7 +1701,7 @@ int init_module(void)
 void cleanup_module(void)
 {
 	int this_dev;
-        
+
 	for (this_dev = 0; this_dev < ELP_MAX_CARDS; this_dev++) {
 		struct device *dev = &dev_3c505[this_dev];
 		if (dev->priv != NULL) {

@@ -5,27 +5,22 @@
 
 #include <linux/kernel.h>
 #include <linux/malloc.h>
+#include <linux/init.h>
 
 #include <asm/oplib.h>
-#include <asm/contregs.h>
-#include <asm/sysen.h>
 #include <asm/delay.h>
-#include <asm/idprom.h>
-#include <asm/machines.h>
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <asm/sbus.h>
-#include <asm/vac-ops.h>
-#include <asm/vaddrs.h>
 
 struct Linux_SBus_DMA *dma_chain;
 
 /* Print out the current values in the DMA control registers */
-void
+static __inline__ void
 dump_dma_regs(struct sparc_dma_registers *dregs)
 {
 	printk("DMA CONTROL<%08lx>  ADDR<%08lx> CNT<%08lx> TEST<%08lx>\n",
-	       dregs->cond_reg,
+	       (unsigned long) dregs->cond_reg,
 	       (unsigned long) dregs->st_addr,
 	       (unsigned long) dregs->cnt,
 	       (unsigned long) dregs->dma_test);
@@ -34,8 +29,8 @@ dump_dma_regs(struct sparc_dma_registers *dregs)
 
 
 /* Probe this SBus DMA module(s) */
-unsigned long
-dvma_init(struct linux_sbus *sbus, unsigned long memory_start)
+__initfunc(unsigned long
+dvma_init(struct linux_sbus *sbus, unsigned long memory_start))
 {
 	struct linux_sbus_device *this_dev;
 	struct Linux_SBus_DMA *dma;
@@ -43,9 +38,13 @@ dvma_init(struct linux_sbus *sbus, unsigned long memory_start)
 	static int num_dma=0;
 
 	for_each_sbusdev(this_dev, sbus) {
-		if(strcmp(this_dev->prom_name, "dma") &&
-		   strcmp(this_dev->prom_name, "ledma") &&
-		   strcmp(this_dev->prom_name, "espdma"))
+		int hme = 0;
+
+		if(!strcmp(this_dev->prom_name, "SUNW,fas")) {
+			hme = 1;
+		} else if(strcmp(this_dev->prom_name, "dma") &&
+			  strcmp(this_dev->prom_name, "ledma") &&
+			  strcmp(this_dev->prom_name, "espdma"))
 			continue;
 
 		/* Found one... */
@@ -71,7 +70,12 @@ dvma_init(struct linux_sbus *sbus, unsigned long memory_start)
 		/* The constant PAGE_SIZE that is passed to sparc_alloc_io makes the
 		 * routine only alloc 1 page, that was what the original code did
 		 */
-		prom_apply_sbus_ranges(dma->SBus_dev->reg_addrs, 0x1);
+		if(hme) /* On HME cards, dvma lives with esp, 2 reg sets. */
+			prom_apply_sbus_ranges(sbus, dma->SBus_dev->reg_addrs,
+					       0x2, dma->SBus_dev);
+		else    /* All others have only 1 reg set. */
+			prom_apply_sbus_ranges(sbus, dma->SBus_dev->reg_addrs,
+					       0x1, dma->SBus_dev);
 		dma->regs = (struct sparc_dma_registers *)
 			sparc_alloc_io (dma->SBus_dev->reg_addrs[0].phys_addr, 0,
 					PAGE_SIZE, "dma",
@@ -97,12 +101,17 @@ dvma_init(struct linux_sbus *sbus, unsigned long memory_start)
 			dma->revision=dvmarev2;
 			printk("Revision 2 ");
 			break;
+		case DMA_VERHME:
+			dma->revision=dvmahme;
+			printk("HME DVMA gate array ");
+			break;
 		case DMA_VERSPLUS:
 			dma->revision=dvmarevplus;
 			printk("Revision 1 PLUS ");
 			break;
 		default:
-			printk("unknown dma version");
+			printk("unknown dma version %x",
+			       (dma->regs->cond_reg)&DMA_DEVICE_ID);
 			dma->allocated = 1;
 			break;
 		}

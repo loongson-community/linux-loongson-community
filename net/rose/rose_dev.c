@@ -1,10 +1,10 @@
 /*
  *	Rose release 001
  *
- *	This is ALPHA test software. This code may break your machine, randomly fail to work with new 
- *	releases, misbehave and/or generally screw up. It might even work. 
+ *	This is ALPHA test software. This code may break your machine, randomly fail to work with new
+ *	releases, misbehave and/or generally screw up. It might even work.
  *
- *	This code REQUIRES 2.1.0 or higher/ NET3.029
+ *	This code REQUIRES 2.1.15 or higher/ NET3.038
  *
  *	This module:
  *		This module is free software; you can redistribute it and/or
@@ -14,10 +14,12 @@
  *
  *	History
  *	Rose 001	Jonathan(G4KLX)	Cloned from nr_dev.c.
+ *			Hans(PE1AYX)	Fixed interface to IP layer.
  */
 
 #include <linux/config.h>
 #if defined(CONFIG_ROSE) || defined(CONFIG_ROSE_MODULE)
+#define __NO_VERSION__
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/kernel.h>
@@ -55,7 +57,7 @@
 
 int rose_rx_ip(struct sk_buff *skb, struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
 
 	if (!dev->start) {
 		stats->rx_errors++;
@@ -63,12 +65,16 @@ int rose_rx_ip(struct sk_buff *skb, struct device *dev)
 	}
 
 	stats->rx_packets++;
+	stats->rx_bytes += skb->len;
+
 	skb->protocol = htons(ETH_P_IP);
 
 	/* Spoof incoming device */
-	skb->dev = dev;
+	skb->dev      = dev;
+	skb->h.raw    = skb->data;
+	skb->nh.raw   = skb->data;
+	skb->pkt_type = PACKET_HOST;
 
-	skb->h.raw = skb->data;
 	ip_rcv(skb, skb->dev, NULL);
 
 	return 1;
@@ -79,7 +85,7 @@ static int rose_header(struct sk_buff *skb, struct device *dev, unsigned short t
 {
 	unsigned char *buff = skb_push(skb, ROSE_MIN_LEN + 2);
 
-	*buff++ = GFI | Q_BIT;
+	*buff++ = ROSE_GFI | ROSE_Q_BIT;
 	*buff++ = 0x00;
 	*buff++ = ROSE_DATA;
 	*buff++ = 0x7F;
@@ -87,40 +93,39 @@ static int rose_header(struct sk_buff *skb, struct device *dev, unsigned short t
 
 	if (daddr != NULL)
 		return 37;
-	
-	return -37;	
+
+	return -37;
 }
 
-static int rose_rebuild_header(void *buff, struct device *dev,
-	unsigned long raddr, struct sk_buff *skb)
+static int rose_rebuild_header(struct sk_buff *skb)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
-	unsigned char *bp = (unsigned char *)buff;
+	struct device *dev = skb->dev;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
+	unsigned char *bp = (unsigned char *)skb->data;
 	struct sk_buff *skbn;
 
-	if (!arp_query(bp + 7, raddr, dev)) {
-		dev_kfree_skb(skb, FREE_WRITE);
+	if (!arp_find(bp + 7, skb)) {
+		kfree_skb(skb, FREE_WRITE);
 		return 1;
 	}
 
 	if ((skbn = skb_clone(skb, GFP_ATOMIC)) == NULL) {
-		dev_kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb, FREE_WRITE);
 		return 1;
 	}
 
-	skbn->sk = skb->sk;
-	
-	if (skbn->sk != NULL)
-		atomic_add(skbn->truesize, &skbn->sk->wmem_alloc);
+	if (skb->sk != NULL)
+		skb_set_owner_w(skbn, skb->sk);
 
-	dev_kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb, FREE_WRITE);
 
 	if (!rose_route_frame(skbn, NULL)) {
-		dev_kfree_skb(skbn, FREE_WRITE);
+		kfree_skb(skbn, FREE_WRITE);
 		stats->tx_errors++;
 	}
 
 	stats->tx_packets++;
+	stats->tx_bytes += skbn->len;
 
 	return 1;
 }
@@ -132,7 +137,7 @@ static int rose_set_mac_address(struct device *dev, void *addr)
 	ax25_listen_release((ax25_address *)dev->dev_addr, NULL);
 
 	memcpy(dev->dev_addr, sa->sa_data, dev->addr_len);
-	
+
 	ax25_listen_register((ax25_address *)dev->dev_addr, NULL);
 
 	return 0;
@@ -155,16 +160,16 @@ static int rose_close(struct device *dev)
 	dev->tbusy = 1;
 	dev->start = 0;
 
-	ax25_listen_release((ax25_address *)dev->dev_addr, NULL);
-
 	MOD_DEC_USE_COUNT;
+
+	ax25_listen_release((ax25_address *)dev->dev_addr, NULL);
 
 	return 0;
 }
 
 static int rose_xmit(struct sk_buff *skb, struct device *dev)
 {
-	struct enet_statistics *stats = (struct enet_statistics *)dev->priv;
+	struct net_device_stats *stats = (struct net_device_stats *)dev->priv;
 
 	if (skb == NULL || dev == NULL)
 		return 0;
@@ -186,7 +191,7 @@ static int rose_xmit(struct sk_buff *skb, struct device *dev)
 
 	sti();
 
-	dev_kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb, FREE_WRITE);
 
 	stats->tx_errors++;
 
@@ -197,16 +202,14 @@ static int rose_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
 }
 
-static struct enet_statistics *rose_get_stats(struct device *dev)
+static struct net_device_stats *rose_get_stats(struct device *dev)
 {
-	return (struct enet_statistics *)dev->priv;
+	return (struct net_device_stats *)dev->priv;
 }
 
 int rose_init(struct device *dev)
 {
-	int i;
-
-	dev->mtu		= ROSE_PACLEN - 2;
+	dev->mtu		= ROSE_MAX_PACKET_SIZE - 2;
 	dev->tbusy		= 0;
 	dev->hard_start_xmit	= rose_xmit;
 	dev->open		= rose_open;
@@ -228,71 +231,16 @@ int rose_init(struct device *dev)
 	dev->pa_mask		= 0;
 	dev->pa_alen		= sizeof(unsigned long);
 
-	if ((dev->priv = kmalloc(sizeof(struct enet_statistics), GFP_KERNEL)) == NULL)
+	if ((dev->priv = kmalloc(sizeof(struct net_device_stats), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
-	memset(dev->priv, 0, sizeof(struct enet_statistics));
+	memset(dev->priv, 0, sizeof(struct net_device_stats));
 
 	dev->get_stats = rose_get_stats;
 
-	/* Fill in the generic fields of the device structure. */
-	for (i = 0; i < DEV_NUMBUFFS; i++)
-		skb_queue_head_init(&dev->buffs[i]);
+	dev_init_buffers(dev);
 
 	return 0;
 };
-
-#ifdef MODULE
-extern struct proto_ops rose_proto_ops;
-extern struct notifier_block rose_dev_notifier;
-
-static struct device dev_rose[] = {
-	{"rose0", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, rose_init},
-	{"rose1", 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, rose_init}
-};
-
-int init_module(void)
-{
-	register_netdev(&dev_rose[0]);
-	register_netdev(&dev_rose[1]);
-
-	register_symtab(NULL);
-
-	rose_proto_init(NULL);
-	
-	return 0;
-}
-
-void cleanup_module(void)
-{
-	int i;
-
-#ifdef CONFIG_PROC_FS
-	proc_net_unregister(PROC_NET_RS);
-	proc_net_unregister(PROC_NET_RS_NEIGH);
-	proc_net_unregister(PROC_NET_RS_NODES);
-	proc_net_unregister(PROC_NET_RS_ROUTES);
-#endif
-	rose_rt_free();
-
-	ax25_protocol_release(AX25_P_ROSE);
-	ax25_linkfail_release(rose_link_failed);
-
-	rose_unregister_sysctl();
-
-	unregister_netdevice_notifier(&rose_dev_notifier);
-
-	sock_unregister(rose_proto_ops.family);
-	
-	for (i = 0; i < 2; i++) {
-		if (dev_rose[i].priv != NULL) {
-			kfree(dev_rose[i].priv);
-			dev_rose[i].priv = NULL;
-			unregister_netdev(&dev_rose[i]);
-		}
-	}
-}
-
-#endif
 
 #endif

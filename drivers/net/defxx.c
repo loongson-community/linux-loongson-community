@@ -215,6 +215,7 @@ static const char *version = "defxx.c:v1.04 09/16/96  Lawrence V. Stefani (stefa
 #include <linux/pci.h>
 #include <linux/bios32.h>
 #include <linux/delay.h>
+#include <linux/init.h>
 #include <asm/byteorder.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
@@ -247,7 +248,7 @@ static void		dfx_int_type_0_process(DFX_board_t *bp);
 static void		dfx_int_common(DFX_board_t *bp);
 static void		dfx_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
-static struct	enet_statistics *dfx_ctl_get_stats(struct device *dev);
+static struct		net_device_stats *dfx_ctl_get_stats(struct device *dev);
 static void		dfx_ctl_set_multicast_list(struct device *dev);
 static int		dfx_ctl_set_mac_address(struct device *dev, void *addr);
 static int		dfx_ctl_update_cam(DFX_board_t *bp);
@@ -437,9 +438,9 @@ static inline void dfx_port_read_long(
  *   the device structure.
  */
 
-int dfx_probe(
+__initfunc(int dfx_probe(
 	struct device *dev
-	)
+	))
 
 	{
 	int				i;				/* used in for loops */
@@ -636,10 +637,10 @@ int dfx_probe(
  *   None
  */
 
-struct device *dfx_alloc_device(
+__initfunc(struct device *dfx_alloc_device(
 	struct device	*dev,
 	u16				iobase
-	)
+	))
 
 	{
 	struct device *tmp_dev;		/* pointer to a device structure */
@@ -687,11 +688,11 @@ struct device *dfx_alloc_device(
 	tmp_dev->rebuild_header			= NULL;		/* set in fddi_setup() */
 	tmp_dev->set_multicast_list		= &dfx_ctl_set_multicast_list;
 	tmp_dev->set_mac_address		= &dfx_ctl_set_mac_address;
-	tmp_dev->do_ioctl				= NULL;		/* not supported for now &&& */
-	tmp_dev->set_config				= NULL;		/* not supported for now &&& */
-	tmp_dev->header_cache_bind		= NULL;		/* not supported */
-	tmp_dev->header_cache_update	= NULL;		/* not supported */
-	tmp_dev->change_mtu				= NULL;		/* set in fddi_setup() */
+	tmp_dev->do_ioctl			= NULL;		/* not supported for now &&& */
+	tmp_dev->set_config			= NULL;		/* not supported for now &&& */
+	tmp_dev->hard_header_cache		= NULL;		/* not supported */
+	tmp_dev->header_cache_update		= NULL;		/* not supported */
+	tmp_dev->change_mtu			= NULL;		/* set in fddi_setup() */
 
 	/* Initialize remaining device structure information */
 
@@ -731,9 +732,9 @@ struct device *dfx_alloc_device(
  *   enabled yet.
  */
 
-void dfx_bus_init(
+__initfunc(void dfx_bus_init(
 	struct device *dev
-	)
+	))
 
 	{
 	DFX_board_t *bp = (DFX_board_t *)dev->priv;
@@ -865,9 +866,9 @@ void dfx_bus_init(
  *   None
  */
 
-void dfx_bus_config_check(
+__initfunc(void dfx_bus_config_check(
 	DFX_board_t *bp
-	)
+	))
 
 	{
 	int	status;				/* return code from adapter port control call */
@@ -969,9 +970,9 @@ void dfx_bus_config_check(
  *   returning from this routine.
  */
 
-int dfx_driver_init(
+__initfunc(int dfx_driver_init(
 	struct device *dev
-	)
+	))
 
 	{
 	DFX_board_t *bp = (DFX_board_t *)dev->priv;
@@ -1991,7 +1992,7 @@ void dfx_interrupt(
  *   None
  */
 
-struct enet_statistics *dfx_ctl_get_stats(
+struct net_device_stats *dfx_ctl_get_stats(
 	struct device *dev
 	)
 
@@ -2013,7 +2014,7 @@ struct enet_statistics *dfx_ctl_get_stats(
 
 	bp->cmd_req_virt->cmd_type = PI_CMD_K_SMT_MIB_GET;
 	if (dfx_hw_dma_cmd_req(bp) != DFX_K_SUCCESS)
-		return((struct enet_statistics *) &bp->stats);
+		return((struct net_device_stats *) &bp->stats);
 
 	/* Fill the bp->stats structure with the SMT MIB object values */
 
@@ -2114,7 +2115,7 @@ struct enet_statistics *dfx_ctl_get_stats(
 
 	bp->cmd_req_virt->cmd_type = PI_CMD_K_CNTRS_GET;
 	if (dfx_hw_dma_cmd_req(bp) != DFX_K_SUCCESS)
-		return((struct enet_statistics *) &bp->stats);
+		return((struct net_device_stats *) &bp->stats);
 
 	/* Fill the bp->stats structure with the FDDI counter values */
 
@@ -2130,7 +2131,7 @@ struct enet_statistics *dfx_ctl_get_stats(
 	bp->stats.port_lem_cts[0]			= bp->cmd_rsp_virt->cntrs_get.cntrs.link_errors[0].ls;
 	bp->stats.port_lem_cts[1]			= bp->cmd_rsp_virt->cntrs_get.cntrs.link_errors[1].ls;
 
-	return((struct enet_statistics *) &bp->stats);
+	return((struct net_device_stats *) &bp->stats);
 	}
 
 
@@ -3134,13 +3135,13 @@ int dfx_xmt_queue_pkt(
 	 */
 
 	if (!IN_RANGE(skb->len, FDDI_K_LLC_ZLEN, FDDI_K_LLC_LEN))
-		{
-		printk("%s: Invalid packet length - %lu bytes\n", dev->name, skb->len);
-		bp->xmt_length_errors++;	/* bump error counter */
+	{
+		printk("%s: Invalid packet length - %u bytes\n", 
+			dev->name, skb->len);
+		bp->xmt_length_errors++;		/* bump error counter */
 		dev_tint(dev);				/* dequeue packets from xmt queue and send them */
-		return(0);					/* return "success" */
-		}
-
+		return(0);				/* return "success" */
+	}
 	/*
 	 * See if adapter link is available, if not, free buffer
 	 *

@@ -8,6 +8,8 @@
 
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
 #include <linux/errno.h>
@@ -21,7 +23,9 @@
 
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
-asmlinkage int sys_waitpid(pid_t pid,unsigned long * stat_addr, int options);
+asmlinkage int sys_wait4(pid_t pid, unsigned long *stat_addr,
+			 int options, unsigned long *ru);
+
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs);
 
 /*
@@ -29,16 +33,19 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs);
  */
 asmlinkage int sys_sigsuspend(int restart, unsigned long oldmask, unsigned long set)
 {
-	unsigned long mask;
 	struct pt_regs * regs = (struct pt_regs *) &restart;
+	unsigned long mask;
 
+	spin_lock_irq(&current->sigmask_lock);
 	mask = current->blocked;
 	current->blocked = set & _BLOCKABLE;
+	spin_unlock_irq(&current->sigmask_lock);
+
 	regs->eax = -EINTR;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(mask,regs))
+		if (do_signal(mask, regs))
 			return -EINTR;
 	}
 }
@@ -82,7 +89,10 @@ asmlinkage int sys_sigreturn(unsigned long __unused)
 #define COPY(x) regs->x = context->x
 #define COPY_SEG(seg) \
 { unsigned int tmp = context->seg; \
-if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
+if (   (tmp & 0xfffc)     /* not a NULL selectors */ \
+    && (tmp & 0x4) != 0x4 /* not a LDT selector */ \
+    && (tmp & 3) != 3     /* not a RPL3 GDT selector */ \
+   ) goto badframe; \
 regs->x##seg = tmp; }
 #define COPY_SEG_STRICT(seg) \
 { unsigned int tmp = context->seg; \
@@ -90,7 +100,10 @@ if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
 regs->x##seg = tmp; }
 #define GET_SEG(seg) \
 { unsigned int tmp = context->seg; \
-if ((tmp & 0xfffc) && (tmp & 3) != 3) goto badframe; \
+if (   (tmp & 0xfffc)     /* not a NULL selectors */ \
+    && (tmp & 0x4) != 0x4 /* not a LDT selector */ \
+    && (tmp & 3) != 3     /* not a RPL3 GDT selector */ \
+   ) goto badframe; \
 __asm__("mov %w0,%%" #seg: :"r" (tmp)); }
 	struct sigcontext * context;
 	struct pt_regs * regs;
@@ -121,8 +134,11 @@ __asm__("mov %w0,%%" #seg: :"r" (tmp)); }
 		restore_i387(buf);
 	}
 	return context->eax;
+
 badframe:
+	lock_kernel();
 	do_exit(SIGSEGV);
+	unlock_kernel();
 }
 
 static inline struct _fpstate * save_i387_hard(struct _fpstate * buf)
@@ -175,50 +191,56 @@ static void setup_frame(struct sigaction * sa,
 	if ((regs->xss & 0xffff) != USER_DS && sa->sa_restorer)
 		frame = (unsigned long *) sa->sa_restorer;
 	frame -= 64;
-	if (verify_area(VERIFY_WRITE,frame,64*4))
-		do_exit(SIGSEGV);
+	if (!access_ok(VERIFY_WRITE,frame,64*4))
+		goto segv_and_exit;
 
 /* set up the "normal" stack seen by the signal handler (iBCS2) */
 #define __CODE ((unsigned long)(frame+24))
 #define CODE(x) ((unsigned long *) ((x)+__CODE))
-	if (put_user(__CODE,frame))
-		do_exit(SIGSEGV);
+	
+    /* XXX Can possible miss a SIGSEGV when frame crosses a page border
+       and a thread unmaps it while we are accessing it. 
+       So either check all put_user() calls or don't do it at all.  
+       We use __put_user() here because the access_ok() call was already
+       done earlier. */  
+	if (__put_user(__CODE,frame))
+		goto segv_and_exit;
 	if (current->exec_domain && current->exec_domain->signal_invmap)
-		put_user(current->exec_domain->signal_invmap[signr], frame+1);
+		__put_user(current->exec_domain->signal_invmap[signr], frame+1);
 	else
-		put_user(signr, frame+1);
+		__put_user(signr, frame+1);
 	{
 		unsigned int tmp = 0;
 #define PUT_SEG(seg, mem) \
-__asm__("mov %%" #seg",%w0":"=r" (tmp):"0" (tmp)); put_user(tmp,mem);
+__asm__("mov %%" #seg",%w0":"=r" (tmp):"0" (tmp)); __put_user(tmp,mem);
 		PUT_SEG(gs, frame+2);
 		PUT_SEG(fs, frame+3);
 	}
-	put_user(regs->xes, frame+4);
-	put_user(regs->xds, frame+5);
-	put_user(regs->edi, frame+6);
-	put_user(regs->esi, frame+7);
-	put_user(regs->ebp, frame+8);
-	put_user(regs->esp, frame+9);
-	put_user(regs->ebx, frame+10);
-	put_user(regs->edx, frame+11);
-	put_user(regs->ecx, frame+12);
-	put_user(regs->eax, frame+13);
-	put_user(current->tss.trap_no, frame+14);
-	put_user(current->tss.error_code, frame+15);
-	put_user(regs->eip, frame+16);
-	put_user(regs->xcs, frame+17);
-	put_user(regs->eflags, frame+18);
-	put_user(regs->esp, frame+19);
-	put_user(regs->xss, frame+20);
-	put_user((unsigned long) save_i387((struct _fpstate *)(frame+32)),frame+21);
+	__put_user(regs->xes, frame+4);
+	__put_user(regs->xds, frame+5);
+	__put_user(regs->edi, frame+6);
+	__put_user(regs->esi, frame+7);
+	__put_user(regs->ebp, frame+8);
+	__put_user(regs->esp, frame+9);
+	__put_user(regs->ebx, frame+10);
+	__put_user(regs->edx, frame+11);
+	__put_user(regs->ecx, frame+12);
+	__put_user(regs->eax, frame+13);
+	__put_user(current->tss.trap_no, frame+14);
+	__put_user(current->tss.error_code, frame+15);
+	__put_user(regs->eip, frame+16);
+	__put_user(regs->xcs, frame+17);
+	__put_user(regs->eflags, frame+18);
+	__put_user(regs->esp, frame+19);
+	__put_user(regs->xss, frame+20);
+	__put_user((unsigned long) save_i387((struct _fpstate *)(frame+32)),frame+21);
 /* non-iBCS2 extensions.. */
-	put_user(oldmask, frame+22);
-	put_user(current->tss.cr2, frame+23);
+	__put_user(oldmask, frame+22);
+	__put_user(current->tss.cr2, frame+23);
 /* set up the return code... */
-	put_user(0x0000b858, CODE(0));	/* popl %eax ; movl $,%eax */
-	put_user(0x80cd0000, CODE(4));	/* int $0x80 */
-	put_user(__NR_sigreturn, CODE(2));
+	__put_user(0x0000b858, CODE(0));	/* popl %eax ; movl $,%eax */
+	__put_user(0x80cd0000, CODE(4));	/* int $0x80 */
+	__put_user(__NR_sigreturn, CODE(2));
 #undef __CODE
 #undef CODE
 
@@ -235,6 +257,12 @@ __asm__("mov %%" #seg",%w0":"=r" (tmp):"0" (tmp)); put_user(tmp,mem);
 		regs->xcs = USER_CS;
 	}
 	regs->eflags &= ~TF_MASK;
+	return;
+
+segv_and_exit:
+	lock_kernel();
+	do_exit(SIGSEGV);
+	unlock_kernel();
 }
 
 /*
@@ -268,8 +296,11 @@ static void handle_signal(unsigned long signr, struct sigaction *sa,
 
 	if (sa->sa_flags & SA_ONESHOT)
 		sa->sa_handler = NULL;
-	if (!(sa->sa_flags & SA_NOMASK))
+	if (!(sa->sa_flags & SA_NOMASK)) {
+		spin_lock_irq(&current->sigmask_lock);
 		current->blocked |= (sa->sa_mask | _S(signr)) & _BLOCKABLE;
+		spin_unlock_irq(&current->sigmask_lock);
+	}
 }
 
 /*
@@ -283,10 +314,11 @@ static void handle_signal(unsigned long signr, struct sigaction *sa,
  */
 asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 {
-	unsigned long mask = ~current->blocked;
+	unsigned long mask;
 	unsigned long signr;
 	struct sigaction * sa;
 
+	mask = ~current->blocked;
 	while ((signr = current->signal & mask)) {
 		/*
 		 *	This stops gcc flipping out. Otherwise the assembler
@@ -295,6 +327,9 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 		 */
 		struct task_struct *t=current;
 		__asm__("bsf %3,%1\n\t"
+#ifdef __SMP__
+			"lock ; "
+#endif
 			"btrl %1,%0"
 			:"=m" (t->signal),"=r" (signr)
 			:"0" (t->signal), "1" (signr));
@@ -311,7 +346,9 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			if (signr == SIGSTOP)
 				continue;
 			if (_S(signr) & current->blocked) {
+				spin_lock_irq(&current->sigmask_lock);
 				current->signal |= _S(signr);
+				spin_unlock_irq(&current->sigmask_lock);
 				continue;
 			}
 			sa = current->sig->action + signr - 1;
@@ -320,7 +357,7 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 			if (signr != SIGCHLD)
 				continue;
 			/* check for SIGCHLD: it's special */
-			while (sys_waitpid(-1,NULL,WNOHANG) > 0)
+			while (sys_wait4(-1,NULL,WNOHANG, NULL) > 0)
 				/* nothing */;
 			continue;
 		}
@@ -353,9 +390,15 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 				}
 				/* fall through */
 			default:
+				spin_lock_irq(&current->sigmask_lock);
 				current->signal |= _S(signr & 0x7f);
+				spin_unlock_irq(&current->sigmask_lock);
+
 				current->flags |= PF_SIGNALED;
+
+				lock_kernel(); /* 8-( */
 				do_exit(signr);
+				unlock_kernel();
 			}
 		}
 		handle_signal(signr, sa, oldmask, regs);

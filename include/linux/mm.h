@@ -10,6 +10,7 @@
 #include <linux/string.h>
 
 extern unsigned long max_mapnr;
+extern unsigned long num_physpages;
 extern void * high_memory;
 
 #include <asm/page.h>
@@ -74,6 +75,7 @@ struct vm_area_struct {
 
 #define VM_EXECUTABLE	0x1000
 #define VM_LOCKED	0x2000
+#define VM_IO           0x4000  /* Memory mapped I/O or similar */
 
 #define VM_STACK_FLAGS	0x0177
 
@@ -123,7 +125,7 @@ typedef struct page {
 	unsigned dirty:16,
 		 age:8;
 	struct wait_queue *wait;
-	struct page *prev_hash;
+	struct page **pprev_hash;
 	struct buffer_head * buffers;
 	unsigned long swap_unlock_entry;
 	unsigned long map_nr;	/* page->map_nr == page - mem_map */
@@ -255,7 +257,7 @@ extern void clear_page_tables(struct task_struct * tsk);
 extern int new_page_tables(struct task_struct * tsk);
 extern int copy_page_tables(struct task_struct * to);
 
-extern int zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
+extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
 extern int remap_page_range(unsigned long from, unsigned long to, unsigned long size, pgprot_t prot);
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
@@ -272,6 +274,7 @@ extern void oom(struct task_struct * tsk);
 extern void si_meminfo(struct sysinfo * val);
 
 /* mmap.c */
+extern void vma_init(void);
 extern unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	unsigned long prot, unsigned long flags, unsigned long off);
 extern void merge_segments(struct mm_struct *, unsigned long, unsigned long);

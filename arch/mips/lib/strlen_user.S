@@ -27,7 +27,7 @@ LEAF(__strlen_user)
 
 		.section	__ex_table,"a"
 		PTR		1b,fault
-		.text
+		.previous
 
 fault:		move		v0,zero
 		jr		ra
