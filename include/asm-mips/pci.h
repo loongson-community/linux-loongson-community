@@ -222,7 +222,7 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 
 		addr = (unsigned long) page_address(sg->page);
 		if (addr)
-			dma_cache_wback_inv(addr, sg->length);
+			dma_cache_wback_inv(addr + sg->offset, sg->length);
 		sg->dma_address = (dma_addr_t) bus_to_baddr(hwdev,
 			page_to_phys(sg->page) + sg->offset);
 	}
