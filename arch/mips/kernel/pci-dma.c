@@ -47,3 +47,6 @@ void pci_free_consistent(struct pci_dev *hwdev, size_t size,
 #endif
 	free_pages(addr, get_order(size));
 }
+
+EXPORT_SYMBOL(pci_alloc_consistent);
+EXPORT_SYMBOL(pci_free_consistent);

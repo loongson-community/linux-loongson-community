@@ -15,6 +15,8 @@ all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
 
+export-objs			= pci-dma.o smp.o
+
 obj-y				+= branch.o process.o signal.o entry.o \
 				   traps.o ptrace.o vm86.o ioport.o reset.o \
 				   semaphore.o setup.o syscall.o sysmips.o \
@@ -38,7 +40,6 @@ obj-$(CONFIG_CPU_MIPS32)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_MIPS64)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R6000)		+= r6000_fpu.o r4k_switch.o
 
-export-objs			+= smp.o
 obj-$(CONFIG_SMP)		+= smp.o
 
 # Old style irq support, going to die in 2.5.
