@@ -12,8 +12,7 @@
 #include <linux/console.h>
 #include <linux/fs.h>
 
-extern int (*prom_getchar) (void);
-extern int (*prom_printf) (char *,...);
+#include <asm/dec/prom.h>
 
 static void prom_console_write(struct console *co, const char *s,
 			       unsigned count)

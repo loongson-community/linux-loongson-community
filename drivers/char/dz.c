@@ -35,28 +35,26 @@
 #include <linux/param.h>
 #include <linux/tqueue.h>
 #include <linux/interrupt.h>
-#include <asm/dec/interrupts.h>
 
 #include <linux/console.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
 #include <linux/serial.h>
 
-#include <asm/uaccess.h>
-#include <asm/irq.h>
-#include <asm/dec/machtype.h>
-#include <asm/dec/kn01.h>
-#include <asm/dec/kn02.h>
-
 #include <linux/ptrace.h>
 #include <linux/fs.h>
-#include <asm/bootinfo.h>
 
+#include <asm/bootinfo.h>
+#include <asm/dec/interrupts.h>
+#include <asm/dec/kn01.h>
+#include <asm/dec/kn02.h>
+#include <asm/dec/machtype.h>
+#include <asm/dec/prom.h>
+#include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/uaccess.h>
 
 #define CONSOLE_LINE (3)	/* for definition of struct console */
-
-extern int (*prom_printf) (char *,...);
 
 #include "dz.h"
 

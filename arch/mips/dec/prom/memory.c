@@ -2,35 +2,21 @@
  * memory.c: memory initialisation code.
  *
  * Copyright (C) 1998 Harald Koerfgen, Frieder Streffer and Paul M. Antoine
- * Copyright (C) 2000 Maciej W. Rozycki
+ * Copyright (C) 2000, 2002  Maciej W. Rozycki
  */
-#include <linux/init.h>
 #include <linux/config.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
+#include <linux/types.h>
 
 #include <asm/addrspace.h>
+#include <asm/bootinfo.h>
+#include <asm/dec/machtype.h>
+#include <asm/dec/prom.h>
 #include <asm/page.h>
 
-#include <asm/bootinfo.h>
-
-#include <asm/dec/machtype.h>
-
-#include "prom.h"
-
-typedef struct {
-	int pagesize;
-	unsigned char bitmap[0];
-} memmap;
-
-extern int (*rex_getbitmap)(memmap *);
-
-#undef PROM_DEBUG
-
-#ifdef PROM_DEBUG
-extern int (*prom_printf)(char *, ...);
-#endif
 
 volatile unsigned long mem_err = 0;	/* So we know an error occurred */
 
@@ -41,10 +27,10 @@ volatile unsigned long mem_err = 0;	/* So we know an error occurred */
 
 #define CHUNK_SIZE 0x400000
 
-static void __init pmax_setup_memory_region(void)
+static inline void pmax_setup_memory_region(void)
 {
 	volatile unsigned char *memory_page, dummy;
-	char	old_handler[0x80];
+	char old_handler[0x80];
 	extern char genexcept_early;
 
 	/* Install exception handler */
@@ -71,14 +57,14 @@ static void __init pmax_setup_memory_region(void)
  * Use the REX prom calls to get hold of the memory bitmap, and thence
  * determine memory size.
  */
-static void __init rex_setup_memory_region(void)
+static inline void rex_setup_memory_region(void)
 {
 	int i, bitmap_size;
 	unsigned long mem_start = 0, mem_size = 0;
 	memmap *bm;
 
 	/* some free 64k */
-	bm = (memmap *) 0x80028000;
+	bm = (memmap *)KSEG0ADDR(0x28000);
 
 	bitmap_size = rex_getbitmap(bm);
 
@@ -98,9 +84,9 @@ static void __init rex_setup_memory_region(void)
 		add_memory_region(mem_start, mem_size, BOOT_MEM_RAM);
 }
 
-void __init prom_meminit(unsigned int magic)
+void __init prom_meminit(u32 magic)
 {
-	if (magic != REX_PROM_MAGIC)
+	if (!prom_is_rex(magic))
 		pmax_setup_memory_region();
 	else
 		rex_setup_memory_region();

@@ -19,6 +19,7 @@
 #include <asm/addrspace.h>
 #include <asm/errno.h>
 #include <asm/dec/machtype.h>
+#include <asm/dec/prom.h>
 #include <asm/dec/tcinfo.h>
 #include <asm/dec/tcmodule.h>
 #include <asm/dec/interrupts.h>
@@ -33,9 +34,6 @@ static int max_tcslot;
 static tcinfo *info;
 
 unsigned long system_base;
-
-extern unsigned long *(*rex_slot_address)(int);
-extern void *(*rex_gettcinfo)(void);
 
 /*
  * Interface to the world. Read comment in include/asm-mips/tc.h.

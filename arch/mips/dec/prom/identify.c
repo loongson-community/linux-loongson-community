@@ -6,15 +6,12 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/types.h>
 
 #include <asm/bootinfo.h>
+#include <asm/dec/prom.h>
 
 #include "dectypes.h"
-#include "prom.h"
-
-extern char *(*prom_getenv)(char *);
-extern int (*prom_printf)(char *, ...);
-extern int (*rex_getsysid)(void);
 
 extern unsigned long mips_machgroup;
 extern unsigned long mips_machtype;
@@ -39,13 +36,12 @@ const char *get_system_type(void)
 	return system;
 }
 
-void __init prom_identify_arch (unsigned int magic)
+void __init prom_identify_arch(u32 magic)
 {
-	unsigned char dec_cpunum, dec_firmrev, dec_etc;
-	int dec_systype;
-	unsigned long dec_sysid;
+	unsigned char dec_cpunum, dec_firmrev, dec_etc, dec_systype;
+	u32 dec_sysid;
 
-	if (magic != REX_PROM_MAGIC) {
+	if (!prom_is_rex(magic)) {
 		dec_sysid = simple_strtoul(prom_getenv("systype"), (char **)0, 0);
 	} else {
 		dec_sysid = rex_getsysid();
