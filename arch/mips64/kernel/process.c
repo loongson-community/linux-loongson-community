@@ -85,16 +85,9 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	childregs = (struct pt_regs *) childksp - 1;
 	*childregs = *regs;
 	childregs->regs[7] = 0;	/* Clear error flag */
-	if (current->personality == PER_LINUX) {
-		childregs->regs[2] = 0;	/* Child gets zero as return value */
-		regs->regs[2] = p->pid;
-	} else {
-		/* Under IRIX things are a little different. */
-		childregs->regs[2] = 0;
-		childregs->regs[3] = 1;
-		regs->regs[2] = p->pid;
-		regs->regs[3] = 0;
-	}
+	childregs->regs[2] = 0;	/* Child gets zero as return value */
+	regs->regs[2] = p->pid;
+
 	if (childregs->cp0_status & ST0_CU0) {
 		childregs->regs[28] = (unsigned long) p;
 		childregs->regs[29] = childksp;
