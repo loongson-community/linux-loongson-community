@@ -318,6 +318,15 @@ LOADADDR      += 0x80100000
 endif
 
 #
+# HP LaserJet
+#
+ifdef CONFIG_HP_LASERJET
+SUBDIRS       += arch/mips/hp-lj
+LIBS          += arch/mips/hp-lj/hp-lj.o
+LOADADDR      := 0x80030000
+endif
+
+#
 # Choosing incompatible machines durings configuration will result in
 # error messages during linking.  Select a default linkscript if
 # none has been choosen above.

@@ -742,6 +742,11 @@ void __init setup_arch(char **cmdline_p)
 		swarm_setup();
 		break;
 #endif
+#ifdef CONFIG_HP_LASERJET
+        case MACH_GROUP_HP_LASERJET:
+                { void hp_setup(void); hp_setup(); }
+                break;
+#endif
 	default:
 		panic("Unsupported architecture");
 	}
