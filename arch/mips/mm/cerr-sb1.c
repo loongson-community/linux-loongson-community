@@ -18,6 +18,14 @@
 
 #include <linux/sched.h>
 #include <asm/mipsregs.h>
+#include <asm/sibyte/sb1250.h>
+
+#ifndef CONFIG_SIBYTE_BUS_WATCHER
+#include <asm/io.h>
+#include <asm/sibyte/sb1250_regs.h>
+#include <asm/sibyte/sb1250_scd.h>
+#include <asm/sibyte/64bit.h>
+#endif
 
 /* SB1 definitions */
 
@@ -128,12 +136,6 @@ static inline void breakout_cerrd(unsigned int val)
 }
 
 #ifndef CONFIG_SIBYTE_BUS_WATCHER
-
-#include <asm/io.h>
-#include <asm/sibyte/sb1250.h>
-#include <asm/sibyte/sb1250_regs.h>
-#include <asm/sibyte/sb1250_scd.h>
-#include <asm/sibyte/64bit.h>
 
 static void check_bus_watcher(void)              
 {                               
