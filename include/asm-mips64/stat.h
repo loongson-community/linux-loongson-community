@@ -25,8 +25,7 @@ struct __old_kernel_stat {
 	unsigned int	st_ctime, st_res3;
 	unsigned int	st_blksize;
 	int		st_blocks;
-	unsigned int	st_flags;
-	unsigned int	st_gen;
+	unsigned int	st_unused[2];
 };
 
 struct stat32 {
@@ -50,9 +49,7 @@ struct stat32 {
 	int		    st_blksize;
 	int		    st_blocks;
 	char		    st_fstype[16];	/* Filesystem type name */
-	int		    st_pad4[8];
-	unsigned int	    st_flags;
-	unsigned int	    st_gen;
+	int		    st_pad4[10];
 };
 
 /* The memory layout is the same as of struct stat64 of the 32-bit kernel.  */
@@ -65,7 +62,7 @@ struct stat {
 	uid_t		st_uid;
 	gid_t		st_gid;
 	dev_t		st_rdev;
-	unsigned int	st_pad1[3];	/* Reserved for st_rdev expansion  */
+	unsigned int	st_pad1[2];	/* Reserved for st_rdev expansion  */
 	off_t		st_size;
 	/*
 	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
@@ -78,6 +75,7 @@ struct stat {
 	time_t		st_ctime;
 	unsigned int	reserved2;	/* Reserved for st_atime expansion  */
 	unsigned int	st_blksize;
+	unsigned int	st_pad2;
 	unsigned long	st_blocks;
 };
 
