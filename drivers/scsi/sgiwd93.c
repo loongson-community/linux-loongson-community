@@ -281,6 +281,11 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	sgiwd93_host->irq = SGI_WD93_0_IRQ;
 
 	buf = (uchar *) get_free_page(GFP_KERNEL);
+	if (!buf) {
+		printk(KERN_WARNING "sgiwd93: Could not allocate memory for host0 buffer.\n");
+		scsi_unregister(sgiwd93_host);
+		return 0;
+	}
 	init_hpc_chain(buf);
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 	/* HPC_SCSI_REG0 | 0x03 | KSEG1 */
@@ -290,9 +295,14 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	hdata = (struct WD33C93_hostdata *)sgiwd93_host->hostdata;
 	hdata->no_sync = 0;
 	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
-	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
-	request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
+	if (request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host)) {
+		printk(KERN_WARNING "sgiwd93: Could not register IRQ %d (for host 0).\n", sgiwd93_intr);
+		wd33c93_release();
+		free_page(buf);
+		scsi_unregister(sgiwd93_host);
+		return 0;
+	}
         /* set up second controller on the Indigo2 */
 	if(!sgi_guiness) {
 		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
@@ -302,6 +312,12 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			sgiwd93_host1->irq = SGI_WD93_1_IRQ;
 	
 			buf = (uchar *) get_free_page(GFP_KERNEL);
+			if (!buf) {
+				printk(KERN_WARNING "sgiwd93: Could not allocate memory for host1 buffer.\n");
+				scsi_unregister(sgiwd93_host1);
+				called = 1;
+				return 1; /* We registered host0 so return success*/
+			}
 			init_hpc_chain(buf);
 			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 			/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
@@ -313,7 +329,13 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			hdata1->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
 			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 	
-			request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1);
+			if (request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1)) {
+				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", sgiwd93_intr);
+				wd33c93_release();
+				free_page(buf);
+				scsi_unregister(sgiwd93_host1);
+				/* Fall through since host0 registered OK */
+			}
 		}
 	}
 	
