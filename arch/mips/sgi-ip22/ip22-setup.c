@@ -85,8 +85,8 @@ void __init ip22_setup(void)
 	indy_sc_init();
 #endif
 
-	/* Set the IO space to some sane value */
-	set_io_port_base (KSEG1ADDR (0x00080000));
+	/* Set EISA IO port base for Indigo2 */
+	set_io_port_base(KSEG1ADDR(0x00080000));
 
 	/* ARCS console environment variable is set to "g?" for
 	 * graphics console, it is set to "d" for the first serial
@@ -94,10 +94,11 @@ void __init ip22_setup(void)
 	 */
 	ctype = ArcGetEnvironmentVariable("console");
 	if (ctype && *ctype == 'd') {
-		if (*(ctype + 1) == '2')
-			console_setup("ttyS1");
-		else
-			console_setup("ttyS0");
+		char p[16];
+		char *dbaud = ArcGetEnvironmentVariable("dbaud");
+		sprintf(p, "ttyS%c,%s", *(ctype + 1) == '2' ? '1' : '0',
+					dbaud ? dbaud : "9600");
+		console_setup(p);
 	} else if (!ctype || *ctype != 'g') {
 		/* Use ARC if we don't want serial ('d') or Newport ('g'). */
 		prom_flags |= PROM_FLAG_USE_AS_CONSOLE;

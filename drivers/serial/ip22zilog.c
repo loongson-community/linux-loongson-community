@@ -1046,26 +1046,12 @@ ip22serial_console_termios(struct console *con, char *options)
 	int baud = 9600, bits = 8, cflag;
 	int parity = 'n';
 	int flow = 'n';
-	char *dbaud;
 
 	if (!serial_console)
 		return;
 
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
-
-	/*
-	 * If the user doesn't supply a console=... option try to read the
-	 * dbaud PROM variable - if this fails use 9600 baud and
-	 * inform the user about the problem
-	 */
-	dbaud = ArcGetEnvironmentVariable("dbaud");
-	if (dbaud)
-		baud = simple_strtoul(dbaud, NULL, 10);
-	else {
-		printk("No dbaud variable, defaulting to 9600.\n");
-		baud = 9600;
-	}
 
 	cflag = CREAD | HUPCL | CLOCAL;
 
