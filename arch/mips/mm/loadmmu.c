@@ -34,25 +34,12 @@ void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 void (*_dma_cache_inv)(unsigned long start, unsigned long size);
 
-#ifdef CONFIG_CPU_R3000
 extern void ld_mmu_r2300(void);
-#endif
-#if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
-    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
 extern void ld_mmu_r4xx0(void);
-#endif
-#ifdef CONFIG_CPU_R6000
 extern void ld_mmu_r6000(void);
-#endif
-#ifdef CONFIG_CPU_R7000
-extern void ld_mmu_r7000(void);
-#endif
-#ifdef CONFIG_CPU_R8000
+extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
-#endif
-#ifdef CONFIG_CPU_R10000
 extern void ld_mmu_andes(void);
-#endif
 
 void __init loadmmu(void)
 {
