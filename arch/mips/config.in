@@ -65,7 +65,6 @@ if [ "${CONFIG_COBALT_MICRO_SERVER}" = "y" ]; then
        define_bool CONFIG_COBALT_SERIAL y
 fi
 if [ "${CONFIG_COBALT_27}" = "y" ]; then
-       echo "Cobalt 27 board is selected "
        define_bool CONFIG_PCI y
        bool 'Support for 2800 (note: only works on 2800)' CONFIG_COBALT_28 n
 fi
