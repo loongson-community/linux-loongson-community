@@ -38,6 +38,24 @@ void ack_bad_irq(unsigned int irq)
 
 atomic_t irq_err_count;
 
+#undef do_IRQ
+
+/*
+ * do_IRQ handles all normal device IRQ's (the special
+ * SMP cross-CPU interrupts have their own specific
+ * handlers).
+ */
+asmlinkage unsigned int do_IRQ(unsigned int irq, struct pt_regs *regs)
+{
+	irq_enter();
+
+	__do_IRQ(irq, regs);
+
+	irq_exit();
+
+	return 1;
+}
+
 /*
  * Generic, controller-independent functions:
  */
