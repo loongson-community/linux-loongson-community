@@ -149,7 +149,7 @@ static void lk201_id(unsigned char id[6])
 		printk(KERN_WARNING
 		       "lk201: unknown keyboard detected, ID %d\n", id[4]);
 		printk(KERN_WARNING "lk201: ... please report to "
-		       "<linux-mips@oss.sgi.com>\n");
+		       "<linux-mips@linux-mips.org>\n");
 	}
 }
 
