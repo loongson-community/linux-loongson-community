@@ -133,6 +133,25 @@ extern void pci_dac_dma_sync_single_for_device(struct pci_dev *pdev,
 extern void pcibios_resource_to_bus(struct pci_dev *dev,
 	struct pci_bus_region *region, struct resource *res);
 
+#ifdef CONFIG_PCI_DOMAINS
+
+#define pci_domain_nr(bus) ((struct pci_controller *)(bus)->sysdata)->index
+
+static inline int
+pci_name_bus(char *name, struct pci_bus *bus)
+{
+	struct pci_controller *hose = bus->sysdata;
+                                                                                
+	if (likely(hose->need_domain_info == 0)) {
+		sprintf(name, "%02x", bus->number);
+	} else {
+		sprintf(name, "%04x:%02x", hose->index, bus->number);
+	}
+	return 0;
+}
+
+#endif /* CONFIG_PCI_DOMAINS */
+
 #endif /* __KERNEL__ */
 
 /* implement the pci_ DMA API in terms of the generic device dma_ one */

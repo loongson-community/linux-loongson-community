@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.9-rc1
-# Tue Aug 24 16:44:33 2004
+# Thu Aug 26 13:26:20 2004
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -132,6 +132,7 @@ CONFIG_NR_CPUS=64
 #
 CONFIG_HW_HAS_PCI=y
 CONFIG_PCI=y
+CONFIG_PCI_DOMAINS=y
 CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_NAMES=y
 CONFIG_MMU=y

@@ -431,6 +431,7 @@ config SGI_IP27
 	depends on MIPS64
 	select DMA_IP27
 	select HW_HAS_PCI
+	select PCI_DOMAINS
 	help
 	  This are the SGI Origin 200, Origin 2000 and Onyx 2 Graphics
 	  workstations.  To compile a Linux kernel that runs on these, say Y
@@ -1431,6 +1432,10 @@ config PCI
 	  <http://www.tldp.org/docs.html#howto>, contains valuable
 	  information about which PCI hardware does work under Linux and which
 	  doesn't.
+
+config PCI_DOMAINS
+	bool
+	depends on PCI
 
 source "drivers/pci/Kconfig"
 
