@@ -15,6 +15,7 @@
 #include <asm/cacheflush.h>
 #include <asm/processor.h>
 #include <asm/cpu.h>
+#include <asm/cpu-features.h>
 
 /*
  * Memory functions.  Not a cache function per se but actual implementations

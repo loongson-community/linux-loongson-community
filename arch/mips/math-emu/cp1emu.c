@@ -39,6 +39,7 @@
 #include <asm/inst.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
+#include <asm/cpu-features.h>
 #include <asm/processor.h>
 #include <asm/ptrace.h>
 #include <asm/signal.h>

@@ -15,6 +15,7 @@
 
 #include <asm/addrspace.h>
 #include <asm/cpu.h>
+#include <asm/cpu-features.h>
 #include <asm/page.h>
 #include <asm/pgtable-bits.h>
 #include <asm/processor.h>

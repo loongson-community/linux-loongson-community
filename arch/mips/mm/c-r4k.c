@@ -18,6 +18,7 @@
 #include <asm/bootinfo.h>
 #include <asm/cacheops.h>
 #include <asm/cpu.h>
+#include <asm/cpu-features.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -90,7 +91,7 @@ dc_32:
 	return;
 
 init:
-	dc_lsize = current_cpu_data.dcache.linesz;
+	dc_lsize = cpu_dcache_line_size();
 
 	if (dc_lsize == 16)
 		l = &&dc_16;
@@ -115,7 +116,7 @@ dc_32:
 	return;
 
 init:
-	dc_lsize = current_cpu_data.dcache.linesz;
+	dc_lsize = cpu_dcache_line_size();
 
 	if (dc_lsize == 16)
 		l = &&dc_16;
@@ -140,7 +141,7 @@ dc_32:
 	return;
 
 init:
-	dc_lsize = current_cpu_data.dcache.linesz;
+	dc_lsize = cpu_dcache_line_size();
 
 	if (dc_lsize == 16)
 		l = &&dc_16;
@@ -203,8 +204,8 @@ static inline void tx49_blast_icache32_page_indexed(unsigned long page)
 
 static void r4k_blast_icache_page(unsigned long addr)
 {
-	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
+	unsigned long ic_lsize;
 
 	goto *l;
 
@@ -221,6 +222,8 @@ ic_64:
 	return;
 
 init:
+	ic_lsize = cpu_icache_line_size();
+
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -232,7 +235,7 @@ init:
 
 static void r4k_blast_icache_page_indexed(unsigned long addr)
 {
-	unsigned long ic_lsize = current_cpu_data.icache.linesz;
+	unsigned long ic_lsize;
 	static void *l = &&init;
 
 	goto *l;
@@ -254,6 +257,8 @@ ic_32_tx49:
 	return;
 
 init:
+	ic_lsize = cpu_icache_line_size();
+
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -268,8 +273,8 @@ init:
 
 static void r4k_blast_icache(void)
 {
-	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
+	unsigned long ic_lsize;
 
 	goto *l;
 
@@ -290,6 +295,8 @@ ic_32_tx49:
 	return;
 
 init:
+	ic_lsize = cpu_icache_line_size();
+
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -304,8 +311,8 @@ init:
 
 static void r4k_blast_scache_page(unsigned long addr)
 {
-	unsigned long sc_lsize = current_cpu_data.scache.linesz;
 	static void *l = &&init;
+	unsigned long sc_lsize;
 
 	goto *l;
 
@@ -326,6 +333,8 @@ sc_128:
 	return;
 
 init:
+	sc_lsize = cpu_scache_line_size();
+
 	if (sc_lsize == 16)
 		l = &&sc_16;
 	else if (sc_lsize == 32)
@@ -339,8 +348,8 @@ init:
 
 static void r4k_blast_scache(void)
 {
-	unsigned long sc_lsize = current_cpu_data.scache.linesz;
 	static void *l = &&init;
+	unsigned long sc_lsize;
 
 	goto *l;
 
@@ -361,6 +370,8 @@ sc_128:
 	return;
 
 init:
+	sc_lsize = cpu_scache_line_size();
+
 	if (sc_lsize == 16)
 		l = &&sc_16;
 	else if (sc_lsize == 32)
