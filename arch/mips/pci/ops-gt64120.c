@@ -14,9 +14,6 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * MIPS boards specific PCI support.
- *
  */
 #include <linux/types.h>
 #include <linux/pci.h>
@@ -111,11 +108,6 @@ static int gt64120_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 {
 	u32 data = 0;
 
-	if ((size == 2) && (where & 1))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	else if ((size == 4) && (where & 3))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
 	if (gt64120_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
 				          &data))
 		return -1;
@@ -134,11 +126,6 @@ static int gt64120_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 			      int where, int size, u32 val)
 {
 	u32 data = 0;
-
-	if ((size == 2) && (where & 1))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	else if ((size == 4) && (where & 3))
-		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (size == 4)
 		data = val;
