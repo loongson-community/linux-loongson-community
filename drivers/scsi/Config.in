@@ -32,9 +32,7 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    dep_tristate 'SGI WD93C93 SCSI Driver' CONFIG_SGIWD93_SCSI $CONFIG_SCSI
 fi
 if [ "$CONFIG_DECSTATION" = "y" ]; then
-   if [ "$CONFIG_TC" = "y" ]; then
-      dep_tristate 'DEC NCR53C94 Scsi Driver' CONFIG_SCSI_DECNCR $CONFIG_SCSI
-   fi
+   dep_tristate 'DEC NCR53C94 Scsi Driver' CONFIG_SCSI_DECNCR $CONFIG_SCSI $CONFIG_TC
    dep_tristate 'DEC SII Scsi Driver' CONFIG_SCSI_DECSII $CONFIG_SCSI
 fi
 

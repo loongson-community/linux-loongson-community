@@ -10,56 +10,52 @@ CONFIG_MIPS32=y
 CONFIG_EXPERIMENTAL=y
 
 #
-# Machine selection
-#
-# CONFIG_ACER_PICA_61 is not set
-# CONFIG_ALGOR_P4032 is not set
-# CONFIG_BAGET_MIPS is not set
-# CONFIG_MIPS_COBALT is not set
-# CONFIG_DECSTATION is not set
-# CONFIG_DDB5074 is not set
-# CONFIG_MIPS_EV64120 is not set
-# CONFIG_MIPS_EV96100 is not set
-# CONFIG_MIPS_ATLAS is not set
-# CONFIG_MIPS_MALTA is not set
-CONFIG_NINO=y
-# CONFIG_NINO_4MB is not set
-CONFIG_NINO_8MB=y
-# CONFIG_NINO_16MB is not set
-# CONFIG_SIBYTE_SB1250 is not set
-# CONFIG_MIPS_MAGNUM_4000 is not set
-# CONFIG_MOMENCO_OCELOT is not set
-# CONFIG_DDB5476 is not set
-# CONFIG_DDB5477 is not set
-# CONFIG_NEC_OSPREY is not set
-# CONFIG_OLIVETTI_M700 is not set
-# CONFIG_SGI_IP22 is not set
-# CONFIG_SNI_RM200_PCI is not set
-# CONFIG_MIPS_ITE8172 is not set
-# CONFIG_MIPS_IVR is not set
-# CONFIG_MIPS_PB1000 is not set
-# CONFIG_MIPS_PB1500 is not set
-# CONFIG_TOSHIBA_JMR3927 is not set
-# CONFIG_HP_LASERJET is not set
-# CONFIG_HIGHMEM is not set
-CONFIG_RWSEM_GENERIC_SPINLOCK=y
-# CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
-# CONFIG_MCA is not set
-# CONFIG_SBUS is not set
-CONFIG_NEW_TIME_C=y
-CONFIG_NONCOHERENT_IO=y
-CONFIG_PC_KEYB=y
-# CONFIG_ISA is not set
-# CONFIG_EISA is not set
-# CONFIG_PCI is not set
-# CONFIG_I8259 is not set
-
-#
 # Loadable module support
 #
 CONFIG_MODULES=y
 # CONFIG_MODVERSIONS is not set
 CONFIG_KMOD=y
+
+#
+# Machine selection
+#
+# CONFIG_ACER_PICA_61 is not set
+# CONFIG_MIPS_PB1000 is not set
+# CONFIG_MIPS_PB1500 is not set
+# CONFIG_ALGOR_P4032 is not set
+# CONFIG_BAGET_MIPS is not set
+# CONFIG_MIPS_COBALT is not set
+# CONFIG_DECSTATION is not set
+# CONFIG_MIPS_EV64120 is not set
+# CONFIG_MIPS_EV96100 is not set
+# CONFIG_MIPS_IVR is not set
+# CONFIG_HP_LASERJET is not set
+# CONFIG_MIPS_ITE8172 is not set
+# CONFIG_MIPS_ATLAS is not set
+# CONFIG_MIPS_MAGNUM_4000 is not set
+# CONFIG_MIPS_MALTA is not set
+# CONFIG_MOMENCO_OCELOT is not set
+# CONFIG_DDB5074 is not set
+# CONFIG_DDB5476 is not set
+# CONFIG_DDB5477 is not set
+# CONFIG_NEC_OSPREY is not set
+# CONFIG_OLIVETTI_M700 is not set
+CONFIG_NINO=y
+# CONFIG_NINO_4MB is not set
+CONFIG_NINO_8MB=y
+# CONFIG_NINO_16MB is not set
+# CONFIG_SGI_IP22 is not set
+# CONFIG_SIBYTE_SB1250 is not set
+# CONFIG_SNI_RM200_PCI is not set
+# CONFIG_TOSHIBA_JMR3927 is not set
+# CONFIG_HIGHMEM is not set
+CONFIG_RWSEM_GENERIC_SPINLOCK=y
+# CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
+CONFIG_NEW_TIME_C=y
+CONFIG_NONCOHERENT_IO=y
+CONFIG_PC_KEYB=y
+# CONFIG_MIPS_AU1000 is not set
+# CONFIG_I8259 is not set
 
 #
 # CPU selection
@@ -88,18 +84,25 @@ CONFIG_CPU_R3000=y
 # General setup
 #
 CONFIG_CPU_LITTLE_ENDIAN=y
-CONFIG_KCORE_ELF=y
-CONFIG_ELF_KERNEL=y
-# CONFIG_BINFMT_AOUT is not set
-CONFIG_BINFMT_ELF=y
-# CONFIG_BINFMT_MISC is not set
 CONFIG_NET=y
+# CONFIG_PCI is not set
+# CONFIG_ISA is not set
+# CONFIG_EISA is not set
+# CONFIG_TC is not set
+# CONFIG_MCA is not set
+# CONFIG_SBUS is not set
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
+CONFIG_KCORE_ELF=y
+# CONFIG_KCORE_AOUT is not set
+# CONFIG_BINFMT_AOUT is not set
+CONFIG_BINFMT_ELF=y
+# CONFIG_BINFMT_MISC is not set
+# CONFIG_PM is not set
 
 #
 # Memory Technology Devices (MTD)
@@ -110,6 +113,12 @@ CONFIG_SYSVIPC=y
 # Parallel port support
 #
 # CONFIG_PARPORT is not set
+
+#
+# Plug and Play configuration
+#
+# CONFIG_PNP is not set
+# CONFIG_ISAPNP is not set
 
 #
 # Block devices
@@ -194,25 +203,9 @@ CONFIG_INET=y
 # CONFIG_PHONE_IXJ_PCMCIA is not set
 
 #
-# ATA/IDE/MFM/RLL support
-#
-# CONFIG_IDE is not set
-# CONFIG_BLK_DEV_IDE_MODES is not set
-# CONFIG_BLK_DEV_HD is not set
-
-#
 # SCSI support
 #
 # CONFIG_SCSI is not set
-
-#
-# I2O device support
-#
-# CONFIG_I2O is not set
-# CONFIG_I2O_BLOCK is not set
-# CONFIG_I2O_LAN is not set
-# CONFIG_I2O_SCSI is not set
-# CONFIG_I2O_PROC is not set
 
 #
 # Network device support
@@ -233,11 +226,6 @@ CONFIG_INET=y
 # ISDN subsystem
 #
 # CONFIG_ISDN is not set
-
-#
-# Old CD-ROM drivers (not SCSI, not IDE)
-#
-# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Character devices

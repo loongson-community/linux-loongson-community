@@ -5,7 +5,7 @@
 define_bool CONFIG_MIPS y
 define_bool CONFIG_MIPS64 y
 
-mainmenu_name "Linux Kernel Configuration"
+mainmenu_name "Linux/MIPS64 Kernel Configuration"
 
 mainmenu_option next_comment
 comment 'Code maturity level options'
@@ -13,31 +13,19 @@ bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
 endmenu
 
 mainmenu_option next_comment
-comment 'Machine selection'
-if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
-   bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
+comment 'Loadable module support'
+bool 'Enable loadable module support' CONFIG_MODULES
+if [ "$CONFIG_MODULES" = "y" ]; then
+   bool '  Set version information on all module symbols' CONFIG_MODVERSIONS
+   bool '  Kernel module loader' CONFIG_KMOD
 fi
-bool '  Support for SGI-IP27 (Origin200/2000)' CONFIG_SGI_IP27
-if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   bool '  Support for SGI-IP22 (Indy/Indigo2)' CONFIG_SGI_IP22
-   bool '  Support for SGI-IP32 (O2)' CONFIG_SGI_IP32
-fi
-bool 'Support for SiByte SB1250 SOC' CONFIG_SIBYTE_SB1250
-if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
-   bool '  Support for SB1250 onchip PCI controller' CONFIG_PCI
-   bool '  Support for SB1250 profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
-   bool '  Support for BCM1250 profiling using trace buffer' CONFIG_BCM1250_TBPROF
-   bool '  Remote debugging (kgdb over UART 1)' CONFIG_REMOTE_DEBUG
-   bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
-   if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
-      bool '    Running under simulation' CONFIG_SIMULATION
-      bool '    Configure for L3proc Demo' CONFIG_L3DEMO
-      int '      Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
-      bool '      Multi-Processing support' CONFIG_SMP
-   fi
-fi
+endmenu
 
+mainmenu_option next_comment
+comment 'Machine selection'
+dep_bool 'Support for MIPS Atlas board (EXPERIMENTAL)' CONFIG_MIPS_ATLAS $CONFIG_EXPERIMENTAL
+dep_bool 'Support for MIPS Malta board (EXPERIMENTAL)' CONFIG_MIPS_MALTA $CONFIG_EXPERIMENTAL
+bool 'Support for SGI-IP27 (Origin200/2000)' CONFIG_SGI_IP27
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  IP27 N-Mode' CONFIG_SGI_SN0_N_MODE
    bool '  Discontiguous Memory Support' CONFIG_DISCONTIGMEM
@@ -48,13 +36,28 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    bool '  Multi-Processing support' CONFIG_SMP
    #bool '  IP27 XXL' CONFIG_SGI_SN0_XXL
 fi
-endmenu
+dep_bool 'Support for SGI-IP22 (Indy/Indigo2) (EXPERIMENTAL)' CONFIG_SGI_IP22 $CONFIG_EXPERIMENTAL
+dep_bool 'Support for SGI-IP32 (O2) (EXPERIMENTAL)' CONFIG_SGI_IP32 $CONFIG_EXPERIMENTAL
+bool 'Support for SiByte SB1250 SOC' CONFIG_SIBYTE_SB1250
+if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
+   bool '  Support for SB1250 onchip PCI controller' CONFIG_PCI
+   bool '  Support for SB1250 profiling - SB1/SCD perf counters' CONFIG_SIBYTE_SB1250_PROF
+   bool '  Support for BCM1250 profiling using trace buffer' CONFIG_BCM1250_TBPROF
+   bool '  Remote debugging (kgdb over UART 1)' CONFIG_REMOTE_DEBUG
+   bool '  Support for SiByte SWARM board' CONFIG_SIBYTE_SWARM
+   if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
+      bool '    Running under simulation' CONFIG_SIMULATION
+      bool '    Configure for L3proc Demo' CONFIG_L3DEMO
+      int '    Maximum memory chunks' CONFIG_SIBYTE_SWARM_MAX_MEM_REGIONS 16
+      bool '    Multi-Processing support' CONFIG_SMP
+   fi
+fi
 
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
 define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 
 #
-# Select some configuration options automatically based on user selections
+# Select some configuration options automatically based on user selections.
 #
 
 if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
@@ -64,7 +67,6 @@ if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
-
 if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_bool CONFIG_I8259 y
@@ -73,7 +75,6 @@ if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_SWAP_IO_SPACE y
 fi
-
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_CONSOLE y
@@ -86,7 +87,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_SGI y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
-
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
    define_bool CONFIG_ARC64 y
@@ -95,7 +95,6 @@ if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_QL_ISP_A64 y
    define_int CONFIG_L1_CACHE_SHIFT 7
 fi
-
 if [ "$CONFIG_SGI_IP32" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_bool CONFIG_ARC32 y
@@ -107,7 +106,6 @@ if [ "$CONFIG_SGI_IP32" = "y" ]; then
    define_bool CONFIG_ARC_MEMORY y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
-
 if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
    define_bool CONFIG_SWAP_IO_SPACE y
@@ -115,32 +113,19 @@ if [ "$CONFIG_SIBYTE_SWARM" = "y" ]; then
    define_bool CONFIG_SIBYTE_SB1250 y
    define_int CONFIG_L1_CACHE_SHIFT 5
 fi
-
-if [ "$CONFIG_ISA" != "y" ]; then
-   define_bool CONFIG_ISA n
-   define_bool CONFIG_EISA n
-else
-   define_bool CONFIG_EISA y
-fi
-
-if [ "$CONFIG_PCI" != "y" ]; then
-   define_bool CONFIG_PCI n
-fi
-
-define_bool CONFIG_MCA n
-define_bool CONFIG_SBUS n
+endmenu
 
 mainmenu_option next_comment
 comment 'CPU selection'
 
-choice 'CPU type'				\
-	"R4300 CONFIG_CPU_R4300			\
-	 R4x00 CONFIG_CPU_R4X00			\
-	 R5000 CONFIG_CPU_R5000			\
-	 R52x0 CONFIG_CPU_NEVADA		\
-	 R8000 CONFIG_CPU_R8000			\
-	 R10000 CONFIG_CPU_R10000		\
-	 SB1   CONFIG_CPU_SB1" R4x00
+choice 'CPU type' \
+	"R4300	CONFIG_CPU_R4300 \
+	 R4x00	CONFIG_CPU_R4X00 \
+	 R5000	CONFIG_CPU_R5000 \
+	 R52x0	CONFIG_CPU_NEVADA \
+	 R8000	CONFIG_CPU_R8000 \
+	 R10000	CONFIG_CPU_R10000 \
+	 SB1	CONFIG_CPU_SB1" R4x00
 endmenu
 
 define_bool CONFIG_CPU_HAS_LLSC y
@@ -154,9 +139,27 @@ if [ "$CONFIG_CPU_R10000" = "y" ]; then
 fi
 bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 
+if [ "$CONFIG_ARC32" = "y" ]; then
+   bool 'ARC console support' CONFIG_ARC_CONSOLE
+fi
+
 bool 'Networking support' CONFIG_NET
 
+if [ "$CONFIG_PCI" != "y" ]; then
+   define_bool CONFIG_PCI n
+fi
+
 source drivers/pci/Config.in
+
+if [ "$CONFIG_ISA" != "y" ]; then
+   define_bool CONFIG_ISA n
+   define_bool CONFIG_EISA n
+else
+   define_bool CONFIG_EISA y
+fi
+
+define_bool CONFIG_MCA n
+define_bool CONFIG_SBUS n
 
 bool 'Support for hot-pluggable devices' CONFIG_HOTPLUG
 
@@ -171,35 +174,19 @@ fi
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
-
-if [ "$CONFIG_ARC32" = "y" ]; then
-   bool 'ARC console support' CONFIG_ARC_CONSOLE
-fi
-
+define_bool CONFIG_KCORE_ELF y
+define_bool CONFIG_KCORE_AOUT n
 tristate 'Kernel support for 64-bit ELF binaries' CONFIG_BINFMT_ELF
 bool 'Kernel support for Linux/MIPS 32-bit binary compatibility' CONFIG_MIPS32_COMPAT
-if [ "$CONFIG_MIPS32_COMPAT" = "y" ]; then
-   define_bool CONFIG_BINFMT_ELF32 y
-fi
+define_bool CONFIG_BINFMT_ELF32 $CONFIG_MIPS32_COMPAT
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
-
-endmenu
-
-mainmenu_option next_comment
-comment 'Loadable module support'
-bool 'Enable loadable module support' CONFIG_MODULES
-if [ "$CONFIG_MODULES" = "y" ]; then
-   bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
-   bool 'Kernel module loader' CONFIG_KMOD
-fi
-
-source drivers/pci/Config.in
-
 endmenu
 
 source drivers/mtd/Config.in
 
 source drivers/parport/Config.in
+
+source drivers/pnp/Config.in
 
 source drivers/block/Config.in
 
@@ -211,18 +198,21 @@ fi
 
 source drivers/telephony/Config.in
 
-mainmenu_option next_comment
-comment 'ATA/IDE/MFM/RLL support'
+if [ "$CONFIG_ISA" = "y" -o "$CONFIG_PCI" = "y" ]; then
 
-tristate 'ATA/IDE/MFM/RLL support' CONFIG_IDE
+   mainmenu_option next_comment
+   comment 'ATA/IDE/MFM/RLL support'
 
-if [ "$CONFIG_IDE" != "n" ]; then
-  source drivers/ide/Config.in
-else
-  define_bool CONFIG_BLK_DEV_IDE_MODES n
-  define_bool CONFIG_BLK_DEV_HD n
+   tristate 'ATA/IDE/MFM/RLL support' CONFIG_IDE
+
+   if [ "$CONFIG_IDE" != "n" ]; then
+      source drivers/ide/Config.in
+   else
+      define_bool CONFIG_BLK_DEV_IDE_MODES n
+      define_bool CONFIG_BLK_DEV_HD n
+   fi
+   endmenu
 fi
-endmenu
 
 mainmenu_option next_comment
 comment 'SCSI support'
@@ -234,7 +224,9 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 fi
 endmenu
 
-#source drivers/message/i2o/Config.in
+if [ "$CONFIG_PCI" = "y" ]; then
+   source drivers/message/i2o/Config.in
+fi
 
 if [ "$CONFIG_NET" = "y" ]; then
    mainmenu_option next_comment
@@ -254,25 +246,27 @@ source net/ax25/Config.in
 
 source net/irda/Config.in
 
-mainmenu_option next_comment
-comment 'ISDN subsystem'
-
 if [ "$CONFIG_NET" != "n" ]; then
+   mainmenu_option next_comment
+   comment 'ISDN subsystem'
+
    tristate 'ISDN support' CONFIG_ISDN
    if [ "$CONFIG_ISDN" != "n" ]; then
       source drivers/isdn/Config.in
    fi
+   endmenu
 fi
-endmenu
 
-mainmenu_option next_comment
-comment 'Old CD-ROM drivers (not SCSI, not IDE)'
+if [ "$CONFIG_ISA" = "y" ]; then
+   mainmenu_option next_comment
+   comment 'Old CD-ROM drivers (not SCSI, not IDE)'
 
-bool 'Support non-SCSI/IDE/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
-if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
-   source drivers/cdrom/Config.in
+   bool 'Support non-SCSI/IDE/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
+   if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
+      source drivers/cdrom/Config.in
+   fi
+   endmenu
 fi
-endmenu
 
 source drivers/char/Config.in
 
@@ -295,10 +289,6 @@ if [ "$CONFIG_VT" = "y" ]; then
       fi
    fi
   endmenu
-fi
-
-if [ "$CONFIG_PROC_FS" = "y" ]; then
-   define_bool CONFIG_KCORE_ELF y
 fi
 
 mainmenu_option next_comment

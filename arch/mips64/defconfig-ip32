@@ -10,6 +10,11 @@ CONFIG_MIPS64=y
 CONFIG_EXPERIMENTAL=y
 
 #
+# Loadable module support
+#
+# CONFIG_MODULES is not set
+
+#
 # Machine selection
 #
 # CONFIG_MIPS_ATLAS is not set
@@ -28,10 +33,6 @@ CONFIG_MAPPED_PCI_IO=y
 CONFIG_NONCOHERENT_IO=y
 CONFIG_ARC_MEMORY=y
 CONFIG_L1_CACHE_SHIFT=5
-# CONFIG_ISA is not set
-# CONFIG_EISA is not set
-# CONFIG_MCA is not set
-# CONFIG_SBUS is not set
 
 #
 # CPU selection
@@ -50,25 +51,24 @@ CONFIG_CPU_HAS_LLDSCD=y
 # General setup
 #
 # CONFIG_CPU_LITTLE_ENDIAN is not set
+CONFIG_ARC_CONSOLE=y
 CONFIG_NET=y
 CONFIG_PCI_NAMES=y
+# CONFIG_ISA is not set
+# CONFIG_EISA is not set
+# CONFIG_MCA is not set
+# CONFIG_SBUS is not set
 # CONFIG_HOTPLUG is not set
 # CONFIG_PCMCIA is not set
 # CONFIG_HOTPLUG_PCI is not set
 CONFIG_SYSVIPC=y
 CONFIG_BSD_PROCESS_ACCT=y
 CONFIG_SYSCTL=y
-CONFIG_ARC_CONSOLE=y
+CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 CONFIG_MIPS32_COMPAT=y
 CONFIG_BINFMT_ELF32=y
 CONFIG_BINFMT_MISC=y
-
-#
-# Loadable module support
-#
-# CONFIG_MODULES is not set
-CONFIG_PCI_NAMES=y
 
 #
 # Memory Technology Devices (MTD)
@@ -79,6 +79,12 @@ CONFIG_PCI_NAMES=y
 # Parallel port support
 #
 # CONFIG_PARPORT is not set
+
+#
+# Plug and Play configuration
+#
+# CONFIG_PNP is not set
+# CONFIG_ISAPNP is not set
 
 #
 # Block devices
@@ -241,6 +247,16 @@ CONFIG_AIC7XXX_RESET_DELAY_MS=15000
 # CONFIG_SCSI_DEBUG is not set
 
 #
+# I2O device support
+#
+# CONFIG_I2O is not set
+# CONFIG_I2O_PCI is not set
+# CONFIG_I2O_BLOCK is not set
+# CONFIG_I2O_LAN is not set
+# CONFIG_I2O_SCSI is not set
+# CONFIG_I2O_PROC is not set
+
+#
 # Network device support
 #
 CONFIG_NETDEVICES=y
@@ -322,11 +338,6 @@ CONFIG_SGI_O2MACE_ETH=y
 # ISDN subsystem
 #
 # CONFIG_ISDN is not set
-
-#
-# Old CD-ROM drivers (not SCSI, not IDE)
-#
-# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Character devices
@@ -482,7 +493,6 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_SMB_NLS is not set
 # CONFIG_NLS is not set
-CONFIG_KCORE_ELF=y
 
 #
 # Sound

@@ -187,11 +187,9 @@ if [ "$CONFIG_FB" = "y" ]; then
       tristate '  HD64461 Frame Buffer support' CONFIG_FB_HIT
    fi
    if [ "$CONFIG_DECSTATION" = "y" ]; then
-     if [ "$CONFIG_TC" = "y" ]; then
-       bool '  PMAG-BA TURBOchannel framebuffer support' CONFIG_FB_PMAG_BA
-       bool '  PMAGB-B TURBOchannel framebuffer spport' CONFIG_FB_PMAGB_B
-       bool '  Maxine (Personal DECstation) onboard framebuffer spport' CONFIG_FB_MAXINE
-     fi
+      dep_bool '  PMAG-BA TURBOchannel framebuffer support' CONFIG_FB_PMAG_BA $CONFIG_TC
+      dep_bool '  PMAGB-B TURBOchannel framebuffer support' CONFIG_FB_PMAGB_B $CONFIG_TC
+      dep_bool '  Maxine (Personal DECstation) onboard framebuffer support' CONFIG_FB_MAXINE
    fi
    if [ "$CONFIG_NINO" = "y" ]; then
       bool '  TMPTX3912/PR31700 frame buffer support' CONFIG_FB_TX3912
