@@ -364,7 +364,7 @@ void per_cpu_init(void)
 #if 0
 	intr_init();
 #endif
-	set_cp0_status(ST0_IM, 0);
+	clear_cp0_status(ST0_IM);
 	per_hub_init(cnode);
 	cpu_time_init();
 	if (smp_processor_id())	/* master can't do this early, no kmalloc */
@@ -374,12 +374,12 @@ void per_cpu_init(void)
 #if 0
 	install_tlbintr(cpu);
 #endif
-	set_cp0_status(SRB_DEV0 | SRB_DEV1, SRB_DEV0 | SRB_DEV1);
+	set_cp0_status(SRB_DEV0 | SRB_DEV1);
 	if (is_slave) {
-		set_cp0_status(ST0_BEV, 0);
+		clear_cp0_status(ST0_BEV);
 		if (mips4_available)
-			set_cp0_status(ST0_XX, ST0_XX);
-		set_cp0_status(ST0_KX|ST0_SX|ST0_UX, ST0_KX|ST0_SX|ST0_UX);
+			set_cp0_status(ST0_XX);
+		set_cp0_status(ST0_KX|ST0_SX|ST0_UX);
 		sti();
 		load_mmu();
 		atomic_inc(&numstarted);

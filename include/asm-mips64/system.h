@@ -212,7 +212,7 @@ extern asmlinkage void save_fp(void *);
 #define SWITCH_DO_LAZY_FPU \
 	if (prev->flags & PF_USEDFPU) { \
 		lazy_fpu_switch(prev, 0); \
-		set_cp0_status(ST0_CU1, ~ST0_CU1); \
+		clear_cp0_status(ST0_CU1); \
 		prev->flags &= ~PF_USEDFPU; \
 	}
 #else /* CONFIG_SMP */

@@ -253,7 +253,7 @@ void __init cpu_time_init(void)
 
 	printk("CPU %d clock is %dMHz.\n", smp_processor_id(), cpu->cpu_speed);
 
-	set_cp0_status(SRB_TIMOCLK, SRB_TIMOCLK);
+	set_cp0_status(SRB_TIMOCLK);
 }
 
 void __init hub_rtc_init(cnodeid_t cnode)

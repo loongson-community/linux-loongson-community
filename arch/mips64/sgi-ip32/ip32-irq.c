@@ -159,22 +159,23 @@ irq_desc_t irq_desc[NR_IRQS] __cacheline_aligned =
  * uses this it seems, which is IRQ 0 and IP7.
  */
 
-static void enable_cpu_irq (unsigned int irq)
+static void enable_cpu_irq(unsigned int irq)
 {
-	set_cp0_status (STATUSF_IP7,~ST0_CU1);
+	set_cp0_status(STATUSF_IP7);
 }
 
-static unsigned int startup_cpu_irq (unsigned int irq) {
-	enable_cpu_irq (irq);
+static unsigned int startup_cpu_irq(unsigned int irq)
+{
+	enable_cpu_irq(irq);
 	return 0;
 }
 
-static void disable_cpu_irq (unsigned int irq)
+static void disable_cpu_irq(unsigned int irq)
 {
-	clear_cp0_status (STATUSF_IP7);
+	clear_cp0_status(STATUSF_IP7);
 }
 
-static void end_cpu_irq (unsigned int irq)
+static void end_cpu_irq(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
 		enable_cpu_irq (irq);
@@ -199,34 +200,34 @@ static struct hw_interrupt_type ip32_cpu_interrupt = {
  * We get to split the register in half and do faster lookups.
  */
 
-static void enable_crime_irq (unsigned int irq)
+static void enable_crime_irq(unsigned int irq)
 {
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
-	crime_mask = crime_read_64 (CRIME_INT_MASK);
+	save_and_cli(flags);
+	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= 1 << (irq - 1);
-	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	crime_write_64(CRIME_INT_MASK, crime_mask);
+	restore_flags(flags);
 }
 
-static unsigned int startup_crime_irq (unsigned int irq)
+static unsigned int startup_crime_irq(unsigned int irq)
 {
-	enable_crime_irq (irq);
+	enable_crime_irq(irq);
 	return 0; /* This is probably not right; we could have pending irqs */
 }
 
-static void disable_crime_irq (unsigned int irq)
+static void disable_crime_irq(unsigned int irq)
 {
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
-	crime_mask = crime_read_64 (CRIME_INT_MASK);
+	save_and_cli(flags);
+	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask &= ~(1 << (irq - 1));
-	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	crime_write_64(CRIME_INT_MASK, crime_mask);
+	restore_flags(flags);
 }
 
 static void mask_and_ack_crime_irq (unsigned int irq)
@@ -238,16 +239,16 @@ static void mask_and_ack_crime_irq (unsigned int irq)
 	if ((irq <= CRIME_GBE0_IRQ && irq >= CRIME_GBE3_IRQ)
 	    || (irq <= CRIME_RE_EMPTY_E_IRQ && irq >= CRIME_RE_IDLE_E_IRQ)
 	    || (irq <= CRIME_SOFT0_IRQ && irq >= CRIME_SOFT2_IRQ)) {
-		save_and_cli (flags);
-		crime_mask = crime_read_64 (CRIME_HARD_INT);
+		save_and_cli(flags);
+		crime_mask = crime_read_64(CRIME_HARD_INT);
 		crime_mask &= ~(1 << (irq - 1));
-		crime_write_64 (CRIME_HARD_INT, crime_mask);
-		restore_flags (flags);
+		crime_write_64(CRIME_HARD_INT, crime_mask);
+		restore_flags(flags);
 	}
-	disable_crime_irq (irq);
+	disable_crime_irq(irq);
 }
-	
-static void end_crime_irq (unsigned int irq)
+
+static void end_crime_irq(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
 		enable_crime_irq (irq);
@@ -266,48 +267,50 @@ static struct hw_interrupt_type ip32_crime_interrupt = {
 	NULL
 };
 
-/* This is for MACE PCI interrupts.  We can decrease bus traffic by masking
+/*
+ * This is for MACE PCI interrupts.  We can decrease bus traffic by masking
  * as close to the source as possible.  This also means we can take the
  * next chunk of the CRIME register in one piece.
  */
 
-static void enable_macepci_irq (unsigned int irq)
+static void enable_macepci_irq(unsigned int irq)
 {
 	u32 mace_mask;
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
-	mace_mask = mace_read_32 (MACEPCI_CONTROL);
-	mace_mask |= MACEPCI_CONTROL_INT (irq - 9);
-	mace_write_32 (MACEPCI_CONTROL, mace_mask);
+	save_and_cli(flags);
+	mace_mask = mace_read_32(MACEPCI_CONTROL);
+	mace_mask |= MACEPCI_CONTROL_INT(irq - 9);
+	mace_write_32(MACEPCI_CONTROL, mace_mask);
 	/* In case the CRIME interrupt isn't enabled, we must enable it;
 	 * however, we never disable interrupts at that level.
 	 */
-	crime_mask = crime_read_64 (CRIME_INT_MASK);
+	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= 1 << (irq - 1);
-	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	crime_write_64(CRIME_INT_MASK, crime_mask);
+	restore_flags(flags);
 }
 
-static unsigned int startup_macepci_irq (unsigned int irq) {
+static unsigned int startup_macepci_irq(unsigned int irq)
+{
 	enable_macepci_irq (irq);
 	return 0; /* XXX */
 }
 
-static void disable_macepci_irq (unsigned int irq)
+static void disable_macepci_irq(unsigned int irq)
 {
 	u32 mace_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
-	mace_mask = mace_read_32 (MACEPCI_CONTROL);
-	mace_mask &= ~MACEPCI_CONTROL_INT (irq - 9);
-	mace_write_32 (MACEPCI_CONTROL, mace_mask);
-	restore_flags (flags);
+	save_and_cli(flags);
+	mace_mask = mace_read_32(MACEPCI_CONTROL);
+	mace_mask &= ~MACEPCI_CONTROL_INT(irq - 9);
+	mace_write_32(MACEPCI_CONTROL, mace_mask);
+	restore_flags(flags);
 }
 
-static void end_macepci_irq (unsigned int irq)
+static void end_macepci_irq(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
 		enable_macepci_irq (irq);
@@ -352,34 +355,35 @@ static void enable_maceisa_irq (unsigned int irq)
 		break;
 	}
 	DBG ("crime_int %016lx enabled\n", crime_int);
-	save_and_cli (flags);
-	crime_mask = crime_read_64 (CRIME_INT_MASK);
+	save_and_cli(flags);
+	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= crime_int;
-	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	mace_mask = mace_read_32 (MACEISA_INT_MASK);
+	crime_write_64(CRIME_INT_MASK, crime_mask);
+	mace_mask = mace_read_32(MACEISA_INT_MASK);
 	mace_mask |= 1 << (irq - 33);
-	mace_write_32 (MACEISA_INT_MASK, mace_mask);
-	restore_flags (flags);
+	mace_write_32(MACEISA_INT_MASK, mace_mask);
+	restore_flags(flags);
 }
 
-static unsigned int startup_maceisa_irq (unsigned int irq) {
-	enable_maceisa_irq (irq);
+static unsigned int startup_maceisa_irq (unsigned int irq)
+{
+	enable_maceisa_irq(irq);
 	return 0;
 }
 
-static void disable_maceisa_irq (unsigned int irq)
+static void disable_maceisa_irq(unsigned int irq)
 {
 	u32 mace_mask;
 	unsigned long flags;
 
 	save_and_cli (flags);
-	mace_mask = mace_read_32 (MACEISA_INT_MASK);
+	mace_mask = mace_read_32(MACEISA_INT_MASK);
 	mace_mask &= ~(1 << (irq - 33));
-	mace_write_32 (MACEISA_INT_MASK, mace_mask);
-	restore_flags (flags);
+	mace_write_32(MACEISA_INT_MASK, mace_mask);
+	restore_flags(flags);
 }
 
-static void mask_and_ack_maceisa_irq (unsigned int irq)
+static void mask_and_ack_maceisa_irq(unsigned int irq)
 {
 	u32 mace_mask;
 	unsigned long flags;
@@ -388,17 +392,17 @@ static void mask_and_ack_maceisa_irq (unsigned int irq)
 	case MACEISA_PARALLEL_IRQ:
 	case MACEISA_SERIAL1_TDMAPR_IRQ:
 	case MACEISA_SERIAL2_TDMAPR_IRQ:
-		save_and_cli (flags);
-		mace_mask = mace_read_32 (MACEISA_INT_STAT);
+		save_and_cli(flags);
+		mace_mask = mace_read_32(MACEISA_INT_STAT);
 		mace_mask &= ~(1 << (irq - 33));
-		mace_write_32 (MACEISA_INT_STAT, mace_mask);
-		restore_flags (flags);
+		mace_write_32(MACEISA_INT_STAT, mace_mask);
+		restore_flags(flags);
 		break;
 	}
-	disable_maceisa_irq (irq);
+	disable_maceisa_irq(irq);
 }
 
-static void end_maceisa_irq (unsigned irq)
+static void end_maceisa_irq(unsigned irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
 		enable_maceisa_irq (irq);
@@ -421,7 +425,7 @@ static struct hw_interrupt_type ip32_maceisa_interrupt = {
  * bits 0-3 and 7 in the CRIME register.
  */
 
-static void enable_mace_irq (unsigned int irq)
+static void enable_mace_irq(unsigned int irq)
 {
 	u64 crime_mask;
 	unsigned long flags;
@@ -433,13 +437,13 @@ static void enable_mace_irq (unsigned int irq)
 	restore_flags (flags);
 }
 
-static unsigned int startup_mace_irq (unsigned int irq)
+static unsigned int startup_mace_irq(unsigned int irq)
 {
-	enable_mace_irq (irq);
+	enable_mace_irq(irq);
 	return 0;
 }
 
-static void disable_mace_irq (unsigned int irq)
+static void disable_mace_irq(unsigned int irq)
 {
 	u64 crime_mask;
 	unsigned long flags;
@@ -448,10 +452,10 @@ static void disable_mace_irq (unsigned int irq)
 	crime_mask = crime_read_64 (CRIME_INT_MASK);
 	crime_mask &= ~(1 << (irq - 1));
 	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	restore_flags(flags);
 }
 
-static void end_mace_irq (unsigned int irq)
+static void end_mace_irq(unsigned int irq)
 {
 	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
 		enable_mace_irq (irq);
@@ -493,12 +497,12 @@ static void ip32_unknown_interrupt (struct pt_regs *regs)
 	mace = mace_read_32 (MACEPCI_CONTROL);
 	printk ("MACE PCI control register: %08x\n", mace);
 
-	printk ("Register dump:\n");
-	show_regs (regs);
+	printk("Register dump:\n");
+	show_regs(regs);
 
-	printk ("Please mail this report to linux-mips@oss.sgi.com\n");
-	printk ("Spinning...");
-	while (1) ;
+	printk("Please mail this report to linux-mips@oss.sgi.com\n");
+	printk("Spinning...");
+	while(1) ;
 }
 
 void __init init_IRQ(void)
@@ -509,11 +513,11 @@ void __init init_IRQ(void)
 	/* Install our interrupt handler, then clear and disable all
 	 * CRIME and MACE interrupts.
 	 */
-	crime_write_64 (CRIME_INT_MASK, 0);
-	crime_write_64 (CRIME_HARD_INT, 0);
-	crime_write_64 (CRIME_SOFT_INT, 0);
-	mace_write_32 (MACEISA_INT_STAT, 0);
-	mace_write_32 (MACEISA_INT_MASK, 0);
+	crime_write_64(CRIME_INT_MASK, 0);
+	crime_write_64(CRIME_HARD_INT, 0);
+	crime_write_64(CRIME_SOFT_INT, 0);
+	mace_write_32(MACEISA_INT_STAT, 0);
+	mace_write_32(MACEISA_INT_MASK, 0);
 	set_except_vector(0, ip32_handle_int);
 
 	for (i = 0; i < NR_IRQS; i++) {
@@ -542,12 +546,12 @@ void __init init_IRQ(void)
 		irq_desc[irq].depth = 0;
 		irq_desc[irq].handler = controller;
 	}
-	setup_irq (CRIME_MEMERR_IRQ, &memerr_irq);
-	setup_irq (CRIME_CPUERR_IRQ, &cpuerr_irq);
+	setup_irq(CRIME_MEMERR_IRQ, &memerr_irq);
+	setup_irq(CRIME_CPUERR_IRQ, &cpuerr_irq);
 }
 
 /* CRIME 1.1 appears to deliver all interrupts to this one pin. */
-void ip32_irq0 (struct pt_regs *regs)
+void ip32_irq0(struct pt_regs *regs)
 {
 	u64 crime_int = crime_read_64 (CRIME_INT_STAT);
 	int irq = 0;
@@ -571,32 +575,32 @@ void ip32_irq0 (struct pt_regs *regs)
 		irq = ffs (crime_int) + 16;
 	}
 	if (irq == 0)
-		ip32_unknown_interrupt (regs);
-	DBG ("*irq %u*\n", irq);
-	do_IRQ (irq, regs);
+		ip32_unknown_interrupt(regs);
+	DBG("*irq %u*\n", irq);
+	do_IRQ(irq, regs);
 }
 
-void ip32_irq1 (struct pt_regs *regs)
+void ip32_irq1(struct pt_regs *regs)
 {
 	ip32_unknown_interrupt (regs);
 }
 
-void ip32_irq2 (struct pt_regs *regs)
+void ip32_irq2(struct pt_regs *regs)
 {
 	ip32_unknown_interrupt (regs);
 }
 
-void ip32_irq3 (struct pt_regs *regs)
+void ip32_irq3(struct pt_regs *regs)
 {
 	ip32_unknown_interrupt (regs);
 }
 
-void ip32_irq4 (struct pt_regs *regs)
+void ip32_irq4(struct pt_regs *regs)
 {
 	ip32_unknown_interrupt (regs);
 }
 
-void ip32_irq5 (struct pt_regs *regs)
+void ip32_irq5(struct pt_regs *regs)
 {
 	do_IRQ (CLOCK_IRQ, regs);
 }
@@ -830,6 +834,7 @@ void free_irq(unsigned int irq, void *dev_id)
 		return;
 	}
 }
+
 /*
  * IRQ autodetection code..
  *
@@ -1230,4 +1235,3 @@ out:
 		do_softirq();
 	return 1;
 }
-

@@ -119,9 +119,9 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 
 #ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
-					set_cp0_status(ST0_CU1, ST0_CU1);
+					set_cp0_status(ST0_CU1);
 					save_fp(child);
-					set_cp0_status(ST0_CU1, 0);
+					clear_cp0_status(ST0_CU1, 0);
 					last_task_used_math = NULL;
 				}
 #endif
@@ -159,7 +159,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
 			__save_flags(flags);
-			set_cp0_status(ST0_CU1, ST0_CU1);
+			set_cp0_status(ST0_CU1);
 			__asm__ __volatile__("cfc1\t%0,$0": "=r" (tmp));
 			__restore_flags(flags);
 			break;
@@ -197,9 +197,9 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			if (child->used_math) {
 #ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
-					set_cp0_status(ST0_CU1, ST0_CU1);
+					set_cp0_status(ST0_CU1);
 					save_fp(child);
-					set_cp0_status(ST0_CU1, 0);
+					clear_cp0_status(ST0_CU1);
 					last_task_used_math = NULL;
 					regs->cp0_status &= ~ST0_CU1;
 				}
@@ -379,9 +379,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 					&child->thread.fpu.hard.fp_regs[0];
 #ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
-					set_cp0_status(ST0_CU1, ST0_CU1);
+					set_cp0_status(ST0_CU1);
 					save_fp(child);
-					set_cp0_status(ST0_CU1, 0);
+					clear_cp0_status(ST0_CU1);
 					last_task_used_math = NULL;
 				}
 #endif
@@ -419,7 +419,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		case FPC_EIR: { /* implementation / version register */
 			unsigned int flags;
 			__save_flags(flags);
-			set_cp0_status(ST0_CU1, ST0_CU1);
+			set_cp0_status(ST0_CU1);
 			__asm__ __volatile__("cfc1\t%0,$0": "=r" (tmp));
 			__restore_flags(flags);
 			break;
@@ -457,9 +457,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			if (child->used_math) {
 #ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
-					set_cp0_status(ST0_CU1, ST0_CU1);
+					set_cp0_status(ST0_CU1);
 					save_fp(child);
-					set_cp0_status(ST0_CU1, 0);
+					clear_cp0_status(ST0_CU1);
 					last_task_used_math = NULL;
 					regs->cp0_status &= ~ST0_CU1;
 				}

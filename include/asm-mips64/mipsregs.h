@@ -144,18 +144,43 @@
  * Manipulate the status register.
  * Mostly used to access the interrupt bits.
  */
-#define __BUILD_SET_CP0(name,register)                          \
-extern __inline__ unsigned int                                  \
-set_cp0_##name(unsigned int change, unsigned int new)           \
-{                                                               \
-	unsigned int res;                                       \
-                                                                \
-	res = read_32bit_cp0_register(register);                \
-	res &= ~change;                                         \
-	res |= (new & change);                                  \
-	write_32bit_cp0_register(register, res);                \
-                                                                \
-	return res;                                             \
+#define __BUILD_SET_CP0(name,register)				\
+extern inline unsigned int					\
+set_cp0_##name(unsigned int set)				\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res |= set;						\
+	write_32bit_cp0_register(register, res);		\
+								\
+	return res;						\
+}								\
+								\
+extern inline unsigned int					\
+clear_cp0_##name(unsigned int clear)				\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res &= ~clear;						\
+	write_32bit_cp0_register(register, res);		\
+								\
+	return res;						\
+}								\
+								\
+extern inline unsigned int					\
+change_cp0_##name(unsigned int change, unsigned int new)	\
+{								\
+	unsigned int res;					\
+								\
+	res = read_32bit_cp0_register(register);		\
+	res &= ~change;						\
+	res |= (new & change);					\
+	if (change)						\
+		write_32bit_cp0_register(register, res);	\
+								\
+	return res;						\
 }
 
 __BUILD_SET_CP0(status,CP0_STATUS)

@@ -221,7 +221,7 @@ void __init indy_timer_init(void)
 
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
-	set_cp0_status(ST0_IM, ALLINTS);
+	change_cp0_status(ST0_IM, ALLINTS);
 	sti();
 
 	write_lock_irq(&xtime_lock);

@@ -53,7 +53,7 @@ void exit_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
+		set_cp0_status(ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
 		CLEAR_FPU_OWNER();
 	}
@@ -63,7 +63,7 @@ void flush_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (IS_FPU_OWNER()) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
+		set_cp0_status(ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
 		CLEAR_FPU_OWNER();
 	}

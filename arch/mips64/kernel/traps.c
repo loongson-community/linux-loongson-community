@@ -441,7 +441,7 @@ static inline void setup_dedicated_int(void)
 	switch(mips_cputype) {
 	case CPU_NEVADA:
 		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV, CAUSEF_IV);
+		set_cp0_cause(CAUSEF_IV);
 		dedicated_iv_available = 1;
 	}
 }
@@ -473,7 +473,7 @@ static inline void mips4_setup(void)
 	case CPU_R8000:
 	case CPU_R10000:
 		mips4_available = 1;
-		set_cp0_status(ST0_XX, ST0_XX);
+		set_cp0_status(ST0_XX);
 	}
 }
 
@@ -482,7 +482,7 @@ static inline void go_64(void)
 	unsigned int bits;
 
 	bits = ST0_KX|ST0_SX|ST0_UX;
-	set_cp0_status(bits, bits);
+	set_cp0_status(bits);
 	printk("Entering 64-bit mode.\n");
 }
 
@@ -496,7 +496,7 @@ void __init trap_init(void)
 	unsigned long i;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
-	set_cp0_status(ST0_BEV, 0);
+	clear_cp0_status(ST0_BEV);
 
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
@@ -527,7 +527,7 @@ void __init trap_init(void)
 		 * should get some special optimizations.
 		 */
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		set_cp0_status(ST0_XX, ST0_XX);
+		set_cp0_status(ST0_XX);
 		goto r4k;
 
 	case CPU_R4000MC:

@@ -97,6 +97,7 @@ extern char arcs_cmdline[CL_SIZE];
 
 extern void ip22_setup(void);
 extern void ip27_setup(void);
+extern void ip32_setup(void);
 
 static inline void cpu_probe(void)
 {
@@ -143,6 +144,9 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #ifdef CONFIG_SGI_IP27
 	ip27_setup();
+#endif
+#ifdef CONFIG_SGI_IP32
+	ip32_setup();
 #endif
 
 #ifdef CONFIG_ARC_MEMORY
