@@ -89,15 +89,4 @@
 
 #endif
 
-#ifdef CONFIG_CPU_TX49XX
-
-/*
- * People have found that a cache instruction that is flushing itself out
- * of the I-cache of some TX49 core may cause the system to hang.
- */
-
-#define TOSHIBA_ICACHE_WAR
-
-#endif /* CONFIG_CPU_TX49XX */
-
 #endif /* _ASM_WAR_H */

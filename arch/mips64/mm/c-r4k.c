@@ -231,46 +231,10 @@ init:
 	goto *l;
 }
 
-#ifdef TOSHIBA_ICACHE_WAR
-
-#define TOSHIBA_ICACHE_WAR_DECL						\
-	unsigned long flags, config;					\
-	int is_suspect_toshiba_tx49 = 0;
-#define TOSHIBA_ICACHE_WAR_PROLOG					\
-do {									\
-	if (is_suspect_toshiba_tx49) {					\
-		local_irq_save(flags);					\
-		config = read_c0_config();				\
-		write_c0_config(config | TX49_CONF_IC);			\
-	}								\
-while (0)
-#define TOSHIBA_ICACHE_WAR_EPILOG					\
-do {									\
-	if (is_suspect_toshiba_tx49) {					\
-		write_c0_config(config);				\
-		local_irq_restore(flags);				\
-	}
-while (0)
-#define TOSHIBA_ICACHE_WAR_INIT						\
-do {									\
-	if (current_cpu_data.cputype == CPU_TX49XX)			\
-		is_suspect_toshiba_tx49 = 0;				\
-while (0)
-
-#else
-
-#define TOSHIBA_ICACHE_WAR_DECL
-#define TOSHIBA_ICACHE_WAR_PROLOG	do { } while (0)
-#define TOSHIBA_ICACHE_WAR_EPILOG	do { } while (0)
-#define TOSHIBA_ICACHE_WAR_INIT		do { } while (0)
-
-#endif
-
 static void r4k_blast_icache_page_indexed(unsigned long addr)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
-	TOSHIBA_ICACHE_WAR_DECL;
 
 	goto *l;
 
@@ -280,15 +244,11 @@ ic_16:
 	return;
 
 ic_32:
-	TOSHIBA_ICACHE_WAR_PROLOG;
 	blast_icache32_page_indexed(addr);
-	TOSHIBA_ICACHE_WAR_EPILOG;
 
 	return;
 
 init:
-	TOSHIBA_ICACHE_WAR_INIT;
-
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
@@ -300,7 +260,6 @@ static void r4k_blast_icache(void)
 {
 	unsigned long ic_lsize = current_cpu_data.icache.linesz;
 	static void *l = &&init;
-	TOSHIBA_ICACHE_WAR_DECL;
 
 	goto *l;
 
@@ -310,15 +269,11 @@ ic_16:
 	return;
 
 ic_32:
-	TOSHIBA_ICACHE_WAR_PROLOG;
 	blast_icache32();
-	TOSHIBA_ICACHE_WAR_EPILOG;
 
 	return;
 
 init:
-	TOSHIBA_ICACHE_WAR_INIT;
-
 	if (ic_lsize == 16)
 		l = &&ic_16;
 	else if (ic_lsize == 32)
