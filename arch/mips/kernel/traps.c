@@ -383,7 +383,7 @@ static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
 
 	epc = (unsigned int *) regs->cp0_epc +
 	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (!get_user(opcode, epc))
+	if (!get_user(*opcode, epc))
 		return 0;
 
 	force_sig(SIGSEGV, current);
