@@ -121,12 +121,10 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				idx = get_index();
 				set_entrylo0(0);
 				set_entrylo1(0);
-				set_entryhi(KSEG0);
 				if (idx < 0)
 					continue;
-				BARRIER;
 				/* Make sure all entries differ. */
-				set_entryhi(KSEG0+idx*0x2000);
+				set_entryhi(KSEG0 + idx*0x2000);
 				BARRIER;
 				tlb_write_indexed();
 				BARRIER;
