@@ -34,8 +34,6 @@
 #include "dec_esp.h"
 
 #include <asm/irq.h>
-#include <asm/jazz.h>
-#include <asm/jazzdma.h>
 #include <asm/dma.h>
 
 #include <asm/pgtable.h>
@@ -167,12 +165,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 		/* SCSI chip speed */
 		esp->cfreq = 25000000;
 
-		/*
-		 * we don't give the address of DMA channel, but the number
-		 * of DMA channel, so we can use the jazz DMA functions
-		 *
-		 */
-		esp->dregs = JAZZ_SCSI_DMA;
+		esp->dregs = 0;
 
 		/* ESP register base */
 		esp->eregs = (struct ESP_regs *) (system_base + SCSI);
@@ -356,10 +349,6 @@ static int dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd * sp)
 
 static void dma_dump_state(struct NCR_ESP *esp)
 {
-/*
-    ESPLOG(("esp%d: dma -- enable <%08x> residue <%08x\n",
-	    esp->esp_id, vdma_get_enable((int)esp->dregs), vdma_get_resdiue((int)esp->dregs)));
- */
 }
 
 static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
