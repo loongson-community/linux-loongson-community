@@ -1,4 +1,4 @@
-/* $Id: dma.h,v 1.3 1999/08/20 21:59:08 ralf Exp $
+/* $Id: dma.h,v 1.4 1999/10/09 00:01:42 ralf Exp $
  * linux/include/asm/dma.h: Defines for using and allocating dma channels.
  * Written by Hennus Bergman, 1992.
  * High DMA channel support & info by Hannu Savolainen
@@ -83,7 +83,7 @@
  * Deskstations or Acer PICA but not the much more versatile DMA logic used
  * for the local devices on Acer PICA or Magnums.
  */
-#ifndef CONFIG_SGI_IP22
+#if !defined(CONFIG_SGI_IP22) && !defined(CONFIG_DECSTATION)
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)
 #else
 #define MAX_DMA_ADDRESS		(~0UL)
