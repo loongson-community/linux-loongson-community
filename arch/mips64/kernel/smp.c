@@ -7,7 +7,6 @@
  * Copyright (C) 2000, 2001 Ralf Baechle
  * Copyright (C) 2000, 2001 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -24,43 +23,6 @@
 #include <asm/softirq.h>
 #include <asm/mmu_context.h>
 #include <asm/irq.h>
-
-#ifdef CONFIG_SGI_IP27
-
-#include <asm/sn/arch.h>
-#include <asm/sn/intr.h>
-#include <asm/sn/addrs.h>
-#include <asm/sn/agent.h>
-#include <asm/sn/sn0/ip27.h>
-
-#define DORESCHED	0xab
-#define DOCALL		0xbc
-
-static void sendintr(int destid, unsigned char status)
-{
-	int irq;
-
-#if (CPUS_PER_NODE == 2)
-	switch (status) {
-		case DORESCHED:	irq = CPU_RESCHED_A_IRQ; break;
-		case DOCALL:	irq = CPU_CALL_A_IRQ; break;
-		default:	panic("sendintr");
-	}
-	irq += cputoslice(destid);
-
-	/*
-	 * Convert the compact hub number to the NASID to get the correct
-	 * part of the address space.  Then set the interrupt bit associated
-	 * with the CPU we want to send the interrupt to.
-	 */
-	REMOTE_HUB_SEND_INTR(COMPACT_TO_NASID_NODEID(cputocnode(destid)),
-			FAST_IRQ_TO_LEVEL(irq));
-#else
-	<< Bomb!  Must redefine this for more than 2 CPUS. >>
-#endif
-}
-
-#endif /* CONFIG_SGI_IP27 */
 
 /* The 'big kernel lock' */
 spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
