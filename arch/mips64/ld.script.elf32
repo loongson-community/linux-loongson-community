@@ -15,6 +15,7 @@ SECTIONS
   _etext = .;
 
   . = ALIGN(16384);
+  /* This for CONFIG_MAPPED_KERNEL . = . + 16777216; */
   .data.init_task : { *(.data.init_task) }
 
   /* Startup code */

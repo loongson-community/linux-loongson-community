@@ -132,7 +132,7 @@ endif
 
 ifdef CONFIG_MAPPED_KERNEL
 vmlinux.64: vmlinux
-	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff40000000 $< $@
+	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xbfffffff40000000 $< $@
 else
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) --change-addresses=0xa7ffffff80000000 $< $@

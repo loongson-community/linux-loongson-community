@@ -30,6 +30,31 @@
 #endif
 	.endm
 
+	.macro MAPPED_KERNEL_SETUP_TLB
+#ifdef CONFIG_MAPPED_KERNEL
+	/*
+	 * This needs to read the nasid - assume 0 for now.
+	 * Drop in 0xffffffffc0000000 in tlbhi, 0+VG in tlblo_0,
+	 * 0+DVG in tlblo_1.
+	 */
+	dli	t0, 0xffffffffc0000000
+	dmtc0	t0, CP0_ENTRYHI
+	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _CACHE_CACHABLE_COW) >> 6)
+	mtc0	t0, CP0_ENTRYLO0	# physaddr 0, VG, cach exlwr
+	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _PAGE_DIRTY|_CACHE_CACHABLE_COW) >> 6)
+	mtc0	t0, CP0_ENTRYLO1	# physaddr 0, DVG, cach exlwr
+	li	t0, 0x1ffe000		# MAPPED_KERN_TLBMASK, TLBPGMASK_16M
+	mtc0	t0, CP0_PAGEMASK
+	li	t0, 0			# KMAP_INX
+	mtc0	t0, CP0_INDEX
+	li	t0, 1
+	mtc0	t0, CP0_WIRED
+	tlbwi
+#else
+	mtc0	zero, CP0_WIRED
+#endif
+	.endm
+
 	.text
 
 EXPORT(stext)					# used for profiling
@@ -42,7 +67,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	ori	sp, 0xf				# align stack on 16 byte.
 	xori	sp, 0xf
 
-	jal	mapped_kernel_setup_tlb
+	MAPPED_KERNEL_SETUP_TLB
 
 	ARC64_TWIDDLE_PC
 
@@ -77,37 +102,8 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 1:	b	1b				# just in case ...
 	END(kernel_entry)
 
-NESTED(mapped_kernel_setup_tlb, 16, sp)
-#ifdef CONFIG_MAPPED_KERNEL
-	/*
-	 * This needs to read the nasid - assume 0 for now.
-	 * Drop in 0xffffffffc0000000 in tlbhi, 0+DVG in tlblo_0,
-	 * 0x10000+DVG in tlblo_1. Assumes sash will load kernel
-	 * at physical 0x1c000 and virtual 0xa80000000001c000.
-	 * (mips64/Makefile has a --change-address to do this).
-	 */
-	dli	t0, 0xffffffffc0000000
-	dmtc0	t0, CP0_ENTRYHI
-	li	t0, ((_PAGE_GLOBAL|_PAGE_VALID| _PAGE_DIRTY|_CACHE_CACHABLE_COW) >> 6)
-	mtc0	t0, CP0_ENTRYLO0	# physaddr 0, DVG, cach exlwr
-	li	t0, (_PAGE_GLOBAL >> 6)	# allow global access to kernel
-	mtc0	t0, CP0_ENTRYLO1	# 16M should be enough for text+data
-	li	t0, 0x1ffe000		# MAPPED_KERN_TLBMASK, TLBPGMASK_16M
-	mtc0	t0, CP0_PAGEMASK
-	li	t0, 0			# KMAP_INX
-	mtc0	t0, CP0_INDEX
-	li	t0, 1
-	mtc0	t0, CP0_WIRED
-	tlbwi
-#else
-	mtc0	zero, CP0_WIRED
-	tlbwi
-#endif
-	jr	ra
-	END(mapped_kernel_setup_tlb)
-
 NESTED(bootstrap, 16, sp)
-	jal	mapped_kernel_setup_tlb
+	MAPPED_KERNEL_SETUP_TLB
 	ARC64_TWIDDLE_PC
 	CLI
 	mfc0	t0, CP0_STATUS

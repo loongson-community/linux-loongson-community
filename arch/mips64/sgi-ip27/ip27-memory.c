@@ -58,7 +58,7 @@ pfn_t node_getfirstfree(cnodeid_t cnode)
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 
 #ifdef CONFIG_MAPPED_KERNEL
-	loadbase = CKSSEG;
+	loadbase = CKSSEG + 16777216;
 #endif
 	if (cnode == 0)
 		return (KDM_TO_PHYS(PAGE_ALIGN((unsigned long)(&_end)) - 
