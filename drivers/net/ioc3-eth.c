@@ -28,7 +28,7 @@
  */
 
 #define IOC3_NAME	"ioc3-eth"
-#define IOC3_VERSION	"2.6.3-2"
+#define IOC3_VERSION	"2.6.3-3"
 
 #include <linux/config.h>
 #include <linux/init.h>
@@ -40,6 +40,10 @@
 #include <linux/pci.h>
 #include <linux/crc32.h>
 #include <linux/mii.h>
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
 
 #ifdef CONFIG_SERIAL_8250
 #include <linux/serial.h>
@@ -53,8 +57,10 @@
 #include <linux/ethtool.h>
 #include <linux/skbuff.h>
 #include <linux/dp83840.h>
+#include <net/ip.h>
 
 #include <asm/byteorder.h>
+#include <asm/checksum.h>
 #include <asm/io.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
@@ -423,6 +429,77 @@ static struct net_device_stats *ioc3_get_stats(struct net_device *dev)
 	return &ip->stats;
 }
 
+#ifdef CONFIG_SGI_IOC3_ETH_HW_RX_CSUM
+
+static void ioc3_tcpudp_checksum(struct sk_buff *skb, uint32_t hwsum, int len)
+{
+	struct ethhdr *eh = skb->mac.ethernet;
+	uint32_t csum, ehsum;
+	unsigned int proto;
+	struct iphdr *ih;
+	uint16_t *ew;
+	unsigned char *cp;
+
+	/*
+	 * Did hardware handle the checksum at all?  The cases we can handle
+	 * are:
+	 *
+	 * - TCP and UDP checksums of IPv4 only.
+	 * - IPv6 would be doable but we keep that for later ...
+	 * - Only unfragmented packets.  Did somebody already tell you
+	 *   fragmentation is evil?
+	 * - don't care about packet size.  Worst case when processing a
+	 *   malformed packet we'll try to access the packet at ip header +
+	 *   64 bytes which is still inside the skb.  Even in the unlikely
+	 *   case where the checksum is right the higher layers will still
+	 *   drop the packet as appropriate.
+	 */
+	if (eh->h_proto != ntohs(ETH_P_IP))
+		return;
+
+	ih = (struct iphdr *) ((char *)eh + ETH_HLEN);
+	if (ih->frag_off & htons(IP_MF | IP_OFFSET))
+		return;
+
+	proto = ih->protocol;
+	if (proto != IPPROTO_TCP && proto != IPPROTO_UDP)
+		return;
+
+	/* Same as tx - compute csum of pseudo header  */
+	csum = hwsum +
+	       (ih->tot_len - (ih->ihl << 2)) +
+	       htons((uint16_t)ih->protocol) +
+	       (ih->saddr >> 16) + (ih->saddr & 0xffff) +
+	       (ih->daddr >> 16) + (ih->daddr & 0xffff);
+
+	/* Sum up ethernet dest addr, src addr and protocol  */
+	ew = (uint16_t *) eh;
+	ehsum = ew[0] + ew[1] + ew[2] + ew[3] + ew[4] + ew[5] + ew[6];
+
+	ehsum = (ehsum & 0xffff) + (ehsum >> 16);
+	ehsum = (ehsum & 0xffff) + (ehsum >> 16);
+
+	csum += 0xffff ^ ehsum;
+
+	/* In the next step we also subtract the 1's complement
+	   checksum of the trailing ethernet CRC.  */
+	cp = (char *)eh + len;	/* points at trailing CRC */
+	if (len & 1) {
+		csum += 0xffff ^ (uint16_t) ((cp[1] << 8) | cp[0]);
+		csum += 0xffff ^ (uint16_t) ((cp[3] << 8) | cp[2]);
+	} else {
+		csum += 0xffff ^ (uint16_t) ((cp[0] << 8) | cp[1]);
+		csum += 0xffff ^ (uint16_t) ((cp[2] << 8) | cp[3]);
+	}
+
+	csum = (csum & 0xffff) + (csum >> 16);
+	csum = (csum & 0xffff) + (csum >> 16);
+
+	if (csum == 0xffff)
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+}
+#endif /* CONFIG_SGI_IOC3_ETH_HW_RX_CSUM */
+
 static inline void ioc3_rx(struct ioc3_private *ip)
 {
 	struct sk_buff *skb, *new_skb;
@@ -455,6 +532,11 @@ static inline void ioc3_rx(struct ioc3_private *ip)
 				new_skb = skb;
 				goto next;
 			}
+
+#ifdef CONFIG_SGI_IOC3_ETH_HW_RX_CSUM
+			ioc3_tcpudp_checksum(skb, w0 & ERXBUF_IPCKSUM_MASK,len);
+#endif
+
 			netif_rx(skb);
 
 			ip->rx_skbs[rx_entry] = NULL;	/* Poison  */
@@ -1071,6 +1153,9 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	dev->do_ioctl		= ioc3_ioctl;
 	dev->set_multicast_list	= ioc3_set_multicast_list;
 	dev->ethtool_ops	= &ioc3_ethtool_ops;
+#ifdef CONFIG_SGI_IOC3_ETH_HW_TX_CSUM
+	dev->features		= NETIF_F_IP_CSUM;
+#endif
 
 	err = register_netdev(dev);
 	if (err)
@@ -1142,7 +1227,58 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct ioc3 *ioc3 = ip->regs;
 	unsigned int len;
 	struct ioc3_etxd *desc;
+	uint32_t w0 = 0;
 	int produce;
+
+#ifdef CONFIG_SGI_IOC3_ETH_HW_TX_CSUM
+	/*
+	 * IOC3 has a fairly simple minded checksumming hardware which simply
+	 * adds up the 1's complement checksum for the entire packet and
+	 * inserts it at an offset which can be specified in the descriptor
+	 * into the transmit packet.  This means we have to compensate for the
+	 * MAC header which should not be summed and the TCP/UDP pseudo headers
+	 * manually.
+	 */
+	if (skb->ip_summed == CHECKSUM_HW) {
+		int proto = ntohs(skb->nh.iph->protocol);
+		unsigned int csoff;
+		struct iphdr *ih = skb->nh.iph;
+		uint32_t csum, ehsum;
+		uint16_t *eh;
+
+		/* The MAC header.  skb->mac.ethernet seem the logic approach
+		   to find the MAC header - except it's a NULL pointer ...  */
+		eh = (uint16_t *) skb->data;
+
+		/* Sum up dest addr, src addr and protocol  */
+		ehsum = eh[0] + eh[1] + eh[2] + eh[3] + eh[4] + eh[5] + eh[6];
+
+		/* Fold ehsum.  can't use csum_fold which negates also ...  */
+		ehsum = (ehsum & 0xffff) + (ehsum >> 16);
+		ehsum = (ehsum & 0xffff) + (ehsum >> 16);
+
+		/* Skip IP header; it's sum is always zero and was
+		   already filled in by ip_output.c */
+		csum = csum_tcpudp_nofold(ih->saddr, ih->daddr,
+		                          ih->tot_len - (ih->ihl << 2),
+		                          proto, 0xffff ^ ehsum);
+
+		csum = (csum & 0xffff) + (csum >> 16);	/* Fold again */
+		csum = (csum & 0xffff) + (csum >> 16);
+
+		csoff = ETH_HLEN + (ih->ihl << 2);
+		if (proto == IPPROTO_UDP) {
+			csoff += offsetof(struct udphdr, check);
+			skb->h.uh->check = csum;
+		}
+		if (proto == IPPROTO_TCP) {
+			csoff += offsetof(struct tcphdr, check);
+			skb->h.th->check = csum;
+		}
+
+		w0 = ETXD_DOCHECKSUM | (csoff << ETXD_CHKOFF_SHIFT);
+	}
+#endif /* CONFIG_SGI_IOC3_ETH_HW_TX_CSUM */
 
 	spin_lock_irq(&ip->ioc3_lock);
 
@@ -1160,7 +1296,7 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			memset(desc->data + len, 0, ETH_ZLEN - len);
 			len = ETH_ZLEN;
 		}
-		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_D0V);
+		desc->cmd = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_D0V | w0);
 		desc->bufcnt = cpu_to_be32(len);
 	} else if ((data ^ (data + len)) & 0x4000) {
 		unsigned long b2, s1, s2;
@@ -1170,7 +1306,7 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		s2 = data + len - b2;
 
 		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE |
-		                           ETXD_B1V | ETXD_B2V);
+		                           ETXD_B1V | ETXD_B2V | w0);
 		desc->bufcnt = cpu_to_be32((s1 << ETXD_B1CNT_SHIFT)
 		                           | (s2 << ETXD_B2CNT_SHIFT));
 		desc->p1     = cpu_to_be64((0xa5UL << 56) |
@@ -1179,7 +1315,7 @@ static int ioc3_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		                           (data & TO_PHYS_MASK));
 	} else {
 		/* Normal sized packet that doesn't cross a page boundary. */
-		desc->cmd    = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_B1V);
+		desc->cmd = cpu_to_be32(len | ETXD_INTWHENDONE | ETXD_B1V | w0);
 		desc->bufcnt = cpu_to_be32(len << ETXD_B1CNT_SHIFT);
 		desc->p1     = cpu_to_be64((0xa5UL << 56) |
 		                           (data & TO_PHYS_MASK));
