@@ -34,13 +34,15 @@
 /* These are the functions hooked by the memory management function pointers */
 void sb1_clear_page(void *page)
 {
-	/* JDCXXX - This should be bottlenecked by the write buffer, but these
-	   things tend to be mildly unpredictable...should check this on the
-	   performance model */
-
-	/* We prefetch 4 lines ahead.  We're also "cheating" slightly here...
-	   since we know we're on an SB1, we force the assembler to take
-	   64-bit operands to speed things up */
+	/*
+	 * JDCXXX - This should be bottlenecked by the write buffer, but these
+	 * things tend to be mildly unpredictable...should check this on the
+	 * performance model
+	 *
+	 * We prefetch 4 lines ahead.  We're also "cheating" slightly here...
+	 * since we know we're on an SB1, we force the assembler to take
+	 * 64-bit operands to speed things up
+	 */
 	__asm__ __volatile__(
 		".set push                  \n"
 		".set noreorder             \n"
@@ -63,22 +65,21 @@ void sb1_clear_page(void *page)
 		"     bne       $1, %0, 1b  \n"
 		"     addiu     %0, %0, 32  \n"  /* Next cacheline (This instruction better be short piped!) */
 		".set pop                   \n"
-		:"=r" (page)
-		:"0" (page),
-		 "I" (PAGE_SIZE-32)
-		:"$1","memory");
+		: "=r" (page)
+		: "0" (page), "I" (PAGE_SIZE-32)
+		: "memory");
 
 }
 
 void sb1_copy_page(void *to, void *from)
 {
 
-	/* This should be optimized in assembly...can't use ld/sd, though,
+	/*
+	 * This should be optimized in assembly...can't use ld/sd, though,
 	 * because the top 32 bits could be nuked if we took an interrupt
 	 * during the routine.	And this is not a good place to be cli()'ing
-	 */
-
-	/* The pref's used here are using "streaming" hints, which cause the
+	 *
+	 * The pref's used here are using "streaming" hints, which cause the
 	 * copied data to be kicked out of the cache sooner.  A page copy often
 	 * ends up copying a lot more data than is commonly used, so this seems
 	 * to make sense in terms of reducing cache pollution, but I've no real
@@ -125,19 +126,7 @@ void sb1_copy_page(void *to, void *from)
 		"     bne       $1, %0, 1b  \n"
 		"     addiu     %0, %0, 32  \n"  /* Next cacheline */
 		".set pop                   \n"
-		:"=r" (to),
-		"=r" (from)
-		:
-		"0" (from),
-		"1" (to),
-		"I" (PAGE_SIZE-32)
-		:"$1","$2","$3","$4","$5","$6","$7","$8","$9","memory");
-/*
-	unsigned long *src = from;
-	unsigned long *dest = to;
-	unsigned long *target = (unsigned long *) (((unsigned long)src) + PAGE_SIZE);
-	while (src != target) {
-		*dest++ = *src++;
-	}
-*/
+		: "=r" (to), "=r" (from)
+		: "0" (from), "1" (to), "I" (PAGE_SIZE-32)
+		: "$2","$3","$4","$5","$6","$7","$8","$9","memory");
 }

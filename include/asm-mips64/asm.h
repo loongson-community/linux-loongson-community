@@ -128,8 +128,7 @@ symbol		=	value
  * MIPS IV implementations are free to treat this as a nop.  The R5000
  * is one of them.  So we should have an option not to use this instruction.
  */
-#if (_MIPS_ISA == _MIPS_ISA_MIPS4 ) || (_MIPS_ISA == _MIPS_ISA_MIPS5) || \
-    (_MIPS_ISA == _MIPS_ISA_MIPS64)
+#ifdef CONFIG_CPU_HAS_PREFETCH
 
 #define PREF(hint,addr)                                 \
 		pref	hint,addr
@@ -137,12 +136,12 @@ symbol		=	value
 #define PREFX(hint,addr)                                \
 		prefx	hint,addr
 
-#else
+#else /* !CONFIG_CPU_HAS_PREFETCH */
 
 #define PREF(hint,addr)
 #define PREFX(hint,addr)
 
-#endif
+#endif /* !CONFIG_CPU_HAS_PREFETCH */
 
 /*
  * MIPS ISA IV/V movn/movz instructions and equivalents for older CPUs.

@@ -49,15 +49,19 @@ void sb1_clear_page(void *page)
 		".set noat                  \n"
 		".set mips4                 \n"
 		"     daddiu     $1, %0, %2  \n"  /* Calculate the end of the page to clear */
+#ifdef CONFIG_CPU_HAS_PREFETCH
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ",  0(%0)  \n"  /* Prefetch the first 4 lines */
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ", 32(%0)  \n"
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ", 64(%0)  \n"
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ", 96(%0)  \n"
+#endif
 		"1:   sd        $0,  0(%0)  \n"  /* Throw out a cacheline of 0's */
 		"     sd        $0,  8(%0)  \n"
 		"     sd        $0, 16(%0)  \n"
 		"     sd        $0, 24(%0)  \n"
+#ifdef CONFIG_CPU_HAS_PREFETCH
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ",128(%0)  \n"  /* Prefetch 4 lines ahead     */
+#endif
 		"     bne       $1, %0, 1b  \n"
 		"      daddiu     %0, %0, 32\n"  /* Next cacheline (This instruction better be short piped!) */
 		".set pop                   \n"
@@ -87,12 +91,14 @@ void sb1_copy_page(void *to, void *from)
 		".set noat                  \n"
 		".set mips4                 \n"
 		"     daddiu     $1, %0, %4  \n"  /* Calculate the end of the page to copy */
+#ifdef CONFIG_CPU_HAS_PREFETCH
 		"     pref       " SB1_PREF_LOAD_STREAMED_HINT  ",  0(%0)  \n"  /* Prefetch the first 3 lines */
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ",  0(%1)  \n"
 		"     pref       " SB1_PREF_LOAD_STREAMED_HINT  ",  32(%0) \n"
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ",  32(%1) \n"
 		"     pref       " SB1_PREF_LOAD_STREAMED_HINT  ",  64(%0) \n"
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ",  64(%1) \n"
+#endif
 		"1:   lw        $2,  0(%0)  \n"  /* Block copy a cacheline */
 		"     lw        $3,  4(%0)  \n"
 		"     lw        $4,  8(%0)  \n"
@@ -101,8 +107,10 @@ void sb1_copy_page(void *to, void *from)
 		"     lw        $7, 20(%0)  \n"
 		"     lw        $8, 24(%0)  \n"
 		"     lw        $9, 28(%0)  \n"
+#ifdef CONFIG_CPU_HAS_PREFETCH
 		"     pref       " SB1_PREF_LOAD_STREAMED_HINT  ", 96(%0)  \n"  /* Prefetch ahead         */
 		"     pref       " SB1_PREF_STORE_STREAMED_HINT ", 96(%1)  \n"
+#endif
 		"     sw        $2,  0(%1)  \n"
 		"     sw        $3,  4(%1)  \n"
 		"     sw        $4,  8(%1)  \n"

@@ -150,12 +150,12 @@ symbol		=	value
 		prefx	hint,addr;			\
 		.set	pop
 
-#else
+#else /* !CONFIG_CPU_HAS_PREFETCH */
 
 #define PREF(hint,addr)
 #define PREFX(hint,addr)
 
-#endif
+#endif /* !CONFIG_CPU_HAS_PREFETCH */
 
 /*
  * MIPS ISA IV/V movn/movz instructions and equivalents for older CPUs.
