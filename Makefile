@@ -151,7 +151,7 @@ DRIVERS := $(DRIVERS) drivers/sbus/sbus.a
 endif
 
 ifdef CONFIG_SGI
-DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
+DRIVERS := --start-group $(DRIVERS) drivers/sgi/sgi.a --end-group
 endif
 
 include arch/$(ARCH)/Makefile
