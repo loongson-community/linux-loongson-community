@@ -1654,7 +1654,7 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 		 */
 		insnp = (mips_instruction *) xcp->cp0_epc;
 		if (verify_area(VERIFY_READ, insnp, 4) ||
-		    __get_user(insn, (mips_instruction *) xcp->cp0_epc)) {
+		    __get_user(insn, insnp)) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
 		}
