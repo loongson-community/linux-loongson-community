@@ -1,4 +1,4 @@
-/* $Id: r4k_switch.S,v 1.2 1999/10/19 20:51:45 ralf Exp $
+/* $Id: r4k_switch.S,v 1.1 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -73,7 +73,7 @@ LEAF(lazy_fpu_switch)
 	beqz	a0, 2f				# Save floating point state
 	 nor	t3, zero, t3
 
-	lw	t1, ST_OFF(a0)			# last thread looses fpu
+	ld	t1, ST_OFF(a0)			# last thread looses fpu
 	and	t1, t3
 	sd	t1, ST_OFF(a0)
 	sll	t2, t1, 5
