@@ -26,6 +26,12 @@
 
 #undef DEBUG
 
+/*
+ * For ARC firmware memory functions the unit of meassuring memory is always
+ * a 4k page of memory
+ */
+#define ARC_PAGE_SHIFT	12
+
 struct linux_mdesc * __init ArcGetMemoryDescriptor(struct linux_mdesc *Current)
 {
 	return (struct linux_mdesc *) ARC_CALL1(get_mdesc, Current);
@@ -127,8 +133,8 @@ void __init prom_meminit(void)
 		unsigned long base, size;
 		long type;
 
-		base = p->base << PAGE_SHIFT;
-		size = p->pages << PAGE_SHIFT;
+		base = p->base << ARC_PAGE_SHIFT;
+		size = p->pages << ARC_PAGE_SHIFT;
 		type = prom_memtype_classify(p->type);
 
 		add_memory_region(base, size, type);
