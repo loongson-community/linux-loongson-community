@@ -35,10 +35,19 @@ void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
 void (*_flush_page_to_ram)(struct page * page);
 void (*_flush_icache_all)(void);
 
+#ifdef CONFIG_NONCOHERENT_IO
+
 /* DMA cache operations. */
 void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
 void (*_dma_cache_wback)(unsigned long start, unsigned long size);
 void (*_dma_cache_inv)(unsigned long start, unsigned long size);
+
+EXPORT_SYMBOL(_dma_cache_wback_inv);
+EXPORT_SYMBOL(_dma_cache_wback);
+EXPORT_SYMBOL(_dma_cache_inv);
+
+#endif /* CONFIG_NONCOHERENT_IO */
+
 
 extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);

@@ -13,7 +13,7 @@
 
 O_TARGET := mm.o
 
-export-objs			+= ioremap.o umap.o
+export-objs			+= ioremap.o loadmmu.o umap.o
 obj-y				+= extable.o init.o ioremap.o fault.o loadmmu.o
 
 obj-$(CONFIG_CPU_R3000)		+= pg-r3k.o c-r3k.o c-tx39.o tlb-r3k.o \
