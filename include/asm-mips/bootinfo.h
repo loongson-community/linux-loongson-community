@@ -23,9 +23,10 @@
 #define MACH_GROUP_NEC_DDB	8 /* NEC DDB */
 #define MACH_GROUP_BAGET	9 /* Baget */
 #define MACH_GROUP_ORION       10 /* CoSine Orion */
+#define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards*/
 
 #define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", \
-                      "SNI", "ACN", "SGI", "Cobalt", "NEC DDB", "Baget", "Orion" }
+                      "SNI", "ACN", "SGI", "Cobalt", "NEC DDB", "Baget", "Orion", "Galileo" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -113,6 +114,13 @@
 #define MACH_BAGET202		1	/* BT23-202 */
 
 #define GROUP_BAGET_NAMES { "BT23-201", "BT23-202" }
+
+/*
+ * Valid machtype for group GALILEO
+ */
+#define MACH_EV96100		0	/* EV96100 */
+
+#define GROUP_GALILEO_NAMES { "EV96100" }
 
 /*
  * Valid cputype values

@@ -49,7 +49,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 {
 	int	*p;
 	char	*name;
-	int	flags, tmp, len, retval, errno;
+	int	tmp, len, retval, errno;
 
 	switch(cmd) {
 	case SETNAME: {
@@ -72,8 +72,6 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	}
 
 	case MIPS_ATOMIC_SET: {
-		/* This is broken in case of page faults and SMP ...
-		    Risc/OS faults after maximum 20 tries with EAGAIN.  */
 		unsigned int tmp;
 
 		p = (int *) arg1;
@@ -81,16 +79,42 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		if (errno)
 			return errno;
 		errno = 0;
-		save_and_cli(flags);
-		errno |= __get_user(tmp, p);
-		errno |= __put_user(arg2, p);
-		restore_flags(flags);
+
+		__asm__(".set\tpush\t\t\t# sysmips(MIPS_ATOMIC, ...)\n\t"
+			".set\tnoreorder\n\t"
+			".set\tnoat\n\t"
+			"1:\tll\t%0, %4\n\t"
+			"2:\tmove\t$1, %3\n\t"
+			"3:\tsc\t$1, %1\n\t"
+			"beqzl\t$1, 2b\n\t"
+			"4:\t ll\t%0, %4\n\t"
+			".set\tpop\n\t"
+			".section\t.fixup,\"ax\"\n"
+			"5:\tli\t%2, 1\t\t\t# error\n\t"
+			".previous\n\t"
+			".section\t__ex_table,\"a\"\n\t"
+			".dword\t1b, 5b\n\t"
+			".dword\t3b, 5b\n\t"
+			".dword\t4b, 5b\n\t"
+			".previous\n\t"
+			: "=&r" (tmp), "=o" (* (u32 *) p), "=r" (errno)
+			: "r" (arg2), "o" (* (u32 *) p), "2" (errno)
+			: "$1");
 
 		if (errno)
-			return tmp;
+			return -EFAULT;
 
-		return tmp;             /* This is broken ...  */ 
-        }
+		/* We're skipping error handling etc.  */
+		if (current->ptrace & PT_TRACESYS)
+			syscall_trace();
+
+		__asm__ __volatile__(
+			"move\t$29, %0\n\t"
+			"j\tret_from_sys_call"
+			: /* No outputs */
+			: "r" (&cmd));
+		/* Unreached */
+	}
 
 	case MIPS_FIXADE:
 		tmp = current->thread.mflags & ~3;

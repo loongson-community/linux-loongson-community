@@ -49,6 +49,9 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    if [ "$CONFIG_MIPS_JAZZ" = "y" ]; then
       tristate '  MIPS JAZZ onboard SONIC Ethernet support' CONFIG_MIPS_JAZZ_SONIC
    fi
+   if [ "$CONFIG_MIPS_GT96100" = "y" ]; then
+      bool '  MIPS GT96100 Ethernet support' CONFIG_MIPS_GT96100ETH
+   fi
    if [ "$CONFIG_SGI_IP27" = "y" ]; then
       bool '  SGI IOC3 Ethernet' CONFIG_SGI_IOC3_ETH
    fi

@@ -76,6 +76,18 @@
 #define JAZZ_SERIAL_PORT_DEFNS
 #endif
 
+#ifdef CONFIG_MIPS_EV96100
+#include <asm/galileo-boards/ev96100.h>
+#include <asm/galileo-boards/ev96100int.h>
+#define EV96100_SERIAL_PORT_DEFNS                                  \
+    { baud_base: EV96100_BASE_BAUD, port: EV96100_UART0_REGS_BASE, \
+      irq: EV96100INT_UART_0, flags: STD_COM_FLAGS, type: 0x3,   \
+      iomem_base: EV96100_UART0_REGS_BASE },
+#else
+#define EV96100_SERIAL_PORT_DEFNS
+#endif
+
+
 #define STD_SERIAL_PORT_DEFNS			\
 	/* UART CLK   PORT IRQ     FLAGS        */			\
 	{ 0, BASE_BAUD, 0x3F8, 4, STD_COM_FLAGS },	/* ttyS0 */	\
@@ -152,7 +164,8 @@
 #endif
 
 #define SERIAL_PORT_DFNS		\
+        EV96100_SERIAL_PORT_DEFNS       \
 	JAZZ_SERIAL_PORT_DEFNS		\
 	STD_SERIAL_PORT_DEFNS		\
 	EXTRA_SERIAL_PORT_DEFNS		\
-	HUB6_SERIAL_PORT_DFNS
+	HUB6_SERIAL_PORT_DFNS           

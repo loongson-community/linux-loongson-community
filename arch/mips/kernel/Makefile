@@ -37,10 +37,14 @@ ifndef CONFIG_DECSTATION
     ifndef CONFIG_ORION
       ifndef CONFIG_MIPS_ATLAS
 	ifndef CONFIG_MIPS_MALTA
-	  O_OBJS += time.o
-          ifndef CONFIG_SGI_IP22
-	    OX_OBJS += irq.o
-	  endif
+          ifndef CONFIG_MIPS_EV96100
+	    O_OBJS += time.o
+            ifndef CONFIG_SGI_IP22
+              ifndef CONFIG_MIPS_EV96100
+	        OX_OBJS += irq.o
+              endif
+	    endif
+          endif
         endif
       endif
     endif

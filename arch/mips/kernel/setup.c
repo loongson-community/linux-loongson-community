@@ -265,6 +265,7 @@ void __init setup_arch(char **cmdline_p)
 	void sgi_setup(void);
 	void ddb_setup(void);
 	void orion_setup(void);
+        void ev96100_setup(void);
 
 	/* Save defaults for configuration-dependent routines.  */
 	irq_setup = default_irq_setup;
@@ -329,6 +330,11 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_ORION
 	case MACH_GROUP_ORION:
 		orion_setup();
+		break;
+#endif
+#ifdef CONFIG_MIPS_EV96100
+	case MACH_GROUP_GALILEO:
+		ev96100_setup();
 		break;
 #endif
 	default:

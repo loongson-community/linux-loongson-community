@@ -317,6 +317,57 @@ __OUTS(b,b,1)
 __OUTS(h,w,2)
 __OUTS(w,l,4)
 
+
+#ifdef CONFIG_MIPS_EV96100
+
+#include <asm/byteorder.h>
+
+#define inb(port)		in_8((u8 *)((port)+mips_io_port_base))
+#define outb(val, port)		out_8((u8 *)((port)+mips_io_port_base), (val))
+#define inw(port)		in_16((u16 *)((port)+mips_io_port_base))
+#define outw(val, port)		out_16((u16 *)((port)+mips_io_port_base), (val))
+#define inl(port)		in_32((u32 *)((port)+mips_io_port_base))
+#define outl(val, port)		out_32((u32 *)((port)+mips_io_port_base), (val))
+
+#define inb_p(port)		inb((port))
+#define outb_p(val, port)	outb((val), (port))
+#define inw_p(port)		inw((port))
+#define outw_p(val, port)	outw((val), (port))
+#define inl_p(port)		inl((port))
+#define outl_p(val, port)	outl((val), (port))
+
+extern inline unsigned char in_8(const unsigned char *addr)
+{
+    return *KSEG1ADDR(addr);
+}
+
+extern inline void out_8(unsigned char *addr, unsigned int val)
+{
+    *KSEG1ADDR(addr) = (unsigned char)val;
+}
+
+extern inline unsigned short in_16(const unsigned short *addr)
+{
+    return (le16_to_cpu(*KSEG1ADDR(addr)));
+}
+
+extern inline void out_16(unsigned short *addr, unsigned int val)
+{
+    *KSEG1ADDR(addr) = cpu_to_le16((unsigned short)val);
+}
+
+extern inline unsigned int in_32(const unsigned int *addr)
+{
+    return (le32_to_cpu(*KSEG1ADDR(addr)));
+}
+
+extern inline void out_32(unsigned int *addr, unsigned int val)
+{
+    *KSEG1ADDR(addr) = cpu_to_le32((unsigned int)val);
+}
+
+#else
+
 /*
  * Note that due to the way __builtin_constant_p() works, you
  *  - can't use it inside an inline function (it will never be true)
@@ -412,6 +463,7 @@ __OUTS(w,l,4)
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
 	__inslc((port),(addr),(count)) : \
 	__insl((port),(addr),(count)))
+#endif
 
 #define IO_SPACE_LIMIT 0xffff
 
