@@ -343,7 +343,8 @@ static struct irqaction pcierr_action = {
 int jmr3927_ether1_irq = 0;
 
 void jmr3927_irq_init(u32 irq_base);
-void jmr3927_irq_setup(void)
+
+void __init arch_init_irq(void)
 {
 	/* look for io board's presence */
 	int have_isac = jmr3927_have_isac();
@@ -419,14 +420,6 @@ void jmr3927_irq_setup(void)
 
 	/* enable all CPU interrupt bits. */
 	set_c0_status(ST0_IM);	/* IE bit is still 0. */
-}
-
-void (*irq_setup)(void);
-
-void __init arch_init_irq(void)
-{
-        /* invoke board-specific irq setup */
-        irq_setup();
 }
 
 static hw_irq_controller jmr3927_irq_controller = {

@@ -388,12 +388,15 @@ static void write_err_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	*(volatile char*) BAGET_WRERR_ACK = 0;
 }
 
-static struct irqaction irq0  =
-{ write_err_interrupt, SA_INTERRUPT, CPU_MASK_NONE, "bus write error", NULL, NULL};
+static struct irqaction irq0  = {
+	write_err_interrupt, SA_INTERRUPT, CPU_MASK_NONE, "bus write error"
+};
+
+extern void bagetIRQ(void);
 
 void __init arch_init_irq(void)
 {
-	irq_setup();
+	set_except_vector(0, bagetIRQ);
 
 	/* Enable access to VIC interrupt registers */
 	vac_outw(0xacef | 0x8200, VAC_PIO_FUNC);

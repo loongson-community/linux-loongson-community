@@ -134,7 +134,7 @@ void ddb_8254timer_irq(void)
 	printk("ddb_8254timer_irq called\n");
 }
 
-void __init ddb_irq_setup(void)
+void __init arch_init_irq(void)
 {
 	/* setup cascade interrupts */
 	setup_irq(NILE4_IRQ_BASE  + NILE4_INT_INTE, &irq_cascade);
@@ -157,6 +157,4 @@ void __init ddb_irq_setup(void)
 
 	/* Enable the interrupt cascade */
 	nile4_enable_irq(NILE4_IRQ_BASE+IRQ_I8259_CASCADE);
-
-
 }

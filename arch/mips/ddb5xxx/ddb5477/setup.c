@@ -165,8 +165,6 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 }
 
 static void ddb5477_board_init(void);
-extern void ddb5477_irq_setup(void);
-extern void (*irq_setup)(void);
 
 extern struct pci_controller ddb5477_ext_controller;
 extern struct pci_controller ddb5477_io_controller;
@@ -178,7 +176,6 @@ static int  ddb5477_setup(void)
 	/* initialize board - we don't trust the loader */
         ddb5477_board_init();
 
-	irq_setup = ddb5477_irq_setup;
 	set_io_port_base(KSEG1ADDR(DDB_PCI_IO_BASE));
 
 	board_time_init = ddb_time_init;

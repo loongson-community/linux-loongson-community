@@ -458,14 +458,6 @@ static void vic_start(void)
 		 VIC_INT_ENABLE, VIC_LINT7);
 }
 
-void __init baget_irq_setup(void)
-{
-	extern void bagetIRQ(void);
-
-        /* Now, it's safe to set the exception vector. */
-	set_except_vector(0, bagetIRQ);
-}
-
 extern void baget_machine_restart(char *command);
 extern void baget_machine_halt(void);
 extern void baget_machine_power_off(void);
@@ -474,7 +466,6 @@ static void __init baget_setup(void)
 {
 	printk("BT23/63-201n found.\n");
 	*BAGET_WRERR_ACK = 0;
-	irq_setup = baget_irq_setup;
 
         _machine_restart   = baget_machine_restart;
         _machine_halt      = baget_machine_halt;
