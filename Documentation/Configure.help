@@ -2294,7 +2294,7 @@ CONFIG_FB_S3TRIO
   If you have a S3 Trio say Y. Say N for S3 Virge. 
 
 ATI Mach64 display support
-CONFIG_FB_ATY
+CONFIG_FB_ATY (EXPERIMENTAL)
   This driver supports graphics boards with the ATI Mach64 chips.
   Say Y if you have such a graphics board.
 
@@ -2362,7 +2362,7 @@ CONFIG_FB_COMPAT_XPMAC
   includes a server that supports the frame buffer device directly
   (XF68_FBDev).
 
-Matrox unified accelerated driver
+Matrox unified accelerated driver (EXPERIMENTAL)
 CONFIG_FB_MATROX
   Say Y here if you have Matrox Millennium, Matrox Millennium II,
   Matrox Mystique, Matrox Mystique 220, Matrox Productiva G100, Matrox
@@ -3201,7 +3201,7 @@ CONFIG_SPX
   The module will be called af_spx.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-DECnet networking
+DECnet networking (EXPERIMENTAL)
 CONFIG_DECNET
   The DECnet networking protocol was used in many products made by
   Digital (now Compaq). It provides reliable stream and sequenced
@@ -3232,7 +3232,7 @@ CONFIG_DECNET_SIOCGIFCONF
    
    If unsure, say N.
 
-DECnet Router Support
+DECnet Router Support (EXPERIMENTAL)
 CONFIG_DECNET_ROUTER
    Add support for turning your DECnet Endnode into a level 1 or 2
    router. This is an unfinished option for developers only. If you do
@@ -3707,7 +3707,7 @@ CONFIG_SOUNDMODEM_FSK9600
   can only use one protocol at a time, depending on what the other end
   can understand).
 
-CCITT X.25 Packet Layer
+CCITT X.25 Packet Layer (EXPERIMENTAL)
 CONFIG_X25
   X.25 is a set of standardized network protocols, similar in scope to
   frame relay; the one physical line from your box to the X.25 network
@@ -3757,7 +3757,7 @@ CONFIG_LAPB
   want), say M here and read Documentation/modules.txt. The module
   will be called lapb.o. If unsure, say N.
 
-802.2 LLC (VERY EXPERIMENTAL)
+802.2 LLC (EXPERIMENTAL)
 CONFIG_LLC
   This is a Logical Link Layer protocol used for X.25 connections over
   Ethernet, using ordinary Ethernet cards. 
@@ -4697,7 +4697,7 @@ CONFIG_SCSI_NCR53C8XX_MAX_TAGS
 
   There is no safe option and the default answer is recommended.
 
-assume boards are SYMBIOS compatible
+assume boards are SYMBIOS compatible (EXPERIMENTAL)
 CONFIG_SCSI_NCR53C8XX_SYMBIOS_COMPAT
   This option allows you to enable some features depending on GPIO
   wiring. These General Purpose Input/Output pins can be used for
@@ -5226,7 +5226,7 @@ CONFIG_SCSI_IZIP_SLOW_CTR
 
   Generally, saying N is fine.
 
-SCSI Debug host simulator.
+SCSI Debug host simulator. (EXPERIMENTAL)
 CONFIG_SCSI_DEBUG
   This is a host adapter simulator that can be programmed to simulate
   a large number of conditions that could occur on a real bus. The
@@ -5288,7 +5288,7 @@ CONFIG_SCSI_CUMANA_1
   This enables support for the Cumana SCSI I card. If you have an
   Acorn system with one of these, say Y. If unsure, say N.
 
-Cumana SCSI II support
+Cumana SCSI II support (EXPERIMENTAL)
 CONFIG_SCSI_CUMANA_2
   This enables support for the Cumana SCSI II card. If you have an
   Acorn system with one of these, say Y. If unsure, say N.
@@ -5299,12 +5299,12 @@ CONFIG_SCSI_ECOSCSI
   in the Econet socket. If you have an Acorn system with one of these,
   say Y. If unsure, say N.
 
-EESOX SCSI support
+EESOX SCSI support (EXPERIMENTAL)
 CONFIG_SCSI_EESOXSCSI
   This enables support for the EESOX SCSI card. If you have an Acorn
   system with one of these, say Y, otherwise say N.
 
-Powertec SCSI support
+Powertec SCSI support (EXPERIMENTAL)
 CONFIG_SCSI_POWERTECSCSI
   This enables support for the Powertec SCSI card on Acorn systems. If
   you have one of these, say Y. If unsure, say N.
@@ -5457,6 +5457,15 @@ CONFIG_PPP_ASYNC
   asynchronous serial ports, such as COM1 or COM2 on a PC.  If you use
   a modem (not a synchronous or ISDN modem) to contact your ISP, you
   need this option.
+
+  This code is also available as a module (code which can be inserted
+  into and removed from the running kernel).  If you want to compile
+  it as a module, say M here and read Documentation/modules.txt.
+
+CONFIG_PPP_SYNC_TTY
+  Say Y (or M) here if you want to be able to use PPP over synchronous
+  (HDLC) tty devices, such as the SyncLink adapter. These devices
+  are often used for high-speed leased lines like T1/E1.
 
   This code is also available as a module (code which can be inserted
   into and removed from the running kernel).  If you want to compile
@@ -5764,7 +5773,7 @@ CONFIG_EQUALIZER
   module, say M here and read Documentation/modules.txt. If unsure,
   say N.
 
-Ethertap network tap
+Ethertap network tap (EXPERIMENTAL)
 CONFIG_ETHERTAP
   If you say Y here (and have said Y to "Kernel/User network link
   driver", above) and create a character special file /dev/tap0 with
@@ -6279,7 +6288,7 @@ CONFIG_WANPIPE_PPP
   you say N, the PPP support will not be included in the driver (saves
   about 16 KB of kernel memory).
 
-Cyclom 2X(tm) multiprotocol cards
+Cyclom 2X(tm) multiprotocol cards (EXPERIMENTAL)
 CONFIG_CYCLADES_SYNC
   Cyclom 2X from Cyclades Corporation (http://www.cyclades.com and
   http://www.cyclades.com.br ) is an intelligent multiprotocol WAN
@@ -6472,7 +6481,7 @@ CONFIG_NET_VENDOR_RACAL
   the questions about NI cards. If you say Y, you will be asked for
   your specific card in the following questions.
 
-NI5010 support
+NI5010 support (EXPERIMENTAL)
 CONFIG_NI5010
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available from
@@ -7077,7 +7086,7 @@ CONFIG_AC3200
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-Mylex EISA LNE390A/LNE390B support
+Mylex EISA LNE390A/LNE390B support (EXPERIMENTAL)
 CONFIG_LNE390
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available from
@@ -7089,7 +7098,7 @@ CONFIG_LNE390
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-Novell/Eagle/Microdyne NE3210 EISA support
+Novell/Eagle/Microdyne NE3210 EISA support (EXPERIMENTAL)
 CONFIG_NE3210
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available from
@@ -7174,7 +7183,7 @@ CONFIG_EEXPRESS_PRO100
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-ICL EtherTeam 16i/32 support
+ICL EtherTeam 16i/32 support (EXPERIMENTAL)
 CONFIG_ETH16I
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available from
@@ -7216,7 +7225,7 @@ CONFIG_VIA_RHINE
   a module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
-Racal-Interlan EISA ES3210 support
+Racal-Interlan EISA ES3210 support (EXPERIMENTAL)
 CONFIG_ES3210
   If you have a network (Ethernet) card of this type, say Y and read
   the Ethernet-HOWTO, available from
@@ -7245,7 +7254,7 @@ CONFIG_SGISEEQ
   Say Y here if you have an Seeq based Ethernet network card. This is
   used in many Silicon Graphics machines.
 
-Zenith Z-Note support
+Zenith Z-Note support (EXPERIMENTAL)
 CONFIG_ZNET
   The Zenith Z-Note notebook computer has a built-in network
   (Ethernet) card, and this is the Linux driver for it. Note that the
@@ -7744,7 +7753,7 @@ CONFIG_QUOTA
   http://metalab.unc.edu/mdw/linux.html#howto . Probably the quota
   support is only useful for multi user systems. If unsure, say N.
 
-Support for USB (EXPERIMENTAL!)
+Support for USB (EXPERIMENTAL)
 CONFIG_USB
   Universal Serial Bus (USB) is a specification for a serial bus
   system which offers higher speeds and more features than the
@@ -7895,6 +7904,16 @@ CONFIG_USB_ACM
   inserted in and removed from the running kernel whenever you want).
   The module will be called acm.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+USB Belkin and Peracom serial support
+CONFIG_USB_SERIAL
+  Say Y here if you want to connect a Belkin, Peracom, or eTek
+  single port USB to serial converter.
+  
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called usb-serial.o. If you want to compile it 
+  as a module, say M here and read Documentation/modules.txt.
 
 USB Printer support
 CONFIG_USB_PRINTER
@@ -8297,7 +8316,7 @@ CONFIG_NFSD_SUN
   directories that are mount points on the local filesystem (this is
   how nfsd behaves on Sun systems), say Y here. If unsure, say N.
 
-OS/2 HPFS filesystem support (read only)
+OS/2 HPFS filesystem support
 CONFIG_HPFS_FS
   OS/2 is IBM's operating system for PC's, the same as Warp, and HPFS
   is the filesystem used for organizing files on OS/2 hard disk
@@ -8324,7 +8343,7 @@ CONFIG_NTFS_FS
   The module will be called ntfs.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-NTFS read-write support (EXPERIMENTAL)
+NTFS write support (DANGEROUS)
 CONFIG_NTFS_RW
   If you say Y here, you will (hopefully) be able to write to NTFS
   file systems as well as read from them. The read-write support
@@ -8359,7 +8378,7 @@ CONFIG_SYSV_FS
   tar" or preferably "info tar"). Note also that this option has
   nothing whatsoever to do with the option "System V IPC". Read about
   the System V filesystem in Documentation/filesystems/sysv-fs.txt.
-  Saying Y here will enlarge your kernel by about 34 KB.
+  Saying Y here will enlarge your kernel by about 27 kB.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -8416,7 +8435,7 @@ CONFIG_ROMFS_FS
   If you don't know whether you need it, then you don't need it:
   answer N.
 
-QNX filesystem support (EXPERIMENTAL)
+QNX filesystem support (read only) (EXPERIMENTAL)
 CONFIG_QNX4FS_FS  
   This is the filesystem used by the operating system QNX 4. Say Y if
   you intend to mount QNX hard disks or floppies. Unless you say Y to
@@ -8430,7 +8449,7 @@ CONFIG_QNX4FS_FS
 
   If unsure, say N.
 
-QNXFS read-write support (FOR TESTING ONLY)
+QNXFS write support (DANGEROUS)
 CONFIG_QNX4FS_RW
   Say Y if you want to test write support for QNX filesystems.
 
@@ -9383,7 +9402,7 @@ CONFIG_ESPSERIAL
   and read Documentation/modules.txt. The module will be called esp.o.
   If unsure, say N.
 
-Multi-Tech multiport card support
+Multi-Tech multiport card support (EXPERIMENTAL)
 CONFIG_ISI
   This is a driver for the Multi-Tech cards which provide several
   serial ports. The driver is experimental and can currently only be
@@ -9553,9 +9572,9 @@ CONFIG_82C710_MOUSE
 
 PC110 digitizer pad support
 CONFIG_PC110_PAD
-  This drives the digitizer pad on the IBM PC110 palmtop (see
-  http://toy.cabi.net ). It can turn the digitizer pad into a PS/2
-  mouse emulation with tap gestures or into an absolute pad.
+  This drives the digitizer pad on the IBM PC110 palmtop. It can turn 
+  the digitizer pad into a PS/2 mouse emulation with tap gestures or
+  into an absolute pad.
 
   If you want to compile this as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -10471,7 +10490,7 @@ CONFIG_SOUND
   I'm told that even without a sound card, you can make your computer
   say more than an occasional beep, by programming the PC speaker.
   Kernel patches and supporting utilities to do that are in the pcsp
-  package, available at http://www.imladris.demon.co.uk/pcsp/ .
+  package, available at ftp://ftp.infradead.org/pub/pcsp/.
 
 OSS sound modules
 CONFIG_SOUND_OSS
@@ -11006,6 +11025,23 @@ CONFIG_SOUND_WAVEARTIST
   Say Y here to include support for the Rockwell WaveArtist sound
   system.  This driver is mainly for the NetWinder.
 
+VIA 82Cxxx Audio Codec
+CONFIG_SOUND_VIA82CXXX
+  Say Y here to include support for the audio codec found on
+  VIA 82Cxxx-based chips.  Typically these are built into a motherboard.
+  DO NOT select SoundBlaster or Adlib with this driver, unless you have
+  a SoundBlaster or Adlib card in addition to your VIA audio chip.
+
+NeoMagic 256AV/256ZX sound chipsets
+CONFIG_SOUND_NM256
+  Say M here to include audio support for the NeoMagic 256AV/256ZX
+  chipsets.  These are the audio chipsets found in the Sony Z505S/SX/DX,
+  some Sony F-series, and the Dell Latitude CPi and CPt laptops. It includes 
+  support for an AC97-compatible mixer and an apparently proprietary sound 
+  engine.
+
+  See Documentation/sound/NM256 for further information.
+
 Are you using a crosscompiler
 CONFIG_CROSSCOMPILE
   Say Y here if you are compiling the kernel on a different
@@ -11419,7 +11455,7 @@ CONFIG_SCSI_SUNESP
   This is the driver for the Sun ESP SCSI host adapter. The ESP
   chipset is present in most SPARC-based computers.
 
-SPARC /dev/openprom compatibility driver
+SPARC /dev/openprom compatibility driver (EXPERIMENTAL)
 CONFIG_SUN_OPENPROMIO
   This driver provides user programs with an interface to the SPARC
   PROM device tree. The driver implements a SunOS-compatible
@@ -11517,7 +11553,7 @@ CONFIG_M68060
   If you anticipate running this kernel on a computer with a MC68060
   processor, say Y. Otherwise, say N.
 
-Math emulation support
+Math emulation support (EXPERIMENTAL)
 CONFIG_M68KFPU_EMU
   At some point in the future, this will cause floating-point math
   instructions to be emulated by the kernel on machines that lack a
@@ -11576,7 +11612,7 @@ CONFIG_ZORRO
   Note that even if you say N here, you can still use your expansion
   cards. If in doubt, say Y.
 
-Amiga 1200/600 PCMCIA support
+Amiga 1200/600 PCMCIA support (EXPERIMENTAL)
 CONFIG_AMIGA_PCMCIA
   Include support in the kernel for pcmcia on Amiga 1200 and Amiga
   600. If you intend to use pcmcia cards say Y; otherwise say N.
@@ -11708,7 +11744,7 @@ CONFIG_BLZ1230_SCSI
   1260 accelerator, and the optional SCSI module, say Y. Otherwise,
   say N.
 
-Blizzard PowerUP 603e+ SCSI support
+Blizzard PowerUP 603e+ SCSI support (EXPERIMENTAL)
 CONFIG_BLZ603EPLUS_SCSI
   If you have an Amiga 1200 with a Phase5 Blizzard PowerUP 603e+
   accelerator, say Y. Otherwise, say N.
@@ -11892,7 +11928,7 @@ CONFIG_ATARI_MIDI
   want). If you want to compile it as a module, say M here and read
   Documentation/modules.txt.
 
-Atari DSP56k Digital Signal Processor support
+Atari DSP56k Digital Signal Processor support (EXPERIMENTAL)
 CONFIG_ATARI_DSP56K
   If you want to be able to use the DSP56001 in Falcons, say Y. This
   driver is still experimental, and if you don't know what it is, or
@@ -12508,7 +12544,7 @@ CONFIG_TEXT_SECTIONS
   enabled. Say Y unless you experience problems that you suspect may
   be caused by this.
 
-Disable pgtable cache
+Disable pgtable cache (EXPERIMENTAL)
 CONFIG_NO_PGT_CACHE
   Normally the kernel maintains a `quicklist' of preallocated
   pagetable structures in order to increase performance. On machines
@@ -12531,7 +12567,7 @@ CONFIG_CMDLINE
   time by entering them here. As a minimum, you should specify the
   memory size and the root device (e.g., mem=64M root=/dev/nfs)
 
-Hardware alignment trap
+Hardware alignment trap (EXPERIMENTAL)
 CONFIG_ALIGNMENT_TRAP
   ARM processors can not fetch/store information which is not
   naturally aligned on the bus, i.e., a 4 byte fetch must start at an
@@ -12637,7 +12673,7 @@ CONFIG_IRDA_COMPRESSION
   If you say Y here, you also need to say Y or M to a compression
   protocol below.
 
-IrLAP Deflate Compression Protocol
+IrLAP Deflate Compression Protocol (EXPERIMENTAL)
 CONFIG_IRDA_DEFLATE
   Say Y here if you want to build support for the Deflate compression
   protocol. The deflate compression (GZIP) is exactly
@@ -12840,6 +12876,13 @@ CONFIG_BVME6000_SCSI
   The BVME4000 and BVME6000 boards from BVM Ltd use the NCR53C710
   SCSI controller chip.  Almost everyone using one of these boards
   will want to say Y to this question.
+
+Simple 53c710 SCSI support (Compaq, NCR machines)
+CONFIG_SCSI_SIM710
+  This is a driver for the NCR53C710 chip commonly found in Compaq and
+  NCR machines.  If you are looking for 53C710 support for an Amiga or
+  some 680x0 based VME card then you probably want the other NCR53C710
+  driver.
 
 MVME16x Ethernet support
 CONFIG_MVME16x_NET

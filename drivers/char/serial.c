@@ -158,6 +158,7 @@
 #ifdef LOCAL_HEADERS
 #include "serial_local.h"
 #else
+#include <linux/serialP.h>
 #include <linux/serial.h>
 #include <linux/serial_reg.h>
 #include <asm/serial.h>

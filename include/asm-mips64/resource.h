@@ -1,4 +1,4 @@
-/* $Id: resource.h,v 1.1 1999/08/18 23:37:52 ralf Exp $
+/* $Id: resource.h,v 1.2 1999/10/09 00:01:43 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -30,16 +30,16 @@
 
 #define INIT_RLIMITS					\
 {							\
-	{ LONG_MAX, LONG_MAX },				\
-	{ LONG_MAX, LONG_MAX },				\
-	{ LONG_MAX, LONG_MAX },				\
-	{ _STK_LIM, LONG_MAX },				\
-	{        0, LONG_MAX },				\
-	{ NR_OPEN, NR_OPEN },				\
-	{ LONG_MAX, LONG_MAX },				\
-	{ LONG_MAX, LONG_MAX },				\
-	{ 0, 0 },					\
-	{ LONG_MAX, LONG_MAX },				\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ _STK_LIM,      RLIM_INFINITY },		\
+	{        0,      RLIM_INFINITY },		\
+	{ NR_OPEN,       NR_OPEN },			\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ 0,             0             },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
 }
 
 #endif /* __KERNEL__ */

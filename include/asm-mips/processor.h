@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.21 1999/10/12 17:33:50 harald Exp $
+/* $Id: processor.h,v 1.22 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -189,7 +189,6 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 /* Copy and release all segment info associated with a VM */
 #define copy_segments(p, mm) do { } while(0)
 #define release_segments(mm) do { } while(0)
-#define forget_segments()		do { } while (0)
 
 /*
  * Return saved PC of a blocked thread.

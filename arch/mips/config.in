@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.34 2000/01/23 21:12:56 ralf Exp $
+# $Id: config.in,v 1.35 2000/01/26 00:07:44 ralf Exp $
 # For a description of the syntax of this configuration file,
 # see the Configure script.
 #
@@ -150,8 +150,6 @@ if [ "$CONFIG_DECSTATION" = "y" ]; then
    endmenu
 fi
 
-source drivers/i2o/Config.in
-
 source drivers/pnp/Config.in
 
 source drivers/block/Config.in
@@ -195,6 +193,8 @@ if [ "$CONFIG_SCSI" != "n" ]; then
    fi
 fi
 endmenu
+
+source drivers/i2o/Config.in
 
 if [ "$CONFIG_NET" = "y" ]; then
    mainmenu_option next_comment

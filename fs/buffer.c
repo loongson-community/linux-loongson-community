@@ -751,9 +751,6 @@ static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
 	if (test_and_clear_bit(PG_decr_after, &page->flags))
 		atomic_dec(&nr_async_pages);
 
-	if (page->owner != (void *)-1)
-		PAGE_BUG(page);
-	page->owner = current;
 	UnlockPage(page);
 
 	return;
@@ -1181,8 +1178,6 @@ static int create_page_buffers(int rw, struct page *page, kdev_t dev, int b[], i
 
 	if (!PageLocked(page))
 		BUG();
-	if (page->owner != current)
-		PAGE_BUG(page);
 	/*
 	 * Allocate async buffer heads pointing to this page, just for I/O.
 	 * They don't show up in the buffer hash table, but they *are*
@@ -1297,15 +1292,16 @@ static void create_empty_buffers(struct page *page, struct inode *inode, unsigne
 
 static void unmap_underlying_metadata(struct buffer_head * bh)
 {
+#if 0
 	bh = get_hash_table(bh->b_dev, bh->b_blocknr, bh->b_size);
-	if (bh)
-	{
+	if (bh) {
 		unmap_buffer(bh);
 		/* Here we could run brelse or bforget. We use
 		   bforget because it will try to put the buffer
 		   in the freelist. */
 		__bforget(bh);
 	}
+#endif
 }
 
 /*
@@ -1947,7 +1943,6 @@ int brw_page(int rw, struct page *page, kdev_t dev, int b[], int size)
 	}
 	if (!page->buffers)
 		BUG();
-	page->owner = (void *)-1;
 
 	head = page->buffers;
 	bh = head;
@@ -1989,7 +1984,6 @@ int brw_page(int rw, struct page *page, kdev_t dev, int b[], int size)
 	} else {
 		if (!nr && rw == READ) {
 			SetPageUptodate(page);
-			page->owner = current;
 			UnlockPage(page);
 		}
 		if (nr && (rw == WRITE))
@@ -2023,7 +2017,6 @@ int block_read_full_page(struct file * file, struct page * page)
 
 	blocks = PAGE_SIZE >> inode->i_sb->s_blocksize_bits;
 	iblock = page->offset >> inode->i_sb->s_blocksize_bits;
-	page->owner = (void *)-1;
 	bh = head;
 	nr = 0;
 
@@ -2057,7 +2050,6 @@ int block_read_full_page(struct file * file, struct page * page)
 		 * uptodate as well.
 		 */
 		SetPageUptodate(page);
-		page->owner = current;
 		UnlockPage(page);
 	}
 	return 0;
@@ -2201,11 +2193,13 @@ busy_buffer_page:
 
 void show_buffers(void)
 {
+#ifdef __SMP__
 	struct buffer_head * bh;
 	int found = 0, locked = 0, dirty = 0, used = 0, lastused = 0;
 	int protected = 0;
 	int nlist;
 	static char *buf_types[NR_LIST] = { "CLEAN", "LOCKED", "DIRTY" };
+#endif
 
 	printk("Buffer memory:   %6dkB\n",
 			atomic_read(&buffermem_pages) << (PAGE_SHIFT-10));

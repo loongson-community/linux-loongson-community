@@ -89,7 +89,7 @@ void remove_inode_page(struct page *page)
 	spin_lock(&pagecache_lock);
 	remove_page_from_inode_queue(page);
 	remove_page_from_hash_queue(page);
-	page->inode = NULL;
+	page->mapping = NULL;
 	spin_unlock(&pagecache_lock);
 }
 
@@ -98,8 +98,7 @@ void invalidate_inode_pages(struct inode * inode)
 	struct list_head *head, *curr;
 	struct page * page;
 
-	head = &inode->i_pages;
-repeat:
+	head = &inode->i_data.pages;
 	spin_lock(&pagecache_lock);
 	curr = head->next;
 
@@ -115,7 +114,7 @@ repeat:
 
 		remove_page_from_inode_queue(page);
 		remove_page_from_hash_queue(page);
-		page->inode = NULL;
+		page->mapping = NULL;
 		page_cache_release(page);
 	}
 	spin_unlock(&pagecache_lock);
@@ -133,7 +132,7 @@ void truncate_inode_pages(struct inode * inode, unsigned long start)
 	int partial = 0;
 
 repeat:
-	head = &inode->i_pages;
+	head = &inode->i_data.pages;
 	spin_lock(&pagecache_lock);
 	curr = head->next;
 	while (curr != head) {
@@ -273,7 +272,7 @@ int shrink_mmap(int priority, int gfp_mask)
 			if (!try_to_free_buffers(page))
 				goto unlock_continue;
 			/* page was locked, inode can't go away under us */
-			if (!page->inode) {
+			if (!page->mapping) {
 				atomic_dec(&buffermem_pages);
 				goto made_buffer_progress;
 			}
@@ -299,14 +298,13 @@ int shrink_mmap(int priority, int gfp_mask)
 		}	
 
 		/* is it a page-cache page? */
-		if (page->inode)
-		{
+		if (page->mapping) {
 			dispose = &old;
 			if (!pgcache_under_min())
 			{
 				remove_page_from_inode_queue(page);
 				remove_page_from_hash_queue(page);
-				page->inode = NULL;
+				page->mapping = NULL;
 				spin_unlock(&pagecache_lock);
 				goto made_inode_progress;
 			}
@@ -358,7 +356,7 @@ out:
 	return ret;
 }
 
-static inline struct page * __find_page_nolock(struct inode * inode, unsigned long offset, struct page *page)
+static inline struct page * __find_page_nolock(struct address_space *mapping, unsigned long offset, struct page *page)
 {
 	goto inside;
 
@@ -367,7 +365,7 @@ static inline struct page * __find_page_nolock(struct inode * inode, unsigned lo
 inside:
 		if (!page)
 			goto not_found;
-		if (page->inode != inode)
+		if (page->mapping != mapping)
 			continue;
 		if (page->offset == offset)
 			break;
@@ -418,7 +416,7 @@ static int do_buffer_fdatasync(struct inode *inode, unsigned long start, unsigne
 	struct page *page;
 	int retval = 0;
 
-	head = &inode->i_pages;
+	head = &inode->i_data.pages;
 	start &= PAGE_MASK;
 
 	spin_lock(&pagecache_lock);
@@ -469,7 +467,7 @@ int generic_buffer_fdatasync(struct inode *inode, unsigned long start, unsigned 
  * owned by us, referenced, but not uptodate and with no errors.
  */
 static inline void __add_to_page_cache(struct page * page,
-	struct inode * inode, unsigned long offset,
+	struct address_space *mapping, unsigned long offset,
 	struct page **hash)
 {
 	struct page *alias;
@@ -477,37 +475,36 @@ static inline void __add_to_page_cache(struct page * page,
 
 	flags = page->flags & ~((1 << PG_uptodate) | (1 << PG_error) | (1 << PG_referenced));
 	page->flags = flags | (1 << PG_locked);
-	page->owner = current;	/* REMOVEME */
 	get_page(page);
 	page->offset = offset;
-	add_page_to_inode_queue(inode, page);
+	add_page_to_inode_queue(mapping, page);
 	__add_page_to_hash_queue(page, hash);
 	lru_cache_add(page);
-	alias = __find_page_nolock(inode, offset, *hash);
+	alias = __find_page_nolock(mapping, offset, *hash);
 	if (alias != page)
 		BUG();
 }
 
-void add_to_page_cache(struct page * page, struct inode * inode, unsigned long offset)
+void add_to_page_cache(struct page * page, struct address_space * mapping, unsigned long offset)
 {
 	spin_lock(&pagecache_lock);
-	__add_to_page_cache(page, inode, offset, page_hash(inode, offset));
+	__add_to_page_cache(page, mapping, offset, page_hash(mapping, offset));
 	spin_unlock(&pagecache_lock);
 }
 
 int add_to_page_cache_unique(struct page * page,
-	struct inode * inode, unsigned long offset,
+	struct address_space *mapping, unsigned long offset,
 	struct page **hash)
 {
 	int err;
 	struct page *alias;
 
 	spin_lock(&pagecache_lock);
-	alias = __find_page_nolock(inode, offset, *hash);
+	alias = __find_page_nolock(mapping, offset, *hash);
 
 	err = 1;
 	if (!alias) {
-		__add_to_page_cache(page,inode,offset,hash);
+		__add_to_page_cache(page,mapping,offset,hash);
 		err = 0;
 	}
 
@@ -522,11 +519,11 @@ int add_to_page_cache_unique(struct page * page,
 static inline void page_cache_read(struct file * file, unsigned long offset) 
 {
 	struct inode *inode = file->f_dentry->d_inode;
-	struct page **hash = page_hash(inode, offset);
+	struct page **hash = page_hash(&inode->i_data, offset);
 	struct page *page; 
 
 	spin_lock(&pagecache_lock);
-	page = __find_page_nolock(inode, offset, *hash); 
+	page = __find_page_nolock(&inode->i_data, offset, *hash); 
 	spin_unlock(&pagecache_lock);
 	if (page)
 		return;
@@ -535,7 +532,7 @@ static inline void page_cache_read(struct file * file, unsigned long offset)
 	if (!page)
 		return;
 
-	if (!add_to_page_cache_unique(page, inode, offset, hash)) {
+	if (!add_to_page_cache_unique(page, &inode->i_data, offset, hash)) {
 		inode->i_op->readpage(file, page);
 		page_cache_release(page);
 		return;
@@ -605,7 +602,7 @@ void lock_page(struct page *page)
  * a rather lightweight function, finding and getting a reference to a
  * hashed page atomically, waiting for it if it's locked.
  */
-struct page * __find_get_page (struct inode * inode,
+struct page * __find_get_page (struct address_space *mapping,
 				unsigned long offset, struct page **hash)
 {
 	struct page *page;
@@ -616,7 +613,7 @@ struct page * __find_get_page (struct inode * inode,
 	 */
 repeat:
 	spin_lock(&pagecache_lock);
-	page = __find_page_nolock(inode, offset, *hash);
+	page = __find_page_nolock(mapping, offset, *hash);
 	if (page)
 		get_page(page);
 	spin_unlock(&pagecache_lock);
@@ -655,7 +652,7 @@ repeat:
 /*
  * Get the lock to a page atomically.
  */
-struct page * __find_lock_page (struct inode * inode,
+struct page * __find_lock_page (struct address_space *mapping,
 				unsigned long offset, struct page **hash)
 {
 	struct page *page;
@@ -666,7 +663,7 @@ struct page * __find_lock_page (struct inode * inode,
 	 */
 repeat:
 	spin_lock(&pagecache_lock);
-	page = __find_page_nolock(inode, offset, *hash);
+	page = __find_page_nolock(mapping, offset, *hash);
 	if (page)
 		get_page(page);
 	spin_unlock(&pagecache_lock);
@@ -1005,10 +1002,10 @@ void do_generic_file_read(struct file * filp, loff_t *ppos, read_descriptor_t * 
 		/*
 		 * Try to find the data in the page cache..
 		 */
-		hash = page_hash(inode, pos & PAGE_CACHE_MASK);
+		hash = page_hash(&inode->i_data, pos & PAGE_CACHE_MASK);
 
 		spin_lock(&pagecache_lock);
-		page = __find_page_nolock(inode, pos & PAGE_CACHE_MASK, *hash);
+		page = __find_page_nolock(&inode->i_data, pos & PAGE_CACHE_MASK, *hash);
 		if (!page)
 			goto no_cached_page;
 found_page:
@@ -1104,7 +1101,7 @@ no_cached_page:
 			 * dropped the page cache lock. Check for that.
 			 */
 			spin_lock(&pagecache_lock);
-			page = __find_page_nolock(inode, pos & PAGE_CACHE_MASK, *hash);
+			page = __find_page_nolock(&inode->i_data, pos & PAGE_CACHE_MASK, *hash);
 			if (page)
 				goto found_page;
 		}
@@ -1113,7 +1110,7 @@ no_cached_page:
 		 * Ok, add the new page to the hash-queues...
 		 */
 		page = cached_page;
-		__add_to_page_cache(page, inode, pos & PAGE_CACHE_MASK, hash);
+		__add_to_page_cache(page, &inode->i_data, pos & PAGE_CACHE_MASK, hash);
 		spin_unlock(&pagecache_lock);
 		cached_page = NULL;
 
@@ -1316,9 +1313,9 @@ static struct page * filemap_nopage(struct vm_area_struct * area,
 	/*
 	 * Do we have something in the page cache already?
 	 */
-	hash = page_hash(inode, offset);
+	hash = page_hash(&inode->i_data, offset);
 retry_find:
-	page = __find_get_page(inode, offset, hash);
+	page = __find_get_page(&inode->i_data, offset, hash);
 	if (!page)
 		goto no_cached_page;
 
@@ -1441,27 +1438,25 @@ static inline int do_write_page(struct inode * inode, struct file * file,
 	return retval;
 }
 
-static int filemap_write_page(struct vm_area_struct * vma,
+static int filemap_write_page(struct file *file,
 			      unsigned long offset,
 			      struct page * page,
 			      int wait)
 {
 	int result;
-	struct file * file;
 	struct dentry * dentry;
 	struct inode * inode;
 
-	file = vma->vm_file;
 	dentry = file->f_dentry;
 	inode = dentry->d_inode;
 
 	/*
 	 * If a task terminates while we're swapping the page, the vma and
-	 * and file could be released ... increment the count to be safe.
+	 * and file could be released: try_to_swap_out has done a get_file.
+	 * vma/file is guaranteed to exist in the unmap/sync cases because
+	 * mmap_sem is held.
 	 */
-	get_file(file);
 	result = do_write_page(inode, file, page, offset);
-	fput(file);
 	return result;
 }
 
@@ -1472,9 +1467,9 @@ static int filemap_write_page(struct vm_area_struct * vma,
  * at the same time..
  */
 extern void wakeup_bdflush(int);
-int filemap_swapout(struct vm_area_struct * vma, struct page * page)
+int filemap_swapout(struct page * page, struct file * file)
 {
-	int retval = filemap_write_page(vma, page->offset, page, 0);
+	int retval = filemap_write_page(file, page->offset, page, 0);
 	wakeup_bdflush(0);
 	return retval;
 }
@@ -1515,7 +1510,7 @@ static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 	}
 	if (PageHighMem(page))
 		BUG();
-	error = filemap_write_page(vma, address - vma->vm_start + vma->vm_offset, page, 1);
+	error = filemap_write_page(vma->vm_file, address - vma->vm_start + vma->vm_offset, page, 1);
 	page_cache_free(page);
 	return error;
 }
@@ -1821,9 +1816,9 @@ generic_file_write(struct file *file, const char *buf,
 		if (bytes > count)
 			bytes = count;
 
-		hash = page_hash(inode, pgpos);
+		hash = page_hash(&inode->i_data, pgpos);
 repeat_find:
-		page = __find_lock_page(inode, pgpos, hash);
+		page = __find_lock_page(&inode->i_data, pgpos, hash);
 		if (!page) {
 			if (!cached_page) {
 				cached_page = page_cache_alloc();
@@ -1833,7 +1828,7 @@ repeat_find:
 				break;
 			}
 			page = cached_page;
-			if (add_to_page_cache_unique(page,inode,pgpos,hash))
+			if (add_to_page_cache_unique(page,&inode->i_data,pgpos,hash))
 				goto repeat_find;
 
 			cached_page = NULL;
@@ -1842,10 +1837,6 @@ repeat_find:
 		/* We have exclusive IO access to the page.. */
 		if (!PageLocked(page)) {
 			PAGE_BUG(page);
-		} else {
-			if (page->owner != current) {
-				PAGE_BUG(page);
-			}
 		}
 
 		status = write_one_page(file, page, offset, bytes, buf);

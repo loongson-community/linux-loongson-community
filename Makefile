@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 23
+SUBLEVEL = 24
 EXTRAVERSION =
 
 ARCH = mips
@@ -332,7 +332,7 @@ endif
 
 modules: $(patsubst %, _mod_%, $(SUBDIRS))
 
-$(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h
+$(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h include/config/MARKER
 	$(MAKE) -C $(patsubst _mod_%, %, $@) CFLAGS="$(CFLAGS) $(MODFLAGS)" MAKING_MODULES=1 modules
 
 modules_install:

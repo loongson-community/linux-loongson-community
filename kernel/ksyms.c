@@ -49,6 +49,7 @@
 #include <linux/kmod.h>
 #endif
 
+extern int console_loglevel;
 extern void set_device_ro(kdev_t dev,int flag);
 extern struct file_operations * get_blkfops(unsigned int);
 extern int blkdev_release(struct inode * inode);
@@ -92,6 +93,7 @@ EXPORT_SYMBOL(exit_sighand);
 
 /* internal kernel memory management */
 EXPORT_SYMBOL(__get_free_pages);
+EXPORT_SYMBOL(__get_pages);
 EXPORT_SYMBOL(free_pages);
 EXPORT_SYMBOL(__free_page);
 EXPORT_SYMBOL(kmem_find_general_cachep);
@@ -245,6 +247,7 @@ EXPORT_SYMBOL(tq_disk);
 EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(max_sectors);
+EXPORT_SYMBOL(max_segments);
 EXPORT_SYMBOL(max_readahead);
 EXPORT_SYMBOL(file_moveto);
 
@@ -257,6 +260,7 @@ EXPORT_SYMBOL(tty_flip_buffer_push);
 EXPORT_SYMBOL(tty_get_baud_rate);
 EXPORT_SYMBOL(do_SAK);
 EXPORT_SYMBOL(console_print);
+EXPORT_SYMBOL(console_loglevel);
 
 /* filesystem registration */
 EXPORT_SYMBOL(register_filesystem);

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip27-setup.c,v 1.3 2000/01/21 22:34:03 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -23,7 +23,7 @@
 
 /* Check against user dumbness.  */
 #ifdef CONFIG_VT
-#error "CONFIG_VT not allowed for IP27."
+#error CONFIG_VT not allowed for IP27.
 #endif
 
 /*

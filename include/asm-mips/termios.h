@@ -1,5 +1,4 @@
-/*
- * ioctls for Linux/MIPS.
+/* $Id: termios.h,v 1.8 2000/01/27 22:49:42 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,8 +6,8 @@
  *
  * Copyright (C) 1995, 1996 by Ralf Baechle
  */
-#ifndef __ASM_MIPS_TERMIOS_H
-#define __ASM_MIPS_TERMIOS_H
+#ifndef _ASM_TERMIOS_H
+#define _ASM_TERMIOS_H
 
 #include <asm/termbits.h>
 #include <asm/ioctls.h>
@@ -100,6 +99,7 @@ struct termio {
 #define N_IRDA		11	/* Linux IrDa - http://www.cs.uit.no/~dagb/irda/irda.html */
 #define N_SMSBLOCK	12	/* SMS block mode - for talking to GSM data cards about SMS messages */
 #define N_HDLC		13	/* synchronous HDLC */
+#define N_SYNC_PPP	14	/* synchronous PPP */
 
 #ifdef __KERNEL__
 
@@ -141,4 +141,4 @@ struct termio {
 
 #endif /* defined(__KERNEL__) */
 
-#endif /* __ASM_MIPS_TERMIOS_H */
+#endif /* _ASM_TERMIOS_H */

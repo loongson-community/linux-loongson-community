@@ -29,6 +29,8 @@
  *  Cleaned up cache-detection code
  *	Dave Jones <dave@powertweak.com>, October 1999
  *
+ *	Added proper L2 cache detection for Coppermine
+ *	Dragan Stancevic <visitor@valinux.com>, October 1999
  */
 
 /*
@@ -695,14 +697,18 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
-// FIXME needs to do the new bootmem alloc stuff
 	if (LOADER_TYPE) {
-		initrd_start = INITRD_START ? INITRD_START + PAGE_OFFSET : 0;
-		initrd_end = initrd_start+INITRD_SIZE;
-		if (initrd_end > (max_low_pfn << PAGE_SHIFT)) {
+		if (INITRD_START + INITRD_SIZE < (max_low_pfn << PAGE_SHIFT)) {
+			reserve_bootmem(INITRD_START, INITRD_SIZE);
+			initrd_start =
+				INITRD_START ? INITRD_START + PAGE_OFFSET : 0;
+			initrd_end = initrd_start+INITRD_SIZE;
+		}
+		else {
 			printk("initrd extends beyond end of memory "
 			    "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			    initrd_end,memory_end);
+			    INITRD_START + INITRD_SIZE,
+			    max_low_pfn << PAGE_SHIFT);
 			initrd_start = 0;
 		}
 	}
@@ -1233,6 +1239,7 @@ void __init identify_cpu(struct cpuinfo_x86 *c)
 				break;
 
 			case 0x42:
+			case 0x82: /*Detect 256-Kbyte cache on Coppermine*/
 				c->x86_cache_size = 256;
 				break;
 

@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.21 2000/01/27 01:05:23 ralf Exp $
+/* $Id: init.c,v 1.22 2000/01/27 23:21:57 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -259,7 +259,7 @@ extern int page_is_ram(unsigned long pagenr);
 void __init mem_init(void)
 {
 	unsigned long codesize, reservedpages, datasize, initsize;
-	unsigned long tmp, nonram;
+	unsigned long tmp, ram;
 
 	max_mapnr = num_physpages = max_low_pfn;
 	high_memory = (void *) __va(max_mapnr << PAGE_SHIFT);
@@ -267,10 +267,10 @@ void __init mem_init(void)
 	totalram_pages += free_all_bootmem();
 	totalram_pages -= setup_zero_pages();	/* Setup zeroed pages.  */
 
-	reservedpages = nonram = 0;
+	reservedpages = ram = 0;
 	for (tmp = 0; tmp < max_low_pfn; tmp++)
 		if (page_is_ram(tmp)) {
-			nonram++;
+			ram++;
 			if (PageReserved(mem_map+tmp))
 				reservedpages++;
 		}
@@ -282,7 +282,7 @@ void __init mem_init(void)
 	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
 	       "%ldk data, %ldk init)\n",
 	       (unsigned long) nr_free_pages << (PAGE_SHIFT-10),
-	       (max_mapnr - nonram) << (PAGE_SHIFT-10),
+	       ram << (PAGE_SHIFT-10),
 	       codesize >> 10,
 	       reservedpages << (PAGE_SHIFT-10),
 	       datasize >> 10,

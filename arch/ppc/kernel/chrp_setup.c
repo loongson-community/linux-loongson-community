@@ -28,7 +28,6 @@
 #include <linux/reboot.h>
 #include <linux/init.h>
 #include <linux/blk.h>
-#include <linux/ide.h>
 #include <linux/ioport.h>
 #include <linux/console.h>
 #include <linux/pci.h>
@@ -37,6 +36,7 @@
 #include <linux/adb.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/ide.h>
 
 #include <asm/mmu.h>
 #include <asm/processor.h>
@@ -127,7 +127,7 @@ chrp_get_cpuinfo(char *buffer)
 	len = sprintf(buffer,"machine\t\t: CHRP %s\n", model);
 
 	/* longtrail (goldengate) stuff */
-	if ( !strncmp( model, "IBM,LongTrail", 9 ) )
+	if ( !strncmp( model, "IBM,LongTrail", 13 ) )
 	{
 		/* VLSI VAS96011/12 `Golden Gate 2' */
 		/* Memory banks */
@@ -198,21 +198,27 @@ static void __init sio_fixup_irq(const char *name, u8 device, u8 level,
 				     u8 type)
 {
 	u8 level0, type0, active;
-
-	/* select logical device */
-	sio_write(device, 0x07);
-	active = sio_read(0x30);
-	level0 = sio_read(0x70);
-	type0 = sio_read(0x71);
-	printk("sio: %s irq level %d, type %d, %sactive: ", name, level0, type0,
-	       !active ? "in" : "");
-	if (level0 == level && type0 == type && active)
-		printk("OK\n");
-	else {
-		printk("remapping to level %d, type %d, active\n", level, type);
-		sio_write(0x01, 0x30);
-		sio_write(level, 0x70);
-		sio_write(type, 0x71);
+	struct device_node *root;
+	
+	root = find_path_device("/");
+	if (root &&
+	    !strncmp(get_property(root, "model", NULL), "IBM,LongTrail", 13 ) )
+	{
+		/* select logical device */
+		sio_write(device, 0x07);
+		active = sio_read(0x30);
+		level0 = sio_read(0x70);
+		type0 = sio_read(0x71);
+		printk("sio: %s irq level %d, type %d, %sactive: ", name, level0, type0,
+		       !active ? "in" : "");
+		if (level0 == level && type0 == type && active)
+			printk("OK\n");
+		else {
+			printk("remapping to level %d, type %d, active\n", level, type);
+			sio_write(0x01, 0x30);
+			sio_write(level, 0x70);
+			sio_write(type, 0x71);
+		}
 	}
 
 }

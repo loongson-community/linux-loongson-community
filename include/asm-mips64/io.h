@@ -1,12 +1,12 @@
-/* $Id: io.h,v 1.4 2000/01/25 21:58:42 kanoj Exp $
+/* $Id: io.h,v 1.5 2000/01/27 01:05:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1994, 1995 Waldorf GmbH
- * Copyright (C) 1994 - 1999 Ralf Baechle
- * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Copyright (C) 1994 - 2000 Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
 #ifndef _ASM_IO_H
 #define _ASM_IO_H
@@ -167,11 +167,15 @@ extern inline void iounmap(void *addr)
 #define __ISA_IO_base ((char *)(PAGE_OFFSET))
 
 #define isa_readb(a) readb(a)
-#define isa_readw(a) readb(a)
-#define isa_readl(a) readb(a)
+#define isa_readw(a) readw(a)
+#define isa_readl(a) readl(a)
 #define isa_writeb(b,a) writeb(b,a)
-#define isa_writew(w,a) writeb(w,a)
-#define isa_writel(l,a) writeb(l,a)
+#define isa_writew(w,a) writew(w,a)
+#define isa_writel(l,a) writel(l,a)
+
+#define isa_memset_io(a,b,c)     memset_io((a),(b),(c))
+#define isa_memcpy_fromio(a,b,c) memcpy_fromio((a),(b),(c))
+#define isa_memcpy_toio(a,b,c)   memcpy_toio((a),(b),(c))
 
 /*
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and

@@ -89,29 +89,33 @@ static struct hw_interrupt_type onChip_irq_type = {
 
 void disable_onChip_irq(unsigned int irq)
 {
+	unsigned long val, flags;
 	/* Set priority in IPR to 0 */
 	int offset = ipr_data[irq-TIMER_IRQ].offset;
 	unsigned long intc_ipr_address = INTC_IPR + (offset/16*INTC_SIZE);
 	unsigned short mask = 0xffff ^ (0xf << (offset%16));
-	unsigned long val;
 
+	save_and_cli(flags);
 	val = ctrl_inw(intc_ipr_address);
 	val &= mask;
 	ctrl_outw(val, intc_ipr_address);
+	restore_flags(flags);
 }
 
 static void enable_onChip_irq(unsigned int irq)
 {
+	unsigned long val, flags;
 	/* Set priority in IPR back to original value */
 	int offset = ipr_data[irq-TIMER_IRQ].offset;
 	int priority = ipr_data[irq-TIMER_IRQ].priority;
 	unsigned long intc_ipr_address = INTC_IPR + (offset/16*INTC_SIZE);
 	unsigned short value = (priority << (offset%16));
-	unsigned long val;
 
+	save_and_cli(flags);
 	val = ctrl_inw(intc_ipr_address);
 	val |= value;
 	ctrl_outw(val, intc_ipr_address);
+	restore_flags(flags);
 }
 
 void make_onChip_irq(unsigned int irq)
