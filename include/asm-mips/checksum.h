@@ -155,9 +155,9 @@ static inline unsigned int csum_tcpudp_nofold(unsigned long saddr,
 	: "=r" (sum)
 	: "0" (daddr), "r"(saddr),
 #ifdef __MIPSEL__
-	  "r" ((ntohs(len)<<16)+proto*256),
+	  "r" (((unsigned long)htons(len)<<16) + proto*256),
 #else
-	  "r" (((proto)<<16)+len),
+	  "r" (((unsigned long)(proto)<<16) + len),
 #endif
 	  "r" (sum));
 
