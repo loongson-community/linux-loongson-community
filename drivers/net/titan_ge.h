@@ -158,8 +158,7 @@ typedef struct _eth_port_ctrl {
 	unsigned int                    tx_desc_area_size;
 	struct sk_buff*                 tx_skb[TITAN_GE_TX_QUEUE];
 
-	/* Timeout task */
-	struct tq_struct		tx_timeout_task;
+	struct work_struct		tx_timeout_task;
 
 	/* DMA structures and handles */
 	dma_addr_t			tx_dma;

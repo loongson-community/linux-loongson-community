@@ -5,7 +5,7 @@
 #define _TITAN_MDIO_H
 
 #include <linux/netdevice.h>
-#include <linux/tqueue.h>
+#include <linux/workqueue.h>
 #include "titan_ge.h"
 
 #define	TITAN_GE_MDIO_ERROR	(-9000)

@@ -49,9 +49,9 @@
 /*
  * Function to poll the MDIO 
  */
-static int titan_ge_mdio_poll()
+static int titan_ge_mdio_poll(void)
 {
-	int	i, val;
+	int i, val;
 
 	for (i = 0; i < MAX_MDIO_POLL; i++) {
 		val = TITAN_GE_MDIO_READ(TITAN_GE_MDIO_COMMAND);

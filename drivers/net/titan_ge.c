@@ -90,9 +90,10 @@ static int titan_ge_return_tx_desc(titan_ge_port_info *,
 				   titan_ge_packet *);
 int titan_ge_receive_queue(struct net_device *, unsigned int);
 
-/* MAC Address */
-/* XXX For testing purposes, use any value */
-unsigned char titan_ge_mac_addr_base[6] = "00:11:22:33:44:55";
+/* MAC Address XXX For testing purposes, use any value */
+unsigned char titan_ge_mac_addr_base[6] = {
+	0x00, 0x11, 0x22, 0x33, 0x44, 0x55
+};
 
 /*
  * Reset the Marvel PHY
@@ -301,8 +302,9 @@ static void titan_ge_gmii_config(void)
 }
 
 /*
- * Configure the PHY. No support for TBI (10 Bit Interface) as yet. Hence, we need to
- * make use of MDIO for communication with the external PHY. The PHY uses GMII
+ * Configure the PHY. No support for TBI (10 Bit Interface) as yet. Hence, we
+ * need to make use of MDIO for communication with the external PHY. The PHY
+ * uses GMII
  */
 static int titan_phy_setup(titan_ge_port_info * titan_ge_eth)
 {
@@ -655,13 +657,13 @@ static void titan_ge_enable_tx(unsigned int port_num)
  */
 static void titan_ge_tx_timeout(struct net_device *netdev)
 {
-	titan_ge_port_info *titan_ge_eth = netdev->priv;
+	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 
 	printk(KERN_INFO "%s: TX timeout  ", netdev->name);
 	printk(KERN_INFO "Resetting card \n");
 
 	/* Do the reset outside of interrupt context */
-	schedule_task(&titan_ge_eth->tx_timeout_task);
+	schedule_work(&titan_ge_eth->tx_timeout_task);
 }
 
 /*
@@ -707,7 +709,7 @@ static void titan_ge_update_afx(titan_ge_port_info * titan_ge_eth)
  */
 static void titan_ge_tx_timeout_task(struct net_device *netdev)
 {
-	titan_ge_port_info *titan_ge_eth = netdev->priv;
+	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 
 	netif_device_detach(netdev);
 	titan_ge_port_reset(titan_ge_eth->port_num);
@@ -725,7 +727,7 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 	unsigned int port_num;
 	unsigned long flags;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -770,7 +772,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 	unsigned long eth_int_cause, eth_int_cause_error;
 	int err = 0;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -842,7 +844,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 
 	return IRQ_HANDLED;
 
-      out:
+out:
 	return IRQ_NONE;
 }
 
@@ -856,7 +858,7 @@ static int titan_ge_open(struct net_device *netdev)
 	struct titan_ge *port_private;
 	unsigned int port_num;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -922,7 +924,7 @@ static void titan_ge_rx_task(void *data)
 	titan_ge_packet packet;
 	struct sk_buff *skb;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -939,10 +941,9 @@ static void titan_ge_rx_task(void *data)
 			packet.len &= ~0x7;
 			packet.len += 8;
 		}
-		packet.buffer =
-		    pci_map_single(0, skb->data,
-				   netdev->mtu + ETH_HLEN + 4 + 2
-				   EXTRA_BYTES, PCI_DMA_FROMDEVICE);
+		packet.buffer = pci_map_single(0, skb->data,
+		                               netdev->mtu + ETH_HLEN + 4 + 2 +
+		                               EXTRA_BYTES, PCI_DMA_FROMDEVICE);
 
 		packet.skb = skb;
 		if (titan_ge_rx_return_buff(titan_ge_eth, &packet) !=
@@ -1167,7 +1168,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	unsigned long phy_reg_data, reg_data;
 	int err = 0;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1250,22 +1251,16 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	titan_ge_port_start(titan_ge_eth);
 
 	/* Check if Interrupt Coalscing needs to be turned on */
-	if (TITAN_GE_RX_COAL) {
-		port_private->rx_int_coal =
-		    titan_ge_rx_coal(TITAN_GE_RX_COAL);
-	}
+	if (TITAN_GE_RX_COAL)
+		port_private->rx_int_coal = titan_ge_rx_coal(TITAN_GE_RX_COAL);
 
-	if (TITAN_GE_TX_COAL) {
-		port_private->tx_int_coal =
-		    titan_ge_tx_coal(TITAN_GE_TX_COAL);
-	}
+	if (TITAN_GE_TX_COAL)
+		port_private->tx_int_coal = titan_ge_tx_coal(TITAN_GE_TX_COAL);
 
-	err =
-	    titan_ge_mdio_read(TITAN_GE_MARVEL_PHY_ID,
-			       TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
+	err = titan_ge_mdio_read(TITAN_GE_MARVEL_PHY_ID,
+	                         TITAN_GE_MDIO_PHY_STATUS, &phy_reg);
 	if (err == TITAN_GE_MDIO_ERROR) {
-		printk(KERN_ERR
-		       "Could not read PHY control register 0x11 \n");
+		printk(KERN_ERR "Could not read PHY control register 0x11 \n");
 		return TITAN_ERROR;
 	}
 	if (!(phy_reg & 0x0400)) {
@@ -1311,7 +1306,7 @@ int titan_ge_start_xmit(struct sk_buff *skb, struct net_device *netdev)
 	unsigned long status;
 	struct net_device_stats *stats;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 	stats = &port_private->stats;
@@ -1397,7 +1392,7 @@ static int titan_ge_free_tx_queue(struct net_device *netdev,
 	titan_ge_packet packet;
 	int released = 1;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 
 	/* Take the lock */
@@ -1436,7 +1431,7 @@ int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 	struct sk_buff *skb;
 	unsigned long received_packets = 0;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 	stats = &port_private->stats;
@@ -1500,7 +1495,7 @@ int titan_ge_stop(struct net_device *netdev)
 	struct titan_ge *port_private;
 	unsigned int port_num;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1523,7 +1518,7 @@ static void titan_ge_free_tx_rings(struct net_device *netdev)
 	unsigned int port_num, curr;
 	unsigned long reg_data;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1567,7 +1562,7 @@ static void titan_ge_free_rx_rings(struct net_device *netdev)
 	unsigned int port_num, curr;
 	unsigned long reg_data;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1610,7 +1605,7 @@ static int titan_ge_eth_stop(struct net_device *netdev)
 	struct titan_ge *port_private;
 	unsigned int port_num;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1633,7 +1628,7 @@ static int titan_ge_eth_stop(struct net_device *netdev)
  */
 static void titan_ge_update_mac_address(struct net_device *netdev)
 {
-	titan_ge_port_info *titan_ge_eth = netdev->priv;
+	titan_ge_port_info *titan_ge_eth = netdev_priv(netdev);
 	struct titan_ge *port_private;
 	unsigned char *p_addr = NULL;
 
@@ -1658,8 +1653,6 @@ static void titan_ge_update_mac_address(struct net_device *netdev)
 		       ((p_addr[2] << 8) | p_addr[3]));
 	TITAN_GE_WRITE(TITAN_GE_RMAC_STATION_LOW,
 		       ((p_addr[0] << 8) | p_addr[1]));
-
-	return;
 }
 
 /*
@@ -1686,7 +1679,7 @@ static struct net_device_stats *titan_ge_get_stats(struct net_device
 	struct titan_ge *port_private;
 	unsigned int port_num;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(netdev);
 	port_private = (struct titan_ge *) titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
@@ -1825,36 +1818,36 @@ static int titan_ge_init(int port)
 {
 	titan_ge_port_info *titan_ge_eth;
 	struct titan_ge *port_private;
-	struct net_device *netdev = 0;
+	struct net_device *dev = 0;
 	int err;
 
-	netdev = alloc_etherdev(sizeof(titan_ge_port_info));
-	if (!netdev) {
+	dev = alloc_etherdev(sizeof(titan_ge_port_info));
+	if (!dev) {
 		err = -ENODEV;
 		goto out;
 	}
 
-	netdev->open = titan_ge_open;
-	netdev->stop = titan_ge_stop;
-	netdev->hard_start_xmit = titan_ge_start_xmit;
-	netdev->get_stats = titan_ge_get_stats;
-	netdev->set_mac_address = titan_ge_set_mac_address;
+	dev->open = titan_ge_open;
+	dev->stop = titan_ge_stop;
+	dev->hard_start_xmit = titan_ge_start_xmit;
+	dev->get_stats = titan_ge_get_stats;
+	dev->set_mac_address = titan_ge_set_mac_address;
 
 	/* Tx timeout */
-	netdev->tx_timeout = titan_ge_tx_timeout;
-	netdev->watchdog_timeo = 2 * HZ;
+	dev->tx_timeout = titan_ge_tx_timeout;
+	dev->watchdog_timeo = 2 * HZ;
 
-	netdev->tx_queue_len = TITAN_GE_TX_QUEUE;
-	netif_carrier_off(netdev);
-	netdev->base_addr = 0;
-	netdev->change_mtu = &titan_ge_change_mtu;
+	dev->tx_queue_len = TITAN_GE_TX_QUEUE;
+	netif_carrier_off(dev);
+	dev->base_addr = 0;
+	dev->change_mtu = &titan_ge_change_mtu;
 
-	titan_ge_eth = netdev->priv;
+	titan_ge_eth = netdev_priv(dev);
 	memset(titan_ge_eth, 0, sizeof(titan_ge_port_info));
 
 	/* Allocation of memory for the driver structures */
-	titan_ge_eth->port_private = (void *)
-	    kmalloc(sizeof(struct titan_ge), GFP_KERNEL);
+	titan_ge_eth->port_private =
+		(void *) kmalloc(sizeof(struct titan_ge), GFP_KERNEL);
 
 	if (!titan_ge_eth->port_private) {
 		err = -ENOMEM;
@@ -1868,21 +1861,21 @@ static int titan_ge_init(int port)
 	memset(&port_private->stats, 0, sizeof(struct net_device_stats));
 
 	/* Configure the Tx timeout handler */
-	INIT_TQUEUE(&titan_ge_eth->tx_timeout_task,
-		    (void (*)(void *)) titan_ge_tx_timeout_task, netdev);
+	INIT_WORK(&titan_ge_eth->tx_timeout_task,
+		    (void (*)(void *)) titan_ge_tx_timeout_task, dev);
 
 	spin_lock_init(&port_private->lock);
 
 	/* set MAC addresses */
-	memcpy(netdev->dev_addr, titan_ge_mac_addr_base, 6);
-	netdev->dev_addr[5] += port;
+	memcpy(dev->dev_addr, titan_ge_mac_addr_base, 6);
+	dev->dev_addr[5] += port;
 
 	printk(KERN_NOTICE
 	       "%s: port %d with MAC address %02x:%02x:%02x:%02x:%02x:%02x\n",
-	       netdev->name, port, netdev->dev_addr[0],
-	       netdev->dev_addr[1], netdev->dev_addr[2],
-	       netdev->dev_addr[3], netdev->dev_addr[4],
-	       netdev->dev_addr[5]);
+	       dev->name, port, dev->dev_addr[0],
+	       dev->dev_addr[1], dev->dev_addr[2],
+	       dev->dev_addr[3], dev->dev_addr[4],
+	       dev->dev_addr[5]);
 
 	/* GMII stuff goes here */
 
@@ -1896,7 +1889,7 @@ out_free_private:
 	kfree(titan_ge_eth->port_private);
 
 out_free_netdev:
-	free_netdev(netdev);
+	free_netdev(dev);
 
 out:
 	return err;
@@ -1918,8 +1911,6 @@ static void titan_ge_port_reset(unsigned int port_num)
 	reg_data = TITAN_GE_READ(TITAN_GE_RMAC_CONFIG_1);
 	reg_data &= ~(0x0001);
 	TITAN_GE_WRITE(TITAN_GE_RMAC_CONFIG_1, reg_data);
-
-	return;
 }
 
 /*
