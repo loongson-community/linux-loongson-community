@@ -155,7 +155,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				 * registers - unless we're using r2k_switch.S.
 				 */
 #ifdef CONFIG_CPU_R3000
-				if (mips_cpu_options & MIPS_CPU_FPU)
+				if (mips_cpu.options & MIPS_CPU_FPU)
 					tmp = *(unsigned long *)(fregs + addr);
 				else
 #endif
@@ -252,7 +252,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			 * we're using r2k_switch.S.
 			 */
 #ifdef CONFIG_CPU_R3000
-			if (mips_cpu_options & MIPS_CPU_FPU)
+			if (mips_cpu.options & MIPS_CPU_FPU)
 				*(unsigned long *)(fregs + addr) = data;
 			else
 #endif
