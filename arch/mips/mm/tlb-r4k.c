@@ -396,7 +396,7 @@ static void __init probe_tlb(unsigned long config)
 		current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 }
 
-void __init r4k_tlb_init(void)
+void __init tlb_init(void)
 {
 	unsigned int config = read_c0_config();
 

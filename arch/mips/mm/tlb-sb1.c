@@ -320,7 +320,7 @@ void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
  * memory management function pointers, as well as initialize
  * the caches and tlbs
  */
-void sb1_tlb_init(void)
+void tlb_init(void)
 {
 	write_c0_pagemask(PM_4K);
 
