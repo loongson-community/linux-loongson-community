@@ -410,15 +410,6 @@ asmlinkage void do_be(struct pt_regs *regs)
 
 unsigned long ll_bit;
 
-#ifdef CONFIG_PROC_FS
-/*
- * For now we don't have a mechanism to dump these variables to
- * /procfs anymore ...
- */
-static unsigned long ll_ops;
-static unsigned long sc_ops;
-#endif
-
 static struct task_struct *ll_task = NULL;
 
 static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
@@ -438,10 +429,6 @@ static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
 	offset >>= 16;
 
 	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
-
-#ifdef CONFIG_PROC_FS
-	ll_ops++;
-#endif
 
 	if ((unsigned long)vaddr & 3) {
 		signal = SIGBUS;
@@ -486,10 +473,6 @@ static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
 
 	vaddr = (unsigned long *)((long)(regs->regs[(opcode & BASE) >> 21]) + offset);
 	reg = (opcode & RT) >> 16;
-
-#ifdef CONFIG_PROC_FS
-	sc_ops++;
-#endif
 
 	if ((unsigned long)vaddr & 3) {
 		signal = SIGBUS;

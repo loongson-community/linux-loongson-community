@@ -114,11 +114,6 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	seq_printf(m, fmt, 'D', vced_count);
 	seq_printf(m, fmt, 'I', vcei_count);
 
-#ifndef CONFIG_CPU_HAS_LLSC
-	seq_printf(m, "ll emulations\t\t: %lu\n", ll_ops);
-	seq_printf(m, "sc emulations\t\t: %lu\n", sc_ops);
-#endif
-
 	return 0;
 }
 
