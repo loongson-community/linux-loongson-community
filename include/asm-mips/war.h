@@ -67,4 +67,21 @@
 
 #endif
 
+#if defined(CONFIG_SB1_PASS_1_WORKAROUNDS) || \
+    defined(CONFIG_SB1_PASS_2_WORKAROUNDS)
+
+/*
+ * Workaround for the Sibyte M3 errata the text of which can be found at
+ *
+ *   http://sibyte.broadcom.com/hw/bcm1250/docs/pass2errata.txt
+ *
+ * This will enable the use of a special TLB refill handler which does a
+ * consistency check on the information in c0_badvaddr and c0_entryhi and
+ * will just return and take the exception again if the information was
+ * found to be inconsistent.
+ */
+#define BCM1250_M3_WAR
+
+#endif
+
 #endif /* _ASM_WAR_H */

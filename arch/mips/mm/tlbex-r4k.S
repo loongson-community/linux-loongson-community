@@ -22,6 +22,7 @@
 #include <asm/processor.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
+#include <asm/war.h>
 
 #define TLB_OPTIMIZE /* If you are paranoid, disable this. */
 
@@ -44,259 +45,6 @@
 #define PTE_INDX_MSK	0xffc
 #define PTE_INDX_SHIFT	10
 #endif
-
-	__INIT
-
-#ifdef CONFIG_64BIT_PHYS_ADDR
-#define GET_PTE_OFF(reg)
-#elif CONFIG_CPU_VR41XX
-#define GET_PTE_OFF(reg)	srl	reg, reg, 3
-#else
-#define GET_PTE_OFF(reg)	srl	reg, reg, 1
-#endif
-
-/*
- * These handlers much be written in a relocatable manner
- * because based upon the cpu type an arbitrary one of the
- * following pieces of code will be copied to the KSEG0
- * vector location.
- */
-	/* TLB refill, EXL == 0, R4xx0, non-R4600 version */
-	.set	noreorder
-	.set	noat
-	LEAF(except_vec0_r4000)
-	.set	mips3
-#ifdef CONFIG_SMP
-	mfc0	k1, CP0_CONTEXT
-	la	k0, pgd_current
-	srl	k1, 23
-	sll	k1, 2				# log2(sizeof(pgd_t)
-	addu	k1, k0, k1
-	lw	k1, (k1)
-#else
-	lw	k1, pgd_current			# get pgd pointer
-#endif
-	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
-
-	sll	k0, k0, 2
-	addu	k1, k1, k0			# add in pgd offset
-	mfc0	k0, CP0_CONTEXT			# get context reg
-	lw	k1, (k1)
-	GET_PTE_OFF(k0)				# get pte offset
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0			# add in offset
-	PTE_L	k0, 0(k1)			# get even pte
-	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
-	PTE_SRL	k0, k0, 6			# convert to entrylo0
-	P_MTC0	k0, CP0_ENTRYLO0		# load it
-	PTE_SRL	k1, k1, 6			# convert to entrylo1
-	P_MTC0	k1, CP0_ENTRYLO1		# load it
-	b	1f
-	tlbwr					# write random tlb entry
-1:
-	nop
-	eret					# return from trap
-	END(except_vec0_r4000)
-
-	/* TLB refill, EXL == 0, R4600 version */
-	LEAF(except_vec0_r4600)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, _PGDIR_SHIFT
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0
-	mfc0	k0, CP0_CONTEXT
-	lw	k1, (k1)
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0
-	PTE_L	k0, 0(k1)
-	PTE_L	k1, PTE_SIZE(k1)
-	PTE_SRL	k0, k0, 6
-	P_MTC0	k0, CP0_ENTRYLO0
-	PTE_SRL	k1, k1, 6
-	P_MTC0	k1, CP0_ENTRYLO1
-	nop
-	tlbwr
-	nop
-	eret
-	END(except_vec0_r4600)
-
-	/* TLB refill, EXL == 0, R52x0 "Nevada" version */
-        /*
-         * This version has a bug workaround for the Nevada.  It seems
-         * as if under certain circumstances the move from cp0_context
-         * might produce a bogus result when the mfc0 instruction and
-         * it's consumer are in a different cacheline or a load instruction,
-         * probably any memory reference, is between them.  This is
-         * potencially slower than the R4000 version, so we use this
-         * special version.
-         */
-	.set	noreorder
-	.set	noat
-	LEAF(except_vec0_nevada)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR		# Get faulting address
-	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0			# add in pgd offset
-	lw	k1, (k1)
-	mfc0	k0, CP0_CONTEXT			# get context reg
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1			# get pte offset
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0			# add in offset
-	PTE_L	k0, 0(k1)			# get even pte
-	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
-	PTE_SRL	k0, k0, 6			# convert to entrylo0
-	P_MTC0	k0, CP0_ENTRYLO0		# load it
-	PTE_SRL	k1, k1, 6			# convert to entrylo1
-	P_MTC0	k1, CP0_ENTRYLO1		# load it
-	nop					# QED specified nops
-	nop
-	tlbwr					# write random tlb entry
-	nop					# traditional nop
-	eret					# return from trap
-	END(except_vec0_nevada)
-
-	/* TLB refill, EXL == 0, R4[40]00/R5000 badvaddr hwbug version */
-	LEAF(except_vec0_r45k_bvahwbug)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, _PGDIR_SHIFT
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0
-	mfc0	k0, CP0_CONTEXT
-	lw	k1, (k1)
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0
-	PTE_L	k0, 0(k1)
-	PTE_L	k1, PTE_SIZE(k1)
-	nop				/* XXX */
-	tlbp
-	PTE_SRL	k0, k0, 6
-	P_MTC0	k0, CP0_ENTRYLO0
-	PTE_SRL	k1, k1, 6
-	mfc0	k0, CP0_INDEX
-	P_MTC0	k1, CP0_ENTRYLO1
-	bltzl	k0, 1f
-	tlbwr
-1:
-	nop
-	eret
-	END(except_vec0_r45k_bvahwbug)
-
-#ifdef CONFIG_SMP
-	/* TLB refill, EXL == 0, R4000 MP badvaddr hwbug version */
-	LEAF(except_vec0_r4k_mphwbug)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, _PGDIR_SHIFT
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0
-	mfc0	k0, CP0_CONTEXT
-	lw	k1, (k1)
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0
-	PTE_L	k0, 0(k1)
-	PTE_L	k1, PTE_SIZE(k1)
-	nop				/* XXX */
-	tlbp
-	PTE_SRL	k0, k0, 6
-	P_MTC0	k0, CP0_ENTRYLO0
-	PTE_SRL	k1, k1, 6
-	mfc0	k0, CP0_INDEX
-	P_MTC0	k1, CP0_ENTRYLO1
-	bltzl	k0, 1f
-	tlbwr
-1:
-	nop
-	eret
-	END(except_vec0_r4k_mphwbug)
-#endif
-
-	/* TLB refill, EXL == 0, R4000 UP 250MHZ entrylo[01] hwbug version */
-	LEAF(except_vec0_r4k_250MHZhwbug)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, _PGDIR_SHIFT
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0
-	mfc0	k0, CP0_CONTEXT
-	lw	k1, (k1)
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0
-	PTE_L	k0, 0(k1)
-	PTE_L	k1, PTE_SIZE(k1)
-	PTE_SRL	k0, k0, 6
-	P_MTC0	zero, CP0_ENTRYLO0
-	P_MTC0	k0, CP0_ENTRYLO0
-	PTE_SRL	k1, k1, 6
-	P_MTC0	zero, CP0_ENTRYLO1
-	P_MTC0	k1, CP0_ENTRYLO1
-	b	1f
-	tlbwr
-1:
-	nop
-	eret
-	END(except_vec0_r4k_250MHZhwbug)
-
-#ifdef CONFIG_SMP
-	/* TLB refill, EXL == 0, R4000 MP 250MHZ entrylo[01]+badvaddr bug version */
-	LEAF(except_vec0_r4k_MP250MHZhwbug)
-	.set	mips3
-	mfc0	k0, CP0_BADVADDR
-	srl	k0, k0, _PGDIR_SHIFT
-	lw	k1, pgd_current			# get pgd pointer
-	sll	k0, k0, 2			# log2(sizeof(pgd_t)
-	addu	k1, k1, k0
-	mfc0	k0, CP0_CONTEXT
-	lw	k1, (k1)
-#ifndef CONFIG_64BIT_PHYS_ADDR
-	srl	k0, k0, 1
-#endif
-	and	k0, k0, PTEP_INDX_MSK
-	addu	k1, k1, k0
-	PTE_L	k0, 0(k1)
-	PTE_L	k1, PTE_SIZE(k1)
-	nop				/* XXX */
-	tlbp
-	PTE_SRL	k0, k0, 6
-	P_MTC0  zero, CP0_ENTRYLO0
-	P_MTC0  k0, CP0_ENTRYLO0
-	mfc0    k0, CP0_INDEX
-	PTE_SRL	k1, k1, 6
-	P_MTC0	zero, CP0_ENTRYLO1
-	P_MTC0	k1, CP0_ENTRYLO1
-	bltzl	k0, 1f
-	tlbwr
-1:
-	nop
-	eret
-	END(except_vec0_r4k_MP250MHZhwbug)
-#endif
-
-
-
-	__FINIT
 
 /*
  * ABUSE of CPP macros 101.
@@ -391,6 +139,277 @@
 	ori	pte, pte, (_PAGE_ACCESSED | _PAGE_MODIFIED | \
 			   _PAGE_VALID | _PAGE_DIRTY); \
 	PTE_S	pte, (ptr);
+
+	__INIT
+
+#ifdef CONFIG_64BIT_PHYS_ADDR
+#define GET_PTE_OFF(reg)
+#elif CONFIG_CPU_VR41XX
+#define GET_PTE_OFF(reg)	srl	reg, reg, 3
+#else
+#define GET_PTE_OFF(reg)	srl	reg, reg, 1
+#endif
+
+/*
+ * These handlers much be written in a relocatable manner
+ * because based upon the cpu type an arbitrary one of the
+ * following pieces of code will be copied to the KSEG0
+ * vector location.
+ */
+	/* TLB refill, EXL == 0, R4xx0, non-R4600 version */
+	.set	noreorder
+	.set	noat
+	LEAF(except_vec0_r4000)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR		# Get faulting address
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
+
+	sll	k0, k0, 2
+	addu	k1, k1, k0			# add in pgd offset
+	mfc0	k0, CP0_CONTEXT			# get context reg
+	lw	k1, (k1)
+	GET_PTE_OFF(k0)				# get pte offset
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0			# add in offset
+	PTE_L	k0, 0(k1)			# get even pte
+	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
+	PTE_SRL	k0, k0, 6			# convert to entrylo0
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
+	PTE_SRL	k1, k1, 6			# convert to entrylo1
+	P_MTC0	k1, CP0_ENTRYLO1		# load it
+	b	1f
+	tlbwr					# write random tlb entry
+1:
+	nop
+	eret					# return from trap
+	END(except_vec0_r4000)
+
+	/* TLB refill, EXL == 0, R4600 version */
+	LEAF(except_vec0_r4600)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR
+	srl	k0, k0, _PGDIR_SHIFT
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+	GET_PTE_OFF(k0)				# get pte offset
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
+	PTE_SRL	k0, k0, 6
+	P_MTC0	k0, CP0_ENTRYLO0
+	PTE_SRL	k1, k1, 6
+	P_MTC0	k1, CP0_ENTRYLO1
+	nop
+	tlbwr
+	nop
+	eret
+	END(except_vec0_r4600)
+
+	/* TLB refill, EXL == 0, R52x0 "Nevada" version */
+        /*
+         * This version has a bug workaround for the Nevada.  It seems
+         * as if under certain circumstances the move from cp0_context
+         * might produce a bogus result when the mfc0 instruction and
+         * it's consumer are in a different cacheline or a load instruction,
+         * probably any memory reference, is between them.  This is
+         * potencially slower than the R4000 version, so we use this
+         * special version.
+         */
+	.set	noreorder
+	.set	noat
+	LEAF(except_vec0_nevada)
+	.set	mips3
+	mfc0	k0, CP0_BADVADDR		# Get faulting address
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
+	lw	k1, pgd_current			# get pgd pointer
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0			# add in pgd offset
+	lw	k1, (k1)
+	mfc0	k0, CP0_CONTEXT			# get context reg
+	GET_PTE_OFF(k0)				# get pte offset
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0			# add in offset
+	PTE_L	k0, 0(k1)			# get even pte
+	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
+	PTE_SRL	k0, k0, 6			# convert to entrylo0
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
+	PTE_SRL	k1, k1, 6			# convert to entrylo1
+	P_MTC0	k1, CP0_ENTRYLO1		# load it
+	nop					# QED specified nops
+	nop
+	tlbwr					# write random tlb entry
+	nop					# traditional nop
+	eret					# return from trap
+	END(except_vec0_nevada)
+
+#ifdef BCM1250_M3_WAR
+
+	/* TLB refill, EXL == 0, SB1 with M3 errata handling version */
+	LEAF(except_vec0_sb1_m3)
+	mfc0	k0, CP0_BADVADDR
+	mfc0	k1, CP0_ENTRYHI
+	xor	k0, k1
+	srl	k0, k0, 13			# PAGE_SHIFT + 1
+	bnez	k0, 2f
+
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR		# Get faulting address
+	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
+	sll	k0, k0, 2
+	addu	k1, k1, k0			# add in pgd offset
+	mfc0	k0, CP0_CONTEXT			# get context reg
+	lw	k1, (k1)
+	GET_PTE_OFF(k0)				# get pte offset
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0			# add in offset
+	PTE_L	k0, 0(k1)			# get even pte
+	PTE_L	k1, PTE_SIZE(k1)		# get odd pte
+	PTE_SRL	k0, k0, 6			# convert to entrylo0
+	P_MTC0	k0, CP0_ENTRYLO0		# load it
+	PTE_SRL	k1, k1, 6			# convert to entrylo1
+	P_MTC0	k1, CP0_ENTRYLO1		# load it
+	b	1f
+	tlbwr					# write random tlb entry
+1:	nop
+2:	eret					# return from trap
+	END(except_vec0_sb1_m3)
+#endif /* BCM1250_M3_WAR */
+
+	/* TLB refill, EXL == 0, R4[40]00/R5000 badvaddr hwbug version */
+	LEAF(except_vec0_r45k_bvahwbug)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR
+	srl	k0, k0, _PGDIR_SHIFT
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
+	srl	k0, k0, 1
+#endif
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
+	nop				/* XXX */
+	tlbp
+	PTE_SRL	k0, k0, 6
+	P_MTC0	k0, CP0_ENTRYLO0
+	PTE_SRL	k1, k1, 6
+	mfc0	k0, CP0_INDEX
+	P_MTC0	k1, CP0_ENTRYLO1
+	bltzl	k0, 1f
+	tlbwr
+1:
+	nop
+	eret
+	END(except_vec0_r45k_bvahwbug)
+
+#ifdef CONFIG_SMP
+	/* TLB refill, EXL == 0, R4000 MP badvaddr hwbug version */
+	LEAF(except_vec0_r4k_mphwbug)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR
+	srl	k0, k0, _PGDIR_SHIFT
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
+	srl	k0, k0, 1
+#endif
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
+	nop				/* XXX */
+	tlbp
+	PTE_SRL	k0, k0, 6
+	P_MTC0	k0, CP0_ENTRYLO0
+	PTE_SRL	k1, k1, 6
+	mfc0	k0, CP0_INDEX
+	P_MTC0	k1, CP0_ENTRYLO1
+	bltzl	k0, 1f
+	tlbwr
+1:
+	nop
+	eret
+	END(except_vec0_r4k_mphwbug)
+#endif
+
+	/* TLB refill, EXL == 0, R4000 UP 250MHZ entrylo[01] hwbug version */
+	LEAF(except_vec0_r4k_250MHZhwbug)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR
+	srl	k0, k0, _PGDIR_SHIFT
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
+	srl	k0, k0, 1
+#endif
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
+	PTE_SRL	k0, k0, 6
+	P_MTC0	zero, CP0_ENTRYLO0
+	P_MTC0	k0, CP0_ENTRYLO0
+	PTE_SRL	k1, k1, 6
+	P_MTC0	zero, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
+	b	1f
+	tlbwr
+1:
+	nop
+	eret
+	END(except_vec0_r4k_250MHZhwbug)
+
+#ifdef CONFIG_SMP
+	/* TLB refill, EXL == 0, R4000 MP 250MHZ entrylo[01]+badvaddr bug version */
+	LEAF(except_vec0_r4k_MP250MHZhwbug)
+	.set	mips3
+	GET_PGD(k0, k1)				# get pgd pointer
+	mfc0	k0, CP0_BADVADDR
+	srl	k0, k0, _PGDIR_SHIFT
+	sll	k0, k0, 2			# log2(sizeof(pgd_t)
+	addu	k1, k1, k0
+	mfc0	k0, CP0_CONTEXT
+	lw	k1, (k1)
+#ifndef CONFIG_64BIT_PHYS_ADDR
+	srl	k0, k0, 1
+#endif
+	and	k0, k0, PTEP_INDX_MSK
+	addu	k1, k1, k0
+	PTE_L	k0, 0(k1)
+	PTE_L	k1, PTE_SIZE(k1)
+	nop				/* XXX */
+	tlbp
+	PTE_SRL	k0, k0, 6
+	P_MTC0  zero, CP0_ENTRYLO0
+	P_MTC0  k0, CP0_ENTRYLO0
+	mfc0    k0, CP0_INDEX
+	PTE_SRL	k1, k1, 6
+	P_MTC0	zero, CP0_ENTRYLO1
+	P_MTC0	k1, CP0_ENTRYLO1
+	bltzl	k0, 1f
+	tlbwr
+1:
+	nop
+	eret
+	END(except_vec0_r4k_MP250MHZhwbug)
+#endif
+
+	__FINIT
 
 	.set	noreorder
 

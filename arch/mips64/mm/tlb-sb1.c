@@ -349,6 +349,10 @@ void sb1_tlb_init(void)
 	sb1_sanitize_tlb();
 	_update_mmu_cache = sb1_update_mmu_cache;
 
+#ifdef BCM1250_M3_WAR
+	memcpy((void *)KSEG0 + 0x080, except_vec1_sb1_m3, 0x80);
+#else
 	memcpy((void *)KSEG0 + 0x080, except_vec1_r4k, 0x80);
+#endif
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }

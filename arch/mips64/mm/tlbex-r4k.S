@@ -105,7 +105,7 @@ END(except_vec0_generic)
 
 
 	/*
-	 * TLB refill handler for the R4000.
+	 * TLB refill handlers for the R4000 and SB1.
 	 * Attention:  We may only use 32 instructions / 128 bytes.
 	 */
 	.align  5
@@ -115,6 +115,26 @@ LEAF(except_vec1_r4k)
 	jr      k0
 	 nop
 END(except_vec1_r4k)
+
+#ifdef BCM1250_M3_WAR
+
+LEAF(except_vec1_sb1_m3)
+	dmfc0	k0, CP0_BADVADDR
+	dmfc0	k1, CP0_ENTRYHI
+	xor	k0, k1
+	dsrl	k0, k0, 13			# PAGE_SHIFT + 1
+	bnez	k0, 1f
+
+	.set    noat
+	dla     k0, handle_vec1_sb1_m3
+	jr      k0
+	 nop
+
+1:	eret
+	nop
+END(except_vec1_sb1_m3)
+
+#endif
 
 	__FINIT
 
@@ -140,6 +160,32 @@ LEAF(handle_vec1_r4k)
 1:	nop
 	eret
 END(handle_vec1_r4k)
+
+#ifdef BCM1250_M3_WAR
+
+LEAF(handle_vec1_sb1_m3)
+	.set    noat
+	LOAD_PTE2 k1 k0 9f
+	ld	k0, 0(k1)			# get even pte
+	ld	k1, 8(k1)			# get odd pte
+	PTE_RELOAD k0 k1
+	b	1f
+	 tlbwr
+1:	nop
+	eret
+
+9:						# handle the vmalloc range
+	LOAD_KPTE2 k1 k0 invalid_vmalloc_address
+	ld	k0, 0(k1)			# get even pte
+	ld	k1, 8(k1)			# get odd pte
+	PTE_RELOAD k0 k1
+	b	1f
+	 tlbwr
+1:	nop
+	eret
+END(handle_vec1_sb1_m3)
+
+#endif /* BCM1250_M3_WAR */
 
 	__INIT
 

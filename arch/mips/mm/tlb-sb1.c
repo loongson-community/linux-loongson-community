@@ -370,6 +370,10 @@ void sb1_tlb_init(void)
 	 */
 	sb1_sanitize_tlb();
 
+#ifdef BCM1250_M3_WAR
+	memcpy((void *)KSEG0, except_vec0_sb1_m3, 0x80);
+#else
 	memcpy((void *)KSEG0, except_vec0_r4000, 0x80);
+#endif
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }
