@@ -60,6 +60,16 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
      tristate '    Stallion EC8/64, ONboard, Brumby support' CONFIG_ISTALLION
    fi
 fi
+if [ "$CONFIG_IT8712" = "y" ]; then
+   bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
+   if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
+     define_bool CONFIG_IT8172_CIR y
+   else
+     bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
+   fi
+   bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
+   bool 'Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
+fi
 if [ "$CONFIG_FOOTBRIDGE" = "y" ]; then
    bool 'DC21285 serial port support' CONFIG_SERIAL_21285
    if [ "$CONFIG_SERIAL_21285" = "y" ]; then
@@ -190,5 +200,8 @@ source drivers/char/drm/Config.in
 
 if [ "$CONFIG_HOTPLUG" = "y" -a "$CONFIG_PCMCIA" != "n" ]; then
    source drivers/char/pcmcia/Config.in
+fi
+if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+  tristate ' ITE GPIO' CONFIG_ITE_GPIO
 fi
 endmenu

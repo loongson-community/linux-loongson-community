@@ -5,7 +5,7 @@
  *
  * Copyright 2000,2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
- *         	ppopov@mvista.com or support@mvista.com
+ *         	ppopov@mvista.com or source@mvista.com
  *
  * Part of this file was derived from Carsten Langgaard's 
  * arch/mips/mips-boards/atlas/atlas_int.c.
@@ -81,6 +81,8 @@ unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 irq_desc_t irq_desc[NR_IRQS];
 irq_desc_t *irq_desc_base=&irq_desc[0];
+void disable_it8172_irq(unsigned int irq_nr);
+void enable_it8172_irq(unsigned int irq_nr);
 
 struct it8172_intc_regs volatile *it8172_hw0_icregs
 	= (struct it8172_intc_regs volatile *)(KSEG1ADDR(IT8172_PCI_IO_BASE + IT_INTC_BASE));
@@ -109,7 +111,17 @@ void disable_irq(unsigned int irq_nr)
         unsigned long flags;
 
         save_and_cli(flags);
-        mask_irq(irq_nr);
+	disable_it8172_irq(irq_nr);
+        restore_flags(flags);
+}
+
+/* FIXME */
+void disable_irq_nosync(unsigned int irq_nr)
+{
+        unsigned long flags;
+
+        save_and_cli(flags);
+	disable_it8172_irq(irq_nr);
         restore_flags(flags);
 }
 
@@ -118,15 +130,13 @@ void enable_irq(unsigned int irq_nr)
 	unsigned long flags;
 
         save_and_cli(flags);
-        unmask_irq(irq_nr);
+	enable_it8172_irq(irq_nr);
         restore_flags(flags);
 }
 
 
 void disable_it8172_irq(unsigned int irq_nr)
 {
-	unsigned short mask;
-
 	DPRINTK("disable_it8172_irq %d\n", irq_nr);
 
 	if ( (irq_nr >= IT8172_LPC_IRQ_BASE) && (irq_nr <= IT8172_SERIRQ_15)) {
@@ -289,7 +299,6 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 		printk("Unhandled interrupt %d, cause %x, disabled\n", 
 				(unsigned)irq, (unsigned)regs->cp0_cause);
 		disable_it8172_irq(irq);
-		//disable_irq(1<<irq);
 	}
 	irq_exit(cpu, irq);
 }
@@ -324,7 +333,6 @@ int request_irq(unsigned int irq, void (*handler)(int, void *, struct pt_regs *)
                         cli();
                         *p = action->next;
 			disable_it8172_irq(irq);
-                        //disable_irq(1<<irq);
                         restore_flags(flags);
                         kfree(action);
                         return 0;
@@ -377,7 +385,11 @@ void free_irq(unsigned int irq, void *dev_id)
 
 void enable_cpu_timer(void)
 {
-	enable_irq(1<<EXT_IRQ5_TO_IP); /* timer interrupt */
+        unsigned long flags;
+
+        save_and_cli(flags);
+	unmask_irq(1<<EXT_IRQ5_TO_IP); /* timer interrupt */
+        restore_flags(flags);
 }
 
 unsigned long probe_irq_on (void)
@@ -394,6 +406,8 @@ int probe_irq_off (unsigned long irqs)
 void __init init_IRQ(void)
 {
 	int i;
+        unsigned long flags;
+
 
         memset(irq_desc, 0, sizeof(irq_desc));
         set_except_vector(0, it8172_IRQ);
@@ -439,8 +453,9 @@ void __init init_IRQ(void)
 	 * Enable external int line 2
 	 * All ITE interrupts are masked for now.
 	 */
-	enable_irq(1<<EXT_IRQ0_TO_IP);
-	//change_cp0_status(ST0_IM, IE_IRQ2);
+        save_and_cli(flags);
+	unmask_irq(1<<EXT_IRQ0_TO_IP);
+        restore_flags(flags);
 
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */
