@@ -329,7 +329,7 @@ static int mv64340_eth_free_tx_queue(struct net_device *dev,
 	struct pkt_info pkt_info;
 	int released = 1;
 
-	if (eth_int_cause_ext & (BIT0 | BIT8))
+	if (!(eth_int_cause_ext & (BIT0 | BIT8)))
 		return released;
 
 	spin_lock(&mp->lock);
@@ -476,7 +476,7 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 {
 	struct net_device *dev = (struct net_device *) dev_id;
 	struct mv64340_private *mp = netdev_priv(dev);
-	u32 eth_int_cause = 0, eth_int_cause_ext = 0;
+	u32 eth_int_cause, eth_int_cause_ext = 0;
 	unsigned int port_num = mp->port_num;
 
 	/* Read interrupt cause registers */
@@ -484,10 +484,9 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 			INT_CAUSE_UNMASK_ALL;
 
 	if (eth_int_cause & BIT1)
-		eth_int_cause_ext = MV_READ(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num)) &
-				    INT_CAUSE_UNMASK_ALL_EXT;
-	else
-		eth_int_cause_ext = 0;
+		eth_int_cause_ext =
+		MV_READ(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num)) &
+		INT_CAUSE_UNMASK_ALL_EXT;
 
 #ifdef MV64340_NAPI
 	if (!(eth_int_cause & 0x0007fffd)) {
@@ -1102,14 +1101,15 @@ static int mv64340_poll(struct net_device *dev, int *budget)
 	unsigned int port_num = mp->port_num;
 	unsigned long flags;
 
-	spin_lock_irqsave(&mp->lock, flags);
-
 #ifdef MV64340_TX_FAST_REFILL
 	if (++mp->tx_clean_threshold > 5) {
+		spin_lock_irqsave(&mp->lock, flags);
 		mv64340_tx(dev);
 		mp->tx_clean_threshold = 0;
+		spin_unlock_irqrestore(&mp->lock, flags);
 	}
 #endif
+
 	if ((u32)(MV_READ(MV64340_ETH_RX_CURRENT_QUEUE_DESC_PTR_0(port_num)))                                      != (u32)mp->rx_used_desc_q) {
 		orig_budget = *budget;
 		if (orig_budget > dev->quota)
@@ -1123,6 +1123,7 @@ static int mv64340_poll(struct net_device *dev, int *budget)
 	}
 
 	if (done) {
+		spin_lock_irqsave(&mp->lock, flags);
 		__netif_rx_complete(dev);
 		MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_REG(port_num),0);
                 MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num),0);
@@ -1130,9 +1131,8 @@ static int mv64340_poll(struct net_device *dev, int *budget)
 						INT_CAUSE_UNMASK_ALL);
 		MV_WRITE(MV64340_ETH_INTERRUPT_EXTEND_MASK_REG(port_num),
 				                 INT_CAUSE_UNMASK_ALL_EXT);
+		spin_unlock_irqrestore(&mp->lock, flags);
 	}
-
-	spin_unlock_irqrestore(&mp->lock, flags);
 
 	return done ? 0 : 1;
 }
@@ -1277,7 +1277,6 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		 * packets are released.
 		 */
 		netif_stop_queue(dev);
-
 
 	/* Update statistics and start of transmittion time */
 	stats->tx_bytes += skb->len;
