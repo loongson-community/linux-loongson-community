@@ -21,6 +21,7 @@ CONFIG_SGI_IP22=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_SBUS is not set
 CONFIG_ARC32=y
+CONFIG_PC_KEYB=y
 # CONFIG_ISA is not set
 # CONFIG_PCI is not set
 

@@ -212,8 +212,6 @@ CONFIG_SERIAL=y
 CONFIG_ZS=y
 CONFIG_SERIAL_CONSOLE=y
 # CONFIG_UNIX98_PTYS is not set
-# CONFIG_KEYBOARD is not set
-# CONFIG_MOUSE is not set
 # CONFIG_RTC is not set
 
 #

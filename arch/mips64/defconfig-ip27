@@ -53,9 +53,7 @@ CONFIG_BINFMT_ELF32=y
 #
 # Loadable module support
 #
-CONFIG_MODULES=y
-# CONFIG_MODVERSIONS is not set
-CONFIG_KMOD=y
+# CONFIG_MODULES is not set
 CONFIG_PCI_NAMES=y
 
 #
@@ -421,6 +419,5 @@ CONFIG_KCORE_ELF=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
-# CONFIG_MIPS_FPE_MODULE is not set
 # CONFIG_REMOTE_DEBUG is not set
 # CONFIG_MAGIC_SYSRQ is not set
