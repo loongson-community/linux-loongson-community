@@ -73,7 +73,6 @@ static int titan_ge_init_tx_desc_ring(titan_ge_port_info *, int, unsigned long, 
 static int titan_ge_open(struct net_device *);
 static int titan_ge_start_xmit(struct sk_buff *, struct net_device *);
 static int titan_ge_stop(struct net_device *);
-static void titan_ge_int_handler(int, void *, struct pt_regs *);
 static int titan_ge_set_mac_address(struct net_device *, void *);
 
 static unsigned long titan_ge_tx_coal(unsigned long);
@@ -675,10 +674,11 @@ static int titan_ge_change_mtu(struct net_device *netdev, int new_mtu)
 }
 
 /*
- * Titan Gbe Interrupt Handler. No Rx NAPI support yet. Currently, we check channel
- * 0 only
+ * Titan Gbe Interrupt Handler. No Rx NAPI support yet. Currently, we check
+ * channel 0 only
  */
-static void titan_ge_int_handler(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
+	struct pt_regs *regs)
 {
 	struct net_device	*netdev = (struct net_device *)dev_id;
 	titan_ge_port_info	*titan_ge_eth;
@@ -686,15 +686,14 @@ static void titan_ge_int_handler(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned int		port_num, reg_data;
 	unsigned long		eth_int_cause, eth_int_cause_error;
 	int			err = 0;
-	
+
 	titan_ge_eth = netdev->priv;
 	port_private = titan_ge_eth->port_private;
 	port_num = port_private->port_num;
 
 	eth_int_cause = TITAN_GE_READ(TITAN_GE_INTR_XDMA_CORE_A);
-	if (eth_int_cause == 0x0) 
-		/* False alarm */
-		return;
+	if (eth_int_cause == 0x0)	/* False alarm */
+		goto out;
 
 	/* Ack the interrupts quickly */
 	TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_CORE_A, ~eth_int_cause);
@@ -753,7 +752,10 @@ static void titan_ge_int_handler(int irq, void *dev_id, struct pt_regs *regs)
 		}
 	}
 
-	return;
+	return IRQ_HANDLED;
+
+out:
+	return IRQ_NONE;
 }
 
 /*
