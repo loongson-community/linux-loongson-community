@@ -72,7 +72,7 @@ void be_ip22_interrupt(int irq, struct pt_regs *regs)
 {
 	save_and_clear_buserr();
 	print_buserr();
-	panic(KERN_EMERG "Bus error, epc == %08lx, ra == %08lx",
+	panic("Bus error, epc == %08lx, ra == %08lx",
 	      regs->cp0_epc, regs->regs[31]);
 }
 

@@ -158,20 +158,20 @@ static __init void indy_time_init(void)
 	} while (!r4k_ticks[1]);
 
 	if (r4k_ticks[0] != r4k_ticks[1]) {
-		printk(KERN_INFO "warning: timer counts differ, retrying...");
+		printk("warning: timer counts differ, retrying... ");
 		r4k_ticks[2] = dosample();
 		if (r4k_ticks[2] == r4k_ticks[0]
 		    || r4k_ticks[2] == r4k_ticks[1])
 			r4k_tick = r4k_ticks[2];
 		else {
-			printk(KERN_INFO "disagreement, using average...");
+			printk("disagreement, using average... ");
 			r4k_tick = (r4k_ticks[0] + r4k_ticks[1]
 				   + r4k_ticks[2]) / 3;
 		}
 	} else
 		r4k_tick = r4k_ticks[0];
 
-	printk(KERN_INFO "%d [%d.%02d MHz CPU]\n", (int) r4k_tick,
+	printk("%d [%d.%02d MHz CPU]\n", (int) r4k_tick,
 		(int) (r4k_tick / 5000), (int) (r4k_tick % 5000) / 50);
 
 	mips_counter_frequency = r4k_tick * HZ;

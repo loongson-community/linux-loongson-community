@@ -115,7 +115,7 @@ void __init sgi_sysinit(void)
 		case processor:
 			switch(p->type) {
 			case Fpu:
-				printk(KERN_INFO "FPU<%s> ", (char *)p->iname);
+				printk("FPU<%s> ", (char *)p->iname);
 				break;
 
 			default:
@@ -126,15 +126,15 @@ void __init sgi_sysinit(void)
 		case cache:
 			switch(p->type) {
 			case picache:
-				printk(KERN_INFO "ICACHE ");
+				printk("ICACHE ");
 				break;
 
 			case pdcache:
-				printk(KERN_INFO "DCACHE ");
+				printk("DCACHE ");
 				break;
 
 			case sccache:
-				printk(KERN_INFO "SCACHE ");
+				printk("SCACHE ");
 				break;
 
 			default:
@@ -148,5 +148,5 @@ void __init sgi_sysinit(void)
 		};
 		p = ArcGetPeer(p);
 	}
-	printk(KERN_INFO "\n");
+	printk("\n");
 }

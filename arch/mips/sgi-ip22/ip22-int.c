@@ -187,7 +187,7 @@ static void enable_local3_irq(unsigned int irq)
 	sgint->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
 	local_irq_restore(flags);
 #else
-	panic(KERN_EMERG "Local 3 interrupt requested. Should not happen.");
+	panic("Local 3 interrupt requested. Should not happen.");
 #endif
 }
 
