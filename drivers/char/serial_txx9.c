@@ -10,7 +10,10 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- *  Serial driver for TX3927/TX4927/TX4925/TX4938 internal SIO controller
+ * Serial driver for TX3927/TX4927/TX4925/TX4938 internal SIO controller
+ *
+ * Copyright (C) 2004 MontaVista Software Inc.
+ * Author: Manish Lachwani, mlachwani@mvista.com
  */
 #include <linux/init.h>
 #include <linux/config.h>
@@ -34,6 +37,7 @@
 #ifdef CONFIG_MAGIC_SYSRQ
 #include <linux/sysrq.h>
 #endif
+#include <asm/irq.h>
 
 #define  DEBUG
 #ifdef  DEBUG
@@ -44,6 +48,7 @@
 
 static char *serial_version = "0.30-mvl";
 static char *serial_name = "TX39/49 Serial driver";
+static struct tty_driver *serial_driver;
 
 #define GS_INTERNAL_FLAGS (GS_TX_INTEN|GS_RX_INTEN|GS_ACTIVE)
 
@@ -734,7 +739,7 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 		return -EIO;
 	}
 
-	line = minor(tty->device) - tty->driver.minor_start;
+	line = tty->index;
 
 	if ((line < 0) || (line >= NR_PORTS))
 		return -ENODEV;
@@ -810,21 +815,17 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 	retval = gs_block_til_ready(&port->gs, filp);
 
 	if (retval) {
-		if (port->gs.count == 1)
+		if (port->gs.count == 1) {
 			free_irq(port->irq, port);
-
+		}
 		port->gs.count--;
 		return retval;
 	}
 	/* tty->low_latency = 1; */
 
-	if ((port->gs.count == 1) && (port->gs.flags & ASYNC_SPLIT_TERMIOS)) {
-		if (tty->driver.subtype == SERIAL_TYPE_NORMAL)
-			*tty->termios = port->gs.normal_termios;
-		else
-			*tty->termios = port->gs.callout_termios;
+	if (port->gs.count == 1) 
 		rs_set_real_termios(port);
-	}
+
 #ifdef CONFIG_SERIAL_TXX9_CONSOLE
 	if (sercons.cflag && sercons.index == line) {
 		tty->termios->c_cflag = sercons.cflag;
@@ -832,8 +833,6 @@ static int rs_open (struct tty_struct * tty, struct file * filp)
 		rs_set_real_termios(port);
 	}
 #endif
-	port->gs.session = current->session;
-	port->gs.pgrp = current->pgrp;
 	return 0;
 }
 
@@ -927,7 +926,6 @@ static void rs_close (void *ptr)
 	struct rs_port *port = ptr;
 	free_irq(port->irq, port);
 #endif
-	MOD_DEC_USE_COUNT;
 }
 
 /* I haven't the foggiest why the decrement use count has to happen
@@ -939,7 +937,6 @@ static void rs_close (void *ptr)
    exit minicom.  I expect an "oops".  -- REW */
 static void rs_hungup (void *ptr)
 {
-	MOD_DEC_USE_COUNT;
 }
 
 static void rs_getserial (void *ptr, struct serial_struct *sp)
@@ -947,7 +944,7 @@ static void rs_getserial (void *ptr, struct serial_struct *sp)
 	struct rs_port *port = ptr;
 	struct tty_struct *tty = port->gs.tty;
 	/* some applications (busybox, dbootstrap, etc.) look this */
-	sp->line = minor(tty->device) - tty->driver.minor_start;
+	sp->line = tty->index;
 }
 
 /*
@@ -1144,8 +1141,6 @@ static int rs_init_portstructs(void)
 
 	port = rs_ports;
 	for (i=0; i < NR_PORTS;i++) {
-		port->gs.callout_termios = tty_std_termios;
-		port->gs.normal_termios	= tty_std_termios;
 		port->gs.magic = TXX9_SERIAL_MAGIC;
 		port->gs.close_delay = HZ/2;
 		port->gs.closing_wait = 30 * HZ;
@@ -1184,7 +1179,6 @@ static int rs_init_drivers(void)
 	rs_driver.init_termios.c_cflag =
 		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 	rs_driver.refcount = &rs_refcount;
-	rs_driver.table = rs_table;
 	rs_driver.termios = rs_termios;
 	rs_driver.termios_locked = rs_termios_locked;
 
@@ -1212,21 +1206,9 @@ static int rs_init_drivers(void)
 #else
 	rs_callout_driver.name = TXX9_CU_NAME;
 #endif
-	rs_callout_driver.major = TXX9_TTYAUX_MAJOR;
-	rs_callout_driver.subtype = SERIAL_TYPE_CALLOUT;
-	rs_callout_driver.read_proc = 0;
-	rs_callout_driver.proc_entry = 0;
-
 	if ((error = tty_register_driver(&rs_driver))) {
 		printk(KERN_ERR
 		       "Couldn't register serial driver, error = %d\n",
-		       error);
-		return 1;
-	}
-	if ((error = tty_register_driver(&rs_callout_driver))) {
-		tty_unregister_driver(&rs_driver);
-		printk(KERN_ERR
-		       "Couldn't register callout driver, error = %d\n",
 		       error);
 		return 1;
 	}
@@ -1528,16 +1510,17 @@ static void serial_console_write(struct console *co, const char *s,
 	sio_out(port, TXX9_SIDICR, ier);
 }
 
-static kdev_t serial_console_device(struct console *c)
+static struct tty_driver *serial_console_device(struct console *c, int *index)
 {
-	return mk_kdev(TXX9_TTY_MAJOR, TXX9_TTY_MINOR_START + c->index);
+	*index = c->index;
+	return &rs_driver;
 }
 
-static __init int serial_console_setup(struct console *co, char *options)
+static int serial_console_setup(struct console *co, char *options)
 {
 	struct rs_port *port;
 	unsigned cval;
-	int	baud = 9600;
+	int	baud = 9600; 
 	int	bits = 8;
 	int	parity = 'n';
 	int	doflow = 0;
@@ -1639,10 +1622,14 @@ static struct console sercons = {
 	index:		-1,
 };
 
-void __init txx9_serial_console_init(void)
+static int __init txx9_serial_console_init(void)
 {
 	register_console(&sercons);
+
+	return 0;
 }
+
+console_initcall(txx9_serial_console_init);
 
 #endif
 
@@ -1652,9 +1639,7 @@ void __init txx9_serial_console_init(void)
 
 #ifdef CONFIG_KGDB
 int kgdb_init_count = 0;
-#endif
 
-#ifdef CONFIG_KGDB
 void txx9_sio_kgdb_hook(unsigned int port, unsigned int baud_rate)
 {
 	static struct resource kgdb_resource;
@@ -1672,9 +1657,6 @@ void txx9_sio_kgdb_hook(unsigned int port, unsigned int baud_rate)
 
 	return;
 }
-#endif /* CONFIG_KGDB */
-
-#ifdef CONFIG_KGDB
 void
 txx9_sio_kdbg_init( unsigned int port_number )
 {
@@ -1685,9 +1667,7 @@ txx9_sio_kdbg_init( unsigned int port_number )
   }
   return; 
 }
-#endif /* CONFIG_KGDB */
 
-#ifdef CONFIG_KGDB
 u8 
 txx9_sio_kdbg_rd( void )
 {
@@ -1711,10 +1691,7 @@ txx9_sio_kdbg_rd( void )
 
   return( ch );
 }
-#endif /* CONFIG_KGDB */
 
-
-#ifdef CONFIG_KGDB
 int 
 txx9_sio_kdbg_wr( u8 ch )
 {

@@ -9,6 +9,9 @@
  *
  * Copyright (C) 2000-2001 Toshiba Corporation 
  *
+ * Copyright (C) 2004 MontaVista Software Inc.
+ * Author: Manish Lachwani (mlachwani@mvista.com)
+ *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
  *  Free Software Foundation;  either version 2 of the  License, or (at your
@@ -116,58 +119,16 @@ int pci_get_irq(struct pci_dev *dev, int pin)
 	return irq;
 }
 
-
-#ifdef  TX4927_SUPPORT_PCI_66
-extern int tx4927_pci66;
-extern void tx4927_pci66_setup(void);
-#endif
-extern void tx4927_pci_setup(void);
-
-#ifdef  TX4927_SUPPORT_PCI_66
-int tx4927_pci66_check(void)
-{
-	struct pci_dev *dev;
-	unsigned short stat;
-	int cap66 = 1;
-
-	if (tx4927_pci66 < 0)
-		return 0;
-
-	/* check 66MHz capability */
-	pci_for_each_dev(dev) {
-		if (cap66) {
-			pci_read_config_word(dev, PCI_STATUS, &stat);
-			if (!(stat & PCI_STATUS_66MHZ)) {
-				printk(KERN_INFO
-				       "PCI: %02x:%02x not 66MHz capable.\n",
-				       dev->bus->number, dev->devfn);
-				cap66 = 0;
-			}
-		}
-	}
-	return cap66;
-}
-#endif
-
-/*
- * This is dead, rotten code, needs to be rewritten -- Ralf
- */
 int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	unsigned char irq;
 
-#ifdef  TX4927_SUPPORT_PCI_66	/* Has no f*cking biz here  */
-	if (tx4927_pci66_check()) {
-		tx4927_pci66_setup();
-		tx4927_pci_setup();	/* Reinitialize PCIC */
-	}
-#endif
+	printk("PCI Setup for pin %d \n", pin);
 
-	if (dev->vendor == PCI_VENDOR_ID_EFAR &&
-	    dev->device == PCI_DEVICE_ID_EFAR_SLC90E66_1)
+	if (dev->device == 0x9130) /* IDE */
 		irq = 14;
 	else
-		irq = 0;
+		irq = pci_get_irq(dev, pin);
 
 	return irq;
 }

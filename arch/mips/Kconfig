@@ -834,8 +834,16 @@ config TOSHIBA_RBTX4927
 	depends on MIPS32
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
+	select I8259
 	select ISA
 	select SWAP_IO_SPACE
+	help
+	  This Toshiba board is based on the TX4927 processor. Say Y here to
+	  support this machine type
+
+config TOSHIBA_FPCIB0
+	bool "FPCIB0 Backplane Support"
+	depends on TOSHIBA_RBTX4927
 
 config RWSEM_GENERIC_SPINLOCK
 	bool

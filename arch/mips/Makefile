@@ -159,6 +159,10 @@ cflags-$(CONFIG_CPU_R4X00)	+= \
 			$(call set_gccflags,r4600,mips3,r4600,mips3,mips2) \
 			-Wa,--trap
 
+cflags-$(CONFIG_CPU_TX49XX)	+= \
+			$(call set_gccflags,r4600,mips3,r4600,mips3,mips2)  \
+			-Wa,--trap
+
 cflags-$(CONFIG_CPU_MIPS32)	+= \
 			$(call set_gccflags,mips32,mips32,r4600,mips3,mips2) \
 			-Wa,--trap
