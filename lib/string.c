@@ -442,7 +442,7 @@ EXPORT_SYMBOL(strsep);
  *
  * Do not use memset() to access IO space, use memset_io() instead.
  */
-void * memset(void * s,int c, size_t count)
+void * memset(void * s,int c,size_t count)
 {
 	char *xs = (char *) s;
 
@@ -564,15 +564,14 @@ EXPORT_SYMBOL(memcmp);
 void * memscan(void * addr, int c, size_t size)
 {
 	unsigned char * p = (unsigned char *) addr;
-	unsigned char * e = p + size;
 
-	while (p != e) {
-		if (*p == (unsigned char)c)
+	while (size) {
+		if (*p == c)
 			return (void *) p;
 		p++;
+		size--;
 	}
-
-	return (void *) p;
+  	return (void *) p;
 }
 EXPORT_SYMBOL(memscan);
 #endif
