@@ -80,6 +80,7 @@
 #include <asm/types.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
+#include <asm/titan_dep.h>
 
 #include "titan_ge.h"
 #include "titan_mdio.h"
@@ -131,6 +132,7 @@ static int titan_ge_receive_queue(struct net_device *, unsigned int);
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
 
+unsigned long ocd_base;
 unsigned long titan_ge_base;
 static unsigned long titan_ge_sram;
 
@@ -399,23 +401,28 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 #endif
 
 	/* Ack the CPU interrupt */
-	if (port_num == 1) {
-                is = *(volatile uint32_t *)(titan_ge_base + 0x1b00);
-                *(volatile uint32_t *)(titan_ge_base + 0x1b0c) = is;
+	if (port_num == 0) {
+		is = OCD_READ(RM9000x2_OCD_INTP0STATUS1);
+		OCD_WRITE(RM9000x2_OCD_INTP0CLEAR1, is);
 
 #ifdef CONFIG_SMP
-		is = *(volatile uint32_t *)(titan_ge_base + 0x2b00);
-		*(volatile uint32_t *)(titan_ge_base + 0x2b0c) = is;
+		is = *(volatile uint32_t *)(ocd_base + 0x2b00);
+		*(volatile uint32_t *)(ocd_base + 0x2b0c) = is;
+		is = OCD_READ(RM9000x2_OCD_INTP1STATUS1);
+		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR1, is);
 #endif
         }
 
-        if (port_num == 0) {
-                is = *(volatile uint32_t *)(titan_ge_base + 0x1b10);
-                *(volatile uint32_t *)(titan_ge_base + 0x1b1c) = is;
+	/* Ack the CPU interrupt */
+	if (port_num == 1) {
+		is = OCD_READ(RM9000x2_OCD_INTP0STATUS0);
+		OCD_WRITE(RM9000x2_OCD_INTP0CLEAR0, is);
 
 #ifdef CONFIG_SMP
-		is = *(volatile uint32_t *)(titan_ge_base + 0x2b10);
-		*(volatile uint32_t *)(titan_ge_base + 0x2b1c) = is;
+		is = *(volatile uint32_t *)(ocd_base + 0x2b00);
+		*(volatile uint32_t *)(ocd_base + 0x2b0c) = is;
+		is = OCD_READ(RM9000x2_OCD_INTP1STATUS0);
+		OCD_WRITE(RM9000x2_OCD_INTP1CLEAR0, is);
 #endif
         }
 
@@ -1864,6 +1871,12 @@ static int __init titan_ge_init_module(void)
 	device &= 0x0000ffff;
 
 	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
+
+	ocd_base = ioremap(OCD_BASE, OCD_SIZE);
+	if (!ocd_base) {
+		printk(KERN_ERR "Mapping OCD failed\n");
+		goto out_unmap_ge;
+	}
 
 #ifdef TITAN_RX_RING_IN_SRAM
 	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
