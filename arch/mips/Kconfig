@@ -667,7 +667,7 @@ config GENERIC_ISA_DMA
 
 config I8259
 	bool
-	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_COBALT || ACER_PICA_61
+	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MIPS_MALTA || MIPS_COBALT || MIPS_JAZZ || ACER_PICA_61
 	default y
 
 config MIPS_BONITO64
@@ -677,7 +677,7 @@ config MIPS_BONITO64
 
 config MIPS_JAZZ
 	bool
-	depends on MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61
+	depends on ACER_PICA_61 || MIPS_MAGNUM_4000 || OLIVETTI_M700
 	default y
 
 config MIPS_MSC
@@ -826,7 +826,7 @@ config MIPS_L1_CACHE_SHIFT
 
 config ARC32
 	bool
-	depends on SNI_RM200_PCI || SGI_IP32 || SGI_IP22 || MIPS_MAGNUM_4000 || OLIVETTI_M700
+	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP32 || SGI_IP22
 	default y
 
 config FB
@@ -885,12 +885,12 @@ config ARC_CONSOLE
 
 config ARC_MEMORY
 	bool
-	depends on SNI_RM200_PCI || SGI_IP32
+	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP32
 	default y
 
 config ARC_PROMLIB
 	bool
-	depends on SNI_RM200_PCI || SGI_IP32 || SGI_IP22
+	depends on MIPS_JAZZ || SNI_RM200_PCI || SGI_IP22 || SGI_IP32
 	default y
 
 config BOARD_SCACHE
