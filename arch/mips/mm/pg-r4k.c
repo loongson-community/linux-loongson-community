@@ -356,7 +356,7 @@ void __init build_clear_page(void)
 		case CPU_R10000:
 		case CPU_R12000:
 			pref_src_mode = Pref_LoadStreamed;
-			pref_dst_mode = Pref_StoreRetained;
+			pref_dst_mode = Pref_StoreStreamed;
 			break;
 
 		default:
