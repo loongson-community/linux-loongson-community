@@ -93,7 +93,7 @@ unsigned long unaligned_instructions;
 #endif
 
 static inline void emulate_load_store_insn(struct pt_regs *regs,
-	unsigned long addr, unsigned long pc)
+	void * addr, unsigned long pc)
 {
 	union mips_instruction insn;
 	unsigned long value, fixup;
@@ -523,7 +523,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 * Do branch emulation only if we didn't forward the exception.
 	 * This is all so but ugly ...
 	 */
-	emulate_load_store_insn(regs, regs->cp0_badvaddr, pc);
+	emulate_load_store_insn(regs, (void *)regs->cp0_badvaddr, pc);
 
 	return;
 
