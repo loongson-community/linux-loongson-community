@@ -1,4 +1,4 @@
-/* $Id: memset.S,v 1.2 1999/10/19 20:51:51 ralf Exp $
+/* $Id: memset.S,v 1.3 2000/01/15 23:48:55 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -18,14 +18,14 @@
 	.previous
 
 #define F_FILL64(dst, offset, val, fixup)		\
-	EX(sw, val, (offset + 0x00)(dst), fixup);	\
-	EX(sw, val, (offset + 0x08)(dst), fixup);	\
-	EX(sw, val, (offset + 0x10)(dst), fixup);	\
-	EX(sw, val, (offset + 0x18)(dst), fixup);	\
-	EX(sw, val, (offset + 0x20)(dst), fixup);	\
-	EX(sw, val, (offset + 0x28)(dst), fixup);	\
-	EX(sw, val, (offset + 0x30)(dst), fixup);	\
-	EX(sw, val, (offset + 0x38)(dst), fixup)
+	EX(sd, val, (offset + 0x00)(dst), fixup);	\
+	EX(sd, val, (offset + 0x08)(dst), fixup);	\
+	EX(sd, val, (offset + 0x10)(dst), fixup);	\
+	EX(sd, val, (offset + 0x18)(dst), fixup);	\
+	EX(sd, val, (offset + 0x20)(dst), fixup);	\
+	EX(sd, val, (offset + 0x28)(dst), fixup);	\
+	EX(sd, val, (offset + 0x30)(dst), fixup);	\
+	EX(sd, val, (offset + 0x38)(dst), fixup)
 
 /*
  * memset(void *s, int c, size_t n)
@@ -34,9 +34,11 @@
  * a1: char to fill with
  * a2: size of area to clear
  */
+#include <asm/mipsregs.h>
+#include <asm/stackframe.h>
 	.set	noreorder
 	.align	5
-LEAF(xxmemset)
+LEAF(memset)
 	beqz	a1, 1f
 	 move	v0, a0				/* result */
 
@@ -50,7 +52,7 @@ LEAF(xxmemset)
 
 1:
 
-EXPORT(__bzero)
+FEXPORT(__bzero)
 	sltiu	t0, a2, 8			/* very small region? */
 	bnez	t0, small_memset
 	 andi	t0, a0, 7			/* aligned? */
@@ -81,12 +83,15 @@ EXPORT(__bzero)
 
 memset_partial:
 	la	t1, 2f				/* where to start */
-	dsubu	t1, t0
+	.set	noat
+	dsrl	AT, t0, 1
+	dsubu	t1, AT
+	.set	noat
 	jr	t1
 	 daddu	a0, t0				/* dest ptr */
 
 	F_FILL64(a0, -64, a1, partial_fixup)	/* ... but first do dwds ... */
-2:	andi	a2, 7				/* 0 <= n <= 3 to go */
+2:	andi	a2, 7				/* 0 <= n <= 7 to go */
 
 	beqz	a2, 1f
 	 daddu	a0, a2				/* What's left */
@@ -109,7 +114,7 @@ small_memset:
 
 2:	jr	ra				/* done */
 	 move	a2, zero
-	END(xxmemset)
+	END(memset)
 
 first_fixup:
 	jr	ra
@@ -124,7 +129,7 @@ fwd_fixup:
 
 partial_fixup:
 	ld	t0, THREAD_BUADDR($28)
-	andi	a2, 3
+	andi	a2, 7
 	daddu	a2, t1
 	jr	ra
 	 dsubu	a2, t0

@@ -1,4 +1,4 @@
-/* $Id: string.h,v 1.2 1999/08/21 22:19:18 ralf Exp $
+/* $Id: string.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,8 +12,8 @@
 #ifndef _ASM_STRING_H
 #define _ASM_STRING_H
 
-#undef __HAVE_ARCH_MEMSET
-//extern void *memset(void *__s, int __c, size_t __count);
+#define __HAVE_ARCH_MEMSET
+extern void *memset(void *__s, int __c, size_t __count);
 
 #undef __HAVE_ARCH_MEMCPY
 //extern void *memcpy(void *__to, __const__ void *__from, size_t __n);
