@@ -41,6 +41,8 @@
 #include <unistd.h>
 #include <elf.h>
 #include <limits.h>
+#include <netinet/in.h>
+#include <stdlib.h>
 
 #include "ecoff.h"
 
@@ -56,9 +58,10 @@ struct sect {
   unsigned long len;
 };
 
+void combine (struct sect* base, struct sect* new, int pad);
 int phcmp ();
 char *saveRead (int file, off_t offset, off_t len, char *name);
-int copy (int, int, off_t, off_t);
+void copy (int, int, off_t, off_t);
 int translate_syms (int, int, off_t, off_t, off_t, off_t);
 void convert_elf_hdr (Elf32_Ehdr *);
 void convert_elf_phdrs (Elf32_Phdr *, int);
@@ -71,14 +74,13 @@ int *symTypeTable;
 int must_convert_endian = 0;
 int format_bigendian = 0;
 
+int
 main (int argc, char **argv, char **envp)
 {
   Elf32_Ehdr ex;
   Elf32_Phdr *ph;
   Elf32_Shdr *sh;
-  Elf32_Sym *symtab;
   char *shstrtab;
-  int strtabix, symtabix;
   int i, pad;
   struct sect text, data, bss;
   struct filehdr efh;
@@ -168,7 +170,8 @@ main (int argc, char **argv, char **envp)
       /* Section types we can't handle... */
       else if (ph [i].p_type != PT_LOAD)
         {
-	  fprintf (stderr, "Program header %d type %d can't be converted.\n");
+	  fprintf (stderr, "Program header %d type %d can't be converted.\n", 
+			  	ex.e_phnum, ph[i].p_type );
 	  exit (1);
 	}
       /* Writable (data) segment? */
@@ -330,7 +333,7 @@ main (int argc, char **argv, char **envp)
 
     for (i = 0; i < nosecs; i++)
       {
-        printf ("Section %d: %s phys %x  size %x  file offset %x\n", 
+        printf ("Section %d: %s phys %lx  size %lx  file offset %lx\n", 
 	      i, esecs [i].s_name, esecs [i].s_paddr,
 	      esecs [i].s_size, esecs [i].s_scnptr);
       }
@@ -384,11 +387,11 @@ main (int argc, char **argv, char **envp)
 	      char obuf [1024];
 	      if (gap > 65536)
 		{
-		  fprintf (stderr, "Intersegment gap (%d bytes) too large.\n",
+		  fprintf (stderr, "Intersegment gap (%ld bytes) too large.\n",
 			   gap);
 		  exit (1);
 		}
-	      fprintf (stderr, "Warning: %d byte intersegment gap.\n", gap);
+	      fprintf (stderr, "Warning: %ld byte intersegment gap.\n", gap);
 	      memset (obuf, 0, sizeof obuf);
 	      while (gap)
 		{
@@ -428,6 +431,7 @@ fprintf (stderr, "writing %d bytes...\n", ph [i].p_filesz);
   exit (0);
 }
 
+void
 copy (out, in, offset, size)
      int out, in;
      off_t offset, size;
@@ -465,6 +469,7 @@ copy (out, in, offset, size)
 
 /* Combine two segments, which must be contiguous.   If pad is true, it's
    okay for there to be padding between. */
+void
 combine (base, new, pad)
      struct sect *base, *new;
      int pad;
@@ -488,6 +493,7 @@ combine (base, new, pad)
     }
 }
 
+int
 phcmp (h1, h2)
      Elf32_Phdr *h1, *h2;
 {
@@ -511,7 +517,7 @@ char *saveRead (int file, off_t offset, off_t len, char *name)
     }
   if (!(tmp = (char *)malloc (len)))
     {
-      fprintf (stderr, "%s: Can't allocate %d bytes.\n", name, len);
+      fprintf (stderr, "%s: Can't allocate %ld bytes.\n", name, len);
       exit (1);
     }
   count = read (file, tmp, len);
