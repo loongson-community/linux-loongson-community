@@ -140,40 +140,41 @@ NESTED(except_vec_ejtag_debug, 0, sp)
 
 	__FINIT
 
-		/*
-		 * EJTAG debug exception handler.
-		 */
-		NESTED(ejtag_debug_handler, PT_SIZE, sp)
-		.set	noat
-		.set	noreorder
-		mtc0	k0, CP0_DESAVE
-		mfc0	k0, CP0_DEBUG
+	/*
+	 * EJTAG debug exception handler.
+	 */
+	NESTED(ejtag_debug_handler, PT_SIZE, sp)
+	.set	noat
+	.set	noreorder
+	mtc0	k0, CP0_DESAVE
+	mfc0	k0, CP0_DEBUG
 
-		sll	k0, k0, 30	# Check for SDBBP.
-		bgez	k0, ejtag_return
+	sll	k0, k0, 30	# Check for SDBBP.
+	bgez	k0, ejtag_return
 
-		la	k0, ejtag_debug_buffer
-		sw	k1, 0(k0)
-		SAVE_ALL
-		jal	ejtag_exception_handler
-		 move	a0, sp
-		RESTORE_ALL
-		la	k0, ejtag_debug_buffer
-		lw	k1, 0(k0)
+	la	k0, ejtag_debug_buffer
+	sw	k1, 0(k0)
+	SAVE_ALL
+	jal	ejtag_exception_handler
+	 move	a0, sp
+	RESTORE_ALL
+	la	k0, ejtag_debug_buffer
+	lw	k1, 0(k0)
 
 ejtag_return:
-		mfc0	k0, CP0_DESAVE
-		.set	mips32
-		deret
-		.set	mips0
-		 nop
-		.set	at
-		END(ejtag_debug_handler)
+	mfc0	k0, CP0_DESAVE
+	.set	mips32
+	deret
+	.set	mips0
+	 nop
+	.set	at
+	END(ejtag_debug_handler)
 
-		/*
-		 * This buffer is reserved for the use of the EJTAG debug
-		 * handler.
-		 */
-		.data
-		EXPORT(ejtag_debug_buffer)
-		.fill	8
+	/*
+	 * This buffer is reserved for the use of the EJTAG debug
+	 * handler.
+	 */
+	.data
+	EXPORT(ejtag_debug_buffer)
+	.fill	8
+	.previous
