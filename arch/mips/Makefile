@@ -35,7 +35,7 @@ endif
 # machines may also.  Since BFD is incredibly buggy with respect to
 # crossformat linking we rely on the elf2ecoff tool for format conversion.
 #
-CFLAGS		+= -G 0 -mno-abicalls -fno-pic
+GCCFLAGS	:= -G 0 -mno-abicalls -fno-pic
 LINKFLAGS	+= -static -G 0
 MODFLAGS	+= -mlong-calls
 
@@ -47,32 +47,41 @@ endif
 # CPU-dependent compiler/assembler options for optimization.
 #
 ifdef CONFIG_CPU_R3000
-CFLAGS		:= $(CFLAGS) -mcpu=r3000 -mips1
+GCCFLAGS	+= -mcpu=r3000 -mips1
 endif
 ifdef CONFIG_CPU_R6000
-CFLAGS		:= $(CFLAGS) -mcpu=r6000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r6000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R4300
-CFLAGS		:= $(CFLAGS) -mcpu=r4300 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r4300 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R4X00
-CFLAGS		:= $(CFLAGS) -mcpu=r4600 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r4600 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R5000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_NEVADA
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap -mmad
+GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap -mmad
 endif
 ifdef CONFIG_CPU_RM7000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R8000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
 ifdef CONFIG_CPU_R10000
-CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2 -Wa,--trap
+GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
+
+#
+# The pipe options is bad for my low-mem machine
+# Uncomment this if you want this.
+#
+GCCFLAGS	+= -pipe
+
+CFLAGS		+= $(GCCFLAGS)
+AFLAGS		+= $(GCCFLAGS)
 
 #
 # Board-dependent options and extra files
@@ -171,12 +180,6 @@ LINKFLAGS     += -T $(word 1,$(LINKSCRIPT))
 ifdef LOADADDR
 LINKFLAGS     += -Ttext $(word 1,$(LOADADDR))
 endif
-
-#
-# The pipe options is bad for my low-mem machine
-# Uncomment this if you want this.
-#
-CFLAGS		+= -pipe
 
 HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 

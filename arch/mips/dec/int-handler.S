@@ -2,6 +2,7 @@
  * arch/mips/dec/int-handler.S
  *
  * Copyright (C) 1995, 1996, 1997 Paul M. Antoine and Harald Koerfgen
+ * Copyright (C) 2000  Maciej W. Rozycki
  *
  * Written by Ralf Baechle and Andreas Busse, modified for DECStation
  * support by Paul Antoine and Harald Koerfgen.
@@ -16,6 +17,11 @@
 #include <asm/stackframe.h>
 #include <asm/addrspace.h>
 
+#include <asm/dec/kn01.h>
+#include <asm/dec/kn02.h>
+#include <asm/dec/kn02xa.h>
+#include <asm/dec/kn03.h>
+#include <asm/dec/ioasic_addrs.h>
 #include <asm/dec/interrupts.h>
 
 
@@ -164,10 +170,10 @@
 /*
  * Handle "IRQ Controller" Interrupts
  * Masked Interrupts are still visible and have to be masked "by hand".
- * %hi(KN02_CSR_ADDR) does not work so all addresses are hardcoded :-(.
  */
 		EXPORT(kn02_io_int)
-kn02_io_int:	lui	t0,0xbff0		# get interrupt status and mask
+kn02_io_int:					# 3max
+		lui	t0,KN02_CSR_ADDR>>16	# get interrupt status and mask
 		lw	t0,(t0)
 		la	t1,asic_mask_tbl
 		move	t3,t0
@@ -176,17 +182,20 @@ kn02_io_int:	lui	t0,0xbff0		# get interrupt status and mask
 		 and	t0,t3			# mask out allowed ones
 
 		EXPORT(kn03_io_int)
-kn03_io_int:	lui	t2,0xbf84		# upper part of IOASIC Address
-		lw	t0,0x0110(t2)		# get status: IOASIC isr
-		lw	t3,0x0120(t2)		# get mask:   IOASIC isrm
+kn03_io_int:					# 3max+
+		lui	t2,KN03_IOASIC_BASE>>16	# upper part of IOASIC Address
+		lw	t0,SIR(t2)		# get status: IOASIC isr
+		lw	t3,SIMR(t2)		# get mask:   IOASIC isrm
 		la	t1,asic_mask_tbl
 		b	find_int
 		 and	t0,t3			# mask out allowed ones
 
-		EXPORT(kn02ba_io_int)
-kn02ba_io_int:	lui	t2,0xbc04		
-		lw	t0,0x0110(t2)		# IOASIC isr, works for maxine also
-		lw	t3,0x0120(t2)		# IOASIC isrm
+		EXPORT(kn02xa_io_int)
+kn02xa_io_int:					# 3min/maxine
+		lui	t2,KN02XA_IOASIC_BASE>>16		
+						# upper part of IOASIC Address
+		lw	t0,SIR(t2)		# get status: IOASIC isr
+		lw	t3,SIMR(t2)		# get mask:   IOASIC isrm
 		la	t1,asic_mask_tbl
 		and	t0,t3
 

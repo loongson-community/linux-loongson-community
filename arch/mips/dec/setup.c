@@ -6,6 +6,7 @@
  * for more details.
  *
  * Copyright (C) 1998 Harald Koerfgen
+ * Copyright (C) 2000 Maciej W. Rozycki
  */
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -22,6 +23,8 @@
 #include <asm/dec/kn02.h>
 #include <asm/dec/kn02xa.h>
 #include <asm/dec/kn03.h>
+#include <asm/dec/ioasic.h>
+#include <asm/dec/ioasic_addrs.h>
 #include <asm/dec/ioasic_ints.h>
 
 extern asmlinkage void decstation_handle_int(void);
@@ -33,14 +36,14 @@ void dec_init_kn02ba(void);
 void dec_init_kn02ca(void);
 void dec_init_kn03(void);
 
-char *dec_rtc_base = (char *) KN01_RTC_BASE;	/* Assume DS2100/3100 initially */
+char *dec_rtc_base = (void *) KN01_RTC_BASE;	/* Assume DS2100/3100 initially */
+
+volatile unsigned int *ioasic_base;
 
 decint_t dec_interrupt[NR_INTS];
 
-/* 
+/*
  * Information regarding the IRQ Controller
- *
- * isr and imr are also hardcoded for different machines in int_handler.S
  */
 
 volatile unsigned int *isr = 0L;	/* address of the interrupt status register     */
@@ -206,8 +209,8 @@ void __init dec_init_kn02(void)
      * Setup some memory addresses. FIXME: probably incomplete!
      */
     dec_rtc_base = (char *) KN02_RTC_BASE;
-    isr = (volatile unsigned int *) KN02_CSR_ADDR;
-    imr = (volatile unsigned int *) KN02_CSR_ADDR;
+    isr = (void *) KN02_CSR_ADDR;
+    imr = (void *) KN02_CSR_ADDR;
 
     /*
      * Setup IOASIC interrupt
@@ -275,16 +278,17 @@ void __init dec_init_kn02ba(void)
     /*
      * Setup some memory addresses.
      */
+    ioasic_base = (void *) KN02XA_IOASIC_BASE;
     dec_rtc_base = (char *) KN02XA_RTC_BASE;
-    isr = (volatile unsigned int *) KN02XA_SIR_ADDR;
-    imr = (volatile unsigned int *) KN02XA_SIRM_ADDR;
+    isr = (void *) KN02XA_IOASIC_REG(SIR);
+    imr = (void *) KN02XA_IOASIC_REG(SIMR);
 
     /*
      * Setup IOASIC interrupt
      */
     cpu_mask_tbl[0] = IE_IRQ3;
     cpu_irq_nr[0] = -1;
-    cpu_ivec_tbl[0] = kn02ba_io_int;
+    cpu_ivec_tbl[0] = kn02xa_io_int;
     *imr = 0;
 
     /*
@@ -355,14 +359,15 @@ void __init dec_init_kn02ca(void)
     /*
      * Setup some memory addresses. FIXME: probably incomplete!
      */
+    ioasic_base = (void *) KN02XA_IOASIC_BASE;
     dec_rtc_base = (char *) KN02XA_RTC_BASE;
-    isr = (volatile unsigned int *) KN02XA_SIR_ADDR;
-    imr = (volatile unsigned int *) KN02XA_SIRM_ADDR;
+    isr = (void *) KN02XA_IOASIC_REG(SIR);
+    imr = (void *) KN02XA_IOASIC_REG(SIMR);
 
     /*
      * Setup IOASIC interrupt
      */
-    cpu_ivec_tbl[1] = kn02ba_io_int;
+    cpu_ivec_tbl[1] = kn02xa_io_int;
     cpu_irq_nr[1] = -1;
     cpu_mask_tbl[1] = IE_IRQ3;
     *imr = 0;
@@ -430,9 +435,10 @@ void __init dec_init_kn03(void)
     /*
      * Setup some memory addresses. FIXME: probably incomplete!
      */
+    ioasic_base = (void *) KN03_IOASIC_BASE;
     dec_rtc_base = (char *) KN03_RTC_BASE;
-    isr = (volatile unsigned int *) KN03_SIR_ADDR;
-    imr = (volatile unsigned int *) KN03_SIRM_ADDR;
+    isr = (void *) KN03_IOASIC_REG(SIR);
+    imr = (void *) KN03_IOASIC_REG(SIMR);
 
     /*
      * Setup IOASIC interrupt

@@ -7,9 +7,9 @@
 #
 
 .S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
+	$(CPP) $(AFLAGS) $< -o $@
 .S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+	$(CC) $(AFLAGS) -c $< -o $@
 
 all: dec.o
 O_TARGET := dec.o

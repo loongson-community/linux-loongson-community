@@ -1,8 +1,9 @@
 
 /*
- *  linux/arch/mips/kernel/time.c
+ *  linux/arch/mips/dec/time.c
  *
  *  Copyright (C) 1991, 1992, 1995  Linus Torvalds
+ *  Copyright (C) 2000  Maciej W. Rozycki
  *
  * This file contains the time handling details for PC-style clocks as
  * found in some MIPS systems.
@@ -21,9 +22,14 @@
 #include <asm/mipsregs.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/dec/machtype.h>
+#include <asm/dec/ioasic.h>
+#include <asm/dec/ioasic_addrs.h>
 
 #include <linux/mc146818rtc.h>
 #include <linux/timex.h>
+
+#include <asm/div64.h>
 
 extern volatile unsigned long wall_jiffies;
 extern rwlock_t xtime_lock;
@@ -36,10 +42,20 @@ extern rwlock_t xtime_lock;
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
+#define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
 
 /* Cycle counter value at the previous timer interrupt.. */
 
 static unsigned int timerhi = 0, timerlo = 0;
+
+/*
+ * Cached "1/(clocks per usec)*2^32" value.
+ * It has to be recalculated once each jiffy.
+ */
+static unsigned long cached_quotient = 0;
+
+/* Last jiffy when do_fast_gettimeoffset() was called. */
+static unsigned long last_jiffies = 0;
 
 /*
  * On MIPS only R4000 and better have a cycle counter.
@@ -50,45 +66,34 @@ static unsigned long do_fast_gettimeoffset(void)
 {
 	u32 count;
 	unsigned long res, tmp;
-
-	/* Last jiffy when do_fast_gettimeoffset() was called. */
-	static unsigned long last_jiffies = 0;
 	unsigned long quotient;
-
-	/*
-	 * Cached "1/(clocks per usec)*2^32" value.
-	 * It has to be recalculated once each jiffy.
-	 */
-	static unsigned long cached_quotient = 0;
 
 	tmp = jiffies;
 
 	quotient = cached_quotient;
 
-	if (tmp && last_jiffies != tmp) {
-		last_jiffies = tmp;
-		__asm__(".set\tnoreorder\n\t"
-			".set\tnoat\n\t"
-			".set\tmips3\n\t"
-			"lwu\t%0,%2\n\t"
-			"dsll32\t$1,%1,0\n\t"
-			"or\t$1,$1,%0\n\t"
-			"ddivu\t$0,$1,%3\n\t"
-			"mflo\t$1\n\t"
-			"dsll32\t%0,%4,0\n\t"
-			"nop\n\t"
-			"ddivu\t$0,%0,$1\n\t"
-			"mflo\t%0\n\t"
-			".set\tmips0\n\t"
-			".set\tat\n\t"
-			".set\treorder"
-			:"=&r"(quotient)
-			:"r"(timerhi),
-			"m"(timerlo),
-			"r"(tmp),
-			"r"(USECS_PER_JIFFY)
-			:"$1");
+	if (last_jiffies != tmp) {
+	    last_jiffies = tmp;
+	    if (last_jiffies != 0) {
+		unsigned long r0;
+		__asm__(".set	push\n\t"
+			".set	mips3\n\t"
+			"lwu	%0,%3\n\t"
+			"dsll32	%1,%2,0\n\t"
+			"or	%1,%1,%0\n\t"
+			"ddivu	$0,%1,%4\n\t"
+			"mflo	%1\n\t"
+			"dsll32	%0,%5,0\n\t"
+			"or	%0,%0,%6\n\t"
+			"ddivu	$0,%0,%1\n\t"
+			"mflo	%0\n\t"
+			".set	pop"
+			: "=&r" (quotient), "=&r" (r0)
+			: "r" (timerhi), "m" (timerlo),
+			  "r" (tmp), "r" (USECS_PER_JIFFY),
+			  "r" (USECS_PER_JIFFY_FRAC));
 		cached_quotient = quotient;
+	    }
 	}
 	/* Get last timer tick in absolute kernel time */
 	count = read_32bit_cp0_register(CP0_COUNT);
@@ -97,11 +102,9 @@ static unsigned long do_fast_gettimeoffset(void)
 	count -= timerlo;
 //printk("count: %08lx, %08lx:%08lx\n", count, timerhi, timerlo);
 
-	__asm__("multu\t%1,%2\n\t"
-		"mfhi\t%0"
-		:"=r"(res)
-		:"r"(count),
-		"r"(quotient));
+	__asm__("multu	%2,%3"
+		: "=l" (tmp), "=h" (res)
+		: "r" (count), "r" (quotient));
 
 	/*
 	 * Due to possible jiffies inconsistencies, we need to check 
@@ -109,6 +112,47 @@ static unsigned long do_fast_gettimeoffset(void)
 	 */
 	if (res >= USECS_PER_JIFFY)
 		res = USECS_PER_JIFFY - 1;
+
+	return res;
+}
+
+static unsigned long do_ioasic_gettimeoffset(void)
+{
+	u32 count;
+	unsigned long res, tmp;
+	unsigned long quotient;
+
+	tmp = jiffies;
+
+	quotient = cached_quotient;
+
+	if (last_jiffies != tmp) {
+		last_jiffies = tmp;
+		if (last_jiffies != 0) {
+			unsigned long r0;
+			do_div64_32(r0, timerhi, timerlo, tmp);
+			do_div64_32(quotient, USECS_PER_JIFFY,
+				    USECS_PER_JIFFY_FRAC, r0);
+			cached_quotient = quotient;
+		}
+	}
+	/* Get last timer tick in absolute kernel time */
+	count = ioasic_read(FCTR);
+
+	/* .. relative to previous jiffy (32 bits is enough) */
+	count -= timerlo;
+//printk("count: %08x, %08x:%08x\n", count, timerhi, timerlo);
+
+	__asm__("multu	%2,%3"
+		: "=l" (tmp), "=h" (res)
+		: "r" (count), "r" (quotient));
+
+	/*
+	 * Due to possible jiffies inconsistencies, we need to check
+	 * the result so that we'll get a timer that is monotonic.
+	 */
+	if (res >= USECS_PER_JIFFY)
+        	res = USECS_PER_JIFFY - 1;
 
 	return res;
 }
@@ -170,8 +214,8 @@ void do_gettimeofday(struct timeval *tv)
 	tv->tv_usec += do_gettimeoffset();
 
 	/*
-	 * xtime is atomically updated in timer_bh. lost_ticks is
-	 * nonzero if the timer bottom half hasnt executed yet.
+	 * xtime is atomically updated in timer_bh. jiffies - wall_jiffies
+	 * is nonzero if the timer bottom half hasnt executed yet.
 	 */
 	if (jiffies - wall_jiffies)
 		tv->tv_usec += USECS_PER_JIFFY;
@@ -309,11 +353,12 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	read_lock(&xtime_lock);
 	if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
 	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1))
+	    xtime.tv_usec < 500000 + (tick >> 1)) {
 		if (set_rtc_mmss(xtime.tv_sec) == 0)
 			last_rtc_update = xtime.tv_sec;
 		else
 			last_rtc_update = xtime.tv_sec - 600;	/* do it again in 60 s */
+	}
 	/* As we return to user mode fire off the other CPU schedulers.. this is
 	   basically because we don't yet share IRQ's around. This message is
 	   rigged to be safe on the 386 - basically it's a hack, so don't look
@@ -334,16 +379,42 @@ static void r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
-	timer_interrupt(irq, dev_id, regs);
-
-	if (!jiffies) {
+	if (jiffies == ~0) {
 		/*
-		 * If jiffies has overflowed in this timer_interrupt we must
+		 * If jiffies is to overflow in this timer_interrupt we must
 		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
 		 * quotient calc still valid. -arca
 		 */
+		write_32bit_cp0_register(CP0_COUNT, 0);
 		timerhi = timerlo = 0;
 	}
+
+	timer_interrupt(irq, dev_id, regs);
+}
+
+static void ioasic_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+{
+	unsigned int count;
+
+	/*
+	 * The free-running counter is 32 bit which is good for about
+	 * 2 minutes, 50 seconds at possible count rates of upto 25MHz.
+	 */
+	count = ioasic_read(FCTR);
+	timerhi += (count < timerlo);	/* Wrap around */
+	timerlo = count;
+
+	if (jiffies == ~0) {
+		/*
+		 * If jiffies is to overflow in this timer_interrupt we must
+		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
+		 * quotient calc still valid. -arca
+		 */
+		ioasic_write(FCTR, 0);
+		timerhi = timerlo = 0;
+	}
+
+	timer_interrupt(irq, dev_id, regs);
 }
 
 /* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -473,6 +544,10 @@ void __init time_init(void)
 		write_32bit_cp0_register(CP0_COUNT, 0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
-	}
+	} else if (IOASIC) {
+		ioasic_write(FCTR, 0);
+		do_gettimeoffset = do_ioasic_gettimeoffset;
+		irq0.handler = ioasic_timer_interrupt;
+        }
 	board_time_init(&irq0);
 }
