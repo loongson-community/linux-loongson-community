@@ -37,17 +37,9 @@
 
 #define CPU_NONE		(cpuid_t)-1
 
-/*
- * The following should work till 64 nodes, ie 128p SN0s.
- */
-#define CNODEMASK_CLRALL(p)	(p) = 0
-#define CNODEMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
-#define CNODEMASK_SETB(p, bit)	((p) |= 1ULL << (bit))
-
+static DECLARE_BITMAP(hub_init_mask, MAX_COMPACT_NODES);
 static hubreg_t region_mask;
 static int	fine_mode;
-static spinlock_t hub_mask_lock = SPIN_LOCK_UNLOCKED;
-static cnodemask_t hub_init_mask;
 static int router_distance;
 nasid_t master_nasid = INVALID_NASID;
 
@@ -80,53 +72,41 @@ static int is_fine_dirmode(void)
 		>> NSRI_REGIONSIZE_SHFT) & REGIONSIZE_FINE);
 }
 
+extern void pcibr_setup(cnodeid_t);
 void per_hub_init(cnodeid_t cnode)
 {
-	extern void pcibr_setup(cnodeid_t);
-	cnodemask_t	done;
-	nasid_t		nasid;
+	nasid_t		nasid = COMPACT_TO_NASID_NODEID(cnode);
 
-	nasid = COMPACT_TO_NASID_NODEID(cnode);
+	if (test_and_set_bit(cnode, hub_init_mask))
+		return;
 
-	spin_lock(&hub_mask_lock);
-	/* Test our bit. */
-	if (!(done = CNODEMASK_TSTB(hub_init_mask, cnode))) {
-		/* Turn our bit on in the mask. */
-		CNODEMASK_SETB(hub_init_mask, cnode);
-		/*
-	 	 * Do the actual initialization if it hasn't been done yet.
-	 	 * We don't need to hold a lock for this work.
-	 	 */
-		/*
-		 * Set CRB timeout at 5ms, (< PI timeout of 10ms)
-		 */
-		REMOTE_HUB_S(nasid, IIO_ICTP, 0x800);
-		REMOTE_HUB_S(nasid, IIO_ICTO, 0xff);
-		hub_rtc_init(cnode);
-		pcibr_setup(cnode);
+	/*
+	 * Set CRB timeout at 5ms, (< PI timeout of 10ms)
+	 */
+	REMOTE_HUB_S(nasid, IIO_ICTP, 0x800);
+	REMOTE_HUB_S(nasid, IIO_ICTO, 0xff);
+
+	hub_rtc_init(cnode);
+	pcibr_setup(cnode);
+
 #ifdef CONFIG_REPLICATE_EXHANDLERS
-		/*
-		 * If this is not a headless node initialization,
-		 * copy over the caliased exception handlers.
-		 */
-		if (get_compact_nodeid() == cnode) {
-			extern char except_vec0, except_vec1_r10k;
-			extern char except_vec2_generic, except_vec3_generic;
+	/*
+	 * If this is not a headless node initialization,
+	 * copy over the caliased exception handlers.
+	 */
+	if (get_compact_nodeid() == cnode) {
+		extern char except_vec0, except_vec1_r10k;
+		extern char except_vec2_generic, except_vec3_generic;
 
-			memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic,
-								0x80);
-			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-								0x80);
-			memcpy((void *)KSEG0, &except_vec0, 0x80);
-			memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
-			memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
-			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-								0x100);
-			__flush_cache_all();
-		}
-#endif
+		memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
+		memcpy((void *)KSEG0, &except_vec0, 0x80);
+		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
+		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x100);
+		__flush_cache_all();
 	}
-	spin_unlock(&hub_mask_lock);
+#endif
 }
 
 cnodeid_t get_compact_nodeid(void)
@@ -344,7 +324,6 @@ void mlreset(void)
 	dump_topology();
 
 	gen_region_mask(&region_mask, numnodes);
-	CNODEMASK_CLRALL(hub_init_mask);
 
 	setup_replication_mask(numnodes);
 
