@@ -45,7 +45,7 @@ void fpu_emulator_init_fpu(void)
  
 	if (first) {
 		first = 0;
-		printk("Algorithmics/MIPS FPU Emulator v1.4\n");
+		printk("Algorithmics/MIPS FPU Emulator v1.5\n");
 	}
 
 	current->thread.fpu.soft.sr = 0;

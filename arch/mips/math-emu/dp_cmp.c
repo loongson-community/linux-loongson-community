@@ -29,9 +29,18 @@
 
 int ieee754dp_cmp(ieee754dp x, ieee754dp y, int cmp)
 {
-	CLEARCX;
+	COMPXDP;
+	COMPYDP;
+
+	EXPLODEXDP;
+	EXPLODEYDP;
+	FLUSHXDP;
+	FLUSHYDP;
+	CLEARCX;	/* Even clear inexact flag here */
 
 	if (ieee754dp_isnan(x) || ieee754dp_isnan(y)) {
+		if (xc == IEEE754_CLASS_SNAN || yc == IEEE754_CLASS_SNAN)
+			SETCX(IEEE754_INVALID_OPERATION);
 		if (cmp & IEEE754_CUN)
 			return 1;
 		if (cmp & (IEEE754_CLT | IEEE754_CGT)) {

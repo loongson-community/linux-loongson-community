@@ -325,7 +325,6 @@ char *ieee754dp_tstr(ieee754dp x, int prec, int fmt, int af);
 */
 struct ieee754_csr {
 	unsigned pad:13;
-	unsigned noq:1;		/* set 1 for no quiet NaN's */
 	unsigned nod:1;		/* set 1 for no denormalised numbers */
 	unsigned cx:5;		/* exceptions this operation */
 	unsigned mx:5;		/* exception enable  mask */
@@ -453,11 +452,11 @@ extern const struct ieee754sp_konst __ieee754sp_spcvals[];
 
 /* indefinite integer value 
 */
-#define ieee754si_indef()	INT_MIN
-#ifdef LONG_LONG_MIN
-#define ieee754di_indef()	LONG_LONG_MIN
+#define ieee754si_indef()	INT_MAX
+#ifdef LONG_LONG_MAX
+#define ieee754di_indef()	LONG_LONG_MAX
 #else
-#define ieee754di_indef()	(-9223372036854775807LL-1)
+#define ieee754di_indef()	((long long)(~0ULL>>1))
 #endif
 
 /* IEEE exception context, passed to handler */

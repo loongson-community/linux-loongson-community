@@ -608,7 +608,10 @@ emul:
 					     MIPSInst_RT(ir), value);
 #endif
 					ctx->sr = value;
-					/* copy new rounding mode to ieee library state! */
+					/* copy new rounding mode and
+					   flush bit to ieee library state! */
+					ieee754_csr.nod =
+					    (ctx->sr & 0x1000000) != 0;
 					ieee754_csr.rm =
 					    ieee_rm[value & 0x3];
 				}
@@ -1093,6 +1096,8 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 
 				ctx->sr =
 				    (ctx->sr & ~FPU_CSR_ALL_X) | rcsr;
+				if (ieee754_csr.nod)
+				    ctx->sr |= 0x1000000;
 				if ((ctx->sr >> 5) & ctx->
 				    sr & FPU_CSR_ALL_E) {
 		/*printk ("SIGFPE: fpu csr = %08x\n",ctx->sr); */
@@ -1281,7 +1286,8 @@ static int fpu_emu(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx,
 		case fmov_op:
 			/* an easy one */
 			SPFROMREG(rv.s, MIPSInst_FS(ir));
-			break;
+			goto copcsr;
+
 			/* binary op on handler */
 scopbop:
 			{
@@ -1393,13 +1399,16 @@ copcsr:
 				rfmt = -1;
 				if ((cmpop & 0x8) && ieee754_cxtest(IEEE754_INVALID_OPERATION))
 					rcsr = FPU_CSR_INV_X | FPU_CSR_INV_S;
-				} else {
-					return SIGILL;
-				}
-				break;
+				else
+					goto copcsr;
+
+			} else {
+				return SIGILL;
 			}
 			break;
 		}
+		break;
+	}
 
 #if !defined(SINGLE_ONLY_FPU)
 	case d_fmt: {
@@ -1463,7 +1472,7 @@ copcsr:
 		case fmov_op:
 			/* an easy one */
 			DPFROMREG(rv.d, MIPSInst_FS(ir));
-			break;
+			goto copcsr;
 
 			/* binary op on handler */
 dcopbop:
@@ -1560,6 +1569,9 @@ dcopuop:
 				rfmt = -1;
 				if ((cmpop & 0x8) && ieee754_cxtest (IEEE754_INVALID_OPERATION))
 					rcsr = FPU_CSR_INV_X | FPU_CSR_INV_S;
+				else
+					goto copcsr;
+
 			} else {
 				return SIGILL;
 			}
@@ -1690,8 +1702,13 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
 		}
-		if (insn != 0)
+		if (insn != 0) {
+			/* Update ieee754_csr. Only relevant if we have a
+			   h/w FPU */
+			ieee754_csr.nod = (ctx->sr & 0x1000000) != 0;
+			ieee754_csr.rm = ieee_rm[ctx->sr & 0x3];
 			sig = cop1Emulate(xcp, ctx);
+		}
 		else
 			xcp->cp0_epc += 4;	/* skip nops */
 

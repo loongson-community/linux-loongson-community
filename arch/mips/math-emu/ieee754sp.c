@@ -42,9 +42,7 @@ int ieee754sp_isnan(ieee754sp x)
 int ieee754sp_issnan(ieee754sp x)
 {
 	assert(ieee754sp_isnan(x));
-	if (ieee754_csr.noq)
-		return 1;
-	return !(SPMANT(x) & SP_MBIT(SP_MBITS - 1));
+	return (SPMANT(x) & SP_MBIT(SP_MBITS-1));
 }
 
 
@@ -74,10 +72,11 @@ ieee754sp ieee754sp_nanxcpt(ieee754sp r, const char *op, ...)
 
 	if (!SETCX(IEEE754_INVALID_OPERATION)) {
 		/* not enabled convert to a quiet NaN */
-		if (ieee754_csr.noq)
+		SPMANT(r) &= (~SP_MBIT(SP_MBITS-1));
+		if (ieee754sp_isnan(r))
 			return r;
-		SPMANT(r) |= SP_MBIT(SP_MBITS - 1);
-		return r;
+		else
+			return ieee754sp_indef();
 	}
 
 	ax.op = op;
@@ -117,8 +116,25 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 		int es = SP_EMIN - xe;
 
 		if (ieee754_csr.nod) {
-			SETCX(IEEE754_UNDERFLOW);
-			return ieee754sp_zero(sn);
+		    SETCX(IEEE754_UNDERFLOW);
+		    SETCX(IEEE754_INEXACT);
+
+		    switch(ieee754_csr.rm) {
+			case IEEE754_RN:
+			    return ieee754sp_zero(sn);
+			case IEEE754_RZ:
+			    return ieee754sp_zero(sn);
+			case IEEE754_RU:      /* toward +Infinity */
+			    if(sn == 0)
+				return ieee754sp_min(0);
+			    else
+				return ieee754sp_zero(1);
+			case IEEE754_RD:      /* toward -Infinity */
+			    if(sn == 0)
+				return ieee754sp_zero(0);
+			    else
+				return ieee754sp_min(1);
+		    }
 		}
 
 		/* sticky right shift es bits 
@@ -163,6 +179,7 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 
 	if (xe > SP_EMAX) {
 		SETCX(IEEE754_OVERFLOW);
+		SETCX(IEEE754_INEXACT);
 		/* -O can be table indexed by (rm,sn) */
 		switch (ieee754_csr.rm) {
 		case IEEE754_RN:
