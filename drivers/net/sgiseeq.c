@@ -152,7 +152,7 @@ static inline void seeq_load_eaddr(struct net_device *dev,
 
 static int seeq_init_ring(struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct sgiseeq_init_block *ib = sp->srings;
 	int i;
 
@@ -424,7 +424,7 @@ static inline void sgiseeq_tx(struct net_device *dev, struct sgiseeq_private *sp
 static irqreturn_t sgiseeq_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct net_device *dev = (struct net_device *) dev_id;
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct hpc3_ethregs *hregs = sp->hregs;
 	struct sgiseeq_regs *sregs = sp->sregs;
 
@@ -450,7 +450,7 @@ static irqreturn_t sgiseeq_interrupt(int irq, void *dev_id, struct pt_regs *regs
 
 static int sgiseeq_open(struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct sgiseeq_regs *sregs = sp->sregs;
 	unsigned int irq = dev->irq;
 	int err;
@@ -476,7 +476,7 @@ out_free_irq:
 
 static int sgiseeq_close(struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct sgiseeq_regs *sregs = sp->sregs;
 
 	netif_stop_queue(dev);
@@ -489,7 +489,7 @@ static int sgiseeq_close(struct net_device *dev)
 
 static inline int sgiseeq_reset(struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct sgiseeq_regs *sregs = sp->sregs;
 	int err;
 
@@ -511,7 +511,7 @@ void sgiseeq_my_reset(void)
 
 static int sgiseeq_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 	struct hpc3_ethregs *hregs = sp->hregs;
 	unsigned long flags;
 	struct sgiseeq_tx_desc *td;
@@ -577,7 +577,7 @@ static void timeout(struct net_device *dev)
 
 static struct net_device_stats *sgiseeq_get_stats(struct net_device *dev)
 {
-	struct sgiseeq_private *sp = dev->priv;
+	struct sgiseeq_private *sp = netdev_priv(dev);
 
 	return &sp->stats;
 }
@@ -626,7 +626,7 @@ static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 		err = -ENOMEM;
 		goto err_out;
 	}
-	sp = dev->priv;
+	sp = netdev_priv(dev);
 
 	/* Make private data page aligned */
 	sr = (struct sgiseeq_init_block *) get_zeroed_page(GFP_KERNEL);
@@ -724,12 +724,12 @@ static void __exit sgiseeq_exit(void)
 	int irq;
 
 	for (dev = root_sgiseeq_dev; dev; dev = next) {
-		sp = (struct sgiseeq_private *) dev->priv;
+		sp = (struct sgiseeq_private *) netdev_priv(dev);
 		next = sp->next_module;
 		irq = dev->irq;
 		unregister_netdev(dev);
 		free_irq(irq, dev);
-		free_page((unsigned long) dev->priv);
+		free_page((unsigned long) sp);
 		free_netdev(dev);
 	}
 }
