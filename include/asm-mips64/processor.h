@@ -42,6 +42,7 @@ struct cpuinfo_mips {
 	unsigned int irq_count, bh_count;
 	unsigned long asid_cache;
 #if defined(CONFIG_SGI_IP27)
+	cpuid_t		p_cpuid;	/* PROM assigned cpuid */
 	cnodeid_t	p_nodeid;	/* my node ID in compact-id-space */
 	nasid_t		p_nasid;	/* my node ID in numa-as-id-space */
 	unsigned char	p_slice;	/* Physical position on node board */
