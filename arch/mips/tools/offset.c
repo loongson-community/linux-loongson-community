@@ -84,6 +84,7 @@ void output_task_defines(void)
 	offset("#define TASK_COUNTER       ", struct task_struct, counter);
 	offset("#define TASK_NICE          ", struct task_struct, nice);
 	offset("#define TASK_MM            ", struct task_struct, mm);
+	offset("#define TASK_PID           ", struct task_struct, pid);
 	size("#define TASK_STRUCT_SIZE   ", struct task_struct);
 	linefeed;
 }
