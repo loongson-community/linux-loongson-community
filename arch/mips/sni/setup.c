@@ -115,6 +115,7 @@ void __init sni_rm200_pci_setup(void)
 	sni_pcimt_sc_init();
 
 	set_io_port_base(SNI_PORT_BASE);
+	ioport_resource.end = sni_io_resource.end;
 
 	/*
 	 * Setup (E)ISA I/O memory access stuff
