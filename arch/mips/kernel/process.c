@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994 - 1998 by Ralf Baechle and others.
  *
- * $Id: process.c,v 1.5 1998/03/22 23:27:13 ralf Exp $
+ * $Id: process.c,v 1.7 1998/03/22 20:43:43 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>

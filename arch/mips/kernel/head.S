@@ -8,7 +8,7 @@
  *
  *  Head.S contains the MIPS exception handler and startup code.
  *
- * $Id: head.S,v 1.5 1997/12/01 17:57:27 ralf Exp $
+ * $Id: head.S,v 1.11 1998/03/22 20:43:43 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/tasks.h>
@@ -396,6 +396,12 @@ probe_done:
 	jal	sgi_sysinit
 	 nop
 #endif
+
+#ifdef CONFIG_COBALT_MICRO_SERVER
+	jal	SetUpBootInfo
+	 nop
+#endif
+
 	/* Get the very one tags we need early in the boot process */
 	nop
 	jal	bi_EarlySnarf

@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller
  * Made portable by Ralf Baechle
  *
- * $Id: offset.c,v 1.4 1997/12/16 05:34:45 ralf Exp $
+ * $Id: offset.c,v 1.7 1998/03/26 07:28:02 ralf Exp $
  */
 
 #include <linux/types.h>
@@ -65,8 +65,6 @@ void output_ptreg_defines(void)
 	offset("#define PT_R31    ", struct pt_regs, regs[31]);
 	offset("#define PT_LO     ", struct pt_regs, lo);
 	offset("#define PT_HI     ", struct pt_regs, hi);
-	offset("#define PT_OR2    ", struct pt_regs, orig_reg2);
-	offset("#define PT_OR7    ", struct pt_regs, orig_reg7);
 	offset("#define PT_EPC    ", struct pt_regs, cp0_epc);
 	offset("#define PT_BVADDR ", struct pt_regs, cp0_badvaddr);
 	offset("#define PT_STATUS ", struct pt_regs, cp0_status);

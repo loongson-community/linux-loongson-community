@@ -4,7 +4,7 @@
  * Copyright (C) 1997 Ralf Baechle (ralf@gnu.org),
  * derived from r4xx0.c by David S. Miller (dm@engr.sgi.com).
  *
- * $Id: indy_sc.c,v 1.4 1998/01/13 04:39:38 ralf Exp $
+ * $Id: indy_sc.c,v 1.5 1998/03/26 07:33:13 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -40,46 +40,64 @@ static scache_size, sc_lsize;        /* Again, in bytes */
 
 #undef DEBUG_CACHE
 
+#define SC_SIZE 0x00080000
+#define SC_LINE 32
+#define CI_MASK (SC_SIZE - SC_LINE)
+#define SC_ROUND(n) ((n) + SC_LINE - 1)
+#define SC_INDEX(n) ((n) & CI_MASK)
 
-static void indy_sc_wback_invalidate(unsigned long page, unsigned long size)
+static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 {
-	unsigned long tmp1, tmp2, flags;
-
-	page &= PAGE_MASK;
-
-#ifdef DEBUG_CACHE
-	printk("indy_sc_flush_page_to_ram[%08lx]", page);
-#endif
-	if (size == 0)
-		return;
-
-	save_and_cli(flags);
-
 	__asm__ __volatile__("
-		.set noreorder
-		.set mips3
-		li	%0, 0x1
-		dsll	%0, 31
-		or	%0, %0, %2
-		lui	%1, 0x9000
-		dsll32	%1, 0
-		or	%0, %0, %1
-		daddu	%1, %0, %4
-		li	%2, 0x80
-		mtc0	%2, $12
-		nop; nop; nop; nop;
+		.set	noreorder
+		.set	mips3
+		.set	noat
+		li	$1, 0x80	# Go 64 bit
+		mtc0	$1, $12
+
+		dli	$1, 0x9000000080000000
+		or	%0, $1		# first line to flush
+		or	%1, $1		# last line to flush
+		.set	at
+
 1:		sw	$0, 0(%0)
-		bltu	%0, %1, 1b
+		bne	%0, %1, 1b
 		daddu	%0, 32
-		mtc0	$0, $12
+
+		mtc0	$0, $12		# Back to 32 bit
 		nop; nop; nop; nop;
 		.set mips0
 		.set reorder"
-		: "=&r" (tmp1), "=&r" (tmp2),
-		  "=&r" (page)
-		: "2" (page & 0x0007f000),
-		  "r" (size - 32));
-	restore_flags(flags);
+		: "=r" (first), "=r" (last)
+		: "0" (first), "1" (last)
+		: "$1");
+}
+
+static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
+{
+	unsigned long first_line, last_line;
+	unsigned int flags;
+
+#ifdef DEBUG_CACHE
+	printk("indy_sc_wback_invalidate[%08lx,%08lx]", addr, size);
+#endif
+	/* Which lines to flush?  */
+	first_line = SC_INDEX(addr);
+	last_line = SC_INDEX(SC_ROUND(addr + size));
+
+	__save_and_cli(flags);
+	if (first_line <= last_line) {
+		indy_sc_wipe(first_line, last_line);
+		goto out;
+	}
+
+	/* Cache index wrap around.  Due to the way the buddy system works
+	   this case should not happen.  We're prepared to handle it,
+	   though. */
+	indy_sc_wipe(last_line, SC_SIZE);
+	indy_sc_wipe(0, first_line);
+out:
+	__restore_flags(flags);
 }
 
 static void indy_sc_enable(void)
@@ -87,7 +105,9 @@ static void indy_sc_enable(void)
 	unsigned long addr, tmp1, tmp2;
 
 	/* This is really cool... */
+#ifdef DEBUG_CACHE
 	printk("Enabling R4600 SCACHE\n");
+#endif
 	__asm__ __volatile__("
 		.set noreorder
 		.set mips3
@@ -115,11 +135,9 @@ static void indy_sc_disable(void)
 {
 	unsigned long tmp1, tmp2, tmp3;
 
-	if(mips_cputype != CPU_R4600 &&
-	   mips_cputype != CPU_R4640 &&
-	   mips_cputype != CPU_R4700)
-		return;
+#ifdef DEBUG_CACHE
 	printk("Disabling R4600 SCACHE\n");
+#endif
 	__asm__ __volatile__("
 		.set noreorder
 		.set mips3

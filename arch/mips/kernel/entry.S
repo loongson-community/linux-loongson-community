@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.6 1998/03/17 22:07:32 ralf Exp $
+ * $Id: entry.S,v 1.10 1998/03/26 07:39:09 ralf Exp $
  */
 
 /*
@@ -40,7 +40,7 @@
 		.set	noreorder
 		.set	mips3
 		.align 4
-handle_bottom_half:
+EXPORT(handle_bottom_half)
 		jal	do_bottom_half
 		 nop
 		b	9f
@@ -96,6 +96,10 @@ LEAF(spurious_interrupt)
  * the C preprocessor ...
  */
 #define __BUILD_clear_none(exception)
+#define __BUILD_clear_sti(exception)                                    \
+		STI
+#define __BUILD_clear_cli(exception)                                    \
+		CLI
 #define __BUILD_clear_fpe(exception)                                    \
 		cfc1	a1,fcr31;                                       \
 		li	a2,~(0x3f<<12);                                 \
@@ -103,7 +107,8 @@ LEAF(spurious_interrupt)
 		ctc1	a2,fcr31;
 #define __BUILD_clear_ade(exception)                                    \
 		MFC0	t0,CP0_BADVADDR;                                \
-		REG_S	t0,PT_BVADDR(sp);
+		REG_S	t0,PT_BVADDR(sp);                               \
+		STI
 #define __BUILD_silent(exception)
 
 #define fmt "Got %s at %08lx.\n"
@@ -129,11 +134,8 @@ EXPORT(exception_count_##exception);                                    \
 		.set	noat;                                           \
 		SAVE_ALL;                                               \
 		__BUILD_clear_##clear(exception);                       \
-		STI;                                                    \
 		.set	at;                                             \
 		__BUILD_##verbose(exception);                           \
-		li	t0,-1;                    /* not a sys call */  \
-		REG_S	t0,PT_OR2(sp);                                  \
 		jal	do_##handler;                                   \
 		 move	a0,sp;                                          \
 		j	ret_from_sys_call;                              \
@@ -142,18 +144,18 @@ EXPORT(exception_count_##exception);                                    \
 
 		BUILD_HANDLER(adel,ade,ade,silent)		/* #4  */
 		BUILD_HANDLER(ades,ade,ade,silent)		/* #5  */
-		BUILD_HANDLER(ibe,ibe,none,verbose)		/* #6  */
-		BUILD_HANDLER(dbe,dbe,none,verbose)		/* #7  */
-		BUILD_HANDLER(bp,bp,none,silent)		/* #9  */
-		BUILD_HANDLER(ri,ri,none,silent)		/* #10 */
-		BUILD_HANDLER(cpu,cpu,none,silent)		/* #11 */
-		BUILD_HANDLER(ov,ov,none,silent)		/* #12 */
-		BUILD_HANDLER(tr,tr,none,silent)		/* #13 */
-		BUILD_HANDLER(vcei,vcei,none,verbose)		/* #14 */
+		BUILD_HANDLER(ibe,ibe,cli,verbose)		/* #6  */
+		BUILD_HANDLER(dbe,dbe,cli,verbose)		/* #7  */
+		BUILD_HANDLER(bp,bp,sti,silent)			/* #9  */
+		BUILD_HANDLER(ri,ri,sti,silent)			/* #10 */
+		BUILD_HANDLER(cpu,cpu,sti,silent)		/* #11 */
+		BUILD_HANDLER(ov,ov,sti,silent)			/* #12 */
+		BUILD_HANDLER(tr,tr,sti,silent)			/* #13 */
+		BUILD_HANDLER(vcei,vcei,sti,verbose)		/* #14 */
 		BUILD_HANDLER(fpe,fpe,fpe,silent)		/* #15 */
-		BUILD_HANDLER(watch,watch,none,verbose)		/* #23 */
-		BUILD_HANDLER(vced,vced,none,verbose)		/* #31 */
-		BUILD_HANDLER(reserved,reserved,none,verbose)	/* others */
+		BUILD_HANDLER(watch,watch,sti,verbose)		/* #23 */
+		BUILD_HANDLER(vced,vced,sti,verbose)		/* #31 */
+		BUILD_HANDLER(reserved,reserved,sti,verbose)	/* others */
 
 /*
  * Table of syscalls

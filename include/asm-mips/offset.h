@@ -38,13 +38,11 @@
 #define PT_R31    148
 #define PT_LO     152
 #define PT_HI     156
-#define PT_OR2    160
-#define PT_OR7    164
-#define PT_EPC    168
-#define PT_BVADDR 172
-#define PT_STATUS 176
-#define PT_CAUSE  180
-#define PT_SIZE   184
+#define PT_EPC    160
+#define PT_BVADDR 164
+#define PT_STATUS 168
+#define PT_CAUSE  172
+#define PT_SIZE   176
 
 /* MIPS task_struct offsets. */
 #define TASK_STATE         0

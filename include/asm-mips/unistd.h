@@ -1207,7 +1207,8 @@ register long __err __asm__ ("$7"); \
 __asm__ volatile ("li\t$2,%2\n\t" \
 		  "syscall" \
                   : "=r" (__res), "=r" (__err) \
-                  : "i" (__NR_##name)); \
+                  : "i" (__NR_##name) \
+                  : "$8","$9","$10","$11","$12","$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1228,7 +1229,7 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                   "syscall" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)) \
-                  : "$4"); \
+                  : "$4","$8","$9","$10","$11","$12","$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1247,7 +1248,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                   : "=r" (__res), "=r" (__err) \
                   : "i" (__NR_##name),"r" ((long)(a)), \
                                       "r" ((long)(b)) \
-                  : "$4","$5"); \
+                  : "$4","$5","$8","$9","$10","$11","$12","$13","$14","$15", \
+                    "$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1268,7 +1270,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                   : "i" (__NR_##name),"r" ((long)(a)), \
                                       "r" ((long)(b)), \
                                       "r" ((long)(c)) \
-                  : "$4","$5","$6"); \
+                  : "$4","$5","$6","$8","$9","$10","$11","$12","$13","$14", \
+                    "$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1291,7 +1294,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                                       "r" ((long)(b)), \
                                       "r" ((long)(c)), \
                                       "r" ((long)(d)) \
-                  : "$4","$5","$6"); \
+                  : "$4","$5","$6""$8","$9","$10","$11","$12","$13","$14", \
+                    "$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1319,7 +1323,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                                       "r" ((long)(c)), \
                                       "r" ((long)(d)), \
                                       "m" ((long)(e)) \
-                  : "$2","$4","$5","$6","$7"); \
+                  : "$2","$4","$5","$6","$7","$8","$9","$10","$11","$12", \
+                    "$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1350,7 +1355,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                                       "r" ((long)(d)), \
                                       "m" ((long)(e)), \
                                       "m" ((long)(f)) \
-                  : "$2","$3","$4","$5","$6","$7"); \
+                  : "$2","$3","$4","$5","$6","$7","$8","$9","$10","$11", \
+                    "$12","$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1384,7 +1390,8 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                                       "m" ((long)(e)), \
                                       "m" ((long)(f)), \
                                       "m" ((long)(g)) \
-                  : "$2","$3","$4","$5","$6","$7"); \
+                  : "$2","$3","$4","$5","$6","$7","$8","$9","$10","$11", \
+                    "$12","$13","$14","$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
 errno = __res; \
@@ -1440,11 +1447,11 @@ static inline pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long f
 
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
-		"move\t$8,$sp\n\t"
+		"move\t$6,$sp\n\t"
 		"move\t$4,%5\n\t"
 		"li\t$2,%1\n\t"
 		"syscall\n\t"
-		"beq\t$8,$sp,1f\n\t"
+		"beq\t$6,$sp,1f\n\t"
 		"subu\t$sp,32\n\t"	/* delay slot */
 		"jalr\t%4\n\t"
 		"move\t$4,%3\n\t"	/* delay slot */

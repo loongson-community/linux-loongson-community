@@ -1,7 +1,13 @@
 /*
- *  linux/arch/mips/sgi/kernel/process.c
- *
  *  Reset a SGI.
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1997, 1998 by Ralf Baechle
+ *
+ * $Id: reset.c,v 1.3 1998/03/26 07:31:16 ralf Exp $
  */
 #include <asm/io.h>
 #include <asm/system.h>
@@ -11,16 +17,15 @@
 /* XXX How to pass the reboot command to the firmware??? */
 void sgi_machine_restart(char *command)
 {
-        for(;;)
-                prom_imode();
+	prom_reboot();
 }
 
 void sgi_machine_halt(void)
 {
-	/* XXX */
+	prom_imode();
 }
 
 void sgi_machine_power_off(void)
 {
-	/* XXX */
+	prom_powerdown();
 }

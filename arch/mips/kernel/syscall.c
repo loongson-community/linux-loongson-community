@@ -11,7 +11,7 @@
  *        Don't waste that much memory for empty entries in the syscall
  *        table.
  *
- * $Id: syscall.c,v 1.6 1998/03/17 22:07:36 ralf Exp $
+ * $Id: syscall.c,v 1.8 1998/03/26 07:39:10 ralf Exp $
  */
 #undef CONF_PRINT_SYSCALLS
 #undef CONF_DEBUG_IRIX
@@ -27,8 +27,10 @@
 #include <linux/utsname.h>
 #include <linux/unistd.h>
 #include <asm/branch.h>
+#include <asm/offset.h>
 #include <asm/ptrace.h>
 #include <asm/signal.h>
+#include <asm/stackframe.h>
 #include <asm/uaccess.h>
 
 extern asmlinkage void syscall_trace(void);
@@ -113,6 +115,7 @@ asmlinkage int sys_fork(struct pt_regs regs)
 {
 	int res;
 
+	save_static(&regs);
 	lock_kernel();
 	res = do_fork(SIGCHLD, regs.regs[29], &regs);
 	unlock_kernel();
@@ -125,6 +128,7 @@ asmlinkage int sys_clone(struct pt_regs regs)
 	unsigned long newsp;
 	int res;
 
+	save_static(&regs);
 	lock_kernel();
 	clone_flags = regs.regs[4];
 	newsp = regs.regs[5];

@@ -8,7 +8,7 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.7 1998/03/17 22:07:38 ralf Exp $
+ * $Id: traps.c,v 1.12 1998/03/26 07:39:11 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -183,6 +183,7 @@ static void default_be_board_handler(struct pt_regs *regs)
 void do_ibe(struct pt_regs *regs)
 {
 	lock_kernel();
+show_regs(regs); while(1);
 	ibe_board_handler(regs);
 	unlock_kernel();
 }
@@ -190,6 +191,7 @@ void do_ibe(struct pt_regs *regs)
 void do_dbe(struct pt_regs *regs)
 {
 	lock_kernel();
+show_regs(regs); while(1);
 	dbe_board_handler(regs);
 	unlock_kernel();
 }
@@ -240,11 +242,11 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	show_regs(regs);
 #endif
 	if (fcr31 & 0x20000) {
-		printk("Unimplemented exception at 0x%08lx in %s.\n",
-		       regs->cp0_epc, current->comm);
 		/* Retry instruction with flush to zero ...  */
 		if (!(fcr31 & (1<<24))) {
-			printk("Setting flush to zero ...\n");
+			printk("Setting flush to zero for %s.\n",
+			       current->comm);
+			fcr31 &= ~0x20000;
 			fcr31 |= (1<<24);
 			__asm__ __volatile__(
 				"ctc1\t%0,$31"
@@ -252,6 +254,8 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 				: "r" (fcr31));
 			goto out;
 		}
+		printk("Unimplemented exception at 0x%08lx in %s.\n",
+		       regs->cp0_epc, current->comm);
 	}
 	if (compute_return_epc(regs))
 		goto out;
