@@ -252,6 +252,7 @@ void __init setup_arch(char **cmdline_p)
 	void sead_setup(void);
 	void ikos_setup(void);
 	void momenco_ocelot_setup(void);
+	void momenco_ocelot_g_setup(void);
 	void nino_setup(void);
 	void nec_osprey_setup(void);
 	void nec_eagle_setup(void);
@@ -316,14 +317,19 @@ void __init setup_arch(char **cmdline_p)
 		malta_setup();
 		break;
 #endif
-#ifdef CONFIG_MIPS_SEAD
-	case MACH_GROUP_UNKNOWN:
-		sead_setup();
-		break;
-#endif
 #ifdef CONFIG_MOMENCO_OCELOT
 	case MACH_GROUP_MOMENCO:
 		momenco_ocelot_setup();
+		break;
+#endif
+#ifdef CONFIG_MOMENCO_OCELOT_G
+	case MACH_GROUP_MOMENCO:
+		momenco_ocelot_g_setup();
+		break;
+#endif
+#ifdef CONFIG_MIPS_SEAD
+	case MACH_GROUP_UNKNOWN:
+		sead_setup();
 		break;
 #endif
 #ifdef CONFIG_SGI_IP22

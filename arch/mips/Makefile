@@ -289,6 +289,17 @@ LOADADDR	:= 0x80100000
 endif
 
 #
+# Momentum Ocelot-G board
+#
+ifdef CONFIG_MOMENCO_OCELOT_G
+# The Ocelot-G setup.o must be linked early - it does the ioremap() for the
+# mips_io_port_base.
+CORE_FILES	+= arch/mips/momentum/ocelot_g/ocelot_g.o
+SUBDIRS		+= arch/mips/momentum/ocelot_g
+LOADADDR	:= 0x80100000
+endif
+
+#
 # NEC DDB Vrc-5074
 #
 ifdef CONFIG_DDB5074

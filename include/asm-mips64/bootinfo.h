@@ -100,6 +100,7 @@
 #define MACH_NEC_DDB5476	1	/* NEC DDB Vrc-5476 */
 #define MACH_NEC_DDB5477	2	/* NEC DDB Vrc-5477 */
 #define MACH_NEC_ROCKHOPPER	3	/* Rockhopper base board */
+#define MACH_NEC_ROCKHOPPERII	4	/* Rockhopper II base board */
 
 /*
  * Valid machtype for group BAGET
@@ -121,7 +122,8 @@
 /*
  * Valid machtype for group MOMENCO
  */
-#define MACH_MOMENCO_OCELOT	0
+#define MACH_MOMENCO_OCELOT		0
+#define MACH_MOMENCO_OCELOT_G		1
 
 /*
  * Valid machtype for group ITE
@@ -185,15 +187,14 @@ extern unsigned long mips_machgroup;
 struct boot_mem_map {
 	int nr_map;
 	struct {
-		unsigned long addr;	/* start of memory segment */
-		unsigned long size;	/* size of memory segment */
+		phys_t addr;	/* start of memory segment */
+		phys_t size;	/* size of memory segment */
 		long type;		/* type of memory segment */
 	} map[BOOT_MEM_MAP_MAX];
 };
 
 extern struct boot_mem_map boot_mem_map;
 
-extern void add_memory_region(unsigned long start, unsigned long size,
-                              long type);
+extern void add_memory_region(phys_t start, phys_t size, long type);
 
 #endif /* _ASM_BOOTINFO_H */

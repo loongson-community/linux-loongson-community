@@ -35,6 +35,7 @@ bool 'Support for MIPS Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 dep_bool 'Support for MIPS Malta board (EXPERIMENTAL)' CONFIG_MIPS_MALTA $CONFIG_EXPERIMENTAL
 dep_bool 'Support for MIPS SEAD board (EXPERIMENTAL)' CONFIG_MIPS_SEAD $CONFIG_EXPERIMENTAL
 bool 'Support for Momentum Ocelot board' CONFIG_MOMENCO_OCELOT
+bool 'Support for Momentum Ocelot-G board' CONFIG_MOMENCO_OCELOT_G
 dep_bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074 $CONFIG_EXPERIMENTAL
 bool 'Support for NEC DDB Vrc-5476' CONFIG_DDB5476
 bool 'Support for NEC DDB Vrc-5477' CONFIG_DDB5477
@@ -222,6 +223,14 @@ if [ "$CONFIG_MIPS_SEAD" = "y" ]; then
    define_bool CONFIG_PCI n
 fi
 if [ "$CONFIG_MOMENCO_OCELOT" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_SYSCLK_100 y
+   define_bool CONFIG_SWAP_IO_SPACE y
+   define_bool CONFIG_NEW_IRQ y
+   define_bool CONFIG_NONCOHERENT_IO y
+   define_bool CONFIG_OLD_TIME_C y
+fi
+if [ "$CONFIG_MOMENCO_OCELOT_G" = "y" ]; then
    define_bool CONFIG_PCI y
    define_bool CONFIG_SYSCLK_100 y
    define_bool CONFIG_SWAP_IO_SPACE y
