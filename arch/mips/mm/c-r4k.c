@@ -621,6 +621,21 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 	R4600_HIT_CACHEOP_WAR_IMPL;
 	protected_writeback_dcache_line(addr & ~(dc_lsize - 1));
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
+	if (MIPS4K_ICACHE_REFILL_WAR) {
+		__asm__ __volatile__ (
+			".set push\n\t"
+			".set noat\n\t"
+			".set mips3\n\t"
+			"la	$at,1f\n\t"
+			"cache	%0,($at)\n\t"
+			"nop; nop; nop\n"
+			"1:\n\t"
+			".set pop"
+			:
+			: "i" (Hit_Invalidate_I));
+	}
+	if (MIPS_CACHE_SYNC_WAR)
+		__asm__ __volatile__ ("sync");
 }
 
 static void r4k_flush_icache_all(void)
