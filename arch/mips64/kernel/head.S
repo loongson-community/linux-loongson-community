@@ -83,5 +83,3 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	page	invalid_pmd_table, 1
 	page	empty_bad_page
 	page	empty_bad_page_table
-
-	.align	13
