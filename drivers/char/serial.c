@@ -4590,11 +4590,9 @@ static struct pci_board pci_boards[] __devinitdata = {
 	{	PCI_VENDOR_ID_ROCKWELL, 0x1004,
 		0x1048, 0x1500, 
 		SPCI_FL_BASE1, 1, 115200 },
-#if 0
 	{	PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
 		0xFF00, 0, SPCI_FL_BASE0 | SPCI_FL_IRQRESOURCE,
 		1, 458333, 0, 0, 0, 0x20178 },
-#endif
 #if CONFIG_DDB5074
 	/*
 	 * NEC Vrc-5074 (Nile 4) builtin UART.
@@ -4731,8 +4729,6 @@ static void __devexit serial_remove_one(struct pci_dev *dev)
 
 
 static struct pci_device_id serial_pci_tbl[] __devinitdata = {
-       { PCI_VENDOR_ID_SGI, PCI_DEVICE_ID_SGI_IOC3,
-	 PCI_ANY_ID, PCI_ANY_ID },
        { PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID,
 	 PCI_CLASS_COMMUNICATION_SERIAL << 8, 0xffff00, },
        { 0, }
@@ -4745,7 +4741,6 @@ static struct pci_driver serial_pci_driver = {
        probe:          serial_init_one,
        remove:	       serial_remove_one,
        id_table:       serial_pci_tbl,
-//       id_table:       NULL,
 };
 
 
