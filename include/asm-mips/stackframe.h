@@ -195,16 +195,16 @@
 		.set	push
 		.set	reorder
 		.set	noat
-		mfc0	AT, CP0_STATUS
-		ori	AT, 0x1f
-		xori	AT, 0x1f
-		mtc0	AT, CP0_STATUS
+		mfc0	a0, CP0_STATUS
+		ori	a0, 0x1f
+		xori	a0, 0x1f
+		mtc0	a0, CP0_STATUS
 		li	v1, 0xff00
-		and	AT, v1
+		and	a0, v1
 		LONG_L	v0, PT_STATUS(sp)
 		nor	v1, $0, v1
 		and	v0, v1
-		or	v0, AT
+		or	v0, a0
 		mtc0	v0, CP0_STATUS
 		LONG_L	$31, PT_R31(sp)
 		LONG_L	$28, PT_R28(sp)
@@ -234,16 +234,16 @@
 		.set	push
 		.set	reorder
 		.set	noat
-		mfc0	AT, CP0_STATUS
-		ori	AT, 0x1f
-		xori	AT, 0x1f
-		mtc0	AT, CP0_STATUS
+		mfc0	a0, CP0_STATUS
+		ori	a0, 0x1f
+		xori	a0, 0x1f
+		mtc0	a0, CP0_STATUS
 		li	v1, 0xff00
-		and	AT, v1
+		and	a0, v1
 		LONG_L	v0, PT_STATUS(sp)
 		nor	v1, $0, v1
 		and	v0, v1
-		or	v0, AT
+		or	v0, a0
 		mtc0	v0, CP0_STATUS
 		LONG_L	v1, PT_EPC(sp)
 		MTC0	v1, CP0_EPC
