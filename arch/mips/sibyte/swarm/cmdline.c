@@ -15,14 +15,12 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
 #include <asm/bootinfo.h>
 
 /*
- * The naming of this variable is a remnant of the initial mips port to ARC-firmware
- * based SGI consoles.  We don't really need to do anything for the variable other
- * than provide an instantiation.  Everything about arcs_cmdline seems more than a
- * little bit hackish...
+ * The naming of this variable is a remnant of the initial mips port to
+ * ARC-firmware based SGI consoles.  We don't really need to do anything for
+ * the variable other than provide an instantiation.  Everything about
+ * arcs_cmdline seems more than a little bit hackish...
  */
-
 char arcs_cmdline[COMMAND_LINE_SIZE];
