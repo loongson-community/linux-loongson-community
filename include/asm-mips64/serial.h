@@ -109,18 +109,18 @@
 #endif
 
 #define IP32_SERIAL_PORT_DEFNS				\
-        { baud_base: BASE_BAUD,				\
-	  irq: MACEISA_SERIAL1_IRQ,			\
-          flags: STD_COM_FLAGS,				\
-          iomem_base: (u8*)MACE_BASE+MACEISA_SER1_BASE,	\
-          iomem_reg_shift: 8,				\
-          io_type: SERIAL_IO_MEM},                      \
-        { baud_base: BASE_BAUD,				\
-	  irq: MACEISA_SERIAL2_IRQ,			\
-          flags: STD_COM_FLAGS,				\
-          iomem_base: (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
-          iomem_reg_shift: 8,				\
-          io_type: SERIAL_IO_MEM},
+        { .baud_base = BASE_BAUD,				\
+	  .irq = MACEISA_SERIAL1_IRQ,			\
+          .flags = STD_COM_FLAGS,				\
+          .iomem_base = (u8*)MACE_BASE+MACEISA_SER1_BASE,	\
+          .iomem_reg_shift = 8,				\
+          .io_type = SERIAL_IO_MEM},                      \
+        { .baud_base = BASE_BAUD,				\
+	  .irq = MACEISA_SERIAL2_IRQ,			\
+          .flags = STD_COM_FLAGS,				\
+          .iomem_base = (u8*)MACE_BASE+MACEISA_SER2_BASE,	\
+          .iomem_reg_shift = 8,				\
+          .io_type = SERIAL_IO_MEM},
 #else
 #define IP32_SERIAL_PORT_DEFNS
 #endif /* CONFIG_SGI_IP31 */

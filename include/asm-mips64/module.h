@@ -56,8 +56,8 @@ mips64_init_modules(struct module *mod)
 	extern const struct exception_table_entry __start___dbe_table[];
 	extern const struct exception_table_entry __stop___dbe_table[];
 	static struct archdata archdata = {
-		dbe_table_start:	__start___dbe_table,
-		dbe_table_end:		__stop___dbe_table,
+		.dbe_table_start	= __start___dbe_table,
+		.dbe_table_end		= __stop___dbe_table,
 	};
 
 	mod->archdata_start = (char *)&archdata;
