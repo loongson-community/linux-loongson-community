@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: time.c,v 1.2 1999/04/11 17:03:39 harald Exp $
  * time.c: Baget/MIPS specific time handling details
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov
@@ -63,14 +63,14 @@ __initfunc(static void timer_enable(void))
 		 VIC_INT_LOW|VIC_INT_ENABLE, VIC_LINT2); 
 }
 
+static struct irqaction timer_irq  = 
+{ timer_interrupt, SA_INTERRUPT, 0, "timer", NULL, NULL};
+
 __initfunc(void time_init(void))
 {
-	if (request_irq(BAGET_VIC_TIMER_IRQ, timer_interrupt, 
-			SA_INTERRUPT|SA_STATIC_ALLOC, "timer", NULL) < 0) 
+	if (setup_baget_irq(BAGET_VIC_TIMER_IRQ, &timer_irq) < 0)
 		printk("time_init: unable request irq for system timer\n");
-
 	timer_enable();
-
 	/* We don't call sti() here, because it is too early for baget */
 }
 
