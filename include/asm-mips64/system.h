@@ -12,8 +12,11 @@
 
 #include <linux/config.h>
 #include <asm/sgidefs.h>
-#include <asm/ptrace.h>
+
 #include <linux/kernel.h>
+
+#include <asm/addrspace.h>
+#include <asm/ptrace.h>
 
 __asm__ (
 	".macro\t__sti\n\t"
@@ -161,20 +164,37 @@ extern void __global_restore_flags(unsigned long);
 #define local_irq_disable()	__cli()
 #define local_irq_enable()	__sti()
 
-/*
- * These are probably defined overly paranoid ...
- */
-#define mb()						\
-__asm__ __volatile__(					\
-	"# prevent instructions being moved around\n\t"	\
-	".set\tnoreorder\n\t"				\
-	"sync\n\t"					\
-	".set\treorder"					\
-	: /* no output */				\
-	: /* no input */				\
-	: "memory")
-#define rmb() mb()
-#define wmb() mb()
+#define __sync()				\
+	__asm__ __volatile__(			\
+		".set	push\n\t"		\
+		".set	noreorder\n\t"		\
+		"sync\n\t"			\
+		".set	pop"			\
+		: /* no output */		\
+		: /* no input */		\
+		: "memory")
+
+#define fast_wmb()	__sync()
+#define fast_rmb()	__sync()
+#define fast_mb()	__sync()
+#define fast_iob()				\
+	do {					\
+		__sync();			\
+		__asm__ __volatile__(		\
+			".set	push\n\t"	\
+			".set	noreorder\n\t"	\
+			"lw	$0,%0\n\t"	\
+			"nop\n\t"		\
+			".set	pop"		\
+			: /* no output */	\
+			: "m" (*(int *)KSEG1)	\
+			: "memory");		\
+	} while (0)
+
+#define wmb()		fast_wmb()
+#define rmb()		fast_rmb()
+#define mb()		fast_mb()
+#define iob()		fast_iob()
 
 #ifdef CONFIG_SMP
 #define smp_mb()	mb()
