@@ -466,7 +466,7 @@ void allowboot(void)
 	 * Wait for all cpus to start up and initialize their hubs,
 	 * and discover the io devices they will control.
 	 */
-	while(atomic_read(&numstarted) != maxcpus);
+	while(atomic_read(&numstarted) != num_cpus);
 
 #ifdef LATER
 	Wait logic goes here.
