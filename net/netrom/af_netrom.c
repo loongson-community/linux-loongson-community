@@ -1176,7 +1176,7 @@ static int nr_recvmsg(struct kiocb *iocb, struct socket *sock,
 static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk = sock->sk;
-	int ret;
+	int ret = 0;
 
 	lock_sock(sk);
 	switch (cmd) {
@@ -1200,17 +1200,15 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	}
 
 	case SIOCGSTAMP:
-		if (sk != NULL) {
-			if (!sk->sk_stamp.tv_sec) {
-				release_sock(sk);
-				return -ENOENT;
-			}
-			ret = copy_to_user((void *)arg, &sk->sk_stamp, sizeof(struct timeval)) ? -EFAULT : 0;
-			release_sock(sk);
-			return ret;
-		}
+		if (!sk->sk_stamp.tv_sec)
+			ret = -ENOENT;
+		else if (copy_to_user((void *)arg, &sk->sk_stamp,
+		                        sizeof(struct timeval)))
+			ret = -EFAULT;
+
 		release_sock(sk);
-		return -EINVAL;
+
+		return ret;
 
 	case SIOCGIFADDR:
 	case SIOCSIFADDR:

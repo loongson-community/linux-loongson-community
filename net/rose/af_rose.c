@@ -1249,6 +1249,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);
+	int err = 0;
 
 	switch (cmd) {
 	case TIOCOUTQ: {
@@ -1269,13 +1270,12 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	}
 
 	case SIOCGSTAMP:
-		if (sk != NULL) {
-			if (!sk->sk_stamp.tv_sec)
-				return -ENOENT;
-			return copy_to_user((void *)arg, &sk->sk_stamp,
-					  sizeof(struct timeval)) ? -EFAULT : 0;
-		}
-		return -EINVAL;
+		if (!sk->sk_stamp.tv_sec)
+			err = -ENOENT;
+		else if (copy_to_user((void *)arg, &sk->sk_stamp,
+				     sizeof(struct timeval)))
+			err = -EFAULT;
+		break;
 
 	case SIOCGIFADDR:
 	case SIOCSIFADDR:
@@ -1342,7 +1342,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		return dev_ioctl(cmd, (void *)arg);
 	}
 
-	return 0;
+	return err;
 }
 
 #ifdef CONFIG_PROC_FS
