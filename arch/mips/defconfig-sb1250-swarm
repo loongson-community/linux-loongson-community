@@ -3,6 +3,7 @@
 #
 CONFIG_MIPS=y
 CONFIG_MIPS32=y
+# CONFIG_MIPS64 is not set
 
 #
 # Code maturity level options
@@ -53,6 +54,8 @@ CONFIG_KMOD=y
 # CONFIG_OLIVETTI_M700 is not set
 # CONFIG_NINO is not set
 # CONFIG_SGI_IP22 is not set
+# CONFIG_SGI_IP27 is not set
+# CONFIG_SGI_IP32 is not set
 CONFIG_SIBYTE_SB1250=y
 # CONFIG_PCI is not set
 # CONFIG_SIBYTE_SB1250_PROF is not set
@@ -70,29 +73,30 @@ CONFIG_SMP=y
 # CONFIG_PREEMPT is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
-CONFIG_SWAP_IO_SPACE=y
 CONFIG_NEW_TIME_C=y
+CONFIG_DUMMY_KEYB=y
+CONFIG_SWAP_IO_SPACE=y
 # CONFIG_MIPS_AU1000 is not set
-# CONFIG_I8259 is not set
 
 #
 # CPU selection
 #
+# CONFIG_CPU_MIPS32 is not set
+# CONFIG_CPU_MIPS64 is not set
 # CONFIG_CPU_R3000 is not set
 # CONFIG_CPU_TX39XX is not set
-# CONFIG_CPU_R6000 is not set
 # CONFIG_CPU_VR41XX is not set
 # CONFIG_CPU_R4300 is not set
 # CONFIG_CPU_R4X00 is not set
 # CONFIG_CPU_TX49XX is not set
 # CONFIG_CPU_R5000 is not set
 # CONFIG_CPU_R5432 is not set
-# CONFIG_CPU_RM7000 is not set
+# CONFIG_CPU_R6000 is not set
 # CONFIG_CPU_NEVADA is not set
+# CONFIG_CPU_R8000 is not set
 # CONFIG_CPU_R10000 is not set
+# CONFIG_CPU_RM7000 is not set
 CONFIG_CPU_SB1=y
-# CONFIG_CPU_MIPS32 is not set
-# CONFIG_CPU_MIPS64 is not set
 CONFIG_SB1_PASS_1_WORKAROUNDS=y
 CONFIG_SB1_CACHE_ERROR=y
 CONFIG_VTAG_ICACHE=y
@@ -123,6 +127,8 @@ CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 # CONFIG_BINFMT_AOUT is not set
 CONFIG_BINFMT_ELF=y
+# CONFIG_MIPS32_COMPAT is not set
+# CONFIG_BINFMT_ELF32 is not set
 # CONFIG_BINFMT_MISC is not set
 # CONFIG_PM is not set
 
@@ -571,6 +577,11 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_AUERSWALD is not set
 
 #
+# Bluetooth support
+#
+# CONFIG_BLUEZ is not set
+
+#
 # Input device support
 #
 # CONFIG_INPUT is not set
@@ -592,7 +603,6 @@ CONFIG_SERIO_SERPORT=y
 #
 # Kernel hacking
 #
-CONFIG_CROSSCOMPILE=y
 # CONFIG_DEBUG_KERNEL is not set
 
 #
