@@ -570,6 +570,11 @@ config SWAP_IO_SPACE
 	  used to provide more virtual memory than the actual RAM present
 	  in your computer.  If unusre say Y.
 
+config SIBYTE_HAS_LDT
+	bool
+	depends on SIBYTE_SB1xxx_SOC && PCI
+	default y
+
 config AU1000_USB_DEVICE
 	bool
 	depends on MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000
@@ -819,6 +824,14 @@ config BOARD_SCACHE
 	bool
 	depends on CPU_NEVADA || CPU_R4X00 || CPU_R5000
 	default y if SGI_IP22 || (SGI_IP32 && CPU_R5000) || R5000_CPU_SCACHE
+
+config SIBYTE_DMA_PAGEOPS
+	bool "Use DMA to clear/copy pages"
+	depends on CPU_SB1
+	help
+	  Instead of using the CPU to zero and copy pages, use a Data Mover
+	  channel.  These DMA channels are otherwise unused by the standard
+	  SiByte Linux port.  Seems to give a small performance benefit.
 
 config CPU_HAS_PREFETCH
 	bool "Enable prefetches" if CPU_SB1 && !CPU_SB1_PASS_2

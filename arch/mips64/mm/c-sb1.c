@@ -25,8 +25,14 @@
 #include <asm/cpu.h>
 #include <asm/uaccess.h>
 
+#ifdef CONFIG_SIBYTE_DMA_PAGEOPS
+extern void sb1_dma_init(void);
+extern void sb1_clear_page_dma(void * page);
+extern void sb1_copy_page_dma(void * to, void * from);
+#else
 extern void sb1_clear_page(void * page);
 extern void sb1_copy_page(void * to, void * from);
+#endif
 
 /* These are probed at ld_mmu time */
 static unsigned long icache_size;
@@ -553,8 +559,14 @@ void ld_mmu_sb1(void)
 
 	probe_cache_sizes();
 
+#ifdef CONFIG_SIBYTE_DMA_PAGEOPS
+	_clear_page = sb1_clear_page_dma;
+	_copy_page = sb1_copy_page_dma;
+	sb1_dma_init();
+#else
 	_clear_page = sb1_clear_page;
 	_copy_page = sb1_copy_page;
+#endif
 
 	/*
 	 * None of these are needed for the SB1 - the Dcache is
