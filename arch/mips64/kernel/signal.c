@@ -19,6 +19,8 @@
 #include <linux/wait.h>
 #include <linux/ptrace.h>
 #include <linux/unistd.h>
+#include <linux/tty.h>
+#include <linux/binfmts.h>
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
@@ -721,7 +723,8 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 	if (thread_info_flags & _TIF_SIGPENDING) {
 #ifdef CONFIG_BINFMT_ELF32
 		if (likely((current->thread.mflags & MF_32BIT))) {
-			return do_signal32(oldset, regs);
+			do_signal32(oldset, regs);
+			return;
 		}
 #endif
 #ifdef CONFIG_BINFMT_IRIX
