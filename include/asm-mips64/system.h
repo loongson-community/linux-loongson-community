@@ -225,43 +225,43 @@ do { \
 	(last) = resume(prev, next); \
 } while(0)
 
-static inline unsigned long xchg_u32(volatile int * m, unsigned long val)
+extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 {
 	unsigned long dummy;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t\t# xchg_u32\n\t"
-		".set\tnoat\n\t"
+		".set\tpush\t\t\t\t# xchg_u32\n\t"
+		".set\tnoreorder\n\t"
+		".set\tnomacro\n\t"
 		"ll\t%0, %3\n"
-		"1:\tmove\t$1, %2\n\t"
-		"sc\t$1, %1\n\t"
-		"beqzl\t$1, 1b\n\t"
+		"1:\tmove\t%2, %z4\n\t"
+		"sc\t%2, %1\n\t"
+		"beqzl\t%2, 1b\n\t"
 		" ll\t%0, %3\n\t"
-		".set\tat\n\t"
-		".set\treorder"
-		: "=r" (val), "=o" (*m), "=r" (dummy)
-		: "o" (*m), "2" (val)
+		".set\tpop"
+		: "=&r" (val), "=m" (*m), "=&r" (dummy)
+		: "R" (*m), "Jr" (val)
 		: "memory");
 
 	return val;
 }
 
-static inline unsigned long xchg_u64(volatile long * m, unsigned long val)
+extern __inline__ unsigned long xchg_u64(volatile int * m, unsigned long val)
 {
 	unsigned long dummy;
 
 	__asm__ __volatile__(
-		".set\tnoreorder\t\t\t# xchg_u64\n\t"
-		".set\tnoat\n\t"
+		".set\tpush\t\t\t\t# xchg_u64\n\t"
+		".set\tnoreorder\n\t"
+		".set\tnomacro\n\t"
 		"lld\t%0, %3\n"
-		"1:\tmove\t$1, %2\n\t"
-		"scd\t$1, %1\n\t"
-		"beqzl\t$1, 1b\n\t"
+		"1:\tmove\t%2, %z4\n\t"
+		"scd\t%2, %1\n\t"
+		"beqzl\t%2, 1b\n\t"
 		" lld\t%0, %3\n\t"
-		".set\tat\n\t"
-		".set\treorder"
-		: "=r" (val), "=o" (*m), "=r" (dummy)
-		: "o" (*m), "2" (val)
+		".set\tpop"
+		: "=&r" (val), "=m" (*m), "=&r" (dummy)
+		: "R" (*m), "Jr" (val)
 		: "memory");
 
 	return val;
