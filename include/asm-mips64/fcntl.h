@@ -67,7 +67,7 @@
 /* operations for bsd flock(), also used by the kernel implementation */
 #define LOCK_SH		1	/* shared lock */
 #define LOCK_EX		2	/* exclusive lock */
-#define LOCK_NB		4	/* or'd with one of the above to prevent		XXXXXXXXXXXXXXXXXX
+#define LOCK_NB		4	/* or'd with one of the above to prevent
 				   blocking */
 #define LOCK_UN		8	/* remove lock */
 
@@ -81,10 +81,21 @@ typedef struct flock {
 	short l_whence;
 	__kernel_off_t l_start;
 	__kernel_off_t l_len;
-	long  l_sysid;			/* XXXXXXXXXXXXXXXXXXXXXXXXX */
+	long  l_sysid;
 	__kernel_pid_t l_pid;
-	long  pad[4];			/* ZZZZZZZZZZZZZZZZZZZZZZZZZZ */
+	long  pad[4];
 } flock_t;
+
+struct flock32 {				/* for 32-bit compat code */
+	short	l_type;
+	short	l_whence;
+	__kernel_off_t32 l_start;
+	__kernel_off_t32 l_len;
+	__s32	l_sysid;
+	__kernel_pid_t32 l_pid;
+	short	__unused;
+	__s32	pad[4];
+};
 
 #ifdef __KERNEL__
 #define flock64		flock

@@ -1,4 +1,4 @@
-/* 
+/*
  * Conversion between 32-bit and 64-bit native system calls.
  *
  * Copyright (C) 2000 Silicon Graphics, Inc.
@@ -137,7 +137,7 @@ asmlinkage int sys32_utime(char * filename, struct utimbuf32 *times)
 	mm_segment_t old_fs;
 	int ret;
 	char *filenam;
-	
+
 	if (!times)
 		return sys_utime(filename, NULL);
 	if (get_user (t.actime, &times->actime) ||
@@ -147,7 +147,7 @@ asmlinkage int sys32_utime(char * filename, struct utimbuf32 *times)
 	ret = PTR_ERR(filenam);
 	if (!IS_ERR(filenam)) {
 		old_fs = get_fs();
-		set_fs (KERNEL_DS); 
+		set_fs (KERNEL_DS);
 		ret = sys_utime(filenam, &t);
 		set_fs (old_fs);
 		putname (filenam);
@@ -186,7 +186,7 @@ static int count32(u32 * argv, int max)
  * memory to free pages in kernel mem. These are in a format ready
  * to be put directly into the top of new user memory.
  */
-int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm) 
+int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 {
 	while (argc-- > 0) {
 		u32 str;
@@ -194,13 +194,13 @@ int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 		unsigned long pos;
 
 		if (get_user(str, argv+argc) || !str ||
-		     !(len = strnlen_user((char *)A(str), bprm->p))) 
+		     !(len = strnlen_user((char *)A(str), bprm->p)))
 			return -EFAULT;
-		if (bprm->p < len) 
-			return -E2BIG; 
+		if (bprm->p < len)
+			return -E2BIG;
 
 		bprm->p -= len;
-		/* XXX: add architecture specific overflow check here. */ 
+		/* XXX: add architecture specific overflow check here. */
 
 		pos = bprm->p;
 		while (len > 0) {
@@ -237,7 +237,7 @@ int copy_strings32(int argc, u32 * argv, struct linux_binprm *bprm)
 			kunmap(page);
 
 			if (err)
-				return -EFAULT; 
+				return -EFAULT;
 
 			pos += bytes_to_copy;
 			str += bytes_to_copy;
@@ -259,7 +259,7 @@ int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	int i;
 
 	bprm.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
-	memset(bprm.page, 0, MAX_ARG_PAGES*sizeof(bprm.page[0])); 
+	memset(bprm.page, 0, MAX_ARG_PAGES*sizeof(bprm.page[0]));
 
 	dentry = open_namei(filename, 0, 0);
 	retval = PTR_ERR(dentry);
@@ -282,21 +282,21 @@ int do_execve32(char * filename, u32 * argv, u32 * envp, struct pt_regs * regs)
 	}
 
 	retval = prepare_binprm(&bprm);
-	if (retval < 0) 
-		goto out; 
+	if (retval < 0)
+		goto out;
 
 	retval = copy_strings_kernel(1, &bprm.filename, &bprm);
-	if (retval < 0) 
-		goto out; 
+	if (retval < 0)
+		goto out;
 
 	bprm.exec = bprm.p;
 	retval = copy_strings32(bprm.envc, envp, &bprm);
-	if (retval < 0) 
-		goto out; 
+	if (retval < 0)
+		goto out;
 
 	retval = copy_strings32(bprm.argc, argv, &bprm);
-	if (retval < 0) 
-		goto out; 
+	if (retval < 0)
+		goto out;
 
 	retval = search_binary_handler(&bprm,regs);
 	if (retval >= 0)
@@ -308,8 +308,8 @@ out:
 	if (bprm.dentry)
 		dput(bprm.dentry);
 
-	/* Assumes that free_page() can take a NULL argument. */ 
-	/* I hope this is ok for all architectures */ 
+	/* Assumes that free_page() can take a NULL argument. */
+	/* I hope this is ok for all architectures */
 	for (i = 0 ; i < MAX_ARG_PAGES ; i++)
 		if (bprm.page[i])
 			__free_page(bprm.page[i]);
@@ -363,7 +363,7 @@ static int nargs(unsigned int arg, char **ap)
 	return n - 1;
 }
 
-asmlinkage int 
+asmlinkage int
 sys32_execve(abi64_no_regargs, struct pt_regs regs)
 {
 	extern asmlinkage int sys_execve(abi64_no_regargs, struct pt_regs regs);
@@ -498,8 +498,8 @@ struct rusage32 {
         int    ru_nswap;
         int    ru_inblock;
         int    ru_oublock;
-        int    ru_msgsnd; 
-        int    ru_msgrcv; 
+        int    ru_msgsnd;
+        int    ru_msgrcv;
         int    ru_nsignals;
         int    ru_nvcsw;
         int    ru_nivcsw;
@@ -509,7 +509,7 @@ static int
 put_rusage (struct rusage32 *ru, struct rusage *r)
 {
 	int err;
-	
+
 	err = put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec);
 	err |= __put_user (r->ru_utime.tv_usec, &ru->ru_utime.tv_usec);
 	err |= __put_user (r->ru_stime.tv_sec, &ru->ru_stime.tv_sec);
@@ -542,8 +542,8 @@ sys32_wait4(__kernel_pid_t32 pid, unsigned int * stat_addr, int options,
 		int ret;
 		unsigned int status;
 		mm_segment_t old_fs = get_fs();
-	
-		set_fs(KERNEL_DS);	
+
+		set_fs(KERNEL_DS);
 		ret = sys_wait4(pid, stat_addr ? &status : NULL, options, &r);
 		set_fs(old_fs);
 		if (put_rusage (ru, &r)) return -EFAULT;
@@ -575,7 +575,7 @@ sys32_getrlimit(unsigned int resource, struct rlimit32 *rlim)
 	struct rlimit r;
 	int ret;
 	mm_segment_t old_fs = get_fs ();
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_old_getrlimit(resource, &r);
 	set_fs (old_fs);
@@ -595,7 +595,7 @@ sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
 	int ret;
 	mm_segment_t old_fs = get_fs ();
 
-	if (resource >= RLIM_NLIMITS) return -EINVAL;	
+	if (resource >= RLIM_NLIMITS) return -EINVAL;
 	if (get_user (r.rlim_cur, &rlim->rlim_cur) ||
 	    __get_user (r.rlim_max, &rlim->rlim_max))
 		return -EFAULT;
@@ -627,7 +627,7 @@ static inline int
 put_statfs (struct statfs32 *ubuf, struct statfs *kbuf)
 {
 	int err;
-	
+
 	err = put_user (kbuf->f_type, &ubuf->f_type);
 	err |= __put_user (kbuf->f_bsize, &ubuf->f_bsize);
 	err |= __put_user (kbuf->f_blocks, &ubuf->f_blocks);
@@ -649,7 +649,7 @@ sys32_statfs(const char * path, struct statfs32 *buf)
 	int ret;
 	struct statfs s;
 	mm_segment_t old_fs = get_fs();
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_statfs((const char *)path, &s);
 	set_fs (old_fs);
@@ -666,7 +666,7 @@ sys32_fstatfs(unsigned int fd, struct statfs32 *buf)
 	int ret;
 	struct statfs s;
 	mm_segment_t old_fs = get_fs();
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_fstatfs(fd, &s);
 	set_fs (old_fs);
@@ -684,7 +684,7 @@ sys32_getrusage(int who, struct rusage32 *ru)
 	struct rusage r;
 	int ret;
 	mm_segment_t old_fs = get_fs();
-		
+
 	set_fs (KERNEL_DS);
 	ret = sys_getrusage(who, &r);
 	set_fs (old_fs);
@@ -769,7 +769,7 @@ sys32_setitimer(int which, struct itimerval32 *in, struct itimerval32 *out)
 	return 0;
 
 }
-asmlinkage unsigned long 
+asmlinkage unsigned long
 sys32_alarm(unsigned int seconds)
 {
 	struct itimerval it_new, it_old;
@@ -918,7 +918,7 @@ do_readv_writev32(int type, struct file *file, const struct iovec32 *vector,
 	/* VERIFY_WRITE actually means a read, as we write to user space */
 	fn = file->f_op->read;
 	if (type == VERIFY_READ)
-		fn = (IO_fn_t) file->f_op->write;		
+		fn = (IO_fn_t) file->f_op->write;
 	ivp = iov;
 	while (count > 0) {
 		void * base;
@@ -1160,7 +1160,7 @@ asmlinkage int sys32_select(int n, u32 *inp, u32 *outp, u32 *exp, struct timeval
 	/*
 	 * We need 6 bitmaps (in/out/ex for both incoming and outgoing),
 	 * since we used fdset we need to allocate memory in units of
-	 * long-words. 
+	 * long-words.
 	 */
 	ret = -ENOMEM;
 	size = FDS_BYTES(n);
@@ -1231,7 +1231,7 @@ sys32_sched_rr_get_interval(__kernel_pid_t32 pid, struct timespec32 *interval)
 	struct timespec t;
 	int ret;
 	mm_segment_t old_fs = get_fs ();
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_sched_rr_get_interval(pid, &t);
 	set_fs (old_fs);
@@ -1243,7 +1243,7 @@ sys32_sched_rr_get_interval(__kernel_pid_t32 pid, struct timespec32 *interval)
 
 
 extern asmlinkage int sys_nanosleep(struct timespec *rqtp,
-				    struct timespec *rmtp); 
+				    struct timespec *rmtp);
 
 asmlinkage int
 sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
@@ -1255,7 +1255,7 @@ sys32_nanosleep(struct timespec32 *rqtp, struct timespec32 *rmtp)
 	if (get_user (t.tv_sec, &rqtp->tv_sec) ||
 	    __get_user (t.tv_nsec, &rqtp->tv_nsec))
 		return -EFAULT;
-	
+
 	set_fs (KERNEL_DS);
 	ret = sys_nanosleep(&t, rmtp ? &t : NULL);
 	set_fs (old_fs);
@@ -1338,36 +1338,30 @@ asmlinkage int sys32_setsockopt(int fd, int level, int optname,
 	return sys_setsockopt(fd, level, optname, optval, optlen);
 }
 
-struct flock32 {
-	short l_type;
-	short l_whence;
-	__kernel_off_t32 l_start;
-	__kernel_off_t32 l_len;
-	__kernel_pid_t32 l_pid;
-	short __unused;
-};
-
 static inline int get_flock(struct flock *kfl, struct flock32 *ufl)
 {
 	int err;
-	
+
 	err = get_user(kfl->l_type, &ufl->l_type);
 	err |= __get_user(kfl->l_whence, &ufl->l_whence);
 	err |= __get_user(kfl->l_start, &ufl->l_start);
 	err |= __get_user(kfl->l_len, &ufl->l_len);
 	err |= __get_user(kfl->l_pid, &ufl->l_pid);
+
 	return err;
 }
 
 static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
 {
 	int err;
-	
+
 	err = __put_user(kfl->l_type, &ufl->l_type);
 	err |= __put_user(kfl->l_whence, &ufl->l_whence);
 	err |= __put_user(kfl->l_start, &ufl->l_start);
 	err |= __put_user(kfl->l_len, &ufl->l_len);
+	err |= __put_user(0, &ufl->l_sysid);
 	err |= __put_user(kfl->l_pid, &ufl->l_pid);
+
 	return err;
 }
 
@@ -1385,7 +1379,7 @@ sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			struct flock f;
 			mm_segment_t old_fs;
 			long ret;
-			
+
 			if (get_flock(&f, (struct flock32 *)arg))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
@@ -1450,7 +1444,7 @@ struct msqid_ds32
         u32 wwait;
         u32 rwait;
         unsigned short msg_cbytes;
-        unsigned short msg_qnum;  
+        unsigned short msg_qnum;
         unsigned short msg_qbytes;
         __kernel_ipc_pid_t32 msg_lspid;
         __kernel_ipc_pid_t32 msg_lrpid;
@@ -1462,8 +1456,8 @@ struct shmid_ds32 {
         __kernel_time_t32       shm_atime;
         __kernel_time_t32       shm_dtime;
         __kernel_time_t32       shm_ctime;
-        __kernel_ipc_pid_t32    shm_cpid; 
-        __kernel_ipc_pid_t32    shm_lpid; 
+        __kernel_ipc_pid_t32    shm_cpid;
+        __kernel_ipc_pid_t32    shm_lpid;
         unsigned short          shm_nattch;
 };
 
@@ -1809,7 +1803,7 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 		err = do_sys32_shmat (first, second, third,
 				      version, (void *)A(ptr));
 		break;
-	case SHMDT: 
+	case SHMDT:
 		err = sys_shmdt ((char *)A(ptr));
 		break;
 	case SHMGET:
@@ -1849,7 +1843,7 @@ asmlinkage long sys32_sysctl(struct sysctl_args32 *uargs32)
 	ret = -EFAULT;
 
 	memset(&kargs, 0, sizeof (kargs));
-	
+
 	err = get_user(kargs32.name, &uargs32->name);
 	err |= __get_user(kargs32.nlen, &uargs32->nlen);
 	err |= __get_user(kargs32.oldval, &uargs32->oldval);
@@ -1911,7 +1905,7 @@ out:
 		kfree(kargs.oldval);
 	if (kargs.newval)
 		kfree(kargs.newval);
-	return ret; 
+	return ret;
 }
 
 asmlinkage long sys32_newuname(struct new_utsname * name)
@@ -2019,7 +2013,7 @@ asmlinkage int sys32_adjtimex(struct timex32 *utp)
 /*
  *  Declare the 32-bit version of the msghdr
  */
- 
+
 struct msghdr32 {
 	unsigned int    msg_name;	/* Socket name			*/
 	int		msg_namelen;	/* Length of name		*/
@@ -2067,7 +2061,7 @@ verify_iovec32(struct msghdr *m, struct iovec *iov, char *address, int mode)
 {
 	int size, err, ct;
 	struct iovec32 *iov32;
-	
+
 	if(m->msg_namelen)
 	{
 		if(mode==VERIFY_READ)
@@ -2076,7 +2070,7 @@ verify_iovec32(struct msghdr *m, struct iovec *iov, char *address, int mode)
 			if(err<0)
 				goto out;
 		}
-		
+
 		m->msg_name = address;
 	} else
 		m->msg_name = NULL;
@@ -2105,7 +2099,7 @@ sockfd_put(struct socket *sock)
 }
 
 /* XXX This really belongs in some header file... -DaveM */
-#define MAX_SOCK_ADDR	128		/* 108 for Unix domain - 
+#define MAX_SOCK_ADDR	128		/* 108 for Unix domain -
 					   16 for IP, 16 for IPX,
 					   24 for IPv6,
 					   about 80 for AX.25 */
@@ -2125,13 +2119,13 @@ int sys32_sendmsg(int fd, struct msghdr32 *msg, unsigned flags)
 	unsigned char *ctl_buf = ctl;
 	struct msghdr msg_sys;
 	int err, ctl_len, iov_size, total_len;
-	
+
 	err = -EFAULT;
 	if (shape_msg(&msg_sys, msg))
-		goto out; 
+		goto out;
 
 	sock = sockfd_lookup(fd, &err);
-	if (!sock) 
+	if (!sock)
 		goto out;
 
 	/* do not move before msg_sys is valid */
@@ -2150,7 +2144,7 @@ int sys32_sendmsg(int fd, struct msghdr32 *msg, unsigned flags)
 
 	/* This will also move the address data into kernel space */
 	err = verify_iovec32(&msg_sys, iov, address, VERIFY_READ);
-	if (err < 0) 
+	if (err < 0)
 		goto out_freeiov;
 	total_len = err;
 
@@ -2158,14 +2152,14 @@ int sys32_sendmsg(int fd, struct msghdr32 *msg, unsigned flags)
 
 	if (msg_sys.msg_controllen > INT_MAX)
 		goto out_freeiov;
-	ctl_len = msg_sys.msg_controllen; 
-	if (ctl_len) 
+	ctl_len = msg_sys.msg_controllen;
+	if (ctl_len)
 	{
 		if (ctl_len > sizeof(ctl))
 		{
 			err = -ENOBUFS;
 			ctl_buf = sock_kmalloc(sock->sk, ctl_len, GFP_KERNEL);
-			if (ctl_buf == NULL) 
+			if (ctl_buf == NULL)
 				goto out_freeiov;
 		}
 		err = -EFAULT;
@@ -2180,14 +2174,14 @@ int sys32_sendmsg(int fd, struct msghdr32 *msg, unsigned flags)
 	err = sock_sendmsg(sock, &msg_sys, total_len);
 
 out_freectl:
-	if (ctl_buf != ctl)    
+	if (ctl_buf != ctl)
 		sock_kfree_s(sock->sk, ctl_buf, ctl_len);
 out_freeiov:
 	if (iov != iovstack)
 		sock_kfree_s(sock->sk, iov, iov_size);
 out_put:
 	sockfd_put(sock);
-out:       
+out:
 	return err;
 }
 
@@ -2211,7 +2205,7 @@ sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
 	/* user mode address pointers */
 	struct sockaddr *uaddr;
 	int *uaddr_len;
-	
+
 	err=-EFAULT;
 	if (shape_msg(&msg_sys, msg))
 		goto out;
@@ -2223,7 +2217,7 @@ sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
 	err = -EINVAL;
 	if (msg_sys.msg_iovlen > UIO_MAXIOV)
 		goto out_put;
-	
+
 	/* Check whether to allocate the iovec area*/
 	err = -ENOMEM;
 	iov_size = msg_sys.msg_iovlen * sizeof(struct iovec);
@@ -2237,7 +2231,7 @@ sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
 	 *	Save the user-mode address (verify_iovec will change the
 	 *	kernel msghdr to use the kernel address space)
 	 */
-	 
+
 	uaddr = msg_sys.msg_name;
 	uaddr_len = &msg->msg_namelen;
 	err = verify_iovec32(&msg_sys, iov, addr, VERIFY_WRITE);
@@ -2247,7 +2241,7 @@ sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
 
 	cmsg_ptr = (unsigned long)msg_sys.msg_control;
 	msg_sys.msg_flags = 0;
-	
+
 	if (sock->file->f_flags & O_NONBLOCK)
 		flags |= MSG_DONTWAIT;
 	err = sock_recvmsg(sock, &msg_sys, total_len, flags);
@@ -2263,7 +2257,7 @@ sys32_recvmsg (int fd, struct msghdr32 *msg, unsigned int flags)
 	err = __put_user(msg_sys.msg_flags, &msg->msg_flags);
 	if (err)
 		goto out_freeiov;
-	err = __put_user((unsigned long)msg_sys.msg_control-cmsg_ptr, 
+	err = __put_user((unsigned long)msg_sys.msg_control-cmsg_ptr,
 							 &msg->msg_controllen);
 	if (err)
 		goto out_freeiov;
