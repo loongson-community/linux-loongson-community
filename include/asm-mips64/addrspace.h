@@ -58,7 +58,7 @@
 
 #ifndef __ASSEMBLY__
 #define PHYSADDR(a) ({						\
-	const _ATYPE64_ _a = (a);				\
+	const _ATYPE64_ _a = _ACAST64_ (a);			\
 	_a == _ACAST32_ _a ? CPHYSADDR(_a) : XPHYSADDR(_a); })
 #endif
 
