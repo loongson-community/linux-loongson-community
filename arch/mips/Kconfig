@@ -29,6 +29,7 @@ menu "Machine selection"
 
 config MACH_JAZZ
 	bool "Support for the Jazz family of machines"
+	select ARC
 	select ISA
 	help
 	 This a family of machines based on the MIPS R4030 chipset which was
@@ -436,6 +437,7 @@ config NEC_OSPREY
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
+	select ARC
 	select DMA_NONCOHERENT
 	select IP22_CPU_SCACHE
 	select IRQ_CPU
@@ -448,6 +450,7 @@ config SGI_IP22
 config SGI_IP27
 	bool "Support for SGI IP27 (Origin200/2000)"
 	depends on MIPS64
+	select ARC
 	select DMA_IP27
 	select HW_HAS_PCI
 	select PCI_DOMAINS
@@ -514,6 +517,7 @@ config REPLICATE_EXHANDLERS
 config SGI_IP32
 	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on MIPS64 && EXPERIMENTAL
+	select ARC
 	select DMA_NONCOHERENT
 	select HW_HAS_PCI
 	select R5000_CPU_SCACHE
@@ -844,6 +848,7 @@ config SIBYTE_TBPROF
 
 config SNI_RM200_PCI
 	bool "Support for SNI RM200 PCI"
+	select ARC
 	select DMA_NONCOHERENT
 	select HAVE_STD_PC_SERIAL_PORT
 	select HW_HAS_PCI
@@ -886,8 +891,6 @@ config HAVE_DEC_LOCK
 #
 config ARC
 	bool
-	depends on SNI_RM200_PCI || SGI_IP32 || SGI_IP27 || SGI_IP22 || MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61
-	default y
 
 config	DMA_COHERENT
 	bool
