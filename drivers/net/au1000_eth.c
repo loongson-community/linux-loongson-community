@@ -27,11 +27,6 @@
  * 
  */
 
-#ifndef __mips__
-#error This driver only works with MIPS architectures!
-#endif
-
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
