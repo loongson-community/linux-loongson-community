@@ -251,15 +251,13 @@ void enable_cpu_timer(void)
         local_irq_restore(flags);
 }
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	int i;
         unsigned long flags;
 
         memset(irq_desc, 0, sizeof(irq_desc));
         set_except_vector(0, it8172_IRQ);
-
-	init_generic_irq();
 
 	/* mask all interrupts */
 	it8172_hw0_icregs->lb_mask  = 0xffff;

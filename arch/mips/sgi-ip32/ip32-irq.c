@@ -552,11 +552,10 @@ void ip32_irq5(struct pt_regs *regs)
 	ll_timer_interrupt(IP32_R4K_TIMER_IRQ, regs);
 }
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	unsigned int irq;
 
-	init_generic_irq();
 	/* Install our interrupt handler, then clear and disable all
 	 * CRIME and MACE interrupts. */
 	crime_write(0, CRIME_INT_MASK);

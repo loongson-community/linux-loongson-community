@@ -665,7 +665,7 @@ static void toshiba_rbtx4927_irq_isa_end(unsigned int irq)
 #endif
 
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	extern void tx4927_irq_init(void);
 

@@ -123,7 +123,7 @@ extern void breakpoint(void);
 extern int remote_debug;
 #endif
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	int i;
 

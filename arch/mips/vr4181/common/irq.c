@@ -184,7 +184,7 @@ static struct irqaction cascade =
 static struct irqaction reserved =
 	{ no_action, SA_INTERRUPT, CPU_MASK_NONE, "cascade", NULL, NULL };
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	int i;
 	extern irq_desc_t irq_desc[];

@@ -809,7 +809,7 @@ int setup_irq(unsigned int irq, struct irqaction * new)
 	return 0;
 }
 
-void __init init_generic_irq(void)
+void __init init_IRQ(void)
 {
 	int i;
 
@@ -819,6 +819,8 @@ void __init init_generic_irq(void)
 		irq_desc[i].depth   = 1;
 		irq_desc[i].handler = &no_irq_type;
 	}
+
+	arch_init_irq();
 }
 
 EXPORT_SYMBOL(disable_irq_nosync);

@@ -118,12 +118,11 @@ extern void set_debug_traps(void);
 /*
  * Initialize the next level interrupt handler
  */
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	clear_c0_status(ST0_IM);
 
 	set_except_vector(0, titan_handle_int);
-	init_generic_irq();
 	mips_cpu_irq_init(0);
 	rm7k_cpu_irq_init(8);
 

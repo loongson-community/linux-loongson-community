@@ -391,7 +391,7 @@ void free_irqno(unsigned int irq)
 	clear_bit(irq, irq_map);
 }
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	int i;
 

@@ -307,10 +307,10 @@ int sb1250_steal_irq(int irq)
 }
 
 /*
- *  init_IRQ is called early in the boot sequence from init/main.c.  It
- *  is responsible for setting up the interrupt mapper and installing the
- *  handler that will be responsible for dispatching interrupts to the
- *  "right" place.
+ *  arch_init_irq is called early in the boot sequence from init/main.c via
+ *  init_IRQ.  It is responsible for setting up the interrupt mapper and
+ *  installing the handler that will be responsible for dispatching interrupts
+ *  to the "right" place.
  */
 /*
  * For now, map all interrupts to IP[2].  We could save
@@ -332,7 +332,7 @@ int sb1250_steal_irq(int irq)
 #define IMR_IP5_VAL	K_INT_MAP_I3
 #define IMR_IP6_VAL	K_INT_MAP_I4
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 
 	unsigned int i;

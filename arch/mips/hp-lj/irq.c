@@ -15,7 +15,7 @@
 #include <asm/system.h>
 #include <asm/gdb-stub.h>
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	extern void hpIRQ(void);
 	extern void mips_cpu_irq_init(u32 base);

@@ -701,7 +701,7 @@ void __init dec_init_kn03(void)
 }				/* dec_init_kn03 */
 
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	switch (mips_machtype) {
 	case MACH_DS23100:	/* DS2100/DS3100 Pmin/Pmax */

@@ -187,10 +187,9 @@ void corehi_irqdispatch(struct pt_regs *regs)
         die("CoreHi interrupt", regs);
 }
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	set_except_vector(0, mipsIRQ);
-	init_generic_irq();
 	init_i8259_irqs();
 
 #ifdef CONFIG_KGDB

@@ -91,11 +91,10 @@ void __init init_r4030_ints(void)
  * driver compatibility reasons interrupts 0 - 15 to be the i8259
  * interrupts even if the hardware uses a different interrupt numbering.
  */
-void __init init_IRQ (void)
+void __init arch_init_irq(void)
 {
 	set_except_vector(0, jazz_handle_int);
 
-	init_generic_irq();
 	init_i8259_irqs();			/* Integrated i8259  */
 	init_r4030_ints();
 

@@ -84,7 +84,6 @@ static inline void mask_and_ack_either_edge_irq(unsigned int irq_nr);
 inline void local_enable_irq(unsigned int irq_nr);
 inline void local_disable_irq(unsigned int irq_nr);
 
-extern void __init init_generic_irq(void);
 void	(*board_init_irq)(void);
 
 #ifdef CONFIG_PM
@@ -420,7 +419,7 @@ static void setup_local_irq(unsigned int irq_nr, int type, int int_req)
 }
 
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	int i;
 	unsigned long cp0_status;
@@ -433,8 +432,6 @@ void __init init_IRQ(void)
 	cp0_status = read_c0_status();
 	memset(irq_desc, 0, sizeof(irq_desc));
 	set_except_vector(0, au1000_IRQ);
-
-	init_generic_irq();
 
 	/* Initialize interrupt controllers to a safe state.
 	*/

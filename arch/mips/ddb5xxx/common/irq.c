@@ -27,7 +27,7 @@ static int __init nokgdb(char *str)
 __setup("nokgdb", nokgdb);
 #endif
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 #ifdef CONFIG_KGDB
 	extern void breakpoint(void);
@@ -39,9 +39,6 @@ void __init init_IRQ(void)
 		breakpoint();
 	}
 #endif
-	/* set up default irq controller */
-	init_generic_irq();
-
 	/* invoke board-specific irq setup */
 	irq_setup();
 }

@@ -423,7 +423,7 @@ void jmr3927_irq_setup(void)
 
 void (*irq_setup)(void);
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 
 #ifdef CONFIG_KGDB
@@ -453,7 +453,6 @@ void jmr3927_irq_init(u32 irq_base)
 {
 	u32 i;
 
-	init_generic_irq();
 	for (i= irq_base; i< irq_base + JMR3927_NR_IRQ_IRC + JMR3927_NR_IRQ_IOC; i++) {
 		irq_desc[i].status = IRQ_DISABLED;
 		irq_desc[i].action = NULL;

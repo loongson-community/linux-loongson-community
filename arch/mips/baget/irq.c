@@ -391,7 +391,7 @@ static void write_err_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 static struct irqaction irq0  =
 { write_err_interrupt, SA_INTERRUPT, CPU_MASK_NONE, "bus write error", NULL, NULL};
 
-void __init init_IRQ(void)
+void __init arch_init_irq(void)
 {
 	irq_setup();
 
