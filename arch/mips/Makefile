@@ -396,8 +396,6 @@ archclean:
 	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/baget
 	@$(MAKE) -f scripts/Makefile.clean obj=arch/mips/lasat
 
-archmrproper:
-
 # Generate <asm/offset.h 
 #
 # The default rule is suffering from funny problems on MIPS so we using our
