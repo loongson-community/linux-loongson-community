@@ -71,7 +71,7 @@ static void __init jazz_irq_setup(void)
 			  JAZZ_IE_FLOPPY);
 	r4030_read_reg16(JAZZ_IO_IRQ_SOURCE); /* clear pending IRQs */
 	r4030_read_reg32(JAZZ_R4030_INVAL_ADDR); /* clear error bits */
-	set_cp0_status(ST0_IM, IE_IRQ4 | IE_IRQ3 | IE_IRQ2 | IE_IRQ1);
+	change_cp0_status(ST0_IM, IE_IRQ4 | IE_IRQ3 | IE_IRQ2 | IE_IRQ1);
 	/* set the clock to 100 Hz */
 	r4030_write_reg32(JAZZ_TIMER_INTERVAL, 9);
 	request_region(0x20, 0x20, "pic1");

@@ -127,7 +127,7 @@ void __init it8172_setup(void)
 	}
 #endif	  
 
-	set_cp0_status(ST0_FR,0);
+	clear_cp0_status(ST0_FR);
 	rtc_ops = &it8172_rtc_ops;
 
 	_machine_restart = it8172_restart;

@@ -219,7 +219,7 @@ void sgi_time_init (struct irqaction *irq) {
 	/* Set ourselves up for future interrupts */
         r4k_next = (read_32bit_cp0_register(CP0_COUNT) + r4k_interval);
         write_32bit_cp0_register(CP0_COMPARE, r4k_next);
-        set_cp0_status(ST0_IM, ALLINTS);
+        change_cp0_status(ST0_IM, ALLINTS);
 	sti ();
 }
 

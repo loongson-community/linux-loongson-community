@@ -58,9 +58,9 @@ static void __init nino_irq_setup(void)
 	 * Enable only the interrupts for the UART and negative
 	 * edge (1-to-0) triggered multi-function I/O pins.
 	 */
-    	set_cp0_status(ST0_BEV, 0);
+    	clear_cp0_status(ST0_BEV);
 	tmp = read_32bit_cp0_register(CP0_STATUS);
-    	set_cp0_status(ST0_IM, tmp | IE_IRQ2 | IE_IRQ4);
+    	change_cp0_status(ST0_IM, tmp | IE_IRQ2 | IE_IRQ4);
 
 	/* Register the global interrupt handler */
 	set_except_vector(0, nino_handle_int);

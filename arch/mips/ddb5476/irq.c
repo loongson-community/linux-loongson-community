@@ -244,8 +244,8 @@ void __init ddb_irq_setup(void)
 	m1543_irq_setup();
 
 	/* we pin #0 - #4 (no internal timer) */
-	set_cp0_status(ST0_IM,
-		       IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4);
+	change_cp0_status(ST0_IM,
+	                  IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4);
 
 	set_except_vector(0, ddbIRQ);
 }

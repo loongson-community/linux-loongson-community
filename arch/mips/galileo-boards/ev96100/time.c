@@ -149,7 +149,7 @@ void __init time_init(void)
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
 
         /* FIX ME */
-	set_cp0_status(ST0_IM, IE_IRQ5);
+	change_cp0_status(ST0_IM, IE_IRQ5);
 }
 
 /* This is for machines which generate the exact clock. */

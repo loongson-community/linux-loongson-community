@@ -56,7 +56,7 @@ void exit_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (last_task_used_math == current) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
+		set_cp0_status(ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
 		last_task_used_math = NULL;
 	}
@@ -66,7 +66,7 @@ void flush_thread(void)
 {
 	/* Forget lazy fpu state */
 	if (last_task_used_math == current) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
+		set_cp0_status(ST0_CU1);
 		__asm__ __volatile__("cfc1\t$0,$31");
 		last_task_used_math = NULL;
 	}
@@ -87,7 +87,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		if (mips_cpu.options & MIPS_CPU_FPU)
 #endif
 	{
-			set_cp0_status(ST0_CU1, ST0_CU1);
+			set_cp0_status(ST0_CU1);
 			save_fp(p);
 	}
 	/* set up new TSS. */

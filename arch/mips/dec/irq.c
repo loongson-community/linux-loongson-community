@@ -36,7 +36,7 @@ static inline void mask_irq(unsigned int irq_nr)
 	dummy = *imr;
 	dummy = *imr;
     } else			/* This is a cpu interrupt        */
-	set_cp0_status(ST0_IM, read_32bit_cp0_register(CP0_STATUS) & ~dec_interrupt[irq_nr].cpu_mask);
+	change_cp0_status(ST0_IM, read_32bit_cp0_register(CP0_STATUS) & ~dec_interrupt[irq_nr].cpu_mask);
 }
 
 static inline void unmask_irq(unsigned int irq_nr)
@@ -48,7 +48,7 @@ static inline void unmask_irq(unsigned int irq_nr)
 	dummy = *imr;
 	dummy = *imr;
     }
-    set_cp0_status(ST0_IM, read_32bit_cp0_register(CP0_STATUS) | dec_interrupt[irq_nr].cpu_mask);
+    change_cp0_status(ST0_IM, read_32bit_cp0_register(CP0_STATUS) | dec_interrupt[irq_nr].cpu_mask);
 }
 
 void disable_irq(unsigned int irq_nr)

@@ -420,18 +420,18 @@ void galileo_irq_setup(void)
 	/*
 	 * Clear all of the interrupts while we change the able around a bit.
 	 */
-	set_cp0_status(ST0_IM, 0);
-	set_cp0_status(ST0_BEV, 1);	/* int-handler is not on bootstrap */
+	clear_cp0_status(ST0_IM | ST0_BEV);
 
 	/* Sets the exception_handler array. */
 	set_except_vector(0, galileo_handle_int);
 
 	cli();
 
-/*
-  Enable timer.  Other interrupts will be enabled as they are registered.
-*/
-	set_cp0_status(ST0_IM, IE_IRQ2);
+	/*
+	 * Enable timer.  Other interrupts will be enabled as they are
+	 * registered.
+	 */
+	set_cp0_status(IE_IRQ2);
 
 
 #ifdef CONFIG_REMOTE_DEBUG
@@ -443,7 +443,6 @@ void galileo_irq_setup(void)
 		breakpoint();	/* you may move this line to whereever you want :-) */
 	}
 #endif
-
 }
 
 

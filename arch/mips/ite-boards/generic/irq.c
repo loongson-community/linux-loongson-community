@@ -440,7 +440,7 @@ void __init init_IRQ(void)
 	 * All ITE interrupts are masked for now.
 	 */
 	enable_irq(1<<EXT_IRQ0_TO_IP);
-	//set_cp0_status(ST0_IM, IE_IRQ2);
+	//change_cp0_status(ST0_IM, IE_IRQ2);
 
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */

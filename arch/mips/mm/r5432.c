@@ -832,7 +832,7 @@ void __init ld_mmu_r5432(void)
 
 	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
-	set_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
+	change_cp0_config(CONF_CM_CMASK, CONF_CM_CACHABLE_NONCOHERENT);
 
 	probe_icache(config);
 	probe_dcache(config);

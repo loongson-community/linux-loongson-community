@@ -702,7 +702,7 @@ static inline void setup_dedicated_int(void)
 
 	if(mips_cpu.options & MIPS_CPU_DIVEC) {
 		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
-		set_cp0_cause(CAUSEF_IV, CAUSEF_IV);
+		set_cp0_cause(CAUSEF_IV);
 		dedicated_iv_available = 1;
 	}
 }
@@ -785,7 +785,7 @@ void __init trap_init(void)
 		EISA_bus = 1;
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
-	set_cp0_status(ST0_BEV, 0);
+	clear_cp0_status(ST0_BEV);
 
 	/* Copy the generic exception handler code to it's final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
@@ -878,7 +878,7 @@ void __init trap_init(void)
 		 * should get some special optimizations.
 		 */
 		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		set_cp0_status(ST0_XX, ST0_XX);
+		set_cp0_status(ST0_XX);
 		/*
 		 * The R10k might even work for Linux/MIPS - but we're paranoid
 		 * and refuse to run until this is tested on real silicon

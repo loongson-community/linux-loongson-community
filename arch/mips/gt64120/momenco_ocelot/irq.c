@@ -129,9 +129,9 @@ void momenco_ocelot_irq_setup(void)
 
 	/*
 	 * Clear all of the interrupts while we change the able around a bit.
+	 * int-handler is not on bootstrap
 	 */
-	set_cp0_status(ST0_IM, 0);
-	set_cp0_status(ST0_BEV, 1);	/* int-handler is not on bootstrap */
+	clear_cp0_status(ST0_IM | ST0_BEV);
 
 	/* Sets the first-level interrupt dispatcher. */
 	set_except_vector(0, ocelot_handle_int);
@@ -142,7 +142,7 @@ void momenco_ocelot_irq_setup(void)
 	 * Enable timer.  Other interrupts will be enabled as they are
 	 * registered.
 	 */
-	// set_cp0_status(ST0_IM, IE_IRQ4);
+	// change_cp0_status(ST0_IM, IE_IRQ4);
 
 
 #ifdef CONFIG_REMOTE_DEBUG

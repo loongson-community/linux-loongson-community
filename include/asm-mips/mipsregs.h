@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1994, 1995, 1996, 1997, 2000 by Ralf Baechle
+ * Copyright (C) 1994, 1995, 1996, 1997, 2000, 2001 by Ralf Baechle
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Modified for further R[236]000 support by Paul M. Antoine, 1996.
  * Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
@@ -238,7 +238,31 @@
  */
 #define __BUILD_SET_CP0(name,register)                          \
 extern __inline__ unsigned int                                  \
-set_cp0_##name(unsigned int change, unsigned int new)           \
+set_cp0_##name(unsigned int set)				\
+{                                                               \
+	unsigned int res;                                       \
+                                                                \
+	res = read_32bit_cp0_register(register);                \
+	res |= ~set;						\
+	write_32bit_cp0_register(register, res);        	\
+                                                                \
+	return res;                                             \
+}								\
+								\
+extern __inline__ unsigned int                                  \
+clear_cp0_##name(unsigned int clear)				\
+{                                                               \
+	unsigned int res;                                       \
+                                                                \
+	res = read_32bit_cp0_register(register);                \
+	res &= ~clear;						\
+	write_32bit_cp0_register(register, res);		\
+                                                                \
+	return res;                                             \
+}								\
+								\
+extern __inline__ unsigned int                                  \
+change_cp0_##name(unsigned int change, unsigned int new)	\
 {                                                               \
 	unsigned int res;                                       \
                                                                 \
