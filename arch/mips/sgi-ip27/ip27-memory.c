@@ -224,9 +224,9 @@ void __init paging_init(void)
 
 	for (node = 0; node < numnodes; node++) {
 		pfn_t start_pfn = slot_getbasepfn(node, 0);
-		pfn_t end_pfn = node_getmaxclick(node);
+		pfn_t end_pfn = node_getmaxclick(node) + 1;
 
-		zones_size[ZONE_DMA] = end_pfn + 1 - start_pfn;
+		zones_size[ZONE_DMA] = end_pfn - start_pfn;
 		free_area_init_node(node, NODE_DATA(node), NULL,
 				zones_size, start_pfn, NULL);
 
