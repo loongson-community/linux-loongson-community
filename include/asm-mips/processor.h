@@ -24,7 +24,6 @@
 
 #ifndef __ASSEMBLY__
 #include <linux/cache.h>
-#include <linux/smp.h>
 #include <linux/threads.h>
 
 #include <asm/cachectl.h>
