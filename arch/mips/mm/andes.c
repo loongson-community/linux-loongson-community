@@ -182,6 +182,14 @@ void __init ld_mmu_andes(void)
 	_flush_icache_page = andes_flush_icache_page;
 	_flush_icache_range = andes_flush_icache_range;
 
+	write_32bit_cp0_register(CP0_FRAMEMASK, 0);
+
 	flush_cache_all();
 	flush_tlb_all();
+
+	/*
+	 * The R10k might even work for Linux/MIPS - but we're paranoid
+	 * and refuse to run until this is tested on real silicon
+	 */
+	panic("CPU too expensive - making holiday in the ANDES!");
 }

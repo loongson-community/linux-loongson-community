@@ -844,18 +844,6 @@ void __init trap_init(void)
 			restore_fp_context = fpu_emulator_restore_context;
 		}
 	} else switch(mips_cpu.cputype) {
-	case CPU_R10000:
-		/*
-		 * The R10000 is in most aspects similar to the R4400.  It
-		 * should get some special optimizations.
-		 */
-		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		/*
-		 * The R10k might even work for Linux/MIPS - but we're paranoid
-		 * and refuse to run until this is tested on real silicon
-		 */
-		panic("CPU too expensive - making holiday in the ANDES!");
-		break;
 	case CPU_SB1:
 		/* XXX - This should be folded in to the "cleaner" handling, above */
 		memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
