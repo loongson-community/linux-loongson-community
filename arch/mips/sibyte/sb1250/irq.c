@@ -128,6 +128,17 @@ static void enable_sb1250_irq(unsigned int irq)
 
 static void ack_sb1250_irq(unsigned int irq)
 {
+	u64 pending;
+
+	/*
+	 * If the interrupt was an LDT interrupt, now is the time
+	 * to clear it.
+	 */
+	pending = in64(KSEG1 + A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT));
+	pending &= ((u64)1 << (irq));
+	if (pending)
+		out64(pending, KSEG1+A_IMR_REGISTER(0,R_IMR_LDT_INTERRUPT_CLR));
+
 	sb1250_mask_irq(0, irq);
 }
 

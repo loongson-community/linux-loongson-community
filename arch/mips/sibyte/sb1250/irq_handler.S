@@ -62,9 +62,6 @@
         /* Indicate kernel mode (set CU0, clear KSU,ERL,EXL, leave IE off) */
 	CLI
 
-        li      s1, 0xb00a0020
-        lw      t1, 0(s1)
-        
 #ifdef CONFIG_SIBYTE_SB1250_PROF
 	/* Set compare to count to silence count/compare timer interrupts */
 	mfc0	 t1, CP0_COUNT
@@ -72,7 +69,7 @@
 #endif
 	/* Read cause */
 	mfc0     s0, CP0_CAUSE
-	
+
 #ifdef CONFIG_SIBYTE_SB1250_PROF
 	/* Cpu performance counter interrupt is routed to IP[7] */
 	andi	 t1, s0, CAUSEF_IP7
@@ -92,12 +89,9 @@
 	 nop
 	jal      sb1250_timer_interrupt
 	 move    a0, sp  /* Pass the registers along */
-        lw      t1, 4(s1)
 	j	ret_from_irq
 	 nop				# delay slot
 1:	
-
-        lw      t1, 8(s1)
 
 #ifdef CONFIG_SMP
 	/* Mailbox interrupt is routed to IP[3] */
@@ -106,43 +100,22 @@
          nop
 	jal	 sb1250_mailbox_interrupt
 	 move    a0, sp		
-        lw      t1, 12(s1)
 	j	ret_from_irq
 	 nop				# delay slot
 2:
-        lw      t1, 16(s1)
 #endif
+
 	and      t1, s0, CAUSEF_IP2
 	beqz     t1, 4f
 	 nop
+
 	/* Default...we've hit an IP[2] interrupt, which means we've got to check the
 	   1250 interrupt registers to figure out what to do */
 	la       v0, KSEG1 + A_IMR_CPU0_BASE
-	ld       s1, R_IMR_INTERRUPT_MASK(v0)
-	ld       s0, R_IMR_INTERRUPT_SOURCE_STATUS(v0)
-	ld	 t0, R_IMR_LDT_INTERRUPT(v0)
-        nor      s1, s1, zero   /* Negate mask to turn it into an and mask */
-	or	 s0, s0, t0     /* Merge pending system and LDT IRQS */
-	and      s0, s0, s1     /* Now s0 has a bitfield of unmasked pending IRQs */
+	ld       s0, R_IMR_INTERRUPT_STATUS_BASE(v0)		/* read IP[2] status */
 
-	/*
-	 * Don't let timer interrupts or mailbox interrupts get dispatched
-	 * through this mechanism - they get handled specially above
-	 */
-#ifdef CONFIG_SMP
-	li	 t0, (_SB_MAKEMASK1(K_INT_TIMER_0) | _SB_MAKEMASK1(K_INT_TIMER_1) \
-	             | _SB_MAKEMASK1(K_INT_MBOX_0))	/* remove timer bits from mask */
-#else
-	li	 t0, _SB_MAKEMASK1(K_INT_TIMER_0)	/* remove timer bits from mask */
-#endif 
-	not	 t0
-	and	 s0, s0, t0	/* timer interrupts don't count here */
-	/* Now the timer and mailbox interrupts have been removed from the pending mask */
-
-	and	 t0, t0, s1     /* LDT interrupts we will service */
 	beqz     s0, 4f         /* No interrupts.  Return */
 	 daddiu	  a1, sp, 0     /* registers get passed along as the second argument */
-	sd	 t0, R_IMR_LDT_INTERRUPT_CLR(v0)  /* Clear what we'll service */ 
 
 3:	dclz     s1, s0         /* Find the next interrupt */
 	dsubu    a0, zero, s1
