@@ -18,11 +18,11 @@
 	__asm__ __volatile__(						\
 	"	.set	noreorder		\n"			\
 	"	.set	mips3\n\t		\n"			\
-	"	cache	%0, (%1)		\n"			\
+	"	cache	%0, %1			\n"			\
 	"	.set	mips0			\n"			\
 	"	.set	reorder"					\
 	:								\
-	: "i" (op), "r" (addr))
+	: "i" (op), "m" (*(unsigned char *)(addr)))
 
 static inline void flush_icache_line_indexed(unsigned long addr)
 {

@@ -24,6 +24,16 @@
 	:								\
 	: "i" (op), "r" (addr))
 
+#define cache_op(op,addr)					\
+	__asm__ __volatile__(					\
+	"	.set	noreorder\n\t"				\
+	"	.set	mips3\n\t"				\
+	"	cache	%0, (%1)\n\t"				\
+	"	.set	mips0\n\t"				\
+	"	.set	reorder\n\t"				\
+	:							\
+	: "i" (op), "r" (addr))
+
 static inline void flush_icache_line_indexed(unsigned long addr)
 {
 	cache_op(Index_Invalidate_I, addr);
