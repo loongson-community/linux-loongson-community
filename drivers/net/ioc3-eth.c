@@ -249,7 +249,7 @@ nic_find(struct ioc3 *ioc3, int *last)
 		b = nic_read_bit(ioc3);
 
 		if (a && b) {
-			printk("NIC search failed.\n");
+			printk("NIC search failed (not fatal).\n");
 			*last = 0;
 			return 0;
 		}
@@ -279,7 +279,7 @@ nic_find(struct ioc3 *ioc3, int *last)
 	return address;
 }
 
-static void nic_init(struct ioc3 *ioc3)
+static int nic_init(struct ioc3 *ioc3)
 {
 	const char *type;
 	u8 crc;
@@ -298,8 +298,8 @@ static void nic_init(struct ioc3 *ioc3)
 			break;
 		default:
 			if (save == 0) {
-				printk("No NIC connected.\n");
-				return;
+				/* Let the caller try again.  */
+				return -1;
 			}
 			continue;
 		}
@@ -326,6 +326,8 @@ static void nic_init(struct ioc3 *ioc3)
 			serial[3], serial[4], serial[5], crc);
 	}
 	printk(".\n");
+
+	return 0;
 }
 
 /*
@@ -335,10 +337,20 @@ static void ioc3_get_eaddr(struct net_device *dev, struct ioc3 *ioc3)
 {
 	u8 nic[14];
 	int i;
+	int tries = 2; /* There may be some problem with the battery?  */
 
 	ioc3_w(gpcr_s, (1 << 21));
 
-	nic_init(ioc3);
+	while (tries--) {
+		if (!nic_init(ioc3))
+			break;
+		udelay(500);
+	}
+
+	if (tries < 0) {
+		printk("Failed to read MAC address\n");
+		return;
+	}
 
 	/* Read Memory.  */
 	nic_write_byte(ioc3, 0xf0);
