@@ -52,14 +52,14 @@ get_sioc (struct strioctl *sioc, unsigned long arg)
 static int
 sgi_gfx_open (struct inode *inode, struct file *file)
 {
-	printk ("GFX: Opened by %ld\n", current->pid);
+	printk ("GFX: Opened by %d\n", current->pid);
 	return 0;
 }
 
 static int
 sgi_gfx_close (struct inode *inode, struct file *file)
 {
-	printk ("GFX: Closed by %ld\n", current->pid);
+	printk ("GFX: Closed by %d\n", current->pid);
 	return 0;
 }
 
