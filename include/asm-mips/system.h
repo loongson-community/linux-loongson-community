@@ -1,5 +1,4 @@
-/*
- * include/asm-mips/system.h
+/* $Id: system.h,v 1.7 1998/05/04 03:53:22 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,8 +6,6 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  * Modified further for R[236]000 by Paul M. Antoine, 1996
- *
- * $Id: system.h,v 1.6 1998/05/03 11:13:54 ralf Exp $
  */
 #ifndef __ASM_MIPS_SYSTEM_H
 #define __ASM_MIPS_SYSTEM_H
@@ -114,6 +111,8 @@ __restore_flags(int flags)
 __asm__ __volatile__(					\
 	"# prevent instructions being moved around\n\t"	\
 	".set\tnoreorder\n\t"				\
+	"# 8 nops to fool the R4400 pipeline\n\t"	\
+	"nop;nop;nop;nop;nop;nop;nop;nop\n\t"		\
 	".set\treorder"					\
 	: /* no output */				\
 	: /* no input */				\

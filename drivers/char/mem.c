@@ -385,9 +385,6 @@ static loff_t memory_lseek(struct file * file, loff_t offset, int orig)
 		default:
 			return -EINVAL;
 	}
-	if (file->f_pos < 0)
-		return 0;
-	return file->f_pos;
 }
 
 #define mmap_kmem	mmap_mem
@@ -547,7 +544,7 @@ __initfunc(int chr_dev_init(void))
 #ifdef CONFIG_JOYSTICK
 	/*
 	 *	Some joysticks only appear when the soundcard they are
-	 *	connected too is confgured. Keep the sound/joystick ordering.
+	 *	connected to is configured. Keep the sound/joystick ordering.
 	 */
 	js_init();
 #endif	

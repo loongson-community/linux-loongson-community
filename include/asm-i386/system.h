@@ -138,8 +138,8 @@ __asm__("movw %%dx,%0\n\t" \
 	 "d" (limit) \
 	:"dx")
 
-#define set_base(ldt,base) _set_base( ((char *)&(ldt)) , base )
-#define set_limit(ldt,limit) _set_limit( ((char *)&(ldt)) , (limit-1)>>12 )
+#define set_base(ldt,base) _set_base( ((char *)&(ldt)) , (base) )
+#define set_limit(ldt,limit) _set_limit( ((char *)&(ldt)) , ((limit)-1)>>12 )
 
 static inline unsigned long _get_base(char * addr)
 {
@@ -215,7 +215,12 @@ static inline unsigned long __xchg(unsigned long x, void * ptr, int size)
 	return x;
 }
 
-#define mb()  __asm__ __volatile__ (""   : : :"memory")
+/*
+ * Force strict CPU ordering.
+ * And yes, this is required on UP too when we're talking
+ * to devices.
+ */
+#define mb() 	__asm__ __volatile__ ("lock; addl $0,0(%%esp)": : :"memory")
 
 /* interrupt control.. */
 #define __sti() __asm__ __volatile__ ("sti": : :"memory")
@@ -288,7 +293,7 @@ __asm__ __volatile__ ("movw %3,0(%2)\n\t" \
 	"movb $0,6(%2)\n\t" \
 	"movb %%ah,7(%2)\n\t" \
 	"rorl $16,%%eax" \
-	: "=m"(*(n)) : "a" (addr), "r"(n), "i"(limit), "i"(type))
+	: "=m"(*(n)) : "a" (addr), "r"(n), "ir"(limit), "i"(type))
 
 #define set_tss_desc(n,addr) \
 	_set_tssldt_desc(((char *) (n)),((int)(addr)),235,0x89)

@@ -1,4 +1,5 @@
-/*
+/* $Id: ide.h,v 1.3 1998/05/03 21:46:15 ralf Exp $
+ *
  *  linux/include/asm-mips/ide.h
  *
  *  Copyright (C) 1994-1996  Linus Torvalds & authors
@@ -16,7 +17,7 @@
 typedef unsigned short ide_ioreg_t;
 
 #ifndef MAX_HWIFS
-#define MAX_HWIFS	4
+#define MAX_HWIFS	6
 #endif
 
 #define ide_sti()	sti()

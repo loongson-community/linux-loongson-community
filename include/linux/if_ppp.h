@@ -73,12 +73,9 @@
 #define SC_LOG_OUTPKT	0x00040000	/* log contents of pkts sent */
 #define SC_LOG_RAWIN	0x00080000	/* log all chars received */
 #define SC_LOG_FLUSH	0x00100000	/* log all chars flushed */
-#define	SC_MASK		0x0fE0ffff	/* bits that user can change */
+#define	SC_MASK		0x0f0000ff	/* bits that user can change */
 
 /* state bits */
-#define	SC_ESCAPED	0x80000000	/* saw a PPP_ESCAPE */
-#define	SC_FLUSH	0x40000000	/* flush input until next PPP_FLAG */
-#define SC_VJ_RESET	0x20000000	/* Need to reset the VJ decompressor */
 #define SC_XMIT_BUSY	0x10000000	/* ppp_write_wakeup is active */
 #define SC_RCV_ODDP	0x08000000	/* have rcvd char with odd parity */
 #define SC_RCV_EVNP	0x04000000	/* have rcvd char with even parity */

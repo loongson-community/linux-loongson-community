@@ -100,7 +100,6 @@ extern int		ip_acct_output(struct sk_buff *skb);
 #define ip_acct_output	dev_queue_xmit
 #endif
 extern void		ip_fragment(struct sk_buff *skb, int (*out)(struct sk_buff*));
-extern struct sk_buff *	ip_reply(struct sk_buff *skb, int payload);
 extern int		ip_do_nat(struct sk_buff *skb);
 extern void		ip_send_check(struct iphdr *ip);
 extern int		ip_id_count;			  
@@ -117,6 +116,18 @@ extern int		ip_build_xmit(struct sock *sk,
 				      struct rtable *rt,
 				      int flags);
 
+
+struct ip_reply_arg {
+	struct iovec iov[2];   
+	int          n_iov;    /* redundant */
+	u32 	     csum; 
+	int	     csumoffset; /* u16 offset of csum in iov[0].iov_base */
+				 /* -1 if not needed */ 
+}; 
+
+void ip_send_reply(struct sock *sk, struct sk_buff *skb, struct ip_reply_arg *arg,
+		   unsigned int len); 
+
 extern int __ip_finish_output(struct sk_buff *skb);
 
 struct ipv4_config
@@ -128,6 +139,7 @@ struct ipv4_config
 
 extern struct ipv4_config ipv4_config;
 extern struct ip_mib	ip_statistics;
+extern struct linux_mib	net_statistics;
 
 extern int sysctl_local_port_range[2];
 
@@ -141,15 +153,7 @@ extern __inline__ int ip_finish_output(struct sk_buff *skb)
 	skb->protocol = __constant_htons(ETH_P_IP);
 
 	if (hh) {
-#ifdef __alpha__
-		/* Alpha has disguisting memcpy. Help it. */
-	        u64 *aligned_hdr = (u64*)(skb->data - 16);
-		u64 *aligned_hdr0 = hh->hh_data;
-		aligned_hdr[0] = aligned_hdr0[0];
-		aligned_hdr[1] = aligned_hdr0[1];
-#else
 		memcpy(skb->data - 16, hh->hh_data, 16);
-#endif
 	        skb_push(skb, dev->hard_header_len);
 		return hh->hh_output(skb);
 	} else if (dst->neighbour)

@@ -32,6 +32,7 @@ static void tcp_sltimer_handler(unsigned long);
 static void tcp_syn_recv_timer(unsigned long);
 static void tcp_keepalive(unsigned long data);
 static void tcp_bucketgc(unsigned long);
+static void tcp_twkill(unsigned long);
 
 struct timer_list	tcp_slow_timer = {
 	NULL, NULL,
@@ -43,6 +44,7 @@ struct timer_list	tcp_slow_timer = {
 struct tcp_sl_timer tcp_slt_array[TCP_SLT_MAX] = {
 	{ATOMIC_INIT(0), TCP_SYNACK_PERIOD, 0, tcp_syn_recv_timer},/* SYNACK	*/
 	{ATOMIC_INIT(0), TCP_KEEPALIVE_PERIOD, 0, tcp_keepalive},  /* KEEPALIVE	*/
+	{ATOMIC_INIT(0), TCP_TWKILL_PERIOD, 0, tcp_twkill},        /* TWKILL	*/
 	{ATOMIC_INIT(0), TCP_BUCKETGC_PERIOD, 0, tcp_bucketgc}     /* BUCKETGC	*/
 };
 
@@ -166,11 +168,10 @@ void tcp_delack_timer(unsigned long data)
 {
 	struct sock *sk = (struct sock*)data;
 
-	if(sk->zapped)
-		return;
-	
-	if (sk->tp_pinfo.af_tcp.delayed_acks)
-		tcp_read_wakeup(sk); 		
+	if(!sk->zapped &&
+	   sk->tp_pinfo.af_tcp.delayed_acks &&
+	   sk->state != TCP_CLOSE)
+		tcp_send_ack(sk);
 }
 
 void tcp_probe_timer(unsigned long data)
@@ -240,9 +241,9 @@ static __inline__ int tcp_keepopen_proc(struct sock *sk)
 }
 
 /* Garbage collect TCP bind buckets. */
-static void tcp_bucketgc(unsigned long __unused)
+static void tcp_bucketgc(unsigned long data)
 {
-	int i;
+	int i, reaped = 0;;
 
 	for(i = 0; i < TCP_BHTABLE_SIZE; i++) {
 		struct tcp_bind_bucket *tb = tcp_bound_hash[i];
@@ -252,8 +253,7 @@ static void tcp_bucketgc(unsigned long __unused)
 
 			if((tb->owners == NULL) &&
 			   !(tb->flags & TCPB_FLAG_LOCKED)) {
-				/* Eat timer reference. */
-				tcp_dec_slow_timer(TCP_SLT_BUCKETGC);
+				reaped++;
 
 				/* Unlink bucket. */
 				if(tb->next)
@@ -266,6 +266,92 @@ static void tcp_bucketgc(unsigned long __unused)
 			tb = next;
 		}
 	}
+	if(reaped != 0) {
+		struct tcp_sl_timer *slt = (struct tcp_sl_timer *)data;
+
+		/* Eat timer references. */
+		atomic_sub(reaped, &slt->count);
+	}
+}
+
+/* Kill off TIME_WAIT sockets once their lifetime has expired. */
+int tcp_tw_death_row_slot = 0;
+static struct tcp_tw_bucket *tcp_tw_death_row[TCP_TWKILL_SLOTS] =
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+
+extern void tcp_timewait_kill(struct tcp_tw_bucket *tw);
+
+static void tcp_twkill(unsigned long data)
+{
+	struct tcp_tw_bucket *tw;
+	int killed = 0;
+
+	tw = tcp_tw_death_row[tcp_tw_death_row_slot];
+	tcp_tw_death_row[tcp_tw_death_row_slot] = NULL;
+	while(tw != NULL) {
+		struct tcp_tw_bucket *next = tw->next_death;
+
+		tcp_timewait_kill(tw);
+		killed++;
+		tw = next;
+	}
+	if(killed != 0) {
+		struct tcp_sl_timer *slt = (struct tcp_sl_timer *)data;
+		atomic_sub(killed, &slt->count);
+	}
+	tcp_tw_death_row_slot =
+	  ((tcp_tw_death_row_slot + 1) & (TCP_TWKILL_SLOTS - 1));
+}
+
+/* These are always called from BH context.  See callers in
+ * tcp_input.c to verify this.
+ */
+void tcp_tw_schedule(struct tcp_tw_bucket *tw)
+{
+	int slot = (tcp_tw_death_row_slot - 1) & (TCP_TWKILL_SLOTS - 1);
+
+	tw->death_slot = slot;
+	tw->next_death = tcp_tw_death_row[slot];
+	tcp_tw_death_row[slot] = tw;
+	tcp_inc_slow_timer(TCP_SLT_TWKILL);
+}
+
+/* Happens rarely if at all, no care about scalability here. */
+void tcp_tw_reschedule(struct tcp_tw_bucket *tw)
+{
+	struct tcp_tw_bucket *walk;
+	int slot = tw->death_slot;
+
+	walk = tcp_tw_death_row[slot];
+	if(walk == tw) {
+		tcp_tw_death_row[slot] = tw->next_death;
+	} else {
+		while(walk->next_death != tw)
+			walk = walk->next_death;
+		walk->next_death = tw->next_death;
+	}
+	slot = (tcp_tw_death_row_slot - 1) & (TCP_TWKILL_SLOTS - 1);
+	tw->death_slot = slot;
+	tw->next_death = tcp_tw_death_row[slot];
+	tcp_tw_death_row[slot] = tw;
+	/* Timer was incremented when we first entered the table. */
+}
+
+/* This is for handling early-kills of TIME_WAIT sockets. */
+void tcp_tw_deschedule(struct tcp_tw_bucket *tw)
+{
+	struct tcp_tw_bucket *walk;
+	int slot = tw->death_slot;
+
+	walk = tcp_tw_death_row[slot];
+	if(walk == tw) {
+		tcp_tw_death_row[slot] = tw->next_death;
+	} else {
+		while(walk->next_death != tw)
+			walk = walk->next_death;
+		walk->next_death = tw->next_death;
+	}
+	tcp_dec_slow_timer(TCP_SLT_TWKILL);
 }
 
 /*
@@ -362,13 +448,17 @@ void tcp_retransmit_timer(unsigned long data)
 	 */
 	if(tp->sack_ok) {
 		struct sk_buff *skb = skb_peek(&sk->write_queue);
+		__u8 toclear = TCPCB_SACKED_ACKED;
 
+		if(tp->retransmits == 0)
+			toclear |= TCPCB_SACKED_RETRANS;
 		while((skb != NULL) &&
 		      (skb != tp->send_head) &&
 		      (skb != (struct sk_buff *)&sk->write_queue)) {
-			TCP_SKB_CB(skb)->sacked = 0;
+			TCP_SKB_CB(skb)->sacked &= ~(toclear);
 			skb = skb->next;
 		}
+		tp->fackets_out = 0;
 	}
 
 	/* Retransmission. */
@@ -377,9 +467,9 @@ void tcp_retransmit_timer(unsigned long data)
 		/* remember window where we lost
 		 * "one half of the current window but at least 2 segments"
 		 */
-		tp->snd_ssthresh = max(tp->snd_cwnd >> 1, 2);
-		tp->snd_cwnd_cnt = 0;
-		tp->snd_cwnd = 1;
+		tp->retrans_out = 0;
+		tp->snd_ssthresh = max(tp->snd_cwnd >> (1 + TCP_CWND_SHIFT), 2);
+		tp->snd_cwnd = (1 << TCP_CWND_SHIFT);
 	}
 
 	tp->retransmits++;
@@ -447,6 +537,7 @@ static void tcp_syn_recv_timer(unsigned long data)
 					if ((long)(now - conn->expires) <= 0)
 						break;
 
+
 					tcp_synq_unlink(tp, conn, prev);
 					if (conn->retrans >= sysctl_tcp_retries1) {
 #ifdef TCP_DEBUG
@@ -455,7 +546,7 @@ static void tcp_syn_recv_timer(unsigned long data)
 #endif
 						(*conn->class->destructor)(conn);
 						tcp_dec_slow_timer(TCP_SLT_SYNACK);
-						sk->ack_backlog--;
+						tp->syn_backlog--;
 						tcp_openreq_free(conn);
 
 						if (!tp->syn_wait_queue)
@@ -506,14 +597,14 @@ void tcp_sltimer_handler(unsigned long data)
 				slt->last = now;
 				trigger = slt->period;
 			}
-			next = min(next, trigger);
+
+			/* Only reschedule if some events remain. */
+			if (atomic_read(&slt->count))
+				next = min(next, trigger);
 		}
 	}
-
-	if (next != ~0UL) {
-		tcp_slow_timer.expires = now + next;
-		add_timer(&tcp_slow_timer);
-	}
+	if (next != ~0UL)
+		mod_timer(&tcp_slow_timer, (now + next));
 }
 
 void __tcp_inc_slow_timer(struct tcp_sl_timer *slt)
@@ -526,9 +617,8 @@ void __tcp_inc_slow_timer(struct tcp_sl_timer *slt)
 	when = now + slt->period;
 
 	if (tcp_slow_timer.prev) {
-		if ((long)(tcp_slow_timer.expires - when) >= 0) {
+		if ((long)(tcp_slow_timer.expires - when) >= 0)
 			mod_timer(&tcp_slow_timer, when);
-		}
 	} else {
 		tcp_slow_timer.expires = when;
 		add_timer(&tcp_slow_timer);

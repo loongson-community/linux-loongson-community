@@ -434,6 +434,15 @@ CONFIG_BLK_DEV_ALI14XX
   I/O speeds to be set as well.  See the Documentation/ide.txt and
   ali14xx.c files for more info.
 
+Apple Macintosh builtin IDE interface support (EXPERIMENTAL)
+CONFIG_BLK_DEV_MAC_IDE
+  This is the IDE driver for the builtin IDE interface on some Apple
+  Macintosh models.  It supports both the Quadra/Performa/LC 630 and
+  the PowerBook 190 IDE interface.
+  Say Y if you have such a Macintosh model and want to use IDE devices
+  (hard disks, CD-ROM drives, etc.) that are connected to the builtin
+  IDE interface.
+
 XT hard disk support
 CONFIG_BLK_DEV_XD
   Very old 8 bit hard disk controllers used in the IBM XT computer. To
@@ -949,6 +958,19 @@ CONFIG_SERIAL_SHARE_IRQ
   serial ports on the same board to share a single IRQ.  To enable
   support for this in the serial driver, say Y here.
 
+Autodetect IRQ on standard ports (unsafe)
+CONFIG_SERIAL_DETECT_IRQ
+  Enable this option if you want the kernel to try to guess which IRQ
+  is configured during the boot sequence and you're too lazy to edit
+  the boot scripts to use the setserial command.  This option can be
+  unsafe and should not be enabled on most machines.  It is far
+  better to dynamically request autoconfiguration during the boot-time
+  scripts using the setserial command.  You can change the IRQ and/or 
+  request automatic IRQ configuration at any time by using the 
+  "setserial" program.  I wouldn't include this config option at all except
+  people keep bellyaching about it.  I guess they are really are too lazy 
+  to edit their boot scripts.  :-)   If unsure, say No.
+
 Support special multiport boards
 CONFIG_SERIAL_MULTIPORT
   Some multiport serial ports have special ports which are used to
@@ -985,8 +1007,7 @@ CONFIG_TGA_CONSOLE
   that implements the TGA interface (much like the VGA standard, but
   older TGA adapters are *not* VGA compatible).  On such systems, you
   should say Y here so that the TGA driver rather than the standard
-  VGA driver is used.  Note that, at this time, there is no X server
-  for these systems. If unsure, try N.
+  VGA driver is used.
 
 PCI support
 CONFIG_PCI
@@ -1021,6 +1042,12 @@ CONFIG_PCI_DIRECT
   works. If both PCI BIOS and direct PCI access are enabled, the use
   of BIOS is preferred. If unsure, say Y.
 
+PCI quirks
+CONFIG_PCI_QUIRKS
+  If you have a broken BIOS, it may fail to set up the PCI bus in a
+  correct or optimal fashion. If your BIOS is fine you can say N here
+  for a very slightly smaller kernel. If unsure, say Y.
+
 PCI bridge optimization (experimental)
 CONFIG_PCI_OPTIMIZE
   This can improve access times for some hardware devices if you have
@@ -1030,9 +1057,13 @@ CONFIG_PCI_OPTIMIZE
 
 Backward-compatible /proc/pci
 CONFIG_PCI_OLD_PROC
-  If you say Y here and to the "/proc filesystem support" below, you
-  will get a directory /proc/pci with information about your PCI
-  hardware. If unsure, say Y.
+  Older kernels supported a /proc/pci file containing brief textual
+  description of all PCI devices in the system. Several programs tried
+  to parse this file, so it became almost impossible to add new
+  fields without breaking compatibility. So a new /proc interface to
+  PCI (/proc/bus/pci) has been implemented and the old one is supported
+  for compatibility reasons only (you can disable it here, gaining
+  some memory).  If unsure, say Y.
 
 MCA support
 CONFIG_MCA
@@ -1097,7 +1128,7 @@ CONFIG_BINFMT_ELF
   want to say Y here. Information about ELF is on the WWW at
   http://www.sjc.ox.ac.uk/users/barlow/elf-howto.html (To browse the
   WWW, you need to have access to a machine on the Internet that has a
-  programs like lynx or netscape).  If you find that after upgrading
+  program like lynx or netscape).  If you find that after upgrading
   from Linux kernel 1.2 and saying Y here, you still can't run any ELF
   binaries (they just crash), then you'll have to install the newest
   ELF runtime libraries, including ld.so (check the file
@@ -1216,7 +1247,7 @@ CONFIG_M386
   the line "SMP=1" is not commented out and read Documentation/smp and
   Documentation/IO-APIC.txt and the SMP-FAQ on the WWW at
   http://www.irisa.fr/prive/mentre/smp-faq/ (to browse the WWW, you
-  need to have access to a machine on the Internet that has a programs
+  need to have access to a machine on the Internet that has a program
   like lynx or netscape). People using multiprocessor machines should
   also say Y to "Enhanced Real Time Clock Support", below.
   If you want to compile a kernel that should work on both single
@@ -1251,7 +1282,7 @@ CONFIG_PARPORT
   extensive information about drivers for many devices attaching to
   the parallel port see http://www.torque.net/linux-pp.html on the WWW
   (To browse the WWW, you need to have access to a machine on the
-  Internet that has a programs like lynx or netscape). It is possible
+  Internet that has a program like lynx or netscape). It is possible
   to share a single parallel port among several devices and it is safe
   to compile all the corresponding drivers into the kernel. If you
   want to compile parallel port support as a module ( = code which can
@@ -1308,72 +1339,6 @@ CONFIG_PNP_PARPORT
   Some IEEE-1284 conforming parallel-port devices can identify
   themselves when requested.  Say Y to enable this feature, or M to
   compile it as a module (parport_ieee1284.o).  If in doubt, say N.
-
-Plug and Play subsystem (EXPERIMENTAL)
-CONFIG_PNP_DRV
-  This enables support for the new Plug-and-Play (or PnP) Linux
-  subsystems. This support is required for PnP ISA support, and for PnP
-  Legacy support. User-mode utilities for this support may be found at
-  http://www.lpsg.demon.co.uk/pnp-linux.html.
-
-PnP resource management
-CONFIG_KERNEL_PNP_RESOURCE
-  This option will cause the new PnP generic resource management
-  routines to be used instead of the old routines request_xxx and
-  free_xxx. Emulation routines are put in place to support the old
-  calling style. This code support masks for IO decoding (required for
-  Plug and Play devices). There is no need to enable this option unless
-  you want to - these features will still be used where they are needed.
-  However, enabling it will reduce your kernel size slightly, and also
-  allow you to test this code more extensively.
-
-Support for boot-loaded PnP configuration (RECOMMENDED)
-CONFIG_PNP_BLDCONFIG
-  This will enable support for preloading data about the configuration
-  of any Plug-and-Play devices in the system into the kernel at boot
-  time, which means that any devices required at boot can be configured
-  at this time manually. Say Y unless you have a reason not to.
-
-PnP ISA support
-CONFIG_PNP_ISA
-  This option is required to allow the Linux PnP subsystem to handle
-  Plug and Play ISA devices. This includes full support for PnP ISA,
-  including the I/O range check feature.
-
-PnP ISA backwards-compatibility support
-CONFIG_PNP_ISA_COMPAT
-  This option will enable partial backwards compatibility with drivers
-  written using older versions (up to the last 0.2.x) of the PnP driver
-  written by Tom Lees <tom@lpsg.demon.co.uk>.
-
-PnP Legacy device support
-CONFIG_PNP_LEGACY
-  Before PnP ISA was standardized, several "jumperless", or
-  "soft-configurable" boards were finding their way onto the market.
-  These cards used somewhat proprietary mechanisms for configuring
-  IRQs, DMAs, IO addresses, and memory ranges. These devices (mainly
-  network cards, but also some sound cards) can be configured as any
-  other PnP device can by saying Y here, if appropriate drivers
-  for these devices are available.
-
-PnP sysctl support (RECOMMENDED)
-CONFIG_PNP_SYSCTL
-  This option enables support for the user-mode interface to the
-  kernel-mode PnP systems. It requires that you said Y to "Sysctl
-  support" above.  The only reason you might want to switch this off
-  is if you aren't going to use user-mode utilities to configure PnP,
-  and you want to save a couple of kilobytes of kernel space. Answer Y
-  unless you know what you are doing. User-mode utilities and a
-  library for accessing this interface may be found at
-  http://www.lpsg.demon.co.uk/pnp-linux.html.
-
-PnP auto-configures all devices on startup
-CONFIG_PNP_BOOTINIT
-  This option will allow the PnP subsystem to automatically configure
-  all the PnP devices it finds upon system startup (or at least
-  attempt to). This is useful if you have older drivers which do not use
-  the Linux-PnP system to configure PnP devices, and which you need
-  to be configured by PnP before you can use them.
 
 Enable loadable module support
 CONFIG_MODULES
@@ -2478,74 +2443,64 @@ CONFIG_SCSI_AHA1740
   want to compile it as a module, say M here and read
   Documentation/modules.txt.
 
-Adaptec AIC7xxx support (includes 274x/284x/294x)
+Adaptec AIC7xxx chipset SCSI controller support
 CONFIG_SCSI_AIC7XXX
-  Information about this SCSI host adapter is contained in
-  drivers/scsi/README.aic7xxx and in the SCSI-HOWTO, available via ftp
-  (user: anonymous) at sunsite.unc.edu:/pub/Linux/docs/HOWTO. Note
-  that the AHA2920 SCSI host adapter is *not* supported by this
-  driver; choose "Future Domain 16xx SCSI support" instead. If you
-  want to compile this driver as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want),
-  say M here and read Documentation/ modules.txt. The module will be
-  called aic7xxx.o.
-
-Enable tagged command queueing
-CONFIG_AIC7XXX_TAGGED_QUEUEING
-  This option allows you to enable tagged command queueing for this
-  driver. Some SCSI devices do not properly support this feature. 
-  Tagged command queueing will improve performance.
+  This is support for the various aic7xxx based Adaptec SCSI controllers.
+  These include the 274x EISA cards, 284x VLB cards, 294x PCI cards,
+  394x PCI cards, 3985 PCI card, and several versions of the Adaptec
+  built-in SCSI controllers on various PC motherboards.  Information on
+  the configuration options for this controller can be found by checking
+  the README.aic7xxx file, usually in /usr/src/linux/drivers/scsi.
 
 Override driver defaults for commands per LUN
 CONFIG_OVERRIDE_CMDS
-  This option allows you to set the maximum number of SCSI commands
-  queued per LUN (Logical Unit Number - some physical SCSI devices,
-  e.g. CD jukeboxes, act logically as several logical units).  If you
-  say N here, the driver will attempt to set the commands per LUN
-  using its own reasonable heuristic. If you say Y, you can specify
-  your preference in the next question.  If unsure, say N.
+  Use this option to allow you to override the default maximum number of
+  commands that a single device on the aic7xxx controller is allowed to have
+  active at one time.  This option only effects tagged queueing capable
+  devices.  The driver uses a "failsafe" value of 8 by default.  This is
+  much lower than many devices can handle, but left in place for safety sake.
+  NOTE: This does not actually enabled tagged queueing on any particular
+  device.  The driver has changed in this respect.  Please see the file
+  README.aic7xxx in /usr/src/linux/drivers/scsi for more information on how
+  to get particular devices to use tagged command queueing.
+  Default: N
 
 Maximum number of commands per LUN
 CONFIG_AIC7XXX_CMDS_PER_LUN
-  By default, we limit the commands per LUN to 2 with or without
-  tagged queueing enabled.  If tagged queueing is enabled, the
-  sequencer in the host adapter will attempt to send the 2nd command
-  block to the device while the first command block is still executing
-  and the device is disconnected. If the devices don't complain, you
-  can thus try to increase the number of SCSI commands per LUN to more
-  than 2 in this case. If tagged queueing is disabled, the sequencer
-  in the host adapter will keep the 2nd command in its input queue
-  until the first one completes - so it is OK to have more than 1
-  command queued. However, for host adapters limited to 4 command
-  blocks (SCB's), you may want to actually decrease the commands per
-  LUN to 1, if you often have more than 2 devices active at the same
-  time.  This will ensure that there will always be a free SCB for up
-  to 4 devices active at the same time. When SCB paging is enabled,
-  set the commands per LUN to 8 or higher (see "SCB paging support"
-  below).  If unsure, go with the default for now.
-
-Enable SCB paging
-CONFIG_AIC7XXX_PAGE_ENABLE
-  This option enables SCB paging.  This will increase performance when
-  tagged queueing is enabled.  Note that, if you say Y here, you
-  should increase the "Maximum number of commands per LUN"
-  (AIC7XXX_CMDS_PER_LUN) above to 8 as most tagged queueing devices
-  allow at least this many.  Note that EISA and VLB controllers do not
-  support SCB paging due to chip limitations; enabling it on these
-  controllers has no effect.
+  Specify the maximum number of commands per lun you would like to allocate
+  per device.  Reasonable figures are in the range of 14 to 32 commands per
+  device, but depending on hardware could be increased or decreased from
+  that figure.  If the number is too high for any particular device, the
+  driver will automatically compensate usually after only 10 minutes of
+  uptime and will issue a message to alert you to the fact that the number
+  of commands for that device has been reduced.  It will not hinder
+  performance if a portion of your devices eventually have their commands
+  per lun reduced, but is a waste of memory if all of your devices end
+  up reducing this number down to a more reasonable figure.  Default: 24
 
 Collect statistics to report in /proc
 CONFIG_AIC7XXX_PROC_STATS
-  This option enables collection of SCSI transfer statistics for the
-  /proc filesystem.  This does affect performance since it has to
-  maintain statistics. The statistics will appear under
-  /proc/scsi/aic7xxx. This will only work if you also enable the "proc
-  filesystem", below.
+  This option tells the driver to keep track of how many commands have been
+  sent to each particular device and report that information to the user
+  via the /proc/scsi/aic7xxx/x file, where x is the number of the aic7xxx
+  controller you want the information on.  This adds a small amount of
+  overhead to each and every SCSI command the aic7xxx driver handles, so if
+  you aren't really interested in this information, it is best to leave it
+  disabled.  Default: N
 
 Delay in seconds after SCSI bus reset
 CONFIG_AIC7XXX_RESET_DELAY
-  This option sets the delay in seconds after a SCSI bus reset. If you
-  don't know what you are doing, go with the default.
+  This sets how long the driver will wait after resetting the SCSI bus before
+  attempting to communicate with the devices on the SCSI bus again.  This
+  delay will be used during the reset phase at bootup time as well as after
+  any reset that might occur during normal operation.  Reasonable numbers
+  range anywhere from 5 to 15 seconds depending on your devices.  DAT tape
+  drives are notorious for needing more time after a bus reset to be
+  ready for the next command, but most hard drives and CD-ROM devices are
+  ready in only a few seconds.  This option has a maximum upper limit of
+  20 seconds to avoid bad interactions between the aic7xxx driver and the
+  rest of the linux kernel.  The default value has been reduced.  If this
+  doesn't work with your hardware, try increasing this value.  Default: 5
 
 BusLogic SCSI support
 CONFIG_SCSI_BUSLOGIC
@@ -3578,6 +3533,14 @@ CONFIG_MKISS
   which can be inserted in and removed from the running kernel
   whenever you want), say M here and read
   Documentation/modules.txt. The module will be called mkiss.o.
+
+Serial port 6PACK driver for AX.25
+CONFIG_6PACK
+6pack is a protocol that attaches a TNC connected to a serial interface
+to be used as a network device. 6pack can be used as an alternative to KISS,
+but has some extended functionality. Note that this driver is still
+experimental and might cause problems. For details about the features
+and the usage of the driver, read Documentation/networking/6pack.txt.
 
 PLIP (parallel port) support
 CONFIG_PLIP
@@ -5369,7 +5332,7 @@ CONFIG_ROMFS_FS
   M here and read Documentation/modules.txt. If you don't know whether
   you need it, then you don't need it: say N.
 
-Kernel automounter support (experimental)
+Kernel automounter support
 CONFIG_AUTOFS_FS
   The automounter is a tool to automatically mount remote filesystems
   on demand.  This implementation is partially kernel-based to reduce
@@ -5447,6 +5410,13 @@ CONFIG_ADFS_FS
   inserted in and removed from the running kernel whenever you want).
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt.
+
+/dev/pts filesystem
+CONFIG_DEVPTS_FS
+  A filesystem which when mounted on /dev/pts and used in conjunction
+  with the /dev/ptmx multiplexing pty device, should allow full
+  support for Unix98 pty's without requiring setuid or daemons.  glibc
+  2.1 contains the requisite support for this mode of operation.
 
 Macintosh partition map support
 CONFIG_MAC_PARTITION
@@ -6498,6 +6468,28 @@ CONFIG_FT_FDC_MAX_RATE
   speed. If unsure, leave this disabled, i.e. leave it at 2000
   bits/sec.
 
+MTRR control and configuration
+CONFIG_MTRR
+  On Intel Pentium Pro systems the Memory Type Range Registers (MTRRs)
+  may be used to control processor access to memory ranges. This is
+  most useful when you have a video (VGA) card on the PCI
+  bus. Enabling write-combining allows PCI write transfers to be
+  combined into a larger transfer before bursting over the PCI
+  bus. This can increase performance of image write operations 2.5
+  times or more.
+  This option creates a /proc/mtrr file which may be used to manipulate
+  your MTRRs. Typically the X server should use this. This should have
+  a reasonably generic interface so that similar control registers on
+  other processors can be easily supported.
+  This option also fixes a problem with buggy SMP BIOSes which only
+  set the MTRRs for the boot CPU and not the secondary CPUs. This can
+  lead to all sorts of problems.
+  In general you should compile this into the kernel, rather than as a
+  loadable module, because the BIOS fix needs to be done early in the
+  boot sequence. If you compile this as a module, the BIOS fix will be
+  delayed until when you load the module. You do this at your own risk.
+  See Documentation/mtrr.txt for more information.
+
 Main CPU frequency, only for DEC alpha machine
 CONFIG_FT_ALPHA_CLOCK
   On some DEC Alpha machines the CPU clock frequency cannot be
@@ -6716,7 +6708,7 @@ CONFIG_RTC
   fashion. (They should also Documentation/smp and
   Documentation/IO-APIC.txt and the SMP-FAQ on the WWW at
   http://www.irisa.fr/prive/mentre/smp-faq/ (to browse the WWW, you
-  need to have access to a machine on the Internet that has a programs
+  need to have access to a machine on the Internet that has a program
   like lynx or netscape)).
   If you think you have a use for such a device (such as periodic data
   sampling), then say Y here, and go read the file
@@ -6817,6 +6809,16 @@ CONFIG_SB_MWAVE
   why they still haven't released any documentation.
   [http://204.200.238.31/cgi-bin/link.pl?co=i&cl=/ts/ibm/contact.html]
 
+Are you using the IBM Mwave "emulation" of SB ?
+CONFIG_SB_MWAVE
+  The IBM Mwave can do whats loosely describable as emulation of an 8bit
+  soundblaster if you load the right firmware from DOS warm boot and pray
+  and your machine happens to like you. Say Y if you are doing this as the
+  IRQ test normally fails on the mwave emulation. If you'd like real MWAVE
+  support phone IBM (425-556-8822) and ask them why they still haven't 
+  released any documentation.
+  [http://204.200.238.31/cgi-bin/link.pl?co=i&cl=/ts/ibm/contact.html]
+
 Generic OPL2/OPL3 FM synthesizer support
 CONFIG_ADLIB
   Answer Y if your card has a FM chip made by Yamaha (OPL2/OPL3/OPL4).
@@ -6913,6 +6915,15 @@ CONFIG_MAD16
   them. In addition the MAD16 chip is used in some cards made by known
   manufacturers such as Turtle Beach (Tropez), Reveal (some models)
   and Diamond (latest ones).
+
+Support MIDI in older MAD16 based cards (requires SB)
+CONFIG_MAD16_OLDCARD
+  Answer Y (or M) if you have an older card based on the C928
+  or Mozart chipset and you want to have  MIDI support. If you
+  enable this option you also need to enable support for SoundBlaster.
+
+ If you answer Y here you will
+  also need to enable the SoundBlaster driver.
 
 Support for Crystal CS4232 based (PnP) cards
 CONFIG_CS4232
@@ -7092,6 +7103,12 @@ CONFIG_ISDN_AUDIO
   is the only voice-supporting driver. See
   Documentation/isdn/README.audio for more information.
 
+X.25 PLP on top of ISDN (EXPERIMENTAL)
+CONFIG_ISDN_X25
+  This experimental feature provides X.25 over ISDN. See
+  Documentation/isdn/README.x25 for more information about how to
+  configure and what other options must be enabled for using X.25.
+
 ICN 2B and 4B support
 CONFIG_ISDN_DRV_ICN
   This enables support for two kinds of ISDN-cards made by a German
@@ -7104,6 +7121,14 @@ CONFIG_ISDN_DRV_ICN
   can be inserted in and removed from the running kernel whenever you
   want), say M here and read Documentation/modules.txt. The module
   will be called icn.o.
+
+isdnloop support
+CONFIG_ISDN_DRV_LOOP
+  This driver provides a virtual ISDN card. It's primary purpose is
+  testing of linklevel features or configuration without getting
+  charged by your service-provider for lots of phone calls.
+  You need will need the loopctrl utility from the latest isdn4k-utils
+  package to set up this driver.
 
 HiSax SiemensChipSet driver support
 CONFIG_ISDN_DRV_HISAX
@@ -7130,36 +7155,95 @@ CONFIG_HISAX_16_3
   the Teles/Creatix PnP and the Teles PCMCIA.
   See Documentation/isdn/README.HiSax on how to configure it 
   using the different cards, a different D-channel protocol, or
-  non-standard IRQ/port/shmem settings.
+  non-standard irq/port settings.
+
+HiSax Support for Teles 16.3c
+CONFIG_HISAX_TELES3C
+  This enables HiSax support for the Teles ISDN-cards 16.3c.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using the different cards, a different D-channel protocol, or
+  non-standard irq/port settings.
 
 HiSax Support for AVM A1 (Fritz)
 CONFIG_HISAX_AVM_A1
   This enables HiSax support for the AVM A1 (aka "Fritz").
   See Documentation/isdn/README.HiSax on how to configure it
   using the different cards, a different D-channel protocol, or
-  non-standard IRQ/port/shmem settings.
+  non-standard irq/port settings.
 
 HiSax Support for Elsa ISA cards
-CONFIG_HISAX_ELSA_PCC
-  This enables HiSax support for the Elsa Mircolink ISA cards and
-  for the Elsa Quickstep series cards.
+CONFIG_HISAX_ELSA
+  This enables HiSax support for the Elsa Mircolink ISA cards,
+  for the Elsa Quickstep series cards and Elsa PCMCIA.
   See Documentation/isdn/README.HiSax on how to configure it 
   using the different cards, a different D-channel protocol, or
-  non-standard IRQ/port/shmem settings.
-
-HiSax Support for Elsa PCMCIA card
-CONFIG_HISAX_ELSA_PCMCIA
-  This enables HiSax support for the Elsa PCMCIA cards.
-  See Documentation/isdn/README.HiSax on how to configure it 
-  using the different cards, a different D-channel protocol, or
-  non-standard IRQ/port/shmem settings.
+  non-standard irq/port settings.
 
 HiSax Support for ITK ix1-micro Revision 2
 CONFIG_HISAX_IX1MICROR2
   This enables HiSax support for the ITK ix1-micro Revision 2 card.
   See Documentation/isdn/README.HiSax on how to configure it 
   using the different cards, a different D-channel protocol, or
-  non-standard IRQ/port/shmem settings.
+  non-standard irq/port settings.
+
+HiSax Support for Eicon.Diehl Diva cards
+CONFIG_HISAX_DIEHLDIVA
+  This enables HiSax support for the Eicon.Diehl Diva none PRO versions
+  passive ISDN cards.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using the different cards, a different D-channel protocol, or
+  non-standard irq/port settings.
+
+HiSax Support for ASUSCOM cards
+CONFIG_HISAX_ASUSCOM
+  This enables HiSax support for the AsusCom and their OEM versions
+  passive ISDN cards.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using the different cards, a different D-channel protocol, or
+  non-standard irq/port settings.
+
+HiSax Support for TELEINT cards
+CONFIG_HISAX_TELEINT
+  This enables HiSax support for the TELEINT SA1 semiactiv ISDN card.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using the different cards, a different D-channel protocol, or
+  non-standard irq/port settings.
+
+HiSax Support for Sedlbauer speed card/win-star
+CONFIG_HISAX_SEDLBAUER
+  This enables HiSax support for the Sedlbauer passive ISDN cards.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using the different cards, a different D-channel protocol, or
+  non-standard irq/port settings.
+
+HiSax Support for USR Sportster internal TA
+CONFIG_HISAX_SPORTSTER
+  This enables HiSax support for the USR Sportster internal TA card.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using a different D-channel protocol, or non-standard irq/port settings.
+
+HiSax Support for MIC card
+CONFIG_HISAX_MIC
+  This enables HiSax support for the ITH MIC card.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using a different D-channel protocol, or non-standard irq/port settings.
+
+HiSax Support for NETjet card
+CONFIG_HISAX_NETJET
+  This enables HiSax support for the NetJet from Traverse Technologies.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using a different D-channel protocol, or non-standard irq/port settings.
+
+HiSax Support for Niccy PnP/PCI card
+CONFIG_HISAX_NICCY
+  This enables HiSax support for the Dr. Neuhaus Niccy PnP or PCI.
+  See Documentation/isdn/README.HiSax on how to configure it 
+  using a different D-channel protocol, or non-standard irq/port settings.
+
+HiSax Support for Am7930 (EXPERIMENTAL)
+CONFIG_HISAX_AMD7930
+  This enables HiSax support for the AMD7930 chips on some sparcs.
+  This code is not finished yet.
 
 HiSax Support for EURO/DSS1
 CONFIG_HISAX_EURO
@@ -7168,7 +7252,18 @@ CONFIG_HISAX_EURO
   NOTE: This is mutually exclusive with HiSax Support for
   German 1TR6 if you have only one ISDN card installed.
 
-HiSax Support for US/NI-1
+Support for german tarifinfo
+CONFIG_DE_AOC
+  If you want, that HiSax send messages to the linklevel on each
+  AOCD/AOCE, enable this. This works only in Germany.
+
+Support for australian Microlink service (not for std. EURO)
+CONFIG_HISAX_ML
+  If you are in Australia and connected on the Microlink telephone
+  network enable this, because here are little differences in protocol.
+  Please don't enable this in other countries.
+
+HiSax Support for US/NI-1 (not released yet)
 CONFIG_HISAX_NI1
   You should choose the D-channel protocol your local
   telephone service provider uses here by saying Y or N.
@@ -7225,6 +7320,14 @@ CONFIG_ISDN_DRV_AVMB1_VERBOSE_REASON
   disconnecting. This will increase the size of the kernel by 7K. If
   unsure, say Y.
 
+IBM Active 2000 support (EXPERIMENTAL)
+CONFIG_ISDN_DRV_ACT2000
+  This enables support for IBM Active 2000 ISDN card. In order to use
+  this card, additional firmware is necessary, which has to be loaded
+  into the card using a utility which is part of the latest isdn4k-utils
+  package. Please read the file Documentation/isdn/README.act2000 for
+  more information.
+
 Support for AP1000 multicomputer
 CONFIG_AP1000
   This enables support for a sparc based parallel multi-computer
@@ -7274,8 +7377,9 @@ CONFIG_ATARI
 
 Macintosh support
 CONFIG_MAC
-  This option would enable support for the Apple Macintosh if there was
-  any for it.  Say N unless you've coded all the necessary support. ;)
+  This option enables support for the Apple Macintosh series of computers
+  (yes, there is experimental support now, at least for part of the series).  
+  Say N unless you're willing to code the remaining necessary support. ;)
 
 # CONFIG_APOLLO, etc. coming soon (?)
 
@@ -7778,6 +7882,11 @@ CONFIG_VIDEO_BT848
   inserted in and removed from the running kernel whenever you
   want). If you want to compile it as a module, say M here and read
   Documentation/modules.txt.
+
+SAA5249 Teletext processor
+CONFIG_VIDEO_SAA5249
+  Support for I2C bus based teletext using the SAA5249 chip. At the moment
+  this is only useful on some european WinTV cards.
 
 Quickcam BW Video For Linux
 CONFIG_VIDEO_BWQCAM

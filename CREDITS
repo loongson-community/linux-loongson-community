@@ -438,8 +438,8 @@ E: bj0rn@blox.se
 W: http://www.pi.se/blox/
 D: Extended support for loadable modules
 D: D-Link pocket adapter drivers
-S: Myrstuguv. 83
-S: S-143 32 VARBY
+S: Grevgatan 11
+S: S-114 53 Stockholm
 S: Sweden
 
 N: Paal-Kristian Engstad
@@ -568,6 +568,7 @@ N: Richard E. Gooch
 E: rgooch@atnf.csiro.au
 D: parent process death signal to children
 D: prctl() syscall
+D: /proc/mtrr support to manipulate MTRRs on Pentium Pro's
 S: CSIRO Australia Telescope National Facility
 S: P.O. Box 76, Epping
 S: N.S.W., 2121
@@ -647,11 +648,11 @@ S: Atlanta, Georgia 30332
 S: USA
 
 N: Angelo Haritsis
-E: ah@doc.ic.ac.uk
+E: ah@computer.org
 D: kernel patches (serial, watchdog)
 D: xringd, vuzkern, greekXfonts
-S: 58 Henfield Close
-S: London N19 3UL
+S: 77 Clarence Mews
+S: London SE16 1GD
 S: United Kingdom
 
 N: Kai Harrekilde-Petersen
@@ -894,6 +895,10 @@ S: Germany
 N: Rudolf Koenig
 E: rfkoenig@immd4.informatik.uni-erlangen.de
 D: The Linux Support Team Erlangen
+
+N: Andreas Koensgen
+E: ajk@iehk.rwth-aachen.de
+D: 6pack driver for AX.25
 
 N: Andi Kleen
 E: ak@muc.de
@@ -1254,6 +1259,14 @@ S: Dragonvagen 1 A 13
 S: FIN-00330 Helsingfors
 S: Finland
 
+N: Matija Nalis
+E: mnalis@jagor.srce.hr
+E: mnalis@voyager.hr
+D: Maintainer of the Umsdos file system
+S: Listopadska 7
+S: 10000 Zagreb
+S: Croatia
+
 N: Jonathan Naylor
 E: g4klx@g4klx.demon.co.uk
 E: g4klx@amsat.org
@@ -1407,7 +1420,7 @@ S: Germany
 
 N: Joerg Reuter
 E: jreuter@poboxes.com
-W: http://www.rat.de/jr/
+W: http://poboxes.com/jreuter/
 W: http://qsl.net/dl1bke/
 D: Generic Z8530 driver, AX.25 DAMA slave implementation
 D: Several AX.25 hacks
@@ -1421,8 +1434,8 @@ S: 75019 Paris
 S: France
 
 N: Rik van Riel
-E: H.H.vanRiel@fys.ruu.nl
-W: http://www.fys.ruu.nl/~riel/
+E: H.H.vanRiel@phys.uu.nl
+W: http://www.phys.uu.nl/~riel/
 D: Maintainer of the mm-patches page (see www.linuxhq.com)
 D: Documentation/sysctl/*, kswapd fixes, random kernel hacker
 S: Vorenkampsweg 1
@@ -1625,11 +1638,13 @@ S: F-35042 Rennes Cedex
 S: France
 
 N: Jon Tombs
-E: jon@gtex02.us.es
+E: jon@gte.esi.us.es
+W: http://www.esi.us.es/~jon
 D: NFS mmap()
 D: XF86_S3
 D: Kernel modules
-S: C/ Carlos de Cepeda 36 2-5
+D: Parts of varios other programs (xfig, open, ...)
+S: C/ Federico Garcia Lorca 1 10-A
 S: Sevilla 41005
 S: Spain
 
@@ -1863,6 +1878,14 @@ D: Author of the longest-living linux bug
 S: Hernesaarenkatu 15 A 2
 S: Fin-00150 Helsinki
 S: Finland
+
+N: Jonathan Woithe
+E: jwoithe@physics.adelaide.edu.au
+W: http://www.physics.adelaide.edu.au/~jwoithe
+D: ALS-007 soundcard extensions to Sound Blaster driver
+S: 4/36 Trevelyan St
+S: Wayville SA 5034
+S: Australia
 
 N: Roger E. Wolff
 E: R.E.Wolff@BitWizard.nl

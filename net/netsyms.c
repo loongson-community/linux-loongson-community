@@ -15,6 +15,7 @@
 #include <linux/trdevice.h>
 #include <linux/ioport.h>
 #include <net/neighbour.h>
+#include <net/snmp.h>
 
 #ifdef CONFIG_INET
 #include <linux/ip.h>
@@ -41,6 +42,8 @@ extern struct net_proto_family inet_family_ops;
 #include <net/ndisc.h>
 #include <net/dst.h>
 #include <net/transp_v6.h>
+
+extern int tcp_tw_death_row_slot;
 #endif
 
 #endif
@@ -69,6 +72,12 @@ extern void destroy_8023_client(struct datalink_proto *);
 #ifdef CONFIG_ATALK_MODULE
 #include <net/sock.h>
 #endif
+
+#ifdef CONFIG_SYSCTL
+extern int sysctl_max_syn_backlog;
+#endif
+
+EXPORT_SYMBOL(dev_lockct);
 
 /* Skbuff symbols. */
 EXPORT_SYMBOL(skb_push_errstr);
@@ -120,6 +129,7 @@ EXPORT_SYMBOL(put_cmsg);
 EXPORT_SYMBOL(net_families);
 EXPORT_SYMBOL(sock_kmalloc);
 EXPORT_SYMBOL(sock_kfree_s);
+EXPORT_SYMBOL(skb_queue_lock);
 
 #ifdef CONFIG_FILTER
 EXPORT_SYMBOL(sk_run_filter);
@@ -176,17 +186,10 @@ EXPORT_SYMBOL(make_EII_client);
 EXPORT_SYMBOL(destroy_EII_client);
 #endif
 
-#ifdef CONFIG_ATALK_MODULE
 EXPORT_SYMBOL(sklist_destroy_socket);
-#endif
-
-#if defined(CONFIG_ATALK_MODULE) || defined(CONFIG_PACKET_MODULE)
 EXPORT_SYMBOL(sklist_insert_socket);
-#endif
 
-#ifdef CONFIG_SMB_FS_MODULE
 EXPORT_SYMBOL(scm_detach_fds);
-#endif
 
 #ifdef CONFIG_INET
 /* Internet layer registration */
@@ -210,6 +213,7 @@ EXPORT_SYMBOL(ip_mc_inc_group);
 EXPORT_SYMBOL(ip_mc_dec_group);
 EXPORT_SYMBOL(__ip_finish_output);
 EXPORT_SYMBOL(inet_dgram_ops);
+EXPORT_SYMBOL(__release_sock);
 
 /* needed for ip_gre -cw */
 EXPORT_SYMBOL(ip_statistics);
@@ -241,11 +245,8 @@ EXPORT_SYMBOL(destroy_sock);
 EXPORT_SYMBOL(ip_queue_xmit);
 EXPORT_SYMBOL(memcpy_fromiovecend);
 EXPORT_SYMBOL(csum_partial_copy_fromiovecend);
-EXPORT_SYMBOL(__release_sock);
 EXPORT_SYMBOL(net_timer);
 /* UDP/TCP exported functions for TCPv6 */
-EXPORT_SYMBOL(sysctl_tcp_timestamps);
-EXPORT_SYMBOL(sysctl_tcp_window_scaling);
 EXPORT_SYMBOL(sock_rspace);
 EXPORT_SYMBOL(udp_ioctl);
 EXPORT_SYMBOL(udp_connect);
@@ -293,6 +294,8 @@ EXPORT_SYMBOL(tcp_simple_retransmit);
 EXPORT_SYMBOL(tcp_transmit_skb);
 EXPORT_SYMBOL(tcp_connect);
 EXPORT_SYMBOL(tcp_make_synack);
+EXPORT_SYMBOL(tcp_tw_death_row_slot);
+EXPORT_SYMBOL(net_statistics); 
 
 EXPORT_SYMBOL(xrlim_allow);
 
@@ -300,6 +303,9 @@ EXPORT_SYMBOL(tcp_write_xmit);
 EXPORT_SYMBOL(dev_loopback_xmit);
 EXPORT_SYMBOL(tcp_regs);
 
+#ifdef CONFIG_SYSCTL
+EXPORT_SYMBOL(sysctl_max_syn_backlog);
+#endif
 #endif
 
 #ifdef CONFIG_NETLINK
@@ -317,6 +323,7 @@ EXPORT_SYMBOL(netlink_post);
 #endif
 
 #ifdef CONFIG_RTNETLINK
+EXPORT_SYMBOL(rtattr_parse);
 EXPORT_SYMBOL(rtnetlink_links);
 EXPORT_SYMBOL(__rta_fill);
 EXPORT_SYMBOL(rtnetlink_dump_ifinfo);
@@ -327,18 +334,16 @@ EXPORT_SYMBOL(neigh_add);
 EXPORT_SYMBOL(neigh_dump_info);
 #endif
 
-#ifdef CONFIG_PACKET_MODULE
 EXPORT_SYMBOL(dev_set_allmulti);
 EXPORT_SYMBOL(dev_set_promiscuity);
 EXPORT_SYMBOL(sklist_remove_socket);
 EXPORT_SYMBOL(rtnl_wait);
 EXPORT_SYMBOL(rtnl_rlockct);
-#endif
+EXPORT_SYMBOL(rtnl_lock);
+EXPORT_SYMBOL(rtnl_unlock);
 
-#if defined(CONFIG_IPV6_MODULE) || defined(CONFIG_PACKET_MODULE)
-EXPORT_SYMBOL(dev_lockct);
 EXPORT_SYMBOL(sock_wmalloc);
-#endif
+EXPORT_SYMBOL(sock_rmalloc);
 
 #if	defined(CONFIG_ULTRA)	||	defined(CONFIG_WD80x3)		|| \
 	defined(CONFIG_EL2)	||	defined(CONFIG_NE2000)		|| \
@@ -424,9 +429,6 @@ EXPORT_SYMBOL(ip_rcv);
 EXPORT_SYMBOL(arp_rcv);
 EXPORT_SYMBOL(dev_mc_delete);
 
-EXPORT_SYMBOL(rtnl_lock);
-EXPORT_SYMBOL(rtnl_unlock);
-
 EXPORT_SYMBOL(if_port_text);
 
 #if defined(CONFIG_ATALK) || defined(CONFIG_ATALK_MODULE) 
@@ -444,9 +446,31 @@ EXPORT_SYMBOL(qdisc_destroy);
 EXPORT_SYMBOL(qdisc_reset);
 EXPORT_SYMBOL(qdisc_restart);
 EXPORT_SYMBOL(qdisc_head);
+EXPORT_SYMBOL(qdisc_create_dflt);
+EXPORT_SYMBOL(noop_qdisc);
+#ifdef CONFIG_NET_SCHED
+EXPORT_SYMBOL(pfifo_qdisc_ops);
 EXPORT_SYMBOL(register_qdisc);
 EXPORT_SYMBOL(unregister_qdisc);
-EXPORT_SYMBOL(noop_qdisc);
+EXPORT_SYMBOL(qdisc_get_rtab);
+EXPORT_SYMBOL(qdisc_put_rtab);
+#ifdef CONFIG_NET_ESTIMATOR
+EXPORT_SYMBOL(qdisc_new_estimator);
+EXPORT_SYMBOL(qdisc_kill_estimator);
+#endif
+#ifdef CONFIG_NET_POLICE
+EXPORT_SYMBOL(tcf_police);
+EXPORT_SYMBOL(tcf_police_locate);
+EXPORT_SYMBOL(tcf_police_destroy);
+#ifdef CONFIG_RTNETLINK
+EXPORT_SYMBOL(tcf_police_dump);
+#endif
+#endif
+#endif
+#ifdef CONFIG_NET_CLS
+EXPORT_SYMBOL(register_tcf_proto_ops);
+EXPORT_SYMBOL(unregister_tcf_proto_ops);
+#endif
 
 EXPORT_SYMBOL(register_gifconf);
 

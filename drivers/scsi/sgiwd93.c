@@ -5,7 +5,7 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.7 1996/07/23 09:00:16 dm Exp $
+ * $Id: sgiwd93.c,v 1.6 1998/04/05 11:24:32 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -21,6 +21,7 @@
 #include <asm/sgihpc.h>
 #include <asm/sgint23.h>
 #include <asm/irq.h>
+#include <asm/spinlock.h>
 #include <asm/io.h>
 
 #include "scsi.h"
@@ -65,7 +66,11 @@ static inline unsigned long read_wd33c93_count(wd33c93_regs *regp)
 /* XXX woof! */
 static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&io_request_lock, flags);
 	wd33c93_intr(sgiwd93_host);
+	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 #undef DEBUG_DMA

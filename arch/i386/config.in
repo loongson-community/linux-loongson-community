@@ -17,7 +17,9 @@ choice 'Processor family' \
 	 Pentium/K5/5x86/6x86	CONFIG_M586	\
 	 PPro/K6/6x86MX		CONFIG_M686" Pentium
 bool 'Math emulation' CONFIG_MATH_EMULATION
-int ' Max physical memory in MB' CONFIG_MAX_MEMSIZE 1024
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool 'MTRR (Memory Type Range Register) support' CONFIG_MTRR
+fi
 endmenu
 
 mainmenu_option next_comment
@@ -37,7 +39,8 @@ bool 'PCI support' CONFIG_PCI
 if [ "$CONFIG_PCI" = "y" ]; then
   bool '   PCI BIOS support' CONFIG_PCI_BIOS
   bool '   PCI direct access support' CONFIG_PCI_DIRECT
-  if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool '   PCI quirks' CONFIG_PCI_QUIRKS
+  if [ "$CONFIG_PCI_QUIRKS" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
     bool '   PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
   fi
   bool '   Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
@@ -113,17 +116,6 @@ if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
   source drivers/cdrom/Config.in
 fi
 endmenu
-
-# Conditionally compile in the Uniform CD-ROM driver
-if [ "$CONFIG_BLK_DEV_IDECD" = "y" -o "$CONFIG_BLK_DEV_SR" = "y" -o "$CONFIG_SBPCD" = "y" -o "$CONFIG_MCD" = "y" -o "$CONFIG_MCDX" = "y" -o "$CONFIG_CM206" = "y" -o "$CONFIG_CDU31A" = "y" ]; then
-  define_bool CONFIG_CDROM y
-else
-  if [ "$CONFIG_BLK_DEV_IDECD" = "m" -o "$CONFIG_BLK_DEV_SR" = "m" -o "$CONFIG_SBPCD" = "m" -o "$CONFIG_MCD" = "m" -o "$CONFIG_MCDX" = "m" -o "$CONFIG_CM206" = "m" -o "$CONFIG_CDU31A" = "m" ]; then
-    define_bool CONFIG_CDROM m
-  else
-    define_bool CONFIG_CDROM n
-  fi
-fi
 
 source fs/Config.in
 

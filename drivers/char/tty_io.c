@@ -66,6 +66,7 @@
 #include <linux/interrupt.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
+#include <linux/devpts_fs.h>
 #include <linux/file.h>
 #include <linux/console.h>
 #include <linux/timer.h>
@@ -130,12 +131,13 @@ static int tty_fasync(struct file * filp, int on);
 /*
  * This routine returns the name of tty.
  */
+#define TTY_NUMBER(tty) (MINOR((tty)->device) - (tty)->driver.minor_start + \
+			 (tty)->driver.name_base)
+	
 char *tty_name(struct tty_struct *tty, char *buf)
 {
 	if (tty)
-		sprintf(buf, "%s%d", tty->driver.name,
-			MINOR(tty->device) - tty->driver.minor_start +
-			tty->driver.name_base);
+		sprintf(buf, "%s%d", tty->driver.name, TTY_NUMBER(tty));
 	else
 		strcpy(buf, "NULL tty");
 	return buf;
@@ -1209,7 +1211,7 @@ retry_open:
 	if (device == PTMX_DEV) {
 		/* find a free pty. */
 		struct tty_driver *driver = tty_drivers;
-		int minor;
+		int minor, line;
 
 		/* find the pty driver */
 		for (driver=tty_drivers; driver; driver=driver->next)
@@ -1229,6 +1231,8 @@ retry_open:
 			return -EIO; /* no free ptys */
 		
 		set_bit(TTY_PTY_LOCK, &tty->flags); /* LOCK THE SLAVE */
+		line = minor - driver->minor_start;
+		devpts_pty_new(line, MKDEV(driver->other->major, line+driver->other->minor_start));
 		noctty = 1;
 		goto init_dev_done;
 	}
@@ -1284,9 +1288,17 @@ init_dev_done:
 		tty->pgrp = current->pgrp;
 	}
 	if ((tty->driver.type == TTY_DRIVER_TYPE_SERIAL) &&
-	    (tty->driver.subtype == SERIAL_TYPE_CALLOUT)) {
-		printk("Warning, %s opened, is a deprecated tty "
-		       "callout device\n", tty_name(tty, buf));
+	    (tty->driver.subtype == SERIAL_TYPE_CALLOUT) &&
+	    (tty->count == 1)) {
+		static int nr_warns = 0;
+		if (nr_warns < 5) {
+			printk(KERN_WARNING "tty_io.c: "
+				"process %d (%s) used obsolete /dev/%s - " 
+				"update software to use /dev/ttyS%d\n",
+				current->pid, current->comm, 
+				tty_name(tty, buf), TTY_NUMBER(tty));
+			nr_warns++;
+		}
 	}
 	return 0;
 }

@@ -48,6 +48,7 @@ extern int sysctl_tcp_hoe_retransmits;
 extern int sysctl_tcp_timestamps;
 extern int sysctl_tcp_window_scaling;
 extern int sysctl_tcp_sack;
+extern int sysctl_tcp_retrans_collapse;
 extern int sysctl_tcp_keepalive_time;
 extern int sysctl_tcp_keepalive_probes;
 extern int sysctl_tcp_max_ka_probes;
@@ -62,16 +63,12 @@ extern int sysctl_tcp_syn_taildrop;
 extern int sysctl_max_syn_backlog; 
 
 /* From icmp.c */
-extern int sysctl_icmp_sourcequench_time; 
 extern int sysctl_icmp_destunreach_time;
 extern int sysctl_icmp_timeexceed_time;
 extern int sysctl_icmp_paramprob_time;
 extern int sysctl_icmp_echoreply_time;
 
 int tcp_retr1_max = 255; 
-
-extern int tcp_sysctl_congavoid(ctl_table *ctl, int write, struct file * filp,
-				void *buffer, size_t *lenp);
 
 struct ipv4_config ipv4_config;
 
@@ -108,9 +105,9 @@ ctl_table ipv4_table[] = {
         {NET_IPV4_TCP_SACK, "tcp_sack",
          &sysctl_tcp_sack, sizeof(int), 0644, NULL,
          &proc_dointvec},
-	{NET_IPV4_TCP_VEGAS_CONG_AVOID, "tcp_vegas_cong_avoid",
-	 &sysctl_tcp_cong_avoidance, sizeof(int), 0644,
-	 NULL, &tcp_sysctl_congavoid },
+        {NET_IPV4_TCP_RETRANS_COLLAPSE, "tcp_retrans_collapse",
+         &sysctl_tcp_retrans_collapse, sizeof(int), 0644, NULL,
+         &proc_dointvec},
         {NET_IPV4_FORWARD, "ip_forward",
          &ipv4_devconf.forwarding, sizeof(int), 0644, NULL,
          &ipv4_sysctl_forward},
@@ -161,8 +158,6 @@ ctl_table ipv4_table[] = {
 	 sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_TCP_RFC1337, "tcp_rfc1337", &sysctl_tcp_rfc1337,
 	 sizeof(int), 0644, NULL, &proc_dointvec},
-	{NET_TCP_SYN_TAILDROP, "tcp_syn_taildrop", &sysctl_tcp_syn_taildrop,
-	 sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_TCP_MAX_SYN_BACKLOG, "tcp_max_syn_backlog", &sysctl_max_syn_backlog,
 	 sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_IPV4_LOCAL_PORT_RANGE, "ip_local_port_range",
@@ -174,8 +169,6 @@ ctl_table ipv4_table[] = {
 	{NET_IPV4_ICMP_ECHO_IGNORE_BROADCASTS, "icmp_echo_ignore_broadcasts",
 	 &sysctl_icmp_echo_ignore_broadcasts, sizeof(int), 0644, NULL,
 	 &proc_dointvec},
-	{NET_IPV4_ICMP_SOURCEQUENCH_RATE, "icmp_sourcequench_rate",
-	 &sysctl_icmp_sourcequench_time, sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_IPV4_ICMP_DESTUNREACH_RATE, "icmp_destunreach_rate",
 	 &sysctl_icmp_destunreach_time, sizeof(int), 0644, NULL, &proc_dointvec},
 	{NET_IPV4_ICMP_TIMEEXCEED_RATE, "icmp_timeexceed_rate",

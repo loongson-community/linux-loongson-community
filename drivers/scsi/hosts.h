@@ -23,6 +23,7 @@
     $Header: /vger/u4/cvs/linux/drivers/scsi/hosts.h,v 1.6 1997/01/19 23:07:13 davem Exp $
 */
 
+#include <linux/config.h>
 #include <linux/proc_fs.h>
 
 /* It is senseless to set SG_ALL any higher than this - the performance
@@ -106,6 +107,11 @@ typedef struct	SHT
      * the name field will be used instead.
      */
     const char *(* info)(struct Scsi_Host *);
+
+    /*
+     * ioctl interface
+     */
+    int (*ioctl)(Scsi_Device *dev, int cmd, void *arg);
 
     /*
      * The command function takes a target, a command (this is a SCSI
@@ -264,6 +270,11 @@ typedef struct	SHT
      */
     unsigned use_new_eh_code:1;
 
+    /*
+     * True for emulated SCSI host adapters (e.g. ATAPI)
+     */
+    unsigned emulated:1;
+
 } Scsi_Host_Template;
 
 /*
@@ -332,7 +343,7 @@ struct Scsi_Host
 
     /* These parameters should be set by the detect routine */
     unsigned char *base;
-    unsigned int  io_port;
+    unsigned long io_port;
     unsigned char n_io_port;
     unsigned char irq;
     unsigned char dma_channel;
@@ -374,7 +385,7 @@ struct Scsi_Host
     /*
      * We should ensure that this is aligned, both for better performance
      * and also because some compilers (m68k) don't automatically force
-     * alignment to a 4-byte boundary.
+     * alignment to a long boundary.
      */
     unsigned long hostdata[0]  /* Used for storage of host specific stuff */
         __attribute__ ((aligned (sizeof(unsigned long))));
@@ -456,8 +467,15 @@ extern void scsi_unregister_module(int, void *);
  * we need to leave extra room in some of the data structures.	Doing a
  * realloc to enlarge the structures would be riddled with race conditions,
  * so until a better solution is discovered, we use this crude approach
+ *
+ * Even bigger hack for SparcSTORAGE arrays. Those are at least 6 disks, but
+ * usually up to 30 disks, so everyone would need to change this. -jj
  */
-#define SD_EXTRA_DEVS 2
+#ifdef CONFIG_SCSI_PLUTO_MODULE
+#define SD_EXTRA_DEVS 40
+#else
+#define SD_EXTRA_DEVS 4
+#endif
 #define ST_EXTRA_DEVS 2
 #define SR_EXTRA_DEVS 2
 #define SG_EXTRA_DEVS (SD_EXTRA_DEVS + SR_EXTRA_DEVS + ST_EXTRA_DEVS)

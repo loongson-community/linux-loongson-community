@@ -208,6 +208,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 	int retval;
 
 	flush_cache_mm(current->mm);
+	down(&current->mm->mmap_sem);
 	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
 		struct file *file;
@@ -257,6 +258,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 
 fail_nomem:
 	flush_tlb_mm(current->mm);
+	up(&current->mm->mmap_sem);
 	return retval;
 }
 
@@ -298,13 +300,14 @@ struct mm_struct * mm_alloc(void)
 void mmput(struct mm_struct *mm)
 {
 	if (!--mm->count) {
+		release_segments(mm);
 		exit_mmap(mm);
 		free_page_tables(mm);
 		kmem_cache_free(mm_cachep, mm);
 	}
 }
 
-static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
+static inline int copy_mm(int nr, unsigned long clone_flags, struct task_struct * tsk)
 {
 	struct mm_struct * mm;
 	int retval;
@@ -324,6 +327,7 @@ static inline int copy_mm(unsigned long clone_flags, struct task_struct * tsk)
 	tsk->min_flt = tsk->maj_flt = 0;
 	tsk->cmin_flt = tsk->cmaj_flt = 0;
 	tsk->nswap = tsk->cnswap = 0;
+	copy_segments(nr, tsk, mm);
 	retval = new_page_tables(tsk);
 	if (retval)
 		goto free_mm;
@@ -514,6 +518,7 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 		/* ?? should we just memset this ?? */
 		for(i = 0; i < smp_num_cpus; i++)
 			p->per_cpu_utime[i] = p->per_cpu_stime[i] = 0;
+		spin_lock_init(&p->sigmask_lock);
 	}
 #endif
 	p->lock_depth = 0;
@@ -539,7 +544,7 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 		goto bad_fork_cleanup_files;
 	if (copy_sighand(clone_flags, p))
 		goto bad_fork_cleanup_fs;
-	if (copy_mm(clone_flags, p))
+	if (copy_mm(nr, clone_flags, p))
 		goto bad_fork_cleanup_sighand;
 	error = copy_thread(nr, clone_flags, usp, p, regs);
 	if (error)

@@ -703,8 +703,7 @@ int ip_mroute_setsockopt(struct sock *sk,int optname,char *optval,int optlen)
 			mrtsock_destruct(sk);
 			return -EADDRINUSE;
 		case MRT_DONE:
-			mrtsock_destruct(sk);
-			return 0;
+			return ip_ra_control(sk, 0, NULL);
 		case MRT_ADD_VIF:
 		case MRT_DEL_VIF:
 			if(optlen!=sizeof(vif))

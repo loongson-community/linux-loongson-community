@@ -29,21 +29,18 @@
 #define CHECKSUM_HW 1
 #define CHECKSUM_UNNECESSARY 2
 
-struct sk_buff_head 
-{
+struct sk_buff_head {
 	struct sk_buff	* next;
 	struct sk_buff	* prev;
 	__u32		qlen;		/* Must be same length as a pointer
 					   for using debugging */
 };
 
-struct sk_buff 
-{
+struct sk_buff {
 	struct sk_buff	* next;			/* Next buffer in list 				*/
 	struct sk_buff	* prev;			/* Previous buffer in list 			*/
 	struct sk_buff_head * list;		/* List we are on				*/
 	struct sock	*sk;			/* Socket we are owned by 			*/
-	unsigned long	when;			/* used to compute rtt's			*/
 	struct timeval	stamp;			/* Time we arrived				*/
 	struct device	*dev;			/* Device we arrived on/are leaving by		*/
 
@@ -78,16 +75,8 @@ struct sk_buff
 
 	struct  dst_entry *dst;
 
-#if (defined(__alpha__) || defined(__sparc64__)) && (defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE))
-	char		cb[48];	   /* sorry. 64bit pointers have a price */
-#else
-	char    	cb[32];
-#endif
+	char		cb[48];	 
 
-	__u32		seq;			/* TCP sequence number				*/
-	__u32		end_seq;		/* seq [+ fin] [+ syn] + datalen		*/
-	__u32		ack_seq;		/* TCP ack sequence number			*/
-  
 	unsigned int 	len;			/* Length of actual data			*/
 	unsigned int	csum;			/* Checksum 					*/
 	volatile char 	used;			/* Data moved to user and not MSG_PEEK		*/
@@ -102,10 +91,6 @@ struct sk_buff
 	unsigned short	security;		/* Security level of packet			*/
 	unsigned int	truesize;		/* Buffer size 					*/
 
-#ifndef SLAB_SKB
-	atomic_t	count;			/* reference count				*/
-	struct sk_buff	*data_skb;		/* Link to the actual data skb			*/
-#endif
 	unsigned char	*head;			/* Head of buffer 				*/
 	unsigned char	*data;			/* Data head pointer				*/
 	unsigned char	*tail;			/* Tail pointer					*/
@@ -381,12 +366,17 @@ extern __inline__ void skb_insert(struct sk_buff *old, struct sk_buff *newsk)
  *	Place a packet after a given packet in a list.
  */
 
+extern __inline__ void __skb_append(struct sk_buff *old, struct sk_buff *newsk)
+{
+	__skb_insert(newsk, old, old->next, old->list);
+}
+
 extern __inline__ void skb_append(struct sk_buff *old, struct sk_buff *newsk)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&skb_queue_lock, flags);
-	__skb_insert(newsk, old, old->next, old->list);
+	__skb_append(old, newsk);
 	spin_unlock_irqrestore(&skb_queue_lock, flags);
 }
 
@@ -461,12 +451,7 @@ extern __inline__ unsigned char *skb_put(struct sk_buff *skb, unsigned int len)
 	if(skb->tail>skb->end)
 	{
 		__label__ here;
-#if 1
-		printk(KERN_DEBUG "skbput: over: %p:tail=%p:end=%p:len=%u\n",
-						&&here, skb->tail, skb->end, len);
-#else
 		panic(skb_put_errstr,&&here,len);
-#endif
 here:          ;
 	}
 	return tmp;

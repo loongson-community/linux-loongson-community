@@ -119,7 +119,8 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 	esp->esp_command_dvma = vdma_alloc(PHYSADDR(cmd_buffer), sizeof (cmd_buffer));
 	
 	esp->irq = JAZZ_SCSI_IRQ;
-	request_irq(JAZZ_SCSI_IRQ, esp_intr, SA_INTERRUPT, "JAZZ SCSI", esp_intr);
+	request_irq(JAZZ_SCSI_IRQ, do_esp_intr, SA_INTERRUPT, "JAZZ SCSI",
+	            NULL);
 
 	/*
 	 * FIXME, look if the scsi id is availabe from NVRAM

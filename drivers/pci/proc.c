@@ -1,14 +1,14 @@
 /*
- *	$Id: proc.c,v 1.1 1997/12/22 17:22:31 mj Exp $
+ *	$Id: proc.c,v 1.10 1998/04/16 20:48:30 mj Exp $
  *
  *	Procfs interface for the PCI bus.
  *
- *	Copyright (c) 1997 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *	Copyright (c) 1997, 1998 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
 
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/proc_fs.h>
 #include <linux/init.h>
@@ -49,14 +49,27 @@ proc_bus_pci_read(struct file *file, char *buf, size_t nbytes, loff_t *ppos)
 	int pos = *ppos;
 	unsigned char bus = dev->bus->number;
 	unsigned char dfn = dev->devfn;
-	int cnt;
+	int cnt, size;
 
-	if (pos >= PCI_CFG_SPACE_SIZE)
+	/*
+	 * Normal users can read only the standardized portion of the
+	 * configuration space as several chips lock up when trying to read
+	 * undefined locations (think of Intel PIIX4 as a typical example).
+	 */
+
+	if (fsuser())
+		size = PCI_CFG_SPACE_SIZE;
+	else if (dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
+		size = 128;
+	else
+		size = 64;
+
+	if (pos >= size)
 		return 0;
-	if (nbytes >= PCI_CFG_SPACE_SIZE)
-		nbytes = PCI_CFG_SPACE_SIZE;
-	if (pos + nbytes > PCI_CFG_SPACE_SIZE)
-		nbytes = PCI_CFG_SPACE_SIZE - pos;
+	if (nbytes >= size)
+		nbytes = size;
+	if (pos + nbytes > size)
+		nbytes = size - pos;
 	cnt = nbytes;
 
 	if (!access_ok(VERIFY_WRITE, buf, cnt))
@@ -238,6 +251,13 @@ get_pci_dev_info(char *buf, char **start, off_t pos, int count, int wr)
 						"\t%016lx",
 #endif
 					dev->base_address[i]);
+		len += sprintf(buf+len,
+#if BITS_PER_LONG == 32
+					"\t%08lx",
+#else
+					"\t%016lx",
+#endif
+			       dev->rom_address);
 		buf[len++] = '\n';
 		at += len;
 		if (at >= pos) {
@@ -260,16 +280,9 @@ static struct proc_dir_entry proc_pci_devices = {
 	get_pci_dev_info
 };
 
-__initfunc(void proc_bus_pci_init(void))
+__initfunc(void proc_bus_pci_add(struct pci_bus *bus, struct proc_dir_entry *proc_pci))
 {
-	struct proc_dir_entry *proc_pci;
-	struct pci_bus *bus;
-
-	if (!pcibios_present())
-		return;
-	proc_pci = create_proc_entry("pci", S_IFDIR, proc_bus);
-	proc_register(proc_pci, &proc_pci_devices);
-	for(bus = &pci_root; bus; bus = bus->next) {
+	while (bus) {
 		char name[16];
 		struct proc_dir_entry *de;
 		struct pci_dev *dev;
@@ -287,5 +300,23 @@ __initfunc(void proc_bus_pci_init(void))
 			e->data = dev;
 			e->size = PCI_CFG_SPACE_SIZE;
 		}
+		if (bus->children)
+			proc_bus_pci_add(bus->children, proc_pci);
+		bus = bus->next;
 	}
+}
+
+__initfunc(void pci_proc_init(void))
+{
+	struct proc_dir_entry *proc_pci;
+
+	if (!pci_present())
+		return;
+	proc_pci = create_proc_entry("pci", S_IFDIR, proc_bus);
+	proc_register(proc_pci, &proc_pci_devices);
+	proc_bus_pci_add(&pci_root, proc_pci);
+
+#ifdef CONFIG_PCI_OLD_PROC
+	proc_old_pci_init();
+#endif
 }

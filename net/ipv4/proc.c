@@ -25,6 +25,7 @@
  *		Alan Cox	:	Allow inode to be NULL (kernel socket)
  *	Andi Kleen		:	Add support for open_requests and 
  *					split functions for more readibility.
+ *	Andi Kleen		:	Add support for /proc/net/netstat
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -98,12 +99,19 @@ static inline void get__sock(struct sock *sp, char *tmpbuf, int i, int format)
 	destp = ntohs(destp);
 	srcp  = ntohs(srcp);
 	if((format == 0) && (sp->state == TCP_TIME_WAIT)) {
+		extern int tcp_tw_death_row_slot;
 		struct tcp_tw_bucket *tw = (struct tcp_tw_bucket *)sp;
+		int slot_dist;
 
 		tw_bucket	= 1;
 		timer_active1	= timer_active2 = 0;
 		timer_active	= 3;
-		timer_expires	= tw->timer.expires;
+		slot_dist	= tw->death_slot;
+		if(slot_dist > tcp_tw_death_row_slot)
+			slot_dist = (TCP_TWKILL_SLOTS - slot_dist) + tcp_tw_death_row_slot;
+		else
+			slot_dist = tcp_tw_death_row_slot - slot_dist;
+		timer_expires	= jiffies + (slot_dist * TCP_TWKILL_PERIOD);
 	} else {
 		timer_active1 = del_timer(&tp->retransmit_timer);
 		timer_active2 = del_timer(&sp->timer);
@@ -326,6 +334,36 @@ int snmp_get_info(char *buffer, char **start, off_t offset, int length, int dumm
 	  		tcp_rx_hit2,tcp_rx_hit1,tcp_rx_miss);
 */
 	
+	if (offset >= len)
+	{
+		*start = buffer;
+		return 0;
+	}
+	*start = buffer + offset;
+	len -= offset;
+	if (len > length)
+		len = length;
+	return len;
+}
+
+/* 
+ *	Output /proc/net/netstat
+ */
+ 
+int netstat_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
+{
+	extern struct linux_mib net_statistics;
+	int len;
+
+	len = sprintf(buffer,
+		      "TcpExt: SyncookiesSent SyncookiesRecv SyncookiesFailed"
+		      "EmbryonicRsts\n"
+		      "TcpExt: %lu %lu %lu %lu\n",
+		      net_statistics.SyncookiesSent,
+		      net_statistics.SyncookiesRecv,
+		      net_statistics.SyncookiesFailed,
+		      net_statistics.EmbryonicRsts);
+
 	if (offset >= len)
 	{
 		*start = buffer;

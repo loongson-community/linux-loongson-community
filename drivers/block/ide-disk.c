@@ -112,7 +112,6 @@ static void read_intr (ide_drive_t *drive)
 	int i;
 	unsigned int msect, nsect;
 	struct request *rq;
-	unsigned long flags;
 
 	if (!OK_STAT(stat=GET_STAT(),DATA_READY,BAD_R_STAT)) {
 		ide_error(drive, "read_intr", stat);
@@ -120,7 +119,6 @@ static void read_intr (ide_drive_t *drive)
 	}
 	msect = drive->mult_count;
 	
-	spin_lock_irqsave(&io_request_lock,flags);
 read_next:
 	rq = HWGROUP(drive)->rq;
 	if (msect) {
@@ -152,7 +150,6 @@ read_next:
 			goto read_next;
 		ide_set_handler (drive, &read_intr, WAIT_CMD);
 	}
-	spin_unlock_irqrestore(&io_request_lock,flags);
 }
 
 /*
@@ -164,10 +161,8 @@ static void write_intr (ide_drive_t *drive)
 	int i;
 	ide_hwgroup_t *hwgroup = HWGROUP(drive);
 	struct request *rq = hwgroup->rq;
-	unsigned long flags;
 	int error = 0;
 
-	spin_lock_irqsave(&io_request_lock,flags);
 	if (OK_STAT(stat=GET_STAT(),DRIVE_READY,drive->bad_wstat)) {
 #ifdef DEBUG
 		printk("%s: write: sector %ld, buffer=0x%08lx, remaining=%ld\n",
@@ -192,7 +187,6 @@ static void write_intr (ide_drive_t *drive)
 		error = 1;
 
 out:
-	spin_unlock_irqrestore(&io_request_lock,flags);
 
 	if (error)
 		ide_error(drive, "write_intr", stat);
@@ -243,10 +237,8 @@ static void multwrite_intr (ide_drive_t *drive)
 	int i;
 	ide_hwgroup_t *hwgroup = HWGROUP(drive);
 	struct request *rq = &hwgroup->wrq;
-	unsigned long flags;
 	int error = 0;
 
-	spin_lock_irqsave(&io_request_lock,flags);
 	if (OK_STAT(stat=GET_STAT(),DRIVE_READY,drive->bad_wstat)) {
 		if (stat & DRQ_STAT) {
 			if (rq->nr_sectors) {
@@ -268,7 +260,6 @@ static void multwrite_intr (ide_drive_t *drive)
 		error = 1;
 
 out:
-	spin_unlock_irqrestore(&io_request_lock,flags);
 
 	if (error)
 		ide_error(drive, "multwrite_intr", stat);
@@ -496,6 +487,25 @@ static void idedisk_pre_reset (ide_drive_t *drive)
 		drive->special.b.set_multmode = 1;
 }
 
+static int smart_enable(ide_drive_t *drive)
+{
+	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_ENABLE, 0, NULL);
+}
+
+#ifdef CONFIG_PROC_FS
+
+static int get_smart_values(ide_drive_t *drive, byte *buf)
+{
+	(void) smart_enable(drive);
+	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_READ_VALUES, 1, buf);
+}
+
+static int get_smart_thresholds(ide_drive_t *drive, byte *buf)
+{
+	(void) smart_enable(drive);
+	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_READ_THRESHOLDS, 1, buf);
+}
+
 static int proc_idedisk_read_cache
 	(char *page, char **start, off_t off, int count, int *eof, void *data)
 {
@@ -508,23 +518,6 @@ static int proc_idedisk_read_cache
 	else
 		len = sprintf(out,"(none)\n");
 	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
-}
-
-static int smart_enable(ide_drive_t *drive)
-{
-	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_ENABLE, 0, NULL);
-}
-
-static int get_smart_values(ide_drive_t *drive, byte *buf)
-{
-	(void) smart_enable(drive);
-	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_READ_VALUES, 1, buf);
-}
-
-static int get_smart_thresholds(ide_drive_t *drive, byte *buf)
-{
-	(void) smart_enable(drive);
-	return ide_wait_cmd(drive, WIN_SMART, 0, SMART_READ_THRESHOLDS, 1, buf);
 }
 
 static int proc_idedisk_read_smart_thresholds
@@ -566,12 +559,18 @@ static int proc_idedisk_read_smart_values
 }
 
 static ide_proc_entry_t idedisk_proc[] = {
-	{ "cache", proc_idedisk_read_cache, NULL },
-	{ "geometry", proc_ide_read_geometry, NULL },
-	{ "smart_values", proc_idedisk_read_smart_values, NULL },
-	{ "smart_thresholds", proc_idedisk_read_smart_thresholds, NULL },
-	{ NULL, NULL, NULL }
+	{ "cache",		S_IFREG|S_IRUGO,	proc_idedisk_read_cache,		NULL },
+	{ "geometry",		S_IFREG|S_IRUGO,	proc_ide_read_geometry,			NULL },
+	{ "smart_values",	S_IFREG|S_IRUSR,	proc_idedisk_read_smart_values,		NULL },
+	{ "smart_thresholds",	S_IFREG|S_IRUSR,	proc_idedisk_read_smart_thresholds,	NULL },
+	{ NULL, 0, NULL, NULL }
 };
+
+#else
+
+#define	idedisk_proc	NULL
+
+#endif	/* CONFIG_PROC_FS */
 
 static int set_multcount(ide_drive_t *drive, int arg)
 {

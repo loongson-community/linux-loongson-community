@@ -680,7 +680,7 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 	if (inet_addr_type(iph->daddr) == RTN_BROADCAST)
 	{
 		if (net_ratelimit())
-			printk("%s sent an invalid ICMP error to a broadcast.\n",
+			printk(KERN_WARNING "%s sent an invalid ICMP error to a broadcast.\n",
 			       in_ntoa(skb->nh.iph->saddr));
 		return; 
 	}
@@ -856,6 +856,9 @@ static void icmp_timestamp(struct icmphdr *icmph, struct sk_buff *skb, int len)
  * All these rules are so bizarre, that I removed kernel addrmask
  * support at all. It is wrong, it is obsolete, nobody uses it in
  * any case. --ANK
+ *
+ * Furthermore you can do it with a usermode address agent program
+ * anyway...
  */
 
 static void icmp_address(struct icmphdr *icmph, struct sk_buff *skb, int len)
@@ -1026,7 +1029,6 @@ static unsigned long dummy;
  *	dst_entry gets expired too early. The same should happen when
  *	the cache grows too big.
  */
-int sysctl_icmp_sourcequench_time = 1*HZ; 
 int sysctl_icmp_destunreach_time = 1*HZ;
 int sysctl_icmp_timeexceed_time = 1*HZ;
 int sysctl_icmp_paramprob_time = 1*HZ;
@@ -1044,7 +1046,7 @@ static struct icmp_control icmp_pointers[NR_ICMP_TYPES+1] = {
 /* DEST UNREACH (3) */
  { &icmp_statistics.IcmpOutDestUnreachs, &icmp_statistics.IcmpInDestUnreachs, icmp_unreach, 1, &sysctl_icmp_destunreach_time },
 /* SOURCE QUENCH (4) */
- { &icmp_statistics.IcmpOutSrcQuenchs, &icmp_statistics.IcmpInSrcQuenchs, icmp_unreach, 1, &sysctl_icmp_sourcequench_time },
+ { &icmp_statistics.IcmpOutSrcQuenchs, &icmp_statistics.IcmpInSrcQuenchs, icmp_unreach, 1, },
 /* REDIRECT (5) */
  { &icmp_statistics.IcmpOutRedirects, &icmp_statistics.IcmpInRedirects, icmp_redirect, 1, },
  { &dummy, &icmp_statistics.IcmpInErrors, icmp_discard, 1, },

@@ -79,6 +79,7 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <asm/pgtable.h>
+#include <asm/spinlock.h>
 #include <linux/blk.h>
 #include "scsi.h"
 #include "sd.h"
@@ -237,6 +238,16 @@ inline void eata_latency_out(struct eata_ccb *cp, Scsi_Cmnd *cmd)
     } 
 }
 
+void eata_int_handler(int, void *, struct pt_regs *);
+
+void do_eata_int_handler(int irq, void *dev_id, struct pt_regs * regs)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&io_request_lock, flags);
+    eata_int_handler(irq, dev_id, regs);
+    spin_unlock_irqrestore(&io_request_lock, flags);
+}
 
 void eata_int_handler(int irq, void *dev_id, struct pt_regs * regs)
 {
@@ -1409,7 +1420,7 @@ void find_PCI(struct get_conf *buf, Scsi_Host_Template * tpnt)
     u32 error, i, x;
     u8 pal1, pal2, pal3;
 
-    if (pcibios_present()) {
+    if (pci_present()) {
 	for (i = 0; i <= MAXPCI; ++i, ++pci_index) {
 	    if (pcibios_find_device(PCI_VENDOR_ID_DPT, PCI_DEVICE_ID_DPT, 
 				    pci_index, &pci_bus, &pci_device_fn))
@@ -1538,7 +1549,7 @@ int eata_detect(Scsi_Host_Template * tpnt)
     for (i = 0; i <= MAXIRQ; i++) { /* Now that we know what we have, we     */
 	if (reg_IRQ[i] >= 1){       /* exchange the interrupt handler which  */
 	    free_irq(i, NULL);      /* we used for probing with the real one */
-	    request_irq(i, (void *)(eata_int_handler), SA_INTERRUPT|SA_SHIRQ, 
+	    request_irq(i, (void *)(do_eata_int_handler), SA_INTERRUPT|SA_SHIRQ, 
 			"eata_dma", NULL);
 	}
     }

@@ -2,6 +2,7 @@
 #define _LINUX_BINFMTS_H
 
 #include <linux/ptrace.h>
+#include <linux/capability.h>
 
 /*
  * MAX_ARG_PAGES defines the number of pages allocated for arguments
@@ -9,6 +10,8 @@
  * a maximum env+arg of 128kB w/4KB pages!
  */
 #define MAX_ARG_PAGES 32
+
+#ifdef __KERNEL__
 
 /*
  * This structure is used to hold the arguments that are used when loading binaries.
@@ -21,6 +24,7 @@ struct linux_binprm{
 	int java;		/* Java binary, prevent recursive invocation */
 	struct dentry * dentry;
 	int e_uid, e_gid;
+	kernel_cap_t cap_inheritable, cap_permitted, cap_effective;
 	int argc, envc;
 	char * filename;	/* Name of binary */
 	unsigned long loader, exec;
@@ -64,7 +68,10 @@ extern unsigned long setup_arg_pages(unsigned long p, struct linux_binprm * bprm
 extern unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 		unsigned long p, int from_kmem);
 
+extern void compute_creds(struct linux_binprm *binprm);
+
 /* this eventually goes away */
 #define change_ldt(a,b) setup_arg_pages(a,b)
 
-#endif
+#endif /* __KERNEL__ */
+#endif /* _LINUX_BINFMTS_H */

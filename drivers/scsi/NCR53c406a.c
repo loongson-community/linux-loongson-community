@@ -52,6 +52,7 @@
 #include <asm/irq.h>
 
 #include <linux/blk.h>
+#include <asm/spinlock.h>
 #include "scsi.h"
 #include "hosts.h"
 #include "sd.h"
@@ -171,6 +172,7 @@ enum Phase {
 
 /* Static function prototypes */
 static  void NCR53c406a_intr(int, void *, struct pt_regs *);
+static  void do_NCR53c406a_intr(int, void *, struct pt_regs *);
 static  void internal_done(Scsi_Cmnd *);
 static  void wait_intr(void);
 static  void chip_init(void);
@@ -226,7 +228,8 @@ static void *addresses[] = {
 #endif USE_BIOS
 		       
 /* possible i/o port addresses */
-static unsigned short ports[] = { 0x230, 0x330 };
+static unsigned short ports[] =
+  { 0x230, 0x330, 0x280, 0x290, 0x330, 0x340, 0x300, 0x310, 0x348, 0x350 };
 #define PORT_COUNT (sizeof( ports ) / sizeof( unsigned short ))
 
 /* possible interrupt channels */
@@ -538,7 +541,7 @@ NCR53c406a_detect(Scsi_Host_Template * tpnt)){
     request_region(port_base, 0x10, "NCR53c406a");
     
     if(irq_level > 0) {
-        if(request_irq(irq_level, NCR53c406a_intr, 0, "NCR53c406a", NULL)){
+        if(request_irq(irq_level, do_NCR53c406a_intr, 0, "NCR53c406a", NULL)){
             printk("NCR53c406a: unable to allocate IRQ %d\n", irq_level);
             return 0;
         }
@@ -763,6 +766,15 @@ NCR53c406a_biosparm(Scsi_Disk *disk, kdev_t dev, int* info_array){
     return 0;
   }
      
+     static void
+do_NCR53c406a_intr(int unused, void *dev_id, struct pt_regs *regs){
+    unsigned long flags;
+
+    spin_lock_irqsave(&io_request_lock, flags);
+    NCR53c406a_intr(0, dev_id, regs);
+    spin_unlock_irqrestore(&io_request_lock, flags);
+}
+
      static void
 NCR53c406a_intr(int unused, void *dev_id, struct pt_regs *regs){
     DEB(unsigned char fifo_size;)

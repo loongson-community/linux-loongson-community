@@ -36,7 +36,6 @@
 
 #include <asm/ptrace.h>
 #include <asm/io.h>
-#include <asm/dma.h>
 
 #include <linux/module.h>
 #include <linux/delay.h>
@@ -163,9 +162,9 @@ void parport_pc_release_resources(struct parport *p)
 
 int parport_pc_claim_resources(struct parport *p)
 {
-	/* FIXME check that resources are free */
+	int err;
 	if (p->irq != PARPORT_IRQ_NONE)
-		request_irq(p->irq, parport_pc_null_intr_func, 0, p->name, NULL);
+		if ((err = request_irq(p->irq, parport_pc_null_intr_func, 0, p->name, NULL)) != 0) return err;
 	request_region(p->base, p->size, p->name);
 	if (p->modes & PARPORT_MODE_PCECR)
 		request_region(p->base+0x400, 3, p->name);
@@ -276,159 +275,6 @@ struct parport_operations parport_pc_ops =
 	parport_pc_dec_use_count
 };
 
-/* --- DMA detection -------------------------------------- */
-
-/*
- * Prepare DMA channels from 0-8 to transmit towards buffer
- */
-static int parport_prepare_dma(char *buff, int size)
-{
-	int tmp = 0;
-	int i,retv;
-	
-	for (i = 0; i < 8; i++) {
-		retv = request_dma(i, "probe");
-		if (retv)
-			continue;
-		tmp |= 1 << i;
-
-		cli();
-		disable_dma(i);
-		clear_dma_ff(i);
-		set_dma_addr(i, virt_to_bus(buff));
-		set_dma_count(i, size);
-		set_dma_mode(i, DMA_MODE_READ);
-		sti();
-	}
-
-	return tmp;
-}
-
-/*
- * Activate all DMA channels passed in dma
- */
-static int parport_enable_dma(int dma)
-{
-	int i;
-	
-	for (i = 0; i < 8; i++)
-		if (dma & (1 << i)) {
-			cli();
-			enable_dma(i);
-			sti();
-		}
-
-	return dma;
-}
-
-static int parport_detect_dma_transfer(int dma, int size)
-{
-	int i,n,retv;
-	int count=0;
-
-	retv = PARPORT_DMA_NONE;
-	for (i = 0; i < 8; i++)
-		if (dma & (1 << i)) {
-			disable_dma(i);
-			clear_dma_ff(i);
-			n = get_dma_residue(i);
-			if (n != size) {
-				retv = i;
-				if (count > 0) {
-					retv = PARPORT_DMA_NONE; /* Multiple DMA's */
-					printk(KERN_ERR "parport: multiple DMA detected.  Huh?\n");
-				}
-				count++;
-			}
-			free_dma(i);
-		}
-
-	return retv;	
-}
-
-/* Only if supports ECP mode */
-static int programmable_dma_support(struct parport *pb)
-{
-	unsigned char dma, oldstate = parport_pc_read_econtrol(pb);
-
-	parport_pc_write_econtrol(pb, 0xe0); /* Configuration MODE */
-	
-	dma = parport_pc_read_configb(pb) & 0x07;
-
-	parport_pc_write_econtrol(pb, oldstate);
-	
-	if (dma == 0 || dma == 4) /* Jumper selection */
-		return PARPORT_DMA_NONE;
-	else
-		return dma;
-}
-
-/* Only called if port supports ECP mode.
- *
- * The only restriction on DMA channels is that it has to be
- * between 0 to 7 (inclusive). Used only in an ECP mode, DMAs are
- * considered a shared resource and hence they should be registered
- * when needed and then immediately unregistered.
- *
- * DMA autoprobes for ECP mode are known not to work for some
- * main board BIOS configs. I had to remove everything from the
- * port, set the mode to SPP, reboot to DOS, set the mode to ECP,
- * and reboot again, then I got IRQ probes and DMA probes to work.
- * [Is the BIOS doing a device detection?]
- *
- * A value of PARPORT_DMA_NONE is allowed indicating no DMA support.
- *
- * if( 0 < DMA < 4 )
- *    1Byte DMA transfer
- * else // 4 < DMA < 8
- *    2Byte DMA transfer
- *
- */
-static int parport_dma_probe(struct parport *pb)
-{
-	int dma,retv;
-	unsigned char dsr,dsr_read;
-	char *buff;
-
-	retv = programmable_dma_support(pb);
-	if (retv != PARPORT_DMA_NONE)
-		return retv;
-	
-	if (!(buff = kmalloc(2048, GFP_KERNEL | GFP_DMA))) {
-	    printk(KERN_ERR "parport: memory squeeze\n");
-	    return PARPORT_DMA_NONE;
-	}
-	
- 	dsr = pb->ops->read_control(pb);
-	dsr_read = (dsr & ~(0x20)) | 0x04;    /* Direction == read */
-
-	pb->ops->write_econtrol(pb, 0xc0);	   /* ECP MODE */
- 	pb->ops->write_control(pb, dsr_read );
-	dma = parport_prepare_dma(buff, 1000);
-	pb->ops->write_econtrol(pb, 0xd8);	   /* ECP FIFO + enable DMA */
-	parport_enable_dma(dma);
-	udelay(500);           /* Give some for DMA tranfer */
-	retv = parport_detect_dma_transfer(dma, 1000);
-	
-	/*
-	 * National Semiconductors only supports DMA tranfers
-	 * in ECP MODE
-	 */
-	if (retv == PARPORT_DMA_NONE) {
-		pb->ops->write_econtrol(pb, 0x60);	   /* ECP MODE */
-		pb->ops->write_control(pb, dsr_read );
-		dma=parport_prepare_dma(buff,1000);
-		pb->ops->write_econtrol(pb, 0x68);	   /* ECP FIFO + enable DMA */
-		parport_enable_dma(dma);
-		udelay(500);           /* Give some for DMA tranfer */
-		retv = parport_detect_dma_transfer(dma, 1000);
-	}
-	
-	kfree(buff);
-	
-	return retv;
-}
-
 /* --- Mode detection ------------------------------------- */
 
 /*
@@ -458,6 +304,7 @@ static int epp_clear_timeout(struct parport *pb)
 static int parport_SPP_supported(struct parport *pb)
 {
 	/* Do a simple read-write test to make sure the port exists. */
+	parport_pc_write_econtrol(pb, 0xc);
 	parport_pc_write_control(pb, 0xc);
 	parport_pc_write_data(pb, 0xaa);
 	if (parport_pc_read_data(pb) != 0xaa) return 0;
@@ -482,8 +329,9 @@ static int parport_SPP_supported(struct parport *pb)
  */
 static int parport_ECR_present(struct parport *pb)
 {
-	unsigned char r, octr = parport_pc_read_control(pb), 
-	  oecr = parport_pc_read_econtrol(pb);
+	unsigned char r, octr = parport_pc_read_control(pb);
+	unsigned char oecr = parport_pc_read_econtrol(pb);
+	unsigned char tmp;
 
 	r = parport_pc_read_control(pb);	
 	if ((parport_pc_read_econtrol(pb) & 0x3) == (r & 0x3)) {
@@ -500,12 +348,14 @@ static int parport_ECR_present(struct parport *pb)
 		return 0;
 
 	parport_pc_write_econtrol(pb, 0x34);
-	if (parport_pc_read_econtrol(pb) != 0x35)
-		return 0;
+	tmp = parport_pc_read_econtrol(pb);
 
 	parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
 	
+	if (tmp != 0x35)
+		return 0;
+
 	return PARPORT_MODE_PCECR;
 }
 
@@ -637,58 +487,6 @@ static int parport_ECPPS2_supported(struct parport *pb)
 
 /* --- IRQ detection -------------------------------------- */
 
-/* This code is for detecting ECP interrupts (due to problems with the
- * monolithic interrupt probing routines).
- *
- * In short this is a voting system where the interrupt with the most
- * "votes" is the elected interrupt (it SHOULD work...)
- *
- * This is horribly x86-specific at the moment.  I'm not convinced it
- * belongs at all.
- */
-
-static int intr_vote[16];
-
-static void parport_vote_intr_func(int irq, void *dev_id, struct pt_regs *regs)
-{
-	intr_vote[irq]++;
-	return;
-}
-
-static long open_intr_election(void)
-{
-	long tmp = 0;
-	int i;
-
-	/* We ignore the timer - irq 0 */
-	for (i = 1; i < 16; i++) {
-		intr_vote[i] = 0;
-		if (request_irq(i, parport_vote_intr_func,
-		       SA_INTERRUPT, "probe", intr_vote) == 0)
-			tmp |= 1 << i;
-	}
-	return tmp;
-}
-
-static int close_intr_election(long tmp)
-{
-	int irq = PARPORT_IRQ_NONE;
-	int i;
-
-	/* We ignore the timer - irq 0 */
-	for (i = 1; i < 16; i++)
-		if (tmp & (1 << i)) {
-			if (intr_vote[i]) {
-				if (irq != PARPORT_IRQ_NONE)
-					/* More than one interrupt */
-					return PARPORT_IRQ_NONE;
-				irq = i;
-			}
-			free_irq(i, intr_vote);
-		}
-	return irq;
-}
-
 /* Only if supports ECP mode */
 static int programmable_irq_support(struct parport *pb)
 {
@@ -710,20 +508,23 @@ static int programmable_irq_support(struct parport *pb)
 static int irq_probe_ECP(struct parport *pb)
 {
 	int irqs, i;
-	unsigned char oecr = parport_pc_read_econtrol(pb);
 		
-	probe_irq_off(probe_irq_on());	/* Clear any interrupts */
-	irqs = open_intr_election();
+	sti();
+	irqs = probe_irq_on();
 		
-	parport_pc_write_econtrol(pb, 0x00);	    /* Reset FIFO */
-	parport_pc_write_econtrol(pb, 0xd0);	    /* TEST FIFO + nErrIntrEn */
+	parport_pc_write_econtrol(pb, 0x00);    /* Reset FIFO */
+	parport_pc_write_econtrol(pb, 0xd0);    /* TEST FIFO + nErrIntrEn */
 
 	/* If Full FIFO sure that WriteIntrThresold is generated */
 	for (i=0; i < 1024 && !(parport_pc_read_econtrol(pb) & 0x02) ; i++) 
 		parport_pc_write_fifo(pb, 0xaa);
 		
-	pb->irq = close_intr_election(irqs);
-	parport_pc_write_econtrol(pb, oecr);
+	pb->irq = probe_irq_off(irqs);
+	parport_pc_write_econtrol(pb, 0x00);
+
+	if (pb->irq <= 0)
+		pb->irq = PARPORT_IRQ_NONE;
+
 	return pb->irq;
 }
 
@@ -735,30 +536,36 @@ static int irq_probe_EPP(struct parport *pb)
 {
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
+	unsigned char oecr = parport_pc_read_econtrol(pb);
 
 #ifndef ADVANCED_DETECT
 	return PARPORT_IRQ_NONE;
 #endif
 	
-	probe_irq_off(probe_irq_on());	/* Clear any interrupts */
-	irqs = open_intr_election();
+	sti();
+	irqs = probe_irq_on();
 
 	if (pb->modes & PARPORT_MODE_PCECR)
-		parport_pc_write_econtrol(pb, parport_pc_read_econtrol(pb) | 0x10);
+		parport_pc_frob_econtrol (pb, 0x10, 0x10);
 	
 	epp_clear_timeout(pb);
-	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x20);
-	parport_pc_write_control(pb, parport_pc_read_control(pb) | 0x10);
+	parport_pc_frob_control (pb, 0x20, 0x20);
+	parport_pc_frob_control (pb, 0x10, 0x10);
 	epp_clear_timeout(pb);
 
-	/*  Device isn't expecting an EPP read
+	/* Device isn't expecting an EPP read
 	 * and generates an IRQ.
 	 */
 	parport_pc_read_epp(pb);
 	udelay(20);
 
-	pb->irq = close_intr_election(irqs);
+	pb->irq = probe_irq_off (irqs);
+	parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
+
+	if (pb->irq <= 0)
+		pb->irq = PARPORT_IRQ_NONE;
+
 	return pb->irq;
 }
 
@@ -766,6 +573,7 @@ static int irq_probe_SPP(struct parport *pb)
 {
 	int irqs;
 	unsigned char octr = parport_pc_read_control(pb);
+	unsigned char oecr = parport_pc_read_econtrol(pb);
 
 #ifndef ADVANCED_DETECT
 	return PARPORT_IRQ_NONE;
@@ -794,6 +602,7 @@ static int irq_probe_SPP(struct parport *pb)
 	if (pb->irq <= 0)
 		pb->irq = PARPORT_IRQ_NONE;	/* No interrupt detected */
 	
+	parport_pc_write_econtrol(pb, oecr);
 	parport_pc_write_control(pb, octr);
 	return pb->irq;
 }
@@ -807,16 +616,19 @@ static int irq_probe_SPP(struct parport *pb)
  */
 static int parport_irq_probe(struct parport *pb)
 {
-	if (pb->modes & PARPORT_MODE_PCECR)
+	unsigned char oecr = parport_pc_read_econtrol (pb);
+
+	if (pb->modes & PARPORT_MODE_PCECR) {
 		pb->irq = programmable_irq_support(pb);
+		if (pb->irq != PARPORT_IRQ_NONE)
+			goto out;
+	}
 
 	if (pb->modes & PARPORT_MODE_PCECP)
 		pb->irq = irq_probe_ECP(pb);
-			
+
 	if (pb->irq == PARPORT_IRQ_NONE && 
 	    (pb->modes & PARPORT_MODE_PCECPEPP)) {
-		int oecr = parport_pc_read_econtrol(pb);
-		parport_pc_write_econtrol(pb, 0x80);
 		pb->irq = irq_probe_EPP(pb);
 		parport_pc_write_econtrol(pb, oecr);
 	}
@@ -831,6 +643,8 @@ static int parport_irq_probe(struct parport *pb)
 	if (pb->irq == PARPORT_IRQ_NONE)
 		pb->irq = irq_probe_SPP(pb);
 
+out:
+	parport_pc_write_econtrol (pb, oecr);
 	return pb->irq;
 }
 
@@ -839,6 +653,7 @@ static int parport_irq_probe(struct parport *pb)
 static int probe_one_port(unsigned long int base, int irq, int dma)
 {
 	struct parport tmpport, *p;
+	int probedirq = PARPORT_IRQ_NONE;
 	if (check_region(base, 3)) return 0;
 	tmpport.base = base;
 	tmpport.ops = &parport_pc_ops;
@@ -862,12 +677,16 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 	if (p->irq == PARPORT_IRQ_AUTO) {
 		p->irq = PARPORT_IRQ_NONE;
 		parport_irq_probe(p);
+	} else if (p->irq == PARPORT_IRQ_PROBEONLY) {
+		p->irq = PARPORT_IRQ_NONE;
+		parport_irq_probe(p);
+		probedirq = p->irq;
+		p->irq = PARPORT_IRQ_NONE;
 	}
 	if (p->irq != PARPORT_IRQ_NONE)
 		printk(", irq %d", p->irq);
 	if (p->dma == PARPORT_DMA_AUTO)		
-		p->dma = (p->modes & PARPORT_MODE_PCECP)?
-			parport_dma_probe(p):PARPORT_DMA_NONE;
+		p->dma = PARPORT_DMA_NONE;
 	if (p->dma != PARPORT_DMA_NONE)
 		printk(", dma %d", p->dma);
 	printk(" [");
@@ -883,10 +702,13 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 	}
 #undef printmode
 	printk("]\n");
+	if (probedirq != PARPORT_IRQ_NONE) 
+		printk("%s: detected irq %d; use procfs to enable interrupt-driven operation.\n", p->name, probedirq);
 	parport_proc_register(p);
 	p->flags |= PARPORT_FLAG_COMA;
 
 	/* Done probing.  Now put the port into a sensible start-up state. */
+	parport_pc_write_econtrol(p, 0xc);
 	parport_pc_write_control(p, 0xc);
 	parport_pc_write_data(p, 0);
 
@@ -906,9 +728,9 @@ int parport_pc_init(int *io, int *irq, int *dma)
 		} while (*io && (++i < PARPORT_PC_MAX_PORTS));
 	} else {
 		/* Probe all the likely ports. */
-		count += probe_one_port(0x3bc, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
-		count += probe_one_port(0x378, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
-		count += probe_one_port(0x278, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
+		count += probe_one_port(0x3bc, irq[0], dma[0]);
+		count += probe_one_port(0x378, irq[0], dma[0]);
+		count += probe_one_port(0x278, irq[0], dma[0]);
 	}
 
 	/* Give any attached devices a chance to gather their thoughts */
@@ -921,15 +743,22 @@ int parport_pc_init(int *io, int *irq, int *dma)
 
 #ifdef MODULE
 static int io[PARPORT_PC_MAX_PORTS+1] = { [0 ... PARPORT_PC_MAX_PORTS] = 0 };
-static int dma[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_DMA_AUTO };
-static int irq[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_IRQ_AUTO };
+static int dma[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_DMA_NONE };
+static int irqval[PARPORT_PC_MAX_PORTS] = { [0 ... PARPORT_PC_MAX_PORTS-1] = PARPORT_IRQ_PROBEONLY };
+static const char *irq[PARPORT_PC_MAX_PORTS] = { NULL, };
 MODULE_PARM(io, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
-MODULE_PARM(irq, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
+MODULE_PARM(irq, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "s");
 MODULE_PARM(dma, "1-" __MODULE_STRING(PARPORT_PC_MAX_PORTS) "i");
 
 int init_module(void)
 {	
-	return (parport_pc_init(io, irq, dma)?0:1);
+	/* Work out how many ports we have, then get parport_share to parse
+	   the irq values. */
+	unsigned int i;
+	for (i = 0; i < PARPORT_PC_MAX_PORTS && io[i]; i++);
+	parport_parse_irqs(i, irq, irqval);
+
+	return (parport_pc_init(io, irqval, dma)?0:1);
 }
 
 void cleanup_module(void)

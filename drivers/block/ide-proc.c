@@ -64,7 +64,6 @@
 #include <linux/stat.h>
 #include <linux/mm.h>
 #include <linux/pci.h>
-#include <linux/bios32.h>
 #include <linux/ctype.h>
 #include <asm/io.h>
 #include "ide.h"
@@ -72,8 +71,6 @@
 #ifndef MIN
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #endif
-
-#ifdef CONFIG_PCI
 
 static int ide_getxdigit(char c)
 {
@@ -125,7 +122,7 @@ static int proc_ide_write_config
 	}
 	/*
 	 * Do one full pass to verify all parameters,
-	 * then do another to actually write the pci regs.
+	 * then do another to actually write the regs.
 	 */
 	save_flags(flags);
 	do {
@@ -136,11 +133,11 @@ static int proc_ide_write_config
 			ide_hwgroup_t *mategroup = NULL;
 			if (hwif->mate && hwif->mate->hwgroup)
 				mategroup = (ide_hwgroup_t *)(hwif->mate->hwgroup);
-			cli();	/* ensure all PCI writes are done together */
+			cli();	/* ensure all writes are done together */
 			while (mygroup->active || (mategroup && mategroup->active)) {
 				restore_flags(flags);
 				if (0 < (signed long)(jiffies - timeout)) {
-					printk("/proc/ide/%s/pci: channel(s) busy, cannot write\n", hwif->name);
+					printk("/proc/ide/%s/config: channel(s) busy, cannot write\n", hwif->name);
 					return -EBUSY;
 				}
 				cli();
@@ -157,7 +154,12 @@ static int proc_ide_write_config
 				case 'R':	is_pci = 0;
 						break;
 				case 'P':	is_pci = 1;
-						break;
+#ifdef CONFIG_BLK_DEV_IDEPCI
+						if (!IDE_PCI_DEVID_EQ(hwif->pci_devid, IDE_PCI_DEVID_NULL))
+							break;
+#endif	/* CONFIG_BLK_DEV_IDEPCI */
+						msg = "not a PCI device";
+						goto parse_error;
 				default:	msg = "expected 'R' or 'P'";
 						goto parse_error;
 			}
@@ -195,34 +197,39 @@ static int proc_ide_write_config
 				--n;
 				++p;
 			}
+#ifdef CONFIG_BLK_DEV_IDEPCI
 			if (is_pci && (reg & ((digits >> 1) - 1))) {
 				msg = "misaligned access";
 				goto parse_error;
 			}
+#endif	/* CONFIG_BLK_DEV_IDEPCI */
 			if (for_real) {
 #if 0
 				printk("proc_ide_write_config: type=%c, reg=0x%x, val=0x%x, digits=%d\n", is_pci ? 'PCI' : 'non-PCI', reg, val, digits);
 #endif
 				if (is_pci) {
+#ifdef CONFIG_BLK_DEV_IDEPCI
 					int rc = 0;
+					struct pci_dev *dev = hwif->pci_dev;
 					switch (digits) {
 						case 2:	msg = "byte";
-							rc = pcibios_write_config_byte(hwif->pci_bus, hwif->pci_fn, reg, val);
+							rc = pci_write_config_byte(dev, reg, val);
 							break;
 						case 4:	msg = "word";
-							rc = pcibios_write_config_word(hwif->pci_bus, hwif->pci_fn, reg, val);
+							rc = pci_write_config_word(dev, reg, val);
 							break;
 						case 8:	msg = "dword";
-							rc = pcibios_write_config_dword(hwif->pci_bus, hwif->pci_fn, reg, val);
+							rc = pci_write_config_dword(dev, reg, val);
 							break;
 					}
 					if (rc) {
 						restore_flags(flags);
-						printk("proc_ide_write_config: error writing %s at bus %d fn %d reg 0x%x value 0x%x\n",
-							msg, hwif->pci_bus, hwif->pci_fn, reg, val);
-						printk("proc_ide_write_config: %s\n", pcibios_strerror(rc));
+						printk("proc_ide_write_config: error writing %s at bus %02x dev %02x reg 0x%x value 0x%x\n",
+							msg, dev->bus->number, dev->devfn, reg, val);
+						printk("proc_ide_write_config: error %d\n", rc);
 						return -EIO;
 					}
+#endif	/* CONFIG_BLK_DEV_IDEPCI */
 				} else {	/* not pci */
 					switch (digits) {
 						case 2:	outb(val, reg);
@@ -247,38 +254,36 @@ parse_error:
 static int proc_ide_read_config
 	(char *page, char **start, off_t off, int count, int *eof, void *data)
 {
-	ide_hwif_t	*hwif = (ide_hwif_t *)data;
 	char		*out = page;
-	int		len, reg = 0;
+	int		len;
 
-	out += sprintf(out, "pci bus %d function %d vendor %04x device %04x channel %d\n",
-		hwif->pci_bus, hwif->pci_fn, hwif->pci_devid.vid, hwif->pci_devid.did, hwif->channel);
+#ifdef CONFIG_BLK_DEV_IDEPCI
+	ide_hwif_t	*hwif = (ide_hwif_t *)data;
+	int		reg = 0;
+
+	struct pci_dev *dev = hwif->pci_dev;
+
+	out += sprintf(out, "pci bus %02x device %02x vid %04x did %04x channel %d\n",
+		dev->bus->number, dev->devfn, hwif->pci_devid.vid, hwif->pci_devid.did, hwif->channel);
 	do {
 		byte val;
-		int rc = pcibios_read_config_byte(hwif->pci_bus, hwif->pci_fn, reg, &val);
+		int rc = pci_read_config_byte(dev, reg, &val);
 		if (rc) {
-			printk("proc_ide_read_config: error reading bus %d fn %d reg 0x%02x\n",
-				hwif->pci_bus, hwif->pci_fn, reg);
-			printk("proc_ide_read_config: %s\n", pcibios_strerror(rc));
+			printk("proc_ide_read_config: error reading bus %02x dev %02x reg 0x%02x\n",
+				dev->bus->number, dev->devfn, reg);
+			printk("proc_ide_read_config: error %d\n", rc);
 			return -EIO;
 			out += sprintf(out, "??%c", (++reg & 0xf) ? ' ' : '\n');
 		} else
 			out += sprintf(out, "%02x%c", val, (++reg & 0xf) ? ' ' : '\n');
 	} while (reg < 0x100);
+#else	/* CONFIG_BLK_DEV_IDEPCI */
+	out += sprintf(out, "(none)\n");
+#endif	/* CONFIG_BLK_DEV_IDEPCI */
 	len = out - page;
 	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
 }
 
-static int proc_ide_read_imodel
-	(char *page, char **start, off_t off, int count, int *eof, void *data)
-{
-	ide_hwif_t	*hwif = (ide_hwif_t *) data;
-	int		len;
-
-	len = sprintf(page,"%04x: %04x\n", hwif->pci_devid.vid, hwif->pci_devid.did);
-	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
-}
-#endif	/* CONFIG_PCI */
 
 static int ide_getdigit(char c)
 {
@@ -308,7 +313,7 @@ static int proc_ide_read_drivers
 	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
 }
 
-static int proc_ide_read_type
+static int proc_ide_read_imodel
 	(char *page, char **start, off_t off, int count, int *eof, void *data)
 {
 	ide_hwif_t	*hwif = (ide_hwif_t *) data;
@@ -341,7 +346,10 @@ static int proc_ide_read_mate
 	ide_hwif_t	*hwif = (ide_hwif_t *) data;
 	int		len;
 
-	len = sprintf(page, "%s\n", hwif->mate->name);
+	if (hwif && hwif->mate && hwif->mate->present)
+		len = sprintf(page, "%s\n", hwif->mate->name);
+	else
+		len = sprintf(page, "(none)\n");
 	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
 }
 
@@ -426,7 +434,6 @@ static int proc_ide_write_settings
 
 	if (!suser())
 		return -EACCES;
-
 	/*
 	 * Skip over leading whitespace
 	 */
@@ -447,11 +454,11 @@ static int proc_ide_write_settings
 			ide_hwgroup_t *mategroup = NULL;
 			if (hwif->mate && hwif->mate->hwgroup)
 				mategroup = (ide_hwgroup_t *)(hwif->mate->hwgroup);
-			cli();	/* ensure all PCI writes are done together */
+			cli();	/* ensure all writes are done together */
 			while (mygroup->active || (mategroup && mategroup->active)) {
 				restore_flags(flags);
 				if (0 < (signed long)(jiffies - timeout)) {
-					printk("/proc/ide/%s/pci: channel(s) busy, cannot write\n", hwif->name);
+					printk("/proc/ide/%s/settings: channel(s) busy, cannot write\n", drive->name);
 					return -EBUSY;
 				}
 				cli();
@@ -517,9 +524,9 @@ int proc_ide_read_capacity
 	int		len;
 
 	if (!driver)
-	    len = sprintf(page, "(none)\n");
+		len = sprintf(page, "(none)\n");
         else
-	    len = sprintf(page,"%li\n", ((ide_driver_t *)drive->driver)->capacity(drive));
+		len = sprintf(page,"%li\n", ((ide_driver_t *)drive->driver)->capacity(drive));
 	PROC_IDE_READ_RETURN(page,start,off,count,eof,len);
 }
 
@@ -598,40 +605,37 @@ static int proc_ide_read_media
 }
 
 static ide_proc_entry_t generic_drive_entries[] = {
-	{ "driver", proc_ide_read_driver, proc_ide_write_driver },
-	{ "identify", proc_ide_read_identify, NULL },
-	{ "media", proc_ide_read_media, NULL },
-	{ "model", proc_ide_read_dmodel, NULL },
-	{ "settings", proc_ide_read_settings, proc_ide_write_settings },
-	{ NULL, NULL, NULL }
+	{ "driver",	S_IFREG|S_IRUGO,	proc_ide_read_driver,	proc_ide_write_driver },
+	{ "identify",	S_IFREG|S_IRUSR,	proc_ide_read_identify,	NULL },
+	{ "media",	S_IFREG|S_IRUGO,	proc_ide_read_media,	NULL },
+	{ "model",	S_IFREG|S_IRUGO,	proc_ide_read_dmodel,	NULL },
+	{ "settings",	S_IFREG|S_IRUSR|S_IWUSR,proc_ide_read_settings,	proc_ide_write_settings },
+	{ NULL,	0, NULL, NULL }
 };
 
-void ide_add_proc_entries(ide_drive_t *drive, ide_proc_entry_t *p)
+void ide_add_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p, void *data)
 {
 	struct proc_dir_entry *ent;
 
-	if (!drive->proc || !p)
+	if (!dir || !p)
 		return;
 	while (p->name != NULL) {
-		mode_t mode = S_IFREG|S_IRUSR;
-		if (!strcmp(p->name,"settings"))
-			mode |= S_IWUSR;
-		ent = create_proc_entry(p->name, mode, drive->proc);
+		ent = create_proc_entry(p->name, p->mode, dir);
 		if (!ent) return;
 		ent->nlink = 1;
-		ent->data = drive;
+		ent->data = data;
 		ent->read_proc = p->read_proc;
 		ent->write_proc = p->write_proc;
 		p++;
 	}
 }
 
-void ide_remove_proc_entries(ide_drive_t *drive, ide_proc_entry_t *p)
+void ide_remove_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p)
 {
-	if (!drive->proc || !p)
+	if (!dir || !p)
 		return;
 	while (p->name != NULL) {
-		remove_proc_entry(p->name, drive->proc);
+		remove_proc_entry(p->name, dir);
 		p++;
 	}
 }
@@ -654,7 +658,7 @@ static void create_proc_ide_drives (ide_hwif_t *hwif, struct proc_dir_entry *par
 			continue;
 		drive->proc = create_proc_entry(drive->name, S_IFDIR, parent);
 		if (drive->proc)
-			ide_add_proc_entries(drive, generic_drive_entries);
+			ide_add_proc_entries(drive->proc, generic_drive_entries, drive);
 
 		ent = create_proc_entry(drive->name, S_IFLNK | S_IRUGO | S_IWUGO | S_IXUGO, root);
 		if (!ent) return;
@@ -664,10 +668,18 @@ static void create_proc_ide_drives (ide_hwif_t *hwif, struct proc_dir_entry *par
 	}
 }
 
+static ide_proc_entry_t hwif_entries[] = {
+	{ "channel",	S_IFREG|S_IRUGO,	proc_ide_read_channel,	NULL },
+	{ "config",	S_IFREG|S_IRUGO|S_IWUSR,proc_ide_read_config,	proc_ide_write_config },
+	{ "mate",	S_IFREG|S_IRUGO,	proc_ide_read_mate,	NULL },
+	{ "model",	S_IFREG|S_IRUGO,	proc_ide_read_imodel,	NULL },
+	{ NULL,	0, NULL, NULL }
+};
+
 static void create_proc_ide_interfaces (struct proc_dir_entry *parent)
 {
 	int	h;
-	struct proc_dir_entry *hwif_ent, *ent;
+	struct proc_dir_entry *hwif_ent;
 
 	for (h = 0; h < MAX_HWIFS; h++) {
 		ide_hwif_t *hwif = &ide_hwifs[h];
@@ -676,43 +688,12 @@ static void create_proc_ide_interfaces (struct proc_dir_entry *parent)
 			continue;
 		hwif_ent = create_proc_entry(hwif->name, S_IFDIR, parent);
 		if (!hwif_ent) return;
-#ifdef CONFIG_PCI
-		if (!IDE_PCI_DEVID_EQ(hwif->pci_devid, IDE_PCI_DEVID_NULL)) {
-			ent = create_proc_entry("config", S_IFREG|S_IRUSR|S_IWUSR, hwif_ent);
-			if (!ent) return;
-			ent->nlink = 1;
-			ent->data = hwif;
-			ent->read_proc  = proc_ide_read_config;
-			ent->write_proc = proc_ide_write_config;;
-
-			ent = create_proc_entry("model", 0, hwif_ent);
-			if (!ent) return;
-			ent->data = hwif;
-			ent->read_proc  = proc_ide_read_imodel;
-		}
-#endif	/* CONFIG_PCI */
-		ent = create_proc_entry("channel", 0, hwif_ent);
-		if (!ent) return;
-		ent->data = hwif;
-		ent->read_proc  = proc_ide_read_channel;
-
-		if (hwif->mate && hwif->mate->present) {
-			ent = create_proc_entry("mate", 0, hwif_ent);
-			if (!ent) return;
-			ent->data = hwif;
-			ent->read_proc  = proc_ide_read_mate;
-		}
-
-		ent = create_proc_entry("type", 0, hwif_ent);
-		if (!ent) return;
-		ent->data = hwif;
-		ent->read_proc  = proc_ide_read_type;
-
+		ide_add_proc_entries(hwif_ent, hwif_entries, hwif);
 		create_proc_ide_drives(hwif, hwif_ent, parent);
 	}
 }
 
-void proc_ide_init(void)
+void proc_ide_create(void)
 {
 	struct proc_dir_entry *root, *ent;
 	root = create_proc_entry("ide", S_IFDIR, 0);
@@ -722,4 +703,14 @@ void proc_ide_init(void)
 	ent = create_proc_entry("drivers", 0, root);
 	if (!ent) return;
 	ent->read_proc  = proc_ide_read_drivers;
+}
+
+void proc_ide_destroy(void)
+{
+	/*
+	 * Mmmm.. does this free up all resources,
+	 * or do we need to do a more proper cleanup here ??
+	 */
+	remove_proc_entry("ide/drivers", 0);
+	remove_proc_entry("ide", 0);
 }

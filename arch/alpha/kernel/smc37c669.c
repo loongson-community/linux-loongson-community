@@ -3,8 +3,6 @@
  */
 #include <linux/kernel.h>
 
-#include <linux/bios32.h>
-#include <linux/pci.h>
 #include <linux/malloc.h>
 #include <linux/mm.h>
 #include <linux/init.h>
@@ -996,7 +994,7 @@ static SMC37c669_CONFIG_REGS *SMC37c669 __initdata = NULL;
 ** and standard ISA IRQs.
 **
 */
-static SMC37c669_IRQ_TRANSLATION_ENTRY *SMC37c669_irq_table __initdata; 
+static SMC37c669_IRQ_TRANSLATION_ENTRY *SMC37c669_irq_table __initdata = 0; 
 
 /*
 ** The following definition is for the default IRQ 
@@ -1022,7 +1020,7 @@ __initdata =
 ** ISA DMA channels.
 **
 */
-static SMC37c669_DRQ_TRANSLATION_ENTRY *SMC37c669_drq_table __initdata; 
+static SMC37c669_DRQ_TRANSLATION_ENTRY *SMC37c669_drq_table __initdata = 0;
 
 /*
 ** The following definition is the default DRQ

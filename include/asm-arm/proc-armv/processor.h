@@ -82,7 +82,10 @@ extern __inline__ void copy_thread_css (struct context_save_struct *save)
 	unsigned long *stack = (unsigned long *)sp;			\
 	set_fs(USER_DS);						\
 	memzero(regs->uregs, sizeof(regs->uregs));			\
-	regs->ARM_cpsr = sp <= 0x04000000 ? USR26_MODE : USR_MODE;	\
+	if (current->personality == PER_LINUX_32BIT)			\
+		regs->ARM_cpsr = USR_MODE;				\
+	else								\
+		regs->ARM_cpsr = USR26_MODE;				\
 	regs->ARM_pc = pc;		/* pc */			\
 	regs->ARM_sp = sp;		/* sp */			\
 	regs->ARM_r2 = stack[2];	/* r2 (envp) */			\
@@ -95,7 +98,7 @@ extern __inline__ void copy_thread_css (struct context_save_struct *save)
  * NOTE! The task struct and the stack go together
  */
 #define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)
 
 #endif

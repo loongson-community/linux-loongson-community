@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.4 1997/08/05 09:44:39 ralf Exp $
+ * $Id: keyboard.h,v 1.5 1998/05/04 12:43:22 ralf Exp $
  * Modified for Power Macintosh by Paul Mackerras
  */
 
@@ -20,8 +20,11 @@
 #include <asm/io.h>
 
 #include <linux/config.h>
+#include <asm/adb.h>
 
-#ifdef CONFIG_MAC_KEYBOARD
+#define KEYBOARD_IRQ			1
+#define DISABLE_KBD_DURING_INTERRUPTS	0
+#define INIT_KBD
 
 extern int mackbd_setkeycode(unsigned int scancode, unsigned int keycode);
 extern int mackbd_getkeycode(unsigned int scancode);
@@ -32,19 +35,6 @@ extern int mackbd_unexpected_up(unsigned char keycode);
 extern void mackbd_leds(unsigned char leds);
 extern void mackbd_init_hw(void);
 
-#define kbd_setkeycode		mackbd_setkeycode
-#define kbd_getkeycode		mackbd_getkeycode
-#define kbd_pretranslate	mackbd_pretranslate
-#define kbd_translate		mackbd_translate
-#define kbd_unexpected_up	mackbd_unexpected_up
-#define kbd_leds		mackbd_leds
-#define kbd_init_hw		mackbd_init_hw
-
-#else /* CONFIG_MAC_KEYBOARD */
-
-#define KEYBOARD_IRQ			1
-#define DISABLE_KBD_DURING_INTERRUPTS	0
-
 extern int pckbd_setkeycode(unsigned int scancode, unsigned int keycode);
 extern int pckbd_getkeycode(unsigned int scancode);
 extern int pckbd_pretranslate(unsigned char scancode, char raw_mode);
@@ -54,13 +44,133 @@ extern char pckbd_unexpected_up(unsigned char keycode);
 extern void pckbd_leds(unsigned char leds);
 extern void pckbd_init_hw(void);
 
-#define kbd_setkeycode		pckbd_setkeycode
-#define kbd_getkeycode		pckbd_getkeycode
-#define kbd_pretranslate	pckbd_pretranslate
-#define kbd_translate		pckbd_translate
-#define kbd_unexpected_up	pckbd_unexpected_up
-#define kbd_leds		pckbd_leds
-#define kbd_init_hw		pckbd_init_hw
+static inline int kbd_setkeycode(unsigned int scancode, unsigned int keycode)
+{
+	if ( is_prep )
+		return pckbd_setkeycode(scancode,keycode);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		return pckbd_setkeycode(scancode,keycode);
+#else
+		/* I'm not actually sure if it's legal to have a CHRP machine
+		 * without an ADB controller. In any case, this should really
+		 * be changed to be a test to see if an ADB _keyboard_ exists
+		 * (not just a controller), but that's another story for
+		 * another night.
+		 */
+		if ( adb_hardware == ADB_NONE )
+			return pckbd_setkeycode(scancode,keycode);
+		else
+			return mackbd_setkeycode(scancode,keycode);
+#endif
+	else
+		return mackbd_setkeycode(scancode,keycode);
+}
+
+static inline int kbd_getkeycode(unsigned int x)
+{
+	if ( is_prep )
+		return pckbd_getkeycode(x);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		return pckbd_getkeycode(x);
+#else
+		if ( adb_hardware == ADB_NONE )
+			return pckbd_getkeycode(x);
+		else
+			return mackbd_getkeycode(x);
+#endif
+	else
+		return mackbd_getkeycode(x);
+}
+
+static inline int kbd_pretranslate(unsigned char x,char y)
+{
+	if ( is_prep )
+		return pckbd_pretranslate(x,y);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		return pckbd_pretranslate(x,y);
+#else
+		if ( adb_hardware == ADB_NONE )
+			return pckbd_pretranslate(x,y);
+		else
+			return mackbd_pretranslate(x,y);
+#endif
+	else
+		return mackbd_pretranslate(x,y);
+}
+
+static inline int kbd_translate(unsigned char keycode, unsigned char *keycodep,
+		     char raw_mode)
+{
+	if ( is_prep )
+		return pckbd_translate(keycode,keycodep,raw_mode);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		return pckbd_translate(keycode,keycodep,raw_mode);
+#else
+		if ( adb_hardware == ADB_NONE )
+			return pckbd_translate(keycode,keycodep,raw_mode);
+		else
+			return mackbd_translate(keycode,keycodep,raw_mode);
+#endif
+	else
+		return mackbd_translate(keycode,keycodep,raw_mode);
+
+}
+
+static inline int kbd_unexpected_up(unsigned char keycode)
+{
+	if ( is_prep )
+		return pckbd_unexpected_up(keycode);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		return pckbd_unexpected_up(keycode);
+#else
+		if ( adb_hardware == ADB_NONE )
+			return pckbd_unexpected_up(keycode);
+		else
+			return mackbd_unexpected_up(keycode);
+#endif
+	else
+		return mackbd_unexpected_up(keycode);
+	
+}
+
+static inline void kbd_leds(unsigned char leds)
+{
+	if ( is_prep )
+		pckbd_leds(leds);
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		pckbd_leds(leds);
+#else
+		if ( adb_hardware == ADB_NONE )
+			pckbd_leds(leds);
+		else
+			mackbd_leds(leds);
+#endif
+	else
+		mackbd_leds(leds);
+}
+
+static inline void kbd_init_hw(void)
+{
+	if ( is_prep )
+		pckbd_init_hw();
+	else if ( is_chrp )
+#ifndef CONFIG_MAC_KEYBOARD
+		pckbd_init_hw();
+#else
+		if ( adb_hardware == ADB_NONE )
+			pckbd_init_hw();
+		else
+			mackbd_init_hw();
+#endif
+	else
+		mackbd_init_hw();
+}
 
 /* How to access the keyboard macros on this platform.  */
 #define kbd_read_input() inb(KBD_DATA_REG)
@@ -71,7 +181,6 @@ extern void pckbd_init_hw(void);
 /* Some stoneage hardware needs delays after some operations.  */
 #define kbd_pause() do { } while(0)
 
-#define INIT_KBD
 #endif /* CONFIG_MAC_KEYBOARD */
 
 #define keyboard_setup()						\

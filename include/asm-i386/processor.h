@@ -179,7 +179,7 @@ struct thread_struct {
 
 #define start_thread(regs, new_eip, new_esp) do {\
 	unsigned long seg = __USER_DS; \
-	__asm__("mov %w0,%%fs ; mov %w0,%%gs":"=r" (seg) :"0" (seg)); \
+	__asm__("movl %w0,%%fs ; movl %w0,%%gs":"=r" (seg) :"0" (seg)); \
 	set_fs(USER_DS); \
 	regs->xds = seg; \
 	regs->xes = seg; \
@@ -189,8 +189,15 @@ struct thread_struct {
 	regs->esp = new_esp; \
 } while (0)
 
+/* Forward declaration, a strange C thing */
+struct mm_struct;
+
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
+
+/* Copy and release all segment info associated with a VM */
+extern void copy_segments(int nr, struct task_struct *p, struct mm_struct * mm);
+extern void release_segments(struct mm_struct * mm);
 
 /*
  * Return saved PC of a blocked thread.

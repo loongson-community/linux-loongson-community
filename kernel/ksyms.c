@@ -54,10 +54,6 @@
 
 extern unsigned char aux_device_present, kbd_read_mask;
 
-#ifdef CONFIG_PCI
-#include <linux/bios32.h>
-#include <linux/pci.h>
-#endif
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
 #endif
@@ -99,19 +95,6 @@ EXPORT_SYMBOL(request_module);
 EXPORT_SYMBOL(get_module_symbol);
 #endif
 EXPORT_SYMBOL(get_options);
-
-#ifdef CONFIG_PCI
-EXPORT_SYMBOL(pcibios_present);
-EXPORT_SYMBOL(pcibios_find_class);
-EXPORT_SYMBOL(pcibios_find_device);
-EXPORT_SYMBOL(pcibios_read_config_byte);
-EXPORT_SYMBOL(pcibios_read_config_word);
-EXPORT_SYMBOL(pcibios_read_config_dword);
-EXPORT_SYMBOL(pcibios_write_config_byte);
-EXPORT_SYMBOL(pcibios_write_config_word);
-EXPORT_SYMBOL(pcibios_write_config_dword);
-EXPORT_SYMBOL(pcibios_strerror);
-#endif
 
 /* process memory management */
 EXPORT_SYMBOL(do_mmap);
@@ -265,6 +248,7 @@ EXPORT_SYMBOL(register_binfmt);
 EXPORT_SYMBOL(unregister_binfmt);
 EXPORT_SYMBOL(search_binary_handler);
 EXPORT_SYMBOL(prepare_binprm);
+EXPORT_SYMBOL(compute_creds);
 EXPORT_SYMBOL(remove_arg_zero);
 
 /* execution environment registration */
@@ -295,6 +279,7 @@ EXPORT_SYMBOL(bh_mask_count);
 EXPORT_SYMBOL(bh_base);
 EXPORT_SYMBOL(add_timer);
 EXPORT_SYMBOL(del_timer);
+EXPORT_SYMBOL(mod_timer);
 EXPORT_SYMBOL(tq_timer);
 EXPORT_SYMBOL(tq_immediate);
 EXPORT_SYMBOL(tq_scheduler);
@@ -353,6 +338,7 @@ EXPORT_SYMBOL(unregister_reboot_notifier);
 EXPORT_SYMBOL(_ctype);
 EXPORT_SYMBOL(secure_tcp_sequence_number);
 EXPORT_SYMBOL(get_random_bytes);
+EXPORT_SYMBOL(securebits);
 
 /* Program loader interfaces */
 EXPORT_SYMBOL(setup_arg_pages);
@@ -388,7 +374,6 @@ EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
 EXPORT_SYMBOL(__down);
 EXPORT_SYMBOL(__up);
-EXPORT_SYMBOL(securelevel);
 
 /* all busmice */
 EXPORT_SYMBOL(add_mouse_randomness);

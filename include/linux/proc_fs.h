@@ -49,7 +49,8 @@ enum root_directory_inos {
 	PROC_SLABINFO,
 	PROC_PARPORT,
 	PROC_PPC_HTAB,
-	PROC_SOUND
+	PROC_SOUND,
+	PROC_MTRR, /* whether enabled or not */
 };
 
 enum pid_directory_inos {
@@ -134,6 +135,7 @@ enum net_directory_inos {
 	PROC_NET_DN_L1,
 	PROC_NET_DN_L2,
 	PROC_NET_DN_SKT,
+	PROC_NET_NETSTAT,
 	PROC_NET_LAST
 };
 
@@ -182,6 +184,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_SGIWD93,
 	PROC_SCSI_MESH,
 	PROC_SCSI_53C94,
+	PROC_SCSI_PLUTO,
 	PROC_SCSI_SCSI_DEBUG,	
 	PROC_SCSI_NOT_PRESENT,
 	PROC_SCSI_FILE,                        /* I'm assuming here that we */
@@ -275,7 +278,6 @@ extern struct inode_operations proc_scsi_inode_operations;
 
 extern void proc_root_init(void);
 extern void proc_base_init(void);
-extern void proc_bus_pci_init(void);
 
 extern int proc_register(struct proc_dir_entry *, struct proc_dir_entry *);
 extern int proc_unregister(struct proc_dir_entry *, int);
@@ -328,6 +330,7 @@ extern struct inode * proc_get_inode(struct super_block *, int, struct proc_dir_
 extern int proc_statfs(struct super_block *, struct statfs *, int);
 extern void proc_read_inode(struct inode *);
 extern void proc_write_inode(struct inode *);
+extern int proc_permission(struct inode *, int);
 
 extern int proc_match(int, const char *,struct proc_dir_entry *);
 
@@ -350,7 +353,7 @@ struct openpromfs_dev {
  	char name[32];
 };
 extern struct inode_operations *
-proc_openprom_register(int (*readdir)(struct inode *, struct file *, void *, filldir_t),
+proc_openprom_register(int (*readdir)(struct file *, void *, filldir_t),
 		       int (*lookup)(struct inode *, struct dentry *),
 		       void (*use)(struct inode *, int),
 		       struct openpromfs_dev ***);

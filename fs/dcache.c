@@ -19,6 +19,8 @@
 #include <linux/malloc.h>
 #include <linux/init.h>
 
+#include <asm/uaccess.h>
+
 #define DCACHE_PARANOIA 1
 /* #define DCACHE_DEBUG 1 */
 
@@ -424,42 +426,16 @@ void shrink_dcache_parent(struct dentry * parent)
 }
 
 /*
- * This is called from do_try_to_free_page() to indicate
- * that we should reduce the dcache and inode cache memory.
+ * This is called from kswapd when we think we need some
+ * more memory, but aren't really sure how much. So we
+ * carefully try to free a _bit_ of our dcache, but not
+ * too much.
  */
-void shrink_dcache_memory()
+void shrink_dcache_memory(void)
 {
-	dentry_stat.want_pages++;
-}
-
-/*
- * This carries out the request received by the above routine.
- */
-void check_dcache_memory()
-{
-	if (dentry_stat.want_pages) {
-		unsigned int count, goal = 0;
-		/*
-		 * Set the page goal.  We don't necessarily need to trim
-		 * the dcache just because the system needs memory ...
-		 */
-		if (page_cache_size > (num_physpages >> 1))
-			goal = (dentry_stat.want_pages * page_cache_size)
-				/ num_physpages;
-		dentry_stat.want_pages = 0;
-		if (goal) {
-			if (goal > 50)
-				goal = 50;
-			count = select_dcache(32, goal);
-#ifdef DCACHE_DEBUG
-printk(KERN_DEBUG "check_dcache_memory: goal=%d, count=%d\n", goal, count);
-#endif
-			if (count) {
-				prune_dcache(count);
-				free_inode_memory(count);
-			}
-		}
-	}
+	int count = select_dcache(32, 8);
+	if (count)
+		prune_dcache(count);
 }
 
 #define NAME_ALLOC_LEN(len)	((len+16) & ~15)
@@ -669,7 +645,7 @@ void d_add(struct dentry * entry, struct inode * inode)
 	d_instantiate(entry, inode);
 }
 
-#define switch(x,y) do { \
+#define do_switch(x,y) do { \
 	__typeof__ (x) __tmp = x; \
 	x = y; y = __tmp; } while (0)
 
@@ -705,10 +681,10 @@ void d_move(struct dentry * dentry, struct dentry * target)
 	list_del(&target->d_child);
 
 	/* Switch the parents and the names.. */
-	switch(dentry->d_parent, target->d_parent);
-	switch(dentry->d_name.name, target->d_name.name);
-	switch(dentry->d_name.len, target->d_name.len);
-	switch(dentry->d_name.hash, target->d_name.hash);
+	do_switch(dentry->d_parent, target->d_parent);
+	do_switch(dentry->d_name.name, target->d_name.name);
+	do_switch(dentry->d_name.len, target->d_name.len);
+	do_switch(dentry->d_name.hash, target->d_name.hash);
 	list_add(&target->d_child, &target->d_parent->d_subdirs);
 	list_add(&dentry->d_child, &dentry->d_parent->d_subdirs);
 }
@@ -755,6 +731,51 @@ char * d_path(struct dentry *dentry, char *buffer, int buflen)
 		dentry = parent;
 	}
 	return retval;
+}
+
+/*
+ * NOTE! The user-level library version returns a
+ * character pointer. The kernel system call just
+ * returns the length of the buffer filled (which
+ * includes the ending '\0' character), or a negative
+ * error value. So libc would do something like
+ *
+ *	char *getcwd(char * buf, size_t size)
+ *	{
+ *		int retval;
+ *
+ *		retval = sys_getcwd(buf, size);
+ *		if (retval >= 0)
+ *			return buf;
+ *		errno = -retval;
+ *		return NULL;
+ *	}
+ */
+asmlinkage int sys_getcwd(char *buf, unsigned long size)
+{
+	int error;
+	struct dentry *pwd = current->fs->pwd; 
+
+	error = -ENOENT;
+	/* Has the current directory has been unlinked? */
+	if (pwd->d_parent == pwd || !list_empty(&pwd->d_hash)) {
+		char *page = (char *) __get_free_page(GFP_USER);
+		error = -ENOMEM;
+		if (page) {
+			unsigned long len;
+			char * cwd = d_path(pwd, page, PAGE_SIZE);
+
+			error = -ERANGE;
+			len = PAGE_SIZE + page - cwd;
+			if (len <= size) {
+				error = len;
+				if (copy_to_user(buf, cwd, len))
+					error = -EFAULT;
+			}
+			free_page((unsigned long) page);
+		}
+	}
+	return error;
 }
 
 /*

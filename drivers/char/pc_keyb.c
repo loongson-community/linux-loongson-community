@@ -22,7 +22,9 @@
 #include <asm/keyboard.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
+#include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/irq.h>
 
 /* Some configuration switches are present in the include file... */
 
@@ -34,39 +36,30 @@
  * them.
  */
 
-#ifndef __i386__
-#define INIT_KBD
-#endif
-
-#ifdef INIT_KBD
-
-/* Simple translation table for the SysRq keys */
-
-#ifdef CONFIG_MAGIC_SYSRQ
-unsigned char pckbd_sysrq_xlate[128] =
-	"\000\0331234567890-=\177\t"			/* 0x00 - 0x0f */
-	"qwertyuiop[]\r\000as"				/* 0x10 - 0x1f */
-	"dfghjkl;'`\000\\zxcv"				/* 0x20 - 0x2f */
-	"bnm,./\000*\000 \000\201\202\203\204\205"	/* 0x30 - 0x3f */
-	"\206\207\210\211\212\000\000789-456+1"		/* 0x40 - 0x4f */
-	"230\177\000\000\213\214\000\000\000\000\000\000\000\000\000\000" /* 0x50 - 0x5f */
-	"\r\000/";					/* 0x60 - 0x6f */
+/*
+ * Some x86 BIOSes do not correctly initializes the keyboard, so the
+ * "kbd-reset" command line options can be given to force a reset.
+ * [Ranger]
+ */
+#ifdef __i386__
+int kbd_startup_reset __initdata = 0;
+#else
+int kbd_startup_reset __initdata = 1;
 #endif
 
 static int kbd_wait_for_input(void)
 {
-	int	n;
 	int	status, data;
 	unsigned long start = jiffies;
 
         do {
                 status = kbd_read_status();
+
                 /*
                  * Wait for input data to become available.  This bit will
                  * then be cleared by the following read of the DATA
                  * register.
                  */
-
                 if (!(status & KBD_STAT_OBF))
 			continue;
 
@@ -86,28 +79,10 @@ static int kbd_wait_for_input(void)
         return -1;	/* timed-out if fell through to here... */
 }
 
-static void init_write_command(int data)
-{
-	int status;
-
-	do {
-		status = kbd_read_status();
-	} while (status & KBD_STAT_IBF);
-	kbd_write_command(data);
-}
-
-static void init_write_output(int data)
-{
-	int status;
-
-	do {
-		status = kbd_read_status();
-	} while (status & KBD_STAT_IBF);
-	kbd_write_output(data);
-}
-
 static char *initialize_kbd2(void)
 {
+	int status;
+
 	/* Flush any pending input. */
 
 	while (kbd_wait_for_input() != -1)
@@ -119,7 +94,7 @@ static char *initialize_kbd2(void)
 	 * If the test is successful a x55 is placed in the input buffer.
 	 */
 
-	init_write_command(KBD_CCMD_SELF_TEST);
+	kbd_write_command(KBD_CCMD_SELF_TEST);
 	if (kbd_wait_for_input() != 0x55)
 		return "Keyboard failed self test";
 
@@ -129,43 +104,58 @@ static char *initialize_kbd2(void)
 	 * test are placed in the input buffer.
 	 */
 
-	init_write_command(KBD_CCMD_KBD_TEST);
+	kbd_write_command(KBD_CCMD_KBD_TEST);
 	if (kbd_wait_for_input() != 0x00)
 		return "Keyboard interface failed self test";
 
 	/* Enable the keyboard by allowing the keyboard clock to run. */
 
-	init_write_command(KBD_CCMD_KBD_ENABLE);
+	kbd_write_command(KBD_CCMD_KBD_ENABLE);
 
 	/*
 	 * Reset keyboard. If the read times out
 	 * then the assumption is that no keyboard is
 	 * plugged into the machine.
 	 * This defaults the keyboard to scan-code set 2.
+	 *
+	 * Set up to try again if the keyboard asks for RESEND.
 	 */
 
-	init_write_output(KBD_CMD_RESET);
-	if (kbd_wait_for_input() != KBD_REPLY_ACK)
-		return "Keyboard reset failed, no ACK";
+        do {
+		kbd_write_output(KBD_CMD_RESET);
+		status = kbd_wait_for_input();
+		if (status == KBD_REPLY_ACK)
+			break;
+		else if (status != KBD_REPLY_RESEND)
+			return "Keyboard reset failed, no ACK";
+	} while (1);
+
 	if (kbd_wait_for_input() != KBD_REPLY_POR)
 		return "Keyboard reset failed, no POR";
 
 	/*
 	 * Set keyboard controller mode. During this, the keyboard should be
 	 * in the disabled state.
+	 *
+	 * Set up to try again if the keyboard asks for RESEND.
 	 */
 
-	init_write_output(KBD_CMD_DISABLE);
-	if (kbd_wait_for_input() != KBD_REPLY_ACK)
-		return "Disable keyboard: no ACK";
+	do {
+		kbd_write_output(KBD_CMD_DISABLE);
+		status = kbd_wait_for_input();
+		if (status == KBD_REPLY_ACK)
+			break;
+		else if (status != KBD_REPLY_RESEND)
+			return "Disable keyboard: no ACK";
+	} while (1);
 
-	init_write_command(KBD_CCMD_WRITE_MODE);
-	init_write_output(KBD_MODE_KBD_INT
+	kbd_write_command(KBD_CCMD_WRITE_MODE);
+	kbd_write_output(KBD_MODE_KBD_INT
 		              | KBD_MODE_SYS
 		              | KBD_MODE_DISABLE_MOUSE
 		              | KBD_MODE_KCC);
 
-	init_write_output(KBD_CMD_ENABLE);
+	kbd_write_output(KBD_CMD_ENABLE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Enable keyboard: no ACK";
 
@@ -173,10 +163,10 @@ static char *initialize_kbd2(void)
 	 * Finally, set the typematic rate to maximum.
 	 */
 
-	init_write_output(KBD_CMD_SET_RATE);
+	kbd_write_output(KBD_CMD_SET_RATE);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Set rate: no ACK";
-	init_write_output(0x00);
+	kbd_write_output(0x00);
 	if (kbd_wait_for_input() != KBD_REPLY_ACK)
 		return "Set rate: no ACK";
 
@@ -195,7 +185,7 @@ void initialize_kbd(void)
 		printk(KERN_WARNING "initialize_kbd: %s\n", msg);
 }
 
-#endif /* INIT_KBD */
+
 
 unsigned char kbd_read_mask = KBD_STAT_OBF; /* Modified by psaux.c */
 
@@ -596,7 +586,11 @@ __initfunc(void pckbd_init_hw(void))
 {
 	request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, "keyboard", NULL);
 	keyboard_setup();
-#ifdef INIT_KBD
-	initialize_kbd();
-#endif
+	if (kbd_startup_reset) initialize_kbd();
+}
+
+/* for "kbd-reset" cmdline param */
+__initfunc(void kbd_reset_setup(char *str, int *ints))
+{
+	kbd_startup_reset = 1;
 }

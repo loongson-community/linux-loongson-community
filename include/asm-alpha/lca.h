@@ -52,10 +52,21 @@
  * ugh).
  */
 
+#include <linux/config.h>
 #include <asm/system.h>
 
+#ifdef CONFIG_ALPHA_SRM_SETUP
+/* if we are using the SRM PCI setup, we'll need to use variables instead */
+#define LCA_DMA_WIN_BASE_DEFAULT    (1024*1024*1024)
+#define LCA_DMA_WIN_SIZE_DEFAULT    (1024*1024*1024)
+
+extern unsigned int LCA_DMA_WIN_BASE;
+extern unsigned int LCA_DMA_WIN_SIZE;
+
+#else /* SRM_SETUP */
 #define LCA_DMA_WIN_BASE	(1024*1024*1024)
 #define LCA_DMA_WIN_SIZE	(1024*1024*1024)
+#endif /* SRM_SETUP */
 
 /*
  * Memory Controller registers:

@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.4 1997/08/05 09:44:28 ralf Exp $
+ * $Id: keyboard.h,v 1.5 1998/05/04 01:16:31 ralf Exp $
  */
 
 /*
@@ -40,8 +40,6 @@ extern unsigned char pckbd_sysrq_xlate[128];
 #define kbd_leds		pckbd_leds
 #define kbd_init_hw		pckbd_init_hw
 #define kbd_sysrq_xlate		pckbd_sysrq_xlate
-
-#define INIT_KBD
 
 #define SYSRQ_KEY 0x54
 

@@ -218,7 +218,7 @@ int esp_detect(Scsi_Host_Template *tpnt)
 					goto esp_irq_acquired; /* BASIC rulez */
 				}
 			}
-			if(request_irq(esp->irq, esp_intr, SA_SHIRQ,
+			if(request_irq(esp->irq, do_esp_intr, SA_SHIRQ,
 				       "Sparc ESP SCSI", NULL))
 				panic("Cannot acquire ESP irq line");
 esp_irq_acquired:

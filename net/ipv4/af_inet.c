@@ -117,10 +117,13 @@
 
 #define min(a,b)	((a)<(b)?(a):(b))
 
+struct linux_mib net_statistics;
+
 extern int sysctl_core_destroy_delay;
 
 extern int raw_get_info(char *, char **, off_t, int, int);
 extern int snmp_get_info(char *, char **, off_t, int, int);
+extern int netstat_get_info(char *, char **, off_t, int, int);
 extern int afinet_get_info(char *, char **, off_t, int, int);
 extern int tcp_get_info(char *, char **, off_t, int, int);
 extern int udp_get_info(char *, char **, off_t, int, int);
@@ -352,7 +355,6 @@ static int inet_create(struct socket *sock, int protocol)
 		if (protocol && protocol != IPPROTO_TCP)
 			goto free_and_noproto;
 		protocol = IPPROTO_TCP;
-		sk->no_check = TCP_NO_CHECK;
 		if (ipv4_config.no_pmtu_disc)
 			sk->ip_pmtudisc = IP_PMTUDISC_DONT;
 		else
@@ -1017,6 +1019,12 @@ static struct proc_dir_entry proc_net_raw = {
 	0, &proc_net_inode_operations,
 	raw_get_info
 };
+static struct proc_dir_entry proc_net_netstat = {
+	PROC_NET_NETSTAT, 7, "netstat",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_net_inode_operations,
+	netstat_get_info
+};
 static struct proc_dir_entry proc_net_snmp = {
 	PROC_NET_SNMP, 4, "snmp",
 	S_IFREG | S_IRUGO, 1, 0, 0,
@@ -1044,6 +1052,8 @@ static struct proc_dir_entry proc_net_udp = {
 #endif		/* CONFIG_PROC_FS */
 
 extern void tcp_init(void);
+extern void tcp_v4_init(struct net_proto_family *);
+
 
 /*
  *	Called by socket.c on kernel startup.  
@@ -1093,8 +1103,11 @@ __initfunc(void inet_proto_init(struct net_proto *pro))
 
 	ip_init();
 
+	tcp_v4_init(&inet_family_ops);
+
 	/* Setup TCP slab cache for open requests. */
 	tcp_init();
+
 
 	/*
 	 *	Set the ICMP layer up
@@ -1142,6 +1155,7 @@ __initfunc(void inet_proto_init(struct net_proto *pro))
 #endif		/* RARP */
 	proc_net_register(&proc_net_raw);
 	proc_net_register(&proc_net_snmp);
+	proc_net_register(&proc_net_netstat);
 	proc_net_register(&proc_net_sockstat);
 	proc_net_register(&proc_net_tcp);
 	proc_net_register(&proc_net_udp);

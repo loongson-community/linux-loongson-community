@@ -63,7 +63,6 @@ extern void fp_send_sig(int);
 EXPORT_SYMBOL(dump_thread);
 EXPORT_SYMBOL(dump_fpu);
 EXPORT_SYMBOL(udelay);
-EXPORT_SYMBOL(dma_str);
 EXPORT_SYMBOL(xchg_str);
 
 /* expansion card support */
@@ -83,16 +82,33 @@ EXPORT_SYMBOL(outsw);
 EXPORT_SYMBOL(inswb);
 EXPORT_SYMBOL(insw);
 
-#ifdef CONFIG_ARCH_RPC
-EXPORT_SYMBOL(drambank);
+/* address translation */
+#ifndef __virt_to_phys__is_a_macro
+EXPORT_SYMBOL(__virt_to_phys);
+#endif
+#ifndef __phys_to_virt__is_a_macro
+EXPORT_SYMBOL(__phys_to_virt);
+#endif
+#ifndef __virt_to_bus__is_a_macro
+EXPORT_SYMBOL(__virt_to_bus);
+#endif
+#ifndef __bus_to_virt__is_a_macro
+EXPORT_SYMBOL(__bus_to_virt);
 #endif
 
+EXPORT_SYMBOL(quicklists);
+EXPORT_SYMBOL(__bad_pmd);
+EXPORT_SYMBOL(__bad_pmd_kernel);
+
 /* dma */
+EXPORT_SYMBOL(dma_str);
 EXPORT_SYMBOL(enable_dma);
-EXPORT_SYMBOL(set_dma_mode);
+EXPORT_SYMBOL(disable_dma);
 EXPORT_SYMBOL(set_dma_addr);
 EXPORT_SYMBOL(set_dma_count);
+EXPORT_SYMBOL(set_dma_mode);
 EXPORT_SYMBOL(get_dma_residue);
+EXPORT_SYMBOL(set_dma_sg);
 
 /*
  * floating point math emulator support.
@@ -177,7 +193,3 @@ EXPORT_SYMBOL(change_bit);
 EXPORT_SYMBOL(test_and_change_bit);
 EXPORT_SYMBOL(find_first_zero_bit);
 EXPORT_SYMBOL(find_next_zero_bit);
-
-#if CONFIG_PCI
-EXPORT_SYMBOL(pci_devices);
-#endif

@@ -3,6 +3,7 @@
  *
  * Detection routine for the Gravis Ultrasound.
  */
+ 
 /*
  * Copyright (C) by Hannu Savolainen 1993-1997
  *
@@ -10,6 +11,15 @@
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
  */
+/*
+ * Frank van de Pol : Fixed GUS MAX interrupt handling, enabled simultanious
+ *                    usage of CS4231A codec, GUS wave and MIDI for GUS MAX.
+ *
+ * Status:
+ *              Tested... 
+ */
+      
+ 
 #include <linux/config.h>
 #include <linux/module.h>
 
@@ -23,14 +33,19 @@
 void            gusintr(int irq, void *dev_id, struct pt_regs *dummy);
 
 int             gus_base = 0, gus_irq = 0, gus_dma = 0;
+int             gus_no_wave_dma = 0; 
 extern int      gus_wave_volume;
 extern int      gus_pcm_volume;
 extern int      have_gus_max;
 int             gus_pnp_flag = 0;
+#ifdef CONFIG_GUS16
+static int      db16 = 0;	/* Has a Gus16 AD1848 on it */
+#endif
 
 void attach_gus_card(struct address_info *hw_config)
 {
-	snd_set_irq_handler(hw_config->irq, gusintr, "Gravis Ultrasound", hw_config->osp, hw_config);
+	if(request_irq(hw_config->irq, gusintr, 0,  "Gravis Ultrasound", hw_config)<0)
+		printk(KERN_ERR "gus_card.c: Unable to allocate IRQ %d\n", hw_config->irq);
 
 	gus_wave_init(hw_config);
 
@@ -38,10 +53,10 @@ void attach_gus_card(struct address_info *hw_config)
 	request_region(hw_config->io_base + 0x100, 12, "GUS");	/* 0x10c-> is MAX */
 
 	if (sound_alloc_dma(hw_config->dma, "GUS"))
-		printk("gus_card.c: Can't allocate DMA channel\n");
+		printk(KERN_ERR "gus_card.c: Can't allocate DMA channel %d\n", hw_config->dma);
 	if (hw_config->dma2 != -1 && hw_config->dma2 != hw_config->dma)
 		if (sound_alloc_dma(hw_config->dma2, "GUS(2)"))
-			printk("gus_card.c: Can't allocate DMA channel 2\n");
+			printk(KERN_ERR "gus_card.c: Can't allocate DMA channel %d\n", hw_config->dma2);
 #if defined(CONFIG_MIDI)
 	gus_midi_init(hw_config);
 #endif
@@ -101,7 +116,7 @@ void unload_gus(struct address_info *hw_config)
 
 	release_region(hw_config->io_base, 16);
 	release_region(hw_config->io_base + 0x100, 12);		/* 0x10c-> is MAX */
-	snd_release_irq(hw_config->irq, hw_config);
+	free_irq(hw_config->irq, hw_config);
 
 	sound_free_dma(hw_config->dma);
 
@@ -119,6 +134,10 @@ void gusintr(int irq, void *dev_id, struct pt_regs *dummy)
 
 #ifdef CONFIG_GUSMAX
 	if (have_gus_max)
+		adintr(irq, (void *)hw_config->slots[1], NULL);
+#endif
+#ifdef CONFIG_GUS16
+	if (db16)
 		adintr(irq, (void *)hw_config->slots[3], NULL);
 #endif
 
@@ -191,6 +210,8 @@ void unload_gus_db16(struct address_info *hw_config)
 }
 #endif
 
+
+
 #ifdef MODULE
 
 static struct address_info config;
@@ -206,7 +227,10 @@ int             dma = -1;
 int             dma16 = -1;	/* Set this for modules that need it */
 int             type = 0;	/* 1 for PnP */
 int             gus16 = 0;
-static int      db16 = 0;	/* Has a Gus16 AD1848 on it */
+#ifdef CONFIG_GUSMAX
+static int      no_wave_dma = 0;/* Set if no dma is to be used for the 
+				   wave table (GF1 chip) */
+#endif
 
 MODULE_PARM(io, "i");
 MODULE_PARM(irq, "i");
@@ -214,7 +238,12 @@ MODULE_PARM(dma, "i");
 MODULE_PARM(dma16, "i");
 MODULE_PARM(type, "i");
 MODULE_PARM(gus16, "i");
+#ifdef CONFIG_GUSMAX
+MODULE_PARM(no_wave_dma, "i");
+#endif
+#ifdef CONFIG_GUS16
 MODULE_PARM(db16, "i");
+#endif
 
 int init_module(void)
 {
@@ -230,6 +259,10 @@ int init_module(void)
 	config.dma = dma;
 	config.dma2 = dma16;
 	config.card_subtype = type;
+	
+#ifdef CONFIG_GUSMAX
+	gus_no_wave_dma = no_wave_dma;
+#endif
 
 #if defined(CONFIG_GUS16)
 	if (probe_gus_db16(&config) && gus16)

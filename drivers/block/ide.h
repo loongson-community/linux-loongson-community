@@ -344,8 +344,7 @@ typedef struct hwif_s {
 	unsigned	reset      : 1;	/* reset after probe */
 	unsigned	no_autodma : 1;	/* don't automatically enable DMA at boot */
 	byte		channel;	/* for dual-port chips: 0=primary, 1=secondary */
-	byte		pci_bus;	/* for pci chipsets */
-	byte		pci_fn;		/* for pci chipsets */
+	struct		pci_dev *pci_dev; /* for pci chipsets */
 	ide_pci_devid_t	pci_devid;	/* for pci chipsets: {VID,DID} */
 #if (DISK_RECOVERY_TIME > 0)
 	unsigned long	last_time;	/* time when previous rq was done */
@@ -409,14 +408,17 @@ void ide_add_generic_settings(ide_drive_t *drive);
  * /proc/ide interface
  */
 typedef struct {
-	const char *name;
-	read_proc_t *read_proc;
-	write_proc_t *write_proc;
+	const char	*name;
+	mode_t		mode;
+	read_proc_t	*read_proc;
+	write_proc_t	*write_proc;
 } ide_proc_entry_t;
 
-void proc_ide_init(void);
-void ide_add_proc_entries(ide_drive_t *drive, ide_proc_entry_t *p);
-void ide_remove_proc_entries(ide_drive_t *drive, ide_proc_entry_t *p);
+#ifdef CONFIG_PROC_FS
+void proc_ide_create(void);
+void proc_ide_destroy(void);
+void ide_add_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p, void *data);
+void ide_remove_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p);
 read_proc_t proc_ide_read_capacity;
 read_proc_t proc_ide_read_geometry;
 
@@ -435,6 +437,7 @@ read_proc_t proc_ide_read_geometry;
 	*start = page + off;		\
 	return len;			\
 }
+#endif
 
 /*
  * Subdrivers support.
@@ -677,6 +680,12 @@ void do_ide2_request (void);
 #if MAX_HWIFS > 3
 void do_ide3_request (void);
 #endif
+#if MAX_HWIFS > 4
+void do_ide4_request (void);
+#endif
+#if MAX_HWIFS > 5
+void do_ide5_request (void);
+#endif
 void ide_init_subdrivers (void);
 
 #ifndef _IDE_C
@@ -717,7 +726,7 @@ int ide_build_dmatable (ide_drive_t *drive);
 void ide_dma_intr  (ide_drive_t *drive);
 int ide_dmaproc (ide_dma_action_t func, ide_drive_t *drive);
 void ide_setup_dma (ide_hwif_t *hwif, unsigned long dmabase, unsigned int num_ports) __init;
-unsigned long ide_get_or_set_dma_base (ide_hwif_t *hwif, int extra, const char *name) __init;
+unsigned long ide_get_or_set_dma_base (struct pci_dev *dev, ide_hwif_t *hwif, int extra, const char *name) __init;
 #endif
 
 #ifdef CONFIG_BLK_DEV_IDE

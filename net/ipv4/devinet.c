@@ -19,7 +19,7 @@
  *
  *	Changes:
  *	        Alexey Kuznetsov:	pa_* fields are replaced with ifaddr lists.
- 		Cyrus Durgin:		updated for kmod
+ *		Cyrus Durgin:		updated for kmod
  */
 
 #include <linux/config.h>

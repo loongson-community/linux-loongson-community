@@ -1,74 +1,96 @@
 /*
- *	$Id: pci.c,v 1.55 1997/12/27 12:17:54 mj Exp $
+ *	$Id: pci.c,v 1.79 1998/04/17 16:25:24 mj Exp $
  *
- *	PCI services that are built on top of the BIOS32 service.
+ *	PCI Bus Services
  *
- *	Copyright 1993, 1994, 1995, 1997 Drew Eckhardt, Frederic Potter,
+ *	Copyright 1993 -- 1998 Drew Eckhardt, Frederic Potter,
  *	David Mosberger-Tang, Martin Mares
  */
 
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/string.h>
 #include <linux/init.h>
+#include <linux/malloc.h>
 
 #include <asm/page.h>
 
-struct pci_bus pci_root;
-struct pci_dev *pci_devices = 0;
-
 #undef DEBUG
 
-/*
- * pci_malloc() returns initialized memory of size SIZE.  Can be
- * used only while pci_init() is active.
- */
-__initfunc(static void *pci_malloc(long size, unsigned long *mem_startp))
+#ifdef DEBUG
+#define DBG(x...) printk(x)
+#else
+#define DBG(x...)
+#endif
+
+struct pci_bus pci_root;
+struct pci_dev *pci_devices = NULL;
+static struct pci_dev **pci_last_dev_p = &pci_devices;
+static int pci_reverse __initdata = 0;
+
+struct pci_dev *
+pci_find_slot(unsigned int bus, unsigned int devfn)
 {
-	void *mem;
-  
-	mem = (void*) *mem_startp;
-	*mem_startp += (size + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
-	memset(mem, 0, size);
-	return mem;
+	struct pci_dev *dev;
+
+	for(dev=pci_devices; dev; dev=dev->next)
+		if (dev->bus->number == bus && dev->devfn == devfn)
+			break;
+	return dev;
 }
 
 
-const char *pcibios_strerror(int error)
+struct pci_dev *
+pci_find_device(unsigned int vendor, unsigned int device, struct pci_dev *from)
 {
-	static char buf[32];
+	if (!from)
+		from = pci_devices;
+	else
+		from = from->next;
+	while (from && (from->vendor != vendor || from->device != device))
+		from = from->next;
+	return from;
+}
 
-	switch (error) {
-		case PCIBIOS_SUCCESSFUL:
-		case PCIBIOS_BAD_VENDOR_ID:
-			return "SUCCESSFUL";
 
-		case PCIBIOS_FUNC_NOT_SUPPORTED:
-			return "FUNC_NOT_SUPPORTED";
+struct pci_dev *
+pci_find_class(unsigned int class, struct pci_dev *from)
+{
+	if (!from)
+		from = pci_devices;
+	else
+		from = from->next;
+	while (from && from->class != class)
+		from = from->next;
+	return from;
+}
 
-		case PCIBIOS_DEVICE_NOT_FOUND:
-			return "DEVICE_NOT_FOUND";
 
-		case PCIBIOS_BAD_REGISTER_NUMBER:
-			return "BAD_REGISTER_NUMBER";
+void
+pci_set_master(struct pci_dev *dev)
+{
+	unsigned short cmd;
+	unsigned char lat;
 
-                case PCIBIOS_SET_FAILED:          
-			return "SET_FAILED";
-
-                case PCIBIOS_BUFFER_TOO_SMALL:    
-			return "BUFFER_TOO_SMALL";
-
-		default:
-			sprintf (buf, "PCI ERROR 0x%x", error);
-			return buf;
+	pci_read_config_word(dev, PCI_COMMAND, &cmd);
+	if (! (cmd & PCI_COMMAND_MASTER)) {
+		printk("PCI: Enabling bus mastering for device %02x:%02x\n",
+			dev->bus->number, dev->devfn);
+		cmd |= PCI_COMMAND_MASTER;
+		pci_write_config_word(dev, PCI_COMMAND, cmd);
+	}
+	pci_read_config_byte(dev, PCI_LATENCY_TIMER, &lat);
+	if (lat < 16) {
+		printk("PCI: Increasing latency timer of device %02x:%02x to 64\n",
+			dev->bus->number, dev->devfn);
+		pci_write_config_byte(dev, PCI_LATENCY_TIMER, 64);
 	}
 }
 
 
-unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
+__initfunc(unsigned int pci_scan_bus(struct pci_bus *bus))
 {
 	unsigned int devfn, l, max, class;
 	unsigned char cmd, irq, tmp, hdr_type, is_multi = 0;
@@ -76,10 +98,7 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 	struct pci_bus *child;
 	int reg;
 
-#ifdef DEBUG
-	printk("pci_scan_bus for bus %d\n", bus->number);
-#endif
-
+	DBG("pci_scan_bus for bus %d\n", bus->number);
 	max = bus->secondary;
 	for (devfn = 0; devfn < 0xff; ++devfn) {
 		if (PCI_FUNC(devfn) && !is_multi) {
@@ -97,7 +116,8 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			continue;
 		}
 
-		dev = pci_malloc(sizeof(*dev), mem_startp);
+		dev = kmalloc(sizeof(*dev), GFP_ATOMIC);
+		memset(dev, 0, sizeof(*dev));
 		dev->bus = bus;
 		dev->devfn  = devfn;
 		dev->vendor = l & 0xffff;
@@ -113,13 +133,19 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 		pcibios_read_config_dword(bus->number, devfn, PCI_CLASS_REVISION, &class);
 		class >>= 8;				    /* upper 3 bytes */
 		dev->class = class;
+		dev->hdr_type = hdr_type;
 
 		switch (hdr_type & 0x7f) {		    /* header type */
-		case 0:					    /* standard header */
+		case PCI_HEADER_TYPE_NORMAL:		    /* standard header */
 			if (class >> 8 == PCI_CLASS_BRIDGE_PCI)
 				goto bad;
-			/* read irq level (may be changed during pcibios_fixup()): */
-			pcibios_read_config_byte(bus->number, dev->devfn, PCI_INTERRUPT_LINE, &irq);
+			/*
+			 * If the card generates interrupts, read IRQ number
+			 * (some architectures change it during pcibios_fixup())
+			 */
+			pcibios_read_config_byte(bus->number, dev->devfn, PCI_INTERRUPT_PIN, &irq);
+			if (irq)
+				pcibios_read_config_byte(bus->number, dev->devfn, PCI_INTERRUPT_LINE, &irq);
 			dev->irq = irq;
 			/*
 			 * read base address registers, again pcibios_fixup() can
@@ -129,12 +155,24 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 				pcibios_read_config_dword(bus->number, devfn, PCI_BASE_ADDRESS_0 + (reg << 2), &l);
 				dev->base_address[reg] = (l == 0xffffffff) ? 0 : l;
 			}
+			pcibios_read_config_dword(bus->number, devfn, PCI_ROM_ADDRESS, &l);
+			dev->rom_address = (l == 0xffffffff) ? 0 : l;
 			break;
-		case 1:					    /* bridge header */
+		case PCI_HEADER_TYPE_BRIDGE:		    /* bridge header */
 			if (class >> 8 != PCI_CLASS_BRIDGE_PCI)
 				goto bad;
 			for (reg = 0; reg < 2; reg++) {
 				pcibios_read_config_dword(bus->number, devfn, PCI_BASE_ADDRESS_0 + (reg << 2), &l);
+				dev->base_address[reg] = (l == 0xffffffff) ? 0 : l;
+			}
+			pcibios_read_config_dword(bus->number, devfn, PCI_ROM_ADDRESS1, &l);
+			dev->rom_address = (l == 0xffffffff) ? 0 : l;
+			break;
+		case PCI_HEADER_TYPE_CARDBUS:		    /* CardBus bridge header */
+			if (class >> 16 != PCI_BASE_CLASS_BRIDGE)
+				goto bad;
+			for (reg = 0; reg < 2; reg++) {
+				pcibios_read_config_dword(bus->number, devfn, PCI_CB_MEMORY_BASE_0 + (reg << 3), &l);
 				dev->base_address[reg] = (l == 0xffffffff) ? 0 : l;
 			}
 			break;
@@ -145,17 +183,19 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			continue;
 		}
 
-#ifdef DEBUG
-		printk("PCI: %02x:%02x [%04x/%04x]\n",
-		       bus->number, dev->devfn, dev->vendor, dev->device);
-#endif
+		DBG("PCI: %02x:%02x [%04x/%04x]\n", bus->number, dev->devfn, dev->vendor, dev->device);
 
 		/*
 		 * Put it into the global PCI device chain. It's used to
 		 * find devices once everything is set up.
 		 */
-		dev->next = pci_devices;
-		pci_devices = dev;
+		if (!pci_reverse) {
+			*pci_last_dev_p = dev;
+			pci_last_dev_p = &dev->next;
+		} else {
+			dev->next = pci_devices;
+			pci_devices = dev;
+		}
 
 		/*
 		 * Now insert it into the list of devices held
@@ -163,6 +203,16 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 		 */
 		dev->sibling = bus->devices;
 		bus->devices = dev;
+
+#if 0
+		/*
+		 * Setting of latency timer in case it was less than 32 was
+		 * a great idea, but it confused several broken devices. Grrr.
+		 */
+		pcibios_read_config_byte(bus->number, dev->devfn, PCI_LATENCY_TIMER, &tmp);
+		if (tmp < 32)
+			pcibios_write_config_byte(bus->number, dev->devfn, PCI_LATENCY_TIMER, 32);
+#endif
 
 		/*
 		 * If it's a bridge, scan the bus behind it.
@@ -174,7 +224,8 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			/*
 			 * Insert it into the tree of buses.
 			 */
-			child = pci_malloc(sizeof(*child), mem_startp);
+			child = kmalloc(sizeof(*child), GFP_ATOMIC);
+			memset(child, 0, sizeof(*child));
 			child->next = bus->children;
 			bus->children = child;
 			child->self = dev;
@@ -203,11 +254,14 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			pcibios_read_config_dword(bus->number, devfn, PCI_PRIMARY_BUS, &buses);
 			if ((buses & 0xFFFFFF) != 0)
 			  {
+			    unsigned int cmax;
+
 			    child->primary = buses & 0xFF;
 			    child->secondary = (buses >> 8) & 0xFF;
 			    child->subordinate = (buses >> 16) & 0xFF;
 			    child->number = child->secondary;
-			    max = pci_scan_bus(child, mem_startp);
+			    cmax = pci_scan_bus(child);
+			    if (cmax > max) max = cmax;
 			  }
 			else
 			  {
@@ -223,7 +277,7 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 			    /*
 			     * Now we can scan all subordinate buses:
 			     */
-			    max = pci_scan_bus(child, mem_startp);
+			    max = pci_scan_bus(child);
 			    /*
 			     * Set the subordinate bus number to its real
 			     * value:
@@ -243,33 +297,49 @@ unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp)
 	 *
 	 * Return how far we've got finding sub-buses.
 	 */
-#ifdef DEBUG
-	printk("PCI: pci_scan_bus returning with max=%02x\n", max);
-#endif
+	DBG("PCI: pci_scan_bus returning with max=%02x\n", max);
 	return max;
 }
 
 
-__initfunc(unsigned long pci_init (unsigned long mem_start, unsigned long mem_end))
+__initfunc(void pci_init(void))
 {
-	mem_start = pcibios_init(mem_start, mem_end);
+	pcibios_init();
 
-	if (!pcibios_present()) {
+	if (!pci_present()) {
 		printk("PCI: No PCI bus detected\n");
-		return mem_start;
+		return;
 	}
 
-	printk("Probing PCI hardware.\n");
+	printk("PCI: Probing PCI hardware.\n");
 
 	memset(&pci_root, 0, sizeof(pci_root));
-	pci_root.subordinate = pci_scan_bus(&pci_root, &mem_start);
+	pci_root.subordinate = pci_scan_bus(&pci_root);
 
 	/* give BIOS a chance to apply platform specific fixes: */
-	mem_start = pcibios_fixup(mem_start, mem_end);
+	pcibios_fixup();
 
-#ifdef CONFIG_PCI_OPTIMIZE
+#ifdef CONFIG_PCI_QUIRKS
 	pci_quirks_init();
 #endif
 
-	return mem_start;
+#ifdef CONFIG_PROC_FS
+	pci_proc_init();
+#endif
+}
+
+
+__initfunc(void pci_setup (char *str, int *ints))
+{
+	while (str) {
+		char *k = strchr(str, ',');
+		if (k)
+			*k++ = 0;
+		if (*str && (str = pcibios_setup(str)) && *str) {
+			if (!strcmp(str, "reverse"))
+				pci_reverse = 1;
+			else printk(KERN_ERR "PCI: Unknown option `%s'\n", str);
+		}
+		str = k;
+	}
 }

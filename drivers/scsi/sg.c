@@ -28,6 +28,8 @@
 #include <scsi/scsi_ioctl.h>
 #include <scsi/sg.h>
 
+int sg_big_buff = SG_BIG_BUFF;		/* for now, sg_big_buff is read-only through sysctl */
+
 static int sg_init(void);
 static int sg_attach(Scsi_Device *);
 static int sg_detect(Scsi_Device *);
@@ -93,6 +95,15 @@ static int sg_ioctl(struct inode * inode,struct file * file,
 	return 0;
     case SG_GET_TIMEOUT:
 	return scsi_generics[dev].timeout;
+    case SG_EMULATED_HOST:
+    	return put_user(scsi_generics[dev].device->host->hostt->emulated, (int *) arg);
+    case SCSI_IOCTL_SEND_COMMAND:
+	/*
+	  Allow SCSI_IOCTL_SEND_COMMAND without checking suser() since the
+	  user already has read/write access to the generic device and so
+	  can execute arbitrary SCSI commands.
+	*/
+	return scsi_ioctl_send_command(scsi_generics[dev].device, (void *) arg);
     default:
 	return scsi_ioctl(scsi_generics[dev].device, cmd_in, (void *) arg);
     }
@@ -224,7 +235,6 @@ static ssize_t sg_read(struct file *filp, char *buf,
     struct inode *inode = filp->f_dentry->d_inode;
     int dev=MINOR(inode->i_rdev);
     int i;
-    unsigned long flags;
     struct scsi_generic *device=&scsi_generics[dev];
 
     /*
@@ -248,23 +258,18 @@ static ssize_t sg_read(struct file *filp, char *buf,
     /*
      * Wait until the command is actually done.
      */
-    save_flags(flags);
-    cli();
     while(!device->pending || !device->complete)
     {
 	if (filp->f_flags & O_NONBLOCK)
 	{
-	    restore_flags(flags);
 	    return -EAGAIN;
 	}
 	interruptible_sleep_on(&device->read_wait);
 	if (signal_pending(current))
 	{
-	    restore_flags(flags);
 	    return -ERESTARTSYS;
 	}
     }
-    restore_flags(flags);
 
     /*
      * Now copy the result back to the user buffer.
@@ -363,6 +368,7 @@ static void sg_command_done(Scsi_Cmnd * SCpnt)
 static ssize_t sg_write(struct file *filp, const char *buf, 
                         size_t count, loff_t *ppos)
 {
+    unsigned long	  flags;
     struct inode         *inode = filp->f_dentry->d_inode;
     int			  bsize,size,amt,i;
     unsigned char	  cmnd[MAX_COMMAND_SIZE];
@@ -530,9 +536,11 @@ static ssize_t sg_write(struct file *filp, const char *buf,
      * do not do any more here - when the interrupt arrives, we will
      * then do the post-processing.
      */
+    spin_lock_irqsave(&io_request_lock, flags);
     scsi_do_cmd (SCpnt,(void *) cmnd,
 		 (void *) device->buff,amt,
 		 sg_command_done,device->timeout,SG_DEFAULT_RETRIES);
+    spin_unlock_irqrestore(&io_request_lock, flags);
 
 #ifdef DEBUG
     printk("done cmd\n");

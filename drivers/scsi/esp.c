@@ -39,6 +39,7 @@
 #include <asm/idprom.h>
 #endif
 
+#include <asm/spinlock.h>
 #include <asm/system.h>
 #include <asm/ptrace.h>
 #include <asm/pgtable.h>
@@ -90,6 +91,7 @@ struct Sparc_ESP *espchain = 0;
 int nesps = 0, esps_in_use = 0, esps_running = 0;
 
 void esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
+static void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs);
 
 /* Debugging routines */
 struct esp_cmdstrings {
@@ -3605,6 +3607,15 @@ esp_handle_done:
 	if(esp->dma_irq_exit)
 		esp->dma_irq_exit(esp);
 	return;
+}
+
+static void do_esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&io_request_lock, flags);
+	esp_intr(irq, dev_id, pregs);
+	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 #ifndef __sparc_v9__

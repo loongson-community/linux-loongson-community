@@ -1,5 +1,5 @@
 /*
- *  linux/drivers/block/ide.c	Version 6.12  January  2, 1998
+ *  linux/drivers/block/ide.c	Version 6.13  March 29, 1998
  *
  *  Copyright (C) 1994-1998  Linus Torvalds & authors (see below)
  */
@@ -10,29 +10,14 @@
  *            and Gadi Oxman <gadio@netvision.net.il>
  *
  * This is the multiple IDE interface driver, as evolved from hd.c.
- * It supports up to four IDE interfaces, on one or more IRQs (usually 14 & 15).
+ * It supports up to MAX_HWIFS IDE interfaces, on one or more IRQs (usually 14 & 15).
  * There can be up to two drives per interface, as per the ATA-2 spec.
  *
  * Primary:    ide0, port 0x1f0; major=3;  hda is minor=0; hdb is minor=64
  * Secondary:  ide1, port 0x170; major=22; hdc is minor=0; hdd is minor=64
  * Tertiary:   ide2, port 0x???; major=33; hde is minor=0; hdf is minor=64
  * Quaternary: ide3, port 0x???; major=34; hdg is minor=0; hdh is minor=64
- *
- * It is easy to extend ide.c to handle more than four interfaces:
- *
- *	Change the MAX_HWIFS constant in ide.h.
- *
- *	Define some new major numbers (in major.h), and insert them into
- *	the ide_hwif_to_major table in ide.c.
- *
- *	Fill in the extra values for the new interfaces into the two tables
- *	inside ide.c:  default_io_base[]  and  default_irqs[].
- *
- *	Create the new request handlers by cloning "do_ide3_request()"
- *	for each new interface, and add them to the switch statement
- *	in the ide_init() function in ide.c.
- *
- *	Recompile, create the new /dev/ entries, and it will probably work.
+ * ...
  *
  *  From hd.c:
  *  |
@@ -100,6 +85,7 @@
  *			mask all hwgroup interrupts on each irq entry
  * Version 6.12		integrate ioctl and proc interfaces
  *			fix parsing of "idex=" command line parameter
+ * Version 6.13		add support for ide4/ide5 courtesy rjones@orchestream.com
  *
  *  Some additional driver compile-time options are in ide.h
  *
@@ -121,7 +107,6 @@
 #include <linux/errno.h>
 #include <linux/genhd.h>
 #include <linux/malloc.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/delay.h>
 
@@ -138,7 +123,7 @@
 #include <linux/kmod.h>
 #endif /* CONFIG_KMOD */
 
-static const byte	ide_hwif_to_major[] = {IDE0_MAJOR, IDE1_MAJOR, IDE2_MAJOR, IDE3_MAJOR};
+static const byte	ide_hwif_to_major[] = {IDE0_MAJOR, IDE1_MAJOR, IDE2_MAJOR, IDE3_MAJOR, IDE4_MAJOR, IDE5_MAJOR };
 
 static int	idebus_parameter; /* holds the "idebus=" parameter */
 static int	system_bus_speed; /* holds what we think is VESA/PCI bus speed */
@@ -277,7 +262,7 @@ int ide_system_bus_speed (void)
 		if (idebus_parameter)
 			system_bus_speed = idebus_parameter;	/* user supplied value */
 #ifdef CONFIG_PCI
-		else if (pcibios_present())
+		else if (pci_present())
 			system_bus_speed = 40;	/* safe default value for PCI */
 #endif /* CONFIG_PCI */
 		else
@@ -1133,27 +1118,17 @@ struct request **ide_get_queue (kdev_t dev)
  * conditions in the event that an unexpected interrupt occurs while
  * we are in the driver.
  *
- * Note that when an interrupt is used to reenter the driver, the first level
- * handler will already have masked the irq that triggered, but any other ones
- * for the hwgroup will still be unmasked.  The driver tries to be careful
- * about such things.
+ * Note that the io-request lock will guarantee that the driver never gets
+ * re-entered even on another interrupt level, so we no longer need to
+ * mask the irq's.
  */
 static void do_hwgroup_request (ide_hwgroup_t *hwgroup)
 {
 	if (hwgroup->handler == NULL) {
-		ide_hwif_t *hgif = hwgroup->hwif;
-		ide_hwif_t *hwif = hgif;
-
 		del_timer(&hwgroup->timer);
 		ide_get_lock(&ide_lock, ide_intr, hwgroup);
 		hwgroup->active = 1;
-		do {
-			disable_irq(hwif->irq);
-		} while ((hwif = hwif->next) != hgif);
 		ide_do_request (hwgroup);
-		do {
-			enable_irq(hwif->irq);
-		} while ((hwif = hwif->next) != hgif);
 	}
 }
 
@@ -1182,6 +1157,20 @@ void do_ide3_request (void)	/* invoked with __cli() */
 	do_hwgroup_request (ide_hwifs[3].hwgroup);
 }
 #endif /* MAX_HWIFS > 3 */
+
+#if MAX_HWIFS > 4
+void do_ide4_request (void)	/* invoked with cli() */
+{
+	do_hwgroup_request (ide_hwifs[4].hwgroup);
+}
+#endif /* MAX_HWIFS > 4 */
+
+#if MAX_HWIFS > 5
+void do_ide5_request (void)	/* invoked with cli() */
+{
+	do_hwgroup_request (ide_hwifs[5].hwgroup);
+}
+#endif /* MAX_HWIFS > 5 */
 
 void ide_timer_expiry (unsigned long data)
 {
@@ -1260,56 +1249,64 @@ static void unexpected_intr (int irq, ide_hwgroup_t *hwgroup)
 	} while ((hwif = hwif->next) != hwgroup->hwif);
 }
 
-/*
- * entry point for all interrupts, caller does __cli() for us
- */
-void ide_intr (int irq, void *dev_id, struct pt_regs *regs)
+#ifdef __sparc_v9__
+#define IDE_IRQ_EQUAL(irq1, irq2)	(1)
+#else
+#define IDE_IRQ_EQUAL(irq1, irq2)	((irq1) == (irq2))
+#endif
+
+static void do_ide_intr (int irq, void *dev_id, struct pt_regs *regs)
 {
-	unsigned long flags;
 	ide_hwgroup_t *hwgroup = dev_id;
 	ide_hwif_t *hwif = hwgroup->hwif;
 	ide_handler_t *handler;
 
-	if (!ide_ack_intr(hwif->io_ports[IDE_STATUS_OFFSET], hwif->io_ports[IDE_IRQ_OFFSET]))
+	if (!ide_ack_intr (hwif->io_ports[IDE_STATUS_OFFSET], hwif->io_ports[IDE_IRQ_OFFSET]))
 		return;
-	do {
-		if (hwif->irq != irq) disable_irq(hwif->irq);
-	} while ((hwif = hwif->next) != hwgroup->hwif);
-	if (irq == hwif->irq && (handler = hwgroup->handler) != NULL) {
+
+	if (IDE_IRQ_EQUAL(irq, hwif->irq)
+	    && (handler = hwgroup->handler) != NULL) {
 		ide_drive_t *drive = hwgroup->drive;
-#if 1	/* temporary, remove later -- FIXME */
+#if 1  /* temporary, remove later -- FIXME */
 		{
 			struct request *rq = hwgroup->rq;
 			if (rq != NULL
-			 &&( MAJOR(rq->rq_dev) != HWIF(drive)->major
-			 || (MINOR(rq->rq_dev) >> PARTN_BITS) != drive->select.b.unit))
+			    &&( MAJOR(rq->rq_dev) != HWIF(drive)->major
+			    || (MINOR(rq->rq_dev) >> PARTN_BITS) != drive->select.b.unit))
 			{
 				printk("ide_intr: got IRQ from wrong device: email mlord@pobox.com!!\n");
 				return;
 			}
 		}
-#endif	/* temporary */
+#endif /* temporary */
 		hwgroup->handler = NULL;
 		del_timer(&(hwgroup->timer));
 		/* if (drive->unmask)
 			ide_sti(); HACK */
 		handler(drive);
 		/* this is necessary, as next rq may be different irq */
-		spin_lock_irqsave(&io_request_lock,flags);
 		if (hwgroup->handler == NULL) {
 			set_recovery_timer(HWIF(drive));
 			drive->service_time = jiffies - drive->service_start;
 			ide_do_request(hwgroup);
 		}
-		spin_unlock_irqrestore(&io_request_lock,flags);
 	} else {
 		unexpected_intr(irq, hwgroup);
 	}
 	__cli();
 	hwif = hwgroup->hwif;
-	do {
-		if (hwif->irq != irq) enable_irq(hwif->irq);
-	} while ((hwif = hwif->next) != hwgroup->hwif);
+}
+
+/*
+ * entry point for all interrupts, caller does __cli() for us
+ */
+void ide_intr (int irq, void *dev_id, struct pt_regs *regs)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&io_request_lock, flags);
+	do_ide_intr(irq, dev_id, regs);
+	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 /*
@@ -2520,7 +2517,7 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 __initfunc(static void probe_for_hwifs (void))
 {
 #ifdef CONFIG_PCI
-	if (pcibios_present())
+	if (pci_present())
 	{
 #ifdef CONFIG_BLK_DEV_IDEPCI
 		ide_scan_pcibus();
@@ -2530,23 +2527,29 @@ __initfunc(static void probe_for_hwifs (void))
 			extern void ide_probe_for_rz100x(void);
 			ide_probe_for_rz100x();
 		}
-#endif	/* CONFIG_BLK_DEV_RZ1000 */
-#endif	/* CONFIG_BLK_DEV_IDEPCI */
+#endif /* CONFIG_BLK_DEV_RZ1000 */
+#ifdef CONFIG_BLK_DEV_SL82C105
+		{
+			extern void ide_probe_for_sl82c105(void);
+			ide_probe_for_sl82c105();
+		}
+#endif /* CONFIG_BLK_DEV_SL82C105 */
+#endif /* CONFIG_BLK_DEV_IDEPCI */
 	}
-#endif	/* CONFIG_PCI */
+#endif /* CONFIG_PCI */
 
 #ifdef CONFIG_BLK_DEV_CMD640
 	{
 		extern void ide_probe_for_cmd640x(void);
 		ide_probe_for_cmd640x();
 	}
-#endif	/* CONFIG_BLK_DEV_CMD640 */
+#endif /* CONFIG_BLK_DEV_CMD640 */
 #ifdef CONFIG_BLK_DEV_PDC4030
 	{
 		extern int init_pdc4030(void);
 		(void) init_pdc4030();
 	}
-#endif	/* CONFIG_BLK_DEV_PDC4030 */
+#endif /* CONFIG_BLK_DEV_PDC4030 */
 }
 
 __initfunc(void ide_init_builtin_drivers (void))
@@ -2575,7 +2578,7 @@ __initfunc(void ide_init_builtin_drivers (void))
 #endif /* CONFIG_BLK_DEV_IDE */
 
 #ifdef CONFIG_PROC_FS
-	proc_ide_init();
+	proc_ide_create();
 #endif
 
 	/*
@@ -2691,10 +2694,12 @@ search:
 	return NULL;
 }
 
+#ifdef CONFIG_PROC_FS
 static ide_proc_entry_t generic_subdriver_entries[] = {
-	{ "capacity", proc_ide_read_capacity, NULL },
-	{ NULL, NULL, NULL }
+	{ "capacity",	S_IFREG|S_IRUGO,	proc_ide_read_capacity,	NULL },
+	{ NULL, 0, NULL, NULL }
 };
+#endif
 
 int ide_register_subdriver (ide_drive_t *drive, ide_driver_t *driver, int version)
 {
@@ -2717,8 +2722,10 @@ int ide_register_subdriver (ide_drive_t *drive, ide_driver_t *driver, int versio
 		drive->nice1 = 1;
 	}
 	drive->revalidate = 1;
-	ide_add_proc_entries(drive, generic_subdriver_entries);
-	ide_add_proc_entries(drive, driver->proc);
+#ifdef CONFIG_PROC_FS
+	ide_add_proc_entries(drive->proc, generic_subdriver_entries, drive);
+	ide_add_proc_entries(drive->proc, driver->proc, drive);
+#endif
 	return 0;
 }
 
@@ -2732,8 +2739,10 @@ int ide_unregister_subdriver (ide_drive_t *drive)
 		__restore_flags(flags);
 		return 1;
 	}
-	ide_remove_proc_entries(drive, DRIVER(drive)->proc);
-	ide_remove_proc_entries(drive, generic_subdriver_entries);
+#ifdef CONFIG_PROC_FS
+	ide_remove_proc_entries(drive->proc, DRIVER(drive)->proc);
+	ide_remove_proc_entries(drive->proc, generic_subdriver_entries);
+#endif
 	auto_remove_settings(drive);
 	drive->driver = NULL;
 	__restore_flags(flags);
@@ -2803,6 +2812,12 @@ EXPORT_SYMBOL(do_ide2_request);
 #if MAX_HWIFS > 3
 EXPORT_SYMBOL(do_ide3_request);
 #endif /* MAX_HWIFS > 3 */
+#if MAX_HWIFS > 4
+EXPORT_SYMBOL(do_ide4_request);
+#endif /* MAX_HWIFS > 4 */
+#if MAX_HWIFS > 5
+EXPORT_SYMBOL(do_ide5_request);
+#endif /* MAX_HWIFS > 5 */
 
 /*
  * Driver module
@@ -2828,11 +2843,13 @@ EXPORT_SYMBOL(ide_revalidate_disk);
 EXPORT_SYMBOL(ide_cmd);
 EXPORT_SYMBOL(ide_wait_cmd);
 EXPORT_SYMBOL(ide_stall_queue);
+#ifdef CONFIG_PROC_FS
 EXPORT_SYMBOL(ide_add_proc_entries);
 EXPORT_SYMBOL(ide_remove_proc_entries);
+EXPORT_SYMBOL(proc_ide_read_geometry);
+#endif
 EXPORT_SYMBOL(ide_add_setting);
 EXPORT_SYMBOL(ide_remove_setting);
-EXPORT_SYMBOL(proc_ide_read_geometry);
 
 EXPORT_SYMBOL(ide_register);
 EXPORT_SYMBOL(ide_unregister);
@@ -2881,5 +2898,8 @@ void cleanup_module (void)
 
 	for (index = 0; index < MAX_HWIFS; ++index)
 		ide_unregister(index);
+#ifdef CONFIG_PROC_FS
+	proc_ide_destroy();
+#endif
 }
 #endif /* MODULE */

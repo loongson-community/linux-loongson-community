@@ -4,7 +4,7 @@
  * Author: Rickard E. Faith, faith@cs.unc.edu
  * Copyright 1992, 1993, 1994, 1995, 1996 Rickard E. Faith
  *
- * $Id: fdomain.c,v 5.45 1996/10/02 15:13:06 root Exp $
+ * Version 5.46 (23-04-1998)
 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -106,6 +106,7 @@
  1.3.85      5.41         4 Apr 1996
  2.0.12      5.44         8 Aug 1996  Use ID 7 for all PCI cards
  2.1.1       5.45         2 Oct 1996  Update ROM accesses for 2.1.x
+ 2.1.97      5.46	 23 Apr 1998  Rewritten PCI detection routines [mj]
 
  
 
@@ -203,6 +204,8 @@
 
  Thanks to Tom Cavin (tec@usa1.com) for preliminary command-line option
  patches.
+
+ New PCI detection code written by Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  
  All of the alpha testers deserve much thanks.
 
@@ -262,11 +265,11 @@
 #include "hosts.h"
 #include "fdomain.h"
 #include <asm/system.h>
+#include <asm/spinlock.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
 #include <linux/proc_fs.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/stat.h>
 
@@ -398,7 +401,7 @@ static int               Write_SCSI_Data_port;
 static int               FIFO_Size = 0x2000; /* 8k FIFO for
 						pre-tmc18c30 chips */
 
-extern void              fdomain_16x0_intr( int irq, void *dev_id,
+extern void              do_fdomain_16x0_intr( int irq, void *dev_id,
 					    struct pt_regs * regs );
 
 static unsigned long addresses[] = {
@@ -749,168 +752,63 @@ static int fdomain_isa_detect( int *irq, int *iobase )
    return 1;			/* success */
 }
 
-static int fdomain_pci_nobios_detect( int *irq, int *iobase )
-{
-   int i;
-   int flag = 0;
-
-   /* The proper way of doing this is to use ask the PCI bus for the device
-      IRQ and interrupt level.  But we can't do that if PCI BIOS32 support
-      isn't compiled into the kernel, or if a PCI BIOS32 isn't present.
-
-      Instead, we scan down a bunch of addresses (Future Domain tech
-      support says we will probably find the address before we get to
-      0xf800).  This works fine on some systems -- other systems may have
-      to scan more addresses.  If you have to modify this section for your
-      installation, please send mail to faith@cs.unc.edu. */
-
-   for (i = 0xfff8; i > 0xe000; i -= 8) {
-      if (check_region( i, 0x10 )) {
-#if DEBUG_DETECT
-	 printk( " (%x inuse)," , i );
-#endif
-	 continue;
-      }
-      if ((flag = fdomain_is_valid_port( i ))) break;
-   }
-
-   if (!flag) return 0;		/* iobase not found */
-
-   *irq    = fdomain_get_irq( i );
-   *iobase = i;
-
-   return 1;			/* success */
-}
-
 /* PCI detection function: int fdomain_pci_bios_detect(int* irq, int*
    iobase) This function gets the Interrupt Level and I/O base address from
-   the PCI configuration registers.  The I/O base address is masked with
-   0xfff8 since on my card the address read from the PCI config registers
-   is off by one from the actual I/O base address necessary for accessing
-   the status and control registers on the card (PCI config register gives
-   0xf801, actual address is 0xf800).  This is likely a bug in the FD
-   config code that writes to the PCI registers, however using a mask
-   should be safe since I think the scan done by the card to determine the
-   I/O base is done in increments of 8 (i.e., 0xf800, 0xf808, ...), at
-   least the old scan code we used to use to get the I/O base did...  Also,
-   the device ID from the PCI config registers is 0x0 and should be 0x60e9
-   as it is in the status registers (offset 5 from I/O base).  If this is
-   changed in future hardware/BIOS changes it will need to be fixed in this
-   detection function.  Comments, bug reports, etc... on this function
-   should be sent to mckinley@msupa.pa.msu.edu - James T. McKinley.  */
+   the PCI configuration registers. */
 
 #ifdef CONFIG_PCI
 static int fdomain_pci_bios_detect( int *irq, int *iobase )
 {
-   int              error;
-   unsigned char    pci_bus, pci_dev_fn;    /* PCI bus & device function */
-   unsigned char    pci_irq;                /* PCI interrupt line */
-   unsigned int     pci_base;               /* PCI I/O base address */
-   unsigned short   pci_vendor, pci_device; /* PCI vendor & device IDs */
+   unsigned int     pci_irq;                /* PCI interrupt line */
+   unsigned long    pci_base;               /* PCI I/O base address */
+   struct pci_dev   *pdev = NULL;
 
-   /* If the PCI BIOS doesn't exist, use the old-style detection routines.
-      Otherwise, get the I/O base address and interrupt from the PCI config
-      registers. */
-   
-   if (!pcibios_present()) return fdomain_pci_nobios_detect( irq, iobase );
+   if (!pci_present()) return 0;
 
 #if DEBUG_DETECT
    /* Tell how to print a list of the known PCI devices from bios32 and
       list vendor and device IDs being used if in debug mode.  */
       
-   printk( "\nINFO: cat /proc/pci to see list of PCI devices from bios32\n" );
+   printk( "\nINFO: use lspci -v to see list of PCI devices\n" );
    printk( "\nTMC-3260 detect:"
 	   " Using PCI Vendor ID: 0x%x, PCI Device ID: 0x%x\n",
 	   PCI_VENDOR_ID_FD, 
 	   PCI_DEVICE_ID_FD_36C70 );
 #endif 
 
-   /* We will have to change this if more than 1 PCI bus is present and the
-      FD scsi host is not on the first bus (i.e., a PCI to PCI bridge,
-      which is not supported by bios32 right now anyway).  This should
-      probably be done by a call to pcibios_find_device but I can't get it
-      to work...  Also the device ID reported from the PCI config registers
-      does not match the device ID quoted in the tech manual or available
-      from offset 5 from the I/O base address.  It should be 0x60E9, but it
-      is 0x0 if read from the PCI config registers.  I guess the FD folks
-      neglected to write it to the PCI registers...  This loop is necessary
-      to get the device function (at least until someone can get
-      pcibios_find_device to work, I cannot but 53c7,8xx.c uses it...). */
-    
-   pci_bus = 0;
-
-   for (pci_dev_fn = 0x0; pci_dev_fn < 0xff; pci_dev_fn++) {
-      pcibios_read_config_word( pci_bus,
-				pci_dev_fn,
-				PCI_VENDOR_ID,
-				&pci_vendor );
-
-      if (pci_vendor == PCI_VENDOR_ID_FD) {
-	 pcibios_read_config_word( pci_bus,
-				   pci_dev_fn,
-				   PCI_DEVICE_ID,
-				   &pci_device );
-
-	 if (pci_device == PCI_DEVICE_ID_FD_36C70) {
-	    /* Break out once we have the correct device.  If other FD
-	       PCI devices are added to this driver we will need to add
-	       an or of the other PCI_DEVICE_ID_FD_XXXXX's here. */
-	    break;
-	 } else {
-	    /* If we can't find an FD scsi card we give up. */
-	    return 0;
-	 }
-      }
-   }
+   if ((pdev = pci_find_device(PCI_VENDOR_ID_FD, PCI_DEVICE_ID_FD_36C70, pdev)) == NULL)
+     return 0;
        
 #if DEBUG_DETECT
    printk( "Future Domain 36C70 : at PCI bus %u, device %u, function %u\n",
-	   pci_bus,
-	   (pci_dev_fn & 0xf8) >> 3, 
-	   pci_dev_fn & 7 );
+	   pdev->bus->number,
+	   PCI_SLOT(pdev->devfn),
+	   PCI_FUNC(pdev->devfn));
 #endif
 
    /* We now have the appropriate device function for the FD board so we
       just read the PCI config info from the registers.  */
 
-   if ((error = pcibios_read_config_dword( pci_bus,
-					   pci_dev_fn, 
-					   PCI_BASE_ADDRESS_0,
-					   &pci_base ))
-       || (error = pcibios_read_config_byte( pci_bus,
-					     pci_dev_fn, 
-					     PCI_INTERRUPT_LINE,
-					     &pci_irq ))) {
-      printk ( "PCI ERROR: Future Domain 36C70 not initializing"
-	       " due to error reading configuration space\n" );
-      return 0;
-   } else {
+   pci_base = pdev->base_address[0];
+   pci_irq = pdev->irq;
 #if DEBUG_DETECT
       printk( "TMC-3260 PCI: IRQ = %u, I/O base = 0x%lx\n", 
 	      pci_irq, pci_base );
 #endif
 
-      /* Now we have the I/O base address and interrupt from the PCI
-	 configuration registers.  Unfortunately it seems that the I/O base
-	 address is off by one on my card so I mask it with 0xfff8.  This
-	 must be some kind of goof in the FD code that does the autoconfig
-	 and writes to the PCI registers (or maybe I just don't understand
-	 something).  If they fix it in later versions of the card or BIOS
-	 we may have to adjust the address based on the signature or
-	 something...  */
+   /* Now we have the I/O base address and interrupt from the PCI
+      configuration registers. */
 
-      *irq    = pci_irq;
-      *iobase = (pci_base & 0xfff8);
+   *irq    = pci_irq;
+   *iobase = (pci_base & PCI_BASE_ADDRESS_IO_MASK);
 
 #if DEBUG_DETECT
-      printk( "TMC-3260 fix: Masking I/O base address with 0xff00.\n" ); 
-      printk( "TMC-3260: IRQ = %d, I/O base = 0x%x\n", *irq, *iobase );
+   printk( "TMC-3260 fix: Masking I/O base address with 0xff00.\n" ); 
+   printk( "TMC-3260: IRQ = %d, I/O base = 0x%x\n", *irq, *iobase );
 #endif
 
-      if (!fdomain_is_valid_port( *iobase )) return 0;
-      return 1;
-   }
-   return 0;
+   if (!fdomain_is_valid_port( *iobase )) return 0;
+   return 1;
 }
 #endif
 
@@ -978,7 +876,8 @@ int fdomain_16x0_detect( Scsi_Host_Template *tpnt )
 #ifdef CONFIG_PCI
 	 flag = fdomain_pci_bios_detect( &interrupt_level, &port_base );
 #else
-	 flag = fdomain_pci_nobios_detect( &interrupt_level, &port_base );
+	 printk(KERN_ERR "No PCI support in this kernel, giving up.\n");
+	 flag = 0;
 #endif
       }
 	 
@@ -988,7 +887,6 @@ int fdomain_16x0_detect( Scsi_Host_Template *tpnt )
 #endif
 #ifdef CONFIG_PCI
 	 printk( "\nTMC-3260 36C70 PCI scsi chip detection failed.\n" );
-	 printk( "Send mail to mckinley@msupa.pa.msu.edu.\n" );
 #endif
 	 return 0;		/* Cannot find valid set of ports */
       }
@@ -1051,7 +949,7 @@ int fdomain_16x0_detect( Scsi_Host_Template *tpnt )
       /* Register the IRQ with the kernel */
 
       retcode = request_irq( interrupt_level,
-			     fdomain_16x0_intr, SA_INTERRUPT, "fdomain", NULL);
+			     do_fdomain_16x0_intr, SA_INTERRUPT, "fdomain", NULL);
 
       if (retcode < 0) {
 	 if (retcode == -EINVAL) {
@@ -1711,6 +1609,15 @@ void fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
    in_interrupt_flag = 0;
 #endif
    return;
+}
+
+void do_fdomain_16x0_intr( int irq, void *dev_id, struct pt_regs * regs )
+{
+   unsigned long flags;
+
+   spin_lock_irqsave(&io_request_lock, flags);
+   fdomain_16x0_intr(irq, dev_id, regs);
+   spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
 int fdomain_16x0_queue( Scsi_Cmnd * SCpnt, void (*done)(Scsi_Cmnd *))

@@ -9,8 +9,17 @@
 # parent makefile.
 #
 
-L_OBJS   := pci.o
 L_TARGET := pci.a
+
+# Nasty trick as nobody references pcisyms.o, but we still want it linked.
+ifeq ($(CONFIG_MODULES),y)
+O_TARGET = pci_syms.o
+OX_OBJS  = pcisyms.o
+O_OBJS   = pci.o
+L_OBJS   := pci_syms.o
+else
+L_OBJS   := pci.o
+endif
 
 ifdef CONFIG_PROC_FS
 L_OBJS   += proc.o
@@ -19,8 +28,10 @@ L_OBJS   += oldproc.o
 endif
 endif
 
-ifdef CONFIG_PCI_OPTIMIZE
+ifdef CONFIG_PCI_QUIRKS
 L_OBJS   += quirks.o
 endif
+
+L_OBJS   += compat.o
 
 include $(TOPDIR)/Rules.make

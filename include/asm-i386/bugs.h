@@ -14,6 +14,10 @@
 #include <linux/config.h>
 #include <asm/processor.h>
 
+#ifdef CONFIG_MTRR
+#  include <asm/mtrr.h>
+#endif
+
 #define CONFIG_BUGi386
 
 __initfunc(static void no_halt(char *s, int *ints))
@@ -148,7 +152,7 @@ __initfunc(static void check_popad(void))
 }
 
 /*
- *	B step AMD K6 before B 9729AIJW have hardware bugs that can cause
+ *	B step AMD K6 before B 9730xxxx have hardware bugs that can cause
  *	misexecution of code under Linux. Owners of such processors should
  *	contact AMD for precise details and a CPU swap.
  *
@@ -195,10 +199,10 @@ __initfunc(static void check_amd_k6(void))
 		printk(KERN_INFO "AMD K6 stepping B detected - ");
 		/* -- cut here -- */
 		if (d > 20*K6_BUG_LOOP) 
-			printk(KERN_INFO "system stability may be impaired when more than 32 MB are used.\n");
+			printk("system stability may be impaired when more than 32 MB are used.\n");
 		else 
-			printk(KERN_INFO "probably OK (after B9730xxxx).\n");
-		printk(KERN_INFO "Please see http://www.chorus.com/bpc/k6bug.html\n");
+			printk("probably OK (after B9730xxxx).\n");
+		printk(KERN_INFO "Please see http://www.chorus.com/poulot/k6bug.html\n");
 	}
 }
 
@@ -236,4 +240,10 @@ __initfunc(static void check_bugs(void))
 	check_amd_k6();
 	check_pentium_f00f();
 	system_utsname.machine[1] = '0' + boot_cpu_data.x86;
+#if !defined(__SMP__) && defined(CONFIG_MTRR)
+	/*  Must be done after other processors booted: at this point we are
+	    called before SMP initialisation, so this is for the non-SMP case
+	    only. The SMP case is handled in arch/i386/kernel/smp.c  */
+	mtrr_init ();
+#endif
 }

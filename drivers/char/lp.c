@@ -14,24 +14,25 @@
  *                                             carsten@sol.wohnheim.uni-ulm.de
  * Support for parport by Philip Blundell <Philip.Blundell@pobox.com>
  * parport_sharing hacking by Andrea Arcangeli <arcangeli@mbox.queen.it>
+ * Fixed kernel_(to/from)_user memory copy to check for errors
+ * 				by Riccardo Facchetti <fizban@tin.it>
  */
 
 /* This driver should, in theory, work with any parallel port that has an
  * appropriate low-level driver; all I/O is done through the parport
- * abstraction layer.  There is a performance penalty for this, but parallel
- * ports are comparitively low-speed devices anyway.
+ * abstraction layer.
  *
  * If this driver is built into the kernel, you can configure it using the
  * kernel command-line.  For example:
  *
- *      lp=parport1,none,parport2	(bind lp0 to parport1, disable lp1 and
+ *	lp=parport1,none,parport2	(bind lp0 to parport1, disable lp1 and
  *					 bind lp2 to parport2)
  *
  *	lp=auto				(assign lp devices to all ports that
  *				         have printers attached, as determined
  *					 by the IEEE-1284 autoprobe)
  * 
- *      lp=reset			(reset the printer during 
+ *	lp=reset			(reset the printer during 
  *					 initialisation)
  *
  *	lp=off				(disable the printer driver entirely)
@@ -39,13 +40,11 @@
  * If the driver is loaded as a module, similar functionality is available
  * using module parameters.  The equivalent of the above commands would be:
  *
- *	# insmod lp.o parport=1,-1,2	(use -1 for disabled ports, since
- *					 module parameters do not allow you
- *					 to mix textual and numeric values)
+ *	# insmod lp.o parport=1,none,2
  *
- *      # insmod lp.o autoprobe=1
+ *	# insmod lp.o parport=auto
  *
- *	# insmod lp.0 reset=1
+ *	# insmod lp.o reset=1
  */
 
 /* COMPATIBILITY WITH OLD KERNELS
@@ -163,14 +162,22 @@ static inline int lp_char(char lpchar, int minor)
 	unsigned long count = 0;
 	struct lp_stats *stats;
 
-	do {
-		status = r_str (minor);
-		count++;
+	for (;;) {
 		lp_yield(minor);
-	} while (!LP_READY(minor, status) && count < LP_CHAR(minor));
-
-	if (count == LP_CHAR(minor))
-		return 0;
+		status = r_str (minor);
+		if (++count == LP_CHAR(minor))
+			return 0;
+		if (LP_POLLING(minor))
+		{
+			if (LP_READY(minor, status))
+				break;
+		} else {
+			if (!LP_READY(minor, status))
+				return 0;
+			else
+				break;
+		}
+	}
 
 	w_dtr(minor, lpchar);
 	stats = &LP_STAT(minor);
@@ -229,23 +236,32 @@ static void lp_error(int minor)
 }
 
 static int lp_check_status(int minor) {
+	static unsigned char last = 0;
 	unsigned char status = r_str(minor);
 	if ((status & LP_POUTPA)) {
-		printk(KERN_INFO "lp%d out of paper\n", minor);
-		if (LP_F(minor) & LP_ABORT)
-			return 1;
-		lp_error(minor);
+		if (last != LP_POUTPA) {
+			last = LP_POUTPA;
+			printk(KERN_INFO "lp%d out of paper\n", minor);
+		}
 	} else if (!(status & LP_PSELECD)) {
-		printk(KERN_INFO "lp%d off-line\n", minor);
-		if (LP_F(minor) & LP_ABORT)
-			return 1;
-		lp_error(minor);
+		if (last != LP_PSELECD) {
+			last = LP_PSELECD;
+			printk(KERN_INFO "lp%d off-line\n", minor);
+		}
 	} else if (!(status & LP_PERRORP)) {
-		printk(KERN_ERR "lp%d printer error\n", minor);
+		if (last != LP_PERRORP) {
+			last = LP_PERRORP;
+			printk(KERN_ERR "lp%d on fire!\n", minor);
+		}
+	}
+	else last = 0;
+
+	if (last != 0) {
 		if (LP_F(minor) & LP_ABORT)
 			return 1;
 		lp_error(minor);
 	}
+
 	return 0;
 }
 
@@ -265,7 +281,9 @@ static inline int lp_write_buf(unsigned int minor, const char *buf, int count)
 	do {
 		bytes_written = 0;
 		copy_size = (count <= LP_BUFFER_SIZE ? count : LP_BUFFER_SIZE);
-		copy_from_user(lp->lp_buffer, buf, copy_size);
+
+		if (copy_from_user(lp->lp_buffer, buf, copy_size))
+			return -EFAULT;
 
 		while (copy_size) {
 			if (lp_char(lp->lp_buffer[bytes_written], minor)) {
@@ -451,15 +469,19 @@ static ssize_t lp_read(struct file * file, char * buf,
 			current->timeout=jiffies + LP_TIME(minor);
 			schedule ();
 		}
+
 		counter=0;
+
 		if (( i & 1) != 0) {
 			Byte= (Byte | z<<4);
-			put_user(Byte, temp);
+			if (put_user(Byte, (char *)temp))
+				return -EFAULT;
 			temp++;
 		} else Byte=z;
 	}
+
 	lp_select_in_high(minor);
-	parport_release(lp_table[minor].dev);
+	lp_parport_release(minor);
 	return temp-buf;	
 }
 
@@ -530,6 +552,7 @@ static int lp_ioctl(struct inode *inode, struct file *file,
 		    unsigned int cmd, unsigned long arg)
 {
 	unsigned int minor = MINOR(inode->i_rdev);
+	int status;
 	int retval = 0;
 
 #ifdef LP_DEBUG
@@ -571,48 +594,33 @@ static int lp_ioctl(struct inode *inode, struct file *file,
 			return -EINVAL;
 			break;
 		case LPGETIRQ:
-			retval = verify_area(VERIFY_WRITE, (void *) arg,
-			    sizeof(int));
-		    	if (retval)
-		    		return retval;
-			copy_to_user((int *) arg, &LP_IRQ(minor), sizeof(int));
+			if (copy_to_user((int *) arg, &LP_IRQ(minor),
+					sizeof(int)))
+				return -EFAULT;
 			break;
 		case LPGETSTATUS:
-			retval = verify_area(VERIFY_WRITE, (void *) arg,
-			    sizeof(int));
-		    	if (retval)
-		    		return retval;
-			else {
-				int status;
-				lp_parport_claim (minor);
-				status = r_str(minor);
-				lp_parport_release (minor);
-				copy_to_user((int *) arg, &status, sizeof(int));
-			}
+			lp_parport_claim(minor);
+			status = r_str(minor);
+			lp_parport_release(minor);
+
+			if (copy_to_user((int *) arg, &status, sizeof(int)))
+				return -EFAULT;
 			break;
 		case LPRESET:
 			lp_reset(minor);
 			break;
 		case LPGETSTATS:
-			retval = verify_area(VERIFY_WRITE, (void *) arg,
-			    sizeof(struct lp_stats));
-		    	if (retval)
-		    		return retval;
-			else {
-				copy_to_user((int *) arg, &LP_STAT(minor), sizeof(struct lp_stats));
-				if (suser())
-					memset(&LP_STAT(minor), 0, sizeof(struct lp_stats));
-			}
+			if (copy_to_user((int *) arg, &LP_STAT(minor),
+					sizeof(struct lp_stats)))
+				return -EFAULT;
+			if (suser())
+				memset(&LP_STAT(minor), 0,
+						sizeof(struct lp_stats));
 			break;
  		case LPGETFLAGS:
- 			retval = verify_area(VERIFY_WRITE, (void *) arg,
- 			    sizeof(int));
- 		    	if (retval)
- 		    		return retval;
- 			else {
- 				int status = LP_F(minor);
-				copy_to_user((int *) arg, &status, sizeof(int));
-			}
+ 			status = LP_F(minor);
+			if (copy_to_user((int *) arg, &status, sizeof(int)))
+				return -EFAULT;
 			break;
 		default:
 			retval = -EINVAL;
@@ -641,17 +649,16 @@ static struct file_operations lp_fops = {
 
 #ifdef MODULE
 
-static int parport[LP_NO] = { [0 ... LP_NO-1] = LP_PARPORT_UNSPEC };
+static int parport_nr[LP_NO] = { [0 ... LP_NO-1] = LP_PARPORT_UNSPEC };
+static char *parport[LP_NO] = { NULL,  };
 static int reset = 0;
-static int autoprobe = 0;
 
-MODULE_PARM(parport, "1-" __MODULE_STRING(LP_NO) "i");
+MODULE_PARM(parport, "1-" __MODULE_STRING(LP_NO) "s");
 MODULE_PARM(reset, "i");
-MODULE_PARM(autoprobe, "i");
 
 #else
 
-static int parport[LP_NO] __initdata = { [0 ... LP_NO-1] = LP_PARPORT_UNSPEC };
+static int parport_nr[LP_NO] __initdata = { [0 ... LP_NO-1] = LP_PARPORT_UNSPEC };
 static int reset __initdata = 0;
 
 static int parport_ptr = 0;
@@ -661,21 +668,21 @@ __initfunc(void lp_setup(char *str, int *ints))
 	if (!str) {
 		if (ints[0] == 0 || ints[1] == 0) {
 			/* disable driver on "lp=" or "lp=0" */
-			parport[0] = LP_PARPORT_OFF;
+			parport_nr[0] = LP_PARPORT_OFF;
 		} else {
 			printk(KERN_WARNING "warning: 'lp=0x%x' is deprecated, ignored\n", ints[1]);
 		}
 	} else if (!strncmp(str, "parport", 7)) {
 		int n = simple_strtoul(str+7, NULL, 10);
 		if (parport_ptr < LP_NO)
-			parport[parport_ptr++] = n;
+			parport_nr[parport_ptr++] = n;
 		else
 			printk(KERN_INFO "lp: too many ports, %s ignored.\n",
 			       str);
 	} else if (!strcmp(str, "auto")) {
-		parport[0] = LP_PARPORT_AUTO;
+		parport_nr[0] = LP_PARPORT_AUTO;
 	} else if (!strcmp(str, "none")) {
-		parport[parport_ptr++] = LP_PARPORT_NONE;
+		parport_nr[parport_ptr++] = LP_PARPORT_NONE;
 	} else if (!strcmp(str, "reset")) {
 		reset = 1;
 	}
@@ -709,7 +716,7 @@ int lp_init(void)
 	unsigned int i;
 	struct parport *port;
 
-	switch (parport[0])
+	switch (parport_nr[0])
 	{
 	case LP_PARPORT_OFF:
 		return 0;
@@ -718,7 +725,7 @@ int lp_init(void)
 	case LP_PARPORT_AUTO:
 	        for (port = parport_enumerate(); port; port = port->next) {
 
-			if (parport[0] == LP_PARPORT_AUTO &&
+			if (parport_nr[0] == LP_PARPORT_AUTO &&
 			    port->probe_info.class != PARPORT_CLASS_PRINTER)
 				continue;
 
@@ -728,12 +735,11 @@ int lp_init(void)
 		}
 		break;
 
-	case LP_PARPORT_NONE:
 	default:
 		for (i = 0; i < LP_NO; i++) {
-			if (parport[i] >= 0) {
+			if (parport_nr[i] >= 0) {
 				char buffer[16];
-				sprintf(buffer, "parport%d", parport[i]);
+				sprintf(buffer, "parport%d", parport_nr[i]);
 				for (port = parport_enumerate(); port; 
 				     port = port->next) {
 					if (!strcmp(port->name, buffer)) {
@@ -762,8 +768,28 @@ int lp_init(void)
 #ifdef MODULE
 int init_module(void)
 {
-	if (autoprobe)
-		parport[0] = LP_PARPORT_AUTO;
+	if (parport[0]) {
+		/* The user gave some parameters.  Let's see what they were.  */
+		if (!strncmp(parport[0], "auto", 4))
+			parport_nr[0] = LP_PARPORT_AUTO;
+		else {
+			int n;
+			for (n = 0; n < LP_NO && parport[n]; n++) {
+				if (!strncmp(parport[n], "none", 4))
+					parport_nr[n] = LP_PARPORT_NONE;
+				else {
+					char *ep;
+					unsigned long r = simple_strtoul(parport[n], &ep, 0);
+					if (ep != parport[n]) 
+						parport_nr[n] = r;
+					else {
+						printk(KERN_ERR "lp: bad port specifier `%s'\n", parport[n]);
+						return -ENODEV;
+					}
+				}
+			}
+		}
+	}
 
 	return lp_init();
 }

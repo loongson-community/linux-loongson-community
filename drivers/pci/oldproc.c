@@ -1,5 +1,5 @@
 /*
- *	$Id: oldproc.c,v 1.4 1998/01/05 14:16:18 mj Exp $
+ *	$Id: oldproc.c,v 1.10 1998/03/15 13:50:11 ecd Exp $
  *
  *	Backward-compatible procfs interface for PCI.
  *
@@ -10,10 +10,11 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/bios32.h>
 #include <linux/pci.h>
 #include <linux/string.h>
 #include <linux/sched.h>
+#include <linux/init.h>
+#include <linux/proc_fs.h>
 #include <asm/page.h>
 
 #ifdef CONFIG_PROC_FS
@@ -213,15 +214,18 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( CYRIX,		CYRIX_5530_VIDEO,"5530 Kahlua Video"),
 	DEVICE( LEADTEK,	LEADTEK_805,	"S3 805"),
 	DEVICE( CONTAQ,		CONTAQ_82C599,	"82C599"),
+	DEVICE( CONTAQ,		CONTAQ_82C693,	"82C693"),
 	DEVICE( OLICOM,		OLICOM_OC3136,	"OC-3136/3137"),
 	DEVICE( OLICOM,		OLICOM_OC2315,	"OC-2315"),
 	DEVICE( OLICOM,		OLICOM_OC2325,	"OC-2325"),
 	DEVICE( OLICOM,		OLICOM_OC2183,	"OC-2183/2185"),
 	DEVICE( OLICOM,		OLICOM_OC2326,	"OC-2326"),
 	DEVICE( OLICOM,		OLICOM_OC6151,	"OC-6151/6152"),
-	DEVICE( SUN,		SUN_EBUS,	"EBUS"),
-	DEVICE( SUN,		SUN_HAPPYMEAL,	"Happy Meal"),
+	DEVICE( SUN,		SUN_EBUS,	"PCI-EBus Bridge"),
+	DEVICE( SUN,		SUN_HAPPYMEAL,	"Happy Meal Ethernet"),
+	DEVICE( SUN,		SUN_SIMBA,	"Advanced PCI Bridge"),
 	DEVICE( SUN,		SUN_PBM,	"PCI Bus Module"),
+	DEVICE( SUN,		SUN_SABRE,	"Ultra IIi PCI"),
 	DEVICE( CMD,		CMD_640,	"640 (buggy)"),
 	DEVICE( CMD,		CMD_643,	"643"),
 	DEVICE( CMD,		CMD_646,	"646"),
@@ -272,6 +276,8 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( ASP,		ASP_ABP940UW,	"ABP940UW"),
 	DEVICE( CERN,		CERN_SPSB_PMC,	"STAR/RD24 SCI-PCI (PMC)"),
 	DEVICE( CERN,		CERN_SPSB_PCI,	"STAR/RD24 SCI-PCI (PMC)"),
+	DEVICE( CERN,		CERN_HIPPI_DST,	"HIPPI destination"),
+	DEVICE( CERN,		CERN_HIPPI_SRC,	"HIPPI source"),
 	DEVICE( IMS,		IMS_8849,	"8849"),
 	DEVICE( TEKRAM2,	TEKRAM2_690c,	"DC690c"),
 	DEVICE( TUNDRA,		TUNDRA_CA91C042,"CA91C042 Universe"),
@@ -377,6 +383,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( RP,             RP8INTF,        "RocketPort 8 Intf"),
 	DEVICE( RP,             RP16INTF,       "RocketPort 16 Intf"),
 	DEVICE( RP,             RP32INTF,       "RocketPort 32 Intf"),
+	DEVICE( ESSENTIAL,      ROADRUNNER,     "RoadRunner serial HIPPI"),
 	DEVICE( CYCLADES,	CYCLOM_Y_Lo,	"Cyclom-Y below 1Mbyte"),
 	DEVICE( CYCLADES,	CYCLOM_Y_Hi,	"Cyclom-Y above 1Mbyte"),
 	DEVICE( CYCLADES,	CYCLOM_Z_Lo,	"Cyclom-Z below 1Mbyte"),
@@ -905,6 +912,17 @@ int get_pci_list(char *buf)
 		len += nprinted;
 	}
 	return len;
+}
+
+static struct proc_dir_entry proc_old_pci = {
+	PROC_PCI, 3, "pci",
+	S_IFREG | S_IRUGO, 1, 0, 0,
+	0, &proc_array_inode_operations
+};
+
+__initfunc(void proc_old_pci_init(void))
+{
+	proc_register(&proc_root, &proc_old_pci);
 }
 
 #endif /* CONFIG_PROC_FS */

@@ -117,14 +117,15 @@
 
 #include <linux/blk.h>
 #include <linux/stat.h>
+#include <asm/spinlock.h>
 
 #include "scsi.h"
 #include "sd.h"
 #include "hosts.h"
 
 
-#define IN2000_VERSION    "1.31"
-#define IN2000_DATE       "06/July/1997"
+#define IN2000_VERSION    "1.32"
+#define IN2000_DATE       "28/March/1998"
 
 /*
  * Note - the following defines have been moved to 'in2000.h':
@@ -1638,7 +1639,14 @@ DB(DB_INTR,printk("} "))
 
 }
 
+static void do_in2000_intr(int irq, void *dev_id, struct pt_regs *regs)
+{
+   unsigned long flags;
 
+   spin_lock_irqsave(&io_request_lock, flags);
+   in2000_intr(irq, dev_id, regs);
+   spin_unlock_irqrestore(&io_request_lock, flags);
+}
 
 #define RESET_CARD         0
 #define RESET_CARD_AND_BUS 1
@@ -2031,18 +2039,12 @@ char buf[32];
          continue;
          }
 
-/* Let's expect only known legal hardware version here. There
- * can't be THAT many of them, and it's easy to add new ones
- * as we hear about them.
+/* Let's assume any hardware version will work, although the driver
+ * has only been tested on 0x21, 0x22, 0x25, 0x26, and 0x27. We'll
+ * print out the rev number for reference later, but accept them all.
  */
 
       hrev = inb(base + IO_HARDWARE);
-      if ((hrev != 0x27) && (hrev != 0x26) && (hrev != 0x25)) {
-         printk("The IN-2000 SCSI card at IOport 0x%03x ",base);
-         printk("has unknown version %02x hardware - ",hrev);
-         printk("Sorry, cancelling detection.\n");
-         continue;
-         }
 
   /* Bit 2 tells us if interrupts are disabled */
       if (switches & SW_DISINT) {
@@ -2070,7 +2072,7 @@ char buf[32];
       write1_io(0,IO_FIFO_READ);             /* start fifo out in read mode */
       write1_io(0,IO_INTR_MASK);    /* allow all ints */
       x = int_tab[(switches & (SW_INT0 | SW_INT1)) >> SW_INT_SHIFT];
-      if (request_irq(x, in2000_intr, SA_INTERRUPT, "in2000", NULL)) {
+      if (request_irq(x, do_in2000_intr, SA_INTERRUPT, "in2000", NULL)) {
          printk("in2000_detect: Unable to allocate IRQ.\n");
          detect_count--;
          continue;
