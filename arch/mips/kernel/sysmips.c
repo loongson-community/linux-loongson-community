@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: sysmips.c,v 1.6 1998/08/25 09:14:42 ralf Exp $
+ * $Id: sysmips.c,v 1.7 1999/10/09 00:00:58 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/linkage.h>
@@ -19,7 +19,7 @@
 #include <linux/utsname.h>
 
 #include <asm/cachectl.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
 

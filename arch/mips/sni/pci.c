@@ -1,4 +1,4 @@
-/* $Id: pci.c,v 1.8 1999/10/09 00:00:59 ralf Exp $
+/* $Id: pci.c,v 1.9 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -32,7 +32,7 @@ static void pcimt_pcibios_fixup (void)
 {
 	struct pci_dev *dev;
 
-	for (dev=pci_devices; dev; dev=dev->next) {
+	pci_for_each_dev(dev) {
 		/*
 		 * TODO: Take care of RM300 revision D boards for where the
 		 * network slot became an ordinary PCI slot.

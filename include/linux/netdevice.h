@@ -24,7 +24,6 @@
 #ifndef _LINUX_NETDEVICE_H
 #define _LINUX_NETDEVICE_H
 
-#include <linux/config.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
@@ -32,6 +31,7 @@
 #include <asm/atomic.h>
 
 #ifdef __KERNEL__
+#include <linux/config.h>
 #ifdef CONFIG_NET_PROFILE
 #include <net/profile.h>
 #endif
@@ -269,6 +269,7 @@ struct net_device
 	struct Qdisc		*qdisc;
 	struct Qdisc		*qdisc_sleeping;
 	struct Qdisc		*qdisc_list;
+	struct Qdisc		*qdisc_ingress;
 	unsigned long		tx_queue_len;	/* Max frames per queue allowed */
 
 	/* hard_start_xmit synchronizer */
@@ -293,6 +294,9 @@ struct net_device
 	/* Called after last user reference disappears. */
 	void			(*destructor)(struct net_device *dev);
 
+	/* Bridge stuff */
+	int			bridge_port_id;		
+	
 	/* Pointers to interface service routines.	*/
 	int			(*open)(struct net_device *dev);
 	int			(*stop)(struct net_device *dev);

@@ -1,6 +1,6 @@
 /*
  *  scsi.c Copyright (C) 1992 Drew Eckhardt
- *         Copyright (C) 1993, 1994, 1995 Eric Youngdale
+ *         Copyright (C) 1993, 1994, 1995, 1999 Eric Youngdale
  *
  *  generic mid-level SCSI driver
  *      Initial versions: Drew Eckhardt
@@ -13,7 +13,7 @@
  *      Tommy Thorn <tthorn>
  *      Thomas Wuensche <tw@fgb1.fgb.mw.tu-muenchen.de>
  *
- *  Modified by Eric Youngdale eric@andante.jic.com or ericy@gnu.ai.mit.edu to
+ *  Modified by Eric Youngdale eric@andante.org or ericy@gnu.ai.mit.edu to
  *  add scatter-gather, multiple outstanding request, and other
  *  enhancements.
  *
@@ -85,7 +85,6 @@ static void scsi_dump_status(int level);
 /*
  * Definitions and constants.
  */
-#define INTERNAL_ERROR (panic ("Internal error in file %s, line %d.\n", __FILE__, __LINE__))
 
 /*
  * PAGE_SIZE must be a multiple of the sector size (512).  True
@@ -153,9 +152,6 @@ static unsigned char **dma_malloc_pages = NULL;
  */
 unsigned int scsi_logging_level = 0;
 
-volatile struct Scsi_Host *host_active = NULL;
-
-
 const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE] =
 {
 	"Direct-Access    ",
@@ -192,14 +188,6 @@ static int scsi_unregister_device(struct Scsi_Device_Template *tpnt);
  */
 extern void scsi_old_done(Scsi_Cmnd * SCpnt);
 extern void scsi_old_times_out(Scsi_Cmnd * SCpnt);
-
-#define SCSI_BLOCK(DEVICE, HOST)                                         \
-	        ((HOST->block && host_active && HOST != host_active)          \
-  		|| ((HOST)->can_queue && HOST->host_busy >= HOST->can_queue)  \
-	        || ((HOST)->host_blocked)                                     \
-	        || ((DEVICE) != NULL && (DEVICE)->device_blocked) )
-
-
 
 struct dev_info {
 	const char *vendor;
@@ -265,6 +253,7 @@ static struct dev_info device_list[] =
 	{"YAMAHA", "CDR102", "1.00", BLIST_NOLUN},		/* Locks up if polled for lun != 0  
 								 * extra reset */
 	{"RELISYS", "Scorpio", "*", BLIST_NOLUN},		/* responds to all LUN */
+	{"MICROTEK", "ScanMaker II", "5.61", BLIST_NOLUN},	/* responds to all LUN */
 
 /*
  * Other types of devices that have special flags.
@@ -292,8 +281,8 @@ static struct dev_info device_list[] =
  	{"MATSHITA","PD-2 LF-D100","*", BLIST_GHOST},
  	{"HITACHI", "GF-1050","*", BLIST_GHOST},  /* Hitachi SCSI DVD-RAM */
  	{"TOSHIBA","CDROM","*", BLIST_ISROM},
-	{"Toshiba","DVD-RAM SD-W1101","*", BLIST_GHOST},
-	{"Toshiba","DVD-RAM SD-W1111","*", BLIST_GHOST},
+	{"TOSHIBA","DVD-RAM SD-W1101","*", BLIST_GHOST},
+	{"TOSHIBA","DVD-RAM SD-W1111","*", BLIST_GHOST},
 
 	/*
 	 * Must be at end of list...
@@ -470,7 +459,10 @@ static void scan_scsis(struct Scsi_Host *shpnt,
 
 	initialize_merge_fn(SDpnt);
 
-	init_waitqueue_head(&SDpnt->device_wait);
+        /*
+         * Initialize the object that we will use to wait for command blocks.
+         */
+	init_waitqueue_head(&SDpnt->scpnt_wait);
 
 	/*
 	 * Next, hook the device to the host in question.
@@ -493,6 +485,7 @@ static void scan_scsis(struct Scsi_Host *shpnt,
 	 * things are quiet.
 	 */
 	atomic_inc(&shpnt->host_active);
+	atomic_inc(&SDpnt->device_active);
 
 	if (hardcoded == 1) {
 		Scsi_Device *oldSDpnt = SDpnt;
@@ -574,6 +567,7 @@ static void scan_scsis(struct Scsi_Host *shpnt,
 	 * so we know when everything is quiet.
 	 */
 	atomic_dec(&shpnt->host_active);
+	atomic_dec(&SDpnt->device_active);
 
       leave:
 
@@ -901,7 +895,10 @@ int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 	SDpnt->device_queue = SCpnt;
 	SDpnt->online = TRUE;
 
-	init_waitqueue_head(&SDpnt->device_wait);
+        /*
+         * Initialize the object that we will use to wait for command blocks.
+         */
+	init_waitqueue_head(&SDpnt->scpnt_wait);
 
 	/*
 	 * Since we just found one device, there had damn well better be one in the list
@@ -984,24 +981,6 @@ int scan_scsis_single(int channel, int dev, int lun, int *max_dev_lun,
 #define IN_RESET3 8
 
 
-/* This function takes a quick look at a request, and decides if it
- * can be queued now, or if there would be a stall while waiting for
- * something else to finish.  This routine assumes that interrupts are
- * turned off when entering the routine.  It is the responsibility
- * of the calling code to ensure that this is the case.
- */
-
-
-/* This function returns a structure pointer that will be valid for
- * the device.  The wait parameter tells us whether we should wait for
- * the unit to become free or not.  We are also able to tell this routine
- * not to return a descriptor if the host is unable to accept any more
- * commands for the time being.  We need to keep in mind that there is no
- * guarantee that the host remain not busy.  Keep in mind the
- * scsi_request_queueable function also knows the internal allocation scheme
- * of the packets for each device
- */
-
 /*
  * This lock protects the freelist for all devices on the system.
  * We could make this finer grained by having a single lock per
@@ -1029,15 +1008,24 @@ static spinlock_t scsi_bhqueue_lock = SPIN_LOCK_UNLOCKED;
  * Arguments:   device    - device for which we want a command descriptor
  *              wait      - 1 if we should wait in the event that none
  *                          are available.
+ *              interruptible - 1 if we should unblock and return NULL
+ *                          in the event that we must wait, and a signal
+ *                          arrives.
  *
  * Lock status: No locks assumed to be held.  This function is SMP-safe.
  *
  * Returns:     Pointer to command descriptor.
  *
  * Notes:       Prior to the new queue code, this function was not SMP-safe.
+ *
+ *              If the wait flag is true, and we are waiting for a free
+ *              command block, this function will interrupt and return
+ *              NULL in the event that a signal arrives that needs to
+ *              be handled.
  */
 
-Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait)
+Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait, 
+                                int interruptable)
 {
  	struct Scsi_Host *host;
   	Scsi_Cmnd *SCpnt = NULL;
@@ -1081,16 +1069,10 @@ Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait)
 					    || SDpnt == device) {
  						continue;
 					}
-					for (SCpnt = SDpnt->device_queue;
-					     SCpnt;
-					     SCpnt = SCpnt->next) {
-						if (SCpnt->request.rq_status != RQ_INACTIVE) {
-							break;
-						}
-					}
-					if (SCpnt) {
-						break;
-					}
+                                        if( atomic_read(&SDpnt->device_active) != 0)
+                                        {
+                                                break;
+                                        }
 				}
 				if (SDpnt) {
 					/*
@@ -1121,15 +1103,53 @@ Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait)
 		 * If we have been asked to wait for a free block, then
 		 * wait here.
 		 */
-		spin_unlock_irqrestore(&device_request_lock, flags);
 		if (wait) {
+                        DECLARE_WAITQUEUE(wait, current);
+
+                        /*
+                         * We need to wait for a free commandblock.  We need to
+                         * insert ourselves into the list before we release the
+                         * lock.  This way if a block were released the same
+                         * microsecond that we released the lock, the call
+                         * to schedule() wouldn't block (well, it might switch,
+                         * but the current task will still be schedulable.
+                         */
+                        add_wait_queue(&device->scpnt_wait, &wait);
+                        if( interruptable ) {
+                                set_current_state(TASK_INTERRUPTIBLE);
+                        } else {
+                                set_current_state(TASK_UNINTERRUPTIBLE);
+                        }
+
+                        spin_unlock_irqrestore(&device_request_lock, flags);
+
 			/*
 			 * This should block until a device command block
 			 * becomes available.
 			 */
-			sleep_on(&device->device_wait);
+                        schedule();
+
 			spin_lock_irqsave(&device_request_lock, flags);
+
+                        remove_wait_queue(&device->scpnt_wait, &wait);
+                        /*
+                         * FIXME - Isn't this redundant??  Someone
+                         * else will have forced the state back to running.
+                         */
+                        set_current_state(TASK_RUNNING);
+                        /*
+                         * In the event that a signal has arrived that we need
+                         * to consider, then simply return NULL.  Everyone
+                         * that calls us should be prepared for this
+                         * possibility, and pass the appropriate code back
+                         * to the user.
+                         */
+                        if( interruptable ) {
+                                if (signal_pending(current))
+                                        return NULL;
+                        }
 		} else {
+                        spin_unlock_irqrestore(&device_request_lock, flags);
 			return NULL;
 		}
 	}
@@ -1138,13 +1158,21 @@ Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait)
 	SCpnt->request.sem = NULL;	/* And no one is waiting for this
 					 * to complete */
 	atomic_inc(&SCpnt->host->host_active);
+	atomic_inc(&SCpnt->device->device_active);
+
+	SCpnt->buffer  = NULL;
+	SCpnt->bufflen = 0;
+	SCpnt->request_buffer = NULL;
+	SCpnt->request_bufflen = 0;
 
 	SCpnt->use_sg = 0;	/* Reset the scatter-gather flag */
 	SCpnt->old_use_sg = 0;
 	SCpnt->transfersize = 0;	/* No default transfer size */
 	SCpnt->cmd_len = 0;
 
+        SCpnt->result = 0;
 	SCpnt->underflow = 0;	/* Do not flag underflow conditions */
+	SCpnt->resid = 0;
 	SCpnt->state = SCSI_STATE_INITIALIZING;
 	SCpnt->owner = SCSI_OWNER_HIGHLEVEL;
 
@@ -1166,17 +1194,31 @@ Scsi_Cmnd *scsi_allocate_device(Scsi_Device * device, int wait)
  *
  * Notes:       The command block can no longer be used by the caller once
  *              this funciton is called.  This is in effect the inverse
- *              of scsi_allocate_device/scsi_request_queueable.
+ *              of scsi_allocate_device.  Note that we also must perform
+ *              a couple of additional tasks.  We must first wake up any
+ *              processes that might have blocked waiting for a command
+ *              block, and secondly we must hit the queue handler function
+ *              to make sure that the device is busy.
+ *
+ *              The idea is that a lot of the mid-level internals gunk
+ *              gets hidden in this function.  Upper level drivers don't
+ *              have any chickens to wave in the air to get things to
+ *              work reliably.
  */
 void scsi_release_command(Scsi_Cmnd * SCpnt)
 {
 	unsigned long flags;
+        Scsi_Device * SDpnt;
+
 	spin_lock_irqsave(&device_request_lock, flags);
+
+        SDpnt = SCpnt->device;
 
 	SCpnt->request.rq_status = RQ_INACTIVE;
 	SCpnt->state = SCSI_STATE_UNUSED;
 	SCpnt->owner = SCSI_OWNER_NOBODY;
 	atomic_dec(&SCpnt->host->host_active);
+	atomic_dec(&SDpnt->device_active);
 
 	SCSI_LOG_MLQUEUE(5, printk("Deactivating command for device %d (active=%d, failed=%d)\n",
 				   SCpnt->target,
@@ -1198,13 +1240,39 @@ void scsi_release_command(Scsi_Cmnd * SCpnt)
 			     atomic_read(&SCpnt->host->eh_wait->count)));
 		up(SCpnt->host->eh_wait);
 	}
+
 	spin_unlock_irqrestore(&device_request_lock, flags);
+
+        /*
+         * Wake up anyone waiting for this device.  Do this after we
+         * have released the lock, as they will need it as soon as
+         * they wake up.  
+         */
+	wake_up(&SDpnt->scpnt_wait);
+
+        /*
+         * Finally, hit the queue request function to make sure that
+         * the device is actually busy if there are requests present.
+         * This won't block - if the device cannot take any more, life
+         * will go on.  
+         */
+        {
+                request_queue_t *q;
+
+                q = &SDpnt->request_queue;
+                scsi_queue_next_request(q, NULL);                
+        }
 }
 
 /*
- * This is inline because we have stack problemes if we recurse to deeply.
+ * Function:    scsi_dispatch_command
+ *
+ * Purpose:     Dispatch a command to the low-level driver.
+ *
+ * Arguments:   SCpnt - command block we are dispatching.
+ *
+ * Notes:
  */
-
 int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 {
 #ifdef DEBUG_DELAY
@@ -1287,6 +1355,7 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
 			if (rtn != 0) {
 				scsi_delete_timer(SCpnt);
 				scsi_mlqueue_insert(SCpnt, SCSI_MLQUEUE_HOST_BUSY);
+                                SCSI_LOG_MLQUEUE(3, printk("queuecommand : request rejected\n"));                                
 			}
 		} else {
                         spin_lock_irqsave(&io_request_lock, flags);
@@ -1344,7 +1413,7 @@ int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt)
  *              need be held upon entry.   The old queueing code the lock was
  *              assumed to be held upon entry.
  *
- * Returns:     Pointer to command descriptor.
+ * Returns:     Nothing.
  *
  * Notes:       Prior to the new queue code, this function was not SMP-safe.
  *              Also, this function is now only used for queueing requests
@@ -1358,7 +1427,6 @@ void scsi_do_cmd(Scsi_Cmnd * SCpnt, const void *cmnd,
 		 int timeout, int retries)
 {
 	struct Scsi_Host *host = SCpnt->host;
-	Scsi_Device *device = SCpnt->device;
 
 	ASSERT_LOCK(&io_request_lock, 0);
 
@@ -1389,9 +1457,6 @@ void scsi_do_cmd(Scsi_Cmnd * SCpnt, const void *cmnd,
 	 * ourselves.
 	 */
 
-
-	host->host_busy++;
-	device->device_busy++;
 
 	/*
 	 * Our own function scsi_done (which marks the host as not busy, disables
@@ -1482,6 +1547,7 @@ void scsi_done(Scsi_Cmnd * SCpnt)
 	 * etc, etc.
 	 */
 	if (!tstatus) {
+		SCpnt->done_late = 1;
 		return;
 	}
 	/* Set the serial numbers back to zero */
@@ -1494,6 +1560,9 @@ void scsi_done(Scsi_Cmnd * SCpnt)
 	 * Since serial_number is now 0, the error handler cound detect this
 	 * situation and avoid to call the the low level driver abort routine.
 	 * (DB)
+         *
+         * FIXME(eric) - I believe that this test is now redundant, due to
+         * the test of the return status of del_timer().
 	 */
 	if (SCpnt->state == SCSI_STATE_TIMEOUT) {
 		SCSI_LOG_MLCOMPLETE(1, printk("Ignoring completion of %p due to timeout status", SCpnt));
@@ -1612,6 +1681,8 @@ void scsi_bottom_half_handler(void)
 				 * from being sent to the device, so we shouldn't end up
 				 * with tons of things being sent down that shouldn't be.
 				 */
+				SCSI_LOG_MLCOMPLETE(3, printk("Command rejected as device queue full, put on ml queue %p\n",
+                                                              SCpnt));
 				scsi_mlqueue_insert(SCpnt, SCSI_MLQUEUE_DEVICE_BUSY);
 				break;
 			default:
@@ -1676,6 +1747,13 @@ int scsi_retry_command(Scsi_Cmnd * SCpnt)
 	SCpnt->request_bufflen = SCpnt->bufflen;
 	SCpnt->use_sg = SCpnt->old_use_sg;
 	SCpnt->cmd_len = SCpnt->old_cmd_len;
+
+        /*
+         * Zero the sense information from the last time we tried
+         * this command.
+         */
+	memset((void *) SCpnt->sense_buffer, 0, sizeof SCpnt->sense_buffer);
+
 	return scsi_dispatch_cmd(SCpnt);
 }
 
@@ -1699,6 +1777,14 @@ void scsi_finish_command(Scsi_Cmnd * SCpnt)
 	host->host_busy--;	/* Indicate that we are free */
 	device->device_busy--;	/* Decrement device usage counter. */
 
+        /*
+         * Clear the flags which say that the device/host is no longer
+         * capable of accepting new commands.  These are set in scsi_queue.c
+         * for both the queue full condition on a device, and for a
+         * host full condition on the host.
+         */
+        host->host_blocked = FALSE;
+        device->device_blocked = FALSE;
 
 	/*
 	 * If we have valid sense information, then some kind of recovery
@@ -1914,8 +2000,6 @@ void scsi_build_commandblocks(Scsi_Device * SDpnt)
 		SCpnt->lun = SDpnt->lun;
 		SCpnt->channel = SDpnt->channel;
 		SCpnt->request.rq_status = RQ_INACTIVE;
-		SCpnt->host_wait = FALSE;
-		SCpnt->device_wait = FALSE;
 		SCpnt->use_sg = 0;
 		SCpnt->old_use_sg = 0;
 		SCpnt->old_cmd_len = 0;
@@ -1941,7 +2025,7 @@ void scsi_build_commandblocks(Scsi_Device * SDpnt)
 	spin_unlock_irqrestore(&device_request_lock, flags);
 }
 
-static ssize_t proc_scsi_gen_write(struct file * file, const char * buf,
+static int proc_scsi_gen_write(struct file * file, const char * buf,
                               unsigned long length, void *data);
 
 #ifndef MODULE			/* { */
@@ -2136,7 +2220,7 @@ stop_output:
 	return (len);
 }
 
-static ssize_t proc_scsi_gen_write(struct file * file, const char * buf,
+static int proc_scsi_gen_write(struct file * file, const char * buf,
                               unsigned long length, void *data)
 {
 	Scsi_Cmnd *SCpnt;
@@ -2878,7 +2962,7 @@ static void scsi_unregister_host(Scsi_Host_Template * tpnt)
 			DECLARE_MUTEX_LOCKED(sem);
 
 			shpnt->eh_notify = &sem;
-			send_sig(SIGKILL, shpnt->ehandler, 1);
+			send_sig(SIGHUP, shpnt->ehandler, 1);
 			down(&sem);
 			shpnt->eh_notify = NULL;
 		}
@@ -3348,6 +3432,97 @@ void cleanup_module(void)
 }
 
 #endif				/* MODULE */
+
+/*
+ * Function:    scsi_get_host_dev()
+ *
+ * Purpose:     Create a Scsi_Device that points to the host adapter itself.
+ *
+ * Arguments:   SHpnt   - Host that needs a Scsi_Device
+ *
+ * Lock status: None assumed.
+ *
+ * Returns:     Nothing
+ *
+ * Notes:
+ */
+Scsi_Device * scsi_get_host_dev(struct Scsi_Host * SHpnt)
+{
+        Scsi_Device * SDpnt;
+        Scsi_Cmnd   * SCpnt;
+        /*
+         * Attach a single Scsi_Device to the Scsi_Host - this should
+         * be made to look like a "pseudo-device" that points to the
+         * HA itself.  For the moment, we include it at the head of
+         * the host_queue itself - I don't think we want to show this
+         * to the HA in select_queue_depths(), as this would probably confuse
+         * matters.
+         * Note - this device is not accessible from any high-level
+         * drivers (including generics), which is probably not
+         * optimal.  We can add hooks later to attach 
+         */
+        SDpnt = (Scsi_Device *) kmalloc(sizeof(Scsi_Device),
+                                        GFP_ATOMIC);
+        memset(SDpnt, 0, sizeof(Scsi_Device));
+
+        SDpnt->host = SHpnt;
+        SDpnt->id = SHpnt->this_id;
+        SDpnt->type = -1;
+        SDpnt->queue_depth = 1;
+        
+        SCpnt = kmalloc(sizeof(Scsi_Cmnd), GFP_ATOMIC);
+        memset(SCpnt, 0, sizeof(Scsi_Cmnd));
+        SCpnt->host = SHpnt;
+        SCpnt->device = SDpnt;
+        SCpnt->target = SDpnt->id;
+        SCpnt->state = SCSI_STATE_UNUSED;
+        SCpnt->owner = SCSI_OWNER_NOBODY;
+        SCpnt->request.rq_status = RQ_INACTIVE;
+
+        SDpnt->device_queue = SCpnt;
+
+        blk_init_queue(&SDpnt->request_queue, scsi_request_fn);
+        blk_queue_headactive(&SDpnt->request_queue, 0);
+        SDpnt->request_queue.queuedata = (void *) SDpnt;
+
+	SDpnt->online = TRUE;
+
+        /*
+         * Initialize the object that we will use to wait for command blocks.
+         */
+	init_waitqueue_head(&SDpnt->scpnt_wait);
+        return SDpnt;
+}
+
+/*
+ * Function:    scsi_free_host_dev()
+ *
+ * Purpose:     Create a Scsi_Device that points to the host adapter itself.
+ *
+ * Arguments:   SHpnt   - Host that needs a Scsi_Device
+ *
+ * Lock status: None assumed.
+ *
+ * Returns:     Nothing
+ *
+ * Notes:
+ */
+void scsi_free_host_dev(Scsi_Device * SDpnt)
+{
+        if( SDpnt->id != SDpnt->host->this_id )
+        {
+                panic("Attempt to delete wrong device\n");
+        }
+
+        blk_cleanup_queue(&SDpnt->request_queue);
+
+        /*
+         * We only have a single SCpnt attached to this device.  Free
+         * it now.
+         */
+        kfree(SDpnt->device_queue);
+        kfree(SDpnt);
+}
 
 /*
  * Overrides for Emacs so that we follow Linus's tabbing style.

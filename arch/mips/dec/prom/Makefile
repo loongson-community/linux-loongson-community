@@ -1,4 +1,4 @@
-# $Id: $
+# $Id: Makefile,v 1.1 1999/01/17 03:49:44 ralf Exp $
 # Makefile for the DECstation prom monitor library routines
 # under Linux.
 #
@@ -24,6 +24,6 @@ rexlib.a: $(OBJS)
 locore.o: locore.S
 
 dep:
-	$(CPP) -M *.c > .depend
+	$(CPP) $(CPPFLAGS) -M *.c > .depend
 
 include $(TOPDIR)/Rules.make

@@ -28,6 +28,7 @@
 #endif
 #include <net/pkt_sched.h>
 #include <net/scm.h>
+#include <linux/random.h>
 
 #ifdef CONFIG_BRIDGE
 #include <net/br.h>
@@ -150,7 +151,7 @@ EXPORT_SYMBOL(skb_recv_datagram);
 EXPORT_SYMBOL(skb_free_datagram);
 EXPORT_SYMBOL(skb_copy_datagram);
 EXPORT_SYMBOL(skb_copy_datagram_iovec);
-EXPORT_SYMBOL(skb_realloc_headroom);
+EXPORT_SYMBOL(skb_copy_expand);
 EXPORT_SYMBOL(datagram_poll);
 EXPORT_SYMBOL(put_cmsg);
 EXPORT_SYMBOL(sock_kmalloc);
@@ -235,7 +236,7 @@ EXPORT_SYMBOL(ip_options_compile);
 EXPORT_SYMBOL(ip_options_undo);
 EXPORT_SYMBOL(arp_send);
 EXPORT_SYMBOL(arp_broken_ops);
-EXPORT_SYMBOL(ip_id_count);
+EXPORT_SYMBOL(__ip_select_ident);
 EXPORT_SYMBOL(ip_send_check);
 EXPORT_SYMBOL(ip_fragment);
 EXPORT_SYMBOL(inet_family_ops);
@@ -376,6 +377,12 @@ EXPORT_SYMBOL(dev_loopback_xmit);
 #ifdef CONFIG_SYSCTL
 EXPORT_SYMBOL(sysctl_max_syn_backlog);
 #endif
+
+#if defined (CONFIG_IPV6_MODULE)
+EXPORT_SYMBOL(secure_tcpv6_sequence_number);
+EXPORT_SYMBOL(secure_ipv6_id);
+#endif
+
 #endif
 
 #ifdef CONFIG_NETLINK
@@ -542,6 +549,8 @@ EXPORT_SYMBOL(qdisc_restart);
 EXPORT_SYMBOL(qdisc_head);
 EXPORT_SYMBOL(qdisc_create_dflt);
 EXPORT_SYMBOL(noop_qdisc);
+EXPORT_SYMBOL(qdisc_tree_lock);
+EXPORT_SYMBOL(qdisc_runqueue_lock);
 #ifdef CONFIG_NET_SCHED
 PSCHED_EXPORTLIST;
 EXPORT_SYMBOL(pfifo_qdisc_ops);
@@ -578,6 +587,7 @@ EXPORT_SYMBOL(nf_reinject);
 EXPORT_SYMBOL(nf_register_interest);
 EXPORT_SYMBOL(nf_unregister_interest);
 EXPORT_SYMBOL(nf_hook_slow);
+EXPORT_SYMBOL(nf_hooks);
 #endif
 
 EXPORT_SYMBOL(register_gifconf);

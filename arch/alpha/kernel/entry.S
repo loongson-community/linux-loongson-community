@@ -8,7 +8,7 @@
 
 #define SIGCHLD 20
 
-#define NR_SYSCALLS 373
+#define NR_SYSCALLS 374
 
 /*
  * These offsets must match with alpha_mv in <asm/machvec.h>.
@@ -84,8 +84,8 @@
 	ldq	$1,8($30);		\
 	ldq	$2,16($30);		\
 	ldq	$3,24($30);		\
-	ldq	$20,152($30);		\
-	ldq	$21,HAE_CACHE($19);	\
+	ldq	$21,152($30);		\
+	ldq	$20,HAE_CACHE($19);	\
 	ldq	$4,32($30);		\
 	ldq	$5,40($30);		\
 	ldq	$6,48($30);		\
@@ -985,7 +985,7 @@ sys_call_table:
 	.quad osf_utsname
 	.quad sys_lchown
 	.quad osf_shmat
-	.quad sys_shmctl			/* 210 */
+	.quad sys_shmctlold			/* 210 */
 	.quad sys_shmdt
 	.quad sys_shmget
 	.quad alpha_ni_syscall
@@ -1149,3 +1149,5 @@ sys_call_table:
 	.quad sys_sendfile			/* 370 */
 	.quad sys_setresgid
 	.quad sys_getresgid
+	.quad sys_ni_syscall			/* sys_dipc */
+	.quad sys_shmctl

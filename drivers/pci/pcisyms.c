@@ -18,13 +18,16 @@ EXPORT_SYMBOL(pci_write_config_byte);
 EXPORT_SYMBOL(pci_write_config_word);
 EXPORT_SYMBOL(pci_write_config_dword);
 EXPORT_SYMBOL(pci_devices);
-EXPORT_SYMBOL(pci_root);
+EXPORT_SYMBOL(pci_root_buses);
 EXPORT_SYMBOL(pci_enable_device);
 EXPORT_SYMBOL(pci_find_class);
 EXPORT_SYMBOL(pci_find_device);
 EXPORT_SYMBOL(pci_find_slot);
 EXPORT_SYMBOL(pci_set_master);
 EXPORT_SYMBOL(pci_simple_probe);
+EXPORT_SYMBOL(pci_set_power_state);
+EXPORT_SYMBOL(pci_assign_resource);
+EXPORT_SYMBOL(pci_setup_device);
 #ifdef	CONFIG_PROC_FS
 EXPORT_SYMBOL(pci_proc_attach_device);
 EXPORT_SYMBOL(pci_proc_detach_device);

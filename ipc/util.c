@@ -130,7 +130,7 @@ found:
 	if(ids->seq > ids->seq_max)
 		ids->seq = 0;
 
-	ipc_lock(ids,id);
+	spin_lock(&ids->ary);
 	ids->entries[id].p = new;
 	return id;
 }
@@ -214,7 +214,7 @@ void sem_exit (void)
     return;
 }
 
-int shm_swap (int prio, int gfp_mask)
+int shm_swap (int prio, int gfp_mask, zone_t *zone)
 {
     return 0;
 }

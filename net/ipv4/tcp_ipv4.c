@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.189 1999/09/07 02:31:33 davem Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.193 2000/01/06 00:42:01 davem Exp $
  *
  *		IPv4 specific functions
  *
@@ -528,7 +528,10 @@ __inline__ struct sock *tcp_v4_lookup_listener(u32 daddr, unsigned short hnum, i
 	read_lock(&tcp_lhash_lock);
 	sk = tcp_listening_hash[tcp_lhashfn(hnum)];
 	if (sk) {
-		if (sk->num == hnum && sk->next == NULL)
+		if (sk->num == hnum &&
+		    sk->next == NULL &&
+		    (!sk->rcv_saddr || sk->rcv_saddr == daddr) &&
+		    !sk->bound_dev_if)
 			goto sherry_cache;
 		sk = __tcp_v4_lookup_listener(sk, daddr, hnum, dif);
 	}
@@ -592,7 +595,8 @@ __inline__ struct sock *tcp_v4_lookup(u32 saddr, u16 sport, u32 daddr, u16 dport
 
 static inline __u32 tcp_v4_init_sequence(struct sock *sk, struct sk_buff *skb)
 {
-	return secure_tcp_sequence_number(sk->saddr, sk->daddr,
+	return secure_tcp_sequence_number(skb->nh.iph->daddr,
+					  skb->nh.iph->saddr,
 					  skb->h.th->dest,
 					  skb->h.th->source);
 }

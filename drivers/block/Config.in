@@ -57,9 +57,7 @@ else
 		  bool '      AEC6210 Tuning support (EXPERIMENTAL)' CONFIG_BLK_DEV_AEC6210_TUNING
 	       fi
 	    if [ "$CONFIG_IDEDMA_PCI_EXPERIMENTAL" = "y" ]; then
-	       if [ "$CONFIG_X86" = "y" ]; then
-		  bool '    ALI M15x3 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_ALI15X3
-	       fi
+	       bool '    ALI M15x3 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_ALI15X3
 	       bool '    CMD646 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_CMD646
 	       bool '    CY82C693 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_CY82C693
 	    fi
@@ -72,11 +70,11 @@ else
 	       if [ "$CONFIG_IDEDMA_PCI_EXPERIMENTAL" = "y" -a "$CONFIG_BLK_DEV_HPT366" = "y" ]; then
 		  bool '      HPT366 Fast Interrupt support (EXPERIMENTAL)' HPT366_FAST_IRQ_PREDICTION
 	       fi
-	    fi
-	    if [ "$CONFIG_X86" = "y" ]; then
-	       bool '    Intel PIIXn chipsets support' CONFIG_BLK_DEV_PIIX
-	       if [ "$CONFIG_BLK_DEV_PIIX" = "y" ]; then
-		  bool '      PIIXn Tuning support' CONFIG_BLK_DEV_PIIX_TUNING
+	       if [ "$CONFIG_X86" = "y" ]; then
+		  bool '    Intel PIIXn chipsets support' CONFIG_BLK_DEV_PIIX
+		  if [ "$CONFIG_BLK_DEV_PIIX" = "y" -a "$CONFIG_IDEDMA_PCI_AUTO" = "y" ]; then
+		     bool '      PIIXn Tuning support' CONFIG_BLK_DEV_PIIX_TUNING
+		  fi
 	       fi
 	    fi
 	    if [ "$CONFIG_IDEDMA_PCI_EXPERIMENTAL" = "y" ]; then
@@ -100,7 +98,7 @@ else
 	    if [ "$CONFIG_IDEDMA_PCI_EXPERIMENTAL" = "y" ]; then
 	       bool '    Tekram TRM290 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_TRM290
 	       if [ "$CONFIG_X86" = "y" ]; then
-		  bool '     VIA82CXXX chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_VIA82CXXX
+		  bool '    VIA82CXXX chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_VIA82CXXX
 	       fi
 	    fi
          fi

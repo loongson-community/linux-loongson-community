@@ -7,8 +7,8 @@
  *  and Martin Mares, November 1997.
  *
  *  Force Cyrix 6x86(MX) and M II processors to report MTRR capability
- *  and fix against Cyrix "coma bug" by
- *      Zoltan Boszormenyi <zboszor@mol.hu> February 1999.
+ *  and Cyrix "coma bug" recognition by
+ *      Zoltán Böszörményi <zboszor@mail.externet.hu> February 1999.
  * 
  *  Force Centaur C6 processors to report MTRR capability.
  *      Bart Hartgers <bart@etpmod.phys.tue.nl>, May 1999.
@@ -592,13 +592,16 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	max_pfn = 0;
 	for (i = 0; i < e820.nr_map; i++) {
-		unsigned long curr_pfn;
+		unsigned long start, end;
 		/* RAM? */
 		if (e820.map[i].type != E820_RAM)
 			continue;
-		curr_pfn = PFN_DOWN(e820.map[i].addr + e820.map[i].size);
-		if (curr_pfn > max_pfn)
-			max_pfn = curr_pfn;
+		start = PFN_UP(e820.map[i].addr);
+		end = PFN_DOWN(e820.map[i].addr + e820.map[i].size);
+		if (start >= end)
+			continue;
+		if (end > max_pfn)
+			max_pfn = end;
 	}
 
 	/*
@@ -706,7 +709,7 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	if (LOADER_TYPE) {
+	if (LOADER_TYPE && INITRD_START) {
 		if (INITRD_START + INITRD_SIZE < (max_low_pfn << PAGE_SHIFT)) {
 			reserve_bootmem(INITRD_START, INITRD_SIZE);
 			initrd_start =

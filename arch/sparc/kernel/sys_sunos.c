@@ -1,4 +1,4 @@
-/* $Id: sys_sunos.c,v 1.104 1999/08/31 12:30:50 anton Exp $
+/* $Id: sys_sunos.c,v 1.108 2000/01/06 23:51:46 davem Exp $
  * sys_sunos.c: SunOS specific syscall compatibility support.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -85,10 +85,17 @@ asmlinkage unsigned long sunos_mmap(unsigned long addr, unsigned long len,
 	}
 
 	retval = -ENOMEM;
-	if(!(flags & MAP_FIXED) && !addr) {
-		addr = get_unmapped_area(addr, len);
+	if(!(flags & MAP_FIXED) &&
+	   (!addr || (ARCH_SUN4C_SUN4 &&
+		      (addr >= 0x20000000 && addr < 0xe0000000)))) {
+		addr = get_unmapped_area(0, len);
 		if(!addr)
 			goto out_putf;
+		if (ARCH_SUN4C_SUN4 &&
+		    (addr >= 0x20000000 && addr < 0xe0000000)) {
+			retval = -EINVAL;
+			goto out_putf;
+		}
 	}
 	/* If this is ld.so or a shared library doing an mmap
 	 * of /dev/zero, transform it into an anonymous mapping.
@@ -110,13 +117,6 @@ asmlinkage unsigned long sunos_mmap(unsigned long addr, unsigned long len,
 	retval = -EINVAL;
 	if((len > (TASK_SIZE - PAGE_SIZE)) || (addr > (TASK_SIZE-len-PAGE_SIZE)))
 		goto out_putf;
-
-	if(ARCH_SUN4C_SUN4) {
-		if(((addr >= 0x20000000) && (addr < 0xe0000000))) {
-			retval = current->mm->brk;
-			goto out_putf;
-		}
-	}
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	retval = do_mmap(file, addr, len, prot, flags, off);
@@ -195,10 +195,10 @@ asmlinkage int sunos_brk(unsigned long brk)
 	 * simple, it hopefully works in most obvious cases.. Easy to
 	 * fool it, but this should catch most mistakes.
 	 */
-	freepages = atomic_read(&buffermem) >> PAGE_SHIFT;
+	freepages = atomic_read(&buffermem_pages) >> PAGE_SHIFT;
 	freepages += atomic_read(&page_cache_size);
 	freepages >>= 1;
-	freepages += nr_free_pages;
+	freepages += nr_free_pages();
 	freepages += nr_swap_pages;
 	freepages -= num_physpages >> 4;
 	freepages -= (newbrk-oldbrk) >> PAGE_SHIFT;
@@ -721,7 +721,7 @@ struct sunos_nfs_mount_args {
 };
 
 
-extern int do_mount(kdev_t, const char *, const char *, char *, int, void *);
+extern int do_mount(struct block_device *, const char *, const char *, char *, int, void *);
 extern dev_t get_unnamed_dev(void);
 extern void put_unnamed_dev(dev_t);
 extern asmlinkage int sys_mount(char *, char *, char *, unsigned long, void *);
@@ -797,7 +797,6 @@ asmlinkage int sunos_nfs_mount(char *dir_name, int linux_flags, void *data)
 	char *the_name;
 	struct nfs_mount_data linux_nfs_mount;
 	struct sunos_nfs_mount_args *sunos_mount = data;
-	dev_t dev;
 
 	/* Ok, here comes the fun part: Linux's nfs mount needs a
 	 * socket connection to the server, but SunOS mount does not
@@ -839,13 +838,7 @@ asmlinkage int sunos_nfs_mount(char *dir_name, int linux_flags, void *data)
 	linux_nfs_mount.hostname [255] = 0;
 	putname (the_name);
 	
-	dev = get_unnamed_dev ();
-	
-	ret = do_mount (dev, "", dir_name, "nfs", linux_flags, &linux_nfs_mount);
-	if (ret)
-	    put_unnamed_dev(dev);
-
-	return ret;
+	return do_mount (NULL, "", dir_name, "nfs", linux_flags, &linux_nfs_mount);
 }
 
 asmlinkage int

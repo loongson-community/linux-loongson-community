@@ -1,4 +1,4 @@
-/* $Id: sys_sparc.c,v 1.29 1999/08/04 07:04:10 jj Exp $
+/* $Id: sys_sparc.c,v 1.32 2000/01/05 01:00:40 davem Exp $
  * linux/arch/sparc64/kernel/sys_sparc.c
  *
  * This file contains various random system calls that
@@ -6,6 +6,7 @@
  * platform.
  */
 
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/sched.h>
@@ -156,15 +157,16 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
 	struct file * file = NULL;
 	unsigned long retval = -EBADF;
 
-	down(&current->mm->mmap_sem);
-	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
 		file = fget(fd);
 		if (!file)
 			goto out;
 	}
+	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	retval = -ENOMEM;
 	len = PAGE_ALIGN(len);
+	down(&current->mm->mmap_sem);
+	lock_kernel();
 	if(!(flags & MAP_FIXED) && !addr) {
 		addr = get_unmapped_area(addr, len);
 		if(!addr)
@@ -187,15 +189,14 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
 		}
 	}
 
-	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	retval = do_mmap(file, addr, len, prot, flags, off);
 
 out_putf:
+	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	if (file)
 		fput(file);
 out:
-	unlock_kernel();
-	up(&current->mm->mmap_sem);
 	return retval;
 }
 
@@ -274,6 +275,21 @@ asmlinkage int solaris_syscall(struct pt_regs *regs)
 	unlock_kernel();
 	return -ENOSYS;
 }
+
+#ifndef CONFIG_SUNOS_EMUL
+asmlinkage int sunos_syscall(struct pt_regs *regs)
+{
+	static int count = 0;
+	lock_kernel();
+	regs->tpc = regs->tnpc;
+	regs->tnpc += 4;
+	if(++count <= 20)
+		printk ("SunOS binary emulation not compiled in\n");
+	force_sig(SIGSEGV, current);
+	unlock_kernel();
+	return -ENOSYS;
+}
+#endif
 
 asmlinkage int sys_utrap_install(utrap_entry_t type, utrap_handler_t new_p,
 				 utrap_handler_t new_d,

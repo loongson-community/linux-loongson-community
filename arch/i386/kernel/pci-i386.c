@@ -12,7 +12,7 @@
  *	Hannover, Germany
  *	hm@ix.de
  *
- * Copyright 1997--1999 Martin Mares <mj@suse.cz>
+ * Copyright 1997--2000 Martin Mares <mj@suse.cz>
  *
  * For more information, please consult the following manuals (look at
  * http://www.pcisig.com/ for how to get them):
@@ -102,7 +102,7 @@
  * Expects start=0, end=size-1, flags=resource type.
  */
 
-static int __init pcibios_assign_resource(struct pci_dev *dev, int i)
+int pci_assign_resource(struct pci_dev *dev, int i)
 {
 	struct resource *r = &dev->resource[i];
 	struct resource *pr = pci_find_parent_resource(dev, r);
@@ -180,14 +180,17 @@ static int __init pcibios_assign_resource(struct pci_dev *dev, int i)
  *	    as well.
  */
 
-static void __init pcibios_allocate_bus_resources(struct pci_bus *bus)
+static void __init pcibios_allocate_bus_resources(struct list_head *bus_list)
 {
+	struct list_head *ln;
+	struct pci_bus *bus;
 	struct pci_dev *dev;
 	int idx;
 	struct resource *r, *pr;
 
 	/* Depth-First Search on bus tree */
-	while (bus) {
+	for (ln=bus_list->next; ln != bus_list; ln=ln->next) {
+		bus = pci_bus_b(ln);
 		if ((dev = bus->self)) {
 			for (idx = PCI_BRIDGE_RESOURCES; idx < PCI_NUM_RESOURCES; idx++) {
 				r = &dev->resource[idx];
@@ -198,9 +201,7 @@ static void __init pcibios_allocate_bus_resources(struct pci_bus *bus)
 					printk(KERN_ERR "PCI: Cannot allocate resource region %d of bridge %s\n", idx, dev->slot_name);
 			}
 		}
-		if (bus->children)
-			pcibios_allocate_bus_resources(bus->children);
-		bus = bus->next;
+		pcibios_allocate_bus_resources(&bus->children);
 	}
 }
 
@@ -211,7 +212,7 @@ static void __init pcibios_allocate_resources(int pass)
 	u16 command;
 	struct resource *r, *pr;
 
-	for(dev=pci_devices; dev; dev=dev->next) {
+	pci_for_each_dev(dev) {
 		pci_read_config_word(dev, PCI_COMMAND, &command);
 		for(idx = 0; idx < 6; idx++) {
 			r = &dev->resource[idx];
@@ -255,39 +256,46 @@ static void __init pcibios_assign_resources(void)
 	int idx;
 	struct resource *r;
 
-	for(dev=pci_devices; dev; dev=dev->next) {
+	pci_for_each_dev(dev) {
+		int class = dev->class >> 8;
+
+		/* Don't touch classless devices and host bridges */
+		if (!class || class == PCI_CLASS_BRIDGE_HOST)
+			continue;
+
 		for(idx=0; idx<6; idx++) {
 			r = &dev->resource[idx];
-			if (((dev->class >> 8) == PCI_CLASS_STORAGE_IDE && idx < 4) ||
-			    ((dev->class >> 8) == PCI_CLASS_DISPLAY_VGA && (r->flags & IORESOURCE_IO)) ||
-			    !dev->class || (dev->class >> 8) == PCI_CLASS_BRIDGE_HOST)
-				/*
-				 *  Don't touch IDE controllers and I/O ports of video cards!
-				 *  Also avoid classless devices and host bridges.
-				 */
+
+			/*
+			 *  Don't touch IDE controllers and I/O ports of video cards!
+			 */
+			if ((class == PCI_CLASS_STORAGE_IDE && idx < 4) ||
+			    (class == PCI_CLASS_DISPLAY_VGA && (r->flags & IORESOURCE_IO)))
 				continue;
-			if (!r->start && r->end) {
-				/*
-				 *  We shall assign a new address to this resource, either because
-				 *  the BIOS forgot to do so or because we have decided the old
-				 *  address was unusable for some reason.
-				 */
-				pcibios_assign_resource(dev, idx);
-			}
+
+			/*
+			 *  We shall assign a new address to this resource, either because
+			 *  the BIOS forgot to do so or because we have decided the old
+			 *  address was unusable for some reason.
+			 */
+			if (!r->start && r->end)
+				pci_assign_resource(dev, idx);
 		}
+
 		if (pci_probe & PCI_ASSIGN_ROMS) {
 			r = &dev->resource[PCI_ROM_RESOURCE];
 			r->end -= r->start;
 			r->start = 0;
 			if (r->end)
-				pcibios_assign_resource(dev, PCI_ROM_RESOURCE);
+				pci_assign_resource(dev, PCI_ROM_RESOURCE);
 		}
 	}
 }
 
 void __init pcibios_resource_survey(void)
 {
-	pcibios_allocate_bus_resources(pci_root);
+	DBG("PCI: Allocating resources\n");
+	pcibios_allocate_bus_resources(&pci_root_buses);
 	pcibios_allocate_resources(0);
 	pcibios_allocate_resources(1);
 	pcibios_assign_resources();

@@ -6,10 +6,10 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Sun Aug  3 13:49:59 1997
- * Modified at:   Sat Nov 13 23:48:55 1999
+ * Modified at:   Mon Jan  3 10:23:34 2000
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
- *     Copyright (c) 1997, 1998-1999 Dag Brattli <dagb@cs.uit.no>
+ *     Copyright (c) 1997, 1998-2000 Dag Brattli <dagb@cs.uit.no>
  *     All Rights Reserved.
  *     
  *     This program is free software; you can redistribute it and/or 
@@ -54,7 +54,7 @@ struct irport_cb {
 	struct net_device *netdev; /* Yes! we are some kind of netdevice */
 	struct net_device_stats stats;
 
-	struct irlap_cb    *irlap; /* The link layer we are binded to */
+	struct irlap_cb *irlap;    /* The link layer we are attached to */
 
 	struct chipio_t io;        /* IrDA controller information */
 	struct iobuff_t tx_buff;   /* Transmit buffer */
@@ -65,19 +65,25 @@ struct irport_cb {
 
  	__u32 flags;               /* Interface flags */
 	__u32 new_speed;
+	int mode;
+	int index;                 /* Instance index */
 
 	spinlock_t lock;           /* For serializing operations */
 
-	int mode;
+	/* For piggyback drivers */
+	void *priv;                
+	void (*change_speed)(void *priv, __u32 speed);
+	void (*interrupt)(int irq, void *dev_id, struct pt_regs *regs);
 };
 
-void irport_start(struct irport_cb *self, int iobase);
-void irport_stop(struct irport_cb *self, int iobase);
-int  irport_probe(int iobase);
-
-int irport_change_speed(struct irda_task *task);
-void __irport_change_speed(struct irport_cb *self, __u32 speed);
+struct irport_cb *irport_open(int i, unsigned int iobase, unsigned int irq);
+int  irport_close(struct irport_cb *self);
+void irport_start(struct irport_cb *self);
+void irport_stop(struct irport_cb *self);
+void irport_change_speed(void *priv, __u32 speed);
 void irport_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 int  irport_hard_xmit(struct sk_buff *skb, struct net_device *dev);
+int  irport_net_open(struct net_device *dev);
+int  irport_net_close(struct net_device *dev);
 
-#endif
+#endif /* IRPORT_H */

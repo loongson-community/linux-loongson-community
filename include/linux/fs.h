@@ -250,7 +250,7 @@ void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 
 #define bh_offset(bh)		((unsigned long)(bh)->b_data & ~PAGE_MASK)
 
-extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned int offset);
+extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long offset);
 
 #define touch_buffer(bh)	set_bit(PG_referenced, &bh->b_page->flags)
 
@@ -340,6 +340,16 @@ struct address_space {
 	unsigned long		nrpages;
 };
 
+struct block_device {
+	struct list_head	bd_hash;
+	atomic_t		bd_count;
+/*	struct address_space	bd_data; */
+	dev_t			bd_dev;  /* not a kdev_t - it's a search key */
+	atomic_t		bd_openers;
+	const struct block_device_operations *bd_op;
+	struct semaphore	bd_sem;	/* open/close mutex */
+};
+
 struct inode {
 	struct list_head	i_hash;
 	struct list_head	i_list;
@@ -370,6 +380,7 @@ struct inode {
 	spinlock_t		i_shared_lock;
 	struct dquot		*i_dquot[MAXQUOTAS];
 	struct pipe_inode_info	*i_pipe;
+	struct block_device	*i_bdev;
 
 	unsigned long		i_state;
 
@@ -559,6 +570,8 @@ struct super_block {
 	struct list_head	s_dirty;	/* dirty inodes */
 	struct list_head	s_files;
 
+	struct block_device	*s_bdev;
+
 	union {
 		struct minix_sb_info	minix_sb;
 		struct ext2_sb_info	ext2_sb;
@@ -602,7 +615,15 @@ extern int vfs_rename(struct inode *, struct dentry *, struct inode *, struct de
  * to have different dirent layouts depending on the binary type.
  */
 typedef int (*filldir_t)(void *, const char *, int, off_t, ino_t);
-	
+
+struct block_device_operations {
+	int (*open) (struct inode *, struct file *);
+	int (*release) (struct inode *, struct file *);
+	int (*ioctl) (struct inode *, struct file *, unsigned, unsigned long);
+	int (*check_media_change) (kdev_t);
+	int (*revalidate) (kdev_t);
+};
+
 struct file_operations {
 	loff_t (*llseek) (struct file *, loff_t, int);
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
@@ -616,8 +637,6 @@ struct file_operations {
 	int (*release) (struct inode *, struct file *);
 	int (*fsync) (struct file *, struct dentry *);
 	int (*fasync) (int, struct file *, int);
-	int (*check_media_change) (kdev_t dev);
-	int (*revalidate) (kdev_t dev);
 	int (*lock) (struct file *, int, struct file_lock *);
 };
 
@@ -743,27 +762,30 @@ extern char * getname(const char *);
 #define __getname()	((char *) __get_free_page(GFP_KERNEL))
 #define putname(name)	free_page((unsigned long)(name))
 
+enum {BDEV_FILE, BDEV_SWAP, BDEV_FS, BDEV_RAW};
 extern void kill_fasync(struct fasync_struct *, int, int);
-extern int register_blkdev(unsigned int, const char *, struct file_operations *);
+extern int register_blkdev(unsigned int, const char *, struct block_device_operations *);
 extern int unregister_blkdev(unsigned int, const char *);
+extern struct block_device *bdget(dev_t);
+extern void bdput(struct block_device *);
 extern int blkdev_open(struct inode *, struct file *);
-extern int blkdev_release (struct inode *);
 extern struct file_operations def_blk_fops;
-extern struct inode_operations blkdev_inode_operations;
+extern int ioctl_by_bdev(struct block_device *, unsigned, unsigned long);
+extern int blkdev_get(struct block_device *, mode_t, unsigned, int);
+extern int blkdev_put(struct block_device *, int);
 
 /* fs/devices.c */
 extern int register_chrdev(unsigned int, const char *, struct file_operations *);
 extern int unregister_chrdev(unsigned int, const char *);
 extern int chrdev_open(struct inode *, struct file *);
 extern struct file_operations def_chr_fops;
-extern struct inode_operations chrdev_inode_operations;
 extern char * bdevname(kdev_t);
 extern char * cdevname(kdev_t);
 extern char * kdevname(kdev_t);
 extern void init_special_inode(struct inode *, umode_t, int);
 
-extern void init_fifo(struct inode *);
 extern struct inode_operations fifo_inode_operations;
+extern struct inode_operations blkdev_inode_operations;
 
 /* Invalid inode operations -- fs/bad_inode.c */
 extern void make_bad_inode(struct inode *);
@@ -995,6 +1017,91 @@ extern int generic_buffer_fdatasync(struct inode *inode, unsigned long start_idx
 
 extern int inode_change_ok(struct inode *, struct iattr *);
 extern void inode_setattr(struct inode *, struct iattr *);
+
+/*
+ * Common dentry functions for inclusion in the VFS
+ * or in other stackable file systems.  Some of these
+ * functions were in linux/fs/ C (VFS) files.
+ *
+ */
+
+/*
+ * We need to do a check-parent every time
+ * after we have locked the parent - to verify
+ * that the parent is still our parent and
+ * that we are still hashed onto it..
+ *
+ * This is required in case two processes race
+ * on removing (or moving) the same entry: the
+ * parent lock will serialize them, but the
+ * other process will be too late..
+ */
+#define check_parent(dir, dentry) \
+	((dir) == (dentry)->d_parent && !list_empty(&dentry->d_hash))
+
+/*
+ * Locking the parent is needed to:
+ *  - serialize directory operations
+ *  - make sure the parent doesn't change from
+ *    under us in the middle of an operation.
+ *
+ * NOTE! Right now we'd rather use a "struct inode"
+ * for this, but as I expect things to move toward
+ * using dentries instead for most things it is
+ * probably better to start with the conceptually
+ * better interface of relying on a path of dentries.
+ */
+static inline struct dentry *lock_parent(struct dentry *dentry)
+{
+	struct dentry *dir = dget(dentry->d_parent);
+
+	down(&dir->d_inode->i_sem);
+	return dir;
+}
+
+static inline struct dentry *get_parent(struct dentry *dentry)
+{
+	return dget(dentry->d_parent);
+}
+
+static inline void unlock_dir(struct dentry *dir)
+{
+	up(&dir->d_inode->i_sem);
+	dput(dir);
+}
+
+/*
+ * Whee.. Deadlock country. Happily there are only two VFS
+ * operations that does this..
+ */
+static inline void double_lock(struct dentry *d1, struct dentry *d2)
+{
+	struct semaphore *s1 = &d1->d_inode->i_sem;
+	struct semaphore *s2 = &d2->d_inode->i_sem;
+
+	if (s1 != s2) {
+		if ((unsigned long) s1 < (unsigned long) s2) {
+			struct semaphore *tmp = s2;
+			s2 = s1; s1 = tmp;
+		}
+		down(s1);
+	}
+	down(s2);
+}
+
+static inline void double_unlock(struct dentry *d1, struct dentry *d2)
+{
+	struct semaphore *s1 = &d1->d_inode->i_sem;
+	struct semaphore *s2 = &d2->d_inode->i_sem;
+
+	up(s1);
+	if (s1 != s2)
+		up(s2);
+	dput(d1);
+	dput(d2);
+}
+
+
 
 #endif /* __KERNEL__ */
 

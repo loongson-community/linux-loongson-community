@@ -29,10 +29,10 @@ else
 endif
 
 ifeq ($(CONFIG_NSC_FIR),y)
-L_OBJS += pc87108.o
+L_OBJS += nsc_fir.o
 else
   ifeq ($(CONFIG_NSC_FIR),m)
-  M_OBJS += pc87108.o
+  M_OBJS += nsc_fir.o
   endif
 endif
 
@@ -41,6 +41,22 @@ L_OBJS += w83977af_ir.o
 else
   ifeq ($(CONFIG_WINBOND_FIR),m)
   M_OBJS += w83977af_ir.o
+  endif
+endif
+
+ifeq ($(CONFIG_TOSHIBA_FIR),y)
+L_OBJS += toshoboe.o
+else
+  ifeq ($(CONFIG_TOSHIBA_FIR),m)
+  M_OBJS += toshoboe.o
+  endif
+endif
+
+ifeq ($(CONFIG_TOSHIBA_FIR),y)
+L_OBJS += toshoboe.o
+else
+  ifeq ($(CONFIG_TOSHIBA_FIR),m)
+  M_OBJS += toshoboe.o
   endif
 endif
 
@@ -107,6 +123,14 @@ L_OBJS += airport.o
 else
   ifeq ($(CONFIG_AIRPORT_DONGLE),m)
   M_OBJS += airport.o
+  endif
+endif
+
+ifeq ($(CONFIG_OLD_BELKIN_DONGLE),y)
+L_OBJS += old_belkin.o
+else
+  ifeq ($(CONFIG_OLD_BELKIN_DONGLE),m)
+  M_OBJS += old_belkin.o
   endif
 endif
 

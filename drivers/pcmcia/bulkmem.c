@@ -257,7 +257,7 @@ static int mtd_modify_window(window_handle_t win, mtd_mod_win_t *req)
 	win->ctl.flags |= MAP_ATTRIB;
     win->ctl.speed = req->AccessSpeed;
     win->ctl.card_start = req->CardOffset;
-    win->sock->ss_entry(win->sock->sock, SS_SetMemMap, &win->ctl);
+    win->sock->ss_entry->set_mem_map(win->sock->sock, &win->ctl);
     return CS_SUCCESS;
 }
 
@@ -270,7 +270,7 @@ static int mtd_set_vpp(client_handle_t handle, mtd_vpp_req_t *req)
 	return CS_BAD_VPP;
     s = SOCKET(handle);
     s->socket.Vpp = req->Vpp1;
-    if (s->ss_entry(s->sock, SS_SetSocket, &s->socket))
+    if (s->ss_entry->set_socket(s->sock, &s->socket))
 	return CS_BAD_VPP;
     return CS_SUCCESS;
 }
@@ -285,7 +285,7 @@ static int mtd_rdy_mask(client_handle_t handle, mtd_rdy_req_t *req)
 	s->socket.csc_mask |= SS_READY;
     else
 	s->socket.csc_mask &= ~SS_READY;
-    if (s->ss_entry(s->sock, SS_SetSocket, &s->socket))
+    if (s->ss_entry->set_socket(s->sock, &s->socket))
 	return CS_GENERAL_FAILURE;
     return CS_SUCCESS;
 }
@@ -294,7 +294,13 @@ int MTDHelperEntry(int func, void *a1, void *a2)
 {
     switch (func) {
     case MTDRequestWindow:
-	return pcmcia_request_window(a1, a2);
+    {
+	window_handle_t w;
+        int ret = pcmcia_request_window(a1, a2, &w);
+        (window_handle_t *)a1 = w;
+	return  ret;
+    }
+        break;
     case MTDReleaseWindow:
 	return pcmcia_release_window(a1);
     case MTDModifyWindow:
@@ -470,7 +476,8 @@ int pcmcia_register_mtd(client_handle_t handle, mtd_reg_t *reg)
     
 ======================================================================*/
 
-int pcmcia_register_erase_queue(client_handle_t *handle, eraseq_hdr_t *header)
+int pcmcia_register_erase_queue(client_handle_t *handle, eraseq_hdr_t *header,
+                                 eraseq_handle_t *e)
 {
     eraseq_t *queue;
 
@@ -481,7 +488,7 @@ int pcmcia_register_erase_queue(client_handle_t *handle, eraseq_hdr_t *header)
     queue->handle = *handle;
     queue->count = header->QueueEntryCnt;
     queue->entry = header->QueueEntryArray;
-    *handle = (client_handle_t)queue;
+    *e = queue;
     return CS_SUCCESS;
 } /* register_erase_queue */
 
@@ -517,7 +524,7 @@ int pcmcia_check_erase_queue(eraseq_handle_t eraseq)
     
 ======================================================================*/
 
-int pcmcia_open_memory(client_handle_t *handle, open_mem_t *open)
+int pcmcia_open_memory(client_handle_t *handle, open_mem_t *open, memory_handle_t *mh)
 {
     socket_info_t *s;
     memory_handle_t region;
@@ -534,7 +541,7 @@ int pcmcia_open_memory(client_handle_t *handle, open_mem_t *open)
 	region = region->info.next;
     }
     if (region && region->mtd) {
-	*handle = (client_handle_t)region;
+	*mh = region;
 	DEBUG(1, "cs: open_memory(0x%p, 0x%x) = 0x%p\n",
 	      handle, open->Offset, region);
 	return CS_SUCCESS;

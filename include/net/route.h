@@ -25,6 +25,7 @@
 
 #include <linux/config.h>
 #include <net/dst.h>
+#include <net/inetpeer.h>
 #include <linux/in_route.h>
 #include <linux/rtnetlink.h>
 #include <linux/route.h>
@@ -32,8 +33,6 @@
 #ifndef __KERNEL__
 #warning This file is not supposed to be used outside of kernel.
 #endif
-
-#define RT_HASH_DIVISOR	    	256
 
 #define RTO_ONLINK	0x01
 #define RTO_TPROXY	0x80000000
@@ -53,6 +52,7 @@ struct rt_key
 	__u8			scope;
 };
 
+struct inet_peer;
 struct rtable
 {
 	union
@@ -76,6 +76,7 @@ struct rtable
 
 	/* Miscellaneous cached information */
 	__u32			rt_spec_dst; /* RFC1122 specific destination */
+	struct inet_peer	*peer; /* long-living peer info */
 
 #ifdef CONFIG_IP_ROUTE_NAT
 	__u32			rt_src_map;
@@ -136,6 +137,17 @@ extern __inline__ int ip_route_connect(struct rtable **rp, u32 dst, u32 src, u32
 	ip_rt_put(*rp);
 	*rp = NULL;
 	return ip_route_output(rp, dst, src, tos, oif);
+}
+
+extern void rt_bind_peer(struct rtable *rt, int create);
+
+extern __inline__ struct inet_peer *rt_get_peer(struct rtable *rt)
+{
+	if (rt->peer)
+		return rt->peer;
+
+	rt_bind_peer(rt, 0);
+	return rt->peer;
 }
 
 #endif	/* _ROUTE_H */

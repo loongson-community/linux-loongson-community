@@ -110,6 +110,13 @@ static struct {
 	int (*init)(void);
 	int (*setup)(char*);
 } fb_drivers[] __initdata = {
+#ifdef CONFIG_FB_SBUS
+	/*
+	 * Sbusfb must be initialized _before_ other frame buffer devices that
+	 * use PCI probing
+	 */
+	{ "sbus", sbusfb_init, sbusfb_setup },
+#endif
 #ifdef CONFIG_FB_3DFX
 	{ "tdfx", tdfxfb_init, tdfxfb_setup },
 #endif
@@ -143,14 +150,15 @@ static struct {
 #ifdef CONFIG_FB_CLGEN
 	{ "clgen", clgenfb_init, clgenfb_setup },
 #endif
-#ifdef CONFIG_FB_OF
-	{ "offb", offb_init, offb_setup },
-#endif
-#ifdef CONFIG_FB_SBUS
-	{ "sbus", sbusfb_init, sbusfb_setup },
-#endif
 #ifdef CONFIG_FB_ATY
 	{ "atyfb", atyfb_init, atyfb_setup },
+#endif
+#ifdef CONFIG_FB_OF
+	/*
+	 * Offb must be initialized _after_ all other frame buffer devices
+	 * that use PCI probing and PCI resources! [ Geert ]
+	 */
+	{ "offb", offb_init, offb_setup },
 #endif
 #ifdef CONFIG_FB_ATY128
 	{ "aty128fb", aty128fb_init, aty128fb_setup },
@@ -220,9 +228,6 @@ extern const char *global_mode_option;
 static initcall_t pref_init_funcs[FB_MAX];
 static int num_pref_init_funcs __initdata = 0;
 
-
-#define GET_INODE(i) MKDEV(FB_MAJOR, (i) << FB_MODES_SHIFT)
-#define GET_FB_VAR_IDX(node) (MINOR(node) & ((1 << FB_MODES_SHIFT)-1)) 
 
 struct fb_info *registered_fb[FB_MAX];
 int num_registered_fb = 0;
@@ -416,19 +421,18 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	if (fb->fb_mmap)
 		return fb->fb_mmap(info, file, vma);
 
-#if defined(__sparc__)
+#if defined(__sparc__) && !defined(__sparc_v9__)
 	/* Should never get here, all fb drivers should have their own
 	   mmap routines */
 	return -EINVAL;
 #else
-	/* non-SPARC... */
+	/* !sparc32... */
 
 	fb->fb_get_fix(&fix, PROC_CONSOLE(info), info);
 
 	/* frame buffer memory */
 	start = fix.smem_start;
 	len = (start & ~PAGE_MASK)+fix.smem_len;
-	start &= PAGE_MASK;
 	len = (len+~PAGE_MASK) & PAGE_MASK;		/* someone's on crack. */
 	if (off >= len) {
 		/* memory mapped io */
@@ -438,13 +442,36 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 			return -EINVAL;
 		start = fix.mmio_start;
 		len = (start & ~PAGE_MASK)+fix.mmio_len;
-		start &= PAGE_MASK;
 		len = (len+~PAGE_MASK) & PAGE_MASK;
 	}
+	start &= PAGE_MASK;
 	if ((vma->vm_end - vma->vm_start + off) > len)
 		return -EINVAL;
 	off += start;
 	vma->vm_pgoff = off >> PAGE_SHIFT;
+#if defined(__sparc_v9__)
+	vma->vm_flags |= (VM_SHM | VM_LOCKED);
+	{
+		unsigned long align, j;
+		for (align = 0x400000; align > PAGE_SIZE; align >>= 3)
+			if (len >= align && !((start & ~PAGE_MASK) & (align - 1)))
+				break;
+		if (align > PAGE_SIZE && vma->vm_start & (align - 1)) {
+			/* align as much as possible */
+			struct vm_area_struct *vmm;
+			j = (-vma->vm_start) & (align - 1);
+			vmm = find_vma(current->mm, vma->vm_start);
+			if (!vmm || vmm->vm_start >= vma->vm_end + j) {
+				vma->vm_start += j;
+				vma->vm_end += j;
+			}
+		}
+	}
+	if (io_remap_page_range(vma->vm_start, off,
+				vma->vm_end - vma->vm_start, vma->vm_page_prot, 0))
+		return -EAGAIN;
+	vma->vm_flags |= VM_IO;
+#else
 #if defined(__mc68000__)
 	if (CPU_IS_020_OR_030)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_NOCACHE030;
@@ -476,10 +503,28 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 	if (io_remap_page_range(vma->vm_start, off,
 			     vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
+#endif /* !__sparc_v9__ */
 	return 0;
-
-#endif /* defined(__sparc__) */
+#endif /* !sparc32 */
 }
+
+#if 1 /* to go away in 2.4.0 */
+int GET_FB_IDX(kdev_t rdev)
+{
+    int fbidx = MINOR(rdev);
+    if (fbidx >= 32) {
+	int newfbidx = fbidx >> 5;
+	static int warned = 0;
+	if (!(warned & (1<<newfbidx))) {
+	    warned |= 1<<newfbidx;
+	    printk("Warning: Remapping obsolete /dev/fb* minor %d to %d\n",
+		   fbidx, newfbidx);
+	}
+	fbidx = newfbidx;
+    }
+    return fbidx;
+}
+#endif
 
 static int
 fb_open(struct inode *inode, struct file *file)
@@ -533,7 +578,7 @@ register_framebuffer(struct fb_info *fb_info)
 	for (i = 0 ; i < FB_MAX; i++)
 		if (!registered_fb[i])
 			break;
-	fb_info->node=GET_INODE(i);
+	fb_info->node = MKDEV(FB_MAJOR, i);
 	registered_fb[i] = fb_info;
 	if (!fb_ever_opened[i]) {
 		/*
@@ -677,3 +722,6 @@ __setup("video=", video_setup);
 
 EXPORT_SYMBOL(register_framebuffer);
 EXPORT_SYMBOL(unregister_framebuffer);
+#if 1 /* to go away in 2.4.0 */
+EXPORT_SYMBOL(GET_FB_IDX);
+#endif

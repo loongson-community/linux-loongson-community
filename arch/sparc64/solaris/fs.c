@@ -1,7 +1,10 @@
-/* $Id: fs.c,v 1.13 1999/05/14 07:24:37 davem Exp $
+/* $Id: fs.c,v 1.15 2000/01/04 23:54:47 davem Exp $
  * fs.c: fs related syscall emulation for Solaris
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
+ *
+ * 1999-08-19 Implemented solaris F_FREESP (truncate)
+ *            fcntl, by Jason Rappleye (rappleye@ccr.buffalo.edu)
  */
 
 #include <linux/types.h>
@@ -572,20 +575,24 @@ out:
 	return error;
 }
 
-asmlinkage int solaris_open(u32 filename, int flags, u32 mode)
+extern asmlinkage long sparc32_open(const char * filename, int flags, int mode);
+
+asmlinkage int solaris_open(u32 fname, int flags, u32 mode)
 {
-	int (*sys_open)(const char *,int,int) = 
-		(int (*)(const char *,int,int))SYS(open);
+	const char *filename = (const char *)(long)fname;
 	int fl = flags & 0xf;
 
-/*	if (flags & 0x2000) - allow LFS			*/
+	/* Translate flags first. */
+	if (flags & 0x2000) fl |= O_LARGEFILE;
 	if (flags & 0x8050) fl |= O_SYNC;
 	if (flags & 0x80) fl |= O_NONBLOCK;
 	if (flags & 0x100) fl |= O_CREAT;
 	if (flags & 0x200) fl |= O_TRUNC;
 	if (flags & 0x400) fl |= O_EXCL;
 	if (flags & 0x800) fl |= O_NOCTTY;
-	return sys_open((const char *)A(filename), fl, mode);
+	flags = fl;
+
+	return sparc32_open(filename, flags, mode);
 }
 
 #define SOL_F_SETLK	6
@@ -661,7 +668,16 @@ asmlinkage int solaris_fcntl(unsigned fd, unsigned cmd, u32 arg)
 			__put_user_ret (0, &((struct sol_flock *)A(arg))->l_sysid, -EFAULT);
 			return ret;
 		}
-	}
+	case SOL_F_FREESP:
+	        { 
+		    int length;
+		    int (*sys_newftruncate)(unsigned int, unsigned long)=
+			    (int (*)(unsigned int, unsigned long))SYS(ftruncate);
+
+		    get_user_ret(length, &((struct sol_flock*)A(arg))->l_start, -EFAULT);
+		    return sys_newftruncate(fd, length);
+		}
+	};
 	return -EINVAL;
 }
 

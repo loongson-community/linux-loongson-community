@@ -185,6 +185,8 @@ static void rd_request(request_queue_t * q)
 {
 	unsigned int minor;
 	unsigned long offset, len;
+	struct buffer_head *rbh;
+	struct buffer_head *sbh;
 
 repeat:
 	INIT_REQUEST;
@@ -211,16 +213,66 @@ repeat:
 	}
 
 	/*
-	 * If we're reading, fill the buffer with 0's.  This is okay since
-         * we're using protected buffers which should never get freed...
+	 * This has become somewhat more complicated with the addition of
+	 * the page cache.  The problem is that in some cases the furnished
+	 * buffer is "real", i.e., part of the existing ramdisk, while in
+	 * others it is "unreal", e.g., part of a page.  In the first case
+	 * not much needs to be done, while in the second, some kind of
+	 * transfer is needed.
+ 	 *
+	 * The two cases are distinguished here by checking whether the
+	 * real buffer is already in the buffer cache, and whether it is
+	 * the same as the one supplied.
 	 *
-	 * If we're writing, we protect the buffer.
-  	 */
+	 * There are three cases with read/write to consider:
+	 *
+	 * 1. Supplied buffer matched one in the buffer cache:
+	 *    Read - Clear the buffer, as it wasn't already valid.
+	 *    Write - Mark the buffer as "Protected".
+	 *
+	 * 2. Supplied buffer mismatched one in the buffer cache:
+	 *    Read - Copy the data from the buffer cache entry.
+	 *    Write - Copy the data to the buffer cache entry.
+	 *
+	 * 3  No buffer cache entry existed:
+	 *    Read - Clear the supplied buffer, but do not create a real
+	 *    one.
+	 *    Write - Create a real buffer, copy the data to it, and mark
+	 *    it as "Protected".
+	 *
+	 * NOTE: There seems to be some schizophrenia here - the logic
+	 * using "len" seems to assume arbitrary request lengths, while
+	 * the "protect" logic assumes a single buffer cache entry.
+	 * This seems to be left over from the ancient contiguous ramdisk
+	 * logic.
+	 */
 
-	if (CURRENT->cmd == READ) 
-		memset(CURRENT->buffer, 0, len); 
-	else
-		set_bit(BH_Protected, &CURRENT->bh->b_state);
+	sbh = CURRENT->bh;
+	rbh = get_hash_table(sbh->b_dev, sbh->b_blocknr, sbh->b_size);
+	if (sbh == rbh) {
+		if (CURRENT->cmd == READ) 
+			memset(CURRENT->buffer, 1, len);
+	} else if (rbh) {
+		if (CURRENT->cmd == READ)
+			memcpy(CURRENT->buffer, rbh->b_data, rbh->b_size);
+		else
+			memcpy(rbh->b_data, CURRENT->buffer, rbh->b_size);
+	} else { /* !rbh */
+		if (CURRENT->cmd == READ)
+			memset(sbh->b_data, 2, len);
+		else {
+			rbh = getblk(sbh->b_dev, sbh->b_blocknr, sbh->b_size);
+			if (rbh)
+				memcpy(rbh->b_data, CURRENT->buffer,
+				    rbh->b_size);
+			else
+				BUG();	/* No buffer, what to do here? */
+		}
+	}
+	if (rbh) {
+ 		set_bit(BH_Protected, &rbh->b_state);
+		brelse(rbh);
+	}
 
 	end_request(1);
 	goto repeat;
@@ -327,18 +379,10 @@ static int rd_release(struct inode * inode, struct file * filp)
 	return 0;
 }
 
-static struct file_operations fd_fops = {
-	NULL,		/* lseek - default */
-	block_read,	/* read - block dev read */
-	block_write,	/* write - block dev write */
-	NULL,		/* readdir - not here! */
-	NULL,		/* poll */
-	rd_ioctl, 	/* ioctl */
-	NULL,		/* mmap */
-	rd_open,	/* open */
-	NULL,		/* flush */
-	rd_release,	/* module needs to decrement use count */
-	block_fsync	/* fsync */ 
+static struct block_device_operations fd_fops = {
+	open:		rd_open,
+	release:	rd_release,
+	ioctl:		rd_ioctl,
 };
 
 /* Before freeing the module, invalidate all of the protected buffers! */

@@ -211,7 +211,7 @@ repeat:
 	spin_unlock(&pagecache_lock);
 }
 
-int shrink_mmap(int priority, int gfp_mask)
+int shrink_mmap(int priority, int gfp_mask, zone_t *zone)
 {
 	int ret = 0, count;
 	LIST_HEAD(young);
@@ -239,9 +239,7 @@ int shrink_mmap(int priority, int gfp_mask)
 
 		dispose = &old;
 		/* don't account passes over not DMA pages */
-		if ((gfp_mask & __GFP_DMA) && !PageDMA(page))
-			goto dispose_continue;
-		if (!(gfp_mask & __GFP_HIGHMEM) && PageHighMem(page))
+		if (zone && (!memclass(page->zone, zone)))
 			goto dispose_continue;
 
 		count--;
@@ -1298,7 +1296,7 @@ out:
  * it in the page cache, and handles the special cases reasonably without
  * having a lot of duplicated code.
  */
-static struct page * filemap_nopage(struct vm_area_struct * area,
+struct page * filemap_nopage(struct vm_area_struct * area,
 	unsigned long address, int no_share)
 {
 	int error;
@@ -1595,7 +1593,7 @@ static inline int filemap_sync_pmd_range(pgd_t * pgd,
 	return error;
 }
 
-static int filemap_sync(struct vm_area_struct * vma, unsigned long address,
+int filemap_sync(struct vm_area_struct * vma, unsigned long address,
 	size_t size, unsigned int flags)
 {
 	pgd_t * dir;
@@ -1620,7 +1618,9 @@ static int filemap_sync(struct vm_area_struct * vma, unsigned long address,
  */
 static void filemap_unmap(struct vm_area_struct *vma, unsigned long start, size_t len)
 {
+	lock_kernel();
 	filemap_sync(vma, start, len, MS_ASYNC);
+	unlock_kernel();
 }
 
 /*

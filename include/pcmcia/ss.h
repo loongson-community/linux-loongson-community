@@ -30,12 +30,6 @@
 #ifndef _LINUX_SS_H
 #define _LINUX_SS_H
 
-/* For RegisterCallback */
-typedef struct ss_callback_t {
-    void	(*handler)(void *info, u_int events);
-    void	*info;
-} ss_callback_t;
-
 /* Definitions for card status flags for GetStatus */
 #define SS_WRPROT	0x0001
 #define SS_CARDLOCK	0x0002
@@ -58,8 +52,7 @@ typedef struct socket_cap_t {
     u_int	irq_mask;
     u_int	map_size;
     u_char	pci_irq;
-    u_char	cardbus;
-    struct pci_bus *cb_bus;
+    struct pci_dev *cb_dev;
     struct bus_operations *bus;
 } socket_cap_t;
 
@@ -77,6 +70,8 @@ typedef struct socket_state_t {
     u_char	Vcc, Vpp;
     u_char	io_irq;
 } socket_state_t;
+
+extern socket_state_t dead_socket;
 
 /* Socket configuration flags */
 #define SS_PWR_AUTO	0x0010
@@ -120,11 +115,28 @@ typedef struct cb_bridge_map {
     u_int	start, stop;
 } cb_bridge_map;
 
-enum ss_service {
-    SS_RegisterCallback, SS_InquireSocket,
-    SS_GetStatus, SS_GetSocket, SS_SetSocket,
-    SS_GetIOMap, SS_SetIOMap, SS_GetMemMap, SS_SetMemMap,
-    SS_GetBridge, SS_SetBridge, SS_ProcSetup
+/*
+ * Socket operations.
+ */
+struct pccard_operations {
+	int (*init)(unsigned int sock);
+	int (*suspend)(unsigned int sock);
+	int (*register_callback)(unsigned int sock, void (*handler)(void *, unsigned int), void * info);
+	int (*inquire_socket)(unsigned int sock, socket_cap_t *cap);
+	int (*get_status)(unsigned int sock, u_int *value);
+	int (*get_socket)(unsigned int sock, socket_state_t *state);
+	int (*set_socket)(unsigned int sock, socket_state_t *state);
+	int (*get_io_map)(unsigned int sock, struct pccard_io_map *io);
+	int (*set_io_map)(unsigned int sock, struct pccard_io_map *io);
+	int (*get_mem_map)(unsigned int sock, struct pccard_mem_map *mem);
+	int (*set_mem_map)(unsigned int sock, struct pccard_mem_map *mem);
+	void (*proc_setup)(unsigned int sock, struct proc_dir_entry *base);
 };
+
+/*
+ *  Calls to set up low-level "Socket Services" drivers
+ */
+extern int register_ss_entry(int nsock, struct pccard_operations *ops);
+extern void unregister_ss_entry(struct pccard_operations *ops);
 
 #endif /* _LINUX_SS_H */

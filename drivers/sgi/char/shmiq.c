@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.15 1999/12/04 03:59:05 ralf Exp $
+/* $Id: shmiq.c,v 1.16 2000/01/29 01:42:19 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -452,8 +452,6 @@ file_operations shmiq_fops =
         shmiq_qcntl_close,      /* close */
         NULL,                   /* fsync */
         shmiq_qcntl_fasync,     /* fasync */
-        NULL,                   /* check_media_change */
-        NULL,                   /* revalidate */
 };
 
 void

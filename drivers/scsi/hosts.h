@@ -397,6 +397,16 @@ struct Scsi_Host
         __attribute__ ((aligned (sizeof(unsigned long))));
 };
 
+/*
+ * These two functions are used to allocate and free a pseudo device
+ * which will connect to the host adapter itself rather than any
+ * physical device.  You must deallocate when you are done with the
+ * thing.  This physical pseudo-device isn't real and won't be available
+ * from any high-level drivers.
+ */
+extern void scsi_free_host_dev(Scsi_Device * SDpnt);
+extern Scsi_Device * scsi_get_host_dev(struct Scsi_Host * SHpnt);
+
 extern struct Scsi_Host * scsi_hostlist;
 extern struct Scsi_Device_Template * scsi_devicelist;
 
@@ -437,6 +447,8 @@ struct Scsi_Device_Template
     struct module * module;	  /* Used for loadable modules */
     unsigned char scsi_type;
     unsigned char major;
+    unsigned char min_major;      /* Minimum major in range. */ 
+    unsigned char max_major;      /* Maximum major in range. */
     unsigned char nr_dev;	  /* Number currently attached */
     unsigned char dev_noticed;	  /* Number of devices detected. */
     unsigned char dev_max;	  /* Current size of arrays */
@@ -447,7 +459,8 @@ struct Scsi_Device_Template
     void (*finish)(void);	  /* Perform initialization after attachment */
     int (*attach)(Scsi_Device *); /* Attach devices to arrays */
     void (*detach)(Scsi_Device *);
-    int (*init_command)(Scsi_Cmnd *);     /* Used by new queueing code. */
+    int (*init_command)(Scsi_Cmnd *);     /* Used by new queueing code. 
+                                           Selects command for blkdevs */
 };
 
 extern struct Scsi_Device_Template sd_template;

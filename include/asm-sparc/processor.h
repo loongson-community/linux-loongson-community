@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.72 1999/08/14 03:52:04 anton Exp $
+/* $Id: processor.h,v 1.75 2000/01/07 20:21:42 davem Exp $
  * include/asm-sparc/processor.h
  *
  * Copyright (C) 1994 David S. Miller (davem@caip.rutgers.edu)
@@ -161,7 +161,34 @@ extern pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 #define release_segments(mm)		do { } while (0)
 #define forget_segments()		do { } while (0)
 
-unsigned long get_wchan(struct task_struct *p);
+#define get_wchan(__TSK) \
+({	extern void scheduling_functions_start_here(void); \
+	extern void scheduling_functions_end_here(void); \
+	unsigned long pc, fp, bias = 0; \
+	unsigned long task_base = (unsigned long) (__TSK); \
+        unsigned long __ret = 0; \
+	struct reg_window *rw; \
+	int count = 0; \
+	if (!(__TSK) || (__TSK) == current || \
+            (__TSK)->state == TASK_RUNNING) \
+		goto __out; \
+	fp = (__TSK)->thread.ksp + bias; \
+	do { \
+		/* Bogus frame pointer? */ \
+		if (fp < (task_base + sizeof(struct task_struct)) || \
+		    fp >= (task_base + (2 * PAGE_SIZE))) \
+			break; \
+		rw = (struct reg_window *) fp; \
+		pc = rw->ins[7]; \
+		if (pc < ((unsigned long) scheduling_functions_start_here) || \
+                    pc >= ((unsigned long) scheduling_functions_end_here)) { \
+			__ret = pc; \
+			goto __out; \
+		} \
+		fp = rw->ins[6] + bias; \
+	} while (++count < 16); \
+__out:	__ret; \
+})
 
 #define KSTK_EIP(tsk)  ((tsk)->thread.kregs->pc)
 #define KSTK_ESP(tsk)  ((tsk)->thread.kregs->u_regs[UREG_FP])
@@ -177,6 +204,8 @@ BTFIXUPDEF_CALL(void, free_task_struct, struct task_struct *)
 
 #define alloc_task_struct() BTFIXUP_CALL(alloc_task_struct)()
 #define free_task_struct(tsk) BTFIXUP_CALL(free_task_struct)(tsk)
+
+/* XXX Anton, here is where you implement get_task_struct et al. */
 
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)

@@ -103,6 +103,8 @@
 #define COMPAQ_SMART2_MAJOR6	78
 #define COMPAQ_SMART2_MAJOR7	79
 
+#define LVM_BLK_MAJOR	58	/* Logical Volume Manager */
+
 #define SPECIALIX_NORMAL_MAJOR 75
 #define SPECIALIX_CALLOUT_MAJOR 76
 
@@ -116,6 +118,8 @@
 #define IDE9_MAJOR	91
 
 #define AURORA_MAJOR 79
+
+#define PHONE_MAJOR	100
 
 #define RTF_MAJOR	150
 #define RAW_MAJOR	162

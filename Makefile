@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 32
+SUBLEVEL = 38
 EXTRAVERSION =
 
 ARCH = mips
@@ -22,7 +22,7 @@ CROSS_COMPILE 	=
 
 AS	=$(CROSS_COMPILE)as
 LD	=$(CROSS_COMPILE)ld
-CC	=$(CROSS_COMPILE)gcc -D__KERNEL__ -I$(HPATH)
+CC	=$(CROSS_COMPILE)gcc
 CPP	=$(CC) -E
 AR	=$(CROSS_COMPILE)ar
 NM	=$(CROSS_COMPILE)nm
@@ -87,15 +87,17 @@ SVGA_MODE=	-DSVGA_MODE=NORMAL_VGA
 # standard CFLAGS
 #
 
-CFLAGS = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
+CPPFLAGS := -D__KERNEL__ -I$(HPATH)
+
+ifdef CONFIG_SMP
+CPPFLAGS += -D__SMP__
+endif
+
+CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
+AFLAGS := $(CPPFLAGS)
 
 # use '-fno-strict-aliasing', but only if the compiler can take it
 CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
-
-ifdef CONFIG_SMP
-CFLAGS += -D__SMP__
-AFLAGS += -D__SMP__
-endif
 
 #
 # if you want the RAM disk device, define this to be the
@@ -108,7 +110,6 @@ endif
 #
 
 CORE_FILES	=kernel/kernel.o mm/mm.o fs/fs.o ipc/ipc.o
-FILESYSTEMS	=fs/filesystems.a
 NETWORKS	=net/network.a
 DRIVERS		=drivers/block/block.a \
 		 drivers/char/char.o \
@@ -144,6 +145,10 @@ endif
 
 ifdef CONFIG_WAN
 DRIVERS := $(DRIVERS) drivers/net/wan/wan.a
+endif
+
+ifeq ($(CONFIG_ARCNET),y)
+DRIVERS := $(DRIVERS) drivers/net/arcnet/arcnet.a
 endif
 
 ifdef CONFIG_ATM
@@ -218,6 +223,14 @@ ifdef CONFIG_HAMRADIO
 DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.o
 endif
 
+ifeq ($(CONFIG_I2C),y)
+DRIVERS := $(DRIVERS) drivers/i2c/i2c.a
+endif
+
+ifeq ($(CONFIG_PHONE),y)
+DRIVERS := $(DRIVERS) drivers/telephony/telephony.a
+endif
+
 ifeq ($(CONFIG_TC),y)
 DRIVERS := $(DRIVERS) drivers/tc/tc.a
 endif
@@ -251,7 +264,6 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 	$(LD) $(LINKFLAGS) $(HEAD) init/main.o init/version.o \
 		--start-group \
 		$(CORE_FILES) \
-		$(FILESYSTEMS) \
 		$(NETWORKS) \
 		$(DRIVERS) \
 		$(LIBS) \
@@ -332,6 +344,18 @@ init/main.o: init/main.c include/config/MARKER
 fs lib mm ipc kernel drivers net: dummy
 	$(MAKE) $(subst $@, _dir_$@, $@)
 
+TAGS: dummy
+	etags `find include/asm-$(ARCH) -name '*.h'`
+	find include -type d \( -name "asm-*" -o -name config \) -prune -o -name '*.h' -print | xargs etags -a
+	find $(SUBDIRS) init -name '*.c' | xargs etags -a
+
+# Exuberant ctags works better with -I 
+tags: dummy
+	CTAGSF=`ctags --version | grep -i exuberant >/dev/null && echo "-I __initdata,__initlocaldata,__exitdata,EXPORT_SYMBOL,EXPORT_SYMBOL_NOVERS"`; \
+	ctags $$CTAGSF `find include/asm-$(ARCH) -name '*.h'` && \
+	find include -type d \( -name "asm-*" -o -name config \) -prune -o -name '*.h' -print | xargs ctags $$CTAGSF -a && \
+	find $(SUBDIRS) init -name '*.c' | xargs ctags $$CTAGSF -a
+
 MODFLAGS += -DMODULE
 ifdef CONFIG_MODULES
 ifdef CONFIG_MODVERSIONS
@@ -378,7 +402,7 @@ modules_install:
 	if [ -f PCMCIA_NET_MODULES ]; then inst_mod PCMCIA_NET_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_CHAR_MODULES ]; then inst_mod PCMCIA_CHAR_MODULES pcmcia; fi; \
 	\
-	ls *.o > $$MODLIB/.allmods; \
+	ls -1 -U *.o | sort > $$MODLIB/.allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 $$MODLIB/.allmods - > $$MODLIB/.misc; \
 	if [ -s $$MODLIB/.misc ]; then inst_mod $$MODLIB/.misc misc; fi; \
 	rm -f $$MODLIB/.misc $$MODLIB/.allmods; \
@@ -436,7 +460,7 @@ distclean: mrproper
 	find . -type f \( -name core -o -name '*.orig' -o -name '*.rej' \
 		-o -name '*~' -o -name '*.bak' -o -name '#*#' \
 		-o -name '.*.orig' -o -name '.*.rej' -o -name '.SUMS' \
-		-o -size 0 -o -name TAGS \) -print | env -i xargs rm -f
+		-o -size 0 -o -name TAGS -o -name tags \) -print | env -i xargs rm -f
 
 backup: mrproper
 	cd .. && tar cf - linux/ | gzip -9 > backup.gz

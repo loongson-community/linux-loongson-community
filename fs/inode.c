@@ -257,7 +257,10 @@ void clear_inode(struct inode *inode)
 		DQUOT_DROP(inode);
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->clear_inode)
 		inode->i_sb->s_op->clear_inode(inode);
-
+	if (inode->i_bdev) {
+		bdput(inode->i_bdev);
+		inode->i_bdev = NULL;
+	}
 	inode->i_state = 0;
 }
 
@@ -392,7 +395,7 @@ void prune_icache(int goal)
 	dispose_list(freeable);
 }
 
-int shrink_icache_memory(int priority, int gfp_mask)
+int shrink_icache_memory(int priority, int gfp_mask, zone_t *zone)
 {
 	if (gfp_mask & __GFP_IO)
 	{
@@ -472,6 +475,7 @@ static void clean_inode(struct inode *inode)
 	inode->i_generation = 0;
 	memset(&inode->i_dquot, 0, sizeof(inode->i_dquot));
 	inode->i_pipe = NULL;
+	inode->i_bdev = NULL;
 }
 
 /*

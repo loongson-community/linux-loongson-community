@@ -1464,6 +1464,9 @@ tulip_up(struct net_device *dev)
 	outl(tp->csr0, ioaddr + CSR0);
 	udelay(2);
 
+	if (tulip_tbl[tp->chip_id].flags & HAS_ACPI)
+		pcibios_write_config_dword(tp->pci_bus, tp->pci_devfn, 0x40, 0x00000000);
+
 	/* Clear the tx ring */
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		tp->tx_skbuff[i] = 0;
@@ -3321,10 +3324,10 @@ static void tulip_detach(dev_node_t *node)
 	if (*devp) {
 		struct net_device *dev = *devp;
 		struct tulip_private *tp = dev->priv;
+		*devp = *next;
 		unregister_netdev(dev);
 		kfree(dev);
 		kfree(tp);
-		*devp = *next;
 		kfree(node);
 		MOD_DEC_USE_COUNT;
 	}

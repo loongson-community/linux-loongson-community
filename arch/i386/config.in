@@ -119,6 +119,13 @@ tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
 
 source drivers/parport/Config.in
 
+bool 'ACPI support' CONFIG_ACPI
+if [ "$CONFIG_ACPI" != "n" ]; then
+   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+      bool '  Enter S1 for sleep (EXPERIMENTAL)' CONFIG_ACPI_S1_SLEEP
+   fi
+fi
+
 bool 'Advanced Power Management BIOS support' CONFIG_APM
 if [ "$CONFIG_APM" != "n" ]; then
    bool '  Ignore USER SUSPEND' CONFIG_APM_IGNORE_USER_SUSPEND
@@ -129,6 +136,8 @@ if [ "$CONFIG_APM" != "n" ]; then
    bool '  Ignore multiple suspend/resume cycles' CONFIG_APM_IGNORE_SUSPEND_BOUNCE
    bool '  RTC stores time in GMT' CONFIG_APM_RTC_IS_GMT
    bool '  Allow interrupts during APM BIOS calls' CONFIG_APM_ALLOW_INTS
+   bool '  Entry point offset fix (some Acer laptops)' CONFIG_APM_BAD_ENTRY_OFFSET
+   bool '  Use real mode APM BIOS call to power off' CONFIG_APM_REAL_MODE_POWER_OFF
 fi
 
 endmenu
@@ -141,6 +150,8 @@ source drivers/block/Config.in
 if [ "$CONFIG_NET" = "y" ]; then
    source net/Config.in
 fi
+
+source drivers/telephony/Config.in
 
 mainmenu_option next_comment
 comment 'SCSI support'

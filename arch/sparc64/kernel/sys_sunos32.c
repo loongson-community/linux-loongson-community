@@ -1,4 +1,4 @@
-/* $Id: sys_sunos32.c,v 1.31 1999/08/30 10:01:19 davem Exp $
+/* $Id: sys_sunos32.c,v 1.35 2000/01/06 23:51:50 davem Exp $
  * sys_sunos32.c: SunOS binary compatability layer on sparc64.
  *
  * Copyright (C) 1995, 1996, 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -162,10 +162,10 @@ asmlinkage int sunos_brk(u32 baddr)
 	 * simple, it hopefully works in most obvious cases.. Easy to
 	 * fool it, but this should catch most mistakes.
 	 */
-	freepages = atomic_read(&buffermem) >> PAGE_SHIFT;
+	freepages = atomic_read(&buffermem_pages) >> PAGE_SHIFT;
 	freepages += atomic_read(&page_cache_size);
 	freepages >>= 1;
-	freepages += nr_free_pages;
+	freepages += nr_free_pages();
 	freepages += nr_swap_pages;
 	freepages -= num_physpages >> 4;
 	freepages -= (newbrk-oldbrk) >> PAGE_SHIFT;
@@ -685,7 +685,7 @@ struct sunos_nfs_mount_args {
 	char       *netname;   /* server's netname */
 };
 
-extern int do_mount(kdev_t, const char *, const char *, char *, int, void *);
+extern int do_mount(struct block_device *, const char *, const char *, char *, int, void *);
 extern dev_t get_unnamed_dev(void);
 extern void put_unnamed_dev(dev_t);
 extern asmlinkage int sys_mount(char *, char *, char *, unsigned long, void *);
@@ -762,12 +762,10 @@ static int get_default (int value, int def_value)
 /* XXXXXXXXXXXXXXXXXXXX */
 asmlinkage int sunos_nfs_mount(char *dir_name, int linux_flags, void *data)
 {
-	int  ret = -ENODEV;
 	int  server_fd;
 	char *the_name;
 	struct nfs_mount_data linux_nfs_mount;
 	struct sunos_nfs_mount_args *sunos_mount = data;
-	dev_t dev;
 
 	/* Ok, here comes the fun part: Linux's nfs mount needs a
 	 * socket connection to the server, but SunOS mount does not
@@ -809,13 +807,7 @@ asmlinkage int sunos_nfs_mount(char *dir_name, int linux_flags, void *data)
 	linux_nfs_mount.hostname [255] = 0;
 	putname (the_name);
 
-	dev = get_unnamed_dev ();
-	
-	ret = do_mount (dev, "", dir_name, "nfs", linux_flags, &linux_nfs_mount);
-	if (ret)
-	    put_unnamed_dev(dev);
-
-	return ret;
+	return do_mount (NULL, "", dir_name, "nfs", linux_flags, &linux_nfs_mount);
 }
 
 /* XXXXXXXXXXXXXXXXXXXX */
@@ -1274,15 +1266,14 @@ asmlinkage int sunos_shmsys(int op, u32 arg1, u32 arg2, u32 arg3)
 	return rval;
 }
 
-asmlinkage int sunos_open(u32 filename, int flags, int mode)
-{
-	int ret;
+extern asmlinkage long sparc32_open(const char * filename, int flags, int mode);
 
-	lock_kernel();
+asmlinkage int sunos_open(u32 fname, int flags, int mode)
+{
+	const char *filename = (const char *)(long)fname;
+
 	current->personality |= PER_BSD;
-	ret = sys_open ((char *)A(filename), flags, mode);
-	unlock_kernel();
-	return ret;
+	return sparc32_open(filename, flags, mode);
 }
 
 #define SUNOS_EWOULDBLOCK 35

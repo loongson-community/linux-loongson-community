@@ -174,6 +174,8 @@ extern inline void acpi_dev_idle(struct acpi_dev *dev)
 	}
 }
 
+extern int acpi_active;
+
 #else /* CONFIG_ACPI */
 
 extern inline struct acpi_dev*
@@ -235,12 +237,6 @@ extern void (*acpi_power_off)(void);
   (((val) * (ACPI_TMR_HZ / 10000)) / 100)
 #define ACPI_TMR_TICKS_TO_uS(ticks) \
   (((ticks) * 100) / (ACPI_TMR_HZ / 10000))
-
-/* CPU cycles -> PM timer cycles, looks somewhat heuristic but
-   (ticks = 3/11 * CPU_MHz + 2) comes pretty close for my systems
- */
-#define ACPI_CPU_TO_TMR_TICKS(cycles) \
-  ((cycles) / (3 * (loops_per_sec + 2500) / 500000 / 11 + 2))
 
 /* PM2_CNT flags */
 #define ACPI_ARB_DIS 0x01

@@ -1,4 +1,4 @@
-/* $Id: sparc64_ksyms.c,v 1.64 1999/09/05 09:33:38 ecd Exp $
+/* $Id: sparc64_ksyms.c,v 1.70 2000/01/07 18:15:18 jj Exp $
  * arch/sparc64/kernel/sparc64_ksyms.c: Sparc64 specific ksyms support.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -55,8 +55,6 @@ struct poll {
 extern unsigned prom_cpu_nodes[64];
 extern void die_if_kernel(char *str, struct pt_regs *regs);
 extern pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
-extern unsigned long sunos_mmap(unsigned long, unsigned long, unsigned long,
-				unsigned long, unsigned long, unsigned long);
 void _sigpause_common (unsigned int set, struct pt_regs *);
 extern void *__bzero(void *, size_t);
 extern void *__bzero_noasi(void *, size_t);
@@ -82,6 +80,7 @@ extern int svr4_setcontext(svr4_ucontext_t *uc, struct pt_regs *regs);
 extern int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
 extern int sys32_ioctl(unsigned int fd, unsigned int cmd, u32 arg);
 extern int (*handle_mathemu)(struct pt_regs *, struct fpustate *);
+extern long sparc32_open(const char * filename, int flags, int mode);
                 
 extern void bcopy (const char *, char *, int);
 extern int __ashrdi3(int, int);
@@ -117,11 +116,18 @@ __attribute__((section("__ksymtab"))) =				\
 
 /* used by various drivers */
 #ifdef __SMP__
+#ifndef SPIN_LOCK_DEBUG
 /* Out of line rw-locking implementation. */
 EXPORT_SYMBOL_PRIVATE(read_lock);
 EXPORT_SYMBOL_PRIVATE(read_unlock);
 EXPORT_SYMBOL_PRIVATE(write_lock);
 EXPORT_SYMBOL_PRIVATE(write_unlock);
+#endif
+
+/* rw semaphores */
+EXPORT_SYMBOL_NOVERS(__down_read_failed);
+EXPORT_SYMBOL_NOVERS(__down_write_failed);
+EXPORT_SYMBOL_NOVERS(__rwsem_wake);
 
 /* Kernel wide locking */
 EXPORT_SYMBOL(kernel_flag);
@@ -175,23 +181,25 @@ EXPORT_SYMBOL_PRIVATE(flushw_user);
 
 EXPORT_SYMBOL(mstk48t02_regs);
 EXPORT_SYMBOL(request_fast_irq);
-EXPORT_SYMBOL(sparc_alloc_io);
-EXPORT_SYMBOL(sparc_free_io);
-EXPORT_SYMBOL(sparc_ultra_unmapioaddr);
-EXPORT_SYMBOL(mmu_get_scsi_sgl);
-EXPORT_SYMBOL(mmu_get_scsi_one);
-EXPORT_SYMBOL(sparc_dvma_malloc);
-EXPORT_SYMBOL(mmu_release_scsi_one);
-EXPORT_SYMBOL(mmu_release_scsi_sgl);
 #if CONFIG_SBUS
-EXPORT_SYMBOL(mmu_set_sbus64);
-EXPORT_SYMBOL(SBus_chain);
+EXPORT_SYMBOL(sbus_root);
 EXPORT_SYMBOL(dma_chain);
+EXPORT_SYMBOL(sbus_set_sbus64);
+EXPORT_SYMBOL(sbus_alloc_consistant);
+EXPORT_SYMBOL(sbus_free_consistant);
+EXPORT_SYMBOL(sbus_map_single);
+EXPORT_SYMBOL(sbus_unmap_single);
+EXPORT_SYMBOL(sbus_map_sg);
+EXPORT_SYMBOL(sbus_unmap_sg);
+EXPORT_SYMBOL(sbus_dma_sync_single);
+EXPORT_SYMBOL(sbus_dma_sync_sg);
 #endif
 #if CONFIG_PCI
 EXPORT_SYMBOL(ebus_chain);
+#ifndef NEW_PCI_DMA_MAP
 EXPORT_SYMBOL(pci_dvma_v2p_hash);
 EXPORT_SYMBOL(pci_dvma_p2v_hash);
+#endif
 EXPORT_SYMBOL(pci_memspace_mask);
 EXPORT_SYMBOL(empty_zero_page);
 EXPORT_SYMBOL(outsb);
@@ -204,7 +212,6 @@ EXPORT_SYMBOL(insl);
 
 /* Solaris/SunOS binary compatibility */
 EXPORT_SYMBOL(_sigpause_common);
-EXPORT_SYMBOL(sunos_mmap);
 
 /* Should really be in linux/kernel/ksyms.c */
 EXPORT_SYMBOL(dump_thread);
@@ -229,10 +236,10 @@ EXPORT_SYMBOL(prom_node_has_property);
 EXPORT_SYMBOL(prom_setprop);
 EXPORT_SYMBOL(saved_command_line);
 EXPORT_SYMBOL(prom_getname);
+EXPORT_SYMBOL(prom_finddevice);
 EXPORT_SYMBOL(prom_feval);
 EXPORT_SYMBOL(prom_getbool);
 EXPORT_SYMBOL(prom_getstring);
-EXPORT_SYMBOL(prom_apply_sbus_ranges);
 EXPORT_SYMBOL(prom_getint);
 EXPORT_SYMBOL(prom_getintdefault);
 EXPORT_SYMBOL(__prom_getchild);
@@ -274,6 +281,7 @@ EXPORT_SYMBOL(svr4_setcontext);
 EXPORT_SYMBOL(prom_cpu_nodes);
 EXPORT_SYMBOL(sys_ioctl);
 EXPORT_SYMBOL(sys32_ioctl);
+EXPORT_SYMBOL(sparc32_open);
 EXPORT_SYMBOL(move_addr_to_kernel);
 EXPORT_SYMBOL(move_addr_to_user);
 #endif
@@ -311,5 +319,3 @@ EXPORT_SYMBOL_NOVERS(memcmp);
 EXPORT_SYMBOL_NOVERS(memcpy);
 EXPORT_SYMBOL_NOVERS(memset);
 EXPORT_SYMBOL_NOVERS(memmove);
-
-EXPORT_SYMBOL(get_wchan);

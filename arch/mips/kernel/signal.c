@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.23 1999/10/09 00:00:58 ralf Exp $
+/* $Id: signal.c,v 1.24 2000/02/04 07:40:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -22,7 +22,7 @@
 
 #include <asm/asm.h>
 #include <asm/bitops.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/stackframe.h>
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>

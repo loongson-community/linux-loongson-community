@@ -104,6 +104,12 @@ CONFIG_SKB_LARGE=y
 # CONFIG_ATALK is not set
 
 #
+# Telephony Support
+#
+# CONFIG_PHONE is not set
+# CONFIG_PHONE_IXJ is not set
+
+#
 # SCSI support
 #
 # CONFIG_SCSI is not set
@@ -196,6 +202,11 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_PPDEV is not set
 
 #
+# I2C support
+#
+# CONFIG_I2C is not set
+
+#
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
@@ -230,7 +241,7 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_DRM_TDFX is not set
 
 #
-# Support for USB
+# USB support
 #
 # CONFIG_USB is not set
 
@@ -244,6 +255,7 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set
 # CONFIG_VFAT_FS is not set
+# CONFIG_CRAMFS is not set
 # CONFIG_ISO9660_FS is not set
 # CONFIG_JOLIET is not set
 # CONFIG_MINIX_FS is not set

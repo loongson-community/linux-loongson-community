@@ -16,10 +16,6 @@
 #include <linux/sysrq.h>
 #include <linux/interrupt.h>
 
-#ifdef __alpha__
-#include <asm/machvec.h>
-#endif
-
 asmlinkage void sys_sync(void);	/* it's really int */
 extern void unblank_console(void);
 extern int C_A_D;
@@ -76,11 +72,12 @@ NORET_TYPE void panic(const char * fmt, ...)
 		machine_restart(NULL);
 	}
 #ifdef __sparc__
-	printk("Press L1-A to return to the boot prom\n");
-#endif
-#ifdef __alpha__
-	if (alpha_using_srm)
-		halt();
+	{
+		extern int stop_a_enabled;
+		/* Make sure the user can actually press L1-A */
+		stop_a_enabled = 1;
+		printk("Press L1-A to return to the boot prom\n");
+	}
 #endif
 	sti();
 	for(;;) {

@@ -375,7 +375,10 @@ static int loop_set_fd(struct loop_device *lo, kdev_t dev, unsigned int arg)
 	}
 
 	if (S_ISBLK(inode->i_mode)) {
-		error = blkdev_open(inode, file);
+		/* dentry will be wired, so... */
+		error = blkdev_get(inode->i_bdev, file->f_mode,
+				   file->f_flags, BDEV_FILE);
+
 		lo->lo_device = inode->i_rdev;
 		lo->lo_flags = 0;
 
@@ -482,7 +485,8 @@ static int loop_clr_fd(struct loop_device *lo, kdev_t dev)
 		return -EBUSY;
 
 	if (S_ISBLK(dentry->d_inode->i_mode))
-		blkdev_release (dentry->d_inode);
+		blkdev_put(dentry->d_inode->i_bdev, BDEV_FILE);
+
 	lo->lo_dentry = NULL;
 
 	if (lo->lo_backing_file != NULL) {
@@ -664,17 +668,10 @@ static int lo_release(struct inode *inode, struct file *file)
 	return err;
 }
 
-static struct file_operations lo_fops = {
-	NULL,			/* lseek - default */
-	block_read,		/* read - general block-dev read */
-	block_write,		/* write - general block-dev write */
-	NULL,			/* readdir - bad */
-	NULL,			/* poll */
-	lo_ioctl,		/* ioctl */
-	NULL,			/* mmap */
-	lo_open,		/* open */
-	NULL,			/* flush */
-	lo_release		/* release */
+static struct block_device_operations lo_fops = {
+	open:		lo_open,
+	release:	lo_release,
+	ioctl:		lo_ioctl,
 };
 
 /*

@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.46 1999/08/31 04:39:34 davem Exp $
+# $Id: Makefile,v 1.50 1999/12/21 04:02:24 davem Exp $
 # Makefile for the linux kernel.
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -17,16 +17,23 @@ all: kernel.o head.o init_task.o
 
 O_TARGET := kernel.o
 O_OBJS   := process.o setup.o cpu.o idprom.o \
-	    traps.o devices.o auxio.o ioport.o \
+	    traps.o devices.o auxio.o \
 	    irq.o ptrace.o time.o sys_sparc.o signal.o \
-	    unaligned.o sys_sunos32.o sunos_ioctl32.o \
-	    central.o pci.o pci_common.o pci_iommu.o \
+	    unaligned.o central.o pci.o pci_common.o pci_iommu.o \
 	    pci_psycho.o pci_sabre.o starfire.o semaphore.o \
-	    power.o
+	    power.o sbus.o iommu_common.o
 OX_OBJS  := sparc64_ksyms.o
 
 ifdef CONFIG_PCI
   O_OBJS += ebus.o
+endif
+
+ifdef CONFIG_SUNOS_EMUL
+  O_OBJS += sys_sunos32.o sunos_ioctl32.o
+else
+  ifdef CONFIG_SOLARIS_EMUL
+    O_OBJS += sys_sunos32.o sunos_ioctl32.o
+  endif
 endif
 
 ifdef CONFIG_SMP
@@ -74,11 +81,13 @@ check_asm: dummy
 	@echo -e "#  error Please issue 'make check_asm' in linux top-level directory first\n# endif\n#endif\n" >> asm_offsets.h
 	@echo -e "#ifndef CONFIG_SMP\n" >> asm_offsets.h
 	@echo "#include <linux/config.h>" > tmp.c
+	@echo "#undef __SMP__" >> tmp.c
 	@echo "#undef CONFIG_SMP" >> tmp.c
 	@echo "#include <linux/sched.h>" >> tmp.c
-	$(CC) -E tmp.c -o tmp.i
+	$(CC) $(CPPFLAGS) -E tmp.c -o tmp.i
 	@echo "/* Automatically generated. Do not edit. */" > check_asm.c
 	@echo "#include <linux/config.h>" >> check_asm.c
+	@echo "#undef __SMP__" >> check_asm.c
 	@echo "#undef CONFIG_SMP" >> check_asm.c
 	@echo "#include <linux/sched.h>" >> check_asm.c
 	@echo 'struct task_struct _task;' >> check_asm.c
@@ -92,7 +101,7 @@ check_asm: dummy
 	@rm -f tmp.[ci]
 	#$(CC) -o check_asm check_asm.c
 	# <hack> Until we can do this natively, a hack has to take place
-	$(CC) $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
+	$(CC) $(CPPFLAGS) $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
 	$(HOSTCC) -Wa,-Av9a -o check_asm check_asm.s
 	@rm -f check_asm.s
 	# </hack>
@@ -104,7 +113,7 @@ check_asm: dummy
 	@echo "#undef CONFIG_SMP" >> tmp.c
 	@echo "#define CONFIG_SMP 1" >> tmp.c
 	@echo "#include <linux/sched.h>" >> tmp.c
-	$(CC) -D__SMP__ -E tmp.c -o tmp.i
+	$(CC) $(CPPFLAGS) -D__SMP__ -E tmp.c -o tmp.i
 	@echo "/* Automatically generated. Do not edit. */" > check_asm.c
 	@echo "#include <linux/config.h>" >> check_asm.c
 	@echo "#undef CONFIG_SMP" >> check_asm.c
@@ -121,7 +130,7 @@ check_asm: dummy
 	@rm -f tmp.[ci]
 	#$(CC) -D__SMP__ -o check_asm check_asm.c
 	# <hack> Until we can do this natively, a hack has to take place
-	$(CC) -D__SMP__ $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
+	$(CC) $(CPPFLAGS) -D__SMP__ $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
 	$(HOSTCC) -Wa,-Av9a -o check_asm check_asm.s
 	@rm -f check_asm.s
 	# </hack>
@@ -129,7 +138,7 @@ check_asm: dummy
 	@rm -f check_asm check_asm.c
 	@echo -e "\n#else /* SPIN_LOCK_DEBUG */\n" >> asm_offsets.h
 	@echo "#include <linux/sched.h>" > tmp.c
-	$(CC) -D__SMP__ -DSPIN_LOCK_DEBUG -E tmp.c -o tmp.i
+	$(CC) $(CPPFLAGS) -D__SMP__ -DSPIN_LOCK_DEBUG -E tmp.c -o tmp.i
 	@echo "/* Automatically generated. Do not edit. */" > check_asm.c
 	@echo "#include <linux/config.h>" >> check_asm.c
 	@echo "#undef CONFIG_SMP" >> check_asm.c
@@ -146,7 +155,7 @@ check_asm: dummy
 	@rm -f tmp.[ci]
 	#$(CC) -D__SMP__ -DSPIN_LOCK_DEBUG -o check_asm check_asm.c
 	# <hack> Until we can do this natively, a hack has to take place
-	$(CC) -D__SMP__ -DSPIN_LOCK_DEBUG $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
+	$(CC) $(CPPFLAGS) -D__SMP__ -DSPIN_LOCK_DEBUG $(CMODEL_CFLAG) -ffixed-g4 -S -o check_asm.s check_asm.c
 	$(HOSTCC) -Wa,-Av9a -o check_asm check_asm.s
 	@rm -f check_asm.s
 	# </hack>

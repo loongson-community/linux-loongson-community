@@ -92,8 +92,8 @@ ENOSYS = 38
 	pushl %ecx; \
 	pushl %ebx; \
 	movl $(__KERNEL_DS),%edx; \
-	movl %dx,%ds; \
-	movl %dx,%es;
+	movl %edx,%ds; \
+	movl %edx,%es;
 
 #define RESTORE_ALL	\
 	popl %ebx;	\
@@ -288,15 +288,15 @@ error_code:
 	pushl %ecx
 	pushl %ebx
 	cld
-	movl %es,%cx
+	movl %es,%ecx
 	xchgl %eax, ORIG_EAX(%esp)	# orig_eax (get the error code. )
 	movl %esp,%edx
 	xchgl %ecx, ES(%esp)		# get the address and save es.
 	pushl %eax			# push the error code
 	pushl %edx
 	movl $(__KERNEL_DS),%edx
-	movl %dx,%ds
-	movl %dx,%es
+	movl %edx,%ds
+	movl %edx,%es
 	GET_CURRENT(%ebx)
 	call *%ecx
 	addl $8,%esp
@@ -595,7 +595,10 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_mmap2)
 	.long SYMBOL_NAME(sys_truncate64)
 	.long SYMBOL_NAME(sys_ftruncate64)
-	/* 195 */
+	.long SYMBOL_NAME(sys_stat64)		/* 195 */
+	.long SYMBOL_NAME(sys_lstat64)
+	.long SYMBOL_NAME(sys_fstat64)
+
 
 	/*
 	 * NOTE!! This doesn't have to be exact - we just have
@@ -603,6 +606,6 @@ ENTRY(sys_call_table)
 	 * entries. Don't panic if you notice that this hasn't
 	 * been shrunk every time we add a new system call.
 	 */
-	.rept NR_syscalls-194
+	.rept NR_syscalls-197
 		.long SYMBOL_NAME(sys_ni_syscall)
 	.endr

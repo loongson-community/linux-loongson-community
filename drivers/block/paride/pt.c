@@ -147,6 +147,7 @@ static int pt_drive_count;
 #include <linux/delay.h>
 #include <linux/malloc.h>
 #include <linux/mtio.h>
+#include <linux/wait.h>
 
 #include <asm/uaccess.h>
 
@@ -273,8 +274,6 @@ static struct file_operations pt_fops = {
         pt_release,             /* release */
         NULL,                   /* fsync */
         NULL,                   /* fasync */
-        NULL,                   /* media change ? */
-        NULL                    /* revalidate new media */
 };
 
 void pt_init_units( void )

@@ -23,55 +23,68 @@ M_OBJS   :=
 O_OBJS   := tty_io.o n_tty.o tty_ioctl.o mem.o random.o raw.o
 OX_OBJS  := pty.o misc.o
 
+KEYMAP   =defkeymap.o
+KEYBD    =pc_keyb.o
+CONSOLE  =console.o
+SERIAL   =serial.o
+
+ifeq ($(ARCH),m68k)
+  KEYMAP   =
+  KEYBD    =
+endif
+
+ifeq ($(ARCH),arm)
+  KEYMAP   =
+  KEYBD    =
+  CONSOLE  =
+  SERIAL   =
+endif
+
+ifeq ($(CONFIG_DECSTATION),y)
+  KEYBD    =
+  SERIAL   =
+endif
+
+ifeq ($(CONFIG_BAGET_MIPS),y)
+  KEYBD    =
+  SERIAL   =
+endif
+
+ifneq ($(CONFIG_SUN_SERIAL),)
+  SERIAL   =
+endif
+
 ifdef CONFIG_VT
 O_OBJS += vt.o vc_screen.o consolemap.o consolemap_deftbl.o
-OX_OBJS += console.o selection.o
+OX_OBJS += $(CONSOLE) selection.o
 endif
 
 ifeq ($(CONFIG_SERIAL),y)
-  ifeq ($(CONFIG_SUN_SERIAL),)
-    ifeq ($(CONFIG_SGI_SERIAL),)
-      ifeq ($(CONFIG_DECSTATION),)
-	ifeq ($(CONFIG_BAGET_MIPS),)
-      OX_OBJS += serial.o
-    endif
-  endif
-    endif
-  endif
+OX_OBJS += $(SERIAL)
 else
   ifeq ($(CONFIG_SERIAL),m)
-    ifeq ($(CONFIG_SUN_SERIAL),)
-      ifeq ($(CONFIG_SGI_SERIAL),)
-        ifeq ($(CONFIG_DECSTATION),)
-          ifeq ($(CONFIG_BAGET_MIPS),)
-      MX_OBJS += serial.o
-      endif
-    endif
-  endif
-    endif
+  MX_OBJS += $(SERIAL)
   endif
 endif
 
+ifeq ($(CONFIG_SERIAL_21285),y)
+O_OBJS += serial_21285.o
+endif
+
 ifndef CONFIG_SUN_KEYBOARD
-ifndef CONFIG_DECSTATION
-ifndef CONFIG_BAGET_MIPS
-ifdef CONFIG_VT
-OX_OBJS += keyboard.o
-endif
- ifneq ($(ARCH),m68k)
-   O_OBJS += pc_keyb.o defkeymap.o
- endif
+  ifdef CONFIG_VT
+    OX_OBJS += keyboard.o
+    O_OBJS  += $(KEYMAP) $(KEYBD)
+  endif
 else
-ifdef CONFIG_PCI
-O_OBJS += defkeymap.o
-OX_OBJS += keyboard.o
-endif
+  ifdef CONFIG_PCI
+    OX_OBJS += keyboard.o
+    O_OBJS  += $(KEYMAP)
+  endif
 endif
 
 ifdef CONFIG_MAGIC_SYSRQ
 OX_OBJS += sysrq.o
-endif
-endif
 endif
 
 ifeq ($(CONFIG_ATARI_DSP56K),y)
@@ -376,12 +389,12 @@ else
 endif
 
 ifeq ($(CONFIG_VIDEO_BT848),y)
-O_OBJS += bttv.o msp3400.o
+O_OBJS += bttv.o msp3400.o tda8425.o tda9855.o tea6300.o
 L_I2C=y
 L_TUNERS=y
 else
   ifeq ($(CONFIG_VIDEO_BT848),m)
-    M_OBJS += bttv.o msp3400.o
+    M_OBJS += bttv.o msp3400.o tda8425.o tda9855.o tea6300.o
     M_I2C=y
     M_TUNERS=y
   endif
@@ -630,10 +643,10 @@ endif
 
 # set when a framegrabber implements i2c support
 ifeq ($(L_I2C),y)
-OX_OBJS += i2c.o
+OX_OBJS += i2c-old.o
 else
  ifeq ($(M_I2C),y)
- MX_OBJS += i2c.o
+ MX_OBJS += i2c-old.o
   endif
 endif
 

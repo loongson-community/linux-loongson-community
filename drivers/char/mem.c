@@ -15,7 +15,6 @@
 #include <linux/random.h>
 #include <linux/init.h>
 #include <linux/joystick.h>
-#include <linux/i2c.h>
 #include <linux/raw.h>
 #include <linux/capability.h>
 
@@ -23,6 +22,12 @@
 #include <asm/io.h>
 #include <asm/pgalloc.h>
 
+#ifdef CONFIG_VIDEO_BT848
+extern int i2c_init(void);
+#endif
+#ifdef CONFIG_I2C
+extern int i2c_init_all(void);
+#endif
 #ifdef CONFIG_SOUND
 void soundcore_init(void);
 #ifdef CONFIG_SOUND_OSS
@@ -55,6 +60,9 @@ extern void adbdev_init(void);
 #endif
 #ifdef CONFIG_USB
 extern void usb_init(void);
+#endif
+#ifdef CONFIG_PHONE
+extern void telephony_init(void);
 #endif
      
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
@@ -622,6 +630,9 @@ int __init chr_dev_init(void)
 #ifdef CONFIG_USB
 	usb_init();
 #endif
+#ifdef CONFIG_I2C
+        i2c_init_all();
+#endif
 #if defined (CONFIG_FB)
 	fbmem_init();
 #endif
@@ -676,5 +687,8 @@ int __init chr_dev_init(void)
 #ifdef CONFIG_VIDEO_DEV
 	videodev_init();
 #endif
+#ifdef CONFIG_PHONE
+	telephony_init();
+#endif	
 	return 0;
 }

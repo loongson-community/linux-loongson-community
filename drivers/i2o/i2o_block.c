@@ -175,7 +175,7 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 	offset = ((u64)(req->sector+base)) << 9;
 	__raw_writel( offset & 0xFFFFFFFF, msg+24);
 	__raw_writel(offset>>32, msg+28);
-	mptr=msg+8;
+	mptr=msg+32;
 	
 	if(req->cmd == READ)
 	{
@@ -216,7 +216,7 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 			bh = bh->b_reqnext;
 		}
 	}
-	__raw_writel(I2O_MESSAGE_SIZE(mptr-msg) | SGL_OFFSET_8, msg);
+	__raw_writel(I2O_MESSAGE_SIZE(mptr-msg)>>2 | SGL_OFFSET_8, msg);
 	
 	if(req->current_nr_sectors > 8)
 		printk("Gathered sectors %ld.\n", 
@@ -1006,23 +1006,13 @@ struct notifier_block i2ob_reboot_notifier =
 	0
 };
 
-static struct file_operations i2ob_fops =
+static struct block_device_operations i2ob_fops =
 {
-	NULL,			/* lseek - default */
-	block_read,		/* read - general block-dev read */
-	block_write,		/* write - general block-dev write */
-	NULL,			/* readdir - bad */
-	NULL,			/* select */
-	i2ob_ioctl,		/* ioctl */
-	NULL,			/* mmap */
-	i2ob_open,		/* open */
-	NULL,			/* flush */
-	i2ob_release,		/* release */
-	NULL,			/* fsync */
-	NULL,			/* fasync */
-	i2ob_media_change,	/* Media Change */
-	i2ob_revalidate,	/* Revalidate */
-	NULL			/* File locks */
+	open:			i2ob_open,
+	release:		i2ob_release,
+	ioctl:			i2ob_ioctl,
+	check_media_change:	i2ob_media_change,
+	revalidate:		i2ob_revalidate,
 };
 
 /*

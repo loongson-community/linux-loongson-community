@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.17 2000/01/29 01:42:28 ralf Exp $
+/* $Id: unistd.h,v 1.18 2000/02/04 07:40:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1199,11 +1199,14 @@
 #define __NR_mmap2			(__NR_Linux + 210)
 #define __NR_truncate64			(__NR_Linux + 211)
 #define __NR_ftruncate64		(__NR_Linux + 212)
+#define __NR_stat64			(__NR_Linux + 213)
+#define __NR_lstat64			(__NR_Linux + 214)
+#define __NR_fstat64			(__NR_Linux + 215)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		212
+#define __NR_Linux_syscalls		215
 
 #ifndef _LANGUAGE_ASSEMBLY
 

@@ -108,7 +108,6 @@ int scsi_mlqueue_insert(Scsi_Cmnd * cmd, int reason)
 			}
 		}
 		host->host_blocked = TRUE;
-		cmd->host_wait = TRUE;
 	} else {
 		/*
 		 * Protect against race conditions.  If the device isn't busy,
@@ -124,7 +123,6 @@ int scsi_mlqueue_insert(Scsi_Cmnd * cmd, int reason)
 			}
 		}
 		cmd->device->device_blocked = TRUE;
-		cmd->device_wait = TRUE;
 	}
 
 	/*
@@ -133,6 +131,13 @@ int scsi_mlqueue_insert(Scsi_Cmnd * cmd, int reason)
 	cmd->state = SCSI_STATE_MLQUEUE;
 	cmd->owner = SCSI_OWNER_MIDLEVEL;
 	cmd->bh_next = NULL;
+
+	/*
+	 * Decrement the counters, since these commands are no longer
+	 * active on the host/device.
+	 */
+	cmd->host->host_busy--;
+	cmd->device->device_busy--;
 
 	/*
 	 * Insert this command at the head of the queue for it's device.

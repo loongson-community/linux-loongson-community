@@ -1,7 +1,6 @@
 #ifndef __LINUX_RTNETLINK_H
 #define __LINUX_RTNETLINK_H
 
-#include <linux/config.h>
 #include <linux/netlink.h>
 
 #define RTNL_DEBUG 1
@@ -249,6 +248,11 @@ struct rta_cacheinfo
 	__s32	rta_expires;
 	__u32	rta_error;
 	__u32	rta_used;
+
+#define RTNETLINK_HAVE_PEERINFO 1
+	__u32	rta_id;
+	__u32	rta_ts;
+	__u32	rta_tsage;
 };
 
 /* RTM_METRICS --- array of struct rtattr with types of RTAX_* */
@@ -524,6 +528,8 @@ enum
 /* End of information exported to user level */
 
 #ifdef __KERNEL__
+
+#include <linux/config.h>
 
 extern __inline__ int rtattr_strcmp(struct rtattr *rta, char *str)
 {

@@ -139,6 +139,7 @@ MODULE_AUTHOR ("American Megatrends Inc.");
 MODULE_DESCRIPTION ("AMI MegaRAID driver");
 #endif
 
+#include <linux/init.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
@@ -232,6 +233,8 @@ void WROUTDOOR (mega_host_config * megaCfg, u32 value)
  *
  *================================================================
  */
+static int __init megaraid_setup(char *);
+
 static int megaIssueCmd (mega_host_config * megaCfg,
 			 u_char * mboxData,
 			 mega_scb * scb,
@@ -268,8 +271,8 @@ static int ser_printk (const char *fmt,...);
 /*  Use "megaraid=skipXX" as LILO option to prohibit driver from scanning
     XX scsi id on each channel.  Used for Madrona motherboard, where SAF_TE
     processor id cannot be scanned */
-static char *megaraid;
 #ifdef MODULE
+static char *megaraid = NULL;
 MODULE_PARM(megaraid, "s");
 #endif
 static int skip_id;
@@ -1408,37 +1411,27 @@ int findCard (Scsi_Host_Template * pHostTmpl,
 {
   mega_host_config *megaCfg;
   struct Scsi_Host *host;
-  u_char pciBus, pciDevFun, megaIrq;
+  u_char megaIrq;
   u32 megaBase;
-  u16 pciIdx = 0;
   u16 numFound = 0;
 
-  struct pci_dev *pdev = pci_devices;
+  struct pci_dev *pdev = NULL;
   
   while ((pdev = pci_find_device (pciVendor, pciDev, pdev))) {
-    pciBus = pdev->bus->number;
-    pciDevFun = pdev->devfn;
     if ((flag & BOARD_QUARTZ) && (skip_id == -1)) {
       u16 magic;
-      pcibios_read_config_word (pciBus, pciDevFun,
-				PCI_CONF_AMISIG,
-				&magic);
-      if (magic != AMI_SIGNATURE) {
-        pciIdx++;
+      pci_read_config_word(pdev, PCI_CONF_AMISIG, &magic);
+      if (magic != AMI_SIGNATURE)
 	continue;		/* not an AMI board */
-      }
     }
-    printk (KERN_INFO "megaraid: found 0x%4.04x:0x%4.04x:idx %d:bus %d:slot %d:func %d\n",
+    printk (KERN_INFO "megaraid: found 0x%4.04x:0x%4.04x: in %s\n",
 	    pciVendor,
 	    pciDev,
-	    pciIdx, pciBus,
-	    PCI_SLOT (pciDevFun),
-	    PCI_FUNC (pciDevFun));
+	    pdev->slot_name);
 
     /* Read the base port and IRQ from PCI */
     megaBase = pdev->resource[0].start;
     megaIrq  = pdev->irq;
-    pciIdx++;
 
     if (flag & BOARD_QUARTZ) {
 
@@ -1467,7 +1460,7 @@ int findCard (Scsi_Host_Template * pHostTmpl,
     megaCfg->host->irq = megaIrq;
     megaCfg->host->io_port = megaBase;
     megaCfg->host->n_io_port = 16;
-    megaCfg->host->unique_id = (pciBus << 8) | pciDevFun;
+    megaCfg->host->unique_id = (pdev->bus->number << 8) | pdev->devfn;
     megaCtlrs[numCtlrs++] = megaCfg; 
     if (flag != BOARD_QUARTZ) {
       /* Request our IO Range */
@@ -1509,18 +1502,12 @@ int megaraid_detect (Scsi_Host_Template * pHostTmpl)
 {
   int count = 0;
 
-  pHostTmpl->proc_name = "megaraid";
+#ifdef MODULE
+  if (megaraid)
+      megaraid_setup(megaraid);
+#endif
 
-  skip_id = -1;
-  if (megaraid && !strncmp(megaraid,"skip",strlen("skip"))) {
-      if (megaraid[4] != '\0') {
-          skip_id = megaraid[4] - '0';
-          if (megaraid[5] != '\0') {
-              skip_id = (skip_id * 10) + (megaraid[5] - '0');
-          }
-      }
-      skip_id = (skip_id > 15) ? -1 : skip_id;
-  }
+  pHostTmpl->proc_name = "megaraid";
 
   printk ("megaraid: " MEGARAID_VERSION CRLFSTR);
 
@@ -1876,6 +1863,23 @@ int megaraid_biosparam (Disk * disk, kdev_t dev, int *geom)
 
   return 0;
 }
+
+static int __init megaraid_setup(char *str)
+{
+  skip_id = -1;
+  if (str && !strncmp(str, "skip", strlen("skip"))) {
+      if (str[4] != '\0') {
+          skip_id = str[4] - '0';
+          if (str[5] != '\0') {
+              skip_id = (skip_id * 10) + (str[5] - '0');
+          }
+      }
+      skip_id = (skip_id > 15) ? -1 : skip_id;
+  }
+  return 1;
+}
+
+__setup("megaraid=", megaraid_setup);
 
 #ifdef MODULE
 Scsi_Host_Template driver_template = MEGARAID;

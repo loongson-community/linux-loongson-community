@@ -169,6 +169,7 @@ static int pg_drive_count;
 #include <linux/malloc.h>
 #include <linux/mtio.h>
 #include <linux/pg.h>
+#include <linux/wait.h>
 
 #include <asm/uaccess.h>
 
@@ -271,8 +272,6 @@ static struct file_operations pg_fops = {
 	pg_release,             /* release */
 	NULL,                   /* fsync */
 	NULL,                   /* fasync */
-	NULL,                   /* media change ? */
-	NULL                    /* revalidate new media */
 };
 
 void pg_init_units( void )

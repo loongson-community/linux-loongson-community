@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.23 2000/01/27 23:45:30 ralf Exp $
+/* $Id: processor.h,v 1.24 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -230,6 +230,7 @@ unsigned long get_wchan(struct task_struct *p);
 #define alloc_task_struct() \
 	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)
+#define get_task_struct(tsk)      atomic_inc(&mem_map[MAP_NR(tsk)].count)
 
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)

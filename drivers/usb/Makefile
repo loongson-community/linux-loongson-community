@@ -1,214 +1,115 @@
 #
-# Makefile for the kernel usb device drivers.
+# Makefile for the kernel USB device drivers.
 #
-# Note! Dependencies are done automagically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (ie not a .c file).
-#
-# Note 2! The CFLAGS definitions are now inherited from the
-# parent makes..
 
-SUB_DIRS     :=
-MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS)
+# Subdirs.
 
-L_TARGET := usb.a
-M_OBJS   :=
-L_OBJS   :=
-MOD_LIST_NAME := USB_MODULES
+SUB_DIRS	:=
+MOD_SUB_DIRS	:= $(SUB_DIRS)
+ALL_SUB_DIRS	:= $(SUB_DIRS)
 
-ifeq ($(CONFIG_USB),y)
-  L_OBJS += usbcore.o
-  ifeq ($(CONFIG_USB_PROC),y)
-    L_OBJS += proc_usb.o
-  endif
+# The target object and module list name.
+
+O_TARGET	:= usbdrv.o
+M_OBJS		:=
+O_OBJS		:=
+MOD_LIST_NAME	:= USB_MODULES
+
+# Objects that export symbols.
+
+export-objs		:= usb.o input.o
+
+# Multipart objects.
+
+list-multi		:= usbcore.o usb-uhci.o usb-ohci-hcd.o
+usbcore-objs		:= usb.o usb-debug.o usb-core.o hub.o
+usb-uhci-objs		:= uhci.o uhci-debug.o
+usb-ohci-hcd-objs	:= ohci-hcd.o
+usb-scsi-objs		:= usb_scsi.o
+
+# Optional parts of multipart objects.
+
+ifeq ($(CONFIG_USB_PROC),y)
+	usbcore-objs	+= proc_usb.o
 endif
-ifeq ($(CONFIG_USB),m)
-  M_OBJS += usbcore.o
-  MIX_OBJS += usb.o usb-debug.o usb-core.o
-  ifeq ($(CONFIG_USB_PROC),y)
-    MIX_OBJS += proc_usb.o
-  endif
-endif
-
-ifeq ($(CONFIG_USB_UHCI),y)
-    L_OBJS += uhci.o uhci-debug.o
-endif
-
-ifeq ($(CONFIG_USB_UHCI),m)
-      M_OBJS += usb-uhci.o
-      MI_OBJS += uhci.o uhci-debug.o
+ifeq ($(CONFIG_USB_SCSI_DEBUG),y)
+	usb-scsi-objs	+= usb_scsi_debug.o
 endif
 
-ifeq ($(CONFIG_USB_OHCI),y)
-    L_OBJS += ohci.o ohci-debug.o
-endif
-ifeq ($(CONFIG_USB_OHCI),m)
-      M_OBJS += usb-ohci.o
-      MI_OBJS += ohci.o ohci-debug.o
-endif
+# Object file lists.
 
-ifeq ($(CONFIG_USB_OHCI_HCD),y)
-    L_OBJS += ohci-hcd.o ohci-root-hub.o
-endif
-ifeq ($(CONFIG_USB_OHCI_HCD),m)
-      M_OBJS += usb-ohci-hcd.o
-      MI_OBJS += ohci-hcd.o ohci-root-hub.o
-endif
+obj-y	:=
+obj-m	:=
+obj-n	:=
+obj-	:=
 
-ifeq ($(CONFIG_USB_MOUSE),y)
-  L_OBJS += mouse.o
-endif
-ifeq ($(CONFIG_USB_MOUSE),m)
-  M_OBJS += mouse.o	
-  MI_OBJS += mouse.o
-endif
+# Each configuration option enables a list of files.
 
-ifeq ($(CONFIG_USB_HP_SCANNER),y)
-  L_OBJS += hp_scanner.o
-endif
-ifeq ($(CONFIG_USB_HP_SCANNER),m)
-  M_OBJS  +=hp_scanner.o
-  MI_OBJS +=hp_scanner.o
-endif
+obj-$(CONFIG_USB)		+= usbcore.o
+obj-$(CONFIG_USB_UHCI)		+= usb-uhci.o
+obj-$(CONFIG_USB_OHCI_HCD)	+= usb-ohci-hcd.o
 
-ifeq ($(CONFIG_USB_ACM),y)
-  L_OBJS += acm.o
-endif
-ifeq ($(CONFIG_USB_ACM),m)
-  M_OBJS += acm.o
-  MI_OBJS += acm.o
-endif
+obj-$(CONFIG_USB_MOUSE)		+= usbmouse.o input.o
+obj-$(CONFIG_USB_HID)		+= hid.o input.o
+obj-$(CONFIG_USB_KBD)		+= usbkbd.o input.o
+obj-$(CONFIG_INPUT_KEYBDEV)	+= keybdev.o input.o
+obj-$(CONFIG_INPUT_MOUSEDEV)	+= mousedev.o input.o
+obj-$(CONFIG_INPUT_JOYDEV)	+= joydev.o input.o
+obj-$(CONFIG_INPUT_EVDEV)	+= evdev.o input.o
 
-ifeq ($(CONFIG_USB_PRINTER),y)
-  L_OBJS += printer.o
-endif
+obj-$(CONFIG_USB_SCANNER)	+= scanner.o
+obj-$(CONFIG_USB_ACM)		+= acm.o
+obj-$(CONFIG_USB_PRINTER)	+= printer.o
+obj-$(CONFIG_USB_SERIAL)	+= usb-serial.o
+obj-$(CONFIG_USB_AUDIO)		+= audio.o
+obj-$(CONFIG_USB_CPIA)		+= cpia.o
+obj-$(CONFIG_USB_DC2XX)		+= dc2xx.o
+obj-$(CONFIG_USB_SCSI)		+= usb-scsi.o
+obj-$(CONFIG_USB_EZUSB)		+= ezusb.o
+obj-$(CONFIG_USB_USS720)	+= uss720.o
+obj-$(CONFIG_USB_DABUSB)	+= dabusb.o
+obj-$(CONFIG_USB_OV511)		+= ov511.o
 
-ifeq ($(CONFIG_USB_PRINTER),m)
-  M_OBJS += printer.o
-  MI_OBJS += printer.o  
-endif
+# Extract lists of the multi-part drivers.
+# The 'int-*' lists are the intermediate files used to build the multi's.
 
-ifeq ($(CONFIG_USB_SERIAL),y)
-  L_OBJS += usb-serial.o
-endif
+multi-y		:= $(filter $(list-multi), $(obj-y))
+multi-m		:= $(filter $(list-multi), $(obj-m))
+int-y		:= $(sort $(foreach m, $(multi-y), $($(basename $(m))-objs)))
+int-m		:= $(sort $(foreach m, $(multi-m), $($(basename $(m))-objs)))
 
-ifeq ($(CONFIG_USB_SERIAL),m)
-  M_OBJS += usb-serial.o
-  MI_OBJS += usb-serial.o  
-endif
+# Files that are both resident and modular: remove from modular.
 
-ifneq ($(CONFIG_ADB_KEYBOARD),y)
-KEYMAP=keymap
-else
-KEYMAP=keymap-mac
-endif
+obj-m		:= $(filter-out $(obj-y), $(obj-m))
+int-m		:= $(filter-out $(int-y), $(int-m))
 
-ifeq ($(CONFIG_USB_KBD),y)
-  L_OBJS += keyboard.o $(KEYMAP).o
-endif
+# Take multi-part drivers out of obj-y and put components in.
 
-ifeq ($(CONFIG_USB_KBD),m)
-  M_OBJS += usb-keyboard.o
-  MI_OBJS += keyboard.o $(KEYMAP).o
-endif
+obj-y		:= $(filter-out $(list-multi), $(obj-y)) $(int-y)
 
-ifeq ($(CONFIG_USB_AUDIO),y)
-  L_OBJS += audio.o
-endif
+# Translate to Rules.make lists.
 
-ifeq ($(CONFIG_USB_AUDIO),m)
-  M_OBJS += audio.o
-  MI_OBJS += audio.o
-endif
+O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
+OX_OBJS		:= $(filter     $(export-objs), $(obj-y))
+M_OBJS		:= $(sort $(filter-out $(export-objs), $(obj-m)))
+MX_OBJS		:= $(sort $(filter     $(export-objs), $(obj-m)))
+MI_OBJS		:= $(sort $(filter-out $(export-objs), $(int-m)))
+MIX_OBJS	:= $(sort $(filter     $(export-objs), $(int-m)))
 
-ifeq ($(CONFIG_USB_CPIA),y)
-  L_OBJS += cpia.o
-endif
-
-ifeq ($(CONFIG_USB_CPIA),m)
-  M_OBJS += cpia.o
-  MI_OBJS += cpia.o
-endif
-
-ifeq ($(CONFIG_USB_DC2XX),y)
-  L_OBJS += dc2xx.o
-endif
-ifeq ($(CONFIG_USB_DC2XX),m)
-  M_OBJS += dc2xx.o
-  MI_OBJS += dc2xx.o
-endif
-
-ifeq ($(CONFIG_USB_SCSI),y)
-  L_OBJS += usb_scsi.o
-  ifeq ($(CONFIG_USB_SCSI_DEBUG),y)
-    L_OBJS += usb_scsi_debug.o
-  endif
-endif
-
-ifeq ($(CONFIG_USB_SCSI),m)
-  M_OBJS += usb-scsi.o
-  MI_OBJS += usb_scsi.o
-  ifeq ($(CONFIG_USB_SCSI_DEBUG),y)
-    MI_OBJS += usb_scsi_debug.o
-  endif
-endif
-
-ifeq ($(CONFIG_USB_EZUSB),y)
-  L_OBJS += ezusb.o
-endif
-
-ifeq ($(CONFIG_USB_EZUSB),m)
-  M_OBJS += ezusb.o
-  MI_OBJS += ezusb.o
-endif
-
-ifeq ($(CONFIG_USB_USS720),y)
-  L_OBJS += uss720.o
-endif
-
-ifeq ($(CONFIG_USB_USS720),m)
-  M_OBJS += uss720.o
-  MI_OBJS += uss720.o
-endif
+# The global Rules.make.
 
 include $(TOPDIR)/Rules.make
 
-keymap.o: keymap.c
+# Link rules for multi-part drivers.
 
-keymap.c: maps/serial.map maps/usb.map maps/fixup.map
-	./mkmap > $@
+usbcore.o: $(usbcore-objs)
+	$(LD) -r -o $@ $(usbcore-objs)
 
-keymap-mac.o: keymap-mac.c
-keymap-mac.c: maps/mac.map maps/usb.map
-	./mkmap.adb > $@
+usb-uhci.o: $(usb-uhci-objs)
+	$(LD) -r -o $@ $(usb-uhci-objs)
 
-usb-keyboard.o: $(KEYMAP).o keyboard.o
-	$(LD) $(LD_RFLAG) -r -o $@  $(KEYMAP).o keyboard.o 
+usb-ohci-hcd.o: $(usb-ohci-hcd-objs)
+	$(LD) -r -o $@ $(usb-ohci-hcd-objs)
 
-ifeq ($(CONFIG_USB_SCSI_DEBUG),y)
-usb-scsi.o: usb_scsi.o usb_scsi_debug.o
-	$(LD) $(LD_RFLAG) -r -o $@  usb_scsi.o usb_scsi_debug.o 
-else
-usb-scsi.o: usb_scsi.o
-	$(LD) $(LD_RFLAG) -r -o $@  usb_scsi.o
-endif
-
-usb-uhci.o: uhci.o uhci-debug.o 
-	$(LD) $(LD_RFLAG) -r -o $@  uhci.o uhci-debug.o 
-
-usb-ohci.o: ohci.o ohci-debug.o 
-	$(LD) $(LD_RFLAG) -r -o $@ ohci.o ohci-debug.o 
-
-usb-ohci-hcd.o: ohci-hcd.o ohci-root-hub.o 
-	$(LD) $(LD_RFLAG) -r -o $@ ohci-hcd.o ohci-root-hub.o 
-
-ifeq ($(CONFIG_USB_PROC),y)
-usbcore.o: usb.o usb-debug.o usb-core.o proc_usb.o hub.o
-	$(LD) $(LD_RFLAG) -r -o $@ usb.o usb-debug.o usb-core.o proc_usb.o \
-	hub.o
-else
-usbcore.o: usb.o usb-debug.o usb-core.o hub.o
-	$(LD) $(LD_RFLAG) -r -o $@ usb.o usb-debug.o usb-core.o \
-	hub.o
-endif
+usb-scsi.o: $(usb-scsi-objs)
+	$(LD) -r -o $@ $(usb-scsi-objs)

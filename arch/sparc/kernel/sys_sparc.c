@@ -1,4 +1,4 @@
-/* $Id: sys_sparc.c,v 1.53 1999/08/14 03:51:25 anton Exp $
+/* $Id: sys_sparc.c,v 1.56 2000/01/04 11:01:26 jj Exp $
  * linux/arch/sparc/kernel/sys_sparc.c
  *
  * This file contains various random system calls that
@@ -176,26 +176,34 @@ out:
 }
 
 /* Linux version of mmap */
-asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
+static unsigned long do_mmap2(unsigned long addr, unsigned long len,
 	unsigned long prot, unsigned long flags, unsigned long fd,
-	unsigned long off)
+	unsigned long pgoff)
 {
 	struct file * file = NULL;
 	unsigned long retval = -EBADF;
 
-	down(&current->mm->mmap_sem);
-	lock_kernel();
 	if (!(flags & MAP_ANONYMOUS)) {
 		file = fget(fd);
 		if (!file)
 			goto out;
 	}
+
+	down(&current->mm->mmap_sem);
+	lock_kernel();
 	retval = -ENOMEM;
 	len = PAGE_ALIGN(len);
-	if(!(flags & MAP_FIXED) && !addr) {
-		addr = get_unmapped_area(addr, len);
+	if(!(flags & MAP_FIXED) &&
+	   (!addr || (ARCH_SUN4C_SUN4 &&
+		      (addr >= 0x20000000 && addr < 0xe0000000)))) {
+		addr = get_unmapped_area(0, len);
 		if(!addr)
 			goto out_putf;
+		if (ARCH_SUN4C_SUN4 &&
+		    (addr >= 0x20000000 && addr < 0xe0000000)) {
+			retval = -EINVAL;
+			goto out_putf;
+		}
 	}
 
 	/* See asm-sparc/uaccess.h */
@@ -203,24 +211,32 @@ asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
 	if((len > (TASK_SIZE - PAGE_SIZE)) || (addr > (TASK_SIZE-len-PAGE_SIZE)))
 		goto out_putf;
 
-	if(ARCH_SUN4C_SUN4) {
-		if(((addr >= 0x20000000) && (addr < 0xe0000000))) {
-			/* VM hole */
-			retval = current->mm->brk;
-			goto out_putf;
-		}
-	}
-
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
-	retval = do_mmap(file, addr, len, prot, flags, off);
+	retval = do_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 
 out_putf:
+	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	if (file)
 		fput(file);
 out:
-	unlock_kernel();
-	up(&current->mm->mmap_sem);
 	return retval;
+}
+
+asmlinkage unsigned long sys_mmap2(unsigned long addr, unsigned long len,
+	unsigned long prot, unsigned long flags, unsigned long fd,
+	unsigned long pgoff)
+{
+	/* Make sure the shift for mmap2 is constant (12), no matter what PAGE_SIZE
+	   we have. */
+	return do_mmap2(addr, len, prot, flags, fd, pgoff >> (PAGE_SHIFT - 12));
+}
+
+asmlinkage unsigned long sys_mmap(unsigned long addr, unsigned long len,
+	unsigned long prot, unsigned long flags, unsigned long fd,
+	unsigned long off)
+{
+	return do_mmap2(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
 }
 
 /* we come to here via sys_nis_syscall so it can setup the regs argument */

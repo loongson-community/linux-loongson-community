@@ -1,4 +1,4 @@
-/* $Id: csum_partial_copy.c,v 1.1 1999/08/21 21:43:00 ralf Exp $
+/* $Id: csum_partial_copy.c,v 1.2 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -47,21 +47,4 @@ unsigned int csum_partial_copy_from_user (const char *src, char *dst,
 	}
 		
 	return csum_partial(dst, len, sum);
-}
-
-/*
- * Copy to userspace and compute checksum.
- */
-unsigned int csum_partial_copy_to_user (const char *src, char *dst,
-                                        int len, unsigned int sum,
-                                        int *err_ptr)
-{
-	sum = csum_partial(src, len, sum);
-
-	if (copy_to_user(dst, src, len)) {
-		*err_ptr = -EFAULT;
-		return sum;
-	}
-
-	return sum;
 }

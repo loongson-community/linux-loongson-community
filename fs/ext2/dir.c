@@ -43,8 +43,6 @@ static struct file_operations ext2_dir_operations = {
 	NULL,			/* no special release code */
 	ext2_sync_file,		/* fsync */
 	NULL,			/* fasync */
-	NULL,			/* check_media_change */
-	NULL			/* revalidate */
 };
 
 /*
@@ -67,7 +65,7 @@ struct inode_operations ext2_dir_inode_operations = {
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* truncate */
-	ext2_permission,	/* permission */
+	NULL,			/* permission */
 	NULL			/* revalidate */
 };
 

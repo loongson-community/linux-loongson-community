@@ -59,8 +59,9 @@ CONFIG_PCI_NAMES=y
 #
 CONFIG_PCMCIA=y
 CONFIG_CARDBUS=y
-CONFIG_I82365=y
-# CONFIG_TCIC is not set
+CONFIG_YENTA=y
+# CONFIG_I82365 is not set
+CONFIG_TCIC=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
@@ -70,6 +71,7 @@ CONFIG_BINFMT_AOUT=y
 CONFIG_BINFMT_ELF=y
 CONFIG_BINFMT_MISC=y
 # CONFIG_PARPORT is not set
+CONFIG_ACPI=y
 # CONFIG_APM is not set
 
 #
@@ -105,8 +107,6 @@ CONFIG_BLK_DEV_IDEPCI=y
 # CONFIG_BLK_DEV_IDEDMA_PCI is not set
 # CONFIG_BLK_DEV_OFFBOARD is not set
 # CONFIG_BLK_DEV_AEC6210 is not set
-CONFIG_BLK_DEV_PIIX=y
-# CONFIG_BLK_DEV_PIIX_TUNING is not set
 # CONFIG_IDE_CHIPSETS is not set
 # CONFIG_BLK_CPQ_DA is not set
 
@@ -153,6 +153,12 @@ CONFIG_SKB_LARGE=y
 #
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
+
+#
+# Telephony Support
+#
+# CONFIG_PHONE is not set
+# CONFIG_PHONE_IXJ is not set
 
 #
 # SCSI support
@@ -311,6 +317,7 @@ CONFIG_PCMCIA_PCNET=y
 # CONFIG_PCMCIA_3C575 is not set
 # CONFIG_PCMCIA_TULIP is not set
 # CONFIG_PCMCIA_EPIC100 is not set
+CONFIG_NET_PCMCIA_RADIO=y
 CONFIG_PCMCIA_RAYCS=y
 # CONFIG_PCMCIA_NETWAVE is not set
 # CONFIG_PCMCIA_WAVELAN is not set
@@ -347,6 +354,11 @@ CONFIG_SERIAL=y
 # CONFIG_SERIAL_NONSTANDARD is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
+
+#
+# I2C support
+#
+# CONFIG_I2C is not set
 
 #
 # Mice
@@ -393,14 +405,13 @@ CONFIG_DRM_TDFX=y
 # CONFIG_PCMCIA_SERIAL_CB is not set
 
 #
-# Support for USB
+# USB support
 #
 # CONFIG_USB is not set
 
 #
 # Misc devices
 #
-CONFIG_ACPI=y
 
 #
 # Filesystems
@@ -412,6 +423,7 @@ CONFIG_AUTOFS_FS=y
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set
 # CONFIG_VFAT_FS is not set
+# CONFIG_CRAMFS is not set
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
 # CONFIG_MINIX_FS is not set

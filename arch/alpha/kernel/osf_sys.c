@@ -31,6 +31,8 @@
 #include <linux/shm.h>
 #include <linux/poll.h>
 #include <linux/file.h>
+#include <linux/types.h>
+#include <linux/ipc.h>
 
 #include <asm/fpu.h>
 #include <asm/io.h>
@@ -38,15 +40,10 @@
 #include <asm/system.h>
 #include <asm/sysinfo.h>
 #include <asm/hwrpb.h>
+#include <asm/processor.h>
 
-extern int do_mount(kdev_t, const char *, const char *, char *, int, void *);
+extern int do_mount(struct block_device *, const char *, const char *, char *, int, void *);
 extern int do_pipe(int *);
-
-extern struct file_operations *get_blkfops(unsigned int);
-extern struct file_operations *get_chrfops(unsigned int);
-
-extern kdev_t get_unnamed_dev(void);
-extern void put_unnamed_dev(kdev_t);
 
 extern asmlinkage int sys_swapon(const char *specialfile, int swap_flags);
 extern asmlinkage unsigned long sys_brk(unsigned long);
@@ -396,18 +393,16 @@ struct procfs_args {
 	uid_t exroot;
 };
 
-static int getdev(const char *name, int rdonly, struct dentry **dp)
+static struct dentry *getdev(const char *name, int rdonly)
 {
-	kdev_t dev;
 	struct dentry *dentry;
 	struct inode *inode;
-	struct file_operations *fops;
 	int retval;
 
 	dentry = namei(name);
 	retval = PTR_ERR(dentry);
 	if (IS_ERR(dentry))
-		return retval;
+		return dentry;
 
 	retval = -ENOTBLK;
 	inode = dentry->d_inode;
@@ -417,48 +412,20 @@ static int getdev(const char *name, int rdonly, struct dentry **dp)
 	retval = -EACCES;
 	if (IS_NODEV(inode))
 		goto out_dput;
-
-	retval = -ENXIO;
-	dev = inode->i_rdev;
-	if (MAJOR(dev) >= MAX_BLKDEV)
-		goto out_dput;
-
-	retval = -ENODEV;
-	fops = get_blkfops(MAJOR(dev));
-	if (!fops)
-		goto out_dput;
-	if (fops->open) {
-		struct file dummy;
-		memset(&dummy, 0, sizeof(dummy));
-		dummy.f_dentry = dentry;
-		dummy.f_mode = rdonly ? 1 : 3;
-		retval = fops->open(inode, &dummy);
-		if (retval)
-			goto out_dput;
-	}
-	*dp = dentry;
-	retval = 0;
-out:
-	return retval;
+	return dentry;
 
 out_dput:
 	dput(dentry);
-	goto out;
-}
-
-static void putdev(struct dentry *dentry)
-{
-	struct file_operations *fops;
-
-	fops = get_blkfops(MAJOR(dentry->d_inode->i_rdev));
-	if (fops->release)
-		fops->release(dentry->d_inode, NULL);
+	return ERR_PTR(retval);
 }
 
 /*
  * We can't actually handle ufs yet, so we translate UFS mounts to
  * ext2fs mounts. I wouldn't mind a UFS filesystem, but the UFS
  * layout is so braindead it's a major headache doing it.
+ *
+ * Just how long ago was it written? OTOH our UFS driver may be still
+ * unhappy with OSF UFS. [CHECKME]
  */
 static int osf_ufs_mount(char *dirname, struct ufs_args *args, int flags)
 {
@@ -470,13 +437,12 @@ static int osf_ufs_mount(char *dirname, struct ufs_args *args, int flags)
 	if (copy_from_user(&tmp, args, sizeof(tmp)))
 		goto out;
 
-	retval = getdev(tmp.devname, 0, &dentry);
-	if (retval)
+	dentry = getdev(tmp.devname, 0);
+	retval = PTR_ERR(dentry);
+	if (IS_ERR(dentry)
 		goto out;
-	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, 
+	retval = do_mount(dentry->d_inode->i_bdev, tmp.devname, dirname, 
 				"ext2", flags, NULL);
-	if (retval)
-		putdev(dentry);
 	dput(dentry);
 out:
 	return retval;
@@ -492,13 +458,12 @@ static int osf_cdfs_mount(char *dirname, struct cdfs_args *args, int flags)
 	if (copy_from_user(&tmp, args, sizeof(tmp)))
 		goto out;
 
-	retval = getdev(tmp.devname, 1, &dentry);
-	if (retval)
+	dentry = getdev(tmp.devname, 1);
+	retval = PTR_ERR(dentry);
+	if (IS_ERR(dentry))
 		goto out;
-	retval = do_mount(dentry->d_inode->i_rdev, tmp.devname, dirname, 
+	retval = do_mount(dentry->d_inode->i_bdev, tmp.devname, dirname, 
 				"iso9660", flags, NULL);
-	if (retval)
-		putdev(dentry);
 	dput(dentry);
 out:
 	return retval;
@@ -506,19 +471,12 @@ out:
 
 static int osf_procfs_mount(char *dirname, struct procfs_args *args, int flags)
 {
-	kdev_t dev;
 	int retval;
 	struct procfs_args tmp;
 
 	if (copy_from_user(&tmp, args, sizeof(tmp)))
 		return -EFAULT;
-	dev = get_unnamed_dev();
-	if (!dev)
-		return -ENODEV;
-	retval = do_mount(dev, "", dirname, "proc", flags, NULL);
-	if (retval)
-		put_unnamed_dev(dev);
-	return retval;
+	return do_mount(NULL, "", dirname, "proc", flags, NULL);
 }
 
 asmlinkage int osf_mount(unsigned long typenr, char *path, int flag, void *data)
@@ -1441,4 +1399,104 @@ asmlinkage int sys_old_adjtimex(struct timex32 *txc_p)
 	  return -EFAULT;
 
 	return ret;
+}
+
+struct shmid_ds_old {
+	struct ipc_perm		shm_perm;	/* operation perms */
+	int			shm_segsz;	/* size of segment (bytes) */
+	__kernel_time_t		shm_atime;	/* last attach time */
+	__kernel_time_t		shm_dtime;	/* last detach time */
+	__kernel_time_t		shm_ctime;	/* last change time */
+	__kernel_ipc_pid_t	shm_cpid;	/* pid of creator */
+	__kernel_ipc_pid_t	shm_lpid;	/* pid of last operator */
+	unsigned short		shm_nattch;	/* no. of current attaches */
+	unsigned short 		shm_unused;	/* compatibility */
+	void 			*shm_unused2;	/* ditto - used by DIPC */
+	void			*shm_unused3;	/* unused */
+};
+
+struct  shminfo_old {
+	int shmmax;
+	int shmmin;
+	int shmmni;
+	int shmseg;
+	int shmall;
+};
+
+asmlinkage long sys_shmctlold(int shmid, int cmd, struct shmid_ds_old *buf)
+{
+	struct shmid_ds arg;
+	long ret;
+	mm_segment_t old_fs;
+
+	if (cmd == IPC_SET) {
+		struct shmid_ds_old tbuf;
+
+		if(copy_from_user (&tbuf, buf, sizeof(*buf)))
+			return -EFAULT;
+		arg.shm_perm = tbuf.shm_perm;
+		arg.shm_segsz = tbuf.shm_segsz;
+		arg.shm_atime = tbuf.shm_atime;
+		arg.shm_dtime = tbuf.shm_dtime;
+		arg.shm_ctime = tbuf.shm_ctime;
+		arg.shm_cpid = tbuf.shm_cpid;
+		arg.shm_lpid = tbuf.shm_lpid;
+		arg.shm_nattch = tbuf.shm_nattch;
+		arg.shm_unused = tbuf.shm_unused;
+		arg.shm_unused2 = tbuf.shm_unused2;
+		arg.shm_unused3 = tbuf.shm_unused3;
+	}
+	old_fs = get_fs ();
+	set_fs (KERNEL_DS);
+	ret = sys_shmctl(shmid, cmd, &arg);
+	set_fs (old_fs);
+	if (ret < 0)
+		return(ret);
+	switch(cmd) {
+		case IPC_INFO:
+		{
+			struct shminfo *tbuf = (struct shminfo *) &arg;
+			struct shminfo_old shminfo_oldst;
+
+			shminfo_oldst.shmmax = (tbuf->shmmax > INT_MAX ?
+						INT_MAX : tbuf->shmmax);
+			shminfo_oldst.shmmin = tbuf->shmmin;
+			shminfo_oldst.shmmni = tbuf->shmmni;
+			shminfo_oldst.shmseg = tbuf->shmseg;
+			shminfo_oldst.shmall = tbuf->shmall;
+			if (copy_to_user(buf, &shminfo_oldst, 
+						sizeof(struct shminfo_old)))
+				return -EFAULT;
+			return(ret);
+		}
+		case SHM_INFO:
+		{
+			struct shm_info *tbuf = (struct shm_info *) &arg;
+
+			if (copy_to_user (buf, tbuf, sizeof(struct shm_info)))
+				return -EFAULT;
+			return(ret);
+		}
+		case SHM_STAT:
+		case IPC_STAT:
+		{
+			struct shmid_ds_old tbuf;
+
+			tbuf.shm_perm = arg.shm_perm;
+			tbuf.shm_segsz = arg.shm_segsz;
+			tbuf.shm_atime = arg.shm_atime;
+			tbuf.shm_dtime = arg.shm_dtime;
+			tbuf.shm_ctime = arg.shm_ctime;
+			tbuf.shm_cpid = arg.shm_cpid;
+			tbuf.shm_lpid = arg.shm_lpid;
+			tbuf.shm_nattch = arg.shm_nattch;
+			tbuf.shm_unused = arg.shm_unused;
+			tbuf.shm_unused2 = arg.shm_unused2;
+			tbuf.shm_unused3 = arg.shm_unused3;
+			if (copy_to_user (buf, &tbuf, sizeof(tbuf)))
+				return -EFAULT;
+			return(ret);
+		}
+	}
+	return(ret);
 }

@@ -32,6 +32,7 @@
 #include <linux/devpts_fs.h>
 #include <linux/bfs_fs.h>
 #include <linux/adfs_fs.h>
+#include <linux/openprom_fs.h>
 #include <linux/major.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
@@ -51,12 +52,12 @@ extern int init_coda(void);
 extern int init_devpts_fs(void);
 #endif
 
-void __init filesystem_setup(void)
-{
-#ifdef CONFIG_EXT2_FS
-	init_ext2_fs();
+#ifdef CONFIG_SUN_OPENPROMFS
+extern int init_openprom_fs(void);
 #endif
 
+void __init filesystem_setup(void)
+{
 #ifdef CONFIG_MINIX_FS
 	init_minix_fs();
 #endif
@@ -159,6 +160,10 @@ void __init filesystem_setup(void)
 
 #ifdef CONFIG_BFS_FS
 	init_bfs_fs();
+#endif
+
+#ifdef CONFIG_SUN_OPENPROMFS
+	init_openprom_fs();
 #endif
    
 #ifdef CONFIG_NLS

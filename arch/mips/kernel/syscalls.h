@@ -1,4 +1,4 @@
-/* $Id: syscalls.h,v 1.19 2000/01/29 01:41:59 ralf Exp $
+/* $Id: syscalls.h,v 1.20 2000/02/04 07:40:23 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -228,3 +228,6 @@ SYS(sys_ni_syscall, 0)
 SYS(sys_mmap2, 6)				/* 4210 */
 SYS(sys_truncate64, 2)
 SYS(sys_ftruncate64, 2)
+SYS(sys_stat64, 3)
+SYS(sys_lstat64, 3)
+SYS(sys_fstat64, 3)				/* 4215 */

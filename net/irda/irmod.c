@@ -6,10 +6,10 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Mon Dec 15 13:55:39 1997
- * Modified at:   Sun Nov 14 08:57:52 1999
+ * Modified at:   Wed Jan  5 15:12:41 2000
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
- *     Copyright (c) 1997, 1999 Dag Brattli, All Rights Reserved.
+ *     Copyright (c) 1997, 1999-2000 Dag Brattli, All Rights Reserved.
  *      
  *     This program is free software; you can redistribute it and/or 
  *     modify it under the terms of the GNU General Public License as 
@@ -140,6 +140,7 @@ EXPORT_SYMBOL(irias_add_string_attrib);
 EXPORT_SYMBOL(irias_insert_object);
 EXPORT_SYMBOL(irias_new_object);
 EXPORT_SYMBOL(irias_delete_object);
+EXPORT_SYMBOL(irias_delete_value);
 EXPORT_SYMBOL(irias_find_object);
 EXPORT_SYMBOL(irias_find_attrib);
 EXPORT_SYMBOL(irias_new_integer_value);
@@ -194,6 +195,7 @@ EXPORT_SYMBOL(irda_device_unregister_dongle);
 EXPORT_SYMBOL(irda_task_execute);
 EXPORT_SYMBOL(irda_task_kick);
 EXPORT_SYMBOL(irda_task_next_state);
+EXPORT_SYMBOL(irda_task_delete);
 
 EXPORT_SYMBOL(async_wrap_skb);
 EXPORT_SYMBOL(async_unwrap_char);
@@ -330,8 +332,7 @@ void irda_execute_as_process( void *self, TODO_CALLBACK callback, __u32 param)
 	struct irmanager_event event;
 
 	/* Make sure irmanager is running */
-	if ( !irda.in_use) {
-		printk( KERN_ERR "irmanager is not running!\n");
+	if (!irda.in_use) {
 		return;
 	}
 
@@ -370,7 +371,6 @@ void irmanager_notify( struct irmanager_event *event)
 	
 	/* Make sure irmanager is running */
 	if (!irda.in_use) {
-		printk( KERN_ERR "irmanager is not running!\n");
 		return;
 	}
 
@@ -523,6 +523,24 @@ void irda_mod_dec_use_count(void)
 #ifdef MODULE
 	MOD_DEC_USE_COUNT;
 #endif
+}
+
+/*
+ * Function irda_proc_modcount (inode, fill)
+ *
+ *    Use by the proc file system functions to prevent the irda module
+ *    being removed while the use is standing in the net/irda directory
+ */
+void irda_proc_modcount(struct inode *inode, int fill)
+{
+#ifdef MODULE
+#ifdef CONFIG_PROC_FS
+	if (fill)
+		MOD_INC_USE_COUNT;
+	else
+		MOD_DEC_USE_COUNT;
+#endif /* CONFIG_PROC_FS */
+#endif /* MODULE */
 }
 
 #ifdef MODULE

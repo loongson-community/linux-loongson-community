@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.19 1999/10/09 00:01:31 ralf Exp $
+/* $Id: graphics.c,v 1.20 2000/01/29 01:42:19 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -306,8 +306,6 @@ struct file_operations sgi_graphics_fops = {
 	NULL,			/* flush */
 	sgi_graphics_close,	/* release */
 	NULL,			/* fsync */
-	NULL,			/* check_media_change */
-	NULL,			/* revalidate */
 	NULL			/* lock */
 };
 

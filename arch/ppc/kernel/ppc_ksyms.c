@@ -9,6 +9,8 @@
 #include <linux/vt_kern.h>
 #include <linux/nvram.h>
 #include <linux/spinlock.h>
+#include <linux/console.h>
+#include <linux/irq.h>
 
 #include <asm/page.h>
 #include <asm/semaphore.h>
@@ -269,3 +271,4 @@ void ppc_irq_dispatch_handler(struct pt_regs *, int);
 EXPORT_SYMBOL(ppc_irq_dispatch_handler);
 EXPORT_SYMBOL(decrementer_count);
 EXPORT_SYMBOL(get_wchan);
+EXPORT_SYMBOL(console_drivers);

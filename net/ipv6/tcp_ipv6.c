@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: tcp_ipv6.c,v 1.112 1999/08/31 07:04:19 davem Exp $
+ *	$Id: tcp_ipv6.c,v 1.115 2000/01/06 00:42:09 davem Exp $
  *
  *	Based on: 
  *	linux/net/ipv4/tcp.c
@@ -273,8 +273,8 @@ static struct sock *tcp_v6_lookup_listener(struct in6_addr *daddr, unsigned shor
 			}
 		}
 	}
-	if (sk)
-		sock_hold(sk);
+	if (result)
+		sock_hold(result);
 	read_unlock(&tcp_lhash_lock);
 	return result;
 }
@@ -343,20 +343,17 @@ static __inline__ u16 tcp_v6_check(struct tcphdr *th, int len,
 
 static __u32 tcp_v6_init_sequence(struct sock *sk, struct sk_buff *skb)
 {
-	__u32 si;
-	__u32 di;
-
 	if (skb->protocol == __constant_htons(ETH_P_IPV6)) {
-		si = skb->nh.ipv6h->saddr.s6_addr32[3];
-		di = skb->nh.ipv6h->daddr.s6_addr32[3];
+		return secure_tcpv6_sequence_number(skb->nh.ipv6h->daddr.s6_addr32,
+						    skb->nh.ipv6h->saddr.s6_addr32,
+						    skb->h.th->dest,
+						    skb->h.th->source);
 	} else {
-		si = skb->nh.iph->saddr;
-		di = skb->nh.iph->daddr;
+		return secure_tcp_sequence_number(skb->nh.iph->daddr,
+						  skb->nh.iph->saddr,
+						  skb->h.th->dest,
+						  skb->h.th->source);
 	}
-
-	return secure_tcp_sequence_number(di, si,
-					  skb->h.th->dest,
-					  skb->h.th->source);
 }
 
 static int tcp_v6_check_established(struct sock *sk)
@@ -622,9 +619,9 @@ static int tcp_v6_connect(struct sock *sk, struct sockaddr *uaddr,
 	 */
 
 	if (!tp->write_seq)
-		tp->write_seq = secure_tcp_sequence_number(np->saddr.s6_addr32[3],
-							   np->daddr.s6_addr32[3],
-							   sk->sport, sk->dport);
+		tp->write_seq = secure_tcpv6_sequence_number(np->saddr.s6_addr32,
+							     np->daddr.s6_addr32,
+							     sk->sport, sk->dport);
 
 	err = tcp_connect(sk, buff);
 	if (err == 0)
@@ -730,7 +727,6 @@ void tcp_v6_err(struct sk_buff *skb, struct ipv6hdr *hdr,
 
 		if (dst == NULL) {
 			struct flowi fl;
-			struct dst_entry *dst;
 
 			/* BUGGG_FUTURE: Again, it is not clear how
 			   to handle rthdr case. Ignore this complexity

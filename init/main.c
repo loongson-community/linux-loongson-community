@@ -89,6 +89,7 @@ extern void ppc_init(void);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
+extern void bdev_init(void);
 extern int init_pcmcia_ds(void);
 
 extern void free_initmem(void);
@@ -493,6 +494,7 @@ asmlinkage void __init start_kernel(void)
 	kmem_cache_init();
 	sti();
 	calibrate_delay();
+#if 0000
 #ifdef CONFIG_BLK_DEV_INITRD
 	// FIXME, use the bootmem.h interface.
 	if (initrd_start && !initrd_below_start_ok && initrd_start < memory_start) {
@@ -504,6 +506,7 @@ asmlinkage void __init start_kernel(void)
 #ifdef CONFIG_BINFMT_IRIX
 	init_inventory();
 #endif
+#endif /* 0000 */
 	mem_init();
 	kmem_cache_sizes_init();
 #ifdef CONFIG_PROC_FS
@@ -519,6 +522,7 @@ asmlinkage void __init start_kernel(void)
 	page_cache_init(mempages);
 	kiobuf_init();
 	signals_init();
+	bdev_init();
 	inode_init();
 	file_table_init();
 #if defined(CONFIG_SYSVIPC)

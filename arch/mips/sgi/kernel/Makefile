@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.6 1999/02/07 21:56:33 ulfc Exp $
+# $Id: Makefile,v 1.7 1999/05/07 18:00:16 ulfc Exp $
 # Makefile for the SGI specific kernel interface routines
 # under Linux.
 #
@@ -28,6 +28,6 @@ sgikern.a: $(OBJS)
 indyIRQ.o: indyIRQ.S
 
 dep:
-	$(CPP) -M *.c > .depend
+	$(CPP) $(CPPFLAGS) -M *.c > .depend
 
 include $(TOPDIR)/Rules.make

@@ -1,5 +1,5 @@
 /*
- * linux/drivers/block/cy82c693.c	Version 0.34	Sept 3, 1999
+ * linux/drivers/block/cy82c693.c	Version 0.34	Dec. 13, 1999
  *
  *  Copyright (C) 1998-99 Andreas S. Krebs (akrebs@altavista.net), Maintainer
  *  Copyright (C) 1998-99 Andre Hedrick, Integrater
@@ -274,8 +274,13 @@ static void cy82c693_tune_drive (ide_drive_t *drive, byte pio)
 	unsigned int addrCtrl;
 
 	/* select primary or secondary channel */
-	if (hwif->index > 0)  /* drive is on the secondary channel */
-		dev = dev->next;
+	if (hwif->index > 0) {  /* drive is on the secondary channel */
+		dev = pci_find_slot(dev, dev->devfn+1);
+		if (!dev) {
+			printk(KERN_ERR "%s: tune_drive: Cannot find secondary interface!\n");
+			return;
+		}
+	}
 
 #if CY82C693_DEBUG_LOGS
 	/* for debug let's show the register values */
@@ -426,8 +431,14 @@ unsigned int __init pci_init_cy82c693(struct pci_dev *dev, const char *name)
 void __init ide_init_cy82c693(ide_hwif_t *hwif)
 {
 	hwif->chipset = ide_cy82c693;
-	if (hwif->dma_base)
-		hwif->dmaproc = &cy82c693_dmaproc;
 	hwif->tuneproc = &cy82c693_tune_drive;
+	if (hwif->dma_base) {
+		hwif->dmaproc = &cy82c693_dmaproc;
+		hwif->drives[0].autotune = 0;
+		hwif->drives[1].autotune = 0;
+	} else {
+		hwif->drives[0].autotune = 1;
+		hwif->drives[1].autotune = 1;
+	}
 }
 

@@ -1,12 +1,12 @@
 /*********************************************************************
  *                
  * Filename:      irda.h
- * Version:       
+ * Version:       1.0
  * Description:   IrDA common include file for kernel internal use
- * Status:        Experimental.
+ * Status:        Stable
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Tue Dec  9 21:13:12 1997
- * Modified at:   Sun Oct 31 14:45:20 1999
+ * Modified at:   Sat Dec 25 18:58:49 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1998-1999 Dag Brattli, All Rights Reserved.
@@ -101,7 +101,7 @@ if(!(expr)) { \
 #define IAS_ATTRIB_MAGIC   0x45232
 #define IRDA_TASK_MAGIC    0x38423
 
-#define IAS_DEVICE_ID 0x5342 
+#define IAS_DEVICE_ID 0x0000 /* Defined by IrDA, IrLMP section 4.1 (page 68) */
 #define IAS_PNP_ID    0xd342
 #define IAS_OBEX_ID   0x34323
 #define IAS_IRLAN_ID  0x34234
@@ -115,6 +115,9 @@ struct tsap_cb;
 struct irda_sock {
 	__u32 saddr;          /* my local address */
 	__u32 daddr;          /* peer address */
+
+	struct lsap_cb *lsap; /* LSAP used by Ultra */
+	__u8  pid;            /* Protocol IP (PID) used by Ultra */
 
 	struct tsap_cb *tsap; /* TSAP used by this connection */
 	__u8 dtsap_sel;       /* remote TSAP address */
@@ -132,12 +135,13 @@ struct irda_sock {
 	__u32 ckey;           /* IrLMP client handle */
 	__u32 skey;           /* IrLMP service handle */
 
-	struct ias_object *ias_obj;
-	struct iriap_cb *iriap;
+	struct ias_object *ias_obj;   /* Our service name + lsap in IAS */
+	struct iriap_cb *iriap;	      /* Used to query remote IAS */
+	struct ias_value *ias_result; /* Used by getsockopt(IRLMP_IAS_QUERY) */
 
 	int nslots;           /* Number of slots to use for discovery */
 
-	int errno;
+	int errno;            /* status of the IAS query */
 
 	struct sock *sk;
 	wait_queue_head_t ias_wait;       /* Wait for LM-IAS answer */

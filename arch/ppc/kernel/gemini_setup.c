@@ -332,10 +332,17 @@ void __init gemini_init_IRQ(void)
 	/* gemini has no 8259 */
 	open_pic.irq_offset = 0;
 	for( i=0; i < NR_IRQS; i++ ) 
-		irq_desc[i].ctl = &open_pic;
+		irq_desc[i].handler = &open_pic;
 	openpic_init(1);
 #ifdef __SMP__
-	request_irq(OPENPIC_VEC_IPI, openpic_ipi_action, 0, "IPI0", 0);
+ 	request_irq(OPENPIC_VEC_IPI, openpic_ipi_action,
+ 		    0, "IPI0", 0);
+ 	request_irq(OPENPIC_VEC_IPI+1, openpic_ipi_action,
+ 		    0, "IPI1 (invalidate TLB)", 0);
+ 	request_irq(OPENPIC_VEC_IPI+2, openpic_ipi_action,
+ 		    0, "IPI2 (stop CPU)", 0);
+ 	request_irq(OPENPIC_VEC_IPI+3, openpic_ipi_action,
+ 		    0, "IPI3 (reschedule)", 0);
 #endif	/* __SMP__ */
 }
 
@@ -505,7 +512,7 @@ void gemini_post_irq(int irq)
 	 * openpic irq.  So we just check to make sure the controller
 	 * is an openpic and if it is then eoi
 	 *
-	 * We do it this way since our irq_desc[irq].ctl can change
+	 * We do it this way since our irq_desc[irq].handler can change
 	 * with RTL and no longer be open_pic -- Cort
 	 */
 	if ( irq >= open_pic.irq_offset)

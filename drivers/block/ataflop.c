@@ -1559,10 +1559,6 @@ static int invalidate_drive(kdev_t rdev)
 static int fd_ioctl(struct inode *inode, struct file *filp,
 		    unsigned int cmd, unsigned long param)
 {
-#define IOCTL_MODE_BIT 8
-#define OPEN_WRITE_BIT 16
-#define IOCTL_ALLOWED (filp && (filp->f_mode & IOCTL_MODE_BIT))
-
 	int drive, type;
 	kdev_t device;
 	struct atari_format_descr fmt_desc;
@@ -1616,8 +1612,6 @@ static int fd_ioctl(struct inode *inode, struct file *filp,
 			return -EFAULT;
 		return 0;
 	}
-	if (!IOCTL_ALLOWED)
-		return -EPERM;
 	switch (cmd) {
 	case FDSETPRM:
 	case FDDEFPRM:
@@ -1928,12 +1922,6 @@ static int floppy_open( struct inode *inode, struct file *filp )
 	if (old_dev && old_dev != MINOR(inode->i_rdev))
 		invalidate_buffers(MKDEV(FLOPPY_MAJOR, old_dev));
 
-	/* Allow ioctls if we have write-permissions even if read-only open */
-	if (filp->f_mode & 2 || permission (inode, 2) == 0)
-		filp->f_mode |= IOCTL_MODE_BIT;
-	if (filp->f_mode & 2)
-		filp->f_mode |= OPEN_WRITE_BIT;
-
 	if (filp->f_flags & O_NDELAY)
 		return 0;
 
@@ -1957,14 +1945,7 @@ static int floppy_release( struct inode * inode, struct file * filp )
 
 	drive = MINOR(inode->i_rdev) & 3;
 
-	/*
-	 * If filp is NULL, we're being called from blkdev_release
-	 * or after a failed mount attempt.  In the former case the
-	 * device has already been sync'ed, and in the latter no
-	 * sync is required.  Otherwise, sync if filp is writable.
-	 */
-	if (filp && (filp->f_mode & (2 | OPEN_WRITE_BIT)))
-		block_fsync (filp, filp->f_dentry);
+	block_fsync (filp, filp->f_dentry);
 
 	if (fd_ref[drive] < 0)
 		fd_ref[drive] = 0;
@@ -1977,21 +1958,12 @@ static int floppy_release( struct inode * inode, struct file * filp )
 	return 0;
 }
 
-static struct file_operations floppy_fops = {
-	NULL,			/* lseek - default */
-	block_read,		/* read - general block-dev read */
-	block_write,		/* write - general block-dev write */
-	NULL,			/* readdir - bad */
-	NULL,			/* select */
-	fd_ioctl,		/* ioctl */
-	NULL,			/* mmap */
-	floppy_open,		/* open */
-	NULL,			/* flush */
-	floppy_release, 	/* release */
-	block_fsync,		/* fsync */
-	NULL,			/* fasync */
-	check_floppy_change,	/* media_change */
-	floppy_revalidate,	/* revalidate */
+static struct block_device_operations floppy_fops = {
+	open:			floppy_open,
+	release:		floppy_release,
+	ioctl:			fd_ioctl,
+	check_media_change:	check_floppy_change,
+	revalidate:		floppy_revalidate,
 };
 
 int __init atari_floppy_init (void)

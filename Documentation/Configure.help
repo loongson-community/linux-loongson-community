@@ -449,6 +449,8 @@ CONFIG_BLK_DEV_IDETAPE
   to the SCSI protocol. If you have an SCSI tape drive however, you
   can say N here.
 
+  This now includes the OnStream DI-30 tape drive support.
+
   If you say Y here, the tape drive will be identified at boot time
   along with other IDE devices, as "hdb" or "hdc", or something
   similar, and will be mapped to a character device such as "ht0"
@@ -2629,7 +2631,7 @@ CONFIG_PARPORT
   drive, PLIP link (Parallel Line Internet Protocol is mainly used to
   create a mini network by connecting the parallel ports of two local
   machines) etc., then you need to say Y here; please read
-  Documentation/parport.txt and drivers/misc/BUGS-parport.
+  Documentation/parport.txt and drivers/parport/BUGS-parport.
 
   For extensive information about drivers for many devices attaching
   to the parallel port see http://www.torque.net/linux-pp.html on the
@@ -5643,6 +5645,9 @@ CONFIG_AIRONET4500
 	channel=1..? 	meaningful in adhoc mode
   all other parameters can be set via proc interface
   These parameters belong to .._card module, but alas, they are here
+  if you have problems with screwin up card, both_bap_lock=1 is conservative
+  value (performance hit 15%)
+  for any other configuration options look at ..._proc module
 
 Aironet 4500/4800 ISA/PCI/PNP/365 support
 CONFIG_AIRONET4500_NONCS
@@ -5698,7 +5703,8 @@ CONFIG_AIRONET4500_PROC
 	NOTE: it takes lot of memory. Compile it as module and remove
 	after configuration
 	module: aironet4500_proc
-
+	additional info: look into drivers/net/aironet4500_rids.c
+	this is quite human-readable(no need to know C)
 
 
  
@@ -7575,8 +7581,17 @@ CONFIG_TMS380TR
   read the Token-Ring mini-HOWTO, available from
   http://metalab.unc.edu/mdw/linux.html#howto .
 
-  Also read the file linux/Documentation/networking/sktr.txt or check
+  Also read the file linux/Documentation/networking/tms380tr.txt or check
   http://www.auk.cx/tms380tr/
+
+SMC ISA TokenRing adapter support
+CONFIG_SMCTR
+  This is support for the ISA SMC Token Ring cards, specifically
+  SMC TokenCard Elite (8115T) and SMC TokenCard Elite/A (8115T/A) adapters.
+
+  If you have such an adapter and would like to use it, say Y or M and
+  read the Token-Ring mini-HOWTO, available from
+  http://metalab.unc.edu/mdw/linux.html#howto .
 
 Traffic Shaper (EXPERIMENTAL)
 CONFIG_SHAPER
@@ -7940,18 +7955,18 @@ CONFIG_QUOTA
 Support for USB (EXPERIMENTAL)
 CONFIG_USB
   Universal Serial Bus (USB) is a specification for a serial bus
-  system which offers higher speeds and more features than the
+  subsystem which offers higher speeds and more features than the
   traditional PC serial port. The bus supplies power to peripherals
   and allows for hot swapping. Up to 127 USB peripherals can be
-  connected to a single USB port in a tree structure; the USB port is
-  the root of the tree, the peripherals are the leafs and the inner
-  nodes are special USB devices called hubs. Many newer PC's have USB
+  connected to a single USB port in a tree structure. The USB port is
+  the root of the tree, the peripherals are the leaves, and the inner
+  nodes are special USB devices called hubs. Many newer PCs have USB
   ports and newer peripherals such as scanners, keyboards, mice,
-  modems and printers support the USB protocol and can be connected to
-  the PC via those ports.
+  modems, and printers support the USB protocol and can be connected
+  to the PC via those ports.
 
   Say Y here if your computer has a USB port and you want to
-  experiment with USB devices. You then need to say Y to at least one
+  use USB devices. You then need to say Y to at least one
   of "UHCI support" or "OHCI support" below (the type of interface
   that the USB hardware in your computer provides) and then choose
   from among the drivers for USB peripherals.
@@ -7961,116 +7976,110 @@ CONFIG_USB
   The module will be called usbcore.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-UHCI (intel PIIX4 and others) support?
+UHCI (intel PIIX4, VIA, and others) support?
 CONFIG_USB_UHCI
   The Universal Host Controller Interface is a standard by Intel for
   accessing the USB hardware in the PC (which is also called the USB
   host controller). If your USB host controller conforms to this
-  standard, say Y. All recent boards with Intel PCI chipsets conform
-  to this standard. If unsure, say Y.
+  standard, say Y. All recent boards with Intel PCI chipsets (like
+  intel 430TX, 440FX, 440LX, 440BX, i810, i820) conform to this standard.
+  Also all VIA PCI chipsets (like VIA VP2, VP3, MVP3, Apollo Pro, Apollo
+  Pro II or Apollo Pro 133).
+  If unsure, say Y.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called usb-uhci.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
   
-OHCI (compaq and some others) support?
-CONFIG_USB_OHCI
-  The Open Host Controller Interface is a standard by Compaq for
-  accessing the USB PC hardware (also called USB host controller). If
-  your USB host controller conforms to this standard, say Y. The USB
-  host controllers on most non-Intel architectures and on several x86
-  compatibles with non-Intel chipsets conform to this standard.
-
-  There are currently two OHCI drivers in development. You should
-  compile at most one. The other one is "OHCI-HCD (other OHCI opt.
-  Virt. Root Hub) support?", below.
-
-  You may want to read the file drivers/usb/README.ohci.
-
-  This code is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called usb-ohci.o. If you want to compile it as a
-  module, say M here and read Documentation/modules.txt.
-
-Enable tons of OHCI debugging output
-CONFIG_USB_OHCI_DEBUG
-  Say Y here in order to have the OHCI code generate verbose debugging
-  output.
-
-OHCI-HCD (other OHCI opt. Virt. Root Hub) support?
+OHCI-HCD (Compaq, iMacs, OPTi, SiS, ALi, and others) support?
 CONFIG_USB_OHCI_HCD
-  This is an alternative driver for USB PC hardware (also called USB
-  host controller) which complies with Compaq's Open Host Controller
-  Interface. You may want to read the file
-  drivers/usb/README.ohci_hcd.
+  The Open Host Controller Interface is a standard by
+  Compaq/Microsoft/National for accessing the USB PC hardware (also
+  called USB host controller). If your USB host controller conforms
+  to this standard, say Y. The USB host controllers on most
+  non-Intel architectures and on several x86 compatibles  with non-Intel
+  chipsets - like SiS (aktual 610, 610 and so on) or ALi (ALi IV, ALi V,
+  Aladin Pro..) - conform to this standard.
 
-  There are currently two OHCI drivers in development. You should
-  compile at most one. The other one is "OHCI (compaq and some others)
-  support?", above.
+  You may want to read the file drivers/usb/README.ohci_hcd.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called usb-ohci-hcd.o. If you want to compile it
   as a module, say M here and read Documentation/modules.txt.
 
-OHCI-HCD Virtual Root Hub
-CONFIG_USB_OHCI_VROOTHUB
-  The virtual root hub support is currently unstable, so you probably
-  want to say N unless you are a hacker. But you aren't a hacker since
-  you are reading help texts.
+USB Human Interface Device (HID) support
+CONFIG_USB_HID
+  Say Y here if you want to connect a keyboard, mouse, joystick,
+  graphic tablet, UPS or any other HID based devices to your computer
+  via USB.
 
-Enable lots of ISOC debugging output
-CONFIG_USB_DEBUG_ISOC
-  Say Y here if you want to get lots of debugging output related to
-  the USB code.
+USB HIDBP Keyboard support
+CONFIG_USB_KBD
+  Say Y here if you don't want to use the generic HID driver for your
+  USB keyboard and prefer to use the keyboard in its limited Boot
+  Protocol mode. This driver is much smaller than the HID one.
 
-USB hub support
-CONFIG_USB_HUB
-  Say Y here if you want to connect several USB devices to a single
-  USB port. You will need an USB hub to do this.
-    
-  If unsure, say Y.
-
-  This code is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called hub.o. If you want to compile it as a
-  module, say M here and read Documentation/modules.txt.
-
-USB mouse support
+USB HIDBP Mouse support
 CONFIG_USB_MOUSE
-  Say Y here if you want to connect a USB mouse to your computer's USB
-  port.
+  Say Y here if you don't want to use the generic HID driver for your
+  USB mouse and prefer to use the mouse in its limited Boot Protocol
+  mode. This driver is much smaller than the HID one.
 
-  This code is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called mouse.o. If you want to compile it as a
-  module, say M here and read Documentation/modules.txt.
+Keyboard support
+CONFIG_INPUT_KEYBDEV
+  Say Y here if you want your USB HID keyboard to be able to serve as
+  a system keyboard.
 
-USB HP scanner support
-CONFIG_USB_HP_SCANNER
-  Say Y here if you want to connect a USB HP scanner to your
-  computer's USB port. Please read drivers/usb/README.hp_scanner
-  for more information.
+Mouse support
+CONFIG_INPUT_MOUSEDEV
+  Say Y here if you want your USB HID mouse to be accessible as
+  misc devices 32+ under /dev/, as an emulated PS/2 mouse.
+
+Mix all mice into one device
+CONFIG_INPUT_MOUSEDEV_MIX
+  Say Y here if you want input from all your USB HID mice to be mixed
+  into one misc device. If you say N, you'll have a separate
+  device for each your USB mouse.
+
+Joystick support
+CONFIG_INPUT_JOYDEV
+  Say Y here if you want your USB HID joystick or gamepad to be
+  accessible as /dev/js device. You can't use a normal joystick
+  if you select this.
+
+Event interface support
+CONFIG_INPUT_EVDEV
+  Say Y here if you want your USB HID device events be accessible
+  under /dev/inputX (misc 64+) in a generic way.
+  This is the future ...
+
+USB HID debug output
+CONFIG_USB_HID_DEBUG
+  Say Y here if you want to see what the HID driver is doing,
+  perhaps it's doing something wrong with your device.
+
+USB HID lots of debug output
+CONFIG_USB_HID_DEBUG_LOTS
+  Say Y here if you don't fear to read all the HID dumps the
+  HID driver will generate when you switch this on. Really LOTS
+  of debug output.
+
+USB scanner support
+CONFIG_USB_SCANNER
+  Say Y here if you want to connect a USB scanner to your
+  computer's USB port. Please read drivers/usb/README.scanner
+  and drivers/usb/README.scanner_hp_sane for more information.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called hp_scanner.o. If you want to compile it as
   a module, say M here and read Documentation/modules.txt.
 
-USB keyboard support
-CONFIG_USB_KBD
-  Say Y here if you want to connect a USB keyboard to your computer's
-  USB port.
-
-  This code is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called usb-keyboard.o. If you want to compile it
-  as a module, say M here and read Documentation/modules.txt.
-
 USB audio parsing support
 CONFIG_USB_AUDIO
-  Say Y here if you want to connect audio equipment such as USB
+  Say Y here if you want to connect USB audio equipment such as
   speakers to your computer's USB port.
 
   This code is also available as a module ( = code which can be
@@ -8089,11 +8098,12 @@ CONFIG_USB_ACM
   The module will be called acm.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
-USB Belkin and Peracom serial support
+USB serial converter support
 CONFIG_USB_SERIAL
-  Say Y here if you want to connect a Belkin, Peracom, or eTek
-  single port USB to serial converter.
-  
+  Say Y here if you want to connect a Connect Tech WhiteHEAT 
+  multi-port USB to serial converter; a Belkin, Peracom, or eTek
+  single port USB to serial converter; or a Handspring Visor.
+
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called usb-serial.o. If you want to compile it 
@@ -8101,7 +8111,7 @@ CONFIG_USB_SERIAL
 
 USB Printer support
 CONFIG_USB_PRINTER
-  Say Y here if you want to connect a printer to your computer's USB
+  Say Y here if you want to connect a USB printer to your computer's USB
   port.
 
   This code is also available as a module ( = code which can be
@@ -8119,6 +8129,20 @@ CONFIG_USB_CPIA
   The module will be called cpia.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
 
+USB OV511 Camera support
+CONFIG_USB_OV511
+  Say Y here if you want to connect this type of camera to your
+  computer's USB port. See drivers/usb/README.ov511 for more
+  information and for a list of supported cameras.
+  
+  NOTE: This code is experimental and you will not get video with it
+  yet.
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called ov511.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
 USB Kodak DC-2xx Camera support
 CONFIG_USB_DC2XX
   Say Y here if you want to connect this type of still camera to
@@ -8133,8 +8157,13 @@ CONFIG_USB_DC2XX
 
 USB SCSI Support
 CONFIG_USB_SCSI
-  Say Y here if you want to connect SCSI devices to your computer's
-  USB port.
+  Say Y here if you want to connect USB mass storage devices to your
+  computer's USB port.
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called usb-scsi.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
 
 USB SCSI verbose debug
 CONFIG_USB_SCSI_DEBUG
@@ -8159,7 +8188,7 @@ CONFIG_USB_USS720
 
   Manual mode is not limited to printers, any parallel port
   device should work. This driver utilizes manual mode.
-  Note however that some operations are three orders of a magnitude
+  Note however that some operations are three orders of magnitude
   slower than on a PCI/ISA Parallel Port, so timing critical
   applications might not work.
 
@@ -8171,15 +8200,27 @@ CONFIG_USB_USS720
   The module will be called uss720.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
   
-USB /proc filesystem entry support (Preliminary)
+USB /proc filesystem support
 CONFIG_USB_PROC
   This reports USB drivers and devices in the /proc filesystem.
   Entries are located in /proc/bus/usb. The entries are described in
   the file Documentation/proc_usb_info.txt.
 
-  Note that you must say Y to "/proc filesystem support" below for
-  this to work.
+  Note that you must say Y to global "/proc filesystem support" under
+  Filesystems for this to work.
 
+DABUSB driver
+CONFIG_USB_DABUSB
+  A Digital Audio Broadcasting (DAB) Receiver for USB and Linux brought
+  to you by the DAB-Team (http://dab.in.tum.de). 
+  This driver can be taken as an example for URB-based bulk, control, and
+  isochronous transactions.
+
+  This code is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called dabusb.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+  
 ACPI support
 CONFIG_ACPI
   Advanced Configuration and Power Interface (ACPI) is an interface
@@ -8959,10 +9000,9 @@ CONFIG_NCPFS_OS2_NS
 Lowercase DOS filenames on LONG namespace volume
 CONFIG_NCPFS_SMALLDOS
   If you say Y here, every filename on a NetWare server volume using
-  the OS2/LONG namespace will be converted to lowercase characters.
-  (For regular NetWare file server volumes with DOS namespace, this is
-  done automatically, even if you say N here.) Saying N here will give
-  you these filenames in uppercase.
+  the OS2/LONG namespace and created under DOS or on a volume using
+  DOS namespace will be converted to lowercase characters.
+  Saying N here will give you these filenames in uppercase.
   
   This is only a cosmetic option since the OS2/LONG namespace is case
   insensitive. The only major reason for this option is backward
@@ -10303,11 +10343,6 @@ CONFIG_APM
    11) exchange RAM chips 
    12) exchange the motherboard.
 
-  This driver is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  If you want to compile it as a module, say M here and read
-  Documentation/modules.txt. The module will be called apm.o.
-
 Ignore USER SUSPEND
 CONFIG_APM_IGNORE_USER_SUSPEND
   This option will ignore USER SUSPEND requests. On machines with a
@@ -10352,17 +10387,6 @@ CONFIG_APM_DISPLAY_BLANK
   backlight at all, or it might print a lot of errors to the console,
   especially if you are using gpm.
 
-Power off on shutdown 
-CONFIG_APM_POWER_OFF
-  Enable the ability to power off the computer after the Linux kernel
-  is halted. You will need software (e.g., a suitable version of the
-  halt(8) command ("man 8 halt")) to cause the computer to power down.
-  Recent versions of the sysvinit package available from
-  ftp://metalab.unc.edu/pub/Linux/system/daemons/init/ contain support
-  for this ("halt -p" shuts down Linux and powers off the computer, if
-  executed from runlevel 0). As with the other APM options, this
-  option may not work reliably with some APM BIOS implementations.
-
 Ignore multiple suspend/standby events
 CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
   This option is necessary on the IBM Thinkpad 560, but should work on
@@ -10399,6 +10423,20 @@ CONFIG_APM_ALLOW_INTS
   needs to.  Unfortunately, some BIOSes do not - especially those in
   many of the newer IBM Thinkpads.  If you experience hangs when you
   suspend, try setting this to Y.  Otherwise, say N.
+
+Entry point offset fix (some Acer laptops)
+CONFIG_APM_BAD_ENTRY_OFFSET
+  Some implementations of the APM BIOS provide the driver with a bad
+  entry point offset.  If you set this option to Y, then the upper
+  sixteen bits of the offset will be set to zero.  This is usually
+  unnecessary but harmless.  This is required for the Acer Travelmate
+  510DX, Travelmate 510T and Extensa 503T.  For others, say N.
+
+Use real mode APM BIOS call to power off
+CONFIG_APM_REAL_MODE_POWER_OFF
+  Use real mode APM BIOS calls to switch off the computer. This is
+  a work-around for a number of buggy BIOSes. Switch this option on if
+  your computer crashes instead of powering off properly.
 
 Watchdog Timer Support 
 CONFIG_WATCHDOG
@@ -11298,6 +11336,12 @@ CONFIG_SOUND_NM256
   engine.
 
   See Documentation/sound/NM256 for further information.
+
+ESS Maestro sound chipsets
+CONFIG_SOUND_MAESTRO
+  Say Y or M if you have a sound system driven by ESS's Maestro line
+  of PCI sound chips.  These include the Maestro 1, Maestro 2, and
+  Maestro 2E.  See Documentation/sound/Maestro for more details.
 
 Are you using a crosscompiler
 CONFIG_CROSSCOMPILE
@@ -12745,6 +12789,25 @@ CONFIG_BLK_CPQ_DA
    boards supported by this driver, and for further information 
    on the use of this driver. 
 
+QuickNet Internet LineJack/PhoneJack support
+CONFIG_PHONE_IXJ
+  Say M if you have a telephony card manufactured by Quicknet
+  Technologies, Inc.  These include the Internet PhoneJACK and
+  Internet LineJACK Telephony Cards.
+
+  For the ISA versions of these products, you can configure the
+  cards using the isapnp tools (pnpdump/isapnp) or you can use the
+  isapnp support.  Please read:
+
+  /usr/src/linux/Documentation/telephony/ixj.txt.
+
+  For more information on these cards, see Quicknet's website at:
+  http://www.quicknet.net/
+
+  If you do not have any Quicknet telephony cards, you can safely
+  ignore this option.
+ 
+
 #
 # ARM options
 #
@@ -13284,6 +13347,58 @@ CONFIG_KHTTPD
   The kHTTPd is experimental. Be careful when using it on a production
   machine. Also note that kHTTPd doesn't support virtual servers yet.
 
+I2C support
+CONFIG_I2C
+  I2C (pronounce: I-square-C) is a slow bus protocol developed by
+  Philips. SMBus, or System Management Bus is a sub-protocol of I2C.
+
+  Both I2C and SMBus are supported here. You will need this for 
+  hardware sensors support, and in the future for Video for Linux
+  support.
+
+  Beside this option, you will also need to select specific drivers 
+  for your bus adapter(s). 
+
+I2C bit-banging interfaces
+CONFIG_I2C_ALGOBIT
+  This allows you to use a range of I2C adapters called bit-banging
+  adapters. Why they are called so is rather technical and uninteresting;
+  but you need to select this if you own one of the adapters listed
+  under it.
+
+Philips style parallel port adapter
+CONFIG_I2C_PHILIPSPAR
+  This supports parallel-port I2C adapters made by Philips. Unless you
+  own such an adapter, you do not need to select this.
+
+ELV adapter
+CONFIG_I2C_ELV
+  This supports parallel-port I2C adapters called ELV. Unless you 
+  own such an adapter, you do not need to select this.
+
+Velleman K9000 adapter
+CONFIG_I2C_VELLEMAN
+  This supports the Velleman K9000 parallel-port I2C adapter. Unless
+  you own such an adapter, you do not need to select this.
+
+I2C PCF 8584 interfaces
+CONFIG_I2C_ALGOPCF
+  This allows you to use a range of I2C adapters called PCF
+  adapters. Why they are called so is rather technical and uninteresting;
+  but you need to select this if you own one of the adapters listed
+  under it.
+
+Elektor ISA card
+CONFIG_I2C_ELEKTOR
+  This supports the PCF8584 ISA bus I2C adapter. Unless you own such
+  an adapter, you do not need to select this.
+
+I2C device interface
+CONFIG_I2C_CHARDEV
+  Here you find the drivers which allow you to use the i2c-* device 
+  files, usually found in the /dev directory on your system. They
+  make it possible to have user-space programs use the I2C bus.
+
 #
 # A couple of things I keep forgetting:
 #   capitalize: AppleTalk, Ethernet, DOS, DMA, FAT, FTP, Internet, 
@@ -13546,4 +13661,4 @@ CONFIG_KHTTPD
 # LocalWords:  adbmouse DRI DRM dlabs GMX PLCs Applicom fieldbus applicom int
 # LocalWords:  VWSND eg ESSSOLO CFU CFNR scribed eiconctrl eicon hylafax KFPU
 # LocalWords:  EXTRAPREC fpu mainboards KHTTPD kHTTPd khttpd Xcelerator
-# LocalWords:  LOGIBUSMOUSE
+# LocalWords:  LOGIBUSMOUSE OV511 ov511

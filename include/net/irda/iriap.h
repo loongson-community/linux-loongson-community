@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Thu Aug 21 00:02:07 1997
- * Modified at:   Sun Oct 31 15:51:32 1999
+ * Modified at:   Sat Dec 25 16:42:09 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1997-1999 Dag Brattli <dagb@cs.uit.no>, 
@@ -83,6 +83,7 @@ struct iriap_cb {
 	void *priv;                /* Used to identify client */
 
 	__u8 max_header_size;
+	__u32 max_data_size;
 	
 	struct timer_list watchdog_timer;
 };
@@ -90,7 +91,7 @@ struct iriap_cb {
 int  iriap_init(void);
 void iriap_cleanup(void);
 
-struct iriap_cb *iriap_open(__u8 slsap_sel, int mode, void *priv,
+struct iriap_cb *iriap_open(__u8 slsap_sel, int mode, void *priv, 
 			    CONFIRM_CALLBACK callback);
 void iriap_close(struct iriap_cb *self);
 
@@ -98,7 +99,7 @@ int iriap_getvaluebyclass_request(struct iriap_cb *self,
 				  __u32 saddr, __u32 daddr,
 				  char *name, char *attr);
 void iriap_getvaluebyclass_confirm(struct iriap_cb *self, struct sk_buff *skb);
-
+void iriap_connect_request(struct iriap_cb *self);
 void iriap_send_ack( struct iriap_cb *self);
 void iriap_call_indication(struct iriap_cb *self, struct sk_buff *skb);
 

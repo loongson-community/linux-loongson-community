@@ -1,24 +1,19 @@
-/* Driver for USB SCSI-like devices
+/* Driver for USB Mass Storage compliant devices
  *
  * (c) 1999 Michael Gee (michael@linuxspecific.com)
- * (c) 1999 Matthew Dharm (mdharm@one-eyed-alien.net)
+ * (c) 1999, 2000 Matthew Dharm (mdharm-usb@one-eyed-alien.net)
  *
- * This driver is schizoid  - it makes a USB device appear as both a SCSI
- * device and a character device. The latter is only available if the device
- * has an interrupt endpoint, and is used specifically to receive interrupt
- * events.
- *
- * In order to support various 'strange' devices, this module supports plug-in
- * device-specific filter modules, which can do their own thing when required.
- *
- * Further reference.
+ * Further reference:
  *	This driver is based on the 'USB Mass Storage Class' document. This
- *	describes in detail the transformation of SCSI command blocks to the
- *	equivalent USB control and data transfer required.
+ *	describes in detail the protocol used to communicate with such
+ *      devices.  Clearly, the designers had SCSI commands in mind when they
+ *      created this document.  The commands are all similar to commands
+ *      in the SCSI-II specification.
+ *
  *	It is important to note that in a number of cases this class exhibits
  *	class-specific exemptions from the USB specification. Notably the
  *	usage of NAK, STALL and ACK differs from the norm, in that they are
- *	used to communicate wait, failed and OK on SCSI commands.
+ *	used to communicate wait, failed and OK on commands.
  *	Also, for certain devices, the interrupt endpoint is used to convey
  *	status of a command.
  *
@@ -26,13 +21,11 @@
  *
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
 #include <linux/errno.h>
-#include <linux/miscdevice.h>
 #include <linux/random.h>
 #include <linux/poll.h>
 #include <linux/init.h>
@@ -48,19 +41,15 @@
 #include "usb.h"
 #include "usb_scsi.h"
 
-/* direction table (what a pain) */
-
+/* direction table -- this indicates the direction of the data
+ * transfer for each command code -- a 1 indicates input
+ */
 unsigned char us_direction[256/8] = {
-
-#include "usb_scsi_dt.c"
-
+	0x28, 0x81, 0x14, 0x14, 0x20, 0x01, 0x90, 0x77, 
+	0x0C, 0x20, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-
-#ifdef REWRITE_PROJECT
-#define IRQ_PERIOD		255
-#else
-#define IRQ_PERIOD		0    /* single IRQ transfer then remove it */
-#endif
 
 /*
  * Per device data
@@ -68,13 +57,11 @@ unsigned char us_direction[256/8] = {
 
 static int my_host_number;
 
-int usbscsi_debug = 1;
+int usb_stor_debug = 1;
 
 struct us_data {
-	struct us_data		*next;		/* next device */
+	struct us_data	*next;		/* next device */
 	struct usb_device	*pusb_dev;
-	struct usb_scsi_filter	*filter;	/* filter driver */
-	void			*fdata;		/* filter data */
 	unsigned int		flags;		/* from filter initially */
 	__u8			ifnum;		/* interface number */
 	__u8			ep_in;		/* in endpoint */
@@ -116,19 +103,20 @@ struct us_data {
 
 static struct us_data *us_list;
 
-static struct usb_scsi_filter *filters;
-
-static void * scsi_probe(struct usb_device *dev, unsigned int ifnum);
-static void scsi_disconnect(struct usb_device *dev, void *ptr);
-static struct usb_driver scsi_driver = {
-	"usb_scsi",
-	scsi_probe,
-	scsi_disconnect,
+static void * storage_probe(struct usb_device *dev, unsigned int ifnum);
+static void storage_disconnect(struct usb_device *dev, void *ptr);
+static struct usb_driver storage_driver = {
+	"usb-storage",
+	storage_probe,
+	storage_disconnect,
 	{ NULL, NULL }
 };
 
-/* Data handling, using SG if required */
+/***********************************************************************
+ * Data transfer routines
+ ***********************************************************************/
 
+/* transfer one buffer (breaking into packets if necessary) */
 static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
 {
 	int max_size = usb_maxpacket(us->pusb_dev, pipe, usb_pipeout(pipe)) * 16;
@@ -136,18 +124,23 @@ static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
 	int result;
 	unsigned long partial;
 	int maxtry = 100;
+
+	/* while we have data to transfer */
 	while (length) {
+
+		/* calculate how long this will be -- maximum or a remainder */
 		this_xfer = length > max_size ? max_size : length;
 		length -= this_xfer;
+
 		do {
+			/* transfer the data */
 			US_DEBUGP("Bulk xfer %x(%d)\n", (unsigned int)buf, this_xfer);
 			result = usb_bulk_msg(us->pusb_dev, pipe, buf,
 					      this_xfer, &partial, HZ*5);
+			US_DEBUGP("bulk_msg returned %d xferred %lu/%d\n",
+				  result, partial, this_xfer);
 
-			if (result != 0 || partial != this_xfer)
-				US_DEBUGP("bulk_msg returned %d xferred %lu/%d\n",
-					  result, partial, this_xfer);
-
+			/* if we stall, we need to clear it before we go on */
 			if (result == USB_ST_STALL) {
 				US_DEBUGP("clearing endpoint halt for pipe %x\n", pipe);
 				usb_clear_halt(us->pusb_dev,
@@ -156,33 +149,50 @@ static int us_one_transfer(struct us_data *us, int pipe, char *buf, int length)
 
 			/* we want to retry if the device reported NAK */
 			if (result == USB_ST_TIMEOUT) {
-				if (partial != this_xfer) {
-					return 0;	/* I do not like this */
-				}
+
+				/* if our try counter reaches 0, bail out */
 				if (!maxtry--)
 					break;
+
+				/* otherwise, we did transmit some data, and we update pointers */
 				this_xfer -= partial;
 				buf += partial;
+
 			} else if (!result && partial != this_xfer) {
-				/* short data - assume end */
+				/* result is an error, not a NAK, and short data - assume end */
 				result = USB_ST_DATAUNDERRUN;
 				break;
+
 			} else if (result == USB_ST_STALL && us->protocol == US_PR_CB) {
+				/* for CB devices, a stall isn't fatal? */
+
+				/* if our try counter reaches 0, bail out */
 				if (!maxtry--)
 					break;
+
 				this_xfer -= partial;
 				buf += partial;
-			} else
-				break;
+			} 
+
+			/* continue until this transfer is done */
 		} while ( this_xfer );
+
+		/* if we have some nonzero result, we return it here */
 		if (result)
 			return result;
+
+		/* otherwise, we advance the buf pointer
+		 * note that the code above doesn't advance the pointer if all
+		 * goes well
+		 */
 		buf += this_xfer;
 	}
 
+	/* if we get here, we're done and successful */
 	return 0;
 }
 
+/* transfer one SCSI command, using scatter-gather if requested */
 static int us_transfer(Scsi_Cmnd *srb, int dir_in)
 {
 	struct us_data *us = (struct us_data *)srb->host_scribble;
@@ -209,6 +219,9 @@ static int us_transfer(Scsi_Cmnd *srb, int dir_in)
 	return result;
 }
 
+/* calculate the length of the data transfer (not the command) for any
+ * given SCSI command
+ */
 static unsigned int us_transfer_length(Scsi_Cmnd *srb)
 {
 	int i;
@@ -240,20 +253,27 @@ static unsigned int us_transfer_length(Scsi_Cmnd *srb)
 		return srb->request_bufflen;
 }
 
-static int pop_CBI_irq(int state, void *buffer, int len, void *dev_id)
+/***********************************************************************
+ * Transport routines
+ ***********************************************************************/
+
+static int CBI_irq(int state, void *buffer, int len, void *dev_id)
 {
 	struct us_data *us = (struct us_data *)dev_id;
 
+	US_DEBUGP("CBI_irq() called!!\n");
+
 	if (state != USB_ST_REMOVED) {
 		us->ip_data = le16_to_cpup((__u16 *)buffer);
-		/* US_DEBUGP("Interrupt Status %x\n", us->ip_data); */
+		US_DEBUGP("Interrupt Status %x\n", us->ip_data);
 	}
+  
 	if (us->ip_wanted) {
 		us->ip_wanted = 0;
 		wake_up(&us->ip_waitq);
 	}
 
-	/* we don't want another interrupt */
+	/* this return code is truly meaningless */
 	return 0;
 }
 
@@ -291,13 +311,13 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 	int retry = 5;
 	int done_start = 0;
 
+	/* we'll try this up to 5 times? */
 	while (retry--) {
-
 		if (us->flags & US_FL_FIXED_COMMAND) {
 			memset(cmd, 0, us->fixedlength);
-
+      
 			/* fix some commands */
-
+      
 			switch (srb->cmnd[0]) {
 			case WRITE_6:
 			case READ_6:
@@ -323,37 +343,52 @@ static int pop_CB_command(Scsi_Cmnd *srb)
 				us->mode_xlate = 0;
 				memcpy(cmd, srb->cmnd, srb->cmd_len);
 				break;
-			}
+			} /* switch */
+
 			result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
 						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
 						 0, us->ifnum,
 						 cmd, us->fixedlength, HZ*5);
-			if (!done_start && (us->subclass == US_SC_UFI /*|| us->subclass == US_SC_8070*/)
-			    && cmd[0] == TEST_UNIT_READY && result) {
+			US_DEBUGP("First usb_control_msg returns %d\n", result);
+
+			/* For UFI, if this is the first time we've sent this TEST_UNIT_READY 
+			 * command, we can try again
+			 */
+			if (!done_start && (us->subclass == US_SC_UFI)
+			    && (cmd[0] == TEST_UNIT_READY) && (result < 0)) {
+
 				/* as per spec try a start command, wait and retry */
+				wait_ms(100);
 
 				done_start++;
 				memset(cmd, 0, sizeof(cmd));
 				cmd[0] = START_STOP;
 				cmd[4] = 1;		/* start */
+
 				result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
-							 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
+							 US_CBI_ADSC, 
+							 USB_TYPE_CLASS | USB_RT_INTERFACE,
 							 0, us->ifnum,
 							 cmd, us->fixedlength, HZ*5);
-				wait_ms(100);
+				US_DEBUGP("Next usb_control_msg returns %d\n", result);
+
+				/* allow another retry */
 				retry++;
 				continue;
 			}
-		} else {
+		} else { /* !US_FL_FIXED_COMMAND */
 			result = usb_control_msg(us->pusb_dev, usb_sndctrlpipe(us->pusb_dev,0),
 						 US_CBI_ADSC, USB_TYPE_CLASS | USB_RT_INTERFACE,
 						 0, us->ifnum,
 						 srb->cmnd, srb->cmd_len, HZ*5);
 		}
+    
+		/* return an answer if we've got one */
 		if (/*result != USB_ST_STALL &&*/ result != USB_ST_TIMEOUT)
 			return result;
 	}
 
+	/* all done -- return our status */
 	return result;
 }
 
@@ -375,9 +410,9 @@ static int pop_CB_status(Scsi_Cmnd *srb)
 
 		while (retry--) {
 			result = usb_control_msg(us->pusb_dev, usb_rcvctrlpipe(us->pusb_dev,0),
-						 USB_REQ_GET_STATUS, USB_DIR_IN | USB_TYPE_STANDARD | USB_RT_DEVICE,
-						 0, us->ifnum,
-						 status, sizeof(status), HZ*5);
+						 USB_REQ_GET_STATUS, USB_DIR_IN |
+						 USB_TYPE_STANDARD | USB_RT_DEVICE,
+						 0, us->ifnum, status, sizeof(status), HZ*5);
 			if (result != USB_ST_TIMEOUT)
 				break;
 		}
@@ -398,20 +433,14 @@ static int pop_CB_status(Scsi_Cmnd *srb)
 
 		/* add interrupt transfer, marked for removal */
 		us->ip_wanted = 1;
-		us->irqpipe = usb_rcvintpipe(us->pusb_dev, us->ep_int);
-		result = usb_request_irq(us->pusb_dev, us->irqpipe, pop_CBI_irq,
-					 IRQ_PERIOD, (void *)us, &us->irq_handle);
-		if (result) {
-			US_DEBUGP("usb_request_irq failed (0x%x), No interrupt for CBI\n",
-				  result);
-			return DID_ABORT << 16;
-		}
 
+		/* go to sleep until we get this interrup */
 		sleep_on(&us->ip_waitq);
-#ifdef REWRITE_PROJECT
-		usb_release_irq(us->pusb_dev, us->irq_handle, us->irqpipe);
-		us->irq_handle = NULL;
-#endif
+
+		/* NO! We don't release this IRQ.  We just re-use the handler 
+		   usb_release_irq(us->pusb_dev, us->irq_handle, us->irqpipe);
+		   us->irq_handle = NULL;
+		*/
 
 		if (us->ip_wanted) {
 			US_DEBUGP("Did not get interrupt on CBI\n");
@@ -447,10 +476,12 @@ static int pop_CBI(Scsi_Cmnd *srb)
 {
 	int result;
 
-	/* run the command */
+	US_DEBUGP("CBI gets a command:\n");
+	US_DEBUG(us_show_command(srb));
 
-	if ((result = pop_CB_command(srb))) {
-		US_DEBUGP("CBI command %x\n", result);
+	/* run the command */
+	if ((result = pop_CB_command(srb)) < 0) {
+		US_DEBUGP("Call to pop_CB_command returned %d\n", result);
 		if (result == USB_ST_STALL || result == USB_ST_TIMEOUT) {
 			return (DID_OK << 16) | 2;
 		}
@@ -458,11 +489,12 @@ static int pop_CBI(Scsi_Cmnd *srb)
 	}
 
 	/* transfer the data */
-
 	if (us_transfer_length(srb)) {
 		result = us_transfer(srb, US_DIRECTION(srb->cmnd[0]));
-		if (result && result != USB_ST_DATAUNDERRUN && result != USB_ST_STALL) {
-			US_DEBUGP("CBI transfer %x\n", result);
+		if ((result < 0) && 
+		    (result != USB_ST_DATAUNDERRUN) && 
+		    (result != USB_ST_STALL)) {
+			US_DEBUGP("CBI attempted to transfer data, result is %x\n", result);
 			return DID_ERROR << 16;
 		}
 #if 0
@@ -578,6 +610,8 @@ static int pop_Bulk(Scsi_Cmnd *srb)
 		US_DEBUGP("Bulk logical error\n");
 		return DID_ABORT << 16;
 	}
+
+	/* We need to fix some of this status handling. */
 	switch (bcs.Status) {
 	case US_BULK_STAT_OK:
 		return DID_OK << 16;
@@ -593,7 +627,7 @@ static int pop_Bulk(Scsi_Cmnd *srb)
 		return DID_ERROR << 16;
 	}
 
-	return (DID_OK << 16) | 2;		/* check sense required */
+	return (DID_OK << 16) | 2;	    /* check sense required */
 }
 
 /* Host functions */
@@ -605,20 +639,28 @@ static int us_detect(struct SHT *sht)
 	struct us_data *us = (struct us_data *)sht->proc_dir;
 	char name[32];
 
+	/* set up our name */
 	sprintf(name, "usbscsi%d", us->host_number);
 	sht->name = sht->proc_name = kmalloc(strlen(name)+1, GFP_KERNEL);
 	if (!sht->proc_name)
 		return 0;
 	strcpy(sht->proc_name, name);
+
+	/* we start with no /proc directory entry */
 	sht->proc_dir = NULL;
+
+	/* register the host */
 	us->host = scsi_register(sht, sizeof(us));
 	if (us->host) {
 		us->host->hostdata[0] = (unsigned long)us;
 		us->host_no = us->host->host_no;
 		return 1;
 	}
+
+	/* odd... didn't register properly.  Abort and free pointers */
 	kfree(sht->proc_name);
-	sht->proc_name = sht->name = NULL;
+	sht->proc_name = NULL;
+	sht->name = NULL;
 	return 0;
 }
 
@@ -635,10 +677,8 @@ static int us_release(struct Scsi_Host *psh)
 		usb_release_irq(us->pusb_dev, us->irq_handle, us->irqpipe);
 		us->irq_handle = NULL;
 	}
-	if (us->filter)
-		us->filter->release(us->fdata);
 	if (us->pusb_dev)
-		usb_deregister(&scsi_driver);
+		usb_deregister(&storage_driver);
 
 	/* FIXME - leaves hanging host template copy */
 	/* (because scsi layer uses it after removal !!!) */
@@ -686,6 +726,7 @@ static int us_bus_reset( Scsi_Cmnd *srb )
 {
 	struct us_data *us = (struct us_data *)srb->host->hostdata[0];
 
+	US_DEBUGP("Bus reset requested\n");
 	us->pop_reset(us);
 	return SUCCESS;
 }
@@ -695,55 +736,80 @@ static int us_host_reset( Scsi_Cmnd *srb )
 	return 0;
 }
 
-#undef SPRINTF
-#define SPRINTF(args...) { if (pos < (buffer + length)) pos += sprintf (pos, ## args); }
+/***********************************************************************
+ * /proc/scsi/ functions
+ ***********************************************************************/
 
-int usb_scsi_proc_info (char *buffer, char **start, off_t offset, int length, int hostno, int inout)
+/* we use this macro to help us write into the buffer */
+#undef SPRINTF
+#define SPRINTF(args...) do { if (pos < (buffer + length)) pos += sprintf (pos, ## args); } while (0)
+
+int usb_stor_proc_info (char *buffer, char **start, off_t offset, 
+			int length, int hostno, int inout)
 {
 	struct us_data *us = us_list;
 	char *pos = buffer;
-	char *vendor;
-	char *product;
-	char *style = "";
+	char *tmp_ptr;
 
 	/* find our data from hostno */
-
 	while (us) {
 		if (us->host_no == hostno)
 			break;
 		us = us->next;
 	}
 
+	/* if we couldn't find it, we return an error */
 	if (!us)
 		return -ESRCH;
 
-	/* null on outward */
-
+	/* if someone is sending us data, just throw it away */
 	if (inout)
 		return length;
 
-	if (!us->pusb_dev || !(vendor = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iManufacturer)))
-		vendor = "?";
-	if (!us->pusb_dev || !(product = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iProduct)))
-		product = "?";
+	/* print the controler name */
+	SPRINTF ("Host scsi%d: usb-scsi\n", hostno);
 
+	/* print product and vendor strings */
+	if (!us->pusb_dev) {
+		SPRINTF("Vendor: Unknown Vendor\n");
+		SPRINTF("Product: Unknown Product\n");
+	} else {
+		SPRINTF("Vendor: ");
+		tmp_ptr = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iManufacturer);
+		if (!tmp_ptr)
+			SPRINTF("Unknown Vendor\n");
+		else
+			SPRINTF("%s\n", tmp_ptr);
+    
+		SPRINTF("Product: ");
+		tmp_ptr = usb_string(us->pusb_dev, us->pusb_dev->descriptor.iProduct);
+		if (!tmp_ptr)
+			SPRINTF("Unknown Vendor\n");
+		else
+			SPRINTF("%s\n", tmp_ptr);
+	}
+
+	SPRINTF("Protocol: ");
 	switch (us->protocol) {
 	case US_PR_CB:
-		style = "Control/Bulk";
+		SPRINTF("Control/Bulk\n");
 		break;
-
+    
 	case US_PR_CBI:
-		style = "Control/Bulk/Interrupt";
+		SPRINTF("Control/Bulk/Interrupt\n");
 		break;
-
-	case US_PR_ZIP:
-		style = "Bulk only";
+    
+	case US_PR_BULK:
+		SPRINTF("Bulk only\n");
 		break;
-
+    
+	default:
+		SPRINTF("Unknown Protocol\n");
+		break;
 	}
-	SPRINTF ("Host scsi%d: usb-scsi\n", hostno);
-	SPRINTF ("Device: %s %s - GUID " GUID_FORMAT "\n", vendor, product, GUID_ARGS(us->guid) );
-	SPRINTF ("Style: %s\n", style);
+
+	/* show the GUID of the device */
+	SPRINTF("GUID: " GUID_FORMAT "\n", GUID_ARGS(us->guid));
 
 	/*
 	 * Calculate start of next buffer, and return value.
@@ -763,57 +829,57 @@ int usb_scsi_proc_info (char *buffer, char **start, off_t offset, int length, in
  */
 
 static Scsi_Host_Template my_host_template = {
-	NULL,			/* next */
-	NULL,			/* module */
-	NULL,			/* proc_dir */
-	usb_scsi_proc_info,
-	NULL,			/* name - points to unique */
+	NULL,			    /* next */
+	NULL,			    /* module */
+	NULL,			    /* proc_dir */
+	usb_stor_proc_info,
+	NULL,			    /* name - points to unique */
 	us_detect,
 	us_release,
-	NULL,			/* info */
-	NULL,			/* ioctl */
+	NULL,			    /* info */
+	NULL,			    /* ioctl */
 	us_command,
 	us_queuecommand,
-	NULL,			/* eh_strategy */
+	NULL,			    /* eh_strategy */
 	us_abort,
 	us_bus_reset,
 	us_bus_reset,
 	us_host_reset,
-	NULL,			/* abort */
-	NULL,			/* reset */
-	NULL,			/* slave_attach */
-	NULL,			/* bios_param */
-	1,				/* can_queue */
-	-1,				/* this_id */
-	SG_ALL,			/* sg_tablesize */
-	1,				/* cmd_per_lun */
-	0,				/* present */
-	FALSE,			/* unchecked_isa_dma */
-	FALSE,			/* use_clustering */
-	TRUE,			/* use_new_eh_code */
-	TRUE			/* emulated */
+	NULL,			    /* abort */
+	NULL,			    /* reset */
+	NULL,			    /* slave_attach */
+	NULL,			    /* bios_param */
+	1,			    /* can_queue */
+	-1,			    /* this_id */
+	SG_ALL,			    /* sg_tablesize */
+	1,			    /* cmd_per_lun */
+	0,			    /* present */
+	FALSE,			    /* unchecked_isa_dma */
+	FALSE,			    /* use_clustering */
+	TRUE,			    /* use_new_eh_code */
+	TRUE			    /* emulated */
 };
 
 static unsigned char sense_notready[] = {
-	0x70,			/* current error */
+	0x70,			    /* current error */
 	0x00,
-	0x02,			/* not ready */
-	0x00,
-	0x00,
-	10,				/* additional length */
+	0x02,			    /* not ready */
 	0x00,
 	0x00,
+	10,			    /* additional length */
 	0x00,
 	0x00,
-	0x04,			/* not ready */
-	0x03,			/* manual intervention */
+	0x00,
+	0x00,
+	0x04,			    /* not ready */
+	0x03,			    /* manual intervention */
 	0x00,
 	0x00,
 	0x00,
 	0x00
 };
 
-static int usbscsi_control_thread(void * __us)
+static int usb_stor_control_thread(void * __us)
 {
 	struct us_data *us = (struct us_data *)__us;
 	int action;
@@ -824,9 +890,7 @@ static int usbscsi_control_thread(void * __us)
 	 * This thread doesn't need any user-level access,
 	 * so get rid of all our resources..
 	 */
-	exit_mm(current);
-	exit_files(current);
-	//exit_fs(current);
+	daemonize();
 
 	sprintf(current->comm, "usbscsi%d", us->host_number);
 
@@ -863,18 +927,15 @@ static int usbscsi_control_thread(void * __us)
 			} else {
 				US_DEBUG(us_show_command(us->srb));
 
-				/* check for variable length - do properly if so */
-
-				if (us->filter && us->filter->command)
-					us->srb->result = us->filter->command(us->fdata, us->srb);
-				else if (us->srb->cmnd[0] == START_STOP &&
-					 us->pusb_dev->descriptor.idProduct == 0x0001 &&
-					 us->pusb_dev->descriptor.idVendor == 0x04e6)
+				if (us->srb->cmnd[0] == START_STOP &&
+				    us->pusb_dev->descriptor.idProduct == 0x0001 &&
+				    us->pusb_dev->descriptor.idVendor == 0x04e6)
 					us->srb->result = DID_OK << 16;
 				else {
 					unsigned int savelen = us->srb->request_bufflen;
 					unsigned int saveallocation = 0;
 
+					/* check for variable length - do properly if so */
 					switch (us->srb->cmnd[0]) {
 					case REQUEST_SENSE:
 						if (us->srb->request_bufflen > 18)
@@ -917,6 +978,66 @@ static int usbscsi_control_thread(void * __us)
 					default:
 						break;
 					} /* end switch on cmnd[0] */
+
+#if 0
+					/* translate READ_6 to READ_10 */
+					if (us->srb->cmnd[0] == 0x08) {
+
+						/* get the control */
+						us->srb->cmnd[9] = us->srb->cmnd[5];
+
+						/* get the length */
+						us->srb->cmnd[8] = us->srb->cmnd[6];
+						us->srb->cmnd[7] = 0;
+
+						/* set the reserved area to 0 */
+						us->srb->cmnd[6] = 0;	    
+
+						/* get LBA */
+						us->srb->cmnd[5] = us->srb->cmnd[3];
+						us->srb->cmnd[4] = us->srb->cmnd[2];
+						us->srb->cmnd[3] = 0;
+						us->srb->cmnd[2] = 0;
+
+						/* LUN and other info in cmnd[1] can stay */
+	    
+						/* fix command code */
+						us->srb->cmnd[0] = 0x28;
+
+						US_DEBUGP("Changing READ_6 to READ_10\n");
+						US_DEBUG(us_show_command(us->srb));
+					}
+
+					/* translate WRITE_6 to WRITE_10 */
+					if (us->srb->cmnd[0] == 0x0A) {
+
+						/* get the control */
+						us->srb->cmnd[9] = us->srb->cmnd[5];
+
+						/* get the length */
+						us->srb->cmnd[8] = us->srb->cmnd[4];
+						us->srb->cmnd[7] = 0;
+
+						/* set the reserved area to 0 */
+						us->srb->cmnd[6] = 0;	    
+
+						/* get LBA */
+						us->srb->cmnd[5] = us->srb->cmnd[3];
+						us->srb->cmnd[4] = us->srb->cmnd[2];
+						us->srb->cmnd[3] = 0;
+						us->srb->cmnd[2] = 0;
+
+						/* LUN and other info in cmnd[1] can stay */
+	    
+						/* fix command code */
+						us->srb->cmnd[0] = 0x2A;
+
+						US_DEBUGP("Changing WRITE_6 to WRITE_10\n");
+						US_DEBUG(us_show_command(us->srb));
+					}
+#endif
+
+					/* let's do the command */
 					us->srb->result = us->pop(us->srb);
 
 					if (savelen != us->srb->request_bufflen &&
@@ -927,9 +1048,9 @@ static int usbscsi_control_thread(void * __us)
 						/* set correct length and retry */
 						switch (us->srb->cmnd[0]) {
 						case REQUEST_SENSE:
-				/* simply return 18 bytes */
+							/* simply return 18 bytes */
 							p[7] = 10;
-							length = us->srb->request_bufflen;;
+							length = us->srb->request_bufflen;
 							break;
 
 						case INQUIRY:
@@ -938,8 +1059,9 @@ static int usbscsi_control_thread(void * __us)
 							break;
 
 						case MODE_SENSE:
-							length = p[0] + 4 > savelen ? savelen : p[0] + 4;
-							us->srb->cmnd[4] = 4;
+							US_DEBUGP("MODE_SENSE Mode data length is %d\n", p[0]);
+							length = p[0] + 1 > savelen ? savelen : p[0] + 1;
+							us->srb->cmnd[4] = length;
 							break;
 
 						case LOG_SENSE:
@@ -949,7 +1071,9 @@ static int usbscsi_control_thread(void * __us)
 							break;
 
 						case MODE_SENSE_10:
-							length = ((p[0] << 8) + p[1]) + 8 > savelen ? savelen : ((p[0] << 8) + p[1]) + 8;
+							US_DEBUGP("MODE_SENSE_10 Mode data length is %d\n",
+								  (p[0] << 8) + p[1]);
+							length = ((p[0] << 8) + p[1]) + 6 > savelen ? savelen : ((p[0] << 8) + p[1]) + 6;
 							us->srb->cmnd[7] = length >> 8;
 							us->srb->cmnd[8] = length;
 							break;
@@ -967,8 +1091,13 @@ static int usbscsi_control_thread(void * __us)
 
 						us->srb->request_bufflen = savelen;
 						switch (us->srb->cmnd[0]) {
-						case REQUEST_SENSE:
 						case INQUIRY:
+							if ((((unsigned char*)us->srb->request_buffer)[2] & 0x7) == 0) { 
+								US_DEBUGP("Fixing INQUIRY data, setting SCSI rev to 2\n");
+								((unsigned char*)us->srb->request_buffer)[2] |= 2;
+							}
+							/* FALL THROUGH */
+						case REQUEST_SENSE:
 						case MODE_SENSE:
 							if (us->srb->use_sg == 0 && length > 0) {
 								int i;
@@ -1047,108 +1176,108 @@ static int usbscsi_control_thread(void * __us)
 			spin_unlock_irq(&current->sigmask_lock);
 
 			if (signr == SIGUSR2) {
-				usbscsi_debug = !usbscsi_debug;
-				printk(USB_SCSI "debug toggle = %d\n", usbscsi_debug);
+				usb_stor_debug = !usb_stor_debug;
+				printk(USB_SCSI "debug toggle = %d\n", usb_stor_debug);
 			} else {
-				break;	/* exit the loop on any other signal */
+				break;	    /* exit the loop on any other signal */
 			}
 		}
 	}
 
-	MOD_DEC_USE_COUNT;
+	//  MOD_DEC_USE_COUNT;
 
-	printk("usbscsi_control_thread exiting\n");
+	printk("usb_stor_control_thread exiting\n");
 
 	return 0;
 }	
 
-static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
+/* Probe to see if a new device is actually a SCSI device */
+static void * storage_probe(struct usb_device *dev, unsigned int ifnum)
 {
 	struct usb_interface_descriptor *interface;
 	int i;
-	char *mf;		/* manufacturer */
-	char *prod;		/* product */
-	char *serial;		/* serial number */
+	char *mf;		     /* manufacturer */
+	char *prod;		     /* product */
+	char *serial;		     /* serial number */
 	struct us_data *ss = NULL;
-	struct usb_scsi_filter *filter = filters;
-	void *fdata = NULL;
 	unsigned int flags = 0;
-	GUID(guid);
+	GUID(guid);		     /* Global Unique Identifier */
 	struct us_data *prev;
 	Scsi_Host_Template *htmplt;
 	int protocol = 0;
 	int subclass = 0;
+	struct usb_interface_descriptor *altsetting = 
+		&(dev->actconfig->interface[ifnum].altsetting[0]); 
 
+	/* clear the GUID and fetch the strings */
 	GUID_CLEAR(guid);
 	mf = usb_string(dev, dev->descriptor.iManufacturer);
 	prod = usb_string(dev, dev->descriptor.iProduct);
 	serial = usb_string(dev, dev->descriptor.iSerialNumber);
 
-	/* probe with filters first */
+	/* let's examine the device now */
 
-	if (mf && prod) {
-		while (filter) {
-			if ((fdata = filter->probe(dev, mf, prod, serial)) != NULL) {
-				flags = filter->flags;
-				printk(KERN_INFO "USB Scsi filter %s\n", filter->name);
-				break;
-			}
-			filter = filter->next;
+	/* We make an exception for the shuttle E-USB */
+	if (dev->descriptor.idVendor == 0x04e6 &&
+	    dev->descriptor.idProduct == 0x0001) {
+		protocol = US_PR_CB;
+		subclass = US_SC_8070;	    /* an assumption */
+	} else if (dev->descriptor.bDeviceClass != 0 ||
+		   altsetting->bInterfaceClass != USB_CLASS_MASS_STORAGE ||
+		   altsetting->bInterfaceSubClass < US_SC_MIN ||
+		   altsetting->bInterfaceSubClass > US_SC_MAX) {
+		/* if it's not a mass storage, we go no further */
+		return NULL;
+	}
+
+	/* At this point, we know we've got a live one */
+	US_DEBUGP("USB Mass Storage device detected\n");
+
+	/* Create a GUID for this device */
+	if (dev->descriptor.iSerialNumber &&
+	    usb_string(dev, dev->descriptor.iSerialNumber) ) {
+		/* If we have a serial number, and it's a non-NULL string */
+		make_guid(guid, dev->descriptor.idVendor, 
+			  dev->descriptor.idProduct,
+			  usb_string(dev, dev->descriptor.iSerialNumber));
+	} else {
+		/* We don't have a serial number, so we use 0 */
+		make_guid(guid, dev->descriptor.idVendor, 
+			  dev->descriptor.idProduct, "0");
+	}
+
+	/* Now check if we have seen this GUID before, and restore
+	 * the flags if we find it
+	 */
+	for (ss = us_list; ss != NULL; ss = ss->next) {
+		if (!ss->pusb_dev && GUID_EQUAL(guid, ss->guid))    {
+			US_DEBUGP("Found existing GUID " GUID_FORMAT "\n",
+				  GUID_ARGS(guid));
+			flags = ss->flags;
+			break;
 		}
 	}
 
-	/* generic devices next */
-
-	if (fdata == NULL) {
-
-		/* some exceptions */
-		if (dev->descriptor.idVendor == 0x04e6 &&
-		    dev->descriptor.idProduct == 0x0001) {
-			/* shuttle E-USB */
-			protocol = US_PR_CB;
-			subclass = US_SC_8070;	/* an assumption */
-		} else if (dev->descriptor.bDeviceClass != 0 ||
-			   dev->actconfig->interface[ifnum].altsetting[0].bInterfaceClass !=
-			   USB_CLASS_MASS_STORAGE ||
-			   dev->actconfig->interface[ifnum].altsetting[0].bInterfaceSubClass < US_SC_MIN ||
-			   dev->actconfig->interface[ifnum].altsetting[0].bInterfaceSubClass > US_SC_MAX) {
-			return NULL;
-		}
-
-		/* now check if we have seen it before */
-
-		if (dev->descriptor.iSerialNumber &&
-		    usb_string(dev, dev->descriptor.iSerialNumber) ) {
-			make_guid(guid, dev->descriptor.idVendor, dev->descriptor.idProduct,
-				  usb_string(dev, dev->descriptor.iSerialNumber));
-		} else {
-			make_guid(guid, dev->descriptor.idVendor, dev->descriptor.idProduct,
-				  "0");
-		}
-		for (ss = us_list; ss; ss = ss->next) {
-			if (!ss->pusb_dev && GUID_EQUAL(guid, ss->guid))	{
-				US_DEBUGP("Found existing GUID " GUID_FORMAT "\n",
-					  GUID_ARGS(guid));
-				flags = ss->flags;
-				break;
-			}
-		}
-	}
-
+	/* If ss == NULL, then this is a new device.  Allocate memory for it */
 	if (!ss) {
-		if ((ss = (struct us_data *)kmalloc(sizeof(*ss), GFP_KERNEL)) == NULL) {
+		if ((ss = (struct us_data *)kmalloc(sizeof(*ss), 
+						    GFP_KERNEL)) == NULL) {
 			printk(KERN_WARNING USB_SCSI "Out of memory\n");
-			if (filter)
-				filter->release(fdata);
 			return NULL;
 		}
 		memset(ss, 0, sizeof(struct us_data));
 	}
 
-	interface = &dev->actconfig->interface[ifnum].altsetting[0];
-	ss->filter = filter;
-	ss->fdata = fdata;
+	/* Initialize the us_data structure with some useful info */
+	interface = altsetting;
 	ss->flags = flags;
+	ss->ifnum = ifnum;
+	ss->pusb_dev = dev;
+	ss->attention_done = 0;
+
+	/* If the device has subclass and protocol, then use that.  Otherwise, 
+	 * take data from the specific interface.
+	 */
 	if (subclass) {
 		ss->subclass = subclass;
 		ss->protocol = protocol;
@@ -1156,11 +1285,9 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 		ss->subclass = interface->bInterfaceSubClass;
 		ss->protocol = interface->bInterfaceProtocol;
 	}
-	ss->attention_done = 0;
 
-	/* set the protocol op */
-
-	US_DEBUGP("Protocol ");
+	/* set the handler pointers based on the protocol */
+	US_DEBUGP("Protocol: ");
 	switch (ss->protocol) {
 	case US_PR_CB:
 		US_DEBUGPX("Control/Bulk\n");
@@ -1174,10 +1301,16 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 		ss->pop_reset = pop_CB_reset;
 		break;
 
-	default:
+	case US_PR_BULK:
 		US_DEBUGPX("Bulk\n");
 		ss->pop = pop_Bulk;
 		ss->pop_reset = pop_Bulk_reset;
+		break;
+
+	default:
+		US_DEBUGPX("Unknown\n");    
+		kfree(ss);
+		return NULL;
 		break;
 	}
 
@@ -1186,9 +1319,9 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 	 * An optional interrupt is OK (necessary for CBI protocol).
 	 * We will ignore any others.
 	 */
-
 	for (i = 0; i < interface->bNumEndpoints; i++) {
-		if ((interface->endpoint[i].bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
+		/* is it an BULK endpoint? */
+		if ((interface->endpoint[i].bmAttributes &  USB_ENDPOINT_XFERTYPE_MASK)
 		    == USB_ENDPOINT_XFER_BULK) {
 			if (interface->endpoint[i].bEndpointAddress & USB_DIR_IN)
 				ss->ep_in = interface->endpoint[i].bEndpointAddress &
@@ -1196,8 +1329,11 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 			else
 				ss->ep_out = interface->endpoint[i].bEndpointAddress &
 					USB_ENDPOINT_NUMBER_MASK;
-		} else if ((interface->endpoint[i].bmAttributes & USB_ENDPOINT_XFERTYPE_MASK)
-			   == USB_ENDPOINT_XFER_INT) {
+		}
+
+		/* is it an interrupt endpoint? */
+		if ((interface->endpoint[i].bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) 
+		    == USB_ENDPOINT_XFER_INT) {
 			ss->ep_int = interface->endpoint[i].bEndpointAddress &
 				USB_ENDPOINT_NUMBER_MASK;
 		}
@@ -1205,94 +1341,93 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 	US_DEBUGP("Endpoints In %d Out %d Int %d\n",
 		  ss->ep_in, ss->ep_out, ss->ep_int);
 
-	/* save the interface number */
-	ss->ifnum = ifnum;
-
-	/* exit if strange looking */
-
+	/* Do some basic sanity checks, and bail if we find a problem */
 	if (usb_set_interface(dev, interface->bInterfaceNumber, 0) ||
-	    !ss->ep_in || !ss->ep_out || (ss->protocol == US_PR_CBI && ss->ep_int == 0)) {
+	    !ss->ep_in || !ss->ep_out || 
+	    (ss->protocol == US_PR_CBI && ss->ep_int == 0)) {
 		US_DEBUGP("Problems with device\n");
 		if (ss->host) {
 			scsi_unregister_module(MODULE_SCSI_HA, ss->htmplt);
 			kfree(ss->htmplt->name);
 			kfree(ss->htmplt);
 		}
-		if (filter)
-			filter->release(fdata);
+
 		kfree(ss);
-		return NULL;			/* no endpoints */
+		return NULL;
 	}
 
-	if (dev->actconfig->iConfiguration && usb_string(dev, dev->actconfig->iConfiguration))
-		US_DEBUGP("Configuration %s\n",
-			  usb_string(dev, dev->actconfig->iConfiguration));
-	if (interface->iInterface && usb_string(dev, interface->iInterface))
-		US_DEBUGP("Interface %s\n",
-			  usb_string(dev, interface->iInterface));
-
-	ss->pusb_dev = dev;
-
-	/* Now generate a scsi host definition, and register with scsi above us */
-
+	/* If this is a new device (i.e. we haven't seen it before), we need to
+	 * generate a scsi host definition, and register with scsi above us 
+	 */
 	if (!ss->host) {
-
-		/* make unique id if possible */
-
+		/* copy the GUID we created before */
 		US_DEBUGP("New GUID " GUID_FORMAT "\n", GUID_ARGS(guid));
 		memcpy(ss->guid, guid, sizeof(guid));
 
 		/* set class specific stuff */
-
-		US_DEBUGP("SubClass ");
+		US_DEBUGP("SubClass: ");
 		switch (ss->subclass) {
 		case US_SC_RBC:
 			US_DEBUGPX("Reduced Block Commands\n");
 			break;
+
 		case US_SC_8020:
 			US_DEBUGPX("8020\n");
 			break;
+
 		case US_SC_QIC:
 			US_DEBUGPX("QIC157\n");
 			break;
+
 		case US_SC_8070:
 			US_DEBUGPX("8070\n");
 			ss->flags |= US_FL_FIXED_COMMAND;
 			ss->fixedlength = 12;
 			break;
+
 		case US_SC_SCSI:
 			US_DEBUGPX("Transparent SCSI\n");
 			break;
+
 		case US_SC_UFI:
-			US_DEBUGPX(" UFF\n");
+			US_DEBUGPX("UFI\n");
 			ss->flags |= US_FL_FIXED_COMMAND;
 			ss->fixedlength = 12;
 			break;
 
 		default:
+			US_DEBUGPX("Unknown\n");
 			break;
 		}
 
-		/* create unique host template */
+		/* Allocate memory for the SCSI Host Template */
+		if ((htmplt = (Scsi_Host_Template *)
+		     kmalloc(sizeof(*ss->htmplt), GFP_KERNEL)) == NULL ) {
 
-		if ((htmplt = (Scsi_Host_Template *)kmalloc(sizeof(*ss->htmplt), GFP_KERNEL)) == NULL ) {
 			printk(KERN_WARNING USB_SCSI "Out of memory\n");
-			if (filter)
-				filter->release(fdata);
+
 			kfree(ss);
 			return NULL;
 		}
+
+		/* Initialize the host template based on the default one */
 		memcpy(htmplt, &my_host_template, sizeof(my_host_template));
+
+		/* Grab the next host number */
 		ss->host_number = my_host_number++;
 
-		(struct us_data *)htmplt->proc_dir = ss;
+		/* MDD: FIXME: this is bad.  We abuse this pointer so we
+		 * can pass the ss pointer to the host controler thread
+		 * in us_detect
+		 */
+		(struct us_data *)htmplt->proc_dir = ss; 
 
+		/* shuttle E-USB */	
 		if (dev->descriptor.idVendor == 0x04e6 &&
 		    dev->descriptor.idProduct == 0x0001) {
 			__u8 qstat[2];
 			int result;
-
-			/* shuttle E-USB */
+	    
 			result = usb_control_msg(ss->pusb_dev, usb_rcvctrlpipe(dev,0),
 						 1, 0xC0,
 						 0, ss->ifnum,
@@ -1300,43 +1435,48 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 			US_DEBUGP("C0 status %x %x\n", qstat[0], qstat[1]);
 			init_waitqueue_head(&ss->ip_waitq);
 			ss->irqpipe = usb_rcvintpipe(ss->pusb_dev, ss->ep_int);
-			result = usb_request_irq(ss->pusb_dev, ss->irqpipe, pop_CBI_irq,
-						 IRQ_PERIOD, (void *)ss, &ss->irq_handle);
+			result = usb_request_irq(ss->pusb_dev, ss->irqpipe, CBI_irq,
+						 255, (void *)ss, &ss->irq_handle);
 			if (result)
 				return NULL;
 
 			interruptible_sleep_on_timeout(&ss->ip_waitq, HZ*6);
-#ifdef REWRITE_PROJECT
-			/* FIXME: Don't know if this release_irq() call is at the
-			   right place/time. */
-			usb_release_irq(ss->pusb_dev, ss->irq_handle, ss->irqpipe);
-			ss->irq_handle = NULL;
-#endif
-
 		} else if (ss->protocol == US_PR_CBI)
+		{
+			int result; 
+
 			init_waitqueue_head(&ss->ip_waitq);
 
-		/* start up our thread */
+			/* set up the IRQ pipe and handler */
+			/* FIXME: This needs to get the period from the device */
+			ss->irqpipe = usb_rcvintpipe(ss->pusb_dev, ss->ep_int);
+			result = usb_request_irq(ss->pusb_dev, ss->irqpipe, CBI_irq,
+						 255, (void *)ss, &ss->irq_handle);
+			if (result) {
+				US_DEBUGP("usb_request_irq failed (0x%x), No interrupt for CBI\n",
+					  result);
+			}
+		}
+    
 
+		/* start up our thread */
 		{
 			DECLARE_MUTEX_LOCKED(sem);
 
 			init_waitqueue_head(&ss->waitq);
 
 			ss->notify = &sem;
-			ss->pid = kernel_thread(usbscsi_control_thread, ss,
+			ss->pid = kernel_thread(usb_stor_control_thread, ss,
 						CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
 			if (ss->pid < 0) {
 				printk(KERN_WARNING USB_SCSI "Unable to start control thread\n");
 				kfree(htmplt);
-				if (filter)
-					filter->release(fdata);
+
 				kfree(ss);
 				return NULL;
 			}
 
 			/* wait for it to start */
-
 			down(&sem);
 		}
 
@@ -1352,70 +1492,49 @@ static void * scsi_probe(struct usb_device *dev, unsigned int ifnum)
 		prev->next = ss;
 	}
 
-	printk(KERN_WARNING "DANGEROUS: USB SCSI driver data integrity not assured !!!\n");
+	printk(KERN_WARNING "WARNING: USB SCSI data integrity not assured\n");
 	printk(KERN_INFO "USB SCSI device found at address %d\n", dev->devnum);
 
 	return ss;
 }
 
-static void scsi_disconnect(struct usb_device *dev, void *ptr)
+/* Handle a disconnect event from the USB core */
+static void storage_disconnect(struct usb_device *dev, void *ptr)
 {
 	struct us_data *ss = ptr;
 
 	if (!ss)
 		return;
-	if (ss->filter)
-		ss->filter->release(ss->fdata);
+
 	ss->pusb_dev = NULL;
-	MOD_DEC_USE_COUNT;
+	//  MOD_DEC_USE_COUNT;
 }
 
-int usb_scsi_init(void)
+
+/***********************************************************************
+ * Initialization and registration
+ ***********************************************************************/
+
+int usb_stor_init(void)
 {
-	MOD_INC_USE_COUNT;
+	//  MOD_INC_USE_COUNT;
 
-#ifdef CONFIG_USB_HP4100
-	hp4100_init();
-#endif
-#ifdef CONFIG_USB_ZIP
-	usb_zip_init();
-#endif
-
-	if (usb_register(&scsi_driver) < 0)
+	if (usb_register(&storage_driver) < 0)
 		return -1;
 
 	printk(KERN_INFO "USB SCSI support registered.\n");
 	return 0;
 }
 
-int usb_scsi_register(struct usb_scsi_filter *filter)
-{
-	struct usb_scsi_filter *prev = (struct usb_scsi_filter *)&filters;
-
-	while (prev->next)
-		prev = prev->next;
-	prev->next = filter;
-	return 0;
-}
-
-void usb_scsi_deregister(struct usb_scsi_filter *filter)
-{
-	struct usb_scsi_filter *prev = (struct usb_scsi_filter *)&filters;
-
-	while (prev->next && prev->next != filter)
-		prev = prev->next;
-	if (prev->next)
-		prev->next = filter->next;
-}
-
 #ifdef MODULE
 int init_module(void)
 {
-	return usb_scsi_init();
+	/* MDD: Perhaps we should register the host here */
+	return usb_stor_init();
 }
 
 void cleanup_module(void)
 {
-	usb_deregister(&scsi_driver);
+	usb_deregister(&storage_driver);
 }
 #endif

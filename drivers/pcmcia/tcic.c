@@ -109,7 +109,7 @@ MODULE_PARM(cycle_time, "i");
 
 static void tcic_interrupt(int irq, void *dev, struct pt_regs *regs);
 static void tcic_timer(u_long data);
-static int tcic_service(u_int sock, u_int cmd, void *arg);
+static struct pccard_operations tcic_operations;
 
 typedef struct socket_info_t {
     u_short	psock;
@@ -494,7 +494,7 @@ static int __init init_tcic(void)
     /* jump start interrupt handler, if needed */
     tcic_interrupt(0, NULL, NULL);
 
-    if (register_ss_entry(sockets, &tcic_service) != 0) {
+    if (register_ss_entry(sockets, &tcic_operations) != 0) {
 	printk(KERN_NOTICE "tcic: register_ss_entry() failed\n");
 	release_region(tcic_base, 16);
 	if (cs_irq != 0)
@@ -511,7 +511,7 @@ static int __init init_tcic(void)
 static void __exit exit_tcic(void)
 {
     u_long flags;
-    unregister_ss_entry(&tcic_service);
+    unregister_ss_entry(&tcic_operations);
     save_flags(flags);
     cli();
     if (cs_irq != 0) {
@@ -589,22 +589,21 @@ static void tcic_timer(u_long data)
 
 /*====================================================================*/
 
-static int tcic_register_callback(u_short lsock, ss_callback_t *call)
+static int tcic_register_callback(unsigned int lsock, void (*handler)(void *, unsigned int), void * info)
 {
-    if (call == NULL) {
-	socket_table[lsock].handler = NULL;
+    socket_table[lsock].handler = handler;
+    socket_table[lsock].info = info;
+    if (handler == NULL) {
 	MOD_DEC_USE_COUNT;
     } else {
 	MOD_INC_USE_COUNT;
-	socket_table[lsock].handler = call->handler;
-	socket_table[lsock].info = call->info;
     }
     return 0;
 } /* tcic_register_callback */
 
 /*====================================================================*/
 
-static int tcic_get_status(u_short lsock, u_int *value)
+static int tcic_get_status(unsigned int lsock, u_int *value)
 {
     u_short psock = socket_table[lsock].psock;
     u_char reg;
@@ -630,7 +629,7 @@ static int tcic_get_status(u_short lsock, u_int *value)
   
 /*====================================================================*/
 
-static int tcic_inquire_socket(u_short lsock, socket_cap_t *cap)
+static int tcic_inquire_socket(unsigned int lsock, socket_cap_t *cap)
 {
     *cap = tcic_cap;
     return 0;
@@ -638,7 +637,7 @@ static int tcic_inquire_socket(u_short lsock, socket_cap_t *cap)
 
 /*====================================================================*/
 
-static int tcic_get_socket(u_short lsock, socket_state_t *state)
+static int tcic_get_socket(unsigned int lsock, socket_state_t *state)
 {
     u_short psock = socket_table[lsock].psock;
     u_char reg;
@@ -691,7 +690,7 @@ static int tcic_get_socket(u_short lsock, socket_state_t *state)
 
 /*====================================================================*/
 
-static int tcic_set_socket(u_short lsock, socket_state_t *state)
+static int tcic_set_socket(unsigned int lsock, socket_state_t *state)
 {
     u_short psock = socket_table[lsock].psock;
     u_char reg;
@@ -766,7 +765,7 @@ static int tcic_set_socket(u_short lsock, socket_state_t *state)
   
 /*====================================================================*/
 
-static int tcic_get_io_map(u_short lsock, struct pccard_io_map *io)
+static int tcic_get_io_map(unsigned int lsock, struct pccard_io_map *io)
 {
     u_short psock = socket_table[lsock].psock;
     u_short base, ioctl;
@@ -804,7 +803,7 @@ static int tcic_get_io_map(u_short lsock, struct pccard_io_map *io)
 
 /*====================================================================*/
 
-static int tcic_set_io_map(u_short lsock, struct pccard_io_map *io)
+static int tcic_set_io_map(unsigned int lsock, struct pccard_io_map *io)
 {
     u_short psock = socket_table[lsock].psock;
     u_int addr;
@@ -841,7 +840,7 @@ static int tcic_set_io_map(u_short lsock, struct pccard_io_map *io)
 
 /*====================================================================*/
 
-static int tcic_get_mem_map(u_short lsock, struct pccard_mem_map *mem)
+static int tcic_get_mem_map(unsigned int lsock, struct pccard_mem_map *mem)
 {
     u_short psock = socket_table[lsock].psock;
     u_short addr, ctl;
@@ -886,7 +885,7 @@ static int tcic_get_mem_map(u_short lsock, struct pccard_mem_map *mem)
 
 /*====================================================================*/
   
-static int tcic_set_mem_map(u_short lsock, struct pccard_mem_map *mem)
+static int tcic_set_mem_map(unsigned int lsock, struct pccard_mem_map *mem)
 {
     u_short psock = socket_table[lsock].psock;
     u_short addr, ctl;
@@ -930,35 +929,48 @@ static int tcic_set_mem_map(u_short lsock, struct pccard_mem_map *mem)
 
 /*====================================================================*/
 
-typedef int (*subfn_t)(u_short, void *);
-    
-static subfn_t service_table[] = {
-    (subfn_t)&tcic_register_callback,
-    (subfn_t)&tcic_inquire_socket,
-    (subfn_t)&tcic_get_status,
-    (subfn_t)&tcic_get_socket,
-    (subfn_t)&tcic_set_socket,
-    (subfn_t)&tcic_get_io_map,
-    (subfn_t)&tcic_set_io_map,
-    (subfn_t)&tcic_get_mem_map,
-    (subfn_t)&tcic_set_mem_map,
-};
-
-#define NFUNC (sizeof(service_table)/sizeof(subfn_t))
-
-static int tcic_service(u_int lsock, u_int cmd, void *arg)
+static void tcic_proc_setup(unsigned int sock, struct proc_dir_entry *base)
 {
-    int err;
+}
 
-    DEBUG(2, "tcic_service(%d, %d, 0x%p)\n", lsock, cmd, arg);
+static int tcic_init(unsigned int s)
+{
+	int i;
+	pccard_io_map io = { 0, 0, 0, 0, 1 };
+	pccard_mem_map mem = { 0, 0, 0, 0, 0, 0 };
 
-    if (cmd < NFUNC)
-	err = service_table[cmd](lsock, arg);
-    else
-	err = -EINVAL;
+	mem.sys_stop = 0x1000;
+	tcic_set_socket(s, &dead_socket);
+	for (i = 0; i < 2; i++) {
+		io.map = i;
+		tcic_set_io_map(s, &io);
+	}
+	for (i = 0; i < 5; i++) {
+		mem.map = i;
+		tcic_set_mem_map(s, &mem);
+	}
+	return 0;
+}
 
-    return err;
-} /* tcic_service */
+static int tcic_suspend(unsigned int sock)
+{
+	return tcic_set_socket(sock, &dead_socket);
+}
+
+static struct pccard_operations tcic_operations = {
+	tcic_init,
+	tcic_suspend,
+	tcic_register_callback,
+	tcic_inquire_socket,
+	tcic_get_status,
+	tcic_get_socket,
+	tcic_set_socket,
+	tcic_get_io_map,
+	tcic_set_io_map,
+	tcic_get_mem_map,
+	tcic_set_mem_map,
+	tcic_proc_setup
+};
 
 /*====================================================================*/
 

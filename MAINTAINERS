@@ -122,20 +122,20 @@ S:	Maintained
 
 AHA152X SCSI DRIVER
 P:	Juergen E. Fischer
-M:	Juergen Fischer <fischer@et-inf.fho-emden.de>
+M:	Juergen Fischer <fischer@norbit.de>
 L:	linux-scsi@vger.rutgers.edu
 S:	Maintained
 
 APM DRIVER
 P:	Stephen Rothwell
-M:	sfr@linuxcare.com
+M:	apm@linuxcare.com.au
 L:	linux-laptop@vger.rutgers.edu
 W:	http://linuxcare.com.au/apm/
 S:	Supported
 
 APPLETALK NETWORK LAYER
 P:	Jay Schulist
-M:	Jay.Schulist@spacs.k12.wi.us
+M:	jschlst@turbolinux.com
 L:	linux-atalk@netspace.org
 S:	Maintained
 
@@ -192,7 +192,7 @@ S:	Maintained
 
 CIRRUS LOGIC GENERIC FBDEV DRIVER
 P:	Jeff Garzik
-M:	jgarzik@pobox.com
+M:	jgarzik@mandrakesoft.com
 L:	linux-fbdev@vuser.vu.union.edu
 S:	Maintained
 
@@ -410,6 +410,15 @@ M:	mikulas@artax.karlin.mff.cuni.cz
 W:	http://artax.karlin.mff.cuni.cz/~mikulas/vyplody/hpfs/index-e.cgi
 S:	Maintained
 
+I2C DRIVERS
+P:	Simon Vogl
+M:	simon@tk.uni-linz.ac.at
+P:	Frodo Looijaard
+M:	frodol@dds.nl
+L:	linux-i2c@pelican.tk.uni-linz.ac.at
+W:	http://www.tk.uni-linz.ac.at/~simon/private/i2c
+S:	Maintained
+
 i386 BOOT CODE
 P:	Riley H. Williams
 M:	rhw@memalpha.cx
@@ -460,7 +469,7 @@ S:	Maintained
 
 IPX/SPX NETWORK LAYER
 P:	Jay Schulist
-M:	Jay Schulist <Jay.Schulist@spacs.k12.wi.us>
+M:	jschlst@turbolinux.com
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
@@ -529,6 +538,12 @@ W:	http://www.linuxppc.org/
 L:	linuxppc-dev@lists.linuxppc.org
 S:	Maintained
 
+MAESTRO PCI SOUND DRIVER
+P:	Zach Brown
+M:	zab@redhat.com
+W:	http://people.redhat.com/zab/maestro/
+S:	Supported
+
 M68K
 P:	Jes Sorensen
 M:	Jes.Sorensen@cern.ch
@@ -565,8 +580,8 @@ L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
 MODULE SUPPORT [GENERAL], KERNELD
-P:	Richard Henderson
-M:	richard@gnu.ai.mit.edu
+P:	Keith Owens
+M:	kaos@ocs.com.au
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
@@ -733,6 +748,12 @@ M:	longyear@pobox.com
 L:	linux-ppp@vger.rutgers.edu
 S:	Maintained
 
+PROMISE DC4030 CACHING DISK CONTROLLER DRIVER
+P:	Peter Denison
+M:	promise@pnd-pc.demon.co.uk
+W:	http://www.pnd-pc.demon.co.uk/promise/
+S:	Maintained
+
 RAYLINK/WEBGEAR 802.11 WIRELESS LAN DRIVER
 P:	Corey Thomas
 M:	corey@world.std.com
@@ -848,8 +869,15 @@ S:	Supported
 
 SPX NETWORK LAYER
 P:	Jay Schulist
-M:	Jay.Schulist@spacs.k12.wi.us
+M:	jschlst@turbolinux.com
 L:	linux-net@vger.rutgers.edu
+S:	Supported
+
+SNA NETWORK LAYER
+P:	Jay Schulist
+M:	jschlst@turbolinux.com
+L:	linux-sna@turbolinux.com
+W:	http://www.linux-sna.org
 S:	Supported
 
 STALLION TECHNOLOGIES MULTIPORT SERIAL BOARDS
@@ -938,7 +966,7 @@ L:	linux-usb@suse.com
 W:	http://www.linux-usb.org
 S:	Supported
 
-USB HUB AND UHCI DRIVERS
+USB HUB
 P:	Johannes Erdfelt
 M:	jerdfelt@sventech.com
 L:	linux-usb@suse.com
@@ -952,6 +980,20 @@ L:	linux-usb@suse.com
 S:	Maintained (not yet usable)
 W:	http://suitenine.com/usb/
 
+USB SERIAL DRIVER
+P:	Greg Kroah-Hartman
+M:	greg@kroah.com
+L:	linux-usb@suse.com
+S:	Maintained
+W:	http://www.kroah.com/linux-usb/
+
+USB UHCI DRIVER
+P:	Georg Acher
+M:	usb@in.tum.de
+L:	linux-usb@suse.com 
+W:	http://usb.in.tum.de
+S:	Maintained
+	
 VFAT FILESYSTEM:
 P:	Gordon Chaffee
 M:	chaffee@cs.berkeley.edu
@@ -961,7 +1003,7 @@ S:	Maintained
 
 VIA 82Cxxx AUDIO DRIVER
 P:	Jeff Garzik
-M:	jgarzik@pobox.com
+M:	jgarzik@mandrakesoft.com
 S:	Maintained
 
 VIDEO FOR LINUX
@@ -993,6 +1035,13 @@ X.25 NETWORK LAYER
 P:	Henner Eisen
 M:	eis@baty.hanse.de
 L:	linux-x25@vger.rutgers.edu
+S:	Maintained
+
+RTLINUX  REALTIME  LINUX
+P:	Victor Yodaiken
+M:	yodaiken@fsmlabs.com
+L:	rtl@rtlinux.org
+W:	www.rtlinux.org
 S:	Maintained
 
 Z85230 SYNCHRONOUS DRIVER

@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Dag Brattli <dagb@cs.uit.no>
  * Created at:    Mon Mar  8 14:06:12 1999
- * Modified at:   Sun Oct 10 23:00:59 1999
+ * Modified at:   Sat Dec 25 16:06:42 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  * 
  *     Copyright (c) 1999 Dag Brattli, All Rights Reserved.
@@ -58,14 +58,22 @@
 
 /* These are the currently known dongles */
 typedef enum {
-	IRDA_TEKRAM_DONGLE,
-	IRDA_ESI_DONGLE,
-	IRDA_ACTISYS_DONGLE,
-	IRDA_ACTISYS_PLUS_DONGLE,
-	IRDA_GIRBIL_DONGLE,
-	IRDA_LITELINK_DONGLE,
-	IRDA_AIRPORT_DONGLE,
+	IRDA_TEKRAM_DONGLE       = 0,
+	IRDA_ESI_DONGLE          = 1,
+	IRDA_ACTISYS_DONGLE      = 2,
+	IRDA_ACTISYS_PLUS_DONGLE = 3,
+	IRDA_GIRBIL_DONGLE       = 4,
+	IRDA_LITELINK_DONGLE     = 5,
+	IRDA_AIRPORT_DONGLE      = 6,
+	IRDA_OLD_BELKIN_DONGLE   = 7,
 } IRDA_DONGLE;
+
+/* Protocol types to be used for SOCK_DGRAM */
+enum {
+	IRDAPROTO_UNITDATA = 0,
+	IRDAPROTO_ULTRA    = 1,
+	IRDAPROTO_MAX
+};
 
 #define SOL_IRLMP      266 /* Same as SOL_IRDA for now */
 #define SOL_IRTTP      266 /* Same as SOL_IRDA for now */
@@ -73,36 +81,38 @@ typedef enum {
 #define IRLMP_ENUMDEVICES        1
 #define IRLMP_IAS_SET            2
 #define IRLMP_IAS_QUERY          3
-#define IRLMP_DISCOVERY_MASK_SET 4
+#define IRLMP_HINTS_SET          4
+#define IRLMP_QOS_SET            5
+#define IRLMP_QOS_GET            6
+#define IRLMP_MAX_SDU_SIZE       7
+#define IRLMP_IAS_GET            8
 
-#define IRTTP_QOS_SET            5
-#define IRTTP_QOS_GET            6
-#define IRTTP_MAX_SDU_SIZE       7
+#define IRTTP_MAX_SDU_SIZE IRLMP_MAX_SDU_SIZE /* Compatibility */
 
 #define IAS_MAX_STRING         256
 #define IAS_MAX_OCTET_STRING  1024
 #define IAS_MAX_CLASSNAME       64
 #define IAS_MAX_ATTRIBNAME     256
 
-#define LSAP_ANY               0xff
+#define LSAP_ANY              0xff
 
 struct sockaddr_irda {
-	sa_family_t   sir_family;   /* AF_IRDA */
-	unsigned char sir_lsap_sel; /* LSAP/TSAP selector */
-	unsigned int  sir_addr;     /* Device address */
-	char          sir_name[25]; /* Usually <service>:IrDA:TinyTP */
+	sa_family_t sir_family;   /* AF_IRDA */
+	__u8        sir_lsap_sel; /* LSAP selector */
+	__u32       sir_addr;     /* Device address */
+	char        sir_name[25]; /* Usually <service>:IrDA:TinyTP */
 };
 
 struct irda_device_info {
-	unsigned int  saddr;        /* Address of remote device */
-	unsigned int  daddr;        /* Link where it was discovered */
-	char          info[22];     /* Description */
-	unsigned char charset;      /* Charset used for description */
-	unsigned char hints[2];     /* Hint bits */
+	__u32       saddr;    /* Address of local interface */
+	__u32       daddr;    /* Address of remote device */
+	char        info[22]; /* Description */
+	__u8        charset;  /* Charset used for description */
+	__u8        hints[2]; /* Hint bits */
 };
 
 struct irda_device_list {
-       unsigned int len;
+       __u32 len;
        struct irda_device_info dev[1];
 };
 
@@ -114,12 +124,12 @@ struct irda_ias_set {
 		unsigned int irda_attrib_int;
 		struct {
 			unsigned short len;
-			u_char OctetSeq[IAS_MAX_OCTET_STRING];
+			__u8 octet_seq[IAS_MAX_OCTET_STRING];
 		} irda_attrib_octet_seq;
 		struct {
-			unsigned char len;
-			unsigned char charset;
-			unsigned char string[IAS_MAX_STRING];
+			__u8 len;
+			__u8 charset;
+			__u8 string[IAS_MAX_STRING];
 		} irda_attrib_string;
 	} attribute;
 };
@@ -131,9 +141,10 @@ struct irda_ias_set {
 #define SIOCSMEDIABUSY (SIOCDEVPRIVATE + 3)
 #define SIOCGMEDIABUSY (SIOCDEVPRIVATE + 4)
 #define SIOCGRECEIVING (SIOCDEVPRIVATE + 5)
-#define SIOCSRAWMODE   (SIOCDEVPRIVATE + 6)
-#define SIOCSDTRRTS    (SIOCDEVPRIVATE + 7)
-#define SIOCGQOS       (SIOCDEVPRIVATE + 8)
+#define SIOCSMODE      (SIOCDEVPRIVATE + 6)
+#define SIOCGMODE      (SIOCDEVPRIVATE + 7)
+#define SIOCSDTRRTS    (SIOCDEVPRIVATE + 8)
+#define SIOCGQOS       (SIOCDEVPRIVATE + 9)
 
 /* No reason to include <linux/if.h> just because of this one ;-) */
 #define IRNAMSIZ 16 
@@ -151,8 +162,8 @@ struct if_irda_qos {
 
 /* For setting RTS and DTR lines of a dongle */
 struct if_irda_line {
-	unsigned char dtr;
-	unsigned char rts;
+	__u8 dtr;
+	__u8 rts;
 };
 
 /* IrDA interface configuration (data part must not exceed 16 bytes) */
@@ -167,7 +178,7 @@ struct if_irda_req {
 		struct if_irda_qos  ifru_qos;
 		unsigned short      ifru_flags;
 		unsigned int        ifru_receiving;
-		unsigned int        ifru_raw_mode;
+		unsigned int        ifru_mode;
 		unsigned int        ifru_dongle;
 	} ifr_ifru;
 };
@@ -175,7 +186,7 @@ struct if_irda_req {
 #define ifr_baudrate  ifr_ifru.ifru_qos.baudrate
 #define ifr_receiving ifr_ifru.ifru_receiving 
 #define ifr_dongle    ifr_ifru.ifru_dongle
-#define ifr_raw_mode  ifr_ifru.ifru_raw_mode
+#define ifr_mode      ifr_ifru.ifru_mode
 #define ifr_dtr       ifr_ifru.ifru_line.dtr
 #define ifr_rts       ifr_ifru.ifru_line.rts
 

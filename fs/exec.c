@@ -42,14 +42,6 @@
 #include <linux/kmod.h>
 #endif
 
-/*
- * Here are the actual binaries that will be accepted:
- * add more with "register_binfmt()" if using modules...
- *
- * These are defined again for the 'real' modules if you are using a
- * module definition for these routines.
- */
-
 static struct linux_binfmt *formats = (struct linux_binfmt *) NULL;
 
 int register_binfmt(struct linux_binfmt * fmt)
@@ -267,6 +259,41 @@ int copy_strings_kernel(int argc,char ** argv, struct linux_binprm *bprm)
 	r = copy_strings(argc, argv, bprm);
 	set_fs(oldfs);
 	return r; 
+}
+
+/*
+ * This routine is used to map in a page into an address space: needed by
+ * execve() for the initial stack and environment pages.
+ */
+static void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long address)
+{
+	pgd_t * pgd;
+	pmd_t * pmd;
+	pte_t * pte;
+
+	if (page_count(page) != 1)
+		printk("mem_map disagrees with %p at %08lx\n", page, address);
+	pgd = pgd_offset(tsk->mm, address);
+	pmd = pmd_alloc(pgd, address);
+	if (!pmd) {
+		__free_page(page);
+		oom(tsk);
+		return;
+	}
+	pte = pte_alloc(pmd, address);
+	if (!pte) {
+		__free_page(page);
+		oom(tsk);
+		return;
+	}
+	if (!pte_none(*pte)) {
+		pte_ERROR(*pte);
+		__free_page(page);
+		return;
+	}
+	flush_page_to_ram(page);
+	set_pte(pte, pte_mkdirty(pte_mkwrite(mk_pte(page, PAGE_COPY))));
+/* no need for flush_tlb */
 }
 
 int setup_arg_pages(struct linux_binprm *bprm)

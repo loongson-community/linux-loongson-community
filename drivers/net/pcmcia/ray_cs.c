@@ -51,18 +51,16 @@
 #include <pcmcia/ds.h>
 #include <pcmcia/mem_op.h>
 
-#ifdef HAS_WIRELESS_EXTENSIONS
+#ifdef CONFIG_NET_PCMCIA_RADIO
 #include <linux/wireless.h>
-#if WIRELESS_EXT < 8
-#warning "Wireless extension v8 or newer required"
-#endif	/* WIRELESS_EXT < 8 */
+
 /* Warning : these stuff will slow down the driver... */
 #define WIRELESS_SPY		/* Enable spying addresses */
 /* Definitions we need for spy */
 typedef struct iw_statistics	iw_stats;
 typedef struct iw_quality	iw_qual;
 typedef u_char	mac_addr[ETH_ALEN];	/* Hardware address */
-#endif	/* HAS_WIRELESS_EXTENSIONS */
+#endif	/* CONFIG_NET_PCMCIA_RADIO */
 
 #include "rayctl.h"
 #include "ray_cs.h"
@@ -109,7 +107,7 @@ static void ray_build_header(ray_dev_t *local, struct tx_msg *ptx, UCHAR msg_typ
                 unsigned char *data);
 static void untranslate(ray_dev_t *local, struct sk_buff *skb, int len);
 #if WIRELESS_EXT > 7	/* If wireless extension exist in the kernel */
-static iw_stats * ray_get_wireless_stats(struct device *	dev);
+static iw_stats * ray_get_wireless_stats(struct net_device *	dev);
 #endif	/* WIRELESS_EXT > 7 */
 
 /***** Prototypes for raylink functions **************************************/
@@ -213,7 +211,7 @@ static dev_link_t *dev_list = NULL;
    'priv' pointer in a dev_link_t structure can be used to point to
    a device-specific private data structure, like this.
 */
-static unsigned int ray_mem_speed = 0x2A;
+static unsigned int ray_mem_speed = 500;
 
 MODULE_AUTHOR("Corey Thomas <corey@world.std.com>");
 MODULE_DESCRIPTION("Raylink/WebGear wireless LAN driver");
@@ -543,8 +541,7 @@ static void ray_config(dev_link_t *link)
     req.Base = 0;
     req.Size = 0x8000;
     req.AccessSpeed = ray_mem_speed;
-    link->win = (window_handle_t)link->handle;
-    CS_CHECK(pcmcia_request_window, &link->win, &req);
+    CS_CHECK(pcmcia_request_window, &link->handle, &req, &link->win);
     mem.CardOffset = 0x0000; mem.Page = 0;
     CS_CHECK(pcmcia_map_mem_page, link->win, &mem);
     local->sram = (UCHAR *)(ioremap(req.Base,req.Size));
@@ -554,8 +551,7 @@ static void ray_config(dev_link_t *link)
     req.Base = 0;
     req.Size = 0x4000;
     req.AccessSpeed = ray_mem_speed;
-    local->rmem_handle = (window_handle_t)link->handle;
-    CS_CHECK(pcmcia_request_window, &local->rmem_handle, &req);
+    CS_CHECK(pcmcia_request_window, &link->handle, &req, &local->rmem_handle);
     mem.CardOffset = 0x8000; mem.Page = 0;
     CS_CHECK(pcmcia_map_mem_page, local->rmem_handle, &mem);
     local->rmem = (UCHAR *)(ioremap(req.Base,req.Size));
@@ -565,8 +561,7 @@ static void ray_config(dev_link_t *link)
     req.Base = 0;
     req.Size = 0x1000;
     req.AccessSpeed = ray_mem_speed;
-    local->amem_handle = (window_handle_t)link->handle;
-    CS_CHECK(pcmcia_request_window, &local->amem_handle, &req);
+    CS_CHECK(pcmcia_request_window, &link->handle, &req, &local->amem_handle);
     mem.CardOffset = 0x0000; mem.Page = 0;
     CS_CHECK(pcmcia_map_mem_page, local->amem_handle, &mem);
     local->amem = (UCHAR *)(ioremap(req.Base,req.Size));
@@ -1471,7 +1466,7 @@ static int ray_dev_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 } /* end ray_dev_ioctl */
 /*===========================================================================*/
 #if WIRELESS_EXT > 7	/* If wireless extension exist in the kernel */
-static iw_stats * ray_get_wireless_stats(struct device *	dev)
+static iw_stats * ray_get_wireless_stats(struct net_device *	dev)
 {
   ray_dev_t *	local = (ray_dev_t *) dev->priv;
   dev_link_t *link = local->finder;
@@ -1848,7 +1843,7 @@ static void ray_interrupt(int irq, void *dev_id, struct pt_regs * regs)
     UCHAR cmd;
     UCHAR status;
 
-    if ((dev == NULL) || !dev->start)
+    if (dev == NULL) /* Note that we want interrupts with dev->start == 0 */
     return;
 
     DEBUG(4,"ray_cs: interrupt for *dev=%p\n",dev);
@@ -2094,7 +2089,7 @@ static void rx_data(struct net_device *dev, struct rcs *prcs, unsigned int pkt_a
     int total_len;
     int tmp;
 #ifdef WIRELESS_SPY
-    int siglev = prcs->var.rx_packet.rx_sig_lev;
+    int siglev = local->last_rsl;
     u_char linksrcaddr[ETH_ALEN];	/* Other end of the wireless link */
 #endif
 
@@ -2534,12 +2529,22 @@ static int ray_cs_proc_read(char *buf, char **start, off_t offset, int len)
  * eg ifconfig 
  */
     int i;
-    dev_link_t *link = dev_list;
-    struct net_device *dev = (struct net_device *)link->priv;
-    ray_dev_t *local = (ray_dev_t *)dev->priv;
+    dev_link_t *link;
+    struct net_device *dev;
+    ray_dev_t *local;
     UCHAR *p;
     struct freq_hop_element *pfh;
     UCHAR c[33];
+
+    link = dev_list;
+    if (!link)
+    	return 0;
+    dev = (struct net_device *)link->priv;
+    if (!dev)
+    	return 0;
+    local = (ray_dev_t *)dev->priv;
+    if (!local)
+    	return 0;
 
     len = 0;
 
@@ -2668,7 +2673,59 @@ static int build_auth_frame(ray_dev_t *local, UCHAR *dest, int auth_type)
     }
     return 0;
 } /* End build_auth_frame */
+
 /*===========================================================================*/
+
+static void raycs_write(const char *name, write_proc_t *w, void *data)
+{
+	struct proc_dir_entry * entry = create_proc_entry(name, S_IFREG | S_IWUSR, NULL);
+	if (entry) {
+		entry->write_proc = w;
+		entry->data = data;
+	}
+}
+
+static int write_essid(struct file *file, const char *buffer, unsigned long count, void *data)
+{
+	static char proc_essid[33];
+	int len = count;
+
+	if (len > 32)
+		len = 32;
+	memset(proc_essid, 0, 33);
+	if (copy_from_user(proc_essid, buffer, len))
+		return -EFAULT;
+	essid = proc_essid;
+	return count;
+}
+
+static int write_int(struct file *file, const char *buffer, unsigned long count, void *data)
+{
+	static char proc_number[10];
+	char *p;
+	int nr, len;
+
+	if (!count)
+		return 0;
+
+	if (count > 9)
+		return -EINVAL;
+	if (copy_from_user(proc_number, buffer, count))
+		return -EFAULT;
+	p = proc_number;
+	nr = 0;
+	len = count;
+	do {
+		unsigned int c = *p - '0';
+		if (c > 9)
+			return -EINVAL;
+		nr = nr*10 + c;
+		p++;
+	} while (--len);
+	*(int *)data = nr;
+	return count;
+}
+
 static int __init init_ray_cs(void)
 {
     int rc;
@@ -2676,26 +2733,16 @@ static int __init init_ray_cs(void)
     DEBUG(1, "%s\n", rcsid);
     rc = register_pcmcia_driver(&dev_info, &ray_attach, &ray_detach);
     DEBUG(1, "raylink init_module register_pcmcia_driver returns 0x%x\n",rc);
-#ifdef CONFIG_PROC_FS    
-    /* [proc-namespace][fixme] It shouldn't be under root, damnit! */
-    create_proc_info_entry("ray_cs", 0, &proc_root, ray_cs_proc_read);
-#endif    
+
+    proc_mkdir("driver/ray_cs", 0);
+
+    create_proc_info_entry("driver/ray_cs/ray_cs", 0, NULL, ray_cs_proc_read);
+    raycs_write("driver/ray_cs/essid", write_essid, NULL);
+    raycs_write("driver/ray_cs/net_type", write_int, &net_type);
+    raycs_write("driver/ray_cs/translate", write_int, &translate);
     if (translate != 0) translate = 1;
     return 0;
 } /* init_ray_cs */
-
-#ifndef MODULE
-
-static char init_ess_id[ESSID_SIZE];
-static int __init essid_setup(char *str)
-{
-	strncpy(init_ess_id, str, ESSID_SIZE);
-	essid = init_ess_id;
-	return 1;
-}
-__setup("essid=", essid_setup);
-
-#endif
 
 /*===========================================================================*/
 
@@ -2703,14 +2750,18 @@ static void __exit exit_ray_cs(void)
 {
     DEBUG(0, "ray_cs: cleanup_module\n");
 
+
+    remove_proc_entry("ray_cs", proc_root_driver);
     unregister_pcmcia_driver(&dev_info);
     while (dev_list != NULL) {
         if (dev_list->state & DEV_CONFIG) ray_release((u_long)dev_list);
         ray_detach(dev_list);
     }
-#ifdef CONFIG_PROC_FS    
-    remove_proc_entry("ray_cs", &proc_root);
-#endif   
+    remove_proc_entry("driver/ray_cs/ray_cs", NULL);
+    remove_proc_entry("driver/ray_cs/essid", NULL);
+    remove_proc_entry("driver/ray_cs/net_type", NULL);
+    remove_proc_entry("driver/ray_cs/translate", NULL);
+    remove_proc_entry("driver/ray_cs", NULL);
 } /* exit_ray_cs */
 
 module_init(init_ray_cs);

@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.22 1999/12/04 03:59:00 ralf Exp $
+/* $Id: sysirix.c,v 1.23 2000/02/04 07:40:23 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -27,7 +27,7 @@
 
 #include <asm/ptrace.h>
 #include <asm/page.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/uaccess.h>
 #include <asm/sgialib.h>
 #include <asm/inventory.h>

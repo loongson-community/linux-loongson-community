@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.4 2000/01/29 01:41:59 ralf Exp $
+/* $Id: scall_o32.S,v 1.5 2000/02/04 07:40:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -401,10 +401,12 @@ illegal_syscall:
 	sys	sys_sendfile	3
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
-	sys	sys_getrlimit	2			/* 4210 */
-	sys	sys_mmap2	6
+	sys	sys_mmap2	6			/* 4210 */
 	sys	sys_truncate64	2
 	sys	sys_ftruncate64	2
+	sys	sys_stat64	3
+	sys	sys_lstat64	3
+	sys	sys_fstat64	3			/* 4210 */
 	.endm
 
 	.macro	sys function, nargs

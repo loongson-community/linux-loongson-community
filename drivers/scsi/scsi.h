@@ -398,13 +398,23 @@ extern int  scsi_partsize(struct buffer_head *bh, unsigned long capacity,
                     unsigned int *secs);
 
 /*
+ * Prototypes for functions in scsi_merge.c
+ */
+extern void recount_segments(Scsi_Cmnd * SCpnt);
+
+/*
  * Prototypes for functions in scsi_lib.c
  */
 extern void initialize_merge_fn(Scsi_Device * SDpnt);
 extern void scsi_request_fn(request_queue_t * q);
+extern void scsi_queue_next_request(request_queue_t * q, Scsi_Cmnd * SCpnt);
 
 extern int scsi_insert_special_cmd(Scsi_Cmnd * SCpnt, int);
 extern int scsi_dispatch_cmd(Scsi_Cmnd * SCpnt);
+
+/*
+ * Prototypes for functions in scsi.c
+ */
 
 /*
  *  scsi_abort aborts the current command that is executing on host host.
@@ -422,11 +432,7 @@ extern void scsi_wait_cmd(Scsi_Cmnd *, const void *cmnd,
 			  void (*done) (struct scsi_cmnd *),
 			  int timeout, int retries);
 
-extern void scsi_request_fn(request_queue_t * q);
-
-extern Scsi_Cmnd *scsi_allocate_device(Scsi_Device *, int);
-
-extern Scsi_Cmnd *scsi_request_queueable(struct request *, Scsi_Device *);
+extern Scsi_Cmnd *scsi_allocate_device(Scsi_Device *, int, int);
 
 extern void scsi_release_command(Scsi_Cmnd *);
 
@@ -453,10 +459,11 @@ struct scsi_device {
 	 */
 	struct scsi_device *next;	/* Used for linked list */
 	struct scsi_device *prev;	/* Used for linked list */
-	wait_queue_head_t device_wait;	/* Used to wait if
+	wait_queue_head_t   scpnt_wait;	/* Used to wait if
 					   device is busy */
 	struct Scsi_Host *host;
 	request_queue_t request_queue;
+        atomic_t                device_active; /* commands checked out for device */
 	volatile unsigned short device_busy;	/* commands actually active on low-level */
 	int (*scsi_init_io_fn) (Scsi_Cmnd *);	/* Used to initialize
 						   new request */
@@ -627,19 +634,12 @@ struct scsi_cmnd {
 	unsigned flags;
 
 	/*
-	 * These two flags are used to track commands that are in the
-	 * mid-level queue.  The idea is that a command can be there for
-	 * one of two reasons - either the host is busy or the device is
-	 * busy.  Thus when a command on the host finishes, we only try
-	 * and requeue commands that we might expect to be queueable.
+	 * Used to indicate that a command which has timed out also
+	 * completed normally.  Typically the completion function will
+	 * do nothing but set this flag in this instance because the
+	 * timeout handler is already running.
 	 */
-	unsigned host_wait:1;
-	unsigned device_wait:1;
-
-	/* These variables are for the cdrom only. Once we have variable size 
-	 * buffers in the buffer cache, they will go away. */
-	int this_count;
-	/* End of special cdrom variables */
+	unsigned done_late:1;
 
 	/* Low-level done function - can be used by low-level driver to point
 	 *        to completion function.  Not used by mid/upper level code. */
@@ -682,7 +682,6 @@ struct scsi_cmnd {
 #define SCSI_MLQUEUE_DEVICE_BUSY 0x1056
 
 extern int scsi_mlqueue_insert(Scsi_Cmnd * cmd, int reason);
-extern int scsi_mlqueue_finish(struct Scsi_Host *host, Scsi_Device * device);
 
 extern Scsi_Cmnd *scsi_end_request(Scsi_Cmnd * SCpnt, int uptodate,
 				   int sectors);
@@ -690,33 +689,7 @@ extern Scsi_Cmnd *scsi_end_request(Scsi_Cmnd * SCpnt, int uptodate,
 extern void scsi_io_completion(Scsi_Cmnd * SCpnt, int good_sectors,
 			       int block_sectors);
 
-
-#if defined(MAJOR_NR) && (MAJOR_NR != SCSI_TAPE_MAJOR)
-#include "hosts.h"
-
-
-/* This is just like INIT_REQUEST, but we need to be aware of the fact
- * that an interrupt may start another request, so we run this with interrupts
- * turned off 
- */
-#if MAJOR_NR == SCSI_DISK0_MAJOR
-#define CHECK_INITREQ_SD_MAJOR(major) SCSI_DISK_MAJOR(major)
-#else
-#define CHECK_INITREQ_SD_MAJOR(major) ((major) == MAJOR_NR)
-#endif
-
-#define INIT_SCSI_REQUEST       			\
-    if (!CURRENT) {             			\
-	CLEAR_INTR;             			\
-	return;                 			\
-    }                           			\
-    if (!CHECK_INITREQ_SD_MAJOR(MAJOR(CURRENT->rq_dev)))\
-	panic(DEVICE_NAME ": request list destroyed");	\
-    if (CURRENT->bh) {                                	\
-	if (!buffer_locked(CURRENT->bh))              	\
-	    panic(DEVICE_NAME ": block not locked");  	\
-    }
-#endif
+extern struct Scsi_Device_Template *scsi_get_request_dev(struct request *);
 
 #define SCSI_SLEEP(QUEUE, CONDITION) {		    \
     if (CONDITION) {			            \

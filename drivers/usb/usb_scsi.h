@@ -15,13 +15,13 @@
 
 #define USB_SCSI "usbscsi: "
 
-extern int usbscsi_debug;
+extern int usb_stor_debug;
 
 #ifdef CONFIG_USB_SCSI_DEBUG
 void us_show_command(Scsi_Cmnd *srb);
-#define US_DEBUGP(x...) { if(usbscsi_debug) printk( KERN_DEBUG USB_SCSI ## x ); }
-#define US_DEBUGPX(x...) { if(usbscsi_debug) printk( ## x ); }
-#define US_DEBUG(x)  { if(usbscsi_debug) x; }
+#define US_DEBUGP(x...) { if(usb_stor_debug) printk( KERN_DEBUG USB_SCSI ## x ); }
+#define US_DEBUGPX(x...) { if(usb_stor_debug) printk( ## x ); }
+#define US_DEBUG(x)  { if(usb_stor_debug) x; }
 #else
 #define US_DEBUGP(x...)
 #define US_DEBUGPX(x...)
@@ -47,8 +47,7 @@ extern unsigned char us_direction[256/8];
 
 #define US_PR_CB	1		/* Control/Bulk w/o interrupt */
 #define US_PR_CBI	0		/* Control/Bulk/Interrupt */
-#define US_PR_ZIP	0x50		/* bulk only */
-/* #define US_PR_BULK	?? */
+#define US_PR_BULK	0x50		/* bulk only */
 
 /*
  * Bulk only data structures (Zip 100, for example)
