@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.1.1.1 1997/06/01 03:17:20 ralf Exp $
+/* $Id: sgiseeq.c,v 1.2 1997/08/20 18:18:52 shaver Exp $
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -380,18 +380,14 @@ static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
 
 	tx_maybe_reset_collisions(sp, sregs);
 
-	if(!(status & HPC3_ETXCTRL_ACTIVE)) {
-		if(!(status & SEEQ_TSTAT_PTRANS)) {
-			/* Oops, HPC detected some sort of error. */
-			if(status & SEEQ_TSTAT_R16)
-				sp->stats.tx_aborted_errors++;
-			if(status & SEEQ_TSTAT_UFLOW)
-				sp->stats.tx_fifo_errors++;
-			if(status & SEEQ_TSTAT_LCLS)
-				sp->stats.collisions++;
-		}
-		kick_tx((struct sgiseeq_tx_desc *)KSEG1ADDR((hregs->tx_ndptr & ~0xf)),
-			hregs);
+	if(!(status & (HPC3_ETXCTRL_ACTIVE | SEEQ_TSTAT_PTRANS))) {
+		/* Oops, HPC detected some sort of error. */
+		if(status & SEEQ_TSTAT_R16)
+			sp->stats.tx_aborted_errors++;
+		if(status & SEEQ_TSTAT_UFLOW)
+			sp->stats.tx_fifo_errors++;
+		if(status & SEEQ_TSTAT_LCLS)
+			sp->stats.collisions++;
 	}
 
 	/* Ack 'em... */
@@ -400,8 +396,13 @@ static inline void sgiseeq_tx(struct device *dev, struct sgiseeq_private *sp,
 
 		if(!(td->tdma.cntinfo & (HPCDMA_XIU)))
 			break;
-		if(!(td->tdma.cntinfo & (HPCDMA_ETXD)))
+		if(!(td->tdma.cntinfo & (HPCDMA_ETXD))) {
+			if(!(status & HPC3_ETXCTRL_ACTIVE)) {
+				hregs->tx_ndptr = PHYSADDR(td);
+				hregs->tx_ctrl = HPC3_ETXCTRL_ACTIVE;
+			}
 			break;
+		}
 		sp->stats.tx_packets++;
 		sp->tx_old = NEXT_TX(sp->tx_old);
 		td->tdma.cntinfo &= ~(HPCDMA_XIU | HPCDMA_XIE);
