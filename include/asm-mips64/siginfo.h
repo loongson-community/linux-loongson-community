@@ -18,8 +18,6 @@
 
 #define HAVE_ARCH_SIGINFO_T
 #define HAVE_ARCH_SIGEVENT_T
-#define HAVE_ARCH_COPY_SIGINFO
-#define HAVE_ARCH_COPY_SIGINFO_TO_USER
 
 /*
  * We duplicate the generic versions - <asm-generic/siginfo.h> is just borked

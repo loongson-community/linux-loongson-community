@@ -77,14 +77,14 @@ static inline int
 init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 {
 #ifdef CONFIG_SMP
-	mm->context = kmalloc(smp_num_cpus * sizeof(unsigned long), GFP_KERNEL);
+	mm->context = kmalloc(NR_CPUS * sizeof(unsigned long), GFP_KERNEL);
 	/*
  	 * Init the "context" values so that a tlbpid allocation
 	 * happens on the first switch.
  	 */
 	if (mm->context == 0)
 		return -ENOMEM;
-	memset(mm->context, 0, smp_num_cpus * sizeof(unsigned long));
+	memset(mm->context, 0, NR_CPUS * sizeof(unsigned long));
 #else
 	mm->context = 0;
 #endif

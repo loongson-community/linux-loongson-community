@@ -23,10 +23,9 @@
 
 #ifdef CONFIG_SMP
 
-#include <asm/spinlock.h>
+#include <linux/bitops.h>
 #include <linux/threads.h>
 #include <asm/atomic.h>
-#include <asm/current.h>
 
 #define smp_processor_id()  (current_thread_info()->cpu)
 
@@ -90,6 +89,13 @@ typedef struct {
 #endif
 
 extern cpumask_t cpu_online_map;
+
+#define cpu_online(cpu) (cpu_online_map & (1<<(cpu)))
+
+extern inline unsigned int num_online_cpus(void)
+{
+	return hweight32(cpu_online_map);
+}
 
 #endif /* CONFIG_SMP */
 #endif /* __ASM_MIPS_SMP_H */

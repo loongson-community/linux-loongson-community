@@ -32,6 +32,8 @@
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
 
+u64 jiffies_64;
+
 /*
  * forward reference
  */

@@ -744,7 +744,6 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 
 asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 {
-	struct k_sigaction *ka;
 	siginfo_t info;
 	int signr;
 
@@ -753,7 +752,7 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 
 	signr = get_signal_to_deliver(&info, regs);
 	if (signr > 0) {
-		handle_signal(signr, ka, &info, oldset, regs);
+		handle_signal(signr, &info, oldset, regs);
 		return 1;
 	}
 

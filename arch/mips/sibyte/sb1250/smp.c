@@ -28,6 +28,7 @@
 #include <asm/sibyte/sb1250_int.h>
 
 extern void smp_call_function_interrupt(void);
+extern void smp_tune_scheduling(void);
 
 /*
  * These are routines for dealing with the sb1250 smp capabilities
@@ -91,7 +92,7 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 }
 
 extern atomic_t cpus_booted;
-extern int prom_setup_smp(void);
+extern void prom_setup_smp(void);
 extern int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
 
 void __init smp_boot_cpus(void)
@@ -99,7 +100,7 @@ void __init smp_boot_cpus(void)
 	int cur_cpu = 0;
 	int cpu;
 
-	smp_num_cpus = prom_setup_smp();
+	prom_setup_smp();
 	init_new_context(current, &init_mm);
 	current_thread_info()->cpu = 0;
 	cpu_data[0].udelay_val = loops_per_jiffy;
@@ -113,7 +114,7 @@ void __init smp_boot_cpus(void)
 	 * This loop attempts to compensate for "holes" in the CPU
 	 * numbering.  It's overkill, but general.
 	 */
-	for (cpu = 1; cpu < smp_num_cpus; ) {
+	for (cpu = 1; cpu < num_online_cpus(); ) {
 		struct task_struct *idle;
 		struct pt_regs regs;
 		int retval;
@@ -148,6 +149,6 @@ void __init smp_boot_cpus(void)
 	}
 
 	/* Wait for everyone to come up */
-	while (atomic_read(&cpus_booted) != smp_num_cpus);
+	while (atomic_read(&cpus_booted) != num_online_cpus());
 	smp_threads_ready = 1;
 }

@@ -56,19 +56,17 @@ void prom_init_secondary(void)
  * Set up state, return the total number of cpus in the system, including
  * the master
  */
-int prom_setup_smp(void)
+void prom_setup_smp(void)
 {
 	int i;
-	int num_cpus = 1;
 
 	/* Use CFE to find out how many CPUs are available */
 	for (i=1; i<NR_CPUS; i++) {
 		if (cfe_cpu_stop(i) == 0) {
-			num_cpus++;
+			CPUMASK_SETB(cpu_online_map, i);
 		}
 	}
-	printk("Detected %i available CPU(s)\n", num_cpus);
-	return num_cpus;
+	printk("Detected %i available CPU(s)\n", num_online_cpus());
 }
 
 void prom_smp_finish(void)

@@ -558,7 +558,6 @@ void __init smp_boot_cpus(void)
 	cpu_io_setup();
 	init_mfhi_war();
 #endif
-	smp_num_cpus = num_cpus;
 }
 
 #else /* CONFIG_SMP */

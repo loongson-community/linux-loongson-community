@@ -79,12 +79,13 @@ atomic_t irq_err_count;
 
 int show_interrupts(struct seq_file *p, void *v)
 {
+	int i, j;
 	struct irqaction * action;
-	int i;
 
 	seq_puts(p, "           ");
-	for (i=0; i < 1 /*smp_num_cpus*/; i++)
-		seq_printf(p, "CPU%d       ", i);
+	for (j=0; j<NR_CPUS; j++)
+		if (cpu_online(j))
+			p += seq_printf(p, "CPU%d       ", j);
 	seq_putc(p, '\n');
 
 	for (i = 0 ; i < NR_IRQS ; i++) {

@@ -56,7 +56,7 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		break;
 	case MP_NPROCS:
 	case MP_NAPROCS:
-		error = smp_num_cpus;
+		error = num_online_cpus;
 		break;
 	default:
 		printk("SYSMP[%s:%d]: Unsupported opcode %d\n",

@@ -13,8 +13,9 @@
 
 #ifdef CONFIG_SMP
 
+#include <linux/bitops.h>
 #include <linux/threads.h>
-#include <linux/irq.h>
+#include <asm/atomic.h>
 
 #define smp_processor_id()	(current_thread_info()->cpu)
 
@@ -81,6 +82,13 @@ struct call_data_struct {
 extern struct call_data_struct *call_data;
 
 extern cpumask_t cpu_online_map;
+
+#define cpu_online(cpu) (cpu_online_map & (1<<(cpu)))
+
+extern inline unsigned int num_online_cpus(void)
+{
+	return hweight32(cpu_online_map);
+}
 
 #endif /* CONFIG_SMP */
 

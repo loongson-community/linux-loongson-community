@@ -157,7 +157,7 @@ cont_nmi_dump(void)
 		udelay(10000);
 	}
 #else
-	while (atomic_read(&nmied_cpus) != smp_num_cpus);
+	while (atomic_read(&nmied_cpus) != num_online_cpus());
 #endif
 
 	/*

@@ -48,7 +48,6 @@ struct cpuinfo_mips cpu_data[NR_CPUS];
 // static atomic_t cpus_booted = ATOMIC_INIT(0);
 atomic_t cpus_booted = ATOMIC_INIT(0);
 
-int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
 int __cpu_number_map[NR_CPUS];
 int __cpu_logical_map[NR_CPUS];
@@ -200,7 +199,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
-	int i, cpus = smp_num_cpus - 1;
+	int i, cpus = num_online_cpus()-1;
 	int cpu = smp_processor_id();
 
 	if (!cpus)
@@ -217,8 +216,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	call_data = &data;
 
 	/* Send a message to all other CPUs and wait for them to respond */
-	for (i = 0; i < smp_num_cpus; i++)
-		if (i != cpu)
+	for (i = 0; i < NR_CPUS; i++)
+		if (cpu_online(cpu) && cpu != smp_processor_id())
 			core_send_ipi(i, SMP_CALL_FUNCTION);
 
 	/* Wait for response */
@@ -266,20 +265,13 @@ static void stop_this_cpu(void *dummy)
 	 * Remove this CPU:
 	 */
 	clear_bit(smp_processor_id(), &cpu_online_map);
-	/* May need to service _machine_restart IPI */
-	__sti();
-	/* XXXKW wait if available? */
-	for (;;);
+	__sti();		/* May need to service _machine_restart IPI */
+	for (;;);		/* Wait if available. */
 }
 
 void smp_send_stop(void)
 {
 	smp_call_function(stop_this_cpu, NULL, 1, 0);
-	/*
-	 * Fix me: this prevents future IPIs, for example that would
-	 * cause a restart to happen on CPU0.
-	 */
-	smp_num_cpus = 1;
 }
 
 /* Not really SMP stuff ... */
@@ -323,7 +315,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 		smp_call_function(flush_tlb_mm_ipi, (void *)mm, 1, 1);
 	} else {
 		int i;
-		for (i = 0; i < smp_num_cpus; i++)
+		for (i = 0; i < num_online_cpus(); i++)
 			if (smp_processor_id() != i)
 				cpu_context(i, mm) = 0;
 	}
@@ -356,7 +348,7 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 		smp_call_function(flush_tlb_range_ipi, (void *)&fd, 1, 1);
 	} else {
 		int i;
-		for (i = 0; i < smp_num_cpus; i++)
+		for (i = 0; i < num_online_cpus(); i++)
 			if (smp_processor_id() != i)
 				cpu_context(i, mm) = 0;
 	}
@@ -397,14 +389,13 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		smp_call_function(flush_tlb_page_ipi, (void *)&fd, 1, 1);
 	} else {
 		int i;
-		for (i = 0; i < smp_num_cpus; i++)
+		for (i = 0; i < num_online_cpus(); i++)
 			if (smp_processor_id() != i)
 				cpu_context(i, vma->vm_mm) = 0;
 	}
 	local_flush_tlb_page(vma, page);
 }
 
-EXPORT_SYMBOL(smp_num_cpus);
 EXPORT_SYMBOL(flush_tlb_page);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);
