@@ -39,6 +39,39 @@
  *   versions of R4000 and R4400.
  */
 
+LEAF(r4k_clear_page32_d16)
+	addiu	AT, a0, _PAGE_SIZE
+1:	cache	Create_Dirty_Excl_D, (a0)
+	sw	zero, (a0)
+	sw	zero, 4(a0)
+	sw	zero, 8(a0)
+	sw	zero, 12(a0)
+	addiu	a0, 32
+	cache	Create_Dirty_Excl_D, -16(a0)
+	sw	zero, -16(a0)
+	sw	zero, -12(a0)
+	sw	zero, -8(a0)
+	sw	zero, -4(a0)
+	bne	AT, a0, 1b
+	jr	ra
+	END(r4k_clear_page32_d16)
+
+LEAF(r4k_clear_page32_d32)
+	addiu	AT, a0, _PAGE_SIZE
+1:	cache	Create_Dirty_Excl_D, (a0)
+	sw	zero, (a0)
+	sw	zero, 4(a0)
+	sw	zero, 8(a0)
+	sw	zero, 12(a0)
+	addiu	a0, 64
+	sw	zero, -16(a0)
+	sw	zero, -12(a0)
+	sw	zero, -8(a0)
+	sw	zero, -4(a0)
+	bne	AT, a0, 1b
+	jr	ra
+	END(r4k_clear_page32_d32)
+
 LEAF(r4k_clear_page_d16)
 	addiu	AT, a0, _PAGE_SIZE
 1:	cache	Create_Dirty_Excl_D, (a0)

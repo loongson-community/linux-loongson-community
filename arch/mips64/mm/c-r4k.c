@@ -34,6 +34,8 @@ static unsigned long scache_size, sc_lsize;	/* S-cache parameters. */
 #include <asm/cacheops.h>
 #include <asm/r4kcache.h>
 
+extern void r4k_clear_page32_d16(void * page);
+extern void r4k_clear_page32_d32(void * page);
 extern void r4k_clear_page_d16(void * page);
 extern void r4k_clear_page_d32(void * page);
 extern void r4k_clear_page_r4600_v1(void * page);
@@ -878,7 +880,10 @@ static void __init setup_noscache_funcs(void)
 
 	switch (current_cpu_data.dcache.linesz) {
 	case 16:
-		_clear_page = r4k_clear_page_d16;
+		if (cpu_has_64bits)
+			_clear_page = r4k_clear_page_d16;
+		else
+			_clear_page = r4k_clear_page32_d16;
 		_copy_page = r4k_copy_page_d16;
 
 		break;
@@ -891,7 +896,10 @@ static void __init setup_noscache_funcs(void)
 			_clear_page = r4k_clear_page_r4600_v2;
 			_copy_page = r4k_copy_page_r4600_v2;
 		} else {
-			_clear_page = r4k_clear_page_d32;
+			if (cpu_has_64bits)
+				_clear_page = r4k_clear_page_d32;
+			else
+				_clear_page = r4k_clear_page32_d32;
 			_copy_page = r4k_copy_page_d32;
 		}
 		break;

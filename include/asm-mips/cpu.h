@@ -162,14 +162,20 @@
 
 /*
  * ISA Level encodings
+ *
  */
 #define MIPS_CPU_ISA_I		0x00000001
 #define MIPS_CPU_ISA_II		0x00000002
-#define MIPS_CPU_ISA_III	0x00000003
-#define MIPS_CPU_ISA_IV		0x00000004
-#define MIPS_CPU_ISA_V		0x00000005
+#define MIPS_CPU_ISA_III	0x00008003
+#define MIPS_CPU_ISA_IV		0x00008004
+#define MIPS_CPU_ISA_V		0x00008005
 #define MIPS_CPU_ISA_M32	0x00000020
-#define MIPS_CPU_ISA_M64	0x00000040
+#define MIPS_CPU_ISA_M64	0x00008040
+
+/*
+ * Bit 15 encodes if an ISA level supports 64-bit operations.
+ */
+#define MIPS_CPU_ISA_64BIT	0x00008000
 
 /*
  * CPU Option encodings
