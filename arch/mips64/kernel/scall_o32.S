@@ -113,6 +113,8 @@ trace_a_syscall:
 	SAVE_STATIC
 	sd	a4, PT_R8(sp)
 	sd	a5, PT_R9(sp)
+	sd	a6, PT_R10(sp)
+	sd	a7, PT_R11(sp)
 
 	sd	t2,PT_R1(sp)
 	jal	syscall_trace
