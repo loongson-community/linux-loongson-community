@@ -296,7 +296,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		int sig;
 		/*
 	 	 * Unimplemented operation exception.  If we've got the
-	 	 * Full software emulator on-board, let's use it...
+	 	 * full software emulator on-board, let's use it...
 		 *
 		 * Force FPU to dump state into task/thread context.
 		 * We're moving a lot of data here for what is probably
@@ -312,7 +312,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 		/* 
 		 * We can't allow the emulated instruction to leave the
-		 * Unimplemented Operation bit set in the FCR31 fp-register.
+		 * Unimplemented Operation bit set in $fcr31.
 		 */
 		current->thread.fpu.soft.sr &= ~FPU_CSR_UNI_X;
 
@@ -656,12 +656,12 @@ static inline void watch_init(void)
 }
 
 /*
- * Some MIPS CPUs can enable/disable for cache parity detection, but does
+ * Some MIPS CPUs can enable/disable for cache parity detection, but do
  * it different ways.
  */
 static inline void parity_protection_init(void)
 {
-	switch(mips_cpu.cputype) {
+	switch (mips_cpu.cputype) {
 	case CPU_5KC:
 		/* Set the PE bit (bit 31) in the CP0_ECC register. */
 		printk(KERN_INFO "Enable the cache parity protection for "
@@ -687,26 +687,27 @@ asmlinkage void cache_parity_error(void)
 	printk("cp0_cacheerr == %08x\n", reg_val);
 
 	printk("Decoded CP0_CACHEERR: %s cache fault in %s reference.\n",
-	       reg_val&(1<<30)?"secondary":"primary",
-	       reg_val&(1<<31)?"data":"insn");
+	       reg_val & (1<<30) ? "secondary" : "primary",
+	       reg_val & (1<<31) ? "data" : "insn");
 	printk("Error bits: %s%s%s%s%s%s%s\n",
-	       reg_val&(1<<29)?"ED ":"",
-	       reg_val&(1<<28)?"ET ":"",
-	       reg_val&(1<<26)?"EE ":"",
-	       reg_val&(1<<25)?"EB ":"",
-	       reg_val&(1<<24)?"EI ":"",
-	       reg_val&(1<<23)?"E1 ":"",
-	       reg_val&(1<<22)?"E0 ":"");
-	printk("IDX: 0x%08x\n", reg_val&((1<<22)-1));
+	       reg_val & (1<<29) ? "ED " : "",
+	       reg_val & (1<<28) ? "ET " : "",
+	       reg_val & (1<<26) ? "EE " : "",
+	       reg_val & (1<<25) ? "EB " : "",
+	       reg_val & (1<<24) ? "EI " : "",
+	       reg_val & (1<<23) ? "E1 " : "",
+	       reg_val & (1<<22) ? "E0 " : "");
+	printk("IDX: 0x%08x\n", reg_val & ((1<<22)-1));
 
 	if (reg_val&(1<<22))
-		printk("DErrAddr0: 0x%08x\n", read_32bit_cp0_set1_register(CP0_S1_DERRADDR0));
+		printk("DErrAddr0: 0x%08x\n",
+		       read_32bit_cp0_set1_register(CP0_S1_DERRADDR0));
 
 	if (reg_val&(1<<23))
-		printk("DErrAddr1: 0x%08x\n", read_32bit_cp0_set1_register(CP0_S1_DERRADDR1));
+		printk("DErrAddr1: 0x%08x\n",
+		       read_32bit_cp0_set1_register(CP0_S1_DERRADDR1));
 
-
-	panic("Can't handle the cache error - panic!");
+	panic("Can't handle the cache error!");
 }
 
 unsigned long exception_handlers[32];
@@ -759,7 +760,7 @@ void __init trap_init(void)
 	/*
 	 * Setup default vectors
 	 */
-	for(i = 0; i <= 31; i++)
+	for (i = 0; i <= 31; i++)
 		set_except_vector(i, handle_reserved);
 
 	/* 
@@ -773,6 +774,7 @@ void __init trap_init(void)
 	 * interrupt vector.
 	 */
 	watch_init();
+
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
@@ -793,6 +795,7 @@ void __init trap_init(void)
 	set_except_vector(3, handle_tlbs);
 	set_except_vector(4, handle_adel);
 	set_except_vector(5, handle_ades);
+
 	/*
 	 * The Data Bus Error/ Instruction Bus Errors are signaled
 	 * by external hardware.  Therefore these two expection have
@@ -809,7 +812,6 @@ void __init trap_init(void)
 	set_except_vector(11, handle_cpu);
 	set_except_vector(12, handle_ov);
 	set_except_vector(13, handle_tr);
-	set_except_vector(15, handle_fpe);
 
 	if (mips_cpu.options & MIPS_CPU_FPU)
 		set_except_vector(15, handle_fpe);
@@ -819,7 +821,7 @@ void __init trap_init(void)
 	 */
 	if ((mips_cpu.options & MIPS_CPU_4KEX)
 	    && (mips_cpu.options & MIPS_CPU_4KTLB)) {
-		if(mips_cpu.cputype == CPU_NEVADA) {
+		if (mips_cpu.cputype == CPU_NEVADA) {
 			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
 		} else if (mips_cpu.cputype == CPU_R4600)
 			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
@@ -836,21 +838,25 @@ void __init trap_init(void)
 			       0x80);
 		}
 
-		if(mips_cpu.options & MIPS_CPU_FPU) {
+		if (mips_cpu.options & MIPS_CPU_FPU) {
 		        save_fp_context = _save_fp_context;
 			restore_fp_context = _restore_fp_context;
 		} else {
 		        save_fp_context = fpu_emulator_save_context;
 			restore_fp_context = fpu_emulator_restore_context;
 		}
-	} else switch(mips_cpu.cputype) {
+	} else switch (mips_cpu.cputype) {
 	case CPU_SB1:
-		/* XXX - This should be folded in to the "cleaner" handling, above */
+		/*
+		 * XXX - This should be folded in to the "cleaner" handling,
+		 * above
+		 */
 		memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
 		save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
-		/* Enable timer interrupt and scd mapped interrupt in status register */
+
+		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
 		set_cp0_status(0xc00);
 		break;
