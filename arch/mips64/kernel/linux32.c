@@ -5,6 +5,7 @@
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  * sys32_execve from ia64/ia32 code, Feb 2000, Kanoj Sarcar (kanoj@sgi.com)
  */
+#include <linux/config.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/file.h>
