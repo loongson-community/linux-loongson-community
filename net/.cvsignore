@@ -6,5 +6,4 @@ tags    TAGS
 *.old   *.bak   *.BAK   *.orig  *.rej   .del-*
 *.a     *.olb   *.o     *.obj   *.so    *.exe
 *.Z     *.elc   *.ln
-.*.d
 .*.cmd

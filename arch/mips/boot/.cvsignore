@@ -1,4 +1,3 @@
-.*.d
 mkboot
 elf2ecoff
 zImage

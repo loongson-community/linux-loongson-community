@@ -1,4 +1,3 @@
-.*.d
 .*.o
 .*.cmd
 crc32table.h
