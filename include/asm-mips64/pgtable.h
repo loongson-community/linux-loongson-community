@@ -46,11 +46,14 @@ extern void (*_flush_page_to_ram)(struct page * page);
 #define flush_icache_page(vma, page)	flush_cache_page(vma, page)
 
 
-/* Basically we have the same two-level (which is the logical three level
- * Linux page table layout folded) page tables as the i386.  Some day
- * when we have proper page coloring support we can have a 1% quicker
- * tlb refill handling mechanism, but for now it is a bit slower but
- * works even with the cache aliasing problem the R4k and above have.
+/*
+ * Each address space has 2 4K pages as its page directory, giving 1024
+ * (== PTRS_PER_PGD) 8 byte pointers to pmd tables. Each pmd table is a
+ * pair of 4K pages, giving 1024 (== PTRS_PER_PMD) 8 byte pointers to
+ * page tables. Each page table is a single 4K page, giving 512 (==
+ * PTRS_PER_PTE) 8 byte ptes. Each pgde is initialized to point to
+ * invalid_pmd_table, each pmde is initialized to point to 
+ * invalid_pte_table, each pte is initialized to 0.
  */
 
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
@@ -204,8 +207,10 @@ extern unsigned long zero_page_mask;
 #define PAGE_PTR(address) \
 ((unsigned long)(address)>>(PAGE_SHIFT-SIZEOF_PTR_LOG2)&PTR_MASK&~PAGE_MASK)
 
-extern pte_t invalid_pte_table[2*PAGE_SIZE/sizeof(pte_t)];
+extern pte_t invalid_pte_table[PAGE_SIZE/sizeof(pte_t)];
+extern pte_t empty_bad_page_table[PAGE_SIZE/sizeof(pte_t)];
 extern pmd_t invalid_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
+extern pmd_t empty_bad_pmd_table[2*PAGE_SIZE/sizeof(pmd_t)];
 
 /*
  * Conversion functions: convert a page and protection to a page entry,
@@ -464,7 +469,6 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 /*
  * Initialize a new pgd / pmd table with invalid pointers.
  */
-extern void pte_init(unsigned long page);
 extern void pgd_init(unsigned long page);
 extern void pmd_init(unsigned long page);
 

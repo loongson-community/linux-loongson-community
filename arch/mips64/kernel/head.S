@@ -167,7 +167,8 @@ NESTED(bootstrap, 16, sp)
 	.align	12
 
 	page	swapper_pg_dir, 1
-	page	invalid_pte_table, 1
+	page	invalid_pte_table, 0
 	page	invalid_pmd_table, 1
-	page	empty_bad_page_table, 1
+	page	empty_bad_page_table, 0
+	page	empty_bad_pmd_table, 1
 	page	empty_bad_page

@@ -161,7 +161,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 {
 	pte_t *page;
 
-	page = (pte_t *) __get_free_pages(GFP_KERNEL, 1);
+	page = (pte_t *) __get_free_pages(GFP_KERNEL, 0);
 	if (pmd_none(*pmd)) {
 		if (page) {
 			clear_page(page);
@@ -171,7 +171,7 @@ pte_t *get_pte_slow(pmd_t *pmd, unsigned long offset)
 		pmd_set(pmd, BAD_PAGETABLE);
 		return NULL;
 	}
-	free_pages((unsigned long)page, 1);
+	free_pages((unsigned long)page, 0);
 	if (pmd_bad(*pmd)) {
 		__bad_pte(pmd);
 		return NULL;
@@ -287,7 +287,6 @@ pmd_t * __bad_pmd_table(void)
 
 pte_t * __bad_pagetable(void)
 {
-	extern char empty_bad_page_table[PAGE_SIZE];
 	unsigned long page;
 
 	page = (unsigned long) empty_bad_page_table;
@@ -348,7 +347,7 @@ void __init paging_init(void)
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pmd_init((unsigned long)invalid_pmd_table);
-	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * 2 * PTRS_PER_PTE);
+	memset((void *)invalid_pte_table, 0, sizeof(pte_t) * PTRS_PER_PTE);
 
 	max_dma =  virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
