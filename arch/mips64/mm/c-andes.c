@@ -48,6 +48,16 @@ static void andes_flush_cache_l2(void)
 	}
 }
 
+static void andes___flush_cache_all(void)
+{
+}
+
+static void andes_flush_cache_all(void)
+{
+	andes_flush_cache_l1();
+	andes_flush_cache_l2();
+}
+
 void andes_flush_icache_page(unsigned long page)
 {
 	if (scache_lsz64)
@@ -80,6 +90,8 @@ void __init ld_mmu_andes(void)
 	_clear_page = andes_clear_page;
 	_copy_page = andes_copy_page;
 
+	_flush_cache_all = andes_flush_cache_all;
+	___flush_cache_all = andes___flush_cache_all;
 	_flush_cache_l1 = andes_flush_cache_l1;
 	_flush_cache_l2 = andes_flush_cache_l2;
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
