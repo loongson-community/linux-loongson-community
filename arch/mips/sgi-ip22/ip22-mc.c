@@ -17,10 +17,6 @@
 
 /* #define DEBUG_SGIMC */
 
-#ifdef DEBUG_SGIMC
-extern void prom_printf(char *fmt, ...);
-#endif
-
 struct sgimc_regs *sgimc;
 
 #ifdef DEBUG_SGIMC
