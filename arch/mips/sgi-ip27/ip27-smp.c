@@ -127,7 +127,7 @@ void __init prom_build_cpu_map(void)
 }
 
 static void intr_clear_bits(nasid_t nasid, volatile hubreg_t *pend,
-	int base_level, char *name)
+	int base_level)
 {
 	volatile hubreg_t bits;
 	int i;
@@ -146,9 +146,9 @@ static void intr_clear_all(nasid_t nasid)
 	REMOTE_HUB_S(nasid, PI_INT_MASK1_A, 0);
 	REMOTE_HUB_S(nasid, PI_INT_MASK1_B, 0);
 	intr_clear_bits(nasid, REMOTE_HUB_ADDR(nasid, PI_INT_PEND0),
-		INT_PEND0_BASELVL, "INT_PEND0");
+	                INT_PEND0_BASELVL);
 	intr_clear_bits(nasid, REMOTE_HUB_ADDR(nasid, PI_INT_PEND1),
-		INT_PEND1_BASELVL, "INT_PEND1");
+	                INT_PEND1_BASELVL);
 }
 
 void __init prom_prepare_cpus(unsigned int max_cpus)
