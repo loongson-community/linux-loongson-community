@@ -123,7 +123,6 @@ extern int pmagbafb_setup(char *);
 extern int pmagbbfb_init(void);
 extern int pmagbbfb_setup(char *options, int *ints);
 extern void maxinefb_init(void);
-extern void maxinefb_setup(char *options, int *ints);
 extern int tx3912fb_init(void);
 extern int radeonfb_init(void);
 extern int radeonfb_setup(char*);
@@ -309,7 +308,7 @@ static struct {
 #endif
 
 #ifdef CONFIG_FB_MAXINE
-        { "maxinefb", maxinefb_init, maxinefb_setup },
+        { "maxinefb", maxinefb_init, NULL },
 #endif
 
 
