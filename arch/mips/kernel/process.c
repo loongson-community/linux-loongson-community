@@ -127,7 +127,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	p->thread.cp0_status = read_c0_status() &
                             ~(ST0_CU2|ST0_CU1|KU_MASK);
 	childregs->cp0_status &= ~(ST0_CU2|ST0_CU1);
-	p->user_tid = NULL;
+	p->set_child_tid = p->clear_child_tid = NULL;
 
 	return 0;
 }

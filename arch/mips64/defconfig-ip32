@@ -344,9 +344,8 @@ CONFIG_SGI_O2MACE_ETH=y
 # CONFIG_NET_RADIO is not set
 
 #
-# Token Ring devices
+# Token Ring devices (depends on LLC=y)
 #
-# CONFIG_TR is not set
 # CONFIG_NET_FC is not set
 # CONFIG_RCPCI is not set
 # CONFIG_SHAPER is not set

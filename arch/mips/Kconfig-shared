@@ -1013,14 +1013,13 @@ config PREEMPT
 	  This allows applications to run more reliably even when the system is
 	  under load.
 
-# Reimplemented RSN.
-#config KALLSYMS
-#	bool "Load all symbols for debugging/kksymoops"
-#	depends on DEBUG_KERNEL
-#	help
-#	 Say Y here to let the kernel print out symbolic crash information and
-#	 symbolic stack backtraces. This increases the size of the kernel
-#	 somewhat, as all symbols have to be loaded into the kernel image.
+config KALLSYMS
+	bool "Load all symbols for debugging/kksymoops"
+	depends on DEBUG_KERNEL
+	help
+	 Say Y here to let the kernel print out symbolic crash information and
+	 symbolic stack backtraces. This increases the size of the kernel
+	 somewhat, as all symbols have to be loaded into the kernel image.
 
 config RTC_DS1742
 	bool "DS1742 BRAM/RTC support"

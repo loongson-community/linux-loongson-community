@@ -293,7 +293,7 @@ CONFIG_DECLANCE=y
 # CONFIG_NET_RADIO is not set
 
 #
-# Token Ring devices
+# Token Ring devices (depends on LLC=y)
 #
 # CONFIG_NET_FC is not set
 # CONFIG_SHAPER is not set

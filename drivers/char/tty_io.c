@@ -147,10 +147,9 @@ extern void console_8xx_init(void);
 extern void au1000_serial_console_init(void);
 extern int rs_8xx_init(void);
 extern void mac_scc_console_init(void);
-extern void hwc_console_init(void);
-extern void hwc_tty_init(void);
+extern void sclp_console_init(void);
+extern void sclp_tty_init(void);
 extern void con3215_init(void);
-extern void tty3215_init(void);
 extern void tub3270_con_init(void);
 extern void tub3270_init(void);
 extern void uart_console_init(void);
@@ -2218,8 +2217,8 @@ void __init console_init(void)
 #ifdef CONFIG_TN3215
 	con3215_init();
 #endif
-#ifdef CONFIG_HWC
-        hwc_console_init();
+#ifdef CONFIG_SCLP_CONSOLE
+        sclp_console_init();
 #endif
 #ifdef CONFIG_STDIO_CONSOLE
 	stdio_console_init();
@@ -2368,8 +2367,8 @@ void __init tty_init(void)
 #ifdef CONFIG_TN3215
 	tty3215_init();
 #endif
-#ifdef CONFIG_HWC
-	hwc_tty_init();
+#ifdef CONFIG_SCLP
+	sclp_tty_init();
 #endif
 #ifdef CONFIG_A2232
 	a2232board_init();
