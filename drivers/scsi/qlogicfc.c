@@ -110,15 +110,12 @@ typedef dma_addr_t dma64_addr_t;
 #define ISP2x00_FABRIC          1
 
 /*  Macros used for debugging */
-/* */
 #define DEBUG_ISP2x00		0
 #define DEBUG_ISP2x00_INT	0
 #define DEBUG_ISP2x00_INTR	0
 #define DEBUG_ISP2x00_SETUP	0
-
 #define DEBUG_ISP2x00_FABRIC    0
-/* */
-/* #define TRACE_ISP             1 */
+#define TRACE_ISP 		0 
 
 
 #define DEFAULT_LOOP_COUNT	1000000000
@@ -1928,14 +1925,6 @@ static int isp2x00_reset_hardware(struct Scsi_Host *host)
 	}
 #endif
 
-#ifdef __BIG_ENDIAN
-	{
-		u64 val;
-		memcpy(&val, &hostdata->control_block.node_name, sizeof(u64));
-		hostdata->wwn = ((val & 0xff00ff00ff00ff00ULL) >> 8)
-			      | ((val & 0x00ff00ff00ff00ffULL) << 8);
-	}
-#else
 	hostdata->wwn = (u64) (cpu_to_le16(hostdata->control_block.node_name[0])) << 56;
 	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[0]) & 0xff00) << 48;
 	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[1]) & 0xff00) << 24;
@@ -1944,7 +1933,6 @@ static int isp2x00_reset_hardware(struct Scsi_Host *host)
 	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[2]) & 0xff00) << 8;
 	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[3]) & 0x00ff) << 8;
 	hostdata->wwn |= (u64) (cpu_to_le16(hostdata->control_block.node_name[3]) & 0xff00) >> 8;
-#endif
 
 	/* FIXME: If the DMA transfer goes one way only, this should use PCI_DMA_TODEVICE and below as well. */
 	busaddr = pci64_map_single(hostdata->pci_dev, &hostdata->control_block, sizeof(hostdata->control_block),
