@@ -41,17 +41,17 @@ static inline int waking_non_zero(struct semaphore *sem)
  *	-EINTR	interrupted
  *
  * We must undo the sem->count down_interruptible decrement
- * simultaneously and atomicly with the sem->waking adjustment,
+ * simultaneously and atomically with the sem->waking adjustment,
  * otherwise we can race with wake_one_more.
  *
- * This is accomplished by doing a 64-bit ll/sc on the 2 32-bit words.
+ * This is accomplished by doing a 64-bit lld/scd on the 2 32-bit words.
  *
  * Pseudocode:
  *
  * If(sem->waking > 0) {
  *	Decrement(sem->waking)
  *	Return(SUCCESS)
- * } else If(segnal_pending(tsk)) {
+ * } else If(signal_pending(tsk)) {
  *	Increment(sem->count)
  *	Return(-EINTR)
  * } else {

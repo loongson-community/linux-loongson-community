@@ -73,22 +73,22 @@ static inline int waking_non_zero(struct semaphore *sem)
  *	-EINTR	interrupted
  *
  * We must undo the sem->count down_interruptible decrement
- * simultaneously and atomicly with the sem->waking adjustment,
+ * simultaneously and atomically with the sem->waking adjustment,
  * otherwise we can race with wake_one_more.
  *
- * This is accomplished by doing a 64-bit ll/sc on the 2 32-bit words.
+ * This is accomplished by doing a 64-bit lld/scd on the 2 32-bit words.
  *
- * This is crazy.  Normally it stricly forbidden to use 64-bit operations
+ * This is crazy.  Normally it's strictly forbidden to use 64-bit operations
  * in the 32-bit MIPS kernel.  In this case it's however ok because if an
  * interrupt has destroyed the upper half of registers sc will fail.
- * Note also that this will not work for MIPS32 CPUS!
+ * Note also that this will not work for MIPS32 CPUs!
  *
  * Pseudocode:
  *
  * If(sem->waking > 0) {
  *	Decrement(sem->waking)
  *	Return(SUCCESS)
- * } else If(segnal_pending(tsk)) {
+ * } else If(signal_pending(tsk)) {
  *	Increment(sem->count)
  *	Return(-EINTR)
  * } else {
