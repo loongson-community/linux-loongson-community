@@ -83,32 +83,6 @@ config EVB_PCI1
 	bool "Enable Second PCI (PCI1)"
 	depends on MIPS_EV64120
 
-if MOMENCO_OCELOT_G || MOMENCO_OCELOT
-
-config SYSCLK_100
-	bool
-	default y
-
-endif
-if MIPS_EV64120
-
-choice
-	prompt "Galileo Chip Clock"
-	default SYSCLK_83
-
-config SYSCLK_75
-	bool "75"
-
-config SYSCLK_83
-	bool "83.3"
-
-config SYSCLK_100
-	bool "100" if MIPS_EV64120
-
-endchoice
-
-endif
-
 config MIPS_EV96100
 	bool "Support for Galileo EV96100 Evaluation board (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
@@ -786,6 +760,27 @@ config SWAP_IO_SPACE
 	bool
 	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1xxx_SOC || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MOMENCO_JAGUAR_ATX || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
 	default y
+
+#
+# Unfortunately not all GT64120 systems run the chip at the same clock.
+# As the user for the clock rate and try to minimize the available options.
+#
+choice
+	prompt "Galileo Chip Clock"
+	#default SYSCLK_83 if MIPS_EV64120
+	depends on MIPS_EV64120 || MOMENCO_OCELOT || MOMENCO_OCELOT_G
+
+config SYSCLK_75
+	bool "75" if MIPS_EV64120
+
+config SYSCLK_83
+	bool "83.3" if MIPS_EV64120
+
+config SYSCLK_100
+	bool "100" if MIPS_EV64120 || MOMENCO_OCELOT || MOMENCO_OCELOT_G
+	default y if MOMENCO_OCELOT || MOMENCO_OCELOT_G
+
+endchoice
 
 config AU1000_USB_DEVICE
 	bool
