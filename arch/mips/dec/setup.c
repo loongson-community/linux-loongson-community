@@ -75,10 +75,10 @@ int dec_interrupt[DEC_NR_INTS] = {
 	[0 ... DEC_NR_INTS - 1] = -1
 };
 int_ptr cpu_mask_nr_tbl[DEC_MAX_CPU_INTS][2] = {
-	{ { .i = ~0 }, { p: dec_intr_unimplemented } },
+	{ { .i = ~0 }, { .p = dec_intr_unimplemented } },
 };
 int_ptr asic_mask_nr_tbl[DEC_MAX_ASIC_INTS][2] = {
-	{ { .i = ~0 }, { p: asic_intr_unimplemented } },
+	{ { .i = ~0 }, { .p = asic_intr_unimplemented } },
 };
 int cpu_fpu_mask = DEC_CPU_IRQ_MASK(DEC_CPU_INR_FPU);
 
