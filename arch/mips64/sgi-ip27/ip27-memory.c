@@ -27,9 +27,6 @@
 #include <asm/sn/arch.h>
 #include <asm/mmzone.h>
 
-typedef unsigned long pfn_t;			/* into <asm/sn/types.h> */
-#define KDM_TO_PHYS(x)	((x) & TO_PHYS_MASK)	/* into asm/addrspace.h */
-
 extern char _end;
 
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
@@ -57,11 +54,15 @@ int numa_debug(void)
  */
 pfn_t node_getfirstfree(cnodeid_t cnode)
 {
+	unsigned long loadbase = CKSEG0;
 	nasid_t nasid = COMPACT_TO_NASID_NODEID(cnode);
 
+#ifdef CONFIG_MAPPED_KERNEL
+	loadbase = CKSSEG;
+#endif
 	if (cnode == 0)
 		return (KDM_TO_PHYS(PAGE_ALIGN((unsigned long)(&_end)) - 
-					(CKSEG0 - K0BASE)) >> PAGE_SHIFT);
+					(loadbase - K0BASE)) >> PAGE_SHIFT);
 	return (KDM_TO_PHYS(PAGE_ALIGN(SYMMON_STK_ADDR(nasid, 0))) >> PAGE_SHIFT);
 }
 

@@ -109,4 +109,6 @@
 #define PHYS_TO_COMPATK1(x)	((x) | COMPAT_K1BASE32) /* 32-bit compat k1 */
 #endif
 
+#define KDM_TO_PHYS(x)	((x) & TO_PHYS_MASK)
+
 #endif /* _ASM_ADDRSPACE_H */
