@@ -5,7 +5,7 @@
  *                     Albert Dorofeev <albert@sonycom.com>
  *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
  *
- *  $Id: pci.c,v 1.2 2000/02/14 17:07:36 ralf Exp $
+ *  $Id: pci.c,v 1.3 2000/02/16 01:45:55 ralf Exp $
  */
 
 #include <linux/init.h>
@@ -343,15 +343,15 @@ void __init pcibios_fixup_pbus_ranges(struct pci_bus *bus,
     ranges->mem_end -= bus->resource[1]->start;
 }
 
+int __init pcibios_enable_device(struct pci_dev *dev)
+{
+    printk("pcibios_enable_device for %04x:%04x\n", dev->vendor, dev->device);
+    panic("pcibios_enable_device: not yet implemented\n");
+}
+
 void __init pcibios_align_resource(void *data, struct resource *res,
 				   unsigned long size)
 {}
-
-int pci_assign_resource(struct pci_dev *dev, int i)
-{
-    panic("pci_assign_resource: not yet implemented\n");
-}
-
 
 struct pci_fixup pcibios_fixups[] = {};
 
