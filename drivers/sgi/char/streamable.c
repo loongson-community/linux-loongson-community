@@ -47,11 +47,11 @@ get_sioc (struct strioctl *sioc, unsigned long arg)
 }
 
 /* /dev/gfx device */
-static int
-sgi_gfx_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+static int sgi_gfx_ioctl (struct inode *inode, struct file *file,
+	unsigned int cmd, unsigned long arg)
 {
-	printk (KERN_BEBUG "GFX: ioctl 0x%x %ld called\n", cmd, arg);
-	return 0;
+	printk(KERN_DEBUG "GFX: ioctl 0x%x %ld called\n", cmd, arg);
+
 	return -EINVAL;
 }
 
