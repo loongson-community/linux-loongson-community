@@ -105,18 +105,6 @@ static inline char * get_page(void)
 	return res;
 }
 
-/*
- * Kernel pointers have redundant information, so we can use a
- * scheme where we can return either an error code or a dentry
- * pointer with the same return value.
- *
- * This should be a per-architecture thing, to allow different
- * error and pointer decisions.
- */
-#define ERR_PTR(err)	((void *)((long)(err)))
-#define PTR_ERR(ptr)	((long)(ptr))
-#define IS_ERR(ptr)	((unsigned long)(ptr) > (unsigned long)(-1000))
-
 inline void putname(char * name)
 {
 	if (name) {
@@ -243,13 +231,12 @@ static struct dentry * real_lookup(struct dentry * parent, struct qstr * name)
 	down(&dir->i_sem);
 	result = d_lookup(parent, name);
 	if (!result) {
-		int error;
-		result = d_alloc(parent, name);
-		error = dir->i_op->lookup(dir, result);
-		if (error) {
-			d_free(result);
-			result = ERR_PTR(error);
-		}
+		struct dentry * dentry = d_alloc(parent, name);
+		int error = dir->i_op->lookup(dir, dentry);
+		result = ERR_PTR(error);
+		if (!error)
+			result = dget(dentry->d_mounts);
+		dput(dentry);
 	}
 	up(&dir->i_sem);
 	return result;
@@ -266,18 +253,14 @@ static struct dentry * cached_lookup(struct dentry * parent, struct qstr * name)
 {
 	struct dentry * dentry = d_lookup(parent, name);
 
-	if (dentry && dentry->d_revalidate) {
-		int validated, (*revalidate)(struct dentry *) = dentry->d_revalidate;
-		struct dentry * save;
+	if (dentry && dentry->d_op && dentry->d_op->d_revalidate) {
+		int validated, (*revalidate)(struct dentry *) = dentry->d_op->d_revalidate;
 
-		dentry->d_count++;
-		validated = revalidate(dentry);
-		save = dentry;
+		validated = revalidate(dentry) || d_invalidate(dentry);
 		if (!validated) {
-			d_drop(dentry);
+			dput(dentry);
 			dentry = NULL;
 		}
-		dput(save);
 	}
 	return dentry;
 }
@@ -304,28 +287,25 @@ static struct dentry * reserved_lookup(struct dentry * parent, struct qstr * nam
 			result = parent;
 		}
 	}
-	return result;
+	return dget(result);
 }
 
 /* In difference to the former version, lookup() no longer eats the dir. */
-static struct dentry * lookup(struct dentry * dir, struct qstr * name)
+static inline struct dentry * lookup(struct dentry * dir, struct qstr * name)
 {
 	struct dentry * result;
 
 	result = reserved_lookup(dir, name);
 	if (result)
-		goto done_noerror;
+		goto done;
 
 	result = cached_lookup(dir, name);
 	if (result)
-		goto done_noerror;
+		goto done;
 
 	result = real_lookup(dir, name);
 
-	if (!IS_ERR(result)) {
-done_noerror:
-		result = dget(result->d_mounts);
-	}
+done:
 	return result;
 }
 
@@ -350,16 +330,6 @@ static struct dentry * do_follow_link(struct dentry *base, struct dentry *dentry
 	dput(base);
 	return dentry;
 }
-
-/*
- * Allow a filesystem to translate the character set of
- * a file name. This allows for filesystems that are not
- * case-sensitive, for example.
- *
- * This is only a dummy define right now, but eventually
- * it might become something like "(parent)->d_charmap[c]"
- */
-#define name_translate_char(parent, c) (c)
 
 /*
  * Name resolution.
@@ -408,16 +378,15 @@ struct dentry * lookup_dentry(const char * name, struct dentry * base, int follo
 			break;
 
 		this.name = name;
-		hash = init_name_hash();
 		len = 0;
 		c = *name;
+
+		hash = init_name_hash();
 		do {
 			len++; name++;
-			c = name_translate_char(base, c);
 			hash = partial_name_hash(c, hash);
 			c = *name;
 		} while (c && (c != '/'));
-
 		this.len = len;
 		this.hash = end_name_hash(hash);
 
@@ -428,6 +397,19 @@ struct dentry * lookup_dentry(const char * name, struct dentry * base, int follo
 			do {
 				c = *++name;
 			} while (c == '/');
+		}
+
+		/*
+		 * See if the low-level filesystem might want
+		 * to use its own hash..
+		 */
+		if (base->d_op && base->d_op->d_hash) {
+			int error;
+			error = base->d_op->d_hash(base, &this);
+			if (error < 0) {
+				dentry = ERR_PTR(error);
+				break;
+			}
 		}
 
 		dentry = lookup(base, &this);
@@ -478,16 +460,42 @@ struct dentry * __namei(const char *pathname, int follow_link)
 	return dentry;
 }
 
-static inline struct inode *get_parent(struct dentry *dentry)
+static inline struct dentry *get_parent(struct dentry *dentry)
 {
-	return dentry->d_parent->d_inode;
+	return dget(dentry->d_parent);
 }
 
-static inline struct inode *lock_parent(struct dentry *dentry)
+static inline void unlock_dir(struct dentry *dir)
 {
-	struct inode *dir = dentry->d_parent->d_inode;
+	up(&dir->d_inode->i_sem);
+	dput(dir);
+}
 
-	down(&dir->i_sem);
+/*
+ * Locking the parent is needed to:
+ *  - serialize directory operations
+ *  - make sure the parent doesn't change from
+ *    under us in the middle of an operation.
+ *
+ * NOTE! Right now we'd rather use a "struct inode"
+ * for this, but as I expect things to move toward
+ * using dentries instead for most things it is
+ * probably better to start with the conceptually
+ * better interface of relying on a path of dentries.
+ */
+static inline struct dentry *lock_parent(struct dentry *dentry)
+{
+	struct dentry *dir = dget(dentry->d_parent);
+
+	down(&dir->d_inode->i_sem);
+
+	/* Un-hashed or moved?  Punt if so.. */
+	if (dir != dentry->d_parent || list_empty(&dentry->d_hash)) {
+		if (dir != dentry) {
+			unlock_dir(dir);
+			dir = ERR_PTR(-ENOENT);
+		}
+	}
 	return dir;
 }
 
@@ -519,9 +527,12 @@ struct dentry * open_namei(const char * pathname, int flag, int mode)
 
 	acc_mode = ACC_MODE(flag);
 	if (flag & O_CREAT) {
-		struct inode *dir;
+		struct dentry *dir;
 
 		dir = lock_parent(dentry);
+		error = PTR_ERR(dir);
+		if (IS_ERR(dir))
+			goto exit;
 		/*
 		 * The existence test must be done _after_ getting the directory
 		 * semaphore - the dentry might otherwise change.
@@ -530,18 +541,19 @@ struct dentry * open_namei(const char * pathname, int flag, int mode)
 			error = 0;
 			if (flag & O_EXCL)
 				error = -EEXIST;
-		} else if (IS_RDONLY(dir))
+		} else if (IS_RDONLY(dir->d_inode))
 			error = -EROFS;
-		else if (!dir->i_op || !dir->i_op->create)
+		else if (!dir->d_inode->i_op || !dir->d_inode->i_op->create)
 			error = -EACCES;
-		else if ((error = permission(dir,MAY_WRITE | MAY_EXEC)) == 0) {
-			if (dir->i_sb && dir->i_sb->dq_op)
-				dir->i_sb->dq_op->initialize(dir, -1);
-			error = dir->i_op->create(dir, dentry, mode);
-			/* Don't check for write permission */
+		else if ((error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC)) == 0) {
+			if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+				dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
+			error = dir->d_inode->i_op->create(dir->d_inode, dentry, mode);
+			/* Don't check for write permission, don't truncate */
 			acc_mode = 0;
+			flag &= ~O_TRUNC;
 		}
-		up(&dir->i_sem);
+		unlock_dir(dir);
 		if (error)
 			goto exit;
 	}
@@ -617,7 +629,7 @@ exit:
 struct dentry * do_mknod(const char * filename, int mode, dev_t dev)
 {
 	int error;
-	struct inode *dir;
+	struct dentry *dir;
 	struct dentry *dentry, *retval;
 
 	mode &= ~current->fs->umask;
@@ -626,33 +638,37 @@ struct dentry * do_mknod(const char * filename, int mode, dev_t dev)
 		return dentry;
 
 	dir = lock_parent(dentry);
+	retval = dir;
+	if (IS_ERR(dir))
+		goto exit;
 
 	retval = ERR_PTR(-EEXIST);
 	if (dentry->d_inode)
 		goto exit_lock;
 
 	retval = ERR_PTR(-EROFS);
-	if (IS_RDONLY(dir))
+	if (IS_RDONLY(dir->d_inode))
 		goto exit_lock;
 
-	error = permission(dir,MAY_WRITE | MAY_EXEC);
+	error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC);
 	retval = ERR_PTR(error);
 	if (error)
 		goto exit_lock;
 
 	retval = ERR_PTR(-EPERM);
-	if (!dir->i_op || !dir->i_op->mknod)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->mknod)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
-	error = dir->i_op->mknod(dir, dentry, mode, dev);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
+	error = dir->d_inode->i_op->mknod(dir->d_inode, dentry, mode, dev);
 	retval = ERR_PTR(error);
 	if (!error)
 		retval = dget(dentry);
 
 exit_lock:
-	up(&dir->i_sem);
+	unlock_dir(dir);
+exit:
 	dput(dentry);
 	return retval;
 }
@@ -699,7 +715,7 @@ out:
 static inline int do_mkdir(const char * pathname, int mode)
 {
 	int error;
-	struct inode *dir;
+	struct dentry *dir;
 	struct dentry *dentry;
 
 	dentry = lookup_dentry(pathname, NULL, 1);
@@ -709,29 +725,33 @@ static inline int do_mkdir(const char * pathname, int mode)
 
 	dir = lock_parent(dentry);
 
+	error = PTR_ERR(dir);
+	if (IS_ERR(dir))
+		goto exit;
+
 	error = -EEXIST;
 	if (dentry->d_inode)
 		goto exit_lock;
 
 	error = -EROFS;
-	if (IS_RDONLY(dir))
+	if (IS_RDONLY(dir->d_inode))
 		goto exit_lock;
 
-	error = permission(dir,MAY_WRITE | MAY_EXEC);
+	error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!dir->i_op || !dir->i_op->mkdir)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->mkdir)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
 	mode &= 0777 & ~current->fs->umask;
-	error = dir->i_op->mkdir(dir, dentry, mode);
+	error = dir->d_inode->i_op->mkdir(dir->d_inode, dentry, mode);
 
 exit_lock:
-	up(&dir->i_sem);
+	unlock_dir(dir);
 	dput(dentry);
 exit:
 	return error;
@@ -756,7 +776,7 @@ asmlinkage int sys_mkdir(const char * pathname, int mode)
 static inline int do_rmdir(const char * name)
 {
 	int error;
-	struct inode *dir;
+	struct dentry *dir;
 	struct dentry *dentry;
 
 	dentry = lookup_dentry(name, NULL, 0);
@@ -765,15 +785,20 @@ static inline int do_rmdir(const char * name)
 		goto exit;
 
 	dir = lock_parent(dentry);
+
+	error = PTR_ERR(dir);
+	if (IS_ERR(dir))
+		goto exit;
+
 	error = -ENOENT;
 	if (!dentry->d_inode)
 		goto exit_lock;
 
 	error = -EROFS;
-	if (IS_RDONLY(dir))
+	if (IS_RDONLY(dir->d_inode))
 		goto exit_lock;
 
-	error = permission(dir,MAY_WRITE | MAY_EXEC);
+	error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
 
@@ -781,25 +806,25 @@ static inline int do_rmdir(const char * name)
 	 * A subdirectory cannot be removed from an append-only directory.
 	 */
 	error = -EPERM;
-	if (IS_APPEND(dir))
+	if (IS_APPEND(dir->d_inode))
 		goto exit_lock;
 
 	/* Disallow removals of mountpoints. */
 	error = -EBUSY;
-	if (dentry->d_covers != dentry)
+	if (dentry == dir)
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!dir->i_op || !dir->i_op->rmdir)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->rmdir)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
 
-	error = dir->i_op->rmdir(dir, dentry);
+	error = dir->d_inode->i_op->rmdir(dir->d_inode, dentry);
 
 exit_lock:
-        up(&dir->i_sem);
+        unlock_dir(dir);
 	dput(dentry);
 exit:
 	return error;
@@ -824,7 +849,7 @@ asmlinkage int sys_rmdir(const char * pathname)
 static inline int do_unlink(const char * name)
 {
 	int error;
-	struct inode *dir;
+	struct dentry *dir;
 	struct dentry *dentry;
 
 	dentry = lookup_dentry(name, NULL, 0);
@@ -834,15 +859,24 @@ static inline int do_unlink(const char * name)
 
 	dir = lock_parent(dentry);
 
+	error = PTR_ERR(dir);
+	if (IS_ERR(dir))
+		goto exit;
+
 	error = -ENOENT;
 	if (!dentry->d_inode)
 		goto exit_lock;
 
-	error = -EROFS;
-	if (IS_RDONLY(dir))
+	/* Mount point? */
+	error = -EBUSY;
+	if (dentry == dir)
 		goto exit_lock;
 
-	error = permission(dir,MAY_WRITE | MAY_EXEC);
+	error = -EROFS;
+	if (IS_RDONLY(dir->d_inode))
+		goto exit_lock;
+
+	error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
 
@@ -850,20 +884,20 @@ static inline int do_unlink(const char * name)
 	 * A file cannot be removed from an append-only directory.
 	 */
 	error = -EPERM;
-	if (IS_APPEND(dir))
+	if (IS_APPEND(dir->d_inode))
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!dir->i_op || !dir->i_op->unlink)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->unlink)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
 
-	error = dir->i_op->unlink(dir, dentry);
+	error = dir->d_inode->i_op->unlink(dir->d_inode, dentry);
 
 exit_lock:
-        up(&dir->i_sem);
+        unlock_dir(dir);
 	dput(dentry);
 exit:
 	return error;
@@ -888,7 +922,7 @@ asmlinkage int sys_unlink(const char * pathname)
 static inline int do_symlink(const char * oldname, const char * newname)
 {
 	int error;
-	struct inode *dir;
+	struct dentry *dir;
 	struct dentry *dentry;
 
 	dentry = lookup_dentry(newname, NULL, 0);
@@ -899,28 +933,32 @@ static inline int do_symlink(const char * oldname, const char * newname)
 
 	dir = lock_parent(dentry);
 
+	error = PTR_ERR(dir);
+	if (IS_ERR(dir))
+		goto exit;
+
 	error = -EEXIST;
 	if (dentry->d_inode)
 		goto exit_lock;
 
 	error = -EROFS;
-	if (IS_RDONLY(dir))
+	if (IS_RDONLY(dir->d_inode))
 		goto exit_lock;
 
-	error = permission(dir,MAY_WRITE | MAY_EXEC);
+	error = permission(dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!dir->i_op || !dir->i_op->symlink)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->symlink)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
-	error = dir->i_op->symlink(dir, dentry, oldname);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
+	error = dir->d_inode->i_op->symlink(dir->d_inode, dentry, oldname);
 
 exit_lock:
-	up(&dir->i_sem);
+	unlock_dir(dir);
 	dput(dentry);
 exit:
 	return error;
@@ -950,8 +988,8 @@ asmlinkage int sys_symlink(const char * oldname, const char * newname)
 
 static inline int do_link(const char * oldname, const char * newname)
 {
-	struct dentry *old_dentry, *new_dentry;
-	struct inode *dir, *inode;
+	struct dentry *old_dentry, *new_dentry, *dir;
+	struct inode *inode;
 	int error;
 
 	old_dentry = lookup_dentry(oldname, NULL, 1);
@@ -966,6 +1004,10 @@ static inline int do_link(const char * oldname, const char * newname)
 
 	dir = lock_parent(new_dentry);
 
+	error = PTR_ERR(dir);
+	if (IS_ERR(dir))
+		goto exit;
+
 	error = -ENOENT;
 	inode = old_dentry->d_inode;
 	if (!inode)
@@ -976,14 +1018,14 @@ static inline int do_link(const char * oldname, const char * newname)
 		goto exit_lock;
 
 	error = -EROFS;
-	if (IS_RDONLY(dir))
+	if (IS_RDONLY(dir->d_inode))
 		goto exit_lock;
 
 	error = -EXDEV;
-	if (dir->i_dev != inode->i_dev)
+	if (dir->d_inode->i_dev != inode->i_dev)
 		goto exit_lock;
 
-	error = permission(dir, MAY_WRITE | MAY_EXEC);
+	error = permission(dir->d_inode, MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
 
@@ -995,15 +1037,15 @@ static inline int do_link(const char * oldname, const char * newname)
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!dir->i_op || !dir->i_op->link)
+	if (!dir->d_inode->i_op || !dir->d_inode->i_op->link)
 		goto exit_lock;
 
-	if (dir->i_sb && dir->i_sb->dq_op)
-		dir->i_sb->dq_op->initialize(dir, -1);
-	error = dir->i_op->link(inode, dir, new_dentry);
+	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
+		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
+	error = dir->d_inode->i_op->link(inode, dir->d_inode, new_dentry);
 
 exit_lock:
-	up(&dir->i_sem);
+	unlock_dir(dir);
 	dput(new_dentry);
 exit_old:
 	dput(old_dentry);
@@ -1037,45 +1079,37 @@ asmlinkage int sys_link(const char * oldname, const char * newname)
  * Whee.. Deadlock country. Happily there is only one VFS
  * operation that does this..
  */
-static inline void double_down(struct semaphore *s1, struct semaphore *s2)
+static inline void double_lock(struct dentry *d1, struct dentry *d2)
 {
-	if ((unsigned long) s1 < (unsigned long) s2) {
-		down(s1);
-		down(s2);
-	} else if (s1 == s2) {
-		down(s1);
-	} else {
-		down(s2);
+	struct semaphore *s1 = &d1->d_inode->i_sem;
+	struct semaphore *s2 = &d2->d_inode->i_sem;
+
+	if (s1 != s2) {
+		if ((unsigned long) s1 < (unsigned long) s2) {
+			struct semaphore *tmp = s2;
+			s2 = s1; s1 = tmp;
+		}
 		down(s1);
 	}
+	down(s2);
 }
 
-static inline void double_up(struct semaphore *s1, struct semaphore *s2)
+static inline void double_unlock(struct dentry *d1, struct dentry *d2)
 {
+	struct semaphore *s1 = &d1->d_inode->i_sem;
+	struct semaphore *s2 = &d2->d_inode->i_sem;
+
 	up(s1);
 	if (s1 != s2)
 		up(s2);
-}
-
-static inline int is_reserved(struct dentry *dentry)
-{
-	if (dentry->d_name.name[0] == '.') {
-		switch (dentry->d_name.len) {
-		case 2:
-			if (dentry->d_name.name[1] != '.')
-				break;
-			/* fallthrough */
-		case 1:
-			return 1;
-		}
-	}
-	return 0;
+	dput(d1);
+	dput(d2);
 }
 
 static inline int do_rename(const char * oldname, const char * newname)
 {
 	int error;
-	struct inode * old_dir, * new_dir;
+	struct dentry * old_dir, * new_dir;
 	struct dentry * old_dentry, *new_dentry;
 
 	old_dentry = lookup_dentry(oldname, NULL, 0);
@@ -1093,53 +1127,49 @@ static inline int do_rename(const char * oldname, const char * newname)
 	new_dir = get_parent(new_dentry);
 	old_dir = get_parent(old_dentry);
 
-	double_down(&new_dir->i_sem, &old_dir->i_sem);
+	double_lock(new_dir, old_dir);
 
 	error = -ENOENT;
 	if (!old_dentry->d_inode)
 		goto exit_lock;
 
-	error = permission(old_dir,MAY_WRITE | MAY_EXEC);
+	error = permission(old_dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
 		goto exit_lock;
-	error = permission(new_dir,MAY_WRITE | MAY_EXEC);
+	error = permission(new_dir->d_inode,MAY_WRITE | MAY_EXEC);
 	if (error)
-		goto exit_lock;
-
-	error = -EPERM;
-	if (is_reserved(new_dentry) || is_reserved(old_dentry))
 		goto exit_lock;
 
 	/* Disallow moves of mountpoints. */
 	error = -EBUSY;
-	if (old_dentry->d_covers != old_dentry)
+	if (old_dir == old_dentry || new_dir == new_dentry)
 		goto exit_lock;
 
 	error = -EXDEV;
-	if (new_dir->i_dev != old_dir->i_dev)
+	if (new_dir->d_inode->i_dev != old_dir->d_inode->i_dev)
 		goto exit_lock;
 
 	error = -EROFS;
-	if (IS_RDONLY(new_dir) || IS_RDONLY(old_dir))
+	if (IS_RDONLY(new_dir->d_inode) || IS_RDONLY(old_dir->d_inode))
 		goto exit_lock;
 
 	/*
 	 * A file cannot be removed from an append-only directory.
 	 */
 	error = -EPERM;
-	if (IS_APPEND(old_dir))
+	if (IS_APPEND(old_dir->d_inode))
 		goto exit_lock;
 
 	error = -EPERM;
-	if (!old_dir->i_op || !old_dir->i_op->rename)
+	if (!old_dir->d_inode->i_op || !old_dir->d_inode->i_op->rename)
 		goto exit_lock;
 
-	if (new_dir->i_sb && new_dir->i_sb->dq_op)
-		new_dir->i_sb->dq_op->initialize(new_dir, -1);
-	error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
+	if (new_dir->d_inode->i_sb && new_dir->d_inode->i_sb->dq_op)
+		new_dir->d_inode->i_sb->dq_op->initialize(new_dir->d_inode, -1);
+	error = old_dir->d_inode->i_op->rename(old_dir->d_inode, old_dentry, new_dir->d_inode, new_dentry);
 
 exit_lock:
-	double_up(&new_dir->i_sem, &old_dir->i_sem);
+	double_unlock(new_dir, old_dir);
 	dput(new_dentry);
 exit_old:
 	dput(old_dentry);

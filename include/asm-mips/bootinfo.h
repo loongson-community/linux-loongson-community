@@ -7,6 +7,8 @@
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive
  * for more details.
+ *
+ * $Id:$
  */
 #ifndef __ASM_MIPS_BOOTINFO_H
 #define __ASM_MIPS_BOOTINFO_H
@@ -29,7 +31,8 @@
 #define MACH_DECSTATION		5	/* DECStation 5000/2x for now    */
 #define MACH_SNI_RM200_PCI	6	/* RM200/RM300/RM400 PCI series  */
 #define MACH_SGI_INDY		7	/* R4?K and R5K Indy workstaions */
-#define MACH_LAST		7
+#define MACH_RESERVED		8	/* Erlkoenig ...		 */
+#define MACH_LAST		8
 
 #define MACH_NAMES {"unknown", "Deskstation rPC44", "Deskstation Tyne", \
 	"Acer PICA 61", "Mips Magnum 4000", "DECStation", "RM200 PCI", \
@@ -46,8 +49,10 @@
 #define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series                */
 #define MACH_GROUP_ACN		5
 #define MACH_GROUP_SGI          6 /* Silicon Graphics workstations and servers */
+#define MACH_GROUP_RESERVED	7 /* Erlkoenig ...                            */
 
-#define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", "SNI", "ACN" }
+#define GROUP_NAMES { "unknown", "Jazz", "Digital", "ARC", \
+                      "SNI", "ACN", "You'd like to know" }
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -102,6 +107,13 @@
 #define MACH_SGI_INDY		0	/* R4?K and R5K Indy workstaions */
 
 /*
+ * Valid machtype for group RESERVED
+ */
+#define MACH_RESERVED 		 0	/* Proto "27" hardware */
+
+#define GROUP_RESERVED { "You'd like to know" }
+
+/*
  * Valid cputype values
  */
 #define CPU_UNKNOWN		0
@@ -131,13 +143,14 @@
 #define CPU_R5000		24
 #define CPU_R5000A		25
 #define CPU_R4640		26
-#define CPU_LAST                27
+#define CPU_NEVADA		27	/* RM5230, RM5260 */
+#define CPU_LAST		27
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
-	"R5000A", "R4640" }
+        "R5000A", "R4640", "Nevada" }
 
 #define CL_SIZE      (80)
 

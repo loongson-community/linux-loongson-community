@@ -13,11 +13,11 @@
 /*
  * these virtual mappings for prep and pmac
  * on the prep machine the io areas are at different physical locations
- * than their virtual address.  On the pmac the io areas
+ * than their virtual address.  On the pmac and chrp the io areas
  * are mapped 1-1 virtual/physical.
  * -- Cort
  */
-#ifdef CONFIG_PREP
+#if defined(CONFIG_PREP) || defined(CONFIG_CHRP)
 #define KERNELBASE	0x90000000
 #endif
 #ifdef CONFIG_PMAC
@@ -81,14 +81,14 @@ typedef unsigned long pgprot_t;
 
 #define clear_page(page)        memset((void *)(page), 0, PAGE_SIZE)
 #define copy_page(to,from)	memcpy((void *)(to), (void *)(from), PAGE_SIZE)
-/* map phys->virtual and virtual->phys */
+/* map phys->virtual and virtual->phys for RAM pages */
 #define __pa(x)			((unsigned long)(x)-PAGE_OFFSET)
 #define __va(x)			((void *)((unsigned long)(x)+PAGE_OFFSET))
 
-#define MAP_NR(addr)	(__pa(addr) >> PAGE_SHIFT)
+#define MAP_NR(addr)		(__pa(addr) >> PAGE_SHIFT)
 #define MAP_PAGE_RESERVED	(1<<15)
 
-extern __inline__ unsigned long get_prezerod_page(void);
+extern unsigned long get_prezerod_page(void);
 
 #endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */

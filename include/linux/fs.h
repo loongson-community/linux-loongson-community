@@ -93,7 +93,7 @@ extern int max_files, nr_files;
 /*
  * Flags that can be altered by MS_REMOUNT
  */
-#define MS_RMT_MASK (MS_RDONLY|MS_MANDLOCK)
+#define MS_RMT_MASK (MS_RDONLY|MS_MANDLOCK|MS_NOATIME)
 
 /*
  * Magic mount flag number. Has to be or-ed to the flag values.
@@ -250,6 +250,7 @@ static inline int buffer_protected(struct buffer_head * bh)
 #include <linux/affs_fs_i.h>
 #include <linux/ufs_fs_i.h>
 #include <linux/romfs_fs_i.h>
+#include <linux/smb_fs_i.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -327,8 +328,6 @@ struct inode {
 	struct page		*i_pages;
 	struct dquot		*i_dquot[MAXQUOTAS];
 
-	struct list_head	i_dentry;
-
 	unsigned long		i_state;
 
 	unsigned int		i_flags;
@@ -350,20 +349,21 @@ struct inode {
 		struct affs_inode_info		affs_i;
 		struct ufs_inode_info		ufs_i;
 		struct romfs_inode_info		romfs_i;
+		struct smb_inode_info		smbfs_i;
 		struct socket			socket_i;
 		void				*generic_ip;
 	} u;
 };
 
 /* Inode state bits.. */
-#define I_DIRTY		0
-#define I_LOCK		1
-#define I_FREEING	2
+#define I_DIRTY		1
+#define I_LOCK		2
+#define I_FREEING	4
 
 extern void __mark_inode_dirty(struct inode *);
 static inline void mark_inode_dirty(struct inode *inode)
 {
-	if (!test_and_set_bit(I_DIRTY, &inode->i_state))
+	if (!(inode->i_state & I_DIRTY))
 		__mark_inode_dirty(inode);
 }
 
@@ -481,6 +481,7 @@ extern int fasync_helper(struct inode *, struct file *, int, struct fasync_struc
 #include <linux/affs_fs_sb.h>
 #include <linux/ufs_fs_sb.h>
 #include <linux/romfs_fs_sb.h>
+#include <linux/smb_fs_sb.h>
 
 struct super_block {
 	kdev_t			s_dev;
@@ -501,6 +502,7 @@ struct super_block {
 	struct inode		*s_ibasket;
 	short int		s_ibasket_count;
 	short int		s_ibasket_max;
+	struct list_head	s_dirty;	/* dirty inodes */
 
 	union {
 		struct minix_sb_info	minix_sb;
@@ -513,6 +515,7 @@ struct super_block {
 		struct affs_sb_info	affs_sb;
 		struct ufs_sb_info	ufs_sb;
 		struct romfs_sb_info	romfs_sb;
+		struct smb_sb_info	smbfs_sb;
 		void			*generic_sbp;
 	} u;
 };
@@ -529,7 +532,7 @@ struct file_operations {
 	long long (*llseek) (struct inode *, struct file *, long long, int);
 	long (*read) (struct inode *, struct file *, char *, unsigned long);
 	long (*write) (struct inode *, struct file *, const char *, unsigned long);
-	int (*readdir) (struct inode *, struct file *, void *, filldir_t);
+	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, poll_table *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
 	int (*mmap) (struct inode *, struct file *, struct vm_area_struct *);
@@ -672,7 +675,7 @@ extern inline void mark_buffer_dirty(struct buffer_head * bh, int flag)
 }
 
 extern int check_disk_change(kdev_t dev);
-extern int invalidate_inodes(kdev_t dev);
+extern int invalidate_inodes(struct super_block * sb);
 extern void invalidate_inode_pages(struct inode *);
 extern void invalidate_buffers(kdev_t dev);
 extern int floppy_is_wp(int minor);

@@ -1,7 +1,9 @@
-/* $Id: loadmmu.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
+/*
  * loadmmu.c: Setup cpu/cache specific function ptrs at boot time.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: loadmmu.c,v 1.1.1.1 1997/06/01 03:16:38 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -76,6 +78,7 @@ void loadmmu(void)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_R5000A:
+	case CPU_NEVADA:
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
 		break;

@@ -14,6 +14,8 @@
  * 	  the end hasn't been modified to suit the DECStation's interrupts.
  *        (Paul, you need to fix this file to comply with NAPS.  Won't be
  *         too hard - Ralf)
+ *
+ * $Id:$
  */
 #include <asm/asm.h>
 #include <asm/mipsconfig.h>
@@ -223,12 +225,12 @@ loc_scsi:	PANIC("Unimplemented loc_scsi handler")
  *  comment - Ralf)
  * Andy, 6/16/95
  */
-loc_ethernet:	PANIC("Unimplemented loc_ethernet\n")
+loc_ethernet:	PANIC("Unimplemented loc_ethernet")
 
 /*
  * Keyboard interrupt, remapped to level 1
  */
-loc_keyboard:	PANIC("Unimplemented loc_keyboard\n")
+loc_keyboard:	PANIC("Unimplemented loc_keyboard")
 
 loc_mouse:	PANIC("Unimplemented loc_mouse handler")
 
@@ -291,7 +293,7 @@ ll_rtc:		PANIC("Unimplemented RTC interrupt handler")
  * Timer IRQ
  * We remap the timer irq to be more similar to a IBM compatible
  */
-ll_timer:	PANIC("Timer interrupt!\n");
+ll_timer:	PANIC("Timer interrupt!");
 /*
  * CPU count/compare IRQ (unused)
  */

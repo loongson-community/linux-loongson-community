@@ -1,17 +1,10 @@
 /*
- *	linux/arch/mips/kernel/irq.c
+ * Code to handle x86 style IRQs plus some generic interrupt stuff.
  *
- *	Copyright (C) 1992 Linus Torvalds
+ * Copyright (C) 1992 Linus Torvalds
+ * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * This file contains the code used by various IRQ handling routines:
- * asking for different IRQ's should be done through these routines
- * instead of just grabbing them. Thus setups with different IRQ numbers
- * shouldn't result in any weird surprises, and installing new handlers
- * should be easier.
- *
- * Mips support by Ralf Baechle and Andreas Busse
- *
- * $Id: irq.c,v 1.2 1997/07/01 08:59:07 ralf Exp $
+ * $Id: irq.c,v 1.4 1997/09/11 20:35:50 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -30,13 +23,9 @@
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/jazz.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 #include <asm/vector.h>
-#ifdef CONFIG_SGI
-#include <asm/sgialib.h>
-#endif
 
 unsigned char cache_21 = 0xff;
 unsigned char cache_A1 = 0xff;
@@ -51,9 +40,6 @@ unsigned long spurious_count = 0;
 static inline void mask_irq(unsigned int irq_nr)
 {
 	unsigned char mask;
-    
-        if (irq_nr >= 16)
-	    return;
 
 	mask = 1 << (irq_nr & 7);
 	if (irq_nr < 8) {
@@ -68,9 +54,6 @@ static inline void mask_irq(unsigned int irq_nr)
 static inline void unmask_irq(unsigned int irq_nr)
 {
 	unsigned char mask;
-
-        if (irq_nr >= 16)
-	    return;
 
 	mask = ~(1 << (irq_nr & 7));
 	if (irq_nr < 8) {
@@ -138,13 +121,6 @@ int get_irq_list(char *buf)
 }
 
 atomic_t __mips_bh_counter;
-
-#ifdef __SMP__
-#error Send superfluous SMP boxes to ralf@uni-koblenz.de
-#else
-#define irq_enter(cpu, irq)     (++local_irq_count[cpu])
-#define irq_exit(cpu, irq)      (--local_irq_count[cpu])
-#endif
 
 /*
  * do_IRQ handles IRQ's that have been installed without the
@@ -255,7 +231,7 @@ int request_irq(unsigned int irq,
 	int retval;
 	struct irqaction * action;
 
-	if (irq > 31)
+	if (irq >= 32)
 		return -EINVAL;
 	if (!handler)
 		return -EINVAL;

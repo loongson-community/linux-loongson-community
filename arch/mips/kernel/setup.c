@@ -4,6 +4,8 @@
  *  Copyright (C) 1995  Linus Torvalds
  *  Copyright (C) 1995, 1996  Ralf Baechle
  *  Copyright (C) 1996  Stoned Elipot
+ *
+ * $Id:$
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -168,9 +170,10 @@ __initfunc(void setup_arch(char **cmdline_p,
 		break;
 #endif
 #if defined(CONFIG_MIPS_ARC) 
-/* Perhaps arch/mips/deskstation should be renommed arch/mips/arc.
- * For now CONFIG_MIPS_ARC means DeskStation. -Stoned.
- */
+	/*
+	 * Perhaps arch/mips/deskstation should be renamed to arch/mips/arc.
+	 * For now CONFIG_MIPS_ARC means DeskStation. -Stoned.
+	 */
 	case MACH_GROUP_ARC:
 		deskstation_setup();
 		break;
@@ -196,9 +199,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	atag = bi_TagFind(tag_drive_info);
 	memcpy(&drive_info, TAGVALPTR(atag), atag->size);
-#if 0
-	aux_device_present = AUX_DEVICE_INFO;
-#endif
 
 	memory_end = mips_memory_upper;
 	/*

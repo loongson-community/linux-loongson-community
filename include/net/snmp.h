@@ -122,6 +122,5 @@ struct udp_mib
  	unsigned long	UdpInErrors;
  	unsigned long	UdpOutDatagrams;
 };
- 
  	
 #endif

@@ -1,4 +1,4 @@
-/* $Id: parport_probe.c,v 1.2 1997/07/29 03:59:29 ralf Exp $ 
+/* $Id: parport_probe.c,v 1.3 1997/08/06 19:15:53 miguel Exp $ 
  * Parallel port device probing code
  * 
  * Authors:    Carsten Gross, carsten@sol.wohnheim.uni-ulm.de
@@ -52,7 +52,7 @@ static long read_polled(struct parport *port, char *buf,
 {
 	int i;
 	char *temp=buf;
-	int count = 0;
+	unsigned int count = 0;
 	unsigned char z=0;
 	unsigned char Byte=0;
 

@@ -143,8 +143,7 @@ void clear_page_tables(struct task_struct * tsk)
 
 /*
  * This function frees up all page tables of a process when it exits. It
- * is the same as "clear_page_tables()", except it also changes the process'
- * page table directory to the kernel page tables and then frees the old
+ * is the same as "clear_page_tables()", except it also frees the old
  * page table directory.
  */
 void free_page_tables(struct mm_struct * mm)
@@ -153,13 +152,15 @@ void free_page_tables(struct mm_struct * mm)
 	pgd_t * page_dir;
 
 	page_dir = mm->pgd;
-	if (!page_dir || page_dir == swapper_pg_dir) {
-		printk("Trying to free kernel page-directory: not good\n");
-		return;
+	if (page_dir) {
+		if (page_dir == swapper_pg_dir) {
+			printk("free_page_tables: Trying to free kernel pgd\n");
+			return;
+		}
+		for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
+			free_one_pgd(page_dir + i);
+		pgd_free(page_dir);
 	}
-	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
-		free_one_pgd(page_dir + i);
-	pgd_free(page_dir);
 }
 
 int new_page_tables(struct task_struct * tsk)
@@ -291,19 +292,20 @@ int copy_page_range(struct mm_struct *dst, struct mm_struct *src,
 	return error;
 }
 
-static inline void free_pte(pte_t page)
+/*
+ * Return indicates whether a page was freed so caller can adjust rss
+ */
+static inline int free_pte(pte_t page)
 {
 	if (pte_present(page)) {
 		unsigned long addr = pte_page(page);
 		if (MAP_NR(addr) >= max_mapnr || PageReserved(mem_map+MAP_NR(addr)))
-			return;
+			return 0;
 		free_page(addr);
-		if (current->mm->rss <= 0)
-			return;
-		current->mm->rss--;
-		return;
+		return 1;
 	}
 	swap_free(pte_val(page));
+	return 0;
 }
 
 static inline void forget_pte(pte_t page)
@@ -314,22 +316,24 @@ static inline void forget_pte(pte_t page)
 	}
 }
 
-static inline void zap_pte_range(pmd_t * pmd, unsigned long address, unsigned long size)
+static inline int zap_pte_range(pmd_t * pmd, unsigned long address, unsigned long size)
 {
 	pte_t * pte;
+	int freed;
 
 	if (pmd_none(*pmd))
-		return;
+		return 0;
 	if (pmd_bad(*pmd)) {
 		printk("zap_pte_range: bad pmd (%08lx)\n", pmd_val(*pmd));
 		pmd_clear(pmd);
-		return;
+		return 0;
 	}
 	pte = pte_offset(pmd, address);
 	address &= ~PMD_MASK;
 	if (address + size > PMD_SIZE)
 		size = PMD_SIZE - address;
 	size >>= PAGE_SHIFT;
+	freed = 0;
 	for (;;) {
 		pte_t page;
 		if (!size)
@@ -340,32 +344,36 @@ static inline void zap_pte_range(pmd_t * pmd, unsigned long address, unsigned lo
 		if (pte_none(page))
 			continue;
 		pte_clear(pte-1);
-		free_pte(page);
+		freed += free_pte(page);
 	}
+	return freed;
 }
 
-static inline void zap_pmd_range(pgd_t * dir, unsigned long address, unsigned long size)
+static inline int zap_pmd_range(pgd_t * dir, unsigned long address, unsigned long size)
 {
 	pmd_t * pmd;
 	unsigned long end;
+	int freed;
 
 	if (pgd_none(*dir))
-		return;
+		return 0;
 	if (pgd_bad(*dir)) {
 		printk("zap_pmd_range: bad pgd (%08lx)\n", pgd_val(*dir));
 		pgd_clear(dir);
-		return;
+		return 0;
 	}
 	pmd = pmd_offset(dir, address);
 	address &= ~PGDIR_MASK;
 	end = address + size;
 	if (end > PGDIR_SIZE)
 		end = PGDIR_SIZE;
+	freed = 0;
 	do {
-		zap_pte_range(pmd, address, end - address);
+		freed += zap_pte_range(pmd, address, end - address);
 		address = (address + PMD_SIZE) & PMD_MASK; 
 		pmd++;
 	} while (address < end);
+	return freed;
 }
 
 /*
@@ -375,12 +383,21 @@ void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long s
 {
 	pgd_t * dir;
 	unsigned long end = address + size;
+	int freed = 0;
 
 	dir = pgd_offset(mm, address);
 	while (address < end) {
-		zap_pmd_range(dir, address, end - address);
+		freed += zap_pmd_range(dir, address, end - address);
 		address = (address + PGDIR_SIZE) & PGDIR_MASK;
 		dir++;
+	}
+	/*
+	 * Update rss for the mm_struct (not necessarily current->mm)
+	 */
+	if (mm->rss > 0) {
+		mm->rss -= freed;
+		if (mm->rss < 0)
+			mm->rss = 0;
 	}
 }
 

@@ -23,7 +23,7 @@
  */
 #define FIRST_PROCESS_ENTRY 256
 
-static int proc_root_readdir(struct inode *, struct file *, void *, filldir_t);
+static int proc_root_readdir(struct file *, void *, filldir_t);
 static int proc_root_lookup(struct inode *,struct dentry *);
 
 static unsigned char proc_alloc_map[PROC_NDYNAMIC / 8] = {0};
@@ -548,6 +548,17 @@ static struct proc_dir_entry proc_root_omirr = {
 	0, &proc_omirr_inode_operations
 };
 #endif
+#ifdef __powerpc__
+static struct proc_dir_entry proc_root_ppc_htab = {
+	PROC_PPC_HTAB, 8, "ppc_htab",
+	S_IFREG | S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH, 1, 0, 0,
+	0, &proc_ppc_htab_inode_operations,
+	NULL, NULL,                		/* get_info, fill_inode */
+	NULL,					/* next */
+	NULL, NULL				/* parent, subdir */
+
+};
+#endif
 
 void proc_root_init(void)
 {
@@ -619,6 +630,12 @@ void proc_root_init(void)
 	}
 
 	proc_tty_init();
+#ifdef __powerpc__
+	proc_register(&proc_root, &proc_root_ppc_htab);
+#endif
+#ifdef CONFIG_PROC_DEVICETREE
+	proc_device_tree_init();
+#endif
 }
 
 /*
@@ -717,12 +734,13 @@ static int proc_root_lookup(struct inode * dir, struct dentry * dentry)
  * value of the readdir() call, as long as it's non-negative
  * for success..
  */
-int proc_readdir(struct inode * inode, struct file * filp,
+int proc_readdir(struct file * filp,
 	void * dirent, filldir_t filldir)
 {
 	struct proc_dir_entry * de;
 	unsigned int ino;
 	int i;
+	struct inode *inode = filp->f_dentry->d_inode;
 
 	if (!inode || !S_ISDIR(inode->i_mode))
 		return -ENOTDIR;
@@ -769,7 +787,7 @@ int proc_readdir(struct inode * inode, struct file * filp,
 
 #define NUMBUF 10
 
-static int proc_root_readdir(struct inode * inode, struct file * filp,
+static int proc_root_readdir(struct file * filp,
 	void * dirent, filldir_t filldir)
 {
 	struct task_struct *p;
@@ -777,7 +795,7 @@ static int proc_root_readdir(struct inode * inode, struct file * filp,
 	unsigned int nr = filp->f_pos;
 
 	if (nr < FIRST_PROCESS_ENTRY) {
-		int error = proc_readdir(inode, filp, dirent, filldir);
+		int error = proc_readdir(filp, dirent, filldir);
 		if (error <= 0)
 			return error;
 		filp->f_pos = FIRST_PROCESS_ENTRY;

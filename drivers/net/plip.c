@@ -1,4 +1,4 @@
-/* $Id: plip.c,v 1.1.1.1 1997/06/01 03:17:24 ralf Exp $ */
+/* $Id: plip.c,v 1.2 1997/08/06 19:15:51 miguel Exp $ */
 /* PLIP: A parallel port "network" driver for Linux. */
 /* This driver is for parallel port with 5-bit cable (LapLink (R) cable). */
 /*
@@ -150,7 +150,7 @@ static struct net_device_stats *plip_get_stats(struct device *dev);
 static int plip_config(struct device *dev, struct ifmap *map);
 static int plip_ioctl(struct device *dev, struct ifreq *ifr, int cmd);
 static int plip_preempt(void *handle);
-static int plip_wakeup(void *handle);
+static void plip_wakeup(void *handle);
 
 enum plip_connection_state {
 	PLIP_CN_NONE=0,

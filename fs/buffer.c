@@ -540,9 +540,10 @@ static inline struct buffer_head * find_buffer(kdev_t dev, int block, int size)
 		next = tmp->b_next;
 		if (tmp->b_blocknr != block || tmp->b_size != size || tmp->b_dev != dev)
 			continue;
-		return tmp;
+		next = tmp;
+		break;
 	}
-	return NULL;
+	return next;
 }
 
 /*
@@ -559,7 +560,7 @@ struct buffer_head * get_hash_table(kdev_t dev, int block, int size)
 
 		bh=find_buffer(dev,block,size);
 		if (!bh)
-			return NULL;
+			return bh;
 		bh->b_count++;
 		bh->b_lru_time = jiffies;
 		wait_on_buffer(bh);
@@ -822,12 +823,8 @@ printk("refill_freelist: waking bdflush\n");
 struct buffer_head * getblk(kdev_t dev, int block, int size)
 {
 	struct buffer_head * bh;
-	int isize = BUFSIZE_INDEX(size);
+	int isize;
 
-	/* If there are too many dirty buffers, we wake up the update process
-	 * now so as to ensure that there are still clean buffers available
-	 * for user processes to use (and dirty).
-	 */
 repeat:
 	bh = get_hash_table(dev, block, size);
 	if (bh) {
@@ -840,17 +837,15 @@ repeat:
 		return bh;
 	}
 
-	while(!free_list[isize])
-		refill_freelist(size);
-	
-	if (find_buffer(dev,block,size))
-		 goto repeat;
-
+	isize = BUFSIZE_INDEX(size);
+get_free:
 	bh = free_list[isize];
+	if (!bh)
+		goto refill;
 	remove_from_free_list(bh);
 
 	/* OK, FINALLY we know that this buffer is the only one of its kind,
-	 * and that it's unused (b_count=0), unlocked (buffer_locked=0), and clean.
+	 * and that it's unused (b_count=0), unlocked, and clean.
 	 */
 	bh->b_count=1;
 	bh->b_list	= BUF_CLEAN;
@@ -861,6 +856,16 @@ repeat:
 	bh->b_blocknr=block;
 	insert_into_queues(bh);
 	return bh;
+
+	/*
+	 * If we block while refilling the free list, somebody may
+	 * create the buffer first ... search the hashes again.
+	 */
+refill:
+	refill_freelist(size);
+	if (!find_buffer(dev,block,size))
+		goto get_free;
+	goto repeat;
 }
 
 void set_writetime(struct buffer_head * buf, int flag)
@@ -1658,8 +1663,8 @@ void buffer_init(void)
  * response to dirty buffers.  Once this process is activated, we write back
  * a limited number of buffers to the disks and then go back to sleep again.
  */
-struct wait_queue * bdflush_wait = NULL;
-struct wait_queue * bdflush_done = NULL;
+static struct wait_queue * bdflush_wait = NULL;
+static struct wait_queue * bdflush_done = NULL;
 struct task_struct *bdflush_tsk = 0;
 
 void wakeup_bdflush(int wait)

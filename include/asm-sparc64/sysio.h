@@ -1,4 +1,4 @@
-/* $Id: sysio.h,v 1.2 1997/04/03 12:26:45 davem Exp $
+/* $Id: sysio.h,v 1.7 1997/08/18 03:47:26 davem Exp $
  * sysio.h: UltraSparc sun5 specific SBUS definitions.
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)
@@ -49,7 +49,7 @@ struct sysio_regs {
 		 *	slot 5) MACIO
 		 *	slot 6) SLAVIO
 		 *
-		 * On Sunfire/Wildfire enterprise boxen these upper slots
+		 * On Sunfire/Starfire/Wildfire enterprise boxen these upper slots
 		 * are unused.
 		 */
 /*0x2020*/	u64	sbus_s0cfg;	/* SBUS Slot 0 Config			*/
@@ -72,83 +72,83 @@ struct sysio_regs {
 		/* SBUS/IOMMU Streaming Buffer Registers */
 /*0x2800*/	u64	sbuf_control;	/* StrBuffer Control			*/
 /*0x2808*/	u64	sbuf_pflush;	/* StrBuffer Page Flush			*/
-/*0x2810*/	u64	sbus_fsync;	/* StrBuffer Flush Synchronization Reg	*/
+/*0x2810*/	u64	sbuf_fsync;	/* StrBuffer Flush Synchronization Reg	*/
 
 		u64	__pad4[0x7d];
 
 		/* Interrupt mapping/control registers */
-/*0x2c00*/	u32	imap_slot0, _uim0;	/* SBUS Slot 0 Int Mapping	*/
-/*0x2c08*/	u32	imap_slot1, _uim1;	/* SBUS Slot 1 Int Mapping	*/
-/*0x2c10*/	u32	imap_slot2, _uim2;	/* SBUS Slot 2 Int Mapping	*/
-/*0x2c18*/	u32	imap_slot3, _uim3;	/* SBUS Slot 3 Int Mapping	*/
+/*0x2c00*/	u32	_uim0, imap_slot0;	/* SBUS Slot 0 Int Mapping	*/
+/*0x2c08*/	u32	_uim1, imap_slot1;	/* SBUS Slot 1 Int Mapping	*/
+/*0x2c10*/	u32	_uim2, imap_slot2;	/* SBUS Slot 2 Int Mapping	*/
+/*0x2c18*/	u32	_uim3, imap_slot3;	/* SBUS Slot 3 Int Mapping	*/
 
 		/* Interrupt Retry Timer. */
-/*0x2c20*/	u32	irq_retry,  _irpad;
+/*0x2c20*/	u32	_irpad, irq_retry;
 
 		u64	__pad5[0x7b];
 
 		/* The following are only used on Fusion/Electron/Pulsar
-		 * desktop systems, they mean nothing on Sunfire/Wildfire
+		 * desktop systems, they mean nothing on Sunfire/Starfire/Wildfire
 		 */
-/*0x3000*/	u32	imap_scsi,  _uis;	/* SCSI Int Mapping		*/
-/*0x3008*/	u32	imap_eth,   _uie;	/* Ethernet Int Mapping		*/
-/*0x3010*/	u32	imap_bpp,   _uip;	/* Parallel Port Int Mapping	*/
-/*0x3018*/	u32	imap_audio, _uia;	/* Audio Int Mapping		*/
-/*0x3020*/	u32	imap_pfail, _uipf;	/* Power Fail Int Mapping	*/
-/*0x3028*/	u32	imap_kms,   _uik;	/* Kbd/Mouse/Serial Int Mapping	*/
-/*0x3030*/	u32	imap_flpy,  _uif;	/* Floppy Int Mapping		*/
-/*0x3038*/	u32	imap_shw,   _uishw;	/* Spare HW Int Mapping		*/
-/*0x3040*/	u32	imap_kbd,   _uikbd;	/* Kbd Only Int Mapping		*/
-/*0x3048*/	u32	imap_ms,    _uims;	/* Mouse Only Int Mapping	*/
-/*0x3050*/	u32	imap_ser,   _uiser;	/* Serial Only Int Mapping	*/
+/*0x3000*/	u32	_uis, imap_scsi;	/* SCSI Int Mapping		*/
+/*0x3008*/	u32	_uie, imap_eth;		/* Ethernet Int Mapping		*/
+/*0x3010*/	u32	_uip, imap_bpp;		/* Parallel Port Int Mapping	*/
+/*0x3018*/	u32	_uia, imap_audio;	/* Audio Int Mapping		*/
+/*0x3020*/	u32	_uipf, imap_pfail;	/* Power Fail Int Mapping	*/
+/*0x3028*/	u32	_uik, imap_kms;		/* Kbd/Mouse/Serial Int Mapping	*/
+/*0x3030*/	u32	_uif, imap_flpy;	/* Floppy Int Mapping		*/
+/*0x3038*/	u32	_uishw, imap_shw;	/* Spare HW Int Mapping		*/
+/*0x3040*/	u32	_uikbd, imap_kbd;	/* Kbd Only Int Mapping		*/
+/*0x3048*/	u32	_uims, imap_ms;		/* Mouse Only Int Mapping	*/
+/*0x3050*/	u32	_uiser, imap_ser;	/* Serial Only Int Mapping	*/
 /*0x3058*/	u64	_imap_unused;
-/*0x3060*/	u32	imap_tim0,  _uit0;	/* Timer 0 Int Mapping		*/
-/*0x3068*/	u32	imap_tim1,  _uit1;	/* Timer 1 Int Mapping		*/
-/*0x3070*/	u32	imap_ue,    _uiue;	/* UE Int Mapping		*/
-/*0x3078*/	u32	imap_ce,    _uice;	/* CE Int Mapping		*/
-/*0x3080*/	u32	imap_sberr, _uisbe;	/* SBUS Err Int Mapping		*/
-/*0x3088*/	u32	imap_pmgmt, _uipm;	/* Power Mgmt Int Mapping	*/
-/*0x3090*/	u32	imap_gfx,   _uigfx;	/* OB Graphics Int Mapping	*/
-/*0x3098*/	u32	imap_eupa,  _uieupa;	/* UPA Expansion Int Mapping	*/
+/*0x3060*/	u32	_uit0, imap_tim0;	/* Timer 0 Int Mapping		*/
+/*0x3068*/	u32	_uit1, imap_tim1;	/* Timer 1 Int Mapping		*/
+/*0x3070*/	u32	_uiue, imap_ue;		/* UE Int Mapping		*/
+/*0x3078*/	u32	_uice, imap_ce;		/* CE Int Mapping		*/
+/*0x3080*/	u32	_uisbe, imap_sberr;	/* SBUS Err Int Mapping		*/
+/*0x3088*/	u32	_uipm, imap_pmgmt;	/* Power Mgmt Int Mapping	*/
+/*0x3090*/	u32	_uigfx, imap_gfx;	/* OB Graphics Int Mapping	*/
+/*0x3098*/	u32	_uieupa, imap_eupa;	/* UPA Expansion Int Mapping	*/
 
 		u64	__pad6[0x6c];
 
 		/* Interrupt Clear Registers */
-/*0x3400*/	u64	iclr_unused0;
-/*0x3408*/	u32	iclr_slot0, _ucs0;
+/*0x3400*/	u32	__ucu0, iclr_unused0;
+/*0x3408*/	u32	_ucs0, iclr_slot0;
 		u64	__pad7[0x7];
-/*0x3448*/	u32	iclr_slot1, _ucs1;
+/*0x3448*/	u32	_ucs1, iclr_slot1;
 		u64	__pad8[0x7];
-/*0x3488*/	u32	iclr_slot2, _ucs2;
+/*0x3488*/	u32	_ucs2, iclr_slot2;
 		u64	__pad9[0x7];
-/*0x34c8*/	u32	iclr_slot3, _ucs3;
+/*0x34c8*/	u32	_ucs3, iclr_slot3;
 		u64	__pad10[0x66];
-/*0x3800*/	u32	iclr_scsi,  _ucscsi;
-/*0x3808*/	u32	iclr_eth,   _uceth;
-/*0x3810*/	u32	iclr_bpp,   _ucbpp;
-/*0x3818*/	u32	iclr_audio, _ucaudio;
-/*0x3820*/	u32	iclr_pfail, _ucpfail;
-/*0x3828*/	u32	iclr_kms,   _uckms;
-/*0x3830*/	u32	iclr_flpt,  _ucflpy;
-/*0x3838*/	u32	iclr_shw,   _ucshw;
-/*0x3840*/	u32	iclr_kbd,   _uckbd;
-/*0x3848*/	u32	iclr_ms,    _ucms;
-/*0x3850*/	u32	iclr_ser,   _ucser;
+/*0x3800*/	u32	_ucscsi, iclr_scsi;
+/*0x3808*/	u32	_uceth, iclr_eth;
+/*0x3810*/	u32	_ucbpp, iclr_bpp;
+/*0x3818*/	u32	_ucaudio, iclr_audio;
+/*0x3820*/	u32	_ucpfail, iclr_pfail;
+/*0x3828*/	u32	_uckms, iclr_kms;
+/*0x3830*/	u32	_ucflpy, iclr_flpt;
+/*0x3838*/	u32	_ucshw, iclr_shw;
+/*0x3840*/	u32	_uckbd, iclr_kbd;
+/*0x3848*/	u32	_ucms, iclr_ms;
+/*0x3850*/	u32	_ucser, iclr_ser;
 /*0x3858*/	u64	iclr_unused1;
-/*0x3860*/	u32	iclr_tim0,  _uctim0;
-/*0x3868*/	u32	iclr_tim1,  _uctim1;
-/*0x3870*/	u32	iclr_ue,    _ucue;
-/*0x3878*/	u32	iclr_ce,    _ucce;
-/*0x3880*/	u32	iclr_serr,  _ucserr;
-/*0x3888*/	u32	iclr_pmgmt, _ucpmgmt;
+/*0x3860*/	u32	_uctim0, iclr_tim0;
+/*0x3868*/	u32	_uctim1, iclr_tim1;
+/*0x3870*/	u32	_ucue, iclr_ue;
+/*0x3878*/	u32	_ucce, iclr_ce;
+/*0x3880*/	u32	_ucserr, iclr_serr;
+/*0x3888*/	u32	_ucpmgmt, iclr_pmgmt;
 
 		u64	__pad11[0x6e];
 
 		/* Counters/Timers */
-/*0x3c00*/	u32	tim0_cnt, _tim0_u0;
-/*0x3c08*/	u32	tim0_lim, _tim0_u1;
-/*0x3c10*/	u32	tim1_cnt, _tim1_u0;
-/*0x3c18*/	u32	tim1_lim, _tim1_u1;
+/*0x3c00*/	u64	tim0_cnt;
+/*0x3c08*/	u64	tim0_lim;
+/*0x3c10*/	u64	tim1_cnt;
+/*0x3c18*/	u64	tim1_lim;
 
 		u64	__pad12[0x7c];
 
@@ -169,11 +169,13 @@ struct sysio_regs {
 /*0x4580*/	u64	iommu_tag[16];	/* IOMMU TLB Tag Diagnostic Access	*/
 /*0x4600*/	u64	iommu_data[32];	/* IOMMU TLB Data RAM Diagnostic Access	*/
 
+		u64	__pad15[0x20];
+
 		/* Interrupt State Diagnostics */
 /*0x4800*/	u64	sbus_istate;
 /*0x4808*/	u64	obio_istate;
 
-		u64	__pad15[0xfe];
+		u64	__pad16[0xfe];
 
 		/* Streaming Buffer Diagnostic Area */
 /*0x5000*/	u64	sbuf_data[128];	/* StrBuffer Data Ram Diagnostic	*/
@@ -278,7 +280,7 @@ struct sysio_regs {
 #define SYSIO_SBAFSR_MID	0x000003e000000000 /* MID causing the error        */
 #define SYSIO_SBAFSR_RESV3	0x0000001fffffffff /* Reserved                     */
 
-/* SYSIO SBUS Slot Configuration Register */
+/* SYSIO SBUS Slot Configuration Register(s) */
 #define SYSIO_SBSCFG_RESV1	0xfffffffff8000000 /* Reserved                     */
 #define SYSIO_SBSCFG_SADDR	0x0000000007ff0000 /* Segment Address (PA[40:30])  */
 #define SYSIO_SBSCFG_CP		0x0000000000008000 /* Bypasses are cacheable       */
@@ -324,14 +326,115 @@ struct sysio_regs {
 /* SYSIO Interrupt Retry Timer register. */
 #define SYSIO_IRETRY_LIMIT	0x000000ff	/* The retry interval.		   */
 
-/* SYSIO Interrupt State registers. XXX fields to be documented later */
+/* SYSIO Interrupt State registers. */
+#define SYSIO_ISTATE_IDLE	0x0 /* No interrupt received or pending */
+#define SYSIO_ISTATE_TRANSMIT	0x1 /* Received, but IRQ not dispatched */
+#define SYSIO_ISTATE_ILLEGAL	0x2 /* Impossible state                 */
+#define SYSIO_ISTATE_PENDING	0x3 /* Received and dispatched          */
 
-/* SYSIO Counter register. XXX fields to be documented later */
+/* Two ways to get at the right bits, your choice... note that level
+ * zero is illegal.  For slots 0 --> 3 the formula for the bit range
+ * in the register is:
+ *
+ *	LSB	((SBUS_SLOT X 16) + (SBUS_LEVEL X 2))
+ *	MSB	((SBUS_SLOT X 16) + (SBUS_LEVEL X 2)) + 1
+ *
+ * Thus the following macro.
+ */
+#define SYSIO_SBUS_ISTATE(regval, slot, level)	\
+	(((regval) >> (((slot) * 16) + ((level) * 2))) & 0x3)
 
-/* SYSIO Limit register. XXX fields to be documented later */
+#define SYSIO_SBUS_ISTATE_S0L1	0x000000000000000c /* Slot 0, level 1 */
+#define SYSIO_SBUS_ISTATE_S0L2	0x0000000000000030 /* Slot 0, level 2 */
+#define SYSIO_SBUS_ISTATE_S0L3	0x00000000000000c0 /* Slot 0, level 3 */
+#define SYSIO_SBUS_ISTATE_S0L4	0x0000000000000300 /* Slot 0, level 4 */
+#define SYSIO_SBUS_ISTATE_S0L5	0x0000000000000c00 /* Slot 0, level 5 */
+#define SYSIO_SBUS_ISTATE_S0L6	0x0000000000003000 /* Slot 0, level 6 */
+#define SYSIO_SBUS_ISTATE_S0L7	0x000000000000c000 /* Slot 0, level 7 */
+#define SYSIO_SBUS_ISTATE_S1L1	0x00000000000c0000 /* Slot 1, level 1 */
+#define SYSIO_SBUS_ISTATE_S1L2	0x0000000000300000 /* Slot 1, level 2 */
+#define SYSIO_SBUS_ISTATE_S1L3	0x0000000000c00000 /* Slot 1, level 3 */
+#define SYSIO_SBUS_ISTATE_S1L4	0x0000000003000000 /* Slot 1, level 4 */
+#define SYSIO_SBUS_ISTATE_S1L5	0x000000000c000000 /* Slot 1, level 5 */
+#define SYSIO_SBUS_ISTATE_S1L6	0x0000000030000000 /* Slot 1, level 6 */
+#define SYSIO_SBUS_ISTATE_S1L7	0x00000000c0000000 /* Slot 1, level 7 */
+#define SYSIO_SBUS_ISTATE_S2L1	0x0000000c00000000 /* Slot 2, level 1 */
+#define SYSIO_SBUS_ISTATE_S2L2	0x0000003000000000 /* Slot 2, level 2 */
+#define SYSIO_SBUS_ISTATE_S2L3	0x000000c000000000 /* Slot 2, level 3 */
+#define SYSIO_SBUS_ISTATE_S2L4	0x0000030000000000 /* Slot 2, level 4 */
+#define SYSIO_SBUS_ISTATE_S2L5	0x00000c0000000000 /* Slot 2, level 5 */
+#define SYSIO_SBUS_ISTATE_S2L6	0x0000300000000000 /* Slot 2, level 6 */
+#define SYSIO_SBUS_ISTATE_S2L7	0x0000c00000000000 /* Slot 2, level 7 */
+#define SYSIO_SBUS_ISTATE_S3L1	0x000c000000000000 /* Slot 3, level 1 */
+#define SYSIO_SBUS_ISTATE_S3L2	0x0030000000000000 /* Slot 3, level 2 */
+#define SYSIO_SBUS_ISTATE_S3L3	0x00c0000000000000 /* Slot 3, level 3 */
+#define SYSIO_SBUS_ISTATE_S3L4	0x0300000000000000 /* Slot 3, level 4 */
+#define SYSIO_SBUS_ISTATE_S3L5	0x0c00000000000000 /* Slot 3, level 5 */
+#define SYSIO_SBUS_ISTATE_S3L6	0x3000000000000000 /* Slot 3, level 6 */
+#define SYSIO_SBUS_ISTATE_S3L7	0xc000000000000000 /* Slot 3, level 7 */
 
-/* SYSIO Performance Monitor Control register. XXX fields to be documented later */
+/* For OBIO devices things are a bit different, you just have to know what
+ * you are looking for.
+ */
+#define SYSIO_OBIO_ISTATE_SCSI	0x0000000000000003 /* Scsi		*/
+#define SYSIO_OBIO_ISTATE_ETH	0x000000000000000c /* Ethernet		*/
+#define SYSIO_OBIO_ISTATE_PP	0x0000000000000030 /* Parallel Port	*/
+#define SYSIO_OBIO_ISTATE_AUDIO	0x00000000000000c0 /* Sun Audio		*/
+#define SYSIO_OBIO_ISTATE_PFAIL	0x0000000000000300 /* Power Fail	*/
+#define SYSIO_OBIO_ISTATE_KBMS	0x0000000000000c00 /* kbd/mouse/serial	*/
+#define SYSIO_OBIO_ISTATE_FLPY	0x0000000000003000 /* Floppy Controller	*/
+#define SYSIO_OBIO_ISTATE_SPHW	0x000000000000c000 /* Spare HW		*/
+#define SYSIO_OBIO_ISTATE_KBD	0x0000000000030000 /* Keyboard		*/
+#define SYSIO_OBIO_ISTATE_MS	0x00000000000c0000 /* Mouse		*/
+#define SYSIO_OBIO_ISTATE_SER	0x0000000000300000 /* Serial		*/
+#define SYSIO_OBIO_ISTATE_TIM0	0x0000000000c00000 /* Timer 0		*/
+#define SYSIO_OBIO_ISTATE_TIM1	0x0000000003000000 /* Timer 1		*/
+#define SYSIO_OBIO_ISTATE_UE	0x000000000c000000 /* Uncorrectable Err	*/
+#define SYSIO_OBIO_ISTATE_CE	0x0000000030000000 /* Correctable Err	*/
+#define SYSIO_OBIO_ISTATE_SERR	0x00000000c0000000 /* SBUS Err		*/
+#define SYSIO_OBIO_ISTATE_PMGMT	0x0000000300000000 /* Power Management	*/
+#define SYSIO_OBIO_ISTATE_RSVI	0x0000000400000000 /* Reserved Int	*/
+#define SYSIO_OBIO_ISTATE_EUPA	0x0000000800000000 /* Expansion UPA (creator) */
+#define SYSIO_OBIO_ISTATE_RESV	0xfffffff000000000 /* Reserved...	*/
 
-/* SYSIO Performance Monitor Counter register. XXX fields to be documented later */
+/* SYSIO Counter and Limit registers are documented in timer.h as these
+ * are generic SUN4U things.
+ */
+
+/* SYSIO Performance Monitor Control register. */
+#define SYSIO_PCNTRL_CLR1	0x0000000000008000 /* Clear SEL1 counter              */
+#define SYSIO_PCNTRL_SEL1_SDR	0x0000000000000000 /* SEL1: Streaming DVMA reads      */
+#define SYSIO_PCNTRL_SEL1_SDW	0x0000000000000100 /* SEL1: Streaming DVMA writes     */
+#define SYSIO_PCNTRL_SEL1_CDR	0x0000000000000200 /* SEL1: Consistent DVMA reads     */
+#define SYSIO_PCNTRL_SEL1_CDW	0x0000000000000300 /* SEL1: Consistent DVMA writes    */
+#define SYSIO_PCNTRL_SEL1_TMISS	0x0000000000000400 /* SEL1: IOMMU TLB misses          */
+#define SYSIO_PCNTRL_SEL1_SMISS	0x0000000000000500 /* SEL1: Streaming Buffer misses   */
+#define SYSIO_PCNTRL_SEL1_SDC	0x0000000000000600 /* SEL1: SBUS dvma cycles          */
+#define SYSIO_PCNTRL_SEL1_DB	0x0000000000000700 /* SEL1: DVMA bytes transferred    */
+#define SYSIO_PCNTRL_SEL1_IRQ	0x0000000000000800 /* SEL1: Interrupts                */
+#define SYSIO_PCNTRL_SEL1_UIN	0x0000000000000900 /* SEL1: UPA IRQ NACK's            */
+#define SYSIO_PCNTRL_SEL1_PRD	0x0000000000000a00 /* SEL1: PIO reads                 */
+#define SYSIO_PCNTRL_SEL1_PWR	0x0000000000000b00 /* SEL1: PIO writes                */
+#define SYSIO_PCNTRL_SEL1_SRR	0x0000000000000c00 /* SEL1: SBUS reruns               */
+#define SYSIO_PCNTRL_SEL1_SPIO	0x0000000000000d00 /* SEL1: SYSIO PIO cycles          */
+#define SYSIO_PCNTRL_CLR0	0x0000000000000080 /* Clear SEL0 counter              */
+#define SYSIO_PCNTRL_SEL0_SDR	0x0000000000000000 /* SEL0: Streaming DVMA reads      */
+#define SYSIO_PCNTRL_SEL0_SDW	0x0000000000000001 /* SEL0: Streaming DVMA writes     */
+#define SYSIO_PCNTRL_SEL0_CDR	0x0000000000000002 /* SEL0: Consistent DVMA reads     */
+#define SYSIO_PCNTRL_SEL0_CDW	0x0000000000000003 /* SEL0: Consistent DVMA writes    */
+#define SYSIO_PCNTRL_SEL0_TMISS	0x0000000000000004 /* SEL0: IOMMU TLB misses          */
+#define SYSIO_PCNTRL_SEL0_SMISS	0x0000000000000005 /* SEL0: Streaming Buffer misses   */
+#define SYSIO_PCNTRL_SEL0_SDC	0x0000000000000006 /* SEL0: SBUS dvma cycles          */
+#define SYSIO_PCNTRL_SEL0_DB	0x0000000000000007 /* SEL0: DVMA bytes transferred    */
+#define SYSIO_PCNTRL_SEL0_IRQ	0x0000000000000008 /* SEL0: Interrupts                */
+#define SYSIO_PCNTRL_SEL0_UIN	0x0000000000000009 /* SEL0: UPA IRQ NACK's            */
+#define SYSIO_PCNTRL_SEL0_PRD	0x000000000000000a /* SEL0: PIO reads                 */
+#define SYSIO_PCNTRL_SEL0_PWR	0x000000000000000b /* SEL0: PIO writes                */
+#define SYSIO_PCNTRL_SEL0_SRR	0x000000000000000c /* SEL0: SBUS reruns               */
+#define SYSIO_PCNTRL_SEL0_SPIO	0x000000000000000d /* SEL0: SYSIO PIO cycles          */
+
+/* SYSIO Performance Monitor Counter register. */
+#define SYSIO_PCOUNT_CNT0	0xffffffff00000000 /* Counter zero  */
+#define SYSIO_PCOUNT_CNT1	0x00000000ffffffff /* Counter one  */
 
 #endif /* !(__SPARC64_SYSIO_H) */

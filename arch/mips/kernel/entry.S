@@ -6,6 +6,8 @@
  * for more details.
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
+ *
+ * $Id: entry.S,v 1.2 1997/08/11 04:21:31 ralf Exp $
  */
 
 /*
@@ -38,24 +40,17 @@
 		.set	noreorder
 		.set	mips3
 		.align 4
-/* XXX cli/sti ??? */
 handle_bottom_half:
-		mfc0	s3,CP0_STATUS		# Enable IRQs
-		ori	t0,s3, 0x1f
-		xori	t0,0x1e
-
 		jal	do_bottom_half
-		 mtc0	t0,CP0_STATUS
-
+		 nop
 		b	9f
-		 mtc0	s3,CP0_STATUS		# Restore old IRQ state
+		 nop
 
-reschedule:
-		jal	schedule 
+reschedule:	jal	schedule 
 		 nop
 
 EXPORT(ret_from_sys_call)
-		 lw	t0,bh_mask
+		lw	t0,bh_mask
 		lw	t1,bh_active		# unused delay slot
 		and	t0,t1
 		bnez	t0,handle_bottom_half

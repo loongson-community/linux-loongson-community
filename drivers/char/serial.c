@@ -3611,7 +3611,7 @@ static inline void wait_for_xmitr(struct serial_state *ser)
  * Print a string to the serial port trying not to disturb any possible
  * real use of the port...
  */
-static int serial_console_write(const char *s, unsigned count)
+static void serial_console_write(const char *s, unsigned count)
 {
 	struct serial_state *ser;
 	int ier;
@@ -3646,14 +3646,12 @@ static int serial_console_write(const char *s, unsigned count)
 	 */
 	wait_for_xmitr(ser);
 	outb(ier, ser->port + UART_IER);
-
-	return (0);
 }
 
 /*
  * Receive character from the serial port
  */
-static int serial_console_wait_key(void)
+static void serial_console_wait_key(void)
 {
 	struct serial_state *ser;
 	int ier;
@@ -3677,8 +3675,6 @@ static int serial_console_wait_key(void)
 
 	/* Restore the interrupts */
 	outb(ier, ser->port + UART_IER);
-
-	return c;
 }
 
 static int serial_console_device(void)

@@ -1,13 +1,11 @@
-/* $Id: parport_pc.c,v 1.1 1997/07/29 03:59:13 ralf Exp $ 
- * Parallel-port routines for PC architecture
+/* Parallel-port routines for PC architecture
  * 
- * Authors: Phil Blundell <pjb27@cam.ac.uk>
- *          Tim Waugh <tmw20@cam.ac.uk>
+ * Authors: Phil Blundell <Philip.Blundell@pobox.com>
+ *          Tim Waugh <tim@cyberelk.demon.co.uk>
  *	    Jose Renau <renau@acm.org>
  *          David Campbell <campbell@tirian.che.curtin.edu.au>
  *
- * based on work by Grant Guenther <grant@torque.net>
- *              and Philip Blundell <Philip.Blundell@pobox.com>
+ * based on work by Grant Guenther <grant@torque.net> and Phil Blundell.
  */
 
 #include <linux/stddef.h>
@@ -44,10 +42,12 @@ static void pc_null_intr_func(int irq, void *dev_id, struct pt_regs *regs)
 	return;
 }
 
+#if 0
 static void pc_write_epp(struct parport *p, unsigned int d)
 {
 	outb(d, p->base+EPPREG);
 }
+#endif
 
 static unsigned int pc_read_epp(struct parport *p)
 {
@@ -151,7 +151,7 @@ static int pc_claim_resources(struct parport *p)
 {
 	/* FIXME check that resources are free */
 	if (p->irq != PARPORT_IRQ_NONE)
-		request_irq(p->irq, pc_null_intr_func, 0, p->name, NULL);
+		request_irq(p->irq, pc_null_intr_func, 0, p->name, p);
 	request_region(p->base, p->size, p->name);
 	if (p->modes & PARPORT_MODE_PCECR)
 		request_region(p->base+0x400, 3, p->name);
@@ -160,12 +160,14 @@ static int pc_claim_resources(struct parport *p)
 
 static void pc_save_state(struct parport *p, struct parport_state *s)
 {
-	/* FIXME */
+	s->u.pc.ctr = pc_read_control(p);
+	s->u.pc.ecr = pc_read_econtrol(p);
 }
 
 static void pc_restore_state(struct parport *p, struct parport_state *s)
 {
-	/* FIXME */
+	pc_write_control(p, s->u.pc.ctr);
+	pc_write_econtrol(p, s->u.pc.ecr);
 }
 
 static unsigned int pc_epp_read_block(struct parport *p, void *buf, unsigned  int length)
@@ -191,6 +193,20 @@ static unsigned int pc_ecp_write_block(struct parport *p, void *buf, unsigned  i
 static int pc_examine_irq(struct parport *p)
 {
 	return 0; /* FIXME */
+}
+
+static void pc_inc_use_count(void)
+{
+#ifdef MODULE
+	MOD_INC_USE_COUNT;
+#endif
+}
+
+static void pc_dec_use_count(void)
+{
+#ifdef MODULE
+	MOD_DEC_USE_COUNT;
+#endif
 }
 
 static struct parport_operations pc_ops = 
@@ -228,7 +244,10 @@ static struct parport_operations pc_ops =
 
 	pc_enable_irq,
 	pc_disable_irq,
-	pc_examine_irq 
+	pc_examine_irq,
+
+	pc_inc_use_count,
+	pc_dec_use_count
 };
 
 /******************************************************
@@ -385,6 +404,7 @@ static int parport_dma_probe(struct parport *pb)
 	
 	return retv;
 }
+
 /******************************************************
  *  MODE detection section:
  */
@@ -444,18 +464,20 @@ static int parport_ECR_present(struct parport *pb)
 	  oecr = pc_read_econtrol(pb);
 
 	r = pc_read_control(pb);	
-	if ((pc_read_econtrol(pb) & 0x03) == (r & 0x03)) {
-		pc_write_control(pb, r ^ 0x03 ); /* Toggle bits 0-1 */
+	if ((pc_read_econtrol(pb) & 0x3) == (r & 0x3)) {
+		pc_write_control(pb, r ^ 0x2 ); /* Toggle bit 1 */
 
-		r= pc_read_control(pb);	
-		if ((pc_read_econtrol(pb) & 0x03) == (r & 0x03))
+		r = pc_read_control(pb);	
+		if ((pc_read_econtrol(pb) & 0x2) == (r & 0x2)) {
+			pc_write_control(pb, octr);
 			return 0; /* Sure that no ECR register exists */
+		}
 	}
 	
-	if ((pc_read_econtrol(pb) & 0x03 ) != 0x01)
+	if ((pc_read_econtrol(pb) & 0x3 ) != 0x1)
 		return 0;
 
-	pc_write_econtrol(pb,0x34);
+	pc_write_econtrol(pb, 0x34);
 	if (pc_read_econtrol(pb) != 0x35)
 		return 0;
 
@@ -841,6 +863,11 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 #undef printmode
 	printk("]\n");
 	parport_proc_register(p);
+	p->flags |= PARPORT_FLAG_COMA;
+
+	/* Done probing.  Now put the port into a sensible start-up state. */
+	pc_write_control(p, 0xc);
+	pc_write_data(p, 0);
 	return 1;
 }
 
@@ -855,11 +882,8 @@ int parport_pc_init(int *io, int *irq, int *dma)
 	} else {
 		/* Probe all the likely ports. */
 		count += probe_one_port(0x378, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
-		
-#if defined(__i386__)
 		count += probe_one_port(0x278, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
 		count += probe_one_port(0x3bc, PARPORT_IRQ_AUTO, PARPORT_DMA_AUTO);
-#endif
 	}
 	return count;
 }
@@ -872,22 +896,23 @@ MODULE_PARM(io, "1-" __MODULE_STRING(PC_MAX_PORTS) "i");
 MODULE_PARM(irq, "1-" __MODULE_STRING(PC_MAX_PORTS) "i");
 MODULE_PARM(dma, "1-" __MODULE_STRING(PC_MAX_PORTS) "i");
 
-static int init_module(void)
+int init_module(void)
 {	
 	return (parport_pc_init(io, irq, dma)?0:1);
 }
 
-static void cleanup_module(void)
+void cleanup_module(void)
 {
-	struct parport *p = parport_enumerate();
+	struct parport *p = parport_enumerate(), *tmp;
 	while (p) {
+		tmp = p->next;
 		if (p->modes & PARPORT_MODE_PCSPP) { 
 			if (!(p->flags & PARPORT_FLAG_COMA)) 
 				parport_quiesce(p);
 			parport_proc_unregister(p);
 			parport_unregister_port(p);
 		}
-		p = p->next;
+		p = tmp;
 	}
 }
 #endif

@@ -82,32 +82,6 @@ int pcibios_find_class (unsigned int class_code, unsigned short index,
 	return PCIBIOS_DEVICE_NOT_FOUND;
 }
 
-const char *pcibios_strerror (int error)
-{
-	static char buf[80];
-
-	switch (error) {
-	case PCIBIOS_SUCCESSFUL:
-		return "SUCCESSFUL";
-
-	case PCIBIOS_FUNC_NOT_SUPPORTED:
-		return "FUNC_NOT_SUPPORTED";
-
-	case PCIBIOS_BAD_VENDOR_ID:
-		return "SUCCESSFUL";
-
-	case PCIBIOS_DEVICE_NOT_FOUND:
-		return "DEVICE_NOT_FOUND";
-
-	case PCIBIOS_BAD_REGISTER_NUMBER:
-		return "BAD_REGISTER_NUMBER";
-
-	default:
-		sprintf (buf, "UNKNOWN RETURN 0x%x", error);
-		return buf;
-	}
-}
-
 /*
  * The functions below are machine specific and must be reimplented for
  * each PCI chipset configuration.  We just run the hook to the machine

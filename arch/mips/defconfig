@@ -33,12 +33,13 @@ CONFIG_CPU_R4X00=y
 #
 CONFIG_ELF_KERNEL=y
 CONFIG_CPU_LITTLE_ENDIAN=y
-CONFIG_BINFMT_ELF=y
 # CONFIG_BINFMT_AOUT is not set
+CONFIG_BINFMT_ELF=y
+# CONFIG_BINFMT_MISC is not set
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 CONFIG_SYSCTL=y
-# CONFIG_PARPORT is not set
+# CONFIG_PNP_PARPORT is not set
 
 #
 # Loadable module support
@@ -121,6 +122,7 @@ CONFIG_MIPS_JAZZ_SONIC=y
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
 # CONFIG_NET_VENDOR_SMC is not set
+# CONFIG_NET_VENDOR_RACAL is not set
 # CONFIG_NET_ISA is not set
 CONFIG_NET_EISA=y
 CONFIG_PCNET32=y
@@ -133,7 +135,6 @@ CONFIG_PCNET32=y
 # CONFIG_NET_POCKET is not set
 # CONFIG_FDDI is not set
 # CONFIG_DLCI is not set
-# CONFIG_PLIP is not set
 # CONFIG_PPP is not set
 # CONFIG_NET_RADIO is not set
 # CONFIG_SLIP is not set
@@ -177,6 +178,7 @@ CONFIG_ISO9660_FS=y
 # CONFIG_ROMFS_FS is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_UFS_FS is not set
+# CONFIG_MAC_PARTITION is not set
 
 #
 # Character devices
@@ -192,6 +194,7 @@ CONFIG_SERIAL=y
 # CONFIG_APM is not set
 # CONFIG_WATCHDOG is not set
 # CONFIG_RTC is not set
+# CONFIG_NVRAM is not set
 # CONFIG_JOYSTICK is not set
 
 #
@@ -202,5 +205,6 @@ CONFIG_SERIAL=y
 #
 # Kernel hacking
 #
+# CONFIG_CROSSCOMPILE is not set
 # CONFIG_REMOTE_DEBUG is not set
 # CONFIG_PROFILE is not set

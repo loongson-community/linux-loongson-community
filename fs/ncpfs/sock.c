@@ -82,7 +82,7 @@ static int do_ncp_rpc_call(struct ncp_server *server, int size)
 	struct file *file;
 	struct inode *inode;
 	struct socket *sock;
-	unsigned short fs;
+	unsigned long fs;
 	int result;
 	char *start = server->packet;
 	poll_table wait_table;
@@ -102,7 +102,7 @@ static int do_ncp_rpc_call(struct ncp_server *server, int size)
 	struct ncp_reply_header reply;
 
 	file = server->ncp_filp;
-	inode = file->f_inode;
+	inode = file->f_dentry->d_inode;
 	sock = &inode->u.socket_i;
 	if (!sock) {
 		printk("ncp_rpc_call: socki_lookup failed\n");

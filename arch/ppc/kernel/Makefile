@@ -7,39 +7,21 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-.c.s:
-	$(CC) $(CFLAGS) -S $<
-.s.o:
-	$(AS) $(ASFLAGS) -o $*.o $<
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-.S.s:
-	$(CPP) $(CFLAGS) -D__ASSEMBLY__ $< -o $*.s
 .S.o:
-	$(CPP) $(CFLAGS) -D__ASSEMBLY__ $< -o $*.s
-	$(AS) $(ASFLAGS) -o $*.o $*.s
-	rm $*.s
+	$(CC) -D__ASSEMBLY__ -c $< -o $*.o
 
-HOST_CC = gcc
-
-OBJS  = misc.o port_io.o pci.o traps.o process.o \
-	signal.o syscalls.o ptrace.o ksyms.o irq.o bitops.o strcase.o ppc_htab.o
+O_TARGET := kernel.o
+O_OBJS := misc.o traps.o process.o signal.o syscalls.o \
+	  align.o ptrace.o irq.o openpic.o bitops.o ppc_htab.o idle.o \
+	  time.o prep_time.o pmac_time.o chrp_time.o \
+	  setup.o prep_setup.o pmac_setup.o pmac_support.o chrp_setup.o \
+	  pci.o prep_pci.o pmac_pci.o chrp_pci.o \
+	  residual.o prom.o
+OX_OBJS := ppc_ksyms.o
 
 all: head.o kernel.o
+
 head.o: head.S $(TOPDIR)/include/linux/tasks.h ppc_defs.h
-
-ifeq ($(CONFIG_PREP),y)
-OBJS += prep_setup.o prep_time.o
-endif
-
-ifeq ($(CONFIG_PMAC),y)
-OBJS += pmac_setup.o pmac_support.o align.o pmac_time.o
-endif
-
-ifeq ($(CONFIG_MODULES),y)
-OBJS = ksyms.o
-endif
-
 
 ppc_defs.h: mk_defs.c ppc_defs.head \
 		$(TOPDIR)/include/asm/mmu.h \
@@ -52,25 +34,7 @@ ppc_defs.h: mk_defs.c ppc_defs.head \
 	rm mk_defs.s
 
 checks: checks.c
-	$(HOSTCC) ${CFLAGS} -o checks checks.c
-	checks
+	$(HOSTCC) -fno-builtin -I$(TOPDIR)/include -D__KERNEL__ -o checks checks.c
+	./checks
 
-kernel.o: $(OBJS)
-	$(LD) -r -o kernel.o $(OBJS)
-
-fastdep:
-	$(TOPDIR)/scripts/mkdep *.[Sch] > .depend
-
-dep:
-	$(CPP) -M *.S *.c > .depend
-
-modules: 
-
-dummy:
-
-#
-# include a dependency file if one exists
-#
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+include $(TOPDIR)/Rules.make

@@ -3,6 +3,8 @@
 .config
 .depend
 .hdepend
+.tmpconfig
+.tmpconfig.h
 .tmpdepend
 .version
 System.map

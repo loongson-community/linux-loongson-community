@@ -1,4 +1,4 @@
-/* $Id: parport.h,v 1.2 1997/07/29 04:00:12 ralf Exp $ */
+/* $Id: parport.h,v 1.3 1997/08/06 19:16:45 miguel Exp $ */
 
 #ifndef _PARPORT_H_
 #define _PARPORT_H_
@@ -81,6 +81,9 @@ struct parport_operations {
 	void (*enable_irq)(struct parport *);
 	void (*disable_irq)(struct parport *);
 	int (*examine_irq)(struct parport *);
+
+	void (*inc_use_count)(void);
+	void (*dec_use_count)(void);
 };
 
 #define PARPORT_CONTROL_STROBE    0x1

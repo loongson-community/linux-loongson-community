@@ -161,11 +161,6 @@ static inline int __get_order(unsigned long size);
 #include <linux/blk.h>
 #include <linux/cdrom.h> /* for the compatibility eject ioctl */
 
-
-#ifndef FLOPPY_MOTOR_MASK
-#define FLOPPY_MOTOR_MASK 0xf0
-#endif
-
 #ifndef fd_get_dma_residue
 #define fd_get_dma_residue() get_dma_residue(FLOPPY_DMA)
 #endif
@@ -3968,6 +3963,10 @@ __initfunc(int floppy_init(void))
 	}
 
 	fdc_state[0].address = FDC1;
+	if (fdc_state[0].address == -1) {
+		unregister_blkdev(MAJOR_NR,"fd");
+		return -ENODEV;
+	}
 #if N_FDC > 1
 	fdc_state[1].address = FDC2;
 #endif

@@ -642,29 +642,20 @@ __initfunc(int psaux_init(void))
 	queue->head = queue->tail = 0;
 	queue->proc_list = NULL;
 	if (!qp_found) {
-		printk ("AUX--1\n");
 		aux_start_atomic();
 #ifdef INITIALIZE_DEVICE
-		printk ("AUX--2\n");
 		kbd_write_command(AUX_ENABLE);		/* Enable Aux */
 		aux_write_ack(AUX_SET_SAMPLE);
-		printk ("AUX--3\n");
 		aux_write_ack(100);			/* 100 samples/sec */
 		aux_write_ack(AUX_SET_RES);
 		aux_write_ack(3);			/* 8 counts per mm */
-		printk ("AUX--4\n");
 		aux_write_ack(AUX_SET_SCALE21);		/* 2:1 scaling */
 		poll_aux_status();
-		printk ("AUX--5\n");
 #endif /* INITIALIZE_DEVICE */
-		printk ("AUX--6\n");
 		kbd_write_command(KBD_CCMD_MOUSE_DISABLE);   /* Disable Aux device */
 		poll_aux_status();
-		printk ("AUX--7\n");
 		kbd_write_command(KBD_CCMD_WRITE_MODE);    /* Disable controller interrupts */
-		kbd_pause ();
 		poll_aux_status();
-		printk ("AUX--8\n");
 		kbd_write_output (AUX_INTS_OFF);
 		kbd_pause ();
 		poll_aux_status();

@@ -45,7 +45,7 @@
 /*
 **	Name and revision of the driver
 */
-#define SCSI_NCR_DRIVER_NAME		"ncr53c8xx - revision 2.1b"
+#define SCSI_NCR_DRIVER_NAME		"ncr53c8xx - revision 2.5a"
 
 /*
 **	Check supported Linux versions
@@ -95,11 +95,24 @@
 
 #define SCSI_NCR_BOOT_COMMAND_LINE_SUPPORT
 #define SCSI_NCR_DEBUG_INFO_SUPPORT
+#define SCSI_NCR_PCI_FIX_UP_SUPPORT
 #ifdef	SCSI_NCR_PROC_INFO_SUPPORT
 #	define	SCSI_NCR_PROFILE_SUPPORT
 #	define	SCSI_NCR_USER_COMMAND_SUPPORT
 #	define	SCSI_NCR_USER_INFO_SUPPORT
 /* #	define	SCSI_NCR_DEBUG_ERROR_RECOVERY_SUPPORT */
+#endif
+
+/*==========================================================
+**
+** nvram settings - #define SCSI_NCR_NVRAM_SUPPORT to enable
+**
+**==========================================================
+*/
+
+#ifdef CONFIG_SCSI_NCR53C8XX_NVRAM_DETECT
+#define SCSI_NCR_NVRAM_SUPPORT
+/* #define SCSI_NCR_DEBUG_NVRAM */
 #endif
 
 /* ---------------------------------------------------------------------
@@ -142,9 +155,11 @@
 #endif
 
 /*
- * Use normal IO if configured. Forced for alpha.
+ * Use normal IO if configured. Forced for alpha and ppc.
  */
-#if defined(CONFIG_SCSI_NCR53C8XX_IOMAPPED) || defined(__alpha__)
+#if defined(CONFIG_SCSI_NCR53C8XX_IOMAPPED)
+#define	SCSI_NCR_IOMAPPED
+#elif defined(__alpha__) || defined(__powerpc__)
 #define	SCSI_NCR_IOMAPPED
 #endif
 
@@ -303,6 +318,45 @@ int ncr53c8xx_release(struct Scsi_Host *);
 #ifndef HOSTS_C
 
 /*
+**	IO functions definition for big/little endian support.
+**	For now, the NCR is only supported in little endian addressing mode, 
+**	and big endian byte ordering is only supported for the PPC.
+**	MMIO is not used on PPC.
+*/
+
+#ifdef	__BIG_ENDIAN
+
+#if	LINUX_VERSION_CODE < LinuxVersionCode(2,1,0)
+#error	"BIG ENDIAN byte ordering needs kernel version >= 2.1.0"
+#endif
+
+#ifdef	__powerpc__
+#define	inw_l2b		inw
+#define	inl_l2b		inl
+#define	outw_b2l	outw
+#define	outl_b2l	outl
+#else
+#error	"Support for BIG ENDIAN is only available for the PowerPC"
+#endif
+
+#else	/* Assumed x86 or alpha */
+
+#define	inw_raw		inw
+#define	inl_raw		inl
+#define	outw_raw	outw
+#define	outl_raw	outl
+#define	readw_raw	readw
+#define	readl_raw	readl
+#define	writew_raw	writew
+#define	writel_raw	writel
+
+#endif
+
+#ifdef	SCSI_NCR_BIG_ENDIAN
+#error	"The NCR in BIG ENDIAN adressing mode is not (yet) supported"
+#endif
+
+/*
 **	NCR53C8XX Device Ids
 */
 
@@ -361,67 +415,67 @@ typedef struct {
 	unsigned char	offset_max;
 	unsigned char	nr_divisor;
 	unsigned int	features;
-#define _F_LED0		(1<<0)
-#define _F_WIDE		(1<<1)
-#define _F_ULTRA	(1<<2)
-#define _F_ULTRA2	(1<<3)
-#define _F_DBLR		(1<<4)
-#define _F_QUAD		(1<<5)
-#define _F_ERL		(1<<6)
-#define _F_CLSE		(1<<7)
-#define _F_WRIE		(1<<8)
-#define _F_ERMP		(1<<9)
-#define _F_BOF		(1<<10)
-#define _F_DFS		(1<<11)
-#define _F_PFEN		(1<<12)
-#define _F_LDSTR	(1<<13)
-#define _F_RAM		(1<<14)
-#define _F_CLK80	(1<<15)
-#define _F_CACHE_SET	(_F_ERL|_F_CLSE|_F_WRIE|_F_ERMP)
-#define _F_SCSI_SET	(_F_WIDE|_F_ULTRA|_F_ULTRA2|_F_DBLR|_F_QUAD|F_CLK80)
-#define _F_SPECIAL_SET	(_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM)
+#define FE_LED0		(1<<0)
+#define FE_WIDE		(1<<1)
+#define FE_ULTRA	(1<<2)
+#define FE_ULTRA2	(1<<3)
+#define FE_DBLR		(1<<4)
+#define FE_QUAD		(1<<5)
+#define FE_ERL		(1<<6)
+#define FE_CLSE		(1<<7)
+#define FE_WRIE		(1<<8)
+#define FE_ERMP		(1<<9)
+#define FE_BOF		(1<<10)
+#define FE_DFS		(1<<11)
+#define FE_PFEN		(1<<12)
+#define FE_LDSTR	(1<<13)
+#define FE_RAM		(1<<14)
+#define FE_CLK80	(1<<15)
+#define FE_CACHE_SET	(FE_ERL|FE_CLSE|FE_WRIE|FE_ERMP)
+#define FE_SCSI_SET	(FE_WIDE|FE_ULTRA|FE_ULTRA2|FE_DBLR|FE_QUAD|F_CLK80)
+#define FE_SPECIAL_SET	(FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM)
 } ncr_chip;
 
 #define SCSI_NCR_CHIP_TABLE						\
 {									\
  {PCI_DEVICE_ID_NCR_53C810, 0x0f, "810",  4,  8, 4,			\
- _F_ERL}								\
+ FE_ERL}								\
  ,									\
  {PCI_DEVICE_ID_NCR_53C810, 0xff, "810a", 4,  8, 4,			\
- _F_CACHE_SET|_F_LDSTR|_F_PFEN|_F_BOF}					\
+ FE_CACHE_SET|FE_LDSTR|FE_PFEN|FE_BOF}					\
  ,									\
  {PCI_DEVICE_ID_NCR_53C815, 0xff, "815",  4,  8, 4,			\
- _F_ERL|_F_BOF}								\
+ FE_ERL|FE_BOF}								\
  ,									\
  {PCI_DEVICE_ID_NCR_53C820, 0xff, "820",  4,  8, 4,			\
- _F_WIDE|_F_ERL}							\
+ FE_WIDE|FE_ERL}							\
  ,									\
  {PCI_DEVICE_ID_NCR_53C825, 0x0f, "825",  4,  8, 4,			\
- _F_WIDE|_F_ERL|_F_BOF}							\
+ FE_WIDE|FE_ERL|FE_BOF}							\
  ,									\
  {PCI_DEVICE_ID_NCR_53C825, 0xff, "825a", 7,  8, 4,			\
- _F_WIDE|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}		\
+ FE_WIDE|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}		\
  ,									\
  {PCI_DEVICE_ID_NCR_53C860, 0xff, "860",  4,  8, 5,			\
- _F_WIDE|_F_ULTRA|_F_CLK80|_F_CACHE_SET|_F_BOF|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_ULTRA|FE_CLK80|FE_CACHE_SET|FE_BOF|FE_LDSTR|FE_PFEN}		\
  ,									\
  {PCI_DEVICE_ID_NCR_53C875, 0x01, "875",  7, 16, 5,			\
- _F_WIDE|_F_ULTRA|_F_CLK80|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA|FE_CLK80|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
  ,									\
  {PCI_DEVICE_ID_NCR_53C875, 0xff, "875",  7, 16, 5,			\
- _F_WIDE|_F_ULTRA|_F_DBLR|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA|FE_DBLR|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
  ,									\
  {PCI_DEVICE_ID_NCR_53C875J, 0xff, "875J",  7, 16, 5,			\
- _F_WIDE|_F_ULTRA|_F_DBLR|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA|FE_DBLR|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
  ,									\
  {PCI_DEVICE_ID_NCR_53C885, 0xff, "885",  7, 16, 5,			\
- _F_WIDE|_F_ULTRA|_F_DBLR|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA|FE_DBLR|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
  ,									\
  {PCI_DEVICE_ID_NCR_53C895, 0xff, "895",  7, 31, 7,			\
- _F_WIDE|_F_ULTRA|_F_ULTRA2|_F_QUAD|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA2|FE_QUAD|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
  ,									\
  {PCI_DEVICE_ID_NCR_53C896, 0xff, "896",  7, 31, 7,			\
- _F_WIDE|_F_ULTRA|_F_ULTRA2|_F_QUAD|_F_CACHE_SET|_F_BOF|_F_DFS|_F_LDSTR|_F_PFEN|_F_RAM}	\
+ FE_WIDE|FE_ULTRA2|FE_QUAD|FE_CACHE_SET|FE_BOF|FE_DFS|FE_LDSTR|FE_PFEN|FE_RAM}\
 }
 
 /*
@@ -456,6 +510,7 @@ typedef struct {
 	0,					\
 	0,					\
 	1,					\
+	1,					\
 	SCSI_NCR_SETUP_DEFAULT_TAGS,		\
 	SCSI_NCR_SETUP_DEFAULT_SYNC,		\
 	0x00,					\
@@ -482,6 +537,7 @@ typedef struct {
 	0,					\
 	0,					\
 	0,					\
+	1,					\
 	2,					\
 	0,					\
 	255,					\

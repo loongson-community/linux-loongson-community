@@ -15,7 +15,7 @@
 #include <linux/param.h>
 #include "autofs_i.h"
 
-static int autofs_root_readdir(struct inode *,struct file *,void *,filldir_t);
+static int autofs_root_readdir(struct file *,void *,filldir_t);
 static int autofs_root_lookup(struct inode *,struct dentry *);
 static int autofs_root_symlink(struct inode *,struct dentry *,const char *);
 static int autofs_root_unlink(struct inode *,struct dentry *);
@@ -63,11 +63,11 @@ struct inode_operations autofs_root_inode_operations = {
 	NULL			/* revalidate */
 };
 
-static int autofs_root_readdir(struct inode *inode, struct file *filp,
-			       void *dirent, filldir_t filldir)
+static int autofs_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct autofs_dir_ent *ent;
 	struct autofs_dirhash *dirhash;
+	struct inode * inode = filp->f_dentry->d_inode;
 	off_t onr, nr;
 
 	if (!inode || !S_ISDIR(inode->i_mode))
@@ -176,6 +176,12 @@ static int autofs_revalidate(struct dentry * dentry)
 	return 1;
 }
 
+static struct dentry_operations autofs_dentry_operations = {
+	autofs_revalidate,
+	NULL,			/* d_hash */
+	NULL,			/* d_compare */
+};
+
 static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 {
 	struct autofs_sb_info *sbi;
@@ -204,14 +210,23 @@ static int autofs_root_lookup(struct inode *dir, struct dentry * dentry)
 	 *
 	 * We need to do this before we release the directory semaphore.
 	 */
-	dentry->d_revalidate = autofs_revalidate;
+	dentry->d_op = &autofs_dentry_operations;
 	dentry->d_flags |= DCACHE_AUTOFS_PENDING;
 	d_add(dentry, NULL);
 
 	up(&dir->i_sem);
 	autofs_revalidate(dentry);
 	down(&dir->i_sem);
-	
+
+	/*
+	 * If we are still pending, check if we had to handle
+	 * a signal. If so we can force a restart..
+	 */
+	if (dentry->d_flags & DCACHE_AUTOFS_PENDING) {
+		if (current->signal & ~current->blocked)
+			return -ERESTARTNOINTR;
+	}
+
 	return 0;
 }
 
@@ -379,16 +394,9 @@ static inline int autofs_get_set_timeout(struct autofs_sb_info *sbi,
 	int rv;
 	unsigned long ntimeout;
 
-#if LINUX_VERSION_CODE < kver(2,1,0)
-	if ( (rv = verify_area(VERIFY_WRITE, p, sizeof(unsigned long))) )
-		return rv;
-	ntimeout = get_user(p);
-	put_user(sbi->exp_timeout/HZ, p);
-#else
 	if ( (rv = get_user(ntimeout, p)) ||
 	     (rv = put_user(sbi->exp_timeout/HZ, p)) )
 		return rv;
-#endif
 
 	if ( ntimeout > ULONG_MAX/HZ )
 		sbi->exp_timeout = 0;
@@ -401,15 +409,7 @@ static inline int autofs_get_set_timeout(struct autofs_sb_info *sbi,
 /* Return protocol version */
 static inline int autofs_get_protover(int *p)
 {
-#if LINUX_VERSION_CODE < kver(2,1,0)
-	int rv;
-	if ( (rv = verify_area(VERIFY_WRITE, p, sizeof(int))) )
-		return rv;
-	put_user(AUTOFS_PROTO_VERSION, p);
-	return 0;
-#else
 	return put_user(AUTOFS_PROTO_VERSION, p);
-#endif
 }
 
 /* Perform an expiry operation */

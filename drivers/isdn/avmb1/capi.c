@@ -1,11 +1,14 @@
 /*
- * $Id: capi.c,v 1.4 1997/05/27 15:17:50 fritz Exp $
+ * $Id: capi.c,v 1.1 1997/06/08 14:58:39 ralf Exp $
  *
  * CAPI 2.0 Interface for Linux
  *
  * Copyright 1996 by Carsten Paeth (calle@calle.in-berlin.de)
  *
  * $Log: capi.c,v $
+ * Revision 1.1  1997/06/08 14:58:39  ralf
+ * These files were missing in the 2.1.42 merge.
+ *
  * Revision 1.4  1997/05/27 15:17:50  fritz
  * Added changes for recent 2.1.x kernels:
  *   changed return type of isdn_close
@@ -253,7 +256,7 @@ static unsigned int
 capi_poll(struct file *file, poll_table * wait)
 {
 	unsigned int mask = 0;
-	unsigned int minor = MINOR(file->f_inode->i_rdev);
+	unsigned int minor = MINOR(file->f_dentry->d_inode->i_rdev);
 	struct capidev *cdev;
 
 	if (!minor || minor > CAPI_MAXMINOR || !capidevs[minor].is_registered)

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: mips_ksyms.c,v 1.2 1997/07/26 19:31:40 ralf Exp $
+ * $Id: mips_ksyms.c,v 1.2 1997/07/29 03:58:54 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -70,4 +70,20 @@ EXPORT_SYMBOL(port_base);
 
 #ifdef CONFIG_SGI
 EXPORT_SYMBOL(hpc3c0);
+#endif
+
+/*
+ * Kernel hacking ...
+ */
+#include <asm/branch.h>
+#include <linux/sched.h>
+
+int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
+int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31));
+
+#ifdef CONFIG_MIPS_FPE_MODULE
+EXPORT_SYMBOL(force_sig);
+EXPORT_SYMBOL(__compute_return_epc);
+EXPORT_SYMBOL(register_fpe);
+EXPORT_SYMBOL(unregister_fpe);
 #endif

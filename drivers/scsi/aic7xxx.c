@@ -73,7 +73,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *      $Id: aic7xxx.c,v 1.119 1997/06/27 19:39:18 gibbs Exp $
+ *      $Id: aic7xxx.c,v 1.2 1997/08/06 19:16:00 miguel Exp $
  *---------------------------------------------------------------------------
  *
  *  Thanks also go to (in alphabetical order) the following:
@@ -93,7 +93,7 @@
  *
  *  Daniel M. Eischen, deischen@iworks.InterWorks.org, 1/23/97
  *
- *  $Id: aic7xxx.c,v 4.1 1997/06/12 08:23:42 deang Exp $
+ *  $Id: aic7xxx.c,v 1.2 1997/08/06 19:16:00 miguel Exp $
  *-M*************************************************************************/
 
 #ifdef MODULE
@@ -139,7 +139,7 @@ struct proc_dir_entry proc_scsi_aic7xxx = {
     0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-#define AIC7XXX_C_VERSION  "$Revision: 4.1 $"
+#define AIC7XXX_C_VERSION  "$Revision: 1.2 $"
 
 #define NUMBER(arr)     (sizeof(arr) / sizeof(arr[0]))
 #define MIN(a,b)        (((a) < (b)) ? (a) : (b))
@@ -829,6 +829,7 @@ struct aic7xxx_host {
   unsigned char            pause;            /* pause value for HCNTRL */
   unsigned char            qcntmask;
   unsigned char            qfullcount;
+  unsigned char            cmdoutcnt;
   unsigned char            curqincnt;
   struct Scsi_Host        *next;             /* allow for multiple IRQs */
   unsigned char            activescbs;       /* active scbs */
@@ -3880,6 +3881,19 @@ aic7xxx_isr(int irq, void *dev_id, struct pt_regs *regs)
 #endif
     while (qoutcnt > 0)
     {
+      if ((p->flags & PAGE_ENABLED) != 0)
+      {
+        p->cmdoutcnt += qoutcnt;
+        if (p->cmdoutcnt >= p->qfullcount)
+        {
+          /*
+           * Since paging only occurs on aic78x0 chips, we can use
+           * Auto Access Pause to clear the command count.
+           */
+          outb(0, p->base + CMDOUTCNT);
+          p->cmdoutcnt = 0;
+        }
+      }
       for (i = 0; i < qoutcnt; i++)
       {
         scb_index = inb(p->base + QOUTFIFO);
@@ -4638,9 +4652,9 @@ configure_termination(struct aic7xxx_host *p, unsigned char *sxfrctl1,
     {
       old_verbose = aic7xxx_verbose;
       printk(KERN_INFO "aic7xxx: Warning - detected auto-termination.  Please "
-                       "verify driver");
+                       "verify driver\n");
       printk(KERN_INFO "         detected settings and use manual termination "
-                       "if necessary."); 
+                       "if necessary.\n"); 
 
       /* Configure auto termination. */
       outb(SEECS | SEEMS, p->base + SEECTL);
@@ -5290,6 +5304,9 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p)
    * garbage in the upper bits of their QCNT registers.
     */
   outb(p->qcntmask, p->base + QCNTMASK);
+
+  outb(p->qfullcount, p->base + FIFODEPTH);
+  outb(0, p->base + CMDOUTCNT);
 
   /*
    * We don't have any waiting selections or disconnected SCBs.

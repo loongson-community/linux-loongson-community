@@ -1,4 +1,4 @@
-/* $Id: isdn_common.c,v 1.44 1997/05/27 15:17:23 fritz Exp $
+/* $Id: isdn_common.c,v 1.2 1997/06/03 09:24:18 ralf Exp $
 
  * Linux ISDN subsystem, common used functions (linklevel).
  *
@@ -21,6 +21,9 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  * $Log: isdn_common.c,v $
+ * Revision 1.2  1997/06/03 09:24:18  ralf
+ * Sync with Linux 2.1.42.
+ *
  * Revision 1.44  1997/05/27 15:17:23  fritz
  * Added changes for recent 2.1.x kernels:
  *   changed return type of isdn_close
@@ -218,7 +221,7 @@
 
 isdn_dev *dev = (isdn_dev *) 0;
 
-static char *isdn_revision = "$Revision: 1.44 $";
+static char *isdn_revision = "$Revision: 1.2 $";
 
 extern char *isdn_net_revision;
 extern char *isdn_tty_revision;
@@ -1012,7 +1015,7 @@ static unsigned int
 isdn_poll(struct file *file, poll_table * wait)
 {
 	unsigned int mask = 0;
-	unsigned int minor = MINOR(file->f_inode->i_rdev);
+	unsigned int minor = MINOR(file->f_dentry->d_inode->i_rdev);
 	int drvidx = isdn_minor2drv(minor - ISDN_MINOR_CTRL);
 
 	if (minor == ISDN_MINOR_STATUS) {

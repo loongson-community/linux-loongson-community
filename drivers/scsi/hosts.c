@@ -190,13 +190,21 @@
 #include "ide-scsi.h"
 #endif
 
+#ifdef CONFIG_SCSI_MESH
+#include "mesh.h"
+#endif
+
+#ifdef CONFIG_SCSI_MAC53C94
+#include "mac53c94.h"
+#endif
+
 #ifdef CONFIG_SCSI_DEBUG
 #include "scsi_debug.h"
 #endif
 
 
 /*
-static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
+static const char RCSid[] = "$Header: /src/cvs/linux/drivers/scsi/hosts.c,v 1.1.1.1 1997/06/01 03:17:37 ralf Exp $";
 */
 
 /*
@@ -342,6 +350,12 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_BLK_DEV_IDESCSI
     IDESCSI,
+#endif
+#ifdef CONFIG_SCSI_MESH
+    SCSI_MESH,
+#endif
+#ifdef CONFIG_SCSI_MAC53C94
+    SCSI_MAC53C94,
 #endif
 #ifdef CONFIG_SCSI_SGIWD93
     SGIWD93_SCSI,

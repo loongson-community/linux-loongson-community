@@ -36,7 +36,7 @@ typedef long		__kernel_time_t;
 typedef long		__kernel_clock_t;
 typedef long		__kernel_daddr_t;
 typedef char *		__kernel_caddr_t;
-/* typedef unsigned long	__kernel_sigset_t;  anybody using this type? */
+typedef unsigned long	__kernel_sigset_t;
 
 #ifdef __GNUC__
 typedef long long      __kernel_loff_t;

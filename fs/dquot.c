@@ -13,7 +13,7 @@
  * diskquota system. This implementation is not based on any BSD
  * kernel sourcecode.
  * 
- * Version: $Id: dquot.c,v 1.3 1997/07/20 14:59:17 ralf Exp $
+ * Version: $Id: dquot.c,v 1.4 1997/08/06 19:16:09 miguel Exp $
  * 
  * Author:  Marco van Wieringen <mvw@mcs.ow.nl> <mvw@tnix.net>
  * 
@@ -222,7 +222,7 @@ static void write_dquot(struct dquot *dquot)
 {
 	short type = dquot->dq_type;
 	struct file *filp = dquot->dq_mnt->mnt_quotas[type];
-	unsigned short fs;
+	unsigned long fs;
 
 	if (!(dquot->dq_flags & DQ_MOD) || (filp == (struct file *)NULL))
 		return;
@@ -254,7 +254,7 @@ static void read_dquot(struct dquot *dquot)
 {
 	short type = dquot->dq_type;
 	struct file *filp = dquot->dq_mnt->mnt_quotas[type];
-	unsigned short fs;
+	unsigned long fs;
 
 	if (filp == (struct file *)NULL)
 		return;

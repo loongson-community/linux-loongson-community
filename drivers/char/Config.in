@@ -34,7 +34,11 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
    tristate 'Hayes ESP serial port support' CONFIG_ESPSERIAL
    if [ "$CONFIG_ESPSERIAL" = "y" -o "$CONFIG_ESPSERIAL" = "m" ]; then
      int '  DMA channel' CONFIG_ESPSERIAL_DMA_CHANNEL 1
-     int '  FIFO trigger level' CONFIG_ESPSERIAL_TRIGGER_LEVEL 768
+     int '  Receive FIFO trigger level' CONFIG_ESPSERIAL_RX_TRIGGER 768
+     int '  Transmit FIFO trigger level' CONFIG_ESPSERIAL_TX_TRIGGER 768
+     int '  Hardware flow off level' CONFIG_ESPSERIAL_FLOW_OFF 1016
+     int '  Hardware flow on level' CONFIG_ESPSERIAL_FLOW_ON 944
+     int '  Receiver timeout' CONFIG_ESPSERIAL_RX_TMOUT 128
    fi
 fi
 if [ "$CONFIG_PARPORT" != "n" ]; then
@@ -97,8 +101,12 @@ if [ "$CONFIG_WATCHDOG" != "n" ]; then
   fi
   tristate '   Software Watchdog' CONFIG_SOFT_WATCHDOG
   tristate '   Berkshire Products PC Watchdog' CONFIG_PCWATCHDOG
+  tristate '   Acquire SBC Watchdog Timer' CONFIG_ACQUIRE_WDT
 fi
 bool 'Enhanced Real Time Clock Support' CONFIG_RTC
+if [ "$CONFIG_PPC" = "y" ]; then
+  bool 'Tadpole ANA H8 Support'  CONFIG_H8
+fi
 tristate '/dev/nvram support' CONFIG_NVRAM
 tristate 'PC joystick support' CONFIG_JOYSTICK
 endmenu

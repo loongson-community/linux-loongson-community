@@ -19,6 +19,9 @@
 #include <linux/malloc.h>
 #include <linux/init.h>
 
+/* For managing the dcache */
+extern int nr_free_pages, free_pages_low;
+
 /*
  * This is the single most critical data structure when it comes
  * to the dcache: the hashtable for lookups. Somebody should try
@@ -34,7 +37,7 @@
 static struct list_head dentry_hashtable[D_HASHSIZE];
 static LIST_HEAD(dentry_unused);
 
-void d_free(struct dentry *dentry)
+static inline void d_free(struct dentry *dentry)
 {
 	kfree(dentry->d_name.name);
 	kfree(dentry);
@@ -72,13 +75,13 @@ repeat:
 		dentry->d_count = count;
 		if (!count) {
 			list_del(&dentry->d_lru);
+			if (dentry->d_op && dentry->d_op->d_delete)
+				dentry->d_op->d_delete(dentry);
 			if (list_empty(&dentry->d_hash)) {
 				struct inode *inode = dentry->d_inode;
 				struct dentry * parent;
-				if (inode) {
-					list_del(&dentry->d_alias);
+				if (inode)
 					iput(inode);
-				}
 				parent = dentry->d_parent;
 				d_free(dentry);
 				if (dentry == parent)
@@ -89,6 +92,25 @@ repeat:
 			list_add(&dentry->d_lru, &dentry_unused);
 		}
 	}
+}
+
+/*
+ * Try to invalidate the dentry if it turns out to be
+ * possible. If there are other users of the dentry we
+ * can't invalidate it.
+ *
+ * This is currently incorrect. We should try to see if
+ * we can invalidate any unused children - right now we
+ * refuse to invalidate way too much.
+ */
+int d_invalidate(struct dentry * dentry)
+{
+	/* We should do a partial shrink_dcache here */
+	if (dentry->d_count != 1)
+		return -EBUSY;
+
+	d_drop(dentry);
+	return 0;
 }
 
 /*
@@ -115,7 +137,6 @@ void shrink_dcache(void)
 			if (dentry->d_inode) {
 				struct inode * inode = dentry->d_inode;
 
-				list_del(&dentry->d_alias);
 				dentry->d_inode = NULL;
 				iput(inode);
 			}
@@ -133,6 +154,13 @@ struct dentry * d_alloc(struct dentry * parent, const struct qstr *name)
 	char * str;
 	struct dentry *dentry;
 
+	/*
+	 * Check whether to shrink the dcache ... this greatly reduces
+	 * the likelyhood that kmalloc() will need additional memory.
+	 */
+	if (nr_free_pages < free_pages_low)
+		shrink_dcache();
+
 	dentry = kmalloc(sizeof(struct dentry), GFP_KERNEL);
 	if (!dentry)
 		return NULL;
@@ -146,20 +174,19 @@ struct dentry * d_alloc(struct dentry * parent, const struct qstr *name)
 	memcpy(str, name->name, name->len);
 	str[name->len] = 0;
 
-	dentry->d_count = 0;
+	dentry->d_count = 1;
 	dentry->d_flags = 0;
 	dentry->d_inode = NULL;
-	dentry->d_parent = parent;
+	dentry->d_parent = dget(parent);
 	dentry->d_mounts = dentry;
 	dentry->d_covers = dentry;
 	INIT_LIST_HEAD(&dentry->d_hash);
-	INIT_LIST_HEAD(&dentry->d_alias);
 	INIT_LIST_HEAD(&dentry->d_lru);
 
 	dentry->d_name.name = str;
 	dentry->d_name.len = name->len;
 	dentry->d_name.hash = name->hash;
-	dentry->d_revalidate = NULL;
+	dentry->d_op = NULL;
 	return dentry;
 }
 
@@ -175,9 +202,6 @@ struct dentry * d_alloc(struct dentry * parent, const struct qstr *name)
  */
 void d_instantiate(struct dentry *entry, struct inode * inode)
 {
-	if (inode)
-		list_add(&entry->d_alias, &inode->i_dentry);
-
 	entry->d_inode = inode;
 }
 
@@ -188,7 +212,6 @@ struct dentry * d_alloc_root(struct inode * root_inode, struct dentry *old_root)
 	if (root_inode) {
 		res = d_alloc(NULL, &(const struct qstr) { "/", 1, 0 });
 		res->d_parent = res;
-		res->d_count = 1;
 		d_instantiate(res, root_inode);
 	}
 	return res;
@@ -214,13 +237,18 @@ static inline struct dentry * __dlookup(struct list_head *head, struct dentry * 
 		tmp = tmp->next;
 		if (dentry->d_name.hash != hash)
 			continue;
-		if (dentry->d_name.len != len)
-			continue;
 		if (dentry->d_parent != parent)
 			continue;
-		if (memcmp(dentry->d_name.name, str, len))
-			continue;
-		return dentry;
+		if (parent->d_op && parent->d_op->d_compare) {
+			if (parent->d_op->d_compare(parent, &dentry->d_name, name))
+				continue;
+		} else {
+			if (dentry->d_name.len != len)
+				continue;
+			if (memcmp(dentry->d_name.name, str, len))
+				continue;
+		}
+		return dget(dentry->d_mounts);
 	}
 	return NULL;
 }
@@ -270,18 +298,6 @@ found_it:
 		(dentry->d_name.len == len);
 }
 
-static inline void d_insert_to_parent(struct dentry * entry, struct dentry * parent)
-{
-	list_add(&entry->d_hash, d_hash(dget(parent), entry->d_name.hash));
-}
-
-static inline void d_remove_from_parent(struct dentry * dentry, struct dentry * parent)
-{
-	list_del(&dentry->d_hash);
-	dput(parent);
-}
-
-
 /*
  * When a file is deleted, we have two options:
  * - turn this dentry into a negative dentry
@@ -301,10 +317,10 @@ void d_delete(struct dentry * dentry)
 	 */
 	if (dentry->d_count == 1) {
 		struct inode * inode = dentry->d_inode;
-
-		dentry->d_inode = NULL;
-		list_del(&dentry->d_alias);
-		iput(inode);
+		if (inode) {
+			dentry->d_inode = NULL;
+			iput(inode);
+		}
 		return;
 	}
 
@@ -317,42 +333,51 @@ void d_delete(struct dentry * dentry)
 
 void d_add(struct dentry * entry, struct inode * inode)
 {
-	d_insert_to_parent(entry, entry->d_parent);
+	struct dentry * parent = entry->d_parent;
+
+	list_add(&entry->d_hash, d_hash(parent, entry->d_name.hash));
 	d_instantiate(entry, inode);
 }
 
-static inline void alloc_new_name(struct dentry * entry, struct qstr *newname)
+#define switch(x,y) do { \
+	__typeof__ (x) __tmp = x; \
+	x = y; y = __tmp; } while (0)
+
+/*
+ * We cannibalize "newdentry" when moving dentry on top of it,
+ * because it's going to be thrown away anyway. We could be more
+ * polite about it, though.
+ *
+ * This forceful removal will result in ugly /proc output if
+ * somebody holds a file open that got deleted due to a rename.
+ * We could be nicer about the deleted file, and let it show
+ * up under the name it got deleted rather than the name that
+ * deleted it.
+ *
+ * Careful with the hash switch. The hash switch depends on
+ * the fact that any list-entry can be a head of the list.
+ * Think about it.
+ */
+void d_move(struct dentry * dentry, struct dentry * target)
 {
-	int len = newname->len;
-	int hash = newname->hash;
-	char *name = (char *) entry->d_name.name;
-
-	if (NAME_ALLOC_LEN(len) != NAME_ALLOC_LEN(entry->d_name.len)) {
-		name = kmalloc(NAME_ALLOC_LEN(len), GFP_KERNEL);
-		if (!name)
-			printk("out of memory for dcache\n");
-		kfree(entry->d_name.name);
-		entry->d_name.name = name;
-	}
-	memcpy(name, newname->name, len);
-	name[len] = 0;
-	entry->d_name.len = len;
-	entry->d_name.hash = hash;
-}
-
-void d_move(struct dentry * dentry, struct dentry * newdir, struct qstr * newname)
-{
-	if (!dentry)
-		return;
-
 	if (!dentry->d_inode)
 		printk("VFS: moving negative dcache entry\n");
 
-	d_remove_from_parent(dentry, dentry->d_parent);
-	alloc_new_name(dentry, newname);
-	dentry->d_parent = newdir;
-	d_insert_to_parent(dentry, newdir);
+	/* Move the dentry to the target hash queue */
+	list_del(&dentry->d_hash);
+	list_add(&dentry->d_hash, &target->d_hash);
+
+	/* Unhash the target: dput() will then get rid of it */
+	list_del(&target->d_hash);
+	INIT_LIST_HEAD(&target->d_hash);
+
+	/* Switch the parents and the names.. */
+	switch(dentry->d_parent, target->d_parent);
+	switch(dentry->d_name.name, target->d_name.name);
+	switch(dentry->d_name.len, target->d_name.len);
+	switch(dentry->d_name.hash, target->d_name.hash);
 }
+
 /*
  * "buflen" should be PAGE_SIZE or more.
  */
@@ -364,6 +389,11 @@ char * d_path(struct dentry *dentry, char *buffer, int buflen)
 
 	*--end = '\0';
 	buflen--;
+	if (dentry->d_parent != dentry && list_empty(&dentry->d_hash)) {
+		buflen -= 10;
+		end -= 10;
+		memcpy(end, " (deleted)", 10);
+	}
 
 	/* Get '/' right */
 	retval = end-1;

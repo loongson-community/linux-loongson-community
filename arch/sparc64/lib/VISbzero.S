@@ -1,4 +1,4 @@
-/* $Id: VISbzero.S,v 1.1 1997/07/18 06:26:48 ralf Exp $
+/* $Id: VISbzero.S,v 1.8 1997/08/22 15:54:50 jj Exp $
  * VISbzero.S: High speed clear operations utilizing the UltraSparc
  *        Visual Instruction Set.
  *
@@ -16,8 +16,8 @@
 99:	ba	VISbzerofixup_ret##z;		\
 	 a, b, %o0;				\
 	.section __ex_table;			\
-	.align	8;				\
-	.xword	98b, 99b;			\
+	.align	4;				\
+	.word	98b, 99b;			\
 	.text;					\
 	.align	4;
 #define EXC(x,y,a,b,c...) 			\
@@ -28,15 +28,15 @@
 	ba	VISbzerofixup_ret0;		\
 	 a, b, %o0;				\
 	.section __ex_table;			\
-	.align	8;				\
-	.xword	98b, 99b;			\
+	.align	4;				\
+	.word	98b, 99b;			\
 	.text;					\
 	.align	4;
 #define EXO1(x,y) 				\
 98: 	x,y;					\
 	.section __ex_table;			\
-	.align	8;				\
-	.xword	98b, VISbzerofixup_reto1;	\
+	.align	4;				\
+	.word	98b, VISbzerofixup_reto1;	\
 	.text;					\
 	.align	4;
 #define EX(x,y,a,b) EXN(x,y,a,b,0)
@@ -44,8 +44,8 @@
 #define EX2(x,y,a,b) EXN(x,y,a,b,2)
 #define EXT(start,end,handler) 			\
 	.section __ex_table;			\
-	.align	8;				\
-	.xword	start, 0, end, handler;		\
+	.align	4;				\
+	.word	start, 0, end, handler;		\
 	.text;					\
 	.align	4
 #else
@@ -147,7 +147,7 @@ bzero:
 #else
 	 wr		%g0, ASI_BLK_P, %asi
 #endif
-	membar		#StoreStore | #LoadStore
+	membar		#StoreLoad | #StoreStore | #LoadStore
 	fzero		%f0
 	andcc		%o3, 0xc0, %o2
 	and		%o1, 0x3f, %o1
@@ -180,16 +180,28 @@ bzero:
 #ifdef __KERNEL__
 	wr		%g0, 0, %fprs
 	wr		%g7, 0x0, %asi
+#else
+#ifndef REGS_64BIT
+	wr		%g0, FPRS_FEF, %fprs
 #endif
-	membar		#Sync
+#endif
+	membar		#StoreLoad | #StoreStore
 9:	andcc		%o1, 0xf8, %o2
 	be,pn		%xcc, 13f
 	 andcc		%o1, 7, %o1
+#ifdef __KERNEL__
+14:	sethi		%hi(13f), %o4
+	srl		%o2, 1, %o3
+	sub		%o4, %o3, %o4
+	jmpl		%o4 + %lo(13f), %g0
+	 add		%o0, %o2, %o0
+#else
 14:	rd		%pc, %o4
 	srl		%o2, 1, %o3
 	sub		%o4, %o3, %o4
 	jmpl		%o4 + (13f - 14b), %g0
 	 add		%o0, %o2, %o0
+#endif
 12:	ZERO_BLOCKS(%o0, 0xc8, %g0)
 	ZERO_BLOCKS(%o0, 0x88, %g0)
 	ZERO_BLOCKS(%o0, 0x48, %g0)

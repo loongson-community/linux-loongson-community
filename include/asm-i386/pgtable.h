@@ -19,6 +19,7 @@
 #define flush_cache_range(mm, start, end)	do { } while (0)
 #define flush_cache_page(vma, vmaddr)		do { } while (0)
 #define flush_page_to_ram(page)			do { } while (0)
+#define flush_icache_range(start, end)		do { } while (0)
 
 /*
  * TLB flushing:
@@ -201,6 +202,7 @@ static inline void flush_tlb_range(struct mm_struct *mm,
 #define _PAGE_PRESENT	0x001
 #define _PAGE_RW	0x002
 #define _PAGE_USER	0x004
+#define _PAGE_WT	0x008
 #define _PAGE_PCD	0x010
 #define _PAGE_ACCESSED	0x020
 #define _PAGE_DIRTY	0x040

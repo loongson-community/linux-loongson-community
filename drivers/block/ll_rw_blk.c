@@ -681,10 +681,14 @@ __initfunc(int blk_dev_init(void))
 #ifdef CONFIG_BLK_DEV_EZ
 	ez_init();
 #endif
+#ifdef CONFIG_MAC_FLOPPY
+	swim3_init();
+#endif
 #ifdef CONFIG_BLK_DEV_FD
 	floppy_init();
 #else
-#if !defined(CONFIG_SGI) && !defined (__mc68000__)
+#if !defined(CONFIG_SGI) && !defined (__mc68000__) \
+    && !defined(CONFIG_PMAC) && !defined(__sparc__)
 	outb_p(0xc, 0x3f2);
 #endif
 #endif

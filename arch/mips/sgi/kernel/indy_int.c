@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_int.c,v 1.2 1997/07/01 09:00:58 ralf Exp $
+ * $Id: indy_int.c,v 1.3 1997/08/26 04:34:55 miguel Exp $
  */
 #include <linux/config.h>
 
@@ -260,13 +260,6 @@ int get_irq_list(char *buf)
 
 atomic_t __mips_bh_counter;
 
-#ifdef __SMP__
-#error Send superfluous SMP boxes to ralf@uni-koblenz.de
-#else
-#define irq_enter(cpu, irq)     (++local_irq_count[cpu])
-#define irq_exit(cpu, irq)      (--local_irq_count[cpu])
-#endif
-
 /*
  * do_IRQ handles IRQ's that have been installed without the
  * SA_INTERRUPT flag: it uses the full signal-handling return
@@ -434,7 +427,7 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 	struct irqaction *action;
 	unsigned char mask = ioc_icontrol->istat0;
 	unsigned char mask2 = 0;
-	int irq;
+	int irq, cpu = smp_processor_id();;
 
 	mask &= ioc_icontrol->imask0;
 	if(mask & ISTAT0_LIO2) {
@@ -446,13 +439,11 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 		irq = lc0msk_to_irqnr[mask];
 		action = local_irq_action[irq];
 	}
-#if 0
-	printk("local0_dispatch: got irq %d mask %2x mask2 %2x\n",
-	       irq, mask, mask2);
-	prom_getchar();
-#endif
+
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq + 16]++;
 	action->handler(irq, action->dev_id, regs);
+	irq_exit(cpu, irq);
 }
 
 void indy_local1_irqdispatch(struct pt_regs *regs)
@@ -460,7 +451,7 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	struct irqaction *action;
 	unsigned char mask = ioc_icontrol->istat1;
 	unsigned char mask2 = 0;
-	int irq;
+	int irq, cpu = smp_processor_id();;
 
 	mask &= ioc_icontrol->imask1;
 	if(mask & ISTAT1_LIO3) {
@@ -473,23 +464,24 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 		irq = lc1msk_to_irqnr[mask];
 		action = local_irq_action[irq];
 	}
-#if 0
-	printk("local1_dispatch: got irq %d mask %2x mask2 %2x\n",
-	       irq, mask, mask2);
-	prom_getchar();
-#endif
+	irq_enter(cpu, irq);
 	kstat.interrupts[irq + 24]++;
 	action->handler(irq, action->dev_id, regs);
+	irq_exit(cpu, irq);
 }
 
 void indy_buserror_irq(struct pt_regs *regs)
 {
-	kstat.interrupts[6]++;
+	int cpu = smp_processor_id();
+	int irq = 6;
+
+	irq_enter(cpu, irq);
+	kstat.interrupts[irq]++;
 	printk("Got a bus error IRQ, shouldn't happen yet\n");
 	show_regs(regs);
 	printk("Spinning...\n");
-	while(1)
-		;
+	while(1);
+	irq_exit(cpu, irq);
 }
 
 /* Misc. crap just to keep the kernel linking... */

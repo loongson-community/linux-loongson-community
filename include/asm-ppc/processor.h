@@ -1,8 +1,8 @@
 #ifndef __ASM_PPC_PROCESSOR_H
 #define __ASM_PPC_PROCESSOR_H
 
-#include <linux/config.h>
-
+#include <asm/ptrace.h>
+#include <asm/residual.h>
 
 /* Bit encodings for Machine State Register (MSR) */
 #define MSR_POW		(1<<18)		/* Enable Power Management */
@@ -22,11 +22,12 @@
 #define MSR_RI		(1<<1)		/* Recoverable Exception */
 #define MSR_LE		(1<<0)		/* Little-Endian enable */
 
-#define MSR_		MSR_FE0|MSR_FE1|MSR_ME
+#define MSR_		MSR_ME|MSR_FE0|MSR_FE1|MSR_RI
 #define MSR_KERNEL      MSR_|MSR_IR|MSR_DR
-#define MSR_USER	MSR_FE0|MSR_FE1|MSR_ME|MSR_PR|MSR_EE|MSR_IR|MSR_DR
+#define MSR_USER	MSR_KERNEL|MSR_PR|MSR_EE
 
-/* Bit encodings for Hardware Implementation Register (HID0) */
+/* Bit encodings for Hardware Implementation Register (HID0)
+   on PowerPC 603, 604, etc. processors (not 601). */
 #define HID0_EMCP	(1<<31)		/* Enable Machine Check pin */
 #define HID0_EBA	(1<<29)		/* Enable Bus Address Parity */
 #define HID0_EBD	(1<<28)		/* Enable Bus Data Parity */
@@ -46,15 +47,37 @@
 #define HID0_DCI	(1<<10)		/* Data Cache Invalidate */
 #define HID0_SIED	(1<<7)		/* Serial Instruction Execution [Disable] */
 #define HID0_BHTE	(1<<2)		/* Branch History Table Enable */
+
 /* fpscr settings */
 #define FPSCR_FX        (1<<31)
 #define FPSCR_FEX       (1<<30)
 
+#define _MACH_Motorola 1 /* motorola prep */
+#define _MACH_IBM      2 /* ibm prep */
+#define _MACH_Pmac     4 /* pmac or pmac clone (non-chrp) */
+#define _MACH_chrp     8 /* chrp machine */
+
 #ifndef __ASSEMBLY__
+extern int _machine;
+
+/* if we're a prep machine */
+#define is_prep (_machine & (_MACH_Motorola|_MACH_IBM))
 /*
- * PowerPC machine specifics
+ * if we have openfirmware - pmac/chrp have it implicitly
+ * but we have to check residual data to know on prep
  */
-extern inline void start_thread(struct pt_regs *, unsigned long, unsigned long );
+extern __inline__ int have_of(void)
+{
+	if ( (_machine & (_MACH_Pmac|_MACH_chrp)) /*||
+	     ( is_prep && (res.VitalProductData.FirmwareSupplier & OpenFirmware))*/)
+		return 1; 
+	else 
+		return 0;
+}
+
+struct task_struct;
+void start_thread(struct pt_regs *regs, unsigned long nip, unsigned long sp);
+void release_thread(struct task_struct *);
 
 /*
  * Bus types
@@ -65,54 +88,38 @@ extern inline void start_thread(struct pt_regs *, unsigned long, unsigned long )
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
 /*
- * Write Protection works right in supervisor mode on the PowerPC
+ * this is the minimum allowable io space due to the location
+ * of the io areas on prep (first one at 0x80000000) but
+ * as soon as I get around to remapping the io areas with the BATs
+ * to match the mac we can raise this. -- Cort
  */
-#define wp_works_ok 1
-#define wp_works_ok__is_a_macro /* for versions in ksyms.c */
-
 #define TASK_SIZE	(0x80000000UL)
+
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
-struct thread_struct 
-{
+#define TASK_UNMAPPED_BASE     (TASK_SIZE / 8 * 3)
+
+struct thread_struct {
 	unsigned long	ksp;		/* Kernel stack pointer */
-	unsigned long	*pg_tables;	/* MMU information */
-#ifdef CONFIG_PMAC
-	unsigned long	last_pc;	/* PC when last entered system */
-	unsigned long	user_stack;	/* [User] Stack when entered kernel */
-#endif  
-	unsigned long	fpscr_pad;	/* (so we can save fpscr with stfd) */
-	unsigned long   fpscr;		/* fp status reg */
-	double       	fpr[32];	/* Complete floating point set */
-	unsigned long   fp_used;
 	unsigned long	wchan;		/* Event task is sleeping on */
-	struct pt_regs  *regs;		/* Pointer to saved register state */
+	struct pt_regs	*regs;		/* Pointer to saved register state */
 	unsigned long   fs;		/* for get_fs() validation */
 	signed long     last_syscall;
-	unsigned long   pad[2];	/* pad to 16-byte boundry */
+	double		fpr[32];	/* Complete floating point set */
+	unsigned long	fpscr_pad;	/* fpr ... fpscr must be contiguous */
+	unsigned long	fpscr;		/* Floating point status */
 };
 
-/* Points to the thread_struct of the thread (if any) which
-   currently owns the FPU. */
-#define fpu_tss (&(last_task_used_math->tss))
-
-#ifdef CONFIG_PMAC
-#define LAZY_TSS_FPR_INIT 0,0,0,0,{0},
-#endif
-#ifdef CONFIG_PREP
-#define LAZY_TSS_FPR_INIT 0,0,{0},
-#endif
+#define INIT_SP		(sizeof(init_stack) + (unsigned long) &init_stack)
 
 #define INIT_TSS  { \
-	sizeof(init_stack) + (long) &init_stack, /* ksp */ \
-	(long *)swapper_pg_dir, /* pg_tables */ \
-	LAZY_TSS_FPR_INIT \
-	0, /*fp_used*/ 0, /*wchan*/ \
-	sizeof(init_stack) + (long)&init_stack - \
-		sizeof(struct pt_regs), /* regs */ \
-	KERNEL_DS /*fs*/, 0 /*last_syscall*/ \
+	INIT_SP, /* ksp */ \
+	0, /* wchan */ \
+	(struct pt_regs *)INIT_SP - 1, /* regs */ \
+	KERNEL_DS, /*fs*/ \
+	0, /* last_syscall */ \
+	{0}, 0, 0 \
 }
 
 #define INIT_MMAP { &init_mm, KERNELBASE/*0*/, 0xffffffff/*0x40000000*/, \
@@ -124,14 +131,7 @@ struct thread_struct
 static inline unsigned long thread_saved_pc(struct thread_struct *t)
 {
 	return (t->regs) ? t->regs->nip : 0;
-	/*return (t->last_pc);*/
 }
-
-extern int _machine;
-#define _MACH_Motorola 0
-#define _MACH_IBM      1
-#define _MACH_Be       2
-#define _MACH_Pmac     3
 
 /*
  * NOTE! The task struct and the stack go together
@@ -145,11 +145,12 @@ int ll_printk(const char *, ...);
 void ll_puts(const char *);
 
 #endif /* ndef ASSEMBLY*/
- * Return_address is a replacement for __builtin_return_address(count)
+
 #define init_task	(init_task_union.task)
 #define init_stack	(init_task_union.stack)
-  
-#endif /* __ASM_PPC_PROCESSOR_H */
+ 
+/*
+ * Return_address is a replacement for __builtin_return_address(count)
  * which on certain architectures cannot reasonably be implemented in GCC
  * (MIPS, Alpha) or is unuseable with -fomit-frame-pointer (i386).
  * Note that __builtin_return_address(x>=1) is forbidden because the GCC
@@ -158,5 +159,4 @@ void ll_puts(const char *);
  */
 #define return_address() __builtin_return_address(0)
 
-#endif
-
+#endif /* __ASM_PPC_PROCESSOR_H */

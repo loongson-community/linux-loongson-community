@@ -1,4 +1,4 @@
-/* $Id: VIScsum.S,v 1.1 1997/07/18 06:26:49 ralf Exp $
+/* $Id: VIScsum.S,v 1.2 1997/08/08 08:34:05 jj Exp $
  * VIScsum.S: High bandwidth IP checksumming utilizing the UltraSparc
  *            Visual Instruction Set.
  *
@@ -345,11 +345,19 @@ csum_partial:
 20:	andcc		%o1, 0xf0, %g1		/*  IEU1	Group			*/
 	be,pn		%icc, 23f		/*  CTI					*/
 	 and		%o1, 0xf, %o3		/*  IEU0				*/
-22:	rd		%pc, %g7		/*  LSU		Group			*/
+#ifdef __KERNEL__
+22:	sll		%g1, 1, %o4		/*  IEU0	Group			*/
+	sethi		%hi(23f), %g7		/*  IEU1				*/
+	sub		%g7, %o4, %g7		/*  IEU0	Group			*/
+	jmpl		%g7 + %lo(23f), %g0	/*  CTI		Group brk forced	*/
+	 add		%o0, %g1, %o0		/*  IEU0				*/
+#else
+22:	rd		%pc, %g7		/*  LSU		Group+4bubbles		*/
 	sll		%g1, 1, %o4		/*  IEU0	Group			*/
 	sub		%g7, %o4, %g7		/*  IEU0	Group (regdep)		*/
 	jmpl		%g7 + (23f - 22b), %g0	/*  CTI		Group brk forced	*/
-	add		%o0, %g1, %o0		/*  IEU0				*/
+	 add		%o0, %g1, %o0		/*  IEU0				*/
+#endif
 	CSUM_LASTCHUNK(0xe0)
 	CSUM_LASTCHUNK(0xd0)
 	CSUM_LASTCHUNK(0xc0)

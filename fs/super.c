@@ -550,26 +550,36 @@ void put_unnamed_dev(kdev_t dev)
 			kdevname(dev));
 }
 
-static void d_umount(struct dentry *dentry)
+static int d_umount(struct super_block * sb)
 {
-	struct dentry * covers = dentry->d_covers;
+	struct dentry * root = sb->s_root;
+	struct dentry * covered = root->d_covers;
 
-	if (covers != dentry) {
-		covers->d_mounts = covers;
-		dentry->d_covers = dentry;
-		dput(covers);
-		dput(dentry);
+	if (root->d_count != 1)
+		return -EBUSY;
+
+	if (root->d_inode->i_state)
+		return -EBUSY;
+
+	sb->s_root = NULL;
+
+	if (covered != root) {
+		root->d_covers = root;
+		covered->d_mounts = covered;
+		dput(covered);
 	}
+	dput(root);
+	return 0;
 }
 
-static void d_mount(struct dentry *covers, struct dentry *dentry)
+static void d_mount(struct dentry *covered, struct dentry *dentry)
 {
-	if (covers->d_mounts != covers) {
+	if (covered->d_mounts != covered) {
 		printk("VFS: mount - already mounted\n");
 		return;
 	}
-	covers->d_mounts = dentry;
-	dentry->d_covers = covers;
+	covered->d_mounts = dentry;
+	dentry->d_covers = covered;
 }
 
 static int do_umount(kdev_t dev,int unmount_root)
@@ -599,8 +609,7 @@ static int do_umount(kdev_t dev,int unmount_root)
 			quota_off(dev, -1);
 			fsync_dev(dev);
 			retval = do_remount_sb(sb, MS_RDONLY, 0);
-			if (retval)
-				return retval;
+			return retval;
 		}
 		return 0;
 	}
@@ -611,15 +620,25 @@ static int do_umount(kdev_t dev,int unmount_root)
 	 * too bad there are no quotas running anymore. Turn them on again by hand.
 	 */
 	quota_off(dev, -1);
-	if (!fs_may_umount(sb, sb->s_root))
-		return -EBUSY;
 
-	/* clean up dcache .. */
-	d_umount(sb->s_root);
-	sb->s_root = NULL;
+	/*
+	 * Shrink dcache, then fsync. This guarantees that if the
+	 * filesystem is quiescent at this point, then (a) only the
+	 * root entry should be in use and (b) that root entry is
+	 * clean.
+	 */
+	shrink_dcache();
+	fsync_dev(dev);
+
+	retval = d_umount(sb);
+	if (retval)
+		return retval;
 
 	/* Forget any inodes */
-	invalidate_inodes(dev);
+	if (invalidate_inodes(sb)) {
+		printk("VFS: Busy inodes after unmount. "
+			"Self-destruct in 5 seconds. Bye-bye..\n");
+	}
 
 	if (sb->s_op) {
 		if (sb->s_op->write_super && sb->s_dirt)
@@ -636,9 +655,14 @@ static int umount_dev(kdev_t dev)
 	int retval;
 	struct inode * inode = get_empty_inode();
 
+	retval = -ENOMEM;
+	if (!inode)
+		goto out;
+
 	inode->i_rdev = dev;
+	retval = -ENXIO;
 	if (MAJOR(dev) >= MAX_BLKDEV)
-		return -ENXIO;
+		goto out_iput;
 
 	fsync_dev(dev);
 	retval = do_umount(dev,0);
@@ -649,7 +673,9 @@ static int umount_dev(kdev_t dev)
 			put_unnamed_dev(dev);
 		}
 	}
+out_iput:
 	iput(inode);
+out:
 	return retval;
 }
 
@@ -701,6 +727,19 @@ asmlinkage int sys_umount(char * name)
 }
 
 /*
+ * Check whether we can mount the specified device.
+ */
+int fs_may_mount(kdev_t dev)
+{
+	struct super_block * sb = get_super(dev);
+	int busy;
+
+	busy = sb && sb->s_root &&
+	       (sb->s_root->d_count != 1 || sb->s_root->d_covers != sb->s_root);
+	return !busy;
+}
+
+/*
  * do_mount() does the actual mounting after sys_mount has done the ugly
  * parameter parsing. When enough time has gone by, and everything uses the
  * new mount() parameters, sys_mount() can then be cleaned up.
@@ -728,43 +767,56 @@ int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const cha
 	struct vfsmount *vfsmnt;
 	int error;
 
+	error = -EACCES;
 	if (!(flags & MS_RDONLY) && dev && is_read_only(dev))
-		return -EACCES;
+		goto out;
 		/*flags |= MS_RDONLY;*/
 
 	dir_d = namei(dir_name);
 	error = PTR_ERR(dir_d);
 	if (IS_ERR(dir_d))
-		return error;
+		goto out;
 
-	if (dir_d->d_covers != dir_d) {
-		dput(dir_d);
-		return -EBUSY;
+	error = -ENOTDIR;
+	if (!S_ISDIR(dir_d->d_inode->i_mode))
+		goto dput_and_out;
+
+	error = -EBUSY;
+	if (dir_d->d_covers != dir_d)
+		goto dput_and_out;
+
+	/*
+	 * Check whether to read the super block
+	 */
+	sb = get_super(dev);
+	if (!sb || !sb->s_root) {
+		error = -EINVAL;
+		sb = read_super(dev,type,flags,data,0);
+		if (!sb)
+			goto dput_and_out;
 	}
-	if (!S_ISDIR(dir_d->d_inode->i_mode)) {
-		dput(dir_d);
-		return -ENOTDIR;
-	}
-	if (!fs_may_mount(dev)) {
-		dput(dir_d);
-		return -EBUSY;
-	}
-	sb = read_super(dev,type,flags,data,0);
-	if (!sb) {
-		dput(dir_d);
-		return -EINVAL;
-	}
-	if (sb->s_root->d_covers != sb->s_root) {
-		dput(dir_d);
-		return -EBUSY;
-	}
+
+	/*
+	 * We may have slept while reading the super block, 
+	 * so we check afterwards whether it's safe to mount.
+	 */
+	error = -EBUSY;
+	if (!fs_may_mount(dev))
+		goto dput_and_out;
+
+	error = -ENOMEM;
 	vfsmnt = add_vfsmnt(dev, dev_name, dir_name);
 	if (vfsmnt) {
 		vfsmnt->mnt_sb = sb;
 		vfsmnt->mnt_flags = flags;
+		d_mount(dir_d, sb->s_root);
+		return 0;		/* we don't dput(dir) - see umount */
 	}
-	d_mount(dir_d, sb->s_root);
-	return 0;		/* we don't dput(dir) - see umount */
+
+dput_and_out:
+	dput(dir_d);
+out:
+	return error;	
 }
 
 
@@ -786,14 +838,12 @@ static int do_remount_sb(struct super_block *sb, int flags, char *data)
 	if ((flags & MS_RDONLY) && !(sb->s_flags & MS_RDONLY))
 		if (!fs_may_remount_ro(sb))
 			return -EBUSY;
-	sb->s_flags = (flags & ~MS_RDONLY) | (sb->s_flags & MS_RDONLY);
 	if (sb->s_op && sb->s_op->remount_fs) {
 		retval = sb->s_op->remount_fs(sb, &flags, data);
 		if (retval)
 			return retval;
 	}
-	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) |
-		(flags & MS_RMT_MASK);
+	sb->s_flags = (sb->s_flags & ~MS_RMT_MASK) | (flags & MS_RMT_MASK);
 	vfsmnt = lookup_vfsmnt(sb->s_dev);
 	if (vfsmnt)
 		vfsmnt->mnt_flags = sb->s_flags;
@@ -1067,7 +1117,16 @@ __initfunc(static void do_mount_root(void))
 
 __initfunc(void mount_root(void))
 {
+	struct super_block * sb = super_blocks;
+	int i;
+
 	memset(super_blocks, 0, sizeof(super_blocks));
+	/*
+	 * Initialize the dirty inode list headers for the super blocks
+	 */
+	for (i = NR_SUPER ; i-- ; sb++)
+		INIT_LIST_HEAD(&sb->s_dirty);
+
 	do_mount_root();
 }
 
@@ -1092,6 +1151,15 @@ __initfunc(static int do_change_root(kdev_t new_root_dev,const char *put_old))
 	}
 	ROOT_DEV = new_root_dev;
 	do_mount_root();
+	dput(old_root);
+	dput(old_pwd);
+#if 1
+	shrink_dcache();
+	printk("do_change_root: old root has d_count=%d\n", old_root->d_count);
+#endif
+	/*
+	 * Get the new mount directory
+	 */
 	dir_d = lookup_dentry(put_old, NULL, 1);
 	if (IS_ERR(dir_d)) {
 		error = PTR_ERR(dir_d);
@@ -1109,31 +1177,29 @@ __initfunc(static int do_change_root(kdev_t new_root_dev,const char *put_old))
 		dput(dir_d);
 		error = -ENOTDIR;
 	}
-	dput(old_root);
-	dput(old_pwd);
 	if (error) {
 		int umount_error;
 
 		printk(KERN_NOTICE "Trying to unmount old root ... ");
 		umount_error = do_umount(old_root_dev,1);
-		if (umount_error) printk(KERN_ERR "error %d\n",umount_error);
-		else {
+		if (!umount_error) {
 			printk("okay\n");
 			invalidate_buffers(old_root_dev);
+			return 0;
 		}
-		return umount_error ? error : 0;
+		printk(KERN_ERR "error %d\n",umount_error);
+		return error;
 	}
 	remove_vfsmnt(old_root_dev);
 	vfsmnt = add_vfsmnt(old_root_dev,"/dev/root.old",put_old);
-	if (!vfsmnt) printk(KERN_CRIT "Trouble: add_vfsmnt failed\n");
-	else {
+	if (vfsmnt) {
 		vfsmnt->mnt_sb = old_root->d_inode->i_sb;
-		d_mount(dir_d,vfsmnt->mnt_sb->s_root);
 		vfsmnt->mnt_flags = vfsmnt->mnt_sb->s_flags;
+		d_mount(dir_d,old_root);
+		return 0;
 	}
-	d_umount(old_root);
-	d_mount(dir_d,old_root);
-	return 0;
+	printk(KERN_CRIT "Trouble: add_vfsmnt failed\n");
+	return -ENOMEM;
 }
 
 int change_root(kdev_t new_root_dev,const char *put_old)

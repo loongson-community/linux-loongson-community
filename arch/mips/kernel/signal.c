@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.3 1997/06/25 20:08:49 ralf Exp $
+ * $Id: signal.c,v 1.4 1997/08/06 19:15:07 miguel Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -42,7 +42,7 @@ asmlinkage int sys_sigsuspend(struct pt_regs *regs)
 	unsigned long mask;
 	sigset_t *uset, set;
 
-	uset = (sigset_t *)(long) regs->regs[4];
+	uset = (sigset_t *) regs->regs[4];
 	if (get_user(set, uset))
 		return -EFAULT;
 
@@ -391,4 +391,14 @@ asmlinkage int do_signal(unsigned long oldmask, struct pt_regs * regs)
 asmlinkage unsigned long sys_signal(int signum, __sighandler_t handler)
 {
 	return -ENOSYS;
+}
+
+/*
+ * Compatibility syscall.  Can be replaced in libc.
+ */
+asmlinkage int sys_pause(void)
+{
+	current->state = TASK_INTERRUPTIBLE;
+	schedule();
+	return -ERESTARTNOHAND;
 }

@@ -6,7 +6,7 @@
  * Laboratory for Computer Science Research Computing Facility
  * Rutgers, The State University of New Jersey
  *
- * $Id: ufs_dir.c,v 1.10 1997/06/05 01:29:06 davem Exp $
+ * $Id: ufs_dir.c,v 1.2 1997/06/17 13:27:28 ralf Exp $
  *
  */
 
@@ -17,9 +17,9 @@
  * This is blatantly stolen from ext2fs
  */
 static int
-ufs_readdir (struct inode * inode, struct file * filp, void * dirent,
-	     filldir_t filldir)
+ufs_readdir (struct file * filp, void * dirent, filldir_t filldir)
 {
+	struct inode *inode = filp->f_dentry->d_inode;
 	int error = 0;
 	unsigned long offset, lblk, blk;
 	int i, stored;

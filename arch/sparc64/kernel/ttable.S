@@ -1,4 +1,4 @@
-/* $Id: ttable.S,v 1.18 1997/07/05 09:52:41 davem Exp $
+/* $Id: ttable.S,v 1.20 1997/08/29 15:51:39 jj Exp $
  * ttable.S: Sparc V9 Trap Table(s) with SpitFire extensions.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -44,7 +44,8 @@ tl0_irq5:	TRAP_IRQ(handler_irq, 5)  TRAP_IRQ(handler_irq, 6)
 tl0_irq7:	TRAP_IRQ(handler_irq, 7)  TRAP_IRQ(handler_irq, 8)
 tl0_irq9:	TRAP_IRQ(handler_irq, 9)  TRAP_IRQ(handler_irq, 10)
 tl0_irq11:	TRAP_IRQ(handler_irq, 11) TRAP_IRQ(handler_irq, 12)
-tl0_irq13:	TRAP_IRQ(handler_irq, 13) TRAP_IRQ(handler_irq, 14)
+tl0_irq13:	TRAP_IRQ(handler_irq, 13)
+tl0_itick:	TRAP_TICK
 tl0_irq15:	TRAP_IRQ(handler_irq, 15)
 tl0_resv050:	BTRAP(0x50) BTRAP(0x51) BTRAP(0x52) BTRAP(0x53) BTRAP(0x54) BTRAP(0x55)
 tl0_resv056:	BTRAP(0x56) BTRAP(0x57) BTRAP(0x58) BTRAP(0x59) BTRAP(0x5a) BTRAP(0x5b)
@@ -99,6 +100,7 @@ tl0_bkpt:	BREAKPOINT_TRAP
 tl0_resv102:	BTRAP(0x102)
 tl0_flushw:	FLUSH_WINDOW_TRAP
 tl0_resv104:	BTRAP(0x104) BTRAP(0x105) BTRAP(0x106) BTRAP(0x107)
+		.globl tl0_solaris
 tl0_solaris:	SOLARIS_SYSCALL_TRAP
 tl0_netbsd:	NETBSD_SYSCALL_TRAP
 tl0_resv10a:	BTRAP(0x10a) BTRAP(0x10b) BTRAP(0x10c) BTRAP(0x10d) BTRAP(0x10e)

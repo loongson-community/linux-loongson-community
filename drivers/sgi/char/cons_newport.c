@@ -1,7 +1,9 @@
-/* $Id: cons_newport.c,v 1.3 1997/08/26 04:35:53 miguel Exp $
+/*
  * cons_newport.c: Newport graphics console code for the SGI.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id:$
  */
 
 #include <linux/kernel.h>
@@ -255,7 +257,7 @@ newport_hide_cursor(void)
 
 	if(vt_cons[fg_console]->vc_mode == KD_GRAPHICS)
 		return;
-	save_flags(flags); cli();
+	save_and_cli(flags);
 
 	idx = cursor_pos;
 	if(idx == -1) {
@@ -282,7 +284,7 @@ newport_set_cursor(int currcons)
 	if (__real_origin != __origin)
 		__set_origin(__real_origin);
 
-	save_flags(flags); cli();
+	save_and_cli(flags);
 
 	idx = (pos - video_mem_base) >> 1;
 	sp = (unsigned short *) pos;

@@ -6,6 +6,8 @@
  * for more details.
  *
  * Copyright (C) 1995
+ *
+ * $Id:$
  */
 #ifndef __ASM_MIPS_FLOPPY_H
 #define __ASM_MIPS_FLOPPY_H
@@ -94,6 +96,8 @@ static int FDC2=-1;
 
 #define N_FDC 1			/* do you *really* want a second controller? */
 #define N_DRIVE 8
+
+#define FLOPPY_MOTOR_MASK 0xf0
 
 /*
  * The DMA channel used by the floppy controller cannot access data at

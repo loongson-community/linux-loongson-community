@@ -95,6 +95,13 @@ M:	phil@tazenda.demon.co.uk
 L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
+NI5010 NETWORK DRIVER
+P:     Jan-Pascal van Best and Andreas Mohr
+M:     jvbest@qv3pluto.leidenuniv.nl (Best)
+M:     100.30936@germany.net (Mohr)
+L:     linux-net@vger.rutgers.edu
+S:     Maintained
+
 TLAN NETWORK DRIVER
 P:	James Banks
 M:	james.banks@caldera.com
@@ -131,9 +138,9 @@ L:	linux-net@vger.rutgers.edu
 S:	Maintained
 
 APPLETALK NETWORK LAYER
-P:	Alan Cox & University Of Michigan
-M:	net-patches@lxorguk.ukuu.org.uk
-L:	netatalk@umich.edu
+P:	Jay Schulist
+M:	Jay.Schulist@spacs.k12.wi.us
+L:	linux-atalk@netspace.org
 S:	Maintained
 
 DECnet NETWORK LAYER
@@ -259,9 +266,8 @@ L:	linux-m68k@phil.uni-sb.de
 S:	Maintained
 
 MODULE SUPPORT [GENERAL], KERNELD
-P:	Bjorn Ekwall
-M:	bj0rn@blox.se
-W:	http://www.pi.se/blox/modules/
+P:	Richard Henderson
+M:	richard@gnu.ai.mit.edu
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
@@ -443,7 +449,7 @@ PARALLEL PORT SHARING SUPPORT
 P:	Phil Blundell
 M:	Philip.Blundell@pobox.com
 P:	Tim Waugh
-M:	tmw20@cyberelk.demon.co.uk
+M:	tim@cyberelk.demon.co.uk
 P:	David Campbell
 M:	campbell@tirian.che.curtin.edu.au
 L:	linux-parport@torque.net

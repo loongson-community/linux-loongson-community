@@ -12,8 +12,6 @@
  * to mainly kill the offending process (probably by giving it a signal,
  * but possibly by killing it outright if necessary).
  *
- * FIXME: This is the place for a fpu emulator.
- *
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  */
 #include <linux/config.h>
@@ -228,8 +226,34 @@ out:
 	unlock_kernel();
 }
 
+#ifdef CONFIG_MIPS_FPE_MODULE
+static void (*fpe_handler)(struct pt_regs *regs, unsigned int fcr31);
+
+/*
+ * Register_fpe/unregister_fpe are for debugging purposes only.  To make
+ * this hack work a bit better there is no error checking.
+ */
+int register_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
+{
+	fpe_handler = handler;
+	return 0;
+}
+
+int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
+{
+	fpe_handler = NULL;
+	return 0;
+}
+#endif
+
 void do_fpe(struct pt_regs *regs, unsigned int fcr31)
 {
+#ifdef CONFIG_MIPS_FPE_MODULE
+	if (fpe_handler != NULL) {
+		fpe_handler(regs, fcr31);
+		return;
+	}
+#endif
 	lock_kernel();
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);

@@ -1,4 +1,4 @@
-/* $Id: l3dss1.c,v 1.15 1997/04/17 11:50:48 keil Exp $
+/* $Id: l3dss1.c,v 1.2 1997/06/03 09:24:34 ralf Exp $
 
  * EURO/DSS1 D-channel protocol
  *
@@ -9,6 +9,9 @@
  *              Fritz Elfert
  *
  * $Log: l3dss1.c,v $
+ * Revision 1.2  1997/06/03 09:24:34  ralf
+ * Sync with Linux 2.1.42.
+ *
  * Revision 1.15  1997/04/17 11:50:48  keil
  * pa->loc was undefined, if it was not send by the exchange
  *
@@ -64,7 +67,7 @@
 #include <linux/ctype.h>
 
 extern char *HiSax_getrev(const char *revision);
-const char *dss1_revision = "$Revision: 1.15 $";
+const char *dss1_revision = "$Revision: 1.2 $";
 
 #define	MsgHead(ptr, cref, mty) \
 	*ptr++ = 0x8; \
@@ -721,7 +724,7 @@ dss1up(struct PStack *st, int pr, void *arg)
 
 	if (skb->data[0] != PROTO_DIS_EURO) {
 		if (st->l3.debug & L3_DEB_PROTERR) {
-			sprintf(tmp, "dss1up%sunexpected discriminator %x message len %ld state %d",
+			sprintf(tmp, "dss1up%sunexpected discriminator %x message len %d state %d",
 				(pr == DL_DATA) ? " " : "(broadcast) ",
 				skb->data[0], skb->len, st->l3.state);
 			l3_debug(st, tmp);

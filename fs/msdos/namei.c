@@ -63,24 +63,6 @@ struct super_operations msdos_sops = {
 	NULL
 };
 
-struct super_block *msdos_read_super(struct super_block *sb,void *data, int silent)
-{
-	struct super_block *res;
-
-	MOD_INC_USE_COUNT;
-
-	sb->s_op = &msdos_sops;
-	res =  fat_read_super(sb, data, silent);
-	if (res == NULL)
-		MOD_DEC_USE_COUNT;
-
-	return res;
-}
-
-
-
-
-
 /***** Formats an MS-DOS file name. Rejects invalid names. */
 static int msdos_format_name(char conv,const char *name,int len,
 	char *res,int dot_dirs,char dotsOK)
@@ -190,6 +172,76 @@ static int msdos_find(struct inode *dir,const char *name,int len,
 	return fat_scan(dir,msdos_name,bh,de,ino,scantype);
 }
 
+
+static int msdos_hash(struct dentry *dentry, struct qstr *qstr)
+{
+	unsigned long hash;
+	char msdos_name[MSDOS_NAME];
+	int error;
+	int i;
+	struct fat_mount_options *options = 
+		& (MSDOS_SB(dentry->d_inode->i_sb)->options);
+	
+	error = msdos_format_name(options->name_check,
+				  qstr->name, qstr->len, msdos_name,1,
+				  options->dotsOK);
+	if(error)
+		return error;
+	hash = init_name_hash();
+	for(i=0; i< MSDOS_NAME; i++)
+		hash = partial_name_hash(msdos_name[i], hash);
+	qstr->hash = end_name_hash(hash);
+	return 0;
+}
+
+
+static int msdos_cmp(struct dentry *dentry,       
+		     struct qstr *a, struct qstr *b)
+{
+	char a_msdos_name[MSDOS_NAME],b_msdos_name[MSDOS_NAME];
+	int error;
+	struct fat_mount_options *options = 
+		& (MSDOS_SB(dentry->d_inode->i_sb)->options);
+
+	error = msdos_format_name(options->name_check,
+				  a->name, a->len, a_msdos_name,1,
+				  options->dotsOK);
+	if(error)
+		return error;
+	error = msdos_format_name(options->name_check,
+				  b->name, b->len, b_msdos_name,1,
+				  options->dotsOK);
+	if(error)
+		return error;
+
+	return memcmp(a_msdos_name, b_msdos_name, MSDOS_NAME);
+}
+
+
+static struct dentry_operations msdos_dentry_operations = {
+	0, 		/* d_revalidate */
+	msdos_hash,
+	msdos_cmp
+};
+
+struct super_block *msdos_read_super(struct super_block *sb,void *data, int silent)
+{
+	struct super_block *res;
+
+	MOD_INC_USE_COUNT;
+
+	sb->s_op = &msdos_sops;
+	res =  fat_read_super(sb, data, silent);
+	if (res == NULL) {
+		sb->s_dev = 0;
+		MOD_DEC_USE_COUNT;
+		return NULL;
+	}
+	sb->s_root->d_op = &msdos_dentry_operations;
+	return res;
+}
+
+
 /***** Get inode using directory and name */
 int msdos_lookup(struct inode *dir,struct dentry *dentry)
 {
@@ -201,9 +253,19 @@ int msdos_lookup(struct inode *dir,struct dentry *dentry)
 	
 	PRINTK (("msdos_lookup\n"));
 
-	if ((res = msdos_find(dir,dentry->d_name.name,dentry->d_name.len,&bh,&de,&ino)) < 0) {
+	dentry->d_op = &msdos_dentry_operations;
+
+	if(!dir) {
 		d_add(dentry, NULL);
 		return 0;
+	}
+
+	if ((res = msdos_find(dir,dentry->d_name.name,dentry->d_name.len,&bh,&de,&ino)) < 0) {
+		if(res == -ENOENT) {
+			d_add(dentry, NULL);
+			res = 0;
+		}
+		return res;
 	}
 	PRINTK (("msdos_lookup 4\n"));
 	if (bh)
@@ -229,6 +291,7 @@ int msdos_lookup(struct inode *dir,struct dentry *dentry)
 		iput(inode);
 		if (!(inode = iget(next->i_sb,next->i_ino))) {
 			fat_fs_panic(dir->i_sb,"msdos_lookup: Can't happen");
+			d_add(dentry, NULL);
 			return -ENOENT;
 		}
 	}
@@ -247,6 +310,9 @@ static int msdos_create_entry(struct inode *dir, const char *name,
 	struct buffer_head *bh;
 	struct msdos_dir_entry *de;
 	int res,ino;
+
+	if(!dir)
+		return -ENOENT;
 
 	*result = NULL;
 	if ((res = fat_scan(dir,NULL,&bh,&de,&ino,SCAN_ANY)) < 0) {
@@ -555,8 +621,7 @@ static int rename_same_dir(struct inode *old_dir,char *old_name,
 	}
 	memcpy(old_de->name,new_name,MSDOS_NAME);
 	/* Update the dcache */
-	d_move(old_dentry, new_dentry->d_parent, &new_dentry->d_name);
-	d_delete(new_dentry);
+	d_move(old_dentry, new_dentry);
 set_hid:
 	old_de->attr = is_hid
 		? (old_de->attr | ATTR_HIDDEN)
@@ -583,7 +648,7 @@ static int rename_diff_dir(struct inode *old_dir,char *old_name,
 	struct inode *old_inode,*new_inode,*free_inode,*dotdot_inode;
 	struct dentry *walk;
 	int new_ino,free_ino,dotdot_ino;
-	int error,exists,ino;
+	int error,exists;
 
 	if (old_dir->i_dev != new_dir->i_dev) return -EINVAL;
 	if (old_ino == new_dir->i_ino) return -EINVAL;
@@ -684,8 +749,7 @@ static int rename_diff_dir(struct inode *old_dir,char *old_name,
 		fat_brelse(sb, dotdot_bh);
 	}
 	/* Update the dcache */
-	d_move(old_dentry, new_dentry->d_parent, &new_dentry->d_name);
-	d_delete(new_dentry);
+	d_move(old_dentry, new_dentry);
 	error = 0;
 rename_done:
 	fat_brelse(sb, free_bh);
@@ -750,7 +814,10 @@ struct inode_operations msdos_dir_inode_operations = {
 	NULL,			/* writepage */
 	fat_bmap,		/* bmap */
 	NULL,			/* truncate */
-	NULL			/* permission */
+	NULL,			/* permission */
+	NULL,                   /* smap */
+	NULL,                   /* updatepage */
+	NULL,                   /* revalidate */
 };
 
 

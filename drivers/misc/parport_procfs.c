@@ -1,5 +1,4 @@
-/* $Id: parport_procfs.c,v 1.1 1997/07/29 03:59:13 ralf Exp $
- * Parallel port /proc interface code.
+/* Parallel port /proc interface code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
  *          Tim Waugh <tmw20@cam.ac.uk>

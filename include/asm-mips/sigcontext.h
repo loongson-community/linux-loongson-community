@@ -7,10 +7,12 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: sigcontext.h,v 1.2 1997/06/25 14:50:02 ralf Exp $
+ * $Id: sigcontext.h,v 1.2 1997/06/25 20:49:07 ralf Exp $
  */
 #ifndef __ASM_MIPS_SIGCONTEXT_H
 #define __ASM_MIPS_SIGCONTEXT_H
+
+#include <linux/posix_types.h>
 
 /*
  * Keep this struct definition in sync with the sigcontext fragment
@@ -32,7 +34,7 @@ struct sigcontext {
 	unsigned int       sc_cause;		/* Unused */
 	unsigned int       sc_badvaddr;		/* Unused */
 
-	sigset_t           sc_sigset;
+	__kernel_sigset_t	sc_sigset;	/* DANGER: kernel vs. libc sigset_t ... */
 	unsigned long      __pad0[3];		/* pad for constant size */
 };
 

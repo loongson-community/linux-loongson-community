@@ -30,21 +30,23 @@
  * Each inode can be on two separate lists. One is
  * the hash list of the inode, used for lookups. The
  * other linked list is the "type" list:
- *  "in_use" - valid inode, hashed
- *  "dirty" - valid inode, hashed, dirty.
+ *  "in_use" - valid inode, hashed if i_nlink > 0
+ *  "dirty"  - valid inode, hashed if i_nlink > 0, dirty.
  *  "unused" - ready to be re-used. Not hashed.
  *
- * The two first versions also have a dirty list, allowing
- * for low-overhead inode sync() operations.
+ * A "dirty" list is maintained for each super block,
+ * allowing for low-overhead inode sync() operations.
  */
 
 static LIST_HEAD(inode_in_use);
-static LIST_HEAD(inode_dirty);
 static LIST_HEAD(inode_unused);
 static struct list_head inode_hashtable[HASH_SIZE];
 
 /*
- * A simple spinlock to protect the list manipulations
+ * A simple spinlock to protect the list manipulations.
+ *
+ * NOTE! You also have to own the lock if you change
+ * the i_state of an inode while it is in use..
  */
 spinlock_t inode_lock = SPIN_LOCK_UNLOCKED;
 
@@ -59,18 +61,34 @@ struct {
 
 int max_inodes = NR_INODE;
 
+/*
+ * Put the inode on the super block's dirty list.
+ *
+ * CAREFUL! We mark it dirty unconditionally, but
+ * move it onto the dirty list only if it is hashed.
+ * If it was not hashed, it will never be added to
+ * the dirty list even if it is later hashed, as it
+ * will have been marked dirty already.
+ *
+ * In short, make sure you hash any inodes _before_
+ * you start marking them dirty..
+ */
 void __mark_inode_dirty(struct inode *inode)
 {
-	spin_lock(&inode_lock);
-	list_del(&inode->i_list);
-	list_add(&inode->i_list, &inode_dirty);
-	spin_unlock(&inode_lock);
-}
+	struct super_block * sb = inode->i_sb;
 
-static inline void unlock_inode(struct inode *inode)
-{
-	clear_bit(I_LOCK, &inode->i_state);
-	wake_up(&inode->i_wait);
+	if (sb) {
+		spin_lock(&inode_lock);
+		if (!(inode->i_state & I_DIRTY)) {
+			inode->i_state |= I_DIRTY;
+			/* Only add valid (ie hashed) inodes to the dirty list */
+			if (!list_empty(&inode->i_hash)) {
+				list_del(&inode->i_list);
+				list_add(&inode->i_list, &sb->s_dirty);
+			}
+		}
+		spin_unlock(&inode_lock);
+	}
 }
 
 static void __wait_on_inode(struct inode * inode)
@@ -80,7 +98,7 @@ static void __wait_on_inode(struct inode * inode)
 	add_wait_queue(&inode->i_wait, &wait);
 repeat:
 	current->state = TASK_UNINTERRUPTIBLE;
-	if (test_bit(I_LOCK, &inode->i_state)) {
+	if (inode->i_state & I_LOCK) {
 		schedule();
 		goto repeat;
 	}
@@ -90,7 +108,7 @@ repeat:
 
 static inline void wait_on_inode(struct inode *inode)
 {
-	if (test_bit(I_LOCK, &inode->i_state))
+	if (inode->i_state & I_LOCK)
 		__wait_on_inode(inode);
 }
 
@@ -103,7 +121,6 @@ static inline void init_once(struct inode * inode)
 {
 	memset(inode, 0, sizeof(*inode));
 	init_waitqueue(&inode->i_wait);
-	INIT_LIST_HEAD(&inode->i_dentry);
 	INIT_LIST_HEAD(&inode->i_hash);
 	sema_init(&inode->i_sem, 1);
 }
@@ -141,42 +158,59 @@ static inline void write_inode(struct inode *inode)
 		inode->i_sb->s_op->write_inode(inode);
 }
 
-static inline void sync_one(struct list_head *head, struct list_head *clean,
-			    struct list_head *placement, struct inode *inode)
+static inline void sync_one(struct inode *inode)
 {
-	list_del(placement);
-	if (test_bit(I_LOCK, &inode->i_state)) {
-		list_add(placement, head);
+	if (inode->i_state & I_LOCK) {
 		spin_unlock(&inode_lock);
 		__wait_on_inode(inode);
+		spin_lock(&inode_lock);
 	} else {
-		list_add(placement, clean);
-		clear_bit(I_DIRTY, &inode->i_state);
-		set_bit(I_LOCK, &inode->i_state);
+		list_del(&inode->i_list);
+		list_add(&inode->i_list, &inode_in_use);
+
+		/* Set I_LOCK, reset I_DIRTY */
+		inode->i_state ^= I_DIRTY | I_LOCK;
 		spin_unlock(&inode_lock);
+
 		write_inode(inode);
-		unlock_inode(inode);
+
+		spin_lock(&inode_lock);
+		inode->i_state &= ~I_LOCK;
+		wake_up(&inode->i_wait);
 	}
-	spin_lock(&inode_lock);
 }
 
-static inline void sync_list(struct list_head *head, struct list_head *clean)
+static inline void sync_list(struct list_head *head)
 {
 	struct list_head * tmp;
 
 	while ((tmp = head->prev) != head)
-		sync_one(head, clean, tmp, list_entry(tmp, struct inode, i_list));
+		sync_one(list_entry(tmp, struct inode, i_list));
 }
 
 /*
- * "sync_inodes()" goes through the dirty list 
- * and writes them out and puts them back on
- * the normal list.
+ * "sync_inodes()" goes through the super block's dirty list, 
+ * writes them out, and puts them back on the normal list.
  */
 void sync_inodes(kdev_t dev)
 {
+	struct super_block * sb = super_blocks + 0;
+	int i;
+
+	/*
+	 * Search the super_blocks array for the device(s) to sync.
+	 */
 	spin_lock(&inode_lock);
-	sync_list(&inode_dirty, &inode_in_use);
+	for (i = NR_SUPER ; i-- ; sb++) {
+		if (!sb->s_dev)
+			continue;
+		if (dev && sb->s_dev != dev)
+			continue;
+
+		sync_list(&sb->s_dirty);
+		if (dev)
+			break;
+	}
 	spin_unlock(&inode_lock);
 }
 
@@ -185,10 +219,16 @@ void sync_inodes(kdev_t dev)
  */
 void write_inode_now(struct inode *inode)
 {
-	spin_lock(&inode_lock);
-	if (test_bit(I_DIRTY, &inode->i_state))
-		sync_one(&inode_dirty, &inode_in_use, &inode->i_list, inode);
-	spin_unlock(&inode_lock);
+	struct super_block * sb = inode->i_sb;
+
+	if (sb) {
+		spin_lock(&inode_lock);
+		if (inode->i_state & I_DIRTY)
+			sync_one(inode);
+		spin_unlock(&inode_lock);
+	}
+	else
+		printk("write_inode_now: no super block\n");
 }
 
 /*
@@ -232,7 +272,10 @@ static void dispose_list(struct list_head * head)
 	spin_unlock(&inode_lock);
 }
 
-static int invalidate_list(struct list_head *head, kdev_t dev, struct list_head * dispose)
+/*
+ * Invalidate all inodes for a device.
+ */
+static int invalidate_list(struct list_head *head, struct super_block * sb, struct list_head * dispose)
 {
 	struct list_head *next;
 	int busy = 0;
@@ -246,9 +289,9 @@ static int invalidate_list(struct list_head *head, kdev_t dev, struct list_head 
 		if (tmp == head)
 			break;
 		inode = list_entry(tmp, struct inode, i_list);
-		if (inode->i_dev != dev)
+		if (inode->i_sb != sb)
 			continue;
-		if (!inode->i_count && !inode->i_state) {
+		if (!inode->i_count) {
 			list_del(&inode->i_hash);
 			INIT_LIST_HEAD(&inode->i_hash);
 			list_del(&inode->i_list);
@@ -267,14 +310,14 @@ static int invalidate_list(struct list_head *head, kdev_t dev, struct list_head 
  * is because we don't want to sleep while messing
  * with the global lists..
  */
-int invalidate_inodes(kdev_t dev)
+int invalidate_inodes(struct super_block * sb)
 {
 	int busy;
 	LIST_HEAD(throw_away);
 
 	spin_lock(&inode_lock);
-	busy = invalidate_list(&inode_in_use, dev, &throw_away);
-	busy |= invalidate_list(&inode_dirty, dev, &throw_away);
+	busy = invalidate_list(&inode_in_use, sb, &throw_away);
+	busy |= invalidate_list(&sb->s_dirty, sb, &throw_away);
 	spin_unlock(&inode_lock);
 
 	dispose_list(&throw_away);
@@ -364,7 +407,6 @@ void clean_inode(struct inode *inode)
 static inline void read_inode(struct inode *inode, struct super_block *sb)
 {
 	sb->s_op->read_inode(inode);
-	unlock_inode(inode);
 }
 
 struct inode * get_empty_inode(void)
@@ -381,6 +423,7 @@ struct inode * get_empty_inode(void)
 		inode = list_entry(tmp, struct inode, i_list);
 add_new_inode:
 		inode->i_sb = NULL;
+		inode->i_dev = 0;
 		inode->i_ino = ++last_ino;
 		inode->i_count = 1;
 		list_add(&inode->i_list, &inode_in_use);
@@ -421,10 +464,24 @@ add_new_inode:
 		inode->i_ino = ino;
 		inode->i_flags = sb->s_flags;
 		inode->i_count = 1;
-		inode->i_state = 1 << I_LOCK;
+		inode->i_state = I_LOCK;
 		spin_unlock(&inode_lock);
+
 		clean_inode(inode);
 		read_inode(inode, sb);
+
+		/*
+		 * This is special!  We do not need the spinlock
+		 * when clearing I_LOCK, because we're guaranteed
+		 * that nobody else tries to do anything about the
+		 * state of the inode when it is locked, as we
+		 * just created it (so there can be no old holders
+		 * that haven't tested I_LOCK).
+		 *
+		 * Verify this some day!
+		 */
+		inode->i_state &= ~I_LOCK;
+
 		return inode;
 	}
 
@@ -533,26 +590,10 @@ void inode_init(void)
 	} while (i);
 }
 
-/*
- * FIXME! These need to go through the in-use inodes to
- * check whether we can mount/umount/remount.
- */
-int fs_may_mount(kdev_t dev)
-{
-	return 1;
-}
-
-int fs_may_umount(struct super_block *sb, struct dentry * root)
-{
-	shrink_dcache();
-	return root->d_count == 1;
-}
-
 /* This belongs in file_table.c, not here... */
 int fs_may_remount_ro(struct super_block *sb)
 {
 	struct file *file;
-	kdev_t dev = sb->s_dev;
 
 	/* Check that no files are currently opened for writing. */
 	for (file = inuse_filps; file; file = file->f_next) {
@@ -560,7 +601,7 @@ int fs_may_remount_ro(struct super_block *sb)
 		if (!file->f_dentry)
 			continue;
 		inode = file->f_dentry->d_inode;
-		if (!inode || inode->i_dev != dev)
+		if (!inode || inode->i_sb != sb)
 			continue;
 		if (S_ISREG(inode->i_mode) && file->f_mode & FMODE_WRITE)
 			return 0;

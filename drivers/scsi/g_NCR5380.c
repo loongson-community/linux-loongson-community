@@ -70,7 +70,10 @@
  */
  
 /*
- * $Log: generic_NCR5380.c,v $
+ * $Log: g_NCR5380.c,v $
+ * Revision 1.3  1997/06/17 13:25:29  ralf
+ * Merge with 2.1.43.
+ *
  */
 
 #define AUTOPROBE_IRQ
@@ -736,4 +739,11 @@ Scsi_Host_Template driver_template = GENERIC_NCR5380;
 
 #include <linux/module.h>
 #include "scsi_module.c"
+
+MODULE_PARM(ncr_irq, "i");
+MODULE_PARM(ncr_dma, "i");
+MODULE_PARM(ncr_addr, "i");
+MODULE_PARM(ncr_5380, "i");
+MODULE_PARM(ncr_53c400, "i");
+
 #endif

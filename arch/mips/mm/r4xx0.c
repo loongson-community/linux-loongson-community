@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.5 1997/07/29 22:54:52 tsbogend Exp $
+ * $Id: r4xx0.c,v 1.6 1997/08/06 19:15:10 miguel Exp $
  */
 #include <linux/config.h>
 
@@ -39,7 +39,16 @@ static scache_size, sc_lsize;        /* Again, in bytes */
 #undef DEBUG_CACHE
 
 /*
- * Zero an entire page.
+ * On processors with QED R4600 style two set assosicative cache
+ * this is the bit which selects the way in the cache for the
+ * indexed cachops.
+ */
+#define waybit 0x2000
+
+/*
+ * Zero an entire page.  We have three flavours of the routine available.
+ * One for CPU with 16byte, with 32byte cachelines plus a special version
+ * with nops which handles the buggy R4600 v1.x.
  */
 
 static void r4k_clear_page_d16(unsigned long page)
@@ -1465,11 +1474,8 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 		 */
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache16_page_indexed(page);
-		blast_dcache16_page_indexed(page ^ 0x2000);
-		if(text) {
+		if(text)
 			blast_icache16_page_indexed(page);
-			blast_icache16_page_indexed(page ^ 0x2000);
-		}
 	}
 out:
 	restore_flags(flags);
@@ -1583,10 +1589,10 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 		 */
 		page = (KSEG0 + (page & (dcache_size - 1)));
 		blast_dcache32_page_indexed(page);
-		blast_dcache32_page_indexed(page ^ 0x2000);
+		blast_dcache32_page_indexed(page ^ waybit);
 		if(text) {
 			blast_icache32_page_indexed(page);
-			blast_icache32_page_indexed(page ^ 0x2000);
+			blast_icache32_page_indexed(page ^ waybit);
 		}
 	}
 out:
@@ -1776,7 +1782,6 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 		unsigned long flags;
 
 #ifdef DEBUG_CACHE
-		/* #if 1 */
 		printk("r4600_cram[%08lx]", page);
 #endif
 		/*
@@ -1786,7 +1791,6 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 
 		save_and_cli(flags);
 		blast_dcache32_page(page);
-		blast_dcache32_page(page ^ 0x2000);
 #ifdef CONFIG_SGI
 		{
 			unsigned long tmp1, tmp2;
@@ -1824,6 +1828,7 @@ static void r4k_flush_page_to_ram_d32i32_r4600(unsigned long page)
 
 static void r4k_flush_cache_sigtramp(unsigned long addr)
 {
+	/* XXX  protect like uaccess.h loads/stores */
 	addr &= ~(dc_lsize - 1);
 	__asm__ __volatile__("nop;nop;nop;nop");
 	flush_dcache_line(addr);
@@ -2534,7 +2539,7 @@ void ld_mmu_r4xx0(void)
 	unsigned long cfg = read_32bit_cp0_register(CP0_CONFIG);
 	int sc_present = 0;
 
-	printk("CPU REVISION IS: %08x\n", read_32bit_cp0_register(CP0_PRID));
+	printk("CPU revision is: %08x\n", read_32bit_cp0_register(CP0_PRID));
 
 	probe_icache(cfg);
 	probe_dcache(cfg);
@@ -2546,7 +2551,6 @@ void ld_mmu_r4xx0(void)
 	case CPU_R4400PC:
 	case CPU_R4400SC:
 	case CPU_R4400MC:
-try_again:
 		probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
 		sc_present = probe_scache_kseg1(cfg);
 		break;
@@ -2554,38 +2558,40 @@ try_again:
 	case CPU_R4600:
 	case CPU_R4640:
 	case CPU_R4700:
-	case CPU_R5000:
+	case CPU_R5000:	/* XXX: We don't handle the true R5000 SCACHE */
+	case CPU_NEVADA:
 		probe_scache_kseg1 = (probe_func_t)
 			(KSEG1ADDR(&probe_scache_eeprom));
 		sc_present = probe_scache_eeprom(cfg);
 
-		/* Try using tags if eeprom give us bogus data. */
-		if(sc_present == -1)
-			goto try_again;
+		/* Try using tags if eeprom gives us bogus data. */
+		if(sc_present == -1) {
+			probe_scache_kseg1 =
+				(probe_func_t) (KSEG1ADDR(&probe_scache));
+			sc_present = probe_scache_kseg1(cfg);
+		}
 		break;
 	};
 
-	if(!sc_present) {
-		/* Lacks secondary cache. */
-		setup_noscache_funcs();
+	if(sc_present == 1
+	   && (mips_cputype == CPU_R4000SC
+               || mips_cputype == CPU_R4000MC
+               || mips_cputype == CPU_R4400SC
+               || mips_cputype == CPU_R4400MC)) {
+		/* Has a true secondary cache. */
+		setup_scache_funcs();
 	} else {
-		/* Has a secondary cache. */
-		if(mips_cputype != CPU_R4600 &&
-		   mips_cputype != CPU_R4640 &&
-		   mips_cputype != CPU_R4700 &&
-		   mips_cputype != CPU_R5000) {
-			setup_scache_funcs();
-		} else {
-			setup_noscache_funcs();
-			if((mips_cputype != CPU_R5000)) {
-				flush_cache_page =
-					r4k_flush_cache_page_d32i32_r4600;
-				flush_page_to_ram =
-					r4k_flush_page_to_ram_d32i32_r4600;
-			}
+		/* Lacks true secondary cache. */
+		setup_noscache_funcs();
+		if((mips_cputype != CPU_R5000)) { /* XXX */
+			flush_cache_page =
+				r4k_flush_cache_page_d32i32_r4600;
+			flush_page_to_ram =
+				r4k_flush_page_to_ram_d32i32_r4600;
 		}
 	}
 
+	/* XXX Handle true second level cache w/ split I/D */
 	flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 
 	flush_tlb_all = r4k_flush_tlb_all;

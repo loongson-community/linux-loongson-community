@@ -31,6 +31,18 @@
 #endif
 
 
+/*
+  FlashPoint support is only available for the Intel x86 Architecture.
+*/
+
+#ifndef __i386__
+
+#undef CONFIG_SCSI_OMIT_FLASHPOINT
+#define CONFIG_SCSI_OMIT_FLASHPOINT
+
+#endif
+
+
 #ifndef CONFIG_SCSI_OMIT_FLASHPOINT
 
 
@@ -175,9 +187,9 @@
  *
  *   Description:  Common shared global defines.
  *
- *   $Date: 1996/09/04 01:26:13 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.11 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 #ifndef __GLOBALS_H__
@@ -414,9 +426,9 @@ extern void     OS_OutPortLong(unsigned long ioport, unsigned long val);
  *   Description:  Common shared SCCB Interface defines and SCCB 
  *						 Manager specifics defines.
  *
- *   $Date: 1996/10/24 23:09:33 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.14 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -732,9 +744,9 @@ typedef struct _SCCB {
  *   Description: This module contains SCCB/UCB Manager implementation
  *                specific stuff.
  *
- *   $Date: 1996/11/13 18:34:22 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.10 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -889,9 +901,9 @@ typedef struct _SCCB {
  *
  *   Description:  Definitions for Target related structures
  *
- *   $Date: 1996/12/11 22:06:20 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.9 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -1088,9 +1100,9 @@ typedef struct SCCBscam_info {
  *
  *   Description:  Register definitions for HARPOON ASIC.
  *
- *   $Date: 1996/11/13 18:32:57 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.4 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -1220,9 +1232,9 @@ typedef struct SCCBscam_info {
  *
  *   Description:  Definitions for EEPROM related structures
  *
- *   $Date: 1996/11/13 18:28:39 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.4 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -1305,9 +1317,9 @@ typedef struct SCCBscam_info {
  *
  *   Description:  Register definitions for HARPOON ASIC.
  *
- *   $Date: 1997/01/31 02:14:28 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.6 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -2327,7 +2339,7 @@ void Debug_Load(UCHAR p_card, UCHAR p_bug_data);
 extern unsigned int SccbGlobalFlags;
 
 
-#ident "$Id: sccb.c 1.17 1997/02/11 21:06:41 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -2341,9 +2353,9 @@ extern unsigned int SccbGlobalFlags;
  *   Description:  Functions relating to handling of the SCCB interface
  *                 between the device driver and the HARPOON.
  *
- *   $Date: 1997/02/11 21:06:41 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.17 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -5335,7 +5347,7 @@ void Debug_Load(UCHAR p_card, UCHAR p_bug_data)
 }
 
 #endif
-#ident "$Id: sccb_dat.c 1.9 1997/01/31 02:12:58 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -5349,9 +5361,9 @@ void Debug_Load(UCHAR p_card, UCHAR p_bug_data)
  *   Description:  Functions relating to handling of the SCCB interface 
  *                 between the device driver and the HARPOON.
  *
- *   $Date: 1997/01/31 02:12:58 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.9 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -5406,7 +5418,7 @@ UCHAR    debug_int[MAX_CARDS][debug_size];
 UCHAR    debug_index[MAX_CARDS];
 UCHAR    reserved_1[3];
 #endif
-#ident "$Id: scsi.c 1.19 1997/01/31 02:08:14 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -5421,9 +5433,9 @@ UCHAR    reserved_1[3];
  *                 selection/reselection, sync negotiation, message-in
  *                 decoding.
  *
- *   $Date: 1997/01/31 02:08:14 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.19 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -7377,7 +7389,7 @@ void sinits(PSCCB p_sccb, UCHAR p_card)
 }
 
 
-#ident "$Id: phase.c 1.11 1997/01/31 02:08:49 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -7392,9 +7404,9 @@ void sinits(PSCCB p_sccb, UCHAR p_card)
  *                 the target asserts request (and the automation is not
  *                 enabled to handle the situation).
  *
- *   $Date: 1997/01/31 02:08:49 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.11 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -8126,7 +8138,7 @@ void phaseBusFree(ULONG port, UCHAR p_card)
 
 
 
-#ident "$Id: automate.c 1.14 1997/01/31 02:11:46 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -8140,9 +8152,9 @@ void phaseBusFree(ULONG port, UCHAR p_card)
  *   Description:  Functions relating to programming the automation of
  *                 the HARPOON.
  *
- *   $Date: 1997/01/31 02:11:46 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.14 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -8518,7 +8530,7 @@ void autoCmdCmplt(ULONG p_port, UCHAR p_card)
 
    queueCmdComplete(&BL_Card[p_card], currSCCB, p_card);
 }
-#ident "$Id: busmstr.c 1.8 1997/01/31 02:10:27 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -8531,9 +8543,9 @@ void autoCmdCmplt(ULONG p_port, UCHAR p_card)
  *
  *   Description:  Functions to start, stop, and abort BusMaster operations.
  *
- *   $Date: 1997/01/31 02:10:27 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.8 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -9210,7 +9222,7 @@ void hostDataXferRestart(PSCCB currSCCB)
       currSCCB->Sccb_XferCnt = currSCCB->DataLength - currSCCB->Sccb_ATC;
       }
 }
-#ident "$Id: scam.c 1.16 1997/01/31 02:11:12 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -9225,9 +9237,9 @@ void hostDataXferRestart(PSCCB currSCCB)
  *                 and the determination of the SCSI IDs to be assigned
  *                 to all perspective SCSI targets.
  *
- *   $Date: 1997/01/31 02:11:12 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.16 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -10350,7 +10362,7 @@ void scsavdi(UCHAR p_card, ULONG p_port)
    utilEEWrite(p_port, sum_data, EEPROM_CHECK_SUM/2);
    utilEEWriteOnOff(p_port,0);   /* Turn off write access */
 }
-#ident "$Id: diagnose.c 1.9 1997/01/31 02:09:48 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -10364,9 +10376,9 @@ void scsavdi(UCHAR p_card, ULONG p_port)
  *   Description:  Diagnostic funtions for testing the integrity of
  *                 the HARPOON.
  *
- *   $Date: 1997/01/31 02:09:48 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.9 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 
@@ -10795,7 +10807,7 @@ void DiagEEPROM(ULONG p_port)
 
 }
 
-#ident "$Id: utility.c 1.22 1997/01/31 02:12:23 mohan Exp $"
+#ident "$Id: FlashPoint.c,v 1.1.1.1 1997/06/01 03:17:39 ralf Exp $"
 /*----------------------------------------------------------------------
  *
  *
@@ -10809,9 +10821,9 @@ void DiagEEPROM(ULONG p_port)
  *   Description:  Utility functions relating to queueing and EEPROM
  *                 manipulation and any other garbage functions.
  *
- *   $Date: 1997/01/31 02:12:23 $
+ *   $Date: 1997/06/01 03:17:39 $
  *
- *   $Revision: 1.22 $
+ *   $Revision: 1.1.1.1 $
  *
  *----------------------------------------------------------------------*/
 /*#include <globals.h>*/

@@ -46,15 +46,34 @@ struct dentry {
 	struct dentry * d_mounts;	/* mount information */
 	struct dentry * d_covers;
 	struct list_head d_hash;	/* lookup hash list */
-	struct list_head d_alias;	/* inode alias list */
 	struct list_head d_lru;		/* d_count = 0 LRU list */
 	struct qstr d_name;
 	unsigned long d_time;		/* used by d_revalidate */
-	int (*d_revalidate)(struct dentry *);
+	struct dentry_operations  *d_op;
 };
+
+struct dentry_operations {
+	int (*d_revalidate)(struct dentry *);
+	int (*d_hash) (struct dentry *,struct qstr *);
+	int (*d_compare) (struct dentry *,struct qstr *, struct qstr *);
+	void (*d_delete)(struct dentry *);
+};
+
+/* the dentry parameter passed to d_hash and d_compare is the parent
+ * directory of the entries to be compared. It is used in case these
+ * functions need any directory specific information for determining
+ * equivalency classes.  Using the dentry itself might not work, as it
+ * might be a negative dentry which has no information associated with
+ * it */
+
+
 
 /* d_flags entries */
 #define DCACHE_AUTOFS_PENDING 0x0001    /* autofs: "under construction" */
+#define DCACHE_NFSFS_RENAMED  0x0002    /* this dentry has been "silly
+					 * renamed" and has to be
+					 * deleted on the last dput()
+					 */
 
 /*
  * d_drop() unhashes the entry from the parent
@@ -81,11 +100,10 @@ static inline void d_drop(struct dentry * dentry)
 extern void d_instantiate(struct dentry *, struct inode *);
 extern void d_delete(struct dentry *);
 
-
 /* allocate/de-allocate */
-extern void d_free(struct dentry *);
 extern struct dentry * d_alloc(struct dentry * parent, const struct qstr *name);
 extern void shrink_dcache(void);
+extern int d_invalidate(struct dentry *);
 
 /* only used at mount-time */
 extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * old_root);
@@ -97,7 +115,7 @@ extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * o
 extern void d_add(struct dentry * entry, struct inode * inode);
 
 /* used for rename() and baskets */
-extern void d_move(struct dentry * entry, struct dentry * newparent, struct qstr * newname);
+extern void d_move(struct dentry * entry, struct dentry * newdentry);
 
 /* appendix may either be NULL or be used for transname suffixes */
 extern struct dentry * d_lookup(struct dentry * dir, struct qstr * name);
@@ -118,13 +136,5 @@ static inline struct dentry * dget(struct dentry *dentry)
 }
 
 extern void dput(struct dentry *);
-
-/*
- * This is ugly. The inode:dentry relationship is a 1:n
- * relationship, so we have to return one (random) dentry
- * from the alias list. We select the first one..
- */
-#define i_dentry(inode) \
-	list_entry((inode)->i_dentry.next, struct dentry, d_alias)
 
 #endif	/* __LINUX_DCACHE_H */

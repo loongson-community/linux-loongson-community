@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
  *
- * $Id: syscalls.h,v 1.5 1997/07/20 14:57:27 ralf Exp $
+ * $Id: syscalls.h,v 1.6 1997/08/06 19:15:08 miguel Exp $
  */
 
 /*
@@ -35,7 +35,7 @@ SYS(sys_time, 1)
 SYS(sys_mknod, 3)
 SYS(sys_chmod, 2)				/* 4015 */
 SYS(sys_chown, 3)
-SYS(sys_break, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_stat, 2)
 SYS(sys_lseek, 3)
 SYS(sys_getpid, 0)				/* 4020 */
@@ -49,11 +49,11 @@ SYS(sys_alarm, 1)
 SYS(sys_fstat, 2)
 SYS(sys_pause, 0)
 SYS(sys_utime, 2)				/* 4030 */
-SYS(sys_stty, 0)
-SYS(sys_gtty, 0)
+SYS(sys_ni_syscall, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_access, 2)
 SYS(sys_nice, 1)
-SYS(sys_ftime, 0)				/* 4035 */
+SYS(sys_ni_syscall, 0)				/* 4035 */
 SYS(sys_sync, 0)
 SYS(sys_kill, 2)
 SYS(sys_rename, 2)
@@ -62,7 +62,7 @@ SYS(sys_rmdir, 1)				/* 4040 */
 SYS(sys_dup, 1)
 SYS(sys_pipe, 0)
 SYS(sys_times, 1)
-SYS(sys_prof, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_brk, 1)					/* 4045 */
 SYS(sys_setgid, 1)
 SYS(sys_getgid, 0)
@@ -70,13 +70,13 @@ SYS(sys_signal, 2)
 SYS(sys_geteuid, 0)
 SYS(sys_getegid, 0)				/* 4050 */
 SYS(sys_acct, 0)
-SYS(sys_phys, 0)
-SYS(sys_lock, 0)
+SYS(sys_ni_syscall, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_ioctl, 3)
 SYS(sys_fcntl, 3)				/* 4055 */
-SYS(sys_mpx, 2)
+SYS(sys_ni_syscall, 2)
 SYS(sys_setpgid, 2)
-SYS(sys_ulimit, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_olduname, 1)
 SYS(sys_umask, 1)				/* 4060 */
 SYS(sys_chroot, 1)
@@ -116,7 +116,7 @@ SYS(sys_fchmod, 2)
 SYS(sys_fchown, 3)				/* 4095 */
 SYS(sys_getpriority, 2)
 SYS(sys_setpriority, 3)
-SYS(sys_profil, 0)
+SYS(sys_ni_syscall, 0)
 SYS(sys_statfs, 2)
 SYS(sys_fstatfs, 2)				/* 4100 */
 SYS(sys_ioperm, 3)

@@ -1,4 +1,4 @@
-/* $Id: ioport.c,v 1.11 1997/07/22 06:14:04 davem Exp $
+/* $Id: ioport.c,v 1.13 1997/08/18 01:20:22 davem Exp $
  * ioport.c:  Simple io mapping allocator.
  *
  * Copyright (C) 1995,1996 David S. Miller (davem@caip.rutgers.edu)
@@ -45,7 +45,7 @@ void *sparc_alloc_io (u32 address, void *virtual, int len, char *name,
 		      u32 bus_type, int rdonly)
 {
 	unsigned long vaddr, base_address;
-	unsigned long addr = ((unsigned long) address) + (((unsigned long) bus_type) << 32);
+	unsigned long addr = ((unsigned long)address) + (((unsigned long)bus_type)<<32);
 	unsigned long offset = (addr & (~PAGE_MASK));
 
 	if (virtual) {
@@ -64,7 +64,12 @@ void *sparc_alloc_io (u32 address, void *virtual, int len, char *name,
 		/* Tell Linux resource manager about the mapping */
 		request_region ((vaddr | offset), len, name);
 	} else {
-		return __va(addr);
+		unsigned long vaddr = (unsigned long) __va(addr);
+
+		if(!check_region(vaddr, len))
+			request_region(vaddr, len, name);
+
+		return (void *) vaddr;
 	}
 
 	base_address = vaddr;
@@ -83,10 +88,10 @@ void sparc_free_io (void *virtual, int len)
 	unsigned long vaddr = (unsigned long) virtual & PAGE_MASK;
 	unsigned long plen = (((unsigned long)virtual & ~PAGE_MASK) + len + PAGE_SIZE-1) & PAGE_MASK;
 	
+	release_region(vaddr, plen);
+
 	if (((unsigned long)virtual) >= PAGE_OFFSET + 0x10000000000UL)
 		return;
-
-	release_region(vaddr, plen);
 
 	for (; plen != 0;) {
 		plen -= PAGE_SIZE;

@@ -281,6 +281,22 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_MESH),y)
+L_OBJS += mesh.o
+else
+  ifeq ($(CONFIG_SCSI_MESH),m)
+  M_OBJS += mesh.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCSI_MAC53C94),y)
+L_OBJS += mac53c94.o
+else
+  ifeq ($(CONFIG_SCSI_MAC53C94),m)
+  M_OBJS += mac53c94.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_DEBUG),y)
 L_OBJS += scsi_debug.o
 else
@@ -435,10 +451,6 @@ aic7xxx.o: aic7xxx.c aic7xxx_seq.h aic7xxx_reg.h
 seagate.o: seagate.c
 	$(CC) $(CFLAGS) -DARBITRATE -DSLOW_HANDSHAKE -DFAST32 -DPARITY -c seagate.c 
 
-# For debugging, use the -g flag
-53c7,8xx.o : 53c7,8xx.c
-	$(CC) $(CFLAGS) -g -c 53c7,8xx.c
-
 53c8xx_d.h 53c8xx_u.h : 53c7,8xx.scr script_asm.pl
 	ln -sf 53c7,8xx.scr fake.c
 	$(CPP) -traditional -DCHIP=810 fake.c | grep -v '^#' | perl script_asm.pl 
@@ -446,18 +458,12 @@ seagate.o: seagate.c
 	mv scriptu.h 53c8xx_u.h
 	rm fake.c
 
-53c7xx.o : 53c7xx_d.h 53c7xx.c
-	$(CC) $(CFLAGS) -c 53c7xx.c
-
 53c7xx_d.h 53c7xx_u.h : 53c7xx.scr script_asm.pl
 	ln -sf 53c7xx.scr fake.c
 	$(CPP) -traditional -DCHIP=710 fake.c | grep -v '^#' | perl -s script_asm.pl -ncr7x0_family
 	mv script.h 53c7xx_d.h
 	mv scriptu.h 53c7xx_u.h
 	rm fake.c
-
-ncr53c8xx.o : ncr53c8xx.c
-	$(CC) $(CFLAGS) -c ncr53c8xx.c
 
 scsi_mod.o: $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o \
 		scsicam.o scsi_proc.o

@@ -1545,8 +1545,6 @@ static int br_port_cost(struct device *dev)	/* 4.10.2 */
 {
 	if (strncmp(dev->name, "eth", 3) == 0)	/* ethernet */
 		return(100);
-	if (strncmp(dev->name, "wic", 3) == 0)	/* wic */
-		return(1600);
 	if (strncmp(dev->name, "plip",4) == 0) /* plip */
 		return (1600);
 	return(100);	/* default */
@@ -1567,7 +1565,7 @@ static void br_bpdu(struct sk_buff *skb) /* consumes skb */
 		return;
 	}
 		
-	bpdu = (Tcn_bpdu *)skb->data + ETH_HLEN;
+	bpdu = (Tcn_bpdu *) (skb->data + ETH_HLEN);
 	switch (bpdu->type) {
 		case BPDU_TYPE_CONFIG:
 			received_config_bpdu(port, (Config_bpdu *)bpdu);
