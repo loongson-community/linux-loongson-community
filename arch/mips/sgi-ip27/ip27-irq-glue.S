@@ -36,8 +36,8 @@ NESTED(ip27_irq, PT_SIZE, sp)
 	bnez	t0, ip6
 	j	ra
 
-ip2:	j	ip27_do_irq_mask0	# PI_INT_PEND_0
-ip3:	j	ip27_do_irq_mask1	# PI_INT_PEND_1 or CC_PEND_{A|B}
+ip2:	j	ip27_do_irq_mask0	# PI_INT_PEND_0 or CC_PEND_{A|B}
+ip3:	j	ip27_do_irq_mask1	# PI_INT_PEND_1
 ip4:	j	ip27_rt_timer_interrupt
 ip5:	j	ip27_prof_timer
 ip6:	j	ip27_hub_error
