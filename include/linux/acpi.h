@@ -24,6 +24,158 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 
+#ifdef __KERNEL__
+
+#include <linux/sched.h>
+#include <linux/wait.h>
+
+/*
+ * Device types
+ */
+enum
+{
+	ACPI_SYS_DEV,	/* system device (fan, KB controller, ...) */
+	ACPI_PCI_DEV,	/* generic PCI device */
+	ACPI_PCI_BUS,	/* PCI bus */
+	ACPI_ISA_DEV,	/* generic ISA device */
+	ACPI_ISA_BUS,	/* ISA bus */
+	ACPI_USB_DEV,	/* generic USB device */
+	ACPI_USB_HUB,	/* USB hub device */
+	ACPI_USB_CTRL,	/* USB controller */
+	ACPI_SCSI_DEV,	/* generic SCSI device */
+	ACPI_SCSI_CTRL, /* SCSI controller */
+};
+
+typedef int acpi_dev_t;
+
+/*
+ * Device addresses
+ */
+#define ACPI_PCI_ADR(dev) ((dev)->bus->number << 16 | (dev)->devfn)
+
+/*
+ * HID (PnP) values
+ */
+enum
+{
+	ACPI_UNKNOWN_HID =  0x00000000, /* generic */
+	ACPI_KBC_HID =	    0x41d00303, /* keyboard controller */
+	ACPI_COM_HID =	    0x41d00500, /* serial port */
+	ACPI_FDC_HID =	    0x41d00700, /* floppy controller */
+	ACPI_VGA_HID =	    0x41d00900, /* VGA controller */
+	ACPI_ISA_HID =	    0x41d00a00, /* ISA bus */
+	ACPI_EISA_HID =	    0x41d00a01, /* EISA bus */
+	ACPI_PCI_HID =	    0x41d00a03, /* PCI bus */
+};
+
+typedef int acpi_hid_t;
+
+/*
+ * Device states
+ */
+enum
+{
+	ACPI_D0, /* fully-on */
+	ACPI_D1, /* partial-on */
+	ACPI_D2, /* partial-on */
+	ACPI_D3, /* fully-off */
+};
+
+typedef int acpi_dstate_t;
+
+struct acpi_dev;
+
+/*
+ * Device state transition function
+ */
+typedef int (*acpi_transition)(struct acpi_dev *dev, acpi_dstate_t state);
+
+/*
+ * Static device information
+ */
+struct acpi_dev_info
+{
+	acpi_dev_t	 type;	     /* device type */
+	acpi_hid_t	 hid;	     /* PnP identifier */
+	acpi_transition	 transition; /* state transition callback */
+
+	/* other information like D-states supported,
+	 * D-state latencies, and in-rush current needs
+	 * will go here
+	 */
+};
+
+/*
+ * Dynamic device information
+ */
+struct acpi_dev
+{
+	struct acpi_dev_info info;     /* static device info */
+	unsigned long	     adr;      /* bus address or unique id */
+	acpi_dstate_t	     state;    /* current D-state */
+	unsigned long	     accessed; /* last access time */
+	unsigned long	     idle;     /* last idle time */
+	struct list_head     entry;    /* linked list entry */
+};
+
+#ifdef CONFIG_ACPI
+
+extern wait_queue_head_t acpi_idle_wait;
+
+/*
+ * Register a device with the ACPI subsystem
+ */
+struct acpi_dev *acpi_register(struct acpi_dev_info *info, unsigned long adr);
+
+/*
+ * Unregister a device with ACPI
+ */
+void acpi_unregister(struct acpi_dev *dev);
+
+/*
+ * Update device access time and wake up device, if necessary
+ */
+extern inline void acpi_access(struct acpi_dev *dev)
+{
+	extern void acpi_wakeup(struct acpi_dev*);
+	if (dev) {
+		if (dev->state != ACPI_D0)
+			acpi_wakeup(dev);
+		dev->accessed = jiffies;
+	}
+}
+
+/*
+ * Identify device as currently being idle
+ */
+extern inline void acpi_dev_idle(struct acpi_dev *dev)
+{
+	if (dev) {
+		dev->idle = jiffies;
+		if (waitqueue_active(&acpi_idle_wait))
+			wake_up(&acpi_idle_wait);
+	}
+}
+
+#else /* CONFIG_ACPI */
+
+extern inline struct acpi_dev*
+acpi_register(struct acpi_dev_info *info, unsigned long adr)
+{
+	return 0;
+}
+
+extern inline void acpi_unregister(struct acpi_dev *dev) {}
+extern inline void acpi_access(struct acpi_dev *dev) {}
+extern inline void acpi_dev_idle(struct acpi_dev *dev) {}
+
+#endif /* CONFIG_ACPI */
+
+extern void (*acpi_idle)(void);
+extern void (*acpi_power_off)(void);
+
+#endif /* __KERNEL__ */
+
 /* RSDP location */
 #define ACPI_BIOS_ROM_BASE (0x0e0000)
 #define ACPI_BIOS_ROM_END  (0x100000)
@@ -34,6 +186,7 @@
 #define ACPI_RSDT_SIG  0x54445352 /* 'RSDT' */
 #define ACPI_FACP_SIG  0x50434146 /* 'FACP' */
 #define ACPI_DSDT_SIG  0x54445344 /* 'DSDT' */
+#define ACPI_FACS_SIG  0x53434146 /* 'FACS' */
 
 /* PM1_STS/EN flags */
 #define ACPI_TMR    0x0001
@@ -52,6 +205,9 @@
 #define ACPI_SLP_TYP1 0x0800
 #define ACPI_SLP_TYP2 0x1000
 #define ACPI_SLP_EN   0x2000
+
+#define ACPI_SLP_TYP_MASK  0x1c00
+#define ACPI_SLP_TYP_SHIFT 10
 
 /* PM_TMR masks */
 #define ACPI_TMR_MASK	0x00ffffff
@@ -82,13 +238,16 @@
 #define ACPI_TMR_VAL_EXT  0x00000100
 #define ACPI_DCK_CAP	  0x00000200
 
+/* FACS flags */
+#define ACPI_S4BIOS	  0x00000001
+
 struct acpi_rsdp {
 	__u32 signature[2];
 	__u8 checksum;
 	__u8 oem[6];
 	__u8 reserved;
 	__u32 rsdt;
-};
+} __attribute__ ((packed));
 
 struct acpi_table {
 	__u32 signature;
@@ -100,7 +259,7 @@ struct acpi_table {
 	__u32 oem_rev;
 	__u32 creator;
 	__u32 creator_rev;
-};
+} __attribute__ ((packed));
 
 struct acpi_facp {
 	struct acpi_table hdr;
@@ -143,7 +302,16 @@ struct acpi_facp {
 	__u8 reserved5;
 	__u8 reserved6;
 	__u32 flags;
-};
+} __attribute__ ((packed));
+
+struct acpi_facs {
+	__u32 signature;
+	__u32 length;
+	__u32 hw_signature;
+	__u32 fw_wake_vector;
+	__u32 global_lock;
+	__u32 flags;
+} __attribute__ ((packed));
 
 /*
  * Sysctl declarations
@@ -166,7 +334,11 @@ enum
 	ACPI_P_LVL3,
 	ACPI_P_LVL2_LAT,
 	ACPI_P_LVL3_LAT,
+	ACPI_S5_SLP_TYP,
 };
+
+#define ACPI_P_LVL_DISABLED	0x80
+#define ACPI_SLP_TYP_DISABLED	(~0UL)
 
 /*
  * PIIX4-specific ACPI info (for systems with PIIX4 but no ACPI tables)
@@ -204,11 +376,5 @@ enum
 
 #define ACPI_PIIX4_PMREGMISC	0x80
 #define	  ACPI_PIIX4_PMIOSE	0x01
-
-#ifdef __KERNEL__
-
-extern void (*acpi_idle)(void);
-
-#endif
 
 #endif /* _LINUX_ACPI_H */

@@ -557,12 +557,6 @@ static void	isp1020_print_scsi_cmd(Scsi_Cmnd *);
 static void	isp1020_print_status_entry(struct Status_Entry *);
 #endif
 
-/* delete next 4 lines in 2.3.40 */
-static struct proc_dir_entry proc_scsi_isp1020 = {
-	PROC_SCSI_QLOGICISP, 7, "isp1020",
-	S_IFDIR | S_IRUGO | S_IXUGO, 2
-};
-
 /* memaddr should be used to determine if memmapped port i/o is being used
  * non-null memaddr == mmap'd
  * JV 7-Jan-2000
@@ -606,9 +600,7 @@ int isp1020_detect(Scsi_Host_Template *tmpt)
 
 	ENTER("isp1020_detect");
 
-	/* replace next line with the one below in 2.3.40 */
-	tmpt->proc_dir = &proc_scsi_isp1020;
-	/* tmpt->proc_name = "isp1020"; */
+	tmpt->proc_name = "isp1020";
 
 	if (pci_present() == 0) {
 		printk("qlogicisp : PCI not present\n");

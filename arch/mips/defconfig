@@ -39,6 +39,7 @@ CONFIG_CPU_HAS_LLSC=y
 # General setup
 #
 # CONFIG_CPU_LITTLE_ENDIAN is not set
+CONFIG_KCORE_ELF=y
 CONFIG_ELF_KERNEL=y
 CONFIG_BINFMT_IRIX=y
 CONFIG_FORWARD_KEYBOARD=y
@@ -56,16 +57,6 @@ CONFIG_SYSCTL=y
 CONFIG_MODULES=y
 # CONFIG_MODVERSIONS is not set
 CONFIG_KMOD=y
-
-#
-# I2O device support
-#
-# CONFIG_I2O is not set
-# CONFIG_I2O_PCI is not set
-# CONFIG_I2O_BLOCK is not set
-# CONFIG_I2O_LAN is not set
-# CONFIG_I2O_SCSI is not set
-# CONFIG_I2O_PROC is not set
 
 #
 # Plug and Play configuration
@@ -171,10 +162,20 @@ CONFIG_SCSI_CONSTANTS=y
 CONFIG_SCSI_SGIWD93=y
 
 #
+# I2O device support
+#
+# CONFIG_I2O is not set
+# CONFIG_I2O_PCI is not set
+# CONFIG_I2O_BLOCK is not set
+# CONFIG_I2O_LAN is not set
+# CONFIG_I2O_SCSI is not set
+# CONFIG_I2O_PROC is not set
+
+#
 # Network device support
 #
 CONFIG_NETDEVICES=y
-CONFIG_DUMMY=y
+# CONFIG_DUMMY is not set
 # CONFIG_SLIP is not set
 # CONFIG_PPP is not set
 CONFIG_SGISEEQ=y
@@ -201,6 +202,10 @@ CONFIG_PSMOUSE=y
 # CONFIG_82C710_MOUSE is not set
 # CONFIG_PC110_PAD is not set
 # CONFIG_QIC02_TAPE is not set
+
+#
+# Watchdog Cards
+#
 # CONFIG_WATCHDOG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
@@ -225,6 +230,11 @@ CONFIG_PSMOUSE=y
 # CONFIG_DRM is not set
 
 #
+# PCMCIA character device support
+#
+# CONFIG_PCMCIA_SERIAL_CS is not set
+
+#
 # USB drivers - not for the faint of heart
 #
 # CONFIG_USB is not set
@@ -242,6 +252,7 @@ CONFIG_AUTOFS_FS=y
 # CONFIG_ADFS_FS is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
+# CONFIG_BFS_FS is not set
 # CONFIG_FAT_FS is not set
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set

@@ -107,6 +107,16 @@ extern void release_thread(struct task_struct *);
 #define release_segments(mm)		do { } while (0)
 #define forget_segments()		do { } while (0)
 
+unsigned long get_wchan(struct task_struct *p);
+
+#ifdef CONFIG_CPU_26
+# define KSTK_EIP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1022])
+# define KSTK_ESP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1020])
+#else
+# define KSTK_EIP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1021])
+# define KSTK_ESP(tsk)	(((unsigned long *)(4096+(unsigned long)(tsk)))[1019])
+#endif
+
 extern struct task_struct *alloc_task_struct(void);
 extern void free_task_struct(struct task_struct *);
 

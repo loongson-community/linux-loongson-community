@@ -768,18 +768,20 @@ udf_load_pvoldesc(struct super_block *sb, struct buffer_head *bh)
 {
 	struct PrimaryVolDesc *pvoldesc;
 	time_t recording;
+	long recording_usec;
 	struct ustr instr;
 	struct ustr outstr;
 
 	pvoldesc = (struct PrimaryVolDesc *)bh->b_data;
 
-	if ( udf_stamp_to_time(&recording, lets_to_cpu(pvoldesc->recordingDateAndTime)) )
+	if ( udf_stamp_to_time(&recording, &recording_usec,
+		lets_to_cpu(pvoldesc->recordingDateAndTime)) )
 	{
 	    timestamp ts;
 	    ts = lets_to_cpu(pvoldesc->recordingDateAndTime);
-		udf_debug("recording time %ld, %u/%u/%u %u:%u (%x)\n",
-			recording, ts.year, ts.month, ts.day, ts.hour, ts.minute,
-			ts.typeAndTimezone);
+		udf_debug("recording time %ld/%ld, %04u/%02u/%02u %02u:%02u (%x)\n",
+			recording, recording_usec,
+			ts.year, ts.month, ts.day, ts.hour, ts.minute, ts.typeAndTimezone);
 	    UDF_SB_RECORDTIME(sb) = recording;
 	}
 
@@ -1182,7 +1184,7 @@ udf_load_partition(struct super_block *sb, lb_addr *fileset)
 				if (UDF_SB_PARTTYPE(sb,i) == UDF_VIRTUAL_MAP15)
 				{
 					UDF_SB_TYPEVIRT(sb,i).s_start_offset = UDF_I_EXT0OFFS(UDF_SB_VAT(sb));
-					UDF_SB_TYPEVIRT(sb,i).s_num_entries = (UDF_SB_VAT(sb)->i_size - 36) / sizeof(Uint32);
+					UDF_SB_TYPEVIRT(sb,i).s_num_entries = (UDF_SB_VAT(sb)->i_size - 36) >> 2;
 				}
 				else if (UDF_SB_PARTTYPE(sb,i) == UDF_VIRTUAL_MAP20)
 				{
@@ -1195,7 +1197,7 @@ udf_load_partition(struct super_block *sb, lb_addr *fileset)
 						le16_to_cpu(((struct VirtualAllocationTable20 *)bh->b_data + UDF_I_EXT0OFFS(UDF_SB_VAT(sb)))->lengthHeader) +
 							UDF_I_EXT0OFFS(UDF_SB_VAT(sb));
 					UDF_SB_TYPEVIRT(sb,i).s_num_entries = (UDF_SB_VAT(sb)->i_size -
-						UDF_SB_TYPEVIRT(sb,i).s_start_offset) / sizeof(Uint32);
+						UDF_SB_TYPEVIRT(sb,i).s_start_offset) >> 2;
 					udf_release_data(bh);
 				}
 				UDF_SB_PARTROOT(sb,i) = udf_get_pblock(sb, 0, i, 0);
@@ -1397,8 +1399,9 @@ udf_read_super(struct super_block *sb, void *options, int silent)
 	{
 		timestamp ts;
 		udf_time_to_stamp(&ts, UDF_SB_RECORDTIME(sb), 0);
-		udf_info("Mounting volume '%s', timestamp %u/%02u/%u %02u:%02u\n",
-			UDF_SB_VOLIDENT(sb), ts.year, ts.month, ts.day, ts.hour, ts.minute);
+		udf_info("Mounting volume '%s', timestamp %04u/%02u/%02u %02u:%02u (%x)\n",
+			UDF_SB_VOLIDENT(sb), ts.year, ts.month, ts.day, ts.hour, ts.minute,
+			ts.typeAndTimezone);
 	}
 	if (!(sb->s_flags & MS_RDONLY))
 		udf_open_lvid(sb);

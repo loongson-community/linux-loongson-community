@@ -27,6 +27,9 @@
 #include <linux/errno.h>
 #include <linux/stat.h>
 #include <linux/blk.h>
+
+#include <asm/uaccess.h>
+
 #include "scsi.h"
 #include "hosts.h"
 
@@ -36,26 +39,15 @@
 #endif
 
 #ifdef CONFIG_PROC_FS
-extern int scsi_proc_info(char *, char **, off_t, int, int, int);
-
-struct scsi_dir {
-	struct proc_dir_entry entry;
-	char name[4];
-};
-
 
 /* generic_proc_info
  * Used if the driver currently has no own support for /proc/scsi
  */
-int generic_proc_info(char *buffer, char **start, off_t offset,
-		      int length, int inode, int inout,
+int generic_proc_info(char *buffer, char **start, off_t offset, int length, 
 		      const char *(*info) (struct Scsi_Host *),
 		      struct Scsi_Host *sh)
 {
 	int len, pos, begin;
-
-	if (inout == TRUE)
-		return (-ENOSYS);	/* This is a no-op */
 
 	begin = 0;
 	if (info && sh) {
@@ -79,70 +71,70 @@ int generic_proc_info(char *buffer, char **start, off_t offset,
 /* dispatch_scsi_info is the central dispatcher 
  * It is the interface between the proc-fs and the SCSI subsystem code
  */
-extern int dispatch_scsi_info(int ino, char *buffer, char **start,
-			      off_t offset, int length, int func)
+static int proc_scsi_read(char *buffer, char **start, off_t offset,
+	int length, int *eof, void *data)
 {
-	struct Scsi_Host *hpnt = scsi_hostlist;
+	struct Scsi_Host *hpnt = data;
+	int n;
 
-	if (ino == PROC_SCSI_SCSI) {
-		/*
-		 * This is for the scsi core, rather than any specific
-		 * lowlevel driver.
-		 */
-		return (scsi_proc_info(buffer, start, offset, length, 0, func));
-	}
-	while (hpnt) {
-		if (ino == (hpnt->host_no + PROC_SCSI_FILE)) {
-			if (hpnt->hostt->proc_info == NULL)
-				return generic_proc_info(buffer, start, offset, length,
-						     hpnt->host_no, func,
-						       hpnt->hostt->info,
-							 hpnt);
-			else
-				return (hpnt->hostt->proc_info(buffer, start, offset,
-					   length, hpnt->host_no, func));
-		}
-		hpnt = hpnt->next;
-	}
-	return (-EBADF);
+	if (hpnt->hostt->proc_info == NULL)
+		n = generic_proc_info(buffer, start, offset, length,
+				      hpnt->hostt->info, hpnt);
+	else
+		n = (hpnt->hostt->proc_info(buffer, start, offset,
+					   length, hpnt->host_no, 0));
+	*eof = (n<length);
+	return n;
 }
 
-static void scsi_proc_fill_inode(struct inode *inode, int fill)
-{
-	Scsi_Host_Template *shpnt;
+#define PROC_BLOCK_SIZE (3*1024)     /* 4K page size, but our output routines 
+				      * use some slack for overruns 
+				      */
 
-	shpnt = scsi_hosts;
-	while (shpnt && shpnt->proc_dir->low_ino != inode->i_ino)
-		shpnt = shpnt->next;
-	if (!shpnt || !shpnt->module)
-		return;
-	if (fill)
-		__MOD_INC_USE_COUNT(shpnt->module);
+static ssize_t proc_scsi_write(struct file * file, const char * buf,
+                              unsigned long count, void *data)
+{
+	struct Scsi_Host *hpnt = data;
+	ssize_t ret = 0;
+	char * page;
+	char *start;
+    
+	if (count > PROC_BLOCK_SIZE)
+		return -EOVERFLOW;
+
+	if (!(page = (char *) __get_free_page(GFP_KERNEL)))
+		return -ENOMEM;
+	copy_from_user(page, buf, count);
+
+	if (hpnt->hostt->proc_info == NULL)
+		ret = -ENOSYS;
 	else
-		__MOD_DEC_USE_COUNT(shpnt->module);
+		ret = hpnt->hostt->proc_info(page, &start, 0, count,
+						hpnt->host_no, 1);
+	free_page((ulong) page);
+	return(ret);
 }
 
 void build_proc_dir_entries(Scsi_Host_Template * tpnt)
 {
 	struct Scsi_Host *hpnt;
-	struct scsi_dir *scsi_hba_dir;
 
-	proc_scsi_register(0, tpnt->proc_dir);
-	tpnt->proc_dir->fill_inode = &scsi_proc_fill_inode;
+	tpnt->proc_dir = create_proc_entry(tpnt->proc_name, S_IFDIR, proc_scsi);
+	tpnt->proc_dir->owner = tpnt->module;
 
 	hpnt = scsi_hostlist;
 	while (hpnt) {
 		if (tpnt == hpnt->hostt) {
-			scsi_hba_dir = scsi_init_malloc(sizeof(struct scsi_dir), GFP_KERNEL);
-			if (scsi_hba_dir == NULL)
+			struct proc_dir_entry *p;
+			p = create_proc_read_entry(hpnt->proc_name,
+					S_IFREG | S_IRUGO | S_IWUSR,
+					tpnt->proc_dir,
+					proc_scsi_read,
+					(void *)hpnt);
+			if (!p)
 				panic("Not enough memory to register SCSI HBA in /proc/scsi !\n");
-			memset(scsi_hba_dir, 0, sizeof(struct scsi_dir));
-			scsi_hba_dir->entry.low_ino = PROC_SCSI_FILE + hpnt->host_no;
-			scsi_hba_dir->entry.namelen = sprintf(scsi_hba_dir->name, "%d",
-							  hpnt->host_no);
-			scsi_hba_dir->entry.name = scsi_hba_dir->name;
-			scsi_hba_dir->entry.mode = S_IFREG | S_IRUGO | S_IWUSR;
-			proc_scsi_register(tpnt->proc_dir, &scsi_hba_dir->entry);
+			p->write_proc=proc_scsi_write;
+			p->owner = tpnt->module;
 		}
 		hpnt = hpnt->next;
 	}
@@ -178,15 +170,13 @@ typedef struct {
 	 cmdNum;		/* cmd number      */
 } parseHandle;
 
-
 inline int parseFree(parseHandle * handle)
 {				/* free memory     */
 	kfree(handle->cmdPos);
 	kfree(handle);
 
-	return (-1);
+	return -1;
 }
-
 
 parseHandle *parseInit(char *buf, char *cmdList, int cmdNum)
 {
@@ -194,12 +184,14 @@ parseHandle *parseInit(char *buf, char *cmdList, int cmdNum)
 	parseHandle *handle;	/* new handle      */
 
 	if (!buf || !cmdList)	/* bad input ?     */
-		return (NULL);
-	if ((handle = (parseHandle *) kmalloc(sizeof(parseHandle), GFP_KERNEL)) == 0)
-		return (NULL);	/* out of memory   */
-	if ((handle->cmdPos = (char **) kmalloc(sizeof(int) * cmdNum, GFP_KERNEL)) == 0) {
+		return NULL;
+	handle = (parseHandle *) kmalloc(sizeof(parseHandle), GFP_KERNEL);
+	if (!handle)
+		return NULL;	/* out of memory   */
+	handle->cmdPos = (char **) kmalloc(sizeof(int) * cmdNum, GFP_KERNEL);
+	if (!handle->cmdPos) {
 		kfree(handle);
-		return (NULL);	/* out of memory   */
+		return NULL;	/* out of memory   */
 	}
 	handle->buf = handle->bufPos = buf;	/* init handle     */
 	handle->cmdList = cmdList;
@@ -212,9 +204,8 @@ parseHandle *parseInit(char *buf, char *cmdList, int cmdNum)
 			handle->cmdPos[++cmdNum] = ptr++;
 		}
 	}
-	return (handle);
+	return handle;
 }
-
 
 int parseOpt(parseHandle * handle, char **param)
 {
@@ -299,7 +290,7 @@ void proc_print_scsidevice(Scsi_Device * scd, char *buffer, int *size, int len)
 	return;
 }
 
-#else
+#else				/* if !CONFIG_PROC_FS */
 
 void proc_print_scsidevice(Scsi_Device * scd, char *buffer, int *size, int len)
 {

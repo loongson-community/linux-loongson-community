@@ -101,10 +101,10 @@ bitrev(int b)
     return d;
 }
 
-int
-mace_probe(struct net_device *dev)
+int mace_probe(void)
 {
 	int j, rev;
+	struct net_device *dev;
 	struct mace_data *mp;
 	struct device_node *mace;
 	unsigned char *addr;
@@ -126,13 +126,7 @@ mace_probe(struct net_device *dev)
 		return -ENODEV;
 	}
 
-	if (dev == NULL)
-		dev = init_etherdev(0, PRIV_BYTES);
-	else {
-		dev->priv = kmalloc(PRIV_BYTES, GFP_KERNEL);
-		if (dev->priv == 0)
-			return -ENOMEM;
-	}
+	dev = init_etherdev(0, PRIV_BYTES);
 	memset(dev->priv, 0, PRIV_BYTES);
 
 	mp = (struct mace_data *) dev->priv;
@@ -913,7 +907,7 @@ int init_module(void)
 
     if(mace_devs != NULL)
 	return -EBUSY;
-    res = mace_probe(NULL);
+    res = mace_probe();
     return res;
 }
 

@@ -209,6 +209,11 @@ extern pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 #define release_segments(mm)		do { } while (0)
 #define forget_segments()		do { } while (0)
 
+unsigned long get_wchan(struct task_struct *p);
+
+#define KSTK_EIP(tsk)  ((tsk)->thread.kregs->tpc)
+#define KSTK_ESP(tsk)  ((tsk)->thread.kregs->u_regs[UREG_FP])
+
 #ifdef __KERNEL__
 #define THREAD_SIZE (2*PAGE_SIZE)
 /* Allocation and freeing of task_struct and kernel stack. */

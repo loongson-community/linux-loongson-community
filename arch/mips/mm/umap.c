@@ -123,7 +123,7 @@ static inline void free_pte(pte_t page)
 		current->mm->rss--;
 		return;
 	}
-	swap_free(page);
+	swap_free(pte_to_swp_entry(page));
 }
 
 static inline void forget_pte(pte_t page)

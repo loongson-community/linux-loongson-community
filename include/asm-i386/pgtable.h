@@ -293,7 +293,6 @@ extern inline pte_t mk_pte(struct page *page, pgprot_t pgprot)
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 { pte_val(pte) = (pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot); return pte; }
 
-#define page_pte_prot(page,prot) mk_pte(page, prot)
 #define page_pte(page) page_pte_prot(page, __pgprot(0))
 
 #define pmd_page(pmd) \
@@ -495,8 +494,12 @@ extern inline void update_mmu_cache(struct vm_area_struct * vma,
 {
 }
 
-#define SWP_TYPE(entry) (((pte_val(entry)) >> 1) & 0x3f)
-#define SWP_OFFSET(entry) ((pte_val(entry)) >> 8)
+/* Encode and de-code a swap entry */
+#define SWP_TYPE(x)			(((x).val >> 1) & 0x3f)
+#define SWP_OFFSET(x)			((x).val >> 8)
+#define SWP_ENTRY(type, offset)		((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
+#define pte_to_swp_entry(pte)		((swp_entry_t) { pte_val(pte) })
+#define swp_entry_to_pte(x)		((pte_t) { (x).val })
 
 #define module_map      vmalloc
 #define module_unmap    vfree

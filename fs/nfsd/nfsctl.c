@@ -57,13 +57,9 @@ int exp_procfs_exports(char *buffer, char **start, off_t offset,
 
 void proc_export_init(void)
 {
-	struct proc_dir_entry *nfs_export_ent = NULL;
-
-	if (!(nfs_export_ent = create_proc_entry("fs/nfs", S_IFDIR, 0)))
+	if (!create_proc_entry("fs/nfs", S_IFDIR, 0))
 		return;
-	if (!(nfs_export_ent = create_proc_entry("fs/nfs/exports", 0, 0)))
-		return;
-	nfs_export_ent->read_proc = exp_procfs_exports;
+	create_proc_read_entry("fs/nfs/exports", 0, 0, exp_procfs_exports,NULL);
 }
 
 
@@ -261,21 +257,6 @@ MODULE_AUTHOR("Olaf Kirch <okir@monad.swb.de>");
 extern int (*do_nfsservctl)(int, void *, void *);
 
 /*
- * This is called as the fill_inode function when an inode
- * is going into (fill = 1) or out of service (fill = 0).
- *
- * We use it here to make sure the module can't be unloaded
- * while a /proc inode is in use.
- */
-void nfsd_modcount(struct inode *inode, int fill)
-{
-	if (fill)
-		MOD_INC_USE_COUNT;
-	else
-		MOD_DEC_USE_COUNT;
-}
-
-/*
  * Initialize the module
  */
 int
@@ -299,7 +280,6 @@ cleanup_module(void)
 	do_nfsservctl = NULL;
 	nfsd_export_shutdown();
 	nfsd_cache_shutdown();
-	nfsd_fh_free();
 	remove_proc_entry("fs/nfs/exports", NULL);
 	remove_proc_entry("fs/nfs", NULL);
 	nfsd_stat_shutdown();

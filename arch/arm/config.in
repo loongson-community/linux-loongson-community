@@ -21,6 +21,7 @@ choice 'ARM system type'	\
 	 EBSA-110		CONFIG_ARCH_EBSA110 \
 	 FootBridge-based	CONFIG_FOOTBRIDGE" RiscPC
 # 	 SA1100-based		CONFIG_ARCH_SA1100
+
 if [ "$CONFIG_FOOTBRIDGE" = "y" ]; then
    bool 'FootBridge in HOST mode' CONFIG_HOST_FOOTBRIDGE
    if [ "$CONFIG_HOST_FOOTBRIDGE" = "y" ]; then
@@ -45,13 +46,13 @@ fi
 if [ "$CONFIG_ARCH_SA1100" = "y" ]; then
    define_bool CONFIG_CPU_SA1100 y
    choice 'SA1100 implementation' \
-	"Brutus			CONFIG_SA1100_BRUTUS \
-	 empeg			CONFIG_SA1100_EMPEG \
-	 Itsy			CONFIG_SA1100_ITSY \
-	 LART			CONFIG_SA1100_LART \
-	 PLEB			CONFIG_SA1100_PLEB \
-	 Victor			CONFIG_SA1100_VICTOR \
-	 Tifon			CONFIG_SA1100_TIFON" Brutus
+	   "Brutus		CONFIG_SA1100_BRUTUS \
+	    Empeg		CONFIG_SA1100_EMPEG \
+	    Itsy		CONFIG_SA1100_ITSY \
+	    LART		CONFIG_SA1100_LART \
+	    PLEB		CONFIG_SA1100_PLEB \
+	    Victor		CONFIG_SA1100_VICTOR \
+	    Tifon		CONFIG_SA1100_TIFON" Brutus
 fi
 
 #
@@ -121,8 +122,6 @@ else
    define_bool CONFIG_ISA_DMA n
 fi
 
-endmenu
-
 if [ "$CONFIG_CPU_32" = "y" -a "$CONFIG_ARCH_EBSA110" != "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Enable kernel-mode alignment trap handler (EXPERIMENTAL)' CONFIG_ALIGNMENT_TRAP
 fi
@@ -145,6 +144,11 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Math emulation' CONFIG_NWFPE
+if [ "$CONFIG_PROC_FS" = "y" ]; then
+   choice 'Kernel core (/proc/kcore) format' \
+	"ELF		CONFIG_KCORE_ELF	\
+	 A.OUT		CONFIG_KCORE_AOUT" ELF
+fi
 tristate 'Kernel support for a.out binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC

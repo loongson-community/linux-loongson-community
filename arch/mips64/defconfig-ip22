@@ -195,6 +195,10 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_BUSMOUSE is not set
 # CONFIG_MOUSE is not set
 # CONFIG_QIC02_TAPE is not set
+
+#
+# Watchdog Cards
+#
 # CONFIG_WATCHDOG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
@@ -216,6 +220,10 @@ CONFIG_VT_CONSOLE=y
 # Ftape, the floppy tape device driver
 #
 # CONFIG_FTAPE is not set
+
+#
+# PCMCIA character device support
+#
 
 #
 # USB drivers - not for the faint of heart
@@ -274,6 +282,7 @@ CONFIG_SGI_PARTITION=y
 # Console drivers
 #
 CONFIG_SGI_NEWPORT_CONSOLE=y
+CONFIG_KCORE_ELF=y
 
 #
 # Sound

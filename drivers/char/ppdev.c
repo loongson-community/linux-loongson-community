@@ -505,13 +505,14 @@ static int pp_open (struct inode * inode, struct file * file)
 	if (minor >= PARPORT_MAX)
 		return -ENXIO;
 
-	pp = kmalloc (GFP_KERNEL, sizeof (struct pp_struct));
+	pp = kmalloc (sizeof (struct pp_struct), GFP_KERNEL);
 	if (!pp)
 		return -ENOMEM;
 
 	pp->state.mode = IEEE1284_MODE_COMPAT;
 	pp->state.phase = init_phase (pp->state.mode);
 	pp->flags = 0;
+	pp->irqresponse = 0;
 	atomic_set (&pp->irqc, 0);
 	init_waitqueue_head (&pp->irq_wait);
 
@@ -538,8 +539,9 @@ static int pp_release (struct inode * inode, struct file * file)
 	}
 
 	if (pp->pdev) {
+		const char *name = pp->pdev->name;
 		parport_unregister_device (pp->pdev);
-		kfree (pp->pdev->name);
+		kfree (name);
 		pp->pdev = NULL;
 		printk (KERN_DEBUG CHRDEV "%x: unregistered pardevice\n",
 			minor);

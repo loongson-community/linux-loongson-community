@@ -56,7 +56,7 @@ struct vm_area_struct {
 	struct vm_area_struct **vm_pprev_share;
 
 	struct vm_operations_struct * vm_ops;
-	unsigned long vm_offset;
+	unsigned long vm_pgoff;		/* offset in PAGE_SIZE units, *not* PAGE_CACHE_SIZE */
 	struct file * vm_file;
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 };
@@ -110,6 +110,15 @@ struct vm_operations_struct {
 };
 
 /*
+ * A swap entry has to fit into a "unsigned long", as
+ * the entry is hidden in the "index" field of the
+ * swapper address space.
+ */
+typedef struct {
+	unsigned long val;
+} swp_entry_t;
+
+/*
  * Try to keep the most commonly accessed fields in single cache lines
  * here (16 bytes or greater).  This ordering should be particularly
  * beneficial on 32-bit processors.
@@ -121,7 +130,7 @@ typedef struct page {
 	/* these must be first (free area handling) */
 	struct list_head list;
 	struct address_space *mapping;
-	unsigned long offset;
+	unsigned long index;
 	struct page *next_hash;
 	atomic_t count;
 	unsigned long flags;	/* atomic flags, some possibly updated asynchronously */
@@ -129,6 +138,7 @@ typedef struct page {
 	wait_queue_head_t wait;
 	struct page **pprev_hash;
 	struct buffer_head * buffers;
+	unsigned long virtual; /* nonzero if kmapped */
 } mem_map_t;
 
 #define get_page(p)		atomic_inc(&(p)->count)
@@ -192,6 +202,12 @@ typedef struct page {
 
 #define SetPageReserved(page)		set_bit(PG_reserved, &(page)->flags)
 #define ClearPageReserved(page)		clear_bit(PG_reserved, &(page)->flags)
+
+/*
+ * Error return values for the *_nopage functions
+ */
+#define NOPAGE_SIGBUS	(NULL)
+#define NOPAGE_OOM	((struct page *) (-1))
 
 
 /*
@@ -270,12 +286,16 @@ extern mem_map_t * mem_map;
  * This is timing-critical - most of the time in getting a new page
  * goes to clearing the page. If you want a page without the clearing
  * overhead, just use __get_free_page() directly..
+ *
+ * We have two allocation namespaces - the *get*page*() variants
+ * return virtual kernel addresses to the allocated page(s), the
+ * alloc_page*() variants return 'struct page *'.
  */
-extern struct page * __get_pages(int gfp_mask, unsigned long order);
 #define __get_free_page(gfp_mask) __get_free_pages((gfp_mask),0)
 #define __get_dma_pages(gfp_mask, order) __get_free_pages((gfp_mask) | GFP_DMA,(order))
-extern unsigned long FASTCALL(__get_free_pages(int gfp_mask, unsigned long gfp_order));
-extern struct page * get_free_highpage(int gfp_mask);
+extern unsigned long FASTCALL(__get_free_pages(int gfp_mask, unsigned long order));
+extern struct page * FASTCALL(alloc_pages(int gfp_mask, unsigned long order));
+#define alloc_page(gfp_mask) alloc_pages(gfp_mask, 0)
 
 extern inline unsigned long get_zeroed_page(int gfp_mask)
 {
@@ -320,12 +340,12 @@ extern int pgt_cache_water[2];
 extern int check_pgt_cache(void);
 
 extern void paging_init(void);
-extern void free_area_init(unsigned long);
+extern void free_area_init(unsigned int * zones_size);
 extern void mem_init(void);
 extern void show_mem(void);
 extern void oom(struct task_struct * tsk);
 extern void si_meminfo(struct sysinfo * val);
-extern void swapin_readahead(pte_t);
+extern void swapin_readahead(swp_entry_t);
 
 /* mmap.c */
 extern void vma_init(void);
@@ -398,15 +418,15 @@ static inline int expand_stack(struct vm_area_struct * vma, unsigned long addres
 	unsigned long grow;
 
 	address &= PAGE_MASK;
-	grow = vma->vm_start - address;
+	grow = (vma->vm_start - address) >> PAGE_SHIFT;
 	if (vma->vm_end - address > current->rlim[RLIMIT_STACK].rlim_cur ||
-	    (vma->vm_mm->total_vm << PAGE_SHIFT) + grow > current->rlim[RLIMIT_AS].rlim_cur)
+	    ((vma->vm_mm->total_vm + grow) << PAGE_SHIFT) > current->rlim[RLIMIT_AS].rlim_cur)
 		return -ENOMEM;
 	vma->vm_start = address;
-	vma->vm_offset -= grow;
-	vma->vm_mm->total_vm += grow >> PAGE_SHIFT;
+	vma->vm_pgoff -= grow;
+	vma->vm_mm->total_vm += grow;
 	if (vma->vm_flags & VM_LOCKED)
-		vma->vm_mm->locked_vm += grow >> PAGE_SHIFT;
+		vma->vm_mm->locked_vm += grow;
 	return 0;
 }
 

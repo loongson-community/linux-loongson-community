@@ -5,6 +5,11 @@
 mainmenu_name "Linux/PowerPC Kernel Configuration"
 
 mainmenu_option next_comment
+comment 'Code maturity level options'
+bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
+endmenu
+
+mainmenu_option next_comment
 comment 'Platform support'
 define_bool CONFIG_PPC y
 choice 'Processor type' \
@@ -39,6 +44,10 @@ else
 fi
 
 bool 'Symmetric multi-processing support' CONFIG_SMP
+if [ "$CONFIG_6xx" = "y" ];then
+  bool 'AltiVec Support' CONFIG_ALTIVEC
+fi
+
 if [ "$CONFIG_ALL_PPC" != "y" ];then
   define_bool CONFIG_MACH_SPECIFIC y
 fi
@@ -53,14 +62,16 @@ fi
 endmenu
 
 mainmenu_option next_comment
-comment 'General setup'
-
-bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
+comment 'Loadable module support'
 bool 'Enable loadable module support' CONFIG_MODULES
 if [ "$CONFIG_MODULES" = "y" ]; then
-  bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
-  bool 'Kernel module loader' CONFIG_KMOD
+   bool '  Set version information on all module symbols' CONFIG_MODVERSIONS
+   bool '  Kernel module loader' CONFIG_KMOD
 fi
+endmenu
+
+mainmenu_option next_comment
+comment 'General setup'
 
 if [ "$CONFIG_APUS" = "y" ]; then
   define_bool CONFIG_PCI n
@@ -78,6 +89,9 @@ bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 
 # only elf supported, a.out is not -- Cort
+if [ "$CONFIG_PROC_FS" = "y" ]; then
+   define_bool CONFIG_KCORE_ELF y
+fi
 define_bool CONFIG_BINFMT_ELF y
 define_bool CONFIG_KERNEL_ELF y
 tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC

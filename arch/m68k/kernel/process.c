@@ -102,10 +102,6 @@ void machine_halt(void)
 
 void machine_power_off(void)
 {
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-	apm_set_power_state(APM_STATE_OFF);
-#endif
-
 	if (mach_power_off)
 		mach_power_off();
 	for (;;);
@@ -349,4 +345,35 @@ asmlinkage int sys_execve(char *name, char **argv, char **envp)
 out:
 	unlock_kernel();
 	return error;
+}
+
+/*
+ * These bracket the sleeping functions..
+ */
+extern void scheduling_functions_start_here(void);
+extern void scheduling_functions_end_here(void);
+#define first_sched	((unsigned long) scheduling_functions_start_here)
+#define last_sched	((unsigned long) scheduling_functions_end_here)
+
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long fp, pc;
+	unsigned long stack_page;
+	int count = 0;
+	if (!p || p == current || p->state == TASK_RUNNING)
+		return 0;
+
+	stack_page = (unsigned long)p;
+	fp = ((struct switch_stack *)p->thread.ksp)->a6;
+	do {
+		if (fp < stack_page+sizeof(struct task_struct) ||
+		    fp >= 8184+stack_page)
+			return 0;
+		pc = ((unsigned long *)fp)[1];
+		/* FIXME: This depends on the order of these functions. */
+		if (pc < first_sched || pc >= last_sched)
+			return pc;
+		fp = *(unsigned long *) fp;
+	} while (count++ < 16);
+	return 0;
 }

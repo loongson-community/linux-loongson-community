@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: irq.c,v 1.4 1999/10/11 13:12:14 gniibe Exp $
  *
  * linux/arch/sh/kernel/irq.c
  *

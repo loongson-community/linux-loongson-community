@@ -1,4 +1,4 @@
-/* $Id: sgiwd93.h,v 1.4 1996/07/14 06:43:13 dm Exp $
+/* $Id: sgiwd93.h,v 1.5 1998/08/25 09:18:50 ralf Exp $
  * sgiwd93.h: SGI WD93 scsi definitions.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -25,9 +25,7 @@ int wd33c93_queuecommand(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
 int wd33c93_abort(Scsi_Cmnd *);
 int wd33c93_reset(Scsi_Cmnd *, unsigned int);
 
-extern struct proc_dir_entry proc_scsi_sgiwd93;
-
-#define SGIWD93_SCSI {proc_dir:		   &proc_scsi_sgiwd93, \
+#define SGIWD93_SCSI {proc_name:	   "SGIWD93", \
 		      name:                "SGI WD93", \
 		      detect:              sgiwd93_detect,    \
 		      release:             sgiwd93_release,   \

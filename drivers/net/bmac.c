@@ -3,6 +3,9 @@
  * Apple Powermacs.  Assumes it's under a DBDMA controller.
  *
  * Copyright (C) 1998 Randy Gobbel.
+ *
+ * May 1999, Al Viro: proper release of /proc/net/bmac entry, switched to
+ * dynamic procfs inode.
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -1253,14 +1256,14 @@ static int bmac_reset_and_enable(struct net_device *dev, int enable)
 	return 1;
 }
 
-int
-bmac_probe(struct net_device *dev)
+int bmac_probe(void)
 {
 	int j, rev;
 	struct bmac_data *bp;
 	struct device_node *bmacs;
 	unsigned char *addr;
 	static struct device_node *all_bmacs = NULL, *next_bmac;
+	struct net_device *dev = NULL;
 
 	if (all_bmacs == NULL) {
 		all_bmacs = find_devices("bmac");
@@ -1289,14 +1292,8 @@ bmac_probe(struct net_device *dev)
 		return -EINVAL;
 	}
 
-	if (dev == NULL) {
-		dev = init_etherdev(NULL, PRIV_BYTES);
-		bmac_devs = dev;  /*KLUDGE!!*/
-	} else {
-		/* XXX this doesn't look right (but it's never used :-) */
-		dev->priv = kmalloc(PRIV_BYTES, GFP_KERNEL);
-		if (dev->priv == 0) return -ENOMEM;
-	}
+	dev = init_etherdev(NULL, PRIV_BYTES);
+	bmac_devs = dev;  /*KLUDGE!!*/
 
 #ifdef MODULE
 	bmac_devs = dev;
@@ -1378,14 +1375,7 @@ bmac_probe(struct net_device *dev)
     
 	if (!bmac_reset_and_enable(dev, 0)) return -ENOMEM;
     
-#ifdef CONFIG_PROC_FS
-	proc_net_register(&(struct proc_dir_entry) {
-		PROC_NET_BMAC, 4, "bmac",
-			S_IFREG | S_IRUGO, 1, 0, 0,
-			0, &proc_net_inode_operations,
-			bmac_proc_info
-			});
-#endif
+	proc_net_create ("bmac", 0, bmac_proc_info);
 
 	return 0;
 }
@@ -1614,7 +1604,7 @@ int init_module(void)
    
     if(bmac_devs != NULL)
         return -EBUSY;
-    res = bmac_probe(NULL);
+    res = bmac_probe();
     return res;
 }
 
@@ -1627,6 +1617,7 @@ void cleanup_module(void)
 
     bp = (struct bmac_data *) bmac_devs->priv;
     unregister_netdev(bmac_devs);
+    proc_net_remove("bmac");
 
     free_irq(bmac_devs->irq, bmac_misc_intr);
     free_irq(bp->tx_dma_intr, bmac_txdma_intr);

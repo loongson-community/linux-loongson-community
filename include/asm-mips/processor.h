@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.22 1999/12/04 03:59:12 ralf Exp $
+/* $Id: processor.h,v 1.23 2000/01/27 23:45:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -214,6 +214,13 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 	regs->regs[29] = new_sp;					\
 	current->thread.current_ds = USER_DS;				\
 } while (0)
+
+unsigned long get_wchan(struct task_struct *p);
+
+#define __PT_REG(reg) ((long)&((struct pt_regs *)0)->reg - sizeof(struct pt_regs))
+#define __KSTK_TOS(tsk) ((unsigned long)(tsk) + KERNEL_STACK_SIZE - 32)
+#define KSTK_EIP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_epc)))
+#define KSTK_ESP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(regs[29])))
 
 /* Allocation and freeing of basic task resources. */
 /*

@@ -1,4 +1,4 @@
-/* $Id: process.c,v 1.7 1999/12/21 12:40:52 ralf Exp $
+/* $Id: process.c,v 1.4 2000/01/16 01:34:01 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -176,4 +176,38 @@ int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 		 "$9","$10","$11","$12","$13","$14","$15","$24","$25");
 
 	return retval;
+}
+
+/*
+ * These bracket the sleeping functions..
+ */
+extern void scheduling_functions_start_here(void);
+extern void scheduling_functions_end_here(void);
+#define first_sched	((unsigned long) scheduling_functions_start_here)
+#define last_sched	((unsigned long) scheduling_functions_end_here)
+
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long schedule_frame;
+	unsigned long pc;
+
+	if (!p || p == current || p->state == TASK_RUNNING)
+		return 0;
+
+	pc = thread_saved_pc(&p->thread);
+	if (pc == (unsigned long) interruptible_sleep_on
+	    || pc == (unsigned long) sleep_on) {
+		schedule_frame = ((unsigned long *)p->thread.reg30)[9];
+		return ((unsigned long *)schedule_frame)[15];
+	}
+	if (pc == (unsigned long) interruptible_sleep_on_timeout
+	    || pc == (unsigned long) sleep_on_timeout) {
+		schedule_frame = ((unsigned long *)p->thread.reg30)[9];
+		return ((unsigned long *)schedule_frame)[16];
+	}
+	if (pc >= first_sched && pc < last_sched) {
+		printk(KERN_DEBUG "Bug in %s\n", __FUNCTION__);
+	}
+
+	return pc;
 }

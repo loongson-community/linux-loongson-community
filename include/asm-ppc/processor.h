@@ -17,6 +17,7 @@
 #define MSR_SF		(1<<63)
 #define MSR_ISF		(1<<61)
 #endif /* CONFIG_PPC64 */
+#define MSR_VEC		(1<<25)		/* Enable AltiVec */
 #define MSR_POW		(1<<18)		/* Enable Power Management */
 #define MSR_TGPR	(1<<17)		/* TLB Update registers in use */
 #define MSR_ILE		(1<<16)		/* Interrupt Little-Endian enable */
@@ -249,6 +250,7 @@ extern long kernel_thread(int (*fn)(void *), void *arg, unsigned long flags);
 
 /* Lazy FPU handling on uni-processor */
 extern struct task_struct *last_task_used_math;
+extern struct task_struct *last_task_used_altivec;
 
 /*
  * this is the minimum allowable io space due to the location
@@ -277,6 +279,9 @@ struct thread_struct {
 	double		fpr[32];	/* Complete floating point set */
 	unsigned long	fpscr_pad;	/* fpr ... fpscr must be contiguous */
 	unsigned long	fpscr;		/* Floating point status */
+	unsigned long	vrf[128];
+	unsigned long	vscr;
+	unsigned long	vrsave;
 };
 
 #define INIT_SP		(sizeof(init_stack) + (unsigned long) &init_stack)
@@ -310,6 +315,11 @@ static inline unsigned long thread_saved_pc(struct thread_struct *t)
 #define copy_segments(tsk, mm)		do { } while (0)
 #define release_segments(mm)		do { } while (0)
 #define forget_segments()		do { } while (0)
+
+unsigned long get_wchan(struct task_struct *p);
+
+#define KSTK_EIP(tsk)  ((tsk)->thread.regs->nip)
+#define KSTK_ESP(tsk)  ((tsk)->thread.regs->gpr[1])
 
 /*
  * NOTE! The task struct and the stack go together

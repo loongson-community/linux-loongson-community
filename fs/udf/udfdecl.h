@@ -1,12 +1,13 @@
 #ifndef __UDF_DECL_H
 #define __UDF_DECL_H
 
-#define UDF_VERSION_NOTICE "v0.8.9"
+#define UDF_VERSION_NOTICE "v0.8.9.3"
+
+#include <linux/udf_udf.h>
 
 #ifdef __KERNEL__
 
 #include <linux/types.h>
-#include <linux/udf_udf.h>
 #include <linux/udf_fs.h>
 #include <linux/config.h>
 
@@ -18,16 +19,14 @@
 #error "The UDF Module Current Requires Kernel Version 2.3.7 or greater"
 #endif
 
+#include <linux/fs.h>
 /* if we're not defined, we must be compiling outside of the kernel tree */
 #if !defined(CONFIG_UDF_FS) && !defined(CONFIG_UDF_FS_MODULE)
 /* ... so override config */
 #define CONFIG_UDF_FS_MODULE
-#include <linux/fs.h>
 /* explicitly include udf_fs_sb.h and udf_fs_i.h */
 #include <linux/udf_fs_sb.h>
 #include <linux/udf_fs_i.h>
-#else
-#include <linux/fs.h> /* also gets udf_fs_i.h and udf_fs_sb.h */
 #endif
 
 struct dentry;
@@ -113,7 +112,6 @@ extern int udf_sync_file(struct file *, struct dentry *);
 #else
 
 #include <sys/types.h>
-#include <linux/udf_udf.h>
 
 #endif /* __KERNEL__ */
 
@@ -249,7 +247,7 @@ extern Uint32 udf64_low32(Uint64);
 extern Uint32 udf64_high32(Uint64);
 
 
-extern time_t *udf_stamp_to_time(time_t *, timestamp);
+extern time_t *udf_stamp_to_time(time_t *, long *, timestamp);
 extern timestamp *udf_time_to_stamp(timestamp *, time_t, long);
 extern time_t udf_converttime (struct ktm *);
 

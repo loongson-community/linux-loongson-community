@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: scall_o32.S,v 1.3 2000/01/17 23:32:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -267,7 +267,7 @@ illegal_syscall:
 	sys	sys32_sigpending	1
 	sys	sys_sethostname	2
 	sys	sys_setrlimit	2			/* 4075 */
-	sys	sys_getrlimit	2
+	sys	sys_old_getrlimit	2
 	sys	sys_getrusage	2
 	sys	sys_gettimeofday 2
 	sys	sys_settimeofday 2
@@ -401,6 +401,7 @@ illegal_syscall:
 	sys	sys_sendfile	3
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
+	sys	sys_getrlimit	2			/* 4210 */
 	.endm
 
 	.macro	sys function, nargs

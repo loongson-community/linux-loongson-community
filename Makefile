@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 24
+SUBLEVEL = 27
 EXTRAVERSION =
 
 ARCH = mips
@@ -167,6 +167,10 @@ ifeq ($(CONFIG_PCMCIA_NETCARD),y)
 DRIVERS := $(DRIVERS) drivers/net/pcmcia/pcmcia_net.o
 endif
 
+ifeq ($(CONFIG_PCMCIA_CHRDEV),y)
+DRIVERS := $(DRIVERS) drivers/char/pcmcia/pcmcia_char.o
+endif
+
 ifdef CONFIG_DIO
 DRIVERS := $(DRIVERS) drivers/dio/dio.a
 endif
@@ -251,9 +255,6 @@ vmlinux: $(CONFIGURATION) init/main.o init/version.o linuxsubdirs
 symlinks:
 	rm -f include/asm
 	( cd include ; ln -sf asm-$(ARCH) asm)
-	@if [ ! -d modules ]; then \
-		mkdir modules; \
-	fi
 	@if [ ! -d include/linux/modules ]; then \
 		mkdir include/linux/modules; \
 	fi
@@ -332,7 +333,11 @@ endif
 
 modules: $(patsubst %, _mod_%, $(SUBDIRS))
 
-$(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h include/config/MARKER
+modules/MARKER:
+	mkdir -p modules
+	touch modules/MARKER
+
+$(patsubst %, _mod_%, $(SUBDIRS)) : include/linux/version.h include/config/MARKER modules/MARKER
 	$(MAKE) -C $(patsubst _mod_%, %, $@) CFLAGS="$(CFLAGS) $(MODFLAGS)" MAKING_MODULES=1 modules
 
 modules_install:
@@ -362,6 +367,8 @@ modules_install:
 	if [ -f IRDA_MODULES  ]; then inst_mod IRDA_MODULES  net;   fi; \
 	if [ -f USB_MODULES   ]; then inst_mod USB_MODULES   usb;   fi; \
 	if [ -f PCMCIA_MODULES ]; then inst_mod PCMCIA_MODULES pcmcia; fi; \
+	if [ -f PCMCIA_NET_MODULES ]; then inst_mod PCMCIA_NET_MODULES pcmcia; fi; \
+	if [ -f PCMCIA_CHAR_MODULES ]; then inst_mod PCMCIA_CHAR_MODULES pcmcia; fi; \
 	\
 	ls *.o > $$MODLIB/.allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 $$MODLIB/.allmods - > $$MODLIB/.misc; \
@@ -390,13 +397,12 @@ clean:	archclean
 	rm -f .tmp*
 	rm -f drivers/char/consolemap_deftbl.c drivers/video/promcon_tbl.c
 	rm -f drivers/char/conmakehash
+	rm -f drivers/pci/devlist.h drivers/pci/gen-devlist
 	rm -f drivers/sound/bin2hex drivers/sound/hex2hex
 	rm -f net/khttpd/make_times_h
 	rm -f net/khttpd/times.h
-	if [ -d modules ]; then \
-		rm -f core `find modules/ -type f -print`; \
-	fi
 	rm -f submenu*
+	rm -rf modules
 
 mrproper: clean archmrproper
 	rm -f include/linux/autoconf.h include/linux/version.h
@@ -417,7 +423,6 @@ mrproper: clean archmrproper
 	rm -f .hdepend scripts/mkdep scripts/split-include
 	rm -f $(TOPDIR)/include/linux/modversions.h
 	rm -rf $(TOPDIR)/include/linux/modules
-	rm -rf modules
 
 distclean: mrproper
 	find . -type f \( -name core -o -name '*.orig' -o -name '*.rej' \

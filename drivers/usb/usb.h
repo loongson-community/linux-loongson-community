@@ -126,15 +126,15 @@ struct usb_proc_ctrltransfer {
 	__u16 value;
 	__u16 index;
 	__u16 length;
-	__u32 timeout;  /* in milliseconds */
-        void *data;
+	__u32 timeout;	/* in milliseconds */
+	void *data;
 };
 
 struct usb_proc_bulktransfer {
-        unsigned int ep;
-        unsigned int len;
-	unsigned int timeout; /* in milliseconds */
-        void *data;
+	unsigned int ep;
+	unsigned int len;
+	unsigned int timeout;	/* in milliseconds */
+	void *data;
 };
 
 struct usb_proc_old_ctrltransfer {
@@ -143,31 +143,28 @@ struct usb_proc_old_ctrltransfer {
 	__u16 value;
 	__u16 index;
 	__u16 length;
-        /* pointer to data */
-        void *data;
+	/* pointer to data */
+	void *data;
 };
 
 struct usb_proc_old_bulktransfer {
-        unsigned int ep;
-        unsigned int len;
-        void *data;
+	unsigned int ep;
+	unsigned int len;
+	void *data;
 };
 
 struct usb_proc_setinterface {
-        unsigned int interface;
-        unsigned int altsetting;
+	unsigned int interface;
+	unsigned int altsetting;
 };
 
-#define USB_PROC_CONTROL           _IOWR('U', 0, struct usb_proc_ctrltransfer)
-#define USB_PROC_BULK              _IOWR('U', 2, struct usb_proc_bulktransfer)
-#define USB_PROC_OLD_CONTROL       _IOWR('U', 0, struct usb_proc_old_ctrltransfer)
-#define USB_PROC_OLD_BULK          _IOWR('U', 2, struct usb_proc_old_bulktransfer)
-#define USB_PROC_RESETEP           _IOR('U', 3, unsigned int)
-#define USB_PROC_SETINTERFACE      _IOR('U', 4, struct usb_proc_setinterface)
-#define USB_PROC_SETCONFIGURATION  _IOR('U', 5, unsigned int)
-
-
-
+#define USB_PROC_CONTROL	_IOWR('U', 0, struct usb_proc_ctrltransfer)
+#define USB_PROC_BULK		_IOWR('U', 2, struct usb_proc_bulktransfer)
+#define USB_PROC_OLD_CONTROL	_IOWR('U', 0, struct usb_proc_old_ctrltransfer)
+#define USB_PROC_OLD_BULK	_IOWR('U', 2, struct usb_proc_old_bulktransfer)
+#define USB_PROC_RESETEP	_IOR('U', 3, unsigned int)
+#define USB_PROC_SETINTERFACE	_IOR('U', 4, struct usb_proc_setinterface)
+#define USB_PROC_SETCONFIGURATION	_IOR('U', 5, unsigned int)
 
 #ifdef __KERNEL__
 
@@ -175,9 +172,12 @@ struct usb_proc_setinterface {
 #include <linux/list.h>
 #include <linux/sched.h>
 
+#define USB_MAJOR 180
+
 extern int usb_hub_init(void);
 extern int usb_kbd_init(void);
 extern int usb_cpia_init(void);
+extern int usb_dc2xx_init(void);
 extern int usb_mouse_init(void);
 extern int usb_printer_init(void);
 
@@ -235,6 +235,12 @@ struct usb_devmap {
 	unsigned long devicemap[128 / (8*sizeof(unsigned long))];
 };
 
+#define USB_MAXBUS		64
+
+struct usb_busmap {
+	unsigned long busmap[USB_MAXBUS / (8*sizeof(unsigned long))];
+};
+
 /*
  * This is a USB device descriptor.
  *
@@ -243,7 +249,8 @@ struct usb_devmap {
 
 /* Everything but the endpoint maximums are aribtrary */
 #define USB_MAXCONFIG		8
-#define USB_MAXALTSETTING	16
+#define USB_ALTSETTINGALLOC	4
+#define USB_MAXALTSETTING	128	/* Hard limit */
 #define USB_MAXINTERFACES	32
 #define USB_MAXENDPOINTS	32
 
@@ -281,6 +288,9 @@ struct usb_endpoint_descriptor {
 	__u8  bInterval;
 	__u8  bRefresh;
 	__u8  bSynchAddress;
+
+	unsigned char *extra;	/* Extra descriptors */
+	int extralen;
 } __attribute__ ((packed));
 
 /* HID descriptor */
@@ -311,8 +321,10 @@ struct usb_interface_descriptor {
 	__u8  bInterfaceProtocol;
 	__u8  iInterface;
 
-	struct usb_hid_descriptor *hid;
 	struct usb_endpoint_descriptor *endpoint;
+
+	unsigned char *extra;
+	int extralen;
 } __attribute__ ((packed));
 
 struct usb_interface {
@@ -320,6 +332,10 @@ struct usb_interface {
 
 	int act_altsetting;		/* active alternate setting */
 	int num_altsetting;		/* number of alternate settings */
+	int max_altsetting;		/* total memory allocated */
+
+        struct usb_driver *driver;	/* driver */
+	void *private_data;
 };
 
 /* Configuration descriptor information.. */
@@ -348,8 +364,8 @@ struct usb_device;
 struct usb_driver {
 	const char *name;
 
-	int (*probe)(struct usb_device *);
-	void (*disconnect)(struct usb_device *);
+	void * (*probe)(struct usb_device *, unsigned int);
+	void (*disconnect)(struct usb_device *, void *);
 
 	struct list_head driver_list;
 
@@ -396,13 +412,13 @@ enum {
  * with the completed frames (TDs).
  */
 enum {
-	CB_CONTINUE = 0,        /* OK, remove all TDs;
+	CB_CONTINUE = 0,	/* OK, remove all TDs;
 				   needs to be 0 to be consistent with
 				   current callback function ret. values */
-	CB_REUSE,               /* leave descriptors as NULL, not active */
-	CB_RESTART,             /* leave descriptors as they are, alive */
-	CB_ABORT,                /* kill this USB transfer request */
-	CB_CONT_RUN    		/* append the isoc_desc at the end of all active isoc_desc */
+	CB_REUSE,		/* leave descriptors as NULL, not active */
+	CB_RESTART,		/* leave descriptors as they are, alive */
+	CB_ABORT,		/* kill this USB transfer request */
+	CB_CONT_RUN		/* append the isoc_desc at the end of all active isoc_desc */
 };
 
 struct isoc_frame_desc {
@@ -437,6 +453,7 @@ struct usb_isoc_desc {
 	void            *data;
 	int             buf_size;
 	struct usb_isoc_desc *prev_isocdesc; /* previous isoc_desc, for CB_CONT_RUN */
+
 	/*
 	 * The following fields are set by the usb_run_isoc() call.
 	 */
@@ -476,6 +493,8 @@ struct usb_operations {
  * Allocated per bus we have
  */
 struct usb_bus {
+	int busnum;			/* Bus number (in order of reg) */
+
 	struct usb_devmap devmap;       /* Device map */
 	struct usb_operations *op;      /* Operations (specific to the HC) */
 	struct usb_device *root_hub;    /* Root hub */
@@ -491,7 +510,6 @@ struct usb_bus {
 	int bandwidth_isoc_reqs;	/* number of Isoc. requesters */
 
 	/* procfs entry */
-	int proc_busnum;
 	struct proc_dir_entry *proc_entry;
 };
 
@@ -510,11 +528,9 @@ struct usb_device {
 	struct usb_config_descriptor *actconfig;/* the active configuration */
 	int epmaxpacketin[16];		/* INput endpoint specific maximums */
 	int epmaxpacketout[16];		/* OUTput endpoint specific maximums */
-	int ifnum;			/* active interface number */
 
 	struct usb_device *parent;
 	struct usb_bus *bus;		/* Bus we're part of */
-	struct usb_driver *driver;	/* Driver */
 
 	struct usb_device_descriptor descriptor;/* Descriptor */
 	struct usb_config_descriptor *config;	/* All of the configs */
@@ -523,8 +539,7 @@ struct usb_device {
 	int string_langid;		/* language ID for strings */
   
 	void *hcpriv;			/* Host Controller private data */
-	void *private;			/* Upper layer private data */
-	void *audiopriv;		/* May be both audio and HID */
+
 	/* procfs entry */
 	struct proc_dir_entry *proc_entry;
 
@@ -542,6 +557,11 @@ struct usb_device {
 
 extern int usb_register(struct usb_driver *);
 extern void usb_deregister(struct usb_driver *);
+
+/* used these for multi-interface device registration */
+extern void usb_driver_claim_interface(struct usb_driver *driver, struct usb_interface *iface, void* priv);
+extern int usb_interface_claimed(struct usb_interface *iface);
+extern void usb_driver_release_interface(struct usb_driver *driver, struct usb_interface *iface);
 
 extern struct usb_bus *usb_alloc_bus(struct usb_operations *);
 extern void usb_free_bus(struct usb_bus *);
@@ -620,6 +640,11 @@ int usb_kill_isoc (struct usb_isoc_desc *isocdesc);
 #define PIPE_INTERRUPT			1
 #define PIPE_CONTROL			2
 #define PIPE_BULK			3
+
+#define USB_ISOCHRONOUS		0
+#define USB_INTERRUPT		1
+#define USB_CONTROL		2
+#define USB_BULK		3
 
 #define usb_maxpacket(dev, pipe, out)	(out \
 				? (dev)->epmaxpacketout[usb_pipeendpoint(pipe)] \

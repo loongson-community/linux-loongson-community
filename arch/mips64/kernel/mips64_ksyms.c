@@ -1,4 +1,4 @@
-/* $Id: mips64_ksyms.c,v 1.4 1999/11/19 20:35:22 ralf Exp $
+/* $Id: mips64_ksyms.c,v 1.5 2000/01/17 23:32:46 ralf Exp $
  *
  * Export MIPS64-specific functions needed for loadable modules.
  *
@@ -111,3 +111,5 @@ EXPORT_SYMBOL(unregister_fpe);
 #ifdef CONFIG_VT
 EXPORT_SYMBOL(screen_info);
 #endif
+
+EXPORT_SYMBOL(get_wchan);

@@ -11,7 +11,7 @@
 
 SUB_DIRS     := 
 MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS) ftape joystick
+ALL_SUB_DIRS := $(SUB_DIRS) ftape joystick pcmcia
 
 #
 # This file contains the font map for the default (hardware) font
@@ -277,7 +277,7 @@ O_OBJS += softdog.o
 else
   ifeq ($(CONFIG_SOFT_WATCHDOG),m)
   M_OBJS += softdog.o
-  endif   
+  endif
 endif
 
 ifeq ($(CONFIG_PCWATCHDOG),y)
@@ -338,6 +338,10 @@ endif
 
 ifeq ($(CONFIG_RTC),y)
 O_OBJS += rtc.o
+else
+  ifeq ($(CONFIG_RTC),m)
+    M_OBJS += rtc.o
+  endif
 endif
 
 ifeq ($(CONFIG_NVRAM),y)
@@ -378,16 +382,6 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_VIDEO_SAA5249),y)
-O_OBJS += saa5249.o
-L_I2C=y
-else
-  ifeq ($(CONFIG_VIDEO_SAA5249),m)
-    M_OBJS += saa5249.o
-    M_I2C=y
-  endif
-endif
-
 ifeq ($(CONFIG_I2C_PARPORT),y)
 O_OBJS += i2c-parport.o
 L_I2C = y
@@ -398,11 +392,13 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_VIDEO_BWQCAM),y)
-O_OBJS += bw-qcam.o
+ifeq ($(CONFIG_VIDEO_SAA5249),y)
+O_OBJS += saa5249.o
+L_I2C=y
 else
-  ifeq ($(CONFIG_VIDEO_BWQCAM),m)
-    M_OBJS += bw-qcam.o
+  ifeq ($(CONFIG_VIDEO_SAA5249),m)
+    M_OBJS += saa5249.o
+    M_I2C=y
   endif
 endif
 
@@ -411,6 +407,14 @@ O_OBJS += c-qcam.o
 else
   ifeq ($(CONFIG_VIDEO_CQCAM),m)
     M_OBJS += c-qcam.o
+  endif
+endif
+
+ifeq ($(CONFIG_VIDEO_BWQCAM),y)
+O_OBJS += bw-qcam.o
+else
+  ifeq ($(CONFIG_VIDEO_BWQCAM),m)
+    M_OBJS += bw-qcam.o
   endif
 endif
 
@@ -462,29 +466,21 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VIDEO_STRADIS),y)
+O_OBJS += vino.o
+else
+  ifeq ($(CONFIG_VIDEO_STRADIS),m)
+  M_OBJS += stradis.o
+  endif
+endif
+
 ifeq ($(CONFIG_RADIO_AZTECH),y)
 O_OBJS += radio-aztech.o
 else
   ifeq ($(CONFIG_RADIO_AZTECH),m)
   M_OBJS += radio-aztech.o
   endif
-endif                                             
-
-ifeq ($(CONFIG_RADIO_SF16FMI),y)
-O_OBJS += radio-sf16fmi.o
-else
-  ifeq ($(CONFIG_RADIO_SF16FMI),m)
-  M_OBJS += radio-sf16fmi.o
-  endif
-endif                                             
-
-ifeq ($(CONFIG_RADIO_RTRACK),y)
-O_OBJS += radio-aimslab.o
-else
-  ifeq ($(CONFIG_RADIO_RTRACK),m)
-  M_OBJS += radio-aimslab.o
-  endif
-endif                                             
+endif
 
 ifeq ($(CONFIG_RADIO_RTRACK2),y)
 O_OBJS += radio-rtrack2.o
@@ -492,23 +488,15 @@ else
   ifeq ($(CONFIG_RADIO_RTRACK2),m)
   M_OBJS += radio-rtrack2.o
   endif
-endif                                             
+endif
 
-ifeq ($(CONFIG_RADIO_TYPHOON),y)
-O_OBJS += radio-typhoon.o
+ifeq ($(CONFIG_RADIO_SF16FMI),y)
+O_OBJS += radio-sf16fmi.o
 else
-  ifeq ($(CONFIG_RADIO_TYPHOON),m)
-  M_OBJS += radio-typhoon.o
+  ifeq ($(CONFIG_RADIO_SF16FMI),m)
+  M_OBJS += radio-sf16fmi.o
   endif
-endif                                             
-
-ifeq ($(CONFIG_RADIO_ZOLTRIX),y)
-O_OBJS += radio-zoltrix.o
-else
-  ifeq ($(CONFIG_RADIO_ZOLTRIX),m)
-  M_OBJS += radio-zoltrix.o
-  endif
-endif                                             
+endif
 
 ifeq ($(CONFIG_RADIO_CADET),y)
 O_OBJS += radio-cadet.o
@@ -516,7 +504,39 @@ else
   ifeq ($(CONFIG_RADIO_CADET),m)
   M_OBJS += radio-cadet.o
   endif
-endif                                             
+endif
+
+ifeq ($(CONFIG_RADIO_TYPHOON),y)
+O_OBJS += radio-typhoon.o
+else
+  ifeq ($(CONFIG_RADIO_TYPHOON),m)
+  M_OBJS += radio-typhoon.o
+  endif
+endif
+
+ifeq ($(CONFIG_RADIO_TERRATEC),y)
+O_OBJS += radio-terratec.o
+else
+  ifeq ($(CONFIG_RADIO_TERRATEC),m)
+  M_OBJS += radio-terratec.o
+  endif
+endif
+
+ifeq ($(CONFIG_RADIO_RTRACK),y)
+O_OBJS += radio-aimslab.o
+else
+  ifeq ($(CONFIG_RADIO_RTRACK),m)
+  M_OBJS += radio-aimslab.o
+  endif
+endif
+
+ifeq ($(CONFIG_RADIO_ZOLTRIX),y)
+O_OBJS += radio-zoltrix.o
+else
+  ifeq ($(CONFIG_RADIO_ZOLTRIX),m)
+  M_OBJS += radio-zoltrix.o
+  endif
+endif
 
 ifeq ($(CONFIG_RADIO_MIROPCM20),y)
 O_OBJS += radio-miropcm20.o
@@ -532,13 +552,13 @@ else
   ifeq ($(CONFIG_RADIO_GEMTEK),m)
   M_OBJS += radio-gemtek.o
   endif
-endif                                             
+endif
 
-ifeq ($(CONFIG_RADIO_TERRATEC),y)
-O_OBJS += radio-terratec.o
+ifeq ($(CONFIG_RADIO_TRUST),y)
+O_OBJS += radio-trust.o
 else
-  ifeq ($(CONFIG_RADIO_TERRATEC),m)
-  M_OBJS += radio-terratec.o
+  ifeq ($(CONFIG_RADIO_TRUST),m)
+  M_OBJS += radio-trust.o
   endif
 endif
 
@@ -589,6 +609,15 @@ endif
 ifeq ($(CONFIG_DRM),y)
   ALL_SUB_DIRS += drm
   MOD_SUB_DIRS += drm
+endif
+
+ifeq ($(CONFIG_PCMCIA),y)
+  SUB_DIRS += pcmcia
+  MOD_IN_SUB_DIRS += pcmcia
+else
+  ifeq ($(CONFIG_PCMCIA),m)
+    MOD_IN_SUB_DIRS += pcmcia
+  endif
 endif
 
 include $(TOPDIR)/Rules.make

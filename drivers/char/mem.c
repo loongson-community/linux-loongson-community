@@ -56,6 +56,9 @@ extern void adbdev_init(void);
 #ifdef CONFIG_USB
 extern void usb_init(void);
 #endif
+#ifdef CONFIG_PPDEV
+extern int pp_init(void);
+#endif
      
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
 			    const char * buf, size_t count, loff_t *ppos)
@@ -190,10 +193,7 @@ static inline int noncached_address(unsigned long addr)
 
 static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 {
-	unsigned long offset = vma->vm_offset;
-
-	if (offset & ~PAGE_MASK)
-		return -ENXIO;
+	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 
 	/*
 	 * Accessing memory above the top the kernel knows about or
@@ -678,6 +678,9 @@ int __init chr_dev_init(void)
 #endif
 #ifdef CONFIG_VIDEO_DEV
 	videodev_init();
+#endif
+#ifdef CONFIG_PPDEV
+	pp_init();
 #endif
 	return 0;
 }

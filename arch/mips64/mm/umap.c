@@ -1,4 +1,4 @@
-/* $Id: umap.c,v 1.2 1999/12/04 03:59:01 ralf Exp $
+/* $Id: umap.c,v 1.3 2000/01/27 01:05:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -118,7 +118,7 @@ static inline void free_pte(pte_t page)
 		current->mm->rss--;
 		return;
 	}
-	swap_free(page);
+	swap_free(pte_to_swp_entry(page));
 }
 
 static inline void forget_pte(pte_t page)

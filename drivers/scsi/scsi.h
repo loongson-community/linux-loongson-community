@@ -16,6 +16,7 @@
 #define _SCSI_H
 
 #include <linux/config.h>	/* for CONFIG_SCSI_LOGGING */
+#include <linux/proc_fs.h>
 
 /*
  * Some of the public constants are being moved to this file.
@@ -404,6 +405,7 @@ extern void scsi_release_command(Scsi_Cmnd *);
 extern int max_scsi_hosts;
 
 extern void proc_print_scsidevice(Scsi_Device *, char *, int *, int);
+extern struct proc_dir_entry *proc_scsi;
 
 extern void print_command(unsigned char *);
 extern void print_sense(const char *, Scsi_Cmnd *);

@@ -214,7 +214,8 @@ static inline void prune_one_dentry(struct dentry * dentry)
 	dentry_iput(dentry);
 	parent = dentry->d_parent;
 	d_free(dentry);
-	dput(parent);
+	if (parent != dentry)
+		dput(parent);
 }
 
 /*
@@ -712,7 +713,7 @@ char * d_path(struct dentry *dentry, char *buffer, int buflen)
 
 	*--end = '\0';
 	buflen--;
-	if (dentry->d_parent != dentry && list_empty(&dentry->d_hash)) {
+	if (!IS_ROOT(dentry) && list_empty(&dentry->d_hash)) {
 		buflen -= 10;
 		end -= 10;
 		memcpy(end, " (deleted)", 10);

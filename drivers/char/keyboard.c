@@ -32,7 +32,6 @@
 #include <linux/string.h>
 #include <linux/random.h>
 #include <linux/init.h>
-#include <linux/module.h>
 
 #include <asm/keyboard.h>
 #include <asm/bitops.h>
@@ -42,6 +41,7 @@
 #include <linux/vt_kern.h>
 #include <linux/kbd_ll.h>
 #include <linux/sysrq.h>
+#include <linux/acpi.h>
 
 #define SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
@@ -159,6 +159,9 @@ static int sysrq_pressed;
 int sysrq_enabled = 1;
 #endif
 
+static struct acpi_dev_info acpi_kbd_info = {ACPI_SYS_DEV, ACPI_KBC_HID, NULL};
+static struct acpi_dev *acpi_kbd = NULL;
+
 /*
  * Many other routines do put_queue, but I think either
  * they produce ASCII, or they produce some user-assigned
@@ -200,6 +203,8 @@ void handle_scancode(unsigned char scancode, int down)
 	unsigned char keycode;
 	char up_flag = down ? 0 : 0200;
 	char raw_mode;
+
+	acpi_access(acpi_kbd);
 
 	do_poke_blanked_console = 1;
 	mark_bh(CONSOLE_BH);
@@ -939,5 +944,8 @@ int __init kbd_init(void)
 	kbd_init_hw();
 	init_bh(KEYBOARD_BH, kbd_bh);
 	mark_bh(KEYBOARD_BH);
+	
+	acpi_kbd = acpi_register(&acpi_kbd_info, 0);
+
 	return 0;
 }

@@ -22,7 +22,6 @@
 
 /* Wakes up khubd */
 static spinlock_t hub_event_lock = SPIN_LOCK_UNLOCKED;
-static spinlock_t hub_list_lock = SPIN_LOCK_UNLOCKED;
 
 static LIST_HEAD(hub_event_list);	/* List of hubs needing servicing */
 static LIST_HEAD(hub_list);		/* List containing all of the hubs (for cleanup) */
@@ -105,11 +104,8 @@ static int usb_hub_configure(struct usb_hub *hub)
 	struct usb_hub_status *hubsts;
 	int i;
 
-	/* Set it to the first configuration */
-	usb_set_configuration(dev, dev->config[0].bConfigurationValue);
-
 	/* Get the length first */
-	if (usb_get_hub_descriptor(dev, buffer, 4))
+	if (usb_get_hub_descriptor(dev, buffer, 4) < 0)
 		return -1;
 
 	header = (struct usb_descriptor_header *)buffer;
@@ -117,7 +113,7 @@ static int usb_hub_configure(struct usb_hub *hub)
 	if (!bitmap)
 		return -1;
 
-	if (usb_get_hub_descriptor(dev, bitmap, header->bLength))
+	if (usb_get_hub_descriptor(dev, bitmap, header->bLength) < 0)
 		return -1;
 
 	descriptor = (struct usb_hub_descriptor *)bitmap;
@@ -170,7 +166,7 @@ static int usb_hub_configure(struct usb_hub *hub)
 
 	kfree(bitmap);
 
-	if (usb_get_hub_status(dev, buffer))
+	if (usb_get_hub_status(dev, buffer) < 0)
 		return -1;
 
 	hubsts = (struct usb_hub_status *)buffer;
@@ -188,7 +184,7 @@ static int usb_hub_configure(struct usb_hub *hub)
 	return 0;
 }
 
-static int hub_probe(struct usb_device *dev)
+static void * hub_probe(struct usb_device *dev, unsigned int i)
 {
 	struct usb_interface_descriptor *interface;
 	struct usb_endpoint_descriptor *endpoint;
@@ -196,60 +192,50 @@ static int hub_probe(struct usb_device *dev)
 	unsigned long flags;
 	int ret;
 
-	/* We don't handle multi-config hubs */
-	if (dev->descriptor.bNumConfigurations != 1)
-		return -1;
-
-	/* We don't handle multi-interface hubs */
-	if (dev->config[0].bNumInterfaces != 1)
-		return -1;
-
-	interface = &dev->config[0].interface[0].altsetting[0];
+	interface = &dev->actconfig->interface[i].altsetting[0];
 
 	/* Is it a hub? */
 	if (interface->bInterfaceClass != USB_CLASS_HUB)
-		return -1;
+		return NULL;
 
 	/* Some hubs have a subclass of 1, which AFAICT according to the */
 	/*  specs is not defined, but it works */
 	if ((interface->bInterfaceSubClass != 0) &&
 	    (interface->bInterfaceSubClass != 1))
-		return -1;
+		return NULL;
 
 	/* Multiple endpoints? What kind of mutant ninja-hub is this? */
 	if (interface->bNumEndpoints != 1)
-		return -1;
+		return NULL;
 
 	endpoint = &interface->endpoint[0];
 
 	/* Output endpoint? Curiousier and curiousier.. */
 	if (!(endpoint->bEndpointAddress & USB_DIR_IN))
-		return -1;
+		return NULL;
 
 	/* If it's not an interrupt endpoint, we'd better punt! */
 	if ((endpoint->bmAttributes & 3) != 3)
-		return -1;
+		return NULL;
 
 	/* We found a hub */
 	printk(KERN_INFO "USB hub found\n");
 
 	if ((hub = kmalloc(sizeof(*hub), GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "couldn't kmalloc hub struct\n");
-		return -1;
+		return NULL;
 	}
 
 	memset(hub, 0, sizeof(*hub));
-
-	dev->private = hub;
 
 	INIT_LIST_HEAD(&hub->event_list);
 	hub->dev = dev;
 
 	/* Record the new hub's existence */
-	spin_lock_irqsave(&hub_list_lock, flags);
+	spin_lock_irqsave(&hub_event_lock, flags);
 	INIT_LIST_HEAD(&hub->hub_list);
 	list_add(&hub->hub_list, &hub_list);
-	spin_unlock_irqrestore(&hub_list_lock, flags);
+	spin_unlock_irqrestore(&hub_event_lock, flags);
 
 	if (usb_hub_configure(hub) >= 0) {
 		hub->irqpipe = usb_rcvctrlpipe(dev, endpoint->bEndpointAddress);
@@ -258,20 +244,32 @@ static int hub_probe(struct usb_device *dev)
 			hub, &hub->irq_handle);
 		if (ret) {
 			printk (KERN_WARNING "usb-hub: usb_request_irq failed (0x%x)\n", ret);
-			/* FIXME: need to free <hub> but first clean up its list. */
-			return -1;
+			/* free hub, but first clean up its list. */
+			spin_lock_irqsave(&hub_event_lock, flags);
+
+			/* Delete it and then reset it */
+			list_del(&hub->event_list);
+			INIT_LIST_HEAD(&hub->event_list);
+			list_del(&hub->hub_list);
+			INIT_LIST_HEAD(&hub->hub_list);
+
+			spin_unlock_irqrestore(&hub_event_lock, flags);
+
+			kfree(hub);
+
+			return NULL;
 		}
 
 		/* Wake up khubd */
 		wake_up(&khubd_wait);
 	}
 
-	return 0;
+	return hub;
 }
 
-static void hub_disconnect(struct usb_device *dev)
+static void hub_disconnect(struct usb_device *dev, void *ptr)
 {
-	struct usb_hub *hub = dev->private;
+	struct usb_hub *hub = ptr;
 	unsigned long flags;
 
 	spin_lock_irqsave(&hub_event_lock, flags);
@@ -307,7 +305,7 @@ static void usb_hub_port_connect_change(struct usb_device *hub, int port)
 	wait_ms(50);	/* FIXME: This is from the *BSD stack, thanks! :) */
 
 	/* Check status */
-	if (usb_get_port_status(hub, port + 1, &portsts)) {
+	if (usb_get_port_status(hub, port + 1, &portsts) < 0) {
 		printk(KERN_ERR "get_port_status failed\n");
 		return;
 	}
@@ -379,7 +377,7 @@ static void usb_hub_events(void)
 			struct usb_port_status portsts;
 			unsigned short portstatus, portchange;
 
-			if (usb_get_port_status(dev, i + 1, &portsts)) {
+			if (usb_get_port_status(dev, i + 1, &portsts) < 0) {
 				printk(KERN_ERR "get_port_status failed\n");
 				continue;
 			}
@@ -476,7 +474,8 @@ int usb_hub_init(void)
 {
 	int pid;
 
-	usb_register(&hub_driver);
+	if (usb_register(&hub_driver) < 0)
+		return -1;
 
 	pid = kernel_thread(usb_hub_thread, NULL,
 		CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
@@ -489,7 +488,7 @@ int usb_hub_init(void)
 	/* Fall through if kernel_thread failed */
 	usb_deregister(&hub_driver);
 
-	return 1;
+	return -1;
 }
 
 void usb_hub_cleanup(void)

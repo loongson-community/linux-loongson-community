@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.18 1999/09/28 22:26:59 ralf Exp $
+/* $Id: graphics.c,v 1.19 1999/10/09 00:01:31 ralf Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -271,8 +271,6 @@ sgi_graphics_mmap (struct file *file, struct vm_area_struct *vma)
 	uint size;
 
 	size = vma->vm_end - vma->vm_start;
-	if (vma->vm_offset & ~PAGE_MASK)
-		return -ENXIO;
 
 	/* 1. Set our special graphic virtualizer  */
 	vma->vm_ops = &graphics_mmap;

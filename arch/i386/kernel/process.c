@@ -29,9 +29,6 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 #include <linux/init.h>
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-#include <linux/apm_bios.h>
-#endif
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -65,6 +62,11 @@ void enable_hlt(void)
  * Powermanagement idle function, if any..
  */
 void (*acpi_idle)(void) = NULL;
+
+/*
+ * Power off function, if any
+ */
+void (*acpi_power_off)(void) = NULL;
 
 /*
  * The idle thread. There's no useful work to be
@@ -310,9 +312,8 @@ void machine_halt(void)
 
 void machine_power_off(void)
 {
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-	apm_power_off();
-#endif
+	if (acpi_power_off)
+		acpi_power_off();
 }
 
 
@@ -684,3 +685,37 @@ out:
 	unlock_kernel();
 	return error;
 }
+
+/*
+ * These bracket the sleeping functions..
+ */
+extern void scheduling_functions_start_here(void);
+extern void scheduling_functions_end_here(void);
+#define first_sched	((unsigned long) scheduling_functions_start_here)
+#define last_sched	((unsigned long) scheduling_functions_end_here)
+
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long ebp, esp, eip;
+	unsigned long stack_page;
+	int count = 0;
+	if (!p || p == current || p->state == TASK_RUNNING)
+		return 0;
+	stack_page = (unsigned long)p;
+	esp = p->thread.esp;
+	if (!stack_page || esp < stack_page || esp > 8188+stack_page)
+		return 0;
+	/* include/asm-i386/system.h:switch_to() pushes ebp last. */
+	ebp = *(unsigned long *) esp;
+	do {
+		if (ebp < stack_page || ebp > 8184+stack_page)
+			return 0;
+		eip = *(unsigned long *) (ebp+4);
+		if (eip < first_sched || eip >= last_sched)
+			return eip;
+		ebp = *(unsigned long *) ebp;
+	} while (count++ < 16);
+	return 0;
+}
+#undef last_sched
+#undef first_sched

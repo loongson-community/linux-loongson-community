@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.8 2000/01/27 23:21:57 ralf Exp $
+/* $Id: init.c,v 1.9 2000/01/27 23:45:25 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -20,6 +20,7 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
+#include <linux/highmem.h>
 #include <linux/swap.h>
 #include <linux/swapctl.h>
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -342,11 +343,17 @@ extern char __init_begin, __init_end;
 
 void __init paging_init(void)
 {
+	unsigned int zones_size[2];
+
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
 	pmd_init((unsigned long)invalid_pmd_table);
-	return free_area_init(max_low_pfn);
+
+	zones_size[0] = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
+	zones_size[1] = max_low_pfn - zones_size[0];
+
+	free_area_init(zones_size);
 }
 
 extern int page_is_ram(unsigned long pagenr);
@@ -374,9 +381,9 @@ void __init mem_init(void)
 	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
-	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
+	printk("Memory: %uk/%luk available (%ldk kernel code, %ldk reserved, "
 	       "%ldk data, %ldk init)\n",
-	       (unsigned long) nr_free_pages << (PAGE_SHIFT-10),
+	       (unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
 	       ram << (PAGE_SHIFT-10),
 	       codesize >> 10,
 	       reservedpages << (PAGE_SHIFT-10),
@@ -412,10 +419,10 @@ si_meminfo(struct sysinfo *val)
 {
 	val->totalram = totalram_pages;
 	val->sharedram = 0;
-	val->freeram = nr_free_pages;
+	val->freeram = nr_free_pages();
 	val->bufferram = atomic_read(&buffermem_pages);
 	val->totalhigh = 0;
-	val->freehigh = 0;
+	val->freehigh = nr_free_highpages();
 	val->mem_unit = PAGE_SIZE;
 
 	return;

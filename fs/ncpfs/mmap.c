@@ -30,23 +30,25 @@ static inline int min(int a, int b)
 /*
  * Fill in the supplied page for mmap
  */
-static unsigned long ncp_file_mmap_nopage(struct vm_area_struct *area,
-				     unsigned long address, int no_share)
+static struct page* ncp_file_mmap_nopage(struct vm_area_struct *area,
+				     unsigned long address, int write_access)
 {
 	struct file *file = area->vm_file;
 	struct dentry *dentry = file->f_dentry;
 	struct inode *inode = dentry->d_inode;
-	unsigned long page;
+	struct page* page;
+	unsigned long pg_addr;
 	unsigned int already_read;
 	unsigned int count;
 	int bufsize;
 	int pos;
 
-	page = __get_free_page(GFP_KERNEL);
+	page = alloc_page(GFP_KERNEL);
 	if (!page)
 		return page;
+	pg_addr = page_address(page);
 	address &= PAGE_MASK;
-	pos = address - area->vm_start + area->vm_offset;
+	pos = address - area->vm_start + (area->vm_pgoff << PAGE_SHIFT);
 
 	count = PAGE_SIZE;
 	if (address + PAGE_SIZE > area->vm_end) {
@@ -68,7 +70,7 @@ static unsigned long ncp_file_mmap_nopage(struct vm_area_struct *area,
 			if (ncp_read_kernel(NCP_SERVER(inode),
 				     NCP_FINFO(inode)->file_handle,
 				     pos, to_read,
-				     (char *) (page + already_read),
+				     (char *) (pg_addr + already_read),
 				     &read_this_time) != 0) {
 				read_this_time = 0;
 			}
@@ -83,7 +85,7 @@ static unsigned long ncp_file_mmap_nopage(struct vm_area_struct *area,
 	}
 
 	if (already_read < PAGE_SIZE)
-		memset((char*)(page + already_read), 0, 
+		memset((char*)(pg_addr + already_read), 0, 
 		       PAGE_SIZE - already_read);
 	return page;
 }
@@ -107,7 +109,7 @@ int ncp_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode = file->f_dentry->d_inode;
 	
-	DPRINTK(KERN_DEBUG "ncp_mmap: called\n");
+	DPRINTK("ncp_mmap: called\n");
 
 	if (!ncp_conn_valid(NCP_SERVER(inode))) {
 		return -EIO;
@@ -117,6 +119,11 @@ int ncp_mmap(struct file *file, struct vm_area_struct *vma)
 		return -EINVAL;
 	if (!inode->i_sb || !S_ISREG(inode->i_mode))
 		return -EACCES;
+	/* we do not support files bigger than 4GB... We eventually 
+	   supports just 4GB... */
+	if (((vma->vm_end - vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff 
+	   > (1U << (32 - PAGE_SHIFT)))
+		return -EFBIG;
 	if (!IS_RDONLY(inode)) {
 		inode->i_atime = CURRENT_TIME;
 	}

@@ -1,4 +1,4 @@
-/* $Id: r4k_tlb_debug.c,v 1.6 1999/11/23 17:12:49 ralf Exp $
+/* $Id: r4k_tlb_debug.c,v 1.2 2000/01/17 23:32:46 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -18,6 +18,9 @@
 #include <asm/pgtable.h>
 #include <asm/ptrace.h>
 #include <asm/system.h>
+
+asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
+                              unsigned long address);
 
 asmlinkage void tlb_refill_debug(struct pt_regs regs)
 {

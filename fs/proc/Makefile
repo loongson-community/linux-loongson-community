@@ -8,8 +8,8 @@
 # Note 2! The CFLAGS definitions are now in the main makefile.
 
 O_TARGET := proc.o
-O_OBJS   := inode.o root.o base.o generic.o mem.o link.o fd.o array.o \
-		kmsg.o scsi.o proc_tty.o sysvipc.o
+O_OBJS   := inode.o root.o base.o generic.o array.o \
+		kmsg.o proc_tty.o proc_misc.o kcore.o
 ifdef CONFIG_OMIRR
 O_OBJS   := $(O_OBJS) omirr.o
 endif

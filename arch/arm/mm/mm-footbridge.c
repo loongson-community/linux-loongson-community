@@ -17,6 +17,8 @@
 
 #include "map.h"
 
+#define SIZE(x) (sizeof(x) / sizeof(x[0]))
+
 /*
  * The first entry allows us to fiddle with the EEPROM from user-space.
  *  This entry will go away in time, once the fmu32 can mmap() the
@@ -89,17 +91,9 @@ unsigned long __bus_to_virt(unsigned long res)
 
 #endif
 
-struct mem_desc mem_desc[] __initdata = {
-	0, 0
-};
-
-unsigned int __initdata mem_desc_size = 0;
-
 struct map_desc io_desc[] __initdata = {
 	MAPPING
 };
-
-#define SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 unsigned int __initdata io_desc_size = SIZE(io_desc);
 

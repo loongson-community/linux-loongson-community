@@ -24,10 +24,9 @@
  *  04/19/99 blf  partial support for reading/writing specific EA's
  */
 
+#include "udfdecl.h"
 
 #if defined(__linux__) && defined(__KERNEL__)
-
-#include "udfdecl.h"
 
 #include "udf_sb.h"
 #include "udf_i.h"
@@ -38,7 +37,6 @@
 
 #else
 
-#include "udfdecl.h"
 #include <sys/types.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -64,28 +62,6 @@ Uint32
 udf64_high32(Uint64 indat)
 {
 	return indat >> 32;
-}
-
-/*
- * udf_stamp_to_time
- */
-time_t * 
-udf_stamp_to_time(time_t *dest, timestamp src)
-{
-	struct ktm tm;
-
-	if ((!dest))
-		return NULL;
-
-	/* this is very rough. need to find source to mktime() */
-	tm.tm_year=(src.year) - 1900;	
-	tm.tm_mon=(src.month);
-	tm.tm_mday=(src.day);
-	tm.tm_hour=src.hour;
-	tm.tm_min=src.minute;
-	tm.tm_sec=src.second;
-	*dest = udf_converttime(&tm);
-	return dest;
 }
 
 uid_t udf_convert_uid(int uidin)

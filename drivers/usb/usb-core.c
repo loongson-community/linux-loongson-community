@@ -9,7 +9,6 @@
  * library, while this file handles starting drivers, etc.
  *
  */
-
 #include <linux/kernel.h>
 #include <linux/config.h>
 
@@ -32,7 +31,7 @@ int usb_init(void)
 {
 	usb_major_init();
 #ifdef CONFIG_USB_PROC
-	proc_usb_init ();
+	proc_usb_init();
 #endif
 #ifndef CONFIG_USB_MODULE
 #	ifdef CONFIG_USB_UHCI
@@ -68,6 +67,9 @@ int usb_init(void)
 #	ifdef CONFIG_USB_CPIA
 		usb_cpia_init();
 #	endif
+#	ifdef CONFIG_USB_DC2XX
+		usb_dc2xx_init();
+#	endif
 #	ifdef CONFIG_USB_HUB
 		usb_hub_init();
 #	endif
@@ -83,6 +85,7 @@ int usb_init(void)
  */
 void cleanup_drivers(void)
 {
+	usb_major_cleanup();
 #ifdef CONFIG_USB_PROC
 	proc_usb_cleanup ();
 #endif

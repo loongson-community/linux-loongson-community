@@ -107,12 +107,12 @@
 #include "atari_scsi.h"
 #endif
 
-#ifdef CONFIG_MAC_SCSI_OLD
+#if defined(CONFIG_MAC_SCSI) || defined(CONFIG_MAC_SCSI_OLD)
 #include "mac_scsi.h"
 #endif
 
-#ifdef CONFIG_MAC_SCSI
-#include "mac_scsinew.h"
+#ifdef CONFIG_SUN3_SCSI
+#include "sun3_scsi.h"
 #endif
 
 #ifdef CONFIG_SCSI_MAC_ESP
@@ -453,6 +453,10 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #endif
 
+#ifdef CONFIG_SUN3_SCSI
+	SUN3_NCR5380,
+#endif
+
 #ifdef CONFIG_MVME16x_SCSI
 	MVME16x_SCSI,
 #endif
@@ -716,6 +720,8 @@ struct Scsi_Host * scsi_register(Scsi_Host_Template * tpnt, int j){
     retval->loaded_as_module = scsi_loadable_module_flag;
     retval->host_no = max_scsi_hosts++; /* never reuse host_no (DB) */
     next_scsi_host++;
+    /* FIXME: what with overflows? Old code suffered from the same, BTW */
+    sprintf(retval->proc_name, "%d", retval->host_no);
     retval->host_queue = NULL;
     init_waitqueue_head(&retval->host_wait);
     retval->resetting = 0;

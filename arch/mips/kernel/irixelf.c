@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.21 1999/09/28 22:25:46 ralf Exp $
+/* $Id: irixelf.c,v 1.22 1999/10/09 00:00:58 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -404,9 +404,8 @@ static unsigned int load_irix_interp(struct elfhdr * interp_elf_ex,
 /* Check sanity of IRIX elf executable header. */
 static int verify_binary(struct elfhdr *ehp, struct linux_binprm *bprm)
 {
-	if (ehp->e_ident[0] != 0x7f || strncmp(&ehp->e_ident[1], "ELF", 3)) {
-		return  -ENOEXEC;
-	}
+	if (memcmp(ehp->e_ident, ELFMAG, SELFMAG) != 0)
+		return -ENOEXEC;
 
 	/* First of all, some simple consistency checks */
 	if((ehp->e_type != ET_EXEC && ehp->e_type != ET_DYN) || 
@@ -495,7 +494,7 @@ out:
 
 static inline int verify_irix_interpreter(struct elfhdr *ihp)
 {
-	if(ihp->e_ident[0] != 0x7f || strncmp(&ihp->e_ident[1], "ELF", 3))
+	if (memcmp(ihp->e_ident, ELFMAG, SELFMAG) != 0)
 		return -ELIBBAD;
 	return 0;
 }
@@ -872,8 +871,7 @@ static inline int do_load_irix_library(struct file *file)
 	if (error != sizeof(elf_ex))
 		return -ENOEXEC;
 
-	if (elf_ex.e_ident[0] != 0x7f ||
-	    strncmp(&elf_ex.e_ident[1], "ELF",3) != 0)
+	if (memcmp(elf_ex.e_ident, ELFMAG, SELFMAG) != 0)
 		return -ENOEXEC;
 
 	/* First of all, some simple consistency checks. */

@@ -1,4 +1,4 @@
-/* $Id: scall_o32.S,v 1.7 1999/07/26 19:42:40 harald Exp $
+/* $Id: scall_o32.S,v 1.8 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -189,3 +189,4 @@ illegal_syscall:
 	li	t0, 1				# set error flag
 	sw	t0, PT_R7(sp)
 	j	ret_from_sys_call
+	END(handle_sys)

@@ -8,6 +8,7 @@
 #define _LINUX_MODULE_H
 
 #include <linux/config.h>
+#include <linux/spinlock.h>
 
 #ifdef __GENKSYMS__
 #  define _set_ver(sym) sym

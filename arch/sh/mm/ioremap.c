@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ioremap.c,v 1.1 1999/09/18 16:57:48 gniibe Exp $
  *
  * arch/sh/mm/ioremap.c
  *

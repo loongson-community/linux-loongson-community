@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.8 2000/01/27 01:05:37 ralf Exp $
+/* $Id: io.h,v 1.9 2000/01/27 23:45:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -198,7 +198,8 @@ extern inline void iounmap(void *addr)
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and
  * just copy it. The net code will then do the checksum later.
  */
-#define eth_io_copy_and_sum(skb,src,len,unused)	memcpy_fromio((skb)->data,(src),(len))
+#define eth_io_copy_and_sum(skb,src,len,unused) memcpy_fromio((skb)->data,(src),(len))
+#define isa_eth_io_copy_and_sum(a,b,c,d) eth_copy_and_sum((a),(b),(c),(d))
 
 static inline int check_signature(unsigned long io_addr,
                                   const unsigned char *signature, int length)

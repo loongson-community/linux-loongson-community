@@ -21,7 +21,7 @@
  *  support added by Michael Neuffer <mike@i-connect.net>
  *
  *  Added request_module("scsi_hostadapter") for kerneld:
- *  (Put an "alias scsi_hostadapter your_hostadapter" in /etc/conf.modules)
+ *  (Put an "alias scsi_hostadapter your_hostadapter" in /etc/modules.conf)
  *  Bjorn Ekwall  <bj0rn@blox.se>
  *  (changed to kmod)
  *
@@ -69,6 +69,14 @@
 #endif
 
 #undef USE_STATIC_SCSI_MEMORY
+
+struct proc_dir_entry *proc_scsi = NULL;
+
+#ifdef CONFIG_PROC_FS
+static int scsi_proc_info(char *buffer, char **start, off_t offset,
+			  int length, int inout);
+static void scsi_dump_status(int level);
+#endif
 
 /*
    static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/scsi.c,v 1.38 1997/01/19 23:07:18 davem Exp $";
@@ -141,21 +149,6 @@ unsigned int scsi_logging_level = 0;
 
 volatile struct Scsi_Host *host_active = NULL;
 
-#if CONFIG_PROC_FS
-/* 
- * This is the pointer to the /proc/scsi code.
- * It is only initialized to !=0 if the scsi code is present
- */
-struct proc_dir_entry proc_scsi_scsi =
-{
-	PROC_SCSI_SCSI, 4, "scsi",
-	S_IFREG | S_IRUGO | S_IWUSR, 1, 0, 0, 0,
-	NULL,
-	NULL, NULL,
-	NULL, NULL, NULL
-};
-#endif
-
 
 const char *const scsi_device_types[MAX_SCSI_DEVICE_CODE] =
 {
@@ -194,20 +187,12 @@ static int scsi_unregister_device(struct Scsi_Device_Template *tpnt);
 extern void scsi_old_done(Scsi_Cmnd * SCpnt);
 extern void scsi_old_times_out(Scsi_Cmnd * SCpnt);
 
-#if CONFIG_PROC_FS
-extern int (*dispatch_scsi_info_ptr) (int ino, char *buffer, char **start,
-				    off_t offset, int length, int inout);
-extern int dispatch_scsi_info(int ino, char *buffer, char **start,
-			      off_t offset, int length, int inout);
-#endif
-
 #define SCSI_BLOCK(DEVICE, HOST)                                                \
                 ((HOST->block && host_active && HOST != host_active)            \
 		  || ((HOST)->can_queue && HOST->host_busy >= HOST->can_queue)    \
                   || ((HOST)->host_blocked)                                       \
                   || ((DEVICE) != NULL && (DEVICE)->device_blocked) )
 
-static void scsi_dump_status(int level);
 
 
 struct dev_info {
@@ -263,6 +248,7 @@ static struct dev_info device_list[] =
 								 * SCSI code to reset bus.*/
 	{"QUANTUM", "LPS525S", "3110", BLIST_NOLUN},		/* Locks sometimes if polled for lun != 0 */
 	{"QUANTUM", "PD1225S", "3110", BLIST_NOLUN},		/* Locks sometimes if polled for lun != 0 */
+	{"QUANTUM", "FIREBALL ST4.3S", "0F0C", BLIST_NOLUN},	/* Locks up when polled for lun != 0 */
 	{"MEDIAVIS", "CDR-H93MV", "1.31", BLIST_NOLUN},		/* Locks up if polled for lun != 0 */
 	{"SANKYO", "CP525", "6.64", BLIST_NOLUN},		/* causes failed REQ SENSE, extra reset */
 	{"HP", "C1750A", "3226", BLIST_NOLUN},			/* scanjet iic */
@@ -1996,17 +1982,22 @@ int __init scsi_dev_init(void)
 #endif
 
 	/* Yes we're here... */
-#if CONFIG_PROC_FS
-	dispatch_scsi_info_ptr = dispatch_scsi_info;
+
+	/*
+	 * This makes /proc/scsi and /proc/scsi/scsi visible.
+	 */
+#ifdef CONFIG_PROC_FS
+	proc_scsi = create_proc_entry ("scsi", S_IFDIR, 0);
+	if (!proc_scsi) {
+		printk (KERN_ERR "cannot init /proc/scsi\n");
+		return -ENOMEM;
+	}
+	
+	create_proc_info_entry ("scsi/scsi", 0, 0, scsi_proc_info);
 #endif
 
 	/* Init a few things so we can "malloc" memory. */
 	scsi_loadable_module_flag = 0;
-
-	/* Register the /proc/scsi/scsi entry */
-#if CONFIG_PROC_FS
-	proc_scsi_register(0, &proc_scsi_scsi);
-#endif
 
 	/* initialize all hosts */
 	scsi_init();
@@ -2113,8 +2104,8 @@ static void print_inquiry(unsigned char *data)
 
 
 #ifdef CONFIG_PROC_FS
-int scsi_proc_info(char *buffer, char **start, off_t offset, int length,
-		   int hostno, int inout)
+static int scsi_proc_info(char *buffer, char **start, off_t offset,
+			  int length, int inout)
 {
 	Scsi_Cmnd *SCpnt;
 	struct Scsi_Device_Template *SDTpnt;
@@ -2190,7 +2181,7 @@ int scsi_proc_info(char *buffer, char **start, off_t offset, int length,
 	 * where token is one of [error,scan,mlqueue,mlcomplete,llqueue,
 	 * llcomplete,hlqueue,hlcomplete]
 	 */
-#if CONFIG_SCSI_LOGGING		/* { */
+#ifdef CONFIG_SCSI_LOGGING		/* { */
 
 	if (!strncmp("log", buffer + 5, 3)) {
 		char *token;
@@ -2626,7 +2617,7 @@ static int scsi_register_host(Scsi_Host_Template * tpnt)
 		scsi_hosts = tpnt;
 
 		/* Add the new driver to /proc/scsi */
-#if CONFIG_PROC_FS
+#ifdef CONFIG_PROC_FS
 		build_proc_dir_entries(tpnt);
 #endif
 
@@ -2892,33 +2883,28 @@ static void scsi_unregister_host(Scsi_Host_Template * tpnt)
 
 	for (shpnt = scsi_hostlist; shpnt; shpnt = sh1) {
 		sh1 = shpnt->next;
-		if (shpnt->hostt == tpnt) {
-			if (shpnt->loaded_as_module) {
-				pcount = next_scsi_host;
-				/* Remove the /proc/scsi directory entry */
-#if CONFIG_PROC_FS
-				proc_scsi_unregister(tpnt->proc_dir,
-					shpnt->host_no + PROC_SCSI_FILE);
-#endif
-				if (tpnt->release)
-					(*tpnt->release) (shpnt);
-				else {
-					/* This is the default case for the release function.
-					 * It should do the right thing for most correctly
-					 * written host adapters.
-					 */
-					if (shpnt->irq)
-						free_irq(shpnt->irq, NULL);
-					if (shpnt->dma_channel != 0xff)
-						free_dma(shpnt->dma_channel);
-					if (shpnt->io_port && shpnt->n_io_port)
-						release_region(shpnt->io_port, shpnt->n_io_port);
-				}
-				if (pcount == next_scsi_host)
-					scsi_unregister(shpnt);
-				tpnt->present--;
-			}
+		if (shpnt->hostt != tpnt || !shpnt->loaded_as_module)
+			continue;
+		pcount = next_scsi_host;
+		/* Remove the /proc/scsi directory entry */
+		remove_proc_entry(shpnt->proc_name, tpnt->proc_dir);
+		if (tpnt->release)
+			(*tpnt->release) (shpnt);
+		else {
+			/* This is the default case for the release function.
+			 * It should do the right thing for most correctly
+			 * written host adapters.
+			 */
+			if (shpnt->irq)
+			free_irq(shpnt->irq, NULL);
+			if (shpnt->dma_channel != 0xff)
+				free_dma(shpnt->dma_channel);
+			if (shpnt->io_port && shpnt->n_io_port)
+				release_region(shpnt->io_port, shpnt->n_io_port);
 		}
+		if (pcount == next_scsi_host)
+			scsi_unregister(shpnt);
+		tpnt->present--;
 	}
 
 	/*
@@ -2958,9 +2944,7 @@ static void scsi_unregister_host(Scsi_Host_Template * tpnt)
 			break;
 		}
 	/* Rebuild the /proc/scsi directory entries */
-#if CONFIG_PROC_FS
-	proc_scsi_unregister(tpnt->proc_dir, tpnt->proc_dir->low_ino);
-#endif
+	remove_proc_entry(tpnt->proc_name, proc_scsi);
 	MOD_DEC_USE_COUNT;
 }
 
@@ -3145,6 +3129,7 @@ void scsi_unregister_module(int module_type, void *ptr)
 
 #endif				/* CONFIG_MODULES */
 
+#ifdef CONFIG_PROC_FS
 /*
  * Function:    scsi_dump_status
  *
@@ -3165,8 +3150,7 @@ void scsi_unregister_module(int module_type, void *ptr)
  */
 static void scsi_dump_status(int level)
 {
-#if CONFIG_PROC_FS
-#if CONFIG_SCSI_LOGGING		/* { */
+#ifdef CONFIG_SCSI_LOGGING		/* { */
 	int i;
 	struct Scsi_Host *shpnt;
 	Scsi_Cmnd *SCpnt;
@@ -3245,8 +3229,8 @@ static void scsi_dump_status(int level)
 	}
 	/* printk("wait_for_request = %p\n", &wait_for_request); */
 #endif	/* CONFIG_SCSI_LOGGING */ /* } */
-#endif				/* CONFIG_PROC_FS */
 }
+#endif				/* CONFIG_PROC_FS */
 
 #ifdef MODULE
 
@@ -3256,18 +3240,18 @@ int init_module(void)
 	int has_space = 0;
 
 	/*
-	 * This makes /proc/scsi visible.
+	 * This makes /proc/scsi and /proc/scsi/scsi visible.
 	 */
-#if CONFIG_PROC_FS
-	dispatch_scsi_info_ptr = dispatch_scsi_info;
+#ifdef CONFIG_PROC_FS
+	proc_scsi = create_proc_entry ("scsi", S_IFDIR, 0);
+	if (!proc_scsi) {
+		printk (KERN_ERR "cannot init /proc/scsi\n");
+		return -ENOMEM;
+	}
+	create_proc_info_entry ("scsi/scsi", 0, 0, scsi_proc_info);
 #endif
 
 	scsi_loadable_module_flag = 1;
-
-	/* Register the /proc/scsi/scsi entry */
-#if CONFIG_PROC_FS
-	proc_scsi_register(0, &proc_scsi_scsi);
-#endif
 
 	dma_sectors = PAGE_SIZE / SECTOR_SIZE;
 	scsi_dma_free_sectors = dma_sectors;
@@ -3315,13 +3299,12 @@ void cleanup_module(void)
 {
 	remove_bh(SCSI_BH);
 
-#if CONFIG_PROC_FS
-	proc_scsi_unregister(0, PROC_SCSI_SCSI);
-
+#ifdef CONFIG_PROC_FS
 	/* No, we're not here anymore. Don't show the /proc/scsi files. */
-	dispatch_scsi_info_ptr = 0L;
+	remove_proc_entry ("scsi/scsi", 0);
+	remove_proc_entry ("scsi", 0);
 #endif
-
+	
 	/*
 	 * Free up the DMA pool.
 	 */

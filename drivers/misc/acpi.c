@@ -54,6 +54,7 @@
 #define DECLARE_WAIT_QUEUE_HEAD(x) struct wait_queue * x = NULL
 #endif
 
+static int acpi_idle_thread(void *context);
 static int acpi_do_ulong(ctl_table *ctl,
 			 int write,
 			 struct file *file,
@@ -69,11 +70,19 @@ static int acpi_do_event(ctl_table *ctl,
 			 struct file *file,
 			 void *buffer,
 			 size_t *len);
+static int acpi_do_sleep_wake(ctl_table *ctl,
+			      int write,
+			      struct file *file,
+			      void *buffer,
+			      size_t *len);
+
+DECLARE_WAIT_QUEUE_HEAD(acpi_idle_wait);
 
 static struct ctl_table_header *acpi_sysctl = NULL;
 
 static struct acpi_facp *acpi_facp = NULL;
 static int acpi_fake_facp = 0;
+static struct acpi_facs *acpi_facs = NULL;
 static unsigned long acpi_facp_addr = 0;
 static unsigned long acpi_dsdt_addr = 0;
 
@@ -83,13 +92,27 @@ static volatile u32 acpi_gpe_status = 0;
 static volatile u32 acpi_gpe_level = 0;
 static DECLARE_WAIT_QUEUE_HEAD(acpi_event_wait);
 
+static spinlock_t acpi_devs_lock = SPIN_LOCK_UNLOCKED;
+static LIST_HEAD(acpi_devs);
+
 /* Make it impossible to enter L2/L3 until after we've initialized */
 static unsigned long acpi_p_lvl2_lat = ~0UL;
 static unsigned long acpi_p_lvl3_lat = ~0UL;
 
 /* Initialize to guaranteed harmless port read */
-static unsigned long acpi_p_lvl2 = 0x80;
-static unsigned long acpi_p_lvl3 = 0x80;
+static unsigned long acpi_p_lvl2 = ACPI_P_LVL_DISABLED;
+static unsigned long acpi_p_lvl3 = ACPI_P_LVL_DISABLED;
+
+// bits 8-15 are SLP_TYPa, bits 0-7 are SLP_TYPb
+static unsigned long acpi_slp_typ[] = 
+{
+	ACPI_SLP_TYP_DISABLED, /* S0 */
+	ACPI_SLP_TYP_DISABLED, /* S1 */
+	ACPI_SLP_TYP_DISABLED, /* S2 */
+	ACPI_SLP_TYP_DISABLED, /* S3 */
+	ACPI_SLP_TYP_DISABLED, /* S4 */
+	ACPI_SLP_TYP_DISABLED  /* S5 */
+};
 
 static struct ctl_table acpi_table[] =
 {
@@ -125,18 +148,27 @@ static struct ctl_table acpi_table[] =
 
 	{ACPI_P_LVL2_LAT, "p_lvl2_lat",
 	 &acpi_p_lvl2_lat, sizeof(acpi_p_lvl2_lat),
-	 0600, NULL, &acpi_do_ulong},
+	 0644, NULL, &acpi_do_ulong},
 
 	{ACPI_P_LVL3_LAT, "p_lvl3_lat",
 	 &acpi_p_lvl3_lat, sizeof(acpi_p_lvl3_lat),
+	 0644, NULL, &acpi_do_ulong},
+
+	{ACPI_S5_SLP_TYP, "s5_slp_typ",
+	 &acpi_slp_typ[5], sizeof(acpi_slp_typ[5]),
 	 0600, NULL, &acpi_do_ulong},
+
+#if 0
+	{123, "sleep", (void*) 1, 0, 0600, NULL, &acpi_do_sleep_wake},
+	{124, "wake", NULL, 0, 0600, NULL, &acpi_do_sleep_wake},
+#endif
 
 	{0}
 };
 
 static struct ctl_table acpi_dir_table[] =
 {
-	{CTL_ACPI, "acpi", NULL, 0, 0500, acpi_table},
+	{CTL_ACPI, "acpi", NULL, 0, 0555, acpi_table},
 	{0}
 };
 
@@ -303,15 +335,23 @@ static struct acpi_table *__init acpi_map_table(u32 addr)
 	if (addr) {
 		// map table header to determine size
 		table = (struct acpi_table *)
-			ioremap_nocache((unsigned long) addr,
-					sizeof(struct acpi_table));
+			ioremap((unsigned long) addr,
+				sizeof(struct acpi_table));
 		if (table) {
 			unsigned long table_size = table->length;
 			iounmap(table);
 			// remap entire table
 			table = (struct acpi_table *)
-				ioremap_nocache((unsigned long) addr,
-						table_size);
+				ioremap((unsigned long) addr, table_size);
+		}
+
+		if (!table) {
+			/* ioremap is a pain, it returns NULL if the
+			 * table starts within mapped physical memory.
+			 * Hopefully, no table straddles a mapped/unmapped
+			 * physical memory boundary, ugh
+			 */
+			table = (struct acpi_table*) phys_to_virt(addr);
 		}
 	}
 	return table;
@@ -322,6 +362,7 @@ static struct acpi_table *__init acpi_map_table(u32 addr)
  */
 static void acpi_unmap_table(struct acpi_table *table)
 {
+	// iounmap ignores addresses within physical memory
 	if (table)
 		iounmap(table);
 }
@@ -364,8 +405,14 @@ static int __init acpi_find_tables(void)
 
 	// fetch RSDT from RSDP
 	rsdt = acpi_map_table(rsdp->rsdt);
-	if (!rsdt || rsdt->signature != ACPI_RSDT_SIG) {
-		printk(KERN_ERR "ACPI: missing RSDT\n");
+	if (!rsdt) {
+		printk(KERN_ERR "ACPI: missing RSDT at 0x%p\n",
+		       (void*) rsdp->rsdt);
+		return -ENODEV;
+	}
+	else if (rsdt->signature != ACPI_RSDT_SIG) {
+		printk(KERN_ERR "ACPI: bad RSDT at 0x%p (%08x)\n",
+		       (void*) rsdp->rsdt, (unsigned) rsdt->signature);
 		acpi_unmap_table(rsdt);
 		return -ENODEV;
 	}
@@ -379,6 +426,17 @@ static int __init acpi_find_tables(void)
 			acpi_facp = (struct acpi_facp*) dt;
 			acpi_facp_addr = *rsdt_entry;
 			acpi_dsdt_addr = acpi_facp->dsdt;
+
+			// map FACS if it exists
+			if (acpi_facp->facs) {
+				dt = acpi_map_table(acpi_facp->facs);
+				if (dt && dt->signature == ACPI_FACS_SIG) {
+					acpi_facs = (struct acpi_facs*) dt;
+				}
+				else {
+					acpi_unmap_table(dt);
+				}
+			}
 		}
 		else {
 			acpi_unmap_table(dt);
@@ -405,6 +463,7 @@ static void acpi_destroy_tables(void)
 		acpi_unmap_table((struct acpi_table*) acpi_facp);
 	else
 		kfree(acpi_facp);
+	acpi_unmap_table((struct acpi_table*) acpi_facs);
 }
 
 /*
@@ -575,8 +634,8 @@ static void acpi_idle_handler(void)
 	case 3:
 		pm2_cnt = acpi_facp->pm2_cnt;
 		if (pm2_cnt) {
-			/* Disable PCI arbitration while sleeping,
-			   to avoid DMA corruption? */
+				/* Disable PCI arbitration while sleeping,
+				   to avoid DMA corruption? */
 			outb(inb(pm2_cnt) | ACPI_ARB_DIS, pm2_cnt);
 			inb(acpi_p_lvl3);
 			outb(inb(pm2_cnt) & ~ACPI_ARB_DIS, pm2_cnt);
@@ -599,6 +658,70 @@ static void acpi_idle_handler(void)
 		sleep_level = 2;
 	else
 		sleep_level = 1;
+}
+
+/*
+ * Put all devices into specified D-state
+ */
+static int acpi_enter_dx(acpi_dstate_t state)
+{
+	int status = 0;
+	struct list_head *i = acpi_devs.next;
+
+	while (i != &acpi_devs)	{
+		struct acpi_dev *dev = list_entry(i, struct acpi_dev, entry);
+		if (dev->state != state) {
+			int dev_status = 0;
+			if (dev->info.transition)
+				dev_status = dev->info.transition(dev, state);
+			if (!dev_status) {
+				// put hardware into D-state
+				dev->state = state;
+			}
+			if (dev_status)
+				status = dev_status;
+		}
+
+		i = i->next;
+	}
+
+	return status;
+}
+
+/*
+ * Enter system sleep state
+ */
+static void acpi_enter_sx(int state)
+{
+	unsigned long slp_typ = acpi_slp_typ[state];
+	if (slp_typ != ACPI_SLP_TYP_DISABLED) {
+		u16 typa, typb, value;
+
+		// bits 8-15 are SLP_TYPa, bits 0-7 are SLP_TYPb
+		typa = (slp_typ >> 8) & 0xff;
+		typb = slp_typ & 0xff;
+
+		typa = ((typa << ACPI_SLP_TYP_SHIFT) & ACPI_SLP_TYP_MASK);
+		typb = ((typb << ACPI_SLP_TYP_SHIFT) & ACPI_SLP_TYP_MASK);
+
+		// set SLP_TYPa/b and SLP_EN
+		if (acpi_facp->pm1a_cnt) {
+			value = inw(acpi_facp->pm1a_cnt) & ~ACPI_SLP_TYP_MASK;
+			outw(value | typa | ACPI_SLP_EN, acpi_facp->pm1a_cnt);
+		}
+		if (acpi_facp->pm1b_cnt) {
+			value = inw(acpi_facp->pm1b_cnt) & ~ACPI_SLP_TYP_MASK;
+			outw(value | typb | ACPI_SLP_EN, acpi_facp->pm1b_cnt);
+		}
+	}
+}
+
+/*
+ * Enter soft-off (S5)
+ */
+static void acpi_power_off_handler(void)
+{
+	acpi_enter_sx(5);
 }
 
 /*
@@ -806,7 +929,7 @@ static int acpi_do_event(ctl_table *ctl,
 			 size_t *len)
 {
 	u32 pm1_status = 0, gpe_status = 0;
-	char str[4 * sizeof(u32) + 6];
+	char str[4 * sizeof(u32) + 7];
 	int size;
 
 	if (write)
@@ -845,10 +968,41 @@ static int acpi_do_event(ctl_table *ctl,
 }
 
 /*
+ * Sleep or wake system
+ */
+static int acpi_do_sleep_wake(ctl_table *ctl,
+			      int write,
+			      struct file *file,
+			      void *buffer,
+			      size_t *len)
+{
+	if (!write) {
+		if (file->f_pos) {
+			*len = 0;
+			return 0;
+		}
+	}
+	else
+	{
+		// just shutdown some devices for now
+		if (ctl->data) {
+			acpi_enter_dx(ACPI_D3);
+		}
+		else {
+			acpi_enter_dx(ACPI_D0);
+		}
+	}
+	file->f_pos += *len;
+	return 0;
+}
+
+/*
  * Initialize and enable ACPI
  */
 static int __init acpi_init(void)
 {
+	int pid;
+
 	if (acpi_find_tables() && acpi_find_piix4()) {
 		// no ACPI tables and not PIIX4
 		return -ENODEV;
@@ -859,7 +1013,7 @@ static int __init acpi_init(void)
 			   acpi_irq,
 			   SA_INTERRUPT | SA_SHIRQ,
 			   "acpi",
-			   NULL)) {
+			   acpi_facp)) {
 		printk(KERN_ERR "ACPI: SCI (IRQ%d) allocation failed\n",
 		       acpi_facp->sci_int);
 		acpi_destroy_tables();
@@ -868,6 +1022,10 @@ static int __init acpi_init(void)
 
 	acpi_claim_ioports(acpi_facp);
 	acpi_sysctl = register_sysctl_table(acpi_dir_table, 1);
+
+	pid = kernel_thread(acpi_idle_thread,
+			    NULL,
+			    CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
 
 	/*
 	 * Set up the ACPI idle function. Note that we can't really
@@ -879,6 +1037,7 @@ static int __init acpi_init(void)
 		return 0;
 #endif
 
+	acpi_power_off = acpi_power_off_handler;
 	acpi_idle = acpi_idle_handler;
 
 	return 0;
@@ -890,24 +1049,91 @@ static int __init acpi_init(void)
 static void __exit acpi_exit(void)
 {
 	acpi_idle = NULL;
+	acpi_power_off = NULL;
 
 	unregister_sysctl_table(acpi_sysctl);
 	acpi_disable(acpi_facp);
 	acpi_release_ioports(acpi_facp);
 
 	if (acpi_facp->sci_int)
-		free_irq(acpi_facp->sci_int, NULL);
+		free_irq(acpi_facp->sci_int, acpi_facp);
 
 	acpi_destroy_tables();
 }
 
-#ifdef MODULE
+/*
+ * Register a device with the ACPI subsystem
+ */
+struct acpi_dev* acpi_register(struct acpi_dev_info *info, unsigned long adr)
+{
+	struct acpi_dev *dev = NULL;
+	if (info) {
+		dev = kmalloc(sizeof(struct acpi_dev), GFP_KERNEL);
+		if (dev) {
+			unsigned long flags;
+			
+			memset(dev, 0, sizeof(*dev));
+			memcpy(&dev->info, info, sizeof(dev->info));
+			dev->adr = adr;
+			
+			spin_lock_irqsave(&acpi_devs_lock, flags);
+			list_add(&dev->entry, &acpi_devs);
+			spin_unlock_irqrestore(&acpi_devs_lock, flags);
+		}
+	}
+	return dev;
+}
 
-module_init(acpi_init)
-module_exit(acpi_exit)
+/*
+ * Unregister a device with ACPI
+ */
+void acpi_unregister(struct acpi_dev *dev)
+{
+	if (dev) {
+		unsigned long flags;
 
-#else
+		spin_lock_irqsave(&acpi_devs_lock, flags);
+		list_del(&dev->entry);
+		spin_unlock_irqrestore(&acpi_devs_lock, flags);
+
+		kfree(dev);
+	}
+}
+
+/*
+ * Wake up a device
+ */
+void acpi_wakeup(struct acpi_dev *dev)
+{
+	// run _PS0 or tell parent bus to wake device up
+}
+
+/*
+ * Manage idle devices
+ */
+static int acpi_idle_thread(void *context)
+{
+	exit_mm(current);
+	exit_files(current);
+	strcpy(current->comm, "acpi");
+	
+	for(;;) {
+		interruptible_sleep_on(&acpi_idle_wait);
+		if (signal_pending(current))
+			break;
+
+		// find all idle devices and set idle timer based on policy
+	}
+
+	return 0;
+}
 
 __initcall(acpi_init);
 
-#endif
+/*
+ * Module visible symbols
+ */
+EXPORT_SYMBOL(acpi_idle_wait);
+EXPORT_SYMBOL(acpi_register);
+EXPORT_SYMBOL(acpi_unregister);
+EXPORT_SYMBOL(acpi_wakeup);

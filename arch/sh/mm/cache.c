@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: cache.c,v 1.7 1999/09/23 11:43:07 gniibe Exp $
  *
  *  linux/arch/sh/mm/cache.c
  *

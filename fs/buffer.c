@@ -34,7 +34,6 @@
 #include <linux/locks.h>
 #include <linux/errno.h>
 #include <linux/swap.h>
-#include <linux/swapctl.h>
 #include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
@@ -43,6 +42,7 @@
 #include <linux/init.h>
 #include <linux/quotaops.h>
 #include <linux/iobuf.h>
+#include <linux/highmem.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -58,7 +58,7 @@ static char buffersize_index[65] =
   6};
 
 #define BUFSIZE_INDEX(X) ((int) buffersize_index[(X)>>9])
-#define MAX_BUF_PER_PAGE (PAGE_SIZE / 512)
+#define MAX_BUF_PER_PAGE (PAGE_CACHE_SIZE / 512)
 #define NR_RESERVED (2*MAX_BUF_PER_PAGE)
 #define MAX_UNUSED_BUFFERS NR_RESERVED+20 /* don't ever have more than this 
 					     number of unused buffer heads */
@@ -91,7 +91,7 @@ struct bh_free_head {
 };
 static struct bh_free_head free_list[NR_SIZES];
 
-static kmem_cache_t *bh_cachep;
+kmem_cache_t *bh_cachep;
 
 static int grow_buffers(int size);
 
@@ -129,8 +129,6 @@ union bdflush_param {
 /* These are the min and max parameter values that we will allow to be assigned */
 int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   1*HZ,   1*HZ, 1, 1};
 int bdflush_max[N_PARAM] = {100,50000, 20000, 20000,600*HZ, 6000*HZ, 6000*HZ, 2047, 5};
-
-void wakeup_bdflush(int);
 
 /*
  * Rewrote the wait-routines to use the "new" wait-queue functionality,
@@ -707,7 +705,7 @@ static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
 	mark_buffer_uptodate(bh, uptodate);
 
 	/* This is a temporary buffer used for page I/O. */
-	page = mem_map + MAP_NR(bh->b_data);
+	page = bh->b_page;
 
 	if (!uptodate)
 		SetPageError(page);
@@ -759,7 +757,6 @@ still_busy:
 	spin_unlock_irqrestore(&page_uptodate_lock, flags);
 	return;
 }
-
 
 /*
  * Ok, this is getblk, and it isn't very clear, again to hinder
@@ -823,7 +820,7 @@ static int balance_dirty_state(kdev_t dev)
 	unsigned long dirty, tot, hard_dirty_limit, soft_dirty_limit;
 
 	dirty = size_buffers_type[BUF_DIRTY] >> PAGE_SHIFT;
-	tot = nr_lru_pages + nr_free_pages + nr_free_highpages;
+	tot = nr_free_buffer_pages();
 	hard_dirty_limit = tot * bdf_prm.b_un.nfract / 100;
 	soft_dirty_limit = hard_dirty_limit >> 1;
 
@@ -1092,6 +1089,20 @@ static struct buffer_head * get_unused_buffer_head(int async)
 	return NULL;
 }
 
+void set_bh_page (struct buffer_head *bh, struct page *page, unsigned int offset)
+{
+	bh->b_page = page;
+	if (offset >= PAGE_SIZE)
+		BUG();
+	if (PageHighMem(page))
+		/*
+		 * This catches illegal uses and preserves the offset:
+		 */
+		bh->b_data = (char *)(0 + offset);
+	else
+		bh->b_data = (char *)(page_address(page) + offset);
+}
+
 /*
  * Create the appropriate buffers when given a page for data area and
  * the size of each buffer.. Use the bh->b_this_page linked list to
@@ -1101,7 +1112,7 @@ static struct buffer_head * get_unused_buffer_head(int async)
  * from ordinary buffer allocations, and only async requests are allowed
  * to sleep waiting for buffer heads. 
  */
-static struct buffer_head * create_buffers(unsigned long page, unsigned long size, int async)
+static struct buffer_head * create_buffers(struct page * page, unsigned long size, int async)
 {
 	struct buffer_head *bh, *head;
 	long offset;
@@ -1124,7 +1135,8 @@ try_again:
 		atomic_set(&bh->b_count, 0);
 		bh->b_size = size;
 
-		bh->b_data = (char *) (page+offset);
+		set_bh_page(bh, page, offset);
+
 		bh->b_list = BUF_CLEAN;
 		bh->b_end_io = end_buffer_io_bad;
 	}
@@ -1183,7 +1195,7 @@ static int create_page_buffers(int rw, struct page *page, kdev_t dev, int b[], i
 	 * They don't show up in the buffer hash table, but they *are*
 	 * registered in page->buffers.
 	 */
-	head = create_buffers(page_address(page), size, 1);
+	head = create_buffers(page, size, 1);
 	if (page->buffers)
 		BUG();
 	if (!head)
@@ -1273,7 +1285,7 @@ static void create_empty_buffers(struct page *page, struct inode *inode, unsigne
 {
 	struct buffer_head *bh, *head, *tail;
 
-	head = create_buffers(page_address(page), blocksize, 1);
+	head = create_buffers(page, blocksize, 1);
 	if (page->buffers)
 		BUG();
 
@@ -1293,13 +1305,17 @@ static void create_empty_buffers(struct page *page, struct inode *inode, unsigne
 static void unmap_underlying_metadata(struct buffer_head * bh)
 {
 #if 0
-	bh = get_hash_table(bh->b_dev, bh->b_blocknr, bh->b_size);
-	if (bh) {
-		unmap_buffer(bh);
-		/* Here we could run brelse or bforget. We use
-		   bforget because it will try to put the buffer
-		   in the freelist. */
-		__bforget(bh);
+	if (buffer_new(bh)) {
+		struct buffer_head *old_bh;
+
+		old_bh = get_hash_table(bh->b_dev, bh->b_blocknr, bh->b_size);
+		if (old_bh) {
+			unmap_buffer(old_bh);
+			/* Here we could run brelse or bforget. We use
+			   bforget because it will try to put the buffer
+			   in the freelist. */
+			__bforget(old_bh);
+		}
 	}
 #endif
 }
@@ -1313,7 +1329,7 @@ int block_write_full_page(struct file *file, struct page *page)
 	struct dentry *dentry = file->f_dentry;
 	struct inode *inode = dentry->d_inode;
 	int err, i;
-	unsigned long block, offset;
+	unsigned long block;
 	struct buffer_head *bh, *head;
 
 	if (!PageLocked(page))
@@ -1323,12 +1339,10 @@ int block_write_full_page(struct file *file, struct page *page)
 		create_empty_buffers(page, inode, inode->i_sb->s_blocksize);
 	head = page->buffers;
 
-	offset = page->offset;
-	block = offset >> inode->i_sb->s_blocksize_bits;
-
-	// FIXME: currently we assume page alignment.
-	if (offset & (PAGE_SIZE-1))
-		BUG();
+	/* The page cache is now PAGE_CACHE_SIZE aligned, period.  We handle old a.out
+	 * and others via unaligned private mappings.
+	 */
+	block = page->index << (PAGE_CACHE_SHIFT - inode->i_sb->s_blocksize_bits);
 
 	bh = head;
 	i = 0;
@@ -1375,10 +1389,11 @@ int block_write_partial_page(struct file *file, struct page *page, unsigned long
 	unsigned long start_offset, start_bytes, end_bytes;
 	unsigned long bbits, blocks, i, len;
 	struct buffer_head *bh, *head;
-	char * target_buf;
+	char *target_buf, *kaddr;
 	int need_balance_dirty;
 
-	target_buf = (char *)page_address(page) + offset;
+	kaddr = (char *)kmap(page);
+	target_buf = kaddr + offset;
 
 	if (!PageLocked(page))
 		BUG();
@@ -1389,8 +1404,8 @@ int block_write_partial_page(struct file *file, struct page *page, unsigned long
 	head = page->buffers;
 
 	bbits = inode->i_sb->s_blocksize_bits;
-	block = page->offset >> bbits;
-	blocks = PAGE_SIZE >> bbits;
+	block = page->index << (PAGE_CACHE_SHIFT - bbits);
+	blocks = PAGE_CACHE_SIZE >> bbits;
 	start_block = offset >> bbits;
 	end_block = (offset + bytes - 1) >> bbits;
 	start_offset = offset & (blocksize - 1);
@@ -1408,9 +1423,6 @@ int block_write_partial_page(struct file *file, struct page *page, unsigned long
 	if (start_block < 0 || start_block >= blocks)
 		BUG();
 	if (end_block < 0 || end_block >= blocks)
-		BUG();
-	// FIXME: currently we assume page alignment.
-	if (page->offset & (PAGE_SIZE-1))
 		BUG();
 
 	i = 0;
@@ -1446,7 +1458,7 @@ int block_write_partial_page(struct file *file, struct page *page, unsigned long
 
 		if (!buffer_uptodate(bh) && (start_offset || (end_bytes && (i == end_block)))) {
 			if (buffer_new(bh)) {
-				memset(bh->b_data, 0, bh->b_size);
+				memset(kaddr + i*blocksize, 0, blocksize);
 			} else {
 				ll_rw_block(READ, 1, &bh);
 				wait_on_buffer(bh);
@@ -1464,6 +1476,10 @@ int block_write_partial_page(struct file *file, struct page *page, unsigned long
 			len = end_bytes;
 			end_bytes = 0;
 		}
+		if (target_buf >= kaddr + PAGE_SIZE)
+			BUG();
+		if (target_buf+len-1 >= kaddr + PAGE_SIZE)
+			BUG();
 		err = copy_from_user(target_buf, buf, len);
 		target_buf += len;
 		buf += len;
@@ -1512,9 +1528,11 @@ skip:
 	 */
 	if (!partial)
 		SetPageUptodate(page);
+	kunmap(page);
 	return bytes;
 out:
 	ClearPageUptodate(page);
+	kunmap(page);
 	return err;
 }
 
@@ -1537,12 +1555,12 @@ int block_write_cont_page(struct file *file, struct page *page, unsigned long of
 	unsigned long data_offset = offset;
 	int need_balance_dirty;
 
-	offset = inode->i_size - page->offset;
-	if (page->offset>inode->i_size)
+	offset = inode->i_size - (page->index << PAGE_CACHE_SHIFT);
+	if (page->index > (inode->i_size >> PAGE_CACHE_SHIFT))
 		offset = 0;
 	else if (offset >= data_offset)
 		offset = data_offset;
-	bytes += data_offset-offset;
+	bytes += data_offset - offset;
 
 	target_buf = (char *)page_address(page) + offset;
 	target_data = (char *)page_address(page) + data_offset;
@@ -1556,8 +1574,8 @@ int block_write_cont_page(struct file *file, struct page *page, unsigned long of
 	head = page->buffers;
 
 	bbits = inode->i_sb->s_blocksize_bits;
-	block = page->offset >> bbits;
-	blocks = PAGE_SIZE >> bbits;
+	block = page->index << (PAGE_CACHE_SHIFT - bbits);
+	blocks = PAGE_CACHE_SIZE >> bbits;
 	start_block = offset >> bbits;
 	end_block = (offset + bytes - 1) >> bbits;
 	start_offset = offset & (blocksize - 1);
@@ -1575,9 +1593,6 @@ int block_write_cont_page(struct file *file, struct page *page, unsigned long of
 	if (start_block < 0 || start_block > blocks)
 		BUG();
 	if (end_block < 0 || end_block >= blocks)
-		BUG();
-	// FIXME: currently we assume page alignment.
-	if (page->offset & (PAGE_SIZE-1))
 		BUG();
 
 	i = 0;
@@ -1718,8 +1733,6 @@ static void end_buffer_io_kiobuf(struct buffer_head *bh, int uptodate)
  * for them to complete.  Clean up the buffer_heads afterwards.  
  */
 
-#define dprintk(x...) 
-
 static int do_kio(struct kiobuf *kiobuf,
 		  int rw, int nr, struct buffer_head *bh[], int size)
 {
@@ -1729,8 +1742,6 @@ static int do_kio(struct kiobuf *kiobuf,
 
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
-
-	dprintk ("do_kio start %d\n", rw);
 
 	if (rw == WRITE)
 		rw = WRITERAW;
@@ -1757,8 +1768,6 @@ static int do_kio(struct kiobuf *kiobuf,
 	
 	spin_unlock(&unused_list_lock);
 
-	dprintk ("do_kio end %d %d\n", iosize, err);
-	
 	if (iosize)
 		return iosize;
 	if (kiobuf->errno)
@@ -1812,12 +1821,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 			panic("brw_kiovec: iobuf not initialised");
 	}
 
-	/* DEBUG */
-#if 0
-	return iobuf->length;
-#endif
-	dprintk ("brw_kiovec: start\n");
-	
 	/* 
 	 * OK to walk down the iovec doing page IO on each page we find. 
 	 */
@@ -1826,7 +1829,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 		iobuf = iovec[i];
 		offset = iobuf->offset;
 		length = iobuf->length;
-		dprintk ("iobuf %d %d %d\n", offset, length, size);
 
 		for (pageind = 0; pageind < iobuf->nr_pages; pageind++) {
 			map  = iobuf->maplist[pageind];
@@ -1846,7 +1848,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				
 				tmp->b_dev = B_FREE;
 				tmp->b_size = size;
-				tmp->b_data = (char *) (page + offset);
+				set_bh_page(tmp, map, offset);
 				tmp->b_this_page = tmp;
 
 				init_buffer(tmp, end_buffer_io_kiobuf, NULL);
@@ -1860,8 +1862,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 					set_bit(BH_Dirty, &tmp->b_state);
 				}
 
-				dprintk ("buffer %d (%d) at %p\n", 
-					 bhind, tmp->b_blocknr, tmp->b_data);
 				bh[bhind++] = tmp;
 				length -= size;
 				offset += size;
@@ -1896,7 +1896,6 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 	}
 
  finished:
-	dprintk ("brw_kiovec: end (%d, %d)\n", transferred, err);
 	if (transferred)
 		return transferred;
 	return err;
@@ -2006,7 +2005,8 @@ int block_read_full_page(struct file * file, struct page * page)
 	unsigned long iblock;
 	struct buffer_head *bh, *head, *arr[MAX_BUF_PER_PAGE];
 	unsigned int blocksize, blocks;
-	int nr;
+	unsigned long kaddr = 0;
+	int nr, i;
 
 	if (!PageLocked(page))
 		PAGE_BUG(page);
@@ -2015,10 +2015,11 @@ int block_read_full_page(struct file * file, struct page * page)
 		create_empty_buffers(page, inode, blocksize);
 	head = page->buffers;
 
-	blocks = PAGE_SIZE >> inode->i_sb->s_blocksize_bits;
-	iblock = page->offset >> inode->i_sb->s_blocksize_bits;
+	blocks = PAGE_CACHE_SIZE >> inode->i_sb->s_blocksize_bits;
+	iblock = page->index << (PAGE_CACHE_SHIFT - inode->i_sb->s_blocksize_bits);
 	bh = head;
 	nr = 0;
+	i = 0;
 
 	do {
 		if (buffer_uptodate(bh))
@@ -2027,7 +2028,9 @@ int block_read_full_page(struct file * file, struct page * page)
 		if (!buffer_mapped(bh)) {
 			inode->i_op->get_block(inode, iblock, bh, 0);
 			if (!buffer_mapped(bh)) {
-				memset(bh->b_data, 0, blocksize);
+				if (!kaddr)
+					kaddr = kmap(page);
+				memset((char *)(kaddr + i*blocksize), 0, blocksize);
 				set_bit(BH_Uptodate, &bh->b_state);
 				continue;
 			}
@@ -2037,7 +2040,7 @@ int block_read_full_page(struct file * file, struct page * page)
 		atomic_inc(&bh->b_count);
 		arr[nr] = bh;
 		nr++;
-	} while (iblock++, (bh = bh->b_this_page) != head);
+	} while (i++, iblock++, (bh = bh->b_this_page) != head);
 
 	++current->maj_flt;
 	if (nr) {
@@ -2052,6 +2055,8 @@ int block_read_full_page(struct file * file, struct page * page)
 		SetPageUptodate(page);
 		UnlockPage(page);
 	}
+	if (kaddr)
+		kunmap(page);
 	return 0;
 }
 
@@ -2061,8 +2066,7 @@ int block_read_full_page(struct file * file, struct page * page)
  */
 static int grow_buffers(int size)
 {
-	unsigned long page;
-	struct page * page_map;
+	struct page * page;
 	struct buffer_head *bh, *tmp;
 	struct buffer_head * insert_point;
 	int isize;
@@ -2072,8 +2076,9 @@ static int grow_buffers(int size)
 		return 0;
 	}
 
-	if (!(page = __get_free_page(GFP_BUFFER)))
-		return 0;
+	page = alloc_page(GFP_BUFFER);
+	if (!page)
+		goto out;
 	bh = create_buffers(page, size, 0);
 	if (!bh)
 		goto no_buffer_head;
@@ -2103,14 +2108,14 @@ static int grow_buffers(int size)
 	free_list[isize].list = bh;
 	spin_unlock(&free_list[isize].lock);
 
-	page_map = mem_map + MAP_NR(page);
-	page_map->buffers = bh;
-	lru_cache_add(page_map);
+	page->buffers = bh;
+	lru_cache_add(page);
 	atomic_inc(&buffermem_pages);
 	return 1;
 
 no_buffer_head:
-	free_page(page);
+	__free_page(page);
+out:
 	return 0;
 }
 

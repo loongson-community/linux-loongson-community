@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: dma.h,v 1.3 1999/12/04 03:59:12 ralf Exp $
  *
  * linux/include/asm/dma.h: Defines for using and allocating dma channels.
  * Written by Hennus Bergman, 1992.
@@ -84,11 +84,7 @@
  * Deskstations or Acer PICA but not the much more versatile DMA logic used
  * for the local devices on Acer PICA or Magnums.
  */
-#ifndef CONFIG_SGI_IP22
 #define MAX_DMA_ADDRESS		(PAGE_OFFSET + 0x01000000)
-#else
-#define MAX_DMA_ADDRESS		(~0UL)
-#endif
 
 /* 8237 DMA controllers */
 #define IO_DMA1_BASE	0x00	/* 8 bit slave DMA, channels 0..3 */

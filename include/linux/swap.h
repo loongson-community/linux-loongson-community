@@ -61,7 +61,9 @@ struct swap_info_struct {
 };
 
 extern int nr_swap_pages;
-extern int nr_free_pages;
+FASTCALL(unsigned int nr_free_pages(void));
+FASTCALL(unsigned int nr_free_buffer_pages(void));
+FASTCALL(unsigned int nr_free_highpages(void));
 extern int nr_lru_pages;
 extern struct list_head lru_cache;
 extern atomic_t nr_async_pages;
@@ -85,20 +87,20 @@ extern int try_to_free_pages(unsigned int gfp_mask);
 
 /* linux/mm/page_io.c */
 extern void rw_swap_page(int, struct page *, int);
-extern void rw_swap_page_nolock(int, pte_t, char *, int);
+extern void rw_swap_page_nolock(int, swp_entry_t, char *, int);
 
 /* linux/mm/page_alloc.c */
 
 /* linux/mm/swap_state.c */
 extern void show_swap_cache_info(void);
-extern void add_to_swap_cache(struct page *, pte_t);
-extern int swap_duplicate(pte_t);
+extern void add_to_swap_cache(struct page *, swp_entry_t);
+extern int swap_duplicate(swp_entry_t);
 extern int swap_check_entry(unsigned long);
-struct page * lookup_swap_cache(pte_t);
-extern struct page * read_swap_cache_async(pte_t, int);
+extern struct page * lookup_swap_cache(swp_entry_t);
+extern struct page * read_swap_cache_async(swp_entry_t, int);
 #define read_swap_cache(entry) read_swap_cache_async(entry, 1);
 extern int swap_count(struct page *);
-extern pte_t acquire_swap_entry(struct page *page);
+extern swp_entry_t acquire_swap_entry(struct page *page);
 
 /*
  * Make these inline later once they are working properly.
@@ -111,9 +113,11 @@ extern void free_page_and_swap_cache(struct page *page);
 extern unsigned int nr_swapfiles;
 extern struct swap_info_struct swap_info[];
 extern int is_swap_partition(kdev_t);
-void si_swapinfo(struct sysinfo *);
-pte_t get_swap_page(void);
-extern void swap_free(pte_t);
+extern void si_swapinfo(struct sysinfo *);
+extern swp_entry_t __get_swap_page(unsigned short);
+#define get_swap_page() __get_swap_page(1)
+extern void __swap_free(swp_entry_t, unsigned short);
+#define swap_free(entry) __swap_free((entry), 1)
 struct swap_list_t {
 	int head;	/* head of priority-ordered swapfile list */
 	int next;	/* swapfile to be used next */
@@ -121,17 +125,6 @@ struct swap_list_t {
 extern struct swap_list_t swap_list;
 asmlinkage long sys_swapoff(const char *);
 asmlinkage long sys_swapon(const char *, int);
-
-/*
- * vm_ops not present page codes for shared memory.
- *
- * Will go away eventually..
- */
-#define SHM_SWP_TYPE 0x20
-
-/*
- * swap cache stuff (in linux/mm/swap_state.c)
- */
 
 #define SWAP_CACHE_INFO
 

@@ -122,7 +122,7 @@ static int change_mode(struct parport *p, int m)
 				if (time_after_eq (jiffies, expire))
 					/* The FIFO is stuck. */
 					return -EBUSY;
-				current->state = TASK_INTERRUPTIBLE;
+				__set_current_state (TASK_INTERRUPTIBLE);
 				schedule_timeout ((HZ + 99) / 100);
 				if (signal_pending (current))
 					break;
@@ -1780,6 +1780,9 @@ static int __init parport_pc_init_pci (int irq, int dma)
 		  PCI_ANY_ID, PCI_ANY_ID,
 		  1, { { 0, -1 }, } },
 		{ PCI_VENDOR_ID_LAVA, PCI_DEVICE_ID_LAVA_DUAL_PAR_B,
+		  PCI_ANY_ID, PCI_ANY_ID,
+		  1, { { 0, -1 }, } },
+		{ PCI_VENDOR_ID_LAVA, PCI_DEVICE_ID_LAVA_BOCA_IOPPAR,
 		  PCI_ANY_ID, PCI_ANY_ID,
 		  1, { { 0, -1 }, } },
 		{ PCI_VENDOR_ID_PLX, PCI_DEVICE_ID_PLX_9050,

@@ -6,7 +6,6 @@
 void (*mach_kbd_reset_setup) (char *, int) __initdata = 0;
 
 #include <asm/io.h>
-#include <asm/system.h>
 
 /*
  *  linux/arch/m68k/amiga/config.c
@@ -461,6 +460,8 @@ static void __init amiga_sched_init(void (*timer_routine)(int, void *,
 
 #define TICK_SIZE 10000
 
+extern unsigned char cia_get_irq_mask(unsigned int irq);
+
 /* This is always executed with interrupts disabled.  */
 static unsigned long amiga_gettimeoffset (void)
 {
@@ -481,7 +482,7 @@ static unsigned long amiga_gettimeoffset (void)
 
 	if (ticks > jiffy_ticks / 2)
 		/* check for pending interrupt */
-		if (cia_set_irq(&ciab_base, 0) & CIA_ICR_TA)
+		if (cia_get_irq_mask(IRQ_AMIGA_CIAB) & CIA_ICR_TA)
 			offset = 10000;
 
 	ticks = jiffy_ticks - ticks;

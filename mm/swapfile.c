@@ -25,7 +25,7 @@ struct swap_info_struct swap_info[MAX_SWAPFILES];
 
 #define SWAPFILE_CLUSTER 256
 
-static inline int scan_swap_map(struct swap_info_struct *si)
+static inline int scan_swap_map(struct swap_info_struct *si, unsigned short count)
 {
 	unsigned long offset;
 	/* 
@@ -73,7 +73,7 @@ static inline int scan_swap_map(struct swap_info_struct *si)
 			si->lowest_bit++;
 		if (offset == si->highest_bit)
 			si->highest_bit--;
-		si->swap_map[offset] = 1;
+		si->swap_map[offset] = count;
 		nr_swap_pages--;
 		si->cluster_next = offset+1;
 		return offset;
@@ -81,23 +81,26 @@ static inline int scan_swap_map(struct swap_info_struct *si)
 	return 0;
 }
 
-pte_t get_swap_page(void)
+swp_entry_t __get_swap_page(unsigned short count)
 {
 	struct swap_info_struct * p;
 	unsigned long offset;
-	pte_t entry = __pte(0);
+	swp_entry_t entry;
 	int type, wrapped = 0;
 
+	entry.val = 0;	/* Out of memory */
 	type = swap_list.next;
 	if (type < 0)
 		goto out;
 	if (nr_swap_pages == 0)
 		goto out;
+	if (count >= SWAP_MAP_MAX)
+		goto bad_count;
 
 	while (1) {
 		p = &swap_info[type];
 		if ((p->flags & SWP_WRITEOK) == SWP_WRITEOK) {
-			offset = scan_swap_map(p);
+			offset = scan_swap_map(p, count);
 			if (offset) {
 				entry = SWP_ENTRY(type,offset);
 				type = swap_info[type].next;
@@ -122,20 +125,23 @@ pte_t get_swap_page(void)
 	}
 out:
 	return entry;
+
+bad_count:
+	printk(KERN_ERR "get_swap_page: bad count %hd from %p\n",
+	       count, __builtin_return_address(0));
+	goto out;
 }
 
 
-void swap_free(pte_t entry)
+void __swap_free(swp_entry_t entry, unsigned short count)
 {
 	struct swap_info_struct * p;
 	unsigned long offset, type;
 
-	if (!pte_val(entry))
+	if (!entry.val)
 		goto out;
 
 	type = SWP_TYPE(entry);
-	if (type & SHM_SWP_TYPE)
-		goto out;
 	if (type >= nr_swapfiles)
 		goto bad_nofile;
 	p = & swap_info[type];
@@ -149,7 +155,9 @@ void swap_free(pte_t entry)
 	if (!p->swap_map[offset])
 		goto bad_free;
 	if (p->swap_map[offset] < SWAP_MAP_MAX) {
-		if (!--p->swap_map[offset]) {
+		if (p->swap_map[offset] < count)
+			goto bad_count;
+		if (!(p->swap_map[offset] -= count)) {
 			if (offset < p->lowest_bit)
 				p->lowest_bit = offset;
 			if (offset > p->highest_bit)
@@ -170,27 +178,28 @@ bad_offset:
 	printk("swap_free: offset exceeds max\n");
 	goto out;
 bad_free:
-	pte_ERROR(entry);
+	printk("VM: Bad swap entry %08lx\n", entry.val);
+	goto out;
+bad_count:
+	printk(KERN_ERR "VM: Bad count %hd current count %hd\n", count, p->swap_map[offset]);
 	goto out;
 }
 
 /* needs the big kernel lock */
-pte_t acquire_swap_entry(struct page *page)
+swp_entry_t acquire_swap_entry(struct page *page)
 {
 	struct swap_info_struct * p;
 	unsigned long offset, type;
-	pte_t entry;
+	swp_entry_t entry;
 
 	if (!test_bit(PG_swap_entry, &page->flags))
 		goto new_swap_entry;
 
 	/* We have the old entry in the page offset still */
-	if (!page->offset)
+	if (!page->index)
 		goto new_swap_entry;
-	entry = get_pagecache_pte(page);
+	entry.val = page->index;
 	type = SWP_TYPE(entry);
-	if (type & SHM_SWP_TYPE)
-		goto new_swap_entry;
 	if (type >= nr_swapfiles)
 		goto new_swap_entry;
 	p = type + swap_info;
@@ -222,7 +231,7 @@ new_swap_entry:
  * what to do if a write is requested later.
  */
 static inline void unuse_pte(struct vm_area_struct * vma, unsigned long address,
-	pte_t *dir, pte_t entry, struct page* page)
+	pte_t *dir, swp_entry_t entry, struct page* page)
 {
 	pte_t pte = *dir;
 
@@ -238,17 +247,17 @@ static inline void unuse_pte(struct vm_area_struct * vma, unsigned long address,
 		set_pte(dir, pte_mkdirty(pte));
 		return;
 	}
-	if (pte_val(pte) != pte_val(entry))
+	if (pte_val(pte) != entry.val)
 		return;
 	set_pte(dir, pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 	swap_free(entry);
-	get_page(mem_map + MAP_NR(page));
+	get_page(page);
 	++vma->vm_mm->rss;
 }
 
 static inline void unuse_pmd(struct vm_area_struct * vma, pmd_t *dir,
 	unsigned long address, unsigned long size, unsigned long offset,
-	pte_t entry, struct page* page)
+	swp_entry_t entry, struct page* page)
 {
 	pte_t * pte;
 	unsigned long end;
@@ -275,7 +284,7 @@ static inline void unuse_pmd(struct vm_area_struct * vma, pmd_t *dir,
 
 static inline void unuse_pgd(struct vm_area_struct * vma, pgd_t *dir,
 	unsigned long address, unsigned long size,
-	pte_t entry, struct page* page)
+	swp_entry_t entry, struct page* page)
 {
 	pmd_t * pmd;
 	unsigned long offset, end;
@@ -304,7 +313,7 @@ static inline void unuse_pgd(struct vm_area_struct * vma, pgd_t *dir,
 }
 
 static void unuse_vma(struct vm_area_struct * vma, pgd_t *pgdir,
-			pte_t entry, struct page* page)
+			swp_entry_t entry, struct page* page)
 {
 	unsigned long start = vma->vm_start, end = vma->vm_end;
 
@@ -318,7 +327,7 @@ static void unuse_vma(struct vm_area_struct * vma, pgd_t *pgdir,
 }
 
 static void unuse_process(struct mm_struct * mm,
-			pte_t entry, struct page* page)
+			swp_entry_t entry, struct page* page)
 {
 	struct vm_area_struct* vma;
 
@@ -344,7 +353,7 @@ static int try_to_unuse(unsigned int type)
 	struct swap_info_struct * si = &swap_info[type];
 	struct task_struct *p;
 	struct page *page;
-	pte_t entry;
+	swp_entry_t entry;
 	int i;
 
 	while (1) {
@@ -388,7 +397,7 @@ static int try_to_unuse(unsigned int type)
 		 */
 		if (si->swap_map[i] != 0) {
 			if (si->swap_map[i] != SWAP_MAP_MAX)
-				pte_ERROR(entry);
+				printk("VM: Undead swap entry %08lx\n", entry.val);
 			si->swap_map[i] = 0;
 			nr_swap_pages++;
 		}
@@ -616,7 +625,7 @@ asmlinkage long sys_swapon(const char * specialfile, int swap_flags)
 		swapfilesize = 0;
 		if (blk_size[MAJOR(dev)])
 			swapfilesize = blk_size[MAJOR(dev)][MINOR(dev)]
-				/ (PAGE_SIZE / 1024);
+				>> (PAGE_SHIFT - 10);
 	} else if (S_ISREG(swap_dentry->d_inode->i_mode)) {
 		error = -EBUSY;
 		for (i = 0 ; i < nr_swapfiles ; i++) {
@@ -625,7 +634,7 @@ asmlinkage long sys_swapon(const char * specialfile, int swap_flags)
 			if (swap_dentry->d_inode == swap_info[i].swap_file->d_inode)
 				goto bad_swap;
 		}
-		swapfilesize = swap_dentry->d_inode->i_size / PAGE_SIZE;
+		swapfilesize = swap_dentry->d_inode->i_size >> PAGE_SHIFT;
 	} else
 		goto bad_swap;
 

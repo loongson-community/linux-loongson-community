@@ -14,7 +14,7 @@ if [ "$CONFIG_ISDN_AUDIO" != "n" ]; then
 fi
 bool '  Support isdn diversion services' CONFIG_ISDN_DIVERSION
 if [ "$CONFIG_X25" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   bool '    X.25 PLP on top of ISDN (EXPERIMENTAL)' CONFIG_ISDN_X25
+   bool '  X.25 PLP on top of ISDN (EXPERIMENTAL)' CONFIG_ISDN_X25
 fi
 dep_tristate '  ICN 2B and 4B support' CONFIG_ISDN_DRV_ICN $CONFIG_ISDN
 dep_tristate '  isdnloop support' CONFIG_ISDN_DRV_LOOP $CONFIG_ISDN
@@ -52,26 +52,28 @@ if [ "$CONFIG_ISDN_DRV_HISAX" != "n" ]; then
    bool '    HiSax Support for Scitel Quadro card' CONFIG_HISAX_SCT_QUADRO
    bool '    HiSax Support for Gazel cards' CONFIG_HISAX_GAZEL
    bool '    HiSax Support for HFC PCI-Bus cards' CONFIG_HISAX_HFC_PCI
-   if [ "$CONFIG_EXPERIMENTAL" != "n" ]; then
+   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+      bool '    HiSax Support for Winbond W6692 based cards (EXPERIMENTAL)' CONFIG_HISAX_W6692
 #      bool '    HiSax Support for TESTEMULATOR (EXPERIMENTAL)' CONFIG_HISAX_TESTEMU
       if [ "$ARCH" = "sparc" -o "$ARCH" = "sparc64" ]; then
 	 bool '    HiSax Support for Am7930' CONFIG_HISAX_AMD7930
       fi
    fi
 fi
-if [ "$CONFIG_EXPERIMENTAL" != "n" ]; then
-	dep_tristate '  Spellcaster support (EXPERIMENTAL)' CONFIG_ISDN_DRV_SC $CONFIG_ISDN
-	dep_tristate '  IBM Active 2000 support (EXPERIMENTAL)' CONFIG_ISDN_DRV_ACT2000 $CONFIG_ISDN
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   dep_tristate '  Spellcaster support (EXPERIMENTAL)' CONFIG_ISDN_DRV_SC $CONFIG_ISDN
+   dep_tristate '  IBM Active 2000 support (EXPERIMENTAL)' CONFIG_ISDN_DRV_ACT2000 $CONFIG_ISDN
 fi
 dep_tristate '  Eicon.Diehl active card support' CONFIG_ISDN_DRV_EICON $CONFIG_ISDN
 if [ "$CONFIG_ISDN_DRV_EICON" != "n" ]; then
-    bool '    Eicon S, SX, SCOM, Quadro, S2M support' CONFIG_ISDN_DRV_EICON_ISA
+   bool '    Eicon S, SX, SCOM, Quadro, S2M support' CONFIG_ISDN_DRV_EICON_ISA
 fi
 dep_tristate '  AVM CAPI2.0 support' CONFIG_ISDN_DRV_AVMB1 $CONFIG_ISDN
 if [ "$CONFIG_ISDN_DRV_AVMB1" != "n" ]; then
    bool '    AVM B1 ISA support' CONFIG_ISDN_DRV_AVMB1_B1ISA
    bool '    AVM B1 PCI support' CONFIG_ISDN_DRV_AVMB1_B1PCI
-   bool '    AVM T1/T1B ISA support' CONFIG_ISDN_DRV_AVMB1_T1ISA
+   bool '    AVM T1/T1-B ISA support' CONFIG_ISDN_DRV_AVMB1_T1ISA
    bool '    AVM B1/M1/M2 PCMCIA support' CONFIG_ISDN_DRV_AVMB1_B1PCMCIA
+   bool '    AVM T1/T1-B PCI support' CONFIG_ISDN_DRV_AVMB1_T1PCI
    bool '    Verbose reason code reporting (kernel size +=7K)' CONFIG_ISDN_DRV_AVMB1_VERBOSE_REASON
 fi

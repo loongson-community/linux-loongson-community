@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.25 1999/10/09 00:01:43 ralf Exp $
+/* $Id: pgtable.h,v 1.26 2000/01/27 01:05:37 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -402,7 +402,6 @@ extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 }
 
-#define page_pte_prot(page,prot) mk_pte(page, prot)
 #define page_pte(page) page_pte_prot(page, __pgprot(0))
 
 /* to find an entry in a kernel page-table-directory */
@@ -618,22 +617,12 @@ extern pgd_t swapper_pg_dir[1024];
 extern void update_mmu_cache(struct vm_area_struct *vma,
 				unsigned long address, pte_t pte);
 
-/*
- * Non-present pages:  high 24 bits are offset, next 8 bits type,
- * low 32 bits zero.
- */
-extern inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
-{
-	pte_t pte; pte_val(pte) = (type << 1) | (offset << 8);
-	return pte;
-}
+#define SWP_TYPE(x)		(((x).val >> 1) & 0x3f)
+#define SWP_OFFSET(x)		((x).val >> 8)
+#define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
+#define pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
+#define swp_entry_to_pte(x)	((pte_t) { (x).val })
 
-/*
- * Kernel with 32 bit address space
- */
-#define SWP_TYPE(entry) ((pte_val(entry) >> 1) & 0x3f)
-#define SWP_OFFSET(entry) (pte_val(entry) >> 8)
-#define SWP_ENTRY(type,offset) mk_swap_pte((type),(offset))
 
 #define module_map      vmalloc
 #define module_unmap    vfree

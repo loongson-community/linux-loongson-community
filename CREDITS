@@ -31,6 +31,12 @@ D: NFS over TCP patches
 S: University of Limerick
 S: Ireland
 
+N: Tigran A. Aivazian
+E: tigran@ocston.org
+W: http://www.ocston.org/~tigran
+D: BFS filesystem
+S: United Kingdom
+
 N: Werner Almesberger
 E: werner.almesberger@lrc.di.epfl.ch
 D: dosfs, LILO, some fd features, various other hacks here and there
@@ -280,6 +286,10 @@ W: http://math-www.uni-paderborn.de/~axel/
 D: Configuration help text support
 D: Linux CD and Support Giveaway List
 
+N: Erik Inge Bolsø
+E: knan@mo.himolde.no
+D: Misc kernel hacks
+
 N: Zoltan Boszormenyi
 E: zboszor@mol.hu
 D: MTRR emulation with Cyrix style ARR registers
@@ -498,8 +508,8 @@ S: 4850 Moresnet
 S: Belgium
 
 N: Cort Dougan
-E: cort@cs.nmt.edu
-W: http://www.cs.nmt.edu/~cort/
+E: cort@ppc.kernel.org
+W: http://www.ppc.kernel.org/~cort/
 D: PowerPC
 S: Computer Science Department
 S: New Mexico Tech
@@ -1608,10 +1618,11 @@ S: 644 00 Brno
 S: Czech Republic
 
 N: Vojtech Pavlik
-E: vojtech@ucw.cz
+E: vojtech@suse.cz
 D: Joystick driver
 D: arcnet-hardware readme
 D: Minor ARCnet hacking
+D: USB hacking
 S: Ucitelska 1576
 S: Prague 8
 S: 182 00 Czech Republic
@@ -1778,8 +1789,8 @@ S: 7000 Stuttgart 50
 S: Germany
 
 N: Stephen Rothwell
-E: Stephen.Rothwell@canb.auug.org.au
-W: http://www.canb.auug.org.au/~sfr
+E: sfr@linuxcare.com
+W: http://linuxcare.com.au/sfr
 P: 1024/BD8C7805 CD A4 9D 01 10 6E 7E 3B  91 88 FA D9 C8 40 AA 02
 D: Boot/setup/build work for setup > 2K
 D: Author, APM driver
@@ -2051,7 +2062,8 @@ S: Kanata, Ontario
 S: Canada K2L 1S2
 
 N: Andrew Tridgell
-E: Andrew.Tridgell@anu.edu.au
+E: tridge@samba.org
+W: http://linuxcare.com.au/tridge/
 D: dosemu, networking, samba
 S: 3 Ballow Crescent
 S: MacGregor A.C.T 2615
@@ -2213,9 +2225,10 @@ S: The Netherlands
 N: Tim Waugh
 E: tim@cyberelk.demon.co.uk
 D: Co-architect of the parallel-port sharing system
-S: 4 Fox Close
-S: Bishopstoke
-S: SO50 8NB
+S: 34 Bladon Close
+S: GUILDFORD
+S: Surrey
+S: GU1 1TY
 S: United Kingdom
 
 N: Juergen Weigert

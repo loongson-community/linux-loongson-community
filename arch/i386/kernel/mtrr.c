@@ -1204,7 +1204,7 @@ int mtrr_add (unsigned long base, unsigned long size, unsigned int type,
     i = (*get_free_region) (base, size);
     if (i < 0)
     {
-	spin_unlock (&main_lock);
+	up(&main_lock);
 	printk ("mtrr: no more MTRRs available\n");
 	return i;
     }
@@ -1516,7 +1516,7 @@ static struct inode_operations proc_mtrr_inode_operations = {
 };
 
 static struct proc_dir_entry proc_root_mtrr = {
-	PROC_MTRR, 4, "mtrr",
+	0, 4, "mtrr",
 	S_IFREG | S_IWUSR | S_IRUGO, 1, 0, 0,
 	0, &proc_mtrr_inode_operations
 };

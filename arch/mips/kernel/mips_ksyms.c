@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.21 1999/10/21 00:23:04 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.22 1999/12/04 03:59:00 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -125,3 +125,4 @@ EXPORT_SYMBOL(unregister_fpe);
 EXPORT_SYMBOL(screen_info);
 #endif
 
+EXPORT_SYMBOL(get_wchan);

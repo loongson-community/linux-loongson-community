@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.16 1999/10/09 00:01:31 ralf Exp $
+ * $Id: sgiwd93.c,v 1.17 1999/10/21 00:23:05 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -37,11 +37,6 @@
 struct hpc_chunk {
 	struct hpc_dma_desc desc;
 	unsigned long padding;
-};
-
-struct proc_dir_entry proc_scsi_sgiwd93 = {
-	PROC_SCSI_SGIWD93, 5, "SGIWD93",
-	S_IFDIR | S_IRUGO | S_IXUGO, 2
 };
 
 struct Scsi_Host *sgiwd93_host = NULL;
@@ -277,7 +272,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *HPsUX)
 	if(called)
 		return 0; /* Should bitch on the console about this... */
 
-	HPsUX->proc_dir = &proc_scsi_sgiwd93;
+	HPsUX->proc_name = "SGIWD93";
 
 	sgiwd93_host = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
 	sgiwd93_host->base = (unsigned char *) hregs;

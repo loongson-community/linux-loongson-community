@@ -311,7 +311,7 @@ static ssize_t ezusb_read(struct file *file, char *buf, size_t sz, loff_t *ppos)
 		if (pos + len > 0x10000)
 			len = 0x10000 - pos;
 		i = usb_control_msg(ez->usbdev, usb_rcvctrlpipe(ez->usbdev, 0), 0xa0, 0xc0, pos, 0, b, len, HZ);
-		if (i) {
+		if (i < 0) {
 			up(&ez->mutex);
 			printk(KERN_WARNING "ezusb: upload failed pos %u len %u ret %d\n", pos, len, i);
 			*ppos = pos;
@@ -366,7 +366,7 @@ static ssize_t ezusb_write(struct file *file, const char *buf, size_t sz, loff_t
 			return -EFAULT;
 		}
 		i = usb_control_msg(ez->usbdev, usb_sndctrlpipe(ez->usbdev, 0), 0xa0, 0x40, pos, 0, b, len, HZ);
-		if (i) {
+		if (i < 0) {
 			up(&ez->mutex);
 			printk(KERN_WARNING "ezusb: download failed pos %u len %u ret %d\n", pos, len, i);
 			*ppos = pos;
@@ -968,7 +968,7 @@ static struct file_operations ezusb_fops = {
 
 /* --------------------------------------------------------------------- */
 
-static int ezusb_probe(struct usb_device *usbdev)
+static void * ezusb_probe(struct usb_device *usbdev, unsigned int ifnum)
 {
 	struct ezusb *ez = &ezusb[0];
         struct usb_interface_descriptor *interface;
@@ -982,56 +982,49 @@ static int ezusb_probe(struct usb_device *usbdev)
 	/* the 1234:5678 is just a self assigned test ID */
         if ((usbdev->descriptor.idVendor != 0x0547 || usbdev->descriptor.idProduct != 0x2131) &&
 	    (usbdev->descriptor.idVendor != 0x1234 || usbdev->descriptor.idProduct != 0x5678))
-                return -1;
+                return NULL;
 
         /* We don't handle multiple configurations */
         if (usbdev->descriptor.bNumConfigurations != 1)
-                return -1;
+                return NULL;
 
 #if 0
         /* We don't handle multiple interfaces */
-        if (usbdev->config[0].bNumInterfaces != 1)
-                return -1;
+        if (usbdev->actconfig.bNumInterfaces != 1)
+                return NULL;
 #endif
 
 	down(&ez->mutex);
 	if (ez->usbdev) {
 		up(&ez->mutex);
 		printk(KERN_INFO "ezusb: device already used\n");
-		return -1;
+		return NULL;
 	}
 	ez->usbdev = usbdev;
-	usbdev->private = ez;
-        if (usb_set_configuration(usbdev, usbdev->config[0].bConfigurationValue) < 0) {
-		printk(KERN_ERR "ezusb: set_configuration failed\n");
-		goto err;
-	}
-        interface = &usbdev->config[0].interface[0].altsetting[1];
-	if (usb_set_interface(usbdev, 0, 1) < 0) {
+        interface = &usbdev->actconfig->interface[ifnum].altsetting[1];
+	if (usb_set_interface(usbdev, ifnum, 1) < 0) {
 		printk(KERN_ERR "ezusb: set_interface failed\n");
 		goto err;
 	}
 	up(&ez->mutex);
 	MOD_INC_USE_COUNT;
-        return 0;
+        return ez;
 
  err:
 	up(&ez->mutex);
 	ez->usbdev = NULL;
-	usbdev->private = NULL;
-	return -1;
+	return NULL;
 }
 
-static void ezusb_disconnect(struct usb_device *usbdev)
+static void ezusb_disconnect(struct usb_device *usbdev, void *ptr)
 {
-	struct ezusb *ez = (struct ezusb *)usbdev->private;
+	struct ezusb *ez = (struct ezusb *) ptr;
 
 	down(&ez->mutex);
 	destroy_all_async(ez);
 	ez->usbdev = NULL;
 	up(&ez->mutex);
 	wake_up(&ez->wait);
-        usbdev->private = NULL;
 	MOD_DEC_USE_COUNT;
 }
 
@@ -1059,7 +1052,9 @@ int ezusb_init(void)
 		init_waitqueue_head(&ezusb[u].wait);
 		spin_lock_init(&ezusb[u].lock);
 	}
-	usb_register(&ezusb_driver);
+	if (usb_register(&ezusb_driver) < 0)
+		return -1;
+
         printk(KERN_INFO "ezusb: Anchorchip firmware download driver registered\n");
 	return 0;
 }

@@ -225,17 +225,13 @@ int copy_strings(int argc,char ** argv, struct linux_binprm *bprm)
 			page = bprm->page[i];
 			new = 0;
 			if (!page) {
-				/*
-				 * Cannot yet use highmem page because
-				 * we cannot sleep with a kmap held.
-				 */
-				page = __get_pages(GFP_USER, 0);
+				page = alloc_page(GFP_HIGHUSER);
 				bprm->page[i] = page;
 				if (!page)
 					return -ENOMEM;
 				new = 1;
 			}
-			kaddr = (char *)kmap(page, KM_WRITE);
+			kaddr = (char *)kmap(page);
 
 			if (new && offset)
 				memset(kaddr, 0, offset);
@@ -247,7 +243,7 @@ int copy_strings(int argc,char ** argv, struct linux_binprm *bprm)
 			}
 			err = copy_from_user(kaddr + offset, str, bytes_to_copy);
 			flush_page_to_ram(page);
-			kunmap((unsigned long)kaddr, KM_WRITE);
+			kunmap(page);
 
 			if (err)
 				return -EFAULT; 
@@ -297,7 +293,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 		mpnt->vm_page_prot = PAGE_COPY;
 		mpnt->vm_flags = VM_STACK_FLAGS;
 		mpnt->vm_ops = NULL;
-		mpnt->vm_offset = 0;
+		mpnt->vm_pgoff = 0;
 		mpnt->vm_file = NULL;
 		mpnt->vm_private_data = (void *) 0;
 		vmlist_modify_lock(current->mm);
@@ -462,6 +458,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 	/*
 	 * Make sure we have a private signal table
 	 */
+	task_lock(current);
 	oldsig = current->sig;
 	retval = make_private_signals();
 	if (retval) goto flush_failed;
@@ -500,6 +497,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 			
 	flush_signal_handlers(current);
 	flush_old_files(current->files);
+	task_unlock(current);
 
 	return 0;
 
@@ -508,6 +506,7 @@ mmap_failed:
 		kfree(current->sig);
 flush_failed:
 	current->sig = oldsig;
+	task_unlock(current);
 	return retval;
 }
 
@@ -681,12 +680,12 @@ void remove_arg_zero(struct linux_binprm *bprm)
 			if (offset != PAGE_SIZE)
 				continue;
 			offset = 0;
-			kunmap((unsigned long)kaddr, KM_WRITE);
+			kunmap(page);
 inside:
 			page = bprm->page[bprm->p/PAGE_SIZE];
-			kaddr = (char *)kmap(page, KM_WRITE);
+			kaddr = (char *)kmap(page);
 		}
-		kunmap((unsigned long)kaddr, KM_WRITE);
+		kunmap(page);
 		bprm->argc--;
 	}
 }

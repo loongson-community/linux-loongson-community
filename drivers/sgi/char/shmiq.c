@@ -1,4 +1,4 @@
-/* $Id: shmiq.c,v 1.14 1999/10/09 00:01:31 ralf Exp $
+/* $Id: shmiq.c,v 1.15 1999/12/04 03:59:05 ralf Exp $
  *
  * shmiq.c: shared memory input queue driver
  * written 1997 Miguel de Icaza (miguel@nuclecu.unam.mx)
@@ -318,7 +318,7 @@ shmiq_qcntl_mmap (struct file *file, struct vm_area_struct *vma)
 	if (minor-- == 0)
 		return -EINVAL;
 
-	if (vma->vm_offset != 0)
+	if (vma->vm_pgoff != 0)
 		return -EINVAL;
 
 	size  = vma->vm_end - vma->vm_start;

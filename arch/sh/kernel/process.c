@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: process.c,v 1.8 1999/10/31 13:19:16 gniibe Exp $
  *
  *  linux/arch/sh/kernel/process.c
  *
@@ -249,8 +249,6 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	p->thread.sp = (unsigned long) childregs;
 	p->thread.pc = (unsigned long) ret_from_fork;
-	if (p->mm)
-		p->mm->context = NO_CONTEXT;
 
 	return 0;
 }

@@ -438,7 +438,6 @@ int pcibios_find_device (unsigned short vendor, unsigned short dev_id,
 
 void pci_init(void);
 struct pci_bus *pci_scan_bus(int bus, struct pci_ops *ops, void *sysdata);
-int get_pci_list(char *buf);
 int pci_proc_attach_device(struct pci_dev *dev);
 int pci_proc_detach_device(struct pci_dev *dev);
 void pci_name_device(struct pci_dev *dev);
@@ -490,8 +489,9 @@ struct pci_simple_probe_entry {
 	void *dev_data;		/* driver-private, entry-specific data */
 };
 
-int pci_simple_probe (struct pci_simple_probe_entry *list, size_t match_limit,
-		      pci_simple_probe_callback cb, void *drvr_data);
+int pci_simple_probe (const struct pci_simple_probe_entry *list,
+		      size_t match_limit, pci_simple_probe_callback cb,
+		      void *drvr_data);
 
 
 
@@ -530,7 +530,7 @@ unsigned int ss_vendor, unsigned int ss_device, struct pci_dev *from)
 extern inline void pci_set_master(struct pci_dev *dev) { }
 extern inline int pci_enable_device(struct pci_dev *dev) { return 0; }
 
-extern inline int pci_simple_probe (struct pci_simple_probe_entry *list, size_t match_limit,
+extern inline int pci_simple_probe (const struct pci_simple_probe_entry *list, size_t match_limit,
 		      pci_simple_probe_callback cb, void *drvr_data)
 { return 0; }
 

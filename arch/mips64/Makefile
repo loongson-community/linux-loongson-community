@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.4 2000/01/17 23:32:46 ralf Exp $
+# $Id: Makefile,v 1.5 2000/01/21 22:34:03 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -141,6 +141,7 @@ archclean:
 	@$(MAKEBOOT) clean
 	$(MAKE) -C arch/$(ARCH)/kernel clean
 	$(MAKE) -C arch/$(ARCH)/tools clean
+	rm -f vmlinux.64
 
 archmrproper:
 

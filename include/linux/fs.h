@@ -48,7 +48,7 @@ struct poll_table_struct;
 extern int max_files, nr_files, nr_free_files;
 extern int max_super_blocks, nr_super_blocks;
 
-#define NR_FILE  4096	/* this can well be larger on a larger system */
+#define NR_FILE  8192	/* this can well be larger on a larger system */
 #define NR_RESERVED_FILES 10 /* reserved for root */
 #define NR_SUPER 256
 
@@ -224,7 +224,8 @@ struct buffer_head {
 	struct buffer_head *b_reqnext;	/* request queue */
 
 	struct buffer_head **b_pprev;	/* doubly linked list of hash-queue */
-	char *b_data;			/* pointer to data block (1024 bytes) */
+	char * b_data;			/* pointer to data block (512 byte) */
+	struct page *b_page;		/* the page this bh is mapped to */
 	void (*b_end_io)(struct buffer_head *bh, int uptodate); /* I/O completion */
 	void *b_dev_id;
 
@@ -246,8 +247,11 @@ void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 #define buffer_new(bh)		__buffer_state(bh,New)
 #define buffer_protected(bh)	__buffer_state(bh,Protected)
 
-#define buffer_page(bh)		(mem_map + MAP_NR((bh)->b_data))
-#define touch_buffer(bh)	set_bit(PG_referenced, &buffer_page(bh)->flags)
+#define bh_offset(bh)		((unsigned long)(bh)->b_data & ~PAGE_MASK)
+
+extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned int offset);
+
+#define touch_buffer(bh)	set_bit(PG_referenced, &bh->b_page->flags)
 
 #include <linux/pipe_fs_i.h>
 #include <linux/minix_fs_i.h>
@@ -268,8 +272,10 @@ void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 #include <linux/hfs_fs_i.h>
 #include <linux/adfs_fs_i.h>
 #include <linux/qnx4_fs_i.h>
+#include <linux/bfs_fs_i.h>
 #include <linux/udf_fs_i.h>
 #include <linux/ncp_fs_i.h>
+#include <linux/proc_fs_i.h>
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what
@@ -301,7 +307,7 @@ struct iattr {
 	umode_t		ia_mode;
 	uid_t		ia_uid;
 	gid_t		ia_gid;
-	off_t		ia_size;
+	loff_t		ia_size;
 	time_t		ia_atime;
 	time_t		ia_mtime;
 	time_t		ia_ctime;
@@ -346,7 +352,7 @@ struct inode {
 	uid_t			i_uid;
 	gid_t			i_gid;
 	kdev_t			i_rdev;
-	off_t			i_size;
+	loff_t			i_size;
 	time_t			i_atime;
 	time_t			i_mtime;
 	time_t			i_ctime;
@@ -391,8 +397,10 @@ struct inode {
 		struct hfs_inode_info		hfs_i;
 		struct adfs_inode_info		adfs_i;
 		struct qnx4_inode_info		qnx4_i;
+		struct bfs_inode_info		bfs_i;
 		struct udf_inode_info		udf_i;
 		struct ncp_inode_info		ncpfs_i;
+		struct proc_inode_info		proc_i;
 		struct socket			socket_i;
 		void				*generic_ip;
 	} u;
@@ -522,6 +530,7 @@ extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
 #include <linux/hfs_fs_sb.h>
 #include <linux/adfs_fs_sb.h>
 #include <linux/qnx4_fs_sb.h>
+#include <linux/bfs_fs_sb.h>
 #include <linux/udf_fs_sb.h>
 #include <linux/ncp_fs_sb.h>
 
@@ -568,6 +577,7 @@ struct super_block {
 		struct hfs_sb_info	hfs_sb;
 		struct adfs_sb_info	adfs_sb;
 		struct qnx4_sb_info	qnx4_sb;
+		struct bfs_sb_info	bfs_sb;
 		struct udf_sb_info	udf_sb;
 		struct ncp_sb_info	ncpfs_sb;
 		void			*generic_sbp;
@@ -929,6 +939,7 @@ extern void set_blocksize(kdev_t, int);
 extern unsigned int get_hardblocksize(kdev_t);
 extern struct buffer_head * bread(kdev_t, int, int);
 extern struct buffer_head * breada(kdev_t, int, int, unsigned int, unsigned int);
+extern void wakeup_bdflush(int wait);
 
 extern int brw_page(int, struct page *, kdev_t, int [], int);
 

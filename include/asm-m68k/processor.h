@@ -134,6 +134,17 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 		return sw->retpc;
 }
 
+unsigned long get_wchan(struct task_struct *p);
+
+#define	KSTK_EIP(tsk)	\
+    ({			\
+	unsigned long eip = 0;	 \
+	if ((tsk)->thread.esp0 > PAGE_SIZE && \
+	    MAP_NR((tsk)->thread.esp0) < max_mapnr) \
+	      eip = ((struct pt_regs *) (tsk)->thread.esp0)->pc; \
+	eip; })
+#define	KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->thread.usp)
+
 #define THREAD_SIZE (2*PAGE_SIZE)
 
 /* Allocation and freeing of basic task resources. */

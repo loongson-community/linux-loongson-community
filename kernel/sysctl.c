@@ -49,7 +49,11 @@ extern char modprobe_path[];
 extern int sg_big_buff;
 #endif
 #ifdef CONFIG_SYSVIPC
-extern int shmmax;
+extern size_t shm_prm[];
+extern int msg_ctlmax;
+extern int msg_ctlmnb;
+extern int msg_ctlmni;
+extern int sem_ctls[];
 #endif
 
 #ifdef __sparc__
@@ -136,7 +140,7 @@ struct inode_operations proc_sys_inode_operations =
 	NULL		/* revalidate */
 };
 
-extern struct proc_dir_entry proc_sys_root;
+extern struct proc_dir_entry *proc_sys_root;
 
 static void register_proc_table(ctl_table *, struct proc_dir_entry *);
 static void unregister_proc_table(ctl_table *, struct proc_dir_entry *);
@@ -213,7 +217,15 @@ static ctl_table kern_table[] = {
 	{KERN_RTSIGMAX, "rtsig-max", &max_queued_signals, sizeof(int),
 	 0644, NULL, &proc_dointvec},
 #ifdef CONFIG_SYSVIPC
-	{KERN_SHMMAX, "shmmax", &shmmax, sizeof (int),
+	{KERN_SHMMAX, "shmmax", &shm_prm, 3*sizeof (size_t),
+	 0644, NULL, &proc_doulongvec_minmax},
+	{KERN_MSGMAX, "msgmax", &msg_ctlmax, sizeof (int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_MSGMNI, "msgmni", &msg_ctlmni, sizeof (int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_MSGMNB, "msgmnb", &msg_ctlmnb, sizeof (int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_SEM, "sem", &sem_ctls, 4*sizeof (int),
 	 0644, NULL, &proc_dointvec},
 #endif
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -285,7 +297,7 @@ static ctl_table dev_table[] = {
 void __init sysctl_init(void)
 {
 #ifdef CONFIG_PROC_FS
-	register_proc_table(root_table, &proc_sys_root);
+	register_proc_table(root_table, proc_sys_root);
 #endif
 }
 
@@ -480,7 +492,7 @@ struct ctl_table_header *register_sysctl_table(ctl_table * table,
 	else
 		DLIST_INSERT_BEFORE(&root_table_header, tmp, ctl_entry);
 #ifdef CONFIG_PROC_FS
-	register_proc_table(table, &proc_sys_root);
+	register_proc_table(table, proc_sys_root);
 #endif
 	return tmp;
 }
@@ -492,7 +504,7 @@ void unregister_sysctl_table(struct ctl_table_header * header)
 {
 	DLIST_DELETE(header, ctl_entry);
 #ifdef CONFIG_PROC_FS
-	unregister_proc_table(header->ctl_table, &proc_sys_root);
+	unregister_proc_table(header->ctl_table, proc_sys_root);
 #endif
 	kfree(header);
 }
@@ -1067,6 +1079,12 @@ int proc_dointvec(ctl_table *table, int write, struct file *filp,
 	return -ENOSYS;
 }
 
+int proc_dointvec_bset(ctl_table *table, int write, struct file *filp,
+			void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
 int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,
 		    void *buffer, size_t *lenp)
 {
@@ -1308,6 +1326,12 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
 
 int proc_dointvec(ctl_table *table, int write, struct file *filp,
 		  void *buffer, size_t *lenp)
+{
+	return -ENOSYS;
+}
+
+int proc_dointvec_bset(ctl_table *table, int write, struct file *filp,
+			void *buffer, size_t *lenp)
 {
 	return -ENOSYS;
 }

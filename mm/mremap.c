@@ -93,7 +93,6 @@ static int move_page_tables(struct mm_struct * mm,
 	unsigned long offset = len;
 
 	flush_cache_range(mm, old_addr, old_addr + len);
-	flush_tlb_range(mm, old_addr, old_addr + len);
 
 	/*
 	 * This is not the clever way to do this, but we're taking the
@@ -105,6 +104,7 @@ static int move_page_tables(struct mm_struct * mm,
 		if (move_one_page(mm, old_addr + offset, new_addr + offset))
 			goto oops_we_failed;
 	}
+	flush_tlb_range(mm, old_addr, old_addr + len);
 	return 0;
 
 	/*
@@ -136,7 +136,8 @@ static inline unsigned long move_vma(struct vm_area_struct * vma,
 			*new_vma = *vma;
 			new_vma->vm_start = new_addr;
 			new_vma->vm_end = new_addr+new_len;
-			new_vma->vm_offset = vma->vm_offset + (addr - vma->vm_start);
+			new_vma->vm_pgoff = vma->vm_pgoff;
+			new_vma->vm_pgoff += (addr - vma->vm_start) >> PAGE_SHIFT;
 			if (new_vma->vm_file)
 				get_file(new_vma->vm_file);
 			if (new_vma->vm_ops && new_vma->vm_ops->open)

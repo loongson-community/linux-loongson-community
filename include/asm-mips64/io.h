@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.5 2000/01/27 01:05:37 ralf Exp $
+/* $Id: io.h,v 1.6 2000/01/27 23:45:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,13 +12,13 @@
 #define _ASM_IO_H
 
 #include <linux/config.h>
+#include <asm/addrspace.h>
+#include <asm/page.h>
 
 /*
  * Slowdown I/O port space accesses for antique hardware.
  */
 #undef CONF_SLOWDOWN_IO
-
-#include <asm/addrspace.h>
 
 /*
  * This file contains the definitions for the MIPS counterpart of the
@@ -73,12 +73,12 @@ extern unsigned long mips_io_port_base;
  */
 extern inline unsigned long virt_to_phys(volatile void * address)
 {
-	return PHYSADDR(address);
+	return (unsigned long)address - PAGE_OFFSET;
 }
 
 extern inline void * phys_to_virt(unsigned long address)
 {
-	return (void *)KSEG0ADDR(address);
+	return (void *)(address + PAGE_OFFSET);
 }
 
 extern void * ioremap(unsigned long phys_addr, unsigned long size);
@@ -86,15 +86,16 @@ extern void iounmap(void *addr);
 
 /*
  * IO bus memory addresses are also 1:1 with the physical address
+ * This simplistic model doesn't hold for the Origin.
  */
 extern inline unsigned long virt_to_bus(volatile void * address)
 {
-	return PHYSADDR(address);
+	return (unsigned long)address - PAGE_OFFSET;
 }
 
 extern inline void * bus_to_virt(unsigned long address)
 {
-	return (void *)KSEG0ADDR(address);
+	return (void *)(address + PAGE_OFFSET);
 }
 
 /*
@@ -181,7 +182,8 @@ extern inline void iounmap(void *addr)
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and
  * just copy it. The net code will then do the checksum later.
  */
-#define eth_io_copy_and_sum(skb,src,len,unused)	memcpy_fromio((skb)->data,(src),(len))
+#define eth_io_copy_and_sum(skb,src,len,unused) memcpy_fromio((skb)->data,(src),(len))
+#define isa_eth_io_copy_and_sum(a,b,c,d) eth_copy_and_sum((a),(b),(c),(d))
 
 static inline int
 check_signature(unsigned long io_addr, const unsigned char *signature,

@@ -45,6 +45,7 @@ int dump_fpu(struct pt_regs *regs, elf_fpregset_t *fpregs);
 extern unsigned long _get_SP(void);
 
 struct task_struct *last_task_used_math = NULL;
+struct task_struct *last_task_used_altivec = NULL;
 static struct vm_area_struct init_mmap = INIT_MMAP;
 static struct fs_struct init_fs = INIT_FS;
 static struct files_struct init_files = INIT_FILES;
@@ -60,6 +61,7 @@ struct task_struct *current_set[NR_CPUS] = {&init_task, };
 #undef SHOW_TASK_SWITCHES 1
 #undef CHECK_STACK 1
 
+#if defined(CHECK_STACK)
 unsigned long
 kernel_stack_top(struct task_struct *tsk)
 {
@@ -70,28 +72,6 @@ unsigned long
 task_top(struct task_struct *tsk)
 {
 	return ((unsigned long)tsk) + sizeof(struct task_struct);
-}
-
-int
-dump_fpu(struct pt_regs *regs, elf_fpregset_t *fpregs)
-{
-	if (regs->msr & MSR_FP)
-		giveup_fpu(current);
-	memcpy(fpregs, &current->thread.fpr[0], sizeof(*fpregs));
-	return 1;
-}
-
-void
-enable_kernel_fp(void)
-{
-#ifdef __SMP__
-	if (current->thread.regs && (current->thread.regs->msr & MSR_FP))
-		giveup_fpu(current);
-	else
-		giveup_fpu(NULL);	/* just enables FP for kernel */
-#else
-	giveup_fpu(last_task_used_math);
-#endif /* __SMP__ */
 }
 
 /* check to make sure the kernel stack is healthy */
@@ -156,6 +136,29 @@ int check_stack(struct task_struct *tsk)
 	}
 	return(ret);
 }
+#endif /* defined(CHECK_STACK) */
+
+int
+dump_fpu(struct pt_regs *regs, elf_fpregset_t *fpregs)
+{
+	if (regs->msr & MSR_FP)
+		giveup_fpu(current);
+	memcpy(fpregs, &current->thread.fpr[0], sizeof(*fpregs));
+	return 1;
+}
+
+void
+enable_kernel_fp(void)
+{
+#ifdef __SMP__
+	if (current->thread.regs && (current->thread.regs->msr & MSR_FP))
+		giveup_fpu(current);
+	else
+		giveup_fpu(NULL);	/* just enables FP for kernel */
+#else
+	giveup_fpu(last_task_used_math);
+#endif /* __SMP__ */
+}
 
 void
 _switch_to(struct task_struct *prev, struct task_struct *new,
@@ -187,12 +190,31 @@ _switch_to(struct task_struct *prev, struct task_struct *new,
 	 * every switch, just a save.
 	 *  -- Cort
 	 */
-	if (prev->thread.regs && (prev->thread.regs->msr & MSR_FP))
+	if ( prev->thread.regs && (prev->thread.regs->msr & MSR_FP) )
 		giveup_fpu(prev);
-
+	/*
+	 * If the previous thread 1) has some altivec regs it wants saved
+	 * (has bits in vrsave set) and 2) used altivec in the last quantum
+	 * (thus changing altivec regs) then save them.
+	 *
+	 * On SMP we always save/restore altivec regs just to avoid the
+	 * complexity of changing processors.
+	 *  -- Cort
+	 */
+	if ( (prev->thread.regs && (prev->thread.regs->msr & MSR_VEC)) &&
+	     prev->thread.vrsave )
+		giveup_altivec(prev);
+	if ( (new->last_processor != NO_PROC_ID) &&
+	     (new->last_processor != new->processor) && new->mm )
+		flush_tlb_mm(new->mm);
 	prev->last_processor = prev->processor;
 	current_set[smp_processor_id()] = new;
 #endif /* __SMP__ */
+	/* Avoid the trap.  On smp this this never happens since
+	 * we don't set last_task_used_altivec -- Cort
+	 */
+	if ( last_task_used_altivec == new )
+		new->thread.regs->msr |= MSR_VEC;
 	new_thread = &new->thread;
 	old_thread = &current->thread;
 	*last = _switch(old_thread, new_thread);
@@ -213,7 +235,8 @@ void show_regs(struct pt_regs * regs)
 	printk("TASK = %p[%d] '%s' ",
 	       current, current->pid, current->comm);
 	printk("Last syscall: %ld ", current->thread.last_syscall);
-	printk("\nlast math %p", last_task_used_math);
+	printk("\nlast math %p last altivec %p", last_task_used_math,
+	       last_task_used_altivec);
 	
 #ifdef __SMP__	
 	printk(" CPU: %d last CPU: %d", current->processor,current->last_processor);
@@ -243,12 +266,16 @@ void exit_thread(void)
 {
 	if (last_task_used_math == current)
 		last_task_used_math = NULL;
+	if (last_task_used_altivec == current)
+		last_task_used_altivec = NULL;
 }
 
 void flush_thread(void)
 {
 	if (last_task_used_math == current)
 		last_task_used_math = NULL;
+	if (last_task_used_altivec == current)
+		last_task_used_altivec = NULL;
 }
 
 void
@@ -305,10 +332,17 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	 */
 	if (regs->msr & MSR_FP)
 		giveup_fpu(current);
-
 	memcpy(&p->thread.fpr, &current->thread.fpr, sizeof(p->thread.fpr));
 	p->thread.fpscr = current->thread.fpscr;
 	childregs->msr &= ~MSR_FP;
+
+	if (regs->msr & MSR_VEC)
+		giveup_altivec(current);
+	if ( p->thread.vrsave )
+		memcpy(&p->thread.vrf, &current->thread.vrf, sizeof(p->thread.vrf));
+	p->thread.vscr = current->thread.vscr;
+	p->thread.vrsave = current->thread.vrsave;
+	childregs->msr &= ~MSR_VEC;
 
 #ifdef __SMP__
 	p->last_processor = NO_PROC_ID;
@@ -367,6 +401,8 @@ void start_thread(struct pt_regs *regs, unsigned long nip, unsigned long sp)
 	shove_aux_table(sp);
 	if (last_task_used_math == current)
 		last_task_used_math = 0;
+	if (last_task_used_altivec == current)
+		last_task_used_altivec = 0;
 	current->thread.fpscr = 0;
 }
 
@@ -543,3 +579,32 @@ void __init ll_puts(const char *s)
 	orig_y = y;
 }
 #endif
+
+/*
+ * These bracket the sleeping functions..
+ */
+extern void scheduling_functions_start_here(void);
+extern void scheduling_functions_end_here(void);
+#define first_sched    ((unsigned long) scheduling_functions_start_here)
+#define last_sched     ((unsigned long) scheduling_functions_end_here)
+
+unsigned long get_wchan(struct task_struct *p)
+{
+	unsigned long ip, sp;
+	unsigned long stack_page = (unsigned long) p;
+	int count = 0;
+	if (!p || p == current || p->state == TASK_RUNNING)
+		return 0;
+	sp = p->thread.ksp;
+	do {
+		sp = *(unsigned long *)sp;
+		if (sp < stack_page || sp >= stack_page + 8188)
+			return 0;
+		if (count > 0) {
+			ip = *(unsigned long *)(sp + 4);
+			if (ip < first_sched || ip >= last_sched)
+				return ip;
+		}
+	} while (count++ < 16);
+	return 0;
+}
