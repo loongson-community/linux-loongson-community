@@ -302,7 +302,7 @@ config SGI_IP27
 	  workstations.  To compile a Linux kernel that runs on these, say Y
 	  here.
 
-#config CONFIG_SGI_SN0_XXL
+#config SGI_SN0_XXL
 #	bool "IP27 XXL"
 #	depends on SGI_IP27
 #	  This options adds support for userspace processes upto 16TB size.
@@ -506,43 +506,6 @@ config VR41XX_TIME_C
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || NEC_EAGLE || IBM_WORKPAD || CASIO_E55
 	default y
 
-config SERIAL
-	tristate
-	depends on NEC_OSPREY || IBM_WORKPAD || CASIO_E55
-	default y
-	---help---
-	  This selects whether you want to include the driver for the standard
-	  serial ports.  The standard answer is Y.  People who might say N
-	  here are those that are setting up dedicated Ethernet WWW/FTP
-	  servers, or users that have one of the various bus mice instead of a
-	  serial mouse and don't intend to use their machine's standard serial
-	  port for anything.  (Note that the Cyclades and Stallion multi
-	  serial port drivers do not need this driver built in for them to
-	  work.)
-
-	  If you want to compile this driver as a module, say M here and read
-	  <file:Documentation/modules.txt>.  The module will be called
-	  serial.o.
-	  [WARNING: Do not compile this driver as a module if you are using
-	  non-standard serial ports, since the configuration information will
-	  be lost when the driver is unloaded.  This limitation may be lifted
-	  in the future.]
-
-	  BTW1: If you have a mouseman serial mouse which is not recognized by
-	  the X window system, try running gpm first.
-
-	  BTW2: If you intend to use a software modem (also called Winmodem)
-	  under Linux, forget it.  These modems are crippled and require
-	  proprietary drivers which are only available under Windows.
-
-	  Most people will say Y or M here, so that they can use serial mice,
-	  modems and similar devices connecting to the standard serial ports.
-
-config SERIAL_MANY_PORTS
-	bool
-	depends on NEC_OSPREY || IBM_WORKPAD || CASIO_E55
-	default y
-
 config DUMMY_KEYB
 	bool
 	depends on ZAO_CAPCELLA || VICTOR_MPC30X || SIBYTE_SB1250 || NEC_EAGLE || NEC_OSPREY || DDB5477 || IBM_WORKPAD || CASIO_E55
@@ -553,24 +516,24 @@ config ALCHEMY_COMMON
 	depends on MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000
 	default y
 
-config CONFIG_VR41XX_COMMON
+config VR41XX_COMMON
 	bool
-	depends on CONFIG_NEC_EAGLE || CONFIG_ZAO_CAPCELLA || CONFIG_VICTOR_MPC30X || CONFIG_IBM_WORKPAD || CONFIG_CASIO_E55
+	depends on NEC_EAGLE || ZAO_CAPCELLA || VICTOR_MPC30X || IBM_WORKPAD || CASIO_E55
 	default y
 
-config CONFIG_DDB5XXX_COMMON
+config DDB5XXX_COMMON
 	bool
-	depends on CONFIG_DDB5074 || CONFIG_DDB5476 || CONFIG_DDB5477
+	depends on DDB5074 || DDB5476 || DDB5477
 	default y
 
-config CONFIG_MIPS_BOARDS_GEN
+config MIPS_BOARDS_GEN
 	bool
-	depends on CONFIG_MIPS_ATLAS || CONFIG_MIPS_MALTA || CONFIG_MIPS_SEAD
+	depends on MIPS_ATLAS || MIPS_MALTA || MIPS_SEAD
 	default y
 
-config CONFIG_ITE_BOARD_GEN
+config ITE_BOARD_GEN
 	bool
-	depends on CONFIG_MIPS_IVR || CONFIG_MIPS_ITE8172
+	depends on MIPS_IVR || MIPS_ITE8172
 	default y
 
 config MIPS_AU1000
@@ -722,7 +685,7 @@ config BOOT_ELF64
 	depends on SGI_IP27
 	default y
 
-#config CONFIG_MAPPED_PCI_IO y
+#config MAPPED_PCI_IO y
 #	bool
 #	depends on SGI_IP27
 #	default y
@@ -754,6 +717,7 @@ config CPU_MIPS64
 
 config CPU_R3000
 	bool "R3000"
+	depends on MIPS32
 	help
 	  Please make sure to pick the right CPU type. Linux/MIPS is not
 	  designed to be generic, i.e. Kernels compiled for R3000 CPUs will
@@ -764,6 +728,7 @@ config CPU_R3000
 
 config CPU_TX39XX
 	bool "R39XX"
+	depends on MIPS32
 
 config CPU_VR41XX
 	bool "R41xx"
@@ -797,6 +762,7 @@ config CPU_R5432
 
 config CPU_R6000
 	bool "R6000"
+	depends on MIPS32 && EXPERIMENTAL
 	help
 	  MIPS Technologies R6000 and R6000A series processors.  Note these
 	  processors are extremly rare and the support for them is incomplete.
@@ -808,9 +774,10 @@ config CPU_NEVADA
 
 config CPU_R8000
 	bool "R8000"
+	depends on MIPS64 && EXPERIMENTAL
 	help
-	  MIPS Technologies R8000 processors.  Note these processors are uncommon
-	  and the support for them is incomplete.
+	  MIPS Technologies R8000 processors.  Note these processors are
+	  uncommon and the support for them is incomplete.
 
 config CPU_R10000
 	bool "R10000"
@@ -1036,7 +1003,9 @@ config TC
 	  is available at:
 	  <http://www.cs.arizona.edu/computer.help/policy/DIGITAL_unix/AA-PS3HD-TET1_html/TITLE.html>.
 
-#dep_bool 'Access.Bus support' CONFIG_ACCESSBUS $CONFIG_TC
+#config ACCESSBUS
+#	bool "Access.Bus support"
+#	depends on TC
 
 config MCA
 	bool
@@ -1175,7 +1144,7 @@ config BINFMT_MISC
 	  feature, and <file:Documentation/java.txt> for information about how
 	  to include Java support.
 
-	  You must say Y to "/proc file system support" (CONFIG_PROC_FS) to
+	  You must say Y to "/proc file system support" (PROC_FS) to
 	  use this part of the kernel.
 
 	  You may say M here for module support and later load the module when
@@ -1403,28 +1372,31 @@ source "drivers/char/Kconfig"
 menu "DECStation Character devices"
 	depends on DECSTATION
 
-config SERIAL
+config DEC_SERIAL
 	tristate "Standard/generic (dumb) serial support"
 
 config DZ
 	bool "DZ11 Serial Support"
-	depends on SERIAL=y
+	depends on DEC_SERIAL=y
 	help
 	  DZ11-family serial controllers for VAXstations, including the
 	  DC7085, M7814, and M7819.
 
 config ZS
 	bool "Z85C30 Serial Support"
-	depends on SERIAL=y && TC
+	depends on DEC_SERIAL=y && TC
 	help
 	  Documentation on the Zilog 85C350 serial communications controller
 	  is downloadable at <http://www.zilog.com/pdfs/serial/z85c30.pdf>.
 
-config SERIAL_CONSOLE
+config DEC_SERIAL_CONSOLE
 	bool "Support for console on serial port"
-	depends on SERIAL=y
+	depends on DEC_SERIAL=y
 
-#   dep_bool 'MAXINE Access.Bus mouse (VSXXX-BB/GB) support' CONFIG_DTOP_MOUSE $CONFIG_ACCESSBUS
+config DTOP_MOUSE
+	bool "MAXINE Access.Bus mouse (VSXXX-BB/GB) support"
+	depends on ACCESSBUS
+
 config RTC
 	tristate "Enhanced Real Time Clock Support"
 
@@ -1560,7 +1532,7 @@ config DEBUG_KERNEL
 
 config REMOTE_DEBUG
 	bool "Remote GDB kernel debugging"
-	depends on DEBUG_KERNEL && (SERIAL=y || AU1000_UART)
+	depends on DEBUG_KERNEL && (DEC_SERIAL=y || AU1000_UART)
 	help
 	  If you say Y here, it will be possible to remotely debug the MIPS
 	  kernel using gdb. This enlarges your kernel image disk size by

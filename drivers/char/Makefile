@@ -24,6 +24,7 @@ obj-$(CONFIG_ATARI_DSP56K) += dsp56k.o
 obj-$(CONFIG_ROCKETPORT) += rocket.o
 obj-$(CONFIG_MOXA_SMARTIO) += mxser.o
 obj-$(CONFIG_MOXA_INTELLIO) += moxa.o
+obj-$(CONFIG_DEC_SERIAL) += decserial.o
 obj-$(CONFIG_DIGI) += pcxx.o
 obj-$(CONFIG_DIGIEPCA) += epca.o
 obj-$(CONFIG_CYCLADES) += cyclades.o
