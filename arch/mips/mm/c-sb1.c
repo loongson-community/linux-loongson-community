@@ -18,13 +18,10 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-/*
- * In this entire file, I'm not sure what the role of the L2 on the sb1250 
- * is.  Since it is coherent to the system, we should never need to flush
- * it...right?...right???  -JDC
- */
-
+#include <linux/init.h>
 #include <asm/mmu_context.h>
+#include <asm/bootinfo.h>
+#include <asm/cpu.h>
 
 /* These are probed at ld_mmu time */
 static unsigned int icache_size;
@@ -33,6 +30,8 @@ static unsigned int dcache_size;
 static unsigned int icache_line_size;
 static unsigned int dcache_line_size;
 
+static unsigned int icache_index_mask;
+
 static unsigned int icache_assoc;
 static unsigned int dcache_assoc;
 
@@ -40,24 +39,24 @@ static unsigned int icache_sets;
 static unsigned int dcache_sets;
 static unsigned int tlb_entries;
 
-void local_flush_tlb_all(void)
+/* Define this to be insanely conservative (e.g. flush everything, lots) */
+#undef SB1_TLB_CONSERVATIVE
+#undef SB1_CACHE_CONSERVATIVE
+void pgd_init(unsigned long page)
 {
-	unsigned long flags;
-	unsigned long old_ctx;
-	int entry;
+	unsigned long *p = (unsigned long *) page;
+	int i;
 
-	__save_and_cli(flags);
-	/* Save old context and create impossible VPN2 value */
-	old_ctx = (get_entryhi() & 0xff);
-	set_entrylo0(0);
-	set_entrylo1(0);
-	for (entry = 0; entry < tlb_entries; entry++) {
-		set_entryhi(KSEG0 + (PAGE_SIZE << 1) * entry);
-		set_index(entry);
-		tlb_write_indexed();
+	for (i = 0; i < USER_PTRS_PER_PGD; i+=8) {
+		p[i + 0] = (unsigned long) invalid_pte_table;
+		p[i + 1] = (unsigned long) invalid_pte_table;
+		p[i + 2] = (unsigned long) invalid_pte_table;
+		p[i + 3] = (unsigned long) invalid_pte_table;
+		p[i + 4] = (unsigned long) invalid_pte_table;
+		p[i + 5] = (unsigned long) invalid_pte_table;
+		p[i + 6] = (unsigned long) invalid_pte_table;
+		p[i + 7] = (unsigned long) invalid_pte_table;
 	}
-	set_entryhi(old_ctx);
-	__restore_flags(flags);	
 }
 
 /*
@@ -73,8 +72,9 @@ void local_flush_tlb_all(void)
  * to flush it
  */
 
-static void sb1_flush_cache_all(void)
+static void _sb1_flush_cache_all(void)
 {
+
 	/*
 	 * Haven't worried too much about speed here; given that we're flushing
 	 * the icache, the time to invalidate is dwarfed by the time it's going
@@ -84,70 +84,292 @@ static void sb1_flush_cache_all(void)
 	 * $2 - set count
 	 */
 	if (icache_sets) { 
+		if (dcache_sets) {
+			__asm__ __volatile__ (
+				".set push                  \n"
+				".set noreorder             \n"
+				".set noat                  \n"
+				".set mips4                 \n"
+				"     move   $1, %2         \n" /* Start at index 0 */
+				"1:   cache  0x1, 0($1)     \n" /* WB/Invalidate this index */
+				"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+				"     bnez   %1, 1b         \n" /* loop test */
+				"      addu   $1, $1, %0    \n" /* Next address */
+				".set pop                   \n"
+				::"r" (dcache_line_size),
+				"r" (dcache_sets * dcache_assoc),
+				"r" (KSEG0)
+				:"$1");
+			__asm__ __volatile__ (
+				".set push                  \n"
+				".set noreorder             \n"
+				".set mips2                 \n"
+				"sync                       \n"
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
+				"sync                       \n"
+#endif
+				".set pop                   \n");
+		}
 		__asm__ __volatile__ (
 			".set push                  \n"
 			".set noreorder             \n"
 			".set noat                  \n"
 			".set mips4                 \n"
 			"     move   $1, %2         \n" /* Start at index 0 */
-                        "1:   cache  0, 0($1)       \n" /* Invalidate this index */
+			"1:   cache  0, 0($1)       \n" /* Invalidate this index */
 			"     addiu  %1, %1, -1     \n" /* Decrement loop count */
 			"     bnez   %1, 1b         \n" /* loop test */
-			"     addu   $1, $1, %0     \n" /* Next address JDCXXX - Should be short piped */
+			"      addu   $1, $1, %0    \n" /* Next address */
 			".set pop                   \n"
 			::"r" (icache_line_size),
 			"r" (icache_sets * icache_assoc),
-			"r" (KSEG0));
+			"r" (KSEG0)
+			:"$1");
 	}
-	if (dcache_sets) {
-		__asm__ __volatile__ (
-			".set push                  \n"
-			".set noreorder             \n"
-			".set noat                  \n"
-			".set mips4                 \n"
-			"     move   $1, %2         \n" /* Start at index 0 */
-                        "1:   cache  0x1, 0($1)     \n" /* WB/Invalidate this index */
-			"     addiu  %1, %1, -1     \n" /* Decrement loop count */
-			"     bnez   %1, 1b         \n" /* loop test */
-			"     addu   $1, $1, %0     \n" /* Next address JDCXXX - Should be short piped */
-			".set pop                   \n"
-			:
-			: "r" (dcache_line_size),
-			  "r" (dcache_sets * dcache_assoc), "r" (KSEG0));
-	}
+}
+
+#ifdef CONFIG_SMP
+static void sb1_flush_cache_all_ipi(void *ignored)
+{
+	_sb1_flush_cache_all();
+}
+#endif
+
+static void sb1_flush_cache_all(void)
+{
+	smp_call_function(sb1_flush_cache_all_ipi, 0, 1, 1);
+	_sb1_flush_cache_all();
 }
 
 /*
  * When flushing a range in the icache, we have to first writeback
  * the dcache for the same range, so new ifetches will see any
- * data that was dirty in the dcache
- */
+ * data that was dirty in the dcache.  Also, if the flush is very
+ * large, just flush the whole cache rather than spinning in here
+ * forever.  Fills from the (always coherent) L2 come in relatively
+ * quickly.
+ *
+ * Also, at the moment we just hit-writeback the dcache instead
+ * of writeback-invalidating it.  Not doing the invalidates
+ * doesn't cost us anything, since we're coherent 
+ *
+*/
+
+static void _sb1_flush_icache_range(unsigned long start, unsigned long end)
+{
+	if (icache_sets) {
+		if (dcache_sets) {
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+			unsigned long flags;
+			local_irq_save(flags);
+#endif
+			__asm__ __volatile__ (
+				".set push                  \n"
+				".set noreorder             \n"
+				".set noat                  \n"
+				".set mips4                 \n"
+				"     move   $1, %0         \n" 
+				"1:                         \n"
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+				"     lw     $0,   0($1)    \n" /* Bug 1370, 1368            */
+				"     cache  0x15, 0($1)    \n" /* Hit-WB-inval this address */
+#else
+				"     cache  0x19, 0($1)    \n" /* Hit-WB this address */
+#endif
+				"     bne    $1, %1, 1b     \n" /* loop test */
+				"      addu  $1, $1, %2     \n" /* next line */
+				".set pop                   \n"
+				::"r" (start),
+				"r" (end),
+				"r" (dcache_line_size)
+				:"$1");
+			__asm__ __volatile__ (
+				".set push                  \n"
+				".set noreorder             \n"
+				".set mips2                 \n"
+				"sync                       \n"
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
+				"sync                       \n"
+#endif
+				".set pop                   \n");
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+			local_irq_restore(flags);
+#endif
+		}
+		/* XXXKW Guess what: these Kseg0 addressese aren't
+		   enough to let us figure out what may be in the
+		   cache under mapped Useg tags.  The situation is
+		   even worse, because bit 12 belongs to both the page
+		   number AND the cache index, which means the Kseg0
+		   page number may have a different cache index than
+		   the Useg address.  For these two reasons, we have
+		   to flush the entire thing.  Since the Dcache is
+		   physically tagged, we *can* use hit operations, */
+#if 0
+		start &= icache_index_mask;
+		end   &= icache_index_mask;
+#else
+		start = 0;
+		end = icache_index_mask;
+#endif
+		__asm__ __volatile__ (
+			".set push                  \n"
+			".set noreorder             \n"
+			".set noat                  \n"
+			".set mips4                 \n"
+			"     move   $1, %0         \n" 
+			"1:   cache  0, (0<<13)($1) \n" /* Index-inval this address */
+			"     cache  0, (1<<13)($1) \n" /* Index-inval this address */
+			"     cache  0, (2<<13)($1) \n" /* Index-inval this address */
+			"     cache  0, (3<<13)($1) \n" /* Index-inval this address */
+			"     bne    $1, %1, 1b     \n" /* loop test */
+			"      addu  $1, $1, %2     \n" /* next line */
+			".set pop                   \n"
+			::"r" (start),
+			"r" (end),
+			"r" (icache_line_size)
+			:"$1");
+	}
+}
+
+/* XXXKW how should I pass these instead? */
+unsigned long flush_range_start;
+unsigned long flush_range_end;
+
+#if defined(CONFIG_SMP) && !defined(SB1_CACHE_CONSERVATIVE)
+
+static void sb1_flush_icache_range_ipi(void *ignored)
+{
+	_sb1_flush_icache_range(flush_range_start, flush_range_end);
+}
+#endif
 
 static void sb1_flush_icache_range(unsigned long start, unsigned long end)
 {
-	/* JDCXXX - Implement me! */
+#ifdef SB1_CACHE_CONSERVATIVE
 	sb1_flush_cache_all();
+#else
+	if (start == end) {
+		return;
+	}
+	start &= ~((long)(dcache_line_size - 1));
+	end   = (end - 1) & ~((long)(dcache_line_size - 1));
+
+	if ((end-start) >= (16*1024*1024)) {
+		sb1_flush_cache_all();
+	} else {
+		_sb1_flush_icache_range(start, end);
+		flush_range_start = start;
+		flush_range_end = end;
+		smp_call_function(sb1_flush_icache_range_ipi, 0, 1, 1);
+	}
+#endif
 }
 
-static void sb1_flush_cache_mm(struct mm_struct *mm)
+/*
+ * If there's no context yet, or the page isn't executable, no icache flush
+ * is needed
+ */
+static void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page)
 {
-	/* Don't need to do this, as the dcache is physically tagged */
+	unsigned long addr;
+
+	if ((vma->vm_mm->context == 0) || !(vma->vm_flags & VM_EXEC)) {
+		return;
+	}
+
+	addr = (unsigned long)page_address(page);
+	/* XXXKW addr is a Kseg0 address, whereas hidden higher up the
+	   call stack, we may really need to flush a Useg address.
+	   Our Icache is virtually tagged, which means we have to be
+	   super conservative.  See comments in
+	   _sb1_flush_icache_rage. */
+	sb1_flush_icache_range(addr, addr + PAGE_SIZE);
 }
 
-static void sb1_flush_cache_range(struct mm_struct *mm, 
-				  unsigned long start,
-				  unsigned long end)
+static inline void protected_flush_icache_line(unsigned long addr)
 {
-	/* Don't need to do this, as the dcache is physically tagged */
+	__asm__ __volatile__(
+		"    .set push                \n"
+		"    .set noreorder           \n"
+		"    .set mips4               \n"
+		"1:  cache 0x10, (%0)         \n"
+		"2:  .set pop                 \n"
+		"    .section __ex_table,\"a\"\n"
+		"     .word  1b, 2b          \n"
+		"     .previous"
+		:
+		: "r" (addr));
 }
 
-
-static void sb1_flush_cache_sigtramp(unsigned long page)
+static inline void protected_writeback_dcache_line(unsigned long addr)
 {
-	/* JDCXXX - Implement me! */
-	sb1_flush_cache_all();
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
+	/* Have to be sure the TLB entry exists for the cache op, 
+	   so we have to be sure that nothing happens in between the
+	   lw and the cache op 
+	*/
+	unsigned long flags;
+	local_irq_save(flags);
+#endif
+	__asm__ __volatile__(
+		"    .set push                \n"
+		"    .set noreorder           \n"
+		"    .set mips4               \n"
+		"1:                           \n"
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+		"     lw    $0,   (%0)         \n"  
+		"     cache  0x15, 0(%0)    \n" /* Hit-WB-inval this address */
+#else
+		"     cache  0x19, 0(%0)    \n" /* Hit-WB this address */
+#endif
+		/* XXX: should be able to do this after both dcache cache
+		   ops, but there's no guarantee that this will be inlined,
+		   and the pass1 restriction checker can't detect syncs
+		   following cache ops except in the following basic block.
+		*/
+		"     sync                    \n"
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
+		"     sync                    \n"
+#endif
+		"2:  .set pop                 \n"
+		"    .section __ex_table,\"a\"\n"
+		"     .word  1b, 2b          \n"
+		"     .previous"
+		:
+		: "r" (addr));
+#ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
+	local_irq_restore(flags);
+#endif
 }
 
+/*
+ * XXX - Still need to really understand this.  This is mostly just
+ * derived from the r10k and r4k implementations, and seems to work
+ * but things that "seem to work" when I don't understand *why* they
+ * "seem to work" disturb me greatly...JDC
+ */
+static void sb1_flush_cache_sigtramp(unsigned long addr)
+{
+	unsigned long daddr, iaddr;
+	
+	daddr = addr & ~(dcache_line_size - 1);
+	protected_writeback_dcache_line(daddr);
+	protected_writeback_dcache_line(daddr + dcache_line_size);
+	iaddr = addr & ~(icache_line_size - 1);
+	protected_flush_icache_line(iaddr);
+	protected_flush_icache_line(iaddr + icache_line_size);
+}
+
+/*
+ * Anything that just flushes dcache state can be ignored, as we're always
+ * coherent in dcache space.  This is just a dummy function that all the
+ * nop'ed routines point to
+ */
+
+static void sb1_nop(void)
+{
+}
 
 /*
  * This only needs to make sure stores done up to this
@@ -170,31 +392,6 @@ static void sb1_flush_page_to_ram(struct page *page)
 		:::"memory");	
 }
 
-
-/* Cribbed from the r2300 code */
-static void sb1_flush_cache_page(struct vm_area_struct *vma,
-				  unsigned long page)
-{
-	sb1_flush_cache_all();
-#if 0
-	struct mm_struct *mm = vma->vm_mm;
-	unsigned long physpage;
-
-	/* No icache flush needed without context; */
-	if (mm->context == 0) 
-		return;  
-
-	/* No icache flush needed if the page isn't executable */
-	if (!(vma->vm_flags & VM_EXEC))
-		return;
-
-	physpage = (unsigned long) page_address(page);
-	if (physpage)
-		sb1_flush_icache_range(physpage, physpage + PAGE_SIZE);
-#endif
-}
-
-
 /*
  *  Cache set values (from the mips64 spec)
  * 0 - 64
@@ -206,13 +403,13 @@ static void sb1_flush_cache_page(struct vm_area_struct *vma,
  * 6 - 4096
  * 7 - Reserved
  */
+  
 static unsigned int decode_cache_sets(unsigned int config_field)
 {
 	if (config_field == 7) {
 		/* JDCXXX - Find a graceful way to abort. */
 		return 0;
 	} 
-
 	return (1<<(config_field + 6));
 }
 
@@ -227,6 +424,7 @@ static unsigned int decode_cache_sets(unsigned int config_field)
  * 6 - 128 bytes
  * 7 - Reserved
  */
+
 static unsigned int decode_cache_line_size(unsigned int config_field)
 {
 	if (config_field == 0) {
@@ -249,11 +447,9 @@ static unsigned int decode_cache_line_size(unsigned int config_field)
  * 9:7   Dcache Associativity
  */
 
-
-static void probe_cache_sizes(void)
+static __init void probe_cache_sizes(void)
 {
 	u32 config1;
-
 	__asm__ __volatile__(
 		".set push                  \n"
 		".set mips64                \n"
@@ -264,42 +460,40 @@ static void probe_cache_sizes(void)
 	dcache_line_size = decode_cache_line_size((config1 >> 10) & 0x7);
 	icache_sets = decode_cache_sets((config1 >> 22) & 0x7);
 	dcache_sets = decode_cache_sets((config1 >> 13) & 0x7);
-        icache_assoc = ((config1 >> 16) & 0x7) + 1;
+	icache_assoc = ((config1 >> 16) & 0x7) + 1;
 	dcache_assoc = ((config1 >> 7) & 0x7) + 1;
 	icache_size = icache_line_size * icache_sets * icache_assoc;
 	dcache_size = dcache_line_size * dcache_sets * dcache_assoc;
+	icache_index_mask = (icache_sets - 1) * icache_line_size;
 	tlb_entries = ((config1 >> 25) & 0x3f) + 1;
 }
 
-
-/* This is called from loadmmu.c.  We have to set up all the
-   memory management function pointers, as well as initialize
-   the caches and tlbs */
+/*
+ * This is called from loadmmu.c.  We have to set up all the
+ * memory management function pointers, as well as initialize
+ * the caches and tlbs
+ */
 void ld_mmu_sb1(void)
 {
 	probe_cache_sizes();
 
 	_clear_page = sb1_clear_page;
 	_copy_page = sb1_copy_page;
-	
-	_flush_cache_all = sb1_flush_cache_all;
-	_flush_cache_mm = sb1_flush_cache_mm;
-	_flush_cache_range = sb1_flush_cache_range;
-	_flush_cache_page = sb1_flush_cache_page;
-	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 
+	_flush_cache_all = sb1_flush_cache_all;
+	___flush_cache_all = sb1_flush_cache_all;
+	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
+	_flush_cache_range = (void (*)(struct mm_struct *, unsigned long, unsigned long))sb1_nop;
 	_flush_page_to_ram = sb1_flush_page_to_ram;
-	_flush_icache_page = sb1_flush_cache_page;
+	_flush_icache_page = sb1_flush_icache_page;
+	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	_flush_icache_range = sb1_flush_icache_range;
 
-	
-	/*
-	 * JDCXXX I'm not sure whether these are necessary: is this the right 
-	 * place to initialize the tlb?  If it is, why is it done 
-	 * at this level instead of as common code in loadmmu()?
-	 */
-	flush_cache_all();
+	/* None of these are needed for the sb1 */
+	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
 
-	/* Turn on caching in kseg0 */
-	set_cp0_config(CONF_CM_CMASK, 0);
+	/* JDCXXX I'm not sure whether these are necessary: is this the right 
+	   place to initialize the tlb?  If it is, why is it done 
+	   at this level instead of as common code in loadmmu()?  */
+	flush_cache_all();
 }
