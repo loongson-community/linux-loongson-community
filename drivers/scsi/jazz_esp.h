@@ -8,7 +8,7 @@
 
 #define EREGS_PAD(n)
 
-#include "esp.h"
+#include "NCR53C9x.h"
 
 
 extern int jazz_esp_detect(struct SHT *);
@@ -23,7 +23,7 @@ extern int esp_proc_info(char *buffer, char **start, off_t offset, int length,
 #define SCSI_JAZZ_ESP {                                         \
 		proc_dir:       &proc_scsi_esp,			\
 		proc_info:      &esp_proc_info,			\
-		name:           "Sun ESP 100/100a/200",		\
+		name:           "ESP 100/100a/200",		\
 		detect:         jazz_esp_detect,		\
 		info:           esp_info,			\
 		command:        esp_command,			\

@@ -17,7 +17,7 @@
 
 #include "scsi.h"
 #include "hosts.h"
-#include "esp.h"
+#include "NCR53C9x.h"
 #include "jazz_esp.h"
 
 #include <asm/irq.h>
@@ -27,23 +27,23 @@
 
 #include <asm/pgtable.h>
 
-static int  dma_bytes_sent(struct Sparc_ESP *esp, int fifo_count);
-static int  dma_can_transfer(struct Sparc_ESP *esp, Scsi_Cmnd *sp);
-static void dma_dump_state(struct Sparc_ESP *esp);
-static void dma_init_read(struct Sparc_ESP *esp, __u32 vaddress, int length);
-static void dma_init_write(struct Sparc_ESP *esp, __u32 vaddress, int length);
-static void dma_ints_off(struct Sparc_ESP *esp);
-static void dma_ints_on(struct Sparc_ESP *esp);
-static int  dma_irq_p(struct Sparc_ESP *esp);
-static int  dma_ports_p(struct Sparc_ESP *esp);
-static void dma_setup(struct Sparc_ESP *esp, __u32 addr, int count, int write);
-static void dma_mmu_get_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_get_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_release_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
-static void dma_mmu_release_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp);
+static int  dma_bytes_sent(struct NCR_ESP *esp, int fifo_count);
+static int  dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd *sp);
+static void dma_dump_state(struct NCR_ESP *esp);
+static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length);
+static void dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length);
+static void dma_ints_off(struct NCR_ESP *esp);
+static void dma_ints_on(struct NCR_ESP *esp);
+static int  dma_irq_p(struct NCR_ESP *esp);
+static int  dma_ports_p(struct NCR_ESP *esp);
+static void dma_setup(struct NCR_ESP *esp, __u32 addr, int count, int write);
+static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp);
+static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp);
+static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp);
+static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp);
 static void dma_advance_sg (Scsi_Cmnd *sp);
-static void dma_led_off(struct Sparc_ESP *);
-static void dma_led_on(struct Sparc_ESP *);
+static void dma_led_off(struct NCR_ESP *);
+static void dma_led_on(struct NCR_ESP *);
 
 
 volatile unsigned char cmd_buffer[16];
@@ -55,7 +55,7 @@ volatile unsigned char cmd_buffer[16];
 /***************************************************************** Detection */
 int jazz_esp_detect(Scsi_Host_Template *tpnt)
 {
-    struct Sparc_ESP *esp;
+    struct NCR_ESP *esp;
     struct ConfigDev *esp_dev;
 
     /*
@@ -119,7 +119,7 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 	esp->esp_command_dvma = vdma_alloc(PHYSADDR(cmd_buffer), sizeof (cmd_buffer));
 	
 	esp->irq = JAZZ_SCSI_IRQ;
-	request_irq(JAZZ_SCSI_IRQ, do_esp_intr, SA_INTERRUPT, "JAZZ SCSI",
+	request_irq(JAZZ_SCSI_IRQ, esp_intr, SA_INTERRUPT, "JAZZ SCSI",
 	            NULL);
 
 	/*
@@ -141,12 +141,12 @@ int jazz_esp_detect(Scsi_Host_Template *tpnt)
 }
 
 /************************************************************* DMA Functions */
-static int dma_bytes_sent(struct Sparc_ESP *esp, int fifo_count)
+static int dma_bytes_sent(struct NCR_ESP *esp, int fifo_count)
 {
     return fifo_count;
 }
 
-static int dma_can_transfer(struct Sparc_ESP *esp, Scsi_Cmnd *sp)
+static int dma_can_transfer(struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     /*
      * maximum DMA size is 1MB
@@ -157,16 +157,16 @@ static int dma_can_transfer(struct Sparc_ESP *esp, Scsi_Cmnd *sp)
     return sz;
 }
 
-static void dma_dump_state(struct Sparc_ESP *esp)
+static void dma_dump_state(struct NCR_ESP *esp)
 {
     
     ESPLOG(("esp%d: dma -- enable <%08x> residue <%08x\n",
 	    esp->esp_id, vdma_get_enable((int)esp->dregs), vdma_get_resdiue((int)esp->dregs)));
 }
 
-static void dma_init_read(struct Sparc_ESP *esp, __u32 vaddress, int length)
+static void dma_init_read(struct NCR_ESP *esp, __u32 vaddress, int length)
 {
-    flush_cache_all();
+    dma_cache_wback_inv ((unsigned long)phys_to_virt(vdma_log2phys(vaddress)), length);
     vdma_disable ((int)esp->dregs);
     vdma_set_mode ((int)esp->dregs, DMA_MODE_READ);
     vdma_set_addr ((int)esp->dregs, vaddress);
@@ -174,9 +174,9 @@ static void dma_init_read(struct Sparc_ESP *esp, __u32 vaddress, int length)
     vdma_enable ((int)esp->dregs);
 }
 
-static void dma_init_write(struct Sparc_ESP *esp, __u32 vaddress, int length)
+static void dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length)
 {
-    flush_cache_all();
+    dma_cache_wback_inv ((unsigned long)phys_to_virt(vdma_log2phys(vaddress)), length);    
     vdma_disable ((int)esp->dregs);    
     vdma_set_mode ((int)esp->dregs, DMA_MODE_WRITE);
     vdma_set_addr ((int)esp->dregs, vaddress);
@@ -184,29 +184,29 @@ static void dma_init_write(struct Sparc_ESP *esp, __u32 vaddress, int length)
     vdma_enable ((int)esp->dregs);    
 }
 
-static void dma_ints_off(struct Sparc_ESP *esp)
+static void dma_ints_off(struct NCR_ESP *esp)
 {
     disable_irq(esp->irq);
 }
 
-static void dma_ints_on(struct Sparc_ESP *esp)
+static void dma_ints_on(struct NCR_ESP *esp)
 {
     enable_irq(esp->irq);
 }
 
-static int dma_irq_p(struct Sparc_ESP *esp)
+static int dma_irq_p(struct NCR_ESP *esp)
 {
     return (esp->eregs->esp_status & ESP_STAT_INTR);
 }
 
-static int dma_ports_p(struct Sparc_ESP *esp)
+static int dma_ports_p(struct NCR_ESP *esp)
 {
     int enable = vdma_get_enable((int)esp->dregs);
     
     return (enable & R4030_CHNL_ENABLE);
 }
 
-static void dma_setup(struct Sparc_ESP *esp, __u32 addr, int count, int write)
+static void dma_setup(struct NCR_ESP *esp, __u32 addr, int count, int write)
 {
     /* 
      * On the Sparc, DMA_ST_WRITE means "move data from device to memory"
@@ -219,13 +219,13 @@ static void dma_setup(struct Sparc_ESP *esp, __u32 addr, int count, int write)
     }
 }
 
-static void dma_mmu_get_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_get_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     sp->SCp.have_data_in = vdma_alloc(PHYSADDR(sp->SCp.buffer), sp->SCp.this_residual);
     sp->SCp.ptr = (char *)((unsigned long)sp->SCp.have_data_in);
 }
 
-static void dma_mmu_get_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_get_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     int sz = sp->SCp.buffers_residual;
     struct mmu_sglist *sg = (struct mmu_sglist *) sp->SCp.buffer;
@@ -237,12 +237,12 @@ static void dma_mmu_get_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp)
     sp->SCp.ptr=(char *)((unsigned long)sp->SCp.buffer->dvma_address);
 }    
 
-static void dma_mmu_release_scsi_one (struct Sparc_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_release_scsi_one (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     vdma_free(sp->SCp.have_data_in);
 }
 
-static void dma_mmu_release_scsi_sgl (struct Sparc_ESP *esp, Scsi_Cmnd *sp)
+static void dma_mmu_release_scsi_sgl (struct NCR_ESP *esp, Scsi_Cmnd *sp)
 {
     int sz = sp->use_sg - 1;
     struct mmu_sglist *sg = (struct mmu_sglist *)sp->buffer;
@@ -260,14 +260,14 @@ static void dma_advance_sg (Scsi_Cmnd *sp)
 
 #define JAZZ_HDC_LED   0xe000d100 /* FIXME, find correct address */
 
-static void dma_led_off(struct Sparc_ESP *esp)
+static void dma_led_off(struct NCR_ESP *esp)
 {
 #if 0    
     *(unsigned char *)JAZZ_HDC_LED = 0;
 #endif    
 }
 
-static void dma_led_on(struct Sparc_ESP *esp)
+static void dma_led_on(struct NCR_ESP *esp)
 {    
 #if 0    
     *(unsigned char *)JAZZ_HDC_LED = 1;
