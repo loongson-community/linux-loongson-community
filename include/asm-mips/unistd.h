@@ -1049,6 +1049,7 @@ type name (atype a,btype b,ctype c,dtype d,etype e,ftype f) \
 
 #include <linux/compiler.h>
 #include <linux/types.h>
+#include <linux/linkage.h>
 #include <asm/ptrace.h>
 #include <asm/sim.h>
 
