@@ -595,3 +595,6 @@ void to_tm(unsigned long tim, struct rtc_time * tm)
 }
 
 EXPORT_SYMBOL(rtc_lock);
+EXPORT_SYMBOL(to_tm);
+EXPORT_SYMBOL(rtc_set_time);
+EXPORT_SYMBOL(rtc_get_time);
