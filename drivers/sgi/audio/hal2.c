@@ -1,4 +1,4 @@
-/* $Id: hal2.c,v 1.8 1999/01/28 01:01:42 ulfc Exp $
+/* $Id: hal2.c,v 1.9 1999/01/28 21:54:39 ulfc Exp $
  * 
  * drivers/sgi/audio/hal2.c
  *
@@ -210,6 +210,8 @@ static void hal2_reset(void)
 	h2_ctrl->isr = 0;		/* reset the card */
 	udelay(200);
 	printk("reset done isr:%04hx\n", h2_ctrl->isr);
+	udelay(200);
+	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N;
 	udelay(200);
 	h2_ctrl->isr = H2_ISR_GLOBAL_RESET_N | H2_ISR_CODEC_RESET_N;
 	udelay(200);
@@ -647,7 +649,7 @@ static __inline__ int hal2_calc_mod(int *mod, int master, double freq)
 	return 0;
 }
 
-static __inline__ double hal2_calc_freq(double *freq, int master, int mod)
+static __inline__ int hal2_calc_freq(double *freq, int master, int mod)
 {
 	double master_freq = (master == 0 ? 44800 : 44100);
 	double tmp;
@@ -696,11 +698,11 @@ static void hal2_configure_bres##clock(struct hal2_private *hp,		\
 				       struct hal2_channel *chan)	\
 {									\
 	int master = chan->bres_master;					\
-		int mod = chan->bres_mod;				\
-		int inc = 4;						\
+	int mod = chan->bres_mod;					\
+	int inc = 4;							\
 									\
-		ireg_write(H2IW_BRES##clock##_C1 , master);		\
-		ireg_write2(H2IW_BRES##clock##_C2 , inc, mod);		\
+	ireg_write(H2IW_BRES##clock##_C1 , master);			\
+	ireg_write2(H2IW_BRES##clock##_C2 , inc, mod);			\
 }									\
 
 __BUILD_CONF_BRESN_CLOCK(1)
