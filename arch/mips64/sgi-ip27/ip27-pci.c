@@ -187,7 +187,7 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
  * All observed requests have pin == 1. We could have a global here, that
  * gets incremented and returned every time - unfortunately, pci_map_irq
  * may be called on the same device over and over, and need to return the
- * same value. On o2000, pin can be 0 or 1, and PCI slots can be [0..7]. 
+ * same value. On O2000, pin can be 0 or 1, and PCI slots can be [0..7]. 
  *
  * A given PCI device, in general, should be able to intr any of the cpus
  * on any one of the hubs connected to its xbow.
@@ -195,25 +195,23 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
 static int __init
 pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	if ((dev->bus->number >= MAX_PCI_BUSSES) || (pin != 1) || \
-					(slot >= MAX_DEVICES_PER_PCIBUS)) {
-		printk("Increase supported PCI busses %d,%d,%d\n", \
-						dev->bus->number, slot, pin);
-		while(1);
-	}
+	if ((dev->bus->number >= MAX_PCI_BUSSES)
+	    || (pin != 1)
+	    || (slot >= MAX_DEVICES_PER_PCIBUS))
+		panic("Increase supported PCI busses %d,%d,%d\n",
+		      dev->bus->number, slot, pin);
 
 	/*
 	 * Already assigned? Then return previously assigned value ...
 	 */
 	if (irqstore[dev->bus->number][slot])
-		return(irqstore[dev->bus->number][slot]);
-	else {
-		irq_to_bus[lastirq] = dev->bus->number;
-		irq_to_slot[lastirq] = slot;
-		irqstore[dev->bus->number][slot] = lastirq;
-		lastirq++;
-		return (lastirq - 1);
-	}
+		return irqstore[dev->bus->number][slot];
+
+	irq_to_bus[lastirq] = dev->bus->number;
+	irq_to_slot[lastirq] = slot;
+	irqstore[dev->bus->number][slot] = lastirq;
+	lastirq++;
+	return lastirq - 1;
 }
 
 void __init
@@ -246,10 +244,10 @@ void __init
 pcibios_fixup_pbus_ranges(struct pci_bus * bus,
                           struct pbus_set_ranges_data * ranges)
 {
-	ranges->io_start -= bus->resource[0]->start;
-	ranges->io_end -= bus->resource[0]->start;
+	ranges->io_start  -= bus->resource[0]->start;
+	ranges->io_end    -= bus->resource[0]->start;
 	ranges->mem_start -= bus->resource[1]->start;
-	ranges->mem_end -= bus->resource[1]->start;
+	ranges->mem_end   -= bus->resource[1]->start;
 }
 
 int __init
@@ -307,42 +305,14 @@ pci_enable_swapping(struct pci_dev *dev)
 static void __init
 pci_fixup_ioc3(struct pci_dev *d)
 {
-	unsigned int bus_id = (unsigned) d->bus->number;
-	int i;
+	unsigned long bus_id = (unsigned) d->bus->number;
 
-	/* IOC3 only decodes 0x20 bytes of the config space, so we end up
-	   with tons of bogus information in the pci_dev.  On Origins the
-	   INTA, INTB and INTC pins are all wired together as if it'd only
-	   use INTA.  */
 	printk("PCI: Fixing base addresses for IOC3 device %s\n", d->slot_name);
 
 	d->resource[0].start |= NODE_OFFSET(bus_to_nid[bus_id]);
-	d->resource[0].end |= NODE_OFFSET(bus_to_nid[bus_id]);
-
-	for (i = 1; i <= PCI_ROM_RESOURCE; i++) {
-		d->resource[i].start = 0UL;
-		d->resource[i].end = 0UL;
-		d->resource[i].flags = 0UL;
-	}
+	d->resource[0].end   |= NODE_OFFSET(bus_to_nid[bus_id]);
 
 	pci_disable_swapping(d);
-
-	/*
-	 * The serial driver will try to probe for serial ports
-	 * later on. MENET boards dbe out unrecoverably on sio space
-	 * access to the 4th ioc3. (The first 3 iocs work okay, they
-	 * have kbd/ms ports; all have ethernet ports). Catch this
-	 * case now and disable the serial driver from looking at 
-	 * these ioc3s. Identify MENET cards by seeing if an ioc3 is
-	 * at slot 3.
-	 */
-	d->subsystem_vendor = 0xFF00;
-	if (PCI_SLOT(d->devfn) == 3) {
-		struct list_head *p;
-		list_for_each(p, &d->bus->devices) {
-			list_entry(p, struct pci_dev, bus_list)->subsystem_vendor = 0;
-		}
-	}
 }
 
 static void __init
@@ -353,7 +323,8 @@ pci_fixup_isp1020(struct pci_dev *d)
 	d->resource[0].start |= ((unsigned long)(bus_to_nid[d->bus->number])<<32);
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", d->slot_name);
 
-	/* Configure device to allow bus mastering, i/o and memory mapping. 
+	/*
+	 * Configure device to allow bus mastering, i/o and memory mapping. 
 	 * Older qlogicisp driver expects to have the IO space enable 
 	 * bit set. Things stop working if we program the controllers as not 
 	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
