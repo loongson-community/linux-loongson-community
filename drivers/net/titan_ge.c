@@ -108,7 +108,6 @@ static int titan_ge_free_tx_queue(titan_ge_port_info *);
 static int titan_ge_rx_task(struct net_device *, titan_ge_port_info *);
 static int titan_ge_port_start(struct net_device *, titan_ge_port_info *);
 
-static int titan_ge_init(int);
 static int titan_ge_return_tx_desc(titan_ge_port_info *, int);
 
 /*
@@ -134,6 +133,8 @@ extern unsigned char titan_ge_mac_addr_base[6];
 
 unsigned long titan_ge_base;
 static unsigned long titan_ge_sram;
+
+static char titan_string[] = "titan";
 
 /*
  * The Titan GE has two alignment requirements:
@@ -1907,10 +1908,11 @@ static int titan_ge_init_tx_desc_ring(titan_ge_port_info * titan_ge_port,
 /*
  * Initialize the device as an Ethernet device
  */
-static int titan_ge_init(int port)
+static int __init titan_ge_probe(struct device *device)
 {
 	titan_ge_port_info *titan_ge_eth;
 	struct net_device *netdev;
+	int port = to_platform_device(device)->id;
 	int err;
 
 	netdev = alloc_etherdev(sizeof(titan_ge_port_info));
@@ -2049,12 +2051,32 @@ static unsigned long titan_ge_tx_coal(unsigned long delay, int port)
 	return delay;
 }
 
+static struct device_driver titan_soc_driver = {
+	.name   = titan_string,
+	.bus    = &platform_bus_type,
+	.probe  = titan_ge_probe,
+	.remove = __devexit_p(titan_device_remove),
+};
+
+static struct platform_device *titan_ge_device[3];
+
+static void titan_platform_release (struct device *device)
+{
+	struct platform_device *pldev;
+
+	/* free device */
+	pldev = to_platform_device (device);
+	kfree (pldev);
+}
+
 /*
  * Register the Titan GE with the kernel
  */
 static int __init titan_ge_init_module(void)
 {
+	struct platform_device *pldev;
 	unsigned int version, device;
+	int i;
 
 	printk(KERN_NOTICE
 	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
@@ -2080,24 +2102,45 @@ static int __init titan_ge_init_module(void)
 	}
 #endif
 
-	/* Register only one port */
-	if (titan_ge_init(0))
-		printk(KERN_ERR
-		       "Error registering the TITAN Ethernet driver"
-			"for port 0 \n");
+	if (driver_register(&titan_soc_driver)) {
+		printk(KERN_ERR "Driver registration failed\n");
+		goto out_unmap_sram;
+	}
 
-	if (titan_ge_init(1))
-		printk(KERN_ERR "Error registering the TITAN Ethernet"
-				"driver for port 1\n");
+	for (i = 0; i < 3; i++) {
+		titan_ge_device[i] = NULL;
 
-	/*
-	 * Titan 1.2 does support port #2
-	 */
-	if (titan_ge_init(2))
-		printk(KERN_ERR "Error registering the TITAN Ethernet"
-				"driver for port 2\n");
+	        if (!(pldev = kmalloc (sizeof (*pldev), GFP_KERNEL)))
+	                continue;
+
+                memset (pldev, 0, sizeof (*pldev));
+                pldev->name		= titan_string;
+                pldev->id		= i;
+                pldev->dev.release	= titan_platform_release;
+                titan_ge_device[i]	= pldev;
+
+                if (platform_device_register (pldev)) {
+                        kfree (pldev);
+                        titan_ge_device[i] = NULL;
+                        continue;
+                }
+                                                                                
+                if (!pldev->dev.driver) {
+	                /*
+			 * The driver was not bound to this device, there was
+	                 * no hardware at this address. Unregister it, as the
+	                 * release fuction will take care of freeing the
+	                 * allocated structure
+			 */
+                        titan_ge_device[i] = NULL;
+                        platform_device_unregister (pldev);
+                }
+        }
 
 	return 0;
+
+out_unmap_sram:
+	iounmap((void *)titan_ge_sram);
 
 out_unmap_ge:
 	iounmap((void *)titan_ge_base);
@@ -2111,6 +2154,17 @@ out:
  */
 static void __exit titan_ge_cleanup_module(void)
 {
+	int i;
+
+	driver_unregister(&titan_soc_driver);
+
+	for (i = 0; i < 3; i++) {
+		if (titan_ge_device[i]) {
+			platform_device_unregister (titan_ge_device[i]);
+			titan_ge_device[i] = NULL;
+		}
+	}
+
 	iounmap((void *)titan_ge_sram);
 	iounmap((void *)titan_ge_base);
 }
