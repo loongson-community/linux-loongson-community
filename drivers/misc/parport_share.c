@@ -1,4 +1,5 @@
-/* Parallel-port resource manager code.
+/* $Id: parport_share.c,v 1.7 1997/12/15 11:12:05 ralf Exp $
+ * Parallel-port resource manager code.
  * 
  * Authors: David Campbell <campbell@tirian.che.curtin.edu.au>
  *          Tim Waugh <tim@cyberelk.demon.co.uk>
@@ -28,6 +29,8 @@
 
 static struct parport *portlist = NULL, *portlist_tail = NULL;
 static int portcount = 0;
+
+void (*parport_probe_hook)(struct parport *port) = NULL;
 
 /* Return a list of all the ports we know about. */
 struct parport *parport_enumerate(void)
@@ -275,11 +278,11 @@ int parport_claim(struct pardevice *dev)
 	dev->port->cad = dev;
 
 	/* Swap the IRQ handlers. */
-	if (dev->port->irq >= 0) {
-		free_irq(dev->port->irq, dev->port);
+	if (dev->port->irq != PARPORT_IRQ_NONE) {
+		free_irq(dev->port->irq, pd1?pd1->private:NULL);
 		request_irq(dev->port->irq, dev->irq_func ? dev->irq_func :
 			    parport_null_intr_func, SA_INTERRUPT, dev->name,
-			    dev->port);
+			    dev->private);
 	}
 
 	/* Restore control registers */
@@ -303,10 +306,10 @@ void parport_release(struct pardevice *dev)
 	dev->port->ops->save_state(dev->port, dev->state);
 
 	/* Point IRQs somewhere harmless. */
-	if (dev->port->irq >= 0) {
-		free_irq(dev->port->irq, dev->port);
+	if (dev->port->irq != PARPORT_IRQ_NONE) {
+		free_irq(dev->port->irq, dev->private);
 		request_irq(dev->port->irq, parport_null_intr_func,
-			    SA_INTERRUPT, dev->port->name, dev->port);
+			    SA_INTERRUPT, dev->port->name, NULL);
  	}
 
 	/* Walk the list, offering a wakeup callback to everybody other

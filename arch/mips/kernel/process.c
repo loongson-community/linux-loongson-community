@@ -36,7 +36,7 @@
 #include <asm/sgialib.h>
 #endif
 
-int active_ds = USER_DS;
+mm_segment_t active_ds = USER_DS;
 
 asmlinkage void ret_from_sys_call(void);
 

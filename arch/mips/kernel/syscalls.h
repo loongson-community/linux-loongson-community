@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996 by Ralf Baechle
  *
- * $Id: syscalls.h,v 1.8 1997/12/01 17:57:32 ralf Exp $
+ * $Id: syscalls.h,v 1.9 1997/12/06 23:52:06 ralf Exp $
  */
 
 /*
@@ -66,7 +66,7 @@ SYS(sys_ni_syscall, 0)
 SYS(sys_brk, 1)					/* 4045 */
 SYS(sys_setgid, 1)
 SYS(sys_getgid, 0)
-SYS(sys_signal, 2)
+SYS(sys_ni_syscall, 0)	/* was signal(2) */
 SYS(sys_geteuid, 0)
 SYS(sys_getegid, 0)				/* 4050 */
 SYS(sys_acct, 0)
@@ -211,3 +211,12 @@ SYS(sys_nfsservctl, 3)
 SYS(sys_setresgid, 3)				/* 4190 */
 SYS(sys_getresgid, 3)
 SYS(sys_prctl, 5)
+SYS(sys_rt_sigreturn, 0)
+SYS(sys_rt_sigaction, 4)
+SYS(sys_rt_sigprocmask, 4)			/* 4195 */
+SYS(sys_rt_sigpending, 2)
+SYS(sys_rt_sigtimedwait, 4)
+SYS(sys_rt_sigqueueinfo, 3)
+SYS(sys_rt_sigsuspend, 2)
+SYS(sys_pread, 4)				/* 4200 */
+SYS(sys_pwrite, 4)

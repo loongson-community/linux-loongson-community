@@ -281,22 +281,19 @@ void machine_restart(char * __unused)
 {
 
 	if(!reboot_thru_bios) {
-#if 0
-		sti();
-#endif
 		/* rebooting needs to touch the page at absolute addr 0 */
 		*((unsigned short *)__va(0x472)) = reboot_mode;
 		for (;;) {
 			int i;
 			for (i=0; i<100; i++) {
-				int j;
 				kb_wait();
-				for(j = 0; j < 100000 ; j++)
-					/* nothing */;
+				udelay(10);
 				outb(0xfe,0x64);         /* pulse reset low */
 				udelay(10);
 			}
-			__asm__ __volatile__("\tlidt %0": "=m" (no_idt));
+			/* That didn't work - force a triple fault.. */
+			__asm__ __volatile__("lidt %0": :"m" (no_idt));
+			__asm__ __volatile__("int3");
 		}
 	}
 
@@ -480,13 +477,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 
 	p->tss.tr = _TSS(nr);
 	p->tss.ldt = _LDT(nr);
-	p->tss.es = KERNEL_DS;
-	p->tss.cs = KERNEL_CS;
-	p->tss.ss = KERNEL_DS;
-	p->tss.ds = KERNEL_DS;
-	p->tss.fs = USER_DS;
-	p->tss.gs = USER_DS;
-	p->tss.ss0 = KERNEL_DS;
+	p->tss.es = __KERNEL_DS;
+	p->tss.cs = __KERNEL_CS;
+	p->tss.ss = __KERNEL_DS;
+	p->tss.ds = __KERNEL_DS;
+	p->tss.fs = __USER_DS;
+	p->tss.gs = __USER_DS;
+	p->tss.ss0 = __KERNEL_DS;
 	p->tss.esp0 = 2*PAGE_SIZE + (unsigned long) p;
 	childregs = ((struct pt_regs *) (p->tss.esp0)) - 1;
 	p->tss.esp = (unsigned long) childregs;

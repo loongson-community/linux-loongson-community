@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller
  * Made portable by Ralf Baechle
  *
- * $Id: offset.c,v 1.3 1997/07/29 18:57:11 ralf Exp $
+ * $Id: offset.c,v 1.3 1997/12/01 17:57:41 ralf Exp $
  */
 
 #include <linux/types.h>
@@ -81,9 +81,8 @@ void output_task_defines(void)
 	offset("#define TASK_STATE         ", struct task_struct, state);
 	offset("#define TASK_COUNTER       ", struct task_struct, counter);
 	offset("#define TASK_PRIORITY      ", struct task_struct, priority);
-	offset("#define TASK_SIGNAL        ", struct task_struct, signal);
-	offset("#define TASK_BLOCKED       ", struct task_struct, blocked);
 	offset("#define TASK_FLAGS         ", struct task_struct, flags);
+	offset("#define TASK_SIGPENDING    ", struct task_struct, sigpending);
 	offset("#define TASK_MM            ", struct task_struct, mm);
 	linefeed;
 }

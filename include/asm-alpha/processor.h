@@ -25,6 +25,10 @@
 #define MCA_bus 0
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
+typedef struct {
+	unsigned long seg;
+} mm_segment_t;
+
 struct thread_struct {
 	/* the fields below are used by PALcode and must match struct pcb: */
 	unsigned long ksp;
@@ -44,9 +48,10 @@ struct thread_struct {
 	/* bit 1..5: IEEE_TRAP_ENABLE bits (see fpu.h) */
 	/* bit 6..8: UAC bits (see sysinfo.h) */
 	/* bit 17..21: IEEE_STATUS_MASK bits (see fpu.h) */
+	/* bit 63: die_if_kernel recursion lock */
 	unsigned long flags;
 	/* perform syscall argument validation (get/set_fs) */
-	unsigned long fs;
+	mm_segment_t fs;
 };
 
 #define INIT_MMAP { &init_mm, 0xfffffc0000000000,  0xfffffc0010000000, \
@@ -57,7 +62,7 @@ struct thread_struct {
 	0, 0, 0, \
 	0, 0, 0, \
 	0, \
-	0 \
+	KERNEL_DS \
 }
 
 #include <asm/ptrace.h>

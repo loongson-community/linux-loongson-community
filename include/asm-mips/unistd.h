@@ -1180,11 +1180,20 @@
 #define __NR_setresgid			(__NR_Linux + 190)
 #define __NR_getresgid			(__NR_Linux + 191)
 #define __NR_prctl			(__NR_Linux + 192)
+#define __NR_rt_sigreturn		(__NR_Linux + 193)
+#define __NR_rt_sigaction		(__NR_Linux + 194)
+#define __NR_rt_sigprocmask		(__NR_Linux + 195)
+#define __NR_rt_sigpending		(__NR_Linux + 196)
+#define __NR_rt_sigtimedwait		(__NR_Linux + 197)
+#define __NR_rt_sigqueueinfo		(__NR_Linux + 198)
+#define __NR_rt_sigsuspend		(__NR_Linux + 199)
+#define __NR_pread			(__NR_Linux + 200)
+#define __NR_pwrite			(__NR_Linux + 201)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		192
+#define __NR_Linux_syscalls		201
 
 #ifndef __LANGUAGE_ASSEMBLY__
 

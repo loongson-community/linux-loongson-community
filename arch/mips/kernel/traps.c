@@ -8,7 +8,7 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.7 1997/12/01 16:33:28 ralf Exp $
+ * $Id: traps.c,v 1.5 1997/12/01 17:57:33 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -105,7 +105,7 @@ void show_registers(char * str, struct pt_regs * regs, long err)
 	/*
 	 * Dump the stack
 	 */
-	printk("Process %s (pid: %d, stackpage=%08lx)\nStack: ",
+	printk("Process %s (pid: %ld, stackpage=%08lx)\nStack: ",
 		current->comm, current->pid, (unsigned long)current);
 	for(i=0;i<5;i++)
 		printk("%08x ", *sp++);
@@ -337,7 +337,7 @@ void do_ri(struct pt_regs *regs)
 #ifdef CONF_DEBUG_EXCEPTIONS
 	show_regs(regs);
 #endif
-	printk("[%s:%d] Illegal instruction at %08lx ra=%08lx\n",
+	printk("[%s:%ld] Illegal instruction at %08lx ra=%08lx\n",
 	       current->comm, current->pid, regs->cp0_epc, regs->regs[31]);
 	if (compute_return_epc(regs))
 		goto out;
@@ -489,7 +489,6 @@ __initfunc(void trap_init(void))
 	unsigned long i;
 
 	if(mips_machtype == MACH_MIPS_MAGNUM_4000 ||
-	   mips_machtype == MACH_DESKSTATION_RPC44 ||
 	   mips_machtype == MACH_SNI_RM200_PCI)
 		EISA_bus = 1;
 

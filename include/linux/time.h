@@ -1,19 +1,44 @@
 #ifndef _LINUX_TIME_H
 #define _LINUX_TIME_H
 
+#include <asm/param.h>
+#include <linux/types.h>
+
 #ifndef _STRUCT_TIMESPEC
 #define _STRUCT_TIMESPEC
-#ifdef __KERNEL__
 struct timespec {
-	long	tv_sec;		/* seconds */
+	time_t	tv_sec;		/* seconds */
 	long	tv_nsec;	/* nanoseconds */
 };
-#endif /* (__KERNEL__) */
 #endif /* _STRUCT_TIMESPEC */
 
+/*
+ * change timeval to jiffies, trying to avoid the
+ * most obvious overflows..
+ */
+static __inline__ unsigned long
+timespec_to_jiffies(struct timespec *value)
+{
+	unsigned long sec = value->tv_sec;
+	long nsec = value->tv_nsec;
+
+	if (sec > ((long)(~0UL >> 1) / HZ))
+		return ~0UL >> 1;
+	nsec += 1000000000L / HZ - 1;
+	nsec /= 1000000000L / HZ;
+	return HZ * sec + nsec;
+}
+
+static __inline__ void
+jiffies_to_timespec(unsigned long jiffies, struct timespec *value)
+{
+	value->tv_nsec = (jiffies % HZ) * (1000000000L / HZ);
+	value->tv_sec = jiffies / HZ;
+}
+ 
 struct timeval {
-	int	tv_sec;		/* seconds */
-	int	tv_usec;	/* microseconds */
+	time_t		tv_sec;		/* seconds */
+	suseconds_t	tv_usec;	/* microseconds */
 };
 
 struct timezone {

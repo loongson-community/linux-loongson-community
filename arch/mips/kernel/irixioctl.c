@@ -1,4 +1,4 @@
-/* $Id: irixioctl.c,v 1.1.1.1 1997/06/01 03:16:43 ralf Exp $
+/* $Id: irixioctl.c,v 1.3 1997/12/15 10:37:27 ralf Exp $
  * irixioctl.c: A fucking mess...
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -55,8 +55,8 @@ static struct tty_struct *get_real_tty(struct tty_struct *tp)
 asmlinkage int irix_ioctl(int fd, unsigned long cmd, unsigned long arg)
 {
 	struct tty_struct *tp, *rtp;
+	mm_segment_t old_fs;
 	int error = 0;
-	int old_fs;
 
 	lock_kernel();
 #ifdef DEBUG_IOCTLS

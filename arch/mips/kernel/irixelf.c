@@ -447,7 +447,8 @@ static inline int look_for_irix_interpreter(char **name,
 					    struct elf_phdr *epp,
 					    struct linux_binprm *bprm, int pnum)
 {
-	int i, old_fs;
+	mm_segment_t old_fs;
+	int i;
 	int retval = -EINVAL;
 	struct dentry *dentry = NULL;
 
@@ -551,7 +552,7 @@ static inline void map_executable(struct file *fp, struct elf_phdr *epp, int pnu
 
 static inline int map_interpreter(struct elf_phdr *epp, struct elfhdr *ihp,
 				  struct dentry *identry, unsigned int *iladdr,
-				  int pnum, int old_fs,
+				  int pnum, mm_segment_t old_fs,
 				  unsigned int *eentry)
 {
 	int i;
@@ -616,8 +617,9 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	unsigned int load_addr, elf_bss, elf_brk;
 	unsigned int elf_entry, interp_load_addr = 0;
 	unsigned int start_code, end_code, end_data, elf_stack;
-	int old_fs, elf_exec_fileno, retval, has_interp, has_ephdr, i;
+	int elf_exec_fileno, retval, has_interp, has_ephdr, i;
 	char *elf_interpreter;
+	mm_segment_t old_fs;
 	
 	load_addr = 0;
 	has_interp = has_ephdr = 0;
@@ -1124,7 +1126,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	struct file file;
 	struct dentry *dentry;
 	struct inode *inode;
-	unsigned short fs;
+	mm_segment_t fs;
 	char corefile[6+sizeof(current->comm)];
 	int segs;
 	int i;

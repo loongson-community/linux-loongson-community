@@ -304,13 +304,12 @@ CONFIG_BLK_DEV_RZ1000
   things will operate 100% reliably. If unsure, say Y.
 
 Intel 82371 PIIX (Triton I/II), VIA VP-1 DMA support
-CONFIG_BLK_DEV_TRITON
-  If your PCI system uses an IDE harddrive (as opposed to SCSI, say)
-  and includes the Intel Triton I/II IDE interface chipset (i82371FB,
-  i82371SB or i82371AB), or the VIA VP-1 IDE interface chipset 
-  (VT82C586), you will want to enable this option to allow use of 
+CONFIG_BLK_DEV_IDEDMA
+  If your PCI system uses IDE drive(s) (as opposed to SCSI, say)
+  and is capable of bus-master DMA operation (most Pentium PCI
+  systems), you will want to enable this option to allow use of 
   bus-mastering DMA data transfers. Read the comments at the
-  beginning of drivers/block/triton.c and Documentation/ide.txt.
+  beginning of drivers/block/idedma.c and Documentation/ide.txt.
   You can get the latest version of the hdparm utility via 
   ftp (user: anonymous) from
   sunsite.unc.edu/pub/Linux/kernel/patches/diskdrives/; it is
@@ -327,6 +326,13 @@ CONFIG_IDE_CHIPSETS
   chipsets.  Most of these also require special kernel boot parameters
   to actually turn on the support at runtime.
 
+Generic 4 drives/port support
+CONFIG_BLK_DEV_4DRIVES
+  Certain older chipsets, including the Tekram 690CD, use a
+  single set of I/O ports at 0x1f0 to control up to four drives,
+  instead of the customary two drives per port.  Support for this
+  is enabled at runtime using the "ide0=four" kernel boot parameter.
+  
 DTC-2278 support
 CONFIG_BLK_DEV_DTC2278
   This driver is enabled at runtime using the "ide0=dtc2278" kernel
@@ -343,18 +349,26 @@ CONFIG_BLK_DEV_HT6560B
   See the Documentation/ide.txt and ht6560b.c files for more info.
 
 PROMISE DC4030 support (EXPERIMENTAL)
-CONFIG_BLK_DEV_PROMISE
+CONFIG_BLK_DEV_PDC4030
   This driver provides support for the secondary IDE interface and
   cache of Promise IDE chipsets, e.g. DC4030 and DC5030.  This driver
   is known to incur timeouts/retries during heavy I/O to drives
   attached to the secondary interface.  CDROM and TAPE devices are not
   supported yet.  This driver is enabled at runtime using the
   "ide0=dc4030" kernel boot parameter.  See the Documentation/ide.txt
-  and drivers/block/promise.c files for more info.
+  and drivers/block/pdc4030.c files for more info.
 
-OPTi 82C621     support (EXPERIMENTAL)
+Tekram TRM290 support (EXPERIMENTAL)
+CONFIG_BLK_DEV_TRM290
+  This driver adds support for bus master DMA transfers
+  using the Tekram TRM290 PCI IDE chip.  Volunteers are
+  needed for further tweaking and development.
+  Please read the comments at the top of drivers/block/trm290.c.
+
+OPTi 82C621 support (EXPERIMENTAL)
 CONFIG_BLK_DEV_OPTI621
-  This is a driver for the OPTi 82C621 EIDE controller.
+  This driver allows use of hdparm to change the PIO timings
+  for drives attached to an OPTi MIDE controller.
   Please read the comments at the top of drivers/block/opti621.c.
 
 QDI QD6580 support
@@ -448,16 +462,6 @@ CONFIG_ALGOR_P4032
   board uses the R4300 and a R5230 CPUs.  For more information about
   this board see www.algor.co.uk.
 
-Support for DECstation
-CONFIG_DECSTATION
-  The DECStation 3100 (with a MIPS R2000 series CPU) and DECStation
-  5000/xxx (MIPS R3000 series CPU) are also sometimes labeled
-  PMAX. They often run the Ultrix operating system. To compile a Linux
-  kernel that runs on these, say Y here. For details about Linux on
-  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to have access to
-  a machine on the Internet that has a program like lynx or netscape).
-
 RAID-1 (mirroring) mode
 CONFIG_MD_MIRRORING
   A RAID-1 set consists of several disk drives which are exact copies
@@ -484,32 +488,6 @@ CONFIG_MD_RAID5
   RAID1/4/5 sets, is available at:
   ftp://ftp.kernel.org/pub/linux/daemons/raid
   http://luthien.nuclecu.unam.mx/~miguel/raid
-
-Support for Deskstation RPC44 
-CONFIG_DESKSTATION_RPC44
-  This is a machine with a R4400 100 MHz CPU. To compile a Linux
-  kernel that runs on these, say Y here. For details about Linux
-  on the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://lena.fnet.fr/ (To browse the WWW, you need to
-  have access to a machine on the Internet that has one of the
-  programs lynx, netscape or Mosaic).
-
-Support for Deskstation Tyne
-CONFIG_DESKSTATION_TYNE
-  This is a machine with a R4600 134 MHz CPU. The Linux port for this
-  system is idle right now because of hardware or documentation
-  problems. For details about Linux on the MIPS architecture, check
-  out the Linux/MIPS FAQ on the WWW at http://lena.fnet.fr/ (To browse
-  the WWW, you need to have access to a machine on the Internet that
-  has a program like lynx or netscape).
-
-Support for Mips Magnum 3000 
-CONFIG_MIPS_MAGNUM_3000
-  To compile a Linux kernel that runs on these, say Y here. For
-  details about Linux on the MIPS architecture, check out the
-  Linux/MIPS FAQ on the WWW at http://lena.fnet.fr/ (To browse the
-  WWW, you need to have access to a machine on the Internet that has
-  a program like lynx or netscape).
 
 Support for Mips Magnum 4000
 CONFIG_MIPS_MAGNUM_4000
@@ -565,8 +543,8 @@ CONFIG_NET
 Packet socket
 CONFIG_PACKET
   Packet protocol is used by applications directly communicating
-  to network devices f.e. tcpdump. You want that they worked,
-  so that choose Y. If you run kerneld, option M is the best solution.
+  to network devices f.e. tcpdump. You want them to work, choose Y.
+  If you run kerneld, you might want to choose M.
 
 Kernel/User netlink socket
 CONFIG_NETLINK
@@ -1533,9 +1511,9 @@ CONFIG_SKB_LARGE
   a second or   satellite links this option will make no difference to
   performance.
 
-BSD Unix domain sockets
+Unix domain sockets
 CONFIG_UNIX
-  Y if you want BSD Unix domain sockets.  Unless you are working on an
+  Y if you want Unix domain sockets.  Unless you are working on an
   embedded system or somthing, you probably want to say Y.  If you try
   building this as a module and you are running kerneld, you need to make
   sure and add 'alias net-pf-1 unix' to your /etc/conf.module file.
@@ -2839,18 +2817,73 @@ CONFIG_SCC
   running kernel whenever you want), say M here and read
   Documentation/modules.txt. The module will be called scc.o.
 
-BAYCOM ser12 and par96 driver for AX.25
-CONFIG_BAYCOM
-  This is an experimental driver for Baycom style simple amateur radio
-  modems that connect to either a serial interface or a parallel
-  interface. The driver supports the ser12 and par96 designs. To
-  configure the driver, use the sethdlc utility available in the
-  standard ax25 utilities package. For information on the modems, see
+High-speed (DMA) SCC driver for AX.25
+CONFIG_DMASCC
+  This is a driver for high-speed SCC boards, i.e. those supporting
+  DMA on one port. Currently, only Ottawa PI/PI2 boards (see
+  http://hydra.carleton.ca/info/pi2.html) and Gracilis PackeTwin
+  boards (see http://www.paccomm.com/) are supported and detected
+  automatically. Multiple boards are operated simultaneously. If
+  you compile this driver as a module, it will be called dmascc.o.
+  If you don't give any parameter to the driver, all possible I/O
+  addresses are probed. This could irritate other devices that are
+  currently not in use. You may specify the list of addresses to be
+  probed by "dmascc=addr1,addr2,..." (when compiled into the kernel
+  image) or "io=addr1,addr2,..." (when loaded as a module).
+  The network interfaces will be called dmascc0 and dmascc1 for the
+  board detected first, dmascc2 and dmascc3 for the second one, and
+  so on. Before you configure each interface with ifconfig, you MUST
+  set certain parameters, such as channel access timing, clock mode,
+  and DMA channel. This is accomplished with a small utility program
+  called dmascc_cfg, which is part of the ax25-utils package.
+  Alternatively, you may download the utility from
+  http://www.oevsv.at/~oe1kib/Linux.html.
+
+BAYCOM picpar and par96 driver for AX.25
+CONFIG_BAYCOM_PAR
+  This is a driver for Baycom style simple amateur radio
+  modems that connect to a parallel interface. The driver 
+  supports the picpar and par96 designs. To configure the
+  driver, use the sethdlc utility available in the standard
+  ax25 utilities package. For information on the modems, see
   http://www.baycom.de and Documentation/networking/baycom.txt. If you
   want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
   say M here and read Documentation/modules.txt. This is
-  recommended. The module will be called baycom.o.
+  recommended. The module will be called baycom_par.o.
+
+BAYCOM ser12 full duplex driver for AX.25
+CONFIG_BAYCOM_SER_FDX
+  This is one of two drivers for Baycom style simple amateur radio
+  modems that connect to a serial interface. The driver supports
+  the ser12 design in full duplex mode. In addition, it allows the
+  baudrate to be set between 300 and 4800 baud (however not all modems
+  support all baudrates). This is the preferred driver. baycom_ser_hdx.o
+  is the old driver and still provided in case this driver does not work
+  with your serial interface chip. To configure the driver, use the
+  sethdlc utility available in the standard ax25 utilities package. 
+  For information on the modems, see http://www.baycom.de and
+  Documentation/networking/baycom.txt. If you want to compile
+  this driver as a module ( = code which can be inserted in 
+  and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is
+  recommended. The module will be called baycom_ser_fdx.o.
+
+BAYCOM ser12 half duplex driver for AX.25
+CONFIG_BAYCOM_SER_HDX
+  This is one of two drivers for Baycom style simple amateur radio
+  modems that connect to a serial interface. The driver supports
+  the ser12 design in full duplex mode. This is the old driver. 
+  It is still provided in case your serial interface chip does
+  not work with the full duplex driver. This driver is depreciated.
+  To configure the driver, use the sethdlc utility available
+  in the standard ax25 utilities package. For information
+  on the modems, see http://www.baycom.de and
+  Documentation/networking/baycom.txt. If you want to compile
+  this driver as a module ( = code which can be inserted in 
+  and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is
+  recommended. The module will be called baycom_ser_hdx.o.
 
 Soundcard modem driver for AX.25
 CONFIG_SOUNDMODEM
@@ -3594,36 +3627,6 @@ CONFIG_NI65
   read the Multiple-Ethernet-mini-HOWTO, available from
   sunsite.unc.edu:/pub/Linux/docs/HOWTO/mini.
 
-Ottawa PI and PI/2 support
-CONFIG_PI
-  This is a driver for the Ottawa Amateur Radio Club PI and PI2 cards,
-  which are commonly used to send internet traffic over amateur radio.
-  More information about these cards is on the WWW at
-  http://hydra.carleton.ca/info/pi2.html (To browse the WWW, you need
-  to have access to a machine on the Internet that has a program like
-  lynx or netscape). If you have one of these cards, you can say Y
-  here and should read the HAM-HOWTO, available via ftp (user:
-  anonymous) in sunsite.unc.edu:/pub/Linux/docs/HOWTO. Also, you
-  should have said Y to "AX.25 support" above, because AX.25 is the
-  protocol used for digital traffic over radio links. If you want to
-  compile this as a module ( = code which can be inserted in and
-  removed from the running kernel whenever you want), say M here and
-  read Documentation/modules.txt. The module will be called pi2.o.
-
-Gracilis PackeTwin support
-CONFIG_PT
-  This is a card used mainly by amateur radio operators for packet
-  radio.  You should have already said Y to "AX.25 support" as this
-  card uses that protocol.  More information about this driver can be
-  found in the file drivers/net/README.pt.  NOTE: The card is capable
-  of DMA and full duplex but neither of these have been coded in the
-  driver as yet.  This driver is also available as a module ( = code
-  which can be inserted in and removed from the running kernel
-  whenever you want). If you want to compile it as a module, say M
-  here and read Documentation/modules.txt as well as
-  Documentation/networking/net-modules.txt. The module will be called
-  pt.o.
-
 AT&T WaveLAN & DEC RoamAbout DS support
 CONFIG_WAVELAN
   The Lucent Wavelan (formerly NCR and AT&T ; or DEC RoamAbout DS) is
@@ -3980,7 +3983,7 @@ SGI Seeq ethernet controller support
   This is a driver for the Seeq based Ethernet adapters used in many
   Silicon Graphics machines.
 
-Support non-SCSI/IDE/ATAPI drives
+Support CDROM drives that are not SCSI or IDE/ATAPI
 CONFIG_CD_NO_IDESCSI
   If you have a CDROM drive that is neither SCSI nor IDE/ATAPI, say Y
   here, otherwise N. Read the CDROM-HOWTO, available via ftp (user:
@@ -3992,7 +3995,7 @@ CONFIG_CD_NO_IDESCSI
   For each of these drivers, a file Documentation/cdrom/<driver_name>
   exists. Especially in cases where you do not know exactly which kind
   of drive you have you should read there.
-  Most of these drivers use a file include/linux/<driver_name>.h where
+  Most of these drivers use a file drivers/cdrom/<driver_name>.h where
   you can define your interface parameters and switch some internal
   goodies.
   All these CDROM drivers are also usable as a module (= code which can
@@ -4033,7 +4036,7 @@ CONFIG_MCD
   (PhotoCDs).  There is a new driver (next question) which can do
   this. If you want that one, say N here.
   If the driver doesn't work out of the box, you might want to have a
-  look at linux/include/linux/mcd.h.  If you say Y here, you should
+  look at linux/drivers/cdrom/mcd.h.  If you say Y here, you should
   also say Y to "ISO9660 cdrom filesystem support" below, because
   that's the filesystem used on CDROMs. Please also read the file
   Documentation/cdrom/mcd. This driver is also available as a module (
@@ -4077,7 +4080,7 @@ CONFIG_SBPCD
   are not sure, but can consume some time during the boot process if
   none of the supported drives gets found.
   Once your drive got found, you should enter the reported parameters 
-  into linux/include/linux/sbpcd.h and set "DISTRIBUTION 0" there.
+  into linux/drivers/cdrom/sbpcd.h and set "DISTRIBUTION 0" there.
   This driver can support up to four CDROM interface cards, and each
   card can support up to four CDROM drives; if you say Y here, you
   will be asked how many controllers you have. If compiled as a
@@ -4096,7 +4099,7 @@ CONFIG_SBPCD2
   Say Y here only if you have two CDROM controller boards of this type
   (usually only if you have more than four drives). You should enter
   the parameters for the second, third and fourth interface card into
-  linux/include/linux/sbpcd.h before compiling the new kernel. Read
+  linux/drivers/cdrom/sbpcd.h before compiling the new kernel. Read
   the file Documentation/cdrom/sbpcd.
 
 Aztech/Orchid/Okano/Wearnes/TXC/CyDROM  CDROM support
@@ -4128,9 +4131,9 @@ Goldstar R420 CDROM support
 CONFIG_GSCD
   If this is your CDROM drive, say Y here.  As described in
   linux/Documentation/cdrom/gscd, you might have to change a setting
-  in the file include/linux/gscd.h before compiling the kernel. Please
-  read the file Documentation/cdrom/gscd. If you say Y here, you
-  should also say Y to "ISO9660 cdrom filesystem support" below,
+  in the file linux/drivers/cdrom/gscd.h before compiling the kernel. 
+  Please read the file Documentation/cdrom/gscd. If you say Y here, 
+  you should also say Y to "ISO9660 cdrom filesystem support" below,
   because that's the filesystem used on CDROMs. This driver is also
   available as a module ( = code which can be inserted in and removed
   from the running kernel whenever you want). The module will be
@@ -4856,6 +4859,18 @@ CONFIG_SMB_FS
   Documentation/modules.txt. The module will be called smbfs.o. Most
   people say N, however.
 
+Coda filesystem support
+CONFIG_CODA_FS
+  CODA is an advanced network filesystem.  It has support for disconnected
+  operation for laptops, read/write server replication, persistent client
+  caches and write back caching. 
+  By choosing this option you are compiling kernel support for Coda clients
+  into the Linux kernel.  You will need user level code as well, both for 
+  the client and server. Server's are currently user level, i.e. need
+  no kernel support. For further information see
+  http://www.coda.cs.cmu.edu or contact Peter Braam <braam@cs.cmu.edu>. 
+
+
 SMB Win95 bug work-around
 CONFIG_SMB_WIN95
   If you want to connect to a share exported by Windows 95, you should
@@ -4890,11 +4905,11 @@ CONFIG_AFFS_FS
   floppies however cannot be read with this driver due to an
   incompatibility of the floppy controller used in an Amiga and the
   standard floppy controller in PCs and workstations. Read
-  Documentation/filesystems/affs.txt. This filesystem is also
-  available as a module ( = code which can be inserted in and removed
-  from the running kernel whenever you want). The module is called
-  affs.o. If you want to compile it as a module, say M here and read
-  Documentation/modules.txt.  If unsure, say N.
+  Documentation/filesystems/affs.txt and fs/affs/Changes. This
+  filesystem is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module is called affs.o. If you want to compile it as a module,
+  say M here and read Documentation/modules.txt.  If unsure, say N.
 
 ROM filesystem support
 CONFIG_ROMFS_FS
@@ -4916,11 +4931,10 @@ CONFIG_VT
 
 Console on virtual terminal
 CONFIG_VT_CONSOLE
-  If you enable this option, all kernel messages will be sent to the
-  device /dev/tty which corresponds to the virtual terminal you have
-  visible on your display. You should say N here only if you have some
-  other console device, in which case you probably want to say Y to
-  "Console on serial port", below. If unsure, say N.
+  If you enable this option, by default all kernel messages will be sent
+  to the device /dev/tty0 which corresponds to the virtual terminal you
+  have visible on your display. You should say Y here unless you only
+  want to have the kernel messages output on a serial port.
 
 Software generated cursor
 CONFIG_SOFTCURSOR
@@ -4949,15 +4963,12 @@ CONFIG_SERIAL
 
 Console on serial port
 CONFIG_SERIAL_CONSOLE
-  If you enable this option, all kernel messages will be sent to the
-  device /dev/ttyS0 which corresponds to a serial port; this could be
-  useful if you attached a terminal or printer to that port. (You can
-  change the number of the serial port used from 0 to something else
-  by setting the variable CONFIG_SERIAL_CONSOLE_PORT.) You can use
-  this option in combination with the option "Console on virtual
-  terminal" above, in which case you get the output on both the serial
-  port and on your display. Most people say N here so that they can
-  use the serial port for modem, mouse or some other device.
+  If you enable this option, it is possible to use a serial port as the
+  console. By default still the virtual console will be used at the
+  system console but you can alter that using a kernel command line
+  option. If you don't have a VGA card installed the kernel will
+  automatically use /dev/ttyS0 as system console if this option is
+  enabled.
 
 Comtrol Rocketport support
 CONFIG_ROCKETPORT
@@ -5001,6 +5012,23 @@ CONFIG_RISCOM8
   and read the file Documentation/riscom8.txt. Also it's possible to
   say M here and compile this driver as kernel loadable module; the
   module will be called riscom8.o.
+
+Specialix IO8+ card support
+CONFIG_SPECIALIX
+  This is a driver for the Specialix IO8+ multiport card, that give 
+  you many serial ports. You would need something like this to 
+  connect more than two modems to your linux box, for instance in
+  order to become a BBS. If you have a card like that, say Y here and
+  read the file Documentation/specialix.txt. Also it's possible to say
+  M here and compile this driver as kernel loadable module.
+
+Specialix DTR/RTS pin is RTS
+CONFIG_SPECIALIX_RTSCTS
+  The Specialix card can only support either RTS or DTR. When this
+  option is off, the driver will use the pin as "DTR" when the tty is
+  in software handshake mode. When this option is on or hardware 
+  handshake is on, it will always be RTS. Read the file 
+  Documentation/specialix.txt for more information. 
 
 Cyclades async mux support
 CONFIG_CYCLADES
@@ -5979,9 +6007,9 @@ CONFIG_MAGIC_SYSRQ
   flush the disks, reboot the system immediately or dump some status
   information). This is accomplished by pressing various keys while
   holding SysRq (Alt+PrintScreen). As you are expected to be a kernel
-  hacker to use this, the simple rule about learning what do the keys
+  hacker to use this, the simple rule about learning what the keys
   mean is "Use the source, Luke!" -- read drivers/char/sysrq.c.  
-  Don't say Y unless you really know what does this hack do.
+  Don't say Y unless you really know what this hack does.
 
 ISDN subsystem
 CONFIG_ISDN

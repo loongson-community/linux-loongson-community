@@ -11,7 +11,7 @@
  *        Don't waste that much memory for empty entries in the syscall
  *        table.
  *
- * $Id: syscall.c,v 1.4 1997/09/18 07:57:30 root Exp $
+ * $Id: syscall.c,v 1.4 1997/12/01 17:57:31 ralf Exp $
  */
 #undef CONF_PRINT_SYSCALLS
 #undef CONF_DEBUG_IRIX
@@ -365,7 +365,7 @@ void do_sys(struct pt_regs *regs)
 	if ((current->flags & PF_TRACESYS) == 0)
 	{
 		errno = do_syscalls(regs, syscall, narg);
-		if ((errno < 0 && errno > (-ENOIOCTLCMD - 1)) || current->errno) {
+		if (errno < 0 && errno > (-ENOIOCTLCMD - 1)) {
 			goto bad_syscall;
 		}
 		regs->regs[2] = errno;
@@ -376,7 +376,7 @@ void do_sys(struct pt_regs *regs)
 		syscall_trace();
 
 		errno = do_syscalls(regs, syscall, narg);
-		if (errno < 0 || current->errno)
+		if (errno < 0)
 		{
 			regs->regs[2] = -errno;
 			regs->regs[7] = 1;

@@ -13,6 +13,7 @@
 #include <linux/config.h>
 
 #define BE_CONSERVATIVE
+#define SAMPLE_ROUNDUP 0
 
 #include "sound_config.h"
 
@@ -269,7 +270,7 @@ dma_reset_output(int dev)
 	audio_devs[dev]->dmap_out->flags |= DMA_SYNCING;
 
 	audio_devs[dev]->dmap_out->underrun_count = 0;
-	if (!(current->signal & ~current->blocked)
+	if (!signal_pending(current)
 	    && audio_devs[dev]->dmap_out->qlen
 	    && audio_devs[dev]->dmap_out->underrun_count == 0)
 	  {
@@ -408,7 +409,7 @@ DMAbuf_sync(int dev)
 		  audio_devs[dev]->dmap_out->flags |= DMA_SYNCING;
 
 		  audio_devs[dev]->dmap_out->underrun_count = 0;
-		  while (!(current->signal & ~current->blocked)
+		  while (!signal_pending(current)
 			 && n++ <= audio_devs[dev]->dmap_out->nbufs
 			 && audio_devs[dev]->dmap_out->qlen
 		       && audio_devs[dev]->dmap_out->underrun_count == 0)
@@ -448,7 +449,7 @@ DMAbuf_sync(int dev)
 		  cli();
 		  if (audio_devs[dev]->d->local_qlen)	/* Device has hidden buffers */
 		    {
-			    while (!((current->signal & ~current->blocked))
+			    while (!signal_pending(current)
 				   && audio_devs[dev]->d->local_qlen(dev))
 			      {
 
@@ -488,7 +489,7 @@ DMAbuf_release(int dev, int mode)
 
 	if (audio_devs[dev]->open_mode & OPEN_WRITE)
 		if (!(audio_devs[dev]->dmap_in->mapping_flags & DMA_MAP_MAPPED))
-			if (!((current->signal & ~current->blocked))
+			if (!signal_pending(current)
 			    && (audio_devs[dev]->dmap_out->dma_mode == DMODE_OUTPUT))
 			  {
 				  DMAbuf_sync(dev);
@@ -835,7 +836,7 @@ output_sleep(int dev, int dontblock)
 			  tmout = 20 * HZ;
 	  }
 
-	if ((current->signal & ~current->blocked))
+	if (signal_pending(current))
 		return -EIO;
 
 
@@ -860,7 +861,7 @@ output_sleep(int dev, int dontblock)
 		  printk("Sound: DMA (output) timed out - IRQ/DRQ config error?\n");
 		  ;
 		  dma_reset_output(dev);
-	} else if ((current->signal & ~current->blocked))
+	} else if (signal_pending(current))
 	  {
 		  err = -EINTR;
 	  }
@@ -896,7 +897,7 @@ find_output_space(int dev, char **buf, int *size)
 	active_offs += dmap->byte_counter;
 #endif
 
-	offs = (dmap->user_counter % dmap->bytes_in_use) & ~3;
+	offs = (dmap->user_counter % dmap->bytes_in_use) & ~SAMPLE_ROUNDUP;
 	if (offs < 0 || offs >= dmap->bytes_in_use)
 	  {
 		  printk("OSS: Got unexpected offs %ld. Giving up.\n", offs);
@@ -920,10 +921,10 @@ find_output_space(int dev, char **buf, int *size)
 	  {
 		  len = (maxfrags * dmap->fragment_size) - occupied_bytes;
 	  }
-	*size = len & ~3;
+	*size = len & ~SAMPLE_ROUNDUP;
 
 	restore_flags(flags);
-	return (len > 0);
+	return (*size > 0);
 }
 
 int
@@ -1539,10 +1540,11 @@ DMAbuf_deinit(int dev)
 {
 /* This routine is called when driver is being unloaded */
 #ifdef RUNTIME_DMA_ALLOC
-	sound_free_dmap (dev, audio_devs[dev]->dmap_out, 
-			 audio_devs[dev]->dmap_out->dma);
+	if (audio_devs[dev])
+		sound_free_dmap (dev, audio_devs[dev]->dmap_out, 
+				 audio_devs[dev]->dmap_out->dma);
 
-	if (audio_devs[dev]->flags & DMA_DUPLEX)
+	if (audio_devs[dev] && audio_devs[dev]->flags & DMA_DUPLEX)
 		sound_free_dmap (dev, audio_devs[dev]->dmap_in, 
 				 audio_devs[dev]->dmap_in->dma);
 #endif

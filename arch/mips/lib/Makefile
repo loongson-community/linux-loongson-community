@@ -17,10 +17,9 @@ L_TARGET = lib.a
 L_OBJS	= beep.o checksum.o copy_user.o csum.o dump_tlb.o memset.o memcpy.o \
           strlen_user.o strncpy_user.o tags.o watch.o
 
-ifdef CONFIG_DECSTATION
-L_OBJS += pmaxcon.o pmaxio.o
-else
+#
+# Debug console, works without other support from the kernel
+#
 L_OBJS += tinycon.o
-endif
 
 include $(TOPDIR)/Rules.make

@@ -261,7 +261,7 @@ unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 		unsigned long p, int from_kmem)
 {
 	char *str;
-	unsigned long old_fs;
+	mm_segment_t old_fs;
 
 	if (!p)
 		return 0;	/* bullet-proofing */
@@ -374,7 +374,7 @@ int read_exec(struct dentry *dentry, unsigned long offset,
 	} else
 		file.f_pos = offset;
 	if (to_kmem) {
-		unsigned long old_fs = get_fs();
+		mm_segment_t old_fs = get_fs();
 		set_fs(get_ds());
 		result = file.f_op->read(&file, addr, count, &file.f_pos);
 		set_fs(old_fs);
@@ -459,22 +459,29 @@ static inline int make_private_signals(void)
 }
 	
 /*
+ * If make_private_signals() made a copy of the signal table, decrement the
+ * refcount of the original table, and free it if necessary.
+ * We don't do that in make_private_signals() so that we can back off
+ * in flush_old_exec() if an error occurs after calling make_private_signals().
+ */
+
+static inline void release_old_signals(struct signal_struct * oldsig)
+{
+	if (current->sig == oldsig)
+		return;
+	if (atomic_dec_and_test(&oldsig->count))
+		kfree(oldsig);
+}
+
+/*
  * These functions flushes out all traces of the currently running executable
  * so that a new one can be started
  */
 
-static inline void flush_old_signals(struct signal_struct *sig)
+static inline void flush_old_signals(struct task_struct *t)
 {
-	int i;
-	struct sigaction * sa = sig->action;
-
-	for (i=32 ; i != 0 ; i--) {
-		sa->sa_mask = 0;
-		sa->sa_flags = 0;
-		if (sa->sa_handler != SIG_IGN)
-			sa->sa_handler = NULL;
-		sa++;
-	}
+	flush_signals(t);
+	flush_signal_handlers(t);
 }
 
 static inline void flush_old_files(struct files_struct * files)
@@ -517,6 +524,9 @@ int flush_old_exec(struct linux_binprm * bprm)
 	retval = exec_mmap();
 	if (retval) goto flush_failed;
 
+	/* This is the point of no return */
+	release_old_signals(oldsig);
+
 	if (current->euid == current->uid && current->egid == current->gid)
 		current->dumpable = 1;
 	name = bprm->filename;
@@ -535,7 +545,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 	    permission(bprm->dentry->d_inode,MAY_READ))
 		current->dumpable = 0;
 
-	flush_old_signals(current->sig);
+	flush_old_signals(current);
 	flush_old_files(current->files);
 
 	return 0;

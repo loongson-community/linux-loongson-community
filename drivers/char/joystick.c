@@ -1,5 +1,5 @@
 /*
- *  $Id: joystick.c,v 1.2 1997/10/31 19:11:48 mj Exp $
+ *  $Id: joystick.c,v 1.2 1997/12/06 23:52:28 ralf Exp $
  *
  *  Copyright (C) 1997 Vojtech Pavlik
  */
@@ -470,7 +470,7 @@ static ssize_t js_read(struct file *file, char *buf, size_t count, loff_t *ppos)
 					retval = -EAGAIN;
 					break;
 				}
-				if (current->signal & ~current->blocked) {
+				if (signal_pending(current)) {
 					retval = -ERESTARTSYS;
 					break;
 				}

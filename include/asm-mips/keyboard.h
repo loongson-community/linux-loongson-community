@@ -5,7 +5,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * $Id: keyboard.h,v 1.4 1997/07/24 01:55:56 ralf Exp $
+ * $Id: keyboard.h,v 1.5 1997/08/06 19:16:26 miguel Exp $
  */
 #ifndef __ASM_MIPS_KEYBOARD_H
 #define __ASM_MIPS_KEYBOARD_H
@@ -78,8 +78,7 @@ void (*keyboard_setup)(void);
 
 #endif /* CONFIG_SGI */
 
-#if defined(CONFIG_ACER_PICA_61) || defined(CONFIG_SNI_RM200_PCI) \
-    || defined(CONFIG_DESKSTATION_RPC44) || defined(CONFIG_DESKSTATION_TYNE)
+#if defined(CONFIG_ACER_PICA_61) || defined(CONFIG_SNI_RM200_PCI)
 #define CONF_KEYBOARD_USES_IO_PORTS
 #endif
 

@@ -3,7 +3,7 @@
 /*
  *  linux/drivers/block/ide.h
  *
- *  Copyright (C) 1994-1996  Linus Torvalds & authors
+ *  Copyright (C) 1994-1998  Linus Torvalds & authors
  */
 
 #include <linux/config.h>
@@ -164,7 +164,7 @@ typedef unsigned char	byte;	/* used everywhere */
 #define WAIT_CMD	(10*HZ)	/* 10sec  - maximum wait for an IRQ to happen */
 #define WAIT_MIN_SLEEP	(2*HZ/100)	/* 20msec - minimum sleep time */
 
-#if defined(CONFIG_BLK_DEV_HT6560B) || defined(CONFIG_BLK_DEV_PROMISE)
+#if defined(CONFIG_BLK_DEV_HT6560B) || defined(CONFIG_BLK_DEV_PDC4030) || defined(CONFIG_BLK_DEV_TRM290)
 #define SELECT_DRIVE(hwif,drive)				\
 {								\
 	if (hwif->selectproc)					\
@@ -174,7 +174,7 @@ typedef unsigned char	byte;	/* used everywhere */
 }
 #else
 #define SELECT_DRIVE(hwif,drive)  OUT_BYTE((drive)->select.all, hwif->io_ports[IDE_SELECT_OFFSET]);
-#endif	/* CONFIG_BLK_DEV_HT6560B || CONFIG_BLK_DEV_PROMISE */
+#endif	/* CONFIG_BLK_DEV_HT6560B || CONFIG_BLK_DEV_PDC4030 */
 		
 /*
  * Now for the data we need to maintain per-drive:  ide_drive_t
@@ -248,6 +248,7 @@ typedef struct ide_drive_s {
 	byte		bios_sect __attribute__ ((aligned (8)));	/* BIOS/fdisk/LILO sectors per track */
 	unsigned short	bios_cyl;	/* BIOS/fdisk/LILO number of cyls */
 	unsigned short	cyl;		/* "real" number of cyls */
+	unsigned int	timing_data;	/* for use by tuneproc()'s */
 	void		  *hwif;	/* actually (ide_hwif_t *) */
 	struct wait_queue *wqueue;	/* used to wait for drive in open() */
 	struct hd_driveid *id;		/* drive model identification info */
@@ -272,7 +273,7 @@ typedef enum {	ide_dma_read = 0,	ide_dma_write = 1,
 		ide_dma_abort = 2,	ide_dma_check = 3,
 		ide_dma_status_bad = 4,	ide_dma_transferred = 5,
 		ide_dma_begin = 6,	ide_dma_on = 7,
-		ide_dma_off = 8 }
+		ide_dma_off = 8,	ide_dma_off_quietly = 9 }
 	ide_dma_action_t;
 
 typedef int (ide_dmaproc_t)(ide_dma_action_t, ide_drive_t *);
@@ -292,7 +293,7 @@ typedef int (ide_dmaproc_t)(ide_dma_action_t, ide_drive_t *);
 typedef void (ide_tuneproc_t)(ide_drive_t *, byte);
 
 /*
- * This is used to provide HT6560B & PROMISE interface support.
+ * This is used to provide HT6560B & PDC4030 & TRM290 interface support.
  */
 typedef void (ide_selectproc_t) (ide_drive_t *);
 
@@ -300,10 +301,11 @@ typedef void (ide_selectproc_t) (ide_drive_t *);
  * hwif_chipset_t is used to keep track of the specific hardware
  * chipset used by each IDE interface, if known.
  */
-typedef enum {	ide_unknown,	ide_generic,	ide_triton,
+typedef enum {	ide_unknown,	ide_generic,	ide_pci,
 		ide_cmd640,	ide_dtc2278,	ide_ali14xx,
 		ide_qd6580,	ide_umc8672,	ide_ht6560b,
-		ide_promise,	ide_via }
+		ide_pdc4030,	ide_rz1000,	ide_trm290,
+		ide_4drives }
 	hwif_chipset_t;
 
 typedef struct hwif_s {
@@ -313,11 +315,12 @@ typedef struct hwif_s {
 	ide_drive_t	drives[MAX_DRIVES];	/* drive info */
 	struct gendisk	*gd;		/* gendisk structure */
 	ide_tuneproc_t	*tuneproc;	/* routine to tune PIO mode for drives */
-#if defined(CONFIG_BLK_DEV_HT6560B) || defined(CONFIG_BLK_DEV_PROMISE)
+#if defined(CONFIG_BLK_DEV_HT6560B) || defined(CONFIG_BLK_DEV_PDC4030) || defined(CONFIG_BLK_DEV_TRM290)
 	ide_selectproc_t *selectproc;	/* tweaks hardware to select drive */
 #endif
 	ide_dmaproc_t	*dmaproc;	/* dma read/write/abort routine */
 	unsigned long	*dmatable;	/* dma physical region descriptor table */
+	struct hwif_s	*mate;		/* other hwif from same PCI chip */
 	unsigned short	dma_base;	/* base addr for dma ports (triton) */
 	int		irq;		/* our irq number */
 	byte		major;		/* our major number */
@@ -328,10 +331,11 @@ typedef struct hwif_s {
 	unsigned	present    : 1;	/* this interface exists */
 	unsigned	serialized : 1;	/* serialized operation with mate hwif */
 	unsigned	sharing_irq: 1;	/* 1 = sharing irq with another hwif */
-#ifdef CONFIG_BLK_DEV_PROMISE
-	unsigned	is_promise2: 1;	/* 2nd i/f on promise DC4030 */
-#endif /* CONFIG_BLK_DEV_PROMISE */
+#ifdef CONFIG_BLK_DEV_PDC4030
+	unsigned	is_pdc4030_2: 1;/* 2nd i/f on pdc4030 */
+#endif /* CONFIG_BLK_DEV_PDC4030 */
 	unsigned	reset      : 1; /* reset after probe */
+	unsigned	pci_port   : 1; /* for dual-port chips: 0=primary, 1=secondary */
 #if (DISK_RECOVERY_TIME > 0)
 	unsigned long	last_time;	/* time when previous rq was done */
 #endif
@@ -613,23 +617,21 @@ ide_drive_t *ide_scan_devices (byte media, ide_driver_t *driver, int n);
 int ide_register_subdriver (ide_drive_t *drive, ide_driver_t *driver, int version);
 int ide_unregister_subdriver (ide_drive_t *drive);
 
-#ifdef CONFIG_BLK_DEV_TRITON
-void ide_init_triton (byte, byte);
-#endif /* CONFIG_BLK_DEV_TRITON */
-
-#ifdef CONFIG_BLK_DEV_OPTI621
-void ide_init_opti621 (byte, byte);
-#endif /* CONFIG_BLK_DEV_OPTI621 */
+#ifdef CONFIG_BLK_DEV_IDEDMA
+int ide_build_dmatable (ide_drive_t *drive);
+int ide_dmaproc (ide_dma_action_t func, ide_drive_t *drive);
+void ide_setup_dma (ide_hwif_t *hwif, unsigned short dmabase, unsigned int num_ports);
+#endif
 
 #ifdef CONFIG_BLK_DEV_IDE
 int ideprobe_init (void);
 #endif /* CONFIG_BLK_DEV_IDE */
 
-#ifdef CONFIG_BLK_DEV_PROMISE
-#include "promise.h"
-#define IS_PROMISE_DRIVE (HWIF(drive)->chipset == ide_promise)
+#ifdef CONFIG_BLK_DEV_PDC4030
+#include "pdc4030.h"
+#define IS_PDC4030_DRIVE (HWIF(drive)->chipset == ide_pdc4030)
 #else
-#define IS_PROMISE_DRIVE (0)	/* auto-NULLs out Promise code */
-#endif /* CONFIG_BLK_DEV_PROMISE */
+#define IS_PDC4030_DRIVE (0)	/* auto-NULLs out pdc4030 code */
+#endif /* CONFIG_BLK_DEV_PDC4030 */
 
 #endif /* _IDE_H */

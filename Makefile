@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 67
+SUBLEVEL = 72
 
 ARCH = mips
 
@@ -162,6 +162,10 @@ ifdef CONFIG_SGI
 DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 
+ifdef CONFIG_HAMRADIO
+DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.a
+endif
+
 include arch/$(ARCH)/Makefile
 
 ifdef SMP
@@ -315,6 +319,7 @@ modules_install:
 	if [ -f FS_MODULES    ]; then inst_mod FS_MODULES    fs;    fi; \
 	if [ -f NLS_MODULES   ]; then inst_mod NLS_MODULES   fs;    fi; \
 	if [ -f CDROM_MODULES ]; then inst_mod CDROM_MODULES cdrom; fi; \
+	if [ -f HAM_MODULES   ]; then inst_mod HAM_MODULES   net;   fi; \
 	\
 	ls *.o > .allmods; \
 	echo $$MODULES | tr ' ' '\n' | sort | comm -23 .allmods - > .misc; \
@@ -367,8 +372,8 @@ distclean: mrproper
 	rm -f core `find . \( -name '*.orig' -o -name '*.rej' -o -name '*~' \
                 -o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
                 -o -name '.*.rej' -o -name '.SUMS' -o -size 0 \) -print` TAGS
-	rm -f drivers/sound/Config.in
-	cp drivers/sound/Config.std drivers/sound/Config.in
+#	rm -f drivers/sound/Config.in
+#	cp drivers/sound/Config.std drivers/sound/Config.in
 
 backup: mrproper
 	cd .. && tar cf - linux/ | gzip -9 > backup.gz
@@ -379,7 +384,7 @@ sums:
 
 dep-files: scripts/mkdep archdep include/linux/version.h
 	scripts/mkdep init/*.c > .tmpdepend
-	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | xargs scripts/mkdep > .hdepend
+	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | env -i xargs scripts/mkdep > .hdepend
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
 	mv .tmpdepend .depend
 

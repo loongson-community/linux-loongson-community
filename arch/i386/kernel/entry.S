@@ -73,14 +73,14 @@ VM_MASK		= 0x00020000
 state		=  0
 counter		=  4
 priority	=  8
-signal		= 12
-blocked		= 16
-flags		= 20
-dbgreg6		= 52
-dbgreg7		= 56
-exec_domain	= 60
+flags		= 12
+sigpending	= 16
+dbgreg6		= 44
+dbgreg7		= 48
+exec_domain	= 52
 
 ENOSYS = 38
+
 
 #define SAVE_ALL \
 	cld; \
@@ -93,7 +93,7 @@ ENOSYS = 38
 	pushl %edx; \
 	pushl %ecx; \
 	pushl %ebx; \
-	movl $(KERNEL_DS),%edx; \
+	movl $(__KERNEL_DS),%edx; \
 	mov %dx,%ds; \
 	mov %dx,%es;
 
@@ -170,10 +170,7 @@ ret_from_sys_call:
 ret_with_reschedule:
 	cmpl $0,SYMBOL_NAME(need_resched)
 	jne reschedule
-	movl blocked(%ebx),%eax
-	movl %eax,%esi			# save blocked in %esi for signal handling
-	notl %eax
-	andl signal(%ebx),%eax
+	cmpl $0,sigpending(%ebx)
 	jne signal_return
 	RESTORE_ALL
 	ALIGN
@@ -181,7 +178,7 @@ signal_return:
 	testl $(VM_MASK),EFLAGS(%esp)
 	pushl %esp
 	jne v86_signal_return
-	pushl %esi
+	pushl $0
 	call SYMBOL_NAME(do_signal)
 	addl $8,%esp
 	RESTORE_ALL
@@ -190,7 +187,7 @@ v86_signal_return:
 	call SYMBOL_NAME(save_v86_state)
 	movl %eax,%esp
 	pushl %eax
-	pushl %esi
+	pushl $0
 	call SYMBOL_NAME(do_signal)
 	addl $8,%esp
 	RESTORE_ALL
@@ -255,7 +252,7 @@ error_code:
 	xchgl %ecx, ES(%esp)		# get the address and save es.
 	pushl %eax			# push the error code
 	pushl %edx
-	movl $(KERNEL_DS),%edx
+	movl $(__KERNEL_DS),%edx
 	mov %dx,%ds
 	mov %dx,%es
 	GET_CURRENT(%ebx)
@@ -529,6 +526,16 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_setresgid)	/* 170 */
 	.long SYMBOL_NAME(sys_getresgid)
 	.long SYMBOL_NAME(sys_prctl)
-	.rept NR_syscalls-172
+	.long SYMBOL_NAME(sys_rt_sigreturn)
+	.long SYMBOL_NAME(sys_rt_sigaction)
+	.long SYMBOL_NAME(sys_rt_sigprocmask)	/* 175 */
+	.long SYMBOL_NAME(sys_rt_sigpending)
+	.long SYMBOL_NAME(sys_rt_sigtimedwait)
+	.long SYMBOL_NAME(sys_rt_sigqueueinfo)
+	.long SYMBOL_NAME(sys_rt_sigsuspend)
+	.long SYMBOL_NAME(sys_pread)		/* 180 */
+	.long SYMBOL_NAME(sys_pwrite)
+	
+	.rept NR_syscalls-181
 		.long SYMBOL_NAME(sys_ni_syscall)
 	.endr

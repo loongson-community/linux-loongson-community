@@ -1,7 +1,7 @@
 /*
  * bios32.c - BIOS32, PCI BIOS functions.
  *
- * $Id: bios32.c,v 1.14 1997/08/02 22:20:57 mj Exp $
+ * $Id: bios32.c,v 1.5 1997/12/02 01:48:00 ralf Exp $
  *
  * Sponsored by
  *	iX Multiuser Multitasking Magazine
@@ -528,7 +528,7 @@ static unsigned long bios32_entry = 0;
 static struct {
 	unsigned long address;
 	unsigned short segment;
-} bios32_indirect = { 0, KERNEL_CS };
+} bios32_indirect = { 0, __KERNEL_CS };
 
 /*
  * Returns the entry point for the given service, NULL on error
@@ -570,7 +570,7 @@ static long pcibios_entry = 0;
 static struct {
 	unsigned long address;
 	unsigned short segment;
-} pci_indirect = { 0, KERNEL_CS };
+} pci_indirect = { 0, __KERNEL_CS };
 
 __initfunc(static int check_pcibios(void))
 {

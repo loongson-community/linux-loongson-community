@@ -85,7 +85,7 @@ bad_area:
 	if (user_mode(regs)) {
 		tsk->tss.cp0_badvaddr = address;
 		tsk->tss.error_code = writeaccess;
-#if 1
+#if 0
 		printk("do_page_fault() #2: sending SIGSEGV to %s for illegal %s\n"
 		       "%08lx (epc == %08lx, ra == %08lx)\n",
 		       tsk->comm,

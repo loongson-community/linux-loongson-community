@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1994, 1995 by Ralf Baechle
  *
- * $Id: entry.S,v 1.4 1997/09/20 19:20:13 root Exp $
+ * $Id: entry.S,v 1.4 1997/12/01 17:57:25 ralf Exp $
  */
 
 /*
@@ -57,24 +57,17 @@ EXPORT(ret_from_irq)
 		bnez	t0,handle_bottom_half
 9:		 lw	t0,PT_STATUS(sp)	# returning to kernel mode?
 
-		andi	t1,t0, 0x10
-		beqz	t1,return		# -> yes
-		 lw	t1,need_resched
-		bnez	t1,reschedule
+		andi	t1, t0, 0x10
+		beqz	t1, return		# -> yes
+		 lw	t1, need_resched
+		bnez	t1, reschedule
 		 GET_CURRENT(s0)
-		lw	t0,task
-		lw	a0,TASK_BLOCKED(s0)
-
-		beq	s0,t0,return		# task[0] cannot have signals
-		 lw	t0,TASK_SIGNAL(s0)
-
-		nor	t1,zero,a0
-		and	t1,t0,t1
-		beqz	t1,return
+		lw	v0, TASK_SIGPENDING(s0)
+		 move	a0, zero
+		beqz	v0, return
 		 nop
-
 		jal	do_signal
-		 move	a1,sp
+		 move	a1, sp
 
 EXPORT(return)	.set	noat
 		RESTORE_ALL

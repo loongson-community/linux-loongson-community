@@ -954,6 +954,7 @@ static int ax25_release(struct socket *sock, struct socket *peer)
 #ifdef AX25_CONFIG_DAMA_SLAVE
 					case AX25_PROTO_DAMA_SLAVE:
 						ax25_stop_t3timer(sk->protinfo.ax25);
+						ax25_stop_idletimer(sk->protinfo.ax25);
 						break;
 #endif
 				}
@@ -1412,7 +1413,6 @@ static int ax25_sendmsg(struct socket *sock, struct msghdr *msg, int len, struct
 
 		/* Datagram frames go straight out of the door as UI */
 		skb->dev      = sk->protinfo.ax25->ax25_dev->dev;
-		skb->priority = SOPRI_NORMAL;
 
 		ax25_queue_xmit(skb);
 

@@ -432,3 +432,11 @@ void
 set_vesa_blanking(const unsigned long arg)
 {
 }
+
+/*
+ * FIXME: how can we probe for the video board?
+ */
+__initfunc(int con_is_present())
+{
+	return;
+}

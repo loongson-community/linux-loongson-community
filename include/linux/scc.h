@@ -3,6 +3,8 @@
 #ifndef	_SCC_H
 #define	_SCC_H
 
+#include <linux/config.h>
+
 /* selection of hardware types */
 
 #define PA0HZP		0x00	/* hardware type for PA0HZP SCC card and compatible */
@@ -184,7 +186,7 @@ enum {TX_OFF, TX_ON};	/* command for scc_key_trx() */
 #define RXINT		0x04
 #define SPINT		0x06
 
-#ifdef SCC_DELAY
+#ifdef CONFIG_SCC_DELAY
 #define Inb(port)	inb_p(port)
 #define Outb(port, val)	outb_p(val, port)
 #else

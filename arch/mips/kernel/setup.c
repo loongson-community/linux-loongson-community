@@ -5,7 +5,7 @@
  *  Copyright (C) 1995, 1996  Ralf Baechle
  *  Copyright (C) 1996  Stoned Elipot
  *
- * $Id: setup.c,v 1.4 1997/12/01 17:57:31 ralf Exp $
+ * $Id: setup.c,v 1.5 1997/12/02 23:44:02 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -175,20 +175,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 
 	switch(mips_machgroup)
 	{
-#ifdef CONFIG_MIPS_DECSTATION
-	case MACH_GROUP_DEC:
-		decstation_setup();
-		break;
-#endif
-#if defined(CONFIG_MIPS_ARC) 
-	/*
-	 * Perhaps arch/mips/deskstation should be renamed to arch/mips/arc.
-	 * For now CONFIG_MIPS_ARC means DeskStation. -Stoned.
-	 */
-	case MACH_GROUP_ARC:
-		deskstation_setup();
-		break;
-#endif
 #ifdef CONFIG_MIPS_JAZZ
 	case MACH_GROUP_JAZZ:
 		jazz_setup();

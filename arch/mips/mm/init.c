@@ -229,25 +229,9 @@ void mem_init(unsigned long start_mem, unsigned long end_mem)
 	for(tmp = MAP_NR(start_mem);tmp < max_mapnr;tmp++)
 		clear_bit(PG_reserved, &mem_map[tmp].flags);
 
-	/*
-	 * For rPC44 and RM200 we've reserved some memory too much.  Free
-	 * the memory from PAGE_SIZE to PAGE_OFFSET + 0xa0000 again.  We
-	 * don't free the lowest page where the exception handlers will
-	 * reside.
-	 */
-	if (mips_machgroup ==  MACH_GROUP_ARC &&
-	    mips_machtype == MACH_DESKSTATION_RPC44)
-		for(tmp = MAP_NR(PAGE_OFFSET + PAGE_SIZE);
-		    tmp < MAP_NR(PAGE_OFFSET + 0xa000); tmp++)
-			clear_bit(PG_reserved, &mem_map[tmp].flags);
-
 
 #ifdef CONFIG_SGI
 	prom_fixup_mem_map(start_mem, (unsigned long)high_memory);
-#endif
-
-#ifdef CONFIG_DESKSTATION_TYNE
-	deskstation_tyne_dma_init();
 #endif
 
 	for (tmp = PAGE_OFFSET; tmp < end_mem; tmp += PAGE_SIZE) {

@@ -57,7 +57,6 @@
 
 #ifdef __mips__
 #include <asm/bootinfo.h>
-#include <asm/deskstation.h>
 #include <asm/sni.h>
 /*
  * The video control ports are mapped at virtual address
@@ -166,6 +165,31 @@ set_cursor(int currcons)
 		hide_cursor();
 }
 
+__initfunc(int con_is_present(void))
+{
+	unsigned short saved;
+	unsigned short *p;
+
+	/*
+	 *	Find out if there is a graphics card present.
+	 *	Are there smarter methods around?
+	 */
+	p = (unsigned short *) video_mem_base;
+	saved = scr_readw(p);
+	scr_writew(0xAA55, p);
+	if (scr_readw(p) != 0xAA55) {
+		scr_writew(saved, p);
+		return 0;
+	}
+	scr_writew(0x55AA, p);
+	if (scr_readw(p) != 0x55AA) {
+		scr_writew(saved, p);
+		return 0;
+	}
+	scr_writew(saved, p);
+	return 1;
+}
+
 __initfunc(unsigned long
 con_type_init(unsigned long kmem_start, const char **display_desc))
 {
@@ -216,32 +240,6 @@ con_type_init(unsigned long kmem_start, const char **display_desc))
 		 * need to request the ports.
 		 */
 		request_region(0x3c0,32,"vga+");
-	}
-	else
-#endif
-#ifdef CONFIG_DESKSTATION_RPC44
-	/*
-	 * KLUDGE -- imp
-	 */
-	if (mips_machgroup == MACH_GROUP_ARC
-	    && mips_machtype == MACH_DESKSTATION_RPC44)
-	{
-		/* XXX */
-		can_do_color = 1;
-		video_port_base = RPC44_PORT_BASE;
-		video_port_reg	= 0x3d4;
-		video_port_val	= 0x3d5;
-		video_type = VIDEO_TYPE_VGAC;
-		video_mem_base = 0xa00a000;
-		video_mem_term = video_mem_base + 0x8000;
-		*display_desc = "IMP-HACK";
-		screen_info.orig_video_ega_bx = 0x11;
-		screen_info.orig_video_mode = 8; /* not 7 */
-		screen_info.orig_video_isVGA = 1;
-		/*
-		 * Don't request a region - the video ports are outside of
-		 * the normal port address range.
-		 */
 	}
 	else
 #endif

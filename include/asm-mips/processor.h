@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.5 1997/12/01 16:48:39 ralf Exp $
+ * $Id: processor.h,v 1.3 1997/12/01 18:00:41 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -81,6 +81,10 @@ union mips_fpu_union {
 	{{0,},} \
 }
 
+typedef struct {
+	unsigned long seg;
+} mm_segment_t;
+
 /*
  * If you change thread_struct remember to change the #defines below too!
  */
@@ -105,7 +109,7 @@ struct thread_struct {
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
 	unsigned long mflags;
-	int current_ds;
+	mm_segment_t current_ds;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
 };

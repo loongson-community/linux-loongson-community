@@ -33,6 +33,16 @@ S: Klaproosstraat 72 c 10
 S: B-2610 Wilrijk-Antwerpen
 S: Belgium
 
+N: Erik Andersen
+E: andersee@debian.org
+W: http://www.inconnect.com/~andersen
+P: 1024/FC4CFFED 78 3C 6A 19 FA 5D 92 5A  FB AC 7B A5 A5 E1 FF 8E
+D: Maintainer of ide-cd and Uniform CD-ROM driver, 
+D: ATAPI CD-Changer support, Major 2.1.x CD-ROM update.
+S: 4538 South Carnegie Tech St.
+S: West Valley City, UT 84120
+S: USA
+
 N: H. Peter Anvin
 E: hpa@zytor.com
 W: http://www.zytor.com/~hpa/
@@ -42,6 +52,15 @@ D: hierarchy and the Linux Device List; various kernel hacks
 S: 4390 Albany Dr. #46
 S: San Jose, California 95129
 S: USA
+
+N: Andrea Arcangeli
+E: arcangeli@mbox.queen.it
+W: http://www-linux.deis.unibo.it/~mirror/
+P: 1024/CB4660B9 CC A0 71 81 F4 A0 63 AC  C0 4B 81 1D 8C 15 C8 E5
+D: parport sharing fix. Various other kernel hacks.
+S: Via Ciaclini 26
+S: Imola 40026
+S: Italy
 
 N: Derek Atkins
 E: warlord@MIT.EDU
@@ -1323,6 +1342,14 @@ E: dl1bke@db0pra.ampr.org
 D: Generic Z8530 driver, AX.25 DAMA slave implementation
 D: Several AX.25 hacks
 
+N: Francois-Rene Rideau
+E: rideau@ens.fr
+W: http://www.eleves.ens.fr:8080/home/rideau/
+D: petty kernel janitor (byteorder, ufs)
+S: 6, rue Augustin Thierry
+S: 75019 Paris
+S: France
+
 N: William E. Roadcap
 E: roadcapw@cfw.com
 W: http://www.cfw.com/~roadcapw
@@ -1744,10 +1771,11 @@ S: Fin-00150 Helsinki
 S: Finland
 
 N: Roger E. Wolff
-E: wolff@dutecai.et.tudelft.nl
+E: R.E.Wolff@BitWizard.nl
 D: Written kmalloc/kfree
-S: Oosterstraat 23
-S: 2611 TT Delft
+D: Written Specialix IO8+ driver
+S: van Bronckhorststraat 12
+S: 2612 XV Delft
 S: The Netherlands
 
 N: David Woodhouse
@@ -1791,7 +1819,7 @@ S: Bellevue, Washington 98007
 S: USA
 
 N: Werner Zimmermann
-E: zimmerma@rz.fht-esslingen.de
+E: Werner.Zimmermann@fht-esslingen.de
 D: CDROM driver "aztcd" (Aztech/Okano/Orchid/Wearnes)
 S: Flandernstrasse 101
 S: D-73732 Esslingen

@@ -141,7 +141,7 @@ static void pc_enable_irq(struct parport *p)
 static void pc_release_resources(struct parport *p)
 {
 	if (p->irq != PARPORT_IRQ_NONE)
-		free_irq(p->irq, p);
+		free_irq(p->irq, NULL);
 	release_region(p->base, p->size);
 	if (p->modes & PARPORT_MODE_PCECR)
 		release_region(p->base+0x400, 3);
@@ -151,7 +151,7 @@ static int pc_claim_resources(struct parport *p)
 {
 	/* FIXME check that resources are free */
 	if (p->irq != PARPORT_IRQ_NONE)
-		request_irq(p->irq, pc_null_intr_func, 0, p->name, p);
+		request_irq(p->irq, pc_null_intr_func, 0, p->name, NULL);
 	request_region(p->base, p->size, p->name);
 	if (p->modes & PARPORT_MODE_PCECR)
 		request_region(p->base+0x400, 3, p->name);
@@ -837,7 +837,7 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 	}
 	p->size = (p->modes & (PARPORT_MODE_PCEPP 
 			       | PARPORT_MODE_PCECPEPP))?8:3;
-	printk(KERN_INFO "%s: PC-style at 0x%x", p->name, p->base);
+	printk(KERN_INFO "%s: PC-style at 0x%lx", p->name, p->base);
 	if (p->irq == PARPORT_IRQ_AUTO) {
 		p->irq = PARPORT_IRQ_NONE;
 		parport_irq_probe(p);
@@ -868,6 +868,10 @@ static int probe_one_port(unsigned long int base, int irq, int dma)
 	/* Done probing.  Now put the port into a sensible start-up state. */
 	pc_write_control(p, 0xc);
 	pc_write_data(p, 0);
+
+	if (parport_probe_hook)
+		(*parport_probe_hook)(p);
+
 	return 1;
 }
 

@@ -47,6 +47,7 @@
 #include <linux/sched.h>
 #include <linux/file.h>
 #include <linux/interrupt.h>
+#include <linux/poll.h>
 #include <linux/vmalloc.h>
 #include <linux/wait.h>
 #include <linux/major.h>

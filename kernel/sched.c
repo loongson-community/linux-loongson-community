@@ -50,8 +50,12 @@
 int securelevel = 0;			/* system security level */
 
 long tick = (1000000 + HZ/2) / HZ;	/* timer interrupt period */
-volatile struct timeval xtime __attribute__ ((aligned (8)));	/* The current time */
-int tickadj = 500/HZ;			/* microsecs */
+
+/* The current time */
+volatile struct timeval xtime __attribute__ ((aligned (16)));
+
+/* Don't completely fail for HZ > 500.  */
+int tickadj = 500/HZ ? : 1;		/* microsecs */
 
 DECLARE_TASK_QUEUE(tq_timer);
 DECLARE_TASK_QUEUE(tq_immediate);
@@ -80,12 +84,10 @@ long time_adjust_step = 0;
 int need_resched = 0;
 unsigned long event = 0;
 
-extern int _setitimer(int, struct itimerval *, struct itimerval *);
+extern int do_setitimer(int, struct itimerval *, struct itimerval *);
 unsigned int * prof_buffer = NULL;
 unsigned long prof_len = 0;
 unsigned long prof_shift = 0;
-
-#define _S(nr) (1<<((nr)-1))
 
 extern void mem_use(void);
 
@@ -1116,7 +1118,7 @@ asmlinkage unsigned int sys_alarm(unsigned int seconds)
 	it_new.it_interval.tv_sec = it_new.it_interval.tv_usec = 0;
 	it_new.it_value.tv_sec = seconds;
 	it_new.it_value.tv_usec = 0;
-	_setitimer(ITIMER_REAL, &it_new, &it_old);
+	do_setitimer(ITIMER_REAL, &it_new, &it_old);
 	oldalarm = it_old.it_value.tv_sec;
 	/* ehhh.. We can't return 0 if we have an alarm pending.. */
 	/* And we'd better return too much than too little anyway */
@@ -1419,28 +1421,6 @@ asmlinkage int sys_sched_rr_get_interval(pid_t pid, struct timespec *interval)
 	return 0;
 }
 
-/*
- * change timeval to jiffies, trying to avoid the 
- * most obvious overflows..
- */
-static unsigned long timespectojiffies(struct timespec *value)
-{
-	unsigned long sec = (unsigned) value->tv_sec;
-	long nsec = value->tv_nsec;
-
-	if (sec > (LONG_MAX / HZ))
-		return LONG_MAX;
-	nsec += 1000000000L / HZ - 1;
-	nsec /= 1000000000L / HZ;
-	return HZ * sec + nsec;
-}
-
-static void jiffiestotimespec(unsigned long jiffies, struct timespec *value)
-{
-	value->tv_nsec = (jiffies % HZ) * (1000000000L / HZ);
-	value->tv_sec = jiffies / HZ;
-}
-
 asmlinkage int sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 {
 	struct timespec t;
@@ -1466,7 +1446,7 @@ asmlinkage int sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 		return 0;
 	}
 
-	expire = timespectojiffies(&t) + (t.tv_sec || t.tv_nsec) + jiffies;
+	expire = timespec_to_jiffies(&t) + (t.tv_sec || t.tv_nsec) + jiffies;
 
 	current->timeout = expire;
 	current->state = TASK_INTERRUPTIBLE;
@@ -1474,8 +1454,8 @@ asmlinkage int sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 
 	if (expire > jiffies) {
 		if (rmtp) {
-			jiffiestotimespec(expire - jiffies -
-					  (expire > jiffies + 1), &t);
+			jiffies_to_timespec(expire - jiffies -
+					    (expire > jiffies + 1), &t);
 			if (copy_to_user(rmtp, &t, sizeof(struct timespec)))
 				return -EFAULT;
 		}
@@ -1524,6 +1504,19 @@ static void show_task(int nr,struct task_struct * p)
 		printk(" %5d\n", p->p_osptr->pid);
 	else
 		printk("\n");
+
+	{
+		extern char * render_sigset_t(sigset_t *set, char *buffer);
+		struct signal_queue *q;
+		char s[sizeof(sigset_t)*2+1], b[sizeof(sigset_t)*2+1]; 
+
+		render_sigset_t(&p->signal, s);
+		render_sigset_t(&p->blocked, b);
+		printk("   sig: %d %s %s :", signal_pending(p), s, b);
+		for (q = p->sigqueue; q ; q = q->next)
+			printk(" %d", q->info.si_signo);
+		printk(" X\n");
+	}
 }
 
 void show_state(void)

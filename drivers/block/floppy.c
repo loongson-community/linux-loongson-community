@@ -3975,6 +3975,7 @@ __initfunc(int floppy_init(void))
 	fdc_state[0].address = FDC1;
 	if (fdc_state[0].address == -1) {
 		unregister_blkdev(MAJOR_NR,"fd");
+		del_timer(&fd_timeout);
 		return -ENODEV;
 	}
 #if N_FDC > 1
@@ -3983,6 +3984,7 @@ __initfunc(int floppy_init(void))
 
 	if (floppy_grab_irq_and_dma()){
 		unregister_blkdev(MAJOR_NR,"fd");
+		del_timer(&fd_timeout);
 		return -EBUSY;
 	}
 
@@ -4065,8 +4067,8 @@ static int floppy_grab_irq_and_dma(void)
 		if (FDCS->address != -1){
 			if (check_region(FDCS->address, 6) < 0 ||
 			    check_region(FDCS->address+7, 1) < 0) {
-				DPRINT("Floppy io-port 0x%04x in use\n",
-				       (unsigned int) FDCS->address);
+				DPRINT("Floppy io-port 0x%04lx in use\n",
+				       FDCS->address);
 				fd_free_irq(FLOPPY_IRQ);
 				fd_free_dma(FLOPPY_DMA);
 				while(--fdc >= 0) {

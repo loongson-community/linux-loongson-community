@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: r4xx0.c,v 1.9 1997/12/01 17:57:36 ralf Exp $
+ * $Id: r4xx0.c,v 1.10 1997/12/02 14:49:20 ralf Exp $
  *
  * To do:
  *
@@ -2424,6 +2424,38 @@ static void probe_dcache(unsigned long config)
 	       (int)(dcache_size >> 10), (int)dc_lsize);
 }
 
+/*
+ * Activate the chipset controlled R4600 and R5000 caches of the Indy
+ */
+static inline void enable_indy_scache(void)
+{
+	unsigned long addr, tmp1, tmp2;
+
+	/* This is really cool... */
+	printk("Enabling R4600 SCACHE\n");
+	__asm__ __volatile__("
+		.set noreorder
+		.set mips3
+		mfc0	%2, $12
+		nop; nop; nop; nop;
+		li	%1, 0x80
+		mtc0	%1, $12
+		nop; nop; nop; nop;
+		li	%0, 0x1
+		dsll	%0, 31
+		lui	%1, 0x9000
+		dsll32	%1, 0
+		or	%0, %1, %0
+		sb	$0, 0(%0)
+		mtc0	$0, $12
+		nop; nop; nop; nop;
+		mtc0	%2, $12
+		nop; nop; nop; nop;
+		.set mips0
+		.set reorder"
+		: "=r" (tmp1), "=r" (tmp2), "=r" (addr));
+}
+
 static int probe_scache_eeprom(unsigned long config)
 {
 #ifdef CONFIG_SGI
@@ -2487,7 +2519,7 @@ static int probe_scache_eeprom(unsigned long config)
 	printk("linesize %d bytes\n", sc_lsize);
 	scache_size = data;
 	if(data) {
-		unsigned long addr, tmp1, tmp2;
+		unsigned long addr;
 
 		/* Enable r4600/r5000 cache.  But flush it first. */
 		for(addr = KSEG0; addr < (KSEG0 + dcache_size);
@@ -2500,42 +2532,26 @@ static int probe_scache_eeprom(unsigned long config)
 		    addr += sc_lsize)
 			flush_scache_line_indexed(addr);
 
-		/* R5000 scache enable is in CP0 config, on R4600 variants
+		/*
+		 * R5000 scache enable is in CP0 config, on R4600 variants
 		 * the scache is enable by the memory mapped cache controller.
 		 */
+		if (mips_cputype == CPU_R4600 ||
+		    mips_cputype == CPU_R5000) {
+			enable_indy_scache();
+			return 1;
+		}
+#if 0
 		if(mips_cputype == CPU_R5000) {
 			unsigned long config;
 
 			config = read_32bit_cp0_register(CP0_CONFIG);
 			config |= 0x1000;
 			write_32bit_cp0_register(CP0_CONFIG, config);
-		} else {
-			/* This is really cool... */
-			printk("Enabling R4600 SCACHE\n");
-			__asm__ __volatile__("
-			.set noreorder
-			.set mips3
-			mfc0	%2, $12
-			nop; nop; nop; nop;
-			li	%1, 0x80
-			mtc0	%1, $12
-			nop; nop; nop; nop;
-			li	%0, 0x1
-			dsll	%0, 31
-			lui	%1, 0x9000
-			dsll32	%1, 0
-			or	%0, %1, %0
-			sb	$0, 0(%0)
-			mtc0	$0, $12
-			nop; nop; nop; nop;
-			mtc0	%2, $12
-			nop; nop; nop; nop;
-			.set mips0
-			.set reorder
-		        " : "=r" (tmp1), "=r" (tmp2), "=r" (addr));
 		}
-
+#endif
 		return 1;
+
 	} else {
 		if(mips_cputype == CPU_R5000)
 			return -1;
@@ -2831,7 +2847,8 @@ void ld_mmu_r4xx0(void)
 	} else {
 		/* Lacks true secondary cache. */
 		setup_noscache_funcs();
-		if((mips_cputype != CPU_R5000)) { /* XXX */
+		if (mips_cputype == CPU_R4600 ||
+		    mips_cputype == CPU_R5000) {
 			flush_cache_page =
 				r4k_flush_cache_page_d32i32_r4600;
 			flush_page_to_ram =

@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: uaccess.h,v 1.5 1997/12/01 16:44:08 ralf Exp $
+ * $Id: uaccess.h,v 1.4 1997/12/01 18:00:44 ralf Exp $
  */
 #ifndef __ASM_MIPS_UACCESS_H
 #define __ASM_MIPS_UACCESS_H
@@ -26,21 +26,20 @@
  *
  * For historical reasons, these macros are grossly misnamed.
  */
-#define KERNEL_DS 0
-#define USER_DS 1
+#define KERNEL_DS	((mm_segment_t) { 0UL })
+#define USER_DS		((mm_segment_t) { 1UL })
 
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
 
-extern int active_ds;
+extern mm_segment_t active_ds;
 
-#define get_fs()        active_ds
+#define get_fs()        (active_ds)
+#define get_ds()	(KERNEL_DS)
 #define set_fs(x)       (active_ds=(x))
 
-static inline unsigned long get_ds(void)
-{
-	return KERNEL_DS;
-}
+#define segment_eq(a,b)	((a).seg == (b).seg)
+
 
 /*
  * Is a address valid? This does a straighforward calculation rather
@@ -53,8 +52,8 @@ static inline unsigned long get_ds(void)
  *  - OR we are in kernel mode.
  */
 #define __access_ok(addr,size,mask) \
-	(((__signed__ long)((mask)&(addr | size | (addr+size)))) >= 0)
-#define __access_mask (-(long)get_fs())
+        (((__signed__ long)((mask)&(addr | size | (addr+size)))) >= 0)
+#define __access_mask (-(long)(get_fs().seg))
 
 #define access_ok(type,addr,size) \
 __access_ok(((unsigned long)(addr)),(size),__access_mask)

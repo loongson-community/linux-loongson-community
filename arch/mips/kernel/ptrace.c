@@ -435,7 +435,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 		case PTRACE_SYSCALL: /* continue and stop at next (return from) syscall */
 		case PTRACE_CONT: { /* restart after signal. */
-			if ((unsigned long) data > NSIG) {
+			if ((unsigned long) data > _NSIG) {
 				res = -EIO;
 				goto out;
 			}
@@ -464,7 +464,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		}
 
 		case PTRACE_DETACH: { /* detach a process that was attached. */
-			if ((unsigned long) data > NSIG) {
+			if ((unsigned long) data > _NSIG) {
 				res = -EIO;
 				goto out;
 			}
@@ -502,9 +502,7 @@ asmlinkage void syscall_trace(void)
 	 * stopping signal is not SIGTRAP.  -brl
 	 */
 	if (current->exit_code) {
-		spin_lock_irq(&current->sigmask_lock);
-		current->signal |= (1 << (current->exit_code - 1));
-		spin_unlock_irq(&current->sigmask_lock);
+		send_sig(current->exit_code, current, 1);
+		current->exit_code = 0;
 	}
-	current->exit_code = 0;
 }

@@ -180,7 +180,7 @@ asmlinkage int sys_ipc (uint call, int first, int second, int third, void *ptr, 
 			}
 			case 1:	/* iBCS2 emulator entry point */
 				ret = -EINVAL;
-				if (get_fs() != get_ds())
+				if (!segment_eq(get_fs(), get_ds()))
 					goto out;
 				ret = sys_shmat (first, (char *) ptr, second, (ulong *) third);
 				goto out;
@@ -225,15 +225,16 @@ asmlinkage int sys_olduname(struct oldold_utsname * name)
 		return -EFAULT;
   
 	error = __copy_to_user(&name->sysname,&system_utsname.sysname,__OLD_UTS_LEN);
-	error -= __put_user(0,name->sysname+__OLD_UTS_LEN);
-	error -= __copy_to_user(&name->nodename,&system_utsname.nodename,__OLD_UTS_LEN);
-	error -= __put_user(0,name->nodename+__OLD_UTS_LEN);
-	error -= __copy_to_user(&name->release,&system_utsname.release,__OLD_UTS_LEN);
-	error -= __put_user(0,name->release+__OLD_UTS_LEN);
-	error -= __copy_to_user(&name->version,&system_utsname.version,__OLD_UTS_LEN);
-	error -= __put_user(0,name->version+__OLD_UTS_LEN);
-	error -= __copy_to_user(&name->machine,&system_utsname.machine,__OLD_UTS_LEN);
-	error = __put_user(0,name->machine+__OLD_UTS_LEN);
+	error |= __put_user(0,name->sysname+__OLD_UTS_LEN);
+	error |= __copy_to_user(&name->nodename,&system_utsname.nodename,__OLD_UTS_LEN);
+	error |= __put_user(0,name->nodename+__OLD_UTS_LEN);
+	error |= __copy_to_user(&name->release,&system_utsname.release,__OLD_UTS_LEN);
+	error |= __put_user(0,name->release+__OLD_UTS_LEN);
+	error |= __copy_to_user(&name->version,&system_utsname.version,__OLD_UTS_LEN);
+	error |= __put_user(0,name->version+__OLD_UTS_LEN);
+	error |= __copy_to_user(&name->machine,&system_utsname.machine,__OLD_UTS_LEN);
+	error |= __put_user(0,name->machine+__OLD_UTS_LEN);
+
 	error = error ? -EFAULT : 0;
 
 	return error;

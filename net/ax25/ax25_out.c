@@ -27,6 +27,9 @@
  *			Joerg(DL1BKE)	Fixed a problem with buffer allocation
  *					for fragments.
  *	AX.25 037	Jonathan(G4KLX)	New timer architecture.
+ *			Joerg(DL1BKE)	Fixed DAMA Slave mode: will work
+ *					on non-DAMA interfaces like AX25L2V2
+ *					again (this behaviour is _required_).
  */
 
 #include <linux/config.h>
@@ -58,8 +61,16 @@ ax25_cb *ax25_send_frame(struct sk_buff *skb, int paclen, ax25_address *src, ax2
 	ax25_dev *ax25_dev;
 	ax25_cb *ax25;
 
-	if (skb == NULL)
-		return 0;
+	/*
+	 * Take the default packet length for the device if zero is
+	 * specified.
+	 */
+	if (paclen == 0) {
+		if ((ax25_dev = ax25_dev_ax25dev(dev)) == NULL)
+			return NULL;
+
+		paclen = ax25_dev->values[AX25_VALUES_PACLEN];
+	}
 
 	/*
 	 * Look for an existing connection.
@@ -188,9 +199,22 @@ void ax25_output(ax25_cb *ax25, int paclen, struct sk_buff *skb)
 		skb_queue_tail(&ax25->write_queue, skb);	  /* Throw it on the queue */
 	}
 
-	if (ax25->ax25_dev->values[AX25_VALUES_PROTOCOL] == AX25_PROTO_STD_SIMPLEX ||
-	    ax25->ax25_dev->values[AX25_VALUES_PROTOCOL] == AX25_PROTO_STD_DUPLEX)
-		ax25_kick(ax25);
+	switch (ax25->ax25_dev->values[AX25_VALUES_PROTOCOL]) {
+		case AX25_PROTO_STD_SIMPLEX:
+		case AX25_PROTO_STD_DUPLEX:
+			ax25_kick(ax25);
+			break;
+
+#ifdef CONFIG_AX25_DAMA_SLAVE
+		/* 
+		 * A DAMA slave is _required_ to work as normal AX.25L2V2
+		 * if no DAMA master is available.
+		 */
+		case AX25_PROTO_DAMA_SLAVE:
+			if (!ax25->ax25_dev->dama.slave) ax25_kick(ax25);
+			break;
+#endif
+	}
 }
 
 /* 
@@ -339,7 +363,6 @@ void ax25_transmit_buffer(ax25_cb *ax25, struct sk_buff *skb, int type)
 	ax25_addr_build(ptr, &ax25->source_addr, &ax25->dest_addr, ax25->digipeat, type, ax25->modulus);
 
 	skb->dev      = ax25->ax25_dev->dev;
-	skb->priority = SOPRI_NORMAL;
 
 	ax25_queue_xmit(skb);
 }
