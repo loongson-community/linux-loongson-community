@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc3
-# Mon Feb  7 01:00:17 2005
+# Linux kernel version: 2.6.11-rc4
+# Sun Feb 13 19:46:20 2005
 #
 CONFIG_MIPS=y
 
@@ -591,7 +591,6 @@ CONFIG_NFS_FS=y
 # CONFIG_NFSD is not set
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
-# CONFIG_EXPORTFS is not set
 CONFIG_SUNRPC=y
 # CONFIG_SMB_FS is not set
 # CONFIG_CIFS is not set

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc3
-# Mon Feb  7 01:00:06 2005
+# Linux kernel version: 2.6.11-rc4
+# Sun Feb 13 19:46:08 2005
 #
 CONFIG_MIPS=y
 
@@ -151,6 +151,8 @@ CONFIG_PAGE_SIZE_4KB=y
 # CONFIG_PAGE_SIZE_8KB is not set
 # CONFIG_PAGE_SIZE_16KB is not set
 # CONFIG_PAGE_SIZE_64KB is not set
+CONFIG_BOARD_SCACHE=y
+CONFIG_RM7000_CPU_SCACHE=y
 CONFIG_CPU_HAS_PREFETCH=y
 # CONFIG_64BIT_PHYS_ADDR is not set
 # CONFIG_CPU_ADVANCED is not set
@@ -1016,7 +1018,7 @@ CONFIG_NFSD_V3=y
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
-CONFIG_EXPORTFS=m
+CONFIG_EXPORTFS=y
 CONFIG_SUNRPC=y
 # CONFIG_RPCSEC_GSS_KRB5 is not set
 # CONFIG_RPCSEC_GSS_SPKM3 is not set
