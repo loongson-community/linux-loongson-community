@@ -51,11 +51,6 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 
-#ifdef CONFIG_NET_FASTROUTE
-#include <linux/if_arp.h>
-#include <net/ip.h>
-#endif
-
 #include "mv64340_eth.h"
 
 /*************************************************************************
@@ -302,37 +297,6 @@ static void mv64340_eth_set_rx_mode(struct net_device *dev)
 
 
 /**********************************************************************
- * mv64340_eth_accept_fastpath
- *								       
- * Used to authenticate to the kernel that a fast path entry can be
- * added to device's routing table cache
- *
- * Input : pointer to ethernet interface network device structure and
- *         a pointer to the designated entry to be added to the cache.
- * Output : zero upon success, negative upon failure
- **********************************************************************/
-#ifdef CONFIG_NET_FASTROUTE
-static int mv64340_eth_accept_fastpath(struct net_device *dev,
-				       struct dst_entry *dst)
-{
-	struct net_device *odev = dst->dev;
-
-	if (dst->ops->protocol != __constant_htons(ETH_P_IP)) {
-		return -1;
-	}
-
-	if (odev->type != ARPHRD_ETHER || odev->accept_fastpath == NULL) {
-		return -1;
-	}
-
-	printk(KERN_INFO
-	       "Accepted fastpath (destination interface %s)\n", odev->name);
-	return 0;
-}
-#endif
-
-
-/**********************************************************************
  * mv64340_eth_set_mac_address
  *								       
  * Change the interface's mac address.
@@ -449,15 +413,6 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 	unsigned int received_packets = 0;
 	struct net_device_stats *stats;
 
-#ifdef CONFIG_NET_FASTROUTE
-	register int fast_routed = 0;
-	struct ethhdr *eth;
-	struct iphdr *iph;
-	unsigned h, CPU_ID = smp_processor_id();
-	struct rtable *rt;
-	struct net_device *odev;
-#endif
-
 	ethernet_private = dev->priv;
 	port_private =
 	    (struct mv64340_eth_priv *) ethernet_private->port_private;
@@ -473,9 +428,6 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 		/* Update statistics. Note byte count includes 4 byte CRC count */
 		stats->rx_packets++;
 		stats->rx_bytes += pkt_info.byte_cnt;
-#ifdef CONFIG_NET_FASTROUTE
-		fast_routed = 0;
-#endif
 		skb = (struct sk_buff *) pkt_info.return_info;
 		/*
 		 * In case received a packet without first / last bits on OR the error
@@ -502,111 +454,24 @@ static int mv64340_eth_receive_queue(struct net_device *dev, unsigned int max)
 			}
 			dev_kfree_skb_irq(skb);
 		} else {
-			/* The -4 is for the CRC in the trailer of the received packet */
+			struct ethhdr *eth_h;
+			struct iphdr *ip_h;
+
+			/*
+			 * The -4 is for the CRC in the trailer of the
+			 * received packet
+			 */
 			skb_put(skb, pkt_info.byte_cnt - 4);
 			skb->dev = dev;
-#ifdef CONFIG_NET_FASTROUTE
-			eth = (struct ethhdr *) skb->data;
-			if (eth->h_proto == __constant_htons(ETH_P_IP)) {
-				iph =
-				    (struct iphdr *) (skb->data +
-						      ETH_HLEN);
-				h =
-				    (*(u8 *) & iph->daddr ^ *(u8 *) & iph->
-				     saddr) & NETDEV_FASTROUTE_HMASK;
-				rt = (struct rtable *) (dev->fastpath[h]);
-				if (rt != NULL &&
-				    ((u16 *) & iph->daddr)[0] ==
-				    ((u16 *) & rt->key.dst)[0]
-				    && ((u16 *) & iph->daddr)[1] ==
-				    ((u16 *) & rt->key.dst)[1]
-				    && ((u16 *) & iph->saddr)[0] ==
-				    ((u16 *) & rt->key.src)[0]
-				    && ((u16 *) & iph->saddr)[1] ==
-				    ((u16 *) & rt->key.src)[1]
-				    && !rt->u.dst.obsolete) {
-					odev = rt->u.dst.dev;
-					netdev_rx_stat
-					    [CPU_ID].fastroute_hit++;
-					if (*(u8 *) iph == 0x45
-					    && (!(eth->h_dest[0] & 0x80))
-					    && neigh_is_valid(rt->u.dst.
-							      neighbour)
-					    && iph->ttl > 1) {
-						/* Fast Route Path */
-						fast_routed = 1;
-						if (
-						    (!netif_queue_stopped
-						     (odev))
-						    &&
-						    (!spin_is_locked
-						     (odev->xmit_lock))
-						    && (skb->len <=
-							(odev->mtu +
-							 ETH_HLEN + 2 +
-							 4))) {
-							skb->pkt_type =
-							    PACKET_FASTROUTE;
-							skb->protocol =
-							    __constant_htons
-							    (ETH_P_IP);
-							ip_decrease_ttl
-							    (iph);
-							memcpy
-							    (eth->h_source,
-							     odev->
-							     dev_addr, 6);
-							memcpy(eth->h_dest,
-							       rt->u.dst.
-							       neighbour->
-							       ha, 6);
-							skb->dev = odev;
-							if
-							    (odev->
-							    hard_start_xmit
-						      (skb, odev) != 0) {
-								panic
-								    ("%s: FastRoute path corrupted",
-								     dev->
-								     name);
-							}
-							netdev_rx_stat
-							    [CPU_ID].
-							    fastroute_success++;
-						}
-						/* Semi Fast Route Path */
-						else {
-							skb->pkt_type =
-							    PACKET_FASTROUTE;
-							skb->nh.raw =
-							    skb->data +
-							    ETH_HLEN;
-							skb->protocol =
-							    __constant_htons
-							    (ETH_P_IP);
-							netdev_rx_stat
-							    [CPU_ID].
-							    fastroute_defer++;
-							netif_rx(skb);
-						}
-					}
-				}
-			}
-			if (fast_routed == 0)
-#endif
-			{
-				struct ethhdr *eth_h;
-				struct iphdr *ip_h;
-				eth_h = (struct ethhdr *) skb->data;
-				ip_h =
-				    (struct iphdr *) (skb->data +
-						      ETH_HLEN);
-				skb->ip_summed = CHECKSUM_NONE;
-				skb->protocol = eth_type_trans(skb, dev);
-				netif_rx(skb);
-			}
+
+			eth_h = (struct ethhdr *) skb->data;
+			ip_h = (struct iphdr *) (skb->data + ETH_HLEN);
+			skb->ip_summed = CHECKSUM_NONE;
+			skb->protocol = eth_type_trans(skb, dev);
+			netif_rx(skb);
 		}
 	}
+
 	return received_packets;
 }
 
@@ -1201,9 +1066,6 @@ static int mv64340_eth_init(int port_num)
 	dev->flags &= ~(IFF_RUNNING);
 	dev->base_addr = 0;
 	dev->change_mtu = &mv64340_eth_change_mtu;
-#ifdef CONFIG_NET_FASTROUTE
-	dev->accept_fastpath = mv64340_eth_accept_fastpath;
-#endif
 	ethernet_private = dev->priv;
 
 	/* Allocate memory for stats data structure and spinlock etc... */
