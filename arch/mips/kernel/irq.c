@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.13 1999/01/03 17:50:50 ralf Exp $
+/* $Id: irq.c,v 1.14 1999/02/15 02:16:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -60,7 +60,6 @@ static inline void mask_irq(unsigned int irq)
 	} else {
 		outb(cached_21, 0x21);
 	}
-*(volatile char *)PCIMT_CSITPEND;
 }
 
 static inline void unmask_irq(unsigned int irq)
@@ -71,7 +70,6 @@ static inline void unmask_irq(unsigned int irq)
 	} else {
 		outb(cached_21, 0x21);
 	}
-*(volatile char *)PCIMT_CSITPEND;
 }
 
 void disable_irq(unsigned int irq_nr)
@@ -134,19 +132,13 @@ static inline void i8259_mask_and_ack_irq(int irq)
 	if (irq & 8) {
 		inb(0xa1);
 		outb(cached_A1, 0xa1);
-inb(0x80);
 		outb(0x62, 0x20);		/* Specific EOI to cascade */
-inb(0x80);
                 outb(0x20, 0xa0);
-inb(0x80);
         } else {
 		inb(0x21);
 		outb(cached_21, 0x21);
-inb(0x80);
 		outb(0x20, 0x20);
-inb(0x80);
         }
-*(volatile char *)PCIMT_CSITPEND;
 }
 
 asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs)
