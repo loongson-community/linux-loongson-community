@@ -319,7 +319,7 @@
 	  .iomem_reg_shift = 3, .io_type = SERIAL_IO_MEM},		\
         { .baud_base = BASE_BAUD, .irq = VRC5477_IRQ_UART1, 		\
 	  .flags = STD_COM_FLAGS, .iomem_base = (u8*)0xbfa04240, 	\
-	  .iomem_reg_shif = 3, .io_type = SERIAL_IO_MEM},
+	  .iomem_reg_shift = 3, .io_type = SERIAL_IO_MEM},
 #else
 #define DDB5477_SERIAL_PORT_DEFNS
 #endif
