@@ -130,11 +130,21 @@ static int tx4927_pcibios_read_config(struct pci_bus *bus, unsigned int devfn, i
 	switch (size) {
 	case 1:
 		*val = *(volatile u8 *) ((ulong) & tx4927_pcicptr->
-                              g2pcfgdata | (where & 3));
+                              g2pcfgdata | 
+#ifdef __LITTLE_ENDIAN
+						(where & 3));
+#else
+						((where & 0x3) ^ 0x3));
+#endif
 		break;
 	case 2:
 		*val = *(volatile u16 *) ((ulong) & tx4927_pcicptr->
-                               g2pcfgdata | (where & 3));
+                               g2pcfgdata | 
+#ifdef __LITTLE_ENDIAN
+						(where & 3));
+#else
+						((where & 0x3) ^ 0x2));
+#endif
 		break;
 	case 4:
 		*val = tx4927_pcicptr->g2pcfgdata;
@@ -179,12 +189,22 @@ static int tx4927_pcibios_write_config(struct pci_bus *bus, unsigned int devfn, 
 	switch (size) {
 	case 1:
 		 *(volatile u8 *) ((ulong) & tx4927_pcicptr->
-                          g2pcfgdata | (where & 3)) = val;
+                          g2pcfgdata | 
+#ifdef __LITTLE_ENDIAN
+					(where & 3)) = val;
+#else
+					((where & 0x3) ^ 0x3)) = val;
+#endif
 		break;
 
 	case 2:
 		*(volatile u16 *) ((ulong) & tx4927_pcicptr->
-                           g2pcfgdata | (where & 3)) = val;
+                           g2pcfgdata | 
+#ifdef __LITTLE_ENDIAN
+					(where & 3)) = val;
+#else
+					((where & 0x3) ^ 0x2)) = val;
+#endif
 		break;
 	case 4:
 		tx4927_pcicptr->g2pcfgdata = val;
