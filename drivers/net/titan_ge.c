@@ -2045,8 +2045,6 @@ static int titan_ge_init(int port)
 
 	titan_ge_eth->port_num = port;
 
-	memset(&titan_ge_eth->stats, 0, sizeof(struct net_device_stats));
-
 	/* Configure the Tx timeout handler */
 	INIT_WORK(&titan_ge_eth->tx_timeout_task,
 		  (void (*)(void *)) titan_ge_tx_timeout_task, netdev);
