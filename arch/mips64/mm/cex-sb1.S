@@ -76,8 +76,6 @@ leave_cerr:
 	sll	k0, k0, 3			# check CU0 (kernel?)
 	bltz	k0, 2f
 	get_saved_sp
-	move	sp, k1				# want Kseg SP (so uncached)
-2:
-	j	sb1_cache_error
+2:	j	sb1_cache_error
 
 	END(handle_vec2_sb1)
