@@ -538,10 +538,6 @@ ifeq ($(CONFIG_JAZZ_ESP),y)
 L_OBJS += NCR53C9x.o jazz_esp.o
 endif
 
-ifeq ($(CONFIG_JAZZ_ESP),y)
-L_OBJS += esp.o jazz_esp.o
-endif
-
 include $(TOPDIR)/Rules.make
 
 53c8xx_d.h: 53c7,8xx.scr script_asm.pl
