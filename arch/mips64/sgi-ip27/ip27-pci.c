@@ -17,6 +17,28 @@
 #include <asm/sn/sn0/hub.h>
 
 /*
+ * Max #PCI busses we can handle; ie, max #PCI bridges.
+ */
+#define MAX_PCI_BUSSES		20
+
+/*
+ * Max #PCI devices (like scsi controllers) we handle on a bus.
+ */
+#define MAX_DEVICES_PER_PCIBUS	8
+
+/*
+ * No locking needed until PCI initialization is done parallely.
+ */
+int irqstore[MAX_PCI_BUSSES][MAX_DEVICES_PER_PCIBUS];
+int lastirq = BASE_PCI_IRQ;
+
+/*
+ * Translate from irq to software PCI bus number and PCI slot.
+ */
+int irq_to_bus[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
+int irq_to_slot[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
+
+/*
  * The Bridge ASIC supports both type 0 and type 1 access.  Type 1 is
  * not really documented, so right now I can't write code which uses it.
  * Therefore we use type 0 accesses for now even though they won't work
@@ -123,13 +145,17 @@ static struct pci_ops bridge_pci_ops = {
 void __init pcibios_init(void)
 {
 	struct pci_ops *ops = &bridge_pci_ops;
-	nasid_t nid = get_nasid();
 	int	i;
 
 	ioport_resource.end = ~0UL;
+	/*
+	 * Hacks for ioc3 eth. Make sure we associate IOC3_ETH_INT
+	 * with nasid 0, widget 8, slot 2.
+	 */
+	irq_to_slot[IOC3_ETH_INT] = 2;
 
 	for (i=0; i<num_bridges; i++) {
-		printk("PCI: Probing PCI hardware on host bus %2d, node %d.\n", i, nid);
+		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
 		pci_scan_bus(i, ops, NULL);
 	}
 }
@@ -158,29 +184,34 @@ pci_swizzle(struct pci_dev *dev, u8 *pinp)
  * All observed requests have pin == 1. We could have a global here, that
  * gets incremented and returned every time - unfortunately, pci_map_irq
  * may be called on the same device over and over, and need to return the
- * same value. On o2000, pin can be 0 or 1, and PCI slots can be [0..3]. 
- * The format of the returned irq is:
- *		NASID	WID	BUS PIN SLOT
- *		  8 	 8	 4   1	 3
- * Just to make sure the interpcu intrs do not collide with any irq's
- * assigned this way, we keep the intercpu intrs at a low value, and 
- * add in the offset. IOC3_ETH_INT does not collide with other pci irqs
- * as it has a pin = 0 in the interpreted irq value.
+ * same value. On o2000, pin can be 0 or 1, and PCI slots can be [0..7]. 
+ *
+ * A given PCI device, in general, should be able to intr any of the cpus
+ * on any one of the hubs connected to its xbow.
  */
 static int __init
 pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	int rv;
 
-	if ((dev->bus->number > 16) || (slot > 7) || (pin > 1)) {
-		printk("PCI_MAP_IRQ: Time to change IRQ format %d, %d, %d\n", dev->bus->number, slot, pin);
-		while(0);
+	if ((dev->bus->number >= MAX_PCI_BUSSES) || (pin != 1) || \
+					(slot >= MAX_DEVICES_PER_PCIBUS)) {
+		printk("Increase supported PCI busses %d,%d,%d\n", \
+						dev->bus->number, slot, pin);
+		while(1);
 	}
-	rv = (dev->bus->number << 4) + (slot + (((pin-1) & 1) << 3));
-	rv |= (bus_to_wid[dev->bus->number] << 8);
-	rv |= (bus_to_nid[dev->bus->number] << 16);
-	rv += BASE_PCI_IRQ;
-	return rv;
+
+	/*
+	 * Already assigned? Then return previously assigned value ...
+	 */
+	if (irqstore[dev->bus->number][slot])
+		return(irqstore[dev->bus->number][slot]);
+	else {
+		lastirq++;	/* IOC3_ETH_INT hack */
+		irq_to_bus[lastirq] = dev->bus->number;
+		irq_to_slot[lastirq] = slot;
+		return(irqstore[dev->bus->number][slot] = lastirq);
+	}
 }
 
 void __init
