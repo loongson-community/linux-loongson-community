@@ -341,9 +341,9 @@ void per_cpu_init(void)
 		sti();
 		load_mmu();
 		atomic_inc(&numstarted);
-	}
-	if (is_slave == 0)
+	} else {
 		is_slave = 1;
+	}
 }
 
 cnodeid_t get_compact_nodeid(void)
@@ -459,14 +459,18 @@ void allowboot(void)
 			__cpu_number_map[cpu] = num_cpus;
 			__cpu_logical_map[num_cpus] = cpu;
 			num_cpus++;
+			/*
+			 * Wait this cpu to start up and initialize its hub,
+			 * and discover the io devices it will control.
+			 * 
+			 * XXX: We really want to fire up launch all the CPUs
+			 * at once.  We have to preserve the order of the
+			 * devices on the bridges first though.
+			 */
+			while(atomic_read(&numstarted) != num_cpus);
 		}
 	}
 
-	/*
-	 * Wait for all cpus to start up and initialize their hubs,
-	 * and discover the io devices they will control.
-	 */
-	while(atomic_read(&numstarted) != num_cpus);
 
 #ifdef LATER
 	Wait logic goes here.
