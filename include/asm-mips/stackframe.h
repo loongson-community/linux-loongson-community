@@ -104,6 +104,7 @@
 
 		.macro	SAVE_SOME
 		.set	push
+		.set	noat
 		.set	reorder
 		mfc0	k0, CP0_STATUS
 		sll	k0, 3		/* extract cu0 bit */
@@ -278,16 +279,16 @@
 
 		.macro	RESTORE_ALL
 		RESTORE_TEMP
-		RESTORE_AT
 		RESTORE_STATIC
+		RESTORE_AT
 		RESTORE_SOME
 		RESTORE_SP
 		.endm
 
 		.macro	RESTORE_ALL_AND_RET
 		RESTORE_TEMP
-		RESTORE_AT
 		RESTORE_STATIC
+		RESTORE_AT
 		RESTORE_SOME
 		RESTORE_SP_AND_RET
 		.endm
