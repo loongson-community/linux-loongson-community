@@ -1,4 +1,5 @@
 /*
+ *
  * BRIEF MODULE DESCRIPTION
  *	Alchemy Pb1000 board setup.
  *
@@ -53,7 +54,7 @@
 #define CONFIG_AU1000_OHCI_FIX
 #endif
 
-#if defined(CONFIG_AU1000_SERIAL_CONSOLE)
+#if defined(CONFIG_AU1X00_SERIAL_CONSOLE)
 extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
@@ -76,7 +77,7 @@ extern void au1000_power_off(void);
 extern struct resource ioport_resource;
 extern struct resource iomem_resource;
 
-void __init au1000_setup(void)
+void __init au1x00_setup(void)
 {
 	char *argptr;
 	u32 pin_func, static_cfg0;
@@ -88,7 +89,7 @@ void __init au1000_setup(void)
 	/* Various early Au1000 Errata corrected by this */
 	set_c0_config(1<<19); /* Config[OD] */
 
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");

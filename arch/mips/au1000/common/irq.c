@@ -54,8 +54,14 @@
 #include <asm/pb1500.h>
 #elif defined(CONFIG_MIPS_PB1100)
 #include <asm/pb1100.h>
+#elif defined(CONFIG_MIPS_DB1000)
+#include <asm/db1x00.h>
+#elif defined(CONFIG_MIPS_DB1100)
+#include <asm/db1x00.h>
+#elif defined(CONFIG_MIPS_DB1500)
+#include <asm/db1x00.h>
 #else
-#error unsupported alchemy board
+#error unsupported Alchemy board
 #endif
 
 #undef DEBUG_IRQ
@@ -281,10 +287,6 @@ static void end_irq(unsigned int irq_nr)
 	if (!(irq_desc[irq_nr].status & (IRQ_DISABLED|IRQ_INPROGRESS))) {
 		local_enable_irq(irq_nr);
 	}
-	else {
-		printk("warning: end_irq %d did not enable (%x)\n",
-				irq_nr, irq_desc[irq_nr].status);
-	}
 #if defined(CONFIG_MIPS_PB1000)
 	if (irq_nr == AU1000_GPIO_15) {
 		au_writel(0x4000, PB1000_MDR); /* enable int */
@@ -424,14 +426,10 @@ void __init init_IRQ(void)
 			case AU1000_IRDA_RX_INT:
 
 			case AU1000_MAC0_DMA_INT:
-#ifdef CONFIG_MIPS_PB1000
-			case AU1000_MAC1_DMA_INT:
-#endif
-#ifdef CONFIG_MIPS_PB1500
+#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_PB1500) || defined(CONFIG_MIPS_DB1500)
 			case AU1000_MAC1_DMA_INT:
 #endif
 			case AU1500_GPIO_204:
-
 				setup_local_irq(i, INTC_INT_HIGH_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;
 				break;
@@ -440,7 +438,7 @@ void __init init_IRQ(void)
 			case AU1000_GPIO_15:
 #endif
 		        case AU1000_USB_HOST_INT:
-#ifdef CONFIG_MIPS_PB1500
+#if defined(CONFIG_MIPS_PB1500) || defined(CONFIG_MIPS_DB1500)
 			case AU1000_PCI_INTA:
 			case AU1000_PCI_INTB:
 			case AU1000_PCI_INTC:
@@ -459,6 +457,15 @@ void __init init_IRQ(void)
 			case AU1000_GPIO_13: // DC_IRQ#
 			case AU1000_GPIO_23: // 2-wire SCL
 #endif
+#if defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100) || defined(CONFIG_MIPS_DB1500)
+			case AU1000_GPIO_0: // PCMCIA Card 0 Fully_Interted#
+			case AU1000_GPIO_1: // PCMCIA Card 0 STSCHG#
+			case AU1000_GPIO_2: // PCMCIA Card 0 IRQ#
+
+			case AU1000_GPIO_3: // PCMCIA Card 1 Fully_Interted#
+			case AU1000_GPIO_4: // PCMCIA Card 1 STSCHG#
+			case AU1000_GPIO_5: // PCMCIA Card 1 IRQ#
+#endif
 				setup_local_irq(i, INTC_INT_LOW_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;
                                 break;
@@ -473,9 +480,9 @@ void __init init_IRQ(void)
 			case AU1000_RTC_MATCH0_INT:
 			case AU1000_RTC_MATCH1_INT:
 			case AU1000_RTC_MATCH2_INT:
-			        setup_local_irq(i, INTC_INT_RISE_EDGE, 0);
-                                irq_desc[i].handler = &rise_edge_irq_type;
-                                break;
+				setup_local_irq(i, INTC_INT_RISE_EDGE, 0);
+				irq_desc[i].handler = &rise_edge_irq_type;
+				break;
 
 				 // Careful if you change match 2 request!
 				 // The interrupt handler is called directly

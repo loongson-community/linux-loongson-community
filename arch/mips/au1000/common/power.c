@@ -49,6 +49,7 @@
 #endif
 
 extern void au1k_wait(void);
+static void calibrate_delay(void);
 
 extern void set_au1000_speed(unsigned int new_freq);
 extern unsigned int get_au1000_speed(void);
@@ -321,6 +322,11 @@ static void calibrate_delay(void)
 		if (jiffies != ticks)	/* longer than 1 tick */
 			loops_per_jiffy &= ~loopbit;
 	}
+}
+
+void au1k_wait(void)
+{
+	__asm__("nop\n\t" "nop\n\t");
 }
 
 #endif				/* CONFIG_PM */

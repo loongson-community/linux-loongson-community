@@ -490,9 +490,7 @@ void __init setup_arch(char **cmdline_p)
  	void it8172_setup(void);
 	void swarm_setup(void);
 	void hp_setup(void);
-	void au1000_setup(void);
-	void au1100_setup(void);
-	void au1500_setup(void);
+	void au1x00_setup(void);
 
 #ifdef CONFIG_BLK_DEV_FD
 	fd_ops = &no_fd_ops;
@@ -639,19 +637,9 @@ void __init setup_arch(char **cmdline_p)
                 lasat_setup();
                 break;
 #endif
-#ifdef CONFIG_MIPS_PB1000
+#ifdef CONFIG_SOC_AU1X00
 	case MACH_GROUP_ALCHEMY:
-		au1000_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_PB1100
-	case MACH_GROUP_ALCHEMY:
-		au1100_setup();
-		break;
-#endif
-#ifdef CONFIG_MIPS_PB1500
-	case MACH_GROUP_ALCHEMY:
-		au1500_setup();
+		au1x00_setup();
 		break;
 #endif
 #ifdef CONFIG_TOSHIBA_JMR3927

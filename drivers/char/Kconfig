@@ -357,35 +357,35 @@ config ISTALLION
 	  read <file:Documentation/modules.txt>. The module will be called
 	  istallion.o.
 
-config AU1000_GPIO
+config AU1X00_GPIO
 	tristate "Alchemy Au1000 GPIO device support"
-	depends on MIPS && MIPS_AU1000
+	depends on MIPS && SOC_AU1X00
 
-config TS_AU1000_ADS7846
+config TS_AU1X00_ADS7846
 	tristate "Au1000/ADS7846 touchscreen support"
-	depends on MIPS && MIPS_AU1000
+	depends on MIPS && SOC_AU1X00
 
-config AU1000_UART
+config AU1X00_UART
 	bool "Enable Au1000 UART Support"
-	depends on MIPS && MIPS_AU1000
+	depends on MIPS && SOC_AU1X00
 	help
-	  If you have an Alchemy AU1000 processor (MIPS based) and you want
+	  If you have an Alchemy AU1X00 processor (MIPS based) and you want
 	  to use serial ports, say Y.  Otherwise, say N.
 
-config AU1000_SERIAL_CONSOLE
+config AU1X00_SERIAL_CONSOLE
 	bool "Enable Au1000 serial console"
-	depends on AU1000_UART
+	depends on AU1X00_UART
 	help
-	  If you have an Alchemy AU1000 processor (MIPS based) and you want
+	  If you have an Alchemy AU1X00 processor (MIPS based) and you want
 	  to use a console on a serial port, say Y.  Otherwise, say N.
 
-config AU1000_USB_TTY
+config AU1X00_USB_TTY
 	tristate "Au1000 USB TTY Device support"
 	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_DEVICE
 
-config AU1000_USB_RAW
+config AU1X00_USB_RAW
 	tristate "Au1000 USB Raw Device support"
-	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_TTY!=y && AU1000_USB_DEVICE
+	depends on MIPS && MIPS_AU1000 && AU1000_USB_DEVICE=y && AU1000_USB_TTY!=y && AU1X00_USB_DEVICE
 
 config SERIAL_TX3912
 	bool "TX3912/PR31700 serial port support"

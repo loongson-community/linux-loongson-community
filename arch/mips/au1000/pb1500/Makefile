@@ -5,7 +5,11 @@
 #
 # Makefile for the Alchemy Semiconductor Pb1500 board.
 #
+# Note! Dependencies are done automagically by 'make dep', which also
+# removes any old dependencies. DON'T put your own dependencies here
+# unless it's something special (ie not a .c file).
+#
+
+L_TARGET	= lib.a
 
 obj-y := init.o setup.o
-
-obj-$(CONFIG_PCI) += pci_fixup.o pci_ops.o

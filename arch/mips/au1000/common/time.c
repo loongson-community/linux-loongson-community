@@ -6,6 +6,8 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 1999,2000 MIPS Technologies, Inc.  All rights reserved.
  *
+ * ########################################################################
+ *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -19,8 +21,12 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
+ * ########################################################################
+ *
  * Setting up the clock on the MIPS boards.
+ *
  */
+
 #include <linux/types.h>
 #include <linux/config.h>
 #include <linux/init.h>
@@ -46,7 +52,7 @@ unsigned long missed_heart_beats = 0;
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern rwlock_t xtime_lock;
-unsigned int mips_counter_frequency = 0;
+extern unsigned int mips_counter_frequency;
 
 /* Cycle counter value at the previous timer interrupt.. */
 static unsigned int timerhi = 0, timerlo = 0;
@@ -100,6 +106,8 @@ void mips_timer_interrupt(struct pt_regs *regs)
 
 	} while (((unsigned long)read_c0_count()
 	         - r4k_cur) < 0x7fffffff);
+
+	irq_exit();
 
 	if (softirq_pending(cpu))
 		do_softirq();
@@ -195,13 +203,12 @@ unsigned long cal_r4koff(void)
 	count = read_c0_count();
 	cpu_speed = count * 2;
 	mips_counter_frequency = count;
-	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
+	set_au1x00_uart_baud_base(((cpu_speed) / 4) / 16);
 	spin_unlock_irqrestore(&time_lock, flags);
 	return (cpu_speed / HZ);
 }
 
-
-void __init time_init(void)
+void __init au1x_time_init(void)
 {
         unsigned int est_freq;
 
@@ -215,15 +222,15 @@ void __init time_init(void)
 	est_freq -= est_freq%10000;
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
-	set_au1000_speed(est_freq);
-	set_au1000_lcd_clock(); // program the LCD clock
+ 	set_au1x00_speed(est_freq);
+ 	set_au1x00_lcd_clock(); // program the LCD clock
 	r4k_cur = (read_c0_count() + r4k_offset);
 
 	write_c0_compare(r4k_cur);
 
 	/* no RTC on the pb1000 */
 	xtime.tv_sec = 0;
-	xtime.tv_nsec = 0;
+	//xtime.tv_usec = 0;
 
 #ifdef CONFIG_PM
 	/*
@@ -254,6 +261,11 @@ void __init time_init(void)
 
 	//set_c0_status(ALLINTS);
 	au_sync();
+}
+
+void __init au1x_timer_setup(struct irqaction *irq)
+{
+
 }
 
 /* This is for machines which generate the exact clock. */
@@ -340,59 +352,4 @@ static unsigned long do_fast_gettimeoffset(void)
 
 	return res;
 #endif
-}
-
-/*
- * This version of gettimeofday has microsecond resolution
- * and better than microsecond precision on fast machines with cycle counter.
- */
-void do_gettimeofday(struct timeval *tv)
-{
-	unsigned long flags;
-	unsigned long usec, sec;
-
-	read_lock_irqsave(&xtime_lock, flags);
-	usec = do_gettimeoffset();
-	{
-		unsigned long lost = jiffies - wall_jiffies;
-		if (lost)
-			usec += lost * (1000000 / HZ);
-	}
-	sec = xtime.tv_sec;
-	usec += (xtime.tv_nsec / 1000);
-	read_unlock_irqrestore(&xtime_lock, flags);
-
-	while (usec >= 1000000) {
-		usec -= 1000000;
-		sec++;
-	}
-
-	tv->tv_sec = sec;
-	tv->tv_usec = usec;
-}
-
-void do_settimeofday(struct timeval *tv)
-{
-	write_lock_irq(&xtime_lock);
-	/*
-	 * This is revolting. We need to set "xtime" correctly. However, the
-	 * value in this location is the value at the most recent update of
-	 * wall time.  Discover what correction gettimeofday() would have
-	 * made, and then undo it!
-	 */
-	tv->tv_usec -= do_gettimeoffset();
-	tv->tv_usec -= (jiffies - wall_jiffies) * (1000000 / HZ);
-
-	while (tv->tv_usec < 0) {
-		tv->tv_usec += 1000000;
-		tv->tv_sec--;
-	}
-
-	xtime.tv_sec = tv->tv_sec;
-	xtime.tv_nsec = (tv->tv_usec * 1000);
-	time_adjust = 0;		/* stop active adjtime() */
-	time_status |= STA_UNSYNC;
-	time_maxerror = NTP_PHASE_LIMIT;
-	time_esterror = NTP_PHASE_LIMIT;
-	write_unlock_irq(&xtime_lock);
 }

@@ -1,7 +1,7 @@
 /*
  *
  * BRIEF MODULE DESCRIPTION
- *	Au1000 serial port driver.
+ *	Au1x00 serial port driver.
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
@@ -56,14 +56,14 @@ static char *serial_revdate = "2001-02-08";
 #undef SERIAL_DEBUG_AUTOCONF
 
 #ifdef MODULE
-#undef CONFIG_AU1000_SERIAL_CONSOLE
+#undef CONFIG_AU1X00_SERIAL_CONSOLE
 #endif
 
 #define CONFIG_SERIAL_RSA
 
 #define RS_STROBE_TIME (10*HZ)
 #define RS_ISR_PASS_LIMIT 256
-
+  
 /*
  * End of serial driver configuration section.
  */
@@ -98,7 +98,7 @@ static char *serial_revdate = "2001-02-08";
 #include <linux/init.h>
 #include <asm/uaccess.h>
 #include <linux/delay.h>
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 #include <linux/console.h>
 #endif
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -131,7 +131,7 @@ static int serial_refcount;
 
 static struct timer_list serial_timer;
 
-extern unsigned long get_au1000_uart_baud_base(void);
+extern unsigned long get_au1x00_uart_baud_base(void);
 
 /* serial subtype definitions */
 #ifndef SERIAL_TYPE_NORMAL
@@ -149,11 +149,11 @@ extern unsigned long get_au1000_uart_baud_base(void);
 
 static struct async_struct *IRQ_ports[NR_IRQS];
 static int IRQ_timeout[NR_IRQS];
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 static struct console sercons;
 static int lsr_break_flag;
 #endif
-#if defined(CONFIG_AU1000_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#if defined(CONFIG_AU1X00_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 static unsigned long break_pressed; /* break, really ... */
 #endif
 
@@ -369,7 +369,7 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 				 * may get masked by ignore_status_mask
 				 * or read_status_mask.
 				 */
-#if defined(CONFIG_AU1000_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#if defined(CONFIG_AU1X00_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 				if (info->line == sercons.index) {
 					if (!break_pressed) {
 						break_pressed = jiffies;
@@ -399,7 +399,7 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 			}
 			*status &= info->read_status_mask;
 
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 			if (info->line == sercons.index) {
 				/* Recover the break flag from console xmit */
 				*status |= lsr_break_flag;
@@ -429,11 +429,11 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 					goto ignore_char;
 			}
 		}
-#if defined(CONFIG_AU1000_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
+#if defined(CONFIG_AU1X00_SERIAL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 		if (break_pressed && info->line == sercons.index) {
 			if (ch != 0 &&
 			    time_before(jiffies, break_pressed + HZ*5)) {
-				handle_sysrq(ch, regs, NULL);
+				handle_sysrq(ch, regs, NULL, NULL);
 				break_pressed = 0;
 				goto ignore_char;
 			}
@@ -1042,7 +1042,7 @@ static void change_speed(struct async_struct *info,
 	if (!baud) {
 		baud = 9600;	/* B0 transition handled in rs_set_termios */
 	}
-	baud_base = get_au1000_uart_baud_base();
+	baud_base = get_au1x00_uart_baud_base();
 
 	//if (baud == 38400 &&
 	if (((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_CUST)) {
@@ -2270,7 +2270,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	unsigned long		page;
 
 	MOD_INC_USE_COUNT;
-	line = minor(tty->device) - tty->driver.minor_start;
+	line = MINOR(tty->device) - tty->driver.minor_start;
 	if ((line < 0) || (line >= NR_PORTS)) {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
@@ -2348,7 +2348,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 			*tty->termios = info->state->callout_termios;
 		change_speed(info, 0);
 	}
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 	if (sercons.cflag && sercons.index == line) {
 		tty->termios->c_cflag = sercons.cflag;
 		sercons.cflag = 0;
@@ -2575,7 +2575,7 @@ static int __init rs_init(void)
 		IRQ_ports[i] = 0;
 		IRQ_timeout[i] = 0;
 	}
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 	/*
 	 *	The interrupt of the serial console port
 	 *	can't be shared.
@@ -2654,7 +2654,7 @@ static int __init rs_init(void)
 		panic("Couldn't register callout driver");
 
 	for (i = 0, state = rs_table; i < NR_PORTS; i++,state++) {
-		state->baud_base = get_au1000_uart_baud_base();
+		state->baud_base = get_au1x00_uart_baud_base();
 		state->magic = SSTATE_MAGIC;
 		state->line = i;
 		state->type = PORT_UNKNOWN;
@@ -2851,7 +2851,7 @@ static void __exit rs_fini(void)
 
 module_init(rs_init);
 module_exit(rs_fini);
-MODULE_DESCRIPTION("Au1000 serial driver");
+MODULE_DESCRIPTION("Au1x00 serial driver");
 
 
 /*
@@ -2859,7 +2859,7 @@ MODULE_DESCRIPTION("Au1000 serial driver");
  * Serial console driver
  * ------------------------------------------------------------
  */
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 
 #define BOTH_EMPTY (UART_LSR_TEMT | UART_LSR_THRE)
 
@@ -2928,9 +2928,38 @@ static void serial_console_write(struct console *co, const char *s,
 	serial_out(info, UART_IER, ier);
 }
 
+/*
+ *	Receive character from the serial port
+ */
+static int serial_console_wait_key(struct console *co)
+{
+	static struct async_struct *info;
+	int ier, c;
+
+	info = &async_sercons;
+
+	/*
+	 *	First save the IER then disable the interrupts so
+	 *	that the real driver for the port does not get the
+	 *	character.
+	 */
+	ier = serial_in(info, UART_IER);
+	serial_out(info, UART_IER, 0x00);
+ 
+	while ((serial_in(info, UART_LSR) & UART_LSR_DR) == 0);
+	c = serial_in(info, UART_RX);
+
+	/*
+	 *	Restore the interrupts
+	 */
+	serial_out(info, UART_IER, ier);
+
+	return c;
+}
+
 static kdev_t serial_console_device(struct console *c)
 {
-	return mk_kdev(TTY_MAJOR, 64 + c->index);
+	return MKDEV(TTY_MAJOR, 64 + c->index);
 }
 
 /*
@@ -3021,7 +3050,7 @@ static int __init serial_console_setup(struct console *co, char *options)
 	info->io_type = state->io_type;
 	info->iomem_base = state->iomem_base;
 	info->iomem_reg_shift = state->iomem_reg_shift;
-	state->baud_base = get_au1000_uart_baud_base();
+	state->baud_base = get_au1x00_uart_baud_base();
 	quot = state->baud_base / baud;
 
 	cval = cflag & (CSIZE | CSTOPB);
@@ -3060,7 +3089,7 @@ static struct console sercons = {
 /*
  *	Register console.
  */
-void __init au1000_serial_console_init(void)
+void __init au1x00_serial_console_init(void)
 {
 	register_console(&sercons);
 }

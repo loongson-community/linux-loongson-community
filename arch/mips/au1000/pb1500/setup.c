@@ -1,4 +1,5 @@
 /*
+ *
  * BRIEF MODULE DESCRIPTION
  *	Alchemy Pb1000 board setup.
  *
@@ -39,6 +40,7 @@
 #include <linux/root_dev.h>
 
 #include <asm/cpu.h>
+#include <asm/time.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
@@ -51,11 +53,6 @@
 // Enable the workaround for the OHCI DoneHead
 // register corruption problem.
 #define CONFIG_AU1000_OHCI_FIX
-#endif
-
-#if defined(CONFIG_AU1000_SERIAL_CONSOLE)
-extern void console_setup(char *, int *);
-char serial_console[20];
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -73,14 +70,20 @@ extern struct rtc_ops pb1500_rtc_ops;
 #endif
 
 extern char * __init prom_getcmdline(void);
+extern void __init au1x_time_init(void);
+extern void __init au1x_timer_setup(struct irqaction *irq);
 extern void au1000_restart(char *);
 extern void au1000_halt(void);
 extern void au1000_power_off(void);
 extern struct resource ioport_resource;
 extern struct resource iomem_resource;
+#ifdef CONFIG_64BIT_PHYS_ADDR
+extern phys_t (*fixup_bigphys_addr)(phys_t phys_addr, phys_t size);
+static phys_t pb1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
+#endif
 
 
-void __init au1500_setup(void)
+void __init au1x00_setup(void)
 {
 	char *argptr;
 	u32 pin_func, static_cfg0;
@@ -93,14 +96,17 @@ void __init au1500_setup(void)
 	/* Various early Au1500 Errata corrected by this */
 	set_c0_config(1<<19); /* Config[OD] */
 
-#ifdef CONFIG_AU1000_SERIAL_CONSOLE
+	board_time_init = au1x_time_init;
+	board_timer_setup = au1x_timer_setup;
+
+#ifdef CONFIG_AU1X00_SERIAL_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
 #endif
 
-#ifdef CONFIG_SOUND_AU1000
+#ifdef CONFIG_SOUND_AU1X00
 	strcat(argptr, " au1000_audio=vra");
 	argptr = prom_getcmdline();
 #endif
@@ -108,10 +114,13 @@ void __init au1500_setup(void)
 	_machine_restart = au1000_restart;
 	_machine_halt = au1000_halt;
 	_machine_power_off = au1000_power_off;
+#ifdef CONFIG_64BIT_PHYS_ADDR
+	fixup_bigphys_addr = pb1500_fixup_bigphys_addr;
+#endif
 
 	// IO/MEM resources.
 	set_io_port_base(0);
-	ioport_resource.start = 0x10000000;
+	ioport_resource.start = 0x00000000;
 	ioport_resource.end = 0xffffffff;
 	iomem_resource.start = 0x10000000;
 	iomem_resource.end = 0xffffffff;
@@ -138,6 +147,10 @@ void __init au1500_setup(void)
 		strcat(argptr, usb_args);
 	}
 #endif
+
+	/* GPIO201 is input for PCMCIA card detect */
+	/* GPIO203 is input for PCMCIA interrupt request */
+	au_writel(au_readl(GPIO2_DIR) & (u32)(~((1<<1)|(1<<3))), GPIO2_DIR);
 
 	/* zero and disable FREQ2 */
 	sys_freqctrl = au_readl(SYS_FREQCTRL0);
@@ -258,3 +271,23 @@ void __init au1500_setup(void)
 	}
 #endif
 }
+
+#ifdef CONFIG_64BIT_PHYS_ADDR
+static phys_t pb1500_fixup_bigphys_addr(phys_t phys_addr,
+					phys_t size)
+{
+	u32 pci_start = (u32)Au1500_PCI_MEM_START;
+	u32 pci_end = (u32)Au1500_PCI_MEM_END;
+
+	/* Don't fixup 36 bit addresses */
+	if ((phys_addr >> 32) != 0) return phys_addr;
+
+	/* check for pci memory window */
+	if ((phys_addr >= pci_start) && ((phys_addr + size) < pci_end)) {
+		return (phys_t)((phys_addr - pci_start) +
+				     Au1500_PCI_MEM_START);
+	}
+	else 
+		return phys_addr;
+}
+#endif

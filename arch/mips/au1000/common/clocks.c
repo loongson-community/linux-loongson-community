@@ -30,21 +30,21 @@
 #include <linux/module.h>
 #include <asm/au1000.h>
 
-static unsigned int au1000_clock; // Hz
+static unsigned int au1x00_clock; // Hz
 static unsigned int lcd_clock;    // KHz
 static unsigned long uart_baud_base;
 
 /*
  * Set the au1000_clock
  */
-void set_au1000_speed(unsigned int new_freq)
+void set_au1x00_speed(unsigned int new_freq)
 {
-	au1000_clock = new_freq;
+	au1x00_clock = new_freq;
 }
 
-unsigned int get_au1000_speed(void)
+unsigned int get_au1x00_speed(void)
 {
-	return au1000_clock;
+	return au1x00_clock;
 }
 
 
@@ -54,27 +54,27 @@ unsigned int get_au1000_speed(void)
  * we want to be able to use the same code on different
  * speed CPUs.
  */
-unsigned long get_au1000_uart_baud_base(void)
+unsigned long get_au1x00_uart_baud_base(void)
 {
 	return uart_baud_base;
 }
 
-void set_au1000_uart_baud_base(unsigned long new_baud_base)
+void set_au1x00_uart_baud_base(unsigned long new_baud_base)
 {
 	uart_baud_base = new_baud_base;
 }
 
 /*
- * Calculate the Au1000's LCD clock based on the current
+ * Calculate the Au1x00's LCD clock based on the current
  * cpu clock and the system bus clock, and try to keep it
  * below 40 MHz (the Pb1000 board can lock-up if the LCD
  * clock is over 40 MHz).
  */
-void set_au1000_lcd_clock(void)
+void set_au1x00_lcd_clock(void)
 {
 	unsigned int static_cfg0;
 	unsigned int sys_busclk =
-		(get_au1000_speed()/1000) /
+		(get_au1x00_speed()/1000) /
 		((int)(au_readl(SYS_POWERCTRL)&0x03) + 2);
 
 	static_cfg0 = au_readl(MEM_STCFG0);
@@ -85,13 +85,13 @@ void set_au1000_lcd_clock(void)
 		lcd_clock = sys_busclk / 4;
 
 	if (lcd_clock > 50000) /* Epson MAX */
-			printk("%s: warning: LCD clock too high (%d KHz)\n",
-			       __FUNCTION__,lcd_clock);
+			printk("%s: warning: LCD clock too high (%d KHz)\n", 
+					__FUNCTION__, lcd_clock);
 }
 
-unsigned int get_au1000_lcd_clock(void)
+unsigned int get_au1x00_lcd_clock(void)
 {
 	return lcd_clock;
 }
 
-EXPORT_SYMBOL(get_au1000_lcd_clock);
+EXPORT_SYMBOL(get_au1x00_lcd_clock);

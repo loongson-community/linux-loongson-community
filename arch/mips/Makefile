@@ -107,23 +107,12 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 core-$(CONFIG_MIPS_JAZZ)	+= arch/mips/jazz/
 load-$(CONFIG_MIPS_JAZZ)	+= 0x80080000
 
-#
-# Au1000 (Alchemy Semi PB1000) eval board
-#
-core-$(CONFIG_ALCHEMY_COMMON)	+= arch/mips/au1000/common/
-core-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/pb1000/
-load-$(CONFIG_MIPS_PB1000)	+= 0x80100000
-
-#
-# Au1100 (Alchemy Semi PB1100) eval board
-#
-core-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/pb1100/
-load-$(CONFIG_MIPS_PB1100)	+= 0x80100000
 
 #
 # Au1500 (Alchemy Semi PB1500) eval board
 #
-core-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
+core-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/common/
+libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
 
 #
