@@ -25,6 +25,15 @@
 
 #include <asm/dec/interrupts.h>
 
+extern void dec_init_kn01(void);
+extern void dec_init_kn230(void);
+extern void dec_init_kn02(void);
+extern void dec_init_kn02ba(void);
+extern void dec_init_kn02ca(void);
+extern void dec_init_kn03(void);
+
+extern asmlinkage void decstation_handle_int(void);
+
 unsigned long spurious_count = 0;
 
 static inline void mask_irq(unsigned int irq_nr)
@@ -255,5 +264,34 @@ int probe_irq_off(unsigned long irqs)
 
 void __init init_IRQ(void)
 {
-    irq_setup();
+    switch (mips_machtype) {
+    case MACH_DS23100:
+	dec_init_kn01();
+	break;
+    case MACH_DS5100:		/*  DS5100 MIPSMATE */
+	dec_init_kn230();
+	break;
+    case MACH_DS5000_200:	/* DS5000 3max */
+	dec_init_kn02();
+	break;
+    case MACH_DS5000_1XX:	/* DS5000/100 3min */
+	dec_init_kn02ba();
+	break;
+    case MACH_DS5000_2X0:	/* DS5000/240 3max+ */
+	dec_init_kn03();
+	break;
+    case MACH_DS5000_XX:	/* Personal DS5000/2x */
+	dec_init_kn02ca();
+	break;
+    case MACH_DS5800:		/* DS5800 Isis */
+	panic("Don't know how to set this up!");
+	break;
+    case MACH_DS5400:		/* DS5400 MIPSfair */
+	panic("Don't know how to set this up!");
+	break;
+    case MACH_DS5500:		/* DS5500 MIPSfair-2 */
+	panic("Don't know how to set this up!");
+	break;
+    }
+    set_except_vector(0, decstation_handle_int);
 }

@@ -28,14 +28,6 @@
 #include <asm/dec/ioasic_addrs.h>
 #include <asm/dec/ioasic_ints.h>
 
-extern asmlinkage void decstation_handle_int(void);
-
-void dec_init_kn01(void);
-void dec_init_kn230(void);
-void dec_init_kn02(void);
-void dec_init_kn02ba(void);
-void dec_init_kn02ca(void);
-void dec_init_kn03(void);
 
 char *dec_rtc_base = (void *) KN01_RTC_BASE;	/* Assume DS2100/3100 initially */
 
@@ -64,40 +56,6 @@ extern int setup_dec_irq(int, struct irqaction *);
 
 void (*board_time_init) (struct irqaction * irq);
 
-static void __init dec_irq_setup(void)
-{
-    switch (mips_machtype) {
-    case MACH_DS23100:
-	dec_init_kn01();
-	break;
-    case MACH_DS5100:		/*  DS5100 MIPSMATE */
-	dec_init_kn230();
-	break;
-    case MACH_DS5000_200:	/* DS5000 3max */
-	dec_init_kn02();
-	break;
-    case MACH_DS5000_1XX:	/* DS5000/100 3min */
-	dec_init_kn02ba();
-	break;
-    case MACH_DS5000_2X0:	/* DS5000/240 3max+ */
-	dec_init_kn03();
-	break;
-    case MACH_DS5000_XX:	/* Personal DS5000/2x */
-	dec_init_kn02ca();
-	break;
-    case MACH_DS5800:		/* DS5800 Isis */
-	panic("Don't know how to set this up!");
-	break;
-    case MACH_DS5400:		/* DS5400 MIPSfair */
-	panic("Don't know how to set this up!");
-	break;
-    case MACH_DS5500:		/* DS5500 MIPSfair-2 */
-	panic("Don't know how to set this up!");
-	break;
-    }
-    set_except_vector(0, decstation_handle_int);
-}
-
 /*
  * enable the periodic interrupts
  */
@@ -118,7 +76,6 @@ static void __init dec_time_init(struct irqaction *irq)
 
 void __init decstation_setup(void)
 {
-    irq_setup = dec_irq_setup;
     board_time_init = dec_time_init;
 
     wbflush_setup();
