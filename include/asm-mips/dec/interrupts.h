@@ -77,8 +77,6 @@ extern void	kn02_io_int(void);
 extern void	kn02xa_io_int(void);
 extern void	kn03_io_int(void);
 
-extern void	intr_halt(void);
-
 extern void	asic_intr_unimplemented(void);
 
 #endif

@@ -45,16 +45,17 @@ volatile unsigned int *imr = 0L;	/* address of the interrupt mask register      
 extern void dec_machine_restart(char *command);
 extern void dec_machine_halt(void);
 extern void dec_machine_power_off(void);
+extern void dec_intr_halt(int irq, void *dev_id, struct pt_regs *regs);
 
 extern void wbflush_setup(void);
 
 extern struct rtc_ops dec_rtc_ops;
 
-extern void intr_halt(void);
-
 extern int setup_dec_irq(int, struct irqaction *);
 
 void (*board_time_init) (struct irqaction * irq);
+
+static struct irqaction irq10 = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
 
 /*
  * enable the periodic interrupts
@@ -72,6 +73,14 @@ static void __init dec_time_init(struct irqaction *irq)
     CMOS_WRITE(RTC_REF_CLCK_32KHZ | (16 - LOG_2_HZ), RTC_REG_A);
     CMOS_WRITE(CMOS_READ(RTC_REG_B) | RTC_PIE, RTC_REG_B);
     setup_dec_irq(CLOCK, irq);
+}
+
+/*
+ * Enable the halt interrupt.
+ */
+static void __init dec_halt_init(struct irqaction *irq)
+{
+    setup_dec_irq(HALT, irq);
 }
 
 void __init decstation_setup(void)
@@ -311,6 +320,7 @@ void __init dec_init_kn02ba(void)
     cpu_mask_tbl[5] = IE_IRQ5;
     cpu_irq_nr[5] = FPU;
 
+    dec_halt_init(&irq10);
 }				/* dec_init_kn02ba */
 
 /*
@@ -387,6 +397,7 @@ void __init dec_init_kn02ca(void)
     cpu_mask_tbl[4] = IE_IRQ5;
     cpu_irq_nr[4] = FPU;
 
+    dec_halt_init(&irq10);
 }				/* dec_init_kn02ca */
 
 /*
@@ -468,4 +479,5 @@ void __init dec_init_kn03(void)
     cpu_mask_tbl[4] = IE_IRQ5;
     cpu_irq_nr[4] = FPU;
 
+    dec_halt_init(&irq10);
 }				/* dec_init_kn03 */

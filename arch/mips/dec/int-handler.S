@@ -230,14 +230,6 @@ spurious:
 dec_intr_fpu:	PANIC("Unimplemented FPU interrupt handler")
 
 /*
- * Halt interrupt
- */
-		EXPORT(intr_halt)
-intr_halt:	la	k0,0xbc000000
-		jr	k0
-		 nop
-
-/*
  * Generic unimplemented interrupt routines - ivec_tbl is initialised to
  * point all interrupts here.  The table is then filled in by machine-specific
  * initialisation in dec_setup().
