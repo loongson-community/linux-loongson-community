@@ -1,4 +1,3 @@
-OUTPUT_FORMAT("@@OUTPUT_FORMAT@@")
 OUTPUT_ARCH(mips)
 ENTRY(kernel_entry)
 SECTIONS

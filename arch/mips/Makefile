@@ -17,10 +17,8 @@
 #
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mipsel-linux-
-output-format	= elf32-littlemips
 else
 tool-prefix	= mips-linux-
-output-format	= elf32-bigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
@@ -249,8 +247,7 @@ endif
 vmlinux: arch/$(ARCH)/ld.script
 
 arch/$(ARCH)/ld.script: arch/$(ARCH)/ld.script.in arch/$(ARCH)/Makefile
-	sed -e 's/@@OUTPUT_FORMAT@@/$(output-format)/' \
-	    -e 's/@@LOADADDR@@/$(LOADADDR)/' <$< >$@
+	sed -e 's/@@LOADADDR@@/$(LOADADDR)/' <$< >$@
 LINKFLAGS	+= -T arch/$(ARCH)/ld.script
 
 HEAD := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
