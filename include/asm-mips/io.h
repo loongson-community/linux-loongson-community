@@ -295,10 +295,10 @@ extern void iounmap(void *addr);
 	local_irq_restore(flags);					\
 })
 
-#define writeb(b,addr)		__raw_writeb(__ioswap8(b),(addr))
-#define writew(w,addr)		__raw_writew(__ioswap16(w),(addr))
-#define writel(l,addr)		__raw_writel(__ioswap32(l),(addr))
-#define writeq(q,addr)		__raw_writeq(__ioswap64(q),(addr))
+#define writeb(b,addr)		__raw_writeb(__ioswab8(b),(addr))
+#define writew(w,addr)		__raw_writew(__ioswab16(w),(addr))
+#define writel(l,addr)		__raw_writel(__ioswab32(l),(addr))
+#define writeq(q,addr)		__raw_writeq(__ioswab64(q),(addr))
 
 #define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
