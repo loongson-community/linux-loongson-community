@@ -19,36 +19,24 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
  */
-#include <linux/config.h>
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/config.h>
 #include <linux/sched.h>
-#include <linux/ptrace.h>
-#include <linux/fcntl.h>
-#include <linux/ioport.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/errno.h>
-#include <linux/ip.h>
 #include <linux/init.h>
 #include <linux/in.h>
+#include <linux/ip.h>
 #include <linux/pci.h>
-
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
 #include <linux/mii.h>
-/* For MII specifc registers, titan_mdio.h should be included */
-#include <net/ip.h>
 
 #include <asm/bitops.h>
 #include <asm/io.h>
-#include <asm/types.h>
-#include <asm/pgtable.h>
-#include <asm/system.h>
 
 #include "titan_ge.h"
 #include "titan_mdio.h"
@@ -1693,8 +1681,7 @@ static int __init titan_ge_init_module(void)
 {
 	unsigned long version, device;
 
-	printk(KERN_NOTICE
-	       "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
+	printk(KERN_NOTICE "PMC-Sierra TITAN 10/100/1000 Ethernet Driver \n");
 	device = TITAN_GE_READ(TITAN_GE_DEVICE_ID);
 	version = (device & 0x000f0000) >> 16;
 	device &= 0x0000ffff;
