@@ -934,3 +934,10 @@ void r4k_wait(void)
 		"wait\n\t"
 		".set\tmips0");
 }
+
+int __init fpu_disable(char *s)
+{
+	mips_cpu.options &= ~MIPS_CPU_FPU;
+	return 1;
+}
+__setup("nofpu", fpu_disable);
