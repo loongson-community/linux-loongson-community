@@ -5,7 +5,7 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.9 1998/09/16 21:49:41 tsbogend Exp $
+ * $Id: sgiwd93.c,v 1.10 1999/03/24 00:04:11 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -132,9 +132,18 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 		write_wd33c93_count(regp, totlen);
 	} else {
 		/* Non-scattered dma. */
-#ifdef DEBUG_DMA */
+#ifdef DEBUG_DMA
 		printk("ONEBUF<%p,%d>", cmd->SCp.ptr, cmd->SCp.this_residual);
 #endif
+		/*
+		 * wd33c93 shouldn't pass us bogus dma_setups, but
+		 * it does:-( The other wd33c93 drivers deal with
+		 * it the same way (which isn't that obvious).
+		 * IMHO a better fix would be, not to do these
+		 * dma setups in the first place
+		 */
+		if (cmd->SCp.ptr == NULL)
+			return 1;
 		fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
 		write_wd33c93_count(regp, cmd->SCp.this_residual);
 	}
