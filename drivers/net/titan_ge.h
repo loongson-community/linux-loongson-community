@@ -101,9 +101,6 @@ extern unsigned long titan_ge_sram;
 /* Debugging info only */
 #undef TITAN_DEBUG
 
-/* Support for Rx side NAPI */
-#define TITAN_RX_NAPI
-
 /* Keep the rings in the Titan's SSRAM */
 #define TITAN_RX_RING_IN_SRAM
 

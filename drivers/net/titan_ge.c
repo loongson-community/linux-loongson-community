@@ -118,9 +118,7 @@ static unsigned long config_done;
  */
 static unsigned int oom_flag;
 
-#ifdef TITAN_RX_NAPI
 static int titan_ge_poll(struct net_device *netdev, int *budget);
-#endif
 
 static int titan_ge_receive_queue(struct net_device *, unsigned int);
 
@@ -451,7 +449,6 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 #endif
 		titan_ge_free_tx_queue(titan_ge_eth);
 
-#ifdef TITAN_RX_NAPI
 	/* Handle the Rx next */
 #ifdef CONFIG_SMP
 	if ( (eth_int_cause1 & 0x10101) ||
@@ -478,11 +475,7 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 			__netif_rx_schedule(netdev);
 		}
 	}
-#else
-	titan_ge_free_tx_queue(titan_ge_eth);
-	titan_ge_receive_queue(netdev, 0);
 
-#endif
 	/* Handle error interrupts */
 	if (eth_int_cause_error && (eth_int_cause_error != 0x2)) {
 		printk(KERN_ERR
@@ -742,11 +735,9 @@ static int titan_ge_port_start(struct net_device *netdev,
 		reg_data = TITAN_GE_READ(TITAN_GE_TSB_CTRL_1);
 		reg_data |= 0x00000700;
 		reg_data &= ~(0x00800000); /* Fencing */
-#ifdef TITAN_RX_NAPI
+
 		TITAN_GE_WRITE(0x000c, 0x00001100);
-#else
-		TITAN_GE_WRITE(0x000c, 0x00000100); /* No WCIMODE */
-#endif
+
 		TITAN_GE_WRITE(TITAN_GE_TSB_CTRL_1, reg_data);
 
 		/* Set the CPU Resource Limit register */
@@ -756,10 +747,8 @@ static int titan_ge_port_start(struct net_device *netdev,
 		TITAN_GE_WRITE(0x0068, 0x4);
 	}
 
-#ifdef TITAN_RX_NAPI
 	titan_port->tx_threshold = 0;
 	titan_port->rx_threshold = 0;
-#endif
 
 	/* We need to write the descriptors for Tx and Rx */
 	TITAN_GE_WRITE((TITAN_GE_CHANNEL0_TX_DESC + (port_num << 8)),
@@ -1143,19 +1132,6 @@ static void titan_ge_tx_queue(titan_ge_port_info * titan_ge_eth,
 		 &titan_ge_eth->tx_desc_area[titan_ge_eth->tx_curr_desc_q]);
 }
 
-#ifndef TITAN_RX_NAPI
-/*
- * Coalescing for the Rx path
- */
-static unsigned long titan_ge_rx_coal(unsigned long delay, int port)
-{
-	TITAN_GE_WRITE(TITAN_GE_INT_COALESCING, delay);
-	TITAN_GE_WRITE(0x5038, delay);
-
-	return delay;
-}
-#endif
-
 /*
  * Actually does the open of the Ethernet device
  */
@@ -1301,19 +1277,7 @@ static int titan_ge_eth_open(struct net_device *netdev)
 	 * (8 x 64 nanoseconds) to determine when an interrupt should
 	 * be sent to the CPU.
 	 */
-#ifndef TITAN_RX_NAPI
-	/*
-	 * If NAPI is turned on, we disable Rx interrupts
-	 * completely. So, we dont need coalescing then. Tx side
-	 * coalescing set to very high value. Maybe, disable
-	 * Tx side interrupts completely
-	 */
-	if (TITAN_GE_RX_COAL) {
-		titan_ge_eth->rx_int_coal =
-		    titan_ge_rx_coal(TITAN_GE_RX_COAL, port_num);
-	}
 
-#endif
 	if (TITAN_GE_TX_COAL) {
 		titan_ge_eth->tx_int_coal =
 		    titan_ge_tx_coal(TITAN_GE_TX_COAL, port_num);
@@ -1471,11 +1435,10 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 
 		titan_ge_eth->rx_ring_skbs--;
 
-#ifdef TITAN_RX_NAPI
 		if (--titan_ge_eth->rx_work_limit < 0)
 			break;
 		received_packets++;
-#endif
+
 		stats->rx_packets++;
 		stats->rx_bytes += packet.len;
 
@@ -1505,33 +1468,24 @@ static int titan_ge_receive_queue(struct net_device *netdev, unsigned int max)
 		skb->protocol = eth_type_trans(skb, netdev);
 		netif_receive_skb(skb);
 
-#ifdef TITAN_RX_NAPI
 		if (titan_ge_eth->rx_threshold > RX_THRESHOLD) {
 			ack = titan_ge_rx_task(netdev, titan_ge_eth);
 			TITAN_GE_WRITE((0x5048 + (port_num << 8)), ack);
 			titan_ge_eth->rx_threshold = 0;
 		} else
 			titan_ge_eth->rx_threshold++;
-#else
-		ack = titan_ge_rx_task(netdev, titan_ge_eth);
-		TITAN_GE_WRITE((0x5048 + (port_num << 8)), ack);
-#endif
 
-#ifdef TITAN_RX_NAPI
 		if (titan_ge_eth->tx_threshold > TX_THRESHOLD) {
 			titan_ge_eth->tx_threshold = 0;
 			titan_ge_free_tx_queue(titan_ge_eth);
 		}
 		else
 			titan_ge_eth->tx_threshold++;
-#endif
 
 	}
 	return received_packets;
 }
 
-
-#ifdef TITAN_RX_NAPI
 
 /*
  * Enable the Rx side interrupts
@@ -1634,7 +1588,6 @@ done:
 
 	return 0;
 }
-#endif
 
 /*
  * Close the network device
@@ -1946,11 +1899,10 @@ static int __init titan_ge_probe(struct device *device)
 	netdev->tx_timeout = titan_ge_tx_timeout;
 	netdev->watchdog_timeo = 2 * HZ;
 
-#ifdef TITAN_RX_NAPI
 	/* Set these to very high values */
 	netdev->poll = titan_ge_poll;
 	netdev->weight = 64;
-#endif
+
 	netdev->tx_queue_len = TITAN_GE_TX_QUEUE;
 	netif_carrier_off(netdev);
 	netdev->base_addr = 0;
@@ -1984,11 +1936,7 @@ static int __init titan_ge_probe(struct device *device)
 	       netdev->dev_addr[3], netdev->dev_addr[4],
 	       netdev->dev_addr[5]);
 
-#ifdef TITAN_RX_NAPI
 	printk(KERN_NOTICE "Rx NAPI supported, Tx Coalescing ON \n");
-#else
-	printk(KERN_NOTICE "Rx and Tx Coalescing ON \n");
-#endif
 
 	return 0;
 
