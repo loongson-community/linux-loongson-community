@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.2 1999/10/09 00:01:43 ralf Exp $
+/* $Id: io.h,v 1.3 2000/01/17 23:32:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -306,14 +306,14 @@ __OUTS(w,l,4)
 	__inb_p(port))
 
 #define outw(val,port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__outwc((val),(port)) : \
-	__outw((val),(port)))
+((__builtin_constant_p((port^2)) && (port^2) < 32768) ? \
+	__outwc((val),(port^2)) : \
+	__outw((val),(port^2)))
 
 #define inw(port) \
-((__builtin_constant_p((port)) && (port) < 32768) ? \
-	__inwc(port) : \
-	__inw(port))
+((__builtin_constant_p((port^2)) && (port^2) < 32768) ? \
+	__inwc(port^2) : \
+	__inw(port^2))
 
 #define outw_p(val,port) \
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
