@@ -201,13 +201,13 @@ static int __init initrd_setup(char *str)
 	if (!*tmp) {
 		goto fail;
 	}
-	initrd_size = (unsigned long)(int32_t)simple_strtol(str, &endptr, 16);
+	initrd_size = simple_strtoul(str, &endptr, 16);
 	if (*endptr) {
 		*(tmp-1) = '@';
 		goto fail;
 	}
 	*(tmp-1) = '@';
-	initrd_start = (unsigned long)(int32_t)simple_strtol(tmp, &endptr, 16);
+	initrd_start = simple_strtoul(tmp, &endptr, 16);
 	if (*endptr) {
 		goto fail;
 	}
