@@ -486,10 +486,8 @@ static int newport_set_font(int unit, struct console_font_op *op)
 	    || (op->charcount != 256 && op->charcount != 512))
 		return -EINVAL;
 
-	if (!
-	    (new_data =
-	     kmalloc(FONT_EXTRA_WORDS * sizeof(int) + size,
-		     GFP_USER))) return -ENOMEM;
+	if (!(new_data = kmalloc(FONT_EXTRA_WORDS * sizeof(int) + size,
+	     GFP_USER))) return -ENOMEM;
 
 	new_data += FONT_EXTRA_WORDS * sizeof(int);
 	FNTSIZE(new_data) = size;
@@ -593,11 +591,9 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir,
 	if (dir == SM_UP) {
 		x = 0;
 		y = t;
-		s =
-		    (unsigned short *) (vc->vc_origin +
+		s = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * (t + lines));
-		d =
-		    (unsigned short *) (vc->vc_origin +
+		d = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * t);
 		while (count--) {
 			chattr = scr_readw(s++);
@@ -611,8 +607,7 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir,
 				y++;
 			}
 		}
-		d =
-		    (unsigned short *) (vc->vc_origin +
+		d = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * (b - lines));
 		x = 0;
 		y = b - lines;
@@ -631,11 +626,9 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir,
 	} else {
 		x = vc->vc_cols - 1;
 		y = b - 1;
-		s =
-		    (unsigned short *) (vc->vc_origin +
+		s = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * (b - lines) - 2);
-		d =
-		    (unsigned short *) (vc->vc_origin +
+		d = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * b - 2);
 		while (count--) {
 			chattr = scr_readw(s--);
@@ -649,8 +642,7 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir,
 				y--;
 			}
 		}
-		d =
-		    (unsigned short *) (vc->vc_origin +
+		d = (unsigned short *) (vc->vc_origin +
 					vc->vc_size_row * t);
 		x = 0;
 		y = t;
@@ -727,7 +719,6 @@ const struct consw newport_con = {
 };
 
 #ifdef MODULE
-
 int init_module(void)
 {
 	if (!newport_startup())
@@ -741,9 +732,13 @@ int init_module(void)
 
 int cleanup_module(void)
 {
+	int i;
+
 	printk("Unloading SGI Newport Console Driver\n");
+	/* free memory used by user font */
+	for (i = 0; i < MAX_NR_CONSOLES; i++)
+		newport_set_def_font(i, NULL);
 
 	return 0;
 }
-
 #endif
