@@ -28,6 +28,7 @@
 #include <linux/blk.h>
 #endif
 
+#include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 #include <asm/mipsregs.h>
@@ -108,6 +109,12 @@ EXPORT_SYMBOL(mips_io_port_base);
 extern void ip22_setup(void);
 extern void ip27_setup(void);
 extern void ip32_setup(void);
+
+extern void sgi_sysinit(void);
+extern void SetUpBootInfo(void);
+extern void load_mmu(void);
+extern ATTRIB_NORET asmlinkage void start_kernel(void);
+extern void prom_init(int, char **, char **, int *);
 
 static inline void check_wait(void)
 {
@@ -468,11 +475,252 @@ cpu_4kc:
 	}
 }
 
-void __init setup_arch(char **cmdline_p)
+static inline void cpu_report(void)
 {
+	printk("CPU revision is: %08x\n", mips_cpu.processor_id);
+	if (mips_cpu.options & MIPS_CPU_FPU)
+		printk("FPU revision is: %08x\n", mips_cpu.fpu_id);
+}
+
+asmlinkage void __init init_arch(int argc, char **argv, char **envp,
+	int *prom_vec)
+{
+	/* Determine which MIPS variant we are running on. */
 	cpu_probe();
+
+	prom_init(argc, argv, envp, prom_vec);
+
+#ifdef CONFIG_SGI_IP22
+	sgi_sysinit();
+#endif
+
+	cpu_report();
+
+	/*
+	 * Determine the mmu/cache attached to this machine, then flush the
+	 * tlb and caches.  On the r4xx0 variants this also sets CP0_WIRED to
+	 * zero.
+	 */
 	load_mmu();
 
+	/*
+	 * On IP27, I am seeing the TS bit set when the kernel is loaded.
+	 * Maybe because the kernel is in ckseg0 and not xkphys? Clear it
+	 * anyway ...
+	 */
+	clear_cp0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
+	set_cp0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+
+	start_kernel();
+}
+
+void __init add_memory_region(phys_t start, phys_t size,
+			      long type)
+{
+	int x = boot_mem_map.nr_map;
+
+	if (x == BOOT_MEM_MAP_MAX) {
+		printk("Ooops! Too many entries in the memory map!\n");
+		return;
+	}
+
+	boot_mem_map.map[x].addr = start;
+	boot_mem_map.map[x].size = size;
+	boot_mem_map.map[x].type = type;
+	boot_mem_map.nr_map++;
+}
+
+static void __init print_memory_map(void)
+{
+	int i;
+
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		printk(" memory: %08Lx @ %08Lx ",
+			(unsigned long long) boot_mem_map.map[i].size,
+			(unsigned long long) boot_mem_map.map[i].addr);
+		switch (boot_mem_map.map[i].type) {
+		case BOOT_MEM_RAM:
+			printk("(usable)\n");
+			break;
+		case BOOT_MEM_ROM_DATA:
+			printk("(ROM data)\n");
+			break;
+		case BOOT_MEM_RESERVED:
+			printk("(reserved)\n");
+			break;
+		default:
+			printk("type %lu\n", boot_mem_map.map[i].type);
+			break;
+		}
+	}
+}
+
+static inline void parse_mem_cmdline(void)
+{
+	char c = ' ', *to = command_line, *from = saved_command_line;
+	unsigned long start_at, mem_size;
+	int len = 0;
+	int usermem = 0;
+
+	printk("Determined physical RAM map:\n");
+	print_memory_map();
+
+	for (;;) {
+		/*
+		 * "mem=XXX[kKmM]" defines a memory region from
+		 * 0 to <XXX>, overriding the determined size.
+		 * "mem=XXX[KkmM]@YYY[KkmM]" defines a memory region from
+		 * <YYY> to <YYY>+<XXX>, overriding the determined size.
+		 */
+		if (c == ' ' && !memcmp(from, "mem=", 4)) {
+			if (to != command_line)
+				to--;
+			/*
+			 * If a user specifies memory size, we
+			 * blow away any automatically generated
+			 * size.
+			 */
+			if (usermem == 0) {
+				boot_mem_map.nr_map = 0;
+				usermem = 1;
+			}
+			mem_size = memparse(from + 4, &from);
+			if (*from == '@')
+				start_at = memparse(from + 1, &from);
+			else
+				start_at = 0;
+			add_memory_region(start_at, mem_size, BOOT_MEM_RAM);
+		}
+		c = *(from++);
+		if (!c)
+			break;
+		if (CL_SIZE <= ++len)
+			break;
+		*(to++) = c;
+	}
+	*to = '\0';
+
+	if (usermem) {
+		printk("User-defined physical RAM map:\n");
+		print_memory_map();
+	}
+}
+
+void bootmem_init(void)
+{
+#ifdef CONFIG_BLK_DEV_INITRD
+	unsigned long tmp;
+	unsigned long *initrd_header;
+#endif
+	unsigned long bootmap_size;
+	unsigned long start_pfn, max_pfn;
+	int i;
+	extern int _end;
+
+#define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
+#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
+#define PFN_PHYS(x)	((x) << PAGE_SHIFT)
+
+	/*
+	 * Partially used pages are not usable - thus
+	 * we are rounding upwards.
+	 * start_pfn = PFN_UP(__pa(&_end));
+	 */
+	start_pfn = PFN_UP((unsigned long)&_end - KSEG0);
+
+	/* Find the highest page frame number we have available.  */
+	max_pfn = 0;
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		unsigned long start, end;
+
+		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
+			continue;
+
+		start = PFN_UP(boot_mem_map.map[i].addr);
+		end = PFN_DOWN(boot_mem_map.map[i].addr
+		      + boot_mem_map.map[i].size);
+
+		if (start >= end)
+			continue;
+		if (end > max_pfn)
+			max_pfn = end;
+	}
+
+	/* Initialize the boot-time allocator.  */
+	bootmap_size = init_bootmem(start_pfn, max_pfn);
+
+	/*
+	 * Register fully available low RAM pages with the bootmem allocator.
+	 */
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		unsigned long curr_pfn, last_pfn, size;
+
+		/*
+		 * Reserve usable memory.
+		 */
+		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
+			continue;
+
+		/*
+		 * We are rounding up the start address of usable memory:
+		 */
+		curr_pfn = PFN_UP(boot_mem_map.map[i].addr);
+		if (curr_pfn >= max_pfn)
+			continue;
+		if (curr_pfn < start_pfn)
+			curr_pfn = start_pfn;
+
+		/*
+		 * ... and at the end of the usable range downwards:
+		 */
+		last_pfn = PFN_DOWN(boot_mem_map.map[i].addr
+				    + boot_mem_map.map[i].size);
+
+		if (last_pfn > max_pfn)
+			last_pfn = max_pfn;
+
+		/*
+		 * ... finally, did all the rounding and playing
+		 * around just make the area go away?
+		 */
+		if (last_pfn <= curr_pfn)
+			continue;
+
+		size = last_pfn - curr_pfn;
+		free_bootmem(PFN_PHYS(curr_pfn), PFN_PHYS(size));
+	}
+
+	/* Reserve the bootmap memory.  */
+	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
+
+#ifdef CONFIG_BLK_DEV_INITRD
+#error "Initrd is broken, please fit it."
+	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
+	if (tmp < (unsigned long)&_end)
+		tmp += PAGE_SIZE;
+	initrd_header = (unsigned long *)tmp;
+	if (initrd_header[0] == 0x494E5244) {
+		initrd_start = (unsigned long)&initrd_header[2];
+		initrd_end = initrd_start + initrd_header[1];
+		initrd_below_start_ok = 1;
+		if (initrd_end > memory_end) {
+			printk("initrd extends beyond end of memory "
+			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
+			       initrd_end,memory_end);
+			initrd_start = 0;
+		} else
+			*memory_start_p = initrd_end;
+	}
+#endif
+
+#undef PFN_UP
+#undef PFN_DOWN
+#undef PFN_PHYS
+
+}
+
+void __init setup_arch(char **cmdline_p)
+{
 #ifdef CONFIG_SGI_IP22
 	ip22_setup();
 #endif
@@ -482,9 +730,16 @@ void __init setup_arch(char **cmdline_p)
 #ifdef CONFIG_SGI_IP32
 	ip32_setup();
 #endif
+#ifdef CONFIG_SGI_IP32
+	ip32_setup();
+#endif
+#ifdef CONFIG_SIBYTE_SWARM
+	swarm_setup();
+	bootmem_init();		/* XXX */
+#endif
 
 #ifdef CONFIG_ARC_MEMORY
-	bootmem_init ();
+	bootmem_init();
 #endif
 
 	strncpy(command_line, arcs_cmdline, CL_SIZE);
@@ -492,6 +747,8 @@ void __init setup_arch(char **cmdline_p)
 	saved_command_line[CL_SIZE-1] = '\0';
 
 	*cmdline_p = command_line;
+
+	parse_mem_cmdline();
 
 	paging_init();
 }

@@ -161,158 +161,6 @@ unsigned long setup_zero_pages(void)
 	return 1UL << order;
 }
 
-void __init add_memory_region(unsigned long start, unsigned long size,
-                              long type)
-{
-        int x = boot_mem_map.nr_map;
-
-        if (x == BOOT_MEM_MAP_MAX) {
-                printk("Ooops! Too many entries in the memory map!\n");
-                return;
-        }
-
-        boot_mem_map.map[x].addr = start;
-        boot_mem_map.map[x].size = size;
-        boot_mem_map.map[x].type = type;
-        boot_mem_map.nr_map++;
-}
-
-static void __init print_memory_map(void)
-{
-        int i;
-
-        for (i = 0; i < boot_mem_map.nr_map; i++) {
-                printk(" memory: %08lx @ %08lx ",
-                        boot_mem_map.map[i].size, boot_mem_map.map[i].addr);
-                switch (boot_mem_map.map[i].type) {
-                case BOOT_MEM_RAM:
-                        printk("(usable)\n");
-                        break;
-                case BOOT_MEM_ROM_DATA:
-                        printk("(ROM data)\n");
-                        break;
-                case BOOT_MEM_RESERVED:
-                        printk("(reserved)\n");
-                        break;
-                default:
-                        printk("type %lu\n", boot_mem_map.map[i].type);
-                        break;
-                }
-        }
-}
-
-void bootmem_init(void)
-{
-#ifdef CONFIG_BLK_DEV_INITRD
-	unsigned long tmp;
-	unsigned long *initrd_header;
-#endif
-	unsigned long bootmap_size;
-	unsigned long start_pfn, max_pfn;
-	int i;
-	extern int _end;
-
-#define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
-#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
-#define PFN_PHYS(x)	((x) << PAGE_SHIFT)
-
-	/*
-	 * Partially used pages are not usable - thus
-	 * we are rounding upwards.
-	 */
-	start_pfn = PFN_UP(__pa(&_end));
-
-	/* Find the highest page frame number we have available.  */
-	max_pfn = 0;
-	for (i = 0; i < boot_mem_map.nr_map; i++) {
-		unsigned long start, end;
-
-		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
-			continue;
-
-		start = PFN_UP(boot_mem_map.map[i].addr);
-		end = PFN_DOWN(boot_mem_map.map[i].addr
-		      + boot_mem_map.map[i].size);
-
-		if (start >= end)
-			continue;
-		if (end > max_pfn)
-			max_pfn = end;
-	}
-
-	/* Initialize the boot-time allocator.  */
-	bootmap_size = init_bootmem(start_pfn, max_pfn);
-
-	/*
-	 * Register fully available low RAM pages with the bootmem allocator.
-	 */
-	for (i = 0; i < boot_mem_map.nr_map; i++) {
-		unsigned long curr_pfn, last_pfn, size;
-
-		/*
-		 * Reserve usable memory.
-		 */
-		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
-			continue;
-
-		/*
-		 * We are rounding up the start address of usable memory:
-		 */
-		curr_pfn = PFN_UP(boot_mem_map.map[i].addr);
-		if (curr_pfn >= max_pfn)
-			continue;
-		if (curr_pfn < start_pfn)
-			curr_pfn = start_pfn;
-
-		/*
-		 * ... and at the end of the usable range downwards:
-		 */
-		last_pfn = PFN_DOWN(boot_mem_map.map[i].addr
-				    + boot_mem_map.map[i].size);
-
-		if (last_pfn > max_pfn)
-			last_pfn = max_pfn;
-
-		/*
-		 * ... finally, did all the rounding and playing
-		 * around just make the area go away?
-		 */
-		if (last_pfn <= curr_pfn)
-			continue;
-
-		size = last_pfn - curr_pfn;
-		free_bootmem(PFN_PHYS(curr_pfn), PFN_PHYS(size));
-	}
-
-	/* Reserve the bootmap memory.  */
-	reserve_bootmem(PFN_PHYS(start_pfn), bootmap_size);
-
-#ifdef CONFIG_BLK_DEV_INITRD
-#error "Initrd is broken, please fit it."
-	tmp = (((unsigned long)&_end + PAGE_SIZE-1) & PAGE_MASK) - 8;
-	if (tmp < (unsigned long)&_end)
-		tmp += PAGE_SIZE;
-	initrd_header = (unsigned long *)tmp;
-	if (initrd_header[0] == 0x494E5244) {
-		initrd_start = (unsigned long)&initrd_header[2];
-		initrd_end = initrd_start + initrd_header[1];
-		initrd_below_start_ok = 1;
-		if (initrd_end > memory_end) {
-			printk("initrd extends beyond end of memory "
-			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       initrd_end,memory_end);
-			initrd_start = 0;
-		} else
-			*memory_start_p = initrd_end;
-	}
-#endif
-
-#undef PFN_UP
-#undef PFN_DOWN
-#undef PFN_PHYS
-
-}
-
 void show_mem(void)
 {
 	int i, free = 0, total = 0, reserved = 0;
@@ -365,7 +213,7 @@ void __init paging_init(void)
 	max_dma =  virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
 	low = max_low_pfn;
 
-#if defined(CONFIG_PCI) || defined(CONFIG_ISA)
+#ifdef CONFIG_ISA
 	if (low < max_dma)
 		zones_size[ZONE_DMA] = low;
 	else {
@@ -377,7 +225,7 @@ void __init paging_init(void)
 #endif
 
 	free_area_init(zones_size);
-	
+
 	memset((void *)kptbl, 0, PAGE_SIZE << KPTBL_PAGE_ORDER);
 	memset((void *)kpmdtbl, 0, PAGE_SIZE);
 	pgd_set(swapper_pg_dir, kpmdtbl);

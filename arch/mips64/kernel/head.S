@@ -106,35 +106,22 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	mfc0	t0, CP0_STATUS
-	/*
-	 * On IP27, I am seeing the TS bit set when the
-	 * kernel is loaded. Maybe because the kernel is
-	 * in ckseg0 and not xkphys? Clear it anyway ...
-	 */
-	li	t1, ~(ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3)
-	and	t0, t1
-	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR) # Bogosity: cu0 indicates kernel
-	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
-
 	la	$28, init_task_union		# init current pointer
 	daddiu	t0, $28, KERNEL_STACK_SIZE-32
 	sd	t0, kernelsp
 	dsubu	sp, t0, 4*SZREG			# init stack pointer
 	move	t0, $28
+
 #ifdef CONFIG_SMP
 	mtc0	t0, CP0_WATCHLO
 	dsrl32	t0, t0, 0
 	mtc0	t0, CP0_WATCHHI
 #endif
-	/* Note that all firmware passed argument registers still
-	   have their values.  */
-	jal	prom_init			# initialize firmware
 
-	jal	start_kernel
-1:	b	1b				# just in case ...
+	jal	init_arch
 	END(kernel_entry)
 
+#ifdef CONFIG_SMP
 #ifdef CONFIG_SGI_IP27
 NESTED(bootstrap, 16, sp)
 	GET_NASID_ASM
@@ -154,7 +141,28 @@ NESTED(bootstrap, 16, sp)
 	mtc0	t0, CP0_STATUS			   # thread in copy_thread.
 	jal	cboot
 	END(bootstrap)
+#else
+
+/*
+ * SMP slave cpus entry point.  Board specific code for bootstrap calls this
+ * function after setting up the stack and gp registers. 
+ */
+	LEAF(smp_bootstrap)
+	.set push
+	.set noreorder
+
+	mtc0	zero, CP0_WIRED
+	CLI
+	mfc0	t0, CP0_STATUS
+	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV)
+	and	t0, t1
+	or	t0, (ST0_CU0|ST0_FR|ST0_KX|ST0_SX);
+	jal	start_secondary
+	mtc0	t0, CP0_STATUS
+	.set pop
+	END(smp_bootstrap)
 #endif /* CONFIG_SGI_IP27 */
+#endif /* CONFIG_SMP */
 
 	__FINIT
 
