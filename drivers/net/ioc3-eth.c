@@ -79,6 +79,9 @@
  */
 #define RX_BUFFS 64
 
+#define ETCSR_FD	((17<<ETCSR_IPGR2_SHIFT) | (11<<ETCSR_IPGR1_SHIFT) | 21)
+#define ETCSR_HD	((21<<ETCSR_IPGR2_SHIFT) | (21<<ETCSR_IPGR1_SHIFT) | 21)
+
 /* Private per NIC data of the driver.  */
 struct ioc3_private {
 	struct ioc3 *regs;
@@ -742,12 +745,27 @@ static irqreturn_t ioc3_interrupt(int irq, void *_dev, struct pt_regs *regs)
 	return IRQ_HANDLED;
 }
 
+static inline void ioc3_setup_duplex(struct ioc3_private *ip)
+{
+	struct ioc3 *ioc3 = ip->regs;
+
+	if (ip->mii.full_duplex) {
+		ioc3_w_etcsr(ETCSR_FD);
+		ip->emcr |= EMCR_DUPLEX;
+	} else {
+		ioc3_w_etcsr(ETCSR_HD);
+		ip->emcr &= ~EMCR_DUPLEX;
+	}
+	ioc3_w_emcr(ip->emcr);
+}
+
 static void ioc3_timer(unsigned long data)
 {
 	struct ioc3_private *ip = (struct ioc3_private *) data;
 
 	/* Print the link status if it has changed */
 	mii_check_media(&ip->mii, 1, 0);
+	ioc3_setup_duplex(ip);
 
 	ip->ioc3_timer.expires = jiffies + ((12 * HZ)/10); /* 1.2s */
 	add_timer(&ip->ioc3_timer);
@@ -1211,6 +1229,7 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 #endif
 
 	mii_check_media(&ip->mii, 1, 1);
+	ioc3_setup_duplex(ip);
 	sw_physid1 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID1);
 	sw_physid2 = ioc3_mdio_read(dev, ip->mii.phy_id, MII_PHYSID2);
 
