@@ -274,9 +274,6 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	bridge_t *bridge;
 	int pin, swlevel;
 
-	if (irq < BASE_PCI_IRQ)
-		return 0;
-
 	pin = SLOT_FROM_PCI_IRQ(irq);
 	bc = IRQ_TO_BRIDGE(irq);
 	bridge = bc->base;
@@ -326,8 +323,6 @@ static void shutdown_bridge_irq(unsigned int irq)
 	int pin, swlevel;
 	cpuid_t cpu;
 
-	BUG_ON(irq < BASE_PCI_IRQ);
-
 	DBG("bridge_shutdown: irq 0x%x\n", irq);
 	pin = SLOT_FROM_PCI_IRQ(irq);
 
@@ -373,6 +368,29 @@ static struct hw_interrupt_type bridge_irq_type = {
 	.ack		= mask_and_ack_bridge_irq,
 	.end		= end_bridge_irq,
 };
+
+static unsigned long irq_map[NR_IRQS / BITS_PER_LONG];
+
+unsigned int allocate_irqno(void)
+{
+	int irq;
+
+again:
+	irq = find_first_zero_bit(irq_map, LEVELS_PER_SLICE);
+
+	if (irq >= NR_IRQS)
+		return -1;
+
+	if (test_and_set_bit(irq, irq_map))
+		goto again;
+
+	return irq;
+}
+
+void free_irqno(unsigned int irq)
+{
+	clear_bit(irq, irq_map);
+}
 
 void __init init_IRQ(void)
 {
