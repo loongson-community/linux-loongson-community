@@ -6,7 +6,7 @@
  * Code to handle x86 style IRQs plus some generic interrupt stuff.
  *
  * Copyright (C) 1992 Linus Torvalds
- * Copyright (C) 1994 - 2000 Ralf Baechle
+ * Copyright (C) 1994 - 2001 Ralf Baechle
  *
  * Old rotten IRQ code.  To be killed as soon as everybody had converted or
  * in 2.5.0, whatever comes first.
@@ -162,7 +162,7 @@ asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 
 	if (irq >= 16)
 		goto out;
@@ -190,7 +190,7 @@ asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs)
 	unmask_irq (irq);
 
 out:
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 }
 
 /*
@@ -206,7 +206,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 
 	action = *(irq + irq_action);
@@ -224,7 +224,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	if (softirq_active(cpu)&softirq_mask(cpu))
 		do_softirq();

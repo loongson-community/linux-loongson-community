@@ -197,7 +197,7 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs *regs)
 		return;		/* should not happen */
 
 	cpu = smp_processor_id();
-	irq_enter(cpu);
+	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
 	status = 0;
 
@@ -233,7 +233,7 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs *regs)
 			irq_desc[irq].handler->end(irq);
 	}
 
-	irq_exit(cpu);
+	irq_exit(cpu, irq);
 
 	if (softirq_active(cpu) & softirq_mask(cpu))
 		do_softirq();
