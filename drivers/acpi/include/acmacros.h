@@ -1,7 +1,7 @@
 /******************************************************************************
  *
  * Name: acmacros.h - C macros for the entire subsystem.
- *       $Revision: 48 $
+ *       $Revision: 59 $
  *
  *****************************************************************************/
 
@@ -63,6 +63,15 @@
 #define HI_LIMIT(b)                     ((u8) (((b) & 0x00FF0000) >> 16))
 
 
+#ifdef _IA16
+#define ACPI_GET_ADDRESS(a)             ((a).lo)
+#define ACPI_STORE_ADDRESS(a,b)         {(a).hi=0;(a).lo=(b);}
+#define ACPI_VALID_ADDRESS(a)           ((a).hi && (a).lo)
+#else
+#define ACPI_GET_ADDRESS(a)             (a)
+#define ACPI_STORE_ADDRESS(a,b)         ((a)=(b))
+#define ACPI_VALID_ADDRESS(a)           (a)
+#endif
  /*
   * Extract a byte of data using a pointer.  Any more than a byte and we
   * get into potential aligment issues -- see the STORE macros below
@@ -128,6 +137,11 @@
 #define MUL_16(a)                       _MUL(a,4)
 #define MOD_16(a)                       _MOD(a,16)
 
+/*
+ * Divide and Modulo
+ */
+#define ACPI_DIVIDE(n,d)                ((n) / (d))
+#define ACPI_MODULO(n,d)                ((n) % (d))
 
 /*
  * Rounding macros (Power of two boundaries only)
@@ -137,16 +151,41 @@
 #define ROUND_UP(value,boundary)        (((value) + ((boundary)-1)) & (~((boundary)-1)))
 
 #define ROUND_DOWN_TO_32_BITS(a)        ROUND_DOWN(a,4)
+#define ROUND_DOWN_TO_64_BITS(a)        ROUND_DOWN(a,8)
 #define ROUND_DOWN_TO_NATIVE_WORD(a)    ROUND_DOWN(a,ALIGNED_ADDRESS_BOUNDARY)
 
 #define ROUND_UP_TO_32_bITS(a)          ROUND_UP(a,4)
+#define ROUND_UP_TO_64_bITS(a)          ROUND_UP(a,8)
 #define ROUND_UP_TO_NATIVE_WORD(a)      ROUND_UP(a,ALIGNED_ADDRESS_BOUNDARY)
 
+#define ROUND_PTR_UP_TO_4(a,b)          ((b *)(((NATIVE_UINT)(a) + 3) & ~3))
+#define ROUND_PTR_UP_TO_8(a,b)          ((b *)(((NATIVE_UINT)(a) + 7) & ~7))
+
+#define ROUND_UP_TO_1_k(a)              (((a) + 1023) >> 10)
 
 #ifdef DEBUG_ASSERT
 #undef DEBUG_ASSERT
 #endif
 
+
+/* Macros for GAS addressing */
+
+#define ACPI_PCI_DEVICE_MASK            (UINT64) 0x0000FFFF00000000
+#define ACPI_PCI_FUNCTION_MASK          (UINT64) 0x00000000FFFF0000
+#define ACPI_PCI_REGISTER_MASK          (UINT64) 0x000000000000FFFF
+
+#define ACPI_PCI_FUNCTION(a)            (u32) ((((a) & ACPI_PCI_FUNCTION_MASK) >> 16))
+#define ACPI_PCI_DEVICE(a)              (u32) ((((a) & ACPI_PCI_DEVICE_MASK) >> 32))
+
+#ifndef _IA16
+#define ACPI_PCI_REGISTER(a)            (u32) (((a) & ACPI_PCI_REGISTER_MASK))
+#define ACPI_PCI_DEVFUN(a)              (u32) ((ACPI_PCI_DEVICE(a) << 16) | ACPI_PCI_FUNCTION(a))
+
+#else
+#define ACPI_PCI_REGISTER(a)            (u32) (((a) & 0x0000FFFF))
+#define ACPI_PCI_DEVFUN(a)              (u32) ((((a) & 0xFFFF0000) >> 16))
+
+#endif
 
 /*
  * An ACPI_HANDLE (which is actually an ACPI_NAMESPACE_NODE *) can appear in some contexts,
@@ -216,13 +255,15 @@
 #define ARGP_LIST5(a,b,c,d,e)           (ARG_1(a)|ARG_2(b)|ARG_3(c)|ARG_4(d)|ARG_5(e))
 #define ARGP_LIST6(a,b,c,d,e,f)         (ARG_1(a)|ARG_2(b)|ARG_3(c)|ARG_4(d)|ARG_5(e)|ARG_6(f))
 
-#define GET_CURRENT_ARG_TYPE(list)      (list & 0x1F)
-#define INCREMENT_ARG_LIST(list)        (list >>= ARG_TYPE_WIDTH)
+#define GET_CURRENT_ARG_TYPE(list)      (list & ((u32) 0x1F))
+#define INCREMENT_ARG_LIST(list)        (list >>= ((u32) ARG_TYPE_WIDTH))
 
 
 /*
  * Reporting macros that are never compiled out
  */
+
+#define PARAM_LIST(pl)                  pl
 
 /*
  * Error reporting.  These versions add callers module and line#.  Since
@@ -232,23 +273,32 @@
 
 #ifdef ACPI_DEBUG
 
-#define REPORT_INFO(a)                  _report_info(_THIS_MODULE,__LINE__,_COMPONENT,a)
-#define REPORT_ERROR(a)                 _report_error(_THIS_MODULE,__LINE__,_COMPONENT,a)
-#define REPORT_WARNING(a)               _report_warning(_THIS_MODULE,__LINE__,_COMPONENT,a)
+#define REPORT_INFO(fp)                 {_report_info(_THIS_MODULE,__LINE__,_COMPONENT); \
+									  debug_print_raw PARAM_LIST(fp);}
+#define REPORT_ERROR(fp)                {_report_error(_THIS_MODULE,__LINE__,_COMPONENT); \
+											debug_print_raw PARAM_LIST(fp);}
+#define REPORT_WARNING(fp)              {_report_warning(_THIS_MODULE,__LINE__,_COMPONENT); \
+											debug_print_raw PARAM_LIST(fp);}
 
 #else
 
-#define REPORT_INFO(a)                  _report_info("",__LINE__,_COMPONENT,a)
-#define REPORT_ERROR(a)                 _report_error("",__LINE__,_COMPONENT,a)
-#define REPORT_WARNING(a)               _report_warning("",__LINE__,_COMPONENT,a)
+#define REPORT_INFO(fp)                 {_report_info("ACPI",__LINE__,_COMPONENT); \
+											debug_print_raw PARAM_LIST(fp);}
+#define REPORT_ERROR(fp)                {_report_error("ACPI",__LINE__,_COMPONENT); \
+											debug_print_raw PARAM_LIST(fp);}
+#define REPORT_WARNING(fp)              {_report_warning("ACPI",__LINE__,_COMPONENT); \
+											debug_print_raw PARAM_LIST(fp);}
 
 #endif
 
 /* Error reporting.  These versions pass thru the module and line# */
 
-#define _REPORT_INFO(a,b,c,d)           _report_info(a,b,c,d)
-#define _REPORT_ERROR(a,b,c,d)          _report_error(a,b,c,d)
-#define _REPORT_WARNING(a,b,c,d)        _report_warning(a,b,c,d)
+#define _REPORT_INFO(a,b,c,fp)          {_report_info(a,b,c); \
+											debug_print_raw PARAM_LIST(fp);}
+#define _REPORT_ERROR(a,b,c,fp)         {_report_error(a,b,c); \
+											debug_print_raw PARAM_LIST(fp);}
+#define _REPORT_WARNING(a,b,c,fp)       {_report_warning(a,b,c); \
+											debug_print_raw PARAM_LIST(fp);}
 
 /* Buffer dump macros */
 
@@ -269,7 +319,7 @@
  */
 
 #define FUNCTION_TRACE(a)               char * _proc_name = a;\
-									 function_trace(_THIS_MODULE,__LINE__,_COMPONENT,a)
+										function_trace(_THIS_MODULE,__LINE__,_COMPONENT,a)
 #define FUNCTION_TRACE_PTR(a,b)         char * _proc_name = a;\
 										function_trace_ptr(_THIS_MODULE,__LINE__,_COMPONENT,a,(void *)b)
 #define FUNCTION_TRACE_U32(a,b)         char * _proc_name = a;\
@@ -291,7 +341,7 @@
 
 /* Conditional execution */
 
-#define DEBUG_EXEC(a)                   a;
+#define DEBUG_EXEC(a)                   a
 #define NORMAL_EXEC(a)
 
 #define DEBUG_DEFINE(a)                 a;
@@ -328,8 +378,6 @@
  *    2) Debug error level or trace level for the print statement is enabled
  *
  */
-
-#define PARAM_LIST(pl)                  pl
 
 #define TEST_DEBUG_SWITCH(lvl)          if (((lvl) & acpi_dbg_level) && (_COMPONENT & acpi_dbg_layer))
 
@@ -398,7 +446,7 @@
  * DEBUG_PRINT stuff (set by ACPI_DEBUG) is on, or not.
  */
 #ifdef ENABLE_DEBUGGER
-#define DEBUGGER_EXEC(a)                a;
+#define DEBUGGER_EXEC(a)                a
 #else
 #define DEBUGGER_EXEC(a)
 #endif
@@ -412,7 +460,7 @@
 #undef DEBUG_ONLY_MEMBERS
 #define DEBUG_ONLY_MEMBERS(a)
 #undef OP_INFO_ENTRY
-#define OP_INFO_ENTRY(opcode,flags,name,Pargs,Iargs)     {opcode,flags,Pargs,Iargs}
+#define OP_INFO_ENTRY(flags,name,Pargs,Iargs)     {flags,Pargs,Iargs}
 #endif
 
 
@@ -431,5 +479,6 @@
 #define ADD_OBJECT_NAME(a,b)
 
 #endif
+
 
 #endif /* ACMACROS_H */

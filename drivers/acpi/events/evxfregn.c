@@ -2,7 +2,7 @@
  *
  * Module Name: evxfregn - External Interfaces, ACPI Operation Regions and
  *                         Address Spaces.
- *              $Revision: 20 $
+ *              $Revision: 26 $
  *
  *****************************************************************************/
 
@@ -43,12 +43,12 @@
  * PARAMETERS:  Device          - Handle for the device
  *              Space_id        - The address space ID
  *              Handler         - Address of the handler
+ *              Setup           - Address of the setup function
  *              Context         - Value passed to the handler on each access
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Install a handler for accesses on an address space controlled
- *              a specific device.
+ * DESCRIPTION: Install a handler for all Op_regions of a given Space_id.
  *
  ******************************************************************************/
 
@@ -190,7 +190,7 @@ acpi_install_address_space_handler (
 
 		/* Attach the new object to the Node */
 
-		status = acpi_ns_attach_object (device, obj_desc, (u8) type);
+		status = acpi_ns_attach_object (node, obj_desc, (u8) type);
 		if (ACPI_FAILURE (status)) {
 			acpi_cm_remove_reference (obj_desc);
 			goto unlock_and_exit;
@@ -337,7 +337,7 @@ acpi_remove_address_space_handler (
 				 *  The region is just inaccessible as indicated to
 				 *  the _REG method
 				 */
-				acpi_ev_disassociate_region_from_handler(region_obj);
+				acpi_ev_disassociate_region_from_handler(region_obj, FALSE);
 
 				/*
 				 *  Walk the list, since we took the first region and it

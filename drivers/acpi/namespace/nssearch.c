@@ -1,7 +1,7 @@
 /*******************************************************************************
  *
  * Module Name: nssearch - Namespace search
- *              $Revision: 57 $
+ *              $Revision: 62 $
  *
  ******************************************************************************/
 
@@ -169,7 +169,7 @@ acpi_ns_search_node (
  *
  ******************************************************************************/
 
-ACPI_STATUS
+static ACPI_STATUS
 acpi_ns_search_parent_tree (
 	u32                     target_name,
 	ACPI_NAMESPACE_NODE     *node,
@@ -270,7 +270,7 @@ acpi_ns_search_and_enter (
 	/* Parameter validation */
 
 	if (!node || !target_name || !return_node) {
-		REPORT_ERROR ("Ns_search_and_enter: bad (null)parameter");
+		REPORT_ERROR (("Ns_search_and_enter: bad (null) parameter\n"));
 		return (AE_BAD_PARAMETER);
 	}
 
@@ -278,7 +278,7 @@ acpi_ns_search_and_enter (
 	/* Name must consist of printable characters */
 
 	if (!acpi_cm_valid_acpi_name (target_name)) {
-		REPORT_ERROR ("Ns_search_and_enter: Bad character in ACPI Name");
+		REPORT_ERROR (("Ns_search_and_enter: Bad character in ACPI Name\n"));
 		return (AE_BAD_CHARACTER);
 	}
 
@@ -289,6 +289,16 @@ acpi_ns_search_and_enter (
 	status = acpi_ns_search_node (target_name, node,
 			   type, return_node);
 	if (status != AE_NOT_FOUND) {
+		/*
+		 * If we found it AND the request specifies that a
+		 * find is an error, return the error
+		 */
+		if ((status == AE_OK) &&
+			(flags & NS_ERROR_IF_FOUND))
+		{
+			status = AE_EXIST;
+		}
+
 		/*
 		 * Either found it or there was an error
 		 * -- finished either way

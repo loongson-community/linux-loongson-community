@@ -601,7 +601,7 @@ static int ntfs_readpage(struct file *file, struct page *page)
 static int ntfs_prepare_write(struct file *file, struct page *page, unsigned from, unsigned to)
 {
 	return cont_prepare_write(page,from,to,ntfs_get_block,
-		&((struct inode*)page->mapping->host)->u.ntfs_i.mmu_private);
+		&page->mapping->host->u.ntfs_i.mmu_private);
 }
 static int _ntfs_bmap(struct address_space *mapping, long block)
 {
@@ -963,8 +963,10 @@ static void __exit exit_ntfs_fs(void)
 EXPORT_NO_SYMBOLS;
 MODULE_AUTHOR("Martin von Löwis");
 MODULE_DESCRIPTION("NTFS driver");
+#ifdef DEBUG
 MODULE_PARM(ntdebug, "i");
 MODULE_PARM_DESC(ntdebug, "Debug level");
+#endif
 
 module_init(init_ntfs_fs)
 module_exit(exit_ntfs_fs)

@@ -857,12 +857,7 @@ void cleanup_module(void)
         for (i = 0; i < MAX_LEC_ITF; i++) {
                 if (dev_lec[i] != NULL) {
                         priv = (struct lec_priv *)dev_lec[i]->priv;
-                        if (priv->is_trdev) {
-#ifdef CONFIG_TR
-                                unregister_trdev(dev_lec[i]);
-#endif
-                        } else
-                                unregister_netdev(dev_lec[i]);
+                        unregister_trdev(dev_lec[i]);
                         kfree(dev_lec[i]);
                         dev_lec[i] = NULL;
                 }

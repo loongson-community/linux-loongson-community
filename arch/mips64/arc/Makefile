@@ -12,6 +12,4 @@ endif
 
 obj-$(CONFIG_ARC_MEMORY) += memory.o
 
-L_OBJS	:= $(obj-y)
-
 include $(TOPDIR)/Rules.make

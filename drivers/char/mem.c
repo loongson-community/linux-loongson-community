@@ -201,6 +201,9 @@ static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 	if (noncached_address(offset) || (file->f_flags & O_SYNC))
 		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 
+	/* Don't try to swap out physical pages.. */
+	vma->vm_flags |= VM_RESERVED;
+
 	/*
 	 * Don't dump addresses that are not real memory to a core file.
 	 */
@@ -438,7 +441,7 @@ out:
 static int mmap_zero(struct file * file, struct vm_area_struct * vma)
 {
 	if (vma->vm_flags & VM_SHARED)
-		return map_zero_setup(vma);
+		return shmem_zero_setup(vma);
 	if (zeromap_page_range(vma->vm_start, vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 	return 0;

@@ -15,13 +15,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: ev64120.o
 O_TARGET := ev64120.o
-O_OBJS	 := serialGT.o int-handler.o promcon.o reset.o setup.o irq.o irq-handler.o i2o.o pci_bios.o
+
+obj-y	:= serialGT.o int-handler.o promcon.o reset.o setup.o irq.o \
+	   irq-handler.o i2o.o pci_bios.o
 
 int-handler.o: int-handler.S
-
-clean:
-	*.o
 
 include $(TOPDIR)/Rules.make

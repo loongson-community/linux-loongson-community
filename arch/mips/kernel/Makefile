@@ -62,9 +62,4 @@ obj-$(CONFIG_PROC_FS)		+= proc.o
 entry.o: entry.S
 head.o: head.S
 
-O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
-OX_OBJS		:= $(filter     $(export-objs), $(obj-y))
-M_OBJS		:= $(sort $(filter-out $(export-objs), $(obj-m)))
-MX_OBJS		:= $(sort $(filter     $(export-objs), $(obj-m)))
-
 include $(TOPDIR)/Rules.make

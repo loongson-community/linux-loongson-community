@@ -885,6 +885,8 @@ void generic_make_request (int rw, struct buffer_head * bh)
 {
 	int major = MAJOR(bh->b_rdev);
 	request_queue_t *q;
+
+	if (!bh->b_end_io) BUG();
 	if (blk_size[major]) {
 		unsigned long maxsector = (blk_size[major][MINOR(bh->b_rdev)] << 1) + 1;
 		unsigned int sector, count;
@@ -962,6 +964,15 @@ void submit_bh(int rw, struct buffer_head * bh)
 	bh->b_rsector = bh->b_blocknr * (bh->b_size>>9);
 
 	generic_make_request(rw, bh);
+
+	switch (rw) {
+		case WRITE:
+			kstat.pgpgout++;
+			break;
+		default:
+			kstat.pgpgin++;
+			break;
+	}
 }
 
 /*
@@ -1006,7 +1017,6 @@ static void end_buffer_io_sync(struct buffer_head *bh, int uptodate)
 
 void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 {
-	struct buffer_head *bh;
 	unsigned int major;
 	int correct_size;
 	int i;
@@ -1023,6 +1033,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 
 	/* Verify requested block sizes. */
 	for (i = 0; i < nr; i++) {
+		struct buffer_head *bh;
 		bh = bhs[i];
 		if (bh->b_size != correct_size) {
 			printk(KERN_NOTICE "ll_rw_block: device %s: "
@@ -1040,6 +1051,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 	}
 
 	for (i = 0; i < nr; i++) {
+		struct buffer_head *bh;
 		bh = bhs[i];
 
 		/* Only one thread can actually submit the I/O. */
@@ -1055,7 +1067,6 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 				/* Hmmph! Nothing to write */
 				goto end_io;
 			__mark_buffer_clean(bh);
-			kstat.pgpgout++;
 			break;
 
 		case READA:
@@ -1063,7 +1074,6 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 			if (buffer_uptodate(bh))
 				/* Hmmph! Already have it */
 				goto end_io;
-			kstat.pgpgin++;
 			break;
 		default:
 			BUG();
@@ -1077,8 +1087,9 @@ void ll_rw_block(int rw, int nr, struct buffer_head * bhs[])
 	return;
 
 sorry:
+	/* Make sure we don't get infinite dirty retries.. */
 	for (i = 0; i < nr; i++)
-		buffer_IO_error(bhs[i]);
+		mark_buffer_clean(bhs[i]);
 }
 
 #ifdef CONFIG_STRAM_SWAP

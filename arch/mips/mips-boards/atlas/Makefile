@@ -37,9 +37,6 @@ all: atlas.o
 
 O_TARGET := atlas.o
 
-O_OBJS := atlas_int.o atlas_rtc.o atlas_setup.o
-
-dep:
-	$(CPP) -M *.c > .depend
+obj-y	:= atlas_int.o atlas_rtc.o atlas_setup.o
 
 include $(TOPDIR)/Rules.make

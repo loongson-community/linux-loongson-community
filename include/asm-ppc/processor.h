@@ -675,7 +675,6 @@ static inline unsigned long thread_saved_pc(struct thread_struct *t)
 
 #define copy_segments(tsk, mm)		do { } while (0)
 #define release_segments(mm)		do { } while (0)
-#define forget_segments()		do { } while (0)
 
 unsigned long get_wchan(struct task_struct *p);
 

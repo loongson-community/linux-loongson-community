@@ -11,12 +11,10 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: sni.o
 O_TARGET := sni.o
-O_OBJS	 := int-handler.o io.o irq.o pci.o pcimt_scache.o reset.o setup.o
+
+obj-y	 := int-handler.o io.o irq.o pci.o pcimt_scache.o reset.o setup.o
 
 int-handler.o: int-handler.S
-
-clean:
 
 include $(TOPDIR)/Rules.make

@@ -17,6 +17,11 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+/*
+ * Changes
+ * David Woodhouse <dwmw2@redhat.com> 2000-12-6
+ * - Fix interruptible_sleep_on() races
+ */
 
 #include <linux/config.h>
 #include <linux/module.h>
@@ -31,6 +36,12 @@
 #include <asm/uaccess.h>
 #include "acpi.h"
 #include "driver.h"
+
+#ifdef CONFIG_ACPI_KERNEL_CONFIG
+#include <asm/efi.h>
+#define ACPI_CAN_USE_EFI_STRUCT
+#endif
+
 
 #define _COMPONENT	OS_DEPENDENT
 	MODULE_NAME	("driver")
@@ -48,7 +59,15 @@ static volatile acpi_sstate_t acpi_event_state = ACPI_S0;
 static DECLARE_WAIT_QUEUE_HEAD(acpi_event_wait);
 
 static volatile int acpi_thread_pid = -1;
+
+/************************************************/
+/* DECLARE_TASK_QUEUE is defined in             */
+/* /usr/src/linux/include/linux/tqueue.h        */
+/* So, acpi_thread_run is a pointer to a        */
+/* tq_struct structure,defined in the same file.*/
+/************************************************/
 static DECLARE_TASK_QUEUE(acpi_thread_run);
+
 static DECLARE_WAIT_QUEUE_HEAD(acpi_thread_wait);
 
 static struct ctl_table_header *acpi_sysctl = NULL;
@@ -98,6 +117,38 @@ acpi_do_ulong(ctl_table * ctl,
 	return 0;
 }
 
+static int 
+acpi_do_pm_timer(ctl_table * ctl,
+	      int write,
+	      struct file *file,
+	      void *buffer,
+	      size_t * len)
+{
+	int size;
+	u32 val = 0;
+
+	char str[12];
+
+	if (file->f_pos) {
+		*len = 0;
+		return 0;
+	}
+
+	val = acpi_read_pm_timer();
+
+	size = sprintf(str, "0x%08x\n", val);
+	if (*len >= size) {
+		copy_to_user(buffer, str, size);
+		*len = size;
+	}
+	else
+		*len = 0;
+
+	file->f_pos += *len;
+
+	return 0;
+}
+
 /*
  * Handle ACPI event
  */
@@ -105,13 +156,18 @@ static u32
 acpi_event(void *context)
 {
 	unsigned long flags;
-	int event = (int) context;
+	int event = (int)(long)context;
 	int mask = 0;
 
 	switch (event) {
-	case ACPI_EVENT_POWER_BUTTON: mask = ACPI_PWRBTN; break;
-	case ACPI_EVENT_SLEEP_BUTTON: mask = ACPI_SLPBTN; break;
-	default: return AE_ERROR;
+	case ACPI_EVENT_POWER_BUTTON:
+		mask = ACPI_PWRBTN;
+		break;
+	case ACPI_EVENT_SLEEP_BUTTON:
+		mask = ACPI_SLPBTN;
+		break;
+	default:
+		return AE_ERROR;
 	}
 
 	if (mask) {
@@ -148,8 +204,12 @@ acpi_do_event(ctl_table * ctl,
 		return 0;
 	}
 
-	for (;;) {
+	while (!event_status) {
 		unsigned long flags;
+		DECLARE_WAITQUEUE(wait, current);
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		add_wait_queue(&acpi_event_wait, &wait);
 
 		// we need an atomic exchange here
 		spin_lock_irqsave(&acpi_event_lock, flags);
@@ -158,11 +218,12 @@ acpi_do_event(ctl_table * ctl,
 		spin_unlock_irqrestore(&acpi_event_lock, flags);
 		event_state = acpi_event_state;
 
-		if (event_status)
-			break;
+		if (!event_status)
+			schedule();
 
-		// wait for an event to arrive
-		interruptible_sleep_on(&acpi_event_wait);
+		remove_wait_queue(&acpi_event_wait, &wait);
+		set_current_state(TASK_RUNNING);
+
 		if (signal_pending(current))
 			return -ERESTARTSYS;
 	}
@@ -196,19 +257,78 @@ acpi_do_sleep(ctl_table * ctl,
 		}
 	}
 	else {
-#ifdef CONFIG_ACPI_S1_SLEEP
 		int status = acpi_enter_sx(ACPI_S1);
 		if (status)
 			return status;
-#endif
 	}
 	file->f_pos += *len;
 	return 0;
 }
 
+
 /*
- * Run queued callback
+ * Output important ACPI tables to proc
  */
+static int 
+acpi_do_table(ctl_table * ctl,
+	      int write,
+	      struct file *file,
+	      void *buffer,
+	      size_t * len)
+{
+	u32 table_type;
+	size_t size;
+	ACPI_BUFFER buf;
+	u8* data;
+
+	table_type = (u32) ctl->data;
+	size = 0;
+	buf.length = 0;
+	buf.pointer = NULL;
+
+	/* determine what buffer size we will need */
+	if (acpi_get_table(table_type, 1, &buf) != AE_BUFFER_OVERFLOW) {
+		*len = 0;
+		return 0;
+	}
+
+	buf.pointer = kmalloc(buf.length, GFP_KERNEL);
+	if (!buf.pointer) {
+		return -ENOMEM;
+	}
+
+	/* get the table for real */
+	if (!ACPI_SUCCESS(acpi_get_table(table_type, 1, &buf))) {
+		kfree(buf.pointer);
+		*len = 0;
+		return 0;
+	}
+
+	if (file->f_pos < buf.length) {
+		data = buf.pointer + file->f_pos;
+		size = buf.length - file->f_pos;
+		if (size > *len)
+			size = *len;
+		if (copy_to_user(buffer, data, size))
+			return -EFAULT;
+	}
+
+	kfree(buf.pointer);
+
+	*len = size;
+	file->f_pos += size;
+	return 0;
+}
+
+/********************************************************************/
+/*              R U N    Q U E U E D   C A L L B A C K              */
+/*                                                                  */
+/* The "callback" function address that was tramped through via     */
+/* "acpi_run" below is finally called and executed. If we trace all */
+/* this down, the function is acpi_ev_asynch_execute_gpe_method, in */ 
+/* evevent.c   The only other function that is ever queued is       */
+/* acpi_ev_global_lock_thread in evmisc.c.                          */
+/********************************************************************/
 static void
 acpi_run_exec(void *context)
 {
@@ -266,6 +386,20 @@ static struct ctl_table acpi_table[] =
 
 	{ACPI_EVENT, "event", NULL, 0, 0400, NULL, &acpi_do_event},
 
+	{ACPI_FADT, "fadt", (void *) ACPI_TABLE_FADT, sizeof(int),
+	 0444, NULL, &acpi_do_table},
+	
+	{ACPI_DSDT, "dsdt", (void *) ACPI_TABLE_DSDT, sizeof(int),
+	 0444, NULL, &acpi_do_table},
+
+	{ACPI_FACS, "facs", (void *) ACPI_TABLE_FACS, sizeof(int),
+	 0444, NULL, &acpi_do_table},
+
+	{ACPI_XSDT, "xsdt", (void *) ACPI_TABLE_XSDT, sizeof(int),
+	 0444, NULL, &acpi_do_table},
+
+	{ACPI_PMTIMER, "pm_timer", NULL, 0, 0444, NULL, &acpi_do_pm_timer},
+	
 	{0}
 };
 
@@ -281,50 +415,75 @@ static struct ctl_table acpi_dir_table[] =
 static int
 acpi_thread(void *context)
 {
+	ACPI_PHYSICAL_ADDRESS rsdp_phys;
+
 	/*
 	 * initialize
 	 */
-
 	daemonize();
-	strcpy(current->comm, "acpi");
+	strcpy(current->comm, "kacpid");
 
-	if (!ACPI_SUCCESS(acpi_initialize(NULL))) {
-		printk(KERN_ERR "ACPI: initialize failed\n");
+	if (!ACPI_SUCCESS(acpi_initialize_subsystem())) {
+		printk(KERN_ERR "ACPI: Driver initialization failed\n");
 		return -ENODEV;
 	}
+
+#ifndef ACPI_CAN_USE_EFI_STRUCT
+	if (!ACPI_SUCCESS(acpi_find_root_pointer(&rsdp_phys))) {
+		printk(KERN_ERR "ACPI: System description tables not found\n");
+		return -ENODEV;
+	}
+#else
+	rsdp_phys = efi.acpi;
+#endif
+		
+	printk(KERN_ERR "ACPI: System description tables found\n");
 	
-	if (acpi_load_tables())
+	if (!ACPI_SUCCESS(acpi_find_and_load_tables(rsdp_phys)))
 		return -ENODEV;
 
 	if (PM_IS_ACTIVE()) {
-		printk(KERN_NOTICE "ACPI: APM is already active.\n");
+		printk(KERN_NOTICE "ACPI: APM is already active, exiting\n");
 		acpi_terminate();
 		return -ENODEV;
 	}
+
+	if (!ACPI_SUCCESS(acpi_enable_subsystem(ACPI_FULL_INITIALIZATION))) {
+		printk(KERN_ERR "ACPI: Subsystem enable failed\n");
+		acpi_terminate();
+		return -ENODEV;
+	}
+
+	printk(KERN_ERR "ACPI: Subsystem enabled\n");
 
 	pm_active = 1;
-
-	if (!ACPI_SUCCESS(acpi_enable())) {
-		printk(KERN_ERR "ACPI: enable failed\n");
-		acpi_terminate();
-		return -ENODEV;
-	}
 
 	acpi_cpu_init();
 	acpi_sys_init();
 	acpi_ec_init();
+	acpi_power_init();
 
-	if (!ACPI_SUCCESS(acpi_install_fixed_event_handler(
-		ACPI_EVENT_POWER_BUTTON,
-		acpi_event,
-		(void *) ACPI_EVENT_POWER_BUTTON))) {
-		printk(KERN_ERR "ACPI: power button enable failed\n");
+	/* 
+	 * Non-intuitive: 0 means pwr and sleep are implemented using the fixed
+	 * feature model, so we install handlers. 1 means a control method
+	 * implementation, or none at all, so do nothing. See ACPI spec.
+	 */
+	if (acpi_fadt.pwr_button == 0) {
+		if (!ACPI_SUCCESS(acpi_install_fixed_event_handler(
+			ACPI_EVENT_POWER_BUTTON,
+			acpi_event,
+			(void *) ACPI_EVENT_POWER_BUTTON))) {
+			printk(KERN_ERR "ACPI: power button enable failed\n");
+		}
 	}
-	if (!ACPI_SUCCESS(acpi_install_fixed_event_handler(
-		ACPI_EVENT_SLEEP_BUTTON,
-		acpi_event,
-		(void *) ACPI_EVENT_SLEEP_BUTTON))) {
-		printk(KERN_ERR "ACPI: sleep button enable failed\n");
+
+	if (acpi_fadt.sleep_button == 0) {
+		if (!ACPI_SUCCESS(acpi_install_fixed_event_handler(
+			ACPI_EVENT_SLEEP_BUTTON,
+			acpi_event,
+			(void *) ACPI_EVENT_SLEEP_BUTTON))) {
+			printk(KERN_ERR "ACPI: sleep button enable failed\n");
+		}
 	}
 
 	acpi_sysctl = register_sysctl_table(acpi_dir_table, 1);
@@ -333,9 +492,20 @@ acpi_thread(void *context)
 	 * run
 	 */
 	for (;;) {
-		interruptible_sleep_on(&acpi_thread_wait);
+		DECLARE_WAITQUEUE(wait, current);
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		add_wait_queue(&acpi_thread_wait, &wait);
+
+		if (list_empty(&acpi_thread_run))
+			schedule();
+
+		remove_wait_queue(&acpi_thread_wait, &wait);
+		set_current_state(TASK_RUNNING);
+
 		if (signal_pending(current))
 			break;
+
 		run_task_queue(&acpi_thread_run);
 	}
 
@@ -343,7 +513,9 @@ acpi_thread(void *context)
 	 * terminate
 	 */
 	unregister_sysctl_table(acpi_sysctl);
-	acpi_terminate();
+
+	/* do not terminate, because we need acpi in order to shut down */
+	/*acpi_terminate();*/
 
 	acpi_thread_pid = -1;
 

@@ -47,7 +47,7 @@ struct cpuinfo_x86 {
 	int	fdiv_bug;
 	int	f00f_bug;
 	int	coma_bug;
-	unsigned long loops_per_sec;
+	unsigned long loops_per_jiffy;
 	unsigned long *pgd_quick;
 	unsigned long *pmd_quick;
 	unsigned long *pte_quick;
@@ -430,7 +430,6 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 /* Copy and release all segment info associated with a VM */
 extern void copy_segments(struct task_struct *p, struct mm_struct * mm);
 extern void release_segments(struct mm_struct * mm);
-extern void forget_segments(void);
 
 /*
  * Return saved PC of a blocked thread.

@@ -18,7 +18,7 @@ export-objs     := mca.o mtrr.o msr.o cpuid.o microcode.o i386_ksyms.o
 
 obj-y	:= process.o semaphore.o signal.o entry.o traps.o irq.o vm86.o \
 		ptrace.o i8259.o ioport.o ldt.o setup.o time.o sys_i386.o \
-		pci-dma.o i386_ksyms.o i387.o bluesmoke.o
+		pci-dma.o i386_ksyms.o i387.o bluesmoke.o dmi_scan.o
 
 
 ifdef CONFIG_PCI
@@ -40,15 +40,5 @@ obj-$(CONFIG_SMP)	+= smp.o smpboot.o trampoline.o
 obj-$(CONFIG_X86_LOCAL_APIC)	+= apic.o
 obj-$(CONFIG_X86_IO_APIC)	+= io_apic.o mpparse.o
 obj-$(CONFIG_X86_VISWS_APIC)	+= visws_apic.o
-
-# if the interpreter is used, it overrides acpi.c
-ifneq ($(CONFIG_ACPI_INTERPRETER),y)
-obj-$(CONFIG_ACPI)	+= acpi.o
-endif
-
-O_OBJS		:= $(filter-out	$(export-objs), $(obj-y))
-OX_OBJS		:= $(filter	$(export-objs), $(obj-y))
-M_OBJS		:= $(sort $(filter-out	$(export-objs), $(obj-m)))
-MX_OBJS		:= $(sort $(filter	$(export-objs), $(obj-m)))
 
 include $(TOPDIR)/Rules.make

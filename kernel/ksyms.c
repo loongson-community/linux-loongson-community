@@ -188,6 +188,7 @@ EXPORT_SYMBOL(bread);
 EXPORT_SYMBOL(__brelse);
 EXPORT_SYMBOL(__bforget);
 EXPORT_SYMBOL(ll_rw_block);
+EXPORT_SYMBOL(submit_bh);
 EXPORT_SYMBOL(__wait_on_buffer);
 EXPORT_SYMBOL(___wait_on_page);
 EXPORT_SYMBOL(block_write_full_page);
@@ -257,7 +258,6 @@ EXPORT_SYMBOL(dcache_readdir);
 EXPORT_SYMBOL(default_llseek);
 EXPORT_SYMBOL(dentry_open);
 EXPORT_SYMBOL(filemap_nopage);
-EXPORT_SYMBOL(filemap_swapout);
 EXPORT_SYMBOL(filemap_sync);
 EXPORT_SYMBOL(lock_page);
 
@@ -429,9 +429,13 @@ EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);
 EXPORT_SYMBOL(do_settimeofday);
-#ifndef __ia64__
+
+#ifdef CONFIG_X86
+EXPORT_SYMBOL(loops_per_jiffy);
+#elif !defined(__ia64__)
 EXPORT_SYMBOL(loops_per_sec);
 #endif
+
 EXPORT_SYMBOL(kstat);
 EXPORT_SYMBOL(nr_running);
 
@@ -474,6 +478,7 @@ EXPORT_SYMBOL(si_meminfo);
 EXPORT_SYMBOL(sys_tz);
 EXPORT_SYMBOL(__wait_on_super);
 EXPORT_SYMBOL(file_fsync);
+EXPORT_SYMBOL(fsync_inode_buffers);
 EXPORT_SYMBOL(clear_inode);
 EXPORT_SYMBOL(nr_async_pages);
 EXPORT_SYMBOL(___strtok);
@@ -483,6 +488,7 @@ EXPORT_SYMBOL(get_hash_table);
 EXPORT_SYMBOL(get_empty_inode);
 EXPORT_SYMBOL(insert_inode_hash);
 EXPORT_SYMBOL(remove_inode_hash);
+EXPORT_SYMBOL(buffer_insert_inode_queue);
 EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
@@ -524,6 +530,7 @@ EXPORT_SYMBOL(init_bh);
 EXPORT_SYMBOL(remove_bh);
 EXPORT_SYMBOL(tasklet_init);
 EXPORT_SYMBOL(tasklet_kill);
+EXPORT_SYMBOL(__run_task_queue);
 
 /* init task, for moving kthread roots - ought to export a function ?? */
 

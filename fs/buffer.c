@@ -122,16 +122,17 @@ union bdflush_param {
 				  when trying to refill buffers. */
 		int interval; /* jiffies delay between kupdate flushes */
 		int age_buffer;  /* Time for normal buffer to age before we flush it */
-		int dummy1;    /* unused, was age_super */
+		int nfract_sync; /* Percentage of buffer cache dirty to 
+				    activate bdflush synchronously */
 		int dummy2;    /* unused */
 		int dummy3;    /* unused */
 	} b_un;
 	unsigned int data[N_PARAM];
-} bdf_prm = {{40, 500, 64, 256, 5*HZ, 30*HZ, 5*HZ, 1884, 2}};
+} bdf_prm = {{40, 500, 64, 256, 5*HZ, 30*HZ, 80, 0, 0}};
 
 /* These are the min and max parameter values that we will allow to be assigned */
-int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   1*HZ,   1*HZ, 1, 1};
-int bdflush_max[N_PARAM] = {100,50000, 20000, 20000,600*HZ, 6000*HZ, 6000*HZ, 2047, 5};
+int bdflush_min[N_PARAM] = {  0,  10,    5,   25,  0,   1*HZ,   0, 0, 0};
+int bdflush_max[N_PARAM] = {100,50000, 20000, 20000,600*HZ, 6000*HZ, 100, 0, 0};
 
 /*
  * Rewrote the wait-routines to use the "new" wait-queue functionality,
@@ -337,9 +338,10 @@ int file_fsync(struct file *filp, struct dentry *dentry, int datasync)
 
 	/* sync the superblock to buffers */
 	sb = inode->i_sb;
-	wait_on_super(sb);
+	lock_super(sb);
 	if (sb->s_op && sb->s_op->write_super)
 		sb->s_op->write_super(sb);
+	unlock_super(sb);
 
 	/* .. finally sync the buffers to disk */
 	dev = inode->i_dev;
@@ -369,7 +371,9 @@ asmlinkage long sys_fsync(unsigned int fd)
 
 	/* We need to protect against concurrent writers.. */
 	down(&inode->i_sem);
+	filemap_fdatasync(inode->i_mapping);
 	err = file->f_op->fsync(file, dentry, 0);
+	filemap_fdatawait(inode->i_mapping);
 	up(&inode->i_sem);
 
 out_putf:
@@ -398,7 +402,9 @@ asmlinkage long sys_fdatasync(unsigned int fd)
 		goto out_putf;
 
 	down(&inode->i_sem);
+	filemap_fdatasync(inode->i_mapping);
 	err = file->f_op->fsync(file, dentry, 1);
+	filemap_fdatawait(inode->i_mapping);
 	up(&inode->i_sem);
 
 out_putf:
@@ -639,7 +645,12 @@ void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 			continue;
 		for (i = nr_buffers_type[nlist]; i > 0 ; bh = bh_next, i--) {
 			bh_next = bh->b_next_free;
+
+			/* Another device? */
 			if (bh->b_dev != dev)
+				continue;
+			/* Part of a mapping? */
+			if (bh->b_page->mapping)
 				continue;
 			if (buffer_locked(bh)) {
 				atomic_inc(&bh->b_count);
@@ -756,13 +767,6 @@ void init_buffer(struct buffer_head *bh, bh_end_io_t *handler, void *private)
 	bh->b_list = BUF_CLEAN;
 	bh->b_end_io = handler;
 	bh->b_private = private;
-}
-
-static void end_buffer_io_bad(struct buffer_head *bh, int uptodate)
-{
-	mark_buffer_uptodate(bh, uptodate);
-	unlock_buffer(bh);
-	BUG();
 }
 
 static void end_buffer_io_async(struct buffer_head * bh, int uptodate)
@@ -995,7 +999,7 @@ repeat:
 	 * and it is clean.
 	 */
 	if (bh) {
-		init_buffer(bh, end_buffer_io_bad, NULL);
+		init_buffer(bh, NULL, NULL);
 		bh->b_dev = dev;
 		bh->b_blocknr = block;
 		bh->b_state = 1 << BH_Mapped;
@@ -1030,9 +1034,9 @@ int balance_dirty_state(kdev_t dev)
 	dirty = size_buffers_type[BUF_DIRTY] >> PAGE_SHIFT;
 	tot = nr_free_buffer_pages();
 
-	dirty *= 200;
+	dirty *= 100;
 	soft_dirty_limit = tot * bdf_prm.b_un.nfract;
-	hard_dirty_limit = soft_dirty_limit * 2;
+	hard_dirty_limit = tot * bdf_prm.b_un.nfract_sync;
 
 	/* First, check for the "real" dirty limit. */
 	if (dirty > soft_dirty_limit) {
@@ -1305,7 +1309,7 @@ try_again:
 		set_bh_page(bh, page, offset);
 
 		bh->b_list = BUF_CLEAN;
-		bh->b_end_io = end_buffer_io_bad;
+		bh->b_end_io = NULL;
 	}
 	return head;
 /*
@@ -1426,7 +1430,7 @@ static void create_empty_buffers(struct page *page, kdev_t dev, unsigned long bl
 	do {
 		bh->b_dev = dev;
 		bh->b_blocknr = 0;
-		bh->b_end_io = end_buffer_io_bad;
+		bh->b_end_io = NULL;
 		tail = bh;
 		bh = bh->b_this_page;
 	} while (bh);
@@ -1519,13 +1523,13 @@ static int __block_write_full_page(struct inode *inode, struct page *page, get_b
 		block++;
 	} while (bh != head);
 
-	/* Stage 2: lock the buffers, mark them dirty */
+	/* Stage 2: lock the buffers, mark them clean */
 	do {
 		lock_buffer(bh);
 		bh->b_end_io = end_buffer_io_async;
 		atomic_inc(&bh->b_count);
 		set_bit(BH_Uptodate, &bh->b_state);
-		set_bit(BH_Dirty, &bh->b_state);
+		clear_bit(BH_Dirty, &bh->b_state);
 		bh = bh->b_this_page;
 	} while (bh != head);
 
@@ -1664,7 +1668,7 @@ static int __block_commit_write(struct inode *inode, struct page *page,
  */
 int block_read_full_page(struct page *page, get_block_t *get_block)
 {
-	struct inode *inode = (struct inode*)page->mapping->host;
+	struct inode *inode = page->mapping->host;
 	unsigned long iblock, lblock;
 	struct buffer_head *bh, *head, *arr[MAX_BUF_PER_PAGE];
 	unsigned int blocksize, blocks;
@@ -1700,6 +1704,9 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 				set_bit(BH_Uptodate, &bh->b_state);
 				continue;
 			}
+			/* get_block() might have updated the buffer synchronously */
+			if (buffer_uptodate(bh))
+				continue;
 		}
 
 		arr[nr] = bh;
@@ -1739,7 +1746,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 int cont_prepare_write(struct page *page, unsigned offset, unsigned to, get_block_t *get_block, unsigned long *bytes)
 {
 	struct address_space *mapping = page->mapping;
-	struct inode *inode = (struct inode*)mapping->host;
+	struct inode *inode = mapping->host;
 	struct page *new_page;
 	unsigned long pgpos;
 	long status;
@@ -1820,7 +1827,7 @@ out:
 int block_prepare_write(struct page *page, unsigned from, unsigned to,
 			get_block_t *get_block)
 {
-	struct inode *inode = (struct inode*)page->mapping->host;
+	struct inode *inode = page->mapping->host;
 	int err = __block_prepare_write(inode, page, from, to, get_block);
 	if (err) {
 		ClearPageUptodate(page);
@@ -1832,7 +1839,7 @@ int block_prepare_write(struct page *page, unsigned from, unsigned to,
 int generic_commit_write(struct file *file, struct page *page,
 		unsigned from, unsigned to)
 {
-	struct inode *inode = (struct inode*)page->mapping->host;
+	struct inode *inode = page->mapping->host;
 	loff_t pos = ((loff_t)page->index << PAGE_CACHE_SHIFT) + to;
 	__block_commit_write(inode,page,from,to);
 	kunmap(page);
@@ -1848,7 +1855,7 @@ int block_truncate_page(struct address_space *mapping, loff_t from, get_block_t 
 	unsigned long index = from >> PAGE_CACHE_SHIFT;
 	unsigned offset = from & (PAGE_CACHE_SIZE-1);
 	unsigned blocksize, iblock, length, pos;
-	struct inode *inode = (struct inode *)mapping->host;
+	struct inode *inode = mapping->host;
 	struct page *page;
 	struct buffer_head *bh;
 	int err;
@@ -1908,7 +1915,7 @@ int block_truncate_page(struct address_space *mapping, loff_t from, get_block_t 
 	flush_dcache_page(page);
 	kunmap(page);
 
-	mark_buffer_dirty(bh);
+	__mark_buffer_dirty(bh);
 	err = 0;
 
 unlock:
@@ -1920,7 +1927,7 @@ out:
 
 int block_write_full_page(struct page *page, get_block_t *get_block)
 {
-	struct inode *inode = (struct inode*)page->mapping->host;
+	struct inode *inode = page->mapping->host;
 	unsigned long end_index = inode->i_size >> PAGE_CACHE_SHIFT;
 	unsigned offset;
 	int err;
@@ -1955,7 +1962,7 @@ done:
 int generic_block_bmap(struct address_space *mapping, long block, get_block_t *get_block)
 {
 	struct buffer_head tmp;
-	struct inode *inode = (struct inode*)mapping->host;
+	struct inode *inode = mapping->host;
 	tmp.b_state = 0;
 	tmp.b_blocknr = 0;
 	get_block(inode, block, &tmp, 0);
@@ -2097,7 +2104,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 
 				if (rw == WRITE) {
 					set_bit(BH_Uptodate, &tmp->b_state);
-					set_bit(BH_Dirty, &tmp->b_state);
+					clear_bit(BH_Dirty, &tmp->b_state);
 				}
 
 				bh[bhind++] = tmp;

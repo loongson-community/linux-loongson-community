@@ -120,22 +120,8 @@ extern pgprot_t protection_map[16];
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
 	void (*close)(struct vm_area_struct * area);
-	void (*unmap)(struct vm_area_struct *area, unsigned long, size_t);
-	void (*protect)(struct vm_area_struct *area, unsigned long, size_t, unsigned int newprot);
-	int (*sync)(struct vm_area_struct *area, unsigned long, size_t, unsigned int flags);
 	struct page * (*nopage)(struct vm_area_struct * area, unsigned long address, int write_access);
-	struct page * (*wppage)(struct vm_area_struct * area, unsigned long address, struct page * page);
-	int (*swapout)(struct page *, struct file *);
 };
-
-/*
- * A swap entry has to fit into a "unsigned long", as
- * the entry is hidden in the "index" field of the
- * swapper address space.
- */
-typedef struct {
-	unsigned long val;
-} swp_entry_t;
 
 /*
  * Try to keep the most commonly accessed fields in single cache lines
@@ -185,7 +171,6 @@ typedef struct page {
 #define PG_arch_1		30
 #define PG_reserved		31
 
-
 /* Make it prettier to test the above... */
 #define Page_Uptodate(page)	test_bit(PG_uptodate, &(page)->flags)
 #define SetPageUptodate(page)	set_bit(PG_uptodate, &(page)->flags)
@@ -196,6 +181,15 @@ typedef struct page {
 #define PageLocked(page)	test_bit(PG_locked, &(page)->flags)
 #define LockPage(page)		set_bit(PG_locked, &(page)->flags)
 #define TryLockPage(page)	test_and_set_bit(PG_locked, &(page)->flags)
+
+extern void __set_page_dirty(struct page *);
+
+static inline void set_page_dirty(struct page * page)
+{
+	if (!test_and_set_bit(PG_dirty, &page->flags))
+		__set_page_dirty(page);
+}
+
 /*
  * The first mb is necessary to safely close the critical section opened by the
  * TryLockPage(), the second mb is necessary to enforce ordering between
@@ -390,7 +384,9 @@ extern void show_free_areas_node(pg_data_t *pgdat);
 
 extern void clear_page_tables(struct mm_struct *, unsigned long, int);
 
-extern int map_zero_setup(struct vm_area_struct *);
+struct page * shmem_nopage(struct vm_area_struct * vma, unsigned long address, int no_share);
+struct file *shmem_file_setup(char * name, loff_t size);
+extern int shmem_zero_setup(struct vm_area_struct *);
 
 extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
@@ -419,7 +415,6 @@ extern void swapin_readahead(swp_entry_t);
 /* mmap.c */
 extern void lock_vma_mappings(struct vm_area_struct *);
 extern void unlock_vma_mappings(struct vm_area_struct *);
-extern void merge_segments(struct mm_struct *, unsigned long, unsigned long);
 extern void insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void __insert_vm_struct(struct mm_struct *, struct vm_area_struct *);
 extern void build_mmap_avl(struct mm_struct *);
@@ -454,7 +449,6 @@ extern unsigned long page_unuse(struct page *);
 extern void truncate_inode_pages(struct address_space *, loff_t);
 
 /* generic vm_area_ops exported for stackable file systems */
-extern int filemap_swapout(struct page *, struct file *);
 extern int filemap_sync(struct vm_area_struct *, unsigned long,	size_t, unsigned int);
 extern struct page *filemap_nopage(struct vm_area_struct *, unsigned long, int);
 

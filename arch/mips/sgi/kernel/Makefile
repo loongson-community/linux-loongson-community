@@ -22,6 +22,4 @@ obj-y	+= indy_mc.o indy_sc.o indy_hpc.o indy_int.o indy_rtc.o system.o \
 
 indyIRQ.o: indyIRQ.S
 
-O_OBJS          := $(obj-y)
-
 include $(TOPDIR)/Rules.make

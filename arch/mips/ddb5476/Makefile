@@ -15,10 +15,9 @@
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
 O_TARGET = ddb5476.a
-O_OBJS  = setup.o irq.o time.o prom.o pci.o int-handler.o nile4.o
 
-ifdef CONFIG_REMOTE_DEBUG
-O_OBJS += dbg_io.o
-endif
+obj-y				+= setup.o irq.o time.o prom.o pci.o \
+				   int-handler.o nile4.o
+obj-$(CONFIG_REMOTE_DEBUG)	+= dbg_io.o
 
 include $(TOPDIR)/Rules.make

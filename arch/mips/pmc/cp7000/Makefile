@@ -12,7 +12,8 @@
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
 O_TARGET := cp7000.o
-O_OBJS	 := i2o.o int-handler.o irq.o irq-handler.o pci.o promcon.o reset.o \
+
+obj-y	 := i2o.o int-handler.o irq.o irq-handler.o pci.o promcon.o reset.o \
 	    serialGT.o setup.o
 
 include $(TOPDIR)/Rules.make

@@ -502,6 +502,12 @@ S: Las Cuevas 2385 - Bo Guemes
 S: Las Heras, Mendoza CP 5539
 S: Argentina
 
+N: Steven P. Cole
+E: scole@lanl.gov
+E: elenstev@mesatop.com
+D: Various build fixes and kernel documentation.
+S: Los Alamos, New Mexico
+
 N: Hamish Coleman
 E: hamish@zot.apana.org.au
 D: SEEQ8005 network driver
@@ -947,6 +953,14 @@ S: Department of Computer Science
 S: University of California, Riverside
 S: Riverside, California 92521-0304
 S: USA
+
+N: Hans Grobler
+E: grobh@sun.ac.za
+D: Various AX.25/ROSE/NETROM + hamradio driver patches
+S: Department of Electronic Engineering
+S: University of Stellenbosch
+S: Stellenbosch, Western Cape
+S: South Africa
 
 N: Grant Guenther
 E: grant@torque.net

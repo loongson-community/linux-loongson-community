@@ -33,7 +33,7 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next, str
 		/*
 		 * Re-load LDT if necessary
 		 */
-		if (prev->segments != next->segments)
+		if (prev->context.segments != next->context.segments)
 			load_LDT(next);
 #ifdef CONFIG_SMP
 		cpu_tlbstate[cpu].state = TLBSTATE_OK;

@@ -14,6 +14,4 @@ obj-y	+= csum_partial.o csum_partial_copy.o dump_tlb.o floppy-std.o \
 	  rtc-no.o memset.o memcpy.o strlen_user.o strncpy_user.o \
 	  strnlen_user.o watch.o
 
-L_OBJS	:= $(obj-y)
-
 include $(TOPDIR)/Rules.make

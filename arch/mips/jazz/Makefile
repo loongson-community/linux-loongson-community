@@ -11,13 +11,11 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $@
 
-all: jazz.o
 O_TARGET := jazz.o
-O_OBJS	 := int-handler.o jazzdma.o reset.o rtc-jazz.o setup.o floppy-jazz.o \
+
+obj-y	 := int-handler.o jazzdma.o reset.o rtc-jazz.o setup.o floppy-jazz.o \
 	    kbd-jazz.o
 
 int-handler.o: int-handler.S
-
-clean:
 
 include $(TOPDIR)/Rules.make

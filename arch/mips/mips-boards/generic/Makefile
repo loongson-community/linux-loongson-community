@@ -32,15 +32,10 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: mipsboards.o
-
 O_TARGET := mipsboards.o
 
-O_OBJS := mipsIRQ.o pci.o reset.o display.o init.o memory.o printf.o \
-	  cmdline.o time.o
-
-ifdef CONFIG_REMOTE_DEBUG
-O_OBJS += gdb_hook.o
-endif
+obj-y				:= mipsIRQ.o pci.o reset.o display.o init.o \
+				   memory.o printf.o cmdline.o time.o
+obj-$(CONFIG_REMOTE_DEBUG)	+= gdb_hook.o
 
 include $(TOPDIR)/Rules.make

@@ -1,6 +1,6 @@
 BOOKS	:= wanbook.sgml z8530book.sgml mcabook.sgml videobook.sgml \
 	   kernel-api.sgml parportbook.sgml kernel-hacking.sgml \
-	   kernel-locking.sgml via-audio.sgml mousedrivers.sgml
+	   kernel-locking.sgml via-audio.sgml mousedrivers.sgml sis900.sgml
 
 PS	:=	$(patsubst %.sgml, %.ps, $(BOOKS))
 PDF	:=	$(patsubst %.sgml, %.pdf, $(BOOKS))
@@ -51,6 +51,10 @@ via-audio.sgml: via-audio.tmpl $(TOPDIR)/drivers/sound/via82cxxx_audio.c
 	$(TOPDIR)/scripts/docgen $(TOPDIR)/drivers/sound/via82cxxx_audio.c \
 		<via-audio.tmpl >via-audio.sgml
 
+sis900.sgml: sis900.tmpl $(TOPDIR)/drivers/net/sis900.c
+	$(TOPDIR)/scripts/docgen $(TOPDIR)/drivers/net/sis900.c \
+		<sis900.tmpl >sis900.sgml
+
 mcabook.sgml: mcabook.tmpl $(TOPDIR)/arch/i386/kernel/mca.c
 	$(TOPDIR)/scripts/docgen $(TOPDIR)/arch/i386/kernel/mca.c \
 		<mcabook.tmpl >mcabook.sgml
@@ -72,6 +76,7 @@ APISOURCES :=	$(TOPDIR)/drivers/media/video/videodev.c \
 		$(TOPDIR)/drivers/sound/sound_firmware.c \
 		$(TOPDIR)/drivers/net/wan/syncppp.c \
 		$(TOPDIR)/drivers/net/wan/z85230.c \
+		$(TOPDIR)/drivers/usb/usb.c \
 		$(TOPDIR)/fs/locks.c \
 		$(TOPDIR)/fs/devfs/base.c \
 		$(TOPDIR)/kernel/pm.c \

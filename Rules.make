@@ -19,24 +19,29 @@ unexport SUB_DIRS
 unexport ALL_SUB_DIRS
 unexport MOD_SUB_DIRS
 unexport O_TARGET
-unexport O_OBJS
-unexport L_OBJS
-unexport M_OBJS
-# intermediate objects that form part of a module
-unexport MI_OBJS
 unexport ALL_MOBJS
-# objects that export symbol tables
-unexport OX_OBJS
-unexport LX_OBJS
-unexport MX_OBJS
-unexport MIX_OBJS
-unexport SYMTAB_OBJS
+
+unexport obj-y
+unexport obj-m
+unexport obj-n
+unexport obj-
+unexport export-objs
+unexport subdir-y
+unexport subdir-m
+unexport subdir-n
+unexport subdir-
 
 #
 # Get things started.
 #
 first_rule: sub_dirs
 	$(MAKE) all_targets
+
+both-m          := $(filter $(mod-subdirs), $(subdir-y))
+SUB_DIRS	:= $(subdir-y)
+MOD_SUB_DIRS	:= $(sort $(subdir-m) $(both-m))
+ALL_SUB_DIRS	:= $(sort $(subdir-y) $(subdir-m) $(subdir-n) $(subdir-))
+
 
 #
 # Common rules
@@ -85,16 +90,15 @@ all_targets: $(O_TARGET) $(L_TARGET)
 # Rule to compile a set of .o files into one .o file
 #
 ifdef O_TARGET
-ALL_O = $(OX_OBJS) $(O_OBJS)
-$(O_TARGET): $(ALL_O)
+$(O_TARGET): $(obj-y)
 	rm -f $@
-    ifneq "$(strip $(ALL_O))" ""
-	$(LD) $(EXTRA_LDFLAGS) -r -o $@ $(filter $(ALL_O), $^)
+    ifneq "$(strip $(obj-y))" ""
+	$(LD) $(EXTRA_LDFLAGS) -r -o $@ $(filter $(obj-y), $^)
     else
-	$(AR) rcs $@ $(filter $(ALL_O), $^)
+	$(AR) rcs $@
     endif
 	@ ( \
-	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_LDFLAGS) $(ALL_O))),$$(strip $$(subst $$(comma),:,$$(EXTRA_LDFLAGS) $$(ALL_O))))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_LDFLAGS) $(obj-y))),$$(strip $$(subst $$(comma),:,$$(EXTRA_LDFLAGS) $$(obj-y))))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
@@ -104,15 +108,16 @@ endif # O_TARGET
 # Rule to compile a set of .o files into one .a file
 #
 ifdef L_TARGET
-$(L_TARGET): $(LX_OBJS) $(L_OBJS)
+$(L_TARGET): $(obj-y)
 	rm -f $@
-	$(AR) $(EXTRA_ARFLAGS) rcs $@ $(LX_OBJS) $(L_OBJS)
+	$(AR) $(EXTRA_ARFLAGS) rcs $@ $(obj-y)
 	@ ( \
-	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_ARFLAGS) $(LX_OBJS) $(L_OBJS))),$$(strip $$(subst $$(comma),:,$$(EXTRA_ARFLAGS) $$(LX_OBJS) $$(L_OBJS))))' ; \
+	    echo 'ifeq ($(strip $(subst $(comma),:,$(EXTRA_ARFLAGS) $(obj-y))),$$(strip $$(subst $$(comma),:,$$(EXTRA_ARFLAGS) $$(obj-y))))' ; \
 	    echo 'FILES_FLAGS_UP_TO_DATE += $@' ; \
 	    echo 'endif' \
 	) > $(dir $@)/.$(notdir $@).flags
 endif
+
 
 #
 # This make dependencies quickly
@@ -132,17 +137,18 @@ endif
 #
 # A rule to make subdirectories
 #
-sub_dirs: dummy $(patsubst %,_subdir_%,$(SUB_DIRS))
+subdir-list = $(sort $(patsubst %,_subdir_%,$(SUB_DIRS)))
+sub_dirs: dummy $(subdir-list)
 
 ifdef SUB_DIRS
-$(patsubst %,_subdir_%,$(SUB_DIRS)) : dummy
+$(subdir-list) : dummy
 	$(MAKE) -C $(patsubst _subdir_%,%,$@)
 endif
 
 #
 # A rule to make modules
 #
-ALL_MOBJS = $(MX_OBJS) $(M_OBJS)
+ALL_MOBJS = $(filter-out $(obj-y), $(obj-m))
 ifneq "$(strip $(ALL_MOBJS))" ""
 PDWN=$(shell $(CONFIG_SHELL) $(TOPDIR)/scripts/pathdown.sh)
 endif
@@ -160,7 +166,7 @@ $(patsubst %,_modinst_%,$(MOD_DIRS)) : dummy
 endif
 
 .PHONY: modules
-modules: $(ALL_MOBJS) $(MIX_OBJS) $(MI_OBJS) dummy \
+modules: $(ALL_MOBJS) dummy \
 	 $(patsubst %,_modsubdir_%,$(MOD_DIRS))
 
 .PHONY: _modinst__
@@ -187,16 +193,17 @@ script:
 
 #
 # This sets version suffixes on exported symbols
-# Uses SYMTAB_OBJS
 # Separate the object into "normal" objects and "exporting" objects
 # Exporting objects are: all objects that define symbol tables
 #
 ifdef CONFIG_MODULES
 
-SYMTAB_OBJS = $(LX_OBJS) $(OX_OBJS) $(MX_OBJS) $(MIX_OBJS)
+multi-used	:= $(filter $(list-multi), $(obj-y) $(obj-m))
+multi-objs	:= $(foreach m, $(multi-used), $($(basename $(m))-objs))
+active-objs	:= $(sort $(multi-objs) $(obj-y) $(obj-m))
 
 ifdef CONFIG_MODVERSIONS
-ifneq "$(strip $(SYMTAB_OBJS))" ""
+ifneq "$(strip $(export-objs))" ""
 
 MODINCL = $(TOPDIR)/include/linux/modules
 
@@ -223,15 +230,15 @@ $(MODINCL)/%.ver: %.c
 		else echo mv $@.tmp $@; mv -f $@.tmp $@; fi; \
 	fi; touch $(MODINCL)/$*.stamp
 	
-$(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver)): $(TOPDIR)/include/linux/autoconf.h
+$(addprefix $(MODINCL)/,$(export-objs:.o=.ver)): $(TOPDIR)/include/linux/autoconf.h
 
 # updates .ver files but not modversions.h
-fastdep: $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver))
+fastdep: $(addprefix $(MODINCL)/,$(export-objs:.o=.ver))
 
 # updates .ver files and modversions.h like before (is this needed?)
 dep: fastdep update-modverfile
 
-endif # SYMTAB_OBJS 
+endif # export-objs 
 
 # update modversions.h, but only if it would change
 update-modverfile:
@@ -252,10 +259,7 @@ update-modverfile:
 		mv -f $(TOPDIR)/include/linux/modversions.h.tmp $(TOPDIR)/include/linux/modversions.h; \
 	fi
 
-$(M_OBJS): $(TOPDIR)/include/linux/modversions.h
-ifdef MAKING_MODULES
-$(O_OBJS) $(L_OBJS): $(TOPDIR)/include/linux/modversions.h
-endif
+$(active-objs): $(TOPDIR)/include/linux/modversions.h
 
 else
 
@@ -264,8 +268,8 @@ $(TOPDIR)/include/linux/modversions.h:
 
 endif # CONFIG_MODVERSIONS
 
-ifneq "$(strip $(SYMTAB_OBJS))" ""
-$(SYMTAB_OBJS): $(SYMTAB_OBJS:.o=.c) $(TOPDIR)/include/linux/modversions.h
+ifneq "$(strip $(export-objs))" ""
+$(export-objs): $(export-objs:.o=.c) $(TOPDIR)/include/linux/modversions.h
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -DEXPORT_SYMTAB -c $(@:.o=.c)
 	@ ( \
 	    echo 'ifeq ($(strip $(subst $(comma),:,$(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -DEXPORT_SYMTAB)),$$(strip $$(subst $$(comma),:,$$(CFLAGS) $$(EXTRA_CFLAGS) $$(CFLAGS_$@) -DEXPORT_SYMTAB)))' ; \
@@ -305,10 +309,7 @@ endif
 
 FILES_FLAGS_CHANGED := $(strip \
     $(filter-out $(FILES_FLAGS_UP_TO_DATE), \
-	$(O_TARGET) $(O_OBJS) $(OX_OBJS) \
-	$(L_TARGET) $(L_OBJS) $(LX_OBJS) \
-	$(M_OBJS) $(MX_OBJS) \
-	$(MI_OBJS) $(MIX_OBJS) \
+	$(O_TARGET) $(L_TARGET) $(active-objs) \
 	))
 
 # A kludge: .S files don't get flag dependencies (yet),

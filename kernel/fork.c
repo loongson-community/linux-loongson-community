@@ -133,11 +133,9 @@ static inline int dup_mmap(struct mm_struct * mm)
 	mm->mmap_avl = NULL;
 	mm->mmap_cache = NULL;
 	mm->map_count = 0;
-	mm->context = 0;
 	mm->cpu_vm_mask = 0;
 	mm->swap_cnt = 0;
 	mm->swap_address = 0;
-	mm->segments = NULL;
 	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
 		struct file *file;
@@ -179,10 +177,9 @@ static inline int dup_mmap(struct mm_struct * mm)
 		 * Link in the new vma even if an error occurred,
 		 * so that exit_mmap() can clean up the mess.
 		 */
-		tmp->vm_next = *pprev;
 		*pprev = tmp;
-
 		pprev = &tmp->vm_next;
+
 		if (retval)
 			goto fail_nomem;
 	}

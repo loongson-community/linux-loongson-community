@@ -2,7 +2,7 @@
 /******************************************************************************
  *
  * Module Name: ammonad - ACPI AML (p-code) execution for monadic operators
- *              $Revision: 79 $
+ *              $Revision: 88 $
  *
  *****************************************************************************/
 
@@ -51,7 +51,7 @@
  *
  ******************************************************************************/
 
-ACPI_STATUS
+static ACPI_STATUS
 acpi_aml_get_object_reference (
 	ACPI_OPERAND_OBJECT     *obj_desc,
 	ACPI_OPERAND_OBJECT     **ret_desc,
@@ -180,7 +180,7 @@ acpi_aml_exec_monadic1 (
 
 	case AML_SLEEP_OP:
 
-		acpi_aml_system_do_suspend (obj_desc->number.value);
+		acpi_aml_system_do_suspend ((u32) obj_desc->number.value);
 		break;
 
 
@@ -188,7 +188,7 @@ acpi_aml_exec_monadic1 (
 
 	case AML_STALL_OP:
 
-		acpi_aml_system_do_stall (obj_desc->number.value);
+		acpi_aml_system_do_stall ((u32) obj_desc->number.value);
 		break;
 
 
@@ -196,7 +196,8 @@ acpi_aml_exec_monadic1 (
 
 	default:
 
-		REPORT_ERROR ("Acpi_aml_exec_monadic1: Unknown monadic opcode");
+		REPORT_ERROR (("Acpi_aml_exec_monadic1: Unknown monadic opcode %X\n",
+			opcode));
 		status = AE_AML_BAD_OPCODE;
 		break;
 
@@ -238,10 +239,9 @@ acpi_aml_exec_monadic2_r (
 	ACPI_OPERAND_OBJECT     *ret_desc2 = NULL;
 	u32                     res_val;
 	ACPI_STATUS             status;
-	u32                     d0;
-	u32                     d1;
-	u32                     d2;
-	u32                     d3;
+	u32                     i;
+	u32                     j;
+	ACPI_INTEGER            digit;
 
 
 	/* Resolve all operands */
@@ -294,11 +294,10 @@ acpi_aml_exec_monadic2_r (
 		ret_desc->number.value = obj_desc->number.value;
 
 		/*
-		 * Acpi x1.94 spec, Chapter 16 describes Integer as a 32-bit
-		 *  little endian unsigned value, so this boundry condition
-		 *  is valid.
+		 * Acpi specification describes Integer type as a little
+		 * endian unsigned value, so this boundry condition is valid.
 		 */
-		for (res_val = 0; ret_desc->number.value && res_val < 32; ++res_val) {
+		for (res_val = 0; ret_desc->number.value && res_val < ACPI_INTEGER_BIT_SIZE; ++res_val) {
 			ret_desc->number.value >>= 1;
 		}
 
@@ -313,16 +312,16 @@ acpi_aml_exec_monadic2_r (
 		ret_desc->number.value = obj_desc->number.value;
 
 		/*
-		 * Acpi x1.94 spec, Chapter 16 describes Integer as a 32-bit
-		 *  little endian unsigned value, so this boundry condition
-		 *  is valid.
+		 * Acpi specification describes Integer type as a little
+		 * endian unsigned value, so this boundry condition is valid.
 		 */
-		for (res_val = 0; ret_desc->number.value && res_val < 32; ++res_val) {
+		for (res_val = 0; ret_desc->number.value && res_val < ACPI_INTEGER_BIT_SIZE; ++res_val) {
 			ret_desc->number.value <<= 1;
 		}
 
-		/* Since returns must be 1-based, subtract from 33 */
-		ret_desc->number.value = res_val == 0 ? 0 : 33 - res_val;
+		/* Since returns must be 1-based, subtract from 33 (65) */
+
+		ret_desc->number.value = res_val == 0 ? 0 : (ACPI_INTEGER_BIT_SIZE + 1) - res_val;
 		break;
 
 
@@ -330,17 +329,32 @@ acpi_aml_exec_monadic2_r (
 
 	case AML_FROM_BCD_OP:
 
-		d0 = (u32) (obj_desc->number.value & 15);
-		d1 = (u32) (obj_desc->number.value >> 4 & 15);
-		d2 = (u32) (obj_desc->number.value >> 8 & 15);
-		d3 = (u32) (obj_desc->number.value >> 12 & 15);
+		/*
+		 * The 64-bit ACPI integer can hold 16 4-bit BCD integers
+		 */
+		ret_desc->number.value = 0;
+		for (i = 0; i < ACPI_MAX_BCD_DIGITS; i++) {
+			/* Get one BCD digit */
 
-		if (d0 > 9 || d1 > 9 || d2 > 9 || d3 > 9) {
-			status = AE_AML_NUMERIC_OVERFLOW;
-			goto cleanup;
+			digit = (ACPI_INTEGER) ((obj_desc->number.value >> (i * 4)) & 0xF);
+
+			/* Check the range of the digit */
+
+			if (digit > 9) {
+				status = AE_AML_NUMERIC_OVERFLOW;
+				goto cleanup;
+			}
+
+			if (digit > 0) {
+				/* Sum into the result with the appropriate power of 10 */
+
+				for (j = 0; j < i; j++) {
+					digit *= 10;
+				}
+
+				ret_desc->number.value += digit;
+			}
 		}
-
-		ret_desc->number.value = d0 + d1 * 10 + d2 * 100 + d3 * 1000;
 		break;
 
 
@@ -349,17 +363,26 @@ acpi_aml_exec_monadic2_r (
 	case AML_TO_BCD_OP:
 
 
-		if (obj_desc->number.value > 9999) {
+		if (obj_desc->number.value > ACPI_MAX_BCD_VALUE) {
 			status = AE_AML_NUMERIC_OVERFLOW;
 			goto cleanup;
 		}
 
-		ret_desc->number.value
-			= obj_desc->number.value % 10
-			+ (obj_desc->number.value / 10 % 10 << 4)
-			+ (obj_desc->number.value / 100 % 10 << 8)
-			+ (obj_desc->number.value / 1000 % 10 << 12);
+		ret_desc->number.value = 0;
+		for (i = 0; i < ACPI_MAX_BCD_DIGITS; i++) {
+			/* Divide by nth factor of 10 */
 
+			digit = obj_desc->number.value;
+			for (j = 0; j < i; j++) {
+				digit /= 10;
+			}
+
+			/* Create the BCD digit */
+
+			if (digit > 0) {
+				ret_desc->number.value += (ACPI_MODULO (digit, 10) << (i * 4));
+			}
+		}
 		break;
 
 
@@ -401,7 +424,7 @@ acpi_aml_exec_monadic2_r (
 
 		/* The object exists in the namespace, return TRUE */
 
-		ret_desc->number.value = (u32) -1;
+		ret_desc->number.value = ACPI_INTEGER_MAX;
 		goto cleanup;
 		break;
 
@@ -466,7 +489,8 @@ acpi_aml_exec_monadic2_r (
 
 	default:
 
-		REPORT_ERROR ("Acpi_aml_exec_monadic2_r: Unknown monadic opcode");
+		REPORT_ERROR (("Acpi_aml_exec_monadic2_r: Unknown monadic opcode %X\n",
+			opcode));
 		status = AE_AML_BAD_OPCODE;
 		goto cleanup;
 	}
@@ -523,7 +547,7 @@ acpi_aml_exec_monadic2 (
 	ACPI_STATUS             resolve_status;
 	ACPI_STATUS             status;
 	u32                     type;
-	u32                     value;
+	ACPI_INTEGER            value;
 
 
 	/* Attempt to resolve the operands */
@@ -693,7 +717,8 @@ acpi_aml_exec_monadic2 (
 
 			default:
 
-				REPORT_ERROR ("Acpi_aml_exec_monadic2/Type_op:internal error: Unknown Reference subtype");
+				REPORT_ERROR (("Acpi_aml_exec_monadic2/Type_op: Internal error - Unknown Reference subtype %X\n",
+					obj_desc->reference.op_code));
 				status = AE_AML_INTERNAL;
 				goto cleanup;
 			}
@@ -946,7 +971,8 @@ acpi_aml_exec_monadic2 (
 
 	default:
 
-		REPORT_ERROR ("Acpi_aml_exec_monadic2: Internal error, unknown monadic opcode");
+		REPORT_ERROR (("Acpi_aml_exec_monadic2: Unknown monadic opcode %X\n",
+			opcode));
 		status = AE_AML_BAD_OPCODE;
 		goto cleanup;
 	}

@@ -1,6 +1,7 @@
 #
 # Automatically generated make config: don't edit
 #
+CONFIG_ALPHA=y
 
 #
 # Code maturity level options
@@ -171,6 +172,7 @@ CONFIG_SCSI=y
 CONFIG_BLK_DEV_SD=y
 CONFIG_SD_EXTRA_DEVS=40
 CONFIG_CHR_DEV_ST=y
+# CONFIG_CHR_DEV_OSST is not set
 CONFIG_BLK_DEV_SR=y
 # CONFIG_BLK_DEV_SR_VENDOR is not set
 CONFIG_SR_EXTRA_DEVS=2
@@ -320,6 +322,7 @@ CONFIG_MSDOS_PARTITION=y
 CONFIG_SGI_PARTITION=y
 # CONFIG_ULTRIX_PARTITION is not set
 # CONFIG_SUN_PARTITION is not set
+# CONFIG_SMB_NLS is not set
 # CONFIG_NLS is not set
 
 #

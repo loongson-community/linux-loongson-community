@@ -15,6 +15,4 @@ obj-y		+= console.o init.o memory.o tree.o env.o cmdline.o misc.o \
 
 obj-$(CONFIG_ARC_CONSOLE)   += arc_con.o
 
-L_OBJS		:= $(obj-y)
-
 include $(TOPDIR)/Rules.make

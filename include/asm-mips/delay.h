@@ -1,16 +1,17 @@
-/* $Id: delay.h,v 1.2 1999/01/04 16:09:20 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1994 by Waldorf Electronics
- * Copyright (C) 1995 - 1998 by Ralf Baechle
+ * Copyright (C) 1995 - 1998, 2001 by Ralf Baechle
  */
 #ifndef _ASM_DELAY_H
 #define _ASM_DELAY_H
 
 #include <linux/config.h>
+
+extern unsigned long loops_per_sec;
 
 extern __inline__ void
 __delay(unsigned long loops)

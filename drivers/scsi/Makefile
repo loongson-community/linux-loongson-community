@@ -114,6 +114,7 @@ obj-$(CONFIG_SCSI_DEBUG)	+= scsi_debug.o
 obj-$(CONFIG_SCSI_FCAL)		+= fcal.o
 
 obj-$(CONFIG_CHR_DEV_ST)	+= st.o
+obj-$(CONFIG_CHR_DEV_OSST)	+= osst.o
 obj-$(CONFIG_BLK_DEV_SD)	+= sd_mod.o
 obj-$(CONFIG_BLK_DEV_SR)	+= sr_mod.o
 obj-$(CONFIG_CHR_DEV_SG)	+= sg.o
@@ -129,24 +130,6 @@ scsi_mod-objs	:= scsi.o hosts.o scsi_ioctl.o constants.o \
 sr_mod-objs	:= sr.o sr_ioctl.o sr_vendor.o
 initio-objs	:= ini9100u.o i91uscsi.o
 a100u2w-objs	:= inia100.o i60uscsi.o
-
-# Extract lists of the multi-part drivers.
-# The 'int-*' lists are the intermediate files used to build the multi's.
-multi-y		:= $(filter $(list-multi), $(obj-y))
-multi-m		:= $(filter $(list-multi), $(obj-m))
-int-y		:= $(sort $(foreach m, $(multi-y), $($(basename $(m))-objs)))
-int-m		:= $(sort $(foreach m, $(multi-m), $($(basename $(m))-objs)))
-
-# Files that are both resident and modular: remove from modular.
-obj-m		:= $(filter-out	$(obj-y), $(obj-m))
-int-m		:= $(filter-out	$(int-y), $(int-m))
-
-O_OBJS		:= $(filter-out	$(export-objs), $(obj-y))
-OX_OBJS		:= $(filter	$(export-objs), $(obj-y))
-M_OBJS		:= $(sort $(filter-out	$(export-objs), $(obj-m)))
-MX_OBJS		:= $(sort $(filter	$(export-objs), $(obj-m)))
-MI_OBJS		:= $(sort $(filter-out	$(export-objs), $(int-m)))
-MIX_OBJS	:= $(sort $(filter	$(export-objs), $(int-m)))
 
 include $(TOPDIR)/Rules.make
 

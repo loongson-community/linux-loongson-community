@@ -13,6 +13,4 @@ obj-$(CONFIG_CPU_NEVADA)	+= r4xx0.o
 obj-$(CONFIG_CPU_R10000)	+= andes.o
 obj-$(CONFIG_SGI_IP22)		+= umap.o
 
-O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
-
 include $(TOPDIR)/Rules.make

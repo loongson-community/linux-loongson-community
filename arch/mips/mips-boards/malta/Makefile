@@ -33,10 +33,8 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: malta.o
-
 O_TARGET := malta.o
 
-O_OBJS := malta_int.o malta_rtc.o malta_setup.o
+obj-y := malta_int.o malta_rtc.o malta_setup.o
 
 include $(TOPDIR)/Rules.make

@@ -370,15 +370,15 @@ static int try_to_unuse(unsigned int type)
 			swap_free(entry);
   			return -ENOMEM;
 		}
+		if (PageSwapCache(page))
+			delete_from_swap_cache(page);
 		read_lock(&tasklist_lock);
 		for_each_task(p)
 			unuse_process(p->mm, entry, page);
 		read_unlock(&tasklist_lock);
-		shm_unuse(entry, page);
+		shmem_unuse(entry, page);
 		/* Now get rid of the extra reference to the temporary
                    page we've been using. */
-		if (PageSwapCache(page))
-			delete_from_swap_cache(page);
 		page_cache_release(page);
 		/*
 		 * Check for and clear any overflowed swap map counts.

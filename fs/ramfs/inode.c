@@ -98,7 +98,7 @@ static int ramfs_prepare_write(struct file *file, struct page *page, unsigned of
 
 static int ramfs_commit_write(struct file *file, struct page *page, unsigned offset, unsigned to)
 {
-	struct inode *inode = (struct inode*)page->mapping->host;
+	struct inode *inode = page->mapping->host;
 	loff_t pos = ((loff_t)page->index << PAGE_CACHE_SHIFT) + to;
 
 	kunmap(page);
@@ -269,6 +269,11 @@ static int ramfs_symlink(struct inode * dir, struct dentry *dentry, const char *
 	return error;
 }
 
+static int ramfs_sync_file(struct file * file, struct dentry *dentry, int datasync)
+{
+	return 0;
+}
+
 static struct address_space_operations ramfs_aops = {
 	readpage:	ramfs_readpage,
 	writepage:	ramfs_writepage,
@@ -279,12 +284,14 @@ static struct address_space_operations ramfs_aops = {
 static struct file_operations ramfs_file_operations = {
 	read:		generic_file_read,
 	write:		generic_file_write,
-	mmap:		generic_file_mmap
+	mmap:		generic_file_mmap,
+	fsync:		ramfs_sync_file,
 };
 
 static struct file_operations ramfs_dir_operations = {
 	read:		generic_read_dir,
 	readdir:	dcache_readdir,
+	fsync:		ramfs_sync_file,
 };
 
 static struct inode_operations ramfs_dir_inode_operations = {

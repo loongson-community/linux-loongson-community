@@ -32,10 +32,8 @@
 .S.o:
 	$(CC) $(CFLAGS) -c $< -o $*.o
 
-all: galboards.o
-
 O_TARGET:= galboards.o
 
-O_OBJS:= pci.o reset.o init.o  cmdline.o
+obj-y := pci.o reset.o init.o cmdline.o
 
 include $(TOPDIR)/Rules.make
