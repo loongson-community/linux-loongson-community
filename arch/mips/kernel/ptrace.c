@@ -1,4 +1,4 @@
-/* $Id: ptrace.c,v 1.9 1998/09/19 19:16:16 ralf Exp $
+/* $Id: ptrace.c,v 1.10 1999/01/03 17:50:52 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -337,7 +337,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	case PTRACE_PEEKDATA: {
 		unsigned long tmp;
 
+		down(&child->mm->mmap_sem);
 		res = read_long(child, addr, &tmp);
+		up(&child->mm->mmap_sem);
 		if (res < 0)
 			goto out;
 		res = put_user(tmp,(unsigned long *) data);
@@ -406,7 +408,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 	case PTRACE_POKETEXT: /* write the word at location addr. */
 	case PTRACE_POKEDATA:
+		down(&child->mm->mmap_sem);
 		res = write_long(child,addr,data);
+		up(&child->mm->mmap_sem);
 		goto out;
 
 	case PTRACE_POKEUSR: {

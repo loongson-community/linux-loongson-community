@@ -8,10 +8,9 @@
 
 #define halt	.long PAL_halt
 #define rti	.long PAL_rti
-#define SIGCHLD	20
+#define SIGCHLD 20
 
-#define NR_SYSCALLS 370
-#define osf_vfork sys_fork
+#define NR_SYSCALLS 371
 
 /*
  * These offsets must match with alpha_mv in <asm/machvec.h>.
@@ -502,6 +501,17 @@ sys_clone:
 .end	sys_clone
 
 .align 3
+.globl	sys_vfork
+.ent	sys_vfork
+sys_vfork:
+	bsr $1,do_switch_stack
+	bis $30,$30,$16
+	jsr $26,alpha_vfork
+	bsr $1,undo_switch_stack
+	ret $31,($26),1
+.end	sys_vfork
+
+.align 3
 .globl  alpha_switch_to
 .ent    alpha_switch_to
 alpha_switch_to:
@@ -689,7 +699,8 @@ ret_from_smpfork:
 	.set at
 	mb	/* Make the changed data visible before the freed lock. */
 	stq	$31,scheduler_lock	
-	br	ret_from_sys_call
+	lda	$26,ret_from_sys_call
+	jsr	$31,schedule_tail
 	.set noat
 .end ret_from_smpfork
 #endif /* __SMP__ */
@@ -821,7 +832,7 @@ sys_call_table:
 	.quad sys_getpgrp
 	.quad sys_getpagesize
 	.quad alpha_ni_syscall			/* 65 */
-	.quad osf_vfork
+	.quad sys_vfork
 	.quad sys_newstat
 	.quad sys_newlstat
 	.quad alpha_ni_syscall
@@ -1127,4 +1138,4 @@ sys_call_table:
 	.quad sys_getcwd
 	.quad sys_capget
 	.quad sys_capset
-	.quad sys_ni_syscall			/* 370 */
+	.quad sys_sendfile			/* 370 */

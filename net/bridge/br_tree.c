@@ -7,6 +7,7 @@
 #include <linux/string.h>
 #include <linux/malloc.h>
 #include <linux/skbuff.h>
+#include <linux/netdevice.h>
 
 #include <net/br.h>
 #define _DEBUG_AVL
@@ -27,6 +28,10 @@ static struct fdb fdb_head;
 static struct fdb *fhp = &fdb_head;
 static struct fdb **fhpp = &fhp;
 static int fdb_inited = 0;
+
+#ifdef DEBUG_AVL
+static void printk_avl (struct fdb * tree);
+#endif
 
 static int addr_cmp(unsigned char *a1, unsigned char *a2);
 
@@ -80,7 +85,7 @@ struct fdb *br_avl_find_addr(unsigned char addr[6])
 		addr[4],
 		addr[5]);
 #endif /* DEBUG_AVL */
-	for (tree = &fdb_head ; ; ) {
+	for (tree = fhp ; ; ) {
 		if (tree == avl_br_empty) {
 #if (DEBUG_AVL)
 			printk("search failed, returning node 0x%x\n", (unsigned int)result);
@@ -426,3 +431,46 @@ static int addr_cmp(unsigned char a1[], unsigned char a2[])
 	return(0);
 }
 
+/* Vova Oksman: function for copy tree to the buffer */
+void sprintf_avl (char **pbuffer, struct fdb * tree, off_t *pos,
+					int* len, off_t offset, int length)
+{
+	int size;
+
+	if( 0 == *pos){
+		if(avl_br_empty == tree)
+		/* begin from the root */
+			tree = fhp;
+		*pos = *len;
+	}
+
+	if (*pos >= offset+length)
+		return;
+
+	if (tree != avl_br_empty) {
+		/* don't write the local device */
+		if(tree->port != 0){
+			size = sprintf(*pbuffer,
+				   "%02x:%02x:%02x:%02x:%02x:%02x     %s       %d         %ld\n",
+				   tree->ula[0],tree->ula[1],tree->ula[2],
+				   tree->ula[3],tree->ula[4],tree->ula[5], 
+				   port_info[tree->port].dev->name, tree->flags,CURRENT_TIME-tree->timer);
+
+			(*pos)+=size;
+			(*len)+=size;
+			(*pbuffer)+=size;
+		}
+		if (*pos <= offset)
+			*len=0;
+
+		if (tree->fdb_avl_left != avl_br_empty) {
+			sprintf_avl (pbuffer,tree->fdb_avl_left,pos,len,offset,length);
+		}
+		if (tree->fdb_avl_right != avl_br_empty) {
+			sprintf_avl (pbuffer,tree->fdb_avl_right,pos,len,offset,length);
+		}
+
+	}
+
+	return;
+}

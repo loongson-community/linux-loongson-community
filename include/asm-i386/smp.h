@@ -1,12 +1,20 @@
 #ifndef __ASM_SMP_H
 #define __ASM_SMP_H
 
-#ifdef __SMP__
+/*
+ * We need the APIC definitions automatically as part of 'smp.h'
+ */
+#include <linux/config.h>
+#ifdef CONFIG_X86_LOCAL_APIC
 #ifndef ASSEMBLY
-
+#include <asm/fixmap.h>
 #include <asm/i82489.h>
 #include <asm/bitops.h>
-#include <asm/fixmap.h>
+#endif
+#endif
+
+#ifdef __SMP__
+#ifndef ASSEMBLY
 
 #include <linux/tasks.h>
 #include <linux/ptrace.h>
@@ -155,10 +163,11 @@ struct mpc_config_intlocal
  */
  
 extern int smp_found_config;
-extern int smp_scan_config(unsigned long, unsigned long);
+extern void init_smp_config(void);
 extern unsigned long smp_alloc_memory(unsigned long mem_base);
 extern unsigned char boot_cpu_id;
 extern unsigned long cpu_present_map;
+extern unsigned long cpu_online_map;
 extern volatile int cpu_number_map[NR_CPUS];
 extern volatile unsigned long smp_invalidate_needed;
 extern void smp_flush_tlb(void);
@@ -185,29 +194,6 @@ extern inline int cpu_logical_map(int cpu)
 extern void smp_callin(void);
 extern void smp_boot_cpus(void);
 extern void smp_store_cpu_info(int id);		/* Store per CPU info (like the initial udelay numbers */
-extern void smp_message_pass(int target, int msg, unsigned long data, int wait);
-
-extern volatile unsigned long smp_proc_in_lock[NR_CPUS]; /* for computing process time */
-extern volatile int smp_process_available;
-
-/*
- *	APIC handlers: Note according to the Intel specification update
- *	you should put reads between APIC writes.
- *	Intel Pentium processor specification update [11AP, pg 64]
- *	"Back to Back Assertions of HOLD May Cause Lost APIC Write Cycle"
- */
-
-#define APIC_BASE (fix_to_virt(FIX_APIC_BASE))
-
-extern __inline void apic_write(unsigned long reg, unsigned long v)
-{
-	*((volatile unsigned long *)(APIC_BASE+reg))=v;
-}
-
-extern __inline unsigned long apic_read(unsigned long reg)
-{
-	return *((volatile unsigned long *)(APIC_BASE+reg));
-}
 
 /*
  * This function is needed by all SMP systems. It must _always_ be valid
@@ -237,9 +223,7 @@ extern __inline int hard_smp_processor_id(void)
  *	processes are run.
  */
  
-#define PROC_CHANGE_PENALTY	20		/* Schedule penalty */
+#define PROC_CHANGE_PENALTY	15		/* Schedule penalty */
 
-#define SMP_FROM_INT		1
-#define SMP_FROM_SYSCALL	2
 #endif
 #endif

@@ -13,7 +13,6 @@ mainmenu_option next_comment
 comment 'Loadable module support'
 bool 'Enable loadable module support' CONFIG_MODULES
 if [ "$CONFIG_MODULES" = "y" ]; then
-  MODULES=y
   bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
   bool 'Kernel module loader' CONFIG_KMOD
 fi
@@ -44,6 +43,7 @@ choice 'Alpha system type' \
 	 Platform2000		CONFIG_ALPHA_P2K		\
 	 Rawhide		CONFIG_ALPHA_RAWHIDE		\
 	 Ruffian		CONFIG_ALPHA_RUFFIAN		\
+	 RX164			CONFIG_ALPHA_RX164		\
 	 SX164			CONFIG_ALPHA_SX164		\
 	 Sable			CONFIG_ALPHA_SABLE		\
 	 Takara			CONFIG_ALPHA_TAKARA" Generic
@@ -52,7 +52,7 @@ choice 'Alpha system type' \
 unset CONFIG_ALPHA_EV4 CONFIG_ALPHA_EV5 CONFIG_ALPHA_EV6
 unset CONFIG_PCI CONFIG_ALPHA_EISA
 unset CONFIG_ALPHA_LCA CONFIG_ALPHA_APECS CONFIG_ALPHA_CIA
-unset CONFIG_ALPHA_T2 CONFIG_ALPHA_PYXIS
+unset CONFIG_ALPHA_T2 CONFIG_ALPHA_PYXIS CONFIG_ALPHA_POLARIS
 unset CONFIG_ALPHA_TSUNAMI CONFIG_ALPHA_MCPCIA
 unset CONFIG_ALPHA_NEED_ROUNDING_EMULATION
 
@@ -131,6 +131,12 @@ then
 	define_bool CONFIG_ALPHA_EV5 y
 	define_bool CONFIG_ALPHA_MCPCIA y
 fi
+if [ "$CONFIG_ALPHA_RX164" = "y" ]
+then
+	define_bool CONFIG_PCI y
+	define_bool CONFIG_ALPHA_EV5 y
+	define_bool CONFIG_ALPHA_POLARIS y
+fi
 if [ "$CONFIG_ALPHA_JENSEN" = "y" ]
 then
 	define_bool CONFIG_ALPHA_EV4 y
@@ -166,6 +172,8 @@ if [ "$CONFIG_ALPHA_XL" = "y" ]
 then
 	define_bool CONFIG_ALPHA_AVANTI y
 fi
+
+bool 'Symmetric multi-processing support' CONFIG_SMP
 
 if [ "$CONFIG_PCI" = "y" ]; then
   bool 'PCI quirks' CONFIG_PCI_QUIRKS
@@ -246,8 +254,6 @@ endmenu
 source drivers/char/Config.in
 
 source fs/Config.in
-
-source fs/nls/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment

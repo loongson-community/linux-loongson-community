@@ -1020,7 +1020,7 @@ static void sktr_timer_chk(unsigned long data)
 		return;
 
 	sktr_chk_outstanding_cmds(dev);
-	if(tp->LastSendTime + SEND_TIMEOUT < jiffies
+	if(time_before(tp->LastSendTime + SEND_TIMEOUT, jiffies)
 		&& (tp->QueueSkb < MAX_TX_QUEUE || tp->TplFree != tp->TplBusy))
 	{
 		/* Anything to send, but stalled to long */
@@ -1068,7 +1068,7 @@ static void sktr_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 		if(!sktr_chk_ssb(tp, irq_type))
 		{
-			printk(KERN_INFO "%s: DATA LATE occured\n", dev->name);
+			printk(KERN_INFO "%s: DATA LATE occurred\n", dev->name);
 			break;
 		}
 
@@ -1526,11 +1526,11 @@ static void sktr_wait(unsigned long time)
 {
 	long tmp;
 
-	tmp = time/(1000000/HZ);
+	tmp = jiffies + time/(1000000/HZ);
 	do {
-		current->state 		= TASK_INTERRUPTIBLE;
+  		current->state 		= TASK_INTERRUPTIBLE;
 		tmp = schedule_timeout(tmp);
-	} while(tmp);
+	} while(time_after(tmp, jiffies));
 
 	return;
 }
@@ -1583,7 +1583,7 @@ static int sktr_reset_adapter(struct device *dev)
 			c |= ACL_SPEED16;		/* Set 16Mbps */
 	}
 
-	/* In case a comand is pending - forget it */
+	/* In case a command is pending - forget it */
 	tp->ScbInUse = 0;
 
 	c &= ~ACL_ARESET;		/* Clear adapter reset bit */
@@ -1672,7 +1672,7 @@ static int sktr_bringup_diags(struct device *dev)
 	} while(retry_cnt > 0);
 
 	Status = inw(ioaddr + SIFSTS);
-	Status &= STS_ERROR_MASK;	/* Hardware error occured! */
+	Status &= STS_ERROR_MASK;	/* Hardware error occurred! */
 
 	printk(KERN_INFO "%s: Bring Up Diagnostics Error (%04X) occurred\n",
 		dev->name, Status);
@@ -1761,7 +1761,7 @@ static int sktr_init_adapter(struct device *dev)
 		{
 			if((Status & STS_ERROR) != 0)
 			{
-				/* Initialization error occured */
+				/* Initialization error occurred */
 				Status = inw(ioaddr + SIFSTS);
 				Status &= STS_ERROR_MASK;
 				/* ShowInitialisationErrorCode(Status); */

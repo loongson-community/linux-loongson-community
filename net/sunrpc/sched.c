@@ -4,9 +4,11 @@
  * Scheduling for synchronous and asynchronous RPC requests.
  *
  * Copyright (C) 1996 Olaf Kirch, <okir@monad.swb.de>
+ * 
+ * TCP NFS related read + write fixes
+ * (C) 1999 Dave Airlie, University of Limerick, Ireland <airlied@linux.ie>
  */
 
-#define __NO_VERSION__
 #include <linux/module.h>
 
 #define __KERNEL_SYSCALLS__
@@ -79,13 +81,16 @@ static int			swap_buffer_used = 0;
  * improve overall performance.
  * Everyone else gets appended to the queue to ensure proper FIFO behavior.
  */
-void
+int
 rpc_add_wait_queue(struct rpc_wait_queue *queue, struct rpc_task *task)
 {
 	if (task->tk_rpcwait) {
 		if (task->tk_rpcwait != queue)
+		{
 			printk(KERN_WARNING "RPC: doubly enqueued task!\n");
-		return;
+			return -EWOULDBLOCK;
+		}
+		return 0;
 	}
 	if (RPC_IS_SWAPPER(task))
 		rpc_insert_list(&queue->task, task);
@@ -95,6 +100,8 @@ rpc_add_wait_queue(struct rpc_wait_queue *queue, struct rpc_task *task)
 
 	dprintk("RPC: %4d added to queue %p \"%s\"\n",
 				task->tk_pid, queue, rpc_qname(queue));
+
+	return 0;
 }
 
 /*
@@ -168,7 +175,13 @@ rpc_make_runnable(struct rpc_task *task)
 		return;
 	}
 	if (RPC_IS_ASYNC(task)) {
-		rpc_add_wait_queue(&schedq, task);
+		int status;
+		status = rpc_add_wait_queue(&schedq, task);
+		if (status)
+		{
+			printk(KERN_WARNING "RPC: failed to add task to queue: error: %d!\n", status);
+			task->tk_status = status;
+		}
 		wake_up(&rpciod_idle);
 	} else {
 		wake_up(&task->tk_wait);
@@ -202,6 +215,7 @@ __rpc_sleep_on(struct rpc_wait_queue *q, struct rpc_task *task,
 			rpc_action action, rpc_action timer)
 {
 	unsigned long	oldflags;
+	int status;
 
 	dprintk("RPC: %4d sleep_on(queue \"%s\" time %ld)\n", task->tk_pid,
 				rpc_qname(q), jiffies);
@@ -211,11 +225,20 @@ __rpc_sleep_on(struct rpc_wait_queue *q, struct rpc_task *task,
 	 */
 	save_flags(oldflags); cli();
 
-	rpc_add_wait_queue(q, task);
-	task->tk_callback = action;
-	if (task->tk_timeout)
-		rpc_add_timer(task, timer);
-	task->tk_flags &= ~RPC_TASK_RUNNING;
+	status = rpc_add_wait_queue(q, task);
+	if (status)
+	{
+		printk(KERN_WARNING "RPC: failed to add task to queue: error: %d!\n", status);
+		task->tk_status = status;
+		task->tk_flags |= RPC_TASK_RUNNING;
+	}
+	else
+	{
+		task->tk_callback = action;
+		if (task->tk_timeout)
+			rpc_add_timer(task, timer);
+		task->tk_flags &= ~RPC_TASK_RUNNING;
+	}
 
 	restore_flags(oldflags);
 	return;
@@ -251,8 +274,8 @@ __rpc_wake_up(struct rpc_task *task)
 	if (task->tk_rpcwait != &schedq)
 		rpc_remove_wait_queue(task);
 	if (!RPC_IS_RUNNING(task)) {
-		rpc_make_runnable(task);
 		task->tk_flags |= RPC_TASK_CALLBACK;
+		rpc_make_runnable(task);
 	}
 	dprintk("RPC:      __rpc_wake_up done\n");
 }
@@ -371,10 +394,21 @@ __rpc_execute(struct rpc_task *task)
 		 * Execute any pending callback.
 		 */
 		if (task->tk_flags & RPC_TASK_CALLBACK) {
+			/* Define a callback save pointer */
+			void (*save_callback)(struct rpc_task *);
+	
 			task->tk_flags &= ~RPC_TASK_CALLBACK;
+			/* 
+			 * If a callback exists, save it, reset it,
+			 * call it.
+			 * The save is needed to stop from resetting
+			 * another callback set within the callback handler
+			 * - Dave
+			 */
 			if (task->tk_callback) {
-				task->tk_callback(task);
-				task->tk_callback = NULL;
+				save_callback=task->tk_callback;
+				task->tk_callback=NULL;
+				save_callback(task);
 			}
 		}
 
@@ -808,6 +842,9 @@ rpciod(void *ptr)
 			rounds = 0;
 		}
 		save_flags(oldflags); cli();
+		dprintk("RPC: rpciod running checking dispatch\n");
+		rpciod_tcp_dispatcher();
+
 		if (!schedq.task) {
 			dprintk("RPC: rpciod back to sleep\n");
 			interruptible_sleep_on(&rpciod_idle);

@@ -1,9 +1,14 @@
 #ifndef __LINUX_VIDEODEV_H
 #define __LINUX_VIDEODEV_H
 
+#include <linux/types.h>
+#include <linux/version.h>
+
 #ifdef __KERNEL__
 
+#if LINUX_VERSION_CODE >= 0x020100
 #include <linux/poll.h>
+#endif
 
 struct video_device
 {
@@ -16,7 +21,9 @@ struct video_device
 	long (*read)(struct video_device *, char *, unsigned long, int noblock);
 	/* Do we need a write method ? */
 	long (*write)(struct video_device *, const char *, unsigned long, int noblock);
+#if LINUX_VERSION_CODE >= 0x020100
 	unsigned int (*poll)(struct video_device *, struct file *, poll_table *);
+#endif
 	int (*ioctl)(struct video_device *, unsigned int , void *);
 	int (*mmap)(struct video_device *, const char *, unsigned long);
 	int (*initialize)(struct video_device *);	
@@ -48,7 +55,6 @@ extern void video_unregister_device(struct video_device *);
 #define VID_TYPE_SCALES		128	/* Scalable */
 #define VID_TYPE_MONOCHROME	256	/* Monochrome only */
 #define VID_TYPE_SUBCAPTURE	512	/* Can capture subareas of the image */
-#define VID_TYPE_OUTPUT		1024	/* Can output video data */
 
 struct video_capability
 {
@@ -120,6 +126,10 @@ struct video_picture
 #define VIDEO_PALETTE_RAW	12	/* RAW capture (BT848) */
 #define VIDEO_PALETTE_YUV422P	13	/* YUV 4:2:2 Planar */
 #define VIDEO_PALETTE_YUV411P	14	/* YUV 4:1:1 Planar */
+#define VIDEO_PALETTE_YUV420P	15	/* YUV 4:2:0 Planar */
+#define VIDEO_PALETTE_YUV410P	16	/* YUV 4:1:0 Planar */
+#define VIDEO_PALETTE_PLANAR	13	/* start of planar entries */
+#define VIDEO_PALETTE_COMPONENT 7	/* start of component entries */
 };
 
 struct video_audio
@@ -136,8 +146,8 @@ struct video_audio
 	char    name[16];
 #define VIDEO_SOUND_MONO	1
 #define VIDEO_SOUND_STEREO	2
-#define VIDEO_SOUND_LANG1	3
-#define VIDEO_SOUND_LANG2	4
+#define VIDEO_SOUND_LANG1	4
+#define VIDEO_SOUND_LANG2	8
         __u16   mode;
         __u16	balance;	/* Stereo balance */
         __u16	step;		/* Step actual volume uses */
@@ -261,7 +271,9 @@ struct video_unit
 #define VID_HARDWARE_PERMEDIA2	14	/* Reserved for Permedia2 */
 #define VID_HARDWARE_RIVA128	15	/* Reserved for RIVA 128 */
 #define VID_HARDWARE_PLANB	16	/* PowerMac motherboard video-in */
-#define VID_HARDWARE_VINO	17
+#define VID_HARDWARE_BROADWAY	17	/* Broadway project */
+#define VID_HARDWARE_GEMTEK	18
+#define VID_HARDWARE_VINO	19	/* SGI Indy Vino */
 
 /*
  *	Initialiser list

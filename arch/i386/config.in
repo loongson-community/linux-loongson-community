@@ -14,12 +14,28 @@ comment 'Processor type and features'
 choice 'Processor family' \
 	"386			CONFIG_M386	\
 	 486/Cx486		CONFIG_M486	\
-	 Pentium/K5/5x86/6x86	CONFIG_M586	\
-	 PPro/K6/6x86MX		CONFIG_M686" Pentium
-bool 'Math emulation' CONFIG_MATH_EMULATION
-if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-  bool 'MTRR (Memory Type Range Register) support' CONFIG_MTRR
+	 586/K5/5x86/6x86	CONFIG_M586	\
+	 Pentium/K6/TSC		CONFIG_M586TSC	\
+	 PPro/6x86MX		CONFIG_M686" PPro
+#
+# Define implied options from the CPU selection here
+#
+if [ "$CONFIG_M386" != "y" ]; then
+  define_bool CONFIG_X86_WP_WORKS_OK y
+  define_bool CONFIG_X86_INVLPG y
+  define_bool CONFIG_X86_BSWAP y
+  define_bool CONFIG_X86_POPAD_OK y
 fi
+if [ "$CONFIG_M686" = "y" -o "$CONFIG_M586TSC" = "y" ]; then
+  define_bool CONFIG_X86_TSC y
+fi
+if [ "$CONFIG_M686" = "y" ]; then
+  define_bool CONFIG_X86_GOOD_APIC y
+fi
+
+bool 'Math emulation' CONFIG_MATH_EMULATION
+bool 'MTRR (Memory Type Range Register) support' CONFIG_MTRR
+bool 'Symmetric multi-processing support' CONFIG_SMP
 endmenu
 
 mainmenu_option next_comment
@@ -37,8 +53,16 @@ comment 'General setup'
 bool 'Networking support' CONFIG_NET
 bool 'PCI support' CONFIG_PCI
 if [ "$CONFIG_PCI" = "y" ]; then
-  bool '   PCI BIOS support' CONFIG_PCI_BIOS
-  bool '   PCI direct access support' CONFIG_PCI_DIRECT
+  choice 'PCI access mode' \
+	"BIOS		CONFIG_PCI_GOBIOS	\
+	 Direct		CONFIG_PCI_GODIRECT	\
+	 Any		CONFIG_PCI_GOANY"	Any
+  if [ "$CONFIG_PCI_GOBIOS" = "y" -o "$CONFIG_PCI_GOANY" = "y" ]; then
+    define_bool CONFIG_PCI_BIOS y
+  fi
+  if [ "$CONFIG_PCI_GODIRECT" = "y" -o "$CONFIG_PCI_GOANY" = "y" ]; then
+    define_bool CONFIG_PCI_DIRECT y
+  fi
   bool '   PCI quirks' CONFIG_PCI_QUIRKS
   if [ "$CONFIG_PCI_QUIRKS" = "y" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
     bool '   PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
@@ -46,6 +70,17 @@ if [ "$CONFIG_PCI" = "y" ]; then
   bool '   Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
 fi
 bool 'MCA support' CONFIG_MCA
+bool 'SGI Visual Workstation support' CONFIG_VISWS
+if [ "$CONFIG_VISWS" = "y" ]; then
+  define_bool CONFIG_X86_VISWS_APIC y
+  define_bool CONFIG_X86_LOCAL_APIC y
+else
+  if [ "$CONFIG_SMP" = "y" ]; then
+    define_bool CONFIG_X86_IO_APIC y
+    define_bool CONFIG_X86_LOCAL_APIC y
+  fi
+fi
+
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
@@ -73,6 +108,8 @@ if [ "$CONFIG_APM" = "y" ]; then
   bool '   Power off on shutdown' CONFIG_APM_POWER_OFF
   bool '   Ignore multiple suspend' CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
   bool '   Ignore multiple suspend/resume cycles' CONFIG_APM_IGNORE_SUSPEND_BOUNCE
+  bool '   RTC stores time in GMT' CONFIG_APM_RTC_IS_GMT
+  bool '   Allow interrupts during APM BIOS calls' CONFIG_APM_ALLOW_INTS
 fi
 
 endmenu
@@ -108,12 +145,15 @@ fi
 
 source net/ax25/Config.in
 
+source net/irda/Config.in
+
 mainmenu_option next_comment
 comment 'ISDN subsystem'
-
-tristate 'ISDN support' CONFIG_ISDN
-if [ "$CONFIG_ISDN" != "n" ]; then
-  source drivers/isdn/Config.in
+if [ "$CONFIG_NET" != "n" ]; then
+  tristate 'ISDN support' CONFIG_ISDN
+  if [ "$CONFIG_ISDN" != "n" ]; then
+    source drivers/isdn/Config.in
+  fi
 fi
 endmenu
 
@@ -129,8 +169,6 @@ endmenu
 source drivers/char/Config.in
 
 source fs/Config.in
-
-source fs/nls/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment

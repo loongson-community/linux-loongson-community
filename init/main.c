@@ -91,6 +91,7 @@ extern void ecard_init(void);
 extern void smp_setup(char *str, int *ints);
 #ifdef __i386__
 extern void ioapic_pirq_setup(char *str, int *ints);
+extern void ioapic_setup(char *str, int *ints);
 #endif
 extern void no_scroll(char *str, int *ints);
 extern void kbd_reset_setup(char *str, int *ints);
@@ -552,7 +553,8 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef __SMP__
 	{ "nosmp", smp_setup },
 	{ "maxcpus=", smp_setup },
-#ifdef __i386__
+#ifdef CONFIG_X86_IO_APIC
+	{ "noapic", ioapic_setup },
 	{ "pirq=", ioapic_pirq_setup },
 #endif
 #endif
@@ -1194,6 +1196,7 @@ asmlinkage void __init start_kernel(void)
 	 */
 	smp_init();
 	kernel_thread(init, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	current->need_resched = 1;
  	cpu_idle(NULL);
 }
 

@@ -6,14 +6,11 @@
 
 #include <linux/mm.h>
 #include <linux/utime.h>
-#include <linux/fcntl.h>
-#include <linux/stat.h>
 #include <linux/file.h>
 #include <linux/smp_lock.h>
 #include <linux/quotaops.h>
 
 #include <asm/uaccess.h>
-#include <asm/bitops.h>
 
 asmlinkage int sys_statfs(const char * path, struct statfs * buf)
 {
@@ -526,19 +523,27 @@ static int chown_common(struct dentry * dentry, uid_t user, gid_t group)
 	newattrs.ia_gid = group;
 	newattrs.ia_valid =  ATTR_UID | ATTR_GID | ATTR_CTIME;
 	/*
-	 * If the owner has been changed, remove the setuid bit
+	 * If the user or group of a non-directory has been changed by a
+	 * non-root user, remove the setuid bit.
+	 * 19981026	David C Niemi <niemi@tux.org>
+	 *
 	 */
-	if (inode->i_mode & S_ISUID) {
+	if ((inode->i_mode & S_ISUID) == S_ISUID &&
+		!S_ISDIR(inode->i_mode)
+		&& current->fsuid) 
+	{
 		newattrs.ia_mode &= ~S_ISUID;
 		newattrs.ia_valid |= ATTR_MODE;
 	}
 	/*
-	 * If the group has been changed, remove the setgid bit
-	 *
-	 * Don't remove the setgid bit if no group execute bit.
-	 * This is a file marked for mandatory locking.
+	 * Likewise, if the user or group of a non-directory has been changed
+	 * by a non-root user, remove the setgid bit UNLESS there is no group
+	 * execute bit (this would be a file marked for mandatory locking).
+	 * 19981026	David C Niemi <niemi@tux.org>
 	 */
-	if (((inode->i_mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP))) {
+	if (((inode->i_mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) 
+		&& !S_ISDIR(inode->i_mode) && current->fsuid) 
+	{
 		newattrs.ia_mode &= ~S_ISGID;
 		newattrs.ia_valid |= ATTR_MODE;
 	}
@@ -671,18 +676,6 @@ out:
 	return ERR_PTR(error);
 }
 
-/* should probably go into sys_open() */
-static int do_open(const char * filename, int flags, int mode, int fd)
-{
-	struct file * f;
-
-	f = filp_open(filename, flags, mode);
-	if (IS_ERR(f))
-		return PTR_ERR(f);
-	fd_install(fd, f);
-	return 0;
-}
-
 /*
  * Find an empty file descriptor entry, and mark it busy.
  */
@@ -727,24 +720,25 @@ asmlinkage int sys_open(const char * filename, int flags, int mode)
 	char * tmp;
 	int fd, error;
 
-	lock_kernel();
-	fd = get_unused_fd();
-	if (fd < 0)
-		goto out;
-
 	tmp = getname(filename);
-	error = PTR_ERR(tmp);
-	if (IS_ERR(tmp))
-		goto out_fail;
-	error = do_open(tmp, flags, mode, fd);
-	putname(tmp);
-	if (error)
-		goto out_fail;
+	fd = PTR_ERR(tmp);
+	if (!IS_ERR(tmp)) {
+		lock_kernel();
+		fd = get_unused_fd();
+		if (fd >= 0) {
+			struct file * f = filp_open(tmp, flags, mode);
+			error = PTR_ERR(f);
+			if (IS_ERR(f))
+				goto out_error;
+			fd_install(fd, f);
+		}
 out:
-	unlock_kernel();
+		unlock_kernel();
+		putname(tmp);
+	}
 	return fd;
 
-out_fail:
+out_error:
 	put_unused_fd(fd);
 	fd = error;
 	goto out;

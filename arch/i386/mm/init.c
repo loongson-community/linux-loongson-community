@@ -119,24 +119,28 @@ int do_check_pgt_cache(int low, int high)
 pte_t * __bad_pagetable(void)
 {
 	extern char empty_bad_page_table[PAGE_SIZE];
+	int d0, d1;
 
-	__asm__ __volatile__("cld ; rep ; stosl":
-		:"a" (pte_val(BAD_PAGE)),
-		 "D" ((long) empty_bad_page_table),
-		 "c" (PAGE_SIZE/4)
-		:"di","cx");
+	__asm__ __volatile__("cld ; rep ; stosl"
+			     : "=&D" (d0), "=&c" (d1)
+			     : "a" (pte_val(BAD_PAGE)),
+			     "0" ((long) empty_bad_page_table),
+			     "1" (PAGE_SIZE/4)
+			     : "memory");
 	return (pte_t *) empty_bad_page_table;
 }
 
 pte_t __bad_page(void)
 {
 	extern char empty_bad_page[PAGE_SIZE];
+	int d0, d1;
 
-	__asm__ __volatile__("cld ; rep ; stosl":
-		:"a" (0),
-		 "D" ((long) empty_bad_page),
-		 "c" (PAGE_SIZE/4)
-		:"di","cx");
+	__asm__ __volatile__("cld ; rep ; stosl"
+			     : "=&D" (d0), "=&c" (d1)
+			     : "a" (0),
+			     "0" ((long) empty_bad_page),
+			     "1" (PAGE_SIZE/4)
+			     : "memory");
 	return pte_mkdirty(mk_pte((unsigned long) empty_bad_page, PAGE_SHARED));
 }
 
@@ -275,38 +279,6 @@ __initfunc(unsigned long paging_init(unsigned long start_mem, unsigned long end_
  * kernel.
  * It may also hold the MP configuration table when we are booting SMP.
  */
-#ifdef __SMP__
-	/*
-	 * FIXME: Linux assumes you have 640K of base ram..
-	 * this continues the error...
-	 *
-	 * 1) Scan the bottom 1K for a signature
-	 * 2) Scan the top 1K of base RAM
-	 * 3) Scan the 64K of bios
-	 */
-	if (!smp_scan_config(0x0,0x400) &&
-	    !smp_scan_config(639*0x400,0x400) &&
-	    !smp_scan_config(0xF0000,0x10000)) {
-		/*
-		 * If it is an SMP machine we should know now, unless the
-		 * configuration is in an EISA/MCA bus machine with an
-		 * extended bios data area. 
-		 *
-		 * there is a real-mode segmented pointer pointing to the
-		 * 4K EBDA area at 0x40E, calculate and scan it here.
-		 *
-		 * NOTE! There are Linux loaders that will corrupt the EBDA
-		 * area, and as such this kind of SMP config may be less
-		 * trustworthy, simply because the SMP table may have been
-		 * stomped on during early boot.
-		 */
-		address = *(unsigned short *)phys_to_virt(0x40E);
-		address<<=4;
-		smp_scan_config(address, 0x1000);
-		if (smp_found_config)
-			printk(KERN_WARNING "WARNING: MP table in the EBDA can be UNSAFE, contact linux-smp@vger.rutgers.edu if you experience SMP problems!\n");
-	}
-#endif
 	start_mem = PAGE_ALIGN(start_mem);
 	address = PAGE_OFFSET;
 	pg_dir = swapper_pg_dir;
@@ -403,7 +375,7 @@ __initfunc(void test_wp_bit(void))
 	if (boot_cpu_data.wp_works_ok < 0) {
 		boot_cpu_data.wp_works_ok = 0;
 		printk("No.\n");
-#ifndef CONFIG_M386
+#ifdef CONFIG_X86_WP_WORKS_OK
 		panic("This kernel doesn't support CPU's with broken WP. Recompile it for a 386!");
 #endif
 	} else

@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.8 1998/07/20 17:52:21 ralf Exp $
+/* $Id: system.h,v 1.7 1998/08/25 09:22:03 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -107,6 +107,9 @@ __restore_flags(int flags)
 #define save_and_cli(x) __save_and_cli(x)
 #define restore_flags(x) __restore_flags(x)
 
+/*
+ * These are probably defined overly paranoid ...
+ */
 #define mb()						\
 __asm__ __volatile__(					\
 	"# prevent instructions being moved around\n\t"	\
@@ -117,6 +120,8 @@ __asm__ __volatile__(					\
 	: /* no output */				\
 	: /* no input */				\
 	: "memory")
+#define rmb() mb()
+#define wmb() mb()
 
 #if !defined (_LANGUAGE_ASSEMBLY)
 /*

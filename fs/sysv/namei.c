@@ -9,6 +9,7 @@
  *
  *  sysv/namei.c
  *  Copyright (C) 1993  Bruno Haible
+ *  Copyright (C) 1997, 1998  Krzysztof G. Baranowski
  */
 
 
@@ -254,13 +255,6 @@ int sysv_mknod(struct inode * dir, struct dentry * dentry, int mode, int rdev)
 	inode->i_op = NULL;
 	if (S_ISREG(inode->i_mode))
 		inode->i_op = &sysv_file_inode_operations;
-	else if (S_ISDIR(inode->i_mode)) {
-		inode->i_op = &sysv_dir_inode_operations;
-		if (dir->i_mode & S_ISGID)
-			inode->i_mode |= S_ISGID;
-	}
-	else if (S_ISLNK(inode->i_mode))
-		inode->i_op = &sysv_symlink_inode_operations;
 	else if (S_ISCHR(inode->i_mode))
 		inode->i_op = &chrdev_inode_operations;
 	else if (S_ISBLK(inode->i_mode))
@@ -416,21 +410,8 @@ int sysv_rmdir(struct inode * dir, struct dentry * dentry)
 	retval = -ENOENT;
 	if (!bh)
 		goto end_rmdir;
-	retval = -EPERM;
 	inode = dentry->d_inode;
 
-        if ((dir->i_mode & S_ISVTX) &&
-            current->fsuid != inode->i_uid &&
-            current->fsuid != dir->i_uid && !capable(CAP_FOWNER))
-		goto end_rmdir;
-	if (inode->i_dev != dir->i_dev)
-		goto end_rmdir;
-	if (inode == dir)	/* we may not delete ".", but "../dir" is ok */
-		goto end_rmdir;
-	if (!S_ISDIR(inode->i_mode)) {
-		retval = -ENOTDIR;
-		goto end_rmdir;
-	}
 	if (!empty_dir(inode)) {
 		retval = -ENOTEMPTY;
 		goto end_rmdir;
@@ -439,7 +420,7 @@ int sysv_rmdir(struct inode * dir, struct dentry * dentry)
 		retval = -ENOENT;
 		goto end_rmdir;
 	}
-	if (inode->i_count > 1) {
+	if (!list_empty(&dentry->d_hash)) {
 		retval = -EBUSY;
 		goto end_rmdir;
 	}
@@ -482,10 +463,6 @@ repeat:
 		schedule();
 		goto repeat;
 	}
-	if ((dir->i_mode & S_ISVTX) &&
-	    current->fsuid != inode->i_uid &&
-	    current->fsuid != dir->i_uid && !capable(CAP_FOWNER))
-		goto end_unlink;
 	if (de->inode != inode->i_ino) {
 		retval = -ENOENT;
 		goto end_unlink;
@@ -641,10 +618,6 @@ start_up:
 		goto end_rename;
 	old_inode = old_dentry->d_inode;	/* don't cross mnt-points */
 	retval = -EPERM;
-	if ((old_dir->i_mode & S_ISVTX) && 
-	    current->fsuid != old_inode->i_uid &&
-	    current->fsuid != old_dir->i_uid && !capable(CAP_FOWNER))
-		goto end_rename;
 	new_inode = new_dentry->d_inode;
 	new_bh = sysv_find_entry(new_dir, new_dentry->d_name.name,
 				new_dentry->d_name.len, &new_de);
@@ -658,32 +631,20 @@ start_up:
 		retval = 0;
 		goto end_rename;
 	}
-	if (new_inode && S_ISDIR(new_inode->i_mode)) {
-		retval = -EISDIR;
-		if (!S_ISDIR(old_inode->i_mode))
-			goto end_rename;
-		retval = -EINVAL;
-		if (is_subdir(new_dentry, old_dentry))
-			goto end_rename;
-		retval = -ENOTEMPTY;
-		if (!empty_dir(new_inode))
-			goto end_rename;
-		retval = -EBUSY;
-		if (new_inode->i_count > 1)
-			goto end_rename;
-	}
-	retval = -EPERM;
-	if (new_inode && (new_dir->i_mode & S_ISVTX) && 
-	    current->fsuid != new_inode->i_uid &&
-	    current->fsuid != new_dir->i_uid && !capable(CAP_FOWNER))
-		goto end_rename;
 	if (S_ISDIR(old_inode->i_mode)) {
-		retval = -ENOTDIR;
-		if (new_inode && !S_ISDIR(new_inode->i_mode))
-			goto end_rename;
 		retval = -EINVAL;
 		if (is_subdir(new_dentry, old_dentry))
 			goto end_rename;
+		if (new_inode) {
+			if (new_dentry->d_count > 1)
+				shrink_dcache_parent(new_dentry);
+			retval = -EBUSY;
+			if (new_dentry->d_count > 1)
+				goto end_rename;
+			retval = -ENOTEMPTY;
+			if (!empty_dir(new_inode))
+				goto end_rename;
+		}
 		retval = -EIO;
 		dir_bh = sysv_file_bread(old_inode, 0, 0);
 		if (!dir_bh)

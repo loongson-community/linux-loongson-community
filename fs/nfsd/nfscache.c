@@ -268,8 +268,10 @@ nfsd_cache_update(struct svc_rqst *rqstp, int cachetype, u32 *statp)
 	if (!(rp = rqstp->rq_cacherep) || cache_disabled)
 		return;
 
+	len = resp->len - (statp - resp->base);
+	
 	/* Don't cache excessive amounts of data and XDR failures */
-	if (!statp || (len = resp->buf - statp) > (256 >> 2)) {
+	if (!statp || len > (256 >> 2)) {
 		rp->c_state = RC_UNUSED;
 		return;
 	}
@@ -314,8 +316,8 @@ nfsd_cache_append(struct svc_rqst *rqstp, struct svc_buf *data)
 				data->len);
 		return 0;
 	}
-	memcpy(resp->buf, data->buf, data->len);
-	resp->buf += ((data->len + 3) >> 2);
+	memcpy(resp->buf, data->buf, data->len << 2);
+	resp->buf += data->len;
 	resp->len += data->len;
 	return 1;
 }

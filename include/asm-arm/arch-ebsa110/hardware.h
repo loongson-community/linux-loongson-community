@@ -28,9 +28,8 @@
 /*
  * Mapping areas
  */
-#define IO_END			0xffffffff
 #define IO_BASE			0xe0000000
-#define IO_SIZE			(IO_END - IO_BASE)
+#define IO_SIZE			0x20000000
 #define IO_START		0xe0000000
 
 /*
@@ -39,7 +38,7 @@
 #define MAPTOPHYS(a)		((unsigned long)(a) - PAGE_OFFSET)
 #define KERNTOPHYS(a)		((unsigned long)(&a))
 #define KERNEL_BASE		(0xc0008000)
-#define SAFE_ADDR		0x40000000
+#define FLUSH_BASE_PHYS		0x40000000
 
 #else
 

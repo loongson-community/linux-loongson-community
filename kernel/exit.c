@@ -258,6 +258,7 @@ static inline void __exit_mm(struct task_struct * tsk)
 		tsk->mm = &init_mm;
 		tsk->swappable = 0;
 		SET_PAGE_DIR(tsk, swapper_pg_dir);
+		mm_release();
 		mmput(mm);
 	}
 }
@@ -292,6 +293,7 @@ static void exit_notify(void)
 		kill_pg(current->pgrp,SIGHUP,1);
 		kill_pg(current->pgrp,SIGCONT,1);
 	}
+
 	/* Let father know we died */
 	notify_parent(current, current->exit_signal);
 

@@ -14,7 +14,7 @@
  *                      EVERY character on the current page.
  *                      <middelin@polyware.iaf.nl>
  *
- * Danny ter Haar    :	added cpuinfo 
+ * Danny ter Haar    :	added cpuinfo
  *			<dth@cistron.nl>
  *
  * Alessandro Rubini :  profile extension.
@@ -24,7 +24,7 @@
  *                      <Jeff_Tranter@Mitel.COM>
  *
  * Bruno Haible      :  remove 4K limit for the maps file
- * 			<haible@ma2s2.mathematik.uni-karlsruhe.de>
+ *			<haible@ma2s2.mathematik.uni-karlsruhe.de>
  *
  * Yves Arrouye      :  remove removal of trailing spaces in get_array.
  *			<Yves.Arrouye@marin.fdn.fr>
@@ -33,13 +33,13 @@
  *                      and /proc/<pid>/cpu extension
  *                      <forissier@isia.cma.fr>
  *			- Incorporation and non-SMP safe operation
- *			of forissier patch in 2.1.78 by 
+ *			of forissier patch in 2.1.78 by
  *			Hans Marcus <crowbar@concepts.nl>
  *
  * aeb@cwi.nl        :  /proc/partitions
  *
  *
- * Alan Cox	     :  security fixes. 
+ * Alan Cox	     :  security fixes.
  *			<Alan.Cox@linux.org>
  *
  */
@@ -140,7 +140,7 @@ static struct file_operations proc_kcore_operations = {
 };
 
 struct inode_operations proc_kcore_inode_operations = {
-	&proc_kcore_operations, 
+	&proc_kcore_operations,
 };
 
 /*
@@ -196,7 +196,7 @@ static ssize_t write_profile(struct file * file, const char * buf,
 			return -EINVAL;
 	}
 #endif
-  
+
 	memset(prof_buffer, 0, prof_len * sizeof(*prof_buffer));
 	return count;
 }
@@ -208,7 +208,7 @@ static struct file_operations proc_profile_operations = {
 };
 
 struct inode_operations proc_profile_inode_operations = {
-	&proc_profile_operations, 
+	&proc_profile_operations,
 };
 
 
@@ -593,7 +593,7 @@ static unsigned long get_wchan(struct task_struct *p)
 #ifdef __sparc_v9__
 		bias = STACK_BIAS;
 #endif
-	    	fp = p->tss.ksp + bias;
+		fp = p->tss.ksp + bias;
 		do {
 			/* Bogus frame pointer? */
 			if (fp < (task_base + sizeof(struct task_struct)) ||
@@ -630,7 +630,7 @@ static unsigned long get_wchan(struct task_struct *p)
 #define	KSTK_EIP(tsk)	\
     ({			\
 	unsigned long eip = 0;	 \
- 	if ((tsk)->tss.esp0 > PAGE_SIZE && \
+	if ((tsk)->tss.esp0 > PAGE_SIZE && \
 	    MAP_NR((tsk)->tss.esp0) < max_mapnr) \
 	      eip = ((struct pt_regs *) (tsk)->tss.esp0)->pc;	 \
 	eip; })
@@ -1137,7 +1137,7 @@ static ssize_t read_maps (int pid, struct file * file, char * buf,
 		int flags;
 		kdev_t dev;
 		unsigned long ino;
-		int maxlen = (sizeof(void*) == 4) ? 
+		int maxlen = (sizeof(void*) == 4) ?
 			MAPS_LINE_MAX4 :  MAPS_LINE_MAX8;
 		int len;
 
@@ -1280,7 +1280,7 @@ static long get_root_array(char * page, int type, char **start,
 			return get_meminfo(page);
 
 #ifdef CONFIG_PCI_OLD_PROC
-  	        case PROC_PCI:
+	        case PROC_PCI:
 			return get_pci_list(page);
 #endif
 
@@ -1338,11 +1338,11 @@ static long get_root_array(char * page, int type, char **start,
 		case PROC_CMDLINE:
 			return get_cmdline(page);
 
-                case PROC_MTAB:
-                       return get_filesystem_info( page );
+		case PROC_MTAB:
+			return get_filesystem_info( page );
 
-                case PROC_SWAP:
-                       return get_swaparea_info(page);
+		case PROC_SWAP:
+			return get_swaparea_info(page);
 #ifdef CONFIG_RTC
 		case PROC_RTC:
 			return get_rtc_status(page);
@@ -1368,15 +1368,15 @@ static long get_root_array(char * page, int type, char **start,
 static int process_unauthorized(int type, int pid)
 {
 	struct task_struct *p;
-	uid_t euid;	/* Save the euid keep the lock short */
+	uid_t euid=0;	/* Save the euid keep the lock short */
 		
 	read_lock(&tasklist_lock);
 	
 	/*
-	 *	Grab the lock, find the task, save the uid and 
+	 *	Grab the lock, find the task, save the uid and
 	 *	check it has an mm still (ie its not dead)
 	 */
-	 
+	
 	p = find_task_by_pid(pid);
 	if(p)
 	{
@@ -1397,6 +1397,7 @@ static int process_unauthorized(int type, int pid)
 		case PROC_PID_STAT:
 		case PROC_PID_MAPS:
 		case PROC_PID_CMDLINE:
+		case PROC_PID_CPU:
 			return 0;	
 	}
 	if(capable(CAP_DAC_OVERRIDE) || current->fsuid == euid)

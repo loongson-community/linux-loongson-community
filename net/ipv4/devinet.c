@@ -1,7 +1,7 @@
 /*
  *	NET3	IP device support routines.
  *
- *	Version: $Id: devinet.c,v 1.23 1998/08/26 12:03:21 davem Exp $
+ *	Version: $Id: devinet.c,v 1.25 1999/01/04 20:14:33 davem Exp $
  *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
@@ -988,39 +988,6 @@ static void devinet_sysctl_unregister(struct ipv4_devconf *p)
 		kfree(t);
 	}
 }
-#endif
-
-#ifdef CONFIG_IP_PNP_BOOTP
-
-/*
- *	Addition and deletion of fake interface addresses
- *	for sending of BOOTP packets. In this case, we must
- *	set the local address to zero which is not permitted
- *	otherwise.
- */
-
-__initfunc(int inet_add_bootp_addr(struct device *dev))
-{
-	struct in_device *in_dev = dev->ip_ptr;
-	struct in_ifaddr *ifa;
-
-	if (!in_dev && !(in_dev = inetdev_init(dev)))
-		return -ENOBUFS;
-	if (!(ifa = inet_alloc_ifa()))
-		return -ENOBUFS;
-	ifa->ifa_dev = in_dev;
-	in_dev->ifa_list = ifa;
-	rtmsg_ifa(RTM_NEWADDR, ifa);
-	notifier_call_chain(&inetaddr_chain, NETDEV_UP, ifa);
-	return 0;
-}
-
-__initfunc(void inet_del_bootp_addr(struct device *dev))
-{
-	if (dev->ip_ptr)
-		inetdev_destroy(dev->ip_ptr);
-}
-
 #endif
 
 __initfunc(void devinet_init(void))

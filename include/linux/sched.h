@@ -11,6 +11,7 @@ extern unsigned long event;
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/times.h>
+#include <linux/timex.h>
 
 #include <asm/system.h>
 #include <asm/semaphore.h>
@@ -32,6 +33,7 @@ extern unsigned long event;
 #define CLONE_SIGHAND	0x00000800	/* set if signal handlers shared */
 #define CLONE_PID	0x00001000	/* set if pid shared */
 #define CLONE_PTRACE	0x00002000	/* set if we want to let tracing continue on the child too */
+#define CLONE_VFORK	0x00004000	/* set if the parent wants the child to wake it up on mm_release */
 
 /*
  * These are the constant used to fake the fixed-point load-average
@@ -154,11 +156,16 @@ struct fs_struct {
 /* Maximum number of active map areas.. This is a random (large) number */
 #define MAX_MAP_COUNT	(65536)
 
+/* Number of map areas at which the AVL tree is activated. This is arbitrary. */
+#define AVL_MIN_MAP_COUNT	32
+
 struct mm_struct {
-	struct vm_area_struct *mmap, *mmap_cache;
+	struct vm_area_struct *mmap;		/* list of VMAs */
+	struct vm_area_struct *mmap_avl;	/* tree of VMAs */
+	struct vm_area_struct *mmap_cache;	/* last find_vma result */
 	pgd_t * pgd;
 	atomic_t count;
-	int map_count;
+	int map_count;				/* number of VMAs */
 	struct semaphore mmap_sem;
 	unsigned long context;
 	unsigned long start_code, end_code, start_data, end_data;
@@ -175,7 +182,8 @@ struct mm_struct {
 };
 
 #define INIT_MM {					\
-		&init_mmap, NULL, swapper_pg_dir, 	\
+		&init_mmap, NULL, NULL,			\
+		swapper_pg_dir, 			\
 		ATOMIC_INIT(1), 1,			\
 		MUTEX,					\
 		0,					\
@@ -219,6 +227,7 @@ struct task_struct {
 /* various fields */
 	long counter;
 	long priority;
+	cycles_t avg_slice;
 /* SMP and runqueue state */
 	int has_cpu;
 	int processor;
@@ -256,6 +265,7 @@ struct task_struct {
 	struct task_struct **tarray_ptr;
 
 	struct wait_queue *wait_chldexit;	/* for wait4() */
+	struct semaphore *vfork_sem;		/* for vfork() */
 	unsigned long policy, rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
 	unsigned long it_real_incr, it_prof_incr, it_virt_incr;
@@ -267,8 +277,6 @@ struct task_struct {
 	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
 	int swappable:1;
 	unsigned long swap_address;
-	unsigned long old_maj_flt;	/* old value of maj_flt */
-	unsigned long dec_flt;		/* page fault count of the last time */
 	unsigned long swap_cnt;		/* number of pages to swap on next pass */
 /* process credentials */
 	uid_t uid,euid,suid,fsuid;
@@ -295,6 +303,7 @@ struct task_struct {
 	struct files_struct *files;
 /* memory management info */
 	struct mm_struct *mm;
+
 /* signal handlers */
 	spinlock_t sigmask_lock;	/* Protects signal and blocked */
 	struct signal_struct *sig;
@@ -318,6 +327,7 @@ struct task_struct {
 #define PF_DUMPCORE	0x00000200	/* dumped core */
 #define PF_SIGNALED	0x00000400	/* killed by a signal */
 #define PF_MEMALLOC	0x00000800	/* Allocating memory */
+#define PF_VFORK	0x00001000	/* Wake up parent in mm_release */
 
 #define PF_USEDFPU	0x00100000	/* task used FPU this quantum (SMP) */
 #define PF_DTRACE	0x00200000	/* delayed trace (used on m68k, i386) */
@@ -328,7 +338,7 @@ struct task_struct {
  */
 #define _STK_LIM	(8*1024*1024)
 
-#define DEF_PRIORITY	(20*HZ/100)	/* 200 ms time slices */
+#define DEF_PRIORITY	(20*HZ/100)	/* 210 ms time slices */
 
 /*
  *  INIT_TASK is used to set up the first task table, touch at
@@ -336,7 +346,7 @@ struct task_struct {
  */
 #define INIT_TASK \
 /* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain,0, \
-/* counter */	DEF_PRIORITY,DEF_PRIORITY, \
+/* counter */	DEF_PRIORITY,DEF_PRIORITY,0, \
 /* SMP */	0,0,0,-1, \
 /* schedlink */	&init_task,&init_task, &init_task, &init_task, \
 /* binfmt */	NULL, \
@@ -345,13 +355,13 @@ struct task_struct {
 /* proc links*/ &init_task,&init_task,NULL,NULL,NULL, \
 /* pidhash */	NULL, NULL, \
 /* tarray */	&task[0], \
-/* chld wait */	NULL, \
+/* chld wait */	NULL, NULL, \
 /* timeout */	SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
 /* utime */	{0,0,0,0},0, \
 /* per CPU times */ {0, }, {0, }, \
 /* flt */	0,0,0,0,0,0, \
-/* swp */	0,0,0,0,0, \
+/* swp */	0,0,0, \
 /* process credentials */					\
 /* uid etc */	0,0,0,0,0,0,0,0,				\
 /* suppl grps*/ 0, {0,},					\
@@ -455,6 +465,8 @@ extern unsigned long prof_shift;
 
 extern void FASTCALL(__wake_up(struct wait_queue ** p, unsigned int mode));
 extern void FASTCALL(sleep_on(struct wait_queue ** p));
+extern long FASTCALL(sleep_on_timeout(struct wait_queue ** p,
+				      signed long timeout));
 extern void FASTCALL(interruptible_sleep_on(struct wait_queue ** p));
 extern long FASTCALL(interruptible_sleep_on_timeout(struct wait_queue ** p,
 						    signed long timeout));
@@ -603,6 +615,8 @@ static inline void mmget(struct mm_struct * mm)
 	atomic_inc(&mm->count);
 }
 extern void mmput(struct mm_struct *);
+/* Remove the current tasks stale references to the old mm_struct */
+extern void mm_release(void);
 
 extern int  copy_thread(int, unsigned long, unsigned long, struct task_struct *, struct pt_regs *);
 extern void flush_thread(void);

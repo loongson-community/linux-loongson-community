@@ -34,6 +34,7 @@
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/locks.h>
+#include <linux/quotaops.h>
 
 #include "swab.h"
 #include "util.h"
@@ -56,19 +57,15 @@
 
 /*
  * NOTE! unlike strncmp, ufs_match returns 1 for success, 0 for failure.
+ *
+ * len <= UFS_MAXNAMLEN and de != NULL are guaranteed by caller.
  */
-static int ufs_match (int len, const char * const name,
+static inline int ufs_match (int len, const char * const name,
 	struct ufs_dir_entry * de, unsigned flags, unsigned swab)
 {
-	if (!de || !SWAB32(de->d_ino) || len > UFS_MAXNAMLEN)
-		return 0;
-	/*
-	 * "" means "." ---> so paths like "/usr/lib//libc.a" work
-	 */
-	if (!len && ufs_get_de_namlen(de) == 1 && (de->d_name[0] == '.') &&
-	   (de->d_name[1] == '\0'))
-		return 1;
 	if (len != ufs_get_de_namlen(de))
+		return 0;
+	if (!de->d_ino)
 		return 0;
 	return !memcmp(name, de->d_name, len);
 }
@@ -128,8 +125,9 @@ static struct buffer_head * ufs_find_entry (struct inode * dir,
 		}
 		bh = bh_use[block % NAMEI_RA_SIZE];
 		if (!bh) {
-			ufs_error (sb, "ufs_find_entry",
-				"directory #%lu contains a hole at offset %lu", dir->i_ino, offset);
+			ufs_error (sb, "ufs_find_entry", 
+				"directory #%lu contains a hole at offset %lu",
+				dir->i_ino, offset);
 			offset += sb->s_blocksize;
 			continue;
 		}
@@ -144,20 +142,30 @@ static struct buffer_head * ufs_find_entry (struct inode * dir,
 		de = (struct ufs_dir_entry *) bh->b_data;
 		dlimit = bh->b_data + sb->s_blocksize;
 		while ((char *) de < dlimit && offset < dir->i_size) {
-			if (!ufs_check_dir_entry ("ufs_find_entry", dir, de, bh, offset))
-				goto failed;
-			if (SWAB32(de->d_ino) != 0 && ufs_match (namelen, name, de, flags, swab)) {
+			/* this code is executed quadratically often */
+			/* do minimal checking by hand */
+			int de_len;
+
+			if ((char *) de + namelen <= dlimit &&
+			    ufs_match (namelen, name, de, flags, swab)) {
+				/* found a match -
+				just to be sure, do a full check */
+				if (!ufs_check_dir_entry("ufs_find_entry",
+				    dir, de, bh, offset))
+					goto failed;
 				for (i = 0; i < NAMEI_RA_SIZE; ++i) {
 					if (bh_use[i] != bh)
 						brelse (bh_use[i]);
 				}
 				*res_dir = de;
-				UFSD(("EXIT\n"))
 				return bh;
 			}
-			offset += SWAB16(de->d_reclen);
-			de = (struct ufs_dir_entry *)
-				((char *) de + SWAB16(de->d_reclen));
+                        /* prevent looping on a bad block */
+			de_len = SWAB16(de->d_reclen);
+			if (de_len <= 0)
+				goto failed;
+			offset += de_len;
+			de = (struct ufs_dir_entry *) ((char *) de + de_len);
 		}
 
 		brelse (bh);
@@ -173,7 +181,7 @@ static struct buffer_head * ufs_find_entry (struct inode * dir,
 
 failed:
 	for (i = 0; i < NAMEI_RA_SIZE; ++i) brelse (bh_use[i]);
-	UFSD(("EXIT (FAILED)\n"))
+	UFSD(("EXIT\n"))
 	return NULL;
 }
 
@@ -298,7 +306,7 @@ static struct buffer_head * ufs_add_entry (struct inode * dir,
 			brelse (bh);
 			return NULL;
 		}
-		if (SWAB32(de->d_ino) != 0 && ufs_match (namelen, name, de, flags, swab)) {
+		if (ufs_match (namelen, name, de, flags, swab)) {
 				*err = -EEXIST;
 				brelse (bh);
 				return NULL;
@@ -475,13 +483,6 @@ int ufs_mknod (struct inode * dir, struct dentry *dentry, int mode, int rdev)
 	inode->i_op = NULL;
 	if (S_ISREG(inode->i_mode))
 		inode->i_op = &ufs_file_inode_operations;
-	else if (S_ISDIR(inode->i_mode)) {
-		inode->i_op = &ufs_dir_inode_operations;
-		if (dir->i_mode & S_ISGID)
-			inode->i_mode |= S_ISGID;
-	}
-	else if (S_ISLNK(inode->i_mode))
-		inode->i_op = &ufs_symlink_inode_operations;
 	else if (S_ISCHR(inode->i_mode))
 		inode->i_op = &chrdev_inode_operations;
 	else if (S_ISBLK(inode->i_mode))
@@ -680,49 +681,17 @@ int ufs_rmdir (struct inode * dir, struct dentry *dentry)
 		goto end_rmdir;
 
 	inode = dentry->d_inode;
-	if (inode->i_sb->dq_op)
-		inode->i_sb->dq_op->initialize (inode, -1);
-
-	retval = -EPERM;
-	if ((dir->i_mode & S_ISVTX) && 
-	    current->fsuid != inode->i_uid &&
-	    current->fsuid != dir->i_uid && !fsuser())
-		goto end_rmdir;
-	if (inode == dir)	/* we may not delete ".", but "../dir" is ok */
-		goto end_rmdir;
-
-	retval = -ENOTDIR;
-	if (!S_ISDIR(inode->i_mode))
-		goto end_rmdir;
+	DQUOT_INIT(inode);
 
 	retval = -EIO;
-	if (inode->i_dev != dir->i_dev)
-		goto end_rmdir;
 	if (SWAB32(de->d_ino) != inode->i_ino)
 		goto end_rmdir;
 
-	/*
-	 * Prune any child dentries so that this dentry becomes negative.
-	 */
-	if (dentry->d_count > 1) {
-		ufs_warning (sb, "ufs_rmdir", "d_count=%d, pruning\n", dentry->d_count);
-		shrink_dcache_parent(dentry);
-	}
 	if (!ufs_empty_dir (inode))
 		retval = -ENOTEMPTY;
 	else if (SWAB32(de->d_ino) != inode->i_ino)
 		retval = -ENOENT;
 	else {
-		if (dentry->d_count > 1) {
-		/*
-		 * Are we deleting the last instance of a busy directory?
-		 * Better clean up if so.
-		 *
-		 * Make directory empty (it will be truncated when finally
-		 * dereferenced).  This also inhibits ufs_add_entry.
-		 */
-			inode->i_size = 0;
-		}
 		retval = ufs_delete_entry (dir, de, bh);
 		dir->i_version = ++event;
 	}
@@ -739,6 +708,7 @@ int ufs_rmdir (struct inode * dir, struct dentry *dentry)
 			      inode->i_nlink);
 	inode->i_version = ++event;
 	inode->i_nlink = 0;
+	inode->i_size = 0;
 	mark_inode_dirty(inode);
 	dir->i_nlink--;
 	inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
@@ -778,16 +748,7 @@ int ufs_unlink(struct inode * dir, struct dentry *dentry)
 		goto end_unlink;
 
 	inode = dentry->d_inode;
-	if (inode->i_sb->dq_op)
-		inode->i_sb->dq_op->initialize (inode, -1);
-
-	retval = -EPERM;
-	if (IS_APPEND(inode) || IS_IMMUTABLE(inode))
-		goto end_unlink;
-	if ((dir->i_mode & S_ISVTX) &&
-	    current->fsuid != inode->i_uid &&
-	    current->fsuid != dir->i_uid && !fsuser())
-		goto end_unlink;
+	DQUOT_INIT(inode);
 
 	retval = -EIO;
 	if (SWAB32(de->d_ino) != inode->i_ino)
@@ -822,49 +783,6 @@ out:
 	return retval;
 }
 
-
-int ufs_link (struct dentry * old_dentry, struct inode * dir,
-	struct dentry *dentry)
-{
-	struct super_block * sb;
-	struct inode *inode = old_dentry->d_inode;
-	struct ufs_dir_entry * de;
-	struct buffer_head * bh;
-	int err;
-	unsigned swab;
-
-	inode = old_dentry->d_inode;
-	sb = inode->i_sb;
-	swab = sb->u.ufs_sb.s_swab;
-	
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
-	if (IS_APPEND(inode) || IS_IMMUTABLE(inode))
-		return -EPERM;
-
-	if (inode->i_nlink >= UFS_LINK_MAX)
-		return -EMLINK;
-
-	bh = ufs_add_entry (dir, dentry->d_name.name, dentry->d_name.len, &de, &err);
-	if (!bh)
-		return err;
-
-	de->d_ino = SWAB32(inode->i_ino);
-	dir->i_version = ++event;
-	mark_buffer_dirty(bh, 1);
-	if (IS_SYNC(dir)) {
-		ll_rw_block (WRITE, 1, &bh);
-		wait_on_buffer (bh);
-	}
-	brelse (bh);
-	inode->i_nlink++;
-	inode->i_ctime = CURRENT_TIME;
-	mark_inode_dirty(inode);
-	inode->i_count++;
-	d_instantiate(dentry, inode);
-	return 0;
-}
 
 /*
  * Create symbolic link. We use only slow symlinks at this time.
@@ -946,6 +864,49 @@ out_no_entry:
 	goto out;
 }
 
+int ufs_link (struct dentry * old_dentry, struct inode * dir,
+	struct dentry *dentry)
+{
+	struct super_block * sb;
+	struct inode *inode = old_dentry->d_inode;
+	struct ufs_dir_entry * de;
+	struct buffer_head * bh;
+	int err;
+	unsigned swab;
+
+	inode = old_dentry->d_inode;
+	sb = inode->i_sb;
+	swab = sb->u.ufs_sb.s_swab;
+	
+	if (S_ISDIR(inode->i_mode))
+		return -EPERM;
+
+	if (IS_APPEND(inode) || IS_IMMUTABLE(inode))
+		return -EPERM;
+
+	if (inode->i_nlink >= UFS_LINK_MAX)
+		return -EMLINK;
+
+	bh = ufs_add_entry (dir, dentry->d_name.name, dentry->d_name.len, &de, &err);
+	if (!bh)
+		return err;
+
+	de->d_ino = SWAB32(inode->i_ino);
+	dir->i_version = ++event;
+	mark_buffer_dirty(bh, 1);
+	if (IS_SYNC(dir)) {
+		ll_rw_block (WRITE, 1, &bh);
+		wait_on_buffer (bh);
+	}
+	brelse (bh);
+	inode->i_nlink++;
+	inode->i_ctime = CURRENT_TIME;
+	mark_inode_dirty(inode);
+	inode->i_count++;
+	d_instantiate(dentry, inode);
+	return 0;
+}
+
 
 #define PARENT_INO(buffer) \
 	((struct ufs_dir_entry *) ((char *) buffer + \
@@ -984,69 +945,47 @@ static int do_ufs_rename (struct inode * old_dir, struct dentry * old_dentry,
 	if (old_dentry->d_name.len > UFS_MAXNAMLEN)
 		goto end_rename;
 
-	UFSD(("name %s, len %u\n", old_dentry->d_name.name, old_dentry->d_name.len)) 
 	old_bh = ufs_find_entry (old_dir, old_dentry->d_name.name, old_dentry->d_name.len, &old_de);
-	UFSD(("ino %u, reclen %u, namlen %u, name %s\n", SWAB32(old_de->d_ino),
-		SWAB16(old_de->d_reclen), ufs_get_de_namlen(old_de), old_de->d_name))
-	    
+	/*
+	 *  Check for inode number is _not_ due to possible IO errors.
+	 *  We might rmdir the source, keep it as pwd of some process
+	 *  and merrily kill the link to whatever was created under the
+	 *  same name. Goodbye sticky bit ;-<
+	 */
 	retval = -ENOENT;
-	if (!old_bh)
-		goto end_rename;
 	old_inode = old_dentry->d_inode;
-
-	retval = -EPERM;
-	if ((old_dir->i_mode & S_ISVTX) && 
-	    current->fsuid != old_inode->i_uid &&
-	    current->fsuid != old_dir->i_uid && !fsuser())
-		goto end_rename;
-	if (IS_APPEND(old_inode) || IS_IMMUTABLE(old_inode))
+	if (!old_bh || SWAB32(old_de->d_ino) != old_inode->i_ino)
 		goto end_rename;
 
 	new_inode = new_dentry->d_inode;
-	UFSD(("name %s, len %u\n", new_dentry->d_name.name, new_dentry->d_name.len)) 
 	new_bh = ufs_find_entry (new_dir, new_dentry->d_name.name, new_dentry->d_name.len, &new_de);
 	if (new_bh) {
 		if (!new_inode) {
 			brelse (new_bh);
 			new_bh = NULL;
 		} else {
-			if (new_inode->i_sb->dq_op)
-				new_inode->i_sb->dq_op->initialize (new_inode, -1);
+			DQUOT_INIT(new_inode);
 		}
 	}
 	retval = 0;
 	if (new_inode == old_inode)
 		goto end_rename;
-	if (new_inode && S_ISDIR(new_inode->i_mode)) {
-		retval = -EISDIR;
-		if (!S_ISDIR(old_inode->i_mode))
-			goto end_rename;
-		retval = -EINVAL;
-		if (is_subdir(new_dentry, old_dentry))
-			goto end_rename;
-		retval = -ENOTEMPTY;
-		if (!ufs_empty_dir (new_inode))
-			goto end_rename;
-		retval = -EBUSY;
-		if (new_dentry->d_count > 1)
-			goto end_rename;
-	}
-	retval = -EPERM;
-	if (new_inode) {
-		if ((new_dir->i_mode & S_ISVTX) &&
-		    current->fsuid != new_inode->i_uid &&
-		    current->fsuid != new_dir->i_uid && !fsuser())
-			goto end_rename;
-		if (IS_APPEND(new_inode) || IS_IMMUTABLE(new_inode))
-			goto end_rename;
-	}
 	if (S_ISDIR(old_inode->i_mode)) {
-		retval = -ENOTDIR;
-		if (new_inode && !S_ISDIR(new_inode->i_mode))
-			goto end_rename;
 		retval = -EINVAL;
 		if (is_subdir(new_dentry, old_dentry))
 			goto end_rename;
+		if (new_inode) {
+			/* Prune any children before testing for busy */
+			if (new_dentry->d_count > 1)
+				shrink_dcache_parent(new_dentry);
+			retval = -EBUSY;
+			if (new_dentry->d_count > 1)
+				goto end_rename;
+			retval = -ENOTEMPTY;
+			if (!ufs_empty_dir (new_inode))
+				goto end_rename;
+		}
+
 		dir_bh = ufs_bread (old_inode, 0, 0, &retval);
 		if (!dir_bh)
 			goto end_rename;

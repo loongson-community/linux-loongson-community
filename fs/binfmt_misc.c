@@ -15,6 +15,7 @@
  *  1997-08-09 removed extension stripping, locking cleanup
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/kernel.h>
@@ -29,6 +30,16 @@
 #include <asm/uaccess.h>
 #include <asm/spinlock.h>
 
+/*
+ * We should make this work with a "stub-only" /proc,
+ * which would just not be able to be configured.
+ * Right now the /proc-fs support is too black and white,
+ * though, so just remind people that this should be
+ * fixed..
+ */
+#ifndef CONFIG_PROC_FS
+#error You really need /proc support for binfmt_misc. Please reconfigure!
+#endif
 
 #define VERBOSE_STATUS /* undef this to save 400 bytes kernel memory */
 
@@ -66,9 +77,7 @@ static struct binfmt_entry *entries = NULL;
 static int free_id = 1;
 static int enabled = 1;
 
-#ifdef __SMP__
-static rwlock_t entries_lock = RW_LOCK_UNLOCKED;
-#endif
+static rwlock_t entries_lock __attribute__((unused)) = RW_LOCK_UNLOCKED;
 
 
 /*
@@ -178,26 +187,23 @@ static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 	struct dentry * dentry;
 	char iname[128];
 	char *iname_addr = iname;
-	int retval, fmt_flags = 0;
+	int retval;
 
 	MOD_INC_USE_COUNT;
-	if (!enabled) {
-		retval = -ENOEXEC;
+	retval = -ENOEXEC;
+	if (!enabled)
 		goto _ret;
-	}
 
 	/* to keep locking time low, we copy the interpreter string */
 	read_lock(&entries_lock);
-	if ((fmt = check_file(bprm))) {
+	fmt = check_file(bprm);
+	if (fmt) {
 		strncpy(iname, fmt->interpreter, 127);
 		iname[127] = '\0';
-		fmt_flags = fmt->flags;
 	}
 	read_unlock(&entries_lock);
-	if (!fmt) {
-		retval = -ENOEXEC;
+	if (!fmt)
 		goto _ret;
-	}
 
 	dput(bprm->dentry);
 	bprm->dentry = NULL;
@@ -208,10 +214,9 @@ static int load_misc_binary(struct linux_binprm *bprm, struct pt_regs *regs)
 	bprm->argc++;
 	bprm->p = copy_strings(1, &iname_addr, bprm->page, bprm->p, 2);
 	bprm->argc++;
-	if (!bprm->p) {
-		retval = -E2BIG;
+	retval = -E2BIG;
+	if (!bprm->p)
 		goto _ret;
-	}
 	bprm->filename = iname;	/* for binfmt_script */
 
 	dentry = open_namei(iname, 0, 0);
@@ -461,12 +466,13 @@ static int entry_proc_setup(struct binfmt_entry *e)
 {
 	if (!(e->proc_dir = create_proc_entry(e->proc_name,
 			 	S_IFREG | S_IRUGO | S_IWUSR, bm_dir)))
-		return -ENOMEM;
-
+	{
+		printk(KERN_WARNING "Unable to create /proc entry.\n");
+		return -ENOENT;
+	}
 	e->proc_dir->data = (void *) (e->id);
 	e->proc_dir->read_proc = proc_read_status;
 	e->proc_dir->write_proc = proc_write_status;
-
 	return 0;
 }
 
@@ -490,8 +496,8 @@ static void bm_modcount(struct inode *inode, int fill)
 
 int __init init_misc_binfmt(void)
 {
+	int error = -ENOENT;
 	struct proc_dir_entry *status = NULL, *reg;
-	int error = -ENOMEM;
 
 	bm_dir = create_proc_entry("sys/fs/binfmt_misc", S_IFDIR, NULL);
 	if (!bm_dir)

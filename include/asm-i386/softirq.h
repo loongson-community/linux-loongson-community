@@ -12,14 +12,15 @@ extern unsigned int local_bh_count[NR_CPUS];
 extern inline void init_bh(int nr, void (*routine)(void))
 {
 	bh_base[nr] = routine;
-	bh_mask_count[nr] = 0;
+	atomic_set(&bh_mask_count[nr], 0);
 	bh_mask |= 1 << nr;
 }
 
 extern inline void remove_bh(int nr)
 {
-	bh_base[nr] = NULL;
 	bh_mask &= ~(1 << nr);
+	mb();
+	bh_base[nr] = NULL;
 }
 
 extern inline void mark_bh(int nr)
@@ -97,13 +98,13 @@ extern inline void end_bh_atomic(void)
 extern inline void disable_bh(int nr)
 {
 	bh_mask &= ~(1 << nr);
-	bh_mask_count[nr]++;
+	atomic_inc(&bh_mask_count[nr]);
 	synchronize_bh();
 }
 
 extern inline void enable_bh(int nr)
 {
-	if (!--bh_mask_count[nr])
+	if (atomic_dec_and_test(&bh_mask_count[nr]))
 		bh_mask |= 1 << nr;
 }
 

@@ -94,10 +94,6 @@ extern __inline__ void update_memc_addr(struct mm_struct *mm, unsigned long addr
 
 #define __flush_entry_to_ram(entry)
 
-/* Certain architectures need to do special things when pte's
- * within a page table are directly modified.  Thus, the following
- * hook is made available.
- */
 /* PMD_SHIFT determines the size of the area a second-level page table can map */
 #define PMD_SHIFT       20
 #define PMD_SIZE        (1UL << PMD_SHIFT)
@@ -119,13 +115,6 @@ extern __inline__ void update_memc_addr(struct mm_struct *mm, unsigned long addr
 #define PTRS_PER_PGD    32
 #define USER_PTRS_PER_PGD	(TASK_SIZE/PGDIR_SIZE)
 
-/* Just any arbitrary offset to the start of the vmalloc VM area: the
- * current 8MB value just means that there will be a 8MB "hole" after the
- * physical memory until the kernel virtual memory starts.  That means that
- * any out-of-bounds memory accesses will hopefully be caught.
- * The vmalloc() routines leaves a hole of 4kB between each vmalloced
- * area for the same reason. ;)
- */
 #define VMALLOC_START	0x01a00000
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
 #define VMALLOC_END	0x01c00000
@@ -280,6 +269,10 @@ extern __inline__ pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	return pte;
 }
 
+/* Certain architectures need to do special things when pte's
+ * within a page table are directly modified.  Thus, the following
+ * hook is made available.
+ */
 #define set_pte(pteptr, pteval) ((*(pteptr)) = (pteval))
 
 extern __inline__ unsigned long pte_page(pte_t pte)

@@ -28,6 +28,7 @@
 #include <asm/irq.h>
 #include <asm/machvec.h>
 #include <asm/pgtable.h>
+#include <asm/semaphore.h>
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
@@ -52,6 +53,7 @@ EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(screen_info);
+EXPORT_SYMBOL(perf_irq);
 
 /* platform dependent support */
 EXPORT_SYMBOL(_inb);
@@ -85,6 +87,7 @@ EXPORT_SYMBOL(strnlen);
 EXPORT_SYMBOL(strncat);
 EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(strtok);
+EXPORT_SYMBOL(strpbrk);
 EXPORT_SYMBOL(strchr);
 EXPORT_SYMBOL(strrchr);
 EXPORT_SYMBOL(memcmp);
@@ -137,6 +140,13 @@ EXPORT_SYMBOL_NOVERS(__copy_user);
 EXPORT_SYMBOL_NOVERS(__do_clear_user);
 EXPORT_SYMBOL(__strncpy_from_user);
 EXPORT_SYMBOL(__strlen_user);
+
+/*
+ * The following are specially called from the semaphore assembly stubs.
+ */
+EXPORT_SYMBOL_NOVERS(__down_failed);
+EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
+EXPORT_SYMBOL_NOVERS(__up_wakeup);
 
 /* 
  * SMP-specific symbols.

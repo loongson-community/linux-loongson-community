@@ -139,7 +139,11 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( MATROX,		MATROX_MYS,	"Mystique"),
 	DEVICE( MATROX,		MATROX_MIL_2,	"Millennium II"),
 	DEVICE( MATROX,		MATROX_MIL_2_AGP,"Millennium II AGP"),
+	DEVICE( MATROX,         MATROX_G200_PCI,"Matrox G200 PCI"),
+	DEVICE( MATROX,         MATROX_G200_AGP,"Matrox G200 AGP"),
 	DEVICE( MATROX,		MATROX_MGA_IMP,	"MGA Impression"),
+	DEVICE( MATROX,         MATROX_G100_MM, "Matrox G100 multi monitor"),
+	DEVICE( MATROX,         MATROX_G100_AGP,"Matrox G100 AGP"),
 	DEVICE( CT,		CT_65545,	"65545"),
 	DEVICE( CT,		CT_65548,	"65548"),
 	DEVICE(	CT,		CT_65550,	"65550"),
@@ -158,8 +162,8 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( SI,		SI_496,		"85C496"),
 	DEVICE( SI,		SI_601,		"85C601"),
 	DEVICE( SI,		SI_5107,	"5107"),
-	DEVICE( SI,		SI_5511,		"85C5511"),
-	DEVICE( SI,		SI_5513,		"85C5513"),
+	DEVICE( SI,		SI_5511,       	"85C5511"),
+	DEVICE( SI,		SI_5513,	"85C5513"),
 	DEVICE( SI,		SI_5571,	"5571"),
 	DEVICE( SI,		SI_5591,	"5591/5592 Host"),
 	DEVICE( SI,		SI_5597,	"5597/5598 Host"),
@@ -249,6 +253,8 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( VISION,		VISION_QD8580,	"QD-8580"),
 	DEVICE( BROOKTREE,	BROOKTREE_848,	"Bt848"),
 	DEVICE( BROOKTREE,	BROOKTREE_849A,	"Bt849"),
+	DEVICE( BROOKTREE,      BROOKTREE_878_1,"Bt878 2nd Contr. (?)"),
+	DEVICE( BROOKTREE,      BROOKTREE_878,  "Bt878"),
 	DEVICE( BROOKTREE,	BROOKTREE_8474,	"Bt8474"),
 	DEVICE( SIERRA,		SIERRA_STB,	"STB Horizon 64"),
 	DEVICE( ACC,		ACC_2056,	"2056"),
@@ -325,6 +331,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( VIA,		VIA_82C586_0,	"VT 82C586 Apollo ISA"),
 	DEVICE( VIA,		VIA_82C595,	"VT 82C595 Apollo VP2"),
 	DEVICE( VIA,		VIA_82C597_0,	"VT 82C597 Apollo VP3"),
+	DEVICE( VIA,		VIA_82C598_0,	"VT 82C598 Apollo MVP3"),
 	DEVICE( VIA,		VIA_82C926,	"VT 82C926 Amazon"),
 	DEVICE( VIA,		VIA_82C416,	"VT 82C416MV"),
 	DEVICE( VIA,		VIA_82C595_97,	"VT 82C595 Apollo VP2/97"),
@@ -332,6 +339,8 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( VIA,		VIA_82C586_3,	"VT 82C586B Apollo ACPI"),
 	DEVICE( VIA,		VIA_86C100A,	"VT 86C100A"),
 	DEVICE( VIA,		VIA_82C597_1,	"VT 82C597 Apollo VP3 AGP"),
+	DEVICE( VIA,		VIA_82C598_1,	"VT 82C598 Apollo MVP3 AGP"),
+	DEVICE( SMC2,		SMC2_1211TX,	"1211 TX"),
 	DEVICE( VORTEX,		VORTEX_GDT60x0,	"GDT 60x0"),
 	DEVICE( VORTEX,		VORTEX_GDT6000B,"GDT 6000b"),
 	DEVICE( VORTEX,		VORTEX_GDT6x10,	"GDT 6110/6510"),
@@ -364,9 +373,9 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( VORTEX,		VORTEX_GDT6557RP2,"GDT 6557RP2"),
 	DEVICE( VORTEX,		VORTEX_GDT6x11RP2,"GDT 6111RP2/6511RP2"),
 	DEVICE( VORTEX,		VORTEX_GDT6x21RP2,"GDT 6121RP2/6521RP2"),
-	DEVICE( EF,		EF_ATM_FPGA,		"155P-MF1 (FPGA)"),
-	DEVICE( EF,		EF_ATM_ASIC,	"155P-MF1 (ASIC)"),
-	DEVICE( FORE,		FORE_PCA200PC, "PCA-200PC"),
+	DEVICE( EF,		EF_ATM_FPGA,   	"155P-MF1 (FPGA)"),
+	DEVICE( EF,		EF_ATM_ASIC,    "155P-MF1 (ASIC)"),
+	DEVICE( FORE,		FORE_PCA200PC,  "PCA-200PC"),
 	DEVICE( FORE,		FORE_PCA200E,	 "PCA-200E"),
 	DEVICE( IMAGINGTECH,	IMAGINGTECH_ICPCI, "MVC IC-PCI"),
 	DEVICE( PHILIPS,	PHILIPS_SAA7145,"SAA7145"),
@@ -428,6 +437,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( O2,		O2_6832,	"6832"),
 	DEVICE( 3DFX,		3DFX_VOODOO,	"Voodoo"),
 	DEVICE( 3DFX,		3DFX_VOODOO2,	"Voodoo2"),
+	DEVICE( 3DFX,           3DFX_BANSHEE,   "Banshee"),
 	DEVICE( SIGMADES,	SIGMADES_6425,	"REALmagic64/GX"),
 	DEVICE( STALLION,	STALLION_ECHPCI832,"EasyConnection 8/32"),
 	DEVICE( STALLION,	STALLION_ECHPCI864,"EasyConnection 8/64"),
@@ -441,7 +451,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( SATSAGEM,	SATSAGEM_TELSATTURBO,"Telsat Turbo DVB"),
 	DEVICE( HUGHES,		HUGHES_DIRECPC,	"DirecPC"),
 	DEVICE( ENSONIQ,	ENSONIQ_AUDIOPCI,"AudioPCI"),
-	DEVICE( ALTEON,		ALTEON_ACENIC,"AceNIC"),
+	DEVICE( ALTEON,		ALTEON_ACENIC,  "AceNIC"),
 	DEVICE( PICTUREL,	PICTUREL_PCIVST,"PCIVST"),
 	DEVICE( NVIDIA_SGS,	NVIDIA_SGS_RIVA128,	"Riva 128"),
 	DEVICE( CBOARDS,	CBOARDS_DAS1602_16,"DAS1602/16"),
@@ -461,7 +471,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( S3,		S3_AURORA64VP,	"Aurora64V+"),
 	DEVICE( S3,		S3_TRIO64UVP,	"Trio64UV+"),
 	DEVICE( S3,		S3_ViRGE_VX,	"ViRGE/VX"),
-	DEVICE( S3,		S3_868,	"Vision 868"),
+	DEVICE( S3,		S3_868,	        "Vision 868"),
 	DEVICE( S3,		S3_928,		"Vision 928-P"),
 	DEVICE( S3,		S3_864_1,	"Vision 864-P"),
 	DEVICE( S3,		S3_864_2,	"Vision 864-P"),
@@ -476,6 +486,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( S3,		S3_ViRGE_MXP,	"ViRGE/MX+"),
 	DEVICE( S3,		S3_ViRGE_MXPMV,	"ViRGE/MX+MV"),
 	DEVICE( S3,		S3_SONICVIBES,	"SonicVibes"),
+	DEVICE( DCI,		DCI_PCCOM4,	"PC COM PCI Bus 4 port serial Adapter"),
 	DEVICE( GENROCO,	GENROCO_HFP832,	"TURBOstor HFP832"),
 	DEVICE( INTEL,		INTEL_82375,	"82375EB"),
 	DEVICE( INTEL,		INTEL_82424,	"82424ZX Saturn"),
@@ -532,8 +543,10 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( ADAPTEC,	ADAPTEC_7884,	"AIC-7884U"),
 	DEVICE( ADAPTEC,	ADAPTEC_1030,	"ABA-1030 DVB receiver"),
 	DEVICE( ADAPTEC2,	ADAPTEC2_2940U2,"AHA-2940U2"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_78902,	"AIC-7890/1"),
 	DEVICE( ADAPTEC2,	ADAPTEC2_7890,	"AIC-7890/1"),
 	DEVICE( ADAPTEC2,	ADAPTEC2_3940U2,"AHA-3940U2"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_3950U2D,"AHA-3950U2D"),
 	DEVICE( ADAPTEC2,	ADAPTEC2_7896,	"AIC-7896/7"),
   	DEVICE( ATRONICS,	ATRONICS_2015,	"IDE-2015PL"),
 	DEVICE( TIGERJET,	TIGERJET_300,	"Tiger300 ISDN"),
@@ -575,7 +588,7 @@ static struct pci_dev_info *pci_lookup_dev(unsigned int vendor, unsigned int dev
 		       return 0;
 		    continue;
 	    }
-
+  	   
 	    return & dev_info[ i ];
 	}
 }
@@ -734,6 +747,7 @@ static const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_INIT:		return "Initio Corp";
 	      case PCI_VENDOR_ID_TTI:		return "Triones Technologies, Inc.";
 	      case PCI_VENDOR_ID_VIA:		return "VIA Technologies";
+	      case PCI_VENDOR_ID_SMC2:		return "SMC";
 	      case PCI_VENDOR_ID_VORTEX:	return "VORTEX";
 	      case PCI_VENDOR_ID_EF:		return "Efficient Networks";
 	      case PCI_VENDOR_ID_FORE:		return "Fore Systems";
@@ -782,6 +796,7 @@ static const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_AVANCE:	return "Avance";
 	      case PCI_VENDOR_ID_NETVIN:	return "NetVin";
 	      case PCI_VENDOR_ID_S3:		return "S3 Inc.";
+	      case PCI_VENDOR_ID_DCI:		return "Decision Computer Int.";
 	      case PCI_VENDOR_ID_GENROCO:	return "Genroco";
 	      case PCI_VENDOR_ID_INTEL:		return "Intel";
 	      case PCI_VENDOR_ID_KTI:		return "KTI";
@@ -882,7 +897,7 @@ static int sprint_dev_config(struct pci_dev *dev, char *buf, int size)
 		if (len + 40 > size) {
 			return -1;
 		}
-		len += sprintf(buf + len, "IRQ %x.  ", dev->irq);
+		len += sprintf(buf + len, "IRQ %d.  ", dev->irq);
 	}
 
 	if (dev->master) {

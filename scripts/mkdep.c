@@ -210,9 +210,9 @@ void use_config(const char * name, int len)
 #define GETNEXT { \
 	next_byte(__buf); \
 	if ((unsigned long) next % sizeof(unsigned long) == 0) { \
-		__buf = * (unsigned long *) next; \
-		if (!__buf) \
+		if (next >= end) \
 			break; \
+		__buf = * (unsigned long *) next; \
 	} \
 	next++; \
 }
@@ -228,8 +228,8 @@ void use_config(const char * name, int len)
  */
 #define MAX2(a,b) ((a)>(b)?(a):(b))
 #define MIN2(a,b) ((a)<(b)?(a):(b))
-#define MAX5(a,b,c,d,e) (MAX2(a,MAX2(b,MAX2(c,MAX2(d,e)))))
-#define MIN5(a,b,c,d,e) (MIN2(a,MIN2(b,MIN2(c,MIN2(d,e)))))
+#define MAX6(a,b,c,d,e,f) (MAX2(a,MAX2(b,MAX2(c,MAX2(d,MAX2(e,f))))))
+#define MIN6(a,b,c,d,e,f) (MIN2(a,MIN2(b,MIN2(c,MIN2(d,MIN2(e,f))))))
 
 
 
@@ -243,14 +243,15 @@ void use_config(const char * name, int len)
  *    m|#\s*include\s*<(.*?>"|
  *    m|#\s*(?define|undef)\s*CONFIG_(\w*)|
  *    m|(?!\w)CONFIG_|
+ *    m|__SMP__|
  *
  * About 98% of the CPU time is spent here, and most of that is in
  * the 'start' paragraph.  Because the current characters are
  * in a register, the start loop usually eats 4 or 8 characters
- * per memory read.  The MAX5 and MIN5 tests dispose of most
+ * per memory read.  The MAX6 and MIN6 tests dispose of most
  * input characters with 1 or 2 comparisons.
  */
-void state_machine(const char * map)
+void state_machine(const char * map, const char * end)
 {
 	const char * next = map;
 	const char * map_dot;
@@ -260,13 +261,14 @@ void state_machine(const char * map)
 start:
 	GETNEXT
 __start:
-	if (current > MAX5('/','\'','"','#','C')) goto start;
-	if (current < MIN5('/','\'','"','#','C')) goto start;
+	if (current > MAX6('/','\'','"','#','C','_')) goto start;
+	if (current < MIN6('/','\'','"','#','C','_')) goto start;
 	CASE('/',  slash);
 	CASE('\'', squote);
 	CASE('"',  dquote);
 	CASE('#',  pound);
 	CASE('C',  cee);
+	CASE('_',  underscore);
 	goto start;
 
 /* / */
@@ -400,6 +402,18 @@ cee_CONFIG_word:
 		goto cee_CONFIG_word;
 	use_config(map_dot, next - map_dot - 1);
 	goto __start;
+
+/* __SMP__ */
+underscore:
+	GETNEXT NOTCASE('_', __start);
+	GETNEXT NOTCASE('S', __start);
+	GETNEXT NOTCASE('M', __start);
+	GETNEXT NOTCASE('P', __start);
+	GETNEXT NOTCASE('_', __start);
+	GETNEXT NOTCASE('_', __start);
+	use_config("SMP", 3);
+	goto __start;
+
     }
 }
 
@@ -429,7 +443,7 @@ void do_depend(const char * filename, const char * command)
 		return;
 	}
 
-	mapsize = st.st_size + 2*sizeof(unsigned long);
+	mapsize = st.st_size;
 	mapsize = (mapsize+pagesizem1) & ~pagesizem1;
 	map = mmap(NULL, mapsize, PROT_READ, MAP_AUTOGROW | MAP_PRIVATE, fd, 0);
 	if ((long) map == -1) {
@@ -445,7 +459,7 @@ void do_depend(const char * filename, const char * command)
 
 	hasdep = 0;
 	clear_config();
-	state_machine(map);
+	state_machine(map, map+st.st_size);
 	if (hasdep)
 		puts(command);
 

@@ -1,5 +1,5 @@
 /*
- * $Id: smp.c,v 1.36 1998/10/08 01:17:48 cort Exp $
+ * $Id: smp.c,v 1.39 1998/12/28 10:28:51 paulus Exp $
  *
  * Smp support for ppc.
  *
@@ -43,6 +43,7 @@ spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 unsigned int prof_multiplier[NR_CPUS];
 unsigned int prof_counter[NR_CPUS];
 int first_cpu_booted = 0;
+cycles_t cacheflush_time;
 
 /* all cpu mappings are 1-1 -- Cort */
 int cpu_number_map[NR_CPUS] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,};
@@ -144,7 +145,14 @@ void smp_message_recv(void)
 
 void smp_send_reschedule(int cpu)
 {
-	smp_message_pass(cpu, MSG_RESCHEDULE, 0, 0);
+	/* This is only used if `cpu' is running an idle task,
+	   so it will reschedule itself anyway... */
+	/*smp_message_pass(cpu, MSG_RESCHEDULE, 0, 0);*/
+}
+
+void smp_send_stop(void)
+{
+	smp_message_pass(MSG_ALL_BUT_SELF, MSG_STOP_CPU, 0, 0);
 }
 
 spinlock_t mesg_pass_lock = SPIN_LOCK_UNLOCKED;
@@ -152,7 +160,7 @@ void smp_message_pass(int target, int msg, unsigned long data, int wait)
 {
 	if ( _machine != _MACH_Pmac )
 		return;
-	/*printk("SMP %d: sending smp message\n", current->processor);*/
+printk("SMP %d: sending smp message %x\n", current->processor, msg);
 if (smp_processor_id() ) printk("pass from cpu 1\n");
 	spin_lock(&mesg_pass_lock);
 #define OTHER (~smp_processor_id() & 1)
@@ -179,17 +187,18 @@ if (smp_processor_id() ) printk("pass from cpu 1\n");
 	spin_unlock(&mesg_pass_lock);	
 }
 
-__initfunc(void smp_boot_cpus(void))
+void __init smp_boot_cpus(void)
 {
 	extern struct task_struct *current_set[NR_CPUS];
 	extern void __secondary_start(void);
 	int i;
 	struct task_struct *p;
-	
+	unsigned long a;
+
         printk("Entering SMP Mode...\n");
 	
 	first_cpu_booted = 1;
-	dcbf(&first_cpu_booted);
+	/*dcbf(&first_cpu_booted);*/
 
 	for (i = 0; i < NR_CPUS; i++) {
 		prof_counter[i] = 1;
@@ -200,7 +209,13 @@ __initfunc(void smp_boot_cpus(void))
         smp_store_cpu_info(0);
         active_kernel_processor = 0;
 	current->processor = 0;
-	
+
+	/*
+	 * XXX very rough, assumes 20 bus cycles to read a cache line,
+	 * timebase increments every 4 bus cycles, 32kB L1 data cache.
+	 */
+	cacheflush_time = 5 * 1024;
+
 	if ( _machine != _MACH_Pmac )
 	{
 		printk("SMP not supported on this machine.\n");
@@ -213,10 +228,16 @@ __initfunc(void smp_boot_cpus(void))
 	if ( !p )
 		panic("No idle task for secondary processor\n");
 	p->processor = 1;
+	p->has_cpu = 1;
 	current_set[1] = p;
 
 	/* need to flush here since secondary bat's aren't setup */
-	dcbf((void *)&current_set[1]);
+	/* XXX ??? */
+	for (a = KERNELBASE; a < KERNELBASE + 0x800000; a += 32)
+		asm volatile("dcbf 0,%0" : : "r" (a) : "memory");
+	asm volatile("sync");
+
+	/*dcbf((void *)&current_set[1]);*/
 	/* setup entry point of secondary processor */
 	*(volatile unsigned long *)(0xf2800000) =
 		(unsigned long)__secondary_start-KERNELBASE;
@@ -238,7 +259,7 @@ __initfunc(void smp_boot_cpus(void))
 	if(cpu_callin_map[1]) {
 		printk("Processor %d found.\n", smp_num_cpus);
 		smp_num_cpus++;
-#if 0 /* this sync's the decr's, but we don't want this now -- Cort */
+#if 1 /* this sync's the decr's, but we don't want this now -- Cort */
 		set_dec(decrementer_count);
 #endif
 	} else {
@@ -251,19 +272,17 @@ __initfunc(void smp_boot_cpus(void))
 	smp_message_pass(1,0xf0f0, 0, 0);
 }
 
-__initfunc(void smp_commence(void))
+void __init smp_commence(void)
 {
 	printk("SMP %d: smp_commence()\n",current->processor);
 	/*
 	 *	Lets the callin's below out of their loop.
 	 */
-	local_flush_tlb_all();
 	smp_commenced = 1;
-	local_flush_tlb_all();
 }
 
 /* intel needs this */
-__initfunc(void initialize_secondary(void))
+void __init initialize_secondary(void)
 {
 }
 
@@ -275,33 +294,34 @@ asmlinkage int __init start_secondary(void *unused)
 	return cpu_idle(NULL);
 }
 
-__initfunc(void smp_callin(void))
+void __init smp_callin(void)
 {
 	printk("SMP %d: smp_callin()\n",current->processor);
         smp_store_cpu_info(current->processor);
 	set_dec(decrementer_count);
-	
+#if 0
 	current->mm->mmap->vm_page_prot = PAGE_SHARED;
 	current->mm->mmap->vm_start = PAGE_OFFSET;
 	current->mm->mmap->vm_end = init_task.mm->mmap->vm_end;
-
-	cpu_callin_map[current->processor] = current->processor;
+#endif
+	cpu_callin_map[current->processor] = 1;
 	while(!smp_commenced)
 		barrier();
 	__sti();
+	printk("SMP %d: smp_callin done\n", current->processor);
 }
 
-__initfunc(void smp_setup(char *str, int *ints))
+void __init smp_setup(char *str, int *ints)
 {
 	printk("SMP %d: smp_setup()\n",current->processor);
 }
 
-__initfunc(int setup_profiling_timer(unsigned int multiplier))
+int __init setup_profiling_timer(unsigned int multiplier)
 {
 	return 0;
 }
 
-__initfunc(void smp_store_cpu_info(int id))
+void __init smp_store_cpu_info(int id)
 {
         struct cpuinfo_PPC *c = &cpu_data[id];
 

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.132 1998/11/08 13:21:14 davem Exp $
+ * Version:	$Id: tcp.c,v 1.134 1999/01/09 08:50:09 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -812,7 +812,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 					 * FIXME: the *_user functions should
 					 *	  return how much data was
 					 *	  copied before the fault
-					 *	  occured and then a partial
+					 *	  occurred and then a partial
 					 *	  packet with this data should
 					 *	  be sent.  Unfortunately
 					 *	  csum_and_copy_from_user doesn't
@@ -1612,19 +1612,15 @@ struct sock *tcp_accept(struct sock *sk, int flags)
 	if(sk->keepopen)
 		tcp_inc_slow_timer(TCP_SLT_KEEPALIVE);
 
-	/*
-	 * This does not pass any already set errors on the new socket
-	 * to the user, but they will be returned on the first socket operation
-	 * after the accept.
-	 *
-	 * Once linux gets a multithreaded net_bh or equivalent there will be a race
-	 * here - you'll have to check for sk->zapped as set by the ICMP handler then.
-	 */
-
-	error = 0;
-out:
 	release_sock(sk);
-	sk->err = error;
+	return newsk;
+
+out:
+	/* sk should be in LISTEN state, thus accept can use sk->err for
+	 * internal purposes without stomping one anyone's feed.
+	 */ 
+	sk->err = error; 
+	release_sock(sk);
 	return newsk;
 }
 

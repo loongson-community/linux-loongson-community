@@ -144,7 +144,6 @@ static struct voice_info voices[32];
 
 static int      freq_div_table[] =
 {
-	44100,
 	44100,			/* 14 */
 	41160,			/* 15 */
 	38587,			/* 16 */
@@ -1173,7 +1172,6 @@ static int guswave_kill_note(int dev, int voice, int note, int velocity)
 		gus_voice_fade(voice);
 	}
 
-	restore_flags(flags);
 	return 0;
 }
 
@@ -2235,9 +2233,6 @@ static int gus_audio_open(int dev, int mode)
 	gus_busy = 1;
 	active_device = 0;
 
-	gus_reset();
-	reset_sample_memory();
-	gus_select_max_voices(14);
 	saved_iw_mode = iw_mode;
 	if (iw_mode)
 	{
@@ -2245,6 +2240,11 @@ static int gus_audio_open(int dev, int mode)
 		gus_write8(0x19, gus_read8(0x19) & ~0x01);	/* Disable enhanced mode */
 		iw_mode = 0;
 	}
+
+	gus_reset();
+	reset_sample_memory();
+	gus_select_max_voices(14);
+
 	pcm_active = 0;
 	dma_active = 0;
 	pcm_opened = 1;
@@ -2933,7 +2933,6 @@ void gus_wave_init(struct address_info *hw_config)
 	int gus_type = 0x24;	/* 2.4 */
 
 	int irq = hw_config->irq, dma = hw_config->dma, dma2 = hw_config->dma2;
-	int dev;
 	int sdev;
 
 	hw_config->slots[0] = -1;	/* No wave */

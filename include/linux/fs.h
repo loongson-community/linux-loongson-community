@@ -176,8 +176,6 @@ typedef char buffer_block[BLOCK_SIZE];
 #define BH_Dirty	1	/* 1 if the buffer is dirty */
 #define BH_Lock		2	/* 1 if the buffer is locked */
 #define BH_Req		3	/* 0 if the buffer has been invalidated */
-#define BH_Touched	4	/* 1 if the buffer has been touched (aging) */
-#define BH_Has_aged	5	/* 1 if the buffer has been aged (aging) */
 #define BH_Protected	6	/* 1 if the buffer is protected */
 
 /*
@@ -210,8 +208,6 @@ struct buffer_head {
 	unsigned int b_list;		/* List that this buffer appears */
 	unsigned long b_flushtime;      /* Time when this (dirty) buffer
 					 * should be written */
-	unsigned long b_lru_time;       /* Time when this buffer was 
-					 * last used. */
 	struct wait_queue * b_wait;
 	struct buffer_head ** b_pprev;		/* doubly linked list of hash-queue */
 	struct buffer_head * b_prev_free;	/* doubly linked list of buffers */
@@ -248,20 +244,23 @@ static inline int buffer_req(struct buffer_head * bh)
 	return test_bit(BH_Req, &bh->b_state);
 }
 
-static inline int buffer_touched(struct buffer_head * bh)
-{
-	return test_bit(BH_Touched, &bh->b_state);
-}
-
-static inline int buffer_has_aged(struct buffer_head * bh)
-{
-	return test_bit(BH_Has_aged, &bh->b_state);
-}
-
 static inline int buffer_protected(struct buffer_head * bh)
 {
 	return test_bit(BH_Protected, &bh->b_state);
 }
+
+/*
+ * Deprecated - we don't keep per-buffer reference flags
+ * any more.
+ *
+ * We _could_ try to update the page reference, but that
+ * doesn't seem to really be worth it either. If we did,
+ * it would look something like this:
+ *
+ *	#define buffer_page(bh)		(mem_map + MAP_NR((bh)->b_data))
+ *	#define touch_buffer(bh)	set_bit(PG_referenced, &buffer_page(bh)->flags)
+ */
+#define touch_buffer(bh)	do { } while (0)
 
 #include <linux/pipe_fs_i.h>
 #include <linux/minix_fs_i.h>
@@ -423,7 +422,7 @@ struct file {
 	struct file_operations	*f_op;
 	mode_t			f_mode;
 	loff_t			f_pos;
-	unsigned short 		f_count, f_flags;
+	unsigned int 		f_count, f_flags;
 	unsigned long 		f_reada, f_ramax, f_raend, f_ralen, f_rawin;
 	struct fown_struct	f_owner;
 
@@ -472,7 +471,7 @@ struct file_lock {
 	} fl_u;
 };
 
-extern struct file_lock		*file_lock_table;
+extern struct file_lock			*file_lock_table;
 
 #include <linux/fcntl.h>
 
@@ -562,6 +561,13 @@ struct super_block {
 		void			*generic_sbp;
 	} u;
 };
+
+/*
+ * VFS helper functions..
+ */
+extern int vfs_rmdir(struct inode *, struct dentry *);
+extern int vfs_unlink(struct inode *, struct dentry *);
+extern int vfs_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
 
 /*
  * This is the "filldir" function type, used by readdir() to let
@@ -693,7 +699,8 @@ extern int close_fp(struct file *, fl_owner_t id);
 extern struct file *filp_open(const char *, int, int);
 
 extern char * getname(const char * filename);
-extern void putname(char * name);
+#define __getname()	((char *) __get_free_page(GFP_KERNEL))
+#define putname(name)	free_page((unsigned long)(name))
 
 extern void kill_fasync(struct fasync_struct *fa, int sig);
 extern int register_blkdev(unsigned int, const char *, struct file_operations *);
@@ -703,11 +710,16 @@ extern int blkdev_release (struct inode * inode);
 extern struct file_operations def_blk_fops;
 extern struct inode_operations blkdev_inode_operations;
 
+/* fs/devices.c */
 extern int register_chrdev(unsigned int, const char *, struct file_operations *);
 extern int unregister_chrdev(unsigned int major, const char * name);
 extern int chrdev_open(struct inode * inode, struct file * filp);
 extern struct file_operations def_chr_fops;
 extern struct inode_operations chrdev_inode_operations;
+extern char * bdevname(kdev_t dev);
+extern char * cdevname(kdev_t dev);
+extern char * kdevname(kdev_t dev);
+
 
 extern void init_fifo(struct inode * inode);
 extern struct inode_operations fifo_inode_operations;
@@ -733,7 +745,7 @@ extern struct file *inuse_filps;
 
 extern void refile_buffer(struct buffer_head * buf);
 extern void set_writetime(struct buffer_head * buf, int flag);
-extern int try_to_free_buffer(struct buffer_head*, struct buffer_head**, int);
+extern int try_to_free_buffers(struct page *);
 
 extern int nr_buffers;
 extern int buffermem;
@@ -816,8 +828,6 @@ extern struct buffer_head * get_hash_table(kdev_t, int, int);
 extern struct buffer_head * getblk(kdev_t, int, int);
 extern struct buffer_head * find_buffer(kdev_t dev, int block, int size);
 extern void ll_rw_block(int, int, struct buffer_head * bh[]);
-extern void ll_rw_page(int, kdev_t, unsigned long, char *);
-extern void ll_rw_swap_file(int, kdev_t, unsigned int *, int, char *);
 extern int is_read_only(kdev_t);
 extern void __brelse(struct buffer_head *);
 extern inline void brelse(struct buffer_head *buf)

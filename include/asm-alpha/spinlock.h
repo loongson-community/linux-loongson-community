@@ -88,12 +88,12 @@ typedef struct {
 } spinlock_t;
 
 #if DEBUG_SPINLOCK
-#define SPIN_LOCK_UNLOCKED {0, 1, 0, 0, 0, 0}
+#define SPIN_LOCK_UNLOCKED (spinlock_t) {0, 1, 0, 0, 0, 0}
 #define spin_lock_init(x)						\
 	((x)->lock = 0, (x)->target_ipl = 0, (x)->debug_state = 1,	\
 	 (x)->previous = 0, (x)->task = 0)
 #else
-#define SPIN_LOCK_UNLOCKED	{ 0 }
+#define SPIN_LOCK_UNLOCKED	(spinlock_t) { 0 }
 #define spin_lock_init(x)	((x)->lock = 0)
 #endif
 
@@ -163,7 +163,7 @@ static inline void spin_lock(spinlock_t * lock)
 
 typedef struct { volatile int write_lock:1, read_counter:31; } rwlock_t;
 
-#define RW_LOCK_UNLOCKED { 0, 0 }
+#define RW_LOCK_UNLOCKED (rwlock_t) { 0, 0 }
 
 #if DEBUG_RWLOCK
 extern void write_lock(rwlock_t * lock);
@@ -207,7 +207,7 @@ static inline void read_lock(rwlock_t * lock)
 	"	br	1b\n"
 	".previous"
 	: "=m" (__dummy_lock(lock)), "=&r" (regx)
-	: "0" (__dummy_lock(lock))
+	: "m" (__dummy_lock(lock))
 	);
 }
 #endif /* DEBUG_RWLOCK */
@@ -230,7 +230,7 @@ static inline void read_unlock(rwlock_t * lock)
 	"6:	br	1b\n"
 	".previous"
 	: "=m" (__dummy_lock(lock)), "=&r" (regx)
-	: "0" (__dummy_lock(lock)));
+	: "m" (__dummy_lock(lock)));
 }
 
 #define read_lock_irq(lock)	(__cli(), read_lock(lock))

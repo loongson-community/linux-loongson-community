@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.6 1998/10/28 12:39:58 ralf Exp $
+ * $Id: keyboard.h,v 1.7 1999/02/10 16:02:26 ralf Exp $
  */
 
 /*
@@ -68,11 +68,10 @@ extern unsigned char pckbd_sysrq_xlate[128];
 /*
  * Machine specific bits for the PS/2 driver
  */
-
-#if defined(CONFIG_PCI)
-#define AUX_IRQ 12
+#if defined(__alpha__) && !defined(CONFIG_PCI)
+# define AUX_IRQ	9		/* Jensen is odd indeed */
 #else
-#define AUX_IRQ 9			/* Jensen is odd indeed */
+# define AUX_IRQ	12
 #endif
 
 #define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, 0, \

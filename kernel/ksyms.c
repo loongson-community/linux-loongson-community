@@ -36,6 +36,7 @@
 #include <linux/ctype.h>
 #include <linux/file.h>
 #include <linux/console.h>
+#include <linux/poll.h>
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -106,10 +107,11 @@ EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
 
 /* filesystem internal functions */
+EXPORT_SYMBOL(in_group_p);
 EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
+EXPORT_SYMBOL(get_fs_type);
 EXPORT_SYMBOL(getname);
-EXPORT_SYMBOL(putname);
 EXPORT_SYMBOL(__fput);
 EXPORT_SYMBOL(iget);
 EXPORT_SYMBOL(iput);
@@ -120,7 +122,8 @@ EXPORT_SYMBOL(sys_close);
 EXPORT_SYMBOL(d_alloc_root);
 EXPORT_SYMBOL(d_delete);
 EXPORT_SYMBOL(d_validate);
-EXPORT_SYMBOL(d_add);
+EXPORT_SYMBOL(d_rehash);
+EXPORT_SYMBOL(d_invalidate);	/* May be it will be better in dcache.h? */
 EXPORT_SYMBOL(d_move);
 EXPORT_SYMBOL(d_instantiate);
 EXPORT_SYMBOL(d_alloc);
@@ -129,7 +132,9 @@ EXPORT_SYMBOL(d_path);
 EXPORT_SYMBOL(__mark_inode_dirty);
 EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
-EXPORT_SYMBOL(insert_file_free);
+EXPORT_SYMBOL(filp_open);
+EXPORT_SYMBOL(fput);
+EXPORT_SYMBOL(put_filp);
 EXPORT_SYMBOL(check_disk_change);
 EXPORT_SYMBOL(invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
@@ -161,7 +166,6 @@ EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
 EXPORT_SYMBOL(posix_unblock_lock);
-EXPORT_SYMBOL(locks_remove_flock);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(get_cached_page);
 EXPORT_SYMBOL(put_cached_page);
@@ -172,6 +176,10 @@ EXPORT_SYMBOL(shrink_dcache_parent);
 EXPORT_SYMBOL(find_inode_number);
 EXPORT_SYMBOL(is_subdir);
 EXPORT_SYMBOL(get_unused_fd);
+EXPORT_SYMBOL(vfs_rmdir);
+EXPORT_SYMBOL(vfs_unlink);
+EXPORT_SYMBOL(vfs_rename);
+EXPORT_SYMBOL(__pollwait);
 
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
@@ -294,6 +302,7 @@ EXPORT_SYMBOL(release_region);
 /* process management */
 EXPORT_SYMBOL(__wake_up);
 EXPORT_SYMBOL(sleep_on);
+EXPORT_SYMBOL(sleep_on_timeout);
 EXPORT_SYMBOL(interruptible_sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on_timeout);
 EXPORT_SYMBOL(schedule);
@@ -359,6 +368,7 @@ EXPORT_SYMBOL(event);
 EXPORT_SYMBOL(__down);
 EXPORT_SYMBOL(__down_interruptible);
 EXPORT_SYMBOL(__up);
+EXPORT_SYMBOL(brw_page);
 
 /* all busmice */
 EXPORT_SYMBOL(add_mouse_randomness);

@@ -80,8 +80,11 @@ extern void chrp_ide_probe(void);
 
 static __inline__ int ide_default_irq(ide_ioreg_t base)
 {
-	if ( (_machine == _MACH_Pmac) || (_machine == _MACH_mbx) )
+	if ( _machine == _MACH_Pmac )
 		return 0;
+	else if ( _machine == _MACH_mbx )
+		/* hardcode IRQ 14 on the MBX */
+		return 14+16;		     
         else if ( _machine == _MACH_chrp) {
                 if (chrp_ide_ports_known == 0) 
 			chrp_ide_probe();
@@ -142,7 +145,7 @@ static __inline__ void ide_release_region (ide_ioreg_t from, unsigned int extent
 }
 
 /* Convert the shorts/longs in hd_driveid from little to big endian;
-   chars are endian independant, of course, but strings need to be flipped.
+   chars are endian independent, of course, but strings need to be flipped.
    (Despite what it says in drivers/block/ide.h, they come up as little endian...)
    Changes to linux/hdreg.h may require changes here. */
 static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
@@ -200,18 +203,57 @@ static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
 		id->word79         = __le16_to_cpu(id->word79);
 		id->word80         = __le16_to_cpu(id->word80);
 		id->word81         = __le16_to_cpu(id->word81);
-		id->word82         = __le16_to_cpu(id->word82);
+		id->command_sets   = __le16_to_cpu(id->command_sets);
 		id->word83         = __le16_to_cpu(id->word83);
 		id->word84         = __le16_to_cpu(id->word84);
 		id->word85         = __le16_to_cpu(id->word85);
 		id->word86         = __le16_to_cpu(id->word86);
 		id->word87         = __le16_to_cpu(id->word87);
 		id->dma_ultra      = __le16_to_cpu(id->dma_ultra);
-		for (i=0; i<167; i++)
+		id->word89         = __le16_to_cpu(id->word89);
+		id->word90         = __le16_to_cpu(id->word90);
+		id->word91         = __le16_to_cpu(id->word91);
+		id->word92         = __le16_to_cpu(id->word92);
+		id->word93         = __le16_to_cpu(id->word93);
+		id->word94         = __le16_to_cpu(id->word94);
+		id->word95         = __le16_to_cpu(id->word95);
+		id->word96         = __le16_to_cpu(id->word96);
+		id->word97         = __le16_to_cpu(id->word97);
+		id->word98         = __le16_to_cpu(id->word98);
+		id->word99         = __le16_to_cpu(id->word99);
+		id->word100        = __le16_to_cpu(id->word100);
+		id->word101        = __le16_to_cpu(id->word101);
+		id->word102        = __le16_to_cpu(id->word102);
+		id->word103        = __le16_to_cpu(id->word103);
+		id->word104        = __le16_to_cpu(id->word104);
+		id->word105        = __le16_to_cpu(id->word105);
+		id->word106        = __le16_to_cpu(id->word106);
+		id->word107        = __le16_to_cpu(id->word107);
+		id->word108        = __le16_to_cpu(id->word108);
+		id->word109        = __le16_to_cpu(id->word109);
+		id->word110        = __le16_to_cpu(id->word110);
+		id->word111        = __le16_to_cpu(id->word111);
+		id->word112        = __le16_to_cpu(id->word112);
+		id->word113        = __le16_to_cpu(id->word113);
+		id->word114        = __le16_to_cpu(id->word114);
+		id->word115        = __le16_to_cpu(id->word115);
+		id->word116        = __le16_to_cpu(id->word116);
+		id->word117        = __le16_to_cpu(id->word117);
+		id->word118        = __le16_to_cpu(id->word118);
+		id->word119        = __le16_to_cpu(id->word119);
+		id->word120        = __le16_to_cpu(id->word120);
+		id->word121        = __le16_to_cpu(id->word121);
+		id->word122        = __le16_to_cpu(id->word122);
+		id->word123        = __le16_to_cpu(id->word123);
+		id->word124        = __le16_to_cpu(id->word124);
+		id->word125        = __le16_to_cpu(id->word125);
+		id->word126        = __le16_to_cpu(id->word126);
+		id->word127        = __le16_to_cpu(id->word127);
+		id->security       = __le16_to_cpu(id->security);
+		for (i=0; i<127; i++)
 			id->reserved[i] = __le16_to_cpu(id->reserved[i]);
 	}
 }
-
 
 #undef insw
 #define insw(port, buf, ns) 	do {			\
@@ -219,7 +261,8 @@ static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
 		 ide_insw((port)+_IO_BASE, (buf), (ns));  \
 	}\
 	else if ( (_machine == _MACH_Pmac) || (_machine == _MACH_mbx) )			\
-		ide_insw((port), (buf), (ns));		\
+		ide_insw((port)+((_machine==_MACH_mbx)? 0x80000000: 0), \
+			 (buf), (ns));		\
 	else						\
 		/* this must be the same as insw in io.h!! */	\
 		_insw((unsigned short *)((port)+_IO_BASE), (buf), (ns)); \
@@ -230,8 +273,9 @@ static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
 	if ( _machine == _MACH_chrp) {\
 		ide_outsw((port)+_IO_BASE, (buf), (ns)); \
 	}\
-	else if ( (_machine == _MACH_Pmac) || (_machine == _MACH_mbx) )			\
-		ide_outsw((port), (buf), (ns));		\
+	else if ( (_machine == _MACH_Pmac) || (_machine == _MACH_mbx) )	 \
+		ide_outsw((port)+((_machine==_MACH_mbx)? 0x80000000: 0), \
+			   (buf), (ns));		\
 	else						\
 		/* this must be the same as outsw in io.h!! */	\
 		_outsw((unsigned short *)((port)+_IO_BASE), (buf), (ns)); \
@@ -239,13 +283,17 @@ static __inline__ void ide_fix_driveid (struct hd_driveid *id) {
 
 #undef inb
 #define inb(port)	\
-	in_8((unsigned char *)((port) + ((_machine==_MACH_Pmac)? 0: _IO_BASE)))
+	in_8((unsigned char *)((port) + \
+			       ((_machine==_MACH_Pmac)? 0: _IO_BASE) + \
+			       ((_machine==_MACH_mbx)? 0x80000000: 0)) )
 #undef inb_p
 #define inb_p(port)	inb(port)
 
 #undef outb
 #define outb(val, port)	\
-	out_8((unsigned char *)((port) + ((_machine==_MACH_Pmac)? 0: _IO_BASE)), (val))
+	out_8((unsigned char *)((port) + \
+				((_machine==_MACH_Pmac)? 0: _IO_BASE) + \
+				((_machine==_MACH_mbx)? 0x80000000: 0)), (val) )
 #undef outb_p
 #define outb_p(val, port)	outb(val, port)
 

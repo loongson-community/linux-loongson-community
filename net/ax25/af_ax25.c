@@ -1242,21 +1242,17 @@ static int ax25_accept(struct socket *sock, struct socket *newsock, int flags)
 		return -EINVAL;
 
 	/*
-	 *	The write queue this time is holding sockets ready to use
+	 *	The read queue this time is holding sockets ready to use
 	 *	hooked into the SABM we saved
 	 */
 	do {
-		cli();
 		if ((skb = skb_dequeue(&sk->receive_queue)) == NULL) {
-			if (flags & O_NONBLOCK) {
-				sti();
+			if (flags & O_NONBLOCK)
 				return -EWOULDBLOCK;
-			}
+
 			interruptible_sleep_on(sk->sleep);
-			if (signal_pending(current)) {
-				sti();
+			if (signal_pending(current)) 
 				return -ERESTARTSYS;
-			}
 		}
 	} while (skb == NULL);
 
@@ -1264,10 +1260,10 @@ static int ax25_accept(struct socket *sock, struct socket *newsock, int flags)
 	newsk->pair = NULL;
 	newsk->socket = newsock;
 	newsk->sleep = &newsock->wait;
-	sti();
 
 	/* Now attach up the new socket */
 	skb->sk = NULL;
+	skb->destructor = NULL;
 	kfree_skb(skb);
 	sk->ack_backlog--;
 	newsock->sk    = newsk;
@@ -1810,7 +1806,7 @@ __initfunc(void ax25_proto_init(struct net_proto *pro))
 	proc_net_register(&proc_ax25_calls);
 #endif
 
-	printk(KERN_INFO "G4KLX/GW4PTS AX.25 for Linux. Version 0.37 for Linux NET3.038 (Linux 2.1)\n");
+	printk(KERN_INFO "NET4: G4KLX/GW4PTS AX.25 for Linux. Version 0.37 for Linux NET4.0\n");
 }
 
 #ifdef MODULE

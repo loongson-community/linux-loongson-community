@@ -54,8 +54,10 @@ static long read_polled(struct parport *port, char *buf,
 	unsigned int count = 0;
 	unsigned char z=0;
 	unsigned char Byte=0;
+	unsigned long igiveupat=jiffies+5*HZ;
 
-	for (i=0; ; i++) {
+	for (i=0; time_before(jiffies, igiveupat); i++) {
+	       /* if(current->need_resched) schedule(); */
 		parport_write_control(port, parport_read_control(port) | 2); /* AutoFeed high */
 		if (parport_wait_peripheral(port, 0x40, 0)) {
 #ifdef DEBUG_PROBE
@@ -103,13 +105,13 @@ int parport_probe(struct parport *port, char *buffer, int len)
 	parport_claim_or_block(dev);
 
 	switch (parport_ieee1284_nibble_mode_ok(port, 4)) {
-	case 1:
+	case 2:
 		current->state=TASK_INTERRUPTIBLE;
 		/* HACK: wait 10ms because printer seems to ack wrong */
 		schedule_timeout((HZ+99)/100);	
 		result = read_polled(port, buffer, len);
 		break;
-	case 0:
+	default:
 		result = -EIO;
 		break;
 	}

@@ -20,13 +20,6 @@
 
 #include <asm/pgtable.h>
 
-/* 
- * The wait queue for waking up the pageout daemon:
- */
-static struct task_struct * kswapd_task = NULL;
-
-static void init_swap_timer(void);
-
 /*
  * The swap-out functions return 1 if they successfully
  * threw something out, and we got a free page. It returns
@@ -38,7 +31,7 @@ static void init_swap_timer(void);
  * using a process that no longer actually exists (it might
  * have died while we slept).
  */
-static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
+static int try_to_swap_out(struct task_struct * tsk, struct vm_area_struct* vma,
 	unsigned long address, pte_t * page_table, int gfp_mask)
 {
 	pte_t pte;
@@ -59,50 +52,6 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 	    || ((gfp_mask & __GFP_DMA) && !PageDMA(page_map)))
 		return 0;
 
-	/* 
-	 * Deal with page aging.  There are several special cases to
-	 * consider:
-	 * 
-	 * Page has been accessed, but is swap cached.  If the page is
-	 * getting sufficiently "interesting" --- its age is getting
-	 * high --- then if we are sufficiently short of free swap
-	 * pages, then delete the swap cache.  We can only do this if
-	 * the swap page's reference count is one: ie. there are no
-	 * other references to it beyond the swap cache (as there must
-	 * still be PTEs pointing to it if count > 1).
-	 * 
-	 * If the page has NOT been touched, and its age reaches zero,
-	 * then we are swapping it out:
-	 *
-	 *   If there is already a swap cache page for this page, then
-	 *   another process has already allocated swap space, so just
-	 *   dereference the physical page and copy in the swap entry
-	 *   from the swap cache.  
-	 * 
-	 * Note, we rely on all pages read in from swap either having
-	 * the swap cache flag set, OR being marked writable in the pte,
-	 * but NEVER BOTH.  (It IS legal to be neither cached nor dirty,
-	 * however.)
-	 *
-	 * -- Stephen Tweedie 1998 */
-
-	if (PageSwapCache(page_map)) {
-		if (pte_write(pte)) {
-			struct page *found;
-			printk ("VM: Found a writable swap-cached page!\n");
-			/* Try to diagnose the problem ... */
-			found = find_page(&swapper_inode, page_map->offset);
-			if (found) {
-				printk("page=%p@%08lx, found=%p, count=%d\n",
-					page_map, page_map->offset,
-					found, atomic_read(&found->count));
-				__free_page(found);
-			} else 
-				printk ("Spurious, page not in cache\n");
-			return 0;
-		}
-	}
-	
 	if (pte_young(pte)) {
 		/*
 		 * Transfer the "accessed" bit from the page
@@ -110,109 +59,111 @@ static inline int try_to_swap_out(struct task_struct * tsk, struct vm_area_struc
 		 */
 		set_pte(page_table, pte_mkold(pte));
 		set_bit(PG_referenced, &page_map->flags);
-
-		/* 
-		 * We should test here to see if we want to recover any
-		 * swap cache page here.  We do this if the page seeing
-		 * enough activity, AND we are sufficiently low on swap
-		 *
-		 * We need to track both the number of available swap
-		 * pages and the total number present before we can do
-		 * this...  
-		 */
 		return 0;
 	}
 
-	if (pte_dirty(pte)) {
-		if (vma->vm_ops && vma->vm_ops->swapout) {
-			pid_t pid = tsk->pid;
-			vma->vm_mm->rss--;
-			if (vma->vm_ops->swapout(vma, address - vma->vm_start + vma->vm_offset, page_table))
-				kill_proc(pid, SIGBUS, 1);
-		} else {
-			/*
-			 * This is a dirty, swappable page.  First of all,
-			 * get a suitable swap entry for it, and make sure
-			 * we have the swap cache set up to associate the
-			 * page with that swap entry.
-			 */
-        		entry = in_swap_cache(page_map);
-			if (!entry) {
-				entry = get_swap_page();
-				if (!entry)
-					return 0; /* No swap space left */
-			}
-			
-			vma->vm_mm->rss--;
-			tsk->nswap++;
-			flush_cache_page(vma, address);
-			set_pte(page_table, __pte(entry));
-			flush_tlb_page(vma, address);
-			swap_duplicate(entry);
-
-			/* Now to write back the page.  We have two
-			 * cases: if the page is already part of the
-			 * swap cache, then it is already on disk.  Just
-			 * free the page and return (we release the swap
-			 * cache on the last accessor too).
-			 *
-			 * If we have made a new swap entry, then we
-			 * start the write out to disk.  If the page is
-			 * shared, however, we still need to keep the
-			 * copy in memory, so we add it to the swap
-			 * cache. */
-			if (PageSwapCache(page_map)) {
-				free_page(page);
-				return (atomic_read(&page_map->count) == 0);
-			}
-			add_to_swap_cache(page_map, entry);
-			/* We checked we were unlocked way up above, and we
-			   have been careful not to stall until here */
-			set_bit(PG_locked, &page_map->flags);
-			/* OK, do a physical write to swap.  */
-			rw_swap_page(WRITE, entry, (char *) page, (gfp_mask & __GFP_WAIT));
-		}
-		/* Now we can free the current physical page.  We also
-		 * free up the swap cache if this is the last use of the
-		 * page.  Note that there is a race here: the page may
-		 * still be shared COW by another process, but that
-		 * process may exit while we are writing out the page
-		 * asynchronously.  That's no problem, shrink_mmap() can
-		 * correctly clean up the occassional unshared page
-		 * which gets left behind in the swap cache. */
-		free_page(page);
-		return 1;	/* we slept: the process may not exist any more */
-	}
-
-	/* The page was _not_ dirty, but still has a zero age.  It must
-	 * already be uptodate on disk.  If it is in the swap cache,
-	 * then we can just unlink the page now.  Remove the swap cache
-	 * too if this is the last user.  */
-        if ((entry = in_swap_cache(page_map)))  {
-		vma->vm_mm->rss--;
-		flush_cache_page(vma, address);
-		set_pte(page_table, __pte(entry));
-		flush_tlb_page(vma, address);
-		swap_duplicate(entry);
-		free_page(page);
-		return (atomic_read(&page_map->count) == 0);
-	} 
-	/* 
-	 * A clean page to be discarded?  Must be mmap()ed from
-	 * somewhere.  Unlink the pte, and tell the filemap code to
-	 * discard any cached backing page if this is the last user.
+	/*
+	 * Is the page already in the swap cache? If so, then
+	 * we can just drop our reference to it without doing
+	 * any IO - it's already up-to-date on disk.
+	 *
+	 * Return 0, as we didn't actually free any real
+	 * memory, and we should just continue our scan.
 	 */
 	if (PageSwapCache(page_map)) {
-		printk ("VM: How can this page _still_ be cached?");
+		entry = page_map->offset;
+		swap_duplicate(entry);
+		set_pte(page_table, __pte(entry));
+drop_pte:
+		vma->vm_mm->rss--;
+		flush_tlb_page(vma, address);
+		__free_page(page_map);
 		return 0;
 	}
-	vma->vm_mm->rss--;
+
+	/*
+	 * Is it a clean page? Then it must be recoverable
+	 * by just paging it in again, and we can just drop
+	 * it..
+	 *
+	 * However, this won't actually free any real
+	 * memory, as the page will just be in the page cache
+	 * somewhere, and as such we should just continue
+	 * our scan.
+	 *
+	 * Basically, this just makes it possible for us to do
+	 * some real work in the future in "shrink_mmap()".
+	 */
+	if (!pte_dirty(pte)) {
+		pte_clear(page_table);
+		goto drop_pte;
+	}
+
+	/*
+	 * Don't go down into the swap-out stuff if
+	 * we cannot do I/O! Avoid recursing on FS
+	 * locks etc.
+	 */
+	if (!(gfp_mask & __GFP_IO))
+		return 0;
+
+	/*
+	 * Ok, it's really dirty. That means that
+	 * we should either create a new swap cache
+	 * entry for it, or we should write it back
+	 * to its own backing store.
+	 *
+	 * Note that in neither case do we actually
+	 * know that we make a page available, but
+	 * as we potentially sleep we can no longer
+	 * continue scanning, so we migth as well
+	 * assume we free'd something.
+	 *
+	 * NOTE NOTE NOTE! This should just set a
+	 * dirty bit in page_map, and just drop the
+	 * pte. All the hard work would be done by
+	 * shrink_mmap().
+	 *
+	 * That would get rid of a lot of problems.
+	 */
 	flush_cache_page(vma, address);
-	pte_clear(page_table);
+	if (vma->vm_ops && vma->vm_ops->swapout) {
+		pid_t pid = tsk->pid;
+		pte_clear(page_table);
+		flush_tlb_page(vma, address);
+		vma->vm_mm->rss--;
+		
+		if (vma->vm_ops->swapout(vma, page_map))
+			kill_proc(pid, SIGBUS, 1);
+		__free_page(page_map);
+		return 1;
+	}
+
+	/*
+	 * This is a dirty, swappable page.  First of all,
+	 * get a suitable swap entry for it, and make sure
+	 * we have the swap cache set up to associate the
+	 * page with that swap entry.
+	 */
+	entry = get_swap_page();
+	if (!entry)
+		return 0; /* No swap space left */
+		
+	vma->vm_mm->rss--;
+	tsk->nswap++;
+	set_pte(page_table, __pte(entry));
 	flush_tlb_page(vma, address);
-	entry = (atomic_read(&page_map->count) == 1);
+	swap_duplicate(entry);	/* One for the process, one for the swap cache */
+	add_to_swap_cache(page_map, entry);
+	/* We checked we were unlocked way up above, and we
+	   have been careful not to stall until here */
+	set_bit(PG_locked, &page_map->flags);
+
+	/* OK, do a physical asynchronous write to swap.  */
+	rw_swap_page(WRITE, entry, (char *) page, 0);
+
 	__free_page(page_map);
-	return entry;
+	return 1;
 }
 
 /*
@@ -363,13 +314,23 @@ static int swap_out(unsigned int priority, int gfp_mask)
 	/* 
 	 * We make one or two passes through the task list, indexed by 
 	 * assign = {0, 1}:
-	 *   Pass 1: select the swappable task with maximal swap_cnt.
-	 *   Pass 2: assign new swap_cnt values, then select as above.
+	 *   Pass 1: select the swappable task with maximal RSS that has
+	 *         not yet been swapped out. 
+	 *   Pass 2: re-assign rss swap_cnt values, then select as above.
+	 *
 	 * With this approach, there's no need to remember the last task
 	 * swapped out.  If the swap-out fails, we clear swap_cnt so the 
 	 * task won't be selected again until all others have been tried.
+	 *
+	 * Think of swap_cnt as a "shadow rss" - it tells us which process
+	 * we want to page out (always try largest first).
 	 */
-	counter = ((PAGEOUT_WEIGHT * nr_tasks) >> 10) >> priority;
+	counter = nr_tasks / (priority+1);
+	if (counter < 1)
+		counter = 1;
+	if (counter > nr_tasks)
+		counter = nr_tasks;
+
 	for (; counter >= 0; counter--) {
 		assign = 0;
 		max_cnt = 0;
@@ -382,15 +343,9 @@ static int swap_out(unsigned int priority, int gfp_mask)
 				continue;
 	 		if (p->mm->rss <= 0)
 				continue;
-			if (assign) {
-				/* 
-				 * If we didn't select a task on pass 1, 
-				 * assign each task a new swap_cnt.
-				 * Normalise the number of pages swapped
-				 * by multiplying by (RSS / 1MB)
-				 */
-				p->swap_cnt = AGE_CLUSTER_SIZE(p->mm->rss);
-			}
+			/* Refresh swap_cnt? */
+			if (assign)
+				p->swap_cnt = p->mm->rss;
 			if (p->swap_cnt > max_cnt) {
 				max_cnt = p->swap_cnt;
 				pbest = p;
@@ -404,56 +359,60 @@ static int swap_out(unsigned int priority, int gfp_mask)
 			}
 			goto out;
 		}
-		pbest->swap_cnt--;
 
-		/*
-		 * Nonzero means we cleared out something, but only "1" means
-		 * that we actually free'd up a page as a result.
-		 */
-		if (swap_out_process(pbest, gfp_mask) == 1)
-				return 1;
+		if (swap_out_process(pbest, gfp_mask))
+			return 1;
 	}
 out:
 	return 0;
 }
 
 /*
- * We are much more aggressive about trying to swap out than we used
- * to be.  This works out OK, because we now do proper aging on page
- * contents. 
+ * We need to make the locks finer granularity, but right
+ * now we need this so that we can do page allocations
+ * without holding the kernel lock etc.
+ *
+ * We want to try to free "count" pages, and we need to 
+ * cluster them so that we get good swap-out behaviour. See
+ * the "free_memory()" macro for details.
  */
-static int do_try_to_free_page(int gfp_mask)
+static int do_try_to_free_pages(unsigned int gfp_mask)
 {
-	static int state = 0;
-	int i=6;
+	int priority;
+	int count = SWAP_CLUSTER_MAX;
+
+	lock_kernel();
 
 	/* Always trim SLAB caches when memory gets low. */
 	kmem_cache_reap(gfp_mask);
 
-	if (buffer_over_borrow() || pgcache_over_borrow())
-		state = 0;
+	priority = 6;
+	do {
+		while (shrink_mmap(priority, gfp_mask)) {
+			if (!--count)
+				goto done;
+		}
 
-	switch (state) {
-		do {
-		case 0:
-			if (shrink_mmap(i, gfp_mask))
-				return 1;
-			state = 1;
-		case 1:
-			if (shm_swap(i, gfp_mask))
-				return 1;
-			state = 2;
-		case 2:
-			if (swap_out(i, gfp_mask))
-				return 1;
-			state = 3;
-		case 3:
-			shrink_dcache_memory(i, gfp_mask);
-			state = 0;
-		i--;
-		} while (i >= 0);
-	}
-	return 0;
+		/* Try to get rid of some shared memory pages.. */
+		if (gfp_mask & __GFP_IO) {
+			while (shm_swap(priority, gfp_mask)) {
+				if (!--count)
+					goto done;
+			}
+		}
+
+		/* Then, try to page stuff out.. */
+		while (swap_out(priority, gfp_mask)) {
+			if (!--count)
+				goto done;
+		}
+
+		shrink_dcache_memory(priority, gfp_mask);
+	} while (--priority >= 0);
+done:
+	unlock_kernel();
+
+	return priority >= 0;
 }
 
 /*
@@ -467,6 +426,8 @@ void __init kswapd_setup(void)
        int i;
        char *revision="$Revision: 1.5 $", *s, *e;
 
+       swap_setup();
+       
        if ((s = strchr(revision, ':')) &&
            (e = strchr(s, '$')))
                s++, i = e - s;
@@ -475,35 +436,36 @@ void __init kswapd_setup(void)
        printk ("Starting kswapd v%.*s\n", i, s);
 }
 
+static struct task_struct *kswapd_process;
+
 /*
- * The background pageout daemon.
- * Started as a kernel thread from the init process.
+ * The background pageout daemon, started as a kernel thread
+ * from the init process. 
+ *
+ * This basically executes once a second, trickling out pages
+ * so that we have _some_ free memory available even if there
+ * is no other activity that frees anything up. This is needed
+ * for things like routing etc, where we otherwise might have
+ * all activity going on in asynchronous contexts that cannot
+ * page things out.
+ *
+ * If there are applications that are active memory-allocators
+ * (most normal use), this basically shouldn't matter.
  */
 int kswapd(void *unused)
 {
-	current->session = 1;
-	current->pgrp = 1;
-	strcpy(current->comm, "kswapd");
-	sigfillset(&current->blocked);
+	struct task_struct *tsk = current;
+
+	kswapd_process = tsk;
+	tsk->session = 1;
+	tsk->pgrp = 1;
+	strcpy(tsk->comm, "kswapd");
+	sigfillset(&tsk->blocked);
 	
-	/*
-	 *	As a kernel thread we want to tamper with system buffers
-	 *	and other internals and thus be subject to the SMP locking
-	 *	rules. (On a uniprocessor box this does nothing).
-	 */
-	lock_kernel();
-
-	/*
-	 * Set the base priority to something smaller than a
-	 * regular process. We will scale up the priority
-	 * dynamically depending on how much memory we need.
-	 */
-	current->priority = (DEF_PRIORITY * 2) / 3;
-
 	/*
 	 * Tell the memory management that we're a "memory allocator",
 	 * and that if we need more memory we should get access to it
-	 * regardless (see "try_to_free_pages()"). "kswapd" should
+	 * regardless (see "__get_free_pages()"). "kswapd" should
 	 * never get caught in the normal page freeing logic.
 	 *
 	 * (Kswapd normally doesn't need memory anyway, but sometimes
@@ -512,128 +474,52 @@ int kswapd(void *unused)
 	 * us from recursively trying to free more memory as we're
 	 * trying to free the first piece of memory in the first place).
 	 */
-	current->flags |= PF_MEMALLOC;
+	tsk->flags |= PF_MEMALLOC;
 
-	init_swap_timer();
-	kswapd_task = current;
 	while (1) {
-		unsigned long end_time;
-
-		current->state = TASK_INTERRUPTIBLE;
-		flush_signals(current);
-		run_task_queue(&tq_disk);
-		schedule();
-		swapstats.wakeups++;
-
-		/* max one hundreth of a second */
-		end_time = jiffies + (HZ-1)/100;
+		/*
+		 * Wake up once a second to see if we need to make
+		 * more memory available.
+		 *
+		 * If we actually get into a low-memory situation,
+		 * the processes needing more memory will wake us
+		 * up on a more timely basis.
+		 */
 		do {
-			if (!do_try_to_free_page(0))
+			if (nr_free_pages >= freepages.high)
 				break;
-			if (nr_free_pages > freepages.high + SWAP_CLUSTER_MAX)
+
+			if (!do_try_to_free_pages(GFP_KSWAPD))
 				break;
-		} while (time_before_eq(jiffies,end_time));
+		} while (!tsk->need_resched);
+		run_task_queue(&tq_disk);
+		tsk->state = TASK_INTERRUPTIBLE;
+		schedule_timeout(HZ);
 	}
-	/* As if we could ever get here - maybe we want to make this killable */
-	kswapd_task = NULL;
-	unlock_kernel();
-	return 0;
 }
 
 /*
- * We need to make the locks finer granularity, but right
- * now we need this so that we can do page allocations
- * without holding the kernel lock etc.
+ * Called by non-kswapd processes when they want more
+ * memory.
  *
- * The "PF_MEMALLOC" flag protects us against recursion:
- * if we need more memory as part of a swap-out effort we
- * will just silently return "success" to tell the page
- * allocator to accept the allocation.
+ * In a perfect world, this should just wake up kswapd
+ * and return. We don't actually want to swap stuff out
+ * from user processes, because the locking issues are
+ * nasty to the extreme (file write locks, and MM locking)
+ *
+ * One option might be to let kswapd do all the page-out
+ * and VM page table scanning that needs locking, and this
+ * process thread could do just the mmap shrink stage that
+ * can be done by just dropping cached pages without having
+ * any deadlock issues.
  */
-int try_to_free_pages(unsigned int gfp_mask, int count)
+int try_to_free_pages(unsigned int gfp_mask)
 {
 	int retval = 1;
 
-	lock_kernel();
-	if (!(current->flags & PF_MEMALLOC)) {
-		current->flags |= PF_MEMALLOC;
-		do {
-			retval = do_try_to_free_page(gfp_mask);
-			if (!retval)
-				break;
-			count--;
-		} while (count > 0);
-		current->flags &= ~PF_MEMALLOC;
-	}
-	unlock_kernel();
+	wake_up_process(kswapd_process);
+	if (gfp_mask & __GFP_WAIT)
+		retval = do_try_to_free_pages(gfp_mask);
 	return retval;
 }
-
-/*
- * Wake up kswapd according to the priority
- *	0 - no wakeup
- *	1 - wake up as a low-priority process
- *	2 - wake up as a normal process
- *	3 - wake up as an almost real-time process
- *
- * This plays mind-games with the "goodness()"
- * function in kernel/sched.c.
- */
-static inline void kswapd_wakeup(struct task_struct *p, int priority)
-{
-	if (priority) {
-		p->counter = p->priority << priority;
-		wake_up_process(p);
-	}
-}
-
-/* 
- * The swap_tick function gets called on every clock tick.
- */
-void swap_tick(void)
-{
-	struct task_struct *p = kswapd_task;
-
-	/*
-	 * Only bother to try to wake kswapd up
-	 * if the task exists and can be woken.
-	 */
-	if (p && (p->state & TASK_INTERRUPTIBLE)) {
-		unsigned int pages;
-		int want_wakeup;
-
-		/*
-		 * Schedule for wakeup if there isn't lots
-		 * of free memory or if there is too much
-		 * of it used for buffers or pgcache.
-		 *
-		 * "want_wakeup" is our priority: 0 means
-		 * not to wake anything up, while 3 means
-		 * that we'd better give kswapd a realtime
-		 * priority.
-		 */
-		want_wakeup = 0;
-		pages = nr_free_pages;
-		if (pages < freepages.high)
-			want_wakeup = 1;
-		if (pages < freepages.low)
-			want_wakeup = 2;
-		if (pages < freepages.min)
-			want_wakeup = 3;
 	
-		kswapd_wakeup(p,want_wakeup);
-	}
-
-	timer_active |= (1<<SWAP_TIMER);
-}
-
-/* 
- * Initialise the swap timer
- */
-
-void init_swap_timer(void)
-{
-	timer_table[SWAP_TIMER].expires = jiffies;
-	timer_table[SWAP_TIMER].fn = swap_tick;
-	timer_active |= (1<<SWAP_TIMER);
-}

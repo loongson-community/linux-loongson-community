@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.12 1998/06/30 00:21:49 ralf Exp $
+/* $Id: irq.c,v 1.13 1999/01/03 17:50:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -334,7 +334,7 @@ unsigned long probe_irq_on (void)
 	}
 
 	/* wait for spurious interrupts to mask themselves out again */
-	for (delay = jiffies + HZ/10; delay > jiffies; )
+	for (delay = jiffies + HZ/10; time_before(jiffies, delay); )
 		/* about 100ms delay */;
 
 	/* now filter out any obviously spurious interrupts */

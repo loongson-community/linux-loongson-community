@@ -113,6 +113,7 @@ void unload_sb(struct address_info *hw_config)
 }
 
 int sb_be_quiet=0;
+int esstype = 0;	/* ESS chip type */
 
 #ifdef MODULE
 
@@ -147,6 +148,7 @@ MODULE_PARM(mad16, "i");
 MODULE_PARM(trix, "i");
 MODULE_PARM(pas2, "i");
 MODULE_PARM(sm_games, "i");
+MODULE_PARM(esstype, "i");
 
 void *smw_free = NULL;
 

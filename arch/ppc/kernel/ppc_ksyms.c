@@ -25,6 +25,7 @@
 #include <asm/pci-bridge.h>
 #include <asm/irq.h>
 #include <asm/feature.h>
+#include <asm/spinlock.h>
 
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
@@ -32,7 +33,7 @@
 extern void transfer_to_handler(void);
 extern void int_return(void);
 extern void syscall_trace(void);
-extern void do_IRQ(struct pt_regs *regs);
+extern void do_IRQ(struct pt_regs *regs, int isfake);
 extern void MachineCheckException(struct pt_regs *regs);
 extern void AlignmentException(struct pt_regs *regs);
 extern void ProgramCheckException(struct pt_regs *regs);
@@ -156,6 +157,19 @@ EXPORT_SYMBOL(_get_PVR);
 EXPORT_SYMBOL(giveup_fpu);
 EXPORT_SYMBOL(flush_icache_range);
 EXPORT_SYMBOL(xchg_u32);
+#ifdef __SMP__
+EXPORT_SYMBOL(__global_cli);
+EXPORT_SYMBOL(__global_sti);
+EXPORT_SYMBOL(__global_save_flags);
+EXPORT_SYMBOL(__global_restore_flags);
+EXPORT_SYMBOL(_spin_lock);
+EXPORT_SYMBOL(_spin_unlock);
+EXPORT_SYMBOL(spin_trylock);
+EXPORT_SYMBOL(_read_lock);
+EXPORT_SYMBOL(_read_unlock);
+EXPORT_SYMBOL(_write_lock);
+EXPORT_SYMBOL(_write_unlock);
+#endif
 
 #ifndef CONFIG_MACH_SPECIFIC
 EXPORT_SYMBOL(_machine);
@@ -180,12 +194,15 @@ EXPORT_SYMBOL(find_compatible_devices);
 EXPORT_SYMBOL(find_path_device);
 EXPORT_SYMBOL(find_phandle);
 EXPORT_SYMBOL(get_property);
+EXPORT_SYMBOL(device_is_compatible);
 EXPORT_SYMBOL(pci_io_base);
 EXPORT_SYMBOL(pci_device_loc);
 EXPORT_SYMBOL(feature_set);
 EXPORT_SYMBOL(feature_clear);
 EXPORT_SYMBOL(feature_test);
+#ifdef CONFIG_SCSI
 EXPORT_SYMBOL(note_scsi_host);
+#endif
 EXPORT_SYMBOL(kd_mksound);
 #ifdef CONFIG_PMAC
 EXPORT_SYMBOL(nvram_read_byte);

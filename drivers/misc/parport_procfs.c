@@ -12,6 +12,7 @@
  * Cleaned up include files - Russell King <linux@arm.uk.linux.org>
  */
 
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
@@ -26,6 +27,8 @@
 #include <asm/io.h>
 #include <asm/dma.h>
 #include <asm/irq.h>
+
+#ifdef CONFIG_PROC_FS
 
 struct proc_dir_entry *base = NULL;
 
@@ -305,12 +308,11 @@ int parport_proc_init(void)
 {
 	base = new_proc_entry("parport", S_IFDIR, &proc_root,PROC_PARPORT,
 			      NULL);
-	base->fill_inode = &parport_modcount;
-
 	if (base == NULL) {
 		printk(KERN_ERR "Unable to initialise /proc/parport.\n");
 		return 0;
 	}
+	base->fill_inode = &parport_modcount;
 
 	return 1;
 }
@@ -385,3 +387,26 @@ int parport_proc_unregister(struct parport *pp)
 	destroy_proc_tree(pp);
 	return 0;
 }
+
+#else
+
+int parport_proc_register(struct parport *p) 
+{
+	return 0;
+}
+
+int parport_proc_unregister(struct parport *p)
+{
+	return 0;
+}
+
+int parport_proc_init(void)
+{
+	return 0;
+}
+
+void parport_proc_cleanup(void)
+{
+}
+
+#endif

@@ -276,7 +276,7 @@ struct socket *sock_alloc(void)
 
 	sock = socki_lookup(inode);
 
-	inode->i_mode = S_IFSOCK;
+	inode->i_mode = S_IFSOCK|S_IRWXUGO;
 	inode->i_sock = 1;
 	inode->i_uid = current->uid;
 	inode->i_gid = current->gid;
@@ -1466,7 +1466,8 @@ void __init sock_init(void)
 {
 	int i;
 
-	printk(KERN_INFO "Swansea University Computer Society NET3.039 for Linux 2.1\n");
+	printk(KERN_INFO "Linux NET4.0 for Linux 2.2\n");
+	printk(KERN_INFO "Based upon Swansea University Computer Society NET3.039\n");
 
 	/*
 	 *	Initialize all address (protocol) families. 

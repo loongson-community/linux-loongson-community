@@ -14,7 +14,6 @@
  * a subset of the standard printer control lines connected.
  */
 
-#include <linux/config.h>
 #include <linux/tasks.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
@@ -142,9 +141,7 @@ int parport_arc_init(void)
 
 	printk(KERN_INFO "%s: Archimedes on-board port, using irq %d\n",
 	       p->irq);
-#ifdef	CONFIG_PROC_FS
 	parport_proc_register(p);
-#endif
 	p->flags |= PARPORT_FLAG_COMA;
 
 	if (parport_probe_hook)

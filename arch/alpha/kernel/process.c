@@ -257,11 +257,17 @@ void release_thread(struct task_struct *dead_task)
  * with parameters (SIGCHLD, 0).
  */
 int alpha_clone(unsigned long clone_flags, unsigned long usp,
-	struct switch_stack * swstack)
+		struct switch_stack * swstack)
 {
 	if (!usp)
 		usp = rdusp();
 	return do_fork(clone_flags, usp, (struct pt_regs *) (swstack+1));
+}
+
+int alpha_vfork(struct switch_stack * swstack)
+{
+	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, rdusp(),
+			(struct pt_regs *) (swstack+1));
 }
 
 extern void ret_from_sys_call(void);

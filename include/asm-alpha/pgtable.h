@@ -14,6 +14,7 @@
 #include <asm/processor.h>	/* For TASK_SIZE */
 #include <asm/mmu_context.h>
 #include <asm/machvec.h>
+#include <asm/spinlock.h>	/* For the task lock */
 
 
 /* Caches aren't brain-dead on the Alpha. */
@@ -174,7 +175,7 @@ struct ipi_msg_flush_tb_struct {
 		struct vm_area_struct *	flush_vma;
 	} p;
 	unsigned long flush_addr;
-  /*	unsigned long flush_end; */ /* not used by local_flush_tlb_range */
+	unsigned long flush_end;
 };
 
 extern struct ipi_msg_flush_tb_struct ipi_msg_flush_tb;

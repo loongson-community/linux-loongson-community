@@ -173,6 +173,8 @@
 #define DMA_MODE_WRITE	0x48	/* memory to I/O, no autoinit, increment, single mode */
 #define DMA_MODE_CASCADE 0xC0   /* pass thru DREQ->HRQ, DACK<-HLDA only */
 
+#define DMA_AUTOINIT	0x10
+
 extern spinlock_t  dma_spin_lock;
 
 static __inline__ unsigned long claim_dma_lock(void)
@@ -341,5 +343,13 @@ extern int request_dma(unsigned int dmanr, const char * device_id);	/* reserve a
 extern void free_dma(unsigned int dmanr);	/* release it again */
 #define KERNEL_HAVE_CHECK_DMA
 extern int check_dma(unsigned int dmanr);
+
+/* From PCI */
+
+#ifdef CONFIG_PCI_QUIRKS
+extern int isa_dma_bridge_buggy;
+#else
+#define isa_dma_bridge_buggy 	(0)
+#endif
 
 #endif /* _ASM_DMA_H */

@@ -122,6 +122,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ISI),y)
+L_OBJS += isicom.o
+else
+  ifeq ($(CONFIG_ISI),m)
+  M_OBJS += isicom.o
+  endif
+endif
+
 ifeq ($(CONFIG_ESPSERIAL),y)
 L_OBJS += esp.o
 else
@@ -383,6 +391,14 @@ else
   M_OBJS += radio-miropcm20.o
   endif
 endif
+
+ifeq ($(CONFIG_RADIO_GEMTEK),y)
+L_OBJS += radio-gemtek.o
+else
+  ifeq ($(CONFIG_RADIO_GEMTEK),m)
+  M_OBJS += radio-gemtek.o
+  endif
+endif                                             
 
 ifeq ($(CONFIG_QIC02_TAPE),y)
 L_OBJS += tpqic02.o

@@ -142,7 +142,6 @@ scsi_delete_timer(Scsi_Cmnd * SCset)
   SCSI_LOG_ERROR_RECOVERY(5,printk("Clearing timer for command %p\n", SCset));
 
   SCset->eh_timeout.data = (unsigned long) NULL;
-  SCset->eh_timeout.expires = 0;
   SCset->eh_timeout.function = NULL;
 
   return rtn;
@@ -970,7 +969,7 @@ int scsi_decide_disposition (Scsi_Cmnd * SCpnt)
       /*
        * Note - this means that we just report the status back to the
        * top level driver, not that we actually think that it indicates
-       * sucess.
+       * success.
        */
       return SUCCESS;
       /*
@@ -1183,14 +1182,14 @@ STATIC  int scsi_check_sense (Scsi_Cmnd * SCpnt)
       }
 
     if (SCpnt->sense_buffer[2] & 0xe0)
-	return FAILED;
+	return SUCCESS;
 
     switch (SCpnt->sense_buffer[2] & 0xf)
     {
     case NO_SENSE:
 	return SUCCESS;
     case RECOVERED_ERROR:
-	return SOFT_ERROR;
+	return /* SOFT_ERROR */ SUCCESS;
 
     case ABORTED_COMMAND:
 	return NEEDS_RETRY;
@@ -1213,18 +1212,17 @@ STATIC  int scsi_check_sense (Scsi_Cmnd * SCpnt)
     case COPY_ABORTED:
     case VOLUME_OVERFLOW:
     case MISCOMPARE:
+        return SUCCESS;
 
     case MEDIUM_ERROR:
-	return FAILED;
+	return NEEDS_RETRY;
 
     case ILLEGAL_REQUEST:
-	return SUCCESS;
-
     case BLANK_CHECK:
     case DATA_PROTECT:
     case HARDWARE_ERROR:
     default:
-	return FAILED;
+	return SUCCESS;
     }
 }
 

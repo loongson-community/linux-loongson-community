@@ -6,6 +6,7 @@
  *
  *	Alan Cox <Alan.Cox@linux.org>, 1995.
  */
+#define		APIC_PHYS_BASE	0xfee00000 /* IA s/w dev Vol 3, Section 7.4 */
  
 #define		APIC_ID		0x20
 #define			GET_APIC_ID(x)		(((x)>>24)&0x0F)
@@ -13,12 +14,15 @@
 #define		APIC_TASKPRI	0x80
 #define			APIC_TPRI_MASK		0xFF
 #define		APIC_ARBPRI	0x90
+#define			APIC_ARBPRI_MASK	0xFF
 #define		APIC_PROCPRI	0xA0
 #define		APIC_EOI	0xB0
 #define			APIC_EIO_ACK		0x0		/* Write this to the EOI register */
 #define		APIC_RRR	0xC0
 #define		APIC_LDR	0xD0
+#define			APIC_LDR_MASK		(0xFF<<24)
 #define			GET_APIC_LOGICAL_ID(x)	(((x)>>24)&0xFF)
+#define			SET_APIC_LOGICAL_ID(x)	(((x)<<24))
 #define		APIC_DFR	0xE0
 #define			GET_APIC_DFR(x)		(((x)>>28)&0x0F)
 #define			SET_APIC_DFR(x)		((x)<<28)
@@ -35,7 +39,6 @@
 #define			APIC_ESR_RECVILL	0x00040
 #define			APIC_ESR_ILLREGA	0x00080
 #define		APIC_ICR	0x300
-#define			APIC_DEST_FIELD		0x00000
 #define			APIC_DEST_SELF		0x40000
 #define			APIC_DEST_ALLINC	0x80000
 #define			APIC_DEST_ALLBUT	0xC0000
@@ -84,5 +87,17 @@
 #define			APIC_TDR_DIV_32		0x8
 #define			APIC_TDR_DIV_64		0x9
 #define			APIC_TDR_DIV_128	0xA
+
+#define APIC_BASE (fix_to_virt(FIX_APIC_BASE))
+
+extern __inline void apic_write(unsigned long reg, unsigned long v)
+{
+	*((volatile unsigned long *)(APIC_BASE+reg))=v;
+}
+
+extern __inline unsigned long apic_read(unsigned long reg)
+{
+	return *((volatile unsigned long *)(APIC_BASE+reg));
+}
 
 #endif

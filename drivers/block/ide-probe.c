@@ -5,8 +5,10 @@
  */
 
 /*
- *  Maintained by Mark Lord  <mlord@pobox.com>
- *            and Gadi Oxman <gadio@netvision.net.il>
+ *  Mostly written by Mark Lord <mlord@pobox.com>
+ *                and Gadi Oxman <gadio@netvision.net.il>
+ *
+ *  See linux/MAINTAINERS for address of current maintainer.
  *
  * This is the IDE probe module, as evolved from hd.c and ide.c.
  *
@@ -291,7 +293,7 @@ static int do_probe (ide_drive_t *drive, byte cmd)
 			delay_50ms();
 			OUT_BYTE(WIN_SRST, IDE_COMMAND_REG);
 			timeout = jiffies;
-			while ((GET_STAT() & BUSY_STAT) && jiffies < timeout + WAIT_WORSTCASE)
+			while ((GET_STAT() & BUSY_STAT) && time_before(jiffies, timeout + WAIT_WORSTCASE))
 				delay_50ms();
 			rc = try_to_identify(drive, cmd);
 		}
@@ -587,7 +589,12 @@ static int init_irq (ide_hwif_t *hwif)
 		drive->next = hwgroup->drive->next;
 		hwgroup->drive->next = drive;
 	}
-	hwgroup->hwif = HWIF(hwgroup->drive);
+	if (!hwgroup->hwif) {
+		hwgroup->hwif = HWIF(hwgroup->drive);
+#ifdef DEBUG
+		printk("%s : Adding missed hwif to hwgroup!!\n", hwif->name);
+#endif
+	}
 	restore_flags(flags);	/* all CPUs; safe now that hwif->hwgroup is set up */
 
 #if !defined(__mc68000__) && !defined(CONFIG_APUS) && !defined(__sparc__)

@@ -1,4 +1,3 @@
-
 void swap_statistics(u8 *p)
 {
     u32 y;

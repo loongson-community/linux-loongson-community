@@ -175,32 +175,34 @@ if [ "$CONFIG_NET" = "y" ]; then
 fi
 
 if [ "$CONFIG_SGI" != "y" ]; then
-	source drivers/net/hamradio/Config.in
+  source drivers/net/hamradio/Config.in
 
-	mainmenu_option next_comment
-	comment 'ISDN subsystem'
 
-	tristate 'ISDN support' CONFIG_ISDN
-	if [ "$CONFIG_ISDN" != "n" ]; then
-	  source drivers/isdn/Config.in
-	fi
-	endmenu
+  mainmenu_option next_comment
+  comment 'ISDN subsystem'
 
-	mainmenu_option next_comment
-	comment 'CD-ROM drivers (not for SCSI or IDE/ATAPI drives)'
+  if [ "$CONFIG_NET" != "n" ]; then
+    tristate 'ISDN support' CONFIG_ISDN
+    if [ "$CONFIG_ISDN" != "n" ]; then
+      source drivers/isdn/Config.in
+    fi
+  fi
+  endmenu
 
-	bool 'Support non-SCSI/IDE/ATAPI drives' CONFIG_CD_NO_IDESCSI
-	if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
-	  source drivers/cdrom/Config.in
-	fi
-	endmenu
+
+  mainmenu_option next_comment
+  comment 'CD-ROM drivers (not for SCSI or IDE/ATAPI drives)'
+
+  bool 'Support non-SCSI/IDE/ATAPI drives' CONFIG_CD_NO_IDESCSI
+  if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
+    source drivers/cdrom/Config.in
+  fi
+  endmenu
 fi
 
 source drivers/char/Config.in
 
 source fs/Config.in
-
-source fs/nls/Config.in
 
 if [ "$CONFIG_VT" = "y" ]; then
   mainmenu_option next_comment

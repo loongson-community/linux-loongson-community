@@ -8,6 +8,7 @@
 #ifndef _ASM_DMA_H
 #define _ASM_DMA_H
 
+#include <linux/config.h>
 #include <asm/io.h>		/* need byte IO */
 #include <asm/spinlock.h>	/* And spinlocks */
 #include <linux/delay.h>
@@ -130,6 +131,8 @@
 #define DMA_MODE_READ	0x44	/* I/O to memory, no autoinit, increment, single mode */
 #define DMA_MODE_WRITE	0x48	/* memory to I/O, no autoinit, increment, single mode */
 #define DMA_MODE_CASCADE 0xC0   /* pass thru DREQ->HRQ, DACK<-HLDA only */
+
+#define DMA_AUTOINIT	0x10
 
 
 extern spinlock_t  dma_spin_lock;
@@ -284,4 +287,11 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 extern int request_dma(unsigned int dmanr, const char * device_id);	/* reserve a DMA channel */
 extern void free_dma(unsigned int dmanr);	/* release it again */
 
+/* From PCI */
+
+#ifdef CONFIG_PCI_QUIRKS
+extern int isa_dma_bridge_buggy;
+#else
+#define isa_dma_bridge_buggy 	(0)
+#endif
 #endif /* _ASM_DMA_H */

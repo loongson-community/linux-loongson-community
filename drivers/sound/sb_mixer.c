@@ -1,4 +1,3 @@
-
 /*
  * sound/sb_mixer.c
  *
@@ -12,7 +11,8 @@
  * for more info.
  *
  *
- * Thomas Sailer   : ioctl code reworked (vmalloc/vfree removed)
+ * Thomas Sailer				: ioctl code reworked (vmalloc/vfree removed)
+ * Rolf Fokkens (Dec 20 1998)	: Moved ESS stuff into sb_ess.[ch]
  */
 
 #include <linux/config.h>
@@ -24,14 +24,226 @@
 #include "sb.h"
 #include "sb_mixer.h"
 
+#include "sb_ess.h"
+
+#define SBPRO_RECORDING_DEVICES	(SOUND_MASK_LINE | SOUND_MASK_MIC | SOUND_MASK_CD)
+
+/* Same as SB Pro, unless I find otherwise */
+#define SGNXPRO_RECORDING_DEVICES SBPRO_RECORDING_DEVICES
+
+#define SBPRO_MIXER_DEVICES		(SOUND_MASK_SYNTH | SOUND_MASK_PCM | SOUND_MASK_LINE | SOUND_MASK_MIC | \
+					 SOUND_MASK_CD | SOUND_MASK_VOLUME)
+
+/* SG NX Pro has treble and bass settings on the mixer. The 'speaker'
+ * channel is the COVOX/DisneySoundSource emulation volume control
+ * on the mixer. It does NOT control speaker volume. Should have own
+ * mask eventually?
+ */
+#define SGNXPRO_MIXER_DEVICES	(SBPRO_MIXER_DEVICES|SOUND_MASK_BASS| \
+				 SOUND_MASK_TREBLE|SOUND_MASK_SPEAKER )
+
+#define SB16_RECORDING_DEVICES		(SOUND_MASK_SYNTH | SOUND_MASK_LINE | SOUND_MASK_MIC | \
+					 SOUND_MASK_CD)
+
+#define SB16_OUTFILTER_DEVICES		(SOUND_MASK_LINE | SOUND_MASK_MIC | \
+					 SOUND_MASK_CD)
+
+#define SB16_MIXER_DEVICES		(SOUND_MASK_SYNTH | SOUND_MASK_PCM | SOUND_MASK_SPEAKER | SOUND_MASK_LINE | SOUND_MASK_MIC | \
+					 SOUND_MASK_CD | \
+					 SOUND_MASK_IGAIN | SOUND_MASK_OGAIN | \
+					 SOUND_MASK_VOLUME | SOUND_MASK_BASS | SOUND_MASK_TREBLE | \
+					SOUND_MASK_IMIX)
+
+/* These are the only devices that are working at the moment.  Others could
+ * be added once they are identified and a method is found to control them.
+ */
+#define ALS007_MIXER_DEVICES	(SOUND_MASK_SYNTH | SOUND_MASK_LINE | \
+				 SOUND_MASK_PCM | SOUND_MASK_MIC | \
+				 SOUND_MASK_CD | \
+				 SOUND_MASK_VOLUME)
+
+static mixer_tab sbpro_mix = {
+MIX_ENT(SOUND_MIXER_VOLUME,	0x22, 7, 4, 0x22, 3, 4),
+MIX_ENT(SOUND_MIXER_BASS,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_TREBLE,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_SYNTH,	0x26, 7, 4, 0x26, 3, 4),
+MIX_ENT(SOUND_MIXER_PCM,	0x04, 7, 4, 0x04, 3, 4),
+MIX_ENT(SOUND_MIXER_SPEAKER,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE,	0x2e, 7, 4, 0x2e, 3, 4),
+MIX_ENT(SOUND_MIXER_MIC,	0x0a, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_CD,		0x28, 7, 4, 0x28, 3, 4),
+MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0)
+};
+
+#ifdef	__SGNXPRO__
+#if 0
+static mixer_tab sgnxpro_mix = { 	/* not used anywhere */
+MIX_ENT(SOUND_MIXER_VOLUME,	0x22, 7, 4, 0x22, 3, 4),
+MIX_ENT(SOUND_MIXER_BASS,	0x46, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_TREBLE,	0x44, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_SYNTH,	0x26, 7, 4, 0x26, 3, 4),
+MIX_ENT(SOUND_MIXER_PCM,	0x04, 7, 4, 0x04, 3, 4),
+MIX_ENT(SOUND_MIXER_SPEAKER,	0x42, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE,	0x2e, 7, 4, 0x2e, 3, 4),
+MIX_ENT(SOUND_MIXER_MIC,	0x0a, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_CD,		0x28, 7, 4, 0x28, 3, 4),
+MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_IGAIN,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x00, 0, 0, 0x00, 0, 0)
+};
+#endif
+#endif
+
+static mixer_tab sb16_mix = {
+MIX_ENT(SOUND_MIXER_VOLUME,	0x30, 7, 5, 0x31, 7, 5),
+MIX_ENT(SOUND_MIXER_BASS,	0x46, 7, 4, 0x47, 7, 4),
+MIX_ENT(SOUND_MIXER_TREBLE,	0x44, 7, 4, 0x45, 7, 4),
+MIX_ENT(SOUND_MIXER_SYNTH,	0x34, 7, 5, 0x35, 7, 5),
+MIX_ENT(SOUND_MIXER_PCM,	0x32, 7, 5, 0x33, 7, 5),
+MIX_ENT(SOUND_MIXER_SPEAKER,	0x3b, 7, 2, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE,	0x38, 7, 5, 0x39, 7, 5),
+MIX_ENT(SOUND_MIXER_MIC,	0x3a, 7, 5, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_CD,		0x36, 7, 5, 0x37, 7, 5),
+MIX_ENT(SOUND_MIXER_IMIX,	0x3c, 0, 1, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_RECLEV,	0x3f, 7, 2, 0x40, 7, 2), /* Obsolete. Use IGAIN */
+MIX_ENT(SOUND_MIXER_IGAIN,	0x3f, 7, 2, 0x40, 7, 2),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x41, 7, 2, 0x42, 7, 2)
+};
+
+static mixer_tab als007_mix = 
+{
+MIX_ENT(SOUND_MIXER_VOLUME,	0x62, 7, 4, 0x62, 3, 4),
+MIX_ENT(SOUND_MIXER_BASS,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_TREBLE,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_SYNTH,	0x66, 7, 4, 0x66, 3, 4),
+MIX_ENT(SOUND_MIXER_PCM,	0x64, 7, 4, 0x64, 3, 4),
+MIX_ENT(SOUND_MIXER_SPEAKER,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_LINE,	0x6e, 7, 4, 0x6e, 3, 4),
+MIX_ENT(SOUND_MIXER_MIC,	0x6a, 2, 3, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_CD,		0x68, 7, 4, 0x68, 3, 4),
+MIX_ENT(SOUND_MIXER_IMIX,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_ALTPCM,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_RECLEV,	0x00, 0, 0, 0x00, 0, 0), /* Obsolete. Use IGAIN */
+MIX_ENT(SOUND_MIXER_IGAIN,	0x00, 0, 0, 0x00, 0, 0),
+MIX_ENT(SOUND_MIXER_OGAIN,	0x00, 0, 0, 0x00, 0, 0)
+};
+
+
+/* SM_GAMES          Master volume is lower and PCM & FM volumes
+			     higher than with SB Pro. This improves the
+			     sound quality */
+
+static int smg_default_levels[32] =
+{
+  0x2020,			/* Master Volume */
+  0x4b4b,			/* Bass */
+  0x4b4b,			/* Treble */
+  0x6464,			/* FM */
+  0x6464,			/* PCM */
+  0x4b4b,			/* PC Speaker */
+  0x4b4b,			/* Ext Line */
+  0x0000,			/* Mic */
+  0x4b4b,			/* CD */
+  0x4b4b,			/* Recording monitor */
+  0x4b4b,			/* SB PCM */
+  0x4b4b,			/* Recording level */
+  0x4b4b,			/* Input gain */
+  0x4b4b,			/* Output gain */
+  0x4040,			/* Line1 */
+  0x4040,			/* Line2 */
+  0x1515			/* Line3 */
+};
+
+static int sb_default_levels[32] =
+{
+  0x5a5a,			/* Master Volume */
+  0x4b4b,			/* Bass */
+  0x4b4b,			/* Treble */
+  0x4b4b,			/* FM */
+  0x4b4b,			/* PCM */
+  0x4b4b,			/* PC Speaker */
+  0x4b4b,			/* Ext Line */
+  0x1010,			/* Mic */
+  0x4b4b,			/* CD */
+  0x0000,			/* Recording monitor */
+  0x4b4b,			/* SB PCM */
+  0x4b4b,			/* Recording level */
+  0x4b4b,			/* Input gain */
+  0x4b4b,			/* Output gain */
+  0x4040,			/* Line1 */
+  0x4040,			/* Line2 */
+  0x1515			/* Line3 */
+};
+
+static unsigned char sb16_recmasks_L[SOUND_MIXER_NRDEVICES] =
+{
+	0x00,	/* SOUND_MIXER_VOLUME	*/
+	0x00,	/* SOUND_MIXER_BASS	*/
+	0x00,	/* SOUND_MIXER_TREBLE	*/
+	0x40,	/* SOUND_MIXER_SYNTH	*/
+	0x00,	/* SOUND_MIXER_PCM	*/
+	0x00,	/* SOUND_MIXER_SPEAKER	*/
+	0x10,	/* SOUND_MIXER_LINE	*/
+	0x01,	/* SOUND_MIXER_MIC	*/
+	0x04,	/* SOUND_MIXER_CD	*/
+	0x00,	/* SOUND_MIXER_IMIX	*/
+	0x00,	/* SOUND_MIXER_ALTPCM	*/
+	0x00,	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_IGAIN	*/
+	0x00	/* SOUND_MIXER_OGAIN	*/
+};
+
+static unsigned char sb16_recmasks_R[SOUND_MIXER_NRDEVICES] =
+{
+	0x00,	/* SOUND_MIXER_VOLUME	*/
+	0x00,	/* SOUND_MIXER_BASS	*/
+	0x00,	/* SOUND_MIXER_TREBLE	*/
+	0x20,	/* SOUND_MIXER_SYNTH	*/
+	0x00,	/* SOUND_MIXER_PCM	*/
+	0x00,	/* SOUND_MIXER_SPEAKER	*/
+	0x08,	/* SOUND_MIXER_LINE	*/
+	0x01,	/* SOUND_MIXER_MIC	*/
+	0x02,	/* SOUND_MIXER_CD	*/
+	0x00,	/* SOUND_MIXER_IMIX	*/
+	0x00,	/* SOUND_MIXER_ALTPCM	*/
+	0x00,	/* SOUND_MIXER_RECLEV	*/
+	0x00,	/* SOUND_MIXER_IGAIN	*/
+	0x00	/* SOUND_MIXER_OGAIN	*/
+};
+
+static char     smw_mix_regs[] =	/* Left mixer registers */
+{
+  0x0b,				/* SOUND_MIXER_VOLUME */
+  0x0d,				/* SOUND_MIXER_BASS */
+  0x0d,				/* SOUND_MIXER_TREBLE */
+  0x05,				/* SOUND_MIXER_SYNTH */
+  0x09,				/* SOUND_MIXER_PCM */
+  0x00,				/* SOUND_MIXER_SPEAKER */
+  0x03,				/* SOUND_MIXER_LINE */
+  0x01,				/* SOUND_MIXER_MIC */
+  0x07,				/* SOUND_MIXER_CD */
+  0x00,				/* SOUND_MIXER_IMIX */
+  0x00,				/* SOUND_MIXER_ALTPCM */
+  0x00,				/* SOUND_MIXER_RECLEV */
+  0x00,				/* SOUND_MIXER_IGAIN */
+  0x00,				/* SOUND_MIXER_OGAIN */
+  0x00,				/* SOUND_MIXER_LINE1 */
+  0x00,				/* SOUND_MIXER_LINE2 */
+  0x00				/* SOUND_MIXER_LINE3 */
+};
+
 static int      sbmixnum = 1;
 
 static void     sb_mixer_reset(sb_devc * devc);
 
 void sb_mixer_set_stereo(sb_devc * devc, int mode)
 {
-	sb_setmixer(devc, OUT_FILTER, ((sb_getmixer(devc, OUT_FILTER) & ~STEREO_DAC)
-				       | (mode ? STEREO_DAC : MONO_DAC)));
+	sb_chgmixer(devc, OUT_FILTER, STEREO_DAC, (mode ? STEREO_DAC : MONO_DAC));
 }
 
 static int detect_mixer(sb_devc * devc)
@@ -78,22 +290,47 @@ void smw_mixer_init(sb_devc * devc)
 	sb_mixer_reset(devc);
 }
 
-static int smw_mixer_set(sb_devc * devc, int dev, int value)
+int sb_common_mixer_set(sb_devc * devc, int dev, int left, int right)
 {
-	int left = value & 0x000000ff;
-	int right = (value & 0x0000ff00) >> 8;
+	int regoffs;
+	unsigned char val;
+
+	regoffs = (*devc->iomap)[dev][LEFT_CHN].regno;
+
+	if (regoffs == 0)
+		return -EINVAL;
+
+	val = sb_getmixer(devc, regoffs);
+	change_bits(devc, &val, dev, LEFT_CHN, left);
+
+	if ((*devc->iomap)[dev][RIGHT_CHN].regno != regoffs)	/*
+								 * Change register
+								 */
+	{
+		sb_setmixer(devc, regoffs, val);	/*
+							 * Save the old one
+							 */
+		regoffs = (*devc->iomap)[dev][RIGHT_CHN].regno;
+
+		if (regoffs == 0)
+			return left | (left << 8);	/*
+							 * Just left channel present
+							 */
+
+		val = sb_getmixer(devc, regoffs);	/*
+							 * Read the new one
+							 */
+	}
+	change_bits(devc, &val, dev, RIGHT_CHN, right);
+
+	sb_setmixer(devc, regoffs, val);
+
+	return left | (right << 8);
+}
+
+static int smw_mixer_set(sb_devc * devc, int dev, int left, int right)
+{
 	int reg, val;
-
-	if (left > 100)
-		left = 100;
-	if (right > 100)
-		right = 100;
-
-	if (dev > 31)
-		return -EINVAL;
-
-	if (!(devc->supported_devices & (1 << dev)))	/* Not supported */
-		return -EINVAL;
 
 	switch (dev)
 	{
@@ -133,12 +370,7 @@ static int sb_mixer_set(sb_devc * devc, int dev, int value)
 {
 	int left = value & 0x000000ff;
 	int right = (value & 0x0000ff00) >> 8;
-
-	int regoffs;
-	unsigned char   val;
-
-	if (devc->model == MDL_SMW)
-		return smw_mixer_set(devc, dev, value);
+	int retval;
 
 	if (left > 100)
 		left = 100;
@@ -153,42 +385,25 @@ static int sb_mixer_set(sb_devc * devc, int dev, int value)
 							 */
 		return -EINVAL;
 
-	regoffs = (*devc->iomap)[dev][LEFT_CHN].regno;
-
-	if (regoffs == 0)
-		return -EINVAL;
-
-	val = sb_getmixer(devc, regoffs);
-	change_bits(devc, &val, dev, LEFT_CHN, left);
-
-	devc->levels[dev] = left | (left << 8);
-
-	if ((*devc->iomap)[dev][RIGHT_CHN].regno != regoffs)	/*
-								 * Change register
-								 */
-	{
-		sb_setmixer(devc, regoffs, val);	/*
-							 * Save the old one
-							 */
-		regoffs = (*devc->iomap)[dev][RIGHT_CHN].regno;
-
-		if (regoffs == 0)
-			return left | (left << 8);	/*
-							 * Just left channel present
-							 */
-
-		val = sb_getmixer(devc, regoffs);	/*
-							 * Read the new one
-							 */
+	/* Differentiate depending on the chipsets */
+	switch (devc->model) {
+	case MDL_SMW:
+		retval = smw_mixer_set(devc, dev, left, right);
+		break;
+	case MDL_ESS:
+		retval = ess_mixer_set(devc, dev, left, right);
+		break;
+	default:
+		retval = sb_common_mixer_set(devc, dev, left, right);
 	}
-	change_bits(devc, &val, dev, RIGHT_CHN, right);
+	if (retval >= 0) devc->levels[dev] = retval;
 
-	sb_setmixer(devc, regoffs, val);
-
-	devc->levels[dev] = left | (right << 8);
-	return left | (right << 8);
+	return retval;
 }
 
+/*
+ * set_recsrc doesn't apply to ES188x
+ */
 static void set_recsrc(sb_devc * devc, int src)
 {
 	sb_setmixer(devc, RECORD_SRC, (sb_getmixer(devc, RECORD_SRC) & ~7) | (src & 0x7));
@@ -207,7 +422,9 @@ static int set_recmask(sb_devc * devc, int mask)
 		case MDL_ESS:
 		case MDL_JAZZ:
 		case MDL_SMW:
-
+			if (devc->model == MDL_ESS && ess_set_recmask (devc, &devmask)) {
+				break;
+			};
 			if (devmask != SOUND_MASK_MIC &&
 				devmask != SOUND_MASK_LINE &&
 				devmask != SOUND_MASK_CD)
@@ -435,7 +652,10 @@ static void sb_mixer_reset(sb_devc * devc)
 
 	for (i = 0; i < SOUND_MIXER_NRDEVICES; i++)
 		sb_mixer_set(devc, i, devc->levels[i]);
-	set_recmask(devc, SOUND_MASK_MIC);
+
+	if (devc->model != MDL_ESS || !ess_mixer_reset (devc)) {
+		set_recmask(devc, SOUND_MASK_MIC);
+	};
 }
 
 int sb_mixer_init(sb_devc * devc)
@@ -463,10 +683,7 @@ int sb_mixer_init(sb_devc * devc)
 			break;
 
 		case MDL_ESS:
-			devc->mixer_caps = SOUND_CAP_EXCL_INPUT;
-			devc->supported_devices = ES688_MIXER_DEVICES;
-			devc->supported_rec_devices = ES688_RECORDING_DEVICES;
-			devc->iomap = &es688_mix;
+			ess_mixer_init (devc);
 			break;
 
 		case MDL_SMW:

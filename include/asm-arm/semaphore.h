@@ -18,10 +18,11 @@ struct semaphore {
 #define MUTEX_LOCKED ((struct semaphore) { ATOMIC_INIT(0), 0, NULL })
 
 asmlinkage void __down_failed (void /* special register calling convention */);
-asmlinkage int  __down_failed_interruptible (void /* special register calling convention */);
+asmlinkage int  __down_interruptible_failed (void /* special register calling convention */);
 asmlinkage void __up_wakeup (void /* special register calling convention */);
 
 extern void __down(struct semaphore * sem);
+extern int  __down_interruptible(struct semaphore * sem);
 extern void __up(struct semaphore * sem);
 
 #define sema_init(sem, val)	atomic_set(&((sem)->count), (val))
@@ -47,7 +48,7 @@ static inline void wake_one_more(struct semaphore * sem)
 	restore_flags(flags);
 }
 
-static inline int waking_non_zero(struct semaphore *sem)
+static inline int waking_non_zero(struct semaphore *sem, struct task_struct *tsk)
 {
 	unsigned long flags;
 	int ret = 0;

@@ -94,7 +94,7 @@ static int tclass_notify(struct sk_buff *oskb, struct nlmsghdr *n,
    ---enqueue
 
    enqueue returns number of enqueued packets i.e. this number is 1,
-   if packet was enqueued sucessfully and <1 if something (not
+   if packet was enqueued successfully and <1 if something (not
    necessary THIS packet) was dropped.
 
    Auxiliary routines:
@@ -898,7 +898,7 @@ __initfunc(int psched_calibrate_clock(void))
 	stop = jiffies + HZ/10;
 	PSCHED_GET_TIME(stamp);
 	do_gettimeofday(&tv);
-	while (jiffies < stop)
+	while (time_before(jiffies, stop))
 		barrier();
 	PSCHED_GET_TIME(stamp1);
 	do_gettimeofday(&tv1);

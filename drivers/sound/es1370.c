@@ -79,6 +79,10 @@
  *    31.08.98   0.13  Fix realplayer problems - dac.count issues
  *    08.10.98   0.14  Joystick support fixed
  *		       -- Oliver Neukum <c188@org.chemie.uni-muenchen.de>
+ *    10.12.98   0.15  Fix drain_dac trying to wait on not yet initialized DMA
+ *    16.12.98   0.16  Don't wake up app until there are fragsize bytes to read/write
+ *    06.01.99   0.17  remove the silly SA_INTERRUPT flag.
+ *                     hopefully killed the egcs section type conflict
  *
  * some important things missing in Ensoniq documentation:
  *
@@ -602,17 +606,14 @@ static void es1370_update_ptr(struct es1370_state *s)
 		diff = get_hwptr(s, &s->dma_adc, ES1370_REG_ADC_FRAMECNT);
 		s->dma_adc.total_bytes += diff;
 		s->dma_adc.count += diff;
-		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize) 
-				wake_up(&s->dma_adc.wait);
-		} else {
+		if (s->dma_adc.count >= (signed)s->dma_adc.fragsize) 
+			wake_up(&s->dma_adc.wait);
+		if (!s->dma_adc.mapped) {
 			if (s->dma_adc.count > (signed)(s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1))) {
 				s->ctrl &= ~CTRL_ADC_EN;
 				outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 				s->dma_adc.error++;
 			}
-			if (s->dma_adc.count > 0)
-				wake_up(&s->dma_adc.wait);
 		}
 	}
 	/* update DAC1 pointer */
@@ -634,7 +635,7 @@ static void es1370_update_ptr(struct es1370_state *s)
 					      s->dma_dac1.fragsize, (s->sctrl & SCTRL_P1SEB) ? 0 : 0x80);
 				s->dma_dac1.endcleared = 1;
 			}
-			if (s->dma_dac1.count < (signed)s->dma_dac1.dmasize)
+			if (s->dma_dac1.count + (signed)s->dma_dac1.fragsize <= (signed)s->dma_dac1.dmasize)
 				wake_up(&s->dma_dac1.wait);
 		}
 	}
@@ -657,7 +658,7 @@ static void es1370_update_ptr(struct es1370_state *s)
 					      s->dma_dac2.fragsize, (s->sctrl & SCTRL_P2SEB) ? 0 : 0x80);
 				s->dma_dac2.endcleared = 1;
 			}
-			if (s->dma_dac2.count < (signed)s->dma_dac2.dmasize)
+			if (s->dma_dac2.count + (signed)s->dma_dac2.fragsize <= (signed)s->dma_dac2.dmasize)
 				wake_up(&s->dma_dac2.wait);
 		}
 	}
@@ -998,7 +999,7 @@ static int drain_dac1(struct es1370_state *s, int nonblock)
 	unsigned long flags;
 	int count, tmo;
 	
-	if (s->dma_dac1.mapped)
+	if (s->dma_dac1.mapped || !s->dma_dac1.ready)
 		return 0;
         current->state = TASK_INTERRUPTIBLE;
         add_wait_queue(&s->dma_dac1.wait, &wait);
@@ -1033,7 +1034,7 @@ static int drain_dac2(struct es1370_state *s, int nonblock)
 	unsigned long flags;
 	int count, tmo;
 
-	if (s->dma_dac2.mapped)
+	if (s->dma_dac2.mapped || !s->dma_dac2.ready)
 		return 0;
         current->state = TASK_INTERRUPTIBLE;
         add_wait_queue(&s->dma_dac2.wait, &wait);
@@ -1185,20 +1186,15 @@ static unsigned int es1370_poll(struct file *file, struct poll_table_struct *wai
 	spin_lock_irqsave(&s->lock, flags);
 	es1370_update_ptr(s);
 	if (file->f_mode & FMODE_READ) {
-		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize)
-				mask |= POLLIN | POLLRDNORM;
-		} else {
-			if (s->dma_adc.count > 0)
-				mask |= POLLIN | POLLRDNORM;
-		}
+		if (s->dma_adc.count >= (signed)s->dma_adc.fragsize)
+			mask |= POLLIN | POLLRDNORM;
 	}
 	if (file->f_mode & FMODE_WRITE) {
 		if (s->dma_dac2.mapped) {
 			if (s->dma_dac2.count >= (signed)s->dma_dac2.fragsize) 
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
-			if ((signed)s->dma_dac2.dmasize > s->dma_dac2.count)
+			if ((signed)s->dma_dac2.dmasize >= s->dma_dac2.count + (signed)s->dma_dac2.fragsize)
 				mask |= POLLOUT | POLLWRNORM;
 		}
 	}
@@ -1703,7 +1699,7 @@ static unsigned int es1370_poll_dac(struct file *file, struct poll_table_struct 
 		if (s->dma_dac1.count >= (signed)s->dma_dac1.fragsize)
 			mask |= POLLOUT | POLLWRNORM;
 	} else {
-		if ((signed)s->dma_dac1.dmasize > s->dma_dac1.count)
+		if ((signed)s->dma_dac1.dmasize >= s->dma_dac1.count + (signed)s->dma_dac1.fragsize)
 			mask |= POLLOUT | POLLWRNORM;
 	}
 	spin_unlock_irqrestore(&s->lock, flags);
@@ -2247,7 +2243,7 @@ static int micz[NR_DEVICE] = { 0, };
 
 /* --------------------------------------------------------------------- */
 
-static const struct initvol {
+static struct initvol {
 	int mixch;
 	int vol;
 } initvol[] __initdata = {
@@ -2276,7 +2272,7 @@ __initfunc(int init_es1370(void))
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "es1370: version v0.13 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "es1370: version v0.17 time " __TIME__ " " __DATE__ "\n");
 	while (index < NR_DEVICE && 
 	       (pcidev = pci_find_device(PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1370, pcidev))) {
 		if (pcidev->base_address[0] == 0 || 
@@ -2304,7 +2300,7 @@ __initfunc(int init_es1370(void))
 			goto err_region;
 		}
 		request_region(s->io, ES1370_EXTENT, "es1370");
-		if (request_irq(s->irq, es1370_interrupt, SA_INTERRUPT|SA_SHIRQ, "es1370", s)) {
+		if (request_irq(s->irq, es1370_interrupt, SA_SHIRQ, "es1370", s)) {
 			printk(KERN_ERR "es1370: irq %u in use\n", s->irq);
 			goto err_irq;
 		}
@@ -2327,13 +2323,13 @@ __initfunc(int init_es1370(void))
 		       (s->ctrl & CTRL_XCTL0) ? "out" : "in",
 		       (s->ctrl & CTRL_XCTL1) ? "1" : "0");
 		/* register devices */
-		if ((s->dev_audio = register_sound_dsp(&es1370_audio_fops)) < 0)
+		if ((s->dev_audio = register_sound_dsp(&es1370_audio_fops, -1)) < 0)
 			goto err_dev1;
-		if ((s->dev_mixer = register_sound_mixer(&es1370_mixer_fops)) < 0)
+		if ((s->dev_mixer = register_sound_mixer(&es1370_mixer_fops, -1)) < 0)
 			goto err_dev2;
-		if ((s->dev_dac = register_sound_dsp(&es1370_dac_fops)) < 0)
+		if ((s->dev_dac = register_sound_dsp(&es1370_dac_fops, -1)) < 0)
 			goto err_dev3;
-		if ((s->dev_midi = register_sound_midi(&es1370_midi_fops)) < 0)
+		if ((s->dev_midi = register_sound_midi(&es1370_midi_fops, -1)) < 0)
 			goto err_dev4;
 		/* initialize the chips */
 		outl(s->ctrl, s->io+ES1370_REG_CONTROL);
@@ -2401,8 +2397,6 @@ void cleanup_module(void)
 		synchronize_irq();
 		free_irq(s->irq, s);
 		release_region(s->io, ES1370_EXTENT);
-		if (s->ctrl & CTRL_JYSTK_EN)
-			release_region(0x200, JOY_EXTENT);
 		unregister_sound_dsp(s->dev_audio);
 		unregister_sound_mixer(s->dev_mixer);
 		unregister_sound_dsp(s->dev_dac);

@@ -118,140 +118,83 @@ void remove_inode_page(struct page *page)
 	__free_page(page);
 }
 
-/*
- * Check whether we can free this page.
- */
-static inline int shrink_one_page(struct page *page, int gfp_mask)
-{
-	struct buffer_head *tmp, *bh;
-
-	if (PageLocked(page))
-		goto next;
-	if ((gfp_mask & __GFP_DMA) && !PageDMA(page))
-		goto next;
-	/* First of all, regenerate the page's referenced bit
-         * from any buffers in the page
-	 */
-	bh = page->buffers;
-	if (bh) {
-		tmp = bh;
-		do {
-			if (buffer_touched(tmp)) {
-				clear_bit(BH_Touched, &tmp->b_state);
-				set_bit(PG_referenced, &page->flags);
-			}
-			tmp = tmp->b_this_page;
-		} while (tmp != bh);
-
-		/* Refuse to swap out all buffer pages */
-		if (buffer_under_min())
-			goto next;
-	}
-
-	/* We can't throw away shared pages, but we do mark
-	   them as referenced.  This relies on the fact that
-	   no page is currently in both the page cache and the
-	   buffer cache; we'd have to modify the following
-	   test to allow for that case. */
-
-	switch (atomic_read(&page->count)) {
-	case 1:
-		/* is it a swap-cache or page-cache page? */
-		if (page->inode) {
-			if (test_and_clear_bit(PG_referenced, &page->flags))
-				break;
-			if (pgcache_under_min())
-				break;
-			if (PageSwapCache(page)) {
-				delete_from_swap_cache(page);
-				return 1;
-			}
-			remove_inode_page(page);
-			return 1;
-		}
-		/* It's not a cache page, so we don't do aging.
-		 * If it has been referenced recently, don't free it */
-		if (test_and_clear_bit(PG_referenced, &page->flags))
-			break;
-
-		if (buffer_under_min())
-			break;
-
-		/* is it a buffer cache page? */
-		if (bh && try_to_free_buffer(bh, &bh, 6))
-			return 1;
-		break;
-
-	default:
-		/* more than one user: we can't throw it away */
-		set_bit(PG_referenced, &page->flags);
-		/* fall through */
-	case 0:
-		/* nothing */
-	}
-next:
-	return 0;
-}
-
 int shrink_mmap(int priority, int gfp_mask)
 {
 	static unsigned long clock = 0;
 	unsigned long limit = num_physpages;
 	struct page * page;
-	int count_max, count_min;
+	int count;
 
-	count_max = limit;
-	count_min = (limit<<2) >> (priority);
+	count = limit >> priority;
 
 	page = mem_map + clock;
 	do {
-		if (PageSkip(page)) {
-			/* next_hash is overloaded for PageSkip */
-			page = page->next_hash;
-			clock = page->map_nr;
-		}
-		
-		if (shrink_one_page(page, gfp_mask))
-			return 1;
-		count_max--;
-		/* 
-		 * If the page we looked at was recyclable but we didn't
-		 * reclaim it (presumably due to PG_referenced), don't
-		 * count it as scanned.  This way, the more referenced
-		 * page cache pages we encounter, the more rapidly we
-		 * will age them. 
+		int referenced;
+
+		/* This works even in the presence of PageSkip because
+		 * the first two entries at the beginning of a hole will
+		 * be marked, not just the first.
 		 */
-		if (atomic_read(&page->count) != 1 ||
-		    (!page->inode && !page->buffers))
-			count_min--;
 		page++;
 		clock++;
 		if (clock >= max_mapnr) {
 			clock = 0;
 			page = mem_map;
 		}
-	} while (count_max > 0 && count_min > 0);
+		if (PageSkip(page)) {
+			/* next_hash is overloaded for PageSkip */
+			page = page->next_hash;
+			clock = page - mem_map;
+		}
+		
+		referenced = test_and_clear_bit(PG_referenced, &page->flags);
+
+		if (PageLocked(page))
+			continue;
+
+		if ((gfp_mask & __GFP_DMA) && !PageDMA(page))
+			continue;
+
+		/* We can't free pages unless there's just one user */
+		if (atomic_read(&page->count) != 1)
+			continue;
+
+		count--;
+
+		/*
+		 * Is it a page swap page? If so, we want to
+		 * drop it if it is no longer used, even if it
+		 * were to be marked referenced..
+		 */
+		if (PageSwapCache(page)) {
+			if (referenced && swap_count(page->offset) != 1)
+				continue;
+			delete_from_swap_cache(page);
+			return 1;
+		}	
+
+		if (referenced)
+			continue;
+
+		/* Is it a buffer page? */
+		if (page->buffers) {
+			if (buffer_under_min())
+				continue;
+			if (!try_to_free_buffers(page))
+				continue;
+			return 1;
+		}
+
+		/* is it a page-cache page? */
+		if (page->inode) {
+			if (pgcache_under_min())
+				continue;
+			remove_inode_page(page);
+			return 1;
+		}
+
+	} while (count > 0);
 	return 0;
-}
-
-/*
- * This is called from try_to_swap_out() when we try to get rid of some
- * pages..  If we're unmapping the last occurrence of this page, we also
- * free it from the page hash-queues etc, as we don't want to keep it
- * in-core unnecessarily.
- */
-unsigned long page_unuse(struct page * page)
-{
-	int count = atomic_read(&page->count);
-
-	if (count != 2)
-		return count;
-	if (!page->inode)
-		return count;
-	if (PageSwapCache(page))
-		panic ("Doing a normal page_unuse of a swap cache page");
-	remove_inode_page(page);
-	return 1;
 }
 
 /*
@@ -974,7 +917,7 @@ static unsigned long filemap_nopage(struct vm_area_struct * area, unsigned long 
 	struct file * file = area->vm_file;
 	struct dentry * dentry = file->f_dentry;
 	struct inode * inode = dentry->d_inode;
-	unsigned long offset;
+	unsigned long offset, reada, i;
 	struct page * page, **hash;
 	unsigned long old_page, new_page;
 
@@ -1035,7 +978,18 @@ success:
 	return new_page;
 
 no_cached_page:
-	new_page = __get_free_page(GFP_USER);
+	/*
+	 * Try to read in an entire cluster at once.
+	 */
+	reada   = offset;
+	reada >>= PAGE_SHIFT + page_cluster;
+	reada <<= PAGE_SHIFT + page_cluster;
+
+	for (i = 1 << page_cluster; i > 0; --i, reada += PAGE_SIZE)
+		new_page = try_to_read_ahead(file, reada, new_page);
+
+	if (!new_page)
+		new_page = __get_free_page(GFP_USER);
 	if (!new_page)
 		goto no_page;
 
@@ -1059,11 +1013,6 @@ no_cached_page:
 	if (inode->i_op->readpage(file, page) != 0)
 		goto failure;
 
-	/*
-	 * Do a very limited read-ahead if appropriate
-	 */
-	if (PageLocked(page))
-		new_page = try_to_read_ahead(file, offset + PAGE_SIZE, 0);
 	goto found_page;
 
 page_locked_wait:
@@ -1137,22 +1086,6 @@ static int filemap_write_page(struct vm_area_struct * vma,
 	struct file * file;
 	struct dentry * dentry;
 	struct inode * inode;
-	struct buffer_head * bh;
-
-	bh = mem_map[MAP_NR(page)].buffers;
-	if (bh) {
-		/* whee.. just mark the buffer heads dirty */
-		struct buffer_head * tmp = bh;
-		do {
-			/*
-			 * WSH: There's a race here: mark_buffer_dirty()
-			 * could block, and the buffers aren't pinned down.
-			 */
-			mark_buffer_dirty(tmp, 0);
-			tmp = tmp->b_this_page;
-		} while (tmp != bh);
-		return 0;
-	}
 
 	file = vma->vm_file;
 	dentry = file->f_dentry;
@@ -1174,49 +1107,14 @@ static int filemap_write_page(struct vm_area_struct * vma,
 
 
 /*
- * Swapping to a shared file: while we're busy writing out the page
- * (and the page still exists in memory), we save the page information
- * in the page table, so that "filemap_swapin()" can re-use the page
- * immediately if it is called while we're busy swapping it out..
- *
- * Once we've written it all out, we mark the page entry "empty", which
- * will result in a normal page-in (instead of a swap-in) from the now
- * up-to-date disk file.
+ * The page cache takes care of races between somebody
+ * trying to swap something out and swap something in
+ * at the same time..
  */
-int filemap_swapout(struct vm_area_struct * vma,
-	unsigned long offset,
-	pte_t *page_table)
+int filemap_swapout(struct vm_area_struct * vma, struct page * page)
 {
-	int error;
-	unsigned long page = pte_page(*page_table);
-	unsigned long entry = SWP_ENTRY(SHM_SWP_TYPE, MAP_NR(page));
-
-	flush_cache_page(vma, (offset + vma->vm_start - vma->vm_offset));
-	set_pte(page_table, __pte(entry));
-	flush_tlb_page(vma, (offset + vma->vm_start - vma->vm_offset));
-	error = filemap_write_page(vma, offset, page);
-	if (pte_val(*page_table) == entry)
-		pte_clear(page_table);
-	return error;
+	return filemap_write_page(vma, page->offset, page_address(page));
 }
-
-/*
- * filemap_swapin() is called only if we have something in the page
- * tables that is non-zero (but not present), which we know to be the
- * page index of a page that is busy being swapped out (see above).
- * So we just use it directly..
- */
-static pte_t filemap_swapin(struct vm_area_struct * vma,
-	unsigned long offset,
-	unsigned long entry)
-{
-	unsigned long page = SWP_OFFSET(entry);
-
-	atomic_inc(&mem_map[page].count);
-	page = (page << PAGE_SHIFT) + PAGE_OFFSET;
-	return mk_pte(page,vma->vm_page_prot);
-}
-
 
 static inline int filemap_sync_pte(pte_t * ptep, struct vm_area_struct *vma,
 	unsigned long address, unsigned int flags)
@@ -1358,7 +1256,7 @@ static struct vm_operations_struct file_shared_mmap = {
 	filemap_nopage,		/* nopage */
 	NULL,			/* wppage */
 	filemap_swapout,	/* swapout */
-	filemap_swapin,		/* swapin */
+	NULL,			/* swapin */
 };
 
 /*
@@ -1637,7 +1535,7 @@ unsigned long get_cached_page(struct inode * inode, unsigned long offset,
 	if (!page) {
 		if (!new)
 			goto out;
-		page_cache = get_free_page(GFP_KERNEL);
+		page_cache = get_free_page(GFP_USER);
 		if (!page_cache)
 			goto out;
 		page = mem_map + MAP_NR(page_cache);

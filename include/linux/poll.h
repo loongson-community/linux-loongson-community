@@ -7,6 +7,7 @@
 
 #include <linux/wait.h>
 #include <linux/string.h>
+#include <linux/mm.h>
 #include <asm/uaccess.h>
 
 
@@ -17,30 +18,20 @@ struct poll_table_entry {
 };
 
 typedef struct poll_table_struct {
+	struct poll_table_struct * next;
 	unsigned int nr;
 	struct poll_table_entry * entry;
 } poll_table;
 
-#define __MAX_POLL_TABLE_ENTRIES (PAGE_SIZE / sizeof (struct poll_table_entry))
+#define __MAX_POLL_TABLE_ENTRIES ((PAGE_SIZE - sizeof (poll_table)) / sizeof (struct poll_table_entry))
+
+extern void __pollwait(struct file * filp, struct wait_queue ** wait_address, poll_table *p);
 
 extern inline void poll_wait(struct file * filp, struct wait_queue ** wait_address, poll_table *p)
 {
-	struct poll_table_entry * entry;
-
-	if (!p || !wait_address)
-		return;
-	if (p->nr >= __MAX_POLL_TABLE_ENTRIES)
-		return;
- 	entry = p->entry + p->nr;
- 	entry->filp = filp;
- 	filp->f_count++;
-	entry->wait_address = wait_address;
-	entry->wait.task = current;
-	entry->wait.next = NULL;
-	add_wait_queue(wait_address,&entry->wait);
-	p->nr++;
+	if (p && wait_address)
+		__pollwait(filp, wait_address, p);
 }
-
 
 /*
  * For the kernel fd_set we use a fixed set-size for allocation purposes.
@@ -59,11 +50,21 @@ extern inline void poll_wait(struct file * filp, struct wait_queue ** wait_addre
 #define KFDS_NR (KFDS_64BLOCK*8 > NR_OPEN ? NR_OPEN : KFDS_64BLOCK*8)
 typedef unsigned long kernel_fd_set[KFDS_NR/__NFDBITS];
 
-typedef struct {
-	kernel_fd_set in, out, ex;
-	kernel_fd_set res_in, res_out, res_ex;
-} fd_set_buffer;
+/*
+ * Scaleable version of the fd_set.
+ */
 
+typedef struct {
+	unsigned long *in, *out, *ex;
+	unsigned long *res_in, *res_out, *res_ex;
+} fd_set_bits;
+
+/*
+ * How many longwords for "nr" bits?
+ */
+#define FDS_BITPERLONG	(8*sizeof(long))
+#define FDS_LONGS(nr)	(((nr)+FDS_BITPERLONG-1)/FDS_BITPERLONG)
+#define FDS_BYTES(nr)	(FDS_LONGS(nr)*sizeof(long))
 
 /*
  * We do a VERIFY_WRITE here even though we are only reading this time:
@@ -74,8 +75,7 @@ typedef struct {
 static inline
 int get_fd_set(unsigned long nr, void *ufdset, unsigned long *fdset)
 {
-	/* round up nr to nearest "unsigned long" */
-	nr = (nr + 8*sizeof(long) - 1) / (8*sizeof(long)) * sizeof(long);
+	nr = FDS_BYTES(nr);
 	if (ufdset) {
 		int error;
 		error = verify_area(VERIFY_WRITE, ufdset, nr);
@@ -90,20 +90,17 @@ int get_fd_set(unsigned long nr, void *ufdset, unsigned long *fdset)
 static inline
 void set_fd_set(unsigned long nr, void *ufdset, unsigned long *fdset)
 {
-	if (ufdset) {
-		nr = (nr + 8*sizeof(long) - 1) / (8*sizeof(long))*sizeof(long);
-		__copy_to_user(ufdset, fdset, nr);
-	}
+	if (ufdset)
+		__copy_to_user(ufdset, fdset, FDS_BYTES(nr));
 }
 
 static inline
 void zero_fd_set(unsigned long nr, unsigned long *fdset)
 {
-	nr = (nr + 8*sizeof(long) - 1) / (8*sizeof(long)) * sizeof(long);
-	memset(fdset, 0, nr);
+	memset(fdset, 0, FDS_BYTES(nr));
 }
 
-extern int do_select(int n, fd_set_buffer *fds, long *timeout);
+extern int do_select(int n, fd_set_bits *fds, long *timeout);
 
 #endif /* KERNEL */
 

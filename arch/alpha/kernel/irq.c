@@ -11,6 +11,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/kernel.h>
 #include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/kernel_stat.h>
@@ -37,13 +38,6 @@
 unsigned int local_irq_count[NR_CPUS];
 unsigned int local_bh_count[NR_CPUS];
 unsigned long hardirq_no[NR_CPUS];
-
-#define RTC_IRQ    8
-#ifdef CONFIG_RTC
-#define TIMER_IRQ  0        /* timer is the pit */
-#else
-#define TIMER_IRQ  RTC_IRQ  /* the timer is, in fact, the rtc */
-#endif
 
 #if NR_IRQS > 64
 #  error Unable to handle more than 64 irq levels.
@@ -84,6 +78,15 @@ generic_ack_irq(unsigned long irq)
 	}
 }
 
+
+
+static void dummy_perf(unsigned long vector, struct pt_regs *regs)
+{
+        printk(KERN_CRIT "Performance counter interrupt!\n");
+}
+
+void (*perf_irq)(unsigned long, struct pt_regs *) = dummy_perf;
+
 /*
  * Dispatch device interrupts.
  */
@@ -102,6 +105,8 @@ generic_ack_irq(unsigned long irq)
 # define IACK_SC	PYXIS_IACK_SC
 #elif defined(CONFIG_ALPHA_TSUNAMI)
 # define IACK_SC	TSUNAMI_IACK_SC
+#elif defined(CONFIG_ALPHA_POLARIS)
+# define IACK_SC	POLARIS_IACK_SC
 #else
   /* This is bogus but necessary to get it to compile on all platforms. */
 # define IACK_SC	1L
@@ -311,14 +316,14 @@ free_irq(unsigned int irq, void *dev_id)
 
 int get_irq_list(char *buf)
 {
-	int i, j;
+	int i;
 	struct irqaction * action;
 	char *p = buf;
 
 #ifdef __SMP__
 	p += sprintf(p, "           ");
-	for (j = 0; j < smp_num_cpus; j++)
-		p += sprintf(p, "CPU%d       ", j);
+	for (i = 0; i < smp_num_cpus; i++)
+		p += sprintf(p, "CPU%d       ", i);
 	*p++ = '\n';
 #endif
 
@@ -330,9 +335,12 @@ int get_irq_list(char *buf)
 #ifndef __SMP__
 		p += sprintf(p, "%10u ", kstat_irqs(i));
 #else
-		for (j = 0; j < smp_num_cpus; j++)
-			p += sprintf(p, "%10u ",
-				     kstat.irqs[cpu_logical_map(j)][i]);
+		{
+		  int j;
+		  for (j = 0; j < smp_num_cpus; j++)
+			  p += sprintf(p, "%10u ",
+				       kstat.irqs[cpu_logical_map(j)][i]);
+		}
 #endif
 		p += sprintf(p, "  %c%s",
 			     (action->flags & SA_INTERRUPT)?'+':' ',
@@ -815,7 +823,7 @@ probe_irq_on(void)
 	 * Wait about 100ms for spurious interrupts to mask themselves
 	 * out again...
 	 */
-	for (delay = jiffies + HZ/10; delay > jiffies; )
+	for (delay = jiffies + HZ/10; time_before(jiffies, delay); )
 		barrier();
 
 	/* Now filter out any obviously spurious interrupts.  */
@@ -879,8 +887,8 @@ do_entInt(unsigned long type, unsigned long vector, unsigned long la_ptr,
 		__restore_flags(flags);
 		return;
 	case 4:
-		printk("Performance counter interrupt\n");
-		break;
+		perf_irq(vector, &regs);
+		return;
 	default:
 		printk("Hardware intr %ld %lx? Huh?\n", type, vector);
 	}

@@ -42,7 +42,7 @@ static __inline__ unsigned long end_name_hash(unsigned long hash)
 }
 
 /* Compute the hash for a name string. */
-static __inline__ unsigned int full_name_hash(const char * name, unsigned int len)
+static __inline__ unsigned int full_name_hash(const unsigned char * name, unsigned int len)
 {
 	unsigned long hash = init_name_hash();
 	while (len--)
@@ -150,10 +150,18 @@ extern struct dentry * d_alloc_root(struct inode * root_inode, struct dentry * o
 extern int is_root_busy(struct dentry *);
 
 /*
+ * This adds the entry to the hash queues.
+ */
+extern void d_rehash(struct dentry * entry);
+/*
  * This adds the entry to the hash queues and initializes "d_inode".
  * The entry was actually filled in earlier during "d_alloc()"
  */
-extern void d_add(struct dentry * entry, struct inode * inode);
+static __inline__ void d_add(struct dentry * entry, struct inode * inode)
+{
+	d_rehash(entry);
+	d_instantiate(entry, inode);
+}
 
 /* used for rename() and baskets */
 extern void d_move(struct dentry * entry, struct dentry * newdentry);

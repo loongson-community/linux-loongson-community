@@ -6,7 +6,7 @@
  * Charles University, Faculty of Mathematics and Physics
  */
 
-/* Derivated from
+/* Derived from
  *
  *  linux/fs/ext2/super.c
  *
@@ -26,7 +26,7 @@
  */
  
 /*
- * Inspirated by
+ * Inspired by
  *
  *  linux/fs/ufs/super.c
  *
@@ -58,6 +58,7 @@
  */
 
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <stdarg.h>
@@ -91,7 +92,7 @@
 
 #ifdef UFS_SUPER_DEBUG_MORE
 /*
- * Print contents of ufs_super_block, useful for debuging
+ * Print contents of ufs_super_block, useful for debugging
  */
 void ufs_print_super_stuff(struct ufs_super_block_first * usb1,
 	struct ufs_super_block_second * usb2, 
@@ -136,7 +137,7 @@ void ufs_print_super_stuff(struct ufs_super_block_first * usb1,
 
 
 /*
- * Print contents of ufs_cylinder_group, useful for debuging
+ * Print contents of ufs_cylinder_group, useful for debugging
  */
 void ufs_print_cylinder_stuff(struct ufs_cylinder_group *cg, unsigned swab)
 {
@@ -230,10 +231,6 @@ void ufs_panic (struct super_block * sb, const char * function,
 	sb->s_flags |= MS_RDONLY;
 	printk (KERN_CRIT "UFS-fs panic (device %s): %s: %s\n",
 		kdevname(sb->s_dev), function, error_buf);
-/*** 
-	panic ("UFS-fs panic (device %s): %s: %s\n", 
-		kdevname(sb->s_dev), function, error_buf);
-***/
 }
 
 void ufs_warning (struct super_block * sb, const char * function,
@@ -274,6 +271,8 @@ static int ufs_parse_options (char * options, unsigned * mount_options)
 				ufs_set_opt (*mount_options, UFSTYPE_44BSD);
 			else if (!strcmp (value, "next"))
 				ufs_set_opt (*mount_options, UFSTYPE_NEXT);
+			else if (!strcmp (value, "openstep"))
+				ufs_set_opt (*mount_options, UFSTYPE_OPENSTEP);
 			else {
 				printk ("UFS-fs: Invalid type option: %s\n", value);
 				return 0;
@@ -306,7 +305,7 @@ static int ufs_parse_options (char * options, unsigned * mount_options)
 }
 
 /*
- * Read on-disk structures asscoiated with cylinder groups
+ * Read on-disk structures associated with cylinder groups
  */
 int ufs_read_cylinder_structures (struct super_block * sb) {
 	struct ufs_sb_private_info * uspi;
@@ -388,7 +387,7 @@ failed:
 }
 
 /*
- * Put on-disk structures associated with cylidner groups and 
+ * Put on-disk structures associated with cylinder groups and 
  * write them back to disk
  */
 void ufs_put_cylinder_structures (struct super_block * sb) {
@@ -449,6 +448,9 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 	MOD_INC_USE_COUNT;
 	lock_super (sb);
 
+#ifndef CONFIG_UFS_FS_WRITE
+	sb->s_flags |= MS_RDONLY;
+#endif
 	/*
 	 * Set default mount options
 	 * Parse mount options
@@ -460,10 +462,10 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 		goto failed;
 	}
 	if (!(sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_UFSTYPE)) {
-		printk("You didn't specify type of your ufs file system\n\n"
-		"       mount -t ufs -o ufstype=sun|44bsd|old|next ....\n\n"
-		"!!! WARNING !!! wrong value may corrupt you file system\n"
-		"default value is ufstype=old\n");
+		printk("You didn't specify the type of your ufs filesystem\n\n"
+		"       mount -t ufs -o ufstype=sun|44bsd|old|next|openstep ....\n\n"
+		">>>WARNING<<< Wrong ufstype may corrupt your filesystem, "
+		"default is ufstype=old\n");
 		ufs_set_opt (sb->u.ufs_sb.s_mount_opt, UFSTYPE_OLD);
 	}
 
@@ -474,7 +476,7 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 
 	switch (sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_UFSTYPE) {
 	case UFS_MOUNT_UFSTYPE_44BSD:
-		UFSD(("44bsd ufstype\n"))
+		UFSD(("ufstype=44bsd\n"))
 		uspi->s_fsize = block_size = 512;
 		uspi->s_fmask = ~(512 - 1);
 		uspi->s_fshift = 9;
@@ -484,7 +486,7 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 		break;
 		
 	case UFS_MOUNT_UFSTYPE_SUN:
-		UFSD(("sun  ufstype\n"))
+		UFSD(("ufstype=sun\n"))
 		uspi->s_fsize = block_size = 1024;
 		uspi->s_fmask = ~(1024 - 1);
 		uspi->s_fshift = 10;
@@ -494,7 +496,7 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 		break;
 
 	case UFS_MOUNT_UFSTYPE_OLD:
-		UFSD(("old ufstype\n"))
+		UFSD(("ufstype=old\n"))
 		uspi->s_fsize = block_size = 1024;
 		uspi->s_fmask = ~(1024 - 1);
 		uspi->s_fshift = 10;
@@ -502,13 +504,13 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 		uspi->s_sbbase = 0;
 		flags |= UFS_DE_OLD | UFS_UID_OLD | UFS_ST_OLD | UFS_CG_OLD;
 		if (!(sb->s_flags & MS_RDONLY)) {
-			printk("old type of ufs is supported read-only\n"); 
-			goto failed;
+			printk(KERN_INFO "ufstype=old is supported read-only\n"); 
+			sb->s_flags |= MS_RDONLY;
 		}
 		break;
 	
 	case UFS_MOUNT_UFSTYPE_NEXT:
-		UFSD(("next ufstype\n"))
+		UFSD(("ufstype=next\n"))
 		uspi->s_fsize = block_size = 1024;
 		uspi->s_fmask = ~(1024 - 1);
 		uspi->s_fshift = 10;
@@ -516,20 +518,30 @@ struct super_block * ufs_read_super (struct super_block * sb, void * data,
 		uspi->s_sbbase = 0;
 		flags |= UFS_DE_OLD | UFS_UID_OLD | UFS_ST_OLD | UFS_CG_OLD;
 		if (!(sb->s_flags & MS_RDONLY)) {
-			printk("nextstep type of ufs is supported read-only\n");
-			goto failed;
+			printk(KERN_INFO "ufstype=next is supported read-only\n");
+			sb->s_flags |= MS_RDONLY;
 		}
 		break;
 	
+	case UFS_MOUNT_UFSTYPE_OPENSTEP:
+		UFSD(("ufstype=openstep\n"))
+		uspi->s_fsize = block_size = 1024;
+		uspi->s_fmask = ~(1024 - 1);
+		uspi->s_fshift = 10;
+		uspi->s_sbsize = super_block_size = 2048;
+		uspi->s_sbbase = 0;
+		flags |= UFS_DE_44BSD | UFS_UID_44BSD | UFS_ST_44BSD | UFS_CG_44BSD;
+		if (!(sb->s_flags & MS_RDONLY)) {
+			printk(KERN_INFO "ufstype=openstep is supported read-only\n");
+			sb->s_flags |= MS_RDONLY;
+		}
+		break;
 	
 	default:
-		printk("this fs type of ufs is not supported\n");
+		printk("unknown ufstype\n");
 		goto failed;
 	}
 	
-	if (!(sb->s_flags & MS_RDONLY))
-		printk("!!! warning !!! write support of ufs is still in experimental state\n"); 
-
 again:	
 	set_blocksize (sb->s_dev, block_size);
 
@@ -567,8 +579,10 @@ again:
 	}
 #endif
 
-	if ((sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_UFSTYPE) == 
-	UFS_MOUNT_UFSTYPE_NEXT && uspi->s_sbbase < 256) {
+	if ((((sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_UFSTYPE) == 
+	UFS_MOUNT_UFSTYPE_NEXT) ||
+	((sb->u.ufs_sb.s_mount_opt & UFS_MOUNT_UFSTYPE) ==
+	UFS_MOUNT_UFSTYPE_OPENSTEP)) && uspi->s_sbbase < 256) {
 		ubh_brelse_uspi(uspi);
 		ubh = NULL;
 		uspi->s_sbbase += 8;
@@ -623,11 +637,14 @@ magic_found:
 		case UFS_FSSTABLE:
 			UFSD(("fs is stable\n"))
 			break;
+		case UFS_FSOSF1:
+			UFSD(("fs is DEC OSF/1\n"))
+			break;
 		case UFS_FSACTIVE:
 			printk("ufs_read_super: fs is active\n");
 			sb->s_flags |= MS_RDONLY;
 			break;
-		    case UFS_FSBAD:
+		case UFS_FSBAD:
 			printk("ufs_read_super: fs is bad\n");
 			sb->s_flags |= MS_RDONLY;
 			break;

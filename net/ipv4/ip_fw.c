@@ -29,6 +29,9 @@
  * 1-May-1998:  Remove caching of device pointer.
  * 12-May-1998: Allow tiny fragment case for TCP/UDP.
  * 15-May-1998: Treat short packets as fragments, don't just block.
+ * 3-Jan-1999:  Fixed serious procfs security hole -- users should never
+ *              be allowed to view the chains!
+ *              Marc Santoro <ultima@snicker.emoti.com>
  */
 
 /*
@@ -60,7 +63,6 @@
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/errno.h>
-#include <linux/config.h>
 
 #include <linux/socket.h>
 #include <linux/sockios.h>
@@ -115,8 +117,8 @@
  * UP.
  *
  * For backchains and counters, we use an array, indexed by
- * [smp_processor_id()*2 + !in_interrupt()]; the array is of size
- * [smp_num_cpus*2].  For v2.0, smp_num_cpus is effectively 1.  So,
+ * [cpu_number_map[smp_processor_id()]*2 + !in_interrupt()]; the array is of 
+ * size [smp_num_cpus*2].  For v2.0, smp_num_cpus is effectively 1.  So,
  * confident of uniqueness, we modify counters even though we only
  * have a read lock (to read the counters, you need a write lock,
  * though).  */
@@ -140,7 +142,11 @@
 static struct sock *ipfwsk;
 #endif
 
-#define SLOT_NUMBER() (smp_processor_id()*2 + !in_interrupt())
+#ifdef __SMP__
+#define SLOT_NUMBER() (cpu_number_map[smp_processor_id()]*2 + !in_interrupt())
+#else
+#define SLOT_NUMBER() (!in_interrupt())
+#endif
 #define NUM_SLOTS (smp_num_cpus*2)
 
 #define SIZEOF_STRUCT_IP_CHAIN (sizeof(struct ip_chain) \
@@ -505,7 +511,7 @@ static void cleanup(struct ip_chain *chain,
 		printk("%s\n",chain->label);
 }
 
-static inline void
+static inline int
 ip_fw_domatch(struct ip_fwkernel *f,
 	      struct iphdr *ip, 
 	      const char *rif,
@@ -546,9 +552,15 @@ ip_fw_domatch(struct ip_fwkernel *f,
 			       len-(sizeof(__u32)*2+IFNAMSIZ));
 			netlink_broadcast(ipfwsk, outskb, 0, ~0, GFP_KERNEL);
 		}
-		else duprintf("netlink post failed - alloc_skb failed!\n");
+		else {
+			if (net_ratelimit())
+				printk(KERN_WARNING "ip_fw: packet drop due to "
+				       "netlink failure\n");
+			return 0;
+		}
 	}
 #endif
+	return 1;
 }
 
 /*
@@ -691,9 +703,13 @@ ip_fw_check(struct iphdr *ip,
 		for (; f; f = f->next) {
 			if (ip_rule_match(f,rif,ip,
 					  tcpsyn,src_port,dst_port,offset)) {
-				if (!testing)
-					ip_fw_domatch(f, ip, rif, chain->label, skb,
-						      slot, src_port,dst_port);
+				if (!testing
+				    && !ip_fw_domatch(f, ip, rif, chain->label,
+						      skb, slot, 
+						      src_port, dst_port)) {
+					ret = FW_BLOCK;
+					goto out;
+				}
 				break;
 			}
 		}
@@ -755,6 +771,7 @@ ip_fw_check(struct iphdr *ip,
 		}
 	} while (ret == FW_SKIP+2);
 
+ out:
 	if (!testing) FWC_READ_UNLOCK(&ip_fw_lock);
 
 	/* Recalculate checksum if not going to reject, and TOS changed. */
@@ -1667,13 +1684,13 @@ struct firewall_ops ipfw_ops=
 #ifdef CONFIG_PROC_FS		
 static struct proc_dir_entry proc_net_ipfwchains_chain = {
 	PROC_NET_IPFW_CHAINS, sizeof(IP_FW_PROC_CHAINS)-1, 
-	IP_FW_PROC_CHAINS, S_IFREG | S_IRUGO | S_IWUSR, 1, 0, 0,
+	IP_FW_PROC_CHAINS, S_IFREG | S_IRUSR | S_IWUSR, 1, 0, 0,
 	0, &proc_net_inode_operations, ip_chain_procinfo
 };
 
 static struct proc_dir_entry proc_net_ipfwchains_chainnames = {
 	PROC_NET_IPFW_CHAIN_NAMES, sizeof(IP_FW_PROC_CHAIN_NAMES)-1, 
-	IP_FW_PROC_CHAIN_NAMES, S_IFREG | S_IRUGO | S_IWUSR, 1, 0, 0,
+	IP_FW_PROC_CHAIN_NAMES, S_IFREG | S_IRUSR | S_IWUSR, 1, 0, 0,
 	0, &proc_net_inode_operations, ip_chain_name_procinfo
 };
 

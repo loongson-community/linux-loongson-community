@@ -12,6 +12,8 @@
  *      precision CMOS clock update
  * 1996-05-03    Ingo Molnar
  *      fixed time warps in do_[slow|fast]_gettimeoffset()
+ * 1997-09-10	Updated NTP code according to technical memorandum Jan '96
+ *		"A Kernel Model for Precision Timekeeping" by Dave Mills
  * 1998-09-05    (Various)
  *	More robust do_fast_gettimeoffset() algorithm implemented
  *	(works with APM, Cyrix 6x86MX and Centaur C6),
@@ -20,6 +22,12 @@
  *	(C. Scott Ananian <cananian@alumni.princeton.edu>, Andrew D.
  *	Balsa <andrebalsa@altern.org>, Philip Gladstone <philip@raptor.com>;
  *	ported from 2.0.35 Jumbo-9 by Michael Krause <m.krause@tu-harburg.de>).
+ * 1998-12-16    Andrea Arcangeli
+ *	Fixed Jumbo-9 code in 2.1.131: do_gettimeofday was missing 1 jiffy
+ *	because was not accounting lost_ticks.
+ * 1998-12-24 Copyright (C) 1998  Andrea Arcangeli
+ *	Fixed a xtime SMP race (we need the xtime_lock rw spinlock to
+ *	serialize accesses to xtime/lost_ticks).
  */
 
 /* What about the "updated NTP code" stuff in 2.0 time.c? It's not in
@@ -57,12 +65,14 @@
 #include <linux/timex.h>
 #include <linux/config.h>
 
+#include <asm/fixmap.h>
+#include <asm/cobalt.h>
+
 /*
  * for x86_do_profile()
  */
 #include "irq.h"
 
-extern int setup_x86_irq(int, struct irqaction *);
 
 unsigned long cpu_hz;	/* Detected as we calibrate the TSC */
 
@@ -78,7 +88,9 @@ static unsigned long last_tsc_low; /* lsb 32 bits of Time Stamp Counter */
  */
 static unsigned long fast_gettimeoffset_quotient=0;
 
-static unsigned long do_fast_gettimeoffset(void)
+extern rwlock_t xtime_lock;
+
+static inline unsigned long do_fast_gettimeoffset(void)
 {
 	register unsigned long eax asm("ax");
 	register unsigned long edx asm("dx");
@@ -88,13 +100,12 @@ static unsigned long do_fast_gettimeoffset(void)
 		:"=a" (eax), "=d" (edx));
 
 	/* .. relative to previous jiffy (32 bits is enough) */
-	edx = 0;
 	eax -= last_tsc_low;	/* tsc_low delta */
 
 	/*
-         * Time offset = (tsc_low delta) * fast_gettimeoffset_quotient.
-         *             = (tsc_low delta) / (clocks_per_usec)
-         *             = (tsc_low delta) / (clocks_per_jiffy / usecs_per_jiffy)
+         * Time offset = (tsc_low delta) * fast_gettimeoffset_quotient
+         *             = (tsc_low delta) * (usecs_per_clock)
+         *             = (tsc_low delta) * (usecs_per_jiffy / clocks_per_jiffy)
 	 *
 	 * Using a mull instead of a divl saves up to 31 clock cycles
 	 * in the critical path.
@@ -102,12 +113,16 @@ static unsigned long do_fast_gettimeoffset(void)
 
 	__asm__("mull %2"
 		:"=a" (eax), "=d" (edx)
-		:"r" (fast_gettimeoffset_quotient),
-		 "0" (eax), "1" (edx));
+		:"g" (fast_gettimeoffset_quotient),
+		 "0" (eax));
 
 	/* our adjusted time offset in microseconds */
-	return edx + delay_at_last_interrupt;
+	return delay_at_last_interrupt + edx;
 }
+
+#define TICK_SIZE tick
+
+#ifndef CONFIG_X86_TSC
 
 /* This function must be called with interrupts disabled 
  * It was inspired by Steve McCanne's microtime-i386 for BSD.  -- jrs
@@ -140,8 +155,6 @@ static unsigned long do_fast_gettimeoffset(void)
  * If you are really that interested, you should be reading
  * comp.protocols.time.ntp!
  */
-
-#define TICK_SIZE tick
 
 static unsigned long do_slow_gettimeoffset(void)
 {
@@ -224,28 +237,45 @@ static unsigned long do_slow_gettimeoffset(void)
 
 static unsigned long (*do_gettimeoffset)(void) = do_slow_gettimeoffset;
 
+#else
+
+#define do_gettimeoffset()	do_fast_gettimeoffset()
+
+#endif
+
 /*
  * This version of gettimeofday has microsecond resolution
  * and better than microsecond precision on fast x86 machines with TSC.
  */
 void do_gettimeofday(struct timeval *tv)
 {
+	extern volatile unsigned long lost_ticks;
 	unsigned long flags;
+	unsigned long usec, sec;
 
-	save_flags(flags);
-	cli();
-	*tv = xtime;
-	tv->tv_usec += do_gettimeoffset();
-	if (tv->tv_usec >= 1000000) {
-		tv->tv_usec -= 1000000;
-		tv->tv_sec++;
+	read_lock_irqsave(&xtime_lock, flags);
+	usec = do_gettimeoffset();
+	{
+		unsigned long lost = lost_ticks;
+		if (lost)
+			usec += lost * (1000000 / HZ);
 	}
-	restore_flags(flags);
+	sec = xtime.tv_sec;
+	usec += xtime.tv_usec;
+	read_unlock_irqrestore(&xtime_lock, flags);
+
+	while (usec >= 1000000) {
+		usec -= 1000000;
+		sec++;
+	}
+
+	tv->tv_sec = sec;
+	tv->tv_usec = usec;
 }
 
 void do_settimeofday(struct timeval *tv)
 {
-	cli();
+	write_lock_irq(&xtime_lock);
 	/* This is revolting. We need to set the xtime.tv_usec
 	 * correctly. However, the value in this location is
 	 * is value at the last tick.
@@ -254,16 +284,18 @@ void do_settimeofday(struct timeval *tv)
 	 */
 	tv->tv_usec -= do_gettimeoffset();
 
-	if (tv->tv_usec < 0) {
+	while (tv->tv_usec < 0) {
 		tv->tv_usec += 1000000;
 		tv->tv_sec--;
 	}
 
 	xtime = *tv;
-	time_state = TIME_BAD;
-	time_maxerror = MAXPHASE;
-	time_esterror = MAXPHASE;
-	sti();
+	time_adjust = 0;		/* stop active adjtime() */
+	time_status |= STA_UNSYNC;
+	time_state = TIME_ERROR;	/* p. 24, (a) */
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
+	write_unlock_irq(&xtime_lock);
 }
 
 /*
@@ -338,8 +370,12 @@ static long last_rtc_update = 0;
  * timer_interrupt() needs to keep up the real-time clock,
  * as well as call the "do_timer()" routine every clocktick
  */
-static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static inline void do_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
+#ifdef CONFIG_VISWS
+	/* Clear the interrupt */
+	co_cpu_write(CO_CPU_STAT,co_cpu_read(CO_CPU_STAT) & ~CO_STAT_TIMEINTR);
+#endif
 	do_timer(regs);
 /*
  * In the SMP case we use the local APIC timer interrupt to do the
@@ -359,21 +395,15 @@ static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * CMOS clock accordingly every ~11 minutes. Set_rtc_mmss() has to be
 	 * called as close as possible to 500 ms before the new second starts.
 	 */
-	if (time_state != TIME_BAD && xtime.tv_sec > last_rtc_update + 660 &&
-	    xtime.tv_usec > 500000 - (tick >> 1) &&
-	    xtime.tv_usec < 500000 + (tick >> 1)) {
+	if ((time_status & STA_UNSYNC) == 0 &&
+	    xtime.tv_sec > last_rtc_update + 660 &&
+	    xtime.tv_usec >= 500000 - ((unsigned) tick) / 2 &&
+	    xtime.tv_usec <= 500000 + ((unsigned) tick) / 2) {
 		if (set_rtc_mmss(xtime.tv_sec) == 0)
 			last_rtc_update = xtime.tv_sec;
 		else
 			last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
 	}
-#if 0
-	/* As we return to user mode fire off the other CPU schedulers.. this is 
-	   basically because we don't yet share IRQ's around. This message is
-	   rigged to be safe on the 386 - basically it's a hack, so don't look
-	   closely for now.. */
-	smp_message_pass(MSG_ALL_BUT_SELF, MSG_RESCHEDULE, 0L, 0);
-#endif
 	    
 #ifdef CONFIG_MCA
 	if( MCA_bus ) {
@@ -392,36 +422,56 @@ static inline void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 #endif
 }
 
+static int use_tsc = 0;
+
 /*
  * This is the same as the above, except we _also_ save the current
  * Time Stamp Counter value at the time of the timer interrupt, so that
  * we later on can estimate the time of day more exactly.
  */
-static void pentium_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	int count, flags;
+	int count;
 
-	/* It is important that these two operations happen almost at the
-	 * same time. We do the RDTSC stuff first, since it's faster. To
-         * avoid any inconsistencies, we disable interrupts locally.
-         */
+	/*
+	 * Here we are in the timer irq handler. We just have irqs locally
+	 * disabled but we don't know if the timer_bh is running on the other
+	 * CPU. We need to avoid to SMP race with it. NOTE: we don' t need
+	 * the irq version of write_lock because as just said we have irq
+	 * locally disabled. -arca
+	 */
+	write_lock(&xtime_lock);
+
+	if (use_tsc)
+	{
+		/*
+		 * It is important that these two operations happen almost at
+		 * the same time. We do the RDTSC stuff first, since it's
+		 * faster. To avoid any inconsistencies, we need interrupts
+		 * disabled locally.
+		 */
+
+		/*
+		 * Interrupts are just disabled locally since the timer irq
+		 * has the SA_INTERRUPT flag set. -arca
+		 */
 	
-	__save_flags(flags);
-	__cli(); 
-	/* read Pentium cycle counter */
-	__asm__("rdtsc"
-		:"=a" (last_tsc_low):: "eax", "edx");
+		/* read Pentium cycle counter */
+		__asm__("rdtsc" : "=a" (last_tsc_low) : : "edx");
 
-	outb_p(0x00, 0x43);     /* latch the count ASAP */
+		outb_p(0x00, 0x43);     /* latch the count ASAP */
 
-	count = inb_p(0x40);    /* read the latched count */
-	count |= inb(0x40) << 8;
+		count = inb_p(0x40);    /* read the latched count */
+		count |= inb(0x40) << 8;
 
-	count = ((LATCH-1) - count) * TICK_SIZE;
-	delay_at_last_interrupt = (count + LATCH/2) / LATCH;
-	__restore_flags(flags);
-       
-	timer_interrupt(irq, NULL, regs);
+		count = ((LATCH-1) - count) * TICK_SIZE;
+		delay_at_last_interrupt = (count + LATCH/2) / LATCH;
+	}
+ 
+	do_timer_interrupt(irq, NULL, regs);
+
+	write_unlock(&xtime_lock);
+
 }
 
 /* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
@@ -591,10 +641,25 @@ __initfunc(void time_init(void))
  * to disk; this won't break the kernel, though, 'cuz we're
  * smart.  See arch/i386/kernel/apm.c.
  */
+ 	/*
+ 	 *	Firstly we have to do a CPU check for chips with
+ 	 * 	a potentially buggy TSC. At this point we haven't run
+ 	 *	the ident/bugs checks so we must run this hook as it
+ 	 *	may turn off the TSC flag.
+ 	 *
+ 	 *	NOTE: this doesnt yet handle SMP 486 machines where only
+ 	 *	some CPU's have a TSC. Thats never worked and nobody has
+ 	 *	moaned if you have the only one in the world - you fix it!
+ 	 */
+ 
+ 	dodgy_tsc();
+ 	
 	if (boot_cpu_data.x86_capability & X86_FEATURE_TSC) {
+#ifndef do_gettimeoffset
 		do_gettimeoffset = do_fast_gettimeoffset;
+#endif
 		do_get_fast_time = do_gettimeofday;
-		irq0.handler = pentium_timer_interrupt;
+		use_tsc = 1;
 		fast_gettimeoffset_quotient = calibrate_tsc();
 		
 		/* report CPU clock rate in Hz.
@@ -609,5 +674,22 @@ __initfunc(void time_init(void))
 			printk("Detected %ld Hz processor.\n", cpu_hz);
 		}
 	}
+
+#ifdef CONFIG_VISWS
+	printk("Starting Cobalt Timer system clock\n");
+
+	/* Set the countdown value */
+	co_cpu_write(CO_CPU_TIMEVAL, CO_TIME_HZ/HZ);
+
+	/* Start the timer */
+	co_cpu_write(CO_CPU_CTRL, co_cpu_read(CO_CPU_CTRL) | CO_CTRL_TIMERUN);
+
+	/* Enable (unmask) the timer interrupt */
+	co_cpu_write(CO_CPU_CTRL, co_cpu_read(CO_CPU_CTRL) & ~CO_CTRL_TIMEMASK);
+
+	/* Wire cpu IDT entry to s/w handler (and Cobalt APIC to IDT) */
+	setup_x86_irq(CO_IRQ_TIMER, &irq0);
+#else
 	setup_x86_irq(0, &irq0);
+#endif
 }

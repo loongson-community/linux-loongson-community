@@ -24,8 +24,7 @@ endif
 
 export-objs	:=  ad1848.o audio_syms.o midi_syms.o mpu401.o \
 		    msnd.o opl3.o sb_card.o sequencer_syms.o \
-		    sound_core.o sound_firmware.o sound_syms.o \
-		    uart401.o
+		    sound_core.o sound_syms.o uart401.o ad1816.o
 
 
 
@@ -66,13 +65,16 @@ obj-$(CONFIG_SOUND_PSS)		+= pss.o ad1848.o mpu401.o
 obj-$(CONFIG_SOUND_SB)		+= sb.o uart401.o
 obj-$(CONFIG_SOUND_SOFTOSS)	+= softoss2.o
 obj-$(CONFIG_SOUND_SGALAXY)	+= sgalaxy.o
+obj-$(CONFIG_SOUND_AD1816)      += ad1816.o
 obj-$(CONFIG_SOUND_SSCAPE)	+= sscape.o ad1848.o mpu401.o
 obj-$(CONFIG_SOUND_TRIX)	+= trix.o ad1848.o sb.o uart401.o
 obj-$(CONFIG_SOUND_UART6850)	+= uart6850.o
 obj-$(CONFIG_SOUND_VMIDI)	+= v_midi.o
 obj-$(CONFIG_SOUND_YM3812)	+= adlib_card.o opl3.o
-obj-$(CONFIG_VIDC_SOUND)	+= vidc_mod.o
+obj-$(CONFIG_SOUND_VIDC)	+= vidc_mod.o
+obj-$(CONFIG_SOUND_WAVEARTIST)	+= waveartist.o
 obj-$(CONFIG_SOUND_WAVEFRONT)   += wavefront.o
+
 #jnx
 obj-$(CONFIG_SOUND_ES1370)	+= es1370.o
 obj-$(CONFIG_SOUND_ES1371)	+= es1371.o
@@ -94,7 +96,8 @@ soundcore-objs	:= sound_core.o sound_firmware.o
 
 gus-objs	:= gus_card.o gus_midi.o gus_vol.o gus_wave.o ics2101.o
 pas2-objs	:= pas2_card.o pas2_midi.o pas2_mixer.o pas2_pcm.o
-sb-objs		:= sb_audio.o sb_card.o sb_common.o sb_midi.o sb_mixer.o
+sb-objs		:= sb_audio.o sb_card.o sb_common.o sb_midi.o sb_mixer.o	\
+			   sb_ess.o
 softoss2-objs	:= softoss.o softoss_rs.o
 vidc_mod-objs	:= vidc.o vidc_audio.o vidc_fill.o vidc_mixer.o vidc_synth.o
 wavefront-objs  := wavfront.o wf_midi.o yss225.o
@@ -294,7 +297,7 @@ trix.o: trix_boot.h
 
 ifeq ($(CONFIG_TRIX_HAVE_BOOT),y)
     trix_boot.h: $(patsubst "%", %, $(CONFIG_TRIX_BOOT_FILE)) hex2hex
-	hex2hex -i trix_boot < $(CONFIG_TRIX_BOOT_FILE) > $@
+	./hex2hex -i trix_boot < $(CONFIG_TRIX_BOOT_FILE) > $@
 else
     trix_boot.h:
 	(							\

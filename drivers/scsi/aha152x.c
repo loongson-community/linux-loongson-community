@@ -247,7 +247,7 @@
  C/H/S addressing.
 
  The number of cylinders/heads/sectors is called geometry and is required
- as base for requests in C/H/S adressing.  SCSI only knows about the
+ as base for requests in C/H/S addressing.  SCSI only knows about the
  total capacity of disks in blocks (sectors).
 
  Therefore the SCSI BIOS/DOS driver has to calculate a logical/virtual
@@ -276,7 +276,7 @@
  extended translation.  This means that the BIOS uses 255 for heads,
  63 for sectors and then divides the capacity of the disk by 255*63
  (about 8 MB), as soon it sees a disk greater than 1 GB.  That results
- in a maximum of about 8 GB adressable diskspace in the partition table
+ in a maximum of about 8 GB addressable diskspace in the partition table
  (but there are already bigger disks out there today).
 
  To make it even more complicated the translation mode might/might
@@ -566,6 +566,7 @@ static struct signature {
   { "Adaptec BIOS:AVA-282X",         0xc, 21 },  /* Adaptec 282x */
   { "Adaptec IBM Dock II SCSI",   0x2edd, 24 },  /* IBM Thinkpad Dock II */
   { "Adaptec BIOS:AHA-1532P",       0x1c, 22 },  /* IBM Thinkpad Dock II SCSI */
+  { "DTC3520A Host Adapter BIOS", 0x318a, 26 },  /* DTC 3520A ISA SCSI */
 };
 #define SIGNATURE_COUNT (sizeof(signatures) / sizeof(struct signature))
 #endif
@@ -575,7 +576,7 @@ static void do_pause(unsigned amount) /* Pause for amount*10 milliseconds */
 {
    unsigned long the_time = jiffies + amount; /* 0.01 seconds per jiffy */
 
-   while (jiffies < the_time)
+   while (time_before(jiffies, the_time))
      barrier();
 }
 
@@ -1038,7 +1039,7 @@ int aha152x_detect(Scsi_Host_Template * tpnt)
     SETBITS(DMACNTRL0, SWINT);
 
     the_time=jiffies+100;
-    while(!HOSTDATA(shpnt)->swint && jiffies<the_time)
+    while(!HOSTDATA(shpnt)->swint && time_before(jiffies, the_time))
       barrier();
 
     free_irq(shpnt->irq,shpnt);

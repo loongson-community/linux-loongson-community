@@ -25,6 +25,7 @@ define_bool CONFIG_VT y
 define_bool CONFIG_VT_CONSOLE y
 
 bool 'Support for AP1000 multicomputer' CONFIG_AP1000
+bool 'Symmetric multi-processing support' CONFIG_SMP
 
 mainmenu_option next_comment
 comment 'Console drivers'
@@ -237,8 +238,6 @@ if [ "$CONFIG_NET" = "y" ]; then
 fi
 
 source fs/Config.in
-
-source fs/nls/Config.in
 
 mainmenu_option next_comment
 comment 'Watchdog'

@@ -128,6 +128,11 @@ struct ipx_opt {
 	unsigned char           node[IPX_NODE_LEN];
 #endif
 	unsigned short		type;
+/* 
+ * To handle special ncp connection-handling sockets for mars_nwe,
+ * the connection number must be stored in the socket.
+ */
+	unsigned short		ipx_ncp_conn;
 };
 #endif
 
@@ -273,6 +278,7 @@ struct tcp_opt {
 	char	saw_tstamp;	/* Saw TIMESTAMP on last packet		*/
         __u8	snd_wscale;	/* Window scaling received from sender	*/
         __u8	rcv_wscale;	/* Window scaling to send to receiver	*/
+	__u8	rexmt_done;	/* Retransmitted up to send head?	*/
         __u32	rcv_tsval;	/* Time stamp value             	*/
         __u32	rcv_tsecr;	/* Time stamp echo reply        	*/
         __u32	ts_recent;	/* Time stamp to echo next		*/
@@ -905,7 +911,7 @@ extern void net_timer (unsigned long);
  *	Enable debug/info messages 
  */
 
-#if 0
+#if 1
 #define NETDEBUG(x)	do { } while (0)
 #else
 #define NETDEBUG(x)	do { x; } while (0)

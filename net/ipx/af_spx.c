@@ -85,7 +85,11 @@ static int spx_create(struct socket *sock, int protocol)
 {
 	struct sock *sk;
 
-	sk = sk_alloc(PF_IPX, GFP_KERNEL, 1);
+	/*
+	 *	Called on connection receive so cannot be GFP_KERNEL
+	 */
+	 
+	sk = sk_alloc(PF_IPX, GFP_ATOMIC, 1);
 	if(sk == NULL)
                 return (-ENOMEM);
 
@@ -882,7 +886,7 @@ void spx_proto_init(void)
 
 	/* route socket(PF_IPX, SOCK_SEQPACKET) calls through spx_create() */
 
-	printk(KERN_INFO "Sequenced Packet eXchange (SPX) 0.02 for Linux NET3.037\n");
+	printk(KERN_INFO "NET4: Sequenced Packet eXchange (SPX) 0.02 for Linux NET4.0\n");
 	return;
 }
 

@@ -119,7 +119,9 @@ int get_irq_list(char *buf)
 		*p++ = '\n';
 	}
 
+#ifdef CONFIG_ACORN
 	p += get_fiq_list(p);
+#endif
 	return p - buf;
 }
 
@@ -354,7 +356,7 @@ unsigned long probe_irq_on(void)
 	/*
 	 * wait for spurious interrupts to mask themselves out again
 	 */
-	for (delay = jiffies + HZ/10; delay > jiffies; )
+	for (delay = jiffies + HZ/10; time_before(jiffies, delay); )
 		/* min 100ms delay */;
 
 	/*
@@ -424,6 +426,8 @@ __initfunc(void init_IRQ(void))
 	}
 
 	irq_init_irq();
+#ifdef CONFIG_ARCH_ACORN
 	init_FIQ();
+#endif
 	init_dma();
 }

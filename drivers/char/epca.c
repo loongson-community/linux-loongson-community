@@ -286,7 +286,8 @@ int pc_init(void);
 
 #ifdef ENABLE_PCI
 static int init_PCI(int);
-static int get_PCI_configuration(char, char, unsigned int *, unsigned int *,
+static int get_PCI_configuration(unsigned char, unsigned char, 
+					     unsigned int *, unsigned int *,
                                              unsigned int *, unsigned int *,
                                              unsigned int *, unsigned int *);
 #endif /* ENABLE_PCI */
@@ -2362,10 +2363,10 @@ static void doevent(int crd)
 			eventbuf = (volatile unchar *)bus_to_virt((ulong)(bd->re_map_membase + tail + ISTART));
 		}
 
-		/* Get the channel the event occured on */
+		/* Get the channel the event occurred on */
 		channel = eventbuf[0];
 
-		/* Get the actual event code that occured */
+		/* Get the actual event code that occurred */
 		event = eventbuf[1];
 
 		/*  ----------------------------------------------------------------
@@ -4037,7 +4038,7 @@ void epca_setup(char *str, int *ints)
 #ifdef ENABLE_PCI
 /* --------------------- Begin get_PCI_configuration  ---------------------- */
 
-int get_PCI_configuration(char bus, char device_fn,
+int get_PCI_configuration(unsigned char bus, unsigned char device_fn,
                           unsigned int *base_addr0, unsigned int *base_addr1,
                           unsigned int *base_addr2, unsigned int *base_addr3,
                           unsigned int *base_addr4, unsigned int *base_addr5)

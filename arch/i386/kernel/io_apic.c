@@ -225,6 +225,13 @@ static void __init clear_IO_APIC_pin(unsigned int pin)
 int pirq_entries [MAX_PIRQS];
 int pirqs_enabled;
 
+void __init ioapic_setup(char *str, int *ints)
+{
+	extern int skip_ioapic_setup;	/* defined in arch/i386/kernel/smp.c */
+
+	skip_ioapic_setup = 1;
+}
+
 void __init ioapic_pirq_setup(char *str, int *ints)
 {
 	int i, max;
@@ -675,7 +682,8 @@ void __init print_IO_APIC(void)
 	printk(".... register #01: %08X\n", *(int *)&reg_01);
 	printk(".......     : max redirection entries: %04X\n", reg_01.entries);
 	if (	(reg_01.entries != 0x0f) && /* ISA-only Neptune boards */
-		(reg_01.entries != 0x17)    /* ISA+PCI boards */
+		(reg_01.entries != 0x17) && /* ISA+PCI boards */
+		(reg_01.entries != 0x3F)    /* Xeon boards */
 	)
 		UNEXPECTED_IO_APIC();
 	if (reg_01.entries == 0x0f)
@@ -683,7 +691,8 @@ void __init print_IO_APIC(void)
 
 	printk(".......     : IO APIC version: %04X\n", reg_01.version);
 	if (	(reg_01.version != 0x10) && /* oldest IO-APICs */
-		(reg_01.version != 0x11)  /* my IO-APIC */
+		(reg_01.version != 0x11) && /* Pentium/Pro IO-APICs */
+		(reg_01.version != 0x13)    /* Xeon IO-APICs */
 	)
 		UNEXPECTED_IO_APIC();
 	if (reg_01.__reserved_1 || reg_01.__reserved_2)
@@ -946,7 +955,7 @@ static inline void self_IPI(unsigned int irq)
 
 	if ((status & (IRQ_PENDING | IRQ_REPLAY)) == IRQ_PENDING) {
 		desc->status = status | IRQ_REPLAY;
-		send_IPI(APIC_DEST_SELF, IO_APIC_VECTOR(irq));
+		send_IPI_self(IO_APIC_VECTOR(irq));
 	}
 }
 

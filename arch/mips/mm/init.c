@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.9 1998/09/19 19:16:18 ralf Exp $
+/* $Id: init.c,v 1.10 1999/01/04 16:03:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -132,6 +132,7 @@ static inline unsigned long setup_zero_pages(void)
 	pg = MAP_NR(empty_zero_page);
 	while(pg < MAP_NR(empty_zero_page) + (1 << order)) {
 		set_bit(PG_reserved, &mem_map[pg].flags);
+		atomic_set(&mem_map[pg].count, 0);
 		pg++;
 	}
 
@@ -293,8 +294,9 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 #endif
 
 	end_mem &= PAGE_MASK;
-	max_mapnr = num_physpages = MAP_NR(end_mem);
+	max_mapnr = MAP_NR(end_mem);
 	high_memory = (void *)end_mem;
+	num_physpages = 0;
 
 	/* mark usable pages in the mem_map[] */
 	start_mem = PAGE_ALIGN(start_mem);
@@ -324,6 +326,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 				datapages++;
 			continue;
 		}
+		num_physpages++;
 		atomic_set(&mem_map[MAP_NR(tmp)].count, 1);
 #ifdef CONFIG_BLK_DEV_INITRD
 		if (!initrd_start || (tmp < initrd_start || tmp >=

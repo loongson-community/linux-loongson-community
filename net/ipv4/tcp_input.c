@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_input.c,v 1.141 1998/11/18 02:12:07 davem Exp $
+ * Version:	$Id: tcp_input.c,v 1.153 1999/01/20 07:20:03 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -100,8 +100,10 @@ static void tcp_delack_estimator(struct tcp_opt *tp)
 		tp->lrcvtime = jiffies;
 
 		/* Help sender leave slow start quickly,
-		 * this sets our initial ato value.
+		 * and also makes sure we do not take this
+		 * branch ever again for this connection.
 		 */
+		tp->ato = 1;
 		tcp_enter_quickack_mode(tp);
 	} else {
 		int m = jiffies - tp->lrcvtime;
@@ -111,12 +113,12 @@ static void tcp_delack_estimator(struct tcp_opt *tp)
 			m = 1;
 		if(m > tp->rto)
 			tp->ato = tp->rto;
-		else
-			tp->ato = (tp->ato >> 1) + m;
-
-		/* We are not in "quick ack" mode. */
-		if(tp->ato <= (HZ/100))
-			tp->ato = ((HZ/100)*2);
+		else {
+			/* This funny shift makes sure we
+			 * clear the "quick ack mode" bit.
+			 */
+			tp->ato = ((tp->ato << 1) >> 2) + m;
+		}
 	}
 }
 
@@ -127,7 +129,10 @@ static __inline__ void tcp_remember_ack(struct tcp_opt *tp, struct tcphdr *th,
 					struct sk_buff *skb)
 {
 	tp->delayed_acks++; 
-	/* Tiny-grams with PSH set make us ACK quickly. */
+
+	/* Tiny-grams with PSH set make us ACK quickly.
+	 * Note: This also clears the "quick ack mode" bit.
+	 */
 	if(th->psh && (skb->len < (tp->mss_cache >> 1)))
 		tp->ato = HZ/50;
 } 
@@ -301,7 +306,7 @@ static void tcp_sacktag_write_queue(struct sock *sk, struct tcp_sack_block *sp, 
 			/* The retransmission queue is always in order, so
 			 * we can short-circuit the walk early.
 			 */
-			if(!before(start_seq, TCP_SKB_CB(skb)->end_seq))
+			if(after(TCP_SKB_CB(skb)->seq, end_seq))
 				break;
 
 			/* We play conservative, we don't allow SACKS to partially
@@ -311,7 +316,8 @@ static void tcp_sacktag_write_queue(struct sock *sk, struct tcp_sack_block *sp, 
 			if(!after(start_seq, TCP_SKB_CB(skb)->seq) &&
 			   !before(end_seq, TCP_SKB_CB(skb)->end_seq)) {
 				/* If this was a retransmitted frame, account for it. */
-				if(TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_RETRANS)
+				if((TCP_SKB_CB(skb)->sacked & TCPCB_SACKED_RETRANS) &&
+				   tp->retrans_out)
 					tp->retrans_out--;
 				TCP_SKB_CB(skb)->sacked |= TCPCB_SACKED_ACKED;
 
@@ -598,6 +604,13 @@ static int tcp_clean_rtx_queue(struct sock *sk, __u32 ack,
 	unsigned long now = jiffies;
 	int acked = 0;
 
+	/* If we are retransmitting, and this ACK clears up to
+	 * the retransmit head, or further, then clear our state.
+	 */
+	if (tp->retrans_head != NULL &&
+	    !before(ack, TCP_SKB_CB(tp->retrans_head)->end_seq))
+		tp->retrans_head = NULL;
+
 	while((skb=skb_peek(&sk->write_queue)) && (skb != tp->send_head)) {
 		struct tcp_skb_cb *scb = TCP_SKB_CB(skb); 
 		__u8 sacked = scb->sacked;
@@ -625,6 +638,7 @@ static int tcp_clean_rtx_queue(struct sock *sk, __u32 ack,
 			if(tp->fackets_out)
 				tp->fackets_out--;
 		} else {
+			/* This is pure paranoia. */
 			tp->retrans_head = NULL;
 		}		
 		tp->packets_out--;
@@ -633,9 +647,6 @@ static int tcp_clean_rtx_queue(struct sock *sk, __u32 ack,
 		__skb_unlink(skb, skb->list);
 		kfree_skb(skb);
 	}
-
-	if (acked)
-		tp->retrans_head = NULL;
 	return acked;
 }
 
@@ -723,10 +734,7 @@ static void tcp_ack_saw_tstamp(struct sock *sk, struct tcp_opt *tp,
 	} else {
 		tcp_set_rto(tp);
 	}
-	if (should_advance_cwnd(tp, flag))
-		tcp_cong_avoid(tp);
 
-	/* NOTE: safe here so long as cong_ctl doesn't use rto */
 	tcp_bound_rto(tp);
 }
 
@@ -740,7 +748,6 @@ static __inline__ void tcp_ack_packets_out(struct sock *sk, struct tcp_opt *tp)
 	 * congestion window is handled properly by that code.
 	 */
 	if (tp->retransmits) {
-		tp->retrans_head = NULL;
 		tcp_xmit_retransmit_queue(sk);
 		tcp_reset_xmit_timer(sk, TIME_RETRANS, tp->rto);
 	} else {
@@ -816,6 +823,12 @@ static int tcp_ack(struct sock *sk, struct tcphdr *th,
 	/* See if we can take anything off of the retransmit queue. */
 	flag |= tcp_clean_rtx_queue(sk, ack, &seq, &seq_rtt);
 
+	/* We must do this here, before code below clears out important
+	 * state contained in tp->fackets_out and tp->retransmits.  -DaveM
+	 */
+	if (should_advance_cwnd(tp, flag))
+		tcp_cong_avoid(tp);
+
 	/* If we have a timestamp, we always do rtt estimates. */
 	if (tp->saw_tstamp) {
 		tcp_ack_saw_tstamp(sk, tp, seq, ack, flag);
@@ -845,8 +858,6 @@ static int tcp_ack(struct sock *sk, struct tcphdr *th,
 				}
 			}
 		}
-		if (should_advance_cwnd(tp, flag))
-			tcp_cong_avoid(tp);
 	}
 
 	if (tp->packets_out) {
@@ -1166,7 +1177,7 @@ coalesce:
 	/* Zap SWALK, by moving every further SACK up by one slot.
 	 * Decrease num_sacks.
 	 */
-	for(this_sack += 1; this_sack < num_sacks-1; this_sack++, swalk++) {
+	for(; this_sack < num_sacks-1; this_sack++, swalk++) {
 		struct tcp_sack_block *next = (swalk + 1);
 		swalk->start_seq = next->start_seq;
 		swalk->end_seq = next->end_seq;
@@ -1298,7 +1309,7 @@ static void tcp_sack_extend(struct tcp_opt *tp, struct sk_buff *old_skb, struct 
 	int num_sacks = tp->num_sacks;
 	int this_sack;
 
-	for(this_sack = 0; this_sack < num_sacks; this_sack++, tp++) {
+	for(this_sack = 0; this_sack < num_sacks; this_sack++, sp++) {
 		if(sp->end_seq == TCP_SKB_CB(old_skb)->end_seq)
 			break;
 	}
@@ -1346,7 +1357,7 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 
 	/*  Queue data for delivery to the user.
 	 *  Packets in sequence go to the receive queue.
-	 *  Out of sequence packets to out_of_order_queue.
+	 *  Out of sequence packets to the out_of_order_queue.
 	 */
 	if (TCP_SKB_CB(skb)->seq == tp->rcv_nxt) {
 		/* Ok. In sequence. */
@@ -1394,7 +1405,7 @@ static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
 	tp->delayed_acks++;
 	tcp_enter_quickack_mode(tp);
 
-	/* Disable header predition. */
+	/* Disable header prediction. */
 	tp->pred_flags = 0;
 
 	SOCK_DEBUG(sk, "out of order segment: rcv_next %X seq %X - %X\n",
@@ -1657,9 +1668,12 @@ static inline void tcp_urg(struct sock *sk, struct tcphdr *th, unsigned long len
 	}
 }
 
-/*
- * Clean first the out_of_order queue, then the receive queue until
- * the socket is in its memory limits again.
+/* Clean the out_of_order queue if we can, trying to get
+ * the socket within its memory limits again.
+ *
+ * Return less than zero if we should start dropping frames
+ * until the socket owning process reads some of the data
+ * to stabilize the situation.
  */
 static int prune_queue(struct sock *sk)
 {
@@ -1670,46 +1684,50 @@ static int prune_queue(struct sock *sk)
 
 	net_statistics.PruneCalled++; 
 
-	/* First Clean the out_of_order queue. */
-	/* Start with the end because there are probably the least
-	 * useful packets (crossing fingers).
-	 */
-	while ((skb = __skb_dequeue_tail(&tp->out_of_order_queue))) { 
-		net_statistics.OfoPruned += skb->len; 
-		kfree_skb(skb);
-		if (atomic_read(&sk->rmem_alloc) <= sk->rcvbuf)
-			return 0;
+	/* First, purge the out_of_order queue. */
+	skb = __skb_dequeue_tail(&tp->out_of_order_queue);
+	if(skb != NULL) {
+		/* Free it all. */
+		do {	net_statistics.OfoPruned += skb->len; 
+			kfree_skb(skb);
+			skb = __skb_dequeue_tail(&tp->out_of_order_queue);
+		} while(skb != NULL);
+
+		/* Reset SACK state.  A conforming SACK implementation will
+		 * do the same at a timeout based retransmit.  When a connection
+		 * is in a sad state like this, we care only about integrity
+		 * of the connection not performance.
+		 */
+		if(tp->sack_ok)
+			tp->num_sacks = 0;
 	}
 	
-	/* Now continue with the receive queue if it wasn't enough.
-	 * But only do this if we are really being abused.
+	/* If we are really being abused, tell the caller to silently
+	 * drop receive data on the floor.  It will get retransmitted
+	 * and hopefully then we'll have sufficient space.
+	 *
+	 * We used to try to purge the in-order packets too, but that
+	 * turns out to be deadly and fraught with races.  Consider:
+	 *
+	 * 1) If we acked the data, we absolutely cannot drop the
+	 *    packet.  This data would then never be retransmitted.
+	 * 2) It is possible, with a proper sequence of events involving
+	 *    delayed acks and backlog queue handling, to have the user
+	 *    read the data before it gets acked.  The previous code
+	 *    here got this wrong, and it lead to data corruption.
+	 * 3) Too much state changes happen when the FIN arrives, so once
+	 *    we've seen that we can't remove any in-order data safely.
+	 *
+	 * The net result is that removing in-order receive data is too
+	 * complex for anyones sanity.  So we don't do it anymore.  But
+	 * if we are really having our buffer space abused we stop accepting
+	 * new receive data.
 	 */
-	while ((atomic_read(&sk->rmem_alloc) >= (sk->rcvbuf * 2)) &&
-	       (skb = skb_peek_tail(&sk->receive_queue))) {
-		/* Never toss anything when we've seen the FIN.
-		 * It's just too complex to recover from it.
-		 */
-		if(skb->h.th->fin)
-			break;
+	if(atomic_read(&sk->rmem_alloc) < (sk->rcvbuf << 1))
+		return 0;
 
-		/* Never remove packets that have been already acked */
-		if (before(TCP_SKB_CB(skb)->end_seq, tp->last_ack_sent+1)) {
-			SOCK_DEBUG(sk, "prune_queue: hit acked data c=%x,%x,%x\n",
-				   tp->copied_seq, TCP_SKB_CB(skb)->end_seq,
-				   tp->last_ack_sent);
-			return -1;
-		}
-
-		net_statistics.RcvPruned += skb->len; 
-
-		__skb_unlink(skb, skb->list);
-		tp->rcv_nxt = TCP_SKB_CB(skb)->seq;
-		SOCK_DEBUG(sk, "prune_queue: removing %x-%x (c=%x)\n",
-			   TCP_SKB_CB(skb)->seq, TCP_SKB_CB(skb)->end_seq,
-			   tp->copied_seq); 
-		kfree_skb(skb);
-	}
-	return 0;
+	/* Massive buffer overcommit. */
+	return -1;
 }
 
 /*
@@ -1762,6 +1780,7 @@ int tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 	if (tcp_fast_parse_options(sk, th, tp)) {
 		if (tp->saw_tstamp) {
 			if (tcp_paws_discard(tp, th, len)) {
+				tcp_statistics.TcpInErrs++;
 				if (!th->rst) {
 					tcp_send_ack(sk);
 					goto discard;
@@ -2043,27 +2062,16 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 
 			/* We got an ack, but it's not a good ack. */
 			if(!tcp_ack(sk,th, TCP_SKB_CB(skb)->seq,
-				    TCP_SKB_CB(skb)->ack_seq, len)) {
-				sk->err = ECONNRESET;
-				sk->state_change(sk);
-				tcp_statistics.TcpAttemptFails++;
+				    TCP_SKB_CB(skb)->ack_seq, len)) 
 				return 1;
-			}
 
 			if(th->rst) {
 				tcp_reset(sk);
 				goto discard;
 			}
 
-			if(!th->syn) {
-				/* A valid ack from a different connection
-				 * start.  Shouldn't happen but cover it.
-				 */
-				sk->err = ECONNRESET;
-				sk->state_change(sk);
-				tcp_statistics.TcpAttemptFails++;
-				return 1;
-			}
+			if(!th->syn) 
+				goto discard;
 
 			/* Ok.. it's good. Set up sequence numbers and
 			 * move to established.
@@ -2159,6 +2167,7 @@ int tcp_rcv_state_process(struct sock *sk, struct sk_buff *skb,
 		 */
 		if (tp->saw_tstamp) {
 			if (tcp_paws_discard(tp, th, len)) {
+				tcp_statistics.TcpInErrs++;
 				if (!th->rst) {
 					tcp_send_ack(sk);
 					goto discard;

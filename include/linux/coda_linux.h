@@ -46,6 +46,7 @@ extern int coda_access_cache;
 /* this file:  heloers */
 static __inline__ struct ViceFid *coda_i2f(struct inode *);
 char *coda_f2s(ViceFid *f);
+char *coda_f2s2(ViceFid *f);
 int coda_isroot(struct inode *i);
 int coda_fid_is_volroot(struct ViceFid *);
 int coda_fid_is_weird(struct ViceFid *fid);
@@ -71,16 +72,20 @@ int coda_inode_grab(dev_t dev, ino_t ino, struct inode **ind);
 #define NB_SFS_SIZ 0x895440
 
 /* cache.c */
-void coda_purge_children(struct inode *);
+void coda_purge_children(struct inode *, int);
 void coda_purge_dentries(struct inode *);
+
+/* sysctl.h */
+void coda_sysctl_init(void);
+void coda_sysctl_clean(void);
 
 
 /* debugging masks */
 #define D_SUPER     1   /* print results returned by Venus */ 
 #define D_INODE     2   /* print entry and exit into procedure */
-#define D_FILE      4   /* print malloc, de-alloc information */
+#define D_FILE      4   
 #define D_CACHE     8   /* cache debugging */
-#define D_MALLOC    16
+#define D_MALLOC    16  /* print malloc, de-alloc information */
 #define D_CNODE     32
 #define D_UPCALL    64  /* up and downcall debugging */
 #define D_PSDEV    128  

@@ -27,15 +27,13 @@
 /*
  * Mapping areas
  */
-#define IO_END			0xffffffff
 #define IO_BASE			0xfe000000
-#define IO_SIZE			(IO_END - IO_BASE)
 
 /*
  * RAM definitions
  */
 #define RAM_BASE		0x40000000
 #define KERNTOPHYS(a)		((unsigned long)(&a))
-#define SAFE_ADDR		0x40000000
+#define FLUSH_BASE_PHYS		0x40000000
 
 #endif

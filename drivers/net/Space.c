@@ -111,6 +111,8 @@ extern int rtl8139_probe(struct device *dev);
 extern int hplance_probe(struct device *dev);
 extern int via_rhine_probe(struct device *dev);
 extern int tc515_probe(struct device *dev);
+extern int lance_probe(struct device *dev);
+extern int rcpci_probe(struct device *);
 
 /* Gigabit Ethernet adapters */
 extern int yellowfin_probe(struct device *dev);
@@ -126,7 +128,6 @@ extern int dfx_probe(struct device *dev);
 extern int apfddi_init(struct device *dev);
 
 /* HIPPI boards */
-extern int cern_hippi_probe(struct device *);
 extern int rr_hippi_probe(struct device *);
 
 struct devprobe
@@ -172,11 +173,11 @@ struct devprobe pci_probes[] __initdata = {
 #ifdef CONFIG_DGRS
 	{dgrs_probe, 0},
 #endif
+#ifdef CONFIG_RCPCI
+	{rcpci_probe, 0},
+#endif
 #ifdef CONFIG_VORTEX
 	{tc59x_probe, 0},
-#endif
-#ifdef CONFIG_DEC_ELCP 
-	{tulip_probe, 0},
 #endif
 #ifdef CONFIG_NE2K_PCI
 	{ne2k_pci_probe, 0},
@@ -186,6 +187,9 @@ struct devprobe pci_probes[] __initdata = {
 #endif	
 #ifdef CONFIG_EEXPRESS_PRO100	/* Intel EtherExpress Pro/100 */
 	{eepro100_probe, 0},
+#endif
+#ifdef CONFIG_DEC_ELCP 
+	{tulip_probe, 0},
 #endif
 #ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
 	{de4x5_probe, 0},
@@ -299,6 +303,9 @@ struct devprobe isa_probes[] __initdata = {
 #endif
 #ifdef CONFIG_NE2000		/* ISA (use ne2k-pci for PCI cards) */
 	{ne_probe, 0},
+#endif
+#ifdef CONFIG_LANCE		/* ISA/VLB (use pcnet32 for PCI cards) */
+	{lance_probe, 0},
 #endif
 #ifdef CONFIG_SMC9194
 	{smc_init, 0},
@@ -536,9 +543,6 @@ static int hippi_probe(struct device *dev)
 		return 1;
 
 	if (1
-#ifdef CONFIG_CERN_HIPPI
-	    && cern_hippi_probe(dev)
-#endif
 #ifdef CONFIG_ROADRUNNER
 	    && rr_hippi_probe(dev)
 #endif
@@ -712,6 +716,9 @@ trif_probe(struct device *dev)
 #endif
 #ifdef CONFIG_SKTR
 	&& sktr_probe(dev)
+#endif
+#ifdef CONFIG_SMCTR
+	&& smctr_probe(dev)
 #endif
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */

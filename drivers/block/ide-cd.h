@@ -4,7 +4,7 @@
  *  linux/drivers/block/ide_modes.h
  *
  *  Copyright (C) 1996  Erik Andersen
- *  Copyright (C) 1998  Jens Axboe and Chris Zwilling
+ *  Copyright (C) 1998, 1999 Jens Axboe
  */
 
 #include <asm/byteorder.h>
@@ -14,7 +14,7 @@
    memory, though. */
 
 #ifndef VERBOSE_IDE_CD_ERRORS
-#define VERBOSE_IDE_CD_ERRORS 0
+#define VERBOSE_IDE_CD_ERRORS 1
 #endif
 
 
@@ -128,8 +128,15 @@ struct ide_cd_config_flags {
 	__u8 is_changer       : 1; /* Drive is a changer. */
 	__u8 cd_r             : 1; /* Drive can write to CD-R media . */
 	__u8 cd_rw            : 1; /* Drive can write to CD-R/W media . */
+	__u8 dvd              : 1; /* Drive is a DVD-ROM */
+	__u8 dvd_r            : 1; /* Drive can write DVD-RAM */
+	__u8 dvd_rw           : 1; /* Drive can write DVD-R/W */
+	__u8 test_write       : 1; /* Drive can fake writes */
 	__u8 supp_disc_present: 1; /* Changer can report exact contents
 				      of slots. */
+	__u8 limit_nframes    : 1; /* Drive does not provide data in
+				      multiples of SECTOR_SIZE when more
+				      than one interrupt is needed. */
 	__u8 seeking          : 1; /* Seeking in progress */
 	__u8 reserved         : 6;
 	byte max_speed; 	   /* Max speed of the drive */
@@ -291,44 +298,69 @@ struct atapi_capabilities_page {
 	byte     page_length;
 
 #if defined(__BIG_ENDIAN_BITFIELD)
-	__u8 reserved2           : 5;
+	__u8 reserved2           : 2;
+	/* Drive supports reading of DVD-RAM discs */
+	__u8 dvd_ram_read        : 1;
+	/* Drive supports reading of DVD-R discs */
+	__u8 dvd_r_read          : 1;
+	/* Drive supports reading of DVD-ROM discs */
+	__u8 dvd_rom             : 1;
 	/* Drive supports reading CD-R discs with addressing method 2 */
 	__u8 method2             : 1; /* reserved in 1.2 */
 	/* Drive can read from CD-R/W (CD-E) discs (orange book, part III) */
-	__u8 cd_rw_read           : 1; /* reserved in 1.2 */
+	__u8 cd_rw_read		 : 1; /* reserved in 1.2 */
 	/* Drive supports read from CD-R discs (orange book, part II) */
 	__u8 cd_r_read           : 1; /* reserved in 1.2 */
 #elif defined(__LITTLE_ENDIAN_BITFIELD)
 	/* Drive supports read from CD-R discs (orange book, part II) */
-        __u8 cd_r_read           : 1; /* reserved in 1.2 */
+	__u8 cd_r_read           : 1; /* reserved in 1.2 */
 	/* Drive can read from CD-R/W (CD-E) discs (orange book, part III) */
-        __u8 cd_rw_read          : 1; /* reserved in 1.2 */
+	__u8 cd_rw_read          : 1; /* reserved in 1.2 */
 	/* Drive supports reading CD-R discs with addressing method 2 */
-	__u8 method2             : 1; /* reserved in 1.2 */
-	__u8 reserved2           : 5;
+	__u8 method2             : 1;
+	/* Drive supports reading of DVD-ROM discs */
+	__u8 dvd_rom             : 1;
+	/* Drive supports reading of DVD-R discs */
+	__u8 dvd_r_read          : 1;
+	/* Drive supports reading of DVD-RAM discs */
+	__u8 dvd_ram_read        : 1;
+	__u8 reserved2		 : 2;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
 
 #if defined(__BIG_ENDIAN_BITFIELD)
-	__u8 reserved3           : 6;
+	__u8 reserved3           : 2;
+	/* Drive can fake writes */
+	__u8 test_write          : 1;
+	__u8 reserved3a          : 1;
+	/* Drive can write DVD-R discs */
+	__u8 dvd_r_write         : 1;
+	/* Drive can write DVD-RAM discs */
+	__u8 dvd_ram_write       : 1;
 	/* Drive can write to CD-R/W (CD-E) discs (orange book, part III) */
-	__u8 cd_rw_write          : 1; /* reserved in 1.2 */
+	__u8 cd_rw_write	 : 1; /* reserved in 1.2 */
 	/* Drive supports write to CD-R discs (orange book, part II) */
 	__u8 cd_r_write          : 1; /* reserved in 1.2 */
 #elif defined(__LITTLE_ENDIAN_BITFIELD)
-
 	/* Drive can write to CD-R discs (orange book, part II) */
-        __u8 cd_r_write          : 1; /* reserved in 1.2 */
+	__u8 cd_r_write          : 1; /* reserved in 1.2 */
 	/* Drive can write to CD-R/W (CD-E) discs (orange book, part III) */
-        __u8 cd_rw_write          : 1; /* reserved in 1.2 */
-	__u8 reserved3           : 6;
+	__u8 cd_rw_write	 : 1; /* reserved in 1.2 */
+	/* Drive can write DVD-RAM discs */
+	__u8 dvd_ram_write       : 1;
+	/* Drive can write DVD-R discs */
+	__u8 dvd_r_write         : 1;
+	__u8 reserved3a          : 1;
+	/* Drive can fake writes */
+	__u8 test_write          : 1;
+	__u8 reserved3           : 2;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
 
 #if defined(__BIG_ENDIAN_BITFIELD)
-	__u8 reserved4           : 1;
+	__u8 reserved4           : 4;
 	/* Drive can read multisession discs. */
 	__u8 multisession        : 1;
 	/* Drive can read mode 2, form 2 data. */
@@ -401,7 +433,7 @@ struct atapi_capabilities_page {
 
 #if defined(__BIG_ENDIAN_BITFIELD)
 	/* Drive mechanism types. */
-	mechtype_t mechtype          : 3;
+	mechtype_t mechtype	 : 3;
 	__u8 reserved6           : 1;
 	/* Drive can eject a disc or changer cartridge. */
 	__u8 eject               : 1;
@@ -423,7 +455,7 @@ struct atapi_capabilities_page {
 	__u8 eject               : 1;
 	__u8 reserved6           : 1;
 	/* Drive mechanism types. */
-	mechtype_t mechtype          : 3;
+	mechtype_t mechtype	 : 3;
 #else
 #error "Please fix <asm/byteorder.h>"
 #endif
@@ -742,7 +774,7 @@ const struct {
 
 	{ 0x6300, "End of user area encountered on this track" },
 
-	{ 0x6400, "Illegal mode for this track" },
+	{ 0x6400, "Illegal mode for this track or incompatible medium" },
 
 	{ 0xb900, "Play operation oborted (sic)" },
 

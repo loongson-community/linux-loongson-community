@@ -3,8 +3,23 @@
 
 typedef unsigned int dmach_t;
 
+#include <linux/config.h>
+#include <linux/kernel.h>
 #include <asm/irq.h>
+#include <asm/system.h>
+#include <asm/spinlock.h>
 #include <asm/arch/dma.h>
+
+/*
+ * DMA modes - we have two, IN and OUT
+ */
+typedef unsigned int dmamode_t;
+
+#define DMA_MODE_MASK	1
+
+#define DMA_MODE_READ	0
+#define DMA_MODE_WRITE	1
+#define DMA_AUTOINIT	2
 
 typedef struct {
 	unsigned long address;
@@ -12,6 +27,20 @@ typedef struct {
 } dmasg_t;
 
 extern const char dma_str[];
+
+extern spinlock_t  dma_spin_lock;
+
+extern __inline__ unsigned long claim_dma_lock(void)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&dma_spin_lock, flags);
+	return flags;
+}
+
+extern __inline__ void release_dma_lock(unsigned long flags)
+{
+	spin_unlock_irqrestore(&dma_spin_lock, flags);
+}
 
 /* Clear the 'DMA Pointer Flip Flop'.
  * Write 0 for LSB/MSB, 1 for MSB/LSB access.
@@ -26,7 +55,7 @@ extern const char dma_str[];
  * NOTE: This is an architecture specific function, and should
  *       be hidden from the drivers
  */
-static __inline__ void set_dma_page(dmach_t channel, char pagenr)
+extern __inline__ void set_dma_page(dmach_t channel, char pagenr)
 {
 	printk(dma_str, "set_dma_page", channel);
 }
@@ -100,6 +129,12 @@ extern int  get_dma_residue(dmach_t channel);
 
 #ifndef NO_DMA
 #define NO_DMA	255
+#endif
+
+#ifdef CONFIG_PCI_QUIRKS
+extern int isa_dma_bridge_buggy;
+#else
+#define isa_dma_bridge_buggy    (0)
 #endif
 
 #endif /* _ARM_DMA_H */

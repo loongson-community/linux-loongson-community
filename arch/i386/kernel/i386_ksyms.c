@@ -58,6 +58,10 @@ EXPORT_SYMBOL_NOVERS(__put_user_1);
 EXPORT_SYMBOL_NOVERS(__put_user_2);
 EXPORT_SYMBOL_NOVERS(__put_user_4);
 
+EXPORT_SYMBOL(strtok);
+EXPORT_SYMBOL(strpbrk);
+EXPORT_SYMBOL(strstr);
+
 EXPORT_SYMBOL(strncpy_from_user);
 EXPORT_SYMBOL(__strncpy_from_user);
 EXPORT_SYMBOL(clear_user);
@@ -83,7 +87,6 @@ EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);
 EXPORT_SYMBOL(__global_save_flags);
 EXPORT_SYMBOL(__global_restore_flags);
-EXPORT_SYMBOL(smp_message_pass);
 EXPORT_SYMBOL(mtrr_hook);
 #endif
 

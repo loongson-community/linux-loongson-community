@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.16 1998/08/25 09:14:41 ralf Exp $
+/* $Id: signal.c,v 1.17 1998/08/28 23:29:05 tsbogend Exp $
  *
  *  linux/arch/mips/kernel/signal.c
  *
@@ -392,6 +392,7 @@ static inline void syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
 		}
 	/* fallthrough */
 	case ERESTARTNOINTR:		/* Userland will reload $v0.  */
+		regs->regs[7] = regs->regs[26];
 		regs->cp0_epc -= 8;
 	}
 
@@ -525,6 +526,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		if (regs->regs[2] == ERESTARTNOHAND ||
 		    regs->regs[2] == ERESTARTSYS ||
 		    regs->regs[2] == ERESTARTNOINTR) {
+			regs->regs[7] = regs->regs[26];
 			regs->cp0_epc -= 8;
 		}
 	}

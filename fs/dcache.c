@@ -161,17 +161,33 @@ out:
 
 /*
  * Try to invalidate the dentry if it turns out to be
- * possible. If there are other users of the dentry we
- * can't invalidate it.
+ * possible. If there are other dentries that can be
+ * reached through this one we can't delete it.
  */
 int d_invalidate(struct dentry * dentry)
 {
-	/* Check whether to do a partial shrink_dcache */
-	if (!list_empty(&dentry->d_subdirs))
+	/*
+	 * Check whether to do a partial shrink_dcache
+	 * to get rid of unused child entries.
+	 */
+	if (!list_empty(&dentry->d_subdirs)) {
 		shrink_dcache_parent(dentry);
+	}
 
-	if (dentry->d_count != 1)
-		return -EBUSY;
+	/*
+	 * Somebody else still using it?
+	 *
+	 * If it's a directory, we can't drop it
+	 * for fear of somebody re-populating it
+	 * with children (even though dropping it
+	 * would make it unreachable from the root,
+	 * we might still populate it if it was a
+	 * working directory or similar).
+	 */
+	if (dentry->d_count > 1) {
+		if (dentry->d_inode && S_ISDIR(dentry->d_inode->i_mode))
+			return -EBUSY;
+	}
 
 	d_drop(dentry);
 	return 0;
@@ -190,9 +206,9 @@ int d_invalidate(struct dentry * dentry)
 int select_dcache(int inode_count, int page_count)
 {
 	struct list_head *next, *tail = &dentry_unused;
-	int found = 0, forward = 0, young = 8;
+	int found = 0;
 	int depth = dentry_stat.nr_unused >> 1;
-	unsigned long min_value = 0, max_value = 4;
+	unsigned long max_value = 4;
 
 	if (page_count)
 		max_value = -1;
@@ -205,39 +221,12 @@ int select_dcache(int inode_count, int page_count)
 		unsigned long value = 0;	
 
 		next = tmp->prev;
-		if (forward)
-			next = tmp->next;
 		if (dentry->d_count) {
 			dentry_stat.nr_unused--;
 			list_del(tmp);
 			INIT_LIST_HEAD(tmp);
 			continue;
 		}
-		/*
-		 * Check the dentry's age to see whether to change direction.
-		 */
-		if (!forward) {
-			int age = (jiffies - dentry->d_reftime) / HZ;
-			if (age < dentry_stat.age_limit) {
-				if (!--young) {
-					forward = 1;
-					next = dentry_unused.next;
-					/*
-		 			 * Update the limits -- we don't want
-					 * files with too few or too many pages.
-					 */
- 					if (page_count) {
-						min_value = 3;
-						max_value = 15;
-					}
-#ifdef DCACHE_DEBUG
-printk("select_dcache: %s/%s age=%d, scanning forward\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, age);
-#endif
-				}
-				continue;
-			}
-		} 
 
 		/*
 		 * Select dentries based on the page cache count ...
@@ -247,7 +236,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, age);
 		 */
 		if (inode) {
 			value = inode->i_nrpages;	
-			if (value >= max_value || value < min_value)
+			if (value >= max_value)
 				continue;
 			if (inode->i_state || inode->i_count > 1)
 				continue;
@@ -475,7 +464,7 @@ void shrink_dcache_parent(struct dentry * parent)
  * too much.
  *
  * Priority:
- *   0 - very urgent: schrink everything
+ *   0 - very urgent: shrink everything
  *  ...
  *   6 - base-level: try to shrink a bit.
  */
@@ -490,17 +479,6 @@ struct dentry * d_alloc(struct dentry * parent, const struct qstr *name)
 {
 	char * str;
 	struct dentry *dentry;
-
-	/*
-	 * Prune the dcache if there are too many unused dentries.
-	 */
-	if (dentry_stat.nr_unused > 3*(nr_inodes >> 1)) {
-#ifdef DCACHE_DEBUG
-printk("d_alloc: %d unused, pruning dcache\n", dentry_stat.nr_unused);
-#endif
-		prune_dcache(8);
-		free_inode_memory(8);
-	}
 
 	dentry = kmem_cache_alloc(dentry_cache, GFP_KERNEL); 
 	if (!dentry)
@@ -592,9 +570,10 @@ struct dentry * d_lookup(struct dentry * parent, struct qstr * name)
 	struct list_head *head = d_hash(parent,hash);
 	struct list_head *tmp = head->next;
 
-	while (tmp != head) {
+	for (;;) {
 		struct dentry * dentry = list_entry(tmp, struct dentry, d_hash);
-
+		if (tmp == head)
+			break;
 		tmp = tmp->next;
 		if (dentry->d_name.hash != hash)
 			continue;
@@ -687,12 +666,11 @@ void d_delete(struct dentry * dentry)
 	d_drop(dentry);
 }
 
-void d_add(struct dentry * entry, struct inode * inode)
+void d_rehash(struct dentry * entry)
 {
 	struct dentry * parent = entry->d_parent;
 
 	list_add(&entry->d_hash, d_hash(parent, entry->d_name.hash));
-	d_instantiate(entry, inode);
 }
 
 #define do_switch(x,y) do { \

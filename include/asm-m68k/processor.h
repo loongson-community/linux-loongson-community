@@ -45,7 +45,7 @@ struct thread_struct {
 	unsigned char  fpstate[FPSTATESIZE];  /* floating point state */
 };
 
-#define INIT_MMAP { &init_mm, 0, 0x40000000, __pgprot(_PAGE_PRESENT|_PAGE_ACCESSED), VM_READ | VM_WRITE | VM_EXEC, NULL, &init_mm.mmap }
+#define INIT_MMAP { &init_mm, 0, 0x40000000, NULL, __pgprot(_PAGE_PRESENT|_PAGE_ACCESSED), VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
 
 #define INIT_TSS  { \
 	sizeof(init_stack) + (unsigned long) init_stack, 0, \
@@ -72,8 +72,11 @@ static inline void release_thread(struct task_struct *dead_task)
 {
 }
 
+extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
+
 #define copy_segments(nr, tsk, mm)	do { } while (0)
 #define release_segments(mm)		do { } while (0)
+#define forget_segments()		do { } while (0)
 
 /*
  * Free current thread data structures etc..

@@ -12,8 +12,7 @@
 #include <linux/mm.h>
 #include <linux/shm.h>
 #include <linux/init.h>
-
-#include <asm/uaccess.h>
+#include <linux/msg.h>
 
 #if defined(CONFIG_SYSVIPC)
 

@@ -139,10 +139,13 @@ enum net_directory_inos {
 	PROC_NET_DN_L2,
 	PROC_NET_DN_CACHE,
 	PROC_NET_DN_SKT,
+	PROC_NET_DN_FW,
+	PROC_NET_DN_RAW,
 	PROC_NET_NETSTAT,
 	PROC_NET_IPFW_CHAINS,
 	PROC_NET_IPFW_CHAIN_NAMES,
 	PROC_NET_AT_AARP,
+	PROC_NET_BRIDGE,
 	PROC_NET_LAST
 };
 
@@ -167,6 +170,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_PAS16,
 	PROC_SCSI_QLOGICFAS,
 	PROC_SCSI_QLOGICISP,
+	PROC_SCSI_QLOGICFC,
 	PROC_SCSI_SEAGATE,
 	PROC_SCSI_T128,
 	PROC_SCSI_NCR53C7xx,
@@ -180,7 +184,9 @@ enum scsi_directory_inos {
 	PROC_SCSI_AM53C974,
 	PROC_SCSI_SSC,
 	PROC_SCSI_NCR53C406A,
+	PROC_SCSI_MEGARAID,
 	PROC_SCSI_PPA,
+	PROC_SCSI_ATP870U,
 	PROC_SCSI_ESP,
 	PROC_SCSI_QLOGICPTI,
 	PROC_SCSI_AMIGA7XX,
@@ -196,6 +202,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_MESH,
 	PROC_SCSI_53C94,
 	PROC_SCSI_PLUTO,
+	PROC_SCSI_INI9100U,
 	PROC_SCSI_SCSI_DEBUG,	
 	PROC_SCSI_NOT_PRESENT,
 	PROC_SCSI_FILE,                        /* I'm assuming here that we */
@@ -289,6 +296,8 @@ typedef	int (write_proc_t)(struct file *file, const char *buffer,
 
 extern int (* dispatch_scsi_info_ptr) (int ino, char *buffer, char **start,
 				off_t offset, int length, int inout);
+
+#ifdef CONFIG_PROC_FS
 
 extern struct proc_dir_entry proc_root;
 extern struct proc_dir_entry proc_root_fs;
@@ -429,4 +438,26 @@ extern void proc_tty_unregister_driver(struct tty_driver *driver);
  */
 extern void proc_device_tree_init(void);
 
+#else
+
+extern inline int proc_register(struct proc_dir_entry *a, struct proc_dir_entry *b) {};
+extern inline int proc_unregister(struct proc_dir_entry *a, int b) {};
+extern inline int proc_net_register(struct proc_dir_entry *a) {};
+extern inline int proc_net_unregister(int x) {};
+extern inline int proc_scsi_register(struct proc_dir_entry *b, struct proc_dir_entry *c) {};
+extern inline int proc_scsi_unregister(struct proc_dir_entry *a, int x);
+
+extern inline struct proc_dir_entry *create_proc_entry(const char *name, mode_t mode,
+					 struct proc_dir_entry *parent)
+{
+	return NULL;
+}
+
+extern inline void remove_proc_entry(const char *name, struct proc_dir_entry *parent) {};
+
+extern inline void proc_tty_register_driver(struct tty_driver *driver) {};
+extern inline void proc_tty_unregister_driver(struct tty_driver *driver) {};
+
+
+#endif
 #endif /* _LINUX_PROC_FS_H */

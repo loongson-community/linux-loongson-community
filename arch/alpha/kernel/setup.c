@@ -94,62 +94,46 @@ struct screen_info screen_info = {
  * Declare all of the machine vectors.
  */
 
-extern struct alpha_machine_vector alcor_mv;
-extern struct alpha_machine_vector alphabook1_mv;
-extern struct alpha_machine_vector avanti_mv;
-extern struct alpha_machine_vector cabriolet_mv;
-extern struct alpha_machine_vector dp264_mv;
-extern struct alpha_machine_vector eb164_mv;
-extern struct alpha_machine_vector eb64p_mv;
-extern struct alpha_machine_vector eb66_mv;
-extern struct alpha_machine_vector eb66p_mv;
-extern struct alpha_machine_vector jensen_mv;
-extern struct alpha_machine_vector lx164_mv;
-extern struct alpha_machine_vector miata_mv;
-extern struct alpha_machine_vector mikasa_mv;
-extern struct alpha_machine_vector mikasa_primo_mv;
-extern struct alpha_machine_vector monet_mv;
-extern struct alpha_machine_vector noname_mv;
-extern struct alpha_machine_vector noritake_mv;
-extern struct alpha_machine_vector noritake_primo_mv;
-extern struct alpha_machine_vector p2k_mv;
-extern struct alpha_machine_vector pc164_mv;
-extern struct alpha_machine_vector rawhide_mv;
-extern struct alpha_machine_vector ruffian_mv;
-extern struct alpha_machine_vector sable_mv;
-extern struct alpha_machine_vector sable_gamma_mv;
-extern struct alpha_machine_vector sx164_mv;
-extern struct alpha_machine_vector takara_mv;
-extern struct alpha_machine_vector xl_mv;
-extern struct alpha_machine_vector xlt_mv;
-#pragma weak alcor_mv
-#pragma weak alphabook1_mv
-#pragma weak avanti_mv
-#pragma weak cabriolet_mv
-#pragma weak dp264_mv
-#pragma weak eb164_mv
-#pragma weak eb64p_mv
-#pragma weak eb66_mv
-#pragma weak eb66p_mv
-#pragma weak jensen_mv
-#pragma weak lx164_mv
-#pragma weak miata_mv
-#pragma weak mikasa_mv
-#pragma weak mikasa_primo_mv
-#pragma weak monet_mv
-#pragma weak noname_mv
-#pragma weak noritake_mv
-#pragma weak noritake_primo_mv
-#pragma weak p2k_mv
-#pragma weak pc164_mv
-#pragma weak rawhide_mv
-#pragma weak ruffian_mv
-#pragma weak sable_mv
-#pragma weak sable_gamma_mv
-#pragma weak sx164_mv
-#pragma weak takara_mv
-#pragma weak xl_mv
-#pragma weak xlt_mv
+/* GCC 2.7.2 (on alpha at least) is lame.  It does not support either 
+   __attribute__((weak)) or #pragma weak.  Bypass it and talk directly
+   to the assembler.  */
+
+#define WEAK(X) \
+	extern struct alpha_machine_vector X; \
+	asm(".weak "#X)
+
+WEAK(alcor_mv);
+WEAK(alphabook1_mv);
+WEAK(avanti_mv);
+WEAK(cabriolet_mv);
+WEAK(dp264_mv);
+WEAK(eb164_mv);
+WEAK(eb64p_mv);
+WEAK(eb66_mv);
+WEAK(eb66p_mv);
+WEAK(jensen_mv);
+WEAK(lx164_mv);
+WEAK(miata_mv);
+WEAK(mikasa_mv);
+WEAK(mikasa_primo_mv);
+WEAK(monet_mv);
+WEAK(noname_mv);
+WEAK(noritake_mv);
+WEAK(noritake_primo_mv);
+WEAK(p2k_mv);
+WEAK(pc164_mv);
+WEAK(rawhide_mv);
+WEAK(ruffian_mv);
+WEAK(rx164_mv);
+WEAK(sable_mv);
+WEAK(sable_gamma_mv);
+WEAK(sx164_mv);
+WEAK(takara_mv);
+WEAK(webbrick_mv);
+WEAK(xl_mv);
+WEAK(xlt_mv);
+
+#undef WEAK
 
 
 void __init
@@ -264,7 +248,7 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 		if (initrd_end > *memory_end_p) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       initrd_end, memory_end_p);
+			       initrd_end, (unsigned long) memory_end_p);
 			initrd_start = initrd_end = 0;
 		}
 	}
@@ -274,6 +258,16 @@ setup_arch(char **cmdline_p, unsigned long * memory_start_p,
 	   DMA windows and the like.  */
 	if (alpha_mv.init_arch)
 		alpha_mv.init_arch(memory_start_p, memory_end_p);
+
+	/* Initialize the timers.  */
+	/* ??? There is some circumstantial evidence that this needs
+	   to be done now rather than later in time_init, which would
+	   be more natural.  Someone please explain or refute.  */
+#if defined(CONFIG_RTC)
+	rtc_init_pit();
+#else
+	alpha_mv.init_pit();
+#endif
 
 	/* 
 	 * Give us a default console.  TGA users will see nothing until
@@ -349,8 +343,8 @@ static char systype_names[][16] = {
 
 static char unofficial_names[][8] = {"100", "Ruffian"};
 
-static char eb164_names[][8] = {"EB164", "PC164", "LX164", "SX164"};
-static int eb164_indices[] = {0,0,0,1,1,1,1,1,2,2,2,2,3,3,3,3};
+static char eb164_names[][8] = {"EB164", "PC164", "LX164", "SX164", "RX164"};
+static int eb164_indices[] = {0,0,0,1,1,1,1,1,2,2,2,2,3,3,3,3,4};
 
 static char alcor_names[][16] = {"Alcor", "Maverick", "Bret"};
 static int alcor_indices[] = {0,0,0,1,1,1,0,0,0,0,0,0,2,2,2,2,2,2};
@@ -430,7 +424,7 @@ get_sysvec(long type, long variation, long cpu)
 
 	static struct alpha_machine_vector *eb164_vecs[] __initlocaldata =
 	{
-		&eb164_mv, &pc164_mv, &lx164_mv, &sx164_mv
+		&eb164_mv, &pc164_mv, &lx164_mv, &sx164_mv, &rx164_mv
 	};
 
 	static struct alpha_machine_vector *eb64p_vecs[] __initlocaldata =
@@ -455,7 +449,7 @@ get_sysvec(long type, long variation, long cpu)
 		&monet_mv,		/* monet */
 		&dp264_mv,		/* clipper */
 		&dp264_mv,		/* goldrush */
-		&dp264_mv,		/* webbrick */
+		&webbrick_mv,		/* webbrick */
 		&dp264_mv,		/* catamaran */
 	};
 
@@ -556,10 +550,12 @@ get_sysvec_byname(const char *name)
 		&pc164_mv,
 		&rawhide_mv,
 		&ruffian_mv,
+		&rx164_mv,
 		&sable_mv,
 		&sable_gamma_mv,
 		&sx164_mv,
 		&takara_mv,
+		&webbrick_mv,
 		&xl_mv,
 		&xlt_mv
 	};

@@ -1,7 +1,7 @@
 #define BLOCKMOVE
 #define	Z_WAKE
 static char rcsid[] =
-"$Revision: 2.2.1.8 $$Date: 1998/11/13 12:46:20 $";
+"$Revision: 2.2.1.10 $$Date: 1999/01/20 16:14:29 $";
 
 /*
  *  linux/drivers/char/cyclades.c
@@ -31,6 +31,14 @@ static char rcsid[] =
  *   void cleanup_module(void);
  *
  * $Log: cyclades.c,v $
+ * Revision 2.2.1.10 1999/01/20 16:14:29 ivan
+ * Removed all unnecessary page-alignement operations in ioremap calls
+ * (ioremap is currently safe for these operations).
+ *
+ * Revision 2.2.1.9  1998/12/30 18:18:30 ivan
+ * Changed access to PLX PCI bridge registers from I/O to MMIO, in 
+ * order to make PLX9050-based boards work with certain motherboards.
+ *
  * Revision 2.2.1.8  1998/11/13 12:46:20 ivan
  * cy_close function now resets (correctly) the tty->closing flag;
  * JIFFIES_DIFF macro fixed.
@@ -580,10 +588,8 @@ static char rcsid[] =
 #include <linux/pci.h>
 #include <linux/version.h>
 
-#ifdef CONFIG_PROC_FS
 #include <linux/stat.h>
 #include <linux/proc_fs.h>
-#endif
 
 #define cy_put_user	put_user
 
@@ -777,9 +783,7 @@ static void cyz_poll(unsigned long);
 static void show_status(int);
 #endif
 
-#ifdef CONFIG_PROC_FS
 static int cyclades_get_proc_info(char *, char **, off_t , int , int *, void *);
-#endif
 
 /* The Cyclades-Z polling cycle is defined by this variable */
 static long cyz_polling_cycle = CZ_DEF_POLL;
@@ -1004,13 +1008,13 @@ check_wild_interrupts(void)
          * occur during the bootup sequence
          */
         timeout = jiffies+(HZ/10);
-        while (timeout >= jiffies)
+        while (time_after_eq(timeout, jiffies))
             ;
         
         cy_triggered = 0;       /* Reset after letting things settle */
 
         timeout = jiffies+(HZ/10);
-        while (timeout >= jiffies)
+        while (time_after_eq(timeout, jiffies))
                 ;
         
         for (i = 0, mask = 1; i < 16; i++, mask <<= 1) {
@@ -1054,7 +1058,7 @@ get_auto_irq(volatile ucchar *address)
     restore_flags(flags);
     
     timeout = jiffies+(HZ/50);
-    while (timeout >= jiffies) {
+    while (time_after_eq(timeout, jiffies)) {
         if (cy_irq_triggered)
             break;
     }
@@ -2597,7 +2601,7 @@ static void cy_wait_until_sent(struct tty_struct *tty, int timeout)
 	    schedule_timeout(char_time);
 	    if (signal_pending(current))
 		break;
-	    if (timeout && ((orig_jiffies + timeout) < jiffies))
+	    if (timeout && time_before(orig_jiffies + timeout, jiffies))
 		break;
 	}
 	current->state = TASK_RUNNING;
@@ -3396,8 +3400,7 @@ get_serial_info(struct cyclades_port * info,
     tmp.baud_base = info->baud;
     tmp.custom_divisor = 0;     /*!!!*/
     tmp.hub6 = 0;               /*!!!*/
-    copy_to_user(retinfo,&tmp,sizeof(*retinfo));
-    return 0;
+    return copy_to_user(retinfo,&tmp,sizeof(*retinfo))?-EFAULT:0;
 } /* get_serial_info */
 
 
@@ -3768,7 +3771,8 @@ static int
 get_mon_info(struct cyclades_port * info, struct cyclades_monitor * mon)
 {
 
-    copy_to_user(mon, &info->mon, sizeof(struct cyclades_monitor));
+    if(copy_to_user(mon, &info->mon, sizeof(struct cyclades_monitor)))
+    	return -EFAULT;
     info->mon.int_count  = 0;
     info->mon.char_count = 0;
     info->mon.char_max   = 0;
@@ -4461,8 +4465,7 @@ cy_detect_isa(void))
                 /* probe for CD1400... */
 
 #if !defined(__alpha__)
-		cy_isa_address = ioremap((unsigned int)cy_isa_address,
-                                                       CyISA_Ywin);
+		cy_isa_address = ioremap((ulong)cy_isa_address, CyISA_Ywin);
 #endif
                 cy_isa_nchan = CyPORTS_PER_CHIP * 
                      cyy_init_card(cy_isa_address,0);
@@ -4545,7 +4548,6 @@ cy_detect_pci(void))
 
   struct pci_dev	*pdev = NULL;
   unsigned char		cyy_rev_id;
-  unsigned long         pci_intr_ctrl;
   unsigned char         cy_pci_irq = 0;
   uclong                cy_pci_addr0, cy_pci_addr1, cy_pci_addr2;
   unsigned short        i,j,cy_pci_nchan, plx_ver;
@@ -4584,11 +4586,11 @@ cy_detect_pci(void))
 		pdev->bus->number, pdev->devfn);
             printk("rev_id=%d) IRQ%d\n",
 		cyy_rev_id, (int)cy_pci_irq);
-            printk("Cyclom-Y/PCI:found  winaddr=0x%lx ioaddr=0x%lx\n",
-		(ulong)cy_pci_addr2, (ulong)cy_pci_addr1);
+            printk("Cyclom-Y/PCI:found  winaddr=0x%lx ctladdr=0x%lx\n",
+		(ulong)cy_pci_addr2, (ulong)cy_pci_addr0);
 #endif
-                cy_pci_addr1  &= PCI_BASE_ADDRESS_IO_MASK;
-                cy_pci_addr2  &= PCI_BASE_ADDRESS_MEM_MASK;
+		cy_pci_addr0  &= PCI_BASE_ADDRESS_MEM_MASK;
+		cy_pci_addr2  &= PCI_BASE_ADDRESS_MEM_MASK;
 
 #if defined(__alpha__)
                 if (device_id  == PCI_DEVICE_ID_CYCLOM_Y_Lo) { /* below 1M? */
@@ -4596,20 +4598,21 @@ cy_detect_pci(void))
 			pdev->bus->number, pdev->devfn);
 		    printk("rev_id=%d) IRQ%d\n",
 		        cyy_rev_id, (int)cy_pci_irq);
-                    printk("Cyclom-Y/PCI:found  winaddr=0x%lx ioaddr=0x%lx\n",
-		        (ulong)cy_pci_addr2, (ulong)cy_pci_addr1);
+                    printk("Cyclom-Y/PCI:found  winaddr=0x%lx ctladdr=0x%lx\n",
+		        (ulong)cy_pci_addr2, (ulong)cy_pci_addr0);
 	            printk("Cyclom-Y/PCI not supported for low addresses in "
                            "Alpha systems.\n");
 		    i--;
 	            continue;
                 }
 #else
-                    cy_pci_addr2 = (ulong) ioremap(cy_pci_addr2, CyPCI_Ywin);
+		    cy_pci_addr0 = (ulong)ioremap(cy_pci_addr0, CyPCI_Yctl);
+		    cy_pci_addr2 = (ulong)ioremap(cy_pci_addr2, CyPCI_Ywin);
 #endif
 
 #ifdef CY_PCI_DEBUG
-            printk("Cyclom-Y/PCI: relocate winaddr=0x%lx ioaddr=0x%lx\n",
-		(u_long)cy_pci_addr2, (u_long)cy_pci_addr1);
+            printk("Cyclom-Y/PCI: relocate winaddr=0x%lx ctladdr=0x%lx\n",
+		(u_long)cy_pci_addr2, (u_long)cy_pci_addr0);
 #endif
                 cy_pci_nchan = (unsigned short)(CyPORTS_PER_CHIP * 
                        cyy_init_card((volatile ucchar *)cy_pci_addr2, 1));
@@ -4652,7 +4655,7 @@ cy_detect_pci(void))
 
                 /* set cy_card */
                 cy_card[j].base_addr = (ulong)cy_pci_addr2;
-                cy_card[j].ctl_addr = 0;
+                cy_card[j].ctl_addr = (ulong)cy_pci_addr0;
                 cy_card[j].irq = (int) cy_pci_irq;
                 cy_card[j].bus_index = 1;
                 cy_card[j].first_line = cy_next_channel;
@@ -4664,20 +4667,16 @@ cy_detect_pci(void))
 		switch (plx_ver) {
 		    case PLX_9050:
 
-		    outw(inw(cy_pci_addr1+0x4c)|0x0040,cy_pci_addr1+0x4c);
-		    pci_intr_ctrl = (unsigned long)
-				(inw(cy_pci_addr1+0x4c)
-				| inw(cy_pci_addr1+0x4e)<<16);
+		    cy_writew(cy_pci_addr0+0x4c, 
+			cy_readw(cy_pci_addr0+0x4c)|0x0040);
 		    break;
 
 		    case PLX_9060:
 		    case PLX_9080:
 		    default: /* Old boards, use PLX_9060 */
 
-		    outw(inw(cy_pci_addr1+0x68)|0x0900,cy_pci_addr1+0x68);
-		    pci_intr_ctrl = (unsigned long)
-				(inw(cy_pci_addr1+0x68)
-				| inw(cy_pci_addr1+0x6a)<<16);
+		    cy_writew(cy_pci_addr0+0x68, 
+			cy_readw(cy_pci_addr0+0x68)|0x0900);
 		    break;
 		}
 
@@ -4712,20 +4711,14 @@ cy_detect_pci(void))
 #endif
                 cy_pci_addr0 &= PCI_BASE_ADDRESS_MEM_MASK;
 #if !defined(__alpha__)
-                cy_pci_addr0 = (unsigned int) ioremap(
-                               cy_pci_addr0 & PAGE_MASK,
-                               PAGE_ALIGN(CyPCI_Zctl))
-                               + (cy_pci_addr0 & (PAGE_SIZE-1));
+                cy_pci_addr0 = (ulong)ioremap(cy_pci_addr0, CyPCI_Zctl);
 #endif
 		mailbox = (uclong)cy_readl(&((struct RUNTIME_9060 *) 
 			   cy_pci_addr0)->mail_box_0);
                 cy_pci_addr2 &= PCI_BASE_ADDRESS_MEM_MASK;
 		if (mailbox == ZE_V1) {
 #if !defined(__alpha__)
-               	    cy_pci_addr2 = (unsigned int) ioremap(
-	            	cy_pci_addr2 & PAGE_MASK,
-	            	PAGE_ALIGN(CyPCI_Ze_win))
-	            	+ (cy_pci_addr2 & (PAGE_SIZE-1));
+               	    cy_pci_addr2 = (ulong)ioremap(cy_pci_addr2, CyPCI_Ze_win);
 #endif
 		    if (ZeIndex == NR_CARDS) {
 			printk("Cyclades-Ze/PCI found at 0x%lx ",
@@ -4741,10 +4734,7 @@ cy_detect_pci(void))
 		    continue;
 		} else {
 #if !defined(__alpha__)
-                    cy_pci_addr2 = (unsigned int) ioremap(
-			cy_pci_addr2 & PAGE_MASK,
-			PAGE_ALIGN(CyPCI_Zwin))
-			+ (cy_pci_addr2 & (PAGE_SIZE-1));
+                    cy_pci_addr2 = (ulong)ioremap(cy_pci_addr2, CyPCI_Zwin);
 #endif
 		}
 
@@ -4952,7 +4942,6 @@ show_version(void)
 	__DATE__, __TIME__);
 } /* show_version */
 
-#ifdef CONFIG_PROC_FS
 static int 
 cyclades_get_proc_info(char *buf, char **start, off_t offset, int length,
 		       int *eof, void *data)
@@ -5009,7 +4998,6 @@ done:
 	len = 0;
     return len;
 }
-#endif
 
 
 /* The serial driver boot-time initialization code!
@@ -5281,15 +5269,8 @@ cy_init(void))
 #endif
     }
 
-#ifdef CONFIG_PROC_FS
         ent = create_proc_entry("cyclades", S_IFREG | S_IRUGO, 0);
         ent->read_proc = cyclades_get_proc_info;
-#endif
-#if 0
-#ifdef CONFIG_PROC_FS
-    proc_register(&proc_root, &cyclades_proc_entry);
-#endif
-#endif
 
     return 0;
     

@@ -100,6 +100,7 @@ extern struct display_switch fbcon_dummy;
 #define __SCROLL_YFIXED		0x010
 #define __SCROLL_YNOMOVE	0x020
 #define __SCROLL_YPANREDRAW	0x040
+#define __SCROLL_YNOPARTIAL	0x080
 
 /* Only these should be used by the drivers */
 /* Which one should you use? If you have a fast card and slow bus,
@@ -116,6 +117,15 @@ extern struct display_switch fbcon_dummy;
  */
 #define SCROLL_YREDRAW		(__SCROLL_YFIXED|__SCROLL_YREDRAW)
 #define SCROLL_YNOMOVE		(__SCROLL_YNOMOVE|__SCROLL_YPANREDRAW)
+
+/* SCROLL_YNOPARTIAL, used in combination with the above, is for video
+   cards which can not handle using panning to scroll a portion of the
+   screen without excessive flicker.  Panning will only be used for
+   whole screens.
+ */
+/* Namespace consistency */
+#define SCROLL_YNOPARTIAL	__SCROLL_YNOPARTIAL
+
 
 extern void fbcon_redraw_bmove(struct display *, int, int, int, int, int, int);
 
@@ -431,6 +441,7 @@ static __inline__ void *mymemset(void *s, size_t count)
 
 static __inline__ void fast_memmove(void *d, const void *s, size_t count)
 {
+  int d0, d1, d2, d3;
     if (d < s) {
 __asm__ __volatile__ (
 	"cld\n\t"
@@ -442,9 +453,9 @@ __asm__ __volatile__ (
 	"movsw\n"
 	"2:\trep\n\t"
 	"movsl"
-	: /* no output */
-	:"c"(count),"D"((long)d),"S"((long)s)
-	:"cx","di","si","memory");
+	: "=&c" (d0), "=&D" (d1), "=&S" (d2)
+	:"0"(count),"1"((long)d),"2"((long)s)
+	:"memory");
     } else {
 __asm__ __volatile__ (
 	"std\n\t"
@@ -465,9 +476,9 @@ __asm__ __volatile__ (
 	"2:\trep\n\t"
 	"movsl\n\t"
 	"cld"
-	: /* no output */
-	:"c"(count),"D"(count-4+(long)d),"S"(count-4+(long)s)
-	:"ax","cx","di","si","memory");
+	: "=&c" (d0), "=&D" (d1), "=&S" (d2), "=&a" (d3)
+	:"0"(count),"1"(count-4+(long)d),"2"(count-4+(long)s)
+	:"memory");
     }
 }
 

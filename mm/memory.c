@@ -126,48 +126,36 @@ int check_pgt_cache(void)
  * This function clears all user-level page tables of a process - this
  * is needed by execve(), so that old pages aren't in the way.
  */
-void clear_page_tables(struct task_struct * tsk)
+void clear_page_tables(struct mm_struct *mm, unsigned long first, int nr)
 {
-	pgd_t * page_dir = tsk->mm->pgd;
-	int i;
+	pgd_t * page_dir = mm->pgd;
 
-	if (!page_dir || page_dir == swapper_pg_dir)
-		goto out_bad;
-	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
-		free_one_pgd(page_dir + i);
+	if (page_dir && page_dir != swapper_pg_dir) {
+		page_dir += first;
+		do {
+			free_one_pgd(page_dir);
+			page_dir++;
+		} while (--nr);
 
-	/* keep the page table cache within bounds */
-	check_pgt_cache();
-	return;
-
-out_bad:
-	printk(KERN_ERR 
-		"clear_page_tables: %s trying to clear kernel pgd\n",
-		tsk->comm);
-	return;
+		/* keep the page table cache within bounds */
+		check_pgt_cache();
+	}
 }
 
 /*
- * This function frees up all page tables of a process when it exits. It
- * is the same as "clear_page_tables()", except it also frees the old
- * page table directory.
+ * This function just free's the page directory - the
+ * pages tables themselves have been freed earlier by 
+ * clear_page_tables().
  */
 void free_page_tables(struct mm_struct * mm)
 {
 	pgd_t * page_dir = mm->pgd;
-	int i;
 
-	if (!page_dir)
-		goto out;
-	if (page_dir == swapper_pg_dir)
-		goto out_bad;
-	for (i = 0 ; i < USER_PTRS_PER_PGD ; i++)
-		free_one_pgd(page_dir + i);
-	pgd_free(page_dir);
-
-	/* keep the page table cache within bounds */
-	check_pgt_cache();
-out:
+	if (page_dir) {
+		if (page_dir == swapper_pg_dir)
+			goto out_bad;
+		pgd_free(page_dir);
+	}
 	return;
 
 out_bad:
@@ -204,7 +192,7 @@ int copy_page_range(struct mm_struct *dst, struct mm_struct *src,
 	pgd_t * src_pgd, * dst_pgd;
 	unsigned long address = vma->vm_start;
 	unsigned long end = vma->vm_end;
-	unsigned long cow = (vma->vm_flags & (VM_SHARED | VM_WRITE)) == VM_WRITE;
+	unsigned long cow = (vma->vm_flags & (VM_SHARED | VM_MAYWRITE)) == VM_MAYWRITE;
 	
 	src_pgd = pgd_offset(src, address)-1;
 	dst_pgd = pgd_offset(dst, address)-1;
@@ -277,10 +265,15 @@ skip_copy_pte_range:		address = (address + PMD_SIZE) & PMD_MASK;
 					set_pte(dst_pte, pte);
 					goto cont_copy_pte_range;
 				}
-				if (cow)
+				/* If it's a COW mapping, write protect it both in the parent and the child */
+				if (cow) {
 					pte = pte_wrprotect(pte);
+					set_pte(src_pte, pte);
+				}
+				/* If it's a shared mapping, mark it clean in the child */
+				if (vma->vm_flags & VM_SHARED)
+					pte = pte_mkclean(pte);
 				set_pte(dst_pte, pte_mkold(pte));
-				set_pte(src_pte, pte);
 				atomic_inc(&mem_map[page_nr].count);
 			
 cont_copy_pte_range:		address += PAGE_SIZE;
@@ -644,37 +637,47 @@ static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	page_map = mem_map + MAP_NR(old_page);
 	
 	/*
-	 * Do we need to copy?
+	 * We can avoid the copy if:
+	 * - we're the only user (count == 1)
+	 * - the only other user is the swap cache,
+	 *   and the only swap cache user is itself,
+	 *   in which case we can remove the page
+	 *   from the swap cache.
 	 */
-	if (is_page_shared(page_map)) {
+	switch (atomic_read(&page_map->count)) {
+	case 2:
+		if (!PageSwapCache(page_map))
+			break;
+		if (swap_count(page_map->offset) != 1)
+			break;
+		delete_from_swap_cache(page_map);
+		/* FallThrough */
+	case 1:
+		/* We can release the kernel lock now.. */
 		unlock_kernel();
-		if (!new_page)
-			return 0;
 
-		if (PageReserved(mem_map + MAP_NR(old_page)))
-			++vma->vm_mm->rss;
-		copy_cow_page(old_page,new_page);
-		flush_page_to_ram(old_page);
-		flush_page_to_ram(new_page);
 		flush_cache_page(vma, address);
-		set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
-		free_page(old_page);
+		set_pte(page_table, pte_mkdirty(pte_mkwrite(pte)));
 		flush_tlb_page(vma, address);
+end_wp_page:
+		if (new_page)
+			free_page(new_page);
 		return 1;
 	}
-
-	if (PageSwapCache(page_map))
-		delete_from_swap_cache(page_map);
-
-	/* We can release the kernel lock now.. */
+		
 	unlock_kernel();
+	if (!new_page)
+		return 0;
 
+	if (PageReserved(mem_map + MAP_NR(old_page)))
+		++vma->vm_mm->rss;
+	copy_cow_page(old_page,new_page);
+	flush_page_to_ram(old_page);
+	flush_page_to_ram(new_page);
 	flush_cache_page(vma, address);
-	set_pte(page_table, pte_mkdirty(pte_mkwrite(pte)));
+	set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
+	free_page(old_page);
 	flush_tlb_page(vma, address);
-end_wp_page:
-	if (new_page)
-		free_page(new_page);
 	return 1;
 
 bad_wp_page:

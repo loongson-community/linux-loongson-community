@@ -107,6 +107,9 @@ extern void alpha_switch_to(unsigned long pctxp);
 #define mb() \
 __asm__ __volatile__("mb": : :"memory")
 
+#define rmb() \
+__asm__ __volatile__("mb": : :"memory")
+
 #define wmb() \
 __asm__ __volatile__("wmb": : :"memory")
 
@@ -115,6 +118,24 @@ __asm__ __volatile__ ("call_pal %0 #imb" : : "i" (PAL_imb) : "memory")
 
 #define draina() \
 __asm__ __volatile__ ("call_pal %0 #draina" : : "i" (PAL_draina) : "memory")
+
+
+static inline unsigned long 
+wrperfmon(unsigned long perf_fun, unsigned long arg)
+{
+          register unsigned long __r0 __asm__("$0");
+	  register unsigned long __r16 __asm__("$16");
+	  register unsigned long __r17 __asm__("$17");
+	  __r16 = perf_fun;
+	  __r17 = arg;
+	  __asm__ __volatile__(
+		  "call_pal %1"
+		  : "=r"(__r0)
+		  : "i"(PAL_wrperfmon), "r"(__r16), "r"(__r17)
+		  : "$1", "$22", "$23", "$24", "$25", "$26");
+	  return __r0;
+}
+
 
 #define call_pal1(palno,arg)						\
 ({									\
@@ -226,14 +247,14 @@ extern __inline__ unsigned long xchg_u32(volatile int *m, unsigned long val)
 
 	__asm__ __volatile__(
 	"1:	ldl_l %0,%2\n"
-	"	bis %3,%3,%1\n"
+	"	bis $31,%3,%1\n"
 	"	stl_c %1,%2\n"
 	"	beq %1,2f\n"
 	".section .text2,\"ax\"\n"
 	"2:	br 1b\n"
 	".previous"
 	: "=&r" (val), "=&r" (dummy), "=m" (*m)
-	: "r" (val), "m" (*m));
+	: "rI" (val), "m" (*m));
 
 	return val;
 }
@@ -244,14 +265,14 @@ extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
 
 	__asm__ __volatile__(
 	"1:	ldq_l %0,%2\n"
-	"	bis %3,%3,%1\n"
+	"	bis $31,%3,%1\n"
 	"	stq_c %1,%2\n"
 	"	beq %1,2f\n"
 	".section .text2,\"ax\"\n"
 	"2:	br 1b\n"
 	".previous"
 	: "=&r" (val), "=&r" (dummy), "=m" (*m)
-	: "r" (val), "m" (*m));
+	: "rI" (val), "m" (*m));
 
 	return val;
 }

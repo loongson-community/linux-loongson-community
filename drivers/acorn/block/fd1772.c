@@ -1039,7 +1039,7 @@ static void fd_rwsec_done(int status)
 static void fd_times_out(unsigned long dummy)
 {
 	SET_IRQ_HANDLER(NULL);
-	/* If the timeout occured while the readtrack_check timer was
+	/* If the timeout occurred while the readtrack_check timer was
 	 * active, we need to cancel it, else bad things will happen */
 	del_timer( &readtrack_timer ); 
 	FDC1772_WRITE(FDC1772REG_CMD, FDC1772CMD_FORCI);
@@ -1090,7 +1090,7 @@ static void finish_fdc_done(int dummy)
 	NeedSeek = 0;
 
 	if ((timer_active & (1 << FLOPPY_TIMER)) &&
-	    timer_table[FLOPPY_TIMER].expires < jiffies + 5)
+	    time_after(jiffies + 5, timer_table[FLOPPY_TIMER].expires)) 
 		/* If the check for a disk change is done too early after this
 		 * last seek command, the WP bit still reads wrong :-((
 		 */
@@ -1424,7 +1424,7 @@ static int fd_test_drive_present(int drive)
 	FDC1772_WRITE(FDC1772REG_CMD, FDC1772CMD_RESTORE | FDC1772CMDADD_H | FDC1772STEP_6);
 
 	/*printk("fd_test_drive_present: Going into timeout loop\n"); */
-	for (ok = 0, timeout = jiffies + 2 * HZ + HZ / 2; jiffies < timeout;) {
+	for (ok = 0, timeout = jiffies + 2 * HZ + HZ / 2; time_before(jiffies, timeout);) {
 		/*  What does this piece of atariism do? - query for an interrupt? */
 		/*  if (!(mfp.par_dt_reg & 0x20))
 		   break; */

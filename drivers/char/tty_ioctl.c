@@ -52,7 +52,6 @@ void tty_wait_until_sent(struct tty_struct * tty, long timeout)
 	if (!tty->driver.chars_in_buffer)
 		return;
 	add_wait_queue(&tty->write_wait, &wait);
-	current->counter = 0;	/* make us low-priority */
 	if (!timeout)
 		timeout = MAX_SCHEDULE_TIMEOUT;
 	do {
@@ -210,11 +209,12 @@ static int get_sgflags(struct tty_struct * tty)
 {
 	int flags = 0;
 
-	if (!(tty->termios->c_lflag & ICANON))
+	if (!(tty->termios->c_lflag & ICANON)) {
 		if (tty->termios->c_lflag & ISIG)
 			flags |= 0x02;		/* cbreak */
 		else
 			flags |= 0x20;		/* raw */
+	}
 	if (tty->termios->c_lflag & ECHO)
 		flags |= 0x08;			/* echo */
 	if (tty->termios->c_oflag & OPOST)

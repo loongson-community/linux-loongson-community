@@ -90,33 +90,6 @@ static inline void remove_mem_queue(struct page * entry)
  */
 spinlock_t page_alloc_lock = SPIN_LOCK_UNLOCKED;
 
-/*
- * This routine is used by the kernel swap daemon to determine
- * whether we have "enough" free pages. It is fairly arbitrary,
- * having a low-water and high-water mark.
- *
- * This returns:
- *  0 - urgent need for memory
- *  1 - need some memory, but do it slowly in the background
- *  2 - no need to even think about it.
- */
-int free_memory_available(void)
-{
-	static int available = 1;
-
-	if (nr_free_pages < freepages.low) {
-		available = 0;
-		return 0;
-	}
-
-	if (nr_free_pages > freepages.high) {
-		available = 1;
-		return 2;
-	}
-
-	return available;
-}
-
 static inline void free_pages_ok(unsigned long map_nr, unsigned long order)
 {
 	struct free_area_struct *area = free_area + order;
@@ -151,14 +124,10 @@ void __free_page(struct page *page)
 	if (!PageReserved(page) && atomic_dec_and_test(&page->count)) {
 		if (PageSwapCache(page))
 			panic ("Freeing swap cache page");
-		free_pages_ok(page->map_nr, 0);
+		page->flags &= ~(1 << PG_referenced);
+		free_pages_ok(page - mem_map, 0);
 		return;
 	}
-#if 0
-	if (PageSwapCache(page) && atomic_read(&page->count) == 1)
-		printk(KERN_WARNING "VM: Releasing swap cache page at %p",
-			__builtin_return_address(0));
-#endif
 }
 
 void free_pages(unsigned long addr, unsigned long order)
@@ -172,15 +141,10 @@ void free_pages(unsigned long addr, unsigned long order)
 		if (atomic_dec_and_test(&map->count)) {
 			if (PageSwapCache(map))
 				panic ("Freeing swap cache pages");
+			map->flags &= ~(1 << PG_referenced);
 			free_pages_ok(map_nr, order);
 			return;
 		}
-#if 0
-		if (PageSwapCache(map) && atomic_read(&map->count) == 1)
-			printk(KERN_WARNING 
-				"VM: Releasing swap cache pages at %p",
-				__builtin_return_address(0));
-#endif
 	}
 }
 
@@ -191,14 +155,15 @@ void free_pages(unsigned long addr, unsigned long order)
 	change_bit((index) >> (1+(order)), (area)->map)
 #define CAN_DMA(x) (PageDMA(x))
 #define ADDRESS(x) (PAGE_OFFSET + ((x) << PAGE_SHIFT))
-#define RMQUEUE(order, dma) \
+#define RMQUEUE(order, gfp_mask) \
 do { struct free_area_struct * area = free_area+order; \
      unsigned long new_order = order; \
 	do { struct page *prev = memory_head(area), *ret = prev->next; \
 		while (memory_head(area) != ret) { \
-			if (!dma || CAN_DMA(ret)) { \
-				unsigned long map_nr = ret->map_nr; \
+			if (!(gfp_mask & __GFP_DMA) || CAN_DMA(ret)) { \
+				unsigned long map_nr; \
 				(prev->next = ret->next)->prev = prev; \
+				map_nr = ret - mem_map; \
 				MARK_USED(map_nr, new_order, area); \
 				nr_free_pages -= 1 << order; \
 				EXPAND(ret, map_nr, order, new_order, area); \
@@ -224,6 +189,8 @@ do { unsigned long size = 1 << high; \
 	atomic_set(&map->count, 1); \
 } while (0)
 
+int low_on_memory = 0;
+
 unsigned long __get_free_pages(int gfp_mask, unsigned long order)
 {
 	unsigned long flags;
@@ -231,30 +198,45 @@ unsigned long __get_free_pages(int gfp_mask, unsigned long order)
 	if (order >= NR_MEM_LISTS)
 		goto nopage;
 
-	if (gfp_mask & __GFP_WAIT) {
-		if (in_interrupt()) {
-			static int count = 0;
-			if (++count < 5) {
-				printk("gfp called nonatomically from interrupt %p\n",
-					__builtin_return_address(0));
+#ifdef ATOMIC_MEMORY_DEBUGGING
+	if ((gfp_mask & __GFP_WAIT) && in_interrupt()) {
+		static int count = 0;
+		if (++count < 5) {
+			printk("gfp called nonatomically from interrupt %p\n",
+				__builtin_return_address(0));
+		}
+		goto nopage;
+	}
+#endif
+
+	/*
+	 * If this is a recursive call, we'd better
+	 * do our best to just allocate things without
+	 * further thought.
+	 */
+	if (!(current->flags & PF_MEMALLOC)) {
+		int freed;
+
+		if (nr_free_pages > freepages.min) {
+			if (!low_on_memory)
+				goto ok_to_allocate;
+			if (nr_free_pages >= freepages.high) {
+				low_on_memory = 0;
+				goto ok_to_allocate;
 			}
-			goto nopage;
 		}
 
-		if (freepages.min > nr_free_pages) {
-			int freed;
-			freed = try_to_free_pages(gfp_mask, SWAP_CLUSTER_MAX);
-			/*
-			 * Low priority (user) allocations must not
-			 * succeed if we didn't have enough memory
-			 * and we couldn't get more..
-			 */
-			if (!freed && !(gfp_mask & (__GFP_MED | __GFP_HIGH)))
-				goto nopage;
-		}
+		low_on_memory = 1;
+		current->flags |= PF_MEMALLOC;
+		freed = try_to_free_pages(gfp_mask);
+		current->flags &= ~PF_MEMALLOC;
+
+		if (!freed && !(gfp_mask & (__GFP_MED | __GFP_HIGH)))
+			goto nopage;
 	}
+ok_to_allocate:
 	spin_lock_irqsave(&page_alloc_lock, flags);
-	RMQUEUE(order, (gfp_mask & GFP_DMA));
+	RMQUEUE(order, gfp_mask);
 	spin_unlock_irqrestore(&page_alloc_lock, flags);
 
 	/*
@@ -341,7 +323,6 @@ unsigned long __init free_area_init(unsigned long start_mem, unsigned long end_m
 		--p;
 		atomic_set(&p->count, 0);
 		p->flags = (1 << PG_DMA) | (1 << PG_reserved);
-		p->map_nr = p - mem_map;
 	} while (p > mem_map);
 
 	for (i = 0 ; i < NR_MEM_LISTS ; i++) {
@@ -359,6 +340,46 @@ unsigned long __init free_area_init(unsigned long start_mem, unsigned long end_m
 	return start_mem;
 }
 
+/* 
+ * Primitive swap readahead code. We simply read an aligned block of
+ * (1 << page_cluster) entries in the swap area. This method is chosen
+ * because it doesn't cost us any seek time.  We also make sure to queue
+ * the 'original' request together with the readahead ones...  
+ */
+void swapin_readahead(unsigned long entry)
+{
+	int i;
+	struct page *new_page;
+	unsigned long offset = SWP_OFFSET(entry);
+	struct swap_info_struct *swapdev = SWP_TYPE(entry) + swap_info;
+	
+	offset = (offset >> page_cluster) << page_cluster;
+
+	i = 1 << page_cluster;
+	do {
+		/* Don't read-ahead past the end of the swap area */
+		if (offset >= swapdev->max)
+			break;
+		/* Don't block on I/O for read-ahead */
+		if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster)
+			break;
+		/* Don't read in bad or busy pages */
+		if (!swapdev->swap_map[offset])
+			break;
+		if (swapdev->swap_map[offset] == SWAP_MAP_BAD)
+			break;
+		if (test_bit(offset, swapdev->swap_lockmap))
+			break;
+
+		/* Ok, do the async read-ahead now */
+		new_page = read_swap_cache_async(SWP_ENTRY(SWP_TYPE(entry), offset), 0);
+		if (new_page != NULL)
+			__free_page(new_page);
+		offset++;
+	} while (--i);
+	return;
+}
+
 /*
  * The tests may look silly, but it essentially makes sure that
  * no other process did a swap-in on us just as we were waiting.
@@ -370,10 +391,12 @@ void swap_in(struct task_struct * tsk, struct vm_area_struct * vma,
 	pte_t * page_table, unsigned long entry, int write_access)
 {
 	unsigned long page;
-	struct page *page_map;
-	
-	page_map = read_swap_cache(entry);
+	struct page *page_map = lookup_swap_cache(entry);
 
+	if (!page_map) {
+		swapin_readahead(entry);
+		page_map = read_swap_cache(entry);
+	}
 	if (pte_val(*page_table) != entry) {
 		if (page_map)
 			free_page_and_swap_cache(page_address(page_map));

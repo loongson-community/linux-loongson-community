@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.6 1998/10/28 12:40:06 ralf Exp $
+ * $Id: keyboard.h,v 1.7 1999/02/01 15:51:16 ralf Exp $
  */
 
 /*
@@ -15,7 +15,6 @@
 
 #ifdef __KERNEL__
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <asm/io.h>
 
@@ -64,19 +63,8 @@ extern unsigned char pckbd_sysrq_xlate[128];
 
 #define AUX_IRQ 12
 
-#ifdef CONFIG_MCA
-
-#define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, \
-	MCA_bus ? SA_SHIRQ : 0, "PS/2 Mouse", dev_id)
-#define aux_free_irq(dev_id) free_irq(AUX_IRQ, dev_id)
-
-#else /* !defined(CONFIG_MCA) */
-
-#define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, 0, \
-	"PS/2 Mouse", NULL)
-#define aux_free_irq(dev_id) free_irq(AUX_IRQ, NULL)
-
-#endif
+#define aux_free_irq(dev_id) free_irq(AUX_IRQ, AUX_DEV)
+request_irq(AUX_IRQ, keyboard_interrupt, SA_SHIRQ, "PS/2 Mouse", AUX_DEV)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_i386_KEYBOARD_H */

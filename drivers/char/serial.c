@@ -156,7 +156,7 @@
 #endif
 	
 static char *serial_name = "Serial driver";
-static char *serial_version = "4.26";
+static char *serial_version = "4.27";
 
 static DECLARE_TASK_QUEUE(tq_serial);
 
@@ -182,7 +182,7 @@ static struct console sercons;
 
 static unsigned detect_uart_irq (struct serial_state * state);
 static void autoconfig(struct serial_state * info);
-static void change_speed(struct async_struct *info);
+static void change_speed(struct async_struct *info, struct termios *old);
 static void rs_wait_until_sent(struct tty_struct *tty, int timeout);
 
 /*
@@ -196,7 +196,7 @@ static struct serial_uart_config uart_config[] = {
 	{ "16550", 1, 0 }, 
 	{ "16550A", 16, UART_CLEAR_FIFO | UART_USE_FIFO }, 
 	{ "cirrus", 1, 0 }, 
-	{ "ST16650", 1, UART_CLEAR_FIFO |UART_STARTECH }, 
+	{ "ST16650", 1, UART_CLEAR_FIFO | UART_STARTECH }, 
 	{ "ST16650V2", 32, UART_CLEAR_FIFO | UART_USE_FIFO |
 		  UART_STARTECH }, 
 	{ "TI16750", 64, UART_CLEAR_FIFO | UART_USE_FIFO},
@@ -1132,7 +1132,7 @@ static int startup(struct async_struct * info)
 	/*
 	 * and set the speed of the serial port
 	 */
-	change_speed(info);
+	change_speed(info, 0);
 
 	info->flags |= ASYNC_INITIALIZED;
 	restore_flags(flags);
@@ -1255,7 +1255,8 @@ static void shutdown(struct async_struct * info)
  * This routine is called to set the UART divisor registers to match
  * the specified baud rate for a serial port.
  */
-static void change_speed(struct async_struct *info)
+static void change_speed(struct async_struct *info,
+			 struct termios *old_termios)
 {
 	unsigned short port;
 	int	quot = 0, baud_base, baud;
@@ -1306,7 +1307,25 @@ static void change_speed(struct async_struct *info)
 		else if (baud)
 			quot = baud_base / baud;
 	}
-	/* If the quotient is ever zero, default to 9600 bps */
+	/* If the quotient is zero refuse the change */
+	if (!quot && old_termios) {
+		info->tty->termios->c_cflag &= ~CBAUD;
+		info->tty->termios->c_cflag |= (old_termios->c_cflag & CBAUD);
+		baud = tty_get_baud_rate(info->tty);
+		if (!baud)
+			baud = 9600;
+		if (baud == 38400 &&
+		    ((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_CUST))
+			quot = info->state->custom_divisor;
+		else {
+			if (baud == 134)
+				/* Special case since 134 is really 134.5 */
+				quot = (2*baud_base / 269);
+			else if (baud)
+				quot = baud_base / baud;
+		}
+	}
+	/* As a last resort, if the quotient is zero, default to 9600 bps */
 	if (!quot)
 		quot = baud_base / 9600;
 	info->quot = quot;
@@ -1675,8 +1694,8 @@ static int set_serial_info(struct async_struct * info,
 			return -EPERM;
 		state->flags = ((state->flags & ~ASYNC_USR_MASK) |
 			       (new_serial.flags & ASYNC_USR_MASK));
-		info->flags = ((state->flags & ~ASYNC_USR_MASK) |
-			       (info->flags & ASYNC_USR_MASK));
+		info->flags = ((info->flags & ~ASYNC_USR_MASK) |
+			       (new_serial.flags & ASYNC_USR_MASK));
 		state->custom_divisor = new_serial.custom_divisor;
 		goto check_and_exit;
 	}
@@ -1684,7 +1703,7 @@ static int set_serial_info(struct async_struct * info,
 	new_serial.irq = irq_cannonicalize(new_serial.irq);
 
 	if ((new_serial.irq >= NR_IRQS) || (new_serial.port > 0xffff) ||
-	    (new_serial.baud_base == 0) || (new_serial.type < PORT_UNKNOWN) ||
+	    (new_serial.baud_base < 9600)|| (new_serial.type < PORT_UNKNOWN) ||
 	    (new_serial.type > PORT_MAX) || (new_serial.type == PORT_CIRRUS) ||
 	    (new_serial.type == PORT_STARTECH)) {
 		return -EINVAL;
@@ -1755,7 +1774,7 @@ check_and_exit:
 				info->tty->alt_speed = 230400;
 			if ((state->flags & ASYNC_SPD_MASK) == ASYNC_SPD_WARP)
 				info->tty->alt_speed = 460800;
-			change_speed(info);
+			change_speed(info, 0);
 		}
 	} else
 		retval = startup(info);
@@ -2025,7 +2044,6 @@ static int set_multiport_struct(struct async_struct * info,
 			       "driver!!\n");
 		}
 	}
-
 	return 0;
 }
 #endif
@@ -2172,7 +2190,7 @@ static void rs_set_termios(struct tty_struct *tty, struct termios *old_termios)
 		== RELEVANT_IFLAG(old_termios->c_iflag)))
 	  return;
 
-	change_speed(info);
+	change_speed(info, old_termios);
 
 	/* Handle transition to B0 status */
 	if ((old_termios->c_cflag & CBAUD) &&
@@ -2360,6 +2378,17 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 		char_time = 1;
 	if (timeout)
 	  char_time = MIN(char_time, timeout);
+	/*
+	 * If the transmitter hasn't cleared in twice the approximate
+	 * amount of time to send the entire FIFO, it probably won't
+	 * ever clear.  This assumes the UART isn't doing flow
+	 * control, which is currently the case.  Hence, if it ever
+	 * takes longer than info->timeout, this is probably due to a
+	 * UART bug of some kind.  So, we clamp the timeout parameter at
+	 * 2*info->timeout.
+	 */
+	if (!timeout || timeout > 2*info->timeout)
+		timeout = 2*info->timeout;
 #ifdef SERIAL_DEBUG_RS_WAIT_UNTIL_SENT
 	printk("In rs_wait_until_sent(%d) check=%lu...", timeout, char_time);
 	printk("jiff=%lu...", jiffies);
@@ -2373,7 +2402,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 		schedule_timeout(char_time);
 		if (signal_pending(current))
 			break;
-		if (timeout && ((orig_jiffies + timeout) < jiffies))
+		if (timeout && time_after(jiffies, orig_jiffies + timeout))
 			break;
 	}
 	current->state = TASK_RUNNING;
@@ -2667,13 +2696,13 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 			*tty->termios = info->state->normal_termios;
 		else 
 			*tty->termios = info->state->callout_termios;
-		change_speed(info);
+		change_speed(info, 0);
 	}
 #ifdef CONFIG_SERIAL_CONSOLE
 	if (sercons.cflag && sercons.index == line) {
 		tty->termios->c_cflag = sercons.cflag;
 		sercons.cflag = 0;
-		change_speed(info);
+		change_speed(info, 0);
 	}
 #endif
 	info->session = current->session;
@@ -2903,8 +2932,8 @@ static unsigned detect_uart_irq (struct serial_state * state)
  * This routine is called by rs_init() to initialize a specific serial
  * port.  It determines what type of UART chip this serial port is
  * using: 8250, 16450, 16550, 16550A.  The important question is
- * whether or not this UART is a 16550A or not, since this will
- * determine whether or not we can use its FIFO features or not.
+ * whether or not this UART is a 16550A, since this will determine
+ * whether or not we can use its FIFO features.
  */
 static void autoconfig(struct serial_state * state)
 {

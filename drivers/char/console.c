@@ -1029,7 +1029,7 @@ static void csi_m(int currcons)
 				  */
 				translate = set_translate(charset == 0
 						? G0_charset
-						: G1_charset);
+						: G1_charset,currcons);
 				disp_ctrl = 0;
 				toggle_meta = 0;
 				break;
@@ -1037,7 +1037,7 @@ static void csi_m(int currcons)
 				  * Select first alternate font, let's
 				  * chars < 32 be displayed as ROM chars.
 				  */
-				translate = set_translate(IBMPC_MAP);
+				translate = set_translate(IBMPC_MAP,currcons);
 				disp_ctrl = 1;
 				toggle_meta = 0;
 				break;
@@ -1045,7 +1045,7 @@ static void csi_m(int currcons)
 				  * Select second alternate font, toggle
 				  * high bit before displaying as ROM char.
 				  */
-				translate = set_translate(IBMPC_MAP);
+				translate = set_translate(IBMPC_MAP,currcons);
 				disp_ctrl = 1;
 				toggle_meta = 1;
 				break;
@@ -1221,6 +1221,8 @@ static void setterm_command(int currcons)
 			break;
 		case 8:	/* store colors as defaults */
 			def_color = attr;
+			if (hi_font_mask == 0x100)
+				def_color >>= 1;
 			default_attr(currcons);
 			update_attr(currcons);
 			break;
@@ -1328,7 +1330,7 @@ static void restore_cur(int currcons)
 	color		= s_color;
 	G0_charset	= saved_G0;
 	G1_charset	= saved_G1;
-	translate	= set_translate(charset ? G1_charset : G0_charset);
+	translate	= set_translate(charset ? G1_charset : G0_charset,currcons);
 	update_attr(currcons);
 	need_wrap = 0;
 }
@@ -1343,7 +1345,7 @@ static void reset_terminal(int currcons, int do_clear)
 	bottom		= video_num_lines;
 	vc_state	= ESnormal;
 	ques		= 0;
-	translate	= set_translate(LAT1_MAP);
+	translate	= set_translate(LAT1_MAP,currcons);
 	G0_charset	= LAT1_MAP;
 	G1_charset	= GRAF_MAP;
 	charset		= 0;
@@ -1426,12 +1428,12 @@ static void do_con_trol(struct tty_struct *tty, unsigned int currcons, int c)
 		return;
 	case 14:
 		charset = 1;
-		translate = set_translate(G1_charset);
+		translate = set_translate(G1_charset,currcons);
 		disp_ctrl = 1;
 		return;
 	case 15:
 		charset = 0;
-		translate = set_translate(G0_charset);
+		translate = set_translate(G0_charset,currcons);
 		disp_ctrl = 0;
 		return;
 	case 24: case 26:
@@ -1738,7 +1740,7 @@ static void do_con_trol(struct tty_struct *tty, unsigned int currcons, int c)
 		else if (c == 'K')
 			G0_charset = USER_MAP;
 		if (charset == 0)
-			translate = set_translate(G0_charset);
+			translate = set_translate(G0_charset,currcons);
 		vc_state = ESnormal;
 		return;
 	case ESsetG1:
@@ -1751,7 +1753,7 @@ static void do_con_trol(struct tty_struct *tty, unsigned int currcons, int c)
 		else if (c == 'K')
 			G1_charset = USER_MAP;
 		if (charset == 1)
-			translate = set_translate(G1_charset);
+			translate = set_translate(G1_charset,currcons);
 		vc_state = ESnormal;
 		return;
 	default:
@@ -1894,7 +1896,7 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 			if (decim)
 				insert_char(currcons, 1);
 			scr_writew(himask ?
-				     ((attr & ~himask) << 8) + ((tc & 0x100) ? himask : 0) + (tc & 0xff) :
+				     ((attr << 8) & ~himask) + ((tc & 0x100) ? himask : 0) + (tc & 0xff) :
 				     (attr << 8) + tc,
 				   (u16 *) pos);
 			if (DO_UPDATE && draw_x < 0) {
@@ -2231,6 +2233,12 @@ static int con_open(struct tty_struct *tty, struct file * filp)
 	return 0;
 }
 
+static void con_close(struct tty_struct *tty, struct file * filp)
+{
+	if (tty->count == 1)
+		tty->driver_data = 0;
+}
+
 static void vc_init(unsigned int currcons, unsigned int rows, unsigned int cols, int do_clear)
 {
 	int j, k ;
@@ -2292,6 +2300,7 @@ __initfunc(unsigned long con_init(unsigned long kmem_start))
 	console_driver.termios_locked = console_termios_locked;
 
 	console_driver.open = con_open;
+	console_driver.close = con_close;
 	console_driver.write = con_write;
 	console_driver.write_room = con_write_room;
 	console_driver.put_char = con_put_char;

@@ -73,9 +73,10 @@ struct raparms {
 				p_rawin;
 };
 
-#define FILECACHE_MAX		(2 * NFSD_MAXSERVS)
-static struct raparms		raparms[FILECACHE_MAX];
-static struct raparms *		raparm_cache = 0;
+int nfsd_nservers = 0;
+#define FILECACHE_MAX		(2 * nfsd_nservers) 
+static struct raparms *		raparml = NULL;
+static struct raparms *		raparm_cache = NULL;
 
 /*
  * Lock a parent directory following the VFS locking protocol.
@@ -148,16 +149,18 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 	dprintk("nfsd: nfsd_lookup(fh %p, %s)\n", SVCFH_DENTRY(fhp), name);
 
 	/* Obtain dentry and export. */
-	err = fh_verify(rqstp, fhp, S_IFDIR, MAY_NOP);
+	err = fh_verify(rqstp, fhp, S_IFDIR, MAY_EXEC);
 	if (err)
 		goto out;
 
 	dparent = fhp->fh_dentry;
 	exp  = fhp->fh_export;
 
+#if 0
 	err = nfsd_permission(exp, dparent, MAY_EXEC);
 	if (err)
 		goto out;
+#endif
 	err = nfserr_noent;
 	if (fs_off_limits(dparent->d_sb))
 		goto out;
@@ -232,13 +235,17 @@ nfsd_setattr(struct svc_rqst *rqstp, struct svc_fh *fhp, struct iattr *iap)
 	dentry = fhp->fh_dentry;
 	inode = dentry->d_inode;
 
+	err = inode_change_ok(inode, iap);
+	if (err)
+		goto out_nfserr;
+
 	/* The size case is special... */
 	if (iap->ia_valid & ATTR_SIZE) {
 if (!S_ISREG(inode->i_mode))
 printk("nfsd_setattr: size change??\n");
 		if (iap->ia_size < inode->i_size) {
 			err = nfsd_permission(fhp->fh_export, dentry, MAY_TRUNC);
-			if (err != 0)
+			if (err)
 				goto out;
 		}
 		err = get_write_access(inode);
@@ -275,9 +282,17 @@ printk("nfsd_setattr: size change??\n");
 
 	/* Change the attributes. */
 	if (iap->ia_valid) {
+		kernel_cap_t	saved_cap = 0;
+
 		iap->ia_valid |= ATTR_CTIME;
 		iap->ia_ctime = CURRENT_TIME;
+		if (current->fsuid != 0) {
+			saved_cap = current->cap_effective;
+			cap_clear(current->cap_effective);
+		}
 		err = notify_change(dentry, iap);
+		if (current->fsuid != 0)
+			current->cap_effective = saved_cap;
 		if (err)
 			goto out_nfserr;
 		if (EX_ISSYNC(fhp->fh_export))
@@ -493,6 +508,9 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	struct inode		*inode;
 	mm_segment_t		oldfs;
 	int			err = 0;
+#ifdef CONFIG_QUOTA
+	uid_t			saved_euid;
+#endif
 
 	if (!cnt)
 		goto out;
@@ -522,16 +540,31 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 
 	/* Write the data. */
 	oldfs = get_fs(); set_fs(KERNEL_DS);
+#ifdef CONFIG_QUOTA
+	/* This is for disk quota. */
+	saved_euid = current->euid;
+	current->euid = current->fsuid;
 	err = file.f_op->write(&file, buf, cnt, &file.f_pos);
+	current->euid = saved_euid;
+#else
+	err = file.f_op->write(&file, buf, cnt, &file.f_pos);
+#endif
 	set_fs(oldfs);
 
 	/* clear setuid/setgid flag after write */
 	if (err >= 0 && (inode->i_mode & (S_ISUID | S_ISGID))) {
 		struct iattr	ia;
+		kernel_cap_t	saved_cap;
 
 		ia.ia_valid = ATTR_MODE;
 		ia.ia_mode  = inode->i_mode & ~(S_ISUID | S_ISGID);
+		if (current->fsuid != 0) {
+			saved_cap = current->cap_effective;
+			cap_clear(current->cap_effective);
+		}
 		notify_change(dentry, &ia);
+		if (current->fsuid != 0)
+			current->cap_effective = saved_cap;
 	}
 
 	fh_unlock(fhp);			/* unlock inode */
@@ -661,7 +694,14 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		break;
 	case S_IFCHR:
 	case S_IFBLK:
+		/* The client is _NOT_ required to do security enforcement */
+		if(!capable(CAP_SYS_ADMIN))
+		{
+			err = -EPERM;
+			goto out;
+		}
 	case S_IFIFO:
+	case S_IFSOCK:
 		opfunc = dirp->i_op->mknod;
 		break;
 	}
@@ -719,6 +759,7 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 	struct inode	*inode;
 	struct iattr	newattrs;
 	int		err;
+	kernel_cap_t	saved_cap;
 
 	err = fh_verify(rqstp, fhp, S_IFREG, MAY_WRITE | MAY_TRUNC);
 	if (err)
@@ -736,7 +777,13 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 	DQUOT_INIT(inode);
 	newattrs.ia_size = size;
 	newattrs.ia_valid = ATTR_SIZE | ATTR_CTIME;
+	if (current->fsuid != 0) {
+		saved_cap = current->cap_effective;
+		cap_clear(current->cap_effective);
+	}
 	err = notify_change(dentry, &newattrs);
+	if (current->fsuid != 0)
+		current->cap_effective = saved_cap;
 	if (!err) {
 		vmtruncate(inode, size);
 		if (inode->i_op && inode->i_op->truncate)
@@ -941,12 +988,26 @@ out_nfserr:
 }
 
 /*
+ * We need to do a check-parent every time
+ * after we have locked the parent - to verify
+ * that the parent is still our parent and
+ * that we are still hashed onto it..
+ *
+ * This is requied in case two processes race
+ * on removing (or moving) the same entry: the
+ * parent lock will serialize them, but the
+ * other process will be too late..
+ */
+#define check_parent(dir, dentry) \
+	((dir) == (dentry)->d_parent->d_inode && !list_empty(&dentry->d_hash))
+
+/*
  * This follows the model of double_lock() in the VFS.
  */
 static inline void nfsd_double_down(struct semaphore *s1, struct semaphore *s2)
 {
 	if (s1 != s2) {
-		if ((unsigned long) s1 < (unsigned long) s2) {
+		if ((unsigned long) s1 > (unsigned long) s2) {
 			struct semaphore *tmp = s1;
 			s1 = s2;
 			s2 = tmp;
@@ -996,17 +1057,14 @@ nfsd_rename(struct svc_rqst *rqstp, struct svc_fh *ffhp, char *fname, int flen,
 	    (tlen == 1 || (tlen == 2 && tname[1] == '.'))))
 		goto out;
 
-	err = -EXDEV;
-	if (fdir->i_dev != tdir->i_dev)
-		goto out_nfserr;
-	err = -EPERM;
-	if (!fdir->i_op || !fdir->i_op->rename)
-		goto out_nfserr;
-
 	odentry = lookup_dentry(fname, dget(fdentry), 0);
 	err = PTR_ERR(odentry);
 	if (IS_ERR(odentry))
 		goto out_nfserr;
+
+	err = -ENOENT;
+	if (!odentry->d_inode)
+		goto out_dput_old;
 
 	ndentry = lookup_dentry(tname, dget(tdentry), 0);
 	err = PTR_ERR(ndentry);
@@ -1017,15 +1075,18 @@ nfsd_rename(struct svc_rqst *rqstp, struct svc_fh *ffhp, char *fname, int flen,
 	 * Lock the parent directories.
 	 */
 	nfsd_double_down(&tdir->i_sem, &fdir->i_sem);
-	/* N.B. check for parent changes after locking?? */
+	err = -ENOENT;
+	/* GAM3 check for parent changes after locking. */
+	if (check_parent(fdir, odentry) &&
+	    check_parent(tdir, ndentry)) {
 
-	DQUOT_INIT(fdir);
-	DQUOT_INIT(tdir);
-	err = fdir->i_op->rename(fdir, odentry, tdir, ndentry);
-	if (!err && EX_ISSYNC(tfhp->fh_export)) {
-		write_inode_now(fdir);
-		write_inode_now(tdir);
-	}
+		err = vfs_rename(fdir, odentry, tdir, ndentry);
+		if (!err && EX_ISSYNC(tfhp->fh_export)) {
+			write_inode_now(fdir);
+			write_inode_now(tdir);
+		}
+	} else
+		dprintk("nfsd: Caught race in nfsd_rename");
 	DQUOT_DROP(fdir);
 	DQUOT_DROP(tdir);
 
@@ -1072,29 +1133,48 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	if (IS_ERR(rdentry))
 		goto out_nfserr;
 
-	/*
-	 * FIXME!!
-	 *
-	 * This should do a double-lock on both rdentry and the parent
-	 */
-	err = fh_lock_parent(fhp, rdentry);
-	if (err)
+	if (!rdentry->d_inode) {
+		dput(rdentry);
+		err = nfserr_noent;
 		goto out;
-
-	DQUOT_INIT(dirp);
-	if (type == S_IFDIR) {
-		err = -ENOTDIR;
-		if (dirp->i_op && dirp->i_op->rmdir)
-			err = dirp->i_op->rmdir(dirp, rdentry);
-	} else {
-		err = -EPERM;
-		if (dirp->i_op && dirp->i_op->unlink)
-			err = dirp->i_op->unlink(dirp, rdentry);
 	}
-	DQUOT_DROP(dirp);
-	fh_unlock(fhp);
 
-	dput(rdentry);
+	if (type != S_IFDIR) {
+		/* It's UNLINK */
+		err = fh_lock_parent(fhp, rdentry);
+		if (err)
+			goto out;
+
+		err = vfs_unlink(dirp, rdentry);
+
+		DQUOT_DROP(dirp);
+		fh_unlock(fhp);
+
+		dput(rdentry);
+
+	} else {
+		/* It's RMDIR */
+		/* See comments in fs/namei.c:do_rmdir */
+		rdentry->d_count++;
+		nfsd_double_down(&dirp->i_sem, &rdentry->d_inode->i_sem);
+		if (!fhp->fh_pre_mtime)
+			fhp->fh_pre_mtime = dirp->i_mtime;
+		fhp->fh_locked = 1;
+
+		err = -ENOENT;
+		if (check_parent(dirp, rdentry))
+			err = vfs_rmdir(dirp, rdentry);
+
+		rdentry->d_count--;
+		DQUOT_DROP(dirp);
+		if (!fhp->fh_post_version)
+			fhp->fh_post_version = dirp->i_version;
+		fhp->fh_locked = 0;
+		nfsd_double_up(&dirp->i_sem, &rdentry->d_inode->i_sem);
+
+		dput(rdentry);
+	}
+
 	if (err)
 		goto out_nfserr;
 	if (EX_ISSYNC(fhp->fh_export))
@@ -1230,11 +1310,11 @@ nfsd_permission(struct svc_export *exp, struct dentry *dentry, int acc)
 {
 	struct inode	*inode = dentry->d_inode;
 	int		err;
+	kernel_cap_t	saved_cap;
 
 	if (acc == MAY_NOP)
 		return 0;
-
-	/*
+#if 0
 	dprintk("nfsd: permission 0x%x%s%s%s%s%s mode 0%o%s%s%s\n",
 		acc,
 		(acc & MAY_READ)?	" read"  : "",
@@ -1248,8 +1328,7 @@ nfsd_permission(struct svc_export *exp, struct dentry *dentry, int acc)
 		IS_RDONLY(inode)?	" ro" : "");
 	dprintk("      owner %d/%d user %d/%d\n",
 		inode->i_uid, inode->i_gid, current->fsuid, current->fsgid);
-	 */
-
+#endif
 #ifndef CONFIG_NFSD_SUN
         if (dentry->d_mounts != dentry) {
 		return nfserr_perm;
@@ -1279,15 +1358,33 @@ nfsd_permission(struct svc_export *exp, struct dentry *dentry, int acc)
 	if (inode->i_uid == current->fsuid /* && !(acc & MAY_TRUNC) */)
 		return 0;
 
+	if (current->fsuid != 0) {
+		saved_cap = current->cap_effective;
+		cap_clear(current->cap_effective);
+	}
+
 	err = permission(inode, acc & (MAY_READ|MAY_WRITE|MAY_EXEC));
 
 	/* Allow read access to binaries even when mode 111 */
-	if (err == -EPERM && S_ISREG(inode->i_mode) && acc == MAY_READ)
+	if (err == -EACCES && S_ISREG(inode->i_mode) && acc == MAY_READ)
 		err = permission(inode, MAY_EXEC);
+
+	if (current->fsuid != 0)
+		current->cap_effective = saved_cap;
 
 	return err? nfserrno(-err) : 0;
 }
 
+void
+nfsd_racache_shutdown(void)
+{
+	if (!raparm_cache)
+		return;
+	dprintk("nfsd: freeing %d readahead buffers.\n", FILECACHE_MAX);
+	kfree(raparml);
+	nfsd_nservers = 0;
+	raparm_cache = raparml = NULL;
+}
 /*
  * Initialize readahead param cache
  */
@@ -1298,9 +1395,19 @@ nfsd_racache_init(void)
 
 	if (raparm_cache)
 		return;
-	memset(raparms, 0, sizeof(raparms));
-	for (i = 0; i < FILECACHE_MAX - 1; i++) {
-		raparms[i].p_next = raparms + i + 1;
+	raparml = kmalloc(sizeof(struct raparms) * FILECACHE_MAX, GFP_KERNEL);
+
+	if (raparml != NULL) {
+		dprintk("nfsd: allocating %d readahead buffers.\n",
+			FILECACHE_MAX);
+		memset(raparml, 0, sizeof(struct raparms) * FILECACHE_MAX);
+		for (i = 0; i < FILECACHE_MAX - 1; i++) {
+			raparml[i].p_next = raparml + i + 1;
+		}
+		raparm_cache = raparml;
+	} else {
+		printk(KERN_WARNING
+		       "nfsd: Could not allocate memory read-ahead cache.\n");
+		nfsd_nservers = 0;
 	}
-	raparm_cache = raparms;
 }

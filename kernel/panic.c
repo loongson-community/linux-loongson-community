@@ -51,7 +51,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 		sys_sync();
 
 #ifdef __SMP__
-	smp_message_pass(MSG_ALL_BUT_SELF, MSG_STOP_CPU, 0, 0);
+	smp_send_stop();
 #endif
 
 	unblank_console();

@@ -67,7 +67,7 @@
 #define __NR_getpgrp		 63
 #define __NR_getpagesize	 64
 #define __NR_osf_mremap		 65	/* not implemented */
-#define __NR_osf_vfork		 66
+#define __NR_vfork		 66
 #define __NR_stat		 67
 #define __NR_lstat		 68
 #define __NR_osf_sbrk		 69	/* not implemented */
@@ -307,6 +307,7 @@
 #define __NR_getcwd			367
 #define __NR_capget			368
 #define __NR_capset			369
+#define __NR_sendfile			370
 
 #if defined(__LIBRARY__) && defined(__GNUC__)
 

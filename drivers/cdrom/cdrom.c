@@ -1,7 +1,7 @@
 /* linux/drivers/cdrom/cdrom.c. 
    Copyright (c) 1996, 1997 David A. van Leeuwen.
    Copyright (c) 1997, 1998 Erik Andersen <andersee@debian.org>
-   Copyright (c) 1998 Jens Axboe and Chris Zwilling
+   Copyright (c) 1998, 1999 Jens Axboe
 
    May be copied or modified under the terms of the GNU General Public
    License.  See linux/COPYING for more information.
@@ -87,15 +87,27 @@
   Thanks to Grant R. Guenther <grant@torque.net> for spotting this bug.
   -- Made a few things more pedanticly correct.
 
- 2.50  Oct 19, 1998 - Jens Axboe <axboe@image.dk>
+2.50 Oct 19, 1998 - Jens Axboe <axboe@image.dk>
   -- New maintainers! Erik was too busy to continue the work on the driver,
   so now Chris Zwilling <chris@cloudnet.com> and Jens Axboe <axboe@image.dk>
   will do their best to follow in his footsteps
+  
+  2.51 Dec 20, 1998 - Jens Axboe <axboe@image.dk>
+  -- Check if drive is capable of doing what we ask before blindly changing
+  cdi->options in various ioctl.
+  -- Added version to proc entry.
+  
+  2.52 Jan 16, 1998 - Jens Axboe <axboe@image.dk>
+  -- Fixed an error in open_for_data where we would sometimes not return
+  the correct error value. Thanks Huba Gaspar <huba@softcell.hu>.
+  -- Fixed module usage count - usage was based on /proc/sys/dev
+  instead of /proc/sys/dev/cdrom. This could lead to an oops when other
+  modules had entries in dev.
 
 -------------------------------------------------------------------------*/
 
-#define REVISION "Revision: 2.50"
-#define VERSION "Id: cdrom.c 2.50 1998/10/19"
+#define REVISION "Revision: 2.52"
+#define VERSION "Id: cdrom.c 2.52 1999/01/16"
 
 /* I use an error-log mask to give fine grain control over the type of
    messages dumped to the system logs.  The available masks include: */
@@ -211,6 +223,8 @@ int register_cdrom(struct cdrom_device_info *cdi)
         struct cdrom_device_ops *cdo = cdi->ops;
         int *change_capability = (int *)&cdo->capability; /* hack */
 
+	cdinfo(CD_OPEN, "entering register_cdrom\n"); 
+
 	if (major < 0 || major >= MAX_BLKDEV)
 		return -1;
 	if (cdo->open == NULL || cdo->release == NULL)
@@ -236,9 +250,10 @@ int register_cdrom(struct cdrom_device_info *cdi)
 	cdi->mc_flags = 0;
 	cdo->n_minors = 0;
         cdi->options = CDO_USE_FFLAGS;
-	if (autoclose==1)
+	
+	if (autoclose==1 && cdo->capability & ~cdi->mask & CDC_OPEN_TRAY)
 		cdi->options |= (int) CDO_AUTO_CLOSE;
-	if (autoeject==1)
+	if (autoeject==1 && cdo->capability & ~cdi->mask & CDC_OPEN_TRAY)
 		cdi->options |= (int) CDO_AUTO_EJECT;
 	if (lockdoor==1)
 		cdi->options |= (int) CDO_LOCK;
@@ -256,6 +271,8 @@ int unregister_cdrom(struct cdrom_device_info *unreg)
 {
 	struct cdrom_device_info *cdi, *prev;
 	int major = MAJOR (unreg->dev);
+
+	cdinfo(CD_OPEN, "entering unregister_cdrom\n"); 
 
 	if (major < 0 || major >= MAX_BLKDEV)
 		return -1;
@@ -353,7 +370,7 @@ int open_for_data(struct cdrom_device_info * cdi)
 					goto clean_up_and_return;
 				}
 			} else {
-				cdinfo(CD_OPEN, "bummer. this driver can't close the tray.\n"); 
+				cdinfo(CD_OPEN, "bummer. this drive can't close the tray.\n"); 
 				ret=-ENOMEDIUM;
 				goto clean_up_and_return;
 			}
@@ -361,13 +378,16 @@ int open_for_data(struct cdrom_device_info * cdi)
 			ret = cdo->drive_status(cdi, CDSL_CURRENT);
 			if ((ret == CDS_NO_DISC) || (ret==CDS_TRAY_OPEN)) {
 				cdinfo(CD_OPEN, "bummer. the tray is still not closed.\n"); 
+				cdinfo(CD_OPEN, "tray might not contain a medium.\n");
 				ret=-ENOMEDIUM;
 				goto clean_up_and_return;
 			}
 			cdinfo(CD_OPEN, "the tray is now closed.\n"); 
 		}
-		if (ret!=CDS_DISC_OK)
+		if (ret!=CDS_DISC_OK) {
+			ret = -ENOMEDIUM;
 			goto clean_up_and_return;
+		}
 	}
 	cdrom_count_tracks(cdi, &tracks);
 	if (tracks.error == CDS_NO_DISC) {
@@ -405,7 +425,7 @@ int open_for_data(struct cdrom_device_info * cdi)
 			cdo->lock_door(cdi, 1);
 			cdinfo(CD_OPEN, "door locked.\n");
 	}	
-	cdinfo(CD_OPEN, "device opened sucessfully.\n"); 
+	cdinfo(CD_OPEN, "device opened successfully.\n"); 
 	return ret;
 
 	/* Something failed.  Try to unlock the drive, because some drivers
@@ -687,7 +707,7 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 		sanitize_format(&ms_info.addr, &ms_info.addr_format,
 				requested_format);
 		IOCTL_OUT(arg, struct cdrom_multisession, ms_info);
-		cdinfo(CD_DO_IOCTL, "CDROMMULTISESSION sucessful\n"); 
+		cdinfo(CD_DO_IOCTL, "CDROMMULTISESSION successful\n"); 
 		return 0;
 		}
 
@@ -713,6 +733,8 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 
 	case CDROMEJECT_SW:
 		cdinfo(CD_DO_IOCTL, "entering CDROMEJECT_SW\n"); 
+		if (!(cdo->capability & ~cdi->mask & CDC_OPEN_TRAY))
+			return -ENOSYS;
 		cdi->options &= ~(CDO_AUTO_CLOSE | CDO_AUTO_EJECT);
 		if (arg)
 			cdi->options |= CDO_AUTO_CLOSE | CDO_AUTO_EJECT;
@@ -733,6 +755,8 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 
 	case CDROM_SET_OPTIONS:
 		cdinfo(CD_DO_IOCTL, "entering CDROM_SET_OPTIONS\n"); 
+		if (cdo->capability & arg & ~cdi->mask)
+			return -ENOSYS;
 		cdi->options |= (int) arg;
 		return cdi->options;
 
@@ -773,7 +797,7 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 		if ((ret=cdo->get_mcn(cdi, &mcn)))
 			return ret;
 		IOCTL_OUT(arg, struct cdrom_mcn, mcn);
-		cdinfo(CD_DO_IOCTL, "CDROM_GET_MCN sucessful\n"); 
+		cdinfo(CD_DO_IOCTL, "CDROM_GET_MCN successful\n"); 
 		return 0;
 		}
 
@@ -879,7 +903,7 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 			sanitize_format(&q.cdsc_absaddr, &back, requested);
 			sanitize_format(&q.cdsc_reladdr, &q.cdsc_format, requested);
 			IOCTL_OUT(arg, struct cdrom_subchnl, q);
-			/* cdinfo(CD_DO_IOCTL, "CDROMSUBCHNL sucessful\n"); */ 
+			/* cdinfo(CD_DO_IOCTL, "CDROMSUBCHNL successful\n"); */ 
 			return 0;
 			}
 		case CDROMREADTOCHDR: {
@@ -892,7 +916,7 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 			if ((ret=cdo->audio_ioctl(cdi, cmd, &header)))
 				return ret;
 			IOCTL_OUT(arg, struct cdrom_tochdr, header);
-			/* cdinfo(CD_DO_IOCTL, "CDROMREADTOCHDR sucessful\n"); */ 
+			/* cdinfo(CD_DO_IOCTL, "CDROMREADTOCHDR successful\n"); */ 
 			return 0;
 			}
 		case CDROMREADTOCENTRY: {
@@ -914,7 +938,7 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 			sanitize_format(&entry.cdte_addr,
 			&entry.cdte_format, requested_format);
 			IOCTL_OUT(arg, struct cdrom_tocentry, entry);
-			/* cdinfo(CD_DO_IOCTL, "CDROMREADTOCENTRY sucessful\n"); */ 
+			/* cdinfo(CD_DO_IOCTL, "CDROMREADTOCENTRY successful\n"); */ 
 			return 0;
 			}
 		case CDROMPLAYMSF: {
@@ -981,10 +1005,15 @@ static char cdrom_drive_info[CDROM_STR_SIZE]="info\n";
 int cdrom_sysctl_info(ctl_table *ctl, int write, struct file * filp,
                            void *buffer, size_t *lenp)
 {
-        int retv,pos;
+        int pos;
 	struct cdrom_device_info *cdi;
+	
+	if (!*lenp || (filp->f_pos && !write)) {
+		*lenp = 0;
+		return 0;
+	}
 
-        pos = sprintf(cdrom_drive_info, "CD-ROM information\n");
+	pos = sprintf(cdrom_drive_info, "CD-ROM information, " VERSION "\n");
 	
 	pos += sprintf(cdrom_drive_info+pos, "\ndrive name:\t");
 	for (cdi=topCdromPtr;cdi!=NULL;cdi=cdi->next)
@@ -1045,18 +1074,14 @@ int cdrom_sysctl_info(ctl_table *ctl, int write, struct file * filp,
 
         strcpy(cdrom_drive_info+pos,"\n\n");
 	*lenp=pos+3;
-        if (!write) {
-        	retv = proc_dostring(ctl, write, filp, buffer, lenp);
-        }
-        else
-        	retv = proc_dostring(ctl, write, filp, buffer, lenp);
-        return retv;
+
+        return proc_dostring(ctl, write, filp, buffer, lenp);
 }
 
 /* Place files in /proc/sys/dev/cdrom */
 ctl_table cdrom_table[] = {
 	{DEV_CDROM_INFO, "info", &cdrom_drive_info, 
-		CDROM_STR_SIZE*sizeof(char), 0444, NULL, &cdrom_sysctl_info},
+		CDROM_STR_SIZE, 0444, NULL, &cdrom_sysctl_info},
 	{0}
 	};
 
@@ -1083,20 +1108,23 @@ static struct ctl_table_header *cdrom_sysctl_header;
  */
 static void cdrom_procfs_modcount(struct inode *inode, int fill)
 {
-       if (fill)
-               MOD_INC_USE_COUNT;
-       else
-               MOD_DEC_USE_COUNT;
+	if (fill) {
+		MOD_INC_USE_COUNT;
+	} else {
+		MOD_DEC_USE_COUNT;
+	}
 }
 
 static void cdrom_sysctl_register(void)
 {
 	static int initialized = 0;
 
-	if ( initialized == 1 )
+	if (initialized == 1)
 		return;
-	cdrom_sysctl_header = register_sysctl_table(cdrom_root_table, 0);
+
+	cdrom_sysctl_header = register_sysctl_table(cdrom_root_table, 1);
 	cdrom_root_table->de->fill_inode = &cdrom_procfs_modcount;
+
 	initialized = 1;
 }
 

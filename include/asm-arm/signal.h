@@ -21,7 +21,7 @@ typedef struct {
 } sigset_t;
 
 #else
-/* Here we must cater to lics that poke about in kernel headers.  */
+/* Here we must cater to libcs that poke about in kernel headers.  */
 
 #define NSIG		32
 typedef unsigned long sigset_t;
@@ -69,6 +69,8 @@ typedef unsigned long sigset_t;
 #define SIGRTMIN	32
 #define SIGRTMAX	(_NSIG-1)
 
+#define SIGSWI		32
+
 /*
  * SA_FLAGS values:
  *
@@ -96,6 +98,8 @@ typedef unsigned long sigset_t;
 #define SA_INTERRUPT	0x20000000 /* dummy -- ignored */
 
 #define SA_RESTORER	0x04000000
+#define SA_THIRTYTWO	0x02000000 /* deliver signal in 32-bit mode even if
+				      task is running 26 bits. */
 
 /* 
  * sigaltstack controls
@@ -132,6 +136,7 @@ typedef void (*__sighandler_t)(int);
 #define SIG_IGN	((__sighandler_t)1)	/* ignore signal */
 #define SIG_ERR	((__sighandler_t)-1)	/* error return from signal */
 
+#ifdef __KERNEL__
 struct old_sigaction {
 	__sighandler_t sa_handler;
 	old_sigset_t sa_mask;
@@ -149,6 +154,24 @@ struct sigaction {
 struct k_sigaction {
 	struct sigaction sa;
 };
+
+#else
+/* Here we must cater to libcs that poke about in kernel headers.  */
+
+struct sigaction {
+	union {
+	  __sighandler_t _sa_handler;
+	  void (*_sa_sigaction)(int, struct siginfo *, void *);
+	} _u;
+	sigset_t sa_mask;
+	unsigned long sa_flags;
+	void (*sa_restorer)(void);
+};
+
+#define sa_handler	_u._sa_handler
+#define sa_sigaction	_u._sa_sigaction
+
+#endif /* __KERNEL__ */
 
 typedef struct sigaltstack {
 	void *ss_sp;

@@ -39,35 +39,21 @@ freepages_t freepages = {
 	144	/* freepages.high */
 };
 
+/* How many pages do we try to swap or page in/out together? */
+int page_cluster = 4; /* Default value modified in swap_setup() */
+
 /* We track the number of pages currently being asynchronously swapped
    out, so that we don't try to swap TOO many pages out at once */
 atomic_t nr_async_pages = ATOMIC_INIT(0);
 
-/*
- * Constants for the page aging mechanism: the maximum age (actually,
- * the maximum "youthfulness"); the quanta by which pages rejuvenate
- * and age; and the initial age for new pages. 
- *
- * The "pageout_weight" is strictly a fixedpoint number with the
- * ten low bits being the fraction (ie 8192 really means "8.0").
- */
-swap_control_t swap_control = {
-	20, 3, 1, 3,		/* Page aging */
-	32, 4,			/* Aging cluster */
-	8192,			/* sc_pageout_weight aka PAGEOUT_WEIGHT */
-	8192,			/* sc_bufferout_weight aka BUFFEROUT_WEIGHT */
-};
-
-swapstat_t swapstats = {0};
-
 buffer_mem_t buffer_mem = {
-	5,	/* minimum percent buffer */
+	2,	/* minimum percent buffer */
 	10,	/* borrow percent buffer */
 	60	/* maximum percent buffer */
 };
 
 buffer_mem_t page_cache = {
-	5,	/* minimum percent page cache */
+	2,	/* minimum percent page cache */
 	15,	/* borrow percent page cache */
 	75	/* maximum */
 };
@@ -77,3 +63,18 @@ pager_daemon_t pager_daemon = {
 	SWAP_CLUSTER_MAX,	/* minimum number of tries */
 	SWAP_CLUSTER_MAX,	/* do swap I/O in clusters of this size */
 };
+
+/*
+ * Perform any setup for the swap system
+ */
+
+void __init swap_setup(void)
+{
+	/* Use a smaller cluster for memory <16MB or <32MB */
+	if (num_physpages < ((16 * 1024 * 1024) >> PAGE_SHIFT))
+		page_cluster = 2;
+	else if (num_physpages < ((32 * 1024 * 1024) >> PAGE_SHIFT))
+		page_cluster = 3;
+	else
+		page_cluster = 4;
+}

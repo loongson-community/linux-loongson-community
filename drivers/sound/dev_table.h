@@ -33,6 +33,8 @@
 #define SNDCARD_WAVEFRONT               41
 #define SNDCARD_OPL3SA2                 42
 #define SNDCARD_OPL3SA2_MPU             43
+#define SNDCARD_WAVEARTIST		44
+#define SNDCARD_AD1816                  88
 
 void attach_opl3sa_wss (struct address_info *hw_config);
 int probe_opl3sa_wss (struct address_info *hw_config);
@@ -202,6 +204,7 @@ struct audio_driver
 	short (*set_channels)(int dev, short channels);
 	void (*postprocess_write)(int dev); 	/* Device spesific postprocessing for written data */
 	void (*preprocess_read)(int dev); 	/* Device spesific preprocessing for read data */
+	void (*mmap)(int dev);
 };
 
 struct audio_operations 
@@ -427,6 +430,11 @@ struct driver_info sound_drivers[] =
 	{"SGALAXY", 0, SNDCARD_SGALAXY,	"Sound Galaxy WSS",		attach_sgalaxy, probe_sgalaxy, unload_sgalaxy},
 #endif
 
+#ifdef CONFIG_SOUND_AD1816
+        {"AD1816", 0, SNDCARD_AD1816,   "AD1816",               attach_ad1816, 
+probe_ad1816, unload_ad1816},
+#endif
+
 #ifdef CONFIG_SOUND_YM3812
 	{"OPL3", 0, SNDCARD_ADLIB,	"OPL-2/OPL-3 FM",		attach_adlib_card, probe_adlib, unload_adlib},
 #endif
@@ -493,8 +501,11 @@ struct driver_info sound_drivers[] =
 #if defined(CONFIG_SOUND_VMIDI) && defined(CONFIG_MIDI)
 	{"VMIDI", 0, SNDCARD_VMIDI,"Loopback MIDI Device",      attach_v_midi, probe_v_midi, unload_v_midi},
 #endif
-#ifdef CONFIG_VIDC_SOUND
+#ifdef CONFIG_SOUND_VIDC
 	{"VIDC", 0, SNDCARD_VIDC, "ARM VIDC 16-bit D/A", attach_vidc, probe_vidc, unload_vidc },
+#endif
+#ifdef CONFIG_SOUND_WAVEARTIST
+	{"WaveArtist", 0, SNDCARD_WAVEARTIST, "NetWinder WaveArtist", attach_waveartist, probe_waveartist, unload_waveartist },
 #endif
 	{NULL, 0, 0,		"*?*",			NULL, NULL, NULL}
 };
@@ -668,8 +679,12 @@ struct card_info snd_installed_cards[] =
 	{SNDCARD_VMIDI, {0, 0, 0, -1}, SND_DEFAULT_ENABLE},
 #endif
 
-#ifdef CONFIG_VIDC_SOUND
+#ifdef CONFIG_SOUND_VIDC
 	{ SNDCARD_VIDC, {0, 0, 0, 0}, SND_DEFAULT_ENABLE },
+#endif
+
+#ifdef CONFIG_SOUND_WAVEARTIST
+	{ SNDCARD_WAVEARTIST, { CONFIG_WAVEARTIST_BASE, CONFIG_WAVEARTIST_IRQ, CONFIG_WAVEARTIST_DMA, CONFIG_WAVEARTIST_DMA2 }, SND_DEFAULT_ENABLE },
 #endif
 	{0, {0}, 0}
 };

@@ -16,9 +16,7 @@
  */
 #include <linux/config.h>
 
-#ifdef CONFIG_KMOD
 #include <linux/kmod.h>
-#endif
 
 
 #define SEQUENCER_C
@@ -82,7 +80,7 @@ static volatile int iqhead = 0, iqtail = 0, iqlen = 0;
 static volatile int seq_playing = 0;
 static volatile int sequencer_busy = 0;
 static int      output_threshold;
-static int      pre_event_timeout;
+static long     pre_event_timeout;
 static unsigned synth_open_mask;
 
 static int      seq_queue(unsigned char *note, char nonblock);
@@ -998,10 +996,8 @@ int sequencer_open(int dev, struct file *file)
 	if (dev)		/* Patch manager device (obsolete) */
 		return -ENXIO;
 
-#ifdef CONFIG_KMOD
 	if(synth_devs[dev] == NULL)
 		request_module("synth0");
-#endif
 
 	if (mode == OPEN_READ)
 	{

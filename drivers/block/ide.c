@@ -5,8 +5,10 @@
  */
 
 /*
- *  Maintained by Mark Lord  <mlord@pobox.com>
- *            and Gadi Oxman <gadio@netvision.net.il>
+ *  Mostly written by Mark Lord  <mlord@pobox.com>
+ *                and Gadi Oxman <gadio@netvision.net.il>
+ *
+ *  See linux/MAINTAINERS for address of current maintainer.
  *
  * This is the multiple IDE interface driver, as evolved from hd.c.
  * It supports up to MAX_HWIFS IDE interfaces, on one or more IRQs (usually 14 & 15).
@@ -2130,6 +2132,12 @@ static int ide_ioctl (struct inode *inode, struct file *file,
 				return -EIO;
 			return 0;
 		}
+	        case HDIO_UNREGISTER_HWIF:
+			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
+			/* should I check here for arg > MAX_HWIFS, or
+			   just let ide_unregister fail silently? -- shaver */
+			ide_unregister(arg);
+			return 0;
 		case HDIO_SET_NICE:
 			if (!capable(CAP_SYS_ADMIN)) return -EACCES;
 			if (drive->driver == NULL)
@@ -2275,6 +2283,12 @@ __initfunc(static int match_parm (char *s, const char *keywords[], int vals[], i
  *				and quite likely to cause trouble with
  *				older/odd IDE drives.
  *
+ * "hdx=slow"		: insert a huge pause after each access to the data
+ *				port. Should be used only as a last resort.
+ *
+ * "hdx=swapdata"	: when the drive is a disk, byte swap all data
+ * "hdx=bswap"		: same as above..........
+ *
  * "idebus=xx"		: inform IDE driver of VESA/PCI bus speed in MHz,
  *				where "xx" is between 20 and 66 inclusive,
  *				used when tuning chipset PIO modes.
@@ -2333,12 +2347,16 @@ __initfunc(void ide_setup (char *s))
 	if (s[0] == 'h' && s[1] == 'd' && s[2] >= 'a' && s[2] <= max_drive) {
 		const char *hd_words[] = {"none", "noprobe", "nowerr", "cdrom",
 				"serialize", "autotune", "noautotune",
-				"slow", "swapdata", NULL};
+				"slow", "swapdata", "bswap", NULL};
 		unit = s[2] - 'a';
 		hw   = unit / MAX_DRIVES;
 		unit = unit % MAX_DRIVES;
 		hwif = &ide_hwifs[hw];
 		drive = &hwif->drives[unit];
+		if (strncmp(s + 4, "ide-", 4) == 0) {
+			strncpy(drive->driver_req, s + 4, 9);
+			goto done;
+		}
 		switch (match_parm(&s[3], hd_words, vals, 3)) {
 			case -1: /* "none" */
 				drive->nobios = 1;  /* drop into "noprobe" */
@@ -2366,7 +2384,8 @@ __initfunc(void ide_setup (char *s))
 			case -8: /* "slow" */
 				drive->slow = 1;
 				goto done;
-			case -9: /* swapdata */
+			case -9: /* swapdata or bswap */
+			case -10:
 				drive->bswap = 1;
 				goto done;
 			case 3: /* cyl,head,sect */
@@ -2567,16 +2586,41 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 	const byte *heads = head_vals;
 	unsigned long tracks;
 
-	if ((drive = get_info_ptr(i_rdev)) == NULL || drive->forced_geom)
+	drive = get_info_ptr(i_rdev);
+	if (!drive)
 		return 0;
 
-	if (xparm > 1 && xparm <= drive->bios_head && drive->bios_sect == 63)
+	if (drive->forced_geom) {
+		/*
+		 * Update the current 3D drive values.
+		 */
+		drive->id->cur_cyls	= drive->bios_cyl;
+		drive->id->cur_heads	= drive->bios_head;
+		drive->id->cur_sectors	= drive->bios_sect;
+		return 0;
+	}
+
+	if (xparm > 1 && xparm <= drive->bios_head && drive->bios_sect == 63) {
+		/*
+		 * Update the current 3D drive values.
+		 */
+		drive->id->cur_cyls	= drive->bios_cyl;
+		drive->id->cur_heads	= drive->bios_head;
+		drive->id->cur_sectors	= drive->bios_sect;
 		return 0;		/* we already have a translation */
+	}
 
 	printk("%s ", msg);
 
-	if (xparm < 0 && (drive->bios_cyl * drive->bios_head * drive->bios_sect) < (1024 * 16 * 63))
+	if (xparm < 0 && (drive->bios_cyl * drive->bios_head * drive->bios_sect) < (1024 * 16 * 63)) {
+		/*
+		 * Update the current 3D drive values.
+		 */
+		drive->id->cur_cyls	= drive->bios_cyl;
+		drive->id->cur_heads	= drive->bios_head;
+		drive->id->cur_sectors	= drive->bios_sect;
 		return 0;		/* small disk: no translation needed */
+	}
 
 	if (drive->id) {
 		drive->cyl  = drive->id->cyls;
@@ -2614,6 +2658,12 @@ int ide_xlate_1024 (kdev_t i_rdev, int xparm, const char *msg)
 	}
 	drive->part[0].nr_sects = current_capacity(drive);
 	printk("[%d/%d/%d]", drive->bios_cyl, drive->bios_head, drive->bios_sect);
+	/*
+	 * Update the current 3D drive values.
+	 */
+	drive->id->cur_cyls    = drive->bios_cyl;
+	drive->id->cur_heads   = drive->bios_head;
+	drive->id->cur_sectors = drive->bios_sect;
 	return 1;
 }
 
@@ -2703,7 +2753,11 @@ __initfunc(void ide_init_builtin_drivers (void))
 	(void) idefloppy_init();
 #endif /* CONFIG_BLK_DEV_IDEFLOPPY */
 #ifdef CONFIG_BLK_DEV_IDESCSI
+ #ifdef CONFIG_SCSI
 	(void) idescsi_init();
+ #else
+    #warning ide scsi-emulation selected but no SCSI-subsystem in kernel
+ #endif
 #endif /* CONFIG_BLK_DEV_IDESCSI */
 }
 

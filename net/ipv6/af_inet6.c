@@ -7,7 +7,7 @@
  *
  *	Adapted from linux/net/ipv4/af_inet.c
  *
- *	$Id: af_inet6.c,v 1.39 1998/10/03 09:38:23 davem Exp $
+ *	$Id: af_inet6.c,v 1.42 1999/01/19 08:20:06 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -35,6 +35,7 @@
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
 #include <linux/init.h>
+#include <linux/version.h>
 
 #include <linux/inet.h>
 #include <linux/netdevice.h>
@@ -477,7 +478,7 @@ int ipv6_unload(void)
 {
 	if (!unloadable) return 1;
 	/* We keep internally 3 raw sockets */
-	return __this_module.usecount - 3;
+	return atomic_read(&(__this_module.uc.usecount)) - 3;
 }
 #endif
 
@@ -502,7 +503,7 @@ __initfunc(void inet6_proto_init(struct net_proto *pro))
 	__this_module.can_unload = &ipv6_unload;
 #endif
 
-	printk(KERN_INFO "IPv6 v0.2 for NET3.037\n");
+	printk(KERN_INFO "IPv6 v0.8 for NET4.0\n");
 
 	if (sizeof(struct inet6_skb_parm) > sizeof(dummy_skb->cb))
 	{

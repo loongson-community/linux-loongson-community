@@ -23,12 +23,10 @@
  *
  *
  * Module command line parameters:
- *   joystick if 1 enables the joystick interface on the card; but it still
- *            needs a separate joystick driver (presumably PC standard, although
- *            the chip doc doesn't say anything and it looks slightly fishy from
- *            the PCI standpoint...)
- *
- *
+ *   joystick must be set to the base I/O-Port to be used for
+ *   the gameport. Legal values are 0x200, 0x208, 0x210 and 0x218.         
+ *   The gameport is mirrored eight times.
+ *        
  *  Supported devices:
  *  /dev/dsp    standard /dev/dsp device, (mostly) OSS compatible
  *  /dev/mixer  standard /dev/mixer device, (mostly) OSS compatible
@@ -49,11 +47,19 @@
  *                     Now mixer behaviour can basically be selected between
  *                     "OSS documented" and "OSS actual" behaviour
  *    31.08.98   0.4   Fix realplayer problems - dac.count issues
+ *    27.10.98   0.5   Fix joystick support
+ *                     -- Oliver Neukum (c188@org.chemie.uni-muenchen.de)
+ *    10.12.98   0.6   Fix drain_dac trying to wait on not yet initialized DMA
+ *    23.12.98   0.7   Fix a few f_file & FMODE_ bugs
+ *                     Don't wake up app until there are fragsize bytes to read/write
+ *    06.01.99   0.8   remove the silly SA_INTERRUPT flag.
+ *                     hopefully killed the egcs section type conflict
  *
  */
 
 /*****************************************************************************/
       
+#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -835,17 +841,14 @@ static void es1371_update_ptr(struct es1371_state *s)
 		diff = get_hwptr(s, &s->dma_adc, ES1371_REG_ADC_FRAMECNT);
 		s->dma_adc.total_bytes += diff;
 		s->dma_adc.count += diff;
-		if (s->dma_adc.mapped) {
-			if (s->dma_adc.count >= s->dma_adc.fragsize) 
-				wake_up(&s->dma_adc.wait);
-		} else {
+		if (s->dma_adc.count >= (signed)s->dma_adc.fragsize) 
+			wake_up(&s->dma_adc.wait);
+		if (!s->dma_adc.mapped) {
 			if (s->dma_adc.count > (signed)(s->dma_adc.dmasize - ((3 * s->dma_adc.fragsize) >> 1))) {
 				s->ctrl &= ~CTRL_ADC_EN;
 				outl(s->ctrl, s->io+ES1371_REG_CONTROL);
 				s->dma_adc.error++;
 			}
-			if (s->dma_adc.count > 0)
-				wake_up(&s->dma_adc.wait);
 		}
 	}
 	/* update DAC1 pointer */
@@ -867,7 +870,7 @@ static void es1371_update_ptr(struct es1371_state *s)
 					      s->dma_dac1.fragsize, (s->sctrl & SCTRL_P1SEB) ? 0 : 0x80);
 				s->dma_dac1.endcleared = 1;
 			}
-			if (s->dma_dac1.count < (signed)s->dma_dac1.dmasize)
+			if (s->dma_dac1.count + (signed)s->dma_dac1.fragsize <= (signed)s->dma_dac1.dmasize)
 				wake_up(&s->dma_dac1.wait);
 		}
 	}
@@ -890,7 +893,7 @@ static void es1371_update_ptr(struct es1371_state *s)
 					      s->dma_dac2.fragsize, (s->sctrl & SCTRL_P2SEB) ? 0 : 0x80);
 				s->dma_dac2.endcleared = 1;
 			}
-			if (s->dma_dac2.count < (signed)s->dma_dac2.dmasize)
+			if (s->dma_dac2.count + (signed)s->dma_dac2.fragsize <= (signed)s->dma_dac2.dmasize)
 				wake_up(&s->dma_dac2.wait);
 		}
 	}
@@ -1443,7 +1446,7 @@ static int drain_dac1(struct es1371_state *s, int nonblock)
 	unsigned long flags;
 	int count, tmo;
 	
-	if (s->dma_dac1.mapped)
+	if (s->dma_dac1.mapped || !s->dma_dac1.ready)
 		return 0;
         current->state = TASK_INTERRUPTIBLE;
         add_wait_queue(&s->dma_dac1.wait, &wait);
@@ -1478,7 +1481,7 @@ static int drain_dac2(struct es1371_state *s, int nonblock)
 	unsigned long flags;
 	int count, tmo;
 
-	if (s->dma_dac2.mapped)
+	if (s->dma_dac2.mapped || !s->dma_dac2.ready)
 		return 0;
         current->state = TASK_INTERRUPTIBLE;
         add_wait_queue(&s->dma_dac2.wait, &wait);
@@ -1623,27 +1626,22 @@ static unsigned int es1371_poll(struct file *file, struct poll_table_struct *wai
 	unsigned int mask = 0;
 
 	VALIDATE_STATE(s);
-	if (file->f_flags & FMODE_WRITE)
+	if (file->f_mode & FMODE_WRITE)
 		poll_wait(file, &s->dma_dac2.wait, wait);
-	if (file->f_flags & FMODE_READ)
+	if (file->f_mode & FMODE_READ)
 		poll_wait(file, &s->dma_adc.wait, wait);
 	spin_lock_irqsave(&s->lock, flags);
 	es1371_update_ptr(s);
-	if (file->f_flags & FMODE_READ) {
-		if (s->dma_adc.mapped) {
+	if (file->f_mode & FMODE_READ) {
 			if (s->dma_adc.count >= (signed)s->dma_adc.fragsize)
 				mask |= POLLIN | POLLRDNORM;
-		} else {
-			if (s->dma_adc.count > 0)
-				mask |= POLLIN | POLLRDNORM;
-		}
 	}
-	if (file->f_flags & FMODE_WRITE) {
+	if (file->f_mode & FMODE_WRITE) {
 		if (s->dma_dac2.mapped) {
 			if (s->dma_dac2.count >= (signed)s->dma_dac2.fragsize) 
 				mask |= POLLOUT | POLLWRNORM;
 		} else {
-			if ((signed)s->dma_dac2.dmasize > s->dma_dac2.count)
+			if ((signed)s->dma_dac2.dmasize >= s->dma_dac2.count + (signed)s->dma_dac2.fragsize)
 				mask |= POLLOUT | POLLWRNORM;
 		}
 	}
@@ -2044,11 +2042,11 @@ static int es1371_release(struct inode *inode, struct file *file)
 	if (file->f_mode & FMODE_WRITE)
 		drain_dac2(s, file->f_flags & O_NONBLOCK);
 	down(&s->open_sem);
-	if (file->f_flags & FMODE_WRITE) {
+	if (file->f_mode & FMODE_WRITE) {
 		stop_dac2(s);
 		dealloc_dmabuf(&s->dma_dac2);
 	}
-	if (file->f_flags & FMODE_READ) {
+	if (file->f_mode & FMODE_READ) {
 		stop_adc(s);
 		dealloc_dmabuf(&s->dma_adc);
 	}
@@ -2148,7 +2146,7 @@ static unsigned int es1371_poll_dac(struct file *file, struct poll_table_struct 
 		if (s->dma_dac1.count >= (signed)s->dma_dac1.fragsize)
 			mask |= POLLOUT | POLLWRNORM;
 	} else {
-		if ((signed)s->dma_dac1.dmasize > s->dma_dac1.count)
+		if ((signed)s->dma_dac1.dmasize >= s->dma_dac1.count + (signed)s->dma_dac1.fragsize)
 			mask |= POLLOUT | POLLWRNORM;
 	}
 	spin_unlock_irqrestore(&s->lock, flags);
@@ -2538,16 +2536,16 @@ static unsigned int es1371_midi_poll(struct file *file, struct poll_table_struct
 	unsigned int mask = 0;
 
 	VALIDATE_STATE(s);
-	if (file->f_flags & FMODE_WRITE)
+	if (file->f_mode & FMODE_WRITE)
 		poll_wait(file, &s->midi.owait, wait);
-	if (file->f_flags & FMODE_READ)
+	if (file->f_mode & FMODE_READ)
 		poll_wait(file, &s->midi.iwait, wait);
 	spin_lock_irqsave(&s->lock, flags);
-	if (file->f_flags & FMODE_READ) {
+	if (file->f_mode & FMODE_READ) {
 		if (s->midi.icnt > 0)
 			mask |= POLLIN | POLLRDNORM;
 	}
-	if (file->f_flags & FMODE_WRITE) {
+	if (file->f_mode & FMODE_WRITE) {
 		if (s->midi.ocnt < MIDIOUTBUF)
 			mask |= POLLOUT | POLLWRNORM;
 	}
@@ -2672,11 +2670,17 @@ static /*const*/ struct file_operations es1371_midi_fops = {
 /* maximum number of devices */
 #define NR_DEVICE 5
 
+#if CONFIG_SOUND_ES1371_JOYPORT_BOOT
+static int joystick[NR_DEVICE] = { 
+CONFIG_SOUND_ES1371_GAMEPORT
+, 0, };
+#else
 static int joystick[NR_DEVICE] = { 0, };
+#endif
 
 /* --------------------------------------------------------------------- */
 
-static const struct initvol {
+static struct initvol {
 	int mixch;
 	int vol;
 } initvol[] __initdata = {
@@ -2708,7 +2712,7 @@ __initfunc(int init_es1371(void))
 
 	if (!pci_present())   /* No PCI bus in this machine! */
 		return -ENODEV;
-	printk(KERN_INFO "es1371: version v0.4 time " __TIME__ " " __DATE__ "\n");
+	printk(KERN_INFO "es1371: version v0.8 time " __TIME__ " " __DATE__ "\n");
 	while (index < NR_DEVICE && 
 	       (pcidev = pci_find_device(PCI_VENDOR_ID_ENSONIQ, PCI_DEVICE_ID_ENSONIQ_ES1371, pcidev))) {
 		if (pcidev->base_address[0] == 0 || 
@@ -2736,20 +2740,20 @@ __initfunc(int init_es1371(void))
 			goto err_region;
 		}
 		request_region(s->io, ES1371_EXTENT, "es1371");
-		if (request_irq(s->irq, es1371_interrupt, SA_INTERRUPT|SA_SHIRQ, "es1371", s)) {
+		if (request_irq(s->irq, es1371_interrupt, SA_SHIRQ, "es1371", s)) {
 			printk(KERN_ERR "es1371: irq %u in use\n", s->irq);
 			goto err_irq;
 		}
 		printk(KERN_INFO "es1371: found adapter at io %#06x irq %u\n"
 		       KERN_INFO "es1371: features: joystick 0x%x\n", s->io, s->irq, joystick[index]);
 		/* register devices */
-		if ((s->dev_audio = register_sound_dsp(&es1371_audio_fops)) < 0)
+		if ((s->dev_audio = register_sound_dsp(&es1371_audio_fops, -1)) < 0)
 			goto err_dev1;
-		if ((s->dev_mixer = register_sound_mixer(&es1371_mixer_fops)) < 0)
+		if ((s->dev_mixer = register_sound_mixer(&es1371_mixer_fops, -1)) < 0)
 			goto err_dev2;
-		if ((s->dev_dac = register_sound_dsp(&es1371_dac_fops)) < 0)
+		if ((s->dev_dac = register_sound_dsp(&es1371_dac_fops, -1)) < 0)
 			goto err_dev3;
-		if ((s->dev_midi = register_sound_midi(&es1371_midi_fops)) < 0)
+		if ((s->dev_midi = register_sound_midi(&es1371_midi_fops, -1)) < 0)
 			goto err_dev4;
 		/* initialize codec registers */
 		s->ctrl = 0;
@@ -2758,7 +2762,6 @@ __initfunc(int init_es1371(void))
 				printk(KERN_ERR "es1371: joystick address 0x%x already in use\n", joystick[index]);
 			else {
 				s->ctrl |= CTRL_JYSTK_EN | (((joystick[index] >> 3) & CTRL_JOY_MASK) << CTRL_JOY_SHIFT);
-				request_region(joystick[index], JOY_EXTENT, "es1371");
 			}
 		}
 		s->sctrl = 0;
@@ -2880,8 +2883,6 @@ void cleanup_module(void)
 		synchronize_irq();
 		free_irq(s->irq, s);
 		release_region(s->io, ES1371_EXTENT);
-		if (s->ctrl & CTRL_JYSTK_EN)
-			release_region(((((s->ctrl >> CTRL_JOY_SHIFT) & CTRL_JOY_MASK) << 3) | 0x200), JOY_EXTENT);
 		unregister_sound_dsp(s->dev_audio);
 		unregister_sound_mixer(s->dev_mixer);
 		unregister_sound_dsp(s->dev_dac);

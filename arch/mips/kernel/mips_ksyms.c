@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.13 1999/02/07 21:56:32 ulfc Exp $
+/* $Id: mips_ksyms.c,v 1.14 1999/02/09 22:54:10 adevries Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -50,6 +50,7 @@ EXPORT_SYMBOL_NOVERS(strncat);
 EXPORT_SYMBOL_NOVERS(strnlen);
 EXPORT_SYMBOL_NOVERS(strrchr);
 EXPORT_SYMBOL_NOVERS(strtok);
+EXPORT_SYMBOL_NOVERS(strpbrk);
 
 EXPORT_SYMBOL(clear_page);
 EXPORT_SYMBOL(__mips_bh_counter);

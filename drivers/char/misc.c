@@ -49,9 +49,7 @@
 
 #include <linux/tty.h>
 #include <linux/selection.h>
-#ifdef CONFIG_KMOD
 #include <linux/kmod.h>
-#endif
 
 /*
  * Head entry for the doubly linked miscdevice list
@@ -89,7 +87,6 @@ extern void hfmodem_init(void);
 extern int pc110pad_init(void);
 extern int pmu_device_init(void);
 
-#ifdef CONFIG_PROC_FS
 static int misc_read_proc(char *buf, char **start, off_t offset,
 			  int len, int *eof, void *private)
 {
@@ -102,7 +99,6 @@ static int misc_read_proc(char *buf, char **start, off_t offset,
 	return len > offset ? len - offset : 0;
 }
 
-#endif /* PROC_FS */
 
 static int misc_open(struct inode * inode, struct file * file)
 {
@@ -113,7 +109,6 @@ static int misc_open(struct inode * inode, struct file * file)
 	while ((c != &misc_list) && (c->minor != minor))
 		c = c->next;
 	if (c == &misc_list) {
-#ifdef CONFIG_KMOD
 		char modname[20];
 		sprintf(modname, "char-major-%d-%d", MISC_MAJOR, minor);
 		request_module(modname);
@@ -121,7 +116,6 @@ static int misc_open(struct inode * inode, struct file * file)
 		while ((c != &misc_list) && (c->minor != minor))
 			c = c->next;
 		if (c == &misc_list)
-#endif
 			return -ENODEV;
 	}
 
@@ -188,17 +182,13 @@ int misc_deregister(struct miscdevice * misc)
 EXPORT_SYMBOL(misc_register);
 EXPORT_SYMBOL(misc_deregister);
 
-#if defined(CONFIG_PROC_FS)
 static struct proc_dir_entry *proc_misc;	
-#endif
 
 int __init misc_init(void)
 {
-#ifdef CONFIG_PROC_FS
 	proc_misc = create_proc_entry("misc", 0, 0);
 	if (proc_misc)
 		proc_misc->read_proc = misc_read_proc;
-#endif /* PROC_FS */
 #ifdef CONFIG_BUSMOUSE
 	bus_mouse_init();
 #endif

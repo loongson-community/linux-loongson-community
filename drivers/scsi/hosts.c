@@ -7,6 +7,8 @@
  *      Subsequent revisions: Eric Youngdale
  *
  *  <drew@colorado.edu>
+ *
+ *  Jiffies wrap fixes (host->resetting), 3 Dec 1998 Andrea Arcangeli
  */
 
 
@@ -97,6 +99,18 @@
 #include "atari_scsi.h"
 #endif
 
+#ifdef CONFIG_MAC_SCSI_OLD
+#include "mac_scsi.h"
+#endif
+
+#ifdef CONFIG_MAC_SCSI
+#include "mac_scsinew.h"
+#endif
+
+#ifdef CONFIG_SCSI_MAC_ESP
+#include "mac_esp.h"
+#endif
+
 #ifdef CONFIG_SCSI_ADVANSYS
 #include "advansys.h"
 #endif
@@ -161,6 +175,10 @@
 #include "qlogicisp.h"
 #endif
 
+#ifdef CONFIG_SCSI_QLOGIC_FC
+#include "qlogicfc.h"
+#endif
+
 #ifdef CONFIG_SCSI_SEAGATE
 #include "seagate.h"
 #endif
@@ -189,6 +207,10 @@
 #include "wd7000.h"
 #endif
 
+#ifdef CONFIG_SCSI_MCA_53C9X
+#include "mca_53c9x.h"
+#endif
+
 #ifdef CONFIG_SCSI_IBMMCA
 #include "ibmmca.h"
 #endif
@@ -207,6 +229,14 @@
 
 #ifdef CONFIG_SCSI_AM53C974
 #include "AM53C974.h"
+#endif
+
+#ifdef CONFIG_SCSI_MEGARAID
+#include "megaraid.h"
+#endif
+
+#ifdef CONFIG_SCSI_ACARD
+#include "atp870u.h"
 #endif
 
 #ifdef CONFIG_SCSI_SUNESP
@@ -251,6 +281,10 @@
 
 #ifdef CONFIG_SCSI_PLUTO
 #include "pluto.h"
+#endif
+
+#ifdef CONFIG_SCSI_INITIO
+#include "ini9100u.h"
 #endif
 
 #ifdef CONFIG_SCSI_DEBUG
@@ -372,6 +406,18 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #endif
 
+#ifdef CONFIG_MAC
+#ifdef CONFIG_MAC_SCSI_OLD
+	MAC_SCSI,
+#endif
+#ifdef CONFIG_SCSI_MAC_ESP
+        SCSI_MAC_ESP,
+#endif
+#ifdef CONFIG_MAC_SCSI
+	MAC_NCR5380,
+#endif
+#endif
+
 #ifdef CONFIG_MVME16x_SCSI
 	MVME16x_SCSI,
 #endif
@@ -414,6 +460,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_AIC7XXX
     AIC7XXX,
 #endif
+#ifdef CONFIG_FD_MCS
+   FD_MCS,
+#endif
 #ifdef CONFIG_SCSI_FUTURE_DOMAIN
     FDOMAIN_16X0,
 #endif
@@ -431,6 +480,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #endif
 #ifdef CONFIG_SCSI_QLOGIC_ISP
     QLOGICISP,
+#endif
+#ifdef CONFIG_SCSI_QLOGIC_FC
+    QLOGICFC,
 #endif
 #ifdef CONFIG_SCSI_PAS16
     MV_PAS16,
@@ -459,6 +511,9 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_7000FASST
     WD7000,
 #endif
+#ifdef CONFIG_SCSI_MCA_53C9X
+    MCA_53C9X,
+#endif
 #ifdef CONFIG_SCSI_IBMMCA
     IBMMCA,
 #endif
@@ -471,11 +526,20 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_AM53C974
     AM53C974,
 #endif
+#ifdef CONFIG_SCSI_MEGARAID
+    MEGARAID,
+#endif
+#ifdef CONFIG_SCSI_ACARD
+    ATP870U,
+#endif
 #ifdef CONFIG_SCSI_SUNESP
     SCSI_SPARC_ESP,
 #endif
 #ifdef CONFIG_SCSI_GDTH
     GDTH,
+#endif
+#ifdef CONFIG_SCSI_INITIO
+    INI9100U,
 #endif
 #ifdef CONFIG_SCSI_QLOGICPTI
     QLOGICPTI,
@@ -595,6 +659,7 @@ struct Scsi_Host * scsi_register(Scsi_Host_Template * tpnt, int j){
     next_scsi_host++;
     retval->host_queue = NULL;
     retval->host_wait = NULL;
+    retval->resetting = 0;
     retval->last_reset = 0;
     retval->irq = 0;
     retval->dma_channel = 0xff;

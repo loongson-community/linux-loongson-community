@@ -41,6 +41,7 @@ void autofs_catatonic_mode(struct autofs_sb_info *sbi)
 		wq = nwq;
 	}
 	fput(sbi->pipe);	/* Close the pipe */
+	autofs_hash_dputall(&sbi->dirhash); /* Remove all dentry pointers */
 }
 
 static int autofs_write(struct file *file, const void *addr, int bytes)
@@ -103,6 +104,10 @@ int autofs_wait(struct autofs_sb_info *sbi, struct qstr * name)
 	struct autofs_wait_queue *wq;
 	int status;
 
+	/* In catatonic mode, we don't wait for nobody */
+	if ( sbi->catatonic )
+		return -ENOENT;
+
 	for ( wq = sbi->queues ; wq ; wq = wq->next ) {
 		if ( wq->hash == name->hash &&
 		     wq->len == name->len &&
@@ -137,6 +142,15 @@ int autofs_wait(struct autofs_sb_info *sbi, struct qstr * name)
 		wq->wait_ctr++;
 
 	/* wq->name is NULL if and only if the lock is already released */
+
+	if ( sbi->catatonic ) {
+		/* We might have slept, so check again for catatonic mode */
+		wq->status = -ENOENT;
+		if ( wq->name ) {
+			kfree(wq->name);
+			wq->name = NULL;
+		}
+	}
 
 	if ( wq->name ) {
 		/* Block all but "shutdown" signals while waiting */

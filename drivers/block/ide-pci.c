@@ -44,6 +44,7 @@
 #define DEVID_HT6565	((ide_pci_devid_t){PCI_VENDOR_ID_HOLTEK,  PCI_DEVICE_ID_HOLTEK_6565})
 #define DEVID_AEC6210	((ide_pci_devid_t){PCI_VENDOR_ID_ARTOP,   PCI_DEVICE_ID_ARTOP_ATP850UF})
 #define DEVID_W82C105	((ide_pci_devid_t){PCI_VENDOR_ID_WINBOND, PCI_DEVICE_ID_WINBOND_82C105})
+#define DEVID_UM8886A	((ide_pci_devid_t){PCI_VENDOR_ID_UMC,     PCI_DEVICE_ID_UMC_UM8886A})
 #define DEVID_UM8886BF	((ide_pci_devid_t){PCI_VENDOR_ID_UMC,     PCI_DEVICE_ID_UMC_UM8886BF})
 #define DEVID_HPT343	((ide_pci_devid_t){PCI_VENDOR_ID_TTI,     PCI_DEVICE_ID_TTI_HPT343})
 
@@ -137,6 +138,7 @@ static ide_pci_device_t ide_pci_chipsets[] __initdata = {
 	{DEVID_NS87415,	"NS87415",	INIT_NS87415,	{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	ON_BOARD,	0 },
 	{DEVID_AEC6210,	"AEC6210",	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	OFF_BOARD,	0 },
 	{DEVID_W82C105,	"W82C105",	INIT_W82C105,	{{0x40,0x01,0x01}, {0x40,0x10,0x10}}, 	ON_BOARD,	0 },
+	{DEVID_UM8886A,	"UM8886A",	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	ON_BOARD,	0 },
 	{DEVID_UM8886BF,"UM8886BF",	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	ON_BOARD,	0 },
 	{DEVID_HPT343,	"HPT343",	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}},	NEVER_BOARD,	16 },
 	{IDE_PCI_DEVID_NULL, "PCI_IDE",	NULL,		{{0x00,0x00,0x00}, {0x00,0x00,0x00}}, 	ON_BOARD,	0 }};
@@ -148,22 +150,15 @@ static ide_pci_device_t ide_pci_chipsets[] __initdata = {
  */
 __initfunc(static unsigned int ide_special_settings (struct pci_dev *dev, const char *name))
 {
-	unsigned int addressbios = 0;
-
-	pci_read_config_dword(dev, PCI_ROM_ADDRESS, &addressbios);
-
 	switch(dev->device) {
 		case PCI_DEVICE_ID_ARTOP_ATP850UF:
 		case PCI_DEVICE_ID_PROMISE_20246:
-			pci_write_config_byte(dev, PCI_ROM_ADDRESS, PCI_ROM_ADDRESS_ENABLE);
-			printk("%s: ROM enabled ", name);
-
-			if (!addressbios) {
-				printk("but no address\n");
-			} else {
-				printk("at 0x%08x\n", addressbios);
+			if (dev->rom_address) {
+				pci_write_config_byte(dev, PCI_ROM_ADDRESS,
+					dev->rom_address | PCI_ROM_ADDRESS_ENABLE);
+				printk(KERN_INFO "%s: ROM enabled at 0x%08lx\n", name, dev->rom_address);
 			}
-
+			
 			if ((dev->class >> 8) == PCI_CLASS_STORAGE_RAID) {
 				unsigned char irq1 = 0, irq2 = 0;
 
@@ -386,6 +381,10 @@ check_if_enabled:
 				mate->serialized = 1;
 			}
 		}
+		if (IDE_PCI_DEVID_EQ(d->devid, DEVID_UM8886A) ||
+		    IDE_PCI_DEVID_EQ(d->devid, DEVID_UM8886BF))
+			hwif->irq = hwif->channel ? 15 : 14;
+
 #ifdef CONFIG_BLK_DEV_IDEDMA
 		if (IDE_PCI_DEVID_EQ(d->devid, DEVID_SIS5513))
 			autodma = 0;

@@ -7,14 +7,17 @@
  * Thanks to Alteon and 3Com for providing hardware and documentation
  * enabling me to write this driver.
  *
+ * A mailing list for discussing the use of this driver has been
+ * setup, please subscribe to the lists if you have any questions
+ * about the driver. Send mail to linux-acenic-help@sunsite.auc.dk to
+ * see how to subscribe.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
 
-#define DEBUG 1
-#define RX_DMA_SKBUFF 1
 #define PKT_COPY_THRESHOLD 300
 
 #include <linux/module.h>
@@ -59,10 +62,6 @@
  * firmware. Also the programming interface is quite neat, except for
  * the parts dealing with the i2c eeprom on the card ;-)
  *
- * A number of standard Ethernet receive skb's are now allocated at
- * init time and not released before the driver is unloaded. This
- * makes it possible to do ifconfig down/up.
- *
  * Using jumbo frames:
  *
  * To enable jumbo frames, simply specify an mtu between 1500 and 9000
@@ -70,55 +69,107 @@
  * by running `ifconfig eth<X> mtu <MTU>' with <X> being the Ethernet
  * interface number and <MTU> being the MTU value.
  *
+ * Module parameters:
+ *
+ * When compiled as a loadable module, the driver allows for a number
+ * of module parameters to be specified. The driver supports the
+ * following module parameters:
+ *
+ *  trace=<val> - Firmware trace level. This requires special traced
+ *                firmware to replace the firmware supplied with
+ *                the driver - for debugging purposes only.
+ *
+ *  link=<val>  - Link state. Normally you want to use the default link
+ *                parameters set by the driver. This can be used to
+ *                override these in case your switch doesn't negotiate
+ *                the link properly. Valid values are:
+ *         0x0001 - Force half duplex link.
+ *         0x0002 - Do not negotiate line speed with the other end.
+ *         0x0010 - 10Mbit/sec link.
+ *         0x0020 - 100Mbit/sec link.
+ *         0x0040 - 1000Mbit/sec link.
+ *         0x0100 - Do not negotiate flow control.
+ *         0x0200 - Enable RX flow control Y
+ *         0x0400 - Enable TX flow control Y (Tigon II NICs only).
+ *                Default value is 0x0270, ie. enable link+flow
+ *                control negotiation. Negotiating the highest
+ *                possible link speed with RX flow control enabled.
+ *
+ *                When disabling link speed negotiation, only one link
+ *                speed is allowed to be specified!
+ *
+ *  tx_coal_tick=<val> - number of coalescing clock ticks (us) allowed
+ *                to wait for more packets to arive before
+ *                interrupting the host, from the time the first
+ *                packet arrives.
+ *
+ *  rx_coal_tick=<val> - number of coalescing clock ticks (us) allowed
+ *                to wait for more packets to arive in the transmit ring,
+ *                before interrupting the host, after transmitting the
+ *                first packet in the ring.
+ *
+ *  max_tx_desc=<val> - maximum number of transmit descriptors
+ *                (packets) transmitted before interrupting the host.
+ *
+ *  max_rx_desc=<val> - maximum number of receive descriptors
+ *                (packets) received before interrupting the host.
+ *
+ * If you use more than one NIC, specify the parameters for the
+ * individual NICs with a comma, ie. trace=0,0x00001fff,0 you want to
+ * run tracing on NIC #2 but not on NIC #1 and #3.
+ *
  * TODO:
  *
  * - Add multicast support.
- * - Make all the tuning parameters and link speed negotiation, user
- *   settable at driver/module init time.
+ * - NIC dump support.
+ * - More tuning parameters.
  */
 
-static const char *version = "acenic.c: v0.13 11/25/98  Jes Sorensen (Jes.Sorensen@cern.ch)\n";
+static int link[8] = {0, };
+static int trace[8] = {0, };
+static int tx_coal_tick[8] = {0, };
+static int rx_coal_tick[8] = {0, };
+static int max_tx_desc[8] = {0, };
+static int max_rx_desc[8] = {0, };
+
+static const char *version = "acenic.c: v0.24 01/13/99  Jes Sorensen (Jes.Sorensen@cern.ch)\n";
 
 static struct device *root_dev = NULL;
 
 static int ace_load_firmware(struct device *dev);
 
+static int probed __initdata = 0;
+
 __initfunc(int acenic_probe (struct device *dev))
 {
-	static int i = 0;
 	int boards_found = 0;
 	int version_disp;
-	u32 tmp;
 	struct ace_private *ap;
+	u8 pci_latency;
+#if 0
 	u16 vendor, device;
 	u8 pci_bus;
 	u8 pci_dev_fun;
-	u8 pci_latency;
 	u8 irq;
+#endif
+	struct pci_dev *pdev = NULL;
+
+	if (probed)
+		return -ENODEV;
+	probed ++;
 
 	if (!pci_present())		/* is PCI support present? */
 		return -ENODEV;
 
 	version_disp = 0;
 
-	for (; i < 255; i++)
+	while((pdev = pci_find_class(PCI_CLASS_NETWORK_ETHERNET << 8, pdev)))
 	{
 		dev = NULL;
 
-		if (pcibios_find_class(PCI_CLASS_NETWORK_ETHERNET << 8,
-				       i, &pci_bus, &pci_dev_fun) !=
-		    PCIBIOS_SUCCESSFUL)
-			break;
-
-		pcibios_read_config_word(pci_bus, pci_dev_fun,
-					 PCI_VENDOR_ID, &vendor);
-
-		pcibios_read_config_word(pci_bus, pci_dev_fun,
-					 PCI_DEVICE_ID, &device);
-
-		if ((vendor != PCI_VENDOR_ID_ALTEON) &&
-		    !((vendor == PCI_VENDOR_ID_3COM) &&
-		      (device == PCI_DEVICE_ID_3COM_3C985)))
+		if ((pdev->vendor != PCI_VENDOR_ID_ALTEON) &&
+		    !((pdev->vendor == PCI_VENDOR_ID_3COM) &&
+		      (pdev->device == PCI_DEVICE_ID_3COM_3C985)))
 			continue;
 
 		dev = init_etherdev(dev, sizeof(struct ace_private));
@@ -133,36 +184,10 @@ __initfunc(int acenic_probe (struct device *dev))
 			dev->priv = kmalloc(sizeof(*ap), GFP_KERNEL);
 
 		ap = dev->priv;
-		ap->vendor = vendor;
+		ap->pdev = pdev;
+		ap->vendor = pdev->vendor;
 
-		/* Read register base address from
-		   PCI Configuration Space */
-
-		pcibios_read_config_dword(pci_bus, pci_dev_fun,
-					  PCI_BASE_ADDRESS_0, &tmp);
-
-		pcibios_read_config_byte(pci_bus, pci_dev_fun,
-					 PCI_INTERRUPT_LINE, &irq);
-
-		pcibios_read_config_word(pci_bus, pci_dev_fun,
-					 PCI_COMMAND, &ap->pci_command);
-
-		if (!(ap->pci_command & PCI_COMMAND_MASTER)){
-			ap->pci_command |= PCI_COMMAND_MASTER;
-			pcibios_write_config_word(pci_bus, pci_dev_fun,
-						  PCI_COMMAND,
-						  ap->pci_command);
-		}
-
-		if (!(ap->pci_command & PCI_COMMAND_MEMORY)){
-			printk(KERN_ERR "Shared mem not enabled - "
-			       "unable to configure AceNIC\n");
-			break;
-		}
-
-		dev->irq = irq;
-		ap->pci_bus = pci_bus;
-		ap->pci_dev_fun = pci_dev_fun;
+		dev->irq = pdev->irq;
 #ifdef __SMP__
 		spin_lock_init(&ap->lock);
 #endif
@@ -189,14 +214,16 @@ __initfunc(int acenic_probe (struct device *dev))
 			printk(version);
 		}
 
-		pcibios_read_config_byte(pci_bus, pci_dev_fun,
-					 PCI_LATENCY_TIMER, &pci_latency);
+		pci_read_config_word(pdev, PCI_COMMAND, &ap->pci_command);
+
+		pci_read_config_byte(pdev, PCI_LATENCY_TIMER, &pci_latency);
 		if (pci_latency <= 0x40){
 			pci_latency = 0x40;
-			pcibios_write_config_byte(pci_bus, pci_dev_fun,
-						  PCI_LATENCY_TIMER,
-						  pci_latency);
+			pci_write_config_byte(pdev, PCI_LATENCY_TIMER,
+					      pci_latency);
 		}
+
+		pci_set_master(pdev);
 
 		switch(ap->vendor){
 		case PCI_VENDOR_ID_ALTEON:
@@ -212,21 +239,27 @@ __initfunc(int acenic_probe (struct device *dev))
 			printk(KERN_INFO "%s: Unknown AceNIC ", dev->name);
 			break;
 		}
-		printk("Gigabit Ethernet at 0x%08x, irq %i, PCI latency %i "
-		       "clks\n", tmp, dev->irq, pci_latency);
+		printk("Gigabit Ethernet at 0x%08lx, irq %i, PCI latency %i "
+		       "clks\n", pdev->base_address[0], dev->irq, pci_latency);
 
 		/*
 		 * Remap the regs into kernel space.
 		 */
 
-		ap->regs = (struct ace_regs *)ioremap(tmp, 0x4000);
+		ap->regs = (struct ace_regs *)ioremap(pdev->base_address[0],
+						      0x4000);
 		if (!ap->regs){
 			printk(KERN_ERR "%s:  Unable to map I/O register, "
-			       "AceNIC %i will be disabled.\n", dev->name, i);
+			       "AceNIC %i will be disabled.\n",
+			       dev->name, boards_found);
 			break;
 		}
 
-		ace_init(dev);
+#ifdef MODULE
+		ace_init(dev, boards_found);
+#else
+		ace_init(dev, -1);
+#endif
 
 		boards_found++;
 
@@ -255,6 +288,17 @@ __initfunc(int acenic_probe (struct device *dev))
 
 
 #ifdef MODULE
+#if LINUX_VERSION_CODE > 0x20118
+MODULE_AUTHOR("Jes Sorensen <Jes.Sorensen@cern.ch>");
+MODULE_DESCRIPTION("AceNIC/3C985 Gigabit Ethernet driver");
+MODULE_PARM(link, "1-" __MODULE_STRING(8) "i");
+MODULE_PARM(trace, "1-" __MODULE_STRING(8) "i");
+MODULE_PARM(tx_coal_tick, "1-" __MODULE_STRING(8) "i");
+MODULE_PARM(max_tx_desc, "1-" __MODULE_STRING(8) "i");
+MODULE_PARM(rx_coal_tick, "1-" __MODULE_STRING(8) "i");
+MODULE_PARM(max_rx_desc, "1-" __MODULE_STRING(8) "i");
+#endif
+
 int init_module(void)
 {
 	int cards;
@@ -299,6 +343,8 @@ void cleanup_module(void)
 		}
 
 		iounmap(regs);
+		if(ap->trace_buf)
+			kfree(ap->trace_buf);
 		kfree(ap->info);
 		free_irq(root_dev->irq, root_dev);
 		unregister_netdev(root_dev);
@@ -326,12 +372,12 @@ static inline void ace_issue_cmd(struct ace_regs *regs, struct cmd *cmd)
 }
 
 
-__initfunc(static int ace_init(struct device *dev))
+__initfunc(static int ace_init(struct device *dev, int board_idx))
 {
 	struct ace_private *ap;
 	struct ace_regs *regs;
 	struct ace_info *info;
-	u32 tig_ver, mac1 = 0, mac2 = 0, tmp;
+	u32 tig_ver, mac1, mac2, tmp;
 	unsigned long tmp_ptr, myjif;
 	short i;
 
@@ -345,7 +391,7 @@ __initfunc(static int ace_init(struct device *dev))
 
 	{
 		long myjif = jiffies + HZ;
-		while (myjif > jiffies);
+		while (time_before(jiffies, myjif));
 	}
 #endif
 
@@ -358,13 +404,6 @@ __initfunc(static int ace_init(struct device *dev))
 #else
 	regs->HostCtrl = (CLR_INT | WORD_SWAP |
 			  ((CLR_INT | WORD_SWAP) << 24));
-#endif
-
-#ifdef __LITTLE_ENDIAN
-	regs->ModeStat = ACE_BYTE_SWAP_DATA | ACE_WARN | ACE_FATAL
-			| ACE_WORD_SWAP;
-#else
-#error "this driver doesn't run on big-endian machines yet!"
 #endif
 
 	/*
@@ -398,10 +437,26 @@ __initfunc(static int ace_init(struct device *dev))
 		return -ENODEV;
 	}
 
+	/*
+	 * ModeStat _must_ be set after the SRAM settings as this change
+	 * seems to corrupt the ModeStat and possible other registers.
+	 * The SRAM settings survive resets and setting it to the same
+	 * value a second time works as well. This is what caused the
+	 * `Firmware not running' problem on the Tigon II.
+	 */
+#ifdef __LITTLE_ENDIAN
+	regs->ModeStat = ACE_BYTE_SWAP_DATA | ACE_WARN | ACE_FATAL
+			| ACE_WORD_SWAP;
+#else
+#error "this driver doesn't run on big-endian machines yet!"
+#endif
+
+	mac1 = 0;
 	for(i = 0; i < 4; i++){
 		mac1 = mac1 << 8;
 		mac1 |= read_eeprom_byte(regs, 0x8c+i);
 	}
+	mac2 = 0;
 	for(i = 4; i < 8; i++){
 		mac2 = mac2 << 8;
 		mac2 |= read_eeprom_byte(regs, 0x8c+i);
@@ -430,7 +485,14 @@ __initfunc(static int ace_init(struct device *dev))
 	 */
 	tmp = READ_CMD_MEM | WRITE_CMD_MEM;
 	if (ap->version == 2){
+#if 0
+		/*
+		 * According to the documentation this enables writes
+		 * to all PCI regs - NOT good.
+		 */
 		tmp |= DMA_WRITE_ALL_ALIGN;
+#endif
+		tmp |= MEM_READ_MULTIPLE;
 		if (ap->pci_command & PCI_COMMAND_INVALIDATE){
 			switch(L1_CACHE_BYTES){
 			case 16:
@@ -447,10 +509,8 @@ __initfunc(static int ace_init(struct device *dev))
 				       "supported, PCI write and invalidate "
 				       "disabled\n", L1_CACHE_BYTES);
 				ap->pci_command &= ~PCI_COMMAND_INVALIDATE;
-				pcibios_write_config_word(ap->pci_bus,
-							  ap->pci_dev_fun,
-							  PCI_COMMAND,
-							  ap->pci_command);
+				pci_write_config_word(ap->pdev, PCI_COMMAND,
+						      ap->pci_command);
 			}
 		}
 	}
@@ -472,6 +532,13 @@ __initfunc(static int ace_init(struct device *dev))
 		free_irq(dev->irq, dev);
 		return -EAGAIN;
 	}
+
+	/*
+	 * Register the device here to be able to catch allocated
+	 * interrupt handlers in case the firmware doesn't come up.
+	 */
+	ap->next = root_dev;
+	root_dev = dev;
 
 	ap->info = info;
 	memset(info, 0, sizeof(struct ace_info));
@@ -546,40 +613,114 @@ __initfunc(static int ace_init(struct device *dev))
 
 	info->tx_csm_ptr = virt_to_bus(&ap->tx_csm);
 
+	/*
+	 * Potential item for tuning parameter
+	 */
 	regs->DmaReadCfg = DMA_THRESH_8W;
 	regs->DmaWriteCfg = DMA_THRESH_8W;
 
 	regs->MaskInt = 0;
 	regs->IfIdx = 1;
 
+	regs->AssistState = 1;
 #if 0
 {
 	u32 tmp;
-	tmp = regs->AssistState;
-	tmp &= ~2;
-	tmp |= 1;
-	regs->AssistState = tmp;
 
 	tmp = regs->MacRxState;
 	tmp &= ~4;
 	regs->MacRxState = tmp;
 }
 #endif
+
 	regs->TuneStatTicks = 2 * TICKS_PER_SEC;
-	regs->TuneTxCoalTicks = TICKS_PER_SEC / 500;
-	regs->TuneMaxTxDesc = 7;
-	regs->TuneRxCoalTicks = TICKS_PER_SEC / 10000;
-	regs->TuneMaxRxDesc = 2;
-	regs->TuneTrace = 0 /* 0x30001fff */;
-	tmp = LNK_ENABLE | LNK_FULL_DUPLEX | LNK_1000MB |
-		LNK_RX_FLOW_CTL_Y | LNK_NEG_FCTL | LNK_NEGOTIATE;
-	if(ap->version == 1)
-		regs->TuneLink = tmp;
-	else{
-		tmp |= LNK_TX_FLOW_CTL_Y;
-		regs->TuneLink = tmp;
-		regs->TuneFastLink = tmp;
+
+	if (board_idx >= 0) {
+		if ((board_idx < 8) && tx_coal_tick[board_idx])
+			regs->TuneTxCoalTicks = tx_coal_tick[board_idx] *
+				TICKS_PER_SEC / 1000;
+		else
+			regs->TuneTxCoalTicks = TICKS_PER_SEC / 500;
+		if ((board_idx < 8) && max_tx_desc[board_idx])
+			regs->TuneMaxTxDesc = max_tx_desc[board_idx];
+		else
+			regs->TuneMaxTxDesc = 7;
+
+		if ((board_idx < 8) && rx_coal_tick[board_idx])
+			regs->TuneRxCoalTicks = rx_coal_tick[board_idx] *
+				TICKS_PER_SEC / 1000;
+		else
+			regs->TuneRxCoalTicks = TICKS_PER_SEC / 10000;
+		if ((board_idx < 8) && max_rx_desc[board_idx])
+			regs->TuneMaxRxDesc = max_rx_desc[board_idx];
+		else
+			regs->TuneMaxRxDesc = 2;
+
+		if (board_idx < 8)
+			regs->TuneTrace = trace[board_idx];
+		else
+			regs->TuneTrace = 0;
+	}else{
+		regs->TuneTxCoalTicks = TICKS_PER_SEC / 500;
+		regs->TuneMaxTxDesc = 7;
+		regs->TuneRxCoalTicks = TICKS_PER_SEC / 10000;
+		regs->TuneMaxRxDesc = 2;
+		regs->TuneTrace = 0;
 	}
+
+	tmp = LNK_ENABLE;
+
+	if ((board_idx > 7) || (board_idx < 0) || !(link[board_idx])){
+		if (board_idx > 7)
+			printk(KERN_WARNING "%s: more then 8 NICs detected, "
+			       "ignoring link options!\n", dev->name);
+		/*
+		 * No link options specified, we go for the defaults
+		 */
+		tmp |=  LNK_FULL_DUPLEX | LNK_1000MB | LNK_100MB | LNK_10MB |
+			LNK_RX_FLOW_CTL_Y | LNK_NEG_FCTL | LNK_NEGOTIATE;
+
+		if(ap->version == 2)
+			tmp |= LNK_TX_FLOW_CTL_Y;
+	} else {
+		int option = link[board_idx];
+
+		if (option & 0x01){
+			printk(KERN_INFO "%s: Setting half duplex link\n",
+			       dev->name);
+			tmp |= LNK_FULL_DUPLEX;
+		}
+		if ((option & 0x02) == 0)
+			tmp |= LNK_NEGOTIATE;
+		if (option & 0x10)
+			tmp |= LNK_10MB;
+		if (option & 0x20)
+			tmp |= LNK_100MB;
+		if (option & 0x40)
+			tmp |= LNK_1000MB;
+		if ((option & 0x70) == 0){
+			printk(KERN_WARNING "%s: No media speed specified, "
+			       "forcing auto negotiation\n", dev->name);
+			tmp |= LNK_NEGOTIATE | LNK_1000MB |
+				LNK_100MB | LNK_10MB;
+		}
+		if ((option & 0x100) == 0)
+			tmp |= LNK_NEG_FCTL;
+		else
+			printk(KERN_INFO "%s: Disabling flow control "
+			       "negotiation\n", dev->name);
+		if (option & 0x200)
+			tmp |= LNK_RX_FLOW_CTL_Y;
+		if ((option & 0x400) && (ap->version == 2)){
+			printk(KERN_INFO "%s: Enabling TX flow control\n",
+			       dev->name);
+			tmp |= LNK_TX_FLOW_CTL_Y;
+		}
+	}
+
+	regs->TuneLink = tmp;
+	if (ap->version == 2)
+		regs->TuneFastLink = tmp;
 
 	if (ap->version == 1)
 		regs->Pc = tigonFwStartAddr;
@@ -595,17 +736,16 @@ __initfunc(static int ace_init(struct device *dev))
 	regs->CpuCtrl = (regs->CpuCtrl & ~(CPU_HALT | CPU_TRACE));
 
 	/*
-	 * Wait for the firmware to spin up - max 2 seconds.
+	 * Wait for the firmware to spin up - max 3 seconds.
 	 */
 	myjif = jiffies + 3 * HZ;
-	while ((myjif > jiffies) && !ap->fw_running);
+	while (time_before(jiffies, myjif) && !ap->fw_running);
 	if (!ap->fw_running){
-		printk(KERN_ERR "%s: firmware NOT running!\n", dev->name);
+		printk(KERN_ERR "%s: Firmware NOT running!\n", dev->name);
+		ace_dump_trace(ap);
+		regs->CpuCtrl |= CPU_HALT;
 		return -EBUSY;
 	}
-
-	ap->next = root_dev;
-	root_dev = dev;
 
 	/*
 	 * We load the ring here as there seem to be no way to tell the
@@ -620,7 +760,6 @@ __initfunc(static int ace_init(struct device *dev))
 /*
  * Monitor the card to detect hangs.
  */
-
 static void ace_timer(unsigned long data)
 {
 	struct device *dev = (struct device *)data;
@@ -639,6 +778,17 @@ static void ace_timer(unsigned long data)
 
 	ap->timer.expires = jiffies + (5/2*HZ);
 	add_timer(&ap->timer);
+}
+
+
+/*
+ * Copy the contents of the NIC's trace buffer to kernel memory.
+ */
+static void ace_dump_trace(struct ace_private *ap)
+{
+	if (!ap->trace_buf)
+		if (!(ap->trace_buf = kmalloc(ACE_TRACE_SIZE, GFP_KERNEL)));
+		    return;
 }
 
 
@@ -822,7 +972,6 @@ static u32 ace_handle_event(struct device *dev, u32 evtcsm, u32 evtprd)
 			ap->fw_running = 1;
 			break;
 		case E_STATS_UPDATED:
-			mod_timer(&ap->timer, jiffies + (5/2*HZ));
 			break;
 		case E_LNK_STATE:
 		{
@@ -1036,18 +1185,6 @@ static void ace_interrupt(int irq, void *dev_id, struct pt_regs *ptregs)
 		return;
 	}
 
-#if 0
-	/*
-	 * Since we are also using a spinlock, I wonder if this is
-	 * actually worth it.
-	 */
-	if (test_and_set_bit(0, (void*)&dev->interrupt) != 0) {
-		printk(KERN_WARNING "%s: Re-entering the interrupt handler.\n",
-		       dev->name);
-		return;
-	}
-#endif
-
 	/*
 	 * Tell the card not to generate interrupts while we are in here.
 	 */
@@ -1076,6 +1213,12 @@ static void ace_interrupt(int irq, void *dev_id, struct pt_regs *ptregs)
 			ap->tx_full = 0;
 			dev->tbusy = 0;
 			mark_bh(NET_BH);
+
+			/*
+			 * TX ring is no longer full, aka the
+			 * transmitter is working fine - kill timer.
+			 */
+			del_timer(&ap->timer);
 		}
 
 		ap->tx_ret_csm = txcsm;
@@ -1098,9 +1241,6 @@ static void ace_interrupt(int irq, void *dev_id, struct pt_regs *ptregs)
 	regs->Mb0Lo = 0;
 
 	spin_unlock(&ap->lock);
-#if 0
-	dev->interrupt = 0;
-#endif
 }
 
 
@@ -1140,7 +1280,7 @@ static int ace_open(struct device *dev)
 
 #if 0
 	{ long myjif = jiffies + HZ;
-	while (jiffies < myjif);
+	while (time_before(jiffies, myjif));
 	}
 
 	cmd.evt = C_LNK_NEGOTIATION;
@@ -1159,10 +1299,8 @@ static int ace_open(struct device *dev)
 	 * Setup the timer
 	 */
 	init_timer(&ap->timer);
-	ap->timer.expires = jiffies + 5/2 * HZ;
 	ap->timer.data = (unsigned long)dev;
-	ap->timer.function = &ace_timer;
-	add_timer(&ap->timer);
+	ap->timer.function = ace_timer;
 	return 0;
 }
 
@@ -1239,6 +1377,12 @@ static int ace_start_xmit(struct sk_buff *skb, struct device *dev)
 	if ((idx + 1) % TX_RING_ENTRIES == ap->tx_ret_csm){
 		ap->tx_full = 1;
 		set_bit(0, (void*)&dev->tbusy);
+		/*
+		 * Queue is full, add timer to detect whether the
+		 * transmitter is stuck.
+		 */
+		ap->timer.expires = jiffies + (3 * HZ);
+		add_timer(&ap->timer);
 	}
 
 	spin_unlock_irqrestore(&ap->lock, flags);
@@ -1342,10 +1486,13 @@ static struct net_device_stats *ace_get_stats(struct device *dev)
 }
 
 
-__initfunc(int ace_copy(struct ace_regs *regs, void *src, u32 dest, int size))
+__initfunc(void ace_copy(struct ace_regs *regs, void *src, u32 dest, int size))
 {
 	int tsize;
 	u32 tdest;
+
+	if (size <= 0)
+		return;
 
 	while(size > 0){
 		tsize = min(((~dest & (ACE_WINDOW_SIZE - 1)) + 1),
@@ -1365,14 +1512,17 @@ __initfunc(int ace_copy(struct ace_regs *regs, void *src, u32 dest, int size))
 		size -= tsize;
 	}
 
-	return 0;
+	return;
 }
 
 
-__initfunc(int ace_clear(struct ace_regs *regs, u32 dest, int size))
+__initfunc(void ace_clear(struct ace_regs *regs, u32 dest, int size))
 {
-	int tsize;
+	int tsize = 0;
 	u32 tdest;
+
+	if (size <= 0)
+		return;
 
 	while(size > 0){
 		tsize = min(((~dest & (ACE_WINDOW_SIZE - 1)) + 1),
@@ -1386,7 +1536,7 @@ __initfunc(int ace_clear(struct ace_regs *regs, u32 dest, int size))
 		size -= tsize;
 	}
 
-	return 0;
+	return;
 }
 
 

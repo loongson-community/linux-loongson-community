@@ -77,9 +77,7 @@
 #include <linux/string.h>
 #include <linux/malloc.h>
 #include <linux/poll.h>
-#ifdef CONFIG_PROC_FS
 #include <linux/proc_fs.h>
-#endif
 #include <linux/init.h>
 #include <linux/smp_lock.h>
 
@@ -91,9 +89,7 @@
 #include <linux/vt_kern.h>
 #include <linux/selection.h>
 
-#ifdef CONFIG_KMOD
 #include <linux/kmod.h>
-#endif
 
 #define CONSOLE_DEV MKDEV(TTY_MAJOR,0)
 #define TTY_DEV MKDEV(TTYAUX_MAJOR,0)
@@ -221,7 +217,6 @@ static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 
 	if ((ldisc < N_TTY) || (ldisc >= NR_LDISCS))
 		return -EINVAL;
-#ifdef CONFIG_KMOD
 	/* Eduardo Blanco <ejbs@cs.cs.com.uy> */
 	/* Cyrus Durgin <cider@speakeasy.org> */
 	if (!(ldiscs[ldisc].flags & LDISC_FLAG_DEFINED)) {
@@ -229,7 +224,6 @@ static int tty_set_ldisc(struct tty_struct *tty, int ldisc)
 		sprintf(modname, "tty-ldisc-%d", ldisc);
 		request_module (modname);
 	}
-#endif
 	if (!(ldiscs[ldisc].flags & LDISC_FLAG_DEFINED))
 		return -EINVAL;
 
@@ -868,12 +862,7 @@ static int init_dev(kdev_t device, struct tty_struct **ret_tty)
 	 * Failures after this point use release_mem to clean up, so 
 	 * there's no need to null out the local pointers.
 	 */
-	driver->table[idx] = tty;	/* FIXME: this is broken and
-	probably causes ^D bug. tty->private_date does not (yet) point
-	to a console, if keypress comes now, await armagedon. 
-
-	also, driver->table is accessed from interrupt for vt case,
-	and this does not look like atomic access at all. */
+	driver->table[idx] = tty;
 	
 	if (!*tp_loc)
 		*tp_loc = tp;
@@ -1848,6 +1837,10 @@ static void flush_to_ldisc(void *private_)
 	int		count;
 	unsigned long flags;
 
+	if (test_bit(TTY_DONT_FLIP, &tty->flags)) {
+		queue_task(&tty->flip.tqueue, &tq_timer);
+		return;
+	}
 	if (tty->flip.buf_num) {
 		cp = tty->flip.char_buf + TTY_FLIPBUF_SIZE;
 		fp = tty->flip.flag_buf + TTY_FLIPBUF_SIZE;
@@ -1874,14 +1867,22 @@ static void flush_to_ldisc(void *private_)
 
 /*
  * Routine which returns the baud rate of the tty
- */
-
-/*
- * This is used to figure out the divisor speeds and the timeouts
+ *
+ * Note that the baud_table needs to be kept in sync with the
+ * include/asm/termbits.h file.
  */
 static int baud_table[] = {
 	0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800,
-	9600, 19200, 38400, 57600, 115200, 230400, 460800, 0 };
+	9600, 19200, 38400, 57600, 115200, 230400, 460800,
+#ifdef __sparc__
+	76800, 153600, 307200, 614400, 921600
+#else
+	500000, 576000, 921600, 1000000, 1152000, 1500000, 2000000,
+	2500000, 3000000, 3500000, 4000000
+#endif
+};
+
+static int n_baud_table = sizeof(baud_table)/sizeof(int);
 
 int tty_get_baud_rate(struct tty_struct *tty)
 {
@@ -1892,7 +1893,7 @@ int tty_get_baud_rate(struct tty_struct *tty)
 	i = cflag & CBAUD;
 	if (i & CBAUDEX) {
 		i &= ~CBAUDEX;
-		if (i < 1 || i > 4) 
+		if (i < 1 || i+15 >= n_baud_table) 
 			tty->termios->c_cflag &= ~CBAUDEX;
 		else
 			i += 15;
@@ -1932,6 +1933,7 @@ static void initialize_tty_struct(struct tty_struct *tty)
 	tty->flip.pty_sem = MUTEX;
 	tty->tq_hangup.routine = do_tty_hangup;
 	tty->tq_hangup.data = tty;
+	sema_init(&tty->atomic_read, 1);
 }
 
 /*
@@ -1966,9 +1968,7 @@ int tty_register_driver(struct tty_driver *driver)
 	if (tty_drivers) tty_drivers->prev = driver;
 	tty_drivers = driver;
 	
-#ifdef CONFIG_PROC_FS
 	proc_tty_register_driver(driver);
-#endif	
 	return error;
 }
 
@@ -2010,9 +2010,7 @@ int tty_unregister_driver(struct tty_driver *driver)
 	if (driver->next)
 		driver->next->prev = driver->prev;
 
-#ifdef CONFIG_PROC_FS
 	proc_tty_unregister_driver(driver);
-#endif
 	return 0;
 }
 

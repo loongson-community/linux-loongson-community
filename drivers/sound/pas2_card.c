@@ -73,12 +73,12 @@ extern void     mix_write(unsigned char data, int ioaddr);
 
 unsigned char pas_read(int ioaddr)
 {
-	return inb(ioaddr ^ translate_code);
+	return inb(ioaddr + translate_code);
 }
 
 void pas_write(unsigned char data, int ioaddr)
 {
-	outb((data), ioaddr ^ translate_code);
+	outb((data), ioaddr + translate_code);
 }
 
 /******************* Begin of the Interrupt Handler ********************/
@@ -163,28 +163,34 @@ static int config_pas_hw(struct address_info *hw_config)
 	if (pas_irq < 0 || pas_irq > 15)
 	{
 		printk(KERN_ERR "PAS16: Invalid IRQ %d", pas_irq);
+		hw_config->irq=-1;
 		ok = 0;
 	}
 	else
 	{
 		int_ptrs = pas_read(0xF38A);
-		int_ptrs |= irq_bits[pas_irq] & 0xf;
+		int_ptrs = (int_ptrs & 0xf0) | irq_bits[pas_irq];
 		pas_write(int_ptrs, 0xF38A);
 		if (!irq_bits[pas_irq])
 		{
 			printk(KERN_ERR "PAS16: Invalid IRQ %d", pas_irq);
+			hw_config->irq=-1;
 			ok = 0;
 		}
 		else
 		{
-			if (request_irq(pas_irq, pasintr, 0, "PAS16",NULL) < 0)
+			if (request_irq(pas_irq, pasintr, 0, "PAS16",hw_config) < 0) {
+				printk(KERN_ERR "PAS16: Cannot allocate IRQ %d\n",pas_irq);
+				hw_config->irq=-1;
 				ok = 0;
+			}
 		}
 	}
 
 	if (hw_config->dma < 0 || hw_config->dma > 7)
 	{
 		printk(KERN_ERR "PAS16: Invalid DMA selection %d", hw_config->dma);
+		hw_config->dma=-1;
 		ok = 0;
 	}
 	else
@@ -193,6 +199,7 @@ static int config_pas_hw(struct address_info *hw_config)
 		if (!dma_bits[hw_config->dma])
 		{
 			printk(KERN_ERR "PAS16: Invalid DMA selection %d", hw_config->dma);
+			hw_config->dma=-1;
 			ok = 0;
 		}
 		else
@@ -200,6 +207,7 @@ static int config_pas_hw(struct address_info *hw_config)
 			if (sound_alloc_dma(hw_config->dma, "PAS16"))
 			{
 				printk(KERN_ERR "pas2_card.c: Can't allocate DMA channel\n");
+				hw_config->dma=-1;
 				ok = 0;
 			}
 		}
@@ -297,7 +305,7 @@ static int detect_pas_hw(struct address_info *hw_config)
 
 	outb((0xBC), 0x9A01);	/* Activate first board */
 	outb((hw_config->io_base >> 2), 0x9A01);	/* Set base address */
-	translate_code = 0x388 ^ hw_config->io_base;
+	translate_code = hw_config->io_base - 0x388;
 	pas_write(1, 0xBF88);	/* Select one wait states */
 
 	board_id = pas_read(0x0B8B);
@@ -347,7 +355,7 @@ void attach_pas_card(struct address_info *hw_config)
 			pas_pcm_init(hw_config);
 #endif
 
-#if !defined(DISABLE_SB_EMULATION) && defined(CONFIG_SB)
+#if !defined(MODULE) && !defined(DISABLE_SB_EMULATION) && defined(CONFIG_SB)
 
 			sb_dsp_disable_midi(pas_sb_base);	/* No MIDI capability */
 #endif
@@ -367,8 +375,20 @@ int probe_pas(struct address_info *hw_config)
 
 void unload_pas(struct address_info *hw_config)
 {
-	sound_free_dma(hw_config->dma);
-	free_irq(hw_config->irq, NULL);
+	extern int pas_audiodev;
+	extern int pas2_mididev;
+
+	if (hw_config->dma>0)
+		sound_free_dma(hw_config->dma);
+	if (hw_config->irq>0)
+		free_irq(hw_config->irq, hw_config);
+
+	if(pas_audiodev!=-1)
+		sound_unload_mixerdev(audio_devs[pas_audiodev]->mixer_dev);
+	if(pas2_mididev!=-1)
+	        sound_unload_mididev(pas2_mididev);
+	if(pas_audiodev!=-1)
+		sound_unload_audiodev(pas_audiodev);
 }
 
 #ifdef MODULE

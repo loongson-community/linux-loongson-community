@@ -7,6 +7,7 @@
  * impossible at the moment.
  */
 
+#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/types.h>
 #include <linux/linkage.h>
@@ -38,8 +39,10 @@ rpc_register_sysctl(void)
 	if (!sunrpc_table_header) {
 		sunrpc_table_header = register_sysctl_table(sunrpc_table, 1);
 #ifdef MODULE
+#ifdef CONFIG_PROC_FS
 		if (sunrpc_table[0].de)
 			sunrpc_table[0].de->fill_inode = rpc_modcount;
+#endif
 #endif
 	}
 			

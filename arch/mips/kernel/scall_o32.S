@@ -44,6 +44,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	beqz	t2, illegal_syscall;
 
 	subu	t0, t3, 5		# 5 or more arguments?
+	sw	a3, PT_R26(sp)		# save a3 for syscall restarting
 	bgez	t0, stackargs
 
 stack_done:

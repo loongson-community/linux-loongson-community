@@ -1,5 +1,5 @@
 /*
- * $Id: time.c,v 1.36 1998/10/10 12:16:08 geert Exp $
+ * $Id: time.c,v 1.39 1998/12/28 10:28:51 paulus Exp $
  * Common time routines among all ppc machines.
  *
  * Written by Cort Dougan (cort@cs.nmt.edu) to merge
@@ -17,6 +17,9 @@
  * This is then divided by 4, providing a 8192 Hz clock into the PIT.
  * Since it is not possible to get a nice 100 Hz clock out of this, without
  * creating a software PLL, I have set HZ to 128.  -- Dan
+ *
+ * 1997-09-10	Updated NTP code according to technical memorandum Jan '96
+ *		"A Kernel Model for Precision Timekeeping" by Dave Mills
  */
 
 #include <linux/config.h>
@@ -78,6 +81,26 @@ void timer_interrupt(struct pt_regs * regs)
 	unsigned dcache_locked = unlock_dcache();
 	
 	hardirq_enter(cpu);
+#ifdef __SMP__
+	{
+		unsigned int loops = 100000000;
+		while (test_bit(0, &global_irq_lock)) {
+			if (smp_processor_id() == global_irq_holder) {
+				printk("uh oh, interrupt while we hold global irq lock!\n");
+#ifdef CONFIG_XMON
+				xmon(0);
+#endif
+				break;
+			}
+			if (loops-- == 0) {
+				printk("do_IRQ waiting for irq lock (holder=%d)\n", global_irq_holder);
+#ifdef CONFIG_XMON
+				xmon(0);
+#endif
+			}
+		}
+	}
+#endif /* __SMP__ */			
 	
 	while ((dval = get_dec()) < 0) {
 		/*
@@ -133,9 +156,9 @@ void timebase_interrupt(int irq, void * dev, struct pt_regs * regs)
 static int
 mbx_set_rtc_time(unsigned long time)
 {
-	((immap_t *)MBX_IMAP_ADDR)->im_sitk.sitk_rtck = KAPWR_KEY;
-	((immap_t *)MBX_IMAP_ADDR)->im_sit.sit_rtc = time;
-	((immap_t *)MBX_IMAP_ADDR)->im_sitk.sitk_rtck = ~KAPWR_KEY;
+	((immap_t *)IMAP_ADDR)->im_sitk.sitk_rtck = KAPWR_KEY;
+	((immap_t *)IMAP_ADDR)->im_sit.sit_rtc = time;
+	((immap_t *)IMAP_ADDR)->im_sitk.sitk_rtck = ~KAPWR_KEY;
 	return(0);
 }
 #endif /* CONFIG_MBX */
@@ -150,12 +173,15 @@ void do_gettimeofday(struct timeval *tv)
 	save_flags(flags);
 	cli();
 	*tv = xtime;
+	/* XXX we don't seem to have the decrementers synced properly yet */
+#ifndef __SMP__
 	tv->tv_usec += (decrementer_count - get_dec())
 	    * count_period_num / count_period_den;
 	if (tv->tv_usec >= 1000000) {
 		tv->tv_usec -= 1000000;
 		tv->tv_sec++;
 	}
+#endif
 	restore_flags(flags);
 }
 
@@ -172,6 +198,11 @@ void do_settimeofday(struct timeval *tv)
 	xtime.tv_sec = tv->tv_sec;
 	xtime.tv_usec = tv->tv_usec - frac_tick;
 	set_dec(frac_tick * count_period_den / count_period_num);
+	time_adjust = 0;		/* stop active adjtime() */
+	time_status |= STA_UNSYNC;
+	time_state = TIME_ERROR;	/* p. 24, (a) */
+	time_maxerror = NTP_PHASE_LIMIT;
+	time_esterror = NTP_PHASE_LIMIT;
 	restore_flags(flags);
 }
 
@@ -227,13 +258,13 @@ __initfunc(void time_init(void))
 	 * modify these registers we have to write the key value to
 	 * the key location associated with the register.
 	 */
-	((immap_t *)MBX_IMAP_ADDR)->im_sitk.sitk_tbscrk = KAPWR_KEY;
-	((immap_t *)MBX_IMAP_ADDR)->im_sitk.sitk_rtcsck = KAPWR_KEY;
+	((immap_t *)IMAP_ADDR)->im_sitk.sitk_tbscrk = KAPWR_KEY;
+	((immap_t *)IMAP_ADDR)->im_sitk.sitk_rtcsck = KAPWR_KEY;
 
 
 	/* Disable the RTC one second and alarm interrupts.
 	*/
-	((immap_t *)MBX_IMAP_ADDR)->im_sit.sit_rtcsc &=
+	((immap_t *)IMAP_ADDR)->im_sit.sit_rtcsc &=
 						~(RTCSC_SIE | RTCSC_ALE);
 
 	/* Enabling the decrementer also enables the timebase interrupts
@@ -241,7 +272,7 @@ __initfunc(void time_init(void))
 	 * we have to enable the timebase).  The decrementer interrupt
 	 * is wired into the vector table, nothing to do here for that.
 	 */
-	((immap_t *)MBX_IMAP_ADDR)->im_sit.sit_tbscr =
+	((immap_t *)IMAP_ADDR)->im_sit.sit_tbscr =
 				((mk_int_int_mask(DEC_INTERRUPT) << 8) |
 					 (TBSCR_TBF | TBSCR_TBE));
 	if (request_irq(DEC_INTERRUPT, timebase_interrupt, 0, "tbint", NULL) != 0)
@@ -249,7 +280,7 @@ __initfunc(void time_init(void))
 
 	/* Get time from the RTC.
 	*/
-	xtime.tv_sec = ((immap_t *)MBX_IMAP_ADDR)->im_sit.sit_rtc;
+	xtime.tv_sec = ((immap_t *)IMAP_ADDR)->im_sit.sit_rtc;
 	xtime.tv_usec = 0;
 
 #endif /* CONFIG_MBX */
@@ -343,10 +374,10 @@ __initfunc(void prep_calibrate_decr_handler(int irq, void *dev, struct pt_regs *
  */
 __initfunc(void mbx_calibrate_decr(void))
 {
-	bd_t	*binfo = (bd_t *)&res;
+	bd_t	*binfo = (bd_t *)res;
 	int freq, fp, divisor;
 
-	if ((((immap_t *)MBX_IMAP_ADDR)->im_clkrst.car_sccr & 0x02000000) == 0)
+	if ((((immap_t *)IMAP_ADDR)->im_clkrst.car_sccr & 0x02000000) == 0)
 		printk("WARNING: Wrong decrementer source clock.\n");
 
 	/* The manual says the frequency is in Hz, but it is really

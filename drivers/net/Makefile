@@ -5,7 +5,7 @@
 
 SUB_DIRS     := 
 MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS) hamradio
+ALL_SUB_DIRS := $(SUB_DIRS) hamradio irda
 
 L_TARGET := net.a
 L_OBJS   := auto_irq.o
@@ -384,6 +384,10 @@ endif
 
 ifeq ($(CONFIG_LANCE),y)
 L_OBJS += lance.o
+else
+  ifeq ($(CONFIG_LANCE),m)
+  M_OBJS += lance.o
+  endif
 endif
 
 ifeq ($(CONFIG_PCNET32),y)
@@ -752,6 +756,16 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_COSA),y)
+L_OBJS += cosa.o
+CONFIG_SYNCPPP_BUILTIN = y
+else
+  ifeq ($(CONFIG_COSA),m)
+  CONFIG_SYNCPPP_MODULE = y
+  M_OBJS += cosa.o
+  endif
+endif
+
 # If anything built-in uses syncppp, then build it into the kernel also.
 # If not, but a module uses it, build as a module.
 
@@ -812,7 +826,7 @@ ifdef CONFIG_8390_BUILTIN
 L_OBJS += 8390.o
 else
   ifdef CONFIG_8390_MODULE
-  M_OBJS += 8390.o
+  MX_OBJS += 8390.o
   endif
 endif
 
@@ -965,6 +979,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_RCPCI),y)
+L_OBJS += rcpci.o
+else
+  ifeq ($(CONFIG_RCPCI),m)
+  M_OBJS += rcpci.o
+  endif
+endif
+
 ifeq ($(CONFIG_MACE),y)
 L_OBJS += mace.o
 endif
@@ -1013,19 +1035,20 @@ endif
 #
 # HIPPI adapters
 #
-ifeq ($(CONFIG_CERN_HIPPI),y)
-L_OBJS += cern_hippi.o
-else
-  ifeq ($(CONFIG_CERN_HIPPI),m)
-  M_OBJS += cern_hippi.o
-  endif
-endif
 
 ifeq ($(CONFIG_ROADRUNNER),y)
 L_OBJS += rrunner.o
 else
   ifeq ($(CONFIG_ROADRUNNER),m)
   M_OBJS += rrunner.o
+  endif
+endif
+
+ifeq ($(CONFIG_IRDA),y)
+SUB_DIRS += irda
+else
+  ifeq ($(CONFIG_IRDA),m)
+  MOD_SUB_DIRS += irda
   endif
 endif
 
@@ -1036,3 +1059,6 @@ clean:
 
 wanpipe.o: $(WANPIPE_OBJS)
 	ld -r -o $@ $(WANPIPE_OBJS)
+
+rcpci.o: rcpci45.o rclanmtl.o
+	$(LD) -r -o rcpci.o rcpci45.o rclanmtl.o

@@ -456,13 +456,11 @@ static int sound_open(struct inode *inode, struct file *file)
 
 	case SND_DEV_CTL:
 		dev >>= 4;
-#ifdef CONFIG_KMOD
 		if (dev >= 0 && dev < MAX_MIXER_DEV && mixer_devs[dev] == NULL) {
 			char modname[20];
 			sprintf(modname, "mixer%d", dev);
 			request_module(modname);
 		}
-#endif
 		if (dev && (dev >= num_mixers || mixer_devs[dev] == NULL))
 			return -ENXIO;
 		break;
@@ -578,14 +576,12 @@ static int sound_mixer_ioctl(int mixdev, unsigned int cmd, caddr_t arg)
 {
  	if (mixdev < 0 || mixdev >= MAX_MIXER_DEV)
  		return -ENXIO;
-#ifdef CONFIG_KMOD
  	/* Try to load the mixer... */
  	if (mixer_devs[mixdev] == NULL) {
  		char modname[20];
  		sprintf(modname, "mixer%d", mixdev);
  		request_module(modname);
  	}
-#endif	/* CONFIG_KMOD */
  	if (mixdev >= num_mixers || !mixer_devs[mixdev])
  		return -ENXIO;
 	if (cmd == SOUND_MIXER_INFO)
@@ -760,6 +756,9 @@ static int sound_mmap(struct file *file, struct vm_area_struct *vma)
 
 	dmap->mapping_flags |= DMA_MAP_MAPPED;
 
+	if( audio_devs[dev]->d->mmap)
+		audio_devs[dev]->d->mmap(dev);
+
 	memset(dmap->raw_buf,
 	       dmap->neutral_byte,
 	       dmap->bytes_in_use);
@@ -906,8 +905,10 @@ void cleanup_module(void)
 	{
 		return;
 	}
+#ifdef CONFIG_PROC_FS	
         if (proc_unregister(&proc_root, PROC_SOUND))
 		printk(KERN_ERR "sound: unregistering /proc/sound failed\n");
+#endif		
 	if (chrdev_registered)
 		destroy_special_devices();
 

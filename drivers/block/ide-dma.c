@@ -68,8 +68,9 @@
  *       SIIG's UltraIDE Pro CN-2449
  * TTI   HPT343 Chipset "Modified SCSI Class" but reports as an
  *       unknown storage device.
- * NEW	check_drive_lists(ide_drive_t *drive, int good_bad)
+ * NEW	 check_drive_lists(ide_drive_t *drive, int good_bad)
  */
+
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -91,17 +92,26 @@
  */
 const char *good_dma_drives[] = {"Micropolis 2112A",
 				 "CONNER CTMA 4000",
+				 "CONNER CTT8000-A",
 				 "ST34342A",	/* for Sun Ultra */
-				 "WDC AC2340F",	/* DMA mode1 */
-				 "WDC AC2340H",	/* DMA mode1 */
 				 NULL};
 
 /*
  * bad_dma_drives() lists the model names (from "hdparm -i")
  * of drives which supposedly support (U)DMA but which are
  * known to corrupt data with this interface under Linux.
+ *
+ * This is an empirical list. Its generated from bug reports. That means
+ * while it reflects actual problem distributions it doesn't answer whether
+ * the drive or the controller, or cabling, or software, or some combination
+ * thereof is the fault. If you don't happen to agree with the kernel's 
+ * opinion of your drive - use hdparm to turn DMA on.
  */
-const char *bad_dma_drives[] = {"WDC AC22100H",
+const char *bad_dma_drives[] = {"WDC AC11000H",
+				"WDC AC22100H",
+				"WDC AC32500H",
+				"WDC AC33100H",
+				"WDC AC31600H",
  				NULL};
 
 /*
@@ -243,7 +253,7 @@ int check_drive_lists (ide_drive_t *drive, int good_bad)
 		list = bad_dma_drives;
 		while (*list) {
 			if (!strcmp(*list++,id->model)) {
-				printk("%s: (U)DMA capability is broken for %s\n",
+				printk("%s: Disabling (U)DMA for %s\n",
 					drive->name, id->model);
 				return 1;
 			}
@@ -331,8 +341,8 @@ int ide_dmaproc (ide_dma_action_t func, ide_drive_t *drive)
 			return 0;
 		case ide_dma_end: /* returns 1 on error, 0 otherwise */
 			drive->waiting_for_dma = 0;
-			dma_stat = inb(dma_base+2);
-			outb(inb(dma_base)&~1, dma_base);		/* stop DMA */
+			outb(inb(dma_base)&~1, dma_base);	/* stop DMA */
+			dma_stat = inb(dma_base+2);		/* get DMA status */
 			outb(dma_stat|6, dma_base+2);	/* clear the INTR & ERROR bits */
 			return (dma_stat & 7) != 4;	/* verify good DMA status */
 		case ide_dma_test_irq: /* returns 1 if dma irq issued, 0 otherwise */
@@ -359,7 +369,11 @@ int ide_release_dma (ide_hwif_t *hwif)
 	return 1;
 }
 
-__initfunc(void ide_setup_dma (ide_hwif_t *hwif, unsigned long dma_base, unsigned int num_ports))
+/*
+ *	This can be called for a dynamically installed interface. Don't initfunc it
+ */
+ 
+void ide_setup_dma (ide_hwif_t *hwif, unsigned long dma_base, unsigned int num_ports)
 {
 	static unsigned long dmatable = 0;
 	static unsigned leftover = 0;

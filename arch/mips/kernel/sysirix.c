@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.14 1999/02/01 01:28:56 ralf Exp $
+/* $Id: sysirix.c,v 1.15 1999/02/06 05:12:57 adevries Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -2020,6 +2020,7 @@ out:
 asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count, int *eob)
 {
 	struct file *file;
+	struct dentry *dentry;
 	struct inode *inode;
 	struct irix_dirent32 *lastdirent;
 	struct irix_dirent32_callback buf;
@@ -2031,44 +2032,55 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	       current->pid, fd, dirent, count, eob);
 #endif
 	error = -EBADF;
-	if (!(file = fget(fd)))
+	file = fget(fd);
+	if (!file)
 		goto out;
 
-	/* Shouldn't it be ENOENT? */
-	inode = file->f_dentry->d_inode;
+	dentry = file->f_dentry;
+	if (!dentry)
+		goto out_putf;
+
+	inode = dentry->d_inode;
 	if (!inode)
-		goto out_f;
+		goto out_putf;
 
-	error = -ENOTDIR;
-	if (!file->f_op || !file->f_op->readdir)
-		goto out_f;
-
-	error = -EFAULT;
-	if(!access_ok(VERIFY_WRITE, dirent, count) ||
-	   !access_ok(VERIFY_WRITE, eob, sizeof(*eob)))
-		goto out_f;
-
-	__put_user(0, eob);
 	buf.current_dir = (struct irix_dirent32 *) dirent;
 	buf.previous = NULL;
 	buf.count = count;
 	buf.error = 0;
 
+	error = -ENOTDIR;
+	if (!file->f_op || !file->f_op->readdir)
+		goto out_putf;
+
+	/*
+	 * Get the inode's semaphore to prevent changes
+	 * to the directory while we read it.
+	 */
+	down(&inode->i_sem);
 	error = file->f_op->readdir(file, &buf, irix_filldir32);
+	up(&inode->i_sem);
 	if (error < 0)
-		goto out_f;
+		goto out_putf;
+	error = buf.error;
 	lastdirent = buf.previous;
-	if (!lastdirent) {
-		error = buf.error;
-		goto out_f;
+	if (lastdirent) {
+		put_user(file->f_pos, &lastdirent->d_off);
+		error = count - buf.count;
 	}
-	lastdirent->d_off = (u32) file->f_pos;
+
+	if (put_user(0, eob) < 0) {
+		error = EFAULT;
+		goto out_putf;
+	}
+
+
 #ifdef DEBUG_GETDENTS
 	printk("eob=%d returning %d\n", *eob, count - buf.count);
 #endif
 	error = count - buf.count;
 
-out_f:
+out_putf:
 	fput(file);
 out:
 	unlock_kernel();

@@ -1,7 +1,7 @@
 /*
  *  arch/ppc/kernel/head.S
  *
- *  $Id: head.S,v 1.111 1998/11/10 01:10:32 paulus Exp $
+ *  $Id: head.S,v 1.114 1998/12/28 10:28:45 paulus Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -147,6 +147,10 @@ _start:
  *  r3: 'BooX' (0x426f6f58)
  *  r4: virtual address of boot_infos_t
  *  r5: 0
+ *
+ * APUS
+ *   r3: 'APUS'
+ *   Linux/m68k style BootInfo structure at &_end.
  *
  * PREP
  * This is jumped to on prep systems right after the kernel is relocated
@@ -528,9 +532,10 @@ HardwareInterrupt:
 
 	stw	r3,(_CCR+4)(r21);
 #endif
-	addi	r3,r1,STACK_FRAME_OVERHEAD;
-	li	r20,MSR_KERNEL;
-	bl	transfer_to_handler;
+	addi	r3,r1,STACK_FRAME_OVERHEAD
+	li	r20,MSR_KERNEL
+	li	r4,0
+	bl	transfer_to_handler
 	.long	do_IRQ;
 	.long	int_return
 	
@@ -1195,18 +1200,34 @@ stack_ovf:
  * physical address of the hash table are known.  These definitions
  * of Hash_base and Hash_bits below are just an example.
  */
-/*
- * Note that the 603s won't come here, since the 603
- * loads tlb directly into the tlb from the linux tables, while
- * others (601, 604, etc.) call hash_page() to load entries from
- * the linux tables into the hash table.  -- Cort
- */	
 Hash_base = 0x180000
 Hash_bits = 12				/* e.g. 256kB hash table */
 Hash_msk = (((1 << Hash_bits) - 1) * 64)
-
+	
+	.globl	hash_table_lock
+hash_table_lock:
+.long	0
+	
 	.globl	hash_page
 hash_page:
+#ifdef __SMP__
+	lis	r2,hash_table_lock@h
+	ori	r2,r2,hash_table_lock@l
+	tophys(r2,r2,r6)
+	lis	r6,100000000@h
+	mtctr	r6
+	lwz	r0,PROCESSOR-TSS(r5)
+	or	r0,r0,r6
+10:	lwarx	r6,0,r2
+	cmpi	0,r6,0
+	bne-	12f
+	stwcx.	r0,0,r2
+	beq+	11f
+12:	cmpw	r6,r0
+	bdnzf	2,10b
+	tw	31,31,31
+11:
+#endif
 	/* Get PTE (linux-style) and check access */
 	lwz	r5,PG_TABLES(r5)		
 	tophys(r5,r5,r2)		/* convert to phys addr */
@@ -1253,6 +1274,9 @@ hash_page_patch_A:
 	li	r2,8			/* PTEs/group */
 	bne	10f			/* no PTE: go look for an empty slot */
 	tlbie	r3			/* invalidate TLB entry */
+#ifdef __SMP__
+	tlbsync
+#endif
 
 	/* Search the primary PTEG for a PTE whose 1st word matches r5 */
 	mtctr	r2
@@ -1297,7 +1321,6 @@ hash_page_patch_C:
 	bdnzf	2,2b
 	beq+	found_empty
 
-#if 1
 	/*
 	 * Choose an arbitrary slot in the primary PTEG to overwrite.
 	 * Since both the primary and secondary PTEGs are full, and we
@@ -1313,26 +1336,6 @@ hash_page_patch_C:
 	andi.	r2,r2,0x38
 	stw	r2,next_slot@l(0)
 	add	r3,r4,r2
-#else
-	/* now, allow 2nd hash as well as 1st */
-	lwz	r2,next_slot@l(0)
-	addi	r2,r2,8
-	andi.	r2,r2,0x78
-	stw	r2,next_slot@l(0)
-	cmpi	0,0,r2,0x38             /* if it's the 2nd hash */
-	bgt	second_evict
-first_evict:
-	xori	r5,r5,0x40		/* clear H bit again */
-	add	r3,r4,r2
-	b	11f
-second_evict:
-	.globl	hash_page_patch_D
-hash_page_patch_D:	
-	xoris	r3,r4,Hash_msk>>16	/* compute secondary hash */
-	xori	r3,r3,0xffc0
-	subi	r2,r2,0x40
-	addi	r3,r3,r2
-#endif
 11:		
 	/* update counter of evicted pages */
 	lis	r2,htab_evicts@h
@@ -1372,6 +1375,13 @@ found_slot:
 	addi	r3,r3,1
 	stw	r3,0(r2)
 
+#ifdef __SMP__
+	lis	r2,hash_table_lock@ha
+	tophys(r2,r2,r6)
+	li	r0,0
+	stw	r0,hash_table_lock@l(r2)
+#endif
+
 	/* Return from the exception */
 	lwz	r3,_CCR(r21)
 	lwz	r4,_LINK(r21)
@@ -1392,6 +1402,12 @@ found_slot:
 	rfi
 	
 hash_page_out:
+#ifdef __SMP__
+	lis	r2,hash_table_lock@ha
+	tophys(r2,r2,r6)
+	li	r0,0
+	stw	r0,hash_table_lock@l(r2)
+#endif		
 	blr
 next_slot:
 	.long	0
@@ -1709,6 +1725,9 @@ start_here:
 2:
 	SYNC			/* Force all PTE updates to finish */
 	tlbia			/* Clear all TLB entries */
+#ifdef __SMP__
+	tlbsync
+#endif
 #ifndef CONFIG_8xx
 	mtspr	SDR1,r6
 	li	r0,16		/* load up segment register values */
@@ -1980,16 +1999,13 @@ _GLOBAL(_switch)
 
 /* FALL THROUGH into int_return */
 #ifdef __SMP__
-	/* drop scheduler_lock since we weren't called by schedule() */
+	/* call schedule_tail if this is the first time for a child process */
 	lwz	r5,TSS_SMP_FORK_RET(r4)
 	cmpi	0,r5,0
 	beq+	int_return
 	li	r3,0
-	lis	r5,scheduler_lock@ha
 	stw	r3,TSS_SMP_FORK_RET(r4)
-	stw	r3,scheduler_lock@l+4(r5)	/* owner_pc */
-	stw	r3,scheduler_lock@l+8(r5)	/* owner_cpu */
-	stw	r3,scheduler_lock@l(r5)		/* lock */
+	bl	schedule_tail
 #endif /* __SMP__ */
 
 /*
@@ -2089,6 +2105,7 @@ _GLOBAL(fake_interrupt)
 	li	r0,0x0fac
 	stw	r0,TRAP(r1)
 	addi	r3,r1,STACK_FRAME_OVERHEAD
+	li	r4,1
 	bl	do_IRQ
 	addi	r1,r1,INT_FRAME_SIZE+STACK_UNDERHEAD
 	lwz	r0,4(r1)
@@ -2206,8 +2223,31 @@ _GLOBAL(flush_hash_segments)
 	rlwinm	r0,r0,16,27,31
 	lis	r9,PVR_603_LIKE@h
 	rlwnm.	r0,r9,r0,0,0
-	bne	99f
+	beq+	99f
+	tlbia
+	isync
+	blr
+99:
 #endif /* NO_RELOAD_HTAB */
+#ifdef __SMP__
+	/* Note - we had better not do anything which could generate
+	   a hash table miss while we have the hash table locked,
+	   or we'll get a deadlock.  -paulus */
+	mfmsr	r10
+	sync
+	rlwinm	r0,r10,0,17,15	/* clear bit 16 (MSR_EE) */
+	mtmsr	r0
+	SYNC
+	lis	r9,hash_table_lock@h
+	ori	r9,r9,hash_table_lock@l
+	lwz	r8,PROCESSOR(r2)
+	oris	r8,r8,8
+10:	lwarx	r6,0,r9
+	cmpi	0,r6,0
+	bne-	10b
+	stwcx.	r8,0,r9
+	bne-	10b
+#endif
 	rlwinm	r3,r3,7,1,24		/* put VSID lower limit in position */
 	oris	r3,r3,0x8000		/* set V bit */
 	rlwinm	r4,r4,7,1,24		/* put VSID upper limit in position */
@@ -2229,8 +2269,16 @@ _GLOBAL(flush_hash_segments)
 	stw	r0,0(r5)		/* invalidate entry */
 2:	bdnz	1b			/* continue with loop */
 	sync
-99:	tlbia
+	tlbia
 	isync
+#ifdef __SMP__
+	tlbsync
+	lis	r3,hash_table_lock@ha
+	li	r0,0
+	stw	r0,hash_table_lock@l(r3)
+	mtmsr	r10
+	SYNC
+#endif
 	blr
 
 /*
@@ -2244,8 +2292,31 @@ _GLOBAL(flush_hash_page)
 	rlwinm	r0,r0,16,27,31
 	lis	r9,PVR_603_LIKE@h
 	rlwnm.	r0,r9,r0,0,0
-	bne	99f
+	beq+	99f
+	tlbie	r4			/* in hw tlb too */
+	isync
+	blr
+99:
 #endif /* NO_RELOAD_HTAB */		
+#ifdef __SMP__
+	/* Note - we had better not do anything which could generate
+	   a hash table miss while we have the hash table locked,
+	   or we'll get a deadlock.  -paulus */
+	mfmsr	r10
+	sync
+	rlwinm	r0,r10,0,17,15		/* clear bit 16 (MSR_EE) */
+	mtmsr	r0
+	SYNC
+	lis	r9,hash_table_lock@h
+	ori	r9,r9,hash_table_lock@l
+	lwz	r8,PROCESSOR(r2)
+	oris	r8,r8,9
+10:	lwarx	r6,0,r9
+	cmpi	0,r6,0
+	bne-	10b
+	stwcx.	r8,0,r9
+	bne-	10b
+#endif
 	rlwinm	r3,r3,11,1,20		/* put context into vsid */
 	rlwimi	r3,r4,11,21,24		/* put top 4 bits of va into vsid */
 	oris	r3,r3,0x8000		/* set V (valid) bit */
@@ -2278,10 +2349,19 @@ _GLOBAL(flush_hash_page)
 3:	li	r0,0
 	stw	r0,0(r7)		/* invalidate entry */
 4:	sync
-99:	tlbie	r4			/* in hw tlb too */
+	tlbie	r4			/* in hw tlb too */
 	isync
+#ifdef __SMP__
+	tlbsync
+	lis	r3,hash_table_lock@h
+	li	r0,0
+	stw	r0,hash_table_lock@l(r3)
+	mtmsr	r10
+	SYNC
+#endif
 	blr
 #endif /* CONFIG_8xx */
+
 /*
  * This routine is just here to keep GCC happy - sigh...
  */	
