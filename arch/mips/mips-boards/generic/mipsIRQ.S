@@ -78,7 +78,9 @@
 	CLI
 	.set	at
 
-	mfc0	s0, CP0_CAUSE		# get irq mask
+	mfc0	s0, CP0_CAUSE		# get irq bits
+	mfc0	s1, CP0_STATUS		# get irq mask
+	and	s0, s1
 
 	/* First we check for r4k counter/timer IRQ. */
 	andi	a0, s0, CAUSEF_IP7
