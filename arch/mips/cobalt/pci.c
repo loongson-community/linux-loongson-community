@@ -22,6 +22,8 @@
 
 #ifdef CONFIG_PCI
 
+int cobalt_board_id;
+
 static void qube_expansion_slot_bist(struct pci_dev *dev)
 {
 	unsigned char ctrl;
@@ -374,7 +376,17 @@ struct pci_ops qube_pci_ops = {
 
 void __init pcibios_init(void)
 {
+	struct pci_dev dev;
+
 	printk("PCI: Probing PCI hardware\n");
+
+	/* Read the cobalt id register out of the PCI config space */
+	dev.devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
+	PCI_CFG_SET(&dev, (VIA_COBALT_BRD_ID_REG & ~0x3));
+	cobalt_board_id = *PCI_CFG_DATA >> ((VIA_COBALT_BRD_ID_REG & 3) * 8);
+	cobalt_board_id = VIA_COBALT_BRD_REG_to_ID(cobalt_board_id);
+
+	printk("Cobalt Board ID: %d\n", cobalt_board_id);
 
 	ioport_resource.start = 0x00000000;
 	ioport_resource.end = 0x0fffffff;
