@@ -59,6 +59,7 @@
 static int pc_debug;
 #endif
 
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Pete Popov, MontaVista Software <ppopov@mvista.com>");
 MODULE_DESCRIPTION("Linux PCMCIA Card Services: Au1x00 Socket Controller");
 
@@ -84,7 +85,7 @@ static struct timer_list poll_timer;
 static int  au1000_pcmcia_driver_init(void);
 static void au1000_pcmcia_driver_shutdown(void);
 static void au1000_pcmcia_task_handler(void *data);
-static void au1000_pcmcia_poll_event(u32 data);
+static void au1000_pcmcia_poll_event(unsigned long data);
 static void au1000_pcmcia_interrupt(int irq, void *dev, struct pt_regs *regs);
 static struct tq_struct au1000_pcmcia_task;
 
@@ -141,6 +142,11 @@ static int __init au1000_pcmcia_driver_init(void)
 
 	printk("\nAu1x00 PCMCIA (CS release %s)\n", CS_RELEASE);
 
+#ifndef CONFIG_64BIT_PHYS_ADDR
+	printk(KERN_ERR "Au1x00 PCMCIA 36 bit IO support not enabled\n");
+	return -1;
+#endif
+
 	CardServices(GetCardServicesInfo, &info);
 
 	if(info.Revision!=CS_RELEASE_CODE){
@@ -148,10 +154,8 @@ static int __init au1000_pcmcia_driver_init(void)
 		return -1;
 	}
 
-#ifdef CONFIG_MIPS_PB1000
-	pcmcia_low_level=&pb1000_pcmcia_ops;
-#elif defined(CONFIG_MIPS_PB1500)
-	pcmcia_low_level=&pb1500_pcmcia_ops;
+#if defined(CONFIG_MIPS_PB1000) || defined(CONFIG_MIPS_PB1100) || defined(CONFIG_MIPS_PB1500)
+	pcmcia_low_level=&pb1x00_pcmcia_ops;
 #else
 #error Unsupported AU1000 board.
 #endif
@@ -162,12 +166,7 @@ static int __init au1000_pcmcia_driver_init(void)
 		return -EIO;
 	}
 
-	/* setup the static bus controller */
-	timing3 = 0x100e3a07;
-	au_writel(0x00000002, MEM_STCFG3);  /* type = PCMCIA */
-	au_writel(timing3, MEM_STTIME3); 
-	au_writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
-	au_sync_delay(1);
+	/* NOTE: the chip select must already be setup */
 
 	pcmcia_socket = 
 		kmalloc(sizeof(struct au1000_pcmcia_socket) * socket_count, 
@@ -179,6 +178,11 @@ static int __init au1000_pcmcia_driver_init(void)
 	memset(pcmcia_socket, 0,
 			sizeof(struct au1000_pcmcia_socket) * socket_count);
 			
+	/* 
+	 * Assuming max of 2 sockets, which the Au1000 supports.
+	 * WARNING: the Pb1000 has two sockets, and both work, but you
+	 * can't use them both at the same time due to glue logic conflicts.
+	 */
 	for(i=0; i < socket_count; i++) {
 
 		if(pcmcia_low_level->socket_state(i, &state)<0){
@@ -190,13 +194,15 @@ static int __init au1000_pcmcia_driver_init(void)
 		
 		if (i == 0) {
 			pcmcia_socket[i].virt_io = 
-				(u32)ioremap(0xC0000000, 0x1000);
-			pcmcia_socket[i].phys_attr = 0xC4000000;
-			pcmcia_socket[i].phys_mem = 0xC8000000;
+				(u32)ioremap((ioaddr_t)0xF00000000, 0x1000);
+			pcmcia_socket[i].phys_attr = (memaddr_t)0xF40000000;
+			pcmcia_socket[i].phys_mem = (memaddr_t)0xF80000000;
 		}
 		else  {
-			printk(KERN_ERR "au1000: socket 1 not supported\n");
-			return 1;
+			pcmcia_socket[i].virt_io = 
+				(u32)ioremap((ioaddr_t)0xF08000000, 0x1000);
+			pcmcia_socket[i].phys_attr = (memaddr_t)0xF48000000;
+			pcmcia_socket[i].phys_mem = (memaddr_t)0xF88000000;
 		}
 	}
 
@@ -299,7 +305,7 @@ static struct tq_struct au1000_pcmcia_task = {
 };
 
 
-static void au1000_pcmcia_poll_event(u32 dummy)
+static void au1000_pcmcia_poll_event(unsigned long dummy)
 {
 	poll_timer.function = au1000_pcmcia_poll_event;
 	poll_timer.expires = jiffies + AU1000_PCMCIA_POLL_PERIOD;

@@ -28,7 +28,8 @@
 #define __ASM_PB1000_H
 
 /* PCMCIA PB1000 specific defines */
-#define PCMCIA_MAX_SOCK 0 /* the second socket, 1, is not supported at this time */
+#define PCMCIA_MAX_SOCK 1
+#define PCMCIA_NUM_SOCKS (PCMCIA_MAX_SOCK+1)
 
 #define PB1000_PCR     0xBE000000
   #define PCR_SLOT_0_VPP0  (1<<0)

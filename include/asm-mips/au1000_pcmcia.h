@@ -21,7 +21,6 @@
 #ifndef __ASM_AU1000_PCMCIA_H
 #define __ASM_AU1000_PCMCIA_H
 
-#include <linux/config.h>
 
 #define AU1000_PCMCIA_POLL_PERIOD    (2*HZ)
 #define AU1000_PCMCIA_IO_SPEED       (255)
@@ -61,7 +60,8 @@ struct au1000_pcmcia_socket {
 	void                  *handler_info;
 	pccard_io_map         io_map[MAX_IO_WIN];
 	pccard_mem_map        mem_map[MAX_WIN];
-	u32                   virt_io, phys_attr, phys_mem;
+	u32                   virt_io;
+	memaddr_t             phys_attr, phys_mem;
 	unsigned short        speed_io, speed_attr, speed_mem;
 };
 

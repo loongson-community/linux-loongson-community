@@ -41,6 +41,7 @@
 
 /* PCMCIA PB1500 specific defines */
 #define PCMCIA_MAX_SOCK 0
+#define PCMCIA_NUM_SOCKS (PCMCIA_MAX_SOCK+1)
 
 /* VPP/VCC */
 #define SET_VCC_VPP(VCC, VPP) (((VCC)<<2) | ((VPP)<<0))
