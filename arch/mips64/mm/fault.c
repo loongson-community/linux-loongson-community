@@ -21,6 +21,7 @@
 #include <linux/smp_lock.h>
 #include <linux/version.h>
 
+#include <asm/branch.h>
 #include <asm/hardirq.h>
 #include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
@@ -103,7 +104,7 @@ do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
-	unsigned long fixup;
+	unsigned long epc, fixup;
 	siginfo_t info;
 
 #if 0
@@ -208,7 +209,8 @@ while(1);
 
 no_context:
 	/* Are we prepared to handle this kernel fault?  */
-	fixup = search_exception_table(regs->cp0_epc);
+	epc = regs->cp0_epc + delay_slot(regs) ? 4 : 0;
+	fixup = search_exception_table(epc);
 	if (fixup) {
 		long new_epc;
 
