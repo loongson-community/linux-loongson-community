@@ -117,6 +117,14 @@ void __init pcibios_fixup_irqs(void)
 
 	pci_for_each_dev(dev) {
 		slot_num = PCI_SLOT(dev->devfn);
+
+               /* we don't do IRQ fixup for sub-bus yet */
+               if (dev->bus->parent != NULL) {
+                       db_run(printk("Don't know how to fixup irq for PCI device %d on sub-bus %d\n",
+                                       slot_num, dev->bus->number));
+                       continue;
+               }
+
 		db_assert(slot_num < MAX_SLOT_NUM);
 		db_assert(irq_map[slot_num] != 0xff);
 
