@@ -530,14 +530,12 @@ static inline void get_irqlock(int cpu)
 	global_irq_holder = cpu;
 }
 
-#define SR_IE	1
-
 void __global_cli(void)
 {
 	unsigned int flags;
 
 	__save_flags(flags);
-	if (flags & SR_IE) {
+	if (flags & ST0_IE) {
 		int cpu = smp_processor_id();
 		__cli();
 		if (!local_irq_count(cpu))
@@ -569,7 +567,7 @@ unsigned long __global_save_flags(void)
 	int cpu = smp_processor_id();
 
 	__save_flags(flags);
-	local_enabled = (flags & SR_IE);
+	local_enabled = (flags & ST0_IE);
 	/* default to local */
 	retval = 2 + local_enabled;
 
