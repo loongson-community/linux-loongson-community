@@ -1146,14 +1146,14 @@ static void __init ip22zilog_prepare(void)
 		if (!ip22zilog_chip_regs[chip]) {
 			ip22zilog_chip_regs[chip] = rp = get_zs(chip);
 
-			up[(chip * 2) + 0].port.membase = (char *) &rp->channelA;
-			up[(chip * 2) + 1].port.membase = (char *) &rp->channelB;
+			up[(chip * 2) + 0].port.membase = (char *) &rp->channelB;
+			up[(chip * 2) + 1].port.membase = (char *) &rp->channelA;
 
 			/* In theory mapbase is the physical address ...  */
 			up[(chip * 2) + 0].port.mapbase =
-				(unsigned long) ioremap((unsigned long) &rp->channelA, 8);
-			up[(chip * 2) + 1].port.mapbase =
 				(unsigned long) ioremap((unsigned long) &rp->channelB, 8);
+			up[(chip * 2) + 1].port.mapbase =
+				(unsigned long) ioremap((unsigned long) &rp->channelA, 8);
 		}
 
 		/* Channel A */
@@ -1165,7 +1165,7 @@ static void __init ip22zilog_prepare(void)
 		up[(chip * 2) + 0].port.type = PORT_IP22ZILOG;
 		up[(chip * 2) + 0].port.flags = 0;
 		up[(chip * 2) + 0].port.line = (chip * 2) + 0;
-		up[(chip * 2) + 0].flags |= IP22ZILOG_FLAG_IS_CHANNEL_A;
+		up[(chip * 2) + 0].flags = 0;
 
 		/* Channel B */
 		up[(chip * 2) + 1].port.iotype = UPIO_MEM;
@@ -1174,7 +1174,7 @@ static void __init ip22zilog_prepare(void)
 		up[(chip * 2) + 1].port.fifosize = 1;
 		up[(chip * 2) + 1].port.ops = &ip22zilog_pops;
 		up[(chip * 2) + 1].port.type = PORT_IP22ZILOG;
-		up[(chip * 2) + 1].port.flags = 0;
+		up[(chip * 2) + 1].port.flags |= IP22ZILOG_FLAG_IS_CHANNEL_A;
 		up[(chip * 2) + 1].port.line = (chip * 2) + 1;
 		up[(chip * 2) + 1].flags = 0;
 	}
