@@ -30,6 +30,7 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/poll.h>
+#include <linux/interrupt.h>
 #include <linux/sound.h>
 #include <linux/soundcard.h>
 #include <asm/io.h>
@@ -297,15 +298,22 @@ static void hal2_adc_interrupt(struct hal2_codec *adc)
 	wake_up(&adc->dma_wait);
 }
 
-static void hal2_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t hal2_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct hal2_card *hal2 = (struct hal2_card*)dev_id;
+	irqreturn_t ret = IRQ_NONE;
 
 	/* decide what caused this interrupt */
-	if (hal2->dac.pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_INT)
+	if (hal2->dac.pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_INT) {
 		hal2_dac_interrupt(&hal2->dac);
-	if (hal2->adc.pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_INT)
+		ret = IRQ_HANDLED;
+	}
+	if (hal2->adc.pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_INT) {
 		hal2_adc_interrupt(&hal2->adc);
+		ret = IRQ_HANDLED;
+	}
+
+	return ret;
 }
 
 static int hal2_compute_rate(struct hal2_codec *codec, unsigned int rate)
