@@ -51,7 +51,6 @@ extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
 #endif
 
-extern struct rtc_ops no_rtc_ops;
 extern char * __init prom_getcmdline(void);
 extern void __init board_setup(void);
 extern void au1000_restart(char *);

@@ -144,8 +144,6 @@ static void __init decstation_setup(void)
 #ifdef CONFIG_FB
 	conswitchp = &dummy_con;
 #endif
-
-	rtc_ops = &dec_rtc_ops;
 }
 
 early_initcall(decstation_setup);

@@ -58,7 +58,6 @@ char serial_console[20];
 extern char *__init prom_getcmdline(void);
 
 extern void mips_reboot_setup(void);
-extern struct rtc_ops no_rtc_ops;
 
 unsigned char mac_0_1[12];
 
@@ -100,7 +99,6 @@ static void __init ev96100_setup(void)
 	}
 #endif
 
-	rtc_ops = &no_rtc_ops;
 	mips_reboot_setup();
 
 	set_io_port_base(KSEG1);

@@ -54,9 +54,6 @@ EXPORT_SYMBOL(PCI_DMA_BUS_IS_PHYS);
 
 extern void * __rd_start, * __rd_end;
 
-extern struct rtc_ops no_rtc_ops;
-struct rtc_ops *rtc_ops;
-
 /*
  * Setup information
  *
@@ -473,8 +470,6 @@ void __init setup_arch(char **cmdline_p)
 	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
 	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
 #endif
-
-	rtc_ops = &no_rtc_ops;
 
 	do_earlyinitcalls();
 

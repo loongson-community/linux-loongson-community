@@ -176,18 +176,21 @@ cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-au1x00
 # AMD Alchemy Pb1000 eval board
 #
 libs-$(CONFIG_MIPS_PB1000)	+= arch/mips/au1000/pb1000/
+cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1000)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1100 eval board
 #
 libs-$(CONFIG_MIPS_PB1100)	+= arch/mips/au1000/pb1100/
+cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1100)	+= 0x80100000
 
 #
 # AMD Alchemy Pb1500 eval board
 #
 libs-$(CONFIG_MIPS_PB1500)	+= arch/mips/au1000/pb1500/
+cflags-$(CONFIG_MACH_AU1X00)	+= -Iinclude/asm-mips/mach-pb1x00
 load-$(CONFIG_MIPS_PB1500)	+= 0x80100000
 
 #
@@ -296,6 +299,7 @@ core-$(CONFIG_MIPS_BOARDS_GEN)	+= arch/mips/mips-boards/generic/
 # MIPS Atlas board
 #
 core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/atlas/
+cflags-$(CONFIG_MIPS_ATLAS)	+= -Iinclude/asm-mips/mach-atlas
 cflags-$(CONFIG_MIPS_ATLAS)	+= -Iinclude/asm-mips/mach-mips
 load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 
@@ -437,6 +441,7 @@ load-$(CONFIG_TANBAC_TB0229)	+= 0x80000000
 # will break so for 64-bit kernels we have to raise the start address by 8kb.
 #
 core-$(CONFIG_SGI_IP22)		+= arch/mips/sgi-ip22/
+cflags-$(CONFIG_SGI_IP22)	+= -Iinclude/asm-mips/mach-ip22
 ifdef CONFIG_MIPS32
 load-$(CONFIG_SGI_IP22)		+= 0x88002000
 endif

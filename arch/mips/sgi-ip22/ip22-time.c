@@ -7,9 +7,10 @@
  * Ralf Baechle or David S. Miller (sorry guys, i'm really not sure)
  *
  * Copyright (C) 2001 by Ladislav Michl
+ * Copyright (C) 2003 Ralf Baechle (ralf@linux-mips.org)
  */
-
 #include <linux/bcd.h>
+#include <linux/ds1286.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -21,7 +22,6 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/time.h>
-#include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/hpc3.h>

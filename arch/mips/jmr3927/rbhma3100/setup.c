@@ -296,9 +296,6 @@ unsigned long mips_pci_mem_size;
 unsigned long mips_pci_io_pciaddr = 0;
 #endif
 
-extern struct rtc_ops *rtc_ops;
-extern struct rtc_ops jmr3927_rtc_ops;
-
 static void __init jmr3927_board_init(void)
 {
 	char *argptr;
@@ -330,11 +327,6 @@ static void __init jmr3927_board_init(void)
 		/* overrides PCI-IDE */
 #endif
 	}
-#ifdef USE_RTC_DS1742
-	if (jmr3927_have_nvram()) {
-		rtc_ops = &jmr3927_rtc_ops;
-	}
-#endif
 
 	/* SIO0 DTR on */
 	jmr3927_ioc_reg_out(0, JMR3927_IOC_DTR_ADDR);

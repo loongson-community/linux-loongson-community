@@ -37,8 +37,6 @@ extern void breakpoint(void);
 extern void console_setup(char *);
 #endif
 
-extern struct rtc_ops ddb_rtc_ops;
-
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
 
 static void ddb_machine_restart(char *command)
@@ -114,8 +112,6 @@ static void __init ddb5074_setup(void)
 	_machine_restart = ddb_machine_restart;
 	_machine_halt = ddb_machine_halt;
 	_machine_power_off = ddb_machine_power_off;
-
-	rtc_ops = &ddb_rtc_ops;
 
 	ddb_out32(DDB_BAR0, 0);
 

@@ -37,8 +37,6 @@
 #include <linux/console.h>
 #endif
 
-extern struct rtc_ops malta_rtc_ops;
-
 extern void mips_reboot_setup(void);
 extern void mips_time_init(void);
 extern void mips_timer_setup(struct irqaction *irq);
@@ -100,8 +98,6 @@ static void __init malta_setup(void)
 	kgdb_config ();
 #endif
 
-	rtc_ops = &malta_rtc_ops;
-
 #ifdef CONFIG_BLK_DEV_FD
 	fd_activate ();
 #endif
@@ -117,7 +113,7 @@ static void __init malta_setup(void)
 		80,			/* orig-video-cols */
 		0,0,0,			/* ega_ax, ega_bx, ega_cx */
 		25,			/* orig-video-lines */
-		1,			/* orig-video-isVGA */
+		VIDEO_TYPE_VGAC,	/* orig-video-isVGA */
 		16			/* orig-video-points */
 	};
 #elif defined(CONFIG_DUMMY_CONSOLE)

@@ -5,6 +5,7 @@
  * Copyright (C) 1997, 1998 Ralf Baechle (ralf@gnu.org)
  */
 #include <linux/config.h>
+#include <linux/ds1286.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/kdev_t.h>
@@ -18,7 +19,6 @@
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>
-#include <asm/ds1286.h>
 #include <asm/time.h>
 #include <asm/gdb-stub.h>
 #include <asm/io.h>
@@ -33,8 +33,6 @@ extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
 static int remote_debug = 0;
 #endif
-
-extern struct rtc_ops ip22_rtc_ops;
 
 unsigned long sgi_gfxaddr;
 
@@ -61,7 +59,7 @@ extern void ip22_time_init(void) __init;
 
 extern int console_setup(char *) __init;
 
-static void __init ip22_setup(void)
+static int __init ip22_setup(void)
 {
 	char *ctype;
 #ifdef CONFIG_KGDB
@@ -142,23 +140,12 @@ static void __init ip22_setup(void)
 		/* newport addresses? */
 		if (sgi_gfxaddr == 0x1f0f0000 || sgi_gfxaddr == 0x1f4f0000) {
 			conswitchp = &newport_con;
-
-			screen_info = (struct screen_info) {
-				.orig_x			= 0,
-				.orig_y 		= 0,
-				.orig_video_page	= 0,
-				.orig_video_mode	= 0,
-				.orig_video_cols	= 160,
-				.orig_video_ega_bx	= 0,
-				.orig_video_lines	= 64,
-				.orig_video_isVGA	= 0,
-				.orig_video_points	= 16,
-			};
 		}
 	}
 #endif
 #endif
-	rtc_ops = &ip22_rtc_ops;
+
+	return 0;
 }
 
 early_initcall(ip22_setup);

@@ -49,8 +49,6 @@
 
 unsigned long gt64120_base = KSEG1ADDR(0x14000000);
 
-extern struct rtc_ops no_rtc_ops;
-
 /* These functions are used for rebooting or halting the machine*/
 extern void galileo_machine_restart(char *command);
 extern void galileo_machine_halt(void);
@@ -72,27 +70,6 @@ unsigned long __init prom_free_prom_memory(void)
 	return 0;
 }
 
-static unsigned char galileo_rtc_read_data(unsigned long addr)
-{
-	return 0;
-}
-
-static void galileo_rtc_write_data(unsigned char data, unsigned long addr)
-{
-}
-
-static int galileo_rtc_bcd_mode(void)
-{
-	return 0;
-}
-
-struct rtc_ops galileo_rtc_ops = {
-	&galileo_rtc_read_data,
-	&galileo_rtc_write_data,
-	&galileo_rtc_bcd_mode
-};
-
-
 /*
  * Initializes basic routines and structures pointers, memory size (as
  * given by the bios and saves the command line.
@@ -104,8 +81,6 @@ static void __init ev64120_setup(void)
 	_machine_restart = galileo_machine_restart;
 	_machine_halt = galileo_machine_halt;
 	_machine_power_off = galileo_machine_power_off;
-
-	rtc_ops = &galileo_rtc_ops;
 
 	board_time_init = gt64120_time_init;
 	set_io_port_base(KSEG1);

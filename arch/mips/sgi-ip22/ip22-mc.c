@@ -7,6 +7,7 @@
  */
 
 #include <linux/init.h>
+#include <linux/module.h>
 #include <linux/kernel.h>
 
 #include <asm/io.h>
@@ -17,6 +18,8 @@
 #include <asm/sgi/ip22.h>
 
 struct sgimc_regs *sgimc;
+
+EXPORT_SYMBOL(sgimc);
 
 static inline unsigned long get_bank_addr(unsigned int memconfig)
 {

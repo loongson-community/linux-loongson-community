@@ -67,8 +67,6 @@
 #include "gt64240.h"
 #include "ocelot_pld.h"
 
-extern struct rtc_ops no_rtc_ops;
-
 #ifdef CONFIG_GALILLEO_GT64240_ETH
 extern unsigned char prom_mac_addr_base[6];
 #endif
@@ -135,7 +133,6 @@ static void __init momenco_ocelot_g_setup(void)
 	 * initrd_end = (ulong)ocelot_initrd_start + (ulong)ocelot_initrd_size;
 	 * initrd_below_start_ok = 1;
 	 */
-	rtc_ops = &no_rtc_ops;
 
 	/* do handoff reconfiguration */
 	PMON_v2_setup();

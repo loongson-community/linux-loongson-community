@@ -41,15 +41,11 @@
 #include <asm/au1000.h>
 #include <asm/db1x00.h>
 
-extern struct rtc_ops no_rtc_ops;
-
 static BCSR * const bcsr = (BCSR *)0xAE000000;
 
 void __init board_setup(void)
 {
 	u32 pin_func;
-
-	rtc_ops = &no_rtc_ops;
 
 #ifdef CONFIG_AU1X00_USB_DEVICE
 	// 2nd USB port is USB device

@@ -30,8 +30,6 @@ extern void cobalt_machine_restart(char *command);
 extern void cobalt_machine_halt(void);
 extern void cobalt_machine_power_off(void);
 
-extern struct rtc_ops std_rtc_ops;
-
 int cobalt_board_id;
 
 char arcs_cmdline[CL_SIZE] = {
@@ -49,12 +47,6 @@ char arcs_cmdline[CL_SIZE] = {
 const char *get_system_type(void)
 {
 	return "MIPS Cobalt";
-}
-
-
-static void __init cobalt_time_init(void)
-{
-	rtc_ops = &std_rtc_ops;
 }
 
 static void __init cobalt_timer_setup(struct irqaction *irq)
@@ -108,7 +100,6 @@ static void __init cobalt_setup(void)
 	_machine_halt = cobalt_machine_halt;
 	_machine_power_off = cobalt_machine_power_off;
 
-	board_time_init = cobalt_time_init;
 	board_timer_setup = cobalt_timer_setup;
 
         set_io_port_base(KSEG1ADDR(GT64111_IO_BASE));

@@ -11,7 +11,6 @@
 #include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
-#include <linux/mc146818rtc.h>
 #include <linux/param.h>
 #include <linux/init.h>
 
@@ -26,7 +25,6 @@
 #include <asm/traps.h>
 #include <asm/io.h>
 
-extern struct rtc_ops ip32_rtc_ops;
 extern u32 cc_interval;
 
 #ifdef CONFIG_SGI_O2MACE_ETH
@@ -110,7 +108,6 @@ static void __init ip32_setup(void)
 # endif
 #endif
 
-	rtc_ops = &ip32_rtc_ops;
 	board_be_init = ip32_be_init;
 	board_time_init = ip32_time_init;
 	board_timer_setup = ip32_timer_setup;

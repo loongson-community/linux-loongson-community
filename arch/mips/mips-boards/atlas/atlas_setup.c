@@ -14,14 +14,11 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * Atlas specific setup.
  */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
-#include <linux/mc146818rtc.h>
 #include <linux/ioport.h>
 #include <linux/tty.h>
 #include <linux/serial.h>
@@ -36,9 +33,6 @@
 #include <asm/mips-boards/atlasint.h>
 #include <asm/time.h>
 #include <asm/traps.h>
-
-
-extern struct rtc_ops atlas_rtc_ops;
 
 extern void mips_reboot_setup(void);
 extern void mips_time_init(void);
@@ -66,8 +60,6 @@ static void __init atlas_setup(void)
 	kgdb_config();
 #endif
 	mips_reboot_setup();
-
-	rtc_ops = &atlas_rtc_ops;
 
 	board_time_init = mips_time_init;
 	board_timer_setup = mips_timer_setup;

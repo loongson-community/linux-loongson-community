@@ -26,6 +26,7 @@
  * Free Software Foundation; either version 2 of the License, or (at your
  * option) any later version.
  */
+#include <linux/ds1286.h>
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
@@ -38,8 +39,6 @@
 #include <linux/spinlock.h>
 #include <linux/bcd.h>
 
-#include <asm/ds1286.h>
-#include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
@@ -112,9 +111,9 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 			return -EACCES;
 
 		spin_lock_irqsave(&ds1286_lock, flags);
-		val = CMOS_READ(RTC_CMD);
+		val = rtc_read(RTC_CMD);
 		val |=  RTC_TDM;
-		CMOS_WRITE(val, RTC_CMD);
+		rtc_write(val, RTC_CMD);
 		spin_unlock_irqrestore(&ds1286_lock, flags);
 
 		return 0;
@@ -128,9 +127,9 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 			return -EACCES;
 
 		spin_lock_irqsave(&ds1286_lock, flags);
-		val = CMOS_READ(RTC_CMD);
+		val = rtc_read(RTC_CMD);
 		val &=  ~RTC_TDM;
-		CMOS_WRITE(val, RTC_CMD);
+		rtc_write(val, RTC_CMD);
 		spin_unlock_irqrestore(&ds1286_lock, flags);
 
 		return 0;
@@ -144,9 +143,9 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 			return -EACCES;
 
 		spin_lock_irqsave(&ds1286_lock, flags);
-		val = CMOS_READ(RTC_CMD);
+		val = rtc_read(RTC_CMD);
 		val |= RTC_WAM;
-		CMOS_WRITE(val, RTC_CMD);
+		rtc_write(val, RTC_CMD);
 		spin_unlock_irqrestore(&ds1286_lock, flags);
 
 		return 0;
@@ -160,9 +159,9 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 			return -EACCES;
 
 		spin_lock_irqsave(&ds1286_lock, flags);
-		val = CMOS_READ(RTC_CMD);
+		val = rtc_read(RTC_CMD);
 		val &= ~RTC_WAM;
-		CMOS_WRITE(val, RTC_CMD);
+		rtc_write(val, RTC_CMD);
 		spin_unlock_irqrestore(&ds1286_lock, flags);
 
 		return 0;
@@ -209,8 +208,8 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		BIN_TO_BCD(hrs);
 
 		spin_lock(&ds1286_lock);
-		CMOS_WRITE(hrs, RTC_HOURS_ALARM);
-		CMOS_WRITE(min, RTC_MINUTES_ALARM);
+		rtc_write(hrs, RTC_HOURS_ALARM);
+		rtc_write(min, RTC_MINUTES_ALARM);
 		spin_unlock(&ds1286_lock);
 
 		return 0;
@@ -318,7 +317,7 @@ int get_ds1286_status(char *buf)
 	p = buf;
 
 	ds1286_get_time(&tm);
-	hundredth = CMOS_READ(RTC_HUNDREDTH_SECOND);
+	hundredth = rtc_read(RTC_HUNDREDTH_SECOND);
 	BCD_TO_BIN(hundredth);
 
 	p += sprintf(p,
@@ -344,16 +343,16 @@ int get_ds1286_status(char *buf)
 	else
 		p += sprintf(p, "**\n");
 
-	month = CMOS_READ(RTC_MONTH);
+	month = rtc_read(RTC_MONTH);
 	p += sprintf(p,
 	             "oscillator\t: %s\n"
 	             "square_wave\t: %s\n",
 	             (month & RTC_EOSC) ? "disabled" : "enabled",
 	             (month & RTC_ESQW) ? "disabled" : "enabled");
 
-	amode = ((CMOS_READ(RTC_MINUTES_ALARM) & 0x80) >> 5) |
-	        ((CMOS_READ(RTC_HOURS_ALARM) & 0x80) >> 6) |
-	        ((CMOS_READ(RTC_DAY_ALARM) & 0x80) >> 7);
+	amode = ((rtc_read(RTC_MINUTES_ALARM) & 0x80) >> 5) |
+	        ((rtc_read(RTC_HOURS_ALARM) & 0x80) >> 6) |
+	        ((rtc_read(RTC_DAY_ALARM) & 0x80) >> 7);
 	if (amode == 7)      s = "each minute";
 	else if (amode == 3) s = "minutes match";
 	else if (amode == 1) s = "hours and minutes match";
@@ -361,7 +360,7 @@ int get_ds1286_status(char *buf)
 	else                 s = "invalid";
 	p += sprintf(p, "alarm_mode\t: %s\n", s);
 
-	cmd = CMOS_READ(RTC_CMD);
+	cmd = rtc_read(RTC_CMD);
 	p += sprintf(p,
 	             "alarm_enable\t: %s\n"
 	             "wdog_alarm\t: %s\n"
@@ -386,7 +385,7 @@ int get_ds1286_status(char *buf)
  */
 static inline unsigned char ds1286_is_updating(void)
 {
-	return CMOS_READ(RTC_CMD) & RTC_TE;
+	return rtc_read(RTC_CMD) & RTC_TE;
 }
 
 
@@ -417,17 +416,17 @@ void ds1286_get_time(struct rtc_time *rtc_tm)
 	 * by the RTC when initially set to a non-zero value.
 	 */
 	spin_lock_irqsave(&ds1286_lock, flags);
-	save_control = CMOS_READ(RTC_CMD);
-	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+	save_control = rtc_read(RTC_CMD);
+	rtc_write((save_control|RTC_TE), RTC_CMD);
 
-	rtc_tm->tm_sec = CMOS_READ(RTC_SECONDS);
-	rtc_tm->tm_min = CMOS_READ(RTC_MINUTES);
-	rtc_tm->tm_hour = CMOS_READ(RTC_HOURS) & 0x3f;
-	rtc_tm->tm_mday = CMOS_READ(RTC_DATE);
-	rtc_tm->tm_mon = CMOS_READ(RTC_MONTH) & 0x1f;
-	rtc_tm->tm_year = CMOS_READ(RTC_YEAR);
+	rtc_tm->tm_sec = rtc_read(RTC_SECONDS);
+	rtc_tm->tm_min = rtc_read(RTC_MINUTES);
+	rtc_tm->tm_hour = rtc_read(RTC_HOURS) & 0x3f;
+	rtc_tm->tm_mday = rtc_read(RTC_DATE);
+	rtc_tm->tm_mon = rtc_read(RTC_MONTH) & 0x1f;
+	rtc_tm->tm_year = rtc_read(RTC_YEAR);
 
-	CMOS_WRITE(save_control, RTC_CMD);
+	rtc_write(save_control, RTC_CMD);
 	spin_unlock_irqrestore(&ds1286_lock, flags);
 
 	BCD_TO_BIN(rtc_tm->tm_sec);
@@ -491,18 +490,18 @@ int ds1286_set_time(struct rtc_time *rtc_tm)
 	BIN_TO_BCD(yrs);
 
 	spin_lock_irqsave(&ds1286_lock, flags);
-	save_control = CMOS_READ(RTC_CMD);
-	CMOS_WRITE((save_control|RTC_TE), RTC_CMD);
+	save_control = rtc_read(RTC_CMD);
+	rtc_write((save_control|RTC_TE), RTC_CMD);
 
-	CMOS_WRITE(yrs, RTC_YEAR);
-	CMOS_WRITE(mon, RTC_MONTH);
-	CMOS_WRITE(day, RTC_DATE);
-	CMOS_WRITE(hrs, RTC_HOURS);
-	CMOS_WRITE(min, RTC_MINUTES);
-	CMOS_WRITE(sec, RTC_SECONDS);
-	CMOS_WRITE(0, RTC_HUNDREDTH_SECOND);
+	rtc_write(yrs, RTC_YEAR);
+	rtc_write(mon, RTC_MONTH);
+	rtc_write(day, RTC_DATE);
+	rtc_write(hrs, RTC_HOURS);
+	rtc_write(min, RTC_MINUTES);
+	rtc_write(sec, RTC_SECONDS);
+	rtc_write(0, RTC_HUNDREDTH_SECOND);
 
-	CMOS_WRITE(save_control, RTC_CMD);
+	rtc_write(save_control, RTC_CMD);
 	spin_unlock_irqrestore(&ds1286_lock, flags);
 
 	return 0;
@@ -518,10 +517,10 @@ void ds1286_get_alm_time(struct rtc_time *alm_tm)
 	 * means only tm_wday, tm_hour, tm_min.
 	 */
 	spin_lock_irqsave(&ds1286_lock, flags);
-	alm_tm->tm_min = CMOS_READ(RTC_MINUTES_ALARM) & 0x7f;
-	alm_tm->tm_hour = CMOS_READ(RTC_HOURS_ALARM)  & 0x1f;
-	alm_tm->tm_wday = CMOS_READ(RTC_DAY_ALARM)    & 0x07;
-	cmd = CMOS_READ(RTC_CMD);
+	alm_tm->tm_min = rtc_read(RTC_MINUTES_ALARM) & 0x7f;
+	alm_tm->tm_hour = rtc_read(RTC_HOURS_ALARM)  & 0x1f;
+	alm_tm->tm_wday = rtc_read(RTC_DAY_ALARM)    & 0x07;
+	cmd = rtc_read(RTC_CMD);
 	spin_unlock_irqrestore(&ds1286_lock, flags);
 
 	BCD_TO_BIN(alm_tm->tm_min);

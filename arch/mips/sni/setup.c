@@ -15,7 +15,6 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
-#include <linux/mc146818rtc.h>
 #include <linux/console.h>
 #include <linux/fb.h>
 #include <linux/tty.h>
@@ -37,8 +36,6 @@
 extern void sni_machine_restart(char *command);
 extern void sni_machine_halt(void);
 extern void sni_machine_power_off(void);
-
-extern struct rtc_ops std_rtc_ops;
 
 static void __init sni_rm200_pci_timer_setup(struct irqaction *irq)
 {
@@ -192,8 +189,6 @@ static void __init sni_rm200_pci_setup(void)
 	_machine_power_off = sni_machine_power_off;
 
 	sni_display_setup();
-
-	rtc_ops = &std_rtc_ops;
 
 #ifdef CONFIG_PCI
 	register_pci_controller(&sni_controller);

@@ -45,10 +45,8 @@
 // Enable the workaround for the OHCI DoneHead
 // register corruption problem.
 #define CONFIG_AU1000_OHCI_FIX
-#endif
-
-#ifdef CONFIG_RTC
-extern struct rtc_ops pb1500_rtc_ops;
+        ^^^^^^^^^^^^^^^^^^^^^^
+    !!! I shall not define symbols starting with CONFIG_ !!!
 #endif
 
 void __init board_setup(void)
@@ -117,8 +115,6 @@ void __init board_setup(void)
 
 	au_writel(0x00000060, 0xb190003c);
 
-#ifdef CONFIG_RTC
-	rtc_ops = &pb1500_rtc_ops;
 	// Enable the RTC if not already enabled
 	if (!(readb(0xac000028) & 0x20)) {
 		writeb(readb(0xac000028) | 0x20, 0xac000028);
@@ -129,5 +125,4 @@ void __init board_setup(void)
 		writeb(readb(0xac00002c) & ~0x4, 0xac00002c);
 		au_sync();
 	}
-#endif
 }

@@ -29,7 +29,6 @@
 #include <linux/ioport.h>
 #include <linux/mm.h>
 #include <linux/console.h>
-#include <linux/mc146818rtc.h>
 #include <linux/delay.h>
 
 #include <asm/cpu.h>
@@ -41,14 +40,10 @@
 #include <asm/pgtable.h>
 #include <asm/au1000.h>
 
-extern struct rtc_ops no_rtc_ops;
-
 void __init board_setup(void)
 {
 	u32 pin_func;
 	
-	rtc_ops = &no_rtc_ops;
-
 	// set multiple use pins (UART3/GPIO) to UART (it's used as UART too)
 	pin_func = au_readl(SYS_PINFUNC) & (u32)(~SYS_PF_UR3);
 	pin_func |= SYS_PF_UR3;

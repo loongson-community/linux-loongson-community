@@ -37,8 +37,6 @@ extern void jazz_machine_restart(char *command);
 extern void jazz_machine_halt(void);
 extern void jazz_machine_power_off(void);
 
-extern struct rtc_ops jazz_rtc_ops;
-
 static void __init jazz_time_init(struct irqaction *irq)
 {
 	/* set the clock to 100 Hz */
@@ -101,8 +99,6 @@ static void __init jazz_setup(void)
 		0,		/* orig_video_isVGA */
 		16		/* orig_video_points */
 	};
-
-	rtc_ops = &jazz_rtc_ops;
 
 	vdma_init();
 }

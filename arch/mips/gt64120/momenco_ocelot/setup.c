@@ -57,14 +57,11 @@
 #include <asm/processor.h>
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
-#include <asm/mc146818rtc.h>
 #include <asm/traps.h>
 #include <linux/bootmem.h>
 #include <linux/initrd.h>
 #include <asm/gt64120.h>
 #include "ocelot_pld.h"
-
-extern struct rtc_ops no_rtc_ops;
 
 unsigned long gt64120_base = KSEG1ADDR(GT_DEF_BASE);
 
@@ -170,7 +167,6 @@ static void __init momenco_ocelot_setup(void)
 	 * initrd_end = (ulong)ocelot_initrd_start + (ulong)ocelot_initrd_size;
 	 * initrd_below_start_ok = 1;
 	 */
-	rtc_ops = &no_rtc_ops;
 
 	/* do handoff reconfiguration */
 	if (gt64120_base == KSEG1ADDR(GT_DEF_BASE))

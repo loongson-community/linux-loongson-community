@@ -40,9 +40,6 @@
 #include <asm/sibyte/sb1250_genbus.h>
 #include <asm/sibyte/board.h>
 
-extern struct rtc_ops *rtc_ops;
-extern struct rtc_ops swarm_rtc_ops;
-
 extern void sb1250_setup(void);
 
 extern int xicor_probe(void);

@@ -9,6 +9,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
@@ -170,6 +171,8 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 	return laddr;
 }
 
+EXPORT_SYMBOL(vdma_alloc);
+
 /*
  * Free previously allocated dma translation pages
  * Note that this does NOT change the translation table,
@@ -200,6 +203,8 @@ int vdma_free(unsigned long laddr)
 
 	return 0;
 }
+
+EXPORT_SYMBOL(vdma_free);
 
 /*
  * Map certain page(s) to another physical address.
@@ -309,6 +314,8 @@ unsigned long vdma_log2phys(unsigned long laddr)
 
 	return pgtbl[laddr >> 12].frame + (laddr & (VDMA_PAGESIZE - 1));
 }
+
+EXPORT_SYMBOL(vdma_log2phys);
 
 /*
  * Print DMA statistics

@@ -6,6 +6,7 @@
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/mc146818rtc.h>
 #include <linux/string.h>
 #include <linux/types.h>
@@ -61,6 +62,10 @@ const char *get_system_type(void)
  * early.  Semantically the functions belong to prom/init.c, but they
  * are compact enough we want them inlined. --macro
  */
+volatile u8 *dec_rtc_base;
+
+EXPORT_SYMBOL(dec_rtc_base);
+
 static inline void prom_init_kn01(void)
 {
 	dec_rtc_base = (void *)KN01_RTC_BASE;

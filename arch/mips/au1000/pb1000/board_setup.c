@@ -45,17 +45,15 @@
 // Enable the workaround for the OHCI DoneHead
 // register corruption problem.
 #define CONFIG_AU1000_OHCI_FIX
+        ^^^^^^^^^^^^^^^^^^^^^^
+    !!! I shall not define symbols starting with CONFIG_ !!!
 #endif
-
-extern struct rtc_ops no_rtc_ops;
 
 void __init board_setup(void)
 {
 	u32 pin_func, static_cfg0;
 	u32 sys_freqctrl, sys_clksrc;
 	u32 prid = read_c0_prid();
-
-	rtc_ops = &no_rtc_ops;
 
 	// set AUX clock to 12MHz * 8 = 96 MHz
 	au_writel(8, SYS_AUXPLL);

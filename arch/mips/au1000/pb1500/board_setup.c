@@ -45,10 +45,8 @@
 // Enable the workaround for the OHCI DoneHead
 // register corruption problem.
 #define CONFIG_AU1000_OHCI_FIX
-#endif
-
-#ifdef CONFIG_RTC
-extern struct rtc_ops pb1500_rtc_ops;
+        ^^^^^^^^^^^^^^^^^^^^^^
+    !!! I shall not define symbols starting with CONFIG_ !!!
 #endif
 
 void __init board_setup(void)
@@ -129,17 +127,14 @@ void __init board_setup(void)
 	/* Enable BCLK switching */
 	au_writel(0x00000060, 0xb190003c);
 
-#ifdef CONFIG_RTC
-	rtc_ops = &pb1500_rtc_ops;
-	// Enable the RTC if not already enabled
+	/* Enable the RTC if not already enabled */
 	if (!(au_readl(0xac000028) & 0x20)) {
 		printk("enabling clock ...\n");
 		au_writel((au_readl(0xac000028) | 0x20), 0xac000028);
 	}
-	// Put the clock in BCD mode
+	/* Put the clock in BCD mode */
 	if (readl(0xac00002C) & 0x4) { /* reg B */
 		au_writel(au_readl(0xac00002c) & ~0x4, 0xac00002c);
 		au_sync();
 	}
-#endif
 }

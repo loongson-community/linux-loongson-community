@@ -6,6 +6,8 @@
  * Copyright (C) 1997, 1998, 2001, 2003 by Ralf Baechle
  */
 #include <linux/init.h>
+#include <linux/ds1286.h>
+#include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -16,7 +18,6 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/reboot.h>
-#include <asm/ds1286.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/hpc3.h>
@@ -139,6 +140,8 @@ static inline void power_button(void)
 }
 
 void (*indy_volume_button)(int) = NULL;
+
+EXPORT_SYMBOL(indy_volume_button);
 
 static inline void volume_up_button(unsigned long data)
 {
