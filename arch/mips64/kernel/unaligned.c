@@ -92,14 +92,17 @@
 unsigned long unaligned_instructions;
 #endif
 
-static inline void emulate_load_store_insn(struct pt_regs *regs,
-	void * addr, unsigned long pc)
+static inline int emulate_load_store_insn(struct pt_regs *regs,
+	void *addr, unsigned long pc,
+	unsigned long **regptr, unsigned long *newvalue)
 {
 	union mips_instruction insn;
 	unsigned long value, fixup;
 	unsigned int res;
 
 	regs->regs[0] = 0;
+	*regptr=NULL;
+
 	/*
 	 * This load never faults.
 	 */
@@ -167,7 +170,8 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		regs->regs[insn.i_format.rt] = value;
+		*newvalue = value;
+		*regptr = &regs->regs[insn.i_format.rt];
 		break;
 
 	case lw_op:
@@ -196,7 +200,8 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		regs->regs[insn.i_format.rt] = value;
+		*newvalue = value;
+		*regptr = &regs->regs[insn.i_format.rt];
 		break;
 
 	case lhu_op:
@@ -229,7 +234,8 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		regs->regs[insn.i_format.rt] = value;
+		*newvalue = value;
+		*regptr = &regs->regs[insn.i_format.rt];
 		break;
 
 	case lwu_op:
@@ -268,7 +274,8 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		regs->regs[insn.i_format.rt] = value;
+		*newvalue = value;
+		*regptr = &regs->regs[insn.i_format.rt];
 		break;
 #endif /* CONFIG_MIPS64 */
 
@@ -309,7 +316,8 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		regs->regs[insn.i_format.rt] = value;
+		*newvalue = value;
+		*regptr = &regs->regs[insn.i_format.rt];
 		break;
 #endif /* CONFIG_MIPS64 */
 
@@ -452,13 +460,11 @@ static inline void emulate_load_store_insn(struct pt_regs *regs,
 		goto sigill;
 	}
 
-	compute_return_epc(regs);
-
 #ifdef CONFIG_PROC_FS
 	unaligned_instructions++;
 #endif
 
-	return;
+	return 0;
 
 fault:
 	/* Did we have an exception handler installed? */
@@ -469,38 +475,38 @@ fault:
 		printk(KERN_DEBUG "%s: Forwarding exception at [<%lx>] (%lx)\n",
 		       current->comm, regs->cp0_epc, new_epc);
 		regs->cp0_epc = new_epc;
-		return;
+		return 1;
 	}
 
 	die_if_kernel ("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
 
-	return;
+	return 0;
 
 sigbus:
 	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGBUS, current, 1);
 
-	return;
+	return 0;
 
 sigill:
 	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
 
-	return;
+	return 0;
 }
 
 asmlinkage void do_ade(struct pt_regs *regs)
 {
+	unsigned long *regptr, newval;
 	extern int do_dsemulret(struct pt_regs *);
 	mm_segment_t seg;
 	unsigned long pc;
 
 	/*
-	 * Address errors may be deliberately induced
-	 * by the FPU emulator to take retake control
-	 * of the CPU after executing the instruction
-	 * in the delay slot of an emulated branch.
+	 * Address errors may be deliberately induced by the FPU emulator to
+	 * take retake control of the CPU after executing the instruction in
+	 * the delay slot of an emulated branch.
 	 */
 	/* Terminate if exception was recognized as a delay slot return */
 	if (do_dsemulret(regs))
@@ -512,11 +518,10 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 * Did we catch a fault trying to load an instruction?
 	 * Or are we running in MIPS16 mode?
 	 */
-	if ((regs->cp0_badvaddr == regs->cp0_epc) ||
-	    (regs->cp0_epc & 0x1))
+	if ((regs->cp0_badvaddr == regs->cp0_epc) || (regs->cp0_epc & 0x1))
 		goto sigbus;
 
-	pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
+	pc = exception_epc(regs);
 	if ((current->thread.mflags & MF_FIXADE) == 0)
 		goto sigbus;
 
@@ -527,7 +532,16 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	seg = get_fs();
 	if (!user_mode(regs))
 		set_fs(KERNEL_DS);
-	emulate_load_store_insn(regs, (void *)regs->cp0_badvaddr, pc);
+	if (!emulate_load_store_insn(regs, (void *)regs->cp0_badvaddr, pc,
+	                             &regptr, &newval)) {
+		compute_return_epc(regs);
+		/*
+		 * Now that branch is evaluated, update the dest
+		 * register if necessary
+		 */
+		if (regptr)
+			*regptr = newval;
+	}
 	set_fs(seg);
 
 	return;
