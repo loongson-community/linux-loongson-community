@@ -41,7 +41,7 @@
 
 extern asmlinkage void mipsIRQ(void);
 
-static spinlock_t mips_irq_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(mips_irq_lock);
 
 static inline int mips_pcibios_iack(void)
 {

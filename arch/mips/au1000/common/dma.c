@@ -61,7 +61,7 @@
  */
 
 
-spinlock_t au1000_dma_spin_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(au1000_dma_spin_lock);
 
 struct dma_chan au1000_dma_table[NUM_AU1000_DMA_CHANNELS] = {
       {.dev_id = -1,},

@@ -124,7 +124,7 @@ asmlinkage void start_secondary(void)
 	cpu_idle();
 }
 
-spinlock_t smp_call_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(smp_call_lock);
 
 struct call_data_struct *call_data;
 

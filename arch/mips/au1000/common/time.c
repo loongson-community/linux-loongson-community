@@ -69,7 +69,7 @@ extern void startup_match20_interrupt(void);
 static unsigned long last_pc0, last_match20;
 #endif
 
-static spinlock_t time_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(time_lock);
 
 static inline void ack_r4ktimer(unsigned long newval)
 {

@@ -22,7 +22,7 @@
 
 typedef unsigned long machreg_t;
 
-spinlock_t nmi_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(nmi_lock);
 
 /*
  * Lets see what else we need to do here. Set up sp, gp?

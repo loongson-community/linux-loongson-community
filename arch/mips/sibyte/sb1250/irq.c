@@ -88,7 +88,7 @@ static struct hw_interrupt_type sb1250_irq_type = {
 /* Store the CPU id (not the logical number) */
 int sb1250_irq_owner[SB1250_NR_IRQS];
 
-spinlock_t sb1250_imr_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(sb1250_imr_lock);
 
 void sb1250_mask_irq(int cpu, int irq)
 {

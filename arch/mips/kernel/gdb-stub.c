@@ -176,7 +176,7 @@ int kgdb_enabled;
 /*
  * spin locks for smp case
  */
-static spinlock_t kgdb_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(kgdb_lock);
 static spinlock_t kgdb_cpulock[NR_CPUS] = { [0 ... NR_CPUS-1] = SPIN_LOCK_UNLOCKED};
 
 /*

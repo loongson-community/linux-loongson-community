@@ -92,7 +92,7 @@ static unsigned char irc_level[TX3927_NUM_IR] = {
 static void jmr3927_irq_disable(unsigned int irq_nr);
 static void jmr3927_irq_enable(unsigned int irq_nr);
 
-static spinlock_t jmr3927_irq_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(jmr3927_irq_lock);
 
 static unsigned int jmr3927_irq_startup(unsigned int irq)
 {
