@@ -27,7 +27,7 @@
 #include <linux/ip.h>          /* struct iphdr */
 #include <linux/tcp.h>         /* struct tcphdr */
 #include <linux/skbuff.h>
-#include <linux/mii.h> /*MII definitions */
+#include <linux/mii.h>         /* MII definitions */
 
 #include <asm/ip32/mace.h>
 #include <asm/ip32/ip32_ints.h>
@@ -765,8 +765,14 @@ static void meth_tx_timeout(struct net_device *dev)
  */
 static int meth_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	DPRINTK("ioctl\n");
-	return 0;
+	/* XXX Not yet implemented */
+	switch(cmd) { 
+	case SIOCGMIIPHY:
+	case SIOCGMIIREG:
+	case SIOCSMIIREG:
+	default:
+		return -EOPNOTSUPP;
+	}
 }
 
 /*
