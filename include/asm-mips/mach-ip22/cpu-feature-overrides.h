@@ -25,6 +25,5 @@
 
 #define cpu_has_nofpuex		0
 #define cpu_has_64bits		1
-#define cpu_has_64bit_addresses	1
 
 #endif /* __ASM_MACH_IP22_CPU_FEATURE_OVERRIDES_H */
