@@ -62,6 +62,15 @@ S: Klaproosstraat 72 c 10
 S: B-2610 Wilrijk-Antwerpen
 S: Belgium
 
+N: Anton Altaparmakov
+E: aia21@cus.cam.ac.uk
+W: http://www-stu.christs.cam.ac.uk/~aia21/
+D: NTFS driver maintainer. NTFS fixes and cleanup.
+D: Tiny fixes in linear md device and emu10k1 driver.
+S: Christ's College
+S: Cambridge CB2 3BU
+S: United Kingdom
+
 N: C. Scott Ananian
 E: cananian@alumni.princeton.edu
 W: http://www.pdos.lcs.mit.edu/~cananian
@@ -82,6 +91,14 @@ D: ATAPI CD-Changer support, Major 2.1.x CD-ROM update.
 S: 4538 South Carnegie Tech Street
 S: Salt Lake City, Utah 84120
 S: USA
+
+N: Michael Ang
+E: mang@subcarrier.org
+W: http://www.subcarrier.org/mang
+D: Linux/PA-RISC hacker
+S: 85 Frank St.
+S: Ottawa, Ontario
+S: Canada K2P 0X3
 
 N: H. Peter Anvin
 E: hpa@zytor.com
@@ -160,6 +177,17 @@ D: Author and maintainer of the EATA ISA/EISA/PCI SCSI driver
 S: EMC Corporation
 S: Milano
 S: Italy
+
+N: Paul Bame
+E: bame@debian.org
+E: bame@puffin.external.hp.com
+E: paul_bame@hp.com
+W: http://www.parisc-linux.org
+D: PA-RISC 32 and 64-bit early boot, firmware interface, interrupts, misc
+S: MS42
+S: Hewlett-Packard
+S: 3404 E Harmony Rd
+S: Fort Collins, CO 80525
 
 N: Arindam Banerji
 E: axb@cse.nd.edu
@@ -374,6 +402,12 @@ S: Dept of Computer Science
 S: 5000 Forbes Avenue
 S: Pittsburgh, Pennsylvania 15213
 S: USA
+
+N: Ryan Bradetich
+E: rbradetich@uswest.net
+D: Linux/PA-RISC hacker
+S: 1200 Goldenrod Dr.
+S: Nampa, Idaho 83686
 
 N: Derrick J. Brashear
 E: shadow@dementia.org
@@ -605,6 +639,14 @@ E: terry@albert.vk2ktj.ampr.org (Amateur Radio use only)
 D: trivial hack to add variable address length routing to Rose.
 D: AX25-HOWTO, HAM-HOWTO, IPX-HOWTO, NET-2-HOWTO
 D: ax25-utils maintainer.
+
+N: Helge Deller
+E: deller@gmx.de
+E: hdeller@redhat.de
+D: PA-RISC Linux hacker, LASI-, ASP-, WAX-, LCD/LED-driver
+S: Schimmelsrain 1
+S: D-69231 Rauenberg
+S: Germany
 
 N: Peter Denison
 E: peterd@pnd-pc.demon.co.uk
@@ -962,10 +1004,21 @@ S: USA
 N: Hans Grobler
 E: grobh@sun.ac.za
 D: Various AX.25/ROSE/NETROM + hamradio driver patches
+D: Various X.25/LABP + driver patches
+D: Misc kernel fixes and updates
 S: Department of Electronic Engineering
 S: University of Stellenbosch
 S: Stellenbosch, Western Cape
 S: South Africa
+
+N: Grant Grundler
+E: grundler@puffin.external.hp.com
+W: http://www.grundler.net/
+W: http://obmouse.sourceforge.net/
+D: obmouse - rewrote Olivier Florent's Omnibook 600 "pop-up" mouse driver
+D: PA-RISC - IO Interrupt/PCI HBA/IO MMU author and architect
+S: Mountain View, California
+S: USA
 
 N: Grant Guenther
 E: grant@torque.net
@@ -1056,11 +1109,12 @@ S: USA
 N: Jochen Hein
 E: jochen@jochen.org
 P: 1024/4A27F015 25 72 FB E3 85 9F DE 3B  CB 0A DA DA 40 77 05 6C
+P: 1024D/77D4FC9B F5C5 1C20 1DFC DEC3 3107  54A4 2332 ADFC 77D4 FC9B
 D: National Language Support
 D: Linux Internationalization Project
 D: German Localization for Linux and GNU software
-S: Frankenstraße 33
-S: 34131 Kassel
+S: Helenenstrasse 18
+S: 65183 Wiesbaden
 S: Germany
 
 N: Christoph Hellwig
@@ -1110,6 +1164,15 @@ D: drivers for the racal ni5210 & ni6510 Ethernet-boards
 S: Talstr. 1
 S: D - 72072 Tuebingen
 S: Germany
+
+N: Richard Hirst
+E: richard@sleepie.demon.co.uk
+E: rhirst@linuxcare.com
+W: http://www.sleepie.demon.co.uk/
+D: linux-m68k VME support
+D: PA-RISC port, scsi and network drivers
+D: 53c700/53c710 driver author, 82596 driver maintainer
+S: United Kingdom
 
 N: Jauder Ho
 E: jauderho@carumba.com
@@ -1187,6 +1250,19 @@ S: Dukelskych bojovniku 1944
 S: Tabor 390 03
 S: Czech Republic
 
+N: David Huggins-Daines
+E: dhd@debian.org
+E: dhd@eradicator.org
+E: dhd@cepstral.com
+D: PA-RISC port
+D: Nubus subsystem
+D: Generic 68k Macintosh framebuffer driver
+D: STI framebuffer tweaks
+D: LTPC driver tweaks
+S: 110 S. 12th St., Apt. A
+S: Pittsburgh, PA 15203-1250
+S: USA
+
 N: Gareth Hughes
 E: gareth@valinux.com
 E: gareth@precisioninsight.com
@@ -1255,11 +1331,7 @@ S: Czech Republic
 N: Niels Kristian Bech Jensen
 E: nkbj@image.dk
 W: http://www.image.dk/~nkbj
-D: 4.4BSD and NeXTstep filesystem support in the old ufs.
-D: Openstep filesystem and NeXTstep CDROM support in the new ufs.
-D: Replace CPU==[3-6]86 and __i386__ submodel flags by configuration options.
-D: Replace __SMP__ by CONFIG_SMP.
-D: Danish HOWTO, Linux+FreeBSD mini-HOWTO.
+D: Miscellaneous kernel updates and fixes.
 S: Dr. Holsts Vej 34, lejl. 164
 S: DK-8230 Åbyhøj
 S: Denmark
@@ -1741,6 +1813,14 @@ D: XF86_Mach8
 D: XF86_8514
 D: cfdisk (curses based disk partitioning program)
 
+N: John S. Marvin
+E: jsm@fc.hp.com
+D: PA-RISC port
+S: Hewlett Packard
+S: MS 42
+S: 3404 E. Harmony Road
+S: Fort Collins, CO 80528
+
 N: Torben Mathiasen
 E: torben.mathiasen@compaq.com
 E: torben@kernel.dk
@@ -2096,6 +2176,16 @@ W: http://www.speakeasy.org/~kirk/
 D: implemented kmod
 D: modularized BSD Unix domain sockets
 
+N: Martin Kasper Petersen
+E: mkp@linuxcare.com
+E: mkp@mkp.net
+D: PA-RISC port
+D: XFS file system
+D: kiobuf based block I/O work
+S: 314 Frank St.
+S: Ottawa, Ontario
+S: Canada K2P 0X8
+
 N: Mikael Pettersson
 E: mikpe@csd.uu.se
 W: http://www.csd.uu.se/~mikpe/
@@ -2279,6 +2369,13 @@ D: shm fs, SYSV semaphores, af_unix
 S: Neue Heimat Str. 8
 S: D-68789 St.Leon-Rot
 S: Germany
+
+N: Thiago Berlitz Rondon
+E: maluco@mileniumnet.com.br
+D: Miscellaneous kernel hacker
+S: R. Anhanguera, 1487 - Ipiranga
+S: 79080-740 - Campo Grande - Mato Grosso do Sul
+S: Brazil
 
 N: Stephen Rothwell
 E: sfr@linuxcare.com.au
@@ -2607,7 +2704,7 @@ S: 8302 Nestelbach
 S: Austria
 
 N: Jeff Tranter
-E: Jeff_Tranter@Mitel.COM
+E: tranter@pobox.com
 D: Enhancements to Joystick driver
 D: Author of Sound HOWTO and CD-ROM HOWTO
 D: Author of several small utilities
@@ -2881,6 +2978,12 @@ S: Breeburgsingel 12
 S: 2135 CN Hoofddorp
 S: The Netherlands
 
+N: Matthew Wilcox
+E: matthew@wil.cx
+W: ftp://ftp.uk.linux.org/pub/linux/people/willy/
+D: Linux/PARISC hacker.  Filesystem hacker.  Random other hacking.  Custom
+D: PPC port hacking.
+
 N: G\"unter Windau
 E: gunter@mbfys.kun.nl
 D: Some bug fixes in the polling printer driver (lp.c)
@@ -2941,9 +3044,10 @@ D: ARCnet stuff, Applicom board driver, SO_BINDTODEVICE,
 D: some Alpha platform porting from 2.0, Memory Technology Devices,
 D: Acquire watchdog timer, PC speaker driver maintenance,
 D: various other stuff that annoyed me by not working.
-S: c/o Red Hat UK Limited
-S: 35-36 Cambridge Place
-S: Cambridge. CB2 1NS
+S: c/o Red Hat Engineering
+S: Rustat House
+S: 60 Clifton Road
+S: Cambridge. CB1 7EG
 S: England
 
 N: Frank Xia
@@ -2965,8 +3069,8 @@ E: eric@andante.org
 W: http://www.andante.org
 D: General kernel hacker
 D: SCSI iso9660 and ELF
-S: 17 Canterbury Square #101
-S: Alexandria, Virginia 22304
+S: 6389 Hawk View Lane
+S: Alexandria, Virginia 22312
 S: USA
 
 N: Niibe Yutaka

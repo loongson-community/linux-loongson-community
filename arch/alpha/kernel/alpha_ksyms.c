@@ -98,9 +98,13 @@ EXPORT_SYMBOL(__memcpy);
 EXPORT_SYMBOL(__memset);
 EXPORT_SYMBOL(__memsetw);
 EXPORT_SYMBOL(__constant_c_memset);
+EXPORT_SYMBOL(copy_page);
+EXPORT_SYMBOL(clear_page);
 
 EXPORT_SYMBOL(__direct_map_base);
 EXPORT_SYMBOL(__direct_map_size);
+
+#ifdef CONFIG_PCI
 EXPORT_SYMBOL(pci_alloc_consistent);
 EXPORT_SYMBOL(pci_free_consistent);
 EXPORT_SYMBOL(pci_map_single);
@@ -108,6 +112,7 @@ EXPORT_SYMBOL(pci_unmap_single);
 EXPORT_SYMBOL(pci_map_sg);
 EXPORT_SYMBOL(pci_unmap_sg);
 EXPORT_SYMBOL(pci_dma_supported);
+#endif
 
 EXPORT_SYMBOL(dump_thread);
 EXPORT_SYMBOL(dump_fpu);
@@ -166,6 +171,7 @@ EXPORT_SYMBOL(__down_failed_interruptible);
 EXPORT_SYMBOL(__up_wakeup);
 EXPORT_SYMBOL(down);
 EXPORT_SYMBOL(down_interruptible);
+EXPORT_SYMBOL(down_trylock);
 EXPORT_SYMBOL(up);
 EXPORT_SYMBOL(__down_read_failed);
 EXPORT_SYMBOL(__down_write_failed);

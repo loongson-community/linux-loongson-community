@@ -11,7 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/ptrace.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/timer.h>
 #include <linux/major.h>
@@ -200,6 +200,7 @@ int init_slram(void)
 	if (add_mtd_device(mymtd))
 	{
 		printk("Failed to register new device\n");
+	        iounmap(((struct mypriv *)mymtd->priv)->start);
 		kfree(mymtd->priv);
 		kfree(mymtd);
 		return -EAGAIN;

@@ -81,7 +81,7 @@ static void print_error_cause(int cause)
 	case overrun_error:
 		TRACE(ft_t_noise, "overrun error");
 		break;
-	default:
+	default:;
 	}
 	TRACE_EXIT;
 }
@@ -184,7 +184,7 @@ static void update_history(error_cause cause)
 	case no_data_error:
 		ft_history.no_data_errors++;
 		break;
-	default:
+	default:;
 	}
 }
 
@@ -237,7 +237,7 @@ static void print_progress(buffer_struct *buff, error_cause cause)
 
 	switch (cause) {
 	case no_error: 
-		TRACE(ft_t_flow,"%d Sector(s) transfered", buff->sector_count);
+		TRACE(ft_t_flow,"%d Sector(s) transferred", buff->sector_count);
 		break;
 	case no_data_error:
 		TRACE(ft_t_flow, "Sector %d not found",

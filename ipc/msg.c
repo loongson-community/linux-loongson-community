@@ -16,7 +16,7 @@
  */
 
 #include <linux/config.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/msg.h>
 #include <linux/spinlock.h>
 #include <linux/init.h>
@@ -473,7 +473,7 @@ asmlinkage long sys_msgctl (int msqid, int cmd, struct msqid_ds *buf)
 		int success_return;
 		if (!buf)
 			return -EFAULT;
-		if(cmd == MSG_STAT && msqid > msg_ids.size)
+		if(cmd == MSG_STAT && msqid >= msg_ids.size)
 			return -EINVAL;
 
 		memset(&tbuf,0,sizeof(tbuf));

@@ -1,4 +1,4 @@
-/* $Id: cgsixfb.c,v 1.23 2000/07/26 23:02:51 davem Exp $
+/* $Id: cgsixfb.c,v 1.24 2001/02/13 01:17:14 davem Exp $
  * cgsixfb.c: CGsix (GX,GXplus) frame buffer driver
  *
  * Copyright (C) 1996,1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -13,7 +13,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/tty.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>

@@ -27,21 +27,28 @@ struct qstr {
 	unsigned int hash;
 };
 
+struct dentry_stat_t {
+	int nr_dentry;
+	int nr_unused;
+	int age_limit;          /* age in seconds */
+	int want_pages;         /* pages requested by system */
+	int dummy[2];
+};
+extern struct dentry_stat_t dentry_stat;
+
 /* Name hashing routines. Initial hash value */
+/* Hash courtesy of the R5 hash in reiserfs modulo sign bits */
 #define init_name_hash()		0
 
 /* partial hash update function. Assume roughly 4 bits per character */
 static __inline__ unsigned long partial_name_hash(unsigned long c, unsigned long prevhash)
 {
-	prevhash = (prevhash << 4) | (prevhash >> (8*sizeof(unsigned long)-4));
-	return prevhash ^ c;
+	return (prevhash + (c << 4) + (c >> 4)) * 11;
 }
 
 /* Finally: cut down the number of bits to a int value (and try to avoid losing bits) */
 static __inline__ unsigned long end_name_hash(unsigned long hash)
 {
-	if (sizeof(hash) > sizeof(unsigned int))
-		hash += hash >> 4*sizeof(hash);
 	return (unsigned int) hash;
 }
 

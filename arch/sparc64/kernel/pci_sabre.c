@@ -1,4 +1,4 @@
-/* $Id: pci_sabre.c,v 1.22 2001/01/16 13:03:48 anton Exp $
+/* $Id: pci_sabre.c,v 1.23 2001/02/13 01:16:44 davem Exp $
  * pci_sabre.c: Sabre specific PCI controller support.
  *
  * Copyright (C) 1997, 1998, 1999 David S. Miller (davem@caipfs.rutgers.edu)
@@ -10,7 +10,7 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/init.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 
 #include <asm/apb.h>
 #include <asm/pbm.h>

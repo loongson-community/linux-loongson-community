@@ -28,7 +28,7 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/major.h>
 #include <linux/fs.h>
@@ -44,8 +44,8 @@
 
 #define SMART2_DRIVER_VERSION(maj,min,submin) ((maj<<16)|(min<<8)|(submin))
 
-#define DRIVER_NAME "Compaq SMART2 Driver (v 2.4.1)"
-#define DRIVER_VERSION SMART2_DRIVER_VERSION(2,4,1)
+#define DRIVER_NAME "Compaq SMART2 Driver (v 2.4.2)"
+#define DRIVER_VERSION SMART2_DRIVER_VERSION(2,4,2)
 
 /* Embedded module documentation macros - see modules.h */
 /* Original author Chris Frantz - Compaq Computer Corporation */
@@ -1327,7 +1327,7 @@ static int ida_ctlr_ioctl(int ctlr, int dsk, ida_ioctl_t *io)
 	case IDA_WRITE_MEDIA:
 		kfree(p);
 		break;
-	default:
+	default:;
 		/* Nothing to do */
 	}
 
@@ -1528,7 +1528,7 @@ static int revalidate_allvol(kdev_t dev)
 	ida_gendisk[ctlr].nr_real = 0;
 
 	/*
-	 * Tell the array controller not to give us any interupts while
+	 * Tell the array controller not to give us any interrupts while
 	 * we check the new geometry.  Then turn interrupts back on when
 	 * we're done.
 	 */

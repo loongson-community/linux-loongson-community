@@ -47,12 +47,11 @@
 #include <linux/stat.h>
 #include <linux/tty.h>
 #include <linux/file.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/mount.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
-#include <linux/slab.h>
 
 #include <asm/uaccess.h>
 
@@ -1536,7 +1535,7 @@ asmlinkage long sys_quotactl(int cmd, const char *special, int id, caddr_t addr)
 			break;
 		case Q_GETQUOTA:
 			if (((type == USRQUOTA && current->euid != id) ||
-			     (type == GRPQUOTA && in_egroup_p(id))) &&
+			     (type == GRPQUOTA && !in_egroup_p(id))) &&
 			    !capable(CAP_SYS_RESOURCE))
 				goto out;
 			break;

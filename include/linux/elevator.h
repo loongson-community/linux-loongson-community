@@ -1,14 +1,12 @@
 #ifndef _LINUX_ELEVATOR_H
 #define _LINUX_ELEVATOR_H
 
-#define ELEVATOR_DEBUG
-
 typedef void (elevator_fn) (struct request *, elevator_t *,
 			    struct list_head *,
 			    struct list_head *, int);
 
 typedef int (elevator_merge_fn) (request_queue_t *, struct request **, struct list_head *,
-				 struct buffer_head *, int, int, int);
+				 struct buffer_head *, int, int);
 
 typedef void (elevator_merge_cleanup_fn) (request_queue_t *, struct request *, int);
 
@@ -26,11 +24,11 @@ struct elevator_s
 	unsigned int queue_ID;
 };
 
-int elevator_noop_merge(request_queue_t *, struct request **, struct list_head *, struct buffer_head *, int, int, int);
+int elevator_noop_merge(request_queue_t *, struct request **, struct list_head *, struct buffer_head *, int, int);
 void elevator_noop_merge_cleanup(request_queue_t *, struct request *, int);
 void elevator_noop_merge_req(struct request *, struct request *);
 
-int elevator_linus_merge(request_queue_t *, struct request **, struct list_head *, struct buffer_head *, int, int, int);
+int elevator_linus_merge(request_queue_t *, struct request **, struct list_head *, struct buffer_head *, int, int);
 void elevator_linus_merge_cleanup(request_queue_t *, struct request *, int);
 void elevator_linus_merge_req(struct request *, struct request *);
 
@@ -68,8 +66,9 @@ extern void elevator_init(elevator_t *, elevator_t);
 	 (s1)->rq_dev < (s2)->rq_dev)
 
 #define BHRQ_IN_ORDER(bh, rq)			\
-	(((bh)->b_rdev == (rq)->rq_dev &&	\
-	  (bh)->b_rsector < (rq)->sector))
+	((((bh)->b_rdev == (rq)->rq_dev &&	\
+	   (bh)->b_rsector < (rq)->sector)) ||	\
+	 (bh)->b_rdev < (rq)->rq_dev)
 
 static inline int elevator_request_latency(elevator_t * elevator, int rw)
 {

@@ -4,7 +4,7 @@
 	Copyright 2000 Jeff Garzik <jgarzik@mandrakesoft.com>
 	Copyright 2000 Philipp Rumpf <prumpf@tux.org>
 
-	Driver Web site:  http://gtf.org/garzik/drivers/i810_rng/
+	Driver Web site:  http://sourceforge.net/projects/gkernel/
 
 
 
@@ -26,7 +26,7 @@
 	----------------------------------------------------------
 
 	This software may be used and distributed according to the terms
-        of the GNU Public License, incorporated herein by reference.
+        of the GNU General Public License, incorporated herein by reference.
 
 	----------------------------------------------------------
 

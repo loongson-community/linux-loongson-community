@@ -67,11 +67,7 @@ spinlock_t inode_lock = SPIN_LOCK_UNLOCKED;
 /*
  * Statistics gathering..
  */
-struct {
-	int nr_inodes;
-	int nr_unused;
-	int dummy[5];
-} inodes_stat;
+struct inodes_stat_t inodes_stat;
 
 static kmem_cache_t * inode_cachep;
 
@@ -728,8 +724,8 @@ static struct inode * get_new_inode(struct super_block *sb, unsigned long ino, s
 
 static inline unsigned long hash(struct super_block *sb, unsigned long i_ino)
 {
-	unsigned long tmp = i_ino | ((unsigned long) sb / L1_CACHE_BYTES);
-	tmp = tmp + (tmp >> I_HASHBITS) + (tmp >> I_HASHBITS*2);
+	unsigned long tmp = i_ino + ((unsigned long) sb / L1_CACHE_BYTES);
+	tmp = tmp + (tmp >> I_HASHBITS);
 	return tmp & I_HASHMASK;
 }
 

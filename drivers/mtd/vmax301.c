@@ -17,7 +17,7 @@
    ##################################################################### */
 
 #include <linux/module.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
 #include <asm/spinlock.h>
@@ -228,8 +228,10 @@ int __init init_vmax301(void)
 		}
 	}
 
-	if (!vmax_mtd[1] && !vmax_mtd[2])
+	if (!vmax_mtd[1] && !vmax_mtd[2]) {
+		iounmap(iomapadr);
 		return -ENXIO;
+	}
 
 	return 0;
 }

@@ -40,7 +40,7 @@
 #include <linux/major.h>
 #include <linux/errno.h>
 #include <linux/genhd.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/ide.h>
 #include <linux/spinlock.h>
@@ -652,6 +652,8 @@ static int init_irq (ide_hwif_t *hwif)
 		hwgroup = match->hwgroup;
 	} else {
 		hwgroup = kmalloc(sizeof(ide_hwgroup_t), GFP_KERNEL);
+		if (!hwgroup)
+			return 1;
 		memset(hwgroup, 0, sizeof(ide_hwgroup_t));
 		hwgroup->hwif     = hwif->next = hwif;
 		hwgroup->rq       = NULL;

@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.94 2000/09/21 06:27:10 anton Exp $
+/* $Id: irq.c,v 1.95 2001/02/13 01:16:44 davem Exp $
  * irq.c: UltraSparc IRQ handling/init/registry.
  *
  * Copyright (C) 1997  David S. Miller  (davem@caip.rutgers.edu)
@@ -13,7 +13,7 @@
 #include <linux/signal.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/random.h> /* XXX ADD add_foo_randomness() calls... -DaveM */
 #include <linux/init.h>
 #include <linux/delay.h>

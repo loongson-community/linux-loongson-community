@@ -170,7 +170,7 @@ static int __init probe_list(struct net_device *dev, struct devprobe *plist)
  * drivers that probe for EISA cards (in the ISA group).  These are the
  * EISA only driver probes, and also the legacy PCI probes
  */
-struct devprobe eisa_probes[] __initdata = {
+static struct devprobe eisa_probes[] __initdata = {
 #ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
 	{de4x5_probe, 0},
 #endif
@@ -193,7 +193,7 @@ struct devprobe eisa_probes[] __initdata = {
 };
 
 
-struct devprobe mca_probes[] __initdata = {
+static struct devprobe mca_probes[] __initdata = {
 #ifdef CONFIG_ULTRAMCA 
 	{ultramca_probe, 0},
 #endif
@@ -216,7 +216,7 @@ struct devprobe mca_probes[] __initdata = {
  * ISA probes that touch addresses < 0x400 (including those that also
  * look for EISA/PCI/MCA cards in addition to ISA cards).
  */
-struct devprobe isa_probes[] __initdata = {
+static struct devprobe isa_probes[] __initdata = {
 #ifdef CONFIG_EL3		/* ISA, EISA, MCA 3c5x9 */
 	{el3_probe, 0},
 #endif
@@ -319,7 +319,7 @@ struct devprobe isa_probes[] __initdata = {
 	{NULL, 0},
 };
 
-struct devprobe parport_probes[] __initdata = {
+static struct devprobe parport_probes[] __initdata = {
 #ifdef CONFIG_DE600		/* D-Link DE-600 adapter */
 	{de600_probe, 0},
 #endif
@@ -329,7 +329,7 @@ struct devprobe parport_probes[] __initdata = {
 	{NULL, 0},
 };
 
-struct devprobe m68k_probes[] __initdata = {
+static struct devprobe m68k_probes[] __initdata = {
 #ifdef CONFIG_ATARILANCE	/* Lance-based Atari ethernet boards */
 	{atarilance_probe, 0},
 #endif
@@ -367,14 +367,14 @@ struct devprobe m68k_probes[] __initdata = {
 };
 
 
-struct devprobe sgi_probes[] __initdata = {
+static struct devprobe sgi_probes[] __initdata = {
 #ifdef CONFIG_SGISEEQ
 	{sgiseeq_probe, 0},
 #endif
 	{NULL, 0},
 };
 
-struct devprobe mips_probes[] __initdata = {
+static struct devprobe mips_probes[] __initdata = {
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	{sonic_probe, 0},
 #endif
@@ -640,47 +640,6 @@ static struct net_device tr0_dev = {
 #define	NEXT_DEV	(&sbni0_dev)
 #endif 
 	
-/* S/390 channels */
-#ifdef CONFIG_CTC
-    extern int ctc_probe(struct net_device *dev);
-    static struct net_device ctc7_dev =
-       {"ctc7", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV,  ctc_probe};
-    static struct net_device ctc6_dev =
-       {"ctc6", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc7_dev, ctc_probe};
-    static struct net_device ctc5_dev =
-       {"ctc5", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc6_dev, ctc_probe};
-    static struct net_device ctc4_dev =
-       {"ctc4", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc5_dev, ctc_probe};
-    static struct net_device ctc3_dev =
-       {"ctc3", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc4_dev, ctc_probe};
-    static struct net_device ctc2_dev =
-       {"ctc2", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc3_dev, ctc_probe};
-    static struct net_device ctc1_dev =
-       {"ctc1", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc2_dev, ctc_probe};
-    static struct net_device ctc0_dev =
-       {"ctc0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc1_dev, ctc_probe}; 
-
-    static struct net_device escon7_dev =
-       {"escon7", 0, 0, 0, 0, 0, 0, 0, 0, 0, &ctc0_dev,   ctc_probe};
-    static struct net_device escon6_dev =
-       {"escon6", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon7_dev, ctc_probe};
-    static struct net_device escon5_dev =
-       {"escon5", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon6_dev, ctc_probe};
-    static struct net_device escon4_dev =
-       {"escon4", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon5_dev, ctc_probe};
-    static struct net_device escon3_dev =
-       {"escon3", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon4_dev, ctc_probe};
-    static struct net_device escon2_dev =
-       {"escon2", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon3_dev, ctc_probe};
-    static struct net_device escon1_dev =
-       {"escon1", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon2_dev, ctc_probe};
-    static struct net_device escon0_dev =
-       {"escon0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &escon1_dev, ctc_probe}; 
-
-#undef  NEXT_DEV
-#define NEXT_DEV        (&escon0_dev)                                  
-#endif  
-
 /*
  *	The loopback device is global so it can be directly referenced
  *	by the network code. Also, it must be first on device list.

@@ -1,11 +1,11 @@
-/* $Id: pci_common.c,v 1.12 2000/05/01 06:32:49 davem Exp $
+/* $Id: pci_common.c,v 1.13 2001/02/13 01:16:44 davem Exp $
  * pci_common.c: PCI controller common support.
  *
  * Copyright (C) 1999 David S. Miller (davem@redhat.com)
  */
 
 #include <linux/string.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/init.h>
 
 #include <asm/pbm.h>

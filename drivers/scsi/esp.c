@@ -1,4 +1,4 @@
-/* $Id: esp.c,v 1.98 2000/11/02 22:34:16 davem Exp $
+/* $Id: esp.c,v 1.99 2001/02/13 01:17:01 davem Exp $
  * esp.c:  EnhancedScsiProcessor Sun SCSI driver code.
  *
  * Copyright (C) 1995, 1998 David S. Miller (davem@caip.rutgers.edu)
@@ -18,7 +18,7 @@
 #include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/string.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/blk.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>

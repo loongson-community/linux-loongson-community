@@ -1,6 +1,6 @@
 /* 
         pt.c    (c) 1998  Grant R. Guenther <grant@torque.net>
-                          Under the terms of the GNU public license.
+                          Under the terms of the GNU General Public License.
 
         This is the high-level driver for parallel port ATAPI tape
         drives based on chips supported by the paride module.
@@ -146,7 +146,7 @@ static int pt_drive_count;
 #include <linux/devfs_fs_kernel.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/mtio.h>
 #include <linux/wait.h>
 #include <linux/smp_lock.h>

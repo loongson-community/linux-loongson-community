@@ -28,7 +28,7 @@
 #include <linux/version.h>
 #include <linux/config.h>
 #include <linux/kernel.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/capability.h>
 #include <linux/sched.h>
@@ -2020,6 +2020,8 @@ fore200e_get_esi(struct fore200e* fore200e)
     struct prom_data* prom = fore200e_kmalloc(sizeof(struct prom_data), GFP_KERNEL | GFP_DMA);
     int ok, i;
 
+    if (!prom)
+	return -ENOMEM;
     ok = fore200e->bus->prom_read(fore200e, prom);
     if (ok < 0)
 	return -EBUSY;

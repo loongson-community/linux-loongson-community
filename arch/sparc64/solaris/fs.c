@@ -1,4 +1,4 @@
-/* $Id: fs.c,v 1.23 2000/08/29 07:01:54 davem Exp $
+/* $Id: fs.c,v 1.24 2001/02/13 01:16:44 davem Exp $
  * fs.c: fs related syscall emulation for Solaris
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -9,7 +9,7 @@
 
 #include <linux/types.h>
 #include <linux/sched.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/file.h>

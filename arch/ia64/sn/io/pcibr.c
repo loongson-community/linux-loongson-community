@@ -3753,7 +3753,7 @@ pcibr_attach(devfs_handle_t xconn_vhdl)
 	 * completion interrupts will reach a CPU
 	 * after all DMA data has reached memory.
 	 * (Of course, there may be a few special
-	 * drivers/controlers that explicitly manage
+	 * drivers/controllers that explicitly manage
 	 * this ordering problem.)
 	 */
 
@@ -8609,7 +8609,7 @@ pcibr_dmard_error(
 			BRIDGE_ERRUPPR_ADDRMASK) << 32)));
 
     /*
-     * need to ensure that the xtalk adress in ioe
+     * need to ensure that the xtalk address in ioe
      * maps to PCI error address read from bridge.
      * How to convert PCI address back to Xtalk address ?
      * (better idea: convert XTalk address to PCI address
@@ -9108,7 +9108,7 @@ pcibr_device_flags_set(devfs_handle_t pconn_vhdl,
 
 #ifdef LITTLE_ENDIAN
 /*
- * on sn-ia we need to twiddle the the addresses going out
+ * on sn-ia we need to twiddle the addresses going out
  * the pci bus because we use the unswizzled synergy space
  * (the alternative is to use the swizzled synergy space
  * and byte swap the data)

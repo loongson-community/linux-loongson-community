@@ -576,8 +576,6 @@ inline void drive_stat_acct (kdev_t dev, int rw,
 static inline void add_request(request_queue_t * q, struct request * req,
 			       struct list_head *insert_here)
 {
-	int major;
-
 	drive_stat_acct(req->rq_dev, req->cmd, req->nr_sectors, 1);
 
 	if (!q->plugged && q->head_active && insert_here == &q->queue_head) {
@@ -590,10 +588,6 @@ static inline void add_request(request_queue_t * q, struct request * req,
 	 * inserted at elevator_merge time
 	 */
 	list_add(&req->queue, insert_here);
-
-	major = MAJOR(req->rq_dev);
-	if (major >= DAC960_MAJOR+0 && major <= DAC960_MAJOR+7)
-		q->request_fn(q);
 }
 
 void inline blk_refill_freelist(request_queue_t *q, int rw)
@@ -705,7 +699,7 @@ static int __make_request(request_queue_t * q, int rw,
 {
 	unsigned int sector, count;
 	int max_segments = MAX_SEGMENTS;
-	struct request * req = NULL, *freereq = NULL;
+	struct request * req, *freereq = NULL;
 	int rw_ahead, max_sectors, el_ret;
 	struct list_head *head, *insert_here;
 	int latency;
@@ -751,6 +745,7 @@ static int __make_request(request_queue_t * q, int rw,
 	max_sectors = get_max_sectors(bh->b_rdev);
 
 again:
+	req = NULL;
 	head = &q->queue_head;
 	/*
 	 * Now we acquire the request spinlock, we have to be mega careful
@@ -765,8 +760,7 @@ again:
 	} else if (q->head_active && !q->plugged)
 		head = head->next;
 
-	el_ret = elevator->elevator_merge_fn(q, &req, head, bh, rw,
-					     max_sectors, max_segments);
+	el_ret = elevator->elevator_merge_fn(q, &req, head, bh, rw,max_sectors);
 	switch (el_ret) {
 
 		case ELEVATOR_BACK_MERGE:
@@ -851,8 +845,6 @@ get_rq:
 out:
 	if (freereq)
 		blkdev_release_request(freereq);
-	if (!q->plugged)
-		q->request_fn(q);
 	spin_unlock_irq(&io_request_lock);
 	return 0;
 end_io:

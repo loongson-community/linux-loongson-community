@@ -50,14 +50,6 @@
 /************/
 #include <linux/config.h>
 // Uncomment the following if you want it compiled with modversions
-#ifdef MODULE
-#	if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
-#		define MODVERSIONS
-#	endif
-#	ifdef MODVERSIONS
-#		include <linux/modversions.h>
-#	endif
-#endif
 
 #include <linux/version.h>
 
@@ -75,7 +67,7 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/mm.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/major.h>
 #include <linux/wait.h>
 

@@ -17,7 +17,7 @@
 #include <linux/msg.h>
 #include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/highuid.h>
 
 #if defined(CONFIG_SYSVIPC)
@@ -185,7 +185,7 @@ struct kern_ipc_perm* ipc_rmid(struct ipc_ids* ids, int id)
 {
 	struct kern_ipc_perm* p;
 	int lid = id % SEQ_MULTIPLIER;
-	if(lid > ids->size)
+	if(lid >= ids->size)
 		BUG();
 	p = ids->entries[lid].p;
 	ids->entries[lid].p = NULL;

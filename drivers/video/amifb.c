@@ -46,7 +46,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/tty.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/config.h>
 #include <linux/interrupt.h>
@@ -1534,7 +1534,7 @@ static int amifb_ioctl(struct inode *inode, struct file *file,
 			}
 			return i;
 		}
-#endif */ DEBUG */
+#endif	/* DEBUG */
 	}
 	return -EINVAL;
 }

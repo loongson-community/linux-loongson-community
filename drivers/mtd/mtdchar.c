@@ -1,6 +1,5 @@
 /*
- * Almost: $Id: mtdchar.c,v 1.21 2000/12/09 21:15:12 dwmw2 Exp $
- * (With some of the compatibility for previous kernels taken out)
+ * $Id: mtdchar.c,v 1.21.2.3 2001/01/09 00:18:31 dwmw2 Exp $
  *
  * Character-device access to raw MTD devices.
  *
@@ -13,7 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mtd/mtd.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 
 #ifdef CONFIG_DEVFS_FS
 #include <linux/devfs_fs_kernel.h>
@@ -447,10 +446,6 @@ static void mtd_notify_remove(struct mtd_info* mtd)
 mod_init_t init_mtdchar(void)
 {
 #ifdef CONFIG_DEVFS_FS
-	int i;
-	char name[8];
-	struct mtd_info* mtd;
-
 	if (devfs_register_chrdev(MTD_CHAR_MAJOR, "mtd", &mtd_fops))
 	{
 		printk(KERN_NOTICE "Can't allocate major number %d for Memory Technology Devices.\n",

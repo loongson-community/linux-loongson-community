@@ -60,7 +60,7 @@ struct termio {
 #define N_MASC		8	/* Reserved for Mobitex module <kaz@cafe.net> */
 #define N_R3964		9	/* Reserved for Simatic R3964 module */
 #define N_PROFIBUS_FDL	10	/* Reserved for Profibus <Dave@mvhi.com> */
-#define N_IRDA		11	/* Linux IR - http://www.cs.uit.no/~dagb/irda/irda.html */
+#define N_IRDA		11	/* Linux IR - http://irda.sourceforge.net/ */
 #define N_SMSBLOCK	12	/* SMS block mode - for talking to GSM data cards about SMS messages */
 #define N_HDLC         13	/* synchronous HDLC */
 
@@ -77,18 +77,19 @@ struct termio {
 /*
  * Translate a "termio" structure into a "termios". Ugh.
  */
-#define SET_LOW_TERMIOS_BITS(termios, termio, x) { \
-	unsigned short __tmp; \
-	get_user(__tmp,&(termio)->x); \
-	*(unsigned short *) &(termios)->x = __tmp; \
-}
 
 #define user_termio_to_kernel_termios(termios, termio) \
 ({ \
-	SET_LOW_TERMIOS_BITS(termios, termio, c_iflag); \
-	SET_LOW_TERMIOS_BITS(termios, termio, c_oflag); \
-	SET_LOW_TERMIOS_BITS(termios, termio, c_cflag); \
-	SET_LOW_TERMIOS_BITS(termios, termio, c_lflag); \
+        unsigned short tmp; \
+        get_user(tmp, &(termio)->c_iflag); \
+        (termios)->c_iflag = (0xffff0000 & ((termios)->c_iflag)) | tmp; \
+        get_user(tmp, &(termio)->c_oflag); \
+        (termios)->c_oflag = (0xffff0000 & ((termios)->c_oflag)) | tmp; \
+        get_user(tmp, &(termio)->c_cflag); \
+        (termios)->c_cflag = (0xffff0000 & ((termios)->c_cflag)) | tmp; \
+        get_user(tmp, &(termio)->c_lflag); \
+        (termios)->c_lflag = (0xffff0000 & ((termios)->c_lflag)) | tmp; \
+        get_user((termios)->c_line, &(termio)->c_line); \
 	copy_from_user((termios)->c_cc, (termio)->c_cc, NCC); \
 })
 

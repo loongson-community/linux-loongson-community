@@ -33,7 +33,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/init.h> 
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/major.h>
 #include <linux/param.h>
@@ -230,7 +230,7 @@ static inline void receive_chars (struct dz_serial *info_in)
 
     ch = UCHAR(status);                /* grab the char */
 
-#ifdef 0
+#if 0
     if (info->is_console) {
       if (ch == 0) return;            /* it's a break ... */
 

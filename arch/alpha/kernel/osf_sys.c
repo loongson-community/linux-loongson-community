@@ -19,7 +19,7 @@
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
 #include <linux/utsname.h>
@@ -74,8 +74,10 @@ asmlinkage int osf_set_program_attributes(
 	mm = current->mm;
 	mm->end_code = bss_start + bss_len;
 	mm->brk = bss_start + bss_len;
+#if 0
 	printk("set_program_attributes(%lx %lx %lx %lx)\n",
 		text_start, text_len, bss_start, bss_len);
+#endif
 	unlock_kernel();
 	return 0;
 }

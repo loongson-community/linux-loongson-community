@@ -4,7 +4,7 @@
  *  Written by Theodore Ts'o, 3/29/93
  * 
  * Copyright 1993 by Theodore Ts'o.  Redistribution of this file is
- * permitted under the GNU Public License.
+ * permitted under the GNU General Public License.
  *
  * DES encryption plus some minor changes by Werner Almesberger, 30-MAY-1993
  * more DES encryption plus IDEA encryption by Nicholas J. Leon, June 20, 1996
@@ -75,7 +75,7 @@
 #define TIMEOUT_VALUE (6 * HZ)
 #include <linux/blk.h>
 
-#include <linux/malloc.h>
+#include <linux/slab.h>
 static int max_loop = 8;
 static struct loop_device *loop_dev;
 static int *loop_sizes;

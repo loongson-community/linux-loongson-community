@@ -1,4 +1,4 @@
-/* $Id: pcikbd.c,v 1.50 2001/01/11 15:29:36 davem Exp $
+/* $Id: pcikbd.c,v 1.51 2001/02/13 01:17:00 davem Exp $
  * pcikbd.c: Ultra/AX PC keyboard support.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -16,7 +16,7 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/poll.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/random.h>
 #include <linux/miscdevice.h>

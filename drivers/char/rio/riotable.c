@@ -35,7 +35,7 @@ static char *_riotable_c_sccs_ = "@(#)riotable.c	1.2";
 
 #define __NO_VERSION__
 #include <linux/module.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/errno.h>
 #include <asm/io.h>
 #include <asm/system.h>
@@ -696,7 +696,7 @@ int RIOAssignRta( struct rio_info *p, struct Map *MapP )
 
 	    /*
 	    ** Now we have a host we need to allocate an ID
-	    ** if the the entry does not already have one.
+	    ** if the entry does not already have one.
 	    */
 	    if (MapP->ID == (ushort)-1)
 	    {

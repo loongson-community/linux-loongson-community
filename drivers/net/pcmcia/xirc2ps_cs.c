@@ -63,7 +63,7 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/ptrace.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
@@ -644,8 +644,10 @@ xirc2ps_attach(void)
     ether_setup(dev);
     dev->open = &do_open;
     dev->stop = &do_stop;
+#ifdef HAVE_TX_TIMEOUT
     dev->tx_timeout = do_tx_timeout;
     dev->watchdog_timeo = TX_TIMEOUT;
+#endif
 
     /* Register with Card Services */
     link->next = dev_list;
@@ -1519,7 +1521,7 @@ do_tx_timeout(struct net_device *dev)
     /* reset the card */
     do_reset(dev,1);
     dev->trans_start = jiffies;
-    netif_start_queue(dev);
+    netif_wake_queue(dev);
 }
 
 static int
@@ -2058,3 +2060,28 @@ exit_xirc2ps_cs(void)
 module_init(init_xirc2ps_cs);
 module_exit(exit_xirc2ps_cs);
 
+#ifndef MODULE
+static int __init setup_xirc2ps_cs(char *str)
+{
+	/* irq, irq_mask, if_port, full_duplex, do_sound, lockup_hack
+	 * [,irq2 [,irq3 [,irq4]]]
+	 */
+	int ints[10] = { -1 };
+
+	str = get_options(str, 9, ints);
+
+#define MAYBE_SET(X,Y) if (ints[0] >= Y && ints[Y] != -1) { X = ints[Y]; }
+	MAYBE_SET(irq_list[0], 1);
+	MAYBE_SET(irq_mask, 2);
+	MAYBE_SET(if_port, 3);
+	MAYBE_SET(full_duplex, 4);
+	MAYBE_SET(do_sound, 5);
+	MAYBE_SET(lockup_hack, 6);
+	MAYBE_SET(irq_list[1], 7);
+	MAYBE_SET(irq_list[2], 8);
+	MAYBE_SET(irq_list[3], 9);
+#undef  MAYBE_SET(X,Y)
+}
+
+__setup("xirc2ps_cs=", setup_xirc2ps_cs);
+#endif

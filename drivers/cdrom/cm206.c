@@ -190,7 +190,7 @@ History:
 #include <linux/devfs_fs_kernel.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/init.h>
 
 /* #include <linux/ucdrom.h> */
@@ -1283,7 +1283,7 @@ static void cleanup(int level)
   case 1: 
     kfree(cd);
     release_region(cm206_base, 16);
-  default:
+  default:;
   }
 }
 

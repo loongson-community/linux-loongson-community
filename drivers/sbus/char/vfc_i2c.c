@@ -20,7 +20,7 @@ fairly certain that the flowcharts in the phillips docs are wrong. */
 
 #include <linux/kernel.h>
 #include <linux/string.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
@@ -315,7 +315,7 @@ int vfc_i2c_sendbuf(struct vfc_dev *dev, unsigned char addr,
 		switch(ret) {
 		case XMIT_LAST_BYTE:
 			VFC_I2C_DEBUG_PRINTK(("vfc%d: "
-					      "Reciever ended transmission with "
+					      "Receiver ended transmission with "
 					      " %d bytes remaining\n",
 					      dev->instance, count));
 			ret = 0;

@@ -1,4 +1,4 @@
-/* $Id: srmmu.c,v 1.225 2000/11/30 08:37:31 anton Exp $
+/* $Id: srmmu.c,v 1.226 2001/02/13 01:16:44 davem Exp $
  * srmmu.c:  SRMMU specific routines for memory management.
  *
  * Copyright (C) 1995 David S. Miller  (davem@caip.rutgers.edu)
@@ -11,7 +11,7 @@
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/init.h>

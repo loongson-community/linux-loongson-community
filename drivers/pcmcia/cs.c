@@ -19,7 +19,7 @@
     are Copyright (C) 1999 David A. Hinds.  All Rights Reserved.
 
     Alternatively, the contents of this file may be used under the
-    terms of the GNU Public License version 2 (the "GPL"), in which
+    terms of the GNU General Public License version 2 (the "GPL"), in which
     case the provisions of the GPL are applicable instead of the
     above.  If you wish to allow the use of your version of this file
     only under the terms of the GPL and not to allow others to use
@@ -38,7 +38,7 @@
 #include <linux/string.h>
 #include <linux/major.h>
 #include <linux/errno.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/timer.h>
@@ -1458,6 +1458,8 @@ int pcmcia_register_client(client_handle_t *handle, client_reg_t *req)
 	    s->functions = 1;
 	s->config = kmalloc(sizeof(config_t) * s->functions,
 			    GFP_KERNEL);
+	if (!s->config)
+		return CS_OUT_OF_RESOURCE;
 	memset(s->config, 0, sizeof(config_t) * s->functions);
     }
     

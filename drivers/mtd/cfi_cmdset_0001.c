@@ -15,7 +15,7 @@
 #include <asm/byteorder.h>
 
 #include <linux/errno.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/cfi.h>
@@ -816,13 +816,13 @@ static int cfi_intelext_suspend(struct mtd_info *mtd)
 			 * as the whole point is that nobody can do anything
 			 * with the chip now anyway.
 			 */
-			spin_unlock_bh(chip->mutex);
 			break;
 
 		default:
 			ret = -EAGAIN;
 			break;
 		}
+		spin_unlock_bh(chip->mutex);
 	}
 
 	/* Unlock the chips again */

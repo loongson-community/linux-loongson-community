@@ -1,7 +1,7 @@
 # Maintained by Axel Boldt (axel@uni-paderborn.de)
 #
 # This version of the Linux kernel configuration help texts
-# corresponds to the kernel versions 2.3.x.
+# corresponds to the kernel versions 2.4.x.
 #
 # Translations of this file available on the WWW:
 #
@@ -2589,7 +2589,7 @@ CONFIG_I2O
   inserted in and removed from the running kernel whenever you want).
   If you want to compile it as a module, say M here and read
   Documentation/modules.txt. You will get modules called i2o_core.o
-  and i20_config.o. 
+  and i2o_config.o. 
 
   If unsure, say N.
 
@@ -3121,7 +3121,7 @@ CONFIG_FB_3DFX
 
 nVidia Riva support (EXPERIMENTAL)
 CONFIG_FB_RIVA
-  This driver supports graphics boards with the nVidia Riva (aka TNTx)
+  This driver supports graphics boards with the nVidia Riva/Geforce
   chips.
   Say Y if you have such a graphics board.
 
@@ -5136,7 +5136,7 @@ CONFIG_PHONE
 
 Compaq Smart Array support
 CONFIG_BLK_CPQ_CISS_DA
-   This is the driver for Compaq Smart Array controllers.
+   This is the driver for Compaq Smart Array 5xxx controllers.
    Everyone using these boards should say Y here.
    See Documentation/cciss.txt for the current list of
    boards supported by this driver, and for further information
@@ -10378,14 +10378,12 @@ CONFIG_USB_ACM
 USB Serial converter support
 CONFIG_USB_SERIAL
   Say Y here if you have a USB device that provides normal serial
-  ports, and you want to connect it to your USB bus. Supported devices
-  are the Tech WhiteHEAT multi-port USB to serial converter, and the
-  FTDI or Keyspan single port USB to serial converter Handspring
-  Visor. In addition to saying Y here, you need to say Y to the driver
-  for your specific hardware below. Some other devices may also be
-  used if you say Y to "USB Generic Serial Driver", below.
+  ports, or acts like a serial device, and you want to connect it to
+  your USB bus.
 
-  Please read Documentation/usb/usb-serial.txt for more information.
+  Please read Documentation/usb/usb-serial.txt for more information
+  on the specifics of the different devices that are supported, and
+  on how to use them.
   
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -10491,6 +10489,10 @@ USB Keyspan USA-19W Firmware
 CONFIG_USB_SERIAL_KEYSPAN_USA19W
   Say Y here to include firmware for the USA-19W converter.
 
+USB Keyspan USA-49W Firmware
+CONFIG_USB_SERIAL_KEYSPAN_USA49W
+  Say Y here to include firmware for the USA-49W converter.
+
 USB ZyXEL omni.net LCD Plus Driver
 CONFIG_USB_SERIAL_OMNINET
   Say Y here if you want to use a ZyXEL omni.net LCD ISDN TA.
@@ -10531,6 +10533,9 @@ USB MCT Single Port Serial Driver
 CONFIG_USB_SERIAL_MCT_U232
   Say Y here if you want to use a USB Serial single port adapter from
   Magic Control Technology Corp. (U232 is one of the model numbers).
+  
+  This driver also works with Sitecom U232-P25 and D-Link DU-H3SP USB
+  BAY devices.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -10540,7 +10545,7 @@ CONFIG_USB_SERIAL_MCT_U232
 USB Serial Converter verbose debug
 CONFIG_USB_SERIAL_DEBUG
   Say Y here if you want verbose debug messages from the USB Serial
-  Converter. 
+  Drivers sent to the kernel debug log.
 
 USB Printer support
 CONFIG_USB_PRINTER
@@ -10815,11 +10820,10 @@ CONFIG_REISERFS_FS
   Balanced trees are more efficient than traditional
   filesystem architectural foundations.
 
-  You can use reiserfs in all cases where you use the ext2fs file
-  system, and you will gain in speed and disk space.  It has fewer
-  worst case performance situations than other file systems
-  because balanced trees are hardier creatures than other algorithms
-  are (if that is not technical enough, read www.namesys.com....:-) )
+  In general, ReiserFS is as fast as ext2, but is very efficient
+  with large directories and small files.  Additional patches are
+  needed for NFS and quotas, please see www.reiserfs.org for
+  links.
 
   It is more easily extended to have features currently found in
   database and keyword search systems than block allocation based
@@ -10827,7 +10831,7 @@ CONFIG_REISERFS_FS
   support plugins consistent with our motto ``It takes more than a
   license to make source code open.''
 
-  Read www.namesys.com to learn more about reiserfs.
+  Read www.reiserfs.org to learn more about reiserfs.
 
   Sponsored by Threshold Networks, Emusic.com, and Bigstorage.com.
 

@@ -302,7 +302,7 @@
 #include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/timer.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/errno.h>
 #include <linux/cdrom.h>
@@ -1871,6 +1871,9 @@ static int cdrom_read_toc(ide_drive_t *drive, struct request_sense *sense)
 	/* Check to see if the existing data is still valid.
 	   If it is, just return. */
 	(void) cdrom_check_status(drive, sense);
+
+	if (CDROM_STATE_FLAGS(drive)->toc_valid)
+		return 0;
 
 	/* First read just the header, so we know how long the TOC is. */
 	stat = cdrom_read_tocentry(drive, 0, 1, 0, (char *) &toc->hdr,

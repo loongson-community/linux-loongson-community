@@ -51,7 +51,7 @@
 #define MODULE
 #endif
 
-#ifdef NEW_MODULES
+#if defined(NEW_MODULES) && defined(LOCAL_ROCKET_H)
 #ifdef MODVERSIONS
 #include <linux/modversions.h>
 #endif
@@ -66,7 +66,7 @@
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/mm.h>
 
 #include <linux/sched.h>

@@ -33,7 +33,7 @@
 #include <linux/mm.h>
 #include <linux/string.h>
 #include <linux/errno.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pci.h>
 #include <linux/init.h>
@@ -1105,7 +1105,7 @@ int __init agp_frontend_initialize(void)
 	return 0;
 }
 
-void __exit agp_frontend_cleanup(void)
+static void __exit agp_frontend_cleanup(void)
 {
 	misc_deregister(&agp_miscdev);
 }

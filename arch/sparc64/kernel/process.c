@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.113 2000/11/08 08:14:58 davem Exp $
+/*  $Id: process.c,v 1.114 2001/02/13 01:16:44 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -22,7 +22,7 @@
 #include <linux/stddef.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/user.h>
 #include <linux/a.out.h>
 #include <linux/config.h>

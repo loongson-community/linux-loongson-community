@@ -73,7 +73,7 @@ static char *lancestr = "LANCE";
 #include <linux/string.h>
 #include <linux/unistd.h>
 #include <linux/ptrace.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
 #include <linux/user.h>
 #include <linux/utsname.h>
 #include <linux/a.out.h>
@@ -618,6 +618,7 @@ static int lance_rx(struct net_device *dev)
 
 			skb->protocol = eth_type_trans(skb, dev);
 			netif_rx(skb);
+			dev->last_rx = jiffies;
 			lp->stats.rx_packets++;
 		}
 
