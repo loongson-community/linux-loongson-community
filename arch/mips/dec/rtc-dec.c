@@ -9,6 +9,7 @@
  *
  * Copyright (C) 1998 by Ralf Baechle, Harald Koerfgen
  */
+#include <asm/spinlock.h>
 #include <linux/mc146818rtc.h>
 
 extern char *dec_rtc_base;
