@@ -81,7 +81,12 @@ void momenco_time_init(void);
 
 static char reset_reason;
 
-#define ENTRYLO(x) ((pte_val(mk_pte_phys((x), PAGE_KERNEL_UNCACHED)) >> 6)|1)
+static unsigned long ENTRYLO(unsigned long paddr)
+{
+	return ((paddr & PAGE_MASK) | 
+	       (_PAGE_PRESENT | __READABLE | __WRITEABLE | _PAGE_GLOBAL |
+		_CACHE_UNCACHED)) >> 6;
+}
 
 void __init bus_error_init(void) { /* nothing */ }
 

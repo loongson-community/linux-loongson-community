@@ -81,7 +81,13 @@ void momenco_time_init(void);
 static char reset_reason;
 
 void add_wired_entry(unsigned long entrylo0, unsigned long entrylo1, unsigned long entryhi, unsigned long pagemask);
-#define ENTRYLO(x) ((pte_val(mk_pte_phys((x), PAGE_KERNEL_UNCACHED)) >> 6)|1)
+
+static unsigned long ENTRYLO(unsigned long paddr)
+{
+	return ((paddr & PAGE_MASK) | 
+	       (_PAGE_PRESENT | __READABLE | __WRITEABLE | _PAGE_GLOBAL |
+		_CACHE_UNCACHED)) >> 6;
+}
 
 /* setup code for a handoff from a version 2 PMON 2000 PROM */
 void PMON_v2_setup(void)
