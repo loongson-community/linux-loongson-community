@@ -1000,14 +1000,3 @@ static int __init pcibios_init(void)
 }
 
 subsys_initcall(pcibios_init);
-
-/*
- * for parsing "pci=" kernel boot arguments.
- */
-char *pcibios_setup(char *str)
-{
-	printk(KERN_INFO "rr: pcibios_setup\n");
-	/* Nothing to do for now.  */
-
-	return str;
-}

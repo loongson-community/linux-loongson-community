@@ -350,14 +350,3 @@ void __init pcibios_init(void)
 	pci_scan_bus(0, &marvell_pci_ops, NULL);
 	pci_scan_bus(1, &marvell_pci_ops, NULL);
 }
-
-/*
- * for parsing "pci=" kernel boot arguments.
- */
-char *pcibios_setup(char *str)
-{
-	printk(KERN_INFO "rr: pcibios_setup\n");
-	/* Nothing to do for now.  */
-
-	return str;
-}
