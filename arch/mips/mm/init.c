@@ -203,7 +203,6 @@ void __init mem_init(void)
 	unsigned long tmp, ram;
 
 #ifdef CONFIG_HIGHMEM
-	highstart_pfn = (KSEG1 - KSEG0) >> PAGE_SHIFT;
 	highmem_start_page = mem_map + highstart_pfn;
 #ifdef CONFIG_DISCONTIGMEM
 #error "CONFIG_HIGHMEM and CONFIG_DISCONTIGMEM dont work together yet"
