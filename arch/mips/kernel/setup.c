@@ -7,7 +7,7 @@
  * Copyright (C) 1995  Waldorf Electronics
  * Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001  Ralf Baechle
  * Copyright (C) 1996  Stoned Elipot
- * Copyright (C) 2000  Maciej W. Rozycki
+ * Copyright (C) 2000, 2001  Maciej W. Rozycki
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -182,6 +182,28 @@ static inline int cpu_has_confreg(void)
 #endif
 }
 
+/*
+ * Get the FPU Implementation/Revision.
+ */
+static inline unsigned long cpu_get_fpu_id(void)
+{
+	unsigned long tmp, fpu_id;
+
+	tmp = read_32bit_cp0_register(CP0_STATUS);
+	write_32bit_cp0_register(CP0_STATUS, tmp | ST0_CU1);
+	fpu_id = read_32bit_cp1_register(CP1_REVISION);
+	write_32bit_cp0_register(CP0_STATUS, tmp);
+	return fpu_id;
+}
+
+/*
+ * Check the CPU has an FPU the official way.
+ */
+static inline int cpu_has_fpu(void)
+{
+	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
+}
+
 /* declaration of the global struct */
 struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, CPU_UNKNOWN, 0, 0, 0,
 			    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
@@ -206,6 +228,8 @@ static inline void cpu_probe(void)
 			mips_cpu.cputype = CPU_R2000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
 			mips_cpu.options = MIPS_CPU_TLB;
+			if (cpu_has_fpu())
+				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R3000:
@@ -218,6 +242,8 @@ static inline void cpu_probe(void)
 				mips_cpu.cputype = CPU_R3000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
 			mips_cpu.options = MIPS_CPU_TLB;
+			if (cpu_has_fpu())
+				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
 			break;
 		case PRID_IMP_R4000:

@@ -6,7 +6,7 @@
  * for more details.
  *
  * Copyright (C) 1998 Harald Koerfgen
- * Copyright (C) 2000 Maciej W. Rozycki
+ * Copyright (C) 2000, 2001 Maciej W. Rozycki
  */
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -55,7 +55,7 @@ extern int setup_dec_irq(int, struct irqaction *);
 
 void (*board_time_init) (struct irqaction * irq);
 
-static struct irqaction irq10 = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
+static struct irqaction haltirq = {dec_intr_halt, 0, 0, "halt", NULL, NULL};
 
 /*
  * enable the periodic interrupts
@@ -139,10 +139,10 @@ void __init dec_init_kn01(void)
     cpu_mask_tbl[4] = IE_IRQ4;
     cpu_irq_nr[4] = MEMORY;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[5] = IE_IRQ5;
-    cpu_irq_nr[5] = FPU;
+    /*
+     * Enable board interrupts: FPU.
+     */
+    set_cp0_status(DEC_IE_FPU);
 }				/* dec_init_kn01 */
 
 /*
@@ -165,10 +165,10 @@ void __init dec_init_kn230(void)
     cpu_mask_tbl[0] = IE_IRQ2;
     cpu_irq_nr[0] = CLOCK;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[5] = IE_IRQ5;
-    cpu_irq_nr[5] = FPU;
+    /*
+     * Enable board interrupts: FPU.
+     */
+    set_cp0_status(DEC_IE_FPU);
 }				/* dec_init_kn230 */
 
 /*
@@ -176,6 +176,8 @@ void __init dec_init_kn230(void)
  */
 void __init dec_init_kn02(void)
 {
+    int dec_ie_io;
+
     /*
      * Setup some memory addresses. FIXME: probably incomplete!
      */
@@ -184,10 +186,11 @@ void __init dec_init_kn02(void)
     imr = (void *) KN02_CSR_ADDR;
 
     /*
-     * Setup IOASIC interrupt
+     * Setup I/O interrupt
      */
+    dec_ie_io = IE_IRQ0;
     cpu_ivec_tbl[1] = kn02_io_int;
-    cpu_mask_tbl[1] = IE_IRQ0;
+    cpu_mask_tbl[1] = dec_ie_io;
     cpu_irq_nr[1] = -1;
     *imr = *imr & 0xff00ff00;
 
@@ -234,11 +237,10 @@ void __init dec_init_kn02(void)
     cpu_mask_tbl[2] = IE_IRQ3;
     cpu_irq_nr[2] = MEMORY;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[3] = IE_IRQ5;
-    cpu_irq_nr[3] = FPU;
-
+    /*
+     * Enable board interrupts: FPU, I/O.
+     */
+    set_cp0_status(DEC_IE_FPU | dec_ie_io);
 }				/* dec_init_kn02 */
 
 /*
@@ -246,6 +248,8 @@ void __init dec_init_kn02(void)
  */
 void __init dec_init_kn02ba(void)
 {
+    int dec_ie_ioasic;
+
     /*
      * Setup some memory addresses.
      */
@@ -257,9 +261,10 @@ void __init dec_init_kn02ba(void)
     /*
      * Setup IOASIC interrupt
      */
-    cpu_mask_tbl[0] = IE_IRQ3;
-    cpu_irq_nr[0] = -1;
+    dec_ie_ioasic = IE_IRQ3;
     cpu_ivec_tbl[0] = kn02xa_io_int;
+    cpu_mask_tbl[0] = dec_ie_ioasic;
+    cpu_irq_nr[0] = -1;
     *imr = 0;
 
     /*
@@ -315,12 +320,12 @@ void __init dec_init_kn02ba(void)
     cpu_mask_tbl[4] = IE_IRQ4;
     cpu_irq_nr[4] = HALT;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[5] = IE_IRQ5;
-    cpu_irq_nr[5] = FPU;
+    /*
+     * Enable board interrupts: FPU, I/O ASIC.
+     */
+    set_cp0_status(DEC_IE_FPU | dec_ie_ioasic);
 
-    dec_halt_init(&irq10);
+    dec_halt_init(&haltirq);
 }				/* dec_init_kn02ba */
 
 /*
@@ -328,6 +333,8 @@ void __init dec_init_kn02ba(void)
  */
 void __init dec_init_kn02ca(void)
 {
+    int dec_ie_ioasic;
+
     /*
      * Setup some memory addresses. FIXME: probably incomplete!
      */
@@ -339,9 +346,10 @@ void __init dec_init_kn02ca(void)
     /*
      * Setup IOASIC interrupt
      */
+    dec_ie_ioasic = IE_IRQ3;
     cpu_ivec_tbl[1] = kn02xa_io_int;
+    cpu_mask_tbl[1] = dec_ie_ioasic;
     cpu_irq_nr[1] = -1;
-    cpu_mask_tbl[1] = IE_IRQ3;
     *imr = 0;
 
     /*
@@ -392,12 +400,12 @@ void __init dec_init_kn02ca(void)
     cpu_mask_tbl[3] = IE_IRQ4;
     cpu_irq_nr[3] = HALT;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[4] = IE_IRQ5;
-    cpu_irq_nr[4] = FPU;
+    /*
+     * Enable board interrupts: FPU, I/O ASIC.
+     */
+    set_cp0_status(DEC_IE_FPU | dec_ie_ioasic);
 
-    dec_halt_init(&irq10);
+    dec_halt_init(&haltirq);
 }				/* dec_init_kn02ca */
 
 /*
@@ -405,6 +413,8 @@ void __init dec_init_kn02ca(void)
  */
 void __init dec_init_kn03(void)
 {
+    int dec_ie_ioasic;
+
     /*
      * Setup some memory addresses. FIXME: probably incomplete!
      */
@@ -416,8 +426,9 @@ void __init dec_init_kn03(void)
     /*
      * Setup IOASIC interrupt
      */
+    dec_ie_ioasic = IE_IRQ0;
     cpu_ivec_tbl[1] = kn03_io_int;
-    cpu_mask_tbl[1] = IE_IRQ0;
+    cpu_mask_tbl[1] = dec_ie_ioasic;
     cpu_irq_nr[1] = -1;
     *imr = 0;
 
@@ -474,10 +485,10 @@ void __init dec_init_kn03(void)
     cpu_mask_tbl[3] = IE_IRQ4;
     cpu_irq_nr[3] = HALT;
 
-    dec_interrupt[FPU].cpu_mask = IE_IRQ5;
-    dec_interrupt[FPU].iemask = 0;
-    cpu_mask_tbl[4] = IE_IRQ5;
-    cpu_irq_nr[4] = FPU;
+    /*
+     * Enable board interrupts: FPU, I/O ASIC.
+     */
+    set_cp0_status(DEC_IE_FPU | dec_ie_ioasic);
 
-    dec_halt_init(&irq10);
+    dec_halt_init(&haltirq);
 }				/* dec_init_kn03 */

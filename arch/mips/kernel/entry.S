@@ -106,16 +106,16 @@ LEAF(spurious_interrupt)
 
 		__INIT
 
-		/*
-		 * General exception vector.  Used for all CPUs except R4000
-		 * and R4400 SC and MC versions.
-		 */
 		.set	reorder
 
 		NESTED(except_vec1_generic, 0, sp)
 		PANIC("Exception vector 1 called")
 		END(except_vec1_generic)
 
+		/*
+		 * General exception vector.  Used for all CPUs except R4000
+		 * and R4400 SC and MC versions.
+		 */
 		NESTED(except_vec3_generic, 0, sp)
 		mfc0	k1, CP0_CAUSE
 		la	k0, exception_handlers
@@ -225,6 +225,7 @@ EXPORT(exception_count_##exception);                                    \
 		NESTED(handle_##exception, PT_SIZE, sp);                \
 		.set	noat;                                           \
 		SAVE_ALL;                                               \
+		FEXPORT(handle_##exception##_int);			\
 		__BUILD_clear_##clear(exception);                       \
 		.set	at;                                             \
 		__BUILD_##verbose(exception);                           \

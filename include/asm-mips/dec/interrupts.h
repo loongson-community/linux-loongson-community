@@ -13,6 +13,8 @@
 #ifndef __ASM_DEC_INTERRUPTS_H 
 #define __ASM_DEC_INTERRUPTS_H 
 
+#include <asm/mipsregs.h>
+
 /*
  * DECstation Interrupts
  */
@@ -22,7 +24,7 @@
  * Exception: on kmins we have to handle Memory Error 
  * Interrupts before the TC Interrupts.
  */
-#define CLOCK 	0
+#define CLOCK	 	0
 #define SCSI_DMA_INT 	1
 #define SCSI_INT	2
 #define ETHER		3
@@ -31,10 +33,17 @@
 #define TC1		6
 #define TC2		7
 #define MEMORY		8
-#define FPU		9
-#define HALT		10
+#define HALT		9
 
-#define NR_INTS	11
+#define NR_INTS		10
+
+/*
+ * The FPU is special.  It must always be handled first.
+ * Since it bypasses the regular IRQ handler we define
+ * the line it uses here.  All DECstations use the same
+ * one.
+ */
+#define DEC_IE_FPU	IE_IRQ5
 
 #ifndef __ASSEMBLY__
 /*
@@ -70,8 +79,6 @@ extern long asic_mask_tbl[32];
  * Common interrupt routine prototypes for all DECStations
  */
 extern void	dec_intr_unimplemented(void);
-extern void	dec_intr_fpu(void);
-extern void	dec_intr_rtc(void);
 
 extern void	kn02_io_int(void);
 extern void	kn02xa_io_int(void);

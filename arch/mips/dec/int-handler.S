@@ -2,7 +2,7 @@
  * arch/mips/dec/int-handler.S
  *
  * Copyright (C) 1995, 1996, 1997 Paul M. Antoine and Harald Koerfgen
- * Copyright (C) 2000  Maciej W. Rozycki
+ * Copyright (C) 2000, 2001  Maciej W. Rozycki
  *
  * Written by Ralf Baechle and Andreas Busse, modified for DECStation
  * support by Paul Antoine and Harald Koerfgen.
@@ -145,6 +145,9 @@
 
 		beqz	t0,spurious
 
+		 andi	t2,t0,DEC_IE_FPU
+		bnez	t2,fpu			# handle FPU immediately
+
 		/*
 		 * Find irq with highest priority
 		 */
@@ -169,7 +172,7 @@
  * Handle "IRQ Controller" Interrupts
  * Masked Interrupts are still visible and have to be masked "by hand".
  */
-		EXPORT(kn02_io_int)
+		FEXPORT(kn02_io_int)
 kn02_io_int:					# 3max
 		lui	t0,KN02_CSR_ADDR>>16	# get interrupt status and mask
 		lw	t0,(t0)
@@ -179,7 +182,7 @@ kn02_io_int:					# 3max
 		b	find_int
 		 and	t0,t3			# mask out allowed ones
 
-		EXPORT(kn03_io_int)
+		FEXPORT(kn03_io_int)
 kn03_io_int:					# 3max+
 		lui	t2,KN03_IOASIC_BASE>>16	# upper part of IOASIC Address
 		lw	t0,SIR(t2)		# get status: IOASIC isr
@@ -188,7 +191,7 @@ kn03_io_int:					# 3max+
 		b	find_int
 		 and	t0,t3			# mask out allowed ones
 
-		EXPORT(kn02xa_io_int)
+		FEXPORT(kn02xa_io_int)
 kn02xa_io_int:					# 3min/maxine
 		lui	t2,KN02XA_IOASIC_BASE>>16		
 						# upper part of IOASIC Address
@@ -219,28 +222,27 @@ handle_it:	jal	do_IRQ
 		j	ret_from_irq
 		 nop
 
+fpu:
+		j	handle_fpe_int
+		 nop
+
 spurious:
 		j	spurious_interrupt
 		 nop
 		END(decstation_handle_int)
-/*
-  * Interrupt routines common to all DECStations first.
- */
-		EXPORT(dec_intr_fpu)
-dec_intr_fpu:	PANIC("Unimplemented FPU interrupt handler")
 
 /*
  * Generic unimplemented interrupt routines - ivec_tbl is initialised to
  * point all interrupts here.  The table is then filled in by machine-specific
  * initialisation in dec_setup().
  */
-		EXPORT(dec_intr_unimplemented)
+		FEXPORT(dec_intr_unimplemented)
 dec_intr_unimplemented:
 		mfc0	a1,CP0_CAUSE		# cheats way of printing an arg!
 		nop				# to be sure...
 		PANIC("Unimplemented cpu interrupt! CP0_CAUSE: 0x%x");
 
-		EXPORT(asic_intr_unimplemented)
+		FEXPORT(asic_intr_unimplemented)
 asic_intr_unimplemented:
 		move	a1,t0			# cheats way of printing an arg!
 		PANIC("Unimplemented asic interrupt! ASIC ISR: 0x%x");
