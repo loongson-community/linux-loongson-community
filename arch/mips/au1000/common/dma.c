@@ -36,6 +36,7 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <asm/system.h>
 #include <asm/mach-au1x00/au1000.h>
 #include <asm/mach-au1x00/au1000_dma.h>
@@ -150,7 +151,7 @@ void dump_au1000_dma_channel(unsigned int dmanr)
  * Requests the DMA done IRQ if irqhandler != NULL.
  */
 int request_au1000_dma(int dev_id, const char *dev_str,
-		       void (*irqhandler)(int, void *, struct pt_regs *),
+		       irqreturn_t (*irqhandler)(int, void *, struct pt_regs *),
 		       unsigned long irqflags,
 		       void *irq_dev_id)
 {

@@ -53,6 +53,7 @@ void __init board_setup(void)
 	u32 pin_func;
 	u32 sys_freqctrl, sys_clksrc;
 
+	sys_clksrc = sys_freqctrl = pin_func = 0;
 	// set AUX clock to 12MHz * 8 = 96 MHz
 	au_writel(8, SYS_AUXPLL);
 	au_writel(0, SYS_PINSTATERD);

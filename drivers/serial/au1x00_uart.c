@@ -200,55 +200,6 @@ static void autoconfig(struct uart_8250_port *up, unsigned int probeflags)
 	DEBUG_AUTOCONF("type=%s\n", uart_config[up->port.type].name);
 }
 
-static void autoconfig_irq(struct uart_8250_port *up)
-{
-	unsigned char save_mcr, save_ier;
-	unsigned char save_ICP = 0;
-	unsigned int ICP = 0;
-	unsigned long irqs;
-	int irq;
-
-	if (up->port.flags & UPF_FOURPORT) {
-		ICP = (up->port.iobase & 0xfe0) | 0x1f;
-		save_ICP = inb_p(ICP);
-		outb_p(0x80, ICP);
-		(void) inb_p(ICP);
-	}
-
-	/* forget possible initially masked and pending IRQ */
-	probe_irq_off(probe_irq_on());
-	save_mcr = serial_inp(up, UART_MCR);
-	save_ier = serial_inp(up, UART_IER);
-	serial_outp(up, UART_MCR, UART_MCR_OUT1 | UART_MCR_OUT2);
-	
-	irqs = probe_irq_on();
-	serial_outp(up, UART_MCR, 0);
-	udelay (10);
-	if (up->port.flags & UPF_FOURPORT)  {
-		serial_outp(up, UART_MCR,
-			    UART_MCR_DTR | UART_MCR_RTS);
-	} else {
-		serial_outp(up, UART_MCR,
-			    UART_MCR_DTR | UART_MCR_RTS | UART_MCR_OUT2);
-	}
-	serial_outp(up, UART_IER, 0x0f);	/* enable all intrs */
-	(void)serial_inp(up, UART_LSR);
-	(void)serial_inp(up, UART_RX);
-	(void)serial_inp(up, UART_IIR);
-	(void)serial_inp(up, UART_MSR);
-	serial_outp(up, UART_TX, 0xFF);
-	udelay (20);
-	irq = probe_irq_off(irqs);
-
-	serial_outp(up, UART_MCR, save_mcr);
-	serial_outp(up, UART_IER, save_ier);
-
-	if (up->port.flags & UPF_FOURPORT)
-		outb_p(save_ICP, ICP);
-
-	up->port.irq = (irq > 0) ? irq : 0;
-}
-
 static void serial8250_stop_tx(struct uart_port *port, unsigned int tty_stop)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
@@ -1047,7 +998,6 @@ static void serial8250_config_port(struct uart_port *port, int flags)
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
 	struct resource *res_std = NULL, *res_rsa = NULL;
 	int probeflags = PROBE_ANY;
-	int ret;
 
 	probeflags &= ~PROBE_RSA;
 

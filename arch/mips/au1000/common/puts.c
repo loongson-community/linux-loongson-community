@@ -40,7 +40,7 @@
 #define SLOW_DOWN
 
 static const char digits[16] = "0123456789abcdef";
-static volatile unsigned long * const com1 = (unsigned char *)SERIAL_BASE;
+static volatile unsigned long * const com1 = (unsigned long *)SERIAL_BASE;
 
 
 #ifdef SLOW_DOWN

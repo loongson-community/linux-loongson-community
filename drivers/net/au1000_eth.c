@@ -1827,7 +1827,7 @@ static void set_rx_mode(struct net_device *dev)
 		for (i = 0, mclist = dev->mc_list; mclist && i < dev->mc_count;
 			 i++, mclist = mclist->next) {
 			set_bit(ether_crc(ETH_ALEN, mclist->dmi_addr)>>26, 
-					mc_filter);
+					(long *)mc_filter);
 		}
 		aup->mac->multi_hash_high = mc_filter[1];
 		aup->mac->multi_hash_low = mc_filter[0];
