@@ -73,5 +73,5 @@ ieee754sp ieee754sp_fulong(unsigned long long u)
 	if ((long long) u < 0)
 		return ieee754sp_add(ieee754sp_1e63(),
 				     ieee754sp_flong(u & ~(1ULL << 63)));
-	return ieee754sp_fint(u);
+	return ieee754sp_flong(u);
 }
