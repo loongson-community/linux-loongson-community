@@ -804,6 +804,8 @@ static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
 	return rw_long(fd, AUTOFS_IOC_SETTIMEOUT, arg);
 }
 
+#ifdef CONFIG_VT
+
 extern int tty_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg);
 
 static int vt_check(struct file *file)
@@ -914,6 +916,8 @@ static int do_kdfontop_ioctl(unsigned int fd, unsigned int cmd, struct console_f
 	return 0;
 }
 
+#endif
+
 typedef int (* ioctl32_handler_t)(unsigned int, unsigned int, unsigned long, struct file *);
                                                                                 
 #define COMPATIBLE_IOCTL(cmd)		HANDLE_IOCTL((cmd),sys_ioctl)
@@ -980,6 +984,7 @@ HANDLE_IOCTL(FBIOPUTCMAP, do_fbiocmap_ioctl)
 COMPATIBLE_IOCTL(FBIOPAN_DISPLAY)
 #endif /* CONFIG_FB */
 
+#ifdef CONFIG_VT
 /* Big K */
 COMPATIBLE_IOCTL(PIO_FONT)
 COMPATIBLE_IOCTL(GIO_FONT)
@@ -1015,14 +1020,6 @@ COMPATIBLE_IOCTL(PIO_UNIMAPCLR)
 HANDLE_IOCTL(PIO_FONTX, do_fontx_ioctl)
 HANDLE_IOCTL(KDFONTOP, do_kdfontop_ioctl)
 
-/* Big S */
-COMPATIBLE_IOCTL(SCSI_IOCTL_GET_IDLUN)
-COMPATIBLE_IOCTL(SCSI_IOCTL_DOORLOCK)
-COMPATIBLE_IOCTL(SCSI_IOCTL_DOORUNLOCK)
-COMPATIBLE_IOCTL(SCSI_IOCTL_TEST_UNIT_READY)
-COMPATIBLE_IOCTL(SCSI_IOCTL_GET_BUS_NUMBER)
-COMPATIBLE_IOCTL(SCSI_IOCTL_SEND_COMMAND)
-
 /* Big V */
 COMPATIBLE_IOCTL(VT_SETMODE)
 COMPATIBLE_IOCTL(VT_GETMODE)
@@ -1036,6 +1033,15 @@ COMPATIBLE_IOCTL(VT_RESIZE)
 COMPATIBLE_IOCTL(VT_RESIZEX)
 COMPATIBLE_IOCTL(VT_LOCKSWITCH)
 COMPATIBLE_IOCTL(VT_UNLOCKSWITCH)
+#endif
+
+/* Big S */
+COMPATIBLE_IOCTL(SCSI_IOCTL_GET_IDLUN)
+COMPATIBLE_IOCTL(SCSI_IOCTL_DOORLOCK)
+COMPATIBLE_IOCTL(SCSI_IOCTL_DOORUNLOCK)
+COMPATIBLE_IOCTL(SCSI_IOCTL_TEST_UNIT_READY)
+COMPATIBLE_IOCTL(SCSI_IOCTL_GET_BUS_NUMBER)
+COMPATIBLE_IOCTL(SCSI_IOCTL_SEND_COMMAND)
 
 #ifdef CONFIG_NET
 /* Socket level stuff */
