@@ -47,11 +47,6 @@
 #include <asm/it8172/it8172.h>
 #include <asm/it8712.h>
 
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
-extern void console_setup(char *, int *);
-char serial_console[20];
-#endif
-
 extern struct resource ioport_resource;
 #ifdef CONFIG_SERIO_I8042
 int init_8712_keyboard(void);
@@ -134,10 +129,10 @@ static void __init it8172_setup(void)
 	_machine_power_off = it8172_power_off;
 
 	/*
-	* IO/MEM resources.
-	*
-	* revisit this area.
-	*/
+	 * IO/MEM resources.
+	 * 
+	 * revisit this area.
+	 */
 	set_io_port_base(KSEG1);
 	ioport_resource.start = it8172_resources.pci_io.start;
 	ioport_resource.end = it8172_resources.pci_io.end;
@@ -182,7 +177,7 @@ static void __init it8172_setup(void)
 #ifdef CONFIG_MIPS_ITE8172
 	if (SearchIT8712()) {
 		printk("Found IT8712 Super IO\n");
-		// enable IT8712 serial port
+		/* enable IT8712 serial port */
 		LPCSetConfig(LDN_SERIAL1, 0x30, 0x01); /* enable */
 		LPCSetConfig(LDN_SERIAL1, 0x23, 0x01); /* clock selection */
 #ifdef CONFIG_SERIO_I8042

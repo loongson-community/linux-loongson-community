@@ -49,11 +49,6 @@
 #include <asm/galileo-boards/ev96100int.h>
 
 
-#if defined(CONFIG_SERIAL_CONSOLE) || defined(CONFIG_PROM_CONSOLE)
-extern void console_setup(char *, int *);
-char serial_console[20];
-#endif
-
 extern char *__init prom_getcmdline(void);
 
 extern void mips_reboot_setup(void);

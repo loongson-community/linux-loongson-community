@@ -40,11 +40,6 @@
 #include <asm/pgtable.h>
 #include <asm/au1000.h>
 
-#if defined(CONFIG_AU1X00_SERIAL_CONSOLE)
-extern void console_setup(char *, int *);
-char serial_console[20];
-#endif
-
 #ifdef CONFIG_BLK_DEV_INITRD
 extern unsigned long initrd_start, initrd_end;
 extern void * __rd_start, * __rd_end;
@@ -88,7 +83,7 @@ static void __init au1x00_setup(void)
     if ((argptr = strstr(argptr, "video=")) == NULL) {
         argptr = prom_getcmdline();
         /* default panel */
-        //strcat(argptr, " video=au1100fb:panel:Sharp_320x240_16");
+        /*strcat(argptr, " video=au1100fb:panel:Sharp_320x240_16");*/
         strcat(argptr, " video=au1100fb:panel:s10,nohwcursor");
     }
 #endif
@@ -108,7 +103,7 @@ static void __init au1x00_setup(void)
 #endif
 
 #if defined(CONFIG_SOUND_AU1X00) && !defined(CONFIG_SOC_AU1000)
-	// au1000 does not support vra, au1500 and au1100 do
+	/* au1000 does not support vra, au1500 and au1100 do */
 	strcat(argptr, " au1000_audio=vra");
 	argptr = prom_getcmdline();
 #endif
@@ -121,7 +116,7 @@ static void __init au1x00_setup(void)
 	fixup_bigphys_addr = au1500_fixup_bigphys_addr;
 #endif
 
-	// IO/MEM resources. 
+	/* IO/MEM resources. */
 	set_io_port_base(0);
 	ioport_resource.start = IOPORT_RESOURCE_START;
 	ioport_resource.end = IOPORT_RESOURCE_END;
@@ -147,19 +142,19 @@ static void __init au1x00_setup(void)
 #endif
 
 #ifdef CONFIG_USB_OHCI
-	// enable host controller and wait for reset done
+	/* enable host controller and wait for reset done */
 	au_writel(0x08, USB_HOST_CONFIG);
 	udelay(1000);
 	au_writel(0x0E, USB_HOST_CONFIG);
 	udelay(1000);
-	au_readl(USB_HOST_CONFIG); // throw away first read
+	au_readl(USB_HOST_CONFIG); /* throw away first read */
 	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
 		au_readl(USB_HOST_CONFIG);
 #endif
-#endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE)
+#endif /* defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE) */
 
 #ifdef CONFIG_FB
-	// Needed if PCI video card in use
+	/* Needed if PCI video card in use */
 	conswitchp = &dummy_con;
 #endif
 

@@ -32,10 +32,6 @@ extern void rs_kgdb_hook(int);
 extern void breakpoint(void);
 #endif
 
-#if defined(CONFIG_SERIAL_CONSOLE)
-extern void console_setup(char *);
-#endif
-
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
 
 static void ddb_machine_restart(char *command)
@@ -91,7 +87,7 @@ static void __init ddb_timer_init(struct irqaction *irq)
 
 static void __init ddb_time_init(void)
 {
-    /* we have ds1396 RTC chip */
+	/* we have ds1396 RTC chip */
 	rtc_ds1386_init(KSEG1ADDR(DDB_PCI_MEM_BASE));
 }
 
