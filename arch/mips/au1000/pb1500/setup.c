@@ -80,6 +80,8 @@ extern struct resource ioport_resource;
 extern struct resource iomem_resource;
 
 
+void __init bus_error_init(void) { /* nothing */ }
+
 void au1500_wbflush(void)
 {
 	__asm__ volatile ("sync");
