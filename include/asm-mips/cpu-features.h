@@ -74,6 +74,17 @@
 #define cpu_has_ic_fills_f_dc	(cpu_data[0].icache.flags & MIPS_CACHE_IC_F_DC)
 #endif
 
+/*
+ * Certain CPUs may throw bizarre exceptions if not the whole cacheline
+ * contains valid instructions.  For these we ensure proper alignment of
+ * signal trampolines and pad them to the size of a full cache lines with
+ * nops.  This is also used in structure definitions so can't be a test macro
+ * like the others.
+ */
+#ifndef PLAT_TRAMPOLINE_STUFF_LINE
+#define PLAT_TRAMPOLINE_STUFF_LINE	0
+#endif
+
 #ifdef CONFIG_MIPS32
 # ifndef cpu_has_nofpuex
 # define cpu_has_nofpuex	(cpu_data[0].options & MIPS_CPU_NOFPUEX)
