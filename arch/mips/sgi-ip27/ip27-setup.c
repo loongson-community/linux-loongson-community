@@ -119,7 +119,7 @@ static int __init probe_one_port(nasid_t nasid, int widget, int masterwid)
 		(RAW_NODE_SWIN_BASE(nasid, widget) + WIDGET_ID);
 	partnum = XWIDGET_PART_NUM(widget_id);
 
-	printk(KERN_INFO "Cpu %d, Nasid 0x%x, widget 0x%x: partnum 0x%x is ",
+	printk(KERN_INFO "Cpu %d, Nasid 0x%x, widget 0x%x (partnum 0x%x) is ",
 			smp_processor_id(), nasid, widget, partnum);
 
 	switch (partnum) {

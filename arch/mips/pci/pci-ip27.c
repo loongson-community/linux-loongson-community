@@ -193,7 +193,7 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bridge_t *bridge;
 	static int num_bridges = 0;
 
-	printk("is bridge\n");
+	printk("a bridge\n");
 
 	/* XXX: kludge alert.. */
 	if (!num_bridges)
