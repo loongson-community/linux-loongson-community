@@ -244,15 +244,7 @@ void __flush_tlb_one(unsigned long page)
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	unsigned long flags;
-
-#ifdef CONFIG_SMP
-	/*
-	 * This variable is eliminated from cpu_context() if SMP isn't defined,
-	 * so conditional it to get rid of silly "unused variable" compiler
-	 * complaints
-	 */
 	int cpu = smp_processor_id();
-#endif
 
 	local_irq_save(flags);
 	if (cpu_context(cpu, vma->vm_mm) != 0) {
