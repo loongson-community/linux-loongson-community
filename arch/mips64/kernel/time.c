@@ -32,6 +32,8 @@
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
 
+#define TICK_SIZE	(tick_nsec / 1000)
+
 u64 jiffies_64;
 
 /*
@@ -369,8 +371,8 @@ void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	read_lock (&xtime_lock);
 	if ((time_status & STA_UNSYNC) == 0 &&
 	    xtime.tv_sec > last_rtc_update + 660 &&
-	    (xtime.tv_nsec / 1000) >= 500000 - ((unsigned) tick) / 2 &&
-	    (xtime.tv_nsec / 1000) <= 500000 + ((unsigned) tick) / 2) {
+	    (xtime.tv_nsec / 1000) >= 500000 - ((unsigned) TICK_SIZE) / 2 &&
+	    (xtime.tv_nsec / 1000) <= 500000 + ((unsigned) TICK_SIZE) / 2) {
 		if (rtc_set_time(xtime.tv_sec) == 0) {
 			last_rtc_update = xtime.tv_sec;
 		} else {

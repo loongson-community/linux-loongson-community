@@ -330,7 +330,6 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	update_process_times(user_mode(regs));
 #endif
 }
-#define TICK_SIZE (tick_nsec / 1000)
 
 /*
  * high-level timer interrupt service routines.  This function
