@@ -1095,10 +1095,6 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #endif
 }
 
-static void r4k_flush_cache_l2(void)
-{
-}
-
 void __update_cache(struct vm_area_struct *vma, unsigned long address,
 	pte_t pte)
 {
@@ -1242,7 +1238,6 @@ static void __init setup_noscache_funcs(void)
 		_clear_page = r4k_clear_page_d16;
 		_copy_page = r4k_copy_page_d16;
 		_flush_cache_all = r4k_flush_cache_all_d16i16;
-		_flush_cache_l1 = r4k_flush_cache_all_d16i16;
 		_flush_cache_mm = r4k_flush_cache_mm_d16i16;
 		_flush_cache_range = r4k_flush_cache_range_d16i16;
 		_flush_cache_page = r4k_flush_cache_page_d16i16;
@@ -1260,7 +1255,6 @@ static void __init setup_noscache_funcs(void)
 			_copy_page = r4k_copy_page_d32;
 		}
 		_flush_cache_all = r4k_flush_cache_all_d32i32;
-		_flush_cache_l1 = r4k_flush_cache_all_d32i32;
 		_flush_cache_mm = r4k_flush_cache_mm_d32i32;
 		_flush_cache_range = r4k_flush_cache_range_d32i32;
 		_flush_cache_page = r4k_flush_cache_page_d32i32;
@@ -1282,7 +1276,6 @@ static void __init setup_scache_funcs(void)
 		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s16d16i16;
-			_flush_cache_l1 = r4k_flush_cache_all_s16d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s16d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s16d16i16;
@@ -1297,14 +1290,12 @@ static void __init setup_scache_funcs(void)
 		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s32d16i16;
-			_flush_cache_l1 = r4k_flush_cache_all_s32d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s32d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s32d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s32d32i32;
-			_flush_cache_l1 = r4k_flush_cache_all_s32d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s32d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s32d32i32;
@@ -1317,14 +1308,12 @@ static void __init setup_scache_funcs(void)
 		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s64d16i16;
-			_flush_cache_l1 = r4k_flush_cache_all_s64d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s64d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s64d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s64d32i32;
-			_flush_cache_l1 = r4k_flush_cache_all_s64d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s64d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s64d32i32;
@@ -1337,14 +1326,12 @@ static void __init setup_scache_funcs(void)
 		switch (dc_lsize) {
 		case 16:
 			_flush_cache_all = r4k_flush_cache_all_s128d16i16;
-			_flush_cache_l1 = r4k_flush_cache_all_s128d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s128d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s128d16i16;
 			break;
 		case 32:
 			_flush_cache_all = r4k_flush_cache_all_s128d32i32;
-			_flush_cache_l1 = r4k_flush_cache_all_s128d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s128d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s128d32i32;
@@ -1424,8 +1411,6 @@ void __init ld_mmu_r4xx0(void)
 
 	_flush_dcache_page = r4k_flush_dcache_page;
 	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
-
-	_flush_cache_l2 = r4k_flush_cache_l2;
 
 	__flush_cache_all();
 }

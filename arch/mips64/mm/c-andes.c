@@ -24,31 +24,16 @@ extern void andes_copy_page(void * to, void * from);
  * Cache operations.  These are only used with the virtual memory system,
  * not for non-coherent I/O so it's ok to ignore the secondary caches.
  */
-static void andes_flush_cache_l1(void)
-{
-	blast_dcache32(); blast_icache64();
-}
-
-/*
- * This is only used during initialization time. vmalloc() also calls
- * this, but that will be changed pretty soon.
- */
-static void andes_flush_cache_l2(void)
-{
-	if (sc_lsize() == 64)
-		blast_scache64();
-	else
-		blast_scache128();
-}
-
 static void andes_flush_cache_all(void)
 {
 }
 
 static void andes___flush_cache_all(void)
 {
-	andes_flush_cache_l1();
-	andes_flush_cache_l2();
+	if (sc_lsize() == 64)
+		blast_scache64();
+	else
+		blast_scache128();
 }
 
 static void andes_flush_cache_mm(struct mm_struct *mm)
@@ -71,7 +56,7 @@ static void andes_flush_dcache_page(struct page * page)
 
 static void andes_flush_icache_range(unsigned long start, unsigned long end)
 {
-	andes_flush_cache_l1();
+	blast_dcache32(); blast_icache64();
 }
 
 /*
@@ -135,8 +120,5 @@ void __init ld_mmu_andes(void)
 
 	_flush_cache_sigtramp = andes_flush_cache_sigtramp;
 
-	_flush_cache_l1 = andes_flush_cache_l1;
-	_flush_cache_l2 = andes_flush_cache_l2;
-
-	flush_cache_l1();
+	__flush_cache_all();
 }

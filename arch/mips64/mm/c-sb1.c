@@ -522,7 +522,6 @@ void ld_mmu_sb1(void)
 
 	/* Full flushes */
 	___flush_cache_all = sb1___flush_cache_all;
-	_flush_cache_l1 = sb1___flush_cache_all;
 
 	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 	/*

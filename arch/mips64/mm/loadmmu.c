@@ -37,9 +37,6 @@ void (*_flush_icache_all)(void);
 
 /* MIPS specific cache operations */
 void (*_flush_cache_sigtramp)(unsigned long addr);
-void (*_flush_cache_l2)(void);
-void (*_flush_cache_l1)(void);
-
 
 /* DMA cache operations. */
 void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);

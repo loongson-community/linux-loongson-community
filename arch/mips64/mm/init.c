@@ -81,7 +81,7 @@ void pmd_init(unsigned long addr, unsigned long pagetable)
 asmlinkage int sys_cacheflush(void *addr, int bytes, int cache)
 {
 	/* XXX Just get it working for now... */
-	flush_cache_l1();
+	__flush_cache_all();
 
 	return 0;
 }

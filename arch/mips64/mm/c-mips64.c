@@ -713,8 +713,6 @@ void __init ld_mmu_mips64(void)
 	_flush_cache_sigtramp = mips64_flush_cache_sigtramp;
 	_flush_icache_range = mips64_flush_icache_range;	/* Ouch */
 	_flush_icache_all = mips64_flush_icache_all;
-	_flush_cache_l1 = _flush_cache_all;
-	_flush_cache_l2 = _flush_cache_all;
 
 	__flush_cache_all();
 }

@@ -69,15 +69,6 @@ extern void (*_flush_cache_sigtramp)(unsigned long addr);
 #define flush_cache_sigtramp(addr)	_flush_cache_sigtramp(addr)
 
 /*
- * These were introduced for the sake of the Origin port and will go away.
- */
-extern void (*_flush_cache_l2)(void);
-extern void (*_flush_cache_l1)(void);
-
-#define flush_cache_l2()		_flush_cache_l2()
-#define flush_cache_l1()		_flush_cache_l1()
-
-/*
  * This flag is used to indicate that the page pointed to by a pte
  * is dirty and requires cleaning before returning it to the user.
  */
