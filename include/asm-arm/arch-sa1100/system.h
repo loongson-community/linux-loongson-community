@@ -3,6 +3,8 @@
  *
  * Copyright (c) 1999 Nicolas Pitre <nico@visuaide.com>
  */
+#include <linux/config.h>
+
 #ifdef CONFIG_SA1100_VICTOR
 
 #define arch_reset( x ) {					\
@@ -14,10 +16,10 @@
 
 #else
 
-#define arch_reset( x ) {					\
+#define arch_reset(x) {						\
 	__asm__ volatile (					\
 "	mcr	p15, 0, %0, c1, c0	@ MMU off\n"		\
-"	mov	pc, #0\n" : : "r" (cpu_reset()));		\
+"	mov	pc, #0\n" : : "r" (cpu_reset()) : "cc");	\
 	}
 
 #endif

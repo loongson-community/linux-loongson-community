@@ -22,145 +22,86 @@
 #include <linux/malloc.h>
 #include <linux/string.h>
 
-#include <asm/uaccess.h>
-
-static int nfs_readlink(struct dentry *, char *, int);
-static struct dentry *nfs_follow_link(struct dentry *, struct dentry *, unsigned int);
-
-/*
- * symlinks can't do much...
- */
-struct inode_operations nfs_symlink_inode_operations = {
-	NULL,			/* no file-operations */
-	NULL,			/* create */
-	NULL,			/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	nfs_readlink,		/* readlink */
-	nfs_follow_link,	/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* flushpage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL,			/* smap */
-	NULL			/* revalidate */
-};
-
 /* Symlink caching in the page cache is even more simplistic
  * and straight-forward than readdir caching.
  */
-static struct page *try_to_get_symlink_page(struct dentry *dentry, struct inode *inode)
+static int nfs_symlink_filler(struct dentry *dentry, struct page *page)
 {
 	struct nfs_readlinkargs rl_args;
-	struct page *page, **hash, *page_cache;
-
-	page = NULL;
-	page_cache = page_cache_alloc();
-	if (!page_cache)
-		goto out;
-
-	hash = page_hash(&inode->i_data, 0);
-repeat:
-	page = __find_lock_page(&inode->i_data, 0, hash);
-	if (page) {
-		page_cache_free(page_cache);
-		goto unlock_out;
-	}
-
-	page = page_cache;
-	if (add_to_page_cache_unique(page, &inode->i_data, 0, hash)) {
-		page_cache_release(page);
-		goto repeat;
-	}
-
+	kmap(page);
 	/* We place the length at the beginning of the page,
 	 * in host byte order, followed by the string.  The
 	 * XDR response verification will NULL terminate it.
 	 */
 	rl_args.fh = NFS_FH(dentry);
-	rl_args.buffer = (const void *)page_address(page_cache);
-	if (rpc_call(NFS_CLIENT(inode), NFSPROC_READLINK,
+	rl_args.buffer = (const void *)page_address(page);
+	if (rpc_call(NFS_CLIENT(dentry->d_inode), NFSPROC_READLINK,
 		     &rl_args, NULL, 0) < 0)
 		goto error;
 	SetPageUptodate(page);
-unlock_out:
+	kunmap(page);
 	UnlockPage(page);
-out:
-	return page;
+	return 0;
 
 error:
 	SetPageError(page);
-	goto unlock_out;
-}
-
-static int nfs_readlink(struct dentry *dentry, char *buffer, int buflen)
-{
-	struct inode *inode = dentry->d_inode;
-	struct page *page;
-	u32 *p, len;
-
-	/* Caller revalidated the directory inode already. */
-	page = find_get_page(&inode->i_data, 0);
-	if (!page)
-		goto no_readlink_page;
-	if (!Page_Uptodate(page))
-		goto readlink_read_error;
-success:
-	p = (u32 *) page_address(page);
-	len = *p++;
-	if (len > buflen)
-		len = buflen;
-	copy_to_user(buffer, p, len);
-	page_cache_release(page);
-	return len;
-
-no_readlink_page:
-	page = try_to_get_symlink_page(dentry, inode);
-	if (!page)
-		goto no_page;
-	if (Page_Uptodate(page))
-		goto success;
-readlink_read_error:
-	page_cache_release(page);
-no_page:
+	kunmap(page);
+	UnlockPage(page);
 	return -EIO;
 }
 
-static struct dentry *
-nfs_follow_link(struct dentry *dentry, struct dentry *base, unsigned int follow)
+static char *nfs_getlink(struct dentry *dentry, struct page **ppage)
 {
-	struct dentry *result;
 	struct inode *inode = dentry->d_inode;
 	struct page *page;
 	u32 *p;
 
 	/* Caller revalidated the directory inode already. */
-	page = find_get_page(&inode->i_data, 0);
-	if (!page)
-		goto no_followlink_page;
+	page = read_cache_page(&inode->i_data, 0,
+				(filler_t *)nfs_symlink_filler, dentry);
+	if (IS_ERR(page))
+		goto read_failed;
 	if (!Page_Uptodate(page))
-		goto followlink_read_error;
-success:
-	p = (u32 *) page_address(page);
-	result = lookup_dentry((char *) (p + 1), base, follow);
+		goto getlink_read_error;
+	*ppage = page;
+	p = (u32 *) kmap(page);
+	return (char*)(p+1);
+		
+getlink_read_error:
 	page_cache_release(page);
-	return result;
-
-no_followlink_page:
-	page = try_to_get_symlink_page(dentry, inode);
-	if (!page)
-		goto no_page;
-	if (Page_Uptodate(page))
-		goto success;
-followlink_read_error:
-	page_cache_release(page);
-no_page:
 	return ERR_PTR(-EIO);
+read_failed:
+	return (char*)page;
 }
+
+static int nfs_readlink(struct dentry *dentry, char *buffer, int buflen)
+{
+	struct page *page = NULL;
+	int res = vfs_readlink(dentry,buffer,buflen,nfs_getlink(dentry,&page));
+	if (page) {
+		kunmap(page);
+		page_cache_release(page);
+	}
+	return res;
+}
+
+static struct dentry *
+nfs_follow_link(struct dentry *dentry, struct dentry *base, unsigned int follow)
+{
+	struct page *page = NULL;
+	struct dentry *res = vfs_follow_link(dentry, base, follow,
+					     nfs_getlink(dentry, &page));
+	if (page) {
+		kunmap(page);
+		page_cache_release(page);
+	}
+	return res;
+}
+
+/*
+ * symlinks can't do much...
+ */
+struct inode_operations nfs_symlink_inode_operations = {
+	readlink:	nfs_readlink,
+	follow_link:	nfs_follow_link,
+};

@@ -245,10 +245,10 @@ static unsigned char controller_type = 0;       /* set to SEAGATE for ST0x
 static int irq = IRQ;
 
 #define retcode(result) (((result) << 16) | (message << 8) | status)
-#define STATUS ((u8) readb(st0x_cr_sr))
-#define DATA ((u8) readb(st0x_dr))
-#define WRITE_CONTROL(d) { writeb((d), st0x_cr_sr); }
-#define WRITE_DATA(d) { writeb((d), st0x_dr); }
+#define STATUS ((u8) isa_readb(st0x_cr_sr))
+#define DATA ((u8) isa_readb(st0x_dr))
+#define WRITE_CONTROL(d) { isa_writeb((d), st0x_cr_sr); }
+#define WRITE_DATA(d) { isa_writeb((d), st0x_dr); }
 
 void st0x_setup (char *str, int *ints)
 {
@@ -447,7 +447,7 @@ int __init seagate_st0x_detect (Scsi_Host_Template * tpnt)
     for (i = 0; i < (sizeof (seagate_bases) / sizeof (unsigned int)); ++i)
 
       for (j = 0; !base_address && j < NUM_SIGNATURES; ++j)
-        if (check_signature (seagate_bases[i] + signatures[j].offset,
+        if (isa_check_signature (seagate_bases[i] + signatures[j].offset,
                              signatures[j].signature, signatures[j].length))
         {
           base_address = seagate_bases[i];

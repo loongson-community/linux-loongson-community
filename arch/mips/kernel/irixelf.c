@@ -1,4 +1,4 @@
-/* $Id: irixelf.c,v 1.22 1999/10/09 00:00:58 ralf Exp $
+/* $Id: irixelf.c,v 1.23 2000/01/29 01:41:59 ralf Exp $
  *
  * irixelf.c: Code to load IRIX ELF executables which conform to
  *            the MIPS ABI.
@@ -31,7 +31,7 @@
 #include <linux/elfcore.h>
 
 #include <asm/uaccess.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/mipsregs.h>
 #include <asm/prctl.h>
 

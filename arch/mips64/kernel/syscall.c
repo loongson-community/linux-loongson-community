@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.1 1999/12/04 03:59:00 ralf Exp $
+/* $Id: syscall.c,v 1.2 2000/01/29 01:41:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -25,7 +25,7 @@
 #include <asm/ipc.h>
 #include <asm/cachectl.h>
 #include <asm/offset.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/ptrace.h>
 #include <asm/signal.h>
 #include <asm/stackframe.h>

@@ -1,4 +1,4 @@
-/* $Id: indy_timer.c,v 1.16 2000/01/17 23:32:46 ralf Exp $
+/* $Id: indy_timer.c,v 1.17 2000/01/21 22:34:03 ralf Exp $
  *
  * indy_timer.c: Setting up the clock on the INDY 8254 controller.
  *
@@ -269,12 +269,12 @@ void indy_8254timer_irq(void)
 	int cpu = smp_processor_id();
 	int irq = 4;
 
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
 	prom_getchar();
 	prom_imode();
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 }
 
 void do_gettimeofday(struct timeval *tv)

@@ -39,14 +39,14 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/swap.h>
-#include <linux/pagemap.h>
 #include <linux/smp_lock.h>
 #include <linux/swapctl.h>
 #include <linux/iobuf.h>
-#include <linux/highmem.h>
-
 #include <asm/uaccess.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
+#include <linux/highmem.h>
+#include <linux/pagemap.h>
+
 
 unsigned long max_mapnr = 0;
 unsigned long num_physpages = 0;
@@ -790,11 +790,19 @@ static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	 */
 	switch (page_count(old_page)) {
 	case 2:
-		if (!PageSwapCache(old_page))
+		/*
+		 * Lock the page so that no one can look it up from
+		 * the swap cache, grab a reference and start using it.
+		 * Can not do lock_page, holding page_table_lock.
+		 */
+		if (!PageSwapCache(old_page) || TryLockPage(old_page))
 			break;
-		if (swap_count(old_page) != 1)
+		if (is_page_shared(old_page)) {
+			UnlockPage(old_page);
 			break;
-		delete_from_swap_cache(old_page);
+		}
+		delete_from_swap_cache_nolock(old_page);
+		UnlockPage(old_page);
 		/* FallThrough */
 	case 1:
 		flush_cache_page(vma, address);
@@ -885,7 +893,7 @@ static void partial_clear(struct vm_area_struct *vma, unsigned long address)
  * between the file and the memory map for a potential last
  * incomplete page.  Ugly, but necessary.
  */
-void vmtruncate(struct inode * inode, unsigned long offset)
+void vmtruncate(struct inode * inode, loff_t offset)
 {
 	unsigned long partial, pgoff;
 	struct vm_area_struct * mpnt;
@@ -895,10 +903,8 @@ void vmtruncate(struct inode * inode, unsigned long offset)
 	if (!inode->i_mmap)
 		goto out_unlock;
 
-	partial = offset & (PAGE_CACHE_SIZE - 1);
-	pgoff = offset >> PAGE_CACHE_SHIFT;
-	if (partial)
-		pgoff ++;
+	pgoff = (offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	partial = (unsigned long)offset & (PAGE_CACHE_SIZE - 1);
 
 	mpnt = inode->i_mmap;
 	do {
@@ -947,33 +953,28 @@ out_unlock:
  */
 void swapin_readahead(swp_entry_t entry)
 {
-	int i;
+	int i, num;
 	struct page *new_page;
-	unsigned long offset = SWP_OFFSET(entry);
-	struct swap_info_struct *swapdev = SWP_TYPE(entry) + swap_info;
-	
-	offset = (offset >> page_cluster) << page_cluster;
+	unsigned long offset;
 
-	i = 1 << page_cluster;
-	do {
-		/* Don't read-ahead past the end of the swap area */
-		if (offset >= swapdev->max)
-			break;
+	/*
+	 * Get the number of handles we should do readahead io to. Also,
+	 * grab temporary references on them, releasing them as io completes.
+	 */
+	num = valid_swaphandles(entry, &offset);
+	for (i = 0; i < num; offset++, i++) {
 		/* Don't block on I/O for read-ahead */
-		if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster)
+		if (atomic_read(&nr_async_pages) >= pager_daemon.swap_cluster) {
+			while (i++ < num)
+				swap_free(SWP_ENTRY(SWP_TYPE(entry), offset++));
 			break;
-		/* Don't read in bad or busy pages */
-		if (!swapdev->swap_map[offset])
-			break;
-		if (swapdev->swap_map[offset] == SWAP_MAP_BAD)
-			break;
-
+		}
 		/* Ok, do the async read-ahead now */
 		new_page = read_swap_cache_async(SWP_ENTRY(SWP_TYPE(entry), offset), 0);
 		if (new_page != NULL)
 			__free_page(new_page);
-		offset++;
-	} while (--i);
+		swap_free(SWP_ENTRY(SWP_TYPE(entry), offset));
+	}
 	return;
 }
 
@@ -997,19 +998,27 @@ static int do_swap_page(struct task_struct * tsk,
 
 	vma->vm_mm->rss++;
 	tsk->min_flt++;
-	lock_kernel();
-	swap_free(entry);
-	unlock_kernel();
 
 	pte = mk_pte(page, vma->vm_page_prot);
 
 	set_bit(PG_swap_entry, &page->flags);
+
+	/*
+	 * Freeze the "shared"ness of the page, ie page_count + swap_count.
+	 * Must lock page before transferring our swap count to already
+	 * obtained page count.
+	 */
+	lock_page(page);
+	swap_free(entry);
 	if (write_access && !is_page_shared(page)) {
-		delete_from_swap_cache(page);
+		delete_from_swap_cache_nolock(page);
+		UnlockPage(page);
 		page = replace_with_highmem(page);
 		pte = mk_pte(page, vma->vm_page_prot);
 		pte = pte_mkwrite(pte_mkdirty(pte));
-	}
+	} else
+		UnlockPage(page);
+
 	set_pte(page_table, pte);
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, address, pte);

@@ -21,7 +21,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 #ifdef CONFIG_SOUND
 void soundcore_init(void);
@@ -55,9 +55,6 @@ extern void adbdev_init(void);
 #endif
 #ifdef CONFIG_USB
 extern void usb_init(void);
-#endif
-#ifdef CONFIG_PPDEV
-extern int pp_init(void);
 #endif
      
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
@@ -678,9 +675,6 @@ int __init chr_dev_init(void)
 #endif
 #ifdef CONFIG_VIDEO_DEV
 	videodev_init();
-#endif
-#ifdef CONFIG_PPDEV
-	pp_init();
 #endif
 	return 0;
 }

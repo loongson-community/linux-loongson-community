@@ -58,10 +58,9 @@ int nr_super_blocks = 0;
 int max_super_blocks = NR_SUPER;
 LIST_HEAD(super_blocks);
 
-static struct file_system_type *file_systems = (struct file_system_type *) NULL;
-struct vfsmount *vfsmntlist = (struct vfsmount *) NULL;
-static struct vfsmount *vfsmnttail = (struct vfsmount *) NULL,
-                       *mru_vfsmnt = (struct vfsmount *) NULL;
+static struct file_system_type *file_systems = NULL;
+struct vfsmount *vfsmntlist = NULL;
+static struct vfsmount *vfsmnttail = NULL, *mru_vfsmnt = NULL;
 
 /* 
  * This part handles the management of the list of mounted filesystems.
@@ -70,23 +69,19 @@ struct vfsmount *lookup_vfsmnt(kdev_t dev)
 {
 	struct vfsmount *lptr;
 
-	if (vfsmntlist == (struct vfsmount *)NULL)
-		return ((struct vfsmount *)NULL);
+	if (vfsmntlist == NULL)
+		return NULL;
 
-	if (mru_vfsmnt != (struct vfsmount *)NULL &&
-	    mru_vfsmnt->mnt_dev == dev)
+	if (mru_vfsmnt != NULL && mru_vfsmnt->mnt_dev == dev)
 		return (mru_vfsmnt);
 
-	for (lptr = vfsmntlist;
-	     lptr != (struct vfsmount *)NULL;
-	     lptr = lptr->mnt_next)
+	for (lptr = vfsmntlist; lptr != NULL; lptr = lptr->mnt_next)
 		if (lptr->mnt_dev == dev) {
 			mru_vfsmnt = lptr;
 			return (lptr);
 		}
 
-	return ((struct vfsmount *)NULL);
-	/* NOTREACHED */
+	return NULL;
 }
 
 static struct vfsmount *add_vfsmnt(struct super_block *sb,
@@ -104,7 +99,8 @@ static struct vfsmount *add_vfsmnt(struct super_block *sb,
 	lptr->mnt_dev = sb->s_dev;
 	lptr->mnt_flags = sb->s_flags;
 
-	sema_init(&lptr->mnt_dquot.semaphore, 1);
+	sema_init(&lptr->mnt_dquot.dqio_sem, 1);
+	sema_init(&lptr->mnt_dquot.dqoff_sem, 1);
 	lptr->mnt_dquot.flags = 0;
 
 	/* N.B. Is it really OK to have a vfsmount without names? */
@@ -139,7 +135,7 @@ void remove_vfsmnt(kdev_t dev)
 {
 	struct vfsmount *lptr, *tofree;
 
-	if (vfsmntlist == (struct vfsmount *)NULL)
+	if (vfsmntlist == NULL)
 		return;
 	lptr = vfsmntlist;
 	if (lptr->mnt_dev == dev) {
@@ -148,13 +144,13 @@ void remove_vfsmnt(kdev_t dev)
 		if (vfsmnttail->mnt_dev == dev)
 			vfsmnttail = vfsmntlist;
 	} else {
-		while (lptr->mnt_next != (struct vfsmount *)NULL) {
+		while (lptr->mnt_next != NULL) {
 			if (lptr->mnt_next->mnt_dev == dev)
 				break;
 			lptr = lptr->mnt_next;
 		}
 		tofree = lptr->mnt_next;
-		if (tofree == (struct vfsmount *)NULL)
+		if (tofree == NULL)
 			return;
 		lptr->mnt_next = lptr->mnt_next->mnt_next;
 		if (vfsmnttail->mnt_dev == dev)
@@ -566,7 +562,6 @@ static struct super_block * read_super(kdev_t dev,const char *name,int flags,
 	if (!type->read_super(s, data, silent))
 		goto out_fail;
 	s->s_dev = dev; /* N.B. why do this again?? */
-	s->s_rd_only = 0;
 	s->s_type = type;
 out:
 	return s;

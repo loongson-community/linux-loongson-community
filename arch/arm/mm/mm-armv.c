@@ -11,6 +11,7 @@
 #include <linux/bootmem.h>
 
 #include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/page.h>
 #include <asm/io.h>
 #include <asm/setup.h>
@@ -22,6 +23,31 @@ unsigned long *valid_addr_bitmap;
 extern unsigned long get_page_2k(int priority);
 extern void free_page_2k(unsigned long page);
 extern pte_t *get_bad_pte_table(void);
+
+/*
+ * These are useful for identifing cache coherency
+ * problems by allowing the cache or the cache and
+ * writebuffer to be turned off.  (Note: the write
+ * buffer should not be on and the cache off).
+ */
+static int __init nocache_setup(char *__unused)
+{
+	cr_alignment &= ~4;
+	cr_no_alignment &= ~4;
+	set_cr(cr_alignment);
+	return 1;
+}
+
+static int __init nowrite_setup(char *__unused)
+{
+	cr_alignment &= ~(8|4);
+	cr_no_alignment &= ~(8|4);
+	set_cr(cr_alignment);
+	return 1;
+}
+
+__setup("nocache", nocache_setup);
+__setup("nowb", nowrite_setup);
 
 /*
  * need to get a 16k page for level 1
@@ -178,7 +204,6 @@ alloc_init_page(unsigned long virt, unsigned long phys, int domain, int prot)
 		pte_t *ptep = alloc_bootmem_low_pages(2 * PTRS_PER_PTE *
 						      sizeof(pte_t));
 
-		memzero(ptep, 2 * PTRS_PER_PTE * sizeof(pte_t));
 		ptep += PTRS_PER_PTE;
 
 		set_pmd(pmdp, __mk_pmd(ptep, PMD_TYPE_TABLE | PMD_DOMAIN(domain)));
@@ -266,6 +291,32 @@ static struct map_desc init_map[] __initdata = {
 
 #define NR_INIT_MAPS (sizeof(init_map) / sizeof(init_map[0]))
 
+/*
+ * Calculate the size of the DMA, normal and highmem zones.
+ * On ARM, we don't have any problems with DMA, so all memory
+ * is allocated to the DMA zone.  We also don't have any
+ * highmem either.
+ */
+void __init zonesize_init(unsigned int *zone_size)
+{
+	int i;
+
+	zone_size[0] = 0;
+	zone_size[1] = 0;
+	zone_size[2] = 0;
+
+	for (i = 0; i < meminfo.nr_banks; i++) {
+		if (meminfo.bank[i].size) {
+			unsigned int end;
+
+			end = (meminfo.bank[i].start - PHYS_OFFSET +
+				meminfo.bank[i].size) >> PAGE_SHIFT;
+			if (end > zone_size[0])
+				zone_size[0] = end;
+		}
+	}
+}
+
 void __init pagetable_init(void)
 {
 	unsigned long address = 0;
@@ -274,7 +325,7 @@ void __init pagetable_init(void)
 	/*
 	 * Setup the above mappings
 	 */
-	init_map[0].physical = PHYS_OFFSET;
+	init_map[0].physical = virt_to_phys(alloc_bootmem_low_pages(PAGE_SIZE));
 	init_map[5].physical = FLUSH_BASE_PHYS;
 	init_map[5].virtual  = FLUSH_BASE;
 #ifdef FLUSH_BASE_MINICACHE
@@ -284,8 +335,9 @@ void __init pagetable_init(void)
 #endif
 
 	for (i = 0; i < meminfo.nr_banks; i++) {
-		init_map[i+1].physical = PHYS_OFFSET + meminfo.bank[i].start;
-		init_map[i+1].virtual  = PAGE_OFFSET + meminfo.bank[i].start;
+		init_map[i+1].physical = meminfo.bank[i].start;
+		init_map[i+1].virtual  = meminfo.bank[i].start +
+					 PAGE_OFFSET - PHYS_OFFSET;
 		init_map[i+1].length   = meminfo.bank[i].size;
 	}
 
@@ -327,13 +379,15 @@ void __init create_memmap_holes(void)
 {
 	unsigned int start_pfn, end_pfn = -1;
 	struct page *pg = NULL;
-	unsigned int sz, i;
+	unsigned int i;
+
+#define PFN(x)	(((x) - PHYS_OFFSET) >> PAGE_SHIFT)
 
 	for (i = 0; i < meminfo.nr_banks; i++) {
 		if (meminfo.bank[i].size == 0)
 			continue;
 
-		start_pfn = meminfo.bank[i].start >> PAGE_SHIFT;
+		start_pfn = PFN(meminfo.bank[i].start);
 
 		/*
 		 * subtle here - if we have a full bank, then
@@ -344,8 +398,8 @@ void __init create_memmap_holes(void)
 			set_bit(PG_skip, &pg->flags);
 			pg->next_hash = mem_map + start_pfn;
 
-			start_pfn = PAGE_ALIGN(__pa(pg + 1));
-			end_pfn   = __pa(pg->next_hash) & PAGE_MASK;
+			start_pfn = PFN(PAGE_ALIGN(__pa(pg + 1)));
+			end_pfn   = PFN(__pa(pg->next_hash) & PAGE_MASK);
 
 			if (end_pfn != start_pfn)
 				free_bootmem(start_pfn, end_pfn - start_pfn);
@@ -353,8 +407,7 @@ void __init create_memmap_holes(void)
 			pg = NULL;
 		}
 
-		end_pfn = (meminfo.bank[i].start +
-			   meminfo.bank[i].size) >> PAGE_SHIFT;
+		end_pfn = PFN(meminfo.bank[i].start + meminfo.bank[i].size);
 
 		if (end_pfn != meminfo.end >> PAGE_SHIFT)
 			pg = mem_map + end_pfn;
@@ -364,27 +417,4 @@ void __init create_memmap_holes(void)
 		set_bit(PG_skip, &pg->flags);
 		pg->next_hash = NULL;
 	}
-
-#if 0
-	/*
-	 * setup address validity map
-	 *  - don't think this is used anymore?
-	 */
-	sz = meminfo.end >> (PAGE_SHIFT + 8); /* in MB */
-	sz = (sz + 31) >> 3;
-
-	valid_addr_bitmap = alloc_bootmem(sz);
-	memzero(valid_addr_bitmap, sz);
-
-	for (i = 0; i < meminfo.nr_banks; i++) {
-		int idx, end;
-
-		idx = meminfo.bank[i].start >> 20;
-		end = (meminfo.bank[i].start +
-		       meminfo.bank[i].size) >> 20;
-		do
-			set_bit(idx, valid_addr_bitmap);
-		while (++idx < end);
-	}
-#endif
 }

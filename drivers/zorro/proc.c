@@ -78,29 +78,10 @@ static struct file_operations proc_bus_zorro_operations = {
 
 static struct inode_operations proc_bus_zorro_inode_operations = {
 	&proc_bus_zorro_operations, /* default base directory file-ops */
-	NULL,			/* create */
-	NULL,			/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* flushpage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL,			/* smap */
-	NULL			/* revalidate */
 };
 
-int
-get_zorro_dev_info(char *buf, char **start, off_t pos, int count, int wr)
+static int
+get_zorro_dev_info(char *buf, char **start, off_t pos, int count)
 {
 	u_int slot;
 	off_t at = 0;
@@ -142,7 +123,7 @@ static int __init zorro_proc_attach_device(u_int slot)
 	char name[4];
 
 	sprintf(name, "%02x", slot);
-	entry = create_proc_entry(name, S_IFREG | S_IRUGO, proc_bus_zorro_dir);
+	entry = create_proc_entry(name, 0, proc_bus_zorro_dir);
 	if (!entry)
 		return -ENOMEM;
 	entry->ops = &proc_bus_zorro_inode_operations;
@@ -157,7 +138,7 @@ void __init zorro_proc_init(void)
 
 	if (!MACH_IS_AMIGA || !AMIGAHW_PRESENT(ZORRO))
 		return;
-	proc_bus_zorro_dir = create_proc_entry("zorro", S_IFDIR, proc_bus);
+	proc_bus_zorro_dir = proc_mkdir("zorro", proc_bus);
 	create_proc_info_entry("devices", 0, proc_bus_zorro_dir, get_zorro_dev_info);
 	for (slot = 0; slot < zorro_num_autocon; slot++)
 	    zorro_proc_attach_device(slot);

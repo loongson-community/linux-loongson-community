@@ -496,7 +496,7 @@ static int ncr_debug = SCSI_NCR_DEBUG_FLAGS;
 
 #if LINUX_VERSION_CODE >= LinuxVersionCode(2,1,93)
 
-spinlock_t sym53c8xx_lock;
+spinlock_t sym53c8xx_lock = SPIN_LOCK_UNLOCKED;
 #define	NCR_LOCK_DRIVER(flags)     spin_lock_irqsave(&sym53c8xx_lock, flags)
 #define	NCR_UNLOCK_DRIVER(flags)   spin_unlock_irqrestore(&sym53c8xx_lock,flags)
 
@@ -5474,7 +5474,7 @@ printk(KERN_INFO NAME53C "%s-%d: rev=0x%02x, base=0x%lx, io_port=0x%lx, irq=%d\n
 	instance->max_id	= np->maxwide ? 16 : 8;
 	instance->max_lun	= MAX_LUN;
 #ifndef NCR_IOMAPPED
-	instance->base		= (char *) np->reg;
+	instance->base		= (unsigned long)np->reg;
 #endif
 	instance->irq		= np->irq;
 	instance->unique_id	= np->base_io;

@@ -43,7 +43,7 @@
 #include <asm/hardware.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 
 #ifdef CONFIG_ARCH_ARC
@@ -865,7 +865,7 @@ static int ecard_prints(char *buffer, ecard_t *ec)
 	return buffer - start;
 }
 
-int get_ecard_dev_info(char *buf, char **start, off_t pos, int count, int wr)
+static int get_ecard_dev_info(char *buf, char **start, off_t pos, int count)
 {
 	ecard_t *ec = cards;
 	off_t at = 0;
@@ -892,7 +892,7 @@ static struct proc_dir_entry *proc_bus_ecard_dir = NULL;
 
 static void ecard_proc_init(void)
 {
-	proc_bus_ecard_dir = create_proc_entry("ecard", S_IFDIR, proc_bus);
+	proc_bus_ecard_dir = proc_mkdir("ecard", proc_bus);
 	create_proc_info_entry("devices", 0, proc_bus_ecard_dir,
 		get_ecard_dev_info);
 }

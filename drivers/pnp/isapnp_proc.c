@@ -212,22 +212,6 @@ static struct file_operations isapnp_info_entry_operations =
 static struct inode_operations isapnp_info_entry_inode_operations =
 {
 	&isapnp_info_entry_operations,	/* default sound info directory file-ops */
-	NULL,			/* create */
-	NULL,			/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* bmap */
-	NULL,			/* truncate */
-	NULL			/* permission */
 };
 
 static int __init isapnp_proc_init(void)
@@ -605,11 +589,11 @@ static char *isapnp_get_str(char *dest, char *src, int len)
 
 static unsigned char isapnp_get_hex(unsigned char c)
 {
-	if (c >= '0' || c <= '9')
+	if (c >= '0' && c <= '9')
 		return c - '0';
-	if (c >= 'a' || c <= 'f')
+	if (c >= 'a' && c <= 'f')
 		return (c - 'a') + 10;
-	if (c >= 'A' || c <= 'F')
+	if (c >= 'A' && c <= 'F')
 		return (c - 'A') + 10;
 	return 0;
 }

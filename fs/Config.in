@@ -12,17 +12,17 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    tristate 'ADFS filesystem support (read only) (EXPERIMENTAL)' CONFIG_ADFS_FS
 fi
 tristate 'Amiga FFS filesystem support' CONFIG_AFFS_FS
-tristate 'Apple Macintosh filesystem support (EXPERIMENTAL)' CONFIG_HFS_FS
-# msdos filesystems
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   tristate 'Apple Macintosh filesystem support (EXPERIMENTAL)' CONFIG_HFS_FS
    tristate 'BFS filesystem (read only) support (EXPERIMENTAL)' CONFIG_BFS_FS
    if [ "$CONFIG_BFS_FS" != "n" ]; then
       bool '  BFS filesystem write support (DANGEROUS)' CONFIG_BFS_FS_WRITE
    fi
 fi
+# msdos filesystems
 tristate 'DOS FAT fs support' CONFIG_FAT_FS
 dep_tristate '  MSDOS fs support' CONFIG_MSDOS_FS $CONFIG_FAT_FS
-dep_tristate '  UMSDOS: Unix-like filesystem on top of standard MSDOS filesystem' CONFIG_UMSDOS_FS $CONFIG_MSDOS_FS
+dep_tristate '    UMSDOS: Unix-like filesystem on top of standard MSDOS fs' CONFIG_UMSDOS_FS $CONFIG_MSDOS_FS
 dep_tristate '  VFAT (Windows-95) fs support' CONFIG_VFAT_FS $CONFIG_FAT_FS
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -35,11 +35,6 @@ if [ "$CONFIG_ISO9660_FS" != "n" ]; then
 else
    # needed by nls/Config.in
    define_bool CONFIG_JOLIET n
-fi
-
-tristate 'UDF filesystem support (read only)' CONFIG_UDF_FS
-if [ "$CONFIG_UDF_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   bool '  UDF write support (DANGEROUS)' CONFIG_UDF_RW
 fi
 
 tristate 'Minix fs support' CONFIG_MINIX_FS
@@ -68,6 +63,10 @@ tristate 'System V and Coherent filesystem support' CONFIG_SYSV_FS
 if [ "$CONFIG_SYSV_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool '  SYSV filesystem write support (DANGEROUS)' CONFIG_SYSV_FS_WRITE
 fi
+tristate 'UDF filesystem support (read only)' CONFIG_UDF_FS
+if [ "$CONFIG_UDF_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
+   bool '  UDF write support (DANGEROUS)' CONFIG_UDF_RW
+fi
 tristate 'UFS filesystem support (read only)' CONFIG_UFS_FS
 if [ "$CONFIG_UFS_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool '  UFS filesystem write support (DANGEROUS)' CONFIG_UFS_FS_WRITE
@@ -87,8 +86,11 @@ if [ "$CONFIG_INET" = "y" ]; then
    fi
    tristate 'NFS server support' CONFIG_NFSD
    if [ "$CONFIG_NFSD" != "n" ]; then
-      bool '  Emulate SUN NFS server' CONFIG_NFSD_SUN
+      if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+	 bool '  Provide NFSv3 server support (EXPERIMENTAL)' CONFIG_NFSD_V3
+      fi
    fi
+
    if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
       define_tristate CONFIG_SUNRPC y
       define_tristate CONFIG_LOCKD y

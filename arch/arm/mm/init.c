@@ -25,7 +25,7 @@
 
 #include <asm/system.h>
 #include <asm/segment.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/dma.h>
 #include <asm/hardware.h>
 #include <asm/setup.h>
@@ -168,6 +168,7 @@ void show_mem(void)
 void __init paging_init(void)
 {
 	void *zero_page, *bad_page, *bad_table;
+	unsigned int zone_size[3];
 
 #ifdef CONFIG_CPU_32
 #define TABLE_OFFSET	(PTRS_PER_PTE)
@@ -189,7 +190,11 @@ void __init paging_init(void)
 	pagetable_init();
 	flush_tlb_all();
 
-	free_area_init(max_low_pfn);
+	/*
+	 * Initialise the zones and mem_map
+	 */
+	zonesize_init(zone_size);
+	free_area_init(zone_size);
 
 	/*
 	 * finish off the bad pages once
@@ -235,22 +240,23 @@ static inline void free_unused_mem_map(void)
  */
 void __init mem_init(void)
 {
-	int codepages = 0;
-	int reservedpages = 0;
-	int datapages = 0;
-	int initpages = 0, i, min_nr;
+	extern char __init_begin, __init_end, _text, _etext, _end;
+	unsigned int codepages, datapages, initpages;
+	int i;
 
-	max_mapnr     = max_low_pfn;
-	high_memory   = (void *)__va(max_low_pfn * PAGE_SIZE);
+	codepages = &_etext - &_text;
+	datapages = &_end - &_etext;
+	initpages = &__init_end - &__init_begin;
 
-#ifdef CONFIG_CPU_32
+	max_mapnr   = max_low_pfn;
+	high_memory = (void *)__va(PHYS_OFFSET + max_low_pfn * PAGE_SIZE);
+
 	/*
 	 * We may have non-contiguous memory.  Setup the PageSkip stuff,
 	 * and mark the areas of mem_map which can be freed
 	 */
 	if (meminfo.nr_banks != 1)
 		create_memmap_holes();
-#endif
 
 	/* this will put all unused low memory onto the freelists */
 	totalram_pages += free_all_bootmem();
@@ -259,42 +265,28 @@ void __init mem_init(void)
 	 * Since our memory may not be contiguous, calculate the
 	 * real number of pages we have in this system
 	 */
+	printk("Memory:");
+
 	num_physpages = 0;
-	for (i = 0; i < meminfo.nr_banks; i++)
+	for (i = 0; i < meminfo.nr_banks; i++) {
 		num_physpages += meminfo.bank[i].size >> PAGE_SHIFT;
+		printk(" %ldMB", meminfo.bank[i].size >> 20);
+	}
 
-	printk ("Memory: %luk/%luM available (%dk code, %dk reserved, %dk data, %dk init)\n",
-		 (unsigned long) nr_free_pages << (PAGE_SHIFT-10),
-		 num_physpages >> (20 - PAGE_SHIFT),
-		 codepages     << (PAGE_SHIFT-10),
-		 reservedpages << (PAGE_SHIFT-10),
-		 datapages     << (PAGE_SHIFT-10),
-		 initpages     << (PAGE_SHIFT-10));
+	printk(" = %luMB total\n", num_physpages >> (20 - PAGE_SHIFT));
+	printk("Memory: %luKB available (%dK code, %dK data, %dK init)\n",
+		(unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
+		codepages >> 10, datapages >> 10, initpages >> 10);
 
-	/*
-	 * Correct freepages watermarks
-	 */
-	i = nr_free_pages >> 7;
-	if (PAGE_SIZE < 32768)
-		min_nr = 10;
-	else
-		min_nr = 2;
-	if (i < min_nr)
-		i = min_nr;
-	if (i > 256)
-		i = 256;
-	freepages.min = i;
-	freepages.low = i * 2;
-	freepages.high = i * 3;
-
-#ifdef CONFIG_CPU_26
-	if (max_mapnr <= 128) {
+	if (PAGE_SIZE >= 16384 && num_physpages <= 128) {
 		extern int sysctl_overcommit_memory;
-		/* On a machine this small we won't get anywhere without
-		   overcommit, so turn it on by default.  */
+		/*
+		 * On a machine this small we won't get
+		 * anywhere without overcommit, so turn
+		 * it on by default.
+		 */
 		sysctl_overcommit_memory = 1;
 	}
-#endif
 }
 
 static inline void free_area(unsigned long addr, unsigned long end, char *s)
@@ -344,11 +336,24 @@ void free_initmem(void)
 	printk("\n");
 }
 
+#ifdef CONFIG_BLK_DEV_INITRD
+void free_initrd_mem(unsigned long start, unsigned long end)
+{
+	for (; start < end; start += PAGE_SIZE) {
+		ClearPageReserved(mem_map + MAP_NR(start));
+		set_page_count(mem_map+MAP_NR(start), 1);
+		free_page(start);
+		totalram_pages++;
+	}
+	printk ("Freeing initrd memory: %ldk freed\n", (end - start) >> 10);
+}
+#endif
+
 void si_meminfo(struct sysinfo *val)
 {
 	val->totalram  = totalram_pages;
 	val->sharedram = 0;
-	val->freeram   = nr_free_pages;
+	val->freeram   = nr_free_pages();
 	val->bufferram = atomic_read(&buffermem_pages);
 	val->totalhigh = 0;
 	val->freehigh  = 0;

@@ -20,7 +20,7 @@
 #include <linux/highmem.h>
 #include <linux/file.h>
 
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 /*
  * The swap-out functions return 1 if they successfully
@@ -158,15 +158,15 @@ drop_pte:
 	if (!(page = prepare_highmem_swapout(page)))
 		goto out_swap_free;
 
-	vma->vm_mm->rss--;
-	set_pte(page_table, swp_entry_to_pte(entry));
-	vmlist_access_unlock(vma->vm_mm);
-
-	flush_tlb_page(vma, address);
 	swap_duplicate(entry);	/* One for the process, one for the swap cache */
 
 	/* This will also lock the page */
 	add_to_swap_cache(page, entry);
+	/* Put the swap entry into the pte after the page is in swapcache */
+	vma->vm_mm->rss--;
+	set_pte(page_table, swp_entry_to_pte(entry));
+	flush_tlb_page(vma, address);
+	vmlist_access_unlock(vma->vm_mm);
 
 	/* OK, do a physical asynchronous write to swap.  */
 	rw_swap_page(WRITE, page, 0);
@@ -505,7 +505,6 @@ int kswapd(void *unused)
 			   allocations (not GFP_HIGHMEM ones). */
 			if (nr_free_buffer_pages() >= freepages.high)
 				break;
-
 			if (!do_try_to_free_pages(GFP_KSWAPD))
 				break;
 			run_task_queue(&tq_disk);

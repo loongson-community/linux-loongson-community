@@ -1258,10 +1258,6 @@ typedef struct DAC960_Controller
   DAC960_StatusMailbox_T *FirstStatusMailbox;
   DAC960_StatusMailbox_T *LastStatusMailbox;
   DAC960_StatusMailbox_T *NextStatusMailbox;
-  PROC_DirectoryEntry_T ControllerProcEntry;
-  PROC_DirectoryEntry_T InitialStatusProcEntry;
-  PROC_DirectoryEntry_T CurrentStatusProcEntry;
-  PROC_DirectoryEntry_T UserCommandProcEntry;
   WaitQueue_T CommandWaitQueue;
   DAC960_DCDB_T MonitoringDCDB;
   DAC960_Enquiry_T Enquiry[2];
@@ -2212,14 +2208,14 @@ DAC960_V3_ReadStatusRegister(void *ControllerBaseAddress)
 
 static void DAC960_FinalizeController(DAC960_Controller_T *);
 static int DAC960_Finalize(NotifierBlock_T *, unsigned long, void *);
-static void DAC960_RequestFunction0(void);
-static void DAC960_RequestFunction1(void);
-static void DAC960_RequestFunction2(void);
-static void DAC960_RequestFunction3(void);
-static void DAC960_RequestFunction4(void);
-static void DAC960_RequestFunction5(void);
-static void DAC960_RequestFunction6(void);
-static void DAC960_RequestFunction7(void);
+static void DAC960_RequestFunction0(request_queue_t *);
+static void DAC960_RequestFunction1(request_queue_t *);
+static void DAC960_RequestFunction2(request_queue_t *);
+static void DAC960_RequestFunction3(request_queue_t *);
+static void DAC960_RequestFunction4(request_queue_t *);
+static void DAC960_RequestFunction5(request_queue_t *);
+static void DAC960_RequestFunction6(request_queue_t *);
+static void DAC960_RequestFunction7(request_queue_t *);
 static void DAC960_InterruptHandler(int, void *, Registers_T *);
 static void DAC960_QueueMonitoringCommand(DAC960_Command_T *);
 static void DAC960_MonitoringTimerFunction(unsigned long);

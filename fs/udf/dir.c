@@ -32,6 +32,7 @@
 #include "udfdecl.h"
 
 #if defined(__linux__) && defined(__KERNEL__)
+#include <linux/config.h>
 #include <linux/version.h>
 #include "udf_i.h"
 #include "udf_sb.h"
@@ -96,10 +97,8 @@ struct inode_operations udf_dir_inode_operations = {
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
-	NULL,			/* smap */
 	NULL			/* revalidate */
 };
 
@@ -158,13 +157,13 @@ do_udf_readdir(struct inode * dir, struct file *filp, filldir_t filldir, void *d
 	struct FileIdentDesc *fi=NULL;
 	struct FileIdentDesc cfi;
 	int block, iblock;
-	int nf_pos = filp->f_pos;
+	loff_t nf_pos = filp->f_pos;
 	int flen;
 	char fname[255];
 	char *nameptr;
 	Uint16 liu;
 	Uint8 lfi;
-	int size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
+	loff_t size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
 	struct buffer_head * bh = NULL;
 	lb_addr bloc, eloc;
 	Uint32 extoffset, elen, offset;
@@ -275,10 +274,6 @@ do_udf_readdir(struct inode * dir, struct file *filp, filldir_t filldir, void *d
 					udf_release_data(bh);
 		 			return 1; /* halt enum */
 				}
-			}
-			else
-			{
-				udf_debug("size=%d, nf_pos=%d, liu=%d, lfi=%d\n", size, nf_pos, liu, lfi);
 			}
 		}
 	} /* end while */

@@ -5,10 +5,6 @@
  *  Origional Copyright (C) 1995  Linus Torvalds
  */
 
-/*
- * This file handles the architecture-dependent parts of process handling..
- */
-
 #include <stdarg.h>
 
 #include <linux/errno.h>
@@ -39,7 +35,7 @@ extern char *processor_modes[];
 
 asmlinkage void ret_from_sys_call(void) __asm__("ret_from_sys_call");
 
-static int hlt_counter=0;
+static int hlt_counter;
 
 void disable_hlt(void)
 {
@@ -50,6 +46,21 @@ void enable_hlt(void)
 {
 	hlt_counter--;
 }
+
+static int __init nohlt_setup(char *__unused)
+{
+	hlt_counter = 1;
+	return 0;
+}
+
+static int __init hlt_setup(char *__unused)
+{
+	hlt_counter = 0;
+	return 0;
+}
+
+__setup("nohlt", nohlt_setup);
+__setup("hlt", hlt_setup);
 
 /*
  * The idle loop on an ARM...
@@ -91,8 +102,9 @@ void machine_restart(char * __unused)
 
 	arch_reset(reboot_mode);
 
+	mdelay(1000);
 	printk("Reboot failed -- System halted\n");
-
+	cli();
 	while (1);
 }
 
@@ -110,18 +122,18 @@ void show_regs(struct pt_regs * regs)
 
 	flags = condition_codes(regs);
 
-	printk( "pc : [<%08lx>]    lr : [<%08lx>]\n"
-		"sp : %08lx  ip : %08lx  fp : %08lx\n",
+	printk("pc : [<%08lx>]    lr : [<%08lx>]\n"
+	       "sp : %08lx  ip : %08lx  fp : %08lx\n",
 		instruction_pointer(regs),
 		regs->ARM_lr, regs->ARM_sp,
 		regs->ARM_ip, regs->ARM_fp);
-	printk( "r10: %08lx  r9 : %08lx  r8 : %08lx\n",
+	printk("r10: %08lx  r9 : %08lx  r8 : %08lx\n",
 		regs->ARM_r10, regs->ARM_r9,
 		regs->ARM_r8);
-	printk( "r7 : %08lx  r6 : %08lx  r5 : %08lx  r4 : %08lx\n",
+	printk("r7 : %08lx  r6 : %08lx  r5 : %08lx  r4 : %08lx\n",
 		regs->ARM_r7, regs->ARM_r6,
 		regs->ARM_r5, regs->ARM_r4);
-	printk( "r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx\n",
+	printk("r3 : %08lx  r2 : %08lx  r1 : %08lx  r0 : %08lx\n",
 		regs->ARM_r3, regs->ARM_r2,
 		regs->ARM_r1, regs->ARM_r0);
 	printk("Flags: %c%c%c%c",
@@ -179,62 +191,51 @@ void show_fpregs(struct user_fp *regs)
 
 /*
  * Task structure and kernel stack allocation.
- *
- * Taken from the i386 version.
  */
+static struct task_struct *task_struct_head;
+static unsigned int nr_task_struct;
+
 #ifdef CONFIG_CPU_32
-#define EXTRA_TASK_STRUCT	8
-static struct task_struct *task_struct_stack[EXTRA_TASK_STRUCT];
-static int task_struct_stack_ptr = -1;
+#define EXTRA_TASK_STRUCT	4
+#else
+#define EXTRA_TASK_STRUCT	0
 #endif
 
 struct task_struct *alloc_task_struct(void)
 {
 	struct task_struct *tsk;
 
-#ifndef EXTRA_TASK_STRUCT
-	tsk = ll_alloc_task_struct();
-#else
-	int index;
+	if (EXTRA_TASK_STRUCT)
+		tsk = task_struct_head;
+	else
+		tsk = NULL;
 
-	index = task_struct_stack_ptr;
-	if (index >= EXTRA_TASK_STRUCT/2)
-		goto use_cache;
+	if (tsk) {
+		task_struct_head = tsk->next_task;
+		nr_task_struct -= 1;
+	} else
+		tsk = ll_alloc_task_struct();
 
-	tsk = ll_alloc_task_struct();
-
-	if (!tsk) {
-		index = task_struct_stack_ptr;
-
-		if (index >= 0) {
-use_cache:		tsk = task_struct_stack[index];
-			task_struct_stack_ptr = index - 1;
-		}
-	}
-#endif
 #ifdef CONFIG_SYSRQ
-	/* You need this if you want SYSRQ-T to give sensible stack
-	 * usage information
+	/*
+	 * The stack must be cleared if you want SYSRQ-T to
+	 * give sensible stack usage information
 	 */
 	if (tsk) {
 		char *p = (char *)tsk;
 		memzero(p+KERNEL_STACK_SIZE, KERNEL_STACK_SIZE);
 	}
 #endif
-
 	return tsk;
 }
 
-void free_task_struct(struct task_struct *p)
+void __free_task_struct(struct task_struct *p)
 {
-#ifdef EXTRA_TASK_STRUCT
-	int index = task_struct_stack_ptr + 1;
-
-	if (index < EXTRA_TASK_STRUCT) {
-		task_struct_stack[index] = p;
-		task_struct_stack_ptr = index;
+	if (EXTRA_TASK_STRUCT && nr_task_struct < EXTRA_TASK_STRUCT) {
+		p->next_task = task_struct_head;
+		task_struct_head = p;
+		nr_task_struct += 1;
 	} else
-#endif
 		ll_free_task_struct(p);
 }
 
@@ -262,6 +263,8 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 {
 	struct pt_regs * childregs;
 	struct context_save_struct * save;
+
+	atomic_set(&p->thread.refcount, 1);
 
 	childregs = ((struct pt_regs *)((unsigned long)p + 8192)) - 1;
 	*childregs = *regs;

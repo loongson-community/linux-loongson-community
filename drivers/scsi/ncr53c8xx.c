@@ -533,7 +533,7 @@ typedef	int		vm_size_t;
 #if LINUX_VERSION_CODE >= LinuxVersionCode(2,1,93)
 
 #if 0	/* not yet needed */
-static spinlock_t driver_lock;
+static spinlock_t driver_lock = SPIN_LOCK_UNLOCKED;
 #define	NCR_LOCK_DRIVER(flags)     spin_lock_irqsave(&driver_lock, flags)
 #define	NCR_UNLOCK_DRIVER(flags)   spin_unlock_irqrestore(&driver_lock, flags)
 #endif
@@ -4507,7 +4507,7 @@ printk(KERN_INFO "ncr53c%s-%d: rev=0x%02x, base=0x%lx, io_port=0x%lx, irq=%d\n",
 	instance->max_id	= np->maxwide ? 16 : 8;
 	instance->max_lun	= SCSI_NCR_MAX_LUN;
 #ifndef NCR_IOMAPPED
-	instance->base		= (char *) np->reg;
+	instance->base		= (unsigned long)np->reg;
 #endif
 	instance->irq		= device->slot.irq;
 	instance->unique_id	= device->slot.io_port;

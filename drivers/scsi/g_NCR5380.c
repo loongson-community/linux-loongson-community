@@ -16,6 +16,9 @@
  * DTC3181E extensions (c) 1997, Ronald van Cuijlenborg
  * ronald.van.cuijlenborg@tip.nl or nutty@dds.nl
  *
+ * Added ISAPNP support for DTC436 adapters,
+ * Thomas Sailer, sailer@ife.ee.ethz.ch
+ *
  * ALPHA RELEASE 1. 
  *
  * For more information, please consult 
@@ -117,7 +120,8 @@
 #include "sd.h"
 #include <linux/stat.h>
 #include <linux/init.h>
-#include<linux/ioport.h>
+#include <linux/ioport.h>
+#include <linux/isapnp.h>
 
 #define NCR_NOT_SET 0
 static int ncr_irq=NCR_NOT_SET;
@@ -280,6 +284,36 @@ int __init generic_NCR5380_detect(Scsi_Host_Template * tpnt){
     else if (dtc_3181e != NCR_NOT_SET)
         overrides[0].board=BOARD_DTC3181E;
 
+    if (!current_override && isapnp_present()) {
+	    struct pci_dev *dev = NULL;
+	    count = 0;
+	    while ((dev = isapnp_find_dev(NULL, ISAPNP_VENDOR('D','T','C'), ISAPNP_FUNCTION(0x436e), dev))) {
+		    if (count >= NO_OVERRIDES)
+			    break;
+		    if (!dev->active && dev->prepare(dev) < 0) {
+			    printk(KERN_ERR "dtc436e probe: prepare failed\n");
+			    continue;
+		    }
+		    if (!(dev->resource[0].flags & IORESOURCE_IO))
+			    continue;
+		    if (!dev->active && dev->activate(dev) < 0) {
+			    printk(KERN_ERR "dtc436e probe: activate failed\n");
+			    continue;
+		    }
+		    if (dev->irq_resource[0].flags & IORESOURCE_IRQ)
+			    overrides[count].irq=dev->irq_resource[0].start;
+		    else
+			    overrides[count].irq=IRQ_NONE;
+		    if (dev->dma_resource[0].flags & IORESOURCE_DMA)
+			    overrides[count].dma=dev->dma_resource[0].start;
+		    else
+			    overrides[count].dma=DMA_NONE;
+		    overrides[count].NCR5380_map_name=(NCR5380_map_type)dev->resource[0].start;
+		    overrides[count].board=BOARD_DTC3181E;
+		    count++;
+	    }
+    }
+
     tpnt->proc_name = "g_NCR5380";
 
     for (count = 0; current_override < NO_OVERRIDES; ++current_override) {
@@ -304,6 +338,7 @@ int __init generic_NCR5380_detect(Scsi_Host_Template * tpnt){
 	    break;
 	}
 
+#ifdef CONFIG_SCSI_G_NCR5380_PORT
 	if (ports) {
 	    /* wakeup sequence for the NCR53C400A and DTC3181E*/
 
@@ -343,7 +378,13 @@ int __init generic_NCR5380_detect(Scsi_Host_Template * tpnt){
 
 	request_region(overrides[current_override].NCR5380_map_name,
 					NCR5380_region_size, "ncr5380");
-
+#else
+	if(check_mem_region(overrides[current_override].NCR5380_map_name,
+		NCR5380_region_size))
+		continue;
+	request_mem_region(overrides[current_override].NCR5380_map_name,
+					NCR5380_region_size, "ncr5380");
+#endif
 	instance = scsi_register (tpnt, sizeof(struct NCR5380_hostdata));
 	instance->NCR5380_instance_name = overrides[current_override].NCR5380_map_name;
 
@@ -393,7 +434,11 @@ int generic_NCR5380_release_resources(struct Scsi_Host * instance)
 
     NCR5380_setup(instance);
 
+#ifdef CONFIG_SCSI_G_NCR5380_PORT
     release_region(instance->NCR5380_instance_name, NCR5380_region_size);
+#else
+    release_mem_region(instance->NCR5380_instance_name, NCR5380_region_size);
+#endif    
 
     if (instance->irq != IRQ_NONE)
 	free_irq(instance->irq, NULL);
@@ -490,7 +535,7 @@ static inline int NCR5380_pread (struct Scsi_Host *instance, unsigned char *dst,
 	    dst[start+i] = NCR5380_read(C400_HOST_BUFFER);
 #else
 	/* implies CONFIG_SCSI_G_NCR5380_MEM */
-	memcpy(dst+start,NCR53C400_host_buffer+NCR5380_map_name,128);
+	isa_memcpy_fromio(dst+start,NCR53C400_host_buffer+NCR5380_map_name,128);
 #endif
 	start+=128;
 	blocks--;
@@ -511,7 +556,7 @@ static inline int NCR5380_pread (struct Scsi_Host *instance, unsigned char *dst,
 	    dst[start+i] = NCR5380_read(C400_HOST_BUFFER);
 #else
 	/* implies CONFIG_SCSI_G_NCR5380_MEM */
-	memcpy(dst+start,NCR53C400_host_buffer+NCR5380_map_name,128);
+	isa_memcpy_fromio(dst+start,NCR53C400_host_buffer+NCR5380_map_name,128);
 #endif
 	start+=128;
 	blocks--;
@@ -598,7 +643,7 @@ static inline int NCR5380_pwrite (struct Scsi_Host *instance, unsigned char *src
 	    NCR5380_write(C400_HOST_BUFFER, src[start+i]);
 #else
 	/* implies CONFIG_SCSI_G_NCR5380_MEM */
-	memcpy(NCR53C400_host_buffer+NCR5380_map_name,src+start,128);
+	isa_memcpy_toio(NCR53C400_host_buffer+NCR5380_map_name,src+start,128);
 #endif
 	start+=128;
 	blocks--;
@@ -618,7 +663,7 @@ static inline int NCR5380_pwrite (struct Scsi_Host *instance, unsigned char *src
 	    NCR5380_write(C400_HOST_BUFFER, src[start+i]);
 #else
 	/* implies CONFIG_SCSI_G_NCR5380_MEM */
-	memcpy(NCR53C400_host_buffer+NCR5380_map_name,src+start,128);
+	isa_memcpy_toio(NCR53C400_host_buffer+NCR5380_map_name,src+start,128);
 #endif
 	start+=128;
 	blocks--;

@@ -4,7 +4,7 @@
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994, 1995, 1996, 1997 Ralf Baechle
  *
- * $Id: irq.c,v 1.4 1999/10/09 00:00:57 ralf Exp $
+ * $Id: irq.c,v 1.5 1999/12/04 03:58:59 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -127,7 +127,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
     int do_random, cpu;
 
     cpu = smp_processor_id();
-    hardirq_enter(cpu);
+    irq_enter(cpu);
     kstat.irqs[cpu][irq]++;
 
     mask_irq(irq);
@@ -147,7 +147,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
 	unmask_irq(irq);
 	__cli();
     }
-    hardirq_exit(cpu);
+    irq_exit(cpu);
 
     /* unmasking and bottom half handling is done magically for us. */
 }

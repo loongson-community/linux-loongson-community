@@ -391,7 +391,6 @@ extern __inline__ int unregister_gifconf(unsigned int family)
 #define HAVE_NETIF_RX 1
 extern void		netif_rx(struct sk_buff *skb);
 extern void		net_bh(void);
-extern int		dev_get_info(char *buffer, char **start, off_t offset, int length, int dummy);
 extern int		dev_ioctl(unsigned int cmd, void *);
 extern int		dev_change_flags(struct net_device *, unsigned);
 extern void		dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev);
@@ -423,7 +422,6 @@ extern void		ether_setup(struct net_device *dev);
 extern void		fddi_setup(struct net_device *dev);
 extern void		tr_setup(struct net_device *dev);
 extern void		fc_setup(struct net_device *dev);
-extern void		tr_freedev(struct net_device *dev);
 extern void		fc_freedev(struct net_device *dev);
 extern int		ether_config(struct net_device *dev, struct ifmap *map);
 /* Support for loadable net-drivers */

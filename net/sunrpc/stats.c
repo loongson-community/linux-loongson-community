@@ -126,6 +126,7 @@ svc_proc_read(char *buffer, char **start, off_t offset, int count,
 static inline struct proc_dir_entry *
 do_register(const char *name, void *data, int issvc)
 {
+	rpc_proc_init();
 	dprintk("RPC: registering /proc/net/rpc/%s\n", name);
 	return create_proc_read_entry(name, 0, proc_net_rpc, 
 				      issvc? svc_proc_read : rpc_proc_read,
@@ -162,7 +163,7 @@ rpc_proc_init(void)
 	dprintk("RPC: registering /proc/net/rpc\n");
 	if (!proc_net_rpc) {
 		struct proc_dir_entry *ent;
-		ent = create_proc_entry("net/rpc", S_IFDIR, 0);
+		ent = proc_mkdir("net/rpc", 0);
 		if (ent) {
 			ent->owner = THIS_MODULE;
 			proc_net_rpc = ent;

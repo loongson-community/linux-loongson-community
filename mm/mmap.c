@@ -14,7 +14,7 @@
 #include <linux/file.h>
 
 #include <asm/uaccess.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 /* description of effects of mapping type and prot in current implementation.
  * this is due to the limited x86 page protection hardware.  The expected
@@ -160,8 +160,8 @@ static inline unsigned long vm_flags(unsigned long prot, unsigned long flags)
 #undef _trans
 }
 
-unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
-	unsigned long prot, unsigned long flags, unsigned long off)
+unsigned long do_mmap_pgoff(struct file * file, unsigned long addr, unsigned long len,
+	unsigned long prot, unsigned long flags, unsigned long pgoff)
 {
 	struct mm_struct * mm = current->mm;
 	struct vm_area_struct * vma;
@@ -176,14 +176,9 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	if (len > TASK_SIZE || addr > TASK_SIZE-len)
 		return -EINVAL;
 
-	if (off & ~PAGE_MASK)
-		return -EINVAL;
-
 	/* offset overflow? */
-	if (off + len < off)
+	if ((pgoff + (len >> PAGE_SHIFT)) < pgoff)
 		return -EINVAL;
-
-	off = off >> PAGE_SHIFT;
 
 	/* Too many mappings? */
 	if (mm->map_count > MAX_MAP_COUNT)
@@ -274,7 +269,7 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 		vma->vm_flags |= VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
 	vma->vm_page_prot = protection_map[vma->vm_flags & 0x0f];
 	vma->vm_ops = NULL;
-	vma->vm_pgoff = off;
+	vma->vm_pgoff = pgoff;
 	vma->vm_file = NULL;
 	vma->vm_private_data = NULL;
 
@@ -550,8 +545,7 @@ static struct vm_area_struct * unmap_fixup(struct vm_area_struct *area,
 		mpnt->vm_page_prot = area->vm_page_prot;
 		mpnt->vm_flags = area->vm_flags;
 		mpnt->vm_ops = area->vm_ops;
-		mpnt->vm_pgoff = area->vm_pgoff;
-		area->vm_pgoff += (end - area->vm_start) >> PAGE_SHIFT;
+		mpnt->vm_pgoff = area->vm_pgoff + ((end - area->vm_start) >> PAGE_SHIFT);
 		mpnt->vm_file = area->vm_file;
 		mpnt->vm_private_data = area->vm_private_data;
 		if (mpnt->vm_file)

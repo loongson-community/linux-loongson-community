@@ -14,20 +14,27 @@
 
 #define RLIM_NLIMITS	10
 
+/*
+ * SuS says limits have to be unsigned.
+ * Which makes a ton more sense anyway.
+ */
+#define RLIM_INFINITY	(~0UL)
+
+
 #ifdef __KERNEL__
 
 #define INIT_RLIMITS							\
 {									\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_CPU */	\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_FSIZE */	\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_DATA */	\
-    {_STK_LIM, LONG_MAX},			/* RLIMIT_STACK */	\
-    {       0, LONG_MAX},			/* RLIMIT_CORE */	\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_RSS */	\
-    {0, 0},								\
-    {INR_OPEN, INR_OPEN},			/* RLIMIT_NOFILE */	\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_MEMLOCK */	\
-    {LONG_MAX, LONG_MAX},			/* RLIMIT_AS */		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{      _STK_LIM, RLIM_INFINITY },		\
+	{             0, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{             0,             0 },		\
+	{      INR_OPEN,     INR_OPEN  },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
+	{ RLIM_INFINITY, RLIM_INFINITY },		\
 }
 
 #endif /* __KERNEL__ */

@@ -23,7 +23,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/uaccess.h>
 
 #include <linux/highmem.h>
@@ -124,13 +124,14 @@ void invalidate_inode_pages(struct inode * inode)
  * Truncate the page cache at a set offset, removing the pages
  * that are beyond that offset (and zeroing out partial pages).
  */
-void truncate_inode_pages(struct inode * inode, unsigned long start)
+void truncate_inode_pages(struct inode * inode, loff_t lstart)
 {
 	struct list_head *head, *curr;
 	struct page * page;
-	unsigned partial = start & (PAGE_CACHE_SIZE - 1);
+	unsigned partial = lstart & (PAGE_CACHE_SIZE - 1);
+	unsigned long start;
 
-	start = (start + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	start = (lstart + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 
 repeat:
 	head = &inode->i_data.pages;
@@ -151,8 +152,7 @@ repeat:
 
 			lock_page(page);
 
-			if (!inode->i_op->flushpage ||
-			    inode->i_op->flushpage(inode, page, 0))
+			if (!page->buffers || block_flushpage(page, 0))
 				lru_cache_del(page);
 
 			/*
@@ -195,8 +195,8 @@ repeat:
 		lock_page(page);
 
 		memclear_highpage_flush(page, partial, PAGE_CACHE_SIZE-partial);
-		if (inode->i_op->flushpage)
-			inode->i_op->flushpage(inode, page, partial);
+		if (page->buffers)
+			block_flushpage(page, partial);
 
 		partial = 0;
 
@@ -303,7 +303,6 @@ int shrink_mmap(int priority, int gfp_mask)
 
 		/* is it a page-cache page? */
 		if (page->mapping) {
-			dispose = &old;
 			if (!pgcache_under_min())
 			{
 				remove_page_from_inode_queue(page);
@@ -456,10 +455,8 @@ static int do_buffer_fdatasync(struct inode *inode, unsigned long start, unsigne
  * Two-stage data sync: first start the IO, then go back and
  * collect the information..
  */
-int generic_buffer_fdatasync(struct inode *inode, unsigned long start, unsigned long end)
+int generic_buffer_fdatasync(struct inode *inode, unsigned long start_idx, unsigned long end_idx)
 {
-	unsigned long start_idx = start >> PAGE_CACHE_SHIFT;
-	unsigned long end_idx = (end + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	int retval;
 
 	retval = do_buffer_fdatasync(inode, start_idx, end_idx, writeout_one_page);
@@ -497,7 +494,7 @@ void add_to_page_cache(struct page * page, struct address_space * mapping, unsig
 	spin_unlock(&pagecache_lock);
 }
 
-int add_to_page_cache_unique(struct page * page,
+static int add_to_page_cache_unique(struct page * page,
 	struct address_space *mapping, unsigned long offset,
 	struct page **hash)
 {
@@ -538,7 +535,7 @@ static inline int page_cache_read(struct file * file, unsigned long offset)
 		return -ENOMEM;
 
 	if (!add_to_page_cache_unique(page, &inode->i_data, offset, hash)) {
-		int error = inode->i_op->readpage(file, page);
+		int error = inode->i_op->readpage(file->f_dentry, page);
 		page_cache_release(page);
 		return error;
 	}
@@ -1075,7 +1072,7 @@ page_not_up_to_date:
 
 readpage:
 		/* ... and start the actual read. The read will unlock the page. */
-		error = inode->i_op->readpage(filp, page);
+		error = inode->i_op->readpage(filp->f_dentry, page);
 
 		if (!error) {
 			if (Page_Uptodate(page))
@@ -1397,7 +1394,7 @@ page_not_uptodate:
 		goto success;
 	}
 
-	if (!inode->i_op->readpage(file, page)) {
+	if (!inode->i_op->readpage(file->f_dentry, page)) {
 		wait_on_page(page);
 		if (Page_Uptodate(page))
 			goto success;
@@ -1415,7 +1412,7 @@ page_not_uptodate:
 		goto success;
 	}
 	ClearPageError(page);
-	if (!inode->i_op->readpage(file, page)) {
+	if (!inode->i_op->readpage(file->f_dentry, page)) {
 		wait_on_page(page);
 		if (Page_Uptodate(page))
 			goto success;
@@ -1434,33 +1431,30 @@ page_not_uptodate:
  * if the disk is full.
  */
 static inline int do_write_page(struct inode * inode, struct file * file,
-	struct page * page, unsigned long offset)
+	struct page * page, unsigned long index)
 {
 	int retval;
-	unsigned long size;
-	int (*writepage) (struct file *, struct page *);
+	int (*writepage) (struct dentry *, struct page *);
 
-	size = (offset << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE;
 	/* refuse to extend file size.. */
 	if (S_ISREG(inode->i_mode)) {
-		if (size > inode->i_size)
-			size = inode->i_size;
+		unsigned long size_idx = (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+
 		/* Ho humm.. We should have tested for this earlier */
-		if (size < offset)
+		if (size_idx <= index)
 			return -EIO;
 	}
-	retval = -EIO;
 	writepage = inode->i_op->writepage;
 	lock_page(page);
 
-	retval = writepage(file, page);
+	retval = writepage(file->f_dentry, page);
 
 	UnlockPage(page);
 	return retval;
 }
 
 static int filemap_write_page(struct file *file,
-			      unsigned long offset,
+			      unsigned long index,
 			      struct page * page,
 			      int wait)
 {
@@ -1477,7 +1471,7 @@ static int filemap_write_page(struct file *file,
 	 * vma/file is guaranteed to exist in the unmap/sync cases because
 	 * mmap_sem is held.
 	 */
-	result = do_write_page(inode, file, page, offset);
+	result = do_write_page(inode, file, page, index);
 	return result;
 }
 
@@ -1767,6 +1761,70 @@ out:
 	return error;
 }
 
+struct page *read_cache_page(struct address_space *mapping,
+				unsigned long index,
+				int (*filler)(void *,struct page*),
+				void *data)
+{
+	struct page **hash = page_hash(mapping, index);
+	struct page *page, *cached_page = NULL;
+	int err;
+repeat:
+	page = __find_get_page(mapping, index, hash);
+	if (!page) {
+		if (!cached_page) {
+			cached_page = page_cache_alloc();
+			if (!cached_page)
+				return ERR_PTR(-ENOMEM);
+		}
+		page = cached_page;
+		if (add_to_page_cache_unique(page, mapping, index, hash))
+			goto repeat;
+		cached_page = NULL;
+		err = filler(data, page);
+		if (err < 0) {
+			page_cache_release(page);
+			page = ERR_PTR(err);
+		}
+	}
+	if (cached_page)
+		page_cache_free(cached_page);
+	return page;
+}
+
+static inline struct page * __grab_cache_page(struct address_space *mapping,
+				unsigned long index, struct page **cached_page)
+{
+	struct page *page, **hash = page_hash(mapping, index);
+repeat:
+	page = __find_lock_page(mapping, index, hash);
+	if (!page) {
+		if (!*cached_page) {
+			*cached_page = page_cache_alloc();
+			if (!*cached_page)
+				return NULL;
+		}
+		page = *cached_page;
+		if (add_to_page_cache_unique(page, mapping, index, hash))
+			goto repeat;
+		*cached_page = NULL;
+	}
+	return page;
+}
+
+/*
+ * Returns locked page at given index in given cache, creating it if needed.
+ */
+
+struct page *grab_cache_page(struct address_space *mapping, unsigned long index)
+{
+	struct page *cached_page = NULL;
+	struct page *page = __grab_cache_page(mapping,index,&cached_page);
+	if (cached_page)
+		page_cache_free(cached_page);
+	return page;
+}
+
 /*
  * Write to a file through the page cache. This is mainly for the
  * benefit of NFS and possibly other network-based file systems.
@@ -1791,18 +1849,21 @@ generic_file_write(struct file *file, const char *buf,
 	struct dentry	*dentry = file->f_dentry; 
 	struct inode	*inode = dentry->d_inode; 
 	unsigned long	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
-	loff_t		pos = *ppos;
-	struct page	*page, **hash, *cached_page;
+	loff_t		pos;
+	struct page	*page, *cached_page;
 	unsigned long	written;
 	long		status;
 	int		err;
 
-	if (pos < 0)
-		return -EINVAL;
-
 	cached_page = NULL;
 
 	down(&inode->i_sem);
+
+	pos = *ppos;
+	err = -EINVAL;
+	if (pos < 0)
+		goto out;
+
 	err = file->f_error;
 	if (err) {
 		file->f_error = 0;
@@ -1844,23 +1905,10 @@ generic_file_write(struct file *file, const char *buf,
 		if (bytes > count)
 			bytes = count;
 
-		hash = page_hash(&inode->i_data, index);
-repeat_find:
-		page = __find_lock_page(&inode->i_data, index, hash);
-		if (!page) {
-			if (!cached_page) {
-				cached_page = page_cache_alloc();
-				if (cached_page)
-					goto repeat_find;
-				status = -ENOMEM;
-				break;
-			}
-			page = cached_page;
-			if (add_to_page_cache_unique(page, &inode->i_data, index, hash))
-				goto repeat_find;
-
-			cached_page = NULL;
-		}
+		status = -ENOMEM;	/* we'll assign it later anyway */
+		page = __grab_cache_page(&inode->i_data, index, &cached_page);
+		if (!page)
+			break;
 
 		/* We have exclusive IO access to the page.. */
 		if (!PageLocked(page)) {
@@ -1893,24 +1941,6 @@ repeat_find:
 out:
 	up(&inode->i_sem);
 	return err;
-}
-
-/*
- * Support routines for directory caching using the page cache.
- */
-
-/*
- * Unlock and free a page.
- */
-void put_cached_page(unsigned long addr)
-{
-	struct page * page = page_cache_entry(addr);
-
-	UnlockPage(page);
-	if (page_count(page) != 2)
-		panic("put_cached_page: page count=%d\n", 
-			page_count(page));
-	page_cache_release(page);
 }
 
 void __init page_cache_init(unsigned long mempages)

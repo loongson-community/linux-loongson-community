@@ -125,7 +125,6 @@ ramdisk_image:	.long	0		# address of loaded ramdisk image
 
 ramdisk_size:	.long	0		# its size in bytes
 
-.global bootsect_kludge			# so that we can see it in bootsect.S
 bootsect_kludge:
 		.word  bootsect_helper, SETUPSEG
 
@@ -209,7 +208,7 @@ bad_sig:
 	addw	$SYSSEG, %bx
 	movw	%bx, %cs:start_sys_seg
 # Move rest of setup code/data to here
-	movw	$4096, %di			# four sectors loaded by LILO
+	movw	$2048, %di			# four sectors loaded by LILO
 	subw	%si, %si
 	movw	%cs, %ax			# aka SETUPSEG
 	movw	%ax, %es
@@ -456,7 +455,7 @@ no_psmouse:
 	xorw	%bx, %bx
 	int	$0x15				# ignore return code
 	movw	$0x05303, %ax			# 32 bit connect
-	xorw	%ebx, %ebx
+	xorw	%bx, %bx
 	int	$0x15
 	jc	no_32_apm_bios			# Ack, error. 
 
@@ -783,7 +782,7 @@ bootsect_panic_mess:
 
 empty_8042:
 	pushl	%ecx
-	movl	$0xFFFFFF, %ecx
+	movl	$0x00FFFFFF, %ecx
 
 empty_8042_loop:
 	decl	%ecx

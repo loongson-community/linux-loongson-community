@@ -97,10 +97,9 @@ io_error:
 	return result;
 }
 
-int
-smb_readpage(struct file *file, struct page *page)
+static int
+smb_readpage(struct dentry *dentry, struct page *page)
 {
-	struct dentry *dentry = file->f_dentry;
 	int		error;
 
 	pr_debug("SMB: smb_readpage %08lx\n", page_address(page));
@@ -168,9 +167,8 @@ printk("smb_writepage_sync: short write, wsize=%d, result=%d\n", wsize, result);
  * We are called with the page locked and the caller unlocks.
  */
 static int
-smb_writepage(struct file *file, struct page *page)
+smb_writepage(struct dentry *dentry, struct page *page)
 {
-	struct dentry *dentry = file->f_dentry;
 	int 	result;
 
 #ifdef SMBFS_PARANOIA
@@ -403,9 +401,7 @@ struct inode_operations smb_file_inode_operations =
 	NULL,			/* get_block */
 	smb_readpage,		/* readpage */
 	smb_writepage,		/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	smb_file_permission,	/* permission */
-	NULL,			/* smap */
 	smb_revalidate_inode,	/* revalidate */
 };

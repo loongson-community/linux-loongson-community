@@ -118,7 +118,7 @@ static int i2ob_timer_started = 0;
 
 static int i2ob_install_device(struct i2o_controller *, struct i2o_device *, int);
 static void i2ob_end_request(struct request *);
-static void i2ob_request(void);
+static void i2ob_request(request_queue_t * q);
 
 /*
  * Dump messages.
@@ -134,7 +134,6 @@ static void i2ob_dump_msg(struct i2ob_device *dev,u32 *msg,int size)
         }
         printk(KERN_INFO "\n");
 }
-
 
 /*
  *	Get a message
@@ -154,8 +153,8 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 {
 	struct i2o_controller *c = dev->controller;
 	int tid = dev->tid;
-	u32 *msg;
-	u32 *mptr;
+	unsigned long msg;
+	unsigned long mptr;
 	u64 offset;
 	struct request *req = ireq->req;
 	struct buffer_head *bh = req->bh;
@@ -167,22 +166,22 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 	/*
          * Build the message based on the request.
 	 */
-	__raw_writel(i2ob_context|(unit<<8), &msg[2]);
-	__raw_writel(ireq->num, &msg[3]);
-	__raw_writel(req->nr_sectors << 9, &msg[5]);
+	__raw_writel(i2ob_context|(unit<<8), msg+8);
+	__raw_writel(ireq->num, msg+12);
+	__raw_writel(req->nr_sectors << 9, msg+20);
 	
 	/* This can be optimised later - just want to be sure its right for
 	   starters */
 	offset = ((u64)(req->sector+base)) << 9;
-	__raw_writel( offset & 0xFFFFFFFF, &msg[6]);
-	__raw_writel(offset>>32, &msg[7]);
+	__raw_writel( offset & 0xFFFFFFFF, msg+24);
+	__raw_writel(offset>>32, msg+28);
 	mptr=msg+8;
 	
 	if(req->cmd == READ)
 	{
-		__raw_writel(I2O_CMD_BLOCK_READ<<24|HOST_TID<<12|tid, &msg[1]);
+		__raw_writel(I2O_CMD_BLOCK_READ<<24|HOST_TID<<12|tid, msg+4);
 		/* We don't yet do cache/readahead and other magic */
-		__raw_writel(1<<16, &msg[4]);
+		__raw_writel(1<<16, msg+16);
 		while(bh!=NULL)
 		{
 			/*
@@ -191,31 +190,33 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 			 *	sucky to read.
 			 */
 			if(bh->b_reqnext)
-				__raw_writel(0x10000000|(bh->b_size), mptr++);
+				__raw_writel(0x10000000|(bh->b_size), mptr);
 			else
-				__raw_writel(0xD0000000|(bh->b_size), mptr++);
+				__raw_writel(0xD0000000|(bh->b_size), mptr);
 	
-			__raw_writel(virt_to_bus(bh->b_data), mptr++);
+			__raw_writel(virt_to_bus(bh->b_data), mptr+4);
+			mptr+=8;
 			count -= bh->b_size;
 			bh = bh->b_reqnext;
 		}
 	}
 	else if(req->cmd == WRITE)
 	{
-		__raw_writel(I2O_CMD_BLOCK_WRITE<<24|HOST_TID<<12|tid, &msg[1]);
-		__raw_writel(1<<16, &msg[4]);
+		__raw_writel(I2O_CMD_BLOCK_WRITE<<24|HOST_TID<<12|tid, msg+4);
+		__raw_writel(1<<16, msg+16);
 		while(bh!=NULL)
 		{
 			if(bh->b_reqnext)
-				__raw_writel(0x14000000|(bh->b_size), mptr++);
+				__raw_writel(0x14000000|(bh->b_size), mptr);
 			else
-				__raw_writel(0xD4000000|(bh->b_size), mptr++);
+				__raw_writel(0xD4000000|(bh->b_size), mptr);
 			count -= bh->b_size;
-			__raw_writel(virt_to_bus(bh->b_data), mptr++);
+			__raw_writel(virt_to_bus(bh->b_data), mptr+4);
+			mptr+=8;
 			bh = bh->b_reqnext;
 		}
 	}
-	__raw_writel(I2O_MESSAGE_SIZE(mptr-msg) | SGL_OFFSET_8, &msg[0]);
+	__raw_writel(I2O_MESSAGE_SIZE(mptr-msg) | SGL_OFFSET_8, msg);
 	
 	if(req->current_nr_sectors > 8)
 		printk("Gathered sectors %ld.\n", 
@@ -223,8 +224,7 @@ static int i2ob_send(u32 m, struct i2ob_device *dev, struct i2ob_request *ireq, 
 			
 	if(count != 0)
 	{
-		printk("Request count botched by %d.\n", count);
-		msg[5] -= count;
+		printk(KERN_ERR "Request count botched by %d.\n", count);
 	}
 
 	i2o_post_message(c,m);
@@ -316,7 +316,7 @@ static void i2o_block_reply(struct i2o_handler *h, struct i2o_controller *c, str
 	}
 	else
 	{
-		if(m[2]&0x80000000)
+		if(m[2]&0x40000000)
 		{
 			int * ptr = (int *)m[3];
 			if(m[4]>>24)
@@ -399,7 +399,7 @@ static void i2o_block_reply(struct i2o_handler *h, struct i2o_controller *c, str
 	 */
 	 
 	atomic_dec(&queue_depth);
-	i2ob_request();
+	i2ob_request(NULL);
 	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
@@ -437,7 +437,7 @@ static void i2ob_timer_handler(unsigned long dummy)
 	/* 
 	 * Restart any requests.
 	 */
-	i2ob_request();
+	i2ob_request(NULL);
 
 	/* 
 	 * Free the lock.
@@ -453,7 +453,7 @@ static void i2ob_timer_handler(unsigned long dummy)
  *	we use it.
  */
 
-static void i2ob_request(void)
+static void i2ob_request(request_queue_t * q)
 {
 	struct request *req;
 	struct i2ob_request *ireq;
@@ -526,7 +526,6 @@ static void i2ob_request(void)
 		i2ob_send(m, dev, ireq, i2ob[unit].start_sect, (unit&0xF0));
 	}
 }
-
 
 /*
  *	SCSI-CAM for ioctl geometry mapping
@@ -700,7 +699,7 @@ static int i2ob_release(struct inode *inode, struct file *file)
 		int *query_done = &dev->done_flag;
 		msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;
 		msg[1] = I2O_CMD_BLOCK_CFLUSH<<24|HOST_TID<<12|dev->tid;
-		msg[2] = i2ob_context|0x80000000;
+		msg[2] = i2ob_context|0x40000000;
 		msg[3] = (u32)query_done;
 		msg[4] = 60<<16;
 		i2o_post_wait(dev->controller, msg, 20, 2);
@@ -709,7 +708,7 @@ static int i2ob_release(struct inode *inode, struct file *file)
 		 */
 		msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;
 		msg[1] = I2O_CMD_BLOCK_MUNLOCK<<24|HOST_TID<<12|dev->tid;
-		msg[2] = i2ob_context|0x80000000;
+		msg[2] = i2ob_context|0x40000000;
 		msg[3] = (u32)query_done;
 		msg[4] = -1;
 		i2o_post_wait(dev->controller, msg, 20, 2);
@@ -762,7 +761,7 @@ static int i2ob_open(struct inode *inode, struct file *file)
 		 */
 		msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;		
 		msg[1] = I2O_CMD_BLOCK_MMOUNT<<24|HOST_TID<<12|dev->tid;
-		msg[2] = i2ob_context|0x80000000;
+		msg[2] = i2ob_context|0x40000000;
 		msg[3] = (u32)query_done;
 		msg[4] = -1;
 		msg[5] = 0;
@@ -772,7 +771,7 @@ static int i2ob_open(struct inode *inode, struct file *file)
 		 */
 		msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;
 		msg[1] = I2O_CMD_BLOCK_MLOCK<<24|HOST_TID<<12|dev->tid;
-		msg[2] = i2ob_context|0x80000000;
+		msg[2] = i2ob_context|0x40000000;
 		msg[3] = (u32)query_done;
 		msg[4] = -1;
 		i2o_post_wait(dev->controller, msg, 20, 2);
@@ -982,7 +981,7 @@ static int i2ob_reboot_event(struct notifier_block *n, unsigned long code, void 
 			int *query_done = &dev->done_flag;
 			msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;
 			msg[1] = I2O_CMD_BLOCK_CFLUSH<<24|HOST_TID<<12|dev->tid;
-			msg[2] = i2ob_context|0x80000000;
+			msg[2] = i2ob_context|0x40000000;
 			msg[3] = (u32)query_done;
 			msg[4] = 60<<16;
 			i2o_post_wait(dev->controller, msg, 20, 2);
@@ -991,7 +990,7 @@ static int i2ob_reboot_event(struct notifier_block *n, unsigned long code, void 
 			 */
 			msg[0] = FIVE_WORD_MSG_SIZE|SGL_OFFSET_0;
 			msg[1] = I2O_CMD_BLOCK_MUNLOCK<<24|HOST_TID<<12|dev->tid;
-			msg[2] = i2ob_context|0x80000000;
+			msg[2] = i2ob_context|0x40000000;
 			msg[3] = (u32)query_done;
 			msg[4] = -1;
 			i2o_post_wait(dev->controller, msg, 20, 2);
@@ -1086,7 +1085,9 @@ int i2o_block_init(void)
 	blk_size[MAJOR_NR] = i2ob_sizes;
 	max_sectors[MAJOR_NR] = i2ob_max_sectors;
 	
-	blk_dev[MAJOR_NR].request_fn = i2ob_request;
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), i2ob_request);
+	blk_queue_headactive(BLK_DEFAULT_QUEUE(MAJOR_NR), 0);
+
 	for (i = 0; i < MAX_I2OB << 4; i++) {
 		i2ob_dev[i].refcnt = 0;
 		i2ob_dev[i].flags = 0;

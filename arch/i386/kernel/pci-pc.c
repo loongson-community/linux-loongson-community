@@ -1,7 +1,7 @@
 /*
  *	Low-Level PCI Support for PC
  *
- *	(c) 1999 Martin Mares <mj@ucw.cz>
+ *	(c) 1999 Martin Mares <mj@suse.cz>
  */
 
 #include <linux/config.h>
@@ -342,7 +342,7 @@ static unsigned long bios32_service(unsigned long service)
 	unsigned long flags;
 
 	__save_flags(flags); __cli();
-	__asm__("lcall (%%edi)"
+	__asm__("lcall (%%edi); cld"
 		: "=a" (return_code),
 		  "=b" (address),
 		  "=c" (length),
@@ -383,7 +383,7 @@ static int __init check_pcibios(void)
 
 		__save_flags(flags); __cli();
 		__asm__(
-			"lcall (%%edi)\n\t"
+			"lcall (%%edi); cld\n\t"
 			"jc 1f\n\t"
 			"xor %%ah, %%ah\n"
 			"1:"
@@ -404,7 +404,7 @@ static int __init check_pcibios(void)
 		DBG("PCI: BIOS probe returned s=%02x hw=%02x ver=%02x.%02x l=%02x\n",
 			status, hw_mech, major_ver, minor_ver, last_bus);
 		if (status || signature != PCI_SIGNATURE) {
-			printk (KERN_ERR "PCI: BIOS BUG #%x[%08x] found, report to <mj@ucw.cz>\n",
+			printk (KERN_ERR "PCI: BIOS BUG #%x[%08x] found, report to <mj@suse.cz>\n",
 				status, signature);
 			return 0;
 		}
@@ -427,7 +427,7 @@ static int __init pci_bios_find_device (unsigned short vendor, unsigned short de
 	unsigned short bx;
 	unsigned short ret;
 
-	__asm__("lcall (%%edi)\n\t"
+	__asm__("lcall (%%edi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -448,7 +448,7 @@ static int pci_bios_read_config_byte(struct pci_dev *dev, int where, u8 *value)
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -466,7 +466,7 @@ static int pci_bios_read_config_word(struct pci_dev *dev, int where, u16 *value)
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -484,7 +484,7 @@ static int pci_bios_read_config_dword(struct pci_dev *dev, int where, u32 *value
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -502,7 +502,7 @@ static int pci_bios_write_config_byte(struct pci_dev *dev, int where, u8 value)
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -520,7 +520,7 @@ static int pci_bios_write_config_word(struct pci_dev *dev, int where, u16 value)
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -538,7 +538,7 @@ static int pci_bios_write_config_dword(struct pci_dev *dev, int where, u32 value
 	unsigned long ret;
 	unsigned long bx = (dev->bus->number << 8) | dev->devfn;
 
-	__asm__("lcall (%%esi)\n\t"
+	__asm__("lcall (%%esi); cld\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"
 		"1:"
@@ -594,7 +594,7 @@ static struct pci_ops * __init pci_find_bios(void)
 		if (sum != 0)
 			continue;
 		if (check->fields.revision != 0) {
-			printk("PCI: unsupported BIOS32 revision %d at 0x%p, report to <mj@ucw.cz>\n",
+			printk("PCI: unsupported BIOS32 revision %d at 0x%p, report to <mj@suse.cz>\n",
 				check->fields.revision, check);
 			continue;
 		}
@@ -702,7 +702,7 @@ static struct irq_routing_table * __init pcibios_get_irq_routing_table(void)
 	__asm__("push %%es\n\t"
 		"push %%ds\n\t"
 		"pop  %%es\n\t"
-		"lcall (%%esi)\n\t"
+		"lcall (%%esi); cld\n\t"
 		"pop %%es\n\t"
 		"jc 1f\n\t"
 		"xor %%ah, %%ah\n"

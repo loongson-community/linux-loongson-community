@@ -10,6 +10,7 @@
 
 #include <linux/vmalloc.h>
 #include <asm/io.h>
+#include <asm/pgalloc.h>
 
 static inline void remap_area_pte(pte_t * pte, unsigned long address, unsigned long size,
 	unsigned long phys_addr, unsigned long flags)
@@ -118,8 +119,18 @@ void * __ioremap(unsigned long phys_addr, unsigned long size, unsigned long flag
 	/*
 	 * Don't allow anybody to remap normal RAM that we're using..
 	 */
-	if (phys_addr < virt_to_phys(high_memory))
-		return NULL;
+	if (phys_addr < virt_to_phys(high_memory)) {
+		char *t_addr, *t_end;
+		int i;
+
+		t_addr = __va(phys_addr);
+		t_end = t_addr + (size - 1);
+	   
+		for(i = MAP_NR(t_addr); i < MAP_NR(t_end); i++) {
+			if(!PageReserved(mem_map + i))
+				return NULL;
+		}
+	}
 
 	/*
 	 * Mappings have to be page-aligned
@@ -131,7 +142,7 @@ void * __ioremap(unsigned long phys_addr, unsigned long size, unsigned long flag
 	/*
 	 * Ok, go for it..
 	 */
-	area = get_vm_area(size);
+	area = get_vm_area(size, VM_IOREMAP);
 	if (!area)
 		return NULL;
 	addr = area->addr;

@@ -156,7 +156,7 @@ endif
 ifeq ($(CONFIG_ARCH_ACORN),y)
 SUBDIRS		+= drivers/acorn
 DRIVERS		+= drivers/acorn/block/acorn-block.a
-DRIVERS		+= drivers/acorn/char/acorn-char.a
+DRIVERS		+= drivers/acorn/char/acorn-char.o
 DRIVERS		+= drivers/acorn/net/acorn-net.a
 DRIVERS		+= drivers/acorn/scsi/acorn-scsi.a
 endif
@@ -241,5 +241,3 @@ victor_config:
 empeg_config:
 	$(RM) arch/arm/defconfig
 	cp arch/arm/def-configs/empeg arch/arm/defconfig
-
-

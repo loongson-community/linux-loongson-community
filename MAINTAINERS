@@ -110,7 +110,7 @@ S:	Maintained
 
 ADVANSYS SCSI DRIVER
 P:	Bob Frey
-M:	Bob Frey <bobf@advansys.com>
+M:	linux@advansys.com
 W:	http://www.advansys.com/linux.html
 L:	linux-scsi@vger.rutgers.edu
 S:	Maintained
@@ -426,12 +426,6 @@ IBM ServeRAID RAID DRIVER
 P:      Keith Mitchell
 M:      ipslinux@us.ibm.com
 W:      http://www.developer.ibm.com/welcome/netfinity/serveraid_beta.html
-S:      Supported
-
-IBM ServeRAID RAID DRIVER
-P:      Keith Mitchell
-M:      ipslinux@us.ibm.com
-W:      http://www.developer.ibm.com/welcome/netfinity/serveraid_beta.html
 S:      Supported 
 
 IDE DRIVER [GENERAL]
@@ -708,7 +702,7 @@ S:	Maintained
 
 PCI SUBSYSTEM
 P:	Martin Mares
-M:	mj@atrey.karlin.mff.cuni.cz
+M:	mj@suse.cz
 L:	linux-kernel@vger.rutgers.edu
 S:	Maintained
 
@@ -800,6 +794,12 @@ P:	Ingo Molnar
 M:	mingo@redhat.com
 S:	Maintained
 
+SIS 900/7016 FAST ETHERNET DRIVER
+P:	Ollie Lho
+M:	ollie@sis.com.tw
+L:	linux-net@vger.rutgers.edu
+S:	Supported
+
 SMB FILESYSTEM
 P:	Andrew Tridgell
 M:	tridge@samba.org
@@ -883,8 +883,8 @@ M:	kgb@manjak.knm.org.pl
 S:	Maintained
 
 TLAN NETWORK DRIVER
-P:	James Banks
-M:	james@sovereign.org
+P:	Torben Mathiasen
+M:	torben.mathiasen@compaq.com
 L:	tlan@vuser.vu.union.edu
 S:	Maintained
 
@@ -919,8 +919,9 @@ S:	Maintained
 
 UMSDOS FILESYSTEM
 P:	Matija Nalis
-M:	mnalis@jagor.srce.hr
+M:	Matija Nalis <mnalis-umsdos@voyager.hr>
 L:	linux-kernel@vger.rutgers.edu
+W:	http://www.voyager.hr/~mnalis/umsdos/
 S:	Maintained
 
 UNIFORM CDROM DRIVER
@@ -929,6 +930,13 @@ M:	axboe@image.dk
 L:	linux-kernel@vger.rutgers.edu
 W:	http://www.kernel.dk
 S:	Maintained
+
+USB SUBSYSTEM
+P:	Randy Dunlap
+M:	randy.dunlap@intel.com
+L:	linux-usb@suse.com
+W:	http://www.linux-usb.org
+S:	Supported
 
 USB HUB AND UHCI DRIVERS
 P:	Johannes Erdfelt
@@ -999,6 +1007,13 @@ M:	jreuter@poboxes.com
 W:	http://poboxes.com/jreuter/
 W:	http://qsl.net/dl1bke/
 L:	linux-hams@vger.rutgers.edu
+S:	Maintained
+
+ZR36120 VIDEO FOR LINUX DRIVER
+P:	Pauline Middelink
+M:	middelin@polyware.nl
+W:	http://www.polyware.nl/~middelin/En/hobbies.html
+W:	http://www.polyware.nl/~middelin/hobbies.html
 S:	Maintained
 
 THE REST

@@ -204,9 +204,11 @@ void machine_restart(char * __unused)
 {
 #if __SMP__
 	/*
-	 * turn off the IO-APIC, so we can do a clean reboot
+	 * Stop all CPUs and turn off local APICs and the IO-APIC, so
+	 * other OSs see a clean IRQ state.
 	 */
-	init_pic_mode();
+	smp_send_stop();
+	disable_IO_APIC();
 #endif
 
 	if(!reboot_thru_bios) {
@@ -460,7 +462,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	struct pt_regs * childregs;
 
 	childregs = ((struct pt_regs *) (THREAD_SIZE + (unsigned long) p)) - 1;
-	*childregs = *regs;
+	struct_cpy(childregs, regs);
 	childregs->eax = 0;
 	childregs->esp = esp;
 
@@ -473,7 +475,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long esp,
 	savesegment(gs,p->thread.gs);
 
 	unlazy_fpu(current);
-	p->thread.i387 = current->thread.i387;
+	struct_cpy(&p->thread.i387, &current->thread.i387);
 
 	return 0;
 }

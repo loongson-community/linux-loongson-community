@@ -186,11 +186,15 @@
   -- Added setup of write mode for packet writing.
   -- Fixed CDDA ripping with cdda2wav - accept much larger requests of
   number of frames and split the reads in blocks of 8.
+
+  3.05 Dec 13, 1999 - Jens Axboe <axboe@image.dk>
+  -- Added support for changing the region of DVD drives.
+  -- Added sense data to generic command.
   
 -------------------------------------------------------------------------*/
 
-#define REVISION "Revision: 3.05"
-#define VERSION "Id: cdrom.c 3.05 1999/10/24"
+#define REVISION "Revision: 3.06"
+#define VERSION "Id: cdrom.c 3.06 1999/12/13"
 
 /* I use an error-log mask to give fine grain control over the type of
    messages dumped to the system logs.  The available masks include: */
@@ -1072,6 +1076,31 @@ static int dvd_do_auth(struct cdrom_device_info *cdi, dvd_authinfo *ai)
 			return ret;
 		break;
 
+	/* Get region settings */
+	case DVD_LU_SEND_RPC_STATE:
+		cdinfo(CD_DVD, "entering DVD_LU_SEND_RPC_STATE\n");
+		setup_report_key(&cgc, 0, 8);
+
+		if ((ret = cdo->generic_packet(cdi, &cgc)))
+			return ret;
+
+		ai->lrpcs.type = (buf[4] >> 6) & 3;
+		ai->lrpcs.vra = (buf[4] >> 3) & 7;
+		ai->lrpcs.ucca = buf[4] & 7;
+		ai->lrpcs.region_mask = buf[5];
+		ai->lrpcs.rpc_scheme = buf[6];
+		break;
+
+		/* Set region settings */
+	case DVD_HOST_SEND_RPC_STATE:
+		cdinfo(CD_DVD, "entering DVD_HOST_SEND_RPC_STATE\n");
+		setup_send_key(&cgc, 0, 6);
+		buf[4] = ai->hrpcs.pdrc;
+
+		if ((ret = cdo->generic_packet(cdi, &cgc)))
+			return ret;
+		break;
+
 	default:
 		cdinfo(CD_WARNING, "Invalid DVD key ioctl (%d)\n", ai->type);
 		return -ENOTTY;
@@ -1528,6 +1557,9 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 		if (!CDROM_CAN(CDC_LOCK))
 			return -EDRIVE_CANT_DO_THIS;
 		keeplocked = arg ? 1 : 0;
+		/* don't unlock the door on multiple opens */
+		if ((cdi->use_count != 1) && !arg)
+			return -EBUSY;
 		return cdo->lock_door(cdi, arg);
 		}
 
@@ -1861,14 +1893,19 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 	case CDROMPLAYTRKIND: {
 		struct cdrom_ti ti;
 		struct cdrom_tocentry entry;
+		struct cdrom_tochdr tochdr;
 
 		cdinfo(CD_DO_IOCTL, "entering CDROMPLAYTRKIND\n");
 		IOCTL_IN(arg, struct cdrom_ti, ti);
 		entry.cdte_format = CDROM_MSF;
 
 		/* get toc entry for start and end track */
-		entry.cdte_track = ti.cdti_trk0;
-		if (cdi->ops->audio_ioctl(cdi, CDROMREADTOCENTRY, &entry))
+		if (cdo->audio_ioctl(cdi, CDROMREADTOCHDR, &tochdr))
+			return -EINVAL;
+		entry.cdte_track = ti.cdti_trk1 + 1;
+		if (entry.cdte_track > tochdr.cdth_trk1)
+			return -EINVAL;
+		if (cdo->audio_ioctl(cdi, CDROMREADTOCENTRY, &entry))
 			return -EINVAL;
 
 		cgc.cmd[3] = entry.cdte_addr.msf.minute;
@@ -1876,7 +1913,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		cgc.cmd[5] = entry.cdte_addr.msf.frame;
 
 		entry.cdte_track = ti.cdti_trk1;
-		if (cdi->ops->audio_ioctl(cdi, CDROMREADTOCENTRY, &entry))
+		if (cdo->audio_ioctl(cdi, CDROMREADTOCENTRY, &entry))
 			return -EINVAL;
 
 		cgc.cmd[6] = entry.cdte_addr.msf.minute;
@@ -2020,6 +2057,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 
 	case CDROM_SEND_PACKET: {
 		__u8 *userbuf, copy = 0;
+		struct request_sense *sense;
 		if (!CDROM_CAN(CDC_GENERIC_PACKET))
 			return -ENOSYS;
 		cdinfo(CD_DO_IOCTL, "entering CDROM_SEND_PACKET\n"); 
@@ -2027,6 +2065,7 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		copy = !!cgc.buflen;
 		userbuf = cgc.buffer;
 		cgc.buffer = NULL;
+		sense = cgc.sense;
 		if (userbuf != NULL && copy) {
 			/* usually commands just copy data one way, i.e.
 			 * we send a buffer to the drive and the command
@@ -2057,6 +2096,10 @@ static int mmc_ioctl(struct cdrom_device_info *cdi, unsigned int cmd,
 		ret = cdo->generic_packet(cdi, &cgc);
 		if (copy && !ret)
 			__copy_to_user(userbuf, cgc.buffer, cgc.buflen);
+		/* copy back sense data */
+		if (ret && sense != NULL)
+			if (copy_to_user(sense, cgc.sense, sizeof(struct request_sense)))
+				ret = -EFAULT;
 		kfree(cgc.buffer);
 		return ret;
 		}

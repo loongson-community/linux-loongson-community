@@ -1852,14 +1852,10 @@ int init_module(void)
 void __init packet_proto_init(struct net_proto *pro)
 #endif
 {
-#ifdef CONFIG_PROC_FS
-	struct proc_dir_entry *ent;
-#endif
 	sock_register(&packet_family_ops);
 	register_netdevice_notifier(&packet_netdev_notifier);
 #ifdef CONFIG_PROC_FS
-	ent = create_proc_entry("net/packet", 0, 0);
-	ent->read_proc = packet_read_proc;
+	create_proc_read_entry("net/packet", 0, 0, packet_read_proc, NULL);
 #endif
 #ifdef MODULE
 	return 0;

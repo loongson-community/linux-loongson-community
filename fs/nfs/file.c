@@ -74,10 +74,8 @@ struct inode_operations nfs_file_inode_operations = {
 	NULL,			/* get_block */
 	nfs_readpage,		/* readpage */
 	nfs_writepage,		/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
-	NULL,			/* smap */
 	nfs_revalidate,		/* revalidate */
 };
 
@@ -171,7 +169,8 @@ static int nfs_write_one_page(struct file *file, struct page *page, unsigned lon
 {
 	long status;
 
-	bytes -= copy_from_user((u8*)page_address(page) + offset, buf, bytes);
+	bytes -= copy_from_user((u8*)kmap(page) + offset, buf, bytes);
+	kunmap(page);
 	status = -EFAULT;
 	if (bytes) {
 		lock_kernel();

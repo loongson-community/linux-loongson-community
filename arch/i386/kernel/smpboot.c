@@ -44,6 +44,7 @@
 #include <linux/delay.h>
 #include <linux/mc146818rtc.h>
 #include <asm/mtrr.h>
+#include <asm/pgalloc.h>
 
 /* Set if we find a B stepping CPU			*/
 static int smp_b_stepping = 0;
@@ -649,10 +650,11 @@ void __init smp_alloc_memory(void)
 
 void __init smp_store_cpu_info(int id)
 {
-	struct cpuinfo_x86 *c=&cpu_data[id];
+	struct cpuinfo_x86 *c = cpu_data + id;
 
 	*c = boot_cpu_data;
 	c->pte_quick = 0;
+	c->pmd_quick = 0;
 	c->pgd_quick = 0;
 	c->pgtable_cache_sz = 0;
 	identify_cpu(c);
@@ -706,7 +708,35 @@ int get_maxlvt(void)
 	return maxlvt;
 }
 
-void __init setup_local_APIC(void)
+void disable_local_APIC (void)
+{
+	unsigned long value;
+        int maxlvt;
+
+	/*
+	 * Disable APIC
+	 */
+ 	value = apic_read(APIC_SPIV);
+ 	value &= ~(1<<8);
+ 	apic_write(APIC_SPIV,value);
+
+	/*
+	 * Clean APIC state for other OSs:
+	 */
+ 	value = apic_read(APIC_SPIV);
+ 	value &= ~(1<<8);
+ 	apic_write(APIC_SPIV,value);
+	maxlvt = get_maxlvt();
+	apic_write_around(APIC_LVTT, 0x00010000);
+	apic_write_around(APIC_LVT0, 0x00010000);
+	apic_write_around(APIC_LVT1, 0x00010000);
+	if (maxlvt >= 3)
+		apic_write_around(APIC_LVTERR, 0x00010000);
+	if (maxlvt >= 4)
+		apic_write_around(APIC_LVTPC, 0x00010000);
+}
+
+void __init setup_local_APIC (void)
 {
 	unsigned long value, ver, maxlvt;
 
@@ -714,11 +744,24 @@ void __init setup_local_APIC(void)
 		__error_in_io_apic_c();
 
  	value = apic_read(APIC_SPIV);
-	value = 0xf;
 	/*
 	 * Enable APIC
 	 */
  	value |= (1<<8);
+
+	/*
+	 * Some unknown Intel IO/APIC (or APIC) errata is biting us with
+	 * certain networking cards. If high frequency interrupts are
+	 * happening on a particular IOAPIC pin, plus the IOAPIC routing
+	 * entry is masked/unmasked at a high rate as well then sooner or
+	 * later IOAPIC line gets 'stuck', no more interrupts are received
+	 * from the device. If focus CPU is disabled then the hang goes
+	 * away, oh well :-(
+	 *
+	 * [ This bug can be reproduced easily with a level-triggered
+	 *   PCI Ne2000 networking cards and PII/PIII processors, dual
+	 *   BX chipset. ]
+	 */
 #if 0
 	/* Enable focus processor (bit==0) */
  	value &= ~(1<<9);
@@ -821,8 +864,7 @@ void __init init_smp_mappings(void)
 		 * could use the real zero-page, but it's safer
 		 * this way if some buggy code writes to this page ...
 		 */
-		apic_phys = (unsigned long)alloc_bootmem_pages(PAGE_SIZE);
-		memset((void *)apic_phys, 0, PAGE_SIZE);
+		apic_phys = (unsigned long) alloc_bootmem_pages(PAGE_SIZE);
 		apic_phys = __pa(apic_phys);
 	}
 	set_fixmap(FIX_APIC_BASE, apic_phys);
@@ -837,8 +879,7 @@ void __init init_smp_mappings(void)
 			if (smp_found_config) {
 				ioapic_phys = mp_ioapics[i].mpc_apicaddr;
 			} else {
-				ioapic_phys = (unsigned long)alloc_bootmem_pages(PAGE_SIZE);
-				memset((void *)ioapic_phys, 0, PAGE_SIZE);
+				ioapic_phys = (unsigned long) alloc_bootmem_pages(PAGE_SIZE);
 				ioapic_phys = __pa(ioapic_phys);
 			}
 			set_fixmap(idx,ioapic_phys);

@@ -15,6 +15,7 @@
 #include <linux/inetdevice.h>
 #include <linux/fddidevice.h>
 #include <linux/trdevice.h>
+#include <linux/fcdevice.h>
 #include <linux/ioport.h>
 #include <net/neighbour.h>
 #include <net/snmp.h>
@@ -66,6 +67,8 @@ extern int udp_port_rover;
 #endif
 
 #endif
+
+extern int netdev_finish_unregister(struct net_device *dev);
 
 #include <linux/rtnetlink.h>
 
@@ -222,6 +225,7 @@ EXPORT_SYMBOL(br_avl_find_addr);
 
 #ifdef CONFIG_INET
 /* Internet layer registration */
+EXPORT_SYMBOL(inetdev_lock);
 EXPORT_SYMBOL(inet_add_protocol);
 EXPORT_SYMBOL(inet_del_protocol);
 EXPORT_SYMBOL(ip_route_output);
@@ -444,7 +448,12 @@ EXPORT_SYMBOL(tr_type_trans);
 EXPORT_SYMBOL(register_trdev);
 EXPORT_SYMBOL(unregister_trdev);
 EXPORT_SYMBOL(init_trdev);
-EXPORT_SYMBOL(tr_freedev);
+#endif
+
+#ifdef CONFIG_NET_FC
+EXPORT_SYMBOL(register_fcdev);
+EXPORT_SYMBOL(unregister_fcdev);
+EXPORT_SYMBOL(init_fcdev);
 #endif
 
 /* Device callback registration */
@@ -515,8 +524,10 @@ EXPORT_SYMBOL(init_hippi_dev);
 EXPORT_SYMBOL(unregister_hipdev);
 #endif
 
+#ifdef CONFIG_SYSCTL
 EXPORT_SYMBOL(sysctl_wmem_max);
 EXPORT_SYMBOL(sysctl_rmem_max);
+#endif
 
 #if defined(CONFIG_ATALK) || defined(CONFIG_ATALK_MODULE) 
 #include<linux/if_ltalk.h>

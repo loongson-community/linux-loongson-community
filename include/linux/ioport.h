@@ -83,7 +83,9 @@ extern int release_resource(struct resource *new);
 extern int allocate_resource(struct resource *root, struct resource *new,
 			     unsigned long size,
 			     unsigned long min, unsigned long max,
-			     unsigned long align);
+			     unsigned long align,
+			     void (*alignf)(void *, struct resource *, unsigned long),
+			     void *alignf_data);
 
 /* Convenience shorthand with allocation */
 #define request_region(start,n,name)	__request_region(&ioport_resource, (start), (n), (name))

@@ -1169,7 +1169,7 @@ static int output_byte(char byte)
 /* gets the response from the fdc */
 static int result(void)
 {
-	int i, status;
+	int i, status=0;
 
 	for(i=0; i < MAX_REPLIES; i++) {
 		if ((status = wait_til_ready()) < 0)
@@ -2932,7 +2932,7 @@ static void process_fd_request(void)
 	schedule_bh( (void *)(void *) redo_fd_request);
 }
 
-static void do_fd_request(void)
+static void do_fd_request(request_queue_t * q)
 {
 	if(usage_count == 0) {
 		printk("warning: usage count=0, CURRENT=%p exiting\n", CURRENT);
@@ -4132,7 +4132,7 @@ int __init floppy_init(void)
 
 	blk_size[MAJOR_NR] = floppy_sizes;
 	blksize_size[MAJOR_NR] = floppy_blocksizes;
-	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	reschedule_timeout(MAXTIMEOUT, "floppy init", MAXTIMEOUT);
 	config_types();
 
@@ -4161,7 +4161,7 @@ int __init floppy_init(void)
 	fdc = 0; /* reset fdc in case of unexpected interrupt */
 	if (floppy_grab_irq_and_dma()){
 		del_timer(&fd_timeout);
-		blk_dev[MAJOR_NR].request_fn = NULL;
+		blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 		unregister_blkdev(MAJOR_NR,"fd");
 		del_timer(&fd_timeout);
 		return -EBUSY;
@@ -4227,7 +4227,7 @@ int __init floppy_init(void)
 		schedule();
  		if (usage_count)
  			floppy_release_irq_and_dma();
- 		blk_dev[MAJOR_NR].request_fn = NULL;
+		blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 		unregister_blkdev(MAJOR_NR,"fd");		
 	}
 	return have_no_fdc;
@@ -4450,7 +4450,7 @@ void cleanup_module(void)
 		
 	unregister_blkdev(MAJOR_NR, "fd");
 
-	blk_dev[MAJOR_NR].request_fn = 0;
+	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
 	/* eject disk, if any */
 	dummy = fd_eject(0);
 }

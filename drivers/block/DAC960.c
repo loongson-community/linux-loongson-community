@@ -1026,7 +1026,7 @@ static boolean DAC960_ReportDeviceConfiguration(DAC960_Controller_T *Controller)
 
 static boolean DAC960_RegisterBlockDevice(DAC960_Controller_T *Controller)
 {
-  static void (*RequestFunctions[DAC960_MaxControllers])(void) =
+  static void (*RequestFunctions[DAC960_MaxControllers])(request_queue_t *) =
     { DAC960_RequestFunction0, DAC960_RequestFunction1,
       DAC960_RequestFunction2, DAC960_RequestFunction3,
       DAC960_RequestFunction4, DAC960_RequestFunction5,
@@ -1046,8 +1046,8 @@ static boolean DAC960_RegisterBlockDevice(DAC960_Controller_T *Controller)
   /*
     Initialize the I/O Request Function.
   */
-  blk_dev[MajorNumber].request_fn =
-    RequestFunctions[Controller->ControllerNumber];
+  blk_init_queue(BLK_DEFAULT_QUEUE(MajorNumber), 
+		 RequestFunctions[Controller->ControllerNumber]);
   /*
     Initialize the Disk Partitions array, Partition Sizes array, Block Sizes
     array, Max Sectors per Request array, and Max Segments per Request array.
@@ -1113,7 +1113,7 @@ static void DAC960_UnregisterBlockDevice(DAC960_Controller_T *Controller)
   /*
     Remove the I/O Request Function.
   */
-  blk_dev[MajorNumber].request_fn = NULL;
+  blk_cleanup_queue(BLK_DEFAULT_QUEUE(MajorNumber));
   /*
     Remove the Disk Partitions array, Partition Sizes array, Block Sizes
     array, Max Sectors per Request array, and Max Segments per Request array.
@@ -1272,7 +1272,7 @@ static boolean DAC960_ProcessRequest(DAC960_Controller_T *Controller,
 				     boolean WaitForCommand)
 {
   IO_Request_T **RequestQueuePointer =
-    &blk_dev[DAC960_MAJOR + Controller->ControllerNumber].current_request;
+    &blk_dev[DAC960_MAJOR + Controller->ControllerNumber].request_queue.current_request;
   IO_Request_T *Request;
   DAC960_Command_T *Command;
   char *RequestBuffer;
@@ -1375,7 +1375,7 @@ static inline void DAC960_ProcessRequests(DAC960_Controller_T *Controller)
   DAC960_RequestFunction0 is the I/O Request Function for DAC960 Controller 0.
 */
 
-static void DAC960_RequestFunction0(void)
+static void DAC960_RequestFunction0(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[0];
   ProcessorFlags_T ProcessorFlags;
@@ -1398,7 +1398,7 @@ static void DAC960_RequestFunction0(void)
   DAC960_RequestFunction1 is the I/O Request Function for DAC960 Controller 1.
 */
 
-static void DAC960_RequestFunction1(void)
+static void DAC960_RequestFunction1(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[1];
   ProcessorFlags_T ProcessorFlags;
@@ -1421,7 +1421,7 @@ static void DAC960_RequestFunction1(void)
   DAC960_RequestFunction2 is the I/O Request Function for DAC960 Controller 2.
 */
 
-static void DAC960_RequestFunction2(void)
+static void DAC960_RequestFunction2(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[2];
   ProcessorFlags_T ProcessorFlags;
@@ -1444,7 +1444,7 @@ static void DAC960_RequestFunction2(void)
   DAC960_RequestFunction3 is the I/O Request Function for DAC960 Controller 3.
 */
 
-static void DAC960_RequestFunction3(void)
+static void DAC960_RequestFunction3(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[3];
   ProcessorFlags_T ProcessorFlags;
@@ -1467,7 +1467,7 @@ static void DAC960_RequestFunction3(void)
   DAC960_RequestFunction4 is the I/O Request Function for DAC960 Controller 4.
 */
 
-static void DAC960_RequestFunction4(void)
+static void DAC960_RequestFunction4(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[4];
   ProcessorFlags_T ProcessorFlags;
@@ -1490,7 +1490,7 @@ static void DAC960_RequestFunction4(void)
   DAC960_RequestFunction5 is the I/O Request Function for DAC960 Controller 5.
 */
 
-static void DAC960_RequestFunction5(void)
+static void DAC960_RequestFunction5(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[5];
   ProcessorFlags_T ProcessorFlags;
@@ -1513,7 +1513,7 @@ static void DAC960_RequestFunction5(void)
   DAC960_RequestFunction6 is the I/O Request Function for DAC960 Controller 6.
 */
 
-static void DAC960_RequestFunction6(void)
+static void DAC960_RequestFunction6(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[6];
   ProcessorFlags_T ProcessorFlags;
@@ -1536,7 +1536,7 @@ static void DAC960_RequestFunction6(void)
   DAC960_RequestFunction7 is the I/O Request Function for DAC960 Controller 7.
 */
 
-static void DAC960_RequestFunction7(void)
+static void DAC960_RequestFunction7(request_queue_t * q)
 {
   DAC960_Controller_T *Controller = DAC960_Controllers[7];
   ProcessorFlags_T ProcessorFlags;
@@ -3474,7 +3474,7 @@ static void DAC960_CreateProcEntries(void)
 {
   static PROC_DirectoryEntry_T *StatusProcEntry;
   int ControllerNumber;
-  DAC960_ProcDirectoryEntry = create_proc_entry("driver/rd", S_IFDIR, NULL);
+  DAC960_ProcDirectoryEntry = proc_mkdir("driver/rd", NULL);
   StatusProcEntry = create_proc_read_entry("status", 0,
 					   DAC960_ProcDirectoryEntry,
 					   DAC960_ProcReadStatus, NULL);
@@ -3483,36 +3483,20 @@ static void DAC960_CreateProcEntries(void)
        ControllerNumber++)
     {
       DAC960_Controller_T *Controller = DAC960_Controllers[ControllerNumber];
-      PROC_DirectoryEntry_T *ControllerProcEntry, *InitialStatusProcEntry;
-      PROC_DirectoryEntry_T *CurrentStatusProcEntry, *UserCommandProcEntry;
+      PROC_DirectoryEntry_T *ControllerProcEntry;
+      PROC_DirectoryEntry_T *UserCommandProcEntry;
       if (Controller == NULL) continue;
-      ControllerProcEntry = &Controller->ControllerProcEntry;
-      ControllerProcEntry->name = Controller->ControllerName;
-      ControllerProcEntry->namelen = strlen(ControllerProcEntry->name);
-      ControllerProcEntry->mode = S_IFDIR | S_IRUGO | S_IXUGO;
-      proc_register(DAC960_ProcDirectoryEntry, ControllerProcEntry);
-      InitialStatusProcEntry = &Controller->InitialStatusProcEntry;
-      InitialStatusProcEntry->name = "initial_status";
-      InitialStatusProcEntry->namelen = strlen(InitialStatusProcEntry->name);
-      InitialStatusProcEntry->mode = S_IFREG | S_IRUGO;
-      InitialStatusProcEntry->data = Controller;
-      InitialStatusProcEntry->read_proc = DAC960_ProcReadInitialStatus;
-      proc_register(ControllerProcEntry, InitialStatusProcEntry);
-      CurrentStatusProcEntry = &Controller->CurrentStatusProcEntry;
-      CurrentStatusProcEntry->name = "current_status";
-      CurrentStatusProcEntry->namelen = strlen(CurrentStatusProcEntry->name);
-      CurrentStatusProcEntry->mode = S_IFREG | S_IRUGO;
-      CurrentStatusProcEntry->data = Controller;
-      CurrentStatusProcEntry->read_proc = DAC960_ProcReadCurrentStatus;
-      proc_register(ControllerProcEntry, CurrentStatusProcEntry);
-      UserCommandProcEntry = &Controller->UserCommandProcEntry;
-      UserCommandProcEntry->name = "user_command";
-      UserCommandProcEntry->namelen = strlen(UserCommandProcEntry->name);
-      UserCommandProcEntry->mode = S_IFREG | S_IWUSR | S_IRUSR;
-      UserCommandProcEntry->data = Controller;
-      UserCommandProcEntry->read_proc = DAC960_ProcReadUserCommand;
+      ControllerProcEntry = proc_mkdir(Controller->ControllerName,
+					DAC960_ProcDirectoryEntry);
+      create_proc_read_entry("initial_status",0,ControllerProcEntry,
+			     DAC960_ProcReadInitialStatus, Controller);
+      create_proc_read_entry("current_status",0,ControllerProcEntry,
+			     DAC960_ProcReadCurrentStatus, Controller);
+      UserCommandProcEntry =
+		create_proc_read_entry("user_command", S_IWUSR|S_IRUSR,
+					ControllerProcEntry,
+					DAC960_ProcReadUserCommand, Controller);
       UserCommandProcEntry->write_proc = DAC960_ProcWriteUserCommand;
-      proc_register(ControllerProcEntry, UserCommandProcEntry);
     }
 }
 
@@ -3524,6 +3508,7 @@ static void DAC960_CreateProcEntries(void)
 
 static void DAC960_DestroyProcEntries(void)
 {
+  /* FIXME */
   remove_proc_entry("driver/rd", NULL);
 }
 

@@ -49,6 +49,10 @@
  *      the previous version of this driver.  Coded added by Anthony Barbachan 
  *      from bugfix tip originally suggested by Alan Cox.
  *
+ *  November 1999 -- Make kernel-parameter implementation work with 2.3.x 
+ *	             Removed init_module & cleanup_module in favor of 
+ *	             module_init & module_exit.
+ *	             Torben Mathiasen <tmm@image.dk>
  */
 
 #define SJCD_VERSION_MAJOR 1
@@ -163,11 +167,20 @@ static int sjcd_cleanup(void);
  * Set up device, i.e., use command line data to set
  * base address.
  */
-void __init sjcd_setup( char *str, int *ints )
+#ifndef MODULE
+static int __init sjcd_setup( char *str)
 {
+   int ints[2];
+   (void)get_options(str, ARRAY_SIZE(ints), ints);
    if (ints[0] > 0)
       sjcd_base = ints[1];
+
+   return 1;
 }
+
+__setup("sjcd=", sjcd_setup);
+
+#endif
 
 /*
  * Special converters.
@@ -1272,7 +1285,7 @@ static void sjcd_poll( void ){
   SJCD_SET_TIMER( sjcd_poll, 1 );
 }
 
-static void do_sjcd_request( void ){
+static void do_sjcd_request( request_queue_t * q ){
 #if defined( SJCD_TRACE )
   printk( "SJCD: do_sjcd_request(%ld+%ld)\n",
 	 CURRENT->sector, CURRENT->nr_sectors );
@@ -1475,7 +1488,7 @@ int __init sjcd_init( void ){
     return( -EIO );
   }
   
-  blk_dev[ MAJOR_NR ].request_fn = DEVICE_REQUEST;
+  blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
   read_ahead[ MAJOR_NR ] = 4;
   
   if( check_region( sjcd_base, 4 ) ){
@@ -1577,18 +1590,18 @@ sjcd_cleanup(void)
   return(0);
 }
 
-#ifdef MODULE
 
-int init_module(void)
-{
-  return sjcd_init();
-}
-
-void cleanup_module(void)
+void __exit sjcd_exit(void)
 {
   if ( sjcd_cleanup() )
     printk( "SJCD: module: cannot be removed.\n" );
   else
     printk(KERN_INFO "SJCD: module: removed.\n");
 }
+
+#ifdef MODULE
+module_init(sjcd_init);
 #endif
+module_exit(sjcd_exit);
+
+

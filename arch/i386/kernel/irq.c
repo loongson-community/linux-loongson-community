@@ -37,7 +37,7 @@
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/bitops.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/delay.h>
 #include <asm/desc.h>
 #include <asm/irq.h>
@@ -204,13 +204,8 @@ atomic_t global_bh_lock;
  */
 static inline void check_smp_invalidate(int cpu)
 {
-	if (test_bit(cpu, &smp_invalidate_needed)) {
-		struct mm_struct *mm = current->mm;
-		clear_bit(cpu, &smp_invalidate_needed);
-		if (mm)
-			atomic_set_mask(1 << cpu, &mm->cpu_vm_mask);
-		local_flush_tlb();
-	}
+	if (test_bit(cpu, &smp_invalidate_needed))
+		do_flush_tlb_local();
 }
 
 static void show(char * str)
@@ -263,7 +258,7 @@ static inline void wait_on_bh(void)
  * i thought that such things are guaranteed by design, since we use
  * the 'LOCK' prefix.
  */
-#define SUSPECTED_CPU_OR_CHIPSET_BUG_WORKAROUND 1
+#define SUSPECTED_CPU_OR_CHIPSET_BUG_WORKAROUND 0
 
 #if SUSPECTED_CPU_OR_CHIPSET_BUG_WORKAROUND
 # define SYNC_OTHER_CORES(x) udelay(x+1)

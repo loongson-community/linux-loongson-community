@@ -18,7 +18,6 @@
  * 	(jj@sunsite.ms.mff.cuni.cz)
  */
 
-#include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/sched.h>
 
@@ -177,9 +176,7 @@ struct inode_operations ext2_file_inode_operations = {
 	ext2_get_block,		/* get_block */
 	block_read_full_page,	/* readpage */
 	block_write_full_page,	/* writepage */
-	block_flushpage,	/* flushpage */
 	ext2_truncate,		/* truncate */
 	ext2_permission,	/* permission */
-	NULL,			/* smap */
 	NULL,			/* revalidate */
 };

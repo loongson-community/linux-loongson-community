@@ -31,6 +31,13 @@
 	You should have received a copy of the GNU General Public License
 	along with this program; if not, write to the Free Software
 	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+	
+	--------------------------------------------------------------------
+	
+	9 November 1999 -- Make kernel-parameter implementation work with 2.3.x 
+	                   Removed init_module & cleanup_module in favor of 
+		   	   module_init & module_exit.
+			   Torben Mathiasen <tmm@image.dk>
 
 */
 
@@ -86,7 +93,8 @@ static void gscd_bin2bcd          (unsigned char *p);
 
 /* Schnittstellen zum Kern/FS */
 
-static void do_gscd_request       (void);
+static void do_gscd_request       (request_queue_t *);
+static void __do_gscd_request     (void);
 static int  gscd_ioctl            (struct inode *, struct file *, unsigned int, unsigned long);
 static int  gscd_open             (struct inode *, struct file *);
 static int  gscd_release          (struct inode *, struct file *);
@@ -194,14 +202,24 @@ static int check_gscd_med_chg (kdev_t full_dev)
 }
 
 
-void __init gscd_setup (char *str, int *ints)
+#ifndef MODULE
+/* Using new interface for kernel-parameters */
+  
+static int __init gscd_setup (char *str)
 {
+  int ints[2];
+  (void)get_options(str, ARRAY_SIZE(ints), ints);
+  
   if (ints[0] > 0) 
   {
      gscd_port = ints[1];
   }
+ return 1;
 }
 
+__setup("gscd=", gscd_setup);
+
+#endif
 
 static int gscd_ioctl (struct inode *ip, struct file *fp, unsigned int cmd, unsigned long arg)
 {
@@ -260,7 +278,12 @@ long offs;
  * I/O request routine called from Linux kernel.
  */
 
-static void do_gscd_request (void)
+static void do_gscd_request (request_queue_t * q)
+{
+  __do_gscd_request();
+}
+
+static void __do_gscd_request (void)
 {
 unsigned int block,dev;
 unsigned int nsect;
@@ -355,7 +378,7 @@ char   cmd[] = { CMD_READ, 0x80, 0,0,0, 0,1 }; /* cmd mode M-S-F secth sectl */
               end_request(1);
 	   }
 	}
-	SET_TIMER(do_gscd_request, 1);
+	SET_TIMER(__do_gscd_request, 1);
 }
 
 
@@ -957,9 +980,8 @@ unsigned int AX;
 }
 #endif
 
-#ifdef MODULE
 /* Init for the Module-Version */
-int init_module (void)
+int init_gscd(void)
 {
 long err;
 
@@ -978,7 +1000,7 @@ long err;
      }    
 }
 
-void cleanup_module (void)
+void __exit exit_gscd(void)
 {
 
    if ((unregister_blkdev(MAJOR_NR, "gscd" ) == -EINVAL))
@@ -990,7 +1012,11 @@ void cleanup_module (void)
    release_region (gscd_port,4);
    printk(KERN_INFO "GoldStar-module released.\n" );
 }
-#endif
+
+#ifdef MODULE
+module_init(init_gscd);
+#endif 
+module_exit(exit_gscd);
 
 
 /* Test for presence of drive and initialize it.  Called only at boot time. */
@@ -1060,7 +1086,7 @@ int result;
 		return -EIO;
 	}
 
-	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
 	blksize_size[MAJOR_NR] = gscd_blocksizes;
 	read_ahead[MAJOR_NR] = 4;
         

@@ -39,6 +39,7 @@
 #include <asm/gemini.h>
 
 #include "time.h"
+#include "open_pic.h"
 int smp_threads_ready = 0;
 volatile int smp_commenced = 0;
 int smp_num_cpus = 1;
@@ -160,14 +161,15 @@ void smp_message_recv(void)
 void smp_send_reschedule(int cpu)
 {
 	/*
+	 * This is only used if `cpu' is running an idle task,
+	 * so it will reschedule itself anyway...
+	 *
 	 * This isn't the case anymore since the other CPU could be
 	 * sleeping and won't reschedule until the next interrupt (such
 	 * as the timer).
 	 *  -- Cort
 	 */
-	/* This is only used if `cpu' is running an idle task,
-	   so it will reschedule itself anyway... */
-	/*smp_message_pass(cpu, MSG_RESCHEDULE, 0, 0);*/
+	smp_message_pass(cpu, MSG_RESCHEDULE, 0, 0);
 }
 
 void smp_send_stop(void)

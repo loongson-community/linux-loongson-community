@@ -27,7 +27,7 @@
 #include <asm/core_cia.h>
 
 #include "proto.h"
-#include "irq_impl.h"
+#include <asm/hw_irq.h>
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
@@ -176,15 +176,13 @@ alcor_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 }
 
 static void
-alcor_kill_arch(int mode, char *reboot_cmd)
+alcor_kill_arch(int mode)
 {
 	/* Who said DEC engineer's have no sense of humor? ;-)  */
 	if (alpha_using_srm) {
 		*(vuip) GRU_RESET = 0x0000dead;
 		mb();
 	}
-
-	common_kill_arch(mode, reboot_cmd);
 }
 
 

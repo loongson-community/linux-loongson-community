@@ -47,6 +47,7 @@ void pcibios_report_device_errors(void)
  * - (0x48) enable all memory requests from ISA to be channeled to PCI
  * - (0x42) disable ping-pong (as per errata)
  * - (0x40) enable PCI packet retry
+ * - (0x44) Route INTA to IRQ11
  * - (0x83) don't use CPU park enable, park on last master, disable GAT bit
  * - (0x80) default rotating priorities
  * - (0x81) rotate bank 4
@@ -62,6 +63,7 @@ static void __init pci_fixup_83c553(struct pci_dev *dev)
 	pci_write_config_byte(dev, 0x48, 0xff);
 	pci_write_config_byte(dev, 0x42, 0x00);
 	pci_write_config_byte(dev, 0x40, 0x22);
+	pci_write_config_word(dev, 0x44, 0xb000);
 	pci_write_config_byte(dev, 0x83, 0x02);
 	pci_write_config_byte(dev, 0x80, 0xe0);
 	pci_write_config_byte(dev, 0x81, 0x01);
@@ -203,6 +205,15 @@ void __init pcibios_fixup_bus(struct pci_bus *bus)
 	}
 }
 
+void __init
+pcibios_fixup_pbus_ranges(struct pci_bus *bus, struct pbus_set_ranges_data *ranges)
+{
+	ranges->io_start -= bus->resource[0]->start;
+	ranges->io_end -= bus->resource[0]->start;
+	ranges->mem_start -= bus->resource[1]->start;
+	ranges->mem_end -= bus->resource[1]->start;
+}
+
 static u8 __init no_swizzle(struct pci_dev *dev, u8 *pin)
 {
 	return 0;
@@ -218,6 +229,14 @@ static u8 __init ebsa285_swizzle(struct pci_dev *dev, u8 *pin)
 
 static int __init ebsa285_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
+	if (dev->vendor == PCI_VENDOR_ID_CONTAQ &&
+	    dev->device == PCI_DEVICE_ID_CONTAQ_82C693)
+		switch (PCI_FUNC(dev->devfn)) {
+			case 1:	return 14;
+			case 2:	return 15;
+			case 3:	return 12;
+		}
+
 	return irqmap_ebsa285[(slot + pin) & 3];
 }
 
@@ -261,6 +280,8 @@ static int __init netwinder_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 #define DEV(v,d) ((v)<<16|(d))
 	switch (DEV(dev->vendor, dev->device)) {
 	case DEV(PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_21142):
+	case DEV(PCI_VENDOR_ID_NCR, PCI_DEVICE_ID_NCR_53C885):
+	case DEV(PCI_VENDOR_ID_NCR, PCI_DEVICE_ID_NCR_YELLOWFIN):
 		return IRQ_NETWINDER_ETHER100;
 
 	case DEV(PCI_VENDOR_ID_WINBOND2, 0x5a5a):
@@ -273,6 +294,7 @@ static int __init netwinder_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 		return IRQ_ISA_HARDDISK1;
 
 	case DEV(PCI_VENDOR_ID_INTERG, PCI_DEVICE_ID_INTERG_2000):
+	case DEV(PCI_VENDOR_ID_INTERG, PCI_DEVICE_ID_INTERG_2010):
 		return IRQ_NETWINDER_VGA;
 
 	default:
@@ -338,4 +360,9 @@ char * __init pcibios_setup(char *str)
 		return NULL;
 	}
 	return str;
+}
+
+void __init
+pcibios_align_resource(void *data, struct resource *res, unsigned long size)
+{
 }

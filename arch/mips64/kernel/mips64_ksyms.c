@@ -1,4 +1,4 @@
-/* $Id: mips64_ksyms.c,v 1.5 2000/01/17 23:32:46 ralf Exp $
+/* $Id: mips64_ksyms.c,v 1.6 2000/01/29 01:41:59 ralf Exp $
  *
  * Export MIPS64-specific functions needed for loadable modules.
  *
@@ -23,7 +23,7 @@
 #include <asm/floppy.h>
 #include <asm/io.h>
 #include <asm/page.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/softirq.h>
 #include <asm/uaccess.h>
 

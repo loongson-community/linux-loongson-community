@@ -7,7 +7,7 @@
  * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.17 1999/10/21 00:23:05 ralf Exp $
+ * $Id: sgiwd93.c,v 1.18 2000/01/29 01:42:18 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -260,7 +260,7 @@ static inline void init_hpc_chain(uchar *buf)
 	hcp->desc.pnext = PHYSADDR(buf);
 }
 
-int __init sgiwd93_detect(Scsi_Host_Template *HPsUX)
+int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 {
 	static unsigned char called = 0;
 	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;
@@ -272,9 +272,9 @@ int __init sgiwd93_detect(Scsi_Host_Template *HPsUX)
 	if(called)
 		return 0; /* Should bitch on the console about this... */
 
-	HPsUX->proc_name = "SGIWD93";
+	SGIblows->proc_name = "SGIWD93";
 
-	sgiwd93_host = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
+	sgiwd93_host = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
 	sgiwd93_host->base = (unsigned char *) hregs;
 	sgiwd93_host->irq = SGI_WD93_0_IRQ;
 

@@ -25,6 +25,8 @@
  *
  */
 
+#include "udfdecl.h"
+
 #if defined(__linux__) && defined(__KERNEL__)
 #include <linux/version.h>
 #include "udf_i.h"
@@ -35,8 +37,6 @@
 #include <linux/malloc.h>
 #include <linux/udf_fs.h>
 #endif
-
-#include "udfdecl.h"
 
 static inline int udf_match(int len, const char * const name, struct qstr *qs)
 {
@@ -147,13 +147,13 @@ udf_find_entry(struct inode *dir, struct dentry *dentry,
 	struct FileIdentDesc *cfi)
 {
 	struct FileIdentDesc *fi=NULL;
-	int f_pos, block;
-	int flen;
+	loff_t f_pos;
+	int block, flen;
 	char fname[255];
 	char *nameptr;
 	Uint8 lfi;
 	Uint16 liu;
-	int size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
+	loff_t size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
 	lb_addr bloc, eloc;
 	Uint32 extoffset, elen, offset;
 	struct buffer_head *bh = NULL;
@@ -333,10 +333,10 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 	struct ustr unifilename;
 	char name[UDF_NAME_LEN], fname[UDF_NAME_LEN];
 	int namelen;
-	int f_pos;
+	loff_t f_pos;
 	int flen;
 	char *nameptr;
-	int size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
+	loff_t size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
 	int nfidlen;
 	Uint8 lfi;
 	Uint16 liu;
@@ -492,7 +492,6 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 			extoffset -= sizeof(long_ad);
 	}
 
-	dir->i_size += nfidlen;
 	if (sb->s_blocksize - fibh->eoffset >= nfidlen)
 	{
 		fibh->soffset = fibh->eoffset;
@@ -550,8 +549,8 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 		else
 		{
 			elen = ((elen + sb->s_blocksize - 1) & ~(sb->s_blocksize - 1));
-			block = eloc.logicalBlockNum + ((elen - 1) >>
-				dir->i_sb->s_blocksize_bits);
+			block = eloc.logicalBlockNum +
+				((elen - 1) >> dir->i_sb->s_blocksize_bits);
 			elen = (EXTENT_RECORDED_ALLOCATED << 30) | elen;
 			udf_write_aext(dir, bloc, &lextoffset, eloc, elen, &bh, 0);
 		}
@@ -568,11 +567,30 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 			if (udf_next_aext(dir, &bloc, &lextoffset, &eloc, &elen, &bh, 1) ==
 				EXTENT_RECORDED_ALLOCATED)
 			{
-				block = eloc.logicalBlockNum + ((elen - 1) >>
-					dir->i_sb->s_blocksize_bits);
+				if (block == (eloc.logicalBlockNum +
+					((elen - 1) >> dir->i_sb->s_blocksize_bits)))
+				{
+					if (udf_next_aext(dir, &bloc, &lextoffset, &eloc, &elen, &bh, 1) !=
+						EXTENT_RECORDED_ALLOCATED)
+					{
+						udf_release_data(bh);
+						udf_release_data(fibh->sbh);
+						udf_release_data(fibh->ebh);
+						udf_debug("next extent not recorded and allocated\n");
+						return NULL;
+					}
+				}
 			}
 			else
-				block ++;
+			{
+				udf_release_data(bh);
+				udf_release_data(fibh->sbh);
+				udf_release_data(fibh->ebh);
+				udf_debug("next extent not recorded and allocated\n");
+				return NULL;
+			}
+			block = eloc.logicalBlockNum + ((elen - 1) >>
+				dir->i_sb->s_blocksize_bits);
 		}
 
 		fi = (struct FileIdentDesc *)(fibh->sbh->b_data + sb->s_blocksize + fibh->soffset);
@@ -586,6 +604,7 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 	if (!udf_write_fi(cfi, fi, fibh, NULL, name))
 	{
 		udf_release_data(bh);
+		dir->i_size += nfidlen;
 		if (UDF_I_ALLOCTYPE(dir) == ICB_FLAG_AD_IN_ICB)
 			UDF_I_LENALLOC(dir) += nfidlen;
 		dir->i_version = ++event;
@@ -595,7 +614,6 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 	else
 	{
 		udf_release_data(bh);
-		dir->i_size -= nfidlen;
 		if (fibh->sbh != fibh->ebh)
 			udf_release_data(fibh->ebh);
 		udf_release_data(fibh->sbh);
@@ -807,8 +825,8 @@ static int empty_dir(struct inode *dir)
 {
 	struct FileIdentDesc *fi, cfi;
 	struct udf_fileident_bh fibh;
-	int f_pos;
-	int size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
+	loff_t f_pos;
+	loff_t size = (UDF_I_EXT0OFFS(dir) + dir->i_size) >> 2;
 	int block;
 	lb_addr bloc, eloc;
 	Uint32 extoffset, elen, offset;

@@ -1446,12 +1446,6 @@ static int mtrr_ioctl (struct inode *inode, struct file *file,
     return 0;
 }   /*  End Function mtrr_ioctl  */
 
-static int mtrr_open (struct inode *ino, struct file *filep)
-{
-    MOD_INC_USE_COUNT;
-    return 0;
-}   /*  End Function mtrr_open  */
-
 static int mtrr_close (struct inode *ino, struct file *file)
 {
     int i, max;
@@ -1482,7 +1476,7 @@ static struct file_operations mtrr_fops =
     NULL,        /*  Poll              */
     mtrr_ioctl,  /*  IOctl             */
     NULL,        /*  MMAP              */
-    mtrr_open,   /*  Open              */
+    NULL,	 /*  Open              */
     NULL,        /*  Flush             */
     mtrr_close,  /*  Release           */
     NULL,        /*  Fsync             */
@@ -1494,32 +1488,9 @@ static struct file_operations mtrr_fops =
 
 static struct inode_operations proc_mtrr_inode_operations = {
 	&mtrr_fops,             /* default property file-ops */
-	NULL,			/* create */
-	NULL,			/* lookup */
-	NULL,			/* link */
-	NULL,			/* unlink */
-	NULL,			/* symlink */
-	NULL,			/* mkdir */
-	NULL,			/* rmdir */
-	NULL,			/* mknod */
-	NULL,			/* rename */
-	NULL,			/* readlink */
-	NULL,			/* follow_link */
-	NULL,			/* get_block */
-	NULL,			/* readpage */
-	NULL,			/* writepage */
-	NULL,			/* flushpage */
-	NULL,			/* truncate */
-	NULL,			/* permission */
-	NULL,			/* smap */
-	NULL			/* revalidate */
 };
 
-static struct proc_dir_entry proc_root_mtrr = {
-	0, 4, "mtrr",
-	S_IFREG | S_IWUSR | S_IRUGO, 1, 0, 0,
-	0, &proc_mtrr_inode_operations
-};
+static struct proc_dir_entry *proc_root_mtrr;
 
 static void compute_ascii (void)
 {
@@ -1555,7 +1526,7 @@ static void compute_ascii (void)
 	    ascii_buf_bytes += strlen (ascii_buffer + ascii_buf_bytes);
 	}
     }
-    proc_root_mtrr.size = ascii_buf_bytes;
+    proc_root_mtrr->size = ascii_buf_bytes;
 }   /*  End Function compute_ascii  */
 
 #endif  /*  CONFIG_PROC_FS  */
@@ -1826,9 +1797,9 @@ int __init mtrr_init(void)
 #  endif  /*  !__SMP__  */
 
 #  ifdef CONFIG_PROC_FS
-    proc_register (&proc_root, &proc_root_mtrr);
-#  endif
-
+    proc_root_mtrr = create_proc_entry("mtrr", S_IWUSR|S_IRUGO, &proc_root);
+    proc_root_mtrr->ops = &proc_mtrr_inode_operations;
+#endif    
     init_table ();
     return 0;
 }   /*  End Function mtrr_init  */

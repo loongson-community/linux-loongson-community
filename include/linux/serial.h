@@ -20,7 +20,8 @@ struct serial_struct {
 	int	custom_divisor;
 	int	baud_base;
 	unsigned short	close_delay;
-	char	reserved_char[2];
+	char	io_type;
+	char	reserved_char[1];
 	int	hub6;
 	unsigned short	closing_wait; /* time to wait before closing */
 	unsigned short	closing_wait2; /* no longer used... */
@@ -67,6 +68,11 @@ struct async_icount {
 #define PORT_16654	11
 #define PORT_16850	12
 #define PORT_MAX	12
+
+#define SERIAL_IO_PORT	0
+#define SERIAL_IO_HUB6	1
+#define SERIAL_IO_MEM	2
+#define SERIAL_IO_GSC	3
 
 struct serial_uart_config {
 	char	*name;

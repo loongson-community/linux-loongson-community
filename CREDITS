@@ -156,12 +156,9 @@ S: Notre Dame, Indiana
 S: USA
 
 N: James Banks
-E: james.banks@caldera.com
+E: james@sovereign.org
 D: TLAN network driver
-S: Caldera, Inc.
-S: 633 South 550 East
-S: Provo, Utah 84606
-S: USA
+D: Logitech Busmouse driver
 
 N: Krzysztof G. Baranowski
 E: kgb@manjak.knm.org.pl
@@ -439,11 +436,11 @@ D: Linux/SMP x86 (up to 2.0 only)
 D: Initial Mac68K port
 D: Video4Linux design, bw-qcam and PMS driver ports.
 D: 2.1.x modular sound
-S: c/o I2IT Limited
-S: The Innovation Centre
-S: Singleton Park
-S: Swansea, SA2 8PP
-S: Wales, United Kingdom
+S: c/o Red Hat UK Ltd
+S: Alexandra House
+S: Alexandra Terrace
+S: Guildford, GU1 3DA
+S: United Kingdom
 
 N: Laurence Culhane
 E: loz@holmes.demon.co.uk
@@ -1046,6 +1043,17 @@ S: Tallak 95
 S: 8103 Rein
 S: Austria
 
+N: Jan Kara
+E: jack@atrey.karlin.mff.cuni.cz
+E: jack@suse.cz
+D: Quota fixes for 2.2 kernel
+D: Quota fixes for 2.3 kernel
+D: Few other fixes in filesystem area (buffer cache, isofs, loopback)
+W: http://atrey.karlin.mff.cuni.cz/~jack/
+S: Krosenska' 543
+S: 181 00 Praha 8
+S: Czech Republic
+
 N: Jan "Yenya" Kasprzak
 E: kas@fi.muni.cz
 D: Author of the COSA/SRP sync serial board driver.
@@ -1463,8 +1471,10 @@ S: Victoria 3163
 S: Australia
 
 N: Pauline Middelink
-E: middelin@polyware.iaf.nl
+E: middelin@polyware.nl
 D: General low-level bug fixes, /proc fixes, identd support
+D: Author of IP masquerading
+D: Zoran ZR36120 Video For Linux driver
 S: Boterkorfhoek 34
 S: 7546 JA  Enschede
 S: Netherlands
@@ -1601,7 +1611,7 @@ S: Perth, Western Australia
 S: Australia
 
 N: Greg Page
-E: greg@caldera.com
+E: gpage@sovereign.org
 D: IPX development and support
 
 N: David Parsons
@@ -1817,11 +1827,14 @@ S: Rueting 4
 S: 23743 Groemitz
 S: Germany
 
-N: Paul Russell
-E: Paul.Russell@rustcorp.com.au
+N: Paul `Rusty' Russell
+E: rusty@linuxcare.com
 W: http://www.rustcorp.com
 D: Ruggedly handsome.
-D: Developed Generic IP Firewalling Chains with Michael Neuling.
+D: netfilter, ipchains with Michael Neuling.
+S: 301/222 City Walk
+S: Canberra ACT 2601
+S: Australia
 
 N: Thomas Sailer
 E: sailer@ife.ee.ethz.ch

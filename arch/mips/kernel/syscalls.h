@@ -1,4 +1,4 @@
-/* $Id: syscalls.h,v 1.18 1999/10/09 00:00:58 ralf Exp $
+/* $Id: syscalls.h,v 1.19 2000/01/29 01:41:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -91,7 +91,7 @@ SYS(sys_sigsuspend, 0)
 SYS(sys_sigpending, 1)
 SYS(sys_sethostname, 2)
 SYS(sys_setrlimit, 2)				/* 4075 */
-SYS(sys_old_getrlimit, 2)
+SYS(sys_getrlimit, 2)
 SYS(sys_getrusage, 2)
 SYS(sys_gettimeofday, 2)
 SYS(sys_settimeofday, 2)
@@ -105,7 +105,7 @@ SYS(sys_uselib, 1)
 SYS(sys_swapon, 2)
 SYS(sys_reboot, 3)
 SYS(old_readdir, 3)
-SYS(sys_mmap, 6)				/* 4090 */
+SYS(old_mmap, 6)				/* 4090 */
 SYS(sys_munmap, 2)
 SYS(sys_truncate, 2)
 SYS(sys_ftruncate, 2)
@@ -225,4 +225,6 @@ SYS(sys_sigaltstack, 0)
 SYS(sys_sendfile, 3)
 SYS(sys_ni_syscall, 0)
 SYS(sys_ni_syscall, 0)
-SYS(sys_getrlimit, 2)				/* 4210 */
+SYS(sys_mmap2, 6)				/* 4210 */
+SYS(sys_truncate64, 2)
+SYS(sys_ftruncate64, 2)

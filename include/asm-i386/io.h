@@ -71,12 +71,12 @@ __IN1(s##_p) __IN2(s,s1,"w") __FULL_SLOW_DOWN_IO : "=a" (_v) : "Nd" (port) ,##i 
 
 #define __INS(s) \
 extern inline void ins##s(unsigned short port, void * addr, unsigned long count) \
-{ __asm__ __volatile__ ("cld ; rep ; ins" #s \
+{ __asm__ __volatile__ ("rep ; ins" #s \
 : "=D" (addr), "=c" (count) : "d" (port),"0" (addr),"1" (count)); }
 
 #define __OUTS(s) \
 extern inline void outs##s(unsigned short port, const void * addr, unsigned long count) \
-{ __asm__ __volatile__ ("cld ; rep ; outs" #s \
+{ __asm__ __volatile__ ("rep ; outs" #s \
 : "=S" (addr), "=c" (count) : "d" (port),"0" (addr),"1" (count)); }
 
 #define RETURN_TYPE unsigned char
@@ -101,9 +101,10 @@ __OUTS(b)
 __OUTS(w)
 __OUTS(l)
 
+#define IO_SPACE_LIMIT 0xffff
+
 #ifdef __KERNEL__
 
-#include <asm/page.h>
 #include <linux/vmalloc.h>
 
 /*
@@ -218,6 +219,22 @@ static inline int check_signature(unsigned long io_addr,
 	int retval = 0;
 	do {
 		if (readb(io_addr) != *signature)
+			goto out;
+		io_addr++;
+		signature++;
+		length--;
+	} while (length);
+	retval = 1;
+out:
+	return retval;
+}
+
+static inline int isa_check_signature(unsigned long io_addr,
+	const unsigned char *signature, int length)
+{
+	int retval = 0;
+	do {
+		if (isa_readb(io_addr) != *signature)
 			goto out;
 		io_addr++;
 		signature++;

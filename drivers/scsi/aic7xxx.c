@@ -242,6 +242,7 @@
 #include <linux/proc_fs.h>
 #include <linux/blk.h>
 #include <linux/tqueue.h>
+#include <linux/init.h>
 #include "sd.h"
 #include "scsi.h"
 #include "hosts.h"
@@ -263,7 +264,7 @@
  */
 #define VIRT_TO_BUS(a) (unsigned int)virt_to_bus((void *)(a))
 
-#define AIC7XXX_C_VERSION  "5.1.20"
+#define AIC7XXX_C_VERSION  "5.1.21"
 
 #define NUMBER(arr)     (sizeof(arr) / sizeof(arr[0]))
 #define MIN(a,b)        (((a) < (b)) ? (a) : (b))
@@ -278,10 +279,6 @@
 #endif
 #ifndef FALSE
 #  define FALSE 0
-#endif
-
-#ifndef KERNEL_VERSION
-#  define KERNEL_VERSION(x,y,z) (((x)<<16)+((y)<<8)+(z))
 #endif
 
 /*
@@ -1355,6 +1352,18 @@ static int aic7xxx_no_probe = 0;
  */
 static int aic7xxx_scbram = 0;
 /*
+ * So that we can set how long each device is given as a selection timeout.
+ * The table of values goes like this:
+ * 	0 - 256ms
+ * 	1 - 128ms
+ * 	2 - 64ms
+ * 	3 - 32ms
+ * We default to 64ms because it's fast.  Some old SCSI-I devices need a
+ * longer time.  The final value has to be left shifted by 3, hence 0x10
+ * is the final value.
+ */
+static int aic7xxx_seltime = 0x10;
+/*
  * So that insmod can find the variable and make it point to something
  */
 #ifdef MODULE
@@ -1491,8 +1500,8 @@ aic_outb(struct aic7xxx_host *p, unsigned char val, long port)
  *   to a parameter with a ':' between the parameter and the value.
  *   ie. aic7xxx=unpause:0x0A,extended
  *-F*************************************************************************/
-void
-aic7xxx_setup(char *s, int *dummy)
+static int
+aic7xxx_setup(char *s)
 {
   int   i, n;
   char *p;
@@ -1515,6 +1524,7 @@ aic7xxx_setup(char *s, int *dummy)
     { "dump_card", &aic7xxx_dump_card },
     { "dump_sequencer", &aic7xxx_dump_sequencer },
     { "scbram", &aic7xxx_scbram },
+    { "seltime", &aic7xxx_seltime },
     { "tag_info",    NULL }
   };
 
@@ -1608,6 +1618,10 @@ aic7xxx_setup(char *s, int *dummy)
         else if (p[n] == ':')
         {
           *(options[i].flag) = simple_strtoul(p + n + 1, NULL, 0);
+          if(!strncmp(p, "seltime", n))
+          {
+            *(options[i].flag) = (*(options[i].flag) % 4) << 3;
+          }
         }
         else if (!strncmp(p, "verbose", n))
         {
@@ -1616,11 +1630,18 @@ aic7xxx_setup(char *s, int *dummy)
         else
         {
           *(options[i].flag) = ~(*(options[i].flag));
+          if(!strncmp(p, "seltime", n))
+          {
+            *(options[i].flag) = (*(options[i].flag) % 4) << 3;
+          }
         }
       }
     }
   }
+  return 1;
 }
+
+__setup("aic7xxx=", aic7xxx_setup);
 
 /*+F*************************************************************************
  * Function:
@@ -1850,10 +1871,13 @@ aic7xxx_download_instr(struct aic7xxx_host *p, int instrptr,
         }
       }
       aic_outb(p, (instr.integer & 0xff), SEQRAM);
+      udelay(50);
       aic_outb(p, ((instr.integer >> 8) & 0xff), SEQRAM);
+      udelay(50);
       aic_outb(p, ((instr.integer >> 16) & 0xff), SEQRAM);
+      udelay(50);
       aic_outb(p, ((instr.integer >> 24) & 0xff), SEQRAM);
-      udelay(15);
+      udelay(50);
       break;
 
     default:
@@ -7895,7 +7919,7 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p,
   host->this_id = p->scsi_id;
   host->io_port = p->base;
   host->n_io_port = 0xFF;
-  host->base = (unsigned char *) p->mbase;
+  host->base = p->mbase;
   host->irq = p->irq;
   if (p->features & AHC_WIDE)
   {
@@ -8019,7 +8043,7 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p,
     {
       unsigned char devconfig;
 
-#if LINUX_KERNEL_VERSION > KERNEL_VERSION(2,1,92)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,1,92)
       pci_read_config_byte(p->pdev, DEVCONFIG, &devconfig);
 #else
       pcibios_read_config_byte(p->pci_bus, p->pci_device_fn,
@@ -8037,7 +8061,7 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p,
         if (aic7xxx_verbose & VERBOSE_PROBE2)
           printk("(scsi%d) Force clearing STPWLEV bit\n", p->host_no);
       }
-#if LINUX_KERNEL_VERSION > KERNEL_VERSION(2,1,92)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,1,92)
       pci_write_config_byte(p->pdev, DEVCONFIG, devconfig);
 #else
       pcibios_write_config_byte(p->pci_bus, p->pci_device_fn,
@@ -8117,7 +8141,7 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p,
     aic_outb(p, p->scsi_id_b, SCSIID);
     scsi_conf = aic_inb(p, SCSICONF + 1);
     aic_outb(p, DFON | SPIOEN, SXFRCTL0);
-    aic_outb(p, (scsi_conf & ENSPCHK) | STIMESEL | term | 
+    aic_outb(p, (scsi_conf & ENSPCHK) | aic7xxx_seltime | term | 
          ENSTIMER | ACTNEGEN, SXFRCTL1);
     aic_outb(p, 0, SIMODE0);
     aic_outb(p, ENSELTIMO | ENSCSIRST | ENSCSIPERR, SIMODE1);
@@ -8141,7 +8165,7 @@ aic7xxx_register(Scsi_Host_Template *template, struct aic7xxx_host *p,
     term = ((p->flags & (AHC_TERM_ENB_A|AHC_TERM_ENB_LVD)) ? STPWEN : 0);
   scsi_conf = aic_inb(p, SCSICONF);
   aic_outb(p, DFON | SPIOEN, SXFRCTL0);
-  aic_outb(p, (scsi_conf & ENSPCHK) | STIMESEL | term | 
+  aic_outb(p, (scsi_conf & ENSPCHK) | aic7xxx_seltime | term | 
        ENSTIMER | ACTNEGEN, SXFRCTL1);
   aic_outb(p, 0, SIMODE0);
   aic_outb(p, ENSELTIMO | ENSCSIRST | ENSCSIPERR, SIMODE1);
@@ -9060,7 +9084,7 @@ aic7xxx_detect(Scsi_Host_Template *template)
    * aic7xxx_setup
    */
   if(aic7xxx)
-    aic7xxx_setup(aic7xxx, NULL);
+    aic7xxx_setup(aic7xxx);
   if(dummy_buffer[0] != 'P')
     printk(KERN_WARNING "aic7xxx: Please read the file /usr/src/linux/drivers"
       "/scsi/README.aic7xxx\n"
@@ -9656,7 +9680,7 @@ aic7xxx_detect(Scsi_Host_Template *template)
           devconfig |= 0x80000040;
           pcibios_write_config_dword(pci_bus, pci_devfn, DEVCONFIG, devconfig);
 #endif /* AIC7XXX_STRICT_PCI_SETUP */
-#endif /* LINUIX_VERSION_CODE > KERNEL_VERSION(2,1,92) */
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2,1,92) */
 
           temp_p->unpause = INTEN;
           temp_p->pause = temp_p->unpause | PAUSE;

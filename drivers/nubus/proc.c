@@ -17,7 +17,6 @@
    icons) these files will provide "cooked" data.  Otherwise they will
    simply provide raw access (read-only of course) to the ROM.  */
 
-#include <linux/config.h>
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -27,8 +26,8 @@
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 
-int
-get_nubus_dev_info(char *buf, char **start, off_t pos, int count, int wr)
+static int
+get_nubus_dev_info(char *buf, char **start, off_t pos, int count)
 {
 	struct nubus_dev *dev = nubus_devices;
 	off_t at = 0;
@@ -96,7 +95,7 @@ static void nubus_proc_populate(struct nubus_dev* dev,
 		struct nubus_dir dir;
 		
 		sprintf(name, "%x", ent.type);
-		e = create_proc_entry(name, S_IFDIR, parent);
+		e = proc_mkdir(name, parent);
 		if (!e) return;
 
 		/* And descend */
@@ -132,8 +131,7 @@ int nubus_proc_attach_device(struct nubus_dev *dev)
 		
 	/* Create a directory */
 	sprintf(name, "%x", dev->board->slot);
-	e = dev->procdir = create_proc_entry(name, S_IFDIR,
-					     proc_bus_nubus_dir);
+	e = dev->procdir = proc_mkdir(name, proc_bus_nubus_dir);
 	if (!e)
 		return -ENOMEM;
 
@@ -170,7 +168,7 @@ void __init nubus_proc_init(void)
 {
 	if (!MACH_IS_MAC)
 		return;
-	proc_bus_nubus_dir = create_proc_entry("nubus", S_IFDIR, proc_bus);
+	proc_bus_nubus_dir = proc_mkdir("nubus", proc_bus);
 	create_proc_info_entry("devices", 0, proc_bus_nubus_dir,
 				get_nubus_dev_info);
 	proc_bus_nubus_add_devices();

@@ -86,6 +86,30 @@ struct el_common_EV5_uncorrectable_mcheck {
         unsigned long   ld_lock;          /* Contents of EV5 LD_LOCK register*/
 };
 
+struct el_common_EV6_mcheck {
+	unsigned int FrameSize;		/* Bytes, including this field */
+	unsigned int FrameFlags;	/* <31> = Retry, <30> = Second Error */
+	unsigned int CpuOffset;		/* Offset to CPU-specific info */
+	unsigned int SystemOffset;	/* Offset to system-specific info */
+	unsigned int MCHK_Code;
+	unsigned int MCHK_Frame_Rev;
+	unsigned long I_STAT;		/* EV6 Internal Processor Registers */
+	unsigned long DC_STAT;		/* (See the 21264 Spec) */
+	unsigned long C_ADDR;
+	unsigned long DC1_SYNDROME;
+	unsigned long DC0_SYNDROME;
+	unsigned long C_STAT;
+	unsigned long C_STS;
+	unsigned long RESERVED0;
+	unsigned long EXC_ADDR;
+	unsigned long IER_CM;
+	unsigned long ISUM;
+	unsigned long MM_STAT;
+	unsigned long PAL_BASE;
+	unsigned long I_CTL;
+	unsigned long PCTX;
+};
+
 extern void halt(void) __attribute__((noreturn));
 
 #define prepare_to_switch()	do { } while(0)
@@ -293,12 +317,11 @@ extern void __global_restore_flags(unsigned long flags);
 #define tbia()		__tbi(-2, /* no second argument */)
 
 /*
- * Give prototypes to shut up gcc.
+ * Atomic exchange.
  */
-extern __inline__ unsigned long xchg_u32(volatile int *m, unsigned long val);
-extern __inline__ unsigned long xchg_u64(volatile long *m, unsigned long val);
 
-extern __inline__ unsigned long xchg_u32(volatile int *m, unsigned long val)
+extern __inline__ unsigned long
+__xchg_u32(volatile int *m, unsigned long val)
 {
 	unsigned long dummy;
 
@@ -317,7 +340,8 @@ extern __inline__ unsigned long xchg_u32(volatile int *m, unsigned long val)
 	return val;
 }
 
-extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
+extern __inline__ unsigned long
+__xchg_u64(volatile long *m, unsigned long val)
 {
 	unsigned long dummy;
 
@@ -336,32 +360,108 @@ extern __inline__ unsigned long xchg_u64(volatile long * m, unsigned long val)
 	return val;
 }
 
-/*
- * This function doesn't exist, so you'll get a linker error
- * if something tries to do an invalid xchg().
- *
- * This only works if the compiler isn't horribly bad at optimizing.
- * gcc-2.5.8 reportedly can't handle this, but as that doesn't work
- * too well on the alpha anyway..
- */
+/* This function doesn't exist, so you'll get a linker error
+   if something tries to do an invalid xchg().  */
 extern void __xchg_called_with_bad_pointer(void);
 
 static __inline__ unsigned long
-__xchg(unsigned long x, volatile void * ptr, int size)
+__xchg(volatile void *ptr, unsigned long x, int size)
 {
 	switch (size) {
 		case 4:
-			return xchg_u32(ptr, x);
+			return __xchg_u32(ptr, x);
 		case 8:
-			return xchg_u64(ptr, x);
+			return __xchg_u64(ptr, x);
 	}
 	__xchg_called_with_bad_pointer();
 	return x;
 }
 
-#define xchg(ptr,x) \
-  ((__typeof__(*(ptr)))__xchg((unsigned long)(x),(ptr),sizeof(*(ptr))))
+#define xchg(ptr,x)							     \
+  ({									     \
+     __typeof__(*(ptr)) _x_ = (x);					     \
+     (__typeof__(*(ptr))) __xchg((ptr), (unsigned long)_x_, sizeof(*(ptr))); \
+  })
+
 #define tas(ptr) (xchg((ptr),1))
+
+
+/* 
+ * Atomic compare and exchange.  Compare OLD with MEM, if identical,
+ * store NEW in MEM.  Return the initial value in MEM.  Success is
+ * indicated by comparing RETURN with OLD.
+ */
+
+#define __HAVE_ARCH_CMPXCHG 1
+
+extern __inline__ unsigned long
+__cmpxchg_u32(volatile int *m, int old, int new)
+{
+	unsigned long prev, cmp;
+
+	__asm__ __volatile__(
+	"1:	ldl_l %0,%2\n"
+	"	cmpeq %0,%3,%1\n"
+	"	beq %1,2f\n"
+	"	mov %4,%1\n"
+	"	stl_c %1,%2\n"
+	"	beq %1,3f\n"
+	"2:	mb\n"
+	".section .text2,\"ax\"\n"
+	"3:	br 1b\n"
+	".previous"
+	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
+	: "r"((long) old), "r"(new), "m"(*m));
+
+	return prev;
+}
+
+extern __inline__ unsigned long
+__cmpxchg_u64(volatile long *m, unsigned long old, unsigned long new)
+{
+	unsigned long prev, cmp;
+
+	__asm__ __volatile__(
+	"1:	ldq_l %0,%2\n"
+	"	cmpeq %0,%3,%1\n"
+	"	beq %1,2f\n"
+	"	mov %4,%1\n"
+	"	stq_c %1,%2\n"
+	"	beq %1,3f\n"
+	"2:	mb\n"
+	".section .text2,\"ax\"\n"
+	"3:	br 1b\n"
+	".previous"
+	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
+	: "r"((long) old), "r"(new), "m"(*m));
+
+	return prev;
+}
+
+/* This function doesn't exist, so you'll get a linker error
+   if something tries to do an invalid cmpxchg().  */
+extern void __cmpxchg_called_with_bad_pointer(void);
+
+static __inline__ unsigned long
+__cmpxchg(volatile void *ptr, unsigned long old, unsigned long new, int size)
+{
+	switch (size) {
+		case 4:
+			return __cmpxchg_u32(ptr, old, new);
+		case 8:
+			return __cmpxchg_u64(ptr, old, new);
+	}
+	__cmpxchg_called_with_bad_pointer();
+	return old;
+}
+
+#define cmpxchg(ptr,o,n)						 \
+  ({									 \
+     __typeof__(*(ptr)) _o_ = (o);					 \
+     __typeof__(*(ptr)) _n_ = (n);					 \
+     (__typeof__(*(ptr))) __cmpxchg((ptr), (unsigned long)_o_,		 \
+				    (unsigned long)_n_, sizeof(*(ptr))); \
+  })
 
 #endif /* __ASSEMBLY__ */
 

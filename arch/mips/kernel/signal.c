@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.22 1999/09/28 22:25:48 ralf Exp $
+/* $Id: signal.c,v 1.23 1999/10/09 00:00:58 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -618,7 +618,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
-			case SIGBUS:
+			case SIGBUS: case SIGSYS: case SIGXCPU: case SIGXFSZ:
 				if (do_coredump(signr, regs))
 					exit_code |= 0x80;
 				/* FALLTHRU */

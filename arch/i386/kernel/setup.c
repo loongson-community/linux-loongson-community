@@ -286,16 +286,9 @@ struct resource standard_io_resources[] = {
 
 #define STANDARD_IO_RESOURCES (sizeof(standard_io_resources)/sizeof(struct resource))
 
-/* System RAM - interrupted by the 640kB-1M hole */
-#define code_resource (ram_resources[3])
-#define data_resource (ram_resources[4])
-static struct resource ram_resources[] = {
-	{ "System RAM", 0x000000, 0x09ffff, IORESOURCE_BUSY },
-	{ "System RAM", 0x100000, 0x100000, IORESOURCE_BUSY },
-	{ "Video RAM area", 0x0a0000, 0x0bffff, IORESOURCE_BUSY },
-	{ "Kernel code", 0x100000, 0 },
-	{ "Kernel data", 0, 0 }
-};
+static struct resource code_resource = { "Kernel code", 0x100000, 0 };
+static struct resource data_resource = { "Kernel data", 0, 0 };
+static struct resource vram_resource = { "Video RAM area", 0xa0000, 0xbffff, IORESOURCE_BUSY };
 
 /* System ROM resources */
 #define MAXROMS 6
@@ -448,6 +441,9 @@ void __init setup_memory_region(void)
 					break;
 			case E820_ACPI:
 					printk("(ACPI data)\n");
+					break;
+			case E820_NVS:
+					printk("(ACPI NVS)\n");
 					break;
 			default:	printk("type %lu\n", e820.map[i].type);
 					break;
@@ -634,7 +630,6 @@ void __init setup_arch(char **cmdline_p)
 	highstart_pfn = highend_pfn = max_pfn;
 	if (max_pfn > MAXMEM_PFN) {
 		highstart_pfn = MAXMEM_PFN;
-		highend_pfn = max_pfn;
 		printk(KERN_NOTICE "%ldMB HIGHMEM available.\n",
 			pages_to_mb(highend_pfn - highstart_pfn));
 	}
@@ -643,11 +638,6 @@ void __init setup_arch(char **cmdline_p)
 	 * Initialize the boot-time allocator (with low memory only):
 	 */
 	bootmap_size = init_bootmem(start_pfn, max_low_pfn);
-
-	/*
-	 * FIXME: what about high memory?
-	 */
-	ram_resources[1].end = PFN_PHYS(max_low_pfn);
 
 	/*
 	 * Register fully available low RAM pages with the bootmem allocator.
@@ -734,15 +724,36 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	/*
-	 * Request the standard RAM and ROM resources -
-	 * they eat up PCI memory space
+	 * Request address space for all standard RAM and ROM resources
+	 * and also for regions reported as reserved by the e820.
 	 */
-	request_resource(&iomem_resource, ram_resources+0);
-	request_resource(&iomem_resource, ram_resources+1);
-	request_resource(&iomem_resource, ram_resources+2);
-	request_resource(ram_resources+1, &code_resource);
-	request_resource(ram_resources+1, &data_resource);
 	probe_roms();
+	for (i = 0; i < e820.nr_map; i++) {
+		struct resource *res;
+		if (e820.map[i].addr + e820.map[i].size > 0x100000000ULL)
+			continue;
+		res = alloc_bootmem_low(sizeof(struct resource));
+		switch (e820.map[i].type) {
+		case E820_RAM:	res->name = "System RAM"; break;
+		case E820_ACPI:	res->name = "ACPI Tables"; break;
+		case E820_NVS:	res->name = "ACPI Non-volatile Storage"; break;
+		default:	res->name = "reserved";
+		}
+		res->start = e820.map[i].addr;
+		res->end = res->start + e820.map[i].size - 1;
+		res->flags = IORESOURCE_MEM | IORESOURCE_BUSY;
+		request_resource(&iomem_resource, res);
+		if (e820.map[i].type == E820_RAM) {
+			/*
+			 *  We dont't know which RAM region contains kernel data,
+			 *  so we try it repeatedly and let the resource manager
+			 *  test it.
+			 */
+			request_resource(res, &code_resource);
+			request_resource(res, &data_resource);
+		}
+	}
+	request_resource(&iomem_resource, &vram_resource);
 
 	/* request I/O space for devices used on all i[345]86 PCs */
 	for (i = 0; i < STANDARD_IO_RESOURCES; i++)
@@ -1360,9 +1371,9 @@ int get_cpuinfo(char * buffer)
 	char *p = buffer;
 	int sep_bug;
 	static char *x86_cap_flags[] = {
-	        "fpu", "vme", "de", "pse", "tsc", "msr", "6", "mce",
-	        "cx8", "9", "10", "sep", "mtrr", "pge", "14", "cmov",
-	        "16", "17", "psn", "19", "20", "21", "22", "mmx",
+	        "fpu", "vme", "de", "pse", "tsc", "msr", "pae", "mce",
+	        "cx8", "apic", "10", "sep", "mtrr", "pge", "mca", "cmov",
+	        "pat", "17", "psn", "19", "20", "21", "22", "mmx",
 	        "24", "kni", "26", "27", "28", "29", "30", "31"
 	};
 	struct cpuinfo_x86 *c = cpu_data;
@@ -1408,15 +1419,14 @@ int get_cpuinfo(char * buffer)
 		    case X86_VENDOR_AMD:
 			if (c->x86 == 5 && c->x86_model == 6)
 				x86_cap_flags[10] = "sep";
-			x86_cap_flags[16] = "fcmov";
+			if (c->x86 < 6)
+				x86_cap_flags[16] = "fcmov";
+			x86_cap_flags[22] = "mmxext";
+			x86_cap_flags[30] = "3dnowext";
 			x86_cap_flags[31] = "3dnow";
 			break;
 
 		    case X86_VENDOR_INTEL:
-			x86_cap_flags[6] = "pae";
-			x86_cap_flags[9] = "apic";
-			x86_cap_flags[14] = "mca";
-			x86_cap_flags[16] = "pat";
 			x86_cap_flags[17] = "pse36";
 			x86_cap_flags[18] = "psn";
 			x86_cap_flags[24] = "osfxsr";

@@ -1,4 +1,4 @@
-/* $Id: fault.c,v 1.5 1999/11/23 17:12:50 ralf Exp $
+/* $Id: fault.c,v 1.4 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -22,7 +22,7 @@
 #include <linux/version.h>
 
 #include <asm/hardirq.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/mmu_context.h>
 #include <asm/softirq.h>
 #include <asm/system.h>

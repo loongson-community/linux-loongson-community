@@ -13,6 +13,7 @@
 
 #include <asm/system.h>
 #include <asm/pgtable.h>
+#include <linux/highmem.h>
 
 /*
  * The page cache can done in larger chunks than
@@ -79,7 +80,6 @@ extern void lock_page(struct page *page);
 extern void __add_page_to_hash_queue(struct page * page, struct page **p);
 
 extern void add_to_page_cache(struct page * page, struct address_space *mapping, unsigned long index);
-extern int add_to_page_cache_unique(struct page * page, struct address_space *mapping, unsigned long index, struct page **hash);
 
 extern inline void add_page_to_hash_queue(struct page * page, struct inode * inode, unsigned long index)
 {
@@ -117,4 +117,10 @@ extern inline void wait_on_page(struct page * page)
 		___wait_on_page(page);
 }
 
+extern struct page * grab_cache_page (struct address_space *, unsigned long);
+
+typedef int filler_t(void *, struct page*);
+
+extern struct page *read_cache_page(struct address_space *, unsigned long,
+				filler_t *, void *);
 #endif

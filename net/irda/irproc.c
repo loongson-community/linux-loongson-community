@@ -6,7 +6,7 @@
  * Status:        Experimental.
  * Author:        Thomas Davis, <ratbert@radiks.net>
  * Created at:    Sat Feb 21 21:33:24 1998
- * Modified at:   Fri Oct  8 09:26:46 1999
+ * Modified at:   Sun Nov 14 08:54:54 1999
  * Modified by:   Dag Brattli <dagb@cs.uit.no>
  *
  *     Copyright (c) 1998-1999, Dag Brattli <dagb@cs.uit.no>
@@ -25,6 +25,7 @@
 
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
+#define __NO_VERSION__
 #include <linux/module.h>
 
 #include <net/irda/irda.h>
@@ -32,20 +33,15 @@
 #include <net/irda/irlap.h>
 #include <net/irda/irlmp.h>
 
-extern int irlap_proc_read(char *buf, char **start, off_t offset, int len, 
-			   int unused);
-extern int irlmp_proc_read(char *buf, char **start, off_t offset, int len, 
-			   int unused);
-extern int irttp_proc_read(char *buf, char **start, off_t offset, int len, 
-			   int unused);
-extern int irias_proc_read(char *buf, char **start, off_t offset, int len,
-			   int unused);
-extern int discovery_proc_read(char *buf, char **start, off_t offset, int len, 
-			       int unused);
+extern int irlap_proc_read(char *buf, char **start, off_t offset, int len);
+extern int irlmp_proc_read(char *buf, char **start, off_t offset, int len);
+extern int irttp_proc_read(char *buf, char **start, off_t offset, int len);
+extern int irias_proc_read(char *buf, char **start, off_t offset, int len);
+extern int discovery_proc_read(char *buf, char **start, off_t offset, int len);
 
 struct irda_entry {
 	char *name;
-	int (*fn)(char*, char**, off_t, int, int);
+	int (*fn)(char*, char**, off_t, int);
 };
 
 struct proc_dir_entry *proc_irda;
@@ -70,7 +66,7 @@ void irda_proc_register(void)
 {
 	int i;
 
-	proc_irda = create_proc_entry("net/irda", S_IFDIR, NULL);
+	proc_irda = proc_mkdir("net/irda", NULL);
 	proc_irda->owner = THIS_MODULE;
 
 	for (i=0;i<IRDA_ENTRIES_NUM;i++)

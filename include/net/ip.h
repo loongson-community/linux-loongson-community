@@ -22,7 +22,7 @@
 #ifndef _IP_H
 #define _IP_H
 
-
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/socket.h>
 #include <linux/ip.h>
@@ -78,7 +78,7 @@ extern rwlock_t ip_ra_lock;
 
 extern void		ip_mc_dropsocket(struct sock *);
 extern void		ip_mc_dropdevice(struct net_device *dev);
-extern int		ip_mc_procinfo(char *, char **, off_t, int, int);
+extern int		ip_mc_procinfo(char *, char **, off_t, int);
 
 /*
  *	Functions provided by ip.c
@@ -110,6 +110,22 @@ extern int		ip_build_xmit(struct sock *sk,
 				      struct rtable *rt,
 				      int flags);
 
+/*
+ *	Map a multicast IP onto multicast MAC for type Token Ring.
+ *      This conforms to RFC1469 Option 2 Multicasting i.e.
+ *      using a functional address to transmit / receive 
+ *      multicast packets.
+ */
+
+extern __inline__ void ip_tr_mc_map(u32 addr, char *buf)
+{
+	buf[0]=0xC0;
+	buf[1]=0x00;
+	buf[2]=0x00;
+	buf[3]=0x04;
+	buf[4]=0x00;
+	buf[5]=0x00;
+}
 
 struct ip_reply_arg {
 	struct iovec iov[2];   

@@ -49,9 +49,7 @@ struct dentry_operations umsdos_dentry_operations =
 	umsdos_dentry_validate,	/* d_revalidate(struct dentry *, int) */
 	NULL,			/* d_hash */
 	NULL,			/* d_compare */
-	umsdos_dentry_dput,	/* d_delete(struct dentry *) */
-	NULL,
-	NULL,
+	umsdos_dentry_dput	/* d_delete(struct dentry *) */
 };
 
 
@@ -834,9 +832,7 @@ struct inode_operations umsdos_dir_inode_operations =
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
-	NULL,			/* smap */
-	NULL,			/* revalidate */
+	NULL			/* revalidate */
 };

@@ -34,7 +34,7 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 
-static int qnx4_readpage(struct file *file, struct page *page);
+static int qnx4_readpage(struct dentry *dentry, struct page *page);
 
 #ifdef CONFIG_QNX4FS_RW
 static ssize_t qnx4_file_write(struct file *filp, const char *buf,
@@ -192,20 +192,17 @@ struct inode_operations qnx4_file_inode_operations =
 	qnx4_bmap,	        /* get_block */
 	qnx4_readpage,		/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 #ifdef CONFIG_QNX4FS_RW
 	qnx4_truncate,		/* truncate */
 #else
 	NULL,
 #endif
 	NULL,			/* permission */
-	NULL,			/* smap */
 	NULL			/* revalidate */
 };
 
-static int qnx4_readpage(struct file *file, struct page *page)
+static int qnx4_readpage(struct dentry *dentry, struct page *page)
 {
-	struct dentry *dentry = file->f_dentry;
 	struct inode *inode = dentry->d_inode;
 	struct qnx4_inode_info *qnx4_ino = &inode->u.qnx4_i;
 	unsigned long buf;
@@ -215,18 +212,17 @@ static int qnx4_readpage(struct file *file, struct page *page)
 	struct buffer_head *bh;
 	int res = -EIO;
 
-	QNX4DEBUG(("qnx4: readpage offset=[%ld]\n", (long) page->offset));
+	QNX4DEBUG(("qnx4: readpage index=[%ld]\n", (long) page->index));
 
 	if (qnx4_ino->i_xblk != 0) {
 		printk("qnx4: sorry, this file is extended, don't know how to handle it (yet) !\n");
 		return -EIO;
 	}
 	atomic_inc(&page->count);
-	set_bit(PG_locked, &page->flags);
 	buf = page_address(page);
 	clear_bit(PG_uptodate, &page->flags);
 	clear_bit(PG_error, &page->flags);
-	offset = page->offset;
+	offset = page->index<<PAGE_SHIFT;
 
 	if (offset < inode->i_size) {
 		res = 0;
@@ -253,8 +249,7 @@ static int qnx4_readpage(struct file *file, struct page *page)
 	} else {
 		set_bit(PG_uptodate, &page->flags);
 	}
-	clear_bit(PG_locked, &page->flags);
-	wake_up(&page->wait);
+	Unlock_Page(page);
 /*  free_page(buf); */
 
 	return res;

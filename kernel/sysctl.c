@@ -49,7 +49,9 @@ extern char modprobe_path[];
 extern int sg_big_buff;
 #endif
 #ifdef CONFIG_SYSVIPC
-extern size_t shm_prm[];
+extern size_t shm_ctlmax;
+extern int shm_ctlall;
+extern int shm_ctlmni;
 extern int msg_ctlmax;
 extern int msg_ctlmnb;
 extern int msg_ctlmni;
@@ -133,10 +135,8 @@ struct inode_operations proc_sys_inode_operations =
 	NULL,		/* get_block */
 	NULL,		/* readpage */
 	NULL,		/* writepage */
-	NULL,		/* flushpage */
 	NULL,		/* truncate */
 	proc_sys_permission, /* permission */
-	NULL,		/* smap */
 	NULL		/* revalidate */
 };
 
@@ -217,8 +217,12 @@ static ctl_table kern_table[] = {
 	{KERN_RTSIGMAX, "rtsig-max", &max_queued_signals, sizeof(int),
 	 0644, NULL, &proc_dointvec},
 #ifdef CONFIG_SYSVIPC
-	{KERN_SHMMAX, "shmmax", &shm_prm, 3*sizeof (size_t),
+	{KERN_SHMMAX, "shmmax", &shm_ctlmax, sizeof (size_t),
 	 0644, NULL, &proc_doulongvec_minmax},
+	{KERN_SHMALL, "shmall", &shm_ctlall, sizeof (int),
+	 0644, NULL, &proc_dointvec},
+	{KERN_SHMMNI, "shmmni", &shm_ctlmni, sizeof (int),
+	 0644, NULL, &proc_dointvec},
 	{KERN_MSGMAX, "msgmax", &msg_ctlmax, sizeof (int),
 	 0644, NULL, &proc_dointvec},
 	{KERN_MSGMNI, "msgmni", &msg_ctlmni, sizeof (int),
@@ -351,7 +355,7 @@ extern asmlinkage long sys_sysctl(struct __sysctl_args *args)
 }
 
 /* Like in_group_p, but testing against egid, not fsgid */
-static int in_egroup_p(gid_t grp)
+int in_egroup_p(gid_t grp)
 {
 	if (grp != current->egid) {
 		int i = current->ngroups;
@@ -584,13 +588,12 @@ static void unregister_proc_table(ctl_table * table, struct proc_dir_entry *root
 				continue;
 		}
 
-		/* Don't unregoster proc entries that are still being used.. */
+		/* Don't unregister proc entries that are still being used.. */
 		if (de->count)
 			continue;
 
-		proc_unregister(root, de->low_ino);
 		table->de = NULL;
-		kfree(de);
+		remove_proc_entry(table->procname, root);
 	}
 }
 

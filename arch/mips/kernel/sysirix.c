@@ -1,4 +1,4 @@
-/* $Id: sysirix.c,v 1.21 1999/10/09 00:00:58 ralf Exp $
+/* $Id: sysirix.c,v 1.22 1999/12/04 03:59:00 ralf Exp $
  *
  * sysirix.c: IRIX system call emulation.
  *
@@ -1103,21 +1103,20 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 	struct file *file = NULL;
 	unsigned long retval;
 
-	down(&current->mm->mmap_sem);
 	lock_kernel();
-	if(!(flags & MAP_ANONYMOUS)) {
-		if(!(file = fget(fd))) {
+	if (!(flags & MAP_ANONYMOUS)) {
+		if (!(file = fget(fd))) {
 			retval = -EBADF;
 			goto out;
 		}
 
 		/* Ok, bad taste hack follows, try to think in something else
 		 * when reading this.  */
-		if (flags & IRIX_MAP_AUTOGROW){
+		if (flags & IRIX_MAP_AUTOGROW) {
 			unsigned long old_pos;
 			long max_size = offset + len;
 			
-			if (max_size > file->f_dentry->d_inode->i_size){
+			if (max_size > file->f_dentry->d_inode->i_size) {
 				old_pos = sys_lseek (fd, max_size - 1, 0);
 				sys_write (fd, "", 1);
 				sys_lseek (fd, old_pos, 0);
@@ -1133,7 +1132,6 @@ asmlinkage unsigned long irix_mmap32(unsigned long addr, size_t len, int prot,
 
 out:
 	unlock_kernel();
-	up(&current->mm->mmap_sem);
 
 	return retval;
 }
@@ -1693,10 +1691,9 @@ sys_mmap(unsigned long addr, size_t len, int prot, int flags, int fd,
 asmlinkage int irix_mmap64(struct pt_regs *regs)
 {
 	int len, prot, flags, fd, off1, off2, error, base = 0;
-	unsigned long addr, *sp;
-	struct file *file;
+	unsigned long addr, pgoff, *sp;
+	struct file *file = NULL;
 
-	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if (regs->regs[2] == 1000)
 		base = 1;
@@ -1721,34 +1718,46 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 		__get_user(off1, &sp[2]);
 		__get_user(off2, &sp[3]);
 	}
-	if (off1) {
-		error = -EINVAL;
+
+	if (off1 & PAGE_MASK) {
+		error = -EOVERFLOW;
 		goto out;
 	}
 
+	pgoff = (off1 << (32 - PAGE_SHIFT)) | (off2 >> PAGE_SHIFT);
+
 	if (!(flags & MAP_ANONYMOUS)) {
-		if(!(file = fcheck(fd))) {
+		if (!(file = fcheck(fd))) {
 			error = -EBADF;
 			goto out;
 		}
 
-		/* Ok, bad taste hack follows, try to think in something else when reading this */
-		if (flags & IRIX_MAP_AUTOGROW){
+		/* Ok, bad taste hack follows, try to think in something else
+		   when reading this */
+		if (flags & IRIX_MAP_AUTOGROW) {
 			unsigned long old_pos;
 			long max_size = off2 + len;
 
-			if (max_size > file->f_dentry->d_inode->i_size){
+			if (max_size > file->f_dentry->d_inode->i_size) {
 				old_pos = sys_lseek (fd, max_size - 1, 0);
 				sys_write (fd, "", 1);
 				sys_lseek (fd, old_pos, 0);
 			}
 		}
 	}
-	
-	error = sys_mmap(addr, (size_t) len, prot, flags, fd, off2);
+
+	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
+
+	down(&current->mm->mmap_sem);
+	error = do_mmap_pgoff(file, addr, len, prot, flags, pgoff);
+	up(&current->mm->mmap_sem);
+
+	if (file)
+		fput(file);
 
 out:
 	unlock_kernel();
+
 	return error;
 }
 

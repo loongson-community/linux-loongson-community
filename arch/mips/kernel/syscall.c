@@ -1,4 +1,4 @@
-/* $Id: syscall.c,v 1.11 1999/10/09 00:00:58 ralf Exp $
+/* $Id: syscall.c,v 1.12 1999/12/04 03:59:00 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -55,30 +55,46 @@ out:
 	return res;
 }
 
-asmlinkage unsigned long sys_mmap(unsigned long addr, size_t len, int prot,
-                                  int flags, int fd, off_t offset)
+/* common code for old and new mmaps */
+static inline long
+do_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
+        unsigned long flags, unsigned long fd, unsigned long pgoff)
 {
+	int error = -EBADF;
 	struct file * file = NULL;
-	unsigned long error = -EFAULT;
 
-	down(&current->mm->mmap_sem);
-	lock_kernel();
+	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	if (!(flags & MAP_ANONYMOUS)) {
-		error = -EBADF;
 		file = fget(fd);
 		if (!file)
 			goto out;
 	}
-        flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
-        error = do_mmap(file, addr, len, prot, flags, offset);
-        if (file)
-                fput(file);
-out:
+	down(&current->mm->mmap_sem);
+	lock_kernel();
+
+	error = do_mmap_pgoff(file, addr, len, prot, flags, pgoff);
+
 	unlock_kernel();
 	up(&current->mm->mmap_sem);
 
+	if (file)
+		fput(file);
+out:
 	return error;
+}
+
+asmlinkage unsigned long old_mmap(unsigned long addr, size_t len, int prot,
+                                  int flags, int fd, off_t offset)
+{
+	return do_mmap2(addr, len, prot, flags, fd, offset >> PAGE_SHIFT);
+}
+
+asmlinkage long
+sys_mmap2(unsigned long addr, unsigned long len, unsigned long prot,
+          unsigned long flags, unsigned long fd, unsigned long pgoff)
+{
+	return do_mmap2(addr, len, prot, flags, fd, pgoff);
 }
 
 asmlinkage int sys_fork(struct pt_regs regs)

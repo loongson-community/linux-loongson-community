@@ -14,6 +14,10 @@
  *
  ** This file is best viewed/edited with tabstop=4, colums>=132
  *
+ *  
+ *  Dec 10, 1999	Torben Mathiasen <torben.mathiasen@compaq.com>
+ *			New Maintainer
+ *
  ********************************************************************/
 
 
@@ -187,6 +191,7 @@ typedef struct tlan_private_tag {
 	u8			tlanRev;
 	u8			tlanFullDuplex;
 	char                    devName[8];
+	spinlock_t		lock;
 } TLanPrivateInfo;
 
 

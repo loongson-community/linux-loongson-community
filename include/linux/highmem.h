@@ -2,8 +2,7 @@
 #define _LINUX_HIGHMEM_H
 
 #include <linux/config.h>
-#include <linux/pagemap.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 #ifdef CONFIG_HIGHMEM
 

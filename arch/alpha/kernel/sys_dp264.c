@@ -27,7 +27,7 @@
 #include <asm/hwrpb.h>
 
 #include "proto.h"
-#include "irq_impl.h"
+#include <asm/hw_irq.h>
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
@@ -39,28 +39,30 @@
 static void
 dp264_update_irq_hw(unsigned long irq, unsigned long mask, int unmask_p)
 {
-	if (irq >= 16) {
-		volatile unsigned long *csr;
+	volatile unsigned long *csr;
 
-		if (TSUNAMI_bootcpu < 2)
-			if (!TSUNAMI_bootcpu)
-				csr = &TSUNAMI_cchip->dim0.csr;
-			else
-				csr = &TSUNAMI_cchip->dim1.csr;
+	if (TSUNAMI_bootcpu < 2) {
+		if (!TSUNAMI_bootcpu)
+			csr = &TSUNAMI_cchip->dim0.csr;
 		else
-			if (TSUNAMI_bootcpu == 2)
-				csr = &TSUNAMI_cchip->dim2.csr;
-			else
-				csr = &TSUNAMI_cchip->dim3.csr;
-		
-		*csr = ~mask;
-		mb();
-		*csr;
+			csr = &TSUNAMI_cchip->dim1.csr;
+	} else {
+		if (TSUNAMI_bootcpu == 2)
+			csr = &TSUNAMI_cchip->dim2.csr;
+		else
+			csr = &TSUNAMI_cchip->dim3.csr;
 	}
-	else if (irq >= 8)
-		outb(mask >> 8, 0xA1);	/* ISA PIC2 */
-	else
-		outb(mask, 0x21);	/* ISA PIC1 */
+
+	*csr = ~mask;
+	mb();
+	*csr;
+
+	if (irq < 16) {
+		if (irq >= 8)
+			outb(mask >> 8, 0xA1);	/* ISA PIC2 */
+		else
+			outb(mask, 0x21);	/* ISA PIC1 */
+	}
 }
 
 static void
@@ -274,8 +276,19 @@ dp264_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	struct pci_controler *hose = dev->sysdata;
 	int irq = COMMON_TABLE_LOOKUP;
 
-	if (irq > 0)
+	if (irq > 0) {
 		irq += 16 * hose->index;
+	} else {
+		/* ??? The Contaq IDE controler on the ISA bridge uses
+		   "legacy" interrupts 14 and 15.  I don't know if anything
+		   can wind up at the same slot+pin on hose1, so we'll
+		   just have to trust whatever value the console might
+		   have assigned.  */
+
+		u8 irq8;
+		pci_read_config_byte(dev, PCI_INTERRUPT_LINE, &irq8);
+		irq = irq8;
+	}
 
 	return irq;
 }
@@ -418,7 +431,7 @@ struct alpha_machine_vector dp264_mv __initmv = {
 	min_mem_address:	DEFAULT_MEM_BASE,
 
 	nr_irqs:		64,
-	irq_probe_mask:		_PROBE_MASK(64),
+	irq_probe_mask:		TSUNAMI_PROBE_MASK,
 	update_irq_hw:		dp264_update_irq_hw,
 	ack_irq:		common_ack_irq,
 	device_interrupt:	dp264_device_interrupt,
@@ -427,7 +440,7 @@ struct alpha_machine_vector dp264_mv __initmv = {
 	init_irq:		dp264_init_irq,
 	init_pit:		common_init_pit,
 	init_pci:		dp264_init_pci,
-	kill_arch:		common_kill_arch,
+	kill_arch:		tsunami_kill_arch,
 	pci_map_irq:		dp264_map_irq,
 	pci_swizzle:		common_swizzle,
 };
@@ -445,7 +458,7 @@ struct alpha_machine_vector monet_mv __initmv = {
 	min_mem_address:	DEFAULT_MEM_BASE,
 
 	nr_irqs:		64,
-	irq_probe_mask:		_PROBE_MASK(64),
+	irq_probe_mask:		TSUNAMI_PROBE_MASK,
 	update_irq_hw:		dp264_update_irq_hw,
 	ack_irq:		common_ack_irq,
 	device_interrupt:	dp264_device_interrupt,
@@ -454,7 +467,7 @@ struct alpha_machine_vector monet_mv __initmv = {
 	init_irq:		dp264_init_irq,
 	init_pit:		common_init_pit,
 	init_pci:		monet_init_pci,
-	kill_arch:		common_kill_arch,
+	kill_arch:		tsunami_kill_arch,
 	pci_map_irq:		monet_map_irq,
 	pci_swizzle:		monet_swizzle,
 };
@@ -471,7 +484,7 @@ struct alpha_machine_vector webbrick_mv __initmv = {
 	min_mem_address:	DEFAULT_MEM_BASE,
 
 	nr_irqs:		64,
-	irq_probe_mask:		_PROBE_MASK(64),
+	irq_probe_mask:		TSUNAMI_PROBE_MASK,
 	update_irq_hw:		dp264_update_irq_hw,
 	ack_irq:		common_ack_irq,
 	device_interrupt:	dp264_device_interrupt,
@@ -479,8 +492,8 @@ struct alpha_machine_vector webbrick_mv __initmv = {
 	init_arch:		tsunami_init_arch,
 	init_irq:		dp264_init_irq,
 	init_pit:		common_init_pit,
-	init_pci:		dp264_init_pci,
-	kill_arch:		common_kill_arch,
+	init_pci:		common_init_pci,
+	kill_arch:		tsunami_kill_arch,
 	pci_map_irq:		webbrick_map_irq,
 	pci_swizzle:		common_swizzle,
 };
@@ -497,7 +510,7 @@ struct alpha_machine_vector clipper_mv __initmv = {
 	min_mem_address:	DEFAULT_MEM_BASE,
 
 	nr_irqs:		64,
-	irq_probe_mask:		_PROBE_MASK(64),
+	irq_probe_mask:		TSUNAMI_PROBE_MASK,
 	update_irq_hw:		clipper_update_irq_hw,
 	ack_irq:		common_ack_irq,
 	device_interrupt:	dp264_device_interrupt,
@@ -506,7 +519,7 @@ struct alpha_machine_vector clipper_mv __initmv = {
 	init_irq:		clipper_init_irq,
 	init_pit:		common_init_pit,
 	init_pci:		common_init_pci,
-	kill_arch:		common_kill_arch,
+	kill_arch:		tsunami_kill_arch,
 	pci_map_irq:		clipper_map_irq,
 	pci_swizzle:		common_swizzle,
 };

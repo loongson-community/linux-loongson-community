@@ -80,7 +80,6 @@
 #include <linux/blk.h>
 #include <linux/spinlock.h>
 #include <linux/stat.h>
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/ioport.h>
@@ -352,6 +351,7 @@ int inia100_detect(Scsi_Host_Template * tpnt)
 		pHCB->pSRB_head = NULL;		/* Initial SRB save queue       */
 		pHCB->pSRB_tail = NULL;		/* Initial SRB save queue       */
 		pHCB->pSRB_lock = SPIN_LOCK_UNLOCKED; /* SRB save queue lock */
+		pHCB->BitAllocFlagLock = SPIN_LOCK_UNLOCKED;
 		/* Get total memory needed for SCB */
 		sz = orc_num_scb * sizeof(ORC_SCB);
 		if ((pHCB->HCS_virScbArray = (PVOID) kmalloc(sz, GFP_ATOMIC | GFP_DMA)) == NULL) {
@@ -400,7 +400,7 @@ int inia100_detect(Scsi_Host_Template * tpnt)
  */
 		hreg->irq = pHCB->HCS_Intr;
 		hreg->this_id = pHCB->HCS_SCSI_ID;	/* Assign HCS index           */
-		hreg->base = (UCHAR *) pHCB;
+		hreg->base = (unsigned long)pHCB;
 
 #if 1
 		hreg->sg_tablesize = TOTAL_SG_ENTRY;	/* Maximun support is 32 */

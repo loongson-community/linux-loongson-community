@@ -19,7 +19,7 @@
  * results in clearer kernel profiles as we see _who_ is
  * doing page clearing or copying.
  */
-static inline void clear_page(unsigned long page)
+static inline void clear_page(void * page)
 {
 	unsigned long count = PAGE_SIZE/64;
 	unsigned long *ptr = (unsigned long *)page;
@@ -38,7 +38,7 @@ static inline void clear_page(unsigned long page)
 	} while (count);
 }
 
-static inline void copy_page(unsigned long _to, unsigned long _from)
+static inline void copy_page(void * _to, void * _from)
 {
 	unsigned long count = PAGE_SIZE/64;
 	unsigned long *to = (unsigned long *)_to;

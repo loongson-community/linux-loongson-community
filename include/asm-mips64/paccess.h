@@ -1,4 +1,4 @@
-/* $Id: paccess.h,v 1.1 2000/01/20 22:50:32 ralf Exp $
+/* $Id: paccess.h,v 1.2 2000/01/21 22:34:07 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -20,7 +20,7 @@
 #define get_dbe(x,ptr) __get_dbe((x),(ptr),sizeof(*(ptr)))
 
 struct __large_pstruct { unsigned long buf[100]; };
-#define __m(x) (*(struct __large_pstruct *)(x))
+#define __mp(x) (*(struct __large_pstruct *)(x))
 
 #define __get_dbe(x,ptr,size) ({ \
 long __gu_err; \
@@ -52,7 +52,7 @@ __asm__ __volatile__( \
 	".dword\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__gu_err), "=r" (__gu_val) \
-	:"o" (__m(__gu_addr)), "i" (-EFAULT)); })
+	:"o" (__mp(__gu_addr)), "i" (-EFAULT)); })
 
 extern void __get_dbe_unknown(void);
 
@@ -85,7 +85,7 @@ __asm__ __volatile__( \
 	".dword\t1b,3b\n\t" \
 	".previous" \
 	:"=r" (__pu_err) \
-	:"r" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT)); })
+	:"r" (__pu_val), "o" (__mp(__pu_addr)), "i" (-EFAULT)); })
 
 extern void __put_dbe_unknown(void);
 

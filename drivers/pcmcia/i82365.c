@@ -2602,26 +2602,15 @@ static int proc_read_cardbus(char *buf, char **start, off_t pos,
 static void pcic_proc_setup(u_short sock, struct proc_dir_entry *base)
 {
     socket_info_t *s = &socket[sock];
-    struct proc_dir_entry *ent;
-    ent = create_proc_entry("info", 0, base);
-    ent->read_proc = proc_read_info;
-    ent->data = s;
-    ent = create_proc_entry("exca", 0, base);
-    ent->read_proc = proc_read_exca;
-    ent->data = s;
+    create_proc_read_entry("info", 0, base, proc_read_info, s);
+    create_proc_read_entry("exca", 0, base, proc_read_exca, s);
 #ifdef CONFIG_PCI
-    if (s->flags & (IS_PCI|IS_CARDBUS)) {
-	ent = create_proc_entry("pci", 0, base);
-	ent->read_proc = proc_read_pci;
-	ent->data = s;
-    }
+    if (s->flags & (IS_PCI|IS_CARDBUS))
+	create_proc_read_entry("pci", 0, base, proc_read_pci, s);
 #endif
 #ifdef CONFIG_CARDBUS
-    if (s->flags & IS_CARDBUS) {
-	ent = create_proc_entry("cardbus", 0, base);
-	ent->read_proc = proc_read_cardbus;
-	ent->data = s;
-    }
+    if (s->flags & IS_CARDBUS)
+	create_proc_read_entry("cardbus", 0, base, proc_read_cardbus, s);
 #endif
     s->proc = base;
 }
@@ -2714,7 +2703,7 @@ static int pcic_service(u_int sock, u_int cmd, void *arg)
 static int __init init_i82365(void)
 {
     servinfo_t serv;
-    CardServices(GetCardServicesInfo, &serv);
+    pcmcia_get_card_services_info(&serv);
     if (serv.Revision != CS_RELEASE_CODE) {
 	printk(KERN_NOTICE "i82365: Card Services release "
 	       "does not match!\n");

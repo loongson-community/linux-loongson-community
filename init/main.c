@@ -485,10 +485,9 @@ asmlinkage void __init start_kernel(void)
 		/* only text is profiled */
 		prof_len = (unsigned long) &_etext - (unsigned long) &_stext;
 		prof_len >>= prof_shift;
-
+		
 		size = prof_len * sizeof(unsigned int) + PAGE_SIZE-1;
 		prof_buffer = (unsigned int *) alloc_bootmem(size);
-		memset(prof_buffer, 0, prof_len * sizeof(unsigned int));
 	}
 
 	kmem_cache_init();

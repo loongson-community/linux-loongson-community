@@ -26,7 +26,7 @@
 #include <linux/swap.h>
 
 #include <asm/system.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/page.h>
 
 static inline void

@@ -315,7 +315,7 @@ struct pci_ops cia_pci_ops =
 };
 
 void __init
-cia_init_arch(unsigned long *mem_start, unsigned long *mem_end)
+cia_init_arch(void)
 {
 	struct pci_controler *hose;
 	struct resource *hae_mem;
@@ -424,8 +424,8 @@ cia_init_arch(unsigned long *mem_start, unsigned long *mem_end)
 	 * Create our single hose.
 	 */
 
-	hose = alloc_pci_controler(mem_start);
-	hae_mem = alloc_resource(mem_start);
+	hose = alloc_pci_controler();
+	hae_mem = alloc_resource();
 
 	hose->io_space = &ioport_resource;
 	hose->mem_space = hae_mem;
@@ -435,8 +435,10 @@ cia_init_arch(unsigned long *mem_start, unsigned long *mem_end)
 	hae_mem->start = 0;
 	hae_mem->end = CIA_MEM_R1_MASK;
 	hae_mem->name = pci_hae0_name;
+	hae_mem->flags = IORESOURCE_MEM;
 
-	request_resource(&iomem_resource, hae_mem);
+	if (request_resource(&iomem_resource, hae_mem) < 0)
+		printk(KERN_ERR "Failed to request HAE_MEM\n");
 }
 
 static inline void

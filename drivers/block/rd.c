@@ -181,7 +181,7 @@ __setup("ramdisk_size=", ramdisk_size2);
  *  allocated size, we must get rid of it...
  *
  */
-static void rd_request(void)
+static void rd_request(request_queue_t * q)
 {
 	unsigned int minor;
 	unsigned long offset, len;
@@ -276,9 +276,11 @@ static ssize_t initrd_read(struct file *file, char *buf,
 
 static int initrd_release(struct inode *inode,struct file *file)
 {
+	extern void free_initrd_mem(unsigned long, unsigned long);
+
+	if (--initrd_users) return 0;
+	free_initrd_mem(initrd_start, initrd_end);
 	initrd_start = 0;
-	/* No need to actually release the pages, because that is
-	   done later by free_all_bootmem. */
 	return 0;
 }
 
@@ -339,8 +341,20 @@ static struct file_operations fd_fops = {
 	block_fsync	/* fsync */ 
 };
 
+/* Before freeing the module, invalidate all of the protected buffers! */
+static void __exit rd_cleanup (void)
+{
+	int i;
+
+	for (i = 0 ; i < NUM_RAMDISKS; i++)
+		invalidate_buffers(MKDEV(MAJOR_NR, i));
+
+	unregister_blkdev( MAJOR_NR, "ramdisk" );
+	blk_cleanup_queue(BLK_DEFAULT_QUEUE(MAJOR_NR));
+}
+
 /* This is the registration and initialization section of the RAM disk driver */
-int __init rd_init(void)
+int __init rd_init (void)
 {
 	int		i;
 
@@ -357,7 +371,7 @@ int __init rd_init(void)
 		return -EIO;
 	}
 
-	blk_dev[MAJOR_NR].request_fn = &rd_request;
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), &rd_request);
 
 	for (i = 0; i < NUM_RAMDISKS; i++) {
 		/* rd_size is given in kB */
@@ -378,36 +392,16 @@ int __init rd_init(void)
 	return 0;
 }
 
-/* loadable module support */
-
 #ifdef MODULE
+module_init(rd_init);
+#endif
+module_exit(rd_cleanup);
 
+/* loadable module support */
 MODULE_PARM     (rd_size, "1i");
 MODULE_PARM_DESC(rd_size, "Size of each RAM disk in kbytes.");
 MODULE_PARM     (rd_blocksize, "i");
 MODULE_PARM_DESC(rd_blocksize, "Blocksize of each RAM disk in bytes.");
-
-int init_module(void)
-{
-	int error = rd_init();
-	if (!error)
-		printk(KERN_INFO "RAMDISK: Loaded as module.\n");
-	return error;
-}
-
-/* Before freeing the module, invalidate all of the protected buffers! */
-void cleanup_module(void)
-{
-	int i;
-
-	for (i = 0 ; i < NUM_RAMDISKS; i++)
-		invalidate_buffers(MKDEV(MAJOR_NR, i));
-
-	unregister_blkdev( MAJOR_NR, "ramdisk" );
-	blk_dev[MAJOR_NR].request_fn = 0;
-}
-
-#endif  /* MODULE */
 
 /* End of non-loading portions of the RAM disk driver */
 

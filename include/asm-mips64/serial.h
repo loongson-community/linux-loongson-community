@@ -1,4 +1,4 @@
-/* $Id: serial.h,v 1.1 2000/01/04 10:51:55 ralf Exp $
+/* $Id: serial.h,v 1.2 2000/01/17 23:32:47 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -36,9 +36,14 @@
 #define RS_TABLE_SIZE
 
 #ifdef CONFIG_SGI_IP27
+#define _ORIGIN_SERIAL_INIT(int, base)					\
+	{ baud_base: IOC3_BAUD, irq: int, flags: IOC3_COM_FLAGS,	\
+	  iomem_base: (u8 *) base, iomem_reg_shift: 0,			\
+	  io_type: SERIAL_IO_MEM }
 #define ORIGIN_SERIAL_PORT_DFNS						\
-	{ 0, IOC3_BAUD, 0x9200000008620178, 0, IOC3_COM_FLAGS },\
-	{ 0, IOC3_BAUD, 0x9200000008620170, 0, IOC3_COM_FLAGS },
+	_ORIGIN_SERIAL_INIT(0, 0x9200000008620178UL),			\
+	_ORIGIN_SERIAL_INIT(0, 0x9200000008620170UL),
+
 #else
 #define ORIGIN_SERIAL_PORT_DFNS
 #endif

@@ -103,8 +103,7 @@ _GLOBAL(__no_use_sti)
  * We were about to enable interrupts but we have to simulate
  * some interrupts that were lost by enable_irq first.
  */
-	.globl do_lost_interrupts
-do_lost_interrupts:
+_GLOBAL(do_lost_interrupts)
 	stwu	r1,-16(r1)
 	mflr	r0
 	stw	r0,20(r1)
@@ -405,8 +404,10 @@ _GLOBAL(atomic_set_mask)
  * The *_ns versions don't do byte-swapping.
  */
 _GLOBAL(_insb)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,1
+	blelr-
 00:	lbz	r5,0(r3)
 	eieio
 	stbu	r5,1(r4)
@@ -414,8 +415,10 @@ _GLOBAL(_insb)
 	blr
 
 _GLOBAL(_outsb)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,1
+	blelr-
 00:	lbzu	r5,1(r4)
 	stb	r5,0(r3)
 	eieio
@@ -423,8 +426,10 @@ _GLOBAL(_outsb)
 	blr	
 
 _GLOBAL(_insw)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,2
+	blelr-
 00:	lhbrx	r5,0,r3
 	eieio
 	sthu	r5,2(r4)
@@ -432,8 +437,10 @@ _GLOBAL(_insw)
 	blr
 
 _GLOBAL(_outsw)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,2
+	blelr-
 00:	lhzu	r5,2(r4)
 	eieio
 	sthbrx	r5,0,r3	
@@ -441,8 +448,10 @@ _GLOBAL(_outsw)
 	blr	
 
 _GLOBAL(_insl)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,4
+	blelr-
 00:	lwbrx	r5,0,r3
 	eieio
 	stwu	r5,4(r4)
@@ -450,8 +459,10 @@ _GLOBAL(_insl)
 	blr
 
 _GLOBAL(_outsl)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,4
+	blelr-
 00:	lwzu	r5,4(r4)
 	stwbrx	r5,0,r3
 	eieio
@@ -460,8 +471,10 @@ _GLOBAL(_outsl)
 
 _GLOBAL(ide_insw)
 _GLOBAL(_insw_ns)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,2
+	blelr-
 00:	lhz	r5,0(r3)
 	eieio
 	sthu	r5,2(r4)
@@ -470,8 +483,10 @@ _GLOBAL(_insw_ns)
 
 _GLOBAL(ide_outsw)
 _GLOBAL(_outsw_ns)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,2
+	blelr-
 00:	lhzu	r5,2(r4)
 	sth	r5,0(r3)
 	eieio
@@ -479,8 +494,10 @@ _GLOBAL(_outsw_ns)
 	blr	
 
 _GLOBAL(_insl_ns)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,4
+	blelr-
 00:	lwz	r5,0(r3)
 	eieio
 	stwu	r5,4(r4)
@@ -488,8 +505,10 @@ _GLOBAL(_insl_ns)
 	blr
 
 _GLOBAL(_outsl_ns)
+	cmpw	0,r5,0
 	mtctr	r5
 	subi	r4,r4,4
+	blelr-
 00:	lwzu	r5,4(r4)
 	stw	r5,0(r3)
 	eieio
@@ -758,8 +777,19 @@ _GLOBAL(_set_L2CR)
  * We restore and save the fpscr so the task gets the same result
  * and exceptions as if the cpu had performed the load or store.
  */
+
+#if defined(CONFIG_4xx)
 _GLOBAL(cvt_fd)
-cvt_fd:
+	lfs	0,0(r3)
+	stfd	0,0(r4)
+	blr
+
+_GLOBAL(cvt_df)
+	lfd	0,0(r3)
+	stfs	0,0(r4)
+	blr
+#else
+_GLOBAL(cvt_fd)
 	lfd	0,-4(r5)	/* load up fpscr value */
 	mtfsf	0xff,0
 	lfs	0,0(r3)
@@ -769,7 +799,6 @@ cvt_fd:
 	blr
 
 _GLOBAL(cvt_df)
-cvt_df:
 	lfd	0,-4(r5)	/* load up fpscr value */
 	mtfsf	0xff,0
 	lfd	0,0(r3)
@@ -777,9 +806,9 @@ cvt_df:
 	mffs	0		/* save new fpscr value */
 	stfd	0,-4(r5)
 	blr
+#endif
 
-        .globl  __clear_msr_me
-__clear_msr_me:
+_GLOBAL(__clear_msr_me)
         mfmsr   r0                      /* Get current interrupt state */
         lis     r3,0
         ori     r3,r3,MSR_ME
@@ -843,8 +872,7 @@ SYSCALL(read)
 /* Why isn't this a) automatic, b) written in 'C'? */	
 	.data
 	.align 4
-	.globl	sys_call_table
-sys_call_table:
+_GLOBAL(sys_call_table)
 	.long sys_ni_syscall	/* 0  -  old "setup()" system call */
 	.long sys_exit
 	.long sys_fork
@@ -921,7 +949,7 @@ sys_call_table:
 	.long sys_sigpending
 	.long sys_sethostname
 	.long sys_setrlimit	/* 75 */
-	.long sys_getrlimit
+	.long sys_old_getrlimit
 	.long sys_getrusage
 	.long sys_gettimeofday
 	.long sys_settimeofday
@@ -1039,4 +1067,5 @@ sys_call_table:
 	.long sys_ni_syscall		/* streams1 */
 	.long sys_ni_syscall		/* streams2 */
 	.long sys_vfork
-	.space (NR_syscalls-183)*4
+	.long sys_getrlimit	/* 190 */
+	.space (NR_syscalls-190)*4

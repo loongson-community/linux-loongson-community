@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.3 1999/10/19 20:51:46 ralf Exp $
+/* $Id: setup.c,v 1.6 2000/01/27 01:05:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -93,7 +93,6 @@ unsigned char aux_device_present;
 extern int _end;
 
 extern void load_mmu(void);
-extern char empty_zero_page[PAGE_SIZE];
 
 static char command_line[CL_SIZE] = { 0, };
        char saved_command_line[CL_SIZE];

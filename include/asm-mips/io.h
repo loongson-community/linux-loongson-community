@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.9 2000/01/27 23:45:30 ralf Exp $
+/* $Id: io.h,v 1.10 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -216,6 +216,7 @@ static inline int check_signature(unsigned long io_addr,
 out:
 	return retval;
 }
+#define isa_check_signature(io, s, l) check_signature(i,s,l)
 
 /*
  * Talk about misusing macros..
@@ -413,6 +414,8 @@ __OUTS(w,l,4)
 ((__builtin_constant_p((port)) && (port) < 32768) ? \
 	__inslc((port),(addr),(count)) : \
 	__insl((port),(addr),(count)))
+
+#define IO_SPACE_LIMIT 0xffff
 
 /*
  * The caches on some architectures aren't dma-coherent and have need to

@@ -17,7 +17,6 @@
  */
 
 #include "udfdecl.h"
-#include "udf_sb.h"
 
 #if defined(__linux__) && defined(__KERNEL__)
 
@@ -85,7 +84,7 @@ Uint8 * udf_filead_read(struct inode *dir, Uint8 *tmpad, Uint8 ad_size,
 }
 
 struct FileIdentDesc *
-udf_fileident_read(struct inode *dir, int *nf_pos,
+udf_fileident_read(struct inode *dir, loff_t *nf_pos,
 	struct udf_fileident_bh *fibh,
 	struct FileIdentDesc *cfi,
 	lb_addr *bloc, Uint32 *extoffset, 

@@ -35,6 +35,12 @@ CONFIG_CPU_R10000=y
 # CONFIG_MIPS_INSANE_LARGE is not set
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 CONFIG_NET=y
+CONFIG_PCI_NAMES=y
+
+#
+# PCMCIA/CardBus support
+#
+# CONFIG_PCMCIA is not set
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
@@ -47,6 +53,7 @@ CONFIG_BINFMT_ELF32=y
 # Loadable module support
 #
 # CONFIG_MODULES is not set
+CONFIG_PCI_NAMES=y
 
 #
 # Block devices
@@ -205,6 +212,12 @@ CONFIG_SGI_IOC3_ETH=y
 # CONFIG_NET_ISA is not set
 # CONFIG_NET_EISA is not set
 # CONFIG_NET_POCKET is not set
+
+#
+# Ethernet (1000 Mbit)
+#
+# CONFIG_ACENIC is not set
+# CONFIG_SK98LIN is not set
 # CONFIG_FDDI is not set
 # CONFIG_PLIP is not set
 # CONFIG_PPP is not set
@@ -225,11 +238,6 @@ CONFIG_SGI_IOC3_ETH=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
-
-#
-# PCMCIA network device support
-#
-# CONFIG_NET_PCMCIA is not set
 
 #
 # Amateur Radio support
@@ -281,11 +289,6 @@ CONFIG_SERIAL_CONSOLE=y
 # Video For Linux
 #
 # CONFIG_VIDEO_DEV is not set
-
-#
-# Joystick support
-#
-# CONFIG_JOYSTICK is not set
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
@@ -294,9 +297,11 @@ CONFIG_SERIAL_CONSOLE=y
 # Ftape, the floppy tape device driver
 #
 # CONFIG_FTAPE is not set
+# CONFIG_DRM is not set
+# CONFIG_DRM_TDFX is not set
 
 #
-# USB drivers - not for the faint of heart
+# Support for USB
 #
 # CONFIG_USB is not set
 
@@ -306,14 +311,12 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_QUOTA is not set
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AFFS_FS is not set
-# CONFIG_HFS_FS is not set
 # CONFIG_FAT_FS is not set
 # CONFIG_MSDOS_FS is not set
 # CONFIG_UMSDOS_FS is not set
 # CONFIG_VFAT_FS is not set
 # CONFIG_ISO9660_FS is not set
 # CONFIG_JOLIET is not set
-# CONFIG_UDF_FS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_NTFS_FS is not set
 # CONFIG_HPFS_FS is not set
@@ -321,6 +324,7 @@ CONFIG_PROC_FS=y
 # CONFIG_ROMFS_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_SYSV_FS is not set
+# CONFIG_UDF_FS is not set
 # CONFIG_UFS_FS is not set
 
 #
@@ -340,9 +344,6 @@ CONFIG_LOCKD=y
 #
 # CONFIG_PARTITION_ADVANCED is not set
 CONFIG_MSDOS_PARTITION=y
-# CONFIG_BSD_DISKLABEL is not set
-# CONFIG_SOLARIS_X86_PARTITION is not set
-# CONFIG_UNIXWARE_DISKLABEL is not set
 CONFIG_SGI_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_NLS is not set

@@ -27,7 +27,7 @@
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 static int load_aout_binary(struct linux_binprm *, struct pt_regs * regs);
 static int load_aout_library(int fd);
@@ -551,5 +551,8 @@ static void __exit exit_aout_binfmt(void)
 	unregister_binfmt(&aout_format);
 }
 
-module_init(init_aout_binfmt)
-module_exit(exit_aout_binfmt)
+EXPORT_NO_SYMBOLS;
+
+module_init(init_aout_binfmt);
+module_exit(exit_aout_binfmt);
+

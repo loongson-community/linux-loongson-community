@@ -24,8 +24,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/generic/init.c,v 1.3 1999/08/20 15:07:01 faith Exp $
- * $XFree86$
+ * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/init.c,v 1.3 1999/08/20 15:07:01 faith Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/init.c,v 1.1 1999/09/25 14:38:01 dawes Exp $
  *
  */
 
@@ -97,3 +97,13 @@ void drm_parse_options(char *s)
 	}
 }
 
+/* drm_cpu_valid returns non-zero if the DRI will run on this CPU, and 0
+ * otherwise. */
+
+int drm_cpu_valid(void)
+{
+#if defined(__i386__)
+	if (boot_cpu_data.x86 == 3) return 0; /* No cmpxchg on a 386 */
+#endif
+	return 1;
+}

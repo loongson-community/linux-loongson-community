@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.23 2000/01/27 23:45:25 ralf Exp $
+/* $Id: init.c,v 1.24 2000/01/29 01:41:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -33,6 +33,7 @@
 #include <asm/jazzdma.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #ifdef CONFIG_SGI_IP22
 #include <asm/sgialib.h>
 #endif
@@ -249,15 +250,22 @@ extern char __init_begin, __init_end;
 
 void __init paging_init(void)
 {
-	unsigned int zones_size[2];
+	unsigned int zones_size[MAX_NR_ZONES] = {0, 0, 0};
+	unsigned long max_dma, low;
 
 	/* Initialize the entire pgd.  */
 	pgd_init((unsigned long)swapper_pg_dir);
 	pgd_init((unsigned long)swapper_pg_dir + PAGE_SIZE / 2);
-	return free_area_init(max_low_pfn);
 
-	zones_size[0] = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
-	zones_size[1] = max_low_pfn - zones_size[0];
+	max_dma = virt_to_phys((char *)MAX_DMA_ADDRESS) >> PAGE_SHIFT;
+	low = max_low_pfn;
+
+	if (low < max_dma)
+		zones_size[ZONE_DMA] = low;
+	else {
+		zones_size[ZONE_DMA] = max_dma;
+		zones_size[ZONE_NORMAL] = low - max_dma;
+	}
 
 	free_area_init(zones_size);
 }
@@ -287,7 +295,7 @@ void __init mem_init(void)
 	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
-	printk("Memory: %uk/%luk available (%ldk kernel code, %ldk reserved, "
+	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
 	       "%ldk data, %ldk init)\n",
 	       (unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
 	       ram << (PAGE_SHIFT-10),
@@ -296,6 +304,19 @@ void __init mem_init(void)
 	       datasize >> 10,
 	       initsize >> 10);
 }
+
+#ifdef CONFIG_BLK_DEV_INITRD
+void free_initrd_mem(unsigned long start, unsigned long end)
+{
+	for (; start < end; start += PAGE_SIZE) {
+		ClearPageReserved(mem_map + MAP_NR(start));
+		set_page_count(mem_map+MAP_NR(start), 1);
+		free_page(start);
+		totalram_pages++;
+	}
+	printk ("Freeing initrd memory: %ldk freed\n", (end - start) >> 10);
+}
+#endif
 
 extern char __init_begin, __init_end;
 extern void prom_free_prom_memory(void);

@@ -1,4 +1,4 @@
-/* $Id: mmu_context.h,v 1.5 1999/10/09 00:01:43 ralf Exp $
+/* $Id: mmu_context.h,v 1.6 1999/12/04 03:59:12 ralf Exp $
  *
  * Switch a MMU context.
  *
@@ -13,6 +13,7 @@
 #define _ASM_MMU_CONTEXT_H
 
 #include <linux/config.h>
+#include <asm/pgalloc.h>
 
 /* Fuck.  The f-word is here so you can grep for it :-)  */
 extern unsigned long asid_cache;

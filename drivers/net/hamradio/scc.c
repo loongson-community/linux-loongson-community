@@ -1571,7 +1571,7 @@ static int scc_net_setup(struct scc_channel *scc, unsigned char *name, int addev
 	unsigned char *buf;
 	struct net_device *dev;
 
-	if (dev_get(name) != NULL)
+	if (dev_get(name))
 	{
 		printk(KERN_INFO "Z8530drv: device %s already exists.\n", name);
 		return -EEXIST;
@@ -2068,7 +2068,7 @@ static struct net_device_stats *scc_net_get_stats(struct net_device *dev)
 /* ******************************************************************** */
 
 
-static int scc_net_get_info(char *buffer, char **start, off_t offset, int length, int dummy)
+static int scc_net_get_info(char *buffer, char **start, off_t offset, int length)
 {
 	struct scc_channel *scc;
 	struct scc_kiss *kiss;

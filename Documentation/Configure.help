@@ -685,17 +685,8 @@ CONFIG_BLK_DEV_HPT366
 
   Please read the comments at the top of drivers/block/hpt366.c
 
-HPT366 (EXPERIMENTAL)
-CONFIG_BLK_DEV_HPT366_SHARED
-  This requires CONFIG_BLK_DEV_HPT366.
-  It appears that there are different versions or releases of this hardware
-  by ABit.  Since some cases the second channel of the onboard chipset works
-  and others fail, it is default disabled.  This is required to be set if you
-  want to attempt the setup of the second channel.
-
-  JUMBO WARNING, do not boot a kernel with this enabled if it is your only
-  one.  You may not be able to get back into your machine without physically
-  detaching the attached devices.
+HPT366 Fast Interrupt support (EXPERIMENTAL)
+HPT366_FAST_IRQ_PREDICTION
 
   If unsure, say N.
 
@@ -1552,10 +1543,6 @@ CONFIG_NETFILTER
   Chances are that you should say Y here if you compile a kernel which
   will run as a router and N for regular hosts. If unsure, say N.
  
-Network packet filtering debugging
-CONFIG_NETFILTER_DEBUG
-  Say Y to make sure packets aren't leaking.
-
 SYN flood protection
 CONFIG_SYN_COOKIES
   Normal TCP/IP networking is open to an attack known as "SYN
@@ -1571,7 +1558,7 @@ CONFIG_SYN_COOKIES
   is no need for the legitimate users to change their TCP/IP software;
   SYN cookies work transparently to them. For technical information
   about SYN cookies, check out
-  ftp://koobera.math.uic.edu/pub/docs/syncookies-archive .
+  ftp://koobera.math.uic.edu/syncookies.html .
 
   If you are SYN flooded, the source address reported by the kernel is
   likely to have been forged by the attacker; it is only reported as
@@ -1822,6 +1809,19 @@ CONFIG_PCI_GOBIOS
   "Direct", the BIOS won't be used, and if you choose "Any", the
   kernel will try the direct access method and falls back to the BIOS
   if that doesn't work. If unsure, go with the default.
+
+PCI device name database
+CONFIG_PCI_NAMES
+  By default, the kernel contains a database of all known PCI device
+  names to make the information in /proc/pci, /proc/ioports and similar
+  files comprehensible to the user. This database increases size of
+  the kernel image by about 80KB, but it gets freed after the system
+  boots up, so it doesn't take up kernel memory. Anyway, if you are
+  building an installation floppy or kernel for an embedded system
+  where kernel image size really matters, you can disable this feature
+  and you'll get device ID numbers instead of names.
+
+  When in doubt, say Y.
 
 MCA support
 CONFIG_MCA
@@ -4175,6 +4175,16 @@ CONFIG_CHR_DEV_SG
   Documentation/scsi.txt. The module will be called sg.o. If unsure,
   say N.
 
+Debug new queueing code for SCSI
+CONFIG_SCSI_DEBUG_QUEUES
+  This option turns on a lot of additional consistency checking for the new
+  queueing code.   This will adversely affect performance, but it is likely
+  that bugs will be caught sooner if this is turned on.   This will typically
+  cause the kernel to panic if an error is detected, but it would have probably
+  crashed if the panic weren't there.   Comments/questions/problems to
+  linux-scsi mailing list please.  See http://www.andante.org/scsi_queue.html
+  for more uptodate information.
+
 Probe all LUNs on each SCSI device
 CONFIG_SCSI_MULTI_LUN
   If you have a SCSI device that supports more than one LUN (Logical
@@ -5616,6 +5626,83 @@ CONFIG_ARLAN
   On some computers the card ends up in non-valid state after some time.
   Use a ping-reset script to clear it.
 
+Aironet 4500/4800 series adapters
+CONFIG_AIRONET4500
+  www.aironet.com (recently bought by Cisco) makes these 802.11 DS
+  adapters.  Driver by Elmer Joandi (elmer@ylenurme.ee).
+  Work sponsored by www.spectrumwireless.net and www.vendomar.ee
+  This configuration option enables common code for all devices (PCI, ISA,
+  PCMCIA)
+  module is aironet4500_core
+  quickconfig parameters: 
+	SSID=tsunami - "The Password"
+	adhoc=1  	there are no Access Points around
+	master=1 	Adhoc master (the one who creates network sync)
+	slave=1		Adhoc slave(btw, it is still forming own net 
+			sometimes)
+	channel=1..? 	meaningful in adhoc mode
+  all other parameters can be set via proc interface
+  These parameters belong to .._card module, but alas, they are here
+
+Aironet 4500/4800 ISA/PCI/PNP/365 support
+CONFIG_AIRONET4500_NONCS
+  This is module aironet4500_card, which includes _possibility_ to
+  support for following
+  PCI device
+  ISA device in ISA mode(does not work currently)
+  ISA device in PNP mode
+  PCMCIA device _without_ cardservices, direct 365 chip INIT, 
+	does not work currently
+  PCMCIA _with_ CardServices(normal way) is at another module 
+  radio parameters are currently configurable at ..._core module
+
+Aironet 4500/4800 PNP support
+CONFIG_AIRONET4500_PNP
+	This option should be enabled for ISA cards, remember to enable
+	PNP jumper on board. 
+	module aironet4500_card
+
+Aironet 4500/4800 PCI support
+CONFIG_AIRONET4500_PCI
+	This option should be enabled for PCI cards
+	module aironet4500_card
+
+Aironet 4500/4800 ISA broken support (EXPERIMENTAL)
+CONFIG_AIRONET4500_ISA
+	This option enables support for ISA cards in non-PNP mode. 
+	Does not operate correctly by now.
+	module aironet4500_card
+
+Aironet 4500/4800 I365 broken support (EXPERIMENTAL)
+CONFIG_AIRONET4500_I365
+	This option enables support for PCMCIA cards on i365 controller 
+	_without_ cardservices. Doesnt have much sense and is not working
+	properly. Comes from times where there was no PCMCIA support in
+	kernel main source tree
+
+Aironet 4500/4800 PCMCIA support
+CONFIG_AIRONET4500_CS
+	This option enables support for PCMCIA cards to be used with
+	CardServices. 
+	This is not for ISA and PCI adapters.
+	module aironet4500_cs.o
+	The same option is both on:
+		1. PCMCIA netdevices configuring panel
+		2. Wireless netdevices configuring panel
+	Possibility to change this option depeds on options set in 2.
+	
+Aironet 4500/4800 PROC interface
+CONFIG_AIRONET4500_PROC
+	This option enables /proc/sys/aironet4500 interface for 
+	configuring the device.
+	NOTE: it takes lot of memory. Compile it as module and remove
+	after configuration
+	module: aironet4500_proc
+
+
+
+ 
+
 LAPB over Ethernet driver
 CONFIG_LAPBETHER
   This is a driver for a pseudo device (typically called /dev/lapb0)
@@ -6602,10 +6689,16 @@ CONFIG_RTL8139
 
 SiS 900 PCI Fast Ethernet Adapter support
 CONFIG_SIS900
-  This is a driver for the Silicon Integrated System Corporation 900
-  Fast Ethernet PCI network card. If you have one of those, say Y and
-  read the Ethernet-HOWTO, available from
-  http://metalab.unc.edu/mdw/linux.html#howto .
+  This is a driver for the Fast Ethernet PCI network cards based on
+  the SiS 900 and SiS 7016 chips. The SiS 900 core is also embedded in
+  SiS 630 and SiS 540 chipsets. If you have one of those, say Y and
+  read the Ethernet-HOWTO, available via FTP (user: anonymous) in   
+  ftp://metalab.unc.edu/pub/Linux/docs/HOWTO. Please read 
+  Documentation/networking/sis900.txt and comments at the beginning
+  of drivers/net/sis900.c for more information.
+
+  This driver also supports AMD 79C901 HomePNA such that you can use
+  your phone line as network cable.
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -6671,6 +6764,27 @@ CONFIG_ACENIC_OMIT_TIGON_I
   Tigon II, say N here.
 
   The safe and default value for this is N.
+
+SysKonnect SK-98xx support
+CONFIG_SK98LIN
+  Say Y here if you have a SysKonnect SK-98xx Gigabit Ethernet Server
+  Adapter. The following adapters are supported by this driver:
+  - SK-9841 (single link 1000Base-LX)
+  - SK-9842 (dual link   1000Base-LX)
+  - SK-9843 (single link 1000Base-SX)
+  - SK-9844 (dual link   1000Base-SX)
+  - SK-9821 (single link 1000Base-T)
+  - SK-9822 (dual link   1000Base-T)
+  The dual link adapters support a link-failover feature.
+  Read Documentation/networking/sk98lin.txt for information about
+  optional driver parameters.
+  Questions concerning this driver may be addresse to:
+    linux@syskonnect.de
+
+  If you want to compile this driver as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want),
+  say M here and read Documentation/modules.txt. This is recommended.
+  The module will be called sk98lin.o.
 
 AMD LANCE and PCnet (AT1500 and NE2100) support
 CONFIG_LANCE
@@ -8297,6 +8411,10 @@ CONFIG_UMSDOS_FS
   MSDOS floppies. You will need a program called umssync in order to
   make use of umsdos; read Documentation/filesystems/umsdos.txt. 
 
+  To get utilities for initializing/checking UMSDOS filesystem, or
+  latest patches and/or information, visit UMSDOS homepage at
+  http://www.voyager.hr/~mnalis/umsdos/ .
+
   This option enlarges your kernel by about 28 KB and it only works if
   you said Y to both "fat fs support" and "msdos fs support" above. If
   you want to compile this as a module ( = code which can be inserted
@@ -8375,33 +8493,34 @@ CONFIG_ROOT_NFS
   
   Most people say N here. 
 
-NFS server support (EXPERIMENTAL)
+NFS server support
 CONFIG_NFSD
-  If you want your Linux box to act as a NFS *server*, so that other
+  If you want your Linux box to act as an NFS *server*, so that other
   computers on your local network which support NFS can access certain
   directories on your box transparently, you have two options: you can
   use the self-contained user space program nfsd, in which case you
-  should say N here, or you can say Y and use this new experimental
-  kernel based NFS server. The advantage of the kernel based solution
-  is that it is faster; it might not be completely stable yet, though.
+  should say N here, or you can say Y and use the kernel based NFS
+  server. The advantage of the kernel based solution is that it is
+  faster.
 
   In either case, you will need support software; the respective
   locations are given in the file Documentation/Changes in the NFS
   section.
 
   Please read the NFS-HOWTO, available from
-  http://metalab.unc.edu/mdw/linux.html#howto .
+  http://www.linuxdoc.org/HOWTO/NFS-HOWTO.html .
+
 
   The NFS server is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module is called nfsd.o. If you want to compile it as a module,
   say M here and read Documentation/modules.txt. If unsure, say N.
 
-Emulate SUN NFS server
-CONFIG_NFSD_SUN
-  If you would like for the server to allow clients to access
-  directories that are mount points on the local filesystem (this is
-  how nfsd behaves on Sun systems), say Y here. If unsure, say N.
+Provide NFSv3 server support (EXPERIMENTAL)
+CONFIG_NFSD_V3
+  If you would like to include the NFSv3 server was well as the NFSv2
+  server, say Y here.  File locking, via the NLMv4 protocol, is not
+  supported yet. If unsure, say N.
 
 OS/2 HPFS filesystem support
 CONFIG_HPFS_FS
@@ -10036,6 +10155,10 @@ CONFIG_DRM
   synchronization, security, and DMA transfers. Select the module that
   provides support for your graphics card.
 
+tdfx Direct Rendering Manager (XFree86 DRI support)
+CONFIG_DRM_TDFX
+  Choose M here if you have a 3dfx Banshee/Voodoo3 graphics card.
+
 3dlabs GMX 2000 Direct Rendering Driver (XFree86 DRI support)
 CONFIG_DRM_GAMMA
   Choose M here if you have a 3dlabs GMX 2000 graphics card.
@@ -10428,83 +10551,117 @@ CONFIG_NVRAM
 
 Joystick support
 CONFIG_JOYSTICK
-  If you have a joystick, you can say Y here to enable generic
-  joystick support. You will also need to say Y or M to at least one
-  of the hardware specific joystick drivers. This will make the
-  joysticks available as /dev/jsX devices. Please read the file
-  Documentation/joystick.txt which contains more information and the
-  location of the joystick package that you'll need.
+  If you have a joystick, 6dof controller, gamepad, steering wheel,
+  weapon control system or something like that you can say Y here to
+  enable generic support for these controllers. You will also need to
+  say Y or M to at least one of the hardware specific drivers. This
+  will make the controllers available as /dev/jsX devices. Please read
+  the file Documentation/joystick.txt which contains more information
+  and the location of the joystick package that you'll need.
 
-  This driver is also available as a module ( = code which can be
-  inserted in and removed from the running kernel whenever you want).
-  The module will be called joystick.o. If you want to compile it as a
-  module, say M here and read Documentation/modules.txt.
-
-Classic PC analog joysticks and gamepads
+Classic PC analog
 CONFIG_JOY_ANALOG
-  Say Y here if you have an analog joystick or gamepad that connects
-  to the PC gameport. This supports many different types, including
-  joysticks with throttle control, with rudders, or with extensions
-  like additional hats and buttons compatible with CH Flightstick Pro,
+  Say Y here if you have a controller that connects to the PC
+  gameport. This supports many different types, including joysticks
+  with throttle control, with rudders, or with extensions like
+  additional hats and buttons compatible with CH Flightstick Pro,
   ThrustMaster FCS or 6 and 8 button gamepads. For more information on
   how to use the driver please read Documentation/joystick.txt
 
-FPGaming and MadCatz A3D controllers
-CONFIG_JOY_ASSASIN
-  Say Y here if you have an FPGaming Assasin 3D, MadCatz Panther or
-  MadCatz Panther XL. For more information on how to use the driver
+FPGaming and MadCatz A3D
+CONFIG_JOY_ASSASSIN
+  Say Y here if you have an FPGaming or MadCatz controller using the
+  A3D protocol over the PC gameport. For more information on how to
+  use the driver please read Documentation/joystick.txt
+
+Gravis GrIP
+CONFIG_JOY_GRAVIS
+  Say Y here if you have a Gravis controller using the GrIP protocol
+  over the PC gameport. For more information on how to use the driver
   please read Documentation/joystick.txt
 
-Gravis GrIP joysticks and gamepads
-CONFIG_JOY_GRAVIS
-  Say Y here if you have a Gravis GamePad Pro, Gravis Xterminator or
-  Gravis Blackhawk Digital. For more information on how to use the
-  driver please read Documentation/joystick.txt
+Logitech ADI
+CONFIG_JOY_LOGITECH
+  Say Y here if you have a Logitech controller using the ADI
+  protocol over the PC gameport. For more information on how to use
+  the driver please read Documentation/joystick.txt
 
-PDPI Lightning 4 gamecards
+Microsoft SideWinder
+CONFIG_JOY_SIDEWINDER
+  Say Y here if you have a Microsoft controller using the Digital
+  Overdrive protocol over PC gameport. For more information on how to
+  use the driver please read Documentation/joystick.txt
+
+ThrustMaster DirectConnect
+CONFIG_JOY_THRUSTMASTER
+  Say Y here if you have a ThrustMaster controller using the
+  DirectConnect (BSP) protocol over the PC gameport. For more
+  information on how to use the driver please read
+  Documentation/joystick.txt
+
+Creative Labs Blaster
+CONFIG_JOY_CREATIVE
+  Say Y here if you have a Creative Labs controller using the
+  Blaster protocol over the PC gameport. For more information on how
+  to use the driver please read Documentation/joystick.txt
+
+PDPI Lightning 4 card
 CONFIG_JOY_LIGHTNING
   Say Y here if you have a PDPI Lightning 4 gamecard and an analog
   joystick or gamepad connected to it. For more information on how to
   use the driver please read Documentation/joystick.txt
 
-Logitech Digital joysticks and gamepads
-CONFIG_JOY_LOGITECH
-  Say Y here if you have a Logitech WingMan Extreme Digital,
-  Logitech ThunderPad Digital or Logitech CyberMan 2. For more
+Trident 4DWave and Aureal Vortex gameport
+CONFIG_JOY_PCI
+  Say Y here if you have a Trident 4DWave DX/NX or Aureal Vortex 1/2
+  card and want to use its gameport in its enhanced digital mode
+  with and ordinary analog joystick. For more information on how to
+  use the driver please read Documentation/joystick.txt
+
+Magellan and Space Mouse
+CONFIG_JOY_MAGELLAN
+  Say Y here if you have a Magellan or Space Mouse 6DOF controller
+  connected to your computer's serial port.  For more information on
+  how to use the driver please read Documentation/joystick.txt
+
+SpaceTec SpaceOrb 360 and SpaceBall Avenger
+CONFIG_JOY_SPACEORB
+  Say Y here if you have a SpaceOrb 360 or SpaceBall Avenger 6DOF
+  controller connected to your computer's serial port.  For more
   information on how to use the driver please read
   Documentation/joystick.txt
 
-Microsoft SideWinder, Genius Digital joysticks and gamepads
-CONFIG_JOY_SIDEWINDER
-  Say Y here if you have a Microsoft SideWinder 3d Pro, Microsoft
-  SideWinder Precision Pro, Microsoft SideWinder Force Feedback Pro,
-  Microsoft Sidewinder GamePad or Genius Flight2000 F-23 Digital. For
-  more information on how to use the driver please read
+SpaceTec SpaceBall 4000 FLX
+CONFIG_JOY_SPACEBALL
+  Say Y here if you have a SpaceTec SpaceBall 4000 FLX
+  controller connected to your computer's serial port.  For more
+  information on how to use the driver please read
   Documentation/joystick.txt
 
-ThrustMaster DirectConnect joysticks and gamepads
-CONFIG_JOY_THRUSTMASTER
-  Say Y here if you have a ThrustMaster Millenium 3D Inceptor or a
-  ThrustMaster 3D Rage Pad. For more information on how to use the
-  driver please read Documentation/joystick.txt
+Logitech WingMan Warrior
+CONFIG_JOY_WARRIOR
+  Say Y here if you have a Logitech WingMan Warrior controller
+  connected to your computer's serial port.  For more information on
+  how to use the driver please read Documentation/joystick.txt
 
-NES, SNES, PSX, Multisystem joysticks and gamepads
+NES, SNES, N64, PSX, Multi
 CONFIG_JOY_CONSOLE
   Say Y here if you have a Nintendo Entertainment System gamepad,
-  Super Nintendo Entertainment System gamepad, Sony PlayStation
-  gamepad or a Multisystem -- Atari, Amiga, Commodore, Amstrad CPC
-  joystick. For more information on how to use the driver please read
+  Super Nintendo Entertainment System gamepad, Nintendo 64 gamepad,
+  Sony PlayStation gamepad or a Multisystem -- Atari, Amiga,
+  Commodore, Amstrad CPC joystick connected to your parallel port.
+  For more information on how to use the driver please read
   Documentation/joystick.txt and Documentation/joystick-parport.txt
 
-Sega, Multisystem joysticks and gamepads
+Sega, Multi
 CONFIG_JOY_DB9
   Say Y here if you have a Sega Master System gamepad, Sega Genesis
   gamepad, Sega Saturn gamepad, or a Multisystem -- Atari, Amiga,
-  Commodore, Amstrad CPC joystick. For more information on how to use
-  the driver please read Documentation/joystick.txt and
-  Documentation/joystick-parport.txt
+  Commodore, Amstrad CPC joystick connected to your parallel port. For
+  more information on how to use the driver please read
+  Documentation/joystick.txt and Documentation/joystick-parport.txt
 
-TurboGraFX Multisystem joystick interface
+TurboGraFX interface
 CONFIG_JOY_TURBOGRAFX
   Say Y here if you have the TurboGraFX interface by Steffen Schwenke,
   and want to use it with Multiststem -- Atari, Amiga, Commodore,
@@ -11237,10 +11394,10 @@ CONFIG_ISDN_AUDIO
   is the only voice-supporting driver. See
   Documentation/isdn/README.audio for more information.
 
-X.25 PLP on top of ISDN (EXPERIMENTAL)
+X.25 PLP on top of ISDN
 CONFIG_ISDN_X25
-  This experimental feature provides the X.25 protocol over ISDN
-  connections. See Documentation/isdn/README.x25 for more information
+  This feature provides the X.25 protocol over ISDN connections.
+  See Documentation/isdn/README.x25 for more information
   if you are thinking about using this.
 
 ISDN diversion services support
@@ -11302,6 +11459,28 @@ CONFIG_ISDN_DRV_HISAX
   called hisax.o. See Documentation/isdn/README.HiSax for more
   information on using this driver.
 
+HiSax Support for EURO/DSS1
+CONFIG_HISAX_EURO
+  Enable this if you have a EURO ISDN line.
+
+Support for german chargeinfo
+CONFIG_DE_AOC
+  If you have german AOC, you can enable this to get the charginfo.
+
+Disable sending complete
+CONFIG_HISAX_NO_SENDCOMPLETE
+  If you have trouble with some ugly exchanges or you live in
+  Australia select this option.
+
+Disable sending low layer compatibility
+CONFIG_HISAX_NO_LLC
+  If you have trouble with some ugly exchanges try to select this
+  option.
+
+HiSax Support for german 1TR6
+CONFIG_HISAX_1TR6
+  Enable this if you have a old german 1TR6 line.
+
 HiSax Support for Teles 16.0/8.0
 CONFIG_HISAX_16_0
   This enables HiSax support for the Teles ISDN-cards S0-16.0, S0-8
@@ -11320,13 +11499,15 @@ CONFIG_HISAX_16_3
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Teles 16.3c
-CONFIG_HISAX_TELES3C
-  This enables HiSax support for the Teles ISDN-cards 16.3c.
-  
-  See Documentation/isdn/README.HiSax on how to configure it using the
-  different cards, a different D-channel protocol, or non-standard
-  IRQ/port settings.
+HiSax Support for Teles PCI
+CONFIG_HISAX_TELESPCI
+  This enables HiSax support for the Teles PCI.
+  See Documentation/isdn/README.HiSax on how to configure it.
+
+HiSax Support for Teles S0Box
+CONFIG_HISAX_S0BOX
+  This enables HiSax support for the Teles/Creatix parallel port
+  S0BOX.  See Documentation/isdn/README.HiSax on how to configure it.
 
 HiSax Support for AVM A1 (Fritz)
 CONFIG_HISAX_AVM_A1
@@ -11336,7 +11517,17 @@ CONFIG_HISAX_AVM_A1
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Elsa ISA cards
+HiSax Support for AVM PnP/PCI (Fritz!PNP/PCI)
+CONFIG_HISAX_FRITZPCI
+  This enables HiSax support for the AVM "Fritz!PnP" and "Fritz!PCI".
+  See Documentation/isdn/README.HiSax on how to configure it.
+
+HiSax Support for AVM A1 PCMCIA (Fritz)
+CONFIG_HISAX_AVM_A1_PCMCIA
+  This enables HiSax support for the AVM A1 "Fritz!PCMCIA").
+  See Documentation/isdn/README.HiSax on how to configure it.
+
+HiSax Support for Elsa cards
 CONFIG_HISAX_ELSA
   This enables HiSax support for the Elsa Mircolink ISA cards, for the
   Elsa Quickstep series cards and Elsa PCMCIA.
@@ -11379,7 +11570,16 @@ CONFIG_HISAX_TELEINT
   different cards, a different D-channel protocol, or non-standard
   IRQ/port settings.
 
-HiSax Support for Sedlbauer speed card/win-star
+HiSax Support for HFC-S based cards
+CONFIG_HISAX_HFCS
+  This enables HiSax support for the HFC-S 2BDS0 based cards, like
+  teles 16.3c.
+  
+  See Documentation/isdn/README.HiSax on how to configure it using the
+  different cards, a different D-channel protocol, or non-standard
+  IRQ/port settings.
+
+HiSax Support for Sedlbauer cards
 CONFIG_HISAX_SEDLBAUER
   This enables HiSax support for the Sedlbauer passive ISDN cards.
 
@@ -11416,50 +11616,58 @@ CONFIG_HISAX_NICCY
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
+HiSax Support for Siemens I-Surf card
+CONFIG_HISAX_ISURF
+  This enables HiSax support for the Siemens I-Talk/I-Surf card with
+  ISAR chip.
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
+HiSax Support for HST Saphir card
+CONFIG_HISAX_HSTSAPHIR
+  This enables HiSax support for the HST Saphir card.
+  
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
+HiSax Support for Telekom A4T card
+CONFIG_HISAX_BKM_A4T
+  This enables HiSax support for the Telekom A4T card.
+  
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
+HiSax Support for Scitel Quadro card
+CONFIG_HISAX_SCT_QUADRO
+  This enables HiSax support for the Scitel Quadro card.
+  
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
+HiSax Support for Gazel cards
+CONFIG_HISAX_GAZEL
+  This enables HiSax support for the Gazel cards.
+
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
+HiSax Support for HFC PCI-Bus cards
+CONFIG_HISAX_HFC_PCI
+  This enables HiSax support for the HFC-S PCI 2BDS0 based cards.
+  
+  For more informations see under Documentation/isdn/README.hfc-pci.
+
+HiSax Support for Winbond W6692 based cards
+CONFIG_HISAX_W6692
+  This enables HiSax support for Winbond W6692 based PCI ISDN cards.
+  
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
 HiSax Support for Am7930 (EXPERIMENTAL)
 CONFIG_HISAX_AMD7930
   This enables HiSax support for the AMD7930 chips on some SPARCs.
   This code is not finished yet.
-
-HiSax Support for EURO/DSS1
-CONFIG_HISAX_EURO
-  Say Y or N according to the D-channel protocol which your local
-  telephone service company provides.
-
-  NOTE: If you say Y here and you have only one ISDN card installed,
-  you cannot say Y to "HiSax Support for German 1TR6", below. And vice
-  versa.
-
-Support for German tariff info
-CONFIG_DE_AOC
-  If you want that the HiSax hardware driver sends messages to the
-  upper level of the isdn code on each AOCD (Advice Of Charge, During
-  the call -- transmission of the fee information during a call) and
-  on each AOCE (Advice Of Charge, at the End of the call --
-  transmission of fee information at the end of the call), say Y here.
-  This works only in Germany.
-
-Support for Australian Microlink service (not for std. EURO)
-CONFIG_HISAX_ML
-  If you are in Australia and connected to the Microlink telephone
-  network, enable this, because there are little differences in
-  protocol.
-  
-  Please don't enable this in other countries.
-
-HiSax Support for US/NI-1 (not released yet)
-CONFIG_HISAX_NI1
-  Say Y or N according to the D-channel protocol which your local
-  telephone service company provides.
-
-HiSax Support for German 1TR6
-CONFIG_HISAX_1TR6
-  Say Y or N according to the D-channel protocol which your local
-  telephone service company provides.
-
-  NOTE: If you say Y here and you have only one ISDN card installed,
-  you cannot say Y to "HiSax Support for EURO/DSS1", above. And vice
-  versa.
 
 PCBIT-D support
 CONFIG_ISDN_DRV_PCBIT
@@ -11508,26 +11716,51 @@ CONFIG_ISDN_TTY_FAX
   an ISDN-fax-machine. This must be supported by the lowlevel driver
   also. See Documentation/isdn/README.fax for more information.
 
-AVM-B1 with CAPI2.0 support
+AVM CAPI2.0 support
 CONFIG_ISDN_DRV_AVMB1
-  This enables support for the AVM B1 ISDN networking cards. In
+  This enables support for the AVM B1/T1 ISDN networking cards.In
   addition, a CAPI (Common ISDN Application Programming Interface, a
   standard making it easy for programs to access ISDN hardware, see
-  http://www.capi.org/ ) interface for this card is provided. In order
-  to use this card, additional firmware is necessary, which has to be
-  downloaded into the card using a utility which is distributed
-  separately. Please read the file Documentation/isdn/README.avmb1.
-
+  http://www.capi.org/; to browse the WWW, you need to have access to
+  a machine on the Internet that has a program like lynx or netscape)
+  interface for this card is provided. In order to use this card,
+  additional firmware is necessary, which has to be downloaded into
+  the card using a utility which is distributed separately. Please
+  read the file Documentation/isdn/README.avmb1. 
+  
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
   The module will be called avmb1.o. If you want to compile it as a
   module, say M here and read Documentation/modules.txt.
+
+AVM B1 ISA support
+CONFIG_ISDN_DRV_AVMB1_B1ISA
+  Enable support for the ISA version of the AVM B1 card.
+
+AVM B1 PCI support
+CONFIG_ISDN_DRV_AVMB1_B1PCI
+  Enable support for the PCI version of the AVM B1 card.
+
+AVM T1/T1-B ISA support
+CONFIG_ISDN_DRV_AVMB1_T1ISA
+  Enable support for the AVM T1 T1B card.
+  Note: This is a PRI card and handle 30 B-channels.
+
+AVM B1/M1/M2 PCMCIA support
+CONFIG_ISDN_DRV_AVMB1_B1PCMCIA
+  Enable support for the PCMCIA version of the AVM B1 card.
+
+AVM T1/T1-B PCI support
+CONFIG_ISDN_DRV_AVMB1_T1PCI
+  Enable support for the AVM T1 T1B card.
+  Note: This is a PRI card and handle 30 B-channels.
 
 Verbose reason code reporting (kernel size +=7K)
 CONFIG_ISDN_DRV_AVMB1_VERBOSE_REASON
   If you say Y here, the AVM B1 driver will give verbose reasons for
   disconnecting. This will increase the size of the kernel by 7 KB. If
   unsure, say Y.
+
 
 IBM Active 2000 support (EXPERIMENTAL)
 CONFIG_ISDN_DRV_ACT2000
@@ -12453,6 +12686,18 @@ CONFIG_VIDEO_BT848
   Documentation/video4linux/bttv for more information.
 
   This driver is also available as a module called bttv.o ( = code
+  which can be inserted in and removed from the running kernel
+  whenever you want). If you want to compile it as a module, say M
+  here and read Documentation/modules.txt.
+
+ZR36120/36125 Video for Linux
+CONFIG_VIDEO_ZR36120
+  Support for ZR36120/ZR36125 based frame grabber/overlay boards.
+  This includes the Victor II, WaveWatcher, Video Wonder, Maxi-TV,
+  and Buster boards. Please read the material in
+  Documentation/video4linux/zr36120.txt for more information.
+
+  This driver is also available as a module called zr36120.o ( = code
   which can be inserted in and removed from the running kernel
   whenever you want). If you want to compile it as a module, say M
   here and read Documentation/modules.txt.

@@ -1,4 +1,4 @@
-/* $Id: io.h,v 1.7 2000/01/29 01:42:28 ralf Exp $
+/* $Id: io.h,v 1.8 2000/01/31 21:34:07 kanoj Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -15,32 +15,62 @@
 #include <asm/addrspace.h>
 #include <asm/page.h>
 
+#ifdef CONFIG_SGI_IP22
+#include <asm/sgi/io.h>
+#endif
+
+#ifdef CONFIG_SGI_IP27
+#include <asm/sn/io.h>
+#endif
+
 /*
  * Slowdown I/O port space accesses for antique hardware.
  */
 #undef CONF_SLOWDOWN_IO
 
 /*
- * This file contains the definitions for the MIPS counterpart of the
- * x86 in/out instructions. This heap of macros and C results in much
- * better code than the approach of doing it in plain C.  The macros
- * result in code that is to fast for certain hardware.  On the other
- * side the performance of the string functions should be improved for
- * sake of certain devices like EIDE disks that do highspeed polled I/O.
+ * On MIPS, we have the whole physical address space mapped at all
+ * times, so "ioremap()" and "iounmap()" do not need to do anything.
  *
- *   Ralf
- *
- * This file contains the definitions for the x86 IO instructions
- * inb/inw/inl/outb/outw/outl and the "string versions" of the same
- * (insb/insw/insl/outsb/outsw/outsl). You can also use "pausing"
- * versions of the single-IO instructions (inb_p/inw_p/..).
- *
- * This file is not meant to be obfuscating: it's just complicated
- * to (a) handle it all in a way that makes gcc able to optimize it
- * as well as possible and (b) trying to avoid writing the same thing
- * over and over again with slight variations and possibly making a
- * mistake somewhere.
+ * We cheat a bit and always return uncachable areas until we've fixed
+ * the drivers to handle caching properly.
  */
+extern inline void *
+ioremap(unsigned long offset, unsigned long size)
+{
+	return (void *) (IO_SPACE_BASE | offset);
+}
+
+/* This one maps high address device memory and turns off caching for that
+ *  area.  It's useful if some control registers are in such an area and write
+ * combining or read caching is not desirable.
+ */
+extern inline void *
+ioremap_nocache (unsigned long offset, unsigned long size)
+{
+	return (void *) (IO_SPACE_BASE | offset);
+}
+
+extern inline void iounmap(void *addr)
+{
+}
+
+/*
+ * This assumes sane hardware.  The Origin is.
+ */
+#define readb(addr)		(*(volatile unsigned char *) (addr))
+#define readw(addr)		(*(volatile unsigned short *) (addr))
+#define readl(addr)		(*(volatile unsigned int *) (addr))
+
+#define writeb(b,addr)		(*(volatile unsigned char *) (addr) = (b))
+#define writew(b,addr)		(*(volatile unsigned short *) (addr) = (b))
+#define writel(b,addr)		(*(volatile unsigned int *) (addr) = (b))
+
+#define memset_io(a,b,c)	memset((void *) a,(b),(c))
+#define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
+#define memcpy_toio(a,b,c)	memcpy((void *)(a),(b),(c))
+
+/* The ISA versions are supplied by system specific code */
 
 /*
  * On MIPS I/O ports are memory mapped, so we access them using normal
@@ -81,9 +111,6 @@ extern inline void * phys_to_virt(unsigned long address)
 	return (void *)(address + PAGE_OFFSET);
 }
 
-extern void * ioremap(unsigned long phys_addr, unsigned long size);
-extern void iounmap(void *addr);
-
 #define	BRIDGE_DIRECT_MAPPED_BASE	0xa200000000000000ull
 
 /*
@@ -108,84 +135,10 @@ extern inline void * bus_to_virt(unsigned long address)
 extern unsigned long isa_slot_offset;
 
 /*
- * readX/writeX() are used to access memory mapped devices. On some
- * architectures the memory mapped IO stuff needs to be accessed
- * differently. On the x86 architecture, we just read/write the
- * memory location directly.
- *
- * On MIPS, we have the whole physical address space mapped at all
- * times, so "ioremap()" and "iounmap()" do not need to do anything.
- * (This isn't true for all machines but we still handle these cases
- * with wired TLB entries anyway ...)
- *
- * We cheat a bit and always return uncachable areas until we've fixed
- * the drivers to handle caching properly.
- */
-extern inline void *
-ioremap(unsigned long offset, unsigned long size)
-{
-	return (void *) KSEG1ADDR(offset);
-}
-
-/* This one maps high address device memory and turns off caching for that
-   area.  It's useful if some control registers are in such an area and write
-   combining or read caching is not desirable.  */
-extern inline void *
-ioremap_nocache (unsigned long offset, unsigned long size)
-{
-	return (void *) KSEG1ADDR(offset);
-}
-
-extern inline void iounmap(void *addr)
-{
-}
-
-/*
- * XXX We need system specific versions of these to handle EISA address bits
- * 24-31 on SNI.
- * XXX more SNI hacks.
- */
-#define readb(addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)))
-#define readw(addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)))
-#define readl(addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)))
-
-#define writeb(b,addr) (*(volatile unsigned char *) (0xa0000000 + (unsigned long)(addr)) = (b))
-#define writew(b,addr) (*(volatile unsigned short *) (0xa0000000 + (unsigned long)(addr)) = (b))
-#define writel(b,addr) (*(volatile unsigned int *) (0xa0000000 + (unsigned long)(addr)) = (b))
-
-#define memset_io(a,b,c)	memset((void *)(0xa0000000 + (unsigned long)a),(b),(c))
-#define memcpy_fromio(a,b,c)	memcpy((a),(void *)(0xa0000000 + (unsigned long)(b)),(c))
-#define memcpy_toio(a,b,c)	memcpy((void *)(0xa0000000 + (unsigned long)(a)),(b),(c))
-
-/* END SNI HACKS ... */
-
-/*
- * ISA space is 'always mapped' on currently supported MIPS systems, no need
- * to explicitly ioremap() it. The fact that the ISA IO space is mapped
- * to PAGE_OFFSET is pure coincidence - it does not mean ISA values
- * are physical addresses. The following constant pointer can be
- * used as the IO-area pointer (it can be iounmapped as well, so the
- * analogy with PCI is quite large):
- */
-#define __ISA_IO_base ((char *)(PAGE_OFFSET))
-
-#define isa_readb(a) readb(a)
-#define isa_readw(a) readw(a)
-#define isa_readl(a) readl(a)
-#define isa_writeb(b,a) writeb(b,a)
-#define isa_writew(w,a) writew(w,a)
-#define isa_writel(l,a) writel(l,a)
-
-#define isa_memset_io(a,b,c)     memset_io((a),(b),(c))
-#define isa_memcpy_fromio(a,b,c) memcpy_fromio((a),(b),(c))
-#define isa_memcpy_toio(a,b,c)   memcpy_toio((a),(b),(c))
-
-/*
  * We don't have csum_partial_copy_fromio() yet, so we cheat here and
  * just copy it. The net code will then do the checksum later.
  */
 #define eth_io_copy_and_sum(skb,src,len,unused) memcpy_fromio((skb)->data,(src),(len))
-#define isa_eth_io_copy_and_sum(a,b,c,d) eth_copy_and_sum((a),(b),(c),(d))
 
 static inline int
 check_signature(unsigned long io_addr, const unsigned char *signature,

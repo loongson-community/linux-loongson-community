@@ -151,6 +151,11 @@ History:
 
 24 jan 1998   Removed the cm206_disc_status() function, as it was now dead
               code.  The Uniform CDROM driver now provides this functionality.
+	      
+9 Nov. 1999   Make kernel-parameter implementation work with 2.3.x 
+	      Removed init_module & cleanup_module in favor of 
+	      module_init & module_exit.
+	      Torben Mathiasen <tmm@image.dk>
  * 
  * Parts of the code are based upon lmscd.c written by Kai Petzke,
  * sbpcd.c written by Eberhard Moenkeberg, and mcd.c by Martin
@@ -209,6 +214,8 @@ static int auto_probe=1;	/* Yes, why not? */
 
 static int cm206_base = CM206_BASE;
 static int cm206_irq = CM206_IRQ; 
+static int cm206[2] = {0,0};	/* for compatible `insmod' parameter passing */
+
 MODULE_PARM(cm206_base, "i");	/* base */
 MODULE_PARM(cm206_irq, "i");	/* irq */
 MODULE_PARM(cm206, "1-2i");	/* base,irq or irq,base */
@@ -801,7 +808,7 @@ int try_adapter(int sector)
 /* This is not a very smart implementation. We could optimize for 
    consecutive block numbers. I'm not convinced this would really
    bring down the processor load. */
-static void do_cm206_request(void)
+static void do_cm206_request(request_queue_t * q)
 {
   long int i, cd_sec_no;
   int quarter, error; 
@@ -1394,7 +1401,7 @@ int __init cm206_init(void)
     cleanup(3);
     return -EIO;
   }    
-  blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
+  blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST);
   blksize_size[MAJOR_NR] = cm206_blocksizes;
   read_ahead[MAJOR_NR] = 16;	/* reads ahead what? */
   init_bh(CM206_BH, cm206_bh);
@@ -1411,7 +1418,6 @@ int __init cm206_init(void)
 
 #ifdef MODULE
 
-static int cm206[2] = {0,0};	/* for compatible `insmod' parameter passing */
 
 void __init parse_options(void)
 {
@@ -1428,7 +1434,7 @@ void __init parse_options(void)
   }
 }
 
-int init_module(void)
+int __cm206_init(void)
 {
 	parse_options();
 #if !defined(AUTO_PROBE_MODULE)
@@ -1437,19 +1443,26 @@ int init_module(void)
 	return cm206_init();
 }
 
-void cleanup_module(void)
+void __exit cm206_exit(void)
 {
   cleanup(4);
   printk(KERN_INFO "cm206 removed\n");
 }
+
+module_init(__cm206_init);
+module_exit(cm206_exit);
       
 #else /* !MODULE */
 
 /* This setup function accepts either `auto' or numbers in the range
  * 3--11 (for irq) or 0x300--0x370 (for base port) or both. */
-void __init cm206_setup(char *s, int *p)
+
+static int __init cm206_setup(char *s)
 {
-  int i;
+  int i, p[4];
+  
+  (void)get_options(s, ARRAY_SIZE(p), p);
+  
   if (!strcmp(s, "auto")) auto_probe=1;
   for(i=1; i<=p[0]; i++) {
     if (0x300 <= p[i] && i<= 0x370 && p[i] % 0x10 == 0) {
@@ -1461,8 +1474,12 @@ void __init cm206_setup(char *s, int *p)
       auto_probe = 0;
     }
   }
+ return 1;
 }
-#endif /* MODULE */
+
+__setup("cm206=", cm206_setup);
+
+#endif /* !MODULE */
 /*
  * Local variables:
  * compile-command: "gcc -D__KERNEL__ -I/usr/src/linux/include -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer -D__SMP__ -pipe -fno-strength-reduce -m486 -DCPU=486 -D__SMP__ -DMODULE -DMODVERSIONS -include /usr/src/linux/include/linux/modversions.h  -c -o cm206.o cm206.c"

@@ -1,4 +1,4 @@
-# $Id: config.in,v 1.9 2000/01/29 01:41:59 ralf Exp $
+# $Id: config.in,v 1.10 2000/01/31 21:57:09 kanoj Exp $
 #
 # For a description of the syntax of this configuration file,
 # see the Configure script.
@@ -72,6 +72,10 @@ fi
 bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 
 bool 'Networking support' CONFIG_NET
+
+source drivers/pci/Config.in
+source drivers/pcmcia/Config.in
+
 bool 'System V IPC' CONFIG_SYSVIPC
 bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
@@ -89,6 +93,8 @@ if [ "$CONFIG_MODULES" = "y" ]; then
    bool 'Set version information on all symbols for modules' CONFIG_MODVERSIONS
    bool 'Kernel module loader' CONFIG_KMOD
 fi
+
+source drivers/pci/Config.in
 
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for frame buffer devices (EXPERIMENTAL)' CONFIG_FB

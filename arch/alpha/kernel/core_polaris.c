@@ -146,7 +146,7 @@ polaris_write_config_word(struct pci_dev *dev, int where, u16 value)
 
         __kernel_stw(value, *(vusp)pci_addr);
 	mb();
-	__kernel_ldbu(*(vusp)pci_addr);
+	__kernel_ldwu(*(vusp)pci_addr);
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -176,7 +176,7 @@ struct pci_ops polaris_pci_ops =
 };
 
 void __init
-polaris_init_arch(unsigned long *mem_start, unsigned long *mem_end)
+polaris_init_arch(void)
 {
 	struct pci_controler *hose;
 
@@ -192,7 +192,7 @@ polaris_init_arch(unsigned long *mem_start, unsigned long *mem_end)
 	 * Create our single hose.
 	 */
 
-	hose = alloc_pci_controler(mem_start);
+	hose = alloc_pci_controler();
 	hose->io_space = &ioport_resource;
 	hose->mem_space = &iomem_resource;
 	hose->config_space = POLARIS_DENSE_CONFIG_BASE;

@@ -84,20 +84,20 @@ extern int last_pid;
 #define TASK_EXCLUSIVE		32
 
 #define __set_task_state(tsk, state_value)		\
-	do { tsk->state = state_value; } while (0)
+	do { (tsk)->state = (state_value); } while (0)
 #ifdef __SMP__
 #define set_task_state(tsk, state_value)		\
-	set_mb(tsk->state, state_value)
+	set_mb((tsk)->state, (state_value))
 #else
 #define set_task_state(tsk, state_value)		\
-	__set_task_state(tsk, state_value)
+	__set_task_state((tsk), (state_value))
 #endif
 
 #define __set_current_state(state_value)			\
-	do { current->state = state_value; } while (0)
+	do { current->state = (state_value); } while (0)
 #ifdef __SMP__
 #define set_current_state(state_value)		\
-	set_mb(current->state, state_value)
+	set_mb(current->state, (state_value))
 #else
 #define set_current_state(state_value)		\
 	__set_current_state(state_value)
@@ -498,6 +498,7 @@ extern unsigned long prof_shift;
 #define CURRENT_TIME (xtime.tv_sec)
 
 extern void FASTCALL(__wake_up(wait_queue_head_t *q, unsigned int mode));
+extern void FASTCALL(__wake_up_sync(wait_queue_head_t *q, unsigned int mode));
 extern void FASTCALL(sleep_on(wait_queue_head_t *q));
 extern long FASTCALL(sleep_on_timeout(wait_queue_head_t *q,
 				      signed long timeout));
@@ -507,9 +508,12 @@ extern long FASTCALL(interruptible_sleep_on_timeout(wait_queue_head_t *q,
 extern void FASTCALL(wake_up_process(struct task_struct * tsk));
 
 #define wake_up(x)			__wake_up((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE)
+#define wake_up_sync(x)			__wake_up_sync((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE)
 #define wake_up_interruptible(x)	__wake_up((x),TASK_INTERRUPTIBLE)
+#define wake_up_interruptible_sync(x)	__wake_up_sync((x),TASK_INTERRUPTIBLE)
 
 extern int in_group_p(gid_t);
+extern int in_egroup_p(gid_t);
 
 extern void release(struct task_struct * p);
 
@@ -847,7 +851,7 @@ static inline int task_lock(struct task_struct *p)
 	down(&p->exit_sem);
 	if (p->p_pptr)
 		return 1;
-	/* He's dead, Jim. You take his wallet, I'll take tricoder... */
+	/* He's dead, Jim. You take his wallet, I'll take the tricorder... */
 	up(&p->exit_sem);
 	return 0;
 }

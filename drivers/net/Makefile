@@ -17,17 +17,17 @@ obj-            :=
 SUB_DIRS     := 
 MOD_SUB_DIRS :=
 MOD_IN_SUB_DIRS :=
-ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan
+ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan sk98lin
 
-L_TARGET := net.a
-L_OBJS   := auto_irq.o
+O_TARGET := net.o
+O_OBJS   :=
 M_OBJS   :=
 MOD_LIST_NAME := NET_MODULES
 
 # All of the (potential) objects that export symbols.
 # This list comes from 'grep -l EXPORT_SYMBOL *.[hc]'.
 
-export-objs     :=	8390.o arcnet.o arlan.o ppp_async.o \
+export-objs     :=	8390.o arcnet.o arlan.o aironet4500_core.o aironet4500_card.o ppp_async.o \
 			ppp_generic.o slhc.o
 
 ifeq ($(CONFIG_PCMCIA),y)
@@ -45,6 +45,16 @@ MOD_IN_SUB_DIRS += irda
 else
   ifeq ($(CONFIG_IRDA),m)
   MOD_IN_SUB_DIRS += irda
+  endif
+endif
+
+ifeq ($(CONFIG_SK98LIN),y)
+SUB_DIRS += sk98lin
+MOD_IN_SUB_DIRS += sk98lin
+L_OBJS += sk98lin/sk98lin.o
+else
+  ifeq ($(CONFIG_SK98LIN),m)
+  MOD_IN_SUB_DIRS += sk98lin
   endif
 endif
 
@@ -86,6 +96,12 @@ else
     endif
   endif
 endif
+
+
+
+obj-$(CONFIG_AIRONET4500) 	+= aironet4500_core.o
+obj-$(CONFIG_AIRONET4500_NONCS)  += aironet4500_card.o
+obj-$(CONFIG_AIRONET4500_PROC)	+= aironet4500_proc.o
 
 obj-$(CONFIG_NET) += Space.o setup.o net_init.o loopback.o
 obj-$(CONFIG_SEEQ8005) += seeq8005.o
@@ -264,8 +280,7 @@ OX_OBJS         := $(filter     $(export-objs), $(obj-y))
 M_OBJS          := $(sort $(filter-out $(export-objs), $(obj-m)))
 MX_OBJS         := $(sort $(filter     $(export-objs), $(obj-m)))
 
-L_OBJS += $(O_OBJS)
-L_OBJS += $(OX_OBJS)
+O_OBJS += auto_irq.o
 
 include $(TOPDIR)/Rules.make
 

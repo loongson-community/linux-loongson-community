@@ -81,10 +81,8 @@ struct inode_operations nfs_dir_inode_operations = {
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	NULL,			/* permission */
-	NULL,			/* smap */
 	nfs_revalidate,		/* revalidate */
 };
 
@@ -302,77 +300,80 @@ out_error:
  *	 page-in of the RPC reply, nowhere else, this simplies
  *	 things substantially.
  */
-static struct page *try_to_get_dirent_page(struct file *file, __u32 cookie, int refetch_ok)
+
+static int nfs_dir_filler(struct dentry *dentry, struct page *page)
 {
 	struct nfs_readdirargs rd_args;
 	struct nfs_readdirres rd_res;
-	struct dentry *dentry = file->f_dentry;
 	struct inode *inode = dentry->d_inode;
-	struct page *page, **hash, *page_cache;
-	long offset;
+	long offset = page->index;
 	__u32 *cookiep;
+	int err;
 
-	page = NULL;
-	page_cache = page_cache_alloc();
-	if (!page_cache)
-		goto out;
+	kmap(page);
 
-	if ((offset = nfs_readdir_offset(inode, cookie)) < 0) {
-		if (!refetch_ok ||
-		    (offset = refetch_to_readdir_cookie(file, inode)) < 0) {
-			page_cache_free(page_cache);
-			goto out;
-		}
-	}
-
+	err = -EIO;
 	cookiep = find_cookie(inode, offset);
-	if (!cookiep) {
-		/* Gross fatal error. */
-		page_cache_free(page_cache);
-		goto out;
-	}
-
-	hash = page_hash(&inode->i_data, offset);
-repeat:
-	page = __find_lock_page(&inode->i_data, offset, hash);
-	if (page) {
-		page_cache_free(page_cache);
-		goto unlock_out;
-	}
-
-	page = page_cache;
-	if (add_to_page_cache_unique(page, &inode->i_data, offset, hash)) {
-		page_cache_release(page);
-		goto repeat;
-	}
+	if (!cookiep)
+		goto fail;
 
 	rd_args.fh = NFS_FH(dentry);
-	rd_res.buffer = (char *)page_address(page_cache);
+	rd_res.buffer = (char *)page_address(page);
 	rd_res.bufsiz = PAGE_CACHE_SIZE;
 	rd_res.cookie = *cookiep;
 	do {
 		rd_args.buffer = rd_res.buffer;
 		rd_args.bufsiz = rd_res.bufsiz;
 		rd_args.cookie = rd_res.cookie;
-		if (rpc_call(NFS_CLIENT(inode),
-			     NFSPROC_READDIR, &rd_args, &rd_res, 0) < 0)
-			goto error;
+		err = rpc_call(NFS_CLIENT(inode),
+			     NFSPROC_READDIR, &rd_args, &rd_res, 0); 
+		if (err < 0)
+			goto fail;
 	} while(rd_res.bufsiz > 0);
 
+	err = -EIO;
 	if (rd_res.bufsiz < 0)
 		NFS_DIREOF(inode) = rd_res.cookie;
 	else if (create_cookie(rd_res.cookie, offset, inode))
-		goto error;
+		goto fail;
 
 	SetPageUptodate(page);
-unlock_out:
+	kunmap(page);
 	UnlockPage(page);
-out:
+	return 0;
+fail:
+	SetPageError(page);
+	kunmap(page);
+	UnlockPage(page);
+	return err;
+}
+
+static struct page *try_to_get_dirent_page(struct file *file, __u32 cookie, int refetch_ok)
+{
+	struct dentry *dentry = file->f_dentry;
+	struct inode *inode = dentry->d_inode;
+	struct page *page;
+	long offset;
+
+	if ((offset = nfs_readdir_offset(inode, cookie)) < 0) {
+		if (!refetch_ok ||
+		    (offset = refetch_to_readdir_cookie(file, inode)) < 0) {
+			goto fail;
+		}
+	}
+
+	page = read_cache_page(&inode->i_data, offset,
+				(filler_t *)nfs_dir_filler, dentry);
+	if (IS_ERR(page))
+		goto fail;
+	if (!Page_Uptodate(page))
+		goto fail2;
 	return page;
 
-error:
-	SetPageError(page);
-	goto unlock_out;
+fail2:
+	page_cache_release(page);
+fail:
+	return NULL;
 }
 
 /* Seek up to dirent assosciated with the passed in cookie,
@@ -417,7 +418,7 @@ static int nfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
 	struct dentry *dentry = filp->f_dentry;
 	struct inode *inode = dentry->d_inode;
-	struct page *page, **hash;
+	struct page *page;
 	long offset;
 	int res;
 
@@ -431,15 +432,16 @@ static int nfs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	if ((offset = nfs_readdir_offset(inode, filp->f_pos)) < 0)
 		goto no_dirent_page;
 
-	hash = page_hash(&inode->i_data, offset);
-	page = __find_get_page(&inode->i_data, offset, hash);
+	page = find_get_page(&inode->i_data, offset);
 	if (!page)
 		goto no_dirent_page;
 	if (!Page_Uptodate(page))
 		goto dirent_read_error;
 success:
+	kmap(page);
 	filp->f_pos = nfs_do_filldir((__u32 *) page_address(page),
 				     filp->f_pos, dirent, filldir);
+	kunmap(page);
 	page_cache_release(page);
 	return 0;
 
@@ -681,6 +683,7 @@ struct dentry_operations nfs_dentry_operations = {
 	NULL			/* d_iput */
 };
 
+#if 0 /* dead code */
 #ifdef NFS_PARANOIA
 /*
  * Display all dentries holding the specified inode.
@@ -702,7 +705,8 @@ static void show_dentry(struct list_head * dlist)
 			unhashed);
 	}
 }
-#endif
+#endif /* NFS_PARANOIA */
+#endif /* 0 */
 
 static struct dentry *nfs_lookup(struct inode *dir, struct dentry * dentry)
 {

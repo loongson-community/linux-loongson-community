@@ -9,6 +9,7 @@
 #include <linux/vmalloc.h>
 
 #include <asm/uaccess.h>
+#include <asm/pgalloc.h>
 
 struct vm_struct * vmlist = NULL;
 
@@ -152,7 +153,7 @@ int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot)
 	return 0;
 }
 
-struct vm_struct * get_vm_area(unsigned long size)
+struct vm_struct * get_vm_area(unsigned long size, unsigned long flags)
 {
 	unsigned long addr;
 	struct vm_struct **p, *tmp, *area;
@@ -170,6 +171,7 @@ struct vm_struct * get_vm_area(unsigned long size)
 			return NULL;
 		}
 	}
+	area->flags = flags;
 	area->addr = (void *)addr;
 	area->size = size + PAGE_SIZE;
 	area->next = *p;
@@ -208,7 +210,7 @@ void * vmalloc_prot(unsigned long size, pgprot_t prot)
 		BUG();
 		return NULL;
 	}
-	area = get_vm_area(size);
+	area = get_vm_area(size, VM_ALLOC);
 	if (!area) {
 		BUG();
 		return NULL;

@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.16 1999/10/09 00:01:43 ralf Exp $
+/* $Id: unistd.h,v 1.17 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1196,12 +1196,14 @@
 #define __NR_sendfile			(__NR_Linux + 207)
 #define __NR_getpmsg			(__NR_Linux + 208)
 #define __NR_putpmsg			(__NR_Linux + 209)
-#define __NR_ugetrlimit			(__NR_Linux + 210)
+#define __NR_mmap2			(__NR_Linux + 210)
+#define __NR_truncate64			(__NR_Linux + 211)
+#define __NR_ftruncate64		(__NR_Linux + 212)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		210
+#define __NR_Linux_syscalls		212
 
 #ifndef _LANGUAGE_ASSEMBLY
 

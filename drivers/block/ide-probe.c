@@ -56,7 +56,8 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 	ide_input_data(drive, id, SECTOR_WORDS);		/* read 512 bytes of id info */
 	ide__sti();	/* local CPU only */
 	ide_fix_driveid(id);
-
+	if (!drive->forced_lun)
+		drive->last_lun = id->word126 & 0x7;
 #if defined (CONFIG_SCSI_EATA_DMA) || defined (CONFIG_SCSI_EATA_PIO) || defined (CONFIG_SCSI_EATA)
 	/*
 	 * EATA SCSI controllers do a hardware ATA emulation:
@@ -402,7 +403,7 @@ static void probe_hwif (ide_hwif_t *hwif)
 	if (hwif->noprobe)
 		return;
 	if (hwif->io_ports[IDE_DATA_OFFSET] == HD_DATA) {
-		extern void probe_cmos_for_drives(ide_hwif_t *hwif);
+		extern void probe_cmos_for_drives(ide_hwif_t *);
 
 		probe_cmos_for_drives (hwif);
 	}
@@ -575,10 +576,6 @@ static int init_irq (ide_hwif_t *hwif)
 		hwgroup->handler  = NULL;
 		hwgroup->drive    = NULL;
 		hwgroup->busy     = 0;
-		hwgroup->spinlock = (spinlock_t)SPIN_LOCK_UNLOCKED;
-#if (DEBUG_SPINLOCK > 0)
-		printk("hwgroup(%s) spinlock is %p\n", hwif->name,  &hwgroup->spinlock);	/* FIXME */
-#endif
 		init_timer(&hwgroup->timer);
 		hwgroup->timer.function = &ide_timer_expiry;
 		hwgroup->timer.data = (unsigned long) hwgroup;
@@ -707,7 +704,8 @@ static void init_gendisk (ide_hwif_t *hwif)
 
 static int hwif_init (ide_hwif_t *hwif)
 {
-	void (*rfn)(void);
+	ide_drive_t *drive;
+	void (*rfn)(request_queue_t *);
 	
 	if (!hwif->present)
 		return 0;
@@ -789,10 +787,23 @@ static int hwif_init (ide_hwif_t *hwif)
 	
 	init_gendisk(hwif);
 	blk_dev[hwif->major].data = hwif;
-	blk_dev[hwif->major].request_fn = rfn;
 	blk_dev[hwif->major].queue = ide_get_queue;
 	read_ahead[hwif->major] = 8;	/* (4kB) */
 	hwif->present = 1;	/* success */
+
+	/*
+	 * FIXME(eric) - This needs to be tested.  I *think* that this
+	 * is correct.   Also, I believe that there is no longer any
+	 * reason to have multiple functions (do_ide[0-7]_request)
+	 * functions - the queuedata field could be used to indicate
+	 * the correct hardware group - either this, or we could add
+	 * a new field to request_queue_t to hold this information.
+	 */
+	drive = &hwif->drives[0];
+	blk_init_queue(&drive->queue, rfn);
+
+	drive = &hwif->drives[1];
+	blk_init_queue(&drive->queue, rfn);
 
 #if (DEBUG_SPINLOCK > 0)
 {

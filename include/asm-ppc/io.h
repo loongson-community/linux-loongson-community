@@ -19,7 +19,9 @@
 #define PREP_ISA_MEM_BASE 	0xc0000000
 #define PREP_PCI_DRAM_OFFSET 	0x80000000
 
-#ifdef CONFIG_8xx
+#if defined(CONFIG_4xx)
+#include <asm/board.h>
+#elif defined(CONFIG_8xx)
 #include <asm/mpc8xx.h>
 #else
 #ifdef CONFIG_APUS
@@ -34,7 +36,7 @@ extern unsigned long pci_dram_offset;
 #define _ISA_MEM_BASE	isa_mem_base
 #define PCI_DRAM_OFFSET	pci_dram_offset
 #endif /* CONFIG_APUS */
-#endif /* CONFIG_8xx */
+#endif
 
 #define readb(addr) in_8((volatile unsigned char *)(addr))
 #define writeb(b,addr) out_8((volatile unsigned char *)(addr), (b))
@@ -97,6 +99,8 @@ extern void _insw_ns(volatile unsigned short *port, void *buf, int ns);
 extern void _outsw_ns(volatile unsigned short *port, const void *buf, int ns);
 extern void _insl_ns(volatile unsigned long *port, void *buf, int nl);
 extern void _outsl_ns(volatile unsigned long *port, const void *buf, int nl);
+
+#define IO_SPACE_LIMIT 0xffff
 
 #define memset_io(a,b,c)	memset((a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(b),(c))

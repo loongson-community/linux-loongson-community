@@ -71,7 +71,6 @@ extern void wdt_init(void);
 extern void acq_init(void);
 extern void dtlk_init(void);
 extern void pcwatchdog_init(void);
-extern int rtc_init(void);
 extern int rtc_sun_init(void);		/* Combines MK48T02 and MK48T08 */
 extern int ds1286_init(void);
 extern int dsp56k_init(void);
@@ -79,9 +78,6 @@ extern int radio_init(void);
 extern int pc110pad_init(void);
 extern int pmu_device_init(void);
 extern int qpmouse_init(void);
-extern int ds1620_init(void);
-extern int nwbutton_init(void);
-extern int nwflash_init(void);
 
 static int misc_read_proc(char *buf, char **start, off_t offset,
 			  int len, int *eof, void *private)
@@ -223,9 +219,6 @@ int __init misc_init(void)
 #if defined(CONFIG_SUN_MOSTEK_RTC)
 	rtc_sun_init();
 #endif
-#if defined(CONFIG_RTC)
-	rtc_init();
-#endif
 #ifdef CONFIG_SGI_DS1286
 	ds1286_init();
 #endif
@@ -243,15 +236,6 @@ int __init misc_init(void)
 #endif
 #ifdef CONFIG_SGI_IP22
 	streamable_init ();
-#endif
-#ifdef CONFIG_DS1620
-	ds1620_init();
-#endif
-#ifdef CONFIG_NWBUTTON
-	nwbutton_init();
-#endif
-#ifdef CONFIG_NWFLASH
-	nwflash_init();
 #endif
 #ifdef CONFIG_SGI_NEWPORT_GFX
 	gfx_register ();

@@ -2,6 +2,7 @@
  * drivers/usb/proc_usb.c
  * (C) Copyright 1999 Randy Dunlap.
  * (C) Copyright 1999 Thomas Sailer <sailer@ife.ee.ethz.ch>. (proc file per device)
+ * (C) Copyright 1999 Deti Fliegl (new USB architecture)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -591,7 +592,7 @@ static int usbdev_ioctl_ezusbcompat(struct inode *inode, struct file *file, unsi
 				free_page((unsigned long)tbuf);
 				return -EINVAL;
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, (ctrl.timeout * HZ + 500) / 1000);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, (ctrl.timeout * HZ + 500) / 1000);
 			if (!i && len2) {
 				copy_to_user_ret(bulk.data, tbuf, len2, -EFAULT);
 			}
@@ -599,7 +600,7 @@ static int usbdev_ioctl_ezusbcompat(struct inode *inode, struct file *file, unsi
 			if (len1) {
 				copy_from_user_ret(tbuf, bulk.data, len1, -EFAULT);
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, (ctrl.timeout * HZ + 500) / 1000);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, (ctrl.timeout * HZ + 500) / 1000);
 		}
 		free_page((unsigned long)tbuf);
 		if (i) {
@@ -670,7 +671,7 @@ static int usbdev_ioctl_ezusbcompat(struct inode *inode, struct file *file, unsi
 				free_page((unsigned long)tbuf);
 				return -EINVAL;
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
 			if (!i && len2) {
 				copy_to_user_ret(obulk.data, tbuf, len2, -EFAULT);
 			}
@@ -678,7 +679,7 @@ static int usbdev_ioctl_ezusbcompat(struct inode *inode, struct file *file, unsi
 			if (len1) {
 				copy_from_user_ret(tbuf, obulk.data, len1, -EFAULT);
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
 		}
 		free_page((unsigned long)tbuf);
 		if (i) {
@@ -804,7 +805,7 @@ static int usbdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 				free_page((unsigned long)tbuf);
 				return -EINVAL;
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, (bulk.timeout * HZ + 500) / 1000);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, (bulk.timeout * HZ + 500) / 1000);
 			if (!i && len2) {
 				copy_to_user_ret(bulk.data, tbuf, len2, -EFAULT);
 			}
@@ -812,7 +813,7 @@ static int usbdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 			if (len1) {
 				copy_from_user_ret(tbuf, bulk.data, len1, -EFAULT);
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, (bulk.timeout * HZ + 500) / 1000);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, (bulk.timeout * HZ + 500) / 1000);
 		}
 		free_page((unsigned long)tbuf);
 		if (i) {
@@ -877,7 +878,7 @@ static int usbdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 				free_page((unsigned long)tbuf);
 				return -EINVAL;
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
 			if (!i && len2) {
 				copy_to_user_ret(obulk.data, tbuf, len2, -EFAULT);
 			}
@@ -885,7 +886,7 @@ static int usbdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd
 			if (len1) {
 				copy_from_user_ret(tbuf, obulk.data, len1, -EFAULT);
 			}
-			i = dev->bus->op->bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
+			i = usb_bulk_msg(dev, pipe, tbuf, len1, &len2, HZ*5);
 		}
 		free_page((unsigned long)tbuf);
 		if (i) {
@@ -948,25 +949,6 @@ static struct file_operations proc_usb_device_file_operations = {
 
 static struct inode_operations proc_usb_device_inode_operations = {
         &proc_usb_device_file_operations,  /* file-ops */
-        NULL,                              /* create       */
-        NULL,                              /* lookup       */
-        NULL,                              /* link         */
-        NULL,                              /* unlink       */
-        NULL,                              /* symlink      */
-        NULL,                              /* mkdir        */
-        NULL,                              /* rmdir        */
-        NULL,                              /* mknod        */
-        NULL,                              /* rename       */
-        NULL,                              /* readlink     */
-        NULL,                              /* follow_link  */
-        NULL,                              /* get_block    */
-        NULL,                              /* readpage     */
-        NULL,                              /* writepage    */
-        NULL,                              /* flushpage    */
-        NULL,                              /* truncate     */
-        NULL,                              /* permission   */
-        NULL,                              /* smap         */
-        NULL                               /* revalidate   */
 };
 
 void proc_usb_add_bus(struct usb_bus *bus)
@@ -977,7 +959,7 @@ void proc_usb_add_bus(struct usb_bus *bus)
 	if (!usbdir)
 		return;
 	sprintf(buf, "%03d", bus->busnum);
-	if (!(bus->proc_entry = create_proc_entry(buf, S_IFDIR, usbdir)))
+	if (!(bus->proc_entry = proc_mkdir(buf, usbdir)))
 		return;
 	bus->proc_entry->data = bus;
 }
@@ -1023,7 +1005,7 @@ void proc_usb_cleanup (void)
 
 int proc_usb_init (void)
 {
-	usbdir = create_proc_entry ("usb", S_IFDIR, proc_bus);
+	usbdir = proc_mkdir ("usb", proc_bus);
 	if (!usbdir) {
 		printk ("proc_usb: cannot create /proc/bus/usb entry\n");
 		return -1;

@@ -26,7 +26,7 @@
 #include <asm/core_pyxis.h>
 
 #include "proto.h"
-#include "irq_impl.h"
+#include <asm/hw_irq.h>
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
@@ -211,7 +211,7 @@ struct alpha_machine_vector sx164_mv __initmv = {
 	init_irq:		sx164_init_irq,
 	init_pit:		common_init_pit,
 	init_pci:		sx164_init_pci,
-	kill_arch:		common_kill_arch,
+	kill_arch:		NULL,
 	pci_map_irq:		sx164_map_irq,
 	pci_swizzle:		common_swizzle,
 };

@@ -1,4 +1,4 @@
-/* $Id: umap.c,v 1.3 2000/01/27 01:05:24 ralf Exp $
+/* $Id: umap.c,v 1.4 2000/01/29 01:41:59 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -21,7 +21,7 @@
 #include <linux/swap.h>
 
 #include <asm/system.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/page.h>
 
 static inline void

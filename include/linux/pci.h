@@ -3,7 +3,7 @@
  *
  *	PCI defines and function prototypes
  *	Copyright 1994, Drew Eckhardt
- *	Copyright 1997--1999 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *	Copyright 1997--1999 Martin Mares <mj@suse.cz>
  *
  *	For more information, please consult the following manuals (look at
  *	http://www.pcisig.com/ for how to get them):
@@ -404,11 +404,20 @@ struct pci_ops {
 	int (*write_dword)(struct pci_dev *, int where, u32 val);
 };
 
+struct pbus_set_ranges_data
+{
+	int found_vga;
+	unsigned long io_start, io_end;
+	unsigned long mem_start, mem_end;
+};
+
 void pcibios_init(void);
 void pcibios_fixup_bus(struct pci_bus *);
+void pcibios_fixup_pbus_ranges(struct pci_bus *, struct pbus_set_ranges_data *);
 int pcibios_enable_device(struct pci_dev *);
 char *pcibios_setup (char *str);
 
+void pcibios_align_resource(void *, struct resource *, unsigned long);
 void pcibios_update_resource(struct pci_dev *, struct resource *,
 			     struct resource *, int);
 void pcibios_update_irq(struct pci_dev *, int irq);
@@ -441,6 +450,7 @@ struct pci_bus *pci_scan_bus(int bus, struct pci_ops *ops, void *sysdata);
 int pci_proc_attach_device(struct pci_dev *dev);
 int pci_proc_detach_device(struct pci_dev *dev);
 void pci_name_device(struct pci_dev *dev);
+char *pci_class_name(u32 class);
 void pci_read_bridge_bases(struct pci_bus *child);
 struct resource *pci_find_parent_resource(struct pci_dev *dev, struct resource *res);
 

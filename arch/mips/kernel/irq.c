@@ -1,4 +1,4 @@
-/* $Id: irq.c,v 1.17 1999/12/04 03:59:00 ralf Exp $
+/* $Id: irq.c,v 1.18 2000/01/26 00:07:44 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -146,7 +146,7 @@ asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 
 	if (irq >= 16)
 		goto out;
@@ -174,7 +174,7 @@ asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs)
 	unmask_irq (irq);
 
 out:
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 }
 
 /*
@@ -190,7 +190,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[cpu][irq]++;
 
 	action = *(irq + irq_action);
@@ -208,7 +208,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }

@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.6 2000/01/16 01:44:34 ralf Exp $
+/* $Id: unistd.h,v 1.7 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1195,12 +1195,14 @@
 #define __NR_Linux32_sendfile		(__NR_Linux32 + 207)
 #define __NR_Linux32_getpmsg		(__NR_Linux32 + 208)
 #define __NR_Linux32_putpmsg		(__NR_Linux32 + 209)
-#define __NR_Linux32_ugetrlimit		(__NR_Linux32 + 210)
+#define __NR_mmap2			(__NR_Linux32 + 210)
+#define __NR_truncate64			(__NR_Linux32 + 211)
+#define __NR_ftruncate64		(__NR_Linux32 + 212)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux32_syscalls		210
+#define __NR_Linux32_syscalls		212
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
@@ -1416,12 +1418,11 @@
 #define __NR_sendfile			(__NR_Linux + 207)
 #define __NR_getpmsg			(__NR_Linux + 208)
 #define __NR_putpmsg			(__NR_Linux + 209)
-#define __NR_ugetrlimit			(__NR_Linux + 210)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		210
+#define __NR_Linux_syscalls		209
 
 #ifndef _LANGUAGE_ASSEMBLY
 

@@ -1008,7 +1008,7 @@ vesa_modes:
 vesa1:
 # gas version 2.9.1, using BFD version 2.9.1.0.23 buggers the next inst.
 # XXX:	lodsw	%gs:(%si), %ax			# Get next mode in the list
-	.byte 0x66, 0x65, 0xAD
+	.byte	0x65, 0xAD			# %gs seg prefix + lodsw
 	cmpw	$0xffff, %ax			# End of the table?
 	jz	vesar
 	
@@ -1278,7 +1278,7 @@ no_s3:	movb	$0x35, %al	# restore CRT register 0x35
 no_s31:	xorw	%bp, %bp	# Detection failed
 s3rest:	movb	%bh, %ah
 	movb	$0x38, %al	# restore old value of CRT register 0x38
-	call	outidx
+	jmp	outidx
 
 idS3:	.byte	0x81, 0x82, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95
 	.byte	0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa8, 0xb0

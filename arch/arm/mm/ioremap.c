@@ -32,7 +32,7 @@
 #include <linux/vmalloc.h>
 
 #include <asm/page.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/io.h>
 
 static inline void remap_area_pte(pte_t * pte, unsigned long address, unsigned long size,
@@ -136,7 +136,7 @@ void * __ioremap(unsigned long phys_addr, unsigned long size, unsigned long flag
 	/*
 	 * Ok, go for it..
 	 */
-	area = get_vm_area(size);
+	area = get_vm_area(size, VM_IOREMAP);
 	if (!area)
 		return NULL;
 	addr = area->addr;

@@ -14,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/irq.h>
 
 #include <asm/hwrpb.h>
 #include <asm/ptrace.h>
@@ -23,14 +24,15 @@
 #include <asm/irq.h>
 #include <asm/bitops.h>
 #include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
+#include <asm/mmu_context.h>
 
 #define __KERNEL_SYSCALLS__
 #include <asm/unistd.h>
 
 #include "proto.h"
-#include "irq_impl.h"
 
 
 #define DEBUG_SMP 0
@@ -45,8 +47,8 @@ struct cpuinfo_alpha cpu_data[NR_CPUS];
 
 /* A collection of single bit ipi messages.  */
 static struct {
-	unsigned long bits __cacheline_aligned;
-} ipi_data[NR_CPUS];
+	unsigned long bits ____cacheline_aligned;
+} ipi_data[NR_CPUS] __cacheline_aligned;
 
 enum ipi_message_type {
         IPI_RESCHEDULE,
@@ -54,7 +56,7 @@ enum ipi_message_type {
         IPI_CPU_STOP,
 };
 
-spinlock_t kernel_flag __cacheline_aligned = SPIN_LOCK_UNLOCKED;
+spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 
 /* Set to a secondary's cpuid when it comes online.  */
 static unsigned long smp_secondary_alive;
@@ -394,6 +396,16 @@ started:
 	return 0;
 }
 
+static int __init fork_by_hand(void)
+{
+	struct pt_regs regs;
+	/*
+	 * don't care about the regs settings since
+	 * we'll never reschedule the forked task.
+	 */
+	return do_fork(CLONE_VM|CLONE_PID, 0, &regs);
+}
+
 /*
  * Bring one cpu online.
  */
@@ -407,18 +419,25 @@ smp_boot_one_cpu(int cpuid, int cpunum)
 	   to kernel_thread is irrelevant -- it's going to start where
 	   HWRPB.CPU_restart says to start.  But this gets all the other
 	   task-y sort of data structures set up like we wish.  */
-	kernel_thread((void *)__smp_callin, NULL, CLONE_PID|CLONE_VM);
+	/*
+	 * We can't use kernel_thread since we must avoid to
+	 * reschedule the child.
+	 */
+	if (fork_by_hand() < 0)
+		panic("failed fork for CPU %d", cpuid);
 
         idle = init_task.prev_task;
         if (!idle)
-                panic("No idle process for CPU %d", cpunum);
-        del_from_runqueue(idle);
-        init_tasks[cpunum] = idle;
-        idle->processor = cpuid;
+                panic("No idle process for CPU %d", cpuid);
 
-	/* Schedule the first task manually.  */
-	/* ??? Ingo, what is this?  */
-	idle->has_cpu = 1;
+	idle->processor = cpuid;
+	__cpu_logical_map[cpunum] = cpuid;
+	cpu_number_map[cpuid] = cpunum;
+	idle->has_cpu = 1; /* we schedule the first task manually */
+ 
+	del_from_runqueue(idle);
+	unhash_process(idle);
+	init_tasks[cpunum] = idle;
 
 	DBGS(("smp_boot_one_cpu: CPU %d state 0x%lx flags 0x%lx\n",
 	      cpuid, idle->state, idle->flags));
@@ -440,13 +459,18 @@ smp_boot_one_cpu(int cpuid, int cpunum)
 		barrier();
 	}
 
+	/* we must invalidate our stuff as we failed to boot the CPU */
+	__cpu_logical_map[cpunum] = -1;
+	cpu_number_map[cpuid] = -1;
+
+	/* the idle task is local to us so free it as we don't use it */
+	free_task_struct(idle);
+
 	printk(KERN_ERR "SMP: Processor %d is stuck.\n", cpuid);
 	return -1;
 
 alive:
 	/* Another "Red Snapper". */
-	cpu_number_map[cpuid] = cpunum;
-	__cpu_logical_map[cpunum] = cpuid;
 	return 0;
 }
 
@@ -577,16 +601,6 @@ smp_commence(void)
 {
 	/* smp_init sets smp_threads_ready -- that's enough.  */
 	mb();
-}
-
-/*
- * Only broken Intel needs this, thus it should not even be
- * referenced globally.
- */
-
-void __init
-initialize_secondary(void)
-{
 }
 
 

@@ -26,7 +26,7 @@
 #include <asm/core_pyxis.h>
 
 #include "proto.h"
-#include "irq_impl.h"
+#include <asm/hw_irq.h>
 #include "pci_impl.h"
 #include "machvec_impl.h"
 
@@ -212,15 +212,14 @@ ruffian_init_pit (void)
 }
 
 static void
-ruffian_kill_arch (int mode, char *reboot_cmd)
+ruffian_kill_arch (int mode)
 {
 #if 0
-	/* this only causes re-entry to ARCSBIOS */
+	/* This only causes re-entry to ARCSBIOS */
 	/* Perhaps this works for other PYXIS as well?  */
 	*(vuip) PYXIS_RESET = 0x0000dead;
 	mb();
 #endif
-	common_kill_arch(mode, reboot_cmd);
 }
 
 static int __init

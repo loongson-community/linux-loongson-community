@@ -55,14 +55,14 @@ out:
 	return error;
 }
 
-int do_truncate(struct dentry *dentry, unsigned long length)
+int do_truncate(struct dentry *dentry, loff_t length)
 {
 	struct inode *inode = dentry->d_inode;
 	int error;
 	struct iattr newattrs;
 
-	/* Not pretty: "inode->i_size" shouldn't really be "off_t". But it is. */
-	if ((off_t) length < 0)
+	/* Not pretty: "inode->i_size" shouldn't really be signed. But it is. */
+	if (length < 0)
 		return -EINVAL;
 
 	down(&inode->i_sem);
@@ -79,13 +79,18 @@ int do_truncate(struct dentry *dentry, unsigned long length)
 	return error;
 }
 
-asmlinkage long sys_truncate(const char * path, unsigned long length)
+static inline long do_sys_truncate(const char * path, loff_t length)
 {
 	struct dentry * dentry;
 	struct inode * inode;
 	int error;
 
 	lock_kernel();
+
+	error = -EINVAL;
+	if (length < 0)	/* sorry, but loff_t says... */
+		goto out;
+
 	dentry = namei(path);
 
 	error = PTR_ERR(dentry);
@@ -128,13 +133,21 @@ out:
 	return error;
 }
 
-asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length)
+asmlinkage long sys_truncate(const char * path, unsigned long length)
+{
+	return do_sys_truncate(path, length);
+}
+
+static inline long do_sys_ftruncate(unsigned int fd, loff_t length)
 {
 	struct inode * inode;
 	struct dentry *dentry;
 	struct file * file;
 	int error;
 
+	error = -EINVAL;
+	if (length < 0)
+		goto out;
 	error = -EBADF;
 	file = fget(fd);
 	if (!file)
@@ -162,6 +175,24 @@ out_putf:
 out:
 	return error;
 }
+
+asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length)
+{
+	return do_sys_ftruncate(fd, length);
+}
+
+/* LFS versions of truncate are only needed on 32 bit machines */
+#if BITS_PER_LONG == 32
+asmlinkage long sys_truncate64(const char * path, loff_t length)
+{
+	return do_sys_truncate(path, length);
+}
+
+asmlinkage long sys_ftruncate64(unsigned int fd, loff_t length)
+{
+	return do_sys_ftruncate(fd, length);
+}
+#endif
 
 #if !(defined(__alpha__) || defined(__ia64__))
 

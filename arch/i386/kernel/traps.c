@@ -35,6 +35,7 @@
 #include <asm/desc.h>
 
 #include <asm/smp.h>
+#include <asm/pgalloc.h>
 
 #ifdef CONFIG_X86_VISWS_APIC
 #include <asm/fixmap.h>
@@ -200,7 +201,7 @@ static void show_registers(struct pt_regs *regs)
 	printk("\n");
 }	
 
-spinlock_t die_lock;
+spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 
 void die(const char * str, struct pt_regs * regs, long err)
 {
@@ -387,7 +388,7 @@ inline void nmi_watchdog_tick(struct pt_regs * regs)
 		alert_counter[cpu]++;
 		if (alert_counter[cpu] == 5*HZ) {
 			spin_lock(&nmi_print_lock);
-			spin_unlock(&console_lock); // we are in trouble anyway
+			console_lock.lock = 0;	// we are in trouble anyway
 			printk("NMI Watchdog detected LOCKUP on CPU%d, registers:\n", cpu);
 			show_registers(regs);
 			printk("console shuts up ...\n");

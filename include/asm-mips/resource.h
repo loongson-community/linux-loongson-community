@@ -1,4 +1,4 @@
-/* $Id: resource.h,v 1.3 1999/10/09 00:01:43 ralf Exp $
+/* $Id: resource.h,v 1.4 2000/01/27 23:45:30 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -24,6 +24,12 @@
 #define RLIMIT_MEMLOCK 9		/* max locked-in-memory address space */
 
 #define RLIM_NLIMITS 10			/* Number of limit flavors.  */
+
+/*
+ * SuS says limits have to be unsigned.
+ * Which makes a ton more sense anyway.
+ */
+#define RLIM_INFINITY	0x7fffffffUL
 
 #ifdef __KERNEL__
 

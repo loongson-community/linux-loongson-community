@@ -16,7 +16,7 @@ static const struct file_operations hpfs_file_ops =
 	NULL,				/* readdir - bad */
 	NULL,				/* poll - default */
 	NULL,				/* ioctl - default */
-	generic_file_mmap/*hpfs_mmap*/,	/* mmap */
+	generic_file_mmap,		/* mmap */
 	hpfs_open,			/* open */
 	NULL,				/* flush */
 	hpfs_file_release,		/* release */
@@ -44,10 +44,8 @@ static const struct inode_operations hpfs_file_iops =
 	&hpfs_get_block,		/* get_block */
 	block_read_full_page,		/* readpage */
 	block_write_full_page,		/* writepage */
-	block_flushpage,		/* flushpage */
 	hpfs_truncate,			/* truncate */
 	NULL,				/* permission */
-	NULL,				/* smap */
 	NULL,				/* revalidate */
 };
 
@@ -87,37 +85,17 @@ static const struct inode_operations hpfs_dir_iops =
 	NULL,				/* get_block */
 	NULL,				/* readpage */
 	NULL,				/* writepage */
-	NULL,				/* flushpage */
 	NULL,				/* truncate */
 	NULL,				/* permission */
-	NULL,				/* smap */
 	NULL				/* revalidate */
 };
 
 const struct inode_operations hpfs_symlink_iops =
 {
-	NULL,				/* default file operations */
-	NULL,				/* create */
-	NULL,				/* lookup */
-	NULL,				/* link */
-	NULL,				/* unlink */
-	NULL,				/* symlink */
-	NULL,				/* mkdir */
-	NULL,				/* rmdir */
-	NULL,				/* mknod */
-	NULL,				/* rename */
-	hpfs_readlink,			/* readlink */
-	hpfs_follow_link,		/* follow_link */
-	NULL,				/* get_block */
-	NULL,				/* readpage */
-	NULL,				/* writepage */
-	NULL,				/* flushpage */
-	NULL,				/* truncate */
-	NULL,				/* permission */
-	NULL,				/* smap */
-	NULL				/* revalidate */
+	readlink:	page_readlink,
+	follow_link:	page_follow_link,
+	readpage:	hpfs_symlink_readpage
 };
-
 
 void hpfs_read_inode(struct inode *i)
 {

@@ -52,100 +52,13 @@ void add_to_swap_cache(struct page *page, swp_entry_t entry)
 	add_to_page_cache(page, &swapper_space, entry.val);
 }
 
-/*
- * Verify that a swap entry is valid and increment its swap map count.
- *
- * Note: if swap_map[] reaches SWAP_MAP_MAX the entries are treated as
- * "permanent", but will be reclaimed by the next swapoff.
- */
-int swap_duplicate(swp_entry_t entry)
-{
-	struct swap_info_struct * p;
-	unsigned long offset, type;
-	int result = 0;
-
-	/* Swap entry 0 is illegal */
-	if (!entry.val)
-		goto out;
-	type = SWP_TYPE(entry);
-	if (type >= nr_swapfiles)
-		goto bad_file;
-	p = type + swap_info;
-	offset = SWP_OFFSET(entry);
-	if (offset >= p->max)
-		goto bad_offset;
-	if (!p->swap_map[offset])
-		goto bad_unused;
-	/*
-	 * Entry is valid, so increment the map count.
-	 */
-	if (p->swap_map[offset] < SWAP_MAP_MAX)
-		p->swap_map[offset]++;
-	else {
-		static int overflow = 0;
-		if (overflow++ < 5)
-			printk("VM: swap entry overflow\n");
-		p->swap_map[offset] = SWAP_MAP_MAX;
-	}
-	result = 1;
-out:
-	return result;
-
-bad_file:
-	printk("Bad swap file entry %08lx\n", entry.val);
-	goto out;
-bad_offset:
-	printk("Bad swap offset entry %08lx\n", entry.val);
-	goto out;
-bad_unused:
-	printk("Unused swap offset entry %08lx\n", entry.val);
-	goto out;
-}
-
-int swap_count(struct page *page)
-{
-	struct swap_info_struct * p;
-	unsigned long offset, type;
-	swp_entry_t entry;
-	int retval = 0;
-
-	entry.val = page->index;
-	if (!entry.val)
-		goto bad_entry;
-	type = SWP_TYPE(entry);
-	if (type >= nr_swapfiles)
-		goto bad_file;
-	p = type + swap_info;
-	offset = SWP_OFFSET(entry);
-	if (offset >= p->max)
-		goto bad_offset;
-	if (!p->swap_map[offset])
-		goto bad_unused;
-	retval = p->swap_map[offset];
-out:
-	return retval;
-
-bad_entry:
-	printk(KERN_ERR "swap_count: null entry!\n");
-	goto out;
-bad_file:
-	printk("Bad swap file entry %08lx\n", entry.val);
-	goto out;
-bad_offset:
-	printk("Bad swap offset entry %08lx\n", entry.val);
-	goto out;
-bad_unused:
-	printk("Unused swap offset entry %08lx\n", entry.val);
-	goto out;
-}
-
 static inline void remove_from_swap_cache(struct page *page)
 {
 	struct address_space *mapping = page->mapping;
 
 	if (mapping != &swapper_space)
 		BUG();
-	if (!PageSwapCache(page))
+	if (!PageSwapCache(page) || !PageLocked(page))
 		PAGE_BUG(page);
 
 	PageClearSwapCache(page);
@@ -166,49 +79,49 @@ void __delete_from_swap_cache(struct page *page)
 	swap_cache_del_total++;
 #endif
 	remove_from_swap_cache(page);
-	lock_kernel();
 	swap_free(entry);
-	unlock_kernel();
 }
 
-static void delete_from_swap_cache_nolock(struct page *page)
+/*
+ * This will never put the page into the free list, the caller has
+ * a reference on the page.
+ */
+void delete_from_swap_cache_nolock(struct page *page)
 {
-	if (block_flushpage(NULL, page, 0))
+	if (block_flushpage(page, 0))
 		lru_cache_del(page);
 
 	__delete_from_swap_cache(page);
+	page_cache_release(page);
 }
 
 /*
  * This must be called only on pages that have
- * been verified to be in the swap cache.
+ * been verified to be in the swap cache and locked.
  */
 void delete_from_swap_cache(struct page *page)
 {
 	lock_page(page);
-
 	delete_from_swap_cache_nolock(page);
-
 	UnlockPage(page);
-	page_cache_release(page);
 }
 
 /* 
  * Perform a free_page(), also freeing any swap cache associated with
- * this page if it is the last user of the page. 
+ * this page if it is the last user of the page. Can not do a lock_page,
+ * as we are holding the page_table_lock spinlock.
  */
-
 void free_page_and_swap_cache(struct page *page)
 {
 	/* 
-	 * If we are the only user, then free up the swap cache. 
+	 * If we are the only user, then try to free up the swap cache. 
 	 */
-	lock_page(page);
-	if (PageSwapCache(page) && !is_page_shared(page)) {
-		delete_from_swap_cache_nolock(page);
-		page_cache_release(page);
+	if (PageSwapCache(page) && !TryLockPage(page)) {
+		if (!is_page_shared(page)) {
+			delete_from_swap_cache_nolock(page);
+		}
+		UnlockPage(page);
 	}
-	UnlockPage(page);
 	
 	clear_bit(PG_swap_entry, &page->flags);
 
@@ -234,10 +147,24 @@ struct page * lookup_swap_cache(swp_entry_t entry)
 		/*
 		 * Right now the pagecache is 32-bit only.  But it's a 32 bit index. =)
 		 */
+repeat:
 		found = find_lock_page(&swapper_space, entry.val);
 		if (!found)
 			return 0;
-		if (found->mapping != &swapper_space || !PageSwapCache(found))
+		/*
+		 * Though the "found" page was in the swap cache an instant
+		 * earlier, it might have been removed by shrink_mmap etc.
+		 * Re search ... Since find_lock_page grabs a reference on
+		 * the page, it can not be reused for anything else, namely
+		 * it can not be associated with another swaphandle, so it
+		 * is enough to check whether the page is still in the scache.
+		 */
+		if (!PageSwapCache(found)) {
+			UnlockPage(found);
+			__free_page(found);
+			goto repeat;
+		}
+		if (found->mapping != &swapper_space)
 			goto out_bad;
 #ifdef SWAP_CACHE_INFO
 		swap_cache_find_success++;

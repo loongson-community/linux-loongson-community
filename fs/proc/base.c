@@ -104,9 +104,12 @@ static int proc_pid_environ(struct task_struct *task, char * buffer)
 {
 	struct mm_struct *mm = task->mm;
 	int res = 0;
-	if (mm)
-		res = access_process_vm(task, mm->env_start, buffer,
-					mm->env_end - mm->env_start, 0);
+	if (mm) {
+		int len = mm->env_end - mm->env_start;
+		if (len > PAGE_SIZE)
+			len = PAGE_SIZE;
+		res = access_process_vm(task, mm->env_start, buffer, len, 0);
+	}
 	return res;
 }
 
@@ -116,9 +119,12 @@ static int proc_pid_cmdline(struct task_struct *task, char * buffer)
 {
 	struct mm_struct *mm = task->mm;
 	int res = 0;
-	if (mm)
-		res = access_process_vm(task, mm->arg_start, buffer,
-					mm->arg_end - mm->arg_start, 0);
+	if (mm) {
+		int len = mm->arg_end - mm->arg_start;
+		if (len > PAGE_SIZE)
+			len = PAGE_SIZE;
+		res = access_process_vm(task, mm->arg_start, buffer, len, 0);
+	}
 	return res;
 }
 
@@ -363,10 +369,8 @@ static struct inode_operations proc_mem_inode_operations = {
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	proc_permission,	/* permission */
-	NULL,			/* smap */
 	NULL			/* revalidate */
 };
 
@@ -788,7 +792,6 @@ static struct inode_operations proc_fd_inode_operations = {
 	NULL,			/* get_block */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
-	NULL,			/* flushpage */
 	NULL,			/* truncate */
 	proc_permission,	/* permission */
 };

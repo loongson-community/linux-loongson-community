@@ -42,12 +42,10 @@
  *  12/20/98      find the free space bitmap (if it exists)
  */
 
-#ifndef LINUX_VERSION_CODE
-#include <linux/version.h>
-#endif
-
 #include "udfdecl.h"    
 
+#include <linux/config.h>
+#include <linux/version.h>
 #include <linux/blkdev.h>
 #include <linux/malloc.h>
 #include <linux/kernel.h>
@@ -64,6 +62,15 @@
 
 #include <linux/init.h>
 #include <asm/uaccess.h>
+
+#define VDS_POS_PRIMARY_VOL_DESC	0
+#define VDS_POS_UNALLOC_SPACE_DESC	1
+#define VDS_POS_LOGICAL_VOL_DESC	2
+#define VDS_POS_PARTITION_DESC		3
+#define VDS_POS_IMP_USE_VOL_DESC	4
+#define VDS_POS_VOL_DESC_PTR		5
+#define VDS_POS_TERMINATING_DESC	6
+#define VDS_POS_LENGTH				7
 
 static char error_buf[1024];
 
@@ -1365,7 +1372,6 @@ udf_read_super(struct super_block *sb, void *options, int silent)
 
 	/* Fill in the rest of the superblock */
 	sb->s_op = &udf_sb_ops;
-	sb->s_time = 0;
 	sb->dq_op = NULL;
 	sb->s_dirt = 0;
 	sb->s_magic = UDF_SUPER_MAGIC;

@@ -98,10 +98,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
     tristate '    NI6510 support' CONFIG_NI65
   fi
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-      # tristate '  Packet Engines Hamachi GNIC-II support (EXPERIMENTAL)' CONFIG_HAMACHI
-      tristate '  Packet Engines Yellowfin Gigabit-NIC support (EXPERIMENTAL)' CONFIG_YELLOWFIN
       tristate '  RealTek 8129/8139 (not 8019/8029!) support (EXPERIMENTAL)' CONFIG_RTL8139
-      tristate '  SiS 900 PCI Fast Ethernet Adapter support (EXPERIMENTAL)' CONFIG_SIS900
       tristate '  DM9102 PCI Fast Ethernet Adapter support (EXPERIMENTAL)' CONFIG_DM9102
    fi
    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -137,10 +134,6 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	 tristate '    Adaptec Starfire support (EXPERIMENTAL)' CONFIG_ADAPTEC_STARFIRE
       fi
-      tristate '    Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support' CONFIG_ACENIC
-      if [ "$CONFIG_ACENIC" != "n" ]; then
-	 bool '      Omit support for old Tigon I based AceNICs' CONFIG_ACENIC_OMIT_TIGON_I
-      fi
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
 	 tristate '    Ansel Communications EISA 3200 support (EXPERIMENTAL)' CONFIG_AC3200
       fi
@@ -157,6 +150,7 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
       fi
       tristate '    PCI NE2000 support' CONFIG_NE2K_PCI
       # tristate '    Sundance Alta support' CONFIG_ALTA
+      tristate '    SiS 900/7016 PCI Fast Ethernet Adapter support' CONFIG_SIS900
       tristate '    TI ThunderLAN support' CONFIG_TLAN
       tristate '    VIA Rhine support' CONFIG_VIA_RHINE
       if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
@@ -173,6 +167,24 @@ if [ "$CONFIG_NET_ETHERNET" = "y" ]; then
    fi
 fi
 
+endmenu
+
+#
+#	Gigabit Ethernet
+#
+
+mainmenu_option next_comment
+comment 'Ethernet (1000 Mbit)'
+
+    if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+      # tristate 'Packet Engines Hamachi GNIC-II support (EXPERIMENTAL)' CONFIG_HAMACHI
+      tristate 'Packet Engines Yellowfin Gigabit-NIC support (EXPERIMENTAL)' CONFIG_YELLOWFIN
+    fi
+    tristate 'Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support' CONFIG_ACENIC
+    if [ "$CONFIG_ACENIC" != "n" ]; then
+      bool '  Omit support for old Tigon I based AceNICs' CONFIG_ACENIC_OMIT_TIGON_I
+    fi
+    tristate 'SysKonnect SK-98xx support' CONFIG_SK98LIN
 endmenu
 
 bool 'FDDI driver support' CONFIG_FDDI
@@ -238,7 +250,15 @@ if [ "$CONFIG_NET_RADIO" = "y" ]; then
    dep_tristate '  STRIP (Metricom starmode radio IP)' CONFIG_STRIP $CONFIG_INET
    tristate '  AT&T WaveLAN & DEC RoamAbout DS support' CONFIG_WAVELAN
    tristate '  Aironet Arlan 655 & IC2200 DS support' CONFIG_ARLAN
-
+   tristate '  Aironet 4500/4800 series adapters' CONFIG_AIRONET4500
+   dep_tristate '   Aironet 4500/4800 ISA/PCI/PNP/365 support ' CONFIG_AIRONET4500_NONCS $CONFIG_AIRONET4500
+   if [ "$CONFIG_AIRONET4500" != "n" -a "$CONFIG_AIRONET4500_NONCS" != "n" ]; then
+      bool '     Aironet 4500/4800 PNP support ' CONFIG_AIRONET4500_PNP
+      dep_bool '     Aironet 4500/4800 PCI support ' CONFIG_AIRONET4500_PCI $CONFIG_PCI
+      dep_bool '     Aironet 4500/4800 ISA broken support (EXPERIMENTAL)' CONFIG_AIRONET4500_ISA $CONFIG_EXPERIMENTAL
+      dep_bool '     Aironet 4500/4800 I365 broken support (EXPERIMENTAL)' CONFIG_AIRONET4500_I365 $CONFIG_EXPERIMENTAL
+   fi
+   dep_tristate '   Aironet 4500/4800 PROC interface ' CONFIG_AIRONET4500_PROC $CONFIG_AIRONET4500 m
 fi
 
 endmenu

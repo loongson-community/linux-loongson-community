@@ -3,9 +3,9 @@
  *
  *	Modelled on fs/exec.c:aout_core_dump()
  *	Jeremy Fitzhardinge <jeremy@sw.oz.au>
- *	Implemented by David Howells <David.Howells@nexor.co.uk>
+ *	ELF version written by David Howells <David.Howells@nexor.co.uk>
  *	Modified and incorporated into 2.3.x by Tigran Aivazian <tigran@sco.com>
- *	Support to dump vmalloc'd data structures (ELF only), Tigran Aivazian <tigran@sco.com>
+ *	Support to dump vmalloc'd areas (ELF only), Tigran Aivazian <tigran@sco.com>
  */
 
 #include <linux/config.h>
@@ -16,7 +16,6 @@
 #include <linux/elf.h>
 #include <linux/elfcore.h>
 #include <linux/vmalloc.h>
-#include <linux/proc_fs.h>
 #include <asm/uaccess.h>
 
 
@@ -43,8 +42,7 @@ struct inode_operations proc_kcore_inode_operations = {
 };
 
 #ifdef CONFIG_KCORE_AOUT
-static ssize_t read_kcore(struct file * file, char * buf,
-			 size_t count, loff_t *ppos)
+static ssize_t read_kcore(struct file *file, char *buf, size_t count, loff_t *ppos)
 {
 	unsigned long long p = *ppos, memsize;
 	ssize_t read;
@@ -79,7 +77,8 @@ static ssize_t read_kcore(struct file * file, char * buf,
 		if (p + count1 > sizeof(struct user))
 			count1 = sizeof(struct user)-p;
 		pnt = (char *) &dump + p;
-		copy_to_user(buf,(void *) pnt, count1);
+		if (copy_to_user(buf,(void *) pnt, count1))
+			return -EFAULT;
 		buf += count1;
 		p += count1;
 		count -= count1;
@@ -90,14 +89,16 @@ static ssize_t read_kcore(struct file * file, char * buf,
 		count1 = PAGE_SIZE + FIRST_MAPPED - p;
 		if (count1 > count)
 			count1 = count;
-		clear_user(buf, count1);
+		if (clear_user(buf, count1))
+			return -EFAULT;
 		buf += count1;
 		p += count1;
 		count -= count1;
 		read += count1;
 	}
 	if (count > 0) {
-		copy_to_user(buf, (void *) (PAGE_OFFSET+p-PAGE_SIZE), count);
+		if (copy_to_user(buf, (void *) (PAGE_OFFSET+p-PAGE_SIZE), count))
+			return -EFAULT;
 		read += count;
 	}
 	*ppos += read;
@@ -130,6 +131,8 @@ static size_t get_kcore_size(int *num_vma, int *elf_buflen)
 	}
 
 	for (m=vmlist; m; m=m->next) {
+		if (m->flags & VM_IOREMAP) /* don't dump ioremap'd stuff! (TA) */
+			continue;
 		try = (size_t)m->addr + m->size;
 		if (try > size)
 			size = try;
@@ -189,7 +192,7 @@ static char *storenote(struct memelfnote *men, char *bufp)
  * store an ELF coredump header in the supplied buffer
  * num_vma is the number of elements in vmlist
  */
-static void elf_kcore_store_hdr(char *bufp, int num_vma, int elf_buflen)
+static void elf_kcore_store_hdr(char *bufp, int num_vma, int dataoff)
 {
 	struct elf_prstatus prstatus;	/* NT_PRSTATUS */
 	struct elf_prpsinfo prpsinfo;	/* NT_PRPSINFO */
@@ -235,28 +238,33 @@ static void elf_kcore_store_hdr(char *bufp, int num_vma, int elf_buflen)
 	nhdr->p_flags	= 0;
 	nhdr->p_align	= 0;
 
-	/* setup ELF PT_LOAD program header */
+	/* setup ELF PT_LOAD program header for the 
+	 * virtual range 0xc0000000 -> high_memory */
 	phdr = (struct elf_phdr *) bufp;
 	bufp += sizeof(struct elf_phdr);
 	offset += sizeof(struct elf_phdr);
 	phdr->p_type	= PT_LOAD;
 	phdr->p_flags	= PF_R|PF_W|PF_X;
-	phdr->p_offset	= elf_buflen;
+	phdr->p_offset	= dataoff;
 	phdr->p_vaddr	= PAGE_OFFSET;
 	phdr->p_paddr	= __pa(PAGE_OFFSET);
 	phdr->p_filesz	= phdr->p_memsz = ((unsigned long)high_memory - PAGE_OFFSET);
 	phdr->p_align	= PAGE_SIZE;
 
+	/* setup ELF PT_LOAD program header for every vmalloc'd area */
 	for (m=vmlist; m; m=m->next) {
+		if (m->flags & VM_IOREMAP) /* don't dump ioremap'd stuff! (TA) */
+			continue;
+
 		phdr = (struct elf_phdr *) bufp;
 		bufp += sizeof(struct elf_phdr);
 		offset += sizeof(struct elf_phdr);
 
 		phdr->p_type	= PT_LOAD;
 		phdr->p_flags	= PF_R|PF_W|PF_X;
-		phdr->p_offset	= (size_t)m->addr - PAGE_OFFSET + elf_buflen;
+		phdr->p_offset	= (size_t)m->addr - PAGE_OFFSET + dataoff;
 		phdr->p_vaddr	= (size_t)m->addr;
-		phdr->p_paddr	= __pa(m);
+		phdr->p_paddr	= __pa(m->addr);
 		phdr->p_filesz	= phdr->p_memsz	= m->size;
 		phdr->p_align	= PAGE_SIZE;
 	}
@@ -310,13 +318,12 @@ static void elf_kcore_store_hdr(char *bufp, int num_vma, int elf_buflen)
 /*
  * read from the ELF header and then kernel memory
  */
-static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen,
-			      loff_t *fpos)
+static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen, loff_t *fpos)
 {
 	ssize_t acc = 0;
 	size_t size, tsz;
-	char * elf_buffer;
-	int elf_buflen = 0, num_vma = 0;
+	size_t elf_buflen;
+	int num_vma;
 
 	/* XXX we need to somehow lock vmlist between here
 	 * and after elf_kcore_store_hdr() returns.
@@ -332,16 +339,21 @@ static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen,
 
 	/* construct an ELF core header if we'll need some of it */
 	if (*fpos < elf_buflen) {
+		char * elf_buf;
+
 		tsz = elf_buflen - *fpos;
 		if (buflen < tsz)
 			tsz = buflen;
-		elf_buffer = kmalloc(elf_buflen, GFP_KERNEL);
-		if (!elf_buffer)
+		elf_buf = kmalloc(elf_buflen, GFP_ATOMIC);
+		if (!elf_buf)
 			return -ENOMEM;
-		memset(elf_buffer, 0, elf_buflen);
-		elf_kcore_store_hdr(elf_buffer, num_vma, elf_buflen);
-		copy_to_user(buffer, elf_buffer, tsz);
-		kfree(elf_buffer);
+		memset(elf_buf, 0, elf_buflen);
+		elf_kcore_store_hdr(elf_buf, num_vma, elf_buflen);
+		if (copy_to_user(buffer, elf_buf + *fpos, tsz)) {
+			kfree(elf_buf);
+			return -EFAULT;
+		}
+		kfree(elf_buf);
 		buflen -= tsz;
 		*fpos += tsz;
 		buffer += tsz;
@@ -349,7 +361,7 @@ static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen,
 
 		/* leave now if filled buffer already */
 		if (buflen == 0)
-			return tsz;
+			return acc;
 	}
 
 	/* where page 0 not mapped, write zeros into buffer */
@@ -361,7 +373,8 @@ static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen,
 			tsz = buflen;
 
 		/* write zeros to buffer */
-		clear_user(buffer, tsz);
+		if (clear_user(buffer, tsz))
+			return -EFAULT;
 		buflen -= tsz;
 		*fpos += tsz;
 		buffer += tsz;
@@ -372,17 +385,12 @@ static ssize_t read_kcore(struct file *file, char *buffer, size_t buflen,
 			return tsz;
 	}
 #endif
-
 	/* fill the remainder of the buffer from kernel VM space */
-#if defined (__i386__) || defined (__mc68000__)
-	copy_to_user(buffer, __va(*fpos - PAGE_SIZE), buflen);
-#else
-	copy_to_user(buffer, __va(*fpos), buflen);
-#endif
+	if (copy_to_user(buffer, __va(*fpos - elf_buflen), buflen))
+		return -EFAULT;
+
 	acc += buflen;
 	*fpos += buflen;
-
 	return acc;
-
 }
 #endif /* CONFIG_KCORE_AOUT */

@@ -27,7 +27,7 @@
 #include <asm/fpu.h>
 #include <asm/irq.h>
 #include <asm/machvec.h>
-#include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/semaphore.h>
 
 #define __KERNEL_SYSCALLS__
@@ -103,7 +103,9 @@ EXPORT_SYMBOL(hwrpb);
 EXPORT_SYMBOL(wrusp);
 EXPORT_SYMBOL(start_thread);
 EXPORT_SYMBOL(alpha_read_fp_reg);
+EXPORT_SYMBOL(alpha_read_fp_reg_s);
 EXPORT_SYMBOL(alpha_write_fp_reg);
+EXPORT_SYMBOL(alpha_write_fp_reg_s);
 
 /* In-kernel system calls.  */
 EXPORT_SYMBOL(kernel_thread);
@@ -123,6 +125,7 @@ EXPORT_SYMBOL(csum_tcpudp_magic);
 EXPORT_SYMBOL(ip_compute_csum);
 EXPORT_SYMBOL(ip_fast_csum);
 EXPORT_SYMBOL(csum_partial_copy);
+EXPORT_SYMBOL(csum_partial_copy_nocheck);
 EXPORT_SYMBOL(csum_partial_copy_from_user);
 EXPORT_SYMBOL(csum_ipv6_magic);
 

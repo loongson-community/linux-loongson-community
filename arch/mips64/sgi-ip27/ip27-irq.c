@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ip27-irq.c,v 1.4 2000/01/31 19:48:11 kanoj Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
@@ -88,7 +88,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[cpu][irq]++;
 
 	action = *(irq + irq_action);
@@ -106,7 +106,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }

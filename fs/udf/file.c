@@ -31,6 +31,7 @@
  */
 
 #include "udfdecl.h"
+#include <linux/config.h>
 #include <linux/fs.h>
 #include <linux/udf_fs.h>
 #include <asm/uaccess.h>
@@ -42,11 +43,7 @@
 #include "udf_i.h"
 #include "udf_sb.h"
 
-#define NBUF	32
-
-typedef void * poll_table; 
-
-static long long udf_file_llseek(struct file *, long long, int);
+static loff_t udf_file_llseek(struct file *, loff_t, int);
 static ssize_t udf_file_read_adinicb (struct file *, char *, size_t, loff_t *);
 static ssize_t udf_file_write (struct file *, const char *, size_t, loff_t *);
 #if BITS_PER_LONG < 64
@@ -92,14 +89,12 @@ struct inode_operations udf_file_inode_operations = {
 	udf_get_block,			/* get_block */
 	block_read_full_page,	/* readpage */
 	block_write_full_page,	/* writepage */
-	block_flushpage,		/* flushpage */
 #ifdef CONFIG_UDF_RW
 	udf_truncate,			/* truncate */
 #else
 	NULL,					/* truncate */
 #endif
 	NULL,					/* permission */
-	NULL,					/* smap */
 	NULL					/* revalidate */
 };
 
@@ -137,21 +132,19 @@ struct inode_operations udf_file_inode_operations_adinicb = {
 	udf_get_block,			/* get_block */
 	block_read_full_page,	/* readpage */
 	block_write_full_page,	/* writepage */
-	block_flushpage,		/* flushpage */
 #ifdef CONFIG_UDF_RW
 	udf_truncate,			/* truncate */
 #else
 	NULL,					/* truncate */
 #endif
 	NULL,					/* permission */
-	NULL,					/* smap */
 	NULL					/* revalidate */
 };
 
 /*
  * Make sure the offset never goes beyond the 32-bit mark..
  */
-static long long udf_file_llseek(struct file * file, long long offset, int origin)
+static loff_t udf_file_llseek(struct file * file, loff_t offset, int origin)
 {
 	struct inode * inode = file->f_dentry->d_inode;
 
@@ -168,12 +161,6 @@ static long long udf_file_llseek(struct file * file, long long offset, int origi
 			break;
 		}
 	}
-#if BITS_PER_LONG < 64
-	if (((unsigned long long) offset >> 32) != 0)
-	{
-		return -EINVAL;
-	}
-#endif
 	if (offset != file->f_pos)
 	{
 		file->f_pos = offset;
@@ -271,7 +258,8 @@ static ssize_t udf_file_read_adinicb(struct file * filp, char * buf,
 	size_t bufsize, loff_t * loff)
 {
 	struct inode *inode = filp->f_dentry->d_inode;
-	Uint32 size, left, pos, block;
+	loff_t size, left, pos;
+	Uint32 block;
 	struct buffer_head *bh = NULL;
 
 	size = inode->i_size;
@@ -453,7 +441,7 @@ static int udf_release_file(struct inode * inode, struct file * filp)
  */
 static int udf_open_file(struct inode * inode, struct file * filp)
 {
-	if (inode->i_size == (Uint32)-1 && (filp->f_mode & FMODE_WRITE))
+	if ((inode->i_size & 0xFFFFFFFF00000000UL) && !(filp->f_flags & O_LARGEFILE))
 		return -EFBIG;
 	return 0;
 }

@@ -172,7 +172,6 @@ void __init
 pcibios_fixup_bus(struct pci_bus *b)
 {
 	unsigned short command;
-	struct list_head *ln;
 	struct pci_dev *dev;
 
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
@@ -183,8 +182,7 @@ pcibios_fixup_bus(struct pci_bus *b)
 	 * stop working if we program the controllers as not having
 	 * PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-	for (ln=b->devices.next; ln != &b->devices; ln=ln->next) {
-		dev = pci_dev_b(ln);
+	for (dev = b->devices; dev; dev = dev->sibling) {
 		if (PCI_FUNC(dev->devfn) == 0) {
 			if ((PCI_SLOT(dev->devfn) == 0) || 
 						(PCI_SLOT(dev->devfn) == 1)) {

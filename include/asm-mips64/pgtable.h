@@ -1,4 +1,4 @@
-/* $Id: pgtable.h,v 1.5 2000/01/27 01:05:37 ralf Exp $
+/* $Id: pgtable.h,v 1.6 2000/01/29 01:42:28 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -16,37 +16,6 @@
 
 #include <linux/linkage.h>
 #include <asm/cachectl.h>
-
-/* Cache flushing:
- *
- *  - flush_cache_all() flushes entire cache
- *  - flush_cache_mm(mm) flushes the specified mm context's cache lines
- *  - flush_cache_page(mm, vmaddr) flushes a single page
- *  - flush_cache_range(mm, start, end) flushes a range of pages
- *  - flush_page_to_ram(page) write back kernel page to ram
- */
-extern void (*flush_cache_all)(void);
-extern void (*flush_cache_mm)(struct mm_struct *mm);
-extern void (*flush_cache_range)(struct mm_struct *mm, unsigned long start,
-				 unsigned long end);
-extern void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-extern void (*flush_cache_sigtramp)(unsigned long addr);
-extern void (*flush_page_to_ram)(struct page * page);
-#define flush_icache_range(start, end) flush_cache_all()
-
-/* TLB flushing:
- *
- *  - flush_tlb_all() flushes all processes TLB entries
- *  - flush_tlb_mm(mm) flushes the specified mm context TLB entries
- *  - flush_tlb_page(mm, vmaddr) flushes a single page
- *  - flush_tlb_range(mm, start, end) flushes a range of pages
- */
-extern void (*flush_tlb_all)(void);
-extern void (*flush_tlb_mm)(struct mm_struct *mm);
-extern void (*flush_tlb_range)(struct mm_struct *mm, unsigned long start,
-			       unsigned long end);
-extern void (*flush_tlb_page)(struct vm_area_struct *vma, unsigned long page);
-
 
 /* Basically we have the same two-level (which is the logical three level
  * Linux page table layout folded) page tables as the i386.  Some day
@@ -261,8 +230,6 @@ extern inline void pte_clear(pte_t *ptep)
 	set_pte(ptep, __pte(0));
 }
 
-#define pte_pagenr(x)	((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
-
 /*
  * Empty pmd entries point to the invalid_pte_table.
  */
@@ -316,10 +283,9 @@ extern inline void pgd_clear(pgd_t *pgdp)
  * is simple.
  * called on a highmem page.
  */
-#define page_address(page)						\
-	 (PAGE_OFFSET + (((page) - mem_map) << PAGE_SHIFT))
-#define pages_to_mb(x) ((x) >> (20-PAGE_SHIFT))		/* Unused? */
-#define pte_page(x) (mem_map+pte_pagenr(x))
+#define page_address(page)	((page)->virtual)
+#define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PAGE_SHIFT)))
+#define pte_page(x)		(mem_map+pte_pagenr(x))
 
 /*
  * The following only work if pte_present() is true.
@@ -405,15 +371,15 @@ extern inline pte_t pte_mkyoung(pte_t pte)
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
-extern inline pte_t mk_pte(struct page * page, pgprot_t pgprot)
-{
-	pte_t	__pte;
-
-	pte_val(__pte) = ((unsigned long)(page - mem_map) << PAGE_SHIFT) |
-	                 pgprot_val(pgprot);
-
-	return __pte;
-}
+#define mk_pte(page, pgprot)						\
+({									\
+	pte_t	__pte;							\
+									\
+	pte_val(__pte) = ((unsigned long)(page - mem_map) << PAGE_SHIFT) | \
+	                 pgprot_val(pgprot);				\
+									\
+	__pte;								\
+})
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
@@ -456,200 +422,6 @@ extern inline pte_t *pte_offset(pmd_t * dir, unsigned long address)
 extern void pte_init(unsigned long page);
 extern void pgd_init(unsigned long page);
 extern void pmd_init(unsigned long page);
-
-/*
- * Allocate and free page tables. The xxx_kernel() versions are
- * used to allocate a kernel page table - this turns on ASN bits
- * if any.
- */
-
-#define pgd_quicklist (current_cpu_data.pgd_quick)
-#define pmd_quicklist (current_cpu_data.pmd_quick)
-#define pte_quicklist (current_cpu_data.pte_quick)
-#define pgtable_cache_size (current_cpu_data.pgtable_cache_sz)
-
-extern pgd_t *get_pgd_slow(void);
-
-extern inline pgd_t *get_pgd_fast(void)
-{
-	unsigned long *ret;
-
-	if((ret = pgd_quicklist) != NULL) {
-		pgd_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-		return (pgd_t *)ret;
-	}
-
-	ret = (unsigned long *) get_pgd_slow();
-	return (pgd_t *)ret;
-}
-
-extern inline void free_pgd_fast(pgd_t *pgd)
-{
-	*(unsigned long *)pgd = (unsigned long) pgd_quicklist;
-	pgd_quicklist = (unsigned long *) pgd;
-	pgtable_cache_size++;
-}
-
-extern inline void free_pgd_slow(pgd_t *pgd)
-{
-	free_pages((unsigned long)pgd, 1);
-}
-
-extern pte_t *get_pte_slow(pmd_t *pmd, unsigned long address_preadjusted);
-extern pte_t *get_pte_kernel_slow(pmd_t *pmd, unsigned long address_preadjusted);
-
-extern inline pte_t *get_pte_fast(void)
-{
-	unsigned long *ret;
-
-	if((ret = (unsigned long *)pte_quicklist) != NULL) {
-		pte_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-	}
-	return (pte_t *)ret;
-}
-
-extern inline void free_pte_fast(pte_t *pte)
-{
-	*(unsigned long *)pte = (unsigned long) pte_quicklist;
-	pte_quicklist = (unsigned long *) pte;
-	pgtable_cache_size++;
-}
-
-extern inline void free_pte_slow(pte_t *pte)
-{
-	free_pages((unsigned long)pte, 0);
-}
-
-extern pmd_t *get_pmd_slow(pgd_t *pgd, unsigned long address_preadjusted);
-extern pmd_t *get_pmd_kernel_slow(pgd_t *pgd, unsigned long address_preadjusted);
-
-extern inline pmd_t *get_pmd_fast(void)
-{
-	unsigned long *ret;
-
-	if ((ret = (unsigned long *)pte_quicklist) != NULL) {
-		pte_quicklist = (unsigned long *)(*ret);
-		ret[0] = ret[1];
-		pgtable_cache_size--;
-		return (pmd_t *)ret;
-	}
-
-	return (pmd_t *)ret;
-}
-
-extern inline void free_pmd_fast(pmd_t *pmd)
-{
-	*(unsigned long *)pmd = (unsigned long) pte_quicklist;
-	pte_quicklist = (unsigned long *) pmd;
-	pgtable_cache_size++;
-}
-
-extern inline void free_pmd_slow(pmd_t *pmd)
-{
-	free_pages((unsigned long)pmd, 1);
-}
-
-extern void __bad_pte(pmd_t *pmd);
-extern void __bad_pte_kernel(pmd_t *pmd);
-extern void __bad_pmd(pgd_t *pgd);
-
-#define pte_free_kernel(pte)    free_pte_fast(pte)
-#define pte_free(pte)           free_pte_fast(pte)
-#define pmd_free_kernel(pte)    free_pmd_fast(pte)
-#define pmd_free(pte)           free_pmd_fast(pte)
-#define pgd_free(pgd)           free_pgd_fast(pgd)
-#define pgd_alloc()             get_pgd_fast()
-
-extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
-{
-	address = (address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1);
-
-	if (pmd_none(*pmd)) {
-		pte_t *page = get_pte_fast();
-		if (page) {
-			pmd_val(*pmd) = (unsigned long) page;
-			return page + address;
-		}
-		return get_pte_kernel_slow(pmd, address);
-	}
-	if (pmd_bad(*pmd)) {
-		__bad_pte_kernel(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + address;
-}
-
-extern inline pte_t * pte_alloc(pmd_t * pmd, unsigned long address)
-{
-	address = (address >> PAGE_SHIFT) & (PTRS_PER_PTE - 1);
-
-	if (pmd_none(*pmd)) {
-		pte_t *page = get_pte_fast();
-		if (page) {
-			pmd_val(*pmd) = (unsigned long) page;
-			return page + address;
-		}
-		return get_pte_slow(pmd, address);
-	}
-	if (pmd_bad(*pmd)) {
-		__bad_pte(pmd);
-		return NULL;
-	}
-	return (pte_t *) pmd_page(*pmd) + address;
-}
-
-extern inline pmd_t *pmd_alloc(pgd_t * pgd, unsigned long address)
-{
-	address = (address >> PMD_SHIFT) & (PTRS_PER_PMD - 1);
-	if (pgd_none(*pgd)) {
-		pmd_t *page = get_pmd_fast();
-
-		if (!page)
-			return get_pmd_slow(pgd, address);
-		pgd_set(pgd, page);
-		return page + address;
-	}
-	if (pgd_bad(*pgd)) {
-		__bad_pmd(pgd);
-		return NULL;
-	}
-	return (pmd_t *) pgd_page(*pgd) + address;
-}
-
-#define pmd_alloc_kernel	pmd_alloc
-
-extern int do_check_pgt_cache(int, int);
-
-extern inline void set_pgdir(unsigned long address, pgd_t entry)
-{
-	struct task_struct * p;
-	pgd_t *pgd;
-#ifdef __SMP__
-	int i;
-#endif	
-        
-	read_lock(&tasklist_lock);
-	for_each_task(p) {
-		if (!p->mm)
-			continue;
-		*pgd_offset(p->mm, address) = entry;
-	}
-	read_unlock(&tasklist_lock);
-#ifndef __SMP__
-	for (pgd = (pgd_t *)pgd_quicklist; pgd; pgd = (pgd_t *)*(unsigned long *)pgd)
-		pgd[address >> PGDIR_SHIFT] = entry;
-#else
-	/* To pgd_alloc/pgd_free, one holds master kernel lock and so does our
-	   callee, so we can modify pgd caches of other CPUs as well. -jj */
-	for (i = 0; i < NR_CPUS; i++)
-		for (pgd = (pgd_t *)cpu_data[i].pgd_quick; pgd; pgd = (pgd_t *)*(unsigned long *)pgd)
-			pgd[address >> PGDIR_SHIFT] = entry;
-#endif
-}
 
 extern pgd_t swapper_pg_dir[1024];
 

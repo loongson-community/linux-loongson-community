@@ -8,11 +8,13 @@
 #include <linux/init.h>
 #include <linux/netlink.h>
 
+extern int plip_init(void);
 extern int mkiss_init_ctrl_dev(void);
 extern int ppp_init(void);
 extern int slip_init_ctrl_dev(void);
 extern int strip_init_ctrl_dev(void);
 extern int x25_asy_init_ctrl_dev(void);
+extern int slhc_install(void);
   
 extern int bpq_init(void);
 extern int dmascc_init(void);
@@ -20,6 +22,10 @@ extern int scc_init(void);
 extern int yam_init(void);
 
 extern int acenic_probe(void); 
+extern int awc4500_pci_probe(void);
+extern int awc4500_isa_probe(void);
+extern int awc4500_pnp_probe(void);
+extern int awc4500_365_probe(void);
 extern int arcnet_init(void); 
 extern int bigmac_probe(void); 
 extern int bmac_probe(void); 
@@ -42,6 +48,7 @@ extern int rr_hippi_probe(void);
 extern int rtl8139_probe(void); 
 extern int sdla_setup(void); 
 extern int sis900_probe(void); 
+extern int skge_probe(void); 
 extern int sparc_lance_probe(void); 
 extern int starfire_probe(void); 
 extern int tc59x_probe(void); 
@@ -181,9 +188,6 @@ struct net_probe pci_probes[] __initdata = {
 #ifdef CONFIG_DEC_ELCP 
 	{tulip_probe, 0},
 #endif
-#ifdef CONFIG_DE4X5             /* DEC DE425, DE434, DE435 adapters */
-	{de4x5_probe, 0},
-#endif
 #ifdef CONFIG_EPIC100
 	{epic100_probe, 0},
 #endif
@@ -204,6 +208,9 @@ struct net_probe pci_probes[] __initdata = {
 #ifdef CONFIG_ACENIC
 	{acenic_probe, 0},
 #endif
+#ifdef CONFIG_SK98LIN
+	{skge_probe, 0},
+#endif
 #ifdef CONFIG_VIA_RHINE
 	{via_rhine_probe, 0},
 #endif
@@ -211,6 +218,22 @@ struct net_probe pci_probes[] __initdata = {
 	{starfire_probe, 0},
 #endif
 
+/*
+*
+*	Wireless non-HAM
+*
+*/
+#ifdef CONFIG_AIRONET4500_NONCS
+
+#ifdef CONFIG_AIRONET4500_PCI
+	{awc4500_pci_probe,0},
+#endif
+
+#ifdef CONFIG_AIRONET4500_PNP
+	{awc4500_pnp_probe,0},
+#endif
+
+#endif
 /*
  *	Amateur Radio Drivers
  */	
@@ -309,7 +332,7 @@ static void special_device_init(void)
 		static struct net_device dummy_dev = {
 			"dummy" __PAD5, 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NULL, dummy_init, 
 		};
-		register_netdev(&sb1000_dev);
+		register_netdev(&dummy_dev);
 	}
 #endif	
 #ifdef CONFIG_EQUALIZER
@@ -325,7 +348,7 @@ static void special_device_init(void)
 			NULL,				/* next device */
 			eql_init			/* set up the rest */
 		};
-		register_netdev(&sb1000_dev);
+		register_netdev(&eql_dev);
 	}
 #endif	
 #ifdef CONFIG_APBIF
@@ -335,7 +358,7 @@ static void special_device_init(void)
 		{
         		"bif" __PAD3, 0x0, 0x0, 0x0, 0x0, 0, 0, 0, 0, 0, NULL, bif_init 
         	};
-		register_netdev(&sb1000_dev);
+		register_netdev(&bif_dev);
         }
 #endif
 #ifdef CONFIG_NET_SB1000
@@ -367,5 +390,3 @@ void __init net_device_init(void)
 	special_device_init();
 	/* That kicks off the legacy init functions */
 }
-
-	 

@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.15 1999/10/21 00:23:05 ralf Exp $
+/* $Id: indy_int.c,v 1.16 1999/12/04 03:59:00 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -272,7 +272,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq]++;
 
 	printk("Got irq %d, press a key.", irq);
@@ -308,7 +308,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }
@@ -451,10 +451,10 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 	/* if action == NULL, then we do have a handler for the irq */
 	if ( action == NULL ) { goto no_handler; }
 	
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq + 16]++;
 	action->handler(irq, action->dev_id, regs);
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 	goto end;
 
 no_handler:
@@ -489,10 +489,10 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	/* if action == NULL, then we do have a handler for the irq */
 	if ( action == NULL ) { goto no_handler; }
 	
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq + 24]++;
 	action->handler(irq, action->dev_id, regs);
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 	goto end;
 	
 no_handler:
@@ -507,13 +507,13 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = 6;
 
-	hardirq_enter(cpu);
+	irq_enter(cpu);
 	kstat.irqs[0][irq]++;
 	printk("Got a bus error IRQ, shouldn't happen yet\n");
 	show_regs(regs);
 	printk("Spinning...\n");
 	while(1);
-	hardirq_exit(cpu);
+	irq_exit(cpu);
 }
 
 /* Misc. crap just to keep the kernel linking... */

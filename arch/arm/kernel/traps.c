@@ -17,6 +17,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/spinlock.h>
+#include <linux/init.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -132,7 +133,7 @@ static void dump_instr(unsigned long pc, int user)
 		printk ("pc not in code space\n");
 }
 
-spinlock_t die_lock;
+spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * This function is protected against re-entrancy.
@@ -422,4 +423,14 @@ asmlinkage void __div0(void)
 {
 	printk("Division by zero in kernel.\n");
 	__backtrace();
+}
+
+void __init trap_init(void)
+{
+	extern void __trap_init(void);
+
+	__trap_init();
+#ifdef CONFIG_CPU_32
+	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
+#endif
 }

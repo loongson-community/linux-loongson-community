@@ -76,7 +76,7 @@ EXPORT_SYMBOL(ppc_local_bh_count);
 EXPORT_SYMBOL(kernel_flag);
 #endif /* __SMP__ */
 
-#ifndef CONFIG_8xx
+#if !defined(CONFIG_4xx) && !defined(CONFIG_8xx)
 EXPORT_SYMBOL(isa_io_base);
 EXPORT_SYMBOL(isa_mem_base);
 EXPORT_SYMBOL(pci_dram_offset);
@@ -219,21 +219,22 @@ EXPORT_SYMBOL(pmu_register_sleep_notifier);
 EXPORT_SYMBOL(pmu_unregister_sleep_notifier);
 EXPORT_SYMBOL(pmu_enable_irled);
 #endif CONFIG_PMAC_PBOOK
-EXPORT_SYMBOL(abort);
-#ifndef CONFIG_8xx
+#if defined(CONFIG_PMAC) || defined(CONFIG_ALL_PPC)
 EXPORT_SYMBOL(find_devices);
 EXPORT_SYMBOL(find_type_devices);
 EXPORT_SYMBOL(find_compatible_devices);
 EXPORT_SYMBOL(find_path_device);
 EXPORT_SYMBOL(find_phandle);
+EXPORT_SYMBOL(device_is_compatible);
+EXPORT_SYMBOL(machine_is_compatible);
 EXPORT_SYMBOL(get_property);
 EXPORT_SYMBOL(pci_io_base);
 EXPORT_SYMBOL(pci_device_loc);
 EXPORT_SYMBOL(feature_set);
 EXPORT_SYMBOL(feature_clear);
 EXPORT_SYMBOL(feature_test);
-#endif
-#ifdef CONFIG_SCSI
+#endif /* defined(CONFIG_PMAC) || defined(CONFIG_ALL_PPC) */
+#if defined(CONFIG_SCSI) && (defined(CONFIG_PMAC) || defined(CONFIG_ALL_PPC))
 EXPORT_SYMBOL(note_scsi_host);
 #endif
 EXPORT_SYMBOL(kd_mksound);
@@ -251,17 +252,16 @@ EXPORT_SYMBOL_NOVERS(memscan);
 EXPORT_SYMBOL_NOVERS(memcmp);
 
 EXPORT_SYMBOL(abs);
-#ifndef CONFIG_8xx
-EXPORT_SYMBOL(device_is_compatible);
-#endif
 
 #ifdef CONFIG_VT
 EXPORT_SYMBOL(screen_info);
 #endif
 
 EXPORT_SYMBOL(int_control);
+#if !defined(CONFIG_4xx)
 EXPORT_SYMBOL(timer_interrupt_intercept);
 EXPORT_SYMBOL(timer_interrupt);
+#endif
 extern unsigned long do_IRQ_intercept;
 EXPORT_SYMBOL(do_IRQ_intercept);
 EXPORT_SYMBOL(irq_desc);

@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 3
-SUBLEVEL = 27
+SUBLEVEL = 32
 EXTRAVERSION =
 
 ARCH = mips
@@ -113,9 +113,18 @@ NETWORKS	=net/network.a
 DRIVERS		=drivers/block/block.a \
 		 drivers/char/char.o \
 		 drivers/misc/misc.o \
+		 drivers/net/net.o \
 	         drivers/parport/parport.a
 LIBS		=$(TOPDIR)/lib/lib.a
 SUBDIRS		=kernel drivers mm fs net ipc lib
+
+ifdef CONFIG_DRM
+DRIVERS += drivers/char/drm/drm.o
+endif
+
+ifeq ($(CONFIG_AGP),y)
+DRIVERS += drivers/char/agp/agp.o
+endif
 
 ifdef CONFIG_NUBUS
 DRIVERS := $(DRIVERS) drivers/nubus/nubus.a
@@ -124,8 +133,6 @@ endif
 ifeq ($(CONFIG_ISDN),y)
 DRIVERS := $(DRIVERS) drivers/isdn/isdn.a
 endif
-
-DRIVERS := $(DRIVERS) drivers/net/net.a
 
 ifdef CONFIG_NET_FC
 DRIVERS := $(DRIVERS) drivers/net/fc/fc.a
@@ -200,7 +207,7 @@ DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 
 ifdef CONFIG_VT
-DRIVERS := $(DRIVERS) drivers/video/video.a
+DRIVERS := $(DRIVERS) drivers/video/video.o
 endif
 
 ifeq ($(CONFIG_PARIDE),y)
@@ -365,6 +372,7 @@ modules_install:
 	if [ -f VIDEO_MODULES ]; then inst_mod VIDEO_MODULES video; fi; \
 	if [ -f FC4_MODULES   ]; then inst_mod FC4_MODULES   fc4;   fi; \
 	if [ -f IRDA_MODULES  ]; then inst_mod IRDA_MODULES  net;   fi; \
+	if [ -f SK98LIN_MODULES ]; then inst_mod SK98LIN_MODULES  net;   fi; \
 	if [ -f USB_MODULES   ]; then inst_mod USB_MODULES   usb;   fi; \
 	if [ -f PCMCIA_MODULES ]; then inst_mod PCMCIA_MODULES pcmcia; fi; \
 	if [ -f PCMCIA_NET_MODULES ]; then inst_mod PCMCIA_NET_MODULES pcmcia; fi; \
@@ -397,7 +405,7 @@ clean:	archclean
 	rm -f .tmp*
 	rm -f drivers/char/consolemap_deftbl.c drivers/video/promcon_tbl.c
 	rm -f drivers/char/conmakehash
-	rm -f drivers/pci/devlist.h drivers/pci/gen-devlist
+	rm -f drivers/pci/devlist.h drivers/pci/classlist.h drivers/pci/gen-devlist
 	rm -f drivers/sound/bin2hex drivers/sound/hex2hex
 	rm -f net/khttpd/make_times_h
 	rm -f net/khttpd/times.h
