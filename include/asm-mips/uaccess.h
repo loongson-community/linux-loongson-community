@@ -250,12 +250,14 @@ struct __large_struct { unsigned long buf[100]; };
 
 #define __get_user_check(x,ptr,size)					\
 ({									\
-	long __gu_err = 0;						\
 	__typeof__(*(ptr)) __gu_val = 0;				\
-	long __gu_addr;							\
+	long __gu_addr = (long) (ptr);					\
+	long __gu_err;							\
+									\
 	might_sleep();							\
-	__gu_addr = (long) (ptr);					\
-	if (access_ok(VERIFY_READ,__gu_addr,size)) {			\
+	__gu_err = verify_area(VERIFY_READ, (void *) __gu_addr, size);	\
+									\
+	if (likely(!__gu_err)) {					\
 		switch (size) {						\
 		case 1: __get_user_asm("lb", __gu_err); break;		\
 		case 2: __get_user_asm("lh", __gu_err); break;		\
@@ -290,22 +292,22 @@ struct __large_struct { unsigned long buf[100]; };
 #define __get_user_asm_ll32(__gu_err)					\
 ({									\
 	__asm__ __volatile__(						\
-	"1:	lw	%1,%2					\n"	\
-	"2:	lw	%D1,%3					\n"	\
-	"	move	%0,$0					\n"	\
+	"1:	lw	%1, %3					\n"	\
+	"2:	lw	%D1, %4					\n"	\
+	"	move	%0, $0					\n"	\
 	"3:	.section	.fixup,\"ax\"			\n"	\
-	"4:	li	%0,%4					\n"	\
-	"	move	%1,$0					\n"	\
-	"	move	%D1,$0					\n"	\
+	"4:	li	%0, %5					\n"	\
+	"	move	%1, $0					\n"	\
+	"	move	%D1, $0					\n"	\
 	"	j	3b					\n"	\
 	"	.previous					\n"	\
 	"	.section	__ex_table,\"a\"		\n"	\
-	"	" __UA_ADDR "	1b,4b				\n"	\
-	"	" __UA_ADDR "	2b,4b				\n"	\
+	"	" __UA_ADDR "	1b, 4b				\n"	\
+	"	" __UA_ADDR "	2b, 4b				\n"	\
 	"	.previous					\n"	\
 	: "=r" (__gu_err), "=&r" (__gu_val)				\
-	: "o" (__m(__gu_addr)), "o" (__m(__gu_addr + 4)),		\
-	 "i" (-EFAULT));						\
+	: "0" (__gu_err), "o" (__m(__gu_addr)),				\
+	  "o" (__m(__gu_addr + 4)), "i" (-EFAULT));			\
 })
 
 extern void __get_user_unknown(void);
@@ -340,13 +342,14 @@ extern void __get_user_unknown(void);
 
 #define __put_user_check(x,ptr,size)					\
 ({									\
-	long __pu_err = 0;						\
-	__typeof__(*(ptr)) __pu_val;					\
-	long __pu_addr;							\
+	__typeof__(*(ptr)) __pu_val = (x);				\
+	long __pu_addr = (long) (ptr);					\
+	long __pu_err;							\
+									\
 	might_sleep();							\
-	__pu_val = (x);							\
-	__pu_addr = (long) (ptr);					\
-	if (access_ok(VERIFY_WRITE, __pu_addr, size)) {			\
+	__pu_err = verify_area(VERIFY_WRITE, (void *) __pu_addr, size);	\
+									\
+	if (likely(!__pu_err)) {					\
 		switch (size) {						\
 		case 1: __put_user_asm("sb", __pu_val); break;		\
 		case 2: __put_user_asm("sh", __pu_val); break;		\
@@ -361,37 +364,37 @@ extern void __get_user_unknown(void);
 #define __put_user_asm(insn, __pu_val)					\
 ({									\
 	__asm__ __volatile__(						\
-	"1:	" insn "	%z1, %2		# __put_user_asm\n"	\
+	"1:	" insn "	%z2, %3		# __put_user_asm\n"	\
 	"2:							\n"	\
 	"	.section	.fixup,\"ax\"			\n"	\
-	"3:	li	%0,%3					\n"	\
+	"3:	li	%0, %4					\n"	\
 	"	j	2b					\n"	\
 	"	.previous					\n"	\
 	"	.section	__ex_table,\"a\"		\n"	\
 	"	" __UA_ADDR "	1b, 3b				\n"	\
 	"	.previous					\n"	\
-	:"=r" (__pu_err)						\
-	:"Jr" (__pu_val), "o" (__m(__pu_addr)), "i" (-EFAULT));		\
+	: "=r" (__pu_err)						\
+	: "0" (__pu_err), "Jr" (__pu_val), "o" (__m(__pu_addr)),	\
+	  "i" (-EFAULT));						\
 })
 
 #define __put_user_asm_ll32(__pu_val)					\
 ({									\
 	__asm__ __volatile__(						\
-	"1:	sw	%1, %2		# __put_user_asm_ll32	\n"	\
-	"2:	sw	%D1, %3					\n"	\
-	"	move	%0, $0					\n"	\
+	"1:	sw	%2, %3		# __put_user_asm_ll32	\n"	\
+	"2:	sw	%D2, %4					\n"	\
 	"3:							\n"	\
 	"	.section	.fixup,\"ax\"			\n"	\
-	"4:	li	%0, %4					\n"	\
+	"4:	li	%0, %5					\n"	\
 	"	j	3b					\n"	\
 	"	.previous					\n"	\
 	"	.section	__ex_table,\"a\"		\n"	\
 	"	" __UA_ADDR "	1b, 4b				\n"	\
 	"	" __UA_ADDR "	2b, 4b				\n"	\
 	"	.previous"						\
-	:"=r" (__pu_err)						\
-	:"r" (__pu_val), "o" (__m(__pu_addr)),				\
-	 "o" (__m(__pu_addr + 4)), "i" (-EFAULT));			\
+	: "=r" (__pu_err)						\
+	: "0" (__pu_err), "r" (__pu_val), "o" (__m(__pu_addr)),		\
+	  "o" (__m(__pu_addr + 4)), "i" (-EFAULT));			\
 })
 
 extern void __put_user_unknown(void);
