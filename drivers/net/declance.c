@@ -52,6 +52,7 @@
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
+#include <linux/spinlock.h>
 #include <linux/stddef.h>
 #include <linux/string.h>
 
@@ -787,15 +788,23 @@ static int lance_open(struct net_device *dev)
 		return -EAGAIN;
 	}
 	if (lp->dma_irq >= 0) {
+		unsigned long flags;
+
 		if (request_irq(lp->dma_irq, &lance_dma_merr_int, 0,
 				"lance error", dev)) {
 			free_irq(dev->irq, dev);
 			printk("lance: Can't get DMA IRQ %d\n", lp->dma_irq);
 			return -EAGAIN;
 		}
+
+		spin_lock_irqsave(&ioasic_ssr_lock, flags);
+
+		fast_mb();
 		/* Enable I/O ASIC LANCE DMA.  */
-		fast_wmb();
 		ioasic_write(SSR, ioasic_read(SSR) | LANCE_DMA_EN);
+
+		fast_mb();
+		spin_unlock_irqrestore(&ioasic_ssr_lock, flags);
 	}
 
 	status = init_restart_lance(lp);
@@ -821,9 +830,17 @@ static int lance_close(struct net_device *dev)
 	writereg(&ll->rdp, LE_C0_STOP);
 
 	if (lp->dma_irq >= 0) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&ioasic_ssr_lock, flags);
+
+		fast_mb();
 		/* Disable I/O ASIC LANCE DMA.  */
 		ioasic_write(SSR, ioasic_read(SSR) & ~LANCE_DMA_EN);
+
 		fast_iob();
+		spin_unlock_irqrestore(&ioasic_ssr_lock, flags);
+
 		free_irq(lp->dma_irq, dev);
 	}
 	free_irq(dev->irq, dev);

@@ -3,7 +3,7 @@
  *
  *	DEC I/O ASIC access operations.
  *
- *	Copyright (C) 2000, 2002  Maciej W. Rozycki
+ *	Copyright (C) 2000, 2002, 2003  Maciej W. Rozycki
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -14,7 +14,10 @@
 #ifndef __ASM_DEC_IOASIC_H
 #define __ASM_DEC_IOASIC_H
 
+#include <linux/spinlock.h>
 #include <linux/types.h>
+
+extern spinlock_t ioasic_ssr_lock;
 
 extern volatile u32 *ioasic_base;
 

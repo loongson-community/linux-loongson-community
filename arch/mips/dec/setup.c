@@ -16,6 +16,7 @@
 #include <linux/console.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/spinlock.h>
 #include <linux/types.h>
 
 #include <asm/cpu.h>
@@ -45,6 +46,8 @@ extern void dec_machine_power_off(void);
 extern void dec_intr_halt(int irq, void *dev_id, struct pt_regs *regs);
 
 extern asmlinkage void decstation_handle_int(void);
+
+spinlock_t ioasic_ssr_lock;
 
 volatile u32 *ioasic_base;
 unsigned long dec_kn_slot_size;
