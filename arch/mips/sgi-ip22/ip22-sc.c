@@ -34,7 +34,8 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 	unsigned long tmp;
 
 	__asm__ __volatile__(
-	".set\tnoreorder\t\t\t# indy_sc_wipe\n\t"
+	".set\tpush\t\t\t# indy_sc_wipe\n\t"
+	".set\tnoreorder\n\t"
 	".set\tmips3\n\t"
 	".set\tnoat\n\t"
 	"mfc0\t%2, $12\n\t"
@@ -48,12 +49,11 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 
 	"1:\tsw\t$0, 0(%0)\n\t"
 	"bne\t%0, %1, 1b\n\t"
-	"daddu\t%0, 32\n\t"
+	" daddu\t%0, 32\n\t"
 
 	"mtc0\t%2, $12\t\t\t# Back to 32 bit\n\t"
 	"nop; nop; nop; nop;\n\t"
-	".set\tmips0\n\t"
-	".set\treorder"
+	".set\tpop"
 	: "=r" (first), "=r" (last), "=&r" (tmp)
 	: "0" (first), "1" (last));
 }
