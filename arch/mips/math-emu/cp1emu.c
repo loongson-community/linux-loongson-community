@@ -173,7 +173,7 @@ static unsigned long mips_get_word(struct pt_regs *xcp, void *va, int *perr)
 
 	if (!user_mode(xcp)) {
 		*perr = 0;
-		return (*(unsigned long *) va);
+		return *(unsigned long *) va;
 	}
 
 	*perr = (int) get_user(temp, (unsigned long *) va);
@@ -187,7 +187,7 @@ mips_get_dword(struct pt_regs *xcp, void *va, int *perr)
 
 	if (!user_mode(xcp)) {
 		*perr = 0;
-		return (*(unsigned long long *) va);
+		return *(unsigned long long *) va;
 	}
 
 	*perr = (int) get_user(temp, (unsigned long long *) va);
@@ -268,7 +268,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 			printk("failed to emulate branch at %p\n",
 				    REG_TO_VA(xcp->cp0_epc));
 #endif
-			return SIGILL;;
+			return SIGILL;
 		}
 		ir = mips_get_word(xcp, emulpc, &err);
 		if (err) {
@@ -722,8 +722,8 @@ emul:
 		if (MIPSInst_FUNC(ir) != movc_op)
 			return SIGILL;
 		cond = fpucondbit[MIPSInst_RT(ir) >> 2];
-		if (((ctx->sr & cond) != 0) !=
-		    ((MIPSInst_RT(ir) & 1) != 0)) return 0;
+		if (((ctx->sr & cond) != 0) != ((MIPSInst_RT(ir) & 1) != 0))
+			return 0;
 		xcp->regs[MIPSInst_RD(ir)] = xcp->regs[MIPSInst_RS(ir)];
 		break;
 #endif
@@ -774,18 +774,18 @@ int do_dsemulret(struct pt_regs *xcp)
 #define AdELOAD 0x8c000001	/* lw $0,1($0) */
 
 static int
-mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
+mips_dsemul(struct pt_regs *regs, mips_instruction ir, vaddr_t cpc)
 {
 	mips_instruction *dsemul_insns;
 	mips_instruction forcetrap;
 	extern asmlinkage void handle_dsemulret(void);
 
 	if (ir == 0) {		/* a nop is easy */
-		xcp->cp0_epc = VA_TO_REG(cpc);
+		regs->cp0_epc = VA_TO_REG(cpc);
 		return 0;
 	}
 #ifdef DSEMUL_TRACE
-	printk("desemul %p %p\n", REG_TO_VA(xcp->cp0_epc), cpc);
+	printk("desemul %p %p\n", REG_TO_VA(regs->cp0_epc), cpc);
 #endif
 
 	/* 
@@ -794,15 +794,15 @@ mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
 	 * the required address any alternative apart from full 
 	 * instruction emulation!!.
 	 */
-	dsemul_insns = (mips_instruction *) (xcp->regs[29] & ~3);
-	dsemul_insns -= 3;	/* Two instructions, plus one for luck ;-) */
+	dsemul_insns = (void*) (regs->regs[29] - 4 * sizeof(mips_instruction));
+	dsemul_insns = (void *) ((unsigned long)dsemul_insns & ALMASK);
 
 	/* Verify that the stack pointer is not competely insane */
 	if (verify_area(VERIFY_WRITE, dsemul_insns,
-	                sizeof(mips_instruction) * 2))
+	                4* sizeof(mips_instruction)))
 		return SIGBUS;
 
-	if (mips_put_word(xcp, &dsemul_insns[0], ir)) {
+	if (mips_put_word(regs, &dsemul_insns[0], ir)) {
 		fpuemuprivate.stats.errors++;
 		return SIGBUS;
 	}
@@ -817,20 +817,22 @@ mips_dsemul(struct pt_regs *xcp, mips_instruction ir, vaddr_t cpc)
 	 */
 
 	/* If one is *really* paranoid, one tests for a bad stack pointer */
-	if ((xcp->regs[29] & 0x3) == 0x3)
+	if ((regs->regs[29] & 0x3) == 0x3)
 		forcetrap = AdELOAD - 1;
 	else
 		forcetrap = AdELOAD;
 
-	if (mips_put_word(xcp, &dsemul_insns[1], forcetrap)) {
+	if (mips_put_word(regs, &dsemul_insns[1], forcetrap)) {
 		fpuemuprivate.stats.errors++;
-		return (SIGBUS);
+		return SIGBUS;
 	}
 
 	/* Set thread state to catch and handle the exception */
 	current->thread.dsemul_epc = (unsigned long) cpc;
 	current->thread.dsemul_aerpc = (unsigned long) &dsemul_insns[1];
-	xcp->cp0_epc = VA_TO_REG & dsemul_insns[0];
+	regs->cp0_epc = VA_TO_REG & dsemul_insns[0];
+
+	/* Note this only flushes two instructions  */
 	flush_cache_sigtramp((unsigned long) dsemul_insns);
 
 	return SIGILL;		/* force out of emulation loop */
