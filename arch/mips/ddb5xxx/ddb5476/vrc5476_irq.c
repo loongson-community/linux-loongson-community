@@ -11,7 +11,7 @@
  *
  */
 #include <linux/init.h>
-#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/ptrace.h>
 

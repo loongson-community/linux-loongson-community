@@ -1,4 +1,4 @@
-/***********************************************************************
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: Jun Sun, jsun@mvista.com or jsun@junsun.net
  *
@@ -9,7 +9,7 @@
  * under  the terms of  the GNU General  Public License as published by the
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
- ***********************************************************************
+ *
  */
 
 /*
@@ -18,8 +18,7 @@
  * This file exports one function:
  *	vrc5477_irq_init(u32 irq_base);
  */
-
-#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/types.h>
 #include <linux/ptrace.h>
 
@@ -30,7 +29,7 @@
 /* number of total irqs supported by Vrc5477 */
 #define	NUM_5477_IRQ		32
 
-static int vrc5477_irq_base=-1;
+static int vrc5477_irq_base = -1;
 
 
 static void 
