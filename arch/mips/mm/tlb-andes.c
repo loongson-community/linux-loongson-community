@@ -253,5 +253,14 @@ void __init andes_tlb_init(void)
 
 	/* Did I tell you that ARC SUCKS?  */
 
+#ifdef CONFIG_MIPS32
+	memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
+	memcpy((void *)(KSEG0 + 0x080), &except_vec1_generic, 0x80);
+	flush_icache_range(KSEG0, KSEG0 + 0x100);
+#endif
+#ifdef CONFIG_MIPS64
+	memcpy((void *)(CKSEG0 + 0x00), &except_vec0_generic, 0x80);
 	memcpy((void *)KSEG1 + 0x080, except_vec1_r10k, 0x80);
+	flush_icache_range(CKSEG0 + 0x80, CKSEG0 + 0x100);
+#endif
 }
