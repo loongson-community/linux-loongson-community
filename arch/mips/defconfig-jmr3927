@@ -31,7 +31,6 @@ CONFIG_EPOLL=y
 # Machine selection
 #
 # CONFIG_ACER_PICA_61 is not set
-CONFIG_PCI_AUTO=y
 # CONFIG_BAGET_MIPS is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_MIPS_COBALT is not set
@@ -104,6 +103,10 @@ CONFIG_RTC_DS1742=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+CONFIG_PCI=y
+CONFIG_PCI_AUTO=y
+CONFIG_PCI_LEGACY_PROC=y
+CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
 # CONFIG_HOTPLUG is not set
 
@@ -134,6 +137,10 @@ CONFIG_BINFMT_ELF=y
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set
+# CONFIG_BLK_CPQ_DA is not set
+# CONFIG_BLK_CPQ_CISS_DA is not set
+# CONFIG_BLK_DEV_DAC960 is not set
+# CONFIG_BLK_DEV_UMEM is not set
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
@@ -159,8 +166,14 @@ CONFIG_BINFMT_ELF=y
 #
 
 #
+# IEEE 1394 (FireWire) support (EXPERIMENTAL)
+#
+# CONFIG_IEEE1394 is not set
+
+#
 # I2O device support
 #
+# CONFIG_I2O is not set
 
 #
 # Networking support
@@ -222,6 +235,11 @@ CONFIG_IPV6_SCTP__=y
 #
 # CONFIG_NET_PKTGEN is not set
 CONFIG_NETDEVICES=y
+
+#
+# ARCnet devices
+#
+# CONFIG_ARCNET is not set
 # CONFIG_DUMMY is not set
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
@@ -233,14 +251,36 @@ CONFIG_NETDEVICES=y
 #
 CONFIG_NET_ETHERNET=y
 # CONFIG_MII is not set
+# CONFIG_HAPPYMEAL is not set
+# CONFIG_SUNGEM is not set
+# CONFIG_NET_VENDOR_3COM is not set
+
+#
+# Tulip family network device support
+#
+# CONFIG_NET_TULIP is not set
+# CONFIG_HP100 is not set
+# CONFIG_NET_PCI is not set
 
 #
 # Ethernet (1000 Mbit)
 #
+# CONFIG_ACENIC is not set
+# CONFIG_DL2K is not set
+# CONFIG_E1000 is not set
+# CONFIG_NS83820 is not set
+# CONFIG_HAMACHI is not set
+# CONFIG_YELLOWFIN is not set
+# CONFIG_R8169 is not set
+# CONFIG_SK98LIN is not set
+# CONFIG_TIGON3 is not set
 
 #
 # Ethernet (10000 Mbit)
 #
+# CONFIG_IXGB is not set
+# CONFIG_FDDI is not set
+# CONFIG_HIPPI is not set
 # CONFIG_PPP is not set
 # CONFIG_SLIP is not set
 
@@ -252,6 +292,7 @@ CONFIG_NET_ETHERNET=y
 #
 # Token Ring devices (depends on LLC=y)
 #
+# CONFIG_RCPCI is not set
 # CONFIG_SHAPER is not set
 
 #
@@ -483,6 +524,22 @@ CONFIG_MSDOS_PARTITION=y
 #
 # Graphics support
 #
+# CONFIG_FB_CIRRUS is not set
+# CONFIG_FB_PM2 is not set
+# CONFIG_FB_CYBER2000 is not set
+# CONFIG_FB_IMSTT is not set
+# CONFIG_FB_RIVA is not set
+# CONFIG_FB_MATROX is not set
+# CONFIG_FB_RADEON is not set
+# CONFIG_FB_ATY128 is not set
+# CONFIG_FB_ATY is not set
+# CONFIG_FB_SIS is not set
+# CONFIG_FB_NEOMAGIC is not set
+# CONFIG_FB_3DFX is not set
+# CONFIG_FB_VOODOO1 is not set
+# CONFIG_FB_TRIDENT is not set
+# CONFIG_FB_PM3 is not set
+# CONFIG_FB_E1356 is not set
 # CONFIG_FB_VIRTUAL is not set
 
 #
@@ -506,6 +563,7 @@ CONFIG_DUMMY_CONSOLE=y
 #
 # USB support
 #
+# CONFIG_USB is not set
 # CONFIG_USB_GADGET is not set
 
 #

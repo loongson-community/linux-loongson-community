@@ -119,6 +119,7 @@ CONFIG_KALLSYMS=y
 #
 # Bus options (PCI, PCMCIA, EISA, ISA, TC)
 #
+# CONFIG_PCI is not set
 CONFIG_MMU=y
 CONFIG_HOTPLUG=y
 

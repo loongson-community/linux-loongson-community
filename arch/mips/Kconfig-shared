@@ -13,12 +13,6 @@ config ACER_PICA_61
 	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
 	  <http://oss.sgi.com/mips/>.
 
-
-config PCI_AUTO
-	bool "Support for PCI AUTO Config" if MIPS_PB1000
-	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MIPS_ITE8172 || MIPS_IVR || MIPS_EV96100 || TANBAC_TB0226 || TANBAC_TB0229
-
-
 config BAGET_MIPS
 	bool "Support for BAGET MIPS series (EXPERIMENTAL)"
 	depends on MIPS32 && EXPERIMENTAL
@@ -1036,8 +1030,7 @@ menu "Bus options (PCI, PCMCIA, EISA, ISA, TC)"
 
 config PCI
 	bool "Support for PCI controller"
-	depends on SGI_IP27 || SNI_RM200_PCI || (SIBYTE_SB1xxx_SOC && SIBYTE_SB1250)
-	default y if ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SNI_RM200_PCI || SGI_IP32 || SGI_IP27 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || LASAT || MIPS_ITE8172 || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_EV64120 || MIPS_COBALT || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || TANBAC_TB0226 || TANBAC_TB0229
+	depends on MIPS_DB1000 || DDB5074 || DDB5476 || DDB5477 || HP_LASERJET || LASAT || MIPS_IVR || MIPS_ATLAS || MIPS_COBALT || MIPS_EV64120 || MIPS_EV96100 || MIPS_ITE8172 || MIPS_MALTA || MOMENCO_OCELOT || MOMENCO_OCELOT_G || MIPS_PB1000 || MIPS_PB1100 || MIPS_PB1500 || NEC_EAGLE || SGI_IP27 || SGI_IP32 || SIBYTE_SB1250 || SNI_RM200_PCI || TANBAC_TB0226 || TANBAC_TB0229 || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || VICTOR_MPC30X || ZAO_CAPCELLA
 	help
 	  Find out whether you have a PCI motherboard. PCI is the name of a
 	  bus system, i.e. the way the CPU talks to the other stuff inside
@@ -1048,6 +1041,11 @@ config PCI
 	  <http://www.tldp.org/docs.html#howto>, contains valuable
 	  information about which PCI hardware does work under Linux and which
 	  doesn't.
+
+config PCI_AUTO
+	bool
+	depends on PCI
+	default y if DDB5074 || DDB5476 || DDB5477 || HP_LASERJET || NEC_EAGLE || MIPS_EV96100 || MIPS_ITE8172 || MIPS_IVR || MIPS_PB1100 || MIPS_PB1500 || TANBAC_TB0226 || TANBAC_TB0229 || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || VICTOR_MPC30X || ZAO_CAPCELLA
 
 source "drivers/pci/Kconfig"
 
