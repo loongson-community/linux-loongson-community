@@ -405,6 +405,11 @@ __BUILDIO(q, u64)
 #define readl_relaxed			readl
 #define readq_relaxed			readq
 
+/*
+ * Some code tests for these symbols
+ */
+#define readq				readq
+#define writeq				writeq
 
 #define __BUILD_MEMORY_STRING(bwlq, type)				\
 									\
