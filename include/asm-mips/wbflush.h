@@ -7,7 +7,7 @@
  *
  * Copyright (c) 1998 Harald Koerfgen
  *
- * $Id: wbflush.h,v 1.1 1999/07/26 19:46:00 harald Exp $
+ * $Id: wbflush.h,v 1.2 1999/08/13 17:07:28 harald Exp $
  */
 #ifndef __ASM_MIPS_WBFLUSH_H
 #define __ASM_MIPS_WBFLUSH_H
@@ -30,5 +30,7 @@ extern void (*__wbflush) (void);
 #define wbflush()
 
 #endif
+
+extern void wbflush_setup(void);
 
 #endif /* __ASM_MIPS_WBFLUSH_H */
