@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.26 2000/03/08 21:00:55 harald Exp $
+/* $Id: setup.c,v 1.27 2000/03/13 10:33:02 raiko Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -126,6 +126,7 @@ extern void sgi_sysinit(void);
 extern void SetUpBootInfo(void);
 extern void loadmmu(void);
 extern asmlinkage void start_kernel(void);
+extern int prom_init(int, char **, char **, int *);
 
 /*
  * Probe whether cpu has config register by trying to play with
@@ -199,29 +200,15 @@ static inline void cpu_probe(void)
 	}
 }
 
-/*
- * I know this is ugly, but... HK
- */
-#ifdef CONFIG_DECSTATION
-extern int prom_init(int, char **, unsigned long, int *);
-
-asmlinkage void __init init_arch(int argc, char **argv, unsigned long magic, int *prom_vec)
-#else
-extern int prom_init(int, char **, char **);
-
-asmlinkage void __init init_arch(int argc, char **argv, char **envp)
-#endif
+asmlinkage void __init init_arch(int argc, char **argv, char **envp, int *prom_vec)
 {
 	unsigned int s;
 
 	/* Determine which MIPS variant we are running on. */
 	cpu_probe();
 
-#ifdef CONFIG_DECSTATION
-	prom_init(argc, argv, magic, prom_vec);
-#else
-	prom_init(argc, argv, envp);
-#endif
+	prom_init(argc, argv, envp, prom_vec);
+
 #ifdef CONFIG_SGI_IP22
 	sgi_sysinit();
 #endif
