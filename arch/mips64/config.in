@@ -154,10 +154,6 @@ if [ "$CONFIG_CPU_R10000" = "y" ]; then
 fi
 bool 'Generate little endian code' CONFIG_CPU_LITTLE_ENDIAN
 
-if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
-   bool 'Kernel floating-point emulation' CONFIG_MIPS_FPU_EMULATOR
-fi
-
 bool 'Networking support' CONFIG_NET
 
 source drivers/pci/Config.in

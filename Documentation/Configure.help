@@ -2010,12 +2010,6 @@ CONFIG_SCSI_ZALON
   workstations).  Say Y here to make sure it gets initialized
   correctly before the Linux kernel tries to talk to the controller.
 
-Kernel floating-point instruction emulation
-CONFIG_MIPS_FPU_EMULATOR
-  This option enables the MIPS software floatingpoint support.  Due to
-  the way floating point works you should always enable this option
-  unless you exactly know what you're doing.
-
 SGI PROM Console Support
 CONFIG_SGI_PROM_CONSOLE
   Say Y here to set up the boot console on serial port 0.

@@ -1,7 +1,12 @@
 /*
- * MIPS floating point support
- * Copyright (C) 1994-2000 Algorithmics Ltd.  All rights reserved.
- * http://www.algor.co.uk
+ * Definitiona for the Algorithmics FPU Emulator port into MIPS Linux
+ */
+/**************************************************************************
+ *
+ *  include/asm-mips/fpu_emulator.h
+ *
+ *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *
  * ########################################################################
  *
@@ -18,31 +23,22 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
  *
- * ########################################################################
- */
-
-/**************************************************************************
- *  Nov 7, 2000
- *  Added preprocessor hacks to map to Linux kernel diagnostics. 
- *
- *  Kevin D. Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
- *  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *************************************************************************/
-
-#include "ieee754.h"
-
-/*
- * Very naff exception handler (you can plug in your own and
- * override this).
+/* 
+ * Further private data for which no space exists in mips_fpu_soft_struct.
+ * This should be subsumed into the mips_fpu_soft_struct structure as
+ * defined in processor.h as soon as the absurd wired absolute assembler
+ * offsets become dynamic at compile time.
  */
 
-static const char *const rtnames[] = {
-	"sp", "dp", "xp", "si", "di"
+struct mips_fpu_emulator_private {
+	unsigned int eir;
+	struct {
+		unsigned int emulated;
+		unsigned int loads;
+		unsigned int stores;
+		unsigned int cp1ops;
+		unsigned int cp1xops;
+		unsigned int errors;
+	} stats;
 };
-
-void ieee754_xcpt(struct ieee754xctx *xcp)
-{
-	printk("floating point exception in \"%s\", type=%s\n",
-		xcp->op, rtnames[xcp->rt]);
-}
-
