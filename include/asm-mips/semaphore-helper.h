@@ -92,7 +92,7 @@ waking_non_zero(struct semaphore *sem)
 	"sc\t%0, %2\n\t"
 	"beqz\t%0, 1b\n\t"
 	"2:"
-	: "=r"(ret), "=r"(tmp), "=m"(__atomic_fool_gcc(&sem->waking))
+	: "=r"(ret), "=r"(tmp), "=m"(&sem->waking)
 	: "0"(0));
 
 	return ret;
