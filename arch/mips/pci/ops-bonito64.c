@@ -47,8 +47,7 @@ static int bonito64_pcibios_config_access(unsigned char access_type,
 				      u32 * data)
 {
 	unsigned char busnum = bus->number;
-	unsigned char type;
-	u32 intr, dummy;
+	u32 dummy;
 	u64 pci_addr;
 
 	/* Algorithmics Bonito64 system controller. */

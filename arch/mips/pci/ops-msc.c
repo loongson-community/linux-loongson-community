@@ -46,8 +46,7 @@ static int msc_pcibios_config_access(unsigned char access_type,
 {
 	unsigned char busnum = bus->number;
 	unsigned char type;
-	u32 intr, dummy;
-	u64 pci_addr;
+	u32 intr;
 
 	if ((busnum == 0) && (PCI_SLOT(devfn) == 0))
 		return -1;
