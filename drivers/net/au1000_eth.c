@@ -1044,8 +1044,9 @@ static void au1000_tx_ack(struct net_device *dev)
 	ptxd = aup->tx_dma_ring[aup->tx_tail];
 
 	while (ptxd->buff_stat & TX_T_DONE) {
-		update_tx_stats(dev, ptxd->status, ptxd->len & 0x3ff);
+ 		update_tx_stats(dev, ptxd->status, aup->tx_len[aup->tx_tail]  & 0x3ff);
 		ptxd->buff_stat &= ~TX_T_DONE;
+ 		aup->tx_len[aup->tx_tail] = 0;
 		ptxd->len = 0;
 		au_sync();
 
@@ -1085,7 +1086,8 @@ static int au1000_tx(struct sk_buff *skb, struct net_device *dev)
 		return 1;
 	}
 	else if (buff_stat & TX_T_DONE) {
-		update_tx_stats(dev, ptxd->status, ptxd->len & 0x3ff);
+ 		update_tx_stats(dev, ptxd->status, aup->tx_len[aup->tx_head] & 0x3ff);
+ 		aup->tx_len[aup->tx_head] = 0;
 		ptxd->len = 0;
 	}
 
@@ -1100,11 +1102,13 @@ static int au1000_tx(struct sk_buff *skb, struct net_device *dev)
 		for (i=skb->len; i<MAC_MIN_PKT_SIZE; i++) { 
 			((char *)pDB->vaddr)[i] = 0;
 		}
+ 		aup->tx_len[aup->tx_head] = MAC_MIN_PKT_SIZE;
 		ptxd->len = MAC_MIN_PKT_SIZE;
 	}
-	else
+	else {
+ 		aup->tx_len[aup->tx_head] = skb->len;
 		ptxd->len = skb->len;
-
+	}
 	ptxd->buff_stat = pDB->dma_addr | TX_DMA_ENABLE;
 	au_sync();
 	dev_kfree_skb(skb);

@@ -197,6 +197,7 @@ struct au1000_private {
 	db_dest_t db[NUM_RX_BUFFS+NUM_TX_BUFFS];
 	volatile rx_dma_t *rx_dma_ring[NUM_RX_DMA];
 	volatile tx_dma_t *tx_dma_ring[NUM_TX_DMA];
+	int tx_len[NUM_TX_DMA];
 	db_dest_t *rx_db_inuse[NUM_RX_DMA];
 	db_dest_t *tx_db_inuse[NUM_TX_DMA];
 	u32 rx_head;
