@@ -164,7 +164,7 @@ typedef struct kl_config_hdr {
 #define KL_CONFIG_INFO(_nasid) 						\
         (lboard_t *)((KL_CONFIG_HDR(_nasid)->ch_board_info) ?		\
 	 NODE_OFFSET_TO_K1((_nasid), KL_CONFIG_HDR(_nasid)->ch_board_info) : \
-	 NULL)
+	 0)
 #define KL_CONFIG_MAGIC(_nasid)		(KL_CONFIG_HDR(_nasid)->ch_magic)
 
 #define KL_CONFIG_CHECK_MAGIC(_nasid)					\
@@ -896,6 +896,8 @@ typedef union {
 #define VDS_2ND_IO4		0x02	/* Boot from the second IO4 */
 #define VDS_DEBUG_PROM		0x01	/* Print PROM debugging messages */
 
-/* external declarations */
+/* external declarations of Linux kernel functions. */
+
+extern lboard_t *find_lboard(unsigned int type);
 
 #endif /* _ASM_SN_KLCONFIG_H */
