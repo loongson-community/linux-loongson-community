@@ -875,14 +875,20 @@ ioc3_close(struct net_device *dev)
 	return 0;
 }
 
-static void ioc3_pci_init(struct pci_dev *pdev)
+static int ioc3_pci_init(struct pci_dev *pdev)
 {
 	struct net_device *dev = NULL;	// XXX
 	struct ioc3_private *ip;
 	struct ioc3 *ioc3;
 	unsigned long ioc3_base, ioc3_size;
 
-	dev = init_etherdev(dev, 0);
+	dev = init_etherdev(0, sizeof(struct ioc3_private));
+
+	if (!dev)
+		return -ENOMEM;
+
+	ip = dev->priv;
+	memset(ip, 0, sizeof(*ip));
 
 	/*
 	 * This probably needs to be register_netdevice, or call
@@ -891,9 +897,6 @@ static void ioc3_pci_init(struct pci_dev *pdev)
 	 */
 	netif_device_attach(dev);
 
-	ip = (struct ioc3_private *) kmalloc(sizeof(*ip), GFP_KERNEL);
-	memset(ip, 0, sizeof(*ip));
-	dev->priv = ip;
 	dev->irq = pdev->irq;
 
 	ioc3_base = pdev->resource[0].start;
@@ -922,6 +925,8 @@ static void ioc3_pci_init(struct pci_dev *pdev)
 	dev->get_stats		= ioc3_get_stats;
 	dev->do_ioctl		= ioc3_ioctl;
 	dev->set_multicast_list	= ioc3_set_multicast_list;
+
+	return 0;
 }
 
 static int __init ioc3_probe(void)
@@ -938,7 +943,8 @@ static int __init ioc3_probe(void)
 
 		while ((pdev = pci_find_device(PCI_VENDOR_ID_SGI,
 		                               PCI_DEVICE_ID_SGI_IOC3, pdev))) {
-			ioc3_pci_init(pdev);
+			if (ioc3_pci_init(pdev))
+				return -ENOMEM;
 			cards++;
 		}
 	}
