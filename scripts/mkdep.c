@@ -9,6 +9,10 @@
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 
+#ifndef MAP_AUTOGROW
+#define MAP_AUTOGROW 0
+#endif
+
 char *filename, *command, __depname[256] = "\n\t@touch ";
 int needsconfig, hasconfig, hasmodules, hasdep;
 
