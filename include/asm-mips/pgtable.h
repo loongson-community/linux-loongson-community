@@ -8,8 +8,6 @@
 #ifndef _ASM_PGTABLE_H
 #define _ASM_PGTABLE_H
 
-#include <asm-generic/4level-fixup.h>
-
 #include <linux/config.h>
 #ifdef CONFIG_MIPS32
 #include <asm/pgtable-32.h>
@@ -144,11 +142,18 @@ static inline void pte_clear(pte_t *ptep)
 #endif
 
 /*
- * (pmds are folded into pgds so this doesn't get actually called,
+ * (pmds are folded into puds so this doesn't get actually called,
  * but the define is needed for a generic inline function.)
  */
 #define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0)
-#define set_pgd(pgdptr, pgdval) do { *(pgdptr) = (pgdval); } while(0)
+
+#ifdef CONFIG_MIPS64
+/*
+ * (puds are folded into pgds so this doesn't get actually called,
+ * but the define is needed for a generic inline function.)
+ */
+#define set_pud(pudptr, pudval) do { *(pudptr) = (pudval); } while(0)
+#endif
 
 #define PGD_T_LOG2	ffz(~sizeof(pgd_t))
 #define PMD_T_LOG2	ffz(~sizeof(pmd_t))

@@ -104,26 +104,32 @@ void __init fixrange_init(unsigned long start, unsigned long end,
 	pgd_t *pgd_base)
 {
 	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
-	int i, j;
+	int i, j, k;
 	unsigned long vaddr;
 
 	vaddr = start;
 	i = __pgd_offset(vaddr);
-	j = __pmd_offset(vaddr);
+	j = __pud_offset(vaddr);
+	k = __pmd_offset(vaddr);
 	pgd = pgd_base + i;
 
 	for ( ; (i < PTRS_PER_PGD) && (vaddr != end); pgd++, i++) {
-		pmd = (pmd_t *)pgd;
-		for (; (j < PTRS_PER_PMD) && (vaddr != end); pmd++, j++) {
-			if (pmd_none(*pmd)) {
-				pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
-				set_pmd(pmd, __pmd(pte));
-				if (pte != pte_offset_kernel(pmd, 0))
-					BUG();
+		pud = (pud_t *)pgd;
+		for ( ; (j < PTRS_PER_PUD) && (vaddr != end); pud++, j++) {
+			pmd = (pmd_t *)pud;
+			for (; (k < PTRS_PER_PMD) && (vaddr != end); pmd++, k++) {
+				if (pmd_none(*pmd)) {
+					pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
+					set_pmd(pmd, __pmd(pte));
+					if (pte != pte_offset_kernel(pmd, 0))
+						BUG();
+				}
+				vaddr += PMD_SIZE;
 			}
-			vaddr += PMD_SIZE;
+			k = 0;
 		}
 		j = 0;
 	}
