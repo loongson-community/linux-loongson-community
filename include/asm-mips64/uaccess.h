@@ -45,12 +45,16 @@
  *  - AND "addr+size" doesn't have any high-bits set
  *  - OR we are in kernel mode.
  */
-#define __access_ok(addr,size,mask) \
-        (((__signed__ long)((mask)&(addr | size | (addr+size)))) >= 0)
+#define __ua_size(size)							\
+	(__builtin_constant_p(size) && (signed long) (size) > 0 ? 0 : (size))
+
+#define __access_ok(addr,size,mask)					\
+	(((signed long)((mask)&(addr | (addr + size) | __ua_size(size)))) >= 0)
+
 #define __access_mask ((long)(get_fs().seg))
 
 #define access_ok(type,addr,size) \
-__access_ok(((unsigned long)(addr)),(size),__access_mask)
+	__access_ok(((unsigned long)(addr)),(size),__access_mask)
 
 extern inline int verify_area(int type, const void * addr, unsigned long size)
 {
