@@ -1170,7 +1170,27 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 	struct ioc3 *ioc3;
 	unsigned long ioc3_base, ioc3_size;
 	u32 vendor, model, rev;
-	int err;
+	int err, pci_using_dac;
+
+	/* Configure DMA attributes. */
+	err = pci_set_dma_mask(pdev, 0xffffffffffffffffULL);
+	if (!err) {
+		pci_using_dac = 1;
+		err = pci_set_consistent_dma_mask(pdev, 0xffffffffffffffffULL);
+		if (err < 0) {
+			printk(KERN_ERR "%s: Unable to obtain 64 bit DMA "
+			       "for consistent allocations\n", pci_name(pdev));
+			goto out;
+		}
+	} else {
+		err = pci_set_dma_mask(pdev, 0xffffffffULL);
+		if (err) {
+			printk(KERN_ERR "%s: No usable DMA configuration, "
+			       "aborting.\n", pci_name(pdev));
+			goto out;
+		}
+		pci_using_dac = 0;
+	}
 
 	if (pci_enable_device(pdev))
 		return -ENODEV;
@@ -1180,6 +1200,9 @@ static int __devinit ioc3_probe(struct pci_dev *pdev,
 		err = -ENOMEM;
 		goto out_disable;
 	}
+
+	if (pci_using_dac)
+		dev->features |= NETIF_F_HIGHDMA;
 
 	err = pci_request_regions(pdev, "ioc3");
 	if (err)
@@ -1279,6 +1302,7 @@ out_disable:
 	 * We should call pci_disable_device(pdev); here if the IOC3 wasn't
 	 * such a weird device ...
 	 */
+out:
 	return err;
 }
 
