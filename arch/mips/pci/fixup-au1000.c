@@ -38,39 +38,17 @@
 #include <asm/pb1000.h>
 #endif
 
-#undef	DEBUG
-#ifdef 	DEBUG
-#define	DBG(x...)	printk(x)
-#else
-#define	DBG(x...)
-#endif
+/*
+ * Shortcut
+ */
+#define INTA	AU1000_PCI_INTA
 
-#ifdef CONFIG_SOC_AU1500
-static unsigned long virt_io_addr;
-#endif
+static char irq_tab_alchemy[][5] __initdata = {
+ [11] = { -1, INTA, INTA, INTA, INTA },
+ [12] = { -1, INTA, INTA, INTA, INTA }
+};
 
-void __init pcibios_fixup_irqs(void)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-#ifdef CONFIG_SOC_AU1500
-	unsigned int slot, func;
-	unsigned char pin;
-	struct pci_dev *dev = NULL;
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		if (dev->bus->number != 0)
-			return;
-
-		dev->irq = 0xff;
-		slot = PCI_SLOT(dev->devfn);
-		switch (slot) {
-		case 12:
-		case 13:
-			dev->irq = AU1000_PCI_INTA;
-			break;
-
-		}
-		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
-		DBG("slot %d irq %d\n", slot, dev->irq);
-	}
-#endif
+	return irq_tab_alchemy[slot][pin];
 }
