@@ -166,7 +166,7 @@ SYS(sys_writev, 3)
 SYS(sys_cacheflush, 3)
 SYS(sys_cachectl, 3)
 SYS(sys_sysmips, 4)
-SYS(sys_setup, 0)				/* 4150 */
+SYS(sys_setup, 1)				/* 4150 */
 SYS(sys_getsid, 1)
 SYS(sys_fdatasync, 0)
 SYS(sys_sysctl, 1)
