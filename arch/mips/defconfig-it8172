@@ -509,6 +509,25 @@ CONFIG_8139TOO=y
 # CONFIG_ISDN is not set
 
 #
+# Input device support
+#
+# CONFIG_INPUT is not set
+# CONFIG_INPUT_KEYBDEV is not set
+# CONFIG_INPUT_MOUSEDEV is not set
+# CONFIG_INPUT_JOYDEV is not set
+# CONFIG_INPUT_EVDEV is not set
+# CONFIG_GAMEPORT is not set
+CONFIG_SOUND_GAMEPORT=y
+# CONFIG_GAMEPORT_NS558 is not set
+# CONFIG_GAMEPORT_L4 is not set
+# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_GAMEPORT_PCIGAME is not set
+# CONFIG_GAMEPORT_FM801 is not set
+# CONFIG_GAMEPORT_CS461x is not set
+CONFIG_SERIO=y
+CONFIG_SERIO_SERPORT=y
+
+#
 # Character devices
 #
 # CONFIG_VT is not set
@@ -692,25 +711,6 @@ CONFIG_SOUND_IT8172=y
 # Bluetooth support
 #
 # CONFIG_BLUEZ is not set
-
-#
-# Input device support
-#
-# CONFIG_INPUT is not set
-# CONFIG_INPUT_KEYBDEV is not set
-# CONFIG_INPUT_MOUSEDEV is not set
-# CONFIG_INPUT_JOYDEV is not set
-# CONFIG_INPUT_EVDEV is not set
-# CONFIG_GAMEPORT is not set
-CONFIG_SOUND_GAMEPORT=y
-# CONFIG_GAMEPORT_NS558 is not set
-# CONFIG_GAMEPORT_L4 is not set
-# CONFIG_INPUT_EMU10K1 is not set
-# CONFIG_GAMEPORT_PCIGAME is not set
-# CONFIG_GAMEPORT_FM801 is not set
-# CONFIG_GAMEPORT_CS461x is not set
-CONFIG_SERIO=y
-CONFIG_SERIO_SERPORT=y
 
 #
 # Kernel hacking
