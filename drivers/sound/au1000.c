@@ -42,6 +42,13 @@
  *
  *  Revision history
  *    06.27.2001  Initial version
+ *    03.20.2002  Added mutex locks around read/write methods, to prevent
+ *                simultaneous access on SMP or preemptible kernels. Also
+ *                removed the counter/pointer fragment aligning at the end
+ *                of read/write methods [stevel].
+ *    03.21.2002  Add support for coherent DMA on the audio read/write DMA
+ *                channels [stevel].
+ *
  */
 #include <linux/version.h>
 #include <linux/module.h>
@@ -73,6 +80,7 @@
 #define AU1000_DEBUG
 #undef AU1000_VERBOSE_DEBUG
 
+#define USE_COHERENT_DMA
 
 #define AU1000_MODULE_NAME "Au1000 audio"
 #define PFX AU1000_MODULE_NAME
@@ -110,18 +118,18 @@ struct au1000_state {
 #endif				/* AU1000_DEBUG */
 
 	struct ac97_codec codec;
-	unsigned        codec_base_caps;	// AC'97 reg 00h, "Reset Register"
+	unsigned        codec_base_caps;// AC'97 reg 00h, "Reset Register"
 	unsigned        codec_ext_caps;	// AC'97 reg 28h, "Extended Audio ID"
 	int             no_vra;	// do not use VRA
 
 	spinlock_t      lock;
 	struct semaphore open_sem;
+	struct semaphore sem;
 	mode_t          open_mode;
 	wait_queue_head_t open_wait;
 
 	struct dmabuf {
 		unsigned int    dmanr;	// DMA Channel number
-		int             irq;	// DMA Channel Done IRQ number
 		unsigned        sample_rate;	// Hz
 		unsigned src_factor;     // SRC interp/decimation (no vra)
 		unsigned        sample_size;	// 8 or 16
@@ -136,7 +144,7 @@ struct au1000_state {
 		unsigned numfrag;        // # of DMA fragments in DMA buffer
 		unsigned        fragshift;
 		void           *nextIn;	// ptr to next-in to DMA buffer
-		void           *nextOut;	// ptr to next-out from DMA buffer
+		void           *nextOut;// ptr to next-out from DMA buffer
 		int             count;	// current byte count in DMA buffer
 		unsigned        total_bytes;	// total bytes written or read
 		unsigned        error;	// over/underrun
@@ -184,6 +192,34 @@ static inline unsigned ld2(unsigned int x)
 	return r;
 }
 
+
+#ifdef USE_COHERENT_DMA
+static inline void * dma_alloc(size_t size, dma_addr_t * dma_handle)
+{
+	void* ret = (void *)__get_free_pages(GFP_ATOMIC | GFP_DMA,
+					     get_order(size));
+	if (ret != NULL) {
+		memset(ret, 0, size);
+		*dma_handle = virt_to_phys(ret);
+	}
+	return ret;
+}
+
+static inline void dma_free(size_t size, void* va, dma_addr_t dma_handle)
+{
+	free_pages((unsigned long)va, get_order(size));
+}
+#else
+static inline void * dma_alloc(size_t size, dma_addr_t * dma_handle)
+{
+	return pci_alloc_consistent(NULL, size, dma_handle);
+}
+
+static inline void dma_free(size_t size, void* va, dma_addr_t dma_handle)
+{
+	pci_free_consistent(NULL, size, va, dma_handle);
+}
+#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -304,6 +340,7 @@ static void waitcodec(struct ac97_codec *codec)
 
 /* --------------------------------------------------------------------- */
 
+/* stop the ADC before calling */
 static void set_adc_rate(struct au1000_state *s, unsigned rate)
 {
 	struct dmabuf  *adc = &s->dma_adc;
@@ -348,6 +385,7 @@ static void set_adc_rate(struct au1000_state *s, unsigned rate)
 	dac->sample_rate = dac_rate;
 }
 
+/* stop the DAC before calling */
 static void set_dac_rate(struct au1000_state *s, unsigned rate)
 {
 	struct dmabuf  *dac = &s->dma_dac;
@@ -483,17 +521,20 @@ static void start_dac(struct au1000_state *s)
 
 	set_xmit_slots(db->num_channels);
 
-	set_dma_count(db->dmanr, db->dma_fragsize>>1);
+	init_dma(db->dmanr);
 	if (get_dma_active_buffer(db->dmanr) == 0) {
+		clear_dma_done0(db->dmanr);	// clear DMA done bit
 		set_dma_addr0(db->dmanr, buf1);
 		set_dma_addr1(db->dmanr, buf2);
 	} else {
+		clear_dma_done1(db->dmanr);	// clear DMA done bit
 		set_dma_addr1(db->dmanr, buf1);
 		set_dma_addr0(db->dmanr, buf2);
 	}
+	set_dma_count(db->dmanr, db->dma_fragsize>>1);
 	enable_dma_buffers(db->dmanr);
 
-	enable_dma(db->dmanr);
+	start_dma(db->dmanr);
 
 #ifdef AU1000_VERBOSE_DEBUG
 	dump_au1000_dma_channel(db->dmanr);
@@ -525,17 +566,20 @@ static void start_adc(struct au1000_state *s)
 
 	set_recv_slots(db->num_channels);
 
-	set_dma_count(db->dmanr, db->dma_fragsize>>1);
+	init_dma(db->dmanr);
 	if (get_dma_active_buffer(db->dmanr) == 0) {
+		clear_dma_done0(db->dmanr);	// clear DMA done bit
 		set_dma_addr0(db->dmanr, buf1);
 		set_dma_addr1(db->dmanr, buf2);
 	} else {
+		clear_dma_done1(db->dmanr);	// clear DMA done bit
 		set_dma_addr1(db->dmanr, buf1);
 		set_dma_addr0(db->dmanr, buf2);
 	}
+	set_dma_count(db->dmanr, db->dma_fragsize>>1);
 	enable_dma_buffers(db->dmanr);
 
-	enable_dma(db->dmanr);
+	start_dma(db->dmanr);
 
 #ifdef AU1000_VERBOSE_DEBUG
 	dump_au1000_dma_channel(db->dmanr);
@@ -561,8 +605,7 @@ extern inline void dealloc_dmabuf(struct au1000_state *s, struct dmabuf *db)
 				    (PAGE_SIZE << db->buforder) - 1);
 		for (page = virt_to_page(db->rawbuf); page <= pend; page++)
 			mem_map_unreserve(page);
-		pci_free_consistent(NULL, PAGE_SIZE << db->buforder,
-				    db->rawbuf, db->dmaaddr);
+		dma_free(PAGE_SIZE << db->buforder, db->rawbuf, db->dmaaddr);
 	}
 	db->rawbuf = db->nextIn = db->nextOut = NULL;
 	db->mapped = db->ready = 0;
@@ -580,9 +623,7 @@ static int prog_dmabuf(struct au1000_state *s, struct dmabuf *db)
 		db->ready = db->mapped = 0;
 		for (order = DMABUF_DEFAULTORDER;
 		     order >= DMABUF_MINORDER; order--)
-			if ((db->rawbuf =
-			     pci_alloc_consistent(NULL,
-						  PAGE_SIZE << order,
+			if ((db->rawbuf = dma_alloc(PAGE_SIZE << order,
 						  &db->dmaaddr)))
 				break;
 		if (!db->rawbuf)
@@ -686,6 +727,8 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		return;
 	}
 
+	spin_lock(&s->lock);
+	
 	if (buff_done != (DMA_D0 | DMA_D1)) {
 		dac->nextOut += dac->dma_fragsize;
 		if (dac->nextOut >= dac->rawbuf + dac->dmasize)
@@ -699,9 +742,16 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		dac->count -= dac->dma_fragsize;
 		dac->total_bytes += dac->dma_fragsize;
 
-		if (dac->count <= 0)
+		if (dac->count <= 0) {
+#ifdef AU1000_VERBOSE_DEBUG
+			dbg("dac underrun");
+#endif
+			spin_unlock(&s->lock);
 			stop_dac(s);
-		else if (buff_done == DMA_D0) {
+			spin_lock(&s->lock);
+			dac->count = 0;
+			dac->nextIn = dac->nextOut;
+		} else if (buff_done == DMA_D0) {
 			clear_dma_done0(dac->dmanr);	// clear DMA done bit
 			set_dma_count0(dac->dmanr, dac->dma_fragsize>>1);
 			set_dma_addr0(dac->dmanr, newptr);
@@ -714,7 +764,9 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		}
 	} else {
 		// both done bits set, we missed an interrupt
+		spin_unlock(&s->lock);
 		stop_dac(s);
+		spin_lock(&s->lock);
 
 		dac->nextOut += 2*dac->dma_fragsize;
 		if (dac->nextOut >= dac->rawbuf + dac->dmasize)
@@ -723,14 +775,18 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		dac->count -= 2*dac->dma_fragsize;
 		dac->total_bytes += 2*dac->dma_fragsize;
 
-		if (dac->count > 0)
+		if (dac->count > 0) {
+			spin_unlock(&s->lock);
 			start_dac(s);
+			spin_lock(&s->lock);
+		}
 	}
-
 
 	/* wake up anybody listening */
 	if (waitqueue_active(&dac->wait))
-		wake_up_interruptible(&dac->wait);
+		wake_up(&dac->wait);
+
+	spin_unlock(&s->lock);
 }
 
 
@@ -752,9 +808,12 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		return;
 	}
 
+	spin_lock(&s->lock);
+	
 	if (buff_done != (DMA_D0 | DMA_D1)) {
 		if (adc->count + adc->dma_fragsize > adc->dmasize) {
 			// Overrun. Stop ADC and log the error
+			spin_unlock(&s->lock);
 			stop_adc(s);
 			adc->error++;
 			err("adc overrun");
@@ -786,12 +845,15 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		}
 	} else {
 		// both done bits set, we missed an interrupt
+		spin_unlock(&s->lock);
 		stop_adc(s);
+		spin_lock(&s->lock);
 		
 		if (adc->count + 2*adc->dma_fragsize > adc->dmasize) {
 			// Overrun. Log the error
 			adc->error++;
 			err("adc overrun");
+			spin_unlock(&s->lock);
 			return;
 		}
 
@@ -802,12 +864,16 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		adc->count += 2*adc->dma_fragsize;
 		adc->total_bytes += 2*adc->dma_fragsize;
 		
+		spin_unlock(&s->lock);
 		start_adc(s);
+		spin_lock(&s->lock);
 	}
 
 	/* wake up anybody listening */
 	if (waitqueue_active(&adc->wait))
-		wake_up_interruptible(&adc->wait);
+		wake_up(&adc->wait);
+
+	spin_unlock(&s->lock);
 }
 
 /* --------------------------------------------------------------------- */
@@ -924,7 +990,7 @@ static int translate_from_user(struct dmabuf *db,
 	for (sample = 0; sample < num_samples; sample++) {
 		if (copy_from_user(usersample, userbuf,
 				   db->user_bytes_per_sample)) {
-			dbg(__FUNCTION__ "fault");
+			dbg(__FUNCTION__ ": fault");
 			return -EFAULT;
 		}
 
@@ -988,7 +1054,7 @@ static int translate_to_user(struct dmabuf *db,
 
 		if (copy_to_user(userbuf, usersample,
 				 db->user_bytes_per_sample)) {
-			dbg(__FUNCTION__ "fault");
+			dbg(__FUNCTION__ ": fault");
 			return -EFAULT;
 		}
 
@@ -1050,9 +1116,10 @@ static ssize_t au1000_read(struct file *file, char *buffer,
 {
 	struct au1000_state *s = (struct au1000_state *)file->private_data;
 	struct dmabuf  *db = &s->dma_adc;
+	DECLARE_WAITQUEUE(wait, current);
 	ssize_t         ret;
 	unsigned long   flags;
-	int             cnt, remainder, usercnt, avail;
+	int             cnt, usercnt, avail;
 
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
@@ -1064,6 +1131,9 @@ static ssize_t au1000_read(struct file *file, char *buffer,
 
 	count *= db->cnt_factor;
 
+	down(&s->sem);
+	add_wait_queue(&db->wait, &wait);
+
 	while (count > 0) {
 		// wait for samples in ADC dma buffer
 		do {
@@ -1071,19 +1141,23 @@ static ssize_t au1000_read(struct file *file, char *buffer,
 				start_adc(s);
 			spin_lock_irqsave(&s->lock, flags);
 			avail = db->count;
+			if (avail <= 0)
+				__set_current_state(TASK_INTERRUPTIBLE);
 			spin_unlock_irqrestore(&s->lock, flags);
 			if (avail <= 0) {
 				if (file->f_flags & O_NONBLOCK) {
 					if (!ret)
 						ret = -EAGAIN;
-					return ret;
+					goto out;
 				}
-				interruptible_sleep_on(&db->wait);
+				up(&s->sem);
+				schedule();
 				if (signal_pending(current)) {
 					if (!ret)
 						ret = -ERESTARTSYS;
-					return ret;
+					goto out2;
 				}
+				down(&s->sem);
 			}
 		} while (avail <= 0);
 
@@ -1093,16 +1167,15 @@ static ssize_t au1000_read(struct file *file, char *buffer,
 					    avail : count, 1)) < 0) {
 			if (!ret)
 				ret = -EFAULT;
-			return ret;
+			goto out;
 		}
 
 		spin_lock_irqsave(&s->lock, flags);
 		db->count -= cnt;
-		spin_unlock_irqrestore(&s->lock, flags);
-
 		db->nextOut += cnt;
 		if (db->nextOut >= db->rawbuf + db->dmasize)
 			db->nextOut -= db->dmasize;
+		spin_unlock_irqrestore(&s->lock, flags);
 
 		count -= cnt;
 		usercnt = cnt / db->cnt_factor;
@@ -1110,25 +1183,11 @@ static ssize_t au1000_read(struct file *file, char *buffer,
 		ret += usercnt;
 	}			// while (count > 0)
 
-	/*
-	 * See if the dma buffer count after this read call is
-	 * aligned on a dma_fragsize boundary. If not, read from
-	 * buffer until we reach a boundary, and let's hope this
-	 * is just the last remainder of an audio record. If not
-	 * it means the user is not reading in fragsize chunks, in
-	 * which case it's his/her fault that there are audio gaps
-	 * in their record.
-	 */
-	spin_lock_irqsave(&s->lock, flags);
-	remainder = db->count % db->dma_fragsize;
-	if (remainder) {
-		db->nextOut += remainder;
-		if (db->nextOut >= db->rawbuf + db->dmasize)
-			db->nextOut -= db->dmasize;
-		db->count -= remainder;
-	}
-	spin_unlock_irqrestore(&s->lock, flags);
-
+out:
+	up(&s->sem);
+out2:
+	remove_wait_queue(&db->wait, &wait);
+	set_current_state(TASK_RUNNING);
 	return ret;
 }
 
@@ -1137,9 +1196,14 @@ static ssize_t au1000_write(struct file *file, const char *buffer,
 {
 	struct au1000_state *s = (struct au1000_state *)file->private_data;
 	struct dmabuf  *db = &s->dma_dac;
+	DECLARE_WAITQUEUE(wait, current);
 	ssize_t         ret = 0;
 	unsigned long   flags;
-	int             cnt, remainder, usercnt, avail;
+	int             cnt, usercnt, avail;
+
+#ifdef AU1000_VERBOSE_DEBUG
+	dbg("write: count=%d", count);
+#endif
 
 	if (ppos != &file->f_pos)
 		return -ESPIPE;
@@ -1150,45 +1214,51 @@ static ssize_t au1000_write(struct file *file, const char *buffer,
 
 	count *= db->cnt_factor;
 
+	down(&s->sem);	
+	add_wait_queue(&db->wait, &wait);
+
 	while (count > 0) {
 		// wait for space in playback buffer
 		do {
 			spin_lock_irqsave(&s->lock, flags);
 			avail = (int) db->dmasize - db->count;
+			if (avail <= 0)
+				__set_current_state(TASK_INTERRUPTIBLE);
 			spin_unlock_irqrestore(&s->lock, flags);
 			if (avail <= 0) {
 				if (file->f_flags & O_NONBLOCK) {
 					if (!ret)
 						ret = -EAGAIN;
-					return ret;
+					goto out;
 				}
-				interruptible_sleep_on(&db->wait);
+				up(&s->sem);
+				schedule();
 				if (signal_pending(current)) {
 					if (!ret)
 						ret = -ERESTARTSYS;
-					return ret;
+					goto out2;
 				}
+				down(&s->sem);
 			}
 		} while (avail <= 0);
 
-		// copy to nextIn
+		// copy from user to nextIn
 		if ((cnt = copy_dmabuf_user(db, (char *) buffer,
 					    count > avail ?
 					    avail : count, 0)) < 0) {
 			if (!ret)
 				ret = -EFAULT;
-			return ret;
+			goto out;
 		}
 
 		spin_lock_irqsave(&s->lock, flags);
 		db->count += cnt;
-		spin_unlock_irqrestore(&s->lock, flags);
-		if (db->stopped)
-			start_dac(s);
-
 		db->nextIn += cnt;
 		if (db->nextIn >= db->rawbuf + db->dmasize)
 			db->nextIn -= db->dmasize;
+		spin_unlock_irqrestore(&s->lock, flags);
+		if (db->stopped)
+			start_dac(s);
 
 		count -= cnt;
 		usercnt = cnt / db->cnt_factor;
@@ -1196,27 +1266,11 @@ static ssize_t au1000_write(struct file *file, const char *buffer,
 		ret += usercnt;
 	}			// while (count > 0)
 
-	/*
-	 * See if the dma buffer count after this write call is
-	 * aligned on a dma_fragsize boundary. If not, fill buffer
-	 * with silence to the next boundary, and let's hope this
-	 * is just the last remainder of an audio playback. If not
-	 * it means the user is not sending us fragsize chunks, in
-	 * which case it's his/her fault that there are audio gaps
-	 * in their playback.
-	 */
-	spin_lock_irqsave(&s->lock, flags);
-	remainder = db->count % db->dma_fragsize;
-	if (remainder) {
-		int fill_cnt = db->dma_fragsize - remainder;
-		memset(db->nextIn, 0, fill_cnt);
-		db->nextIn += fill_cnt;
-		if (db->nextIn >= db->rawbuf + db->dmasize)
-			db->nextIn -= db->dmasize;
-		db->count += fill_cnt;
-	}
-	spin_unlock_irqrestore(&s->lock, flags);
-
+out:
+	up(&s->sem);
+out2:
+	remove_wait_queue(&db->wait, &wait);
+	set_current_state(TASK_RUNNING);
 	return ret;
 }
 
@@ -1241,6 +1295,7 @@ static unsigned int au1000_poll(struct file *file,
 	}
 
 	spin_lock_irqsave(&s->lock, flags);
+	
 	if (file->f_mode & FMODE_READ) {
 		if (s->dma_adc.count >= (signed)s->dma_adc.dma_fragsize)
 			mask |= POLLIN | POLLRDNORM;
@@ -1265,35 +1320,40 @@ static int au1000_mmap(struct file *file, struct vm_area_struct *vma)
 	struct au1000_state *s = (struct au1000_state *)file->private_data;
 	struct dmabuf  *db;
 	unsigned long   size;
+	int ret = 0;
 
 	dbg(__FUNCTION__);
     
 	lock_kernel();
+	down(&s->sem);
 	if (vma->vm_flags & VM_WRITE)
 		db = &s->dma_dac;
 	else if (vma->vm_flags & VM_READ)
 		db = &s->dma_adc;
 	else {
-		unlock_kernel();
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 	if (vma->vm_pgoff != 0) {
-		unlock_kernel();
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 	size = vma->vm_end - vma->vm_start;
 	if (size > (PAGE_SIZE << db->buforder)) {
-		unlock_kernel();
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 	if (remap_page_range(vma->vm_start, virt_to_phys(db->rawbuf),
 			     size, vma->vm_page_prot)) {
-		unlock_kernel();
-		return -EAGAIN;
+		ret = -EAGAIN;
+		goto out;
 	}
+	vma->vm_flags &= ~VM_IO;
 	db->mapped = 1;
+out:
+	up(&s->sem);
 	unlock_kernel();
-	return 0;
+	return ret;
 }
 
 
@@ -1368,9 +1428,9 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			break;
 	}
 	if (count < sizeof(ioctl_str) / sizeof(ioctl_str[0]))
-		dbg("ioctl %s, arg=0x%x", ioctl_str[count].str, arg);
+		dbg("ioctl %s, arg=0x%lx", ioctl_str[count].str, arg);
 	else
-		dbg("ioctl 0x%s unknown, arg=0x%x", cmd, arg);
+		dbg("ioctl 0x%x unknown, arg=0x%lx", cmd, arg);
 #endif
 
 	switch (cmd) {
@@ -1609,6 +1669,9 @@ static int au1000_ioctl(struct inode *inode, struct file *file,
 			s->dma_dac.cnt_factor;
 		abinfo.fragstotal = s->dma_dac.numfrag;
 		abinfo.fragments = abinfo.bytes >> s->dma_dac.fragshift;
+#ifdef AU1000_VERBOSE_DEBUG
+		dbg("bytes=%d, fragments=%d", abinfo.bytes, abinfo.fragments);
+#endif
 		return copy_to_user((void *) arg, &abinfo,
 				    sizeof(abinfo)) ? -EFAULT : 0;
 
@@ -1844,6 +1907,7 @@ static int  au1000_open(struct inode *inode, struct file *file)
 
 	s->open_mode |= file->f_mode & (FMODE_READ | FMODE_WRITE);
 	up(&s->open_sem);
+	init_MUTEX(&s->sem);
 	return 0;
 }
 
@@ -1852,8 +1916,13 @@ static int au1000_release(struct inode *inode, struct file *file)
 	struct au1000_state *s = (struct au1000_state *)file->private_data;
 
 	lock_kernel();
-	if (file->f_mode & FMODE_WRITE)
+	
+	if (file->f_mode & FMODE_WRITE) {
+		unlock_kernel();
 		drain_dac(s, file->f_flags & O_NONBLOCK);
+		lock_kernel();
+	}
+
 	down(&s->open_sem);
 	if (file->f_mode & FMODE_WRITE) {
 		stop_dac(s);
@@ -1906,9 +1975,12 @@ static int proc_au1000_dump(char *buf, char **start, off_t fpos,
 	// print out digital controller state
 	len += sprintf(buf + len, "AU1000 Audio Controller registers\n");
 	len += sprintf(buf + len, "---------------------------------\n");
-	len += sprintf (buf + len, "AC97C_CONFIG = %08x\n", au_readl(AC97C_CONFIG));
-	len += sprintf (buf + len, "AC97C_STATUS = %08x\n", au_readl(AC97C_STATUS));
-	len += sprintf (buf + len, "AC97C_CNTRL  = %08x\n", au_readl(AC97C_CNTRL));
+	len += sprintf (buf + len, "AC97C_CONFIG = %08x\n",
+			au_readl(AC97C_CONFIG));
+	len += sprintf (buf + len, "AC97C_STATUS = %08x\n",
+			au_readl(AC97C_STATUS));
+	len += sprintf (buf + len, "AC97C_CNTRL  = %08x\n",
+			au_readl(AC97C_CNTRL));
 
 	/* print out CODEC state */
 	len += sprintf(buf + len, "\nAC97 CODEC registers\n");
@@ -1964,33 +2036,37 @@ static int __devinit au1000_probe(void)
 	}
 	// Allocate the DMA Channels
 	if ((s->dma_dac.dmanr = request_au1000_dma(DMA_ID_AC97C_TX,
-						   "audio DAC")) < 0) {
+						   "audio DAC",
+						   dac_dma_interrupt,
+						   SA_INTERRUPT, s)) < 0) {
 		err("Can't get DAC DMA");
 		goto err_dma1;
 	}
 	if ((s->dma_adc.dmanr = request_au1000_dma(DMA_ID_AC97C_RX,
-						   "audio ADC")) < 0) {
+						   "audio ADC",
+						   adc_dma_interrupt,
+						   SA_INTERRUPT, s)) < 0) {
 		err("Can't get ADC DMA");
 		goto err_dma2;
 	}
 
-	s->dma_dac.irq = get_dma_done_irq(s->dma_dac.dmanr);
-	s->dma_adc.irq = get_dma_done_irq(s->dma_adc.dmanr);
-
-	if (request_irq(s->dma_dac.irq, dac_dma_interrupt,
-			SA_INTERRUPT, "audio DAC", s)) {
-		err("Can't get DAC irq #%d", s->dma_dac.irq);
-		goto err_irq1;
-	}
-	if (request_irq(s->dma_adc.irq, adc_dma_interrupt,
-			SA_INTERRUPT, "audio ADC", s)) {
-		err("Can't get ADC irq #%d", s->dma_adc.irq);
-		goto err_irq2;
-	}
-
 	info("DAC: DMA%d/IRQ%d, ADC: DMA%d/IRQ%d",
-	     s->dma_dac.dmanr, s->dma_dac.irq,
-	     s->dma_adc.dmanr, s->dma_adc.irq);
+	     s->dma_dac.dmanr, get_dma_done_irq(s->dma_dac.dmanr),
+	     s->dma_adc.dmanr, get_dma_done_irq(s->dma_adc.dmanr));
+
+#ifdef USE_COHERENT_DMA
+	// enable DMA coherency in read/write DMA channels
+	set_dma_mode(s->dma_dac.dmanr,
+		     get_dma_mode(s->dma_dac.dmanr) & ~DMA_NC);
+	set_dma_mode(s->dma_adc.dmanr,
+		     get_dma_mode(s->dma_adc.dmanr) & ~DMA_NC);
+#else
+	// disable DMA coherency in read/write DMA channels
+	set_dma_mode(s->dma_dac.dmanr,
+		     get_dma_mode(s->dma_dac.dmanr) | DMA_NC);
+	set_dma_mode(s->dma_adc.dmanr,
+		     get_dma_mode(s->dma_adc.dmanr) | DMA_NC);
+#endif
 
 	/* register devices */
 
@@ -2089,10 +2165,6 @@ static int __devinit au1000_probe(void)
  err_dma2:
 	free_au1000_dma(s->dma_dac.dmanr);
  err_dma1:
-	free_irq(s->dma_adc.irq, s);
- err_irq2:
-	free_irq(s->dma_dac.irq, s);
- err_irq1:
 	release_region(virt_to_phys((void *) AC97C_CONFIG), 0x14);
 	return -1;
 }
@@ -2108,8 +2180,6 @@ static void __devinit au1000_remove(void)
 		remove_proc_entry(AU1000_MODULE_NAME, NULL);
 #endif /* AU1000_DEBUG */
 	synchronize_irq();
-	free_irq(s->dma_adc.irq, s);
-	free_irq(s->dma_dac.irq, s);
 	free_au1000_dma(s->dma_adc.dmanr);
 	free_au1000_dma(s->dma_dac.dmanr);
 	release_region(virt_to_phys((void *) AC97C_CONFIG), 0x14);
