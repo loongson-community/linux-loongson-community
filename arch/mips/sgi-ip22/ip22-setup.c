@@ -45,7 +45,6 @@ extern void sgitime_init(void);
 extern struct hpc3_miscregs *hpc3mregs;
 extern struct rtc_ops indy_rtc_ops;
 extern void sgi_volume_set(unsigned char);
-extern void create_gio_proc_entry(void);
 
 #define KBD_STAT_IBF		0x02	/* Keyboard input buffer full */
 

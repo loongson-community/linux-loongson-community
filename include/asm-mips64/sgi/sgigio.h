@@ -12,6 +12,11 @@
 #define _ASM_SGI_SGIGIO_H
 
 /*
+ * GIO bus addresses
+ *
+ * The Indigo and Indy have two GIO bus connectors. Indigo2 (all models) have
+ * three physical connectors, but only two slots, GFX and EXP0.
+ * 
  * There is 10MB of GIO address space for GIO64 slot devices
  * slot#   slot type address range            size
  * -----   --------- ----------------------- -----
@@ -26,42 +31,56 @@
  * Following space is reserved and unused
  *   -     RESERVED  0x18000000 - 0x1effffff 112MB
  *
- * The GIO specification tends to use slot numbers while the MC specification
- * tends to use slot types.
+ * GIO bus IDs
  *
- * slot0  - the "graphics" (GFX) slot but there is no requirement that
- *          a graphics dev may only use this slot
- * slot1  - this is the "expansion"-slot 0 (EXP0), do not confuse with
- *          slot 0 (GFX).
- * slot2  - this is the "expansion"-slot 1 (EXP1), do not confuse with
- *          slot 1 (EXP0).
+ * Each GIO bus device identifies itself to the system by answering a
+ * read with an "ID" value. IDs are either 8 or 32 bits long. IDs less
+ * than 128 are 8 bits long, with the most significant 24 bits read from
+ * the slot undefined.
+ *
+ * 32-bit IDs are divided into
+ *	bits 0:6        the product ID; ranges from 0x00 to 0x7F.
+ *	bit 7		0=GIO Product ID is 8 bits wide
+ *			1=GIO Product ID is 32 bits wide.
+ *	bits 8:15       manufacturer version for the product.
+ *	bit 16		0=GIO32 and GIO32-bis, 1=GIO64.
+ *	bit 17		0=no ROM present
+ *			1=ROM present on this board AND next three words
+ *			space define the ROM.
+ *	bits 18:31	up to manufacturer.
+ *
+ * IDs above 0x50/0xd0 are of 3rd party boards.
+ *
+ * 8-bit IDs
+ *	0x01		XPI low cost FDDI
+ *	0x02		GTR TokenRing
+ *	0x04		Synchronous ISDN
+ *	0x05		ATM board [*]
+ *	0x06		Canon Interface
+ *	0x07		16 bit SCSI Card [*]
+ *	0x08		JPEG (Double Wide)
+ *	0x09		JPEG (Single Wide)
+ *	0x0a		XPI mez. FDDI device 0
+ *	0x0b		XPI mez. FDDI device 1
+ *	0x0c		SMPTE 259M Video [*]
+ *	0x0d		Babblefish Compression [*]
+ *	0x0e		E-Plex 8-port Ethernet
+ *	0x30		Lyon Lamb IVAS
+ *	0xb8		GIO 100BaseTX Fast Ethernet (gfe)
+ *
+ * [*] Device provide 32-bit ID.
+ *
  */
 
-#define GIO_SLOT_GFX	0
-#define GIO_SLOT_GIO1	1
-#define GIO_SLOT_GIO2	2
-#define GIO_NUM_SLOTS	3
+#define GIO_ID(x)		(x & 0x7f)
+#define GIO_32BIT_ID		0x80
+#define GIO_REV(x)		((x >> 8) & 0xff)
+#define GIO_64BIT_IFACE		0x10000
+#define GIO_ROM_PRESENT		0x20000
+#define GIO_VENDOR_CODE(x)	((x >> 18) & 0x3fff)
 
-#define GIO_ANY_ID	0xff
-
-#define GIO_VALID_ID_ONLY	0x01
-#define GIO_IFACE_64		0x02
-#define GIO_HAS_ROM		0x04
-
-struct gio_dev {
-	unsigned char	device;
-	unsigned char	revision;
-	unsigned short	vendor;
-	unsigned char	flags;
-
-	unsigned char	slot_number;
-	unsigned long	base_addr;
-	unsigned int	map_size;
-
-	char		*name;
-	char		slot_name[5];
-};
-
-extern struct gio_dev* gio_find_device(unsigned char device, const struct gio_dev *from);
+#define GIO_SLOT_GFX_BASE	0x1f000000
+#define GIO_SLOT_EXP0_BASE	0x1f400000
+#define GIO_SLOT_EXP1_BASE	0x1f600000
 
 #endif /* _ASM_SGI_SGIGIO_H */
