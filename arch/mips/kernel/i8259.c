@@ -16,6 +16,7 @@
 #include <linux/spinlock.h>
 #include <linux/device.h>
 
+#include <asm/i8259.h>
 #include <asm/io.h>
 
 void enable_8259A_irq(unsigned int irq);

@@ -6,14 +6,15 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/irq.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 
+#include <asm/i8259.h>
 #include <asm/io.h>
-#include <asm/irq.h>
 #include <asm/irq_cpu.h>
 #include <asm/ptrace.h>
 #include <asm/nile4.h>
@@ -21,14 +22,7 @@
 #include <asm/ddb5xxx/ddb5074.h>
 
 
-extern void __init i8259_init(void);
-extern void init_i8259_irqs (void);
-extern void i8259_disable_irq(unsigned int irq_nr);
-extern void i8259_enable_irq(unsigned int irq_nr);
-
 extern asmlinkage void ddbIRQ(void);
-extern asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs);
-extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 
 static struct irqaction irq_cascade = { no_action, 0, 0, "cascade", NULL, NULL };
 

@@ -40,7 +40,6 @@ static volatile int *lasat_int_mask = NULL;
 static volatile int lasat_int_mask_shift;
 
 extern asmlinkage void mipsIRQ(void);
-extern void do_IRQ(int irq, struct pt_regs *regs);
 
 #if 0
 #define DEBUG_INT(x...) printk(x)

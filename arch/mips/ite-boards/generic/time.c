@@ -36,7 +36,6 @@
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern unsigned int mips_counter_frequency;
-extern asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
 /*
  * Figure out the r4k offset, the amount to increment the compare

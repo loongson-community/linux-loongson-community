@@ -10,6 +10,7 @@
  *
  */
 
+#include <linux/irq.h>
 #include <linux/kernel.h>
 
 #include <asm/gt64120.h>
@@ -17,8 +18,6 @@
 #include <asm/io.h>
 
 #include <asm/cobalt/cobalt.h>
-
-extern void do_IRQ(int irq, struct pt_regs * regs);
 
 asmlinkage void via_irq(struct pt_regs *regs)
 {

@@ -33,6 +33,7 @@
 #include <linux/init.h>
 
 #include <linux/errno.h>
+#include <linux/irq.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -47,7 +48,6 @@
 
 #include <asm/bitops.h>
 #include <asm/io.h>
-#include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 
@@ -287,7 +287,6 @@ void jmr3927_spurious(struct pt_regs *regs)
 	       regs->cp0_cause, regs->cp0_epc, regs->regs[31]);
 }
 
-extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 void jmr3927_irc_irqdispatch(struct pt_regs *regs)
 {
 	int irq;

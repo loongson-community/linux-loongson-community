@@ -41,7 +41,6 @@ struct atlas_ictrl_regs *atlas_hw0_icregs
 	= (struct atlas_ictrl_regs *)ATLAS_ICTRL_REGS_BASE;
 
 extern asmlinkage void mipsIRQ(void);
-extern void do_IRQ(int irq, struct pt_regs *regs);
 
 #if 0
 #define DEBUG_INT(x...) printk(x)

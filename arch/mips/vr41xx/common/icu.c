@@ -58,7 +58,6 @@ extern asmlinkage void vr41xx_handle_interrupt(void);
 
 extern void __init init_generic_irq(void);
 extern void mips_cpu_irq_init(u32 irq_base);
-extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
 extern void vr41xx_giuint_init(void);
 extern unsigned int giuint_do_IRQ(int pin, struct pt_regs *regs);

@@ -12,6 +12,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
+#include <linux/irq.h>
 #include <linux/bitops.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -115,7 +116,6 @@ struct irqaction cpuerr_irq = { crime_cpuerr_intr, SA_INTERRUPT,
 			       NULL };
 
 extern void ip32_handle_int (void);
-asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
 /*
  * For interrupts wired from a single device to the CPU.  Only the clock

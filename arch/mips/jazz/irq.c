@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/spinlock.h>
 
+#include <asm/i8259.h>
 #include <asm/io.h>
 #include <asm/jazz.h>
 
@@ -19,7 +20,7 @@ extern asmlinkage void jazz_handle_int(void);
 
 /*
  * On systems with i8259-style interrupt controllers we assume for
- * driver compatibility reasons interrupts 0 - 15 to be the i8295
+ * driver compatibility reasons interrupts 0 - 15 to be the i8259
  * interrupts even if the hardware uses a different interrupt numbering.
  */
 void __init init_IRQ (void)

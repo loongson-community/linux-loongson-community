@@ -211,8 +211,6 @@ int vr41xx_cascade_irq(unsigned int irq, int (*get_irq_number)(int irq))
 	return retval;
 }
 
-extern unsigned int do_IRQ(int irq, struct pt_regs *regs);
-
 unsigned int giuint_do_IRQ(int pin, struct pt_regs *regs)
 {
 	struct vr41xx_giuint_cascade *cascade;

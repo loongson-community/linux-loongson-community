@@ -670,7 +670,6 @@ static void toshiba_rbtx4927_irq_isa_end(unsigned int irq)
 void __init init_IRQ(void)
 {
 	extern void tx4927_irq_init(void);
-	extern void init_i8259_irqs(void);
 
 	cli();
 

@@ -11,6 +11,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/irq.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <asm/io.h>
@@ -18,8 +19,6 @@
 #include <asm/tx3912.h>
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
-
-extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
 
 static void enable_irq6(unsigned int irq)
 {

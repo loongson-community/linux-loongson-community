@@ -23,13 +23,14 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/irq.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
 #include <linux/random.h>
 
-#include <asm/irq.h>
+#include <asm/i8259.h>
 #include <asm/io.h>
 #include <asm/mips-boards/malta.h>
 #include <asm/mips-boards/maltaint.h>
@@ -39,8 +40,6 @@
 #include <asm/mips-boards/msc01_pci.h>
 
 extern asmlinkage void mipsIRQ(void);
-extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
-extern void init_i8259_irqs (void);
 extern int mips_pcibios_iack(void);
 
 #ifdef CONFIG_KGDB

@@ -7,6 +7,7 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/irq.h>
 #include <linux/errno.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -25,7 +26,6 @@
 #include <asm/io.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/irq.h>
 
 #include <asm/ptrace.h>
 #include <asm/processor.h>
@@ -68,7 +68,6 @@ unsigned char num_bridges;	/* number of bridges in the system */
  */
 
 extern asmlinkage void ip27_irq(void);
-extern void do_IRQ(int irq, struct pt_regs *regs);
 
 extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
 int intr_connect_level(int cpu, int bit);

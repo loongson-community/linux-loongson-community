@@ -36,7 +36,6 @@ static char lc2msk_to_irqnr[256];
 static char lc3msk_to_irqnr[256];
 
 extern asmlinkage void indyIRQ(void);
-extern void do_IRQ(int irq, struct pt_regs *regs);
 extern int ip22_eisa_init(void);
 
 static void enable_local0_irq(unsigned int irq)

@@ -22,6 +22,7 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/irq.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
@@ -34,8 +35,6 @@
 #include <asm/sgi/ioc.h>
 #include <asm/sgi/mc.h>
 #include <asm/sgi/ip22.h>
-
-extern void do_IRQ(int irq, struct pt_regs *regs);
 
 #define EISA_MAX_SLOTS		  4
 #define EISA_MAX_IRQ             16
