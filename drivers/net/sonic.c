@@ -14,7 +14,7 @@
  */
 
 static const char *version =
-	"sonic.c:v0.90 15.8.98 tsbogend@alpha.franken.de\n";
+	"sonic.c:v0.91 28.8.98 tsbogend@alpha.franken.de\n";
 
 /*
  * Sources: Olivetti M700-10 Risc Personal Computer hardware handbook,
@@ -140,7 +140,7 @@ __initfunc(int sonic_probe(struct device *dev))
      */
     if (mips_machgroup != MACH_GROUP_JAZZ)
 	return -ENODEV;
-    if (base_addr > 0x1ff)	/* Check a single specified location. */
+    if (base_addr >= KSEG0)	/* Check a single specified location. */
 	return sonic_probe1(dev, base_addr, dev->irq);
     else if (base_addr != 0)	/* Don't probe at all. */
 	return -ENXIO;
