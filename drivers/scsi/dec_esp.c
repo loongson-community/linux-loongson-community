@@ -122,7 +122,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 	if (IOASIC) {
 		esp_dev = 0;
 		esp = esp_allocate(tpnt, (void *) esp_dev);
-	
+
 		scsi_dma_ptr = (unsigned long *) (system_base + IOCTL + SCSI_DMA_P);
 		scsi_next_ptr = (unsigned long *) (system_base + IOCTL + SCSI_DMA_BP);
 		scsi_scr = (unsigned long *) (system_base + IOCTL + SCSI_SCR);
@@ -132,7 +132,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 
 		/* Do command transfer with programmed I/O */
 		esp->do_pio_cmds = 1;
-	
+
 		/* Required functions */
 		esp->dma_bytes_sent = &dma_bytes_sent;
 		esp->dma_can_transfer = &dma_can_transfer;
@@ -155,7 +155,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 		esp->dma_reset = 0;
 		esp->dma_led_off = 0;
 		esp->dma_led_on = 0;
-		
+
 		/* virtual DMA functions */
 		esp->dma_mmu_get_scsi_one = &dma_mmu_get_scsi_one;
 		esp->dma_mmu_get_scsi_sgl = &dma_mmu_get_scsi_sgl;
@@ -173,41 +173,41 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 		 *
 		 */
 		esp->dregs = JAZZ_SCSI_DMA;
-	
+
 		/* ESP register base */
 		esp->eregs = (struct ESP_regs *) (system_base + SCSI);
-	
+
 		/* Set the command buffer */
 		esp->esp_command = (volatile unsigned char *) cmd_buffer;
-	
+
 		/* get virtual dma address for command buffer */
 		esp->esp_command_dvma = (__u32) KSEG1ADDR((volatile unsigned char *) cmd_buffer);
-	
+
 		esp->irq = dec_interrupt[DEC_IRQ_ASC];
 
 		esp->scsi_id = 7;
-		
+
 		/* Check for differential SCSI-bus */
 		esp->diff = 0;
 
 		esp_initialize(esp);
 
-		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
+		if (request_irq(esp->irq, esp_intr, SA_INTERRUPT,
 				"ncr53c94", esp->ehost))
 			goto err_dealloc;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_MERR],
-				scsi_dma_merr_int, SA_INTERRUPT, 
+				scsi_dma_merr_int, SA_INTERRUPT,
 				"ncr53c94 error", esp->ehost))
 			goto err_free_irq;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_ERR],
-				scsi_dma_err_int, SA_INTERRUPT, 
+				scsi_dma_err_int, SA_INTERRUPT,
 				"ncr53c94 overrun", esp->ehost))
 			goto err_free_irq_merr;
 		if (request_irq(dec_interrupt[DEC_IRQ_ASC_DMA],
-				scsi_dma_int, SA_INTERRUPT, 
+				scsi_dma_int, SA_INTERRUPT,
 				"ncr53c94 dma", esp->ehost))
 			goto err_free_irq_err;
- 			
+ 
 	}
 
 	if (TURBOCHANNEL) {
@@ -265,7 +265,7 @@ int dec_esp_detect(Scsi_Host_Template * tpnt)
 			esp->dma_mmu_release_scsi_sgl = 0;
 			esp->dma_advance_sg = 0;
 
- 			if (request_irq(esp->irq, esp_intr, SA_INTERRUPT, 
+ 			if (request_irq(esp->irq, esp_intr, SA_INTERRUPT,
  					 "PMAZ_AA", esp->ehost)) {
  				esp_deallocate(esp);
  				release_tc_card(slot);
@@ -443,19 +443,19 @@ static void dma_mmu_get_scsi_one(struct NCR_ESP *esp, Scsi_Cmnd * sp)
 
 static void dma_mmu_get_scsi_sgl(struct NCR_ESP *esp, Scsi_Cmnd * sp)
 {
-    int sz = sp->SCp.buffers_residual;
-    struct mmu_sglist *sg = (struct mmu_sglist *) sp->SCp.buffer;
+	int sz = sp->SCp.buffers_residual;
+	struct scatterlist *sg = sp->SCp.buffer;
 
-    while (sz >= 0) {
-		sg[sz].dvma_addr = PHYSADDR(sg[sz].addr);
-	sz--;
-    }
-	sp->SCp.ptr = (char *) ((unsigned long) sp->SCp.buffer->dvma_address);
+	while (sz >= 0) {
+		sg[sz].dma_address = PHYSADDR(sg[sz].address);
+		sz--;
+	}
+	sp->SCp.ptr = (char *) ((unsigned long) sp->SCp.buffer->dma_address);
 }
 
 static void dma_advance_sg(Scsi_Cmnd * sp)
 {
-	sp->SCp.ptr = (char *) ((unsigned long) sp->SCp.buffer->dvma_address);
+	sp->SCp.ptr = (char *) ((unsigned long) sp->SCp.buffer->dma_address);
 }
 
 static void pmaz_dma_drain(struct NCR_ESP *esp)
@@ -487,7 +487,7 @@ static void pmaz_dma_init_write(struct NCR_ESP *esp, __u32 vaddress, int length)
 	memcpy((void *) (esp->slot + DEC_SCSI_SRAM + ESP_TGT_DMA_SIZE),
 			KSEG0ADDR((void *) vaddress), length);
 
-	*dmareg = TC_ESP_DMAR_WRITE | 
+	*dmareg = TC_ESP_DMAR_WRITE |
 		TC_ESP_DMA_ADDR(esp->slot + DEC_SCSI_SRAM + ESP_TGT_DMA_SIZE);
 
 	iob();
