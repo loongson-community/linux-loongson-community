@@ -136,7 +136,7 @@ obj-$(CONFIG_SIS900) += sis900.o
 obj-$(CONFIG_DM9102) += dmfe.o
 obj-$(CONFIG_YELLOWFIN) += yellowfin.o
 obj-$(CONFIG_ACENIC) += acenic.o
-
+obj-$(CONFIG_NATSEMI) += natsemi.o
 obj-$(CONFIG_STNIC) += stnic.o 8390.o
 
 ifeq ($(CONFIG_SK98LIN),y)
@@ -273,7 +273,7 @@ obj-$(CONFIG_CS89x0) += cs89x0.o
 obj-$(CONFIG_MACSONIC) += macsonic.o
 obj-$(CONFIG_MACMACE) += macmace.o
 obj-$(CONFIG_MAC89x0) += mac89x0.o
-
+obj-$(CONFIG_TUN) += tun.o
 #
 # HIPPI adapters
 #

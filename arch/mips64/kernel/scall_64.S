@@ -220,7 +220,7 @@ sys_call_table:
 	PTR	sys_uselib
 	PTR	sys_swapon
 	PTR	sys_reboot
-	PTR	old_readdir
+	PTR	sys_ni_syscall			/* old_readdir */
 	PTR	sys_mmap				/* 4090 */
 	PTR	sys_munmap
 	PTR	sys_truncate
@@ -344,3 +344,4 @@ sys_call_table:
 	PTR	sys_pivot_root				/* 4210 */
 	PTR	sys_mincore
 	PTR	sys_madvise
+	PTR	sys_getdents64

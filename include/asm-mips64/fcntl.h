@@ -44,6 +44,12 @@
 #define F_SETSIG	10	/*  for sockets. */
 #define F_GETSIG	11	/*  for sockets. */
 
+#ifdef __KERNEL__
+#define F_GETLK64	33	/*  using 'struct flock64' */
+#define F_SETLK64	34
+#define F_SETLKW64	35
+#endif
+
 /* for F_[GET|SET]FL */
 #define FD_CLOEXEC	1	/* actually anything with low bit set goes */
 
@@ -72,5 +78,9 @@ typedef struct flock {
 	__kernel_pid_t l_pid;
 	long  pad[4];			/* ZZZZZZZZZZZZZZZZZZZZZZZZZZ */
 } flock_t;
+
+#ifdef __KERNEL__
+#define flock64		flock
+#endif
 
 #endif /* _ASM_FCNTL_H */

@@ -37,6 +37,7 @@ if [ "$CONFIG_ISDN_DRV_HISAX" != "n" ]; then
       bool '    Disable keypad protocol option' CONFIG_HISAX_NO_KEYPAD
    fi
    bool '  HiSax Support for german 1TR6' CONFIG_HISAX_1TR6
+   bool '  HiSax Support for US NI1' CONFIG_HISAX_NI1
    comment '  HiSax supported cards'
    bool '  Teles 16.0/8.0' CONFIG_HISAX_16_0
    bool '  Teles 16.3 or PNP or PCMCIA' CONFIG_HISAX_16_3
@@ -55,6 +56,7 @@ if [ "$CONFIG_ISDN_DRV_HISAX" != "n" ]; then
    bool '  USR Sportster internal TA' CONFIG_HISAX_SPORTSTER
    bool '  MIC card' CONFIG_HISAX_MIC
    bool '  NETjet card' CONFIG_HISAX_NETJET
+   bool '  NETspider U card' CONFIG_HISAX_NETJET_U
    bool '  Niccy PnP/PCI card' CONFIG_HISAX_NICCY
    bool '  Siemens I-Surf card' CONFIG_HISAX_ISURF
    bool '  HST Saphir card' CONFIG_HISAX_HSTSAPHIR
@@ -83,7 +85,15 @@ if [ "$CONFIG_EXPERIMENTAL" != "n" ]; then
 fi
 dep_tristate 'Eicon active card support' CONFIG_ISDN_DRV_EICON $CONFIG_ISDN
 if [ "$CONFIG_ISDN_DRV_EICON" != "n" ]; then
-   bool '  Eicon S,SX,SCOM,Quadro,S2M support' CONFIG_ISDN_DRV_EICON_ISA
+   if [ "$CONFIG_ISDN_DRV_EICON_STANDALONE" != "y" ]; then
+      if [ "$CONFIG_PCI" = "y" ]; then
+         bool '    Eicon PCI DIVA Server BRI/PRI/4BRI support' CONFIG_ISDN_DRV_EICON_PCI
+      fi
+      bool '    Eicon S,SX,SCOM,Quadro,S2M support' CONFIG_ISDN_DRV_EICON_ISA
+   fi
+   if [ "$CONFIG_PCI" = "y" ]; then
+      bool '    build eicon driver type standalone' CONFIG_ISDN_DRV_EICON_STANDALONE
+   fi
 fi
 dep_tristate 'CAPI2.0 support' CONFIG_ISDN_CAPI $CONFIG_ISDN
 if [ "$CONFIG_EXPERIMENTAL" != "n" ]; then
@@ -109,8 +119,13 @@ if [ "$CONFIG_ISDN_CAPI" != "n" ]; then
    bool '  Verbose reason code reporting (kernel size +=7K)' CONFIG_ISDN_DRV_AVMB1_VERBOSE_REASON
 fi
 if [ "$CONFIG_PROC_FS" != "n" ]; then
-if [ "$CONFIG_MODULES" != "n" ]; then
-   bool 'Hypercope HYSDN cards (Champ, Ergo, Metro) support (module)' CONFIG_HYSDN
+   if [ "$CONFIG_MODULES" != "n" ]; then
+      bool 'Hypercope HYSDN cards (Champ, Ergo, Metro) support (module)' CONFIG_HYSDN
+   fi
 fi
+if [ "$CONFIG_HYSDN" != "n" ]; then
+   if [ "$CONFIG_ISDN_CAPI" != "n" ]; then
+      bool '  HYSDN CAPI 2.0 support' CONFIG_HYSDN_CAPI
+   fi 
 fi
 endmenu

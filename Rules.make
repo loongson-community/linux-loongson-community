@@ -10,7 +10,7 @@
 #
 # Special variables which should not be exported
 #
-unexport EXTRA_ASFLAGS
+unexport EXTRA_AFLAGS
 unexport EXTRA_CFLAGS
 unexport EXTRA_LDFLAGS
 unexport EXTRA_ARFLAGS
@@ -57,7 +57,21 @@ first_rule: sub_dirs
 	) > $(dir $@)/.$(notdir $@).flags
 
 %.o: %.s
-	$(AS) $(ASFLAGS) $(EXTRA_CFLAGS) -o $@ $<
+	$(AS) $(AFLAGS) $(EXTRA_CFLAGS) -o $@ $<
+
+# Old makefiles define their own rules for compiling .S files,
+# but these standard rules are available for any Makefile that
+# wants to use them.  Our plan is to incrementally convert all
+# the Makefiles to these standard rules.  -- rmk, mec
+ifdef USE_STANDARD_AS_RULE
+
+%.s: %.S
+	$(CPP) $(AFLAGS) $(EXTRA_AFLAGS) $(AFLAGS_$@) $< > $@
+
+%.o: %.S
+	$(CC) $(AFLAGS) $(EXTRA_AFLAGS) $(AFLAGS_$@) -c -o $@ $<
+
+endif
 
 #
 #
@@ -208,8 +222,16 @@ $(MODINCL)/%.ver: %.c
 	
 $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver)): $(TOPDIR)/include/linux/autoconf.h
 
-$(TOPDIR)/include/linux/modversions.h: $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver))
-	@echo updating $(TOPDIR)/include/linux/modversions.h
+# updates .ver files but not modversions.h
+fastdep: $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=.ver))
+
+# updates .ver files and modversions.h like before (is this needed?)
+dep: fastdep update-modverfile
+
+endif # SYMTAB_OBJS 
+
+# update modversions.h, but only if it would change
+update-modverfile:
 	@(echo "#ifndef _LINUX_MODVERSIONS_H";\
 	  echo "#define _LINUX_MODVERSIONS_H"; \
 	  echo "#include <linux/modsetver.h>"; \
@@ -218,11 +240,14 @@ $(TOPDIR)/include/linux/modversions.h: $(addprefix $(MODINCL)/,$(SYMTAB_OBJS:.o=
 	    if [ -f $$f ]; then echo "#include <linux/modules/$${f}>"; fi; \
 	  done; \
 	  echo "#endif"; \
-	) > $@
-
-dep fastdep: $(TOPDIR)/include/linux/modversions.h
-
-endif # SYMTAB_OBJS 
+	) > $(TOPDIR)/include/linux/modversions.h.tmp
+	@if [ -r $(TOPDIR)/include/linux/modversions.h ] && cmp -s $(TOPDIR)/include/linux/modversions.h $(TOPDIR)/include/linux/modversions.h.tmp; then \
+		echo $(TOPDIR)/include/linux/modversions.h was not updated; \
+		rm -f $(TOPDIR)/include/linux/modversions.h.tmp; \
+	else \
+		echo $(TOPDIR)/include/linux/modversions.h was updated; \
+		mv -f $(TOPDIR)/include/linux/modversions.h.tmp $(TOPDIR)/include/linux/modversions.h; \
+	fi
 
 $(M_OBJS): $(TOPDIR)/include/linux/modversions.h
 ifdef MAKING_MODULES

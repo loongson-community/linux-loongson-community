@@ -247,7 +247,7 @@ static inline void reschedule_idle(struct task_struct * p, unsigned long flags)
 	 * one will have the least active cache context.) Also find
 	 * the executing process which has the least priority.
 	 */
-	oldest_idle = -1ULL;
+	oldest_idle = (cycles_t) -1;
 	target_tsk = NULL;
 	max_prio = 1;
 
@@ -454,7 +454,6 @@ signed long schedule_timeout(signed long timeout)
  */
 static inline void __schedule_tail(struct task_struct *prev)
 {
-	current->need_resched |= prev->need_resched;
 #ifdef CONFIG_SMP
 	if ((prev->state == TASK_RUNNING) &&
 			(prev != idle_task(smp_processor_id()))) {

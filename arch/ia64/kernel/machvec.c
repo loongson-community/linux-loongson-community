@@ -1,14 +1,12 @@
+#include <linux/config.h>
 #include <linux/kernel.h>
 
 #include <asm/page.h>
 #include <asm/machvec.h>
 
-struct ia64_machine_vector ia64_mv;
+#ifdef CONFIG_IA64_GENERIC
 
-void
-machvec_noop (void)
-{
-}
+struct ia64_machine_vector ia64_mv;
 
 /*
  * Most platforms use this routine for mapping page frame addresses
@@ -45,4 +43,11 @@ machvec_init (const char *name)
 	}
 	ia64_mv = *mv;
 	printk("booting generic kernel on platform %s\n", name);
+}
+
+#endif /* CONFIG_IA64_GENERIC */
+
+void
+machvec_noop (void)
+{
 }

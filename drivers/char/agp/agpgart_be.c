@@ -67,14 +67,16 @@ static inline void flush_cache(void)
 {
 #if defined(__i386__)
 	asm volatile ("wbinvd":::"memory");
-#elif defined(__alpha__)
+#elif defined(__alpha__) || defined(__ia64__)
 	/* ??? I wonder if we'll really need to flush caches, or if the
 	   core logic can manage to keep the system coherent.  The ARM
 	   speaks only of using `cflush' to get things in memory in
 	   preparation for power failure.
 
 	   If we do need to call `cflush', we'll need a target page,
-	   as we can only flush one page at a time.  */
+	   as we can only flush one page at a time.
+
+	   Ditto for IA-64. --davidm 00/08/07 */
 	mb();
 #else
 #error "Please define flush_cache."
@@ -412,10 +414,9 @@ int agp_unbind_memory(agp_memory * curr)
 
 /* 
  * Driver routines - start
- * Currently this module supports the 
- * i810, 440lx, 440bx, 440gx, via vp3, via mvp3,
- * amd irongate, ALi M1541 and generic support for the
- * SiS chipsets.
+ * Currently this module supports the following chipsets:
+ * i810, 440lx, 440bx, 440gx, via vp3, via mvp3, via kx133, via kt133,
+ * amd irongate, ALi M1541, and generic support for the SiS chipsets.
  */
 
 /* Generic Agp routines - Start */
@@ -637,7 +638,7 @@ static int agp_generic_create_gatt_table(void)
 	}
 	table_end = table + ((PAGE_SIZE * (1 << page_order)) - 1);
 
-	for (page = virt_to_page(table); page < virt_to_page(table_end); page++)
+	for (page = virt_to_page(table); page <= virt_to_page(table_end); page++)
 		set_bit(PG_reserved, &page->flags);
 
 	agp_bridge.gatt_table_real = (unsigned long *) table;
@@ -647,7 +648,7 @@ static int agp_generic_create_gatt_table(void)
 	CACHE_FLUSH();
 
 	if (agp_bridge.gatt_table == NULL) {
-		for (page = virt_to_page(table); page < virt_to_page(table_end); page++)
+		for (page = virt_to_page(table); page <= virt_to_page(table_end); page++)
 			clear_bit(PG_reserved, &page->flags);
 
 		free_pages((unsigned long) table, page_order);
@@ -704,7 +705,7 @@ static int agp_generic_free_gatt_table(void)
 	table = (char *) agp_bridge.gatt_table_real;
 	table_end = table + ((PAGE_SIZE * (1 << page_order)) - 1);
 
-	for (page = virt_to_page(table); page < virt_to_page(table_end); page++)
+	for (page = virt_to_page(table); page <= virt_to_page(table_end); page++)
 		clear_bit(PG_reserved, &page->flags);
 
 	free_pages((unsigned long) agp_bridge.gatt_table_real, page_order);
@@ -976,6 +977,7 @@ static int intel_i810_remove_entries(agp_memory * mem, off_t pg_start,
 			 agp_bridge.scratch_page);
 	}
 
+	CACHE_FLUSH();
 	agp_bridge.tlb_flush(mem);
 	return 0;
 }
@@ -2127,12 +2129,6 @@ static struct {
 #endif /* CONFIG_AGP_SIS */
 
 #ifdef CONFIG_AGP_VIA
-	{ PCI_DEVICE_ID_VIA_8371_0,
-		PCI_VENDOR_ID_VIA,
-		VIA_APOLLO_SUPER,
-		"Via",
-		"Apollo Super",
-		via_generic_setup },
 	{ PCI_DEVICE_ID_VIA_8501_0,
 		PCI_VENDOR_ID_VIA,
 		VIA_MVP4,
@@ -2156,6 +2152,18 @@ static struct {
 		VIA_APOLLO_PRO,
 		"Via",
 		"Apollo Pro",
+		via_generic_setup },
+	{ PCI_DEVICE_ID_VIA_8371_0,
+		PCI_VENDOR_ID_VIA,
+		VIA_APOLLO_KX133,
+		"Via",
+		"Apollo Pro KX133",
+		via_generic_setup },
+	{ PCI_DEVICE_ID_VIA_8363_0,
+		PCI_VENDOR_ID_VIA,
+		VIA_APOLLO_KT133,
+		"Via",
+		"Apollo Pro KT133",
 		via_generic_setup },
 	{ 0,
 		PCI_VENDOR_ID_VIA,

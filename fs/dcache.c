@@ -1189,7 +1189,9 @@ static void __init dcache_init(unsigned long mempages)
 	if (!dentry_cache)
 		panic("Cannot create dentry cache");
 
+#if PAGE_SHIFT < 13
 	mempages >>= (13 - PAGE_SHIFT);
+#endif
 	mempages *= sizeof(struct list_head);
 	for (order = 0; ((1UL << order) << PAGE_SHIFT) < mempages; order++)
 		;
@@ -1228,9 +1230,6 @@ static void __init dcache_init(unsigned long mempages)
 /* SLAB cache for __getname() consumers */
 kmem_cache_t *names_cachep;
 
-/* SLAB cache for files_struct structures */
-kmem_cache_t *files_cachep;
-
 /* SLAB cache for file structures */
 kmem_cache_t *filp_cachep;
 
@@ -1246,19 +1245,13 @@ void __init vfs_caches_init(unsigned long mempages)
 			sizeof(struct buffer_head), 0,
 			SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if(!bh_cachep)
-		panic("Cannot create buffer head SLAB cache\n");
+		panic("Cannot create buffer head SLAB cache");
 
 	names_cachep = kmem_cache_create("names_cache", 
 			PAGE_SIZE, 0, 
 			SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (!names_cachep)
 		panic("Cannot create names SLAB cache");
-
-	files_cachep = kmem_cache_create("files_cache", 
-			 sizeof(struct files_struct), 0, 
-			 SLAB_HWCACHE_ALIGN, NULL, NULL);
-	if (!files_cachep) 
-		panic("Cannot create files SLAB cache");
 
 	filp_cachep = kmem_cache_create("filp", 
 			sizeof(struct file), 0,

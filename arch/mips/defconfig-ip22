@@ -114,10 +114,8 @@ CONFIG_INET=y
 CONFIG_IP_PNP=y
 CONFIG_IP_PNP_BOOTP=y
 # CONFIG_IP_PNP_RARP is not set
-# CONFIG_IP_ROUTER is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
-# CONFIG_IP_ALIAS is not set
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
 # CONFIG_IPV6 is not set
@@ -337,6 +335,11 @@ CONFIG_SGI_DS1286=y
 # USB support
 #
 # CONFIG_USB is not set
+
+#
+# Input core support
+#
+# CONFIG_INPUT is not set
 
 #
 # Kernel hacking

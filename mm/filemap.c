@@ -414,7 +414,7 @@ static int writeout_one_page(struct page *page)
 		if (buffer_locked(bh) || !buffer_dirty(bh) || !buffer_uptodate(bh))
 			continue;
 
-		bh->b_flushtime = 0;
+		bh->b_flushtime = jiffies;
 		ll_rw_block(WRITE, 1, &bh);	
 	} while ((bh = bh->b_this_page) != head);
 	return 0;
@@ -513,7 +513,6 @@ static inline void __add_to_page_cache(struct page * page,
 	struct address_space *mapping, unsigned long offset,
 	struct page **hash)
 {
-	struct page *alias;
 	unsigned long flags;
 
 	if (PageLocked(page))
@@ -526,9 +525,6 @@ static inline void __add_to_page_cache(struct page * page,
 	add_page_to_inode_queue(mapping, page);
 	__add_page_to_hash_queue(page, hash);
 	lru_cache_add(page);
-	alias = __find_page_nolock(mapping, offset, *hash);
-	if (alias != page)
-		BUG();
 }
 
 void add_to_page_cache(struct page * page, struct address_space * mapping, unsigned long offset)

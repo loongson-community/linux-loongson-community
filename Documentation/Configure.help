@@ -2305,7 +2305,7 @@ CONFIG_AGP
 Intel 440LX/BX/GX support
 CONFIG_AGP_INTEL
   This option gives you AGP support for the GLX component of the
-  "soon to be released" XFree86 4.x on Intel 440LX/BX/GX chipsets.
+  XFree86 4.x on Intel 440LX/BX/GX chipsets.
 
   For the moment, you should probably say N, unless you want to test
   the GLX component for XFree86 3.3.6, which can be downloaded from
@@ -2320,7 +2320,7 @@ CONFIG_AGP_I810
 VIA chipset support
 CONFIG_AGP_VIA
   This option gives you AGP support for the GLX component of the
-  "soon to be released" XFree86 4.x on VIA MPV3/Apollo Pro chipsets.
+  XFree86 4.x on VIA MPV3/Apollo Pro chipsets.
 
   For the moment, you should probably say N, unless you want to test
   the GLX component for XFree86 3.3.6, which can be downloaded from
@@ -2329,7 +2329,7 @@ CONFIG_AGP_VIA
 AMD Irongate support
 CONFIG_AGP_AMD
   This option gives you AGP support for the GLX component of the
-  "soon to be released" XFree86 4.x on Intel AMD Irongate chipset.
+  XFree86 4.x on Intel AMD Irongate chipset.
 
   For the moment, you should probably say N, unless you want to test
   the GLX component for XFree86 3.3.6, which can be downloaded from
@@ -2350,7 +2350,7 @@ CONFIG_AGP_SIS
 ALI M1541 support
 CONFIG_AGP_ALI
   This option gives you AGP support for the GLX component of the
-  "soon to be released" XFree86 4.x on the ALi M1541 chipset.
+  XFree86 4.x on the ALi M1541 chipset.
 
   This chipset can do AGP 1x and 2x, but note that there is an
   acknowledged incompatibility with Matrox G200 cards. Due to
@@ -2777,7 +2777,8 @@ CONFIG_M386
      SL/SLC/SLC2/SLC3/SX/SX2 and UMC U5D or U5S.
    - "586" for generic Pentium CPUs, possibly lacking the TSC 
      (time stamp counter) register.
-   - "Pentium-Classic" for the Intel Pentium/Pentium MMX.
+   - "Pentium-Classic" for the Intel Pentium.
+   - "Pentium-MMX" for the Intel Pentium MMX.
    - "Pentium-Pro" for the Intel Pentium Pro/Celeron/Pentium II.
    - "Pentium-III" for the Intel Pentium III.
    - "K6" for the AMD K6, K6-II and K6-III (aka K6-3D).
@@ -3672,27 +3673,6 @@ CONFIG_IP_ROUTE_NAT
   can be gotten from the document
   http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/nat.html
 
-IP: optimize as router not host
-CONFIG_IP_ROUTER
-  Some Linux network drivers use a technique called copy and checksum
-  to optimize host performance. For a machine which acts as a router
-  most of the time and is forwarding most packets to another host this
-  is however a loss. If you say Y here, copy and checksum will be
-  switched off. In the future, it may make other changes which
-  optimize for router operation.
-
-  Note that your box can only act as a router if you enable IP
-  forwarding in your kernel; you can do that by saying Y to "/proc
-  file system support" and "Sysctl support" below and executing the
-  line
-
-    echo "1" > /proc/sys/net/ipv4/ip_forward
-
-  at boot time after the /proc file system has been mounted. You can
-  do that even if you say N here.
-
-  If unsure, say N here.
-
 IP: kernel level autoconfiguration
 CONFIG_IP_PNP
   This enables automatic configuration of IP addresses of devices and
@@ -3761,26 +3741,6 @@ CONFIG_NET_IPGRE_BROADCAST
   Network), which looks like a normal Ethernet LAN (Local Area
   Network), but can be distributed all over the Internet. If you want
   to do that, say Y here and to "IP: multicast routing" below.
-
-IP: aliasing support
-CONFIG_IP_ALIAS
-  Sometimes it is useful to give several IP addresses to a single
-  physical network interface (serial port or Ethernet card). The most
-  common case is that you want to serve different WWW or FTP documents
-  to the outside depending on which of your host names was used to
-  connect to you. This is called "multihosting" or "virtual domains"
-  or "virtual hosting services" and is explained in the
-  Virtual-Services-HOWTO, available from
-  http://www.linuxdoc.org/docs.html#howto .
-
-  Another scenario would be that there are two logical networks living
-  on your local Ethernet and you want to access them both with the
-  same Ethernet card. This can also be done if you say Y here.
-
-  The configuration of these alias addresses is done with a special
-  name syntax explained in Documentation/networking/alias.txt and in
-  the IP-Alias mini-HOWTO. If you want this, say Y. Most people don't
-  need it and say N.
 
 IP: multicast routing
 CONFIG_IP_MROUTE
@@ -7259,7 +7219,29 @@ CONFIG_EQUALIZER
   module, say M here and read Documentation/modules.txt. If unsure,
   say N.
 
-Ethertap network tap (EXPERIMENTAL)
+Universal TUN/TAP device driver.
+CONFIG_TUN
+  TUN/TAP provides packet reception and transmission for user space programs.
+  It can be viewed as a simple Point-to-Point or Ethernet device, which
+  instead of receiving packets from a physical media, receives them from
+  user space program and instead of sending packets via physical media
+  writes them to the user space program.
+
+  When a program opens /dev/net/tun, driver creates and registers 
+  corresponding net device tunX or tapX. After a program closed above 
+  devices, driver will automatically delete tunXX or tapXX device and all 
+  routes corresponding to it.
+
+  Please read Documentation/networking/tuntap.txt for more information.
+
+  This driver is also available as a module ( = code which can be
+  inserted in and removed from the running kernel whenever you want).
+  The module will be called tun.o. If you want to compile it as a
+  module, say M here and read Documentation/modules.txt.
+
+  If you don't know what to use this for, you don't need it.
+
+Ethertap network tap (OBSOLETE)
 CONFIG_ETHERTAP
   If you say Y here (and have said Y to "Kernel/User network link
   driver", above) and create a character special file /dev/tap0 with
@@ -8736,6 +8718,13 @@ CONFIG_NE2000
   module, say M here and read Documentation/modules.txt as well as
   Documentation/networking/net-modules.txt.
 
+National Semiconductor DP83810 series PCI Ethernet support
+CONFIG_NATSEMI
+  This driver is for the National Semiconductor DP83810 series,
+  including the 83815 chip.
+  More specific information and updates are available from 
+  http://www.scyld.com/network/natsemi.html
+
 SK_G16 support
 CONFIG_SK_G16
   If you have a network (Ethernet) card of this type, say Y and read
@@ -10173,9 +10162,10 @@ CONFIG_USB_SERIAL_OMNINET
 
 USB Digi International AccelePort USB Serial Driver
 CONFIG_USB_SERIAL_DIGI_ACCELEPORT
-  Say Y here if you want to use a Digi AccelePort USB 4 device,
-  a 4 port USB serial converter.  The Digi Acceleport USB 2 and
-  8 are not yet supported by this driver.
+  Say Y here if you want to use Digi AccelePort USB 2 or 4 devices,
+  2 port (plus parallel port) and 4 port USB serial converters.  The
+  parallel port on the USB 2 appears as a third serial port on Linux.
+  The Digi Acceleport USB 8 is not yet supported by this driver.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -10236,16 +10226,19 @@ USB ADMtek Pegasus-based ethernet device support
 CONFIG_USB_PEGASUS
   Say Y if you want to use your USB ethernet device. Supported
   cards until now are:
+    ADMtek AN986 (eval. board)
     Accton 10/100
     Billington USB-100
     Corega FEter USB-TX
     MELCO/BUFFALO LUA-TX
-    D-Link DSB-650TX, DSB-650TX-PNA
-    Linksys USB100TX
-    SNC 202
+    D-Link DSB-650TX, DSB-650TX-PNA, DSB-650, DU-E10, DU-E100
+    Linksys USB100TX, USB10TX
+    LANEED Ethernet LD-USB/TX
+    SMC 202
+    SOHOware NUB Ethernet
   If you have devices with vendor IDs other than noted above
   you should add them in the driver code and send a message
-  to me (petkan@spct.net) for update.
+  to me (petkan@dce.bg) for update.
 
   This code is also available as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want).
@@ -11296,6 +11289,21 @@ CONFIG_SMB_FS
   can be inserted in and removed from the running kernel whenever you
   want), say M here and read Documentation/modules.txt. The module
   will be called smbfs.o. Most people say N, however.
+
+nls support setting
+CONFIG_SMB_NLS_REMOTE
+  This setting allows you to specify a default value for which
+  codepage the server uses. If this field is left blank no
+  translations will be done by default. The local codepage/charset
+  default to CONFIG_NLS_DEFAULT.
+
+  The nls settings can be changed at mount time, if your smbmount
+  supports that, using the codepage and iocharset parameters.
+
+  Currently no smbmount distributed with samba supports this, it is
+  assumed future versions will. In the meantime you can get an
+  unofficial patch for samba 2.0.7 from:
+  http://www.hojdpunkten.ac.se/054/samba/index.html
 
 Coda file system support (advanced network fs)
 CONFIG_CODA_FS
@@ -14085,7 +14093,13 @@ CONFIG_AEDSP16_MPU401
 Creative EMU10K1 based PCI sound cards
 CONFIG_SOUND_EMU10K1
   Say Y or M if you have a PCI sound card using the EMU10K1
-  chipset, such as the Creative SBLive! or SB PCI512.
+  chipset, such as the Creative SBLive!,  SB PCI512 or Emu-APS.
+
+Crystal SoundFusion (CS4280/461x)
+CONFIG_SOUND_FUSION
+  This module drives the Crystal SoundFusion devices (CS4280/46xx series)
+  when wired as native sound drivers with AC97 codecs. If this driver
+  does not work try the CS4232 driver.
 
 Ensoniq ES1370 based PCI sound cards
 CONFIG_SOUND_ES1370
@@ -14374,6 +14388,10 @@ CONFIG_HISAX_1TR6
   before E-DSS1 was established. Nowadays, all new lines in Germany
   use E-DSS1.
 
+HiSax Support for US NI1
+CONFIG_HISAX_NI1
+  Enable this if you like to use ISDN in US on a NI1 basic rate interface.
+
 Teles 16.0/8.0
 CONFIG_HISAX_16_0
   This enables HiSax support for the Teles ISDN-cards S0-16.0, S0-8
@@ -14502,6 +14520,13 @@ CONFIG_HISAX_NETJET
   See Documentation/isdn/README.HiSax on how to configure it using a
   different D-channel protocol, or non-standard IRQ/port settings.
 
+NETspider U card
+CONFIG_HISAX_NETJET_U
+  This enables HiSax support for the Netspider U interface ISDN card from
+  Traverse Technologies.
+  See Documentation/isdn/README.HiSax on how to configure it using a
+  different D-channel protocol, or non-standard IRQ/port settings.
+
 Niccy PnP/PCI card
 CONFIG_HISAX_NICCY
   This enables HiSax support for the Dr. Neuhaus Niccy PnP or PCI. 
@@ -14590,13 +14615,18 @@ CONFIG_ISDN_DRV_SC
   called sc.o. See Documentation/isdn/README.sc and
   http://www.spellcast.com for more information.
 
-Eicon.Diehl active card support
+Eicon active card support
 CONFIG_ISDN_DRV_EICON
   Say Y here if you have an Eicon active ISDN card. In order to use
   this card, additional firmware is necessary, which has to be loaded
   into the card using the eiconctrl utility which is part of the
   latest isdn4k-utils package. Please read the file
   Documentation/isdn/README.eicon for more information.
+  
+Eicon Diva Server card support
+CONFIG_ISDN_DRV_EICON_PCI
+  Say Y here if you have an Eicon Diva Server (BRI/PRI/4BRI) ISDN card.
+  Please read Documentation/isdn/README.eicon for more information.
   
 Eicon old-type card support
 CONFIG_ISDN_DRV_EICON_ISA
@@ -14606,10 +14636,18 @@ CONFIG_ISDN_DRV_EICON_ISA
   the latest isdn4k-utils package. Please read the file
   Documentation/isdn/README.eicon for more information.
 
-Support AT-Fax Class 2 commands
+Eicon driver type standalone
+CONFIG_ISDN_DRV_EICON_STANDALONE
+  Enable this option if you want the eicon driver as standalone
+  version with no interface to the ISDN4Linux isdn module. If you
+  say Y here, the eicon module only supports the Diva Server PCI
+  cards and will provide its own IDI interface. You should say N
+  here.
+
+Support AT-Fax Class 1 and 2 commands
 CONFIG_ISDN_TTY_FAX
   If you say Y here, the modem-emulator will support a subset of the
-  Fax Class 2 commands. Using a getty with fax-support
+  Fax Class 1 and 2 commands. Using a getty with fax-support
   (mgetty+sendfax, hylafax), you will be able to use your Linux box as
   an ISDN-fax-machine. This must be supported by the lowlevel driver
   also. See Documentation/isdn/README.fax for more information.
@@ -14678,6 +14716,10 @@ CONFIG_HYSDN
   Champ, Ergo and Metro. You will then get a module called hysdn.o.
   Please read the file Documentation/isdn/README.hysdn for more
   information.
+
+HYSDN CAPI 2.0 support
+CONFIG_HYSDN_CAPI
+  Say Y here if you like to use Hypercope's CAPI 2.0 interface
 
 Support for Sun4 architecture
 CONFIG_SUN4

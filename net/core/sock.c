@@ -7,7 +7,7 @@
  *		handler for protocols to use and generic option handler.
  *
  *
- * Version:	$Id: sock.c,v 1.96 2000/07/26 01:04:14 davem Exp $
+ * Version:	$Id: sock.c,v 1.98 2000/08/16 16:09:15 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -231,6 +231,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			if (val > sysctl_wmem_max)
 				val = sysctl_wmem_max;
 
+			sk->userlocks |= SOCK_SNDBUF_LOCK;
 			sk->sndbuf = max(val*2,SOCK_MIN_SNDBUF);
 
 			/*
@@ -249,6 +250,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			if (val > sysctl_rmem_max)
 				val = sysctl_rmem_max;
 
+			sk->userlocks |= SOCK_RCVBUF_LOCK;
 			/* FIXME: is this lower bound the right one? */
 			sk->rcvbuf = max(val*2,SOCK_MIN_RCVBUF);
 			break;
@@ -647,11 +649,6 @@ void sock_rfree(struct sk_buff *skb)
 	atomic_sub(skb->truesize, &sk->rmem_alloc);
 }
 
-void sock_cfree(struct sk_buff *skb)
-{
-	sock_put(skb->sk);
-}
-
 /*
  * Allocate a skb from the socket's send buffer.
  */
@@ -710,36 +707,6 @@ void sock_kfree_s(struct sock *sk, void *mem, int size)
 	kfree(mem);
 	atomic_sub(size, &sk->omem_alloc);
 }
-
-/* FIXME: this is insane. We are trying suppose to be controlling how
- * how much space we have for data bytes, not packet headers.
- * This really points out that we need a better system for doing the
- * receive buffer. -- erics
- * WARNING: This is currently ONLY used in tcp. If you need it else where
- * this will probably not be what you want. Possibly these two routines
- * should move over to the ipv4 directory.
- */
-unsigned long sock_rspace(struct sock *sk)
-{
-	int amt = 0;
-
-	if (sk != NULL) {
-		/* This used to have some bizarre complications that
-		 * to attempt to reserve some amount of space. This doesn't
-	 	 * make sense, since the number returned here does not
-		 * actually reflect allocated space, but rather the amount
-		 * of space we committed to. We gamble that we won't
-		 * run out of memory, and returning a smaller number does
-		 * not change the gamble. If we lose the gamble tcp still
-		 * works, it may just slow down for retransmissions.
-		 */
-		amt = sk->rcvbuf - atomic_read(&sk->rmem_alloc);
-		if (amt < 0) 
-			amt = 0;
-	}
-	return amt;
-}
-
 
 /* It is almost wait_for_tcp_memory minus release_sock/lock_sock.
    I think, these locks should be removed for datagram sockets.

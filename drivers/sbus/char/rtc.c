@@ -1,4 +1,4 @@
-/* $Id: rtc.c,v 1.21 2000/07/13 08:06:40 davem Exp $
+/* $Id: rtc.c,v 1.22 2000/08/22 06:56:33 davem Exp $
  *
  * Linux/SPARC Real Time Clock Driver
  * Copyright (C) 1996 Thomas K. Dyas (tdyas@eden.rutgers.edu)
@@ -8,7 +8,7 @@
  * use the modified clock utility.
  *
  * Get the modified clock utility from:
- *   ftp://vger.rutgers.edu/pub/linux/Sparc/userland/clock.c
+ *   ftp://vger.kernel.org/pub/linux/Sparc/userland/clock.c
  */
 
 #include <linux/module.h>

@@ -1205,11 +1205,13 @@
 #define __NR_pivot_root			(__NR_Linux + 216)
 #define __NR_mincore			(__NR_Linux + 217)
 #define __NR_madvise			(__NR_Linux + 218)
+#define __NR_getdents64			(__NR_Linux + 219)
+#define __NR_fcntl64			(__NR_Linux + 220)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		218
+#define __NR_Linux_syscalls		220
 
 #ifndef _LANGUAGE_ASSEMBLY
 

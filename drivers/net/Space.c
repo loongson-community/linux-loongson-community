@@ -102,11 +102,10 @@ extern int macsonic_probe(struct net_device *dev);
 extern int mac8390_probe(struct net_device *dev);
 extern int mac89x0_probe(struct net_device *dev);
   
-  /* Gigabit Ethernet adapters */
-  extern int yellowfin_probe(struct net_device *dev);
+/* Gigabit Ethernet adapters */
+extern int yellowfin_probe(struct net_device *dev);
 
 /* Detachable devices ("pocket adaptors") */
-extern int atp_init(struct net_device *);
 extern int de600_probe(struct net_device *);
 extern int de620_probe(struct net_device *);
 
@@ -309,9 +308,6 @@ struct devprobe parport_probes[] __initdata = {
 #endif
 #ifdef CONFIG_DE620		/* D-Link DE-620 adapter */
 	{de620_probe, 0},
-#endif
-#ifdef CONFIG_ATP		/* AT-LAN-TEC (RealTek) pocket adaptor. */
-	{atp_init, 0},
 #endif
 	{NULL, 0},
 };
@@ -681,8 +677,15 @@ static struct net_device tr0_dev = {
 #undef  NEXT_DEV
 #define NEXT_DEV        (&escon0_dev)                                  
 #endif  
-	
-	
+
+#ifdef CONFIG_TUN
+    extern int tun_init(struct net_device *dev);
+    static struct net_device tun_dev = {
+        "tun", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, tun_init };
+#   undef       NEXT_DEV
+#   define      NEXT_DEV        (&tun_dev)
+#endif    
+
 /*
  *	The loopback device is global so it can be directly referenced
  *	by the network code. Also, it must be first on device list.

@@ -17,7 +17,7 @@ O_OBJS		:=
 
 # Objects that export symbols.
 
-export-objs		:= usb.o input.o
+export-objs		:= usb.o
 
 # Multipart objects.
 
@@ -36,6 +36,35 @@ obj-y	:=
 obj-m	:=
 obj-n	:=
 obj-	:=
+
+# Each configuration option enables a list of files.
+
+obj-$(CONFIG_USB)		+= usbcore.o
+obj-$(CONFIG_USB_UHCI)		+= usb-uhci.o
+obj-$(CONFIG_USB_UHCI_ALT)	+= uhci.o
+obj-$(CONFIG_USB_OHCI)		+= usb-ohci.o
+
+obj-$(CONFIG_USB_MOUSE)		+= usbmouse.o
+obj-$(CONFIG_USB_HID)		+= hid.o
+obj-$(CONFIG_USB_KBD)		+= usbkbd.o
+obj-$(CONFIG_USB_WACOM)		+= wacom.o
+
+obj-$(CONFIG_USB_SCANNER)	+= scanner.o
+obj-$(CONFIG_USB_ACM)		+= acm.o
+obj-$(CONFIG_USB_PRINTER)	+= printer.o
+obj-$(CONFIG_USB_AUDIO)		+= audio.o
+obj-$(CONFIG_USB_IBMCAM)	+= ibmcam.o
+obj-$(CONFIG_USB_DC2XX)		+= dc2xx.o
+obj-$(CONFIG_USB_MDC800)	+= mdc800.o
+obj-$(CONFIG_USB_USS720)	+= uss720.o
+obj-$(CONFIG_USB_DABUSB)	+= dabusb.o
+obj-$(CONFIG_USB_PLUSB)		+= plusb.o
+obj-$(CONFIG_USB_OV511)		+= ov511.o
+obj-$(CONFIG_USB_PEGASUS)	+= pegasus.o
+obj-$(CONFIG_USB_RIO500)	+= rio500.o
+obj-$(CONFIG_USB_DSBR)		+= dsbr100.o
+obj-$(CONFIG_USB_MICROTEK)	+= microtek.o
+obj-$(CONFIG_USB_BLUETOOTH)	+= bluetooth.o
 
 # Object files in subdirectories
 
@@ -57,41 +86,6 @@ else
 	endif
 endif
 
-
-# Each configuration option enables a list of files.
-
-obj-$(CONFIG_USB)		+= usbcore.o
-obj-$(CONFIG_USB_UHCI)		+= usb-uhci.o
-obj-$(CONFIG_USB_UHCI_ALT)	+= uhci.o
-obj-$(CONFIG_USB_OHCI)		+= usb-ohci.o
-
-obj-$(CONFIG_USB_MOUSE)		+= usbmouse.o input.o
-obj-$(CONFIG_USB_HID)		+= hid.o input.o
-obj-$(CONFIG_USB_KBD)		+= usbkbd.o input.o
-obj-$(CONFIG_USB_WACOM)		+= wacom.o input.o
-obj-$(CONFIG_INPUT_IFORCE)	+= iforce.o input.o
-obj-$(CONFIG_INPUT_KEYBDEV)	+= keybdev.o input.o
-obj-$(CONFIG_INPUT_MOUSEDEV)	+= mousedev.o input.o
-obj-$(CONFIG_INPUT_JOYDEV)	+= joydev.o input.o
-obj-$(CONFIG_INPUT_EVDEV)	+= evdev.o input.o
-
-obj-$(CONFIG_USB_SCANNER)	+= scanner.o
-obj-$(CONFIG_USB_ACM)		+= acm.o
-obj-$(CONFIG_USB_PRINTER)	+= printer.o
-obj-$(CONFIG_USB_AUDIO)		+= audio.o
-obj-$(CONFIG_USB_IBMCAM)	+= ibmcam.o
-obj-$(CONFIG_USB_DC2XX)		+= dc2xx.o
-obj-$(CONFIG_USB_MDC800)	+= mdc800.o
-obj-$(CONFIG_USB_USS720)	+= uss720.o
-obj-$(CONFIG_USB_DABUSB)	+= dabusb.o
-obj-$(CONFIG_USB_PLUSB)		+= plusb.o
-obj-$(CONFIG_USB_OV511)		+= ov511.o
-obj-$(CONFIG_USB_PEGASUS)	+= pegasus.o
-obj-$(CONFIG_USB_RIO500)	+= rio500.o
-obj-$(CONFIG_USB_DSBR)		+= dsbr100.o
-obj-$(CONFIG_USB_MICROTEK)	+= microtek.o
-obj-$(CONFIG_USB_BLUETOOTH)	+= bluetooth.o
-
 # Extract lists of the multi-part drivers.
 # The 'int-*' lists are the intermediate files used to build the multi's.
 
@@ -111,8 +105,8 @@ obj-y		:= $(filter-out $(list-multi), $(obj-y)) $(int-y)
 
 # Translate to Rules.make lists.
 
-O_OBJS		:= $(sort $(filter-out $(export-objs), $(obj-y)))
-OX_OBJS		:= $(sort $(filter     $(export-objs), $(obj-y)))
+O_OBJS		:= $(filter-out $(export-objs), $(obj-y))
+OX_OBJS		:= $(filter     $(export-objs), $(obj-y))
 M_OBJS		:= $(sort $(filter-out $(export-objs), $(obj-m)))
 MX_OBJS		:= $(sort $(filter     $(export-objs), $(obj-m)))
 MI_OBJS		:= $(sort $(filter-out $(export-objs), $(int-m)))

@@ -181,6 +181,10 @@ CONFIG_BLK_DEV_INITRD=y
 # Joysticks
 #
 # CONFIG_JOYSTICK is not set
+
+#
+# Input core support is needed for joysticks
+#
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -190,11 +194,6 @@ CONFIG_BLK_DEV_INITRD=y
 # CONFIG_INTEL_RNG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
-
-#
-# Video For Linux
-#
-# CONFIG_VIDEO_DEV is not set
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
@@ -205,6 +204,11 @@ CONFIG_BLK_DEV_INITRD=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+
+#
+# Multimedia devices
+#
+# CONFIG_VIDEO_DEV is not set
 
 #
 # File systems
@@ -277,6 +281,11 @@ CONFIG_MSDOS_PARTITION=y
 # USB support
 #
 # CONFIG_USB is not set
+
+#
+# Input core support
+#
+# CONFIG_INPUT is not set
 
 #
 # Kernel hacking

@@ -96,7 +96,6 @@ extern void sysctl_init(void);
 extern void signals_init(void);
 extern void bdev_init(void);
 extern int init_pcmcia_ds(void);
-extern int usb_init(void);
 
 extern void free_initmem(void);
 extern void filesystem_setup(void);
@@ -566,8 +565,8 @@ asmlinkage void __init start_kernel(void)
 	mempages = num_physpages;
 
 	fork_init(mempages);
+	proc_caches_init();
 	vfs_caches_init(mempages);
-	vma_init();
 	buffer_init(mempages);
 	page_cache_init(mempages);
 	kiobuf_setup();
@@ -689,10 +688,6 @@ static void __init do_basic_setup(void)
 #endif
 #ifdef CONFIG_ISAPNP
 	isapnp_init();
-#endif
-#ifdef CONFIG_USB
-	usb_init();	/* Do this before doing initcalls, so that we can make
-			usbcore initialize here, and all drivers initialize later */
 #endif
 #ifdef CONFIG_TC
 	tc_init();

@@ -402,7 +402,10 @@ static int exec_mmap(void)
 	if (mm) {
 		struct mm_struct *active_mm = current->active_mm;
 
-		init_new_context(current, mm);
+		if (init_new_context(current, mm)) {
+			mmdrop(mm);
+			return -ENOMEM;
+		}
 		task_lock(current);
 		current->mm = mm;
 		current->active_mm = mm;
@@ -433,7 +436,7 @@ static inline int make_private_signals(void)
 
 	if (atomic_read(&current->sig->count) <= 1)
 		return 0;
-	newsig = kmalloc(sizeof(*newsig), GFP_KERNEL);
+	newsig = kmem_cache_alloc(sigact_cachep, GFP_KERNEL);
 	if (newsig == NULL)
 		return -ENOMEM;
 	spin_lock_init(&newsig->siglock);
@@ -457,7 +460,7 @@ static inline void release_old_signals(struct signal_struct * oldsig)
 	if (current->sig == oldsig)
 		return;
 	if (atomic_dec_and_test(&oldsig->count))
-		kfree(oldsig);
+		kmem_cache_free(sigact_cachep, oldsig);
 }
 
 /*
@@ -467,22 +470,30 @@ static inline void release_old_signals(struct signal_struct * oldsig)
 
 static inline void flush_old_files(struct files_struct * files)
 {
-	unsigned long j;
+	long j = -1;
 
-	j = 0;
+	write_lock(&files->file_lock);
 	for (;;) {
 		unsigned long set, i;
 
+		j++;
 		i = j * __NFDBITS;
 		if (i >= files->max_fds || i >= files->max_fdset)
 			break;
-		set = xchg(&files->close_on_exec->fds_bits[j], 0);
-		j++;
+		set = files->close_on_exec->fds_bits[j];
+		if (!set)
+			continue;
+		files->close_on_exec->fds_bits[j] = 0;
+		write_unlock(&files->file_lock);
 		for ( ; set ; i++,set >>= 1) {
-			if (set & 1)
+			if (set & 1) {
 				sys_close(i);
+			}
 		}
+		write_lock(&files->file_lock);
+
 	}
+	write_unlock(&files->file_lock);
 }
 
 int flush_old_exec(struct linux_binprm * bprm)

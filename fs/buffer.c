@@ -119,7 +119,7 @@ union bdflush_param {
 				  when trying to refill buffers. */
 		int interval; /* jiffies delay between kupdate flushes */
 		int age_buffer;  /* Time for normal buffer to age before we flush it */
-		int age_super;  /* Time for superblock to age before we flush it */
+		int dummy1;    /* unused, was age_super */
 		int dummy2;    /* unused */
 		int dummy3;    /* unused */
 	} b_un;
@@ -894,7 +894,7 @@ void balance_dirty(kdev_t dev)
 
 static __inline__ void __mark_dirty(struct buffer_head *bh, int flag)
 {
-	bh->b_flushtime = jiffies + (flag ? bdf_prm.b_un.age_super : bdf_prm.b_un.age_buffer);
+	bh->b_flushtime = jiffies + bdf_prm.b_un.age_buffer;
 	refile_buffer(bh);
 }
 
@@ -1714,8 +1714,10 @@ int generic_commit_write(struct file *file, struct page *page,
 	loff_t pos = ((loff_t)page->index << PAGE_CACHE_SHIFT) + to;
 	__block_commit_write(inode,page,from,to);
 	kunmap(page);
-	if (pos > inode->i_size)
+	if (pos > inode->i_size) {
 		inode->i_size = pos;
+		mark_inode_dirty(inode);
+	}
 	return 0;
 }
 
@@ -1781,15 +1783,12 @@ static void end_buffer_io_kiobuf(struct buffer_head *bh, int uptodate)
  * for them to complete.  Clean up the buffer_heads afterwards.  
  */
 
-static int do_kio(int rw, int nr, struct buffer_head *bh[], int size)
+static int wait_kio(int rw, int nr, struct buffer_head *bh[], int size)
 {
 	int iosize;
 	int i;
 	struct buffer_head *tmp;
 
-	if (rw == WRITE)
-		rw = WRITERAW;
-	ll_rw_block(rw, nr, bh);
 
 	iosize = 0;
 	spin_lock(&unused_list_lock);
@@ -1840,6 +1839,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 	int		pageind;
 	int		bhind;
 	int		offset;
+	int		sectors = size>>9;
 	unsigned long	blocknr;
 	struct kiobuf *	iobuf = NULL;
 	struct page *	map;
@@ -1891,9 +1891,10 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				tmp->b_this_page = tmp;
 
 				init_buffer(tmp, end_buffer_io_kiobuf, iobuf);
-				tmp->b_dev = dev;
+				tmp->b_rdev = tmp->b_dev = dev;
 				tmp->b_blocknr = blocknr;
-				tmp->b_state = 1 << BH_Mapped;
+				tmp->b_rsector = blocknr*sectors;
+				tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock) | (1 << BH_Req);
 
 				if (rw == WRITE) {
 					set_bit(BH_Uptodate, &tmp->b_state);
@@ -1905,12 +1906,13 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 				offset += size;
 
 				atomic_inc(&iobuf->io_count);
-	
+
+				generic_make_request(rw, tmp);
 				/* 
-				 * Start the IO if we have got too much 
+				 * Wait for IO if we have got too much 
 				 */
 				if (bhind >= KIO_MAX_SECTORS) {
-					err = do_kio(rw, bhind, bh, size);
+					err = wait_kio(rw, bhind, bh, size);
 					if (err >= 0)
 						transferred += err;
 					else
@@ -1928,7 +1930,7 @@ int brw_kiovec(int rw, int nr, struct kiobuf *iovec[],
 
 	/* Is there any IO still left to submit? */
 	if (bhind) {
-		err = do_kio(rw, bhind, bh, size);
+		err = wait_kio(rw, bhind, bh, size);
 		if (err >= 0)
 			transferred += err;
 		else

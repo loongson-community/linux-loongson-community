@@ -1327,9 +1327,11 @@ static inline int put_flock(struct flock *kfl, struct flock32 *ufl)
 	return err;
 }
 
-extern asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
+extern asmlinkage long
+sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
 
-asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
+asmlinkage long
+sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case F_GETLK:
@@ -1340,18 +1342,33 @@ asmlinkage long sys32_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg
 			mm_segment_t old_fs;
 			long ret;
 			
-			if(get_flock(&f, (struct flock32 *)arg))
+			if (get_flock(&f, (struct flock32 *)arg))
 				return -EFAULT;
 			old_fs = get_fs(); set_fs (KERNEL_DS);
 			ret = sys_fcntl(fd, cmd, (unsigned long)&f);
 			set_fs (old_fs);
-			if(put_flock(&f, (struct flock32 *)arg))
+			if (put_flock(&f, (struct flock32 *)arg))
 				return -EFAULT;
 			return ret;
 		}
 	default:
 		return sys_fcntl(fd, cmd, (unsigned long)arg);
 	}
+}
+
+asmlinkage long
+sys32_fcntl64(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case F_GETLK64:
+		return sys_fcntl(fd, F_GETLK, arg);
+	case F_SETLK64:
+		return sys_fcntl(fd, F_SETLK, arg);
+	case F_SETLKW64:
+		return sys_fcntl(fd, F_SETLKW, arg);
+	}
+
+	return sys32_fcntl(fd, cmd, arg);
 }
 
 struct msgbuf32 { s32 mtype; char mtext[1]; };

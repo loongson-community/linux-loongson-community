@@ -1622,7 +1622,7 @@ asmlinkage int irix_mmap64(struct pt_regs *regs)
 	pgoff = (off1 << (32 - PAGE_SHIFT)) | (off2 >> PAGE_SHIFT);
 
 	if (!(flags & MAP_ANONYMOUS)) {
-		if (!(file = fcheck(fd))) {
+		if (!(file = fget(fd))) {
 			error = -EBADF;
 			goto out;
 		}
@@ -1847,7 +1847,7 @@ struct irix_dirent32_callback {
 #define ROUND_UP32(x) (((x)+sizeof(u32)-1) & ~(sizeof(u32)-1))
 
 static int irix_filldir32(void *__buf, const char *name, int namlen,
-                          off_t offset, ino_t ino)
+                          off_t offset, ino_t ino, unsigned int d_type)
 {
 	struct irix_dirent32 *dirent;
 	struct irix_dirent32_callback *buf =
@@ -1943,7 +1943,7 @@ struct irix_dirent64_callback {
 #define ROUND_UP64(x) (((x)+sizeof(u64)-1) & ~(sizeof(u64)-1))
 
 static int irix_filldir64(void * __buf, const char * name, int namlen,
-			  off_t offset, ino_t ino)
+			  off_t offset, ino_t ino, unsigned int d_type)
 {
 	struct irix_dirent64 *dirent;
 	struct irix_dirent64_callback * buf =

@@ -113,13 +113,11 @@ CONFIG_INET=y
 CONFIG_IP_MULTICAST=y
 # CONFIG_IP_ADVANCED_ROUTER is not set
 # CONFIG_IP_PNP is not set
-# CONFIG_IP_ROUTER is not set
 # CONFIG_NET_IPIP is not set
 # CONFIG_NET_IPGRE is not set
 CONFIG_IP_MROUTE=y
 # CONFIG_IP_PIMSM_V1 is not set
 # CONFIG_IP_PIMSM_V2 is not set
-CONFIG_IP_ALIAS=y
 # CONFIG_INET_ECN is not set
 CONFIG_SYN_COOKIES=y
 # CONFIG_IPV6 is not set
@@ -266,6 +264,7 @@ CONFIG_NETDEVICES=y
 CONFIG_DUMMY=m
 # CONFIG_BONDING is not set
 # CONFIG_EQUALIZER is not set
+# CONFIG_TUN is not set
 # CONFIG_NET_SB1000 is not set
 
 #
@@ -354,6 +353,7 @@ CONFIG_DE_AOC=y
 # CONFIG_HISAX_NO_LLC is not set
 # CONFIG_HISAX_NO_KEYPAD is not set
 CONFIG_HISAX_1TR6=y
+# CONFIG_HISAX_NI1 is not set
 
 #
 #   HiSax supported cards
@@ -375,6 +375,7 @@ CONFIG_HISAX_ELSA=y
 # CONFIG_HISAX_SPORTSTER is not set
 # CONFIG_HISAX_MIC is not set
 # CONFIG_HISAX_NETJET is not set
+# CONFIG_HISAX_NETJET_U is not set
 # CONFIG_HISAX_NICCY is not set
 # CONFIG_HISAX_ISURF is not set
 # CONFIG_HISAX_HSTSAPHIR is not set
@@ -426,6 +427,10 @@ CONFIG_HISAX_ELSA=y
 # Joysticks
 #
 # CONFIG_JOYSTICK is not set
+
+#
+# Input core support is needed for joysticks
+#
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -435,11 +440,6 @@ CONFIG_HISAX_ELSA=y
 # CONFIG_INTEL_RNG is not set
 # CONFIG_NVRAM is not set
 CONFIG_RTC=y
-
-#
-# Video For Linux
-#
-# CONFIG_VIDEO_DEV is not set
 # CONFIG_DTLK is not set
 # CONFIG_R3964 is not set
 # CONFIG_APPLICOM is not set
@@ -450,6 +450,11 @@ CONFIG_RTC=y
 # CONFIG_FTAPE is not set
 # CONFIG_AGP is not set
 # CONFIG_DRM is not set
+
+#
+# Multimedia devices
+#
+# CONFIG_VIDEO_DEV is not set
 
 #
 # File systems
@@ -504,6 +509,7 @@ CONFIG_NFS_FS=y
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 CONFIG_SMB_FS=m
+CONFIG_SMB_NLS_REMOTE=""
 # CONFIG_NCP_FS is not set
 # CONFIG_NCPFS_PACKET_SIGNING is not set
 # CONFIG_NCPFS_IOCTL_LOCKING is not set
@@ -570,6 +576,11 @@ CONFIG_NLS_UTF8=m
 # USB support
 #
 # CONFIG_USB is not set
+
+#
+# Input core support
+#
+# CONFIG_INPUT is not set
 
 #
 # Kernel hacking

@@ -1,11 +1,20 @@
 /*
- * $Id: capifs.c,v 1.6 2000/04/03 13:29:25 calle Exp $
+ * $Id: capifs.c,v 1.9 2000/08/20 07:30:13 keil Exp $
  * 
  * (c) Copyright 2000 by Carsten Paeth (calle@calle.de)
  *
  * Heavily based on devpts filesystem from H. Peter Anvin
  * 
  * $Log: capifs.c,v $
+ * Revision 1.9  2000/08/20 07:30:13  keil
+ * changes for 2.4
+ *
+ * Revision 1.8  2000/07/20 10:23:13  calle
+ * Include isdn_compat.h for people that don't use -p option of std2kern.
+ *
+ * Revision 1.7  2000/06/18 16:09:54  keil
+ * more changes for 2.4
+ *
  * Revision 1.6  2000/04/03 13:29:25  calle
  * make Tim Waugh happy (module unload races in 2.3.99-pre3).
  * no real problem there, but now it is much cleaner ...
@@ -60,7 +69,7 @@
 
 MODULE_AUTHOR("Carsten Paeth <calle@calle.de>");
 
-static char *revision = "$Revision: 1.6 $";
+static char *revision = "$Revision: 1.9 $";
 
 struct capifs_ncci {
 	struct inode *inode;
@@ -130,12 +139,12 @@ static int capifs_root_readdir(struct file *filp, void *dirent, filldir_t filldi
 	switch(nr)
 	{
 	case 0:
-		if (filldir(dirent, ".", 1, nr, inode->i_ino) < 0)
+		if (filldir(dirent, ".", 1, nr, inode->i_ino, DT_DIR) < 0)
 			return 0;
 		filp->f_pos = ++nr;
 		/* fall through */
 	case 1:
-		if (filldir(dirent, "..", 2, nr, inode->i_ino) < 0)
+		if (filldir(dirent, "..", 2, nr, inode->i_ino, DT_DIR) < 0)
 			return 0;
 		filp->f_pos = ++nr;
 		/* fall through */
@@ -147,7 +156,7 @@ static int capifs_root_readdir(struct file *filp, void *dirent, filldir_t filldi
 				char *p = numbuf;
 				if (np->type) *p++ = np->type;
 				sprintf(p, "%u", np->num);
-				if ( filldir(dirent, numbuf, strlen(numbuf), nr, nr) < 0 )
+				if ( filldir(dirent, numbuf, strlen(numbuf), nr, nr, DT_UNKNOWN) < 0 )
 					return 0;
 			}
 			filp->f_pos = ++nr;
@@ -228,9 +237,9 @@ static void capifs_put_super(struct super_block *sb)
 
 	for ( i = 0 ; i < sbi->max_ncci ; i++ ) {
 		if ( (inode = sbi->nccis[i].inode) ) {
-			if ( atomic_read(&inode->i_count) != 1 )
+			if (atomic_read(&inode->i_count) != 1 )
 				printk("capifs_put_super: badness: entry %d count %d\n",
-				       i, atomic_read(&inode->i_count));
+				       i, (unsigned)atomic_read(&inode->i_count));
 			inode->i_nlink--;
 			iput(inode);
 		}

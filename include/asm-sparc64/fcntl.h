@@ -1,4 +1,4 @@
-/* $Id: fcntl.h,v 1.8 2000/07/06 01:41:45 davem Exp $ */
+/* $Id: fcntl.h,v 1.10 2000/08/12 20:49:49 jj Exp $ */
 #ifndef _SPARC64_FCNTL_H
 #define _SPARC64_FCNTL_H
 
@@ -33,6 +33,12 @@
 #define F_SETLKW	9
 #define F_SETSIG	10	/*  for sockets. */
 #define F_GETSIG	11	/*  for sockets. */
+
+#ifdef __KERNEL__
+#define F_GETLK64	12
+#define F_SETLK64	13
+#define F_SETLKW64	14
+#endif
 
 /* for F_[GET|SET]FL */
 #define FD_CLOEXEC	1	/* actually anything with low bit set goes */
@@ -71,6 +77,10 @@ struct flock32 {
 	__kernel_pid_t32 l_pid;
 	short __unused;
 };
+#endif
+
+#ifdef __KERNEL__
+#define flock64	flock
 #endif
 
 #endif /* !(_SPARC64_FCNTL_H) */
