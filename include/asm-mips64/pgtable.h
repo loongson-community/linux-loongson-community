@@ -554,6 +554,12 @@ static inline pte_t mk_swap_pte(unsigned long type, unsigned long offset)
 
 #include <asm-generic/pgtable.h>
 
+/*
+ * We provide our own get_unmapped area to cope with the virtual aliasing
+ * constraints placed on us by the cache architecture.
+ */
+#define HAVE_ARCH_UNMAPPED_AREA
+
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
 
 #endif /* _ASM_PGTABLE_H */
