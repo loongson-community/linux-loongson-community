@@ -346,7 +346,7 @@ extern inline pte_t mk_pte(unsigned long page, pgprot_t pgprot)
 
 extern inline pte_t mk_pte_phys(unsigned long physpage, pgprot_t pgprot)
 {
-	return __pte((physpage - PAGE_OFFSET) | pgprot_val(pgprot));
+	return __pte(physpage | pgprot_val(pgprot));
 }
 
 extern inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
