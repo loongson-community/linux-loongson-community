@@ -86,6 +86,9 @@ static inline void pte_free(struct page *pte)
 	__free_pages(pte, PTE_ORDER);
 }
 
+#define pte_free_tlb(tlb,pte)		tlb_remove_page((tlb),(pte))
+#define pmd_free_tlb(tlb,x)		do { } while (0)
+
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long address)
 {
 	pmd_t *pmd;
