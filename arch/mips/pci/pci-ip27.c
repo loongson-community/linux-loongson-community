@@ -292,8 +292,8 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	irq_to_bridge[lastirq] = bc;
 	irq_to_slot[lastirq] = slot;
 	irqstore[busno][slot] = lastirq;
-	lastirq++;
-	return lastirq - 1;
+
+	return lastirq++;
 }
 
 /*
