@@ -94,7 +94,7 @@ struct pmagbbfb_par {
 };
 
 static int currcon = 0;
-struct pmagbbfb_par pmagbbfb_current_par;
+static struct pmagbbfb_par current_par;
 
 static void pmagbbfb_encode_var(struct fb_var_screeninfo *var,
 				struct pmagbbfb_par *par)
@@ -130,7 +130,7 @@ static void pmagbbfb_encode_var(struct fb_var_screeninfo *var,
 
 static void pmagbbfb_get_par(struct pmagbbfb_par *par)
 {
-	*par = pmagbbfb_current_par;
+	*par = current_par;
 }
 
 static int pmagbb_fb_update_var(int con, struct fb_info *info)

@@ -79,7 +79,7 @@ struct maxinefb_par {
 };
 
 static int currcon = 0;
-struct maxinefb_par maxinefb_current_par;
+static struct maxinefb_par current_par;
 
 /* Reference to machine type set in arch/mips/dec/prom/identify.c, KM */
 extern unsigned long mips_machtype;
@@ -145,7 +145,7 @@ static void maxinefb_encode_var(struct fb_var_screeninfo *var,
 
 static void maxinefb_get_par(struct maxinefb_par *par)
 {
-	*par = maxinefb_current_par;
+	*par = current_par;
 }
 
 static int maxinefb_fb_update_var(int con, struct fb_info *info)
