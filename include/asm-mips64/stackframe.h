@@ -105,10 +105,6 @@
 		sd	\stackp, kernelsp
 		.endm
 #endif
-		.macro	declare_saved_sp
-		.comm	kernelsp, NR_CPUS * 8, 8
-		.endm
-
 		.macro	SAVE_SOME
 		.set	push
 		.set	reorder

@@ -821,6 +821,7 @@ void __init per_cpu_trap_init(void)
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
 	write_c0_context(cpu << 23);
+	write_c0_wired(0);
 }
 
 void __init trap_init(void)
@@ -833,7 +834,7 @@ void __init trap_init(void)
 
 	per_cpu_trap_init();
 
-	/* Copy the generic exception handler code to its final destination. */
+	/* Copy the generic exception handlers to their final destination. */
 	memcpy((void *)(KSEG0 + 0x80), &except_vec1_generic, 0x80);
 
 	/*
@@ -922,7 +923,7 @@ void __init trap_init(void)
 	}
 
 	if (cpu_has_fpu) {
-	        save_fp_context = _save_fp_context;
+		save_fp_context = _save_fp_context;
 		restore_fp_context = _restore_fp_context;
 	} else {
 		save_fp_context = fpu_emulator_save_context;

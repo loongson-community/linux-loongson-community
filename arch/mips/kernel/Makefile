@@ -4,9 +4,9 @@
 
 extra-y		:= head.o init_task.o
 
-obj-y		+= branch.o cpu-probe.o process.o signal.o entry.o traps.o \
-		   ptrace.o irq.o reset.o semaphore.o setup.o syscall.o \
-		   sysmips.o ipc.o scall_o32.o time.o unaligned.o
+obj-y		+= branch.o cpu-probe.o process.o signal.o entry.o genex.o \
+		   traps.o ptrace.o irq.o reset.o semaphore.o setup.o \
+		   syscall.o sysmips.o ipc.o scall_o32.o time.o unaligned.o
 
 obj-$(CONFIG_MODULES)		+= mips_ksyms.o
 

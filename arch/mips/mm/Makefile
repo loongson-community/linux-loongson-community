@@ -2,8 +2,8 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-obj-y				+= cache.o extable.o init.o ioremap.o fault.o \
-				   pgtable.o loadmmu.o
+obj-y				+= cache.o cex-gen.o extable.o init.o \
+				  ioremap.o fault.o pgtable.o loadmmu.o
 
 obj-$(CONFIG_HIGHMEM)		+= highmem.o
 

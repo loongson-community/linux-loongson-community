@@ -17,9 +17,6 @@
 #include <asm/stackframe.h>
 #include <asm/war.h>
 
-	.data
-	.comm	pgd_current, NR_CPUS * 8, 8
-
 	/*
 	 * After this macro runs we have a pointer to the pte of the address
 	 * that caused the fault in PTR.

@@ -3,39 +3,61 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Low level exception handling
- *
- * Copyright (C) 1994 - 2000, 2001 Ralf Baechle
- * Copyright (C) 1999, 2000 Silicon Graphics
+ * Copyright (C) 1994 - 2000, 2001, 2003 Ralf Baechle
+ * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
+#include <linux/config.h>
+
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
+#include <asm/isadep.h>
 #include <asm/thread_info.h>
 
-#define KU_USER 0x10
+#ifndef CONFIG_PREEMPT
+#define resume_kernel restore_all
+#endif
 
 		.text
 		.align	5
 FEXPORT(ret_from_irq)
 FEXPORT(ret_from_exception)
-		ld	t0, PT_STATUS(sp)	# returning to kernel mode?
+		LONG_L	t0, PT_STATUS(sp)	# returning to kernel mode?
 		andi	t0, t0, KU_USER
-		beqz	t0, restore_all
+		beqz	t0, resume_kernel
 
 FEXPORT(resume_userspace)
-		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		ori	t0, t0, 1		# signals dont change between
-		xori	t0, t0, 1		# sampling and return
+		mfc0	t0, CP0_STATUS		# make sure we dont miss an
+		ori	t0, t0, 1		# interrupt setting need_resched
+		xori	t0, t0, 1		# between sampling and return
+		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
 		LONG_L	a2, TI_FLAGS($28)
 		andi	a2, _TIF_WORK_MASK	# current->work (ignoring
-						# syscall_trace
+						# syscall_trace)
 		bnez	a2, work_pending
 		j	restore_all
+
+#ifdef CONFIG_PREEMPT
+ENTRY(resume_kernel)
+		lw	t0, TI_PRE_COUNT($28)
+		bnez	t0, restore_all
+need_resched:
+		LONG_L	t0, TI_FLAGS($28)
+		andi	t1, t0, _TIF_NEED_RESCHED
+		beqz	restore_all
+	if (in_exception_path)
+		goto restore_all;
+		li	t0, PREEMPT_ACTIVE
+		sw	t0, TI_PRE_COUNT($28)
+		sti
+		jalr	schedule
+		cli
+		b	need_resched
+#endif
 
 FEXPORT(ret_from_fork)
 		jal	schedule_tail
@@ -50,15 +72,15 @@ FEXPORT(syscall_exit)
 		LONG_L	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
-restore_all:
+FEXPORT(restore_all)
 		.set	noat
 		RESTORE_ALL
 		eret
 		.set	at
 
-work_pending:
-		bltz	a2, work_notifysig	# current->work.need_resched
-						# test high 8 bits
+FEXPORT(work_pending)
+		andi	t0, a2, _TIF_NEED_RESCHED
+		bnez	t0, work_notifysig
 work_resched:
 		jal	schedule
 
@@ -68,13 +90,12 @@ work_resched:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		LONG_L	a2, TI_FLAGS($28)	# This also converts into
-						# a union of four chars
-		andi	a2, _TIF_WORK_MASK	# is there any work to be done
+		LONG_L	a2, TI_FLAGS($28)
+		andi	t0, a2, _TIF_WORK_MASK	# is there any work to be done
 						# other than syscall tracing?
-		beqz	a2, restore_all
+		beqz	t0, restore_all
 		andi	t0, a2, _TIF_NEED_RESCHED
-		bnez	t0, work_notifysig
+		bnez	t0, work_resched
 
 work_notifysig:					# deal with pending signals and
 						# notify-resume requests
@@ -84,11 +105,11 @@ work_notifysig:					# deal with pending signals and
 		j	restore_all
 
 FEXPORT(syscall_exit_work)
-		LONG_L	t0, TI_FLAGS($28)	# current->work.syscall_trace
-		bgez	t0, work_pending
+		LONG_L	t0, TI_FLAGS($28)
+		bgez	t0, work_pending	# trace bit is set
 		mfc0	t0, CP0_STATUS		# sti
-		ori	t0, t0, 1
-		mtc0	t0, CP0_STATUS
+		ori	t0, t0, 1		# could let do_syscall_trace()
+		mtc0	t0, CP0_STATUS		# call schedule() instead
 		jal	do_syscall_trace
 		b	resume_userspace
 
@@ -102,10 +123,17 @@ LEAF(spurious_interrupt)
 		 * Someone tried to fool us by sending an interrupt but we
 		 * couldn't find a cause for it.
 		 */
+#ifdef CONFIG_SMP
 		lui     t1, %hi(irq_err_count)
 1:		ll      t0, %lo(irq_err_count)(t1)
 		addiu   t0, 1
 		sc      t0, %lo(irq_err_count)(t1)
 		beqz	t0, 1b
+#else
+		lui     t1, %hi(irq_err_count)
+		lw      t0, %lo(irq_err_count)(t1)
+		addiu   t0, 1
+		sw      t0, %lo(irq_err_count)(t1)
+#endif
 		j	ret_from_irq
 		END(spurious_interrupt)

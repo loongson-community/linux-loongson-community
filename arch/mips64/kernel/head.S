@@ -3,15 +3,20 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Head.S contains the MIPS exception handler and startup code.
- *
  * Copyright (C) 1994, 1995 Waldorf Electronics
  * Written by Ralf Baechle and Andreas Busse
- * Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999 Ralf Baechle
+ * Copyright (C) 1994, 95, 96, 97, 98, 99, 2003 Ralf Baechle
+ * Copyright (C) 1996 Paul M. Antoine
+ * Modified for DECStation and hence R3000 support by Paul M. Antoine
+ * Further modifications by David S. Miller and Harald Koerfgen
  * Copyright (C) 1999 Silicon Graphics, Inc.
+ * Kevin Kissell, kevink@mips.com and Carsten Langgaard, carstenl@mips.com
+ * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 #include <linux/config.h>
 #include <linux/init.h>
+#include <linux/threads.h>
+
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/processor.h>
@@ -83,18 +88,12 @@
 #endif
 	.endm
 
-	.text
-
 EXPORT(stext)					# used for profiling
 EXPORT(_stext)
 
 	__INIT
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
-
-	ori	sp, 0xf				# align stack on 16 byte.
-	xori	sp, 0xf
-
 #ifdef CONFIG_SGI_IP27
 	GET_NASID_ASM	t1
 	move	t2, t1				# text and data are here
@@ -105,9 +104,10 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	PTR_LA	$28, init_thread_union		# init current pointer
-	daddiu	sp, $28, KERNEL_STACK_SIZE-32
+	PTR_LA		$28, init_thread_union
+	PTR_ADDIU	sp, $28, KERNEL_STACK_SIZE-32
 	set_saved_sp	sp, t0, t1
+	PTR_SUBU	sp, 4 * SZREG		# init stack pointer
 
 	/*
 	 * The firmware/bootloader passes argc/argp/envp
@@ -115,17 +115,15 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	 * the romvec and other important info is stored there
 	 * by prom_init().
 	 */
-	PTR_LA	t0, __bss_start
-	sd	zero, (t0)
-	PTR_LA	t1, __bss_stop - 8
+	PTR_LA		t0, __bss_start
+	LONG_S		zero, (t0)
+	PTR_LA		t1, __bss_stop - LONGSIZE
 1:
-	daddiu	t0, 8
-	sd	zero, (t0)
-	bne	t0, t1, 1b
+	PTR_ADDIU	t0, LONGSIZE
+	LONG_S		zero, (t0)
+	bne		t0, t1, 1b
 
-	dsubu	sp, 4*SZREG			# init stack pointer
-
-	j	init_arch
+	jal		init_arch
 	END(kernel_entry)
 
 #ifdef CONFIG_SMP
@@ -154,26 +152,22 @@ NESTED(smp_bootstrap, 16, sp)
 	 * executing 64-bit instructions.  The full initialization of the
 	 * CPU's status register is done later in per_cpu_trap_init().
 	 */
-        mfc0	t0, CP0_STATUS
-        or	t0, ST0_KX
+	mfc0	t0, CP0_STATUS
+	or	t0, ST0_KX
 	mtc0	t0, CP0_STATUS
-
 	jal	start_secondary
-
 	END(smp_bootstrap)
 #endif /* CONFIG_SMP */
 
 	__FINIT
 
-	declare_saved_sp
-
-#undef PAGE_SIZE
-#define PAGE_SIZE	0x1000
+	.comm	kernelsp,    NR_CPUS * 8, 8
+	.comm	pgd_current, NR_CPUS * 8, 8
 
 	.macro	page name, order=0
 	.globl	\name
-\name:	.size	\name, (PAGE_SIZE << \order)
-	.org	. + (PAGE_SIZE << \order)
+\name:	.size	\name, (_PAGE_SIZE << \order)
+	.org	. + (_PAGE_SIZE << \order)
 	.type	\name, @object
 	.endm
 
