@@ -55,7 +55,6 @@
 #endif
 
 #if defined(CONFIG_AU1X00_SERIAL_CONSOLE)
-extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
 
