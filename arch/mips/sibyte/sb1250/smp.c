@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2001 Broadcom Corporation
+ * Copyright (C) 2001, 2002, 2003 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,18 +38,18 @@ extern void smp_tune_scheduling(void);
  */
 
 static u64 mailbox_set_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU,
-	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU
+	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU),
+	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU)
 };
 
 static u64 mailbox_clear_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU,
-	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU
+	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU),
+	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU)
 };
 
 static u64 mailbox_regs[] = {
-	KSEG1 + A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU,
-	KSEG1 + A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU
+	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU),
+	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU)
 };
 
 
@@ -78,10 +78,10 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 
 	kstat_this_cpu.irqs[K_INT_MBOX_0]++;
 	/* Load the mailbox register to figure out what we're supposed to do */
-	action = (__raw_readq(mailbox_regs[cpu]) >> 48) & 0xffff;
+	action = (____raw_readq(mailbox_regs[cpu]) >> 48) & 0xffff;
 
 	/* Clear the mailbox to clear the interrupt */
-	__raw_writeq(((u64)action)<<48, mailbox_clear_regs[cpu]);
+	____raw_writeq(((u64)action)<<48, mailbox_clear_regs[cpu]);
 
 	/*
 	 * Nothing to do for SMP_RESCHEDULE_YOURSELF; returning from the
