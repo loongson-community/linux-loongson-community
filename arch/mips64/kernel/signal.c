@@ -162,8 +162,6 @@ sys_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 		err |= __put_user(old_ka.sa.sa_handler, &oact->sa_handler);
 		err |= __put_user(old_ka.sa.sa_mask.sig[0], oact->sa_mask.sig);
                 err |= __put_user(0, &oact->sa_mask.sig[1]);
-                err |= __put_user(0, &oact->sa_mask.sig[2]);
-                err |= __put_user(0, &oact->sa_mask.sig[3]);
 		err |= __put_user(old_ka.sa.sa_restorer, &oact->sa_restorer);
                 if (err)
 			return -EFAULT;
@@ -319,7 +317,7 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 
 	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
 
-#define save_gp_reg(i) {						\
+#define save_gp_reg(i) do {						\
 	err |= __put_user(regs->regs[i], &sc->sc_regs[i]);		\
 } while(0)
 	__put_user(0, &sc->sc_regs[0]); save_gp_reg(1); save_gp_reg(2);
