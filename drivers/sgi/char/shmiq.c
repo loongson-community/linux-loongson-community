@@ -56,6 +56,7 @@
 #include <linux/devfs_fs_kernel.h>
 
 #include <asm/shmiq.h>
+#include <asm/gfx.h>
 #include <asm/mman.h>
 #include <asm/uaccess.h>
 #include <asm/poll.h>
@@ -300,12 +301,12 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 	return -EINVAL;
 }
 
-unsigned long
+struct page *
 shmiq_nopage (struct vm_area_struct *vma, unsigned long address,
               int write_access)
 {
 	/* Do not allow for mremap to expand us */
-	return 0;
+	return NULL;
 }
 
 static struct vm_operations_struct qcntl_mmap = {

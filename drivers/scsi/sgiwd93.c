@@ -234,7 +234,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 #endif
 }
 
-void sgiwd93_reset(uchar *base)
+void sgiwd93_reset(unsigned long base)
 {
 	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) base;
 
@@ -275,7 +275,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	SGIblows->proc_name = "SGIWD93";
 
 	sgiwd93_host = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
-	sgiwd93_host->base = (unsigned char *) hregs;
+	sgiwd93_host->base = (unsigned long) hregs;
 	sgiwd93_host->irq = SGI_WD93_0_IRQ;
 
 	buf = (uchar *) get_free_page(GFP_KERNEL);
@@ -294,7 +294,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
         /* set up second controller on the Indigo2 */
 	if(!sgi_guiness) {
 		sgiwd93_host1 = scsi_register(SGIblows, sizeof(struct WD33C93_hostdata));
-		sgiwd93_host1->base = (unsigned char *) hregs1;
+		sgiwd93_host1->base = (unsigned long) hregs1;
 		sgiwd93_host1->irq = SGI_WD93_1_IRQ;
 
 		buf = (uchar *) get_free_page(GFP_KERNEL);

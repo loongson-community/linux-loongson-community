@@ -1367,7 +1367,7 @@ uchar sr;
 #ifdef CONFIG_SGI_IP22
 {
 int busycount = 0;
-extern void sgiwd93_reset(uchar*);
+extern void sgiwd93_reset(unsigned long);
 
    /* wait 'til the chip gets some time for us */
    while (READ_AUX_STAT() & ASR_BSY && busycount++ < 100)
