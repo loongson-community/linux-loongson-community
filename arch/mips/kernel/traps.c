@@ -965,10 +965,12 @@ void __init trap_init(void)
 		 */
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
 #ifdef CONFIG_SB1_CACHE_ERROR
+		{
 		/* Special cache error handler for SB1 */
 		extern char except_vec2_sb1;
 		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
 		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+		}
 #endif
 
 		/* Enable timer interrupt and scd mapped interrupt */
