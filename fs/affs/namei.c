@@ -242,8 +242,6 @@ affs_unlink(struct inode *dir, struct dentry *dentry)
 
 	inode  = dentry->d_inode;
 	retval = -EPERM;
-	if (S_ISDIR(inode->i_mode))
-		goto unlink_done;
 	if (current->fsuid != inode->i_uid &&
 	    current->fsuid != dir->i_uid && !capable(CAP_FOWNER))
 		goto unlink_done;
@@ -376,13 +374,11 @@ affs_rmdir(struct inode *dir, struct dentry *dentry)
 	/*
 	 * Make sure the directory is empty and the dentry isn't busy.
 	 */
-	if (dentry->d_count > 1)
-		shrink_dcache_parent(dentry);
 	retval = -ENOTEMPTY;
 	if (!empty_dir(bh,AFFS_I2HSIZE(inode)))
 		goto rmdir_done;
 	retval = -EBUSY;
-	if (dentry->d_count > 1)
+	if (!list_empty(&dentry->d_hash))
 		goto rmdir_done;
 
 	if ((retval = affs_remove_header(bh,inode)) < 0)

@@ -20,45 +20,39 @@
 #include <asm/uaccess.h>
 
 #define UMSDOS_SPECIAL_DIRFPOS	3
+extern struct dentry *saved_root;
 extern struct inode *pseudo_root;
 
-
+/* #define UMSDOS_DEBUG_VERBOSE 1 */
 
 /*
- * This needs to have the parent dentry passed to it.
- * N.B. Try to get rid of this soon!
+ * Dentry operations routines
  */
-int compat_msdos_create (struct inode *dir, const char *name, int len, 
-			int mode, struct inode **inode)
+
+/* nothing for now ... */
+static int umsdos_dentry_validate(struct dentry *dentry)
 {
-	int ret;
-	struct dentry *dentry, *d_dir;
-
-	check_inode (dir);
-	ret = -ENOMEM;
-	d_dir = geti_dentry (dir);
-	if (!d_dir) {
-printk(KERN_ERR "compat_msdos_create: flaky i_dentry didn't work\n");
-		goto out;
-	}
-	dget(d_dir);
-	dentry = creat_dentry (name, len, NULL, d_dir);
-	dput(d_dir);
-	if (!dentry)
-		goto out;
-
-	check_dentry_path (dentry, "compat_msdos_create START");
-	ret = msdos_create (dir, dentry, mode);
-	check_dentry_path (dentry, "compat_msdos_create END");
-	if (ret)
-		goto out;
-	if (inode != NULL)
-		*inode = dentry->d_inode;
-
-	check_inode (dir);
-out:
-	return ret;
+	return 1;
 }
+
+/* for now, drop everything to force lookups ... */
+static void umsdos_dentry_dput(struct dentry *dentry)
+{
+	struct inode *inode = dentry->d_inode;
+	if (inode) {
+		d_drop(dentry);
+	}
+}
+
+struct dentry_operations umsdos_dentry_operations =
+{
+	umsdos_dentry_validate,	/* d_validate(struct dentry *) */
+	NULL,			/* d_hash */
+	NULL,			/* d_compare */
+	umsdos_dentry_dput,	/* d_delete(struct dentry *) */
+	NULL,
+	NULL,
+};
 
 
 /*
@@ -109,9 +103,9 @@ static int umsdos_dir_once (	void *buf,
  * Return a negative value from linux/errno.h.
  * Return > 0 if success (the number of bytes written by filldir).
  * 
- * This function is used by the normal readdir VFS entry point and by
- * some function who try to find out info on a file from a pure MSDOS
- * inode. See umsdos_locate_ancestor() below.
+ * This function is used by the normal readdir VFS entry point,
+ * and in order to get the directory entry from a file's dentry.
+ * See umsdos_dentry_to_entry() below.
  */
  
 static int umsdos_readdir_x (struct inode *dir, struct file *filp,
@@ -129,7 +123,6 @@ static int umsdos_readdir_x (struct inode *dir, struct file *filp,
 	if (filp->f_pos == UMSDOS_SPECIAL_DIRFPOS &&
 	    dir == pseudo_root && !internal_read) {
 
-Printk (("umsdos_readdir_x: what UMSDOS_SPECIAL_DIRFPOS /mn/?\n"));
 		/*
 		 * We don't need to simulate this pseudo directory
 		 * when umsdos_readdir_x is called for internal operation
@@ -140,6 +133,8 @@ Printk (("umsdos_readdir_x: what UMSDOS_SPECIAL_DIRFPOS /mn/?\n"));
 		 * linux root), it simulate a directory /DOS which points to
 		 * the real root of the file system.
 		 */
+
+		Printk ((KERN_WARNING "umsdos_readdir_x: pseudo_root thing UMSDOS_SPECIAL_DIRFPOS\n"));
 		if (filldir (dirbuf, "DOS", 3, 
 				UMSDOS_SPECIAL_DIRFPOS, UMSDOS_ROOT_INO) == 0) {
 			filp->f_pos++;
@@ -174,9 +169,13 @@ Printk (("umsdos_readdir_x: what UMSDOS_SPECIAL_DIRFPOS /mn/?\n"));
 	ret = PTR_ERR(demd);
 	if (IS_ERR(demd))
 		goto out_end;
-	ret = 0;
-	if (!demd->d_inode)
+	ret = -EIO;
+	if (!demd->d_inode) {
+		printk(KERN_WARNING 
+			"umsdos_readir_x: EMD file %s/%s not found\n",
+			demd->d_parent->d_name.name, demd->d_name.name);
 		goto out_dput;
+	}
 
 	/* set up our private filp ... */
 	fill_new_filp(&new_filp, demd);
@@ -189,35 +188,63 @@ Printk (("f_pos %Ld i_size %ld\n", new_filp.f_pos, demd->d_inode->i_size));
 	ret = 0;
 	while (new_filp.f_pos < demd->d_inode->i_size) {
 		off_t cur_f_pos = new_filp.f_pos;
-		struct umsdos_info info;
 		struct dentry *dret;
+		struct inode *inode;
 		struct umsdos_dirent entry;
+		struct umsdos_info info;
 
 		ret = -EIO;
 		if (umsdos_emd_dir_readentry (&new_filp, &entry) != 0)
 			break;
-
 		if (entry.name_len == 0)
-			goto remove_name;
+			continue;
+#ifdef UMSDOS_DEBUG_VERBOSE
+if (entry.flags & UMSDOS_HLINK)
+printk("umsdos_readdir_x: %s/%s is hardlink\n",
+filp->f_dentry->d_name.name, entry.name);
+#endif
 
 		umsdos_parse (entry.name, entry.name_len, &info);
 		info.f_pos = cur_f_pos;
 		umsdos_manglename (&info);
+		/*
+		 * Do a real lookup on the short name.
+		 */
 		dret = umsdos_lookup_dentry(filp->f_dentry, info.fake.fname,
-						 info.fake.len);
+						 info.fake.len, 1);
 		ret = PTR_ERR(dret);
 		if (IS_ERR(dret))
 			break;
+		/*
+		 * If the file wasn't found, remove it from the EMD.
+		 */
+		inode = dret->d_inode;
+		if (!inode)
+			goto remove_name;
+#ifdef UMSDOS_DEBUG_VERBOSE
+if (inode->u.umsdos_i.i_is_hlink)
+printk("umsdos_readdir_x: %s/%s already resolved, ino=%ld\n",
+dret->d_parent->d_name.name, dret->d_name.name, inode->i_ino);
+#endif
 
-Printk (("Looking for inode of %s/%s, flags=%x\n",
-dret->d_parent->d_name.name, info.fake.fname, entry.flags));
-		if ((entry.flags & UMSDOS_HLINK) && follow_hlink) {
+Printk (("Found %s/%s, ino=%ld, flags=%x\n",
+dret->d_parent->d_name.name, info.fake.fname, dret->d_inode->i_ino,
+entry.flags));
+		/* check whether to resolve a hard-link */
+		if ((entry.flags & UMSDOS_HLINK) && follow_hlink &&
+		    !inode->u.umsdos_i.i_is_hlink) {
 			dret = umsdos_solve_hlink (dret);
 			ret = PTR_ERR(dret);
 			if (IS_ERR(dret))
 				break;
+			inode = dret->d_inode;
+			if (!inode) {
+printk("umsdos_readdir_x: %s/%s negative after link\n",
+dret->d_parent->d_name.name, dret->d_name.name);
+				goto clean_up;
+			}
 		}
-					
+
 		/* #Specification:  pseudo root / reading real root
 		 * The pseudo root (/linux) is logically
 		 * erased from the real root.  This means that
@@ -225,20 +252,21 @@ dret->d_parent->d_name.name, info.fake.fname, entry.flags));
 		 * infinite recursion (/DOS/linux/DOS/linux/...) while
 		 * walking the file system.
 		 */
-		if (dret->d_inode != pseudo_root &&
+		if (inode != pseudo_root &&
 		    (internal_read || !(entry.flags & UMSDOS_HIDDEN))) {
-			Printk ((KERN_DEBUG "filldir now\n"));
 			if (filldir (dirbuf, entry.name, entry.name_len,
-				 cur_f_pos, dret->d_inode->i_ino) < 0) {
+				 cur_f_pos, inode->i_ino) < 0) {
 				new_filp.f_pos = cur_f_pos;
 			}
-Printk (("Found %s/%s(%ld)\n",
-dret->d_parent->d_name.name, dret->d_name.name, dret->d_inode->i_ino));
+Printk(("umsdos_readdir_x: got %s/%s, ino=%ld\n",
+dret->d_parent->d_name.name, dret->d_name.name, inode->i_ino));
 			if (u_entry != NULL)
 				*u_entry = entry;
 			dput(dret);
+			ret = 0;
 			break;
 		}
+	clean_up:
 		dput(dret);
 		continue;
 
@@ -248,11 +276,17 @@ dret->d_parent->d_name.name, dret->d_name.name, dret->d_inode->i_ino));
 		 * in the MS-DOS directory any more, the entry is
 		 * removed from the EMD file silently.
 		 */
-		Printk (("'Silently' removing EMD for file\n"));
-		ret = umsdos_delentry(filp->f_dentry, &info, 1);
+#ifdef UMSDOS_PARANOIA
+printk("umsdos_readdir_x: %s/%s out of sync, erasing\n",
+filp->f_dentry->d_name.name, info.entry.name);
+#endif
+		ret = umsdos_delentry(filp->f_dentry, &info, 
+					S_ISDIR(info.entry.mode));
 		if (ret)
-			break;
-		continue;
+			printk(KERN_WARNING 
+				"umsdos_readdir_x: delentry %s, err=%d\n",
+				info.entry.name, ret);
+		goto clean_up;
 	}
 	/*
 	 * If the fillbuf has failed, f_pos is back to 0.
@@ -296,8 +330,6 @@ static int UMSDOS_readdir (struct file *filp, void *dirbuf, filldir_t filldir)
 		struct umsdos_dirent entry;
 
 		bufk.count = 0;
-		PRINTK (("UMSDOS_readdir: calling _x (%p,%p,%p,%d,%p,%d,%p)\n",
-			dir, filp, &bufk, 0, &entry, 1, umsdos_dir_once));
 		ret = umsdos_readdir_x (dir, filp, &bufk, 0, &entry, 1, 
 					umsdos_dir_once);
 		if (bufk.count == 0)
@@ -340,19 +372,17 @@ static int UMSDOS_readdir (struct file *filp, void *dirbuf, filldir_t filldir)
  * does this automatically.
  */
 
-void umsdos_lookup_patch (struct inode *dir, struct inode *inode,
-			 struct umsdos_dirent *entry, off_t emd_pos)
+void umsdos_lookup_patch_new(struct dentry *dentry, struct umsdos_info *info)
 {
-	if (inode->i_sb != dir->i_sb)
-		goto out;
-	if (umsdos_isinit (inode))
-		goto out;
+	struct inode *inode = dentry->d_inode;
+	struct umsdos_dirent *entry = &info->entry;
 
-	if (S_ISDIR (inode->i_mode))
-		umsdos_lockcreate (inode);
-	if (umsdos_isinit (inode))
-		goto out_unlock;
-
+	/*
+	 * This part of the initialization depends only on i_patched.
+	 */
+	if (inode->u.umsdos_i.i_patched)
+		goto out;
+	inode->u.umsdos_i.i_patched = 1;
 	if (S_ISREG (entry->mode))
 		entry->mtime = inode->i_mtime;
 	inode->i_mode = entry->mode;
@@ -380,214 +410,14 @@ void umsdos_lookup_patch (struct inode *dir, struct inode *inode,
 				"UMSDOS:  lookup_patch entry->nlink < 1 ???\n");
 		}
 	}
-	umsdos_patch_inode (inode, dir, emd_pos);
+	/*
+	 * The mode may have changed, so patch the inode again.
+	 */
+	umsdos_patch_dentry_inode(dentry, info->f_pos);
+	umsdos_set_dirinfo_new(dentry, info->f_pos);
 
-out_unlock:
-	if (S_ISDIR (inode->i_mode))
-		umsdos_unlockcreate (inode);
-	if (inode->u.umsdos_i.i_emd_owner == 0)
-		printk (KERN_WARNING "UMSDOS:  emd_owner still 0?\n");
 out:
 	return;
-}
-
-
-/*
- * The preferred interface to the above routine ...
- */
-void umsdos_lookup_patch_new(struct dentry *dentry, struct umsdos_dirent *entry,
-				off_t emd_pos)
-{
-	umsdos_lookup_patch(dentry->d_parent->d_inode, dentry->d_inode, entry,
-				emd_pos);
-}
-
-
-struct UMSDOS_DIRENT_K {
-	off_t f_pos;		/* will hold the offset of the entry in EMD */
-	ino_t ino;
-};
-
-
-/*
- * Just to record the offset of one entry.
- */
-
-static int umsdos_filldir_k (	    void *buf,
-				    const char *name,
-				    int len,
-				    off_t offset,
-				    ino_t ino)
-{
-	struct UMSDOS_DIRENT_K *d = (struct UMSDOS_DIRENT_K *) buf;
-
-	d->f_pos = offset;
-	d->ino = ino;
-	return 0;
-}
-
-struct UMSDOS_DIR_SEARCH {
-	struct umsdos_dirent *entry;
-	int found;
-	ino_t search_ino;
-};
-
-static int umsdos_dir_search (	     void *buf,
-				     const char *name,
-				     int len,
-				     off_t offset,
-				     ino_t ino)
-{
-	int ret = 0;
-	struct UMSDOS_DIR_SEARCH *d = (struct UMSDOS_DIR_SEARCH *) buf;
-
-	if (d->search_ino == ino) {
-		d->found = 1;
-		memcpy (d->entry->name, name, len);
-		d->entry->name[len] = '\0';
-		d->entry->name_len = len;
-		ret = 1;	/* So fat_readdir will terminate */
-	}
-	return ret;
-}
-
-
-
-/*
- * Locate the directory entry for a dentry in its parent directory.
- * Return 0 or a negative error code.
- * 
- * Normally, this function must succeed.  It means a strange corruption
- * in the file system if not.
- */
-
-int umsdos_dentry_to_entry(struct dentry *dentry, struct umsdos_dirent *entry)
-{
-	struct dentry *parent = dentry->d_parent;
-	struct inode *inode = dentry->d_inode;
-	int ret = -ENOENT, err;
-	struct file filp;
-	struct UMSDOS_DIR_SEARCH bufsrch;
-	struct UMSDOS_DIRENT_K bufk;
-
-	if (pseudo_root && inode == pseudo_root) {
-		/*
-		 * Quick way to find the name.
-		 * Also umsdos_readdir_x won't show /linux anyway
-		 */
-		memcpy (entry->name, UMSDOS_PSDROOT_NAME, UMSDOS_PSDROOT_LEN + 1);
-		entry->name_len = UMSDOS_PSDROOT_LEN;
-		ret = 0;
-		goto out;
-	}
-
-	/* initialize the file */
-	fill_new_filp (&filp, parent);
-
-	if (!umsdos_have_emd(parent)) {
-		/* This is a DOS directory. */
-		filp.f_pos = 0;
-		bufsrch.entry = entry;
-		bufsrch.search_ino = inode->i_ino;
-		fat_readdir (&filp, &bufsrch, umsdos_dir_search);
-		if (bufsrch.found) {
-			ret = 0;
-			inode->u.umsdos_i.i_dir_owner = parent->d_inode->i_ino;
-			inode->u.umsdos_i.i_emd_owner = 0;
-if (!S_ISDIR(inode->i_mode))
-printk("UMSDOS: %s/%s not a directory!\n",
-dentry->d_parent->d_name.name, dentry->d_name.name);
-			/* N.B. why call this? not always a dir ... */
-			umsdos_setup_dir(dentry);
-		}
-		goto out;
-	}
-
-	/* skip . and .. see umsdos_readdir_x() */
-	filp.f_pos = UMSDOS_SPECIAL_DIRFPOS;
-	while (1) {
-		err = umsdos_readdir_x (parent->d_inode, &filp, &bufk, 1, 
-				entry, 0, umsdos_filldir_k);
-		if (err < 0) { 
-			printk ("UMSDOS: can't locate inode %ld in EMD??\n",
-				inode->i_ino);
-			break;
-		}
-		if (bufk.ino == inode->i_ino) {
-			ret = 0;
-			umsdos_lookup_patch_new(dentry, entry, bufk.f_pos);
-			break;
-		}
-	}
-out:
-	return ret;
-}
-
-/*
- * Deprecated. Try to get rid of this soon!
- */
-int umsdos_inode2entry (struct inode *dir, struct inode *inode,
-			       struct umsdos_dirent *entry)
-{
-	int ret = -ENOENT;
-	struct inode *emddir;
-	struct dentry *i2e;
-	struct file filp;
-	struct UMSDOS_DIR_SEARCH bufsrch;
-	struct UMSDOS_DIRENT_K bufk;
-
-	if (pseudo_root && inode == pseudo_root) {
-		/*
-		 * Quick way to find the name.
-		 * Also umsdos_readdir_x won't show /linux anyway
-		 */
-		memcpy (entry->name, UMSDOS_PSDROOT_NAME, UMSDOS_PSDROOT_LEN + 1);
-		entry->name_len = UMSDOS_PSDROOT_LEN;
-		ret = 0;
-		goto out;
-	}
-
-	emddir = umsdos_emd_dir_lookup (dir, 0);
-	if (emddir == NULL) {
-		/* This is a DOS directory. */
-		i2e = creat_dentry ("@i2e.nul@", 9, dir, NULL);
-		fill_new_filp (&filp, i2e);
-		filp.f_reada = 1;
-		filp.f_pos = 0;
-		bufsrch.entry = entry;
-		bufsrch.search_ino = inode->i_ino;
-		fat_readdir (&filp, &bufsrch, umsdos_dir_search);
-		if (bufsrch.found) {
-			ret = 0;
-			inode->u.umsdos_i.i_dir_owner = dir->i_ino;
-			inode->u.umsdos_i.i_emd_owner = 0;
-			umsdos_setup_dir_inode (inode);
-		}
-		goto out;
-	}
-
-	/* skip . and .. see umsdos_readdir_x() */
-
-	i2e = creat_dentry ("@i2e.nn@", 8, dir, NULL);
-	fill_new_filp (&filp, i2e);
-	filp.f_reada = 1;
-	filp.f_pos = UMSDOS_SPECIAL_DIRFPOS;
-	while (1) {
-		if (umsdos_readdir_x (dir, &filp, &bufk, 1, 
-				entry, 0, umsdos_filldir_k) < 0) {
-			printk ("UMSDOS: can't locate inode %ld in EMD??\n",
-				inode->i_ino);
-			break;
-		}
-		if (bufk.ino == inode->i_ino) {
-			ret = 0;
-			umsdos_lookup_patch (dir, inode, entry, bufk.f_pos);
-			break;
-		}
-	}
-	iput (emddir);
-out:
-	return ret;
 }
 
 
@@ -631,71 +461,79 @@ int umsdos_is_pseudodos (struct inode *dir, struct dentry *dentry)
 
 int umsdos_lookup_x (struct inode *dir, struct dentry *dentry, int nopseudo)
 {				
-	const char *name = dentry->d_name.name;
-	int len = dentry->d_name.len;
 	struct dentry *dret = NULL;
 	struct inode *inode;
 	int ret = -ENOENT;
 	struct umsdos_info info;
 
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk("umsdos_lookup_x: looking for %s/%s\n", 
+dentry->d_parent->d_name.name, dentry->d_name.name);
+#endif
+
 	umsdos_startlookup (dir);
-	/* this shouldn't happen ... */
-	if (len == 1 && name[0] == '.') {
-		printk("umsdos_lookup_x: UMSDOS broken, please report!\n");
-		goto out;
-	}
-
-	/* this shouldn't happen ... */
-	if (len == 2 && name[0] == '.' && name[1] == '.') {
-		printk("umsdos_lookup_x: UMSDOS broken, please report!\n");
-		goto out;
-	}
-
 	if (umsdos_is_pseudodos (dir, dentry)) {
 		/* #Specification: pseudo root / lookup(DOS)
 		 * A lookup of DOS in the pseudo root will always succeed
 		 * and return the inode of the real root.
 		 */
-		inode = iget(dir->i_sb, UMSDOS_ROOT_INO);
-		if (inode)
-			goto out_add;
-		ret = -ENOMEM;
-		goto out;
+		Printk ((KERN_DEBUG "umsdos_lookup_x: following /DOS\n"));
+		inode = saved_root->d_inode;
+		goto out_add;
 	}
 
 	ret = umsdos_parse (dentry->d_name.name, dentry->d_name.len, &info);
-	if (ret)
+	if (ret) {
+printk("umsdos_lookup_x: %s/%s parse failed, ret=%d\n", 
+dentry->d_parent->d_name.name, dentry->d_name.name, ret);
 		goto out;
+	}
+
 	ret = umsdos_findentry (dentry->d_parent, &info, 0);
+	if (ret) {
+if (ret != -ENOENT)
+printk("umsdos_lookup_x: %s/%s findentry failed, ret=%d\n", 
+dentry->d_parent->d_name.name, dentry->d_name.name, ret);
+		goto out;
+	}
 Printk (("lookup %.*s pos %lu ret %d len %d ", 
 info.fake.len, info.fake.fname, info.f_pos, ret, info.fake.len));
-	if (ret)
-		goto out;
 
-
+	/* do a real lookup to get the short name ... */
 	dret = umsdos_lookup_dentry(dentry->d_parent, info.fake.fname,
-					info.fake.len);
+					info.fake.len, 1);
 	ret = PTR_ERR(dret);
-	if (IS_ERR(dret))
+	if (IS_ERR(dret)) {
+printk("umsdos_lookup_x: %s/%s real lookup failed, ret=%d\n", 
+dentry->d_parent->d_name.name, dentry->d_name.name, ret);
 		goto out;
-	if (!dret->d_inode)
+	}
+	inode = dret->d_inode;
+	if (!inode)
 		goto out_remove;
-
-	umsdos_lookup_patch_new(dret, &info.entry, info.f_pos);
+	umsdos_lookup_patch_new(dret, &info);
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk("umsdos_lookup_x: found %s/%s, ino=%ld\n", 
+dret->d_parent->d_name.name, dret->d_name.name, dret->d_inode->i_ino);
+#endif
 
 	/* Check for a hard link */
-	if (info.entry.flags & UMSDOS_HLINK) {
-Printk (("checking hard link %s/%s, ino=%ld, flags=%x\n", 
-dret->d_parent->d_name.name, dret->d_name.name,
-dret->d_inode->i_ino, info.entry.flags));
+	if ((info.entry.flags & UMSDOS_HLINK) &&
+	    !inode->u.umsdos_i.i_is_hlink) {
 		dret = umsdos_solve_hlink (dret);
 		ret = PTR_ERR(dret);
 		if (IS_ERR(dret))
 			goto out;
+		ret = -ENOENT;
+		inode = dret->d_inode;
+		if (!inode) {
+printk("umsdos_lookup_x: %s/%s negative after link\n", 
+dret->d_parent->d_name.name, dret->d_name.name);
+			goto out_dput;
+		}
 	}
-	/* N.B. can dentry be negative after resolving hlinks? */
 
-	if (pseudo_root && dret->d_inode == pseudo_root && !nopseudo) {
+	if (inode == pseudo_root && !nopseudo) {
 		/* #Specification: pseudo root / dir lookup
 		 * For the same reason as readdir, a lookup in /DOS for
 		 * the pseudo root directory (linux) will fail.
@@ -705,23 +543,23 @@ dret->d_inode->i_ino, info.entry.flags));
 		 * which are recorded independently of the pseudo-root
 		 * mode.
 		 */
-		Printk (("umsdos_lookup_x: untested Pseudo_root\n"));
+printk("umsdos_lookup_x: skipping DOS/linux\n");
 		ret = -ENOENT;
 		goto out_dput;
-	} else {
-		/* We've found it OK.  Now put inode in dentry. */
-		inode = dret->d_inode;
 	}
 
 	/*
-	 * Hash the dentry with the inode.
+	 * We've found it OK.  Now hash the dentry with the inode.
 	 */
 out_add:
 	inode->i_count++;
 	d_add (dentry, inode);
+	dentry->d_op = &umsdos_dentry_operations;
 	ret = 0;
 
 out_dput:
+	if (dret && dret != dentry)
+		d_drop(dret);
 	dput(dret);
 out:
 	umsdos_endlookup (dir);
@@ -729,10 +567,10 @@ out:
 
 out_remove:
 	printk(KERN_WARNING "UMSDOS:  entry %s/%s out of sync, erased\n",
-		dentry->d_name.name, info.fake.fname);
+		dentry->d_parent->d_name.name, dentry->d_name.name);
 	umsdos_delentry (dentry->d_parent, &info, S_ISDIR (info.entry.mode));
 	ret = -ENOENT;
-	goto out;
+	goto out_dput;
 }
 
 
@@ -740,9 +578,7 @@ out_remove:
  * Check whether a file exists in the current directory.
  * Return 0 if OK, negative error code if not (ex: -ENOENT).
  * 
- * called by VFS. should fill dentry->d_inode (via d_add), and 
- * set (increment) dentry->d_inode->i_count.
- *
+ * Called by VFS; should fill dentry->d_inode via d_add.
  */
 
 int UMSDOS_lookup (struct inode *dir, struct dentry *dentry)
@@ -756,6 +592,7 @@ int UMSDOS_lookup (struct inode *dir, struct dentry *dentry)
 		Printk ((KERN_DEBUG 
 			"UMSDOS_lookup: converting -ENOENT to negative\n"));
 		d_add (dentry, NULL);
+		dentry->d_op = &umsdos_dentry_operations;
 		ret = 0;
 	}
 	return ret;
@@ -768,7 +605,8 @@ int UMSDOS_lookup (struct inode *dir, struct dentry *dentry)
  * We need to use this instead of lookup_dentry, as the 
  * directory semaphore lock is already held.
  */
-struct dentry *umsdos_lookup_dentry(struct dentry *parent, char *name, int len)
+struct dentry *umsdos_lookup_dentry(struct dentry *parent, char *name, int len,
+					int real)
 {
 	struct dentry *result, *dentry;
 	int error;
@@ -783,7 +621,9 @@ struct dentry *umsdos_lookup_dentry(struct dentry *parent, char *name, int len)
 		dentry = d_alloc(parent, &qstr);
 		if (dentry) {
 			result = dentry;
-			error = umsdos_real_lookup(parent->d_inode, result);
+			error = real ?
+				UMSDOS_rlookup(parent->d_inode, result) :
+				UMSDOS_lookup(parent->d_inode, result);
 			if (error)
 				goto out_fail;
 		}
@@ -797,111 +637,134 @@ out_fail:
 	goto out;
 }
 
+/*
+ * Return a path relative to our root.
+ */
+char * umsdos_d_path(struct dentry *dentry, char * buffer, int len)
+{
+	struct dentry * old_root = current->fs->root;
+	char * path;
+
+	/* N.B. not safe -- fix this soon! */
+	current->fs->root = dentry->d_sb->s_root;
+	path = d_path(dentry, buffer, len);
+	current->fs->root = old_root;
+	return path;
+}
+	
 
 /*
- * gets dentry which points to pseudo-hardlink
+ * Return the dentry which points to a pseudo-hardlink.
  *
  * it should try to find file it points to
- * if file is found, it should dput() original dentry and return new one
- * (with d_count = i_count = 1)
- * Otherwise, it should return with error, with dput()ed original dentry.
+ * if file is found, return new dentry/inode
+ * The resolved inode will have i_is_hlink set.
  *
+ * Note: the original dentry is always dput(), even if an error occurs.
  */
 
 struct dentry *umsdos_solve_hlink (struct dentry *hlink)
 {
 	/* root is our root for resolving pseudo-hardlink */
 	struct dentry *base = hlink->d_sb->s_root;
-	struct dentry *final, *dir, *dentry_dst;
+	struct dentry *dentry_dst;
 	char *path, *pt;
-	unsigned long len;
-	int ret = -EIO;
+	int len;
 	struct file filp;
 
-  	check_dentry_path (hlink, "HLINK BEGIN hlink");
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk("umsdos_solve_hlink: following %s/%s\n", 
+hlink->d_parent->d_name.name, hlink->d_name.name);
+#endif
 
-	final = ERR_PTR (-ENOMEM);
+	dentry_dst = ERR_PTR (-ENOMEM);
 	path = (char *) kmalloc (PATH_MAX, GFP_KERNEL);
 	if (path == NULL)
 		goto out;
 
 	fill_new_filp (&filp, hlink);
 	filp.f_flags = O_RDONLY;
-	filp.f_pos = 0;
 
-	Printk (("hlink2inode "));
 	len = umsdos_file_read_kmem (&filp, path, hlink->d_inode->i_size);
 	if (len != hlink->d_inode->i_size)
 		goto out_noread;
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk ("umsdos_solve_hlink: %s/%s is path %s\n",
+hlink->d_parent->d_name.name, hlink->d_name.name, path);
+#endif
 
 	/* start at root dentry */
-	dir = dget(base);
-	path[hlink->d_inode->i_size] = '\0';
-	pt = path;
+	dentry_dst = dget(base);
+	path[len] = '\0';
+	pt = path + 1; /* skip leading '/' */
 	while (1) {
+		struct dentry *dir = dentry_dst, *demd;
 		char *start = pt;
-		int len;
+		int real;
 
 		while (*pt != '\0' && *pt != '/') pt++;
 		len = (int) (pt - start);
 		if (*pt == '/') *pt++ = '\0';
 
-		dentry_dst = umsdos_lookup_dentry(dir, start, len);
+		real = (dir->d_inode->u.umsdos_i.i_emd_dir == 0);
+		/*
+		 * Hack alert! inode->u.umsdos_i.i_emd_dir isn't reliable,
+		 * so just check whether there's an EMD file ...
+		 */
+		real = 1;
+		demd = umsdos_get_emd_dentry(dir);
+		if (!IS_ERR(demd)) {
+			if (demd->d_inode)
+				real = 0;
+			dput(demd);
+		}
+
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk ("umsdos_solve_hlink: dir %s/%s, name=%s, emd_dir=%ld, real=%d\n",
+dir->d_parent->d_name.name, dir->d_name.name, start,
+dir->d_inode->u.umsdos_i.i_emd_dir, real);
+#endif
+		dentry_dst = umsdos_lookup_dentry(dir, start, len, real);
+		if (real)
+			d_drop(dir);
+		dput (dir);
 		if (IS_ERR(dentry_dst))
 			break;
-		if (dir->d_inode->u.umsdos_i.i_emd_dir == 0) {
-			/* This is a DOS directory */
-			ret = umsdos_rlookup_x (dir->d_inode, dentry_dst, 1);
-		} else {
-			ret = umsdos_lookup_x (dir->d_inode, dentry_dst, 1);
-		}
-		Printk (("  returned %d\n", ret));
-		dput (dir);	/* dir no longer needed */
-		dir = dentry_dst;
-
-		Printk (("h2n lookup :%s: -> %d ", start, ret));
-		final = ERR_PTR (ret);
-		if (ret != 0) {
-			/* path component not found! */
+		/* not found? stop search ... */
+		if (!dentry_dst->d_inode) {
 			break;
 		}
-		if (*pt == '\0') {	/* we're finished! */
-			final = umsdos_lookup_dentry(hlink->d_parent,
-						(char *) hlink->d_name.name,
-					 	hlink->d_name.len);
+		if (*pt == '\0')	/* we're finished! */
 			break;
-		}
 	} /* end while */
-	/*
-	 * See whether we found the path ...
-	 */
-	if (!IS_ERR(final)) {
-		if (!final->d_inode) {
-			d_instantiate(final, dir->d_inode);
-			/* we need inode to survive. */
-			dir->d_inode->i_count++;	
+
+	if (!IS_ERR(dentry_dst)) {
+		struct inode *inode = dentry_dst->d_inode;
+		if (inode) {
+			inode->u.umsdos_i.i_is_hlink = 1;
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk ("umsdos_solve_hlink: resolved link %s/%s, ino=%ld\n",
+dentry_dst->d_parent->d_name.name, dentry_dst->d_name.name, inode->i_ino);
+#endif
 		} else {
-			printk ("umsdos_solve_hlink: %s/%s already exists\n",
-				final->d_parent->d_name.name,
-				final->d_name.name);
+#ifdef UMSDOS_DEBUG_VERBOSE
+printk ("umsdos_solve_hlink: resolved link %s/%s negative!\n",
+dentry_dst->d_parent->d_name.name, dentry_dst->d_name.name);
+#endif
 		}
-printk ("umsdos_solve_hlink: ret = %d, %s/%s -> %s/%s\n",
-ret, hlink->d_parent->d_name.name, hlink->d_name.name,
-final->d_parent->d_name.name, final->d_name.name);
-	}
-	dput(dir);
+	} else
+		printk(KERN_WARNING
+			"umsdos_solve_hlink: err=%ld\n", PTR_ERR(dentry_dst));
 
 out_free:
 	kfree (path);
 
 out:
 	dput(hlink);	/* original hlink no longer needed */
-  	check_dentry_path (hlink, "HLINK FIN hlink");
-  	check_dentry_path (final, "HLINK RET final");
-	return final;
+	return dentry_dst;
 
 out_noread:
-	printk("umsdos_solve_hlink: failed reading pseudolink!\n");
+	printk(KERN_WARNING "umsdos_solve_hlink: failed reading pseudolink!\n");
 	goto out_free;
 }	
 
@@ -943,5 +806,4 @@ struct inode_operations umsdos_dir_inode_operations =
 	NULL,			/* smap */
 	NULL,			/* updatepage */
 	NULL,			/* revalidate */
-
 };

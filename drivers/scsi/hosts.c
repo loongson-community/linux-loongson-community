@@ -41,7 +41,15 @@
 
 #include "hosts.h"
 
-#if defined(CONFIG_A4000T_SCSI) || defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4091_SCSI) || defined (CONFIG_GVP_TURBO_SCSI)
+#if defined(CONFIG_A4000T_SCSI) || \
+    defined(CONFIG_WARPENGINE_SCSI) || \
+    defined(CONFIG_A4091_SCSI) || \
+    defined (CONFIG_GVP_TURBO_SCSI) || \
+    defined (CONFIG_BLZ603E)
+#define AMIGA7XXCONFIG
+#endif
+
+#ifdef AMIGA7XXCONFIG
 #include "amiga7xx.h"
 #endif
 
@@ -125,6 +133,10 @@
 #include "u14-34f.h"
 #endif
 
+#ifdef CONFIG_SCSI_FD_MCS
+#include "fd_mcs.h"
+#endif
+
 #ifdef CONFIG_SCSI_FUTURE_DOMAIN
 #include "fdomain.h"
 #endif
@@ -195,10 +207,6 @@
 
 #ifdef CONFIG_SCSI_AM53C974
 #include "AM53C974.h"
-#endif
-
-#ifdef CONFIG_SCSI_PPA
-#include "ppa.h"
 #endif
 
 #ifdef CONFIG_SCSI_SUNESP
@@ -282,6 +290,20 @@
 #endif
 
 /*
+ * Moved ppa driver to the end of the probe list
+ * since it is a removable host adapter.
+ * This means the parallel ZIP drive will not bump
+ * the order of the /dev/sd devices - campbell@torque.net
+ */
+#ifdef CONFIG_SCSI_PPA
+#include "ppa.h"
+#endif
+
+#ifdef CONFIG_SCSI_IMM
+#include "imm.h"
+#endif
+
+/*
 static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/hosts.c,v 1.20 1996/12/12 19:18:32 davem Exp $";
 */
 
@@ -315,7 +337,7 @@ Scsi_Host_Template * scsi_hosts = NULL;
 static Scsi_Host_Template builtin_scsi_hosts[] =
 {
 #ifdef CONFIG_AMIGA
-#if defined(CONFIG_WARPENGINE_SCSI) || defined(CONFIG_A4000T_SCSI) || defined(CONFIG_A4091_SCSI) || defined (CONFIG_GVP_TURBO_SCSI)
+#ifdef AMIGA7XXCONFIG
 	AMIGA7XX_SCSI,
 #endif
 #ifdef CONFIG_A3000_SCSI
@@ -449,9 +471,6 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_AM53C974
     AM53C974,
 #endif
-#ifdef CONFIG_SCSI_PPA
-    PPA,
-#endif
 #ifdef CONFIG_SCSI_SUNESP
     SCSI_SPARC_ESP,
 #endif
@@ -492,6 +511,13 @@ static Scsi_Host_Template builtin_scsi_hosts[] =
 #ifdef CONFIG_SCSI_POWERTECSCSI
     POWERTECSCSI,
 #endif
+#endif
+/* "Removable host adapters" below this line (Parallel Port/USB/other) */
+#ifdef CONFIG_SCSI_PPA
+    PPA,
+#endif
+#ifdef CONFIG_SCSI_IMM
+    IMM,
 #endif
 #ifdef CONFIG_SCSI_SGIWD93
     SGIWD93_SCSI,

@@ -14,7 +14,8 @@
 #include <linux/fs.h>
 #endif
 
-#if defined(i386) || defined(__i386__) || defined(__alpha__)
+#if defined(i386) || defined(__i386__) || defined(__alpha__) || \
+    defined(__MIPSEL__)
 
 /* unsigned integral types */
 #ifndef NTFS_INTEGRAL_TYPES

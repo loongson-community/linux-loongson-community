@@ -10,38 +10,23 @@
  */
 
 #include <linux/config.h>
+#include <linux/malloc.h>
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/fs.h>
 #include <linux/blkdev.h>
 #include <linux/cdrom.h>
-#include <linux/sched.h>
 #include <linux/kernel_stat.h>
-#include <linux/mm.h>
-#include <linux/malloc.h>
-#include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include <linux/ptrace.h>
 #include <linux/sys.h>
 #include <linux/utsname.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
-#include <linux/timer.h>
-#include <linux/binfmts.h>
-#include <linux/personality.h>
-#include <linux/termios.h>
-#include <linux/tqueue.h>
-#include <linux/tty.h>
 #include <linux/serial.h>
 #include <linux/locks.h>
-#include <linux/string.h>
 #include <linux/delay.h>
-#include <linux/sem.h>
 #include <linux/minix_fs.h>
 #include <linux/ext2_fs.h>
 #include <linux/random.h>
 #include <linux/reboot.h>
-#include <linux/mount.h>
 #include <linux/pagemap.h>
 #include <linux/sysctl.h>
 #include <linux/hdreg.h>
@@ -51,19 +36,12 @@
 #include <linux/ctype.h>
 #include <linux/file.h>
 #include <linux/console.h>
-#include <linux/time.h>
-
-extern unsigned char aux_device_present, pckbd_read_mask;
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
 #endif
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
-#endif
-#include <asm/irq.h>
-#ifdef __SMP__
-#include <linux/smp.h>
 #endif
 
 extern char *get_options(char *str, int *ints);
@@ -79,6 +57,7 @@ extern void *sys_call_table;
 extern int sys_tz;
 extern int request_dma(unsigned int dmanr, char * deviceID);
 extern void free_dma(unsigned int dmanr);
+extern spinlock_t dma_spin_lock;
 
 #ifdef MODVERSIONS
 const struct module_symbol __export_Using_Versions
@@ -146,6 +125,7 @@ EXPORT_SYMBOL(d_move);
 EXPORT_SYMBOL(d_instantiate);
 EXPORT_SYMBOL(d_alloc);
 EXPORT_SYMBOL(d_lookup);
+EXPORT_SYMBOL(d_path);
 EXPORT_SYMBOL(__mark_inode_dirty);
 EXPORT_SYMBOL(get_empty_filp);
 EXPORT_SYMBOL(init_private_file);
@@ -191,6 +171,7 @@ EXPORT_SYMBOL(shrink_dcache_sb);
 EXPORT_SYMBOL(shrink_dcache_parent);
 EXPORT_SYMBOL(find_inode_number);
 EXPORT_SYMBOL(is_subdir);
+EXPORT_SYMBOL(get_unused_fd);
 
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
@@ -299,6 +280,7 @@ EXPORT_SYMBOL(autoirq_report);
 /* dma handling */
 EXPORT_SYMBOL(request_dma);
 EXPORT_SYMBOL(free_dma);
+EXPORT_SYMBOL(dma_spin_lock);
 #ifdef HAVE_DISABLE_HLT
 EXPORT_SYMBOL(disable_hlt);
 EXPORT_SYMBOL(enable_hlt);
@@ -313,7 +295,9 @@ EXPORT_SYMBOL(release_region);
 EXPORT_SYMBOL(__wake_up);
 EXPORT_SYMBOL(sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on);
+EXPORT_SYMBOL(interruptible_sleep_on_timeout);
 EXPORT_SYMBOL(schedule);
+EXPORT_SYMBOL(schedule_timeout);
 EXPORT_SYMBOL(jiffies);
 EXPORT_SYMBOL(xtime);
 EXPORT_SYMBOL(do_gettimeofday);
@@ -373,19 +357,12 @@ EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
 EXPORT_SYMBOL(__down);
+EXPORT_SYMBOL(__down_interruptible);
 EXPORT_SYMBOL(__up);
 
 /* all busmice */
 EXPORT_SYMBOL(add_mouse_randomness);
 EXPORT_SYMBOL(fasync_helper);
-
-#ifdef CONFIG_PSMOUSE_MODULE
-/* psaux mouse */
-EXPORT_SYMBOL(aux_device_present);
-#ifdef CONFIG_VT
-EXPORT_SYMBOL(pckbd_read_mask);
-#endif
-#endif
 
 #ifdef CONFIG_BLK_DEV_MD
 EXPORT_SYMBOL(disk_name);	/* for md.c */
@@ -401,3 +378,6 @@ EXPORT_SYMBOL(unregister_console);
 
 /* time */
 EXPORT_SYMBOL(get_fast_time);
+
+/* library functions */
+EXPORT_SYMBOL(strnicmp);

@@ -8,6 +8,7 @@
 
 #include <asm/head.h>
 
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/tasks.h>
@@ -57,7 +58,6 @@ extern unsigned char boot_cpu_id;
 extern int smp_activated;
 extern volatile int cpu_number_map[NR_CPUS];
 extern volatile int __cpu_logical_map[NR_CPUS];
-extern struct klock_info klock_info;
 extern volatile unsigned long ipi_count;
 extern volatile int smp_process_available;
 extern volatile int smp_commenced;
@@ -70,31 +70,6 @@ extern int __smp4d_processor_id(void);
 #else
 #define SMP_PRINTK(x)
 #endif
-
-int smp4d_bogo_info(char *buf)
-{
-	int len = 0, i;
-	
-	for (i = 0; i < NR_CPUS; i++)
-		if (cpu_present_map & (1 << i))
-			len += sprintf(buf + len, "Cpu%dBogo\t: %lu.%02lu\n", 
-					i,
-					cpu_data[i].udelay_val/500000,
-					(cpu_data[i].udelay_val/5000)%100);
-	return len;
-}
-
-int smp4d_info(char *buf)
-{
-	int len = 0, i;
-	
-	for (i = 0; i < NR_CPUS; i++)
-		if (cpu_present_map & (1 << i))
-			len += sprintf(buf + len, "CPU%d\t\t: %s\n", 
-					i,
-					(klock_info.akp == i) ? "akp" : "online");
-	return len;
-}
 
 static inline unsigned long swap(volatile unsigned long *ptr, unsigned long val)
 {
@@ -193,10 +168,6 @@ __initfunc(void smp4d_boot_cpus(void))
 
 	printk("Entering SMP Mode...\n");
 	
-	smp_penguin_ctable.which_io = 0;
-	smp_penguin_ctable.phys_addr = (unsigned int) srmmu_ctx_table_phys;
-	smp_penguin_ctable.reg_size = 0;
-
 	for (i = 0; i < NR_CPUS; i++)
 		cpu_offset[i] = (char *)&cpu_data[i] - (char *)&cpu_data;
 		
@@ -216,7 +187,6 @@ __initfunc(void smp4d_boot_cpus(void))
 		mid_xlate[i] = i;
 	cpu_number_map[boot_cpu_id] = 0;
 	__cpu_logical_map[0] = boot_cpu_id;
-	klock_info.akp = boot_cpu_id;
 	current->processor = boot_cpu_id;
 	smp_store_cpu_info(boot_cpu_id);
 	smp_setup_percpu_timer();
@@ -246,7 +216,16 @@ __initfunc(void smp4d_boot_cpus(void))
 			for (no = 0; no < linux_num_cpus; no++)
 				if (linux_cpus[no].mid == i)
 					break;
-			
+
+			/*
+			 * Initialize the contexts table
+			 * Since the call to prom_startcpu() trashes the structure,
+			 * we need to re-initialize it for each cpu
+			 */
+			smp_penguin_ctable.which_io = 0;
+			smp_penguin_ctable.phys_addr = (unsigned int) srmmu_ctx_table_phys;
+			smp_penguin_ctable.reg_size = 0;
+
 			/* whirrr, whirrr, whirrrrrrrrr... */
 			SMP_PRINTK(("Starting CPU %d at %p task %d node %08x\n", i, entry, cpucount, linux_cpus[no].prom_node));
 			local_flush_cache_all();
@@ -256,10 +235,10 @@ __initfunc(void smp4d_boot_cpus(void))
 			SMP_PRINTK(("prom_startcpu returned :)\n"));
 
 			/* wheee... it's going... */
-			for(timeout = 0; timeout < 5000000; timeout++) {
+			for(timeout = 0; timeout < 10000; timeout++) {
 				if(cpu_callin_map[i])
 					break;
-				udelay(100);
+				udelay(200);
 			}
 			
 			if(cpu_callin_map[i]) {
@@ -436,6 +415,8 @@ void smp4d_message_pass(int target, int msg, unsigned long data, int wait)
 /* Protects counters touched during level14 ticker */
 static spinlock_t ticker_lock = SPIN_LOCK_UNLOCKED;
 
+#ifdef CONFIG_PROFILE
+
 /* 32-bit Sparc specific profiling function. */
 static inline void sparc_do_profile(unsigned long pc)
 {
@@ -453,6 +434,8 @@ static inline void sparc_do_profile(unsigned long pc)
 		spin_unlock(&ticker_lock);
 	}
 }
+
+#endif
 
 extern unsigned int prof_multiplier[NR_CPUS];
 extern unsigned int prof_counter[NR_CPUS];
@@ -479,9 +462,10 @@ void smp4d_percpu_timer_interrupt(struct pt_regs *regs)
 		show_leds(cpu);
 	}
 
+#ifdef CONFIG_PROFILE
 	if(!user_mode(regs))
 		sparc_do_profile(regs->pc);
-
+#endif
 	if(!--prof_counter[cpu]) {
 		int user = user_mode(regs);
 		if(current->pid) {
@@ -559,8 +543,6 @@ __initfunc(void sun4d_init_smp(void))
 	BTFIXUPSET_BLACKBOX(load_current, smp4d_blackbox_current);
 	BTFIXUPSET_CALL(smp_cross_call, smp4d_cross_call, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(smp_message_pass, smp4d_message_pass, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(smp_bogo_info, smp4d_bogo_info, BTFIXUPCALL_NORM);
-	BTFIXUPSET_CALL(smp_info, smp4d_info, BTFIXUPCALL_NORM);
 	BTFIXUPSET_CALL(__smp_processor_id, __smp4d_processor_id, BTFIXUPCALL_NORM);
 	
 	for (i = 0; i < NR_CPUS; i++) {

@@ -1,6 +1,6 @@
 /* linux/net/inet/arp.c
  *
- * Version:	$Id: arp.c,v 1.70 1998/08/26 12:03:18 davem Exp $
+ * Version:	$Id: arp.c,v 1.75 1998/11/16 04:51:56 davem Exp $
  *
  * Copyright (C) 1994 by Florian  La Roche
  *
@@ -163,8 +163,6 @@ static struct neigh_ops arp_direct_ops =
 	dev_queue_xmit
 };
 
-#if defined(CONFIG_AX25) || defined(CONFIG_AX25_MODULE) || \
-    defined(CONFIG_SHAPER) || defined(CONFIG_SHAPER_MODULE)
 struct neigh_ops arp_broken_ops =
 {
 	AF_INET,
@@ -176,7 +174,6 @@ struct neigh_ops arp_broken_ops =
 	dev_queue_xmit,
 	dev_queue_xmit,
 };
-#endif
 
 struct neigh_table arp_tbl =
 {
@@ -547,7 +544,7 @@ int arp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
  */  
 	if (in_dev == NULL ||
 	    arp->ar_hln != dev->addr_len    || 
-	    dev->flags & IFF_NOARP          ||
+	    dev->flags & IFF_NOARP ||
 	    skb->pkt_type == PACKET_OTHERHOST ||
 	    skb->pkt_type == PACKET_LOOPBACK ||
 	    arp->ar_pln != 4)
@@ -1027,7 +1024,7 @@ int arp_get_info(char *buffer, char **start, off_t offset, int length, int dummy
 				"%-17s0x%-10x0x%-10x%s",
 				in_ntoa(*(u32*)n->key),
 				hatype,
-				ATF_PUBL|ATF_PERM,       
+ 				ATF_PUBL|ATF_PERM,
 				"00:00:00:00:00:00");
 			size += sprintf(buffer+len+size,
 				 "     %-17s %s\n",

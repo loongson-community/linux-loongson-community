@@ -1,5 +1,5 @@
 /*
- *	$Id: oldproc.c,v 1.20 1998/08/23 12:12:01 mj Exp $
+ *	$Id: oldproc.c,v 1.24 1998/10/11 15:13:04 mj Exp $
  *
  *	Backward-compatible procfs interface for PCI.
  *
@@ -200,6 +200,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( PROMISE,	PROMISE_5300,	"DC5030"),
 	DEVICE( N9,		N9_I128,	"Imagine 128"),
 	DEVICE( N9,		N9_I128_2,	"Imagine 128v2"),
+	DEVICE( N9,		N9_I128_T2R,	"Revolution 3D"),
 	DEVICE( UMC,		UMC_UM8673F,	"UM8673F"),
 	DEVICE( UMC,		UMC_UM8891A,	"UM8891A"),
 	DEVICE( UMC,		UMC_UM8886BF,	"UM8886BF"),
@@ -255,6 +256,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( WINBOND,	WINBOND_82C105,	"SL82C105"),
 	DEVICE( WINBOND,	WINBOND_83C553,	"W83C553"),
 	DEVICE( DATABOOK,      	DATABOOK_87144,	"DB87144"),
+	DEVICE(	PLX,		PLX_9050,	"PCI9050 I2O"),
 	DEVICE( PLX,		PLX_9080,	"PCI9080 I2O"),
 	DEVICE( MADGE,		MADGE_MK2,	"Smart 16/4 BM Mk2 Ringnode"),
 	DEVICE( MADGE,		MADGE_C155S,	"Collage 155 Server"),
@@ -314,6 +316,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( TRUEVISION,	TRUEVISION_T1000,"TARGA 1000"),
 	DEVICE( INIT,		INIT_320P,	"320 P"),
 	DEVICE( INIT,		INIT_360P,	"360 P"),
+	DEVICE(	TTI,		TTI_HPT343,	"HPT343"),
 	DEVICE( VIA,		VIA_82C505,	"VT 82C505"),
 	DEVICE( VIA,		VIA_82C561,	"VT 82C561"),
 	DEVICE( VIA,		VIA_82C586_1,	"VT 82C586 Apollo IDE"),
@@ -389,6 +392,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( TOSHIBA,	TOSHIBA_TOPIC95,"ToPIC95"),
 	DEVICE( TOSHIBA,	TOSHIBA_TOPIC97,"ToPIC97"),
 	DEVICE( RICOH,		RICOH_RL5C466,	"RL5C466"),
+	DEVICE(	ARTOP,		ARTOP_ATP8400,	"ATP8400"),
 	DEVICE( ARTOP,		ARTOP_ATP850UF,	"ATP850UF"),
 	DEVICE( ZEITNET,	ZEITNET_1221,	"1221"),
 	DEVICE( ZEITNET,	ZEITNET_1225,	"1225"),
@@ -396,6 +400,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( LITEON,		LITEON_LNE100TX,"LNE100TX"),
 	DEVICE( NP,		NP_PCI_FDDI,	"NP-PCI"),       
 	DEVICE( ATT,		ATT_L56XMF,	"L56xMF"),
+	DEVICE( SPECIALIX,	SPECIALIX_IO8,	"IO8+/PCI"),
 	DEVICE( SPECIALIX,	SPECIALIX_XIO,	"XIO/SIO host"),
 	DEVICE( SPECIALIX,	SPECIALIX_RIO,	"RIO host"),
 	DEVICE( AURAVISION,	AURAVISION_VXP524,"VXP524"),
@@ -471,6 +476,7 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( S3,		S3_ViRGE_MXP,	"ViRGE/MX+"),
 	DEVICE( S3,		S3_ViRGE_MXPMV,	"ViRGE/MX+MV"),
 	DEVICE( S3,		S3_SONICVIBES,	"SonicVibes"),
+	DEVICE( GENROCO,	GENROCO_HFP832,	"TURBOstor HFP832"),
 	DEVICE( INTEL,		INTEL_82375,	"82375EB"),
 	DEVICE( INTEL,		INTEL_82424,	"82424ZX Saturn"),
 	DEVICE( INTEL,		INTEL_82378,	"82378IB"),
@@ -525,6 +531,10 @@ struct pci_dev_info dev_info[] = {
 	DEVICE( ADAPTEC,	ADAPTEC_7883,	"AIC-7883U"),
 	DEVICE( ADAPTEC,	ADAPTEC_7884,	"AIC-7884U"),
 	DEVICE( ADAPTEC,	ADAPTEC_1030,	"ABA-1030 DVB receiver"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_2940U2,"AHA-2940U2"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_7890,	"AIC-7890/1"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_3940U2,"AHA-3940U2"),
+	DEVICE( ADAPTEC2,	ADAPTEC2_7896,	"AIC-7896/7"),
   	DEVICE( ATRONICS,	ATRONICS_2015,	"IDE-2015PL"),
 	DEVICE( TIGERJET,	TIGERJET_300,	"Tiger300 ISDN"),
 	DEVICE( ARK,		ARK_STING,	"Stingray"),
@@ -722,6 +732,7 @@ static const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_REALTEK:	return "Realtek";
 	      case PCI_VENDOR_ID_TRUEVISION:	return "Truevision";
 	      case PCI_VENDOR_ID_INIT:		return "Initio Corp";
+	      case PCI_VENDOR_ID_TTI:		return "Triones Technologies, Inc.";
 	      case PCI_VENDOR_ID_VIA:		return "VIA Technologies";
 	      case PCI_VENDOR_ID_VORTEX:	return "VORTEX";
 	      case PCI_VENDOR_ID_EF:		return "Efficient Networks";
@@ -771,9 +782,11 @@ static const char *pci_strvendor(unsigned int vendor)
 	      case PCI_VENDOR_ID_AVANCE:	return "Avance";
 	      case PCI_VENDOR_ID_NETVIN:	return "NetVin";
 	      case PCI_VENDOR_ID_S3:		return "S3 Inc.";
+	      case PCI_VENDOR_ID_GENROCO:	return "Genroco";
 	      case PCI_VENDOR_ID_INTEL:		return "Intel";
 	      case PCI_VENDOR_ID_KTI:		return "KTI";
 	      case PCI_VENDOR_ID_ADAPTEC:	return "Adaptec";
+	      case PCI_VENDOR_ID_ADAPTEC2:	return "Adaptec";
 	      case PCI_VENDOR_ID_ATRONICS:	return "Atronics";
 	      case PCI_VENDOR_ID_TIGERJET:	return "TigerJet";
 	      case PCI_VENDOR_ID_ARK:		return "ARK Logic";

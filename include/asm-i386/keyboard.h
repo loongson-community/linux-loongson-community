@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.5 1997/08/05 09:44:29 ralf Exp $
+ * $Id: keyboard.h,v 1.6 1998/10/28 12:40:06 ralf Exp $
  */
 
 /*
@@ -52,8 +52,11 @@ extern unsigned char pckbd_sysrq_xlate[128];
 /* Some stoneage hardware needs delays after some operations.  */
 #define kbd_pause() do { SLOW_DOWN_IO; } while(0)
 
-#define keyboard_setup()						\
-	request_region(0x60, 16, "keyboard")
+/* Get the keyboard controller registers (incomplete decode) */
+#define kbd_request_region() request_region(0x60, 16, "keyboard")
+
+#define kbd_request_irq() request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, \
+                                      "keyboard", NULL);
 
 /*
  * Machine specific bits for the PS/2 driver
@@ -63,21 +66,16 @@ extern unsigned char pckbd_sysrq_xlate[128];
 
 #ifdef CONFIG_MCA
 
-#define ps2_request_irq()						\
-	request_irq(AUX_IRQ, aux_interrupt, MCA_bus ? SA_SHIRQ : 0,	\
-	                    "PS/2 Mouse", inode)
+#define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, \
+	MCA_bus ? SA_SHIRQ : 0, "PS/2 Mouse", dev_id)
+#define aux_free_irq(dev_id) free_irq(AUX_IRQ, dev_id)
 
 #else /* !defined(CONFIG_MCA) */
 
-#define ps2_request_irq()						\
-	request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)
+#define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, 0, \
+	"PS/2 Mouse", NULL)
+#define aux_free_irq(dev_id) free_irq(AUX_IRQ, NULL)
 
-#endif /* !defined(CONFIG_MCA) */
-
-#ifdef CONFIG_MCA
-#define ps2_free_irq(inode) free_irq(AUX_IRQ, inode)
-#else
-#define ps2_free_irq(inode) free_irq(AUX_IRQ, NULL)
 #endif
 
 #endif /* __KERNEL__ */

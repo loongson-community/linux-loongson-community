@@ -1,4 +1,4 @@
-/* $Id: fcntl.h,v 1.9 1997/02/04 07:29:20 davem Exp $ */
+/* $Id: fcntl.h,v 1.11 1998/10/26 20:03:10 davem Exp $ */
 #ifndef _SPARC_FCNTL_H
 #define _SPARC_FCNTL_H
 
@@ -17,6 +17,8 @@
 #define O_NONBLOCK	0x4000
 #define O_NDELAY	(0x0004 | O_NONBLOCK)
 #define O_NOCTTY	0x8000	/* not fcntl */
+#define O_DIRECTORY	0x10000	/* must be a directory */
+#define O_NOFOLLOW	0x20000	/* don't follow links */
 
 #define F_DUPFD		0	/* dup */
 #define F_GETFD		1	/* get f_flags */

@@ -41,7 +41,21 @@ nfsd_setuser(struct svc_rqst *rqstp, struct svc_export *exp)
 		current->fsgid = cred->cr_gid;
 	else
 		current->fsgid = exp->ex_anon_gid;
-	for (i = 0; i < NGROUPS; i++)
-		current->groups[i] = cred->cr_groups[i];
+	for (i = 0; i < NGROUPS; i++) {
+		gid_t group = cred->cr_groups[i];
+		if (group == (gid_t) NOGROUP)
+			break;
+		current->groups[i] = group;
+	}
+	current->ngroups = i;
+
+	if ((cred->cr_uid)) {
+		cap_lower(current->cap_effective, CAP_DAC_OVERRIDE);
+		cap_lower(current->cap_effective, CAP_DAC_READ_SEARCH);
+	} else {
+		cap_raise(current->cap_effective, CAP_DAC_OVERRIDE);
+		cap_raise(current->cap_effective, CAP_DAC_READ_SEARCH);
+	}
+
 	rqstp->rq_userset = 1;
 }

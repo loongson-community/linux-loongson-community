@@ -2,9 +2,15 @@
 #define _LINUX_LINKAGE_H
 
 #ifdef __cplusplus
-#define asmlinkage extern "C"
+#define CPP_ASMLINKAGE extern "C"
 #else
-#define asmlinkage
+#define CPP_ASMLINKAGE
+#endif
+
+#if defined __i386__ && (__GNUC__ > 2 || __GNUC_MINOR__ > 7)
+#define asmlinkage CPP_ASMLINKAGE __attribute__((regparm(0)))
+#else
+#define asmlinkage CPP_ASMLINKAGE
 #endif
 
 #define SYMBOL_NAME_STR(X) #X
@@ -36,7 +42,7 @@
 #ifdef __ASSEMBLY__
 
 #define ALIGN __ALIGN
-#define ALIGN_STRING __ALIGN_STRING
+#define ALIGN_STR __ALIGN_STR
 
 #define ENTRY(name) \
   .globl SYMBOL_NAME(name); \

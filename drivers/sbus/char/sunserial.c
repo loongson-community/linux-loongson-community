@@ -1,4 +1,4 @@
-/* $Id: sunserial.c,v 1.61 1998/07/28 13:59:52 jj Exp $
+/* $Id: sunserial.c,v 1.67 1998/10/25 03:22:46 jj Exp $
  * serial.c: Serial port driver infrastructure for the Sparc.
  *
  * Copyright (C) 1997  Eddie C. Dost  (ecd@skynet.be)
@@ -69,8 +69,9 @@ rs_kgdb_hook(int channel))
 	rs_ops.rs_kgdb_hook(channel);
 }
 
-__initfunc(void serial_console_init(void))
+__initfunc(long serial_console_init(long kmem_start, long kmem_end))
 {
+	return kmem_start;
 }
 
 void rs_change_mouse_baud(int baud)
@@ -168,7 +169,6 @@ int getkeycode (unsigned int scancode)
 {
 	return kbd_ops.getkeycode(scancode);
 }
-
 
 void
 sunserial_setinitfunc(unsigned long *memory_start, int (*init) (void))
@@ -343,29 +343,41 @@ sunkbd_install_keymaps(unsigned long *memory_start,
 }
 #endif
 
+extern int su_probe(unsigned long *);
 extern int zs_probe(unsigned long *);
 #ifdef CONFIG_SAB82532
 extern int sab82532_probe(unsigned long *);
 #endif
 #ifdef CONFIG_PCI
 extern int ps2kbd_probe(unsigned long *);
-extern int su_probe(unsigned long *);
 #endif
 
 __initfunc(unsigned long
 sun_serial_setup(unsigned long memory_start))
 {
-	int ret = -ENODEV;
-
-	/* Probe for controllers. */
-	ret = zs_probe(&memory_start);
-	if (!ret)
+	int ret = 1;
+	
+#if defined(CONFIG_PCI) && !defined(__sparc_v9__)
+	/*
+	 * Probing sequence on sparc differs from sparc64.
+	 * Keyboard is probed ahead of su because we want su function
+	 * when keyboard is active. su is probed ahead of zs in order to
+	 * get console on MrCoffee with fine but disconnected zs.
+	 */
+	if (!serial_console)
+		ps2kbd_probe(&memory_start);
+	if (su_probe(&memory_start) == 0)
 		return memory_start;
+#endif
 
+	if (zs_probe(&memory_start) == 0)
+		return memory_start;
+		
 #ifdef CONFIG_SAB82532
 	ret = sab82532_probe(&memory_start);
 #endif
-#ifdef CONFIG_PCI
+
+#if defined(CONFIG_PCI) && defined(__sparc_v9__)
 	/*
 	 * Keyboard serial devices.
 	 *
@@ -384,8 +396,17 @@ sun_serial_setup(unsigned long memory_start))
 			return memory_start;
 	}
 #endif
+
 	if (!ret)
 		return memory_start;
+		
+#ifdef __sparc_v9__
+	ret = prom_finddevice("/ssp-serial");
+	if (ret && ret != -1) {
+		/* Hello, Starfire. Pleased to meet you :) */
+		return memory_start;
+	}
+#endif
 
 	prom_printf("No serial devices found, bailing out.\n");
 	prom_halt();

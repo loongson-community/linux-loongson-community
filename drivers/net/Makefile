@@ -199,6 +199,16 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_NE2_MCA),y)
+L_OBJS += ne2.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_NE2_MCA),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += ne2.o
+  endif
+endif
+
 ifeq ($(CONFIG_HPLAN),y)
 L_OBJS += hp.o
 CONFIG_8390_BUILTIN = y
@@ -276,6 +286,16 @@ else
   ifeq ($(CONFIG_LNE390),m)
   CONFIG_8390_MODULE = y
   M_OBJS += lne390.o
+  endif
+endif
+
+ifeq ($(CONFIG_NE3210),y)
+L_OBJS += ne3210.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_NE3210),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += ne3210.o
   endif
 endif
 
@@ -462,6 +482,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_3C515),y)
+L_OBJS += 3c515.o
+else
+  ifeq ($(CONFIG_3C515),m)
+  M_OBJS += 3c515.o
+  endif
+endif
+
 ifeq ($(CONFIG_VORTEX),y)
 L_OBJS += 3c59x.o
 else
@@ -510,6 +538,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ACENIC),y)
+L_OBJS += acenic.o
+else
+  ifeq ($(CONFIG_ACENIC),m)
+  M_OBJS += acenic.o
+  endif
+endif
+
 ifeq ($(CONFIG_WAVELAN),y)
 L_OBJS += wavelan.o
 else
@@ -523,6 +559,14 @@ L_OBJS += tlan.o
 else
   ifeq ($(CONFIG_TLAN),m)
   M_OBJS += tlan.o
+  endif
+endif
+
+ifeq ($(CONFIG_VIA_RHINE),y)
+L_OBJS += via-rhine.o
+else
+  ifeq ($(CONFIG_VIA_RHINE),m)
+  M_OBJS += via-rhine.o
   endif
 endif
 
@@ -752,6 +796,16 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ARIADNE2),y)
+L_OBJS += ariadne2.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ARIADNE2),m)
+  M_OBJS += ariadne2.o
+  CONFIG_8390_MODULE = y
+  endif
+endif
+
 # If anything built-in uses the 8390, then build it into the kernel also.
 # If not, but a module uses it, build as a module.
 ifdef CONFIG_8390_BUILTIN
@@ -953,6 +1007,25 @@ L_OBJS += x25_asy.o
 else
   ifeq ($(CONFIG_X25_ASY),m)
   M_OBJS += x25_asy.o
+  endif
+endif
+
+#
+# HIPPI adapters
+#
+ifeq ($(CONFIG_CERN_HIPPI),y)
+L_OBJS += cern_hippi.o
+else
+  ifeq ($(CONFIG_CERN_HIPPI),m)
+  M_OBJS += cern_hippi.o
+  endif
+endif
+
+ifeq ($(CONFIG_ROADRUNNER),y)
+L_OBJS += rrunner.o
+else
+  ifeq ($(CONFIG_ROADRUNNER),m)
+  M_OBJS += rrunner.o
   endif
 endif
 

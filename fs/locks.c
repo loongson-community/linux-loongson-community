@@ -106,13 +106,7 @@
  */
 
 #include <linux/malloc.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/stat.h>
-#include <linux/fcntl.h>
 #include <linux/file.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
@@ -192,7 +186,7 @@ locks_same_owner(struct file_lock *fl1, struct file_lock *fl2)
 /* Insert waiter into blocker's block list.
  * We use a circular list so that processes can be easily woken up in
  * the order they blocked. The documentation doesn't require this but
- * it seems seems like the reasonable thing to do.
+ * it seems like the reasonable thing to do.
  */
 static void locks_insert_block(struct file_lock *blocker, 
 			       struct file_lock *waiter)

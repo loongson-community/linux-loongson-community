@@ -2,7 +2,7 @@
  * Instruction formats for the sequencer program downloaded to
  * Aic7xxx SCSI host adapters
  *
- * Copyright (c) 1997 Justin T. Gibbs.
+ * Copyright (c) 1997, 1998 Justin T. Gibbs.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,43 +39,81 @@
  *      $Id: sequencer.h,v 1.3 1997/09/27 19:37:31 gibbs Exp $
  */
 
+#ifdef __LITTLE_ENDIAN_BITFIELD
 struct ins_format1 {
-	unsigned char immediate;
-	unsigned char source;
-	unsigned char destination;
-	unsigned char opcode_ret;
-#define DOWNLOAD_CONST_IMMEDIATE 0x80
+	unsigned int
+			immediate	: 8,
+			source		: 9,
+			destination	: 9,
+			ret		: 1,
+			opcode		: 4,
+			parity		: 1;
 };
 
 struct ins_format2 {
-	unsigned char shift_control;
-	unsigned char source;
-	unsigned char destination;
-	unsigned char opcode_ret;
-#define RETURN_BIT 0x01
+	unsigned int
+			shift_control	: 8,
+			source		: 9,
+			destination	: 9,
+			ret		: 1,
+			opcode		: 4,
+			parity		: 1;
 };
 
 struct ins_format3 {
-	unsigned char immediate;
-	unsigned char source;
-	unsigned char address;
-	unsigned char opcode_addr;
-#define ADDR_HIGH_BIT 0x01
+	unsigned int
+			immediate	: 8,
+			source		: 9,
+			address		: 10,
+			opcode		: 4,
+			parity		: 1;
+};
+#elif defined(__BIG_ENDIAN_BITFIELD)
+struct ins_format1 {
+	unsigned int
+			parity		: 1,
+			opcode		: 4,
+			ret		: 1,
+			destination	: 9,
+			source		: 9,
+			immediate	: 8;
 };
 
-#ifndef __KERNEL__
-struct instruction {
-	union {
+struct ins_format2 {
+	unsigned int
+			parity		: 1,
+			opcode		: 4,
+			ret		: 1,
+			destination	: 9,
+			source		: 9,
+			shift_control	: 8;
+};
+
+struct ins_format3 {
+	unsigned int
+			parity		: 1,
+			opcode		: 4,
+			address		: 10,
+			source		: 9,
+			immediate	: 8;
+};
+#endif
+
+union ins_formats {
 		struct ins_format1 format1;
 		struct ins_format2 format2;
 		struct ins_format3 format3;
 		unsigned char	   bytes[4];
-	} format;
-	u_int	srcline;
-	struct symbol *patch_label;
-	STAILQ_ENTRY(instruction) links;
+		unsigned int	   integer;
 };
-#endif
+struct instruction {
+	union	ins_formats format;
+	unsigned int	srcline;
+	struct symbol *patch_label;
+  struct {
+    struct instruction *stqe_next;
+  } links;
+};
 
 #define	AIC_OP_OR	0x0
 #define	AIC_OP_AND	0x1
@@ -83,6 +121,7 @@ struct instruction {
 #define	AIC_OP_ADD	0x3
 #define	AIC_OP_ADC	0x4
 #define	AIC_OP_ROL	0x5
+#define	AIC_OP_BMOV	0x6
 
 #define	AIC_OP_JMP	0x8
 #define AIC_OP_JC	0x9

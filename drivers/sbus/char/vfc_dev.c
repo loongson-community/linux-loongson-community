@@ -21,7 +21,6 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
-#include <linux/uaccess.h>
 
 #include <asm/openprom.h>
 #include <asm/oplib.h>
@@ -31,6 +30,7 @@
 #include <asm/delay.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
+#include <asm/uaccess.h>
 
 #define VFC_MAJOR (60)
 
@@ -218,7 +218,7 @@ static int vfc_debug(struct vfc_dev *dev, int cmd, unsigned long arg)
 			return -ENOMEM;
 
 		if(copy_from_user(buffer, inout.buffer, 
-				  inout.len*sizeof(char));) {
+				  inout.len*sizeof(char))) {
 			kfree_s(buffer,inout.len*sizeof(char));
 			return -EFAULT;
 		}

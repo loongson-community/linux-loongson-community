@@ -1,6 +1,6 @@
 /* -*- linux-c -*-
  *
- *	$Id: sysrq.c,v 1.7 1997/11/06 15:57:09 mj Exp $
+ *	$Id: sysrq.c,v 1.15 1998/08/23 14:56:41 mj Exp $
  *
  *	Linux Magic System Request Key Hacks
  *
@@ -70,12 +70,14 @@ void handle_sysrq(int key, struct pt_regs *pt_regs,
 			printk("Keyboard mode set to XLATE\n");
 		}
 		break;
+#ifdef CONFIG_VT
 	case 'k':					    /* K -- SAK */
 		printk("SAK\n");
 		if (tty)
 			do_SAK(tty);
 		reset_vc(fg_console);
 		break;
+#endif
 	case 'b':					    /* B -- boot immediately */
 		printk("Resetting\n");
 		machine_restart(NULL);
@@ -83,7 +85,7 @@ void handle_sysrq(int key, struct pt_regs *pt_regs,
 #ifdef CONFIG_APM
 	case 'o':					    /* O -- power off */
 		printk("Power off\n");
-		apm_set_power_state(APM_STATE_OFF);
+		apm_power_off();
 		break;
 #endif
 	case 's':					    /* S -- emergency sync */
@@ -131,8 +133,10 @@ void handle_sysrq(int key, struct pt_regs *pt_regs,
 	default:					    /* Unknown: help */
 		if (kbd)
 			printk("unRaw ");
+#ifdef CONFIG_VT
 		if (tty)
 			printk("saK ");
+#endif
 		printk("Boot "
 #ifdef CONFIG_APM
 		       "Off "
@@ -164,7 +168,14 @@ static int is_local_disk(kdev_t dev)	    /* Guess if the device is a local hard 
 	case IDE1_MAJOR:
 	case IDE2_MAJOR:
 	case IDE3_MAJOR:
-	case SCSI_DISK_MAJOR:
+	case SCSI_DISK0_MAJOR:
+	case SCSI_DISK1_MAJOR:
+	case SCSI_DISK2_MAJOR:
+	case SCSI_DISK3_MAJOR:
+	case SCSI_DISK4_MAJOR:
+	case SCSI_DISK5_MAJOR:
+	case SCSI_DISK6_MAJOR:
+	case SCSI_DISK7_MAJOR:
 		return 1;
 	default:
 		return 0;

@@ -1,4 +1,4 @@
-/* $Id: r4xx0.c,v 1.19 1998/08/25 09:14:46 ralf Exp $
+/* $Id: r4xx0.c,v 1.20 1998/10/14 23:40:45 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -2791,6 +2791,7 @@ __initfunc(void ld_mmu_r4xx0(void))
 	flush_tlb_mm = r4k_flush_tlb_mm;
 	flush_tlb_range = r4k_flush_tlb_range;
 	flush_tlb_page = r4k_flush_tlb_page;
+	r4xx0_asid_setup();
 
 	load_pgd = r4k_load_pgd;
 	pgd_init = r4k_pgd_init;

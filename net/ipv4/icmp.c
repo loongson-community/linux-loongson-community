@@ -3,7 +3,7 @@
  *	
  *		Alan Cox, <alan@cymru.net>
  *
- *	Version: $Id: icmp.c,v 1.45 1998/08/26 12:03:35 davem Exp $
+ *	Version: $Id: icmp.c,v 1.47 1998/10/21 05:32:24 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -50,6 +50,11 @@
  *		Yu Tianli	:	Fixed two ugly bugs in icmp_send
  *					- IP option length was accounted wrongly
  *					- ICMP header length was not accounted at all.
+ *
+ * To Fix:
+ *
+ *	- Should use skb_pull() instead of all the manual checking.
+ *	  This would also greatly simply some upper layer error handlers. --AK
  *
  * RFC1122 (Host Requirements -- Comm. Layer) Status:
  * (boy, are there a lot of rules for ICMP)
@@ -354,6 +359,11 @@ struct socket *icmp_socket=&icmp_inode.u.socket_i;
  *	This function is generic and could be used for other purposes
  *	too. It uses a Token bucket filter as suggested by Alexey Kuznetsov.
  *
+ *	Note that the same dst_entry fields are modified by functions in 
+ *	route.c too, but these work for packet destinations while xrlim_allow
+ *	works for icmp destinations. This means the rate limiting information
+ *	for one "ip object" is shared.
+ *
  *	RFC 1812: 4.3.2.8 SHOULD be able to limit error message rate
  *			  SHOULD allow setting of rate limits 
  *
@@ -369,6 +379,7 @@ int xrlim_allow(struct dst_entry *dst, int timeout)
 	if (dst->rate_tokens > XRLIM_BURST_FACTOR*timeout)
 		dst->rate_tokens = XRLIM_BURST_FACTOR*timeout;
 	if (dst->rate_tokens >= timeout) {
+		dst->rate_last = now;
 		dst->rate_tokens -= timeout;
 		return 1;
 	}
@@ -708,12 +719,10 @@ static void icmp_unreach(struct icmphdr *icmph, struct sk_buff *skb, int len)
 	hash = iph->protocol & (MAX_INET_PROTOS - 1);
 	if ((raw_sk = raw_v4_htable[hash]) != NULL) 
 	{
-		raw_sk = raw_v4_lookup(raw_sk, iph->protocol, iph->saddr, iph->daddr, skb->dev->ifindex);
-		while (raw_sk) 
-		{
+		while ((raw_sk = raw_v4_lookup(raw_sk, iph->protocol, iph->saddr,
+					       iph->daddr, skb->dev->ifindex)) != NULL) {
 			raw_err(raw_sk, skb);
-			raw_sk = raw_v4_lookup(raw_sk->next, iph->protocol,
-					       iph->saddr, iph->daddr, skb->dev->ifindex);
+			raw_sk = raw_sk->next;
 		}
 	}
 
@@ -1072,8 +1081,7 @@ static struct icmp_control icmp_pointers[NR_ICMP_TYPES+1] = {
 /* TIME EXCEEDED (11) */
  { &icmp_statistics.IcmpOutTimeExcds, &icmp_statistics.IcmpInTimeExcds, icmp_unreach, 1, &sysctl_icmp_timeexceed_time },
 /* PARAMETER PROBLEM (12) */
-/* FIXME: RFC1122 3.2.2.5 - MUST pass PARAM_PROB messages to transport layer */
- { &icmp_statistics.IcmpOutParmProbs, &icmp_statistics.IcmpInParmProbs, icmp_discard, 1, &sysctl_icmp_paramprob_time },
+ { &icmp_statistics.IcmpOutParmProbs, &icmp_statistics.IcmpInParmProbs, icmp_unreach, 1, &sysctl_icmp_paramprob_time },
 /* TIMESTAMP (13) */
  { &icmp_statistics.IcmpOutTimestamps, &icmp_statistics.IcmpInTimestamps, icmp_timestamp, 0,  },
 /* TIMESTAMP REPLY (14) */

@@ -9,26 +9,17 @@
  * most "normal" filesystems (but you don't /have/ to use this:
  * the NFS filesystem used to do this differently, for example)
  */
-#include <linux/stat.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/shm.h>
-#include <linux/errno.h>
-#include <linux/mman.h>
-#include <linux/string.h>
 #include <linux/malloc.h>
-#include <linux/fs.h>
+#include <linux/shm.h>
+#include <linux/mman.h>
 #include <linux/locks.h>
 #include <linux/pagemap.h>
 #include <linux/swap.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/blkdev.h>
 #include <linux/file.h>
 #include <linux/swapctl.h>
 
-#include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
 
@@ -153,7 +144,7 @@ static inline int shrink_one_page(struct page *page, int gfp_mask)
 		} while (tmp != bh);
 
 		/* Refuse to swap out all buffer pages */
-		if ((buffermem >> PAGE_SHIFT) * 100 < (buffer_mem.min_percent * num_physpages))
+		if (buffer_under_min())
 			goto next;
 	}
 
@@ -167,14 +158,9 @@ static inline int shrink_one_page(struct page *page, int gfp_mask)
 	case 1:
 		/* is it a swap-cache or page-cache page? */
 		if (page->inode) {
-			if (test_and_clear_bit(PG_referenced, &page->flags)) {
-				touch_page(page);
+			if (test_and_clear_bit(PG_referenced, &page->flags))
 				break;
-			}
-			age_page(page);
-			if (page->age)
-				break;
-			if (page_cache_size * 100 < (page_cache.min_percent * num_physpages))
+			if (pgcache_under_min())
 				break;
 			if (PageSwapCache(page)) {
 				delete_from_swap_cache(page);
@@ -186,6 +172,9 @@ static inline int shrink_one_page(struct page *page, int gfp_mask)
 		/* It's not a cache page, so we don't do aging.
 		 * If it has been referenced recently, don't free it */
 		if (test_and_clear_bit(PG_referenced, &page->flags))
+			break;
+
+		if (buffer_under_min())
 			break;
 
 		/* is it a buffer cache page? */
@@ -211,7 +200,7 @@ int shrink_mmap(int priority, int gfp_mask)
 	struct page * page;
 	int count_max, count_min;
 
-	count_max = (limit<<2) >> (priority>>1);
+	count_max = limit;
 	count_min = (limit<<2) >> (priority);
 
 	page = mem_map + clock;
@@ -225,7 +214,15 @@ int shrink_mmap(int priority, int gfp_mask)
 		if (shrink_one_page(page, gfp_mask))
 			return 1;
 		count_max--;
-		if (page->inode || page->buffers)
+		/* 
+		 * If the page we looked at was recyclable but we didn't
+		 * reclaim it (presumably due to PG_referenced), don't
+		 * count it as scanned.  This way, the more referenced
+		 * page cache pages we encounter, the more rapidly we
+		 * will age them. 
+		 */
+		if (atomic_read(&page->count) != 1 ||
+		    (!page->inode && !page->buffers))
 			count_min--;
 		page++;
 		clock++;
@@ -292,7 +289,7 @@ static inline void add_to_page_cache(struct page * page,
 	struct page **hash)
 {
 	atomic_inc(&page->count);
-	page->flags &= ~((1 << PG_uptodate) | (1 << PG_error));
+	page->flags = (page->flags & ~((1 << PG_uptodate) | (1 << PG_error))) | (1 << PG_referenced);
 	page->offset = offset;
 	add_page_to_inode_queue(inode, page);
 	__add_page_to_hash_queue(page, hash);
@@ -313,7 +310,7 @@ static unsigned long try_to_read_ahead(struct file * file,
 	offset &= PAGE_MASK;
 	switch (page_cache) {
 	case 0:
-		page_cache = get_user_page(offset);
+		page_cache = __get_free_page(GFP_USER);
 		if (!page_cache)
 			break;
 	default:
@@ -327,7 +324,6 @@ static unsigned long try_to_read_ahead(struct file * file,
 			 */
 			page = mem_map + MAP_NR(page_cache);
 			add_to_page_cache(page, inode, offset, hash);
-			set_bit(PG_referenced, &page->flags);
 			inode->i_op->readpage(file, page);
 			page_cache = 0;
 		}
@@ -736,7 +732,7 @@ no_cached_page:
 		 * page..
 		 */
 		if (!page_cache) {
-			page_cache = get_user_page(pos & PAGE_MASK);
+			page_cache = __get_free_page(GFP_USER);
 			/*
 			 * That could have slept, so go around to the
 			 * very beginning..
@@ -1002,7 +998,7 @@ found_page:
 	 * extra page -- better to overlap the allocation with the I/O.
 	 */
 	if (no_share && !new_page) {
-		new_page = get_user_page(address);
+		new_page = __get_free_page(GFP_USER);
 		if (!new_page)
 			goto failure;
 	}
@@ -1039,7 +1035,7 @@ success:
 	return new_page;
 
 no_cached_page:
-	new_page = get_user_page(address);
+	new_page = __get_free_page(GFP_USER);
 	if (!new_page)
 		goto no_page;
 
@@ -1067,8 +1063,7 @@ no_cached_page:
 	 * Do a very limited read-ahead if appropriate
 	 */
 	if (PageLocked(page))
-		new_page = try_to_read_ahead(file, offset + PAGE_SIZE,
-		                             get_user_page(address + PAGE_SIZE));
+		new_page = try_to_read_ahead(file, offset + PAGE_SIZE, 0);
 	goto found_page;
 
 page_locked_wait:
@@ -1520,39 +1515,58 @@ generic_file_write(struct file *file, const char *buf,
 {
 	struct dentry	*dentry = file->f_dentry; 
 	struct inode	*inode = dentry->d_inode; 
+	unsigned long	pos = *ppos;
+	unsigned long	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
 	struct page	*page, **hash;
 	unsigned long	page_cache = 0;
-	unsigned long	pgpos, offset;
-	unsigned long	bytes, written;
-	unsigned long	pos;
-	long		status, sync, didread;
+	unsigned long	written;
+	long		status, sync;
 
 	if (!inode->i_op || !inode->i_op->updatepage)
 		return -EIO;
 
 	sync    = file->f_flags & O_SYNC;
-	pos     = *ppos;
 	written = 0;
-	status  = 0;
 
 	if (file->f_flags & O_APPEND)
 		pos = inode->i_size;
 
+	/*
+	 * Check whether we've reached the file size limit.
+	 */
+	status = -EFBIG;
+	if (pos >= limit) {
+		send_sig(SIGXFSZ, current, 0);
+		goto out;
+	}
+
+	status  = 0;
+	/*
+	 * Check whether to truncate the write,
+	 * and send the signal if we do.
+	 */
+	if (count > limit - pos) {
+		send_sig(SIGXFSZ, current, 0);
+		count = limit - pos;
+	}
+
 	while (count) {
+		unsigned long bytes, pgpos, offset;
 		/*
 		 * Try to find the page in the cache. If it isn't there,
 		 * allocate a free page.
 		 */
 		offset = (pos & ~PAGE_MASK);
 		pgpos = pos & PAGE_MASK;
-
-		if ((bytes = PAGE_SIZE - offset) > count)
+		bytes = PAGE_SIZE - offset;
+		if (bytes > count)
 			bytes = count;
 
 		hash = page_hash(inode, pgpos);
-		if (!(page = __find_page(inode, pgpos, *hash))) {
+		page = __find_page(inode, pgpos, *hash);
+		if (!page) {
 			if (!page_cache) {
-				page_cache = get_user_page(pgpos);
+				page_cache = __get_free_page(GFP_USER);
 				if (page_cache)
 					continue;
 				status = -ENOMEM;
@@ -1563,51 +1577,25 @@ generic_file_write(struct file *file, const char *buf,
 			page_cache = 0;
 		}
 
-		/*
-		 * Note: setting of the PG_locked bit is handled
-		 * below the i_op->xxx interface.
-		 */
-		didread = 0;
-page_wait:
+		/* Get exclusive IO access to the page.. */
 		wait_on_page(page);
-		if (PageUptodate(page))
-			goto do_update_page;
+		set_bit(PG_locked, &page->flags);
 
 		/*
-		 * The page is not up-to-date ... if we're writing less
-		 * than a full page of data, we may have to read it first.
-		 * But if the page is past the current end of file, we must
-		 * clear it before updating.
+		 * Do the real work.. If the writer ends up delaying the write,
+		 * the writer needs to increment the page use counts until he
+		 * is done with the page.
 		 */
-		if (bytes < PAGE_SIZE) {
-			if (pgpos < inode->i_size) {
-				status = -EIO;
-				if (didread >= 2)
-					goto done_with_page;
-				status = inode->i_op->readpage(file, page);
-				if (status < 0)
-					goto done_with_page;
-				didread++;
-				goto page_wait;
-			} else {
-				/* Must clear for partial writes */
-				memset((void *) page_address(page), 0,
-					 PAGE_SIZE);
-			}
-		}
-		/*
-		 * N.B. We should defer setting PG_uptodate at least until
-		 * the data is copied. A failure in i_op->updatepage() could
-		 * leave the page with garbage data.
-		 */
-		set_bit(PG_uptodate, &page->flags);
+		bytes -= copy_from_user((u8*)page_address(page) + offset, buf, bytes);
+		status = -EFAULT;
+		if (bytes)
+			status = inode->i_op->updatepage(file, page, offset, bytes, sync);
 
-do_update_page:
-		/* All right, the page is there.  Now update it. */
-		status = inode->i_op->updatepage(file, page, buf,
-							offset, bytes, sync);
-done_with_page:
+		/* Mark it unlocked again and drop the page.. */
+		clear_bit(PG_locked, &page->flags);
+		wake_up(&page->wait);
 		__free_page(page);
+
 		if (status < 0)
 			break;
 
@@ -1622,6 +1610,7 @@ done_with_page:
 
 	if (page_cache)
 		free_page(page_cache);
+out:
 	return written ? written : status;
 }
 

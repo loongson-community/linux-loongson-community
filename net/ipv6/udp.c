@@ -7,7 +7,7 @@
  *
  *	Based on linux/ipv4/udp.c
  *
- *	$Id: udp.c,v 1.33 1998/08/27 16:55:20 davem Exp $
+ *	$Id: udp.c,v 1.37 1998/11/08 11:17:10 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -308,7 +308,7 @@ ipv4_connected:
 	return(0);
 }
 
-static void udpv6_close(struct sock *sk, unsigned long timeout)
+static void udpv6_close(struct sock *sk, long timeout)
 {
 	/* See for explanation: raw_close in ipv4/raw.c */
 	sk->state = TCP_CLOSE;
@@ -317,41 +317,8 @@ static void udpv6_close(struct sock *sk, unsigned long timeout)
 	destroy_sock(sk);
 }
 
-#ifdef CONFIG_FILTER
+#if defined(CONFIG_FILTER) || !defined(HAVE_CSUM_COPY_USER)
 #undef CONFIG_UDP_DELAY_CSUM
-#endif
-
-#ifdef CONFIG_UDP_DELAY_CSUM
-
-/* Please, read comments in net/checksum.h, asm/checksum.h
-
-   I commented out csum_partial_copy_to_user there because it did not
-   verify_area. Now I am even wondered, how clever was I that time 8)8)
-   If I did not it, I would step into this hole again.   --ANK
- */
-
-#ifndef _HAVE_ARCH_COPY_AND_CSUM_TO_USER
-#if defined(__i386__)
-static __inline__
-unsigned int csum_and_copy_to_user (const char *src, char *dst,
-				    int len, int sum, int *err_ptr)
-{
-	int *src_err_ptr=NULL;
-
-	if (verify_area(VERIFY_WRITE, dst, len) == 0)
-		return csum_partial_copy_generic(src, dst, len, sum, src_err_ptr, err_ptr);
-
-	if (len)
-		*err_ptr = -EFAULT;
-
-	return sum;
-}
-#elif defined(__sparc__)
-#define csum_and_copy_to_user csum_partial_copy_to_user
-#else
-#undef CONFIG_UDP_DELAY_CSUM
-#endif
-#endif
 #endif
 
 /*
@@ -365,32 +332,22 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
   	struct sk_buff *skb;
   	int copied, err;
 
-	/*
-	 *	Check any passed addresses
-	 */
-	 
-  	if (addr_len) 
+  	if (addr_len)
   		*addr_len=sizeof(struct sockaddr_in6);
   
-	/*
-	 *	From here the generic datagram does a lot of the work. Come
-	 *	the finished NET3, it will do _ALL_ the work!
-	 */
+	if (flags & MSG_ERRQUEUE)
+		return ipv6_recv_error(sk, msg, len);
 
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
 	if (!skb)
 		goto out;
-  
+
  	copied = skb->len - sizeof(struct udphdr);
   	if (copied > len) {
   		copied = len;
   		msg->msg_flags |= MSG_TRUNC;
   	}
 
-  	/*
-  	 *	FIXME : should use udp header size info value 
-  	 */
-  	 
 #ifndef CONFIG_UDP_DELAY_CSUM
 	err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr), 
 				      msg->msg_iov, copied);
@@ -428,7 +385,7 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 #endif
 	if (err)
 		goto out_free;
-	
+
 	sk->stamp=skb->stamp;
 
 	/* Copy the address. */
@@ -478,26 +435,25 @@ void udpv6_err(struct sk_buff *skb, struct ipv6hdr *hdr,
 
 	sk = udp_v6_lookup(daddr, uh->dest, saddr, uh->source, dev->ifindex);
    
-	if (sk == NULL) {
-		if (net_ratelimit())
-			printk(KERN_DEBUG "icmp for unknown sock\n");
+	if (sk == NULL)
 		return;
-	}
 
-	if (icmpv6_err_convert(type, code, &err)) {
-		if(sk->bsdism && sk->state!=TCP_ESTABLISHED)
-			return;
-		
-		sk->err = err;
-		sk->error_report(sk);
-	} else {
-		sk->err_soft = err;
-	}
+	if (!icmpv6_err_convert(type, code, &err) &&
+	    !sk->net_pinfo.af_inet6.recverr)
+		return;
+
+	if (sk->bsdism && sk->state!=TCP_ESTABLISHED)
+		return;
+
+	if (sk->net_pinfo.af_inet6.recverr)
+		ipv6_icmp_error(sk, skb, err, uh->dest, ntohl(info), (u8 *)(uh+1));
+
+	sk->err = err;
+	sk->error_report(sk);
 }
 
 static inline int udpv6_queue_rcv_skb(struct sock * sk, struct sk_buff *skb)
 {
-
 	if (sock_queue_rcv_skb(sk,skb)<0) {
 		udp_stats_in6.UdpInErrors++;
 		ipv6_statistics.Ip6InDiscards++;
@@ -801,6 +757,11 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 	       
 		udh.uh.dest = sin6->sin6_port;
 		daddr = &sin6->sin6_addr;
+
+		/* Otherwise it will be difficult to maintain sk->dst_cache. */
+		if (sk->state == TCP_ESTABLISHED &&
+		    !ipv6_addr_cmp(daddr, &sk->net_pinfo.af_inet6.daddr))
+			daddr = &sk->net_pinfo.af_inet6.daddr;
 	} else {
 		if (sk->state != TCP_ESTABLISHED)
 			return(-ENOTCONN);
@@ -818,6 +779,7 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 		sin.sin_addr.s_addr = daddr->s6_addr32[3];
 		sin.sin_port = udh.uh.dest;
 		msg->msg_name = (struct sockaddr *)(&sin);
+		msg->msg_namelen = sizeof(sin);
 
 		return udp_sendmsg(sk, msg, ulen);
 	}
@@ -839,7 +801,7 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 		udh.daddr = daddr;
 
 	udh.uh.source = sk->sport;
-	udh.uh.len = len < 0x1000 ? htons(len) : 0;
+	udh.uh.len = len < 0x10000 ? htons(len) : 0;
 	udh.uh.check = 0;
 	udh.iov = msg->msg_iov;
 	udh.wcheck = 0;
@@ -905,7 +867,7 @@ struct proto udpv6_prot = {
 	0				/* highestinuse */
 };
 
-__initfunc(void udpv6_init(void))
+void __init udpv6_init(void)
 {
 	inet6_add_protocol(&udpv6_protocol);
 }

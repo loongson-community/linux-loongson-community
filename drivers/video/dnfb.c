@@ -14,7 +14,7 @@
 #include <linux/fb.h>
 #include <linux/module.h>
 
-#include "fbcon-mfb.h"
+#include <video/fbcon-mfb.h>
 
 
 /* apollo video HW definitions */
@@ -306,7 +306,7 @@ static void dnfb_set_disp(int con, struct fb_info *info)
 #ifdef FBCON_HAS_MFB
    disp[con].dispsw = &fbcon_mfb;
 #else
-   disp[con].dispsw = NULL;
+   disp[con].dispsw = &fbcon_dummy;
 #endif
 }
   
@@ -321,6 +321,7 @@ void dnfb_init(void)
 	fb_info.blank=&dnfbcon_blank;	
 	fb_info.node = -1;
 	fb_info.fbops = &dnfb_ops;
+	fb_info.flags = FBINFO_FLAG_DEFAULT;
 	
         outb(RESET_CREG, AP_CONTROL_3A);
         outw(0x0, AP_WRITE_ENABLE);

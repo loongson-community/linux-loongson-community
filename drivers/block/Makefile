@@ -87,10 +87,10 @@ else
 endif
 
 ifeq ($(CONFIG_BLK_DEV_LOOP),y)
-L_OBJS += loop.o
+LX_OBJS += loop.o
 else
   ifeq ($(CONFIG_BLK_DEV_LOOP),m)
-  M_OBJS += loop.o
+  MX_OBJS += loop.o
   endif
 endif
 
@@ -152,6 +152,10 @@ endif
 
 ifeq ($(CONFIG_BLK_DEV_NS87415),y)
 IDE_OBJS += ns87415.o
+endif
+
+ifeq ($(CONFIG_BLK_DEV_VIA82C586),y)
+IDE_OBJS += via82c586.o
 endif
 
 ifeq ($(CONFIG_BLK_DEV_CMD646),y)

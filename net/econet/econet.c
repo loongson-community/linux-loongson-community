@@ -330,8 +330,6 @@ static int econet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	{
 		/* Real hardware Econet.  We're not worthy etc. */
 #ifdef CONFIG_ECONET_NATIVE
-		unsigned char *p;
-
 		dev_lock_list();
 		
 		skb = sock_alloc_send_skb(sk, len+dev->hard_header_len+15, 0, 
@@ -708,22 +706,13 @@ static int econet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 		case SIOCSIFHWBROADCAST:
 			return(dev_ioctl(cmd,(void *) arg));
 
-
 		case SIOCSIFADDR:
 		case SIOCGIFADDR:
 			return ec_dev_ioctl(sock, cmd, (void *)arg);
 			break;
 
 		default:
-			if ((cmd >= SIOCDEVPRIVATE) &&
-			    (cmd <= (SIOCDEVPRIVATE + 15)))
-				return(dev_ioctl(cmd,(void *) arg));
-
-#ifdef CONFIG_NET_RADIO
-			if((cmd >= SIOCIWFIRST) && (cmd <= SIOCIWLAST))
-				return(dev_ioctl(cmd,(void *) arg));
-#endif
-			return -EOPNOTSUPP;
+			return(dev_ioctl(cmd,(void *) arg));
 	}
 	/*NOTREACHED*/
 	return 0;

@@ -40,6 +40,7 @@
  *	
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 
 #include <linux/types.h>
@@ -63,10 +64,12 @@ struct ip_masq_app *masq_incarnations[MAX_MASQ_APP_PORTS];
 /*
  *	Debug level
  */
+#ifdef CONFIG_IP_MASQ_DEBUG
 static int debug=0;
+MODULE_PARM(debug, "i");
+#endif
 
 MODULE_PARM(ports, "1-" __MODULE_STRING(MAX_MASQ_APP_PORTS) "i");
-MODULE_PARM(debug, "i");
 
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: ds1286.c,v 1.1 1998/07/09 20:01:29 ralf Exp $
+/* $Id: ds1286.c,v 1.2 1998/08/25 09:18:57 ralf Exp $
  *
  *	Real Time Clock interface for Linux	
  *
@@ -432,7 +432,7 @@ int get_ds1286_status(char *buf)
 	 * greater than a valid time, but less than 0xc0 shouldn't appear.
 	 */
 	get_rtc_alm_time(&tm);
-	p += sprintf(p, "alarm\t\t: %s ", days[tm.tm_wday]);
+	p += sprintf(p, "alarm\t\t\t: %s ", days[tm.tm_wday]);
 	if (tm.tm_hour <= 24)
 		p += sprintf(p, "%02d:", tm.tm_hour);
 	else
@@ -462,7 +462,7 @@ int get_ds1286_status(char *buf)
 
 	cmd = CMOS_READ(RTC_CMD);
 	p += sprintf(p,
-	             "alarm\t\t: %s\n"
+	             "alarm\t\t\t: %s\n"
 	             "wdog_alarm\t: %s\n"
 	             "alarm_mask\t: %s\n"
 	             "wdog_alarm_mask\t: %s\n"

@@ -35,6 +35,9 @@ void soundcard_init(void);
 void dmasound_init(void);
 #endif
 #endif
+#ifdef CONFIG_SPARCAUDIO
+extern int sparcaudio_init(void);
+#endif
 #ifdef CONFIG_ISDN
 int isdn_init(void);
 #endif
@@ -43,6 +46,15 @@ extern int videodev_init(void);
 #endif
 #ifdef CONFIG_FB
 extern void fbmem_init(void);
+#endif
+#ifdef CONFIG_PROM_CONSOLE
+extern void prom_con_init(void);
+#endif
+#ifdef CONFIG_MDA_CONSOLE
+extern void mda_console_init(void);
+#endif
+#if defined(CONFIG_PPC) || defined(CONFIG_MAC)
+extern void adbdev_init(void);
 #endif
 
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
@@ -500,9 +512,11 @@ static int memory_open(struct inode * inode, struct file * filp)
 		case 3:
 			filp->f_op = &null_fops;
 			break;
+#if !defined(CONFIG_PPC) && !defined(__mc68000__)
 		case 4:
 			filp->f_op = &port_fops;
 			break;
+#endif
 		case 5:
 			filp->f_op = &zero_fops;
 			break;
@@ -545,20 +559,20 @@ __initfunc(int chr_dev_init(void))
 #if defined (CONFIG_FB)
 	fbmem_init();
 #endif
+#if defined (CONFIG_PROM_CONSOLE)
+	prom_con_init();
+#endif
+#if defined (CONFIG_MDA_CONSOLE)
+	mda_console_init();
+#endif
 	tty_init();
 #ifdef CONFIG_PRINTER
 	lp_init();
 #endif
-#if defined (CONFIG_BUSMOUSE) || defined(CONFIG_UMISC) || \
-    defined (CONFIG_PSMOUSE) || defined (CONFIG_MS_BUSMOUSE) || \
-    defined (CONFIG_ATIXL_BUSMOUSE) || defined(CONFIG_SOFT_WATCHDOG) || \
-    defined (CONFIG_AMIGAMOUSE) || defined (CONFIG_ATARIMOUSE) || \
-    defined (CONFIG_MACMOUSE) || defined (CONFIG_PCWATCHDOG) || \
-    defined (CONFIG_APM) || defined (CONFIG_RTC) || \
-    defined (CONFIG_SGI_DS1286) || defined (CONFIG_SUN_MOUSE) || \
-    defined (CONFIG_NVRAM)
-	misc_init();
+#ifdef CONFIG_M68K_PRINTER
+	lp_m68k_init();
 #endif
+	misc_init();
 #ifdef CONFIG_SOUND
 	soundcore_init();
 #ifdef CONFIG_SOUND_OSS	
@@ -567,6 +581,9 @@ __initfunc(int chr_dev_init(void))
 #ifdef CONFIG_DMASOUND
 	dmasound_init();
 #endif	
+#endif
+#ifdef CONFIG_SPARCAUDIO
+	sparcaudio_init();
 #endif
 #ifdef CONFIG_JOYSTICK
 	/*
@@ -586,6 +603,9 @@ __initfunc(int chr_dev_init(void))
 #endif
 #ifdef CONFIG_VIDEO_BT848
 	i2c_init();
+#endif
+#if defined(CONFIG_PPC) || defined(CONFIG_MAC)
+	adbdev_init();
 #endif
 #ifdef CONFIG_VIDEO_DEV
 	videodev_init();

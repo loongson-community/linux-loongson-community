@@ -11,20 +11,12 @@
  * management can be a bitch. See 'mm/mm.c': 'copy_page_tables()'
  */
 
-#include <linux/init.h>
-#include <linux/errno.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
-#include <linux/unistd.h>
-#include <linux/ptrace.h>
 #include <linux/malloc.h>
-#include <linux/smp.h>
+#include <linux/init.h>
+#include <linux/unistd.h>
 #include <linux/smp_lock.h>
 #include <linux/module.h>
 
-#include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 #include <asm/uaccess.h>
@@ -145,7 +137,7 @@ static inline struct task_struct ** find_empty_process(void)
 {
 	struct task_struct **tslot = NULL;
 
-	if (!current->uid || (nr_tasks < NR_TASKS - MIN_TASKS_LEFT_FOR_ROOT))
+	if ((nr_tasks < NR_TASKS - MIN_TASKS_LEFT_FOR_ROOT) || !current->uid)
 		tslot = get_free_taskslot();
 	return tslot;
 }
@@ -461,7 +453,7 @@ static inline void copy_flags(unsigned long clone_flags, struct task_struct *p)
 {
 	unsigned long new_flags = p->flags;
 
-	new_flags &= ~PF_SUPERPRIV;
+	new_flags &= ~(PF_SUPERPRIV | PF_USEDFPU);
 	new_flags |= PF_FORKNOEXEC;
 	if (!(clone_flags & CLONE_PTRACE))
 		new_flags &= ~(PF_PTRACED|PF_TRACESYS);

@@ -147,6 +147,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_BLZ603EPLUS_SCSI),y)
+L_OBJS += amiga7xx.o 53c7xx.o
+else
+  ifeq ($(CONFIG_BLZ603EPLUS_SCSI),m)
+  M_OBJS += amiga7xx.o 53c7xx.o
+  endif
+endif
+
 ifeq ($(CONFIG_WARPENGINE_SCSI),y)
 L_OBJS += amiga7xx.o 53c7xx.o
 else
@@ -240,6 +248,14 @@ L_OBJS += ppa.o
 else
   ifeq ($(CONFIG_SCSI_PPA),m)
   M_OBJS += ppa.o
+  endif
+endif
+
+ifeq ($(CONFIG_SCSI_IMM),y)
+L_OBJS += imm.o
+else
+  ifeq ($(CONFIG_SCSI_IMM),m)
+  M_OBJS += imm.o
   endif
 endif
 
@@ -469,6 +485,11 @@ else
   M_OBJS += ibmmca.o
   endif
 endif
+
+ifeq ($(CONFIG_SCSI_FD_MCS),y)
+L_OBJS += fd_mcs.o
+endif
+
 
 ifeq ($(CONFIG_SCSI_T128),y)
 L_OBJS += t128.o

@@ -14,6 +14,7 @@
  * Copyright (C) 1995, 1996, 1997 Olaf Kirch <okir@monad.swb.de>
  */
 
+#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/sched.h>
 #include <linux/errno.h>
@@ -39,6 +40,7 @@
 #endif
 
 #define NFSDDBG_FACILITY		NFSDDBG_FILEOP
+#define NFSD_PARANOIA
 
 /* Open mode for nfsd_open */
 #define OPEN_READ	0
@@ -168,13 +170,19 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 	if (IS_ERR(dchild))
 		goto out_nfserr;
 	/*
-	 * Make sure we haven't crossed a mount point ...
+	 * check if we have crossed a mount point ...
 	 */
 	if (dchild->d_sb != dparent->d_sb) {
-#ifdef NFSD_PARANOIA
-printk("nfsd_lookup: %s/%s crossed mount point!\n", dparent->d_name.name, name);
-#endif
-		goto out_dput;
+		struct dentry *tdentry;
+		tdentry = dchild->d_covers;
+		if (tdentry == dchild)
+			goto out_dput;
+	        dput(dchild);
+		dchild = dget(tdentry);
+	        if (dchild->d_sb != dparent->d_sb) {
+printk("nfsd_lookup: %s/%s crossed mount point!\n", dparent->d_name.name, dchild->d_name.name);
+			goto out_dput;
+		}
 	}
 
 	/*
@@ -416,8 +424,8 @@ found:
  * N.B. After this call fhp needs an fh_put
  */
 int
-nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset, char *buf,
-						unsigned long *count)
+nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
+          char *buf, unsigned long *count)
 {
 	struct raparms	*ra;
 	mm_segment_t	oldfs;
@@ -547,13 +555,10 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 		if (EX_WGATHER(exp) && (inode->i_writecount > 1
 		 || (last_ino == inode->i_ino && last_dev == inode->i_dev))) {
 #if 0
-			current->timeout = jiffies + 10 * HZ / 1000;
-			interruptible_sleep_on(&inode->i_wait);
+			interruptible_sleep_on_timeout(&inode->i_wait, 10 * HZ / 1000);
 #else
 			dprintk("nfsd: write defer %d\n", current->pid);
-			current->need_resched = 1;
-			current->timeout = jiffies + HZ / 100;
-			schedule();
+			schedule_timeout((HZ+99)/100);
 			dprintk("nfsd: write resume %d\n", current->pid);
 #endif
 		}
@@ -1067,6 +1072,11 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	if (IS_ERR(rdentry))
 		goto out_nfserr;
 
+	/*
+	 * FIXME!!
+	 *
+	 * This should do a double-lock on both rdentry and the parent
+	 */
 	err = fh_lock_parent(fhp, rdentry);
 	if (err)
 		goto out;
@@ -1239,6 +1249,12 @@ nfsd_permission(struct svc_export *exp, struct dentry *dentry, int acc)
 	dprintk("      owner %d/%d user %d/%d\n",
 		inode->i_uid, inode->i_gid, current->fsuid, current->fsgid);
 	 */
+
+#ifndef CONFIG_NFSD_SUN
+        if (dentry->d_mounts != dentry) {
+		return nfserr_perm;
+	}
+#endif
 
 	if (acc & (MAY_WRITE | MAY_SATTR | MAY_TRUNC)) {
 		if (EX_RDONLY(exp) || IS_RDONLY(inode))

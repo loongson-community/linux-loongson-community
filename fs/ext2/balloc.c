@@ -86,11 +86,12 @@ static int read_block_bitmap (struct super_block * sb,
 {
 	struct ext2_group_desc * gdp;
 	struct buffer_head * bh = NULL;
-	int retval = 0;
+	int retval = -EIO;
 	
 	gdp = ext2_get_group_desc (sb, block_group, NULL);
 	if (!gdp)
 		goto error_out;
+	retval = 0;
 	bh = bread (sb->s_dev, le32_to_cpu(gdp->bg_block_bitmap), sb->s_blocksize);
 	if (!bh) {
 		ext2_error (sb, "read_block_bitmap",
@@ -686,6 +687,12 @@ static int test_root(int a, int b)
 	}
 }
 
+int ext2_group_sparse(int group)
+{
+	return (test_root(group, 3) || test_root(group, 5) ||
+		test_root(group, 7));
+}
+
 void ext2_check_blocks_bitmap (struct super_block * sb)
 {
 	struct buffer_head * bh;
@@ -714,9 +721,9 @@ void ext2_check_blocks_bitmap (struct super_block * sb)
 		
 		bh = sb->u.ext2_sb.s_block_bitmap[bitmap_nr];
 
-		if (!(le32_to_cpu(sb->u.ext2_sb.s_feature_ro_compat) &
+		if (!(sb->u.ext2_sb.s_feature_ro_compat &
 		     EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER) ||
-		    (test_root(i, 3) || test_root(i, 5) || test_root(i, 7))) {
+		    ext2_group_sparse(i)) {
 			if (!ext2_test_bit (0, bh->b_data))
 				ext2_error (sb, "ext2_check_blocks_bitmap",
 					    "Superblock in group %d "

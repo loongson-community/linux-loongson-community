@@ -1,4 +1,4 @@
-/* $Id: bootinfo.h,v 1.4 1998/08/25 09:21:55 ralf Exp $
+/* $Id: bootinfo.h,v 1.5 1998/10/18 13:23:45 tsbogend Exp $
  *
  * bootinfo.h -- Definition of the Linux/MIPS boot information structure
  *
@@ -157,8 +157,8 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
 #define DEFAULT_SCREEN_INFO {0, 0, 0, 0, 0, 160, 0, 0, 0, 64, 0, 16}
 #define DEFAULT_DRIVE_INFO { {0,}}
 #else
-/* default values for screen_info variable */
-#define DEFAULT_SCREEN_INFO {0, 0, 0, 52, 3, 80, 4626, 3, 9, 50}
+/* default values for screen_info variable (Colour VGA) */
+#define DEFAULT_SCREEN_INFO {0, 0, 0, 52, 3, 80, 4626, 3, 9, 50, 0x22, 16}
 #endif
 
 /* default values for drive info */

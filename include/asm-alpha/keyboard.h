@@ -3,7 +3,7 @@
  *
  *  Created 3 Nov 1996 by Geert Uytterhoeven
  *
- * $Id: keyboard.h,v 1.5 1998/05/04 01:16:31 ralf Exp $
+ * $Id: keyboard.h,v 1.6 1998/10/28 12:39:58 ralf Exp $
  */
 
 /*
@@ -59,8 +59,11 @@ extern unsigned char pckbd_sysrq_xlate[128];
 /* Some stoneage hardware needs delays after some operations.  */
 #define kbd_pause() do { } while(0)
 
-#define keyboard_setup()						\
-        request_region(0x60, 16, "keyboard")
+/* Get the keyboard controller registers (incomplete decode) */
+#define kbd_request_region() request_region(0x60, 16, "keyboard")
+
+#define kbd_request_irq() request_irq(KEYBOARD_IRQ, keyboard_interrupt, 0, \
+                                      "keyboard", NULL);
 
 /*
  * Machine specific bits for the PS/2 driver
@@ -72,10 +75,9 @@ extern unsigned char pckbd_sysrq_xlate[128];
 #define AUX_IRQ 9			/* Jensen is odd indeed */
 #endif
 
-#define ps2_request_irq()						\
-	request_irq(AUX_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL)
-
-#define ps2_free_irq(inode) free_irq(AUX_IRQ, NULL)
+#define aux_request_irq(handler, dev_id) request_irq(AUX_IRQ, handler, 0, \
+	"PS/2 Mouse", NULL)
+#define aux_free_irq(dev_id) free_irq(AUX_IRQ, NULL)
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_ALPHA_KEYBOARD_H */

@@ -65,6 +65,9 @@ void smp_callin(void);
 void smp_boot_cpus(void);
 void smp_store_cpu_info(int);
 
+int smp_bogo_info(char *buf);
+int smp_info(char *buf);
+
 BTFIXUPDEF_CALL(void, smp_cross_call, smpfunc_t, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long)
 BTFIXUPDEF_CALL(void, smp_message_pass, int, int, unsigned long, int)
 BTFIXUPDEF_CALL(int, __smp_processor_id, void)
@@ -73,12 +76,6 @@ BTFIXUPDEF_BLACKBOX(load_current)
 
 #define smp_cross_call(func,arg1,arg2,arg3,arg4,arg5) BTFIXUP_CALL(smp_cross_call)(func,arg1,arg2,arg3,arg4,arg5)
 #define smp_message_pass(target,msg,data,wait) BTFIXUP_CALL(smp_message_pass)(target,msg,data,wait)
-
-BTFIXUPDEF_CALL(int, smp_bogo_info, char *)
-BTFIXUPDEF_CALL(int, smp_info, char *)
-
-#define smp_bogo_info(buf) BTFIXUP_CALL(smp_bogo_info)(buf)
-#define smp_info(buf) BTFIXUP_CALL(smp_info)(buf)
 
 extern __inline__ void xc0(smpfunc_t func) { smp_cross_call(func, 0, 0, 0, 0, 0); }
 extern __inline__ void xc1(smpfunc_t func, unsigned long arg1)
@@ -153,11 +150,12 @@ extern __inline__ int hard_smp_processor_id(void)
 #else
 extern __inline__ int hard_smp_processor_id(void)
 {
-	int cpuid __asm__ ("g2");
+	int cpuid;
 	
 	__asm__ __volatile__("mov %%o7, %%g1\n\t"
 			     "call ___f___smp_processor_id\n\t"
-			     " nop\n\t" : "=r"(cpuid) : : "g1");
+			     " nop\n\t"
+			     "mov %%g2, %0\n\t" : "=r"(cpuid) : : "g1", "g2");
 	return cpuid;
 }
 #endif
@@ -184,8 +182,7 @@ extern __inline__ int hard_smp_processor_id(void)
 
 #define SMP_FROM_INT		1
 #define SMP_FROM_SYSCALL	2
-
-#else /* !(__SMP__) */
+#endif /* !(__SMP__) */
 
 #define NO_PROC_ID            0xFF
 

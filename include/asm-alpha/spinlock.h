@@ -5,9 +5,18 @@
 
 #ifndef __SMP__
 
-/* gcc 2.7.2 can crash initializing an empty structure.  */
-typedef struct { int dummy; } spinlock_t;
-#define SPIN_LOCK_UNLOCKED { 0 }
+/*
+ * Your basic spinlocks, allowing only a single CPU anywhere
+ *
+ * Gcc-2.7.x has a nasty bug with empty initializers.
+ */
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
+  typedef struct { } spinlock_t;
+  #define SPIN_LOCK_UNLOCKED (spinlock_t) { }
+#else
+  typedef struct { int gcc_is_buggy; } spinlock_t;
+  #define SPIN_LOCK_UNLOCKED (spinlock_t) { 0 }
+#endif
 
 #define spin_lock_init(lock)			((void) 0)
 #define spin_lock(lock)				((void) 0)
@@ -29,9 +38,16 @@ typedef struct { int dummy; } spinlock_t;
  * can "mix" irq-safe locks - any writer needs to get a
  * irq-safe write-lock, but readers can get non-irqsafe
  * read-locks.
+ *
+ * Gcc-2.7.x has a nasty bug with empty initializers.
  */
-typedef struct { int dummy; } rwlock_t;
-#define RW_LOCK_UNLOCKED { 0 }
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 8)
+  typedef struct { } rwlock_t;
+  #define RW_LOCK_UNLOCKED (rwlock_t) { }
+#else
+  typedef struct { int gcc_is_buggy; } rwlock_t;
+  #define RW_LOCK_UNLOCKED (rwlock_t) { 0 }
+#endif
 
 #define read_lock(lock)				((void) 0)
 #define read_unlock(lock)			((void) 0)
@@ -63,15 +79,24 @@ typedef struct { int dummy; } rwlock_t;
  */
 
 typedef struct {
-	volatile unsigned long lock;
+	volatile unsigned int lock;
+#if DEBUG_SPINLOCK
+	char debug_state, target_ipl, saved_ipl, on_cpu;
 	void *previous;
 	struct task_struct * task;
+#endif
 } spinlock_t;
 
-#define SPIN_LOCK_UNLOCKED { 0, 0, 0 }
+#if DEBUG_SPINLOCK
+#define SPIN_LOCK_UNLOCKED {0, 1, 0, 0, 0, 0}
+#define spin_lock_init(x)						\
+	((x)->lock = 0, (x)->target_ipl = 0, (x)->debug_state = 1,	\
+	 (x)->previous = 0, (x)->task = 0)
+#else
+#define SPIN_LOCK_UNLOCKED	{ 0 }
+#define spin_lock_init(x)	((x)->lock = 0)
+#endif
 
-#define spin_lock_init(x) \
-	((x)->lock = 0, (x)->previous = 0, (x)->task = 0)
 #define spin_unlock_wait(x) \
 	({ do { barrier(); } while(((volatile spinlock_t *)x)->lock); })
 
@@ -79,8 +104,25 @@ typedef struct { unsigned long a[100]; } __dummy_lock_t;
 #define __dummy_lock(lock) (*(__dummy_lock_t *)(lock))
 
 #if DEBUG_SPINLOCK
+extern void spin_unlock(spinlock_t * lock);
 extern void spin_lock(spinlock_t * lock);
+extern int spin_trylock(spinlock_t * lock);
+
+#define spin_lock_own(LOCK, LOCATION)					\
+do {									\
+	if (!((LOCK)->lock && (LOCK)->on_cpu == smp_processor_id()))	\
+		printk("%s: called on %d from %p but lock %s on %d\n",	\
+		       LOCATION, smp_processor_id(),			\
+		       __builtin_return_address(0),			\
+		       (LOCK)->lock ? "taken" : "freed", (LOCK)->on_cpu); \
+} while (0)
 #else
+static inline void spin_unlock(spinlock_t * lock)
+{
+	mb();
+	lock->lock = 0;
+}
+
 static inline void spin_lock(spinlock_t * lock)
 {
 	long tmp;
@@ -89,29 +131,24 @@ static inline void spin_lock(spinlock_t * lock)
 	   of this object file's text section so as to perfect
 	   branch prediction.  */
 	__asm__ __volatile__(
-	"1:	ldq_l	%0,%1\n"
+	"1:	ldl_l	%0,%1\n"
 	"	blbs	%0,2f\n"
 	"	or	%0,1,%0\n"
-	"	stq_c	%0,%1\n"
+	"	stl_c	%0,%1\n"
 	"	beq	%0,2f\n"
 	"	mb\n"
 	".section .text2,\"ax\"\n"
-	"2:	ldq	%0,%1\n"
+	"2:	ldl	%0,%1\n"
 	"	blbs	%0,2b\n"
 	"	br	1b\n"
 	".previous"
 	: "=r" (tmp), "=m" (__dummy_lock(lock))
 	: "m"(__dummy_lock(lock)));
 }
-#endif /* DEBUG_SPINLOCK */
-
-static inline void spin_unlock(spinlock_t * lock)
-{
-	mb();
-	lock->lock = 0;
-}
 
 #define spin_trylock(lock) (!test_and_set_bit(0,(lock)))
+#define spin_lock_own(LOCK, LOCATION)	((void)0)
+#endif /* DEBUG_SPINLOCK */
 
 #define spin_lock_irq(lock) \
   (__cli(), spin_lock(lock))

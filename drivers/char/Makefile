@@ -11,7 +11,7 @@
 
 SUB_DIRS     := 
 MOD_SUB_DIRS := $(SUB_DIRS)
-ALL_SUB_DIRS := $(SUB_DIRS) ftape
+ALL_SUB_DIRS := $(SUB_DIRS) ftape joystick
 
 #
 # This file contains the font map for the default (hardware) font
@@ -21,25 +21,26 @@ FONTMAPFILE = cp437.uni
 L_TARGET := char.a
 M_OBJS   :=
 L_OBJS   := tty_io.o n_tty.o tty_ioctl.o mem.o random.o
-LX_OBJS  := pty.o
+LX_OBJS  := pty.o misc.o
 
 ifdef CONFIG_VT
 L_OBJS += vt.o vc_screen.o consolemap.o consolemap_deftbl.o
 LX_OBJS += console.o selection.o
 endif
-ifdef CONFIG_FB
-  LX_OBJS += fbmem.o
-endif
 
 ifeq ($(CONFIG_SERIAL),y)
-  ifndef CONFIG_SUN_SERIAL
-    ifndef CONFIG_SGI_SERIAL
+  ifeq ($(CONFIG_SUN_SERIAL),)
+    ifeq ($(CONFIG_SGI_SERIAL),)
       LX_OBJS += serial.o
     endif
   endif
 else
   ifeq ($(CONFIG_SERIAL),m)
-  MX_OBJS += serial.o
+    ifeq ($(CONFIG_SUN_SERIAL),)
+      ifeq ($(CONFIG_SGI_SERIAL),)
+      MX_OBJS += serial.o
+      endif
+    endif
   endif
 endif
 
@@ -138,22 +139,18 @@ else
 endif
 
 ifeq ($(CONFIG_ATIXL_BUSMOUSE),y)
-M = y
 L_OBJS += atixlmouse.o
 else
   ifeq ($(CONFIG_ATIXL_BUSMOUSE),m)
   M_OBJS += atixlmouse.o
-  MM = m
   endif
 endif
 
 ifeq ($(CONFIG_BUSMOUSE),y)
-M = y
 L_OBJS += busmouse.o
 else
   ifeq ($(CONFIG_BUSMOUSE),m)
   M_OBJS += busmouse.o
-  MM = m
   endif
 endif
 
@@ -166,147 +163,105 @@ else
 endif
 
 ifeq ($(CONFIG_JOYSTICK),y)
-L_OBJS += joystick.o
+L_OBJS += joystick/js.o
+SUB_DIRS += joystick
+MOD_SUB_DIRS += joystick
 else
   ifeq ($(CONFIG_JOYSTICK),m)
-  M_OBJS += joystick.o
+  MOD_SUB_DIRS += joystick
   endif
 endif
 
 ifeq ($(CONFIG_MS_BUSMOUSE),y)
-M = y
 L_OBJS += msbusmouse.o
 else
   ifeq ($(CONFIG_MS_BUSMOUSE),m)
   M_OBJS += msbusmouse.o
-  MM = m
   endif
 endif
 
-ifeq ($(CONFIG_PSMOUSE),y)
-M = y
-L_OBJS += psaux.o
+ifeq ($(CONFIG_82C710_MOUSE),y)
+L_OBJS += qpmouse.o
 else
-  ifeq ($(CONFIG_PSMOUSE),m)
-  M_OBJS += psaux.o
-  MM = m
+  ifeq ($(CONFIG_82C710_MOUSE),m)
+  M_OBJS += qpmouse.o
   endif
-endif
-
-ifeq ($(CONFIG_UMISC),y)
-# To support third-party modules, misc.c must reside in the kernel
-M = y
 endif
 
 ifeq ($(CONFIG_SOFT_WATCHDOG),y)
-M = y
 L_OBJS += softdog.o
 else
   ifeq ($(CONFIG_SOFT_WATCHDOG),m)
   M_OBJS += softdog.o
-  MM = m
   endif   
 endif
 
 ifeq ($(CONFIG_PCWATCHDOG),y)
-M = y
 L_OBJS += pcwd.o
 else
   ifeq ($(CONFIG_PCWATCHDOG),m)
   M_OBJS += pcwd.o
-  MM = m
   endif
 endif
 
 ifeq ($(CONFIG_ACQUIRE_WDT),y)
-M = y
 L_OBJS += acquirewdt.o
 else
   ifeq ($(CONFIG_ACQUIRE_WDT),m)
   M_OBJS += acquirewdt.o
-  MM = m
   endif
 endif
 
 ifeq ($(CONFIG_AMIGAMOUSE),y)
-M = y
 L_OBJS += amigamouse.o
 else
   ifeq ($(CONFIG_AMIGAMOUSE),m)
     M_OBJS += amigamouse.o
-    MM = m
   endif
 endif
 
 ifeq ($(CONFIG_ATARIMOUSE),y)
-M = y
 L_OBJS += atarimouse.o
 else
   ifeq ($(CONFIG_ATARIMOUSE),m)
     M_OBJS += atarimouse.o
-    MM = m
   endif
 endif
 
-ifdef CONFIG_SGI_GRAPHICS
-M = y
-endif
-
-ifeq ($(CONFIG_MACMOUSE),y)
-M = y
-L_OBJS += macmouse.o
+ifeq ($(CONFIG_ADBMOUSE),y)
+L_OBJS += adbmouse.o
 else
-  ifeq ($(CONFIG_MACMOUSE),m)
-    M_OBJS += macmouse.o
-    MM = m
+  ifeq ($(CONFIG_ADBMOUSE),m)
+    M_OBJS += adbmouse.o
   endif
-endif
-
-ifdef CONFIG_SUN_MOUSE
-M = y
 endif
 
 ifeq ($(CONFIG_PC110_PAD),y)
-M = y
 L_OBJS += pc110pad.o
 else
   ifeq ($(CONFIG_PC110_PAD),m)
     M_OBJS += pc110pad.o
-    MM = m
-  endif
-endif
-
-ifeq ($(CONFIG_SUN_OPENPROMIO),y)
-M = y
-else
-  ifeq ($(CONFIG_SUN_OPENPROMIO),m)
-  MM = m
   endif
 endif
 
 ifeq ($(CONFIG_WDT),y)
-M = y
 L_OBJS += wdt.o
 else
   ifeq ($(CONFIG_WDT),m)
     M_OBJS += wdt.o
-    MM = m
   endif
 endif
 
 ifeq ($(CONFIG_RTC),y)
-M = y
 L_OBJS += rtc.o
 endif
 
 ifeq ($(CONFIG_NVRAM),y)
-M = y
   ifeq ($(CONFIG_PMAC)$(CONFIG_CHRP),)
   L_OBJS += nvram.o
   endif
 else
   ifeq ($(CONFIG_NVRAM),m)
-    MM = m
     ifeq ($(CONFIG_PMAC)$(CONFIG_CHRP),)
     M_OBJS += nvram.o
     endif
@@ -441,22 +396,8 @@ else
   endif
 endif
 
-ifdef CONFIG_APM
-LX_OBJS += apm_bios.o
-M = y
-endif
-
 ifdef CONFIG_H8
 LX_OBJS += h8.o
-M = y
-endif
-
-ifdef M
-LX_OBJS += misc.o
-else
-  ifdef MM
-  MX_OBJS += misc.o
-  endif
 endif
 
 ifeq ($(L_I2C),y)

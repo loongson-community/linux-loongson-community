@@ -1104,6 +1104,10 @@ static void ide_do_request (ide_hwgroup_t *hwgroup, unsigned long *hwgroup_flags
 			if (sleep) {
 				if (0 < (signed long)(jiffies + WAIT_MIN_SLEEP - sleep)) 
 					sleep = jiffies + WAIT_MIN_SLEEP;
+#if 1
+				if (hwgroup->timer.next || hwgroup->timer.prev)
+					printk("ide_set_handler: timer already active\n");
+#endif
 				mod_timer(&hwgroup->timer, sleep);
 			} else {
 				/* Ugly, but how can we sleep for the lock otherwise? perhaps from tq_scheduler? */
@@ -1253,7 +1257,7 @@ void ide_timer_expiry (unsigned long data)
 	}
 	hwgroup->busy = 1;	/* should already be "1" */
 	hwgroup->handler = NULL;
-	del_timer(&hwgroup->timer);
+	del_timer(&hwgroup->timer);	/* Is this needed?? */
 	if (hwgroup->poll_timeout != 0) {	/* polling in progress? */
 		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		handler(drive);
@@ -1265,6 +1269,10 @@ void ide_timer_expiry (unsigned long data)
 		if (drive->waiting_for_dma) {
 			(void) hwgroup->hwif->dmaproc(ide_dma_end, drive);
 			printk("%s: timeout waiting for DMA\n", drive->name);
+	/*
+	 *  need something here for HX PIIX3 UDMA and HPT343.......AMH
+	 *  irq timeout: status=0x58 { DriveReady SeekComplete DataRequest }
+	 */
 		}
 		spin_unlock_irqrestore(&hwgroup->spinlock, flags);
 		ide_error(drive, "irq timeout", GET_STAT());
@@ -1426,9 +1434,9 @@ void ide_init_drive_cmd (struct request *rq)
  * This function issues a special IDE device request
  * onto the request queue.
  *
- * If action is ide_wait, then then rq is queued at the end of
- * the request queue, and the function sleeps until it has been
- * processed.  This is for use when invoked from an ioctl handler.
+ * If action is ide_wait, then the rq is queued at the end of the
+ * request queue, and the function sleeps until it has been processed.
+ * This is for use when invoked from an ioctl handler.
  *
  * If action is ide_preempt, then the rq is queued at the head of
  * the request queue, displacing the currently-being-processed
@@ -1728,6 +1736,11 @@ void ide_unregister (unsigned int index)
 		kfree(hwgroup);
 	else
 		hwgroup->hwif = HWIF(hwgroup->drive);
+
+#ifdef CONFIG_BLK_DEV_IDEDMA
+	if (hwif->dma_base)
+		(void) ide_release_dma(hwif);
+#endif /* CONFIG_BLK_DEV_IDEDMA */
 
 	/*
 	 * Remove us from the kernel's knowledge
@@ -2990,8 +3003,13 @@ void cleanup_module (void)
 {
 	int index;
 
-	for (index = 0; index < MAX_HWIFS; ++index)
+	for (index = 0; index < MAX_HWIFS; ++index) {
 		ide_unregister(index);
+#ifdef CONFIG_BLK_DEV_IDEDMA
+		if (ide_hwifs[index].dma_base)
+			(void) ide_release_dma(&ide_hwifs[index]);
+#endif /* CONFIG_BLK_DEV_IDEDMA */
+	}
 #ifdef CONFIG_PROC_FS
 	proc_ide_destroy();
 #endif

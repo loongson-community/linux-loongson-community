@@ -1,4 +1,4 @@
-/* $Id: turbosparc.h,v 1.1 1997/07/18 06:29:12 ralf Exp $
+/* $Id: turbosparc.h,v 1.2 1998/10/19 19:40:01 ralf Exp $
  * turbosparc.h:  Defines specific to the TurboSparc module.
  *            This is SRMMU stuff.
  *
@@ -74,8 +74,10 @@ extern __inline__ void turbosparc_inv_data_tag(unsigned long addr)
 
 extern __inline__ void turbosparc_flush_icache(void)
 {
-	__asm__ __volatile__("sta %%g0, [%%g0] %0\n\t" : :
-			     "i" (ASI_M_IC_FLCLEAR));
+	unsigned long addr;
+
+        for(addr = 0; addr < 0x4000; addr += 0x20)
+                turbosparc_inv_insn_tag(addr);
 }
 
 extern __inline__ void turbosparc_flush_dcache(void)
@@ -88,7 +90,12 @@ extern __inline__ void turbosparc_flush_dcache(void)
 
 extern __inline__ void turbosparc_idflash_clear(void)
 {
-	turbosparc_flush_icache(); turbosparc_flush_dcache();
+	unsigned long addr;
+
+        for(addr = 0; addr < 0x4000; addr += 0x20) {
+                turbosparc_inv_insn_tag(addr);
+                turbosparc_inv_data_tag(addr);
+	}
 }
 
 extern __inline__ void turbosparc_set_ccreg(unsigned long regval)

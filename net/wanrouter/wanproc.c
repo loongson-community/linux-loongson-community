@@ -19,6 +19,7 @@
 * Dec 13, 1996	Gene Kozin	Initial version (based on Sangoma's WANPIPE)
 *****************************************************************************/
 
+#include <linux/config.h>
 #include <linux/stddef.h>	/* offsetof(), etc. */
 #include <linux/errno.h>	/* return codes */
 #include <linux/kernel.h>
@@ -55,6 +56,8 @@ typedef struct wan_stat_entry
 } wan_stat_entry_t;
 
 /****** Function Prototypes *************************************************/
+
+#ifdef CONFIG_PROC_FS
 
 /* Proc filesystem interface */
 static int router_proc_perms(struct inode *, int);
@@ -176,7 +179,7 @@ static struct inode_operations wandev_inode =
 /*
  *	/proc/net/router 
  */
- 
+
 static struct proc_dir_entry proc_router =
 {
 	0,			/* .low_ino */
@@ -528,3 +531,30 @@ static int wandev_get_info(char* buf, char** start, off_t offs, int len,
  *	End
  */
  
+#else
+
+/*
+ *	No /proc - output stubs
+ */
+ 
+__initfunc(int wanrouter_proc_init(void))
+{
+	return 0;
+}
+
+void wanrouter_proc_cleanup(void)
+{
+	return;
+}
+
+int wanrouter_proc_add(wan_device_t *wandev)
+{
+	return 0;
+}
+
+int wanrouter_proc_delete(wan_device_t *wandev)
+{
+	return 0;
+}
+
+#endif

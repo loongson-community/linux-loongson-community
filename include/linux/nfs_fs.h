@@ -101,31 +101,29 @@ struct nfs_wreq {
 	struct dentry *		wb_dentry;	/* dentry referenced */
 	struct inode *		wb_inode;	/* inode referenced */
 	struct page *		wb_page;	/* page to be written */
+	struct wait_queue *	wb_wait;	/* wait for completion */
 	unsigned int		wb_offset;	/* offset within page */
 	unsigned int		wb_bytes;	/* dirty range */
+	unsigned int		wb_count;	/* user count */
+	int			wb_status;
 	pid_t			wb_pid;		/* owner process */
 	unsigned short		wb_flags;	/* status flags */
 
 	struct nfs_writeargs	wb_args;	/* NFS RPC stuff */
 	struct nfs_fattr	wb_fattr;	/* file attributes */
 };
-#define wb_status		wb_task.tk_status
 
 #define WB_NEXT(req)		((struct nfs_wreq *) ((req)->wb_list.next))
 
 /*
  * Various flags for wb_flags
  */
-#define NFS_WRITE_WANTLOCK	0x0001	/* needs to lock page */
-#define NFS_WRITE_LOCKED	0x0002	/* holds lock on page */
 #define NFS_WRITE_CANCELLED	0x0004	/* has been cancelled */
 #define NFS_WRITE_UNCOMMITTED	0x0008	/* written but uncommitted (NFSv3) */
 #define NFS_WRITE_INVALIDATE	0x0010	/* invalidate after write */
 #define NFS_WRITE_INPROGRESS	0x0100	/* RPC call in progress */
 #define NFS_WRITE_COMPLETE	0x0200	/* RPC call completed */
 
-#define WB_WANTLOCK(req)	((req)->wb_flags & NFS_WRITE_WANTLOCK)
-#define WB_HAVELOCK(req)	((req)->wb_flags & NFS_WRITE_LOCKED)
 #define WB_CANCELLED(req)	((req)->wb_flags & NFS_WRITE_CANCELLED)
 #define WB_UNCOMMITTED(req)	((req)->wb_flags & NFS_WRITE_UNCOMMITTED)
 #define WB_INVALIDATE(req)	((req)->wb_flags & NFS_WRITE_INVALIDATE)
@@ -214,14 +212,24 @@ extern int nfs_lock(struct file *, int, struct file_lock *);
  * linux/fs/nfs/write.c
  */
 extern int  nfs_writepage(struct file *, struct page *);
-extern int  nfs_find_dentry_request(struct inode *, struct dentry *);
 extern int  nfs_check_failed_request(struct inode *);
 extern int  nfs_check_error(struct inode *);
-extern int  nfs_flush_dirty_pages(struct inode *, pid_t, off_t, off_t);
+
+/*
+ * Try to write back everything synchronously (but check the
+ * return value!)
+ */
+extern int  nfs_wb_all(struct inode *);
+extern int  nfs_wb_page(struct inode *, struct page *);
+extern int  nfs_wb_pid(struct inode *, pid_t);
+
+/*
+ * Invalidate write-backs, possibly trying to write them
+ * back first..
+ */
+extern void nfs_inval(struct inode *);
 extern int  nfs_truncate_dirty_pages(struct inode *, unsigned long);
-extern void nfs_invalidate_pages(struct inode *);
-extern int  nfs_updatepage(struct file *, struct page *, const char *,
-			unsigned long, unsigned int, int);
+extern int  nfs_updatepage(struct file *, struct page *, unsigned long, unsigned int, int);
 
 /*
  * linux/fs/nfs/read.c
@@ -246,13 +254,10 @@ nfs_revalidate_inode(struct nfs_server *server, struct dentry *dentry)
 	return _nfs_revalidate_inode(server, dentry);
 }
 
-extern struct nfs_wreq *	nfs_failed_requests;
 static inline int
 nfs_write_error(struct inode *inode)
 {
-	if (nfs_failed_requests == NULL)
-		return 0;
-	return nfs_check_error(inode);
+	return NFS_WRITEBACK(inode) && nfs_check_error(inode);
 }
 
 /* NFS root */

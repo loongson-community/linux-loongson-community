@@ -15,30 +15,34 @@
  * Fixed do_loop_request() re-entrancy - Vincent.Renardias@waw.com Mar 20, 1997
  *
  * Handle sparse backing files correctly - Kenn Humborg, Jun 28, 1998
+ *
+ * Loadable modules and other fixes by AK, 1998
+ *
+ * Make real block number available to downstream transfer functions, enables
+ * CBC (and relatives) mode encryption requiring unique IVs per data block. 
+ * Reed H. Petty, rhp@draper.net
+ * 
+ * Still To Fix:
+ * - Advisory locking is ignored here. 
+ * - Should use an own CAP_* category instead of CAP_SYS_ADMIN 
+ * - Should use the underlying filesystems/devices read function if possible
+ *   to support read ahead (and for write)
  */
 
 #include <linux/module.h>
 
-#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/stat.h>
 #include <linux/errno.h>
 #include <linux/major.h>
+
 #include <linux/init.h>
 
 #include <asm/uaccess.h>
 
-#ifdef CONFIG_BLK_DEV_LOOP_DES
-# /*nodep*/ include <linux/des.h>
-#endif
-
-#ifdef CONFIG_BLK_DEV_LOOP_IDEA
-# /*nodep*/ include <linux/idea.h>
-#endif
-
-#include <linux/loop.h>		/* must follow des.h */
+#include <linux/loop.h>		
 
 #define MAJOR_NR LOOP_MAJOR
 
@@ -63,12 +67,11 @@ static int loop_blksizes[MAX_LOOP];
    backing file (can happen if the backing file is sparse) */
 static int create_missing_block(struct loop_device *lo, int block, int blksize);
 
-
 /*
  * Transfer functions
  */
 static int transfer_none(struct loop_device *lo, int cmd, char *raw_buf,
-		  char *loop_buf, int size)
+		  char *loop_buf, int size, int real_block)
 {
 	if (cmd == READ)
 		memcpy(loop_buf, raw_buf, size);
@@ -78,7 +81,7 @@ static int transfer_none(struct loop_device *lo, int cmd, char *raw_buf,
 }
 
 static int transfer_xor(struct loop_device *lo, int cmd, char *raw_buf,
-		 char *loop_buf, int size)
+		 char *loop_buf, int size, int real_block)
 {
 	char	*in, *out, *key;
 	int	i, keysize;
@@ -97,79 +100,37 @@ static int transfer_xor(struct loop_device *lo, int cmd, char *raw_buf,
 	return 0;
 }
 
-#ifdef DES_AVAILABLE
-static int transfer_des(struct loop_device *lo, int cmd, char *raw_buf,
-		  char *loop_buf, int size)
+static int none_status(struct loop_device *lo, struct loop_info *info)
 {
-	unsigned long tmp[2];
-	unsigned long x0,x1,p0,p1;
+	return 0; 
+} 
 
-	if (size & 7)
+static int xor_status(struct loop_device *lo, struct loop_info *info)
+{
+	if (info->lo_encrypt_key_size < 0)
 		return -EINVAL;
-	x0 = lo->lo_des_init[0];
-	x1 = lo->lo_des_init[1];
-	while (size) {
-		if (cmd == READ) {
-			tmp[0] = (p0 = ((unsigned long *) raw_buf)[0])^x0;
-			tmp[1] = (p1 = ((unsigned long *) raw_buf)[1])^x1;
-			des_ecb_encrypt((des_cblock *) tmp,(des_cblock *)
-			    loop_buf,lo->lo_des_key,DES_ENCRYPT);
-			x0 = p0^((unsigned long *) loop_buf)[0];
-			x1 = p1^((unsigned long *) loop_buf)[1];
-		}
-		else {
-			p0 = ((unsigned long *) loop_buf)[0];
-			p1 = ((unsigned long *) loop_buf)[1];
-			des_ecb_encrypt((des_cblock *) loop_buf,(des_cblock *)
-			    raw_buf,lo->lo_des_key,DES_DECRYPT);
-			((unsigned long *) raw_buf)[0] ^= x0;
-			((unsigned long *) raw_buf)[1] ^= x1;
-			x0 = p0^((unsigned long *) raw_buf)[0];
-			x1 = p1^((unsigned long *) raw_buf)[1];
-		}
-		size -= 8;
-		raw_buf += 8;
-		loop_buf += 8;
-	}
 	return 0;
 }
-#endif
 
-#ifdef IDEA_AVAILABLE
+struct loop_func_table none_funcs = { 
+	number: LO_CRYPT_NONE,
+	transfer: transfer_none,
+	init: none_status
+}; 	
 
-extern void idea_encrypt_block(idea_key,char *,char *,int);
+struct loop_func_table xor_funcs = { 
+	number: LO_CRYPT_XOR,
+	transfer: transfer_xor,
+	init: xor_status
+}; 	
 
-static int transfer_idea(struct loop_device *lo, int cmd, char *raw_buf,
-		  char *loop_buf, int size)
-{
-  if (cmd==READ) {
-    idea_encrypt_block(lo->lo_idea_en_key,raw_buf,loop_buf,size);
-  }
-  else {
-    idea_encrypt_block(lo->lo_idea_de_key,loop_buf,raw_buf,size);
-  }
-  return 0;
-}
-#endif
-
-static transfer_proc_t xfer_funcs[MAX_LOOP] = {
-	transfer_none,		/* LO_CRYPT_NONE */
-	transfer_xor,		/* LO_CRYPT_XOR */
-#ifdef DES_AVAILABLE
-	transfer_des,		/* LO_CRYPT_DES */
-#else
-	NULL,			/* LO_CRYPT_DES */
-#endif
-#ifdef IDEA_AVAILABLE           /* LO_CRYPT_IDEA */
-	transfer_idea
-#else
-	NULL
-#endif
+/* xfer_funcs[0] is special - its release function is never called */ 
+struct loop_func_table *xfer_funcs[MAX_LO_CRYPT] = {
+	&none_funcs,
+	&xor_funcs  
 };
 
-
 #define MAX_DISK_SIZE 1024*1024*1024
-
 
 static void figure_loop_size(struct loop_device *lo)
 {
@@ -288,7 +249,7 @@ repeat:
 			}
 
 			if ((lo->transfer)(lo, current_request->cmd, bh->b_data + offset,
-					dest_addr, size)) {
+					dest_addr, size, real_block)) {
 				printk(KERN_ERR "loop: transfer error block %d\n", block);
 				brelse(bh);
 				goto error_out_lock;
@@ -326,6 +287,7 @@ static int create_missing_block(struct loop_device *lo, int block, int blksize)
 	char            zero_buf[1] = { 0 };
 	ssize_t         retval;
 	mm_segment_t	old_fs;
+	struct inode	*inode;
 
 	file = lo->lo_backing_file;
 	if (file == NULL) {
@@ -350,15 +312,18 @@ static int create_missing_block(struct loop_device *lo, int block, int blksize)
 	}
 
 	if (file->f_op->write == NULL) {
-		printk(KERN_WARNING "loop: cannot create block - no write file op\n");
+		printk(KERN_WARNING "loop: cannot create block - file not writeable\n");
 		return FALSE;
 	}
 
 	old_fs = get_fs();
 	set_fs(get_ds());
 
+	inode = file->f_dentry->d_inode;
+	down(&inode->i_sem); 
 	retval = file->f_op->write(file, zero_buf, 1, &file->f_pos);
-
+	up(&inode->i_sem);
+	
 	set_fs(old_fs);
 
 	if (retval < 0) {
@@ -426,9 +391,9 @@ static int loop_set_fd(struct loop_device *lo, kdev_t dev, unsigned int arg)
 			lo->lo_backing_file->f_op = file->f_op;
 			lo->lo_backing_file->private_data = file->private_data;
 
-			error = get_write_access(inode); /* cannot fail */
+			error = get_write_access(inode);
 			if (error) {
-				fput(lo->lo_backing_file);
+				put_filp(lo->lo_backing_file);
 				lo->lo_backing_file = NULL;
 			}
 		}
@@ -444,9 +409,9 @@ static int loop_set_fd(struct loop_device *lo, kdev_t dev, unsigned int arg)
 		set_device_ro(dev, 0);
 	}
 
-	lo->lo_dentry = file->f_dentry;
-	lo->lo_dentry->d_count++;
+	lo->lo_dentry = dget(file->f_dentry);
 	lo->transfer = NULL;
+	lo->ioctl = NULL;
 	figure_loop_size(lo);
 
 out_putf:
@@ -456,6 +421,36 @@ out:
 		MOD_DEC_USE_COUNT;
 	return error;
 }
+
+static int loop_release_xfer(struct loop_device *lo)
+{
+	int err = 0; 
+	if (lo->lo_encrypt_type) {
+		struct loop_func_table *xfer= xfer_funcs[lo->lo_encrypt_type]; 
+		if (xfer && xfer->release)
+			err = xfer->release(lo); 
+		if (xfer && xfer->unlock)
+			xfer->unlock(lo); 
+		lo->lo_encrypt_type = 0;
+	}
+	return err;
+}
+
+static int loop_init_xfer(struct loop_device *lo, int type,struct loop_info *i)
+{
+	int err = 0; 
+	if (type) {
+		struct loop_func_table *xfer = xfer_funcs[type]; 
+		if (xfer->init)
+			err = xfer->init(lo, i);
+		if (!err) { 
+			lo->lo_encrypt_type = type;
+			if (xfer->lock)
+				xfer->lock(lo);
+		}
+	}
+	return err;
+}  
 
 static int loop_clr_fd(struct loop_device *lo, kdev_t dev)
 {
@@ -477,6 +472,9 @@ static int loop_clr_fd(struct loop_device *lo, kdev_t dev)
 		dput(dentry);
 	}
 
+	loop_release_xfer(lo);
+	lo->transfer = NULL;
+	lo->ioctl = NULL;
 	lo->lo_device = 0;
 	lo->lo_encrypt_type = 0;
 	lo->lo_offset = 0;
@@ -491,60 +489,41 @@ static int loop_clr_fd(struct loop_device *lo, kdev_t dev)
 
 static int loop_set_status(struct loop_device *lo, struct loop_info *arg)
 {
-	struct loop_info info;
+	struct loop_info info; 
 	int err;
+	unsigned int type;
 
+	if (lo->lo_encrypt_key_size && lo->lo_key_owner != current->uid && 
+	    !capable(CAP_SYS_ADMIN))
+		return -EPERM;
 	if (!lo->lo_dentry)
 		return -ENXIO;
-	if (!arg)
-		return -EINVAL;
-	err = verify_area(VERIFY_READ, arg, sizeof(info));
-	if (err)
-		return err;
-	copy_from_user(&info, arg, sizeof(info));
+	if (copy_from_user(&info, arg, sizeof (struct loop_info)))
+		return -EFAULT; 
 	if ((unsigned int) info.lo_encrypt_key_size > LO_KEY_SIZE)
 		return -EINVAL;
-	switch (info.lo_encrypt_type) {
-	case LO_CRYPT_NONE:
-		break;
-	case LO_CRYPT_XOR:
-		if (info.lo_encrypt_key_size < 0)
-			return -EINVAL;
-		break;
-#ifdef DES_AVAILABLE
-	case LO_CRYPT_DES:
-		if (info.lo_encrypt_key_size != 8)
-			return -EINVAL;
-		des_set_key((des_cblock *) lo->lo_encrypt_key,
-		   lo->lo_des_key);
-		memcpy(lo->lo_des_init,info.lo_init,8);
-		break;
-#endif
-#ifdef IDEA_AVAILABLE
-	case LO_CRYPT_IDEA:
-	  {
-	        uint16 tmpkey[8];
-
-	        if (info.lo_encrypt_key_size != IDEAKEYSIZE)
-		        return -EINVAL;
-                /* create key in lo-> from info.lo_encrypt_key */
-		memcpy(tmpkey,info.lo_encrypt_key,sizeof(tmpkey));
-		en_key_idea(tmpkey,lo->lo_idea_en_key);
-		de_key_idea(lo->lo_idea_en_key,lo->lo_idea_de_key);
-		break;
-	  }
-#endif
-	default:
+	type = info.lo_encrypt_type; 
+	if (type >= MAX_LO_CRYPT || xfer_funcs[type] == NULL)
 		return -EINVAL;
-	}
+	err = loop_release_xfer(lo);
+	if (!err) 
+		err = loop_init_xfer(lo, type, &info);
+	if (err)
+		return err;	
+
 	lo->lo_offset = info.lo_offset;
 	strncpy(lo->lo_name, info.lo_name, LO_NAME_SIZE);
-	lo->lo_encrypt_type = info.lo_encrypt_type;
-	lo->transfer = xfer_funcs[lo->lo_encrypt_type];
+
+	lo->transfer = xfer_funcs[type]->transfer;
+	lo->ioctl = xfer_funcs[type]->ioctl;
 	lo->lo_encrypt_key_size = info.lo_encrypt_key_size;
-	if (info.lo_encrypt_key_size)
-		memcpy(lo->lo_encrypt_key, info.lo_encrypt_key,
+	lo->lo_init[0] = info.lo_init[0];
+	lo->lo_init[1] = info.lo_init[1];
+	if (info.lo_encrypt_key_size) {
+		memcpy(lo->lo_encrypt_key, info.lo_encrypt_key, 
 		       info.lo_encrypt_key_size);
+		lo->lo_key_owner = current->uid; 
+	}	
 	figure_loop_size(lo);
 	return 0;
 }
@@ -552,15 +531,11 @@ static int loop_set_status(struct loop_device *lo, struct loop_info *arg)
 static int loop_get_status(struct loop_device *lo, struct loop_info *arg)
 {
 	struct loop_info	info;
-	int err;
-	
+
 	if (!lo->lo_dentry)
 		return -ENXIO;
 	if (!arg)
 		return -EINVAL;
-	err = verify_area(VERIFY_WRITE, arg, sizeof(info));
-	if (err)
-		return err;
 	memset(&info, 0, sizeof(info));
 	info.lo_number = lo->lo_number;
 	info.lo_device = kdev_t_to_nr(lo->lo_dentry->d_inode->i_dev);
@@ -575,8 +550,7 @@ static int loop_get_status(struct loop_device *lo, struct loop_info *arg)
 		memcpy(info.lo_encrypt_key, lo->lo_encrypt_key,
 		       lo->lo_encrypt_key_size);
 	}
-	copy_to_user(arg, &info, sizeof(info));
-	return 0;
+	return copy_to_user(arg, &info, sizeof(info)) ? -EFAULT : 0;
 }
 
 static int lo_ioctl(struct inode * inode, struct file * file,
@@ -611,7 +585,7 @@ static int lo_ioctl(struct inode * inode, struct file * file,
 			return -EINVAL;
 		return put_user(loop_sizes[lo->lo_number] << 1, (long *) arg);
 	default:
-		return -EINVAL;
+		return lo->ioctl ? lo->ioctl(lo, cmd, arg) : -EINVAL;
 	}
 	return 0;
 }
@@ -619,7 +593,8 @@ static int lo_ioctl(struct inode * inode, struct file * file,
 static int lo_open(struct inode *inode, struct file *file)
 {
 	struct loop_device *lo;
-	int	dev;
+	int	dev, type;
+
 
 	if (!inode)
 		return -EINVAL;
@@ -628,9 +603,14 @@ static int lo_open(struct inode *inode, struct file *file)
 		return -ENODEV;
 	}
 	dev = MINOR(inode->i_rdev);
-	if (dev >= MAX_LOOP)
+	if (dev >= MAX_LOOP) {
 		return -ENODEV;
+	}
 	lo = &loop_dev[dev];
+
+	type = lo->lo_encrypt_type; 
+	if (type && xfer_funcs[type] && xfer_funcs[type]->lock)
+		xfer_funcs[type]->lock(lo);
 	lo->lo_refcnt++;
 	MOD_INC_USE_COUNT;
 	return 0;
@@ -639,7 +619,7 @@ static int lo_open(struct inode *inode, struct file *file)
 static int lo_release(struct inode *inode, struct file *file)
 {
 	struct loop_device *lo;
-	int	dev;
+	int	dev, err;
 
 	if (!inode)
 		return 0;
@@ -650,15 +630,18 @@ static int lo_release(struct inode *inode, struct file *file)
 	dev = MINOR(inode->i_rdev);
 	if (dev >= MAX_LOOP)
 		return 0;
-	fsync_dev(inode->i_rdev);
+	err = fsync_dev(inode->i_rdev);
 	lo = &loop_dev[dev];
 	if (lo->lo_refcnt <= 0)
 		printk(KERN_ERR "lo_release: refcount(%d) <= 0\n", lo->lo_refcnt);
 	else  {
-		lo->lo_refcnt--;
+		int type  = lo->lo_encrypt_type;
+		--lo->lo_refcnt;
+		if (xfer_funcs[type] && xfer_funcs[type]->unlock)
+			xfer_funcs[type]->unlock(lo);
 		MOD_DEC_USE_COUNT;
 	}
-	return 0;
+	return err;
 }
 
 static struct file_operations lo_fops = {
@@ -681,8 +664,37 @@ static struct file_operations lo_fops = {
 #define loop_init init_module
 #endif
 
-__initfunc(int
-loop_init( void )) {
+int loop_register_transfer(struct loop_func_table *funcs)
+{
+	if ((unsigned)funcs->number > MAX_LO_CRYPT || xfer_funcs[funcs->number])
+		return -EINVAL;
+	xfer_funcs[funcs->number] = funcs;
+	return 0; 
+}
+
+int loop_unregister_transfer(int number)
+{
+	struct loop_device *lo; 
+
+	if ((unsigned)number >= MAX_LO_CRYPT)
+		return -EINVAL; 
+	for (lo = &loop_dev[0]; lo < &loop_dev[MAX_LOOP]; lo++) { 
+		int type = lo->lo_encrypt_type;
+		if (type == number) { 
+			xfer_funcs[type]->release(lo);
+			lo->transfer = NULL; 
+			lo->lo_encrypt_type = 0; 
+		}
+	}
+	xfer_funcs[number] = NULL; 
+	return 0; 
+}
+
+EXPORT_SYMBOL(loop_register_transfer);
+EXPORT_SYMBOL(loop_unregister_transfer);
+
+int __init loop_init(void) 
+{
 	int	i;
 
 	if (register_blkdev(MAJOR_NR, "loop", &lo_fops)) {
@@ -692,12 +704,6 @@ loop_init( void )) {
 	}
 #ifndef MODULE
 	printk(KERN_INFO "loop: registered device at major %d\n", MAJOR_NR);
-#ifdef DES_AVAILABLE
-	printk(KERN_INFO "loop: DES encryption available\n");
-#endif
-#ifdef IDEA_AVAILABLE
-	printk(KERN_INFO "loop: IDEA encryption available\n");
-#endif
 #endif
 
 	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
@@ -714,9 +720,9 @@ loop_init( void )) {
 }
 
 #ifdef MODULE
-void
-cleanup_module( void ) {
-  if (unregister_blkdev(MAJOR_NR, "loop") != 0)
-    printk(KERN_WARNING "loop: cleanup_module failed\n");
+void cleanup_module(void) 
+{
+	if (unregister_blkdev(MAJOR_NR, "loop") != 0)
+		printk(KERN_WARNING "loop: cannot unregister blkdev\n");
 }
 #endif

@@ -9,6 +9,8 @@
  *
  * Copyright (C) 1998 by Ralf Baechle
  */
+#include <linux/sched.h>
+#include <linux/ioport.h>
 #include <linux/hdreg.h>
 #include <asm/ptrace.h>
 #include <asm/ide.h>

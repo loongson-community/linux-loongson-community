@@ -3,7 +3,6 @@
 
 #include <linux/sched.h>
 #include <linux/errno.h>
-#include <linux/kernel.h>
 
 #ifdef __KERNEL__
 
@@ -118,7 +117,7 @@ typedef struct page {
 	unsigned long offset;
 	struct page *next_hash;
 	atomic_t count;
-	unsigned int age;
+	unsigned int unused;
 	unsigned long flags;	/* atomic flags, some possibly updated asynchronously */
 	struct wait_queue *wait;
 	struct page **pprev_hash;
@@ -227,8 +226,6 @@ typedef struct page {
  * For choosing which pages to swap out, inode pages carry a
  * page->referenced bit, which is set any time the system accesses
  * that page through the (inode,offset) hash table.
- * There is also the page->age counter, which implements a linear
- * decay (why not an exponential decay?), see swapctl.h.
  */
 
 extern mem_map_t * mem_map;
@@ -254,12 +251,6 @@ extern inline unsigned long get_free_page(int gfp_mask)
 
 /* memory.c & swap.c*/
 
-/*
- * Decide if we should try to do some swapout..
- */
-extern int free_memory_available(void);
-extern struct wait_queue * kswapd_wait;
-
 #define free_page(addr) free_pages((addr),0)
 extern void FASTCALL(free_pages(unsigned long addr, unsigned long order));
 extern void FASTCALL(__free_page(struct page *));
@@ -278,7 +269,7 @@ extern int remap_page_range(unsigned long from, unsigned long to, unsigned long 
 extern int zeromap_page_range(unsigned long from, unsigned long size, pgprot_t prot);
 extern int vmap_page_range (unsigned long from, unsigned long size, unsigned long vaddr);
 extern void vmtruncate(struct inode * inode, unsigned long offset);
-extern void handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
+extern int handle_mm_fault(struct task_struct *tsk,struct vm_area_struct *vma, unsigned long address, int write_access);
 extern void make_pages_present(unsigned long addr, unsigned long end);
 
 extern int pgt_cache_water[2];
@@ -341,6 +332,11 @@ extern void put_cached_page(unsigned long);
 
 #define GFP_LEVEL_MASK 0xf
 
+/*
+ * Decide if we should try to do some swapout..
+ */
+extern int free_memory_available(void);
+			
 /* vma is the first one with  address < vma->vm_end,
  * and even  address < vma->vm_start. Have to extend vma. */
 static inline int expand_stack(struct vm_area_struct * vma, unsigned long address)
@@ -390,6 +386,31 @@ static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * m
 		vma = NULL;
 	return vma;
 }
+
+#define buffer_under_min()	((buffermem >> PAGE_SHIFT) * 100 < \
+				buffer_mem.min_percent * num_physpages)
+#define buffer_under_borrow()	((buffermem >> PAGE_SHIFT) * 100 < \
+				buffer_mem.borrow_percent * num_physpages)
+#define buffer_under_max()	((buffermem >> PAGE_SHIFT) * 100 < \
+				buffer_mem.max_percent * num_physpages)
+#define buffer_over_min()	((buffermem >> PAGE_SHIFT) * 100 > \
+				buffer_mem.min_percent * num_physpages)
+#define buffer_over_borrow()	((buffermem >> PAGE_SHIFT) * 100 > \
+				buffer_mem.borrow_percent * num_physpages)
+#define buffer_over_max()	((buffermem >> PAGE_SHIFT) * 100 > \
+				buffer_mem.max_percent * num_physpages)
+#define pgcache_under_min()	(page_cache_size * 100 < \
+				page_cache.min_percent * num_physpages)
+#define pgcache_under_borrow()	(page_cache_size * 100 < \
+				page_cache.borrow_percent * num_physpages)
+#define pgcache_under_max()	(page_cache_size * 100 < \
+				page_cache.max_percent * num_physpages)
+#define pgcache_over_min()	(page_cache_size * 100 > \
+				page_cache.min_percent * num_physpages)
+#define pgcache_over_borrow()	(page_cache_size * 100 > \
+				page_cache.borrow_percent * num_physpages)
+#define pgcache_over_max()	(page_cache_size * 100 > \
+				page_cache.max_percent * num_physpages)
 
 #endif /* __KERNEL__ */
 

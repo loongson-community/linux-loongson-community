@@ -1,4 +1,4 @@
-/* $Id: sys_sunos.c,v 1.91 1998/06/16 04:37:04 davem Exp $
+/* $Id: sys_sunos.c,v 1.94 1998/10/12 06:15:04 jj Exp $
  * sys_sunos.c: SunOS specific syscall compatibility support.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -68,6 +68,7 @@ asmlinkage unsigned long sunos_mmap(unsigned long addr, unsigned long len,
 	struct file * file = NULL;
 	unsigned long retval, ret_type;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	current->personality |= PER_BSD;
 	if(flags & MAP_NORESERVE) {
@@ -118,6 +119,7 @@ asmlinkage unsigned long sunos_mmap(unsigned long addr, unsigned long len,
 		}
 	}
 
+	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 	retval = do_mmap(file, addr, len, prot, flags, off);
 	if(!ret_type)
 		retval = ((retval < PAGE_OFFSET) ? 0 : retval);
@@ -127,6 +129,7 @@ out_putf:
 		fput(file);
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return retval;
 }
 
@@ -146,6 +149,7 @@ asmlinkage int sunos_brk(unsigned long brk)
 	unsigned long rlim;
 	unsigned long newbrk, oldbrk;
 
+	down(&current->mm->mmap_sem);
 	lock_kernel();
 	if(ARCH_SUN4C_SUN4) {
 		if(brk >= 0x20000000 && brk < 0xe0000000) {
@@ -212,6 +216,7 @@ asmlinkage int sunos_brk(unsigned long brk)
 	retval = 0;
 out:
 	unlock_kernel();
+	up(&current->mm->mmap_sem);
 	return retval;
 }
 
@@ -578,20 +583,16 @@ struct sunos_utsname {
 
 asmlinkage int sunos_uname(struct sunos_utsname *name)
 {
-	int ret = -EFAULT;
-
+	int ret;
 	down(&uts_sem);
-	if(!name)
-		goto out;
-	if(copy_to_user(&name->sname[0], &system_utsname.sysname[0], sizeof(name->sname) - 1))
-		goto out;
-	copy_to_user(&name->nname[0], &system_utsname.nodename[0], sizeof(name->nname) - 1);
-	put_user('\0', &name->nname[8]);
-	copy_to_user(&name->rel[0], &system_utsname.release[0], sizeof(name->rel) - 1);
-	copy_to_user(&name->ver[0], &system_utsname.version[0], sizeof(name->ver) - 1);
-	copy_to_user(&name->mach[0], &system_utsname.machine[0], sizeof(name->mach) - 1);
-	ret = 0;
-out:
+	ret = copy_to_user(&name->sname[0], &system_utsname.sysname[0], sizeof(name->sname) - 1);
+	if (!ret) {
+		ret |= __copy_to_user(&name->nname[0], &system_utsname.nodename[0], sizeof(name->nname) - 1);
+		ret |= __put_user('\0', &name->nname[8]);
+		ret |= __copy_to_user(&name->rel[0], &system_utsname.release[0], sizeof(name->rel) - 1);
+		ret |= __copy_to_user(&name->ver[0], &system_utsname.version[0], sizeof(name->ver) - 1);
+		ret |= __copy_to_user(&name->mach[0], &system_utsname.machine[0], sizeof(name->mach) - 1);
+	}
 	up(&uts_sem);
 	return ret;
 }
@@ -842,7 +843,7 @@ asmlinkage int sunos_nfs_mount(char *dir_name, int linux_flags, void *data)
 	strncpy (linux_nfs_mount.hostname, the_name, 254);
 	linux_nfs_mount.hostname [255] = 0;
 	putname (the_name);
-
+	
 	dev = get_unnamed_dev ();
 	
 	ret = do_mount (dev, "", dir_name, "nfs", linux_flags, &linux_nfs_mount);
@@ -859,6 +860,9 @@ sunos_mount(char *type, char *dir, int flags, void *data)
 	int ret = -EINVAL;
 	char *dev_fname = 0;
 
+	if (!capable (CAP_SYS_ADMIN))
+		return -EPERM;
+		
 	lock_kernel();
 	/* We don't handle the integer fs type */
 	if ((flags & SMNT_NEWTYPE) == 0)

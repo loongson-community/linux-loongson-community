@@ -206,7 +206,7 @@ static void wait_for_calibration(ad1848_info * devc)
 		return;
 
 	timeout = 80000;
-	while (timeout > 0 && ad_read(devc, 11) & 0x20)
+	while (timeout > 0 && (ad_read(devc, 11) & 0x20))
 		timeout--;
 	if (ad_read(devc, 11) & 0x20)
 		if (devc->model != MD_1845)
@@ -916,7 +916,7 @@ static void ad1848_output_block(int dev, unsigned long buf, int count, int intrf
 		cnt >>= 1;
 	cnt--;
 
-	if (devc->audio_mode & PCM_ENABLE_OUTPUT && audio_devs[dev]->flags & DMA_AUTOMODE &&
+	if ((devc->audio_mode & PCM_ENABLE_OUTPUT) && (audio_devs[dev]->flags & DMA_AUTOMODE) &&
 	    intrflag &&
 	    cnt == devc->xfer_count)
 	{
@@ -958,7 +958,7 @@ static void ad1848_start_input(int dev, unsigned long buf, int count, int intrfl
 		cnt >>= 1;
 	cnt--;
 
-	if (devc->audio_mode & PCM_ENABLE_INPUT && audio_devs[dev]->flags & DMA_AUTOMODE &&
+	if ((devc->audio_mode & PCM_ENABLE_INPUT) && (audio_devs[dev]->flags & DMA_AUTOMODE) &&
 		intrflag &&
 		cnt == devc->xfer_count)
 	{
@@ -1182,10 +1182,10 @@ static void ad1848_halt(int dev)
 
 	unsigned char   bits = ad_read(devc, 9);
 
-	if (bits & 0x01 && portc->open_mode & OPEN_WRITE)
+	if (bits & 0x01 && (portc->open_mode & OPEN_WRITE))
 		ad1848_halt_output(dev);
 
-	if (bits & 0x02 && portc->open_mode & OPEN_READ)
+	if (bits & 0x02 && (portc->open_mode & OPEN_READ))
 		ad1848_halt_input(dev);
 	devc->audio_mode = 0;
 }
@@ -1308,7 +1308,7 @@ static void ad1848_init_hw(ad1848_info * devc)
 		0x00, 0x0c, 0x02, 0x00, 0x8a, 0x01, 0x00, 0x00,
 
 	/* Positions 16 to 31 just for CS4231/2 and ad1845 */
-		0x80, 0x00, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00,
+		0x80, 0x00, 0x10, 0x10, 0x00, 0x00, 0x1f, 0x40,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	};
 
@@ -1814,7 +1814,7 @@ int ad1848_init(char *name, int io_base, int irq, int dma_playback, int dma_capt
 			ad_write(devc, 16, tmp & ~0x40);	/* Disable timer */
 
 			if (devc->timer_ticks == 0)
-				printk(KERN_WARNING "ad1848: Interrupt test failed (IRQ%d)\n", devc->irq);
+				printk(KERN_WARNING "ad1848: Interrupt test failed (IRQ%d)\n", irq);
 			else
 			{
 				DDB(printk("Interrupt test OK\n"));
@@ -1934,8 +1934,8 @@ void ad1848_unload(int io_base, int irq, int dma_playback, int dma_capture, int 
 
 		if (!share_dma)
 		{
-			if (irq > 0)
-				free_irq(devc->irq, NULL);
+			if (devc->irq > 0) /* There is no point in freeing irq, if it wasn't allocated */
+				free_irq(devc->irq, (void *)devc->dev_no);
 
 			sound_free_dma(audio_devs[dev]->dmap_out->dma);
 
@@ -1945,6 +1945,10 @@ void ad1848_unload(int io_base, int irq, int dma_playback, int dma_capture, int 
 		mixer = audio_devs[devc->dev_no]->mixer_dev;
 		if(mixer>=0)
 			sound_unload_mixerdev(mixer);
+
+		nr_ad1848_devs--;
+		for ( ; i < nr_ad1848_devs ; i++)
+			adev_info[i] = adev_info[i+1];
 	}
 	else
 		printk(KERN_ERR "ad1848: Can't find device to be unloaded. Base=%x\n", io_base);
@@ -1997,16 +2001,16 @@ interrupt_again:		/* Jump back here if int status doesn't reset */
 			ad_write(devc, 24, ad_read(devc, 24) & ~alt_stat);	/* Selective ack */
 		}
 
-		if (devc->open_mode & OPEN_READ && devc->audio_mode & PCM_ENABLE_INPUT && alt_stat & 0x20)
+		if ((devc->open_mode & OPEN_READ) && (devc->audio_mode & PCM_ENABLE_INPUT) && (alt_stat & 0x20))
 		{
 			DMAbuf_inputintr(devc->record_dev);
 		}
-		if (devc->open_mode & OPEN_WRITE && devc->audio_mode & PCM_ENABLE_OUTPUT &&
-		      alt_stat & 0x10)
+		if ((devc->open_mode & OPEN_WRITE) && (devc->audio_mode & PCM_ENABLE_OUTPUT) &&
+		      (alt_stat & 0x10))
 		{
 			DMAbuf_outputintr(devc->playback_dev, 1);
 		}
-		if (devc->model != MD_1848 && alt_stat & 0x40)	/* Timer interrupt */
+		if (devc->model != MD_1848 && (alt_stat & 0x40))	/* Timer interrupt */
 		{
 			devc->timer_ticks++;
 #if defined(CONFIG_SEQUENCER) && !defined(EXCLUDE_TIMERS)
@@ -2401,7 +2405,6 @@ void attach_ms_sound(struct address_info *hw_config)
 
 void unload_ms_sound(struct address_info *hw_config)
 {
-	int mixer = audio_devs[hw_config->slots[0]]->mixer_dev;
 	ad1848_unload(hw_config->io_base + 4,
 		      hw_config->irq,
 		      hw_config->dma,

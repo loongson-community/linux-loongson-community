@@ -1,4 +1,4 @@
-/*  $Id: process.c,v 1.70 1998/08/04 20:49:15 davem Exp $
+/*  $Id: process.c,v 1.82 1998/10/19 21:52:23 davem Exp $
  *  arch/sparc64/kernel/process.c
  *
  *  Copyright (C) 1995, 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -71,13 +71,16 @@ asmlinkage int cpu_idle(void)
 {
 	current->priority = 0;
 	while(1) {
+		struct task_struct *p;
+
 		check_pgt_cache();
 		run_task_queue(&tq_scheduler);
-		barrier();
 		current->counter = 0;
-		if(current->need_resched)
+		if (current->need_resched != 0 ||
+		    ((p = init_task.next_run) != NULL &&
+		     (p->processor == smp_processor_id() ||
+		      (p->tss.flags & SPARC_FLAG_NEWCHILD) != 0)))
 			schedule();
-		barrier();
 	}
 }
 
@@ -386,11 +389,31 @@ void exit_thread(void)
 		else
 			current->tss.utraps[0]--;
 	}
+
+	/* Turn off performance counters if on. */
+	if (current->tss.flags & SPARC_FLAG_PERFCTR) {
+		current->tss.user_cntd0 =
+			current->tss.user_cntd1 = NULL;
+		current->tss.pcr_reg = 0;
+		current->tss.flags &= ~(SPARC_FLAG_PERFCTR);
+		write_pcr(0);
+	}
 }
 
 void flush_thread(void)
 {
+	if (!(current->tss.flags & SPARC_FLAG_KTHREAD))
+		flush_user_windows();
 	current->tss.w_saved = 0;
+
+	/* Turn off performance counters if on. */
+	if (current->tss.flags & SPARC_FLAG_PERFCTR) {
+		current->tss.user_cntd0 =
+			current->tss.user_cntd1 = NULL;
+		current->tss.pcr_reg = 0;
+		current->tss.flags &= ~(SPARC_FLAG_PERFCTR);
+		write_pcr(0);
+	}
 
 	/* No new signal delivery by default. */
 	current->tss.new_signal = 0;
@@ -399,22 +422,24 @@ void flush_thread(void)
 	/* Now, this task is no longer a kernel thread. */
 	current->tss.current_ds = USER_DS;
 	if(current->tss.flags & SPARC_FLAG_KTHREAD) {
-		extern spinlock_t scheduler_lock;
-
 		current->tss.flags &= ~SPARC_FLAG_KTHREAD;
 
 		/* exec_mmap() set context to NO_CONTEXT, here is
 		 * where we grab a new one.
 		 */
-		spin_lock(&scheduler_lock);
-		get_mmu_context(current);
-		spin_unlock(&scheduler_lock);
+		current->mm->cpu_vm_mask = 0;
+		activate_context(current);
+		current->mm->cpu_vm_mask = (1UL<<smp_processor_id());
 	}
 	if (current->tss.flags & SPARC_FLAG_32BIT)
-		__asm__ __volatile__("stxa %%g0, [%0] %1" : : "r"(TSB_REG), "i"(ASI_DMMU));
+		__asm__ __volatile__("stxa %%g0, [%0] %1"
+				     : /* no outputs */
+				     : "r"(TSB_REG), "i"(ASI_DMMU));
+	__cli();
 	current->tss.ctx = current->mm->context & 0x3ff;
 	spitfire_set_secondary_context (current->tss.ctx);
 	__asm__ __volatile__("flush %g6");
+	__sti();
 }
 
 /* It's a bit more tricky when 64-bit tasks are involved... */
@@ -518,7 +543,6 @@ void fault_in_user_windows(struct pt_regs *regs)
 	current->tss.w_saved = 0;
 	return;
 barf:
-	lock_kernel();
 	do_exit(SIGILL);
 }
 
@@ -546,7 +570,19 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
 	p->tss.kregs = (struct pt_regs *)(child_trap_frame+sizeof(struct reg_window));
 	p->tss.cwp = (regs->tstate + 1) & TSTATE_CWP;
 	p->tss.fpsaved[0] = 0;
+	p->mm->segments = (void *) 0;
 	if(regs->tstate & TSTATE_PRIV) {
+		/* Special case, if we are spawning a kernel thread from
+		 * a userspace task (via KMOD, NFS, or similar) we must
+		 * disable performance counters in the child because the
+		 * address space and protection realm are changing.
+		 */
+		if (current->tss.flags & SPARC_FLAG_PERFCTR) {
+			p->tss.user_cntd0 =
+				p->tss.user_cntd1 = NULL;
+			p->tss.pcr_reg = 0;
+			p->tss.flags &= ~(SPARC_FLAG_PERFCTR);
+		}
 		p->tss.kregs->u_regs[UREG_FP] = p->tss.ksp;
 		p->tss.flags |= (SPARC_FLAG_KTHREAD | SPARC_FLAG_NEWCHILD);
 		p->tss.current_ds = KERNEL_DS;
@@ -592,7 +628,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long sp,
  */
 void dump_thread(struct pt_regs * regs, struct user * dump)
 {
-#if 0
+#if 1
+	/* Only should be used for SunOS and ancient a.out
+	 * SparcLinux binaries...  Fixme some day when bored.
+	 * But for now at least plug the security hole :-)
+	 */
+	memset(dump, 0, sizeof(struct user));
+#else
 	unsigned long first_stack_page;
 	dump->magic = SUNOS_CORE_MAGIC;
 	dump->len = sizeof(struct user);
@@ -616,13 +658,69 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 #endif	
 }
 
+typedef struct {
+	union {
+		unsigned int	pr_regs[32];
+		unsigned long	pr_dregs[16];
+	} pr_fr;
+	unsigned int __unused;
+	unsigned int	pr_fsr;
+	unsigned char	pr_qcnt;
+	unsigned char	pr_q_entrysize;
+	unsigned char	pr_en;
+	unsigned int	pr_q[64];
+} elf_fpregset_t32;
+
 /*
  * fill in the fpu structure for a core dump.
  */
 int dump_fpu (struct pt_regs * regs, elf_fpregset_t * fpregs)
 {
-	/* Currently we report that we couldn't dump the fpu structure */
-	return 0;
+	unsigned long *kfpregs = (unsigned long *)(((char *)current) + AOFF_task_fpregs);
+	unsigned long fprs = current->tss.fpsaved[0];
+
+	if ((current->tss.flags & SPARC_FLAG_32BIT) != 0) {
+		elf_fpregset_t32 *fpregs32 = (elf_fpregset_t32 *)fpregs;
+
+		if (fprs & FPRS_DL)
+			memcpy(&fpregs32->pr_fr.pr_regs[0], kfpregs,
+			       sizeof(unsigned int) * 32);
+		else
+			memset(&fpregs32->pr_fr.pr_regs[0], 0,
+			       sizeof(unsigned int) * 32);
+		fpregs32->pr_qcnt = 0;
+		fpregs32->pr_q_entrysize = 8;
+		memset(&fpregs32->pr_q[0], 0,
+		       (sizeof(unsigned int) * 64));
+		if (fprs & FPRS_FEF) {
+			fpregs32->pr_fsr = (unsigned int) current->tss.xfsr[0];
+			fpregs32->pr_en = 1;
+		} else {
+			fpregs32->pr_fsr = 0;
+			fpregs32->pr_en = 0;
+		}
+	} else {
+		if(fprs & FPRS_DL)
+			memcpy(&fpregs->pr_regs[0], kfpregs,
+			       sizeof(unsigned int) * 32);
+		else
+			memset(&fpregs->pr_regs[0], 0,
+			       sizeof(unsigned int) * 32);
+		if(fprs & FPRS_DU)
+			memcpy(&fpregs->pr_regs[16], kfpregs+16,
+			       sizeof(unsigned int) * 32);
+		else
+			memset(&fpregs->pr_regs[16], 0,
+			       sizeof(unsigned int) * 32);
+		if(fprs & FPRS_FEF) {
+			fpregs->pr_fsr = current->tss.xfsr[0];
+			fpregs->pr_gsr = current->tss.gsr[0];
+		} else {
+			fpregs->pr_fsr = fpregs->pr_gsr = 0;
+		}
+		fpregs->pr_fprs = fprs;
+	}
+	return 1;
 }
 
 /*

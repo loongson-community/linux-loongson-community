@@ -39,6 +39,13 @@ unsigned long simple_strtoul(const char *cp,char **endp,unsigned int base)
 	return result;
 }
 
+long simple_strtol(const char *cp,char **endp,unsigned int base)
+{
+	if(*cp=='-')
+		return -simple_strtoul(cp+1,endp,base);
+	return simple_strtoul(cp,endp,base);
+}
+
 /* we use this so that we can do without the ctype library */
 #define is_digit(c)	((c) >= '0' && (c) <= '9')
 
@@ -283,10 +290,9 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		if (qualifier == 'l')
 			num = va_arg(args, unsigned long);
 		else if (qualifier == 'h') {
+			num = (unsigned short) va_arg(args, int);
 			if (flags & SIGN)
-				num = va_arg(args, short);
-			else
-				num = va_arg(args, unsigned short);
+				num = (short) num;
 		} else if (flags & SIGN)
 			num = va_arg(args, int);
 		else

@@ -15,6 +15,8 @@
  *                   integrated sound_switch.c
  * Stefan Reinauer : integrated /proc/sound (equals to /dev/sndstat,
  *                   which should disappear in the near future)
+ *
+ * Rob Riggs		Added persistent DMA buffers support (1998/10/17)
  */
 
 #include <linux/config.h>
@@ -63,6 +65,9 @@ static int      is_unloading = 0;
  */
 caddr_t         sound_mem_blocks[1024];
 int             sound_nblocks = 0;
+
+/* Persistent DMA buffers */
+int		sound_dmap_flag = 0;	/* Off by default */
 
 static int      soundcard_configured = 0;
 
@@ -287,11 +292,13 @@ static int sound_proc_get_info(char *buffer, char **start, off_t offset, int len
         return len;
 }
 
+#ifdef CONFIG_PROC_FS
 static struct proc_dir_entry proc_root_sound = {
         PROC_SOUND, 5, "sound",
         S_IFREG | S_IRUGO, 1, 0, 0,
         0, NULL, sound_proc_get_info
 };
+#endif
 
 #ifndef MIN
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
@@ -837,8 +844,10 @@ soundcard_init(void)
 		audio_init_devices();
 	}
 #endif
+#ifdef CONFIG_PROC_FS
 	if (proc_register(&proc_root, &proc_root_sound))
 		printk(KERN_ERR "sound: registering /proc/sound failed\n");
+#endif		
 }
 
 static int      sound[20] = {
@@ -848,7 +857,9 @@ static int      sound[20] = {
 #ifdef MODULE
 
 int traceinit = 0;
+static int dmabuf = 0;
 MODULE_PARM(traceinit, "i");
+MODULE_PARM(dmabuf, "i");
 
 int init_module(void)
 {
@@ -874,6 +885,10 @@ int init_module(void)
 		printk(KERN_ERR "sound: driver already loaded/included in kernel\n");
 		return err;
 	}
+
+	/* Protecting the innocent */
+	sound_dmap_flag = (dmabuf > 0 ? 1 : 0);
+
 	chrdev_registered = 1;
 	soundcard_init();
 

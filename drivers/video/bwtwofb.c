@@ -1,4 +1,4 @@
-/* $Id: bwtwofb.c,v 1.1 1998/07/21 14:50:48 jj Exp $
+/* $Id: bwtwofb.c,v 1.6 1998/09/15 15:45:35 jj Exp $
  * bwtwofb.c: BWtwo frame buffer driver
  *
  * Copyright (C) 1998 Jakub Jelinek   (jj@ultra.linux.cz)
@@ -23,13 +23,13 @@
 #include <linux/init.h>
 #include <linux/selection.h>
 
-#include "sbusfb.h"
+#include <video/sbusfb.h>
 #include <asm/io.h>
 #ifndef __sparc_v9__
 #include <asm/sun4paddr.h>
 #endif
 
-#include "fbcon-mfb.h"
+#include <video/fbcon-mfb.h>
 
 /* OBio addresses for the bwtwo registers */
 #define BWTWO_REGISTER_OFFSET 0x400000
@@ -63,6 +63,7 @@ struct bw2_regs {
 #define BWTWO_SR_ID_MONO	0x02
 #define BWTWO_SR_ID_MONO_ECL	0x03
 #define BWTWO_SR_ID_MSYNC	0x04
+#define BWTWO_SR_ID_NOCONN	0x0a
 
 /* Control Register Constants */
 #define BWTWO_CTL_ENABLE_INTS   0x80
@@ -94,7 +95,7 @@ static void bw2_unblank (struct fb_info_sbusfb *fb)
 
 static void bw2_margins (struct fb_info_sbusfb *fb, struct display *p, int x_margin, int y_margin)
 {
-	p->screen_base += ((y_margin - fb->y_margin) * p->line_length + (x_margin - fb->x_margin)) >> 3;
+	p->screen_base += (y_margin - fb->y_margin) * p->line_length + ((x_margin - fb->x_margin) >> 3);
 }
 
 static u8 bw2regs_1600[] __initdata = {
@@ -134,13 +135,13 @@ static u8 bw2regs_66hz[] __initdata = {
 
 static char idstring[60] __initdata = { 0 };
 
-__initfunc(char *bwtwofb_init(struct fb_info_sbusfb *fb))
+char __init *bwtwofb_init(struct fb_info_sbusfb *fb)
 {
 	struct fb_fix_screeninfo *fix = &fb->fix;
 	struct display *disp = &fb->disp;
 	struct fbtype *type = &fb->type;
 #ifdef CONFIG_SUN4
-	unsigned long phys = SUN4_300_BWTWO_PHYSADDR;
+	unsigned long phys = sun4_bwtwo_physaddr;
 #else
 	unsigned long phys = fb->sbdp->reg_addrs[0].phys_addr;
 #endif
@@ -152,7 +153,7 @@ __initfunc(char *bwtwofb_init(struct fb_info_sbusfb *fb))
 	if (!fb->s.bw2.regs) {
 		fb->s.bw2.regs = (struct bw2_regs *)sparc_alloc_io(phys+BWTWO_REGISTER_OFFSET, 0, 
 				sizeof(struct bw2_regs), "bw2_regs", fb->iospace, 0);
-		if (!prom_getbool(fb->prom_node, "width")) {
+		if ((!ARCH_SUN4) && (!prom_getbool(fb->prom_node, "width"))) {
 			/* Ugh, broken PROM didn't initialize us.
 			 * Let's deal with this ourselves.
 			 */
@@ -182,6 +183,8 @@ __initfunc(char *bwtwofb_init(struct fb_info_sbusfb *fb))
 					else
 						p = bw2regs_66hz;
 					break;
+				case BWTWO_SR_ID_NOCONN:
+					return NULL;
 				default:
 					prom_printf("bw2: can't handle SR %02x\n",
 						    status);
@@ -198,15 +201,18 @@ __initfunc(char *bwtwofb_init(struct fb_info_sbusfb *fb))
 	fix->line_length = fb->var.xres_virtual>>3;
 	
 	disp->scrollmode = SCROLL_YREDRAW;
+	disp->inverse = 1;
 	if (!disp->screen_base)
 		disp->screen_base = (char *)sparc_alloc_io(phys, 0, 
 			type->fb_size, "bw2_ram", fb->iospace, 0);
-	disp->screen_base += (fix->line_length * fb->y_margin + fb->x_margin) >> 3;
+	disp->screen_base += fix->line_length * fb->y_margin + (fb->x_margin >> 3);
 	fb->dispsw = fbcon_mfb;
 	fix->visual = FB_VISUAL_MONO01;
 
+#ifndef CONFIG_SUN4
 	fb->blank = bw2_blank;
 	fb->unblank = bw2_unblank;
+#endif
 	fb->margins = bw2_margins;
 	
 	fb->physbase = phys;

@@ -1,4 +1,4 @@
-/*  $Id: setup.c,v 1.30 1998/07/24 09:50:08 jj Exp $
+/*  $Id: setup.c,v 1.37 1998/10/14 15:49:09 ecd Exp $
  *  linux/arch/sparc64/kernel/setup.c
  *
  *  Copyright (C) 1995,1996  David S. Miller (davem@caip.rutgers.edu)
@@ -56,46 +56,213 @@ struct screen_info screen_info = {
 	16                      /* orig-video-points */
 };
 
-unsigned int phys_bytes_of_ram, end_of_phys_memory;
-
 /* Typing sync at the prom prompt calls the function pointed to by
  * the sync callback which I set to the following function.
  * This should sync all filesystems and return, for now it just
  * prints out pretty messages and returns.
  */
 
-extern unsigned long sparc64_ttable_tl0;
 #if CONFIG_SUN_CONSOLE
 void (*prom_palette)(int);
 #endif
 asmlinkage void sys_sync(void);	/* it's really int */
 
-/* Pretty sick eh? */
-void prom_sync_me(long *args)
+static void
+prom_console_write(struct console *con, const char *s, unsigned n)
 {
-	unsigned long prom_tba, flags;
+	prom_printf("%s", s);
+}
+
+static struct console prom_console = {
+	"prom",
+	prom_console_write,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	CON_CONSDEV | CON_ENABLED,
+	-1,
+	0,
+	NULL
+};
+
+#define PROM_TRUE	-1
+#define PROM_FALSE	0
+
+/* Pretty sick eh? */
+int prom_callback(long *args)
+{
+	struct console *cons, *saved_console = NULL;
+	unsigned long flags;
+	char *cmd;
+
+	if (!args)
+		return -1;
+	if (!(cmd = (char *)args[0]))
+		return -1;
 
 	save_and_cli(flags);
-	__asm__ __volatile__("flushw; rdpr %%tba, %0\n\t" : "=r" (prom_tba));
-	__asm__ __volatile__("wrpr %0, 0x0, %%tba\n\t" : : "r" (&sparc64_ttable_tl0));
-
-#ifdef CONFIG_SUN_CONSOLE
-	if (prom_palette)
-        	prom_palette (1);
-#endif
-	prom_printf("PROM SYNC COMMAND...\n");
-	show_free_areas();
-	if(current->pid != 0) {
-		sti();
-		sys_sync();
-		cli();
+	cons = console_drivers;
+	while (cons) {
+		unregister_console(cons);
+		cons->flags &= ~(CON_PRINTBUFFER);
+		cons->next = saved_console;
+		saved_console = cons;
+		cons = console_drivers;
 	}
-	prom_printf("Returning to prom\n");
+	register_console(&prom_console);
+	if (!strcmp(cmd, "sync")) {
+		prom_printf("PROM `%s' command...\n", cmd);
+		show_free_areas();
+		if(current->pid != 0) {
+			sti();
+			sys_sync();
+			cli();
+		}
+		args[2] = 0;
+		args[args[1] + 3] = -1;
+		prom_printf("Returning to PROM\n");
+	} else if (!strcmp(cmd, "va>tte-data")) {
+		unsigned long ctx, va;
+		unsigned long tte = 0;
+		long res = PROM_FALSE;
 
-	__asm__ __volatile__("flushw; wrpr %0, 0x0, %%tba\n\t" : : "r" (prom_tba));
+		ctx = args[3];
+		va = args[4];
+		if (ctx) {
+			/*
+			 * Find process owning ctx, lookup mapping.
+			 */
+			struct task_struct *p;
+			pgd_t *pgdp;
+			pmd_t *pmdp;
+			pte_t *ptep;
+
+			for_each_task(p)
+				if (p->tss.ctx == ctx)
+					break;
+			if (p->tss.ctx != ctx)
+				goto done;
+
+			pgdp = pgd_offset(p->mm, va);
+			if (pgd_none(*pgdp))
+				goto done;
+			pmdp = pmd_offset(pgdp, va);
+			if (pmd_none(*pmdp))
+				goto done;
+			ptep = pte_offset(pmdp, va);
+			if (!pte_present(*ptep))
+				goto done;
+			tte = pte_val(*ptep);
+			res = PROM_TRUE;
+			goto done;
+		}
+
+		if ((va >= KERNBASE) && (va < (KERNBASE + (4 * 1024 * 1024)))) {
+			/*
+			 * Locked down tlb entry 63.
+			 */
+			tte = spitfire_get_dtlb_data(63);
+			res = PROM_TRUE;
+			goto done;
+		}
+
+		if (va < PGDIR_SIZE) {
+			/*
+			 * vmalloc or prom_inherited mapping.
+			 */
+			pgd_t *pgdp;
+			pmd_t *pmdp;
+			pte_t *ptep;
+
+			pgdp = pgd_offset_k(va);
+			if (pgd_none(*pgdp))
+				goto done;
+			pmdp = pmd_offset(pgdp, va);
+			if (pmd_none(*pmdp))
+				goto done;
+			ptep = pte_offset(pmdp, va);
+			if (!pte_present(*ptep))
+				goto done;
+			tte = pte_val(*ptep);
+			res = PROM_TRUE;
+			goto done;
+		}
+
+		if (va < PAGE_OFFSET) {
+			/*
+			 * No mappings here.
+			 */
+			goto done;
+		}
+
+		if (va & (1UL << 40)) {
+			/*
+			 * I/O page.
+			 */
+
+			tte = (__pa(va) & _PAGE_PADDR) |
+			      _PAGE_VALID | _PAGE_SZ4MB |
+			      _PAGE_E | _PAGE_P | _PAGE_W;
+			res = PROM_TRUE;
+			goto done;
+		}
+
+		/*
+		 * Normal page.
+		 */
+		tte = (__pa(va) & _PAGE_PADDR) |
+		      _PAGE_VALID | _PAGE_SZ4MB |
+		      _PAGE_CP | _PAGE_CV | _PAGE_P | _PAGE_W;
+		res = PROM_TRUE;
+
+	done:
+		if (res == PROM_TRUE) {
+			args[2] = 3;
+			args[args[1] + 3] = 0;
+			args[args[1] + 4] = res;
+			args[args[1] + 5] = tte;
+		} else {
+			args[2] = 2;
+			args[args[1] + 3] = 0;
+			args[args[1] + 4] = res;
+		}
+	} else if (!strcmp(cmd, ".soft1")) {
+		unsigned long tte;
+
+		tte = args[3];
+		prom_printf("%lx:\"%s%s%s%s%s\" ",
+			    (tte & _PAGE_SOFT) >> 7,
+			    tte & _PAGE_MODIFIED ? "M" : "-",
+			    tte & _PAGE_ACCESSED ? "A" : "-",
+			    tte & _PAGE_READ     ? "W" : "-",
+			    tte & _PAGE_WRITE    ? "R" : "-",
+			    tte & _PAGE_PRESENT  ? "P" : "-");
+
+		args[2] = 2;
+		args[args[1] + 3] = 0;
+		args[args[1] + 4] = PROM_TRUE;
+	} else if (!strcmp(cmd, ".soft2")) {
+		unsigned long tte;
+
+		tte = args[3];
+		prom_printf("%lx ", (tte & _PAGE_SOFT2) >> 50);
+
+		args[2] = 2;
+		args[args[1] + 3] = 0;
+		args[args[1] + 4] = PROM_TRUE;
+	} else {
+		prom_printf("unknown PROM `%s' command...\n", cmd);
+	}
+	unregister_console(&prom_console);
+	while (saved_console) {
+		cons = saved_console;
+		saved_console = cons->next;
+		register_console(cons);
+	}
 	restore_flags(flags);
-
-	return;
+	return 0;
 }
 
 extern void rs_kgdb_hook(int tty_num); /* sparc/serial.c */
@@ -235,8 +402,8 @@ extern unsigned long sun_serial_setup(unsigned long);
 extern unsigned short root_flags;
 extern unsigned short root_dev;
 extern unsigned short ram_flags;
-extern unsigned ramdisk_image;
-extern unsigned ramdisk_size;
+extern unsigned int ramdisk_image;
+extern unsigned int ramdisk_size;
 #define RAMDISK_IMAGE_START_MASK	0x07FF
 #define RAMDISK_PROMPT_FLAG		0x8000
 #define RAMDISK_LOAD_FLAG		0x4000
@@ -252,38 +419,12 @@ static struct pt_regs fake_swapper_regs = { { 0, }, 0, 0, 0, 0 };
 
 extern struct consw sun_serial_con;
 
-#ifdef PROM_DEBUG_CONSOLE
-static void
-prom_console_write(struct console *con, const char *s, unsigned n)
-{
-	prom_printf("%s", s);
-}
-
-static struct console prom_console = {
-	"prom",
-	prom_console_write,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	CON_PRINTBUFFER,
-	-1,
-	0,
-	NULL
-};
-#endif
-
 __initfunc(void setup_arch(char **cmdline_p,
 	unsigned long * memory_start_p, unsigned long * memory_end_p))
 {
 	extern int serial_console;  /* in console.c, of course */
-	unsigned long lowest_paddr;
+	unsigned long lowest_paddr, end_of_phys_memory = 0;
 	int total, i;
-
-#ifdef PROM_DEBUG_CONSOLE
-	register_console(&prom_console);
-#endif
 
 	/* Initialize PROM console and command line. */
 	*cmdline_p = prom_getbootargs();
@@ -318,7 +459,13 @@ __initfunc(void setup_arch(char **cmdline_p,
 			}
 		}
 	}
-	prom_setsync(prom_sync_me);
+	prom_setcallback(prom_callback);
+	prom_feval(": linux-va>tte-data 2 \" va>tte-data\" $callback drop ; "
+		   "' linux-va>tte-data to va>tte-data");
+	prom_feval(": linux-.soft1 1 \" .soft1\" $callback 2drop ; "
+		   "' linux-.soft1 to .soft1");
+	prom_feval(": linux-.soft2 1 \" .soft2\" $callback 2drop ; "
+		   "' linux-.soft2 to .soft2");
 
 	/* In paging_init() we tip off this value to see if we need
 	 * to change init_mm.pgd to point to the real alias mapping.

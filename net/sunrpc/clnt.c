@@ -28,6 +28,7 @@
 #include <linux/mm.h>
 #include <linux/malloc.h>
 #include <linux/in.h>
+#include <linux/utsname.h>
 
 #include <linux/sunrpc/clnt.h>
 
@@ -56,6 +57,7 @@ static void	call_timeout(struct rpc_task *task);
 static void	call_reconnect(struct rpc_task *task);
 static u32 *	call_header(struct rpc_task *task);
 static u32 *	call_verify(struct rpc_task *task);
+
 
 /*
  * Create an RPC client
@@ -101,6 +103,12 @@ rpc_create_client(struct rpc_xprt *xprt, char *servname,
 
 	if (!rpcauth_create(flavor, clnt))
 		goto out_no_auth;
+
+	/* save the nodename */
+	clnt->cl_nodelen = strlen(system_utsname.nodename);
+	if (clnt->cl_nodelen > UNX_MAXNODENAME)
+		clnt->cl_nodelen = UNX_MAXNODENAME;
+	memcpy(clnt->cl_nodename, system_utsname.nodename, clnt->cl_nodelen);
 out:
 	return clnt;
 
@@ -375,7 +383,7 @@ call_reserveresult(struct rpc_task *task)
 		xprt_reserve(task);
 		goto out;
 	} else if (task->tk_status == -ETIMEDOUT) {
-		printk("RPC: task timed out\n");
+		dprintk("RPC: task timed out\n");
 		task->tk_action = call_timeout;
 		goto out;
 	} else {
@@ -493,13 +501,12 @@ static void
 call_receive(struct rpc_task *task)
 {
 	dprintk("RPC: %4d call_receive (status %d)\n", 
-				task->tk_pid, task->tk_status);
+		task->tk_pid, task->tk_status);
 
+	task->tk_action = call_status;
 	/* In case of error, evaluate status */
-	if (task->tk_status < 0) {
-		task->tk_action = call_status;
+	if (task->tk_status < 0)
 		return;
-	}
 
 	/* If we have no decode function, this means we're performing
 	 * a void call (a la lockd message passing). */
@@ -509,7 +516,6 @@ call_receive(struct rpc_task *task)
 		return;
 	}
 
-	task->tk_action = call_status;
 	xprt_receive(task);
 }
 
@@ -572,7 +578,8 @@ call_timeout(struct rpc_task *task)
 				task->tk_pid);
 			goto minor_timeout;
 		}
-		if ((to->to_initval <<= 1) > to->to_maxval)
+		to->to_initval <<= 1;
+		if (to->to_initval > to->to_maxval)
 			to->to_initval = to->to_maxval;
 	}
 
@@ -585,9 +592,13 @@ call_timeout(struct rpc_task *task)
 		return;
 	}
 	if (clnt->cl_chatty && !(task->tk_flags & RPC_CALL_MAJORSEEN)) {
-		printk("%s: server %s not responding, still trying\n",
-			clnt->cl_protname, clnt->cl_server);
 		task->tk_flags |= RPC_CALL_MAJORSEEN;
+		if (req)
+			printk("%s: server %s not responding, still trying\n",
+				clnt->cl_protname, clnt->cl_server);
+		else 
+			printk("%s: task %d can't get a request slot\n",
+				clnt->cl_protname, task->tk_pid);
 	}
 	if (clnt->cl_autobind)
 		clnt->cl_port = 0;

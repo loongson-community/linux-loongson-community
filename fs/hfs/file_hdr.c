@@ -559,6 +559,7 @@ done:
 	if (read) {
 		inode->i_atime = CURRENT_TIME;
 		*ppos = pos;
+		mark_inode_dirty(inode);
 	}
 	return read;
 }
@@ -610,7 +611,7 @@ static hfs_rwret_t hdr_write(struct file *filp, const char *buf,
 			left = count;
 		}
 
-		copy_from_user(((char *)&meta) + pos, buf, left);
+		left -= copy_from_user(((char *)&meta) + pos, buf, left);
 		layout->magic   = hfs_get_nl(meta.magic);
 		layout->version = hfs_get_nl(meta.version);
 		layout->entries = hfs_get_hs(meta.entries);
@@ -642,7 +643,7 @@ static hfs_rwret_t hdr_write(struct file *filp, const char *buf,
 			left = count;
 		}
 
-		copy_from_user(((char *)&meta) + pos, buf, left);
+		left -= copy_from_user(((char *)&meta) + pos, buf, left);
 		init_layout(layout, meta.descrs);
 
 		count -= left;
@@ -782,7 +783,7 @@ static hfs_rwret_t hdr_write(struct file *filp, const char *buf,
 
 		/* transfer the data from user space */
 		if (p) {
-			copy_from_user(p + offset, buf, left);
+			left -= copy_from_user(p + offset, buf, left);
 		} else if (fork) {
 			left = hfs_do_write(inode, fork, offset, buf, left);
 		}
@@ -874,6 +875,7 @@ done:
 	        if (pos > inode->i_size)
 		        inode->i_size = pos;
 	        inode->i_mtime = inode->i_atime = CURRENT_TIME;
+		mark_inode_dirty(inode);
 	}
 	return written;
 }
@@ -887,7 +889,6 @@ done:
  */
 static void hdr_truncate(struct inode *inode)
 {
-  	/*struct inode *inode = dentry->d_inode;*/
 	struct hfs_cat_entry *entry = HFS_I(inode)->entry;
 	struct hfs_hdr_layout *layout;
 	size_t size = inode->i_size;
@@ -936,7 +937,7 @@ static void hdr_truncate(struct inode *inode)
 		if (fork->lsize != descr->length) {
 			fork->lsize = descr->length;
 			hfs_extent_adj(fork);
-			hfs_cat_mark_dirty(HFS_I(inode)->entry);
+			hfs_cat_mark_dirty(entry);
 		}
 	}
 }

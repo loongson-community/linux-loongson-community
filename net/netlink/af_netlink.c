@@ -427,7 +427,7 @@ void netlink_broadcast(struct sock *ssk, struct sk_buff *skb, u32 pid,
 			continue;
 
 		if (failure) {
-			sk->err = -ENOBUFS;
+			sk->err = ENOBUFS;
 			sk->state_change(sk);
 			continue;
 		}
@@ -442,12 +442,12 @@ void netlink_broadcast(struct sock *ssk, struct sk_buff *skb, u32 pid,
 			}
 		}
 		if (skb2 == NULL) {
-			sk->err = -ENOBUFS;
+			sk->err = ENOBUFS;
 			sk->state_change(sk);
 			/* Clone failed. Notify ALL listeners. */
 			failure = 1;
 		} else if (netlink_broadcast_deliver(sk, skb2)) {
-			sk->err = -ENOBUFS;
+			sk->err = ENOBUFS;
 			sk->state_change(sk);
 		} else
 			skb2 = NULL;
@@ -550,10 +550,6 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 
 	if (flags&(MSG_OOB|MSG_PEEK))
 		return -EOPNOTSUPP;
-
-	err = -sock_error(sk);
-	if (err)
-		return err;
 
 	skb = skb_recv_datagram(sk,flags,noblock,&err);
 	if (skb==NULL)

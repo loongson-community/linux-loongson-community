@@ -90,14 +90,6 @@ static const char RCSid[] = "$Header: /vger/u4/cvs/linux/drivers/scsi/scsi.c,v 1
 # error You lose.
 #endif
 
-#define MAX_SCSI_DEVICE_CODE 10
-
-#ifdef DEBUG
-    #define SCSI_TIMEOUT (5*HZ)
-#else
-    #define SCSI_TIMEOUT (2*HZ)
-#endif
-
 #define MIN_RESET_DELAY (2*HZ)
 
 /* Do not call reset on error if we just did a reset within 15 sec. */
@@ -234,6 +226,7 @@ static struct dev_info device_list[] =
 {"MEDIAVIS","RENO CD-ROMX2A","2.03",BLIST_NOLUN},/*Responds to all lun */
 {"MICROP", "4110", "*", BLIST_NOTQ},		/* Buggy Tagged Queuing */
 {"NEC","CD-ROM DRIVE:841","1.0", BLIST_NOLUN},  /* Locks-up when LUN>0 polled. */
+{"PHILIPS", "PCA80SC", "V4-2", BLIST_NOLUN},    /* Responds to all lun */
 {"RODIME","RO3000S","2.33", BLIST_NOLUN},       /* Locks up if polled for lun != 0 */
 {"SANYO", "CRD-250S", "1.20", BLIST_NOLUN},     /* causes failed REQUEST SENSE on lun 1
 						 * for aha152x controller, which causes
@@ -1488,6 +1481,7 @@ SCSI_LOG_MLQUEUE(4,
 
     SCpnt->internal_timeout = NORMAL_TIMEOUT;
     SCpnt->abort_reason = 0;
+    SCpnt->result = 0;
     internal_cmnd (SCpnt);
 
     SCSI_LOG_MLQUEUE(3,printk ("Leaving scsi_do_cmd()\n"));
@@ -1716,6 +1710,8 @@ scsi_retry_command(Scsi_Cmnd * SCpnt)
   SCpnt->request_bufflen = SCpnt->bufflen;
   SCpnt->use_sg = SCpnt->old_use_sg;
   SCpnt->cmd_len = SCpnt->old_cmd_len;
+  SCpnt->result = 0;
+  memset ((void *) SCpnt->sense_buffer, 0, sizeof SCpnt->sense_buffer);
   return internal_cmnd (SCpnt);
 }
 
@@ -1743,8 +1739,7 @@ scsi_finish_command(Scsi_Cmnd * SCpnt)
         host_active = NULL;
         
         /* For block devices "wake_up" is done in end_scsi_request */
-        if (MAJOR(SCpnt->request.rq_dev) != SCSI_DISK_MAJOR &&
-            MAJOR(SCpnt->request.rq_dev) != SCSI_CDROM_MAJOR) {
+        if (!SCSI_BLK_MAJOR(SCpnt->request.rq_dev)) {
             struct Scsi_Host * next;
             
             for (next = host->block; next != host; next = next->block)

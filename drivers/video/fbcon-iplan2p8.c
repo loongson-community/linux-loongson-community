@@ -19,8 +19,8 @@
 
 #include <asm/byteorder.h>
 
-#include "fbcon.h"
-#include "fbcon-iplan2p8.h"
+#include <video/fbcon.h>
+#include <video/fbcon-iplan2p8.h>
 
 
     /*
@@ -209,18 +209,25 @@ void fbcon_iplan2p8_bmove(struct display *p, int sy, int sx, int dy, int dx,
 	/*  Special (but often used) case: Moving whole lines can be
 	 *  done with memmove()
 	 */
-	fast_memmove(p->screen_base + dy * p->next_line * p->fontheight,
-		     p->screen_base + sy * p->next_line * p->fontheight,
-		     p->next_line * height * p->fontheight);
+	fast_memmove(p->screen_base + dy * p->next_line * fontheight(p),
+		     p->screen_base + sy * p->next_line * fontheight(p),
+		     p->next_line * height * fontheight(p));
      } else {
 	int rows, cols;
 	u8 *src;
 	u8 *dst;
 	int bytes = p->next_line;
-	int linesize = bytes * p->fontheight;
-	u_int colsize = height * p->fontheight;
+	int linesize;
+	u_int colsize;
 	u_int upwards = (dy < sy) || (dy == sy && dx < sx);
 
+	if (fontheightlog(p)) {
+	    linesize = bytes << fontheightlog(p);
+	    colsize = height << fontheightlog(p);
+	} else {
+	    linesize = bytes * fontheight(p);
+	    colsize = height * fontheight(p);
+	}
 	if ((sx & 1) == (dx & 1)) {
 	    /* odd->odd or even->even */
 
@@ -301,18 +308,29 @@ void fbcon_iplan2p8_clear(struct vc_data *conp, struct display *p, int sy,
     u8 *start;
     int rows;
     int bytes = p->next_line;
-    int lines = height * p->fontheight;
+    int lines;
     u32 size;
     u32 cval1, cval2, cval3, cval4, pcval1, pcval2;
 
     expand8ql(attr_bgcol_ec(p,conp), &cval1, &cval2, &cval3, &cval4);
 
+    if (fontheightlog(p))
+	lines = height << fontheightlog(p);
+    else
+	lines = height * fontheight(p);
+
     if (sx == 0 && width * 8 == bytes) {
-	offset = sy * bytes * p->fontheight;
+	if (fontheightlog(p))
+	    offset = (sy * bytes) << fontheightlog(p);
+	else
+	    offset = sy * bytes * fontheight(p);
 	size    = lines * bytes;
 	memset_even_8p(p->screen_base+offset, size, cval1, cval2, cval3, cval4);
     } else {
-	offset = (sy * bytes * p->fontheight) + (sx>>1)*16 + (sx & 1);
+	if (fontheightlog(p))
+	    offset = ((sy * bytes) << fontheightlog(p)) + (sx>>1)*16 + (sx & 1);
+	else
+	    offset = sy * bytes * fontheight(p) + (sx>>1)*16 + (sx & 1);
 	start = p->screen_base + offset;
 	expand8dl(attr_bgcol_ec(p,conp), &pcval1, &pcval2);
 
@@ -348,14 +366,21 @@ void fbcon_iplan2p8_putc(struct vc_data *conp, struct display *p, int c,
     int bytes = p->next_line;
     u32 eorx1, eorx2, fgx1, fgx2, bgx1, bgx2, fdx;
 
-    dest = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*16 + (xx & 1);
-    cdat = p->fontdata + (c & p->charmask) * p->fontheight;
+    if (fontheightlog(p)) {
+	dest = (p->screen_base + ((yy * bytes) << fontheightlog(p)) +
+		(xx>>1)*16 + (xx & 1));
+	cdat = p->fontdata + ((c & p->charmask) << fontheightlog(p));
+    } else {
+	dest = (p->screen_base + yy * bytes * fontheight(p) +
+		(xx>>1)*16 + (xx & 1));
+	cdat = p->fontdata + (c & p->charmask) * fontheight(p);
+    }
 
     expand8dl(attr_fgcol(p,c), &fgx1, &fgx2);
     expand8dl(attr_bgcol(p,c), &bgx1, &bgx2);
     eorx1 = fgx1 ^ bgx1; eorx2  = fgx2 ^ bgx2;
 
-    for(rows = p->fontheight ; rows-- ; dest += bytes) {
+    for(rows = fontheight(p) ; rows-- ; dest += bytes) {
 	fdx = dup4l(*cdat++);
 	movepl2(dest, (fdx & eorx1) ^ bgx1, (fdx & eorx2) ^ bgx2);
     }
@@ -372,8 +397,12 @@ void fbcon_iplan2p8_putcs(struct vc_data *conp, struct display *p,
     u32 eorx1, eorx2, fgx1, fgx2, bgx1, bgx2, fdx;
 
     bytes = p->next_line;
-    dest0 = p->screen_base + yy * p->fontheight * bytes + (xx>>1)*16 +
-	    (xx & 1);
+    if (fontheightlog(p))
+	dest0 = (p->screen_base + ((yy * bytes) << fontheightlog(p)) +
+		 (xx>>1)*16 + (xx & 1));
+    else
+	dest0 = (p->screen_base + yy * bytes * fontheight(p) +
+		 (xx>>1)*16 + (xx & 1));
 
     expand8dl(attr_fgcol(p,*s), &fgx1, &fgx2);
     expand8dl(attr_bgcol(p,*s), &bgx1, &bgx2);
@@ -389,9 +418,12 @@ void fbcon_iplan2p8_putcs(struct vc_data *conp, struct display *p,
 	*/
 
 	c = *s++ & p->charmask;
-	cdat  = p->fontdata + (c * p->fontheight);
+	if (fontheightlog(p))
+	    cdat = p->fontdata + (c << fontheightlog(p));
+	else
+	    cdat = p->fontdata + c * fontheight(p);
 
-	for(rows = p->fontheight, dest = dest0; rows-- ; dest += bytes) {
+	for(rows = fontheight(p), dest = dest0; rows-- ; dest += bytes) {
 	    fdx = dup4l(*cdat++);
 	    movepl2(dest, (fdx & eorx1) ^ bgx1, (fdx & eorx2) ^ bgx2);
 	}
@@ -405,9 +437,13 @@ void fbcon_iplan2p8_revc(struct display *p, int xx, int yy)
     int j;
     int bytes;
 
-    dest = p->screen_base + yy * p->fontheight * p->next_line + (xx>>1)*16 +
-	   (xx & 1);
-    j = p->fontheight;
+    if (fontheightlog(p))
+	dest = (p->screen_base + ((yy * p->next_line) << fontheightlog(p)) +
+		(xx>>1)*16 + (xx & 1));
+    else
+	dest = (p->screen_base + yy * p->next_line * fontheight(p) +
+		(xx>>1)*16 + (xx & 1));
+    j = fontheight(p);
     bytes = p->next_line;
 
     while (j--) {
@@ -425,6 +461,31 @@ void fbcon_iplan2p8_revc(struct display *p, int xx, int yy)
     }
 }
 
+void fbcon_iplan2p8_clear_margins(struct vc_data *conp, struct display *p,
+				  int bottom_only)
+{
+    u32 offset;
+    int bytes;
+    int lines;
+    u32 cval1, cval2, cval3, cval4;
+
+/* No need to handle right margin, cannot occur with fontwidth == 8 */
+
+    bytes = p->next_line;
+    if (fontheightlog(p)) {
+	lines = p->var.yres - (conp->vc_rows << fontheightlog(p));
+	offset = ((p->yscroll + conp->vc_rows) * bytes) << fontheightlog(p);
+    } else {
+	lines = p->var.yres - conp->vc_rows * fontheight(p);
+	offset = (p->yscroll + conp->vc_rows) * bytes * fontheight(p);
+    }
+    if (lines) {
+	expand8ql(attr_bgcol_ec(p,conp), &cval1, &cval2, &cval3, &cval4);
+	memset_even_8p(p->screen_base+offset, lines * bytes,
+		       cval1, cval2, cval3, cval4);
+    }
+}
+
 
     /*
      *  `switch' for the low level operations
@@ -433,7 +494,7 @@ void fbcon_iplan2p8_revc(struct display *p, int xx, int yy)
 struct display_switch fbcon_iplan2p8 = {
     fbcon_iplan2p8_setup, fbcon_iplan2p8_bmove, fbcon_iplan2p8_clear,
     fbcon_iplan2p8_putc, fbcon_iplan2p8_putcs, fbcon_iplan2p8_revc, NULL,
-    NULL, NULL, FONTWIDTH(8)
+    NULL, fbcon_iplan2p8_clear_margins, FONTWIDTH(8)
 };
 
 
@@ -459,3 +520,4 @@ EXPORT_SYMBOL(fbcon_iplan2p8_clear);
 EXPORT_SYMBOL(fbcon_iplan2p8_putc);
 EXPORT_SYMBOL(fbcon_iplan2p8_putcs);
 EXPORT_SYMBOL(fbcon_iplan2p8_revc);
+EXPORT_SYMBOL(fbcon_iplan2p8_clear_margins);

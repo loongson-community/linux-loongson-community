@@ -525,6 +525,7 @@ struct happy_meal {
 
 	/* We may use this for Ultra as well, will have to see, maybe not. */
 	struct hmeal_buffers     *sun4c_buffers;  /* CPU visible address.              */
+#define	sun4d_buffers		  sun4c_buffers	  /* No need to make this a separate.  */
 	__u32                     s4c_buf_dvma;   /* DVMA visible address.             */
 
 	unsigned int              happy_flags;    /* Driver state flags                */
@@ -632,6 +633,7 @@ extern inline void hme_write32(struct happy_meal *hp,
 }
 
 #ifdef CONFIG_PCI
+#ifdef __sparc_v9__
 extern inline void pcihme_write_rxd(struct happy_meal_rxd *rp,
 				    unsigned int flags,
 				    unsigned int addr)
@@ -655,6 +657,25 @@ extern inline void pcihme_write_txd(struct happy_meal_txd *tp,
 	: "r" (&tp->tx_addr), "r" (&tp->tx_flags),
 	  "i" (ASI_PL), "r" (addr), "r" (flags));
 }
-#endif
+#else
+
+extern inline void pcihme_write_rxd(struct happy_meal_rxd *rp,
+				    unsigned int flags,
+				    unsigned int addr)
+{
+	rp->rx_addr = flip_dword(addr);
+	rp->rx_flags = flip_dword(flags);
+}
+	
+extern inline void pcihme_write_txd(struct happy_meal_txd *tp,
+				    unsigned int flags,
+				    unsigned int addr)
+{
+	tp->tx_addr = flip_dword(addr);
+	tp->tx_flags = flip_dword(flags);
+}
+	
+#endif  /* def __sparc_v9__ */
+#endif  /* def CONFIG_PCI */
 
 #endif /* !(_SUNHME_H) */

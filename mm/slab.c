@@ -654,9 +654,9 @@ kmem_slab_destroy(kmem_cache_t *cachep, kmem_slab_t *slabp)
 	}
 
 	slabp->s_magic = SLAB_MAGIC_DESTROYED;
-	kmem_freepages(cachep, slabp->s_mem-slabp->s_offset);
 	if (slabp->s_index)
 		kmem_cache_free(cachep->c_index_cachep, slabp->s_index);
+	kmem_freepages(cachep, slabp->s_mem-slabp->s_offset);
 	if (SLAB_OFF_SLAB(cachep->c_flags))
 		kmem_cache_free(cache_slabp, slabp);
 }
@@ -1194,7 +1194,6 @@ kmem_cache_grow(kmem_cache_t * cachep, int flags)
 	cachep->c_dflags = SLAB_CFLGS_GROWN;
 
 	cachep->c_growing++;
-re_try:
 	spin_unlock_irqrestore(&cachep->c_spinlock, save_flags);
 
 	/* A series of memory allocations for a new slab.
@@ -1261,15 +1260,6 @@ opps1:
 	kmem_freepages(cachep, objp); 
 failed:
 	spin_lock_irq(&cachep->c_spinlock);
-	if (local_flags != SLAB_ATOMIC && cachep->c_gfporder) {
-		/* For large order (>0) slabs, we try again.
-		 * Needed because the gfp() functions are not good at giving
-		 * out contiguous pages unless pushed (but do not push too hard).
-		 */
-		if (cachep->c_failures++ < 4 && cachep->c_freep == kmem_slab_end(cachep))
-			goto re_try;
-		cachep->c_failures = 1;	/* Memory is low, don't try as hard next time. */
-	}
 	cachep->c_growing--;
 	spin_unlock_irqrestore(&cachep->c_spinlock, save_flags);
 	return 0;
@@ -1448,8 +1438,10 @@ alloc_new_slab:
 		}
 		/* Couldn't grow, but some objs may have been freed. */
 		spin_lock_irq(&cachep->c_spinlock);
-		if (cachep->c_freep != kmem_slab_end(cachep))
-			goto try_again;
+		if (cachep->c_freep != kmem_slab_end(cachep)) {
+			if ((flags & SLAB_ATOMIC) == 0) 
+				goto try_again;
+		}
 	} else {
 		/* Very serious error - maybe panic() here? */
 		kmem_report_alloc_err("Bad slab magic (corrupt)", cachep);

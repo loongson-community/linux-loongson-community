@@ -5,13 +5,7 @@
  * Integrated into 2.1.97+,  Andrew G. Morgan <morgan@transmeta.com>
  */ 
 
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/capability.h>
 #include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/string.h>
-
 #include <asm/uaccess.h>
 
 /* Note: never hold tasklist_lock while spinning for this one */
@@ -61,9 +55,9 @@ asmlinkage int sys_capget(cap_user_header_t header, cap_user_data_t dataptr)
      }
 
      if (!error) { 
-	     data.permitted = target->cap_permitted.cap;
-	     data.inheritable = target->cap_inheritable.cap; 
-	     data.effective = target->cap_effective.cap;
+	     data.permitted = cap_t(target->cap_permitted);
+	     data.inheritable = cap_t(target->cap_inheritable); 
+	     data.effective = cap_t(target->cap_effective);
      }
 
      if (target != current)

@@ -131,6 +131,7 @@ static inline void init_once(struct inode * inode)
 	INIT_LIST_HEAD(&inode->i_hash);
 	INIT_LIST_HEAD(&inode->i_dentry);
 	sema_init(&inode->i_sem, 1);
+	sema_init(&inode->i_atomic_write, 1);
 }
 
 static inline void write_inode(struct inode *inode)
@@ -558,6 +559,9 @@ add_new_inode:
 
 /*
  * This is called with the inode lock held.. Be careful.
+ *
+ * We no longer cache the sb_flags in i_flags - see fs.h
+ *	-- rmk@arm.uk.linux.org
  */
 static struct inode * get_new_inode(struct super_block *sb, unsigned long ino, struct list_head *head)
 {
@@ -574,7 +578,7 @@ add_new_inode:
 		inode->i_sb = sb;
 		inode->i_dev = sb->s_dev;
 		inode->i_ino = ino;
-		inode->i_flags = sb->s_flags;
+		inode->i_flags = 0;
 		inode->i_count = 1;
 		inode->i_state = I_LOCK;
 		spin_unlock(&inode_lock);
@@ -714,8 +718,11 @@ if (inode->i_count)
 printk(KERN_ERR "iput: device %s inode %ld count changed, count=%d\n",
 kdevname(inode->i_dev), inode->i_ino, inode->i_count);
 if (atomic_read(&inode->i_sem.count) != 1)
-printk(KERN_ERR "iput: Aieee, semaphore in use device %s, count=%d\n",
-kdevname(inode->i_dev), atomic_read(&inode->i_sem.count));
+printk(KERN_ERR "iput: Aieee, semaphore in use inode %s/%ld, count=%d\n",
+kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
+if (atomic_read(&inode->i_atomic_write.count) != 1)
+printk(KERN_ERR "iput: Aieee, atomic write semaphore in use inode %s/%ld, count=%d\n",
+kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
 #endif
 		}
 		if (inode->i_count > (1<<31)) {

@@ -15,6 +15,7 @@
 #include <linux/sunrpc/clnt.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/lockd/lockd.h>
+#include <linux/smp_lock.h>
 
 #define NLMDBG_FACILITY		NLMDBG_CIENT
 
@@ -70,7 +71,11 @@ nlmclnt_block(struct nlm_host *host, struct file_lock *fl, u32 *statp)
 	 * a 1 minute timeout would do. See the comment before
 	 * nlmclnt_lock for an explanation.
 	 */
-	current->timeout = jiffies + 30 * HZ;
+	/*
+	 * FIXME, can we be not interruptible and so be allowed to use
+	 * a timeout here? -arca
+	 */
+/*  	current->timeout = jiffies + 30 * HZ; */
 	sleep_on(&block.b_wait);
 
 	for (head = &nlm_blocked; *head; head = &(*head)->b_next) {
@@ -167,6 +172,7 @@ reclaimer(void *ptr)
 
 	/* This one ensures that our parent doesn't terminate while the
 	 * reclaim is in progress */
+	lock_kernel();
 	lockd_up();
 
 	/* First, reclaim all locks that have been granted previously. */
@@ -198,6 +204,7 @@ reclaimer(void *ptr)
 	/* Release host handle after use */
 	nlm_release_host(host);
 	lockd_down();
+	unlock_kernel();
 
 	return 0;
 }

@@ -39,6 +39,7 @@
    ethernet adaptor have the name "eth[0123...]".
    */
 
+extern int ne2_probe(struct device *dev);
 extern int tulip_probe(struct device *dev);
 extern int hp100_probe(struct device *dev);
 extern int ultra_probe(struct device *dev);
@@ -72,6 +73,7 @@ extern int elplus_probe(struct device *);
 extern int ac3200_probe(struct device *);
 extern int es_probe(struct device *);
 extern int lne390_probe(struct device *);
+extern int ne3210_probe(struct device *);
 extern int e2100_probe(struct device *);
 extern int ni5010_probe(struct device *);
 extern int ni52_probe(struct device *);
@@ -90,6 +92,7 @@ extern int sgiseeq_probe(struct device *);
 extern int atarilance_probe(struct device *);
 extern int a2065_probe(struct device *);
 extern int ariadne_probe(struct device *);
+extern int ariadne2_probe(struct device *);
 extern int hydra_probe(struct device *);
 extern int apne_probe(struct device *);
 extern int bionet_probe(struct device *);
@@ -106,9 +109,12 @@ extern int am79c961_probe(struct device *dev);
 extern int epic100_probe(struct device *dev);
 extern int rtl8139_probe(struct device *dev);
 extern int hplance_probe(struct device *dev);
+extern int via_rhine_probe(struct device *dev);
+extern int tc515_probe(struct device *dev);
 
 /* Gigabit Ethernet adapters */
 extern int yellowfin_probe(struct device *dev);
+extern int acenic_probe(struct device *dev);
 
 /* Detachable devices ("pocket adaptors") */
 extern int atp_init(struct device *);
@@ -121,6 +127,7 @@ extern int apfddi_init(struct device *dev);
 
 /* HIPPI boards */
 extern int cern_hippi_probe(struct device *);
+extern int rr_hippi_probe(struct device *);
 
 struct devprobe
 {
@@ -195,6 +202,12 @@ struct devprobe pci_probes[] __initdata = {
 #ifdef CONFIG_YELLOWFIN
 	{yellowfin_probe, 0},
 #endif
+#ifdef CONFIG_ACENIC
+	{acenic_probe, 0},
+#endif
+#ifdef CONFIG_VIA_RHINE
+	{via_rhine_probe, 0},
+#endif
 	{NULL, 0},
 };
 
@@ -216,6 +229,9 @@ struct devprobe eisa_probes[] __initdata = {
 #endif
 #ifdef CONFIG_LNE390
 	{lne390_probe, 0},
+#endif
+#ifdef CONFIG_NE3210
+	{ne3210_probe, 0},
 #endif
 	{NULL, 0},
 };
@@ -240,6 +256,9 @@ struct devprobe mca_probes[] __initdata = {
 #ifdef CONFIG_ULTRAMCA 
 	{ultramca_probe, 0},
 #endif
+#ifdef CONFIG_NE2_MCA
+	{ne2_probe, 0},
+#endif
 #ifdef CONFIG_ELMC		/* 3c523 */
 	{elmc_probe, 0},
 #endif
@@ -257,6 +276,9 @@ struct devprobe isa_probes[] __initdata = {
 #ifdef CONFIG_HP100 		/* ISA, EISA & PCI */
 	{hp100_probe, 0},
 #endif	
+#ifdef CONFIG_3C515
+	{tc515_probe, 0},
+#endif
 #ifdef CONFIG_ULTRA 
 	{ultra_probe, 0},
 #endif
@@ -366,6 +388,9 @@ struct devprobe m68k_probes[] __initdata = {
 #endif
 #ifdef CONFIG_ARIADNE		/* Village Tronic Ariadne Ethernet Board */
 	{ariadne_probe, 0},
+#endif
+#ifdef CONFIG_ARIADNE2		/* Village Tronic Ariadne II Ethernet Board */
+	{ariadne2_probe, 0},
 #endif
 #ifdef CONFIG_HYDRA		/* Hydra Systems Amiganet Ethernet board */
 	{hydra_probe, 0},
@@ -514,6 +539,9 @@ static int hippi_probe(struct device *dev)
 #ifdef CONFIG_CERN_HIPPI
 	    && cern_hippi_probe(dev)
 #endif
+#ifdef CONFIG_ROADRUNNER
+	    && rr_hippi_probe(dev)
+#endif
 	    && 1 ) {
 		return 1; /* -ENODEV or -EAGAIN would be more accurate. */
 	}
@@ -538,7 +566,7 @@ static int hippi_probe(struct device *dev)
 #if defined(CONFIG_LTPC)
     extern int ltpc_probe(struct device *);
     static struct device dev_ltpc = {
-        "ltalk0\0   ",
+        "lt0\0   ",
                 0, 0, 0, 0,
                 0x0, 0,
                 0, 0, 0, NEXT_DEV, ltpc_probe };
@@ -734,11 +762,11 @@ static struct device tr0_dev = {
 
 #ifdef CONFIG_HIPPI
 	static struct device hip3_dev =
-		{"hip3", 0, 0, 0, 0, -1, 0, 0, 0, 0, NEXT_DEV, hippi_probe};
+		{"hip3", 0, 0, 0, 0, 0, 0, 0, 0, 0, NEXT_DEV, hippi_probe};
 	static struct device hip2_dev =
-		{"hip2", 0, 0, 0, 0, -1, 0, 0, 0, 0, &hip3_dev, hippi_probe};
+		{"hip2", 0, 0, 0, 0, 0, 0, 0, 0, 0, &hip3_dev, hippi_probe};
 	static struct device hip1_dev =
-		{"hip1", 0, 0, 0, 0, -1, 0, 0, 0, 0, &hip2_dev, hippi_probe};
+		{"hip1", 0, 0, 0, 0, 0, 0, 0, 0, 0, &hip2_dev, hippi_probe};
 	static struct device hip0_dev =
 		{"hip0", 0, 0, 0, 0, 0, 0, 0, 0, 0, &hip1_dev, hippi_probe};
 

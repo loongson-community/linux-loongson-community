@@ -1,4 +1,71 @@
-Sar Jul 18 13:00 1998 Gerard Roudier (groudier@club-internet.fr)
+Thu Nov 26  22:00 1998 Gerard Roudier (groudier@club-internet.fr)
+	* revision 3.1d
+	- The SISL RAID change requires now remap_pci_mem() stuff to be 
+	  compiled for __i386__ when normal IOs are used.
+	- Minor spelling fixes in doc files.
+
+Sat Nov 21  18:00 1998 Gerard Roudier (groudier@club-internet.fr)
+	* revision 3.1c
+	- Ignore chips that are driven by SISL RAID (DAC 960).
+	  Change sent by Leonard Zubkoff and slightly reworked.
+	- Still a buglet in the tags initial settings that needed to be fixed.
+	  It was not possible to disable TGQ at system startup for devices 
+	  that claim TGQ support. The driver used at least 2 for the queue 
+	  depth but did'nt keep track of user settings for tags depth lower 
+	  than 2.
+
+Wed Nov 11  10:00 1998 Gerard Roudier (groudier@club-internet.fr)
+	* revision 3.1b
+	- The driver was unhappy when configured with default_tags > MAX_TAGS
+	  Hopefully doubly-fixed.
+	- Update the Configure.help driver section that speaks of TAGS.
+
+Wed Oct 21 21:00 1998 Gerard Roudier (groudier@club-internet.fr)
+	* revision 3.1a
+	- Changes from Eddie Dost for Sparc and Alpha:
+	  ioremap/iounmap support for Sparc.
+	  pcivtophys changed to bus_dvma_to_phys.
+	- Add the 53c876 description to the chip table. This is only usefull 
+	  for printing the right name of the controller.
+	- DEL-441 Item 2 work-around for the 53c876 rev <= 5 (0x15).
+	- Add additionnal checking of INQUIRY data:
+	  Check INQUIRY data received length is at least 7. Byte 7 of 
+	  inquiry data contains device features bits and the driver might 
+	  be confused by garbage. Also check peripheral qualifier.
+	- Cleanup of the SCSI tasks management:
+	  Remove the special case for 32 tags. Now the driver only uses the 
+	  scheme that allows up to 64 tags per LUN.
+	  Merge some code from the 896 driver.
+	  Use a 1,3,5,...MAXTAGS*2+1 tag numbering. Previous driver could  
+	  use any tag number from 1 to 253 and some non conformant devices  
+	  might have problems with large tag numbers.
+	- 'no_sync' changed to 'no_disc' in the README file. This is an old 
+	  and trivial mistake that seems to demonstrate the README file is 
+	  not often read. :)
+
+Sun Oct  4 14:00 1998 Gerard Roudier (groudier@club-internet.fr)
+	* revision 3.0i
+	- Cosmetic changes for sparc (but not for the driver) that needs  
+	  __irq_itoa() to be used for printed IRQ value to be understandable.
+	- Some problems with the driver that didn't occur using driver 2.5f 
+	  were due to a SCSI selection problem triggered by a clearly 
+	  documented feature that in fact seems not to work: (53C8XX chips  
+	  are claimed by the manuals to be able to execute SCSI scripts just 
+	  after abitration while the SCSI core is performing SCSI selection).
+	  This optimization is broken and has been removed.
+	- Some broken scsi devices are confused when a negotiation is started 
+	  on a LUN that does not correspond to a real device. According to 
+	  SCSI specs, this is a device firmware bug. This has been worked 
+	  around by only starting negotiation if the LUN has previously be 
+	  used for at least 1 successful SCSI command.
+	- The 'last message sent' printed out on M_REJECT message reception 
+	  was read from the SFBR i/o register after the previous message had 
+	  been sent. 
+	  This was not correct and affects all previous driver versions and 
+	  the original FreeBSD one as well. The SCSI scripts has been fixed 
+	  so that it now provides the right information to the C code.
+
+Sat Jul 18 13:00 1998 Gerard Roudier (groudier@club-internet.fr)
 	* revision 3.0g
 	- Preliminary fixes for Big Endian (sent by Eddie C. Dost).
 	  Big Endian architectures should work again with the driver.

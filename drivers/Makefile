@@ -23,6 +23,7 @@ endif
 
 ifdef CONFIG_SBUS
 SUB_DIRS += sbus
+MOD_SUB_DIRS += sbus
 endif
 
 ifdef CONFIG_ZORRO

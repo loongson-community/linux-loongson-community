@@ -70,12 +70,12 @@
 #include <linux/fb.h>
 #include <asm/atarikb.h>
 
-#include "fbcon-cfb8.h"
-#include "fbcon-cfb16.h"
-#include "fbcon-iplan2p2.h"
-#include "fbcon-iplan2p4.h"
-#include "fbcon-iplan2p8.h"
-#include "fbcon-mfb.h"
+#include <video/fbcon-cfb8.h>
+#include <video/fbcon-cfb16.h>
+#include <video/fbcon-iplan2p2.h>
+#include <video/fbcon-iplan2p4.h>
+#include <video/fbcon-iplan2p8.h>
+#include <video/fbcon-mfb.h>
 
 
 #define SWITCH_ACIA 0x01		/* modes for switch on OverScan */
@@ -682,32 +682,44 @@ static void tt_set_par( struct atafb_par *par )
 }
 
 
-static int tt_getcolreg( unsigned regno, unsigned *red,
-						 unsigned *green, unsigned *blue,
-						 unsigned *transp, struct fb_info *info )
+static int tt_getcolreg(unsigned regno, unsigned *red,
+			unsigned *green, unsigned *blue,
+			unsigned *transp, struct fb_info *info)
 {
+	int t, col;
+
 	if ((shifter_tt.tt_shiftmode & TT_SHIFTER_MODEMASK) == TT_SHIFTER_STHIGH)
 		regno += 254;
 	if (regno > 255)
 		return 1;
-	*blue = tt_palette[regno];
-	*green = (*blue >> 4) & 0xf;
-	*red = (*blue >> 8) & 0xf;
-	*blue &= 0xf;
+	t = tt_palette[regno];
+	col = t & 15;
+	col |= col << 4;
+	col |= col << 8;
+	*blue = col;
+	col = (t >> 4) & 15;
+	col |= col << 4;
+	col |= col << 8;
+	*green = col;
+	col = (t >> 8) & 15;
+	col |= col << 4;
+	col |= col << 8;
+	*red = col;
 	*transp = 0;
 	return 0;
 }
 
 
-static int tt_setcolreg( unsigned regno, unsigned red,
-						 unsigned green, unsigned blue,
-						 unsigned transp, struct fb_info *info )
+static int tt_setcolreg(unsigned regno, unsigned red,
+			unsigned green, unsigned blue,
+			unsigned transp, struct fb_info *info)
 {
 	if ((shifter_tt.tt_shiftmode & TT_SHIFTER_MODEMASK) == TT_SHIFTER_STHIGH)
 		regno += 254;
 	if (regno > 255)
 		return 1;
-	tt_palette[regno] = (red << 8) | (green << 4) | blue;
+	tt_palette[regno] = (((red >> 12) << 8) | ((green >> 12) << 4) |
+			     (blue >> 12));
 	if ((shifter_tt.tt_shiftmode & TT_SHIFTER_MODEMASK) ==
 		TT_SHIFTER_STHIGH && regno == 254)
 		tt_palette[0] = 0;
@@ -770,6 +782,9 @@ static int vdl_prescale[4][3] = {{4,2,1}, {4,2,1}, {4,2,2}, {4,2,1}};
 /* Default hsync timing [mon_type] in picoseconds */
 static long h_syncs[4] = {3000000, 4875000, 4000000, 4875000};
 
+#ifdef FBCON_HAS_CFB16
+static u16 fbcon_cfb16_cmap[16];
+#endif
 
 static inline int hxx_prescale(struct falcon_hw *hw)
 {
@@ -1621,9 +1636,9 @@ static int falcon_getcolreg( unsigned regno, unsigned *red,
 	 * Even with hicolor r/g/b=5/6/5 bit!
 	 */
 	col = f030_col[regno];
-	*red = (col >> 26) & 0x3f;
-	*green = (col >> 18) & 0x3f;
-	*blue = (col >> 2) & 0x3f;
+	*red = (col >> 16) & 0xff00;
+	*green = (col >> 8) & 0xff00;
+	*blue = (col << 8) & 0xff00;
 	*transp = 0;
 	return 0;
 }
@@ -1635,14 +1650,18 @@ static int falcon_setcolreg( unsigned regno, unsigned red,
 {
 	if (regno > 255)
 		return 1;
-	f030_col[regno] = (red << 26) | (green << 18) | (blue << 2);
+	f030_col[regno] = (((red & 0xfc00) << 16) |
+			   ((green & 0xfc00) << 8) |
+			   ((blue & 0xfc00) >> 8));
 	if (regno < 16) {
 		shifter_tt.color_reg[regno] =
-			(((red & 0xe) >> 1) | ((red & 1) << 3) << 8) |
-			(((green & 0xe) >> 1) | ((green & 1) << 3) << 4) |
-			((blue & 0xe) >> 1) | ((blue & 1) << 3);
+			(((red & 0xe000) >> 13) | ((red & 0x1000) >> 12) << 8) |
+			(((green & 0xe000) >> 13) | ((green & 0x1000) >> 12) << 4) |
+			((blue & 0xe000) >> 13) | ((blue & 0x1000) >> 12);
 #ifdef FBCON_HAS_CFB16
-		fbcon_cfb16_cmap[regno] = (red << 11) | (green << 5) | blue;
+		fbcon_cfb16_cmap[regno] = ((red & 0xf800) |
+					   ((green & 0xfc00) >> 5) |
+					   ((blue & 0xf800) >> 11));
 #endif
 	}
 	return 0;
@@ -1923,35 +1942,51 @@ static void stste_set_par( struct atafb_par *par )
 }
 
 
-static int stste_getcolreg( unsigned regno, unsigned *red,
-							unsigned *green, unsigned *blue,
-							unsigned *transp, struct fb_info *info )
-{	unsigned col;
+static int stste_getcolreg(unsigned regno, unsigned *red,
+			   unsigned *green, unsigned *blue,
+			   unsigned *transp, struct fb_info *info)
+{
+	unsigned col, t;
 	
 	if (regno > 15)
 		return 1;
 	col = shifter_tt.color_reg[regno];
 	if (ATARIHW_PRESENT(EXTD_SHIFTER)) {
-		*red = ((col >> 7) & 0xe) | ((col >> 11) & 1);
-		*green = ((col >> 3) & 0xe) | ((col >> 7) & 1);
-		*blue = ((col << 1) & 0xe) | ((col >> 3) & 1);
+		t = ((col >> 7) & 0xe) | ((col >> 11) & 1);
+		t |= t << 4;
+		*red = t | (t << 8);
+		t = ((col >> 3) & 0xe) | ((col >> 7) & 1);
+		t |= t << 4;
+		*green = t | (t << 8);
+		t = ((col << 1) & 0xe) | ((col >> 3) & 1);
+		t |= t << 4;
+		*blue = t | (t << 8);
 	}
 	else {
-		*red = (col >> 8) & 0x7;
-		*green = (col >> 4) & 0x7;
-		*blue = col & 0x7;
+		t = (col >> 7) & 0xe;
+		t |= t << 4;
+		*red = t | (t << 8);
+		t = (col >> 3) & 0xe;
+		t |= t << 4;
+		*green = t | (t << 8);
+		t = (col << 1) & 0xe;
+		t |= t << 4;
+		*blue = t | (t << 8);
 	}
 	*transp = 0;
 	return 0;
 }
 
 
-static int stste_setcolreg( unsigned regno, unsigned red,
-						 unsigned green, unsigned blue,
-						 unsigned transp, struct fb_info *info )
+static int stste_setcolreg(unsigned regno, unsigned red,
+			   unsigned green, unsigned blue,
+			   unsigned transp, struct fb_info *info)
 {
 	if (regno > 15)
 		return 1;
+	red >>= 12;
+	blue >>= 12;
+	green >>= 12;
 	if (ATARIHW_PRESENT(EXTD_SHIFTER))
 		shifter_tt.color_reg[regno] =
 			(((red & 0xe) >> 1) | ((red & 1) << 3) << 8) |
@@ -1959,9 +1994,9 @@ static int stste_setcolreg( unsigned regno, unsigned red,
 			((blue & 0xe) >> 1) | ((blue & 1) << 3);
 	else
 		shifter_tt.color_reg[regno] =
-			((red & 0x7) << 8) |
-			((green & 0x7) << 4) |
-			(blue & 0x7);
+			((red & 0xe) << 7) |
+			((green & 0xe) << 3) |
+			((blue & 0xe) >> 1);
 	return 0;
 }
 
@@ -2383,12 +2418,10 @@ do_install_cmap(int con, struct fb_info *info)
 	if (con != currcon)
 		return;
 	if (fb_display[con].cmap.len)
-		fb_set_cmap(&fb_display[con].cmap, &(fb_display[con].var), 1,
-			    fbhw->setcolreg, info);
+		fb_set_cmap(&fb_display[con].cmap, 1, fbhw->setcolreg, info);
 	else
 		fb_set_cmap(fb_default_cmap(1<<fb_display[con].var.bits_per_pixel),
-					    &(fb_display[con].var), 1,
-					    fbhw->setcolreg, info);		
+					    1, fbhw->setcolreg, info);		
 }
 
 
@@ -2503,6 +2536,7 @@ atafb_set_disp(int con, struct fb_info *info)
 #ifdef FBCON_HAS_CFB16
 		    case 16:
 			display->dispsw = &fbcon_cfb16;
+			display->dispsw_data = fbcon_cfb16_cmap;
 			break;
 #endif
 		}
@@ -2546,8 +2580,7 @@ static int
 atafb_get_cmap(struct fb_cmap *cmap, int kspc, int con, struct fb_info *info)
 {
 	if (con == currcon) /* current console ? */
-		return fb_get_cmap(cmap, &(fb_display[con].var), kspc,
-				   fbhw->getcolreg, info);
+		return fb_get_cmap(cmap, kspc, fbhw->getcolreg, info);
 	else
 		if (fb_display[con].cmap.len) /* non default colormap ? */
 			fb_copy_cmap(&fb_display[con].cmap, cmap, kspc ? 0 : 2);
@@ -2568,8 +2601,7 @@ atafb_set_cmap(struct fb_cmap *cmap, int kspc, int con, struct fb_info *info)
 		return err;
 	}
 	if (con == currcon) /* current console ? */
-		return fb_set_cmap(cmap, &(fb_display[con].var), kspc,
-				   fbhw->setcolreg, info);
+		return fb_set_cmap(cmap, kspc, fbhw->setcolreg, info);
 	else
 		fb_copy_cmap(cmap, &fb_display[con].cmap, kspc ? 0 : 1);
 	return 0;
@@ -2675,8 +2707,7 @@ atafb_switch(int con, struct fb_info *info)
 {
 	/* Do we have to save the colormap ? */
 	if (fb_display[currcon].cmap.len)
-		fb_get_cmap(&fb_display[currcon].cmap,
-			    &(fb_display[currcon].var), 1, fbhw->getcolreg,
+		fb_get_cmap(&fb_display[currcon].cmap, 1, fbhw->getcolreg,
 			    info);
 	do_fb_set_var(&fb_display[con].var,1);
 	currcon=con;
@@ -2707,8 +2738,7 @@ atafb_blank(int blank, struct fb_info *info)
 		cmap.transp=NULL;
 		cmap.start=0;
 		cmap.len=16;
-		fb_set_cmap(&cmap, &(fb_display[currcon].var), 1,
-			    fbhw->setcolreg, info);
+		fb_set_cmap(&cmap, 1, fbhw->setcolreg, info);
 	}
 	else
 		do_install_cmap(currcon, info);
@@ -2819,6 +2849,7 @@ __initfunc(void atafb_init(void))
 	fb_info.switch_con = &atafb_switch;
 	fb_info.updatevar = &fb_update_var;
 	fb_info.blank = &atafb_blank;
+	fb_info.flags = FBINFO_FLAG_DEFAULT;
 	do_fb_set_var(&atafb_predefined[default_par-1], 1);
 	strcat(fb_info.modename, fb_var_names[default_par-1][0]);
 

@@ -16,9 +16,12 @@
  *                   12k or so
  * Thomas Sailer   : remove {in,out}_sleep_flag. It was used for the sleeper to
  *                   determine if it was woken up by the expiring timeout or by
- *                   an explicit wake_up. current->timeout can be used instead;
- *                   if 0, the wakeup was due to the timeout.
+ *                   an explicit wake_up. The return value from schedule_timeout
+ *		     can be used instead; if 0, the wakeup was due to the timeout.
+ *
+ * Rob Riggs		Added persistent DMA buffers (1998/10/17)
  */
+ 
 #include <linux/config.h>
 
 #define BE_CONSERVATIVE
@@ -28,6 +31,9 @@
 
 #if defined(CONFIG_AUDIO) || defined(CONFIG_GUS)
 
+#define DMAP_FREE_ON_CLOSE      0
+#define DMAP_KEEP_ON_CLOSE      1
+extern int sound_dmap_flag;
 
 static void dma_reset_output(int dev);
 static void dma_reset_input(int dev);
@@ -38,9 +44,9 @@ static int local_start_dma(struct audio_operations *adev, unsigned long physaddr
 static int debugmem = 0;	/* switched off by default */
 static int dma_buffsize = DSP_BUFFSIZE;
 
-static void dmabuf_set_timeout(struct dma_buffparms *dmap)
+static long dmabuf_timeout(struct dma_buffparms *dmap)
 {
-	unsigned long tmout;
+	long tmout;
 
 	tmout = (dmap->fragment_size * HZ) / dmap->data_rate;
 	tmout += HZ / 5;	/* Some safety distance */
@@ -48,7 +54,7 @@ static void dmabuf_set_timeout(struct dma_buffparms *dmap)
 		tmout = HZ / 2;
 	if (tmout > 20 * HZ)
 		tmout = 20 * HZ;
-	current->timeout = jiffies + tmout;
+	return tmout;
 }
 
 static int sound_alloc_dmap(struct dma_buffparms *dmap)
@@ -138,15 +144,15 @@ static int sound_start_dma(struct dma_buffparms *dmap, unsigned long physaddr, i
 	int chan = dmap->dma;
 
 	/* printk( "Start DMA%d %d, %d\n",  chan,  (int)(physaddr-dmap->raw_buf_phys),  count); */
-	save_flags(flags);
-	cli();
+
+	flags = claim_dma_lock();
 	disable_dma(chan);
 	clear_dma_ff(chan);
 	set_dma_mode(chan, dma_mode);
 	set_dma_addr(chan, physaddr);
 	set_dma_count(chan, count);
 	enable_dma(chan);
-	restore_flags(flags);
+	release_dma_lock(flags);
 
 	return 0;
 }
@@ -201,12 +207,19 @@ static int open_dmap(struct audio_operations *adev, int mode, struct dma_buffpar
 
 static void close_dmap(struct audio_operations *adev, struct dma_buffparms *dmap)
 {
+	unsigned long flags;
+	
 	sound_close_dma(dmap->dma);
 	if (dmap->flags & DMA_BUSY)
 		dmap->dma_mode = DMODE_NONE;
 	dmap->flags &= ~DMA_BUSY;
+	
+	flags=claim_dma_lock();
 	disable_dma(dmap->dma);
-	sound_free_dmap(dmap);
+	release_dma_lock(flags);
+	
+	if (sound_dmap_flag == DMAP_FREE_ON_CLOSE)
+		sound_free_dmap(dmap);
 }
 
 
@@ -279,7 +292,7 @@ int DMAbuf_open(int dev, int mode)
 	}
 	adev->enable_bits = mode;
 
-	if (mode == OPEN_READ || (mode != OPEN_WRITE && adev->flags & DMA_DUPLEX)) {
+	if (mode == OPEN_READ || (mode != OPEN_WRITE && (adev->flags & DMA_DUPLEX))) {
 		if ((retval = open_dmap(adev, mode, dmap_in)) < 0) {
 			adev->d->close(dev);
 			if (mode & OPEN_WRITE)
@@ -311,7 +324,7 @@ void DMAbuf_reset(int dev)
 static void dma_reset_output(int dev)
 {
 	struct audio_operations *adev = audio_devs[dev];
-	unsigned long flags;
+	unsigned long flags,f ;
 	struct dma_buffparms *dmap = adev->dmap_out;
 
 	if (!(dmap->flags & DMA_STARTED))	/* DMA is not active */
@@ -326,11 +339,9 @@ static void dma_reset_output(int dev)
 
 	adev->dmap_out->underrun_count = 0;
 	if (!signal_pending(current) && adev->dmap_out->qlen && 
-	    adev->dmap_out->underrun_count == 0) {
-		dmabuf_set_timeout(dmap);
-		interruptible_sleep_on(&adev->out_sleeper);
-		current->timeout = 0;
-	}
+	    adev->dmap_out->underrun_count == 0)
+		interruptible_sleep_on_timeout(&adev->out_sleeper,
+					       dmabuf_timeout(dmap));
 	adev->dmap_out->flags &= ~(DMA_SYNCING | DMA_ACTIVE);
 
 	/*
@@ -341,8 +352,12 @@ static void dma_reset_output(int dev)
 	else
 		adev->d->halt_output(dev);
 	adev->dmap_out->flags &= ~DMA_STARTED;
+	
+	f=claim_dma_lock();
 	clear_dma_ff(dmap->dma);
 	disable_dma(dmap->dma);
+	release_dma_lock(f);
+	
 	restore_flags(flags);
 	dmap->byte_counter = 0;
 	reorganize_buffers(dev, adev->dmap_out, 0);
@@ -377,7 +392,7 @@ void DMAbuf_launch_output(int dev, struct dma_buffparms *dmap)
 		return;		/* Don't start DMA yet */
 	dmap->dma_mode = DMODE_OUTPUT;
 
-	if (!(dmap->flags & DMA_ACTIVE) || !(adev->flags & DMA_AUTOMODE) || dmap->flags & DMA_NODMA) {
+	if (!(dmap->flags & DMA_ACTIVE) || !(adev->flags & DMA_AUTOMODE) || (dmap->flags & DMA_NODMA)) {
 		if (!(dmap->flags & DMA_STARTED)) {
 			reorganize_buffers(dev, dmap, 0);
 			if (adev->d->prepare_for_output(dev, dmap->fragment_size, dmap->nbufs))
@@ -404,7 +419,7 @@ int DMAbuf_sync(int dev)
 	int n = 0;
 	struct dma_buffparms *dmap;
 
-	if (!adev->go && (!adev->enable_bits & PCM_ENABLE_OUTPUT))
+	if (!adev->go && !(adev->enable_bits & PCM_ENABLE_OUTPUT))
 		return 0;
 
 	if (adev->dmap_out->dma_mode == DMODE_OUTPUT) {
@@ -417,14 +432,14 @@ int DMAbuf_sync(int dev)
 		adev->dmap_out->underrun_count = 0;
 		while (!signal_pending(current) && n++ <= adev->dmap_out->nbufs && 
 		       adev->dmap_out->qlen && adev->dmap_out->underrun_count == 0) {
-			dmabuf_set_timeout(dmap);
-			interruptible_sleep_on(&adev->out_sleeper);
-			if (!current->timeout) {
+			long t = dmabuf_timeout(dmap);
+			t = interruptible_sleep_on_timeout(&adev->out_sleeper,
+							   t);
+			if (!t) {
 				adev->dmap_out->flags &= ~DMA_SYNCING;
 				restore_flags(flags);
 				return adev->dmap_out->qlen;
 			}
-			current->timeout = 0;
 		}
 		adev->dmap_out->flags &= ~(DMA_SYNCING | DMA_ACTIVE);
 		restore_flags(flags);
@@ -437,11 +452,10 @@ int DMAbuf_sync(int dev)
 		save_flags(flags);
 		cli();
 		if (adev->d->local_qlen) {   /* Device has hidden buffers */
-			while (!signal_pending(current) && adev->d->local_qlen(dev)) {
-				dmabuf_set_timeout(dmap);
-				interruptible_sleep_on(&adev->out_sleeper);
-				current->timeout = 0;
-			}
+			while (!signal_pending(current) &&
+			       adev->d->local_qlen(dev))
+				interruptible_sleep_on_timeout(&adev->out_sleeper,
+							       dmabuf_timeout(dmap));
 		}
 		restore_flags(flags);
 	}
@@ -476,7 +490,7 @@ int DMAbuf_release(int dev, int mode)
 
 	if (adev->open_mode == OPEN_READ ||
 	    (adev->open_mode != OPEN_WRITE &&
-	     adev->flags & DMA_DUPLEX))
+	     (adev->flags & DMA_DUPLEX)))
 		close_dmap(adev, adev->dmap_in);
 	adev->open_mode = 0;
 	restore_flags(flags);
@@ -536,6 +550,7 @@ int DMAbuf_getrdbuffer(int dev, char **buf, int *len, int dontblock)
 		  restore_flags(flags);
 		  return -EINVAL;
 	} else while (dmap->qlen <= 0 && n++ < 10) {
+		long timeout = MAX_SCHEDULE_TIMEOUT;
 		if (!(adev->enable_bits & PCM_ENABLE_INPUT) || !adev->go) {
 			restore_flags(flags);
 			return -EAGAIN;
@@ -550,19 +565,17 @@ int DMAbuf_getrdbuffer(int dev, char **buf, int *len, int dontblock)
 			restore_flags(flags);
 			return -EAGAIN;
 		}
-		if (!(go = adev->go))
-			current->timeout = 0;
-		else 
-			dmabuf_set_timeout(dmap);
-		interruptible_sleep_on(&adev->in_sleeper);
-		if (go && !current->timeout) {
+		if ((go = adev->go))
+			timeout = dmabuf_timeout(dmap);
+		timeout = interruptible_sleep_on_timeout(&adev->in_sleeper,
+							 timeout);
+		if (!timeout) {
 			/* FIXME: include device name */
 			err = -EIO;
 			printk(KERN_WARNING "Sound: DMA (input) timed out - IRQ/DRQ config error?\n");
 			dma_reset_input(dev);
 		} else
 			err = -EINTR;
-		current->timeout = 0;
 	}
 	restore_flags(flags);
 
@@ -606,6 +619,7 @@ int DMAbuf_get_buffer_pointer(int dev, struct dma_buffparms *dmap, int direction
 
 	int pos;
 	unsigned long flags;
+	unsigned long f;
 
 	save_flags(flags);
 	cli();
@@ -613,9 +627,12 @@ int DMAbuf_get_buffer_pointer(int dev, struct dma_buffparms *dmap, int direction
 		pos = 0;
 	else {
 		int chan = dmap->dma;
+		
+		f=claim_dma_lock();
 		clear_dma_ff(chan);
 		disable_dma(dmap->dma);
 		pos = get_dma_residue(chan);
+		
 		pos = dmap->bytes_in_use - pos;
 
 		if (!(dmap->mapping_flags & DMA_MAP_MAPPED)) {
@@ -634,6 +651,7 @@ int DMAbuf_get_buffer_pointer(int dev, struct dma_buffparms *dmap, int direction
 		if (pos >= dmap->bytes_in_use)
 			pos = 0;
 		enable_dma(dmap->dma);
+		release_dma_lock(f);
 	}
 	restore_flags(flags);
 	/* printk( "%04x ",  pos); */
@@ -710,6 +728,7 @@ static int output_sleep(int dev, int dontblock)
 	int err = 0;
 	struct dma_buffparms *dmap = adev->dmap_out;
 	int timeout;
+	long timeout_value;
 
 	if (dontblock)
 		return -EAGAIN;
@@ -720,18 +739,18 @@ static int output_sleep(int dev, int dontblock)
 	 * Wait for free space
 	 */
 	if (signal_pending(current))
-		return -EIO;
+		return -EINTR;
 	timeout = (adev->go && !(dmap->flags & DMA_NOTIMEOUT));
 	if (timeout) 
-		dmabuf_set_timeout(dmap);
+		timeout_value = dmabuf_timeout(dmap);
 	else
-		current->timeout = 0;
-	interruptible_sleep_on(&adev->out_sleeper);
-	if (timeout && !current->timeout) {
+		timeout_value = MAX_SCHEDULE_TIMEOUT;
+	timeout_value = interruptible_sleep_on_timeout(&adev->out_sleeper,
+						       timeout_value);
+	if (timeout != MAX_SCHEDULE_TIMEOUT && !timeout_value) {
 		printk(KERN_WARNING "Sound: DMA (output) timed out - IRQ/DRQ config error?\n");
 		dma_reset_output(dev);
 	} else {
-		current->timeout = 0;
 		if (signal_pending(current))
 			err = -EINTR;
 	}
@@ -961,10 +980,16 @@ static void do_outputintr(int dev, int dummy)
 	}
 	if (!(adev->flags & DMA_AUTOMODE))
 		dmap->flags &= ~DMA_ACTIVE;
-	while (dmap->qlen <= 0) {
+		
+	/*
+	 *	This is  dmap->qlen <= 0 except when closing when
+	 *	dmap->qlen < 0
+	 */
+	 
+	while (dmap->qlen <= -dmap->closing) {
 		dmap->underrun_count++;
 		dmap->qlen++;
-		if (dmap->flags & DMA_DIRTY && dmap->applic_profile != APF_CPUINTENS) {
+		if ((dmap->flags & DMA_DIRTY) && dmap->applic_profile != APF_CPUINTENS) {
 			dmap->flags &= ~DMA_DIRTY;
 			memset(adev->dmap_out->raw_buf, adev->dmap_out->neutral_byte,
 			       adev->dmap_out->buffsize);
@@ -988,10 +1013,15 @@ void DMAbuf_outputintr(int dev, int notify_only)
 	cli();
 	if (!(dmap->flags & DMA_NODMA)) {
 		int chan = dmap->dma, pos, n;
-		clear_dma_ff(chan);
+		unsigned long f;
+		
+		f=claim_dma_lock();
 		disable_dma(dmap->dma);
+		clear_dma_ff(chan);
 		pos = dmap->bytes_in_use - get_dma_residue(chan);
 		enable_dma(dmap->dma);
+		release_dma_lock(f);
+		
 		pos = pos / dmap->fragment_size;	/* Actual qhead */
 		if (pos < 0 || pos >= dmap->nbufs)
 			pos = 0;
@@ -1056,7 +1086,7 @@ static void do_inputintr(int dev)
 			}
 		}
 	}
-	if (!(adev->flags & DMA_AUTOMODE) || dmap->flags & DMA_NODMA) {
+	if (!(adev->flags & DMA_AUTOMODE) || (dmap->flags & DMA_NODMA)) {
 		local_start_dma(adev, dmap->raw_buf_phys, dmap->bytes_in_use, DMA_MODE_READ);
 		adev->d->start_input(dev, dmap->raw_buf_phys + dmap->qtail * dmap->fragment_size, dmap->fragment_size, 1);
 		if (adev->d->trigger)
@@ -1078,10 +1108,14 @@ void DMAbuf_inputintr(int dev)
 
 	if (!(dmap->flags & DMA_NODMA)) {
 		int chan = dmap->dma, pos, n;
-		clear_dma_ff(chan);
+		unsigned long f;
+		
+		f=claim_dma_lock();
 		disable_dma(dmap->dma);
+		clear_dma_ff(chan);
 		pos = dmap->bytes_in_use - get_dma_residue(chan);
 		enable_dma(dmap->dma);
+		release_dma_lock(f);
 
 		pos = pos / dmap->fragment_size;	/* Actual qhead */
 		if (pos < 0 || pos >= dmap->nbufs)
@@ -1112,11 +1146,10 @@ int DMAbuf_open_dma(int dev)
 	if (adev->dmap_out->dma >= 0) {
 		unsigned long flags;
 
-		save_flags(flags);
-		cli();
+		flags=claim_dma_lock();
 		clear_dma_ff(adev->dmap_out->dma);
 		disable_dma(adev->dmap_out->dma);
-		restore_flags(flags);
+		release_dma_lock(flags);
 	}
 	return 0;
 }
@@ -1154,6 +1187,13 @@ void DMAbuf_init(int dev, int dma1, int dma2)
 				adev->dmap_in = &adev->dmaps[1];
 				adev->dmap_in->dma = dma2;
 			}
+		}
+		/* Persistent DMA buffers allocated here */
+		if (sound_dmap_flag == DMAP_KEEP_ON_CLOSE) {
+			if (adev->dmap_in->raw_buf == NULL)
+				sound_alloc_dmap(adev->dmap_in);
+			if (adev->dmap_out->raw_buf == NULL)
+				sound_alloc_dmap(adev->dmap_out);
 		}
 	}
 }
@@ -1225,12 +1265,13 @@ void DMAbuf_deinit(int dev)
 	/* This routine is called when driver is being unloaded */
 	if (!adev)
 		return;
-#ifdef RUNTIME_DMA_ALLOC
-	sound_free_dmap(adev->dmap_out);
 
-	if (adev->flags & DMA_DUPLEX)
-		sound_free_dmap(adev->dmap_in);
-#endif
+	/* Persistent DMA buffers deallocated here */
+	if (sound_dmap_flag == DMAP_KEEP_ON_CLOSE) {
+		sound_free_dmap(adev->dmap_out);
+		if (adev->flags & DMA_DUPLEX)
+			sound_free_dmap(adev->dmap_in);
+	}
 }
 
 #endif

@@ -16,6 +16,8 @@
  *  More flexible handling of extended partitions - aeb, 950831
  *
  *  Check partition table on IDE disks for common CHS translations
+ *
+ *  Added needed MAJORS for new pairs, {hdi,hdj}, {hdk,hdl}
  */
 
 #include <linux/config.h>
@@ -59,6 +61,10 @@ extern int blk_dev_init(void);
 extern int scsi_dev_init(void);
 extern int net_dev_init(void);
 
+#ifdef CONFIG_PPC
+extern void note_bootable_part(kdev_t dev, int part);
+#endif
+
 /*
  * disk_name() is used by genhd.c and md.c.
  * It formats the devicename of the indicated disk
@@ -69,7 +75,7 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 {
 	unsigned int part;
 	const char *maj = hd->major_name;
-	char unit = (minor >> hd->minor_shift) + 'a';
+	int unit = (minor >> hd->minor_shift) + 'a';
 
 	/*
 	 * IDE devices use multiple major numbers, but the drives
@@ -77,6 +83,10 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 	 * This requires special handling here.
 	 */
 	switch (hd->major) {
+		case IDE5_MAJOR:
+			unit += 2;
+		case IDE4_MAJOR:
+			unit += 2;
 		case IDE3_MAJOR:
 			unit += 2;
 		case IDE2_MAJOR:
@@ -85,8 +95,19 @@ char *disk_name (struct gendisk *hd, int minor, char *buf)
 			unit += 2;
 		case IDE0_MAJOR:
 			maj = "hd";
+			break;
 	}
 	part = minor & ((1 << hd->minor_shift) - 1);
+	if (hd->major >= SCSI_DISK1_MAJOR && hd->major <= SCSI_DISK7_MAJOR) {
+		unit = unit + (hd->major - SCSI_DISK1_MAJOR + 1) * 16;
+		if (unit > 'z') {
+			unit -= 'z' + 1;
+			sprintf(buf, "sd%c%c", 'a' + unit / 26, 'a' + unit % 26);
+			if (part)
+				sprintf(buf + 4, "%d", part);
+			return buf;
+		}
+	}
 	if (part)
 		sprintf(buf, "%s%c%d", maj, unit, part);
 	else
@@ -421,8 +442,8 @@ check_table:
 				   && (q->end_sector & 63) == 63) {
 					unsigned int heads = q->end_head + 1;
 					if (heads == 32 || heads == 64 ||
-					    heads == 128 || heads == 255 ||
-					    heads == 240) {
+					    heads == 128 || heads == 240 ||
+					    heads == 255) {
 						(void) ide_xlate_1024(dev, heads, " [PTBL]");
 						break;
 					}
@@ -845,7 +866,7 @@ static int mac_partition(struct gendisk *hd, kdev_t dev, unsigned long fsec)
 	int blk, blocks_in_map;
 	int dev_bsize, dev_pos, pos;
 	unsigned secsize;
-#ifdef CONFIG_PMAC
+#ifdef CONFIG_PPC
 	int first_bootable = 1;
 #endif
 	struct mac_partition *part;
@@ -899,18 +920,18 @@ static int mac_partition(struct gendisk *hd, kdev_t dev, unsigned long fsec)
 			fsec + be32_to_cpu(part->start_block) * (secsize/512),
 			be32_to_cpu(part->block_count) * (secsize/512));
 
-#ifdef CONFIG_PMAC
+#ifdef CONFIG_PPC
 		/*
 		 * If this is the first bootable partition, tell the
 		 * setup code, in case it wants to make this the root.
 		 */
-		if (first_bootable
+		if ( (_machine == _MACH_Pmac) && first_bootable
 		    && (be32_to_cpu(part->status) & MAC_STATUS_BOOTABLE)
 		    && strcasecmp(part->processor, "powerpc") == 0) {
 			note_bootable_part(dev, blk);
 			first_bootable = 0;
 		}
-#endif /* CONFIG_PMAC */
+#endif /* CONFIG_PPC */
 
 		++current_minor;
 	}

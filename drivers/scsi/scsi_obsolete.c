@@ -219,6 +219,8 @@ static void scsi_request_sense (Scsi_Cmnd * SCpnt)
 
     memcpy ((void *) SCpnt->cmnd , (void *) generic_sense,
 	    sizeof(generic_sense));
+    memset ((void *) SCpnt->sense_buffer, 0,
+            sizeof(SCpnt->sense_buffer));
 
     SCpnt->cmnd[1] = SCpnt->lun << 5;
     SCpnt->cmnd[4] = sizeof(SCpnt->sense_buffer);
@@ -227,6 +229,7 @@ static void scsi_request_sense (Scsi_Cmnd * SCpnt)
     SCpnt->request_bufflen = sizeof(SCpnt->sense_buffer);
     SCpnt->use_sg = 0;
     SCpnt->cmd_len = COMMAND_SIZE(SCpnt->cmnd[0]);
+    SCpnt->result = 0;
     internal_cmnd (SCpnt);
 }
 
@@ -375,7 +378,8 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
 		       SCpnt->host->host_no, SCpnt->channel, SCpnt->target,
 		       SCpnt->lun);
 		scsi_reset(SCpnt, SCSI_RESET_SYNCHRONOUS);
-		return;
+		status = REDO;
+                break;
 	    }
 	    else
 	    {
@@ -491,12 +495,8 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
 		printk("scsi%d, channel %d : RESERVATION CONFLICT performing"
 		       " reset.\n", SCpnt->host->host_no, SCpnt->channel);
 		scsi_reset(SCpnt, SCSI_RESET_SYNCHRONOUS);
-		return;
-#if 0
-		exit = DRIVER_SOFT | SUGGEST_ABORT;
-		status = MAYREDO;
+		status = REDO;
 		break;
-#endif
 	    default:
 		printk ("Internal error %s %d \n"
 			"status byte = %d \n", __FILE__,
@@ -607,8 +607,9 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
 	if ((++SCpnt->retries) < SCpnt->allowed)
 	{
 	    if ((SCpnt->retries >= (SCpnt->allowed >> 1))
-		&& !(SCpnt->host->last_reset > 0 &&
-		     jiffies < SCpnt->host->last_reset + MIN_RESET_PERIOD)
+		/* FIXME: last_reset == 0 is allowed */
+                && time_after(jiffies, SCpnt->host->last_reset
+                              + MIN_RESET_PERIOD)
 		&& !(SCpnt->flags & WAS_RESET))
 	    {
 		printk("scsi%d channel %d : resetting for second half of retries.\n",
@@ -634,10 +635,13 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
 	    memcpy ((void *) SCpnt->cmnd,
 		    (void*) SCpnt->data_cmnd,
 		    sizeof(SCpnt->data_cmnd));
+            memset ((void *) SCpnt->sense_buffer, 0,
+                    sizeof(SCpnt->sense_buffer));
 	    SCpnt->request_buffer = SCpnt->buffer;
 	    SCpnt->request_bufflen = SCpnt->bufflen;
 	    SCpnt->use_sg = SCpnt->old_use_sg;
 	    SCpnt->cmd_len = SCpnt->old_cmd_len;
+            SCpnt->result = 0;
 	    internal_cmnd (SCpnt);
 	}
 	break;
@@ -655,8 +659,7 @@ void scsi_old_done (Scsi_Cmnd * SCpnt)
 	    host_active = NULL;
 
 	    /* For block devices "wake_up" is done in end_scsi_request */
-	    if (MAJOR(SCpnt->request.rq_dev) != SCSI_DISK_MAJOR &&
-		MAJOR(SCpnt->request.rq_dev) != SCSI_CDROM_MAJOR) {
+	    if (!SCSI_BLK_MAJOR(SCpnt->request.rq_dev)) {
 		struct Scsi_Host * next;
 
 		for (next = host->block; next != host; next = next->block)
@@ -952,8 +955,8 @@ static int scsi_reset (Scsi_Cmnd * SCpnt, unsigned int reset_flags)
 		host->last_reset = jiffies;
 	        SCpnt->flags |= (WAS_RESET | IS_RESETTING);
 		temp = host->hostt->reset(SCpnt, reset_flags);
-		if ((host->last_reset < jiffies) ||
-		    (host->last_reset > (jiffies + 20 * HZ)))
+		if (time_before(host->last_reset, jiffies) ||
+		    (time_after(host->last_reset, jiffies + 20 * HZ)))
 		  host->last_reset = jiffies;
 		if (!host->block) host->host_busy--;
 	    }
@@ -1068,7 +1071,7 @@ int update_timeout(Scsi_Cmnd * SCset, int timeout)
    * timers for timeout.
    */
 
-  if( SCset->eh_timeout.expires == 0 )
+  if( !timer_pending(&SCset->eh_timeout) )
     {
       rtn = 0;
     }

@@ -1,4 +1,4 @@
-/* $Id: termios.h,v 1.5 1998/04/12 06:27:22 davem Exp $ */
+/* $Id: termios.h,v 1.6 1998/10/04 06:50:15 davem Exp $ */
 #ifndef _SPARC64_TERMIOS_H
 #define _SPARC64_TERMIOS_H
 
@@ -63,6 +63,9 @@ struct winsize {
 #define N_AX25		5
 #define N_X25		6
 #define N_6PACK		7
+#define N_MASC		8	/* Reserved for Mobitex module <kaz@cafe.net> */
+#define N_R3964		9	/* Reserved for Simatic R3964 module */
+#define N_PROFIBUS_FDL	10	/* Reserved for Profibus <Dave@mvhi.com> */
 
 #ifdef __KERNEL__
 

@@ -16,7 +16,7 @@
 #if defined(__mc68000__) || defined(CONFIG_APUS)
 #include <asm/setup.h>
 #endif
-#include "font.h"
+#include <video/font.h>
 
 #define NO_FONTS
 
@@ -90,7 +90,7 @@ struct fbcon_font_desc *fbcon_get_default_font(int xres, int yres)
     for(i=0; i<num_fonts; i++) {
 	f = fbcon_fonts[i];
 	c = f->pref;
-#ifdef __mc68000__
+#if defined(__mc68000__) || defined(CONFIG_APUS)
 #ifdef CONFIG_FONT_PEARL_8x8
 	if (MACH_IS_AMIGA && f->idx == PEARL8x8_IDX)
 	    c = 100;

@@ -1,4 +1,4 @@
-/* $Id: page.h,v 1.4 1998/08/25 09:21:59 ralf Exp $
+/* $Id: page.h,v 1.5 1998/08/28 23:24:03 tsbogend Exp $
  *
  * Definitions for page handling
  *
@@ -21,58 +21,6 @@
 #define STRICT_MM_TYPECHECKS
 
 #ifndef _LANGUAGE_ASSEMBLY
-
-#ifdef __SMP__
-#define ULOCK_DECLARE extern spinlock_t user_page_lock;
-#else
-#define ULOCK_DECLARE
-#endif
-struct upcache {
-	struct page *list;
-	unsigned long count;
-};
-extern struct upcache user_page_cache[8];
-#define USER_PAGE_WATER		16
-
-extern unsigned long get_user_page_slow(int which);
-extern unsigned long user_page_colours, user_page_order;
-
-#define get_user_page(__vaddr) \
-({ \
-	ULOCK_DECLARE \
-	int which = ((__vaddr) >> PAGE_SHIFT) & user_page_colours; \
-	struct upcache *up = &user_page_cache[which]; \
-	struct page *p; \
-	unsigned long ret; \
-	spin_lock(&user_page_lock); \
-	if((p = up->list) != NULL) { \
-		up->list = p->next; \
-		up->count--; \
-	} \
-	spin_unlock(&user_page_lock); \
-	if(p != NULL) \
-		ret = PAGE_OFFSET+PAGE_SIZE*p->map_nr; \
-	else \
-		ret = get_user_page_slow(which); \
-	ret; \
-})
-
-#define free_user_page(__page, __addr) \
-do { \
-	ULOCK_DECLARE \
-	int which = ((__addr) >> PAGE_SHIFT) & user_page_colours; \
-	struct upcache *up = &user_page_cache[which]; \
-	if(atomic_read(&(__page)->count) == 1 && \
-           up->count < USER_PAGE_WATER) { \
-		spin_lock(&user_page_lock); \
-		(__page)->age = PAGE_INITIAL_AGE; \
-		(__page)->next = up->list; \
-		up->list = (__page); \
-		up->count++; \
-		spin_unlock(&user_page_lock); \
-	} else \
-		free_page(__addr); \
-} while(0)
 
 extern void (*clear_page)(unsigned long page);
 extern void (*copy_page)(unsigned long to, unsigned long from);

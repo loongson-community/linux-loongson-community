@@ -22,9 +22,6 @@
 
 #define PMAC_ISA_MEM_BASE 	0
 #define PMAC_PCI_DRAM_OFFSET 	0
-#define APUS_ISA_IO_BASE 	0
-#define APUS_ISA_MEM_BASE 	0
-#define APUS_PCI_DRAM_OFFSET 	0
 #define CHRP_ISA_IO_BASE 	0xf8000000
 #define CHRP_ISA_MEM_BASE 	0xf7000000
 #define CHRP_PCI_DRAM_OFFSET 	0
@@ -38,26 +35,32 @@
 #define _ISA_MEM_BASE   0
 #define PCI_DRAM_OFFSET 0x80000000
 #else /* CONFIG_MBX8xx */
+#ifdef CONFIG_APUS
+#define _IO_BASE 0
+#define _ISA_MEM_BASE 0
+#define PCI_DRAM_OFFSET 0
+#else
 extern unsigned long isa_io_base;
 extern unsigned long isa_mem_base;
 extern unsigned long pci_dram_offset;
 #define _IO_BASE	isa_io_base
 #define _ISA_MEM_BASE	isa_mem_base
 #define PCI_DRAM_OFFSET	pci_dram_offset
+#endif /* CONFIG_APUS */
 #endif /* CONFIG_MBX8xx */
 
-#define readb(addr) (*(volatile unsigned char *) (addr))
-#define writeb(b,addr) ((*(volatile unsigned char *) (addr)) = (b))
+#define readb(addr) in_8((volatile unsigned char *)(addr))
+#define writeb(b,addr) out_8((volatile unsigned char *)(addr), (b))
 #if defined(CONFIG_APUS)
 #define readw(addr) (*(volatile unsigned short *) (addr))
 #define readl(addr) (*(volatile unsigned int *) (addr))
 #define writew(b,addr) ((*(volatile unsigned short *) (addr)) = (b))
 #define writel(b,addr) ((*(volatile unsigned int *) (addr)) = (b))
 #else
-#define readw(addr) ld_le16((volatile unsigned short *)(addr))
-#define readl(addr) ld_le32((volatile unsigned *)addr)
-#define writew(b,addr) st_le16((volatile unsigned short *)(addr),(b))
-#define writel(b,addr) st_le32((volatile unsigned *)(addr),(b))
+#define readw(addr) in_le16((volatile unsigned short *)(addr))
+#define readl(addr) in_le32((volatile unsigned *)addr)
+#define writew(b,addr) out_le16((volatile unsigned short *)(addr),(b))
+#define writel(b,addr) out_le32((volatile unsigned *)(addr),(b))
 #endif
 
 #define insb(port, buf, ns)	_insb((unsigned char *)((port)+_IO_BASE), (buf), (ns))
@@ -120,6 +123,7 @@ extern void _outsl_ns(volatile unsigned long *port, const void *buf, int nl);
 extern void *__ioremap(unsigned long address, unsigned long size,
 		       unsigned long flags);
 extern void *ioremap(unsigned long address, unsigned long size);
+#define ioremap_nocache(addr, size)	ioremap((addr), (size))
 extern void iounmap(void *addr);
 extern unsigned long iopa(unsigned long addr);
 #ifdef CONFIG_APUS
@@ -177,6 +181,92 @@ extern inline void * phys_to_virt(unsigned long address)
 #endif
 }
 
+#endif /* __KERNEL__ */
+
+/*
+ * Enforce In-order Execution of I/O:
+ * Acts as a barrier to ensure all previous I/O accesses have
+ * completed before any further ones are issued.
+ */
+extern inline void eieio(void)
+{
+	__asm__ __volatile__ ("eieio" : : : "memory");
+}
+#define iobarrier() eieio()
+
+/*
+ * 8, 16 and 32 bit, big and little endian I/O operations, with barrier.
+ */
+extern inline int in_8(volatile unsigned char *addr)
+{
+	int ret;
+
+	__asm__ __volatile__("lbz%U1%X1 %0,%1; eieio" : "=r" (ret) : "m" (*addr));
+	return ret;
+}
+
+extern inline void out_8(volatile unsigned char *addr, int val)
+{
+	__asm__ __volatile__("stb%U0%X0 %1,%0; eieio" : "=m" (*addr) : "r" (val));
+}
+
+extern inline int in_le16(volatile unsigned short *addr)
+{
+	int ret;
+
+	__asm__ __volatile__("lhbrx %0,0,%1; eieio" : "=r" (ret) :
+			      "r" (addr), "m" (*addr));
+	return ret;
+}
+
+extern inline int in_be16(volatile unsigned short *addr)
+{
+	int ret;
+
+	__asm__ __volatile__("lhz%U1%X1 %0,%1; eieio" : "=r" (ret) : "m" (*addr));
+	return ret;
+}
+
+extern inline void out_le16(volatile unsigned short *addr, int val)
+{
+	__asm__ __volatile__("sthbrx %1,0,%2; eieio" : "=m" (*addr) :
+			      "r" (val), "r" (addr));
+}
+
+extern inline void out_be16(volatile unsigned short *addr, int val)
+{
+	__asm__ __volatile__("sth%U0%X0 %1,%0; eieio" : "=m" (*addr) : "r" (val));
+}
+
+extern inline unsigned in_le32(volatile unsigned *addr)
+{
+	unsigned ret;
+
+	__asm__ __volatile__("lwbrx %0,0,%1; eieio" : "=r" (ret) :
+			     "r" (addr), "m" (*addr));
+	return ret;
+}
+
+extern inline unsigned in_be32(volatile unsigned *addr)
+{
+	unsigned ret;
+
+	__asm__ __volatile__("lwz%U1%X1 %0,%1; eieio" : "=r" (ret) : "m" (*addr));
+	return ret;
+}
+
+extern inline void out_le32(volatile unsigned *addr, int val)
+{
+	__asm__ __volatile__("stwbrx %1,0,%2; eieio" : "=m" (*addr) :
+			     "r" (val), "r" (addr));
+}
+
+extern inline void out_be32(volatile unsigned *addr, int val)
+{
+	__asm__ __volatile__("stw%U0%X0 %1,%0; eieio" : "=m" (*addr) : "r" (val));
+}
+
+#ifdef __KERNEL__
 static inline int check_signature(unsigned long io_addr,
 	const unsigned char *signature, int length)
 {
@@ -192,105 +282,6 @@ static inline int check_signature(unsigned long io_addr,
 out:
 	return retval;
 }
-
 #endif /* __KERNEL__ */
-
-/*
- * Enforce In-order Execution of I/O:
- * Acts as a barrier to ensure all previous I/O accesses have
- * completed before any further ones are issued.
- */
-extern inline void eieio(void)
-{
-	__asm__ __volatile__ ("eieio" : : : "memory" );
-}
-
-/*
- * 8, 16 and 32 bit, big and little endian I/O operations, with barrier.
- */
-extern inline int in_8(volatile unsigned char *addr)
-{
-	int ret;
-
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	ret = *addr;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-	return ret;
-}
-
-extern inline void out_8(volatile unsigned char *addr, int val)
-{
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	*addr = val;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-}
-
-extern inline int in_le16(volatile unsigned short *addr)
-{
-	int ret;
-
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	ret = ld_le16(addr);
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-	return ret;
-}
-
-extern inline int in_be16(volatile unsigned short *addr)
-{
-	int ret;
-
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	ret = *addr;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-	return ret;
-}
-
-extern inline void out_le16(volatile unsigned short *addr, int val)
-{
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	st_le16(addr, val);
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-}
-
-extern inline void out_be16(volatile unsigned short *addr, int val)
-{
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	*addr = val;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-}
-
-extern inline unsigned in_le32(volatile unsigned *addr)
-{
-	unsigned ret;
-
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	ret = ld_le32(addr);
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-	return ret;
-}
-
-extern inline int in_be32(volatile unsigned *addr)
-{
-	int ret;
-
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	ret = *addr;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-	return ret;
-}
-
-extern inline void out_le32(volatile unsigned *addr, int val)
-{
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	st_le32(addr, val);
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-}
-
-extern inline void out_be32(volatile unsigned *addr, int val)
-{
-	__asm__ __volatile__ ("" : "=m" (*addr) : "0" (*addr) );
-	*addr = val;
-	__asm__ __volatile__ ("eieio" : "=m" (*addr) : "0" (*addr) );
-}
 
 #endif

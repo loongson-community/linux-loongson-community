@@ -170,7 +170,7 @@ static int	stli_nrbrds = sizeof(stli_brdconf) / sizeof(stlconf_t);
  */
 static char	*stli_drvtitle = "Stallion Intelligent Multiport Serial Driver";
 static char	*stli_drvname = "istallion";
-static char	*stli_drvversion = "5.4.6";
+static char	*stli_drvversion = "5.4.7";
 static char	*stli_serialname = "ttyE";
 static char	*stli_calloutname = "cue";
 
@@ -635,16 +635,21 @@ static inline int	stli_initports(stlibrd_t *brdp);
  *	board. This is also a very useful debugging tool.
  */
 static struct file_operations	stli_fsiomem = {
-	NULL,
-	stli_memread,
-	stli_memwrite,
-	NULL,
-	NULL,
-	stli_memioctl,
-	NULL,
-	stli_memopen,
-	stli_memclose,
-	NULL
+	NULL,		/* llseek */
+	stli_memread,	/* read */
+	stli_memwrite,	/* write */
+	NULL,		/* readdir */
+	NULL,		/* poll */
+	stli_memioctl,	/* ioctl */
+	NULL,		/* mmap */
+	stli_memopen,	/* open */
+	NULL,		/* flush */
+	stli_memclose,	/* release */
+	NULL,		/* fsync */
+	NULL,		/* fasync */
+	NULL,		/* check_media_change */
+	NULL,		/* revalidate */
+	NULL		/* lock */
 };
 
 /*****************************************************************************/
@@ -1287,8 +1292,7 @@ static void stli_delay(int len)
 #endif
 	if (len > 0) {
 		current->state = TASK_INTERRUPTIBLE;
-		current->timeout = jiffies + len;
-		schedule();
+		schedule_timeout(len);
 		current->state = TASK_RUNNING;
 	}
 }
@@ -2247,7 +2251,8 @@ static void stli_breakctl(struct tty_struct *tty, int state)
 {
 	stlibrd_t	*brdp;
 	stliport_t	*portp;
-	long		arg, savestate, savetime;
+	long		arg;
+	/* long savestate, savetime; */
 
 #if DEBUG
 	printk("stli_breakctl(tty=%x,state=%d)\n", (int) tty, state);
@@ -2267,15 +2272,18 @@ static void stli_breakctl(struct tty_struct *tty, int state)
 /*
  *	Due to a bug in the tty send_break() code we need to preserve
  *	the current process state and timeout...
- */
 	savetime = current->timeout;
 	savestate = current->state;
+ */
 
 	arg = (state == -1) ? BREAKON : BREAKOFF;
 	stli_cmdwait(brdp, portp, A_BREAK, &arg, sizeof(long), 0);
 
+/*
+ *
 	current->timeout = savetime;
 	current->state = savestate;
+ */
 }
 
 /*****************************************************************************/

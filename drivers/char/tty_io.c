@@ -126,11 +126,11 @@ static ssize_t tty_write(struct file *, const char *, size_t, loff_t *);
 static unsigned int tty_poll(struct file *, poll_table *);
 static int tty_open(struct inode *, struct file *);
 static int tty_release(struct inode *, struct file *);
-static int tty_ioctl(struct inode * inode, struct file * file,
-		     unsigned int cmd, unsigned long arg);
+int tty_ioctl(struct inode * inode, struct file * file,
+	      unsigned int cmd, unsigned long arg);
 static int tty_fasync(int fd, struct file * filp, int on);
 #ifdef CONFIG_8xx
-extern long console_8xx_init(void);
+extern long console_8xx_init(long, long);
 extern int rs_8xx_init(void);
 #endif /* CONFIG_8xx */
 
@@ -390,7 +390,9 @@ void do_tty_hangup(void *data)
 {
 	struct tty_struct *tty = (struct tty_struct *) data;
 	struct file * filp;
+	struct file * cons_filp = NULL;
 	struct task_struct *p;
+	int    closecount = 0, n;
 
 	if (!tty)
 		return;
@@ -407,10 +409,13 @@ void do_tty_hangup(void *data)
 		if (!filp->f_dentry->d_inode)
 			continue;
 		if (filp->f_dentry->d_inode->i_rdev == CONSOLE_DEV ||
-		    filp->f_dentry->d_inode->i_rdev == SYSCONS_DEV)
+		    filp->f_dentry->d_inode->i_rdev == SYSCONS_DEV) {
+			cons_filp = filp;
 			continue;
+		}
 		if (filp->f_op != &tty_fops)
 			continue;
+		closecount++;
 		tty_fasync(-1, filp, 0);
 		filp->f_op = &hung_up_tty_fops;
 	}
@@ -470,7 +475,17 @@ void do_tty_hangup(void *data)
 	tty->session = 0;
 	tty->pgrp = -1;
 	tty->ctrl_status = 0;
-	if (tty->driver.hangup)
+	/*
+	 *	If one of the devices matches a console pointer, we
+	 *	cannot just call hangup() because that will cause
+	 *	tty->count and state->count to go out of sync.
+	 *	So we just call close() the right number of times.
+	 */
+	if (cons_filp) {
+		if (tty->driver.close)
+			for (n = 0; n < closecount; n++)
+				tty->driver.close(tty, cons_filp);
+	} else if (tty->driver.hangup)
 		(tty->driver.hangup)(tty);
 	unlock_kernel();
 }
@@ -640,7 +655,13 @@ static inline ssize_t do_tty_write(
 	size_t count)
 {
 	ssize_t ret = 0, written = 0;
-
+	struct inode *inode = file->f_dentry->d_inode;
+	
+	up(&inode->i_sem);
+	if (down_interruptible(&inode->i_atomic_write)) {
+		down(&inode->i_sem);
+		return -ERESTARTSYS;
+	}
 	for (;;) {
 		unsigned long size = PAGE_SIZE*2;
 		if (size > count)
@@ -663,6 +684,8 @@ static inline ssize_t do_tty_write(
 		file->f_dentry->d_inode->i_mtime = CURRENT_TIME;
 		ret = written;
 	}
+	up(&inode->i_atomic_write);
+	down(&inode->i_sem);
 	return ret;
 }
 
@@ -845,7 +868,13 @@ static int init_dev(kdev_t device, struct tty_struct **ret_tty)
 	 * Failures after this point use release_mem to clean up, so 
 	 * there's no need to null out the local pointers.
 	 */
-	driver->table[idx] = tty;
+	driver->table[idx] = tty;	/* FIXME: this is broken and
+	probably causes ^D bug. tty->private_date does not (yet) point
+	to a console, if keypress comes now, await armagedon. 
+
+	also, driver->table is accessed from interrupt for vt case,
+	and this does not look like atomic access at all. */
+	
 	if (!*tp_loc)
 		*tp_loc = tp;
 	if (!*ltp_loc)
@@ -1109,7 +1138,6 @@ static void release_dev(struct file * filp)
 	 * both sides, and we've completed the last operation that could 
 	 * block, so it's safe to proceed with closing.
 	 */
-
 	if (pty_master) {
 		if (--o_tty->count < 0) {
 			printk("release_dev: bad pty slave count (%d) for %s\n",
@@ -1122,6 +1150,16 @@ static void release_dev(struct file * filp)
 		       tty->count, tty_name(tty, buf));
 		tty->count = 0;
 	}
+
+	/*
+	 * We've decremented tty->count, so we should zero out
+	 * filp->private_data, to break the link between the tty and
+	 * the file descriptor.  Otherwise if close_fp() blocks before
+	 * the the file descriptor is removed from the inuse_filp
+	 * list, check_tty_count() could observe a discrepancy and
+	 * printk a warning message to the user.
+	 */
+	filp->private_data = 0;
 
 	/*
 	 * Perform some housekeeping before deciding whether to return.
@@ -1157,7 +1195,6 @@ static void release_dev(struct file * filp)
 	/* check whether both sides are closing ... */
 	if (!tty_closing || (o_tty && !o_tty_closing))
 		return;
-	filp->private_data = 0;
 	
 #ifdef TTY_DEBUG_HANGUP
 	printk("freeing tty structure...");
@@ -1235,10 +1272,13 @@ retry_open:
 		if (!c)
                         return -ENODEV;
                 device = c->device(c);
+		filp->f_flags |= O_NONBLOCK; /* Don't let /dev/console block */
 		noctty = 1;
 	}
-#ifdef CONFIG_UNIX98_PTYS
+
 	if (device == PTMX_DEV) {
+#ifdef CONFIG_UNIX98_PTYS
+
 		/* find a free pty. */
 		int major, minor;
 		struct tty_driver *driver;
@@ -1261,15 +1301,21 @@ retry_open:
 		devpts_pty_new(driver->other->name_base + minor, MKDEV(driver->other->major, minor + driver->other->minor_start));
 		noctty = 1;
 		goto init_dev_done;
+
+#else   /* CONFIG_UNIX_98_PTYS */
+
+		return -ENODEV;
+
+#endif  /* CONFIG_UNIX_98_PTYS */
 	}
-#endif
-	
+
 	retval = init_dev(device, &tty);
 	if (retval)
 		return retval;
 
-	/* N.B. this error exit may leave filp->f_flags with O_NONBLOCK set */
+#ifdef CONFIG_UNIX98_PTYS
 init_dev_done:
+#endif
 	filp->private_data = tty;
 	check_tty_count(tty, "tty_open");
 	if (tty->driver.type == TTY_DRIVER_TYPE_PTY &&
@@ -1590,11 +1636,10 @@ static int tiocsetd(struct tty_struct *tty, int *arg)
 static int send_break(struct tty_struct *tty, int duration)
 {
 	current->state = TASK_INTERRUPTIBLE;
-	current->timeout = jiffies + duration;
 
 	tty->driver.break_ctl(tty, -1);
 	if (!signal_pending(current))
-		schedule();
+		schedule_timeout(duration);
 	tty->driver.break_ctl(tty, 0);
 	if (signal_pending(current))
 		return -EINTR;
@@ -1604,8 +1649,8 @@ static int send_break(struct tty_struct *tty, int duration)
 /*
  * Split this up, as gcc can choke on it otherwise..
  */
-static int tty_ioctl(struct inode * inode, struct file * file,
-		     unsigned int cmd, unsigned long arg)
+int tty_ioctl(struct inode * inode, struct file * file,
+	      unsigned int cmd, unsigned long arg)
 {
 	struct tty_struct *tty, *real_tty;
 	int retval;
@@ -2008,12 +2053,19 @@ long __init console_init(long kmem_start, long kmem_end)
 	kmem_start = con_init(kmem_start);
 #endif
 #ifdef CONFIG_SERIAL_CONSOLE
+#ifdef CONFIG_8xx
+	kmem_start = console_8xx_init(kmem_start, kmem_end);
+#else 	
 	kmem_start = serial_console_init(kmem_start, kmem_end);
+#endif /* CONFIG_8xx */
 #endif
 	return kmem_start;
 }
 
-static struct tty_driver dev_tty_driver, dev_syscons_driver, dev_ptmx_driver;
+static struct tty_driver dev_tty_driver, dev_syscons_driver;
+#ifdef CONFIG_UNIX98_PTYS
+static struct tty_driver dev_ptmx_driver;
+#endif
 #ifdef CONFIG_VT
 static struct tty_driver dev_console_driver;
 #endif
@@ -2058,6 +2110,7 @@ __initfunc(int tty_init(void))
 	if (tty_register_driver(&dev_syscons_driver))
 		panic("Couldn't register /dev/console driver\n");
 
+#ifdef CONFIG_UNIX98_PTYS
 	dev_ptmx_driver = dev_tty_driver;
 	dev_ptmx_driver.driver_name = "/dev/ptmx";
 	dev_ptmx_driver.name = dev_ptmx_driver.driver_name + 5;
@@ -2068,7 +2121,8 @@ __initfunc(int tty_init(void))
 
 	if (tty_register_driver(&dev_ptmx_driver))
 		panic("Couldn't register /dev/ptmx driver\n");
-
+#endif
+	
 #ifdef CONFIG_VT
 	dev_console_driver = dev_tty_driver;
 	dev_console_driver.driver_name = "/dev/tty0";
@@ -2095,6 +2149,9 @@ __initfunc(int tty_init(void))
 #endif
 #ifdef CONFIG_ROCKETPORT
 	rp_init();
+#endif
+#ifdef CONFIG_MVME16x
+	serial167_init();
 #endif
 #ifdef CONFIG_CYCLADES
 	cy_init();

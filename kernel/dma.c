@@ -14,6 +14,7 @@
 #include <linux/errno.h>
 #include <asm/dma.h>
 #include <asm/system.h>
+#include <asm/spinlock.h>
 
 
 /* A note on resource allocation:
@@ -31,6 +32,8 @@
  * in the kernel.
  */
 
+
+spinlock_t dma_spin_lock = SPIN_LOCK_UNLOCKED;
 
 
 /* Channel n is busy iff dma_chan_busy[n].lock != 0.

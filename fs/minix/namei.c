@@ -88,7 +88,7 @@ static int minix_hash(struct dentry *dentry, struct qstr *qstr)
 {
 	unsigned long hash;
 	int i;
-	const char *name;
+	const unsigned char *name;
 
 	i = dentry->d_inode->i_sb->u.minix_sb.s_namelen;
 	if (i >= qstr->len)
@@ -452,7 +452,7 @@ int minix_rmdir(struct inode * dir, struct dentry *dentry)
 		retval = -ENOENT;
 		goto end_rmdir;
 	}
-	if (dentry->d_count > 1) {
+	if (!list_empty(&dentry->d_hash)) {
 		retval = -EBUSY;
 		goto end_rmdir;
 	}
@@ -490,8 +490,6 @@ repeat:
 	inode = dentry->d_inode;
 
 	retval = -EPERM;
-	if (S_ISDIR(inode->i_mode))
-		goto end_unlink;
 	if (de->inode != inode->i_ino) {
 		brelse(bh);
 		current->counter = 0;

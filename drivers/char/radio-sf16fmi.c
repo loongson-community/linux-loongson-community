@@ -26,7 +26,7 @@ struct fmi_device
 {
 	int port;
         int curvol; /* 1 or 0 */
-        unsigned long curfreq; /* RSF16_PREC * freq in MHz */
+        unsigned long curfreq; /* freq in kHz */
         __u32 flags;
 };
 
@@ -43,7 +43,7 @@ static int users = 0;
  * 92.7400017 -> 92.75
  */
 #define RSF16_ENCODE(x)	((x)/800+214)
-#define RSF16_MINFREQ 88*16000
+#define RSF16_MINFREQ 87*16000
 #define RSF16_MAXFREQ 108*16000
 
 static void outbits(int bits, unsigned int data, int port)
@@ -64,39 +64,60 @@ static void outbits(int bits, unsigned int data, int port)
 	}
 }
 
-static void fmi_mute(int port)
+static inline void fmi_mute(int port)
 {
 	outb(0x00, port);
 }
 
-static void fmi_unmute(int port)
+static inline void fmi_unmute(int port)
 {
 	outb(0x08, port);
 }
 
-static int fmi_setfreq(struct fmi_device *dev, unsigned long freq)
+static inline int fmi_setfreq(struct fmi_device *dev, unsigned long freq)
 {
         int myport = dev->port;
-
+	int i;
+	
 	outbits(16, RSF16_ENCODE(freq), myport);
 	outbits(8, 0xC0, myport);
-	/* we should wait here... */
+	for(i=0; i< 100; i++)
+	{
+		udelay(1400);
+		if(current->need_resched)
+			schedule();
+	}
+/* If this becomes allowed use it ... 	
+	current->state = TASK_UNINTERRUPTIBLE;
+	schedule_timeout(HZ/7);
+*/	
+	if (dev->curvol) fmi_unmute(myport);
 	return 0;
 }
 
-static int fmi_getsigstr(struct fmi_device *dev)
+static inline int fmi_getsigstr(struct fmi_device *dev)
 {
 	int val;
 	int res;
 	int myport = dev->port;
-
+	int i;
+	
 	val = dev->curvol ? 0x08 : 0x00;	/* unmute/mute */
 	outb(val, myport);
 	outb(val | 0x10, myport);
-	udelay(140000);
+	for(i=0; i< 100; i++)
+	{
+		udelay(1400);
+		if(current->need_resched)
+			schedule();
+	}
+/* If this becomes allowed use it ... 	
+	current->state = TASK_UNINTERRUPTIBLE;
+	schedule_timeout(HZ/7);
+*/	
 	res = (int)inb(myport+1);
 	outb(val, myport);
-	return (res & 2) ? 0 : 1;
+	return (res & 2) ? 0 : 0xFFFF;
 }
 
 static int fmi_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
@@ -136,7 +157,7 @@ static int fmi_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			v.rangehigh = RSF16_MAXFREQ/mult;
 			v.flags=fmi->flags;
 			v.mode=VIDEO_MODE_AUTO;
-			v.signal=0xFFFF*fmi_getsigstr(fmi);
+			v.signal = fmi_getsigstr(fmi);
 			if(copy_to_user(arg,&v, sizeof(v)))
 				return -EFAULT;
 			return 0;

@@ -7,7 +7,7 @@
  *
  *	Adapted from linux/net/ipv4/af_inet.c
  *
- *	$Id: af_inet6.c,v 1.37 1998/08/26 12:04:45 davem Exp $
+ *	$Id: af_inet6.c,v 1.39 1998/10/03 09:38:23 davem Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -53,6 +53,17 @@
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
+
+#ifdef MODULE
+static int unloadable = 0; /* XX: Turn to one when all is ok within the
+			      module for allowing unload */
+#endif
+
+#if defined(MODULE) && LINUX_VERSION_CODE > 0x20115
+MODULE_AUTHOR("Cast of dozens");
+MODULE_DESCRIPTION("IPv6 protocol stack for Linux");
+MODULE_PARM(unloadable, "i");
+#endif
 
 extern struct proto_ops inet6_stream_ops;
 extern struct proto_ops inet6_dgram_ops;
@@ -123,6 +134,7 @@ static int inet6_create(struct socket *sock, int protocol)
 	sk->net_pinfo.af_inet6.hop_limit  = -1;
 	sk->net_pinfo.af_inet6.mcast_hops = -1;
 	sk->net_pinfo.af_inet6.mc_loop	  = 1;
+	sk->net_pinfo.af_inet6.pmtudisc	  = IPV6_PMTUDISC_WANT;
 
 	/* Init the ipv4 part of the socket since we can have sockets
 	 * using v6 API for ipv4.
@@ -463,6 +475,7 @@ static struct proc_dir_entry proc_net_snmp6 = {
 #ifdef MODULE
 int ipv6_unload(void)
 {
+	if (!unloadable) return 1;
 	/* We keep internally 3 raw sockets */
 	return __this_module.usecount - 3;
 }

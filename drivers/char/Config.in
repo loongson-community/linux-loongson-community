@@ -56,19 +56,13 @@ if [ "$CONFIG_MOUSE" = "y" ]; then
 	tristate 'ATIXL busmouse support' CONFIG_ATIXL_BUSMOUSE
 	tristate 'Logitech busmouse support' CONFIG_BUSMOUSE
 	tristate 'Microsoft busmouse support' CONFIG_MS_BUSMOUSE
-	tristate 'PS/2 mouse (aka "auxiliary device") support' CONFIG_PSMOUSE
-	if [ "$CONFIG_PSMOUSE" != "n" ]; then
-	  bool 'C&T 82C710 mouse port support (as on TI Travelmate)' CONFIG_82C710_MOUSE
-	fi
+	bool 'PS/2 mouse (aka "auxiliary device") support' CONFIG_PSMOUSE
+	tristate 'C&T 82C710 mouse port support (as on TI Travelmate)' CONFIG_82C710_MOUSE
 	tristate 'PC110 digitizer pad support' CONFIG_PC110_PAD
 fi
 
-# IRIX compat stuff for X on the Indy relies on CONFIG_UMISC
 if [ "$CONFIG_SGI" = "y" ]; then
-	define_bool CONFIG_UMISC y
 	bool 'Support for SGI graphic devices' CONFIG_SGI_GRAPHICS
-elif [ "$CONFIG_MODULES" = "y" ]; then
-	bool 'Support for user misc device modules' CONFIG_UMISC
 fi
 
 tristate 'QIC-02 tape support' CONFIG_QIC02_TAPE
@@ -83,15 +77,6 @@ if [ "$CONFIG_QIC02_TAPE" != "n" ]; then
   fi
 fi
 
-bool 'Advanced Power Management BIOS support' CONFIG_APM
-if [ "$CONFIG_APM" = "y" ]; then
-  bool '   Ignore USER SUSPEND' CONFIG_APM_IGNORE_USER_SUSPEND
-  bool '   Enable PM at boot time' CONFIG_APM_DO_ENABLE
-  bool '   Make CPU Idle calls when idle' CONFIG_APM_CPU_IDLE
-  bool '   Enable console blanking using APM' CONFIG_APM_DISPLAY_BLANK
-  bool '   Power off on shutdown' CONFIG_APM_POWER_OFF
-  bool '   Ignore multiple suspend' CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
-fi
 bool 'Watchdog Timer Support'	CONFIG_WATCHDOG
 if [ "$CONFIG_WATCHDOG" != "n" ]; then
   bool '   Disable watchdog shutdown on close' CONFIG_WATCHDOG_NOWAYOUT
@@ -138,13 +123,15 @@ if [ "$CONFIG_VIDEO_DEV" != "n" ]; then
     hex '  SF16FMI I/O port (0x284 or 0x384)' CONFIG_RADIO_SF16FMI_PORT 284
   fi
   dep_tristate 'Zoltrix Radio' CONFIG_RADIO_ZOLTRIX $CONFIG_VIDEO_DEV
-  if [ "$CONFIG_RADIO_ZOLTRIX" != "n" ]; then
+  if [ "$CONFIG_RADIO_ZOLTRIX" = "y" ]; then
     hex '  ZOLTRIX I/O port (0x20c or 0x30c)' CONFIG_RADIO_ZOLTRIX_PORT 20c
   fi
 fi
 tristate '/dev/nvram support' CONFIG_NVRAM
-tristate 'PC joystick support' CONFIG_JOYSTICK
-
+tristate 'Joystick support' CONFIG_JOYSTICK
+if [ "$CONFIG_JOYSTICK" != "n" ]; then
+  source drivers/char/joystick/Config.in
+fi
 mainmenu_option next_comment
 comment 'Ftape, the floppy tape device driver'
 tristate 'Ftape (QIC-80/Travan) support' CONFIG_FTAPE

@@ -1,7 +1,7 @@
 /*
  *  linux/arch/ppc/kernel/signal.c
  *
- *  $Id: signal.c,v 1.16 1998/06/16 23:34:10 cort Exp $
+ *  $Id: signal.c,v 1.21 1998/10/22 19:37:49 paulus Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -128,6 +128,13 @@ asmlinkage int sys_rt_sigreturn(unsigned long __unused)
 	do_exit(SIGSEGV);
 }
 
+asmlinkage int
+sys_sigaltstack(const stack_t *uss, stack_t *uoss)
+{
+	struct pt_regs *regs = (struct pt_regs *) &uss;
+	return do_sigaltstack(uss, uoss, regs->gpr[1]);
+}
+
 int 
 sys_sigaction(int sig, const struct old_sigaction *act,
 	      struct old_sigaction *oact)
@@ -238,7 +245,7 @@ int sys_sigreturn(struct pt_regs *regs)
 			goto badframe;
 		sr = (struct sigregs *) sigctx.regs;
 		regs->gpr[3] = ret = sigctx.signal;
-		regs->gpr[4] = (unsigned long) sr;
+		regs->gpr[4] = (unsigned long) sc;
 		regs->link = (unsigned long) &sr->tramp;
 		regs->nip = sigctx.handler;
 
@@ -286,7 +293,7 @@ setup_frame(struct pt_regs *regs, struct sigregs *frame,
 	    || get_user(regs->gpr[3], &sc->signal))
 		goto badframe;
 	regs->gpr[1] = newsp;
-	regs->gpr[4] = (unsigned long) frame;
+	regs->gpr[4] = (unsigned long) sc;
 	regs->link = (unsigned long) frame->tramp;
 
 	return;
@@ -483,3 +490,4 @@ int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	setup_frame(regs, (struct sigregs *) frame, newsp);
 	return 1;
 }
+

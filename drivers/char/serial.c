@@ -1675,6 +1675,8 @@ static int set_serial_info(struct async_struct * info,
 			return -EPERM;
 		state->flags = ((state->flags & ~ASYNC_USR_MASK) |
 			       (new_serial.flags & ASYNC_USR_MASK));
+		info->flags = ((state->flags & ~ASYNC_USR_MASK) |
+			       (info->flags & ASYNC_USR_MASK));
 		state->custom_divisor = new_serial.custom_divisor;
 		goto check_and_exit;
 	}
@@ -1682,8 +1684,9 @@ static int set_serial_info(struct async_struct * info,
 	new_serial.irq = irq_cannonicalize(new_serial.irq);
 
 	if ((new_serial.irq >= NR_IRQS) || (new_serial.port > 0xffff) ||
-	    (new_serial.type < PORT_UNKNOWN) ||
-	    (new_serial.type > PORT_MAX)) {
+	    (new_serial.baud_base == 0) || (new_serial.type < PORT_UNKNOWN) ||
+	    (new_serial.type > PORT_MAX) || (new_serial.type == PORT_CIRRUS) ||
+	    (new_serial.type == PORT_STARTECH)) {
 		return -EINVAL;
 	}
 
@@ -2313,8 +2316,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	if (info->blocked_open) {
 		if (info->close_delay) {
 			current->state = TASK_INTERRUPTIBLE;
-			current->timeout = jiffies + info->close_delay;
-			schedule();
+			schedule_timeout(info->close_delay);
 		}
 		wake_up_interruptible(&info->open_wait);
 	}
@@ -2368,8 +2370,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 #endif
 		current->state = TASK_INTERRUPTIBLE;
 		current->counter = 0;	/* make us low-priority */
-		current->timeout = jiffies + char_time;
-		schedule();
+		schedule_timeout(char_time);
 		if (signal_pending(current))
 			break;
 		if (timeout && ((orig_jiffies + timeout) < jiffies))
@@ -2603,7 +2604,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	tty->driver_data = info;
 	info->tty = tty;
 	if (serial_paranoia_check(info, tty->device, "rs_open")) {
-		MOD_DEC_USE_COUNT;
+		/* MOD_DEC_USE_COUNT; "info->tty" will cause this */
 		return -ENODEV;
 	}
 
@@ -2616,7 +2617,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	if (!tmp_buf) {
 		page = get_free_page(GFP_KERNEL);
 		if (!page) {
-			MOD_DEC_USE_COUNT;
+			/* MOD_DEC_USE_COUNT; "info->tty" will cause this? */
 			return -ENOMEM;
 		}
 		if (tmp_buf)
@@ -2632,7 +2633,7 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	    (info->flags & ASYNC_CLOSING)) {
 		if (info->flags & ASYNC_CLOSING)
 			interruptible_sleep_on(&info->close_wait);
-		MOD_DEC_USE_COUNT;
+		/* MOD_DEC_USE_COUNT; "info->tty" will cause this? */
 #ifdef SERIAL_DO_RESTART
 		return ((info->flags & ASYNC_HUP_NOTIFY) ?
 			-EAGAIN : -ERESTARTSYS);
@@ -2646,13 +2647,13 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	 */
 	retval = startup(info);
 	if (retval) {
-		MOD_DEC_USE_COUNT;
+		/* MOD_DEC_USE_COUNT; "info->tty" will cause this? */
 		return retval;
 	}
 
 	retval = block_til_ready(tty, filp, info);
 	if (retval) {
-		MOD_DEC_USE_COUNT;
+		/* MOD_DEC_USE_COUNT; "info->tty" will cause this? */
 #ifdef SERIAL_DEBUG_OPEN
 		printk("rs_open returning after block_til_ready with %d\n",
 		       retval);

@@ -371,6 +371,15 @@ nfs_free_dircache(void)
 	nfs_invalidate_dircache_sb(NULL);
 }
 
+/*
+ * Whenever an NFS operation succeeds, we know that the dentry
+ * is valid, so we update the revalidation timestamp.
+ */
+static inline void nfs_renew_times(struct dentry * dentry)
+{
+	dentry->d_time = jiffies;
+}
+
 #define NFS_REVALIDATE_INTERVAL (5*HZ)
 /*
  * This is called every time the dcache has a lookup hit,
@@ -416,23 +425,19 @@ parent->d_name.name, dentry->d_name.name);
 	 */
 	error = nfs_proc_lookup(NFS_DSERVER(parent), NFS_FH(parent), 
 				dentry->d_name.name, &fhandle, &fattr);
-	if (error) {
-printk("nfs_lookup_revalidate: error=%d\n", error);
+	if (error)
 		goto out_bad;
-	}
 
 	/* Inode number matches? */
-	if (fattr.fileid != inode->i_ino) {
-printk("nfs_lookup_revalidate: %s/%s inode mismatch, old=%ld, new=%u\n",
-parent->d_name.name, dentry->d_name.name, inode->i_ino, fattr.fileid);
+	if (fattr.fileid != inode->i_ino)
 		goto out_bad;
-	}
+
 	/* Filehandle matches? */
-	if (memcmp(dentry->d_fsdata, &fhandle, sizeof(struct nfs_fh))) {
-printk("nfs_lookup_revalidate: %s/%s fh changed\n",
-parent->d_name.name, dentry->d_name.name);
+	if (memcmp(dentry->d_fsdata, &fhandle, sizeof(struct nfs_fh)))
 		goto out_bad;
-	}
+
+	/* Ok, remeber that we successfully checked it.. */
+	nfs_renew_times(dentry);
 
 out_valid:
 	return 1;
@@ -481,32 +486,6 @@ inode->i_ino, inode->i_count, inode->i_nlink);
 }
 
 /*
- * Called to free the inode from the dentry. We must flush
- * any pending writes for this dentry before freeing the inode.
- */
-static void nfs_dentry_iput(struct dentry *dentry, struct inode *inode)
-{
-	dfprintk(VFS, "NFS: dentry_iput(%s/%s, cnt=%d, ino=%ld)\n",
-		dentry->d_parent->d_name.name, dentry->d_name.name,
-		dentry->d_count, inode->i_ino);
-
-	if (NFS_WRITEBACK(inode)) {
-#ifdef NFS_PARANOIA
-printk("nfs_dentry_iput: pending writes for %s/%s, i_count=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, inode->i_count);
-#endif
-		while (nfs_find_dentry_request(inode, dentry)) {
-#ifdef NFS_PARANOIA
-printk("nfs_dentry_iput: flushing %s/%s\n",
-dentry->d_parent->d_name.name, dentry->d_name.name);
-#endif
-			nfs_flush_dirty_pages(inode, 0, 0, 0);
-		}
-	}
-	iput(inode);
-}
-
-/*
  * Called when the dentry is being freed to release private memory.
  */
 static void nfs_dentry_release(struct dentry *dentry)
@@ -521,7 +500,7 @@ struct dentry_operations nfs_dentry_operations = {
 	NULL,			/* d_compare */
 	nfs_dentry_delete,	/* d_delete(struct dentry *) */
 	nfs_dentry_release,	/* d_release(struct dentry *) */
-	nfs_dentry_iput		/* d_iput(struct dentry *, struct inode *) */
+	NULL			/* d_iput */
 };
 
 #ifdef NFS_PARANOIA
@@ -546,15 +525,6 @@ static void show_dentry(struct list_head * dlist)
 	}
 }
 #endif
-
-/*
- * Whenever an NFS operation succeeds, we know that the dentry
- * is valid, so we update the revalidation timestamp.
- */
-static inline void nfs_renew_times(struct dentry * dentry)
-{
-	dentry->d_time = jiffies;
-}
 
 static int nfs_lookup(struct inode *dir, struct dentry * dentry)
 {
@@ -751,7 +721,7 @@ out:
  */
 static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
-	int error, rehash = 0;
+	int error;
 
 	dfprintk(VFS, "NFS: rmdir(%x/%ld, %s\n",
 		dir->i_dev, dir->i_ino, dentry->d_name.name);
@@ -761,39 +731,24 @@ static int nfs_rmdir(struct inode *dir, struct dentry *dentry)
 		goto out;
 
 	error = -EBUSY;
-	if (dentry->d_count > 1) {
-		/* Attempt to shrink child dentries ... */
-		shrink_dcache_parent(dentry);
-		if (dentry->d_count > 1)
-			goto out;
-	}
+	if (!list_empty(&dentry->d_hash))
+		goto out;
+
 #ifdef NFS_PARANOIA
 if (dentry->d_inode->i_count > 1)
 printk("nfs_rmdir: %s/%s inode busy?? i_count=%d, i_nlink=%d\n",
 dentry->d_parent->d_name.name, dentry->d_name.name,
 dentry->d_inode->i_count, dentry->d_inode->i_nlink);
 #endif
-	/*
-	 * Unhash the dentry while we remove the directory.
-	 */
-	if (!list_empty(&dentry->d_hash)) {
-		d_drop(dentry);
-		rehash = 1;
-	}
+
 	/*
 	 * Update i_nlink and free the inode before unlinking.
 	 */
 	if (dentry->d_inode->i_nlink)
 		dentry->d_inode->i_nlink --;
-	d_delete(dentry);
 	nfs_invalidate_dircache(dir);
 	error = nfs_proc_rmdir(NFS_SERVER(dir), NFS_FH(dentry->d_parent),
 				dentry->d_name.name);
-	if (!error) {
-		if (rehash)
-			d_add(dentry, NULL);
-		nfs_renew_times(dentry);
-	}
 out:
 	return error;
 }
@@ -945,18 +900,7 @@ static int nfs_safe_remove(struct dentry *dentry)
 
 	/* N.B. not needed now that d_delete is done in advance? */
 	error = -EBUSY;
-	if (inode) {
-		if (NFS_WRITEBACK(inode)) {
-			nfs_flush_dirty_pages(inode, 0, 0, 0);
-			if (NFS_WRITEBACK(inode)) {
-#ifdef NFS_PARANOIA
-printk("nfs_safe_remove: %s/%s writes pending, d_count=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, dentry->d_count);
-#endif
-				goto out;
-			}
-		}
-	} else {
+	if (!inode) {
 #ifdef NFS_PARANOIA
 printk("nfs_safe_remove: %s/%s already negative??\n",
 dentry->d_parent->d_name.name, dentry->d_name.name);
@@ -1203,29 +1147,14 @@ new_dentry->d_parent->d_name.name,new_dentry->d_name.name,new_dentry->d_count);
 	if (new_dir == old_dir)
 		goto do_rename;
 	/*
-	 * Cross-directory move ... check whether it's a file.
+	 * Cross-directory move ...
+	 *
+	 * ... prune child dentries and writebacks if needed.
 	 */
-	if (S_ISREG(old_inode->i_mode)) {
-		if (NFS_WRITEBACK(old_inode)) {
-#ifdef NFS_PARANOIA
-printk("nfs_rename: %s/%s has pending writes\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name);
-#endif
-			nfs_flush_dirty_pages(old_inode, 0, 0, 0);
-			if (NFS_WRITEBACK(old_inode)) {
-#ifdef NFS_PARANOIA
-printk("nfs_rename: %s/%s has pending writes after flush\n",
-old_dentry->d_parent->d_name.name, old_dentry->d_name.name);
-#endif
-				goto out;
-			}
-		}
-	}
-	/*
-	 * Moving a directory ... prune child dentries if needed.
-	 */
-	else if (old_dentry->d_count > 1)
+	if (old_dentry->d_count > 1) {
+		nfs_wb_all(old_inode);
 		shrink_dcache_parent(old_dentry);
+	}
 
 	/*
 	 * Now check the use counts ... we can't safely do the

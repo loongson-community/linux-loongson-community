@@ -2,7 +2,6 @@
 #define _LINUX_PROC_FS_H
 
 #include <linux/config.h>
-#include <linux/fs.h>
 #include <linux/malloc.h>
 
 /*
@@ -23,6 +22,7 @@ enum root_directory_inos {
 	PROC_CPUINFO,
 	PROC_PCI,
 	PROC_MCA,
+	PROC_NUBUS,
 	PROC_SELF,	/* will change inode # */
 	PROC_NET,
         PROC_SCSI,
@@ -142,6 +142,7 @@ enum net_directory_inos {
 	PROC_NET_NETSTAT,
 	PROC_NET_IPFW_CHAINS,
 	PROC_NET_IPFW_CHAIN_NAMES,
+	PROC_NET_AT_AARP,
 	PROC_NET_LAST
 };
 
@@ -173,6 +174,7 @@ enum scsi_directory_inos {
 	PROC_SCSI_ULTRASTOR,
 	PROC_SCSI_7000FASST,
 	PROC_SCSI_IBMMCA,
+	PROC_SCSI_FD_MCS,
 	PROC_SCSI_EATA2X,
 	PROC_SCSI_DC390T,
 	PROC_SCSI_AM53C974,
@@ -332,7 +334,7 @@ static inline int proc_scsi_unregister(struct proc_dir_entry *driver, int x)
 {
     extern void scsi_init_free(char *ptr, unsigned int size);
 
-    if(x <= PROC_SCSI_FILE)
+    if(x < PROC_SCSI_FILE)
 	return(proc_unregister(proc_scsi, x));
     else {
 	struct proc_dir_entry **p = &driver->subdir, *dp;
@@ -349,6 +351,7 @@ static inline int proc_scsi_unregister(struct proc_dir_entry *driver, int x)
     }
 }
 
+extern struct dentry_operations proc_dentry_operations;
 extern struct super_block *proc_read_super(struct super_block *,void *,int);
 extern int init_proc_fs(void);
 extern struct inode * proc_get_inode(struct super_block *, int, struct proc_dir_entry *);

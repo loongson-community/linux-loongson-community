@@ -696,7 +696,6 @@ static int md_ioctl (struct inode *inode, struct file *file,
     RO_IOCTLS(inode->i_rdev,arg);
     
     default:
-    printk ("Unknown md_ioctl %d\n", cmd);
     return -EINVAL;
   }
 
@@ -1140,8 +1139,7 @@ int md_do_sync(struct md_dev *mddev)
 		while (blocksize*j/(jiffies-starttime+1)*HZ/1024 > SPEED_LIMIT)
 		{
 			current->state = TASK_INTERRUPTIBLE;
-			current->timeout = jiffies+1;
-			schedule();
+			schedule_timeout(1);
 		}
 
 		/*

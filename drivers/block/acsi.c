@@ -3,7 +3,7 @@
  *
  * Copyright 1994 Roman Hodek <Roman.Hodek@informatik.uni-erlangen.de>
  *
- * Some parts are based on hd.c by Linus Thorvalds
+ * Some parts are based on hd.c by Linus Torvalds
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file COPYING in the main directory of this archive for
@@ -1343,7 +1343,7 @@ static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd )
 		if (acsi_wait_for_noIRQ( 20 ) &&
 		    acsicmd_nodma( modesense_cmd, 0 ) &&
 		    acsi_wait_for_IRQ( 3*HZ ) &&
-		    acsi_getstatus() == 0);
+		    acsi_getstatus() == 0)
 			break;
 	}
 	if (page == 4) {

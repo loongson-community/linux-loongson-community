@@ -516,6 +516,7 @@ void sound_unload_audiodev(int dev)
 {
 	if (dev != -1)
 	{
+		DMAbuf_deinit(dev);
 		audio_devs[dev] = NULL;
 		unregister_sound_dsp((dev<<4)+3);
 	}
@@ -534,6 +535,7 @@ int sound_alloc_audiodev(void)
 
 int sound_alloc_mididev(void)
 {
+#ifdef CONFIG_MIDI
 	int i = register_sound_midi(&oss_sound_fops);
 	if(i==-1)
 		return i;
@@ -541,6 +543,9 @@ int sound_alloc_mididev(void)
 	if(i>=num_midis)
 		num_midis = i + 1;
 	return i;
+#else
+	return (-1);
+#endif
 }
 
 int sound_alloc_synthdev(void)

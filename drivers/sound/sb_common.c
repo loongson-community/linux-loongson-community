@@ -10,7 +10,10 @@
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
  */
-
+/*
+ * Daniel J. Rodriksson: Modified sbintr to handle 8 and 16 bit interrupts
+ *                       for full duplex support ( only sb16 by now )
+ */
 #include <linux/config.h>
 #include <linux/delay.h>
 #include <asm/init.h>
@@ -140,7 +143,7 @@ static void sbintr(int irq, void *dev_id, struct pt_regs *dummy)
 		if (!(src & 3))
 			return;	/* Not a DSP interrupt */
 	}
-	if (devc->intr_active)
+	if (devc->intr_active && (!devc->fullduplex || (src & 0x01)))
 	{
 		switch (devc->irq_mode)
 		{
@@ -159,6 +162,26 @@ static void sbintr(int irq, void *dev_id, struct pt_regs *dummy)
 #ifdef CONFIG_MIDI
 				sb_midi_interrupt(devc);
 #endif
+				break;
+
+			default:
+				/* printk(KERN_WARN "Sound Blaster: Unexpected interrupt\n"); */
+				;
+		}
+	}
+	else if (devc->intr_active_16 && (src & 0x02))
+	{
+		switch (devc->irq_mode_16)
+		{
+			case IMODE_OUTPUT:
+				DMAbuf_outputintr(devc->dev, 1);
+				break;
+
+			case IMODE_INPUT:
+				DMAbuf_inputintr(devc->dev);
+				break;
+
+			case IMODE_INIT:
 				break;
 
 			default:
@@ -592,6 +615,7 @@ int sb_dsp_detect(struct address_info *hw_config)
 	sb_devc sb_info;
 	sb_devc *devc = &sb_info;
 
+	memset((char *) &sb_info, 0, sizeof(sb_info));	/* Zero everything */
 	sb_info.my_mididev = -1;
 	sb_info.my_mixerdev = -1;
 	sb_info.my_dev = -1;
@@ -608,7 +632,6 @@ int sb_dsp_detect(struct address_info *hw_config)
 #endif
 		return 0;
 	}
-	memset((char *) &sb_info, 0, sizeof(sb_info));	/* Zero everything */
 
 	devc->type = hw_config->card_subtype;
 
@@ -855,6 +878,7 @@ int sb_dsp_init(struct address_info *hw_config)
 
 			if(!sb16_set_dma_hw(devc)) {
 				free_irq(devc->irq, devc);
+			        release_region(hw_config->io_base, 16);
 				return 0;
 			}
 
@@ -932,7 +956,10 @@ void sb_dsp_disable_recording(int io_base)
 {
 }
 
-void sb_dsp_unload(struct address_info *hw_config)
+/* if (sbmpu) below we allow mpu401 to manage the midi devs
+   otherwise we have to unload them. (Andrzej Krzysztofowicz) */
+   
+void sb_dsp_unload(struct address_info *hw_config, int sbmpu)
 {
 	sb_devc *devc;
 
@@ -954,7 +981,9 @@ void sb_dsp_unload(struct address_info *hw_config)
 			sound_unload_mixerdev(devc->my_mixerdev);
 			/* We don't have to do this bit any more the UART401 is its own
 				master  -- Krzysztof Halasa */
-			/* sound_unload_mididev(devc->my_mididev); */
+			/* But we have to do it, if UART401 is not detected */
+			if (!sbmpu)
+				sound_unload_mididev(devc->my_mididev);
 			sound_unload_audiodev(devc->my_dev);
 		}
 		kfree(devc);
@@ -1301,10 +1330,8 @@ int probe_sbmpu(struct address_info *hw_config)
 			}
 			hw_config->name = "Sound Blaster 16";
 			hw_config->irq = -devc->irq;
-#if defined(CONFIG_MIDI) && defined(CONFIG_UART401)
 			if (devc->minor > 12)		/* What is Vibra's version??? */
 				sb16_set_mpu_port(devc, hw_config);
-#endif
 			break;
 
 		case MDL_ESS:

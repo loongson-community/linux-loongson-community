@@ -221,13 +221,13 @@ static int parse_options(char *options,int *fat, int *blksize, int *debug,
 			if (value) ret = 0;
 			else opts->sys_immutable = 1;
 		}
-		else if (!strcmp(this_char,"codepage")) {
+		else if (!strcmp(this_char,"codepage") && value) {
 			opts->codepage = simple_strtoul(value,&value,0);
 			if (*value) ret = 0;
 			else printk ("MSDOS FS: Using codepage %d\n",
 					opts->codepage);
 		}
-		else if (!strcmp(this_char,"iocharset")) {
+		else if (!strcmp(this_char,"iocharset") && value) {
 			p = value;
 			while (*value && *value != ',') value++;
 			len = value - p;
@@ -624,7 +624,8 @@ void fat_read_inode(struct inode *inode, struct inode_operations *fs_dir_inode_o
 	if (!(bh = fat_bread(sb, inode->i_ino >> MSDOS_DPB_BITS))) {
 		printk("dev = %s, ino = %ld\n",
 		       kdevname(inode->i_dev), inode->i_ino);
-		panic("fat_read_inode: unable to read i-node block");
+		fat_fs_panic(sb, "fat_read_inode: unable to read i-node block");
+		return;
 	}
 	raw_entry = &((struct msdos_dir_entry *) (bh->b_data))
 	    [inode->i_ino & (MSDOS_DPB-1)];
@@ -713,7 +714,8 @@ void fat_write_inode(struct inode *inode)
 	if (!(bh = fat_bread(sb, inode->i_ino >> MSDOS_DPB_BITS))) {
 		printk("dev = %s, ino = %ld\n",
 		       kdevname(inode->i_dev), inode->i_ino);
-		panic("msdos_write_inode: unable to read i-node block");
+		fat_fs_panic(sb, "msdos_write_inode: unable to read i-node block");
+		return;
 	}
 	raw_entry = &((struct msdos_dir_entry *) (bh->b_data))
 	    [inode->i_ino & (MSDOS_DPB-1)];

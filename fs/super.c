@@ -18,25 +18,15 @@
  */
 
 #include <linux/config.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/mount.h>
 #include <linux/malloc.h>
-#include <linux/major.h>
-#include <linux/stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
 #include <linux/locks.h>
-#include <linux/mm.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/fd.h>
 #include <linux/init.h>
 #include <linux/quotaops.h>
+#include <linux/acct.h>
 
-#include <asm/system.h>
 #include <asm/uaccess.h>
-#include <asm/bitops.h>
 
 #include <linux/nfs_fs.h>
 #include <linux/nfs_fs_sb.h>
@@ -53,10 +43,6 @@
  * else).
  */
 static struct semaphore mount_sem = MUTEX;
-
-#ifdef CONFIG_BSD_PROCESS_ACCT
-extern void acct_auto_close(kdev_t);
-#endif
 
 extern void wait_for_keypress(void);
 extern struct file_operations * get_blkfops(unsigned int major);
@@ -667,10 +653,7 @@ static int do_umount(kdev_t dev, int unmount_root, int flags)
 	 * are no quotas running any more. Just turn them on again.
 	 */
 	DQUOT_OFF(dev);
-
-#ifdef CONFIG_BSD_PROCESS_ACCT
-	(void) acct_auto_close(dev);
-#endif
+	acct_auto_close(dev);
 
 	/*
 	 * If we may have to abort operations to get out of this
@@ -868,17 +851,19 @@ int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const cha
 	struct vfsmount *vfsmnt;
 	int error;
 
-	down(&mount_sem);
 	error = -EACCES;
 	if (!(flags & MS_RDONLY) && dev && is_read_only(dev))
 		goto out;
-		/*flags |= MS_RDONLY;*/
 
+	/*
+	 * Do the lookup first to force automounting.
+	 */
 	dir_d = namei(dir_name);
 	error = PTR_ERR(dir_d);
 	if (IS_ERR(dir_d))
 		goto out;
 
+	down(&mount_sem);
 	error = -ENOTDIR;
 	if (!S_ISDIR(dir_d->d_inode->i_mode))
 		goto dput_and_out;
@@ -906,18 +891,16 @@ int do_mount(kdev_t dev, const char * dev_name, const char * dir_name, const cha
 
 	error = -ENOMEM;
 	vfsmnt = add_vfsmnt(sb, dev_name, dir_name);
-	if (!vfsmnt)
-		goto dput_and_out;
-	d_mount(dir_d, sb->s_root);
-	error = 0;	/* we don't dput(dir_d) - see umount */
-
-out:
-	up(&mount_sem);
-	return error;	
+	if (vfsmnt) {
+		d_mount(dget(dir_d), sb->s_root);
+		error = 0;
+	}
 
 dput_and_out:
 	dput(dir_d);
-	goto out;
+	up(&mount_sem);
+out:
+	return error;	
 }
 
 
@@ -975,6 +958,8 @@ static int do_remount(const char *dir,int flags,char *data)
 			 */
 			shrink_dcache_sb(sb);
 			fsync_dev(sb->s_dev);
+			if (flags & MS_RDONLY)
+				acct_auto_close(sb->s_dev);
 			retval = do_remount_sb(sb, flags, data);
 		}
 		dput(dentry);
@@ -1226,9 +1211,7 @@ void __init mount_root(void)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 
-extern int initmem_freed;
-
-static int __init do_change_root(kdev_t new_root_dev,const char *put_old)
+int __init change_root(kdev_t new_root_dev,const char *put_old)
 {
 	kdev_t old_root_dev;
 	struct vfsmount *vfsmnt;
@@ -1248,7 +1231,7 @@ static int __init do_change_root(kdev_t new_root_dev,const char *put_old)
 	dput(old_pwd);
 #if 1
 	shrink_dcache();
-	printk("do_change_root: old root has d_count=%d\n", old_root->d_count);
+	printk("change_root: old root has d_count=%d\n", old_root->d_count);
 #endif
 	/*
 	 * Get the new mount directory
@@ -1291,15 +1274,6 @@ static int __init do_change_root(kdev_t new_root_dev,const char *put_old)
 	}
 	printk(KERN_CRIT "Trouble: add_vfsmnt failed\n");
 	return -ENOMEM;
-}
-
-int change_root(kdev_t new_root_dev,const char *put_old)
-{
-	if (initmem_freed) {
-		printk (KERN_CRIT "Initmem has been already freed. Staying in initrd\n");
-		return -EBUSY;
-	}
-	return do_change_root(new_root_dev, put_old);
 }
 
 #endif

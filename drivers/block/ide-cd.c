@@ -1,8 +1,9 @@
-#define VERBOSE_IDE_CD_ERRORS 1
+#define VERBOSE_IDE_CD_ERRORS	1
 /*
  * linux/drivers/block/ide-cd.c
  * Copyright (C) 1994, 1995, 1996  scott snyder  <snyder@fnald0.fnal.gov>
  * Copyright (C) 1996-1998  Erik Andersen <andersee@debian.org>
+ * Copyright (C) 1998 Jens Axboe and Chris Zwilling
  *
  * May be copied or modified under the terms of the GNU General Public
  * License.  See linux/COPYING for more information.
@@ -218,9 +219,16 @@
  *                         since the .pdf version doesn't seem to work...
  *                     -- Updated the TODO list to something more current.
  *
+ * 4.15  Aug 25, 1998  -- Updated ide-cd.h to respect mechine endianess, 
+ *                         patch thanks to "Eddie C. Dost" <ecd@skynet.be>
+ *
+ * 4.50  Oct 19, 1998  -- New maintainers!
+ *                         Jens Axboe <axboe@image.dk>
+ *                         Chris Zwilling <chris@cloudnet.com>
+ *
  *************************************************************************/
 
-#define IDECD_VERSION "4.14"
+#define IDECD_VERSION "4.50"
 
 #include <linux/module.h>
 #include <linux/types.h>
@@ -1287,8 +1295,7 @@ static
 void cdrom_sleep (int time)
 {
 	current->state = TASK_INTERRUPTIBLE;
-	current->timeout = jiffies + time;
-	schedule ();
+	schedule_timeout(time);
 }
 
 static
@@ -2597,6 +2604,8 @@ int ide_cdrom_select_disc (struct cdrom_device_info *cdi, int slot)
 		return 0;
 	}
 	else {
+		int was_locked;
+
 		if (
 #if ! STANDARD_ATAPI
 		    CDROM_STATE_FLAGS (drive)->sanyo_slot == 0 &&
@@ -2604,6 +2613,10 @@ int ide_cdrom_select_disc (struct cdrom_device_info *cdi, int slot)
 		    info->changer_info->slots[slot].disc_present == 0) {
 			return -ENOMEDIUM;
 		}
+
+		was_locked = CDROM_STATE_FLAGS (drive)->door_locked;
+		if (was_locked)
+			(void) cdrom_lockdoor (drive, 0, NULL);
 
 		stat = cdrom_load_unload (drive, slot, NULL);
 		cdrom_saw_media_change (drive);
@@ -2618,10 +2631,12 @@ int ide_cdrom_select_disc (struct cdrom_device_info *cdi, int slot)
 			stat = cdrom_read_toc (drive, &my_reqbuf);
 			if (stat)
 				return stat;
-			return slot;
 		}
-		else
-			return stat;
+
+		if (was_locked)
+			(void) cdrom_lockdoor (drive, 1, NULL);
+
+		return slot;
 	}
 }
 

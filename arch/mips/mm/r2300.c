@@ -1,9 +1,8 @@
-/*
+/* $Id: r2300.c,v 1.6 1998/08/25 09:14:46 ralf Exp $
+ *
  * r2300.c: R2000 and R3000 specific mmu/cache code.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
- * $Id: r2300.c,v 1.5 1998/04/05 11:23:55 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -14,6 +13,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/sgialib.h>
+#include <asm/mmu_context.h>
 
 extern unsigned long mips_tlb_entries;
 
@@ -274,6 +274,7 @@ __initfunc(void ld_mmu_r2300(void))
 	flush_tlb_mm = r2300_flush_tlb_mm;
 	flush_tlb_range = r2300_flush_tlb_range;
 	flush_tlb_page = r2300_flush_tlb_page;
+	r3000_asid_setup();
 
 	load_pgd = r2300_load_pgd;
 	pgd_init = r2300_pgd_init;

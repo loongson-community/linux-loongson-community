@@ -78,8 +78,18 @@ static inline void do_identify (ide_drive_t *drive, byte cmd)
 	ide_fixstring (id->serial_no, sizeof(id->serial_no), bswap);
 
 	id->model[sizeof(id->model)-1] = '\0';	/* we depend on this a lot! */
-	drive->present = 1;
 	printk("%s: %s, ", drive->name, id->model);
+	drive->present = 1;
+
+	/*
+	 * Prevent long system lockup probing later for non-existant
+	 * slave drive if the hwif is actually a Kodak CompactFlash card.
+	 */
+	if (!strcmp(id->model, "KODAK ATA_FLASH")) {
+		ide_drive_t *mate = &HWIF(drive)->drives[1^drive->select.b.unit];
+		mate->present = 0;
+		mate->noprobe = 1;
+	}
 
 	/*
 	 * Check for an ATAPI device
@@ -273,6 +283,18 @@ static int do_probe (ide_drive_t *drive, byte cmd)
 	{
 		if ((rc = try_to_identify(drive,cmd)))   /* send cmd and wait */
 			rc = try_to_identify(drive,cmd); /* failed: try again */
+		if (rc == 1 && cmd == WIN_PIDENTIFY && drive->autotune != 2) {
+			unsigned long timeout;
+			printk("%s: no response (status = 0x%02x), resetting drive\n", drive->name, GET_STAT());
+			delay_50ms();
+			OUT_BYTE (drive->select.all, IDE_SELECT_REG);
+			delay_50ms();
+			OUT_BYTE(WIN_SRST, IDE_COMMAND_REG);
+			timeout = jiffies;
+			while ((GET_STAT() & BUSY_STAT) && jiffies < timeout + WAIT_WORSTCASE)
+				delay_50ms();
+			rc = try_to_identify(drive, cmd);
+		}
 		if (rc == 1)
 			printk("%s: no response (status = 0x%02x)\n", drive->name, GET_STAT());
 		(void) GET_STAT();		/* ensure drive irq is clear */

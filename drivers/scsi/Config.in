@@ -48,8 +48,20 @@ dep_tristate 'EATA ISA/EISA/PCI (DPT and generic EATA/DMA-compliant boards) supp
     int  '  maximum number of queued commands' CONFIG_SCSI_EATA_MAX_TAGS 16
   fi
 dep_tristate 'Future Domain 16xx SCSI/AHA 2920 support' CONFIG_SCSI_FUTURE_DOMAIN $CONFIG_SCSI
+if [ "$CONFIG_MCA" = "y" ]; then
+  if [ "$CONFIG_SCSI" = "y" ]; then
+    bool 'Future Domain MCS-600/700 SCSI support' CONFIG_SCSI_FD_MCS
+  fi
+fi
 dep_tristate 'GDT SCSI Disk Array Controller support' CONFIG_SCSI_GDTH $CONFIG_SCSI
 dep_tristate 'Generic NCR5380/53c400 SCSI support' CONFIG_SCSI_GENERIC_NCR5380 $CONFIG_SCSI
+if [ "$CONFIG_PARPORT" != "n" ]; then
+  dep_tristate 'IOMEGA Parallel Port ZIP drive SCSI support' CONFIG_SCSI_PPA $CONFIG_SCSI $CONFIG_PARPORT
+  if [ "$CONFIG_SCSI_PPA" != "n" ]; then
+    bool  '  Pedantic EPP-checking'   CONFIG_SCSI_PPA_HAVE_PEDANTIC
+  fi
+  dep_tristate 'IOMEGA ZIP Plus drive SCSI support' CONFIG_SCSI_IMM $CONFIG_SCSI $CONFIG_PARPORT
+fi
 if [ "$CONFIG_SCSI_GENERIC_NCR5380" != "n" ]; then
 	bool '   Enable NCR53c400 extensions' CONFIG_SCSI_GENERIC_NCR53C400
 	choice 'NCR5380/53c400 mapping method (use Port for T130B)' \
@@ -88,12 +100,6 @@ if [ "$CONFIG_MCA" = "y" ]; then
      bool '  Reset SCSI-devices at boottime' CONFIG_IBMMCA_SCSI_DEV_RESET
   fi
 fi
-if [ "$CONFIG_PARPORT" != "n" ]; then
-  dep_tristate 'IOMEGA Parallel Port ZIP drive SCSI support' CONFIG_SCSI_PPA $CONFIG_SCSI $CONFIG_PARPORT
-  if [ "$CONFIG_SCSI_PPA" != "n" ]; then
-    int  '  Pedantic EPP-checking'   CONFIG_SCSI_PPA_HAVE_PEDANTIC 2 0 3
-  fi
-fi
 dep_tristate 'PAS16 SCSI support' CONFIG_SCSI_PAS16 $CONFIG_SCSI
 dep_tristate 'PCI2000 support' CONFIG_SCSI_PCI2000 $CONFIG_SCSI
 dep_tristate 'PCI2220i support' CONFIG_SCSI_PCI2220I $CONFIG_SCSI
@@ -103,8 +109,11 @@ if [ "$CONFIG_PCI" = "y" ]; then
   dep_tristate 'Qlogic ISP SCSI support' CONFIG_SCSI_QLOGIC_ISP $CONFIG_SCSI
 fi
 dep_tristate 'Seagate ST-02 and Future Domain TMC-8xx SCSI support' CONFIG_SCSI_SEAGATE $CONFIG_SCSI
-if [ "$CONFIG_PCI" = "y" -a "$CONFIG_SCSI_AM53C974" != "y" ]; then
-  dep_tristate 'Tekram DC-390(T) (AMD PCscsi) SCSI support' CONFIG_SCSI_DC390T $CONFIG_SCSI
+if [ "$CONFIG_PCI" = "y" ]; then
+  dep_tristate 'Tekram DC390(T) and Am53/79C974 SCSI support' CONFIG_SCSI_DC390T $CONFIG_SCSI
+  if [ "$CONFIG_SCSI_DC390T" != "n" ]; then
+    bool '  _omit_ support for non-DC390 adapters' CONFIG_SCSI_DC390T_NOGENSUPP
+  fi
 fi
 dep_tristate 'Trantor T128/T128F/T228 SCSI support' CONFIG_SCSI_T128 $CONFIG_SCSI
 dep_tristate 'UltraStor 14F/34F support' CONFIG_SCSI_U14_34F $CONFIG_SCSI

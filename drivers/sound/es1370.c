@@ -24,9 +24,10 @@
  *
  * Module command line parameters:
  *   joystick if 1 enables the joystick interface on the card; but it still
- *            needs a separate joystick driver (presumably PC standard, although
- *            the chip doc doesn't say anything and it looks slightly fishy from
- *            the PCI standpoint...)
+ *            needs a driver for joysticks connected to a standard IBM-PC
+ *	      joyport. It is tested with the joy-analog driver. This 
+ *	      module must be loaded before the joystick driver. Kmod will
+ *	      not ensure that.
  *   lineout  if 1 the LINE jack is used as an output instead of an input.
  *            LINE then contains the unmixed dsp output. This can be used
  *            to make the card a four channel one: use dsp to output two
@@ -76,6 +77,8 @@
  *    22.08.98   0.12  Mixer registers actually have 5 instead of 4 bits
  *                     pointed out by Itai Nahshon
  *    31.08.98   0.13  Fix realplayer problems - dac.count issues
+ *    08.10.98   0.14  Joystick support fixed
+ *		       -- Oliver Neukum <c188@org.chemie.uni-muenchen.de>
  *
  * some important things missing in Ensoniq documentation:
  *
@@ -98,6 +101,7 @@
 
 /*****************************************************************************/
       
+#include <linux/config.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -1013,11 +1017,8 @@ static int drain_dac1(struct es1370_state *s, int nonblock)
                 }
 		tmo = (count * HZ) / dac1_samplerate[(s->ctrl & CTRL_WTSRSEL) >> CTRL_SH_WTSRSEL];
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P1FMT) >> SCTRL_SH_P1FMT];
-		current->timeout = jiffies + (tmo ? tmo : 1);
-                schedule();
-		if (tmo && !current->timeout)
+		if (!schedule_timeout(tmo ? : 1) && tmo)
 			printk(KERN_DEBUG "es1370: dma timed out??\n");
-		current->timeout = 0;
         }
         remove_wait_queue(&s->dma_dac1.wait, &wait);
         current->state = TASK_RUNNING;
@@ -1051,11 +1052,8 @@ static int drain_dac2(struct es1370_state *s, int nonblock)
                 }
 		tmo = (count * HZ) / DAC2_DIVTOSR((s->ctrl & CTRL_PCLKDIV) >> CTRL_SH_PCLKDIV);
 		tmo >>= sample_shift[(s->sctrl & SCTRL_P2FMT) >> SCTRL_SH_P2FMT];
-		current->timeout = jiffies + (tmo ? tmo : 1);
-                schedule();
-		if (tmo && !current->timeout)
+		if (!schedule_timeout(tmo ? : 1) && tmo)
 			printk(KERN_DEBUG "es1370: dma timed out??\n");
-		current->timeout = 0;
         }
         remove_wait_queue(&s->dma_dac2.wait, &wait);
         current->state = TASK_RUNNING;
@@ -2197,11 +2195,8 @@ static int es1370_midi_release(struct inode *inode, struct file *file)
 				return -EBUSY;
 			}
 			tmo = (count * HZ) / 3100;
-			current->timeout = tmo ? jiffies + tmo : 0;
-			schedule();
-			if (tmo && !current->timeout)
+			if (!schedule_timeout(tmo ? : 1) && tmo)
 				printk(KERN_DEBUG "es1370: midi timed out??\n");
-			current->timeout = 0;
 		}
 		remove_wait_queue(&s->midi.owait, &wait);
 		current->state = TASK_RUNNING;
@@ -2242,8 +2237,11 @@ static /*const*/ struct file_operations es1370_midi_fops = {
 
 /* maximum number of devices */
 #define NR_DEVICE 5
-
+#ifdef CONFIG_SOUND_ES1370_JOYPORT_BOOT
+static int joystick[NR_DEVICE] = { 1, 0, };
+#else
 static int joystick[NR_DEVICE] = { 0, };
+#endif
 static int lineout[NR_DEVICE] = { 0, };
 static int micz[NR_DEVICE] = { 0, };
 
@@ -2337,8 +2335,6 @@ __initfunc(int init_es1370(void))
 			goto err_dev3;
 		if ((s->dev_midi = register_sound_midi(&es1370_midi_fops)) < 0)
 			goto err_dev4;
-		if (s->ctrl & CTRL_JYSTK_EN)
-			request_region(0x200, JOY_EXTENT, "es1370");
 		/* initialize the chips */
 		outl(s->ctrl, s->io+ES1370_REG_CONTROL);
 		outl(s->sctrl, s->io+ES1370_REG_SERIAL_CONTROL);

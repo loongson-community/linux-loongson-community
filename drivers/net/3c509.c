@@ -34,6 +34,7 @@
 		v1.10 4/21/97 Fixed module code so that multiple cards may be detected,
 				other cleanups.  -djb
 		Andrea Arcangeli:	Upgraded to Donald Becker's version 1.12.
+		Rick Payne:	Fixed SMP race condition
 */
 
 static char *version = "3c509.c:1.12 6/4/97 becker@cesdis.gsfc.nasa.gov\n";
@@ -59,6 +60,7 @@ static char *version = "3c509.c:1.12 6/4/97 becker@cesdis.gsfc.nasa.gov\n";
 #include <linux/skbuff.h>
 #include <linux/delay.h>	/* for udelay() */
 
+#include <asm/spinlock.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 
@@ -122,6 +124,7 @@ enum RxFilter {
 struct el3_private {
 	struct enet_statistics stats;
 	struct device *next_dev;
+	spinlock_t lock;
 	/* skb send-queue */
 	int head, size;
 	struct sk_buff *queue[SKB_QUEUE_SIZE];
@@ -178,28 +181,64 @@ int el3_probe(struct device *dev)
 	}
 
 #ifdef CONFIG_MCA
-#warning "The MCA code in drivers/net/3c509.c does not compile"
-#warning "See http://glycerine.itsmm.uni.edu/mca/ for patches."
-#if 0   
-	if (MCA_bus) {
-		mca_adaptor_select_mode(1);
-		for (i = 0; i < 8; i++)
-			if ((mca_adaptor_id(i) | 1) == 0x627c) {
-				ioaddr = mca_pos_base_addr(i);
-				irq = inw(ioaddr + WN0_IRQ) >> 12;
-				if_port = inw(ioaddr + 6)>>14;
-				for (i = 0; i < 3; i++)
-					phys_addr[i] = htons(read_eeprom(ioaddr, i));
+#define MCA_NUMBER_OF_SLOTS 8
+#define MCA_PORT_POS_SEL 0x096
+#define MCA_PORT_ID_REG_0 0x100
+#define MCA_PORT_ID_REG_1 0x101
+#define MCA_SELECT_BIT 0x08
+	if (MCA_bus) 
+	{
+		u_int mca_id;
+		u_char posreg[4];
+		int mca_slot;
 
-				mca_adaptor_select_mode(0);
-				goto found;
+		if (el3_debug > 2)
+			printk("3c529: probing...\n");
+		/* This should probably be done once early on and read into
+		 * a structure somewhere... */
+		for (mca_slot = 0; mca_slot < MCA_NUMBER_OF_SLOTS; mca_slot++)
+		{
+			/* Select MCA slot i */
+			outb_p(mca_slot | MCA_SELECT_BIT, MCA_PORT_POS_SEL); 
+			mca_id = ((inb_p(MCA_PORT_ID_REG_1)<<8) 
+					  + inb_p(MCA_PORT_ID_REG_0));
+			if (mca_id == 0x627C     /* 10base2 */
+				|| mca_id == 0x627D  /* 10baseT */
+				|| mca_id == 0x62DB	 /* Test mode */
+				|| mca_id == 0x62F6	 /* TP or coax */
+				|| mca_id == 0x62F7) /* TP only */
+			{
+				if (el3_debug > 1)
+					printk("3c529: Found with id 0x%x at slot %d\n",
+						 mca_id, mca_slot);
+				posreg[0] = inb_p(0x102);  posreg[1] = inb_p(0x103);
+				posreg[2] = inb_p(0x104);  posreg[3] = inb_p(0x105);
+				break;
 			}
-		mca_adaptor_select_mode(0);
-
+			mca_id = 0xFFFF;
+		}
+		/* Read values from POS registers so now disable */
+		outb(0,MCA_PORT_POS_SEL);
+		if (mca_id != 0xFFFF && !(posreg[0]&0x01))
+			printk("3c529: Adapter found but disabled in slot %d\n", mca_slot);
+		else if (mca_id != 0xFFFF && posreg[0]&0x01)
+		{
+			/* Found and adapter is enabled */
+			if (el3_debug > 2)
+				printk("3c529: pos registers 0:0x%x 1:0x%x 2:0x%x 3:0x%x\n",
+					 posreg[0], posreg[1], posreg[2], posreg[3]);
+			ioaddr = ((short)((posreg[2]&0xfc)|0x02)) << 8;
+			irq = posreg[3] & 0x0f;
+			if_port = posreg[2] & 0x03;
+			if (el3_debug > 2)
+				printk("3c529: irq %d  ioaddr 0x%x  ifport %d\n",
+					irq, ioaddr, if_port);
+			for (i = 0; i < 3; i++)
+				phys_addr[i] = htons(read_eeprom(ioaddr, i));
+			goto found;
+		}
 	}
 #endif
-#endif
-
 	/* Reset the ISA PnP mechanism on 3c509b. */
 	outb(0x02, 0x279);           /* Select PnP config control register. */
 	outb(0x02, 0xA79);           /* Return to WaitForKey state. */
@@ -365,6 +404,9 @@ el3_open(struct device *dev)
 	outw(RxReset, ioaddr + EL3_CMD);
 	outw(SetStatusEnb | 0x00, ioaddr + EL3_CMD);
 
+	/* Set the spinlock before grabbing IRQ! */
+	((struct el3_private *)dev->priv)->lock = (spinlock_t) SPIN_LOCK_UNLOCKED;
+
 	if (request_irq(dev->irq, &el3_interrupt, 0, "3c509", dev)) {
 		return -EAGAIN;
 	}
@@ -484,6 +526,11 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 	if (test_and_set_bit(0, (void*)&dev->tbusy) != 0)
 		printk("%s: Transmitter access conflict.\n", dev->name);
 	else {
+		unsigned long flags;
+
+	    	/* Spin on the lock, until we're clear of an IRQ */
+	    	spin_lock_irqsave(&lp->lock, flags);
+	    
 		/* Put out the doubleword header... */
 		outw(skb->len, ioaddr + TX_FIFO);
 		outw(0x00, ioaddr + TX_FIFO);
@@ -500,6 +547,8 @@ el3_start_xmit(struct sk_buff *skb, struct device *dev)
 		} else
 			/* Interrupt us when the FIFO has room for max-sized packet. */
 			outw(SetTxThreshold + 1536, ioaddr + EL3_CMD);
+
+		spin_unlock_irqrestore(&lp->lock, flags);
 	}
 
 	dev_kfree_skb (skb);
@@ -524,6 +573,7 @@ static void
 el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct device *dev = (struct device *)dev_id;
+	struct el3_private *lp;
 	int ioaddr, status;
 	int i = INTR_WORK;
 
@@ -531,6 +581,9 @@ el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		printk ("el3_interrupt(): irq %d for unknown device.\n", irq);
 		return;
 	}
+
+	lp = (struct el3_private *)dev->priv;
+	spin_lock(&lp->lock);
 
 	if (dev->interrupt)
 		printk("%s: Re-entering the interrupt handler.\n", dev->name);
@@ -593,7 +646,7 @@ el3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		printk("%s: exiting interrupt, status %4.4x.\n", dev->name,
 			   inw(ioaddr + EL3_STATUS));
 	}
-
+	spin_unlock(&lp->lock);
 	dev->interrupt = 0;
 	return;
 }

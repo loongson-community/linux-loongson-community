@@ -5,6 +5,8 @@
  *               1994, 1995   Eberhard Moenkeberg, emoenke@gwdg.de
  *               1996         David van Leeuwen, david@tm.tno.nl
  *               1997, 1998   Erik Andersen, andersee@debian.org
+ *               1998         Jens Axboe, axboe@image.dk and
+ *                            Chris Zwilling, chris@cloudnet.com
  */
  
 #ifndef	_LINUX_CDROM_H
@@ -415,6 +417,14 @@ extern struct file_operations cdrom_fops;
 
 extern int register_cdrom(struct cdrom_device_info *cdi);
 extern int unregister_cdrom(struct cdrom_device_info *cdi);
+typedef struct {
+    int data;
+    int audio;
+    int cdi;
+    int xa;
+    long error;
+} tracktype;
+extern void cdrom_count_tracks(struct cdrom_device_info *cdi,tracktype* tracks);
 #endif  /* End of kernel only stuff */ 
 
 #endif  /* _LINUX_CDROM_H */

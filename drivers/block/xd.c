@@ -108,9 +108,7 @@ static XD_SIGNATURE xd_sigs[] __initdata = {
 	{ 0x0008,"[BXD06 (C) DTC 17-MAY-1985]",xd_dtc_init_controller,xd_dtc5150cx_init_drive," DTC 5150CX" }, /* Andrzej Krzysztofowicz, ankry@mif.pg.gda.pl */
 	{ 0x000B,"CRD18A   Not an IBM rom. (C) Copyright Data Technology Corp. 05/31/88",xd_dtc_init_controller,xd_dtc_init_drive," DTC 5150X" }, /* Todd Fries, tfries@umr.edu */
 	{ 0x000B,"CXD23A Not an IBM ROM (C)Copyright Data Technology Corp 12/03/88",xd_dtc_init_controller,xd_dtc_init_drive," DTC 5150X" }, /* Pat Mackinlay, pat@it.com.au */
-	{ 0x0008,"07/15/86 (C) Copyright 1986 Western Digital Corp",xd_wd_init_controller,xd_wd_init_drive," Western Dig. 1002AWX1" }, /* Ian Justman, citrus!ianj@csusac.ecs.csus.edu */
 	{ 0x0008,"07/15/86(C) Copyright 1986 Western Digital Corp.",xd_wd_init_controller,xd_wd_init_drive," Western Dig. 1002-27X" }, /* Andrzej Krzysztofowicz, ankry@mif.pg.gda.pl */
-	{ 0x0008,"06/24/88 (C) Copyright 1988 Western Digital Corp",xd_wd_init_controller,xd_wd_init_drive," Western Dig. 1004A27X" }, /* Dave Thaler, thalerd@engin.umich.edu */
 	{ 0x0008,"06/24/88(C) Copyright 1988 Western Digital Corp.",xd_wd_init_controller,xd_wd_init_drive," Western Dig. WDXT-GEN2" }, /* Dan Newcombe, newcombe@aa.csc.peachnet.edu */
 	{ 0x0015,"SEAGATE ST11 BIOS REVISION",xd_seagate_init_controller,xd_seagate_init_drive," Seagate ST11M/R" }, /* Salvador Abreu, spa@fct.unl.pt */
 	{ 0x0010,"ST11R BIOS",xd_seagate_init_controller,xd_seagate_init_drive," Seagate ST11M/R" }, /* Risto Kankkunen, risto.kankkunen@cs.helsinki.fi */
@@ -533,6 +531,8 @@ static void xd_interrupt_handler(int irq, void *dev_id, struct pt_regs * regs)
 /* xd_setup_dma: set up the DMA controller for a data transfer */
 static u_char xd_setup_dma (u_char mode,u_char *buffer,u_int count)
 {
+	unsigned long f;
+	
 	if (nodma)
 		return (PIO_MODE);
 	if (((u_int) buffer & 0xFFFF0000) != (((u_int) buffer + count) & 0xFFFF0000)) {
@@ -541,11 +541,15 @@ static u_char xd_setup_dma (u_char mode,u_char *buffer,u_int count)
 #endif /* DEBUG_OTHER */
 		return (PIO_MODE);
 	}
+	
+	f=claim_dma_lock();
 	disable_dma(xd_dma);
 	clear_dma_ff(xd_dma);
 	set_dma_mode(xd_dma,mode);
 	set_dma_addr(xd_dma,(u_int) buffer);
 	set_dma_count(xd_dma,count);
+	
+	release_dma_lock(f);
 
 	return (DMA_MODE);			/* use DMA and INT */
 }
@@ -583,7 +587,7 @@ static inline u_char xd_waitport (u_short port,u_char flags,u_char mask,u_long t
 	int success;
 
 	xdc_busy = 1;
-	while ((success = ((inb(port) & mask) != flags)) && (jiffies < expiry)) {
+	while ((success = ((inb(port) & mask) != flags)) && time_before(jiffies, expiry)) {
 		xd_timer.expires = jiffies;
 		cli();
 		add_timer(&xd_timer);
@@ -597,13 +601,22 @@ static inline u_char xd_waitport (u_short port,u_char flags,u_char mask,u_long t
 
 static inline u_int xd_wait_for_IRQ (void)
 {
+	unsigned long flags;
 	xd_watchdog_int.expires = jiffies + 8 * HZ;
 	add_timer(&xd_watchdog_int);
+	
+	flags=claim_dma_lock();
 	enable_dma(xd_dma);
+	release_dma_lock(flags);
+	
 	sleep_on(&xd_wait_int);
 	del_timer(&xd_watchdog_int);
 	xdc_busy = 0;
+	
+	flags=claim_dma_lock();
 	disable_dma(xd_dma);
+	release_dma_lock(flags);
+	
 	if (xd_error) {
 		printk("xd: missed IRQ - command aborted\n");
 		xd_error = 0;
@@ -1154,7 +1167,7 @@ int init_module(void)
 		for (i = 4; i > 0; i--)
 			if(((xd[i] = xd[i-1]) >= 0) && !count)
 				count = i;
-		if((xd[0] = count));
+		if((xd[0] = count))
 			xd_setup(NULL, xd);
 		xd_geninit(&(struct gendisk) { 0,0,0,0,0,0,0,0,0,0,0 });
 		if (!xd_drives) {

@@ -2,7 +2,7 @@
  *   
  * linux/fs/autofs/autofs_i.h
  *
- *   Copyright 1997 Transmeta Corporation - All Rights Reserved
+ *   Copyright 1997-1998 Transmeta Corporation - All Rights Reserved
  *
  * This file is part of the Linux kernel and is made available under
  * the terms of the GNU General Public License, version 2, or at your
@@ -47,11 +47,13 @@
 
 struct autofs_dir_ent {
 	int hash;
-	struct autofs_dir_ent *next;
-	struct autofs_dir_ent **back;
 	char *name;
 	int len;
 	ino_t ino;
+	struct dentry *dentry;
+	/* Linked list of entries */
+	struct autofs_dir_ent *next;
+	struct autofs_dir_ent **back;
 	/* The following entries are for the expiry system */
 	unsigned long last_usage;
 	struct autofs_dir_ent *exp_next;
@@ -64,9 +66,9 @@ struct autofs_dirhash {
 };
 
 struct autofs_wait_queue {
-	unsigned long wait_queue_token;
 	struct wait_queue *queue;
 	struct autofs_wait_queue *next;
+	autofs_wqt_t wait_queue_token;
 	/* We use the following to see what we are waiting for */
 	int hash;
 	int len;
@@ -77,8 +79,8 @@ struct autofs_wait_queue {
 };
 
 struct autofs_symlink {
-	int len;
 	char *data;
+	int len;
 	time_t mtime;
 };
 
@@ -123,7 +125,7 @@ void autofs_initialize_hash(struct autofs_dirhash *);
 struct autofs_dir_ent *autofs_hash_lookup(const struct autofs_dirhash *,struct qstr *);
 void autofs_hash_insert(struct autofs_dirhash *,struct autofs_dir_ent *);
 void autofs_hash_delete(struct autofs_dir_ent *);
-struct autofs_dir_ent *autofs_hash_enum(const struct autofs_dirhash *,off_t *);
+struct autofs_dir_ent *autofs_hash_enum(const struct autofs_dirhash *,off_t *,struct autofs_dir_ent *);
 void autofs_hash_nuke(struct autofs_dirhash *);
 
 /* Expiration-handling functions */
@@ -144,7 +146,7 @@ struct super_block *autofs_read_super(struct super_block *, void *,int);
 /* Queue management functions */
 
 int autofs_wait(struct autofs_sb_info *,struct qstr *);
-int autofs_wait_release(struct autofs_sb_info *,unsigned long,int);
+int autofs_wait_release(struct autofs_sb_info *,autofs_wqt_t,int);
 void autofs_catatonic_mode(struct autofs_sb_info *);
 
 #ifdef DEBUG

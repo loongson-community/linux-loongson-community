@@ -2,7 +2,7 @@
  *		IP_MASQ_RAUDIO  - Real Audio masquerading module
  *
  *
- * Version:	@(#)$Id: ip_masq_raudio.c,v 1.9 1998/02/23 02:50:19 davem Exp $
+ * Version:	@(#)$Id: ip_masq_raudio.c,v 1.11 1998/10/06 04:49:04 davem Exp $
  *
  * Author:	Nigel Metheringham
  *		Real Time Streaming code by Progressive Networks
@@ -62,6 +62,7 @@
  *	
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <asm/system.h>
 #include <linux/types.h>
@@ -110,10 +111,12 @@ struct ip_masq_app *masq_incarnations[MAX_MASQ_APP_PORTS];
 /*
  *	Debug level
  */
+#ifdef CONFIG_IP_MASQ_DEBUG
 static int debug=0;
+MODULE_PARM(debug, "i");
+#endif
 
 MODULE_PARM(ports, "1-" __MODULE_STRING(MAX_MASQ_APP_PORTS) "i");
-MODULE_PARM(debug, "i");
 
 
 static int

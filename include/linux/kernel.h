@@ -11,7 +11,8 @@
 #include <linux/linkage.h>
 
 /* Optimization barrier */
-#define barrier() __asm__("": : :"memory")
+/* The "volatile" is due to gcc bugs */
+#define barrier() __asm__ __volatile__("": : :"memory")
 
 #define INT_MAX		((int)(~0U>>1))
 #define UINT_MAX	(~0U)
@@ -46,6 +47,7 @@ NORET_TYPE void panic(const char * fmt, ...)
 NORET_TYPE void do_exit(long error_code)
 	ATTRIB_NORET;
 extern unsigned long simple_strtoul(const char *,char **,unsigned int);
+extern long simple_strtol(const char *,char **,unsigned int);
 extern int sprintf(char * buf, const char * fmt, ...);
 extern int vsprintf(char *buf, const char *, va_list);
 

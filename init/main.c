@@ -11,33 +11,20 @@
 
 #define __KERNEL_SYSCALLS__
 
-#include <linux/types.h>
-#include <linux/fcntl.h>
 #include <linux/config.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/tty.h>
-#include <linux/unistd.h>
-#include <linux/string.h>
-#include <linux/timer.h>
-#include <linux/fs.h>
 #include <linux/proc_fs.h>
+#include <linux/unistd.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/utsname.h>
 #include <linux/ioport.h>
-#include <linux/hdreg.h>
-#include <linux/mm.h>
-#include <linux/slab.h>
-#include <linux/major.h>
-#include <linux/blk.h>
 #include <linux/init.h>
+#include <linux/smp_lock.h>
+#include <linux/blk.h>
+#include <linux/hdreg.h>
 
-#include <asm/system.h>
 #include <asm/io.h>
 #include <asm/bugs.h>
-
-#include <stdarg.h>
 
 #ifdef CONFIG_SGI
 #include <asm/sgialib.h>
@@ -47,8 +34,16 @@
 #include <linux/dio.h>
 #endif
 
+#ifdef CONFIG_ZORRO
+#include <linux/zorro.h>
+#endif
+
 #ifdef CONFIG_MTRR
 #  include <asm/mtrr.h>
+#endif
+
+#ifdef CONFIG_APM
+#include <linux/apm_bios.h>
 #endif
 
 /*
@@ -78,8 +73,8 @@ extern void init_inventory(void);
 extern void sock_init(void);
 extern void uidcache_init(void);
 extern void mca_init(void);
-extern long sbus_init(long, long);
-extern long powermac_init(unsigned long, unsigned long);
+extern void sbus_init(void);
+extern void powermac_init(void);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
@@ -106,8 +101,26 @@ extern void console_setup(char *str, int *ints);
 #ifdef CONFIG_PRINTER
 extern void lp_setup(char *str, int *ints);
 #endif
-#ifdef CONFIG_JOYSTICK
-extern void js_setup(char *str, int *ints);
+#ifdef CONFIG_JOY_AMIGA
+extern void js_am_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_ANALOG
+extern void js_an_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_ASSASIN
+extern void js_as_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_CONSOLE
+extern void js_console_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_DB9
+extern void js_db9_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_TURBOGRAFX
+extern void js_tg_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOY_LIGHTNING
+extern void js_l4_setup(char *str, int *ints);
 #endif
 extern void eth_setup(char *str, int *ints);
 #ifdef CONFIG_ARCNET_COM20020
@@ -172,6 +185,7 @@ extern void ibmmca_scsi_setup(char *str, int *ints);
 extern void in2000_setup(char *str, int *ints);
 extern void NCR53c406a_setup(char *str, int *ints);
 extern void wd7000_setup(char *str, int *ints);
+extern void dc390_setup(char* str, int *ints);
 extern void scsi_luns_setup(char *str, int *ints);
 extern void scsi_logging_setup(char *str, int *ints);
 extern void sound_setup(char *str, int *ints);
@@ -280,9 +294,8 @@ extern void baycom_ser_hdx_setup(char *str, int *ints);
 #ifdef CONFIG_SOUNDMODEM
 extern void sm_setup(char *str, int *ints);
 #endif
-#ifdef CONFIG_PMAC_CONSOLE
-extern void pmac_cons_setup(char *str, int *ints);
-extern void pmac_vmode_setup(char *str, int *ints);
+#ifdef CONFIG_ADBMOUSE
+extern void adb_mouse_setup(char *str, int *ints);
 #endif
 #ifdef CONFIG_WDT
 extern void wdt_setup(char *str, int *ints);
@@ -308,6 +321,12 @@ extern void ftape_setup(char *str, int *ints);
 #if defined(CONFIG_QUOTA)
 extern void dquot_init_hash(void);
 #endif
+#ifdef CONFIG_MDA_CONSOLE
+extern void mdacon_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_LTPC
+extern void ltpc_setup(char *str, int *ints);
+#endif
 
 #if defined(CONFIG_SYSVIPC)
 extern void ipc_init(void);
@@ -323,10 +342,6 @@ extern int serial_console;
 
 #ifdef CONFIG_MD_BOOT
 extern void md_setup(char *str,int *ints) __init;
-#endif
-
-#ifdef __sparc__
-extern int serial_console;
 #endif
 
 /*
@@ -363,8 +378,8 @@ char *get_options(char *str, int *ints)
 	char *cur = str;
 	int i=1;
 
-	while (cur && isdigit(*cur) && i <= 10) {
-		ints[i++] = simple_strtoul(cur,NULL,0);
+	while (cur && (*cur=='-' || isdigit(*cur)) && i <= 10) {
+		ints[i++] = simple_strtol(cur,NULL,0);
 		if ((cur = strchr(cur,',')) != NULL)
 			cur++;
 	}
@@ -400,6 +415,10 @@ static struct dev_name_struct {
 	{ "hdf",     0x2140 },
 	{ "hdg",     0x2200 },
 	{ "hdh",     0x2240 },
+	{ "hdi",     0x3800 },
+	{ "hdj",     0x3840 },
+	{ "hdk",     0x3900 },
+	{ "hdl",     0x3940 },
 #endif
 #ifdef CONFIG_BLK_DEV_SD
 	{ "sda",     0x0800 },
@@ -463,6 +482,7 @@ static struct dev_name_struct {
 #endif
 #ifdef CONFIG_BLK_DEV_PS2
 	{ "eda",     0x2400 },
+	{ "edb",     0x2440 },
 #endif
 #ifdef CONFIG_PARIDE_PD
 	{ "pda",	0x2d00 },
@@ -551,10 +571,13 @@ static struct kernel_param cooked_params[] __initdata = {
 #endif
 	{ "panic=", panic_setup },
 	{ "console=", console_setup },
-#ifdef CONFIG_VT
 #ifdef CONFIG_VGA_CONSOLE
 	{ "no-scroll", no_scroll },
 #endif
+#ifdef CONFIG_MDA_CONSOLE
+	{ "mdacon=", mdacon_setup },
+#endif
+#ifdef CONFIG_VT
 	{ "kbd-reset", kbd_reset_setup },
 #endif
 #ifdef CONFIG_BUGi386
@@ -583,12 +606,36 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_PRINTER
         { "lp=", lp_setup },
 #endif
-#ifdef CONFIG_JOYSTICK
-	{ "js=", js_setup },
+#ifdef CONFIG_JOY_AMIGA
+	{ "js_am=", js_am_setup },
+#endif
+#ifdef CONFIG_JOY_ANALOG
+	{ "js_an=", js_an_setup },
+#endif
+#ifdef CONFIG_JOY_ASSASIN
+	{ "js_as=", js_as_setup },
+#endif
+#ifdef CONFIG_JOY_CONSOLE
+	{ "js_console=", js_console_setup },
+	{ "js_console2=", js_console_setup },
+	{ "js_console3=", js_console_setup },
+#endif
+#ifdef CONFIG_JOY_DB9
+	{ "js_db9=", js_db9_setup },
+	{ "js_db9_2=", js_db9_setup },
+	{ "js_db9_3=", js_db9_setup },
+#endif
+#ifdef CONFIG_JOY_TURBOGRAFX
+	{ "js_tg=", js_tg_setup },
+	{ "js_tg_2=", js_tg_setup },
+	{ "js_tg_3=", js_tg_setup },
 #endif
 #ifdef CONFIG_SCSI
 	{ "max_scsi_luns=", scsi_luns_setup },
 	{ "scsi_logging=", scsi_logging_setup },
+#endif
+#ifdef CONFIG_JOY_LIGHTNING
+	{ "js_l4=", js_l4_setup },
 #endif
 #ifdef CONFIG_SCSI_ADVANSYS
 	{ "advansys=", advansys_setup },
@@ -663,6 +710,9 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_SCSI_IBMMCA
         { "ibmmcascsi=", ibmmca_scsi_setup },
 #endif
+#if defined(CONFIG_SCSI_DC390T) && ! defined(CONFIG_SCSI_DC390T_NOGENSUPP)
+        { "tmscsim=", dc390_setup },
+#endif
 #ifdef CONFIG_BLK_DEV_XD
 	{ "xd=", xd_setup },
 	{ "xd_geo=", xd_manual_geo_init },
@@ -671,7 +721,8 @@ static struct kernel_param cooked_params[] __initdata = {
 	{ "floppy=", floppy_setup },
 #endif
 #ifdef CONFIG_BLK_DEV_PS2
-	{ "ed=", ed_setup },
+	{ "eda=", ed_setup },
+	{ "edb=", ed_setup },
 	{ "tp720=", tp720_setup },
 #endif
 #ifdef CONFIG_CDU31A
@@ -795,8 +846,11 @@ static struct kernel_param cooked_params[] __initdata = {
 #ifdef CONFIG_MD_BOOT
 	{ "md=", md_setup},
 #endif
-#ifdef CONFIG_MACMOUSE
+#ifdef CONFIG_ADBMOUSE
 	{ "adb_buttons=", adb_mouse_setup },
+#endif
+#ifdef CONFIG_LTPC
+	{ "ltpc=", ltpc_setup },
 #endif
 	{ 0, 0 }
 };
@@ -827,6 +881,9 @@ static struct kernel_param raw_params[] __initdata = {
 #endif
 #ifdef CONFIG_PARIDE_PG
         { "pg.", pg_setup },
+#endif
+#ifdef CONFIG_APM
+	{ "apm=", apm_setup },
 #endif
 	{ 0, 0 }
 };
@@ -1130,67 +1187,13 @@ asmlinkage void __init start_kernel(void)
 	check_bugs();
 	printk("POSIX conformance testing by UNIFIX\n");
 
-	smp_init();
-
-	/*
-	 * Ok, the machine is now initialized. None of the devices
-	 * have been touched yet, but the CPU subsystem is up and
-	 * running, and memory management works.
-	 *
-	 * Now we can finally start doing some real work..
-	 */
-
-#if defined(CONFIG_MTRR)	/* Do this after SMP initialization */
-/*
- * We should probably create some architecture-dependent "fixup after
- * everything is up" style function where this would belong better
- * than in init/main.c..
- */
-	mtrr_init();
-#endif
-
-#ifdef CONFIG_SYSCTL
-	sysctl_init();
-#endif
-#ifdef CONFIG_DIO
-	dio_init();
-#endif
-
-	/*
-	 * Ok, at this point all CPU's should be initialized, so
-	 * we can start looking into devices..
-	 */
-#ifdef CONFIG_PCI
-	pci_init();
-#endif
-#ifdef CONFIG_SBUS
-	sbus_init();
-#endif
-#if defined(CONFIG_PMAC) || defined(CONFIG_CHRP)
-	powermac_init();
-#endif
-#ifdef CONFIG_MCA
-	mca_init();
-#endif
-#ifdef CONFIG_ARCH_ACORN
-	ecard_init();
-#endif
-
 	/* 
 	 *	We count on the initial thread going ok 
 	 *	Like idlers init is an unlocked kernel thread, which will
 	 *	make syscalls (and thus be locked).
 	 */
+	smp_init();
 	kernel_thread(init, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
-/*
- * task[0] is meant to be used as an "idle" task: it may not sleep, but
- * it might do some general things like count free pages or it could be
- * used to implement a reasonable LRU algorithm for the paging routines:
- * anything that can be useful, but shouldn't take time from the real
- * processes.
- *
- * Right now task[0] just does an infinite idle loop.
- */
  	cpu_idle(NULL);
 }
 
@@ -1213,10 +1216,68 @@ static void __init no_initrd(char *s,int *ints)
 }
 #endif
 
+struct task_struct *child_reaper = &init_task;
+
+/*
+ * Ok, the machine is now initialized. None of the devices
+ * have been touched yet, but the CPU subsystem is up and
+ * running, and memory and process management works.
+ *
+ * Now we can finally start doing some real work..
+ */
 static void __init do_basic_setup(void)
 {
 #ifdef CONFIG_BLK_DEV_INITRD
 	int real_root_mountflags;
+#endif
+
+	/*
+	 * Tell the world that we're going to be the grim
+	 * reaper of innocent orphaned children.
+	 *
+	 * We don't want people to have to make incorrect
+	 * assumptions about where in the task array this
+	 * can be found.
+	 */
+	child_reaper = current;
+
+#if defined(CONFIG_MTRR)	/* Do this after SMP initialization */
+/*
+ * We should probably create some architecture-dependent "fixup after
+ * everything is up" style function where this would belong better
+ * than in init/main.c..
+ */
+	mtrr_init();
+#endif
+
+#ifdef CONFIG_SYSCTL
+	sysctl_init();
+#endif
+
+	/*
+	 * Ok, at this point all CPU's should be initialized, so
+	 * we can start looking into devices..
+	 */
+#ifdef CONFIG_PCI
+	pci_init();
+#endif
+#ifdef CONFIG_SBUS
+	sbus_init();
+#endif
+#if defined(CONFIG_PPC)
+	powermac_init();
+#endif
+#ifdef CONFIG_MCA
+	mca_init();
+#endif
+#ifdef CONFIG_ARCH_ACORN
+	ecard_init();
+#endif
+#ifdef CONFIG_ZORRO
+	zorro_init();
+#endif
+#ifdef CONFIG_DIO
+	dio_init();
 #endif
 
 	/* Networking initialization needs a process context */ 
@@ -1237,6 +1298,7 @@ static void __init do_basic_setup(void)
 #endif
 
 #ifdef CONFIG_BLK_DEV_INITRD
+
 	real_root_dev = ROOT_DEV;
 	real_root_mountflags = root_mountflags;
 	if (initrd_start && mount_initrd) root_mountflags &= ~MS_RDONLY;
@@ -1264,8 +1326,8 @@ static void __init do_basic_setup(void)
 		*/
 		extern struct inode *pseudo_root;
 		if (pseudo_root != NULL){
-			current->fs->root = pseudo_root;
-			current->fs->pwd  = pseudo_root;
+			current->fs->root = pseudo_root->i_sb->s_root;
+			current->fs->pwd  = pseudo_root->i_sb->s_root;
 		}
 	}
 #endif
@@ -1293,6 +1355,7 @@ static void __init do_basic_setup(void)
 
 static int init(void * unused)
 {
+	lock_kernel();
 	do_basic_setup();
 
 	/*
@@ -1301,6 +1364,7 @@ static int init(void * unused)
 	 * initmem segments and start the user-mode stuff..
 	 */
 	free_initmem();
+	unlock_kernel();
 
 	if (open("/dev/console", O_RDWR, 0) < 0)
 		printk("Warning: unable to open an initial console.\n");

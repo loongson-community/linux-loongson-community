@@ -20,7 +20,6 @@ extern unsigned long event;
 #include <linux/tty.h>
 #include <linux/sem.h>
 #include <linux/signal.h>
-#include <linux/capability.h>
 #include <linux/securebits.h>
 
 /*
@@ -65,11 +64,9 @@ extern int nr_running, nr_tasks;
 extern int last_pid;
 
 #include <linux/fs.h>
-#include <linux/signal.h>
 #include <linux/time.h>
 #include <linux/param.h>
 #include <linux/resource.h>
-#include <linux/ptrace.h>
 #include <linux/timer.h>
 
 #include <asm/processor.h>
@@ -119,8 +116,9 @@ extern void sched_init(void);
 extern void show_state(void);
 extern void trap_init(void);
 
+#define	MAX_SCHEDULE_TIMEOUT	LONG_MAX
+extern signed long FASTCALL(schedule_timeout(signed long timeout));
 asmlinkage void schedule(void);
-
 
 /*
  * Open file table structure
@@ -258,7 +256,7 @@ struct task_struct {
 	struct task_struct **tarray_ptr;
 
 	struct wait_queue *wait_chldexit;	/* for wait4() */
-	unsigned long timeout, policy, rt_priority;
+	unsigned long policy, rt_priority;
 	unsigned long it_real_value, it_prof_value, it_virt_value;
 	unsigned long it_real_incr, it_prof_incr, it_virt_incr;
 	struct timer_list real_timer;
@@ -322,7 +320,7 @@ struct task_struct {
 #define PF_MEMALLOC	0x00000800	/* Allocating memory */
 
 #define PF_USEDFPU	0x00100000	/* task used FPU this quantum (SMP) */
-#define PF_DTRACE	0x00200000	/* delayed trace (used on m68k) */
+#define PF_DTRACE	0x00200000	/* delayed trace (used on m68k, i386) */
 
 /*
  * Limit the stack by to some sane default: root can always
@@ -348,7 +346,7 @@ struct task_struct {
 /* pidhash */	NULL, NULL, \
 /* tarray */	&task[0], \
 /* chld wait */	NULL, \
-/* timeout */	0,SCHED_OTHER,0,0,0,0,0,0,0, \
+/* timeout */	SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
 /* utime */	{0,0,0,0},0, \
 /* per CPU times */ {0, }, {0, }, \
@@ -458,6 +456,8 @@ extern unsigned long prof_shift;
 extern void FASTCALL(__wake_up(struct wait_queue ** p, unsigned int mode));
 extern void FASTCALL(sleep_on(struct wait_queue ** p));
 extern void FASTCALL(interruptible_sleep_on(struct wait_queue ** p));
+extern long FASTCALL(interruptible_sleep_on_timeout(struct wait_queue ** p,
+						    signed long timeout));
 extern void FASTCALL(wake_up_process(struct task_struct * tsk));
 
 #define wake_up(x)			__wake_up((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE)

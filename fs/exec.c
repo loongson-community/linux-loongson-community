@@ -22,40 +22,24 @@
  * formats. 
  */
 
-#include <linux/fs.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
+#include <linux/config.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/mman.h>
 #include <linux/a.out.h>
-#include <linux/errno.h>
-#include <linux/signal.h>
-#include <linux/string.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
-#include <linux/ptrace.h>
 #include <linux/user.h>
-#include <linux/binfmts.h>
-#include <linux/personality.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 
-#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
-#include <linux/config.h>
-
 #ifdef CONFIG_KMOD
 #include <linux/kmod.h>
 #endif
-
-asmlinkage int sys_exit(int exit_code);
-asmlinkage int sys_brk(unsigned long);
 
 /*
  * Here are the actual binaries that will be accepted:
@@ -285,18 +269,16 @@ unsigned long copy_strings(int argc,char ** argv,unsigned long *page,
 		p -= len;
 		pos = p;
 		while (len) {
-			char *pag = (char *) page[pos/PAGE_SIZE];
+			char *pag;
 			int offset, bytes_to_copy;
 
 			offset = pos % PAGE_SIZE;
-			if(!pag) {
-				pag = (char *) page[pos/PAGE_SIZE] = get_user_page(pos);
-				if(!pag) {
-					if(from_kmem == 2)
-						set_fs(old_fs);
-					return 0;
-				}
-				clear_page(pag);
+			if (!(pag = (char *) page[pos/PAGE_SIZE]) &&
+			    !(pag = (char *) page[pos/PAGE_SIZE] =
+			      (unsigned long *) get_free_page(GFP_USER))) {
+				if (from_kmem==2)
+					set_fs(old_fs);
+				return 0;
 			}
 			bytes_to_copy = PAGE_SIZE - offset;
 			if (bytes_to_copy > len)
@@ -450,9 +432,9 @@ fail_nomem:
 
 /*
  * This function makes sure the current process has its own signal table,
- * so that flush_old_signals can later reset the signals without disturbing
- * other processes.  (Other processes might share the signal table via
- * the CLONE_SIGHAND option to clone().)
+ * so that flush_signal_handlers can later reset the handlers without
+ * disturbing other processes.  (Other processes might share the signal
+ * table via the CLONE_SIGHAND option to clone().)
  */
  
 static inline int make_private_signals(void)
@@ -490,12 +472,6 @@ static inline void release_old_signals(struct signal_struct * oldsig)
  * These functions flushes out all traces of the currently running executable
  * so that a new one can be started
  */
-
-static inline void flush_old_signals(struct task_struct *t)
-{
-	flush_signals(t);
-	flush_signal_handlers(t);
-}
 
 static inline void flush_old_files(struct files_struct * files)
 {
@@ -558,7 +534,7 @@ int flush_old_exec(struct linux_binprm * bprm)
 	    permission(bprm->dentry->d_inode,MAY_READ))
 		current->dumpable = 0;
 
-	flush_old_signals(current);
+	flush_signal_handlers(current);
 	flush_old_files(current->files);
 
 	return 0;
@@ -587,7 +563,7 @@ static inline int must_not_trace_exec(struct task_struct * p)
 int prepare_binprm(struct linux_binprm *bprm)
 {
 	int mode;
-	int retval,id_change;
+	int retval,id_change,cap_raised;
 	struct inode * inode = bprm->dentry->d_inode;
 
 	mode = inode->i_mode;
@@ -607,7 +583,7 @@ int prepare_binprm(struct linux_binprm *bprm)
 
 	bprm->e_uid = current->euid;
 	bprm->e_gid = current->egid;
-	id_change = 0;
+	id_change = cap_raised = 0;
 
 	/* Set-uid? */
 	if (mode & S_ISUID) {
@@ -653,21 +629,22 @@ int prepare_binprm(struct linux_binprm *bprm)
 			cap_set_full(bprm->cap_effective);
 	}
 
-        /* We use a conservative definition of suid for capabilities.
-         * The process is suid if the permitted set is not a subset of
-         * the current permitted set after the exec call.
-         *         new permitted set = forced | (allowed & inherited)
-         *                       pP' = fP     | (fI      & pI)
-         */
-
-        if ((bprm->cap_permitted.cap |
-	     (current->cap_inheritable.cap &
-	      bprm->cap_inheritable.cap)) &
-	    ~current->cap_permitted.cap) {
-		id_change = 1;
+        /* Only if pP' is _not_ a subset of pP, do we consider there
+         * has been a capability related "change of capability".  In
+         * such cases, we need to check that the elevation of
+         * privilege does not go against other system constraints.
+         * The new Permitted set is defined below -- see (***). */
+	{
+		kernel_cap_t working =
+			cap_combine(bprm->cap_permitted,
+				    cap_intersect(bprm->cap_inheritable,
+						  current->cap_inheritable));
+		if (!cap_issubset(working, current->cap_permitted)) {
+			cap_raised = 1;
+		}
 	}
 
-	if (id_change) {
+	if (id_change || cap_raised) {
 		/* We can't suid-execute if we're sharing parts of the executable */
 		/* or if we're being traced (or if suid execs are not allowed)    */
 		/* (current->mm->count > 1 is ok, as we'll get a new mm anyway)   */
@@ -676,10 +653,10 @@ int prepare_binprm(struct linux_binprm *bprm)
 		    || (atomic_read(&current->fs->count) > 1)
 		    || (atomic_read(&current->sig->count) > 1)
 		    || (atomic_read(&current->files->count) > 1)) {
-			if (id_change && !capable(CAP_SETUID))
-				return -EPERM;
-			if (!suser())
-				return -EPERM;
+ 			if (id_change && !capable(CAP_SETUID))
+ 				return -EPERM;
+ 			if (cap_raised && !capable(CAP_SETPCAP))
+  				return -EPERM;
 		}
 	}
 
@@ -694,7 +671,7 @@ int prepare_binprm(struct linux_binprm *bprm)
  * The formula used for evolving capabilities is:
  *
  *       pI' = pI
- *       pP' = fP | (fI & pI)
+ * (***) pP' = fP | (fI & pI)
  *       pE' = pP' & fE          [NB. fE is 0 or ~0]
  *
  * I=Inheritable, P=Permitted, E=Effective // p=process, f=file
@@ -703,18 +680,25 @@ int prepare_binprm(struct linux_binprm *bprm)
 
 void compute_creds(struct linux_binprm *bprm) 
 {
-	int new_permitted = bprm->cap_permitted.cap |
-		(bprm->cap_inheritable.cap & current->cap_inheritable.cap);
+	int new_permitted = cap_t(bprm->cap_permitted) |
+		(cap_t(bprm->cap_inheritable) & 
+		 cap_t(current->cap_inheritable));
 
-	current->cap_permitted.cap = new_permitted;
-	current->cap_effective.cap = new_permitted & bprm->cap_effective.cap;
+	/* For init, we want to retain the capabilities set
+         * in the init_task struct. Thus we skip the usual
+         * capability rules */
+	if (current->pid != 1) {
+		cap_t(current->cap_permitted) = new_permitted;
+		cap_t(current->cap_effective) = new_permitted & 
+						cap_t(bprm->cap_effective);
+	}
 	
         /* AUD: Audit candidate if current->cap_effective is set */
 
         current->suid = current->euid = current->fsuid = bprm->e_uid;
         current->sgid = current->egid = current->fsgid = bprm->e_gid;
         if (current->euid != current->uid || current->egid != current->gid ||
-	    !cap_isclear(current->cap_permitted))
+	    !cap_issubset(new_permitted, current->cap_permitted))
                 current->dumpable = 0;
 }
 
@@ -746,24 +730,28 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 	/* handle /sbin/loader.. */
 	{
 	    struct exec * eh = (struct exec *) bprm->buf;
+	    struct linux_binprm bprm_loader;
 
 	    if (!bprm->loader && eh->fh.f_magic == 0x183 &&
 		(eh->fh.f_flags & 0x3000) == 0x3000)
 	    {
+		int i;
 		char * dynloader[] = { "/sbin/loader" };
 		struct dentry * dentry;
 
 		dput(bprm->dentry);
 		bprm->dentry = NULL;
-		remove_arg_zero(bprm);
-		bprm->p = copy_strings(1, dynloader, bprm->page, bprm->p, 2);
-		bprm->argc++;
-		bprm->loader = bprm->p;
+
+	        bprm_loader.p = PAGE_SIZE*MAX_ARG_PAGES-sizeof(void *);
+	        for (i=0 ; i<MAX_ARG_PAGES ; i++)       /* clear page-table */
+                    bprm_loader.page[i] = 0;
+
 		dentry = open_namei(dynloader[0], 0, 0);
 		retval = PTR_ERR(dentry);
 		if (IS_ERR(dentry))
 			return retval;
 		bprm->dentry = dentry;
+		bprm->loader = bprm_loader.p;
 		retval = prepare_binprm(bprm);
 		if (retval<0)
 			return retval;

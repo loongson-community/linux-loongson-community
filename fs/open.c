@@ -4,21 +4,11 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/vfs.h>
-#include <linux/types.h>
+#include <linux/mm.h>
 #include <linux/utime.h>
-#include <linux/errno.h>
 #include <linux/fcntl.h>
 #include <linux/stat.h>
-#include <linux/string.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/signal.h>
-#include <linux/tty.h>
-#include <linux/time.h>
-#include <linux/mm.h>
 #include <linux/file.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/quotaops.h>
 
@@ -626,7 +616,7 @@ out:
  * for the internal routines (ie open_namei()/follow_link() etc). 00 is
  * used by symlinks.
  */
-static int do_open(const char * filename, int flags, int mode, int fd)
+struct file *filp_open(const char * filename, int flags, int mode)
 {
 	struct inode * inode;
 	struct dentry * dentry;
@@ -667,8 +657,7 @@ static int do_open(const char * filename, int flags, int mode, int fd)
 	}
 	f->f_flags &= ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 
-	fd_install(fd, f);
-	return 0;
+	return f;
 
 cleanup_all:
 	if (f->f_mode & FMODE_WRITE)
@@ -679,7 +668,19 @@ cleanup_dentry:
 cleanup_file:
 	put_filp(f);
 out:
-	return error;
+	return ERR_PTR(error);
+}
+
+/* should probably go into sys_open() */
+static int do_open(const char * filename, int flags, int mode, int fd)
+{
+	struct file * f;
+
+	f = filp_open(filename, flags, mode);
+	if (IS_ERR(f))
+		return PTR_ERR(f);
+	fd_install(fd, f);
+	return 0;
 }
 
 /*
@@ -796,11 +797,11 @@ int close_fp(struct file *filp, fl_owner_t id)
 		printk("VFS: Close: file count is 0\n");
 		return 0;
 	}
-	if (dentry->d_inode)
-		locks_remove_posix(filp, id);
 	retval = 0;
 	if (filp->f_op && filp->f_op->flush)
 		retval = filp->f_op->flush(filp);
+	if (dentry->d_inode)
+		locks_remove_posix(filp, id);
 	fput(filp);
 	return retval;
 }

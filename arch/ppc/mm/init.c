@@ -1,5 +1,5 @@
 /*
- *  $Id: init.c,v 1.115 1998/08/04 20:48:38 davem Exp $
+ *  $Id: init.c,v 1.130 1998/11/10 10:09:20 paulus Exp $
  *
  *  PowerPC version 
  *    Copyright (C) 1995-1996 Gary Thomas (gdt@linuxppc.org)
@@ -33,6 +33,7 @@
 #include <linux/stddef.h>
 #include <linux/vmalloc.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 #ifdef CONFIG_BLK_DEV_INITRD
 #include <linux/blk.h>		/* for initrd_* */
 #endif
@@ -46,6 +47,8 @@
 #include <asm/uaccess.h>
 #include <asm/8xx_immap.h>
 #include <asm/mbx.h>
+#include <asm/smp.h>
+#include <asm/bootx.h>
 /* APUS includes */
 #include <asm/setup.h>
 #include <asm/amigahw.h>
@@ -69,6 +72,7 @@ unsigned long ioremap_bot;
 unsigned long avail_start;
 struct pgtable_cache_struct quicklists;
 struct mem_info memory[NUM_MEMINFO];
+extern boot_infos_t *boot_infos;
 
 void MMU_init(void);
 static void *MMU_get_page(void);
@@ -110,7 +114,8 @@ struct batrange {		/* stores address ranges mapped by BATs */
  * (i.e. page tables) instead of the bats.
  * -- Cort
  */
-#undef MAP_RAM_WITH_SEGREGS 1
+int __map_without_bats = 0;
+
 /* optimization for 603 to load the tlb directly from the linux table -- Cort */
 #define NO_RELOAD_HTAB 1 /* change in kernel/head.S too! */
 
@@ -229,7 +234,7 @@ void show_mem(void)
 	{	
 		printk("%-8.8s %3d %3d %8ld %8ld %8ld %c%08lx %08lx ",
 		       p->comm,p->pid,
-		       p->mm->count,p->mm->context,
+		       atomic_read(&p->mm->count),p->mm->context,
 		       p->mm->context<<4, p->tss.last_syscall,
 		       user_mode(p->tss.regs) ? 'u' : 'k', p->tss.regs->nip,
 		       (ulong)p);
@@ -239,20 +244,24 @@ void show_mem(void)
 			printk("%3d ", p->processor);
 			if ( (p->processor != NO_PROC_ID) &&
 			     (p == current_set[p->processor]) )
-			
-#else		
-			if ( p == current )
-#endif /* __SMP__ */
 			{
 				iscur = 1;
 				printk("current");
 			}
+#else		
+			if ( p == current )
+			{
+				iscur = 1;
+				printk("current");
+			}
+			
 			if ( p == last_task_used_math )
 			{
 				if ( iscur )
 					printk(",");
 				printk("last math");
 			}			
+#endif /* __SMP__ */
 			printk("\n");
 		}
 	}
@@ -673,18 +682,21 @@ __initfunc(static void sort_mem_pieces(struct mem_pieces *mp))
 
 __initfunc(static void coalesce_mem_pieces(struct mem_pieces *mp))
 {
-	unsigned long a, e;
+	unsigned long a, s, ns;
 	int i, j, d;
 
 	d = 0;
 	for (i = 0; i < mp->n_regions; i = j) {
 		a = mp->regions[i].address;
-		e = a + mp->regions[i].size;
+		s = mp->regions[i].size;
 		for (j = i + 1; j < mp->n_regions
-			     && mp->regions[j].address <= e; ++j)
-			e = mp->regions[j].address + mp->regions[j].size;
+			     && mp->regions[j].address - a <= s; ++j) {
+			ns = mp->regions[j].address + mp->regions[j].size - a;
+			if (ns > s)
+				s = ns;
+		}
 		mp->regions[d].address = a;
-		mp->regions[d].size = e - a;
+		mp->regions[d].size = s;
 		++d;
 	}
 	mp->n_regions = d;
@@ -796,33 +808,41 @@ __initfunc(static void mapin_ram(void))
 	int i;
 	unsigned long v, p, s, f;
 #ifndef CONFIG_8xx
-	unsigned long tot, mem_base, bl, done;
 
-#ifndef MAP_RAM_WITH_SEGREGS
-	/* Set up BAT2 and if necessary BAT3 to cover RAM. */
-	mem_base = __pa(KERNELBASE);
-	tot = (unsigned long)end_of_DRAM - KERNELBASE;
-	for (bl = 128<<10; bl < 256<<20; bl <<= 1) {
-		if (bl * 2 > tot)
-			break;
-		/* On some APUS systems, memory grows downwards, i.e.,
-		   24MB will be 8MB aligned. Handle that properly by
-		   mapping first 8MB, then 16MB. */
-		if (((bl * 2) - 1) & mem_base)
-			break;
-	}
+	if (!__map_without_bats) {
+		unsigned long tot, mem_base, bl, done;
+		unsigned long max_size = (256<<20);
+		unsigned long align;
 
-	setbat(2, KERNELBASE, mem_base, bl, RAM_PAGE);
-	done = (unsigned long)bat_addrs[2].limit - KERNELBASE + 1;
-	if (done < tot) {
-		/* use BAT3 to cover a bit more */
-		tot -= done;
-		for (bl = 128<<10; bl < 256<<20; bl <<= 1)
+		/* Set up BAT2 and if necessary BAT3 to cover RAM. */
+		mem_base = __pa(KERNELBASE);
+
+		/* Make sure we don't map a block larger than the
+		   smallest alignment of the physical address. */
+		/* alignment of mem_base */
+		align = ~(mem_base-1) & mem_base;
+		/* set BAT block size to MIN(max_size, align) */
+		if (align && align < max_size)
+			max_size = align;
+
+		tot = (unsigned long)end_of_DRAM - KERNELBASE;
+		for (bl = 128<<10; bl < max_size; bl <<= 1) {
 			if (bl * 2 > tot)
 				break;
-		setbat(3, KERNELBASE+done, mem_base+done, bl, RAM_PAGE);
+		}
+
+		setbat(2, KERNELBASE, mem_base, bl, RAM_PAGE);
+		done = (unsigned long)bat_addrs[2].limit - KERNELBASE + 1;
+		if (done < tot) {
+			/* use BAT3 to cover a bit more */
+			tot -= done;
+			for (bl = 128<<10; bl < max_size; bl <<= 1)
+				if (bl * 2 > tot)
+					break;
+			setbat(3, KERNELBASE+done, mem_base+done, bl, 
+			       RAM_PAGE);
+		}
 	}
-#endif
 
 	v = KERNELBASE;
 	for (i = 0; i < phys_mem.n_regions; ++i) {
@@ -884,7 +904,6 @@ __initfunc(void free_initmem(void))
 	unsigned long a;
 	unsigned long num_freed_pages = 0, num_prep_pages = 0,
 		num_pmac_pages = 0, num_openfirmware_pages = 0;
-
 #define FREESEC(START,END,CNT) do { \
 	a = (unsigned long)(&START); \
 	for (; a < (unsigned long)(&END); a += PAGE_SIZE) { \
@@ -899,7 +918,10 @@ __initfunc(void free_initmem(void))
 	switch (_machine)
 	{
 	case _MACH_Pmac:
+		FREESEC(__prep_begin,__prep_end,num_prep_pages);
+		break;
 	case _MACH_chrp:
+		FREESEC(__pmac_begin,__pmac_end,num_pmac_pages);
 		FREESEC(__prep_begin,__prep_end,num_prep_pages);
 		break;
 	case _MACH_prep:
@@ -933,6 +955,11 @@ __initfunc(void free_initmem(void))
  */
 __initfunc(void MMU_init(void))
 {
+
+#ifdef __SMP__
+	if ( first_cpu_booted ) return;
+#endif /* __SMP__ */
+	
 #ifndef CONFIG_8xx
 	if (have_of)
 		end_of_DRAM = pmac_find_end_of_memory();
@@ -962,12 +989,18 @@ __initfunc(void MMU_init(void))
 		setbat(0, 0xf8000000, 0xf8000000, 0x08000000, IO_PAGE);
 		break;
 	case _MACH_Pmac:
-		setbat(0, 0xf3000000, 0xf3000000, 0x100000, IO_PAGE);
-		ioremap_base = 0xf0000000;
+		{
+			unsigned long base = 0xf3000000;
+			struct device_node *macio = find_devices("mac-io");
+			if (macio && macio->n_addrs)
+				base = macio->addrs[0].address;
+			setbat(0, base, base, 0x100000, IO_PAGE);
+			ioremap_base = 0xf0000000;
+		}
 		break;
 	case _MACH_apus:
 		/* Map PPC exception vectors. */
-		setbat(0, 0xfff00000, 0xfff00000, 0x00010000, RAM_PAGE);
+		setbat(0, 0xfff00000, 0xfff00000, 0x00020000, RAM_PAGE);
 		/* Map chip and ZorroII memory */
 		setbat(1, zTwoBase,   0x00000000, 0x01000000, IO_PAGE);
 		/* Note: a temporary hack in arch/ppc/amiga/setup.c
@@ -997,17 +1030,16 @@ __initfunc(void MMU_init(void))
 
 /*
  * Find some memory for setup_arch to return.
- * We use the last chunk of available memory as the area
+ * We use the largest chunk of available memory as the area
  * that setup_arch returns, making sure that there are at
  * least 32 pages unused before this for MMU_get_page to use.
  */
 __initfunc(unsigned long find_available_memory(void))
 {
-	int i;
+	int i, rn;
 	unsigned long a, free;
 	unsigned long start, end;
 
-	free = 0;
 	if (_machine == _MACH_mbx) {
 		/* Return the first, not the last region, because we
                  * may not yet have properly initialized the additonal
@@ -1018,12 +1050,17 @@ __initfunc(unsigned long find_available_memory(void))
                 return avail_start;
         }
 	
-	for (i = 0; i < phys_avail.n_regions - 1; ++i) {
+	rn = 0;
+	for (i = 1; i < phys_avail.n_regions; ++i)
+		if (phys_avail.regions[i].size > phys_avail.regions[rn].size)
+			rn = i;
+	free = 0;
+	for (i = 0; i < rn; ++i) {
 		start = phys_avail.regions[i].address;
 		end = start + phys_avail.regions[i].size;
 		free += (end & PAGE_MASK) - PAGE_ALIGN(start);
 	}
-	a = PAGE_ALIGN(phys_avail.regions[i].address);
+	a = PAGE_ALIGN(phys_avail.regions[rn].address);
 	if (free < 32 * PAGE_SIZE)
 		a += 32 * PAGE_SIZE - free;
 	avail_start = (unsigned long) __va(a);
@@ -1082,6 +1119,15 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	}
 	phys_avail.n_regions = 0;
 
+#ifdef CONFIG_BLK_DEV_INITRD
+	/* if we are booted from BootX with an initial ramdisk,
+	   make sure the ramdisk pages aren't reserved. */
+	if (initrd_start) {
+		for (a = initrd_start; a < initrd_end; a += PAGE_SIZE)
+			clear_bit(PG_reserved, &mem_map[MAP_NR(a)].flags);
+	}
+#endif /* CONFIG_BLK_DEV_INITRD */
+	
 	/* free the prom's memory - no-op on prep */
 	for (i = 0; i < prom_mem.n_regions; ++i) {
 		a = (unsigned long) __va(prom_mem.regions[i].address);
@@ -1216,8 +1262,13 @@ __initfunc(unsigned long *pmac_find_end_of_memory(void))
 		phys_mem.n_regions = 1;
 	}
 
-	/* record which bits the prom is using */
-	get_mem_prop("available", &phys_avail);
+	if (boot_infos == 0) {
+		/* record which bits the prom is using */
+		get_mem_prop("available", &phys_avail);
+	} else {
+		/* booted from BootX - it's all available (after klimit) */
+		phys_avail = phys_mem;
+	}
 	prom_mem = phys_mem;
 	for (i = 0; i < phys_avail.n_regions; ++i)
 		remove_mem_piece(&prom_mem, phys_avail.regions[i].address,
@@ -1274,36 +1325,69 @@ __initfunc(unsigned long *prep_find_end_of_memory(void))
 #define HARDWARE_MAPPED_SIZE (512*1024)
 __initfunc(unsigned long *apus_find_end_of_memory(void))
 {
-	unsigned long kstart, ksize;
+	int shadow = 0;
 
-	/* Add the chunk that ADOS does not see.  This may also
-	 * include a ROM mapping which we reclaim. The top 512KB is
-	 * removed again below.  
-	 * Do it by aligning the size to the nearest 2MB limit upwards.
-	 */
-	memory[0].size = ((memory[0].size+0x001fffff) & 0xffe00000);
+	/* The memory size reported by ADOS excludes the 512KB
+	   reserved for PPC exception registers and possibly 512KB
+	   containing a shadow of the ADOS ROM. */
+	{
+		unsigned long size = memory[0].size;
 
-	append_mem_piece(&phys_mem, memory[0].addr, memory[0].size);
+		/* If 2MB aligned, size was probably user
+                   specified. We can't tell anything about shadowing
+                   in this case so skip shadow assignment. */
+		if (0 != (size & 0x1fffff)){
+			/* Align to 512KB to ensure correct handling
+			   of both memfile and system specified
+			   sizes. */
+			size = ((size+0x0007ffff) & 0xfff80000);
+			/* If memory is 1MB aligned, assume
+                           shadowing. */
+			shadow = !(size & 0x80000);
+		}
 
-	phys_avail = phys_mem;
-	kstart = __pa(_stext);
-	ksize = PAGE_ALIGN(klimit - _stext);
-	remove_mem_piece(&phys_avail, kstart, ksize, 1);
+		/* Add the chunk that ADOS does not see. by aligning
+                   the size to the nearest 2MB limit upwards.  */
+		memory[0].size = ((size+0x001fffff) & 0xffe00000);
+	}
 
-	/* Remove the upper HARDWARE_MAPPED_SIZE bytes where the address
-	 * range 0xfff00000-0xfffx0000 is mapped to.
-	 * We do it this way to ensure that the memory registered in the
-	 * system has a power-of-two size.
-	 */
-	remove_mem_piece(&phys_avail, 
-			 (memory[0].addr + memory[0].size 
-			  - HARDWARE_MAPPED_SIZE),
-			 HARDWARE_MAPPED_SIZE, 1);
+	/* Now register the memory block. */
+	{
+		unsigned long kstart, ksize;
+
+		append_mem_piece(&phys_mem, memory[0].addr, memory[0].size);
+		phys_avail = phys_mem;
+		kstart = __pa(_stext);
+		ksize = PAGE_ALIGN(klimit - _stext);
+		remove_mem_piece(&phys_avail, kstart, ksize, 0);
+	}
+
+	/* Remove the memory chunks that are controlled by special
+           Phase5 hardware. */
+	{
+		unsigned long top = memory[0].addr + memory[0].size;
+
+		/* Remove the upper 512KB if it contains a shadow of
+		   the ADOS ROM. FIXME: It might be possible to
+		   disable this shadow HW. Check the booter
+		   (ppc_boot.c) */
+		if (shadow)
+		{
+			top -= HARDWARE_MAPPED_SIZE;
+			remove_mem_piece(&phys_avail, top,
+					 HARDWARE_MAPPED_SIZE, 0);
+		}
+
+		/* Remove the upper 512KB where the PPC exception
+                   vectors are mapped. */
+		top -= HARDWARE_MAPPED_SIZE;
+		remove_mem_piece(&phys_avail, top,
+				 HARDWARE_MAPPED_SIZE, 0);
+	}
 
 	/* FIXME:APUS: Only handles one block of memory! Problem is
-	 * that the VTOP/PTOV code in head.S would be a mess if it had
-	 * to handle more than one block.
-	 */
+	   that the VTOP/PTOV code in head.S would be a mess if it had
+	   to handle more than one block.  */
 	return __va(memory[0].addr + memory[0].size);
 }
 
@@ -1393,6 +1477,5 @@ __initfunc(static void hash_init(void))
 	}
 	else
 		Hash_end = 0;
-
 }
 #endif /* ndef CONFIG_8xx */

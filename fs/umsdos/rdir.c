@@ -19,7 +19,9 @@
 #include <asm/uaccess.h>
 
 
+extern struct dentry *saved_root;
 extern struct inode *pseudo_root;
+extern struct dentry_operations umsdos_dentry_operations;
 
 struct RDIR_FILLDIR {
 	void *dirbuf;
@@ -63,9 +65,7 @@ static int UMSDOS_rreaddir (struct file *filp, void *dirbuf, filldir_t filldir)
 
 	bufk.filldir = filldir;
 	bufk.dirbuf = dirbuf;
-	bufk.real_root = pseudo_root &&
-			 dir->i_ino == UMSDOS_ROOT_INO && 
-			 dir->i_sb == pseudo_root->i_sb;
+	bufk.real_root = pseudo_root && (dir == saved_root->d_inode);
 	return fat_readdir (filp, &bufk, rdir_filldir);
 }
 
@@ -81,45 +81,40 @@ static int UMSDOS_rreaddir (struct file *filp, void *dirbuf, filldir_t filldir)
  */
 int umsdos_rlookup_x ( struct inode *dir, struct dentry *dentry, int nopseudo)
 {
-	/* so locating "linux" will work */
-	const char *name = dentry->d_name.name;
-	int len = dentry->d_name.len;
-	struct inode *inode;
 	int ret;
 
-	if (pseudo_root && len == 2 && name[0] == '.' && name[1] == '.' &&
-	    dir->i_ino == UMSDOS_ROOT_INO && dir->i_sb == pseudo_root->i_sb) {
-printk (KERN_WARNING "umsdos_rlookup_x: we are at pseudo-root thingy?\n");
-		pseudo_root->i_count++;
-		d_add(dentry, pseudo_root);
-		ret = 0;
+	if (saved_root && dir == saved_root->d_inode && !nopseudo &&
+	    dentry->d_name.len == UMSDOS_PSDROOT_LEN &&
+	    memcmp (dentry->d_name.name, UMSDOS_PSDROOT_NAME, UMSDOS_PSDROOT_LEN) == 0) {
+		/* #Specification: pseudo root / DOS/linux
+		 * Even in the real root directory (c:\), the directory
+		 * /linux won't show
+		 */
+		 
+		ret = -ENOENT;
 		goto out;
 	}
 
-	ret = umsdos_real_lookup (dir, dentry);
-	inode = dentry->d_inode;
-	if ((ret == 0) && inode) {
-		if (inode == pseudo_root && !nopseudo) {
-			/* #Specification: pseudo root / DOS/linux
-			 * Even in the real root directory (c:\), the directory
-			 * /linux won't show
-			 */
-printk(KERN_WARNING "umsdos_rlookup_x: do the pseudo-thingy...\n");
-			/* make the dentry negative */
-			d_delete(dentry);
-		}
-		else if (S_ISDIR (inode->i_mode)) {
-			/* We must place the proper function table
-			 * depending on whether this is an MS-DOS or 
-			 * a UMSDOS directory
-			 */
-Printk ((KERN_DEBUG "umsdos_rlookup_x: setting up setup_dir_inode %lu...\n",
-inode->i_ino));
-			umsdos_setup_dir(dentry);
-		}
+	ret = msdos_lookup (dir, dentry);
+	if (ret) {
+		printk(KERN_WARNING
+			"umsdos_rlookup_x: %s/%s failed, ret=%d\n",
+			dentry->d_parent->d_name.name, dentry->d_name.name,ret);
+		goto out;
+	}
+	if (dentry->d_inode) {
+		/* We must install the proper function table
+		 * depending on whether this is an MS-DOS or 
+		 * a UMSDOS directory
+		 */
+Printk ((KERN_DEBUG "umsdos_rlookup_x: patch_dentry_inode %s/%s\n",
+dentry->d_parent->d_name.name, dentry->d_name.name));
+		umsdos_patch_dentry_inode(dentry, 0);
+
 	}
 out:
-	PRINTK ((KERN_DEBUG "umsdos_rlookup_x: returning %d\n", ret));
+	/* always install our dentry ops ... */
+	dentry->d_op = &umsdos_dentry_operations;
 	return ret;
 }
 
@@ -160,54 +155,34 @@ static int UMSDOS_rrmdir ( struct inode *dir, struct dentry *dentry)
 	if (umsdos_is_pseudodos (dir, dentry))
 		goto out;
 
-	umsdos_lockcreate (dir);
 	ret = -EBUSY;
-	if (dentry->d_count > 1) {
-		shrink_dcache_parent(dentry);
-		if (dentry->d_count > 1)
-			goto out_unlock;
-	}
+	if (!list_empty(&dentry->d_hash))
+		goto out;
 
 	ret = msdos_rmdir (dir, dentry);
 	if (ret != -ENOTEMPTY)
-		goto out_check;
-
-#if 0	/* why do this? we have the dentry ... */
-	ret = UMSDOS_rlookup (dir, dentry);
-	PRINTK (("rrmdir lookup %d ", ret));
-	if (ret)
-		goto out_unlock;
-	ret = -ENOTEMPTY;
-#endif
+		goto out;
 
 	empty = umsdos_isempty (dentry);
 	if (empty == 1) {
-		struct dentry *temp;
+		struct dentry *demd;
 		/* We have to remove the EMD file. */
-		temp = umsdos_lookup_dentry(dentry, UMSDOS_EMD_FILE, 
-						UMSDOS_EMD_NAMELEN);
-		ret = PTR_ERR(temp);
-		if (!IS_ERR(temp)) {
+		demd = umsdos_get_emd_dentry(dentry);
+		ret = PTR_ERR(demd);
+		if (!IS_ERR(demd)) {
 			ret = 0;
-			if (temp->d_inode)
-				ret = msdos_unlink (dentry->d_inode, temp);
-			dput(temp);
+			if (demd->d_inode)
+				ret = msdos_unlink (dentry->d_inode, demd);
+			dput(demd);
 		}
-		if (ret)
-			goto out_unlock;
 	}
+	if (ret)
+		goto out;
+
 	/* now retry the original ... */
 	ret = msdos_rmdir (dir, dentry);
 
-out_check:
-	/* Check whether we succeeded ... */
-	if (!ret)
-		d_delete(dentry);
-
-out_unlock:
-	umsdos_unlockcreate (dir);
 out:
-	check_inode (dir);
 	return ret;
 }
 

@@ -6,18 +6,10 @@
  *  1997-11-02  Modified for POSIX.1b signals by Richard Henderson
  */
 
-#include <linux/module.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/signal.h>
-#include <linux/errno.h>
-#include <linux/wait.h>
-#include <linux/ptrace.h>
-#include <linux/unistd.h>
-#include <linux/mm.h>
-#include <linux/smp.h>
-#include <linux/smp_lock.h>
 #include <linux/slab.h>
+#include <linux/module.h>
+#include <linux/unistd.h>
+#include <linux/smp_lock.h>
 #include <linux/init.h>
 
 #include <asm/uaccess.h>
@@ -213,10 +205,50 @@ printk(" %d -> %d\n", signal_pending(current), sig);
 	return sig;
 }
 
+/*
+ * Determine whether a signal should be posted or not.
+ *
+ * Signals with SIG_IGN can be ignored, except for the
+ * special case of a SIGCHLD. 
+ *
+ * Some signals with SIG_DFL default to a non-action.
+ */
+static int ignored_signal(int sig, struct task_struct *t)
+{
+	struct signal_struct *signals;
+	struct k_sigaction *ka;
+
+	/* Don't ignore traced or blocked signals */
+	if ((t->flags & PF_PTRACED) || sigismember(&t->blocked, sig))
+		return 0;
+	
+	signals = t->sig;
+	if (!signals)
+		return 1;
+
+	ka = &signals->action[sig-1];
+	switch ((unsigned long) ka->sa.sa_handler) {
+	case (unsigned long) SIG_DFL:
+		if (sig == SIGCONT ||
+		    sig == SIGWINCH ||
+		    sig == SIGCHLD ||
+		    sig == SIGURG)
+			break;
+		return 0;
+
+	case (unsigned long) SIG_IGN:
+		if (sig != SIGCHLD)
+			break;
+	/* fallthrough */
+	default:
+		return 0;
+	}
+	return 1;
+}
+
 int
 send_sig_info(int sig, struct siginfo *info, struct task_struct *t)
 {
-	struct k_sigaction *ka;
 	unsigned long flags;
 	int ret;
 
@@ -227,13 +259,6 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 	ret = -EINVAL;
 	if (sig < 0 || sig > _NSIG)
 		goto out_nolock;
-
-	/* If t->sig is gone, we must be trying to kill the task.  So
-	   pretend that it doesn't exist anymore.  */
-	ret = -ESRCH;
-	if (t->sig == NULL)
-		goto out_nolock;
-
 	/* The somewhat baroque permissions check... */
 	ret = -EPERM;
 	if ((!info || ((unsigned long)info != 1 && SI_FROMUSER(info)))
@@ -244,14 +269,12 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 		goto out_nolock;
 
 	/* The null signal is a permissions and process existance probe.
-	   No signal is actually delivered.  */
+	   No signal is actually delivered.  Same goes for zombies. */
 	ret = 0;
-	if (!sig)
+	if (!sig || !t->sig)
 		goto out_nolock;
 
-	ka = &t->sig->action[sig-1];
 	spin_lock_irqsave(&t->sigmask_lock, flags);
-
 	switch (sig) {
 	case SIGKILL: case SIGCONT:
 		/* Wake up the process if stopped.  */
@@ -277,16 +300,8 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 	   handled immediately (ie non-blocked and untraced) and
 	   that is ignored (either explicitly or by default).  */
 
-	if (!(t->flags & PF_PTRACED) && !sigismember(&t->blocked, sig)
-	    /* Don't bother with ignored sigs (SIGCHLD is special) */
-	    && ((ka->sa.sa_handler == SIG_IGN && sig != SIGCHLD)
-		/* Some signals are ignored by default.. (but SIGCONT
-		   already did its deed) */
-		|| (ka->sa.sa_handler == SIG_DFL
-		    && (sig == SIGCONT || sig == SIGCHLD
-			|| sig == SIGWINCH || sig == SIGURG)))) {
+	if (ignored_signal(sig, t))
 		goto out;
-	}
 
 	if (sig < SIGRTMIN) {
 		/* Non-real-time signals are not queued.  */
@@ -310,10 +325,10 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 		if (nr_queued_signals < max_queued_signals) {
 			q = (struct signal_queue *)
 			    kmem_cache_alloc(signal_queue_cachep, GFP_KERNEL);
-			nr_queued_signals++;
 		}
 		
 		if (q) {
+			nr_queued_signals++;
 			q->next = NULL;
 			*t->sigqueue_tail = q;
 			t->sigqueue_tail = &q->next;
@@ -372,12 +387,18 @@ printk(" %d -> %d\n", signal_pending(t), ret);
 int
 force_sig_info(int sig, struct siginfo *info, struct task_struct *t)
 {
-	if (t->sig == NULL)
+	unsigned long int flags;
+
+	spin_lock_irqsave(&t->sigmask_lock, flags);
+	if (t->sig == NULL) {
+		spin_unlock_irqrestore(&t->sigmask_lock, flags);
 		return -ESRCH;
+	}
 
 	if (t->sig->action[sig-1].sa.sa_handler == SIG_IGN)
 		t->sig->action[sig-1].sa.sa_handler = SIG_DFL;
 	sigdelset(&t->blocked, sig);
+	spin_unlock_irqrestore(&t->sigmask_lock, flags);
 
 	return send_sig_info(sig, info, t);
 }
@@ -683,6 +704,7 @@ sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo,
 	sigset_t these;
 	struct timespec ts;
 	siginfo_t info;
+	long timeout = 0;
 
 	/* XXX: Don't preclude handling different sized sigset_t's.  */
 	if (sigsetsize != sizeof(sigset_t))
@@ -709,22 +731,18 @@ sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo,
 	if (!sig) {
 		/* None ready -- temporarily unblock those we're interested
 		   in so that we'll be awakened when they arrive.  */
-		unsigned long expire;
 		sigset_t oldblocked = current->blocked;
 		sigandsets(&current->blocked, &current->blocked, &these);
 		recalc_sigpending(current);
 		spin_unlock_irq(&current->sigmask_lock);
 
-		expire = ~0UL;
-		if (uts) {
-			expire = (timespec_to_jiffies(&ts)
-				  + (ts.tv_sec || ts.tv_nsec));
-			expire += jiffies;
-		}
-		current->timeout = expire;
+		timeout = MAX_SCHEDULE_TIMEOUT;
+		if (uts)
+			timeout = (timespec_to_jiffies(&ts)
+				   + (ts.tv_sec || ts.tv_nsec));
 
 		current->state = TASK_INTERRUPTIBLE;
-		schedule();
+		timeout = schedule_timeout(timeout);
 
 		spin_lock_irq(&current->sigmask_lock);
 		sig = dequeue_signal(&these, &info);
@@ -741,10 +759,8 @@ sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo,
 		}
 	} else {
 		ret = -EAGAIN;
-		if (current->timeout != 0) {
-			current->timeout = 0;
+		if (timeout)
 			ret = -EINTR;
-		}
 	}
 
 	return ret;

@@ -27,6 +27,9 @@ if [ "$CONFIG_INET" = "y" ]; then
     bool '   Root file system on NFS' CONFIG_ROOT_NFS
   fi
   tristate 'NFS server support' CONFIG_NFSD
+  if [ "$CONFIG_NFSD" != "n" ]; then
+    bool '   Emulate SUN NFS server' CONFIG_NFSD_SUN
+  fi
   if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
     define_bool CONFIG_SUNRPC y
     define_bool CONFIG_LOCKD y
@@ -45,7 +48,7 @@ if [ "$CONFIG_INET" = "y" ]; then
     bool 'SMB Win95 bug work-around' CONFIG_SMB_WIN95
   fi
 fi
-if [ "$CONFIG_IPX" != "n" ]; then
+if [ "$CONFIG_IPX" != "n" -o "$CONFIG_INET" != "n" ]; then
   tristate 'NCP filesystem support (to mount NetWare volumes)' CONFIG_NCP_FS
   if [ "$CONFIG_NCP_FS" != "n" ]; then
     source fs/ncpfs/Config.in
@@ -67,11 +70,9 @@ if [ "$CONFIG_AFFS_FS" != "n" ]; then
   define_bool CONFIG_AMIGA_PARTITION y
 fi
 tristate 'UFS filesystem support' CONFIG_UFS_FS
-if [ "$CONFIG_UFS_FS" != "n" ]; then
-  bool 'BSD disklabel (FreeBSD partition tables) support' CONFIG_BSD_DISKLABEL
-  bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
-  bool 'Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
-fi
+bool 'BSD disklabel (BSD partition tables) support' CONFIG_BSD_DISKLABEL
+bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
+bool 'Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'SGI EFS filesystem support' CONFIG_EFS_FS
 fi

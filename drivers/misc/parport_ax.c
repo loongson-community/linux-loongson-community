@@ -1,4 +1,4 @@
-/* $Id: parport_ax.c,v 1.12 1998/07/26 03:03:31 davem Exp $
+/* $Id: parport_ax.c,v 1.14 1998/11/16 04:48:02 davem Exp $
  * Parallel-port routines for Sun Ultra/AX architecture
  * 
  * Author: Eddie C. Dost <ecd@skynet.be>
@@ -11,6 +11,7 @@
  *          Grant Guenther <grant@torque.net>
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
@@ -50,10 +51,9 @@
 #define CONFIGB		0x401
 #define ECONTROL	0x402
 
-static void
-parport_ax_null_intr_func(int irq, void *dev_id, struct pt_regs *regs)
+static void parport_ax_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
-	/* NULL function - Does nothing */
+	parport_generic_irq(irq, (struct parport *) dev_id, regs);
 }
 
 void
@@ -206,7 +206,7 @@ parport_ax_release_resources(struct parport *p)
 {
 	if (p->irq != PARPORT_IRQ_NONE) {
 		parport_ax_disable_irq(p);
-		free_irq(p->irq, NULL);
+		free_irq(p->irq, p);
 	}
 	release_region(p->base, p->size);
 	if (p->modes & PARPORT_MODE_PCECR)
@@ -219,11 +219,15 @@ int
 parport_ax_claim_resources(struct parport *p)
 {
 	/* FIXME check that resources are free */
-	if (p->irq != PARPORT_IRQ_NONE) {
-		request_irq(p->irq, parport_ax_null_intr_func,
-			    0, p->name, NULL);
-		parport_ax_enable_irq(p);
-	}
+	int err;
+
+	if (p->irq != PARPORT_IRQ_NONE)
+		if ((err = request_irq(p->irq, parport_ax_interrupt,
+				       0, p->name, p)) != 0)
+			return err;
+		else
+			parport_ax_enable_irq(p);
+
 	request_region(p->base, p->size, p->name);
 	if (p->modes & PARPORT_MODE_PCECR)
 		request_region(p->base+0x400, 3, p->name);
@@ -277,12 +281,6 @@ int
 parport_ax_ecp_write_block(struct parport *p, void *buf, size_t length,
 			   void (*fn)(struct parport *, void *, size_t),
 			   void *handle)
-{
-	return 0; /* FIXME */
-}
-
-int
-parport_ax_examine_irq(struct parport *p)
 {
 	return 0; /* FIXME */
 }
@@ -355,7 +353,7 @@ static struct parport_operations parport_ax_ops =
 
 	parport_ax_enable_irq,
 	parport_ax_disable_irq,
-	parport_ax_examine_irq,
+	parport_ax_interrupt,
 
 	parport_ax_inc_use_count,
 	parport_ax_dec_use_count,
@@ -588,7 +586,9 @@ init_one_port(struct linux_ebus_device *dev)
 		printmode(ECPPS2);
 	}
 	printk("]\n");
+#ifdef	CONFIG_PROC_FS
 	parport_proc_register(p);
+#endif
 	p->flags |= PARPORT_FLAG_COMA;
 
 	p->ops->write_control(p, 0x0c);
@@ -631,7 +631,9 @@ cleanup_module(void)
 		if (p->modes & PARPORT_MODE_PCSPP) { 
 			if (!(p->flags & PARPORT_FLAG_COMA)) 
 				parport_quiesce(p);
+#ifdef	CONFIG_PROC_FS
 			parport_proc_unregister(p);
+#endif
 			parport_unregister_port(p);
 		}
 		p = tmp;

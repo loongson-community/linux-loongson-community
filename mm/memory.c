@@ -33,23 +33,13 @@
  * 		Idea by Alex Bligh (alex@cconcepts.co.uk)
  */
 
-#include <linux/signal.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/types.h>
-#include <linux/ptrace.h>
-#include <linux/mman.h>
 #include <linux/mm.h>
+#include <linux/mman.h>
 #include <linux/swap.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 
-#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
-#include <asm/string.h>
 
 unsigned long max_mapnr = 0;
 unsigned long num_physpages = 0;
@@ -289,10 +279,6 @@ skip_copy_pte_range:		address = (address + PMD_SIZE) & PMD_MASK;
 				}
 				if (cow)
 					pte = pte_wrprotect(pte);
-#if 0	/* No longer needed with the new swap cache code */
-				if (delete_from_swap_cache(&mem_map[page_nr]))
-					pte = pte_mkdirty(pte);
-#endif
 				set_pte(dst_pte, pte_mkold(pte));
 				set_pte(src_pte, pte);
 				atomic_inc(&mem_map[page_nr].count);
@@ -635,15 +621,15 @@ unsigned long put_dirty_page(struct task_struct * tsk, unsigned long page, unsig
  * change only once the write actually happens. This avoids a few races,
  * and potentially makes it more efficient.
  */
-static void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, int write_access, pte_t *page_table)
+static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
+	unsigned long address, pte_t *page_table)
 {
 	pte_t pte;
 	unsigned long old_page, new_page;
 	struct page * page_map;
 	
 	pte = *page_table;
-	new_page = get_user_page(address);
+	new_page = __get_free_page(GFP_USER);
 	/* Did someone else copy this page for us while we slept? */
 	if (pte_val(*page_table) != pte_val(pte))
 		goto end_wp_page;
@@ -661,40 +647,42 @@ static void do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	 * Do we need to copy?
 	 */
 	if (is_page_shared(page_map)) {
-		if (new_page) {
-			if (PageReserved(mem_map + MAP_NR(old_page)))
-				++vma->vm_mm->rss;
-			copy_cow_page(old_page,new_page);
-			flush_page_to_ram(old_page);
-			flush_page_to_ram(new_page);
-			flush_cache_page(vma, address);
-			set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
-			free_page(old_page);
-			flush_tlb_page(vma, address);
-			return;
-		}
+		unlock_kernel();
+		if (!new_page)
+			return 0;
+
+		if (PageReserved(mem_map + MAP_NR(old_page)))
+			++vma->vm_mm->rss;
+		copy_cow_page(old_page,new_page);
+		flush_page_to_ram(old_page);
+		flush_page_to_ram(new_page);
 		flush_cache_page(vma, address);
-		set_pte(page_table, BAD_PAGE);
-		flush_tlb_page(vma, address);
+		set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
 		free_page(old_page);
-		oom(tsk);
-		return;
+		flush_tlb_page(vma, address);
+		return 1;
 	}
+
 	if (PageSwapCache(page_map))
 		delete_from_swap_cache(page_map);
+
+	/* We can release the kernel lock now.. */
+	unlock_kernel();
+
 	flush_cache_page(vma, address);
 	set_pte(page_table, pte_mkdirty(pte_mkwrite(pte)));
 	flush_tlb_page(vma, address);
-	if (new_page)
-		free_page(new_page);
-	return;
-bad_wp_page:
-	printk("do_wp_page: bogus page at address %08lx (%08lx)\n",address,old_page);
-	send_sig(SIGKILL, tsk, 1);
 end_wp_page:
 	if (new_page)
 		free_page(new_page);
-	return;
+	return 1;
+
+bad_wp_page:
+	printk("do_wp_page: bogus page at address %08lx (%08lx)\n",address,old_page);
+	send_sig(SIGKILL, tsk, 1);
+	if (new_page)
+		free_page(new_page);
+	return 0;
 }
 
 /*
@@ -783,30 +771,53 @@ void vmtruncate(struct inode * inode, unsigned long offset)
 }
 
 
-static inline void do_swap_page(struct task_struct * tsk, 
+/*
+ * This is called with the kernel lock held, we need
+ * to return without it.
+ */
+static int do_swap_page(struct task_struct * tsk, 
 	struct vm_area_struct * vma, unsigned long address,
 	pte_t * page_table, pte_t entry, int write_access)
 {
-	pte_t page;
-
 	if (!vma->vm_ops || !vma->vm_ops->swapin) {
-		swap_in(tsk, vma, address, page_table, pte_val(entry), write_access);
+		swap_in(tsk, vma, page_table, pte_val(entry), write_access);
 		flush_page_to_ram(pte_page(*page_table));
-		return;
+	} else {
+		pte_t page = vma->vm_ops->swapin(vma, address - vma->vm_start + vma->vm_offset, pte_val(entry));
+		if (pte_val(*page_table) != pte_val(entry)) {
+			free_page(pte_page(page));
+		} else {
+			if (atomic_read(&mem_map[MAP_NR(pte_page(page))].count) > 1 &&
+			    !(vma->vm_flags & VM_SHARED))
+				page = pte_wrprotect(page);
+			++vma->vm_mm->rss;
+			++tsk->maj_flt;
+			flush_page_to_ram(pte_page(page));
+			set_pte(page_table, page);
+		}
 	}
-	page = vma->vm_ops->swapin(vma, address - vma->vm_start + vma->vm_offset, pte_val(entry));
-	if (pte_val(*page_table) != pte_val(entry)) {
-		free_page(pte_page(page));
-		return;
+	unlock_kernel();
+	return 1;
+}
+
+/*
+ * This only needs the MM semaphore
+ */
+static int do_anonymous_page(struct task_struct * tsk, struct vm_area_struct * vma, pte_t *page_table, int write_access, unsigned long addr)
+{
+	pte_t entry = pte_wrprotect(mk_pte(ZERO_PAGE(addr), vma->vm_page_prot));
+	if (write_access) {
+		unsigned long page = __get_free_page(GFP_USER);
+		if (!page)
+			return 0;
+		clear_page(page);
+		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
+		vma->vm_mm->rss++;
+		tsk->min_flt++;
+		flush_page_to_ram(page);
 	}
-	if (atomic_read(&mem_map[MAP_NR(pte_page(page))].count) > 1 &&
-	    !(vma->vm_flags & VM_SHARED))
-		page = pte_wrprotect(page);
-	++vma->vm_mm->rss;
-	++tsk->maj_flt;
-	flush_page_to_ram(pte_page(page));
-	set_pte(page_table, page);
-	return;
+	put_page(page_table, entry);
+	return 1;
 }
 
 /*
@@ -817,26 +828,34 @@ static inline void do_swap_page(struct task_struct * tsk,
  *
  * As this is called only for pages that do not currently exist, we
  * do not need to flush old virtual caches or the TLB.
+ *
+ * This is called with the MM semaphore and the kernel lock held.
+ * We need to release the kernel lock as soon as possible..
  */
-static void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, int write_access, pte_t *page_table, pte_t entry)
+static int do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
+	unsigned long address, int write_access, pte_t *page_table)
 {
 	unsigned long page;
+	pte_t entry;
 
-	if (!pte_none(entry))
-		goto swap_page;
-	address &= PAGE_MASK;
-	if (!vma->vm_ops || !vma->vm_ops->nopage)
-		goto anonymous_page;
+	if (!vma->vm_ops || !vma->vm_ops->nopage) {
+		unlock_kernel();
+		return do_anonymous_page(tsk, vma, page_table, write_access,
+		                         address);
+	}
+
 	/*
 	 * The third argument is "no_share", which tells the low-level code
 	 * to copy, not share the page even if sharing is possible.  It's
-	 * essentially an early COW detection 
+	 * essentially an early COW detection.
 	 */
-	page = vma->vm_ops->nopage(vma, address, 
+	page = vma->vm_ops->nopage(vma, address & PAGE_MASK,
 		(vma->vm_flags & VM_SHARED)?0:write_access);
+
+	unlock_kernel();
 	if (!page)
-		goto sigbus;
+		return 0;
+
 	++tsk->maj_flt;
 	++vma->vm_mm->rss;
 	/*
@@ -849,7 +868,6 @@ static void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 	 * so we can make it writable and dirty to avoid having to
 	 * handle that later.
 	 */
-/* do_no_page might already have flushed the page ... */
 	flush_page_to_ram(page);
 	entry = mk_pte(page, vma->vm_page_prot);
 	if (write_access) {
@@ -859,32 +877,7 @@ static void do_no_page(struct task_struct * tsk, struct vm_area_struct * vma,
 		entry = pte_wrprotect(entry);
 	put_page(page_table, entry);
 	/* no need to invalidate: a not-present page shouldn't be cached */
-	return;
-
-anonymous_page:
-	entry = pte_wrprotect(mk_pte(ZERO_PAGE(address), vma->vm_page_prot));
-	if (write_access) {
-		unsigned long page = get_user_page(address);
-		if (!page)
-			goto sigbus;
-		clear_page(page);
-		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
-		vma->vm_mm->rss++;
-		tsk->min_flt++;
-		flush_page_to_ram(page);
-	}
-	put_page(page_table, entry);
-	return;
-
-sigbus:
-	force_sig(SIGBUS, current);
-	put_page(page_table, BAD_PAGE);
-	/* no need to invalidate, wasn't present */
-	return;
-
-swap_page:
-	do_swap_page(tsk, vma, address, page_table, entry, write_access);
-	return;
+	return 1;
 }
 
 /*
@@ -896,54 +889,57 @@ swap_page:
  * with external mmu caches can use to update those (ie the Sparc or
  * PowerPC hashed page tables that act as extended TLBs).
  */
-static inline void handle_pte_fault(struct task_struct *tsk,
+static inline int handle_pte_fault(struct task_struct *tsk,
 	struct vm_area_struct * vma, unsigned long address,
 	int write_access, pte_t * pte)
 {
-	pte_t entry = *pte;
+	pte_t entry;
+
+	lock_kernel();
+	entry = *pte;
 
 	if (!pte_present(entry)) {
-		do_no_page(tsk, vma, address, write_access, pte, entry);
-		return;
+		if (pte_none(entry))
+			return do_no_page(tsk, vma, address, write_access, pte);
+		return do_swap_page(tsk, vma, address, pte, entry, write_access);
 	}
+
 	entry = pte_mkyoung(entry);
 	set_pte(pte, entry);
 	flush_tlb_page(vma, address);
-	if (!write_access)
-		return;
-	if (pte_write(entry)) {
+	if (write_access) {
+		if (!pte_write(entry))
+			return do_wp_page(tsk, vma, address, pte);
+
 		entry = pte_mkdirty(entry);
 		set_pte(pte, entry);
 		flush_tlb_page(vma, address);
-		return;
 	}
-	do_wp_page(tsk, vma, address, write_access, pte);
+	unlock_kernel();
+	return 1;
 }
 
 /*
  * By the time we get here, we already hold the mm semaphore
  */
-void handle_mm_fault(struct task_struct *tsk, struct vm_area_struct * vma,
+int handle_mm_fault(struct task_struct *tsk, struct vm_area_struct * vma,
 	unsigned long address, int write_access)
 {
 	pgd_t *pgd;
 	pmd_t *pmd;
-	pte_t *pte;
 
 	pgd = pgd_offset(vma->vm_mm, address);
 	pmd = pmd_alloc(pgd, address);
-	if (!pmd)
-		goto no_memory;
-	pte = pte_alloc(pmd, address);
-	if (!pte)
-		goto no_memory;
-	lock_kernel();
-	handle_pte_fault(tsk, vma, address, write_access, pte);
-	unlock_kernel();
-	update_mmu_cache(vma, address, *pte);
-	return;
-no_memory:
-	oom(tsk);
+	if (pmd) {
+		pte_t * pte = pte_alloc(pmd, address);
+		if (pte) {
+			if (handle_pte_fault(tsk, vma, address, write_access, pte)) {
+				update_mmu_cache(vma, address, *pte);
+				return 1;
+			}
+		}
+	}
+	return 0;
 }
 
 /*

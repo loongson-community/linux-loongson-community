@@ -11,6 +11,7 @@
 #include <asm/semaphore.h>
 #include <asm/processor.h>
 #include <asm/uaccess.h>
+#include <asm/ide.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
 #include <asm/bitops.h>
@@ -23,6 +24,7 @@
 #include <asm/system.h>
 #include <asm/pci-bridge.h>
 #include <asm/irq.h>
+#include <asm/feature.h>
 
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
@@ -56,10 +58,10 @@ EXPORT_SYMBOL(SingleStepException);
 EXPORT_SYMBOL(sys_sigreturn);
 EXPORT_SYMBOL(n_lost_interrupts);
 EXPORT_SYMBOL(do_lost_interrupts);
-EXPORT_SYMBOL(__ppc_bh_counter);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(local_irq_count);
+EXPORT_SYMBOL(local_bh_count);
 
 EXPORT_SYMBOL(isa_io_base);
 EXPORT_SYMBOL(isa_mem_base);
@@ -138,10 +140,11 @@ EXPORT_SYMBOL(ioremap);
 EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(iounmap);
 
+EXPORT_SYMBOL(ide_insw);
+EXPORT_SYMBOL(ide_outsw);
+
 EXPORT_SYMBOL(start_thread);
 EXPORT_SYMBOL(__kernel_thread);
-
-EXPORT_SYMBOL(__down_interruptible);
 
 EXPORT_SYMBOL(__cli);
 EXPORT_SYMBOL(__sti);
@@ -153,6 +156,10 @@ EXPORT_SYMBOL(_get_PVR);
 EXPORT_SYMBOL(giveup_fpu);
 EXPORT_SYMBOL(flush_icache_range);
 EXPORT_SYMBOL(xchg_u32);
+
+#ifndef CONFIG_MACH_SPECIFIC
+EXPORT_SYMBOL(_machine);
+#endif
 
 EXPORT_SYMBOL(adb_request);
 EXPORT_SYMBOL(adb_autopoll);
@@ -169,10 +176,15 @@ EXPORT_SYMBOL(sleep_notifier_list);
 EXPORT_SYMBOL(abort);
 EXPORT_SYMBOL(find_devices);
 EXPORT_SYMBOL(find_type_devices);
+EXPORT_SYMBOL(find_compatible_devices);
 EXPORT_SYMBOL(find_path_device);
+EXPORT_SYMBOL(find_phandle);
 EXPORT_SYMBOL(get_property);
 EXPORT_SYMBOL(pci_io_base);
 EXPORT_SYMBOL(pci_device_loc);
+EXPORT_SYMBOL(feature_set);
+EXPORT_SYMBOL(feature_clear);
+EXPORT_SYMBOL(feature_test);
 EXPORT_SYMBOL(note_scsi_host);
 EXPORT_SYMBOL(kd_mksound);
 #ifdef CONFIG_PMAC

@@ -1,9 +1,10 @@
 /*
- * $Id: setup.c,v 1.95 1998/07/20 19:03:47 geert Exp $
+ * $Id: setup.c,v 1.117 1998/11/09 19:55:53 geert Exp $
  * Common prep/pmac/chrp boot and setup code.
  */
 
 #include <linux/config.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/sched.h>
 #include <linux/init.h>
@@ -23,15 +24,22 @@
 #include <asm/bootinfo.h>
 #include <asm/setup.h>
 #include <asm/amigappc.h>
+#include <asm/smp.h>
 #ifdef CONFIG_MBX
 #include <asm/mbx.h>
 #endif
+#include <asm/bootx.h>
 
 /* APUS defs */
 extern unsigned long m68k_machtype;
-extern struct mem_info ramdisk;
 extern int parse_bootinfo(const struct bi_record *);
 extern char _end[];
+#ifdef CONFIG_APUS
+struct mem_info ramdisk;
+unsigned long isa_io_base;
+unsigned long isa_mem_base;
+unsigned long pci_dram_offset;
+#endif
 /* END APUS defs */
 
 extern char cmd_line[512];
@@ -51,6 +59,8 @@ unsigned char __res[sizeof(RESIDUAL)] __prepdata = {0,};
 RESIDUAL *res = (RESIDUAL *)&__res;
 
 int _prep_type;
+
+extern boot_infos_t *boot_infos;
 
 /*
  * Perhaps we can put the pmac screen_info[] here
@@ -122,9 +132,7 @@ void machine_restart(char *cmd)
 				cuda_poll();
 			break;
 		case ADB_VIAPMU:
-			pmu_request(&req, NULL, 1, PMU_RESET);
-			for (;;)
-				pmu_poll();
+			pmu_restart();
 			break;
 		default:
 		}
@@ -197,10 +205,7 @@ void machine_power_off(void)
 				cuda_poll();
 			break;
 		case ADB_VIAPMU:
-			pmu_request(&req, NULL, 5, PMU_SHUTDOWN,
-				    'M', 'A', 'T', 'T');
-			for (;;)
-				pmu_poll();
+			pmu_shutdown();
 			break;
 		default:
 		}
@@ -217,10 +222,7 @@ void machine_power_off(void)
 	case _MACH_prep:
 		machine_restart(NULL);
 	case _MACH_apus:
-#if defined(CONFIG_APM) && defined(CONFIG_APM_POWER_OFF)
-		apm_set_power_state(APM_STATE_OFF);
 		for (;;);
-#endif
 	}
 	for (;;);
 #else /* CONFIG_MBX */
@@ -239,14 +241,16 @@ void machine_halt(void)
 
 }
 
-#ifdef CONFIG_BLK_DEV_IDE
+#if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 void ide_init_hwif_ports (ide_ioreg_t *p, ide_ioreg_t base, int *irq)
 {
 #if !defined(CONFIG_MBX) && !defined(CONFIG_APUS)
 	switch (_machine) {
+#if defined(CONFIG_BLK_DEV_IDE_PMAC)
 	case _MACH_Pmac:
-		pmac_ide_init_hwif_ports(p,base,irq);
+	  	pmac_ide_init_hwif_ports(p,base,irq);
 		break;
+#endif		
 	case _MACH_chrp:
 		chrp_ide_init_hwif_ports(p,base,irq);
 		break;
@@ -256,72 +260,36 @@ void ide_init_hwif_ports (ide_ioreg_t *p, ide_ioreg_t base, int *irq)
 	}
 #endif
 }
+EXPORT_SYMBOL(ide_init_hwif_ports);
 #endif
 
 unsigned long cpu_temp(void)
 {
-#if 0	
-	unsigned long i, temp, thrm1, dir;
-	int sanity;
+	unsigned char thres = 0;
 	
-	/*
-	 * setup thrm3 - need to give TAU at least 20us
-	 * to do the compare so assume a 300MHz clock.
-	 * We need 300*20 ticks then.
-	 * -- Cort
-	 */
-	asm("mtspr 1020, %1\n\t"
-	    "mtspr 1021, %1\n\t"
-	    "mtspr 1022, %0\n\t"::
-	    "r" ( ((300*20)<<18) | THRM3_E), "r" (0) );
-		
 #if 0
-	for ( i = 127 ; i >= 0 ; i-- )
-	{
-		asm("mtspr 1020, %0\n\t"::
-		    "r" (THRM1_TID|THRM1_V|(i<<2)) );
-		/* check value */
-		while ( !( thrm1 & THRM1_TIV) )
-			asm("mfspr %0, 1020 \n\t": "=r" (thrm1) );
-		if ( thrm1 & THRM1_TIN )
-		{
-			printk("tin set: %x tiv %x\n", thrm1,thrm1&THRM1_TIV);
-			goto out;
-		}
+	/* disable thrm2 */
+	_set_THRM2( 0 );
+	/* threshold 0 C, tid: exceeding threshold, tie: don't generate interrupt */
+	_set_THRM1( THRM1_V );
 
-	}
+	/* we need 20us to do the compare - assume 300MHz processor clock */
+	_set_THRM3(0);
+	_set_THRM3(THRM3_E | (300*30)<<18 );
+
+	udelay(100);
+	/* wait for the compare to complete */
+	/*while ( !(_get_THRM1() & THRM1_TIV) ) ;*/
+	if ( !(_get_THRM1() & THRM1_TIV) )
+		printk("no tiv\n");
+	if ( _get_THRM1() & THRM1_TIN )
+		printk("crossed\n");
+	/* turn everything off */
+	_set_THRM3(0);
+	_set_THRM1(0);
 #endif
-#if 0
-	i = 32;			/* increment */
-	dir = 1;		/* direction we're checking 0=up 1=down */
-	temp = 64;		/* threshold checking against */
-	while ( i )
-	{
-		_set_THRM1((1<<29) | THRM1_V | (temp<<2) );
-		printk("checking %d in dir %d thrm set to %x/%x\n", temp,dir,
-		       ( (1<<29) | THRM1_V | (temp<<2)),_get_THRM1());
-		/* check value */
-		sanity = 0x0fffffff;
-		while ( (!( thrm1 & THRM1_TIV)) && (sanity--) )
-			thrm1 = _get_THRM1();
-			/*asm("mfspr %0, 1020 \n\t": "=r" (thrm1) );*/
-		if ( ! sanity || sanity==0xffffffff ) printk("no sanity\n");
-		/* temp is not in that direction */
-		if ( !(thrm1 & THRM1_TIN) )
-		{
-			printk("not in that dir thrm1 %x\n",thrm1);
-			if ( dir == 0 ) dir = 1;
-			else dir = 0;
-		}
-		if ( dir ) temp -= i;
-		else temp += i;
-		i /= 2;
-	}
-	asm("mtspr 1020, %0\n\t"
-	    "mtspr 1022, %0\n\t" ::"r" (0) );
-#endif
-#endif	
-	return 0;
+		
+	return thres;
 }
 
 int get_cpuinfo(char *buffer)
@@ -333,14 +301,13 @@ int get_cpuinfo(char *buffer)
 	unsigned long len = 0;
 	unsigned long bogosum = 0;
 	unsigned long i;
-	unsigned long cr;
+	
 #ifdef __SMP__
-	extern unsigned long cpu_present_map;	
-	extern struct cpuinfo_PPC cpu_data[NR_CPUS];
+#define CPU_PRESENT(x) (cpu_callin_map[(x)])
 #define GET_PVR ((long int)(cpu_data[i].pvr))
 #define CD(x) (cpu_data[i].x)
 #else
-#define cpu_present_map 1L
+#define CPU_PRESENT(x) ((x)==0)
 #define smp_num_cpus 1
 #define GET_PVR ((long int)_get_PVR())
 #define CD(x) (x)
@@ -348,7 +315,7 @@ int get_cpuinfo(char *buffer)
 
 	for ( i = 0; i < smp_num_cpus ; i++ )
 	{
-		if ( ! ( cpu_present_map & (1<<i) ) )
+		if ( !CPU_PRESENT(i) )
 			continue;
 		if ( i )
 			len += sprintf(len+buffer,"\n");
@@ -374,14 +341,6 @@ int get_cpuinfo(char *buffer)
 			break;
 		case 8:
 			len += sprintf(len+buffer, "750\n");
-			cr = _get_L2CR();
-			if ( cr & (0x1<<28)) cr = 256;
-			else if ( cr & (0x2<<28)) cr = 512;
-			else if ( cr & (0x3<<28)) cr = 1024;
-			else cr = 0;
-			len += sprintf(len+buffer, "on-chip l2\t: "
-				       "%ld KB (%s)\n",
-				       cr,(_get_L2CR()&0x80000000) ? "on" : "off");
 			len += sprintf(len+buffer, "temperature \t: %lu C\n",
 				       cpu_temp());
 			break;
@@ -436,9 +395,9 @@ int get_cpuinfo(char *buffer)
 #else /* CONFIG_MBX */
 		{
 			bd_t	*bp;
-			extern	RESIDUAL res;
+			extern	RESIDUAL *res;
 			
-			bp = (bd_t *)&res;
+			bp = (bd_t *)res;
 			
 			len += sprintf(len+buffer,"clock\t\t: %dMHz\n"
 				      "bus clock\t: %dMHz\n",
@@ -510,30 +469,41 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		 unsigned long r6, unsigned long r7))
 {
 	extern void setup_pci_ptrs(void);
+	
+#ifdef __SMP__
+	if ( first_cpu_booted ) return 0;
+#endif /* __SMP__ */
+	
 #ifndef CONFIG_MBX
 #ifndef CONFIG_MACH_SPECIFIC
-	char *model;
-	/* prep boot loader tells us if we're prep or not */
-	if ( *(unsigned long *)(KERNELBASE) == (0xdeadc0de) )
-	{
-		_machine = _MACH_prep;
-		have_of = 0;
-	}
 	/* boot loader will tell us if we're APUS */
-	else if ( r3 == 0x61707573 )
+	if ( r3 == 0x61707573 )
 	{
 		_machine = _MACH_apus;
 		have_of = 0;
 		r3 = 0;
-	} else
-	{
+	}
+	/* prep boot loader tells us if we're prep or not */
+	else if ( *(unsigned long *)(KERNELBASE) == (0xdeadc0de) ) {
+		_machine = _MACH_prep;
+		have_of = 0;
+	} else {
+		char *model;
+
 		have_of = 1;
 		/* ask the OF info if we're a chrp or pmac */
-		model = get_property(find_path_device("/"), "type", NULL);
-		if ( !strncmp("chrp",model,4) )
+		model = get_property(find_path_device("/"), "device_type", NULL);
+		if ( model && !strncmp("chrp",model,4) )
 			_machine = _MACH_chrp;
-		else 
-			_machine = _MACH_Pmac;
+		else
+		{
+			model = get_property(find_path_device("/"),
+					     "model", NULL);
+			if ( model && !strncmp(model, "IBM", 3))
+				_machine = _MACH_chrp;
+			else
+				_machine = _MACH_Pmac;
+		}
 
 	}
 #endif /* CONFIG_MACH_SPECIFIC */		
@@ -556,6 +526,20 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		if (r3 >= 0x4000 && r3 < 0x800000 && r4 == 0) {
 			strncpy(cmd_line, (char *)r3 + KERNELBASE,
 				sizeof(cmd_line));
+		} else if (boot_infos != 0) {
+			/* booted by BootX - check for ramdisk */
+			if (boot_infos->kernelParamsOffset != 0)
+				strncpy(cmd_line, (char *) boot_infos
+					+ boot_infos->kernelParamsOffset,
+					sizeof(cmd_line));
+#ifdef CONFIG_BLK_DEV_INITRD
+			if (boot_infos->ramDisk) {
+				initrd_start = (unsigned long) boot_infos
+					+ boot_infos->ramDisk;
+				initrd_end = initrd_start + boot_infos->ramDiskSize;
+				initrd_below_start_ok = 1;
+			}
+#endif
 		} else {
 			struct device_node *chosen;
 			char *p;
@@ -568,6 +552,7 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 				ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
 			}
 #endif
+			cmd_line[0] = 0;
 			chosen = find_devices("chosen");
 			if (chosen != NULL) {
 				p = get_property(chosen, "bootargs", NULL);
@@ -652,7 +637,6 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		break;
 #ifdef CONFIG_APUS		
 	case _MACH_apus:
-		setup_pci_ptrs();
 		/* Parse bootinfo. The bootinfo is located right after
                    the kernel bss */
 		parse_bootinfo((const struct bi_record *)&_end);
@@ -677,6 +661,7 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 	default:
 		printk("Unknown machine type in identify_machine!\n");
 	}
+
 #else /* CONFIG_MBX */
 
 	if ( r3 )
@@ -702,6 +687,12 @@ identify_machine(unsigned long r3, unsigned long r4, unsigned long r5,
 		strcpy(cmd_line, (char *)(r6+KERNELBASE));
 	}
 #endif /* CONFIG_MBX */
+
+	/* Check for nobats option (used in mapin_ram). */
+	if (strstr(cmd_line, "nobats")) {
+		extern int __map_without_bats;
+		__map_without_bats = 1;
+	}
 	return 0;
 }
 
@@ -722,6 +713,8 @@ __initfunc(void setup_arch(char **cmdline_p,
 #ifdef CONFIG_XMON
 	extern void xmon_map_scc(void);
 	xmon_map_scc();
+	if (strstr(cmd_line, "xmon"))
+		xmon(0);
 #endif /* CONFIG_XMON */
 
 	/* reboot on panic */	
@@ -739,20 +732,6 @@ __initfunc(void setup_arch(char **cmdline_p,
 	*memory_start_p = find_available_memory();
 	*memory_end_p = (unsigned long) end_of_DRAM;
 
-#ifdef CONFIG_BLK_DEV_INITRD
-	/* initrd_start and size are setup by boot/head.S and kernel/head.S */
-	if ( initrd_start )
-	{
-		if (initrd_end > *memory_end_p)
-		{
-			printk("initrd extends beyond end of memory "
-			       "(0x%08lx > 0x%08lx)\ndisabling initrd\n",
-			       initrd_end,*memory_end_p);
-			initrd_start = 0;
-		}
-	}
-#endif
-	
 #ifdef CONFIG_MBX
 	mbx_setup_arch(memory_start_p,memory_end_p);
 #else /* CONFIG_MBX */	
@@ -771,7 +750,7 @@ __initfunc(void setup_arch(char **cmdline_p,
 		m68k_machtype = MACH_AMIGA;
 		apus_setup_arch(memory_start_p,memory_end_p);
 		break;
-#endif		
+#endif
 	default:
 		printk("Unknown machine %d in setup_arch()\n", _machine);
 	}

@@ -16,6 +16,28 @@
  *
  * (C) Copyright 1995 - 1997 Marco van Wieringen - ELM Consultancy B.V.
  *
+ *  Plugged two leaks. 1) It didn't return acct_file into the free_filps if
+ *  the file happened to be read-only. 2) If the accounting was suspended
+ *  due to the lack of space it happily allowed to reopen it and completely
+ *  lost the old acct_file. 3/10/98, Al Viro.
+ *
+ *  Now we silently close acct_file on attempt to reopen. Cleaned sys_acct().
+ *  XTerms and EMACS are manifestations of pure evil. 21/10/98, AV.
+ *
+ *  Fixed a nasty interaction with with sys_umount(). If the accointing
+ *  was suspeneded we failed to stop it on umount(). Messy.
+ *  Another one: remount to readonly didn't stop accounting.
+ *	Question: what should we do if we have CAP_SYS_ADMIN but not
+ *  CAP_SYS_PACCT? Current code does the following: umount returns -EBUSY
+ *  unless we are messing with the root. In that case we are getting a
+ *  real mess with do_remount_sb(). 9/11/98, AV.
+ *
+ *  Fixed a bunch of races (and pair of leaks). Probably not the best way,
+ *  but this one obviously doesn't introduce deadlocks. Later. BTW, found
+ *  one race (and leak) in BSD implementation.
+ *  OK, that's better. ANOTHER race and leak in BSD variant. There always
+ *  is one more bug... TODO: move filp_open into open.c and make
+ *  parameters sysctl-controllable. 10/11/98, AV.
  */
 
 #include <linux/config.h>
@@ -23,18 +45,8 @@
 #include <linux/kernel.h>
 
 #ifdef CONFIG_BSD_PROCESS_ACCT
-#include <linux/fs.h>
-#include <linux/vfs.h>
-#include <linux/types.h>
-#include <linux/fcntl.h>
-#include <linux/stat.h>
-#include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/timer.h>
-#include <linux/tty.h>
 #include <linux/acct.h>
-#include <linux/major.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/file.h>
 
@@ -44,11 +56,13 @@
  * These constants control the amount of freespace that suspend and
  * resume the process accounting system, and the time delay between
  * each check.
+ * Turned into sysctl-controllable parameters. AV, 12/11/98
  */
 
-#define RESUME		(4)       /* More than 4% free space will resume */
-#define SUSPEND		(2)       /* Less than 2% free space will suspend */
-#define ACCT_TIMEOUT	(30 * HZ) /* 30 second timeout between checks */
+int acct_parm[3] = {4, 2, 30};
+#define RESUME		(acct_parm[0])	/* >foo% free space - resume */
+#define SUSPEND		(acct_parm[1])	/* <foo% free space - suspend */
+#define ACCT_TIMEOUT	(acct_parm[2])	/* foo second timeout between checks */
 
 /*
  * External references and all of the globals.
@@ -59,6 +73,7 @@ static volatile int acct_active = 0;
 static volatile int acct_needcheck = 0;
 static struct file *acct_file = NULL;
 static struct timer_list acct_timer = { NULL, NULL, 0, 0, acct_timeout };
+static int do_acct_process(long, struct file *);
 
 /*
  * Called whenever the timer says to check the free space.
@@ -71,38 +86,58 @@ void acct_timeout(unsigned long unused)
 /*
  * Check the amount of free space and suspend/resume accordingly.
  */
-static void check_free_space(void)
+static int check_free_space(struct file *file)
 {
 	mm_segment_t fs;
 	struct statfs sbuf;
+	struct super_block *sb;
+	int res = acct_active;
+	int act;
 
-	if (!acct_file || !acct_needcheck)
-		return;
+	if (!file || !acct_needcheck)
+		return res;
 
-	if (!acct_file->f_dentry->d_inode->i_sb->s_op ||
-            !acct_file->f_dentry->d_inode->i_sb->s_op->statfs)
-		return;
+	sb = file->f_dentry->d_inode->i_sb;
+	if (!sb->s_op || !sb->s_op->statfs)
+		return res;
 
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-	acct_file->f_dentry->d_inode->i_sb->s_op->statfs(acct_file->f_dentry->d_inode->i_sb, &sbuf, sizeof(struct statfs));
+	/* May block */
+	sb->s_op->statfs(sb, &sbuf, sizeof(struct statfs));
 	set_fs(fs);
 
+	if (sbuf.f_bavail <= SUSPEND * sbuf.f_blocks / 100)
+		act = -1;
+	else if (sbuf.f_bavail >= RESUME * sbuf.f_blocks / 100)
+		act = 1;
+	else
+		act = 0;
+
+	/*
+	 * If some joker switched acct_file under us we'ld better be
+	 * silent and _not_ touch anything.
+	 */
+	if (file != acct_file)
+		return act ? (act>0) : res;
+
 	if (acct_active) {
-		if (sbuf.f_bavail <= SUSPEND * sbuf.f_blocks / 100) {
+		if (act < 0) {
 			acct_active = 0;
 			printk(KERN_INFO "Process accounting paused\r\n");
 		}
 	} else {
-		if (sbuf.f_bavail >= RESUME * sbuf.f_blocks / 100) {
+		if (act > 0) {
 			acct_active = 1;
 			printk(KERN_INFO "Process accounting resumed\r\n");
 		}
 	}
+
 	del_timer(&acct_timer);
 	acct_needcheck = 0;
-	acct_timer.expires = jiffies + ACCT_TIMEOUT;
+	acct_timer.expires = jiffies + ACCT_TIMEOUT*HZ;
 	add_timer(&acct_timer);
+	return acct_active;
 }
 
 /*
@@ -113,8 +148,7 @@ static void check_free_space(void)
  */
 asmlinkage int sys_acct(const char *name)
 {
-	struct dentry *dentry;
-	struct inode *inode;
+	struct file *file = NULL, *old_acct = NULL;
 	char *tmp;
 	int error = -EPERM;
 
@@ -122,80 +156,57 @@ asmlinkage int sys_acct(const char *name)
 	if (!capable(CAP_SYS_PACCT))
 		goto out;
 
-	if (name == (char *)NULL) {
-		if (acct_active) {
-			acct_process(0); 
-		        del_timer(&acct_timer);
-			acct_active = 0;
-			acct_needcheck = 0;
-			fput(acct_file);
+	if (name) {
+		tmp = getname(name);
+		error = PTR_ERR(tmp);
+		if (IS_ERR(tmp))
+			goto out;
+		/* Difference from BSD - they don't do O_APPEND */
+		file = filp_open(tmp, O_WRONLY|O_APPEND, 0);
+		putname(tmp);
+		if (IS_ERR(file)) {
+			error = PTR_ERR(file);
+			goto out;
 		}
-		error = 0;
-		goto out;
-	} else {
-		if (!acct_active) {
-			tmp = getname(name);
-			error = PTR_ERR(tmp);
-			if (IS_ERR(tmp))
-				goto out;
+		error = -EACCES;
+		if (!S_ISREG(file->f_dentry->d_inode->i_mode)) 
+			goto out_err;
 
-			dentry = open_namei(tmp, O_RDWR, 0600);
-			putname(tmp);
+		error = -EIO;
+		if (!file->f_op->write) 
+			goto out_err;
+	}
 
-			error = PTR_ERR(dentry);
-			if (IS_ERR(dentry))
-				goto out;
-
-			inode = dentry->d_inode;
-
-			if (!S_ISREG(inode->i_mode)) {
-				dput(dentry);
-				error = -EACCES;
-				goto out;
-			}
-
-			if (!inode->i_op || !inode->i_op->default_file_ops || 
-			    !inode->i_op->default_file_ops->write) {
-				dput(dentry);
-				error = -EIO;
-				goto out;
-			}
-
-			if ((acct_file = get_empty_filp()) != (struct file *)NULL) {
-				acct_file->f_mode = (O_WRONLY + 1) & O_ACCMODE;
-				acct_file->f_flags = O_WRONLY;
-				acct_file->f_dentry = dentry;
-				acct_file->f_pos = inode->i_size;
-				acct_file->f_reada = 0;
-				acct_file->f_op = inode->i_op->default_file_ops;
-				if ((error = get_write_access(acct_file->f_dentry->d_inode)) == 0) {
-					if (acct_file->f_op && acct_file->f_op->open)
-						error = acct_file->f_op->open(inode, acct_file);
-					if (error == 0) {
-						acct_needcheck = 0;
-						acct_active = 1;
-						acct_timer.expires = jiffies + ACCT_TIMEOUT;
-						add_timer(&acct_timer);
-						error = 0;
-						goto out;
-					}
-					put_write_access(acct_file->f_dentry->d_inode);
-				}
-				acct_file->f_count--;
-			} else
-				error = -EUSERS;
-			dput(dentry);
-		} else
-			error = -EBUSY;
+	error = 0;
+	if (acct_file) {
+		old_acct = acct_file;
+		del_timer(&acct_timer);
+		acct_active = 0;
+		acct_needcheck = 0;
+		acct_file = NULL;
+	}
+	if (name) {
+		acct_file = file;
+		acct_needcheck = 0;
+		acct_active = 1;
+		acct_timer.expires = jiffies + ACCT_TIMEOUT*HZ;
+		add_timer(&acct_timer);
+	}
+	if (old_acct) {
+		do_acct_process(0,old_acct);
+		fput(old_acct);
 	}
 out:
 	unlock_kernel();
 	return error;
+out_err:
+	fput(file);
+	goto out;
 }
 
 void acct_auto_close(kdev_t dev)
 {
-	if (acct_active && acct_file && acct_file->f_dentry->d_inode->i_dev == dev)
+	if (acct_file && acct_file->f_dentry->d_inode->i_dev == dev)
 		sys_acct((char *)NULL);
 }
 
@@ -249,22 +260,27 @@ static comp_t encode_comp_t(unsigned long value)
 #define KSTK_EIP(stack) (((unsigned long *)(stack))[1019])
 #define KSTK_ESP(stack) (((unsigned long *)(stack))[1022])
 
-int acct_process(long exitcode)
+/*
+ *  do_acct_process does all actual work.
+ */
+static int do_acct_process(long exitcode, struct file *file)
 {
 	struct acct ac;
 	mm_segment_t fs;
 	unsigned long vsize;
+	struct inode *inode;
 
 	/*
-	 * First check to see if there is enough free_space to continue the process
-	 * accounting system. Check_free_space toggles the acct_active flag so we
-	 * need to check that after check_free_space.
+	 * First check to see if there is enough free_space to continue
+	 * the process accounting system.
 	 */
-	check_free_space();
-
-	if (!acct_active)
+	if (!file)
 		return 0;
-
+	file->f_count++;
+	if (!check_free_space(file)) {
+		fput(file);
+		return 0;
+	}
 
 	/*
 	 * Fill the accounting struct with the needed info as recorded
@@ -311,14 +327,27 @@ int acct_process(long exitcode)
 	ac.ac_exitcode = exitcode;
 
 	/*
-         * Kernel segment override to datasegment and write it to the accounting file.
+         * Kernel segment override to datasegment and write it
+         * to the accounting file.
          */
 	fs = get_fs();
 	set_fs(KERNEL_DS);
-	acct_file->f_op->write(acct_file, (char *)&ac,
-			       sizeof(struct acct), &acct_file->f_pos);
+	inode = file->f_dentry->d_inode;
+	down(&inode->i_sem);
+	file->f_op->write(file, (char *)&ac,
+			       sizeof(struct acct), &file->f_pos);
+	up(&inode->i_sem);
 	set_fs(fs);
+	fput(file);
 	return 0;
+}
+
+/*
+ * acct_process - now just a wrapper around do_acct_process
+ */
+int acct_process(long exitcode)
+{
+	return do_acct_process(exitcode, acct_file);
 }
 
 #else

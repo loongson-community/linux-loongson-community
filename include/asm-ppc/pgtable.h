@@ -618,8 +618,6 @@ extern void cache_push(__u32 addr, int length);
 extern int mm_end_of_chunk (unsigned long addr, int len);
 extern unsigned long iopa(unsigned long addr);
 extern unsigned long mm_ptov(unsigned long addr) __attribute__ ((const));
-#define VTOP(addr)  (iopa((unsigned long)(addr)))
-#define PTOV(addr)  (mm_ptov((unsigned long)(addr)))
 
 /* Values for nocacheflag and cmode */
 /* These are not used by the APUS kernel_map, but prevents
@@ -635,6 +633,11 @@ extern unsigned long mm_ptov(unsigned long addr) __attribute__ ((const));
 extern unsigned long kernel_map(unsigned long paddr, unsigned long size,
 				int nocacheflag, unsigned long *memavailp );
 
+/*
+ * Set cache mode of (kernel space) address range. 
+ */
+extern void kernel_set_cachemode (unsigned long address, unsigned long size,
+                                 unsigned int cmode);
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 #define PageSkip(page)		(0)

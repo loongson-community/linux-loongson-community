@@ -5,25 +5,16 @@
  *  Swap reorganised 29.12.95, Stephen Tweedie
  */
 
-#include <linux/mm.h>
-#include <linux/smp.h>
-#include <linux/smp_lock.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/kernel_stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
-#include <linux/swap.h>
-#include <linux/fs.h>
-#include <linux/swapctl.h>
 #include <linux/malloc.h>
+#include <linux/smp_lock.h>
+#include <linux/kernel_stat.h>
+#include <linux/swap.h>
+#include <linux/swapctl.h>
 #include <linux/blkdev.h> /* for blk_size */
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/shm.h>
 
-#include <asm/bitops.h>
 #include <asm/pgtable.h>
 
 unsigned int nr_swapfiles = 0;
@@ -317,14 +308,14 @@ static int try_to_unuse(unsigned int type)
 		/* Get a page for the entry, using the existing swap
                    cache page if there is one.  Otherwise, get a clean
                    page and read the swap into it. */
-		page_map = read_swap_cache(entry, 0);
+		page_map = read_swap_cache(entry);
 		if (!page_map) {
 			/*
 			 * Continue searching if the entry became unused.
 			 */
 			if (si->swap_map[i] == 0)
 				continue;
-			return -ENOMEM;
+  			return -ENOMEM;
 		}
 		page = page_address(page_map);
 		read_lock(&tasklist_lock);
@@ -559,8 +550,17 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 			if (p->swap_device == swap_info[i].swap_device)
 				goto bad_swap;
 		}
-	} else if (!S_ISREG(swap_dentry->d_inode->i_mode))
+	} else if (S_ISREG(swap_dentry->d_inode->i_mode)) {
+		error = -EBUSY;
+		for (i = 0 ; i < nr_swapfiles ; i++) {
+			if (i == type)
+				continue;
+			if (p->swap_file == swap_info[i].swap_file)
+				goto bad_swap;
+		}
+	} else
 		goto bad_swap;
+
 	swap_header = (void *) __get_free_page(GFP_USER);
 	if (!swap_header) {
 		printk("Unable to start swapping: out of memory :-)\n");
@@ -627,7 +627,7 @@ asmlinkage int sys_swapon(const char * specialfile, int swap_flags)
 		p->max	       = swap_header->info.last_page;
 
 		if (p->max >= 0x7fffffffL/PAGE_SIZE ||
-		    (void *) &swap_header->info.badpages[swap_header->info.nr_badpages-1] >= (void *) swap_header->magic.magic) {
+		    (void *) &swap_header->info.badpages[(int) swap_header->info.nr_badpages-1] >= (void *) swap_header->magic.magic) {
 			error = -EINVAL;
 			goto bad_swap;
 		}

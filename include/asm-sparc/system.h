@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.69 1998/04/24 12:30:19 davem Exp $ */
+/* $Id: system.h,v 1.71 1998/10/13 03:51:06 jj Exp $ */
 #include <linux/config.h>
 
 #ifndef __SPARC_SYSTEM_H
@@ -151,7 +151,7 @@ extern __inline__ void __cli(void)
 
 	__asm__ __volatile__("
 		rd	%%psr, %0
-		nop; nop; nop;
+		nop; nop; nop;		/* Sun4m + Cypress + SMP bug */
 		or	%0, %1, %0
 		wr	%0, 0x0, %%psr
 		nop; nop; nop
@@ -166,7 +166,7 @@ extern __inline__ void __sti(void)
 
 	__asm__ __volatile__("
 		rd	%%psr, %0	
-		nop; nop; nop;
+		nop; nop; nop;		/* Sun4m + Cypress + SMP bug */
 		andn	%0, %1, %0
 		wr	%0, 0x0, %%psr
 		nop; nop; nop
@@ -189,7 +189,7 @@ extern __inline__ unsigned long swap_pil(unsigned long __new_psr)
 
 	__asm__ __volatile__("
 		rd	%%psr, %0
-		nop; nop; nop;
+		nop; nop; nop;		/* Sun4m + Cypress + SMP bug */
 		and	%0, %2, %%g1
 		and	%1, %2, %%g2
 		xorcc	%%g1, %%g2, %%g0
@@ -211,7 +211,7 @@ extern __inline__ unsigned long read_psr_and_cli(void)
 
 	__asm__ __volatile__("
 		rd	%%psr, %0
-		nop; nop; nop;
+		nop; nop; nop;		/* Sun4m + Cypress + SMP bug */
 		or	%0, %1, %%g1
 		wr	%%g1, 0x0, %%psr
 		nop; nop; nop
@@ -235,18 +235,16 @@ extern __inline__ unsigned long read_psr_and_cli(void)
 
 extern unsigned char global_irq_holder;
 
-#define save_flags(x) \
-do {	((x) = ((global_irq_holder == (unsigned char) smp_processor_id()) ? 1 : \
-		((getipl() & PSR_PIL) ? 2 : 0))); } while(0)
-
 #define save_and_cli(flags)   do { save_flags(flags); cli(); } while(0)
 
 #ifdef DEBUG_IRQLOCK
 extern void __global_cli(void);
 extern void __global_sti(void);
+extern unsigned long __global_save_flags(void);
 extern void __global_restore_flags(unsigned long flags);
 #define cli()			__global_cli()
 #define sti()			__global_sti()
+#define save_flags(flags)	((flags)=__global_save_flags())
 #define restore_flags(flags)	__global_restore_flags(flags)
 #else
 

@@ -13,7 +13,6 @@
 
 /* THIS FILE HAS TO BE REWRITTEN */
 
-#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
@@ -32,11 +31,7 @@ static struct dentry *qnx4_follow_link(struct dentry *, struct dentry *);
 struct inode_operations qnx4_symlink_inode_operations =
 {
 	NULL,			/* no file-operations */
-#ifdef CONFIG_QNX4FS_RW
-	qnx4_create,		/* create */
-#else
-	NULL,
-#endif
+	NULL,			/* create */
 	NULL,			/* lookup */
 	NULL,			/* link */
 	NULL,			/* unlink */

@@ -9,7 +9,7 @@
  * These constants are also useful for user-level apps (e.g., VC
  * resizing).
  */
-#define MIN_NR_CONSOLES	1	/* must be at least 1 */
+#define MIN_NR_CONSOLES 1       /* must be at least 1 */
 #define MAX_NR_CONSOLES	63	/* serial lines start at 64 */
 #define MAX_NR_USER_CONSOLES 63	/* must be root to allocate above this */
 		/* Note: the ioctl VT_GETSTATE does not work for
@@ -87,7 +87,10 @@ struct screen_info {
 	unsigned char  blue_pos;		/* 0x2b */
 	unsigned char  rsvd_size;		/* 0x2c */
 	unsigned char  rsvd_pos;		/* 0x2d */
-						/* 0x2e -- 0x3f reserved for future expansion */
+	unsigned short vesapm_seg;		/* 0x2e */
+	unsigned short vesapm_off;		/* 0x30 */
+	unsigned short pages;			/* 0x32 */
+						/* 0x34 -- 0x3f reserved for future expansion */
 };
 
 extern struct screen_info screen_info;
@@ -353,11 +356,12 @@ extern int stli_init(void);
 extern int riscom8_init(void);
 extern int specialix_init(void);
 extern int espserial_init(void);
+extern int macserial_init(void);
 
 extern int tty_paranoia_check(struct tty_struct *tty, kdev_t device,
 			      const char *routine);
 extern char *tty_name(struct tty_struct *tty, char *buf);
-extern void tty_wait_until_sent(struct tty_struct * tty, int timeout);
+extern void tty_wait_until_sent(struct tty_struct * tty, long timeout);
 extern int tty_check_change(struct tty_struct * tty);
 extern void stop_tty(struct tty_struct * tty);
 extern void start_tty(struct tty_struct * tty);
@@ -394,10 +398,6 @@ extern long serial_console_init(long kmem_start, long kmem_end);
 /* pcxx.c */
 
 extern int pcxe_open(struct tty_struct *tty, struct file *filp);
-
-/* console.c */
-
-extern void update_screen(int new_console);
 
 /* printk.c */
 

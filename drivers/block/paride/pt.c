@@ -100,10 +100,11 @@
 	1.02    GRG 1998.06.16  Eliminate an Ugh.
 	1.03    GRG 1998.08.15  Adjusted PT_TMO, use HZ in loop timing,
 				extra debugging
-
+	1.04    GRG 1998.09.24  Repair minor coding error, added jumbo support
+	
 */
 
-#define PT_VERSION      "1.03"
+#define PT_VERSION      "1.04"
 #define PT_MAJOR	96
 #define PT_NAME		"pt"
 #define PT_UNITS	4
@@ -328,6 +329,12 @@ int     init_module(void)
 
 {       int     err;
 
+#ifdef PARIDE_JUMBO
+       { extern paride_init();
+         paride_init();
+       } 
+#endif
+
         err = pt_init();
 
         return err;
@@ -457,8 +464,7 @@ static int pt_atapi( int unit, char * cmd, int dlen, char * buf, char * fun )
 static void pt_sleep( int cs )
 
 {       current->state = TASK_INTERRUPTIBLE;
-        current->timeout = jiffies + cs;
-        schedule();
+        schedule_timeout(cs);
 }
 
 static int pt_poll_dsc( int unit, int pause, int tmo, char *msg )
@@ -584,8 +590,8 @@ static int pt_identify( int unit )
 	char	*ms[2] = {"master","slave"};
 	char	mf[10], id[18];
 	char    id_cmd[12] = { ATAPI_IDENTIFY,0,0,0,36,0,0,0,0,0,0,0};
-        char    ms_cmd[12] = { ATAPI_MODE_SENSE,0,0x2a,0,128,0,0,0,0,0,0,0};
-	char    ls_cmd[12] = { ATAPI_LOG_SENSE,0,0x71,0,0,0,0,0,128,0,0,0};
+        char    ms_cmd[12] = { ATAPI_MODE_SENSE,0,0x2a,0,36,0,0,0,0,0,0,0};
+	char    ls_cmd[12] = { ATAPI_LOG_SENSE,0,0x71,0,0,0,0,0,36,0,0,0};
 	char	buf[36];
 
         s = pt_atapi(unit,id_cmd,36,buf,"identify");

@@ -192,8 +192,8 @@
 #define __NR_capset		185
 #define __NR_sigaltstack	186
 #define __NR_sendfile		187
-#define __NR_streams1		188	/* some people actually want it */
-#define __NR_streams2		189	/* some people actually want it */
+#define __NR_getpmsg		188	/* some people actually want streams */
+#define __NR_putpmsg		189	/* some people actually want streams */
 
 /* user-visible error numbers are in the range -1 - -122: see <asm-i386/errno.h> */
 
@@ -304,36 +304,6 @@ static inline _syscall1(int,delete_module,const char *,name)
 static inline pid_t wait(int * wait_stat)
 {
 	return waitpid(-1,wait_stat,0);
-}
-
-/*
- * This is the mechanism for creating a new kernel thread.
- *
- * NOTE! Only a kernel-only process(ie the swapper or direct descendants
- * who haven't done an "execve()") should use this: it will work within
- * a system call from a "real" process, but the process memory space will
- * not be free'd until both the parent and the child have exited.
- */
-static inline pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
-{
-	long retval;
-
-	__asm__ __volatile__(
-		"movl %%esp,%%esi\n\t"
-		"int $0x80\n\t"		/* Linux/i386 system call */
-		"cmpl %%esp,%%esi\n\t"	/* child or parent? */
-		"je 1f\n\t"		/* parent - jump */
-		"pushl %3\n\t"		/* push argument */
-		"call *%4\n\t"		/* call fn */
-		"movl %2,%0\n\t"	/* exit */
-		"int $0x80\n"
-		"1:\t"
-		:"=a" (retval)
-		:"0" (__NR_clone), "i" (__NR_exit),
-		 "r" (arg), "r" (fn),
-		 "b" (flags | CLONE_VM)
-		:"si");
-	return retval;
 }
 
 #endif

@@ -1,4 +1,4 @@
-/*  $Id: sun4d_irq.c,v 1.14 1998/06/04 09:54:47 jj Exp $
+/*  $Id: sun4d_irq.c,v 1.17 1998/10/18 03:31:03 davem Exp $
  *  arch/sparc/kernel/sun4d_irq.c:
  *			SS1000/SC2000 interrupt handling.
  *
@@ -284,11 +284,12 @@ int sun4d_request_irq(unsigned int irq,
 	/* If this is flagged as statically allocated then we use our
 	 * private struct which is never freed.
 	 */
-	if (irqflags & SA_STATIC_ALLOC)
+	if (irqflags & SA_STATIC_ALLOC) {
 	    if (static_irq_count < MAX_STATIC_ALLOC)
 		action = &static_irqaction[static_irq_count++];
 	    else
 		printk("Request for IRQ%d (%s) SA_STATIC_ALLOC failed using kmalloc\n",irq, devname);
+	}
 	
 	if (action == NULL)
 	    action = (struct irqaction *)kmalloc(sizeof(struct irqaction),
@@ -437,8 +438,13 @@ __initfunc(static void sun4d_init_timers(void (*counter_fn)(int, void *, struct 
 	int cpu;
 
 	/* Map the User Timer registers. */
-	sun4d_timers = sparc_alloc_io(BW_LOCAL_BASE+BW_TIMER_LIMIT, 0,
+#ifdef __SMP__
+	sun4d_timers = sparc_alloc_io(CSR_BASE(boot_cpu_id)+BW_TIMER_LIMIT, 0,
 				      PAGE_SIZE, "user timer", 0xf, 0x0);
+#else
+	sun4d_timers = sparc_alloc_io(CSR_BASE(0)+BW_TIMER_LIMIT, 0,
+				      PAGE_SIZE, "user timer", 0xf, 0x0);
+#endif
     
 	sun4d_timers->l10_timer_limit =  (((1000000/HZ) + 1) << 10);
 	master_l10_counter = &sun4d_timers->l10_cur_count;

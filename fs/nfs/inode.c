@@ -105,11 +105,11 @@ nfs_delete_inode(struct inode * inode)
 #ifdef NFS_DEBUG_VERBOSE
 printk("nfs_delete_inode: inode %ld has pending RPC requests\n", inode->i_ino);
 #endif
-		nfs_invalidate_pages(inode);
-		while (NFS_WRITEBACK(inode) != NULL && jiffies < timeout) {
+		nfs_inval(inode);
+		while (NFS_WRITEBACK(inode) != NULL &&
+		       time_before(jiffies, timeout)) {
 			current->state = TASK_INTERRUPTIBLE;
-			current->timeout = jiffies + HZ/10;
-			schedule();
+			schedule_timeout(HZ/10);
 		}
 		current->state = TASK_RUNNING;
 		if (NFS_WRITEBACK(inode) != NULL)
@@ -322,18 +322,20 @@ out_no_fh:
 	goto out_shutdown;
 
 out_no_iod:
-	printk("NFS: couldn't start rpciod!\n");
+	printk(KERN_WARNING "NFS: couldn't start rpciod!\n");
 out_shutdown:
 	rpc_shutdown_client(server->client);
-	goto out_unlock;
+	goto out_free_host;
 
 out_no_client:
-	printk("NFS: cannot create RPC client.\n");
+	printk(KERN_WARNING "NFS: cannot create RPC client.\n");
 	xprt_destroy(xprt);
-	goto out_unlock;
+	goto out_free_host;
 
 out_no_xprt:
-	printk("NFS: cannot create RPC transport.\n");
+	printk(KERN_WARNING "NFS: cannot create RPC transport.\n");
+
+out_free_host:
 	kfree(server->hostname);
 out_unlock:
 	unlock_super(sb);
@@ -393,9 +395,10 @@ restart:
 	tmp = head;
 	while ((tmp = tmp->next) != head) {
 		struct dentry *dentry = list_entry(tmp, struct dentry, d_alias);
+printk("nfs_free_dentries: found %s/%s, d_count=%d, hashed=%d\n",
+dentry->d_parent->d_name.name, dentry->d_name.name,
+dentry->d_count, !list_empty(&dentry->d_hash));
 		if (!dentry->d_count) {
-printk("nfs_free_dentries: freeing %s/%s, i_count=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, inode->i_count);
 			dget(dentry);
 			d_drop(dentry);
 			dput(dentry);
@@ -478,7 +481,7 @@ nfs_fhget(struct dentry *dentry, struct nfs_fh *fhandle,
 			goto out;	
 		inode->i_sb = sb;
 		inode->i_dev = sb->s_dev;
-		inode->i_flags = sb->s_flags;
+		inode->i_flags = 0;
 		inode->i_ino = fattr->fileid;
 		nfs_read_inode(inode);
 		nfs_fill_inode(inode, fattr);
@@ -824,7 +827,7 @@ printk("nfs_refresh_inode: invalidating %ld pages\n", inode->i_nrpages);
 	if (!S_ISDIR(inode->i_mode)) {
 		/* This sends off all dirty pages off to the server.
 		 * Note that this function must not sleep. */
-		nfs_invalidate_pages(inode);
+		nfs_inval(inode);
 		invalidate_inode_pages(inode);
 	} else
 		nfs_invalidate_dircache(inode);

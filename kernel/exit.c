@@ -5,21 +5,10 @@
  */
 
 #include <linux/config.h>
-#include <linux/wait.h>
-#include <linux/errno.h>
-#include <linux/signal.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/resource.h>
-#include <linux/mm.h>
-#include <linux/tty.h>
 #include <linux/malloc.h>
-#include <linux/slab.h>
 #include <linux/interrupt.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/module.h>
-#include <linux/slab.h>
 #ifdef CONFIG_BSD_PROCESS_ACCT
 #include <linux/acct.h>
 #endif
@@ -29,6 +18,7 @@
 #include <asm/mmu_context.h>
 
 extern void sem_exit (void);
+extern struct task_struct *child_reaper;
 
 int getrusage(struct task_struct *, int, struct rusage *);
 
@@ -156,7 +146,7 @@ static inline void forget_original_parent(struct task_struct * father)
 	for_each_task(p) {
 		if (p->p_opptr == father) {
 			p->exit_signal = SIGCHLD;
-			p->p_opptr = task[smp_num_cpus] ? : task[0]; /* init */
+			p->p_opptr = child_reaper; /* init */
 			if (p->pdeath_signal) send_sig(p->pdeath_signal, p, 0);
 		}
 	}
@@ -239,7 +229,11 @@ static inline void __exit_sighand(struct task_struct *tsk)
 	struct signal_struct * sig = tsk->sig;
 
 	if (sig) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&tsk->sigmask_lock, flags);
 		tsk->sig = NULL;
+		spin_unlock_irqrestore(&tsk->sigmask_lock, flags);
 		if (atomic_dec_and_test(&sig->count))
 			kfree(sig);
 	}
@@ -357,7 +351,9 @@ NORET_TYPE void do_exit(long code)
 	if (!tsk->pid)
 		panic("Attempted to kill the idle task!");
 	tsk->flags |= PF_EXITING;
+	start_bh_atomic();
 	del_timer(&tsk->real_timer);
+	end_bh_atomic();
 
 	lock_kernel();
 fake_volatile:
@@ -411,15 +407,6 @@ asmlinkage int sys_wait4(pid_t pid,unsigned int * stat_addr, int options, struct
 	struct wait_queue wait = { current, NULL };
 	struct task_struct *p;
 
-	if (stat_addr) {
-		if(verify_area(VERIFY_WRITE, stat_addr, sizeof(*stat_addr)))
-			return -EFAULT;
-	}
-	if (ru) {
-		if(verify_area(VERIFY_WRITE, ru, sizeof(*ru)))
-			return -EFAULT;
-	}
-
 	if (options & ~(WNOHANG|WUNTRACED|__WCLONE))
 		return -EINVAL;
 
@@ -449,21 +436,23 @@ repeat:
 				if (!(options & WUNTRACED) && !(p->flags & PF_PTRACED))
 					continue;
 				read_unlock(&tasklist_lock);
-				if (ru != NULL)
-					getrusage(p, RUSAGE_BOTH, ru);
-				if (stat_addr)
-					__put_user((p->exit_code << 8) | 0x7f, stat_addr);
-				p->exit_code = 0;
-				retval = p->pid;
+				retval = ru ? getrusage(p, RUSAGE_BOTH, ru) : 0; 
+				if (!retval && stat_addr) 
+					retval = put_user((p->exit_code << 8) | 0x7f, stat_addr);
+				if (!retval) {
+					p->exit_code = 0;
+					retval = p->pid;
+				}
 				goto end_wait4;
 			case TASK_ZOMBIE:
 				current->times.tms_cutime += p->times.tms_utime + p->times.tms_cutime;
 				current->times.tms_cstime += p->times.tms_stime + p->times.tms_cstime;
 				read_unlock(&tasklist_lock);
-				if (ru != NULL)
-					getrusage(p, RUSAGE_BOTH, ru);
-				if (stat_addr)
-					__put_user(p->exit_code, stat_addr);
+				retval = ru ? getrusage(p, RUSAGE_BOTH, ru) : 0;
+				if (!retval && stat_addr)
+					retval = put_user(p->exit_code, stat_addr);
+				if (retval)
+					goto end_wait4; 
 				retval = p->pid;
 				if (p->p_opptr != p->p_pptr) {
 					write_lock_irq(&tasklist_lock);

@@ -87,15 +87,20 @@ typedef struct sb_devc {
 
 	/* State variables */
  	   int opened;
+	/* new audio fields for full duplex support */
+	   int fullduplex;
+	   int duplex;
 	   int speed, bits, channels;
 	   volatile int irq_ok;
 	   volatile int intr_active, irq_mode;
+	/* duplicate audio fields for full duplex support */
+	   volatile int intr_active_16, irq_mode_16;
 
 	/* Mixer fields */
 	   int *levels;
 	   mixer_tab *iomap;
-	   int mixer_caps, recmask, supported_devices;
-	   int supported_rec_devices;
+	   int mixer_caps, recmask, outmask, supported_devices;
+	   int supported_rec_devices, supported_out_devices;
 	   int my_mixerdev;
 	   int sbmixnum;
 
@@ -105,6 +110,13 @@ typedef struct sb_devc {
 	   int      trg_bytes;
 	   int      trg_intrflag;
 	   int      trg_restart;
+	/* duplicate audio fields for full duplex support */
+	   unsigned long trg_buf_16;
+	   int      trigger_bits_16;
+	   int      trg_bytes_16;
+	   int      trg_intrflag_16;
+	   int      trg_restart_16;
+
 	   unsigned char tconst;
 	   int my_dev;
 	
@@ -122,7 +134,7 @@ void sb_setmixer (sb_devc *devc, unsigned int port, unsigned int value);
 unsigned int sb_getmixer (sb_devc *devc, unsigned int port);
 int sb_dsp_detect (struct address_info *hw_config);
 int sb_dsp_init (struct address_info *hw_config);
-void sb_dsp_unload(struct address_info *hw_config);
+void sb_dsp_unload(struct address_info *hw_config, int sbmpu);
 int sb_mixer_init(sb_devc *devc);
 void sb_mixer_set_stereo (sb_devc *devc, int mode);
 void smw_mixer_init(sb_devc *devc);

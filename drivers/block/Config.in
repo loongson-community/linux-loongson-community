@@ -33,6 +33,7 @@ else
       bool '   Generic PCI IDE chipset support' CONFIG_BLK_DEV_IDEPCI
       if [ "$CONFIG_BLK_DEV_IDEPCI" = "y" ]; then
         bool '     Generic PCI bus-master DMA support' CONFIG_BLK_DEV_IDEDMA
+        bool '     Boot off-board chipsets first support' CONFIG_BLK_DEV_OFFBOARD
         if [ "$CONFIG_BLK_DEV_IDEDMA" = "y" ]; then
           bool '     Use DMA by default when available' CONFIG_IDEDMA_AUTO
         fi
@@ -41,11 +42,13 @@ else
           if [ "$CONFIG_BLK_DEV_IDEDMA" = "y" ]; then
             bool '     Tekram TRM290 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_TRM290
             bool '     NS87415 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_NS87415
+            bool '     VIA82C586 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_VIA82C586
+            bool '     CMD646 chipset support (EXPERIMENTAL)' CONFIG_BLK_DEV_CMD646
           fi
         fi
       fi
       if [ "$CONFIG_PPC" = "y" ]; then
-          bool '   WInbond SL82c105 support' CONFIG_BLK_DEV_SL82C105
+          bool '   Winbond SL82c105 support' CONFIG_BLK_DEV_SL82C105
       fi
     fi
     if [ "$CONFIG_PMAC" = "y" ]; then
@@ -74,7 +77,7 @@ else
   fi
 fi
 if [ "$CONFIG_MCA" = "y" ]; then
-  bool 'PS/2 ESDI hard disk support' CONFIG_BLK_DEV_PS2
+  tristate 'PS/2 ESDI hard disk support' CONFIG_BLK_DEV_PS2
 fi
 if [ "$CONFIG_ZORRO" = "y" ]; then
   tristate 'Amiga Zorro II ramdisk support' CONFIG_AMIGA_Z2RAM
@@ -91,7 +94,9 @@ fi
 comment 'Additional Block Devices'
 
 tristate 'Loopback device support' CONFIG_BLK_DEV_LOOP
-tristate 'Network block device support' CONFIG_BLK_DEV_NBD
+if [ "$CONFIG_NET" = "y" ]; then
+  tristate 'Network block device support' CONFIG_BLK_DEV_NBD
+fi
 bool 'Multiple devices driver support' CONFIG_BLK_DEV_MD
 if [ "$CONFIG_BLK_DEV_MD" = "y" ]; then
   tristate '   Linear (append) mode' CONFIG_MD_LINEAR

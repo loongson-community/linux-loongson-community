@@ -24,18 +24,11 @@
  * - RMK
  */
 
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/major.h>
-#include <linux/string.h>
+#include <linux/malloc.h>
 #include <linux/locks.h>
 #include <linux/errno.h>
-#include <linux/malloc.h>
-#include <linux/slab.h>
-#include <linux/pagemap.h>
 #include <linux/swap.h>
 #include <linux/swapctl.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
@@ -44,7 +37,6 @@
 #include <linux/init.h>
 #include <linux/quotaops.h>
 
-#include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/bitops.h>
@@ -734,7 +726,7 @@ static void refill_freelist(int size)
 	needed = bdf_prm.b_un.nrefill * size;  
 
 	while ((nr_free_pages > freepages.min*2) &&
-	        (buffermem >> PAGE_SHIFT) * 100 < (buffer_mem.max_percent * num_physpages) &&
+	        !buffer_over_max() &&
 		grow_buffers(GFP_BUFFER, size)) {
 		obtained += PAGE_SIZE;
 		if (obtained >= needed)

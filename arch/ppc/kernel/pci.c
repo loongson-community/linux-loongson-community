@@ -1,5 +1,5 @@
 /*
- * $Id: pci.c,v 1.36 1998/08/02 23:22:11 paulus Exp $
+ * $Id: pci.c,v 1.39 1998/10/13 20:59:04 cort Exp $
  * Common pmac/prep/chrp pci routines. -- Cort
  */
 
@@ -164,7 +164,7 @@ __initfunc(void
 			      get_property(find_path_device("/"), "model", NULL),3) )
 		{
 			isa_io_base = 0xfe000000;
-			set_config_access_method(raven);
+			set_config_access_method(grackle);
 		}
 		else
 		{
@@ -201,8 +201,22 @@ __initfunc(void pcibios_fixup(void))
 		route_pci_interrupts();
 		for(dev=pci_devices; dev; dev=dev->next)
 		{
+			/*
+			 * Use our old hard-coded kludge to figure out what
+			 * irq this device uses.  This is necessary on things
+			 * without residual data. -- Cort
+			 */
 			unsigned char d = PCI_SLOT(dev->devfn);
 			dev->irq = Motherboard_routes[Motherboard_map[d]];
+#if 0			
+			/*
+			 * If we have residual data and if it knows about this
+			 * device ask it what the irq is.
+			 *  -- Cort
+			 */
+			ppcd = residual_find_device_id( ~0L, dev->device,
+							-1,-1,-1, 0);
+#endif			
 		}
 		break;
 	case _MACH_chrp:

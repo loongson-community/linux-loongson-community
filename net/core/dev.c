@@ -1375,7 +1375,7 @@ int dev_change_flags(struct device *dev, unsigned flags)
 	 */
 
 	dev->flags = (flags & (IFF_DEBUG|IFF_NOTRAILERS|IFF_RUNNING|IFF_NOARP|
-			       IFF_NODYNARP|IFF_SLAVE|IFF_MASTER|
+			       IFF_SLAVE|IFF_MASTER|IFF_DYNAMIC|
 			       IFF_MULTICAST|IFF_PORTSEL|IFF_AUTOMEDIA)) |
 				       (dev->flags & (IFF_UP|IFF_VOLATILE|IFF_PROMISC|IFF_ALLMULTI));
 
@@ -1730,7 +1730,6 @@ static int dev_boot_phase = 1;
 int register_netdevice(struct device *dev)
 {
 	struct device *d, **dp;
-printk("register_netdevice #1\n");
 
 	if (dev_boot_phase) {
 		/* This is NOT bug, but I am not sure, that all the
@@ -1755,32 +1754,27 @@ printk("register_netdevice #1\n");
 		*dp = dev;
 		return 0;
 	}
-printk("register_netdevice #2\n");
 
 	dev->iflink = -1;
 
 	/* Init, if this function is available */
 	if (dev->init && dev->init(dev) != 0)
 		return -EIO;
-printk("register_netdevice #3\n");
 
 	/* Check for existence, and append to tail of chain */
 	for (dp=&dev_base; (d=*dp) != NULL; dp=&d->next) {
 		if (d == dev || strcmp(d->name, dev->name) == 0)
 			return -EEXIST;
 	}
-printk("register_netdevice #4\n");
 	dev->next = NULL;
 	dev_init_scheduler(dev);
 	dev->ifindex = dev_new_index();
 	if (dev->iflink == -1)
 		dev->iflink = dev->ifindex;
 	*dp = dev;
-printk("register_netdevice #5\n");
 
 	/* Notify protocols, that a new device appeared. */
 	notifier_call_chain(&netdev_chain, NETDEV_REGISTER, dev);
-printk("register_netdevice #6\n");
 
 	return 0;
 }

@@ -192,7 +192,7 @@ extern kmem_cache_t *tcp_timewait_cachep;
 	(((__u32)(__dport)<<16) | (__u32)(__sport))
 #endif
 
-#if defined(__alpha__) || defined(__sparc_v9__)
+#if (BITS_PER_LONG == 64)
 #ifdef __BIG_ENDIAN
 #define TCP_V4_ADDR_COOKIE(__name, __saddr, __daddr) \
 	__u64 __name = (((__u64)(__saddr))<<32)|((__u64)(__daddr));
@@ -511,7 +511,7 @@ extern int			tcp_timewait_state_process(struct tcp_tw_bucket *tw,
 							   unsigned len);
 
 extern void			tcp_close(struct sock *sk, 
-					  unsigned long timeout);
+					  long timeout);
 extern struct sock *		tcp_accept(struct sock *sk, int flags);
 extern unsigned int		tcp_poll(struct file * file, struct socket *sock, struct poll_table_struct *wait);
 extern void			tcp_write_space(struct sock *sk); 
@@ -675,7 +675,7 @@ static __inline__ u32 tcp_receive_window(struct tcp_opt *tp)
  * scaling applied to the result.  The caller does these things
  * if necessary.  This is a "raw" window selection.
  */
-extern u32	__tcp_select_window(struct sock *sk, u32 cur_win);
+extern u32	__tcp_select_window(struct sock *sk);
 
 /* Chose a new window to advertise, update state in tcp_opt for the
  * socket, and return result with RFC1323 scaling applied.  The return
@@ -686,13 +686,20 @@ extern __inline__ u16 tcp_select_window(struct sock *sk)
 {
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 	u32 cur_win = tcp_receive_window(tp);
-	u32 new_win = __tcp_select_window(sk, cur_win);
+	u32 new_win = __tcp_select_window(sk);
 
 	/* Never shrink the offered window */
-	if(new_win < cur_win)
+	if(new_win < cur_win) {
+		/* Danger Will Robinson!
+		 * Don't update rcv_wup/rcv_wnd here or else
+		 * we will not be able to advertise a zero
+		 * window in time.  --DaveM
+		 */
 		new_win = cur_win;
-	tp->rcv_wnd = new_win;
-	tp->rcv_wup = tp->rcv_nxt;
+	} else {
+		tp->rcv_wnd = new_win;
+		tp->rcv_wup = tp->rcv_nxt;
+	}
 
 	/* RFC1323 scaling applied */
 	return new_win >> tp->rcv_wscale;
@@ -706,7 +713,7 @@ extern __inline__ int tcp_raise_window(struct sock *sk)
 {
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 	u32 cur_win = tcp_receive_window(tp);
-	u32 new_win = __tcp_select_window(sk, cur_win);
+	u32 new_win = __tcp_select_window(sk);
 
 	return (new_win && (new_win > (cur_win << 1)));
 }
@@ -750,12 +757,6 @@ struct tcp_skb_cb {
 
 #define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
 
-/* We store the congestion window as a packet count, shifted by
- * a factor so that implementing the 1/2 MSS ssthresh rules
- * is easy.
- */
-#define TCP_CWND_SHIFT	1
-
 /* This determines how many packets are "in the network" to the best
  * of our knowledge.  In many cases it is conservative, but where
  * detailed information is available from the receiver (via SACK
@@ -796,12 +797,15 @@ static __inline__ int tcp_snd_test(struct sock *sk, struct sk_buff *skb)
 	 *
 	 * 	Don't use the nagle rule for urgent data.
 	 */
-	if (!sk->nonagle && skb->len < (tp->mss_cache >> 1) && tp->packets_out &&
-	    !(TCP_SKB_CB(skb)->flags & TCPCB_FLAG_URG))
+	if ((sk->nonagle == 2 && (skb->len < tp->mss_cache)) ||
+	    (!sk->nonagle &&
+	     skb->len < (tp->mss_cache >> 1) &&
+	     tp->packets_out &&
+	     !(TCP_SKB_CB(skb)->flags & TCPCB_FLAG_URG)))
 		nagle_check = 0;
 
 	return (nagle_check &&
-		(tcp_packets_in_flight(tp) < (tp->snd_cwnd>>TCP_CWND_SHIFT)) &&
+		(tcp_packets_in_flight(tp) < tp->snd_cwnd) &&
 		!after(TCP_SKB_CB(skb)->end_seq, tp->snd_una + tp->snd_wnd) &&
 		tp->retransmits == 0);
 }

@@ -242,7 +242,10 @@ plip_init_dev(struct device *dev, struct parport *pb))
 
 	pardev = parport_register_device(pb, dev->name, plip_preempt,
 					 plip_wakeup, plip_interrupt, 
-					 PARPORT_DEV_LURK, dev);
+					 0, dev);
+
+	if (!pardev)
+		return -ENODEV;
 
 	printk(KERN_INFO "%s", version);
 	printk(KERN_INFO "%s: Parallel port at %#3lx, using IRQ %d\n", dev->name,
@@ -1175,7 +1178,7 @@ void plip_setup(char *str, int *ints)
 		timid = 1;
 	} else {
 		if (ints[0] == 0 || ints[1] == 0) {
-			/* disable driver on "parport=" or "parport=0" */
+			/* disable driver on "plip=" or "plip=0" */
 			parport[0] = -2;
 		} else {
 			printk(KERN_WARNING "warning: 'plip=0x%x' ignored\n", 

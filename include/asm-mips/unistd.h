@@ -1,4 +1,4 @@
-/* $Id: unistd.h,v 1.11 1998/08/25 09:22:03 ralf Exp $
+/* $Id: unistd.h,v 1.12 1998/09/19 19:19:40 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -1194,8 +1194,8 @@
 #define __NR_capset			(__NR_Linux + 205)
 #define __NR_sigaltstack		(__NR_Linux + 206)
 #define __NR_sendfile			(__NR_Linux + 207)
-#define __NR_streams1			(__NR_Linux + 208)
-#define __NR_streams2			(__NR_Linux + 209)
+#define __NR_getpmsg			(__NR_Linux + 208)
+#define __NR_putpmsg			(__NR_Linux + 209)
 
 /*
  * Offset of the last Linux flavoured syscall
@@ -1300,7 +1300,7 @@ __asm__ volatile ("move\t$4,%3\n\t" \
                                       "r" ((long)(b)), \
                                       "r" ((long)(c)), \
                                       "r" ((long)(d)) \
-                  : "$4","$5","$6""$8","$9","$10","$11","$12","$13","$14", \
+                  : "$4","$5","$6","$8","$9","$10","$11","$12","$13","$14", \
                     "$15","$24"); \
 if (__err == 0) \
 	return (type) __res; \
@@ -1435,48 +1435,6 @@ static inline _syscall1(int,delete_module,const char *,name)
 static inline pid_t wait(int * wait_stat)
 {
 	return waitpid(-1,wait_stat,0);
-}
-
-/*
- * This is the mechanism for creating a new kernel thread.
- *
- * NOTE! Only a kernel-only process(ie the swapper or direct descendants
- * who haven't done an "execve()") should use this: it will work within
- * a system call from a "real" process, but the process memory space will
- * not be free'd until both the parent and the child have exited.
- */
-static inline pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
-{
-	long retval;
-
-	__asm__ __volatile__(
-		".set\tnoreorder\n\t"
-		"move\t$6,$sp\n\t"
-		"move\t$4,%5\n\t"
-		"li\t$2,%1\n\t"
-		"syscall\n\t"
-		"beq\t$6,$sp,1f\n\t"
-		"subu\t$sp,32\n\t"	/* delay slot */
-		"jalr\t%4\n\t"
-		"move\t$4,%3\n\t"	/* delay slot */
-		"move\t$4,$2\n\t"
-		"li\t$2,%2\n\t"
-		"syscall\n"
-		"1:\taddiu\t$sp,32\n\t"
-		"move\t%0,$2\n\t"
-		".set\treorder"
-		:"=r" (retval)
-		:"i" (__NR_clone), "i" (__NR_exit),
-		 "r" (arg), "r" (fn),
-		 "r" (flags | CLONE_VM)
-		 /*
-		  * The called subroutine might have destroyed any of the
-		  * at, result, argument or temporary registers ...
-		  */
-		:"$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
-		 "$9","$10","$11","$12","$13","$14","$15","$24","$25");
-
-	return retval;
 }
 
 #endif /* !defined (__KERNEL_SYSCALLS__) */

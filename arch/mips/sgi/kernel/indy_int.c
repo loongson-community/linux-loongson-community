@@ -1,4 +1,4 @@
-/* $Id: indy_int.c,v 1.9 1998/06/30 00:21:57 ralf Exp $
+/* $Id: indy_int.c,v 1.10 1998/08/25 09:14:49 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -274,7 +274,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu, irq);
+	hardirq_enter(cpu);
 	kstat.irqs[0][irq]++;
 
 	printk("Got irq %d, press a key.", irq);
@@ -310,7 +310,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 			add_interrupt_randomness(irq);
 		__cli();
 	}
-	irq_exit(cpu, irq);
+	hardirq_exit(cpu);
 
 	/* unmasking and bottom half handling is done magically for us. */
 }
@@ -448,10 +448,10 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 		action = local_irq_action[irq];
 	}
 
-	irq_enter(cpu, irq);
+	hardirq_enter(cpu);
 	kstat.irqs[0][irq + 16]++;
 	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu, irq);
+	hardirq_exit(cpu);
 }
 
 void indy_local1_irqdispatch(struct pt_regs *regs)
@@ -472,10 +472,10 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 		irq = lc1msk_to_irqnr[mask];
 		action = local_irq_action[irq];
 	}
-	irq_enter(cpu, irq);
+	hardirq_enter(cpu);
 	kstat.irqs[0][irq + 24]++;
 	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu, irq);
+	hardirq_exit(cpu);
 }
 
 void indy_buserror_irq(struct pt_regs *regs)
@@ -483,13 +483,13 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = 6;
 
-	irq_enter(cpu, irq);
+	hardirq_enter(cpu);
 	kstat.irqs[0][irq]++;
 	printk("Got a bus error IRQ, shouldn't happen yet\n");
 	show_regs(regs);
 	printk("Spinning...\n");
 	while(1);
-	irq_exit(cpu, irq);
+	hardirq_exit(cpu);
 }
 
 /* Misc. crap just to keep the kernel linking... */

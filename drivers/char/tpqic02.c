@@ -588,9 +588,10 @@ static int wait_for_ready(time_t timeout)
 		/* not ready and no exception && timeout not expired yet */
 	while (((stat = inb_p(QIC02_STAT_PORT) & QIC02_STAT_MASK) == QIC02_STAT_MASK) && (jiffies<spin_t)) {
 		/* be `nice` to other processes on long operations... */
-		current->timeout = jiffies + 3*HZ/10;	/* nap 0.30 sec between checks, */
 		current->state = TASK_INTERRUPTIBLE;
-		schedule();		 /* but could be woken up earlier by signals... */
+		/* nap 0.30 sec between checks, */
+		/* but could be woken up earlier by signals... */
+		schedule_timeout(3*HZ/10);
 	}
 
 	/* don't use jiffies for this test because it may have changed by now */
@@ -1360,6 +1361,7 @@ static int do_ioctl_cmd(int cmd)
  */ 
 static inline void dma_transfer(void)
 {
+	unsigned long flags;
 
 	if (QIC02_TAPE_IFC == WANGTEK) /* or EVEREX */
 		outb_p(WT_CTL_ONLINE, QIC02_CTL_PORT);	/* back to normal */
@@ -1369,6 +1371,7 @@ static inline void dma_transfer(void)
 		outb_p(ctlbits, QIC02_CTL_PORT);
 
 
+	flags=claim_dma_lock();
 	clear_dma_ff(QIC02_TAPE_DMA);
 	set_dma_mode(QIC02_TAPE_DMA, dma_mode);
 	set_dma_addr(QIC02_TAPE_DMA, buffaddr+dma_bytes_done);	/* full address */
@@ -1393,6 +1396,9 @@ static inline void dma_transfer(void)
 
 	/* start computer DMA controller */
 	enable_dma(QIC02_TAPE_DMA);
+
+	release_dma_lock(flags);
+
 	/* block transfer should start now, jumping to the 
 	 * interrupt routine when done or an exception was detected.
 	 */
@@ -1410,6 +1416,7 @@ static int start_dma(short mode, unsigned long bytes_todo)
 /* assume 'bytes_todo'>0 */
 {
 	int stat;
+	unsigned long flags;
 	
 	tpqputs(TPQD_DEBUG, "start_dma() enter");
 	TPQDEB({printk(TPQIC02_NAME ": doing_read==%d, doing_write==%d\n", doing_read, doing_write);})
@@ -1506,9 +1513,10 @@ static int start_dma(short mode, unsigned long bytes_todo)
 
 	/* initiate first data block read from/write to the tape controller */
 
+	save_flags(flags);
 	cli();
 	dma_transfer();
-	sti();
+	restore_flags(flags);
 
 	TPQPUTS("start_dma() end");
 	return TE_OK;
@@ -1524,13 +1532,18 @@ static int start_dma(short mode, unsigned long bytes_todo)
 static void end_dma(unsigned long * bytes_done)
 {
 	int stat = TE_OK;
+	unsigned long flags;
 
 	TIMEROFF;
 
 	TPQPUTS("end_dma() enter");
 
+	flags=claim_dma_lock();
+	
 	disable_dma(QIC02_TAPE_DMA);
 	clear_dma_ff(QIC02_TAPE_DMA);
+	
+	release_dma_lock(flags);
 
 	if (QIC02_TAPE_IFC == WANGTEK) /* or EVEREX */
 		outb_p(WT_CTL_ONLINE, QIC02_CTL_PORT);	/* back to normal */
@@ -1633,6 +1646,7 @@ static void qic02_tape_times_out(void)
 static void qic02_tape_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	int stat, r, i;
+	unsigned long flags;
 
 	TIMEROFF;
 
@@ -1682,10 +1696,14 @@ static void qic02_tape_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 				r = 1;
 			}
 
+		flags=claim_dma_lock();
+		
 		if ( (i = get_dma_residue(QIC02_TAPE_DMA)) != 0 ) {
 			printk(TPQIC02_NAME ": dma_residue == %x !!!\n", i);
 			r = 1;	/* big trouble, but can't do much about it... */
 		}
+		
+		release_dma_lock(flags);
 
 		if (r) 
 			return;

@@ -53,6 +53,9 @@ extern int init_colour_qcams(struct video_init *);
 #ifdef CONFIG_VIDEO_BWQCAM
 extern int init_bw_qcams(struct video_init *);
 #endif
+#ifdef CONFIG_VIDEO_PLANB
+extern int init_planbs(struct video_init *);
+#endif
 #ifdef CONFIG_RADIO_AZTECH
 extern int aztech_init(struct video_init *);
 #endif
@@ -64,6 +67,9 @@ extern int fmi_init(struct video_init *);
 #endif
 #ifdef CONFIG_RADIO_MIROPCM20
 extern int pcm20_init(struct video_init *);
+#endif
+#ifdef CONFIG_VIDEO_PMS
+extern int init_pms_cards(struct video_init *);
 #endif
 
 static struct video_init video_init_list[]={
@@ -83,6 +89,9 @@ static struct video_init video_init_list[]={
 #ifdef CONFIG_VIDEO_PMS
 	{"PMS", init_pms_cards}, 
 #endif	
+#ifdef CONFIG_VIDEO_PLANB
+	{"planb", init_planbs},
+#endif
 #ifdef CONFIG_RADIO_AZTECH
 	{"Aztech", aztech_init}, 
 #endif	
@@ -333,7 +342,7 @@ int videodev_init(void)
 {
 	struct video_init *vfli = video_init_list;
 	
-	printk(KERN_INFO "Linux video capture interface: v0.01 ALPHA\n");
+	printk(KERN_INFO "Linux video capture interface: v1.00\n");
 	if(register_chrdev(VIDEO_MAJOR,"video_capture", &video_fops))
 	{
 		printk("video_dev: unable to get major %d\n", VIDEO_MAJOR);

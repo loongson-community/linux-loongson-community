@@ -24,11 +24,11 @@
  *                      <Jeff_Tranter@Mitel.COM>
  *
  * Bruno Haible      :  remove 4K limit for the maps file
- * <haible@ma2s2.mathematik.uni-karlsruhe.de>
+ * 			<haible@ma2s2.mathematik.uni-karlsruhe.de>
  *
  * Yves Arrouye      :  remove removal of trailing spaces in get_array.
  *			<Yves.Arrouye@marin.fdn.fr>
-
+ *
  * Jerome Forissier  :  added per-CPU time information to /proc/stat
  *                      and /proc/<pid>/cpu extension
  *                      <forissier@isia.cma.fr>
@@ -37,6 +37,11 @@
  *			Hans Marcus <crowbar@concepts.nl>
  *
  * aeb@cwi.nl        :  /proc/partitions
+ *
+ *
+ * Alan Cox	     :  security fixes. 
+ *			<Alan.Cox@linux.org>
+ *
  */
 
 #include <linux/types.h>
@@ -578,6 +583,29 @@ static unsigned long get_wchan(struct task_struct *p)
 			fp = *(unsigned long *) (fp - 12);
 		} while (count ++ < 16);
 	}
+#elif defined (__sparc__)
+	{
+		unsigned long pc, fp, bias = 0;
+		unsigned long task_base = (unsigned long) p;
+		struct reg_window *rw;
+		int count = 0;
+
+#ifdef __sparc_v9__
+		bias = STACK_BIAS;
+#endif
+	    	fp = p->tss.ksp + bias;
+		do {
+			/* Bogus frame pointer? */
+			if (fp < (task_base + sizeof(struct task_struct)) ||
+			    fp >= (task_base + (2 * PAGE_SIZE)))
+				break;
+			rw = (struct reg_window *) fp;
+			pc = rw->ins[7];
+			if (pc < first_sched || pc >= last_sched)
+				return pc;
+			fp = rw->ins[6] + bias;
+		} while (++count < 16);
+	}
 #endif
 
 	return 0;
@@ -605,7 +633,7 @@ static unsigned long get_wchan(struct task_struct *p)
  	if ((tsk)->tss.esp0 > PAGE_SIZE && \
 	    MAP_NR((tsk)->tss.esp0) < max_mapnr) \
 	      eip = ((struct pt_regs *) (tsk)->tss.esp0)->pc;	 \
-        eip; })
+	eip; })
 #define	KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->tss.usp)
 #elif defined(__powerpc__)
 #define KSTK_EIP(tsk)	((tsk)->tss.regs->nip)
@@ -695,16 +723,24 @@ static inline const char * get_task_state(struct task_struct *tsk)
 
 static inline char * task_state(struct task_struct *p, char *buffer)
 {
+	int g;
+
 	buffer += sprintf(buffer,
 		"State:\t%s\n"
 		"Pid:\t%d\n"
 		"PPid:\t%d\n"
 		"Uid:\t%d\t%d\t%d\t%d\n"
-		"Gid:\t%d\t%d\t%d\t%d\n",
+		"Gid:\t%d\t%d\t%d\t%d\n"
+		"Groups:\t",
 		get_task_state(p),
 		p->pid, p->p_pptr->pid,
 		p->uid, p->euid, p->suid, p->fsuid,
 		p->gid, p->egid, p->sgid, p->fsgid);
+
+	for (g = 0; g < p->ngroups; g++)
+		buffer += sprintf(buffer, "%d ", p->groups[g]);
+
+	buffer += sprintf(buffer, "\n");
 	return buffer;
 }
 
@@ -798,9 +834,9 @@ extern inline char *task_cap(struct task_struct *p, char *buffer)
     return buffer + sprintf(buffer, "CapInh:\t%016x\n"
 			    "CapPrm:\t%016x\n"
 			    "CapEff:\t%016x\n",
-			    p->cap_inheritable.cap,
-			    p->cap_permitted.cap,
-			    p->cap_effective.cap);
+			    cap_t(p->cap_inheritable),
+			    cap_t(p->cap_permitted),
+			    cap_t(p->cap_effective));
 }
 
 
@@ -866,7 +902,7 @@ static int get_stat(int pid, char * buffer)
 
 	return sprintf(buffer,"%d (%s) %c %d %d %d %d %d %lu %lu \
 %lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %ld %lu %lu %lu %lu %lu \
-%lu %lu %lu %lu %lu %lu %lu %lu\n",
+%lu %lu %lu %lu %lu %lu %lu %lu %d\n",
 		pid,
 		tsk->comm,
 		state,
@@ -886,7 +922,7 @@ static int get_stat(int pid, char * buffer)
 		tsk->times.tms_cstime,
 		priority,
 		nice,
-		tsk->timeout,
+		0UL /* removed */,
 		tsk->it_real_value,
 		tsk->start_time,
 		vsize,
@@ -907,7 +943,8 @@ static int get_stat(int pid, char * buffer)
 		sigcatch    .sig[0] & 0x7fffffffUL,
 		wchan,
 		tsk->nswap,
-		tsk->cnswap);
+		tsk->cnswap,
+		tsk->exit_signal);
 }
 		
 static inline void statm_pte_range(pmd_t * pmd, unsigned long address, unsigned long size,
@@ -1246,6 +1283,11 @@ static long get_root_array(char * page, int type, char **start,
   	        case PROC_PCI:
 			return get_pci_list(page);
 #endif
+
+#ifdef CONFIG_NUBUS
+		case PROC_NUBUS:
+			return get_nubus_list(page);
+#endif			
 			
 		case PROC_CPUINFO:
 			return get_cpuinfo(page);
@@ -1323,6 +1365,46 @@ static long get_root_array(char * page, int type, char **start,
 	return -EBADF;
 }
 
+static int process_unauthorized(int type, int pid)
+{
+	struct task_struct *p;
+	uid_t euid;	/* Save the euid keep the lock short */
+		
+	read_lock(&tasklist_lock);
+	
+	/*
+	 *	Grab the lock, find the task, save the uid and 
+	 *	check it has an mm still (ie its not dead)
+	 */
+	 
+	p = find_task_by_pid(pid);
+	if(p)
+	{
+		euid=p->euid;
+		if(!p->mm)	/* Scooby scooby doo where are you ? */
+			p=NULL;
+	}
+		
+	read_unlock(&tasklist_lock);
+
+	if (!p)
+		return 1;
+
+	switch(type)
+	{
+		case PROC_PID_STATUS:
+		case PROC_PID_STATM:
+		case PROC_PID_STAT:
+		case PROC_PID_MAPS:
+		case PROC_PID_CMDLINE:
+			return 0;	
+	}
+	if(capable(CAP_DAC_OVERRIDE) || current->fsuid == euid)
+		return 0;
+	return 1;
+}
+
+
 static int get_process_array(char * page, int pid, int type)
 {
 	switch (type) {
@@ -1374,6 +1456,13 @@ static ssize_t array_read(struct file * file, char * buf,
 	type &= 0x0000ffff;
 	start = NULL;
 	dp = (struct proc_dir_entry *) inode->u.generic_ip;
+	
+	if (pid && process_unauthorized(type, pid))
+	{
+		free_page(page);
+		return -EIO;
+	}
+	
 	if (dp->get_info)
 		length = dp->get_info((char *)page, &start, *ppos,
 				      count, 0);

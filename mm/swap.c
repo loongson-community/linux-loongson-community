@@ -14,22 +14,14 @@
  */
 
 #include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
 #include <linux/kernel_stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
 #include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/swapctl.h>
 #include <linux/pagemap.h>
 #include <linux/init.h>
 
 #include <asm/dma.h>
-#include <asm/system.h> /* for cli()/sti() */
 #include <asm/uaccess.h> /* for copy_to/from_user */
-#include <asm/bitops.h>
 #include <asm/pgtable.h>
 
 /*
@@ -70,13 +62,13 @@ swapstat_t swapstats = {0};
 
 buffer_mem_t buffer_mem = {
 	5,	/* minimum percent buffer */
-	25,	/* borrow percent buffer */
+	10,	/* borrow percent buffer */
 	60	/* maximum percent buffer */
 };
 
 buffer_mem_t page_cache = {
 	5,	/* minimum percent page cache */
-	30,	/* borrow percent page cache */
+	15,	/* borrow percent page cache */
 	75	/* maximum */
 };
 

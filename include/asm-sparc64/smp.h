@@ -34,16 +34,16 @@ extern struct prom_cpuinfo linux_cpus[NR_CPUS];
 struct cpuinfo_sparc {
 	/* Dcache line 1 */
 	unsigned long	irq_count;
+	unsigned long	bh_count;
 	unsigned int	multiplier;
 	unsigned int	counter;
-	unsigned long	pgcache_size;
-	unsigned long	pgdcache_size;
+	unsigned long	udelay_val;
 
 	/* Dcache line 2 */
-	unsigned long	*pgd_cache;
+	unsigned long	pgcache_size;
 	unsigned long	*pte_cache;
-	unsigned long	udelay_val;
-	unsigned long	dummy;
+	unsigned long	pgdcache_size;
+	unsigned long	*pgd_cache;
 };
 
 extern struct cpuinfo_sparc cpu_data[NR_CPUS];
@@ -93,7 +93,7 @@ extern void smp_message_pass(int target, int msg, unsigned long data, int wait);
 
 #define PROC_CHANGE_PENALTY	20
 
-#else /* !(__SMP__) */
+#endif /* !(__SMP__) */
 
 #define NO_PROC_ID		0xFF
 

@@ -102,7 +102,7 @@ static struct esp_pio_buffer *free_pio_buf;
 #define WAKEUP_CHARS 1024
 
 static char *serial_name = "ESP serial driver";
-static char *serial_version = "2.1";
+static char *serial_version = "2.2";
 
 static DECLARE_TASK_QUEUE(tq_esp);
 
@@ -395,15 +395,20 @@ static _INLINE_ void receive_chars_pio(struct esp_struct *info, int num_bytes)
 
 static _INLINE_ void receive_chars_dma(struct esp_struct *info, int num_bytes)
 {
+	unsigned long flags;
 	info->stat_flags &= ~ESP_STAT_RX_TIMEOUT;
 	dma_bytes = num_bytes;
 	info->stat_flags |= ESP_STAT_DMA_RX;
+	
+	flags=claim_dma_lock();
         disable_dma(dma);
         clear_dma_ff(dma);
         set_dma_mode(dma, DMA_MODE_READ);
         set_dma_addr(dma, virt_to_bus(dma_buffer));
         set_dma_count(dma, dma_bytes);
         enable_dma(dma);
+        release_dma_lock(flags);
+        
         serial_out(info, UART_ESI_CMD1, ESI_START_DMA_RX);
 }
 
@@ -412,12 +417,17 @@ static _INLINE_ void receive_chars_dma_done(struct esp_struct *info,
 {
 	struct tty_struct *tty = info->tty;
 	int num_bytes;
-
+	unsigned long flags;
+	
+	
+	flags=claim_dma_lock();
 	disable_dma(dma);
 	clear_dma_ff(dma);
 
 	info->stat_flags &= ~ESP_STAT_DMA_RX;
 	num_bytes = dma_bytes - get_dma_residue(dma);
+	release_dma_lock(flags);
+	
 	info->icount.rx += num_bytes;
 
 	memcpy(tty->flip.char_buf_ptr, dma_buffer, num_bytes);
@@ -534,6 +544,8 @@ static _INLINE_ void transmit_chars_pio(struct esp_struct *info,
 
 static _INLINE_ void transmit_chars_dma(struct esp_struct *info, int num_bytes)
 {
+	unsigned long flags;
+	
 	dma_bytes = num_bytes;
 
 	if (info->xmit_tail + dma_bytes <= ESP_XMIT_SIZE) {
@@ -564,34 +576,46 @@ static _INLINE_ void transmit_chars_dma(struct esp_struct *info, int num_bytes)
 	}
 
 	info->stat_flags |= ESP_STAT_DMA_TX;
+	
+	flags=claim_dma_lock();
         disable_dma(dma);
         clear_dma_ff(dma);
         set_dma_mode(dma, DMA_MODE_WRITE);
         set_dma_addr(dma, virt_to_bus(dma_buffer));
         set_dma_count(dma, dma_bytes);
         enable_dma(dma);
+        release_dma_lock(flags);
+        
         serial_out(info, UART_ESI_CMD1, ESI_START_DMA_TX);
 }
 
 static _INLINE_ void transmit_chars_dma_done(struct esp_struct *info)
 {
 	int num_bytes;
+	unsigned long flags;
+	
 
+	flags=claim_dma_lock();
 	disable_dma(dma);
 	clear_dma_ff(dma);
 
 	num_bytes = dma_bytes - get_dma_residue(dma);
 	info->icount.tx += dma_bytes;
+	release_dma_lock(flags);
 
 	if (dma_bytes != num_bytes) {
 		dma_bytes -= num_bytes;
 		memmove(dma_buffer, dma_buffer + num_bytes, dma_bytes);
+		
+		flags=claim_dma_lock();
         	disable_dma(dma);
         	clear_dma_ff(dma);
         	set_dma_mode(dma, DMA_MODE_WRITE);
         	set_dma_addr(dma, virt_to_bus(dma_buffer));
         	set_dma_count(dma, dma_bytes);
         	enable_dma(dma);
+        	release_dma_lock(flags);
+        	
         	serial_out(info, UART_ESI_CMD1, ESI_START_DMA_TX);
 	} else {
 		dma_bytes = 0;
@@ -1003,7 +1027,7 @@ static int startup(struct esp_struct * info)
  */
 static void shutdown(struct esp_struct * info)
 {
-	unsigned long	flags;
+	unsigned long	flags, f;
 
 	if (!(info->flags & ASYNC_INITIALIZED))
 		return;
@@ -1025,8 +1049,11 @@ static void shutdown(struct esp_struct * info)
 	/* stop a DMA transfer on the port being closed */
 	   
 	if (info->stat_flags & (ESP_STAT_DMA_RX | ESP_STAT_DMA_TX)) {
+		f=claim_dma_lock();
 		disable_dma(dma);
 		clear_dma_ff(dma);
+		release_dma_lock(f);
+		
 		dma_bytes = 0;
 	}
 	
@@ -2120,8 +2147,7 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	if (info->blocked_open) {
 		if (info->close_delay) {
 			current->state = TASK_INTERRUPTIBLE;
-			current->timeout = jiffies + info->close_delay;
-			schedule();
+			schedule_timeout(info->close_delay);
 		}
 		wake_up_interruptible(&info->open_wait);
 	}
@@ -2155,8 +2181,7 @@ static void rs_wait_until_sent(struct tty_struct *tty, int timeout)
 		(serial_in(info, UART_ESI_STAT2) != 0xff)) {
 		current->state = TASK_INTERRUPTIBLE;
 		current->counter = 0;
-		current->timeout = jiffies + char_time;
-		schedule();
+		schedule_timeout(char_time);
 
 		if (signal_pending(current))
 			break;
@@ -2615,6 +2640,9 @@ __initfunc(int espserial_init(void))
 	}
 
 	memset((void *)info, 0, sizeof(struct esp_struct));
+	/* rx_trigger, tx_trigger are needed by autoconfig */
+	info->config.rx_trigger = rx_trigger;
+	info->config.tx_trigger = tx_trigger;
 
 	i = 0;
 	offset = 0;
@@ -2644,8 +2672,6 @@ __initfunc(int espserial_init(void))
 		info->callout_termios = esp_callout_driver.init_termios;
 		info->normal_termios = esp_driver.init_termios;
 		info->config.rx_timeout = rx_timeout;
-		info->config.rx_trigger = rx_trigger;
-		info->config.tx_trigger = tx_trigger;
 		info->config.flow_on = flow_on;
 		info->config.flow_off = flow_off;
 		info->config.pio_threshold = pio_threshold;
@@ -2681,6 +2707,9 @@ __initfunc(int espserial_init(void))
 		}
 
 		memset((void *)info, 0, sizeof(struct esp_struct));
+		/* rx_trigger, tx_trigger are needed by autoconfig */
+		info->config.rx_trigger = rx_trigger;
+		info->config.tx_trigger = tx_trigger;
 
 		if (offset == 56) {
 			i++;

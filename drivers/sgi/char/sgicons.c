@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: sgicons.c,v 1.10 1998/08/25 09:18:58 ralf Exp $
  *
  * sgicons.c: Setting up and registering console I/O on the SGI.
  *
@@ -14,7 +14,7 @@
 #include "gconsole.h"
 
 /* To make psaux code cleaner */
-int aux_device_present = 0xaa;
+unsigned char aux_device_present = 0xaa;
 
 /* This is the system graphics console (the first adapter found) */
 struct console_ops *gconsole = 0;

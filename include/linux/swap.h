@@ -79,7 +79,7 @@ extern void swap_after_unlock_page (unsigned long entry);
 
 /* linux/mm/page_alloc.c */
 extern void swap_in(struct task_struct *, struct vm_area_struct *,
-		    unsigned long, pte_t *, unsigned long, int);
+		    pte_t *, unsigned long, int);
 
 
 /* linux/mm/swap_state.c */
@@ -87,8 +87,9 @@ extern void show_swap_cache_info(void);
 extern int add_to_swap_cache(struct page *, unsigned long);
 extern int swap_duplicate(unsigned long);
 extern int swap_check_entry(unsigned long);
-extern struct page * read_swap_cache_async(unsigned long, unsigned long, int);
-#define read_swap_cache(entry, addr) read_swap_cache_async(entry, addr, 1);
+extern struct page * read_swap_cache_async(unsigned long, int);
+#define read_swap_cache(entry) read_swap_cache_async(entry, 1);
+extern int FASTCALL(swap_count(unsigned long));
 /*
  * Make these inline later once they are working properly.
  */
@@ -106,8 +107,8 @@ struct swap_list_t {
 	int next;	/* swapfile to be used next */
 };
 extern struct swap_list_t swap_list;
-int sys_swapoff(const char *);
-int sys_swapon(const char *, int);
+asmlinkage int sys_swapoff(const char *);
+asmlinkage int sys_swapon(const char *, int);
 
 /*
  * vm_ops not present page codes for shared memory.
@@ -146,14 +147,20 @@ extern inline unsigned long in_swap_cache(struct page *page)
  */
 static inline int is_page_shared(struct page *page)
 {
-	int count = atomic_read(&page->count);
+	unsigned int count;
 	if (PageReserved(page))
 		return 1;
-	if (page->inode == &swapper_inode)
-		count--;
+	count = atomic_read(&page->count);
+	if (PageSwapCache(page))
+	{
+		/* PARANOID */
+		if (page->inode != &swapper_inode)
+			panic("swap cache page has wrong inode\n");
+		count += swap_count(page->offset) - 2;
+	}
 	if (PageFreeAfter(page))
 		count--;
-	return (count > 1);
+	return  count > 1;
 }
 
 #endif /* __KERNEL__*/

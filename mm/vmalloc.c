@@ -5,11 +5,9 @@
  */
 
 #include <linux/malloc.h>
-#include <linux/swapctl.h>
 #include <linux/vmalloc.h>
 
 #include <asm/uaccess.h>
-#include <asm/system.h>
 
 static struct vm_struct * vmlist = NULL;
 
@@ -38,8 +36,7 @@ static inline void free_area_pte(pmd_t * pmd, unsigned long address, unsigned lo
 		if (pte_none(page))
 			continue;
 		if (pte_present(page)) {
-			free_user_page(mem_map + MAP_NR(pte_page(page)),
-			               pte_page(page));
+			free_page(pte_page(page));
 			continue;
 		}
 		printk("Whee.. Swapped out page in kernel page table\n");
@@ -97,7 +94,7 @@ static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned lo
 		unsigned long page;
 		if (!pte_none(*pte))
 			printk("alloc_area_pte: page already exists\n");
-		page = get_user_page(address);
+		page = __get_free_page(GFP_KERNEL);
 		if (!page)
 			return -ENOMEM;
 		set_pte(pte, mk_pte(page, prot));

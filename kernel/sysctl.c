@@ -12,22 +12,16 @@
  */
 
 #include <linux/config.h>
-#include <linux/sched.h>
-#include <linux/mm.h>
+#include <linux/malloc.h>
 #include <linux/sysctl.h>
 #include <linux/swapctl.h>
 #include <linux/proc_fs.h>
-#include <linux/malloc.h>
-#include <linux/stat.h>
 #include <linux/ctype.h>
 #include <linux/utsname.h>
 #include <linux/swapctl.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
-#include <linux/fs.h>
 
-#include <asm/bitops.h>
 #include <asm/uaccess.h>
 
 #ifdef CONFIG_ROOT_NFS
@@ -38,7 +32,7 @@
 
 /* External variables not in a header file. */
 extern int panic_timeout;
-extern int console_loglevel, C_A_D, swapout_interval;
+extern int console_loglevel, C_A_D;
 extern int bdf_prm[], bdflush_min[], bdflush_max[];
 extern char binfmt_java_interpreter[], binfmt_java_appletviewer[];
 extern int sysctl_overcommit_memory;
@@ -54,6 +48,12 @@ extern char reboot_command [];
 #endif
 #ifdef __powerpc__
 extern unsigned long htab_reclaim_on, zero_paged_on, powersave_nap;
+int proc_dol2crvec(ctl_table *table, int write, struct file *filp,
+		  void *buffer, size_t *lenp);
+#endif
+
+#ifdef CONFIG_BSD_PROCESS_ACCT
+extern int acct_parm[];
 #endif
 
 extern int pgt_cache_water[];
@@ -176,6 +176,8 @@ static ctl_table kern_table[] = {
 	 0644, NULL, &proc_dointvec},
 	{KERN_PPC_POWERSAVE_NAP, "powersave-nap", &powersave_nap, sizeof(int),
 	 0644, NULL, &proc_dointvec},
+	{KERN_PPC_L2CR, "l2cr", NULL, 0,
+	 0644, NULL, &proc_dol2crvec},
 #endif
 	{KERN_CTLALTDEL, "ctrl-alt-del", &C_A_D, sizeof(int),
 	 0644, NULL, &proc_dointvec},
@@ -189,14 +191,16 @@ static ctl_table kern_table[] = {
 	{KERN_SG_BIG_BUFF, "sg-big-buff", &sg_big_buff, sizeof (int),
 	 0444, NULL, &proc_dointvec},
 #endif
+#ifdef CONFIG_BSD_PROCESS_ACCT
+	{KERN_ACCT, "acct", &acct_parm, 3*sizeof(int),
+	0644, NULL, &proc_dointvec},
+#endif
 	{0}
 };
 
 static ctl_table vm_table[] = {
 	{VM_SWAPCTL, "swapctl", 
 	 &swap_control, sizeof(swap_control_t), 0644, NULL, &proc_dointvec},
-	{VM_SWAPOUT, "swapout_interval",
-	 &swapout_interval, sizeof(int), 0644, NULL, &proc_dointvec},
 	{VM_FREEPG, "freepages", 
 	 &freepages, sizeof(freepages_t), 0644, NULL, &proc_dointvec},
 	{VM_BDFLUSH, "bdflush", &bdf_prm, 9*sizeof(int), 0600, NULL,

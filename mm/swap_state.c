@@ -8,19 +8,12 @@
  */
 
 #include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
 #include <linux/kernel_stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
 #include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/swapctl.h>
 #include <linux/init.h>
 #include <linux/pagemap.h>
 
-#include <asm/bitops.h>
 #include <asm/pgtable.h>
 
 /* 
@@ -143,6 +136,50 @@ bad_unused:
 	goto out;
 }
 
+int swap_count(unsigned long entry)
+{
+	struct swap_info_struct * p;
+	unsigned long offset, type;
+	int retval = 0;
+
+	if (!entry)
+		goto bad_entry;
+	type = SWP_TYPE(entry);
+	if (type & SHM_SWP_TYPE)
+		goto out;
+	if (type >= nr_swapfiles)
+		goto bad_file;
+	p = type + swap_info;
+	offset = SWP_OFFSET(entry);
+	if (offset >= p->max)
+		goto bad_offset;
+	if (!p->swap_map[offset])
+		goto bad_unused;
+	retval = p->swap_map[offset];
+#ifdef DEBUG_SWAP
+	printk("DebugVM: swap_count(entry %08lx, count %d)\n",
+	       entry, retval);
+#endif
+out:
+	return retval;
+
+bad_entry:
+	printk(KERN_ERR "swap_count: null entry!\n");
+	goto out;
+bad_file:
+	printk(KERN_ERR
+	       "swap_count: entry %08lx, nonexistent swap file!\n", entry);
+	goto out;
+bad_offset:
+	printk(KERN_ERR
+	       "swap_count: entry %08lx, offset exceeds max!\n", entry);
+	goto out;
+bad_unused:
+	printk(KERN_ERR
+	       "swap_count at %8p: entry %08lx, unused page!\n", 
+	       __builtin_return_address(0), entry);
+	goto out;
+}
 
 static inline void remove_from_swap_cache(struct page *page)
 {
@@ -155,6 +192,7 @@ static inline void remove_from_swap_cache(struct page *page)
 		printk ("VM: Removing swap cache page with wrong inode hash "
 			"on page %08lx\n", page_address(page));
 	}
+#if 0
 	/*
 	 * This is a legal case, but warn about it.
 	 */
@@ -163,6 +201,7 @@ static inline void remove_from_swap_cache(struct page *page)
 			"VM: Removing page cache on unshared page %08lx\n", 
 			page_address(page));
 	}
+#endif
 
 #ifdef DEBUG_SWAP
 	printk("DebugVM: remove_from_swap_cache(%08lx count %d)\n",
@@ -173,24 +212,25 @@ static inline void remove_from_swap_cache(struct page *page)
 }
 
 
+/*
+ * This must be called only on pages that have
+ * been verified to be in the swap cache.
+ */
 void delete_from_swap_cache(struct page *page)
 {
+	long entry = page->offset;
+
 #ifdef SWAP_CACHE_INFO
 	swap_cache_del_total++;
-#endif	
-	if (PageSwapCache (page))  {
-		long entry = page->offset;
-#ifdef SWAP_CACHE_INFO
-		swap_cache_del_success++;
+	swap_cache_del_success++;
 #endif
 #ifdef DEBUG_SWAP
-		printk("DebugVM: delete_from_swap_cache(%08lx count %d, "
-		       "entry %08lx)\n",
-		       page_address(page), atomic_read(&page->count), entry);
+	printk("DebugVM: delete_from_swap_cache(%08lx count %d, "
+	       "entry %08lx)\n",
+	       page_address(page), atomic_read(&page->count), entry);
 #endif
-		remove_from_swap_cache (page);
-		swap_free (entry);
-	}
+	remove_from_swap_cache (page);
+	swap_free (entry);
 }
 
 /* 
@@ -208,7 +248,7 @@ void free_page_and_swap_cache(unsigned long addr)
 		delete_from_swap_cache(page);
 	}
 	
-	free_user_page(page, addr);
+	free_page(addr);
 }
 
 
@@ -249,7 +289,7 @@ out_bad:
  * the swap entry is no longer in use.
  */
 
-struct page * read_swap_cache_async(unsigned long entry, unsigned long addr, int wait)
+struct page * read_swap_cache_async(unsigned long entry, int wait)
 {
 	struct page *found_page, *new_page;
 	unsigned long new_page_addr;

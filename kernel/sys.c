@@ -4,22 +4,9 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/errno.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/times.h>
-#include <linux/utsname.h>
-#include <linux/param.h>
-#include <linux/resource.h>
-#include <linux/signal.h>
-#include <linux/string.h>
-#include <linux/ptrace.h>
-#include <linux/stat.h>
-#include <linux/mman.h>
 #include <linux/mm.h>
-#include <linux/fcntl.h>
-#include <linux/tty.h>
-#include <linux/smp.h>
+#include <linux/utsname.h>
+#include <linux/mman.h>
 #include <linux/smp_lock.h>
 #include <linux/notifier.h>
 #include <linux/reboot.h>
@@ -586,11 +573,11 @@ asmlinkage int sys_setfsuid(uid_t uid)
 	
 	if (!issecure(SECURE_NO_SETUID_FIXUP)) {
 		if (old_fsuid == 0 && current->fsuid != 0) {
-			current->cap_effective.cap &= ~CAP_FS_MASK;
+			cap_t(current->cap_effective) &= ~CAP_FS_MASK;
 		}
 		if (old_fsuid != 0 && current->fsuid == 0) {
-			current->cap_effective.cap |=
-				(current->cap_permitted.cap & CAP_FS_MASK);
+			cap_t(current->cap_effective) |=
+				(cap_t(current->cap_permitted) & CAP_FS_MASK);
 		}
 	}
 

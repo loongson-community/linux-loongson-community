@@ -102,6 +102,10 @@
  * failures.
  */
 
+/*
+ * 1998/09/20 -- David Weinehall -- Added slow-down code for buggy PS/2-drives.
+ */
+
 #define FLOPPY_SANITY_CHECK
 #undef  FLOPPY_SILENT_DCL_CLEAR
 
@@ -148,6 +152,13 @@ static int irqdma_allocated = 0;
 #include <linux/ioport.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
+
+/*
+ * PS/2 floppies have much slower step rates than regular floppies.
+ * It's been recommended that take about 1/4 of the default speed
+ * in some more extreme cases.
+ */
+static int slow_floppy = 0;
 
 #include <asm/dma.h>
 #include <asm/irq.h>
@@ -348,7 +359,7 @@ static struct {
       0, { 1, 0, 0, 0, 0, 0, 0, 0}, 3*HZ/2, 1 }, "360K PC" }, /*5 1/4 360 KB PC*/
 
 {{2,  500, 16, 16, 6000, 4*HZ/10, 3*HZ, 14, SEL_DLY, 6,  83, 3*HZ, 17, {3,1,2,0,2}, 0,
-      0, { 2, 5, 6,23,10,20,11, 0}, 3*HZ/2, 2 }, "1.2M" }, /*5 1/4 HD AT*/
+      0, { 2, 5, 6,23,10,20,12, 0}, 3*HZ/2, 2 }, "1.2M" }, /*5 1/4 HD AT*/
 
 {{3,  250, 16, 16, 3000,    1*HZ, 3*HZ,  0, SEL_DLY, 5,  83, 3*HZ, 20, {3,1,2,0,2}, 0,
       0, { 4,22,21,30, 3, 0, 0, 0}, 3*HZ/2, 4 }, "720k" }, /*3 1/2 DD*/
@@ -1045,6 +1056,7 @@ static void floppy_enable_hlt(void)
 static void setup_DMA(void)
 {
 	unsigned long flags;
+	unsigned long f;
 
 #ifdef FLOPPY_SANITY_CHECK
 	if (raw_cmd->length == 0){
@@ -1066,17 +1078,20 @@ static void setup_DMA(void)
 	}
 #endif
 	INT_OFF;
+	f=claim_dma_lock();
 	fd_disable_dma(FLOPPY_DMA);
 #ifdef fd_dma_setup
 	if(fd_dma_setup(raw_cmd->kernel_data, raw_cmd->length, 
 			(raw_cmd->flags & FD_RAW_READ)?
 			DMA_MODE_READ : DMA_MODE_WRITE,
 			FDCS->address) < 0) {
+		release_dma_lock(f);
 		INT_ON;
 		cont->done(0);
 		FDCS->reset=1;
 		return;
 	}
+	release_dma_lock(f);
 #else
 	fd_clear_dma_ff(FLOPPY_DMA);
 	dma_cache_wback_inv((unsigned long)raw_cmd->kernel_data,
@@ -1088,6 +1103,7 @@ static void setup_DMA(void)
 	fd_set_dma_count(FLOPPY_DMA, raw_cmd->length);
 	virtual_dma_port = FDCS->address;
 	fd_enable_dma(FLOPPY_DMA);
+	release_dma_lock(f);
 #endif
 	INT_ON;
 	floppy_disable_hlt();
@@ -1302,6 +1318,9 @@ static void fdc_specify(void)
 
 	/* Convert step rate from microseconds to milliseconds and 4 bits */
 	srt = 16 - (DP->srt*scale_dtr/1000 + NOMINAL_DTR - 1)/NOMINAL_DTR;
+	if( slow_floppy ) {
+		srt = srt / 4;
+	}
 	SUPBOUND(srt, 0xf);
 	INFBOUND(srt, 0);
 
@@ -1687,11 +1706,15 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
 	void (*handler)(void) = DEVICE_INTR;
 	int do_print;
+	unsigned long f;
 
 	lasthandler = handler;
 	interruptjiffies = jiffies;
 
+	f=claim_dma_lock();
 	fd_disable_dma(FLOPPY_DMA);
+	release_dma_lock(f);
+
 	floppy_enable_hlt();
 	CLEAR_INTR;
 	if (fdc >= N_FDC || FDCS->address == -1){
@@ -1719,12 +1742,14 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	if(do_print)
 		print_result("unexpected interrupt", inr);
 	if (inr == 0){
+		int max_sensei = 4;
 		do {
 			output_byte(FD_SENSEI);
 			inr = result();
 			if(do_print)
 				print_result("sensei", inr);
-		} while ((ST0 & 0x83) != UNIT(current_drive) && inr == 2);
+			max_sensei--;
+		} while ((ST0 & 0x83) != UNIT(current_drive) && inr == 2 && max_sensei);
 	}
 	if (handler) {
 		int cpu = smp_processor_id();
@@ -1772,13 +1797,18 @@ static void reset_interrupt(void)
  */
 static void reset_fdc(void)
 {
+	unsigned long flags;
+
 	SET_INTR(reset_interrupt);
 	FDCS->reset = 0;
 	reset_fdc_info(0);
 
 	/* Pseudo-DMA may intercept 'reset finished' interrupt.  */
 	/* Irrelevant for systems with true DMA (i386).          */
+
+	flags=claim_dma_lock();
 	fd_disable_dma(FLOPPY_DMA);
+	release_dma_lock(flags);
 
 	if (FDCS->version >= FDC_82072A)
 		fd_outb(0x80 | (FDCS->dtr &3), FD_STATUS);
@@ -1837,12 +1867,18 @@ static void show_floppy(void)
 
 static void floppy_shutdown(void)
 {
+	unsigned long flags;
+
 	if (!initialising)
 		show_floppy();
 	cancel_activity();
 
 	floppy_enable_hlt();
+
+	flags=claim_dma_lock();
 	fd_disable_dma(FLOPPY_DMA);
+	release_dma_lock(flags);
+
 	/* avoid dma going to a random drive after shutdown */
 
 	if (!initialising)
@@ -1890,6 +1926,8 @@ static int start_motor(void (*function)(void) )
 
 static void floppy_ready(void)
 {
+	unsigned long flags;
+	
 	CHECK_RESET;
 	if (start_motor(floppy_ready)) return;
 	if (fdc_dtr()) return;
@@ -1908,8 +1946,12 @@ static void floppy_ready(void)
 #ifdef fd_chose_dma_mode
 	if ((raw_cmd->flags & FD_RAW_READ) || 
 	    (raw_cmd->flags & FD_RAW_WRITE))
+	{
+		flags=claim_dma_lock();
 		fd_chose_dma_mode(raw_cmd->kernel_data,
 				  raw_cmd->length);
+		release_dma_lock(flags);
+	}
 #endif
 
 	if (raw_cmd->flags & (FD_RAW_NEED_SEEK | FD_RAW_NEED_DISK)){
@@ -2886,7 +2928,8 @@ static void process_fd_request(void)
 static void do_fd_request(void)
 {
 	if(usage_count == 0) {
-		printk("warning: usage count=0, CURRENT=%p exiting\n", CURRENT);		printk("sect=%ld cmd=%d\n", CURRENT->sector, CURRENT->cmd);
+		printk("warning: usage count=0, CURRENT=%p exiting\n", CURRENT);
+		printk("sect=%ld cmd=%d\n", CURRENT->sector, CURRENT->cmd);
 		return;
 	}
 	if (fdc_busy){
@@ -3012,7 +3055,12 @@ static void raw_cmd_done(int flag)
 			raw_cmd->reply[i] = reply_buffer[i];
 
 		if (raw_cmd->flags & (FD_RAW_READ | FD_RAW_WRITE))
+		{
+			unsigned long flags;
+			flags=claim_dma_lock();
 			raw_cmd->length = fd_get_dma_residue(FLOPPY_DMA);
+			release_dma_lock(flags);
+		}
 		
 		if ((raw_cmd->flags & FD_RAW_SOFTFAILURE) &&
 		    (!raw_cmd->reply_count || (raw_cmd->reply[0] & 0xc0)))
@@ -4017,6 +4065,7 @@ static struct param_table {
 	{ "usefifo", 0, &no_fifo, 0, 0 },
 
 	{ "cmos", set_cmos, 0, 0, 0 },
+	{ "slow", 0, &slow_floppy, 1, 0 },
 
 	{ "unexpected_interrupts", 0, &print_unex, 1, 0 },
 	{ "no_unexpected_interrupts", 0, &print_unex, 0, 0 },
@@ -4027,7 +4076,7 @@ __initfunc(void floppy_setup(char *str, int *ints))
 {
 	int i;
 	int param;
-	if (str)
+	if (str) {
 		for (i=0; i< ARRAY_SIZE(config_params); i++){
 			if (strcmp(str,config_params[i].name) == 0){
 				if (ints[0])
@@ -4045,6 +4094,7 @@ __initfunc(void floppy_setup(char *str, int *ints))
 				return;
 			}
 		}
+	}
 	if (str) {
 		DPRINT("unknown floppy option [%s]\n", str);
 		
@@ -4107,6 +4157,8 @@ __initfunc(int floppy_init(void))
 #endif
 
 	if (floppy_grab_irq_and_dma()){
+		del_timer(&fd_timeout);
+		blk_dev[MAJOR_NR].request_fn = NULL;
 		unregister_blkdev(MAJOR_NR,"fd");
 		del_timer(&fd_timeout);
 		return -EBUSY;
@@ -4116,7 +4168,9 @@ __initfunc(int floppy_init(void))
 	for (drive = 0; drive < N_DRIVE; drive++) {
 		CLEARSTRUCT(UDRS);
 		CLEARSTRUCT(UDRWE);
-		UDRS->flags = FD_VERIFY | FD_DISK_NEWCHANGE | FD_DISK_CHANGED;
+		USETF(FD_DISK_NEWCHANGE);
+		USETF(FD_DISK_CHANGED);
+		USETF(FD_VERIFY);
 		UDRS->fd_device = -1;
 		floppy_track_buffer = NULL;
 		max_buffer_sectors = 0;
@@ -4131,6 +4185,9 @@ __initfunc(int floppy_init(void))
 			continue;
 		FDCS->rawcmd = 2;
 		if (user_reset_fdc(-1,FD_RESET_ALWAYS,0)){
+ 			/* free ioports reserved by floppy_grab_irq_and_dma() */
+ 			release_region(FDCS->address, 6);
+ 			release_region(FDCS->address+7, 1);
 			FDCS->address = -1;
 			FDCS->version = FDC_NONE;
 			continue;
@@ -4138,6 +4195,9 @@ __initfunc(int floppy_init(void))
 		/* Try to determine the floppy controller type */
 		FDCS->version = get_fdc_version();
 		if (FDCS->version == FDC_NONE){
+ 			/* free ioports reserved by floppy_grab_irq_and_dma() */
+ 			release_region(FDCS->address, 6);
+ 			release_region(FDCS->address+7, 1);
 			FDCS->address = -1;
 			continue;
 		}
@@ -4156,8 +4216,15 @@ __initfunc(int floppy_init(void))
 	current_drive = 0;
 	floppy_release_irq_and_dma();
 	initialising=0;
-	if (have_no_fdc) {
+	if (have_no_fdc) 
+	{
 		DPRINT("no floppy controllers found\n");
+ 		floppy_tq.routine = (void *)(void *) empty;
+		mark_bh(IMMEDIATE_BH);
+		schedule();
+ 		if (usage_count)
+ 			floppy_release_irq_and_dma();
+ 		blk_dev[MAJOR_NR].request_fn = NULL;
 		unregister_blkdev(MAJOR_NR,"fd");		
 	}
 	return have_no_fdc;

@@ -6,14 +6,9 @@
 
 /* These are all the functions necessary to implement itimers */
 
-#include <linux/signal.h>
-#include <linux/sched.h>
-#include <linux/string.h>
-#include <linux/errno.h>
-#include <linux/time.h>
 #include <linux/mm.h>
-#include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/interrupt.h>
 
 #include <asm/uaccess.h>
 
@@ -53,15 +48,15 @@ int do_getitimer(int which, struct itimerval *value)
 	case ITIMER_REAL:
 		interval = current->it_real_incr;
 		val = 0;
-		if (del_timer(&current->real_timer)) {
-			unsigned long now = jiffies;
-			val = current->real_timer.expires;
-			add_timer(&current->real_timer);
+		start_bh_atomic();
+		if (timer_pending(&current->real_timer)) {
+			val = current->real_timer.expires - jiffies;
+
 			/* look out for negative/zero itimer.. */
-			if (val <= now)
-				val = now+1;
-			val -= now;
+			if ((long) val <= 0)
+				val = 1;
 		}
+		end_bh_atomic();
 		break;
 	case ITIMER_VIRTUAL:
 		val = current->it_virt_value;
@@ -102,11 +97,9 @@ void it_real_fn(unsigned long __data)
 	send_sig(SIGALRM, p, 1);
 	interval = p->it_real_incr;
 	if (interval) {
-		unsigned long timeout = jiffies + interval;
-		/* check for overflow */
-		if (timeout < interval)
-			timeout = ULONG_MAX;
-		p->real_timer.expires = timeout;
+		if (interval > (unsigned long) LONG_MAX)
+			interval = LONG_MAX;
+		p->real_timer.expires = jiffies + interval;
 		add_timer(&p->real_timer);
 	}
 }
@@ -122,15 +115,16 @@ int do_setitimer(int which, struct itimerval *value, struct itimerval *ovalue)
 		return k;
 	switch (which) {
 		case ITIMER_REAL:
+			start_bh_atomic();
 			del_timer(&current->real_timer);
+			end_bh_atomic();
 			current->it_real_value = j;
 			current->it_real_incr = i;
 			if (!j)
 				break;
+			if (j > (unsigned long) LONG_MAX)
+				j = LONG_MAX;
 			i = j + jiffies;
-			/* check for overflow.. */
-			if (i < j)
-				i = ULONG_MAX;
 			current->real_timer.expires = i;
 			add_timer(&current->real_timer);
 			break;

@@ -493,6 +493,9 @@ static struct fh_entry *find_fhe(struct dentry *dentry, int cache,
 	struct fh_entry *fhe;
 	int i, found = (empty == NULL) ? 1 : 0;
 
+	if (!dentry)
+		goto out;
+
 	fhe = (cache == NFSD_FILE_CACHE) ? &filetable[0] : &dirstable[0];
 	for (i = 0; i < NFSD_MAXFH; i++, fhe++) {
 		if (fhe->dentry == dentry) {
@@ -504,6 +507,7 @@ static struct fh_entry *find_fhe(struct dentry *dentry, int cache,
 			*empty = fhe;
 		}
 	}
+out:
 	return NULL;
 }
 
@@ -756,8 +760,12 @@ static struct dentry *find_dentry_in_fhcache(struct knfs_fh *fh)
 
 	fhe = find_fhe(fh->fh_dcookie, NFSD_FILE_CACHE, NULL);
 	if (fhe) {
-		struct dentry *parent, *dentry = fhe->dentry;
-		struct inode *inode = dentry->d_inode;
+		struct dentry *parent, *dentry;
+		struct inode *inode;
+
+		dentry = fhe->dentry;
+		inode = dentry->d_inode;
+
 		if (!inode) {
 #ifdef NFSD_PARANOIA
 printk("find_dentry_in_fhcache: %s/%s has no inode!\n",
@@ -1019,7 +1027,7 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	dprintk("nfsd: fh_verify(exp %x/%u cookie %p)\n",
 		fh->fh_xdev, fh->fh_xino, fh->fh_dcookie);
 
-	if(fhp->fh_dverified)
+	if (fhp->fh_dverified)
 		goto check_type;
 	/*
 	 * Look up the export entry.
@@ -1051,11 +1059,12 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 	dentry = find_fh_dentry(fh);
 	if (!dentry)
 		goto out;
+
 	/*
 	 * Note:  it's possible the returned dentry won't be the one in the
-         * file handle.  We can correct the file handle for our use, but
-         * unfortunately the client will keep sending the broken one.  Let's
-         * hope the lookup will keep patching things up.
+	 * file handle.  We can correct the file handle for our use, but
+	 * unfortunately the client will keep sending the broken one.  Let's
+	 * hope the lookup will keep patching things up.
 	 */
 	fhp->fh_dentry = dentry;
 	fhp->fh_export = exp;
@@ -1071,6 +1080,7 @@ fh_verify(struct svc_rqst *rqstp, struct svc_fh *fhp, int type, int access)
 check_type:
 	dentry = fhp->fh_dentry;
 	inode = dentry->d_inode;
+	exp = fhp->fh_export;
 	if (type > 0 && (inode->i_mode & S_IFMT) != type) {
 		error = (type == S_IFDIR)? nfserr_notdir : nfserr_isdir;
 		goto out;
@@ -1080,9 +1090,45 @@ check_type:
 		goto out;
 	}
 
-	/* Finally, check access permissions. */
-	error = nfsd_permission(fhp->fh_export, dentry, access);
+	/*
+	 * Security: Check that the export is valid for dentry <gam3@acm.org>
+	 */
+	if (fh->fh_dev != fh->fh_xdev) {
+		printk("fh_verify: Security: export on other device"
+		       " (%d, %d).\n", fh->fh_dev, fh->fh_xdev);
+		goto out;
+	} else if (exp->ex_dentry != dentry) {
+		struct dentry *tdentry = dentry;
+		int err2 = 0;
+
+		error = nfserr_stale;
+		do {
+			tdentry = tdentry->d_parent;
+			if (exp->ex_dentry == tdentry) {
+				error = 0;
+				break;
+			}
+			if ((err2 = nfsd_permission(exp, tdentry, MAY_READ))) {
+				error = err2;
 #ifdef NFSD_PARANOIA
+				goto out1;
+#else
+				goto out;
+#endif
+			}
+		} while ((tdentry != tdentry->d_parent));
+		if (error) {
+			printk("fh_verify: Security: %s/%s bad export.\n",
+			       dentry->d_parent->d_name.name,
+			       dentry->d_name.name);
+			goto out;
+		}
+	}
+
+	/* Finally, check access permissions. */
+	error = nfsd_permission(exp, dentry, access);
+#ifdef NFSD_PARANOIA
+out1:
 if (error)
 printk("fh_verify: %s/%s permission failure, acc=%x, error=%d\n",
 dentry->d_parent->d_name.name, dentry->d_name.name, access, error);

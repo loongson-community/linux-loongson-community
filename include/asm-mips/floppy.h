@@ -1,4 +1,4 @@
-/* $Id: floppy.h,v 1.4 1997/12/01 18:00:37 ralf Exp $
+/* $Id: floppy.h,v 1.5 1998/06/30 00:23:09 ralf Exp $
  *
  * Architecture specific parts of the Floppy driver
  *
@@ -11,7 +11,6 @@
 #ifndef __ASM_MIPS_FLOPPY_H
 #define __ASM_MIPS_FLOPPY_H
 
-#include <linux/config.h>
 #include <asm/bootinfo.h>
 #include <asm/jazz.h>
 #include <asm/jazzdma.h>

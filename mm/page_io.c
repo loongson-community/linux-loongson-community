@@ -10,21 +10,13 @@
  */
 
 #include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
 #include <linux/kernel_stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
 #include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/locks.h>
 #include <linux/swapctl.h>
 
 #include <asm/dma.h>
-#include <asm/system.h> /* for cli()/sti() */
 #include <asm/uaccess.h> /* for copy_to/from_user */
-#include <asm/bitops.h>
 #include <asm/pgtable.h>
 
 static struct wait_queue * lock_queue = NULL;
@@ -66,6 +58,11 @@ void rw_swap_page(int rw, unsigned long entry, char * buf, int wait)
 		printk("Internal error: bad swap-device\n");
 		return;
 	}
+
+	/* Don't allow too many pending pages in flight.. */
+	if (atomic_read(&nr_async_pages) > SWAP_CLUSTER_MAX)
+		wait = 1;
+
 	p = &swap_info[type];
 	offset = SWP_OFFSET(entry);
 	if (offset >= p->max) {

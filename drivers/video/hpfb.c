@@ -22,10 +22,10 @@
 #include <asm/blinken.h>
 #include <asm/hwtest.h>
 
-#include "fbcon-mfb.h"
-#include "fbcon-cfb2.h"
-#include "fbcon-cfb4.h"
-#include "fbcon-cfb8.h"
+#include <video/fbcon-mfb.h>
+#include <video/fbcon-cfb2.h>
+#include <video/fbcon-cfb4.h>
+#include <video/fbcon-cfb8.h>
 
 #define arraysize(x)    (sizeof(x)/sizeof(*(x)))
 
@@ -360,6 +360,7 @@ __initfunc(int hpfb_init_one(unsigned long base))
 	fb_info.switch_con = &hpfb_switch;
 	fb_info.updatevar = &fb_update_var;
 	fb_info.blank = &hpfb_blank;
+	fb_info.flags = FBINFO_FLAG_DEFAULT;
 	do_fb_set_var(&hpfb_defined, 1);
 
 	hpfb_get_var(&disp.var, -1, &fb_info);

@@ -163,14 +163,19 @@ switch_to(struct task_struct *prev, struct task_struct *new)
 #endif
 
 #ifdef SHOW_TASK_SWITCHES
-	printk("%s/%d -> %s/%d NIP %08lx cpu %d sfr %d lock %x\n",
+	printk("%s/%d -> %s/%d NIP %08lx cpu %d lock %x root %x/%x\n",
 	       prev->comm,prev->pid,
 	       new->comm,new->pid,new->tss.regs->nip,new->processor,
-	       new->tss.smp_fork_ret,scheduler_lock.lock);
+	       scheduler_lock.lock,new->fs->root,prev->fs->root);
 #endif
 #ifdef __SMP__
 	/* avoid complexity of lazy save/restore of fpu
-	 * by just saving it every time we switch out -- Cort
+	 * by just saving it every time we switch out if
+	 * this task used the fpu during the last quantum.
+	 * 
+	 * If it tries to use the fpu again, it'll trap and
+	 * reload its fp regs.
+	 *  -- Cort
 	 */
 	if ( prev->tss.regs->msr & MSR_FP )
 		smp_giveup_fpu(prev);
@@ -349,6 +354,9 @@ void start_thread(struct pt_regs *regs, unsigned long nip, unsigned long sp)
 	regs->gpr[1] = sp;
 	regs->msr = MSR_USER;
 	shove_aux_table(sp);
+	if (last_task_used_math == current)
+		last_task_used_math = 0;
+	current->tss.fpscr = 0;
 }
 
 asmlinkage int sys_clone(int p1, int p2, int p3, int p4, int p5, int p6,
@@ -380,6 +388,7 @@ asmlinkage int sys_fork(int p1, int p2, int p3, int p4, int p5, int p6,
 {
 
 	int res;
+	
 	lock_kernel();
 	res = do_fork(SIGCHLD, regs->gpr[1], regs);
 	/* only parent returns here */
@@ -401,18 +410,23 @@ asmlinkage int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
 {
 	int error;
 	char * filename;
-	
 	lock_kernel();
 	filename = getname((char *) a0);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
 		goto out;
+#ifdef __SMP__	  
+	if ( regs->msr & MSR_FP )
+		smp_giveup_fpu(current);
+#else	  
 	if ( last_task_used_math == current )
-		last_task_used_math = NULL;
+		giveup_fpu();
+#endif	
 	error = do_execve(filename, (char **) a1, (char **) a2, regs);
 	putname(filename);
 out:
 	unlock_kernel();
+
 	return error;
 }
 
@@ -446,7 +460,7 @@ __initfunc(int ll_printk(const char *fmt, ...))
         int i;
 
         va_start(args, fmt);
-        i=sprintf(buf,fmt,args);
+        i=vsprintf(buf,fmt,args);
 	ll_puts(buf);
         va_end(args);
         return i;
@@ -454,6 +468,19 @@ __initfunc(int ll_printk(const char *fmt, ...))
 
 int lines = 24, cols = 80;
 int orig_x = 0, orig_y = 0;
+
+void puthex(unsigned long val)
+{
+	unsigned char buf[10];
+	int i;
+	for (i = 7;  i >= 0;  i--)
+	{
+		buf[i] = "0123456789ABCDEF"[val & 0x0F];
+		val >>= 4;
+	}
+	buf[8] = '\0';
+	prom_print(buf);
+}
 
 __initfunc(void ll_puts(const char *s))
 {

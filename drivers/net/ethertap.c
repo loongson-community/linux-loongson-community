@@ -7,7 +7,7 @@
  *	on it will attempt to ARP the user space and reply to ARPS from the
  *	user space.
  *
- *	As this is an ethernet device you cau use it for appletalk, IPX etc
+ *	As this is an ethernet device you can use it for appletalk, IPX etc
  *	even for building bridging tunnels.
  */
  
@@ -329,7 +329,7 @@ static struct net_device_stats *ethertap_get_stats(struct device *dev)
 
 #ifdef MODULE
 
-int unit;
+static int unit;
 MODULE_PARM(unit,"i");
 
 static char devicename[9] = { 0, };

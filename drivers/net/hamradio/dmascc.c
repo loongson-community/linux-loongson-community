@@ -1,5 +1,5 @@
 /*
- * $Id: dmascc.c,v 1.2.1.4 1998/06/10 02:24:11 kudielka Exp $
+ * $Id: dmascc.c,v 1.3 1998/09/07 04:41:56 kudielka Exp $
  *
  * Driver for high-speed SCC boards (those with DMA support)
  * Copyright (C) 1997 Klaus Kudielka
@@ -62,6 +62,14 @@
 #define test_and_set_bit(x,y) set_bit(x,y)
 #define register_netdevice(x) register_netdev(x)
 #define unregister_netdevice(x) unregister_netdev(x)
+#define dev_kfree_skb(x) dev_kfree_skb(x,FREE_WRITE)
+#define SET_DEV_INIT(x) (x=dmascc_dev_init)
+
+#define SHDLCE  0x01 /* WR15 */
+
+#define AUTOEOM 0x02 /* WR7' */
+#define RXFIFOH 0x08
+#define TXFIFOE 0x20
 
 static int dmascc_dev_init(struct device *dev)
 {
@@ -83,7 +91,7 @@ static void dev_init_buffers(struct device *dev)
 #include <linux/init.h>
 #include <asm/uaccess.h>
 
-#define dmascc_dev_init NULL
+#define SET_DEV_INIT(x)
 
 
 #endif
@@ -286,7 +294,7 @@ static unsigned long rand;
 #ifdef MODULE
 
 
-MODULE_AUTHOR("Klaus Kudielka <oe1kib@oe1xtu.ampr.org>");
+MODULE_AUTHOR("Klaus Kudielka");
 MODULE_DESCRIPTION("Driver for high-speed SCC boards");
 MODULE_PARM(io, "1-" __MODULE_STRING(MAX_NUM_DEVS) "i");
 
@@ -462,8 +470,8 @@ __initfunc(int setup_adapter(int io, int h, int n))
   /* Reset 8530 */
   write_scc(cmd, R9, FHWRES | MIE | NV);
 
-  /* Determine type of chip */
-  write_scc(cmd, R15, 1);
+  /* Determine type of chip by enabling SDLC/HDLC enhancements */
+  write_scc(cmd, R15, SHDLCE);
   if (!read_scc(cmd, R15)) {
     /* WR7' not present. This is an ordinary Z8530 SCC. */
     chip = Z8530;
@@ -575,7 +583,7 @@ __initfunc(int setup_adapter(int io, int h, int n))
     dev->hard_header = ax25_encapsulate;
     dev->rebuild_header = ax25_rebuild_header;
     dev->set_mac_address = scc_set_mac_address;
-    dev->init = dmascc_dev_init;
+    SET_DEV_INIT(dev->init);
     dev->type = ARPHRD_AX25;
     dev->hard_header_len = 73;
     dev->mtu = 1500;
@@ -662,17 +670,17 @@ static int scc_open(struct device *dev)
   switch (info->chip) {
   case Z85C30:
     /* Select WR7' */
-    write_scc(cmd, R15, 1);
+    write_scc(cmd, R15, SHDLCE);
     /* Auto EOM reset */
-    write_scc(cmd, R7, 0x02);
+    write_scc(cmd, R7, AUTOEOM);
     write_scc(cmd, R15, 0);
     break;
   case Z85230:
     /* Select WR7' */
-    write_scc(cmd, R15, 1);
+    write_scc(cmd, R15, SHDLCE);
     /* RX FIFO half full (interrupt only), Auto EOM reset,
        TX FIFO empty (DMA only) */
-    write_scc(cmd, R7, dev->dma ? 0x22 : 0x0a);
+    write_scc(cmd, R7, AUTOEOM | (dev->dma ? TXFIFOE : RXFIFOH));
     write_scc(cmd, R15, 0);
     break;
   }
@@ -958,6 +966,7 @@ static void special_condition(struct device *dev, int rc)
 {
   struct scc_priv *priv = dev->priv;
   int cb, cmd = priv->cmd;
+  unsigned long flags;
 
   /* See Figure 2-15. Only overrun and EOF need to be checked. */
   
@@ -968,9 +977,12 @@ static void special_condition(struct device *dev, int rc)
   } else if (rc & END_FR) {
     /* End of frame. Get byte count */
     if (dev->dma) {
+        flags=claim_dma_lock();
 	disable_dma(dev->dma);
 	clear_dma_ff(dev->dma);
 	cb = BUF_SIZE - get_dma_residue(dev->dma) - 2;
+	release_dma_lock(flags);
+	
     } else {
 	cb = priv->rx_ptr - 2;
     }
@@ -1005,9 +1017,13 @@ static void special_condition(struct device *dev, int rc)
     }
     /* Get ready for new frame */
     if (dev->dma) {
+      
+      flags=claim_dma_lock();
       set_dma_addr(dev->dma, (int) priv->rx_buf[priv->rx_head]);
       set_dma_count(dev->dma, BUF_SIZE);
       enable_dma(dev->dma);
+      release_dma_lock(flags);
+      
     } else {
       priv->rx_ptr = 0;
     }
@@ -1094,6 +1110,7 @@ static void es_isr(struct device *dev)
   struct scc_info *info = priv->info;
   int i, cmd = priv->cmd;
   int st, dst, res;
+  unsigned long flags;
 
   /* Read status and reset interrupt bit */
   st = read_scc(cmd, R0);
@@ -1110,9 +1127,11 @@ static void es_isr(struct device *dev)
     /* Get remaining bytes */
     i = priv->tx_tail;
     if (dev->dma) {
+      flags=claim_dma_lock();
       disable_dma(dev->dma);
       clear_dma_ff(dev->dma);
       res = get_dma_residue(dev->dma);
+      release_dma_lock(flags);
     } else {
       res = priv->tx_len[i] - priv->tx_ptr;
       if (res) write_scc(cmd, R0, RES_Tx_P);
@@ -1125,9 +1144,11 @@ static void es_isr(struct device *dev)
     /* Check if another frame is available and we are allowed to transmit */
     if (priv->tx_count && (jiffies - priv->tx_start) < priv->param.txtime) {
       if (dev->dma) {
+        flags=claim_dma_lock();
 	set_dma_addr(dev->dma, (int) priv->tx_buf[priv->tx_tail]);
 	set_dma_count(dev->dma, priv->tx_len[priv->tx_tail]);
 	enable_dma(dev->dma);
+	release_dma_lock(flags);
       } else {
 	/* If we have an ESCC, we are allowed to write data bytes
 	   immediately. Otherwise we have to wait for the next
@@ -1162,12 +1183,14 @@ static void es_isr(struct device *dev)
     if (st & DCD) {
       if (dev->dma) {
 	/* Program DMA controller */
+	flags=claim_dma_lock();
 	disable_dma(dev->dma);
 	clear_dma_ff(dev->dma);
 	set_dma_mode(dev->dma, DMA_MODE_READ);
 	set_dma_addr(dev->dma, (int) priv->rx_buf[priv->rx_head]);
 	set_dma_count(dev->dma, BUF_SIZE);
 	enable_dma(dev->dma);
+	release_dma_lock(flags);
 	/* Configure PackeTwin DMA */
 	if (info->type == TYPE_TWIN) {
 	  outb_p((dev->dma == 1) ? TWIN_DMA_HDX_R1 : TWIN_DMA_HDX_R3,
@@ -1187,7 +1210,12 @@ static void es_isr(struct device *dev)
       }
     } else {
       /* Disable DMA */
-      if (dev->dma) disable_dma(dev->dma);
+      if (dev->dma)
+      {
+      	flags=claim_dma_lock();
+      	disable_dma(dev->dma);
+      	release_dma_lock(flags);
+      }
       /* Disable receiver */
       write_scc(cmd, R3, Rx8);
       /* DMA disable, RX int disable, Ext int enable */
@@ -1220,11 +1248,13 @@ static void es_isr(struct device *dev)
     while (read_scc(cmd, R0) & Rx_CH_AV) read_scc(cmd, R8);
     priv->rx_over = 0;
     if (dev->dma) {
+      flags=claim_dma_lock();
       disable_dma(dev->dma);
       clear_dma_ff(dev->dma);
       set_dma_addr(dev->dma, (int) priv->rx_buf[priv->rx_head]);
       set_dma_count(dev->dma, BUF_SIZE);
       enable_dma(dev->dma);
+      release_dma_lock(flags);
     } else {
       priv->rx_ptr = 0;
     }
@@ -1237,6 +1267,7 @@ static void tm_isr(struct device *dev)
   struct scc_priv *priv = dev->priv;
   struct scc_info *info = priv->info;
   int cmd = priv->cmd;
+  unsigned long flags;
 
   switch (priv->tx_state) {
   case TX_OFF:
@@ -1258,12 +1289,16 @@ static void tm_isr(struct device *dev)
     priv->tx_state = TX_ACTIVE;
     if (dev->dma) {
       /* Program DMA controller */
+      
+      flags=claim_dma_lock();
       disable_dma(dev->dma);
       clear_dma_ff(dev->dma);
       set_dma_mode(dev->dma, DMA_MODE_WRITE);
       set_dma_addr(dev->dma, (int) priv->tx_buf[priv->tx_tail]);
       set_dma_count(dev->dma, priv->tx_len[priv->tx_tail]);
       enable_dma(dev->dma);
+      release_dma_lock(flags);
+      
       /* Configure PackeTwin DMA */
       if (info->type == TYPE_TWIN) {
 	outb_p((dev->dma == 1) ? TWIN_DMA_HDX_T1 : TWIN_DMA_HDX_T3,

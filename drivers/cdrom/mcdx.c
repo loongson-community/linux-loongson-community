@@ -787,24 +787,13 @@ static void mcdx_delay(struct s_drive_stuff *stuff, long jifs)
  *	May be we could use a simple count loop w/ jumps to itself, but
  *	I wanna make this independent of cpu speed. [1 jiffy is 1/HZ] sec */
 {
-    unsigned long tout = jiffies + jifs;
-    if (jifs < 0) return;
+	if (jifs < 0) return;
 
-	/* If loaded during kernel boot no *_sleep_on is
-	 * allowed! */
-    if (current->pid == 0) {
-		while (jiffies < tout) {
-            current->timeout = jiffies;
-            schedule();
-        }
-    } else {
-        current->timeout = tout;
-		xtrace(SLEEP, "*** delay: sleepq\n");
-		interruptible_sleep_on(&stuff->sleepq);
-		xtrace(SLEEP, "delay awoken\n");
-		if (signal_pending(current)) {
-			xtrace(SLEEP, "got signal\n");
-		}
+	xtrace(SLEEP, "*** delay: sleepq\n");
+	interruptible_sleep_on_timeout(&stuff->sleepq, jifs);
+	xtrace(SLEEP, "delay awoken\n");
+	if (signal_pending(current)) {
+		xtrace(SLEEP, "got signal\n");
 	}
 }
 
@@ -1247,6 +1236,7 @@ static int mcdx_xfer(struct s_drive_stuff *stuffp,
 {
     int border;
     int done = 0;
+	long timeout;
 
 	if (stuffp->audio) {
 			xwarn("Attempt to read from audio CD.\n");
@@ -1281,13 +1271,12 @@ static int mcdx_xfer(struct s_drive_stuff *stuffp,
 
 	do {
 
-	    current->timeout = jiffies + 5 * HZ;
 	    while (stuffp->busy) {
 
-			interruptible_sleep_on(&stuffp->busyq);
+			timeout = interruptible_sleep_on_timeout(&stuffp->busyq, 5*HZ);
 
 			if (!stuffp->introk) { xtrace(XFER, "error via interrupt\n"); }
-			else if (current->timeout == 0) { xtrace(XFER, "timeout\n"); }
+			else if (!timeout) { xtrace(XFER, "timeout\n"); }
 			else if (signal_pending(current)) {
 				xtrace(XFER, "signal\n");
 			} else continue;

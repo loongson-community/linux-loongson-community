@@ -109,10 +109,11 @@
 				up transfer size.
 	1.02    GRG 1998.06.16  Eliminated an Ugh
 	1.03    GRG 1998.08.16  Use HZ in loop timings, extra debugging
+	1.04    GRG 1998.09.24  Added jumbo support
 
 */
 
-#define PF_VERSION      "1.03"
+#define PF_VERSION      "1.04"
 #define PF_MAJOR	47
 #define PF_NAME		"pf"
 #define PF_UNITS	4
@@ -509,6 +510,12 @@ int     init_module(void)
 
 {       int     err;
 
+#ifdef PARIDE_JUMBO
+       { extern paride_init();
+         paride_init();
+       } 
+#endif
+
         err = pf_init();
 
         return err;
@@ -653,8 +660,7 @@ static void pf_eject( int unit )
 static void pf_sleep( int cs )
 
 {       current->state = TASK_INTERRUPTIBLE;
-        current->timeout = jiffies + cs;
-        schedule();
+        schedule_timeout(cs);
 }
 
 

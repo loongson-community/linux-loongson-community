@@ -9,6 +9,12 @@ CROSS_COMPILE 	=powerpc-eabi-
 endif
 
 
+# PowerPC (cross) tools
+ifneq ($(shell uname -m),ppc)
+#CROSS_COMPILE 	=powerpc-eabi-
+CROSS_COMPILE  =ppc-linux-elf-
+endif
+
 HOSTCC	= gcc
 HOSTCFLAGS = -O -I$(TOPDIR)/include
 
@@ -23,6 +29,11 @@ GZ = gzip -9
 
 OBJS = crt0.o start.o main.o misc.o string.o zlib.o
 LIBS = $(TOPDIR)/lib/lib.a
+
+ifeq ($(CONFIG_ALL_PPC),y)
+# yes, we want to build pmac stuff
+CONFIG_PMAC = y
+endif
 
 ifeq ($(CONFIG_PMAC),y)
 hack-coff: hack-coff.c
@@ -72,8 +83,6 @@ vmlinux.coff: vmlinux.gz
 vmlinux.coff.initrd: vmlinux.gz
 
 floppy: vmlinux.gz
-
-
 
 endif
 

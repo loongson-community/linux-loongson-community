@@ -560,8 +560,8 @@ static int if_init (struct device* dev)
 	dev->irq	= wandev->irq;
 	dev->dma	= wandev->dma;
 	dev->base_addr	= wandev->ioport;
-	dev->mem_start	= wandev->maddr;
-	dev->mem_end	= wandev->maddr + wandev->msize - 1;
+	dev->mem_start	= (unsigned long)wandev->maddr;
+	dev->mem_end	= dev->mem_end + wandev->msize - 1;
 
         /* Set transmit buffer queue length */
         dev->tx_queue_len = 10;
@@ -830,7 +830,7 @@ static struct net_device_stats* if_stats (struct device* dev)
 {
 	x25_channel_t* chan = dev->priv;
 	if(chan==NULL)
-		return chan;
+		return NULL;
 	return &chan->ifstats;
 }
 

@@ -7,25 +7,16 @@
 
 #include <linux/config.h>
 #include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
 #include <linux/kernel_stat.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/stat.h>
 #include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/swapctl.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/pagemap.h>
 
 #include <asm/dma.h>
-#include <asm/system.h> /* for cli()/sti() */
 #include <asm/uaccess.h> /* for copy_to/from_user */
-#include <asm/bitops.h>
 #include <asm/pgtable.h>
-#include <asm/spinlock.h>
 
 int nr_swap_pages = 0;
 int nr_free_pages = 0;
@@ -163,9 +154,11 @@ void __free_page(struct page *page)
 		free_pages_ok(page->map_nr, 0);
 		return;
 	}
+#if 0
 	if (PageSwapCache(page) && atomic_read(&page->count) == 1)
 		printk(KERN_WARNING "VM: Releasing swap cache page at %p",
 			__builtin_return_address(0));
+#endif
 }
 
 void free_pages(unsigned long addr, unsigned long order)
@@ -182,10 +175,12 @@ void free_pages(unsigned long addr, unsigned long order)
 			free_pages_ok(map_nr, order);
 			return;
 		}
+#if 0
 		if (PageSwapCache(map) && atomic_read(&map->count) == 1)
 			printk(KERN_WARNING 
 				"VM: Releasing swap cache pages at %p",
 				__builtin_return_address(0));
+#endif
 	}
 }
 
@@ -227,7 +222,6 @@ do { unsigned long size = 1 << high; \
 		map += size; \
 	} \
 	atomic_set(&map->count, 1); \
-	map->age = PAGE_INITIAL_AGE; \
 } while (0)
 
 unsigned long __get_free_pages(int gfp_mask, unsigned long order)
@@ -264,14 +258,15 @@ unsigned long __get_free_pages(int gfp_mask, unsigned long order)
 	spin_unlock_irqrestore(&page_alloc_lock, flags);
 
 	/*
-	 * If we failed to find anything, we'll return NULL, but we'll
-	 * wake up kswapd _now_ ad even wait for it synchronously if
-	 * we can.. This way we'll at least make some forward progress
-	 * over time.
+	 * If we can schedule, do so, and make sure to yield.
+	 * We may be a real-time process, and if kswapd is
+	 * waiting for us we need to allow it to run a bit.
 	 */
-	wake_up(&kswapd_wait);
-	if (gfp_mask & __GFP_WAIT)
+	if (gfp_mask & __GFP_WAIT) {
+		current->policy |= SCHED_YIELD;
 		schedule();
+	}
+
 nopage:
 	return 0;
 }
@@ -372,12 +367,12 @@ unsigned long __init free_area_init(unsigned long start_mem, unsigned long end_m
  * was due to a write access.
  */
 void swap_in(struct task_struct * tsk, struct vm_area_struct * vma,
-	unsigned long address, pte_t * page_table, unsigned long entry, int write_access)
+	pte_t * page_table, unsigned long entry, int write_access)
 {
 	unsigned long page;
 	struct page *page_map;
 	
-	page_map = read_swap_cache(entry, address);
+	page_map = read_swap_cache(entry);
 
 	if (pte_val(*page_table) != entry) {
 		if (page_map)
@@ -404,8 +399,9 @@ void swap_in(struct task_struct * tsk, struct vm_area_struct * vma,
 	/* The page is unshared, and we want write access.  In this
 	   case, it is safe to tear down the swap cache and give the
 	   page over entirely to this process. */
-		
-	delete_from_swap_cache(page_map);
+
+	if (PageSwapCache(page_map))
+		delete_from_swap_cache(page_map);
 	set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot))));
   	return;
 }

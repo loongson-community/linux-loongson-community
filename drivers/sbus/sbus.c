@@ -1,4 +1,4 @@
-/* $Id: sbus.c,v 1.69 1998/07/28 16:53:11 jj Exp $
+/* $Id: sbus.c,v 1.6 1998/08/25 09:18:03 ralf Exp $
  * sbus.c:  SBus support routines.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -9,6 +9,7 @@
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/malloc.h>
+#include <linux/pci.h>
 
 #include <asm/system.h>
 #include <asm/sbus.h>
@@ -246,7 +247,7 @@ __initfunc(void sbus_init(void))
 	int num_sbus = 0;  /* How many did we find? */
 	
 #ifdef CONFIG_SUN4
-	return sun4_init();
+	return sun4_dvma_init();
 #endif
 
 	topnd = prom_getchild(prom_root_node);
@@ -257,7 +258,10 @@ __initfunc(void sbus_init(void))
 		nd = prom_searchsiblings(topnd, "sbus");
 		if(nd == 0) {
 #ifdef CONFIG_PCI
-			/* printk("SBUS: No SBUS's found.\n"); */
+			if (!pcibios_present()) {	
+				prom_printf("Neither SBUS nor PCI found.\n");
+				prom_halt();
+			}
 			return;
 #else
 			prom_printf("YEEE, UltraSparc sbus not found\n");
@@ -274,8 +278,16 @@ __initfunc(void sbus_init(void))
 		if((iommund = prom_searchsiblings(topnd, "iommu")) == 0 ||
 		   (nd = prom_getchild(iommund)) == 0 ||
 		   (nd = prom_searchsiblings(nd, "sbus")) == 0) {
+#ifdef CONFIG_PCI
+                        if (!pcibios_present()) {       
+                                prom_printf("Neither SBUS nor PCI found.\n");
+                                prom_halt();
+                        }
+                        return;
+#else
 			/* No reason to run further - the data access trap will occur. */
 			panic("sbus not found");
+#endif
 		}
 	}
 
@@ -418,21 +430,9 @@ __initfunc(void sbus_init(void))
 #endif
 #ifdef __sparc_v9__
 	if (sparc_cpu_model == sun4u) {
-		extern void sun4u_start_timers(void);
 		extern void clock_probe(void);
 
-		sun4u_start_timers();
 		clock_probe();
 	}
 #endif
 }
-
-#ifdef CONFIG_SUN4
-
-extern void sun4_dvma_init(void);
-
-__initfunc(void sun4_init(void))
-{
-	sun4_dvma_init();
-}
-#endif

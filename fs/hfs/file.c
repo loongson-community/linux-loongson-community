@@ -98,11 +98,11 @@ struct buffer_head *hfs_getblk(struct hfs_fork *fork, int block, int create)
 		/* If writing the block, then we have exclusive access
 		   to the file until we return, so it can't have moved.
 		*/
-	       if (tmp) {
-		 hfs_cat_mark_dirty(fork->entry);
-		 return getblk(dev, tmp, HFS_SECTOR_SIZE);
-	       }
-	       return NULL;
+		if (tmp) {
+			hfs_cat_mark_dirty(fork->entry);
+			return getblk(dev, tmp, HFS_SECTOR_SIZE);
+		}
+		return NULL;
 	} else {
 		/* If reading the block, then retry since the
 		   location on disk could have changed while
@@ -220,8 +220,10 @@ static hfs_rwret_t hfs_file_write(struct file * filp, const char * buf,
 	        pos += written;
 
 	*ppos = pos;
-	if (*ppos > inode->i_size) 
+	if (*ppos > inode->i_size) {
 	        inode->i_size = *ppos;
+		mark_inode_dirty(inode);
+	}
 
 	return written;
 }
@@ -236,7 +238,6 @@ static hfs_rwret_t hfs_file_write(struct file * filp, const char * buf,
  */
 static void hfs_file_truncate(struct inode * inode)
 {
- 	/*struct inode *inode = dentry->d_inode;*/
 	struct hfs_fork *fork = HFS_I(inode)->fork;
 
 	fork->lsize = inode->i_size;
@@ -245,6 +246,7 @@ static void hfs_file_truncate(struct inode * inode)
 
 	inode->i_size = fork->lsize;
 	inode->i_blocks = fork->psize;
+	mark_inode_dirty(inode);
 }
 
 /*
@@ -267,15 +269,19 @@ static inline void xlate_to_user(char *buf, const char *data, int count)
  *
  * Like copy_from_user() while translating NL->CR;
  */
-static inline void xlate_from_user(char *data, const char *buf, int count)
+static inline int xlate_from_user(char *data, const char *buf, int count)
 {
-	count -= copy_from_user(data, buf, count);
+	int i;
+
+	i = copy_from_user(data, buf, count);
+	count -= i;
 	while (count--) {
 		if (*data == '\n') {
 			*data = '\r';
 		}
 		++data;
 	}
+	return i;
 }
 
 /*================ Global functions ================*/
@@ -404,6 +410,13 @@ hfs_s32 hfs_do_read(struct inode *inode, struct hfs_fork * fork, hfs_u32 pos,
 				xlate_to_user(buf, p, chars);
 			} else {
 				chars -= copy_to_user(buf, p, chars);
+				if (!chars) {
+					brelse(*bhe);
+					count = 0;
+					if (!read)
+						read = -EFAULT;
+					break;
+				}
 			}
 			brelse(*bhe);
 			count -= chars;
@@ -477,10 +490,13 @@ hfs_s32 hfs_do_write(struct inode *inode, struct hfs_fork * fork, hfs_u32 pos,
 			}
 		}
 		p = (pos % HFS_SECTOR_SIZE) + bh->b_data;
-		if (convert) {
-			xlate_from_user(p, buf, c);
-		} else {
-			c -= copy_from_user(p, buf, c);
+		c -= convert ? xlate_from_user(p, buf, c) :
+			copy_from_user(p, buf, c);
+		if (!c) {
+			brelse(bh);
+			if (!written)
+				written = -EFAULT;
+			break;
 		}
 		update_vm_cache(inode,pos,p,c);
 		pos += c;

@@ -91,14 +91,13 @@ struct inode_operations nfs_file_inode_operations = {
 static int
 nfs_file_close(struct inode *inode, struct file *file)
 {
-	int	status, error;
+	int	status;
 
 	dfprintk(VFS, "nfs: close(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	status = nfs_flush_dirty_pages(inode, 0, 0, 0);
-	error = nfs_write_error(inode);
+	status = nfs_wb_all(inode);
 	if (!status)
-		status = error;
+		status = nfs_write_error(inode);
 	return status;
 }
 
@@ -158,16 +157,16 @@ static int
 nfs_fsync(struct file *file, struct dentry *dentry)
 {
 	struct inode *inode = dentry->d_inode;
-	int status, error;
+	int status;
 
 	dfprintk(VFS, "nfs: fsync(%x/%ld)\n", inode->i_dev, inode->i_ino);
 
-	status = nfs_flush_dirty_pages(inode, current->pid, 0, 0);
-	error = nfs_write_error(inode);
+	status = nfs_wb_pid(inode, current->pid);
 	if (!status)
-		status = error;
+		status = nfs_write_error(inode);
 	return status;
 }
+
 
 /* 
  * Write to a file (through the page cache).
@@ -179,14 +178,10 @@ nfs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 	struct inode * inode = dentry->d_inode;
 	ssize_t result;
 
-	dfprintk(VFS, "nfs: write(%s/%s (%d), %lu@%lu)\n",
+	dfprintk(VFS, "nfs: write(%s/%s(%ld), %lu@%lu)\n",
 		dentry->d_parent->d_name.name, dentry->d_name.name,
-		inode->i_count, (unsigned long) count, (unsigned long) *ppos);
+		inode->i_ino, (unsigned long) count, (unsigned long) *ppos);
 
-	if (!inode) {
-		printk("nfs_file_write: inode = NULL\n");
-		return -EINVAL;
-	}
 	result = -EBUSY;
 	if (IS_SWAPFILE(inode))
 		goto out_swapfile;
@@ -194,14 +189,6 @@ nfs_file_write(struct file *file, const char *buf, size_t count, loff_t *ppos)
 	if (result)
 		goto out;
 
-#ifdef NFS_PARANOIA
-/* N.B. This should be impossible now -- inodes can't change mode */
-if (!S_ISREG(inode->i_mode)) {
-	printk("nfs_file_write: write to non-file, mode %07o\n",
-		inode->i_mode);
-	return -EINVAL;
-}
-#endif
 	result = count;
 	if (!count)
 		goto out;
@@ -214,7 +201,7 @@ out:
 	return result;
 
 out_swapfile:
-	printk(KERN_ERR "NFS: attempt to write to active swap file!\n");
+	printk(KERN_INFO "NFS: attempt to write to active swap file!\n");
 	goto out;
 }
 
@@ -253,22 +240,21 @@ nfs_lock(struct file *filp, int cmd, struct file_lock *fl)
 	if (!fl->fl_owner || (fl->fl_flags & (FL_POSIX|FL_BROKEN)) != FL_POSIX)
 		return -ENOLCK;
 
-	/* If unlocking a file region, flush dirty pages (unless we've
-	 * been killed by a signal, that is). */
-	if (cmd == F_SETLK && fl->fl_type == F_UNLCK
-	    && !signal_pending(current)) {
-		status = nfs_flush_dirty_pages(inode, current->pid,
-			fl->fl_start, fl->fl_end == NLM_OFFSET_MAX? 0 :
-			fl->fl_end - fl->fl_start + 1);
-		if (status < 0)
-			return status;
-	}
+	/*
+	 * Flush all pending writes before doing anything
+	 * with locks..
+	 */
+	status = nfs_wb_all(inode);
+	if (status < 0)
+		return status;
 
 	if ((status = nlmclnt_proc(inode, cmd, fl)) < 0)
 		return status;
 
-	/* Here, we could turn off write-back of pages in the
-	 * locked file region */
-
+	/*
+	 * Make sure we re-validate anything we've got cached.
+	 * This makes locking act as a cache coherency point.
+	 */
+	NFS_CACHEINV(inode);
 	return 0;
 }

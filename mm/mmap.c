@@ -3,24 +3,17 @@
  *
  * Written by obz.
  */
-#include <linux/stat.h>
-#include <linux/sched.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/shm.h>
-#include <linux/errno.h>
 #include <linux/mman.h>
-#include <linux/string.h>
 #include <linux/pagemap.h>
 #include <linux/swap.h>
-#include <linux/smp.h>
+#include <linux/swapctl.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <linux/file.h>
 
 #include <asm/uaccess.h>
-#include <asm/system.h>
 #include <asm/pgtable.h>
 
 /* description of effects of mapping type and prot in current implementation.
@@ -57,6 +50,12 @@ int vm_enough_memory(long pages)
 	 * simple, it hopefully works in most obvious cases.. Easy to
 	 * fool it, but this should catch most mistakes.
 	 */
+	/* 23/11/98 NJC: Somewhat less stupid version of algorithm,
+	 * which tries to do "TheRightThing".  Instead of using half of
+	 * (buffers+cache), use the minimum values.  Allow an extra 2%
+	 * of num_physpages for safety margin.
+	 */
+
 	long free;
 	
         /* Sometimes we want to use more memory than we have. */
@@ -65,10 +64,9 @@ int vm_enough_memory(long pages)
 
 	free = buffermem >> PAGE_SHIFT;
 	free += page_cache_size;
-	free >>= 1;
 	free += nr_free_pages;
 	free += nr_swap_pages;
-	free -= num_physpages >> 4;
+	free -= (page_cache.min_percent + buffer_mem.min_percent + 2)*num_physpages/100; 
 	return free > pages;
 }
 
@@ -93,7 +91,21 @@ asmlinkage unsigned long sys_brk(unsigned long brk)
 	struct mm_struct *mm = current->mm;
 
 	down(&mm->mmap_sem);
+
+	/*
+	 * This lock-kernel is one of the main contention points for
+	 * certain normal loads.  And it really should not be here: almost
+	 * everything in brk()/mmap()/munmap() is protected sufficiently by
+	 * the mmap semaphore that we got above.
+	 *
+	 * We should move this into the few things that really want the
+	 * lock, namely anything that actually touches a file descriptor
+	 * etc.  We can do all the normal anonymous mapping cases without
+	 * ever getting the lock at all - the actual memory management
+	 * code is already completely thread-safe.
+	 */
 	lock_kernel();
+
 	if (brk < mm->end_code)
 		goto out;
 	newbrk = PAGE_ALIGN(brk);
@@ -162,7 +174,7 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 {
 	struct mm_struct * mm = current->mm;
 	struct vm_area_struct * vma;
-	int correct_wcount = 0, error;
+	int error;
 
 	if ((len = PAGE_ALIGN(len)) == 0)
 		return addr;
@@ -286,30 +298,28 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	    !vm_enough_memory(len >> PAGE_SHIFT))
 		goto free_vma;
 
-	error = 0;
 	if (file) {
+		int correct_wcount = 0;
 		if (vma->vm_flags & VM_DENYWRITE) {
-			if (file->f_dentry->d_inode->i_writecount > 0)
+			if (file->f_dentry->d_inode->i_writecount > 0) {
 				error = -ETXTBSY;
-			else {
-	        		/* f_op->mmap might possibly sleep
-				 * (generic_file_mmap doesn't, but other code
-				 * might). In any case, this takes care of any
-				 * race that this might cause.
-				 */
-				file->f_dentry->d_inode->i_writecount--;
-				correct_wcount = 1;
+				goto free_vma;
 			}
+	        	/* f_op->mmap might possibly sleep
+			 * (generic_file_mmap doesn't, but other code
+			 * might). In any case, this takes care of any
+			 * race that this might cause.
+			 */
+			file->f_dentry->d_inode->i_writecount--;
+			correct_wcount = 1;
 		}
-		if (!error)
-			error = file->f_op->mmap(file, vma);
-	
+		error = file->f_op->mmap(file, vma);
+		/* Fix up the count if necessary, then check for an error */
+		if (correct_wcount)
+			file->f_dentry->d_inode->i_writecount++;
+		if (error)
+			goto unmap_and_free_vma;
 	}
-	/* Fix up the count if necessary, then check for an error */
-	if (correct_wcount)
-		file->f_dentry->d_inode->i_writecount++;
-	if (error)
-		goto free_vma;
 
 	/*
 	 * merge_segments may merge our vma, so we can't refer to it
@@ -327,6 +337,11 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	}
 	return addr;
 
+unmap_and_free_vma:
+	/* Undo any partial mapping done by a device driver. */
+	flush_cache_range(mm, vma->vm_start, vma->vm_end);
+	zap_page_range(mm, vma->vm_start, vma->vm_end - vma->vm_start);
+	flush_tlb_range(mm, vma->vm_start, vma->vm_end);
 free_vma:
 	kmem_cache_free(vm_area_cachep, vma);
 	return error;
@@ -418,6 +433,7 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 		mpnt->vm_ops = area->vm_ops;
 		mpnt->vm_offset = area->vm_offset + (end - area->vm_start);
 		mpnt->vm_file = area->vm_file;
+		mpnt->vm_pte = area->vm_pte;
 		if (mpnt->vm_file)
 			mpnt->vm_file->f_count++;
 		if (mpnt->vm_ops && mpnt->vm_ops->open)

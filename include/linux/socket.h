@@ -238,6 +238,7 @@ struct ucred {
 /* TCP options - this way around because someone left a set in the c library includes */
 #define TCP_NODELAY	1
 #define TCP_MAXSEG	2
+#define TCP_CORK	3	/* Linux specific (for use with sendfile) */
 
 #ifdef __KERNEL__
 extern int memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len);
@@ -250,6 +251,7 @@ extern int csum_partial_copy_fromiovecend(unsigned char *kdata,
 
 extern int verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode);
 extern int memcpy_toiovec(struct iovec *v, unsigned char *kdata, int len);
+extern void memcpy_tokerneliovec(struct iovec *iov, unsigned char *kdata, int len);
 extern int move_addr_to_user(void *kaddr, int klen, void *uaddr, int *ulen);
 extern int move_addr_to_kernel(void *uaddr, int ulen, void *kaddr);
 extern int put_cmsg(struct msghdr*, int level, int type, int len, void *data);

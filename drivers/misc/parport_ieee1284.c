@@ -1,4 +1,4 @@
-/* $Id: parport_ieee1284.c,v 1.5 1998/08/19 21:54:49 ralf Exp $
+/* $Id: parport_ieee1284.c,v 1.4 1998/08/25 09:17:18 ralf Exp $
  * IEEE-1284 implementation for parport.
  *
  * Authors: Phil Blundell <Philip.Blundell@pobox.com>
@@ -34,8 +34,7 @@ int parport_wait_peripheral(struct parport *port, unsigned char mask,
 			schedule();
 	}
 	current->state = TASK_INTERRUPTIBLE;
-	current->timeout = jiffies+4;
-	schedule();				/* wait for 40ms */
+	schedule_timeout(HZ/25);				/* wait for 40ms */
 	status = parport_read_status(port);
 	return ((status & mask) == result)?0:1;
 }		

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.93 1998/08/26 12:04:32 davem Exp $
+ * Version:	$Id: tcp_output.c,v 1.97 1998/11/08 13:21:27 davem Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -390,7 +390,7 @@ void tcp_write_xmit(struct sock *sk)
  *
  * Note, we don't "adjust" for TIMESTAMP or SACK option bytes.
  */
-u32 __tcp_select_window(struct sock *sk, u32 cur_win)
+u32 __tcp_select_window(struct sock *sk)
 {
 	struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
 	unsigned int mss = tp->mss_cache;
@@ -414,6 +414,7 @@ u32 __tcp_select_window(struct sock *sk, u32 cur_win)
 	
 	if ((free_space < (sk->rcvbuf/4)) && (free_space < ((int) (mss/2)))) {
 		window = 0;
+		tp->pred_flags = 0; 
 	} else {
 		/* Get the largest window that is a nice multiple of mss.
 		 * Window clamp already applied above.
@@ -616,7 +617,7 @@ void tcp_xmit_retransmit_queue(struct sock *sk)
 			/* Stop retransmitting if we've hit the congestion
 			 * window limit.
 			 */
-			if (tp->retrans_out >= (tp->snd_cwnd >> TCP_CWND_SHIFT))
+			if (tp->retrans_out >= tp->snd_cwnd)
 				break;
 		} else {
 			update_retrans_head(sk);
@@ -646,7 +647,7 @@ void tcp_fack_retransmit(struct sock *sk)
 		if(tcp_retransmit_skb(sk, skb))
 			break;
 
-		if(tcp_packets_in_flight(tp) >= (tp->snd_cwnd >> TCP_CWND_SHIFT))
+		if(tcp_packets_in_flight(tp) >= tp->snd_cwnd)
 			break;
 next_packet:
 		packet_cnt++;
@@ -728,9 +729,9 @@ void tcp_send_active_reset(struct sock *sk)
 	struct sk_buff *skb;
 
 	/* NOTE: No TCP options attached and we never retransmit this. */
-	do {
-		skb = alloc_skb(MAX_HEADER + sk->prot->max_header, GFP_KERNEL);
-	} while(skb == NULL);
+	skb = alloc_skb(MAX_HEADER + sk->prot->max_header, GFP_KERNEL);
+	if (!skb)
+		return;
 
 	/* Reserve space for headers and prepare control bits. */
 	skb_reserve(skb, MAX_HEADER + sk->prot->max_header);

@@ -6,6 +6,7 @@
  *	Copyright 1998 Martin Mares
  */
 
+#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/pci.h>
 
@@ -28,8 +29,10 @@ EXPORT_SYMBOL(pci_find_class);
 EXPORT_SYMBOL(pci_find_device);
 EXPORT_SYMBOL(pci_find_slot);
 EXPORT_SYMBOL(pci_set_master);
+#ifdef	CONFIG_PROC_FS
 EXPORT_SYMBOL(pci_proc_attach_device);
 EXPORT_SYMBOL(pci_proc_detach_device);
+#endif
 
 /* Backward compatibility */
 

@@ -5,57 +5,116 @@
  * See keyboard.c for the whole history.
  *
  * Major cleanup by Martin Mares, May 1997
+ *
+ * Combined the keyboard and PS/2 mouse handling into one file,
+ * because they share the same hardware.
+ * Johan Myreen <jem@iki.fi> 1998-10-08.
+ *
  */
 
 #include <linux/config.h>
 
+#include <asm/spinlock.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/tty.h>
 #include <linux/mm.h>
 #include <linux/signal.h>
-#include <linux/ioport.h>
 #include <linux/init.h>
 #include <linux/kbd_ll.h>
 #include <linux/delay.h>
+#include <linux/random.h>
+#include <linux/poll.h>
+#include <linux/miscdevice.h>
+#include <linux/malloc.h>
 
 #include <asm/keyboard.h>
 #include <asm/bitops.h>
-#include <asm/io.h>
+#include <asm/uaccess.h>
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/irq.h>
 
 /* Some configuration switches are present in the include file... */
 
-#include "pc_keyb.h"
+#include <linux/pc_keyb.h>
 
-unsigned char pckbd_read_mask = KBD_STAT_OBF; /* Modified by psaux.c */
+/* Simple translation table for the SysRq keys */
+
+#ifdef CONFIG_MAGIC_SYSRQ
+unsigned char pckbd_sysrq_xlate[128] =
+	"\000\0331234567890-=\177\t"			/* 0x00 - 0x0f */
+	"qwertyuiop[]\r\000as"				/* 0x10 - 0x1f */
+	"dfghjkl;'`\000\\zxcv"				/* 0x20 - 0x2f */
+	"bnm,./\000*\000 \000\201\202\203\204\205"	/* 0x30 - 0x3f */
+	"\206\207\210\211\212\000\000789-456+1"		/* 0x40 - 0x4f */
+	"230\177\000\000\213\214\000\000\000\000\000\000\000\000\000\000" /* 0x50 - 0x5f */
+	"\r\000/";					/* 0x60 - 0x6f */
+#endif
+
+static void kbd_write_command_w(int data);
+static void kbd_write_output_w(int data);
+
+spinlock_t kbd_controller_lock = SPIN_LOCK_UNLOCKED;
 
 /* used only by send_data - set by keyboard_interrupt */
 static volatile unsigned char reply_expected = 0;
 static volatile unsigned char acknowledge = 0;
 static volatile unsigned char resend = 0;
 
+
+#if defined CONFIG_PSMOUSE
 /*
- *	Wait for keyboard controller input buffer is empty.
+ *	PS/2 Auxiliary Device
+ */
+
+static int __init psaux_init(void);
+
+static struct aux_queue *queue;	/* Mouse data buffer. */
+static int aux_count = 0;
+
+#define AUX_INTS_OFF (KBD_MODE_KCC | KBD_MODE_DISABLE_MOUSE | KBD_MODE_SYS | KBD_MODE_KBD_INT)
+#define AUX_INTS_ON  (KBD_MODE_KCC | KBD_MODE_SYS | KBD_MODE_MOUSE_INT | KBD_MODE_KBD_INT)
+
+#define MAX_RETRIES	60		/* some aux operations take long time*/
+#endif /* CONFIG_PSMOUSE */
+
+/*
+ * Wait for keyboard controller input buffer is empty.
  *
- *    Don't use 'jiffies' so that we don't depend on
- *    interrupts..
+ * Don't use 'jiffies' so that we don't depend on
+ * interrupts..
+ *
+ * Quote from PS/2 System Reference Manual:
+ *
+ * "Address hex 0060 and address hex 0064 should be written only when
+ * the input-buffer-full bit and output-buffer-full bit in the
+ * Controller Status register are set 0."
  */
 
 static inline void kb_wait(void)
 {
 	unsigned long timeout = KBC_TIMEOUT;
+	unsigned char status;
 
 	do {
-		if (! (kbd_read_status() & KBD_STAT_IBF))
+		status = kbd_read_status();
+		kbd_pause();
+		if (status & KBD_STAT_OBF) {
+			if (status & KBD_STAT_MOUSE_OBF)
+			kbd_read_input(); /* Flush */
+			kbd_pause();
+		}
+
+		status = kbd_read_status();
+		kbd_pause();
+		if (!(status & KBD_STAT_IBF))
 			return;
 		mdelay(1);
 		timeout--;
 	} while (timeout);
 #ifdef KBD_REPORT_TIMEOUTS
-	printk(KERN_WARNING "Keyboard timed out\n");
+	printk(KERN_WARNING "Keyboard timed out[1]\n");
 #endif
 }
 
@@ -202,7 +261,7 @@ static inline void send_cmd(unsigned char c)
 	kbd_write_command(c);
 }
 
-#define disable_keyboard()	do { send_cmd(KBD_CCMD_KBD_DISABLE); kb_wait(); } while (0)
+#define disable_keyboard()	send_cmd(KBD_CCMD_KBD_DISABLE)
 #define enable_keyboard()	send_cmd(KBD_CCMD_KBD_ENABLE)
 #else
 #define disable_keyboard()	/* nothing */
@@ -355,33 +414,46 @@ char pckbd_unexpected_up(unsigned char keycode)
 
 void keyboard_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
+	unsigned long flags;
 	unsigned char status;
 
-	kbd_pt_regs = regs;
+	spin_lock_irqsave(&kbd_controller_lock, flags);
 	disable_keyboard();
+	kbd_pt_regs = regs;
 
 	status = kbd_read_status();
-	do {
+	while (status & KBD_STAT_OBF) {
 		unsigned char scancode;
 
-		/* mouse data? */
-		if (status & pckbd_read_mask & KBD_STAT_MOUSE_OBF) {
-#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
-			scancode = kbd_read_input();
-			aux_interrupt(status, scancode);
+		scancode = kbd_read_input();
+
+		if (status & KBD_STAT_MOUSE_OBF) {
+#ifdef CONFIG_PSMOUSE
+			/* Mouse data. */
+			if (aux_count) {
+				int head = queue->head;
+				queue->buf[head] = scancode;
+				add_mouse_randomness(scancode);
+				head = (head + 1) & (AUX_BUF_SIZE-1);
+				if (head != queue->tail) {
+					queue->head = head;
+					if (queue->fasync)
+						kill_fasync(queue->fasync, SIGIO);
+					wake_up_interruptible(&queue->proc_list);
+				}
+			}
 #endif
-			break;
+		} else {
+			if (do_acknowledge(scancode))
+				handle_scancode(scancode);
+			mark_bh(KEYBOARD_BH);
 		}
 
-		scancode = kbd_read_input();
-		if ((status & KBD_STAT_OBF) && do_acknowledge(scancode))
-			handle_scancode(scancode);
-
 		status = kbd_read_status();
-	} while (status & KBD_STAT_OBF);
+	}
 
-	mark_bh(KEYBOARD_BH);
 	enable_keyboard();
+	spin_unlock_irqrestore(&kbd_controller_lock, flags);
 }
 
 /*
@@ -398,12 +470,10 @@ static int send_data(unsigned char data)
 	do {
 		unsigned long timeout = KBD_TIMEOUT;
 
-		kb_wait();
-		acknowledge = 0;
+		acknowledge = 0; /* Set by interrupt routine on receipt of ACK. */
 		resend = 0;
 		reply_expected = 1;
-		kbd_write_output(data);
-		kbd_pause();
+		kbd_write_output_w(data);
 		for (;;) {
 			if (acknowledge)
 				return 1;
@@ -412,7 +482,7 @@ static int send_data(unsigned char data)
 			mdelay(1);
 			if (!--timeout) {
 #ifdef KBD_REPORT_TIMEOUTS
-				printk(KERN_WARNING "Keyboard timeout\n");
+				printk(KERN_WARNING "Keyboard timeout[2]\n");
 #endif
 				return 0;
 			}
@@ -493,25 +563,39 @@ static int __init kbd_wait_for_input(void)
 	return -1;
 }
 
-static void __init kbd_write_command_w(int data)
+static void kbd_write_command_w(int data)
 {
-	int status;
+	unsigned long flags;
 
-	do {
-		status = kbd_read_status();
-	} while (status & KBD_STAT_IBF);
+	spin_lock_irqsave(&kbd_controller_lock, flags);
+	kb_wait();
 	kbd_write_command(data);
+	spin_unlock_irqrestore(&kbd_controller_lock, flags);
 }
 
-static void __init kbd_write_output_w(int data)
+static void kbd_write_output_w(int data)
 {
-	int status;
+	unsigned long flags;
 
-	do {
-		status = kbd_read_status();
-	} while (status & KBD_STAT_IBF);
+	spin_lock_irqsave(&kbd_controller_lock, flags);
+	kb_wait();
 	kbd_write_output(data);
+	spin_unlock_irqrestore(&kbd_controller_lock, flags);
 }
+
+#if defined CONFIG_PSMOUSE
+static void kbd_write_cmd(int cmd)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbd_controller_lock, flags);
+	kb_wait();
+	kbd_write_command(KBD_CCMD_WRITE_MODE);
+	kb_wait();
+	kbd_write_output(cmd);
+	spin_unlock_irqrestore(&kbd_controller_lock, flags);
+}
+#endif /* CONFIG_PSMOUSE */
 
 static char * __init initialize_kbd(void)
 {
@@ -614,7 +698,7 @@ static char * __init initialize_kbd(void)
 
 void __init pckbd_init_hw(void)
 {
-	keyboard_setup();
+	kbd_request_region();
 
 	/* Flush any pending input. */
 	kbd_clear_input();
@@ -624,4 +708,226 @@ void __init pckbd_init_hw(void)
 		if (msg)
 			printk(KERN_WARNING "initialize_kbd: %s\n", msg);
 	}
+
+#if defined CONFIG_PSMOUSE
+	psaux_init();
+#endif
+
+	/* Ok, finally allocate the IRQ, and off we go.. */
+	kbd_request_irq(keyboard_interrupt);
 }
+
+#if defined CONFIG_PSMOUSE
+/*
+ * Send a byte to the mouse.
+ */
+static void aux_write_dev(int val)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&kbd_controller_lock, flags);
+	kb_wait();
+	kbd_write_command(KBD_CCMD_WRITE_MOUSE);
+	kb_wait();
+	kbd_write_output(val);
+	spin_unlock_irqrestore(&kbd_controller_lock, flags);
+}
+
+static unsigned int get_from_queue(void)
+{
+	unsigned int result;
+	unsigned long flags;
+
+	save_flags(flags);
+	cli();
+	result = queue->buf[queue->tail];
+	queue->tail = (queue->tail + 1) & (AUX_BUF_SIZE-1);
+	restore_flags(flags);
+	return result;
+}
+
+
+static inline int queue_empty(void)
+{
+	return queue->head == queue->tail;
+}
+
+static int fasync_aux(int fd, struct file *filp, int on)
+{
+	int retval;
+
+	retval = fasync_helper(fd, filp, on, &queue->fasync);
+	if (retval < 0)
+		return retval;
+	return 0;
+}
+
+
+static int release_aux(struct inode * inode, struct file * file)
+{
+	fasync_aux(-1, file, 0);
+	if (--aux_count)
+		return 0;
+	kbd_write_cmd(AUX_INTS_OFF);			    /* Disable controller ints */
+	kbd_write_command_w(KBD_CCMD_MOUSE_DISABLE);
+	aux_free_irq(inode);
+	return 0;
+}
+
+/*
+ * Install interrupt handler.
+ * Enable auxiliary device.
+ */
+
+static int open_aux(struct inode * inode, struct file * file)
+{
+	if (aux_count++) {
+		return 0;
+	}
+	queue->head = queue->tail = 0;		/* Flush input queue */
+	if (aux_request_irq(keyboard_interrupt, inode)) {
+		aux_count--;
+		return -EBUSY;
+	}
+	kbd_write_command_w(KBD_CCMD_MOUSE_ENABLE);	/* Enable the
+							   auxiliary port on
+							   controller. */
+	aux_write_dev(AUX_ENABLE_DEV); /* Enable aux device */
+	kbd_write_cmd(AUX_INTS_ON); /* Enable controller ints */
+
+	return 0;
+}
+
+/*
+ * Put bytes from input queue to buffer.
+ */
+
+static ssize_t read_aux(struct file * file, char * buffer,
+			size_t count, loff_t *ppos)
+{
+	struct wait_queue wait = { current, NULL };
+	ssize_t i = count;
+	unsigned char c;
+
+	if (queue_empty()) {
+		if (file->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+		add_wait_queue(&queue->proc_list, &wait);
+repeat:
+		current->state = TASK_INTERRUPTIBLE;
+		if (queue_empty() && !signal_pending(current)) {
+			schedule();
+			goto repeat;
+		}
+		current->state = TASK_RUNNING;
+		remove_wait_queue(&queue->proc_list, &wait);
+	}
+	while (i > 0 && !queue_empty()) {
+		c = get_from_queue();
+		put_user(c, buffer++);
+		i--;
+	}
+	if (count-i) {
+		file->f_dentry->d_inode->i_atime = CURRENT_TIME;
+		return count-i;
+	}
+	if (signal_pending(current))
+		return -ERESTARTSYS;
+	return 0;
+}
+
+/*
+ * Write to the aux device.
+ */
+
+static ssize_t write_aux(struct file * file, const char * buffer,
+			 size_t count, loff_t *ppos)
+{
+	ssize_t retval = 0;
+
+	if (count) {
+		ssize_t written = 0;
+
+		if (count > 32)
+			count = 32; /* Limit to 32 bytes. */
+		do {
+			char c;
+			get_user(c, buffer++);
+			aux_write_dev(c);
+			written++;
+		} while (--count);
+		retval = -EIO;
+		if (written) {
+			retval = written;
+			file->f_dentry->d_inode->i_mtime = CURRENT_TIME;
+		}
+	}
+
+	return retval;
+}
+
+static unsigned int aux_poll(struct file *file, poll_table * wait)
+{
+	poll_wait(file, &queue->proc_list, wait);
+	if (!queue_empty())
+		return POLLIN | POLLRDNORM;
+	return 0;
+}
+
+struct file_operations psaux_fops = {
+	NULL,		/* seek */
+	read_aux,
+	write_aux,
+	NULL, 		/* readdir */
+	aux_poll,
+	NULL, 		/* ioctl */
+	NULL,		/* mmap */
+	open_aux,
+	NULL,		/* flush */
+	release_aux,
+	NULL,
+	fasync_aux,
+};
+
+/*
+ * Initialize driver.
+ */
+static struct miscdevice psaux_mouse = {
+	PSMOUSE_MINOR, "psaux", &psaux_fops
+};
+
+static int __init psaux_init(void)
+{
+#if 0
+	/*
+	 * Don't bother with the BIOS flag: even if we don't have
+	 * a mouse connected at bootup we may still want to connect
+	 * one later, and we don't want to just let the BIOS tell
+	 * us that it has no mouse..
+	 */
+	if (aux_device_present != 0xaa)
+		return -EIO;
+
+	printk(KERN_INFO "PS/2 auxiliary pointing device detected -- driver installed.\n");
+#endif
+	misc_register(&psaux_mouse);
+	queue = (struct aux_queue *) kmalloc(sizeof(*queue), GFP_KERNEL);
+	memset(queue, 0, sizeof(*queue));
+	queue->head = queue->tail = 0;
+	queue->proc_list = NULL;
+
+#ifdef INITIALIZE_MOUSE
+	kbd_write_command_w(KBD_CCMD_MOUSE_ENABLE); /* Enable Aux. */
+	aux_write_dev(AUX_SET_SAMPLE);
+	aux_write_dev(100);			/* 100 samples/sec */
+	aux_write_dev(AUX_SET_RES);
+	aux_write_dev(3);			/* 8 counts per mm */
+	aux_write_dev(AUX_SET_SCALE21);		/* 2:1 scaling */
+#endif /* INITIALIZE_MOUSE */
+	kbd_write_command(KBD_CCMD_MOUSE_DISABLE); /* Disable aux device. */
+	kbd_write_cmd(AUX_INTS_OFF); /* Disable controller ints. */
+
+	return 0;
+}
+
+#endif /* CONFIG_PSMOUSE */

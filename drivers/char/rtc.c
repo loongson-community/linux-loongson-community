@@ -414,7 +414,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		restore_flags(flags);
 		return 0;
 	}
-#ifdef __alpha__
+#if defined(__alpha__) || defined(__mips__)
 	case RTC_EPOCH_READ:	/* Read the epoch.	*/
 	{
 		return put_user (epoch, (unsigned long *)arg);
@@ -521,7 +521,7 @@ static struct miscdevice rtc_dev=
 __initfunc(int rtc_init(void))
 {
 	unsigned long flags;
-#ifdef __alpha__
+#if defined(__alpha__) || defined(__mips__)
 	unsigned int year, ctrl;
 	unsigned long uip_watchdog;
 	char *guess = NULL;
@@ -536,7 +536,7 @@ __initfunc(int rtc_init(void))
 	misc_register(&rtc_dev);
 	/* Check region? Naaah! Just snarf it up. */
 	request_region(RTC_PORT(0), RTC_IO_EXTENT, "rtc");
-#ifdef __alpha__
+#if defined(__alpha__) || defined(__mips__)
 	rtc_freq = HZ;
 	
 	/* Each operating system on an Alpha uses its own epoch.
