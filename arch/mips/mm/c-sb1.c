@@ -420,6 +420,11 @@ static void sb1_nop(void)
 {
 }
 
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+}
+
 /*
  *  Cache set values (from the mips64 spec)
  * 0 - 64
