@@ -186,6 +186,9 @@ static inline void cpu_probe(void)
 	case PRID_IMP_R5000:
 		mips_cputype = CPU_R5000;
 		break;
+       case PRID_IMP_R5432:
+               mips_cputype = CPU_R5432;
+               break;
 	case PRID_IMP_NEVADA:
 		mips_cputype = CPU_NEVADA;
 		break;
@@ -317,6 +320,11 @@ void __init setup_arch(char **cmdline_p)
 	case MACH_GROUP_NEC_DDB:
 		ddb_setup();
 		break;
+#endif
+#ifdef CONFIG_DDB5476
+       case MACH_GROUP_NEC_DDB:
+               ddb_setup();
+               break;
 #endif
 #ifdef CONFIG_ORION
 	case MACH_GROUP_ORION:

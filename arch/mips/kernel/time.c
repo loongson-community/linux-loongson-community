@@ -476,6 +476,7 @@ static inline void init_cycle_counter(void)
 	case CPU_R4650:
 	case CPU_R4700:
 	case CPU_R5000:
+	case CPU_R5432:
 	case CPU_R5000A:
 	case CPU_R4640:
 	case CPU_NEVADA:

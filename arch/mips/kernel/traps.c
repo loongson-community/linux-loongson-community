@@ -711,6 +711,7 @@ void __init trap_init(void)
      /* case CPU_R4640: */
 	case CPU_R4600:
         case CPU_R5000:
+        case CPU_R5432:
         case CPU_NEVADA:
         case CPU_RM7000:
 		if(mips_cputype == CPU_NEVADA) {

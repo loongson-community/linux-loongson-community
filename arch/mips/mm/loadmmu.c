@@ -56,7 +56,8 @@ void __init loadmmu(void)
 #endif
 
 #if defined(CONFIG_CPU_R4X00) || defined(CONFIG_CPU_R4300) || \
-    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
+    defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_R5432) || \
+    defined(CONFIG_CPU_NEVADA)
 	case CPU_R4000PC:
 	case CPU_R4000SC:
 	case CPU_R4000MC:
@@ -71,6 +72,7 @@ void __init loadmmu(void)
 	case CPU_R4700:
 	case CPU_R5000:
 	case CPU_R5000A:
+	case CPU_R5432:
 	case CPU_NEVADA:
 		printk("Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();

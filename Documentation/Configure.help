@@ -1612,6 +1612,18 @@ CONFIG_DDB5074
   This enables support for the VR5000-based NEC DDB Vrc-5074
   evaluation board.
 
+Support for NEC DDB Vrc-5476
+CONFIG_DDB5476
+  This enables support for the R5432-based NEC DDB Vrc-5476
+  evaluation board.
+
+  Features : kernel debugging, serial terminal, NFS root fs.
+
+  Limits : on-board ether chip does not work yet.  Use external
+  PCI slot and NE2000-PCI compatible card.
+
+  TODO : Compact-PCI interface; Enable more Ali M1543 features.
+
 Support for MIPS Atlas board
 CONFIG_DDB5074
   This enables support for the QED R5231-based MIPS Atlas evaluation

@@ -61,6 +61,9 @@ endif
 ifdef CONFIG_CPU_R5000
 GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
+ifdef CONFIG_CPU_R5432
+GCCFLAGS        += -mcpu=r8000 -mips2 -Wa,--trap
+endif
 ifdef CONFIG_CPU_NEVADA
 GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap -mmad
 endif
@@ -163,6 +166,16 @@ endif
 ifdef CONFIG_DDB5074
 SUBDIRS       += arch/mips/ddb5074
 LIBS          += arch/mips/ddb5074/ddb5074.a
+LOADADDR      += 0x80080000
+endif
+
+#
+#
+# NEC DDB Vrc-5476
+#
+ifdef CONFIG_DDB5476
+SUBDIRS       += arch/mips/ddb5476
+LIBS          += arch/mips/ddb5476/ddb5476.a
 LOADADDR      += 0x80080000
 endif
 

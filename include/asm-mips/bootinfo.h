@@ -102,8 +102,9 @@
  * Valid machtype for group NEC DDB
  */
 #define MACH_NEC_DDB5074	 0	/* NEC DDB Vrc-5074 */
+#define MACH_NEC_DDB5476         1      /* NEC DDB Vrc-5476 */
 
-#define GROUP_NEC_DDB_NAMES { "Vrc-5074" }
+#define GROUP_NEC_DDB_NAMES { "Vrc-5074", "Vrc-5476"}
 
 /*
  * Valid machtype for group BAGET
@@ -145,13 +146,14 @@
 #define CPU_R4640		26
 #define CPU_NEVADA		27	/* RM5230, RM5260 */
 #define CPU_RM7000		28
-#define CPU_LAST		28
+#define CPU_R5432               29
+#define CPU_LAST		29
 
 #define CPU_NAMES { "unknown", "R2000", "R3000", "R3000A", "R3041", "R3051", \
         "R3052", "R3081", "R3081E", "R4000PC", "R4000SC", "R4000MC",         \
         "R4200", "R4400PC", "R4400SC", "R4400MC", "R4600", "R6000",          \
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
-        "R5000A", "R4640", "Nevada", "RM7000" }
+        "R5000A", "R4640", "Nevada", "RM7000", "R5432" }
 
 #define CL_SIZE      (80)
 

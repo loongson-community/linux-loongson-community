@@ -262,7 +262,7 @@ int i8259_setup_irq(int irq, struct irqaction * new)
 	if (!shared) {
 		if (is_i8259_irq(irq))
 		    unmask_irq(irq);
-#if CONFIG_DDB5074 /* This has no business here  */
+#if (defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476))
 		else
 		    nile4_enable_irq(irq_to_nile4(irq));
 #endif
