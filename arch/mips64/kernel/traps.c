@@ -21,6 +21,7 @@
 #include <asm/bootinfo.h>
 #include <asm/branch.h>
 #include <asm/cpu.h>
+#include <asm/fpu.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
@@ -560,49 +561,33 @@ asmlinkage void do_ri(struct pt_regs *regs)
 asmlinkage void do_cpu(struct pt_regs *regs)
 {
 	unsigned int cpid;
-	void fpu_emulator_init_fpu(void);
-	int sig;
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid != 1)
 		goto bad_cid;
 
-	if (!(mips_cpu.options & MIPS_CPU_FPU))
-		goto fp_emul;
+	die_if_kernel("do_cpu invoked from kernel context!", regs);
 
-	regs->cp0_status |= ST0_CU1;
-	if (last_task_used_math == current)
-		return;
-
-	if (current->used_math) {		/* Using the FPU again.  */
-		lazy_fpu_switch(last_task_used_math, current);
-	} else {				/* First time FPU user.  */
-		if (last_task_used_math != NULL)
-			save_fp(last_task_used_math);
+	own_fpu();
+	if (current->used_math) {               /* Using the FPU again.  */
+		restore_fp(current);
+	} else {
 		init_fpu();
 		current->used_math = 1;
 	}
-	last_task_used_math = current;
 
-	return;
-
-fp_emul:
-	if (last_task_used_math != current) {
-		if (!current->used_math) {
-			fpu_emulator_init_fpu();
-			current->used_math = 1;
+	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+		int sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
+		if (sig) {
+			/*
+			 * Return EPC is not calculated in the FPU emulator, if
+			 * a signal is being send. So we calculate it here.
+			 */
+			compute_return_epc(regs);
+			force_sig(sig, current);
 		}
 	}
-	sig = fpu_emulator_cop1Handler(0, regs, &current->thread.fpu.soft);
-	last_task_used_math = current;
-	if (sig) {
-		/*
-		 * Return EPC is not calculated in the FPU emulator, if
-		 * a signal is being send. So we calculate it here.
-		 */
-		compute_return_epc(regs);
-		force_sig(sig, current);
-	}
+
 	return;
 
 bad_cid:
@@ -676,6 +661,7 @@ void *set_except_vector(int n, void *addr)
 
 asmlinkage int (*save_fp_context)(struct sigcontext *sc);
 asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
+
 extern asmlinkage int _save_fp_context(struct sigcontext *sc);
 extern asmlinkage int _restore_fp_context(struct sigcontext *sc);
 

@@ -25,14 +25,13 @@
 #include <asm/uaccess.h>
 #include <asm/ucontext.h>
 #include <asm/system.h>
+#include <asm/fpu.h>
 
 #define DEBUG_SIG 0
 
 #define _BLOCKABLE (~(sigmask(SIGKILL) | sigmask(SIGSTOP)))
 
 extern asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs);
-extern asmlinkage int (*save_fp_context)(struct sigcontext *sc);
-extern asmlinkage int (*restore_fp_context)(struct sigcontext *sc);
 
 extern asmlinkage void do_syscall_trace(void);
 
@@ -257,58 +256,9 @@ asmlinkage int sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
 	return ret;
 }
 
-static inline int restore_thread_fp_context(struct sigcontext *sc)
-{
-	u64 *pfreg = &current->thread.fpu.soft.regs[0];
-	int err = 0;
-
-	/*
-	 * Copy all 32 64-bit values.
-	 */
-
-#define restore_fpr(i) 						\
-	do { err |= __get_user(pfreg[i], &sc->sc_fpregs[i]); } while(0)
-
-	restore_fpr( 0); restore_fpr( 1); restore_fpr( 2); restore_fpr( 3);
-	restore_fpr( 4); restore_fpr( 5); restore_fpr( 6); restore_fpr( 7);
-	restore_fpr( 8); restore_fpr( 9); restore_fpr(10); restore_fpr(11);
-	restore_fpr(12); restore_fpr(13); restore_fpr(14); restore_fpr(15);
-	restore_fpr(16); restore_fpr(17); restore_fpr(18); restore_fpr(19);
-	restore_fpr(20); restore_fpr(21); restore_fpr(22); restore_fpr(23);
-	restore_fpr(24); restore_fpr(25); restore_fpr(26); restore_fpr(27);
-	restore_fpr(28); restore_fpr(29); restore_fpr(30); restore_fpr(31);
-
-	err |= __get_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
-
-	return err;
-}
-
-static inline int save_thread_fp_context(struct sigcontext *sc)
-{
-	u64 *pfreg = &current->thread.fpu.soft.regs[0];
-	int err = 0;
-
-#define save_fpr(i) 							\
-	do { err |= __put_user(pfreg[i], &sc->sc_fpregs[i]); } while(0)
-
-	save_fpr( 0); save_fpr( 1); save_fpr( 2); save_fpr( 3);
-	save_fpr( 4); save_fpr( 5); save_fpr( 6); save_fpr( 7);
-	save_fpr( 8); save_fpr( 9); save_fpr(10); save_fpr(11);
-	save_fpr(12); save_fpr(13); save_fpr(14); save_fpr(15);
-	save_fpr(16); save_fpr(17); save_fpr(18); save_fpr(19);
-	save_fpr(20); save_fpr(21); save_fpr(22); save_fpr(23);
-	save_fpr(24); save_fpr(25); save_fpr(26); save_fpr(27);
-	save_fpr(28); save_fpr(29); save_fpr(30); save_fpr(31);
-
-	err |= __put_user(current->thread.fpu.soft.sr, &sc->sc_fpc_csr);
-
-	return err;
-}
-
 static asmlinkage int restore_sigcontext(struct pt_regs *regs,
 					 struct sigcontext *sc)
 {
-	int owned_fp;
 	int err = 0;
 
 	err |= __get_user(regs->cp0_epc, &sc->sc_pc);
@@ -331,26 +281,17 @@ static asmlinkage int restore_sigcontext(struct pt_regs *regs,
 	restore_gp_reg(31);
 #undef restore_gp_reg
 
-	err |= __get_user(owned_fp, &sc->sc_ownedfp);
 	err |= __get_user(current->used_math, &sc->sc_used_math);
 
-	if (owned_fp) {
-		err |= restore_fp_context(sc);
-		goto out;
-	}
-
-	if (current == last_task_used_math) {
-		/* Signal handler acquired FPU - give it back */
-		last_task_used_math = NULL;
-		regs->cp0_status &= ~ST0_CU1;
-	}
-
 	if (current->used_math) {
-		/* Undo possible contamination of thread state */
-		err |= restore_thread_fp_context(sc);
+		/* restore fpu context if we have used it before */
+		own_fpu();
+		err |= restore_fp_context(sc);
+	} else {
+		/* signal handler may have used FPU.  Give it up. */
+		loose_fpu();
 	}
 
-out:
 	return err;
 }
 
@@ -490,7 +431,6 @@ badframe:
 static int inline setup_sigcontext(struct pt_regs *regs,
 				   struct sigcontext *sc)
 {
-	int owned_fp;
 	int err = 0;
 
 	err |= __put_user(regs->cp0_epc, &sc->sc_pc);
@@ -515,25 +455,20 @@ static int inline setup_sigcontext(struct pt_regs *regs,
 	err |= __put_user(regs->cp0_cause, &sc->sc_cause);
 	err |= __put_user(regs->cp0_badvaddr, &sc->sc_badvaddr);
 
-	owned_fp = (current == last_task_used_math);
-	err |= __put_user(owned_fp, &sc->sc_ownedfp);
 	err |= __put_user(current->used_math, &sc->sc_used_math);
 
 	if (!current->used_math)
 		goto out;
 
-	/* There exists FP thread state that may be trashed by signal */
-	if (owned_fp) {
-		/* fp is active.  Save context from FPU */
-		err |= save_fp_context(sc);
-		goto out;
-	}
-
-	/*
-	 * Someone else has FPU.
-	 * Copy Thread context into signal context
+	/* 
+	 * Save FPU state to signal context.  Signal handler will "inherit"
+	 * current FPU state.
 	 */
-	err |= save_thread_fp_context(sc);
+	if (!is_fpu_owner()) {
+		own_fpu();
+		restore_fp(current);
+	}
+	err |= save_fp_context(sc);
 
 out:
 	return err;

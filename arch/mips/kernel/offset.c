@@ -155,7 +155,6 @@ void output_sc_defines(void)
 	offset("#define SC_MDLO       ", struct sigcontext, sc_mdlo);
 	offset("#define SC_PC         ", struct sigcontext, sc_pc);
 	offset("#define SC_STATUS     ", struct sigcontext, sc_status);
-	offset("#define SC_OWNEDFP    ", struct sigcontext, sc_ownedfp);
 	offset("#define SC_FPC_CSR    ", struct sigcontext, sc_fpc_csr);
 	offset("#define SC_FPC_EIR    ", struct sigcontext, sc_fpc_eir);
 	offset("#define SC_CAUSE      ", struct sigcontext, sc_cause);

@@ -100,9 +100,6 @@ extern int EISA_bus;
 #define wp_works_ok 1
 #define wp_works_ok__is_a_macro /* for versions in ksyms.c */
 
-/* Lazy FPU handling on uni-processor */
-extern struct task_struct *last_task_used_math;
-
 /*
  * User space process size: 1TB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.  TASK_SIZE
@@ -231,26 +228,16 @@ extern unsigned long thread_saved_pc(struct thread_struct *t);
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-#define start_thread(regs, pc, sp) 					\
-do {									\
-	unsigned long __status;						\
-									\
-	/* New thread looses kernel privileges. */			\
-	__status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);	\
-	__status |= KSU_USER;						\
-	__status |= (current->thread.mflags & MF_32BIT) ? 0 : ST0_FR;	\
-	regs->cp0_status = __status;					\
-	regs->cp0_epc = pc;						\
-	regs->regs[29] = sp;						\
-	current_thread_info()->addr_limit = USER_DS;			\
-} while(0)
+extern void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp);
 
+struct task_struct;
 unsigned long get_wchan(struct task_struct *p);
 
 #define __PT_REG(reg) ((long)&((struct pt_regs *)0)->reg - sizeof(struct pt_regs))
 #define __KSTK_TOS(tsk) ((unsigned long)(tsk->thread_info) + KERNEL_STACK_SIZE - 32)
 #define KSTK_EIP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_epc)))
 #define KSTK_ESP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(regs[29])))
+#define KSTK_STATUS(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_status)))
 
 #define cpu_relax()	barrier()
 

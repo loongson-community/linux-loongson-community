@@ -3,6 +3,7 @@
 #include <linux/stddef.h>
 #include <asm/bugs.h>
 #include <asm/cpu.h>
+#include <asm/fpu.h>
 #include <asm/mipsregs.h>
 
 /*

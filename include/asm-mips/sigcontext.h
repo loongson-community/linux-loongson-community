@@ -18,7 +18,6 @@ struct sigcontext {
 	unsigned long long sc_pc;
 	unsigned long long sc_regs[32];
 	unsigned long long sc_fpregs[32];
-	unsigned int       sc_ownedfp;
 	unsigned int       sc_fpc_csr;
 	unsigned int       sc_fpc_eir;		/* Unused */
 	unsigned int       sc_used_math;

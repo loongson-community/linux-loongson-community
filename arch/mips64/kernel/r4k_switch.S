@@ -23,6 +23,19 @@
 
 	.set	mips3
 
+#define PF_USEDFPU      0x00100000      /* task used FPU this quantum (SMP) */
+#define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
+
+/*
+ * [jsun] FPU context is saved if and only if the process has used FPU in 
+ * the current run (PF_USEDFPU).  In any case, the CU1 bit for user space 
+ * STATUS register should be 0, so that a process *always* starts its 
+ * userland with FPU disabled after each context switch.
+ *
+ * FPU will be enabled as soon as the process accesses FPU again, through
+ * do_cpu() trap.
+ */
+
 /*
  * task_struct *resume(task_struct *prev, task_struct *next,
  *                     struct thread_info *next_ti))
@@ -33,6 +46,38 @@
 	sd	t1, THREAD_STATUS(a0)
 	cpu_save_nonscratch a0
 	sd	ra, THREAD_REG31(a0)
+
+	/*
+	 * check if we need to save FPU registers
+	 */
+	ld	t0, TASK_FLAGS(a0)
+	li	t1, PF_USEDFPU
+	and	t2, t0, t1
+	beqz	t2, 1f
+	nor	t1, zero, t1
+
+	/*
+	 * clear PF_USEDFPU bit in task flags
+	 */
+	and	t0, t0, t1
+	sd	t0, TASK_FLAGS(a0)
+
+	/*
+	 * clear saved user stack CU1 bit
+	 */
+	ld	t0, ST_OFF(a0)
+	li	t1, ~ST0_CU1
+	and	t0, t0, t1
+	sd	t0, ST_OFF(a0)
+
+	
+	sll	t2, t0, 5
+	bgez	t2, 2f
+	sdc1	$f0, (THREAD_FPU + 0x00)(a0)
+        fpu_save_16odd a0
+2:
+        fpu_save_16even a0 t1                   # clobbers t1
+1:
 
 	/*
 	 * The order of restoring the registers takes care of the race
@@ -57,49 +102,9 @@
 	END(resume)
 
 /*
- * Do lazy fpu context switch.  Saves FPU context to the process in a0
- * and loads the new context of the current process.
- */
-
-#define ST_OFF (KERNEL_STACK_SIZE - 32 - PT_SIZE + PT_STATUS)
-
-LEAF(lazy_fpu_switch)
-	mfc0	t0, CP0_STATUS			# enable cp1
-	li	t3, ST0_CU1
-	or	t0, t3
-	mtc0	t0, CP0_STATUS
-	FPU_ENABLE_HAZARD
-
-	nor	t3, zero, t3
-	beqz	a0, 2f				# Save floating point state
-
-	ld	t1, ST_OFF(a0)			# last thread looses fpu
-	and	t1, t3
-	sd	t1, ST_OFF(a0)
-	sll	t2, t1, 5
-	sdc1	$f0, (THREAD_FPU + 0x00)(a0)
-	bgez	t2, 1f
-	fpu_save_16odd a0
-1:
-	fpu_save_16even a0 t1			# clobbers t1
-2:
-
-	beqz	a1, 3f
-
-	sll	t0, t0, 5			# load new fp state
-	ldc1	$f0, (THREAD_FPU + 0x00)(a1)
-	bgez	t0, 1f
-	fpu_restore_16odd a1
-1:
-	fpu_restore_16even a1, t0		# clobbers t0
-3:
-	jr	ra
-	END(lazy_fpu_switch)
-
-/*
  * Save a thread's fp context.
  */
-LEAF(save_fp)
+LEAF(_save_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
 	bgez	t1, 1f				# 16 register mode?
@@ -108,12 +113,12 @@ LEAF(save_fp)
 	fpu_save_16even a0 t1			# clobbers t1
 	sdc1	$f0, (THREAD_FPU + 0x00)(a0)
 	jr	ra
-	END(save_fp)
+	END(_save_fp)
 
 /*
  * Restore a thread's fp context.
  */
-LEAF(restore_fp)
+LEAF(_restore_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
 	bgez	t1, 1f				# 16 register mode?
@@ -123,7 +128,7 @@ LEAF(restore_fp)
 	 ldc1	$f0, (THREAD_FPU + 0x00)(a0)
 
 	jr	ra
-	END(restore_fp)
+	END(_restore_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
@@ -135,7 +140,7 @@ LEAF(restore_fp)
 
 #define FPU_DEFAULT  0x00000000
 
-LEAF(init_fpu)
+LEAF(_init_fpu)
 	mfc0	t0, CP0_STATUS
 	li	t1, ST0_CU1
 	or	t0, t1
@@ -183,4 +188,4 @@ LEAF(init_fpu)
 	dmtc1	t0, $f28
 	dmtc1	t0, $f30
 	jr	ra
-	END(init_fpu)
+	END(_init_fpu)

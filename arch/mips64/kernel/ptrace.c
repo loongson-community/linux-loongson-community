@@ -23,6 +23,7 @@
 #include <linux/user.h>
 
 #include <asm/cpu.h>
+#include <asm/fpu.h>
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
 #include <asm/page.h>
@@ -112,23 +113,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
-				unsigned long *fregs
-					= (unsigned long *)
-					    &child->thread.fpu.hard.fp_regs[0];
-				if (mips_cpu.options & MIPS_CPU_FPU) {
-#ifndef CONFIG_SMP
-					if (last_task_used_math == child) {
-						__enable_fpu();
-						save_fp(child);
-						__disable_fpu();
-						last_task_used_math = NULL;
-					}
-#endif
-				} else {
-					fregs = (unsigned long *)
-						child->thread.fpu.soft.regs;
-				}
-
+				unsigned long *fregs = get_fpu_regs(child);
 				tmp = (unsigned long) fregs[addr - FPR_BASE];
 			} else {
 				tmp = -EIO;
@@ -191,24 +176,8 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			regs->regs[addr] = data;
 			break;
 		case FPR_BASE ... FPR_BASE + 31: {
-			unsigned long *fregs;
-			fregs = (unsigned long *)&child->thread.fpu.hard.fp_regs[0];
-			if (child->used_math) {
-#ifndef CONFIG_SMP
-				if (last_task_used_math == child) {
-					if (mips_cpu.options & MIPS_CPU_FPU) {
-						__enable_fpu();
-						save_fp(child);
-						__disable_fpu();
-						last_task_used_math = NULL;
-						regs->cp0_status &= ~ST0_CU1;
-					} else {
-						fregs = (unsigned long *)
-						child->thread.fpu.soft.regs;
-					}
-				}
-#endif
-			} else {
+			unsigned long *fregs = get_fpu_regs(child);
+			if (!child->used_math) {
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
 				       sizeof(child->thread.fpu.hard));

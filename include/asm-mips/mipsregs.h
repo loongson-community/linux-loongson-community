@@ -1002,48 +1002,6 @@ __BUILD_SET_CP0(status,CP0_STATUS)
 __BUILD_SET_CP0(cause,CP0_CAUSE)
 __BUILD_SET_CP0(config,CP0_CONFIG)
 
-#if defined(CONFIG_CPU_SB1)
-#define __enable_fpu_hazard()						\
-do {									\
-	asm(".set push		\n\t"					\
-	    ".set mips64	\n\t"					\
-	    ".set noreorder	\n\t"					\
-	    "ssnop		\n\t"					\
-	    "bnezl $0, .+4	\n\t"					\
-	    "ssnop		\n\t"					\
-	    ".set pop");						\
-} while (0)
-#else
-#define __enable_fpu_hazard()						\
-do {									\
-	asm("nop;nop;nop;nop");		/* max. hazard */		\
-} while (0)
-#endif
-
-#define __enable_fpu()							\
-do {									\
-	set_cp0_status(ST0_CU1);					\
-	__enable_fpu_hazard();						\
-} while (0)
-
-#define __disable_fpu()							\
-do {									\
-	clear_cp0_status(ST0_CU1);					\
-	/* We don't care about the cp0 hazard here  */			\
-} while (0)
-
-#define enable_fpu()							\
-do {									\
-	if (mips_cpu.options & MIPS_CPU_FPU)				\
-		__enable_fpu();						\
-} while (0)
-
-#define disable_fpu()							\
-do {									\
-	if (mips_cpu.options & MIPS_CPU_FPU)				\
-		__disable_fpu();					\
-} while (0)
-
 #endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_MIPSREGS_H */

@@ -20,7 +20,6 @@ struct sigcontext {
 	unsigned long long sc_mdlo;
 	unsigned long long sc_pc;
 	unsigned int       sc_status;
-	unsigned int       sc_ownedfp;
 	unsigned int       sc_fpc_csr;
 	unsigned int       sc_fpc_eir;
 	unsigned int       sc_used_math;

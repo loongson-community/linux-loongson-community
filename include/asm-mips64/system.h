@@ -267,11 +267,6 @@ extern asmlinkage void *resume(void *last, void *next, void *next_ti);
 
 struct task_struct;
 
-extern asmlinkage void lazy_fpu_switch(void *prev, void *next);
-extern asmlinkage void init_fpu(void);
-extern asmlinkage void save_fp(struct task_struct *);
-extern asmlinkage void restore_fp(struct task_struct *);
-
 #define switch_to(prev,next,last) \
 do { \
 	(last) = resume(prev, next, next->thread_info); \
