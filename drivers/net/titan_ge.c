@@ -1714,7 +1714,7 @@ static int __init titan_ge_init_module(void)
 /*
  * Unregister the Titan GE from the kernel
  */
-static void __init titan_ge_cleanup_module(void)
+static void __exit titan_ge_cleanup_module(void)
 {
 	/* Nothing to do here */
 }
