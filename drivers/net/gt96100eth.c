@@ -700,7 +700,7 @@ disable_ether_irq(struct net_device *dev)
  */
 int gt96100_init_module(void)
 {
-	int i;
+	int i, retval;
 
 #ifndef CONFIG_MIPS_GT96100ETH
 	return -ENODEV;
@@ -709,9 +709,12 @@ int gt96100_init_module(void)
     
 	for (i=NUM_INTERFACES-1; i>0; i--) {
 		int base_addr = gt96100_iflist[i].port;
-		gt96100_probe1(base_addr, gt96100_iflist[i].irq, i);
+		if ((retval = gt96100_probe1(base_addr,
+					     gt96100_iflist[i].irq, i)))
+			break;
 	}
-	return -ENODEV;
+
+	return retval;
 }
 
 
