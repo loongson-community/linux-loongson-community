@@ -89,7 +89,6 @@ static char *_riotty_c_sccs_ = "@(#)riotty.c	1.3";
 #include "list.h"
 #include "sam.h"
 
-
 #if 0
 static void ttyseth_pv(struct Port *, struct ttystatics *, 
 				struct termios *sg, int);
@@ -154,13 +153,21 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	unsigned long flags;
 	int retval = 0;
 
+	func_enter ();
+
+	/* Make sure driver_data is NULL in case the rio isn't booted jet. Else gs_close
+	   is going to oops.
+	*/
+	tty->driver_data = NULL;
+        
 	SysPort = rio_minor (tty->device);
 	Modem   = rio_ismodem (tty->device);
 
 	if ( p->RIOFailed ) {
 		rio_dprint(RIO_DEBUG_TTY, ("System initialisation failed\n"));
 		pseterr(ENXIO);
-		return 0;
+		func_exit ();
+		return -ENXIO;
 	}
 
 	rio_dprint(RIO_DEBUG_TTY, ("port open SysPort %d (%s) (mapped:%d)\n",
@@ -176,22 +183,24 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	if (SysPort >= RIO_PORTS) {	/* out of range ? */
 		rio_dprint(RIO_DEBUG_TTY, ("Illegal port number %d\n",SysPort));
 		pseterr(ENXIO);
-		return 0;
+		func_exit();
+		return -ENXIO;
 	}
 
 	/*
 	** Grab pointer to the port stucture
 	*/
 	PortP = p->RIOPortp[SysPort];	/* Get control struc */
-
+	rio_dprintk (RIO_DEBUG_TTY, "PortP: %p\n", PortP);
 	if ( !PortP->Mapped ) {	/* we aren't mapped yet! */
 		/*
 		** The system doesn't know which RTA this port
 		** corresponds to.
 		*/
 		rio_dprint(RIO_DEBUG_TTY, ("port not mapped into system\n"));
+		func_exit ();
 		pseterr(ENXIO);
-		return 0;
+		return -ENXIO;
 	}
 
 	tty->driver_data = PortP;
@@ -209,7 +218,8 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	if ( (PortP->HostP->Flags & RUN_STATE) != RC_RUNNING ) {
 		rio_dprint(RIO_DEBUG_TTY, ("Host not running\n"));
 		pseterr(ENXIO);
-		return 0;
+		func_exit ();
+		return -ENXIO;
 	}
 
 	/*
@@ -224,12 +234,14 @@ riotopen(struct tty_struct * tty, struct file * filp)
 			do {
 				if (RIODelay(PortP, HUNDRED_MS) == RIO_FAIL) {
 					rio_dprint(RIO_DEBUG_TTY, ("RTA EINTR in delay \n"));
+					func_exit ();
 					return -EINTR;
 				}
 				if (repeat_this -- <= 0) {
 					rio_dprint(RIO_DEBUG_TTY, ("Waiting for RTA to boot timeout\n"));
 					RIOPreemptiveCmd(p, PortP, FCLOSE ); 
 					pseterr(EINTR);
+					func_exit ();
 					return -EIO;
 				}
 			} while(!(PortP->HostP->Mapping[PortP->RupNum].Flags & RTA_BOOTED));
@@ -237,6 +249,7 @@ riotopen(struct tty_struct * tty, struct file * filp)
 		} else {
 			rio_dprint(RIO_DEBUG_TTY, ("RTA never booted\n"));
 			pseterr(ENXIO);
+			func_exit ();
 			return 0;
 		}
 	}
@@ -249,6 +262,7 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	while (!(PortP->HostP->Mapping[PortP->RupNum].Flags & RTA_BOOTED)) {
 	  if (!PortP->WaitUntilBooted) {
 	    rio_dprint(RIO_DEBUG_TTY, ("RTA never booted\n"));
+	    func_exit ();
 	    return -ENXIO;
 	  }
 
@@ -258,10 +272,12 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	  */
 	  if (RIODelay(PortP, HUNDRED_MS) == RIO_FAIL) {
 	    rio_dprint(RIO_DEBUG_TTY, ("RTA_wait_for_boot: EINTR in delay \n"));
+	    func_exit ();
 	    return -EINTR;
 	  }
 	  if (repeat_this -- <= 0) {
 	    rio_dprint(RIO_DEBUG_TTY, ("Waiting for RTA to boot timeout\n"));
+	    func_exit ();
 	    return -EIO;
 	  }
 	}
@@ -276,8 +292,10 @@ riotopen(struct tty_struct * tty, struct file * filp)
 	}
 #if 0
 	retval = gs_init_port(&PortP->gs);
-	if (retval)
-	  return retval;
+	if (retval){
+		func_exit ();
+		return retval;
+	}
 #endif
 
 	/*
@@ -306,6 +324,7 @@ riotopen(struct tty_struct * tty, struct file * filp)
 		rio_dprint(RIO_DEBUG_TTY, ("Port unmapped while closing!\n"));
 		rio_spin_unlock_irqrestore(&PortP->portSem, flags);
 		retval = -ENXIO;
+		func_exit ();
 		return retval;
 	}
 
@@ -375,6 +394,7 @@ riotopen(struct tty_struct * tty, struct file * filp)
 			if (RIODelay(PortP, HUNDRED_MS) == RIO_FAIL) {
 				rio_dprint(RIO_DEBUG_TTY, ("Waiting for open to finish broken by signal\n"));
 				RIOPreemptiveCmd(p, PortP, FCLOSE );
+				func_exit ();
 				return -EINTR;
 			}
 			rio_spin_lock_irqsave(&PortP->portSem, flags);
@@ -425,6 +445,7 @@ bombout:
 					tp->tm.c_state &= ~WOPEN;
 					PortP->State &= ~RIO_WOPEN;
 					rio_spin_unlock_irqrestore(&PortP->portSem, flags);
+					func_exit ();
 					return -EINTR;
 				}
 			}
@@ -462,6 +483,7 @@ bombout:
 
 	rio_spin_unlock_irqrestore(&PortP->portSem, flags);
 	rio_dprint(RIO_DEBUG_TTY, ("Returning from open\n"));
+	func_exit ();
 	return 0;
 }
 

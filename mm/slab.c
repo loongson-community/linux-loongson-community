@@ -1751,7 +1751,7 @@ bad_ptr:
 
 #if 1
 /* FORCE A KERNEL DUMP WHEN THIS HAPPENS. SPEAK IN ALL CAPS. GET THE CALL CHAIN. */
-*(int *) 0 = 0;
+BUG();
 #endif
 
 null_ptr:

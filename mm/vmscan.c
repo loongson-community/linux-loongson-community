@@ -48,6 +48,9 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 	if ((page-mem_map >= max_mapnr) || PageReserved(page))
 		goto out_failed;
 
+	if (mm->swap_cnt)
+		mm->swap_cnt--;
+
 	/* Don't look at this pte if it's been accessed recently. */
 	if (pte_young(pte)) {
 		/*
@@ -76,10 +79,9 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 		set_pte(page_table, swp_entry_to_pte(entry));
 drop_pte:
 		UnlockPage(page);
-		mm->swap_cnt--;
 		vma->vm_mm->rss--;
 		flush_tlb_page(vma, address);
-		__free_page(page);
+		page_cache_release(page);
 		goto out_failed;
 	}
 
@@ -142,7 +144,6 @@ drop_pte:
 		struct file *file = vma->vm_file;
 		if (file) get_file(file);
 		pte_clear(page_table);
-		mm->swap_cnt--;
 		vma->vm_mm->rss--;
 		flush_tlb_page(vma, address);
 		vmlist_access_unlock(vma->vm_mm);
@@ -151,7 +152,7 @@ drop_pte:
 		if (file) fput(file);
 		if (!error)
 			goto out_free_success;
-		__free_page(page);
+		page_cache_release(page);
 		return error;
 	}
 
@@ -174,7 +175,6 @@ drop_pte:
 	add_to_swap_cache(page, entry);
 
 	/* Put the swap entry into the pte after the page is in swapcache */
-	mm->swap_cnt--;
 	vma->vm_mm->rss--;
 	set_pte(page_table, swp_entry_to_pte(entry));
 	flush_tlb_page(vma, address);
@@ -184,7 +184,7 @@ drop_pte:
 	rw_swap_page(WRITE, page, 0);
 
 out_free_success:
-	__free_page(page);
+	page_cache_release(page);
 	return 1;
 out_swap_free:
 	swap_free(entry);
@@ -363,7 +363,7 @@ static int swap_out(unsigned int priority, int gfp_mask)
 	 * Think of swap_cnt as a "shadow rss" - it tells us which process
 	 * we want to page out (always try largest first).
 	 */
-	counter = (nr_threads << 1) >> (priority >> 1);
+	counter = (nr_threads << 2) >> (priority >> 2);
 	if (counter < 1)
 		counter = 1;
 
@@ -430,16 +430,17 @@ out:
  * latency.
  */
 #define FREE_COUNT	8
-#define SWAP_COUNT	8
+#define SWAP_COUNT	16
 static int do_try_to_free_pages(unsigned int gfp_mask)
 {
 	int priority;
 	int count = FREE_COUNT;
+	int swap_count;
 
 	/* Always trim SLAB caches when memory gets low. */
 	kmem_cache_reap(gfp_mask);
 
-	priority = 6;
+	priority = 64;
 	do {
 		while (shrink_mmap(priority, gfp_mask)) {
 			if (!--count)
@@ -471,12 +472,11 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 		 * put in the swap cache), so we must not count this
 		 * as a "count" success.
 		 */
-		{
-			int swap_count = SWAP_COUNT;
-			while (swap_out(priority, gfp_mask))
-				if (--swap_count < 0)
-					break;
-		}
+		swap_count = SWAP_COUNT;
+		while (swap_out(priority, gfp_mask))
+			if (--swap_count < 0)
+				break;
+
 	} while (--priority >= 0);
 
 	/* Always end on a shrink_mmap.. */
@@ -484,8 +484,8 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 		if (!--count)
 			goto done;
 	}
-
-	return 0;
+	/* We return 1 if we are freed some page */
+	return (count != FREE_COUNT);
 
 done:
 	return 1;
@@ -538,16 +538,18 @@ int kswapd(void *unused)
 			int i;
 			for(i = 0; i < MAX_NR_ZONES; i++) {
 				zone_t *zone = pgdat->node_zones+ i;
+				if (tsk->need_resched)
+					schedule();
 				if (!zone->size || !zone->zone_wake_kswapd)
 					continue;
-				something_to_do = 1;
+				if (zone->free_pages < zone->pages_low)
+					something_to_do = 1;
 				do_try_to_free_pages(GFP_KSWAPD);
 			}
-			run_task_queue(&tq_disk);
 			pgdat = pgdat->node_next;
 		} while (pgdat);
 
-		if (tsk->need_resched || !something_to_do) {
+		if (!something_to_do) {
 			tsk->state = TASK_INTERRUPTIBLE;
 			interruptible_sleep_on(&kswapd_wait);
 		}

@@ -12,7 +12,6 @@ extern int mkiss_init_ctrl_dev(void);
 extern int slip_init_ctrl_dev(void);
 extern int strip_init_ctrl_dev(void);
 extern int x25_asy_init_ctrl_dev(void);
-extern int slhc_install(void);
   
 extern int dmascc_init(void);
 extern int yam_init(void);
@@ -22,7 +21,7 @@ extern int awc4500_isa_probe(void);
 extern int awc4500_pnp_probe(void);
 extern int awc4500_365_probe(void);
 extern int arcnet_init(void); 
-extern int cpm_enet_init(void); 
+extern int scc_enet_init(void); 
 extern int dlci_setup(void); 
 extern int lapbeth_init(void);
 extern int sdla_setup(void); 
@@ -34,7 +33,7 @@ extern int abyss_probe(void);
 extern int madgemc_probe(void);
 extern int tms_pci_probe(void);
 
-/* Pad device name to IFNAMSIZ=16. F.e. __PAD6 is tring of 9 zeros. */
+/* Pad device name to IFNAMSIZ=16. F.e. __PAD6 is string of 9 zeros. */
 #define __PAD6 "\0\0\0\0\0\0\0\0\0"
 #define __PAD5 __PAD6 "\0"
 #define __PAD4 __PAD5 "\0"
@@ -73,27 +72,17 @@ struct net_probe pci_probes[] __initdata = {
 #if defined(CONFIG_ARCNET)
 	{arcnet_init, 0},
 #endif
-#if defined(CONFIG_8xx)
-        {cpm_enet_init, 0},
+#if defined(CONFIG_SCC_ENET)
+        {scc_enet_init, 0},
 #endif
 #if defined(CONFIG_COMX)
 	{comx_init, 0},
-#endif	/*
-	 *	SLHC if present needs attaching so other people see it
-	 *	even if not opened.
-	 */
+#endif
+	 
 #if defined(CONFIG_LANMEDIA)
 	{lmc_setup, 0},
 #endif
 	 
-#ifdef CONFIG_INET	 
-#if (defined(CONFIG_SLIP) && defined(CONFIG_SLIP_COMPRESSED)) \
-	 || defined(CONFIG_PPP) \
-    || (defined(CONFIG_ISDN) && defined(CONFIG_ISDN_PPP))
-	{slhc_install, 0},
-#endif	
-#endif
-
 /*
 *
 *	Wireless non-HAM

@@ -1,4 +1,4 @@
-BOOKS	:= wanbook.sgml z8530book.sgml mcabook.sgml videobook.sgml kernel-api.sgml parportbook.sgml
+BOOKS	:= wanbook.sgml z8530book.sgml mcabook.sgml videobook.sgml kernel-api.sgml parportbook.sgml kernel-hacking.sgml kernel-locking.sgml
 
 PS	:=	$(patsubst %.sgml, %.ps, $(BOOKS))
 PDF	:=	$(patsubst %.sgml, %.pdf, $(BOOKS))
@@ -17,6 +17,9 @@ db2ps db2pdf:
 	@(which $@ > /dev/null 2>&1) || \
 	 (echo "*** You need to install DocBook stylesheets ***"; \
 	  exit 1)
+
+%.eps: %.fig
+	-fig2dev -Leps $< $@
 
 $(TOPDIR)/scripts/docproc:
 	$(MAKE) -C $(TOPDIR)/scripts docproc
@@ -51,6 +54,7 @@ kernel-api.sgml: kernel-api.tmpl
 		$(TOPDIR)/drivers/sound/sound_firmware.c \
 		$(TOPDIR)/drivers/net/wan/syncppp.c \
 		$(TOPDIR)/drivers/net/wan/z85230.c \
+		$(TOPDIR)/fs/devfs/base.c \
 		$(TOPDIR)/kernel/pm.c \
 		$(TOPDIR)/kernel/ksyms.c \
 		$(TOPDIR)/net/netsyms.c \
@@ -66,12 +70,15 @@ TEX	:=	$(patsubst %.sgml, %.tex, $(BOOKS))
 LOG	:=	$(patsubst %.sgml, %.log, $(BOOKS))
 
 clean:
-	$(RM) core *~
-	$(RM) $(BOOKS)
-	$(RM) $(DVI) $(AUX) $(TEX) $(LOG)
+	-$(RM) core *~
+	-$(RM) $(BOOKS)
+	-$(RM) $(DVI) $(AUX) $(TEX) $(LOG)
+	-$(RM) parport-share.eps parport-multi.eps parport-structure.eps
 
 mrproper: clean
-	$(RM) $(PS) $(PDF)
+	-$(RM) $(PS) $(PDF)
+
+parportbook.ps: parport-share.eps parport-multi.eps parport-structure.eps
 
 %.ps : %.sgml db2ps
 	db2ps $<

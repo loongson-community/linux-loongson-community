@@ -1,7 +1,7 @@
 VERSION = 2
 PATCHLEVEL = 3
 SUBLEVEL = 99
-EXTRAVERSION = -pre8
+EXTRAVERSION = -pre9
 
 KERNELRELEASE=$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
 
@@ -77,10 +77,6 @@ endif
 #
 
 CPPFLAGS := -D__KERNEL__ -I$(HPATH)
-
-ifdef CONFIG_SMP
-CPPFLAGS += -D__SMP__
-endif
 
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 AFLAGS := -D__ASSEMBLY__ $(CPPFLAGS)

@@ -76,7 +76,7 @@ LIST_HEAD(super_blocks);
  *	Once the reference is obtained we can drop the spinlock.
  */
 
-static struct file_system_type *file_systems = NULL;
+static struct file_system_type *file_systems;
 static rwlock_t file_systems_lock = RW_LOCK_UNLOCKED;
 
 /* WARNING: This can be used only if we _already_ own a reference */
@@ -315,6 +315,7 @@ static struct vfsmount *add_vfsmnt(struct super_block *sb,
 		strcpy(name, dir_name);
 		mnt->mnt_dirname = name;
 	}
+	mnt->mnt_owner = current->uid;
 
 	if (parent)
 		list_add(&mnt->mnt_child, &parent->mnt_mounts);
@@ -1020,10 +1021,6 @@ asmlinkage long sys_umount(char * name, int flags)
 	struct nameidata nd;
 	char *kname;
 	int retval;
-	struct super_block *sb;
-
-	if (!capable(CAP_SYS_ADMIN))
-		return -EPERM;
 
 	lock_kernel();
 	kname = getname(name);
@@ -1036,10 +1033,14 @@ asmlinkage long sys_umount(char * name, int flags)
 	putname(kname);
 	if (retval)
 		goto out;
-	sb = nd.dentry->d_inode->i_sb;
 	retval = -EINVAL;
 	if (nd.dentry!=nd.mnt->mnt_root)
 		goto dput_and_out;
+
+	retval = -EPERM;
+	if (!capable(CAP_SYS_ADMIN) && current->uid!=nd.mnt->mnt_owner)
+		goto dput_and_out;
+
 	dput(nd.dentry);
 	/* puts nd.mnt */
 	down(&mount_sem);
@@ -1062,6 +1063,21 @@ asmlinkage long sys_oldumount(char * name)
 	return sys_umount(name,0);
 }
 
+static int mount_is_safe(struct nameidata *nd)
+{
+	if (capable(CAP_SYS_ADMIN))
+		return 0;
+	if (S_ISLNK(nd->dentry->d_inode->i_mode))
+		return -EPERM;
+	if (nd->dentry->d_inode->i_mode & S_ISVTX) {
+		if (current->uid != nd->dentry->d_inode->i_uid)
+			return -EPERM;
+	}
+	if (permission(nd->dentry->d_inode, MAY_WRITE))
+		return -EPERM;
+	return 0;
+}
+
 /*
  * do loopback mount.
  */
@@ -1071,18 +1087,22 @@ static int do_loopback(char *old_name, char *new_name)
 	int err = 0;
 	if (!old_name || !*old_name)
 		return -EINVAL;
-	if (path_init(old_name, LOOKUP_POSITIVE|LOOKUP_DIRECTORY, &old_nd))
+	if (path_init(old_name, LOOKUP_POSITIVE, &old_nd))
 		err = path_walk(old_name, &old_nd);
 	if (err)
 		goto out;
-	if (path_init(new_name, LOOKUP_POSITIVE|LOOKUP_DIRECTORY, &new_nd))
+	if (path_init(new_name, LOOKUP_POSITIVE, &new_nd))
 		err = path_walk(new_name, &new_nd);
 	if (err)
 		goto out1;
-	err = -EPERM;
-	if (!capable(CAP_SYS_ADMIN) &&
-	     current->uid != new_nd.dentry->d_inode->i_uid)
+	err = mount_is_safe(&new_nd);
+	if (err)
 		goto out2;
+	err = -EINVAL;
+	if (S_ISDIR(new_nd.dentry->d_inode->i_mode) !=
+	      S_ISDIR(old_nd.dentry->d_inode->i_mode))
+		goto out2;
+		
 	down(&mount_sem);
 	err = -ENOENT;
 	if (d_unhashed(old_nd.dentry) && !IS_ROOT(old_nd.dentry))
@@ -1143,31 +1163,29 @@ static int do_remount(const char *dir,int flags,char *data)
 	return retval;
 }
 
-static int copy_mount_options (const void * data, unsigned long *where)
+static int copy_mount_options (const void *data, unsigned long *where)
 {
 	int i;
 	unsigned long page;
-	struct vm_area_struct * vma;
 
 	*where = 0;
 	if (!data)
 		return 0;
 
-	vma = find_vma(current->mm, (unsigned long) data);
-	if (!vma || (unsigned long) data < vma->vm_start)
-		return -EFAULT;
-	if (!(vma->vm_flags & VM_READ))
-		return -EFAULT;
-	i = vma->vm_end - (unsigned long) data;
-	if (PAGE_SIZE <= (unsigned long) i)
-		i = PAGE_SIZE-1;
-	if (!(page = __get_free_page(GFP_KERNEL))) {
+	if (!(page = __get_free_page(GFP_KERNEL)))
 		return -ENOMEM;
-	}
-	if (copy_from_user((void *) page,data,i)) {
+
+	/* We only care that *some* data at the address the user
+	 * gave us is valid.  Just in case, we'll zero
+	 * the remainder of the page.
+	 */
+	i = copy_from_user((void *)page, data, PAGE_SIZE);
+	if (i == PAGE_SIZE) {
 		free_page(page); 
 		return -EFAULT;
 	}
+	if (i)
+		memset((char *)page + PAGE_SIZE - i, 0, i);
 	*where = page;
 	return 0;
 }
@@ -1186,7 +1204,7 @@ static int copy_mount_options (const void * data, unsigned long *where)
  * aren't used, as the syscall assumes we are talking to an older
  * version that didn't understand them.
  */
-long do_sys_mount(char * dev_name, char * dir_name, char *type_page,
+long do_mount(char * dev_name, char * dir_name, char *type_page,
 		  unsigned long new_flags, void *data_page)
 {
 	struct file_system_type * fstype;
@@ -1279,26 +1297,24 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 			  unsigned long new_flags, void * data)
 {
 	int retval;
-	unsigned long data_page = 0;
-	unsigned long type_page = 0;
-	unsigned long dev_page = 0;
+	unsigned long data_page;
+	unsigned long type_page;
+	unsigned long dev_page;
 	char *dir_page;
 
-	lock_kernel();
 	retval = copy_mount_options (type, &type_page);
 	if (retval < 0)
-		goto out;
+		return retval;
 
 	/* copy_mount_options allows a NULL user pointer,
 	 * and just returns zero in that case.  But if we
 	 * allow the type to be NULL we will crash.
 	 * Previously we did not check this case.
 	 */
-	if (type_page == 0) {
-		retval = -EINVAL;
-		goto out;
-	}
+	if (type_page == 0)
+		return -EINVAL;
 
+	lock_kernel();
 	dir_page = getname(dir_name);
 	retval = PTR_ERR(dir_page);
 	if (IS_ERR(dir_page))
@@ -1309,7 +1325,7 @@ asmlinkage long sys_mount(char * dev_name, char * dir_name, char * type,
 		goto out2;
 	retval = copy_mount_options (data, &data_page);
 	if (retval >= 0) {
-		retval = do_sys_mount((char*)dev_page,dir_page,(char*)type_page,
+		retval = do_mount((char*)dev_page,dir_page,(char*)type_page,
 				      new_flags, (void*)data_page);
 		free_page(data_page);
 	}
@@ -1318,7 +1334,6 @@ out2:
 	putname(dir_page);
 out1:
 	free_page(type_page);
-out:
 	unlock_kernel();
 	return retval;
 }
@@ -1493,10 +1508,6 @@ static void chroot_fs_refs(struct dentry *old_root,
 {
 	struct task_struct *p;
 
-	/* We can't afford dput() blocking under the tasklist_lock */
-	mntget(old_rootmnt);
-	dget(old_root);
-
 	read_lock(&tasklist_lock);
 	for_each_task(p) {
 		if (!p->fs) continue;
@@ -1506,9 +1517,6 @@ static void chroot_fs_refs(struct dentry *old_root,
 			set_fs_pwd(p->fs, new_rootmnt, new_root);
 	}
 	read_unlock(&tasklist_lock);
-
-	dput(old_root);
-	mntput(old_rootmnt);
 }
 
 /*
@@ -1525,8 +1533,8 @@ static void chroot_fs_refs(struct dentry *old_root,
 
 asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 {
-	struct dentry *root = current->fs->root;
-	struct vfsmount *root_mnt = current->fs->rootmnt;
+	struct dentry *root;
+	struct vfsmount *root_mnt;
 	struct vfsmount *tmp;
 	struct nameidata new_nd, old_nd;
 	char *name;
@@ -1559,6 +1567,8 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 	if (error)
 		goto out1;
 
+	root_mnt = mntget(current->fs->rootmnt);
+	root = dget(current->fs->root);
 	down(&mount_sem);
 	error = -ENOENT;
 	if (d_unhashed(new_nd.dentry) && !IS_ROOT(new_nd.dentry))
@@ -1597,6 +1607,8 @@ asmlinkage long sys_pivot_root(const char *new_root, const char *put_old)
 	error = 0;
 out2:
 	up(&mount_sem);
+	dput(root);
+	mntput(root_mnt);
 	path_release(&old_nd);
 out1:
 	path_release(&new_nd);

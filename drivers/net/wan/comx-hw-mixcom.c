@@ -742,11 +742,6 @@ static int mixcom_write_proc(struct file *file, const char *buffer,
 	char *page;
 	int value;
 
-	if (file->f_dentry->d_inode->i_ino != entry->low_ino) {
-		printk(KERN_ERR "mixcom_write_proc: file <-> data internal error\n");
-		return -EIO;
-	}
-
 	if (!(page = (char *)__get_free_page(GFP_KERNEL))) {
 		return -ENOMEM;
 	}
@@ -829,7 +824,6 @@ static int MIXCOM_init(struct net_device *dev) {
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &mixcom_read_proc;
 	new_file->write_proc = &mixcom_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 	if ((new_file = create_proc_entry(FILENAME_IRQ, S_IFREG | 0644, 
@@ -839,7 +833,6 @@ static int MIXCOM_init(struct net_device *dev) {
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &mixcom_read_proc;
 	new_file->write_proc = &mixcom_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 #if 0
@@ -850,7 +843,6 @@ static int MIXCOM_init(struct net_device *dev) {
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &mixcom_read_proc;
 	new_file->write_proc = &mixcom_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 #endif
 
@@ -861,7 +853,6 @@ static int MIXCOM_init(struct net_device *dev) {
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &mixcom_read_proc;
 	new_file->write_proc = &mixcom_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 	if ((new_file = create_proc_entry(FILENAME_TWIN, S_IFREG | 0444, 
@@ -871,7 +862,6 @@ static int MIXCOM_init(struct net_device *dev) {
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &mixcom_read_proc;
 	new_file->write_proc = &mixcom_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 	setup_twin(dev);

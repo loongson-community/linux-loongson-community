@@ -259,8 +259,6 @@ int coda_cache_check(struct inode *inode, int mask)
 
 void coda_purge_dentries(struct inode *inode)
 {
-	struct list_head *tmp, *head = &inode->i_dentry;
-
 	if (!inode)
 		return ;
 
@@ -268,23 +266,7 @@ void coda_purge_dentries(struct inode *inode)
 	iget(inode->i_sb, inode->i_ino);
 	/* catch the dentries later if some are still busy */
 	coda_flag_inode(inode, C_PURGE);
-
-restart:
-	tmp = head;
-	while ((tmp = tmp->next) != head) {
-		struct dentry *dentry = list_entry(tmp, struct dentry, d_alias);
-		if (!dentry->d_count) {
-			CDEBUG(D_DOWNCALL, 
-			       "coda_free_dentries: freeing %s/%s, i_count=%d\n",
-			       dentry->d_parent->d_name.name, dentry->d_name.name, 
-			       inode->i_count);
-			dget(dentry);
-			d_drop(dentry);
-			dput(dentry);
-			goto restart;
-		}
-			
-	}
+	d_prune_aliases(inode);
 	iput(inode);
 }
 
@@ -311,28 +293,18 @@ static void coda_flag_children(struct dentry *parent, int flag)
 
 void coda_flag_inode_children(struct inode *inode, int flag)
 {
-	struct list_head *alias;
 	struct dentry *alias_de;
 
 	ENTRY;
-	if ( !inode ) 
+	if ( !inode || !S_ISDIR(inode->i_mode)) 
 		return; 
 
-	if (list_empty(&inode->i_dentry))
-	        return; 
-
-	/* I believe that shrink_dcache_parent will not
-	   remove dentries from the alias list. If it 
-	   does we are toast. 
-	*/
-	alias = inode->i_dentry.next; 
-	while ( alias != &inode->i_dentry ) {
-		alias_de = list_entry(alias, struct dentry, d_alias);
-		coda_flag_children(alias_de, flag);
-		alias = alias->next;
-		shrink_dcache_parent(alias_de);
-	}
-
+	alias_de = d_find_alias(inode);
+	if (!alias_de)
+		return;
+	coda_flag_children(alias_de, flag);
+	shrink_dcache_parent(alias_de);
+	dput(alias_de);
 }
 
 /* this will not zap the inode away */

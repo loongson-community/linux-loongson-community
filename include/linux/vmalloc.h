@@ -3,6 +3,7 @@
 
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/spinlock.h>
 
 #include <asm/pgtable.h>
 
@@ -17,16 +18,49 @@ struct vm_struct {
 	struct vm_struct * next;
 };
 
-struct vm_struct * get_vm_area(unsigned long size, unsigned long flags);
-void vfree(void * addr);
-void * vmalloc_prot(unsigned long size, pgprot_t prot);
-void * vmalloc_uncached(unsigned long size);
-extern void * vmalloc(unsigned long size);
+extern struct vm_struct * get_vm_area (unsigned long size, unsigned long flags);
+extern void vfree(void * addr);
+extern void * __vmalloc (unsigned long size, int gfp_mask, pgprot_t prot);
+extern long vread(char *buf, char *addr, unsigned long count);
+extern void vmfree_area_pages(unsigned long address, unsigned long size);
+extern int vmalloc_area_pages(unsigned long address, unsigned long size,
+                              int gfp_mask, pgprot_t prot);
+
+extern struct vm_struct * vmlist;
 
 
-long vread(char *buf, char *addr, unsigned long count);
-void vmfree_area_pages(unsigned long address, unsigned long size);
-int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot);
+/*
+ *	Allocate any pages
+ */
+ 
+static inline void * vmalloc (unsigned long size)
+{
+	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM, PAGE_KERNEL);
+}
+
+/*
+ *	Allocate ISA addressable pages for broke crap
+ */
+
+static inline void * vmalloc_dma (unsigned long size)
+{
+	return __vmalloc(size, GFP_KERNEL|GFP_DMA, PAGE_KERNEL);
+}
+
+/*
+ *	vmalloc 32bit PA addressable pages - eg for PCI 32bit devices
+ */
+ 
+static inline void * vmalloc_32(unsigned long size)
+{
+	return __vmalloc(size, GFP_KERNEL, PAGE_KERNEL);
+}
+
+/*
+ * vmlist_lock is a read-write spinlock that protects vmlist
+ * Used in mm/vmalloc.c (get_vm_area() and vfree()) and fs/proc/kcore.c.
+ */
+extern rwlock_t vmlist_lock;
 
 extern struct vm_struct * vmlist;
 #endif

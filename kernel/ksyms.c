@@ -118,6 +118,7 @@ EXPORT_SYMBOL(kfree);
 EXPORT_SYMBOL(kfree_s);
 EXPORT_SYMBOL(vmalloc);
 EXPORT_SYMBOL(vfree);
+EXPORT_SYMBOL(__vmalloc);
 EXPORT_SYMBOL(mem_map);
 EXPORT_SYMBOL(remap_page_range);
 EXPORT_SYMBOL(max_mapnr);
@@ -218,6 +219,9 @@ EXPORT_SYMBOL(posix_unblock_lock);
 EXPORT_SYMBOL(locks_mandatory_area);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(have_submounts);
+EXPORT_SYMBOL(d_genocide);
+EXPORT_SYMBOL(d_find_alias);
+EXPORT_SYMBOL(d_prune_aliases);
 EXPORT_SYMBOL(prune_dcache);
 EXPORT_SYMBOL(shrink_dcache_sb);
 EXPORT_SYMBOL(shrink_dcache_parent);
@@ -248,6 +252,7 @@ EXPORT_SYMBOL(page_symlink_inode_operations);
 EXPORT_SYMBOL(block_fsync);
 EXPORT_SYMBOL(block_symlink);
 EXPORT_SYMBOL(vfs_readdir);
+EXPORT_SYMBOL(dcache_readdir);
 
 /* for stackable file systems (lofs, wrapfs, cryptfs, etc.) */
 EXPORT_SYMBOL(default_llseek);

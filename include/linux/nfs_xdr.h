@@ -106,7 +106,6 @@ struct nfs_writeres {
  * Argument struct for decode_entry function
  */
 struct nfs_entry {
-	struct page *		page;
 	__u64			ino;
 	__u64			cookie,
 				prev_cookie;
@@ -115,8 +114,6 @@ struct nfs_entry {
 	int			eof;
 	struct nfs_fh		fh;
 	struct nfs_fattr	fattr;
-	unsigned long		offset,
-				prev;
 };
 
 /*
@@ -326,10 +323,10 @@ struct nfs_rpc_ops {
 			    struct nfs_fh *, struct nfs_fattr *);
 	int	(*access)  (struct dentry *, int , int);
 	int	(*readlink)(struct dentry *, void *, unsigned int);
-	int	(*read)    (struct dentry *, struct nfs_fattr *,
+	int	(*read)    (struct file *, struct nfs_fattr *,
 			    int, loff_t, unsigned int,
 			    void *buffer, int *eofp);
-	int	(*write)   (struct dentry *, struct nfs_fattr *,
+	int	(*write)   (struct file *, struct nfs_fattr *,
 			    int, loff_t, unsigned int,
 			    void *buffer, struct nfs_writeverf *verfp);
 	int	(*commit)  (struct dentry *, struct nfs_fattr *,
@@ -346,7 +343,7 @@ struct nfs_rpc_ops {
 	int	(*mkdir)   (struct dentry *, struct qstr *, struct iattr *,
 			    struct nfs_fh *, struct nfs_fattr *);
 	int	(*rmdir)   (struct dentry *, struct qstr *);
-	int	(*readdir) (struct dentry *, u64 cookie, void *, unsigned int,
+	int	(*readdir) (struct file *, u64 cookie, void *, unsigned int,
 			    int);
 	int	(*mknod)   (struct dentry *, struct qstr *, struct iattr *,
 			    dev_t, struct nfs_fh *, struct nfs_fattr *);

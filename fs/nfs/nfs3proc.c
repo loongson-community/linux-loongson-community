@@ -138,14 +138,16 @@ nfs3_proc_readlink(struct dentry *dentry, void *buffer, unsigned int buflen)
 }
 
 static int
-nfs3_proc_read(struct dentry *dentry, struct nfs_fattr *fattr, int flags,
+nfs3_proc_read(struct file *file, struct nfs_fattr *fattr, int flags,
 	       loff_t offset, unsigned int count, void *buffer, int *eofp)
 {
+	struct dentry		*dentry = file->f_dentry;
+	struct rpc_cred		*cred = nfs_file_cred(file);
 	struct nfs_readargs	arg = { NFS_FH(dentry), offset, count, 1,
 					{{buffer, count}, {0,0}, {0,0}, {0,0},
 					 {0,0}, {0,0}, {0,0}, {0,0}} };
 	struct nfs_readres	res = { fattr, count, 0 };
-	struct rpc_message	msg = { NFS3PROC_READ, &arg, &res, NULL };
+	struct rpc_message	msg = { NFS3PROC_READ, &arg, &res, cred };
 	int			status;
 
 	dprintk("NFS call  read %d @ %Ld\n", count, (long long)offset);
@@ -157,16 +159,18 @@ nfs3_proc_read(struct dentry *dentry, struct nfs_fattr *fattr, int flags,
 }
 
 static int
-nfs3_proc_write(struct dentry *dentry, struct nfs_fattr *fattr, int flags,
+nfs3_proc_write(struct file *file, struct nfs_fattr *fattr, int flags,
 		loff_t offset, unsigned int count,
 		void *buffer, struct nfs_writeverf *verf)
 {
+	struct dentry		*dentry = file->f_dentry;
+	struct rpc_cred		*cred = nfs_file_cred(file);
 	struct nfs_writeargs	arg = { NFS_FH(dentry), offset, count,
 					NFS_FILE_SYNC, 1,
 					{{buffer, count}, {0,0}, {0,0}, {0,0},
 					 {0,0}, {0,0}, {0,0}, {0,0}} };
 	struct nfs_writeres	res = { fattr, verf, 0 };
-	struct rpc_message	msg = { NFS3PROC_WRITE, &arg, &res, NULL };
+	struct rpc_message	msg = { NFS3PROC_WRITE, &arg, &res, cred };
 	int			status, rpcflags = 0;
 
 	dprintk("NFS call  write %d @ %Ld\n", count, (long long)offset);
@@ -369,13 +373,15 @@ nfs3_proc_rmdir(struct dentry *dir, struct qstr *name)
  * readdirplus.
  */
 static int
-nfs3_proc_readdir(struct dentry *dir, u64 cookie, void *entry,
+nfs3_proc_readdir(struct file *file, u64 cookie, void *entry,
 		  unsigned int size, int plus)
 {
+	struct dentry		*dir = file->f_dentry;
+	struct rpc_cred		*cred = nfs_file_cred(file);
 	struct nfs_fattr	dir_attr;
 	struct nfs3_readdirargs	arg = { NFS_FH(dir), cookie, {0, 0}, 0, 0, 0 };
 	struct nfs3_readdirres	res = { &dir_attr, 0, 0, 0, 0 };
-	struct rpc_message	msg = { NFS3PROC_READDIR, &arg, &res, NULL };
+	struct rpc_message	msg = { NFS3PROC_READDIR, &arg, &res, cred };
 	u32			*verf = NFS_COOKIEVERF(dir->d_inode);
 	int			status;
 

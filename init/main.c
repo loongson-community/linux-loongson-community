@@ -414,9 +414,18 @@ static int __init debug_kernel(char *str)
 	return 1;
 }
 
+static int __init quiet_kernel(char *str)
+{
+	if (*str)
+		return 0;
+	console_loglevel = 4;
+	return 1;
+}
+
 __setup("ro", readonly);
 __setup("rw", readwrite);
 __setup("debug", debug_kernel);
+__setup("quiet", quiet_kernel);
 
 /*
  * This is a simple kernel command line parsing function: it parses
@@ -741,8 +750,7 @@ static void __init do_basic_setup(void)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	root_mountflags = real_root_mountflags;
-	if (mount_initrd && ROOT_DEV != real_root_dev
-	    && MAJOR(ROOT_DEV) == RAMDISK_MAJOR && MINOR(ROOT_DEV) == 0) {
+	if (mount_initrd && MAJOR(ROOT_DEV) == RAMDISK_MAJOR && MINOR(ROOT_DEV) == 0) {
 		int error;
 		int i, pid;
 

@@ -3,14 +3,17 @@
  *
  *  Copyright (C) 1993  Linus Torvalds
  *  Support of BIGMEM added by Gerhard Wichert, Siemens AG, July 1999
+ *  SMP-safe vmalloc/vfree/ioremap, Tigran Aivazian <tigran@veritas.com>, May 2000
  */
 
 #include <linux/malloc.h>
 #include <linux/vmalloc.h>
+#include <linux/spinlock.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgalloc.h>
 
+rwlock_t vmlist_lock = RW_LOCK_UNLOCKED;
 struct vm_struct * vmlist = NULL;
 
 static inline void free_area_pte(pmd_t * pmd, unsigned long address, unsigned long size)
@@ -87,7 +90,8 @@ void vmfree_area_pages(unsigned long address, unsigned long size)
 	flush_tlb_all();
 }
 
-static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned long size, pgprot_t prot)
+static inline int alloc_area_pte (pte_t * pte, unsigned long address,
+			unsigned long size, int gfp_mask, pgprot_t prot)
 {
 	unsigned long end;
 
@@ -99,7 +103,7 @@ static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned lo
 		struct page * page;
 		if (!pte_none(*pte))
 			printk(KERN_ERR "alloc_area_pte: page already exists\n");
-		page = alloc_page(GFP_KERNEL|__GFP_HIGHMEM);
+		page = alloc_page(gfp_mask);
 		if (!page)
 			return -ENOMEM;
 		set_pte(pte, mk_pte(page, prot));
@@ -109,7 +113,7 @@ static inline int alloc_area_pte(pte_t * pte, unsigned long address, unsigned lo
 	return 0;
 }
 
-static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned long size, pgprot_t prot)
+static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned long size, int gfp_mask, pgprot_t prot)
 {
 	unsigned long end;
 
@@ -121,7 +125,7 @@ static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 		pte_t * pte = pte_alloc_kernel(pmd, address);
 		if (!pte)
 			return -ENOMEM;
-		if (alloc_area_pte(pte, address, end - address, prot))
+		if (alloc_area_pte(pte, address, end - address, gfp_mask, prot))
 			return -ENOMEM;
 		address = (address + PMD_SIZE) & PMD_MASK;
 		pmd++;
@@ -129,7 +133,8 @@ static inline int alloc_area_pmd(pmd_t * pmd, unsigned long address, unsigned lo
 	return 0;
 }
 
-int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot)
+inline int vmalloc_area_pages (unsigned long address, unsigned long size,
+                               int gfp_mask, pgprot_t prot)
 {
 	pgd_t * dir;
 	unsigned long end = address + size;
@@ -139,11 +144,11 @@ int vmalloc_area_pages(unsigned long address, unsigned long size, pgprot_t prot)
 	do {
 		pmd_t *pmd;
 		pgd_t olddir = *dir;
-
+		
 		pmd = pmd_alloc_kernel(dir, address);
 		if (!pmd)
 			return -ENOMEM;
-		if (alloc_area_pmd(pmd, address, end - address, prot))
+		if (alloc_area_pmd(pmd, address, end - address, gfp_mask, prot))
 			return -ENOMEM;
 		if (pgd_val(olddir) != pgd_val(*dir))
 			set_pgdir(address, *dir);
@@ -163,11 +168,13 @@ struct vm_struct * get_vm_area(unsigned long size, unsigned long flags)
 	if (!area)
 		return NULL;
 	addr = VMALLOC_START;
+	write_lock(&vmlist_lock);
 	for (p = &vmlist; (tmp = *p) ; p = &tmp->next) {
 		if (size + addr < (unsigned long) tmp->addr)
 			break;
 		addr = tmp->size + (unsigned long) tmp->addr;
 		if (addr > VMALLOC_END-size) {
+			write_unlock(&vmlist_lock);
 			kfree(area);
 			return NULL;
 		}
@@ -177,6 +184,7 @@ struct vm_struct * get_vm_area(unsigned long size, unsigned long flags)
 	area->size = size + PAGE_SIZE;
 	area->next = *p;
 	*p = area;
+	write_unlock(&vmlist_lock);
 	return area;
 }
 
@@ -190,18 +198,21 @@ void vfree(void * addr)
 		printk(KERN_ERR "Trying to vfree() bad address (%p)\n", addr);
 		return;
 	}
+	write_lock(&vmlist_lock);
 	for (p = &vmlist ; (tmp = *p) ; p = &tmp->next) {
 		if (tmp->addr == addr) {
 			*p = tmp->next;
 			vmfree_area_pages(VMALLOC_VMADDR(tmp->addr), tmp->size);
 			kfree(tmp);
+			write_unlock(&vmlist_lock);
 			return;
 		}
 	}
+	write_unlock(&vmlist_lock);
 	printk(KERN_ERR "Trying to vfree() nonexistent vm area (%p)\n", addr);
 }
 
-void * vmalloc_prot(unsigned long size, pgprot_t prot)
+void * __vmalloc (unsigned long size, int gfp_mask, pgprot_t prot)
 {
 	void * addr;
 	struct vm_struct *area;
@@ -217,17 +228,12 @@ void * vmalloc_prot(unsigned long size, pgprot_t prot)
 		return NULL;
 	}
 	addr = area->addr;
-	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, prot)) {
+	if (vmalloc_area_pages(VMALLOC_VMADDR(addr), size, gfp_mask, prot)) {
 		vfree(addr);
 		BUG();
 		return NULL;
 	}
 	return addr;
-}
-
-void * vmalloc(unsigned long size)
-{
-	return vmalloc_prot (size, PAGE_KERNEL);
 }
 
 long vread(char *buf, char *addr, unsigned long count)
@@ -240,6 +246,7 @@ long vread(char *buf, char *addr, unsigned long count)
 	if ((unsigned long) addr + count < count)
 		count = -(unsigned long) addr;
 
+	read_lock(&vmlist_lock);
 	for (tmp = vmlist; tmp; tmp = tmp->next) {
 		vaddr = (char *) tmp->addr;
 		if (addr >= vaddr + tmp->size - PAGE_SIZE)
@@ -247,7 +254,7 @@ long vread(char *buf, char *addr, unsigned long count)
 		while (addr < vaddr) {
 			if (count == 0)
 				goto finished;
-			put_user('\0', buf);
+			*buf = '\0';
 			buf++;
 			addr++;
 			count--;
@@ -256,12 +263,13 @@ long vread(char *buf, char *addr, unsigned long count)
 		do {
 			if (count == 0)
 				goto finished;
-			put_user(*addr, buf);
+			*buf = *addr;
 			buf++;
 			addr++;
 			count--;
 		} while (--n > 0);
 	}
 finished:
+	read_unlock(&vmlist_lock);
 	return buf - buf_start;
 }

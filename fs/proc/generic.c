@@ -140,9 +140,13 @@ proc_file_lseek(struct file * file, loff_t offset, int orig)
 {
     switch (orig) {
     case 0:
+	if (offset < 0)
+	    return -EINVAL;    
 	file->f_pos = offset;
 	return(file->f_pos);
     case 1:
+	if (offset + file->f_pos < 0)
+	    return -EINVAL;    
 	file->f_pos += offset;
 	return(file->f_pos);
     case 2:
@@ -218,10 +222,9 @@ static struct inode_operations proc_link_inode_operations = {
  * smarter: we could keep a "volatile" flag in the 
  * inode to indicate which ones to keep.
  */
-static void
-proc_delete_dentry(struct dentry * dentry)
+static int proc_delete_dentry(struct dentry * dentry)
 {
-	d_drop(dentry);
+	return 1;
 }
 
 static struct dentry_operations proc_dentry_operations =
@@ -340,7 +343,7 @@ static struct inode_operations proc_dir_inode_operations = {
 	lookup:		proc_lookup,
 };
 
-int proc_register(struct proc_dir_entry * dir, struct proc_dir_entry * dp)
+static int proc_register(struct proc_dir_entry * dir, struct proc_dir_entry * dp)
 {
 	int	i;
 	

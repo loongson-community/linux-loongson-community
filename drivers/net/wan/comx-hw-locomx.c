@@ -330,11 +330,6 @@ static int locomx_write_proc(struct file *file, const char *buffer,
 	int val;
 	char *page;
 
-	if (file->f_dentry->d_inode->i_ino != entry->low_ino) {
-		printk(KERN_ERR "hw_write_proc: file <-> data internal error\n");
-		return -EIO;
-	}
-
 	if (!(page = (char *)__get_free_page(GFP_KERNEL))) {
 		return -ENOMEM;
 	}
@@ -395,7 +390,6 @@ static int LOCOMX_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &locomx_read_proc;
 	new_file->write_proc = &locomx_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 	if ((new_file = create_proc_entry(FILENAME_IRQ, S_IFREG | 0644, 
@@ -405,7 +399,6 @@ static int LOCOMX_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &locomx_read_proc;
 	new_file->write_proc = &locomx_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 
 /* 	No clock yet */
@@ -417,7 +410,6 @@ static int LOCOMX_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &locomx_read_proc;
 	new_file->write_proc = &locomx_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->nlink = 1;
 */
 

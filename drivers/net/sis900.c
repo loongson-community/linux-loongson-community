@@ -79,7 +79,8 @@ static struct pci_device_id sis900_pci_tbl [] __initdata = {
 	{PCI_VENDOR_ID_SI, PCI_DEVICE_ID_SI_900,
 	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, SIS_900},
 	{PCI_VENDOR_ID_SI, PCI_DEVICE_ID_SI_7016,
-	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, SIS_7018}
+	 PCI_ANY_ID, PCI_ANY_ID, 0, 0, SIS_7018},
+	{0,}
 };
 MODULE_DEVICE_TABLE (pci, sis900_pci_tbl);
 

@@ -346,7 +346,7 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 
 	sb = dir->i_sb;
 
-	if (dentry->d_name.len)
+	if (dentry)
 	{
 		if ( !(udf_char_to_ustr(&unifilename, dentry->d_name.name, dentry->d_name.len)) )
 		{
@@ -447,20 +447,17 @@ udf_add_entry(struct inode *dir, struct dentry *dentry,
 				}
 			}
 	
-			if (!lfi)
+			if (!lfi || !dentry)
 				continue;
 	
-			if ((flen = udf_get_filename(nameptr, fname, lfi)))
-			{
-				if (udf_match(flen, fname, &(dentry->d_name)))
-				{
-					if (fibh->sbh != fibh->ebh)
-						udf_release_data(fibh->ebh);
-					udf_release_data(fibh->sbh);
-					udf_release_data(bh);
-					*err = -EEXIST;
-					return NULL;
-				}
+			if ((flen = udf_get_filename(nameptr, fname, lfi)) &&
+			    udf_match(flen, fname, &(dentry->d_name))) {
+				if (fibh->sbh != fibh->ebh)
+					udf_release_data(fibh->ebh);
+				udf_release_data(fibh->sbh);
+				udf_release_data(bh);
+				*err = -EEXIST;
+				return NULL;
 			}
 		}
 	}
@@ -691,7 +688,6 @@ static int udf_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 	struct udf_fileident_bh fibh;
 	int err;
 	struct FileIdentDesc cfi, *fi;
-	struct dentry parent;
 
 	err = -EMLINK;
 	if (dir->i_nlink >= (256<<sizeof(dir->i_nlink))-1)
@@ -704,10 +700,8 @@ static int udf_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 
 	inode->i_op = &udf_dir_inode_operations;
 	inode->i_fop = &udf_dir_operations;
-	parent.d_name.len = 0;
-	parent.d_name.name = NULL;
 	inode->i_size = 0;
-	if (!(fi = udf_add_entry(inode, &parent, &fibh, &cfi, &err)))
+	if (!(fi = udf_add_entry(inode, NULL, &fibh, &cfi, &err)))
 	{
 		inode->i_nlink--;
 		mark_inode_dirty(inode);
@@ -852,7 +846,6 @@ static int udf_rmdir(struct inode * dir, struct dentry * dentry)
 	inode->i_ctime = dir->i_ctime = dir->i_mtime = CURRENT_TIME;
 	UDF_I_UCTIME(inode) = UDF_I_UCTIME(dir) = UDF_I_UMTIME(dir) = CURRENT_UTIME;
 	mark_inode_dirty(dir);
-	d_delete(dentry);
 
 end_rmdir:
 	if (fibh.sbh != fibh.ebh)
@@ -902,7 +895,6 @@ static int udf_unlink(struct inode * dir, struct dentry * dentry)
 	mark_inode_dirty(inode);
 	inode->i_ctime = dir->i_ctime;
 	retval = 0;
-	d_delete(dentry);	/* This also frees the inode */
 
 end_unlink:
 	if (fibh.sbh != fibh.ebh)

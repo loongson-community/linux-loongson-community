@@ -7,7 +7,6 @@
 #define _PPC_BITOPS_H
 
 #include <linux/config.h>
-#include <asm/system.h>
 #include <asm/byteorder.h>
 
 extern void set_bit(int nr, volatile void *addr);
@@ -278,3 +277,4 @@ found_middle:
 #define minix_find_first_zero_bit(addr,size) ext2_find_first_zero_bit(addr,size)
 
 #endif /* _PPC_BITOPS_H */
+

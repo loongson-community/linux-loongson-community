@@ -641,11 +641,6 @@ static int fr_write_proc(struct file *file, const char *buffer,
 		fr = ch->LINE_privdata;
 	}
 
-	if (file->f_dentry->d_inode->i_ino != entry->low_ino) {
-		printk(KERN_ERR "comxfr_write_proc: file <-> data internal error\n");
-		return -EIO;
-	}
-
 	if (!(page = (char *)__get_free_page(GFP_KERNEL))) {
 		return -ENOMEM;
 	}
@@ -803,7 +798,6 @@ static int fr_master_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &fr_read_proc;
 	new_file->write_proc = &fr_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->size = 5;
 	new_file->nlink = 1;
 
@@ -814,7 +808,6 @@ static int fr_master_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &fr_read_proc;
 	new_file->write_proc = &fr_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->size = 4;
 	new_file->nlink = 1;
 
@@ -860,7 +853,6 @@ static int fr_slave_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &fr_read_proc;
 	new_file->write_proc = &fr_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->size = 5;
 	new_file->nlink = 1;
 
@@ -871,7 +863,6 @@ static int fr_slave_init(struct net_device *dev)
 	new_file->data = (void *)new_file;
 	new_file->read_proc = &fr_read_proc;
 	new_file->write_proc = &fr_write_proc;
-	new_file->proc_iops = &comx_normal_inode_ops;
 	new_file->size = 10;
 	new_file->nlink = 1;
 	MOD_INC_USE_COUNT;
