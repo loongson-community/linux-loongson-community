@@ -35,6 +35,10 @@ static char buf[1024];
 #define DEFAULT_CONSOLE_LOGLEVEL 7 /* anything MORE serious than KERN_DEBUG */
 
 unsigned long log_size = 0;
+/* 2.3.47 triggers a linker bug which hits if for a relocation the addend
+   equals the offset and the relocation is against a global variable.  This
+   avoid it to hit us.  It's not a safe workaround of course.  */
+unsigned long silly_linker_bug = 0;
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
 
 /* Keep together for sysctl support */
