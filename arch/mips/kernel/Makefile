@@ -34,11 +34,11 @@ endif
 
 ifndef CONFIG_DECSTATION
   ifndef CONFIG_BAGET_MIPS
-    ifndef CONFIG_SGI_IP22
-      ifndef CONFIG_ORION
-        ifndef CONFIG_MIPS_ATLAS
-	  ifndef CONFIG_MIPS_MALTA
-	    O_OBJS += time.o
+    ifndef CONFIG_ORION
+      ifndef CONFIG_MIPS_ATLAS
+	ifndef CONFIG_MIPS_MALTA
+	  O_OBJS += time.o
+          ifndef CONFIG_SGI_IP22
 	    OX_OBJS += irq.o
 	  endif
         endif
