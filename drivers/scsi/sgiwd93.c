@@ -218,8 +218,7 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	struct WD33C93_hostdata *hdata1;
 	wd33c93_regs regs;
 	uchar *buf;
-	wd33c93_regs regs;
-	
+
 	if(called)
 		return 0; /* Should bitch on the console about this... */
 
