@@ -117,7 +117,7 @@ ejtag_return:
 		mfc0	k0, CP0_DESAVE
 		.set	mips32
 		deret
-		.set	0
+		.set	mips0
 		 nop
 		.set	at
 		END(ejtag_debug_handler)
