@@ -154,8 +154,8 @@ void dump_thread(struct pt_regs *regs, struct user *dump)
 	dump->u_ssize = (current->mm->start_stack - dump->start_stack +
 	                 PAGE_SIZE - 1) >> PAGE_SHIFT;
 	memcpy(&dump->regs[0], regs, sizeof(struct pt_regs));
-	memcpy(&dump->regs[EF_SIZE/4], &current->thread.fpu,
-	       sizeof(current->thread.fpu));
+	memcpy(&dump->regs[EF_SIZE / sizeof(unsigned long)],
+	       &current->thread.fpu, sizeof(current->thread.fpu));
 }
 
 /*
