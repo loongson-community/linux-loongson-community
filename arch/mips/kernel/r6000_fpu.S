@@ -1,4 +1,4 @@
-/* $Id: r6000_fpu.S,v 1.1 1996/06/24 06:35:28 dm Exp $
+/*
  * r6000_fpu.S: Save/restore floating point context for signal handlers.
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -9,12 +9,14 @@
  *
  * Multi-arch abstraction and asm macros for easier reading:
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
+ *
+ * $Id: r6000_fpu.S,v 1.2 1997/06/25 14:44:52 ralf Exp $
  */
 #include <asm/asm.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>
+#include <asm/offset.h>
 #include <asm/regdef.h>
-#include <asm/sigcontext.h>
 
 	.set	noreorder
 	/* Save floating point context */
