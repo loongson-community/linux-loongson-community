@@ -37,7 +37,6 @@ static inline void bt455_read_cmap_entry(struct bt455_regs *regs, int cr,
 					 u8* red, u8* green, u8* blue)
 {
 	bt455_select_reg(regs, cr);
-	
 	mb();
 	*red = regs->addr_cmap_data & 0x0f;
 	rmb();
@@ -50,7 +49,6 @@ static inline void bt455_write_cmap_entry(struct bt455_regs *regs, int cr,
 					  u8 red, u8 green, u8 blue)
 {
 	bt455_select_reg(regs, cr);
-
 	wmb();
 	regs->addr_cmap_data = red & 0x0f;
 	wmb();
@@ -59,10 +57,11 @@ static inline void bt455_write_cmap_entry(struct bt455_regs *regs, int cr,
 	regs->addr_cmap_data = blue & 0x0f;
 }
 
-static inline void bt455_write_ovly_entry(struct bt455_regs *regs,
+static inline void bt455_write_ovly_entry(struct bt455_regs *regs, int cr,
 					  u8 red, u8 green, u8 blue)
 {
-	mb();
+	bt455_select_reg(regs, cr);
+	wmb();
 	regs->addr_ovly = red & 0x0f;
 	wmb();
 	regs->addr_ovly = green & 0x0f;
@@ -82,10 +81,15 @@ static inline void bt455_set_cursor(struct bt455_regs *regs)
 
 static inline void bt455_erase_cursor(struct bt455_regs *regs)
 {
-//	bt455_write_cmap_entry(regs, 8, 0x00, 0x00, 0x00);
-//	bt455_write_cmap_entry(regs, 9, 0x00, 0x00, 0x00);
-	bt455_write_cmap_entry(regs, 8, 0x03, 0x03, 0x03);
-	bt455_write_cmap_entry(regs, 9, 0x07, 0x07, 0x07);
+	/* bt455_write_cmap_entry(regs, 8, 0x00, 0x00, 0x00); */
+	/* bt455_write_cmap_entry(regs, 9, 0x00, 0x00, 0x00); */
+	bt455_write_ovly_entry(regs, 8, 0x03, 0x03, 0x03);
+	bt455_write_ovly_entry(regs, 9, 0x07, 0x07, 0x07);
 
-	bt455_write_ovly_entry(regs, 0x09, 0x09, 0x09);
+	wmb();
+	regs->addr_ovly = 0x09;
+	wmb();
+	regs->addr_ovly = 0x09;
+	wmb();
+	regs->addr_ovly = 0x09;
 }

@@ -73,22 +73,42 @@ static inline u8 bt431_get_value(u16 val)
 
 static inline void bt431_select_reg(struct bt431_regs *regs, int ir)
 {
+	/*
+	 * The compiler splits the write in two bytes without these
+	 * helper variables.
+	 */
+	volatile u16 *lo = &(regs->addr_lo);
+	volatile u16 *hi = &(regs->addr_hi);
+
 	mb();
-	regs->addr_lo = bt431_set_value(ir & 0xff);
-	regs->addr_hi = bt431_set_value((ir >> 8) & 0xff);
+	*lo = bt431_set_value(ir & 0xff);
+	wmb();
+	*hi = bt431_set_value((ir >> 8) & 0xff);
 }
 
 /* Autoincrement read/write. */
 static inline u8 bt431_read_reg_inc(struct bt431_regs *regs)
 {
+	/*
+	 * The compiler splits the write in two bytes without the
+	 * helper variable.
+	 */
+	volatile u16 *r = &(regs->addr_reg);
+
 	mb();
-	return bt431_get_value(regs->addr_reg);
+	return bt431_get_value(*r);
 }
 
 static inline void bt431_write_reg_inc(struct bt431_regs *regs, u8 value)
 {
+	/*
+	 * The compiler splits the write in two bytes without the
+	 * helper variable.
+	 */
+	volatile u16 *r = &(regs->addr_reg);
+
 	mb();
-	regs->addr_reg = bt431_set_value(value);
+	*r = bt431_set_value(value);
 }
 
 static inline u8 bt431_read_reg(struct bt431_regs *regs, int ir)
@@ -97,23 +117,35 @@ static inline u8 bt431_read_reg(struct bt431_regs *regs, int ir)
 	return bt431_read_reg_inc(regs);
 }
 
-static inline void bt431_write_reg(struct bt431_regs *regs, int ir, u16 value)
+static inline void bt431_write_reg(struct bt431_regs *regs, int ir, u8 value)
 {
 	bt431_select_reg(regs, ir);
 	bt431_write_reg_inc(regs, value);
 }
 
-/* Autoincremented read/write for the cursor map */
+/* Autoincremented read/write for the cursor map. */
 static inline u16 bt431_read_cmap_inc(struct bt431_regs *regs)
 {
+	/*
+	 * The compiler splits the write in two bytes without the
+	 * helper variable.
+	 */
+	volatile u16 *r = &(regs->addr_cmap);
+
 	mb();
-	return regs->addr_cmap;
+	return *r;
 }
 
 static inline void bt431_write_cmap_inc(struct bt431_regs *regs, u16 value)
 {
+	/*
+	 * The compiler splits the write in two bytes without the
+	 * helper variable.
+	 */
+	volatile u16 *r = &(regs->addr_cmap);
+
 	mb();
-	regs->addr_cmap = value;
+	*r = value;
 }
 
 static inline u16 bt431_read_cmap(struct bt431_regs *regs, int cr)
@@ -130,10 +162,9 @@ static inline void bt431_write_cmap(struct bt431_regs *regs, int cr, u16 value)
 
 static inline void bt431_enable_cursor(struct bt431_regs *regs)
 {
-/*	bt431_write_reg(regs, BT431_REG_CMD,
+	bt431_write_reg(regs, BT431_REG_CMD,
 			BT431_CMD_CURS_ENABLE | BT431_CMD_OR_CURSORS
 			| BT431_CMD_4_1_MUX | BT431_CMD_THICK_1);
-*/	bt431_write_reg(regs, BT431_REG_CMD, BT431_CMD_CURS_ENABLE);
 }
 
 static inline void bt431_erase_cursor(struct bt431_regs *regs)
@@ -166,64 +197,40 @@ static inline void bt431_position_cursor(struct bt431_regs *regs, u16 x, u16 y)
 	bt431_write_reg_inc(regs, (y >> 8) & 0x0f); /* BT431_REG_CYHI */
 }
 
-/*u16 _bt431_default_cursor[64 * 8] = {
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0xffff, 0, 0, 0, 0, 0, 0, 0,
-	0,
-};
-*/
-static inline void bt431_load_cursor_sprite(struct bt431_regs *regs)
+static inline void bt431_set_font(struct bt431_regs *regs, u8 fgc,
+				  u16 width, u16 height)
 {
 	int i;
+	u16 fgp = fgc ? 0xffff : 0x0000;
+	u16 bgp = fgc ? 0x0000 : 0xffff;
 
 	bt431_select_reg(regs, BT431_REG_CRAM_BASE);
-	for (i = 0; i < 64 * 8; i++)
-		bt431_write_cmap_inc(regs, ((i < 16 * 8) && (i % 8)) ? 0xffff : 0);
+	for (i = BT431_REG_CRAM_BASE; i <= BT431_REG_CRAM_END; i++) {
+		u16 value;
+
+		if (height << 6 <= i << 3)
+			value = bgp;
+		else if (width <= i % 8 << 3)
+			value = bgp;
+		else if (((width >> 3) & 0xffff) > i % 8)
+			value = fgp;
+		else
+			value = fgp & ~(bgp << (width % 8 << 1));
+
+		bt431_write_cmap_inc(regs, value);
+	}
 }
 
 static inline void bt431_init_cursor(struct bt431_regs *regs)
 {
-	bt431_write_reg(regs, BT431_REG_CMD,
-			BT431_CMD_CURS_ENABLE | BT431_CMD_OR_CURSORS
-			| BT431_CMD_4_1_MUX | BT431_CMD_THICK_1);
-
-	/* home cursor */
-#if 0
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CXLO */
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CXHI */
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CYLO */
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CYHI */
-#endif
-	bt431_write_reg_inc(regs, 0x80); /* BT431_REG_CXLO */
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CXHI */
-	bt431_write_reg_inc(regs, 0x80); /* BT431_REG_CYLO */
-	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_CYHI */
-
 	/* no crosshair window */
+	bt431_select_reg(regs, BT431_REG_WXLO);
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WXLO */
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WXHI */
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WYLO */
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WYHI */
-//	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WWLO */
-	bt431_write_reg_inc(regs, 0x01); /* BT431_REG_WWLO */
+	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WWLO */
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WWHI */
-//	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WHLO */
-	bt431_write_reg_inc(regs, 0x01); /* BT431_REG_WHLO */
+	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WHLO */
 	bt431_write_reg_inc(regs, 0x00); /* BT431_REG_WHHI */
-
-	bt431_load_cursor_sprite(regs);
 }
