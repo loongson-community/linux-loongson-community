@@ -97,7 +97,7 @@ static char *serial_revdate = "2001-02-08";
 #include <linux/ptrace.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
-#include <linux/slab.h>
+#include <linux/malloc.h>
 #include <linux/init.h>
 #include <asm/uaccess.h>
 #include <linux/delay.h>
@@ -134,7 +134,7 @@ static int serial_refcount;
 
 static struct timer_list serial_timer;
 
-extern unsigned long get_au1000_uart_baud(void);
+extern unsigned long get_au1000_uart_baud_base(void);
 
 /* serial subtype definitions */
 #ifndef SERIAL_TYPE_NORMAL
@@ -755,6 +755,7 @@ static int startup(struct async_struct * info)
 
 	if (inl(UART_MOD_CNTRL + state->port) != 0x3) {
 		outl(3, UART_MOD_CNTRL + state->port);
+		au_sync_delay(10);
 	}
 #ifdef SERIAL_DEBUG_OPEN
 	printk("starting up ttys%d (irq %d)...", info->line, state->irq);
@@ -989,6 +990,8 @@ static void shutdown(struct async_struct * info)
 		set_bit(TTY_IO_ERROR, &info->tty->flags);
 
 	info->flags &= ~ASYNC_INITIALIZED;
+	outl(0, UART_MOD_CNTRL + state->port);
+	au_sync_delay(10);
 	restore_flags(flags);
 }
 
@@ -1040,7 +1043,8 @@ static void change_speed(struct async_struct *info,
 	if (!baud) {
 		baud = 9600;	/* B0 transition handled in rs_set_termios */
 	}
-	baud_base = info->state->baud_base;
+	baud_base = get_au1000_uart_baud_base();
+
 	//if (baud == 38400 &&
 	if (((info->flags & ASYNC_SPD_MASK) == ASYNC_SPD_CUST)) {
 		quot = info->state->custom_divisor;
@@ -2514,6 +2518,7 @@ static void autoconfig(struct serial_state * state)
 
 	if (inl(UART_MOD_CNTRL + state->port) != 0x3) {
 		outl(3, UART_MOD_CNTRL + state->port);
+		au_sync_delay(10);
 	}
 		
 	state->type = PORT_16550;
@@ -2544,6 +2549,9 @@ static void autoconfig(struct serial_state * state)
 	serial_outp(info, UART_FCR, 0);
 	(void)serial_in(info, UART_RX);
 	serial_outp(info, UART_IER, 0);
+
+	outl(0, UART_MOD_CNTRL + state->port);
+	au_sync_delay(10);
 	
 	restore_flags(flags);
 }
@@ -2651,7 +2659,7 @@ static int __init rs_init(void)
 		panic("Couldn't register callout driver\n");
 	
 	for (i = 0, state = rs_table; i < NR_PORTS; i++,state++) {
-		state->baud_base = get_au1000_uart_baud();
+		state->baud_base = get_au1000_uart_baud_base();
 		state->magic = SSTATE_MAGIC;
 		state->line = i;
 		state->type = PORT_UNKNOWN;
@@ -3047,7 +3055,7 @@ static int __init serial_console_setup(struct console *co, char *options)
 	info->io_type = state->io_type;
 	info->iomem_base = state->iomem_base;
 	info->iomem_reg_shift = state->iomem_reg_shift;
-	state->baud_base = get_au1000_uart_baud();
+	state->baud_base = get_au1000_uart_baud_base();
 	quot = state->baud_base / baud;
 
 	cval = cflag & (CSIZE | CSTOPB);

@@ -45,6 +45,9 @@ fi
 if [ "$CONFIG_DDB5477" = "y" ]; then
     dep_tristate '  NEC Vrc5477 AC97 sound' CONFIG_SOUND_VRC5477 $CONFIG_SOUND
 fi
+if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
+    dep_tristate '  Au1000 Sound' CONFIG_SOUND_AU1000 $CONFIG_SOUND
+fi
 
 dep_tristate '  Trident 4DWave DX/NX, SiS 7018 or ALi 5451 PCI Audio Core' CONFIG_SOUND_TRIDENT $CONFIG_SOUND
 

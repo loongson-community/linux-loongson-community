@@ -45,13 +45,14 @@
 /* #define DEBUG_CMDLINE */
 
 char arcs_cmdline[COMMAND_LINE_SIZE];
-int prom_argc;
-char **prom_argv, **prom_envp;
+extern int prom_argc;
+extern char **prom_argv, **prom_envp;
 
-typedef struct {
-	char *name;
-/*	char *val; */
-} t_env_var;
+typedef struct
+{
+    char *name;
+/*    char *val; */
+}t_env_var;
 
 
 char * __init prom_getcmdline(void)
@@ -101,7 +102,7 @@ char *prom_getenv(char *envname)
 	return(NULL);
 }
 
-static inline unsigned char str2hexnum(unsigned char c)
+inline unsigned char str2hexnum(unsigned char c)
 {
 	if(c >= '0' && c <= '9')
 	return c - '0';
@@ -110,11 +111,41 @@ static inline unsigned char str2hexnum(unsigned char c)
 	return 0; /* foo */
 }
 
-int __init page_is_ram(unsigned long pagenr)
+inline void str2eaddr(unsigned char *ea, unsigned char *str)
 {
-	return 1;
+	int i;
+
+	for(i = 0; i < 6; i++) {
+		unsigned char num;
+
+		if((*str == '.') || (*str == ':'))
+			str++;
+		num = str2hexnum(*str++) << 4;
+		num |= (str2hexnum(*str++));
+		ea[i] = num;
+	}
+}
+ 
+int get_ethernet_addr(char *ethernet_addr)
+{
+	int i;
+        char *ethaddr_str;
+
+        ethaddr_str = prom_getenv("ethaddr");
+	if (!ethaddr_str) {
+	        printk("ethaddr not set in boot prom\n");
+		return -1;
+	}
+	str2eaddr(ethernet_addr, ethaddr_str);
+
+#if 0
+	printk("get_ethernet_addr: ");
+	for (i=0; i<5; i++)
+		printk("%02x:", (unsigned char)*(ethernet_addr+i));
+	printk("%02x\n", *(ethernet_addr+i));
+#endif
+
+	return 0;
 }
 
-void prom_free_prom_memory (void)
-{
-}
+void prom_free_prom_memory (void) {}

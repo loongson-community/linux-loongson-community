@@ -36,9 +36,11 @@
 #include <asm/reboot.h>
 #include <asm/system.h>
 
+extern int au_sleep(void);
+
 void au1000_restart(char *command)
 {
-	set_cp0_status(ST0_BEV | ST0_ERL);
+	set_cp0_status((ST0_BEV | ST0_ERL));
 	set_cp0_config(CONF_CM_UNCACHED);
 	flush_cache_all();
 	write_32bit_cp0_register(CP0_WIRED, 0);
@@ -48,10 +50,18 @@ void au1000_restart(char *command)
 void au1000_halt(void)
 {
 	printk(KERN_NOTICE "\n** You can safely turn off the power\n");
+#ifdef CONFIG_PM
+	au_sleep();
+
+	/* should not get here */
+	printk(KERN_ERR "Unable to put cpu in sleep mode\n");
+	while(1);
+#else
 	while (1)
 		__asm__(".set\tmips3\n\t"
 	                "wait\n\t"
 			".set\tmips0");
+#endif
 }
 
 void au1000_power_off(void)

@@ -31,45 +31,40 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/ioport.h>
+#include <linux/mm.h>
 #include <linux/console.h>
 #include <linux/mc146818rtc.h>
+#include <linux/delay.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/irq.h>
+#include <asm/keyboard.h>
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
+#include <asm/pgtable.h>
 #include <asm/au1000.h>
+#include <asm/pb1000.h>
 
 #if defined(CONFIG_AU1000_SERIAL_CONSOLE)
 extern void console_setup(char *, int *);
 char serial_console[20];
 #endif
 
+#ifdef CONFIG_BLK_DEV_INITRD
+unsigned long initrd_start, initrd_end;
+extern void * __rd_start, * __rd_end;
+#endif
+
 void (*__wbflush) (void);
 extern struct rtc_ops no_rtc_ops;
 extern char * __init prom_getcmdline(void);
-extern void au1000_restart(void);
+extern void au1000_restart(char *);
 extern void au1000_halt(void);
 extern void au1000_power_off(void);
+extern struct resource ioport_resource;
+extern struct resource iomem_resource;
 
-struct {
-    struct resource ram;
-    struct resource io;
-    struct resource sram;
-    struct resource flash;
-    struct resource boot;
-    struct resource pcmcia;
-    struct resource lcd;
-} au1000_resources = {
-    { "RAM",           0,          0x3FFFFFF,  IORESOURCE_MEM },
-    { "I/O",           0x10000000, 0x119FFFFF                 },
-    { "SRAM",          0x1e000000, 0x1E03FFFF                 },
-    { "System Flash",  0x1F800000, 0x1FBFFFFF                 },
-    { "Boot ROM",      0x1FC00000, 0x1FFFFFFF                 },
-    { "PCMCIA",        0x20000000, 0x27FFFFFF                 },
-    { "LCD",           0x60000000, 0x603FFFFF                 },
-};
 
 void au1000_wbflush(void)
 {
@@ -79,17 +74,17 @@ void au1000_wbflush(void)
 void __init au1000_setup(void)
 {
 	char *argptr;
-
+	u32 pin_func, static_cfg0, usb_clocks=0;
+	
 	argptr = prom_getcmdline();
 
 #ifdef CONFIG_AU1000_SERIAL_CONSOLE
-	if ((argptr = strstr(argptr, "console=ttyS0")) == NULL) {
+	if ((argptr = strstr(argptr, "console=")) == NULL) {
 		argptr = prom_getcmdline();
 		strcat(argptr, " console=ttyS0,115200");
 	}
 #endif	  
 
-	//set_cp0_status(ST0_FR,0);
 	rtc_ops = &no_rtc_ops;
         __wbflush = au1000_wbflush;
 	_machine_restart = au1000_restart;
@@ -99,19 +94,130 @@ void __init au1000_setup(void)
 	/*
 	 * IO/MEM resources. 
 	 */
-	mips_io_port_base = KSEG1;
-	ioport_resource.start = au1000_resources.io.start;
-	ioport_resource.end = au1000_resources.lcd.end;
+	mips_io_port_base = 0;
+	ioport_resource.start = 0;
+	ioport_resource.end = 0xffffffff;
+	iomem_resource.start = 0;
+	ioport_resource.end = 0xffffffff;
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	initrd_start = (unsigned long)&__rd_start;
+	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-	outl(PC_CNTRL_E0 | PC_CNTRL_EN0 | PC_CNTRL_EN0, PC_COUNTER_CNTRL);
+	// set AUX clock to 12MHz * 8 = 96 MHz
+	outl(8, AUX_PLL_CNTRL);
+	udelay(1000);
+
+#if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
+#ifdef CONFIG_USB_OHCI
+	if ((argptr = strstr(argptr, "usb_ohci=")) == NULL) {
+	        char usb_args[80];
+		argptr = prom_getcmdline();
+		sprintf(usb_args, " usb_ohci=base:0x%x,len:0x%x,irq:%d",
+			USB_OHCI_BASE, USB_OHCI_LEN, AU1000_USB_HOST_INT);
+		strcat(argptr, usb_args);
+	}
+#endif
+	// enable CLK2 and/or CLK1 for USB Host and/or Device clocks
+	outl(0x00300000, FQ_CNTRL_1);         // FREQ2 = aux/2 = 48 MHz
+#ifdef CONFIG_AU1000_USB_DEVICE
+	usb_clocks |= 0x00000200; // CLK1 = FREQ2
+#endif
+#ifdef CONFIG_USB_OHCI
+	usb_clocks |= 0x00004000; // CLK2 = FREQ2
+#endif
+
+#ifdef CONFIG_USB_OHCI
+
+	outl(usb_clocks, CLOCK_SOURCE_CNTRL);
+	udelay(1000);
+
+	// enable host controller and wait for reset done
+	outl(0x08, USB_HOST_CONFIG);
+	udelay(1000);
+	outl(0x0c, USB_HOST_CONFIG);
+	udelay(1000);
+	while (!(inl(USB_HOST_CONFIG) & 0x10))
+	    ;
+#endif
+	
+	// Eric D. says we need to do this.
+	outl(0, PIN_STATE);
+
+	// configure pins GPIO[14:9] as GPIO
+	pin_func = inl(PIN_FUNCTION) & (u32)(~0x8080);
+#ifndef CONFIG_AU1000_USB_DEVICE
+	// 2nd USB port is USB host
+	pin_func |= 0x8000;
+#endif
+	outl(pin_func, PIN_FUNCTION);
+	outl(0x2800, TSTATE_STATE_SET);
+	outl(0x0030, OUTPUT_STATE_CLEAR);
+#endif
+
+	/* make gpio 15 an input (interrupt line) */
+	pin_func = inl(PIN_FUNCTION) & (u32)(~0x100);
+	outl(0x8000, TSTATE_STATE_SET);
+	
+#ifdef CONFIG_FB
+	conswitchp = &dummy_con;
+#endif
+
+#ifdef CONFIG_FB_E1356
+	if ((argptr = strstr(argptr, "video=")) == NULL) {
+	    argptr = prom_getcmdline();
+#ifdef CONFIG_PB1000_CRT
+	    strcat(argptr, " video=e1356fb:system:pb1000-crt,font:SUN8x16");
+#elif defined (CONFIG_PB1000_NTSC)
+	    strcat(argptr, " video=e1356fb:system:pb1000-ntsc,font:SUN8x16");
+#elif defined (CONFIG_PB1000_TFT)
+	    strcat(argptr, " video=e1356fb:system:pb1000-tft,font:SUN8x16");
+#else
+	    strcat(argptr, " video=e1356fb:system:pb1000-crt,font:SUN8x16");
+#endif
+	}
+ 
+	static_cfg0 = inl(STATIC_CONFIG_0) & (u32)(~0x1c00);
+	outl(static_cfg0, STATIC_CONFIG_0);
+
+	// configure RCE2* for LCD
+	outl(0x00000004, STATIC_CONFIG_2);
+
+	// STATIC_TIMING_2
+	outl(0x08061908, STATIC_TIMING_2);
+
+	// Set 32-bit base address decoding for RCE2*
+	outl(0x10003ff0, STATIC_ADDRESS_2);
+#endif
+
+#ifdef CONFIG_PCI
+	outl(0x11803e40, STATIC_ADDRESS_1);  // expand CE0 to cover PCI
+	outl(inl(STATIC_CONFIG_0) | 0x1000, STATIC_CONFIG_0);  // burst visibility on 
+	outl(0x83, STATIC_CONFIG_1);         // ewait enabled, flash timing
+	outl(0x33030a10, STATIC_TIMING_1);   // slower timing for FPGA
+
+	outl(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
+	outl(0, SDRAM_MBAR);        // set mbar to 0
+	outl(0x2, SDRAM_CMD);       // enable memory accesses
+	au_sync_delay(1);
+#endif
+
+#ifndef CONFIG_SERIAL_NONSTANDARD
+	/* don't touch the default serial console */
+	outl(0, UART0_ADDR + UART_CLK);
+#endif
+	outl(0, UART1_ADDR + UART_CLK);
+	outl(0, UART2_ADDR + UART_CLK);
+	outl(0, UART3_ADDR + UART_CLK);
+
+	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_E0S);
+	outl(PC_CNTRL_E0 | PC_CNTRL_EN0, PC_COUNTER_CNTRL);
+	au_sync();
 	while (inl(PC_COUNTER_CNTRL) & PC_CNTRL_T0S);
-	outl(0x8000-1, PC0_TRIM);
+	outl(0, PC0_TRIM);
 
 	printk("Alchemy Semi PB1000 Board\n");
 	printk("Au1000/PB1000 port (C) 2001 MontaVista Software, Inc. (source@mvista.com)\n");
 }
-

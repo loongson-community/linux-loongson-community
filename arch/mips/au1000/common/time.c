@@ -1,4 +1,5 @@
 /*
+ * 
  * Copyright (C) 2001 MontaVista Software, ppopov@mvista.com
  * Copied and modified Carsten Langgaard's time.c
  *
@@ -23,7 +24,9 @@
  * ########################################################################
  *
  * Setting up the clock on the MIPS boards.
+ *
  */
+
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel_stat.h>
@@ -38,21 +41,30 @@
 #include <linux/mc146818rtc.h>
 #include <linux/timex.h>
 
+extern void startup_match20_interrupt(void);
+extern void set_au1000_uart_baud_base(unsigned long new_baud_base);
+extern void set_au1000_speed(unsigned int new_freq);
+
 extern volatile unsigned long wall_jiffies;
 unsigned long missed_heart_beats = 0;
-unsigned long uart_baud_base;
 
 static unsigned long r4k_offset; /* Amount to increment compare reg each time */
 static unsigned long r4k_cur;    /* What counter should be at next timer irq */
 extern rwlock_t xtime_lock;
 
-#define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
+/* Cycle counter value at the previous timer interrupt.. */
+static unsigned int timerhi = 0, timerlo = 0;
+
+#ifdef CONFIG_PM
+#define MATCH20_INC 328
+extern void startup_match20_interrupt(void);
+static unsigned long last_pc0, last_match20;
+#endif
 
 static inline void ack_r4ktimer(unsigned long newval)
 {
 	write_32bit_cp0_register(CP0_COMPARE, newval);
 }
-
 
 /*
  * There are a lot of conceptually broken versions of the MIPS timer interrupt
@@ -62,12 +74,23 @@ static inline void ack_r4ktimer(unsigned long newval)
 unsigned long wtimer;
 void mips_timer_interrupt(struct pt_regs *regs)
 {
-	int irq = 7;
+	int irq = 63;
+	unsigned long count;
+
+#ifdef CONFIG_PM
+	printk(KERN_ERR "Unexpected CP0 interrupt\n");
+	regs->cp0_status &= ~IE_IRQ5; /* disable CP0 interrupt */
+	return;
+#endif
 
 	if (r4k_offset == 0)
 		goto null;
 
 	do {
+		count = read_32bit_cp0_register(CP0_COUNT);
+		timerhi += (count < timerlo);   /* Wrap around */
+		timerlo = count;
+
 		kstat.irqs[0][irq]++;
 		do_timer(regs);
 		r4k_cur += r4k_offset;
@@ -82,6 +105,51 @@ null:
 	ack_r4ktimer(0);
 }
 
+#ifdef CONFIG_PM
+void counter0_irq(int irq, void *dev_id, struct pt_regs *regs)
+{
+	unsigned long pc0;
+	int time_elapsed;
+	static int jiffie_drift = 0;
+
+	kstat.irqs[0][irq]++;
+	if (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20) {
+		/* should never happen! */
+		printk(KERN_WARNING "counter 0 w status eror\n");
+		return;
+	}
+
+	pc0 = inl(PC0_COUNTER_READ);
+	if (pc0 < last_match20) {
+		/* counter overflowed */
+		time_elapsed = (0xffffffff - last_match20) + pc0;
+	}
+	else {
+		time_elapsed = pc0 - last_match20;
+	}
+
+	while (time_elapsed > 0) {
+		do_timer(regs);
+		time_elapsed -= MATCH20_INC;
+		last_match20 += MATCH20_INC;
+		jiffie_drift++;
+	}
+
+	last_pc0 = pc0;
+	outl(last_match20 + MATCH20_INC, PC0_MATCH2);
+	au_sync();
+
+	/* our counter ticks at 10.009765625 ms/tick, we we're running
+	 * almost 10uS too slow per tick.
+	 */
+	 
+	if (jiffie_drift >= 999) {
+		jiffie_drift -= 999;
+		do_timer(regs); /* increment jiffies by one */
+	}
+}
+#endif
+
 /* 
  * Figure out the r4k offset, the amount to increment the compare
  * register for each time tick. 
@@ -90,12 +158,13 @@ null:
 unsigned long cal_r4koff(void)
 {
 	unsigned long count;
-	unsigned long cpu_pll;
 	unsigned long cpu_speed;
 	unsigned long start, end;
 	unsigned long counter;
-	int i;
 	int trim_divide = 16;
+	unsigned long flags;
+
+	save_and_cli(flags);
 
 	counter = inl(PC_COUNTER_CNTRL);
 	outl(counter | PC_CNTRL_EN1, PC_COUNTER_CNTRL);
@@ -121,18 +190,15 @@ unsigned long cal_r4koff(void)
 
 	count = read_32bit_cp0_register(CP0_COUNT);
 	cpu_speed = count * 2;
-	uart_baud_base = (((cpu_speed) / 4) / 16);
+	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
+	restore_flags(flags);
 	return (cpu_speed / HZ);
 }
 
-static unsigned long __init get_mips_time(void)
-{
-	return inl(PC0_COUNTER_READ);
-}
 
 void __init time_init(void)
 {
-        unsigned int est_freq, flags;
+        unsigned int est_freq;
 
 	printk("calculating r4koff... ");
 	r4k_offset = cal_r4koff();
@@ -144,25 +210,48 @@ void __init time_init(void)
 	est_freq -= est_freq%10000;
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000, 
 	       (est_freq%1000000)*100/1000000);
+	set_au1000_speed(est_freq);
 	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
 
 	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
-	set_cp0_status(ALLINTS);
 
-	/* Read time from the RTC chipset. */
-	write_lock_irqsave (&xtime_lock, flags);
-	xtime.tv_sec = get_mips_time();
+	/* no RTC on the pb1000 */
+	xtime.tv_sec = 0;
 	xtime.tv_usec = 0;
-	write_unlock_irqrestore(&xtime_lock, flags);
+
+#ifdef CONFIG_PM
+	/*
+	 * setup counter 0, since it keeps ticking after a
+	 * 'wait' instruction has been executed. The CP0 timer and
+	 * counter 1 do NOT continue running after 'wait'
+	 *
+	 * It's too early to call request_irq() here, so we handle
+	 * counter 0 interrupt as a special irq and it doesn't show
+	 * up under /proc/interrupts.
+	 */
+	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_C0S);
+	writel(0, PC0_COUNTER_WRITE);
+	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_C0S);
+
+	writel(readl(PM_WAKEUP_SOURCE_MASK) | (1<<8), PM_WAKEUP_SOURCE_MASK);
+	writel(~0, PM_WAKEUP_CAUSE);
+	au_sync();
+	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20);
+
+	/* setup match20 to interrupt once every 10ms */
+	last_pc0 = last_match20 = readl(PC0_COUNTER_READ);
+	writel(last_match20 + MATCH20_INC, PC0_MATCH2);
+	au_sync();
+	while (readl(PC_COUNTER_CNTRL) & PC_CNTRL_M20);
+	startup_match20_interrupt();
+#endif
+	au_sync();
 }
 
 /* This is for machines which generate the exact clock. */
 #define USECS_PER_JIFFY (1000000/HZ)
-#define USECS_PER_JIFFY_FRAC ((1000000ULL << 32) / HZ & 0xffffffff)
+#define USECS_PER_JIFFY_FRAC (0x100000000*1000000/HZ&0xffffffff)
 
-/* Cycle counter value at the previous timer interrupt.. */
-
-static unsigned int timerhi = 0, timerlo = 0;
 
 static unsigned long
 div64_32(unsigned long v1, unsigned long v2, unsigned long v3)
@@ -173,11 +262,28 @@ div64_32(unsigned long v1, unsigned long v2, unsigned long v3)
 }
 
 
-/*
- * FIXME: Does playing with the RP bit in c0_status interfere with this code?
- */
 static unsigned long do_fast_gettimeoffset(void)
 {
+#ifdef CONFIG_PM
+	unsigned long pc0;
+	unsigned long offset;
+
+	pc0 = readl(PC0_COUNTER_READ);
+	if (pc0 < last_pc0) {
+		offset = 0xffffffff - last_pc0 + pc0;
+		printk("offset over: %x\n", (unsigned)offset);
+	}
+	else {
+		offset = (unsigned long)(((pc0 - last_pc0) * 305) / 10);
+	}
+	if ((pc0-last_pc0) > 2*MATCH20_INC) {
+		printk("huge offset %x, last_pc0 %x last_match20 %x pc0 %x\n", 
+				(unsigned)offset, (unsigned)last_pc0, 
+				(unsigned)last_match20, (unsigned)pc0);
+	}
+	au_sync();
+	return offset;
+#else
 	u32 count;
 	unsigned long res, tmp;
 	unsigned long r0;
@@ -225,6 +331,7 @@ static unsigned long do_fast_gettimeoffset(void)
 		res = USECS_PER_JIFFY-1;
 
 	return res;
+#endif
 }
 
 void do_gettimeofday(struct timeval *tv)
@@ -273,14 +380,4 @@ void do_settimeofday(struct timeval *tv)
 	time_esterror = NTP_PHASE_LIMIT;
 
 	write_unlock_irq (&xtime_lock);
-}
-
-/*
- * The UART baud base is not known at compile time ... if
- * we want to be able to use the same code on different
- * speed CPUs.
- */
-unsigned long get_au1000_uart_baud()
-{
-	return uart_baud_base;
 }

@@ -53,10 +53,17 @@ else
   endif
 endif
 
+obj-$(CONFIG_PCMCIA_AU1000)			+= au1000_ss.o
+au1000_ss-objs-y				:= au1000_generic.o
+au1000_ss-objs-$(CONFIG_MIPS_PB1000)		+= au1000_pb1000.o
+
 include $(TOPDIR)/Rules.make
 
 pcmcia_core.o:  $(pcmcia_core-objs)
 	$(LD) $(LD_RFLAG) -r -o $@ $(pcmcia_core-objs)
+
+au1000_ss.o: $(au1000_ss-objs-y)
+	$(LD) -r -o $@ $(au1000_ss-objs-y)
 
 yenta_socket.o: $(yenta_socket-objs)
 	$(LD) $(LD_RFLAG) -r -o $@ $(yenta_socket-objs)

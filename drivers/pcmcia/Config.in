@@ -22,6 +22,9 @@ if [ "$CONFIG_PCMCIA" != "n" ]; then
    if [ "$CONFIG_HD64465" = "y" ]; then
       dep_tristate '  HD64465 host bridge support' CONFIG_HD64465_PCMCIA $CONFIG_PCMCIA
    fi
+   if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
+      dep_tristate '  AU1000 support' CONFIG_PCMCIA_AU1000 $CONFIG_PCMCIA
+   fi
 fi
 
 endmenu

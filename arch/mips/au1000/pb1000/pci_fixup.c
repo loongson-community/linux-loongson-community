@@ -1,7 +1,6 @@
 /*
- *
  * BRIEF MODULE DESCRIPTION
- *	PB1000 board setup
+ *	Board specific pci fixups.
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
@@ -27,42 +26,61 @@
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-
-#include <linux/init.h>
-#include <linux/mm.h>
-#include <linux/sched.h>
-#include <linux/bootmem.h>
-#include <asm/addrspace.h>
-#include <asm/bootinfo.h>
 #include <linux/config.h>
-#include <linux/string.h>
+
+#ifdef CONFIG_PCI
+
+#include <linux/types.h>
+#include <linux/pci.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
+#include <linux/init.h>
 
-int prom_argc;
-char **prom_argv, **prom_envp;
-extern void  __init prom_init_cmdline(void);
-extern char *prom_getenv(char *envname);
+#include <asm/au1000.h>
+#include <asm/pb1000.h>
 
-int __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
+#undef	DEBUG
+#ifdef 	DEBUG
+#define	DBG(x...)	printk(x)
+#else
+#define	DBG(x...)
+#endif
+
+void __init pcibios_fixup_resources(struct pci_dev *dev)
 {
-	unsigned char *memsize_str;
-	unsigned long memsize;
-
-	prom_argc = argc;
-	prom_argv = argv;
-	prom_envp = envp;
-
-	mips_machgroup = MACH_GROUP_ALCHEMY;
-	mips_machtype = MACH_PB1000;  
-
-	prom_init_cmdline();
-	memsize_str = prom_getenv("memsize");
-	if (!memsize_str) {
-		memsize = 0x04000000;
-	} else {
-		memsize = simple_strtol(memsize_str, NULL, 0);
-	}
-	add_memory_region(0, memsize, BOOT_MEM_RAM);
-	return 0;
+	/* will need to fixup IO resources */
 }
+
+void __init pcibios_fixup(void)
+{
+	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
+
+	writel(0, PCI_BRIDGE_CONFIG);	// set extend byte to 0
+	writel(0, SDRAM_MBAR);	// set mbar to 0
+	writel(0x2, SDRAM_CMD);	// enable memory accesses
+	au_sync_delay(1);
+
+	// set extend byte to mbar of ext slot
+	writel(((pci_mem_start >> 24) & 0xff) |
+	       (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27), PCI_BRIDGE_CONFIG);
+	DBG("Set bridge config to %x\n", readl(PCI_BRIDGE_CONFIG));
+}
+
+void __init pcibios_fixup_irqs(void)
+{
+	unsigned int slot, func;
+	unsigned char pin;
+	struct pci_dev *dev;
+
+	pci_for_each_dev(dev) {
+		if (dev->bus->number != 0)
+			return;
+
+		pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
+		slot = PCI_SLOT(dev->devfn);
+		func = PCI_FUNC(dev->devfn);
+		dev->irq = AU1000_GPIO_15;
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);
+		DBG("slot %d func %d irq %d\n", slot, func, dev->irq);
+	}
+}
+#endif

@@ -19,13 +19,10 @@ all: au1000.o
 
 O_TARGET := au1000.o
 
-obj-y := prom.o dbg_io.o int-handler.o irq.o puts.o time.o reset.o
+obj-y := prom.o dbg_io.o int-handler.o dma.o irq.o puts.o time.o reset.o power.o clocks.o
 
 obj-$(CONFIG_AU1000_UART) += serial.o             
+obj-$(CONFIG_AU1000_USB_DEVICE) += usbdev.o
 obj-$(CONFIG_REMOTE_DEBUG) += dbg_io.o             
-obj-$(CONFIG_BLK_DEV_INITRD) += ramdisk.o
-
-ramdisk.o: 
-	mkramobj ramdisk ramdisk.o
 
 include $(TOPDIR)/Rules.make
