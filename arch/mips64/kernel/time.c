@@ -341,7 +341,7 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  * high-level timer interrupt service routines.  This function
  * is set as irqaction->handler and is invoked through do_IRQ.
  */
-void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	if (cpu_has_counter) {
 		unsigned int count;
@@ -420,6 +420,8 @@ void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		panic("Not implemented yet!!!");
 	}
 #endif	/* CONFIG_SMP */
+
+	return IRQ_HANDLED;
 }
 
 asmlinkage void ll_timer_interrupt(int irq, struct pt_regs *regs)

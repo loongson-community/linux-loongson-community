@@ -53,7 +53,7 @@ extern unsigned long calibrate_div64_gettimeoffset(void);
 /*
  * high-level timer interrupt routines.
  */
-extern void timer_interrupt(int irq, void *dev_id, struct pt_regs *regs);
+extern irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs);
 
 /*
  * the corresponding low-level timer interrupt routine.
