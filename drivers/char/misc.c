@@ -66,9 +66,7 @@ static DECLARE_MUTEX(misc_sem);
 static unsigned char misc_minors[DYNAMIC_MINORS / 8];
 
 extern int psaux_init(void);
-#ifdef CONFIG_SGI_NEWPORT_GFX
 extern void gfx_register(void);
-#endif
 extern void streamable_init(void);
 extern int rtc_DP8570A_init(void);
 extern int rtc_MK48T08_init(void);
