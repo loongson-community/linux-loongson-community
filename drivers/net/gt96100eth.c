@@ -620,7 +620,7 @@ enable_ether_irq(struct net_device *dev)
 	 * route ethernet interrupt to GT_SERINT0 for port 0,
 	 * GT_INT0 for port 1.
 	 */
-	int intr_mask_reg = (dev->irq == 3) ?
+	int intr_mask_reg = (gp->port_num == 0) ?
 		GT96100_SERINT0_MASK : GT96100_INT0_HIGH_MASK;
 	
 	if (gp->chip_rev >= REV_GT96100A_1) {
@@ -649,7 +649,7 @@ disable_ether_irq(struct net_device *dev)
 {
 	struct gt96100_private *gp = (struct gt96100_private *)dev->priv;
 	u32 intMask;
-	int intr_mask_reg = (dev->irq == 3) ?
+	int intr_mask_reg = (gp->port_num == 0) ?
 		GT96100_SERINT0_MASK : GT96100_INT0_HIGH_MASK;
 
 	intMask = GT96100_READ(intr_mask_reg);
@@ -742,7 +742,10 @@ gt96100_probe1(int port_num)
 		return -ENODEV;
 	}
 	
-	request_region(gtif->iobase, GT96100_ETH_IO_SIZE, "GT96100ETH");
+	if (!request_region(gtif->iobase, GT96100_ETH_IO_SIZE, "GT96100ETH")) {
+		printk(KERN_ERR __FUNCTION__ ": request_region failed\n");
+		return -EBUSY;
+	}
 
 	dev = init_etherdev(0, sizeof(struct gt96100_private));
 	gtif->dev = dev;
@@ -1306,12 +1309,11 @@ gt96100_rx(struct net_device *dev, u32 status)
 		dump_skb(4, dev, skb);
 	
 		netif_rx(skb);        /* pass the packet to upper layers */
+		dev->last_rx = jiffies;
 
 		// now we can release ownership of this desc back to device
 		cmdstat |= (u32)rxOwn;
 		rd->cmdstat = cpu_to_dma32(cmdstat);
-	
-		dev->last_rx = jiffies;
 	}
     
 	if (nextOut == gp->rx_next_out)
