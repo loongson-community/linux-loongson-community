@@ -166,6 +166,50 @@ void show_code(unsigned int *pc)
 	}
 }
 
+void show_regs(struct pt_regs *regs)
+{
+	printk("Cpu %d\n", smp_processor_id());
+	/* Saved main processor registers. */
+	printk("$0      : %016lx %016lx %016lx %016lx\n",
+	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
+	printk("$4      : %016lx %016lx %016lx %016lx\n",
+               regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
+	printk("$8      : %016lx %016lx %016lx %016lx\n",
+	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
+	printk("$12     : %016lx %016lx %016lx %016lx\n",
+               regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
+	printk("$16     : %016lx %016lx %016lx %016lx\n",
+	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
+	printk("$20     : %016lx %016lx %016lx %016lx\n",
+               regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
+	printk("$24     : %016lx %016lx\n",
+	       regs->regs[24], regs->regs[25]);
+	printk("$28     : %016lx %016lx %016lx %016lx\n",
+	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
+	printk("Hi      : %016lx\n", regs->hi);
+	printk("Lo      : %016lx\n", regs->lo);
+
+	/* Saved cp0 registers. */
+	printk("epc     : %016lx    %s\nbadvaddr: %016lx\n",
+	       regs->cp0_epc, print_tainted(), regs->cp0_badvaddr);
+	printk("Status  : %08x  [ ", (unsigned int) regs->cp0_status);
+	if (regs->cp0_status & ST0_KX) printk("KX ");
+	if (regs->cp0_status & ST0_SX) printk("SX ");
+	if (regs->cp0_status & ST0_UX) printk("UX ");
+	switch (regs->cp0_status & ST0_KSU) {
+		case KSU_USER: printk("USER ");			break;
+		case KSU_SUPERVISOR: printk("SUPERVISOR ");	break;
+		case KSU_KERNEL: printk("KERNEL ");		break;
+		default: printk("BAD_MODE ");			break;
+	}
+	if (regs->cp0_status & ST0_ERL) printk("ERL ");
+	if (regs->cp0_status & ST0_EXL) printk("EXL ");
+	if (regs->cp0_status & ST0_IE) printk("IE ");
+	printk("]\n");
+
+	printk("Cause   : %08x\n", (unsigned int) regs->cp0_cause);
+}
+
 static spinlock_t die_lock;
 
 void die(const char * str, struct pt_regs * regs)
@@ -545,6 +589,7 @@ void set_except_vector(int n, void *addr)
 {
 	unsigned long handler = (unsigned long) addr;
 	exception_handlers[n] = handler;
+
 	if (n == 0 && mips_cpu.options & MIPS_CPU_DIVEC) {
 		*(volatile u32 *)(KSEG0+0x200) = 0x08000000 |
 		                                 (0x03ffffff & (handler >> 2));
@@ -618,7 +663,7 @@ void __init trap_init(void)
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
 		set_cp0_status(0xc00);
-		break;
+		goto nocache;
 
 	case CPU_R10000:
 	case CPU_R4000MC:
@@ -632,7 +677,9 @@ void __init trap_init(void)
 	case CPU_R4600:
 	case CPU_R5000:
 	case CPU_NEVADA:
-r4k:
+		/* Cache error vector  */
+		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
+nocache:
 		/* Debug TLB refill handler.  */
 		memcpy((void *)KSEG0, &except_vec0, 0x80);
 		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
@@ -642,10 +689,10 @@ r4k:
 
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
-			       0x180);
+			       0x80);
 		} else {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x100);
+			       0x80);
 		}
 
 		set_except_vector(1, __xtlb_mod);
