@@ -863,6 +863,7 @@ static void __init probe_pcache(void)
 	case CPU_RM7000:
 		rm7k_erratum31();
 
+	case CPU_RM9000:
 		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
 		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
 		c->icache.ways = 4;
@@ -895,6 +896,9 @@ static void __init probe_pcache(void)
 		              c->icache.ways *
 		              c->icache.linesz;
 		c->icache.waybit = ffs(icache_size/c->icache.ways) - 1;
+
+		if (config & 0x8)		/* VI bit */
+			c->icache.flags |= MIPS_CACHE_VTAG;
 
 		/*
 		 * Now probe the MIPS32 / MIPS64 data cache.
@@ -944,9 +948,6 @@ static void __init probe_pcache(void)
 	if (c->cputype != CPU_R10000 && c->cputype != CPU_R12000)
 		if (c->dcache.waysize > PAGE_SIZE)
 		        c->dcache.flags |= MIPS_CACHE_ALIASES;
-
-	if (config & 0x8)		/* VI bit */
-		c->icache.flags |= MIPS_CACHE_VTAG;
 
 	switch (c->cputype) {
 	case CPU_20KC:
@@ -1145,6 +1146,7 @@ static void __init setup_scache(void)
                 return;
 
 	case CPU_RM7000:
+	case CPU_RM9000:
 		setup_noscache_funcs();
 #ifdef CONFIG_RM7000_CPU_SCACHE
 		rm7k_sc_init();

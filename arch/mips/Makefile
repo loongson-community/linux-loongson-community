@@ -112,6 +112,9 @@ cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 -mmad
 cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -march=rm7000, -mcpu=r5000)
 32bit-isa-$(CONFIG_CPU_RM7000)	+= -mips2 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_RM7000)	+= -mips4 -Wa,--trap
+cflags-$(CONFIG_CPU_RM9000)	+= $(call check_gcc, -march=rm9000, -mcpu=r5000)
+32bit-isa-$(CONFIG_CPU_RM9000)	+= -mips2 -Wa,--trap
+64bit-isa-$(CONFIG_CPU_RM9000)	+= -mips4 -Wa,--trap
 cflags-$(CONFIG_CPU_SB1)	+= -Wa,--trap
 32bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, \
 					$(call check_gcc, -mcpu=sb1 -mips2, \

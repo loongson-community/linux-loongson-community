@@ -57,6 +57,7 @@
 #define PRID_IMP_MAGIC		0x2500
 #define PRID_IMP_RM7000		0x2700
 #define PRID_IMP_NEVADA		0x2800		/* RM5260 ??? */
+#define PRID_IMP_RM9000		0x3400
 #define PRID_IMP_R5432		0x5400
 #define PRID_IMP_R5500		0x5500
 #define PRID_IMP_4KC		0x8000
@@ -167,8 +168,9 @@
 #define CPU_VR4181A		51
 #define CPU_AU1100		52
 #define CPU_SR71000		53
-#define CPU_25KF		54
-#define CPU_LAST		54
+#define CPU_RM9000		54
+#define CPU_25KF		55
+#define CPU_LAST		55
 
 /*
  * ISA Level encodings

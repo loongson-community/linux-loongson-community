@@ -381,22 +381,22 @@ out:
 
 static void __init probe_tlb(unsigned long config)
 {
-	unsigned int prid, config1;
+	struct cpuinfo_mips *c = &current_cpu_data;
+	unsigned int reg;
 
-	prid = read_c0_prid() & ASID_MASK;
-	if (prid == PRID_IMP_RM7000 || !(config & (1 << 31)))
-		/*
-		 * Not a MIPS32/MIPS64 CPU..  Config 1 register not
-		 * supported, we assume R4k style.  Cpu probing already figured
-		 * out the number of tlb entries.
-		 */
+	/*
+	 * If this isn't a MIPS32 / MIPS64 compliant CPU.  Config 1 register
+	 * is not supported, we assume R4k style.  Cpu probing already figured
+	 * out the number of tlb entries.
+	 */
+	if ((c->processor_id  & 0xff0000) == PRID_COMP_LEGACY)
 		return;
 
-	config1 = read_c0_config1();
+	reg = read_c0_config1();
 	if (!((config >> 7) & 3))
-		panic("No MMU present");
-	else
-		current_cpu_data.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+		panic("No TLB present");
+
+	c->tlbsize = ((reg >> 25) & 0x3f) + 1;
 }
 
 void __init tlb_init(void)

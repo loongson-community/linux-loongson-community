@@ -853,7 +853,7 @@ config ARC_PROMLIB
 
 config BOARD_SCACHE
 	bool
-	depends on MIPS_EV96100 || MOMENCO_OCELOT || SGI_IP22
+	depends on CPU_RM9000 || MIPS_EV96100 || MOMENCO_OCELOT || SGI_IP22
 	default y
 
 config ARC64
@@ -972,6 +972,9 @@ config CPU_R10000
 config CPU_RM7000
 	bool "RM7000"
 
+config CPU_RM9000
+	bool "RM9000"
+
 config CPU_SB1
 	bool "SB1"
 
@@ -997,7 +1000,7 @@ config SIBYTE_DMA_PAGEOPS
 
 config CPU_HAS_PREFETCH
 	bool "Enable prefetches" if CPU_SB1 && !CPU_SB1_PASS_2
-	default y if CPU_RM7000 || CPU_MIPS64 || CPU_MIPS32
+	default y if CPU_MIPS32 || CPU_MIPS64 || CPU_RM7000 || CPU_RM9000
 
 config VTAG_ICACHE
 	bool "Support for Virtual Tagged I-cache" if CPU_MIPS64 || CPU_MIPS32
@@ -1020,7 +1023,7 @@ config SB1_PASS_2_1_WORKAROUNDS
 
 config 64BIT_PHYS_ADDR
 	bool "Support for 64-bit physical address space"
-	depends on (CPU_R4X00 || CPU_R5000 || CPU_RM7000 || CPU_R10000 || CPU_SB1 || CPU_MIPS32 || CPU_MIPS64) && MIPS32
+	depends on (CPU_R4X00 || CPU_R5000 || CPU_RM7000 || CPU_RM9000 || CPU_R10000 || CPU_SB1 || CPU_MIPS32 || CPU_MIPS64) && MIPS32
 
 config CPU_ADVANCED
 	bool "Override CPU Options"
@@ -1082,7 +1085,7 @@ config HIGHMEM
 
 config SMP
 	bool "Multi-Processing support"
-	depends on (SIBYTE_SB1250 && !SIBYTE_STANDALONE) || SGI_IP27
+	depends on CPU_RM9000 || (SIBYTE_SB1250 && !SIBYTE_STANDALONE) || SGI_IP27
 	---help---
 	  This enables support for systems with more than one CPU. If you have
 	  a system with only one CPU, like most personal computers, say N. If

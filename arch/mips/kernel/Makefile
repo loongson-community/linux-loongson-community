@@ -24,6 +24,7 @@ obj-$(CONFIG_CPU_R4X00)		+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R5000)		+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R5432)		+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_RM7000)	+= r4k_fpu.o r4k_switch.o
+obj-$(CONFIG_CPU_RM9000)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_NEVADA)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_R10000)	+= r4k_fpu.o r4k_switch.o
 obj-$(CONFIG_CPU_SB1)		+= r4k_fpu.o r4k_switch.o
