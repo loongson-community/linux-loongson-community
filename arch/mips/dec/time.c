@@ -47,6 +47,8 @@ extern rwlock_t xtime_lock;
 #define USECS_PER_JIFFY (1000000/HZ)
 #define USECS_PER_JIFFY_FRAC ((u32)((1000000ULL << 32) / HZ))
 
+#define TICK_SIZE	(tick_nsec / 1000)
+
 /* Cycle counter value at the previous timer interrupt.. */
 
 static unsigned int timerhi, timerlo;
@@ -191,8 +193,6 @@ static unsigned long do_ioasic_gettimeoffset(void)
  * If you are really that interested, you should be reading
  * comp.protocols.time.ntp!
  */
-
-#define TICK_SIZE tick
 
 static unsigned long do_slow_gettimeoffset(void)
 {
@@ -363,8 +363,8 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	read_lock(&xtime_lock);
 	if ((time_status & STA_UNSYNC) == 0
 	    && xtime.tv_sec > last_rtc_update + 660
-	    && xtime.tv_usec >= 500000 - tick / 2
-	    && xtime.tv_usec <= 500000 + tick / 2) {
+	    && (xtime.tv_nsec / 1000) >= 500000 - ((unsigned) TICK_SIZE) / 2
+	    && (xtime.tv_nsec / 1000) <= 500000 + ((unsigned) TICK_SIZE) / 2) {
 		if (set_rtc_mmss(xtime.tv_sec) == 0)
 			last_rtc_update = xtime.tv_sec;
 		else
@@ -475,7 +475,7 @@ void __init time_init(void)
 
 	write_lock_irq(&xtime_lock);
 	xtime.tv_sec = mktime(year, mon, day, hour, min, sec);
-	xtime.tv_usec = 0;
+	xtime.tv_nsec = 0;
 	write_unlock_irq(&xtime_lock);
 
 	if (cpu_has_counter) {
