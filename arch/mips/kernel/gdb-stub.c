@@ -315,13 +315,10 @@ static char *hex2mem(char *buf, char *mem, int count, int may_fault)
  * signals, which are primarily what GDB understands.  It also indicates
  * which hardware traps we need to commandeer when initializing the stub.
  */
-static struct hard_trap_info
-{
+static struct hard_trap_info {
 	unsigned char tt;		/* Trap type code for MIPS R3xxx and R4xxx */
 	unsigned char signo;		/* Signal that we map this trap into */
 } hard_trap_info[] = {
-	{ 4, SIGBUS },			/* address error (load) */
-	{ 5, SIGBUS },			/* address error (store) */
 	{ 6, SIGBUS },			/* instruction bus error */
 	{ 7, SIGBUS },			/* data bus error */
 	{ 9, SIGTRAP },			/* break */
@@ -373,7 +370,7 @@ void set_debug_traps(void)
  */
 extern void fltr_set_mem_err(void)
 {
-  /* FIXME: Needs to be written... */
+	/* FIXME: Needs to be written... */
 }
 
 /*
@@ -401,8 +398,7 @@ static int hexToInt(char **ptr, int *intValue)
 
 	*intValue = 0;
 
-	while (**ptr)
-	{
+	while (**ptr) {
 		hexValue = hex(**ptr);
 		if (hexValue < 0)
 			break;
