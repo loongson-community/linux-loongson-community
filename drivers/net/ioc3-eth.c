@@ -1275,7 +1275,10 @@ out_res:
 out_free:
 	free_netdev(dev);
 out_disable:
-	pci_disable_device(pdev);
+	/*
+	 * We should call pci_disable_device(pdev); here if the IOC3 wasn't
+	 * such a weird device ...
+	 */
 	return err;
 }
 
@@ -1289,7 +1292,10 @@ static void __devexit ioc3_remove_one (struct pci_dev *pdev)
 	iounmap(ioc3);
 	pci_release_regions(pdev);
 	free_netdev(dev);
-	pci_disable_device(pdev);
+	/*
+	 * We should call pci_disable_device(pdev); here if the IOC3 wasn't
+	 * such a weird device ...
+	 */
 }
 
 static struct pci_device_id ioc3_pci_tbl[] = {
