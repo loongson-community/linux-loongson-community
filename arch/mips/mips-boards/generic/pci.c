@@ -165,12 +165,7 @@ static int mips_pcibios_config_access(unsigned char access_type,
 
 		/* Flush Bonito register block */
 		dummy = BONITO_PCIMAP_CFG;
-		__asm__ __volatile__(
-				     ".set\tnoreorder\n\t"
-				     ".set\tnoat\n\t"
-				     "sync\n\t"
-				     ".set\tat\n\t"
-				     ".set\treorder");
+		iob();    /* sync */
 
 		/* Perform access */
 		if (access_type == PCI_ACCESS_WRITE) {
@@ -349,20 +344,10 @@ int mips_pcibios_iack(void)
 
 		/* Flush Bonito register block */
 		dummy = BONITO_PCIMAP_CFG;
-		__asm__ __volatile__(
-			".set\tnoreorder\n\t"
-			".set\tnoat\n\t"
-			"sync\n\t"
-			".set\tat\n\t"
-			".set\treorder");
+		iob();    /* sync */
 
 		irq = *(volatile u32 *)(KSEG1ADDR(BONITO_PCICFG_BASE));
-		__asm__ __volatile__(
-			".set\tnoreorder\n\t"
-			".set\tnoat\n\t"
-			"sync\n\t"
-			".set\tat\n\t"
-			".set\treorder");
+		iob();    /* sync */
 		irq &= 0xff;
 		BONITO_PCIMAP_CFG = 0;
 		break;
