@@ -64,6 +64,61 @@
  * Host:                  Reply:
  * $m0,10#2a               +$00010203040506070809101112131415#42
  *
+ * 
+ *  ==============
+ *  MORE EXAMPLES:
+ *  ==============
+ *
+ *  For reference -- the following are the steps that one
+ *  company took (RidgeRun Inc) to get remote gdb debugging
+ *  going. In this scenario the host machine was a PC and the
+ *  target platform was a Galileo EVB64120A MIPS evaluation
+ *  board.
+ *   
+ *  Step 1:
+ *  First download gdb-5.0.tar.gz from the internet.
+ *  and then build/install the package.
+ * 
+ *  Example:
+ *    $ tar zxf gdb-5.0.tar.gz
+ *    $ cd gdb-5.0
+ *    $ ./configure --target=mips-linux-elf
+ *    $ make
+ *    $ install
+ *    $ which mips-linux-elf-gdb
+ *    /usr/local/bin/mips-linux-elf-gdb
+ * 
+ *  Step 2:
+ *  Configure linux for remote debugging and build it.
+ * 
+ *  Example:
+ *    $ cd ~/linux
+ *    $ make menuconfig <go to "Kernel Hacking" and turn on remote debugging>
+ *    $ make dep; make vmlinux
+ * 
+ *  Step 3:
+ *  Download the kernel to the remote target and start
+ *  the kernel running. It will promptly halt and wait 
+ *  for the host gdb session to connect. It does this
+ *  since the "Kernel Hacking" option has defined 
+ *  CONFIG_REMOTE_DEBUG which in turn enables your calls
+ *  to:
+ *     set_debug_traps();
+ *     breakpoint();
+ * 
+ *  Step 4:
+ *  Start the gdb session on the host.
+ * 
+ *  Example:
+ *    $ mips-linux-elf-gdb vmlinux
+ *    (gdb) set remotebaud 115200
+ *    (gdb) target remote /dev/ttyS1
+ *    ...at this point you are connected to 
+ *       the remote target and can use gdb
+ *       in the normal fasion. Setting 
+ *       breakpoints, single stepping,
+ *       printing variables, etc.
+ *
  */
 
 #include <linux/string.h>

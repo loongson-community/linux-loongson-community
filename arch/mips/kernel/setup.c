@@ -430,6 +430,11 @@ void __init setup_arch(char **cmdline_p)
 		ev96100_setup();
 		break;
 #endif
+#ifdef CONFIG_MIPS_EV64120
+	case MACH_GROUP_GALILEO:
+		ev64120_setup();
+		break;
+#endif
 	default:
 		panic("Unsupported architecture");
 	}

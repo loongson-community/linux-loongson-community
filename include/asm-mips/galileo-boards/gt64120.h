@@ -20,6 +20,7 @@
  * ########################################################################
  *
  * Register definitions for Galileo 64120 system controller.
+ *  Modifications for 64120A included.
  *
  */
 #ifndef GT64120_H
@@ -34,8 +35,13 @@
 #define GT_CPU_OFS		    0x000
 
 #define GT_INTRCAUSE_OFS	    0xc18
+#define GT_HINTRCAUSE_OFS	    0xc98
+#define GT_INTRMASK_OFS	      0xc1c
+#define GT_HINTRMASK_OFS	    0xc9c
 #define GT_PCI0_CFGADDR_OFS	    0xcf8
 #define GT_PCI0_CFGDATA_OFS	    0xcfc
+#define GT_PCI1_CFGADDR_OFS	    0xcf0
+#define GT_PCI1_CFGDATA_OFS	    0xcf4
 #define GT_SDRAM_BM_OFS		    0x478
 #define GT_SDRAM_ADDRDECODE_OFS     0x47c
 #define GT_SDRAM_B0_OFS	    	    0x44c
@@ -65,6 +71,12 @@
 #define GT_PCI1M0HD_OFS		    0x0a8
 #define GT_PCI1M1LD_OFS		    0x0b0
 #define GT_PCI1M1HD_OFS		    0x0b8
+#define GT_PCI0IOREMAP_OFS    0x0f0
+#define GT_PCI0M0REMAP_OFS    0x0f8
+#define GT_PCI0M1REMAP_OFS		0x100
+#define GT_PCI1IOREMAP_OFS    0x108
+#define GT_PCI1M0REMAP_OFS    0x110
+#define GT_PCI1M1REMAP_OFS    0x118
 
 #define GT_SCS0LD_OFS		    0x400	
 #define GT_SCS0HD_OFS		    0x404
@@ -85,13 +97,25 @@
 #define GT_BOOTLD_OFS		    0x440
 #define GT_BOOTHD_OFS		    0x444
 
-#define GT_PCI0_BS_SCS10_OFS	    0Xc08
+#define GT_PCI0_CMD_OFS           0xc00
+#define GT_PCI0_BS_SCS10_OFS	    0xc08
 #define GT_PCI0_BS_SCS32_OFS	    0xc0c
 #define GT_PCI0_BARE_OFS	    0Xc3c
 
 #define GT_PCI0_TOR_OFS	            0xc04
 
 #define GT_PCI0_IACK_OFS            0xc34
+
+
+/****************************************/
+/* Timer/Counter 						*/
+/****************************************/
+
+#define GT_TC0_OFS						0x850
+#define GT_TC1_OFS						0x854
+#define GT_TC2_OFS						0x858
+#define GT_TC3_OFS						0x85C
+#define GT_TC_CONTROL_OFS     0x864
 
 
 /************************************************************************

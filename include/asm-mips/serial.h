@@ -76,13 +76,19 @@
 #define JAZZ_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_MIPS_EV96100
+/*
+ * Both Galileo boards have the same UART mappings.
+ */
+#if defined (CONFIG_MIPS_EV96100) || defined (CONFIG_MIPS_EV64120)
 #include <asm/galileo-boards/ev96100.h>
 #include <asm/galileo-boards/ev96100int.h>
 #define EV96100_SERIAL_PORT_DEFNS                                  \
     { baud_base: EV96100_BASE_BAUD, port: EV96100_UART0_REGS_BASE, \
       irq: EV96100INT_UART_0, flags: STD_COM_FLAGS, type: 0x3,   \
-      iomem_base: EV96100_UART0_REGS_BASE },
+      iomem_base: EV96100_UART0_REGS_BASE },                       \
+    { baud_base: EV96100_BASE_BAUD, port: EV96100_UART1_REGS_BASE, \
+      irq: EV96100INT_UART_0, flags: STD_COM_FLAGS, type: 0x3,   \
+      iomem_base: EV96100_UART1_REGS_BASE },
 #else
 #define EV96100_SERIAL_PORT_DEFNS
 #endif

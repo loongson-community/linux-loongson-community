@@ -121,8 +121,9 @@
  * Valid machtype for group GALILEO
  */
 #define MACH_EV96100		0	/* EV96100 */
+#define MACH_EV64120A   1 /* EV64120A */
 
-#define GROUP_GALILEO_NAMES { "EV96100" }
+#define GROUP_GALILEO_NAMES { "EV96100" , "EV64120A" }
 
 /*
  * Valid cputype values
@@ -165,7 +166,7 @@
         "R6000A", "R8000", "R10000", "R4300", "R4650", "R4700", "R5000",     \
         "R5000A", "R4640", "Nevada", "RM7000", "R5432" }
 
-#define CL_SIZE      (80)
+#define CL_SIZE      (255)
 
 #ifndef _LANGUAGE_ASSEMBLY
 

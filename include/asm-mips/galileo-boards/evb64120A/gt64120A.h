@@ -1,0 +1,347 @@
+/* GT64120A.h - GT64120A Internal registers definition file */
+
+/* Copyright - Galileo technology. */
+
+#ifndef _INCgt64120ARh 
+#define _INCgt64120ARh
+
+#ifndef GT64120A
+#define GT64120A
+#endif
+
+/****************************************/
+/* CPU Configuration 					*/
+/****************************************/
+
+#define CPU_INTERFACE_CONFIGURATION							0x000
+#define	MULTI_GT_REGISTER									0x120
+
+/****************************************/
+/* Processor Address Space				*/
+/****************************************/
+
+#define SCS_1_0_LOW_DECODE_ADDRESS							0x008
+#define SCS_1_0_HIGH_DECODE_ADDRESS							0x010
+#define SCS_3_2_LOW_DECODE_ADDRESS							0x018
+#define SCS_3_2_HIGH_DECODE_ADDRESS							0x020
+#define CS_2_0_LOW_DECODE_ADDRESS							0x028
+#define CS_2_0_HIGH_DECODE_ADDRESS							0x030
+#define CS_3_BOOTCS_LOW_DECODE_ADDRESS						0x038
+#define CS_3_BOOTCS_HIGH_DECODE_ADDRESS 					0x040
+#define PCI_0I_O_LOW_DECODE_ADDRESS							0x048
+#define PCI_0I_O_HIGH_DECODE_ADDRESS						0x050
+#define PCI_0MEMORY0_LOW_DECODE_ADDRESS						0x058
+#define PCI_0MEMORY0_HIGH_DECODE_ADDRESS					0x060
+#define PCI_0MEMORY1_LOW_DECODE_ADDRESS						0x080
+#define PCI_0MEMORY1_HIGH_DECODE_ADDRESS					0x088
+#define PCI_1I_O_LOW_DECODE_ADDRESS							0x090
+#define PCI_1I_O_HIGH_DECODE_ADDRESS						0x098
+#define PCI_1MEMORY0_LOW_DECODE_ADDRESS						0x0a0
+#define PCI_1MEMORY0_HIGH_DECODE_ADDRESS					0x0a8
+#define PCI_1MEMORY1_LOW_DECODE_ADDRESS						0x0b0
+#define PCI_1MEMORY1_HIGH_DECODE_ADDRESS					0x0b8
+#define INTERNAL_SPACE_DECODE								0x068
+#define CPU_BUS_ERROR_LOW_ADDRESS 							0x070
+#define CPU_BUS_ERROR_HIGH_ADDRESS 							0x078
+#define PCI_0SYNC_BARIER_VIRTUAL_REGISTER					0x0c0
+#define PCI_1SYNC_BARIER_VIRTUAL_REGISTER					0x0c8
+#define SCS_1_0_ADDRESS_REMAP								0x0d0
+#define SCS_3_2_ADDRESS_REMAP								0x0d8
+#define CS_2_0_ADDRESS_REMAP								0x0e0
+#define CS_3_BOOTCS_ADDRESS_REMAP							0x0e8
+#define PCI_0I_O_ADDRESS_REMAP								0x0f0
+#define PCI_0MEMORY0_ADDRESS_REMAP							0x0f8
+#define PCI_0MEMORY1_ADDRESS_REMAP							0x100
+#define PCI_1I_O_ADDRESS_REMAP								0x108
+#define PCI_1MEMORY0_ADDRESS_REMAP							0x110
+#define PCI_1MEMORY1_ADDRESS_REMAP							0x118
+
+/****************************************/
+/* SDRAM and Device Address Space		*/
+/****************************************/
+	
+#define SCS_0_LOW_DECODE_ADDRESS							0x400
+#define SCS_0_HIGH_DECODE_ADDRESS							0x404
+#define SCS_1_LOW_DECODE_ADDRESS							0x408
+#define SCS_1_HIGH_DECODE_ADDRESS							0x40C
+#define SCS_2_LOW_DECODE_ADDRESS							0x410
+#define SCS_2_HIGH_DECODE_ADDRESS							0x414
+#define SCS_3_LOW_DECODE_ADDRESS							0x418
+#define SCS_3_HIGH_DECODE_ADDRESS							0x41C
+#define CS_0_LOW_DECODE_ADDRESS								0x420
+#define CS_0_HIGH_DECODE_ADDRESS							0x424
+#define CS_1_LOW_DECODE_ADDRESS								0x428
+#define CS_1_HIGH_DECODE_ADDRESS							0x42C
+#define CS_2_LOW_DECODE_ADDRESS								0x430
+#define CS_2_HIGH_DECODE_ADDRESS							0x434
+#define CS_3_LOW_DECODE_ADDRESS								0x438
+#define CS_3_HIGH_DECODE_ADDRESS							0x43C
+#define BOOTCS_LOW_DECODE_ADDRESS							0x440
+#define BOOTCS_HIGH_DECODE_ADDRESS							0x444
+#define ADDRESS_DECODE_ERROR								0x470
+#define ADDRESS_DECODE										0x47C
+
+/****************************************/
+/* SDRAM Configuration					*/
+/****************************************/
+
+#define SDRAM_CONFIGURATION	 								0x448
+#define SDRAM_OPERATION_MODE								0x474
+#define SDRAM_ADDRESS_DECODE								0x47C
+
+/****************************************/
+/* SDRAM ECC        					*/
+/****************************************/
+
+#define ECC_UPPER_DATA                                      0x480
+#define ECC_LOWER_DATA                                      0x484
+#define ECC_FROM_MEM                                        0x488
+#define ECC_CALCULATED                                      0x48c
+#define ECC_ERROR_REPORT                                    0x490
+
+/****************************************/
+/* SDRAM Parameters						*/
+/****************************************/
+			
+#define SDRAM_BANK0PARAMETERS								0x44C
+#define SDRAM_BANK1PARAMETERS								0x450
+#define SDRAM_BANK2PARAMETERS								0x454
+#define SDRAM_BANK3PARAMETERS								0x458
+
+/****************************************/
+/* Device Parameters					*/
+/****************************************/
+
+#define DEVICE_BANK0PARAMETERS								0x45C
+#define DEVICE_BANK1PARAMETERS								0x460
+#define DEVICE_BANK2PARAMETERS								0x464
+#define DEVICE_BANK3PARAMETERS								0x468
+#define DEVICE_BOOT_BANK_PARAMETERS							0x46C
+
+/****************************************/
+/* DMA Record							*/
+/****************************************/
+
+#define CHANNEL0_DMA_BYTE_COUNT								0x800
+#define CHANNEL1_DMA_BYTE_COUNT	 							0x804
+#define CHANNEL2_DMA_BYTE_COUNT	 							0x808
+#define CHANNEL3_DMA_BYTE_COUNT	 							0x80C
+#define CHANNEL0_DMA_SOURCE_ADDRESS							0x810
+#define CHANNEL1_DMA_SOURCE_ADDRESS							0x814
+#define CHANNEL2_DMA_SOURCE_ADDRESS							0x818
+#define CHANNEL3_DMA_SOURCE_ADDRESS							0x81C
+#define CHANNEL0_DMA_DESTINATION_ADDRESS					0x820
+#define CHANNEL1_DMA_DESTINATION_ADDRESS					0x824
+#define CHANNEL2_DMA_DESTINATION_ADDRESS					0x828
+#define CHANNEL3_DMA_DESTINATION_ADDRESS					0x82C
+#define CHANNEL0NEXT_RECORD_POINTER							0x830
+#define CHANNEL1NEXT_RECORD_POINTER							0x834
+#define CHANNEL2NEXT_RECORD_POINTER							0x838
+#define CHANNEL3NEXT_RECORD_POINTER							0x83C
+#define CHANNEL0CURRENT_DESCRIPTOR_POINTER					0x870
+#define CHANNEL1CURRENT_DESCRIPTOR_POINTER					0x874
+#define CHANNEL2CURRENT_DESCRIPTOR_POINTER					0x878
+#define CHANNEL3CURRENT_DESCRIPTOR_POINTER					0x87C
+
+/****************************************/
+/* DMA Channel Control					*/
+/****************************************/
+
+#define CHANNEL0CONTROL										0x840
+#define CHANNEL1CONTROL										0x844
+#define CHANNEL2CONTROL										0x848
+#define CHANNEL3CONTROL										0x84C
+
+/****************************************/
+/* DMA Arbiter							*/
+/****************************************/
+
+#define ARBITER_CONTROL										0x860
+
+/****************************************/
+/* Timer_Counter 						*/
+/****************************************/
+
+#define TIMER_COUNTER0										0x850
+#define TIMER_COUNTER1										0x854
+#define TIMER_COUNTER2										0x858
+#define TIMER_COUNTER3										0x85C
+#define TIMER_COUNTER_CONTROL								0x864
+
+/****************************************/
+/* PCI Internal  						*/
+/****************************************/
+
+#define PCI_0COMMAND										0xC00
+#define PCI_0TIMEOUT_RETRY									0xC04
+#define PCI_0SCS_1_0_BANK_SIZE								0xC08
+#define PCI_0SCS_3_2_BANK_SIZE								0xC0C
+#define PCI_0CS_2_0_BANK_SIZE								0xC10
+#define PCI_0CS_3_BOOTCS_BANK_SIZE							0xC14
+#define PCI_0BASE_ADDRESS_REGISTERS_ENABLE 					0xC3C
+#define PCI_0PREFETCH_MAX_BURST_SIZE						0xc40
+#define PCI_0SCS_1_0_BASE_ADDRESS_REMAP						0xC48
+#define PCI_0SCS_3_2_BASE_ADDRESS_REMAP						0xC4C
+#define PCI_0CS_2_0_BASE_ADDRESS_REMAP						0xC50
+#define PCI_0CS_3_BOOTCS_ADDRESS_REMAP						0xC54
+#define PCI_0SWAPPED_SCS_1_0_BASE_ADDRESS_REMAP				0xC58
+#define PCI_0SWAPPED_SCS_3_2_BASE_ADDRESS_REMAP				0xC5C
+#define PCI_0SWAPPED_CS_3_BOOTCS_BASE_ADDRESS_REMAP			0xC64
+#define PCI_0CONFIGURATION_ADDRESS 							0xCF8
+#define PCI_0CONFIGURATION_DATA_VIRTUAL_REGISTER			0xCFC
+#define PCI_0INTERRUPT_ACKNOWLEDGE_VIRTUAL_REGISTER			0xC34
+#define PCI_1COMMAND										0xc80
+#define PCI_1TIMEOUT_RETRY									0xc84
+#define PCI_1SCS_1_0_BANK_SIZE								0xc88
+#define PCI_1SCS_3_2_BANK_SIZE								0xc8c
+#define PCI_1CS_2_0_BANK_SIZE								0xc90
+#define PCI_1CS_3_BOOTCS_BANK_SIZE							0xc94
+#define PCI_1BASE_ADDRESS_REGISTERS_ENABLE 					0xcbc
+#define PCI_1PREFETCH_MAX_BURST_SIZE						0xcc0
+#define PCI_1SCS_1_0_BASE_ADDRESS_REMAP						0xcc8
+#define PCI_1SCS_3_2_BASE_ADDRESS_REMAP						0xccc
+#define PCI_1CS_2_0_BASE_ADDRESS_REMAP						0xcd0
+#define PCI_1CS_3_BOOTCS_ADDRESS_REMAP						0xcd4
+#define PCI_1SWAPPED_SCS_1_0_BASE_ADDRESS_REMAP				0xcd8
+#define PCI_1SWAPPED_SCS_3_2_BASE_ADDRESS_REMAP				0xcdc
+#define PCI_1SWAPPED_CS_3_BOOTCS_BASE_ADDRESS_REMAP			0x0c4
+#define PCI_1CONFIGURATION_ADDRESS 							0xcf0
+#define PCI_1CONFIGURATION_DATA_VIRTUAL_REGISTER			0xcf4
+#define PCI_1INTERRUPT_ACKNOWLEDGE_VIRTUAL_REGISTER			0xc30
+
+/****************************************/
+/* Interrupts	  						*/
+/****************************************/
+			
+#define INTERRUPT_CAUSE_REGISTER							0xC18
+#define HIGH_INTERRUPT_CAUSE_REGISTER						0xc98
+#define CPU_INTERRUPT_MASK_REGISTER							0xC1C
+#define CPU_HIGH_INTERRUPT_MASK_REGISTER					0xc9c
+#define PCI_0INTERRUPT_CAUSE_MASK_REGISTER					0xC24
+#define PCI_0HIGH_INTERRUPT_CAUSE_MASK_REGISTER				0xca4
+#define PCI_0SERR0_MASK										0xC28
+#define PCI_1SERR0_MASK										0xca8
+#define CPU_SELECT_CAUSE_REGISTER							0xc70
+#define PCI_0INTERRUPT_SELECT_REGISTER						0xc71
+
+/****************************************/
+/* PCI Configuration   					*/
+/****************************************/
+
+#define PCI_0DEVICE_AND_VENDOR_ID 							0x000
+#define PCI_0STATUS_AND_COMMAND								0x004
+#define PCI_0CLASS_CODE_AND_REVISION_ID 					0x008
+#define PCI_0BIST_HEADER_TYPE_LATENCY_TIMER_CACHE_LINE 		0x00C
+#define PCI_0SCS_1_0_BASE_ADDRESS	 						0x010
+#define PCI_0SCS_3_2_BASE_ADDRESS 							0x014
+#define PCI_0CS_2_0_BASE_ADDRESS 							0x018
+#define PCI_0CS_3_BOOTCS_BASE_ADDRESS						0x01C
+#define PCI_0INTERNAL_REGISTERS_MEMORY_MAPPED_BASE_ADDRESS	0x020
+#define PCI_0INTERNAL_REGISTERS_I_OMAPPED_BASE_ADDRESS		0x024
+#define PCI_0SUBSYSTEM_ID_AND_SUBSYSTEM_VENDOR_ID			0x02C
+#define EXPANSION_ROM_BASE_ADDRESS_REGISTER					0x030
+#define PCI_0INTERRUPT_PIN_AND_LINE 						0x03C
+#define PCI_1DEVICE_AND_VENDOR_ID 							0x080
+#define PCI_1STATUS_AND_COMMAND								0x084
+#define PCI_1CLASS_CODE_AND_REVISION_ID 					0x088
+#define PCI_1BIST_HEADER_TYPE_LATENCY_TIMER_CACHE_LINE 		0x08c
+#define PCI_1SCS_1_0_BASE_ADDRESS	 						0x090
+#define PCI_1SCS_3_2_BASE_ADDRESS 							0x094
+#define PCI_1CS_2_0_BASE_ADDRESS 							0x098
+#define PCI_1CS_3_BOOTCS_BASE_ADDRESS						0x09c
+#define PCI_1INTERNAL_REGISTERS_MEMORY_MAPPED_BASE_ADDRESS	0x0a0
+#define PCI_1INTERNAL_REGISTERS_I_OMAPPED_BASE_ADDRESS		0x0a4
+#define PCI_1SUBSYSTEM_ID_AND_SUBSYSTEM_VENDOR_ID			0x0ac
+#define PCI_1INTERRUPT_PIN_AND_LINE 						0x0bc
+
+/****************************************/
+/* PCI Configuration, Function 1		*/
+/****************************************/
+
+#define PCI_0SWAPPED_SCS_1_0_BASE_ADDRESS 					0x110
+#define PCI_0SWAPPED_SCS_3_2_BASE_ADDRESS 					0x114
+#define PCI_0SWAPPED_CS_3_BOOTCS_BASE_ADDRESS				0x11C
+#define PCI_1SWAPPED_SCS_1_0_BASE_ADDRESS 					0x190
+#define PCI_1SWAPPED_SCS_3_2_BASE_ADDRESS 					0x194
+#define PCI_1SWAPPED_CS_3_BOOTCS_BASE_ADDRESS				0x19c
+
+/****************************************/
+/* I20 Support registers				*/
+/****************************************/
+
+#define INBOUND_MESSAGE_REGISTER0							0x010
+#define INBOUND_MESSAGE_REGISTER1							0x014
+#define OUTBOUND_MESSAGE_REGISTER0							0x018
+#define OUTBOUND_MESSAGE_REGISTER1							0x01C
+#define INBOUND_DOORBELL_REGISTER							0x020
+#define INBOUND_INTERRUPT_CAUSE_REGISTER					0x024
+#define INBOUND_INTERRUPT_MASK_REGISTER						0x028
+#define OUTBOUND_DOORBELL_REGISTER							0x02C
+#define OUTBOUND_INTERRUPT_CAUSE_REGISTER					0x030
+#define OUTBOUND_INTERRUPT_MASK_REGISTER					0x034
+#define INBOUND_QUEUE_PORT_VIRTUAL_REGISTER					0x040
+#define OUTBOUND_QUEUE_PORT_VIRTUAL_REGISTER				0x044
+#define QUEUE_CONTROL_REGISTER								0x050
+#define QUEUE_BASE_ADDRESS_REGISTER							0x054
+#define INBOUND_FREE_HEAD_POINTER_REGISTER					0x060
+#define INBOUND_FREE_TAIL_POINTER_REGISTER					0x064
+#define INBOUND_POST_HEAD_POINTER_REGISTER					0x068
+#define INBOUND_POST_TAIL_POINTER_REGISTER					0x06C
+#define OUTBOUND_FREE_HEAD_POINTER_REGISTER					0x070
+#define OUTBOUND_FREE_TAIL_POINTER_REGISTER					0x074
+#define OUTBOUND_POST_HEAD_POINTER_REGISTER					0x078
+#define OUTBOUND_POST_TAIL_POINTER_REGISTER					0x07C
+
+                        
+/****************************************/
+/* I20 Support registers				*/
+/****************************************/
+
+#define INBOUND_MESSAGE_REGISTER0_PCI_SIDE					0x010
+#define INBOUND_MESSAGE_REGISTER1_PCI_SIDE  				0x014
+#define OUTBOUND_MESSAGE_REGISTER0_PCI_SIDE 				0x018
+#define OUTBOUND_MESSAGE_REGISTER1_PCI_SIDE  				0x01C
+#define INBOUND_DOORBELL_REGISTER_PCI_SIDE  				0x020
+#define INBOUND_INTERRUPT_CAUSE_REGISTER_PCI_SIDE  			0x024
+#define INBOUND_INTERRUPT_MASK_REGISTER_PCI_SIDE			0x028
+#define OUTBOUND_DOORBELL_REGISTER_PCI_SIDE 				0x02C
+#define OUTBOUND_INTERRUPT_CAUSE_REGISTER_PCI_SIDE   		0x030
+#define OUTBOUND_INTERRUPT_MASK_REGISTER_PCI_SIDE   		0x034
+#define INBOUND_QUEUE_PORT_VIRTUAL_REGISTER_PCI_SIDE  		0x040
+#define OUTBOUND_QUEUE_PORT_VIRTUAL_REGISTER_PCI_SIDE   	0x044
+#define QUEUE_CONTROL_REGISTER_PCI_SIDE 					0x050
+#define QUEUE_BASE_ADDRESS_REGISTER_PCI_SIDE 				0x054
+#define INBOUND_FREE_HEAD_POINTER_REGISTER_PCI_SIDE			0x060
+#define INBOUND_FREE_TAIL_POINTER_REGISTER_PCI_SIDE  		0x064
+#define INBOUND_POST_HEAD_POINTER_REGISTER_PCI_SIDE 		0x068
+#define INBOUND_POST_TAIL_POINTER_REGISTER_PCI_SIDE 		0x06C
+#define OUTBOUND_FREE_HEAD_POINTER_REGISTER_PCI_SIDE		0x070
+#define OUTBOUND_FREE_TAIL_POINTER_REGISTER_PCI_SIDE		0x074
+#define OUTBOUND_POST_HEAD_POINTER_REGISTER_PCI_SIDE		0x078
+#define OUTBOUND_POST_TAIL_POINTER_REGISTER_PCI_SIDE		0x07C
+
+#define INBOUND_MESSAGE_REGISTER0_CPU_SIDE					0X1C10
+#define INBOUND_MESSAGE_REGISTER1_CPU_SIDE  				0X1C14
+#define OUTBOUND_MESSAGE_REGISTER0_CPU_SIDE 				0X1C18
+#define OUTBOUND_MESSAGE_REGISTER1_CPU_SIDE  				0X1C1C
+#define INBOUND_DOORBELL_REGISTER_CPU_SIDE  				0X1C20
+#define INBOUND_INTERRUPT_CAUSE_REGISTER_CPU_SIDE  			0X1C24
+#define INBOUND_INTERRUPT_MASK_REGISTER_CPU_SIDE			0X1C28
+#define OUTBOUND_DOORBELL_REGISTER_CPU_SIDE 				0X1C2C
+#define OUTBOUND_INTERRUPT_CAUSE_REGISTER_CPU_SIDE   		0X1C30
+#define OUTBOUND_INTERRUPT_MASK_REGISTER_CPU_SIDE   		0X1C34
+#define INBOUND_QUEUE_PORT_VIRTUAL_REGISTER_CPU_SIDE  		0X1C40
+#define OUTBOUND_QUEUE_PORT_VIRTUAL_REGISTER_CPU_SIDE   	0X1C44
+#define QUEUE_CONTROL_REGISTER_CPU_SIDE 					0X1C50
+#define QUEUE_BASE_ADDRESS_REGISTER_CPU_SIDE 				0X1C54
+#define INBOUND_FREE_HEAD_POINTER_REGISTER_CPU_SIDE			0X1C60
+#define INBOUND_FREE_TAIL_POINTER_REGISTER_CPU_SIDE  		0X1C64
+#define INBOUND_POST_HEAD_POINTER_REGISTER_CPU_SIDE 		0X1C68
+#define INBOUND_POST_TAIL_POINTER_REGISTER_CPU_SIDE 		0X1C6C
+#define OUTBOUND_FREE_HEAD_POINTER_REGISTER_CPU_SIDE		0X1C70
+#define OUTBOUND_FREE_TAIL_POINTER_REGISTER_CPU_SIDE		0X1C74
+#define OUTBOUND_POST_HEAD_POINTER_REGISTER_CPU_SIDE		0X1C78
+#define OUTBOUND_POST_TAIL_POINTER_REGISTER_CPU_SIDE		0X1C7C
+                                       
+                                       
+#endif /* __INCgt64120ARh */

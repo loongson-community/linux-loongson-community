@@ -196,6 +196,15 @@ LINKSCRIPT    = arch/mips/orion/ld.script.orion
 endif
 
 #
+# Galileo EV64120 Board
+#
+ifdef CONFIG_MIPS_EV64120
+LIBS          += arch/mips/galileo-boards/ev64120/ev64120.o
+SUBDIRS       += arch/mips/galileo-boards/ev64120
+LINKSCRIPT    = arch/mips/galileo-boards/ev64120/ld.script.galileo
+endif
+
+#
 # Galileo EV96100 Board
 #
 ifdef CONFIG_MIPS_EV96100
@@ -244,6 +253,13 @@ orionboot:
 	$(ORIONBOOT) orionboot
 endif
 
+ifdef CONFIG_MIPS_EV64120
+GALILEOBOOT = $(MAKE) -C arch/$(ARCH)/galileo-boards/ev64120
+
+gboot: vmlinux
+	$(MAKE) -C arch/$(ARCH)/galileo-boards/ev64120/compressed 
+endif
+
 MAKEBOOT = $(MAKE) -C arch/$(ARCH)/boot
 
 vmlinux.ecoff: vmlinux
@@ -273,3 +289,4 @@ archdep:
 	 touch $(TOPDIR)/include/asm-$(ARCH)/offset.h; \
 	fi;
 	@$(MAKEBOOT) dep
+
