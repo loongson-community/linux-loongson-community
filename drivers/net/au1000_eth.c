@@ -250,6 +250,8 @@ int lsi_80227_init(struct net_device *dev, int phy_addr)
 	/* restart auto-negotiation */
 	mdio_write(dev, phy_addr, 0, 0x3200);
 
+	mdelay(1);
+
 	/* set up LEDs to correct display */
 	mdio_write(dev, phy_addr, 17, 0xffc0);
 

@@ -123,8 +123,8 @@
 
 /* lsi status register */
 
-#define MII_LSI_STAT_FDX	0x0008
-#define MII_LSI_STAT_SPD	0x0010
+#define MII_LSI_STAT_FDX	0x0040
+#define MII_LSI_STAT_SPD	0x0080
 
 /* Auxilliary Control/Status Register */
 #define MII_AUX_FDX      0x0001
