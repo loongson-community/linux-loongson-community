@@ -112,9 +112,8 @@ static inline int alloc_level(cpuid_t cpunum, int irq)
 			return j;
 		}
 	}
-	printk("Cpu %ld flooded with devices\n", cpunum);
-	while(1);
-	return -1;
+
+	panic("Cpu %ld flooded with devices\n", cpunum);
 }
 
 static inline int find_level(cpuid_t *cpunum, int irq)
