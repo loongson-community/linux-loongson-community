@@ -37,7 +37,7 @@ obj-$(CONFIG_BINFMT_IRIX)	+= irixelf.o irixioctl.o irixsig.o sysirix.o \
 obj-$(CONFIG_KGDB)		+= gdb-low.o gdb-stub.o
 obj-$(CONFIG_PROC_FS)		+= proc.o
 
-ifndef CONFIG_MAPPED_PCI_IO
+ifndef CONFIG_MAPPED_DMA_IO
 obj-y				+= pci-dma.o
 endif
 
