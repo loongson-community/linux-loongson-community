@@ -362,6 +362,12 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 	siginfo_t info;
 	int signr;
 
+#ifdef CONFIG_BINFMT_ELF32
+	if (current->thread.mflags & MF_32BIT_REGS) {
+		return do_signal32(oldset, regs);
+	}
+#endif
+
 	if (!oldset)
 		oldset = &current->blocked;
 

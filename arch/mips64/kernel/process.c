@@ -65,7 +65,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 	/* New thread looses kernel privileges. */
 	status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);
 	status |= KSU_USER;
-	status |= (current->thread.mflags & MF_32BIT) ? 0 : ST0_FR;
+	status |= (current->thread.mflags & MF_32BIT_REGS) ? 0 : ST0_FR;
 	regs->cp0_status = status;
 	current->used_math = 0;
 	loose_fpu();
@@ -228,7 +228,7 @@ schedule_timeout_caller:
 	}
 
 out:
-	if (current->thread.mflags & MF_32BIT)	/* Kludge for 32-bit ps  */
+	if (current->thread.mflags & MF_32BIT_REGS) /* Kludge for 32-bit ps  */
 		pc &= 0xffffffff;
 
 	return pc;

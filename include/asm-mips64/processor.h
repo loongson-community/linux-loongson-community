@@ -108,7 +108,7 @@ extern int EISA_bus;
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE	((current->thread.mflags & MF_32BIT) ? \
+#define TASK_UNMAPPED_BASE	((current->thread.mflags & MF_32BIT_ADDR) ? \
 	PAGE_ALIGN(TASK_SIZE32 / 3) : PAGE_ALIGN(TASK_SIZE / 3))
 
 /*
@@ -169,13 +169,19 @@ struct thread_struct {
 	unsigned long cp0_baduaddr;	/* Last kernel fault accessing USEG */
 	unsigned long error_code;
 	unsigned long trap_no;
-#define MF_FIXADE 1			/* Fix address errors in software */
-#define MF_LOGADE 2			/* Log address errors to syslog */
-#define MF_32BIT  4			/* Process is in 32-bit compat mode */
+#define MF_FIXADE	1		/* Fix address errors in software */
+#define MF_LOGADE	2		/* Log address errors to syslog */
+#define MF_32BIT_REGS	4		/* also implies 16/32 fprs */
+#define MF_32BIT_ADDR	8		/* 32-bit address space (o32/n32) */
 	unsigned long mflags;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
 };
+
+#define MF_ABI_MASK	(MF_32BIT_REGS | MF_32BIT_ADDR)
+#define MF_O32		(MF_32BIT_REGS | MF_32BIT_ADDR)
+#define MF_N32		MF_32BIT_ADDR
+#define MF_N64		0
 
 #endif /* !__ASSEMBLY__ */
 

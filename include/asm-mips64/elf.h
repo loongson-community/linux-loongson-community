@@ -109,10 +109,15 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 
 #ifdef __KERNEL__
 #define SET_PERSONALITY(ex, ibcs2)			\
-do {	if ((ex).e_ident[EI_CLASS] == ELFCLASS32)	\
-		current->thread.mflags |= MF_32BIT;	\
-	else						\
-		current->thread.mflags &= ~MF_32BIT;	\
+do {	current->thread.mflags &= ~MF_ABI_MASK;		\
+	if ((ex).e_ident[EI_CLASS] == ELFCLASS32) {	\
+		if ((((ex).e_flags & EF_MIPS_ABI2) != 0) &&	\
+		     ((ex).e_flags & EF_MIPS_ABI) == 0)		\
+			current->thread.mflags |= MF_N32;	\
+		else						\
+			current->thread.mflags |= MF_O32;	\
+	} else						\
+		current->thread.mflags |= MF_N64;	\
 	if (ibcs2)					\
 		set_personality(PER_SVR4);		\
 	else if (current->personality != PER_LINUX32)	\
