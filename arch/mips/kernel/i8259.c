@@ -18,6 +18,9 @@
 
 #include <asm/io.h>
 
+void enable_8259A_irq(unsigned int irq);
+void disable_8259A_irq(unsigned int irq);
+
 /*
  * This is the 'legacy' 8259A Programmable Interrupt Controller,
  * present in the majority of PC/AT boxes.
@@ -42,6 +45,7 @@ void mask_and_ack_8259A(unsigned int);
 static unsigned int startup_8259A_irq(unsigned int irq)
 { 
 	enable_8259A_irq(irq);
+
 	return 0; /* never anything pending */
 }
 
@@ -99,7 +103,7 @@ void enable_8259A_irq(unsigned int irq)
 
 int i8259A_irq_pending(unsigned int irq)
 {
-	unsigned int mask = 1<<irq;
+	unsigned int mask = 1 << irq;
 	unsigned long flags;
 	int ret;
 
@@ -129,7 +133,7 @@ void make_8259A_irq(unsigned int irq)
 static inline int i8259A_irq_real(unsigned int irq)
 {
 	int value;
-	int irqmask = 1<<irq;
+	int irqmask = 1 << irq;
 
 	if (irq < 8) {
 		outb(0x0B,0x20);		/* ISR register */
@@ -156,19 +160,17 @@ void mask_and_ack_8259A(unsigned int irq)
 
 	spin_lock_irqsave(&i8259A_lock, flags);
 	/*
-	 * Lightweight spurious IRQ detection. We do not want
-	 * to overdo spurious IRQ handling - it's usually a sign
-	 * of hardware problems, so we only do the checks we can
-	 * do without slowing down good hardware unnecesserily.
+	 * Lightweight spurious IRQ detection. We do not want to overdo
+	 * spurious IRQ handling - it's usually a sign of hardware problems, so
+	 * we only do the checks we can do without slowing down good hardware
+	 * nnecesserily.
 	 *
-	 * Note that IRQ7 and IRQ15 (the two spurious IRQs
-	 * usually resulting from the 8259A-1|2 PICs) occur
-	 * even if the IRQ is masked in the 8259A. Thus we
-	 * can check spurious 8259A IRQs without doing the
-	 * quite slow i8259A_irq_real() call for every IRQ.
-	 * This does not cover 100% of spurious interrupts,
-	 * but should be enough to warn the user that there
-	 * is something bad going on ...
+	 * Note that IRQ7 and IRQ15 (the two spurious IRQs usually resulting
+	 * rom the 8259A-1|2 PICs) occur even if the IRQ is masked in the 8259A.
+	 * Thus we can check spurious 8259A IRQs without doing the quite slow
+	 * i8259A_irq_real() call for every IRQ.  This does not cover 100% of
+	 * spurious interrupts, but should be enough to warn the user that
+	 * there is something bad going on ...
 	 */
 	if (cached_irq_mask & irqmask)
 		goto spurious_8259A_irq;
@@ -262,10 +264,25 @@ void __init init_8259A(int auto_eoi)
 	spin_unlock_irqrestore(&i8259A_lock, flags);
 }
 
+asmlinkage void i8259_do_irq(int irq, struct pt_regs regs)
+{
+	panic("i8259_do_irq: I want to be implemented");
+}
+
 /*
  * IRQ2 is cascade interrupt to second interrupt controller
  */
-static struct irqaction irq2 = { no_action, 0, 0, "cascade", NULL, NULL};
+static struct irqaction irq2 = {
+	no_action, 0, 0, "cascade", NULL, NULL
+};
+
+static struct resource pic1_io_resource = {
+	"pic1", 0x20, 0x3f, IORESOURCE_BUSY
+};
+
+static struct resource pic2_io_resource = {
+	"pic2", 0xa0, 0xbf, IORESOURCE_BUSY
+};
 
 /*
  * On systems with i8259-style interrupt controllers we assume for
@@ -276,8 +293,8 @@ void __init init_i8259_irqs (void)
 {
 	int i;
 
-	request_region(0x20,0x20, "pic1");
-	request_region(0xa0,0x20, "pic2");
+	request_resource(&ioport_resource, &pic1_io_resource);
+	request_resource(&ioport_resource, &pic2_io_resource);
 	setup_irq(2, &irq2);
 
 	init_8259A(0);
@@ -288,11 +305,4 @@ void __init init_i8259_irqs (void)
 		irq_desc[i].depth = 1;
 		irq_desc[i].handler = &i8259A_irq_type;
 	}
-
-	/*
-	 * IRQ0 seems to be the irq for PC style stuff.
-	 * I don't know how to handle the debug button interrupt, so
-	 * don't use this button yet or bad things happen ...
-	 */
-	set_cp0_status(ST0_IM, IE_IRQ1 | IE_IRQ3 | IE_IRQ4);
 }
