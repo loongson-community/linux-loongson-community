@@ -310,6 +310,11 @@ void __init mem_init(void)
 	for (nid = 0; nid < numnodes; nid++) {
 
 		/*
+		 * Hack till free_area_init_core() zeroes free_pages
+		 */
+		for (tmp = 0; tmp < MAX_NR_ZONES; tmp++)
+			PLAT_NODE_DATA(nid)->gendata.node_zones[tmp].free_pages=0;
+		/*
 	 	 * This will free up the bootmem, ie, slot 0 memory.
 	 	 */
 		totalram_pages += free_all_bootmem_node(nid);
@@ -354,8 +359,8 @@ void __init mem_init(void)
 	reservedpages = ram = 0;
 	for (nid = 0; nid < numnodes; nid++) {
 		for (tmp = PLAT_NODE_DATA_STARTNR(nid); tmp < 
-			((PLAT_NODE_DATA_STARTNR(nid)) + 
-			(PLAT_NODE_DATA_SIZE(nid) >> PAGE_SHIFT)); tmp++) {
+			(PLAT_NODE_DATA_STARTNR(nid) +
+			PLAT_NODE_DATA_SIZE(nid)); tmp++) {
 			/* Ignore holes */
 			if (PageSkip(mem_map+tmp))
 				continue;
