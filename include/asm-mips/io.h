@@ -141,12 +141,12 @@ typedef unsigned long phys_t;
 
 extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
 
-static inline void *ioremap(unsigned long offset, unsigned long size)
+static inline void *ioremap(phys_t offset, unsigned long size)
 {
 	return __ioremap(offset, size, CONF_CM_UNCACHED << 9);
 }
 
-static inline void *ioremap_nocache(unsigned long offset, unsigned long size)
+static inline void *ioremap_nocache(phys_t offset, unsigned long size)
 {
 	return __ioremap(offset, size, CONF_CM_UNCACHED << 9);
 }
