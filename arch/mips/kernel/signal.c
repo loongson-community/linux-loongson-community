@@ -1,4 +1,4 @@
-/* $Id: signal.c,v 1.22 1998/08/18 20:45:06 ralf Exp $
+/* $Id: signal.c,v 1.16 1998/08/25 09:14:41 ralf Exp $
  *
  *  linux/arch/mips/kernel/signal.c
  *
@@ -491,6 +491,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 
 			case SIGQUIT: case SIGILL: case SIGTRAP:
 			case SIGABRT: case SIGFPE: case SIGSEGV:
+			case SIGBUS:
 				lock_kernel();
 				if (current->binfmt
 				    && current->binfmt->core_dump
