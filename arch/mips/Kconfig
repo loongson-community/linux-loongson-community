@@ -285,7 +285,7 @@ config JAGUAR_DMALOW
 	  the jumper is set, so if you feel unsafe, just say Y.
 
 config PMC_YOSEMITE
-	bool "Support for PMC-Siera Yosemite eval board"
+	bool "Support for PMC-Sierra Yosemite eval board"
 	help
 	  Yosemite is an evaluation board for the RM9000x2 processor
 	  manufactured by PMC-Sierra
