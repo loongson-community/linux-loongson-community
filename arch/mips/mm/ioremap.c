@@ -113,7 +113,7 @@ static int remap_area_pages(unsigned long address, phys_t phys_addr,
 
 #define IS_LOW512(addr) (!((phys_t)(addr) & ~0x1fffffffUL))
 
-void * __ioremap_pgtable(phys_t phys_addr, phys_t size, unsigned long flags)
+void * __ioremap_mode(phys_t phys_addr, phys_t size, unsigned long flags)
 {
 	struct vm_struct * area;
 	unsigned long offset;
@@ -172,7 +172,7 @@ void * __ioremap_pgtable(phys_t phys_addr, phys_t size, unsigned long flags)
 
 #define IS_KSEG1(addr) (((unsigned long)(addr) & ~0x1fffffffUL) == KSEG1)
 
-void __iounmap_pgtable(void *addr)
+void __iounmap(void *addr)
 {
 	struct vm_struct *p;
 
@@ -189,5 +189,5 @@ void __iounmap_pgtable(void *addr)
         kfree(p);
 }
 
-EXPORT_SYMBOL(__ioremap_pgtable);
-EXPORT_SYMBOL(__iounmap_pgtable);
+EXPORT_SYMBOL(__ioremap_mode);
+EXPORT_SYMBOL(__iounmap);

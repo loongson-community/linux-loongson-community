@@ -176,16 +176,16 @@ extern unsigned long isa_slot_offset;
  */
 #define page_to_phys(page)	((dma_addr_t)page_to_pfn(page) << PAGE_SHIFT)
 
-extern void * __ioremap_tlb(phys_t offset, phys_t size, unsigned long flags);
-extern void __iounmap_tlb(void *addr);
+extern void * __ioremap(phys_t offset, phys_t size, unsigned long flags);
+extern void __iounmap(void *addr);
 
-static inline void * __ioremap(unsigned long offset, unsigned long size,
+static inline void * __ioremap_mode(unsigned long offset, unsigned long size,
 	unsigned long flags)
 {
 	if (cpu_has_64bits)
 		return (void *) ((unsigned long)K1BASE + offset);
 
-	return __ioremap_tlb(offset, size, flags);
+	return __ioremap(offset, size, flags);
 }
 
 /*
@@ -200,7 +200,7 @@ static inline void * __ioremap(unsigned long offset, unsigned long size,
  * address.
  */
 #define ioremap(offset, size)						\
-	__ioremap((offset), (size), _CACHE_UNCACHED)
+	__ioremap_mode((offset), (size), _CACHE_UNCACHED)
 
 /*
  * ioremap_nocache     -   map bus memory into CPU space
@@ -222,7 +222,7 @@ static inline void * __ioremap(unsigned long offset, unsigned long size,
  * write combining or read caching is not desirable:
  */
 #define ioremap_nocache(offset, size)					\
-	__ioremap((offset), (size), _CACHE_UNCACHED)
+	__ioremap_mode((offset), (size), _CACHE_UNCACHED)
 
 /*
  * These two are MIPS specific ioremap variant.  ioremap_cacheable_cow
@@ -231,16 +231,16 @@ static inline void * __ioremap(unsigned long offset, unsigned long size,
  * all processors.
  */
 #define ioremap_cacheable_cow(offset, size)				\
-	__ioremap((offset), (size), _CACHE_CACHABLE_COW)
+	__ioremap_mode((offset), (size), _CACHE_CACHABLE_COW)
 #define ioremap_uncached_accelerated(offset, size)			\
-	__ioremap((offset), (size), _CACHE_UNCACHED_ACCELERATED)
+	__ioremap_mode((offset), (size), _CACHE_UNCACHED_ACCELERATED)
 
 static inline void iounmap(void *addr)
 {
 	if (cpu_has_64bits)
 		return;
 
-	__iounmap_tlb(addr);
+	__iounmap(addr);
 }
 
 /*
