@@ -2196,7 +2196,7 @@ void __init console_init(void)
 #ifdef CONFIG_SERIAL_CONSOLE
 #ifdef CONFIG_8xx
 	console_8xx_init();
-#elif defined(CONFIG_SERIAL) 	
+#elif defined(CONFIG_SERIAL) || defined(CONFIG_SGI_SERIAL)
 	serial_console_init();
 #endif /* CONFIG_8xx */
 #if defined(CONFIG_MVME162_SCC) || defined(CONFIG_BVME6000_SCC) || defined(CONFIG_MVME147_SCC)
