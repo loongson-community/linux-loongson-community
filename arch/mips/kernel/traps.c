@@ -501,7 +501,6 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		return;
 
 	force_sig(SIGFPE, current);
-	printk(KERN_DEBUG "Sent send SIGFPE to %s\n", current->comm);
 }
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
@@ -845,7 +844,7 @@ void __init trap_init(void)
 	 * Copy the EJTAG debug exception vector handler code to it's final 
 	 * destination.
 	 */
-	memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
+	//memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
 
 	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
