@@ -32,9 +32,11 @@
 #include <asm/mmu_context.h>
 
 /* Primary cache parameters. */
-static int icache_size, dcache_size; /* Size in bytes */
+static unsigned long icache_size, dcache_size; /* Size in bytes */
 #define ic_lsize	mips_cpu.icache.linesz
 #define dc_lsize	mips_cpu.dcache.linesz
+#define ic_ways		mips_cpu.icache.ways
+#define dc_ways		mips_cpu.dcache.ways
 static unsigned long scache_size;
 
 #include <asm/cacheops.h>
@@ -266,24 +268,26 @@ static void tx49_flush_cache_sigtramp(unsigned long addr)
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
-	icache_size = 1 << (12 + ((config >> 9) & 7));
-	ic_lsize = 16 << ((config >> 5) & 1);
-	mips_cpu.icache.ways = 1;
-	mips_cpu.icache.sets = icache_size / mips_cpu.icache.linesz;
+	icache_size		= 1 << (12 + ((config >> 9) & 7));
+	ic_lsize		= 16 << ((config >> 5) & 1);
+	ic_ways			= 4;
+	mips_cpu.icache.sets	= icache_size /
+				   (ic_lsize * mips_cpu.icache.ways);
 
-	printk("Primary instruction cache %dkb, linesize %d bytes.\n",
-	       icache_size >> 10, ic_lsize);
+	printk("Primary instruction cache %dkb, linesize %d bytes (%d ways)\n",
+	       icache_size >> 10, ic_lsize, ic_ways);
 }
 
 static void __init probe_dcache(unsigned long config)
 {
-	dcache_size = 1 << (12 + ((config >> 6) & 7));
-	dc_lsize = 16 << ((config >> 4) & 1);
-	mips_cpu.dcache.ways = 1;
-	mips_cpu.dcache.sets = dcache_size / mips_cpu.dcache.linesz;
+	dcache_size		= 1 << (12 + ((config >> 6) & 7));
+	dc_lsize		= 16 << ((config >> 4) & 1);
+	dc_ways			= 4;
+	mips_cpu.dcache.sets	= dcache_size /
+				  (dc_lsize * mips_cpu.dcache.ways);
 
-	printk("Primary data cache %dkb, linesize %d bytes.\n",
-	       dcache_size >> 10, dc_lsize);
+	printk("Primary data cache %dkb, linesize %d bytes (%d ways)\n",
+	       dcache_size >> 10, dc_lsize, dc_ways);
 }
 
 int mips_configk0 __initdata = -1;	/* board-specific setup routine can override this */
