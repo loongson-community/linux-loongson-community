@@ -50,13 +50,18 @@
 #define debug(x,args...)
 #endif
 
-static BCSR * const bcsr = (BCSR *)0xAE000000;
+static BCSR * const bcsr = (BCSR *)BCSR_KSEG1_ADDR;
+
 struct au1000_pcmcia_socket au1000_pcmcia_socket[PCMCIA_NUM_SOCKS];
 extern int au1x00_pcmcia_socket_probe(struct device *, struct pcmcia_low_level *, int, int);
 
 static int db1x00_pcmcia_hw_init(struct au1000_pcmcia_socket *skt)
 {
+#ifdef CONFIG_MIPS_DB1550
+	skt->irq = skt->nr ? AU1000_GPIO_5 : AU1000_GPIO_3;
+#else
 	skt->irq = skt->nr ? AU1000_GPIO_5 : AU1000_GPIO_2;
+#endif
 	return 0;
 }
 
