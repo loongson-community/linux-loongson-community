@@ -1744,7 +1744,7 @@ tc35815_killall(void)
 }
 
 static struct pci_driver tc35815_driver = {
-	.name =TC35815_MODULE_NAME,
+	.name = TC35815_MODULE_NAME,
 	.probe = tc35815_probe,
 	.remove = NULL,
 	.id_table = tc35815_pci_tbl,
@@ -1754,7 +1754,7 @@ static int __init tc35815_init_module(void)
 {
 	int err;
 
-	if ((err = pci_module_init(&tc35815_driver)) < 0 )
+	if ((err = pci_module_init(&tc35815_driver)) < 0)
 		       return err;      
 	else
 		return 0;
