@@ -200,8 +200,8 @@
  * Valid machtype for group LASAT
  */
 #define MACH_GROUP_LASAT       21
-#define  MACH_LASAT_100		1	/* Masquerade II/SP100/SP50/SP25 */
-#define  MACH_LASAT_200		2	/* Masquerade PRO/SP200 */
+#define  MACH_LASAT_100		0	/* Masquerade II/SP100/SP50/SP25 */
+#define  MACH_LASAT_200		1	/* Masquerade PRO/SP200 */
 
 /*
  * Valid machtype for group TITAN

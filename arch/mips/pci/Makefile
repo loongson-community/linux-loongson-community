@@ -24,6 +24,7 @@ obj-$(CONFIG_DDB5074)		+= fixup-ddb5074.o pci-ddb5074.o ops-ddb5074.o
 obj-$(CONFIG_DDB5476)		+= ops-ddb5476.o pci-ddb5476.o
 obj-$(CONFIG_DDB5477)		+= fixup-ddb5477.o pci-ddb5477.o ops-ddb5477.o
 obj-$(CONFIG_HP_LASERJET)	+= pci-hplj.o
+obj-$(CONFIG_LASAT)		+= pci-lasat.o fixup-lasat.o
 obj-$(CONFIG_MIPS_ATLAS)	+= fixup-atlas.o
 obj-$(CONFIG_MIPS_COBALT)	+= fixup-cobalt.o
 obj-$(CONFIG_MIPS_EV96100)	+= fixup-ev64120.o

@@ -44,7 +44,6 @@
 #endif
 
 #include "ds1603.h"
-#include "at93c.h"
 #include <asm/lasat/ds1603.h>
 #include <asm/lasat/picvue.h>
 #include <asm/lasat/eeprom.h>
@@ -124,12 +123,6 @@ static void lasat_timer_setup(struct irqaction *irq)
 		read_c0_count() + 
 		mips_hpt_frequency / HZ);
 	change_c0_status(ST0_IM, IE_IRQ0 | IE_IRQ5);
-}
-
-#define MIPS_CPU_TIMER_IRQ 7
-asmlinkage void lasat_timer_interrupt(struct pt_regs *regs)
-{
-	ll_timer_interrupt(MIPS_CPU_TIMER_IRQ, regs);
 }
 
 #define DYNAMIC_SERIAL_INIT

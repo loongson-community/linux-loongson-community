@@ -1159,7 +1159,10 @@ pcnet32_open(struct net_device *dev)
     int i;
     int rc;
 
-    if (dev->irq == 0 ||
+    if (
+#ifndef CONFIG_LASAT
+        dev->irq == 0 ||
+#endif
 	request_irq(dev->irq, &pcnet32_interrupt,
 		    lp->shared_irq ? SA_SHIRQ : 0, lp->name, (void *)dev)) {
 	return -EAGAIN;
