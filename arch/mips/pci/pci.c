@@ -98,6 +98,12 @@ static int __init pcibios_init(void)
 
 	/* Scan all of the recorded PCI controllers.  */
 	for (next_busno = 0, hose = hose_head; hose; hose = hose->next) {
+
+		if (request_resource(&iomem_resource, hose->mem_resource) < 0)
+			goto out;
+		if (request_resource(&ioport_resource, hose->io_resource) < 0)
+			goto out_free_mem_resource;
+
 		bus = pci_scan_bus(next_busno, hose->pci_ops, hose);
 		hose->bus = bus;
 		hose->need_domain_info = need_domain_info;
@@ -108,12 +114,19 @@ static int __init pcibios_init(void)
 			next_busno = 0;
 			need_domain_info = 1;
 		}
+		continue;
+
+out_free_mem_resource:
+		release_resource(hose->mem_resource);
+
+out:
+		printk(KERN_WARNING
+		       "Skipping PCI bus scan due to resource conflict\n");
 	}
 
 	pci_assign_unassigned_resources();
 	pcibios_fixup_irqs();			/* fixup irqs (board specific routines) */
 
-//while(1);
 	return 0;
 }
 
