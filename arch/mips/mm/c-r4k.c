@@ -49,7 +49,7 @@ struct bcache_ops *bcops = &no_sc_ops;
 #define R4600_HIT_CACHEOP_WAR_IMPL					\
 do {									\
 	if (R4600_V2_HIT_CACHEOP_WAR && cpu_is_r4600_v2_x())		\
-		*(volatile unsigned long *)KSEG1;			\
+		*(volatile unsigned long *)CKSEG1;			\
 	if (R4600_V1_HIT_CACHEOP_WAR)					\
 		__asm__ __volatile__("nop;nop;nop;nop");		\
 } while (0)
@@ -983,7 +983,7 @@ static void __init setup_scache(void)
 	case CPU_R4000MC:
 	case CPU_R4400SC:
 	case CPU_R4400MC:
-		probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
+		probe_scache_kseg1 = (probe_func_t) (CKSEG1ADDR(&probe_scache));
 		sc_present = probe_scache_kseg1(config);
 		if (sc_present)
 			c->options |= MIPS_CPU_CACHE_CDEX_S;
