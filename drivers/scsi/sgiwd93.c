@@ -5,7 +5,7 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.7 1996/07/23 09:00:16 dm Exp $
+ * $Id: sgiwd93.c,v 1.8 1998/08/25 09:18:49 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -77,7 +77,7 @@ static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 
 static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 {
-	struct WD33C93_hostdata *hdata = CMDHOSTDATA(cmd);
+	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->host->hostdata;
 	wd33c93_regs *regp = hdata->regp;
 	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) cmd->host->base;
 	struct hpc_chunk *hcp = (struct hpc_chunk *) hdata->dma_bounce_buffer;
@@ -89,14 +89,14 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 
 	hdata->dma_dir = datainp;
 
-	if(cmd->use_sg) {
+	if(cmd->SCp.buffers_residual) {
 		struct scatterlist *slp = cmd->SCp.buffer;
 		int i, totlen = 0;
 
 #ifdef DEBUG_DMA
 		printk("SCLIST<");
 #endif
-		for(i = 0; i <= (cmd->use_sg - 1); i++, hcp++) {
+		for(i = 0; i <= cmd->SCp.buffers_residual; i++, hcp++) {
 #ifdef DEBUG_DMA
 			printk("[%p,%d]", slp[i].address, slp[i].length);
 #endif
@@ -146,7 +146,7 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 		     int status)
 {
-	struct WD33C93_hostdata *hdata = INSTHOSTDATA(instance);
+	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)instance->hostdata;
 	wd33c93_regs *regp = hdata->regp;
 	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) SCpnt->host->base;
 
@@ -163,7 +163,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 	hregs->ctrl = 0;
 
 	/* See how far we got and update scatterlist state if necessary. */
-	if(SCpnt->use_sg) {
+	if(SCpnt->SCp.buffers_residual) {
 		struct scatterlist *slp = SCpnt->SCp.buffer;
 		int totlen, wd93_residual, transferred, i;
 
@@ -183,7 +183,7 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 #ifdef DEBUG_DMA
 			printk("Jed was here...");
 #endif
-			for(i = 0; i <= (SCpnt->use_sg - 1); i++) {
+			for(i = 0; i <= SCpnt->SCp.buffers_residual; i++) {
 				if(slp[i].length >= transferred)
 					break;
 				transferred -= slp[i].length;
@@ -193,10 +193,10 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 #ifdef DEBUG_DMA
 			printk("did it all...");
 #endif
-			i = (SCpnt->use_sg - 1);
+			i = SCpnt->SCp.buffers_residual;
 		}
 		SCpnt->SCp.buffer = &slp[i];
-		SCpnt->SCp.buffers_residual = (SCpnt->use_sg - 1 - i);
+		SCpnt->SCp.buffers_residual = SCpnt->SCp.buffers_residual - i;
 		SCpnt->SCp.ptr = (char *) slp[i].address;
 		SCpnt->SCp.this_residual = slp[i].length;
 	}
@@ -244,7 +244,7 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 	wd33c93_init(sgiwd93_host, (wd33c93_regs *) 0xbfbc0003,
 		     dma_setup, dma_stop, WD33C93_FS_16_20);
 
-	hdata = INSTHOSTDATA(sgiwd93_host);
+	hdata = (struct WD33C93_hostdata *)sgiwd93_host->hostdata;
 	hdata->no_sync = 0;
 	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
