@@ -197,14 +197,10 @@ static void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	preempt_disable();
-
 	addr &= PAGE_MASK;
 	args.vma = vma;
 	args.addr = addr;
 	on_each_cpu(sb1_flush_cache_page_ipi, (void *) &args, 1, 1);
-
-	preempt_enable();
 }
 #else
 void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
@@ -247,9 +243,7 @@ void sb1___flush_cache_all_ipi(void *ignored)
 
 static void sb1___flush_cache_all(void)
 {
-	preempt_disable();
 	on_each_cpu(sb1___flush_cache_all_ipi, 0, 1, 1);
-	preempt_enable();
 }
 #else
 void sb1___flush_cache_all(void)
@@ -297,13 +291,9 @@ void sb1_flush_icache_range(unsigned long start, unsigned long end)
 {
 	struct flush_icache_range_args args;
 
-	preempt_disable();
-
 	args.start = start;
 	args.end = end;
 	on_each_cpu(sb1_flush_icache_range_ipi, &args, 1, 1);
-
-	preempt_enable();
 }
 #else
 void sb1_flush_icache_range(unsigned long start, unsigned long end)
@@ -358,14 +348,9 @@ static void sb1_flush_icache_page(struct vm_area_struct *vma,
 
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
-
-	preempt_disable();
-
 	args.vma = vma;
 	args.page = page;
 	on_each_cpu(sb1_flush_icache_page_ipi, (void *) &args, 1, 1);
-
-	preempt_enable();
 }
 #else
 void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page)
@@ -392,9 +377,7 @@ static void sb1_flush_cache_sigtramp_ipi(void *info)
 
 static void sb1_flush_cache_sigtramp(unsigned long addr)
 {
-	preempt_disable();
 	on_each_cpu(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
-	preempt_enable();
 }
 #else
 void sb1_flush_cache_sigtramp(unsigned long addr)
