@@ -24,7 +24,7 @@
  * Sane hardware offers swapping of I/O space accesses in hardware; less
  * sane hardware forces software to fiddle with this ...
  */
-#ifdef CONFIG_SWAP_IO_SPACE
+#if defined(CONFIG_SWAP_IO_SPACE) && defined(__MIPSEB__)
 
 #define __ioswab8(x) (x)
 #define __ioswab16(x) swab16(x)
