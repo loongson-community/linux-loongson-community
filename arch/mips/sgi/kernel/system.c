@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: system.c,v 1.5 1998/04/05 11:24:00 ralf Exp $
+ * $Id: system.c,v 1.6 1998/10/18 13:51:49 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -41,7 +41,7 @@ __initfunc(static int string_to_cpu(char *s))
 
 	for(i = 0; i < NUM_CPUS; i++) {
 		if(!strcmp(s, sgi_cputable[i].name))
-			return sgi_mtable[i].type;
+			return sgi_cputable[i].type;
 	}
 	prom_printf("\nYeee, could not determine MIPS cpu type <%s>\n", s);
 	prom_printf("press a key to reboot\n");
