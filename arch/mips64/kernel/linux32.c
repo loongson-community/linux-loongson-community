@@ -26,6 +26,7 @@
 #include <linux/utsname.h>
 #include <linux/personality.h>
 #include <linux/timex.h>
+#include <linux/dnotify.h>
 
 #include <asm/uaccess.h>
 #include <asm/mman.h>
@@ -1039,6 +1040,72 @@ bad_file:
 	return ret;
 }
 
+/* From the Single Unix Spec: pread & pwrite act like lseek to pos + op +
+   lseek back to original location.  They fail just like lseek does on
+   non-seekable files.  */
+
+asmlinkage ssize_t sys32_pread(unsigned int fd, char * buf,
+			       size_t count, u32 unused, loff_t pos)
+{
+	ssize_t ret;
+	struct file * file;
+	ssize_t (*read)(struct file *, char *, size_t, loff_t *);
+
+	ret = -EBADF;
+	file = fget(fd);
+	if (!file)
+		goto bad_file;
+	if (!(file->f_mode & FMODE_READ))
+		goto out;
+	ret = locks_verify_area(FLOCK_VERIFY_READ, file->f_dentry->d_inode,
+				file, pos, count);
+	if (ret)
+		goto out;
+	ret = -EINVAL;
+	if (!file->f_op || !(read = file->f_op->read))
+		goto out;
+	if (pos < 0)
+		goto out;
+	ret = read(file, buf, count, &pos);
+	if (ret > 0)
+		inode_dir_notify(file->f_dentry->d_parent->d_inode, DN_ACCESS);
+out:
+	fput(file);
+bad_file:
+	return ret;
+}
+
+asmlinkage ssize_t sys32_pwrite(unsigned int fd, const char * buf,
+			        size_t count, u32 unused, loff_t pos)
+{
+	ssize_t ret;
+	struct file * file;
+	ssize_t (*write)(struct file *, const char *, size_t, loff_t *);
+
+	ret = -EBADF;
+	file = fget(fd);
+	if (!file)
+		goto bad_file;
+	if (!(file->f_mode & FMODE_WRITE))
+		goto out;
+	ret = locks_verify_area(FLOCK_VERIFY_WRITE, file->f_dentry->d_inode,
+				file, pos, count);
+	if (ret)
+		goto out;
+	ret = -EINVAL;
+	if (!file->f_op || !(write = file->f_op->write))
+		goto out;
+	if (pos < 0)
+		goto out;
+
+	ret = write(file, buf, count, &pos);
+	if (ret > 0)
+		inode_dir_notify(file->f_dentry->d_parent->d_inode, DN_MODIFY);
+out:
+	fput(file);
+bad_file:
+	return ret;
+}
 /*
  * Ooo, nasty.  We need here to frob 32-bit unsigned longs to
  * 64-bit unsigned longs.

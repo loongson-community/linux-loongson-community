@@ -401,8 +401,8 @@ illegal_syscall:
 	sys	sys32_rt_sigtimedwait 4
 	sys	sys32_rt_sigqueueinfo 3
 	sys	sys32_rt_sigsuspend 0
-	sys	sys_pread	4			/* 4200 */
-	sys	sys_pwrite	4
+	sys	sys32_pread	6			/* 4200 */
+	sys	sys32_pwrite	6
 	sys	sys_chown	3
 	sys	sys_getcwd	2
 	sys	sys_capget	2
