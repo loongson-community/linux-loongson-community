@@ -99,7 +99,7 @@ static nasid_t get_actual_nasid(lboard_t *brd)
 		return brd->brd_nasid;
 }
 
-static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int *highest)
+static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int highest)
 {
 	static int tot_cpus_found = 0;
 	lboard_t *brd;
@@ -116,11 +116,11 @@ static int do_cpumask(cnodeid_t cnode, nasid_t nasid, int *highest)
 			/* cnode is not valid for completely disabled brds */
 			if (get_actual_nasid(brd) == brd->brd_nasid)
 				cpuid_to_compact_node[cpuid] = cnode;
-			if (cpuid > *highest)
-				*highest = cpuid;
+			if (cpuid > highest)
+				highest = cpuid;
 			/* Only let it join in if it's marked enabled */
 			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
-						(tot_cpus_found != max_cpus)) {
+			    (tot_cpus_found != NR_CPUS)) {
 				cpu_set(cpuid, cpus_found);
 				cpus_found++;
 				tot_cpus_found++;
@@ -161,7 +161,7 @@ static cpuid_t cpu_node_probe(void)
 		compact_to_nasid_node[i] = nasid;
 		nasid_to_compact_node[nasid] = i;
 		numnodes++;
-		do_cpumask(i, nasid, &highest);
+		highest = do_cpumask(i, nasid, highest);
 	}
 
 	/*
