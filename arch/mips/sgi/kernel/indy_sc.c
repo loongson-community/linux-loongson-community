@@ -55,8 +55,7 @@ static inline void indy_sc_wipe(unsigned long first, unsigned long last)
 	".set\tmips0\n\t"
 	".set\treorder"
 	: "=r" (first), "=r" (last), "=&r" (tmp)
-	: "0" (first), "1" (last)
-	: "$1");
+	: "0" (first), "1" (last));
 }
 
 static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
