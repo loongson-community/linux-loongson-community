@@ -16,12 +16,13 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#include "asm/sibyte/sb1250_defs.h"
-#include "asm/sibyte/sbmips.h"
+#include <asm/sibyte/sb1250_defs.h>
+#include <asm/sibyte/sbmips.h>
+#include <asm/asm.h>
 
-	 .set mips64
+		 .set mips64
 
-#define HAZARD ssnop ; ssnop ; ssnop ; ssnop ; ssnop ; ssnop ; ssnop 
+#define HAZARD SSNOP ; SSNOP ; SSNOP ; SSNOP ; SSNOP ; SSNOP ; SSNOP 
 
 
 /*  *********************************************************************
@@ -195,9 +196,3 @@ LEAF(hs_write64)
 		HAZARD
 		j	ra
 END(hs_write64)
-
-
-/*  *********************************************************************
-    *  End
-    ********************************************************************* */
-
