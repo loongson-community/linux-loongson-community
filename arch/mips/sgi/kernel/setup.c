@@ -16,6 +16,7 @@
 #include <linux/pc_keyb.h>
 
 #include <asm/addrspace.h>
+#include <asm/bcache.h>
 #include <asm/keyboard.h>
 #include <asm/irq.h>
 #include <asm/reboot.h>

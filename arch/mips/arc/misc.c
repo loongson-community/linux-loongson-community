@@ -1,5 +1,4 @@
-/* $Id: misc.c,v 1.1 1998/10/18 13:32:09 tsbogend Exp $
- *
+/*
  * misc.c: Miscellaneous ARCS PROM routines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)

@@ -44,7 +44,17 @@ static unsigned int scache_size, sc_lsize;	/* Again, in bytes */
 
 #undef DEBUG_CACHE
 
-DECLARE_BCOPS;
+/*
+ * Dummy cache handling routines for machines without boardcaches
+ */
+static void no_sc_noop(void) {}
+
+static struct bcache_ops no_sc_ops = {
+	(void *)no_sc_noop, (void *)no_sc_noop,
+	(void *)no_sc_noop, (void *)no_sc_noop
+};
+
+struct bcache_ops *bcops = &no_sc_ops;
 
 /*
  * On processors with QED R4600 style two set assosicative cache

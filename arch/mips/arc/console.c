@@ -12,19 +12,21 @@
 #include <asm/sgialib.h>
 #include <asm/bcache.h>
 
-/* The romvec is not compatible with board caches.  Thus we disable it during
- * romvec action.  Since r4xx0.c is always compiled and linked with your kernel,
- * this shouldn't cause any harm regardless what MIPS processor you have.
+#ifdef CONFIG_ARC_CONSOLE
+#define __init
+#endif
+
+/*
+ * IP22 boardcache is not compatible with board caches.  Thus we disable it
+ * during romvec action.  Since r4xx0.c is always compiled and linked with your
+ * kernel, this shouldn't cause any harm regardless what MIPS processor you
+ * have.
  *
- * The romvec write and read functions seem to interfere with the serial lines
+ * The ARC write and read functions seem to interfere with the serial lines
  * in some way. You should be careful with them.
  */
 
-#ifdef CONFIG_ARC_CONSOLE
-void prom_putchar(char c)
-#else
 void __init prom_putchar(char c)
-#endif
 {
 	long cnt;
 	char it = c;
@@ -34,11 +36,7 @@ void __init prom_putchar(char c)
 	bc_enable();
 }
 
-#ifdef CONFIG_ARC_CONSOLE
-char prom_getchar(void)
-#else
 char __init prom_getchar(void)
-#endif
 {
 	long cnt;
 	char c;
@@ -51,11 +49,7 @@ char __init prom_getchar(void)
 
 static char ppbuf[1024];
 
-#ifdef CONFIG_ARC_CONSOLE
-void prom_printf(char *fmt, ...)
-#else
 void __init prom_printf(char *fmt, ...)
-#endif
 {
 	va_list args;
 	char ch, *bptr;
@@ -66,12 +60,11 @@ void __init prom_printf(char *fmt, ...)
 
 	bptr = ppbuf;
 
-	while((ch = *(bptr++)) != 0) {
-		if(ch == '\n')
+	while ((ch = *(bptr++)) != 0) {
+		if (ch == '\n')
 			prom_putchar('\r');
 
 		prom_putchar(ch);
 	}
 	va_end(args);
-	return;
 }
