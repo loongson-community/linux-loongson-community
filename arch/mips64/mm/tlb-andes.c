@@ -66,8 +66,9 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
                            unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
+	int cpu = smp_processor_id();
 
-	if (cpu_context(smp_processor_id(), mm) != 0) {
+	if (cpu_context(cpu, mm) != 0) {
 		unsigned long flags;
 		int size;
 
