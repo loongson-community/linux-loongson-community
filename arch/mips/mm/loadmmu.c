@@ -61,7 +61,6 @@ extern void ld_mmu_r6000(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
-extern void tlb_init(void);
 
 void __init load_mmu(void)
 {
@@ -73,7 +72,6 @@ void __init load_mmu(void)
     defined(CONFIG_CPU_MIPS64) || defined(CONFIG_CPU_TX49XX) || \
     defined(CONFIG_CPU_RM7000)
 		ld_mmu_r4xx0();
-		tlb_init();
 #endif
 	} else switch (current_cpu_data.cputype) {
 #ifdef CONFIG_CPU_R3000
@@ -82,7 +80,6 @@ void __init load_mmu(void)
 	case CPU_R3000A:
 	case CPU_R3081E:
 		ld_mmu_r23000();
-		tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_TX39XX
@@ -90,20 +87,17 @@ void __init load_mmu(void)
 	case CPU_TX3922:
 	case CPU_TX3927:
 		ld_mmu_tx39();
-		tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 	case CPU_R12000:
 		ld_mmu_r4xx0();
-		tlb_init();
 		break;
 #endif
 #ifdef CONFIG_CPU_SB1
 	case CPU_SB1:
 		ld_mmu_sb1();
-		tlb_init();
 		break;
 #endif
 
