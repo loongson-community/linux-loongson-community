@@ -282,9 +282,9 @@ loc_ethernet: 	li	s1,~JAZZ_IE_ETHERNET
  * SCSI interrupt handler
  */
 loc_scsi:	li	s1,~JAZZ_IE_SCSI
-		li	a0,12         # JAZZ_SCSI_IRQ */
+		li	a0,JAZZ_SCSI_IRQ
 		b	loc_call
-		li	t3,PTRSIZE*12 # JAZZ_ETHERNET_IRQ 	# delay slot
+		li	t3,PTRSIZE*JAZZ_SCSI_IRQ 	# delay slot
 
 /*
  * Keyboard interrupt handler
