@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
  *
- * $Id: indy_mc.c,v 1.6 1999/10/21 00:23:05 ralf Exp $
+ * $Id: indy_mc.c,v 1.7 1999/12/04 03:59:00 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -18,7 +18,7 @@
 /* #define DEBUG_SGIMC */
 
 struct sgimc_misc_ctrl *mcmisc_regs;
-unsigned int *rpsscounter;
+u32 *rpsscounter;
 struct sgimc_dma_ctrl *dmactrlregs;
 
 static inline char *mconfig_string(unsigned long val)

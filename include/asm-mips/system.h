@@ -1,4 +1,4 @@
-/* $Id: system.h,v 1.18 1999/11/17 22:48:12 ralf Exp $
+/* $Id: system.h,v 1.19 1999/12/04 03:59:12 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -12,6 +12,8 @@
 #define _ASM_SYSTEM_H
 
 #include <linux/config.h>
+#include <asm/sgidefs.h>
+#include <asm/ptrace.h>
 #include <linux/kernel.h>
 
 extern __inline__ void
@@ -187,7 +189,7 @@ extern __inline__ unsigned long xchg_u32(volatile int * m, unsigned long val)
 		"1:\tmove\t$1,%2\n\t"
 		"sc\t$1,(%1)\n\t"
 		"beqzl\t$1,1b\n\t"
-		"lld\t%0,(%1)\n\t"
+		"ll\t%0,(%1)\n\t"
 		".set\tat\n\t"
 		".set\treorder"
 		: "=r" (val), "=r" (m), "=r" (dummy)

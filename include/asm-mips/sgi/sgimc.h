@@ -1,4 +1,4 @@
-/* $Id: sgimc.h,v 1.1.1.1 1997/06/01 03:17:13 ralf Exp $
+/* $Id: sgimc.h,v 1.1 1999/10/21 00:23:05 ralf Exp $
  * sgimc.h: Definitions for memory controller hardware found on
  *          SGI IP20, IP22, IP26, and IP28 machines.
  *
@@ -176,7 +176,7 @@ struct sgimc_misc_ctrl {
 
 /* MC misc control registers live at physical 0x1fa00000. */
 extern struct sgimc_misc_ctrl *mcmisc_regs;
-extern unsigned long *rpsscounter;          /* Chirps at 100ns */
+extern u32 *rpsscounter;          	/* Chirps at 100ns */
 
 struct sgimc_dma_ctrl {
 	unsigned long _unused1;
