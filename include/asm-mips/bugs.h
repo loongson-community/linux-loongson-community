@@ -30,6 +30,7 @@ static inline void check_wait(void)
 	case CPU_R4700: 
 	case CPU_R5000: 
 	case CPU_NEVADA:
+	case CPU_RM7000:
 		cpu_wait = r4k_wait;
 		printk(" available.\n");
 		break;
