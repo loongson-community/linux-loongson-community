@@ -64,8 +64,8 @@ NESTED(handle_sys64, PT_SIZE, sp)
 
 syscall_exit:
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
-		xori	t0, t0, 1		# signals dont change between
-		ori	t0, t0, 1		# sampling and return
+		ori	t0, t0, 1		# signals dont change between
+		xori	t0, t0, 1		# sampling and return
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
