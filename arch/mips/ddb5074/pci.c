@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
  *                     Albert Dorofeev <albert@sonycom.com>
- *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
+ *                     Sony Software Development Center Europe (SDCE), Brussels
  *
  *  $Id: pci.c,v 1.4 2000/02/18 00:02:17 ralf Exp $
  */

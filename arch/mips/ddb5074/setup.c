@@ -2,7 +2,7 @@
  *  arch/mips/ddb5074/setup.c -- NEC DDB Vrc-5074 setup routines
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
- *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
+ *                     Sony Software Development Center Europe (SDCE), Brussels
  *
  *  $Id: setup.c,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */

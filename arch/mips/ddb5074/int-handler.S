@@ -6,7 +6,7 @@
  *  Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
  *  Copyright (C) 2000 Geert Uytterhoeven <geert@sonycom.com>
- *                     Sony Suprastructure Center Europe (SUPC-E), Brussels
+ *                     Sony Software Development Center Europe (SDCE), Brussels
  *
  *  $Id: int-handler.S,v 1.1 2000/01/26 00:07:44 ralf Exp $
  */
