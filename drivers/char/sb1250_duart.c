@@ -163,7 +163,8 @@ static inline unsigned long get_status_reg(unsigned int line)
 /* Derive which uart a call is for from the passed tty line.  */
 static inline unsigned int get_line(struct tty_struct *tty) 
 {
-	unsigned int line = MINOR(tty->device) - tty->driver.minor_start;
+	unsigned int line = minor(tty->device) - tty->driver.minor_start;
+
 	if (line > 1)
 		printk(KERN_CRIT "Invalid line\n");
 
