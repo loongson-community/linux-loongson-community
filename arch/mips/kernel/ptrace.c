@@ -207,7 +207,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 
 	case PTRACE_POKEUSR: {
 		struct pt_regs *regs;
-		int res = 0;
+		res = 0;
 		regs = (struct pt_regs *) ((unsigned long) child +
 		       KERNEL_STACK_SIZE - 32 - sizeof(struct pt_regs));
 
