@@ -510,7 +510,7 @@ asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
 		}
 #endif
 #ifdef CONFIG_BINFMT_IRIX
-		if (unlikely(current->personality) != PER_LINUX) {
+		if (unlikely(current->personality != PER_LINUX)) {
 			do_irix_signal(oldset, regs);
 			return;
 		}
