@@ -1,12 +1,9 @@
 /*
- *
  * Alchemy Semi Au1000 ethernet driver
  *
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *         	ppopov@mvista.com or source@mvista.com
- *
- * ########################################################################
  *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
@@ -20,10 +17,9 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
  */
 #include <linux/config.h>
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -118,7 +114,7 @@ static struct {
 	},
   au1100_iflist[NUM_INTERFACES] = {
 		{AU1000_ETH0_BASE, AU1000_ETH0_IRQ}, 
-		{NULL, NULL}
+		{0, 0}
 	};
 
 static char version[] __devinitdata =
@@ -1244,6 +1240,8 @@ static void au1000_tx_timeout(struct net_device *dev)
 	printk(KERN_ERR "%s: au1000_tx_timeout: dev=%p\n", dev->name, dev);
 	reset_mac(dev);
 	au1000_init(dev);
+	dev->trans_start = jiffies;
+	netif_wake_queue(dev);
 }
 
 static void set_rx_mode(struct net_device *dev)
