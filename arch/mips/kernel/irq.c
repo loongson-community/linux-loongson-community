@@ -76,6 +76,9 @@ int get_irq_list(char *buf)
 	int i;
 
 	p += sprintf(p, "           ");
+	for (i=0; i < 1 /*smp_num_cpus*/; i++)
+		p += sprintf(p, "CPU%d       ", i);
+	*p++ = '\n';
 
 	for (i = 0 ; i < NR_IRQS ; i++) {
 		action = irq_desc[i].action;
@@ -182,10 +185,6 @@ void disable_irq(unsigned int irq)
 	}
 }
 
-void disable_irq(unsigned int irq)
-{
-}
-
 /**
  *	enable_irq - enable interrupt handling on an irq
  *	@irq: Interrupt to enable
@@ -228,7 +227,7 @@ void enable_irq(unsigned int irq)
  * SMP cross-CPU interrupts have their own specific
  * handlers).
  */
-asmlinkage unsigned int do_IRQ(int irq, struct pt_regs regs)
+asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 {
 	/* 
 	 * We ack quickly, we don't want the irq controller
@@ -693,4 +692,16 @@ int setup_irq(unsigned int irq, struct irqaction * new)
 
 	/* register_irq_proc(irq); */
 	return 0;
+}
+
+void __init init_generic_irq(void)
+{
+	int i;
+
+	for (i = 0; i < NR_IRQS; i++) {
+		irq_desc[i].status  = IRQ_DISABLED;
+		irq_desc[i].action  = NULL;
+		irq_desc[i].depth   = 1;
+		irq_desc[i].handler = &no_irq_type;
+	}
 }

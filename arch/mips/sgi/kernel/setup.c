@@ -117,17 +117,6 @@ struct kbd_ops sgi_kbd_ops = {
 	sgi_read_status
 };
 
-static void __init sgi_irq_setup(void)
-{
-	sgint_init();
-
-#ifdef CONFIG_REMOTE_DEBUG
-	if (remote_debug)
-		set_debug_traps();
-	breakpoint(); /* you may move this line to whereever you want :-) */
-#endif
-}
-
 void (*board_time_init)(struct irqaction *irq);
 
 static unsigned long dosample(volatile unsigned char *tcwp,
@@ -234,7 +223,6 @@ void __init sgi_setup(void)
 	char *kgdb_ttyd;
 #endif
 
-	irq_setup = sgi_irq_setup;
 	board_time_init = sgi_time_init;
 
 	/* Init the INDY HPC I/O controller.  Need to call this before

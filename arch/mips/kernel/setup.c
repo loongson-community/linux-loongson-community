@@ -101,12 +101,6 @@ static char command_line[COMMAND_LINE_SIZE];
 extern char arcs_cmdline[COMMAND_LINE_SIZE];
 
 /*
- * The board specific setup routine sets irq_setup to point to a board
- * specific setup routine.
- */
-void (*irq_setup)(void);
-
-/*
  * mips_io_port_base is the begin of the address space to which x86 style
  * I/O ports are mapped.
  */
@@ -420,11 +414,6 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	start_kernel();
 }
 
-static void __init default_irq_setup(void)
-{
-	panic("Unknown machtype in init_IRQ");
-}
-
 void __init add_memory_region(unsigned long start, unsigned long size,
 			      long type)
 {
@@ -535,9 +524,6 @@ void __init setup_arch(char **cmdline_p)
 	unsigned long start_pfn, max_pfn, first_usable_pfn;
 
 	int i;
-
-	/* Save defaults for configuration-dependent routines.  */
-	irq_setup = default_irq_setup;
 
 #ifdef CONFIG_BLK_DEV_FD
 	fd_ops = &no_fd_ops;

@@ -42,6 +42,7 @@ endif
 
 # Old style irq support, going to die in 2.5.
 export-objs			+= old-irq.o
+obj-$(CONFIG_NEW_IRQ)		+= irq.o
 obj-$(CONFIG_ROTTEN_IRQ)	+= old-irq.o
 
 # transition from old time.c to new time.c

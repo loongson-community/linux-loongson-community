@@ -20,7 +20,6 @@ spinlock_t pciasic_lock = SPIN_LOCK_UNLOCKED;
 
 extern asmlinkage void sni_rm200_pci_handle_int(void);
 extern void do_IRQ(int irq, struct pt_regs *regs);
-extern void i8259_do_irq(int irq, struct pt_regs *regs);
 
 static void enable_pciasic_irq(unsigned int irq);
 

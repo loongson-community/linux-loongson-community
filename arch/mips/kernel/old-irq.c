@@ -34,6 +34,12 @@
 #include <asm/nile4.h>
 
 /*
+ * The board specific setup routine sets irq_setup to point to a board
+ * specific setup routine.
+ */
+void (*irq_setup)(void);
+
+/*
  * Linux has a controller-independent x86 interrupt architecture.
  * every controller has a 'controller-template', that is used
  * by the main code to do the right thing. Each driver-visible
