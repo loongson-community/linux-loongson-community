@@ -130,7 +130,7 @@ static inline int down_trylock(struct semaphore * sem)
  * down_trylock returns 0 on success, 1 if we failed to get the lock.
  *
  * We must manipulate count and waking simultaneously and atomically.
- * Here, we this by using ll/sc on the pair of 32-bit words.  This
+ * Here, we do this by using lld/scd on the pair of 32-bit words.  This
  * won't work on MIPS32 platforms, however, and must be rewritten.
  *
  * Pseudocode:

@@ -109,7 +109,7 @@ static inline int down_interruptible(struct semaphore * sem)
  * down_trylock returns 0 on success, 1 if we failed to get the lock.
  *
  * We must manipulate count and waking simultaneously and atomically.
- * Here, we this by using ll/sc on the pair of 32-bit words.
+ * Here, we do this by using lld/scd on the pair of 32-bit words.
  *
  * Pseudocode:
  *
