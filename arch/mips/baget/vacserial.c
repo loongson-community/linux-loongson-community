@@ -1417,12 +1417,10 @@ static int get_modem_info(struct async_struct * info, unsigned int *value)
 static int set_modem_info(struct async_struct * info, unsigned int cmd,
 			  unsigned int *value)
 {
-	int error;
 	unsigned int arg;
 
-	error = get_user(arg, value);
-	if (error)
-		return error;
+	if (get_user(arg, value))
+		return -EFAULT;
 	switch (cmd) {
 	default:
 		return -EINVAL;
