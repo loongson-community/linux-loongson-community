@@ -1,4 +1,4 @@
-/* $Id: ip22-sc.c,v 1.3 1999/10/20 18:10:24 ralf Exp $
+/* $Id: ip22-sc.c,v 1.2 1999/12/04 03:59:01 ralf Exp $
  *
  * indy_sc.c: Indy cache managment functions.
  *
@@ -9,7 +9,6 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/autoconf.h>
 
 #include <asm/bcache.h>
 #include <asm/sgi/sgimc.h>
@@ -28,7 +27,6 @@ static unsigned long scache_size;
 #define SC_SIZE 0x00080000
 #define SC_LINE 32
 #define CI_MASK (SC_SIZE - SC_LINE)
-#define SC_ROUND(n) ((n) + SC_LINE - 1)
 #define SC_INDEX(n) ((n) & CI_MASK)
 
 static inline void indy_sc_wipe(unsigned long first, unsigned long last)
@@ -54,9 +52,13 @@ static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
 #ifdef DEBUG_CACHE
 	printk("indy_sc_wback_invalidate[%08lx,%08lx]", addr, size);
 #endif
+
+	if (!size)
+		return;
+
 	/* Which lines to flush?  */
 	first_line = SC_INDEX(addr);
-	last_line = SC_INDEX(SC_ROUND(addr + size));
+	last_line = SC_INDEX(addr + size - 1);
 
 	__save_and_cli(flags);
 	if (first_line <= last_line) {
@@ -64,11 +66,8 @@ static void indy_sc_wback_invalidate(unsigned long addr, unsigned long size)
 		goto out;
 	}
 
-	/* Cache index wrap around.  Due to the way the buddy system works
-	   this case should not happen.  We're prepared to handle it,
-	   though. */
-	indy_sc_wipe(last_line, SC_SIZE);
-	indy_sc_wipe(0, first_line);
+	indy_sc_wipe(first_line, SC_SIZE - SC_LINE);
+	indy_sc_wipe(0, last_line);
 out:
 	__restore_flags(flags);
 }
@@ -160,7 +159,6 @@ static struct bcache_ops indy_sc_ops = {
 
 void __init indy_sc_init(void)
 {
-return;  /* Not for now, debugging ... */
 	if (indy_sc_probe()) {
 		indy_sc_enable();
 		bcops = &indy_sc_ops;
