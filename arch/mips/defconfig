@@ -154,9 +154,6 @@ CONFIG_PCNET32=y
 # Filesystems
 #
 # CONFIG_QUOTA is not set
-# CONFIG_DCACHE_PRELOAD is not set
-# CONFIG_OMIRR is not set
-# CONFIG_TRANS_NAMES is not set
 # CONFIG_MINIX_FS is not set
 CONFIG_EXT2_FS=y
 # CONFIG_FAT_FS is not set
@@ -194,6 +191,7 @@ CONFIG_SERIAL=y
 # CONFIG_APM is not set
 # CONFIG_WATCHDOG is not set
 # CONFIG_RTC is not set
+# CONFIG_JOYSTICK is not set
 
 #
 # Sound
