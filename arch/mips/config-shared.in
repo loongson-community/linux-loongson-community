@@ -40,9 +40,9 @@ bool 'Support for ITE 8172G board' CONFIG_MIPS_ITE8172
 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
    bool '  Support for older IT8172 (Rev C)' CONFIG_IT8172_REVC
 fi
-dep_bool 'Support for MIPS Atlas board (EXPERIMENTAL)' CONFIG_MIPS_ATLAS $CONFIG_EXPERIMENTAL
+bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
 bool 'Support for MIPS Magnum 4000' CONFIG_MIPS_MAGNUM_4000
-dep_bool 'Support for MIPS Malta board (EXPERIMENTAL)' CONFIG_MIPS_MALTA $CONFIG_EXPERIMENTAL
+bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
 dep_bool 'Support for MIPS SEAD board (EXPERIMENTAL)' CONFIG_MIPS_SEAD $CONFIG_EXPERIMENTAL
 bool 'Support for Momentum Ocelot board' CONFIG_MOMENCO_OCELOT
 bool 'Support for Momentum Ocelot-G board' CONFIG_MOMENCO_OCELOT_G
