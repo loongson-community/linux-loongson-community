@@ -55,7 +55,7 @@ config FB_CIRRUS
 
 config FB_PM2
 	tristate "Permedia2 support"
-	depends on FB && (AMIGA || PCI) && BROKEN
+	depends on FB && (AMIGA || PCI)
 	help
 	  This is the frame buffer device driver for the Permedia2 AGP frame
 	  buffer card from ASK, aka `Graphic Blaster Exxtreme'.  There is a
@@ -66,21 +66,7 @@ config FB_PM2_FIFO_DISCONNECT
 	bool "enable FIFO disconnect feature"
 	depends on FB_PM2 && PCI
 	help
-	  Support the Permedia2 FIFOI disconnect feature (see CONFIG_FB_PM2).
-
-config FB_PM2_PCI
-	bool "generic Permedia2 PCI board support"
-	depends on FB_PM2 && PCI
-	help
-	  Say Y to enable support for Permedia2 AGP frame buffer card from
-	  3Dlabs (aka `Graphic Blaster Exxtreme') on the PCI bus.
-
-config FB_PM2_CVPPC
-	bool "Phase5 CVisionPPC/BVisionPPC support"
-	depends on FB_PM2 && AMIGA
-	help
-	  Say Y to enable support for the Amiga Phase 5 CVisionPPC BVisionPPC
-	  framebuffer cards.  Phase 5 is no longer with us, alas.
+	  Support the Permedia2 FIFO disconnect feature (see CONFIG_FB_PM2).
 
 config FB_ACORN
 	bool "Acorn VIDC support"
@@ -477,7 +463,6 @@ config FB_I810_GTF
 config FB_MATROX
 	tristate "Matrox acceleration"
 	depends on FB && PCI
-	select I2C_ALGOBIT if FB_MATROX_I2C
 	---help---
 	  Say Y here if you have a Matrox Millennium, Matrox Millennium II,
 	  Matrox Mystique, Matrox Mystique 220, Matrox Productiva G100, Matrox
@@ -565,6 +550,7 @@ config FB_MATROX_G100
 config FB_MATROX_I2C
 	tristate "Matrox I2C support"
 	depends on FB_MATROX && I2C
+	select I2C_ALGOBIT
 	---help---
 	  This drivers creates I2C buses which are needed for accessing the
 	  DDC (I2C) bus present on all Matroxes, an I2C bus which
@@ -643,6 +629,7 @@ config FB_RADEON
 	tristate "ATI Radeon display support"
 	depends on FB && PCI
 	select I2C_ALGOBIT if FB_RADEON_I2C
+	select I2C if FB_RADEON_I2C
 	help
 	  Choose this option if you want to use an ATI Radeon graphics card as
 	  a framebuffer device.  There are both PCI and AGP versions.  You
@@ -660,7 +647,7 @@ config FB_RADEON
 
 config FB_RADEON_I2C
 	bool "DDC/I2C for ATI Radeon support"
-	depends on FB_RADEON && I2C
+	depends on FB_RADEON
 	default y
 	help
 	  Say Y here if you want DDC/I2C support for your Radeon board. 

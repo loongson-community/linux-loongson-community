@@ -7,6 +7,7 @@
 #include <linux/unistd.h>
 #include <linux/delay.h>
 #include <linux/string.h>
+#include <linux/syscalls.h>
 
 static __initdata char *message;
 static void __init error(char *x)
@@ -15,7 +16,7 @@ static void __init error(char *x)
 		message = x;
 }
 
-static void __init *malloc(int size)
+static void __init *malloc(size_t size)
 {
 	return kmalloc(size, GFP_KERNEL);
 }
@@ -24,17 +25,6 @@ static void __init free(void *where)
 {
 	kfree(where);
 }
-
-asmlinkage long sys_mkdir(char *name, int mode);
-asmlinkage long sys_mknod(char *name, int mode, unsigned dev);
-asmlinkage long sys_symlink(char *old, char *new);
-asmlinkage long sys_link(char *old, char *new);
-asmlinkage long sys_write(int fd, const char *buf, size_t size);
-asmlinkage long sys_chown(char *name, uid_t uid, gid_t gid);
-asmlinkage long sys_lchown(char *name, uid_t uid, gid_t gid);
-asmlinkage long sys_fchown(int fd, uid_t uid, gid_t gid);
-asmlinkage long sys_chmod(char *name, mode_t mode);
-asmlinkage long sys_fchmod(int fd, mode_t mode);
 
 /* link hash */
 

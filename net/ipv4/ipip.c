@@ -250,7 +250,7 @@ static struct ip_tunnel * ipip_tunnel_locate(struct ip_tunnel_parm *parms, int c
 	nt->parms = *parms;
 
 	if (register_netdevice(dev) < 0) {
-		kfree(dev);
+		free_netdev(dev);
 		goto failed;
 	}
 
@@ -872,7 +872,7 @@ static struct xfrm_tunnel ipip_handler = {
 static char banner[] __initdata =
 	KERN_INFO "IPv4 over IPv4 tunneling driver\n";
 
-int __init ipip_init(void)
+static int __init ipip_init(void)
 {
 	int err;
 
@@ -899,7 +899,7 @@ int __init ipip_init(void)
 	return err;
  fail:
 	xfrm4_tunnel_deregister(&ipip_handler);
-	kfree(ipip_fb_tunnel_dev);
+	free_netdev(ipip_fb_tunnel_dev);
 	goto out;
 }
 
@@ -911,8 +911,6 @@ static void __exit ipip_fini(void)
 	unregister_netdev(ipip_fb_tunnel_dev);
 }
 
-#ifdef MODULE
 module_init(ipip_init);
-#endif
 module_exit(ipip_fini);
 MODULE_LICENSE("GPL");

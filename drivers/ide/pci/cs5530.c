@@ -276,7 +276,7 @@ static unsigned int __init init_chipset_cs5530 (struct pci_dev *dev, const char 
 	if (!cs5530_proc) {
 		cs5530_proc = 1;
 		bmide_dev = dev;
-		ide_pci_register_host_proc(&cs5530_procs[0]);
+		ide_pci_create_host_proc("cs5530", cs5530_get_info);
 	}
 #endif /* DISPLAY_CS5530_TIMINGS && CONFIG_PROC_FS */
 
@@ -403,9 +403,6 @@ static void __init init_hwif_cs5530 (ide_hwif_t *hwif)
 	hwif->drives[0].autodma = hwif->autodma;
 	hwif->drives[1].autodma = hwif->autodma;
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-
 
 static int __devinit cs5530_init_one(struct pci_dev *dev, const struct pci_device_id *id)
 {

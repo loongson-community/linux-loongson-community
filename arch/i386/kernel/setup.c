@@ -569,6 +569,11 @@ static void __init parse_cmdline_early (char ** cmdline_p)
 			acpi_disabled = 0;
 		}
 
+		/* acpi=strict disables out-of-spec workarounds */
+		else if (!memcmp(from, "acpi=strict", 11)) {
+			acpi_strict = 1;
+		}
+
 		/* Limit ACPI just to boot-time to enable HT */
 		else if (!memcmp(from, "acpi=ht", 7)) {
 			acpi_ht = 1;
@@ -1117,6 +1122,19 @@ void __init setup_arch(char **cmdline_p)
 	smp_alloc_memory(); /* AP processor realmode stacks in low memory*/
 #endif
 	paging_init();
+
+#ifdef CONFIG_EARLY_PRINTK
+	{
+		char *s = strstr(*cmdline_p, "earlyprintk=");
+		if (s) {
+			extern void setup_early_printk(char *);
+
+			setup_early_printk(s);
+			printk("early console enabled\n");
+		}
+	}
+#endif
+
 
 	dmi_scan_machine();
 

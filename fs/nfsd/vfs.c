@@ -823,7 +823,7 @@ out:
  */
 int
 nfsd_commit(struct svc_rqst *rqstp, struct svc_fh *fhp,
-               off_t offset, unsigned long count)
+               loff_t offset, unsigned long count)
 {
 	struct file	file;
 	int		err;
@@ -1494,7 +1494,7 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t *offsetp,
 		err = cdp->err;
 	*offsetp = file.f_pos;
 
-	if (err == nfserr_eof || err == nfserr_readdir_nospc)
+	if (err == nfserr_eof || err == nfserr_toosmall)
 		err = nfs_ok; /* can still be found in ->err */
 out_close:
 	nfsd_close(&file);

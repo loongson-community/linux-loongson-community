@@ -35,7 +35,7 @@
 #include <linux/vmalloc.h>
 #include <linux/string.h>
 #include <linux/proc_fs.h>
-#include <linux/pci.h>
+#include <linux/dma-mapping.h>
 #include <linux/wait.h>
 
 #include <asm/hardirq.h>	/* for is_atomic */
@@ -47,8 +47,6 @@
 #include <asm/iSeries/mf.h>
 #include <asm/iSeries/iSeries_proc.h>
 #include <asm/iSeries/vio.h>
-
-extern struct pci_dev *iSeries_vio_dev;
 
 /* Status of the path to each other partition in the system.
  * This is overkill, since we will only ever establish connections
@@ -194,8 +192,7 @@ static int proc_read(char *buf, char **start, off_t offset,
 	HvLpEvent_Rc hvrc;
 	DECLARE_MUTEX_LOCKED(Semaphore);
 	dma_addr_t dmaa =
-	    pci_map_single(iSeries_vio_dev, buf, PAGE_SIZE,
-			   PCI_DMA_FROMDEVICE);
+	    dma_map_single(iSeries_vio_dev, buf, PAGE_SIZE, DMA_FROM_DEVICE);
 	int len = PAGE_SIZE;
 
 	if (len > blen)
@@ -215,8 +212,7 @@ static int proc_read(char *buf, char **start, off_t offset,
 
 	down(&Semaphore);
 
-	pci_unmap_single(iSeries_vio_dev, dmaa, PAGE_SIZE,
-			 PCI_DMA_FROMDEVICE);
+	dma_unmap_single(iSeries_vio_dev, dmaa, PAGE_SIZE, DMA_FROM_DEVICE);
 
 	sprintf(buf + strlen(buf), "SRLNBR=");
 	buf[strlen(buf)] = e2a(xItExtVpdPanel.mfgID[2]);

@@ -895,7 +895,7 @@ struct dentry *d_splice_alias(struct inode *inode, struct dentry *dentry)
 			new = list_entry(inode->i_dentry.next, struct dentry, d_alias);
 			__dget_locked(new);
 			spin_unlock(&dcache_lock);
-			security_d_instantiate(dentry, inode);
+			security_d_instantiate(new, inode);
 			d_rehash(dentry);
 			d_move(new, dentry);
 			iput(inode);
@@ -1531,6 +1531,16 @@ out:
 	return ino;
 }
 
+static __initdata unsigned long dhash_entries;
+static int __init set_dhash_entries(char *str)
+{
+	if (!str)
+		return 0;
+	dhash_entries = simple_strtoul(str, &str, 0);
+	return 1;
+}
+__setup("dhash_entries=", set_dhash_entries);
+
 static void __init dcache_init(unsigned long mempages)
 {
 	struct hlist_head *d;
@@ -1556,11 +1566,13 @@ static void __init dcache_init(unsigned long mempages)
 	
 	set_shrinker(DEFAULT_SEEKS, shrink_dcache_memory);
 
-#if PAGE_SHIFT < 13
-	mempages >>= (13 - PAGE_SHIFT);
-#endif
-	mempages *= sizeof(struct hlist_head);
-	for (order = 0; ((1UL << order) << PAGE_SHIFT) < mempages; order++)
+	if (!dhash_entries)
+		dhash_entries = PAGE_SHIFT < 13 ?
+				mempages >> (13 - PAGE_SHIFT) :
+				mempages << (PAGE_SHIFT - 13);
+
+	dhash_entries *= sizeof(struct hlist_head);
+	for (order = 0; ((1UL << order) << PAGE_SHIFT) < dhash_entries; order++)
 		;
 
 	do {

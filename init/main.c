@@ -12,10 +12,12 @@
 #define __KERNEL_SYSCALLS__
 
 #include <linux/config.h>
+#include <linux/types.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/devfs_fs_kernel.h>
 #include <linux/kernel.h>
+#include <linux/syscalls.h>
 #include <linux/unistd.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
@@ -36,6 +38,7 @@
 #include <linux/profile.h>
 #include <linux/rcupdate.h>
 #include <linux/moduleparam.h>
+#include <linux/kallsyms.h>
 #include <linux/writeback.h>
 #include <linux/cpu.h>
 #include <linux/efi.h>
@@ -141,6 +144,7 @@ __setup("maxcpus=", maxcpus);
 
 static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
 char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
+static const char *panic_later, *panic_param;
 
 __setup("profile=", profile_setup);
 
@@ -253,20 +257,27 @@ static int __init unknown_bootoption(char *param, char *val)
 		return 0;
 	}
 
+	if (panic_later)
+		return 0;
+
 	if (val) {
 		/* Environment option */
 		unsigned int i;
 		for (i = 0; envp_init[i]; i++) {
-			if (i == MAX_INIT_ENVS)
-				panic("Too many boot env vars at `%s'", param);
+			if (i == MAX_INIT_ENVS) {
+				panic_later = "Too many boot env vars at `%s'";
+				panic_param = param;
+			}
 		}
 		envp_init[i] = param;
 	} else {
 		/* Command line option */
 		unsigned int i;
 		for (i = 0; argv_init[i]; i++) {
-			if (i == MAX_INIT_ARGS)
-				panic("Too many boot init vars at `%s'",param);
+			if (i == MAX_INIT_ARGS) {
+				panic_later = "Too many boot init vars at `%s'";
+				panic_param = param;
+			}
 		}
 		argv_init[i] = param;
 	}
@@ -338,7 +349,7 @@ static void __init setup_per_cpu_areas(void)
 static void __init smp_init(void)
 {
 	unsigned int i;
-	unsigned j = 0;
+	unsigned j = 1;
 
 	/* FIXME: This should be done in userspace --RR */
 	for (i = 0; i < NR_CPUS; i++) {
@@ -368,9 +379,11 @@ static void __init smp_init(void)
  * between the root thread and the init thread may cause start_kernel to
  * be reaped by free_initmem before the root thread has proceeded to
  * cpu_idle.
+ *
+ * gcc-3.4 accidentally inlines this function, so use noinline.
  */
 
-static void rest_init(void)
+static void noinline rest_init(void)
 {
 	kernel_thread(init, NULL, CLONE_FS | CLONE_SIGHAND);
 	unlock_kernel();
@@ -422,6 +435,8 @@ asmlinkage void __init start_kernel(void)
 	 * this. But we do want output early, in case something goes wrong.
 	 */
 	console_init();
+	if (panic_later)
+		panic(panic_later, panic_param);
 	profile_init();
 	local_irq_enable();
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -448,6 +463,7 @@ asmlinkage void __init start_kernel(void)
 	fork_init(num_physpages);
 	proc_caches_init();
 	buffer_init();
+	unnamed_dev_init();
 	security_scaffolding_startup();
 	vfs_caches_init(num_physpages);
 	radix_tree_init();
@@ -493,8 +509,11 @@ static void __init do_initcalls(void)
 	for (call = &__initcall_start; call < &__initcall_end; call++) {
 		char *msg;
 
-		if (initcall_debug)
-			printk("calling initcall 0x%p\n", *call);
+		if (initcall_debug) {
+			printk(KERN_DEBUG "Calling initcall 0x%p", *call);
+			print_symbol(": %s()", (unsigned long) *call);
+			printk("\n");
+		}
 
 		(*call)();
 

@@ -1883,14 +1883,24 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 	int c, tc, ok, n = 0, draw_x = -1;
 	unsigned int currcons;
 	unsigned long draw_from = 0, draw_to = 0;
-	struct vt_struct *vt = (struct vt_struct *)tty->driver_data;
+	struct vt_struct *vt;
 	u16 himask, charmask;
 	const unsigned char *orig_buf = NULL;
 	int orig_count;
 
 	if (in_interrupt())
 		return count;
-		
+
+	might_sleep();
+
+	acquire_console_sem();
+	vt = (struct vt_struct *)tty->driver_data;
+	if (vt == NULL) {
+		printk(KERN_ERR "vt: argh, driver_data is NULL !\n");
+		release_console_sem();
+		return 0;
+	}
+
 	currcons = vt->vc_num;
 	if (!vc_cons_allocated(currcons)) {
 	    /* could this happen? */
@@ -1899,13 +1909,16 @@ static int do_con_write(struct tty_struct * tty, int from_user,
 		error = 1;
 		printk("con_write: tty %d not allocated\n", currcons+1);
 	    }
+	    release_console_sem();
 	    return 0;
 	}
+	release_console_sem();
 
 	orig_buf = buf;
 	orig_count = count;
 
 	if (from_user) {
+
 		down(&con_buf_sem);
 
 again:
@@ -1928,6 +1941,13 @@ again:
 	 */
 
 	acquire_console_sem();
+
+	vt = (struct vt_struct *)tty->driver_data;
+	if (vt == NULL) {
+		printk(KERN_ERR "vt: argh, driver_data _became_ NULL !\n");
+		release_console_sem();
+		goto out;
+	}
 
 	himask = hi_font_mask;
 	charmask = himask ? 0x1ff : 0xff;
@@ -2442,13 +2462,15 @@ static int con_open(struct tty_struct *tty, struct file * filp)
 
 	acquire_console_sem();
 	i = vc_allocate(currcons);
-	release_console_sem();
-	if (i)
+	if (i) {
+		release_console_sem();
 		return i;
-
+	}
 	vt_cons[currcons]->vc_num = currcons;
 	tty->driver_data = vt_cons[currcons];
 	vc_cons[currcons].d->vc_tty = tty;
+
+	release_console_sem();
 
 	if (!tty->winsize.ws_row && !tty->winsize.ws_col) {
 		tty->winsize.ws_row = video_num_lines;
@@ -2467,10 +2489,12 @@ static void con_close(struct tty_struct *tty, struct file * filp)
 		return;
 
 	vcs_remove_devfs(tty);
+	acquire_console_sem();
 	vt = (struct vt_struct*)tty->driver_data;
 	if (vt)
 		vc_cons[vt->vc_num].d->vc_tty = NULL;
 	tty->driver_data = 0;
+	release_console_sem();
 }
 
 static void vc_init(unsigned int currcons, unsigned int rows, unsigned int cols, int do_clear)
@@ -2719,12 +2743,12 @@ static void vesa_powerdown(void)
      *  Called only if powerdown features are allowed.
      */
     switch (vesa_blank_mode) {
-	case VESA_NO_BLANKING:
-	    c->vc_sw->con_blank(c, VESA_VSYNC_SUSPEND+1);
+    case VESA_NO_BLANKING:
+	    c->vc_sw->con_blank(c, VESA_VSYNC_SUSPEND+1, 0);
 	    break;
-	case VESA_VSYNC_SUSPEND:
-	case VESA_HSYNC_SUSPEND:
-	    c->vc_sw->con_blank(c, VESA_POWERDOWN+1);
+    case VESA_VSYNC_SUSPEND:
+    case VESA_HSYNC_SUSPEND:
+	    c->vc_sw->con_blank(c, VESA_POWERDOWN+1, 0);
 	    break;
     }
 }
@@ -2752,7 +2776,7 @@ void do_blank_screen(int entering_gfx)
 	if (entering_gfx) {
 		hide_cursor(currcons);
 		save_screen(currcons);
-		sw->con_blank(vc_cons[currcons].d, -1);
+		sw->con_blank(vc_cons[currcons].d, -1, 1);
 		console_blanked = fg_console + 1;
 		set_origin(currcons);
 		return;
@@ -2770,7 +2794,7 @@ void do_blank_screen(int entering_gfx)
 
 	save_screen(currcons);
 	/* In case we need to reset origin, blanking hook returns 1 */
-	i = sw->con_blank(vc_cons[currcons].d, 1);
+	i = sw->con_blank(vc_cons[currcons].d, 1, 0);
 	console_blanked = fg_console + 1;
 	if (i)
 		set_origin(currcons);
@@ -2784,14 +2808,14 @@ void do_blank_screen(int entering_gfx)
 	}
 
     	if (vesa_blank_mode)
-		sw->con_blank(vc_cons[currcons].d, vesa_blank_mode + 1);
+		sw->con_blank(vc_cons[currcons].d, vesa_blank_mode + 1, 0);
 }
 
 
 /*
  * Called by timer as well as from vt_console_driver
  */
-void unblank_screen(void)
+void do_unblank_screen(int leaving_gfx)
 {
 	int currcons;
 
@@ -2815,13 +2839,24 @@ void unblank_screen(void)
 	}
 
 	console_blanked = 0;
-	if (sw->con_blank(vc_cons[currcons].d, 0))
+	if (sw->con_blank(vc_cons[currcons].d, 0, leaving_gfx))
 		/* Low-level driver cannot restore -> do it ourselves */
 		update_screen(fg_console);
 	if (console_blank_hook)
 		console_blank_hook(0);
 	set_palette(currcons);
 	set_cursor(fg_console);
+}
+
+/*
+ * This is called by the outside world to cause a forced unblank, mostly for
+ * oopses. Currently, I just call do_unblank_screen(0), but we could eventually
+ * call it with 1 as an argument and so force a mode restore... that may kill
+ * X or at least garbage the screen but would also make the Oops visible...
+ */
+void unblank_screen(void)
+{
+	do_unblank_screen(0);
 }
 
 /*

@@ -319,7 +319,7 @@ static unsigned int __init init_chipset_slc90e66 (struct pci_dev *dev, const cha
 	if (!slc90e66_proc) {
 		slc90e66_proc = 1;
 		bmide_dev = dev;
-		ide_pci_register_host_proc(&slc90e66_procs[0]);
+		ide_pci_create_host_proc("slc90e66", slc90e66_get_info);
 	}
 #endif /* DISPLAY_SLC90E66_TIMINGS && CONFIG_PROC_FS */
 	return 0;
@@ -363,9 +363,6 @@ static void __init init_hwif_slc90e66 (ide_hwif_t *hwif)
 	hwif->drives[1].autodma = hwif->autodma;
 #endif /* !CONFIG_BLK_DEV_IDEDMA */
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-
 
 static int __devinit slc90e66_init_one(struct pci_dev *dev, const struct pci_device_id *id)
 {

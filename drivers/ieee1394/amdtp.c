@@ -862,14 +862,14 @@ static int stream_alloc_packet_lists(struct stream *s)
 
 static void stream_free_packet_lists(struct stream *s)
 {
-	struct list_head *lh, *next;
+	struct packet_list *packet_l, *packet_l_next;
 
 	if (s->current_packet_list != NULL)
 		packet_list_free(s->current_packet_list, s);
-	list_for_each_safe(lh, next, &s->dma_packet_lists)
-		packet_list_free(list_entry(lh, struct packet_list, link), s);
-	list_for_each_safe(lh, next, &s->free_packet_lists)
-		packet_list_free(list_entry(lh, struct packet_list, link), s);
+	list_for_each_entry_safe(packet_l, packet_l_next, &s->dma_packet_lists, link)
+		packet_list_free(packet_l, s);
+	list_for_each_entry_safe(packet_l, packet_l_next, &s->free_packet_lists, link)
+		packet_list_free(packet_l, s);
 	if (s->packet_pool != NULL)
 		pci_pool_destroy(s->packet_pool);
 
@@ -1227,15 +1227,15 @@ static void amdtp_add_host(struct hpsb_host *host)
 	ah->host = host;
 	ah->ohci = host->hostdata;
 
-	hpsb_set_hostinfo_key(&amdtp_highlevel, host, ah->ohci->id);
+	hpsb_set_hostinfo_key(&amdtp_highlevel, host, ah->host->id);
 
-	minor = IEEE1394_MINOR_BLOCK_AMDTP * 16 + ah->ohci->id;
+	minor = IEEE1394_MINOR_BLOCK_AMDTP * 16 + ah->host->id;
 
 	INIT_LIST_HEAD(&ah->stream_list);
 	spin_lock_init(&ah->stream_list_lock);
 
 	devfs_mk_cdev(MKDEV(IEEE1394_MAJOR, minor),
-			S_IFCHR|S_IRUSR|S_IWUSR, "amdtp/%d", ah->ohci->id);
+			S_IFCHR|S_IRUSR|S_IWUSR, "amdtp/%d", ah->host->id);
 }
 
 static void amdtp_remove_host(struct hpsb_host *host)
@@ -1243,7 +1243,7 @@ static void amdtp_remove_host(struct hpsb_host *host)
 	struct amdtp_host *ah = hpsb_get_hostinfo(&amdtp_highlevel, host);
 
 	if (ah)
-		devfs_remove("amdtp/%d", ah->ohci->id);
+		devfs_remove("amdtp/%d", ah->host->id);
 
 	return;
 }

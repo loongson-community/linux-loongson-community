@@ -23,7 +23,7 @@ static ssize_t node_read_cpumap(struct sys_device * dev, char * buf)
 
 	/* FIXME - someone should pass us a buffer size (count) or
 	 * use seq_file or something to avoid buffer overrun risk. */
-	len = cpumask_snprintf(buf, 99 /* XXX FIXME */, mask);
+	len = cpumask_scnprintf(buf, 99 /* XXX FIXME */, mask);
 	len += sprintf(buf + len, "\n");
 	return len;
 }
@@ -69,7 +69,7 @@ int __init register_node(struct node *node, int num, struct node *parent)
 	node->cpumap = node_to_cpumask(num);
 	node->sysdev.id = num;
 	node->sysdev.cls = &node_class;
-	error = sys_device_register(&node->sysdev);
+	error = sysdev_register(&node->sysdev);
 
 	if (!error){
 		sysdev_create_file(&node->sysdev, &attr_cpumap);

@@ -199,6 +199,7 @@
 #define  PCI_CAP_ID_MSI		0x05	/* Message Signalled Interrupts */
 #define  PCI_CAP_ID_CHSWP	0x06	/* CompactPCI HotSwap */
 #define  PCI_CAP_ID_PCIX	0x07	/* PCI-X */
+#define  PCI_CAP_ID_SHPC 	0x0C	/* PCI Standard Hot-Plug Controller */
 #define  PCI_CAP_ID_EXP 	0x10	/* PCI Express */
 #define  PCI_CAP_ID_MSIX	0x11	/* MSI-X */
 #define PCI_CAP_LIST_NEXT	1	/* Next capability in the list */
@@ -362,8 +363,6 @@ enum pci_mmap_state {
 #define PCI_DMA_NONE		3
 
 #define DEVICE_COUNT_COMPATIBLE	4
-#define DEVICE_COUNT_IRQ	2
-#define DEVICE_COUNT_DMA	2
 #define DEVICE_COUNT_RESOURCE	12
 
 /*
@@ -470,6 +469,8 @@ struct pci_bus {
 
 	char		name[48];
 
+	unsigned short  bridge_ctl;	/* manage NO_ISA/FBB/et al behaviors */
+	unsigned short  pad2;
 	struct device		*bridge;
 	struct class_device	class_dev;
 };

@@ -22,6 +22,7 @@ CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=14
+# CONFIG_HOTPLUG is not set
 CONFIG_IKCONFIG=y
 CONFIG_IKCONFIG_PROC=y
 CONFIG_EMBEDDED=y
@@ -116,7 +117,6 @@ CONFIG_PCI=y
 CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
-# CONFIG_HOTPLUG is not set
 
 #
 # Executable file formats
@@ -158,7 +158,6 @@ CONFIG_TRAD_SIGNALS=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_INITRD is not set
 # CONFIG_LBD is not set
 
 #
@@ -179,6 +178,11 @@ CONFIG_TRAD_SIGNALS=y
 #
 # Fusion MPT device support
 #
+
+#
+# IEEE 1394 (FireWire) support
+#
+# CONFIG_IEEE1394 is not set
 
 #
 # I2O device support
@@ -329,7 +333,7 @@ CONFIG_EEPRO100=y
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN_BOOL is not set
+# CONFIG_ISDN is not set
 
 #
 # Telephony Support
@@ -377,7 +381,8 @@ CONFIG_SERIAL_8250_NR_UARTS=4
 CONFIG_SERIAL_CORE=y
 CONFIG_SERIAL_CORE_CONSOLE=y
 CONFIG_UNIX98_PTYS=y
-CONFIG_UNIX98_PTY_COUNT=256
+CONFIG_LEGACY_PTYS=y
+CONFIG_LEGACY_PTY_COUNT=256
 
 #
 # Mice
@@ -413,6 +418,10 @@ CONFIG_UNIX98_PTY_COUNT=256
 # I2C support
 #
 # CONFIG_I2C is not set
+
+#
+# Misc devices
+#
 
 #
 # Multimedia devices
@@ -475,7 +484,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 CONFIG_PROC_FS=y
 CONFIG_PROC_KCORE=y
-CONFIG_DEVPTS_FS=y
 # CONFIG_DEVPTS_FS_XATTR is not set
 # CONFIG_TMPFS is not set
 # CONFIG_HUGETLB_PAGE is not set
@@ -484,6 +492,7 @@ CONFIG_RAMFS=y
 #
 # Miscellaneous filesystems
 #
+# CONFIG_HFSPLUS_FS is not set
 # CONFIG_CRAMFS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_HPFS_FS is not set

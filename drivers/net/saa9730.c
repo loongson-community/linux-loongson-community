@@ -2,8 +2,6 @@
  * Carsten Langgaard, carstenl@mips.com
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  *
- * ########################################################################
- *
  *  This program is free software; you can distribute it and/or modify it
  *  under the terms of the GNU General Public License (Version 2) as
  *  published by the Free Software Foundation.
@@ -16,8 +14,6 @@
  *  You should have received a copy of the GNU General Public License along
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
- *
- * ########################################################################
  *
  * SAA9730 ethernet driver.
  *
@@ -304,8 +300,7 @@ static int lan_saa9730_cam_load(struct lan_saa9730_private *lp)
 
 static int lan_saa9730_cam_init(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 	unsigned int i;
 
 	/* Copy MAC-address into all entries. */
@@ -548,8 +543,7 @@ static int lan_saa9730_restart(struct lan_saa9730_private *lp)
 
 static int lan_saa9730_tx(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 	unsigned int *pPacket;
 	unsigned int tx_status;
 
@@ -625,8 +619,7 @@ static int lan_saa9730_tx(struct net_device *dev)
 
 static int lan_saa9730_rx(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 	int len = 0;
 	struct sk_buff *skb = 0;
 	unsigned int rx_status;
@@ -743,8 +736,7 @@ static irqreturn_t lan_saa9730_interrupt(const int irq, void *dev_id,
 				  struct pt_regs *regs)
 {
 	struct net_device *dev = (struct net_device *) dev_id;
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	if (lan_saa9730_debug > 5)
 		printk("lan_saa9730_interrupt\n");
@@ -777,8 +769,7 @@ static int lan_saa9730_open_fail(struct net_device *dev)
 
 static int lan_saa9730_open(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	/* Associate IRQ with lan_saa9730_interrupt */
 	if (request_irq(dev->irq, &lan_saa9730_interrupt, 0, "SAA9730 Eth",
@@ -854,8 +845,7 @@ static int lan_saa9730_write(struct lan_saa9730_private *lp,
 
 static void lan_saa9730_tx_timeout(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	/* Transmitter timeout, serious problems */
 	lp->stats.tx_errors++;
@@ -870,8 +860,7 @@ static void lan_saa9730_tx_timeout(struct net_device *dev)
 static int lan_saa9730_start_xmit(struct sk_buff *skb,
 				  struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 	unsigned long flags;
 	int skblen;
 	int len;
@@ -906,8 +895,7 @@ static int lan_saa9730_start_xmit(struct sk_buff *skb,
 
 static int lan_saa9730_close(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	if (lan_saa9730_debug > 1)
 		printk("lan_saa9730_close:\n");
@@ -923,24 +911,20 @@ static int lan_saa9730_close(struct net_device *dev)
 
 	free_irq(dev->irq, (void *) dev);
 
-	pci_free_consistent (lp->pci_dev, sizeof(*lp), lp, lp->dma_addr);
-
 	return 0;
 }
 
 static struct net_device_stats *lan_saa9730_get_stats(struct net_device
 						      *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	return &lp->stats;
 }
 
 static void lan_saa9730_set_multicast(struct net_device *dev)
 {
-	struct lan_saa9730_private *lp =
-	    (struct lan_saa9730_private *) dev->priv;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 
 	/* Stop the controller */
 	lan_saa9730_stop(lp);
@@ -973,10 +957,6 @@ static void __devexit saa9730_remove_one(struct pci_dev *pdev)
 
         if (dev) {
                 unregister_netdev(dev);
-
-		if (dev->priv)
-			kfree(dev->priv);
-
                 free_netdev(dev);
                 pci_release_regions(pdev);
                 pci_disable_device(pdev);
@@ -985,9 +965,10 @@ static void __devexit saa9730_remove_one(struct pci_dev *pdev)
 }
 
 
-static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsigned long ioaddr, int irq)
+static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev,
+	unsigned long ioaddr, int irq)
 {
-	struct lan_saa9730_private *lp;
+	struct lan_saa9730_private *lp = netdev_priv(dev);
 	dma_addr_t lp_dma_addr;
 	unsigned char ethernet_addr[6];
 	int ret = 0;
@@ -1002,16 +983,6 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 	memcpy(dev->dev_addr, ethernet_addr, 6);
 	dev->base_addr = ioaddr;
 	dev->irq = irq;
-
-	lp = pci_alloc_consistent (pdev, sizeof(*lp), &lp_dma_addr);
-
-	if (!lp) {
-		ret = -ENOMEM;
-                goto out_free_netdev;
-        }
-
-	dev->priv = lp;
-	memset(lp, 0, sizeof(*lp));
 
 	lp->dma_addr = lp_dma_addr;
 	lp->pci_dev = pdev;
@@ -1070,9 +1041,6 @@ static int lan_saa9730_init(struct net_device *dev, struct pci_dev *pdev, unsign
 	
 	return 0;
 
-out_free_lp:
-	pci_free_consistent(lp->pci_dev, sizeof(*lp), lp, lp->dma_addr);
-
 out_free_netdev:
 	free_netdev(dev);
 
@@ -1110,7 +1078,7 @@ static int __devinit saa9730_init_one(struct pci_dev *pdev, const struct pci_dev
 	printk("Found SAA9730 (PCI) at %lx, irq %d.\n",
 	       pci_ioaddr, pci_irq_line);
 
-	dev = alloc_etherdev(0);
+	dev = alloc_etherdev(sizeof(struct lan_saa9730_private));
 	if (!dev) 
 		goto out_disable_pdev;
 	
@@ -1146,12 +1114,10 @@ static int __init saa9730_init(void)
 
 static void __exit saa9730_cleanup(void)
 {
-        pci_unregister_driver(&saa9730_driver);
+	pci_unregister_driver(&saa9730_driver);
 }
 
 module_init(saa9730_init);
 module_exit(saa9730_cleanup);
-
-
 
 MODULE_LICENSE("GPL");

@@ -247,7 +247,7 @@ xfs_flush_inode(
 {
 	struct inode	*inode = LINVFS_GET_IP(XFS_ITOV(ip));
 
-	filemap_fdatawrite(inode->i_mapping);
+	filemap_flush(inode->i_mapping);
 }
 
 void
@@ -266,7 +266,7 @@ xfs_blkdev_get(
 {
 	int			error = 0;
 
-	*bdevp = open_bdev_excl(name, 0, BDEV_FS, mp);
+	*bdevp = open_bdev_excl(name, 0, mp);
 	if (IS_ERR(*bdevp)) {
 		error = PTR_ERR(*bdevp);
 		printk("XFS: Invalid device [%s], error=%d\n", name, error);
@@ -280,7 +280,7 @@ xfs_blkdev_put(
 	struct block_device	*bdev)
 {
 	if (bdev)
-		close_bdev_excl(bdev, BDEV_FS);
+		close_bdev_excl(bdev);
 }
 
 void
@@ -453,7 +453,7 @@ syncd(void *arg)
 	vfs_t			*vfsp = (vfs_t *) arg;
 	int			error;
 
-	daemonize("xfs_syncd");
+	daemonize("xfssyncd");
 
 	vfsp->vfs_sync_task = current;
 	wmb();

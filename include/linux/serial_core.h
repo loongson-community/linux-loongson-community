@@ -46,6 +46,7 @@
  * separate so any additions to the old serial.c that occur before
  * we are merged can be easily merged here.
  */
+#define PORT_PXA	31
 #define PORT_AMBA	32
 #define PORT_CLPS711X	33
 #define PORT_SA1100	34
@@ -86,6 +87,7 @@
 #include <linux/interrupt.h>
 #include <linux/circ_buf.h>
 #include <linux/spinlock.h>
+#include <linux/sched.h>
 
 struct uart_port;
 struct uart_info;

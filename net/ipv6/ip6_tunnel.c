@@ -245,7 +245,7 @@ ip6_tnl_create(struct ip6_tnl_parm *p, struct ip6_tnl **pt)
 	t->parms = *p;
 
 	if ((err = register_netdevice(dev)) < 0) {
-		kfree(dev);
+		free_netdev(dev);
 		return err;
 	}
 	dev_hold(dev);
@@ -399,7 +399,7 @@ void ip6ip6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 	__u16 len;
 
 	/* If the packet doesn't contain the original IPv6 header we are 
-	   in trouble since we might need the source address for furter 
+	   in trouble since we might need the source address for further 
 	   processing of the error. */
 
 	read_lock(&ip6ip6_lock);
@@ -1100,7 +1100,7 @@ static struct inet6_protocol ip6ip6_protocol = {
  * Return: 0 on success
  **/
 
-int __init ip6_tunnel_init(void)
+static int __init ip6_tunnel_init(void)
 {
 	int  err;
 
@@ -1118,7 +1118,7 @@ int __init ip6_tunnel_init(void)
 	ip6ip6_fb_tnl_dev->init = ip6ip6_fb_tnl_dev_init;
 
 	if ((err = register_netdev(ip6ip6_fb_tnl_dev))) {
-		kfree(ip6ip6_fb_tnl_dev);
+		free_netdev(ip6ip6_fb_tnl_dev);
 		goto fail;
 	}
 	return 0;
@@ -1131,13 +1131,11 @@ fail:
  * ip6_tunnel_cleanup - free resources and unregister protocol
  **/
 
-void ip6_tunnel_cleanup(void)
+static void __exit ip6_tunnel_cleanup(void)
 {
 	unregister_netdev(ip6ip6_fb_tnl_dev);
 	inet6_del_protocol(&ip6ip6_protocol, IPPROTO_IPV6);
 }
 
-#ifdef MODULE
 module_init(ip6_tunnel_init);
 module_exit(ip6_tunnel_cleanup);
-#endif

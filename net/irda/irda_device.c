@@ -40,15 +40,12 @@
 #include <linux/init.h>
 #include <linux/tty.h>
 #include <linux/kmod.h>
-#include <linux/wireless.h>
 #include <linux/spinlock.h>
 
 #include <asm/ioctls.h>
 #include <asm/uaccess.h>
 #include <asm/dma.h>
 #include <asm/io.h>
-
-#include <net/pkt_sched.h>
 
 #include <net/irda/irda_device.h>
 #include <net/irda/irlap.h>
@@ -59,13 +56,6 @@ static void __irda_task_delete(struct irda_task *task);
 
 static hashbin_t *dongles = NULL;
 static hashbin_t *tasks = NULL;
-
-const char *infrared_mode[] = {
-	"IRDA_IRLAP",
-	"IRDA_RAW",
-	"SHARP_ASK",
-	"TV_REMOTE",
-};
 
 #ifdef CONFIG_IRDA_DEBUG
 static const char *task_state[] = {
@@ -150,6 +140,8 @@ void irda_device_set_media_busy(struct net_device *dev, int status)
 		irlap_stop_mbusy_timer(self);
 	}
 }
+EXPORT_SYMBOL(irda_device_set_media_busy);
+
 
 int irda_device_set_dtr_rts(struct net_device *dev, int dtr, int rts)
 {
@@ -224,6 +216,7 @@ void irda_task_next_state(struct irda_task *task, IRDA_TASK_STATE state)
 
 	task->state = state;
 }
+EXPORT_SYMBOL(irda_task_next_state);
 
 static void __irda_task_delete(struct irda_task *task)
 {
@@ -248,7 +241,7 @@ void irda_task_delete(struct irda_task *task)
  *    processing, and notify the parent task, that is waiting for this task
  *    to complete.
  */
-int irda_task_kick(struct irda_task *task)
+static int irda_task_kick(struct irda_task *task)
 {
 	int finished = TRUE;
 	int count = 0;
@@ -330,7 +323,6 @@ struct irda_task *irda_task_execute(void *instance,
 				    struct irda_task *parent, void *param)
 {
 	struct irda_task *task;
-	int ret;
 
 	IRDA_DEBUG(2, "%s()\n", __FUNCTION__);
 
@@ -352,12 +344,9 @@ struct irda_task *irda_task_execute(void *instance,
 	hashbin_insert(tasks, (irda_queue_t *) task, (long) task, NULL);
 
 	/* No time to waste, so lets get going! */
-	ret = irda_task_kick(task);
-	if (ret)
-		return NULL;
-	else
-		return task;
+	return irda_task_kick(task) ? NULL : task;
 }
+EXPORT_SYMBOL(irda_task_execute);
 
 /*
  * Function irda_task_timer_expired (data)
@@ -405,22 +394,7 @@ struct net_device *alloc_irdadev(int sizeof_priv)
 {
 	return alloc_netdev(sizeof_priv, "irda%d", irda_device_setup);
 }
-
-
-/*
- * Function irda_device_txqueue_empty (dev)
- *
- *    Check if there is still some frames in the transmit queue for this
- *    device. Maybe we should use: q->q.qlen == 0.
- *
- */
-int irda_device_txqueue_empty(struct net_device *dev)
-{
-	if (skb_queue_len(&dev->qdisc->q))
-		return FALSE;
-
-	return TRUE;
-}
+EXPORT_SYMBOL(alloc_irdadev);
 
 /*
  * Function irda_device_init_dongle (self, type, qos)
@@ -472,6 +446,7 @@ dongle_t *irda_device_dongle_init(struct net_device *dev, int type)
 	spin_unlock(&dongles->hb_spinlock);
 	return dongle;
 }
+EXPORT_SYMBOL(irda_device_dongle_init);
 
 /*
  * Function irda_device_dongle_cleanup (dongle)
@@ -486,6 +461,7 @@ int irda_device_dongle_cleanup(dongle_t *dongle)
 
 	return 0;
 }
+EXPORT_SYMBOL(irda_device_dongle_cleanup);
 
 /*
  * Function irda_device_register_dongle (dongle)
@@ -505,6 +481,7 @@ int irda_device_register_dongle(struct dongle_reg *new)
 
         return 0;
 }
+EXPORT_SYMBOL(irda_device_register_dongle);
 
 /*
  * Function irda_device_unregister_dongle (dongle)
@@ -522,6 +499,7 @@ void irda_device_unregister_dongle(struct dongle_reg *dongle)
 		ERROR("%s: dongle not found!\n", __FUNCTION__);
 	spin_unlock(&dongles->hb_spinlock);
 }
+EXPORT_SYMBOL(irda_device_unregister_dongle);
 
 /*
  * Function irda_device_set_mode (self, mode)
@@ -557,7 +535,7 @@ int irda_device_set_mode(struct net_device* dev, int mode)
  *    Setup the DMA channel. Commonly used by ISA FIR drivers
  *
  */
-void setup_dma(int channel, char *buffer, int count, int mode)
+void irda_setup_dma(int channel, char *buffer, int count, int mode)
 {
 	unsigned long flags;
 
@@ -572,4 +550,5 @@ void setup_dma(int channel, char *buffer, int count, int mode)
 
 	release_dma_lock(flags);
 }
+EXPORT_SYMBOL(irda_setup_dma);
 #endif

@@ -33,10 +33,12 @@
 #include <linux/suspend.h>
 #include <linux/blkdev.h>
 #include <linux/delay.h>
+#include <linux/smp.h>
 #include <linux/timer.h>
 #include <linux/rcupdate.h>
 #include <linux/cpu.h>
 #include <linux/percpu.h>
+#include <linux/kthread.h>
 
 #ifdef CONFIG_NUMA
 #define cpu_to_node_mask(cpu) node_to_cpumask(cpu_to_node(cpu))
@@ -699,7 +701,7 @@ repeat_lock_task:
 
 	return success;
 }
-int wake_up_process(task_t * p)
+int fastcall wake_up_process(task_t * p)
 {
 	return try_to_wake_up(p, TASK_STOPPED |
 		       		 TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE, 0);
@@ -707,7 +709,7 @@ int wake_up_process(task_t * p)
 
 EXPORT_SYMBOL(wake_up_process);
 
-int wake_up_state(task_t *p, unsigned int state)
+int fastcall wake_up_state(task_t *p, unsigned int state)
 {
 	return try_to_wake_up(p, state, 0);
 }
@@ -716,7 +718,7 @@ int wake_up_state(task_t *p, unsigned int state)
  * Perform scheduler related setup for a newly forked process p.
  * p is forked by current.
  */
-void sched_fork(task_t *p)
+void fastcall sched_fork(task_t *p)
 {
 	/*
 	 * We mark the process as running here, but have not actually
@@ -772,7 +774,7 @@ void sched_fork(task_t *p)
  * This function will do some initial scheduler statistics housekeeping
  * that must be done for every newly created process.
  */
-void wake_up_forked_process(task_t * p)
+void fastcall wake_up_forked_process(task_t * p)
 {
 	unsigned long flags;
 	runqueue_t *rq = task_rq_lock(current, &flags);
@@ -816,7 +818,7 @@ void wake_up_forked_process(task_t * p)
  * artificially, because any timeslice recovered here
  * was given away by the parent in the first place.)
  */
-void sched_exit(task_t * p)
+void fastcall sched_exit(task_t * p)
 {
 	unsigned long flags;
 	runqueue_t *rq;
@@ -1795,7 +1797,7 @@ static void __wake_up_common(wait_queue_head_t *q, unsigned int mode,
  * @mode: which threads
  * @nr_exclusive: how many wake-one or wake-many threads to wake up
  */
-void __wake_up(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
+void fastcall __wake_up(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
 {
 	unsigned long flags;
 
@@ -1809,7 +1811,7 @@ EXPORT_SYMBOL(__wake_up);
 /*
  * Same as __wake_up but called with the spinlock in wait_queue_head_t held.
  */
-void __wake_up_locked(wait_queue_head_t *q, unsigned int mode)
+void fastcall __wake_up_locked(wait_queue_head_t *q, unsigned int mode)
 {
 	__wake_up_common(q, mode, 1, 0);
 }
@@ -1827,7 +1829,7 @@ void __wake_up_locked(wait_queue_head_t *q, unsigned int mode)
  *
  * On UP it can prevent extra preemption.
  */
-void __wake_up_sync(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
+void fastcall __wake_up_sync(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
 {
 	unsigned long flags;
 
@@ -1844,7 +1846,7 @@ void __wake_up_sync(wait_queue_head_t *q, unsigned int mode, int nr_exclusive)
 
 EXPORT_SYMBOL_GPL(__wake_up_sync);	/* For internal use only */
 
-void complete(struct completion *x)
+void fastcall complete(struct completion *x)
 {
 	unsigned long flags;
 
@@ -1857,7 +1859,7 @@ void complete(struct completion *x)
 
 EXPORT_SYMBOL(complete);
 
-void complete_all(struct completion *x)
+void fastcall complete_all(struct completion *x)
 {
 	unsigned long flags;
 
@@ -1868,7 +1870,7 @@ void complete_all(struct completion *x)
 	spin_unlock_irqrestore(&x->wait.lock, flags);
 }
 
-void wait_for_completion(struct completion *x)
+void fastcall wait_for_completion(struct completion *x)
 {
 	might_sleep();
 	spin_lock_irq(&x->wait.lock);
@@ -1906,7 +1908,7 @@ EXPORT_SYMBOL(wait_for_completion);
 	__remove_wait_queue(q, &wait);			\
 	spin_unlock_irqrestore(&q->lock, flags);
 
-void interruptible_sleep_on(wait_queue_head_t *q)
+void fastcall interruptible_sleep_on(wait_queue_head_t *q)
 {
 	SLEEP_ON_VAR
 
@@ -1919,7 +1921,7 @@ void interruptible_sleep_on(wait_queue_head_t *q)
 
 EXPORT_SYMBOL(interruptible_sleep_on);
 
-long interruptible_sleep_on_timeout(wait_queue_head_t *q, long timeout)
+long fastcall interruptible_sleep_on_timeout(wait_queue_head_t *q, long timeout)
 {
 	SLEEP_ON_VAR
 
@@ -1934,7 +1936,7 @@ long interruptible_sleep_on_timeout(wait_queue_head_t *q, long timeout)
 
 EXPORT_SYMBOL(interruptible_sleep_on_timeout);
 
-void sleep_on(wait_queue_head_t *q)
+void fastcall sleep_on(wait_queue_head_t *q)
 {
 	SLEEP_ON_VAR
 
@@ -1947,7 +1949,7 @@ void sleep_on(wait_queue_head_t *q)
 
 EXPORT_SYMBOL(sleep_on);
 
-long sleep_on_timeout(wait_queue_head_t *q, long timeout)
+long fastcall sleep_on_timeout(wait_queue_head_t *q, long timeout)
 {
 	SLEEP_ON_VAR
 
@@ -2364,7 +2366,7 @@ asmlinkage long sys_sched_getaffinity(pid_t pid, unsigned int len,
 		goto out_unlock;
 
 	retval = 0;
-	cpus_and(mask, p->cpus_allowed, cpu_online_map);
+	cpus_and(mask, p->cpus_allowed, cpu_possible_map);
 
 out_unlock:
 	read_unlock(&tasklist_lock);
@@ -2568,34 +2570,36 @@ static inline struct task_struct *younger_sibling(struct task_struct *p)
 
 static void show_task(task_t * p)
 {
-	unsigned long free = 0;
 	task_t *relative;
-	int state;
-	static const char * stat_nam[] = { "R", "S", "D", "T", "Z", "W" };
+	unsigned state;
+	unsigned long free = 0;
+	static const char *stat_nam[] = { "R", "S", "D", "T", "Z", "W" };
 
 	printk("%-13.13s ", p->comm);
 	state = p->state ? __ffs(p->state) + 1 : 0;
-	if (((unsigned) state) < sizeof(stat_nam)/sizeof(char *))
+	if (state < ARRAY_SIZE(stat_nam))
 		printk(stat_nam[state]);
 	else
-		printk(" ");
+		printk("?");
 #if (BITS_PER_LONG == 32)
-	if (p == current)
-		printk(" current  ");
+	if (state == TASK_RUNNING)
+		printk(" running ");
 	else
 		printk(" %08lX ", thread_saved_pc(p));
 #else
-	if (p == current)
-		printk("   current task   ");
+	if (state == TASK_RUNNING)
+		printk("  running task   ");
 	else
 		printk(" %016lx ", thread_saved_pc(p));
 #endif
+#ifdef CONFIG_DEBUG_STACK_USAGE
 	{
 		unsigned long * n = (unsigned long *) (p->thread_info+1);
 		while (!*n)
 			n++;
 		free = (unsigned long) n - (unsigned long)(p->thread_info+1);
 	}
+#endif
 	printk("%5lu %5d %6d ", free, p->pid, p->parent->pid);
 	if ((relative = eldest_child(p)))
 		printk("%5d ", relative->pid);
@@ -2614,7 +2618,8 @@ static void show_task(task_t * p)
 	else
 		printk(" (NOTLB)\n");
 
-	show_stack(p, NULL);
+	if (state != TASK_RUNNING)
+		show_stack(p, NULL);
 }
 
 void show_state(void)
@@ -2623,12 +2628,12 @@ void show_state(void)
 
 #if (BITS_PER_LONG == 32)
 	printk("\n"
-	       "                         free                        sibling\n");
-	printk("  task             PC    stack   pid father child younger older\n");
+	       "                                               sibling\n");
+	printk("  task             PC      pid father child younger older\n");
 #else
 	printk("\n"
-	       "                                 free                        sibling\n");
-	printk("  task                 PC        stack   pid father child younger older\n");
+	       "                                                       sibling\n");
+	printk("  task                 PC          pid father child younger older\n");
 #endif
 	read_lock(&tasklist_lock);
 	do_each_thread(g, p) {
@@ -2749,12 +2754,6 @@ out:
 	local_irq_restore(flags);
 }
 
-typedef struct {
-	int cpu;
-	struct completion startup_done;
-	task_t *task;
-} migration_startup_t;
-
 /*
  * migration_thread - this is a highprio system thread that performs
  * thread migration by bumping thread off CPU then 'pushing' onto
@@ -2764,27 +2763,17 @@ static int migration_thread(void * data)
 {
 	/* Marking "param" __user is ok, since we do a set_fs(KERNEL_DS); */
 	struct sched_param __user param = { .sched_priority = MAX_RT_PRIO-1 };
-	migration_startup_t *startup = data;
-	int cpu = startup->cpu;
 	runqueue_t *rq;
+	int cpu = (long)data;
 	int ret;
 
-	startup->task = current;
-	complete(&startup->startup_done);
-	set_current_state(TASK_UNINTERRUPTIBLE);
-	schedule();
-
 	BUG_ON(smp_processor_id() != cpu);
-
-	daemonize("migration/%d", cpu);
-	set_fs(KERNEL_DS);
-
 	ret = setscheduler(0, SCHED_FIFO, &param);
 
 	rq = this_rq();
-	rq->migration_thread = current;
+	BUG_ON(rq->migration_thread != current);
 
-	for (;;) {
+	while (!kthread_should_stop()) {
 		struct list_head *head;
 		migration_req_t *req;
 
@@ -2807,6 +2796,7 @@ static int migration_thread(void * data)
 			       any_online_cpu(req->task->cpus_allowed));
 		complete(&req->done);
 	}
+	return 0;
 }
 
 /*
@@ -2816,47 +2806,43 @@ static int migration_thread(void * data)
 static int migration_call(struct notifier_block *nfb, unsigned long action,
 			  void *hcpu)
 {
-	long cpu = (long)hcpu;
-	migration_startup_t startup;
+	int cpu = (long)hcpu;
+	struct task_struct *p;
 
 	switch (action) {
+	case CPU_UP_PREPARE:
+		p = kthread_create(migration_thread, hcpu, "migration/%d",cpu);
+		if (IS_ERR(p))
+			return NOTIFY_BAD;
+		kthread_bind(p, cpu);
+		cpu_rq(cpu)->migration_thread = p;
+		break;
 	case CPU_ONLINE:
-
-		printk("Starting migration thread for cpu %li\n", cpu);
-
-		startup.cpu = cpu;
-		startup.task = NULL;
-		init_completion(&startup.startup_done);
-
-		kernel_thread(migration_thread, &startup, CLONE_KERNEL);
-		wait_for_completion(&startup.startup_done);
-		wait_task_inactive(startup.task);
-
-		startup.task->thread_info->cpu = cpu;
-		startup.task->cpus_allowed = cpumask_of_cpu(cpu);
-
-		wake_up_process(startup.task);
-
-		while (!cpu_rq(cpu)->migration_thread)
-			yield();
-
+		/* Strictly unneccessary, as first user will wake it. */
+		wake_up_process(cpu_rq(cpu)->migration_thread);
 		break;
 	}
 	return NOTIFY_OK;
 }
 
-static struct notifier_block migration_notifier
-			= { .notifier_call = &migration_call };
+/*
+ * We want this after the other threads, so they can use set_cpus_allowed
+ * from their CPU_OFFLINE callback
+ */
+static struct notifier_block __devinitdata migration_notifier = {
+	.notifier_call = migration_call,
+	.priority = -10,
+};
 
-__init int migration_init(void)
+int __init migration_init(void)
 {
+	void *cpu = (void *)(long)smp_processor_id();
 	/* Start one for boot CPU. */
-	migration_call(&migration_notifier, CPU_ONLINE,
-		       (void *)(long)smp_processor_id());
+	migration_call(&migration_notifier, CPU_UP_PREPARE, cpu);
+	migration_call(&migration_notifier, CPU_ONLINE, cpu);
 	register_cpu_notifier(&migration_notifier);
 	return 0;
 }
-
 #endif
 
 /*
@@ -2874,45 +2860,11 @@ __init int migration_init(void)
 spinlock_t kernel_flag __cacheline_aligned_in_smp = SPIN_LOCK_UNLOCKED;
 EXPORT_SYMBOL(kernel_flag);
 
-static void kstat_init_cpu(int cpu)
-{
-	/* Add any initialisation to kstat here */
-	/* Useful when cpu offlining logic is added.. */
-}
-
-static int __devinit kstat_cpu_notify(struct notifier_block *self,
-				      unsigned long action, void *hcpu)
-{
-	int cpu = (unsigned long)hcpu;
-	switch(action) {
-	case CPU_UP_PREPARE:
-		kstat_init_cpu(cpu);
-		break;
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block __devinitdata kstat_nb = {
-	.notifier_call	= kstat_cpu_notify,
-	.next		= NULL,
-};
-
-__init static void init_kstat(void)
-{
-	kstat_cpu_notify(&kstat_nb, (unsigned long)CPU_UP_PREPARE,
-			 (void *)(long)smp_processor_id());
-	register_cpu_notifier(&kstat_nb);
-}
-
 void __init sched_init(void)
 {
 	runqueue_t *rq;
 	int i, j, k;
 
-	/* Init the kstat counters */
-	init_kstat();
 	for (i = 0; i < NR_CPUS; i++) {
 		prio_array_t *array;
 

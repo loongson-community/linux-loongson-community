@@ -85,6 +85,9 @@ unsigned long long __attribute__((weak)) sched_clock(void)
  */
 static inline void do_profile(struct pt_regs *regs)
 {
+
+	profile_hook(regs);
+
 	if (!user_mode(regs) &&
 	    prof_buffer &&
 	    current->pid) {
@@ -175,7 +178,7 @@ static int __init leds_init(void)
 	int ret;
 	ret = sysdev_class_register(&leds_sysclass);
 	if (ret == 0)
-		ret = sys_device_register(&leds_device);
+		ret = sysdev_register(&leds_device);
 	return ret;
 }
 

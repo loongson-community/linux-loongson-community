@@ -24,6 +24,7 @@
 #include <linux/vmalloc.h>
 #include <linux/elf.h>
 #include <linux/seq_file.h>
+#include <linux/syscalls.h>
 #include <linux/fcntl.h>
 #include <linux/rcupdate.h>
 #include <linux/cpu.h>
@@ -32,6 +33,7 @@
 #include <linux/err.h>
 #include <linux/vermagic.h>
 #include <linux/notifier.h>
+#include <linux/stop_machine.h>
 #include <asm/uaccess.h>
 #include <asm/semaphore.h>
 #include <asm/pgalloc.h>
@@ -457,171 +459,6 @@ static void module_unload_free(struct module *mod)
 	}
 }
 
-#ifdef CONFIG_SMP
-/* Thread to stop each CPU in user context. */
-enum stopref_state {
-	STOPREF_WAIT,
-	STOPREF_PREPARE,
-	STOPREF_DISABLE_IRQ,
-	STOPREF_EXIT,
-};
-
-static enum stopref_state stopref_state;
-static unsigned int stopref_num_threads;
-static atomic_t stopref_thread_ack;
-
-static int stopref(void *cpu)
-{
-	int irqs_disabled = 0;
-	int prepared = 0;
-
-	sprintf(current->comm, "kmodule%lu\n", (unsigned long)cpu);
-
-	/* Highest priority we can manage, and move to right CPU. */
-#if 0 /* FIXME */
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
-	setscheduler(current->pid, SCHED_FIFO, &param);
-#endif
-	set_cpus_allowed(current, cpumask_of_cpu((int)(long)cpu));
-
-	/* Ack: we are alive */
-	mb(); /* Theoretically the ack = 0 might not be on this CPU yet. */
-	atomic_inc(&stopref_thread_ack);
-
-	/* Simple state machine */
-	while (stopref_state != STOPREF_EXIT) {
-		if (stopref_state == STOPREF_DISABLE_IRQ && !irqs_disabled) {
-			local_irq_disable();
-			irqs_disabled = 1;
-			/* Ack: irqs disabled. */
-			mb(); /* Must read state first. */
-			atomic_inc(&stopref_thread_ack);
-		} else if (stopref_state == STOPREF_PREPARE && !prepared) {
-			/* Everyone is in place, hold CPU. */
-			preempt_disable();
-			prepared = 1;
-			mb(); /* Must read state first. */
-			atomic_inc(&stopref_thread_ack);
-		}
-		if (irqs_disabled || prepared)
-			cpu_relax();
-		else
-			yield();
-	}
-
-	/* Ack: we are exiting. */
-	mb(); /* Must read state first. */
-	atomic_inc(&stopref_thread_ack);
-
-	if (irqs_disabled)
-		local_irq_enable();
-	if (prepared)
-		preempt_enable();
-
-	return 0;
-}
-
-/* Change the thread state */
-static void stopref_set_state(enum stopref_state state, int sleep)
-{
-	atomic_set(&stopref_thread_ack, 0);
-	wmb();
-	stopref_state = state;
-	while (atomic_read(&stopref_thread_ack) != stopref_num_threads) {
-		if (sleep)
-			yield();
-		else
-			cpu_relax();
-	}
-}
-
-/* Stop the machine.  Disables irqs. */
-static int stop_refcounts(void)
-{
-	unsigned int i, cpu;
-	cpumask_t old_allowed;
-	int ret = 0;
-
-	/* One thread per cpu.  We'll do our own. */
-	cpu = smp_processor_id();
-
-	/* FIXME: racy with set_cpus_allowed. */
-	old_allowed = current->cpus_allowed;
-	set_cpus_allowed(current, cpumask_of_cpu(cpu));
-
-	atomic_set(&stopref_thread_ack, 0);
-	stopref_num_threads = 0;
-	stopref_state = STOPREF_WAIT;
-
-	/* No CPUs can come up or down during this. */
-	lock_cpu_hotplug();
-
-	for (i = 0; i < NR_CPUS; i++) {
-		if (i == cpu || !cpu_online(i))
-			continue;
-		ret = kernel_thread(stopref, (void *)(long)i, CLONE_KERNEL);
-		if (ret < 0)
-			break;
-		stopref_num_threads++;
-	}
-
-	/* Wait for them all to come to life. */
-	while (atomic_read(&stopref_thread_ack) != stopref_num_threads)
-		yield();
-
-	/* If some failed, kill them all. */
-	if (ret < 0) {
-		stopref_set_state(STOPREF_EXIT, 1);
-		unlock_cpu_hotplug();
-		return ret;
-	}
-
-	/* Don't schedule us away at this point, please. */
-	preempt_disable();
-
-	/* Now they are all scheduled, make them hold the CPUs, ready. */
-	stopref_set_state(STOPREF_PREPARE, 0);
-
-	/* Make them disable irqs. */
-	stopref_set_state(STOPREF_DISABLE_IRQ, 0);
-
-	local_irq_disable();
-	return 0;
-}
-
-/* Restart the machine.  Re-enables irqs. */
-static void restart_refcounts(void)
-{
-	stopref_set_state(STOPREF_EXIT, 0);
-	local_irq_enable();
-	preempt_enable();
-	unlock_cpu_hotplug();
-}
-#else /* ...!SMP */
-static inline int stop_refcounts(void)
-{
-	local_irq_disable();
-	return 0;
-}
-static inline void restart_refcounts(void)
-{
-	local_irq_enable();
-}
-#endif
-
-unsigned int module_refcount(struct module *mod)
-{
-	unsigned int i, total = 0;
-
-	for (i = 0; i < NR_CPUS; i++)
-		total += local_read(&mod->ref[i].count);
-	return total;
-}
-EXPORT_SYMBOL(module_refcount);
-
-/* This exists whether we can unload or not */
-static void free_module(struct module *mod);
-
 #ifdef CONFIG_MODULE_FORCE_UNLOAD
 static inline int try_force(unsigned int flags)
 {
@@ -636,6 +473,50 @@ static inline int try_force(unsigned int flags)
 	return 0;
 }
 #endif /* CONFIG_MODULE_FORCE_UNLOAD */
+
+struct stopref
+{
+	struct module *mod;
+	int flags;
+	int *forced;
+};
+
+/* Whole machine is stopped with interrupts off when this runs. */
+static inline int __try_stop_module(void *_sref)
+{
+	struct stopref *sref = _sref;
+
+	/* If it's not unused, quit unless we are told to block. */
+	if ((sref->flags & O_NONBLOCK) && module_refcount(sref->mod) != 0) {
+		if (!(*sref->forced = try_force(sref->flags)))
+			return -EWOULDBLOCK;
+	}
+
+	/* Mark it as dying. */
+	sref->mod->waiter = current;
+	sref->mod->state = MODULE_STATE_GOING;
+	return 0;
+}
+
+static int try_stop_module(struct module *mod, int flags, int *forced)
+{
+	struct stopref sref = { mod, flags, forced };
+
+	return stop_machine_run(__try_stop_module, &sref, NR_CPUS);
+}
+
+unsigned int module_refcount(struct module *mod)
+{
+	unsigned int i, total = 0;
+
+	for (i = 0; i < NR_CPUS; i++)
+		total += local_read(&mod->ref[i].count);
+	return total;
+}
+EXPORT_SYMBOL(module_refcount);
+
+/* This exists whether we can unload or not */
+static void free_module(struct module *mod);
 
 /* Stub function for modules which don't have an exitfn */
 void cleanup_module(void)
@@ -706,26 +587,9 @@ sys_delete_module(const char __user *name_user, unsigned int flags)
 			goto out;
 		}
 	}
-	/* Stop the machine so refcounts can't move: irqs disabled. */
-	DEBUGP("Stopping refcounts...\n");
-	ret = stop_refcounts();
-	if (ret != 0)
-		goto out;
 
-	/* If it's not unused, quit unless we are told to block. */
-	if ((flags & O_NONBLOCK) && module_refcount(mod) != 0) {
-		forced = try_force(flags);
-		if (!forced) {
-			ret = -EWOULDBLOCK;
-			restart_refcounts();
-			goto out;
-		}
-	}
-
-	/* Mark it as dying. */
-	mod->waiter = current;
-	mod->state = MODULE_STATE_GOING;
-	restart_refcounts();
+	/* Stop the machine so refcounts can't move and disable module. */
+	ret = try_stop_module(mod, flags, &forced);
 
 	/* Never wait if forced. */
 	if (!forced && module_refcount(mod) != 0)
@@ -1874,6 +1738,37 @@ struct module *module_get_kallsym(unsigned int symnum,
 	}
 	up(&module_mutex);
 	return NULL;
+}
+
+static unsigned long mod_find_symname(struct module *mod, const char *name)
+{
+	unsigned int i;
+
+	for (i = 0; i < mod->num_symtab; i++)
+		if (strcmp(name, mod->strtab+mod->symtab[i].st_name) == 0)
+			return mod->symtab[i].st_value;
+	return 0;
+}
+
+/* Look for this name: can be of form module:name. */
+unsigned long module_kallsyms_lookup_name(const char *name)
+{
+	struct module *mod;
+	char *colon;
+	unsigned long ret = 0;
+
+	/* Don't lock: we're in enough trouble already. */
+	if ((colon = strchr(name, ':')) != NULL) {
+		*colon = '\0';
+		if ((mod = find_module(name)) != NULL)
+			ret = mod_find_symname(mod, colon+1);
+		*colon = ':';
+	} else {
+		list_for_each_entry(mod, &modules, list)
+			if ((ret = mod_find_symname(mod, name)) != 0)
+				break;
+	}
+	return ret;
 }
 #endif /* CONFIG_KALLSYMS */
 

@@ -18,7 +18,6 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/sn/sgi.h>
-#include <asm/sn/iograph.h>
 #include <asm/sn/hcl.h>
 #include <asm/sn/types.h>
 #include <asm/sn/pci/pciio.h>
@@ -121,7 +120,7 @@ sn_end_irq(unsigned int irq)
 static void
 sn_set_affinity_irq(unsigned int irq, unsigned long cpu)
 {
-#if CONFIG_SMP
+#ifdef CONFIG_SMP
 	int redir = 0;
 	struct sn_intr_list_t *p = sn_intr_list[irq];
 	pcibr_intr_t intr;
@@ -210,6 +209,49 @@ register_pcibr_intr(int irq, pcibr_intr_t intr)
 		p->next = NULL;
 		p->intr = intr;
 	}
+}
+
+void
+unregister_pcibr_intr(int irq, pcibr_intr_t intr)
+{
+
+	struct sn_intr_list_t **prev, *curr;
+	int cpu = intr->bi_cpu;
+	int i;
+
+	if (sn_intr_list[irq] == NULL)
+		return;
+
+	prev = &sn_intr_list[irq];
+	curr = sn_intr_list[irq];
+	while (curr) {
+		if (curr->intr == intr)	 {
+			*prev = curr->next;
+			break;
+		}
+		prev = &curr->next;
+		curr = curr->next;
+	}
+
+	if (curr)
+		kfree(curr);
+
+	if (!sn_intr_list[irq]) {
+		if (pdacpu(cpu)->sn_last_irq == irq) {
+			for (i = pdacpu(cpu)->sn_last_irq - 1; i; i--)
+				if (sn_intr_list[i])
+					break;
+			pdacpu(cpu)->sn_last_irq = i;
+		}
+
+		if (pdacpu(cpu)->sn_first_irq == irq) {
+			pdacpu(cpu)->sn_first_irq = 0;
+			for (i = pdacpu(cpu)->sn_first_irq + 1; i < NR_IRQS; i++)
+				if (sn_intr_list[i])
+					pdacpu(cpu)->sn_first_irq = i;
+		}
+	}
+
 }
 
 void

@@ -44,13 +44,13 @@
 
 
 /* --- Convenience defines for the parallel port:			*/
-#define BASE	(unsigned int)(data)
+#define BASE	(unsigned long)(data)
 #define DATA	BASE			/* Centronics data port		*/
 #define STAT	(BASE+1)		/* Centronics status port	*/
 #define CTRL	(BASE+2)		/* Centronics control port	*/
 
 #define DEFAULT_BASE 0x378
-static int base=0;
+static long base=0;
 
 /* ----- local functions --------------------------------------------------- */
 
@@ -138,7 +138,7 @@ static int __init i2c_bitvelle_init(void)
 			return -ENODEV;
 		}
 	}
-	pr_debug("i2c-velleman: found device at %#x.\n",base);
+	pr_debug("i2c-velleman: found device at %#lx.\n",base);
 	return 0;
 }
 

@@ -515,7 +515,7 @@ static unsigned int __init init_chipset_sc1200 (struct pci_dev *dev, const char 
 	if (!bmide_dev) {
 		sc1200_proc = 1;
 		bmide_dev = dev;
-		ide_pci_register_host_proc(&sc1200_procs[0]);
+		ide_pci_create_host_proc("sc1200", sc1200_get_info);
 	}
 #endif /* DISPLAY_SC1200_TIMINGS && CONFIG_PROC_FS */
 	return 0;
@@ -544,9 +544,6 @@ static void __init init_hwif_sc1200 (ide_hwif_t *hwif)
         hwif->drives[0].autodma = hwif->autodma;
         hwif->drives[1].autodma = hwif->autodma;
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-
 
 static int __devinit sc1200_init_one(struct pci_dev *dev, const struct pci_device_id *id)
 {

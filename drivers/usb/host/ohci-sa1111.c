@@ -105,7 +105,7 @@ static void dump_hci_status(struct usb_hcd *hcd, const char *label)
 }
 #endif
 
-static void usb_hcd_sa1111_hcim_irq (int irq, void *__hcd, struct pt_regs * r)
+static irqreturn_t usb_hcd_sa1111_hcim_irq (int irq, void *__hcd, struct pt_regs * r)
 {
 	struct usb_hcd *hcd = __hcd;
 //	unsigned long status = sa1111_readl(hcd->regs + SA1111_USB_STATUS);
@@ -121,6 +121,12 @@ static void usb_hcd_sa1111_hcim_irq (int irq, void *__hcd, struct pt_regs * r)
 #endif
 
 	usb_hcd_irq(irq, hcd, r);
+
+	/*
+	 * SA1111 seems to re-assert its interrupt immediately
+	 * after processing an interrupt.  Always return IRQ_HANDLED.
+	 */
+	return IRQ_HANDLED;
 }
 
 /*-------------------------------------------------------------------------*/
@@ -167,9 +173,7 @@ int usb_hcd_sa1111_probe (const struct hc_driver *driver,
 	hcd->description = driver->description;
 	hcd->irq = dev->irq[1];
 	hcd->regs = dev->mapbase;
-	hcd->pdev = SA1111_FAKE_PCIDEV;
 	hcd->self.controller = &dev->dev;
-	hcd->controller = hcd->self.controller;
 
 	retval = hcd_buffer_create (hcd);
 	if (retval != 0) {
@@ -270,14 +274,12 @@ ohci_sa1111_start (struct usb_hcd *hcd)
 	struct ohci_hcd	*ohci = hcd_to_ohci (hcd);
 	int		ret;
 
-	if (hcd->pdev) {
-		ohci->hcca = pci_alloc_consistent (hcd->pdev,
-				sizeof *ohci->hcca, &ohci->hcca_dma);
-		if (!ohci->hcca)
-			return -ENOMEM;
-	}
-
-        memset (ohci->hcca, 0, sizeof (struct ohci_hcca));
+	ohci->hcca = dma_alloc_coherent (hcd->self.controller,
+			sizeof *ohci->hcca, &ohci->hcca_dma, 0);
+	if (!ohci->hcca)
+		return -ENOMEM;
+        
+	memset (ohci->hcca, 0, sizeof (struct ohci_hcca));
 	if ((ret = ohci_mem_init (ohci)) < 0) {
 		ohci_stop (hcd);
 		return ret;

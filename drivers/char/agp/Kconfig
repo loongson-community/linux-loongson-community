@@ -1,5 +1,5 @@
 config AGP
-	tristate "/dev/agpgart (AGP Support)" if !GART_IOMMU
+	tristate "/dev/agpgart (AGP Support)" if !GART_IOMMU && !M68K
 	default y if GART_IOMMU
 	---help---
 	  AGP (Accelerated Graphics Port) is a bus system mainly used to
@@ -77,7 +77,7 @@ config AGP_AMD64
 
 config AGP_INTEL
 	tristate "Intel 440LX/BX/GX, I8xx and E7x05 chipset support"
-	depends on AGP && X86 && !X86_64
+	depends on AGP && X86
 	help
 	  This option gives you AGP support for the GLX component of XFree86 4.x
 	  on Intel 440LX/BX/GX, 815, 820, 830, 840, 845, 850, 860, 875,
@@ -150,4 +150,14 @@ config AGP_UNINORTH
 	help
 	  This option gives you AGP support for Apple machines with a
 	  UniNorth bridge.
+
+config AGP_EFFICEON
+	tristate "Transmeta Efficeon support"
+	depends on AGP && X86 && !X86_64
+	help
+	  This option fives you AGP support for the Transmeta Efficeon
+	  series processors with integrated northbridges.
+
+	  You should say Y here if you use XFree86 3.3.6 or 4.x and want to
+	  use GLX or DRI.  If unsure, say Y.
 

@@ -306,11 +306,12 @@ EXPORT_SYMBOL(allocate_resource);
  *
  * Returns 0 on success, -EBUSY if the resource can't be inserted.
  *
- * This function is equivalent of request_resource when no
- * conflict happens. If a conflict happens, and the conflicting
- * resources entirely fit within the range of the new resource,
- * then the new resource is inserted and the conflicting resources
- * become childs of the new resource. 
+ * This function is equivalent of request_resource when no conflict
+ * happens. If a conflict happens, and the conflicting resources
+ * entirely fit within the range of the new resource, then the new
+ * resource is inserted and the conflicting resources become childs of
+ * the new resource.  Otherwise the new resource becomes the child of
+ * the conflicting resource
  */
 int insert_resource(struct resource *parent, struct resource *new)
 {
@@ -318,6 +319,7 @@ int insert_resource(struct resource *parent, struct resource *new)
 	struct resource *first, *next;
 
 	write_lock(&resource_lock);
+ begin:
 	first = __request_resource(parent, new);
 	if (!first)
 		goto out;
@@ -331,8 +333,10 @@ int insert_resource(struct resource *parent, struct resource *new)
 			break;
 
 	/* existing resource overlaps end of new resource */
-	if (next->end > new->end)
-		goto out;
+	if (next->end > new->end) {
+		parent = next;
+		goto begin;
+	}
 
 	result = 0;
 
@@ -475,6 +479,8 @@ void __release_region(struct resource *parent, unsigned long start, unsigned lon
 	p = &parent->child;
 	end = start + n - 1;
 
+	write_lock(&resource_lock);
+
 	for (;;) {
 		struct resource *res = *p;
 
@@ -488,11 +494,15 @@ void __release_region(struct resource *parent, unsigned long start, unsigned lon
 			if (res->start != start || res->end != end)
 				break;
 			*p = res->sibling;
+			write_unlock(&resource_lock);
 			kfree(res);
 			return;
 		}
 		p = &res->sibling;
 	}
+
+	write_unlock(&resource_lock);
+
 	printk(KERN_WARNING "Trying to free nonexistent resource <%08lx-%08lx>\n", start, end);
 }
 

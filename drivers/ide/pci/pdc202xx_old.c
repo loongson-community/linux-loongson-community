@@ -397,37 +397,18 @@ static int config_chipset_for_dma (ide_drive_t *drive)
 	u8 ultra_66		= ((id->dma_ultra & 0x0010) ||
 				   (id->dma_ultra & 0x0008)) ? 1 : 0;
 
-	switch(dev->device) {
-		case PCI_DEVICE_ID_PROMISE_20267:
-		case PCI_DEVICE_ID_PROMISE_20265:
-		case PCI_DEVICE_ID_PROMISE_20263:
-		case PCI_DEVICE_ID_PROMISE_20262:
-			cable = pdc202xx_old_cable_detect(hwif);
-#if PDC202_DEBUG_CABLE
-			printk(KERN_DEBUG "%s: %s-pin cable, %s-pin cable, %d\n",
-				hwif->name, hwif->udma_four ? "80" : "40",
-				cable ? "40" : "80", cable);
-#endif /* PDC202_DEBUG_CABLE */
-			break;
-		case PCI_DEVICE_ID_PROMISE_20246:
-			ultra_66 = 0;
-			break;
-		default:
-			BUG();
-	}
+	if (dev->device != PCI_DEVICE_ID_PROMISE_20246)
+		cable = pdc202xx_old_cable_detect(hwif);
+	else
+		ultra_66 = 0;
 
-	if ((ultra_66) && (cable)) {
-#ifdef DEBUG
-		printk(KERN_DEBUG "ULTRA 66/100/133: %s channel of Ultra 66/100/133 "
-			"requires an 80-pin cable for Ultra66 operation.\n",
-			hwif->channel ? "Secondary" : "Primary");
-		printk(KERN_DEBUG "         Switching to Ultra33 mode.\n");
-#endif /* DEBUG */
+	if (ultra_66 && cable) {
 		printk(KERN_WARNING "Warning: %s channel requires an 80-pin cable for operation.\n", hwif->channel ? "Secondary":"Primary");
 		printk(KERN_WARNING "%s reduced to Ultra33 mode.\n", drive->name);
 	}
 
-	pdc_old_disable_66MHz_clock(drive->hwif);
+	if (dev->device != PCI_DEVICE_ID_PROMISE_20246)
+		pdc_old_disable_66MHz_clock(drive->hwif);
 
 	drive_pci = 0x60 + (drive->dn << 2);
 	pci_read_config_dword(dev, drive_pci, &drive_conf);
@@ -707,7 +688,7 @@ static unsigned int __init init_chipset_pdc202xx (struct pci_dev *dev, const cha
 
 	if (!pdc202xx_proc) {
 		pdc202xx_proc = 1;
-		ide_pci_register_host_proc(&pdc202xx_procs[0]);
+		ide_pci_create_host_proc("pdc202xx", pdc202xx_get_info);
 	}
 #endif /* DISPLAY_PDC202XX_TIMINGS && CONFIG_PROC_FS */
 
@@ -829,9 +810,6 @@ static void __init init_dma_pdc202xx (ide_hwif_t *hwif, unsigned long dmabase)
 
 	ide_setup_dma(hwif, dmabase, 8);
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-extern void ide_setup_pci_devices(struct pci_dev *, struct pci_dev *, ide_pci_device_t *);
 
 static void __init init_setup_pdc202ata4 (struct pci_dev *dev, ide_pci_device_t *d)
 {

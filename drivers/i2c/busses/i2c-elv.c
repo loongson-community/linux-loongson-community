@@ -38,11 +38,11 @@
 #include <asm/io.h>
 
 #define DEFAULT_BASE 0x378
-static int base=0;
+static long base=0;
 static unsigned char port_data = 0;
 
 /* --- Convenience defines for the parallel port:			*/
-#define BASE	(unsigned int)(data)
+#define BASE	(unsigned long)(data)
 #define DATA	BASE			/* Centronics data port		*/
 #define STAT	(BASE+1)		/* Centronics status port	*/
 #define CTRL	(BASE+2)		/* Centronics control port	*/
@@ -152,7 +152,7 @@ static int __init i2c_bitelv_init(void)
 			return -ENODEV;
 		}
 	}
-	pr_debug("i2c-elv: found device at %#x.\n",base);
+	pr_debug("i2c-elv: found device at %#lx.\n",base);
 	return 0;
 }
 

@@ -157,7 +157,6 @@ EXPORT_SYMBOL(___change_bit);
 
 #ifdef CONFIG_SMP
 /* IRQ implementation. */
-EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(synchronize_irq);
 
 /* Misc SMP information */
@@ -298,8 +297,7 @@ EXPORT_SYMBOL(__copy_user);
 EXPORT_SYMBOL(__strncpy_from_user);
 
 /* Networking helper routines. */
-/* XXX This is NOVERS because C_LABEL_STR doesn't get the version number. -DaveM */
-EXPORT_SYMBOL_NOVERS(__csum_partial_copy_sparc_generic);
+EXPORT_SYMBOL(__csum_partial_copy_sparc_generic);
 EXPORT_SYMBOL(csum_partial);
 
 /* Cache flushing.  */

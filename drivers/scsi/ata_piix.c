@@ -28,12 +28,13 @@
 #include <linux/libata.h>
 
 #define DRV_NAME	"ata_piix"
-#define DRV_VERSION	"1.00"
+#define DRV_VERSION	"1.01"
 
 enum {
 	PIIX_IOCFG		= 0x54, /* IDE I/O configuration register */
 	ICH5_PCS		= 0x92,	/* port control and status */
 
+	PIIX_FLAG_CHECKINTR	= (1 << 29), /* make sure PCI INTx enabled */
 	PIIX_FLAG_COMBINED	= (1 << 30), /* combined mode possible */
 
 	PIIX_COMB_PRI		= (1 << 0), /* combined mode, PATA primary */
@@ -67,10 +68,23 @@ static struct pci_device_id piix_pci_tbl[] = {
 	{ 0x8086, 0x25a2, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich5_pata },
 #endif
 
+	/* NOTE: The following PCI ids must be kept in sync with the
+	 * list in drivers/pci/quirks.c.
+	 */
+
 	{ 0x8086, 0x24d1, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich5_sata },
 	{ 0x8086, 0x24df, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich5_sata },
 	{ 0x8086, 0x25a3, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich5_sata },
 	{ 0x8086, 0x25b0, PCI_ANY_ID, PCI_ANY_ID, 0, 0, ich5_sata },
+
+	/* ICH6 operates in two modes, "looks-like-ICH5" mode,
+	 * and enhanced mode, with queueing and other fancy stuff.
+	 * This is distinguished by PCI class code.
+	 */
+	{ 0x8086, 0x2651, PCI_ANY_ID, PCI_ANY_ID,
+	  PCI_CLASS_STORAGE_IDE << 8, 0xffff00, ich5_sata },
+	{ 0x8086, 0x2652, PCI_ANY_ID, PCI_ANY_ID,
+	  PCI_CLASS_STORAGE_IDE << 8, 0xffff00, ich5_sata },
 
 	{ }	/* terminate list */
 };
@@ -89,7 +103,7 @@ static Scsi_Host_Template piix_sht = {
 	.eh_strategy_handler	= ata_scsi_error,
 	.can_queue		= ATA_DEF_QUEUE,
 	.this_id		= ATA_SHT_THIS_ID,
-	.sg_tablesize		= ATA_MAX_PRD,
+	.sg_tablesize		= LIBATA_MAX_PRD,
 	.max_sectors		= ATA_MAX_SECTORS,
 	.cmd_per_lun		= ATA_SHT_CMD_PER_LUN,
 	.emulated		= ATA_SHT_EMULATED,
@@ -150,7 +164,8 @@ static struct ata_port_info piix_port_info[] = {
 	/* ich5_pata */
 	{
 		.sht		= &piix_sht,
-		.host_flags	= ATA_FLAG_SLAVE_POSS | ATA_FLAG_SRST,
+		.host_flags	= ATA_FLAG_SLAVE_POSS | ATA_FLAG_SRST |
+				  PIIX_FLAG_CHECKINTR,
 		.pio_mask	= 0x03,	/* pio3-4 */
 		.udma_mask	= ATA_UDMA_MASK_40C, /* FIXME: cbl det */
 		.port_ops	= &piix_pata_ops,
@@ -159,8 +174,8 @@ static struct ata_port_info piix_port_info[] = {
 	/* ich5_sata */
 	{
 		.sht		= &piix_sht,
-		.host_flags	= ATA_FLAG_SATA | PIIX_FLAG_COMBINED |
-				  ATA_FLAG_SRST,
+		.host_flags	= ATA_FLAG_SATA | ATA_FLAG_SRST |
+				  PIIX_FLAG_COMBINED | PIIX_FLAG_CHECKINTR,
 		.pio_mask	= 0x03,	/* pio3-4 */
 		.udma_mask	= 0x7f,	/* udma0-6 ; FIXME */
 		.port_ops	= &piix_sata_ops,
@@ -505,6 +520,18 @@ static void piix_probe_combined (struct pci_dev *pdev, unsigned int *mask)
 		*mask |= PIIX_COMB_PRI;
 }
 
+/* move to PCI layer, integrate w/ MSI stuff */
+static void pci_enable_intx(struct pci_dev *pdev)
+{
+	u16 pci_command;
+
+	pci_read_config_word(pdev, PCI_COMMAND, &pci_command);
+	if (pci_command & PCI_COMMAND_INTX_DISABLE) {
+		pci_command &= ~PCI_COMMAND_INTX_DISABLE;
+		pci_write_config_word(pdev, PCI_COMMAND, pci_command);
+	}
+}
+
 /**
  *	piix_init_one - Register PIIX ATA PCI device with kernel services
  *	@pdev: PCI device to register
@@ -538,6 +565,15 @@ static int piix_init_one (struct pci_dev *pdev, const struct pci_device_id *ent)
 	port_info[1] = NULL;
 	if (port_info[0]->host_flags & PIIX_FLAG_COMBINED)
 		piix_probe_combined(pdev, &combined);
+
+	/* On ICH5, some BIOSen disable the interrupt using the
+	 * PCI_COMMAND_INTX_DISABLE bit added in PCI 2.3.
+	 * On ICH6, this bit has the same effect, but only when
+	 * MSI is disabled (and it is disabled, as we don't use
+	 * message-signalled interrupts currently).
+	 */
+	if (port_info[0]->host_flags & PIIX_FLAG_CHECKINTR)
+		pci_enable_intx(pdev);
 
 	if (combined & PIIX_COMB_PRI)
 		sata_comb = 1;

@@ -163,6 +163,7 @@ struct skb_shared_info {
  *	@cb: Control buffer. Free for use by every layer. Put private vars here
  *	@len: Length of actual data
  *	@data_len: Data length
+ *	@mac_len: Length of link layer header
  *	@csum: Checksum
  *	@__unused: Dead field, may be reused
  *	@cloned: Head may be cloned (check refcnt to be sure)
@@ -204,6 +205,7 @@ struct sk_buff {
 		struct icmphdr	*icmph;
 		struct igmphdr	*igmph;
 		struct iphdr	*ipiph;
+		struct ipv6hdr	*ipv6h;
 		unsigned char	*raw;
 	} h;
 
@@ -232,6 +234,7 @@ struct sk_buff {
 
 	unsigned int		len,
 				data_len,
+				mac_len,
 				csum;
 	unsigned char		local_df,
 				cloned,
@@ -270,9 +273,6 @@ struct sk_buff {
 				*tail,
 				*end;
 };
-
-#define SK_WMEM_MAX	65535
-#define SK_RMEM_MAX	65535
 
 #ifdef __KERNEL__
 /*

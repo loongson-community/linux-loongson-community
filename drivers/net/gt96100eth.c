@@ -617,10 +617,10 @@ static int gt96100_init_module(void)
 	/*
 	 * Stupid probe because this really isn't a PCI device
 	 */
-	if (!(pci = pci_find_device(PCI_VENDOR_ID_GALILEO,
-	                            PCI_DEVICE_ID_GALILEO_GT96100, NULL)) &&
-	    !(pci = pci_find_device(PCI_VENDOR_ID_GALILEO,
-		                    PCI_DEVICE_ID_GALILEO_GT96100A, NULL))) {
+	if (!(pci = pci_find_device(PCI_VENDOR_ID_MARVELL,
+	                            PCI_DEVICE_ID_MARVELL_GT96100, NULL)) &&
+	    !(pci = pci_find_device(PCI_VENDOR_ID_MARVELL,
+		                    PCI_DEVICE_ID_MARVELL_GT96100A, NULL))) {
 		printk(KERN_ERR __FILE__ ": GT96100 not found!\n");
 		return -ENODEV;
 	}
@@ -1024,22 +1024,18 @@ gt96100_open(struct net_device *dev)
 {
 	int retval;
     
-	MOD_INC_USE_COUNT;
-
 	dbg(2, "%s: dev=%p\n", __FUNCTION__, dev);
 
 	// Initialize and startup the GT-96100 ethernet port
 	if ((retval = gt96100_init(dev))) {
 		err("error in gt96100_init\n");
 		free_irq(dev->irq, dev);
-		MOD_DEC_USE_COUNT;
 		return retval;
 	}
 
 	if ((retval = request_irq(dev->irq, &gt96100_interrupt,
 				  SA_SHIRQ, dev->name, dev))) {
 		err("unable to get IRQ %d\n", dev->irq);
-		MOD_DEC_USE_COUNT;
 		return retval;
 	}
 	
@@ -1061,7 +1057,6 @@ gt96100_close(struct net_device *dev)
 
 	free_irq(dev->irq, dev);
     
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 

@@ -77,6 +77,8 @@ struct hci_dev {
 	__u16		link_policy;
 	__u16		link_mode;
 
+	unsigned long	quirks;
+
 	atomic_t 	cmd_cnt;
 	unsigned int 	acl_cnt;
 	unsigned int 	sco_cnt;
@@ -119,6 +121,8 @@ struct hci_dev {
 	struct proc_dir_entry   *proc;
 #endif
 
+	struct class_device	class_dev;
+
 	struct module           *owner;
 
 	int (*open)(struct hci_dev *hdev);
@@ -126,6 +130,7 @@ struct hci_dev {
 	int (*flush)(struct hci_dev *hdev);
 	int (*send)(struct sk_buff *skb);
 	void (*destruct)(struct hci_dev *hdev);
+	void (*notify)(struct hci_dev *hdev, unsigned int evt);
 	int (*ioctl)(struct hci_dev *hdev, unsigned int cmd, unsigned long arg);
 };
 
@@ -346,6 +351,9 @@ static inline struct hci_dev *hci_dev_hold(struct hci_dev *d)
 
 struct hci_dev *hci_dev_get(int index);
 struct hci_dev *hci_get_route(bdaddr_t *src, bdaddr_t *dst);
+
+struct hci_dev *hci_alloc_dev(void);
+void hci_free_dev(struct hci_dev *hdev);
 int hci_register_dev(struct hci_dev *hdev);
 int hci_unregister_dev(struct hci_dev *hdev);
 int hci_suspend_dev(struct hci_dev *hdev);
@@ -385,8 +393,10 @@ static inline int hci_recv_frame(struct sk_buff *skb)
 	return 0;
 }
 
-int  hci_dev_proc_init(struct hci_dev *hdev);
-void hci_dev_proc_cleanup(struct hci_dev *hdev);
+int hci_register_sysfs(struct hci_dev *hdev);
+void hci_unregister_sysfs(struct hci_dev *hdev);
+
+#define SET_HCIDEV_DEV(hdev, pdev) ((hdev)->class_dev.dev = (pdev))
 
 /* ----- LMP capabilities ----- */
 #define lmp_rswitch_capable(dev) (dev->features[0] & LMP_RSWITCH)

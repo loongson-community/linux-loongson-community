@@ -245,6 +245,12 @@ config IA64_MCA
 	  Say Y here to enable machine check support for IA-64.  If you're
 	  unsure, answer Y.
 
+config IA64_CYCLONE
+	bool "Support Cyclone(EXA) Time Source"
+	help
+		Say Y here to enable support for IBM EXA Cyclone time source.
+		If you're unsure, answer N.
+
 config PM
 	bool "Power Management support"
 	depends on IA64_GENERIC || IA64_DIG || IA64_HP_ZX1
@@ -281,39 +287,6 @@ config IA64_SGI_SN_SIM
 config FORCE_MAX_ZONEORDER
 	int
 	default "18"
-
-choice
-	prompt "Huge TLB page size"
-	depends on HUGETLB_PAGE
-	default HUGETLB_PAGE_SIZE_16MB
-
-config HUGETLB_PAGE_SIZE_4GB
-	depends on MCKINLEY
-	bool "4GB"
-
-config HUGETLB_PAGE_SIZE_1GB
-	depends on MCKINLEY
-	bool "1GB"
-
-config HUGETLB_PAGE_SIZE_256MB
-	bool "256MB"
-
-config HUGETLB_PAGE_SIZE_64MB
-	bool "64MB"
-
-config HUGETLB_PAGE_SIZE_16MB
-	bool "16MB"
-
-config HUGETLB_PAGE_SIZE_4MB
-	bool "4MB"
-
-config HUGETLB_PAGE_SIZE_1MB
-	bool "1MB"
-
-config HUGETLB_PAGE_SIZE_256KB
-	bool "256KB"
-
-endchoice
 
 config IA64_PAL_IDLE
 	bool "Use PAL_HALT_LIGHT in idle loop"
@@ -438,24 +411,6 @@ config PCI_DOMAINS
 	default PCI
 
 source "drivers/pci/Kconfig"
-
-config HOTPLUG
-	bool "Support for hot-pluggable devices"
-	help
-	  Say Y here if you want to plug devices into your computer while
-	  the system is running, and be able to use them quickly.  In many
-	  cases, the devices can likewise be unplugged at any time too.
-
-	  One well known example of this is PCMCIA- or PC-cards, credit-card
-	  size devices such as network cards, modems or hard drives which are
-	  plugged into slots found on all modern laptop computers.  Another
-	  example, used on modern desktops as well as laptops, is USB.
-
-	  Enable HOTPLUG and KMOD, and build a modular kernel.  Get agent
-	  software (at <http://linux-hotplug.sourceforge.net/>) and install it.
-	  Then your kernel will automatically call out to a user mode "policy
-	  agent" (/sbin/hotplug) to load modules and set up software needed
-	  to use devices as you hotplug them.
 
 source "drivers/pci/hotplug/Kconfig"
 

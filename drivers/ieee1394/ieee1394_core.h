@@ -4,6 +4,7 @@
 
 #include <linux/slab.h>
 #include <linux/devfs_fs_kernel.h>
+#include <asm/atomic.h>
 #include <asm/semaphore.h>
 #include "hosts.h"
 
@@ -58,6 +59,8 @@ struct hpsb_packet {
 
         struct hpsb_host *host;
         unsigned int generation;
+
+	atomic_t refcnt;
 
 	/* Function (and possible data to pass to it) to call when this
 	 * packet is completed.  */
@@ -215,5 +218,6 @@ static inline unsigned char ieee1394_file_to_instance(struct file *file)
 
 /* Our sysfs bus entry */
 extern struct bus_type ieee1394_bus_type;
+extern struct class hpsb_host_class;
 
 #endif /* _IEEE1394_CORE_H */

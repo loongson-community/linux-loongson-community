@@ -280,7 +280,7 @@ static struct ip_tunnel * ipgre_tunnel_locate(struct ip_tunnel_parm *parms, int 
 	nt->parms = *parms;
 
 	if (register_netdevice(dev) < 0) {
-		kfree(dev);
+		free_netdev(dev);
 		goto failed;
 	}
 
@@ -1250,7 +1250,7 @@ static struct inet_protocol ipgre_protocol = {
  *	And now the modules code and kernel interface.
  */
 
-int __init ipgre_init(void)
+static int __init ipgre_init(void)
 {
 	int err = -EINVAL;
 
@@ -1276,7 +1276,7 @@ out:
 	return err;
 fail:
 	inet_del_protocol(&ipgre_protocol, IPPROTO_GRE);
-	kfree(ipgre_fb_tunnel_dev);
+	free_netdev(ipgre_fb_tunnel_dev);
 	goto out;
 }
 
@@ -1288,8 +1288,6 @@ void ipgre_fini(void)
 	unregister_netdev(ipgre_fb_tunnel_dev);
 }
 
-#ifdef MODULE
 module_init(ipgre_init);
-#endif
 module_exit(ipgre_fini);
 MODULE_LICENSE("GPL");

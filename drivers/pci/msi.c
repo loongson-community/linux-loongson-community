@@ -1,5 +1,9 @@
 /*
- * linux/drivers/pci/msi.c
+ * File:	msi.c
+ * Purpose:	PCI Message Signaled Interrupt (MSI)
+ *
+ * Copyright (C) 2003-2004 Intel
+ * Copyright (C) Tom Long Nguyen (tom.l.nguyen@intel.com)
  */
 
 #include <linux/mm.h>
@@ -138,6 +142,7 @@ static void set_msi_affinity(unsigned int vector, cpumask_t cpu_mask)
 	}
 }
 
+#ifdef CONFIG_IRQBALANCE
 static inline void move_msi(int vector)
 {
 	if (!cpus_empty(pending_irq_balance_cpumask[vector])) {
@@ -145,7 +150,8 @@ static inline void move_msi(int vector)
 		cpus_clear(pending_irq_balance_cpumask[vector]);
 	}
 }
-#endif
+#endif /* CONFIG_IRQBALANCE */
+#endif /* CONFIG_SMP */
 
 static void mask_MSI_irq(unsigned int vector)
 {

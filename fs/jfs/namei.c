@@ -44,7 +44,7 @@ extern int jfs_init_acl(struct inode *, struct inode *);
 struct inode_operations jfs_dir_inode_operations;
 struct file_operations jfs_dir_operations;
 
-s64 commitZeroLink(tid_t, struct inode *);
+static s64 commitZeroLink(tid_t, struct inode *);
 
 /*
  * NAME:	jfs_create(dip, dentry, mode)
@@ -60,7 +60,7 @@ s64 commitZeroLink(tid_t, struct inode *);
  * RETURN:	Errors from subroutines
  *
  */
-int jfs_create(struct inode *dip, struct dentry *dentry, int mode,
+static int jfs_create(struct inode *dip, struct dentry *dentry, int mode,
 		struct nameidata *nd)
 {
 	int rc = 0;
@@ -78,7 +78,7 @@ int jfs_create(struct inode *dip, struct dentry *dentry, int mode,
 	 * search parent directory for entry/freespace
 	 * (dtSearch() returns parent directory page pinned)
 	 */
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dip->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out1;
 
 	/*
@@ -104,7 +104,8 @@ int jfs_create(struct inode *dip, struct dentry *dentry, int mode,
 
 	tblk = tid_to_tblock(tid);
 	tblk->xflag |= COMMIT_CREATE;
-	tblk->ip = ip;
+	tblk->ino = ip->i_ino;
+	tblk->u.ixpxd = JFS_IP(ip)->ixpxd;
 
 	iplist[0] = dip;
 	iplist[1] = ip;
@@ -181,7 +182,7 @@ int jfs_create(struct inode *dip, struct dentry *dentry, int mode,
  * note:
  * EACCESS: user needs search+write permission on the parent directory
  */
-int jfs_mkdir(struct inode *dip, struct dentry *dentry, int mode)
+static int jfs_mkdir(struct inode *dip, struct dentry *dentry, int mode)
 {
 	int rc = 0;
 	tid_t tid;		/* transaction id */
@@ -204,7 +205,7 @@ int jfs_mkdir(struct inode *dip, struct dentry *dentry, int mode)
 	 * search parent directory for entry/freespace
 	 * (dtSearch() returns parent directory page pinned)
 	 */
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dip->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out1;
 
 	/*
@@ -230,7 +231,8 @@ int jfs_mkdir(struct inode *dip, struct dentry *dentry, int mode)
 
 	tblk = tid_to_tblock(tid);
 	tblk->xflag |= COMMIT_CREATE;
-	tblk->ip = ip;
+	tblk->ino = ip->i_ino;
+	tblk->u.ixpxd = JFS_IP(ip)->ixpxd;
 
 	iplist[0] = dip;
 	iplist[1] = ip;
@@ -314,7 +316,7 @@ int jfs_mkdir(struct inode *dip, struct dentry *dentry, int mode)
  * but the directory is not removed until the last reference to 
  * the directory is released (cf.unlink() of regular file).
  */
-int jfs_rmdir(struct inode *dip, struct dentry *dentry)
+static int jfs_rmdir(struct inode *dip, struct dentry *dentry)
 {
 	int rc;
 	tid_t tid;		/* transaction id */
@@ -332,7 +334,7 @@ int jfs_rmdir(struct inode *dip, struct dentry *dentry)
 		goto out;
 	}
 
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dip->i_sb)->nls_tab))) {
+	if ((rc = get_UCSname(&dname, dentry))) {
 		goto out;
 	}
 
@@ -346,7 +348,7 @@ int jfs_rmdir(struct inode *dip, struct dentry *dentry)
 
 	tblk = tid_to_tblock(tid);
 	tblk->xflag |= COMMIT_DELETE;
-	tblk->ip = ip;
+	tblk->u.ip = ip;
 
 	/*
 	 * delete the entry of target directory from parent directory
@@ -437,7 +439,7 @@ int jfs_rmdir(struct inode *dip, struct dentry *dentry)
  * JFS does NOT support unlink() on directories.
  *
  */
-int jfs_unlink(struct inode *dip, struct dentry *dentry)
+static int jfs_unlink(struct inode *dip, struct dentry *dentry)
 {
 	int rc;
 	tid_t tid;		/* transaction id */
@@ -451,7 +453,7 @@ int jfs_unlink(struct inode *dip, struct dentry *dentry)
 
 	jfs_info("jfs_unlink: dip:0x%p name:%s", dip, dentry->d_name.name);
 
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dip->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out;
 
 	IWRITE_LOCK(ip);
@@ -505,7 +507,7 @@ int jfs_unlink(struct inode *dip, struct dentry *dentry)
 		}
 		tblk = tid_to_tblock(tid);
 		tblk->xflag |= COMMIT_DELETE;
-		tblk->ip = ip;
+		tblk->u.ip = ip;
 	}
 
 	/*
@@ -590,7 +592,7 @@ int jfs_unlink(struct inode *dip, struct dentry *dentry)
  *
  * RETURN:	Errors from subroutines
  */
-s64 commitZeroLink(tid_t tid, struct inode *ip)
+static s64 commitZeroLink(tid_t tid, struct inode *ip)
 {
 	int filetype;
 	struct tblock *tblk;
@@ -758,7 +760,7 @@ int freeZeroLink(struct inode *ip)
  * EXDEV: target object and new link are on different file systems and
  * implementation does not support links between file systems [XPG4.2].
  */
-int jfs_link(struct dentry *old_dentry,
+static int jfs_link(struct dentry *old_dentry,
 	     struct inode *dir, struct dentry *dentry)
 {
 	int rc;
@@ -786,7 +788,7 @@ int jfs_link(struct dentry *old_dentry,
 	/*
 	 * scan parent directory for entry/freespace
 	 */
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(ip->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out;
 
 	if ((rc = dtSearch(dir, &dname, &ino, &btstack, JFS_CREATE)))
@@ -838,7 +840,8 @@ int jfs_link(struct dentry *old_dentry,
  * an intermediate result whose length exceeds PATH_MAX [XPG4.2]
 */
 
-int jfs_symlink(struct inode *dip, struct dentry *dentry, const char *name)
+static int jfs_symlink(struct inode *dip, struct dentry *dentry,
+		const char *name)
 {
 	int rc;
 	tid_t tid;
@@ -866,7 +869,7 @@ int jfs_symlink(struct inode *dip, struct dentry *dentry, const char *name)
 	 * (dtSearch() returns parent directory page pinned)
 	 */
 
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dip->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out1;
 
 	/*
@@ -889,7 +892,8 @@ int jfs_symlink(struct inode *dip, struct dentry *dentry, const char *name)
 
 	tblk = tid_to_tblock(tid);
 	tblk->xflag |= COMMIT_CREATE;
-	tblk->ip = ip;
+	tblk->ino = ip->i_ino;
+	tblk->u.ixpxd = JFS_IP(ip)->ixpxd;
 
 	/*
 	 * create entry for symbolic link in parent directory
@@ -1042,7 +1046,7 @@ int jfs_symlink(struct inode *dip, struct dentry *dentry, const char *name)
  *
  * FUNCTION:    rename a file or directory
  */
-int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+static int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	       struct inode *new_dir, struct dentry *new_dentry)
 {
 	struct btstack btstack;
@@ -1069,12 +1073,10 @@ int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	old_ip = old_dentry->d_inode;
 	new_ip = new_dentry->d_inode;
 
-	if ((rc = get_UCSname(&old_dname, old_dentry,
-			      JFS_SBI(old_dir->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&old_dname, old_dentry)))
 		goto out1;
 
-	if ((rc = get_UCSname(&new_dname, new_dentry,
-			      JFS_SBI(old_dir->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&new_dname, new_dentry)))
 		goto out2;
 
 	/*
@@ -1153,7 +1155,7 @@ int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 			}
 			tblk = tid_to_tblock(tid);
 			tblk->xflag |= COMMIT_DELETE;
-			tblk->ip = new_ip;
+			tblk->u.ip = new_ip;
 		} else if (new_ip->i_nlink == 0) {
 			assert(!test_cflag(COMMIT_Nolink, new_ip));
 			/* free block resources */
@@ -1164,7 +1166,7 @@ int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 			}
 			tblk = tid_to_tblock(tid);
 			tblk->xflag |= COMMIT_DELETE;
-			tblk->ip = new_ip;
+			tblk->u.ip = new_ip;
 		} else {
 			new_ip->i_ctime = CURRENT_TIME;
 			mark_inode_dirty(new_ip);
@@ -1312,7 +1314,8 @@ int jfs_rename(struct inode *old_dir, struct dentry *old_dentry,
  *
  * FUNCTION:    Create a special file (device)
  */
-int jfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
+static int jfs_mknod(struct inode *dir, struct dentry *dentry,
+		int mode, dev_t rdev)
 {
 	struct jfs_inode_info *jfs_ip;
 	struct btstack btstack;
@@ -1329,7 +1332,7 @@ int jfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 
 	jfs_info("jfs_mknod: %s", dentry->d_name.name);
 
-	if ((rc = get_UCSname(&dname, dentry, JFS_SBI(dir->i_sb)->nls_tab)))
+	if ((rc = get_UCSname(&dname, dentry)))
 		goto out;
 
 	ip = ialloc(dir, mode);
@@ -1349,7 +1352,8 @@ int jfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t rdev)
 
 	tblk = tid_to_tblock(tid);
 	tblk->xflag |= COMMIT_CREATE;
-	tblk->ip = ip;
+	tblk->ino = ip->i_ino;
+	tblk->u.ixpxd = JFS_IP(ip)->ixpxd;
 
 	ino = ip->i_ino;
 	if ((rc = dtInsert(tid, dir, &dname, &ino, &btstack)))
@@ -1411,8 +1415,7 @@ static struct dentry *jfs_lookup(struct inode *dip, struct dentry *dentry, struc
 	else if (strcmp(name, "..") == 0)
 		inum = PARENT(dip);
 	else {
-		if ((rc =
-		     get_UCSname(&key, dentry, JFS_SBI(dip->i_sb)->nls_tab)))
+		if ((rc = get_UCSname(&key, dentry)))
 			return ERR_PTR(rc);
 		rc = dtSearch(dip, &key, &inum, &btstack, JFS_LOOKUP);
 		free_UCSname(&key);

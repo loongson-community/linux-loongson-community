@@ -2,6 +2,7 @@
 #define _LINUX_MSG_H
 
 #include <linux/ipc.h>
+#include <linux/list.h>
 
 /* ipcs ctl commands */
 #define MSG_STAT 11
@@ -92,11 +93,6 @@ struct msg_queue {
 	struct list_head q_receivers;
 	struct list_head q_senders;
 };
-
-asmlinkage long sys_msgget (key_t key, int msgflg);
-asmlinkage long sys_msgsnd (int msqid, struct msgbuf __user *msgp, size_t msgsz, int msgflg);
-asmlinkage long sys_msgrcv (int msqid, struct msgbuf __user *msgp, size_t msgsz, long msgtyp, int msgflg);
-asmlinkage long sys_msgctl (int msqid, int cmd, struct msqid_ds __user *buf);
 
 #endif /* __KERNEL__ */
 

@@ -149,8 +149,6 @@ struct ohci1394_iso_tasklet {
 };
 
 struct ti_ohci {
-        int id; /* sequential card number */
-
         struct pci_dev *dev;
 
 	enum { 
@@ -238,14 +236,13 @@ struct ti_ohci {
 
 static inline int cross_bound(unsigned long addr, unsigned int size)
 {
-	int cross=0;
-	if (size>PAGE_SIZE) {
-		cross = size/PAGE_SIZE;
-		size -= cross*PAGE_SIZE;
-	}
-	if ((PAGE_SIZE-addr%PAGE_SIZE)<size)
-		cross++;
-	return cross;
+	if (size > PAGE_SIZE)
+		return 1;
+
+	if (addr >> PAGE_SHIFT != (addr + size - 1) >> PAGE_SHIFT)
+		return 1;
+
+	return 0;
 }
 
 /*
@@ -320,6 +317,11 @@ static inline u32 reg_read(const struct ti_ohci *ohci, int offset)
 #define OHCI1394_FairnessControl              0x0DC
 #define OHCI1394_LinkControlSet               0x0E0
 #define OHCI1394_LinkControlClear             0x0E4
+#define  OHCI1394_LinkControl_RcvSelfID		0x00000200
+#define  OHCI1394_LinkControl_RcvPhyPkt		0x00000400
+#define  OHCI1394_LinkControl_CycleTimerEnable	0x00100000
+#define  OHCI1394_LinkControl_CycleMaster	0x00200000
+#define  OHCI1394_LinkControl_CycleSource	0x00400000
 #define OHCI1394_NodeID                       0x0E8
 #define OHCI1394_PhyControl                   0x0EC
 #define OHCI1394_IsochronousCycleTimer        0x0F0

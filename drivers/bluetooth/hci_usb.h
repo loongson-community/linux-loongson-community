@@ -38,7 +38,8 @@
 #define HCI_DIGI_REQ	     0x40
 
 #define HCI_IGNORE           0x01
-#define HCI_DIGIANSWER       0x02
+#define HCI_RESET            0x02
+#define HCI_DIGIANSWER       0x04
 
 #define HCI_MAX_IFACE_NUM	3 
 
@@ -112,7 +113,7 @@ struct _urb *_urb_dequeue(struct _urb_queue *q);
 #endif
 
 struct hci_usb {
-	struct hci_dev		hdev;
+	struct hci_dev		*hdev;
 
 	unsigned long		state;
 	

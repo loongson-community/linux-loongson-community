@@ -1622,6 +1622,7 @@ out:
 static struct dentry *proc_task_lookup(struct inode *dir, struct dentry * dentry, struct nameidata *nd)
 {
 	struct task_struct *task;
+	struct task_struct *leader = proc_task(dir);
 	struct inode *inode;
 	unsigned tid;
 
@@ -1636,14 +1637,14 @@ static struct dentry *proc_task_lookup(struct inode *dir, struct dentry * dentry
 	read_unlock(&tasklist_lock);
 	if (!task)
 		goto out;
+	if (leader->tgid != task->tgid)
+		goto out_drop_task;
 
 	inode = proc_pid_make_inode(dir->i_sb, task, PROC_TID_INO);
 
 
-	if (!inode) {
-		put_task_struct(task);
-		goto out;
-	}
+	if (!inode)
+		goto out_drop_task;
 	inode->i_mode = S_IFDIR|S_IRUGO|S_IXUGO;
 	inode->i_op = &proc_tid_base_inode_operations;
 	inode->i_fop = &proc_tid_base_operations;
@@ -1656,6 +1657,8 @@ static struct dentry *proc_task_lookup(struct inode *dir, struct dentry * dentry
 
 	put_task_struct(task);
 	return NULL;
+out_drop_task:
+	put_task_struct(task);
 out:
 	return ERR_PTR(-ENOENT);
 }

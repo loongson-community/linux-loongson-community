@@ -38,8 +38,8 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
-#ifndef _VIO_H
-#define _VIO_H
+#ifndef _ISERIES_VIO_H
+#define _ISERIES_VIO_H
 
 #include <asm/iSeries/HvTypes.h>
 #include <asm/iSeries/HvLpEvent.h>
@@ -127,4 +127,8 @@ enum viorc {
 	viorc_openRejected = 0x0301
 };
 
-#endif /* _VIO_H */
+struct device;
+
+extern struct device *iSeries_vio_dev;
+
+#endif /* _ISERIES_VIO_H */

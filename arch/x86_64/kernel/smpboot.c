@@ -53,6 +53,10 @@
 #include <asm/tlbflush.h>
 #include <asm/proto.h>
 
+/* Number of siblings per CPU package */
+int smp_num_siblings = 1;
+int phys_proc_id[NR_CPUS]; /* Package ID of each logical CPU */
+
 /* Bitmask of currently online CPUs */
 cpumask_t cpu_online_map;
 
@@ -65,6 +69,8 @@ struct cpuinfo_x86 cpu_data[NR_CPUS] __cacheline_aligned;
 
 /* Set when the idlers are all forked */
 int smp_threads_ready;
+
+int cpu_sibling_map[NR_CPUS] __cacheline_aligned;
 
 /*
  * Trampoline 80x86 program as an array.
@@ -258,7 +264,7 @@ void __init smp_callin(void)
 	 */
 	phys_id = GET_APIC_ID(apic_read(APIC_ID));
 	cpuid = smp_processor_id();
-	if (cpu_test_and_set(cpuid, cpu_callin_map)) {
+	if (cpu_isset(cpuid, cpu_callin_map)) {
 		panic("smp_callin: phys CPU#%d, CPU#%d already present??\n",
 					phys_id, cpuid);
 	}
@@ -645,7 +651,6 @@ static void __init do_boot_cpu (int apicid)
 		if (cpu_isset(cpu, cpu_callin_map)) {
 			/* number CPUs logically, starting from 1 (BSP is 0) */
 			Dprintk("OK.\n");
-			printk(KERN_INFO "CPU%d: ", cpu);
 			print_cpu_info(&cpu_data[cpu]);
 			Dprintk("CPU has booted.\n");
 		} else {
@@ -723,6 +728,8 @@ static void smp_tune_scheduling (void)
 static void __init smp_boot_cpus(unsigned int max_cpus)
 {
 	unsigned apicid, cpu;
+
+	nmi_watchdog_default();
 
 	/*
 	 * Setup boot CPU information
@@ -855,6 +862,34 @@ static void __init smp_boot_cpus(unsigned int max_cpus)
 			bogosum/(500000/HZ),
 			(bogosum/(5000/HZ))%100);
 		Dprintk("Before bogocount - setting activated=1.\n");
+	}
+
+	/*
+	 * If Hyper-Threading is avaialble, construct cpu_sibling_map[], so
+	 * that we can tell the sibling CPU efficiently.
+	 */
+	if (cpu_has_ht && smp_num_siblings > 1) {
+		for (cpu = 0; cpu < NR_CPUS; cpu++)
+			cpu_sibling_map[cpu] = NO_PROC_ID;
+		
+		for (cpu = 0; cpu < NR_CPUS; cpu++) {
+			int 	i;
+			if (!cpu_isset(cpu, cpu_callout_map))
+				continue;
+
+			for (i = 0; i < NR_CPUS; i++) {
+				if (i == cpu || !cpu_isset(i, cpu_callout_map))
+					continue;
+				if (phys_proc_id[cpu] == phys_proc_id[i]) {
+					cpu_sibling_map[cpu] = i;
+					break;
+				}
+			}
+			if (cpu_sibling_map[cpu] == NO_PROC_ID) {
+				smp_num_siblings = 1;
+				printk(KERN_WARNING "WARNING: No sibling found for CPU %d.\n", cpu);
+			}
+		}
 	}
 
 	Dprintk("Boot done.\n");

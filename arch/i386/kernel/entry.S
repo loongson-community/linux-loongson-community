@@ -162,7 +162,7 @@ do_lcall:
 	movl %eax,EFLAGS(%ebp)	#
 	movl %edx,EIP(%ebp)	# Now we move them to their "normal" places
 	movl %ecx,CS(%ebp)	#
-	andl $-8192, %ebp	# GET_THREAD_INFO
+	GET_THREAD_INFO_WITH_ESP(%ebp)	# GET_THREAD_INFO
 	movl TI_EXEC_DOMAIN(%ebp), %edx	# Get the execution domain
 	call *4(%edx)		# Call the lcall7 handler for the domain
 	addl $4, %esp
@@ -515,8 +515,8 @@ ENTRY(nmi)
 	/* Do not access memory above the end of our stack page,
 	 * it might not exist.
 	 */
-	andl $0x1fff,%eax
-	cmpl $0x1fec,%eax
+	andl $(THREAD_SIZE-1),%eax
+	cmpl $(THREAD_SIZE-20),%eax
 	popl %eax
 	jae nmi_stack_correct
 	cmpl $sysenter_entry,12(%esp)

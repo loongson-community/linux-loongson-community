@@ -86,7 +86,7 @@ int		nfsd_create_v3(struct svc_rqst *, struct svc_fh *,
 				struct svc_fh *res, int createmode,
 				u32 *verifier, int *truncp);
 int		nfsd_commit(struct svc_rqst *, struct svc_fh *,
-				off_t, unsigned long);
+				loff_t, unsigned long);
 #endif /* CONFIG_NFSD_V3 */
 int		nfsd_open(struct svc_rqst *, struct svc_fh *, int,
 				int, struct file *);
@@ -190,9 +190,12 @@ void		nfsd_lockd_shutdown(void);
 #define nfserr_bad_seqid	__constant_htonl(NFSERR_BAD_SEQID)
 #define	nfserr_symlink		__constant_htonl(NFSERR_SYMLINK)
 #define	nfserr_not_same		__constant_htonl(NFSERR_NOT_SAME)
-#define	nfserr_readdir_nospc	__constant_htonl(NFSERR_READDIR_NOSPC)
+#define	nfserr_restorefh	__constant_htonl(NFSERR_RESTOREFH)
+#define	nfserr_attrnotsupp	__constant_htonl(NFSERR_ATTRNOTSUPP)
 #define	nfserr_bad_xdr		__constant_htonl(NFSERR_BAD_XDR)
 #define	nfserr_openmode		__constant_htonl(NFSERR_OPENMODE)
+#define	nfserr_locks_held	__constant_htonl(NFSERR_LOCKS_HELD)
+#define	nfserr_op_illegal	__constant_htonl(NFSERR_OP_ILLEGAL)
 
 /* error codes for internal use */
 /* if a request fails due to kmalloc failure, it gets dropped.

@@ -402,6 +402,13 @@ void __init mem_init(void)
 	int codesize, reservedpages, datasize, initsize;
 	int tmp;
 
+#ifdef CONFIG_SWIOTLB
+       if (!iommu_aperture && end_pfn >= 0xffffffff>>PAGE_SHIFT) { 
+	       swiotlb_init();
+	       swiotlb = 1;
+       }
+#endif
+
 	/* How many end-of-memory variables you have, grandma! */
 	max_low_pfn = end_pfn;
 	max_pfn = end_pfn;
@@ -541,3 +548,32 @@ int kern_addr_valid(unsigned long addr)
 		return 0;
 	return pfn_valid(pte_pfn(*pte));
 }
+
+#ifdef CONFIG_SYSCTL
+#include <linux/sysctl.h>
+
+extern int exception_trace, page_fault_trace;
+
+static ctl_table debug_table2[] = {
+	{ 99, "exception-trace", &exception_trace, sizeof(int), 0644, NULL,
+	  proc_dointvec },
+#ifdef CONFIG_CHECKING
+	{ 100, "page-fault-trace", &page_fault_trace, sizeof(int), 0644, NULL,
+	  proc_dointvec },
+#endif
+	{ 0, }
+}; 
+
+static ctl_table debug_root_table2[] = { 
+	{ .ctl_name = CTL_DEBUG, .procname = "debug", .mode = 0555, 
+	   .child = debug_table2 }, 
+	{ 0 }, 
+}; 
+
+static __init int x8664_sysctl_init(void)
+{ 
+	register_sysctl_table(debug_root_table2, 1);
+	return 0;
+}
+__initcall(x8664_sysctl_init);
+#endif

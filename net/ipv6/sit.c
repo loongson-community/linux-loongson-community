@@ -187,7 +187,7 @@ static struct ip_tunnel * ipip6_tunnel_locate(struct ip_tunnel_parm *parms, int 
 	nt->parms = *parms;
 
 	if (register_netdevice(dev) < 0) {
-		kfree(dev);
+		free_netdev(dev);
 		goto failed;
 	}
 
@@ -805,13 +805,11 @@ static struct inet_protocol sit_protocol = {
 	.err_handler	=	ipip6_err,
 };
 
-#ifdef MODULE
-void sit_cleanup(void)
+void __exit sit_cleanup(void)
 {
 	inet_del_protocol(&sit_protocol, IPPROTO_IPV6);
 	unregister_netdev(ipip6_fb_tunnel_dev);
 }
-#endif
 
 int __init sit_init(void)
 {
@@ -840,6 +838,6 @@ int __init sit_init(void)
 	return err;
  fail:
 	inet_del_protocol(&sit_protocol, IPPROTO_IPV6);
-	kfree(ipip6_fb_tunnel_dev);
+	free_netdev(ipip6_fb_tunnel_dev);
 	goto out;
 }

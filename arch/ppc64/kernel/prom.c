@@ -30,6 +30,7 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/proc_fs.h>
+#include <linux/stringify.h>
 #include <linux/delay.h>
 #include <asm/prom.h>
 #include <asm/rtas.h>
@@ -46,11 +47,12 @@
 #include <asm/bitops.h>
 #include <asm/naca.h>
 #include <asm/pci.h>
-#include <asm/pci_dma.h>
+#include <asm/iommu.h>
 #include <asm/bootinfo.h>
 #include <asm/ppcdebug.h>
 #include <asm/btext.h>
 #include <asm/sections.h>
+#include <asm/machdep.h>
 #include "open_pic.h"
 
 #ifdef CONFIG_LOGO_LINUX_CLUT224
@@ -128,6 +130,7 @@ static interpret_func interpret_macio_props;
 struct prom_t prom;
 
 char *prom_display_paths[FB_MAX] __initdata = { 0, };
+phandle prom_display_nodes[FB_MAX] __initdata;
 unsigned int prom_num_displays = 0;
 char *of_stdout_device = 0;
 
@@ -149,11 +152,6 @@ struct device_node *allnodes = 0;
  * or parent members of struct device_node.
  */
 static rwlock_t devtree_lock = RW_LOCK_UNLOCKED;
-
-#define UNDEFINED_IRQ 0xffff
-unsigned short real_irq_to_virt_map[NR_HW_IRQS];
-unsigned short virt_irq_to_real_map[NR_IRQS];
-int last_virt_irq = 2;	/* index of last virt_irq.  Skip through IPI */
 
 static unsigned long call_prom(const char *service, int nargs, int nret, ...);
 static void prom_panic(const char *reason);
@@ -180,18 +178,18 @@ void prom_dump_lmb(void);
 
 extern unsigned long reloc_offset(void);
 
-extern void enter_prom(void *dummy,...);
+extern void enter_prom(struct prom_args *args);
 extern void copy_and_flush(unsigned long dest, unsigned long src,
 			   unsigned long size, unsigned long offset);
 
-extern char cmd_line[512];	/* XXX */
 unsigned long dev_tree_size;
+unsigned long _get_PIR(void);
 
 #ifdef CONFIG_HMT
 struct {
 	unsigned int pir;
 	unsigned int threadid;
-} hmt_thread_data[NR_CPUS] = {0};
+} hmt_thread_data[NR_CPUS];
 #endif /* CONFIG_HMT */
 
 char testString[] = "LINUX\n"; 
@@ -519,6 +517,9 @@ prom_initialize_naca(unsigned long mem)
 	return mem;
 }
 
+#ifdef CONFIG_PMAC_DART
+static int dart_force_on;
+#endif
 
 static unsigned long __init
 prom_initialize_lmb(unsigned long mem)
@@ -531,6 +532,30 @@ prom_initialize_lmb(unsigned long mem)
 	union lmb_reg_property reg;
 	unsigned long lmb_base, lmb_size;
 	unsigned long num_regs, bytes_per_reg = (_prom->encode_phys_size*2)/8;
+	int nodart = 0;
+
+#ifdef CONFIG_PMAC_DART
+	char *opt;
+
+	opt = strstr(RELOC(cmd_line), RELOC("iommu="));
+	if (opt) {
+		prom_print(RELOC("opt is:"));
+		prom_print(opt);
+		prom_print(RELOC("\n"));
+		opt += 6;
+		while (*opt && *opt == ' ')
+			opt++;
+		if (!strncmp(opt, RELOC("off"), 3))
+			nodart = 1;
+		else if (!strncmp(opt, RELOC("force"), 5))
+			RELOC(dart_force_on) = 1;
+	}
+#else
+	nodart = 1;
+#endif /* CONFIG_PMAC_DART */
+
+	if (nodart)
+		prom_print(RELOC("DART disabled on PowerMac !\n"));
 
 	lmb_init();
 
@@ -556,8 +581,9 @@ prom_initialize_lmb(unsigned long mem)
 				lmb_base = ((unsigned long)reg.addrPM[i].address_hi) << 32;
 				lmb_base |= (unsigned long)reg.addrPM[i].address_lo;
 				lmb_size = reg.addrPM[i].size;
-				if (lmb_base > 0x80000000ull) {
-					prom_print(RELOC("Skipping memory above 2Gb for now, not yet supported\n"));
+				if (nodart && lmb_base > 0x80000000ull) {
+					prom_print(RELOC("Skipping memory above 2Gb for "
+							 "now, DART support disabled\n"));
 					continue;
 				}
 			} else if (_prom->encode_phys_size == 32) {
@@ -698,9 +724,6 @@ prom_dump_lmb(void)
         prom_print(RELOC("    memory.size                 = 0x"));
         prom_print_hex(_lmb->memory.size);
 	prom_print_nl();
-        prom_print(RELOC("    memory.lcd_size             = 0x"));
-        prom_print_hex(_lmb->memory.lcd_size);
-	prom_print_nl();
         for (i=0; i < _lmb->memory.cnt ;i++) {
                 prom_print(RELOC("    memory.region[0x"));
 		prom_print_hex(i);
@@ -713,9 +736,6 @@ prom_dump_lmb(void)
                 prom_print(RELOC("                      .size     = 0x"));
                 prom_print_hex(_lmb->memory.region[i].size);
 		prom_print_nl();
-                prom_print(RELOC("                      .type     = 0x"));
-                prom_print_hex(_lmb->memory.region[i].type);
-		prom_print_nl();
         }
 
 	prom_print_nl();
@@ -724,9 +744,6 @@ prom_dump_lmb(void)
 	prom_print_nl();
         prom_print(RELOC("    reserved.size                 = 0x"));
         prom_print_hex(_lmb->reserved.size);
-	prom_print_nl();
-        prom_print(RELOC("    reserved.lcd_size             = 0x"));
-        prom_print_hex(_lmb->reserved.lcd_size);
 	prom_print_nl();
         for (i=0; i < _lmb->reserved.cnt ;i++) {
                 prom_print(RELOC("    reserved.region[0x"));
@@ -740,12 +757,37 @@ prom_dump_lmb(void)
                 prom_print(RELOC("                      .size     = 0x"));
                 prom_print_hex(_lmb->reserved.region[i].size);
 		prom_print_nl();
-                prom_print(RELOC("                      .type     = 0x"));
-                prom_print_hex(_lmb->reserved.region[i].type);
-		prom_print_nl();
         }
 }
 #endif /* DEBUG_PROM */
+
+
+#ifdef CONFIG_PMAC_DART
+void prom_initialize_dart_table(void)
+{
+	unsigned long offset = reloc_offset();
+	extern unsigned long dart_tablebase;
+	extern unsigned long dart_tablesize;
+
+	/* Only reserve DART space if machine has more than 2GB of RAM
+	 * or if requested with iommu=on on cmdline.
+	 */
+	if (lmb_end_of_DRAM() <= 0x80000000ull && !RELOC(dart_force_on))
+		return;
+
+	/* 512 pages is max DART tablesize. */
+	RELOC(dart_tablesize) = 1UL << 19;
+	/* 16MB (1 << 24) alignment. We allocate a full 16Mb chuck since we
+	 * will blow up an entire large page anyway in the kernel mapping
+	 */
+	RELOC(dart_tablebase) =
+		absolute_to_virt(lmb_alloc_base(1UL<<24, 1UL<<24, 0x80000000L));
+
+	prom_print(RELOC("Dart at: "));
+	prom_print_hex(RELOC(dart_tablebase));
+	prom_print(RELOC("\n"));
+}
+#endif /* CONFIG_PMAC_DART */
 
 
 void
@@ -940,10 +982,12 @@ prom_hold_cpus(unsigned long mem)
         unsigned long *spinloop     = __v2a(&__secondary_hold_spinloop);
         unsigned long *acknowledge  = __v2a(&__secondary_hold_acknowledge);
         unsigned long secondary_hold = (unsigned long)__v2a(*PTRRELOC((unsigned long *)__secondary_hold));
-        struct naca_struct *_naca = RELOC(naca);
         struct systemcfg *_systemcfg = RELOC(systemcfg);
 	struct paca_struct *_xPaca = PTRRELOC(&paca[0]);
 	struct prom_t *_prom = PTRRELOC(&prom);
+#ifdef CONFIG_SMP
+	struct naca_struct *_naca = RELOC(naca);
+#endif
 
 	/* On pmac, we just fill out the various global bitmasks and
 	 * arrays indicating our CPUs are here, they are actually started
@@ -1084,6 +1128,10 @@ prom_hold_cpus(unsigned long mem)
 
 			if (*acknowledge == cpuid) {
 				prom_print(RELOC("ok\n"));
+				/* We have to get every CPU out of OF,
+				 * even if we never start it. */
+				if (cpuid >= NR_CPUS)
+					goto next;
 #ifdef CONFIG_SMP
 				/* Set the number of active processors. */
 				_systemcfg->processorCount++;
@@ -1109,10 +1157,14 @@ prom_hold_cpus(unsigned long mem)
 			cpu_set(cpuid, RELOC(cpu_online_map));
 			cpu_set(cpuid, RELOC(cpu_present_at_boot));
 		}
-
+#endif
+next:
+#ifdef CONFIG_SMP
 		/* Init paca for secondary threads.   They start later. */
 		for (i=1; i < cpu_threads; i++) {
 			cpuid++;
+			if (cpuid >= NR_CPUS)
+				continue;
 			_xPaca[cpuid].xHwProcNum = interrupt_server[i];
 			prom_print_hex(interrupt_server[i]);
 			prom_print(RELOC(" : preparing thread ... "));
@@ -1157,7 +1209,11 @@ prom_hold_cpus(unsigned long mem)
 		prom_print(RELOC("Processor is not HMT capable\n"));
 	}
 #endif
-	
+
+	if (cpuid >= NR_CPUS)
+		prom_print(RELOC("WARNING: maximum CPUs (" __stringify(NR_CPUS)
+				 ") exceeded: ignoring extras\n"));
+
 #ifdef DEBUG_PROM
 	prom_print(RELOC("prom_hold_cpus: end...\n"));
 #endif
@@ -1202,9 +1258,9 @@ smt_setup(void)
 				sizeof(option));
 			if (option[0] != 0) {
 				found = 1;
-				if (!strcmp(option, "off"))	
+				if (!strcmp(option, RELOC("off")))
 					my_smt_enabled = SMT_OFF;
-				else if (!strcmp(option, "on"))	
+				else if (!strcmp(option, RELOC("on")))
 					my_smt_enabled = SMT_ON;
 				else
 					my_smt_enabled = SMT_DYNAMIC;
@@ -1445,13 +1501,12 @@ prom_init(unsigned long r3, unsigned long r4, unsigned long pp,
 	/* Default machine type. */
 	_systemcfg->platform = prom_find_machine_type();
 
-
 	/* On pSeries, copy the CPU hold code */
 	if (_systemcfg->platform == PLATFORM_PSERIES)
 		copy_and_flush(0, KERNELBASE - offset, 0x100, 0);
 
 	/* Start storing things at klimit */
-	mem = RELOC(klimit) - offset; 
+      	mem = RELOC(klimit) - offset; 
 
 	/* Get the full OF pathname of the stdout device */
 	p = (char *) mem;
@@ -1508,10 +1563,8 @@ prom_init(unsigned long r3, unsigned long r4, unsigned long pp,
 		call_prom(RELOC("getprop"), 4, 1, _prom->chosen, 
 			  RELOC("bootargs"), p, sizeof(cmd_line));
 		if (p != NULL && p[0] != 0)
-			strncpy(RELOC(cmd_line), p, sizeof(cmd_line));
+			strlcpy(RELOC(cmd_line), p, sizeof(cmd_line));
 	}
-	RELOC(cmd_line[sizeof(cmd_line) - 1]) = 0;
-
 
 	mem = prom_initialize_lmb(mem);
 
@@ -1544,6 +1597,11 @@ prom_init(unsigned long r3, unsigned long r4, unsigned long pp,
 
 	if (_systemcfg->platform == PLATFORM_PSERIES)
 		prom_initialize_tce_table();
+
+#ifdef CONFIG_PMAC_DART
+	if (_systemcfg->platform == PLATFORM_POWERMAC)
+		prom_initialize_dart_table();
+#endif
 
 #ifdef CONFIG_BOOTX_TEXT
 	if(_prom->disp_node) {
@@ -1588,10 +1646,10 @@ check_display(unsigned long mem)
 {
 	phandle node;
 	ihandle ih;
-	int i;
+	int i, j;
 	unsigned long offset = reloc_offset();
         struct prom_t *_prom = PTRRELOC(&prom);
-	char type[64], *path;
+	char type[16], *path;
 	static unsigned char default_colors[] = {
 		0x00, 0x00, 0x00,
 		0x00, 0x00, 0xaa,
@@ -1614,6 +1672,12 @@ check_display(unsigned long mem)
 
 	_prom->disp_node = 0;
 
+	prom_print(RELOC("Looking for displays\n"));
+	if (RELOC(of_stdout_device) != 0) {
+		prom_print(RELOC("OF stdout is   : "));
+		prom_print(PTRRELOC(RELOC(of_stdout_device)));
+		prom_print(RELOC("\n"));
+	}
 	for (node = 0; prom_next_node(&node); ) {
 		type[0] = 0;
 		call_prom(RELOC("getprop"), 4, 1, node, RELOC("device_type"),
@@ -1624,19 +1688,48 @@ check_display(unsigned long mem)
 		path = (char *) mem;
 		memset(path, 0, 256);
 		if ((long) call_prom(RELOC("package-to-path"), 3, 1,
-				    node, path, 255) < 0)
+				    node, path, 250) < 0)
 			continue;
-		prom_print(RELOC("opening display "));
+		prom_print(RELOC("found display   : "));
+		prom_print(path);
+		prom_print(RELOC("\n"));
+		
+		/*
+		 * If this display is the device that OF is using for stdout,
+		 * move it to the front of the list.
+		 */
+		mem += strlen(path) + 1;
+		i = RELOC(prom_num_displays);
+		RELOC(prom_num_displays) = i + 1;
+		if (RELOC(of_stdout_device) != 0 && i > 0
+		    && strcmp(PTRRELOC(RELOC(of_stdout_device)), path) == 0) {
+			for (; i > 0; --i) {
+				RELOC(prom_display_paths[i])
+					= RELOC(prom_display_paths[i-1]);
+				RELOC(prom_display_nodes[i])
+					= RELOC(prom_display_nodes[i-1]);
+			}
+			_prom->disp_node = (ihandle)(unsigned long)node;
+		}
+		RELOC(prom_display_paths[i]) = PTRUNRELOC(path);
+		RELOC(prom_display_nodes[i]) = node;
+		if (_prom->disp_node == 0)
+			_prom->disp_node = (ihandle)(unsigned long)node;
+		if (RELOC(prom_num_displays) >= FB_MAX)
+			break;
+	}
+	prom_print(RELOC("Opening displays...\n"));
+	for (j = RELOC(prom_num_displays) - 1; j >= 0; j--) {
+		path = PTRRELOC(RELOC(prom_display_paths[j]));
+		prom_print(RELOC("opening display : "));
 		prom_print(path);
 		ih = (ihandle)call_prom(RELOC("open"), 1, 1, path);
 		if (ih == (ihandle)0 || ih == (ihandle)-1) {
 			prom_print(RELOC("... failed\n"));
 			continue;
 		}
-		prom_print(RELOC("... ok\n"));
 
-		if (_prom->disp_node == 0)
-			_prom->disp_node = (ihandle)(unsigned long)node;
+		prom_print(RELOC("... ok\n"));
 
 		/* Setup a useable color table when the appropriate
 		 * method is available. Should update this to set-colors */
@@ -1653,66 +1746,9 @@ check_display(unsigned long mem)
 					   clut[2]) != 0)
 				break;
 #endif /* CONFIG_LOGO_LINUX_CLUT224 */
-
-		/*
-		 * If this display is the device that OF is using for stdout,
-		 * move it to the front of the list.
-		 */
-		mem += strlen(path) + 1;
-		i = RELOC(prom_num_displays)++;
-		if (RELOC(of_stdout_device) != 0 && i > 0
-		    && strcmp(PTRRELOC(RELOC(of_stdout_device)), path) == 0) {
-			for (; i > 0; --i)
-				RELOC(prom_display_paths[i]) = RELOC(prom_display_paths[i-1]);
-		}
-		RELOC(prom_display_paths[i]) = PTRUNRELOC(path);
-		if (RELOC(prom_num_displays) >= FB_MAX)
-			break;
-		/* XXX Temporary workaround: only open the first display so we don't
-		 * lose debug output
-		 */
-		break;
 	}
+	
 	return DOUBLEWORD_ALIGN(mem);
-}
-
-void
-virt_irq_init(void)
-{
-	int i;
-	for (i = 0; i < NR_IRQS; i++)
-		virt_irq_to_real_map[i] = UNDEFINED_IRQ;
-	for (i = 0; i < NR_HW_IRQS; i++)
-		real_irq_to_virt_map[i] = UNDEFINED_IRQ;
-}
-
-/* Create a mapping for a real_irq if it doesn't already exist.
- * Return the virtual irq as a convenience.
- */
-unsigned long
-virt_irq_create_mapping(unsigned long real_irq)
-{
-	unsigned long virq;
-	if (naca->interrupt_controller == IC_OPEN_PIC)
-		return real_irq;	/* no mapping for openpic (for now) */
-	virq = real_irq_to_virt(real_irq);
-	if (virq == UNDEFINED_IRQ) {
-		/* Assign a virtual IRQ number */
-		if (real_irq < NR_IRQS && virt_irq_to_real(real_irq) == UNDEFINED_IRQ) {
-			/* A 1-1 mapping will work. */
-			virq = real_irq;
-		} else {
-			while (last_virt_irq < NR_IRQS &&
-			       virt_irq_to_real(++last_virt_irq) != UNDEFINED_IRQ)
-				/* skip irq's in use */;
-			if (last_virt_irq >= NR_IRQS)
-				panic("Too many IRQs are required on this system.  NR_IRQS=%d\n", NR_IRQS);
-			virq = last_virt_irq;
-		}
-		virt_irq_to_real_map[virq] = real_irq;
-		real_irq_to_virt_map[real_irq] = virq;
-	}
-	return virq;
 }
 
 
@@ -2080,7 +2116,7 @@ finish_node_interrupts(struct device_node *np, unsigned long mem_start)
 	unsigned int *ints;
 	int intlen, intrcells;
 	int i, j, n;
-	unsigned int *irq;
+	unsigned int *irq, virq;
 	struct device_node *ic;
 
 	ints = (unsigned int *) get_property(np, "interrupts", &intlen);
@@ -2098,7 +2134,13 @@ finish_node_interrupts(struct device_node *np, unsigned long mem_start)
 		n = map_interrupt(&irq, &ic, np, ints, intrcells);
 		if (n <= 0)
 			continue;
-		np->intrs[i].line = openpic_to_irq(virt_irq_create_mapping(irq[0]));
+		virq = virt_irq_create_mapping(irq[0]);
+		if (virq == NO_IRQ) {
+			printk(KERN_CRIT "Could not allocate interrupt "
+			       "number for %s\n", np->full_name);
+		} else
+			np->intrs[i].line = openpic_to_irq(virq);
+
 		/* We offset irq numbers for the u3 MPIC by 128 in PowerMac */
 		if (systemcfg->platform == PLATFORM_POWERMAC && ic && ic->parent) {
 			char *name = get_property(ic->parent, "name", NULL);
@@ -2939,7 +2981,7 @@ static int of_finish_dynamic_node(struct device_node *node)
 	unsigned int *ints;
 	int intlen, intrcells;
 	int i, j, n, err = 0;
-	unsigned int *irq;
+	unsigned int *irq, virq;
 	struct device_node *ic;
  
 	node->name = get_property(node, "name", 0);
@@ -2987,8 +3029,10 @@ static int of_finish_dynamic_node(struct device_node *node)
 	/* now do the work of finish_node_interrupts */
 
 	ints = (unsigned int *) get_property(node, "interrupts", &intlen);
-	if (!ints)
+	if (!ints) {
+		err = -ENODEV;
 		goto out;
+	}
 
 	intrcells = prom_n_intr_cells(node);
 	intlen /= intrcells * sizeof(unsigned int);
@@ -3006,7 +3050,12 @@ static int of_finish_dynamic_node(struct device_node *node)
 		n = map_interrupt(&irq, &ic, node, ints, intrcells);
 		if (n <= 0)
 			continue;
-		node->intrs[i].line = openpic_to_irq(virt_irq_create_mapping(irq[0]));
+		virq = virt_irq_create_mapping(irq[0]);
+		if (virq == NO_IRQ) {
+			printk(KERN_CRIT "Could not allocate interrupt "
+			       "number for %s\n", node->full_name);
+		} else
+			node->intrs[i].line = openpic_to_irq(virq);
 		if (n > 1)
 			node->intrs[i].sense = irq[1];
 		if (n > 2) {
@@ -3032,15 +3081,15 @@ static int of_finish_dynamic_node(struct device_node *node)
                node->devfn = (regs[0] >> 8) & 0xff;
        }
 
-	/* fixing up tce_table */
+	/* fixing up iommu_table */
 
 	if(strcmp(node->name, "pci") == 0 &&
                 get_property(node, "ibm,dma-window", NULL)) {
                 node->bussubno = node->busno;
-                create_pci_bus_tce_table((unsigned long)node);
+                iommu_devnode_init(node);
         }
 	else
-		node->tce_table = parent->tce_table;
+		node->iommu_table = parent->iommu_table;
 
 out:
 	of_node_put(parent);

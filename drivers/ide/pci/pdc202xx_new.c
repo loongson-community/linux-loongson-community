@@ -574,7 +574,7 @@ static unsigned int __init init_chipset_pdcnew (struct pci_dev *dev, const char 
 
 	if (!pdcnew_proc) {
 		pdcnew_proc = 1;
-		ide_pci_register_host_proc(&pdcnew_procs[0]);
+		ide_pci_create_host_proc("pdcnew", pdcnew_get_info);
 	}
 #endif /* DISPLAY_PDC202XX_TIMINGS && CONFIG_PROC_FS */
 
@@ -611,9 +611,6 @@ static void __init init_hwif_pdc202new (ide_hwif_t *hwif)
 		hwif->name, hwif->udma_four ? "80" : "40");
 #endif /* PDC202_DEBUG_CABLE */
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-extern void ide_setup_pci_devices(struct pci_dev *, struct pci_dev *, ide_pci_device_t *);
 
 static void __init init_setup_pdcnew (struct pci_dev *dev, ide_pci_device_t *d)
 {

@@ -41,9 +41,6 @@
 #include <net/pkt_sched.h>
 #include <net/inet_ecn.h>
 
-#define RED_ECN_ECT  0x02
-#define RED_ECN_CE   0x01
-
 
 /*	Random Early Detection (RED) algorithm.
 	=======================================
@@ -165,28 +162,16 @@ static int red_ecn_mark(struct sk_buff *skb)
 
 	switch (skb->protocol) {
 	case __constant_htons(ETH_P_IP):
-	{
-		u8 tos = skb->nh.iph->tos;
-
-		if (!(tos & RED_ECN_ECT))
+		if (!INET_ECN_is_capable(skb->nh.iph->tos))
 			return 0;
-
-		if (!(tos & RED_ECN_CE))
+		if (INET_ECN_is_not_ce(skb->nh.iph->tos))
 			IP_ECN_set_ce(skb->nh.iph);
-
 		return 1;
-	}
-
 	case __constant_htons(ETH_P_IPV6):
-	{
-		u32 label = *(u32*)skb->nh.raw;
-
-		if (!(label & __constant_htonl(RED_ECN_ECT<<20)))
+		if (!INET_ECN_is_capable(ip6_get_dsfield(skb->nh.ipv6h)))
 			return 0;
-		label |= __constant_htonl(RED_ECN_CE<<20);
+		IP6_ECN_set_ce(skb->nh.ipv6h);
 		return 1;
-	}
-
 	default:
 		return 0;
 	}
@@ -453,7 +438,7 @@ static void red_destroy(struct Qdisc *sch)
 {
 }
 
-struct Qdisc_ops red_qdisc_ops = {
+static struct Qdisc_ops red_qdisc_ops = {
 	.next		=	NULL,
 	.cl_ops		=	NULL,
 	.id		=	"red",
@@ -470,16 +455,14 @@ struct Qdisc_ops red_qdisc_ops = {
 	.owner		=	THIS_MODULE,
 };
 
-
-#ifdef MODULE
-int init_module(void)
+static int __init red_module_init(void)
 {
 	return register_qdisc(&red_qdisc_ops);
 }
-
-void cleanup_module(void) 
+static void __exit red_module_exit(void) 
 {
 	unregister_qdisc(&red_qdisc_ops);
 }
-#endif
+module_init(red_module_init)
+module_exit(red_module_exit)
 MODULE_LICENSE("GPL");

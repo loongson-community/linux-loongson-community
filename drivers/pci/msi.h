@@ -1,6 +1,8 @@
 /*
- *	msi.h
+ * File:	msi.h
  *
+ * Copyright (C) 2003-2004 Intel
+ * Copyright (C) Tom Long Nguyen (tom.l.nguyen@intel.com)
  */
 
 #ifndef MSI_H
@@ -28,6 +30,9 @@ extern void (*interrupt[NR_IRQS])(void);
 #define set_msi_irq_affinity	set_msi_affinity
 #else
 #define set_msi_irq_affinity	NULL
+#endif
+
+#ifndef CONFIG_IRQBALANCE
 static inline void move_msi(int vector) {}
 #endif
 

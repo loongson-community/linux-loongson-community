@@ -21,6 +21,7 @@ CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=15
+# CONFIG_HOTPLUG is not set
 # CONFIG_IKCONFIG is not set
 CONFIG_EMBEDDED=y
 CONFIG_KALLSYMS=y
@@ -40,6 +41,7 @@ CONFIG_MODULE_UNLOAD=y
 CONFIG_OBSOLETE_MODPARM=y
 CONFIG_MODVERSIONS=y
 CONFIG_KMOD=y
+CONFIG_STOP_MACHINE=y
 
 #
 # Machine selection
@@ -153,7 +155,6 @@ CONFIG_PCI=y
 CONFIG_PCI_LEGACY_PROC=y
 CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
-# CONFIG_HOTPLUG is not set
 
 #
 # Executable file formats
@@ -225,7 +226,7 @@ CONFIG_BLK_DEV_INITRD=y
 #
 
 #
-# IEEE 1394 (FireWire) support (EXPERIMENTAL)
+# IEEE 1394 (FireWire) support
 #
 # CONFIG_IEEE1394 is not set
 
@@ -387,7 +388,7 @@ CONFIG_NET_SB1250_MAC=y
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN_BOOL is not set
+# CONFIG_ISDN is not set
 
 #
 # Telephony Support
@@ -440,6 +441,8 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 # Non-8250 serial port support
 #
 # CONFIG_UNIX98_PTYS is not set
+CONFIG_LEGACY_PTYS=y
+CONFIG_LEGACY_PTY_COUNT=256
 
 #
 # Mice
@@ -474,6 +477,10 @@ CONFIG_SIBYTE_SB1250_DUART_CONSOLE=y
 # I2C support
 #
 # CONFIG_I2C is not set
+
+#
+# Misc devices
+#
 
 #
 # Multimedia devices
@@ -552,6 +559,7 @@ CONFIG_RAMFS=y
 # CONFIG_ADFS_FS is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
+# CONFIG_HFSPLUS_FS is not set
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
 # CONFIG_EFS_FS is not set
@@ -580,7 +588,6 @@ CONFIG_SUNRPC=y
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
-# CONFIG_INTERMEZZO_FS is not set
 # CONFIG_AFS_FS is not set
 
 #
@@ -625,6 +632,7 @@ CONFIG_CRYPTO_SERPENT=y
 CONFIG_CRYPTO_AES=y
 # CONFIG_CRYPTO_CAST5 is not set
 # CONFIG_CRYPTO_CAST6 is not set
+# CONFIG_CRYPTO_ARC4 is not set
 CONFIG_CRYPTO_DEFLATE=y
 # CONFIG_CRYPTO_TEST is not set
 

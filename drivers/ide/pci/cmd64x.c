@@ -667,7 +667,7 @@ static unsigned int __init init_chipset_cmd64x (struct pci_dev *dev, const char 
 
 	if (!cmd64x_proc) {
 		cmd64x_proc = 1;
-		ide_pci_register_host_proc(&cmd64x_procs[0]);
+		ide_pci_create_host_proc("cmd64x", cmd64x_get_info);
 	}
 #endif /* DISPLAY_CMD64X_TIMINGS && CONFIG_PROC_FS */
 
@@ -743,8 +743,6 @@ static void __init init_hwif_cmd64x (ide_hwif_t *hwif)
 	hwif->drives[0].autodma = hwif->autodma;
 	hwif->drives[1].autodma = hwif->autodma;
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
 
 static int __devinit cmd64x_init_one(struct pci_dev *dev, const struct pci_device_id *id)
 {

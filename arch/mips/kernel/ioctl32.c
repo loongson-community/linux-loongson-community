@@ -13,6 +13,7 @@
 #include <linux/types.h>
 #include <linux/compat.h>
 #include <linux/ioctl32.h>
+#include <linux/syscalls.h>
 
 #ifdef CONFIG_SIBYTE_TBPROF
 #include <asm/sibyte/trace_prof.h>

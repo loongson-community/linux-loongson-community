@@ -135,7 +135,7 @@ static struct pci_device_id radeonfb_pci_table[] = {
 	CHIP_DEF(PCI_CHIP_R200_QM,	R200,	CHIP_HAS_CRTC2),
 	/* Mobility M7 */
 	CHIP_DEF(PCI_CHIP_RADEON_LW,	RV200,	CHIP_HAS_CRTC2 | CHIP_IS_MOBILITY),
-	CHIP_DEF(PCI_CHIP_RADEON_LW,	RV200,	CHIP_HAS_CRTC2 | CHIP_IS_MOBILITY),
+	CHIP_DEF(PCI_CHIP_RADEON_LX,	RV200,	CHIP_HAS_CRTC2 | CHIP_IS_MOBILITY),
 	/* 7500 */
 	CHIP_DEF(PCI_CHIP_RV200_QW,	RV200,	CHIP_HAS_CRTC2),
 	CHIP_DEF(PCI_CHIP_RV200_QX,	RV200,	CHIP_HAS_CRTC2),
@@ -222,16 +222,7 @@ static reg_val common_regs[] = {
 	{ I2C_CNTL_1, 0 },
 	{ GEN_INT_CNTL, 0 },
 	{ CAP0_TRIG_CNTL, 0 },
-};
-
-static reg_val common_regs_m6[] = {
-	{ OVR_CLR,      0 },
-	{ OVR_WID_LEFT_RIGHT,   0 },
-	{ OVR_WID_TOP_BOTTOM,   0 },
-	{ OV0_SCALE_CNTL,   0 },
-	{ SUBPIC_CNTL,      0 },
-	{ GEN_INT_CNTL,     0 },
-	{ CAP0_TRIG_CNTL,   0 } 
+	{ CAP1_TRIG_CNTL, 0 },
 };
 
 /*
@@ -1230,7 +1221,7 @@ static void radeon_write_mode (struct radeonfb_info *rinfo,
 
 	radeon_screen_blank(rinfo, VESA_POWERDOWN);
 
-	for (i=0; i<9; i++)
+	for (i=0; i<10; i++)
 		OUTREG(common_regs[i].reg, common_regs[i].val);
 
 	/* Apply surface registers */
@@ -1329,6 +1320,16 @@ static void radeon_calc_pll_regs(struct radeonfb_info *rinfo, struct radeon_regs
 	 * not sure which model starts having FP2_GEN_CNTL, I assume anything more
 	 * recent than an r(v)100...
 	 */
+#if 0
+	/* XXX I had reports of flicker happening with the cinema display
+	 * on TMDS1 that seem to be fixed if I also forbit odd dividers in
+	 * this case. This could just be a bandwidth calculation issue, I
+	 * haven't implemented the bandwidth code yet, but in the meantime,
+	 * forcing uses_dvo to 1 fixes it and shouln't have bad side effects,
+	 * I haven't seen a case were were absolutely needed an odd PLL
+	 * divider. I'll find a better fix once I have more infos on the
+	 * real cause of the problem.
+	 */
 	while (rinfo->has_CRTC2) {
 		u32 fp2_gen_cntl = INREG(FP2_GEN_CNTL);
 		u32 disp_output_cntl;
@@ -1362,6 +1363,9 @@ static void radeon_calc_pll_regs(struct radeonfb_info *rinfo, struct radeon_regs
 		uses_dvo = 1;
 		break;
 	}
+#else
+	uses_dvo = 1;
+#endif
 	if (freq > rinfo->pll.ppll_max)
 		freq = rinfo->pll.ppll_max;
 	if (freq*12 < rinfo->pll.ppll_min)

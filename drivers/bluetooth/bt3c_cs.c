@@ -79,7 +79,7 @@ typedef struct bt3c_info_t {
 	dev_link_t link;
 	dev_node_t node;
 
-	struct hci_dev hdev;
+	struct hci_dev *hdev;
 
 	spinlock_t lock;		/* For serializing operations */
 
@@ -195,7 +195,7 @@ static void bt3c_write_wakeup(bt3c_info_t *info, int from)
 	unsigned long flags;
 
 	if (!info) {
-		printk(KERN_WARNING "bt3c_cs: Call of write_wakeup for unknown device.\n");
+		BT_ERR("Unknown device");
 		return;
 	}
 
@@ -222,12 +222,12 @@ static void bt3c_write_wakeup(bt3c_info_t *info, int from)
 		len = bt3c_write(iobase, 256, skb->data, skb->len);
 
 		if (len != skb->len) {
-			printk(KERN_WARNING "bt3c_cs: very strange\n");
+			BT_ERR("Very strange");
 		}
 
 		kfree_skb(skb);
 
-		info->hdev.stat.byte_tx += len;
+		info->hdev->stat.byte_tx += len;
 
 	} while (0);
 
@@ -241,7 +241,7 @@ static void bt3c_receive(bt3c_info_t *info)
 	int size = 0, avail;
 
 	if (!info) {
-		printk(KERN_WARNING "bt3c_cs: Call of receive for unknown device.\n");
+		BT_ERR("Unknown device");
 		return;
 	}
 
@@ -253,14 +253,14 @@ static void bt3c_receive(bt3c_info_t *info)
 	bt3c_address(iobase, 0x7480);
 	while (size < avail) {
 		size++;
-		info->hdev.stat.byte_rx++;
+		info->hdev->stat.byte_rx++;
 
 		/* Allocate packet */
 		if (info->rx_skb == NULL) {
 			info->rx_state = RECV_WAIT_PACKET_TYPE;
 			info->rx_count = 0;
 			if (!(info->rx_skb = bt_skb_alloc(HCI_MAX_FRAME_SIZE, GFP_ATOMIC))) {
-				printk(KERN_WARNING "bt3c_cs: Can't allocate mem for new packet.\n");
+				BT_ERR("Can't allocate mem for new packet");
 				return;
 			}
 		}
@@ -268,7 +268,7 @@ static void bt3c_receive(bt3c_info_t *info)
 
 		if (info->rx_state == RECV_WAIT_PACKET_TYPE) {
 
-			info->rx_skb->dev = (void *)&(info->hdev);
+			info->rx_skb->dev = (void *) info->hdev;
 			info->rx_skb->pkt_type = inb(iobase + DATA_L);
 			inb(iobase + DATA_H);
 			//printk("bt3c: PACKET_TYPE=%02x\n", info->rx_skb->pkt_type);
@@ -292,9 +292,9 @@ static void bt3c_receive(bt3c_info_t *info)
 
 			default:
 				/* Unknown packet */
-				printk(KERN_WARNING "bt3c_cs: Unknown HCI packet with type 0x%02x received.\n", info->rx_skb->pkt_type);
-				info->hdev.stat.err_rx++;
-				clear_bit(HCI_RUNNING, &(info->hdev.flags));
+				BT_ERR("Unknown HCI packet with type 0x%02x received", info->rx_skb->pkt_type);
+				info->hdev->stat.err_rx++;
+				clear_bit(HCI_RUNNING, &(info->hdev->flags));
 
 				kfree_skb(info->rx_skb);
 				info->rx_skb = NULL;
@@ -362,7 +362,7 @@ static irqreturn_t bt3c_interrupt(int irq, void *dev_inst, struct pt_regs *regs)
 	int iir;
 
 	if (!info) {
-		printk(KERN_WARNING "bt3c_cs: Call of irq %d for unknown device.\n", irq);
+		BT_ERR("Call of irq %d for unknown device", irq);
 		return IRQ_NONE;
 	}
 
@@ -375,16 +375,16 @@ static irqreturn_t bt3c_interrupt(int irq, void *dev_inst, struct pt_regs *regs)
 		int stat = bt3c_read(iobase, 0x7001);
 
 		if ((stat & 0xff) == 0x7f) {
-			printk(KERN_WARNING "bt3c_cs: STRANGE stat=%04x\n", stat);
+			BT_ERR("Very strange (stat=0x%04x)", stat);
 		} else if ((stat & 0xff) != 0xff) {
 			if (stat & 0x0020) {
 				int stat = bt3c_read(iobase, 0x7002) & 0x10;
-				printk(KERN_WARNING "bt3c_cs: antena %s\n", stat ? "OUT" : "IN");
+				BT_ERR("Antenna %s", stat ? "out" : "in");
 			}
 			if (stat & 0x0001)
 				bt3c_receive(info);
 			if (stat & 0x0002) {
-				//printk("bt3c_cs: ACK %04x\n", stat);
+				//BT_ERR("Ack (stat=0x%04x)", stat);
 				clear_bit(XMIT_SENDING, &(info->tx_state));
 				bt3c_write_wakeup(info, 1);
 			}
@@ -441,7 +441,7 @@ static int bt3c_hci_send_frame(struct sk_buff *skb)
 	struct hci_dev *hdev = (struct hci_dev *)(skb->dev);
 
 	if (!hdev) {
-		printk(KERN_WARNING "bt3c_cs: Frame for unknown HCI device (hdev=NULL).");
+		BT_ERR("Frame for unknown HCI device (hdev=NULL)");
 		return -ENODEV;
 	}
 
@@ -499,7 +499,7 @@ static int bt3c_firmware_load(bt3c_info_t *info)
 
 	err = call_usermodehelper(FW_LOADER, argv, envp, 1);
 	if (err)
-		printk(KERN_WARNING "bt3c_cs: Failed to run \"%s pccard %s\" (errno=%d).\n", FW_LOADER, dev, err);
+		BT_ERR("Failed to run \"%s pccard %s\" (errno=%d)", FW_LOADER, dev, err);
 
 	return err;
 }
@@ -534,8 +534,13 @@ int bt3c_open(bt3c_info_t *info)
 
 
 	/* Initialize and register HCI device */
+	hdev = hci_alloc_dev();
+	if (!hdev) {
+		BT_ERR("Can't allocate HCI device");
+		return -ENOMEM;
+	}
 
-	hdev = &(info->hdev);
+	info->hdev = hdev;
 
 	hdev->type = HCI_PCCARD;
 	hdev->driver_data = info;
@@ -550,7 +555,8 @@ int bt3c_open(bt3c_info_t *info)
 	hdev->owner = THIS_MODULE;
 	
 	if (hci_register_dev(hdev) < 0) {
-		printk(KERN_WARNING "bt3c_cs: Can't register HCI device %s.\n", hdev->name);
+		BT_ERR("Can't register HCI device");
+		hci_free_dev(hdev);
 		return -ENODEV;
 	}
 
@@ -560,12 +566,14 @@ int bt3c_open(bt3c_info_t *info)
 
 int bt3c_close(bt3c_info_t *info)
 {
-	struct hci_dev *hdev = &(info->hdev);
+	struct hci_dev *hdev = info->hdev;
 
 	bt3c_hci_close(hdev);
 
 	if (hci_unregister_dev(hdev) < 0)
-		printk(KERN_WARNING "bt3c_cs: Can't unregister HCI device %s.\n", hdev->name);
+		BT_ERR("Can't unregister HCI device %s", hdev->name);
+
+	hci_free_dev(hdev);
 
 	return 0;
 }
@@ -761,7 +769,7 @@ next_entry:
 
 found_port:
 	if (i != CS_SUCCESS) {
-		printk(KERN_NOTICE "bt3c_cs: No usable port range found. Giving up.\n");
+		BT_ERR("No usable port range found");
 		cs_error(link->handle, RequestIO, i);
 		goto failed;
 	}
@@ -781,7 +789,7 @@ found_port:
 	if (bt3c_open(info) != 0)
 		goto failed;
 
-	strcpy(info->node.dev_name, info->hdev.name);
+	strcpy(info->node.dev_name, info->hdev->name);
 	link->dev = &info->node;
 	link->state &= ~DEV_CONFIG_PENDING;
 

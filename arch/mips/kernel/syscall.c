@@ -16,6 +16,7 @@
 #include <linux/ptrace.h>
 #include <linux/sched.h>
 #include <linux/string.h>
+#include <linux/syscalls.h>
 #include <linux/file.h>
 #include <linux/slab.h>
 #include <linux/utsname.h>
@@ -349,7 +350,7 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 		switch (version) {
 		default: {
 			ulong raddr;
-			ret = sys_shmat (first, (char *) ptr, second, &raddr);
+			ret = do_shmat (first, (char *) ptr, second, &raddr);
 			if (ret)
 				return ret;
 			return put_user (raddr, (ulong *) third);
@@ -357,7 +358,7 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 		case 1:	/* iBCS2 emulator entry point */
 			if (!segment_eq(get_fs(), get_ds()))
 				return -EINVAL;
-			return sys_shmat (first, (char *) ptr, second, (ulong *) third);
+			return do_shmat (first, (char *) ptr, second, (ulong *) third);
 		}
 	case SHMDT:
 		return sys_shmdt ((char *)ptr);
@@ -369,6 +370,22 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 	default:
 		return -ENOSYS;
 	}
+}
+
+/*
+ * Native ABI that is O32 or N64 version
+ */
+asmlinkage long sys_shmat(int shmid, char __user *shmaddr,
+                          int shmflg, unsigned long *addr)
+{
+	unsigned long raddr;
+	int err;
+
+	err = do_shmat(shmid, shmaddr, shmflg, &raddr);
+	if (err)
+		return err;
+
+	return put_user(raddr, addr);
 }
 
 /*

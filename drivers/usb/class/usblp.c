@@ -603,7 +603,7 @@ static ssize_t usblp_write(struct file *file, const char __user *buffer, size_t 
 {
 	DECLARE_WAITQUEUE(wait, current);
 	struct usblp *usblp = file->private_data;
-	int timeout, err = 0;
+	int timeout, err = 0, transfer_length = 0;
 	size_t writecount = 0;
 
 	while (writecount < count) {
@@ -654,19 +654,23 @@ static ssize_t usblp_write(struct file *file, const char __user *buffer, size_t 
 			continue;
 		}
 
-		writecount += usblp->writeurb->transfer_buffer_length;
-		usblp->writeurb->transfer_buffer_length = 0;
-
+		/* We must increment writecount here, and not at the
+		 * end of the loop. Otherwise, the final loop iteration may
+		 * be skipped, leading to incomplete printer output.
+		 */
+		writecount += transfer_length;
 		if (writecount == count) {
-			up (&usblp->sem);
+			up(&usblp->sem);
 			break;
 		}
 
-		usblp->writeurb->transfer_buffer_length = (count - writecount) < USBLP_BUF_SIZE ?
-							  (count - writecount) : USBLP_BUF_SIZE;
+		transfer_length=(count - writecount);
+		if (transfer_length > USBLP_BUF_SIZE)
+			transfer_length = USBLP_BUF_SIZE;
 
-		if (copy_from_user(usblp->writeurb->transfer_buffer, buffer + writecount,
-				usblp->writeurb->transfer_buffer_length)) {
+		usblp->writeurb->transfer_buffer_length = transfer_length;
+
+		if (copy_from_user(usblp->writeurb->transfer_buffer, buffer + writecount, transfer_length)) {
 			up(&usblp->sem);
 			return writecount ? writecount : -EFAULT;
 		}

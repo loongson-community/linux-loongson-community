@@ -110,7 +110,7 @@ gred_enqueue(struct sk_buff *skb, struct Qdisc* sch)
 	unsigned long	qave=0;	
 	int i=0;
 
-	if (!t->initd && skb_queue_len(&sch->q) < sch->dev->tx_queue_len) {
+	if (!t->initd && skb_queue_len(&sch->q) < (sch->dev->tx_queue_len ? : 1)) {
 		D2PRINTK("NO GRED Queues setup yet! Enqueued anyway\n");
 		goto do_enqueue;
 	}
@@ -602,7 +602,7 @@ static void gred_destroy(struct Qdisc *sch)
 	}
 }
 
-struct Qdisc_ops gred_qdisc_ops = {
+static struct Qdisc_ops gred_qdisc_ops = {
 	.next		=	NULL,
 	.cl_ops		=	NULL,
 	.id		=	"gred",
@@ -619,16 +619,14 @@ struct Qdisc_ops gred_qdisc_ops = {
 	.owner		=	THIS_MODULE,
 };
 
-
-#ifdef MODULE
-int init_module(void)
+static int __init gred_module_init(void)
 {
 	return register_qdisc(&gred_qdisc_ops);
 }
-
-void cleanup_module(void) 
+static void __exit gred_module_exit(void) 
 {
 	unregister_qdisc(&gred_qdisc_ops);
 }
-#endif
+module_init(gred_module_init)
+module_exit(gred_module_exit)
 MODULE_LICENSE("GPL");

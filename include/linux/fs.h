@@ -1045,6 +1045,7 @@ struct super_block *sget(struct file_system_type *type,
 			void *data);
 struct super_block *get_sb_pseudo(struct file_system_type *, char *,
 			struct super_operations *ops, unsigned long);
+void unnamed_dev_init(void);
 
 /* Alas, no aliases. Too much hassle with bringing module.h everywhere */
 #define fops_get(fops) \
@@ -1117,10 +1118,7 @@ static inline int break_lease(struct inode *inode, unsigned int mode)
 
 /* fs/open.c */
 
-asmlinkage long sys_open(const char __user *, int, int);
-asmlinkage long sys_close(unsigned int);	/* yes, it's really unsigned */
 extern int do_truncate(struct dentry *, loff_t start);
-
 extern struct file *filp_open(const char *, int, int);
 extern struct file * dentry_open(struct dentry *, struct vfsmount *, int);
 extern int filp_close(struct file *, fl_owner_t id);
@@ -1132,14 +1130,13 @@ extern void vfs_caches_init(unsigned long);
 #define __getname()	kmem_cache_alloc(names_cachep, SLAB_KERNEL)
 #define putname(name)	kmem_cache_free(names_cachep, (void *)(name))
 
-enum {BDEV_FILE, BDEV_SWAP, BDEV_FS, BDEV_RAW};
 extern int register_blkdev(unsigned int, const char *);
 extern int unregister_blkdev(unsigned int, const char *);
 extern struct block_device *bdget(dev_t);
 extern void bd_forget(struct inode *inode);
 extern void bdput(struct block_device *);
 extern int blkdev_open(struct inode *, struct file *);
-extern struct block_device *open_by_devnum(dev_t, unsigned, int);
+extern struct block_device *open_by_devnum(dev_t, unsigned);
 extern struct file_operations def_blk_fops;
 extern struct address_space_operations def_blk_aops;
 extern struct file_operations def_chr_fops;
@@ -1147,8 +1144,8 @@ extern struct file_operations bad_sock_fops;
 extern struct file_operations def_fifo_fops;
 extern int ioctl_by_bdev(struct block_device *, unsigned, unsigned long);
 extern int blkdev_ioctl(struct inode *, struct file *, unsigned, unsigned long);
-extern int blkdev_get(struct block_device *, mode_t, unsigned, int);
-extern int blkdev_put(struct block_device *, int);
+extern int blkdev_get(struct block_device *, mode_t, unsigned);
+extern int blkdev_put(struct block_device *);
 extern int bd_claim(struct block_device *, void *);
 extern void bd_release(struct block_device *);
 extern void blk_run_queues(void);
@@ -1167,8 +1164,8 @@ extern int chrdev_open(struct inode *, struct file *);
 extern const char *__bdevname(dev_t, char *buffer);
 extern const char *bdevname(struct block_device *bdev, char *buffer);
 extern struct block_device *lookup_bdev(const char *);
-extern struct block_device *open_bdev_excl(const char *, int, int, void *);
-extern void close_bdev_excl(struct block_device *, int);
+extern struct block_device *open_bdev_excl(const char *, int, void *);
+extern void close_bdev_excl(struct block_device *);
 
 extern void init_special_inode(struct inode *, umode_t, dev_t);
 

@@ -66,7 +66,7 @@ endmenu
 menu "General setup"
 
 config SWAP
-	bool "Support for paging of anonymous memory"
+	bool "Support for paging of anonymous memory (swap)"
 	depends on MMU
 	default y
 	help
@@ -136,6 +136,25 @@ config LOG_BUF_SHIFT
 	             14 => 16 KB for uniprocessor
 		     13 =>  8 KB
 		     12 =>  4 KB
+
+config HOTPLUG
+	bool "Support for hot-pluggable devices" if !ARCH_S390
+	default ARCH_S390
+	help
+	  Say Y here if you want to plug devices into your computer while
+	  the system is running, and be able to use them quickly.  In many
+	  cases, the devices can likewise be unplugged at any time too.
+
+	  One well known example of this is PCMCIA- or PC-cards, credit-card
+	  size devices such as network cards, modems or hard drives which are
+	  plugged into slots found on all modern laptop computers.  Another
+	  example, used on modern desktops as well as laptops, is USB.
+
+	  Enable HOTPLUG and KMOD, and build a modular kernel.  Get agent
+	  software (at <http://linux-hotplug.sourceforge.net/>) and install it.
+	  Then your kernel will automatically call out to a user mode "policy
+	  agent" (/sbin/hotplug) to load modules and set up software needed
+	  to use devices as you hotplug them.
 
 config IKCONFIG
 	bool "Kernel .config support"
@@ -285,4 +304,10 @@ config KMOD
 	  runs modprobe with the appropriate arguments, thereby
 	  loading the module if it is available.  If unsure, say Y.
 
+config STOP_MACHINE
+	bool
+	default y
+	depends on (SMP && MODULE_UNLOAD) || HOTPLUG_CPU
+	help
+	  Need stop_machine() primitive.
 endmenu

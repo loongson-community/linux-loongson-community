@@ -129,6 +129,8 @@ enum
 	KERN_HPPA_UNALIGNED=59,	/* int: hppa unaligned-trap enable */
 	KERN_PRINTK_RATELIMIT=60, /* int: tune printk ratelimiting */
 	KERN_PRINTK_RATELIMIT_BURST=61,	/* int: tune printk ratelimiting */
+	KERN_PTY=62,		/* dir: pty driver */
+	KERN_NGROUPS_MAX=63,	/* int: NGROUPS_MAX */
 };
 
 
@@ -190,6 +192,13 @@ enum
 	RANDOM_WRITE_THRESH=4,
 	RANDOM_BOOT_ID=5,
 	RANDOM_UUID=6
+};
+
+/* /proc/sys/kernel/pty */
+enum
+{
+	PTY_MAX=1,
+	PTY_NR=2
 };
 
 /* /proc/sys/bus/isa */
@@ -312,6 +321,7 @@ enum
 	NET_TCP_LOW_LATENCY=93,
 	NET_IPV4_IPFRAG_SECRET_INTERVAL=94,
 	NET_TCP_WESTWOOD=95,
+	NET_IPV4_IGMP_MAX_MSF=96,
 };
 
 enum {
@@ -362,6 +372,8 @@ enum
 	NET_IPV4_CONF_NOXFRM=15,
 	NET_IPV4_CONF_NOPOLICY=16,
 	NET_IPV4_CONF_FORCE_IGMP_VERSION=17,
+	NET_IPV4_CONF_ARP_ANNOUNCE=18,
+	NET_IPV4_CONF_ARP_IGNORE=19,
 };
 
 /* /proc/sys/net/ipv4/netfilter */
@@ -380,6 +392,7 @@ enum
 	NET_IPV4_NF_CONNTRACK_UDP_TIMEOUT_STREAM=11,
 	NET_IPV4_NF_CONNTRACK_ICMP_TIMEOUT=12,
 	NET_IPV4_NF_CONNTRACK_GENERIC_TIMEOUT=13,
+	NET_IPV4_NF_CONNTRACK_BUCKETS=14,
 };
  
 /* /proc/sys/net/ipv6 */
@@ -392,7 +405,8 @@ enum {
 	NET_IPV6_IP6FRAG_HIGH_THRESH=21,
 	NET_IPV6_IP6FRAG_LOW_THRESH=22,
 	NET_IPV6_IP6FRAG_TIME=23,
-	NET_IPV6_IP6FRAG_SECRET_INTERVAL=24
+	NET_IPV6_IP6FRAG_SECRET_INTERVAL=24,
+	NET_IPV6_MLD_MAX_MSF=25,
 };
 
 enum {
@@ -423,7 +437,8 @@ enum {
 	NET_IPV6_TEMP_PREFERED_LFT=13,
 	NET_IPV6_REGEN_MAX_RETRY=14,
 	NET_IPV6_MAX_DESYNC_FACTOR=15,
-	NET_IPV6_MAX_ADDRESSES=16
+	NET_IPV6_MAX_ADDRESSES=16,
+	NET_IPV6_FORCE_MLD_VERSION=17
 };
 
 /* /proc/sys/net/ipv6/icmp */
@@ -617,6 +632,8 @@ enum
 	FS_LEASE_TIME=15,	/* int: maximum time to wait for a lease break */
 	FS_DQSTATS=16,	/* disc quota usage statistics */
 	FS_XFS=17,	/* struct: control xfs parameters */
+	FS_AIO_NR=18,	/* current system-wide number of aio requests */
+	FS_AIO_MAX_NR=19,	/* system-wide maximum number of aio requests */
 };
 
 /* /proc/sys/fs/quota/ */
@@ -719,7 +736,6 @@ enum
 
 #ifdef __KERNEL__
 
-extern asmlinkage long sys_sysctl(struct __sysctl_args __user *);
 extern void sysctl_init(void);
 
 typedef struct ctl_table ctl_table;

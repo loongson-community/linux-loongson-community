@@ -826,7 +826,14 @@ SystemCall_common:
 _GLOBAL(do_hash_page_ISI)
 	li	r4,0
 _GLOBAL(do_hash_page_DSI)
-	rlwimi	r4,r23,32-13,30,30	/* Insert MSR_PR as _PAGE_USER */
+	/*
+	 * We need to set the _PAGE_USER bit if MSR_PR is set or if we are
+	 * accessing a userspace segment (even from the kernel). We assume
+	 * kernel addresses always have the high bit set.
+	 */
+	rotldi	r0,r3,15		/* Move high bit into MSR_PR position */
+	orc	r0,r23,r0
+	rlwimi	r4,r0,32-13,30,30	/* Insert into _PAGE_USER */
 	ori	r4,r4,1			/* add _PAGE_PRESENT */
 
 	mflr	r21			/* Save LR in r21 */
@@ -897,12 +904,13 @@ _GLOBAL(do_stab_bolted)
 
 	/* (((ea >> 28) & 0x1fff) << 15) | (ea >> 60) */
 	mfspr	r21,DAR
-	rldicl  r20,r21,36,32   /* Permits a full 32b of ESID */
-	rldicr  r20,r20,15,48
-	rldicl  r21,r21,4,60
-	or      r20,r20,r21
+	rldicl	r20,r21,36,51
+	sldi	r20,r20,15
+	srdi	r21,r21,60
+	or	r20,r20,r21
 
-	li      r21,9           /* VSID_RANDOMIZER */
+	/* VSID_RANDOMIZER */
+	li      r21,9
 	sldi    r21,r21,32
 	oris    r21,r21,58231
 	ori     r21,r21,39831
@@ -926,11 +934,11 @@ _GLOBAL(do_stab_bolted)
 	rldicl  r23,r23,57,63
 	cmpwi   r23,0
 	bne     2f
-	ld      r23,8(r21)      /* Get the current vsid part of the ste */
+	li	r23,0
 	rldimi  r23,r20,12,0    /* Insert the new vsid value            */
 	std     r23,8(r21)      /* Put new entry back into the stab     */
 	eieio                  /* Order vsid update                    */
-	ld      r23,0(r21)      /* Get the esid part of the ste         */
+	li	r23,0
 	mfspr	r20,DAR        /* Get the new esid                     */
 	rldicl  r20,r20,36,28  /* Permits a full 36b of ESID           */
 	rldimi  r23,r20,28,0    /* Insert the new esid value            */
@@ -964,13 +972,13 @@ _GLOBAL(do_stab_bolted)
 	std     r23,0(r21)
 	sync
 
-	ld      r23,8(r21)
+	li	r23,0
 	rldimi  r23,r20,12,0
 	std     r23,8(r21)
 	eieio
 
-	ld      r23,0(r21)      /* Get the esid part of the ste         */
-	mr      r22,r23
+	ld	r22,0(r21)	/* Get the esid part of the ste         */
+	li	r23,0
 	mfspr	r20,DAR         /* Get the new esid                     */
 	rldicl  r20,r20,36,28   /* Permits a full 32b of ESID           */
 	rldimi  r23,r20,28,0    /* Insert the new esid value            */
@@ -2177,4 +2185,4 @@ stab_array:
  */
 	.globl	cmd_line
 cmd_line:
-	.space	512
+	.space	512	/* COMMAND_LINE_SIZE */

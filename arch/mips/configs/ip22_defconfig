@@ -22,6 +22,7 @@ CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
 CONFIG_LOG_BUF_SHIFT=14
+# CONFIG_HOTPLUG is not set
 CONFIG_IKCONFIG=y
 CONFIG_IKCONFIG_PROC=y
 CONFIG_EMBEDDED=y
@@ -127,7 +128,6 @@ CONFIG_CPU_HAS_SYNC=y
 #
 # CONFIG_EISA is not set
 CONFIG_MMU=y
-# CONFIG_HOTPLUG is not set
 
 #
 # Executable file formats
@@ -166,7 +166,6 @@ CONFIG_BINFMT_IRIX=y
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_RAM is not set
-# CONFIG_BLK_DEV_INITRD is not set
 # CONFIG_LBD is not set
 
 #
@@ -215,10 +214,9 @@ CONFIG_SGIWD93_SCSI=y
 #
 # Fusion MPT device support
 #
-# CONFIG_FUSION is not set
 
 #
-# IEEE 1394 (FireWire) support (EXPERIMENTAL)
+# IEEE 1394 (FireWire) support
 #
 # CONFIG_IEEE1394 is not set
 
@@ -498,7 +496,7 @@ CONFIG_SGISEEQ=y
 #
 # ISDN subsystem
 #
-# CONFIG_ISDN_BOOL is not set
+# CONFIG_ISDN is not set
 
 #
 # Telephony Support
@@ -564,7 +562,8 @@ CONFIG_HW_CONSOLE=y
 CONFIG_SERIAL_IP22_ZILOG=m
 CONFIG_SERIAL_CORE=m
 CONFIG_UNIX98_PTYS=y
-CONFIG_UNIX98_PTY_COUNT=256
+CONFIG_LEGACY_PTYS=y
+CONFIG_LEGACY_PTY_COUNT=256
 
 #
 # Mice
@@ -609,6 +608,10 @@ CONFIG_MAX_RAW_DEVS=256
 # I2C support
 #
 # CONFIG_I2C is not set
+
+#
+# Misc devices
+#
 
 #
 # Multimedia devices
@@ -708,7 +711,6 @@ CONFIG_VFAT_FS=m
 CONFIG_PROC_FS=y
 CONFIG_PROC_KCORE=y
 # CONFIG_DEVFS_FS is not set
-CONFIG_DEVPTS_FS=y
 CONFIG_DEVPTS_FS_XATTR=y
 CONFIG_DEVPTS_FS_SECURITY=y
 # CONFIG_TMPFS is not set
@@ -721,6 +723,7 @@ CONFIG_RAMFS=y
 # CONFIG_ADFS_FS is not set
 # CONFIG_AFFS_FS is not set
 # CONFIG_HFS_FS is not set
+# CONFIG_HFSPLUS_FS is not set
 # CONFIG_BEFS_FS is not set
 # CONFIG_BFS_FS is not set
 CONFIG_EFS_FS=m
@@ -752,7 +755,6 @@ CONFIG_SUNRPC=m
 # CONFIG_CIFS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_CODA_FS is not set
-# CONFIG_INTERMEZZO_FS is not set
 # CONFIG_AFS_FS is not set
 
 #
@@ -849,6 +851,7 @@ CONFIG_CRYPTO_SERPENT=y
 CONFIG_CRYPTO_AES=y
 CONFIG_CRYPTO_CAST5=m
 CONFIG_CRYPTO_CAST6=m
+# CONFIG_CRYPTO_ARC4 is not set
 CONFIG_CRYPTO_DEFLATE=y
 # CONFIG_CRYPTO_TEST is not set
 

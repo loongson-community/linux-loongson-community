@@ -341,6 +341,7 @@ sfq_dequeue(struct Qdisc* sch)
 
 	/* Is the slot empty? */
 	if (q->qs[a].qlen == 0) {
+		q->ht[q->hash[a]] = SFQ_DEPTH;
 		a = q->next[a];
 		if (a == old_a) {
 			q->tail = SFQ_DEPTH;
@@ -465,7 +466,7 @@ rtattr_failure:
 	return -1;
 }
 
-struct Qdisc_ops sfq_qdisc_ops = {
+static struct Qdisc_ops sfq_qdisc_ops = {
 	.next		=	NULL,
 	.cl_ops		=	NULL,
 	.id		=	"sfq",
@@ -482,15 +483,14 @@ struct Qdisc_ops sfq_qdisc_ops = {
 	.owner		=	THIS_MODULE,
 };
 
-#ifdef MODULE
-int init_module(void)
+static int __init sfq_module_init(void)
 {
 	return register_qdisc(&sfq_qdisc_ops);
 }
-
-void cleanup_module(void) 
+static void __exit sfq_module_exit(void) 
 {
 	unregister_qdisc(&sfq_qdisc_ops);
 }
-#endif
+module_init(sfq_module_init)
+module_exit(sfq_module_exit)
 MODULE_LICENSE("GPL");

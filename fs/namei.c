@@ -190,7 +190,8 @@ int vfs_permission(struct inode * inode, int mask)
 	 * Read/write DACs are always overridable.
 	 * Executable DACs are overridable if at least one exec bit is set.
 	 */
-	if ((mask & (MAY_READ|MAY_WRITE)) || (inode->i_mode & S_IXUGO))
+	if (!(mask & MAY_EXEC) ||
+	    (inode->i_mode & S_IXUGO) || S_ISDIR(inode->i_mode))
 		if (capable(CAP_DAC_OVERRIDE))
 			return 0;
 
@@ -570,7 +571,7 @@ fail:
  *
  * We expect 'base' to be positive and a directory.
  */
-int link_path_walk(const char * name, struct nameidata *nd)
+int fastcall link_path_walk(const char * name, struct nameidata *nd)
 {
 	struct path next;
 	struct inode *inode;
@@ -770,7 +771,7 @@ return_err:
 	return err;
 }
 
-int path_walk(const char * name, struct nameidata *nd)
+int fastcall path_walk(const char * name, struct nameidata *nd)
 {
 	current->total_link_count = 0;
 	return link_path_walk(name, nd);
@@ -857,7 +858,7 @@ walk_init_root(const char *name, struct nameidata *nd)
 	return 1;
 }
 
-int path_lookup(const char *name, unsigned int flags, struct nameidata *nd)
+int fastcall path_lookup(const char *name, unsigned int flags, struct nameidata *nd)
 {
 	nd->last_type = LAST_ROOT; /* if there are only slashes... */
 	nd->flags = flags;
@@ -970,7 +971,7 @@ access:
  * that namei follows links, while lnamei does not.
  * SMP-safe
  */
-int __user_walk(const char __user *name, unsigned flags, struct nameidata *nd)
+int fastcall __user_walk(const char __user *name, unsigned flags, struct nameidata *nd)
 {
 	char *tmp = getname(name);
 	int err = PTR_ERR(tmp);

@@ -1801,15 +1801,12 @@ static int dv1394_open(struct inode *inode, struct file *file)
 		
 	} else {
 		/* look up the card by ID */
-		
-		struct list_head *lh;
 		unsigned long flags;
 		
 		spin_lock_irqsave(&dv1394_cards_lock, flags);
 		if (!list_empty(&dv1394_cards)) {
 			struct video_card *p;
-			list_for_each(lh, &dv1394_cards) {
-				p = list_entry(lh, struct video_card, list);
+			list_for_each_entry(p, &dv1394_cards, list) {
 				if ((p->id) == ieee1394_file_to_instance(file)) {
 					video = p;
 					break;
@@ -2225,7 +2222,7 @@ static int dv1394_init(struct ti_ohci *ohci, enum pal_or_ntsc format, enum modes
 	video->ohci = ohci;
 	/* lower 2 bits of id indicate which of four "plugs"
 	   per host */
-	video->id = ohci->id << 2; 
+	video->id = ohci->host->id << 2; 
 	if (format == DV1394_NTSC)
 		video->id |= mode;
 	else
@@ -2305,47 +2302,49 @@ static void dv1394_un_init(struct video_card *video)
 		);
 
 	devfs_remove("ieee1394/%s", buf);
-	list_del(&video->list);
 	kfree(video);
 }
 
 	
 static void dv1394_remove_host (struct hpsb_host *host)
 {
-	struct ti_ohci *ohci;
-	struct video_card *video = NULL;
+	struct video_card *video;
 	unsigned long flags;
-	struct list_head *lh, *templh;
-	int	n;
+	int id = host->id;
 	
 	/* We only work with the OHCI-1394 driver */
 	if (strcmp(host->driver->name, OHCI1394_DRIVER_NAME))
 		return;
 
-	ohci = (struct ti_ohci *)host->hostdata;
-
-
 	/* find the corresponding video_cards */
-	spin_lock_irqsave(&dv1394_cards_lock, flags);
-	if (!list_empty(&dv1394_cards)) {
-		list_for_each_safe(lh, templh, &dv1394_cards) {
-			video = list_entry(lh, struct video_card, list);
-			if ((video->id >> 2) == ohci->id)
-				dv1394_un_init(video);
+	do {
+		struct video_card *tmp_vid;
+
+		video = NULL;
+
+		spin_lock_irqsave(&dv1394_cards_lock, flags);
+		list_for_each_entry(tmp_vid, &dv1394_cards, list) {
+			if ((tmp_vid->id >> 2) == id) {
+				list_del(&tmp_vid->list);
+				video = tmp_vid;
+				break;
+			}
 		}
-	}
-	spin_unlock_irqrestore(&dv1394_cards_lock, flags);
+		spin_unlock_irqrestore(&dv1394_cards_lock, flags);
 
-	n = (video->id >> 2);
+		if (video)
+			dv1394_un_init(video);
+	} while (video != NULL);
 
-	devfs_remove("ieee1394/dv/host%d/NTSC", n);
-	devfs_remove("ieee1394/dv/host%d/PAL", n);
-	devfs_remove("ieee1394/dv/host%d", n);
+	devfs_remove("ieee1394/dv/host%d/NTSC", id);
+	devfs_remove("ieee1394/dv/host%d/PAL", id);
+	devfs_remove("ieee1394/dv/host%d", id);
 }
 
 static void dv1394_add_host (struct hpsb_host *host)
 {
 	struct ti_ohci *ohci;
+	int id = host->id;
 
 	/* We only work with the OHCI-1394 driver */
 	if (strcmp(host->driver->name, OHCI1394_DRIVER_NAME))
@@ -2353,9 +2352,9 @@ static void dv1394_add_host (struct hpsb_host *host)
 
 	ohci = (struct ti_ohci *)host->hostdata;
 
-	devfs_mk_dir("ieee1394/dv/host%d", ohci->id);
-	devfs_mk_dir("ieee1394/dv/host%d/NTSC", ohci->id);
-	devfs_mk_dir("ieee1394/dv/host%d/PAL", ohci->id);
+	devfs_mk_dir("ieee1394/dv/host%d", id);
+	devfs_mk_dir("ieee1394/dv/host%d/NTSC", id);
+	devfs_mk_dir("ieee1394/dv/host%d/PAL", id);
 	
 	dv1394_init(ohci, DV1394_NTSC, MODE_RECEIVE);
 	dv1394_init(ohci, DV1394_NTSC, MODE_TRANSMIT);
@@ -2372,9 +2371,8 @@ static void dv1394_add_host (struct hpsb_host *host)
 static void dv1394_host_reset(struct hpsb_host *host)
 {
 	struct ti_ohci *ohci;
-	struct video_card *video = NULL;
+	struct video_card *video = NULL, *tmp_vid;
 	unsigned long flags;
-	struct list_head *lh;
 	
 	/* We only work with the OHCI-1394 driver */
 	if (strcmp(host->driver->name, OHCI1394_DRIVER_NAME))
@@ -2385,11 +2383,10 @@ static void dv1394_host_reset(struct hpsb_host *host)
 
 	/* find the corresponding video_cards */
 	spin_lock_irqsave(&dv1394_cards_lock, flags);
-	if (!list_empty(&dv1394_cards)) {
-		list_for_each(lh, &dv1394_cards) {
-			video = list_entry(lh, struct video_card, list);
-			if ((video->id >> 2) == ohci->id)
-				break;
+	list_for_each_entry(tmp_vid, &dv1394_cards, list) {
+		if ((tmp_vid->id >> 2) == host->id) {
+			video = tmp_vid;
+			break;
 		}
 	}
 	spin_unlock_irqrestore(&dv1394_cards_lock, flags);
@@ -2615,24 +2612,32 @@ static void __exit dv1394_exit_module(void)
 
 static int __init dv1394_init_module(void)
 {
+	int ret;
+
 	cdev_init(&dv1394_cdev, &dv1394_fops);
 	dv1394_cdev.owner = THIS_MODULE;
 	kobject_set_name(&dv1394_cdev.kobj, "dv1394");
-	if (cdev_add(&dv1394_cdev, IEEE1394_DV1394_DEV, 16)) {
+	ret = cdev_add(&dv1394_cdev, IEEE1394_DV1394_DEV, 16);
+	if (ret) {
 		printk(KERN_ERR "dv1394: unable to register character device\n");
-		return -EIO;
+		return ret;
 	}
 
 	devfs_mk_dir("ieee1394/dv");
 
 	hpsb_register_highlevel(&dv1394_highlevel);
 
-	hpsb_register_protocol(&dv1394_driver);
+	ret = hpsb_register_protocol(&dv1394_driver);
+	if (ret) {
+		printk(KERN_ERR "dv1394: failed to register protocol\n");
+		hpsb_unregister_highlevel(&dv1394_highlevel);
+		devfs_remove("ieee1394/dv");
+		cdev_del(&dv1394_cdev);
+		return ret;
+	}
 
 #ifdef CONFIG_COMPAT
 	{
-		int ret;
-
 		/* First compatible ones */
 		ret = register_ioctl32_conversion(DV1394_IOC_SHUTDOWN, NULL);
 		ret |= register_ioctl32_conversion(DV1394_IOC_SUBMIT_FRAMES, NULL);

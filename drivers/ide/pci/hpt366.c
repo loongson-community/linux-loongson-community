@@ -972,7 +972,7 @@ static unsigned int __init init_chipset_hpt366 (struct pci_dev *dev, const char 
 
 	if (!hpt366_proc) {
 		hpt366_proc = 1;
-		ide_pci_register_host_proc(&hpt366_procs[0]);
+		ide_pci_create_host_proc("hpt366", hpt366_get_info);
 	}
 #endif /* DISPLAY_HPT366_TIMINGS && CONFIG_PROC_FS */
 
@@ -1123,9 +1123,6 @@ static void __init init_dma_hpt366 (ide_hwif_t *hwif, unsigned long dmabase)
 
 	ide_setup_dma(hwif, dmabase, 8);
 }
-
-extern void ide_setup_pci_device(struct pci_dev *, ide_pci_device_t *);
-extern void ide_setup_pci_devices(struct pci_dev *, struct pci_dev *, ide_pci_device_t *);
 
 static void __init init_setup_hpt374 (struct pci_dev *dev, ide_pci_device_t *d)
 {
