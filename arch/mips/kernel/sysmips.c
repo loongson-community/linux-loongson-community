@@ -49,7 +49,7 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 {
 	int	*p;
 	char	*name;
-	int	flags, tmp, len, retval;
+	int	flags, tmp, len, retval, errno;
 
 	switch(cmd) {
 	case SETNAME: {
