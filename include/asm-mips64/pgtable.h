@@ -761,7 +761,7 @@ extern inline unsigned long get_context(void)
 
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mfc0 %0, $4\n\t"
+		"dmfc0 %0, $4\n\t"
 		".set reorder"
 		: "=r" (val));
 
@@ -772,7 +772,7 @@ extern inline void set_context(unsigned long val)
 {
 	__asm__ __volatile__(
 		".set noreorder\n\t"
-		"mtc0 %0, $4\n\t"
+		"dmtc0 %0, $4\n\t"
 		".set reorder"
 		: : "r" (val));
 }
