@@ -288,18 +288,12 @@ pb1000_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 			break;
 	}
 
-	writew(pcr, PB1000_PCR);
-	au_sync_delay(300);
-
-	writew(pcr | PCR_SLOT_0_RST, PB1000_PCR);
-	au_sync_delay(100);
-	
 	pcr &= ~(PCR_SLOT_0_RST);
 	if (configure->reset) {
 		pcr |= PCR_SLOT_0_RST;
 	}
 	writew(pcr, PB1000_PCR);
-	au_sync_delay(100);
+	au_sync_delay(300);
 	return 0;
 }
 
