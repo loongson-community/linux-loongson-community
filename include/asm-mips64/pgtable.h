@@ -264,7 +264,7 @@ static inline void pte_clear(pte_t *ptep)
 }
 
 /*
- * (pmds are folded into pgds so this doesnt get actually called,
+ * (pmds are folded into pgds so this doesn't get actually called,
  * but the define is needed for a generic inline function.)
  */
 #define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while(0);
