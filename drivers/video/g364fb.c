@@ -1,4 +1,4 @@
-/* $Id: g364fb.c,v 1.1 1998/08/19 21:56:39 ralf Exp $
+/* $Id: g364fb.c,v 1.2 1998/08/25 09:19:49 ralf Exp $
  *
  * linux/drivers/video/g364fb.c -- Mips Magnum frame buffer device
  *
@@ -93,8 +93,8 @@ static struct fb_var_screeninfo fb_var = { 0, };
 /*
  *  Interface used by the world
  */
-static int g364fb_open(struct fb_info *info);
-static int g364fb_release(struct fb_info *info);
+static int g364fb_open(struct fb_info *info, int user);
+static int g364fb_release(struct fb_info *info, int user);
 static int g364fb_get_fix(struct fb_fix_screeninfo *fix, int con,
 			  struct fb_info *info);
 static int g364fb_get_var(struct fb_var_screeninfo *var, int con,
@@ -154,14 +154,15 @@ void fbcon_g364fb_cursor(struct display *p, int mode, int x, int y)
 
 static struct display_switch fbcon_g364cfb8 = {
     fbcon_cfb8_setup, fbcon_cfb8_bmove, fbcon_cfb8_clear, fbcon_cfb8_putc,
-    fbcon_cfb8_putcs, fbcon_cfb8_revc, fbcon_g364fb_cursor
+    fbcon_cfb8_putcs, fbcon_cfb8_revc, fbcon_g364fb_cursor, NULL,
+    fbcon_cfb8_clear_margins, FONTWIDTH(8)
 };
 
 
 /*
  *  Open/Release the frame buffer device
  */
-static int g364fb_open(struct fb_info *info)                                       
+static int g364fb_open(struct fb_info *info, int user)                                       
 {
     /*                                                                     
      *  Nothing, only a usage count for the moment                          
@@ -170,7 +171,7 @@ static int g364fb_open(struct fb_info *info)
     return(0);                              
 }
         
-static int g364fb_release(struct fb_info *info)
+static int g364fb_release(struct fb_info *info, int user)
 {
     MOD_DEC_USE_COUNT;
     return(0);                                                    
@@ -303,13 +304,12 @@ static int g364fb_ioctl(struct inode *inode, struct file *file, u_int cmd,
  */
 __initfunc(void g364fb_init(void))
 {
-    int err;
     int i,j;
     volatile unsigned int *pal_ptr = (volatile unsigned int *) CLR_PAL_REG;
     volatile unsigned int *curs_pal_ptr = (volatile unsigned int *) CURS_PAL_REG;
     unsigned int xres, yres;
     int mem;
-    
+
     /* TBD: G364 detection */
     
     /* get the resolution set by ARC console */
@@ -393,7 +393,7 @@ __initfunc(void g364fb_init(void))
     disp.cmap.start = 0;
     disp.cmap.len = 0;
     disp.cmap.red = disp.cmap.green = disp.cmap.blue = disp.cmap.transp = NULL;
-    disp.screen_base = G364_MEM_BASE; /* virtual kernel address */
+    disp.screen_base = (char *)G364_MEM_BASE; /* virtual kernel address */
     disp.visual = fb_fix.visual;
     disp.type = fb_fix.type;
     disp.type_aux = fb_fix.type_aux;
@@ -414,11 +414,10 @@ __initfunc(void g364fb_init(void))
     fb_info.updatevar = &g364fbcon_updatevar;
     fb_info.blank = &g364fbcon_blank;
 
-    err = register_framebuffer(&fb_info);
-    if (err < 0)
-	return;
-
     g364fb_set_var(&fb_var, -1, &fb_info);
+
+    if (register_framebuffer(&fb_info) < 0)
+	return;
 
     printk("fb%d: %s frame buffer device\n", GET_FB_IDX(fb_info.node),
 	   fb_fix.id);
