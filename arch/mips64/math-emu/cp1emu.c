@@ -1780,7 +1780,7 @@ void _cop1_init(int emulate)
 		 * i.e. denormalised results, underflow, overflow etc, which
 		 * must be emulated in s/w.
 		 */
-#ifdef 1
+#if 1
 		/* r4000 or above use dedicate exception */
 		xcption(XCPTFPE, cop1Patcher);
 #else
