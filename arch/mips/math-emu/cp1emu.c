@@ -41,7 +41,9 @@
 
 #include <asm/asm.h>
 #include <asm/branch.h>
+#include <asm/bootinfo.h>
 #include <asm/byteorder.h>
+#include <asm/cpu.h>
 #include <asm/inst.h>
 #include <asm/uaccess.h>
 #include <asm/processor.h>
@@ -1672,6 +1674,9 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 
 	oldepc = xcp->cp0_epc;
 	do {
+		if (current->need_resched)
+			schedule;
+
 		prevepc = xcp->cp0_epc;
 		insn = mips_get_word(xcp, REG_TO_VA(xcp->cp0_epc), &err);
 		if (err) {
@@ -1682,6 +1687,9 @@ int fpu_emulator_cop1Handler(struct pt_regs *xcp)
 			sig = cop1Emulate(xcp, ctx);
 		else
 			xcp->cp0_epc += 4;	/* skip nops */
+
+		if (mips_cpu.options & MIPS_CPU_FPU)
+			break;
 	} while (xcp->cp0_epc > prevepc && sig == 0);
 
 	/* SIGILL indicates a non-fpu instruction */
