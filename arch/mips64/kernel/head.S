@@ -20,15 +20,6 @@
 #include <asm/mipsregs.h>
 #include <asm/stackframe.h>
 
-#define ARC64_TWIDDLE_PC \
-#ifdef CONFIG_ARC64 \
-	/* We get launched at a XKPHYS address but the kernel is linked to \
-	   run at a KSEG0 address, so jump there.  */ \
-	la	t0, 1f \
-	jr	t0 \
-1: \
-#endif
-
 	.text
 
 EXPORT(stext)					# used for profiling
@@ -38,7 +29,11 @@ EXPORT(_stext)
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
 
-	ARC64_TWIDDLE_PC
+#ifdef CONFIG_ARC64
+	la	t0, 1f
+	jr	t0
+1:
+#endif
 
 	ori	sp, 0xf				# align stack on 16 byte.
 	xori	sp, 0xf
@@ -75,7 +70,11 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	END(kernel_entry)
 
 NESTED(bootstrap, 16, sp)
-	ARC64_TWIDDLE_PC
+#ifdef CONFIG_ARC64
+	la	t0, 1f
+	jr	t0
+1:
+#endif
 	CLI
 	mfc0	t0, CP0_STATUS
 	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
