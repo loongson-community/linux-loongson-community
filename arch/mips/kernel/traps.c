@@ -783,7 +783,7 @@ asmlinkage void cache_parity_error(void)
 	/* For the moment, report the problem and hang. */
 	reg_val = read_c0_errorepc();
 	printk("Cache error exception:\n");
-	printk("cp0_errorepc == %08x\n", reg_val);
+	printk("cp0_errorepc == %08x\n", read_c0_errorepc());
 	reg_val = read_c0_cacheerr();
 	printk("c0_cacheerr == %08x\n", reg_val);
 
@@ -800,11 +800,13 @@ asmlinkage void cache_parity_error(void)
 	       reg_val & (1<<22) ? "E0 " : "");
 	printk("IDX: 0x%08x\n", reg_val & ((1<<22)-1));
 
+#if defined(CONFIG_CPU_MIPS32) || defined (CONFIG_CPU_MIPS64)
 	if (reg_val & (1<<22))
 		printk("DErrAddr0: 0x%08x\n", read_c0_derraddr0());
 
 	if (reg_val & (1<<23))
 		printk("DErrAddr1: 0x%08x\n", read_c0_derraddr1());
+#endif
 
 	panic("Can't handle the cache error!");
 }

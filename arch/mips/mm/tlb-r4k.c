@@ -391,11 +391,13 @@ static void __init probe_tlb(unsigned long config)
 		 */
 		return;
 
+#if defined(CONFIG_CPU_MIPS32) || defined (CONFIG_CPU_MIPS64)
 	config1 = read_c0_config1();
 	if (!((config >> 7) & 3))
 		panic("No MMU present");
 	else
 		mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
+#endif
 }
 
 void __init r4k_tlb_init(void)

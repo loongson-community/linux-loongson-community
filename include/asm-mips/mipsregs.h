@@ -481,50 +481,86 @@
 
 #define __read_32bit_c0_register(source, sel)				\
 ({ int __res;								\
-        __asm__ __volatile__(						\
-	".set\tmips32\n\t"						\
-	"mfc0\t%0," #source "," #sel "\n\t"				\
-	".set\tmips0\n\t"						\
-	: "=r" (__res));						\
-	__res;})
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+			"mfc0\t%0, " #source "\n\t"			\
+			: "=r" (__res));				\
+	else								\
+		__asm__ __volatile__(					\
+			".set\tmips32\n\t"				\
+			"mfc0\t%0, " #source ", " #sel "\n\t"		\
+			".set\tmips0\n\t"				\
+			: "=r" (__res));				\
+	__res;								\
+})
 
 #define __read_64bit_c0_register(source, sel)				\
 ({ unsigned long __res;							\
-	__asm__ __volatile__(						\
-	".set\tmips64\n\t"						\
-	"dmfc0\t%0," #source "," #sel "\n\t"				\
-	".set\tmips0"							\
-	: "=r" (__res));						\
-	__res;})
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+		".set\tmips3\n\t"					\
+		"dmfc0\t%0, " #source "\n\t"				\
+		".set\tmips0"						\
+		: "=r" (__res));					\
+	else								\
+		__asm__ __volatile__(					\
+		".set\tmips64\n\t"					\
+		"dmfc0\t%0, " #source ", " #sel "\n\t"			\
+		".set\tmips0"						\
+		: "=r" (__res));					\
+	__res;								\
+})
 
 #define __write_32bit_c0_register(register, sel, value)			\
 do {									\
-	if (__builtin_constant_p(value) && (value) == 0)		\
-		__asm__ __volatile__(					\
-		".set\tmips32\n\t"					\
-		"mtc0\t$0," #register "," #sel "\n\t"			\
-		".set\tmips0");						\
+	if (sel == 0)							\
+		if (__builtin_constant_p(value) && (value) == 0)	\
+			__asm__ __volatile__(				\
+			"mtc0\t$0, " #register "\n\t");			\
+		else							\
+			__asm__ __volatile__(				\
+			"mtc0\t%0, " #register "\n\t"			\
+			: : "r" (value));				\
 	else								\
-		__asm__ __volatile__(					\
-		".set\tmips32\n\t"					\
-		"mtc0\t%0," #register "," #sel "\n\t"			\
-		".set\tmips0"						\
-		: : "r" (value));					\
+		if (__builtin_constant_p(value) && (value) == 0)	\
+			__asm__ __volatile__(				\
+			".set\tmips32\n\t"				\
+			"mtc0\t$0, " #register ", " #sel "\n\t"		\
+			".set\tmips0");					\
+		else							\
+			__asm__ __volatile__(				\
+			".set\tmips32\n\t"				\
+			"mtc0\t%0, " #register ", " #sel "\n\t"		\
+			".set\tmips0"					\
+			: : "r" (value));				\
 } while (0)
 
 #define __write_64bit_c0_register(register, sel, value)			\
 do {									\
-	if (__builtin_constant_p(value) && (value) == 0)		\
-		__asm__ __volatile__(					\
-		".set\tmips64\n\t"					\
-		"dmtc0\t$0," #register "," #sel "\n\t"			\
-		".set\tmips0");						\
+	if (sel == 0)							\
+		if (__builtin_constant_p(value) && (value) == 0)	\
+			__asm__ __volatile__(				\
+			".set\tmips3\n\t"				\
+			"dmtc0\t$0, " #register "\n\t"			\
+			".set\tmips0");					\
+		else							\
+			__asm__ __volatile__(				\
+			".set\tmips3\n\t"				\
+			"dmtc0\t%0, " #register "\n\t"			\
+			".set\tmips0"					\
+			: : "r" (value));				\
 	else								\
-		__asm__ __volatile__(					\
-		".set\tmips64\n\t"					\
-		"dmtc0\t%0," #register "," #sel "\n\t"			\
-		".set\tmips0"						\
-		: : "r" (value));					\
+		if (__builtin_constant_p(value) && (value) == 0)	\
+			__asm__ __volatile__(				\
+			".set\tmips64\n\t"				\
+			"dmtc0\t$0, " #register ", " #sel "\n\t"	\
+			".set\tmips0");					\
+		else							\
+			__asm__ __volatile__(				\
+			".set\tmips64\n\t"				\
+			"dmtc0\t%0, " #register ", " #sel "\n\t"	\
+			".set\tmips0"					\
+			: : "r" (value));				\
 } while (0)
 
 #define __read_ulong_c0_register(reg, sel)				\
@@ -550,14 +586,24 @@ do {									\
 	unsigned long flags;						\
 									\
 	local_irq_save(flags);						\
-	__asm__ __volatile__(						\
-		".set\tmips64\n\t"					\
-		"dmtc0\t%M0, " #source ", " #sel "\n\t"			\
-		"dsll\t%L0, %M0, 32\n\t"				\
-		"dsrl\t%M0, %M0, 32\n\t"				\
-		"dsrl\t%L0, %L0, 32\n\t"				\
-		".set\tmips0"						\
-		: "=r" (val));						\
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+			".set\tmips64\n\t"				\
+			"dmfc0\t%M0, " #source "\n\t"			\
+			"dsll\t%L0, %M0, 32\n\t"			\
+			"dsrl\t%M0, %M0, 32\n\t"			\
+			"dsrl\t%L0, %L0, 32\n\t"			\
+			".set\tmips0"					\
+			: "=r" (val));					\
+	else								\
+		__asm__ __volatile__(					\
+			".set\tmips64\n\t"				\
+			"dmfc0\t%M0, " #source ", " #sel "\n\t"		\
+			"dsll\t%L0, %M0, 32\n\t"			\
+			"dsrl\t%M0, %M0, 32\n\t"			\
+			"dsrl\t%L0, %L0, 32\n\t"			\
+			".set\tmips0"					\
+			: "=r" (val));					\
 	local_irq_restore(flags);					\
 									\
 	val;								\
@@ -568,15 +614,26 @@ do {									\
 	unsigned long flags;						\
 									\
 	local_irq_save(flags);						\
-	__asm__ __volatile__(						\
-		".set\tmips64\n\t"					\
-		"dsll\t%L0, %L0, 32\n\t"				\
-		"dsrl\t%L0, %L0, 32\n\t"				\
-		"dsll\t%M0, %M0, 32\n\t"				\
-		"or\t%L0, %L0, %M0\n\t"					\
-		"dmtc0\t%L0, " #source ", " #sel "\n\t"			\
-		".set\tmips0"						\
-		: : "r" (val));						\
+	if (sel == 0)							\
+		__asm__ __volatile__(					\
+			".set\tmips64\n\t"				\
+			"dsll\t%L0, %L0, 32\n\t"			\
+			"dsrl\t%L0, %L0, 32\n\t"			\
+			"dsll\t%M0, %M0, 32\n\t"			\
+			"or\t%L0, %L0, %M0\n\t"				\
+			"dmtc0\t%L0, " #source "\n\t"			\
+			".set\tmips0"					\
+			: : "r" (val));					\
+	else								\
+		__asm__ __volatile__(					\
+			".set\tmips64\n\t"				\
+			"dsll\t%L0, %L0, 32\n\t"			\
+			"dsrl\t%L0, %L0, 32\n\t"			\
+			"dsll\t%M0, %M0, 32\n\t"			\
+			"or\t%L0, %L0, %M0\n\t"				\
+			"dmtc0\t%L0, " #source ", " #sel "\n\t"		\
+			".set\tmips0"					\
+			: : "r" (val));					\
 	local_irq_restore(flags);					\
 } while (0)
 
