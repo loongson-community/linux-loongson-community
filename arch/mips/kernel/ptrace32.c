@@ -272,6 +272,11 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		ret = ptrace_detach(child, data);
 		break;
 
+	case PTRACE_GETEVENTMSG:
+		ret = put_user(child->ptrace_message,
+			       (unsigned int __user *) (unsigned long) data);
+		break;
+
 	default:
 		ret = ptrace_request(child, request, addr, data);
 		break;
