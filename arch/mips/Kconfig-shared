@@ -297,7 +297,7 @@ config SGI_IP22
 	  that runs on these, say Y here.
 
 config SGI_IP27
-	bool "Support for SGI-IP27 (Origin200/2000)"
+	bool "Support for SGI IP27 (Origin200/2000)"
 	depends on MIPS64
 	help
 	  This are the SGI Origin 200, Origin 2000 and Onyx 2 Graphics
@@ -360,7 +360,7 @@ config REPLICATE_EXHANDLERS
 	  speed.
 
 config SGI_IP32
-	bool "Support for SGI-IP32 (O2) (EXPERIMENTAL)"
+	bool "Support for SGI IP32 (O2) (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 
 config SIBYTE_SB1xxx_SOC
