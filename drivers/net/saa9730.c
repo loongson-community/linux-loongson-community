@@ -51,7 +51,7 @@ int lan_saa9730_debug;
 #define DRV_MODULE_NAME "saa9730"
 
 static struct pci_device_id saa9730_pci_tbl[] = {
-	{ PCI_VENDOR_ID_PHILIPS, PCI_DEVICE_ID_PHILIPS_SAA9370,
+	{ PCI_VENDOR_ID_PHILIPS, PCI_DEVICE_ID_PHILIPS_SAA9730,
           PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0UL },
 	{ 0, }
 };
@@ -274,9 +274,9 @@ static int lan_saa9730_allocate_buffers(struct lan_saa9730_private *lp)
 	 * Set rx buffer A and rx buffer B to point to the first two buffer 
 	 * spaces.
 	 */
-	OUTL(PHYSADDR(lp->RcvBuffer[0][0]),
+	OUTL(CPHYSADDR(lp->RcvBuffer[0][0]),
 	     &lp->lan_saa9730_regs->RxBuffA);
-	OUTL(PHYSADDR(lp->RcvBuffer[1][0]),
+	OUTL(CPHYSADDR(lp->RcvBuffer[1][0]),
 	     &lp->lan_saa9730_regs->RxBuffB);
 
 	/* Initialize Buffer Index */
@@ -293,9 +293,9 @@ static int lan_saa9730_allocate_buffers(struct lan_saa9730_private *lp)
 	 * Set txm_buf_a and txm_buf_b to point to the first two buffer
 	 * space 
 	 */
-	OUTL(PHYSADDR(lp->TxmBuffer[0][0]),
+	OUTL(CPHYSADDR(lp->TxmBuffer[0][0]),
 	     &lp->lan_saa9730_regs->TxBuffA);
-	OUTL(PHYSADDR(lp->TxmBuffer[1][0]),
+	OUTL(CPHYSADDR(lp->TxmBuffer[1][0]),
 	     &lp->lan_saa9730_regs->TxBuffB);
 
 	/* Set packet number */
