@@ -24,6 +24,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/mmu_context.h>
 
 /* CP0 hazard avoidance. */
