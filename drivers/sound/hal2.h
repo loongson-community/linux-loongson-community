@@ -24,6 +24,7 @@
 #include <asm/addrspace.h>
 #include <asm/sgi/sgihpc.h>
 #include <linux/spinlock.h>
+#include <linux/types.h>
 
 #define H2_HAL2_BASE		0x58000
 #define H2_CTL_PIO		(H2_HAL2_BASE + 0 * 0x400)

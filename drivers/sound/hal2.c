@@ -1082,11 +1082,7 @@ static int hal2_ioctl(struct inode *inode, struct file *file,
 		return put_user(val, (int *)arg);
 
 	case SOUND_PCM_READ_BITS:
-		val = -EINVAL;
-		if (file->f_mode & FMODE_READ)
-			val = 2 * 8;
-		if (file->f_mode & FMODE_WRITE)
-			val = 2 * 8;
+		val = 16;
 		return put_user(val, (int *)arg);
 	}
 	
