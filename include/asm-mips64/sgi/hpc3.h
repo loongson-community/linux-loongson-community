@@ -206,7 +206,7 @@ struct hpc3_regs {
 #define HPC3_GIOMISC_ERTIME	0x1	/* Enable external timer real time. */
 #define HPC3_GIOMISC_DENDIAN	0x2	/* dma descriptor endian, 1=lit 0=big */
 
-	volatile u32 eeprom_data;	/* EEPROM data reg. */
+	volatile u32 eeprom;		/* EEPROM data reg. */
 #define HPC3_EEPROM_EPROT	0x01	/* Protect register enable */
 #define HPC3_EEPROM_CSEL	0x02	/* Chip select */
 #define HPC3_EEPROM_ECLK	0x04	/* EEPROM clock */
@@ -298,7 +298,9 @@ struct hpc3_regs {
 #define HPC3_PROM_STAT	0x1	/* General purpose status bit in gout */
 
 	u32 _unused7[0x1000/4 - 1];
-	volatile u32 pbus_promram[16384];	/* 64k of PROM battery backed ram */
+	volatile u32 rtcregs[14];	/* Dallas clock registers */
+	u32 _unused8[50];
+	volatile u32 bbram[8192-50-14];	/* Battery backed ram */
 };
 
 /* 

@@ -71,6 +71,7 @@
 
 #define ip22_is_fullhouse()	(sgioc->sysid & SGIOC_SYSID_FULLHOUSE)
 
-#define IP22_CLOCK_REGS (KSEG1ADDR(0x1fbe0000))
+extern unsigned short ip22_eeprom_read(volatile unsigned int *ctrl, int reg);
+extern unsigned short ip22_nvram_read(int reg);
 
 #endif
