@@ -501,9 +501,15 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 
 /* USB Host Controller */
 // We pass USB_OHCI_BASE to ioremap, so it needs to be a physical address
+#if defined( CONFIG_SOC_AU1550 )
+#define USB_OHCI_BASE             0x14020000
+#define USB_OHCI_LEN              0x00100000
+#define USB_HOST_CONFIG           0xB4027ffc
+#else
 #define USB_OHCI_BASE             0x10100000
 #define USB_OHCI_LEN              0x00100000
 #define USB_HOST_CONFIG           0xB017fffc
+#endif
 
 /* USB Device Controller */
 #define USBD_EP0RD                0xB0200000
