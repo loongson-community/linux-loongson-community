@@ -23,3 +23,15 @@ extern void usema_init(void);
 
 EXPORT_SYMBOL(shmiq_init);
 EXPORT_SYMBOL(usema_init);
+
+extern void disable_gconsole(void);
+extern void enable_gconsole(void);
+extern void remove_mapping (struct task_struct *task, unsigned long start,
+      unsigned long end);
+
+EXPORT_SYMBOL(disable_gconsole);
+EXPORT_SYMBOL(enable_gconsole);
+EXPORT_SYMBOL(remove_mapping);
+
+
+
