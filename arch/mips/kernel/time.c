@@ -18,6 +18,7 @@
 #include <linux/sched.h>
 #include <linux/param.h>
 #include <linux/time.h>
+#include <linux/timex.h>
 #include <linux/smp.h>
 #include <linux/kernel_stat.h>
 #include <linux/spinlock.h>
@@ -160,18 +161,21 @@ void (*mips_hpt_init)(unsigned int);
 void do_gettimeofday(struct timeval *tv)
 {
 	unsigned long seq;
+	unsigned long lost;
 	unsigned long usec, sec;
 
 	do {
 		seq = read_seqbegin(&xtime_lock);
+
 		usec = do_gettimeoffset();
-		{
-			unsigned long lost = jiffies - wall_jiffies;
-			if (lost)
-				usec += lost * (1000000 / HZ);
-		}
+
+		lost = jiffies - wall_jiffies;
+		if (lost)
+			usec += lost * TICK_SIZE;
+
 		sec = xtime.tv_sec;
 		usec += (xtime.tv_nsec / 1000);
+
 	} while (read_seqretry(&xtime_lock, seq));
 
 	while (usec >= 1000000) {
@@ -192,14 +196,15 @@ int do_settimeofday(struct timespec *tv)
 		return -EINVAL;
 
 	write_seqlock_irq(&xtime_lock);
+
 	/*
-	 * This is revolting. We need to set "xtime" correctly. However, the
-	 * value in this location is the value at the most recent update of
-	 * wall time.  Discover what correction gettimeofday() would have
+	 * This is revolting.  We need to set "xtime" correctly.  However,
+	 * the value in this location is the value at the most recent update
+	 * of wall time.  Discover what correction gettimeofday() would have
 	 * made, and then undo it!
 	 */
 	nsec -= do_gettimeoffset() * NSEC_PER_USEC;
-	nsec -= (jiffies - wall_jiffies) * TICK_NSEC;
+	nsec -= (jiffies - wall_jiffies) * tick_nsec;
 
 	wtm_sec  = wall_to_monotonic.tv_sec + (xtime.tv_sec - sec);
 	wtm_nsec = wall_to_monotonic.tv_nsec + (xtime.tv_nsec - nsec);
@@ -207,10 +212,11 @@ int do_settimeofday(struct timespec *tv)
 	set_normalized_timespec(&xtime, sec, nsec);
 	set_normalized_timespec(&wall_to_monotonic, wtm_sec, wtm_nsec);
 
-	time_adjust = 0;		/* stop active adjtime() */
+	time_adjust = 0;			/* stop active adjtime() */
 	time_status |= STA_UNSYNC;
 	time_maxerror = NTP_PHASE_LIMIT;
 	time_esterror = NTP_PHASE_LIMIT;
+
 	write_sequnlock_irq(&xtime_lock);
 
 	return 0;
