@@ -1137,15 +1137,16 @@ static ssize_t snd_ctl_read(struct file *file, char __user *buffer, size_t count
 		kfree(kev);
 		if (copy_to_user(buffer, &ev, sizeof(snd_ctl_event_t))) {
 			err = -EFAULT;
-			goto __end;
+			goto out;
 		}
 		spin_lock_irq(&ctl->read_lock);
 		buffer += sizeof(snd_ctl_event_t);
 		count -= sizeof(snd_ctl_event_t);
 		result += sizeof(snd_ctl_event_t);
 	}
-      __end:
+__end:
 	spin_unlock_irq(&ctl->read_lock);
+out:
       	return result > 0 ? result : err;
 }
 

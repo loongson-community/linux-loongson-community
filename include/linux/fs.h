@@ -1374,6 +1374,8 @@ extern void clear_inode(struct inode *);
 extern void destroy_inode(struct inode *);
 extern struct inode *new_inode(struct super_block *);
 extern int remove_suid(struct dentry *);
+extern void remove_dquot_ref(struct super_block *, int, struct list_head *);
+extern struct semaphore iprune_sem;
 
 extern void __insert_inode_hash(struct inode *, unsigned long hashval);
 extern void remove_inode_hash(struct inode *);
@@ -1521,7 +1523,7 @@ extern int simple_pin_fs(char *name, struct vfsmount **mount, int *count);
 extern void simple_release_fs(struct vfsmount **mount, int *count);
 
 extern int inode_change_ok(struct inode *, struct iattr *);
-extern int inode_setattr(struct inode *, struct iattr *);
+extern int __must_check inode_setattr(struct inode *, struct iattr *);
 
 extern void inode_update_time(struct inode *inode, int ctime_too);
 

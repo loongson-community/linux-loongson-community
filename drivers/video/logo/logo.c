@@ -11,6 +11,7 @@
 
 #include <linux/config.h>
 #include <linux/linux_logo.h>
+#include <linux/stddef.h>
 
 #ifdef CONFIG_M68K
 #include <asm/setup.h>
@@ -35,7 +36,7 @@ extern const struct linux_logo logo_superh_clut224;
 
 const struct linux_logo *fb_find_logo(int depth)
 {
-	const struct linux_logo *logo = 0;
+	const struct linux_logo *logo = NULL;
 
 	if (depth >= 1) {
 #ifdef CONFIG_LOGO_LINUX_MONO

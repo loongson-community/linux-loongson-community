@@ -189,7 +189,7 @@ chrp_init2(void)
  */
 void __init fwnmi_init(void)
 {
-	long ret;
+	int ret;
 	int ibm_nmi_register = rtas_token("ibm,nmi-register");
 	if (ibm_nmi_register == RTAS_UNKNOWN_SERVICE)
 		return;
@@ -242,6 +242,8 @@ chrp_init(unsigned long r3, unsigned long r4, unsigned long r5,
 		ppc_md.init_IRQ       = xics_init_IRQ;
 		ppc_md.get_irq        = xics_get_irq;
 	}
+
+	ppc_md.log_error      = pSeries_log_error;
 
 	ppc_md.init           = chrp_init2;
 

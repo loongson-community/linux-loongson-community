@@ -334,7 +334,7 @@ static char *modem_names[] __devinitdata = {
 	"MODEM", "Modem", "modem", "FAX", "Fax", "fax",
 	"56K", "56k", "K56", "33.6", "28.8", "14.4",
 	"33,600", "28,800", "14,400", "33.600", "28.800", "14.400",
-	"33600", "28800", "14400", "V.90", "V.34", "V.32", 0
+	"33600", "28800", "14400", "V.90", "V.34", "V.32", NULL
 };
 
 static int __devinit check_name(char *name)
@@ -413,7 +413,7 @@ serial_pnp_probe(struct pnp_dev * dev, const struct pnp_device_id *dev_id)
 	       serial_req.port, serial_req.irq, serial_req.io_type);
 #endif
 
-	serial_req.flags = UPF_SKIP_TEST | UPF_AUTOPROBE  | UPF_RESOURCES;
+	serial_req.flags = UPF_SKIP_TEST | UPF_AUTOPROBE;
 	serial_req.baud_base = 115200;
 	line = register_serial(&serial_req);
 

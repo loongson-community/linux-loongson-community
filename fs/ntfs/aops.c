@@ -62,7 +62,8 @@ static void ntfs_end_buffer_async_read(struct buffer_head *bh, int uptodate)
 
 		set_buffer_uptodate(bh);
 
-		file_ofs = (page->index << PAGE_CACHE_SHIFT) + bh_offset(bh);
+		file_ofs = ((s64)page->index << PAGE_CACHE_SHIFT) +
+				bh_offset(bh);
 		/* Check for the current buffer head overflowing. */
 		if (file_ofs + bh->b_size > ni->initialized_size) {
 			char *addr;
@@ -190,7 +191,7 @@ static int ntfs_read_block(struct page *page)
 		return -ENOMEM;
 	}
 
-	iblock = page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
+	iblock = (s64)page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
 	lblock = (ni->allocated_size + blocksize - 1) >> blocksize_bits;
 	zblock = (ni->initialized_size + blocksize - 1) >> blocksize_bits;
 
@@ -204,6 +205,8 @@ static int ntfs_read_block(struct page *page)
 	rl = NULL;
 	nr = i = 0;
 	do {
+		u8 *kaddr;
+
 		if (unlikely(buffer_uptodate(bh)))
 			continue;
 		if (unlikely(buffer_mapped(bh))) {
@@ -279,9 +282,10 @@ handle_hole:
 		bh->b_blocknr = -1UL;
 		clear_buffer_mapped(bh);
 handle_zblock:
-		memset(kmap(page) + i * blocksize, 0, blocksize);
+		kaddr = kmap_atomic(page, KM_USER0);
+		memset(kaddr + i * blocksize, 0, blocksize);
 		flush_dcache_page(page);
-		kunmap(page);
+		kunmap_atomic(kaddr, KM_USER0);
 		set_buffer_uptodate(bh);
 	} while (i++, iblock++, (bh = bh->b_this_page) != head);
 
@@ -343,7 +347,7 @@ int ntfs_readpage(struct file *file, struct page *page)
 {
 	s64 attr_pos;
 	ntfs_inode *ni, *base_ni;
-	char *addr;
+	u8 *kaddr;
 	attr_search_context *ctx;
 	MFT_RECORD *mrec;
 	u32 attr_len;
@@ -362,6 +366,7 @@ int ntfs_readpage(struct file *file, struct page *page)
 
 	ni = NTFS_I(page->mapping->host);
 
+	/* NInoNonResident() == NInoIndexAllocPresent() */
 	if (NInoNonResident(ni)) {
 		/*
 		 * Only unnamed $DATA attributes can be compressed or
@@ -398,7 +403,7 @@ int ntfs_readpage(struct file *file, struct page *page)
 		goto unm_err_out;
 	}
 	if (unlikely(!lookup_attr(ni->type, ni->name, ni->name_len,
-			IGNORE_CASE, 0, NULL, 0, ctx))) {
+			CASE_SENSITIVE, 0, NULL, 0, ctx))) {
 		err = -ENOENT;
 		goto put_unm_err_out;
 	}
@@ -409,22 +414,22 @@ int ntfs_readpage(struct file *file, struct page *page)
 	/* The total length of the attribute value. */
 	attr_len = le32_to_cpu(ctx->attr->data.resident.value_length);
 
-	addr = kmap(page);
+	kaddr = kmap_atomic(page, KM_USER0);
 	/* Copy over in bounds data, zeroing the remainder of the page. */
 	if (attr_pos < attr_len) {
 		u32 bytes = attr_len - attr_pos;
 		if (bytes > PAGE_CACHE_SIZE)
 			bytes = PAGE_CACHE_SIZE;
 		else if (bytes < PAGE_CACHE_SIZE)
-			memset(addr + bytes, 0, PAGE_CACHE_SIZE - bytes);
+			memset(kaddr + bytes, 0, PAGE_CACHE_SIZE - bytes);
 		/* Copy the data to the page. */
-		memcpy(addr, attr_pos + (char*)ctx->attr +
+		memcpy(kaddr, attr_pos + (char*)ctx->attr +
 				le16_to_cpu(
 				ctx->attr->data.resident.value_offset), bytes);
 	} else
-		memset(addr, 0, PAGE_CACHE_SIZE);
+		memset(kaddr, 0, PAGE_CACHE_SIZE);
 	flush_dcache_page(page);
-	kunmap(page);
+	kunmap_atomic(kaddr, KM_USER0);
 
 	SetPageUptodate(page);
 put_unm_err_out:
@@ -440,6 +445,7 @@ err_out:
 
 /**
  * ntfs_write_block - write a @page to the backing store
+ * @wbc:	writeback control structure
  * @page:	page cache page to write out
  *
  * This function is for writing pages belonging to non-resident, non-mst
@@ -508,7 +514,7 @@ static int ntfs_write_block(struct writeback_control *wbc, struct page *page)
 	/* NOTE: Different naming scheme to ntfs_read_block()! */
 
 	/* The first block in the page. */
-	block = page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
+	block = (s64)page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
 
 	/* The first out of bounds block for the data size. */
 	dblock = (vi->i_size + blocksize - 1) >> blocksize_bits;
@@ -767,9 +773,240 @@ lock_retry_remap:
 	return err;
 }
 
+static const char *ntfs_please_email = "Please email "
+		"linux-ntfs-dev@lists.sourceforge.net and say that you saw "
+		"this message.  Thank you.";
+
+/**
+ * ntfs_write_mst_block - write a @page to the backing store
+ * @wbc:	writeback control structure
+ * @page:	page cache page to write out
+ *
+ * This function is for writing pages belonging to non-resident, mst protected
+ * attributes to their backing store.  The only supported attribute is the
+ * index allocation attribute.  Both directory inodes and index inodes are
+ * supported.
+ *
+ * The page must remain locked for the duration of the write because we apply
+ * the mst fixups, write, and then undo the fixups, so if we were to unlock the
+ * page before undoing the fixups, any other user of the page will see the
+ * page contents as corrupt.
+ *
+ * Return 0 on success and -errno on error.
+ *
+ * Based on ntfs_write_block(), ntfs_mft_writepage(), and
+ * write_mft_record_nolock().
+ */
+static int ntfs_write_mst_block(struct writeback_control *wbc,
+		struct page *page)
+{
+	sector_t block, dblock, rec_block;
+	struct inode *vi = page->mapping->host;
+	ntfs_inode *ni = NTFS_I(vi);
+	ntfs_volume *vol = ni->vol;
+	u8 *kaddr;
+	unsigned int bh_size = 1 << vi->i_blkbits;
+	unsigned int rec_size;
+	struct buffer_head *bh, *head;
+	int max_bhs = PAGE_CACHE_SIZE / bh_size;
+	struct buffer_head *bhs[max_bhs];
+	int i, nr_recs, nr_bhs, bhs_per_rec, err;
+	unsigned char bh_size_bits;
+	BOOL rec_is_dirty;
+
+	ntfs_debug("Entering for inode 0x%lx, attribute type 0x%x, page index "
+			"0x%lx.", vi->i_ino, ni->type, page->index);
+	BUG_ON(!NInoNonResident(ni));
+	BUG_ON(!NInoMstProtected(ni));
+	BUG_ON(!(S_ISDIR(vi->i_mode) ||
+			(NInoAttr(ni) && ni->type == AT_INDEX_ALLOCATION)));
+	BUG_ON(PageWriteback(page));
+	BUG_ON(!PageUptodate(page));
+	BUG_ON(!max_bhs);
+
+	/* Make sure we have mapped buffers. */
+	if (unlikely(!page_has_buffers(page))) {
+no_buffers_err_out:
+		ntfs_error(vol->sb, "Writing ntfs records without existing "
+				"buffers is not implemented yet.  %s",
+				ntfs_please_email);
+		err = -EOPNOTSUPP;
+		goto err_out;
+	}
+	bh = head = page_buffers(page);
+	if (unlikely(!bh))
+		goto no_buffers_err_out;
+
+	bh_size_bits = vi->i_blkbits;
+	rec_size = ni->itype.index.block_size;
+	nr_recs = PAGE_CACHE_SIZE / rec_size;
+	BUG_ON(!nr_recs);
+	bhs_per_rec = rec_size >> bh_size_bits;
+	BUG_ON(!bhs_per_rec);
+
+	/* The first block in the page. */
+	rec_block = block = (s64)page->index <<
+			(PAGE_CACHE_SHIFT - bh_size_bits);
+
+	/* The first out of bounds block for the data size. */
+	dblock = (vi->i_size + bh_size - 1) >> bh_size_bits;
+
+	err = nr_bhs = 0;
+	/* Need this to silence a stupid gcc warning. */
+	rec_is_dirty = FALSE;
+	do {
+		if (unlikely(block >= dblock)) {
+			/*
+			 * Mapped buffers outside i_size will occur, because
+			 * this page can be outside i_size when there is a
+			 * truncate in progress. The contents of such buffers
+			 * were zeroed by ntfs_writepage().
+			 *
+			 * FIXME: What about the small race window where
+			 * ntfs_writepage() has not done any clearing because
+			 * the page was within i_size but before we get here,
+			 * vmtruncate() modifies i_size?
+			 */
+			clear_buffer_dirty(bh);
+			continue;
+		}
+		if (rec_block == block) {
+			/* This block is the first one in the record. */
+			rec_block += rec_size >> bh_size_bits;
+			if (!buffer_dirty(bh)) {
+				/* Clean buffers are not written out. */
+				rec_is_dirty = FALSE;
+				continue;
+			}
+			rec_is_dirty = TRUE;
+		} else {
+			/* This block is not the first one in the record. */
+			if (!buffer_dirty(bh)) {
+				/* Clean buffers are not written out. */
+				BUG_ON(rec_is_dirty);
+				continue;
+			}
+			BUG_ON(!rec_is_dirty);
+		}
+		/* Attempting to write outside the initialized size is a bug. */
+		BUG_ON(((block + 1) << bh_size_bits) > ni->initialized_size);
+		if (!buffer_mapped(bh)) {
+			ntfs_error(vol->sb, "Writing ntfs records without "
+					"existing mapped buffers is not "
+					"implemented yet.  %s",
+					ntfs_please_email);
+			clear_buffer_dirty(bh);
+			err = -EOPNOTSUPP;
+			goto cleanup_out;
+		}
+		if (!buffer_uptodate(bh)) {
+			ntfs_error(vol->sb, "Writing ntfs records without "
+					"existing uptodate buffers is not "
+					"implemented yet.  %s",
+					ntfs_please_email);
+			clear_buffer_dirty(bh);
+			err = -EOPNOTSUPP;
+			goto cleanup_out;
+		}
+		bhs[nr_bhs++] = bh;
+		BUG_ON(nr_bhs > max_bhs);
+	} while (block++, (bh = bh->b_this_page) != head);
+	/* If there were no dirty buffers, we are done. */
+	if (!nr_bhs)
+		goto done;
+	/* Apply the mst protection fixups. */
+	kaddr = page_address(page);
+	for (i = 0; i < nr_bhs; i++) {
+		if (!(i % bhs_per_rec)) {
+			err = pre_write_mst_fixup((NTFS_RECORD*)(kaddr +
+					bh_offset(bhs[i])), rec_size);
+			if (err) {
+				ntfs_error(vol->sb, "Failed to apply mst "
+						"fixups (inode 0x%lx, "
+						"attribute type 0x%x, page "
+						"index 0x%lx)!  Umount and "
+						"run chkdsk.", vi->i_ino,
+						ni->type,
+				page->index);
+				nr_bhs = i;
+				goto mst_cleanup_out;
+			}
+		}
+	}
+	flush_dcache_page(page);
+	/* Lock buffers and start synchronous write i/o on them. */
+	for (i = 0; i < nr_bhs; i++) {
+		struct buffer_head *tbh = bhs[i];
+
+		if (unlikely(test_set_buffer_locked(tbh)))
+			BUG();
+		if (unlikely(!test_clear_buffer_dirty(tbh))) {
+			unlock_buffer(tbh);
+			continue;
+		}
+		BUG_ON(!buffer_uptodate(tbh));
+		BUG_ON(!buffer_mapped(tbh));
+		get_bh(tbh);
+		tbh->b_end_io = end_buffer_write_sync;
+		submit_bh(WRITE, tbh);
+	}
+	/* Wait on i/o completion of buffers. */
+	for (i = 0; i < nr_bhs; i++) {
+		struct buffer_head *tbh = bhs[i];
+
+		wait_on_buffer(tbh);
+		if (unlikely(!buffer_uptodate(tbh))) {
+			err = -EIO;
+			/*
+			 * Set the buffer uptodate so the page & buffer states
+			 * don't become out of sync.
+			 */
+			if (PageUptodate(page))
+				set_buffer_uptodate(tbh);
+		}
+	}
+	/* Remove the mst protection fixups again. */
+	for (i = 0; i < nr_bhs; i++) {
+		if (!(i % bhs_per_rec))
+			post_write_mst_fixup((NTFS_RECORD*)(kaddr +
+					bh_offset(bhs[i])));
+	}
+	flush_dcache_page(page);
+	if (unlikely(err)) {
+		/* I/O error during writing.  This is really bad! */
+		ntfs_error(vol->sb, "I/O error while writing ntfs record "
+				"(inode 0x%lx, attribute type 0x%x, page "
+				"index 0x%lx)!  Umount and run chkdsk.",
+				vi->i_ino, ni->type, page->index);
+		goto err_out;
+	}
+done:
+	set_page_writeback(page);
+	unlock_page(page);
+	end_page_writeback(page);
+	if (!err)
+		ntfs_debug("Done.");
+	return err;
+mst_cleanup_out:
+	/* Remove the mst protection fixups again. */
+	for (i = 0; i < nr_bhs; i++) {
+		if (!(i % bhs_per_rec))
+			post_write_mst_fixup((NTFS_RECORD*)(kaddr +
+					bh_offset(bhs[i])));
+	}
+cleanup_out:
+	/* Clean the buffers. */
+	for (i = 0; i < nr_bhs; i++)
+		clear_buffer_dirty(bhs[i]);
+err_out:
+	SetPageError(page);
+	goto done;
+}
+
 /**
  * ntfs_writepage - write a @page to the backing store
  * @page:	page cache page to write out
+ * @wbc:	writeback control structure
  *
  * For non-resident attributes, ntfs_writepage() writes the @page by calling
  * the ntfs version of the generic block_write_full_page() function,
@@ -812,6 +1049,7 @@ static int ntfs_writepage(struct page *page, struct writeback_control *wbc)
 
 	ni = NTFS_I(vi);
 
+	/* NInoNonResident() == NInoIndexAllocPresent() */
 	if (NInoNonResident(ni)) {
 		/*
 		 * Only unnamed $DATA attributes can be compressed, encrypted,
@@ -843,7 +1081,6 @@ static int ntfs_writepage(struct page *page, struct writeback_control *wbc)
 				return -EOPNOTSUPP;
 			}
 		}
-
 		/* We have to zero every time due to mmap-at-end-of-file. */
 		if (page->index >= (vi->i_size >> PAGE_CACHE_SHIFT)) {
 			/* The page straddles i_size. */
@@ -853,16 +1090,9 @@ static int ntfs_writepage(struct page *page, struct writeback_control *wbc)
 			flush_dcache_page(page);
 			kunmap_atomic(kaddr, KM_USER0);
 		}
-
-		// TODO: Implement and remove this check.
-		if (NInoMstProtected(ni)) {
-			unlock_page(page);
-			ntfs_error(vi->i_sb, "Writing to MST protected "
-					"attributes is not supported yet. "
-					"Sorry.");
-			return -EOPNOTSUPP;
-		}
-
+		/* Handle mst protected attributes. */
+		if (NInoMstProtected(ni))
+			return ntfs_write_mst_block(wbc, page);
 		/* Normal data stream. */
 		return ntfs_write_block(wbc, page);
 	}
@@ -893,7 +1123,7 @@ static int ntfs_writepage(struct page *page, struct writeback_control *wbc)
 		goto err_out;
 	}
 	if (unlikely(!lookup_attr(ni->type, ni->name, ni->name_len,
-			IGNORE_CASE, 0, NULL, 0, ctx))) {
+			CASE_SENSITIVE, 0, NULL, 0, ctx))) {
 		err = -ENOENT;
 		goto err_out;
 	}
@@ -1042,7 +1272,7 @@ static int ntfs_prepare_nonresident_write(struct page *page,
 		return -ENOMEM;
 
 	/* The first block in the page. */
-	block = page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
+	block = (s64)page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
 
 	/*
 	 * The first out of bounds block for the allocated size. No need to
@@ -1667,7 +1897,7 @@ static int ntfs_commit_write(struct file *file, struct page *page,
 		goto err_out;
 	}
 	if (unlikely(!lookup_attr(ni->type, ni->name, ni->name_len,
-			IGNORE_CASE, 0, NULL, 0, ctx))) {
+			CASE_SENSITIVE, 0, NULL, 0, ctx))) {
 		err = -ENOENT;
 		goto err_out;
 	}
@@ -1783,7 +2013,7 @@ struct address_space_operations ntfs_aops = {
 	.prepare_write	= ntfs_prepare_write,	/* Prepare page and buffers
 						   ready to receive data. */
 	.commit_write	= ntfs_commit_write,	/* Commit received data. */
-#endif
+#endif /* NTFS_RW */
 };
 
 /**
@@ -1794,4 +2024,10 @@ struct address_space_operations ntfs_mst_aops = {
 	.readpage	= ntfs_readpage,	/* Fill page with data. */
 	.sync_page	= block_sync_page,	/* Currently, just unplugs the
 						   disk request queue. */
+#ifdef NTFS_RW
+	.writepage	= ntfs_writepage,	/* Write dirty page to disk. */
+	.set_page_dirty	= __set_page_dirty_nobuffers,	/* Set the page dirty
+						   without touching the buffers
+						   belonging to the page. */
+#endif /* NTFS_RW */
 };

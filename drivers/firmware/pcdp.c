@@ -13,6 +13,7 @@
 #include <linux/tty.h>
 #include <linux/serial.h>
 #include <linux/serial_core.h>
+#include <asm/io.h>
 #include <asm/serial.h>
 #include "pcdp.h"
 
@@ -89,7 +90,7 @@ setup_serial_console(int rev, struct pcdp_uart *uart)
 		default:  port.type = PORT_UNKNOWN; break;
 	}
 
-	port.flags = UPF_SKIP_TEST | UPF_BOOT_AUTOCONF | UPF_RESOURCES;
+	port.flags = UPF_SKIP_TEST | UPF_BOOT_AUTOCONF;
 
 	if (uart_irq_supported(rev, uart)) {
 		port.irq = acpi_register_gsi(uart->gsi,

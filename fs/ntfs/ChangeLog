@@ -1,15 +1,6 @@
 ToDo/Notes:
 	- Find and fix bugs.
-	- Either invalidate quotas or update the quota charges on NTFS 3.x
-	  volumes with quota tracking enabled ($Quota).
 	- Checkpoint or disable the user space journal ($UsnJrnl).
-	- Implement aops->set_page_dirty() in order to take control of buffer
-	  dirtying. Not having it means if page_has_buffers(), all buffers
-	  will be dirtied with the page. And if not they won't be. That is
-	  fine for the moment but will break once we enable metadata updates.
-	  For now just always using __set_page_dirty_nobuffers() for metadata
-	  pages as nothing can dirty a page other than ourselves. Should this
-	  change, we will really need to roll our own ->set_page_dirty().
 	- Implement sops->dirty_inode() to implement {a,m,c}time updates and
 	  such things.  This should probably just flag the ntfs inode such that
 	  sops->write_inode(), i.e. ntfs_write_inode(), will copy the times
@@ -34,6 +25,67 @@ ToDo/Notes:
 	  the problem.
 	- Enable the code for setting the NT4 compatibility flag when we start
 	  making NTFS 1.2 specific modifications.
+
+2.1.15 - Invalidate quotas when (re)mounting read-write.
+
+	- Add new element itype.index.collation_rule to the ntfs inode
+	  structure and set it appropriately in ntfs_read_locked_inode().
+	- Implement a new inode type "index" to allow efficient access to the
+	  indices found in various system files and adapt inode handling
+	  accordingly (fs/ntfs/inode.[hc]).  An index inode is essentially an
+	  attribute inode (NInoAttr() is true) with an attribute type of
+	  AT_INDEX_ALLOCATION.  As such, it is no longer allowed to call
+	  ntfs_attr_iget() with an attribute type of AT_INDEX_ALLOCATION as
+	  there would be no way to distinguish between normal attribute inodes
+	  and index inodes.  The function to obtain an index inode is
+	  ntfs_index_iget() and it uses the helper function
+	  ntfs_read_locked_index_inode().  Note, we do not overload
+	  ntfs_attr_iget() as indices consist of multiple attributes so using
+	  ntfs_attr_iget() to obtain an index inode would be confusing.
+	- Ensure that there is no overflow when doing page->index <<
+	  PAGE_CACHE_SHIFT by casting page->index to s64 in fs/ntfs/aops.c.
+	- Use atomic kmap instead of kmap() in fs/ntfs/aops.c::ntfs_read_page()
+	  and ntfs_read_block().
+	- Use case sensitive attribute lookups instead of case insensitive ones.
+	- Lock all page cache pages belonging to mst protected attributes while
+	  accessing them to ensure we never see corrupt data while the page is
+	  under writeout.
+	- Add framework for generic ntfs collation (fs/ntfs/collation.[hc]).
+	  We have ntfs_is_collation_rule_supported() to check if the collation
+	  rule you want to use is supported and ntfs_collation() which actually
+	  collates two data items.  We currently only support COLLATION_BINARY
+	  and COLLATION_NTOFS_ULONG but support for other collation rules will
+	  be added as the need arises.
+	- Add a new type, ntfs_index_context, to allow retrieval of an index
+	  entry using the corresponding index key.  To get an index context,
+	  use ntfs_index_ctx_get() and to release it, use ntfs_index_ctx_put().
+	  This also adds a new slab cache for the index contexts.  To lookup a
+	  key in an index inode, use ntfs_index_lookup().  After modifying an
+	  index entry, call ntfs_index_entry_flush_dcache_page() followed by
+	  ntfs_index_entry_mark_dirty() to ensure the changes are written out
+	  to disk.  For details see fs/ntfs/index.[hc].  Note, at present, if
+	  an index entry is in the index allocation attribute rather than the
+	  index root attribute it will not be written out (you will get a
+	  warning message about discarded changes instead).
+	- Load the quota file ($Quota) and check if quota tracking is enabled
+	  and if so, mark the quotas out of date.  This causes windows to
+	  rescan the volume on boot and update all quota entries.
+	- Add a set_page_dirty address space operation for ntfs_m[fs]t_aops.
+	  It is simply set to __set_page_dirty_nobuffers() to make sure that
+	  running set_page_dirty() on a page containing mft/ntfs records will
+	  not affect the dirty state of the page buffers.
+	- Add fs/ntfs/index.c::__ntfs_index_entry_mark_dirty() which sets all
+	  buffers that are inside the ntfs record in the page dirty after which
+	  it sets the page dirty.  This allows ->writepage to only write the
+	  dirty index records rather than having to write all the records in
+	  the page.  Modify fs/ntfs/index.h::ntfs_index_entry_mark_dirty() to
+	  use this rather than __set_page_dirty_nobuffers().
+	- Implement fs/ntfs/aops.c::ntfs_write_mst_block() which enables the
+	  writing of page cache pages belonging to mst protected attributes
+	  like the index allocation attribute in directory indices and other
+	  indices like $Quota/$Q, etc.  This means that the quota is now marked
+	  out of date on all volumes rather than only on ones where the quota
+	  defaults entry is in the index root attribute of the $Quota/$Q index.
 
 2.1.14 - Fix an NFSd caused deadlock reported by several users.
 

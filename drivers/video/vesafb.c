@@ -52,7 +52,7 @@ static int             mtrr      = 1;
 static int	       vram __initdata = 0; /* Set amount of memory to be used */
 static int             pmi_setpal = 0;	/* pmi for palette changes ??? */
 static int             ypan       = 0;  /* 0..nothing, 1..ypan, 2..ywrap */
-static unsigned short  *pmi_base  = 0;
+static unsigned short  *pmi_base  = NULL;
 static void            (*pmi_start)(void);
 static void            (*pmi_pal)(void);
 
@@ -378,7 +378,8 @@ static int __init vesafb_probe(struct device *device)
 	info->fbops = &vesafb_ops;
 	info->var = vesafb_defined;
 	info->fix = vesafb_fix;
-	info->flags = FBINFO_FLAG_DEFAULT;
+	info->flags = FBINFO_FLAG_DEFAULT |
+		(ypan) ? FBINFO_HWACCEL_YPAN : 0;
 
 	if (fb_alloc_cmap(&info->cmap, 256, 0) < 0) {
 		err = -ENXIO;

@@ -459,21 +459,21 @@ typedef enum {
  *	equal then the second u32 values would be compared, etc.
  */
 typedef enum {
-	COLLATION_BINARY	 = const_cpu_to_le32(0), /* Collate by binary
-					compare where the first byte is most
-					significant. */
-	COLLATION_FILE_NAME	 = const_cpu_to_le32(1), /* Collate file names
-					as Unicode strings. */
-	COLLATION_UNICODE_STRING = const_cpu_to_le32(2), /* Collate Unicode
+	COLLATION_BINARY	 = const_cpu_to_le32(0x00), /* Collate by
+					binary compare where the first byte is
+					most significant. */
+	COLLATION_FILE_NAME	 = const_cpu_to_le32(0x01), /* Collate file
+					names as Unicode strings. */
+	COLLATION_UNICODE_STRING = const_cpu_to_le32(0x02), /* Collate Unicode
 					strings by comparing their binary
 					Unicode values, except that when a
 					character can be uppercased, the upper
 					case value collates before the lower
 					case one. */
-	COLLATION_NTOFS_ULONG		= const_cpu_to_le32(16),
-	COLLATION_NTOFS_SID		= const_cpu_to_le32(17),
-	COLLATION_NTOFS_SECURITY_HASH	= const_cpu_to_le32(18),
-	COLLATION_NTOFS_ULONGS		= const_cpu_to_le32(19),
+	COLLATION_NTOFS_ULONG		= const_cpu_to_le32(0x10),
+	COLLATION_NTOFS_SID		= const_cpu_to_le32(0x11),
+	COLLATION_NTOFS_SECURITY_HASH	= const_cpu_to_le32(0x12),
+	COLLATION_NTOFS_ULONGS		= const_cpu_to_le32(0x13),
 } COLLATION_RULES;
 
 /*
@@ -2019,8 +2019,9 @@ typedef struct {
 	s64 limit;		/* Hard quota (-1 if not limited). */
 	s64 exceeded_time;	/* How long the soft quota has been exceeded. */
 	SID sid;		/* The SID of the user/object associated with
-				   this quota entry. Equals zero for the quota
-				   defaults entry. */
+				   this quota entry.  Equals zero for the quota
+				   defaults entry (and in fact on a WinXP
+				   volume, it is not present at all). */
 } __attribute__ ((__packed__)) QUOTA_CONTROL_ENTRY;
 
 /*
@@ -2033,17 +2034,26 @@ typedef enum {
 } PREDEFINED_OWNER_IDS;
 
 /*
+ * Current constants for quota control entries.
+ */
+typedef enum {
+	/* Current version. */
+	QUOTA_VERSION	= 2,
+} QUOTA_CONTROL_ENTRY_CONSTANTS;
+
+/*
  * Index entry flags (16-bit).
  */
 typedef enum {
-	INDEX_ENTRY_NODE = const_cpu_to_le16(1), /* This entry contains a sub-node,
-					      i.e. a reference to an index
-					      block in form of a virtual
+	INDEX_ENTRY_NODE = const_cpu_to_le16(1), /* This entry contains a
+					      sub-node, i.e. a reference to an
+					      index block in form of a virtual
 					      cluster number (see below). */
-	INDEX_ENTRY_END  = const_cpu_to_le16(2), /* This signifies the last entry in
-					      an index block. The index entry
-					      does not represent a file but it
-					      can point to a sub-node. */
+	INDEX_ENTRY_END  = const_cpu_to_le16(2), /* This signifies the last
+					      entry in an index block.  The
+					      index entry does not represent a
+					      file but it can point to a
+					      sub-node. */
 	INDEX_ENTRY_SPACE_FILLER = 0xffff, /* Just to force 16-bit width. */
 } __attribute__ ((__packed__)) INDEX_ENTRY_FLAGS;
 

@@ -183,7 +183,14 @@ static int __init ic_open_devs(void)
 
 	last = &ic_first_dev;
 	rtnl_shlock();
+
+	/* bring loopback device up first */
+	if (dev_change_flags(&loopback_dev, loopback_dev.flags | IFF_UP) < 0)
+		printk(KERN_ERR "IP-Config: Failed to open %s\n", loopback_dev.name);
+
 	for (dev = dev_base; dev; dev = dev->next) {
+		if (dev == &loopback_dev)
+			continue;
 		if (user_dev_name[0] ? !strcmp(dev->name, user_dev_name) :
 		    (!(dev->flags & IFF_LOOPBACK) &&
 		     (dev->flags & (IFF_POINTOPOINT|IFF_BROADCAST)) &&
@@ -818,7 +825,7 @@ static int __init ic_bootp_recv(struct sk_buff *skb, struct net_device *dev, str
 	struct bootp_pkt *b;
 	struct iphdr *h;
 	struct ic_device *d;
-	int len;
+	int len, ext_len;
 
 	/* Perform verifications before taking the lock.  */
 	if (skb->pkt_type == PACKET_OTHERHOST)
@@ -859,7 +866,11 @@ static int __init ic_bootp_recv(struct sk_buff *skb, struct net_device *dev, str
 		goto drop;
 
 	len = ntohs(b->udph.len) - sizeof(struct udphdr);
-	if (len < 300)
+	ext_len = len - (sizeof(*b) -
+			 sizeof(struct iphdr) -
+			 sizeof(struct udphdr) -
+			 sizeof(b->exten));
+	if (ext_len < 0)
 		goto drop;
 
 	/* Ok the front looks good, make sure we can get at the rest.  */
@@ -894,7 +905,8 @@ static int __init ic_bootp_recv(struct sk_buff *skb, struct net_device *dev, str
 	}
 
 	/* Parse extensions */
-	if (!memcmp(b->exten, ic_bootp_cookie, 4)) { /* Check magic cookie */
+	if (ext_len >= 4 &&
+	    !memcmp(b->exten, ic_bootp_cookie, 4)) { /* Check magic cookie */
                 u8 *end = (u8 *) b + ntohs(b->iph.tot_len);
 		u8 *ext;
 

@@ -437,7 +437,7 @@ static int __init noexec_setup(char *str)
 __setup("noexec=", noexec_setup);
 
 #ifdef CONFIG_X86_PAE
-static int use_nx = 0;
+int nx_enabled = 0;
 
 static void __init set_nx(void)
 {
@@ -449,10 +449,37 @@ static void __init set_nx(void)
 			rdmsr(MSR_EFER, l, h);
 			l |= EFER_NX;
 			wrmsr(MSR_EFER, l, h);
-			use_nx = 1;
+			nx_enabled = 1;
 			__supported_pte_mask |= _PAGE_NX;
 		}
 	}
+}
+
+/*
+ * Enables/disables executability of a given kernel page and
+ * returns the previous setting.
+ */
+int __init set_kernel_exec(unsigned long vaddr, int enable)
+{
+	pte_t *pte;
+	int ret = 1;
+
+	if (!nx_enabled)
+		goto out;
+
+	pte = lookup_address(vaddr);
+	BUG_ON(!pte);
+
+	if (!pte_exec_kernel(*pte))
+		ret = 0;
+
+	if (enable)
+		pte->pte_high &= ~(1 << (_PAGE_BIT_NX - 32));
+	else
+		pte->pte_high |= 1 << (_PAGE_BIT_NX - 32);
+	__flush_tlb_all();
+out:
+	return ret;
 }
 
 #endif
@@ -468,7 +495,7 @@ void __init paging_init(void)
 {
 #ifdef CONFIG_X86_PAE
 	set_nx();
-	if (use_nx)
+	if (nx_enabled)
 		printk("NX (Execute Disable) protection: active\n");
 #endif
 

@@ -43,19 +43,15 @@ void pgd_dtor(void *, kmem_cache_t *, unsigned long);
 void pgtable_cache_init(void);
 void paging_init(void);
 
-#endif /* !__ASSEMBLY__ */
-
 /*
  * The Linux x86 paging architecture is 'compile-time dual-mode', it
  * implements both the traditional 2-level x86 page tables and the
  * newer 3-level PAE-mode page tables.
  */
-#ifndef __ASSEMBLY__
 #ifdef CONFIG_X86_PAE
-# include <asm/pgtable-3level.h>
+# include <asm/pgtable-3level-defs.h>
 #else
-# include <asm/pgtable-2level.h>
-#endif
+# include <asm/pgtable-2level-defs.h>
 #endif
 
 #define PMD_SIZE	(1UL << PMD_SHIFT)
@@ -73,8 +69,6 @@ void paging_init(void);
 #define BOOT_USER_PGD_PTRS (__PAGE_OFFSET >> TWOLEVEL_PGDIR_SHIFT)
 #define BOOT_KERNEL_PGD_PTRS (1024-BOOT_USER_PGD_PTRS)
 
-
-#ifndef __ASSEMBLY__
 /* Just any arbitrary offset to the start of the vmalloc VM area: the
  * current 8MB value just means that there will be a 8MB "hole" after the
  * physical memory until the kernel virtual memory starts.  That means that
@@ -223,7 +217,6 @@ extern unsigned long pg0[];
  */
 static inline int pte_user(pte_t pte)		{ return (pte).pte_low & _PAGE_USER; }
 static inline int pte_read(pte_t pte)		{ return (pte).pte_low & _PAGE_USER; }
-static inline int pte_exec(pte_t pte)		{ return (pte).pte_low & _PAGE_USER; }
 static inline int pte_dirty(pte_t pte)		{ return (pte).pte_low & _PAGE_DIRTY; }
 static inline int pte_young(pte_t pte)		{ return (pte).pte_low & _PAGE_ACCESSED; }
 static inline int pte_write(pte_t pte)		{ return (pte).pte_low & _PAGE_RW; }
@@ -243,6 +236,12 @@ static inline pte_t pte_mkexec(pte_t pte)	{ (pte).pte_low |= _PAGE_USER; return 
 static inline pte_t pte_mkdirty(pte_t pte)	{ (pte).pte_low |= _PAGE_DIRTY; return pte; }
 static inline pte_t pte_mkyoung(pte_t pte)	{ (pte).pte_low |= _PAGE_ACCESSED; return pte; }
 static inline pte_t pte_mkwrite(pte_t pte)	{ (pte).pte_low |= _PAGE_RW; return pte; }
+
+#ifdef CONFIG_X86_PAE
+# include <asm/pgtable-3level.h>
+#else
+# include <asm/pgtable-2level.h>
+#endif
 
 static inline int ptep_test_and_clear_dirty(pte_t *ptep)
 {
@@ -285,7 +284,7 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	 * Chop off the NX bit (if present), and add the NX portion of
 	 * the newprot (if present):
 	 */
-	pte.pte_high &= -1 ^ (1 << (_PAGE_BIT_NX - 32));
+	pte.pte_high &= ~(1 << (_PAGE_BIT_NX - 32));
 	pte.pte_high |= (pgprot_val(newprot) >> 32) & \
 					(__supported_pte_mask >> 32);
 #endif
@@ -343,6 +342,26 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 		(((address) >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
 #define pte_offset_kernel(dir, address) \
 	((pte_t *) pmd_page_kernel(*(dir)) +  pte_index(address))
+
+/*
+ * Helper function that returns the kernel pagetable entry controlling
+ * the virtual address 'address'. NULL means no pagetable entry present.
+ * NOTE: the return type is pte_t but if the pmd is PSE then we return it
+ * as a pte too.
+ */
+extern pte_t *lookup_address(unsigned long address);
+
+/*
+ * Make a given kernel text page executable/non-executable.
+ * Returns the previous executability setting of that page (which
+ * is used to restore the previous state). Used by the SMP bootup code.
+ * NOTE: this is an __init function for security reasons.
+ */
+#ifdef CONFIG_X86_PAE
+ extern int set_kernel_exec(unsigned long vaddr, int enable);
+#else
+ static inline int set_kernel_exec(unsigned long vaddr, int enable) { return 0;}
+#endif
 
 #if defined(CONFIG_HIGHPTE)
 #define pte_offset_map(dir, address) \
