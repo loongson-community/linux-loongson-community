@@ -425,8 +425,8 @@ static inline void bootmem_init(void)
 		if (CPHYSADDR(initrd_end) > PFN_PHYS(max_low_pfn)) {
 			printk("initrd extends beyond end of memory "
 			       "(0x%0*Lx > 0x%0*Lx)\ndisabling initrd\n",
-			       sizeof(long) * 2, CPHYSADDR(initrd_end),
-			       sizeof(long) * 2, PFN_PHYS(max_low_pfn));
+			       sizeof(long) * 2, (unsigned long long) CPHYSADDR(initrd_end),
+			       sizeof(long) * 2, (unsigned long long) PFN_PHYS(max_low_pfn));
 			initrd_start = initrd_end = 0;
 			initrd_reserve_bootmem = 0;
 		}
