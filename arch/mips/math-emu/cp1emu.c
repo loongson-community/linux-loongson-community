@@ -200,7 +200,7 @@ static int cop1Emulate(struct pt_regs *xcp, struct mips_fpu_soft_struct *ctx)
 	vaddr_t emulpc, contpc;
 	unsigned int cond;
 
-	if (get_user(ir, (mips_instruction *) REG_TO_VA xcp->cp0_epc)) {
+	if (get_user(ir, (mips_instruction *) xcp->cp0_epc)) {
 		fpuemuprivate.stats.errors++;
 		return SIGBUS;
 	}
@@ -1284,21 +1284,14 @@ int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp,
 	struct mips_fpu_soft_struct *ctx)
 {
 	gpreg_t oldepc, prevepc;
-	mips_instruction insn, *insnp;
+	mips_instruction insn;
 	int sig = 0;
 
 	oldepc = xcp->cp0_epc;
 	do {
 		prevepc = xcp->cp0_epc;
 
-		/*
-		 * This is a braindead way to do it but the only sane way I
-		 * found to keep the 64-bit egcs 1.1.2 from crashing.
-		 */
-		insnp = (mips_instruction *) REG_TO_VA xcp->cp0_epc;
-
-		if (verify_area(VERIFY_READ, insnp, 4) ||
-			__get_user(insn, insnp)) {
+		if (get_user(insn, (mips_instruction *) xcp->cp0_epc)) {
 			fpuemuprivate.stats.errors++;
 			return SIGBUS;
 		}
