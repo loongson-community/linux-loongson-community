@@ -986,7 +986,7 @@ void breakpoint(void)
 	__asm__ __volatile__(
 			".globl	breakinst\n\t" 
 			".set\tnoreorder\n\t"
-			"nop\n\t"
+			"nop\n\
 			"breakinst:\tbreak\n\t"
 			"nop\n\t"
 			".set\treorder"
@@ -999,7 +999,7 @@ void async_breakpoint(void)
 	__asm__ __volatile__(
 			".globl	async_breakinst\n\t" 
 			".set\tnoreorder\n\t"
-			"nop\n\t"
+			"nop\n"
 			"async_breakinst:\tbreak\n\t"
 			"nop\n\t"
 			".set\treorder"
