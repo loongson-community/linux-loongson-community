@@ -115,10 +115,6 @@ extern void ipc_init(void);
 extern void dquot_init_hash(void);
 #endif
 
-#ifdef CONFIG_REMOTE_DEBUG
-#include <asm/gdb-stub.h>
-#endif
-
 /*
  * Boot command-line arguments
  */
