@@ -266,6 +266,8 @@ void __init setup_arch(char **cmdline_p)
 	void ddb_setup(void);
 	void orion_setup(void);
         void ev96100_setup(void);
+	void atlas_setup(void);
+	void malta_setup(void);
 
 	/* Save defaults for configuration-dependent routines.  */
 	irq_setup = default_irq_setup;
@@ -301,9 +303,19 @@ void __init setup_arch(char **cmdline_p)
 		decstation_setup();
 		break;
 #endif
+#ifdef CONFIG_MIPS_ATLAS
+	case MACH_GROUP_UNKNOWN:
+		atlas_setup();
+		break;
+#endif
 #ifdef CONFIG_MIPS_JAZZ
 	case MACH_GROUP_JAZZ:
 		jazz_setup();
+		break;
+#endif
+#ifdef CONFIG_MIPS_MALTA
+	case MACH_GROUP_UNKNOWN:
+		malta_setup();
 		break;
 #endif
 #ifdef CONFIG_SGI_IP22
