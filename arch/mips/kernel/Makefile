@@ -14,7 +14,7 @@ O_TARGET := kernel.o
 
 export-objs			= irq.o pci-dma.o setup.o smp.o mips_ksyms.o
 
-obj-y				+= branch.o cpu-probe process.o signal.o \
+obj-y				+= branch.o cpu-probe.o process.o signal.o \
 				   entry.o traps.o ptrace.o vm86.o ioport.o \
 				   irq.o reset.o semaphore.o setup.o syscall.o \
 				   sysmips.o ipc.o scall_o32.o unaligned.o
