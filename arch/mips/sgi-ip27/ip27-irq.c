@@ -309,8 +309,8 @@ static int intr_disconnect_level(int cpu, int bit)
 static unsigned int startup_bridge_irq(unsigned int irq)
 {
 	struct bridge_controller *bc;
-	bridge_t *bridge;
 	bridgereg_t device;
+	bridge_t *bridge;
 	int pin, swlevel;
 
 	if (irq < BASE_PCI_IRQ)
@@ -334,11 +334,11 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	bridge->b_int_enable |= 0x7ffffe00;
 
 	/*
-	 * XXX This only works if b_int_device is initialized to 0!
-	 * We program the bridge to have a 1:1 mapping between devices
+	 * We assume the bridge to have a 1:1 mapping between devices
 	 * (slots) and intr pins.
 	 */
 	device = bridge->b_int_device;
+	device &= ~(7 << (pin*3));
 	device |= (pin << (pin*3));
 	bridge->b_int_device = device;
 
