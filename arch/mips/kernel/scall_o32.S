@@ -86,13 +86,13 @@ signal_return:
 	ori	t0, t0, 1
 	mtc0	t0, CP0_STATUS
 
+	SAVE_STATIC
 	move	a0, zero
 	move	a1, sp
 	jal	do_signal
 	b	restore_all
 
 o32_reschedule:
-	SAVE_STATIC
 	jal	schedule
 	b	o32_ret_from_sys_call
 
