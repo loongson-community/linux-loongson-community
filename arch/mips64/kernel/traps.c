@@ -72,7 +72,7 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
  * This routine abuses get_user()/put_user() to reference pointers
  * with at least a bit of error checking ...
  */
-void show_stack(unsigned long *sp)
+void show_stack(struct task_struct *task, unsigned long *sp)
 {
 	const int field = 2 * sizeof(unsigned long);
 	long stackdata;
@@ -101,11 +101,10 @@ void show_stack(unsigned long *sp)
 	printk("\n");
 }
 
-void show_trace(unsigned long *stack)
+void show_trace(struct task_struct *task, unsigned long *stack)
 {
 	const int field = 2 * sizeof(unsigned long);
 	unsigned long addr;
-	int i;
 
 	if (!stack)
 		stack = (unsigned long*)&stack;
@@ -114,7 +113,6 @@ void show_trace(unsigned long *stack)
 #ifdef CONFIG_KALLSYMS
 	printk("\n");
 #endif
-	i = 1;
 	while (((long) stack & (THREAD_SIZE-1)) != 0) {
 		addr = *stack++;
 		if (kernel_text_address(addr)) {
@@ -127,7 +125,7 @@ void show_trace(unsigned long *stack)
 
 void show_trace_task(struct task_struct *tsk)
 {
-	show_trace((long *)tsk->thread.reg29);
+	show_trace(tsk, (long *)tsk->thread.reg29);
 }
 
 /*
@@ -137,7 +135,7 @@ void dump_stack(void)
 {
 	unsigned long stack;
 
-	show_trace(&stack);
+	show_trace(current, &stack);
 }
 
 void show_code(unsigned int *pc)
@@ -226,8 +224,8 @@ void show_registers(struct pt_regs *regs)
 	show_regs(regs);
 	printk("Process %s (pid: %d, stackpage=%0*lx)\n",
 		current->comm, current->pid, field, (unsigned long) current);
-	show_stack((long *) regs->regs[29]);
-	show_trace((long *) regs->regs[29]);
+	show_stack(current, (long *) regs->regs[29]);
+	show_trace(current, (long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
 	printk("\n");
 }

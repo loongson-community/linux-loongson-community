@@ -269,3 +269,5 @@ SYS(sys_remap_file_pages, 5)
 SYS(sys_set_tid_address, 1)
 SYS(sys_restart_syscall, 0)			/* XXX */
 SYS(sys_fadvise64, 6)
+SYS(sys_statfs64, 3)				/* 4255 */
+SYS(sys_fstatfs64, 2)

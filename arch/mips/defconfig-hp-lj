@@ -198,6 +198,11 @@ CONFIG_MTD_NAND_IDS=y
 # CONFIG_PNP is not set
 
 #
+# Generic Driver Options
+#
+# CONFIG_FW_LOADER is not set
+
+#
 # Block devices
 #
 # CONFIG_BLK_DEV_FD is not set

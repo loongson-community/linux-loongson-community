@@ -246,6 +246,12 @@
 #define __NR_sys_clock_gettime		1254
 #define __NR_sys_clock_getres		1255
 #define __NR_sys_clock_nanosleep	1256
+#define __NR_sys_fstatfs64		1257
+#define __NR_sys_statfs64		1258
+
+#ifdef __KERNEL__
+
+#define NR_syscalls			256 /* length of syscall table */
 
 #if !defined(__ASSEMBLY__) && !defined(ASSEMBLER)
 
@@ -348,10 +354,12 @@ waitpid (int pid, int *wait_stat, int flags)
 /*
  * "Conditional" syscalls
  *
- * What we want is __attribute__((weak,alias("sys_ni_syscall"))),
- * but it doesn't work on all toolchains, so we just do it by hand
+ * What we want is __attribute__((weak,alias("sys_ni_syscall"))), but it doesn't work on
+ * all toolchains, so we just do it by hand.  Note, this macro can only be used in the
+ * file which defines sys_ni_syscall, i.e., in kernel/sys.c.
  */
 #define cond_syscall(x) asm(".weak\t" #x "\n\t.set\t" #x ",sys_ni_syscall");
 
 #endif /* !__ASSEMBLY__ */
+#endif /* __KERNEL__ */
 #endif /* _ASM_IA64_UNISTD_H */

@@ -121,12 +121,12 @@ CONFIG_MMU=y
 #
 CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
+# CONFIG_BINFMT_MISC is not set
 CONFIG_MIPS32_COMPAT=y
 CONFIG_COMPAT=y
 CONFIG_MIPS32_O32=y
 CONFIG_MIPS32_N32=y
 CONFIG_BINFMT_ELF32=y
-# CONFIG_BINFMT_MISC is not set
 
 #
 # Memory Technology Devices (MTD)
@@ -142,6 +142,11 @@ CONFIG_BINFMT_ELF32=y
 # Plug and Play support
 #
 # CONFIG_PNP is not set
+
+#
+# Generic Driver Options
+#
+# CONFIG_FW_LOADER is not set
 
 #
 # Block devices
@@ -184,24 +189,10 @@ CONFIG_SCSI_CONSTANTS=y
 # SCSI low-level drivers
 #
 CONFIG_SGIWD93_SCSI=y
-# CONFIG_SCSI_ACARD is not set
 # CONFIG_SCSI_AIC7XXX is not set
 # CONFIG_SCSI_AIC7XXX_OLD is not set
 # CONFIG_SCSI_DPT_I2O is not set
-# CONFIG_SCSI_ADVANSYS is not set
-# CONFIG_SCSI_IN2000 is not set
-# CONFIG_SCSI_MEGARAID is not set
-# CONFIG_SCSI_BUSLOGIC is not set
-# CONFIG_SCSI_EATA is not set
 # CONFIG_SCSI_EATA_PIO is not set
-# CONFIG_SCSI_FUTURE_DOMAIN is not set
-# CONFIG_SCSI_GDTH is not set
-# CONFIG_SCSI_GENERIC_NCR5380 is not set
-# CONFIG_SCSI_GENERIC_NCR5380_MMIO is not set
-# CONFIG_SCSI_PCI2000 is not set
-# CONFIG_SCSI_PCI2220I is not set
-# CONFIG_SCSI_U14_34F is not set
-# CONFIG_SCSI_NSP32 is not set
 # CONFIG_SCSI_DEBUG is not set
 
 #

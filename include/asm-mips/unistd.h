@@ -264,11 +264,13 @@
 #define __NR_set_tid_address		(__NR_Linux + 252)
 #define __NR_restart_syscall		(__NR_Linux + 253)
 #define __NR_fadvise64			(__NR_Linux + 254)
+#define __NR_statfs64			(__NR_Linux + 255)
+#define __NR_fstatfs64			(__NR_Linux + 256)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		254
+#define __NR_Linux_syscalls		256
 
 #ifndef __ASSEMBLY__
 
