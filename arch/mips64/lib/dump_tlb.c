@@ -34,6 +34,12 @@ static inline const char *msk2str(unsigned int mask)
 	}
 }
 
+#define BARRIER()					\
+	__asm__ __volatile__(				\
+		".set\tnoreorder\n\t"			\
+		"nop;nop;nop;nop;nop;nop;nop\n\t"	\
+		".set\treorder");
+
 void dump_tlb(int first, int last)
 {
 	unsigned long s_entryhi, entryhi, entrylo0, entrylo1, asid;
@@ -99,12 +105,6 @@ void dump_tlb_wired(void)
 	dump_tlb(0, read_c0_wired());
 }
 
-#define BARRIER						\
-	__asm__ __volatile__(				\
-		".set\tnoreorder\n\t"			\
-		"nop;nop;nop;nop;nop;nop;nop\n\t"	\
-		".set\treorder");
-
 void dump_tlb_addr(unsigned long addr)
 {
 	unsigned int flags, oldpid;
@@ -112,11 +112,11 @@ void dump_tlb_addr(unsigned long addr)
 
 	local_irq_save(flags);
 	oldpid = read_c0_entryhi() & 0xff;
-	BARRIER;
+	BARRIER();
 	write_c0_entryhi((addr & PAGE_MASK) | oldpid);
-	BARRIER;
+	BARRIER();
 	tlb_probe();
-	BARRIER;
+	BARRIER();
 	index = read_c0_index();
 	write_c0_entryhi(oldpid);
 	local_irq_restore(flags);
