@@ -806,13 +806,6 @@ static int mt_ioctl_trans(unsigned int fd, unsigned int cmd, unsigned long arg)
 	return err ? -EFAULT: 0;
 }
 
-#define AUTOFS_IOC_SETTIMEOUT32 _IOWR(0x93,0x64,unsigned int)
-
-static int ioc_settimeout(unsigned int fd, unsigned int cmd, unsigned long arg)
-{
-	return rw_long(fd, AUTOFS_IOC_SETTIMEOUT, arg);
-}
-
 #ifdef CONFIG_VT
 
 extern int tty_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg);
@@ -1303,14 +1296,6 @@ HANDLE_IOCTL(MTIOCSETCONFIG32, mt_ioctl_trans)
 // MTIOCGETSIZE
 // MTIOCFTFORMAT
 // MTIOCFTCMD
-
-COMPATIBLE_IOCTL(AUTOFS_IOC_READY)		/* auto_fs.h ioctls */
-COMPATIBLE_IOCTL(AUTOFS_IOC_FAIL)
-COMPATIBLE_IOCTL(AUTOFS_IOC_CATATONIC)
-COMPATIBLE_IOCTL(AUTOFS_IOC_PROTOVER)
-HANDLE_IOCTL(AUTOFS_IOC_SETTIMEOUT32, ioc_settimeout)
-COMPATIBLE_IOCTL(AUTOFS_IOC_EXPIRE)
-COMPATIBLE_IOCTL(AUTOFS_IOC_EXPIRE_MULTI)
 
 /* Little p (/dev/rtc, /dev/envctrl, etc.) */
 COMPATIBLE_IOCTL(_IOR('p', 20, int[7]))		/* RTCGET */
