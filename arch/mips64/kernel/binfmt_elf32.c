@@ -89,8 +89,8 @@ struct elf_prpsinfo32
 	char	pr_zomb;	/* zombie */
 	char	pr_nice;	/* nice val */
 	unsigned int pr_flag;	/* flags */
-	u16	pr_uid;
-	u16	pr_gid;
+	__kernel_uid_t	pr_uid;
+	__kernel_gid_t	pr_gid;
 	pid_t	pr_pid, pr_ppid, pr_pgrp, pr_sid;
 	/* Lots missing */
 	char	pr_fname[16];	/* filename of executable */
@@ -99,6 +99,28 @@ struct elf_prpsinfo32
 
 #define elf_addr_t	u32
 #define init_elf_binfmt init_elf32_binfmt
+
+
+#undef ELF_CORE_COPY_REGS
+#define ELF_CORE_COPY_REGS(_dest,_regs) elf32_core_copy_regs(_dest,_regs);
+
+void elf32_core_copy_regs(elf_gregset_t _dest, struct pt_regs *_regs)
+{
+	int i;
+
+	memset(_dest, 0, sizeof(elf_gregset_t));
+
+	/* XXXKW the 6 is from EF_REG0 in gdb/gdb/mips-linux-tdep.c, include/asm-mips/reg.h */
+	for (i=6; i<38; i++)
+		_dest[i] = (elf_greg_t) _regs->regs[i-6];
+	_dest[i++] = (elf_greg_t) _regs->lo;
+	_dest[i++] = (elf_greg_t) _regs->hi;
+	_dest[i++] = (elf_greg_t) _regs->cp0_epc;
+	_dest[i++] = (elf_greg_t) _regs->cp0_badvaddr;
+	_dest[i++] = (elf_greg_t) _regs->cp0_status;
+	_dest[i++] = (elf_greg_t) _regs->cp0_cause;
+}
+
 #undef CONFIG_BINFMT_ELF
 #ifdef CONFIG_BINFMT_ELF32
 #define CONFIG_BINFMT_ELF CONFIG_BINFMT_ELF32
