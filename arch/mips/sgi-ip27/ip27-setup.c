@@ -247,7 +247,7 @@ extern void ip27_setup_console(void);
 extern void ip27_time_init(void);
 extern void ip27_reboot_setup(void);
 
-static void __init boot_cpu_init(void)
+void __init per_cpu_init(void)
 {
 	cnodeid_t cnode = get_compact_nodeid();
 	int cpu = smp_processor_id();
@@ -255,6 +255,8 @@ static void __init boot_cpu_init(void)
 	clear_c0_status(ST0_IM);
 	per_hub_init(cnode);
 	cpu_time_init();
+	if (smp_processor_id()) /* master can't do this early, no kmalloc */
+		install_cpuintr(cpu);
 	/* Install our NMI handler if symmon hasn't installed one. */
 	install_cpu_nmi_handler(cputoslice(cpu));
 	set_c0_status(SRB_DEV0 | SRB_DEV1);
@@ -290,7 +292,7 @@ static int __init ip27_setup(void)
 	verify_mode();
 	ioc3_sio_init();
 	ioc3_eth_init();
-	boot_cpu_init();
+	per_cpu_init();
 
 	set_io_port_base(IO_BASE);
 

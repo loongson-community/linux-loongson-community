@@ -202,23 +202,7 @@ void __init prom_boot_secondary(int cpu, struct task_struct *idle)
 
 void prom_init_secondary(void)
 {
-	int cpu = smp_processor_id();
-	cnodeid_t cnode = get_compact_nodeid();
-
-#if 0
-	intr_init();
-#endif
-	clear_c0_status(ST0_IM);
-	per_hub_init(cnode);
-	cpu_time_init();
-	if (smp_processor_id())	/* master can't do this early, no kmalloc */
-		install_cpuintr(cpu);
-	/* Install our NMI handler if symmon hasn't installed one. */
-	install_cpu_nmi_handler(cputoslice(cpu));
-#if 0
-	install_tlbintr(cpu);
-#endif
-	set_c0_status(SRB_DEV0 | SRB_DEV1);
+	per_cpu_init();
 	local_irq_enable();
 }
 
