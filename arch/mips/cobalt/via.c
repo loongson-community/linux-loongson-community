@@ -18,62 +18,30 @@
 
 extern void do_IRQ(int irq, struct pt_regs * regs);
 
-/* Cached values of VIA PIC masks, we start with cascade enabled */
-static unsigned int cached_irq_mask = 0xfffb;
-
-#define __byte(x,y)	(((unsigned char *)&(y))[x])
-#define cached_21	(__byte(0,cached_irq_mask))
-#define cached_A1	(__byte(1,cached_irq_mask))
-
-
-void mask_irq(unsigned int irq)
-{
-	unsigned int mask = 1 << irq;
-
-	cached_irq_mask |= mask;
-	if (irq & 8) {
-		VIA_PORT_WRITE(0xA1, cached_A1);
-	} else {
-		VIA_PORT_WRITE(0x21, cached_21);
-	}
-}
-
-void unmask_irq(unsigned int irq)
-{
-	unsigned int mask = ~(1 << irq);
-
-	cached_irq_mask &= mask;
-	if (irq & 8) {
-		VIA_PORT_WRITE(0xA1, cached_A1);
-	} else {
-		VIA_PORT_WRITE(0x21, cached_21);
-	}
-}
-
 asmlinkage void via_irq(struct pt_regs *regs)
 {
 	char mstat, sstat;
 
 	/* Read Master Status */
-	VIA_PORT_WRITE(0x20, 0x0C);
-	mstat = VIA_PORT_READ(0x20);
-
+	outb(0x0C, 0x20);
+	mstat = inb(0x20);
+ 
 	if (mstat < 0) {
 		mstat &= 0x7f;
 		if (mstat != 2) {
 			do_IRQ(mstat, regs);
-			VIA_PORT_WRITE(0x20, mstat | 0x20);
+			outb(mstat | 0x20, 0x20);
 		} else {
-			sstat = VIA_PORT_READ(0xA0);
+			sstat = inb(0xA0);
 
 			/* Slave interrupt */
-			VIA_PORT_WRITE(0xA0, 0x0C);
-			sstat = VIA_PORT_READ(0xA0);
-
+			outb(0x0C, 0xA0);
+			sstat = inb(0xA0);
+ 
 			if (sstat < 0) {
 				do_IRQ((sstat + 8) & 0x7f, regs);
-				VIA_PORT_WRITE(0x20, 0x22);
-				VIA_PORT_WRITE(0xA0, (sstat & 0x7f) | 0x20);
+				outb(0x22, 0x20);
+				outb((sstat & 0x7f) | 0x20, 0xA0);
 			} else {
 				printk("Spurious slave interrupt...\n");
 			}

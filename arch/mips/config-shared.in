@@ -131,6 +131,7 @@ if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
 fi
 if [ "$CONFIG_MIPS_COBALT" = "y" ]; then
    define_bool CONFIG_COBALT_LCD y
+   define_bool CONFIG_I8259 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_NEW_TIME_C y
    define_bool CONFIG_NONCOHERENT_IO y

@@ -65,32 +65,6 @@
 #define COBALT_PCICONF_PCISLOT  0x0A
 #define COBALT_PCICONF_ETH1     0x0C
 
-/*
- * Handling the VIA ISA host bridge.
- */
-
-#define        VIA_DELAY()                                             \
-{                                                              \
-       unsigned char ctr;                                      \
-       for (ctr=0;ctr<1;ctr++);                                \
-}
-
-#define VIA_PORT_WRITE(x,y)                                    \
-{                                                              \
-       *((volatile unsigned char *) (0xb0000000 | x)) = y;     \
-       VIA_DELAY();                                            \
-}
-
-#define VIA_PORT_READ(x)       (*((unsigned char *) (0xB0000000 | (x))))
-
-#define RESET_VIA_TIMER()                                      \
-       asm("sb\t%1,0x70(%0)\n\t"                               \
-           "lb\$0,0x71(%0)"                                    \
-           : /* No outputs */                                  \
-           : "r" (0xb0000000), "i" (0x0c));
-
-#define VIA_CMOS_ADDR 0x70
-#define VIA_CMOS_DATA 0x71
 
 /*
  * The Cobalt board id information.  The boards have an ID number wired

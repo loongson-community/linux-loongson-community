@@ -42,11 +42,12 @@ extern void mask_irq(unsigned int irq);
  *    4   - Tulip 1
  *    5   - 16550 UART
  *    6   - VIA southbridge PIC
- *    7   - PCI
+ *    7   - unused
  *
  * The VIA chip is a master/slave 8259 setup and has the
  *  following interrupts
  *    8   - RTC
+ *    9   - PCI
  *    14  - IDE0
  *    15  - IDE1
  *
@@ -116,101 +117,19 @@ static struct hw_interrupt_type cobalt_cpu_irq_type = {
 	NULL
 };
 
-
-/*
- * Cobalt VIA irq
- */
-
-static void enable_via_irq(unsigned int irq)
-{
-	unsigned long flags;
-
-	save_and_cli(flags);
-	unmask_irq(irq);
-	restore_flags(flags);
-}
-
-static unsigned startup_via_irq(unsigned int irq)
-{
-	enable_via_irq(irq);
-
-	return 0;
-}
-
-static void disable_via_irq(unsigned int irq)
-{
-	unsigned long flags;
-
-	save_and_cli(flags);
-	mask_irq(irq);
-	restore_flags(flags);
-}
-
-#define shutdown_via_irq	disable_via_irq
-#define mask_and_ack_via_irq	disable_via_irq
-
-static void end_via_irq(unsigned int irq)
-{
-	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
-		enable_via_irq(irq);
-}
-
-static struct hw_interrupt_type cobalt_via_irq_type = {
-	"Cobalt VIA",
-	startup_via_irq,
-	shutdown_via_irq,
-	enable_via_irq,
-	disable_via_irq,
-	mask_and_ack_via_irq,
-	end_via_irq,
-	NULL
-};
-
-
-static struct irqaction via_irq2 = {
-	no_action, 0, 0, "slave cascade", NULL, NULL
-};
-
-static struct resource pic1_io_resource = {
-	"VIA PIC Master", 0x20, 0x3f, IORESOURCE_BUSY
-};
-
-static struct resource pic2_io_resource = {
-	"VIA PIC Slave", 0xa0, 0xbf, IORESOURCE_BUSY
-};
-
-
 void __init init_IRQ(void)
 {
 	int i;
 
 	/* Initialise all of the IRQ descriptors */
-	init_generic_irq();
+	init_i8259_irqs();
 
 	/* Map the irqnr to the type int we have */
 	for (i=0; i < COBALT_IRQS; i++) {
 		if (irqnr_to_type[i] >= CPUINT_LINE(0))
 			/* cobalt_cpu_irq_type */
 			irq_desc[i].handler = &cobalt_cpu_irq_type;
-		else if (irqnr_to_type[i] == VIAINT_LINE)
-			/* VIA/8259 irq_type */
-			irq_desc[i].handler = &cobalt_via_irq_type;
-		else {} /* Leave it as disabled/no handler */
 	}
-
-	/* Setup the VIA interrupts */
-	request_resource(&ioport_resource, &pic1_io_resource);
-	request_resource(&ioport_resource, &pic2_io_resource);
-	setup_irq(2, &via_irq2);
-
-	/* This may be too simple.. FIX it later */
-	VIA_PORT_WRITE(0x20, 0x10);
-	VIA_PORT_WRITE(0x21, 0x00);
-	VIA_PORT_WRITE(0x21, 0x00);
-
-	VIA_PORT_WRITE(0xa0, 0x10);
-	VIA_PORT_WRITE(0xa1, 0x00);
-	VIA_PORT_WRITE(0xa1, 0x00);
 
 	/* Mask all cpu interrupts
 	    (except IE4, we already masked those at VIA level) */
