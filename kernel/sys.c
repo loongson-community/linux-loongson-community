@@ -5,6 +5,7 @@
  */
 
 #include <linux/config.h>
+#include <linux/compat.h>
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/utsname.h>
@@ -220,6 +221,7 @@ cond_syscall(sys_sendto)
 cond_syscall(sys_send)
 cond_syscall(sys_recvfrom)
 cond_syscall(sys_recv)
+cond_syscall(sys_socket)
 cond_syscall(sys_setsockopt)
 cond_syscall(sys_getsockopt)
 cond_syscall(sys_shutdown)
@@ -1219,7 +1221,7 @@ asmlinkage long sys_getrlimit(unsigned int resource, struct rlimit __user *rlim)
 			? -EFAULT : 0;
 }
 
-#if !defined(__ia64__) && !defined(CONFIG_V850)
+#if defined(COMPAT_RLIM_OLD_INFINITY) || !(defined(CONFIG_IA64) || defined(CONFIG_V850))
 
 /*
  *	Back compatibility for getrlimit. Needed for some apps.

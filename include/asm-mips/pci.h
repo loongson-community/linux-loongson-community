@@ -366,16 +366,6 @@ static inline void pci_dac_dma_sync_single(struct pci_dev *pdev,
 	dma_cache_wback_inv(addr, len);
 }
 
-/*
- * These macros should be used after a pci_map_sg call has been done
- * to get bus addresses of each of the SG entries and their lengths.
- * You should only work with the number of sg entries pci_map_sg
- * returns, or alternatively stop on the first sg_dma_len(sg) which
- * is 0.
- */
-#define sg_dma_address(sg)	((sg)->dma_address)
-#define sg_dma_len(sg)		((sg)->length)
-
 #endif /* __KERNEL__ */
 
 /* generic pci stuff */

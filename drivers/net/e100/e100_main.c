@@ -2068,13 +2068,14 @@ e100_rx_srv(struct e100_private *bdp)
 			skb->ip_summed = CHECKSUM_NONE;
 		}
 
+		bdp->drv_stats.net_stats.rx_bytes += skb->len;
+
 		if(bdp->vlgrp && (rfd_status & CB_STATUS_VLAN)) {
 			vlan_hwaccel_rx(skb, bdp->vlgrp, be16_to_cpu(rfd->vlanid));
 		} else {
 			netif_rx(skb);
 		}
 		dev->last_rx = jiffies;
-		bdp->drv_stats.net_stats.rx_bytes += skb->len;
 		
 		rfd_cnt++;
 	}			/* end of rfd loop */
@@ -3424,10 +3425,6 @@ e100_ethtool_set_settings(struct net_device *dev, struct ifreq *ifr)
 	int ethtool_new_speed_duplex;
 	struct ethtool_cmd ecmd;
 
-	if (!capable(CAP_NET_ADMIN)) {
-		return -EPERM;
-	}
-
 	bdp = dev->priv;
 	if (copy_from_user(&ecmd, ifr->ifr_data, sizeof (ecmd))) {
 		return -EFAULT;
@@ -3545,8 +3542,6 @@ e100_ethtool_gregs(struct net_device *dev, struct ifreq *ifr)
 	void *addr = ifr->ifr_data;
 	u16 mdi_reg;
 
-	if (!capable(CAP_NET_ADMIN))
-		return -EPERM;
 	bdp = dev->priv;
 
 	if(copy_from_user(&regs, addr, sizeof(regs)))
@@ -3573,9 +3568,6 @@ static int
 e100_ethtool_nway_rst(struct net_device *dev, struct ifreq *ifr)
 {
 	struct e100_private *bdp;
-
-	if (!capable(CAP_NET_ADMIN))
-		return -EPERM;
 
 	bdp = dev->priv;
 
@@ -3631,9 +3623,6 @@ e100_ethtool_eeprom(struct net_device *dev, struct ifreq *ifr)
 	int i, max_len;
 	void *ptr;
 	u8 *eeprom_data_bytes = (u8 *)eeprom_data;
-
-	if (!capable(CAP_NET_ADMIN))
-		return -EPERM;
 
 	bdp = dev->priv;
 
@@ -3911,9 +3900,6 @@ e100_ethtool_wol(struct net_device *dev, struct ifreq *ifr)
 	struct e100_private *bdp;
 	struct ethtool_wolinfo wolinfo;
 	int res = 0;
-
-	if (!capable(CAP_NET_ADMIN))
-		return -EPERM;
 
 	bdp = dev->priv;
 

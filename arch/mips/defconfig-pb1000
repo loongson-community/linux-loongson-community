@@ -168,7 +168,6 @@ CONFIG_MTD_CFI_AMDSTD=y
 #
 # CONFIG_MTD_COMPLEX_MAPPINGS is not set
 # CONFIG_MTD_PHYSMAP is not set
-# CONFIG_MTD_UCLINUX is not set
 
 #
 # Self-contained MTD device drivers

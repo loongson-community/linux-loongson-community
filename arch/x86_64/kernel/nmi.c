@@ -23,6 +23,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/module.h>
 #include <linux/sysdev.h>
+#include <linux/nmi.h>
 
 #include <asm/smp.h>
 #include <asm/mtrr.h>
@@ -32,9 +33,15 @@
 #include <asm/proto.h>
 #include <asm/kdebug.h>
 
-extern void default_do_nmi(struct pt_regs *);
+/* nmi_active:
+ * +1: the lapic NMI watchdog is active, but can be disabled
+ *  0: the lapic NMI watchdog has not been set up, and cannot
+ *     be enabled
+ * -1: the lapic NMI watchdog is disabled, but can be enabled
+ */
+static int nmi_active;
 
-unsigned int nmi_watchdog = NMI_LOCAL_APIC;
+unsigned int nmi_watchdog = NMI_IO_APIC;
 static unsigned int nmi_hz = HZ;
 unsigned int nmi_perfctr_msr;	/* the MSR to reset in NMI handler */
 int nmi_watchdog_disabled;
@@ -90,6 +97,7 @@ int __init check_nmi_watchdog (void)
 			printk("CPU#%d: NMI appears to be stuck (%d)!\n", 
 			       cpu,
 			       cpu_pda[cpu].__nmi_count);
+			nmi_active = 0;
 			return -1;
 		}
 	}
@@ -117,14 +125,6 @@ static int __init setup_nmi_watchdog(char *str)
 
 __setup("nmi_watchdog=", setup_nmi_watchdog);
 
-/* nmi_active:
- * +1: the lapic NMI watchdog is active, but can be disabled
- *  0: the lapic NMI watchdog has not been set up, and cannot
- *     be enabled
- * -1: the lapic NMI watchdog is disabled, but can be enabled
- */
-static int nmi_active;
-
 void disable_lapic_nmi_watchdog(void)
 {
 	if (nmi_active <= 0)
@@ -149,21 +149,45 @@ void enable_lapic_nmi_watchdog(void)
 	}
   }
 
+
+void disable_timer_nmi_watchdog(void)
+{
+	if ((nmi_watchdog != NMI_IO_APIC) || (nmi_active <= 0))
+		return;
+
+	disable_irq(0);
+	unset_nmi_callback();
+	nmi_active = -1;
+	nmi_watchdog = NMI_NONE;
+}
+
+void enable_timer_nmi_watchdog(void)
+{
+	if (nmi_active < 0) {
+		nmi_watchdog = NMI_IO_APIC;
+		touch_nmi_watchdog();
+		nmi_active = 1;
+		enable_irq(0);
+	}
+}
+
 #ifdef CONFIG_PM
 
 #include <linux/device.h>
 
+static int nmi_pm_active; /* nmi_active before suspend */
+
 static int lapic_nmi_suspend(struct sys_device *dev, u32 state)
 {
+	nmi_pm_active = nmi_active;
 	disable_lapic_nmi_watchdog();
 	return 0;
 }
 
 static int lapic_nmi_resume(struct sys_device *dev)
 {
-#if 0
+	if (nmi_pm_active > 0)
 	enable_lapic_nmi_watchdog();
-#endif
 	return 0;
 }
 
@@ -234,6 +258,8 @@ void setup_apic_nmi_watchdog (void)
 	switch (boot_cpu_data.x86_vendor) {
 	case X86_VENDOR_AMD:
 		if (boot_cpu_data.x86 < 6)
+			return;
+		if (strstr(boot_cpu_data.x86_model_id, "Screwdriver"))
 			return;
 		setup_k7_watchdog();
 		break;
@@ -348,3 +374,5 @@ void unset_nmi_callback(void)
 EXPORT_SYMBOL(nmi_watchdog);
 EXPORT_SYMBOL(disable_lapic_nmi_watchdog);
 EXPORT_SYMBOL(enable_lapic_nmi_watchdog);
+EXPORT_SYMBOL(disable_timer_nmi_watchdog);
+EXPORT_SYMBOL(enable_timer_nmi_watchdog);

@@ -23,6 +23,8 @@
 
 #define SIN6_LEN_RFC2133	24
 
+#define IPV6_MAXPLEN		65535
+
 /*
  *	NextHeader field of IPv6 header
  */
@@ -98,6 +100,8 @@ struct frag_hdr {
 	unsigned short	frag_off;
 	__u32		identification;
 };
+
+#define	IP6_MF	0x0001
 
 #ifdef __KERNEL__
 

@@ -466,7 +466,8 @@ acpi_os_read_pci_configuration (struct acpi_pci_id *pci_id, u32 reg, void *value
 	}
 
 	result = raw_pci_ops->read(pci_id->segment, pci_id->bus,
-			pci_id->device, pci_id->function, reg, size, value);
+				PCI_DEVFN(pci_id->device, pci_id->function),
+				reg, size, value);
 
 	return (result ? AE_ERROR : AE_OK);
 }
@@ -491,7 +492,8 @@ acpi_os_write_pci_configuration (struct acpi_pci_id *pci_id, u32 reg, acpi_integ
 	}
 
 	result = raw_pci_ops->write(pci_id->segment, pci_id->bus,
-			pci_id->device, pci_id->function, reg, size, value);
+				PCI_DEVFN(pci_id->device, pci_id->function),
+				reg, size, value);
 
 	return (result ? AE_ERROR : AE_OK);
 }
@@ -933,8 +935,8 @@ acpi_os_get_line(char *buffer)
 }
 
 /* Assumes no unreadable holes inbetween */
-BOOLEAN
-acpi_os_readable(void *ptr, u32 len)
+u8
+acpi_os_readable(void *ptr, acpi_size len)
 {
 #if defined(__i386__) || defined(__x86_64__) 
 	char tmp;
@@ -943,8 +945,8 @@ acpi_os_readable(void *ptr, u32 len)
 	return 1;
 }
 
-BOOLEAN
-acpi_os_writable(void *ptr, u32 len)
+u8
+acpi_os_writable(void *ptr, acpi_size len)
 {
 	/* could do dummy write (racy) or a kernel page table lookup.
 	   The later may be difficult at early boot when kmap doesn't work yet. */

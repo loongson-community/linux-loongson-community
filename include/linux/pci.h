@@ -414,7 +414,7 @@ struct pci_dev {
 	struct resource dma_resource[DEVICE_COUNT_DMA];
 	struct resource irq_resource[DEVICE_COUNT_IRQ];
 
-	char		slot_name[8];	/* slot name */
+	char *		slot_name;	/* pointer to dev.bus_id */
 
 	/* These fields are used by common fixups */
 	unsigned int	transparent:1;	/* Transparent PCI bridge */
@@ -487,8 +487,8 @@ struct pci_ops {
 };
 
 struct pci_raw_ops {
-	int (*read)(int dom, int bus, int dev, int func, int reg, int len, u32 *val);
-	int (*write)(int dom, int bus, int dev, int func, int reg, int len, u32 val);
+	int (*read)(int dom, int bus, int devfn, int reg, int len, u32 *val);
+	int (*write)(int dom, int bus, int devfn, int reg, int len, u32 val);
 };
 
 extern struct pci_raw_ops *raw_pci_ops;
@@ -802,6 +802,14 @@ static inline void *pci_get_drvdata (struct pci_dev *pdev)
 static inline void pci_set_drvdata (struct pci_dev *pdev, void *data)
 {
 	dev_set_drvdata(&pdev->dev, data);
+}
+
+/* If you want to know what to call your pci_dev, ask this function.
+ * Again, it's a wrapper around the generic device.
+ */
+static inline char *pci_name(struct pci_dev *pdev)
+{
+	return pdev->dev.bus_id;
 }
 
 /*
