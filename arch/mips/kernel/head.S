@@ -59,9 +59,19 @@
 	.set	noat
 	LEAF(except_vec0_r4000)
 	.set	mips3
+#ifdef CONFIG_SMP
+	mfc0	k1, CP0_CONTEXT
+	la	k0, current_pgd
+	srl	k1, 23
+	sll	k1, 2
+	addu	k1, k0, k1
+	lw	k1, (k1)
+#else 
+	lw	k1, current_pgd			# get pgd pointer
+#endif	
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	srl	k0, k0, 22			# get pgd only bits
-	lw	k1, current_pgd			# get pgd pointer
+
 	sll	k0, k0, 2
 	addu	k1, k1, k0			# add in pgd offset
 	mfc0	k0, CP0_CONTEXT			# get context reg
@@ -442,9 +452,9 @@ NESTED(kernel_entry, 16, sp)
 	 */
 	la	$28, init_task_union
 	addiu	t0, $28, KERNEL_STACK_SIZE-32
-	sw	t0, kernelsp
 	subu	sp, t0, 4*SZREG
 
+	sw	t0, kernelsp
 	/* The firmware/bootloader passes argc/argp/envp
 	 * to us as arguments.  But clear bss first because
 	 * the romvec and other important info is stored there
@@ -462,6 +472,30 @@ NESTED(kernel_entry, 16, sp)
 	 nop
 	END(kernel_entry)
 
+
+#ifdef CONFIG_SMP
+
+/*
+ * SMP slave cpus entry point.  Board specific code
+ * for bootstrap calls this function after setting up
+ * the stack and gp registers. 
+ */
+	LEAF(smp_bootstrap)
+	.set push
+	.set noreorder
+	mtc0	zero, CP0_WIRED
+	CLI
+	mfc0	t0, CP0_STATUS
+	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV); 
+	and	t0, t1
+	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+	addiu	a0, zero, 0
+	jal	start_secondary
+         mtc0	t0, CP0_STATUS
+	.set pop
+	END(smp_bootstrap)
+#endif
+	
 /*
  * This buffer is reserved for the use of the cache error handler.
  */
@@ -469,12 +503,19 @@ NESTED(kernel_entry, 16, sp)
 		EXPORT(cache_error_buffer)
 		.fill	32*4,1,0
 
+#ifndef CONFIG_SMP
 EXPORT(kernelsp)
 		PTR	0
 EXPORT(current_pgd)
-		PTR	0
+		PTR     0
+#else
+		/* There's almost certainly a better way to do this with the macros...*/
+		.globl kernelsp
+		.comm  kernelsp,     NR_CPUS * 8, 8
+		.globl current_pgd
+		.comm	current_pgd, NR_CPUS * 8, 8
+#endif
 		.text
-
 		.org	0x1000
 EXPORT(swapper_pg_dir)
 

@@ -38,6 +38,7 @@ endif
 endif
 endif
 
+obj-$(CONFIG_SMP)               += smp.o
 obj-$(CONFIG_MIPS_FPE_MODULE)	+= fpe.o
 ifndef CONFIG_MIPS_FPU_EMULATOR
   obj-y				+= softfp.o

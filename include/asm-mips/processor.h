@@ -29,6 +29,7 @@
 #include <asm/system.h>
 
 struct mips_cpuinfo {
+	unsigned long udelay_val;
 	unsigned long *pgd_quick;
 	unsigned long *pte_quick;
 	unsigned long pgtable_cache_sz;

@@ -8,6 +8,9 @@
 #ifndef __ASM_MIPS_STACKFRAME_H
 #define __ASM_MIPS_STACKFRAME_H
 
+#include <asm/addrspace.h>
+#include <asm/mipsregs.h>
+#include <asm/processor.h>
 #include <asm/asm.h>
 #include <asm/offset.h>
 #include <linux/config.h>
@@ -70,6 +73,22 @@ __asm__ (                                                               \
 /* Used in declaration of save_static functions.  */
 #define static_unused static __attribute__((unused))
 
+
+#ifdef CONFIG_SMP
+#  define GET_SAVED_SP                                   \
+                mfc0    k0, CP0_CONTEXT;                 \
+                lui     k1, %hi(kernelsp);               \
+                srl     k0, k0, 23;                      \
+		sll     k0, k0, 2;                       \
+                addu    k1, k0;                          \
+                lw      k1, %lo(kernelsp)(k1);        
+
+#else
+#  define GET_SAVED_SP                                   \
+		lui	k1, %hi(kernelsp);               \
+		lw	k1, %lo(kernelsp)(k1);           
+#endif
+ 
 #define SAVE_SOME                                        \
 		.set	push;                            \
 		.set	reorder;                         \
@@ -80,13 +99,12 @@ __asm__ (                                                               \
 		 move	k1, sp;                          \
 		.set	reorder;                         \
 		/* Called from user mode, new stack. */  \
-		lui	k1, %hi(kernelsp);               \
-		lw	k1, %lo(kernelsp)(k1);           \
+                GET_SAVED_SP                             \
 8:                                                       \
 		move	k0, sp;                          \
 		subu	sp, k1, PT_SIZE;                 \
 		sw	k0, PT_R29(sp);                  \
-		sw	$3, PT_R3(sp);                   \
+                sw	$3, PT_R3(sp);                   \
 		sw	$0, PT_R0(sp);			 \
 		mfc0	v1, CP0_STATUS;                  \
 		sw	$2, PT_R2(sp);                   \

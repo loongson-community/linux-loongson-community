@@ -12,6 +12,7 @@
 #include <linux/config.h>
 #include <linux/threads.h>
 #include <linux/irq.h>
+#include <linux/spinlock.h>
 
 /* entry.S is sensitive to the offsets of these fields */
 typedef struct {
@@ -44,7 +45,53 @@ typedef struct {
 
 #else
 
-#error No habla MIPS SMP
+#include <asm/atomic.h>
+#include <linux/spinlock.h>
+#include <asm/smp.h>
+
+extern int global_irq_holder;
+extern spinlock_t global_irq_lock;
+
+static inline int irqs_running (void)
+{
+	int i;
+
+	for (i = 0; i < smp_num_cpus; i++)
+		if (local_irq_count(i))
+			return 1;
+	return 0;
+}
+
+static inline void release_irqlock(int cpu)
+{
+	/* if we didn't own the irq lock, just ignore.. */
+	if (global_irq_holder == cpu) {
+		global_irq_holder = NO_PROC_ID;
+		spin_unlock(&global_irq_lock);
+	}
+}
+
+static inline int hardirq_trylock(int cpu)
+{
+	return !local_irq_count(cpu) && !spin_is_locked(&global_irq_lock);
+}
+
+#define hardirq_endlock(cpu)	do { } while (0)
+
+static inline void irq_enter(int cpu, int irq)
+{
+	++local_irq_count(cpu);
+
+	while (spin_is_locked(&global_irq_lock))
+		barrier();
+}
+
+static inline void irq_exit(int cpu, int irq)
+{
+	--local_irq_count(cpu);
+}
+
+extern void synchronize_irq(void);
 
 #endif /* CONFIG_SMP */
 #endif /* _ASM_HARDIRQ_H */

@@ -938,5 +938,6 @@ void __init trap_init(void)
 
 	atomic_inc(&init_mm.mm_count);	/* XXX  UP?  */
 	current->active_mm = &init_mm;
-	current_pgd = init_mm.pgd;
+	write_32bit_cp0_register(CP0_CONTEXT, smp_processor_id()<<23);
+	current_pgd[0] = init_mm.pgd;
 }

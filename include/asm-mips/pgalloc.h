@@ -10,6 +10,7 @@
 #define _ASM_PGALLOC_H
 
 #include <linux/config.h>
+#include <linux/mm.h>
 
 /* TLB flushing:
  *
@@ -177,6 +178,7 @@ extern inline void pmd_free(pmd_t * pmd)
 
 extern inline pmd_t * pmd_alloc(pgd_t * pgd, unsigned long address)
 {
+	/* Two level page tables.  This level is a nop */
 	return (pmd_t *) pgd;
 }
 

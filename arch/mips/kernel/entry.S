@@ -12,6 +12,7 @@
 #include <linux/config.h>
 #include <linux/sys.h>
 
+#include <asm/addrspace.h>
 #include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/errno.h>
