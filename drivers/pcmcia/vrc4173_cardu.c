@@ -6,7 +6,7 @@
  * 	NEC VRC4173 CARDU driver for Socket Services
  *	(This device doesn't support CardBus. it is supporting only 16bit PC Card.)
  *
- * Copyright 2002 Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ * Copyright 2002,2003 Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -519,6 +519,9 @@ static int __devinit vrc4173_cardu_probe(struct pci_dev *dev,
 
 	slot = vrc4173_cardu_slots++;
 	socket = &cardu_sockets[slot];
+	if (socket->noprobe != 0)
+		return -EBUSY;
+
 	sprintf(socket->name, "NEC VRC4173 CARDU%1d", slot+1);
 
 	if ((err = pci_enable_device(dev)) < 0)
@@ -563,6 +566,36 @@ static int __devinit vrc4173_cardu_probe(struct pci_dev *dev,
 
 	return 0;
 }
+
+static int __devinit vrc4173_cardu_setup(char *options)
+{
+	if (options == NULL || *options == '\0')
+		return 0;
+
+	if (strncmp(options, "cardu1:", 7) == 0) {
+		options += 7;
+		if (*options != '\0') {
+			if (strncmp(options, "noprobe", 7) == 0) {
+				cardu_sockets[CARDU1].noprobe = 1;
+				options += 7;
+			}
+
+			if (*options != ',')
+				return 0;
+		} else
+			return 0;
+	}
+
+	if (strncmp(options, "cardu2:", 7) == 0) {
+		options += 7;
+		if ((*options != '\0') && (strncmp(options, "noprobe", 7) == 0))
+			cardu_sockets[CARDU2].noprobe = 1;
+	}
+
+	return 0;
+}
+
+__setup("vrc4173_cardu=", vrc4173_cardu_setup);
 
 static struct pci_device_id vrc4173_cardu_id_table[] __devinitdata = {
 	{	.vendor		= PCI_VENDOR_ID_NEC,

@@ -35,6 +35,8 @@
 #include <pcmcia/ss.h>
 
 #define CARDU_MAX_SOCKETS	2
+#define CARDU1			0
+#define CARDU2			1
 
 /*
  * PCI Configuration Registers
@@ -229,6 +231,7 @@
  #define VPP_CNT_0V		0x00000000
 
 typedef struct vrc4173_socket {
+	int noprobe;
 	struct pci_dev *dev;
 	void *base;
 	void (*handler)(void *, unsigned int);
