@@ -3,6 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
+ * Copyright (C) 2003 Christoph Hellwig (hch@lst.de)
  * Copyright (C) 1999, 2000 Ralf Baechle (ralf@gnu.org)
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  */
@@ -26,6 +27,7 @@
  */
 #define MAX_DEVICES_PER_PCIBUS	8
 
+
 /*
  * No locking needed until PCI initialization is done parallely.
  */
@@ -35,7 +37,7 @@ int lastirq = BASE_PCI_IRQ;
 /*
  * Translate from irq to software PCI bus number and PCI slot.
  */
-int irq_to_bus[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
+struct bridge_controller *irq_to_bridge[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
 int irq_to_slot[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
 
 /*
@@ -52,16 +54,13 @@ int irq_to_slot[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
 static int pci_conf0_read_config(struct pci_bus *bus, unsigned int devfn,
 				 int where, int size, u32 * value)
 {
-	unsigned int bus_id = (unsigned) bus->number;
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(bus);
+	bridge_t *bridge = bc->base;
 	int slot = PCI_SLOT(devfn);
 	int fn = PCI_FUNC(devfn);
 	volatile void *addr;
-	bridge_t *bridge;
 	u32 cf, shift, mask;
 	int res;
-
-	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-	                                     bus_to_wid[bus_id]);
 
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[PCI_VENDOR_ID];
 	if (get_dbe(cf, (u32 *) addr))
@@ -115,16 +114,13 @@ oh_my_gawd:
 static int pci_conf0_write_config(struct pci_bus *bus, unsigned int devfn,
 				  int where, int size, u32 value)
 {
-	unsigned int bus_id = (unsigned) bus->number;
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(bus);
+	bridge_t *bridge = bc->base;
 	int slot = PCI_SLOT(devfn);
 	int fn = PCI_FUNC(devfn);
 	volatile void *addr;
-	bridge_t *bridge;
 	u32 cf, shift, mask, smask;
 	int res;
-
-	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-	                                     bus_to_wid[bus_id]);
 
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].c[PCI_VENDOR_ID];
 	if (get_dbe(cf, (u32 *) addr))
@@ -186,46 +182,76 @@ static struct pci_ops bridge_pci_ops = {
 	.write = pci_conf0_write_config,
 };
 
-struct bridge_controller {
-	struct pci_controller	pc;
-	struct resource		mem;
-	struct resource		io;
-};
-
-static int __init ip27_pcibios_init(void)
+int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 {
 	struct bridge_controller *bc;
-	int bus, i;
+	bridge_t *bridge;
 
-	ioport_resource.end = ~0UL;
+	bc = kmalloc(sizeof(*bc), GFP_KERNEL);
+	if (!bc)
+		return -ENOMEM;
 
-	for (i = 0, bus = 0; i < num_bridges; i++) {
-		bc = kmalloc(sizeof(struct bridge_controller), GFP_KERNEL);
-		BUG_ON(bc == NULL);
+	bc->pc.pci_ops		= &bridge_pci_ops;
+	bc->pc.mem_resource	= &bc->mem;
+	bc->pc.mem_offset	= 0UL;
+	bc->pc.io_resource	= &bc->io;
+	bc->pc.io_offset	= 0UL;
 
-		bc->pc.pci_ops		= &bridge_pci_ops;
-		bc->pc.mem_resource	= &bc->mem;
-		bc->pc.mem_offset	= 0UL;
-		bc->pc.io_resource	= &bc->io;
-		bc->pc.io_offset	= 0UL;
+	bc->mem.name		= "Bridge PCI MEM";
+	bc->mem.start		= 0UL;
+	bc->mem.end		= ~0UL;
+	bc->mem.flags		= IORESOURCE_MEM;
 
-		bc->mem.name		= "Bridge PCI MEM";
-		bc->mem.start		= 0UL;
-		bc->mem.end		= ~0UL;
-		bc->mem.flags		= IORESOURCE_MEM;
+	bc->io.name		= "Bridge IO MEM";
+	bc->io.start		= 0UL;
+	bc->io.end		= ~0UL;
+	bc->io.flags		= IORESOURCE_IO;
 
-		bc->io.name		= "Bridge IO MEM";
-		bc->io.start		= 0UL;
-		bc->io.end		= ~0UL;
-		bc->io.flags		= IORESOURCE_IO;
+	bc->irq_cpu = smp_processor_id();
+	bc->widget_id = widget_id;
+	bc->nasid = nasid;
 
-		register_pci_controller(&bc->pc);
-	}
+	bc->baddr = (u64)masterwid << 60;
+	bc->baddr |= (1UL << 56);	/* Barrier set */
 
+	/*
+	 * point to this bridge
+	 */
+	bridge = (bridge_t *) RAW_NODE_SWIN_BASE(nasid, widget_id);
+
+	/*
+ 	 * Clear all pending interrupts.
+ 	 */
+	bridge->b_int_rst_stat = (BRIDGE_IRR_ALL_CLR);
+
+	/*
+ 	 * Until otherwise set up, assume all interrupts are from slot 0
+ 	 */
+	bridge->b_int_device = (u32) 0x0;
+
+	/*
+ 	 * swap pio's to pci mem and io space (big windows)
+ 	 */
+	bridge->b_wid_control |= BRIDGE_CTRL_IO_SWAP;
+	bridge->b_wid_control |= BRIDGE_CTRL_MEM_SWAP;
+
+	/*
+	 * Hmm...  IRIX sets additional bits in the address which
+	 * are documented as reserved in the bridge docs.
+	 */
+	bridge->b_int_mode = 0x0;		/* Don't clear ints */
+	bridge->b_wid_int_upper = 0x8000 | (masterwid << 16);
+	bridge->b_wid_int_lower = 0x01800090;	/* PI_INT_PEND_MOD off*/
+	bridge->b_dir_map = (masterwid << 20);	/* DMA */
+	bridge->b_int_enable = 0;
+
+	bridge->b_wid_tflush;     /* wait until Bridge PIO complete */
+
+	bc->base = bridge;
+
+	register_pci_controller(&bc->pc);
 	return 0;
 }
-
-arch_initcall(ip27_pcibios_init);
 
 /*
  * All observed requests have pin == 1. We could have a global here, that
@@ -238,6 +264,7 @@ arch_initcall(ip27_pcibios_init);
  */
 int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
 	int busno = dev->bus->number;
 
 	if ((busno >= MAX_PCI_BUSSES)
@@ -252,7 +279,7 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	if (irqstore[busno][slot])
 		return irqstore[busno][slot];
 
-	irq_to_bus[lastirq] = busno;
+	irq_to_bridge[lastirq] = bc;
 	irq_to_slot[lastirq] = slot;
 	irqstore[busno][slot] = lastirq;
 	lastirq++;
@@ -268,9 +295,8 @@ int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 
 static void __init pci_disable_swapping(struct pci_dev *dev)
 {
-	unsigned int bus_id = (unsigned) dev->bus->number;
-	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-						       bus_to_wid[bus_id]);
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
+	bridge_t *bridge = bc->base;
 	int slot = PCI_SLOT(dev->devfn);
 
 	/* Turn off byte swapping */
@@ -280,9 +306,8 @@ static void __init pci_disable_swapping(struct pci_dev *dev)
 
 static void __init pci_enable_swapping(struct pci_dev *dev)
 {
-	unsigned int bus_id = (unsigned) dev->bus->number;
-	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-						       bus_to_wid[bus_id]);
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
+	bridge_t *bridge = bc->base;
 	int slot = PCI_SLOT(dev->devfn);
 
 	/* Turn on byte swapping */
@@ -292,22 +317,23 @@ static void __init pci_enable_swapping(struct pci_dev *dev)
 
 static void __init pci_fixup_ioc3(struct pci_dev *d)
 {
-	unsigned long bus_id = (unsigned) d->bus->number;
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
+	unsigned long offset = NODE_OFFSET(bc->nasid);
 
 	printk("PCI: Fixing base addresses for IOC3 device %s\n", pci_name(d));
 
-	d->resource[0].start |= NODE_OFFSET(bus_to_nid[bus_id]);
-	d->resource[0].end |= NODE_OFFSET(bus_to_nid[bus_id]);
+	d->resource[0].start |= offset;
+	d->resource[0].end |= offset;
 
 	pci_disable_swapping(d);
 }
 
 static void __init pci_fixup_isp1020(struct pci_dev *d)
 {
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
 	unsigned short command;
 
-	d->resource[0].start |=
-	    ((unsigned long) (bus_to_nid[d->bus->number]) << 32);
+	d->resource[0].start |= ((unsigned long) (bc->nasid) << 32);
 	printk("PCI: Fixing isp1020 in [bus:slot.fn] %s\n", pci_name(d));
 
 	/*
@@ -316,7 +342,6 @@ static void __init pci_fixup_isp1020(struct pci_dev *d)
 	 * bit set. Things stop working if we program the controllers as not
 	 * having PCI_COMMAND_MEMORY, so we have to fudge the mem_flags.
 	 */
-
 	pci_set_master(d);
 	pci_read_config_word(d, PCI_COMMAND, &command);
 	command |= PCI_COMMAND_MEMORY;
@@ -329,9 +354,8 @@ static void __init pci_fixup_isp1020(struct pci_dev *d)
 
 static void __init pci_fixup_isp2x00(struct pci_dev *d)
 {
-	unsigned int bus_id = (unsigned) d->bus->number;
-	bridge_t *bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],
-						       bus_to_wid[bus_id]);
+	struct bridge_controller *bc = BRIDGE_CONTROLLER(d->bus);
+	bridge_t *bridge = bc->base;
 	bridgereg_t devreg;
 	int i;
 	int slot = PCI_SLOT(d->devfn);

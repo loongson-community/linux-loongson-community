@@ -60,11 +60,6 @@
 #define LEVEL_TO_IRQ(c, l) \
 			(node_level_to_irq[CPUID_TO_COMPACT_NODEID(c)][(l)])
 
-/* These should die */
-unsigned char bus_to_wid[256];	/* widget id for linux pci bus */
-unsigned char bus_to_nid[256];	/* nasid for linux pci bus */
-unsigned char num_bridges;	/* number of bridges in the system */
-
 /*
  * Linux has a controller-independent x86 interrupt architecture.
  * every controller has a 'controller-template', that is used
@@ -83,7 +78,8 @@ unsigned char num_bridges;	/* number of bridges in the system */
 
 extern asmlinkage void ip27_irq(void);
 
-extern int irq_to_bus[], irq_to_slot[], bus_to_cpu[];
+extern struct bridge_controller *irq_to_bridge[];
+extern int irq_to_slot[];
 
 /*
  * There is a single intpend register per node, and we want to have
@@ -95,10 +91,7 @@ static int node_level_to_irq[MAX_COMPACT_NODES][PERNODE_LEVELS];
  * use these macros to get the encoded nasid and widget id
  * from the irq value
  */
-#define IRQ_TO_BUS(i)			irq_to_bus[(i)]
-#define IRQ_TO_CPU(i)			bus_to_cpu[IRQ_TO_BUS(i)]
-#define NASID_FROM_PCI_IRQ(i)		bus_to_nid[IRQ_TO_BUS(i)]
-#define WID_FROM_PCI_IRQ(i)		bus_to_wid[IRQ_TO_BUS(i)]
+#define IRQ_TO_BRIDGE(i)		irq_to_bridge[(i)]
 #define	SLOT_FROM_PCI_IRQ(i)		irq_to_slot[i]
 
 static inline int alloc_level(cpuid_t cpunum, int irq)
@@ -262,28 +255,25 @@ static int intr_disconnect_level(int cpu, int bit)
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int startup_bridge_irq(unsigned int irq)
 {
+	struct bridge_controller *bc = IRQ_TO_BRIDGE(irq);
+	bridge_t *bridge = bc->base;
 	bridgereg_t device;
-	bridge_t *bridge;
 	int pin, swlevel;
-	cpuid_t cpu;
-	nasid_t master = NASID_FROM_PCI_IRQ(irq);
 
 	if (irq < BASE_PCI_IRQ)
 		return 0;
 
-        bridge = (bridge_t *) NODE_SWIN_BASE(master, WID_FROM_PCI_IRQ(irq));
 	pin = SLOT_FROM_PCI_IRQ(irq);
-	cpu = IRQ_TO_CPU(irq);
 
 	DBG("bridge_startup(): irq= 0x%x  pin=%d\n", irq, pin);
 	/*
 	 * "map" irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
-	swlevel = alloc_level(cpu, irq);
-	intr_connect_level(cpu, swlevel);
+	swlevel = alloc_level(bc->irq_cpu, irq);
+	intr_connect_level(bc->irq_cpu, swlevel);
 
-	bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (master << 8));
+	bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (bc->nasid << 8));
 	bridge->b_int_enable |= (1 << pin);
 	/* more stuff in int_enable reg */
 	bridge->b_int_enable |= 0x7ffffe00;
@@ -305,14 +295,13 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 /* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
 static void shutdown_bridge_irq(unsigned int irq)
 {
-	bridge_t *bridge;
+	struct bridge_controller *bc = IRQ_TO_BRIDGE(irq);
+	bridge_t *bridge = bc->base;
 	int pin, swlevel;
 	cpuid_t cpu;
 
 	BUG_ON(irq < BASE_PCI_IRQ);
 
-	bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_PCI_IRQ(irq),
-	                                     WID_FROM_PCI_IRQ(irq));
 	DBG("bridge_shutdown: irq 0x%x\n", irq);
 	pin = SLOT_FROM_PCI_IRQ(irq);
 

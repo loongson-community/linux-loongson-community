@@ -14,11 +14,13 @@
 #include <linux/pci.h>
 
 #include <asm/cache.h>
+#include <asm/pci/bridge.h>
 
-dma64_addr_t dev_to_baddr[256];
+#define dev_to_baddr(dev, addr) \
+	(BRIDGE_CONTROLLER(to_pci_dev(dev)->bus)->baddr + (addr))
+#define baddr_to_dev(dev, addr) \
+	((addr) - BRIDGE_CONTROLLER(to_pci_dev(dev)->bus)->baddr)
 
-#define dev_to_baddr(dev, addr)	(dev_to_baddr[to_pci_dev(dev)->bus->number] + (addr))
-#define baddr_to_dev(dev, addr)	((addr) - dev_to_baddr[to_pci_dev(dev)->bus->number])
 
 void *dma_alloc_noncoherent(struct device *dev, size_t size,
 	dma_addr_t * dma_handle, int gfp)
