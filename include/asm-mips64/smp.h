@@ -11,10 +11,10 @@
 #define __ASM_SMP_H
 
 #include <linux/config.h>
-#include <linux/threads.h>
 
 #ifdef CONFIG_SMP
 
+#include <linux/threads.h>
 #include <linux/irq.h>
 
 #if 0
@@ -47,15 +47,42 @@ extern int __cpu_number_map[NR_CPUS];
 extern int __cpu_logical_map[NR_CPUS];
 #define cpu_logical_map(cpu)  __cpu_logical_map[cpu]
 
-#endif /* CONFIG_SMP */
+#endif
 
 #define NO_PROC_ID	(-1)
 
+#if (NR_CPUS <= _MIPS_SZLONG)
+
 typedef unsigned long   cpumask_t;
 
-#define CPUMASK_CLRALL(p)       (p) = 0
-#define CPUMASK_SETB(p, bit)    (p) |= 1 << (bit)
-#define CPUMASK_CLRB(p, bit)    (p) &= ~(1ULL << (bit))
-#define CPUMASK_TSTB(p, bit)    ((p) & (1ULL << (bit)))
+#define CPUMASK_CLRALL(p)	(p) = 0
+#define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
+#define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
+#define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
+
+#elif (NR_CPUS <= 128)
+
+/*
+ * The foll should work till 128 cpus.
+ */
+#define CPUMASK_SIZE		(NR_CPUS/_MIPS_SZLONG)
+#define CPUMASK_INDEX(bit)	((bit) >> 6)
+#define CPUMASK_SHFT(bit)	((bit) & 0x3f)
+
+typedef struct {
+	unsigned long	_bits[CPUMASK_SIZE];
+} cpumask_t;
+
+#define	CPUMASK_CLRALL(p)	(p)._bits[0] = 0, (p)._bits[1] = 0
+#define CPUMASK_SETB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] |= \
+					(1ULL << CPUMASK_SHFT(bit))
+#define CPUMASK_CLRB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] &= \
+					~(1ULL << CPUMASK_SHFT(bit))
+#define CPUMASK_TSTB(p, bit)	((p)._bits[CPUMASK_INDEX(bit)] & \
+					(1ULL << CPUMASK_SHFT(bit)))
+
+#else
+#error cpumask macros only defined for 128p kernels
+#endif
 
 #endif /* __ASM_SMP_H */
