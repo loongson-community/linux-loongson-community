@@ -2,6 +2,20 @@
 #define _LINUX_SWAP_H
 
 #include <linux/config.h>
+
+/*
+ * MAX_SWAPFILES defines the maximum number of swaptypes: things which can
+ * be swapped to.  The swap type and the offset into that swap type are
+ * encoded into pte's and into pgoff_t's in the swapcache.  Using five bits
+ * for the type means that the maximum number of swapcache pages is 27 bits
+ * on 32-bit-pgoff_t architectures.  And that assumes that the architecture packs
+ * the type/offset into the pte as 5/27 as well.
+ */
+#define MAX_SWAPFILES_SHIFT	5
+#define MAX_SWAPFILES		(1 << MAX_SWAPFILES_SHIFT)
+
+#ifdef __KERNEL__
+
 #include <linux/spinlock.h>
 #include <linux/linkage.h>
 #include <linux/mmzone.h>
@@ -18,17 +32,6 @@ static inline int current_is_kswapd(void)
 {
 	return current->flags & PF_KSWAPD;
 }
-
-/*
- * MAX_SWAPFILES defines the maximum number of swaptypes: things which can
- * be swapped to.  The swap type and the offset into that swap type are
- * encoded into pte's and into pgoff_t's in the swapcache.  Using five bits
- * for the type means that the maximum number of swapcache pages is 27 bits
- * on 32-bit-pgoff_t architectures.  And that assumes that the architecture packs
- * the type/offset into the pte as 5/27 as well.
- */
-#define MAX_SWAPFILES_SHIFT	5
-#define MAX_SWAPFILES		(1 << MAX_SWAPFILES_SHIFT)
 
 /*
  * Magic header for a swap area. The first part of the union is
@@ -72,8 +75,6 @@ typedef struct {
 struct reclaim_state {
 	unsigned long reclaimed_slab;
 };
-
-#ifdef __KERNEL__
 
 struct address_space;
 struct pte_chain;
