@@ -161,10 +161,10 @@ extern void __global_restore_flags(unsigned long);
 #endif /* SMP */
 
 /* For spinlocks etc */
-#define local_irq_save(x)	__save_and_cli(x);
-#define local_irq_restore(x)	__restore_flags(x);
-#define local_irq_disable()	__cli();
-#define local_irq_enable()	__sti();
+#define local_irq_save(x)	__save_and_cli(x)
+#define local_irq_restore(x)	__restore_flags(x)
+#define local_irq_disable()	__cli()
+#define local_irq_enable()	__sti()
 
 /*
  * These are probably defined overly paranoid ...
