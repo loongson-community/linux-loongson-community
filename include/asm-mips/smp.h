@@ -2,11 +2,12 @@
 #define __ASM_MIPS_SMP_H
 
 #include <linux/config.h>
+
+#ifdef CONFIG_SMP
+
 #include <asm/spinlock.h>
 #include <asm/atomic.h>
 #include <asm/current.h>
-
-#ifdef CONFIG_SMP
 
 
 /* Mappings are straight across.  If we want
