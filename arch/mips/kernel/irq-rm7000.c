@@ -6,7 +6,7 @@
  * Free Software Foundation;  either version 2 of the  License, or (at your
  * option) any later version.
  *
- * Handler for RM7000 extendended interrupts.  These are a non-standard
+ * Handler for RM7000 extended interrupts.  These are a non-standard
  * feature so we handle them separately from standard interrupts.
  */
 #include <linux/init.h>
