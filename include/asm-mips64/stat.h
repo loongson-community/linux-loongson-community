@@ -48,8 +48,7 @@ struct stat32 {
 	int		    reserved2;
 	int		    st_blksize;
 	int		    st_blocks;
-	char		    st_fstype[16];	/* Filesystem type name */
-	int		    st_pad4[10];
+	int		    st_pad4[14];
 };
 
 /* The memory layout is the same as of struct stat64 of the 32-bit kernel.  */

@@ -44,8 +44,7 @@ struct stat {
 	long		reserved2;
 	long		st_blksize;
 	long		st_blocks;
-	char		st_fstype[16];	/* Filesystem type name */
-	long		st_pad4[10];
+	long		st_pad4[14];
 };
 
 /*
