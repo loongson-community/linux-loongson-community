@@ -354,8 +354,8 @@ pciauto_postscan_setup_cardbus_bridge(struct pci_channel *hose,
 	 * configured by this routine to happily live behind a
 	 * P2P bridge in a system.
 	 */
-	pciauto_upper_memspc += 0x00400000;
-	pciauto_upper_iospc += 0x00004000;
+	pciauto_lower_memspc += 0x00400000;
+	pciauto_lower_iospc += 0x00004000;
 
 	/* Align memory and I/O to 4KB and 4 byte boundaries. */
 	pciauto_lower_memspc = (pciauto_lower_memspc + (0x1000 - 1))
