@@ -28,11 +28,6 @@
 #include <linux/slab.h>
 
 /*
- * Disk stats 
- */
-struct disk_stat dkstat;
-
-/*
  * For the allocated request tables
  */
 static kmem_cache_t *request_cachep;
@@ -56,7 +51,6 @@ static int queue_nr_requests;
 static int batch_requests;
 
 unsigned long blk_max_low_pfn, blk_max_pfn;
-atomic_t nr_iowait_tasks = ATOMIC_INIT(0);
 int blk_nohighio = 0;
 
 static struct congestion_state {
@@ -113,27 +107,6 @@ static void set_queue_congested(request_queue_t *q, int rw)
 
 	if (!test_and_set_bit(bit, &q->backing_dev_info.state))
 		atomic_inc(&congestion_states[rw].nr_congested_queues);
-}
-
-/*
- * This task is about to go to sleep on IO.  Increment nr_iowait_tasks so
- * that process accounting knows that this is a task in IO wait state.
- *
- * But don't do that if it is a deliberate, throttling IO wait (this task
- * has set its backing_dev_info: the queue against which it should throttle)
- */
-void io_schedule(void)
-{
-	atomic_inc(&nr_iowait_tasks);
-	schedule();
-	atomic_dec(&nr_iowait_tasks);
-}
-
-void io_schedule_timeout(long timeout)
-{
-	atomic_inc(&nr_iowait_tasks);
-	schedule_timeout(timeout);
-	atomic_dec(&nr_iowait_tasks);
 }
 
 /**
@@ -644,7 +617,8 @@ void blk_queue_invalidate_tags(request_queue_t *q)
 static char *rq_flags[] = {
 	"REQ_RW",
 	"REQ_RW_AHEAD",
-	"REQ_BARRIER",
+	"REQ_SOFTBARRIER",
+	"REQ_HARDBARRIER",
 	"REQ_CMD",
 	"REQ_NOMERGE",
 	"REQ_STARTED",
@@ -1392,7 +1366,7 @@ void blk_insert_request(request_queue_t *q, struct request *rq,
 	 * must not attempt merges on this) and that it acts as a soft
 	 * barrier
 	 */
-	rq->flags |= REQ_SPECIAL | REQ_BARRIER;
+	rq->flags |= REQ_SPECIAL | REQ_SOFTBARRIER;
 
 	rq->special = data;
 
@@ -1433,19 +1407,6 @@ void drive_stat_acct(struct request *rq, int nr_sectors, int new_io)
 
 	major = rq->rq_disk->major;
 	index = rq->rq_disk->first_minor >> rq->rq_disk->minor_shift;
-
-	if ((index >= DK_MAX_DISK) || (major >= DK_MAX_MAJOR))
-		return;
-
-	dkstat.drive[major][index] += new_io;
-	if (rw == READ) {
-		dkstat.drive_rio[major][index] += new_io;
-		dkstat.drive_rblk[major][index] += nr_sectors;
-	} else if (rw == WRITE) {
-		dkstat.drive_wio[major][index] += new_io;
-		dkstat.drive_wblk[major][index] += nr_sectors;
-	} else
-		printk(KERN_ERR "drive_stat_acct: cmd not R/W?\n");
 }
 
 /*
@@ -1788,7 +1749,7 @@ get_rq:
 	 * REQ_BARRIER implies no merging, but lets make it explicit
 	 */
 	if (barrier)
-		req->flags |= (REQ_BARRIER | REQ_NOMERGE);
+		req->flags |= (REQ_HARDBARRIER | REQ_NOMERGE);
 
 	req->errors = 0;
 	req->hard_sector = req->sector = sector;

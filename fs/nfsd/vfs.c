@@ -13,6 +13,7 @@
  * dentry, don't worry--they have been taken care of.
  *
  * Copyright (C) 1995-1999 Olaf Kirch <okir@monad.swb.de>
+ * Zerocpy NFS support (C) 2002 Hirokazu Takahashi <taka@valinux.co.jp>
  */
 
 #include <linux/config.h>
@@ -28,6 +29,7 @@
 #include <linux/net.h>
 #include <linux/unistd.h>
 #include <linux/slab.h>
+#include <linux/pagemap.h>
 #include <linux/in.h>
 #include <linux/module.h>
 #include <linux/namei.h>
@@ -571,6 +573,38 @@ found:
 }
 
 /*
+ * Grab and keep cached pages assosiated with a file in the svc_rqst
+ * so that they can be passed to the netowork sendmsg/sendpage routines
+ * directrly. They will be released after the sending has completed.
+ */
+static int
+nfsd_read_actor(read_descriptor_t *desc, struct page *page, unsigned long offset , unsigned long size)
+{
+	unsigned long count = desc->count;
+	struct svc_rqst *rqstp = (struct svc_rqst *)desc->buf;
+
+	if (size > count)
+		size = count;
+
+	if (rqstp->rq_res.page_len == 0) {
+		get_page(page);
+		rqstp->rq_respages[rqstp->rq_resused++] = page;
+		rqstp->rq_res.page_base = offset;
+		rqstp->rq_res.page_len = size;
+	} else if (page != rqstp->rq_respages[rqstp->rq_resused-1]) {
+		get_page(page);
+		rqstp->rq_respages[rqstp->rq_resused++] = page;
+		rqstp->rq_res.page_len += size;
+	} else {
+		rqstp->rq_res.page_len += size;
+	}
+
+	desc->count = count - size;
+	desc->written += size;
+	return size;
+}
+
+/*
  * Read data from a file. count must contain the requested read count
  * on entry. On return, *count contains the number of bytes actually read.
  * N.B. After this call fhp needs an fh_put
@@ -601,10 +635,16 @@ nfsd_read(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	if (ra)
 		file.f_ra = ra->p_ra;
 
-	oldfs = get_fs();
-	set_fs(KERNEL_DS);
-	err = vfs_readv(&file, vec, vlen, *count, &offset);
-	set_fs(oldfs);
+	if (file.f_op->sendfile) {
+		svc_pushback_unused_pages(rqstp);
+		err = file.f_op->sendfile(&file, &offset, *count,
+						 nfsd_read_actor, rqstp);
+	} else {
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+		err = vfs_readv(&file, vec, vlen, &offset);
+		set_fs(oldfs);
+	}
 
 	/* Write back readahead params */
 	if (ra)
@@ -678,7 +718,7 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 
 	/* Write the data. */
 	oldfs = get_fs(); set_fs(KERNEL_DS);
-	err = vfs_writev(&file, vec, vlen, cnt, &offset);
+	err = vfs_writev(&file, vec, vlen, &offset);
 	if (err >= 0)
 		nfsdstats.io_write += cnt;
 	set_fs(oldfs);

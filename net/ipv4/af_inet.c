@@ -110,6 +110,7 @@
 #include <net/icmp.h>
 #include <net/ipip.h>
 #include <net/inet_common.h>
+#include <net/xfrm.h>
 #ifdef CONFIG_IP_MROUTE
 #include <linux/mroute.h>
 #endif
@@ -195,6 +196,8 @@ void inet_sock_release(struct sock *sk)
 	 */
 
 	sock_orphan(sk);
+
+	xfrm_sk_free_policy(sk);
 
 #ifdef INET_REFCNT_DEBUG
 	if (atomic_read(&sk->refcnt) != 1)
@@ -722,6 +725,7 @@ int inet_getname(struct socket *sock, struct sockaddr *uaddr,
 		sin->sin_port = inet->sport;
 		sin->sin_addr.s_addr = addr;
 	}
+	memset(sin->sin_zero, 0, sizeof(sin->sin_zero));
 	*uaddr_len = sizeof(*sin);
 	return 0;
 }
@@ -1038,11 +1042,13 @@ static struct inet_protocol igmp_protocol = {
 static struct inet_protocol tcp_protocol = {
 	.handler =	tcp_v4_rcv,
 	.err_handler =	tcp_v4_err,
+	.no_policy =	1,
 };
 
 static struct inet_protocol udp_protocol = {
 	.handler =	udp_rcv,
 	.err_handler =	udp_err,
+	.no_policy =	1,
 };
 
 static struct inet_protocol icmp_protocol = {

@@ -14,7 +14,7 @@
  *	Additional Authors:
  *		Florian la Roche <rzsfl@rz.uni-sb.de>
  *		Alan Cox <gw4pts@gw4pts.ampr.org>
- *		David Hinds <dhinds@allegro.stanford.edu>
+ *		David Hinds <dahinds@users.sourceforge.net>
  *		Alexey Kuznetsov <kuznet@ms2.inr.ac.ru>
  *		Adam Sulmicki <adam@cfar.umd.edu>
  *              Pekka Riikonen <priikone@poesidon.pspt.fi>
@@ -172,7 +172,7 @@ static struct packet_type *ptype_all;		/* Taps */
 
 #ifdef OFFLINE_SAMPLE
 static void sample_queue(unsigned long dummy);
-static struct timer_list samp_timer = { function: sample_queue };
+static struct timer_list samp_timer = TIMER_INITIALIZER(sample_queue, 0, 0);
 #endif
 
 #ifdef CONFIG_HOTPLUG

@@ -512,6 +512,7 @@ static struct sock *wanpipe_alloc_socket(void)
 
 	/* Use timer to send data to the driver. This will act
          * as a BH handler for sendmsg functions */
+	init_timer(&wan_opt->tx_timer);
 	wan_opt->tx_timer.data	   = (unsigned long)sk;
 	wan_opt->tx_timer.function = wanpipe_delayed_transmit;
 
@@ -1922,30 +1923,6 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 			sock->file->f_flags |= O_NONBLOCK;
 			return 0;
 	
-		case SIOCGIFFLAGS:
-#ifndef CONFIG_INET
-		case SIOCSIFFLAGS:
-#endif
-		case SIOCGIFCONF:
-		case SIOCGIFMETRIC:
-		case SIOCSIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCSIFMEM:
-		case SIOCGIFMTU:
-		case SIOCSIFMTU:
-		case SIOCSIFLINK:
-		case SIOCGIFHWADDR:
-		case SIOCSIFHWADDR:
-		case SIOCSIFMAP:
-		case SIOCGIFMAP:
-		case SIOCSIFSLAVE:
-		case SIOCGIFSLAVE:
-		case SIOCGIFINDEX:
-		case SIOCGIFNAME:
-		case SIOCGIFCOUNT:
-		case SIOCSIFHWBROADCAST:
-			return(dev_ioctl(cmd,(void *) arg));
-
 #ifdef CONFIG_INET
 		case SIOCADDRT:
 		case SIOCDELRT:
@@ -1968,7 +1945,7 @@ static int wanpipe_ioctl(struct socket *sock, unsigned int cmd, unsigned long ar
 #endif
 
 		default:
-			return -EOPNOTSUPP;
+			return dev_ioctl(cmd,(void *) arg);
 	}
 	/*NOTREACHED*/
 }

@@ -1,6 +1,9 @@
 /*
  * Copyright (C) 2002 Roman Zippel <zippel@linux-m68k.org>
  * Released under the terms of the GNU GPL v2.0.
+ *
+ * Introduced single menu mode (show all sub-menus in one large tree).
+ * 2002-11-06 Petr Baudis <pasky@ucw.cz>
  */
 
 #include <sys/ioctl.h>
@@ -8,10 +11,12 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
 
 #define LKC_DIRECT_LINK
@@ -78,12 +83,15 @@ save_config_help[] =
 
 static char buf[4096], *bufptr = buf;
 static char input_buf[4096];
+static char filename[PATH_MAX+1] = ".config";
 static char *args[1024], **argptr = args;
 static int indent = 0;
+static struct termios ios_org;
 static int rows, cols;
 static struct menu *current_menu;
 static int child_count;
 static int do_resize;
+static int single_menu_mode;
 
 static void conf(struct menu *menu);
 static void conf_choice(struct menu *menu);
@@ -274,10 +282,20 @@ static void build_conf(struct menu *menu)
 			case P_MENU:
 				child_count++;
 				cprint("m%p", menu);
-				if (menu->parent != &rootmenu)
-					cprint1("   %*c", indent + 1, ' ');
-				cprint1("%s  --->", prompt);
+
+				if (single_menu_mode) {
+					cprint1("%s%*c%s",
+						menu->data ? "-->" : "++>",
+						indent + 1, ' ', prompt);
+				} else {
+					if (menu->parent != &rootmenu)
+						cprint1("   %*c", indent + 1, ' ');
+					cprint1("%s  --->", prompt);
+				}
+
 				cprint_done();
+				if (single_menu_mode && menu->data)
+					goto conf_childs;
 				return;
 			default:
 				if (prompt) {
@@ -392,6 +410,7 @@ static void conf(struct menu *menu)
 	char active_entry[40];
 	int stat, type, i;
 
+	unlink("lxdialog.scrltmp");
 	active_entry[0] = 0;
 	while (1) {
 		cprint_init();
@@ -442,7 +461,10 @@ static void conf(struct menu *menu)
 		case 0:
 			switch (type) {
 			case 'm':
-				conf(submenu);
+				if (single_menu_mode)
+					submenu->data = (void *) !submenu->data;
+				else
+					conf(submenu);
 				break;
 			case 't':
 				if (sym_is_choice(sym) && sym_get_tristate_value(sym) == yes)
@@ -484,6 +506,8 @@ static void conf(struct menu *menu)
 		case 6:
 			if (type == 't')
 				sym_toggle_tristate_value(sym);
+			else if (type == 'm')
+				conf(submenu);
 			break;
 		}
 	}
@@ -518,11 +542,19 @@ static void show_helptext(const char *title, const char *text)
 static void show_help(struct menu *menu)
 {
 	const char *help;
+	char *helptext;
+	struct symbol *sym = menu->sym;
 
-	help = menu->sym->help;
+	help = sym->help;
 	if (!help)
 		help = nohelp_text;
-	show_helptext(menu_get_prompt(menu), help);
+	if (sym->name) {
+		helptext = malloc(strlen(sym->name) + strlen(help) + 16);
+		sprintf(helptext, "CONFIG_%s:\n\n%s", sym->name, help);
+		show_helptext(menu_get_prompt(menu), helptext);
+		free(helptext);
+	} else
+		show_helptext(menu_get_prompt(menu), help);
 }
 
 static void show_readme(void)
@@ -631,7 +663,7 @@ static void conf_load(void)
 		cprint(load_config_text);
 		cprint("11");
 		cprint("55");
-		cprint("%s", conf_filename);
+		cprint("%s", filename);
 		stat = exec_conf();
 		switch(stat) {
 		case 0:
@@ -660,7 +692,7 @@ static void conf_save(void)
 		cprint(save_config_text);
 		cprint("11");
 		cprint("55");
-		cprint("%s", conf_filename);
+		cprint("%s", filename);
 		stat = exec_conf();
 		switch(stat) {
 		case 0:
@@ -679,16 +711,35 @@ static void conf_save(void)
 	}
 }
 
+static void conf_cleanup(void)
+{
+	tcsetattr(1, TCSAFLUSH, &ios_org);
+	unlink(".help.tmp");
+	unlink("lxdialog.scrltmp");
+}
+
 int main(int ac, char **av)
 {
+	struct symbol *sym;
+	char *mode;
 	int stat;
+
 	conf_parse(av[1]);
 	conf_read(NULL);
 
-	sprintf(menu_backtitle, "Linux Kernel v%s.%s.%s%s Configuration",
-		getenv("VERSION"), getenv("PATCHLEVEL"),
-		getenv("SUBLEVEL"), getenv("EXTRAVERSION"));
+	sym = sym_lookup("KERNELRELEASE", 0);
+	sym_calc_value(sym);
+	sprintf(menu_backtitle, "Linux Kernel v%s Configuration",
+		sym_get_string_value(sym));
 
+	mode = getenv("MENUCONFIG_MODE");
+	if (mode) {
+		if (!strcasecmp(mode, "single_menu"))
+			single_menu_mode = 1;
+	}
+
+	tcgetattr(1, &ios_org);
+	atexit(conf_cleanup);
 	init_wsize();
 	conf(&rootmenu);
 

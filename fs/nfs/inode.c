@@ -29,7 +29,6 @@
 #include <linux/nfs_fs.h>
 #include <linux/nfs_mount.h>
 #include <linux/nfs4_mount.h>
-#include <linux/nfs_flushd.h>
 #include <linux/lockd/bind.h>
 #include <linux/smp_lock.h>
 #include <linux/seq_file.h>
@@ -37,7 +36,6 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
-#define CONFIG_NFS_SNAPSHOT 1
 #define NFSDBG_FACILITY		NFSDBG_VFS
 #define NFS_PARANOIA 1
 
@@ -106,7 +104,7 @@ nfs_write_inode(struct inode *inode, int sync)
 {
 	int flags = sync ? FLUSH_WAIT : 0;
 
-	nfs_sync_file(inode, NULL, 0, 0, flags);
+	nfs_commit_file(inode, NULL, 0, 0, flags);
 }
 
 static void
@@ -117,7 +115,7 @@ nfs_delete_inode(struct inode * inode)
 	/*
 	 * The following can never actually happen...
 	 */
-	if (nfs_have_writebacks(inode) || nfs_have_read(inode)) {
+	if (nfs_have_writebacks(inode)) {
 		printk(KERN_ERR "nfs_delete_inode: inode %ld has pending RPC requests\n", inode->i_ino);
 	}
 
@@ -147,17 +145,8 @@ nfs_put_super(struct super_block *sb)
 	struct nfs_server *server = NFS_SB(sb);
 	struct rpc_clnt	*rpc;
 
-	/*
-	 * First get rid of the request flushing daemon.
-	 * Relies on rpc_shutdown_client() waiting on all
-	 * client tasks to finish.
-	 */
-	nfs_reqlist_exit(server);
-
 	if ((rpc = server->client) != NULL)
 		rpc_shutdown_client(rpc);
-
-	nfs_reqlist_free(server);
 
 	if (!(server->flags & NFS_MOUNT_NONLM))
 		lockd_down();	/* release rpc.lockd */
@@ -262,10 +251,6 @@ int nfs_sb_init(struct super_block *sb)
 
 	sb->s_magic      = NFS_SUPER_MAGIC;
 	sb->s_op         = &nfs_sops;
-	INIT_LIST_HEAD(&server->lru_read);
-	INIT_LIST_HEAD(&server->lru_dirty);
-	INIT_LIST_HEAD(&server->lru_commit);
-	INIT_LIST_HEAD(&server->lru_busy);
 
 	/* Did getting the root inode fail? */
 	root_inode = nfs_get_root(sb, &server->fh);
@@ -327,27 +312,19 @@ int nfs_sb_init(struct super_block *sb)
 		server->acdirmin = server->acdirmax = 0;
 		sb->s_flags |= MS_SYNCHRONOUS;
 	}
+	server->backing_dev_info.ra_pages = server->rpages << 2;
 
 	sb->s_maxbytes = fsinfo.maxfilesize;
 	if (sb->s_maxbytes > MAX_LFS_FILESIZE) 
 		sb->s_maxbytes = MAX_LFS_FILESIZE; 
 
-	/* Fire up the writeback cache */
-	if (nfs_reqlist_alloc(server) < 0) {
-		printk(KERN_NOTICE "NFS: cannot initialize writeback cache.\n");
-		goto failure_kill_reqlist;
-	}
-
 	/* We're airborne Set socket buffersize */
 	rpc_setbufsize(server->client, server->wsize + 100, server->rsize + 100);
 	return 0;
 	/* Yargs. It didn't work out. */
-failure_kill_reqlist:
-	nfs_reqlist_exit(server);
 out_free_all:
 	if (root_inode)
 		iput(root_inode);
-	nfs_reqlist_free(server);
 	return -EINVAL;
 out_no_root:
 	printk("nfs_read_super: get root inode failed\n");
@@ -696,6 +673,7 @@ __nfs_fhget(struct super_block *sb, struct nfs_fh *fh, struct nfs_fattr *fattr)
 		if (S_ISREG(inode->i_mode)) {
 			inode->i_fop = &nfs_file_operations;
 			inode->i_data.a_ops = &nfs_file_aops;
+			inode->i_data.backing_dev_info = &NFS_SB(sb)->backing_dev_info;
 		} else if (S_ISDIR(inode->i_mode)) {
 			inode->i_op = &nfs_dir_inode_operations;
 			inode->i_fop = &nfs_dir_operations;
@@ -1555,11 +1533,9 @@ static void init_once(void * foo, kmem_cache_t * cachep, unsigned long flags)
 	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) ==
 	    SLAB_CTOR_CONSTRUCTOR) {
 		inode_init_once(&nfsi->vfs_inode);
-		INIT_LIST_HEAD(&nfsi->read);
 		INIT_LIST_HEAD(&nfsi->dirty);
 		INIT_LIST_HEAD(&nfsi->commit);
-		INIT_LIST_HEAD(&nfsi->writeback);
-		nfsi->nread = 0;
+		INIT_RADIX_TREE(&nfsi->nfs_page_tree, GFP_ATOMIC);
 		nfsi->ndirty = 0;
 		nfsi->ncommit = 0;
 		nfsi->npages = 0;

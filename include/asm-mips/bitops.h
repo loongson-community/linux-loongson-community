@@ -162,7 +162,7 @@ static __inline__ void change_bit(int nr, volatile unsigned long *addr)
 
 /*
  * __change_bit - Toggle a bit in memory
- * @nr: the bit to set
+ * @nr: the bit to change
  * @addr: the address to start counting from
  *
  * Unlike change_bit(), this function is non-atomic and may be reordered.
@@ -233,7 +233,7 @@ static __inline__ int __test_and_set_bit(int nr, volatile unsigned long * addr)
 
 /*
  * test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to clear
  * @addr: Address to count from
  *
  * This operation is atomic and cannot be reordered.
@@ -265,7 +265,7 @@ static __inline__ int test_and_clear_bit(int nr, volatile unsigned long *addr)
 
 /*
  * __test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to clear
  * @addr: Address to count from
  *
  * This operation is non-atomic and can be reordered.
@@ -288,7 +288,7 @@ static __inline__ int __test_and_clear_bit(int nr,
 
 /*
  * test_and_change_bit - Change a bit and return its new value
- * @nr: Bit to set
+ * @nr: Bit to change
  * @addr: Address to count from
  *
  * This operation is atomic and cannot be reordered.
@@ -319,7 +319,7 @@ static __inline__ int test_and_change_bit(int nr, volatile unsigned long *addr)
 
 /*
  * __test_and_change_bit - Change a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to change
  * @addr: Address to count from
  *
  * This operation is non-atomic and can be reordered.
@@ -420,7 +420,7 @@ static __inline__ void __clear_bit(int nr, volatile unsigned long * addr)
 
 /*
  * change_bit - Toggle a bit in memory
- * @nr: Bit to clear
+ * @nr: Bit to change
  * @addr: Address to start counting from
  *
  * change_bit() is atomic and may not be reordered.
@@ -442,7 +442,7 @@ static __inline__ void change_bit(int nr, volatile unsigned long * addr)
 
 /*
  * __change_bit - Toggle a bit in memory
- * @nr: the bit to set
+ * @nr: the bit to change
  * @addr: the address to start counting from
  *
  * Unlike change_bit(), this function is non-atomic and may be reordered.
@@ -506,7 +506,7 @@ static __inline__ int __test_and_set_bit(int nr, volatile unsigned long * addr)
 
 /*
  * test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to clear
  * @addr: Address to count from
  *
  * This operation is atomic and cannot be reordered.
@@ -531,7 +531,7 @@ static __inline__ int test_and_clear_bit(int nr, volatile unsigned long * addr)
 
 /*
  * __test_and_clear_bit - Clear a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to clear
  * @addr: Address to count from
  *
  * This operation is non-atomic and can be reordered.
@@ -555,7 +555,7 @@ static __inline__ int __test_and_clear_bit(int nr,
 
 /*
  * test_and_change_bit - Change a bit and return its new value
- * @nr: Bit to set
+ * @nr: Bit to change
  * @addr: Address to count from
  *
  * This operation is atomic and cannot be reordered.
@@ -579,7 +579,7 @@ static __inline__ int test_and_change_bit(int nr, volatile unsigned long * addr)
 
 /*
  * __test_and_change_bit - Change a bit and return its old value
- * @nr: Bit to set
+ * @nr: Bit to change
  * @addr: Address to count from
  *
  * This operation is non-atomic and can be reordered.

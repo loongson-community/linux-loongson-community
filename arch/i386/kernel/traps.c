@@ -526,12 +526,17 @@ static nmi_callback_t nmi_callback = dummy_nmi_callback;
  
 asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
 {
-	int cpu = smp_processor_id();
+	int cpu;
 
+	nmi_enter();
+
+	cpu = smp_processor_id();
 	++nmi_count(cpu);
 
 	if (!nmi_callback(regs, cpu))
 		default_do_nmi(regs);
+
+	nmi_exit();
 }
 
 void set_nmi_callback(nmi_callback_t callback)
@@ -906,7 +911,9 @@ void __init trap_init(void)
 	set_trap_gate(15,&spurious_interrupt_bug);
 	set_trap_gate(16,&coprocessor_error);
 	set_trap_gate(17,&alignment_check);
+#ifdef CONFIG_X86_MCE
 	set_trap_gate(18,&machine_check);
+#endif
 	set_trap_gate(19,&simd_coprocessor_error);
 
 	set_system_gate(SYSCALL_VECTOR,&system_call);

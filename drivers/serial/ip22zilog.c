@@ -8,9 +8,10 @@
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
- * to David S. Miller, Eddie C. Dost, Peter Zaitcev, Ted Ts'o and Alex Buell
+ * to David S. Miller, Eddie C. Dost, Pete Zaitcev, Ted Ts'o and Alex Buell
  * for their work there.
  *
+ *  Copyright (C) 2002 Ralf Baechle (ralf@linux-mips.org)
  *  Copyright (C) 2002 David S. Miller (davem@redhat.com)
  */
 
@@ -628,7 +629,7 @@ static void ip22zilog_start_tx(struct uart_port *port, unsigned int tty_start)
 		port->icount.tx++;
 
 		if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-			uart_event(&up->port, EVT_WRITE_WAKEUP);
+			uart_write_wakeup(&up->port);
 	}
 }
 
@@ -906,7 +907,6 @@ static struct uart_ops ip22zilog_pops = {
 
 static struct uart_ip22zilog_port *ip22zilog_port_table;
 static struct zilog_layout **ip22zilog_chip_regs;
-static int *ip22zilog_nodes;
 
 static struct uart_ip22zilog_port *ip22zilog_irq_chain;
 static int zilog_irq = -1;
@@ -939,12 +939,8 @@ static void __init ip22zilog_alloc_tables(void)
 		alloc_one_table(NUM_CHANNELS * sizeof(struct uart_ip22zilog_port));
 	ip22zilog_chip_regs = (struct zilog_layout **)
 		alloc_one_table(NUM_IP22ZILOG * sizeof(struct zilog_layout *));
-	ip22zilog_nodes = (int *)
-		alloc_one_table(NUM_IP22ZILOG * sizeof(int));
 
-	if (ip22zilog_port_table == NULL ||
-	    ip22zilog_chip_regs == NULL ||
-	    ip22zilog_nodes == NULL) {
+	if (ip22zilog_port_table == NULL || ip22zilog_chip_regs == NULL) {
 		panic("ip22zilog_init: Cannot alloc IP22-Zilog tables.");
 	}
 }
@@ -960,8 +956,6 @@ static struct zilog_layout * __init get_zs(int chip)
 
 	/* Not probe-able, hard code it. */
 	base = (unsigned long) &hpc3mregs->ser1cmd;
-
-	ip22zilog_nodes[chip] = 0;
 
 	zilog_irq = SGI_SERIAL_IRQ;
 	request_mem_region(base, 8, "IP22-Zilog");
@@ -1225,7 +1219,7 @@ static int __init ip22zilog_ports_init(void)
 {
 	int ret;
 
-	printk(KERN_INFO "Serial: IP22 Zilog driver.\n");
+	printk(KERN_INFO "Serial: IP22 Zilog driver (%d chips).\n", NUM_IP22ZILOG);
 
 	ip22zilog_prepare();
 

@@ -222,6 +222,13 @@ P:	Dave Gilbert
 M:	linux@treblig.org
 S:	Maintained
 
+ARM/PT DIGITAL BOARD PORT
+P:	Stefan Eletzhofer
+M:	stefan.eletzhofer@eletztrick.de
+L:	linux-arm-kernel@lists.arm.linux.org.uk
+W:	http://www.arm.linux.org.uk/
+S:	Maintained
+
 ARM/SHARK MACHINE SUPPORT
 P:	Alexander Schulz
 M:	alex@shark-linux.de
@@ -317,6 +324,27 @@ L:	codalist@coda.cs.cmu.edu
 W:	http://www.coda.cs.cmu.edu/
 S:	Maintained
 
+COMPACTPCI HOTPLUG CORE
+P:	Scott Murray
+M:	scottm@somanetworks.com
+M:	scott@spiteful.org
+L:	pcihpd-discuss@lists.sourceforge.net
+S:	Supported
+
+COMPACTPCI HOTPLUG ZIATECH ZT5550 DRIVER
+P:	Scott Murray
+M:	scottm@somanetworks.com
+M:	scott@spiteful.org
+L:	pcihpd-discuss@lists.sourceforge.net
+S:	Supported
+
+COMPACTPCI HOTPLUG GENERIC DRIVER
+P:	Scott Murray
+M:	scottm@somanetworks.com
+M:	scott@spiteful.org
+L:	pcihpd-discuss@lists.sourceforge.net
+S:	Supported
+
 COMPAQ FIBRE CHANNEL 64-bit/66MHz PCI non-intelligent HBA
 P:	Amy Vanzant-Hodge 
 M:	Amy Vanzant-Hodge (fibrechannel@compaq.com)
@@ -350,13 +378,6 @@ COMX/MULTIGATE SYNC SERIAL DRIVERS
 P:	Gergely Madarasz
 M:	Gergely Madarasz <gorgo@itc.hu>
 S:	Supported
-
-CONFIGURE, MENUCONFIG, XCONFIG
-P:	Michael Elizabeth Chastain
-M:	mec@shout.net
-L:	kbuild-devel@lists.sourceforge.net
-W:	http://kbuild.sourceforge.net
-S:	Maintained
 
 COSA/SRP SYNC SERIAL DRIVER
 P:	Jan "Yenya" Kasprzak
@@ -914,6 +935,12 @@ L:	linux-joystick@atrey.karlin.mff.cuni.cz
 W:	http://www.suse.cz/development/joystick/
 S:	Maintained
 
+KCONFIG
+P:	Roman Zippel
+M:	zippel@linux-m68k.org
+L:	kbuild-devel@lists.sourceforge.net
+S:	Maintained
+
 KERNEL AUTOMOUNTER (AUTOFS)
 P:	H. Peter Anvin
 M:	hpa@zytor.com
@@ -1255,6 +1282,15 @@ L:	linux-parport@torque.net
 W:	http://www.torque.net/linux-pp.html
 S:	Maintained
 
+PARISC ARCHITECTURE
+P:	Matthew Wilcox
+M:	matthew@wil.cx
+P:	Grant Grundler
+M:	grundler@parisc-linux.org
+L:	parisc-linux@parisc-linux.org
+W:	http://www.parisc-linux.org/
+S:	Maintained
+
 PERSONALITY HANDLING
 P:	Christoph Hellwig
 M:	hch@infradead.org
@@ -1294,7 +1330,7 @@ S:	Maintained
 
 PCMCIA SUBSYSTEM
 P:	David Hinds
-M:	dhinds@zen.stanford.edu
+M:	dahinds@users.sourceforge.net
 L:	linux-kernel@vger.kernel.org
 W:	http://pcmcia-cs.sourceforge.net
 S:	Maintained
@@ -1414,7 +1450,7 @@ S:	Supported
 SA1100 SUPPORT
 P:	Nicolas Pitre
 M:	nico@cam.org
-L:	sa1100-linux@pa.dec.com
+L:	linux-arm@lists.arm.linux.org.uk
 S:	Maintained
 
 SBPCD CDROM DRIVER

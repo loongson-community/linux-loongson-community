@@ -96,7 +96,12 @@ int max_queued_signals = 1024;
 #define M_SIGEMT	0
 #endif
 
+#if SIGRTMIN > BITS_PER_LONG
+#define M(sig) (1ULL << (sig))
+#else
 #define M(sig) (1UL << (sig))
+#endif
+#define T(sig, mask) (M(sig) & mask)
 
 #define SIG_USER_SPECIFIC_MASK (\
 	M(SIGILL)    |  M(SIGTRAP)   |  M(SIGABRT)   |  M(SIGBUS)    | \
@@ -130,9 +135,6 @@ int max_queued_signals = 1024;
         M(SIGQUIT)   |  M(SIGILL)    |  M(SIGTRAP)   |  M(SIGABRT)   | \
         M(SIGFPE)    |  M(SIGSEGV)   |  M(SIGBUS)    |  M(SIGSYS)    | \
         M(SIGXCPU)   |  M(SIGXFSZ)   |  M_SIGEMT                     )
-
-#define T(sig, mask) \
-	((1UL << (sig)) & mask)
 
 #define sig_user_specific(sig) \
 		(((sig) < SIGRTMIN)  && T(sig, SIG_USER_SPECIFIC_MASK))
@@ -768,7 +770,7 @@ force_sig_info(int sig, struct siginfo *info, struct task_struct *t)
 }
 
 static int
-specific_force_sig_info(int sig, struct task_struct *t)
+__specific_force_sig_info(int sig, struct task_struct *t)
 {
 	if (!t->sig)
 		return -ESRCH;
@@ -779,6 +781,20 @@ specific_force_sig_info(int sig, struct task_struct *t)
 	recalc_sigpending_tsk(t);
 
 	return specific_send_sig_info(sig, (void *)2, t, 0);
+}
+
+void
+force_sig_specific(int sig, struct task_struct *t)
+{
+	unsigned long int flags;
+
+	spin_lock_irqsave(&t->sig->siglock, flags);
+	if (t->sig->action[sig-1].sa.sa_handler == SIG_IGN)
+		t->sig->action[sig-1].sa.sa_handler = SIG_DFL;
+	sigdelset(&t->blocked, sig);
+	recalc_sigpending_tsk(t);
+	specific_send_sig_info(sig, (void *)2, t, 0);
+	spin_unlock_irqrestore(&t->sig->siglock, flags);
 }
 
 #define can_take_signal(p, sig)	\
@@ -846,7 +862,7 @@ int __broadcast_thread_group(struct task_struct *p, int sig)
 	int err = 0;
 
 	for_each_task_pid(p->tgid, PIDTYPE_TGID, tmp, l, pid)
-		err = specific_force_sig_info(sig, tmp);
+		err = __specific_force_sig_info(sig, tmp);
 
 	return err;
 }

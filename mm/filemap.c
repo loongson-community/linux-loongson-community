@@ -791,6 +791,7 @@ __generic_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
 		if (seg == 0)
 			return -EFAULT;
 		nr_segs = seg;
+		count -= iv->iov_len;	/* This segment is no good */
 		break;
 	}
 
@@ -888,8 +889,8 @@ int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long o
 	return written;
 }
 
-ssize_t generic_file_sendfile(struct file *out_file, struct file *in_file,
-			      loff_t *ppos, size_t count)
+ssize_t generic_file_sendfile(struct file *in_file, loff_t *ppos,
+			 size_t count, read_actor_t actor, void *target)
 {
 	read_descriptor_t desc;
 
@@ -898,10 +899,10 @@ ssize_t generic_file_sendfile(struct file *out_file, struct file *in_file,
 
 	desc.written = 0;
 	desc.count = count;
-	desc.buf = (char *)out_file;
+	desc.buf = target;
 	desc.error = 0;
 
-	do_generic_file_read(in_file, ppos, &desc, file_send_actor);
+	do_generic_file_read(in_file, ppos, &desc, actor);
 	if (desc.written)
 		return desc.written;
 	return desc.error;
@@ -1578,6 +1579,7 @@ generic_file_write_nolock(struct file *file, const struct iovec *iov,
 		if (seg == 0)
 			return -EFAULT;
 		nr_segs = seg;
+		ocount -= iv->iov_len;	/* This segment is no good */
 		break;
 	}
 	count = ocount;

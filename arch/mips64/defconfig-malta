@@ -105,6 +105,8 @@ CONFIG_SWAP=y
 CONFIG_KCORE_ELF=y
 CONFIG_BINFMT_ELF=y
 CONFIG_MIPS32_COMPAT=y
+CONFIG_MIPS32_O32=y
+# CONFIG_MIPS32_N32 is not set
 CONFIG_BINFMT_ELF32=y
 # CONFIG_BINFMT_MISC is not set
 
@@ -231,6 +233,7 @@ CONFIG_NETLINK_DEV=y
 # CONFIG_NETFILTER is not set
 # CONFIG_FILTER is not set
 CONFIG_UNIX=y
+CONFIG_NET_KEY=y
 CONFIG_INET=y
 # CONFIG_IP_MULTICAST is not set
 # CONFIG_IP_ADVANCED_ROUTER is not set
@@ -243,6 +246,8 @@ CONFIG_IP_PNP=y
 # CONFIG_ARPD is not set
 # CONFIG_INET_ECN is not set
 # CONFIG_SYN_COOKIES is not set
+CONFIG_INET_AH=y
+CONFIG_INET_ESP=y
 # CONFIG_IPV6 is not set
 
 #
@@ -267,6 +272,11 @@ CONFIG_IPV6_SCTP__=y
 # QoS and/or fair queueing
 #
 # CONFIG_NET_SCHED is not set
+
+#
+# Network testing
+#
+# CONFIG_NET_PKTGEN is not set
 
 #
 # Network device support

@@ -219,7 +219,7 @@ void __devinit pcibios_fixup_bus(struct pci_bus *b)
 	pci_fixup_irqs(pci_swizzle, pci_map_irq);
 }
 
-void __init pcibios_fixup_pbus_ranges(struct pci_bus * bus,
+void __devinit pcibios_fixup_pbus_ranges(struct pci_bus * bus,
                           struct pbus_set_ranges_data * ranges)
 {
 }

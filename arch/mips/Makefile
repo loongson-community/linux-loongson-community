@@ -19,9 +19,11 @@
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mipsel-linux-
 JIFFIES32	= jiffies_64
+LDFLAGS_BLOB   := --format binary --oformat elf32-tradlittlemips
 else
 tool-prefix	= mips-linux-
 JIFFIES32	= jiffies_64 + 4
+LDFLAGS_BLOB   := --format binary --oformat elf32-tradbigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
@@ -45,6 +47,8 @@ MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
 
+check_gcc = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
+
 #
 # CPU-dependent compiler/assembler options for optimization.
 #
@@ -62,7 +66,10 @@ cflags-$(CONFIG_CPU_R5432)	+= -mcpu=r5000 -mips2 -Wa,--trap
 # Cannot use -mmad with currently recommended tools
 cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r5000 -mips2 -Wa,--trap
 cflags-$(CONFIG_CPU_RM7000)	+= -mcpu=r5000 -mips2 -Wa,--trap
-cflags-$(CONFIG_CPU_SB1)	+= -mcpu=r8000 -mips2 -Wa,--trap
+cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -mcpu=r7000, -mcpu=r5000) \
+				   -mips2 -Wa,--trap
+cflags-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mcpu=sb1, -mcpu=r8000) \
+				   -mips2 -Wa,--trap
 ifdef CONFIG_CPU_SB1
 ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 MODFLAGS	+= -msb1-pass1-workarounds

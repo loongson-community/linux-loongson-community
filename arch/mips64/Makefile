@@ -16,8 +16,10 @@
 #
 ifdef CONFIG_CPU_LITTLE_ENDIAN
 tool-prefix	= mips64el-linux-
+LDFLAGS_BLOB   := --format binary --oformat elf64-tradlittlemips
 else
 tool-prefix	= mips64-linux-
+LDFLAGS_BLOB   := --format binary --oformat elf64-tradbigmips
 endif
 
 ifdef CONFIG_CROSSCOMPILE
@@ -41,6 +43,8 @@ MODFLAGS			+= -mlong-calls
 
 cflags-$(CONFIG_REMOTE_DEBUG)	+= -g
 
+check_gcc = $(shell if $(AS) $(1) -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi)
+
 #
 # CPU-dependent compiler/assembler options for optimization.
 #
@@ -48,6 +52,10 @@ cflags-$(CONFIG_CPU_R4300)	+= -mcpu=r4300 -mips3
 cflags-$(CONFIG_CPU_R4X00)	+= -mcpu=r4600 -mips3
 cflags-$(CONFIG_CPU_R5000)	+= -mcpu=r8000 -mips4
 cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 -mips3 -mmad
+cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -mcpu=r7000, -mcpu=r5000) \
+				   -mips4 -Wa,--trap
+cflags-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mcpu=sb1, -mcpu=r8000) \
+				   -mips2 -Wa,--trap
 cflags-$(CONFIG_CPU_R8000)	+= -mcpu=r8000 -mips4
 cflags-$(CONFIG_CPU_R10000)	+= -mcpu=r8000 -mips4
 ifdef CONFIG_CPU_SB1

@@ -17,6 +17,7 @@
 #define _LINUX_CRYPTO_H
 
 #include <linux/module.h>
+#include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/string.h>
@@ -66,7 +67,8 @@ struct scatterlist;
  * via crypto_register_alg() and crypto_unregister_alg().
  */
 struct cipher_alg {
-	unsigned int cia_keysize;
+	unsigned int cia_min_keysize;
+	unsigned int cia_max_keysize;
 	unsigned int cia_ivsize;
 	int (*cia_setkey)(void *ctx, const u8 *key,
 	                  unsigned int keylen, u32 *flags);
@@ -113,6 +115,11 @@ int crypto_register_alg(struct crypto_alg *alg);
 int crypto_unregister_alg(struct crypto_alg *alg);
 
 /*
+ * Algorithm query interface.
+ */
+int crypto_alg_available(const char *name, u32 flags);
+
+/*
  * Transforms: user-instantiated objects which encapsulate algorithms
  * and core processing logic.  Managed via crypto_alloc_tfm() and
  * crypto_free_tfm(), as well as the various helpers below.
@@ -137,9 +144,6 @@ struct digest_tfm {
 	void (*dit_final)(struct crypto_tfm *tfm, u8 *out);
 	void (*dit_digest)(struct crypto_tfm *tfm, struct scatterlist *sg,
 	                   unsigned int nsg, u8 *out);
-	void (*dit_hmac)(struct crypto_tfm *tfm, u8 *key,
-	                 unsigned int keylen, struct scatterlist *sg,
-	                 unsigned int nsg, u8 *out);
 };
 
 struct compress_tfm {
@@ -154,6 +158,7 @@ struct compress_tfm {
 struct crypto_tfm {
 
 	void *crt_ctx;
+	void *crt_work_block;
 	u32 crt_flags;
 	
 	union {
@@ -204,9 +209,14 @@ static inline u32 crypto_tfm_alg_type(struct crypto_tfm *tfm)
 	return tfm->__crt_alg->cra_flags & CRYPTO_ALG_TYPE_MASK;
 }
 
-static inline unsigned int crypto_tfm_alg_keysize(struct crypto_tfm *tfm)
+static inline unsigned int crypto_tfm_alg_min_keysize(struct crypto_tfm *tfm)
 {
-	return tfm->__crt_alg->cra_cipher.cia_keysize;
+	return tfm->__crt_alg->cra_cipher.cia_min_keysize;
+}
+
+static inline unsigned int crypto_tfm_alg_max_keysize(struct crypto_tfm *tfm)
+{
+	return tfm->__crt_alg->cra_cipher.cia_max_keysize;
 }
 
 static inline unsigned int crypto_tfm_alg_ivsize(struct crypto_tfm *tfm)
@@ -253,16 +263,6 @@ static inline void crypto_digest_digest(struct crypto_tfm *tfm,
 {
 	BUG_ON(crypto_tfm_alg_type(tfm) != CRYPTO_ALG_TYPE_DIGEST);
 	tfm->crt_digest.dit_digest(tfm, sg, nsg, out);
-}
-
-static inline void crypto_digest_hmac(struct crypto_tfm *tfm,
-                                      u8 *key, unsigned int keylen,
-                                      struct scatterlist *sg,
-                                      unsigned int nsg, u8 *out)
-                                      
-{
-	BUG_ON(crypto_tfm_alg_type(tfm) != CRYPTO_ALG_TYPE_DIGEST);
-	tfm->crt_digest.dit_hmac(tfm, key, keylen, sg, nsg, out);
 }
 
 static inline int crypto_cipher_setkey(struct crypto_tfm *tfm,
@@ -314,4 +314,18 @@ static inline void crypto_comp_decompress(struct crypto_tfm *tfm)
 	tfm->crt_compress.cot_decompress(tfm);
 }
 
+/*
+ * HMAC support.
+ */
+#ifdef CONFIG_CRYPTO_HMAC
+void crypto_hmac_init(struct crypto_tfm *tfm, u8 *key, unsigned int *keylen);
+void crypto_hmac_update(struct crypto_tfm *tfm,
+                        struct scatterlist *sg, unsigned int nsg);
+void crypto_hmac_final(struct crypto_tfm *tfm, u8 *key,
+                       unsigned int *keylen, u8 *out);
+void crypto_hmac(struct crypto_tfm *tfm, u8 *key, unsigned int *keylen,
+                 struct scatterlist *sg, unsigned int nsg, u8 *out);
+#endif	/* CONFIG_CRYPTO_HMAC */
+
 #endif	/* _LINUX_CRYPTO_H */
+

@@ -81,6 +81,9 @@ int xfrm4_rcv(struct sk_buff *skb)
 		if (x->props.replay_window)
 			xfrm_replay_advance(x, seq);
 
+		x->curlft.bytes += skb->len;
+		x->curlft.packets++;
+
 		spin_unlock(&x->lock);
 
 		xfrm_vec[xfrm_nr++] = x;
@@ -123,8 +126,10 @@ int xfrm4_rcv(struct sk_buff *skb)
 	skb->sp->len += xfrm_nr;
 
 	if (decaps) {
-		dst_release(skb->dst);
-		skb->dst = NULL;
+		if (!(skb->dev->flags&IFF_LOOPBACK)) {
+			dst_release(skb->dst);
+			skb->dst = NULL;
+		}
 		netif_rx(skb);
 		return 0;
 	} else {

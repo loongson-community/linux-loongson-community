@@ -119,7 +119,7 @@ struct inode *fat_build_inode(struct super_block *sb,
 	if (!inode)
 		goto out;
 	inode->i_ino = iunique(sb, MSDOS_ROOT_INO);
-	inode->i_version = 0;
+	inode->i_version = 1;
 	*res = fat_fill_inode(inode, de);
 	if (*res < 0) {
 		iput(inode);
@@ -701,24 +701,24 @@ void __exit fat_destroy_inodecache(void)
 }
 
 static struct super_operations fat_sops = { 
-	alloc_inode:	fat_alloc_inode,
-	destroy_inode:	fat_destroy_inode,
-	write_inode:	fat_write_inode,
-	delete_inode:	fat_delete_inode,
-	put_super:	fat_put_super,
-	statfs:		fat_statfs,
-	clear_inode:	fat_clear_inode,
+	.alloc_inode	= fat_alloc_inode,
+	.destroy_inode	= fat_destroy_inode,
+	.write_inode	= fat_write_inode,
+	.delete_inode	= fat_delete_inode,
+	.put_super	= fat_put_super,
+	.statfs		= fat_statfs,
+	.clear_inode	= fat_clear_inode,
 
-	read_inode:	make_bad_inode,
+	.read_inode	= make_bad_inode,
 
-	show_options:	fat_show_options,
+	.show_options	= fat_show_options,
 };
 
 static struct export_operations fat_export_ops = {
-	decode_fh:	fat_decode_fh,
-	encode_fh:	fat_encode_fh,
-	get_dentry:	fat_get_dentry,
-	get_parent:	fat_get_parent,
+	.decode_fh	= fat_decode_fh,
+	.encode_fh	= fat_encode_fh,
+	.get_dentry	= fat_get_dentry,
+	.get_parent	= fat_get_parent,
 };
 
 /*
@@ -970,7 +970,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 	if (!root_inode)
 		goto out_fail;
 	root_inode->i_ino = MSDOS_ROOT_INO;
-	root_inode->i_version = 0;
+	root_inode->i_version = 1;
 	error = fat_read_root(root_inode);
 	if (error < 0)
 		goto out_fail;
@@ -1071,12 +1071,12 @@ static sector_t _fat_bmap(struct address_space *mapping, sector_t block)
 	return generic_block_bmap(mapping,block,fat_get_block);
 }
 static struct address_space_operations fat_aops = {
-	readpage: fat_readpage,
-	writepage: fat_writepage,
-	sync_page: block_sync_page,
-	prepare_write: fat_prepare_write,
-	commit_write: fat_commit_write,
-	bmap: _fat_bmap
+	.readpage = fat_readpage,
+	.writepage = fat_writepage,
+	.sync_page = block_sync_page,
+	.prepare_write = fat_prepare_write,
+	.commit_write = fat_commit_write,
+	.bmap = _fat_bmap
 };
 
 /* doesn't deal with root inode */

@@ -334,11 +334,11 @@ static struct termios    * TermiosLocked[IP2_MAX_PORTS];
  * download the loadware to the boards.
  */
 static struct file_operations ip2_ipl = {
-	owner:		THIS_MODULE,
-	read:		ip2_ipl_read,
-	write:		ip2_ipl_write,
-	ioctl:		ip2_ipl_ioctl,
-	open:		ip2_ipl_open,
+	.owner		= THIS_MODULE,
+	.read		= ip2_ipl_read,
+	.write		= ip2_ipl_write,
+	.ioctl		= ip2_ipl_ioctl,
+	.open		= ip2_ipl_open,
 }; 
 
 static unsigned long irq_counter = 0;
@@ -352,7 +352,7 @@ static unsigned long bh_counter = 0;
  * selected, the board is serviced periodically to see if anything needs doing.
  */
 #define  POLL_TIMEOUT   (jiffies + 1)
-static struct timer_list PollTimer = { function: ip2_poll };
+static struct timer_list PollTimer = TIMER_INITIALIZER(ip2_poll, 0, 0);
 static char  TimerOn;
 
 #ifdef IP2DEBUG_TRACE

@@ -437,7 +437,8 @@ struct arraycache_init initarray_generic __initdata = { { 0, BOOT_CPUCACHE_ENTRI
 /* internal cache of cache description objs */
 static kmem_cache_t cache_cache = {
 	.lists		= LIST3_INIT(cache_cache.lists),
-	.array		= { [0] = &initarray_cache.cache },
+	/* Allow for boot cpu != 0 */
+	.array		= { [0 ... NR_CPUS-1] = &initarray_cache.cache },
 	.batchcount	= 1,
 	.limit		= BOOT_CPUCACHE_ENTRIES,
 	.objsize	= sizeof(kmem_cache_t),
@@ -2284,3 +2285,20 @@ ssize_t slabinfo_write(struct file *file, const char *buffer,
 	return res;
 }
 #endif
+
+unsigned int ksize(const void *objp)
+{
+	kmem_cache_t *c;
+	unsigned long flags;
+	unsigned int size = 0;
+
+	if (likely(objp != NULL)) {
+		local_irq_save(flags);
+		c = GET_PAGE_CACHE(virt_to_page(objp));
+		size = kmem_cache_size(c);
+		local_irq_restore(flags);
+	}
+
+	return size;
+}
+

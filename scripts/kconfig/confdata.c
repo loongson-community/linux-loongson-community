@@ -4,7 +4,6 @@
  */
 
 #include <ctype.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +13,6 @@
 #include "lkc.h"
 
 const char conf_def_filename[] = ".config";
-char conf_filename[PATH_MAX+1];
 
 const char conf_defname[] = "arch/$ARCH/defconfig";
 
@@ -61,7 +59,7 @@ char *conf_get_default_confname(void)
 int conf_read(const char *name)
 {
 	FILE *in = NULL;
-	char line[128];
+	char line[1024];
 	char *p, *p2;
 	int lineno = 0;
 	struct symbol *sym;
@@ -71,8 +69,6 @@ int conf_read(const char *name)
 
 	if (name) {
 		in = fopen(name, "r");
-		if (in)
-			strcpy(conf_filename, name);
 	} else {
 		const char **names = conf_confnames;
 		while ((name = *names++)) {
@@ -91,21 +87,21 @@ int conf_read(const char *name)
 		return 1;
 
 	for_all_symbols(i, sym) {
-		sym->flags |= SYMBOL_NEW;
+		sym->flags |= SYMBOL_NEW | SYMBOL_CHANGED;
+		sym->flags &= ~SYMBOL_VALID;
 		switch (sym->type) {
 		case S_INT:
 		case S_HEX:
 		case S_STRING:
-			if (S_VAL(sym->def)) {
+			if (S_VAL(sym->def))
 				free(S_VAL(sym->def));
-				S_VAL(sym->def) = NULL;
-			}
 		default:
-			;
+			S_VAL(sym->def) = NULL;
+			S_TRI(sym->def) = no;
 		}
 	}
 
-	while (fgets(line, 128, in)) {
+	while (fgets(line, sizeof(line), in)) {
 		lineno++;
 		switch (line[0]) {
 		case '#':
@@ -117,7 +113,6 @@ int conf_read(const char *name)
 			*p++ = 0;
 			if (strncmp(p, "is not set", 10))
 				continue;
-			//printf("%s -> n\n", line + 9);
 			sym = sym_lookup(line + 9, 0);
 			switch (sym->type) {
 			case S_BOOLEAN:
@@ -139,23 +134,29 @@ int conf_read(const char *name)
 			p2 = strchr(p, '\n');
 			if (p2)
 				*p2 = 0;
-			//printf("%s -> %s\n", line + 7, p);
 			sym = sym_find(line + 7);
 			if (!sym) {
 				fprintf(stderr, "%s:%d: trying to assign nonexistent symbol %s\n", name, lineno, line + 7);
 				break;
 			}
 			switch (sym->type) {
-			case S_BOOLEAN:
-				sym->def = symbol_yes.curr;
-				sym->flags &= ~SYMBOL_NEW;
-				break;
 			case S_TRISTATE:
-				if (p[0] == 'm')
-					sym->def = symbol_mod.curr;
-				else
-					sym->def = symbol_yes.curr;
-				sym->flags &= ~SYMBOL_NEW;
+				if (p[0] == 'm') {
+					S_TRI(sym->def) = mod;
+					sym->flags &= ~SYMBOL_NEW;
+					break;
+				}
+			case S_BOOLEAN:
+				if (p[0] == 'y') {
+					S_TRI(sym->def) = yes;
+					sym->flags &= ~SYMBOL_NEW;
+					break;
+				}
+				if (p[0] == 'n') {
+					S_TRI(sym->def) = no;
+					sym->flags &= ~SYMBOL_NEW;
+					break;
+				}
 				break;
 			case S_STRING:
 				if (*p++ != '"')
@@ -167,13 +168,19 @@ int conf_read(const char *name)
 					}
 					memmove(p2, p2 + 1, strlen(p2));
 				}
+				if (!p2) {
+					fprintf(stderr, "%s:%d: invalid string found\n", name, lineno);
+					exit(1);
+				}
 			case S_INT:
 			case S_HEX:
 				if (sym_string_valid(sym, p)) {
 					S_VAL(sym->def) = strdup(p);
 					sym->flags &= ~SYMBOL_NEW;
-				} else
-					fprintf(stderr, "%s:%d:symbol value '%s' invalid for %s\n", name, lineno, p, sym->name);
+				} else {
+					fprintf(stderr, "%s:%d: symbol value '%s' invalid for %s\n", name, lineno, p, sym->name);
+					exit(1);
+				}
 				break;
 			default:
 				;
@@ -352,7 +359,6 @@ int conf_write(const char *name)
 	rename(name, oldname);
 	if (rename(".tmpconfig", name))
 		return 1;
-	strcpy(conf_filename, name);
 
 	sym_change_count = 0;
 

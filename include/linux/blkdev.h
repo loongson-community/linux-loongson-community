@@ -11,22 +11,6 @@
 
 #include <asm/scatterlist.h>
 
-/*
- * Disk stats ...
- */
-
-#define DK_MAX_MAJOR 16
-#define DK_MAX_DISK 16
- 
-struct disk_stat {
-        unsigned int drive[DK_MAX_MAJOR][DK_MAX_DISK];
-        unsigned int drive_rio[DK_MAX_MAJOR][DK_MAX_DISK];
-        unsigned int drive_wio[DK_MAX_MAJOR][DK_MAX_DISK];
-        unsigned int drive_rblk[DK_MAX_MAJOR][DK_MAX_DISK];
-        unsigned int drive_wblk[DK_MAX_MAJOR][DK_MAX_DISK];
-};
-extern struct disk_stat dkstat;
-
 struct request_queue;
 typedef struct request_queue request_queue_t;
 struct elevator_s;
@@ -110,7 +94,8 @@ struct request {
 enum rq_flag_bits {
 	__REQ_RW,	/* not set, read. set, write */
 	__REQ_RW_AHEAD,	/* READA */
-	__REQ_BARRIER,	/* may not be passed */
+	__REQ_SOFTBARRIER,	/* may not be passed by ioscheduler */
+	__REQ_HARDBARRIER,	/* may not be passed by drive either */
 	__REQ_CMD,	/* is a regular fs rw request */
 	__REQ_NOMERGE,	/* don't touch this for merging */
 	__REQ_STARTED,	/* drive already may have started this one */
@@ -134,7 +119,8 @@ enum rq_flag_bits {
 
 #define REQ_RW		(1 << __REQ_RW)
 #define REQ_RW_AHEAD	(1 << __REQ_RW_AHEAD)
-#define REQ_BARRIER	(1 << __REQ_BARRIER)
+#define REQ_SOFTBARRIER	(1 << __REQ_SOFTBARRIER)
+#define REQ_HARDBARRIER	(1 << __REQ_HARDBARRIER)
 #define REQ_CMD		(1 << __REQ_CMD)
 #define REQ_NOMERGE	(1 << __REQ_NOMERGE)
 #define REQ_STARTED	(1 << __REQ_STARTED)
@@ -275,9 +261,10 @@ struct request_queue
  * mergeable request must not have _NOMERGE or _BARRIER bit set, nor may
  * it already be started by driver.
  */
+#define RQ_NOMERGE_FLAGS	\
+	(REQ_NOMERGE | REQ_STARTED | REQ_HARDBARRIER | REQ_SOFTBARRIER)
 #define rq_mergeable(rq)	\
-	(!((rq)->flags & (REQ_NOMERGE | REQ_STARTED | REQ_BARRIER))	\
-	&& ((rq)->flags & REQ_CMD))
+	(!((rq)->flags & RQ_NOMERGE_FLAGS) && blk_fs_request((rq)))
 
 /*
  * noop, requests are automagically marked as active/inactive by I/O
@@ -466,10 +453,5 @@ static inline void put_dev_sector(Sector p)
 )
 #endif 
  
-
-
-extern atomic_t nr_iowait_tasks;
-void io_schedule(void);
-void io_schedule_timeout(long timeout);
 
 #endif

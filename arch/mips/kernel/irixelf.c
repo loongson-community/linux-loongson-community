@@ -45,7 +45,6 @@ static int load_irix_binary(struct linux_binprm * bprm, struct pt_regs * regs);
 static int load_irix_library(struct file *);
 static int irix_core_dump(long signr, struct pt_regs * regs,
                           struct file *file);
-extern int dump_fpu (elf_fpregset_t *);
 
 static struct linux_binfmt irix_format = {
 	NULL, THIS_MODULE, load_irix_binary, load_irix_library,
@@ -1183,7 +1182,7 @@ static int irix_core_dump(long signr, struct pt_regs * regs, struct file *file)
 	notes[2].data = current;
 
 	/* Try to dump the FPU. */
-	prstatus.pr_fpvalid = dump_fpu (&fpu);
+	prstatus.pr_fpvalid = dump_fpu (regs, &fpu);
 	if (!prstatus.pr_fpvalid) {
 		numnote--;
 	} else {

@@ -12,21 +12,22 @@
 #include <linux/pagemap.h>
 #include <linux/smp_lock.h>
 #include <linux/slab.h>
-
+#include <linux/module.h>
 #include <asm/mman.h>
 #include <asm/pgalloc.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
 
-struct vm_operations_struct hugetlb_vm_ops;
-struct list_head htlbpage_freelist;
-spinlock_t htlbpage_lock = SPIN_LOCK_UNLOCKED;
-extern long htlbpagemem;
+static long    htlbpagemem;
+int     htlbpage_max;
+static long    htlbzone_pages;
 
-void zap_hugetlb_resources(struct vm_area_struct *);
+struct vm_operations_struct hugetlb_vm_ops;
+static LIST_HEAD(htlbpage_freelist);
+static spinlock_t htlbpage_lock = SPIN_LOCK_UNLOCKED;
 
 #define MAX_ID 	32
-struct htlbpagekey {
+static struct htlbpagekey {
 	struct inode *in;
 	int key;
 } htlbpagek[MAX_ID];
@@ -108,7 +109,7 @@ static int anon_get_hugetlb_page(struct mm_struct *mm, struct vm_area_struct *vm
 	return page ? 1 : -1;
 }
 
-int make_hugetlb_pages_present(unsigned long addr, unsigned long end, int flags)
+static int make_hugetlb_pages_present(unsigned long addr, unsigned long end, int flags)
 {
 	int write;
 	struct mm_struct *mm = current->mm;
@@ -143,7 +144,7 @@ int make_hugetlb_pages_present(unsigned long addr, unsigned long end, int flags)
 out_error:		/* Error case, remove the partial lp_resources. */
 	if (addr > vma->vm_start) {
 		vma->vm_end = addr;
-		zap_hugetlb_resources(vma);
+		zap_hugepage_range(vma, vma->vm_start, vma->vm_end - vma->vm_start);
 		vma->vm_end = end;
 	}
 	spin_unlock(&mm->page_table_lock);
@@ -235,22 +236,55 @@ void huge_page_release(struct page *page)
 	free_huge_page(page);
 }
 
+static void
+free_rsrc(struct inode * inode)
+{
+	int i;
+	spin_lock(&htlbpage_lock);
+	for (i=0;i<MAX_ID;i++) 
+		if (htlbpagek[i].key == inode->i_ino) {
+			htlbpagek[i].key = 0;
+			htlbpagek[i].in = NULL;
+			break;
+		}
+	spin_unlock(&htlbpage_lock);
+	kfree(inode);
+}
+
 void unmap_hugepage_range(struct vm_area_struct *vma, unsigned long start, unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long address;
 	pte_t *pte;
 	struct page *page;
+	int free_more = 0;
+	struct inode *inode = NULL;
 
 	BUG_ON(start & (HPAGE_SIZE - 1));
 	BUG_ON(end & (HPAGE_SIZE - 1));
 
+	if (start < end) {
+		pte = huge_pte_offset(mm, start);
+		page = pte_page(*pte);
+		if ((page->mapping != NULL) && (page_count(page) == 2) &&
+			((inode=page->mapping->host)->i_mapping->a_ops == NULL)) 
+			free_more = 1;
+	}
 	for (address = start; address < end; address += HPAGE_SIZE) {
 		pte = huge_pte_offset(mm, address);
 		page = pte_page(*pte);
+		if (free_more) {
+			ClearPageDirty(page);
+			SetPageLocked(page);
+			remove_from_page_cache(page);
+			ClearPageLocked(page);
+			set_page_count(page, 1);
+		}
 		huge_page_release(page);
 		pte_clear(pte);
 	}
+	if (free_more)
+		free_rsrc(inode);
 	mm->rss -= (end - start) >> PAGE_SHIFT;
 	flush_tlb_range(vma, start, end);
 }
@@ -261,30 +295,6 @@ void zap_hugepage_range(struct vm_area_struct *vma, unsigned long start, unsigne
 	spin_lock(&mm->page_table_lock);
 	unmap_hugepage_range(vma, start, start + length);
 	spin_unlock(&mm->page_table_lock);
-}
-
-void zap_hugetlb_resources(struct vm_area_struct *vma)
-{
-	zap_hugepage_range(vma, vma->vm_start, vma->vm_end);
-}
-
-static void unlink_vma(struct vm_area_struct *mpnt)
-{
-	struct mm_struct *mm = current->mm;
-	struct vm_area_struct *vma;
-
-	vma = mm->mmap;
-	if (vma == mpnt) {
-		mm->mmap = vma->vm_next;
-	} else {
-		while (vma->vm_next != mpnt) {
-			vma = vma->vm_next;
-		}
-		vma->vm_next = mpnt->vm_next;
-	}
-	rb_erase(&mpnt->vm_rb, &mm->mm_rb);
-	mm->mmap_cache = NULL;
-	mm->map_count--;
 }
 
 static struct inode *set_new_inode(unsigned long len, int prot, int flag, int key)
@@ -397,7 +407,7 @@ out:
 		unsigned long raddr;
 		raddr = vma->vm_end;
 		vma->vm_end = addr;
-		zap_hugetlb_resources(vma);
+		zap_hugepage_range(vma, vma->vm_start, vma->vm_end - vma->vm_start);
 		vma->vm_end = raddr;
 	}
 	spin_unlock(&mm->page_table_lock);
@@ -534,6 +544,53 @@ int set_hugetlb_mem_size(int count)
 		__free_pages(page, HUGETLB_PAGE_ORDER);
 	}
 	return (int) htlbzone_pages;
+}
+
+int hugetlb_sysctl_handler(ctl_table *table, int write, struct file *file, void *buffer, size_t *length)
+{
+	proc_dointvec(table, write, file, buffer, length);
+	htlbpage_max = set_hugetlb_mem_size(htlbpage_max);
+	return 0;
+}
+
+static int __init hugetlb_setup(char *s)
+{
+	if (sscanf(s, "%d", &htlbpage_max) <= 0)
+		htlbpage_max = 0;
+	return 1;
+}
+__setup("hugepages=", hugetlb_setup);
+
+static int __init hugetlb_init(void)
+{
+	int i, j;
+	struct page *page;
+
+	for (i = 0; i < htlbpage_max; ++i) {
+		page = alloc_pages(__GFP_HIGHMEM, HUGETLB_PAGE_ORDER);
+		if (!page)
+			break;
+		for (j = 0; j < HPAGE_SIZE/PAGE_SIZE; ++j)
+			SetPageReserved(&page[j]);
+		spin_lock(&htlbpage_lock);
+		list_add(&page->list, &htlbpage_freelist);
+		spin_unlock(&htlbpage_lock);
+	}
+	htlbpage_max = htlbpagemem = htlbzone_pages = i;
+	printk("Total HugeTLB memory allocated, %ld\n", htlbpagemem);
+	return 0;
+}
+module_init(hugetlb_init);
+
+int hugetlb_report_meminfo(char *buf)
+{
+	return sprintf(buf,
+			"HugePages_Total: %5lu\n"
+			"HugePages_Free:  %5lu\n"
+			"Hugepagesize:    %5lu kB\n",
+			htlbzone_pages,
+			htlbpagemem,
+			HPAGE_SIZE/1024);
 }
 
 static struct page * hugetlb_nopage(struct vm_area_struct * area, unsigned long address, int unused)

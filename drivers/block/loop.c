@@ -137,15 +137,15 @@ static int xor_status(struct loop_device *lo, struct loop_info *info)
 }
 
 struct loop_func_table none_funcs = { 
-	number: LO_CRYPT_NONE,
-	transfer: transfer_none,
-	init: none_status,
+	.number = LO_CRYPT_NONE,
+	.transfer = transfer_none,
+	.init = none_status,
 }; 	
 
 struct loop_func_table xor_funcs = { 
-	number: LO_CRYPT_XOR,
-	transfer: transfer_xor,
-	init: xor_status
+	.number = LO_CRYPT_XOR,
+	.transfer = transfer_xor,
+	.init = xor_status
 }; 	
 
 /* xfer_funcs[0] is special - its release function is never called */ 
@@ -303,22 +303,22 @@ do_lo_receive(struct loop_device *lo,
 		struct bio_vec *bvec, int bsize, loff_t pos)
 {
 	struct lo_read_data cookie;
-	read_descriptor_t desc;
 	struct file *file;
+	int error;
 
 	cookie.lo = lo;
 	cookie.data = kmap(bvec->bv_page) + bvec->bv_offset;
 	cookie.bsize = bsize;
-	desc.written = 0;
-	desc.count = bvec->bv_len;
-	desc.buf = (char*)&cookie;
-	desc.error = 0;
+
+	/* umm, what does this lock actually try to protect? */
 	spin_lock_irq(&lo->lo_lock);
 	file = lo->lo_backing_file;
 	spin_unlock_irq(&lo->lo_lock);
-	do_generic_file_read(file, &pos, &desc, lo_read_actor);
+
+	error = file->f_op->sendfile(file, &pos, bvec->bv_len,
+			lo_read_actor, &cookie);
 	kunmap(bvec->bv_page);
-	return desc.error;
+	return error;
 }
 
 static int
@@ -682,7 +682,7 @@ static int loop_set_fd(struct loop_device *lo, struct file *lo_file,
 		 * If we can't read - sorry. If we only can't write - well,
 		 * it's going to be read-only.
 		 */
-		if (!aops->readpage)
+		if (!inode->i_fop->sendfile)
 			goto out_putf;
 
 		if (!aops->prepare_write || !aops->commit_write)
@@ -969,10 +969,10 @@ static int lo_release(struct inode *inode, struct file *file)
 }
 
 static struct block_device_operations lo_fops = {
-	owner:		THIS_MODULE,
-	open:		lo_open,
-	release:	lo_release,
-	ioctl:		lo_ioctl,
+	.owner =	THIS_MODULE,
+	.open =		lo_open,
+	.release =	lo_release,
+	.ioctl =	lo_ioctl,
 };
 
 /*
@@ -1070,8 +1070,8 @@ int __init loop_init(void)
 out_mem2:
 	while (i--)
 		put_disk(disks[i]);
-out_mem:
 	kfree(disks);
+out_mem:
 	kfree(loop_dev);
 	printk(KERN_ERR "loop: ran out of memory\n");
 	return -ENOMEM;

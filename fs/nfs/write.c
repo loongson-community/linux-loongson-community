@@ -52,16 +52,21 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/file.h>
+#include <linux/mpage.h>
+#include <linux/writeback.h>
 
 #include <linux/sunrpc/clnt.h>
 #include <linux/nfs_fs.h>
 #include <linux/nfs_mount.h>
-#include <linux/nfs_flushd.h>
 #include <linux/nfs_page.h>
 #include <asm/uaccess.h>
 #include <linux/smp_lock.h>
+#include <linux/mempool.h>
 
 #define NFSDBG_FACILITY		NFSDBG_PAGECACHE
+
+#define MIN_POOL_WRITE		(32)
+#define MIN_POOL_COMMIT		(4)
 
 /*
  * Local function declarations
@@ -72,11 +77,13 @@ static struct nfs_page * nfs_update_request(struct file*, struct inode *,
 static void	nfs_strategy(struct inode *inode);
 
 static kmem_cache_t *nfs_wdata_cachep;
+static mempool_t *nfs_wdata_mempool;
+static mempool_t *nfs_commit_mempool;
 
 static __inline__ struct nfs_write_data *nfs_writedata_alloc(void)
 {
 	struct nfs_write_data	*p;
-	p = kmem_cache_alloc(nfs_wdata_cachep, SLAB_NOFS);
+	p = (struct nfs_write_data *)mempool_alloc(nfs_wdata_mempool, SLAB_NOFS);
 	if (p) {
 		memset(p, 0, sizeof(*p));
 		INIT_LIST_HEAD(&p->pages);
@@ -86,13 +93,35 @@ static __inline__ struct nfs_write_data *nfs_writedata_alloc(void)
 
 static __inline__ void nfs_writedata_free(struct nfs_write_data *p)
 {
-	kmem_cache_free(nfs_wdata_cachep, p);
+	mempool_free(p, nfs_wdata_mempool);
 }
 
 void nfs_writedata_release(struct rpc_task *task)
 {
 	struct nfs_write_data	*wdata = (struct nfs_write_data *)task->tk_calldata;
 	nfs_writedata_free(wdata);
+}
+
+static __inline__ struct nfs_write_data *nfs_commit_alloc(void)
+{
+	struct nfs_write_data	*p;
+	p = (struct nfs_write_data *)mempool_alloc(nfs_commit_mempool, SLAB_NOFS);
+	if (p) {
+		memset(p, 0, sizeof(*p));
+		INIT_LIST_HEAD(&p->pages);
+	}
+	return p;
+}
+
+static __inline__ void nfs_commit_free(struct nfs_write_data *p)
+{
+	mempool_free(p, nfs_commit_mempool);
+}
+
+void nfs_commit_release(struct rpc_task *task)
+{
+	struct nfs_write_data	*wdata = (struct nfs_write_data *)task->tk_calldata;
+	nfs_commit_free(wdata);
 }
 
 /*
@@ -250,49 +279,43 @@ out:
 	return err; 
 }
 
-/*
- * Check whether the file range we want to write to is locked by
- * us.
- */
-static int
-region_locked(struct inode *inode, struct nfs_page *req)
+int
+nfs_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
-	struct file_lock	*fl;
-	loff_t			rqstart, rqend;
+	struct inode *inode = mapping->host;
+	int is_sync = !wbc->nonblocking;
+	int err;
 
-	/* Don't optimize writes if we don't use NLM */
-	if (NFS_SERVER(inode)->flags & NFS_MOUNT_NONLM)
-		return 0;
-
-	rqstart = req_offset(req) + req->wb_offset;
-	rqend = rqstart + req->wb_bytes;
-	for (fl = inode->i_flock; fl; fl = fl->fl_next) {
-		if (fl->fl_owner == current->files && (fl->fl_flags & FL_POSIX)
-		    && fl->fl_type == F_WRLCK
-		    && fl->fl_start <= rqstart && rqend <= fl->fl_end) {
-			return 1;
-		}
-	}
-
-	return 0;
+	err = generic_writepages(mapping, wbc);
+	if (err)
+		goto out;
+	err = nfs_flush_file(inode, NULL, 0, 0, 0);
+	if (err < 0)
+		goto out;
+	if (is_sync)
+		err = nfs_wb_all(inode);
+out:
+	return err;
 }
 
 /*
  * Insert a write request into an inode
  */
-static inline void
+static inline int
 nfs_inode_add_request(struct inode *inode, struct nfs_page *req)
 {
 	struct nfs_inode *nfsi = NFS_I(inode);
-	if (!list_empty(&req->wb_hash))
-		return;
-	if (!NFS_WBACK_BUSY(req))
-		printk(KERN_ERR "NFS: unlocked request attempted hashed!\n");
-	if (list_empty(&nfsi->writeback))
+	int error;
+
+	error = radix_tree_insert(&nfsi->nfs_page_tree, req->wb_index, req);
+	BUG_ON(error == -EEXIST);
+	if (error)
+		return error;
+	if (!nfsi->npages)
 		igrab(inode);
 	nfsi->npages++;
-	list_add(&req->wb_hash, &nfsi->writeback);
 	req->wb_count++;
+	return 0;
 }
 
 /*
@@ -303,21 +326,14 @@ nfs_inode_remove_request(struct nfs_page *req)
 {
 	struct nfs_inode *nfsi;
 	struct inode *inode;
+
+	BUG_ON (!NFS_WBACK_BUSY(req));
 	spin_lock(&nfs_wreq_lock);
-	if (list_empty(&req->wb_hash)) {
-		spin_unlock(&nfs_wreq_lock);
-		return;
-	}
-	if (!NFS_WBACK_BUSY(req))
-		printk(KERN_ERR "NFS: unlocked request attempted unhashed!\n");
 	inode = req->wb_inode;
-	list_del(&req->wb_hash);
-	INIT_LIST_HEAD(&req->wb_hash);
 	nfsi = NFS_I(inode);
+	radix_tree_delete(&nfsi->nfs_page_tree, req->wb_index);
 	nfsi->npages--;
-	if ((nfsi->npages == 0) != list_empty(&nfsi->writeback))
-		printk(KERN_ERR "NFS: desynchronized value of nfs_i.npages.\n");
-	if (list_empty(&nfsi->writeback)) {
+	if (!nfsi->npages) {
 		spin_unlock(&nfs_wreq_lock);
 		iput(inode);
 	} else
@@ -333,19 +349,12 @@ static inline struct nfs_page *
 _nfs_find_request(struct inode *inode, unsigned long index)
 {
 	struct nfs_inode *nfsi = NFS_I(inode);
-	struct list_head	*head, *next;
+	struct nfs_page *req;
 
-	head = &nfsi->writeback;
-	next = head->next;
-	while (next != head) {
-		struct nfs_page *req = nfs_inode_wb_entry(next);
-		next = next->next;
-		if (req->wb_index != index)
-			continue;
+	req = (struct nfs_page*)radix_tree_lookup(&nfsi->nfs_page_tree, index);
+	if (req)
 		req->wb_count++;
-		return req;
-	}
-	return NULL;
+	return req;
 }
 
 static struct nfs_page *
@@ -371,8 +380,6 @@ nfs_mark_request_dirty(struct nfs_page *req)
 	spin_lock(&nfs_wreq_lock);
 	nfs_list_add_request(req, &nfsi->dirty);
 	nfsi->ndirty++;
-	__nfs_del_lru(req);
-	__nfs_add_lru(&NFS_SERVER(inode)->lru_dirty, req);
 	spin_unlock(&nfs_wreq_lock);
 	mark_inode_dirty(inode);
 }
@@ -400,8 +407,6 @@ nfs_mark_request_commit(struct nfs_page *req)
 	spin_lock(&nfs_wreq_lock);
 	nfs_list_add_request(req, &nfsi->commit);
 	nfsi->ncommit++;
-	__nfs_del_lru(req);
-	__nfs_add_lru(&NFS_SERVER(inode)->lru_commit, req);
 	spin_unlock(&nfs_wreq_lock);
 	mark_inode_dirty(inode);
 }
@@ -416,8 +421,8 @@ static int
 nfs_wait_on_requests(struct inode *inode, struct file *file, unsigned long idx_start, unsigned int npages)
 {
 	struct nfs_inode *nfsi = NFS_I(inode);
-	struct list_head	*p, *head;
-	unsigned long		idx_end;
+	struct nfs_page *req;
+	unsigned long		idx_end, next;
 	unsigned int		res = 0;
 	int			error;
 
@@ -427,21 +432,17 @@ nfs_wait_on_requests(struct inode *inode, struct file *file, unsigned long idx_s
 		idx_end = idx_start + npages - 1;
 
 	spin_lock(&nfs_wreq_lock);
-	head = &nfsi->writeback;
-	p = head->next;
-	while (p != head) {
-		struct nfs_page *req = nfs_inode_wb_entry(p);
+	next = idx_start;
+	while (radix_tree_gang_lookup(&nfsi->nfs_page_tree, (void **)&req, next, 1)) {
+		if (req->wb_index > idx_end)
+			break;
 
-		p = p->next;
-
+		next = req->wb_index + 1;
 		if (file && req->wb_file != file)
 			continue;
-
-		if (req->wb_index < idx_start || req->wb_index > idx_end)
-			continue;
-
 		if (!NFS_WBACK_BUSY(req))
 			continue;
+
 		req->wb_count++;
 		spin_unlock(&nfs_wreq_lock);
 		error = nfs_wait_on_request(req);
@@ -449,57 +450,11 @@ nfs_wait_on_requests(struct inode *inode, struct file *file, unsigned long idx_s
 		if (error < 0)
 			return error;
 		spin_lock(&nfs_wreq_lock);
-		p = head->next;
+		next = idx_start;
 		res++;
 	}
 	spin_unlock(&nfs_wreq_lock);
 	return res;
-}
-
-/**
- * nfs_scan_lru_dirty_timeout - Scan LRU list for timed out dirty requests
- * @server: NFS superblock data
- * @dst: destination list
- *
- * Moves a maximum of 'wpages' requests from the NFS dirty page LRU list.
- * The elements are checked to ensure that they form a contiguous set
- * of pages, and that they originated from the same file.
- */
-int
-nfs_scan_lru_dirty_timeout(struct nfs_server *server, struct list_head *dst)
-{
-	struct nfs_inode *nfsi;
-	int npages;
-
-	npages = nfs_scan_lru_timeout(&server->lru_dirty, dst, server->wpages);
-	if (npages) {
-		nfsi = NFS_I(nfs_list_entry(dst->next)->wb_inode);
-		nfsi->ndirty -= npages;
-	}
-	return npages;
-}
-
-/**
- * nfs_scan_lru_dirty - Scan LRU list for dirty requests
- * @server: NFS superblock data
- * @dst: destination list
- *
- * Moves a maximum of 'wpages' requests from the NFS dirty page LRU list.
- * The elements are checked to ensure that they form a contiguous set
- * of pages, and that they originated from the same file.
- */
-int
-nfs_scan_lru_dirty(struct nfs_server *server, struct list_head *dst)
-{
-	struct nfs_inode *nfsi;
-	int npages;
-
-	npages = nfs_scan_lru(&server->lru_dirty, dst, server->wpages);
-	if (npages) {
-		nfsi = NFS_I(nfs_list_entry(dst->next)->wb_inode);
-		nfsi->ndirty -= npages;
-	}
-	return npages;
 }
 
 /*
@@ -526,59 +481,6 @@ nfs_scan_dirty(struct inode *inode, struct list_head *dst, struct file *file, un
 }
 
 #if defined(CONFIG_NFS_V3) || defined(CONFIG_NFS_V4)
-/**
- * nfs_scan_lru_commit_timeout - Scan LRU list for timed out commit requests
- * @server: NFS superblock data
- * @dst: destination list
- *
- * Finds the first a timed out request in the NFS commit LRU list and moves it
- * to the list dst. If such an element is found, we move all other commit
- * requests that apply to the same inode.
- * The assumption is that doing everything in a single commit-to-disk is
- * the cheaper alternative.
- */
-int
-nfs_scan_lru_commit_timeout(struct nfs_server *server, struct list_head *dst)
-{
-	struct nfs_inode *nfsi;
-	int npages;
-
-	npages = nfs_scan_lru_timeout(&server->lru_commit, dst, 1);
-	if (npages) {
-		nfsi = NFS_I(nfs_list_entry(dst->next)->wb_inode);
-		npages += nfs_scan_list(&nfsi->commit, dst, NULL, 0, 0);
-		nfsi->ncommit -= npages;
-	}
-	return npages;
-}
-
-
-/**
- * nfs_scan_lru_commit_timeout - Scan LRU list for timed out commit requests
- * @server: NFS superblock data
- * @dst: destination list
- *
- * Finds the first request in the NFS commit LRU list and moves it
- * to the list dst. If such an element is found, we move all other commit
- * requests that apply to the same inode.
- * The assumption is that doing everything in a single commit-to-disk is
- * the cheaper alternative.
- */
-int
-nfs_scan_lru_commit(struct nfs_server *server, struct list_head *dst)
-{
-	struct nfs_inode *nfsi;
-	int npages;
-
-	npages = nfs_scan_lru(&server->lru_commit, dst, 1);
-	if (npages) {
-		nfsi = NFS_I(nfs_list_entry(dst->next)->wb_inode);
-		npages += nfs_scan_list(&nfsi->commit, dst, NULL, 0, 0);
-		nfsi->ncommit -= npages;
-	}
-	return npages;
-}
-
 /*
  * nfs_scan_commit - Scan an inode for commit requests
  * @inode: NFS inode to scan
@@ -643,8 +545,14 @@ nfs_update_request(struct file* file, struct inode *inode, struct page *page,
 		}
 
 		if (new) {
+			int error;
 			nfs_lock_request_dontget(new);
-			nfs_inode_add_request(inode, new);
+			error = nfs_inode_add_request(inode, new);
+			if (error) {
+				spin_unlock(&nfs_wreq_lock);
+				nfs_unlock_request(new);
+				return ERR_PTR(error);
+			}
 			spin_unlock(&nfs_wreq_lock);
 			nfs_mark_request_dirty(new);
 			return new;
@@ -658,11 +566,6 @@ nfs_update_request(struct file* file, struct inode *inode, struct page *page,
 			new->wb_file = file;
 			get_file(file);
 		}
-		/* If the region is locked, adjust the timeout */
-		if (region_locked(inode, new))
-			new->wb_timeout = jiffies + NFS_WRITEBACK_LOCKDELAY;
-		else
-			new->wb_timeout = jiffies + NFS_WRITEBACK_DELAY;
 	}
 
 	/* We have a request for our page.
@@ -850,6 +753,7 @@ nfs_write_rpcsetup(struct list_head *head, struct nfs_write_data *data, int how)
 		req = nfs_list_entry(head->next);
 		nfs_list_remove_request(req);
 		nfs_list_add_request(req, &data->pages);
+		SetPageWriteback(req->wb_page);
 		*pages++ = req->wb_page;
 		count += req->wb_bytes;
 	}
@@ -1005,10 +909,12 @@ nfs_writeback_done(struct rpc_task *task, int stable,
 			SetPageError(page);
 			if (req->wb_file)
 				req->wb_file->f_error = task->tk_status;
+			end_page_writeback(page);
 			nfs_inode_remove_request(req);
 			dprintk(", error = %d\n", task->tk_status);
 			goto next;
 		}
+		end_page_writeback(page);
 
 #if defined(CONFIG_NFS_V3) || defined(CONFIG_NFS_V4)
 		if (stable != NFS_UNSTABLE || data->verf.committed == NFS_FILE_SYNC) {
@@ -1017,7 +923,6 @@ nfs_writeback_done(struct rpc_task *task, int stable,
 			goto next;
 		}
 		memcpy(&req->wb_verf, &data->verf, sizeof(req->wb_verf));
-		req->wb_timeout = jiffies + NFS_COMMIT_DELAY;
 		nfs_mark_request_commit(req);
 		dprintk(" marked for commit\n");
 #else
@@ -1079,7 +984,7 @@ nfs_commit_list(struct list_head *head, int how)
 	struct nfs_page         *req;
 	sigset_t		oldset;
 
-	data = nfs_writedata_alloc();
+	data = nfs_commit_alloc();
 
 	if (!data)
 		goto out_bad;
@@ -1223,11 +1128,27 @@ int nfs_init_writepagecache(void)
 	if (nfs_wdata_cachep == NULL)
 		return -ENOMEM;
 
+	nfs_wdata_mempool = mempool_create(MIN_POOL_WRITE,
+					   mempool_alloc_slab,
+					   mempool_free_slab,
+					   nfs_wdata_cachep);
+	if (nfs_wdata_mempool == NULL)
+		return -ENOMEM;
+
+	nfs_commit_mempool = mempool_create(MIN_POOL_COMMIT,
+					   mempool_alloc_slab,
+					   mempool_free_slab,
+					   nfs_wdata_cachep);
+	if (nfs_commit_mempool == NULL)
+		return -ENOMEM;
+
 	return 0;
 }
 
 void nfs_destroy_writepagecache(void)
 {
+	mempool_destroy(nfs_commit_mempool);
+	mempool_destroy(nfs_wdata_mempool);
 	if (kmem_cache_destroy(nfs_wdata_cachep))
 		printk(KERN_INFO "nfs_write_data: not all structures were freed\n");
 }

@@ -279,6 +279,7 @@ int copy_strings_kernel(int argc,char ** argv, struct linux_binprm *bprm)
 	return r; 
 }
 
+#ifdef CONFIG_MMU
 /*
  * This routine is used to map in a page into an address space: needed by
  * execve() for the initial stack and environment pages.
@@ -293,6 +294,7 @@ void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long a
 
 	if (page_count(page) != 1)
 		printk(KERN_ERR "mem_map disagrees with %p at %08lx\n", page, address);
+
 	pgd = pgd_offset(tsk->mm, address);
 
 	spin_lock(&tsk->mm->page_table_lock);
@@ -331,7 +333,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 	struct mm_struct *mm = current->mm;
 	int i;
 
-#ifdef ARCH_STACK_GROWSUP
+#ifdef CONFIG_STACK_GROWSUP
 	/* Move the argument and environment strings to the bottom of the
 	 * stack space.
 	 */
@@ -390,7 +392,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 	down_write(&mm->mmap_sem);
 	{
 		mpnt->vm_mm = mm;
-#ifdef ARCH_STACK_GROWSUP
+#ifdef CONFIG_STACK_GROWSUP
 		mpnt->vm_start = stack_base;
 		mpnt->vm_end = PAGE_MASK &
 			(PAGE_SIZE - 1 + (unsigned long) bprm->p);
@@ -421,6 +423,25 @@ int setup_arg_pages(struct linux_binprm *bprm)
 	
 	return 0;
 }
+
+#define free_arg_pages(bprm) do { } while (0)
+
+#else
+
+#define put_dirty_page(tsk, page, address)
+#define setup_arg_pages(bprm)			(0)
+static inline void free_arg_pages(struct linux_binprm *bprm)
+{
+	int i;
+
+	for (i = 0 ; i < MAX_ARG_PAGES ; i++) {
+		if (bprm->page[i])
+		__free_page(bprm->page[i]);
+		bprm->page[i] = NULL;
+	}
+}
+
+#endif /* CONFIG_MMU */
 
 struct file *open_exec(const char *name)
 {
@@ -1056,6 +1077,8 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 
 	retval = search_binary_handler(&bprm,regs);
 	if (retval >= 0) {
+		free_arg_pages(&bprm);
+
 		/* execve success */
 		security_ops->bprm_free_security(&bprm);
 		return retval;
@@ -1209,6 +1232,35 @@ void format_corename(char *corename, const char *pattern, long signr)
 	*out_ptr = 0;
 }
 
+static void zap_threads (struct mm_struct *mm)
+{
+	struct task_struct *g, *p;
+
+	/* give other threads a chance to run: */
+	yield();
+
+	read_lock(&tasklist_lock);
+	do_each_thread(g,p)
+		if (mm == p->mm && !p->core_waiter)
+			force_sig_specific(SIGKILL, p);
+	while_each_thread(g,p);
+	read_unlock(&tasklist_lock);
+}
+
+static void coredump_wait(struct mm_struct *mm)
+{
+	DECLARE_WAITQUEUE(wait, current);
+
+	atomic_inc(&mm->core_waiters);
+	add_wait_queue(&mm->core_wait, &wait);
+	zap_threads(mm);
+	current->state = TASK_UNINTERRUPTIBLE;
+	if (atomic_read(&mm->core_waiters) != atomic_read(&mm->mm_users))
+		schedule();
+	else
+		current->state = TASK_RUNNING;
+}
+
 int do_coredump(long signr, struct pt_regs * regs)
 {
 	struct linux_binfmt * binfmt;
@@ -1224,13 +1276,16 @@ int do_coredump(long signr, struct pt_regs * regs)
 	if (!current->mm->dumpable)
 		goto fail;
 	current->mm->dumpable = 0;
+	if (down_trylock(&current->mm->core_sem))
+		BUG();
+	coredump_wait(current->mm);
 	if (current->rlim[RLIMIT_CORE].rlim_cur < binfmt->min_coredump)
-		goto fail;
+		goto fail_unlock;
 
  	format_corename(corename, core_pattern, signr);
 	file = filp_open(corename, O_CREAT | 2 | O_NOFOLLOW, 0600);
 	if (IS_ERR(file))
-		goto fail;
+		goto fail_unlock;
 	inode = file->f_dentry->d_inode;
 	if (inode->i_nlink > 1)
 		goto close_fail;	/* multiple links - don't dump */
@@ -1250,6 +1305,8 @@ int do_coredump(long signr, struct pt_regs * regs)
 
 close_fail:
 	filp_close(file, NULL);
+fail_unlock:
+	up(&current->mm->core_sem);
 fail:
 	unlock_kernel();
 	return retval;

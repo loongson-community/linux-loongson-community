@@ -3,8 +3,6 @@
 
 #include <asm/param.h>	/* for HZ */
 
-extern unsigned long event;
-
 #include <linux/config.h>
 #include <linux/capability.h>
 #include <linux/threads.h>
@@ -90,6 +88,7 @@ extern int nr_threads;
 extern int last_pid;
 extern unsigned long nr_running(void);
 extern unsigned long nr_uninterruptible(void);
+extern unsigned long nr_iowait(void);
 
 #include <linux/time.h>
 #include <linux/param.h>
@@ -149,6 +148,8 @@ extern void show_trace(unsigned long *stack);
 extern void show_stack(unsigned long *stack);
 extern void show_regs(struct pt_regs *);
 
+void io_schedule(void);
+void io_schedule_timeout(long timeout);
 
 extern void cpu_init (void);
 extern void trap_init(void);
@@ -199,6 +200,11 @@ struct mm_struct {
 
 	/* Architecture-specific MM context */
 	mm_context_t context;
+
+	/* coredumping support */
+	struct semaphore core_sem;
+	atomic_t core_waiters;
+	wait_queue_head_t core_wait;
 
 	/* aio bits */
 	rwlock_t		ioctx_list_lock;
@@ -390,6 +396,8 @@ struct task_struct {
 	void *journal_info;
 	struct dentry *proc_dentry;
 	struct backing_dev_info *backing_dev_info;
+/* threaded coredumping support */
+	int core_waiter;
 
 	unsigned long ptrace_message;
 };
@@ -434,12 +442,6 @@ do { if (atomic_dec_and_test(&(tsk)->usage)) __put_task_struct(tsk); } while(0)
 #define PT_TRACE_VFORK	0x00000020
 #define PT_TRACE_CLONE	0x00000040
 #define PT_TRACE_EXEC	0x00000080
-
-/*
- * Limit the stack by to some sane default: root can always
- * increase this limit if needed..  8MB seems reasonable.
- */
-#define _STK_LIM	(8*1024*1024)
 
 #if CONFIG_SMP
 extern void set_cpus_allowed(task_t *p, unsigned long new_mask);
@@ -538,6 +540,7 @@ extern int kill_proc_info(int, struct siginfo *, pid_t);
 extern void notify_parent(struct task_struct *, int);
 extern void do_notify_parent(struct task_struct *, int);
 extern void force_sig(int, struct task_struct *);
+extern void force_sig_specific(int, struct task_struct *);
 extern int send_sig(int, struct task_struct *, int);
 extern int __broadcast_thread_group(struct task_struct *p, int sig);
 extern int kill_pg(pid_t, int, int);

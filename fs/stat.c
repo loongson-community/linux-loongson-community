@@ -28,7 +28,6 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->atime = inode->i_atime;
 	stat->mtime = inode->i_mtime;
 	stat->ctime = inode->i_ctime;
-	stat->ctime = inode->i_ctime;
 	stat->size = inode->i_size;
 	stat->blocks = inode->i_blocks;
 	stat->blksize = inode->i_blksize;
@@ -96,8 +95,8 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
 }
 
 #if !defined(__alpha__) && !defined(__sparc__) && !defined(__ia64__) \
- && !defined(CONFIG_ARCH_S390) && !defined(__hppa__) && !defined(__x86_64__) \
- && !defined(__arm__) && !defined(__mips__)
+  && !defined(CONFIG_ARCH_S390) && !defined(__hppa__) && !defined(__x86_64__) \
+  && !defined(__arm__) && !defined(CONFIG_V850) && !defined(__mips__)
 
 /*
  * For backward compatibility?  Maybe this should be moved
