@@ -334,10 +334,8 @@ static void mask_and_ack_bridge_irq(unsigned int irq)
 	/* All the braindamage happens magically for us in ip27_do_irq */
 }
 
-static void end_bridge_irq (unsigned int irq)
+static void end_bridge_irq(unsigned int irq)
 {
-	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
-		enable_bridge_irq(irq);
 }
 
 static struct hw_interrupt_type bridge_irq_type = {
