@@ -187,13 +187,11 @@ endif
 
 #
 # ramdisk/initrd support
-# You need a compressed ramdisk image, named ramdisk.gz in
-# arch/mips/ramdisk
+# You need a compressed ramdisk image, named
+# CONFIG_EMBEDDED_RAMDISK_IMAGE. Relative pathnames 
+# are relative to arch/mips/ramdisk/.
 #
-ifdef CONFIG_EMBEDDED_RAMDISK
-CORE_FILES	+= arch/mips/ramdisk/ramdisk.o
-SUBDIRS		+= arch/mips/ramdisk
-endif
+core-$(CONFIG_EMBEDDED_RAMDISK)	+= arch/mips/ramdisk/
 
 #
 # Firmware support
