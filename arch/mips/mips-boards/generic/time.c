@@ -133,13 +133,15 @@ static int set_rtc_mmss(unsigned long nowtime)
  */
 void mips_timer_interrupt(struct pt_regs *regs)
 {
+	int cpu = smp_processor_id();
 	int irq = 7;
 
 	if (r4k_offset == 0)
 		goto null;
 
+	irq_enter(cpu, irq);
 	do {
-		kstat.irqs[0][irq]++;
+		kstat.irqs[cpu][irq]++;
 		do_timer(regs);
 
 		/* Historical comment/code:
@@ -172,6 +174,10 @@ void mips_timer_interrupt(struct pt_regs *regs)
 
 	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
 	         - r4k_cur) < 0x7fffffff);
+	irq_exit(cpu, irq);
+
+	if (softirq_pending(cpu))
+		do_softirq();
 
 	return;
 

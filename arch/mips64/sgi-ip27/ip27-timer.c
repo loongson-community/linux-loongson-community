@@ -91,8 +91,9 @@ void rt_timer_interrupt(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 	int cpuA = ((cputoslice(cpu)) == 0);
-	int irq = 7;				/* XXX Assign number */
+	int irq = 9;				/* XXX Assign number */
 
+	irq_enter(cpu, irq);
 	write_lock(&xtime_lock);
 
 again:
@@ -109,19 +110,7 @@ again:
 		do_timer(regs);
 
 #ifdef CONFIG_SMP
-	{
-		int user = user_mode(regs);
-
-		/*
-		 * update_process_times() expects us to have done irq_enter().
-		 * Besides, if we don't timer interrupts ignore the global
-		 * interrupt lock, which is the WrongThing (tm) to do.
-		 * Picked from i386 code.
-		 */
-		irq_enter(cpu, 0);
-		update_process_times(user);
-		irq_exit(cpu, 0);
-	}
+	update_process_times(user_mode(regs));
 #endif /* CONFIG_SMP */
 	
 	/*
@@ -145,6 +134,7 @@ again:
         }
 
 	write_unlock(&xtime_lock);
+	irq_exit(cpu, irq);
 
 	if (softirq_pending(cpu))
 		do_softirq();
