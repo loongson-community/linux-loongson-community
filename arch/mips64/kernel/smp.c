@@ -40,6 +40,24 @@ static void smp_tune_scheduling (void)
 {
 }
 
+void __init smp_callin(void)
+{
+#if 0
+	calibrate_delay();
+	smp_store_cpu_info(cpuid);
+#endif
+}
+
+int __init start_secondary(void)
+{
+	extern atomic_t smp_commenced;
+
+	smp_callin();
+	while (!atomic_read(&smp_commenced));
+
+	cpu_idle();
+}
+
 void __init smp_boot_cpus(void)
 {
 	extern void allowboot(void);
@@ -55,21 +73,6 @@ void __init smp_commence(void)
 {
 	wmb();
 	atomic_set(&smp_commenced,1);
-}
-
-static void stop_this_cpu(void *dummy)
-{
-	/*
-	 * Remove this CPU
-	 * XXX update this from 32-bit version
-	 */
-	for (;;);
-}
-
-void smp_send_stop(void)
-{
-	smp_call_function(stop_this_cpu, NULL, 1, 0);
-	smp_num_cpus = 1;
 }
 
 /*
@@ -108,7 +111,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
-	int i, cpus = smp_num_cpus-1;
+	int i, cpus = smp_num_cpus - 1;
+	int cpu = smp_processor_id();
 
 	if (!cpus)
 		return 0;
@@ -125,8 +129,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 
 	/* Send a message to all other CPUs and wait for them to respond */
 	for (i = 0; i < smp_num_cpus; i++)
-		if (smp_processor_id() != i)
-			sendintr(i, SMP_CALL_FUNCTION);
+		if (i != cpu)
+			core_send_ipi(i, SMP_CALL_FUNCTION);
 
 	/* Wait for response */
 	/* FIXME: lock-up detection, backtrace on lock-up */
@@ -141,7 +145,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	return 0;
 }
 
-extern void smp_call_function_interrupt(int irq, void *d, struct pt_regs *r)
+void smp_call_function_interrupt(void)
 {
 	void (*func) (void *info) = call_data->func;
 	void *info = call_data->info;
@@ -162,6 +166,27 @@ extern void smp_call_function_interrupt(int irq, void *d, struct pt_regs *r)
 		mb();
 		atomic_inc(&call_data->finished);
 	}
+}
+
+static void stop_this_cpu(void *dummy)
+{
+	/*
+	 * Remove this CPU
+	 * XXX update this from 32-bit version
+	 */
+	for (;;);
+}
+
+void smp_send_stop(void)
+{
+	smp_call_function(stop_this_cpu, NULL, 1, 0);
+	smp_num_cpus = 1;
+}
+
+/* Not really SMP stuff ... */
+int setup_profiling_timer(unsigned int multiplier)
+{
+	return 0;
 }
 
 static void flush_tlb_all_ipi(void *info)

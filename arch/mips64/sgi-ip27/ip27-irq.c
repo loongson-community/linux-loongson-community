@@ -494,7 +494,7 @@ void handle_resched_intr(int irq, void *dev_id, struct pt_regs *regs)
 
 #ifdef CONFIG_SMP
 
-void sendintr(int destid, unsigned char status)
+void core_send_ipi(int destid, unsigned int action)
 {
 	int irq;
 

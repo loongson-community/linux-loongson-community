@@ -27,6 +27,7 @@
 #include <linux/timex.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/mm.h>
 
 #include <asm/atomic.h>
 #include <asm/cpu.h>
@@ -43,8 +44,6 @@ spinlock_t kernel_flag = SPIN_LOCK_UNLOCKED;
 int smp_threads_ready;
 int smp_num_cpus = 1;			/* Number that came online.  */
 cpumask_t cpu_online_map;		/* Bitmask of currently online CPUs */
-int global_irq_holder = NO_PROC_ID;
-spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
 struct cpuinfo_mips cpu_data[NR_CPUS];
 void (*volatile smp_cpu0_finalize)(void) = NULL;
 
@@ -100,6 +99,7 @@ asmlinkage int start_secondary(void)
 	cpu_data[smp_processor_id()].asid_cache = ASID_FIRST_VERSION;
 	prom_smp_finish();
 	printk("Slave cpu booted successfully\n");
+	CPUMASK_SETB(cpu_online_map, smp_processor_id());
 	atomic_inc(&cpus_booted);
 	cpu_idle();
 	return 0;
@@ -114,6 +114,8 @@ void __init smp_boot_cpus(void)
 	current->processor = 0;
 	cpu_data[0].udelay_val = loops_per_jiffy;
 	cpu_data[0].asid_cache = ASID_FIRST_VERSION;
+	CPUMASK_CLRALL(cpu_online_map);
+	CPUMASK_SETB(cpu_online_map, 0);
 	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
 	init_idle();
 	for (i = 1; i < smp_num_cpus; i++) {
@@ -143,7 +145,6 @@ void __init smp_boot_cpus(void)
 				    (unsigned long)p);
 
 #if 0
-
 		/* This is copied from the ip-27 code in the mips64 tree */
 
 		struct task_struct *p;
@@ -157,7 +158,7 @@ void __init smp_boot_cpus(void)
 		sprintf(p->comm, "%s%d", "Idle", i);
 		init_tasks[i] = p;
 		p->processor = i;
-		p->cpus_runnable = 1 << i; /* we schedule the first task manually *
+		p->cpus_runnable = 1 << i; /* we schedule the first task manually */
 		del_from_runqueue(p);
 		unhash_process(p);
 		/* Attach to the address space of init_task. */
@@ -179,14 +180,9 @@ void __init smp_commence(void)
 	/* Not sure what to do here yet */
 }
 
-static void reschedule_this_cpu(void *dummy)
-{
-	current->need_resched = 1;
-}
-
 void smp_send_reschedule(int cpu)
 {
-	smp_call_function(reschedule_this_cpu, NULL, 0, 0);
+	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
 }
 
 static spinlock_t call_lock = SPIN_LOCK_UNLOCKED;
@@ -202,9 +198,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
-	int cpus = smp_num_cpus - 1;
+	int i, cpus = smp_num_cpus - 1;
 	int cpu = smp_processor_id();
-	int i;
 
 	if (!cpus)
 		return 0;
@@ -218,31 +213,45 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 
 	spin_lock_bh(&call_lock);
 	call_data = &data;
-	for (i = 0; i < smp_num_cpus; i++) {
-		if (i != cpu) {
-			/* Call the board specific routine */
+
+	/* Send a message to all other CPUs and wait for them to respond */
+	for (i = 0; i < smp_num_cpus; i++)
+		if (i != cpu)
 			core_send_ipi(i, SMP_CALL_FUNCTION);
-		}
-	}
 
 	/* Wait for response */
+	/* FIXME: lock-up detection, backtrace on lock-up */
 	while (atomic_read(&data.started) != cpus)
 		barrier();
 
 	if (wait)
-		while(atomic_read(&data.finished) != cpus)
+		while (atomic_read(&data.finished) != cpus)
 			barrier();
 	spin_unlock_bh(&call_lock);
 
 	return 0;
 }
 
-void synchronize_irq(void)
+void smp_call_function_interrupt(void)
 {
-	if (irqs_running()) {
-		/* Stupid approach */
-		cli();
-		sti();
+	void (*func) (void *info) = call_data->func;
+	void *info = call_data->info;
+	int wait = call_data->wait;
+
+	/*
+	 * Notify initiating CPU that I've grabbed the data
+	 * and am about to execute the function
+	 */
+	mb();
+	atomic_inc(&call_data->started);
+
+	/*
+	 * At this point the info structure may be out of scope unless wait==1
+	 */
+	(*func)(info);
+	if (wait) {
+		mb();
+		atomic_inc(&call_data->finished);
 	}
 }
 
@@ -251,11 +260,10 @@ static void stop_this_cpu(void *dummy)
 	int cpu = smp_processor_id();
 	if (cpu)
 		for (;;);		/* XXX Use halt like i386 */
-	else {
-		/* XXXKW this isn't quite there yet */
-		while (!smp_cpu0_finalize) ;
-				smp_cpu0_finalize();
-		}
+
+	/* XXXKW this isn't quite there yet */
+	while (!smp_cpu0_finalize) ;
+	smp_cpu0_finalize();
 }
 
 void smp_send_stop(void)
@@ -268,161 +276,6 @@ void smp_send_stop(void)
 int setup_profiling_timer(unsigned int multiplier)
 {
 	return 0;
-}
-
-
-/*
- * Most of this code is take from the mips64 tree (ip27-irq.c).  It's virtually
- * identical to the i386 implentation in arh/i386/irq.c, with translations for
- * the interrupt enable bit
- */
-
-#define MAXCOUNT 		100000000
-#define SYNC_OTHER_CORES(x)	udelay(x+1)
-
-static inline void wait_on_irq(int cpu)
-{
-	int count = MAXCOUNT;
-
-	for (;;) {
-
-		/*
-		 * Wait until all interrupts are gone. Wait
-		 * for bottom half handlers unless we're
-		 * already executing in one..
-		 */
-		if (!irqs_running())
-			if (local_bh_count(cpu) || !spin_is_locked(&global_bh_lock))
-				break;
-
-		/* Duh, we have to loop. Release the lock to avoid deadlocks */
-		spin_unlock(&global_irq_lock);
-
-		for (;;) {
-			if (!--count) {
-				printk("Count spun out.  Huh?\n");
-				count = ~0;
-			}
-			__sti();
-			SYNC_OTHER_CORES(cpu);
-			__cli();
-			if (irqs_running())
-				continue;
-			if (spin_is_locked(&global_irq_lock))
-				continue;
-			if (!local_bh_count(cpu) && spin_is_locked(&global_bh_lock))
-				continue;
-			if (spin_trylock(&global_irq_lock))
-				break;
-		}
-	}
-}
-
-
-static inline void get_irqlock(int cpu)
-{
-	if (!spin_trylock(&global_irq_lock)) {
-		/* do we already hold the lock? */
-		if ((unsigned char) cpu == global_irq_holder)
-			return;
-		/* Uhhuh.. Somebody else got it. Wait.. */
-		spin_lock(&global_irq_lock);
-	}
-	/*
-	 * We also to make sure that nobody else is running
-	 * in an interrupt context.
-	 */
-	wait_on_irq(cpu);
-
-	/*
-	 * Ok, finally..
-	 */
-	global_irq_holder = cpu;
-}
-
-
-/*
- * A global "cli()" while in an interrupt context
- * turns into just a local cli(). Interrupts
- * should use spinlocks for the (very unlikely)
- * case that they ever want to protect against
- * each other.
- *
- * If we already have local interrupts disabled,
- * this will not turn a local disable into a
- * global one (problems with spinlocks: this makes
- * save_flags+cli+sti usable inside a spinlock).
- */
-void __global_cli(void)
-{
-	unsigned int flags;
-
-	__save_flags(flags);
-	if (flags & ST0_IE) {
-		int cpu = smp_processor_id();
-		__cli();
-		if (!local_irq_count(cpu))
-			get_irqlock(cpu);
-	}
-}
-
-void __global_sti(void)
-{
-	int cpu = smp_processor_id();
-
-	if (!local_irq_count(cpu))
-		release_irqlock(cpu);
-	__sti();
-}
-
-/*
- * SMP flags value to restore to:
- * 0 - global cli
- * 1 - global sti
- * 2 - local cli
- * 3 - local sti
- */
-unsigned long __global_save_flags(void)
-{
-	int retval;
-	int local_enabled;
-	unsigned long flags;
-	int cpu = smp_processor_id();
-
-	__save_flags(flags);
-	local_enabled = (flags & ST0_IE);
-	/* default to local */
-	retval = 2 + local_enabled;
-
-	/* check for global flags if we're not in an interrupt */
-	if (!local_irq_count(cpu)) {
-		if (local_enabled)
-			retval = 1;
-		if (global_irq_holder == cpu)
-			retval = 0;
-	}
-
-	return retval;
-}
-
-void __global_restore_flags(unsigned long flags)
-{
-	switch (flags) {
-		case 0:
-			__global_cli();
-			break;
-		case 1:
-			__global_sti();
-			break;
-		case 2:
-			__cli();
-			break;
-		case 3:
-			__sti();
-			break;
-		default:
-			printk("global_restore_flags: %08lx\n", flags);
-	}
 }
 
 static void flush_tlb_all_ipi(void *info)

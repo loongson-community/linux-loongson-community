@@ -421,23 +421,6 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 	cpu_data[cpunum].p_cpuid = cpu;
 }
 
-void __init smp_callin(void)
-{
-#if 0
-	calibrate_delay();
-	smp_store_cpu_info(cpuid);
-#endif
-}
-
-int __init start_secondary(void)
-{
-	extern atomic_t smp_commenced;
-
-	smp_callin();
-	while (!atomic_read(&smp_commenced));
-	return cpu_idle();
-}
-
 static volatile cpumask_t boot_barrier;
 
 void cboot(void)
