@@ -10,7 +10,6 @@
 #define _ASM_SERIAL_H
 
 #include <linux/config.h>
-#include <asm/jazz.h>
 
 /*
  * This assumes you have a 1.8432 MHz clock for your UART.
@@ -20,15 +19,6 @@
  * megabits/second; but this requires the faster clock.
  */
 #define BASE_BAUD (1843200 / 16)
-
-#ifndef CONFIG_OLIVETTI_M700
-   /* Some Jazz machines seem to have an 8MHz crystal clock but I don't know
-      exactly which ones ... XXX */
-#define JAZZ_BASE_BAUD ( 8000000 / 16 ) /* ( 3072000 / 16) */
-#else
-/* but the M700 isn't such a strange beast */
-#define JAZZ_BASE_BAUD BASE_BAUD
-#endif
 
 /* Standard COM flags (except for COM4, because of the 8514 problem) */
 #ifdef CONFIG_SERIAL_DETECT_IRQ
@@ -66,6 +56,17 @@
 #define C_P(card,port) (((card)<<6|(port)<<3) + 1)
 
 #ifdef CONFIG_MIPS_JAZZ
+#include <asm/jazz.h>
+
+#ifndef CONFIG_OLIVETTI_M700
+   /* Some Jazz machines seem to have an 8MHz crystal clock but I don't know
+      exactly which ones ... XXX */
+#define JAZZ_BASE_BAUD ( 8000000 / 16 ) /* ( 3072000 / 16) */
+#else
+/* but the M700 isn't such a strange beast */
+#define JAZZ_BASE_BAUD BASE_BAUD
+#endif
+
 #define _JAZZ_SERIAL_INIT(int, base)					\
 	{ .baud_base = JAZZ_BASE_BAUD, .irq = int, .flags = STD_COM_FLAGS,	\
 	  .iomem_base = (u8 *) base, .iomem_reg_shift = 0,			\
