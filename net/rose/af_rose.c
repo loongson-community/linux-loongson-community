@@ -1265,7 +1265,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		/* These two are safe on a single CPU system as only user tasks fiddle here */
 		if ((skb = skb_peek(&sk->sk_receive_queue)) != NULL)
 			amount = skb->len;
-		return put_user(amount, (unsigned int *)arg);
+		return put_user(amount, (int *)arg);
 	}
 
 	case SIOCGSTAMP:
