@@ -262,6 +262,10 @@
 		LONG_L	$31, PT_R31(sp)
 		LONG_L	$28, PT_R28(sp)
 		LONG_L	$25, PT_R25(sp)
+#ifdef CONFIG_MIPS64
+		LONG_L	$8, PT_R8(sp)
+		LONG_L	$9, PT_R9(sp)
+#endif
 		LONG_L	$7,  PT_R7(sp)
 		LONG_L	$6,  PT_R6(sp)
 		LONG_L	$5,  PT_R5(sp)
