@@ -1112,17 +1112,18 @@ static int __init gbefb_probe(struct device *dev)
 	struct fb_info *info;
 	struct gbefb_par *par;
 	struct platform_device *p_dev = to_platform_device(dev);
+#ifndef MODULE
+	char *options = NULL;
+#endif
 
 	info = framebuffer_alloc(sizeof(struct gbefb_par), &p_dev->dev);
 	if (!info)
 		return -ENOMEM;
 
 #ifndef MODULE
-	char *option = NULL;
-
-	if (fb_get_options("gbefb", &option))
+	if (fb_get_options("gbefb", &options))
 		return -ENODEV;
-	gbefb_setup(option);
+	gbefb_setup(options);
 #endif
 
 	if (!request_mem_region(GBE_BASE, sizeof(struct sgi_gbe), "GBE")) {
