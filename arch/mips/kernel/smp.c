@@ -123,16 +123,6 @@ asmlinkage void start_secondary(void)
 	cpu_idle();
 }
 
-/*
- * this function sends a 'reschedule' IPI to another CPU.
- * it goes straight through and wastes no time serializing
- * anything. Worst case is that we lose a reschedule ...
- */
-void smp_send_reschedule(int cpu)
-{
-	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
-}
-
 spinlock_t smp_call_lock = SPIN_LOCK_UNLOCKED;
 
 struct call_data_struct *call_data;

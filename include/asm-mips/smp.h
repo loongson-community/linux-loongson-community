@@ -107,6 +107,16 @@ extern void prom_cpus_done(void);
 
 extern void asmlinkage smp_bootstrap(void);
 
+/*
+ * this function sends a 'reschedule' IPI to another CPU.
+ * it goes straight through and wastes no time serializing
+ * anything. Worst case is that we lose a reschedule ...
+ */
+static inline void smp_send_reschedule(int cpu)
+{
+	core_send_ipi(cpu, SMP_RESCHEDULE_YOURSELF);
+}
+
 #endif /* CONFIG_SMP */
 
 #endif /* __ASM_SMP_H */
