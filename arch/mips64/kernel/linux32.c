@@ -530,48 +530,6 @@ struct rlimit32 {
 	int	rlim_max;
 };
 
-extern asmlinkage int sys_old_getrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage int
-sys32_getrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-
-	set_fs (KERNEL_DS);
-	ret = sys_old_getrlimit(resource, &r);
-	set_fs (old_fs);
-	if (!ret) {
-		ret = put_user (RESOURCE32(r.rlim_cur), &rlim->rlim_cur);
-		ret |= __put_user (RESOURCE32(r.rlim_max), &rlim->rlim_max);
-	}
-	return ret;
-}
-
-extern asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage int
-sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-
-	if (resource >= RLIM_NLIMITS) return -EINVAL;
-	if (get_user (r.rlim_cur, &rlim->rlim_cur) ||
-	    __get_user (r.rlim_max, &rlim->rlim_max))
-		return -EFAULT;
-	if (r.rlim_cur == RLIM_INFINITY32)
-		r.rlim_cur = RLIM_INFINITY;
-	if (r.rlim_max == RLIM_INFINITY32)
-		r.rlim_max = RLIM_INFINITY;
-	set_fs (KERNEL_DS);
-	ret = sys_setrlimit(resource, &r);
-	set_fs (old_fs);
-	return ret;
-}
-
 #ifdef __MIPSEB__
 asmlinkage long sys32_truncate64(const char * path, unsigned long __dummy,
 	int length_hi, int length_lo)
@@ -602,25 +560,6 @@ asmlinkage long sys32_ftruncate64(unsigned int fd, unsigned long __dummy,
 	length = ((unsigned long) length_hi << 32) | (unsigned int) length_lo;
 
 	return sys_ftruncate(fd, length);
-}
-
-extern asmlinkage int
-sys_getrusage(int who, struct rusage *ru);
-
-asmlinkage int
-sys32_getrusage(int who, struct rusage32 *ru)
-{
-	struct rusage r;
-	int ret;
-	mm_segment_t old_fs = get_fs();
-
-	set_fs (KERNEL_DS);
-	ret = sys_getrusage(who, &r);
-	set_fs (old_fs);
-	if (put_rusage (ru, &r))
-		return -EFAULT;
-
-	return ret;
 }
 
 static inline long

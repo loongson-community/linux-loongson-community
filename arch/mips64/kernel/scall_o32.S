@@ -378,9 +378,9 @@ out:	jr	ra
 	sys	sys32_sigsuspend	0
 	sys	compat_sys_sigpending	1
 	sys	sys_sethostname	2
-	sys	sys32_setrlimit	2			/* 4075 */
-	sys	sys32_getrlimit	2
-	sys	sys32_getrusage	2
+	sys	compat_sys_setrlimit	2		/* 4075 */
+	sys	compat_sys_getrlimit	2
+	sys	compat_sys_getrusage	2
 	sys	sys32_gettimeofday 2
 	sys	sys32_settimeofday 2
 	sys	sys_getgroups	2			/* 4080 */

@@ -208,8 +208,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys_lchown
 	PTR	sys_umask
 	PTR	sys32_gettimeofday
-	PTR	sys32_getrlimit			/* 6095 */
-	PTR	sys32_getrusage
+	PTR	compat_sys_getrlimit		/* 6095 */
+	PTR	compat_sys_getrusage
 	PTR	sys32_sysinfo
 	PTR	compat_sys_times
 	PTR	sys_ptrace
@@ -268,7 +268,7 @@ EXPORT(sysn32_call_table)
 	PTR	sys32_sysctl
 	PTR	sys_prctl
 	PTR	sys32_adjtimex
-	PTR	sys32_setrlimit			/* 6155 */
+	PTR	compat_sys_setrlimit		/* 6155 */
 	PTR	sys_chroot
 	PTR	sys_sync
 	PTR	sys_acct
