@@ -95,8 +95,3 @@ struct seq_operations cpuinfo_op = {
 	stop:	c_stop,
 	show:	show_cpuinfo,
 };
-
-void init_irq_proc(void)
-{
-	/* Nothing, for now.  */
-}
