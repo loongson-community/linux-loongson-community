@@ -155,7 +155,7 @@
  * for zero-mapped memory areas etc..
  */
 extern unsigned long empty_zero_page[PAGE_SIZE/sizeof(unsigned long)];
-#define ZERO_PAGE(vaddr) (mem_map + MAP_NR(empty_zero_page))
+#define ZERO_PAGE(vaddr) (virt_to_page(empty_zero_page))
 #endif /* __ASSEMBLY__ */
 
 /* shift to put page number into pte */
@@ -167,24 +167,16 @@ extern unsigned long empty_zero_page[PAGE_SIZE/sizeof(unsigned long)];
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  *
- * mk_pte_phys takes a physical address as input 
- *
  * mk_pte takes a (struct page *) as input
  */
+#define mk_pte(page, pgprot)	pfn_pte(page_to_pfn(page), (pgprot))
 
-#define mk_pte_phys(physpage,pgprot)                                      \
-({									  \
-	pte_t pte;							  \
-	pte_val(pte) = (((physpage)<<(PTE_SHIFT-PAGE_SHIFT)) | pgprot_val(pgprot)); \
-	pte;							          \
-})
-
-#define mk_pte(page,pgprot)                                               \
-({									  \
-	pte_t pte;							  \
-	pte_val(pte) = ((unsigned long)((page) - mem_map) << PTE_SHIFT) |   \
-                        pgprot_val(pgprot);                               \
-	pte;							          \
+#define pfn_pte(pfn,pgprot)						\
+({									\
+	pte_t pte;							\
+	pte_val(pte) = ((unsigned long)(pfn) << PTE_SHIFT) |   		\
+                        pgprot_val(pgprot);				\
+	pte;								\
 })
 
 #define pte_modify(_pte, newprot) \
@@ -195,8 +187,8 @@ extern unsigned long empty_zero_page[PAGE_SIZE/sizeof(unsigned long)];
 
 /* pte_clear moved to later in this file */
 
-#define pte_pagenr(x)		((unsigned long)((pte_val(x) >> PTE_SHIFT)))
-#define pte_page(x)		(mem_map+pte_pagenr(x))
+#define pte_pfn(x)		((unsigned long)((pte_val(x) >> PTE_SHIFT)))
+#define pte_page(x)		pfn_to_page(pte_pfn(x))
 
 #define pmd_set(pmdp, ptep) 	(pmd_val(*(pmdp)) = (__ba_to_bpn(ptep)))
 #define pmd_none(pmd)		(!pmd_val(pmd))
@@ -367,11 +359,11 @@ extern void paging_init(void);
 extern void update_mmu_cache(struct vm_area_struct *, unsigned long, pte_t);
 
 /* Encode and de-code a swap entry */
-#define SWP_TYPE(entry)			(((entry).val >> 1) & 0x3f)
-#define SWP_OFFSET(entry)		((entry).val >> 8)
-#define SWP_ENTRY(type, offset)		((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
-#define pte_to_swp_entry(pte)		((swp_entry_t) { pte_val(pte) >> PTE_SHIFT })
-#define swp_entry_to_pte(x)		((pte_t) { (x).val << PTE_SHIFT })
+#define __swp_type(entry)		(((entry).val >> 1) & 0x3f)
+#define __swp_offset(entry)		((entry).val >> 8)
+#define __swp_entry(type, offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
+#define __pte_to_swp_entry(pte)		((swp_entry_t) { pte_val(pte) >> PTE_SHIFT })
+#define __swp_entry_to_pte(x)		((pte_t) { (x).val << PTE_SHIFT })
 
 /*
  * kern_addr_valid is intended to indicate whether an address is a valid

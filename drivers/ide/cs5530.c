@@ -32,50 +32,6 @@
 #include "ata-timing.h"
 #include "pcihost.h"
 
-#undef DISPLAY_CS5530_TIMINGS
-
-#if defined(DISPLAY_CS5530_TIMINGS) && defined(CONFIG_PROC_FS)
-#include <linux/stat.h>
-#include <linux/proc_fs.h>
-
-static int cs5530_get_info(char *, char **, off_t, int);
-extern int (*cs5530_display_info)(char *, char **, off_t, int); /* ide-proc.c */
-static struct pci_dev *bmide_dev;
-
-static int cs5530_get_info (char *buffer, char **addr, off_t offset, int count)
-{
-	char *p = buffer;
-	u32 bibma = pci_resource_start(bmide_dev, 4);
-	u8  c0 = 0, c1 = 0;
-
-	/*
-	 * at that point bibma+0x2 et bibma+0xa are byte registers
-	 * to investigate:
-	 */
-
-	c0 = inb_p((unsigned short)bibma + 0x02);
-	c1 = inb_p((unsigned short)bibma + 0x0a);
-
-	p += sprintf(p, "\n                                Cyrix 5530 Chipset.\n");
-	p += sprintf(p, "--------------- Primary Channel ---------------- Secondary Channel -------------\n");
-	p += sprintf(p, "                %sabled                         %sabled\n",
-			(c0&0x80) ? "dis" : " en",
-			(c1&0x80) ? "dis" : " en");
-	p += sprintf(p, "--------------- drive0 --------- drive1 -------- drive0 ---------- drive1 ------\n");
-	p += sprintf(p, "DMA enabled:    %s              %s             %s               %s\n",
-			(c0&0x20) ? "yes" : "no ", (c0&0x40) ? "yes" : "no ",
-			(c1&0x20) ? "yes" : "no ", (c1&0x40) ? "yes" : "no " );
-
-	p += sprintf(p, "UDMA\n");
-	p += sprintf(p, "DMA\n");
-	p += sprintf(p, "PIO\n");
-
-	return p-buffer;
-}
-#endif /* DISPLAY_CS5530_TIMINGS && CONFIG_PROC_FS */
-
-byte cs5530_proc = 0;
-
 /*
  * Set a new transfer mode at the drive
  */
@@ -235,7 +191,7 @@ static int cs5530_config_dma(struct ata_device *drive)
 	return 0;
 }
 
-int cs5530_dmaproc(struct ata_device *drive)
+static int cs5530_udma_setup(struct ata_device *drive)
 {
 	return cs5530_config_dma(drive);
 }
@@ -249,14 +205,6 @@ static unsigned int __init pci_init_cs5530(struct pci_dev *dev)
 	struct pci_dev *master_0 = NULL, *cs5530_0 = NULL;
 	unsigned short pcicmd = 0;
 	unsigned long flags;
-
-#if defined(DISPLAY_CS5530_TIMINGS) && defined(CONFIG_PROC_FS)
-	if (!cs5530_proc) {
-		cs5530_proc = 1;
-		bmide_dev = dev;
-		cs5530_display_info = &cs5530_get_info;
-	}
-#endif /* DISPLAY_CS5530_TIMINGS && CONFIG_PROC_FS */
 
 	pci_for_each_dev (dev) {
 		if (dev->vendor == PCI_VENDOR_ID_CYRIX) {
@@ -344,7 +292,7 @@ static void __init ide_init_cs5530(struct ata_channel *hwif)
 		unsigned int basereg, d0_timings;
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
-	hwif->XXX_udma = cs5530_dmaproc;
+	hwif->udma_setup = cs5530_udma_setup;
 	hwif->highmem = 1;
 #else
 	hwif->autodma = 0;
@@ -374,7 +322,7 @@ static struct ata_pci_device chipset __initdata = {
 	init_chipset: pci_init_cs5530,
 	init_channel: ide_init_cs5530,
 	bootable: ON_BOARD,
-	flags: ATA_F_DMA | ATA_F_FDMA
+	flags: ATA_F_DMA
 };
 
 int __init init_cs5530(void)

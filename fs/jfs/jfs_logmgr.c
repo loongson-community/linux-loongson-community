@@ -1068,6 +1068,8 @@ int lmLogOpen(struct super_block *sb, log_t ** logptr)
 		return ENOMEM;
 	memset(log, 0, sizeof(log_t));
 
+	log->sb = sb;		/* This should be a list */
+
 	if (!(JFS_SBI(sb)->mntflag & JFS_INLINELOG))
 		goto externalLog;
 
@@ -1077,7 +1079,6 @@ int lmLogOpen(struct super_block *sb, log_t ** logptr)
 	 * file system to log have 1-to-1 relationship;
 	 */
 
-	log->sb = sb;		/* This should be a list */
 	log->bdev = sb->s_bdev;
 	log->flag = JFS_INLINELOG;
 	log->base = addressPXD(&JFS_SBI(sb)->logpxd);
@@ -1114,7 +1115,6 @@ int lmLogOpen(struct super_block *sb, log_t ** logptr)
 		goto errout10;
 	}
 
-	log->sb = sb;		/* This should be a list */
 	log->bdev = bdev;
 	memcpy(log->uuid, JFS_SBI(sb)->loguuid, sizeof(log->uuid));
 	
@@ -1813,7 +1813,7 @@ static int lbmRead(log_t * log, int pn, lbuf_t ** bpp)
 	bio->bi_end_io = lbmIODone;
 	bio->bi_private = bp;
 	submit_bio(READ, bio);
-	run_task_queue(&tq_disk);
+	blk_run_queues();
 
 	wait_event(bp->l_ioevent, (bp->l_flag != lbmREAD));
 
@@ -1958,7 +1958,7 @@ void lbmStartIO(lbuf_t * bp)
 	submit_bio(WRITE, bio);
 
 	INCREMENT(lmStat.submitted);
-	run_task_queue(&tq_disk);
+	blk_run_queues();
 
 	jFYI(1, ("lbmStartIO done\n"));
 }

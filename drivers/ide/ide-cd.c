@@ -535,7 +535,7 @@ static void cdrom_queue_request_sense(struct ata_device *drive,
 
 	/* stuff the sense request in front of our current request */
 	rq = &info->request_sense_request;
-	ide_init_drive_cmd(rq);
+	memset(rq, 0, sizeof(*rq));
 	rq->cmd[0] = GPCMD_REQUEST_SENSE;
 	rq->cmd[4] = pc->buflen;
 	rq->flags = REQ_SENSE;
@@ -565,14 +565,14 @@ static void cdrom_end_request(struct ata_device *drive, struct request *rq, int 
 static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *drive, struct request *rq,
 				int good_stat, int *stat_ret)
 {
-	int stat, err, sense_key;
+	int err, sense_key;
 	struct packet_command *pc;
+	int ok;
 
 	/* Check for errors. */
-	stat = GET_STAT();
-	*stat_ret = stat;
-
-	if (OK_STAT (stat, good_stat, BAD_R_STAT))
+	ok = ata_status(drive, good_stat, BAD_R_STAT);
+	*stat_ret = drive->status;
+	if (ok)
 		return 0;
 
 	/* Get the IDE error register. */
@@ -594,7 +594,7 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 		pc = (struct packet_command *) rq->special;
 		pc->stat = 1;
 		cdrom_end_request(drive, rq, 1);
-		*startstop = ide_error (drive, rq, "request sense failure", stat);
+		*startstop = ata_error(drive, rq, "request sense failure");
 
 		return 1;
 	} else if (rq->flags & (REQ_PC | REQ_BLOCK_PC)) {
@@ -614,7 +614,7 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 			return 0;
 		} else if (!pc->quiet) {
 			/* Otherwise, print an error. */
-			ide_dump_status(drive, rq, "packet command error", stat);
+			ide_dump_status(drive, rq, "packet command error", drive->status);
 		}
 
 		/* Set the error flag and complete the request.
@@ -625,7 +625,7 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 		   the semaphore from the packet command request to the request
 		   sense request. */
 
-		if ((stat & ERR_STAT) != 0) {
+		if (drive->status & ERR_STAT) {
 			wait = rq->waiting;
 			rq->waiting = NULL;
 		}
@@ -637,7 +637,7 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 		 * Think hard about how to get rid of it...
 		 */
 
-		if ((stat & ERR_STAT) != 0)
+		if (drive->status & ERR_STAT)
 			cdrom_queue_request_sense(drive, wait, pc->sense, pc);
 	} else if (rq->flags & REQ_CMD) {
 		/* Handle errors from READ and WRITE requests. */
@@ -662,18 +662,18 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 			   sense_key == DATA_PROTECT) {
 			/* No point in retrying after an illegal
 			   request or data protect error.*/
-			ide_dump_status(drive, rq, "command error", stat);
+			ide_dump_status(drive, rq, "command error", drive->status);
 			cdrom_end_request(drive, rq,  0);
 		} else if (sense_key == MEDIUM_ERROR) {
 			/* No point in re-trying a zillion times on a bad
 			 * sector.  The error is not correctable at all.
 			 */
-			ide_dump_status(drive, rq, "media error (bad sector)", stat);
+			ide_dump_status(drive, rq, "media error (bad sector)", drive->status);
 			cdrom_end_request(drive, rq, 0);
 		} else if ((err & ~ABRT_ERR) != 0) {
 			/* Go to the default handler
 			   for other errors. */
-			*startstop = ide_error(drive, rq, __FUNCTION__, stat);
+			*startstop = ata_error(drive, rq, __FUNCTION__);
 			return 1;
 		} else if ((++rq->errors > ERROR_MAX)) {
 			/* We've racked up too many retries.  Abort. */
@@ -682,7 +682,7 @@ static int cdrom_decode_status(ide_startstop_t *startstop, struct ata_device *dr
 
 		/* If we got a CHECK_CONDITION status,
 		   queue a request sense command. */
-		if ((stat & ERR_STAT) != 0)
+		if (drive->status & ERR_STAT)
 			cdrom_queue_request_sense(drive, NULL, NULL, NULL);
 	} else
 		blk_dump_rq_flags(rq, "ide-cd bad flags");
@@ -736,10 +736,8 @@ static ide_startstop_t cdrom_start_packet_command(struct ata_device *drive,
 		return startstop;
 
 	if (info->dma) {
-		if (info->cmd == READ)
-			info->dma = !udma_read(drive, rq);
-		else if (info->cmd == WRITE)
-			info->dma = !udma_write(drive, rq);
+		if (info->cmd == READ || info->cmd == WRITE)
+			info->dma = !udma_init(drive, rq);
 		else
 			printk("ide-cd: DMA set, but not allowed\n");
 	}
@@ -751,9 +749,7 @@ static ide_startstop_t cdrom_start_packet_command(struct ata_device *drive,
 
 	OUT_BYTE(xferlen & 0xff, IDE_LCYL_REG);
 	OUT_BYTE(xferlen >> 8  , IDE_HCYL_REG);
-	if (IDE_CONTROL_REG)
-		OUT_BYTE (drive->ctl, IDE_CONTROL_REG);
-
+	ata_irq_enable(drive, 1);
 	if (info->dma)
 		udma_start(drive, rq);
 
@@ -880,7 +876,7 @@ int cdrom_read_check_ireason(struct ata_device *drive, struct request *rq, int l
 		/* Some drives (ASUS) seem to tell us that status
 		 * info is available. just get it and ignore.
 		 */
-		GET_STAT();
+		ata_status(drive, 0, 0);
 		return 0;
 	} else {
 		/* Drive wants a command packet, or invalid ireason... */
@@ -918,7 +914,7 @@ static ide_startstop_t cdrom_read_intr(struct ata_device *drive, struct request 
 			__ide_end_request(drive, rq, 1, rq->nr_sectors);
 			return ide_stopped;
 		} else
-			return ide_error (drive, rq, "dma error", stat);
+			return ata_error(drive, rq, "dma error");
 	}
 
 	/* Read the interrupt reason and the transfer length. */
@@ -1391,9 +1387,8 @@ int cdrom_queue_packet_command(struct ata_device *drive, unsigned char *cmd,
 
 	/* Start of retry loop. */
 	do {
-		ide_init_drive_cmd(&rq);
+		memset(&rq, 0, sizeof(rq));
 		memcpy(rq.cmd, cmd, CDROM_PACKET_SIZE);
-
 		rq.flags = REQ_PC;
 
 		/* FIXME --mdcki */
@@ -1498,7 +1493,7 @@ static ide_startstop_t cdrom_write_intr(struct ata_device *drive, struct request
 	 */
 	if (dma) {
 		if (dma_error)
-			return ide_error(drive, rq, "dma error", stat);
+			return ata_error(drive, rq, "dma error");
 
 		__ide_end_request(drive, rq, 1, rq->nr_sectors);
 		return ide_stopped;
@@ -1619,9 +1614,8 @@ ide_cdrom_do_request(struct ata_device *drive, struct request *rq, sector_t bloc
 	if (rq->flags & REQ_CMD) {
 		if (CDROM_CONFIG_FLAGS(drive)->seeking) {
 			unsigned long elpased = jiffies - info->start_seek;
-			int stat = GET_STAT();
 
-			if ((stat & SEEK_STAT) != SEEK_STAT) {
+			if (!ata_status(drive, SEEK_STAT, 0)) {
 				if (elpased < IDECD_SEEK_TIMEOUT) {
 					ide_stall_queue(drive, IDECD_SEEK_TIMER);
 					return ide_stopped;
@@ -2279,7 +2273,7 @@ int ide_cdrom_reset (struct cdrom_device_info *cdi)
 	struct request req;
 	int ret;
 
-	ide_init_drive_cmd(&req);
+	memset(&req, 0, sizeof(req));
 	req.flags = REQ_SPECIAL;
 	ret = ide_do_drive_cmd(drive, &req, ide_wait);
 

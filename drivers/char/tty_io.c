@@ -159,6 +159,7 @@ extern void tx3912_console_init(void);
 extern void tx3912_rs_init(void);
 extern void txx927_console_init(void);
 extern void sb1250_serial_console_init(void);
+extern void hvc_console_init(void);
 
 #ifndef MIN
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
@@ -2236,6 +2237,9 @@ void __init console_init(void)
 #endif
 #ifdef CONFIG_SERIAL_TX3912_CONSOLE
 	tx3912_console_init();
+#endif
+#ifdef CONFIG_HVC_CONSOLE
+	hvc_console_init();
 #endif
 #ifdef CONFIG_TXX927_SERIAL_CONSOLE
 	txx927_console_init();

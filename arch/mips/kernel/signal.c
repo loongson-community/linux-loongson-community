@@ -602,15 +602,13 @@ static inline void handle_signal(unsigned long sig, siginfo_t *info,
 asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 {
 	siginfo_t info;
-	int sig_nr;
+	int signr;
 
 	if (!oldset)
 		oldset = &current->blocked;
 
 	signr = get_signal_to_deliver(&info, regs);
 	if (signr > 0) {
-		if (regs->regs[0])
-			syscall_restart(regs, ka);
 		/* Whee!  Actually deliver the signal.  */
 		handle_signal(signr, &info, oldset, regs);
 		return 1;

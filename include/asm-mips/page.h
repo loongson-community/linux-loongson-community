@@ -62,10 +62,10 @@ void sb1_copy_page(void * to, void * from);
 extern void (*_clear_page)(void * page);
 extern void (*_copy_page)(void * to, void * from);
 
-#define clear_page(page)	_clear_page(page)
-#define copy_page(to, from)	_copy_page(to, from)
-#define clear_user_page(page, vaddr)	clear_page(page)
-#define copy_user_page(to, from, vaddr)	copy_page(to, from)
+#define clear_page(page)			_clear_page(page)
+#define copy_page(to, from)			_copy_page(to, from)
+#define clear_user_page(page, vaddr, pg)	clear_page(page)
+#define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
 
 /*
  * These are used to make use of C type-checking..

@@ -51,49 +51,6 @@
 
 #define HPT343_DEBUG_DRIVE_INFO		0
 
-#undef DISPLAY_HPT34X_TIMINGS
-
-#if defined(DISPLAY_HPT34X_TIMINGS) && defined(CONFIG_PROC_FS)
-#include <linux/stat.h>
-#include <linux/proc_fs.h>
-
-static int hpt34x_get_info(char *, char **, off_t, int);
-extern int (*hpt34x_display_info)(char *, char **, off_t, int); /* ide-proc.c */
-static struct pci_dev *bmide_dev;
-
-static int hpt34x_get_info (char *buffer, char **addr, off_t offset, int count)
-{
-	char *p = buffer;
-	u32 bibma = pci_resource_start(bmide_dev, 4);
-	u8  c0 = 0, c1 = 0;
-
-        /*
-         * at that point bibma+0x2 et bibma+0xa are byte registers
-         * to investigate:
-         */
-	c0 = inb_p((unsigned short)bibma + 0x02);
-	c1 = inb_p((unsigned short)bibma + 0x0a);
-
-	p += sprintf(p, "\n                                HPT34X Chipset.\n");
-	p += sprintf(p, "--------------- Primary Channel ---------------- Secondary Channel -------------\n");
-	p += sprintf(p, "                %sabled                         %sabled\n",
-			(c0&0x80) ? "dis" : " en",
-			(c1&0x80) ? "dis" : " en");
-	p += sprintf(p, "--------------- drive0 --------- drive1 -------- drive0 ---------- drive1 ------\n");
-	p += sprintf(p, "DMA enabled:    %s              %s             %s               %s\n",
-			(c0&0x20) ? "yes" : "no ", (c0&0x40) ? "yes" : "no ",
-			(c1&0x20) ? "yes" : "no ", (c1&0x40) ? "yes" : "no " );
-
-	p += sprintf(p, "UDMA\n");
-	p += sprintf(p, "DMA\n");
-	p += sprintf(p, "PIO\n");
-
-	return p-buffer;	/* => must be less than 4k! */
-}
-#endif  /* defined(DISPLAY_HPT34X_TIMINGS) && defined(CONFIG_PROC_FS) */
-
-byte hpt34x_proc = 0;
-
 static void hpt34x_clear_chipset(struct ata_device *drive)
 {
 	unsigned int reg1	= 0, tmp1 = 0;
@@ -215,7 +172,7 @@ static int config_chipset_for_dma(struct ata_device *drive, u8 udma)
 	return !hpt34x_tune_chipset(drive, mode);
 }
 
-static int config_drive_xfer_rate(struct ata_device *drive)
+static int hpt34x_udma_setup(struct ata_device *drive)
 {
 	struct hd_driveid *id = drive->id;
 	int on = 1;
@@ -289,48 +246,33 @@ static int hpt34x_udma_stop(struct ata_device *drive)
 	return (dma_stat & 7) != 4;		/* verify good DMA status */
 }
 
-static int do_udma(unsigned int reading, struct ata_device *drive, struct request *rq)
+static int hpt34x_udma_init(struct ata_device *drive, struct request *rq)
 {
 	struct ata_channel *ch = drive->channel;
 	unsigned long dma_base = ch->dma_base;
 	unsigned int count;
+	u8 cmd;
 
 	if (!(count = udma_new_table(ch, rq)))
 		return 1;	/* try PIO instead of DMA */
 
-	outl(ch->dmatable_dma, dma_base + 4); /* PRD table */
-	reading |= 0x01;
-	outb(reading, dma_base);		/* specify r/w */
+	if (rq_data_dir(rq) == READ)
+		cmd = 0x09;
+	else
+		cmd = 0x01;
+
+	outl(ch->dmatable_dma, dma_base + 4);	/* PRD table */
+	outb(cmd, dma_base);			/* specify r/w */
 	outb(inb(dma_base+2)|6, dma_base+2);	/* clear INTR & ERROR flags */
 	drive->waiting_for_dma = 1;
 
 	if (drive->type != ATA_DISK)
 		return 0;
 
-	ide_set_handler(drive, &ide_dma_intr, WAIT_CMD, NULL);	/* issue cmd to drive */
-	OUT_BYTE((reading == 9) ? WIN_READDMA : WIN_WRITEDMA, IDE_COMMAND_REG);
+	ide_set_handler(drive, ide_dma_intr, WAIT_CMD, NULL);	/* issue cmd to drive */
+	OUT_BYTE((cmd == 0x09) ? WIN_READDMA : WIN_WRITEDMA, IDE_COMMAND_REG);
 
 	return 0;
-}
-
-static int hpt34x_udma_read(struct ata_device *drive, struct request *rq)
-{
-	return do_udma(1 << 3, drive, rq);
-}
-
-static int hpt34x_udma_write(struct ata_device *drive, struct request *rq)
-{
-	return do_udma(0, drive, rq);
-}
-
-/*
- * This is specific to the HPT343 UDMA bios-less chipset
- * and HPT345 UDMA bios chipset (stamped HPT363)
- * by HighPoint|Triones Technologies, Inc.
- */
-static int hpt34x_dmaproc(struct ata_device *drive)
-{
-	return config_drive_xfer_rate(drive);
 }
 #endif
 
@@ -380,14 +322,6 @@ static unsigned int __init pci_init_hpt34x(struct pci_dev *dev)
 
 	__restore_flags(flags);	/* local CPU only */
 
-#if defined(DISPLAY_HPT34X_TIMINGS) && defined(CONFIG_PROC_FS)
-	if (!hpt34x_proc) {
-		hpt34x_proc = 1;
-		bmide_dev = dev;
-		hpt34x_display_info = &hpt34x_get_info;
-	}
-#endif
-
 	return dev->irq;
 }
 
@@ -407,9 +341,8 @@ static void __init ide_init_hpt34x(struct ata_channel *hwif)
 			hwif->autodma = 0;
 
 		hwif->udma_stop = hpt34x_udma_stop;
-		hwif->udma_read = hpt34x_udma_read;
-		hwif->udma_write = hpt34x_udma_write;
-		hwif->XXX_udma = hpt34x_dmaproc;
+		hwif->udma_init = hpt34x_udma_init;
+		hwif->udma_setup = hpt34x_udma_setup;
 		hwif->highmem = 1;
 	} else {
 		hwif->drives[0].autotune = 1;

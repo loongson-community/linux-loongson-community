@@ -14,6 +14,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/shm.h>
+#include <linux/swapops.h>
 #include <linux/errno.h>
 #include <linux/mman.h>
 #include <linux/module.h>
@@ -21,10 +22,10 @@
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
 
-#include <asm/cacheflush.h>
 #include <asm/system.h>
-#include <asm/pgalloc.h>
+#include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
+#include <asm/pgalloc.h>
 #include <asm/page.h>
 
 static inline void remove_mapping_pte_range (pmd_t *pmd, unsigned long address,

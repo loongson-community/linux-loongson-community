@@ -276,10 +276,7 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 			}
 		}
 
-		if (regs->regs[0])
-			syscall_restart(regs, ka);
-		/* Whee!  Actually deliver the signal.  */
-		handle_signal(signr, ka, &info, oldset, regs);
+		handle_signal(signr, &info, oldset, regs);
 		return 1;
 	}
 

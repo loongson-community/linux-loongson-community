@@ -368,22 +368,21 @@ extern void update_mmu_cache(struct vm_area_struct *vma,
 /* Swap entries must have VALID and GLOBAL bits cleared. */
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
 
-#define SWP_TYPE(x)		(((x).val >> 1) & 0x7f)
-#define SWP_OFFSET(x)		((x).val >> 10)
-#define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 10) })
+#define __swp_type(x)		(((x).val >> 1) & 0x7f)
+#define __swp_offset(x)		((x).val >> 10)
+#define __swp_entry(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 10) })
 #else
 
-#define SWP_TYPE(x)		(((x).val >> 1) & 0x1f)
-#define SWP_OFFSET(x)		((x).val >> 8)
-#define SWP_ENTRY(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
+#define __swp_type(x)		(((x).val >> 1) & 0x1f)
+#define __swp_offset(x)		((x).val >> 8)
+#define __swp_entry(type,offset)	((swp_entry_t) { ((type) << 1) | ((offset) << 8) })
 #endif
 
-#define pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
-#define swp_entry_to_pte(x)	((pte_t) { (x).val })
+#define __pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
+#define __swp_entry_to_pte(x)	((pte_t) { (x).val })
 
 
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
-#define PageSkip(page)		(0)
 #define kern_addr_valid(addr)	(1)
 
 #include <asm-generic/pgtable.h>

@@ -134,17 +134,6 @@
 #define IDEFLOPPY_PC_STACK		(10 + IDEFLOPPY_MAX_PC_RETRIES)
 
 /*
- *	Packet command flag bits.
- */
-#define	PC_ABORT			0	/* Set when an error is considered normal - We won't retry */
-#define PC_DMA_RECOMMENDED		2	/* 1 when we prefer to use DMA if possible */
-#define	PC_DMA_IN_PROGRESS		3	/* 1 while DMA in progress */
-#define	PC_DMA_ERROR			4	/* 1 when encountered problem during DMA */
-#define	PC_WRITING			5	/* Data direction */
-
-#define	PC_SUPPRESS_ERROR		6	/* Suppress error reporting */
-
-/*
  *	Removable Block Access Capabilities Page
  */
 typedef struct {
@@ -631,7 +620,7 @@ static int idefloppy_end_request(struct ata_device *drive, struct request *rq, i
 
 #if IDEFLOPPY_DEBUG_LOG
 	printk (KERN_INFO "Reached idefloppy_end_request\n");
-#endif /* IDEFLOPPY_DEBUG_LOG */
+#endif
 
 	switch (uptodate) {
 		case 0: error = IDEFLOPPY_ERROR_GENERAL; break;
@@ -643,12 +632,16 @@ static int idefloppy_end_request(struct ata_device *drive, struct request *rq, i
 	/* Why does this happen? */
 	if (!rq)
 		return 0;
+
 	if (!(rq->flags & IDEFLOPPY_RQ)) {
 		ide_end_request(drive, rq, uptodate);
 		return 0;
 	}
+
 	rq->errors = error;
-	ide_end_drive_cmd (drive, rq, 0, 0);
+	blkdev_dequeue_request(rq);
+	drive->rq = NULL;
+	end_that_request_last(rq);
 
 	return 0;
 }
@@ -723,10 +716,10 @@ static void idefloppy_update_buffers(struct ata_device *drive, struct request *r
 static void idefloppy_queue_pc_head(struct ata_device *drive,
 		struct atapi_packet_command *pc, struct request *rq)
 {
-	ide_init_drive_cmd (rq);
+	memset(rq, 0, sizeof(*rq));
+	rq->flags = IDEFLOPPY_RQ;
 	/* FIXME: --mdcki */
 	rq->buffer = (char *) pc;
-	rq->flags = IDEFLOPPY_RQ;
 	(void) ide_do_drive_cmd (drive, rq, ide_preempt);
 }
 
@@ -855,7 +848,8 @@ static ide_startstop_t idefloppy_pc_intr(struct ata_device *drive, struct reques
 	}
 #endif
 
-	status.all = GET_STAT();					/* Clear the interrupt */
+	ata_status(drive, 0, 0);
+	status.all = drive->status;					/* Clear the interrupt */
 
 	if (!status.b.drq) {						/* No more interrupts */
 #if IDEFLOPPY_DEBUG_LOG
@@ -1066,20 +1060,15 @@ static ide_startstop_t idefloppy_issue_pc(struct ata_device *drive, struct reque
 	if (test_and_clear_bit (PC_DMA_ERROR, &pc->flags))
 		udma_enable(drive, 0, 1);
 
-	if (test_bit (PC_DMA_RECOMMENDED, &pc->flags) && drive->using_dma) {
-		if (test_bit (PC_WRITING, &pc->flags))
-			dma_ok = !udma_write(drive, rq);
-		else
-			dma_ok = !udma_read(drive, rq);
-	}
+	if (test_bit (PC_DMA_RECOMMENDED, &pc->flags) && drive->using_dma)
+		dma_ok = !udma_init(drive, rq);
 #endif
 
-	if (IDE_CONTROL_REG)
-		OUT_BYTE (drive->ctl,IDE_CONTROL_REG);
-	OUT_BYTE (dma_ok ? 1:0,IDE_FEATURE_REG);			/* Use PIO/DMA */
-	OUT_BYTE (bcount.b.high,IDE_BCOUNTH_REG);
-	OUT_BYTE (bcount.b.low,IDE_BCOUNTL_REG);
-	OUT_BYTE (drive->select.all,IDE_SELECT_REG);
+	ata_irq_enable(drive, 1);
+	OUT_BYTE(dma_ok ? 1:0,IDE_FEATURE_REG);			/* Use PIO/DMA */
+	OUT_BYTE(bcount.b.high,IDE_BCOUNTH_REG);
+	OUT_BYTE(bcount.b.low,IDE_BCOUNTL_REG);
+	OUT_BYTE(drive->select.all,IDE_SELECT_REG);
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
 	if (dma_ok) {							/* Begin DMA, if necessary */
@@ -1282,11 +1271,12 @@ static int idefloppy_queue_pc_tail(struct ata_device *drive, struct atapi_packet
 {
 	struct request rq;
 
-	ide_init_drive_cmd (&rq);
+	memset(&rq, 0, sizeof(rq));
 	/* FIXME: --mdcki */
 	rq.buffer = (char *) pc;
 	rq.flags = IDEFLOPPY_RQ;
-	return ide_do_drive_cmd (drive, &rq, ide_wait);
+
+	return ide_do_drive_cmd(drive, &rq, ide_wait);
 }
 
 /*
@@ -1599,7 +1589,8 @@ static int idefloppy_get_format_progress(struct ata_device *drive,
 
 		__save_flags(flags);
 		__cli();
-		status.all=GET_STAT();
+		ata_status(drive, 0, 0);
+		status.all = drive->status;
 		__restore_flags(flags);
 
 		progress_indication= !status.b.dsc ? 0:0x10000;

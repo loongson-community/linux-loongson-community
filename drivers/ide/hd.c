@@ -66,6 +66,7 @@ static spinlock_t hd_lock = SPIN_LOCK_UNLOCKED;
 
 static int revalidate_hddisk(kdev_t, int);
 
+#define TIMEOUT_VALUE	(6*HZ)
 #define	HD_DELAY	0
 
 #define MAX_ERRORS     16	/* Max read/write errors/sector */
@@ -110,20 +111,16 @@ static int hd_sizes[MAX_HD<<6];
 
 static struct timer_list device_timer;
 
-#define SET_TIMER 							\
+#define SET_TIMER							\
 	do {								\
 		mod_timer(&device_timer, jiffies + TIMEOUT_VALUE);	\
 	} while (0)
 
-#define CLEAR_TIMER del_timer(&device_timer);
-
-#undef SET_INTR
-
-#define SET_INTR(x) \
+#define SET_HANDLER(x) \
 if ((DEVICE_INTR = (x)) != NULL) \
 	SET_TIMER; \
 else \
-	CLEAR_TIMER;
+	del_timer(&device_timer);
 
 
 #if (HD_DELAY > 0)
@@ -279,7 +276,7 @@ static void hd_out(unsigned int drive,unsigned int nsect,unsigned int sect,
 		reset = 1;
 		return;
 	}
-	SET_INTR(intr_addr);
+	SET_HANDLER(intr_addr);
 	outb_p(hd_info[drive].ctl,HD_CMD);
 	port=HD_DATA;
 	outb_p(hd_info[drive].wpcom>>2,++port);
@@ -429,7 +426,7 @@ ok_to_read:
 	if (CURRENT->current_nr_sectors <= 0)
 		end_request(1);
 	if (i > 0) {
-		SET_INTR(&read_intr);
+		SET_HANDLER(&read_intr);
 		return;
 	}
 	(void) inb_p(HD_STATUS);
@@ -467,7 +464,7 @@ ok_to_write:
 	if (!i || (CURRENT->bio && !SUBSECTOR(i)))
 		end_request(1);
 	if (i > 0) {
-		SET_INTR(&write_intr);
+		SET_HANDLER(&write_intr);
 		outsw(HD_DATA,CURRENT->buffer,256);
 		sti();
 	} else {
@@ -833,7 +830,7 @@ int __init hd_init(void)
 		printk("hd: unable to get major %d for hard disk\n",MAJOR_NR);
 		return -1;
 	}
-	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), DEVICE_REQUEST, &hd_lock);
+	blk_init_queue(BLK_DEFAULT_QUEUE(MAJOR_NR), do_hd_request, &hd_lock);
 	blk_queue_max_sectors(BLK_DEFAULT_QUEUE(MAJOR_NR), 255);
 	add_gendisk(&hd_gendisk);
 	init_timer(&device_timer);

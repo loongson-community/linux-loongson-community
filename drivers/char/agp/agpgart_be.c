@@ -1365,6 +1365,570 @@ static int __init intel_i830_setup(struct pci_dev *i830_dev)
 
 #endif /* CONFIG_AGP_I810 */
 
+#ifdef CONFIG_AGP_I460
+
+/* BIOS configures the chipset so that one of two apbase registers are used */
+static u8 intel_i460_dynamic_apbase = 0x10;
+
+/* 460 supports multiple GART page sizes, so GART pageshift is dynamic */
+static u8 intel_i460_pageshift = 12;
+static u32 intel_i460_pagesize;
+
+/* Keep track of which is larger, chipset or kernel page size. */
+static u32 intel_i460_cpk = 1;
+
+/* Structure for tracking partial use of 4MB GART pages */
+static u32 **i460_pg_detail = NULL;
+static u32 *i460_pg_count = NULL;
+
+#define I460_CPAGES_PER_KPAGE (PAGE_SIZE >> intel_i460_pageshift)
+#define I460_KPAGES_PER_CPAGE ((1 << intel_i460_pageshift) >> PAGE_SHIFT)
+
+#define I460_SRAM_IO_DISABLE		(1 << 4)
+#define I460_BAPBASE_ENABLE		(1 << 3)
+#define I460_AGPSIZ_MASK		0x7
+#define I460_4M_PS			(1 << 1)
+
+#define log2(x)				ffz(~(x))
+
+static inline void intel_i460_read_back (volatile u32 *entry)
+{
+	/*
+	 * The 460 spec says we have to read the last location written to
+	 * make sure that all writes have taken effect
+	 */
+	*entry;
+}
+
+static int intel_i460_fetch_size(void)
+{
+	int i;
+	u8 temp;
+	aper_size_info_8 *values;
+
+	/* Determine the GART page size */
+	pci_read_config_byte(agp_bridge.dev, INTEL_I460_GXBCTL, &temp);
+	intel_i460_pageshift = (temp & I460_4M_PS) ? 22 : 12;
+	intel_i460_pagesize = 1UL << intel_i460_pageshift;
+
+	values = A_SIZE_8(agp_bridge.aperture_sizes);
+
+	pci_read_config_byte(agp_bridge.dev, INTEL_I460_AGPSIZ, &temp);
+
+	/* Exit now if the IO drivers for the GART SRAMS are turned off */
+	if (temp & I460_SRAM_IO_DISABLE) {
+		printk(KERN_ERR PFX "GART SRAMS disabled on 460GX chipset\n");
+		printk(KERN_ERR PFX "AGPGART operation not possible\n");
+		return 0;
+	}
+
+	/* Make sure we don't try to create an 2 ^ 23 entry GATT */
+	if ((intel_i460_pageshift == 0) && ((temp & I460_AGPSIZ_MASK) == 4)) {
+		printk(KERN_ERR PFX "We can't have a 32GB aperture with 4KB GART pages\n");
+		return 0;
+	}
+
+	/* Determine the proper APBASE register */
+	if (temp & I460_BAPBASE_ENABLE)
+		intel_i460_dynamic_apbase = INTEL_I460_BAPBASE;
+	else
+		intel_i460_dynamic_apbase = INTEL_I460_APBASE;
+
+	for (i = 0; i < agp_bridge.num_aperture_sizes; i++) {
+		/*
+		 * Dynamically calculate the proper num_entries and page_order values for
+		 * the define aperture sizes. Take care not to shift off the end of
+		 * values[i].size.
+		 */
+		values[i].num_entries = (values[i].size << 8) >> (intel_i460_pageshift - 12);
+		values[i].page_order = log2((sizeof(u32)*values[i].num_entries) >> PAGE_SHIFT);
+	}
+
+	for (i = 0; i < agp_bridge.num_aperture_sizes; i++) {
+		/* Neglect control bits when matching up size_value */
+		if ((temp & I460_AGPSIZ_MASK) == values[i].size_value) {
+			agp_bridge.previous_size = agp_bridge.current_size = (void *) (values + i);
+			agp_bridge.aperture_size_idx = i;
+			return values[i].size;
+		}
+	}
+
+	return 0;
+}
+
+/* There isn't anything to do here since 460 has no GART TLB. */
+static void intel_i460_tlb_flush(agp_memory * mem)
+{
+	return;
+}
+
+/*
+ * This utility function is needed to prevent corruption of the control bits
+ * which are stored along with the aperture size in 460's AGPSIZ register
+ */
+static void intel_i460_write_agpsiz(u8 size_value)
+{
+	u8 temp;
+
+	pci_read_config_byte(agp_bridge.dev, INTEL_I460_AGPSIZ, &temp);
+	pci_write_config_byte(agp_bridge.dev, INTEL_I460_AGPSIZ,
+			      ((temp & ~I460_AGPSIZ_MASK) | size_value));
+}
+
+static void intel_i460_cleanup(void)
+{
+	aper_size_info_8 *previous_size;
+
+	previous_size = A_SIZE_8(agp_bridge.previous_size);
+	intel_i460_write_agpsiz(previous_size->size_value);
+
+	if (intel_i460_cpk == 0) {
+		vfree(i460_pg_detail);
+		vfree(i460_pg_count);
+	}
+}
+
+
+/* Control bits for Out-Of-GART coherency and Burst Write Combining */
+#define I460_GXBCTL_OOG		(1UL << 0)
+#define I460_GXBCTL_BWC		(1UL << 2)
+
+static int intel_i460_configure(void)
+{
+	union {
+		u32 small[2];
+		u64 large;
+	} temp;
+	u8 scratch;
+	int i;
+
+	aper_size_info_8 *current_size;
+
+	temp.large = 0;
+
+	current_size = A_SIZE_8(agp_bridge.current_size);
+	intel_i460_write_agpsiz(current_size->size_value);
+
+	/*
+	 * Do the necessary rigmarole to read all eight bytes of APBASE.
+	 * This has to be done since the AGP aperture can be above 4GB on
+	 * 460 based systems.
+	 */
+	pci_read_config_dword(agp_bridge.dev, intel_i460_dynamic_apbase, &(temp.small[0]));
+	pci_read_config_dword(agp_bridge.dev, intel_i460_dynamic_apbase + 4, &(temp.small[1]));
+
+	/* Clear BAR control bits */
+	agp_bridge.gart_bus_addr = temp.large & ~((1UL << 3) - 1);
+
+	pci_read_config_byte(agp_bridge.dev, INTEL_I460_GXBCTL, &scratch);
+	pci_write_config_byte(agp_bridge.dev, INTEL_I460_GXBCTL,
+			      (scratch & 0x02) | I460_GXBCTL_OOG | I460_GXBCTL_BWC);
+
+	/*
+	 * Initialize partial allocation trackers if a GART page is bigger than
+	 * a kernel page.
+	 */
+	if (I460_CPAGES_PER_KPAGE >= 1) {
+		intel_i460_cpk = 1;
+	} else {
+		intel_i460_cpk = 0;
+
+		i460_pg_detail = vmalloc(sizeof(*i460_pg_detail) * current_size->num_entries);
+		i460_pg_count = vmalloc(sizeof(*i460_pg_count) * current_size->num_entries);
+
+		for (i = 0; i < current_size->num_entries; i++) {
+			i460_pg_count[i] = 0;
+			i460_pg_detail[i] = NULL;
+		}
+	}
+	return 0;
+}
+
+static int intel_i460_create_gatt_table(void)
+{
+	char *table;
+	int i;
+	int page_order;
+	int num_entries;
+	void *temp;
+
+	/*
+	 * Load up the fixed address of the GART SRAMS which hold our
+	 * GATT table.
+	 */
+	table = (char *) __va(INTEL_I460_ATTBASE);
+
+	temp = agp_bridge.current_size;
+	page_order = A_SIZE_8(temp)->page_order;
+	num_entries = A_SIZE_8(temp)->num_entries;
+
+	agp_bridge.gatt_table_real = (u32 *) table;
+	agp_bridge.gatt_table = ioremap_nocache(virt_to_phys(table),
+						(PAGE_SIZE * (1 << page_order)));
+	agp_bridge.gatt_bus_addr = virt_to_phys(agp_bridge.gatt_table_real);
+
+	for (i = 0; i < num_entries; i++) {
+		agp_bridge.gatt_table[i] = 0;
+	}
+
+	intel_i460_read_back(agp_bridge.gatt_table + i - 1);
+	return 0;
+}
+
+static int intel_i460_free_gatt_table(void)
+{
+	int num_entries;
+	int i;
+	void *temp;
+
+	temp = agp_bridge.current_size;
+
+	num_entries = A_SIZE_8(temp)->num_entries;
+
+	for (i = 0; i < num_entries; i++) {
+		agp_bridge.gatt_table[i] = 0;
+	}
+
+	intel_i460_read_back(agp_bridge.gatt_table + i - 1);
+
+	iounmap(agp_bridge.gatt_table);
+	return 0;
+}
+
+/* These functions are called when PAGE_SIZE exceeds the GART page size */
+
+static int intel_i460_insert_memory_cpk(agp_memory * mem, off_t pg_start, int type)
+{
+	int i, j, k, num_entries;
+	void *temp;
+	unsigned long paddr;
+
+	/*
+	 * The rest of the kernel will compute page offsets in terms of
+	 * PAGE_SIZE.
+	 */
+	pg_start = I460_CPAGES_PER_KPAGE * pg_start;
+
+	temp = agp_bridge.current_size;
+	num_entries = A_SIZE_8(temp)->num_entries;
+
+	if ((pg_start + I460_CPAGES_PER_KPAGE * mem->page_count) > num_entries) {
+		printk(KERN_ERR PFX "Looks like we're out of AGP memory\n");
+		return -EINVAL;
+	}
+
+	j = pg_start;
+	while (j < (pg_start + I460_CPAGES_PER_KPAGE * mem->page_count)) {
+		if (!PGE_EMPTY(agp_bridge.gatt_table[j])) {
+			return -EBUSY;
+		}
+		j++;
+	}
+
+#if 0
+	/* not necessary since 460 GART is operated in coherent mode... */
+	if (mem->is_flushed == FALSE) {
+		CACHE_FLUSH();
+		mem->is_flushed = TRUE;
+	}
+#endif
+
+	for (i = 0, j = pg_start; i < mem->page_count; i++) {
+		paddr = mem->memory[i];
+		for (k = 0; k < I460_CPAGES_PER_KPAGE; k++, j++, paddr += intel_i460_pagesize)
+			agp_bridge.gatt_table[j] = (u32) agp_bridge.mask_memory(paddr, mem->type);
+	}
+
+	intel_i460_read_back(agp_bridge.gatt_table + j - 1);
+	return 0;
+}
+
+static int intel_i460_remove_memory_cpk(agp_memory * mem, off_t pg_start, int type)
+{
+	int i;
+
+	pg_start = I460_CPAGES_PER_KPAGE * pg_start;
+
+	for (i = pg_start; i < (pg_start + I460_CPAGES_PER_KPAGE * mem->page_count); i++)
+		agp_bridge.gatt_table[i] = 0;
+
+	intel_i460_read_back(agp_bridge.gatt_table + i - 1);
+	return 0;
+}
+
+/*
+ * These functions are called when the GART page size exceeds PAGE_SIZE.
+ *
+ * This situation is interesting since AGP memory allocations that are
+ * smaller than a single GART page are possible.  The structures i460_pg_count
+ * and i460_pg_detail track partial allocation of the large GART pages to
+ * work around this issue.
+ *
+ * i460_pg_count[pg_num] tracks the number of kernel pages in use within
+ * GART page pg_num.  i460_pg_detail[pg_num] is an array containing a
+ * psuedo-GART entry for each of the aforementioned kernel pages.  The whole
+ * of i460_pg_detail is equivalent to a giant GATT with page size equal to
+ * that of the kernel.
+ */
+
+static void *intel_i460_alloc_large_page(int pg_num)
+{
+	int i;
+	void *bp, *bp_end;
+	struct page *page;
+
+	i460_pg_detail[pg_num] = (void *) vmalloc(sizeof(u32) * I460_KPAGES_PER_CPAGE);
+	if (i460_pg_detail[pg_num] == NULL) {
+		printk(KERN_ERR PFX "Out of memory, we're in trouble...\n");
+		return NULL;
+	}
+
+	for (i = 0; i < I460_KPAGES_PER_CPAGE; i++)
+		i460_pg_detail[pg_num][i] = 0;
+
+	bp = (void *) __get_free_pages(GFP_KERNEL, intel_i460_pageshift - PAGE_SHIFT);
+	if (bp == NULL) {
+		printk(KERN_ERR PFX "Couldn't alloc 4M GART page...\n");
+		return NULL;
+	}
+
+	bp_end = bp + ((PAGE_SIZE * (1 << (intel_i460_pageshift - PAGE_SHIFT))) - 1);
+
+	for (page = virt_to_page(bp); page <= virt_to_page(bp_end); page++) {
+		atomic_inc(&agp_bridge.current_memory_agp);
+	}
+	return bp;
+}
+
+static void intel_i460_free_large_page(int pg_num, unsigned long addr)
+{
+	struct page *page;
+	void *bp, *bp_end;
+
+	bp = (void *) __va(addr);
+	bp_end = bp + (PAGE_SIZE * (1 << (intel_i460_pageshift - PAGE_SHIFT)));
+
+	vfree(i460_pg_detail[pg_num]);
+	i460_pg_detail[pg_num] = NULL;
+
+	for (page = virt_to_page(bp); page < virt_to_page(bp_end); page++) {
+		atomic_dec(&agp_bridge.current_memory_agp);
+	}
+
+	free_pages((unsigned long) bp, intel_i460_pageshift - PAGE_SHIFT);
+}
+
+static int intel_i460_insert_memory_kpc(agp_memory * mem, off_t pg_start, int type)
+{
+	int i, pg, start_pg, end_pg, start_offset, end_offset, idx;
+	int num_entries;
+	void *temp;
+	unsigned long paddr;
+
+	temp = agp_bridge.current_size;
+	num_entries = A_SIZE_8(temp)->num_entries;
+
+	/* Figure out what pg_start means in terms of our large GART pages */
+	start_pg 	= pg_start / I460_KPAGES_PER_CPAGE;
+	start_offset 	= pg_start % I460_KPAGES_PER_CPAGE;
+	end_pg 		= (pg_start + mem->page_count - 1) / I460_KPAGES_PER_CPAGE;
+	end_offset 	= (pg_start + mem->page_count - 1) % I460_KPAGES_PER_CPAGE;
+
+	if (end_pg > num_entries) {
+		printk(KERN_ERR PFX "Looks like we're out of AGP memory\n");
+		return -EINVAL;
+	}
+
+	/* Check if the requested region of the aperture is free */
+	for (pg = start_pg; pg <= end_pg; pg++) {
+		/* Allocate new GART pages if necessary */
+		if (i460_pg_detail[pg] == NULL) {
+			temp = intel_i460_alloc_large_page(pg);
+			if (temp == NULL)
+				return -ENOMEM;
+			agp_bridge.gatt_table[pg] = agp_bridge.mask_memory((unsigned long) temp,
+									   0);
+			intel_i460_read_back(agp_bridge.gatt_table + pg);
+		}
+
+		for (idx = ((pg == start_pg) ? start_offset : 0);
+		     idx < ((pg == end_pg) ? (end_offset + 1) : I460_KPAGES_PER_CPAGE);
+		     idx++)
+		{
+			if (i460_pg_detail[pg][idx] != 0)
+				return -EBUSY;
+		}
+	}
+
+#if 0
+	/* not necessary since 460 GART is operated in coherent mode... */
+	if (mem->is_flushed == FALSE) {
+		CACHE_FLUSH();
+		mem->is_flushed = TRUE;
+	}
+#endif
+
+	for (pg = start_pg, i = 0; pg <= end_pg; pg++) {
+		paddr = agp_bridge.unmask_memory(agp_bridge.gatt_table[pg]);
+		for (idx = ((pg == start_pg) ? start_offset : 0);
+		     idx < ((pg == end_pg) ? (end_offset + 1) : I460_KPAGES_PER_CPAGE);
+		     idx++, i++)
+		{
+			mem->memory[i] = paddr + (idx * PAGE_SIZE);
+			i460_pg_detail[pg][idx] = agp_bridge.mask_memory(mem->memory[i],
+									 mem->type);
+			i460_pg_count[pg]++;
+		}
+	}
+
+	return 0;
+}
+
+static int intel_i460_remove_memory_kpc(agp_memory * mem, off_t pg_start, int type)
+{
+	int i, pg, start_pg, end_pg, start_offset, end_offset, idx;
+	int num_entries;
+	void *temp;
+	unsigned long paddr;
+
+	temp = agp_bridge.current_size;
+	num_entries = A_SIZE_8(temp)->num_entries;
+
+	/* Figure out what pg_start means in terms of our large GART pages */
+	start_pg 	= pg_start / I460_KPAGES_PER_CPAGE;
+	start_offset 	= pg_start % I460_KPAGES_PER_CPAGE;
+	end_pg 		= (pg_start + mem->page_count - 1) / I460_KPAGES_PER_CPAGE;
+	end_offset 	= (pg_start + mem->page_count - 1) % I460_KPAGES_PER_CPAGE;
+
+	for (i = 0, pg = start_pg; pg <= end_pg; pg++) {
+		for (idx = ((pg == start_pg) ? start_offset : 0);
+		    idx < ((pg == end_pg) ? (end_offset + 1) : I460_KPAGES_PER_CPAGE);
+		    idx++, i++)
+		{
+			mem->memory[i] = 0;
+			i460_pg_detail[pg][idx] = 0;
+			i460_pg_count[pg]--;
+		}
+
+		/* Free GART pages if they are unused */
+		if (i460_pg_count[pg] == 0) {
+			paddr = agp_bridge.unmask_memory(agp_bridge.gatt_table[pg]);
+			agp_bridge.gatt_table[pg] = agp_bridge.scratch_page;
+			intel_i460_read_back(agp_bridge.gatt_table + pg);
+			intel_i460_free_large_page(pg, paddr);
+		}
+	}
+	return 0;
+}
+
+/* Dummy routines to call the approriate {cpk,kpc} function */
+
+static int intel_i460_insert_memory(agp_memory * mem, off_t pg_start, int type)
+{
+	if (intel_i460_cpk)
+		return intel_i460_insert_memory_cpk(mem, pg_start, type);
+	else
+		return intel_i460_insert_memory_kpc(mem, pg_start, type);
+}
+
+static int intel_i460_remove_memory(agp_memory * mem, off_t pg_start, int type)
+{
+	if (intel_i460_cpk)
+		return intel_i460_remove_memory_cpk(mem, pg_start, type);
+	else
+		return intel_i460_remove_memory_kpc(mem, pg_start, type);
+}
+
+/*
+ * If the kernel page size is smaller that the chipset page size, we don't
+ * want to allocate memory until we know where it is to be bound in the
+ * aperture (a multi-kernel-page alloc might fit inside of an already
+ * allocated GART page).  Consequently, don't allocate or free anything
+ * if i460_cpk (meaning chipset pages per kernel page) isn't set.
+ *
+ * Let's just hope nobody counts on the allocated AGP memory being there
+ * before bind time (I don't think current drivers do)...
+ */
+static unsigned long intel_i460_alloc_page(void)
+{
+	if (intel_i460_cpk)
+		return agp_generic_alloc_page();
+
+	/* Returning NULL would cause problems */
+	return ~0UL;
+}
+
+static void intel_i460_destroy_page(unsigned long page)
+{
+	if (intel_i460_cpk)
+		agp_generic_destroy_page(page);
+}
+
+static gatt_mask intel_i460_masks[] =
+{
+	{
+	  INTEL_I460_GATT_VALID | INTEL_I460_GATT_COHERENT,
+	  0
+	}
+};
+
+static unsigned long intel_i460_mask_memory(unsigned long addr, int type)
+{
+	/* Make sure the returned address is a valid GATT entry */
+	return (agp_bridge.masks[0].mask
+		| (((addr & ~((1 << intel_i460_pageshift) - 1)) & 0xffffff000) >> 12));
+}
+
+static unsigned long intel_i460_unmask_memory(unsigned long addr)
+{
+	/* Turn a GATT entry into a physical address */
+	return ((addr & 0xffffff) << 12);
+}
+
+static aper_size_info_8 intel_i460_sizes[3] =
+{
+	/*
+	 * The 32GB aperture is only available with a 4M GART page size.
+	 * Due to the dynamic GART page size, we can't figure out page_order
+	 * or num_entries until runtime.
+	 */
+	{32768, 0, 0, 4},
+	{1024, 0, 0, 2},
+	{256, 0, 0, 1}
+};
+
+static int __init intel_i460_setup (struct pci_dev *pdev __attribute__((unused)))
+{
+	agp_bridge.masks = intel_i460_masks;
+	agp_bridge.aperture_sizes = (void *) intel_i460_sizes;
+	agp_bridge.size_type = U8_APER_SIZE;
+	agp_bridge.num_aperture_sizes = 3;
+	agp_bridge.dev_private_data = NULL;
+	agp_bridge.needs_scratch_page = FALSE;
+	agp_bridge.configure = intel_i460_configure;
+	agp_bridge.fetch_size = intel_i460_fetch_size;
+	agp_bridge.cleanup = intel_i460_cleanup;
+	agp_bridge.tlb_flush = intel_i460_tlb_flush;
+	agp_bridge.mask_memory = intel_i460_mask_memory;
+	agp_bridge.unmask_memory = intel_i460_unmask_memory;
+	agp_bridge.agp_enable = agp_generic_agp_enable;
+	agp_bridge.cache_flush = global_cache_flush;
+	agp_bridge.create_gatt_table = intel_i460_create_gatt_table;
+	agp_bridge.free_gatt_table = intel_i460_free_gatt_table;
+	agp_bridge.insert_memory = intel_i460_insert_memory;
+	agp_bridge.remove_memory = intel_i460_remove_memory;
+	agp_bridge.alloc_by_type = agp_generic_alloc_by_type;
+	agp_bridge.free_by_type = agp_generic_free_by_type;
+	agp_bridge.agp_alloc_page = intel_i460_alloc_page;
+	agp_bridge.agp_destroy_page = intel_i460_destroy_page;
+	agp_bridge.suspend = agp_generic_suspend;
+	agp_bridge.resume = agp_generic_resume;
+	agp_bridge.cant_use_aperture = 1;
+	return 0;
+}
+
+#endif /* CONFIG_AGP_I460 */
+
 #ifdef CONFIG_AGP_INTEL
 
 static int intel_fetch_size(void)
@@ -3273,368 +3837,6 @@ static void serverworks_agp_enable(u32 mode)
 	 *        AGP devices and collect their data.
 	 */
 
-#ifdef CONFIG_AGP_HP_ZX1
-
-#ifndef log2
-#define log2(x)		ffz(~(x))
-#endif
-
-#define HP_ZX1_IOVA_BASE	GB(1UL)
-#define HP_ZX1_IOVA_SIZE	GB(1UL)
-#define HP_ZX1_GART_SIZE	(HP_ZX1_IOVA_SIZE / 2)
-#define HP_ZX1_SBA_IOMMU_COOKIE	0x0000badbadc0ffeeUL
-
-#define HP_ZX1_PDIR_VALID_BIT	0x8000000000000000UL
-#define HP_ZX1_IOVA_TO_PDIR(va)	((va - hp_private.iova_base) >> \
-					hp_private.io_tlb_shift)
-
-static aper_size_info_fixed hp_zx1_sizes[] =
-{
-	{0, 0, 0},		/* filled in by hp_zx1_fetch_size() */
-};
-
-static gatt_mask hp_zx1_masks[] =
-{
-	{HP_ZX1_PDIR_VALID_BIT, 0}
-};
-
-static struct _hp_private {
-	struct pci_dev *ioc;
-	volatile u8 *registers;
-	u64 *io_pdir;		// PDIR for entire IOVA
-	u64 *gatt;		// PDIR just for GART (subset of above)
-	u64 gatt_entries;
-	u64 iova_base;
-	u64 gart_base;
-	u64 gart_size;
-	u64 io_pdir_size;
-	int io_pdir_owner;	// do we own it, or share it with sba_iommu?
-	int io_page_size;
-	int io_tlb_shift;
-	int io_tlb_ps;		// IOC ps config
-	int io_pages_per_kpage;
-} hp_private;
-
-static int __init hp_zx1_ioc_shared(void)
-{
-	struct _hp_private *hp = &hp_private;
-
-	printk(KERN_INFO PFX "HP ZX1 IOC: IOPDIR shared with sba_iommu\n");
-
-	/*
-	 * IOC already configured by sba_iommu module; just use
-	 * its setup.  We assume:
-	 * 	- IOVA space is 1Gb in size
-	 * 	- first 512Mb is IOMMU, second 512Mb is GART
-	 */
-	hp->io_tlb_ps = INREG64(hp->registers, HP_ZX1_TCNFG);
-	switch (hp->io_tlb_ps) {
-		case 0: hp->io_tlb_shift = 12; break;
-		case 1: hp->io_tlb_shift = 13; break;
-		case 2: hp->io_tlb_shift = 14; break;
-		case 3: hp->io_tlb_shift = 16; break;
-		default:
-			printk(KERN_ERR PFX "Invalid IOTLB page size "
-			       "configuration 0x%x\n", hp->io_tlb_ps);
-			hp->gatt = 0;
-			hp->gatt_entries = 0;
-			return -ENODEV;
-	}
-	hp->io_page_size = 1 << hp->io_tlb_shift;
-	hp->io_pages_per_kpage = PAGE_SIZE / hp->io_page_size;
-
-	hp->iova_base = INREG64(hp->registers, HP_ZX1_IBASE) & ~0x1;
-	hp->gart_base = hp->iova_base + HP_ZX1_IOVA_SIZE - HP_ZX1_GART_SIZE;
-
-	hp->gart_size = HP_ZX1_GART_SIZE;
-	hp->gatt_entries = hp->gart_size / hp->io_page_size;
-
-	hp->io_pdir = phys_to_virt(INREG64(hp->registers, HP_ZX1_PDIR_BASE));
-	hp->gatt = &hp->io_pdir[HP_ZX1_IOVA_TO_PDIR(hp->gart_base)];
-
-	if (hp->gatt[0] != HP_ZX1_SBA_IOMMU_COOKIE) {
-	    	hp->gatt = 0;
-		hp->gatt_entries = 0;
-		printk(KERN_ERR PFX "No reserved IO PDIR entry found; "
-		       "GART disabled\n");
-		return -ENODEV;
-	}
-
-	return 0;
-}
-
-static int __init hp_zx1_ioc_owner(u8 ioc_rev)
-{
-	struct _hp_private *hp = &hp_private;
-
-	printk(KERN_INFO PFX "HP ZX1 IOC: IOPDIR dedicated to GART\n");
-
-	/*
-	 * Select an IOV page size no larger than system page size.
-	 */
-	if (PAGE_SIZE >= KB(64)) {
-		hp->io_tlb_shift = 16;
-		hp->io_tlb_ps = 3;
-	} else if (PAGE_SIZE >= KB(16)) {
-		hp->io_tlb_shift = 14;
-		hp->io_tlb_ps = 2;
-	} else if (PAGE_SIZE >= KB(8)) {
-		hp->io_tlb_shift = 13;
-		hp->io_tlb_ps = 1;
-	} else {
-		hp->io_tlb_shift = 12;
-		hp->io_tlb_ps = 0;
-	}
-	hp->io_page_size = 1 << hp->io_tlb_shift;
-	hp->io_pages_per_kpage = PAGE_SIZE / hp->io_page_size;
-
-	hp->iova_base = HP_ZX1_IOVA_BASE;
-	hp->gart_size = HP_ZX1_GART_SIZE;
-	hp->gart_base = hp->iova_base + HP_ZX1_IOVA_SIZE - hp->gart_size;
-
-	hp->gatt_entries = hp->gart_size / hp->io_page_size;
-	hp->io_pdir_size = (HP_ZX1_IOVA_SIZE / hp->io_page_size) * sizeof(u64);
-
-	return 0;
-}
-
-static int __init hp_zx1_ioc_init(void)
-{
-	struct _hp_private *hp = &hp_private;
-	struct pci_dev *ioc;
-	int i;
-	u8 ioc_rev;
-
-	ioc = pci_find_device(PCI_VENDOR_ID_HP, PCI_DEVICE_ID_HP_ZX1_IOC, NULL);
-	if (!ioc) {
-		printk(KERN_ERR PFX "Detected HP ZX1 AGP bridge but no IOC\n");
-		return -ENODEV;
-	}
-	hp->ioc = ioc;
-
-	pci_read_config_byte(ioc, PCI_REVISION_ID, &ioc_rev);
-
-	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
-		if (pci_resource_flags(ioc, i) == IORESOURCE_MEM) {
-			hp->registers = (u8 *) ioremap(pci_resource_start(ioc,
-									    i),
-						    pci_resource_len(ioc, i));
-			break;
-		}
-	}
-	if (!hp->registers) {
-		printk(KERN_ERR PFX "Detected HP ZX1 AGP bridge but no CSRs\n");
-
-		return -ENODEV;
-	}
-
-	/*
-	 * If the IOTLB is currently disabled, we can take it over.
-	 * Otherwise, we have to share with sba_iommu.
-	 */
-	hp->io_pdir_owner = (INREG64(hp->registers, HP_ZX1_IBASE) & 0x1) == 0;
-
-	if (hp->io_pdir_owner)
-		return hp_zx1_ioc_owner(ioc_rev);
-
-	return hp_zx1_ioc_shared();
-}
-
-static int hp_zx1_fetch_size(void)
-{
-	int size;
-
-	size = hp_private.gart_size / MB(1);
-	hp_zx1_sizes[0].size = size;
-	agp_bridge.current_size = (void *) &hp_zx1_sizes[0];
-	return size;
-}
-
-static int hp_zx1_configure(void)
-{
-	struct _hp_private *hp = &hp_private;
-
-	agp_bridge.gart_bus_addr = hp->gart_base;
-	agp_bridge.capndx = pci_find_capability(agp_bridge.dev, PCI_CAP_ID_AGP);
-	pci_read_config_dword(agp_bridge.dev,
-		agp_bridge.capndx + PCI_AGP_STATUS, &agp_bridge.mode);
-
-	if (hp->io_pdir_owner) {
-		OUTREG64(hp->registers, HP_ZX1_PDIR_BASE,
-			virt_to_phys(hp->io_pdir));
-		OUTREG64(hp->registers, HP_ZX1_TCNFG, hp->io_tlb_ps);
-		OUTREG64(hp->registers, HP_ZX1_IMASK, ~(HP_ZX1_IOVA_SIZE - 1));
-		OUTREG64(hp->registers, HP_ZX1_IBASE, hp->iova_base | 0x1);
-		OUTREG64(hp->registers, HP_ZX1_PCOM,
-			hp->iova_base | log2(HP_ZX1_IOVA_SIZE));
-		INREG64(hp->registers, HP_ZX1_PCOM);
-	}
-
-	return 0;
-}
-
-static void hp_zx1_cleanup(void)
-{
-	struct _hp_private *hp = &hp_private;
-
-	if (hp->io_pdir_owner)
-		OUTREG64(hp->registers, HP_ZX1_IBASE, 0);
-	iounmap((void *) hp->registers);
-}
-
-static void hp_zx1_tlbflush(agp_memory * mem)
-{
-	struct _hp_private *hp = &hp_private;
-
-	OUTREG64(hp->registers, HP_ZX1_PCOM, 
-		hp->gart_base | log2(hp->gart_size));
-	INREG64(hp->registers, HP_ZX1_PCOM);
-}
-
-static int hp_zx1_create_gatt_table(void)
-{
-	struct _hp_private *hp = &hp_private;
-	int i;
-
-	if (hp->io_pdir_owner) {
-		hp->io_pdir = (u64 *) __get_free_pages(GFP_KERNEL,
-						get_order(hp->io_pdir_size));
-		if (!hp->io_pdir) {
-			printk(KERN_ERR PFX "Couldn't allocate contiguous "
-				"memory for I/O PDIR\n");
-			hp->gatt = 0;
-			hp->gatt_entries = 0;
-			return -ENOMEM;
-		}
-		memset(hp->io_pdir, 0, hp->io_pdir_size);
-
-		hp->gatt = &hp->io_pdir[HP_ZX1_IOVA_TO_PDIR(hp->gart_base)];
-	}
-
-	for (i = 0; i < hp->gatt_entries; i++) {
-		hp->gatt[i] = (unsigned long) agp_bridge.scratch_page;
-	}
-
-	return 0;
-}
-
-static int hp_zx1_free_gatt_table(void)
-{
-	struct _hp_private *hp = &hp_private;
-	
-	if (hp->io_pdir_owner)
-		free_pages((unsigned long) hp->io_pdir,
-			    get_order(hp->io_pdir_size));
-	else
-		hp->gatt[0] = HP_ZX1_SBA_IOMMU_COOKIE;
-	return 0;
-}
-
-static int hp_zx1_insert_memory(agp_memory * mem, off_t pg_start, int type)
-{
-	struct _hp_private *hp = &hp_private;
-	int i, k;
-	off_t j, io_pg_start;
-	int io_pg_count;
-
-	if (type != 0 || mem->type != 0) {
-		return -EINVAL;
-	}
-
-	io_pg_start = hp->io_pages_per_kpage * pg_start;
-	io_pg_count = hp->io_pages_per_kpage * mem->page_count;
-	if ((io_pg_start + io_pg_count) > hp->gatt_entries) {
-		return -EINVAL;
-	}
-
-	j = io_pg_start;
-	while (j < (io_pg_start + io_pg_count)) {
-		if (hp->gatt[j]) {
-			return -EBUSY;
-		}
-		j++;
-	}
-
-	if (mem->is_flushed == FALSE) {
-		CACHE_FLUSH();
-		mem->is_flushed = TRUE;
-	}
-
-	for (i = 0, j = io_pg_start; i < mem->page_count; i++) {
-		unsigned long paddr;
-
-		paddr = mem->memory[i];
-		for (k = 0;
-		     k < hp->io_pages_per_kpage;
-		     k++, j++, paddr += hp->io_page_size) {
-			hp->gatt[j] = agp_bridge.mask_memory(paddr, type);
-		}
-	}
-
-	agp_bridge.tlb_flush(mem);
-	return 0;
-}
-
-static int hp_zx1_remove_memory(agp_memory * mem, off_t pg_start, int type)
-{
-	struct _hp_private *hp = &hp_private;
-	int i, io_pg_start, io_pg_count;
-
-	if (type != 0 || mem->type != 0) {
-		return -EINVAL;
-	}
-
-	io_pg_start = hp->io_pages_per_kpage * pg_start;
-	io_pg_count = hp->io_pages_per_kpage * mem->page_count;
-	for (i = io_pg_start; i < io_pg_count + io_pg_start; i++) {
-		hp->gatt[i] = agp_bridge.scratch_page;
-	}
-
-	agp_bridge.tlb_flush(mem);
-	return 0;
-}
-
-static unsigned long hp_zx1_mask_memory(unsigned long addr, int type)
-{
-	return HP_ZX1_PDIR_VALID_BIT | addr;
-}
-
-static unsigned long hp_zx1_unmask_memory(unsigned long addr)
-{
-	return addr & ~(HP_ZX1_PDIR_VALID_BIT);
-}
-
-static int __init hp_zx1_setup (struct pci_dev *pdev)
-{
-	agp_bridge.masks = hp_zx1_masks;
-	agp_bridge.num_of_masks = 1;
-	agp_bridge.dev_private_data = NULL;
-	agp_bridge.size_type = FIXED_APER_SIZE;
-	agp_bridge.needs_scratch_page = FALSE;
-	agp_bridge.configure = hp_zx1_configure;
-	agp_bridge.fetch_size = hp_zx1_fetch_size;
-	agp_bridge.cleanup = hp_zx1_cleanup;
-	agp_bridge.tlb_flush = hp_zx1_tlbflush;
-	agp_bridge.mask_memory = hp_zx1_mask_memory;
-	agp_bridge.unmask_memory = hp_zx1_unmask_memory;
-	agp_bridge.agp_enable = agp_generic_agp_enable;
-	agp_bridge.cache_flush = global_cache_flush;
-	agp_bridge.create_gatt_table = hp_zx1_create_gatt_table;
-	agp_bridge.free_gatt_table = hp_zx1_free_gatt_table;
-	agp_bridge.insert_memory = hp_zx1_insert_memory;
-	agp_bridge.remove_memory = hp_zx1_remove_memory;
-	agp_bridge.alloc_by_type = agp_generic_alloc_by_type;
-	agp_bridge.free_by_type = agp_generic_free_by_type;
-	agp_bridge.agp_alloc_page = agp_generic_alloc_page;
-	agp_bridge.agp_destroy_page = agp_generic_destroy_page;
-	agp_bridge.cant_use_aperture = 1;
-
-	return hp_zx1_ioc_init();
-
-	(void) pdev; /* unused */
-}
-
-#endif /* CONFIG_AGP_HP_ZX1 */
 
 	pci_for_each_dev(device) {
 		cap_ptr = pci_find_capability(device, PCI_CAP_ID_AGP);
@@ -4296,6 +4498,12 @@ static struct {
 		"Intel",
 		"i830M",
 		intel_830mp_setup },
+    { PCI_DEVICE_ID_INTEL_845_G_0,
+		 PCI_VENDOR_ID_INTEL,
+		 INTEL_I845_G,
+		 "Intel",
+		 "i845G",
+		 intel_830mp_setup },
 	{ PCI_DEVICE_ID_INTEL_840_0,
 		PCI_VENDOR_ID_INTEL,
 		INTEL_I840,
@@ -4448,15 +4656,6 @@ intel_850_setup },
 		"Generic",
 		via_generic_setup },
 #endif /* CONFIG_AGP_VIA */
-
-#ifdef CONFIG_AGP_HP_ZX1
-	{ PCI_DEVICE_ID_HP_ZX1_LBA,
-		PCI_VENDOR_ID_HP,
-		HP_ZX1,
-		"HP",
-		"ZX1",
-		hp_zx1_setup },
-#endif
 
 #ifdef CONFIG_AGP_HP_ZX1
 	{ PCI_DEVICE_ID_HP_ZX1_LBA,
@@ -4620,16 +4819,38 @@ static int __init agp_find_supported_device(void)
 						   NULL);
 			if (i810_dev == NULL) {
 				printk(KERN_ERR PFX "agpgart: Detected an "
-				       "Intel i815, but could not find the"
-				       " secondary device. Assuming a "
-				       "non-integrated video card.\n");
+					"Intel i815, but could not find the"
+					" secondary device. Assuming a "
+					"non-integrated video card.\n");
 				break;
 			}
 			printk(KERN_INFO PFX "agpgart: Detected an Intel i815 "
-			       "Chipset.\n");
+				"Chipset.\n");
 			agp_bridge.type = INTEL_I810;
 			return intel_i810_setup(i810_dev);
 
+		case PCI_DEVICE_ID_INTEL_845_G_0:
+			i810_dev = pci_find_device(PCI_VENDOR_ID_INTEL,
+					PCI_DEVICE_ID_INTEL_845_G_1, NULL);
+			if(i810_dev && PCI_FUNC(i810_dev->devfn) != 0) {
+				i810_dev = pci_find_device(PCI_VENDOR_ID_INTEL,
+					PCI_DEVICE_ID_INTEL_845_G_1, i810_dev);
+			}
+
+			if (i810_dev == NULL) {
+				/* 
+				 * We probably have a I845MP chipset
+				 * with an external graphics
+				 * card. It will be initialized later 
+				 */
+				agp_bridge.type = INTEL_I845_G;
+				break;
+			}
+			printk(KERN_INFO PFX "Detected an Intel "
+				   "845G Chipset.\n");
+			agp_bridge.type = INTEL_I810;
+			return intel_i830_setup(i810_dev);
+		   
 		case PCI_DEVICE_ID_INTEL_830_M_0:
 			i810_dev = pci_find_device(PCI_VENDOR_ID_INTEL,
 									   PCI_DEVICE_ID_INTEL_830_M_1,
@@ -4641,8 +4862,8 @@ static int __init agp_find_supported_device(void)
 			}
 
 			if (i810_dev == NULL) {
-			        /* Intel 830MP with external graphic card */
-			        /* It will be initialized later */
+				/* Intel 830MP with external graphic card */
+				/* It will be initialized later */
 				agp_bridge.type = INTEL_I830_M;
 				break;
 			}
@@ -4690,23 +4911,6 @@ static int __init agp_find_supported_device(void)
 	}
 
 #endif	/* CONFIG_AGP_SWORKS */
-
-#ifdef CONFIG_AGP_HP_ZX1
-	if (dev->vendor == PCI_VENDOR_ID_HP) {
-		do {
-			/* ZX1 LBAs can be either PCI or AGP bridges */
-			if (pci_find_capability(dev, PCI_CAP_ID_AGP)) {
-				printk(KERN_INFO PFX "Detected HP ZX1 AGP "
-				       "chipset at %s\n", dev->slot_name);
-				agp_bridge.type = HP_ZX1;
-				agp_bridge.dev = dev;
-				return hp_zx1_setup(dev);
-			}
-			dev = pci_find_class(PCI_CLASS_BRIDGE_HOST << 8, dev);
-		} while (dev);
-		return -ENODEV;
-	}
-#endif	/* CONFIG_AGP_HP_ZX1 */
 
 #ifdef CONFIG_AGP_HP_ZX1
 	if (dev->vendor == PCI_VENDOR_ID_HP) {

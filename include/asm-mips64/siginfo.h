@@ -18,6 +18,8 @@
 
 #define HAVE_ARCH_SIGINFO_T
 #define HAVE_ARCH_SIGEVENT_T
+#define HAVE_ARCH_COPY_SIGINFO
+#define HAVE_ARCH_COPY_SIGINFO_TO_USER
 
 /*
  * We duplicate the generic versions - <asm-generic/siginfo.h> is just borked
@@ -195,6 +197,8 @@ typedef struct sigevent {
 	} _sigev_un;
 } sigevent_t;
 
+#ifdef __KERNEL__
+
 /*
  * Duplicated here because of <asm-generic/siginfo.h> braindamage ...
  */
@@ -208,5 +212,7 @@ static inline void copy_siginfo(struct siginfo *to, struct siginfo *from)
 		/* _sigchld is currently the largest know union member */
 		memcpy(to, from, 3*sizeof(int) + sizeof(from->_sifields._sigchld));
 }
+
+#endif
 
 #endif /* _ASM_SIGINFO_H */
