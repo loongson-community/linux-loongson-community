@@ -326,10 +326,11 @@ pci_fixup_ioc3(struct pci_dev *d)
 	 * these ioc3s. Identify MENET cards by seeing if an ioc3 is
 	 * at slot 3.
 	 */
+	d->subsystem_vendor = 0xFF00;
 	if (PCI_SLOT(d->devfn) == 3) {
 		struct list_head *p;
 		list_for_each(p, &d->bus->devices) {
-			list_entry(p, struct pci_dev, bus_list)->device = 0;
+			list_entry(p, struct pci_dev, bus_list)->subsystem_vendor = 0;
 		}
 	}
 }
