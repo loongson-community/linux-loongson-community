@@ -21,7 +21,10 @@
  *  /dev/dsp    standard dsp device, (mostly) OSS compatible
  *  /dev/mixer	standard mixer device, (mostly) OSS compatible
  *
- *  Driver currently supports indigo mode only. Recording doesn't work. Why?
+ *  BUGS:
+ *  + Driver currently supports indigo mode only.
+ *  + Recording doesn't work. I guess that it is caused by PBUS channel
+ *    misconfiguration, but until I get relevant info I'm unable to fix it.
  */
 
 #include <linux/module.h>
@@ -691,12 +694,12 @@ static int hal2_sync_dac(hal2_card_t *hal2)
 	DECLARE_WAITQUEUE(wait, current);
 	hal2_codec_t *dac = &hal2->dac;
 	int ret = 0;
-	signed long timeout = 1 + 1000 * H2_BUFFER_SIZE * 2 * dac->voices *
+	signed long timeout = 1000 * H2_BUFFER_SIZE * 2 * dac->voices *
 			      HZ / dac->sample_rate / 900;
 
 	down(&dac->sem);
 	
-	while (dac->tail->info.cnt > 0 && ret == 0) {
+	while (dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) {
 		add_wait_queue(&dac->dma_wait, &wait);
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (!schedule_timeout(timeout))
@@ -708,15 +711,13 @@ static int hal2_sync_dac(hal2_card_t *hal2)
 			}
 		if (signal_pending(current))
 			ret = -ERESTARTSYS;
+		if (ret) {
+			hal2_stop_dac(hal2);
+			hal2_reset_dac_pointer(hal2);
+		}
 		remove_wait_queue(&dac->dma_wait, &wait);
 	}
 
-	/* Make sure that DMA is stopped */
-	if (dac->pbus.pbus->pbdma_ctrl & HPC3_PDMACTRL_ISACT) {
-		hal2_stop_dac(hal2);
-		hal2_reset_dac_pointer(hal2);
-	}
-	
 	up(&dac->sem);
 	
 	return ret;
@@ -1108,7 +1109,7 @@ static ssize_t hal2_read(struct file *file, char *buffer,
 	} else {
 		do {
 			/* ~10% longer */
-			signed long timeout = 1 + 1000 * H2_BUFFER_SIZE *
+			signed long timeout = 1000 * H2_BUFFER_SIZE *
 				2 * adc->voices * HZ / adc->sample_rate / 900;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
@@ -1169,7 +1170,7 @@ static ssize_t hal2_write(struct file *file, const char *buffer,
 	} else {
 		do {
 			/* ~10% longer */
-			signed long timeout = 1 + 1000 * H2_BUFFER_SIZE *
+			signed long timeout = 1000 * H2_BUFFER_SIZE *
 				2 * dac->voices * HZ / dac->sample_rate / 900;
 			DECLARE_WAITQUEUE(wait, current);
 			ssize_t cnt = 0;
