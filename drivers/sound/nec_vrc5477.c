@@ -86,7 +86,6 @@
 #include <asm/ddb5xxx/debug.h>
 
 #undef VRC5477_AC97_VERBOSE_DEBUG
-// #define VRC5477_AC97_VERBOSE_DEBUG	1
 
 /* one must turn on CONFIG_LL_DEBUG before VERBOSE_DEBUG is turned */
 #if defined(VRC5477_AC97_VERBOSE_DEBUG)
@@ -260,7 +259,6 @@ static u16 rdcodec(struct ac97_codec *codec, u8 addr)
 		(struct vrc5477_ac97_state *)codec->private_data;
 	unsigned long flags;
 	u32 result;
-	int i;
 
 	spin_lock_irqsave(&s->lock, flags);
 
@@ -272,7 +270,7 @@ static u16 rdcodec(struct ac97_codec *codec, u8 addr)
 	outl((addr << 16) | VRC5477_CODEC_WR_RWC, s->io + VRC5477_CODEC_WR);
 
 	/* get the return result */
-	for (i=10000; i; i--);		/* workaround hardware bug */
+	udelay(100); /* workaround hardware bug */
 	while ( (result = inl(s->io + VRC5477_CODEC_RD)) & 
                 (VRC5477_CODEC_RD_RRDYA | VRC5477_CODEC_RD_RRDYD) ) {
 		/* we get either addr or data, or both */
@@ -1093,7 +1091,9 @@ copy_dac_from_user(struct vrc5477_ac97_state *s,
         int totalCopyCount = 0;
         int totalCopyFragCount = 0;
         unsigned long flags;
+#if defined(VRC5477_AC97_VERBOSE_DEBUG)
 	int i;
+#endif
 
         /* adjust count to signel channel byte count */
         count >>= s->dacChannels - 1;
@@ -1788,7 +1788,6 @@ extern void vrc5477_show_pdar_regs(void);
 u16 myrdcodec(u8 addr)
 {
         u32 result;
-        u32 i;
 
         /* wait until we can access codec registers */
         // while (inl(VRC5477_CODEC_WR) & 0x80000000);
@@ -1798,7 +1797,7 @@ u16 myrdcodec(u8 addr)
         myoutl((addr << 16) | VRC5477_CODEC_WR_RWC, VRC5477_CODEC_WR);
 
         /* get the return result */
-        for (i=10000; i; i--);
+        udelay(100); /* workaround hardware bug */
         // dump_memory(0xbb000000, 48);
         while ( ((result=myinl(VRC5477_CODEC_RD)) & 0xc0000000) != 0xc0000000);
         MIPS_ASSERT(addr == ((result >> 16) & 0x7f) );
