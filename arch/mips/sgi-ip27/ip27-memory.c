@@ -51,7 +51,7 @@ int numa_debug(void)
  * Return the number of pages of memory provided by the given slot
  * on the specified node.
  */
-pfn_t slot_getsize(cnodeid_t node, int slot)
+static pfn_t slot_getsize(cnodeid_t node, int slot)
 {
 	return (pfn_t) slot_psize_cache[node][slot];
 }
@@ -59,7 +59,7 @@ pfn_t slot_getsize(cnodeid_t node, int slot)
 /*
  * Return highest slot filled
  */
-int node_getlastslot(cnodeid_t node)
+static int node_getlastslot(cnodeid_t node)
 {
 	return (int) slot_lastfilled_cache[node];
 }
@@ -67,7 +67,7 @@ int node_getlastslot(cnodeid_t node)
 /*
  * Return the pfn of the last free page of memory on a node.
  */
-pfn_t node_getmaxclick(cnodeid_t node)
+static pfn_t node_getmaxclick(cnodeid_t node)
 {
 	pfn_t	slot_psize;
 	int	slot;
@@ -89,7 +89,7 @@ pfn_t node_getmaxclick(cnodeid_t node)
 	 * If there's no memory on the node, return 0. This is likely
 	 * to cause problems.
 	 */
-	return (pfn_t)0;
+	return 0;
 }
 
 static pfn_t slot_psize_compute(cnodeid_t node, int slot)
@@ -127,7 +127,7 @@ static pfn_t slot_psize_compute(cnodeid_t node, int slot)
 	}
 }
 
-pfn_t szmem(pfn_t fpage, pfn_t maxpmem)
+static pfn_t szmem(void)
 {
 	cnodeid_t node;
 	int slot, numslots;
@@ -163,10 +163,8 @@ pfn_t szmem(pfn_t fpage, pfn_t maxpmem)
 				slot_lastfilled_cache[node] = slot;
 		}
 	}
-	if (maxpmem)
-		return((maxpmem > num_pages) ? num_pages : maxpmem);
-	else
-		return num_pages;
+
+	return num_pages;
 }
 
 /*
@@ -185,7 +183,7 @@ void __init prom_meminit(void)
 	node_datasz = PFN_UP(sizeof(ip27_pg_data_t));
 	mlreset();
 
-	num_physpages = szmem(0, 0);
+	num_physpages = szmem();
 
 	for (node = 0; node < numnodes; node++) {
 		slot_firstpfn = slot_getbasepfn(node, 0);

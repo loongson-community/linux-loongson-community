@@ -97,8 +97,6 @@ nasid_t compact_to_nasid_nodeid(cnodeid_t cnode);
 #define CPUID_TO_COMPACT_NODEID(cpu)	(cpuid_to_compact_node[(cpu)])
 #endif
 
-extern int node_getlastslot(cnodeid_t);
-
 #endif /* !__ASSEMBLY__ */
 
 #define SLOT_BITMASK    	(MAX_MEM_SLOTS - 1)
