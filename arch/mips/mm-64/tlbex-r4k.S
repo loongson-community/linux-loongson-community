@@ -137,7 +137,7 @@ LEAF(handle_vec1_r4k)
 	PTE_RELOAD k0 k1
 	mtc0_tlbw_hazard
 	tlbwr
-	rm9000_tlb_hazard
+	tlbw_eret_hazard
 	eret
 
 9:						# handle the vmalloc range
@@ -147,8 +147,7 @@ LEAF(handle_vec1_r4k)
 	PTE_RELOAD k0 k1
 	mtc0_tlbw_hazard
 	 tlbwr
-	nop
-	rm9000_tlb_hazard
+	tlbw_eret_hazard
 	eret
 END(handle_vec1_r4k)
 
