@@ -35,223 +35,105 @@
 #include <asm/mips-boards/atlasint.h>
 
 
-struct atlas_ictrl_regs *atlas_hw0_icregs;
+struct atlas_ictrl_regs *atlas_hw0_icregs
+	= (struct atlas_ictrl_regs *)ATLAS_ICTRL_REGS_BASE;
 
 extern asmlinkage void mipsIRQ(void);
+extern void do_IRQ(int irq, struct pt_regs *regs);
 
-unsigned int local_bh_count[NR_CPUS];
-unsigned int local_irq_count[NR_CPUS];
-unsigned long spurious_count = 0;
-
-static struct irqaction *hw0_irq_action[ATLASINT_END] = {
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL
-};
-
-static struct irqaction r4ktimer_action = {
-	NULL, 0, 0, "R4000 timer/counter", NULL, NULL,
-};
-
-static struct irqaction *irq_action[8] = {
-	NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, &r4ktimer_action
-};
-
-#if 0
-#define DEBUG_INT(x...) printk(x)
-#else
-#define DEBUG_INT(x...)
-#endif
-
-void disable_irq(unsigned int irq_nr)
+void disable_atlas_irq(unsigned int irq_nr)
 {
-        unsigned long flags;
-
-	if(irq_nr >= ATLASINT_END) {
-		printk("whee, invalid irq_nr %d\n", irq_nr);
-		panic("IRQ, you lose...");
-	}
-
-	save_and_cli(flags);
 	atlas_hw0_icregs->intrsten = (1 << irq_nr);
-	restore_flags(flags);
 }
 
-
-void enable_irq(unsigned int irq_nr)
+void enable_atlas_irq(unsigned int irq_nr)
 {
-        unsigned long flags;
-
-	if(irq_nr >= ATLASINT_END) {
-		printk("whee, invalid irq_nr %d\n", irq_nr);
-		panic("IRQ, you lose...");
-	}
-
-	save_and_cli(flags);
 	atlas_hw0_icregs->intseten = (1 << irq_nr);
-	restore_flags(flags);
 }
 
-
-int get_irq_list(char *buf)
+static unsigned int startup_atlas_irq(unsigned int irq)
 {
-	int i, len = 0;
-	int num = 0;
-	struct irqaction *action;
-
-	for (i = 0; i < 8; i++, num++) {
-		action = irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [on-chip]\n");
-	}
-	for (i = 0; i < ATLASINT_END; i++, num++) {
-		action = hw0_irq_action[i];
-		if (!action) 
-			continue;
-		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.irqs[0][num],
-			(action->flags & SA_INTERRUPT) ? '+' : ' ',
-			action->name);
-		for (action=action->next; action; action = action->next) {
-			len += sprintf(buf+len, ",%s %s",
-				(action->flags & SA_INTERRUPT) ? " +" : "",
-				action->name);
-		}
-		len += sprintf(buf+len, " [hw0]\n");
-	}
-	return len;
+	enable_atlas_irq(irq);
+	return 0; /* never anything pending */
 }
 
+#define shutdown_atlas_irq	disable_atlas_irq
 
-int request_irq(unsigned int irq, 
-		void (*handler)(int, void *, struct pt_regs *),
-		unsigned long irqflags, 
-		const char * devname,
-		void *dev_id)
-{  
-        struct irqaction *action;
+#define mask_and_ack_atlas_irq disable_atlas_irq
 
-	DEBUG_INT("request_irq: irq=%d, devname = %s\n", irq, devname);
-
-        if (irq >= ATLASINT_END)
-	        return -EINVAL;
-	if (!handler)
-	        return -EINVAL;
-
-	action = (struct irqaction *)kmalloc(sizeof(struct irqaction), GFP_KERNEL);
-	if(!action)
-	        return -ENOMEM;
-
-	action->handler = handler;
-	action->flags = irqflags;
-	action->mask = 0;
-	action->name = devname;
-	action->dev_id = dev_id;
-	action->next = 0;
-	hw0_irq_action[irq] = action;
-	enable_irq(irq);
-
-	return 0;
-}
-
-
-void free_irq(unsigned int irq, void *dev_id)
+static void end_atlas_irq(unsigned int irq)
 {
-	struct irqaction *action;
-
-	if (irq >= ATLASINT_END) {
-		printk("Trying to free IRQ%d\n",irq);
-		return;
-	}
-
-	action = hw0_irq_action[irq];
-	hw0_irq_action[irq] = NULL;
-	disable_irq(irq);
-	kfree(action);
+	if (!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		enable_atlas_irq(irq);
 }
 
-void __init init_IRQ(void)
+static struct hw_interrupt_type atlas_irq_type = {
+	"Atlas",
+	startup_atlas_irq,
+	shutdown_atlas_irq,
+	enable_atlas_irq,
+	disable_atlas_irq,
+	mask_and_ack_atlas_irq,
+	end_atlas_irq,
+	NULL
+};
+
+static inline int ls1bit32(unsigned int x)
 {
-	irq_setup();
+	int b = 32, s;
+
+	s = 16; if (x << 16 == 0) s = 0; b -= s; x <<= s;
+	s =  8; if (x <<  8 == 0) s = 0; b -= s; x <<= s;
+	s =  4; if (x <<  4 == 0) s = 0; b -= s; x <<= s;
+	s =  2; if (x <<  2 == 0) s = 0; b -= s; x <<= s;
+	s =  1; if (x <<  1 == 0) s = 0; b -= s;
+
+	return b;
 }
 
 void atlas_hw0_irqdispatch(struct pt_regs *regs)
 {
-        struct irqaction *action;
-	int irq, cpu = smp_processor_id();
 	unsigned long int_status;
-	int i;
+	int irq;
 
-	DEBUG_INT("atlas_hw0_irqdispatch\n");
-	
 	int_status = atlas_hw0_icregs->intstatus; 
 
 	/* if int_status == 0, then the interrupt has already been cleared */
 	if (int_status == 0)
 		return;
 
-	for (i=0; i<ATLASINT_END; i++)
-		if (int_status & 1<<i)
-			break;
-	
-	irq = i;
-	action = hw0_irq_action[irq];
-
-	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
-
-	/* if action == NULL, then we don't have a handler for the irq */
-	if (action == NULL) {
-	        printk("No handler for hw0 irq: %i\n", irq);
-		return;
-	}
-
-	irq_enter(cpu);
-	kstat.irqs[0][irq + 8]++;
-	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu);
-
-	return;		
+	irq = ls1bit32(int_status);
+	do_IRQ(irq, regs);
 }
 
-
-/* Misc. crap just to keep the kernel linking... */
-unsigned long probe_irq_on (void)
+void __init init_IRQ(void)
 {
-	return 0;
-}
+	int i;
 
+	init_generic_irq();
 
-int probe_irq_off (unsigned long irqs)
-{
-	return 0;
-}
-
-
-void __init atlasint_init(void)
-{
-        /* 
+	/* 
 	 * Mask out all interrupt by writing "1" to all bit position in 
 	 * the interrupt reset reg. 
 	 */
-        atlas_hw0_icregs = (struct atlas_ictrl_regs *)ATLAS_ICTRL_REGS_BASE;
 	atlas_hw0_icregs->intrsten = 0xffffffff;    
-	
+
 	/* Now safe to set the exception vector. */
 	set_except_vector(0, mipsIRQ);
+
+	for (i = 0; i <= ATLASINT_END; i++) {
+		irq_desc[i].status	= IRQ_DISABLED;
+		irq_desc[i].action	= 0;
+		irq_desc[i].depth	= 1;
+		irq_desc[i].handler	= &atlas_irq_type;
+	}
+
+#ifdef CONFIG_REMOTE_DEBUG
+	/* If local serial I/O used for debug port, enter kgdb at once */
+	/* Otherwise, this will be done after the SAA9730 is up*/
+	if (remote_debug && !kgdb_on_pci) {
+		set_debug_traps();
+		breakpoint();
+	}
+#endif
 }

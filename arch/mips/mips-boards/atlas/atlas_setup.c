@@ -50,22 +50,6 @@ extern struct rtc_ops atlas_rtc_ops;
 
 extern void mips_reboot_setup(void);
 
-
-static void __init atlas_irq_setup(void)
-{
-	atlasint_init();
-
-#ifdef CONFIG_REMOTE_DEBUG
-	/* If local serial I/O used for debug port, enter kgdb at once */
-	/* Otherwise, this will be done after the SAA9730 is up*/
-	if (remote_debug && !kgdb_on_pci) {
-		set_debug_traps();
-		breakpoint(); 
-	}
-#endif
-}
-
-
 void __init atlas_setup(void)
 {
 #ifdef CONFIG_REMOTE_DEBUG
@@ -77,8 +61,6 @@ void __init atlas_setup(void)
 	extern char (*getDebugChar)(void);
 #endif
 	char *argptr;
-
-	irq_setup = atlas_irq_setup;
 
 #ifdef CONFIG_SERIAL_CONSOLE
 	argptr = prom_getcmdline();
