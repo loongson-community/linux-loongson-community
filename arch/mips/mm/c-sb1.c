@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <asm/mmu_context.h>
 #include <asm/bootinfo.h>
+#include <asm/cacheops.h>
 #include <asm/cpu.h>
 
 /* These are probed at ld_mmu time */
@@ -71,7 +72,10 @@ void pgd_init(unsigned long page)
 
 static void sb1_flush_cache_all(void)
 {
+}
 
+static void local_sb1___flush_cache_all(void)
+{
 	/*
 	 * Haven't worried too much about speed here; given that we're flushing
 	 * the icache, the time to invalidate is dwarfed by the time it's going
@@ -80,54 +84,60 @@ static void sb1_flush_cache_all(void)
 	 * $1 - moving cache index
 	 * $2 - set count
 	 */
-	if (icache_sets) {
-		if (dcache_sets) {
-			__asm__ __volatile__ (
-				".set push                  \n"
-				".set noreorder             \n"
-				".set noat                  \n"
-				".set mips4                 \n"
-				"     move   $1, %2         \n" /* Start at index 0 */
-				"1:   cache  0x1, 0($1)     \n" /* WB/Invalidate this index */
-				"     addiu  %1, %1, -1     \n" /* Decrement loop count */
-				"     bnez   %1, 1b         \n" /* loop test */
-				"      addu   $1, $1, %0    \n" /* Next address */
-				".set pop                   \n"
-				:
-				: "r" (dcache_line_size),
-				  "r" (dcache_sets * dcache_assoc),
-				  "r" (KSEG0)
-				  "i" (Index_Writeback_Inv_D));
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"     move   $1, %2         \n" /* Start at index 0 */
+		"1:   cache  0x1, 0($1)     \n" /* WB/Invalidate this index */
+		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     bnez   %1, 1b         \n" /* loop test */
+		"      addu   $1, $1, %0    \n" /* Next address */
+		".set pop                   \n"
+		:
+		: "r" (dcache_line_size), "r" (dcache_sets * dcache_assoc),
+		  "r" (KSEG0), "i" (Index_Writeback_Inv_D));
 
-			__asm__ __volatile__ (
-				".set push                  \n"
-				".set noreorder             \n"
-				".set mips2                 \n"
-				"sync                       \n"
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set mips2                 \n"
+		"sync                       \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
-				"sync                       \n"
+		"sync                       \n"
 #endif
-				".set pop                   \n");
-		}
-		__asm__ __volatile__ (
-			".set push                  \n"
-			".set noreorder             \n"
-			".set noat                  \n"
-			".set mips4                 \n"
-			"     move   $1, %2         \n" /* Start at index 0 */
-			"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
-			"     addiu  %1, %1, -1     \n" /* Decrement loop count */
-			"     bnez   %1, 1b         \n" /* loop test */
-			"      addu   $1, $1, %0    \n" /* Next address */
-			".set pop                   \n"
-			:
-			: "r" (icache_line_size),
-			  "r" (icache_sets * icache_assoc),
-			  "r" (KSEG0),
-			  "i" (Index_Invalidate_I)
-			:"$1");
-	}
+		".set pop                   \n");
+
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"     move   $1, %2         \n" /* Start at index 0 */
+		"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
+		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     bnez   %1, 1b         \n" /* loop test */
+		"      addu   $1, $1, %0    \n" /* Next address */
+		".set pop                   \n"
+		:
+		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
+		  "r" (KSEG0), "i" (Index_Invalidate_I));
 }
+
+#ifdef CONFIG_SMP
+extern void sb1___flush_cache_all_ipi(void *ignored);
+asm("sb1___flush_cache_all_ipi = local_sb1___flush_cache_all");
+
+static void sb1___flush_cache_all(void)
+{
+	smp_call_function(sb1___flush_cache_all_ipi, 0, 1, 1);
+	local_sb1___flush_cache_all();
+}
+#else
+asm("sb1___flush_cache_all = local_sb1___flush_cache_all");
+#endif
+
 
 /*
  * When flushing a range in the icache, we have to first writeback
@@ -141,84 +151,105 @@ static void sb1_flush_cache_all(void)
  * of writeback-invalidating it.  Not doing the invalidates
  * doesn't cost us anything, since we're coherent 
  *
-*/
+ */
 
-static void sb1_flush_icache_range(unsigned long start, unsigned long end)
+static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 {
-	if (icache_sets) {
-		if (dcache_sets) {
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
-			unsigned long flags;
-			local_irq_save(flags);
+	unsigned long flags;
+	local_irq_save(flags);
 #endif
-			__asm__ __volatile__ (
-				".set push                  \n"
-				".set noreorder             \n"
-				".set noat                  \n"
-				".set mips4                 \n"
-				"     move   $1, %0         \n" 
-				"1:                         \n"
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"     move   $1, %0         \n" 
+		"1:                         \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
-				"     lw     $0,   0($1)    \n" /* Bug 1370, 1368            */
-				"     cache  0x15, 0($1)    \n" /* Hit-WB-inval this address */
+		"     lw     $0,   0($1)    \n" /* Bug 1370, 1368            */
+		"     cache  0x15, 0($1)    \n" /* Hit-WB-inval this address */
 #else
-				"     cache  0x19, 0($1)    \n" /* Hit-WB this address */
+		"     cache  0x19, 0($1)    \n" /* Hit-WB this address */
 #endif
-				"     bne    $1, %1, 1b     \n" /* loop test */
-				"      addu  $1, $1, %2     \n" /* next line */
-				".set pop                   \n"
-				::"r" (start),
-				"r" (end),
-				"r" (dcache_line_size)
-				:"$1");
-			__asm__ __volatile__ (
-				".set push                  \n"
-				".set noreorder             \n"
-				".set mips2                 \n"
-				"sync                       \n"
+		"     bne    $1, %1, 1b     \n" /* loop test */
+		"      addu  $1, $1, %2     \n" /* next line */
+		".set pop                   \n"
+		:
+		: "r" (start), "r" (end),
+		  "r" (dcache_line_size));
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set mips2                 \n"
+		"sync                       \n"
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS		/* Bug 1384 */			
-				"sync                       \n"
+		"sync                       \n"
 #endif
-				".set pop                   \n");
+		".set pop                   \n");
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS					
-			local_irq_restore(flags);
+		local_irq_restore(flags);
 #endif
-		}
-		/* XXXKW Guess what: these Kseg0 addressese aren't
-		   enough to let us figure out what may be in the
-		   cache under mapped Useg tags.  The situation is
-		   even worse, because bit 12 belongs to both the page
-		   number AND the cache index, which means the Kseg0
-		   page number may have a different cache index than
-		   the Useg address.  For these two reasons, we have
-		   to flush the entire thing.  Since the Dcache is
-		   physically tagged, we *can* use hit operations, */
+
+	/* XXXKW Guess what: these Kseg0 addressese aren't
+	   enough to let us figure out what may be in the
+	   cache under mapped Useg tags.  The situation is
+	   even worse, because bit 12 belongs to both the page
+	   number AND the cache index, which means the Kseg0
+	   page number may have a different cache index than
+	   the Useg address.  For these two reasons, we have
+	   to flush the entire thing.  Since the Dcache is
+	   physically tagged, we *can* use hit operations, */
 #if 0
-		start &= icache_index_mask;
-		end   &= icache_index_mask;
+	start &= icache_index_mask;
+	end   &= icache_index_mask;
 #else
-		start = 0;
-		end = icache_index_mask;
+	start = 0;
+	end = icache_index_mask;
 #endif
-		__asm__ __volatile__ (
-			".set push                  \n"
-			".set noreorder             \n"
-			".set noat                  \n"
-			".set mips4                 \n"
-			"     move   $1, %0         \n" 
-			"1:   cache  0, (0<<13)($1) \n" /* Index-inval this address */
-			"     cache  0, (1<<13)($1) \n" /* Index-inval this address */
-			"     cache  0, (2<<13)($1) \n" /* Index-inval this address */
-			"     cache  0, (3<<13)($1) \n" /* Index-inval this address */
-			"     bne    $1, %1, 1b     \n" /* loop test */
-			"      addu  $1, $1, %2     \n" /* next line */
-			".set pop                   \n"
-			::"r" (start),
-			"r" (end),
-			"r" (icache_line_size)
-			:"$1");
-	}
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"     move   $1, %0         \n" 
+		"1:   cache  0, (0<<13)($1) \n" /* Index-inval this address */
+		"     cache  0, (1<<13)($1) \n" /* Index-inval this address */
+		"     cache  0, (2<<13)($1) \n" /* Index-inval this address */
+		"     cache  0, (3<<13)($1) \n" /* Index-inval this address */
+		"     bne    $1, %1, 1b     \n" /* loop test */
+		"      addu  $1, $1, %2     \n" /* next line */
+		".set pop                   \n"
+		::"r" (start),
+		"r" (end),
+		"r" (icache_line_size));
 }
+
+#ifdef CONFIG_SMP
+struct flush_icache_range_args {
+	unsigned long start;
+	unsigned long end;
+};
+
+static void sb1_flush_icache_range_ipi(void *info)
+{
+	struct flush_icache_range_args *args = info;
+
+	local_sb1_flush_icache_range(args->start, args->end);
+}
+
+void sb1_flush_icache_range(unsigned long start, unsigned long end)
+{
+	struct flush_icache_range_args args;
+
+	args.start = start;
+	args.end = end;
+	smp_call_function(sb1_flush_icache_range_ipi, &args, 1, 1);
+	local_sb1_flush_icache_range(start, end);
+}
+#else
+asm("sb1_flush_icache_range = local_sb1_flush_icache_range");
+#endif
 
 /*
  * If there's no context yet, or the page isn't executable, no icache flush
@@ -314,6 +345,32 @@ static void sb1_flush_cache_sigtramp(unsigned long addr)
 	iaddr = addr & ~(icache_line_size - 1);
 	protected_flush_icache_line(iaddr);
 	protected_flush_icache_line(iaddr + icache_line_size);
+}
+
+static void sb1_flush_icache_all(void)
+{
+	/*
+	 * Haven't worried too much about speed here; given that we're flushing
+	 * the icache, the time to invalidate is dwarfed by the time it's going
+	 * to take to refill it.  Register usage:
+	 * 
+	 * $1 - moving cache index
+	 * $2 - set count
+	 */
+	__asm__ __volatile__ (
+		".set push                  \n"
+		".set noreorder             \n"
+		".set noat                  \n"
+		".set mips4                 \n"
+		"     move   $1, %2         \n" /* Start at index 0 */
+		"1:   cache  %3, 0($1)      \n" /* Invalidate this index */
+		"     addiu  %1, %1, -1     \n" /* Decrement loop count */
+		"     bnez   %1, 1b         \n" /* loop test */
+		"      addu   $1, $1, %0    \n" /* Next address */
+		".set pop                   \n"
+		:
+		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
+		  "r" (KSEG0), "i" (Index_Invalidate_I));
 }
 
 /*
@@ -432,16 +489,18 @@ void ld_mmu_sb1(void)
 	_copy_page = sb1_copy_page;
 
 	_flush_cache_all = sb1_flush_cache_all;
-	___flush_cache_all = sb1_flush_cache_all;
+	___flush_cache_all = sb1___flush_cache_all;
 	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
 	_flush_cache_range = (void (*)(struct mm_struct *, unsigned long, unsigned long))sb1_nop;
 	_flush_page_to_ram = sb1_flush_page_to_ram;
 	_flush_icache_page = sb1_flush_icache_page;
-	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	_flush_icache_range = sb1_flush_icache_range;
 
 	/* None of these are needed for the sb1 */
 	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
+
+	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
+	_flush_icache_all = sb1_flush_icache_all;
 
 	/* JDCXXX I'm not sure whether these are necessary: is this the right 
 	   place to initialize the tlb?  If it is, why is it done 
