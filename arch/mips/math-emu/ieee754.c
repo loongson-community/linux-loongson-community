@@ -123,7 +123,7 @@ int ieee754si_xcpt(int r, const char *op, ...)
 	return ax.rv.si;
 }
 
-long long ieee754di_xcpt(long long r, const char *op, ...)
+s64 ieee754di_xcpt(s64 r, const char *op, ...)
 {
 	struct ieee754xctx ax;
 

@@ -49,10 +49,7 @@ int ieee754dp_tint(ieee754dp x)
 	case IEEE754_CLASS_NORM:
 		break;
 	}
-	if (xe >= 31) {
-		/* look for valid corner case */
-		if (xe == 31 && xs && xm == DP_HIDDEN_BIT)
-			return -2147483648;
+	if (xe > 31) {
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);
@@ -62,7 +59,7 @@ int ieee754dp_tint(ieee754dp x)
 	if (xe > DP_MBITS) {
 		xm <<= xe - DP_MBITS;
 	} else if (xe < DP_MBITS) {
-		unsigned long long residue;
+		u64 residue;
 		int round;
 		int sticky;
 		int odd;
@@ -98,7 +95,8 @@ int ieee754dp_tint(ieee754dp x)
 				xm++;
 			break;
 		}
-		if ((xm >> 31) != 0) {
+		/* look for valid corner case 0x80000000 */
+		if ((xm >> 31) != 0 && (xs == 0 || xm != 0x80000000)) {
 			/* This can happen after rounding */
 			SETCX(IEEE754_INVALID_OPERATION);
 			return ieee754si_xcpt(ieee754si_indef(), "dp_tint", x);

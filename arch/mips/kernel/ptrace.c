@@ -133,11 +133,6 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				 * order bits of the values stored in the even
 				 * registers - unless we're using r2k_switch.S.
 				 */
-#ifdef CONFIG_CPU_R3000
-				if (mips_cpu.options & MIPS_CPU_FPU)
-					tmp = *(unsigned long *)(fregs + addr);
-				else
-#endif
 				if (addr & 1)
 					tmp = (unsigned long) (fregs[((addr & ~1) - 32)] >> 32);
 				else

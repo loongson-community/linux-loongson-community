@@ -99,7 +99,7 @@ ieee754dp ieee754dp_sqrt(ieee754dp x)
 	yh = y.bits >> 32;
 	yh = (yh >> 1) + 0x1ff80000;
 	yh = yh - table[(yh >> 15) & 31];
-	y.bits = ((unsigned long long) yh << 32) | (y.bits & 0xffffffff);
+	y.bits = ((u64) yh << 32) | (y.bits & 0xffffffff);
 
 	/* Heron's rule once with correction to improve to ~18 sig. bits */
 	/* t=x/y; y=y+t; py[n0]=py[n0]-0x00100006; py[n1]=0; */

@@ -27,7 +27,7 @@
 
 #include "ieee754dp.h"
 
-long long ieee754dp_tlong(ieee754dp x)
+s64 ieee754dp_tlong(ieee754dp x)
 {
 	COMPXDP;
 
@@ -51,7 +51,7 @@ long long ieee754dp_tlong(ieee754dp x)
 	if (xe >= 63) {
 		/* look for valid corner case */ 
 		if (xe == 63 && xs && xm == DP_HIDDEN_BIT)
-			return -9223372036854775808LL;
+			return -0x8000000000000000LL;
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);
@@ -61,7 +61,7 @@ long long ieee754dp_tlong(ieee754dp x)
 	if (xe > DP_MBITS) {
 		xm <<= xe - DP_MBITS;
 	} else if (xe < DP_MBITS) {
-		unsigned long long residue;
+		u64 residue;
 		int round;
 		int sticky;
 		int odd;
@@ -73,7 +73,11 @@ long long ieee754dp_tlong(ieee754dp x)
 			xm = 0;
 		}
 		else {
-			residue = xm << (64 - DP_MBITS + xe);
+			/* Shifting a u64 64 times does not work,
+			* so we do it in two steps. Be aware that xe
+			* may be -1 */
+			residue = xm << (xe + 1);
+			residue <<= 63 - DP_MBITS;
 			round = (residue >> 63) != 0;
 			sticky = (residue << 1) != 0;
 			xm >>= DP_MBITS - xe;
@@ -110,14 +114,14 @@ long long ieee754dp_tlong(ieee754dp x)
 }
 
 
-unsigned long long ieee754dp_tulong(ieee754dp x)
+u64 ieee754dp_tulong(ieee754dp x)
 {
 	ieee754dp hb = ieee754dp_1e63();
 
 	/* what if x < 0 ?? */
 	if (ieee754dp_lt(x, hb))
-		return (unsigned long long) ieee754dp_tlong(x);
+		return (u64) ieee754dp_tlong(x);
 
-	return (unsigned long long) ieee754dp_tlong(ieee754dp_sub(x, hb)) |
+	return (u64) ieee754dp_tlong(ieee754dp_sub(x, hb)) |
 	    (1ULL << 63);
 }

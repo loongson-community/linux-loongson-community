@@ -27,7 +27,7 @@
 
 #include "ieee754sp.h"
 
-ieee754sp ieee754sp_flong(long long x)
+ieee754sp ieee754sp_flong(s64 x)
 {
 	COMPXDP;		/* <--- need 64-bit mantissa temp */
 
@@ -68,9 +68,9 @@ ieee754sp ieee754sp_flong(long long x)
 }
 
 
-ieee754sp ieee754sp_fulong(unsigned long long u)
+ieee754sp ieee754sp_fulong(u64 u)
 {
-	if ((long long) u < 0)
+	if ((s64) u < 0)
 		return ieee754sp_add(ieee754sp_1e63(),
 				     ieee754sp_flong(u & ~(1ULL << 63)));
 	return ieee754sp_flong(u);

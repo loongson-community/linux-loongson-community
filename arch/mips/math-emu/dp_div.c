@@ -126,9 +126,9 @@ ieee754dp ieee754dp_div(ieee754dp x, ieee754dp y)
 	{
 		/* now the dirty work */
 
-		unsigned long long rm = 0;
+		u64 rm = 0;
 		int re = xe - ye;
-		unsigned long long bm;
+		u64 bm;
 
 		for (bm = DP_MBIT(DP_MBITS + 2); bm; bm >>= 1) {
 			if (xm >= ym) {

@@ -27,7 +27,7 @@
 
 #include "ieee754sp.h"
 
-long long ieee754sp_tlong(ieee754sp x)
+s64 ieee754sp_tlong(ieee754sp x)
 {
 	COMPXDP;		/* <-- need 64-bit mantissa tmp */
 
@@ -51,7 +51,7 @@ long long ieee754sp_tlong(ieee754sp x)
 	if (xe >= 63) {
 		/* look for valid corner case */
 		if (xe == 63 && xs && xm == SP_HIDDEN_BIT)
-			return -9223372036854775808LL;
+			return -0x8000000000000000LL;
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);
@@ -61,7 +61,7 @@ long long ieee754sp_tlong(ieee754sp x)
 	if (xe > SP_MBITS) {
 		xm <<= xe - SP_MBITS;
 	} else if (xe < SP_MBITS) {
-		unsigned long residue;
+		u32 residue;
 		int round;
 		int sticky;
 		int odd;
@@ -98,7 +98,7 @@ long long ieee754sp_tlong(ieee754sp x)
 		if ((xm >> 63) != 0) {
 			/* This can happen after rounding */
 			SETCX(IEEE754_INVALID_OPERATION);
-			return ieee754si_xcpt(ieee754di_indef(), "sp_tlong", x);
+			return ieee754di_xcpt(ieee754di_indef(), "sp_tlong", x);
 		}
 		if (round || sticky)
 			SETCX(IEEE754_INEXACT);
@@ -110,14 +110,14 @@ long long ieee754sp_tlong(ieee754sp x)
 }
 
 
-unsigned long long ieee754sp_tulong(ieee754sp x)
+u64 ieee754sp_tulong(ieee754sp x)
 {
 	ieee754sp hb = ieee754sp_1e63();
 
 	/* what if x < 0 ?? */
 	if (ieee754sp_lt(x, hb))
-		return (unsigned long long) ieee754sp_tlong(x);
+		return (u64) ieee754sp_tlong(x);
 
-	return (unsigned long long) ieee754sp_tlong(ieee754sp_sub(x, hb)) |
+	return (u64) ieee754sp_tlong(ieee754sp_sub(x, hb)) |
 	    (1ULL << 63);
 }

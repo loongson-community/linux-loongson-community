@@ -27,7 +27,7 @@
 
 #include "ieee754dp.h"
 
-int ieee754dp_cmp(ieee754dp x, ieee754dp y, int cmp)
+int ieee754dp_cmp(ieee754dp x, ieee754dp y, int cmp, int sig)
 {
 	COMPXDP;
 	COMPYDP;
@@ -39,18 +39,18 @@ int ieee754dp_cmp(ieee754dp x, ieee754dp y, int cmp)
 	CLEARCX;	/* Even clear inexact flag here */
 
 	if (ieee754dp_isnan(x) || ieee754dp_isnan(y)) {
-		if (xc == IEEE754_CLASS_SNAN || yc == IEEE754_CLASS_SNAN)
+		if (sig || xc == IEEE754_CLASS_SNAN || yc == IEEE754_CLASS_SNAN)
 			SETCX(IEEE754_INVALID_OPERATION);
 		if (cmp & IEEE754_CUN)
 			return 1;
 		if (cmp & (IEEE754_CLT | IEEE754_CGT)) {
-			if (SETCX(IEEE754_INVALID_OPERATION))
+			if (sig && SETCX(IEEE754_INVALID_OPERATION))
 				return ieee754si_xcpt(0, "fcmpf", x);
 		}
 		return 0;
 	} else {
-		long long int vx = x.bits;
-		long long int vy = y.bits;
+		s64 vx = x.bits;
+		s64 vy = y.bits;
 
 		if (vx < 0)
 			vx = -vx ^ DP_SIGN_BIT;

@@ -111,7 +111,7 @@ ieee754dp ieee754dp_mul(ieee754dp x, ieee754dp y)
 	{
 		int re = xe + ye;
 		int rs = xs ^ ys;
-		unsigned long long rm;
+		u64 rm;
 
 		/* shunt to top of word */
 		xm <<= 64 - (DP_MBITS + 1);
@@ -121,23 +121,23 @@ ieee754dp ieee754dp_mul(ieee754dp x, ieee754dp y)
 		 */
 
 		/* 32 * 32 => 64 */
-#define DPXMULT(x,y)	((unsigned long long)(x) * (unsigned long long)y)
+#define DPXMULT(x,y)	((u64)(x) * (u64)y)
 
 		{
 			unsigned lxm = xm;
 			unsigned hxm = xm >> 32;
 			unsigned lym = ym;
 			unsigned hym = ym >> 32;
-			unsigned long long lrm;
-			unsigned long long hrm;
+			u64 lrm;
+			u64 hrm;
 
 			lrm = DPXMULT(lxm, lym);
 			hrm = DPXMULT(hxm, hym);
 
 			{
-				unsigned long long t = DPXMULT(lxm, hym);
+				u64 t = DPXMULT(lxm, hym);
 				{
-					unsigned long long at =
+					u64 at =
 					    lrm + (t << 32);
 					hrm += at < lrm;
 					lrm = at;
@@ -146,9 +146,9 @@ ieee754dp ieee754dp_mul(ieee754dp x, ieee754dp y)
 			}
 
 			{
-				unsigned long long t = DPXMULT(hxm, lym);
+				u64 t = DPXMULT(hxm, lym);
 				{
-					unsigned long long at =
+					u64 at =
 					    lrm + (t << 32);
 					hrm += at < lrm;
 					lrm = at;
@@ -161,7 +161,7 @@ ieee754dp ieee754dp_mul(ieee754dp x, ieee754dp y)
 		/*
 		 * sticky shift down to normal rounding precision
 		 */
-		if ((signed long long) rm < 0) {
+		if ((s64) rm < 0) {
 			rm =
 			    (rm >> (64 - (DP_MBITS + 1 + 3))) |
 			    ((rm << (DP_MBITS + 1 + 3)) != 0);

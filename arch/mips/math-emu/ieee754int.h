@@ -38,11 +38,11 @@
 #define SP_EMAX		127
 #define SP_MBITS	23
 
-#define DP_MBIT(x)	((unsigned long long)1 << (x))
+#define DP_MBIT(x)	((u64)1 << (x))
 #define DP_HIDDEN_BIT	DP_MBIT(DP_MBITS)
 #define DP_SIGN_BIT	DP_MBIT(63)
 
-#define SP_MBIT(x)	((unsigned long)1 << (x))
+#define SP_MBIT(x)	((u32)1 << (x))
 #define SP_HIDDEN_BIT	SP_MBIT(SP_MBITS)
 #define SP_SIGN_BIT	SP_MBIT(31)
 
@@ -102,10 +102,10 @@
 
 
 #define COMPXDP \
-unsigned long long xm; int xe; int xs; int xc
+u64 xm; int xe; int xs; int xc
 
 #define COMPYDP \
-unsigned long long ym; int ye; int ys; int yc
+u64 ym; int ye; int ys; int yc
 
 #define EXPLODEDP(v,vc,vs,ve,vm) \
 {\

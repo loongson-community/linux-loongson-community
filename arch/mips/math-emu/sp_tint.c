@@ -52,7 +52,7 @@ int ieee754sp_tint(ieee754sp x)
 	if (xe >= 31) {
 		/* look for valid corner case */
 		if (xe == 31 && xs && xm == SP_HIDDEN_BIT)
-			return -2147483648;
+			return -0x80000000;
 		/* Set invalid. We will only use overflow for floating
 		   point overflow */
 		SETCX(IEEE754_INVALID_OPERATION);
@@ -62,7 +62,7 @@ int ieee754sp_tint(ieee754sp x)
 	if (xe > SP_MBITS) {
 		xm <<= xe - SP_MBITS;
 	} else {
-		unsigned long residue;
+		u32 residue;
 		int round;
 		int sticky;
 		int odd;
@@ -74,7 +74,11 @@ int ieee754sp_tint(ieee754sp x)
 			xm = 0;
 		}
 		else {
-			residue = xm << (32 - SP_MBITS + xe);
+			/* Shifting a u32 32 times does not work,
+			* so we do it in two steps. Be aware that xe
+			* may be -1 */
+			residue = xm << (xe + 1);
+			residue <<= 31 - SP_MBITS;
 			round = (residue >> 31) != 0;
 			sticky = (residue << 1) != 0;
 			xm >>= SP_MBITS - xe;

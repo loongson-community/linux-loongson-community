@@ -98,7 +98,7 @@ ieee754dp ieee754dp_bestnan(ieee754dp x, ieee754dp y)
 }
 
 
-static unsigned long long get_rounding(int sn, unsigned long long xm)
+static u64 get_rounding(int sn, u64 xm)
 {
 	/* inexact must round of 3 bits 
 	 */
@@ -129,7 +129,7 @@ static unsigned long long get_rounding(int sn, unsigned long long xm)
  * xe is an unbiased exponent
  * xm is 3bit extended precision value.
  */
-ieee754dp ieee754dp_format(int sn, int xe, unsigned long long xm)
+ieee754dp ieee754dp_format(int sn, int xe, u64 xm)
 {
 	assert(xm);		/* we dont gen exact zeros (probably should) */
 
