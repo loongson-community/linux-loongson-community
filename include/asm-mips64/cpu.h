@@ -106,6 +106,10 @@
 #define FPIR_IMP_NONE		0x0000
 
 #ifndef __ASSEMBLY__
+
+extern void cpu_probe(void);
+extern void cpu_report(void);
+
 /*
  * Capability and feature descriptor structure for MIPS CPU
  */

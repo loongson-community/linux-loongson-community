@@ -106,6 +106,10 @@
 #define FPIR_IMP_NONE		0x0000
 
 #ifndef __ASSEMBLY__
+
+extern void cpu_probe(void);
+extern void cpu_report(void);
+
 /*
  * Capability and feature descriptor structure for MIPS CPU
  */
@@ -135,7 +139,7 @@ enum cputype {
 	CPU_TX3912, CPU_TX3922, CPU_TX3927, CPU_AU1000, CPU_4KEC, CPU_4KSC,
 	CPU_VR41XX, CPU_R5500, CPU_TX49XX, CPU_TX39XX, CPU_AU1500, CPU_20KC,
 	CPU_VR4111, CPU_VR4121, CPU_VR4122, CPU_VR4131, CPU_VR4181, CPU_VR4181A,
-	CPU_LAST
+	CPU_AU1100, CPU_LAST
 };
 
 #endif /* !__ASSEMBLY__ */
