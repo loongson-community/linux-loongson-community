@@ -92,5 +92,3 @@ EXPORT_SYMBOL(__up);
 #if defined(CONFIG_BLK_DEV_IDE) || defined(CONFIG_BLK_DEV_IDE_MODULE)
 EXPORT_SYMBOL(ide_ops);
 #endif
-
-EXPORT_SYMBOL(get_wchan);

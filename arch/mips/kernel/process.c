@@ -347,3 +347,5 @@ out:
 
 	return pc;
 }
+
+EXPORT_SYMBOL(get_wchan);
