@@ -411,7 +411,7 @@ char *pcibios_setup(char *str)
 	return str;
 }
 
-int pcibios_enable_device(struct pci_dev *dev, int mask)
+int pcibios_enable_device(struct pci_dev *dev)
 {
 	u16 cmd, status;
 
