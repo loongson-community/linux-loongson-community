@@ -120,7 +120,7 @@ skip:
 }
 
 #ifdef CONFIG_SMP
-inline void synchronize_irq(void)
+inline void synchronize_irq(unsigned int irq)
 {
 	while (irq_desc[irq].status & IRQ_INPROGRESS)
 		cpu_relax();
