@@ -103,6 +103,10 @@ config TANBAC_TB0229
 	  The TANBAC TB0229 (VR4131DIMM) is a MIPS-based platform manufactured by TANBAC.
 	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM.
 
+config TANBAC_TB0219
+	bool "Added TANBAC TB0219 Base board support"
+	depends on TANBAC_TB0229
+
 config VICTOR_MPC30X
 	bool "Support for Victor MP-C303/304"
 	select DMA_NONCOHERENT
@@ -1106,10 +1110,6 @@ config TOSHIBA_BOARDS
 	bool
 	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927
 	default y
-
-config TANBAC_TB0219
-	bool "Added TANBAC TB0219 Base board support"
-	depends on TANBAC_TB0229
 
 endmenu
 
