@@ -4,7 +4,7 @@
 
 /*
  * This is a temporary measure, we should eventually migrate to
- * Gert's generic graphic console code.
+ * Geert's generic graphic console code.
  */
 
 #define cmapsz 8192
