@@ -20,6 +20,7 @@
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
+#include <asm/stackframe.h>
 #include <asm/sibyte/board.h>
 
 	.text
