@@ -129,6 +129,7 @@ static void enable_local1_irq(unsigned int irq)
 
 	save_and_cli(flags);
 	ioc_icontrol->imask1 |= (1 << (irq - SGINT_LOCAL1));
+	restore_flags(flags);
 }
 
 static unsigned int startup_local1_irq(unsigned int irq)

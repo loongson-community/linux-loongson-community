@@ -287,7 +287,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 	 */
 	for (;;) {
 		spin_unlock(&desc->lock);
-		handle_IRQ_event(irq, &regs, action);
+		handle_IRQ_event(irq, regs, action);
 		spin_lock(&desc->lock);
 		
 		if (!(desc->status & IRQ_PENDING))
