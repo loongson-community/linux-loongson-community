@@ -9,14 +9,6 @@
 #include <linux/kernel.h>
 #include <asm/sgialib.h>
 
-static inline void prom_putchar(char c)
-{
-	ULONG cnt;
-	CHAR it = c;
-
-	ArcWrite(1, &it, 1, &cnt);
-}
-
 static char ppbuf[1024];
 
 void prom_printf(char *fmt, ...)

@@ -3,8 +3,8 @@
  * ARC io-routines.
  *
  * Copyright (c) 1998 Harald Koerfgen 
+ * Copyright (c) 2001 Ralf Baechle
  */
-
 #include <linux/tty.h>
 #include <linux/major.h>
 #include <linux/ptrace.h>
@@ -12,8 +12,18 @@
 #include <linux/console.h>
 #include <linux/fs.h>
 
+#include <asm/sgialib.h>
+
 extern char prom_getchar (void);
 extern void prom_printf (char *, ...);
+
+void prom_putchar(char c)
+{
+	ULONG cnt;
+	CHAR it = c;
+
+	ArcWrite(1, &it, 1, &cnt);
+}
 
 static void prom_console_write(struct console *co, const char *s,
 			       unsigned count)
