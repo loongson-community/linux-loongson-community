@@ -231,7 +231,7 @@ void __init jmr3927_setup(void)
 
 	{
 		unsigned int conf;
-		conf = read_32bit_cp0_register(CP0_CONF);
+		conf = read_c0_conf();
 	}
 
 #if 1
@@ -251,15 +251,15 @@ void __init jmr3927_setup(void)
 		int mips_config_wbon = 1;
 #endif
 
-		conf = read_32bit_cp0_register(CP0_CONF);
+		conf = read_c0_conf();
 		conf &= ~(TX39_CONF_ICE | TX39_CONF_DCE | TX39_CONF_WBON | TX39_CONF_CWFON);
 		conf |= mips_ic_disable ? 0 : TX39_CONF_ICE;
 		conf |= mips_dc_disable ? 0 : TX39_CONF_DCE;
 		conf |= mips_config_wbon ? TX39_CONF_WBON : 0;
 		conf |= mips_config_cwfon ? TX39_CONF_CWFON : 0;
 
-		write_32bit_cp0_register(CP0_CONF, conf);
-		write_32bit_cp0_register(CP0_TX39_CACHE, 0);
+		write_c0_conf(conf);
+		write_c0_cache(0);
 	}
 #endif
 
@@ -517,7 +517,7 @@ static void __init tx3927_setup(void)
 	{
 		unsigned int conf;
 
-	conf = read_32bit_cp0_register(CP0_CONF);
+	conf = read_c0_conf();
                if (!(conf & TX39_CONF_ICE))
                        printk("TX3927 I-Cache disabled.\n");
                if (!(conf & TX39_CONF_DCE))

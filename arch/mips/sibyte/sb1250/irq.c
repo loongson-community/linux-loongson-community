@@ -287,7 +287,7 @@ void __init init_IRQ(void)
 	imask |= STATUSF_IP6;
 #endif
 	/* Enable necessary IPs, disable the rest */
-	change_cp0_status(ST0_IM, imask);
+	change_c0_status(ST0_IM, imask);
 	set_except_vector(0, sb1250_irq_handler);
 
 #ifdef CONFIG_REMOTE_DEBUG

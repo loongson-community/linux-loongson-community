@@ -7,18 +7,16 @@
  *
  * FIXME: For some of the supported machines this is dead wrong.
  */
-#ifndef __ASM_MIPS_TIMEX_H
-#define __ASM_MIPS_TIMEX_H
+#ifndef _ASM_TIMEX_H
+#define _ASM_TIMEX_H
+
+#include <asm/mipsregs.h>
 
 #define CLOCK_TICK_RATE	1193180 /* Underlying HZ */
 #define CLOCK_TICK_FACTOR	20	/* Factor of both 1000000 and CLOCK_TICK_RATE */
 #define FINETUNE ((((((long)LATCH * HZ - CLOCK_TICK_RATE) << SHIFT_HZ) * \
 	(1000000/CLOCK_TICK_FACTOR) / (CLOCK_TICK_RATE/CLOCK_TICK_FACTOR)) \
 		<< (SHIFT_SCALE-SHIFT_HZ)) / HZ)
-
-#ifdef __KERNEL__
-
-#include <asm/mipsregs.h>
 
 /*
  * Standard way to access the cycle counter.
@@ -36,8 +34,7 @@ extern cycles_t cacheflush_time;
 
 static inline cycles_t get_cycles (void)
 {
-	return read_32bit_cp0_register(CP0_COUNT);
+	return read_c0_count();
 }
-#endif /* __KERNEL__ */
 
-#endif /*  __ASM_MIPS_TIMEX_H */
+#endif /*  _ASM_TIMEX_H */

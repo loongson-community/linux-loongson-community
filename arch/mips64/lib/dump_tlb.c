@@ -36,22 +36,22 @@ void dump_tlb(int first, int last)
 	unsigned long s_entryhi, entryhi, entrylo0, entrylo1, asid;
 	unsigned int s_index, pagemask, c0, c1, i;
 
-	s_entryhi = get_entryhi();
-	s_index = get_index();
+	s_entryhi = read_c0_entryhi();
+	s_index = read_c0_index();
 	asid = s_entryhi & 0xff;
 
 	for (i = first; i <= last; i++) {
-		write_32bit_cp0_register(CP0_INDEX, i);
+		write_c0_index(i);
 		__asm__ __volatile__(
 			".set\tnoreorder\n\t"
 			"nop;nop;nop;nop\n\t"
 			"tlbr\n\t"
 			"nop;nop;nop;nop\n\t"
 			".set\treorder");
-		pagemask = read_32bit_cp0_register(CP0_PAGEMASK);
-		entryhi  = get_entryhi();
-		entrylo0 = get_entrylo0();
-		entrylo1 = get_entrylo1();
+		pagemask = read_c0_pagemask();
+		entryhi  = read_c0_entryhi();
+		entrylo0 = read_c0_entrylo0();
+		entrylo1 = read_c0_entrylo1();
 
 		/* Unused entries have a virtual address of CKSEG0.  */
 		if ((entryhi & ~0x1ffffUL) != CKSEG0
@@ -81,8 +81,8 @@ void dump_tlb(int first, int last)
 	}
 	printk("\n");
 
-	set_entryhi(s_entryhi);
-	set_index(s_index);
+	write_c0_entryhi(s_entryhi);
+	write_c0_index(s_index);
 }
 
 void dump_tlb_all(void)
@@ -94,9 +94,9 @@ void dump_tlb_wired(void)
 {
 	int	wired;
 
-	wired = read_32bit_cp0_register(CP0_WIRED);
+	wired = read_c0_wired();
 	printk("Wired: %d", wired);
-	dump_tlb(0, read_32bit_cp0_register(CP0_WIRED));
+	dump_tlb(0, read_c0_wired());
 }
 
 #define BARRIER						\
@@ -111,14 +111,14 @@ void dump_tlb_addr(unsigned long addr)
 	int index;
 
 	local_irq_save(flags);
-	oldpid = get_entryhi() & 0xff;
+	oldpid = read_c0_entryhi() & 0xff;
 	BARRIER;
-	set_entryhi((addr & PAGE_MASK) | oldpid);
+	write_c0_entryhi((addr & PAGE_MASK) | oldpid);
 	BARRIER;
 	tlb_probe();
 	BARRIER;
-	index = get_index();
-	set_entryhi(oldpid);
+	index = read_c0_index();
+	write_c0_entryhi(oldpid);
 	local_irq_restore(flags);
 
 	if (index < 0) {
@@ -132,7 +132,7 @@ void dump_tlb_addr(unsigned long addr)
 
 void dump_tlb_nonwired(void)
 {
-	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_cpu.tlbsize - 1);
+	dump_tlb(read_c0_wired(), mips_cpu.tlbsize - 1);
 }
 
 void dump_list_process(struct task_struct *t, void *address)

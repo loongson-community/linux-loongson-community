@@ -54,7 +54,7 @@ extern rwlock_t xtime_lock;
 
 static inline void ack_r4ktimer(unsigned long newval)
 {
-	write_32bit_cp0_register(CP0_COMPARE, newval);
+	write_c0_compare(newval);
 }
 
 static int set_rtc_mmss(unsigned long nowtime)
@@ -109,12 +109,11 @@ void __init time_init(void)
 	est_freq -= est_freq%10000;
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
-	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
+	r4k_cur = (read_c0_count() + r4k_offset);
 
-	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
+	write_c0_compare(r4k_cur);
 
-        /* FIX ME */
-	change_cp0_status(ST0_IM, IE_IRQ5);
+	change_c0_status(ST0_IM, IE_IRQ5);		/* FIX ME */
 }
 
 /* This is for machines which generate the exact clock. */
@@ -172,7 +171,7 @@ static unsigned long do_fast_gettimeoffset(void)
 	}
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -267,7 +266,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		r4k_cur += r4k_offset;
 		ack_r4ktimer(r4k_cur);
 
-	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
+	} while (((unsigned long)read_c0_count()
                     - r4k_cur) < 0x7fffffff);
 	return;
 

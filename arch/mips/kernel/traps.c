@@ -766,12 +766,10 @@ static inline void parity_protection_init(void)
 {
 	switch (mips_cpu.cputype) {
 	case CPU_5KC:
-		/* Set the PE bit (bit 31) in the CP0_ECC register. */
+		/* Set the PE bit (bit 31) in the c0_ecc register. */
 		printk(KERN_INFO "Enable the cache parity protection for "
 		       "MIPS 5KC CPUs.\n");
-		write_32bit_cp0_register(CP0_ECC,
-		                         read_32bit_cp0_register(CP0_ECC)
-		                         | 0x80000000);
+		write_c0_ecc(read_c0_ecc() | 0x80000000);
 		break;
 	default:
 		break;
@@ -783,13 +781,13 @@ asmlinkage void cache_parity_error(void)
 	unsigned int reg_val;
 
 	/* For the moment, report the problem and hang. */
-	reg_val = read_32bit_cp0_register(CP0_ERROREPC);
+	reg_val = read_c0_errorepc();
 	printk("Cache error exception:\n");
 	printk("cp0_errorepc == %08x\n", reg_val);
-	reg_val = read_32bit_cp0_register(CP0_CACHEERR);
-	printk("cp0_cacheerr == %08x\n", reg_val);
+	reg_val = read_c0_cacheerr();
+	printk("c0_cacheerr == %08x\n", reg_val);
 
-	printk("Decoded CP0_CACHEERR: %s cache fault in %s reference.\n",
+	printk("Decoded c0_cacheerr: %s cache fault in %s reference.\n",
 	       reg_val & (1<<30) ? "secondary" : "primary",
 	       reg_val & (1<<31) ? "data" : "insn");
 	printk("Error bits: %s%s%s%s%s%s%s\n",
@@ -802,13 +800,11 @@ asmlinkage void cache_parity_error(void)
 	       reg_val & (1<<22) ? "E0 " : "");
 	printk("IDX: 0x%08x\n", reg_val & ((1<<22)-1));
 
-	if (reg_val&(1<<22))
-		printk("DErrAddr0: 0x%08x\n",
-		       read_32bit_cp0_set1_register(CP0_S1_DERRADDR0));
+	if (reg_val & (1<<22))
+		printk("DErrAddr0: 0x%08x\n", read_c0_derraddr0());
 
-	if (reg_val&(1<<23))
-		printk("DErrAddr1: 0x%08x\n",
-		       read_32bit_cp0_set1_register(CP0_S1_DERRADDR1));
+	if (reg_val & (1<<23))
+		printk("DErrAddr1: 0x%08x\n", read_c0_derraddr1());
 
 	panic("Can't handle the cache error!");
 }
@@ -819,12 +815,13 @@ asmlinkage void cache_parity_error(void)
  */
 void ejtag_exception_handler(struct pt_regs *regs)
 {
-        unsigned int depc, old_epc, debug;
+        unsigned long depc, old_epc;
+        unsigned int debug;
 
         printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
-        depc = read_32bit_cp0_register(CP0_DEPC);
-        debug = read_32bit_cp0_register(CP0_DEBUG);
-        printk("DEPC = %08x, DEBUG = %08x\n", depc, debug);
+        depc = read_c0_depc();
+        debug = read_c0_debug();
+        printk("c0_depc = %08lx, DEBUG = %08x\n", depc, debug);
         if (debug & 0x80000000) {
                 /*
                  * In branch delay slot.
@@ -839,11 +836,11 @@ void ejtag_exception_handler(struct pt_regs *regs)
                 regs->cp0_epc = old_epc;
         } else
                 depc += 4;
-        write_32bit_cp0_register(CP0_DEPC, depc);
+        write_c0_depc(depc);
 
 #if 0
 	printk("\n\n----- Enable EJTAG single stepping ----\n\n");
-	write_32bit_cp0_register(CP0_DEBUG, debug | 0x100);
+	write_c0_debug(debug | 0x100);
 #endif
 }
 
@@ -892,17 +889,17 @@ void __init per_cpu_trap_init(void)
 	unsigned int cpu = smp_processor_id();
 
 	/* Some firmware leaves the BEV flag set, clear it.  */
-	clear_cp0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV);
+	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV);
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
 	 * interrupt processing overhead.  Use it where available.
 	 */
 	if (mips_cpu.options & MIPS_CPU_DIVEC)
-		set_cp0_cause(CAUSEF_IV);
+		set_c0_cause(CAUSEF_IV);
 
 	cpu_data[cpu].asid_cache = ASID_FIRST_VERSION;
-	set_context(cpu << 23);
+	write_c0_context(cpu << 23);
 }
 
 void __init trap_init(void)
@@ -1002,8 +999,8 @@ void __init trap_init(void)
 
 	if (mips_cpu.cputype == CPU_SB1) {
 		/* Enable timer interrupt and scd mapped interrupt */
-		clear_cp0_status(0xf000);
-		set_cp0_status(0xc00);
+		clear_c0_status(0xf000);
+		set_c0_status(0xc00);
 	}
 
 	if (mips_cpu.options & MIPS_CPU_FPU) {
@@ -1017,7 +1014,7 @@ void __init trap_init(void)
 	flush_icache_range(KSEG0, KSEG0 + 0x400);
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
-		set_cp0_status(ST0_XX);
+		set_c0_status(ST0_XX);
 
 	atomic_inc(&init_mm.mm_count);	/* XXX UP?  */
 	current->active_mm = &init_mm;

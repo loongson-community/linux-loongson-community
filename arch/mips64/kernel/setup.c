@@ -149,8 +149,8 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp,
 	 * Maybe because the kernel is in ckseg0 and not xkphys? Clear it
 	 * anyway ...
 	 */
-	clear_cp0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
-	set_cp0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
+	clear_c0_status(ST0_BEV|ST0_TS|ST0_CU1|ST0_CU2|ST0_CU3);
+	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
 
 	start_kernel();
 }

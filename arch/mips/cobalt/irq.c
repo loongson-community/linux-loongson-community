@@ -77,7 +77,7 @@ static void enable_cpu_irq(unsigned int irq)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	change_cp0_status(irqnr_to_type[irq], irqnr_to_type[irq]);
+	change_c0_status(irqnr_to_type[irq], irqnr_to_type[irq]);
 	local_irq_restore(flags);
 }
 
@@ -93,7 +93,7 @@ static void disable_cpu_irq(unsigned int irq)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	change_cp0_status(irqnr_to_type[irq], ~(irqnr_to_type[irq]));
+	change_c0_status(irqnr_to_type[irq], ~(irqnr_to_type[irq]));
 	local_irq_restore(flags);
 }
 
@@ -133,8 +133,8 @@ void __init init_IRQ(void)
 
 	/* Mask all cpu interrupts
 	    (except IE4, we already masked those at VIA level) */
-	clear_cp0_status(ST0_IM);
-	set_cp0_status(IE_IRQ4);
+	clear_c0_status(ST0_IM);
+	set_c0_status(IE_IRQ4);
 
 	cli();
 

@@ -137,16 +137,16 @@ asmlinkage void sb1_cache_error(void)
 	/* Prevent re-entrance in the SMP case */
 	spin_lock(&in_cacheerr);
 	printk("Cache error exception on CPU %x:\n",
-	       (read_32bit_cp0_register(CP0_PRID) >> 25) & 0x7);
+	       (read_c0_prid() >> 25) & 0x7);
 
 	__asm__ __volatile__ (
 	"	.set	push\n\t"
-	"	.set	mips3\t\t\t# .set	mips64\n\t"
+	"	.set	mips64\n\t"
 	"	.set	noat\n\t"
 	"	mfc0	%0, $26\n\t"
 	"	mfc0	%1, $27\n\t"
-	"	.word	0x4001d801; move %2, $1\t# mfc0	%2, $27, 1\n\t"
-	"	.word	0x4021D803\t\t\t# dmfc0	$1, $27, 3\n\t"
+	"	mfc0	%2, $27, 1\n\t"
+	"	dmfc0	$1, $27, 3\n\t"
 	"	dsrl32	%3, $1, 0 \n\t"
 	"	sll	%4, $1, 0 \n\t"
 	"	mfc0	%5, $30\n\t"
@@ -155,11 +155,11 @@ asmlinkage void sb1_cache_error(void)
 	  "=r" (dpahi), "=r" (dpalo), "=r" (eepc));
 
 	cerr_dpa = (((uint64_t)dpahi) << 32) | dpalo;
-	printk(" cp0_errorepc ==   %08x\n", eepc);
-	printk(" cp0_errctl   ==   %08x", errctl);
+	printk(" c0_errorepc ==   %08x\n", eepc);
+	printk(" c0_errctl   ==   %08x", errctl);
 	breakout_errctl(errctl);
 	if (errctl & CP0_ERRCTL_ICACHE) {
-		printk(" cp0_cerr_i   ==   %08x", cerr_i);
+		printk(" c0_cerr_i   ==   %08x", cerr_i);
 		breakout_cerri(cerr_i);
 		if (CP0_CERRI_IDX_VALID(cerr_i)) {
 			if ((eepc & SB1_CACHE_INDEX_MASK) != (cerr_i & SB1_CACHE_INDEX_MASK))
@@ -173,10 +173,10 @@ asmlinkage void sb1_cache_error(void)
 		}
 	}
 	if (errctl & CP0_ERRCTL_DCACHE) {
-		printk(" cp0_cerr_d   ==   %08x", cerr_d);
+		printk(" c0_cerr_d   ==   %08x", cerr_d);
 		breakout_cerrd(cerr_d);
 		if (CP0_CERRD_DPA_VALID(cerr_d)) {
-			printk(" cp0_cerr_dpa == %010llx\n", cerr_dpa);
+			printk(" c0_cerr_dpa == %010llx\n", cerr_dpa);
 			if (!CP0_CERRD_IDX_VALID(cerr_d)) {
 				res = extract_dc(cerr_dpa & SB1_CACHE_INDEX_MASK,
 						 (cerr_d & CP0_CERRD_DATA) != 0);
@@ -274,7 +274,7 @@ static uint32_t extract_ic(unsigned short addr, int data)
 		__asm__ __volatile__ (
 		"	.set	push		\n\t"
 		"	.set	noreorder	\n\t"
-		"	.set	mips3\t\t\t# .set	mips64\n\t"
+		"	.set	mips64\n\t"
 		"	.set	noat		\n\t"
 		"	cache	4, 0(%3)	\n\t"
 		"	mfc0	%0, $29		\n\t"
@@ -329,13 +329,13 @@ static uint32_t extract_ic(unsigned short addr, int data)
 				__asm__ __volatile__ (
 				"	.set	push\n\t"
 				"	.set	noreorder\n\t"
-				"	.set	mips3\t\t\t# .set mips64\n\t"
+				"	.set mips64\n\t"
 				"	.set	noat\n\t"
-				"	cache  6, 0(%3)  \n\t"
-				"	.word	0x4001E801; move %0, $1\t\t\t# mfc0   %0, $29, 1\n\t"
-				"	.word	0x4021E001\t\t\t# dmfc0  $1, $28, 1\n\t"
-				"	dsrl32 %1, $1, 0 \n\t"
-				"	sll    %2, $1, 0 \n\t"
+				"	cache	6, 0(%3)  \n\t"
+				"	mfc0	%0, $29, 1\n\t"
+				"	dmfc0	$1, $28, 1\n\t"
+				"	dsrl32	%1, $1, 0 \n\t"
+				"	sll	%2, $1, 0 \n\t"
 				"	.set	pop         \n"
 				: "=r" (datahi), "=r" (insta), "=r" (instb)
 				: "r" ((way << 13) | addr | (offset << 3)));
@@ -427,11 +427,11 @@ static uint32_t extract_dc(unsigned short addr, int data)
 		__asm__ __volatile__ (
 		"	.set	push\n\t"
 		"	.set	noreorder\n\t"
-		"	.set	mips3\t\t\t# .set	mips64\n\t"
+		"	.set	mips64\n\t"
 		"	.set	noat\n\t"
 		"	cache	5, 0(%3)\n\t"	/* Index-load-tag-D */
-		"	.word	0x4001E802; move %0, $1\t\t# mfc0 %0, $29, 2\n\t"
-		"	.word	0x4021E002\t\t\t# dmfc0	$1, $28, 2\n\t"
+		"	mfc0 %0, $29, 2\n\t"
+		"	dmfc0	$1, $28, 2\n\t"
 		"	dsrl32	%1, $1, 0\n\t"
 		"	sll	%2, $1, 0\n\t"
 		"	.set	pop"
@@ -477,11 +477,11 @@ static uint32_t extract_dc(unsigned short addr, int data)
 				__asm__ __volatile__ (
 				"	.set	push\n\t"
 				"	.set	noreorder\n\t"
-				"	.set	mips3\t\t\t# .set	mips64\n\t"
+				"	.set	mips64\n\t"
 				"	.set	noat\n\t"
 				"	cache	7, 0(%3)\n\t" /* Index-load-data-D */
-				"	.word	0x4001E803; move %0, $1\t# mfc0	%0, $29, 3\n\t"
-				"	.word	0x4021E003\t\t\t# dmfc0	$1, $28, 3\n\t"
+				"	mfc0	%0, $29, 3\n\t"
+				"	dmfc0	$1, $28, 3\n\t"
 				"	dsrl32	%1, $1, 0 \n\t"
 				"	sll	%2, $1, 0 \n\t"
 				"	.set	pop"

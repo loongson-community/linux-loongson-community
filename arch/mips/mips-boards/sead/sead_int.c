@@ -40,19 +40,19 @@ extern void do_IRQ(int irq, struct pt_regs *regs);
 void disable_sead_irq(unsigned int irq_nr)
 {
 	if (irq_nr == SEADINT_UART0)
-		clear_cp0_status(0x00000400);
+		clear_c0_status(0x00000400);
 	else
 		if (irq_nr == SEADINT_UART1)
-			clear_cp0_status(0x00000800);
+			clear_c0_status(0x00000800);
 }
 
 void enable_sead_irq(unsigned int irq_nr)
 {
 	if (irq_nr == SEADINT_UART0)
-		set_cp0_status(0x00000400);
+		set_c0_status(0x00000400);
 	else
 		if (irq_nr == SEADINT_UART1)
-			set_cp0_status(0x00000800);
+			set_c0_status(0x00000800);
 }
 
 static unsigned int startup_sead_irq(unsigned int irq)
@@ -99,7 +99,7 @@ void __init init_IRQ(void)
         /*
          * Mask out all interrupt
 	 */
-	clear_cp0_status(0x0000ff00);
+	clear_c0_status(0x0000ff00);
 
 	/* Now safe to set the exception vector. */
 	set_except_vector(0, mipsIRQ);

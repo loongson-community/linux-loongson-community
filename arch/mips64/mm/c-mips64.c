@@ -445,7 +445,7 @@ static void __init probe_icache(unsigned long config)
 		mips_cpu.icache.sets =
 			(icache_size / ic_lsize) / mips_cpu.icache.ways;
 	} else {
-	       config1 = read_mips32_cp0_config1();
+	       config1 = read_c0_config1();
 
 	       if ((lsize = ((config1 >> 19) & 7)))
 		       mips_cpu.icache.linesz = 2 << lsize;
@@ -483,7 +483,7 @@ static void __init probe_dcache(unsigned long config)
 		mips_cpu.dcache.sets =
 			(dcache_size / dc_lsize) / mips_cpu.dcache.ways;
 	} else {
-	        config1 = read_mips32_cp0_config1();
+	        config1 = read_c0_config1();
 
 		if ((lsize = ((config1 >> 10) & 7)))
 		        mips_cpu.dcache.linesz = 2 << lsize;
@@ -553,8 +553,8 @@ static int __init probe_scache(unsigned long config)
 	}
 
 	/* Load first line with zero (therefore invalid) tag. */
-	set_taglo(0);
-	set_taghi(0);
+	write_c0_taglo(0);
+	write_c0_taghi(0);
 	__asm__ __volatile__("nop; nop; nop; nop;"); /* avoid the hazard */
 	__asm__ __volatile__("\n\t.set noreorder\n\t"
 			     "cache 8, (%0)\n\t"
@@ -574,7 +574,7 @@ static int __init probe_scache(unsigned long config)
 				     "cache 7, (%0)\n\t"
 				     ".set reorder\n\t" : : "r" (addr));
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
-		if(!get_taglo())
+		if(!read_c0_taglo())
 			break;
 		pow2 <<= 1;
 	}
@@ -652,9 +652,9 @@ static inline void __init setup_scache(unsigned int config)
 
 void __init ld_mmu_mips64(void)
 {
-	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long config = read_c0_config();
 
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
+	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);

@@ -54,13 +54,13 @@ static unsigned long __init cal_r4koff(void)
 	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
 	/* Start r4k counter. */
-	write_32bit_cp0_register(CP0_COUNT, 0);
+	write_c0_count(0);
 
 	/* Read counter exactly on falling edge of update flag */
 	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
 	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
-	mips_counter_frequency = read_32bit_cp0_register(CP0_COUNT);
+	mips_counter_frequency = read_c0_count();
 
 	/* restore interrupts */
 	local_irq_restore(flags);
@@ -133,7 +133,7 @@ void __init it8172_timer_setup(struct irqaction *irq)
 	setup_irq(MIPS_CPU_TIMER_IRQ, irq);
 
         /* to generate the first timer interrupt */
-	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
-	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
-	set_cp0_status(ALLINTS);
+	r4k_cur = (read_c0_count() + r4k_offset);
+	write_c0_compare(r4k_cur);
+	set_c0_status(ALLINTS);
 }

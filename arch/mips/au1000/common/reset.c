@@ -42,7 +42,7 @@ extern int au_sleep(void);
 void au1000_restart(char *command)
 {
 	/* Set all integrated peripherals to disabled states */
-	u32 prid = read_32bit_cp0_register(CP0_PRID);
+	u32 prid = read_c0_prid();
 
 	printk(KERN_NOTICE "\n** Resetting Integrated Peripherals\n");
 	switch (prid & 0xFF000000)
@@ -107,10 +107,10 @@ void au1000_restart(char *command)
 		break;
 	}
 
-	set_cp0_status(ST0_BEV | ST0_ERL);
-	set_cp0_config(CONF_CM_UNCACHED);
+	set_c0_status(ST0_BEV | ST0_ERL);
+	set_c0_config(CONF_CM_UNCACHED);
 	flush_cache_all();
-	write_32bit_cp0_register(CP0_WIRED, 0);
+	write_c0_wired(0);
 	__asm__ __volatile__("jr\t%0"::"r"(0xbfc00000));
 }
 

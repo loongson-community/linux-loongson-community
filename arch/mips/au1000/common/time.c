@@ -61,7 +61,7 @@ static spinlock_t time_lock = SPIN_LOCK_UNLOCKED;
 
 static inline void ack_r4ktimer(unsigned long newval)
 {
-	write_32bit_cp0_register(CP0_COMPARE, newval);
+	write_c0_compare(newval);
 }
 
 /*
@@ -89,7 +89,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		goto null;
 
 	do {
-		count = read_32bit_cp0_register(CP0_COUNT);
+		count = read_c0_prid();
 		timerhi += (count < timerlo);   /* Wrap around */
 		timerlo = count;
 
@@ -98,7 +98,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 		r4k_cur += r4k_offset;
 		ack_r4ktimer(r4k_cur);
 
-	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
+	} while (((unsigned long)read_c0_count()
 	         - r4k_cur) < 0x7fffffff);
 
 	if (softirq_pending(cpu))
@@ -187,12 +187,12 @@ unsigned long cal_r4koff(void)
 	while (au_readl(SYS_RTCREAD) < start);
 
 	/* Start r4k counter. */
-	write_32bit_cp0_register(CP0_COUNT, 0);
+	write_c0_count(0);
 	end = start + (32768 / trim_divide)/2; /* wait 0.5 seconds */
 
 	while (end > au_readl(SYS_RTCREAD));
 
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 	cpu_speed = count * 2;
 	mips_counter_frequency = count;
 	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
@@ -217,9 +217,9 @@ void __init time_init(void)
 	       (est_freq%1000000)*100/1000000);
 	set_au1000_speed(est_freq);
 	set_au1000_lcd_clock(); // program the LCD clock
-	r4k_cur = (read_32bit_cp0_register(CP0_COUNT) + r4k_offset);
+	r4k_cur = (read_c0_count() + r4k_offset);
 
-	write_32bit_cp0_register(CP0_COMPARE, r4k_cur);
+	write_c0_compare(r4k_cur);
 
 	/* no RTC on the pb1000 */
 	xtime.tv_sec = 0;
@@ -252,7 +252,7 @@ void __init time_init(void)
 	startup_match20_interrupt();
 #endif
 
-	//set_cp0_status(ALLINTS);
+	//set_c0_status(ALLINTS);
 	au_sync();
 }
 
@@ -320,7 +320,7 @@ static unsigned long do_fast_gettimeoffset(void)
 	}
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;

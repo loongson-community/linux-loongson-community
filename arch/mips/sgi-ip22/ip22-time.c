@@ -106,14 +106,14 @@ static unsigned long dosample(volatile unsigned char *tcwp,
 	*tc2p = (SGINT_TCSAMP_COUNTER >> 8);
 
 	/* Get initial counter invariant */
-	ct0 = read_32bit_cp0_register(CP0_COUNT);
+	ct0 = read_c0_count();
 
 	/* Latch and spin until top byte of counter2 is zero */
 	do {
 		*tcwp = (SGINT_TCWORD_CNT2 | SGINT_TCWORD_CLAT);
 		lsb = *tc2p;
 		msb = *tc2p;
-		ct1 = read_32bit_cp0_register(CP0_COUNT);
+		ct1 = read_c0_count();
 	} while(msb);
 
 	/* Stop the counter. */
@@ -222,9 +222,9 @@ static void indy_timer_setup(struct irqaction *irq)
 	irq->handler = no_action;
 
 	/* set time for first interrupt */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 	count += mips_counter_frequency / HZ;
-	write_32bit_cp0_register(CP0_COMPARE, count);
+	write_c0_compare(count);
 
 	/* setup irqaction */
 	setup_irq(SGI_TIMER_IRQ, irq);

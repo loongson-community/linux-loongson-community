@@ -90,10 +90,10 @@ struct it8172_intc_regs volatile *it8172_hw0_icregs
 /* Function for careful CP0 interrupt mask access */
 static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
 {
-        unsigned long status = read_32bit_cp0_register(CP0_STATUS);
+        unsigned long status = read_c0_status();
         status &= ~((clr_mask & 0xFF) << 8);
         status |=   (set_mask & 0xFF) << 8;
-        write_32bit_cp0_register(CP0_STATUS, status);
+        write_c0_status(status);
 }
 
 static inline void mask_irq(unsigned int irq_nr)
@@ -299,7 +299,7 @@ void __init init_IRQ(void)
 		irq_desc[i].handler = &it8172_irq_type;
 	}
 	irq_desc[MIPS_CPU_TIMER_IRQ].handler = &cp0_irq_type;
-	set_cp0_status(ALLINTS_NOTIMER);
+	set_c0_status(ALLINTS_NOTIMER);
 
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */
@@ -317,8 +317,8 @@ void mips_spurious_interrupt(struct pt_regs *regs)
 	unsigned long status, cause;
 
 	printk("got spurious interrupt\n");
-	status = read_32bit_cp0_register(CP0_STATUS);
-	cause = read_32bit_cp0_register(CP0_CAUSE);
+	status = read_c0_status();
+	cause = read_c0_cause();
 	printk("status %x cause %x\n", status, cause);
 	printk("epc %x badvaddr %x \n", regs->cp0_epc, regs->cp0_badvaddr);
 //	while(1);

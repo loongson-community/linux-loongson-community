@@ -377,7 +377,7 @@
 #define CONF_CU				(1 <<  3)
 #define CONF_DB				(1 <<  4)
 #define CONF_IB				(1 <<  5)
-#define CONF_SE 			(1 << 12)
+#define CONF_SE				(1 << 12)
 #define CONF_SC				(1 << 17)
 #define CONF_AC                         (1 << 23)
 #define CONF_HALT                       (1 << 25)
@@ -478,81 +478,242 @@
 /*
  * Macros to access the system control coprocessor
  */
-#define read_32bit_cp0_register(source)                         \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-	".set\tpush\n\t"					\
-	".set\treorder\n\t"					\
-        "mfc0\t%0,"STR(source)"\n\t"                            \
-	".set\tpop"						\
-        : "=r" (__res));                                        \
-        __res;})
 
-#define read_32bit_cp0_set1_register(source)                    \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-	".set\tpush\n\t"					\
-	".set\treorder\n\t"					\
-        "cfc0\t%0,"STR(source)"\n\t"                            \
-	".set\tpop"						\
-        : "=r" (__res));                                        \
-        __res;})
+#define __read_32bit_c0_register(source, sel)				\
+({ int __res;								\
+        __asm__ __volatile__(						\
+	".set\tmips32\n\t"						\
+	"mfc0\t%0," #source "," #sel "\n\t"				\
+	".set\tmips0\n\t"						\
+	: "=r" (__res));						\
+	__res;})
+
+#define __read_64bit_c0_register(source, sel)				\
+({ unsigned long __res;							\
+	__asm__ __volatile__(						\
+	".set\tmips64\n\t"						\
+	"dmfc0\t%0," #source "," #sel "\n\t"				\
+	".set\tmips0"							\
+	: "=r" (__res));						\
+	__res;})
+
+#define __write_32bit_c0_register(register, sel, value)			\
+do {									\
+	if (__builtin_constant_p(value) && (value) == 0)		\
+		__asm__ __volatile__(					\
+		".set\tmips32\n\t"					\
+		"mtc0\t$0," #register "," #sel "\n\t"			\
+		".set\tmips0");						\
+	else								\
+		__asm__ __volatile__(					\
+		".set\tmips32\n\t"					\
+		"mtc0\t%0," #register "," #sel "\n\t"			\
+		".set\tmips0"						\
+		: : "r" (value));					\
+} while (0)
+
+#define __write_64bit_c0_register(register, sel, value)			\
+do {									\
+	if (__builtin_constant_p(value) && (value) == 0)		\
+		__asm__ __volatile__(					\
+		".set\tmips64\n\t"					\
+		"dmtc0\t$0," #register "," #sel "\n\t"			\
+		".set\tmips0");						\
+	else								\
+		__asm__ __volatile__(					\
+		".set\tmips64\n\t"					\
+		"dmtc0\t%0," #register "," #sel "\n\t"			\
+		".set\tmips0"						\
+		: : "r" (value));					\
+} while (0)
+
+#define __read_ulong_c0_register(reg, sel)				\
+	((sizeof(unsigned long) == 4) ?					\
+	__read_32bit_c0_register(reg, sel) :				\
+	__read_64bit_c0_register(reg, sel))
+
+#define __write_ulong_c0_register(reg, sel, val)			\
+do {									\
+	if (sizeof(unsigned long) == 4)					\
+		__write_32bit_c0_register(reg, sel, val);		\
+	else								\
+		__write_64bit_c0_register(reg, sel, val);		\
+} while (0)
 
 /*
- * For now use this only with interrupts disabled!
+ * These versions are only needed for systems with more than 38 bits of
+ * physical address space running the 32-bit kernel.  That's none atm :-)
  */
-#define read_64bit_cp0_register(source)                         \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-        ".set\tmips3\n\t"                                       \
-        "dmfc0\t%0,"STR(source)"\n\t"                           \
-        ".set\tmips0"                                           \
-        : "=r" (__res));                                        \
-        __res;})
+#define __read_64bit_c0_split(source, sel)				\
+({									\
+	unsigned long long val;						\
+	unsigned long flags;						\
+									\
+	local_irq_save(flags);						\
+	__asm__ __volatile__(						\
+		".set\tmips64\n\t"					\
+		"dmtc0\t%M0, " #source ", " #sel "\n\t"			\
+		"dsll\t%L0, %M0, 32\n\t"				\
+		"dsrl\t%M0, %M0, 32\n\t"				\
+		"dsrl\t%L0, %L0, 32\n\t"				\
+		".set\tmips0"						\
+		: "=r" (val));						\
+	local_irq_restore(flags);					\
+									\
+	val;								\
+})
 
-#define write_32bit_cp0_register(register,value)                \
-        __asm__ __volatile__(                                   \
-        "mtc0\t%0,"STR(register)"\n\t"				\
-	"nop"							\
-        : : "r" (value));
+#define __write_64bit_c0_split(source, sel, val)			\
+do {									\
+	unsigned long flags;						\
+									\
+	local_irq_save(flags);						\
+	__asm__ __volatile__(						\
+		".set\tmips64\n\t"					\
+		"dsll\t%L0, %L0, 32\n\t"				\
+		"dsrl\t%L0, %L0, 32\n\t"				\
+		"dsll\t%M0, %M0, 32\n\t"				\
+		"or\t%L0, %L0, %M0\n\t"					\
+		"dmtc0\t%L0, " #source ", " #sel "\n\t"			\
+		".set\tmips0"						\
+		: : "r" (val));						\
+	local_irq_restore(flags);					\
+} while (0)
 
-#define write_32bit_cp0_set1_register(register,value)           \
-        __asm__ __volatile__(                                   \
-        "ctc0\t%0,"STR(register)"\n\t"				\
-	"nop"							\
-        : : "r" (value));
+#define read_c0_index()		__read_32bit_c0_register($0, 0)
+#define write_c0_index(val)	__write_32bit_c0_register($0, 0, val)
 
-#define write_64bit_cp0_register(register,value)                \
-        __asm__ __volatile__(                                   \
-        ".set\tmips3\n\t"                                       \
-        "dmtc0\t%0,"STR(register)"\n\t"                         \
-        ".set\tmips0"                                           \
-        : : "r" (value))
+#define read_c0_entrylo0()	__read_ulong_c0_register($2, 0)
+#define write_c0_entrylo0(val)	__write_ulong_c0_register($2, 0, val)
+
+#define read_c0_entrylo1()	__read_ulong_c0_register($3, 0)
+#define write_c0_entrylo1(val)	__write_ulong_c0_register($3, 0, val)
+
+#define read_c0_conf()		__read_32bit_c0_register($3, 0)
+#define write_c0_conf(val)	__write_32bit_c0_register($3, 0, val)
+
+#define read_c0_context()	__read_ulong_c0_register($4, 0)
+#define write_c0_context(val)	__write_ulong_c0_register($4, 0, val)
+
+#define read_c0_pagemask()	__read_32bit_c0_register($5, 0)
+#define write_c0_pagemask(val)	__write_32bit_c0_register($5, 0, val)
+
+#define read_c0_wired()		__read_32bit_c0_register($6, 0)
+#define write_c0_wired(val)	__write_32bit_c0_register($6, 0, val)
+
+#define read_c0_info()		__read_32bit_c0_register($7, 0)
+
+#define read_c0_cache()		__read_32bit_c0_register($7, 0)	/* TX39xx */
+#define write_c0_cache(val)	__write_32bit_c0_register($7, 0, val)
+
+#define read_c0_count()		__read_32bit_c0_register($9, 0)
+#define write_c0_count(val)	__write_32bit_c0_register($9, 0, val)
+
+#define read_c0_entryhi()	__read_ulong_c0_register($10, 0)
+#define write_c0_entryhi(val)	__write_ulong_c0_register($10, 0, val)
+
+#define read_c0_compare()	__read_32bit_c0_register($11, 0)
+#define write_c0_compare(val)	__write_32bit_c0_register($11, 0, val)
+
+#define read_c0_status()	__read_32bit_c0_register($12, 0)
+#define write_c0_status(val)	__write_32bit_c0_register($12, 0, val)
+
+#define read_c0_cause()		__read_32bit_c0_register($13, 0)
+#define write_c0_cause(val)	__write_32bit_c0_register($13, 0, val)
+
+#define read_c0_prid()		__read_32bit_c0_register($15, 0)
+
+#define read_c0_config()	__read_32bit_c0_register($16, 0)
+#define read_c0_config1()	__read_32bit_c0_register($16, 1)
+#define read_c0_config2()	__read_32bit_c0_register($16, 2)
+#define read_c0_config3()	__read_32bit_c0_register($16, 3)
+#define write_c0_config(val)	__write_32bit_c0_register($16, 0, val)
+#define write_c0_config1(val)	__write_32bit_c0_register($16, 1, val)
+#define write_c0_config2(val)	__write_32bit_c0_register($16, 2, val)
+#define write_c0_config3(val)	__write_32bit_c0_register($16, 3, val)
 
 /*
- * This should be changed when we get a compiler that support the MIPS32 ISA.
+ * The WatchLo register.  There may be upto 8 of them.
  */
-#define read_mips32_cp0_config1()                               \
-({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
-	".set\tnoreorder\n\t"                                   \
-	".set\tnoat\n\t"                                        \
-	"#.set\tmips64\n\t"					\
-	"#mfc0\t$1, $16, 1\n\t"					\
-	"#.set\tmips0\n\t"					\
-     	".word\t0x40018001\n\t"                                 \
-	"move\t%0,$1\n\t"                                       \
-	".set\tat\n\t"                                          \
-	".set\treorder"                                         \
-	:"=r" (__res));                                         \
-        __res;})
+#define read_c0_watchlo0()	__read_ulong_c0_register($18, 0)
+#define read_c0_watchlo1()	__read_ulong_c0_register($18, 1)
+#define read_c0_watchlo2()	__read_ulong_c0_register($18, 2)
+#define read_c0_watchlo3()	__read_ulong_c0_register($18, 3)
+#define read_c0_watchlo4()	__read_ulong_c0_register($18, 4)
+#define read_c0_watchlo5()	__read_ulong_c0_register($18, 5)
+#define read_c0_watchlo6()	__read_ulong_c0_register($18, 6)
+#define read_c0_watchlo7()	__read_ulong_c0_register($18, 7)
+#define write_c0_watchlo0(val)	__write_ulong_c0_register($18, 0, val)
+#define write_c0_watchlo1(val)	__write_ulong_c0_register($18, 1, val)
+#define write_c0_watchlo2(val)	__write_ulong_c0_register($18, 2, val)
+#define write_c0_watchlo3(val)	__write_ulong_c0_register($18, 3, val)
+#define write_c0_watchlo4(val)	__write_ulong_c0_register($18, 4, val)
+#define write_c0_watchlo5(val)	__write_ulong_c0_register($18, 5, val)
+#define write_c0_watchlo6(val)	__write_ulong_c0_register($18, 6, val)
+#define write_c0_watchlo7(val)	__write_ulong_c0_register($18, 7, val)
+
+/*
+ * The WatchHi register.  There may be upto 8 of them.
+ */
+#define read_c0_watchhi0()	__read_32bit_c0_register($19, 0)
+#define read_c0_watchhi1()	__read_32bit_c0_register($19, 1)
+#define read_c0_watchhi2()	__read_32bit_c0_register($19, 2)
+#define read_c0_watchhi3()	__read_32bit_c0_register($19, 3)
+#define read_c0_watchhi4()	__read_32bit_c0_register($19, 4)
+#define read_c0_watchhi5()	__read_32bit_c0_register($19, 5)
+#define read_c0_watchhi6()	__read_32bit_c0_register($19, 6)
+#define read_c0_watchhi7()	__read_32bit_c0_register($19, 7)
+
+#define write_c0_watchhi0(val)	__write_32bit_c0_register($19, 0, val)
+#define write_c0_watchhi1(val)	__write_32bit_c0_register($19, 1, val)
+#define write_c0_watchhi2(val)	__write_32bit_c0_register($19, 2, val)
+#define write_c0_watchhi3(val)	__write_32bit_c0_register($19, 3, val)
+#define write_c0_watchhi4(val)	__write_32bit_c0_register($19, 4, val)
+#define write_c0_watchhi5(val)	__write_32bit_c0_register($19, 5, val)
+#define write_c0_watchhi6(val)	__write_32bit_c0_register($19, 6, val)
+#define write_c0_watchhi7(val)	__write_32bit_c0_register($19, 7, val)
+
+#define read_c0_xcontext()	__read_ulong_c0_register($20, 0)
+#define write_c0_xcontext(val)	__write_ulong_c0_register($20, 0, val)
+
+#define read_c0_intcontrol()	__read_32bit_c0_register($20, 1)
+#define write_c0_intcontrol(val) __write_32bit_c0_register($20, 1, val)
+
+#define read_c0_framemask()	__read_32bit_c0_register($21, 0)
+#define write_c0_framemask(val)	__write_32bit_c0_register($21, 0, val)
+
+#define read_c0_debug()		__read_32bit_c0_register($23, 0)
+#define write_c0_debug(val)	__write_32bit_c0_register($23, 0, val)
+
+#define read_c0_depc()		__read_ulong_c0_register($24, 0)
+#define write_c0_depc(val)	__write_ulong_c0_register($24, 0, val)
+
+#define read_c0_ecc()		__read_32bit_c0_register($26, 0)
+#define write_c0_ecc(val)	__write_32bit_c0_register($26, 0, val)
+
+#define read_c0_derraddr0()	__read_ulong_c0_register($26, 1)
+#define write_c0_derraddr0(val)	__write_ulong_c0_register($26, 1, val)
+
+#define read_c0_cacheerr()	__read_32bit_c0_register($27, 0)
+
+#define read_c0_derraddr1()	__read_ulong_c0_register($27, 1)
+#define write_c0_derraddr1(val)	__write_ulong_c0_register($27, 1, val)
+
+#define read_c0_taglo()		__read_32bit_c0_register($28, 0)
+#define write_c0_taglo(val)	__write_32bit_c0_register($28, 0, val)
+
+#define read_c0_taghi()		__read_32bit_c0_register($29, 0)
+#define write_c0_taghi(val)	__write_32bit_c0_register($29, 0, val)
+
+#define read_c0_errorepc()	__read_ulong_c0_register($30, 0)
+#define write_c0_errorepc(val)	__write_ulong_c0_register($30, 0, val)
 
 /*
  * Macros to access the floating point coprocessor control registers
  */
 #define read_32bit_cp1_register(source)                         \
 ({ int __res;                                                   \
-        __asm__ __volatile__(                                   \
+	__asm__ __volatile__(                                   \
 	".set\tpush\n\t"					\
 	".set\treorder\n\t"					\
         "cfc1\t%0,"STR(source)"\n\t"                            \
@@ -564,443 +725,79 @@
 static inline void tlb_probe(void)
 {
 	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
+		".set noreorder\n\t"
 		"tlbp\n\t"
-		".set pop");
+		".set reorder");
 }
 
 static inline void tlb_read(void)
 {
 	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
+		".set noreorder\n\t"
 		"tlbr\n\t"
-		".set pop");
+		".set reorder");
 }
 
 static inline void tlb_write_indexed(void)
 {
 	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
+		".set noreorder\n\t"
 		"tlbwi\n\t"
-		".set pop");
+		".set reorder");
 }
 
 static inline void tlb_write_random(void)
 {
 	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
+		".set noreorder\n\t"
 		"tlbwr\n\t"
-		".set pop");
-}
-
-/* Dealing with various CP0 mmu/cache related registers. */
-
-
-static inline unsigned long get_pagemask(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $5\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_pagemask(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $5\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-#if defined(CONFIG_64BIT_PHYS_ADDR) && !defined(CONFIG_CPU_MIPS32)
-
-#include <asm/system.h>
-
-/*
- * These versions are only needed for systems with more than 38 bits of
- * physical address space.
- */
-static inline void set_entrylo0(unsigned long long val)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__asm__ __volatile__(
-		".set\tmips3\n\t"
-		"dsll\t%L0, %L0, 32\n\t"
-		"dsrl\t%L0, %L0, 32\n\t"
-		"dsll\t%M0, %M0, 32\n\t"
-		"or\t%L0, %L0, %M0\n\t"
-		"dmtc0\t%L0, $2\n\t"
-		".set\tmips0"
-		: : "r" (val));
-	local_irq_restore(flags);
-}
-
-static inline void set_entrylo1(unsigned long long val)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__asm__ __volatile__(
-		".set\tmips3\n\t"
-		"dsll\t%L0, %L0, 32\n\t"
-		"dsrl\t%L0, %L0, 32\n\t"
-		"dsll\t%M0, %M0, 32\n\t"
-		"or\t%L0, %L0, %M0\n\t"
-		"dmtc0\t%L0, $3\n\t"
-		".set\tmips0"
-		: : "r" (val));
-	local_irq_restore(flags);
-}
-
-static inline unsigned long long get_entrylo0(void)
-{
-	unsigned long flags, val;
-
-	local_irq_save(flags);
-	__asm__ __volatile__(
-		".set\tmips3\n\t"
-		"dmfc0\t%M0, $2\n\t"
-		"dsll\t%L0, %M0, 32\n\t"
-		"dsrl\t%M0, %M0, 32\n\t"
-		"dsrl\t%L0, %L0, 32\n\t"
-		".set\tmips0"
-		: "=r" (val));
-	local_irq_restore(flags);
-
-	return val;
-}
-
-static inline unsigned long long get_entrylo1(void)
-{
-	unsigned long flags, val;
-
-	local_irq_save(flags);
-	__asm__ __volatile__(
-		".set\tmips3\n\t"
-		"dmfc0\t%M0, $3\n\t"
-		"dsrl\t%L0, %M0, 32\n\t"
-		"dsrl\t%M0, %M0, 32\n\t"
-		"dsll\t%L0, %L0, 32\n\t"
-		".set\tmips0"
-		: "=r" (val));
-	local_irq_restore(flags);
-
-	return val;
-}
-
-#else
-
-static inline void set_entrylo0(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $2\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline void set_entrylo1(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $3\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline unsigned long get_entrylo0(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $2\n\t"
-		".set pop" : "=r" (val));
-
-	return val;
-}
-
-static inline unsigned long get_entrylo1(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $3\n\t"
-		".set pop" : "=r" (val));
-
-	return val;
-}
-
-#endif
-
-/* CP0_ENTRYHI register */
-static inline unsigned long get_entryhi(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $10\n\t"
-		".set pop"
-		: "=r" (val));
-
-	return val;
-}
-
-static inline void set_entryhi(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $10\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-/* CP0_INDEX register */
-static inline unsigned long get_index(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $0\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_index(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $0\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-/* CP0_WIRED register */
-static inline unsigned long get_wired(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $6\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_wired(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $6\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-/* CP0_STATUS register */
-static inline unsigned int get_status(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $12\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_status(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $12\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline unsigned long get_info(void)
-{
-	unsigned long val;
-
-	__asm__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $7\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-/* CP0_TAGLO and CP0_TAGHI registers */
-static inline unsigned long get_taglo(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $28\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_taglo(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $28\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline unsigned long get_taghi(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $29\n\t"
-		".set pop"
-		: "=r" (val));
-	return val;
-}
-
-static inline void set_taghi(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $29\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline unsigned long get_context(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $4\n\t"
-		".set pop"
-		: "=r" (val));
-
-	return val;
-}
-
-static inline void set_context(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $4\n\t"
-		".set pop"
-		: : "Jr" (val));
-}
-
-static inline unsigned long get_errorepc(void)
-{
-	unsigned long val;
-
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mfc0 %0, $30\n\t"
-		".set pop"
-		: "=r" (val));
-
-	return val;
-}
-
-static inline void set_errorepc(unsigned long val)
-{
-	__asm__ __volatile__(
-		".set push\n\t"
-		".set reorder\n\t"
-		"mtc0 %z0, $30\n\t"
-		".set pop"
-		: : "Jr" (val));
+		".set reorder");
 }
 
 /*
- * Manipulate the status register.
- * Mostly used to access the interrupt bits.
+ * Manipulate bits in a c0 register.
  */
-#define __BUILD_SET_CP0(name,register)				\
+#define __BUILD_SET_C0(name,register)				\
 static inline unsigned int					\
-set_cp0_##name(unsigned int set)				\
+set_c0_##name(unsigned int set)					\
 {								\
 	unsigned int res;					\
 								\
-	res = read_32bit_cp0_register(register);		\
+	res = read_c0_##name();					\
 	res |= set;						\
-	write_32bit_cp0_register(register, res);		\
+	write_c0_##name(res);					\
 								\
 	return res;						\
 }								\
 								\
 static inline unsigned int					\
-clear_cp0_##name(unsigned int clear)				\
+clear_c0_##name(unsigned int clear)				\
 {								\
 	unsigned int res;					\
 								\
-	res = read_32bit_cp0_register(register);		\
+	res = read_c0_##name();					\
 	res &= ~clear;						\
-	write_32bit_cp0_register(register, res);		\
+	write_c0_##name(res);					\
 								\
 	return res;						\
 }								\
 								\
 static inline unsigned int					\
-change_cp0_##name(unsigned int change, unsigned int new)	\
+change_c0_##name(unsigned int change, unsigned int new)		\
 {								\
 	unsigned int res;					\
 								\
-	res = read_32bit_cp0_register(register);		\
+	res = read_c0_##name();					\
 	res &= ~change;						\
 	res |= (new & change);					\
-	write_32bit_cp0_register(register, res);		\
+	write_c0_##name(res);					\
 								\
 	return res;						\
 }
 
-__BUILD_SET_CP0(status,CP0_STATUS)
-__BUILD_SET_CP0(cause,CP0_CAUSE)
-__BUILD_SET_CP0(config,CP0_CONFIG)
+__BUILD_SET_C0(status,CP0_STATUS)
+__BUILD_SET_C0(cause,CP0_CAUSE)
+__BUILD_SET_C0(config,CP0_CONFIG)
 
 #endif /* !__ASSEMBLY__ */
 

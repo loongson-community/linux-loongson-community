@@ -56,8 +56,8 @@ static Register int_regs[] = {
 void vrc5477_show_int_regs()
 {
 	jsun_show_regs("interrupt registers", int_regs);
-	printk("CPU CAUSE = %08x\n", read_32bit_cp0_register(CP0_CAUSE));
-	printk("CPU STATUS = %08x\n", read_32bit_cp0_register(CP0_STATUS));
+	printk("CPU CAUSE = %08x\n", read_c0_cause());
+	printk("CPU STATUS = %08x\n", read_c0_status());
 }
 static Register pdar_regs[] = {
         {"DDB_SDRAM0", DDB_BASE + DDB_SDRAM0},

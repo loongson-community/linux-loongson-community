@@ -28,14 +28,14 @@
 /* These are configuration dependant.  */
 #define scache_size()	({						\
 	unsigned long __res;						\
-	__res = (read_32bit_cp0_register(CP0_CONFIG) >> 16) & 3;	\
+	__res = (read_c0_config() >> 16) & 3;				\
 	__res = 1 << (__res + 19);					\
 	__res;								\
 })
 
 #define sc_lsize()	({						\
 	unsigned long __res;						\
-	__res = (read_32bit_cp0_register(CP0_CONFIG) >> 13) & 1;	\
+	__res = (read_c0_config() >> 13) & 1;				\
 	__res = 1 << (__res + 6);					\
 	__res;								\
 })

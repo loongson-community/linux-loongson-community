@@ -53,10 +53,10 @@ void __init prom_init(int argc, char **argv, unsigned long magic, int *prom_vec)
 
 	switch (mips_cpu.processor_id) {
 	case PRID_VR4131_REV1_2:
-		config = read_32bit_cp0_register(CP0_CONFIG);
+		config = read_c0_config();
 		config &= ~0x00000030UL;
 		config |= 0x00410000UL;
-		write_32bit_cp0_register(CP0_CONFIG, config);
+		write_c0_config(config);
 		break;
 	default:
 		break;

@@ -95,7 +95,7 @@ static void __init ddb_timer_init(struct irqaction *irq)
 	/* enable interrupt */
 	setup_irq(nile4_to_irq(NILE4_INT_GPT), irq);
 	nile4_enable_irq(nile4_to_irq(NILE4_INT_GPT));
-	change_cp0_status(ST0_IM,
+	change_c0_status(ST0_IM,
 		          IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4);
 
 }

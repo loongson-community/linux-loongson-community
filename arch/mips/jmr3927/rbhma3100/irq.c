@@ -437,7 +437,7 @@ void jmr3927_irq_setup(void)
 #endif
 
 	/* enable all CPU interrupt bits. */
-	set_cp0_status(ST0_IM);	/* IE bit is still 0. */
+	set_c0_status(ST0_IM);	/* IE bit is still 0. */
 }
 
 void (*irq_setup)(void);

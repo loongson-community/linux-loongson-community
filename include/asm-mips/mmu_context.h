@@ -29,7 +29,7 @@
 #define TLBMISS_HANDLER_SETUP_PGD(pgd) \
 	pgd_current[smp_processor_id()] = (unsigned long)(pgd)
 #define TLBMISS_HANDLER_SETUP() \
-	set_context((unsigned long) smp_processor_id() << (23 + 3)); \
+	write_c0_context((unsigned long) smp_processor_id() << (23 + 3)); \
 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
 extern unsigned long pgd_current[];
 
@@ -107,7 +107,7 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if ((cpu_context(cpu, next) ^ asid_cache(cpu)) & ASID_VERSION_MASK)
 		get_new_mmu_context(next, cpu);
 
-	set_entryhi(cpu_context(cpu, next));
+	write_c0_entryhi(cpu_context(cpu, next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 
@@ -133,7 +133,7 @@ activate_mm(struct mm_struct *prev, struct mm_struct *next)
 	/* Unconditionally get a new ASID.  */
 	get_new_mmu_context(next, smp_processor_id());
 
-	set_entryhi(cpu_context(smp_processor_id(), next));
+	write_c0_entryhi(cpu_context(smp_processor_id(), next));
 	TLBMISS_HANDLER_SETUP_PGD(next->pgd);
 }
 

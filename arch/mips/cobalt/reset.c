@@ -27,10 +27,10 @@ void cobalt_machine_restart(char *command)
 	 * kernel in the flush locks up somewhen during of after the PCI
 	 * detection stuff.
 	 */
-	set_cp0_status(ST0_BEV | ST0_ERL);
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+	set_c0_status(ST0_BEV | ST0_ERL);
+	change_c0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
 	flush_cache_all();
-	write_32bit_cp0_register(CP0_WIRED, 0);
+	write_c0_wired(0);
 	__asm__ __volatile__(
 		"jr\t%0"
 		:

@@ -18,10 +18,10 @@
 
 void vr41xx_restart(char *command)
 {
-	change_cp0_status((ST0_BEV | ST0_ERL), (ST0_BEV | ST0_ERL));
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
+	change_c0_status((ST0_BEV | ST0_ERL), (ST0_BEV | ST0_ERL));
+	change_c0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
 	flush_cache_all();
-	write_32bit_cp0_register(CP0_WIRED, 0);
+	write_c0_wired(0);
 	__asm__ __volatile__("jr\t%0"::"r"(0xbfc00000));
 }
 

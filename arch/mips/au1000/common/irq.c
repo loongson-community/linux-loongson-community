@@ -387,7 +387,7 @@ void __init init_IRQ(void)
 	int i;
 	unsigned long cp0_status;
 
-	cp0_status = read_32bit_cp0_register(CP0_STATUS);
+	cp0_status = read_c0_status();
 	memset(irq_desc, 0, sizeof(irq_desc));
 	set_except_vector(0, au1000_IRQ);
 
@@ -491,7 +491,7 @@ void __init init_IRQ(void)
 		}
 	}
 
-	set_cp0_status(ALLINTS);
+	set_c0_status(ALLINTS);
 #ifdef CONFIG_REMOTE_DEBUG
 	/* If local serial I/O used for debug port, enter kgdb at once */
 	puts("Waiting for kgdb to connect...");

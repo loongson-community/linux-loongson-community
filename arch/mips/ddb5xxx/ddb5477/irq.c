@@ -85,8 +85,8 @@ ddb5477_irq_setup(void)
 	ddb_out32(DDB_INTCTRL2, 0);
 	ddb_out32(DDB_INTCTRL3, 0);
 
-	clear_cp0_status(0xff00);
-	set_cp0_status(0x0400);
+	clear_c0_status(0xff00);
+	set_c0_status(0x0400);
 
 	/* setup PCI interrupt attributes */
 	set_pci_int_attr(PCI0, INTA, ACTIVE_LOW, LEVEL_SENSE);

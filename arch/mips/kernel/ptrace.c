@@ -156,10 +156,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 				break;
 			}
 
-			flags = get_status();
+			flags = read_c0_status();
 			__enable_fpu();
 			__asm__ __volatile__("cfc1\t%0,$0": "=r" (tmp));
-			set_status(flags);
+			write_c0_status(flags);
 			break;
 		}
 		default:

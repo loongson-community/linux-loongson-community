@@ -572,7 +572,7 @@ void irix_map_prda_page (void)
 
 	pp = (struct prda *) v;
 	pp->prda_sys.t_pid  = current->pid;
-	pp->prda_sys.t_prid = read_32bit_cp0_register (CP0_PRID);
+	pp->prda_sys.t_prid = read_c0_prid();
 	pp->prda_sys.t_rpid = current->pid;
 
 	/* We leave the rest set to zero */

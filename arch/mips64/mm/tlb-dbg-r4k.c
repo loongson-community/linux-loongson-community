@@ -39,8 +39,8 @@ asmlinkage void xtlb_refill_debug(struct pt_regs *regs)
 	pmd = pmd_offset(pgd, addr);
 	pte = pte_offset(pmd, addr);
 
-	set_entrylo0(pte_val(pte[0]) >> 6);
-	set_entrylo1(pte_val(pte[1]) >> 6);
+	write_c0_entrylo0(pte_val(pte[0]) >> 6);
+	write_c0_entrylo1(pte_val(pte[1]) >> 6);
 	__asm__ __volatile__("nop;nop;nop");
 
 	tlb_write_random();

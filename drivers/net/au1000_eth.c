@@ -622,7 +622,7 @@ static int __init au1000_init_module(void)
 	int prid;
 	int base_addr, irq;
 
-	prid = read_32bit_cp0_register(CP0_PRID);
+	prid = read_c0_prid();
 	for (i=0; i<NUM_INTERFACES; i++) {
 		if ( (prid & 0xffff0000) == 0x00030000 ) {
 			base_addr = au1000_iflist[i].port;

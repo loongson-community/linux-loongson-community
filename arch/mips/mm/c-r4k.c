@@ -1179,8 +1179,8 @@ static int __init probe_scache(unsigned long config)
 	}
 
 	/* Load first line with zero (therefore invalid) tag. */
-	set_taglo(0);
-	set_taghi(0);
+	write_c0_taglo(0);
+	write_c0_taghi(0);
 	__asm__ __volatile__("nop; nop; nop; nop;"); /* avoid the hazard */
 	cache_op(Index_Store_Tag_I, begin);
 	cache_op(Index_Store_Tag_D, begin);
@@ -1192,7 +1192,7 @@ static int __init probe_scache(unsigned long config)
 	for (addr = begin + (128 * 1024); addr < end; addr = begin + pow2) {
 		cache_op(Index_Load_Tag_SD, addr);
 		__asm__ __volatile__("nop; nop; nop; nop;"); /* hazard... */
-		if (!get_taglo())
+		if (!read_c0_taglo())
 			break;
 		pow2 <<= 1;
 	}
@@ -1219,7 +1219,7 @@ static void __init setup_noscache_funcs(void)
 		_flush_page_to_ram = r4k_flush_page_to_ram_d16;
 		break;
 	case 32:
-		prid = read_32bit_cp0_register(CP0_PRID) & 0xfff0;
+		prid = read_c0_prid() & 0xfff0;
 		if (prid == 0x2010) {			/* R4600 V1.7 */
 			_clear_page = r4k_clear_page_r4600_v1;
 			_copy_page = r4k_copy_page_r4600_v1;
@@ -1363,9 +1363,9 @@ static inline void __init setup_scache(unsigned int config)
 
 void __init ld_mmu_r4xx0(void)
 {
-	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long config = read_c0_config();
 
-	change_cp0_config(CONF_CM_CMASK | CONF_CU, CONF_CM_DEFAULT);
+	change_c0_config(CONF_CM_CMASK | CONF_CU, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);
@@ -1381,7 +1381,7 @@ void __init ld_mmu_r4xx0(void)
 
 	_flush_cache_sigtramp = r4k_flush_cache_sigtramp;
 	_flush_icache_range = r4k_flush_icache_range;	/* Ouch */
-	if ((read_32bit_cp0_register(CP0_PRID) & 0xfff0) == 0x2020) {
+	if ((read_c0_prid() & 0xfff0) == 0x2020) {
 		_flush_cache_sigtramp = r4600v20k_flush_cache_sigtramp;
 	}
 

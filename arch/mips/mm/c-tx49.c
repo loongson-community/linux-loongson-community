@@ -65,10 +65,10 @@ static inline void r49_flush_cache_all_d16i32(void)
 	local_irq_save(flags);
 	blast_dcache16_wayLSB();
 	/* disable icache (set ICE#) */
-	config = read_32bit_cp0_register(CP0_CONFIG);
-	write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
+	config = read_c0_config();
+	write_c0_config(config|TX49_CONF_IC);
 	blast_icache32_wayLSB();
-	write_32bit_cp0_register(CP0_CONFIG, config);
+	write_c0_config(config);
 	local_irq_restore(flags);
 }
 
@@ -79,10 +79,10 @@ static inline void r49_flush_cache_all_d32i32(void)
 	local_irq_save(flags);
 	blast_dcache32_wayLSB();
 	/* disable icache (set ICE#) */
-	config = read_32bit_cp0_register(CP0_CONFIG);
-	write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
+	config = read_c0_config();
+	write_c0_config(config|TX49_CONF_IC);
 	blast_icache32_wayLSB();
-	write_32bit_cp0_register(CP0_CONFIG, config);
+	write_c0_config(config);
 	local_irq_restore(flags);
 }
 
@@ -101,10 +101,10 @@ static void r49_flush_cache_range_d16i32(struct vm_area_struct *vma,
 		local_irq_save(flags);
 		blast_dcache16_wayLSB();
 		/* disable icache (set ICE#) */
-		config = read_32bit_cp0_register(CP0_CONFIG);
-		write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
+		config = read_c0_config();
+		write_c0_config(config|TX49_CONF_IC);
 		blast_icache32_wayLSB();
-		write_32bit_cp0_register(CP0_CONFIG, config);
+		write_c0_config(config);
 		local_irq_restore(flags);
 	}
 }
@@ -123,10 +123,10 @@ static void r49_flush_cache_range_d32i32(struct vm_area_struct *vma,
 		local_irq_save(flags);
 		blast_dcache32_wayLSB();
 		/* disable icache (set ICE#) */
-		config = read_32bit_cp0_register(CP0_CONFIG);
-		write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
+		config = read_c0_config();
+		write_c0_config(config|TX49_CONF_IC);
 		blast_icache32_wayLSB();
-		write_32bit_cp0_register(CP0_CONFIG, config);
+		write_c0_config(config);
 		local_irq_restore(flags);
 	}
 }
@@ -385,12 +385,12 @@ static void __init probe_dcache(unsigned long config)
 int mips_configk0 = -1;	/* board-specific setup routine can override this */
 void __init ld_mmu_tx49(void)
 {
-	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long config = read_c0_config();
 
 	if (mips_configk0 != -1)
-		change_cp0_config(CONF_CM_CMASK, mips_configk0);
+		change_c0_config(CONF_CM_CMASK, mips_configk0);
 	else
-		change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
+		change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	probe_icache(config);
 	probe_dcache(config);

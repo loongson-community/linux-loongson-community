@@ -427,7 +427,7 @@ static __init void probe_cache_sizes(void)
 {
 	u32 config1;
 
-	config1 = read_mips32_cp0_config1();
+	config1 = read_c0_config1();
 	icache_line_size = decode_cache_line_size((config1 >> 19) & 0x7);
 	dcache_line_size = decode_cache_line_size((config1 >> 10) & 0x7);
 	icache_sets = decode_cache_sets((config1 >> 22) & 0x7);
@@ -483,7 +483,7 @@ void ld_mmu_sb1(void)
 	_flush_cache_sigtramp = sb1_flush_cache_sigtramp;
 	_flush_icache_all = sb1_flush_icache_all;
 
-	change_cp0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
+	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 	/*
 	 * This is the only way to force the update of K0 to complete
 	 * before subsequent instruction fetch.

@@ -35,13 +35,13 @@ static int mips_cpu_irq_base;
 
 static inline void unmask_mips_irq(unsigned int irq)
 {
-	clear_cp0_cause(0x100 << (irq - mips_cpu_irq_base));
-	set_cp0_status(0x100 << (irq - mips_cpu_irq_base));
+	clear_c0_cause(0x100 << (irq - mips_cpu_irq_base));
+	set_c0_status(0x100 << (irq - mips_cpu_irq_base));
 }
 
 static inline void mask_mips_irq(unsigned int irq)
 {
-	clear_cp0_status(0x100 << (irq - mips_cpu_irq_base));
+	clear_c0_status(0x100 << (irq - mips_cpu_irq_base));
 }
 
 static inline void mips_cpu_irq_enable(unsigned int irq)
@@ -78,7 +78,7 @@ static unsigned int mips_cpu_irq_startup(unsigned int irq)
 static void mips_cpu_irq_ack(unsigned int irq)
 {
 	/* Only necessary for soft interrupts */
-	clear_cp0_cause(1 << (irq - mips_cpu_irq_base + 8));
+	clear_c0_cause(1 << (irq - mips_cpu_irq_base + 8));
 
 	mask_mips_irq(irq);
 }

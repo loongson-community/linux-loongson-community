@@ -103,10 +103,10 @@ void lasat_time_init()
 void lasat_timer_setup(struct irqaction *irq)
 {
 
-	write_32bit_cp0_register(CP0_COMPARE, 
-		read_32bit_cp0_register(CP0_COUNT) + 
+	write_c0_compare(
+		read_c0_count() + 
 		mips_counter_frequency / HZ);
-	change_cp0_status(ST0_IM, IE_IRQ0 | IE_IRQ5);
+	change_c0_status(ST0_IM, IE_IRQ0 | IE_IRQ5);
 }
 
 #define MIPS_CPU_TIMER_IRQ 7
@@ -138,7 +138,7 @@ void __init lasat_setup(void)
 #endif
 
 	/* Switch from prom exception handler to normal mode */
-	change_cp0_status(ST0_BEV,0);
+	change_c0_status(ST0_BEV,0);
 
 	prom_printf("platform_setup done\n");
 }

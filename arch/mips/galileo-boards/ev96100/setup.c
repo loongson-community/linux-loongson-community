@@ -73,14 +73,14 @@ void __init bus_error_init(void)
 
 void __init ev96100_setup(void)
 {
-	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
-	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
-	unsigned long info = read_32bit_cp0_register(CP0_INFO);
+	unsigned long config = read_c0_config();
+	unsigned long status = read_c0_status();
+	unsigned long info = read_c0_info();
 	u32 tmp;
 
 	char *argptr;
 
-	clear_cp0_status(ST0_FR);
+	clear_c0_status(ST0_FR);
 
         if (config & 0x8) {
             printk("Secondary cache is enabled\n");

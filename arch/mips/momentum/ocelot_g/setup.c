@@ -222,11 +222,11 @@ static void __init setup_l3cache(unsigned long size)
 	GT_WRITE(0, tmp | (1<<14));
 
 	/* Enable the L3 cache in the CPU */
-	set_cp0_config(1<<12 /* CONF_TE */);
+	set_c0_config(1<<12 /* CONF_TE */);
 
 	/* Clear the cache */
-	set_taglo(0);
-	set_taghi(0);
+	write_c0_taglo(0);
+	write_c0_taghi(0);
 
 	for (i=0; i < size; i+= 4096) {
 		__asm__ __volatile__ (

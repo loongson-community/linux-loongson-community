@@ -26,18 +26,18 @@ dump_tlb(int first, int last)
 	unsigned int asid;
 	unsigned long entryhi, entrylo0;
 
-	asid = get_entryhi() & 0xfc0;
+	asid = read_c0_entryhi() & 0xfc0;
 
 	for(i=first;i<=last;i++)
 	{
-		write_32bit_cp0_register(CP0_INDEX, i<<8);
+		write_c0_index(i<<8);
 		__asm__ __volatile__(
 			".set\tnoreorder\n\t"
 			"tlbr\n\t"
 			"nop\n\t"
 			".set\treorder");
-		entryhi  = read_32bit_cp0_register(CP0_ENTRYHI);
-		entrylo0 = read_32bit_cp0_register(CP0_ENTRYLO0);
+		entryhi  = read_c0_entryhi();
+		entrylo0 = read_c0_entrylo0();
 
 		/* Unused entries have a virtual address of KSEG0.  */
 		if ((entryhi & 0xffffe000) != 0x80000000
@@ -60,7 +60,7 @@ dump_tlb(int first, int last)
 	}
 	printk("\n");
 
-	set_entryhi(asid);
+	write_c0_entryhi(asid);
 }
 
 void
@@ -72,7 +72,7 @@ dump_tlb_all(void)
 void
 dump_tlb_wired(void)
 {
-	int wired = r3k_have_wired_reg ? get_wired() : 8;
+	int wired = r3k_have_wired_reg ? read_c0_wired() : 8;
 
 	printk("Wired: %d", wired);
 	dump_tlb(0, wired - 1);
@@ -85,11 +85,11 @@ dump_tlb_addr(unsigned long addr)
 	int index;
 
 	local_irq_save(flags);
-	oldpid = get_entryhi() & 0xff;
-	set_entryhi((addr & PAGE_MASK) | oldpid);
+	oldpid = read_c0_entryhi() & 0xff;
+	write_c0_entryhi((addr & PAGE_MASK) | oldpid);
 	tlb_probe();
-	index = get_index();
-	set_entryhi(oldpid);
+	index = read_c0_index();
+	write_c0_entryhi(oldpid);
 	local_irq_restore(flags);
 
 	if (index < 0) {
@@ -104,7 +104,7 @@ dump_tlb_addr(unsigned long addr)
 void
 dump_tlb_nonwired(void)
 {
-	int wired = r3k_have_wired_reg ? get_wired() : 8;
+	int wired = r3k_have_wired_reg ? read_c0_wired() : 8;
 	dump_tlb(wired, mips_cpu.tlbsize - 1);
 }
 

@@ -46,12 +46,12 @@ void local_flush_tlb_all(void)
 
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = (get_entryhi() & 0xff);
-	set_entrylo0(0);
-	set_entrylo1(0);
+	old_ctx = (read_c0_entryhi() & 0xff);
+	write_c0_entrylo0(0);
+	write_c0_entrylo1(0);
 	BARRIER;
 
-	entry = get_wired();
+	entry = read_c0_wired();
 
 	/* Blast 'em all away. */
 	while (entry < mips_cpu.tlbsize) {
@@ -59,15 +59,15 @@ void local_flush_tlb_all(void)
 		 * Make sure all entries differ.  If they're not different
 		 * MIPS32 will take revenge ...
 		 */
-		set_entryhi(KSEG0 + entry*0x2000);
-		set_index(entry);
+		write_c0_entryhi(KSEG0 + entry*0x2000);
+		write_c0_index(entry);
 		BARRIER;
 		tlb_write_indexed();
 		BARRIER;
 		entry++;
 	}
 	BARRIER;
-	set_entryhi(old_ctx);
+	write_c0_entryhi(old_ctx);
 	local_irq_restore(flags);
 }
 
@@ -82,7 +82,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		local_irq_save(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if (mm == current->active_mm)
-			set_entryhi(mm->context & 0xff);
+			write_c0_entryhi(mm->context & 0xff);
 		local_irq_restore(flags);
 	}
 }
@@ -104,7 +104,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= mips_cpu.tlbsize/2) {
-			int oldpid = (get_entryhi() & 0xff);
+			int oldpid = (read_c0_entryhi() & 0xff);
 			int newpid = (mm->context & 0xff);
 
 			start &= (PAGE_MASK << 1);
@@ -113,27 +113,27 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 			while (start < end) {
 				int idx;
 
-				set_entryhi(start | newpid);
+				write_c0_entryhi(start | newpid);
 				start += (PAGE_SIZE << 1);
 				BARRIER;
 				tlb_probe();
 				BARRIER;
-				idx = get_index();
-				set_entrylo0(0);
-				set_entrylo1(0);
+				idx = read_c0_index();
+				write_c0_entrylo0(0);
+				write_c0_entrylo1(0);
 				if (idx < 0)
 					continue;
 				/* Make sure all entries differ. */
-				set_entryhi(KSEG0 + idx*0x2000);
+				write_c0_entryhi(KSEG0 + idx*0x2000);
 				BARRIER;
 				tlb_write_indexed();
 				BARRIER;
 			}
-			set_entryhi(oldpid);
+			write_c0_entryhi(oldpid);
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if (mm == current->active_mm)
-				set_entryhi(mm->context & 0xff);
+				write_c0_entryhi(mm->context & 0xff);
 		}
 		local_irq_restore(flags);
 	}
@@ -151,7 +151,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
 	if (size <= mips_cpu.tlbsize / 2) {
-		int pid = get_entryhi();
+		int pid = read_c0_entryhi();
 
 		start &= (PAGE_MASK << 1);
 		end += ((PAGE_SIZE << 1) - 1);
@@ -160,23 +160,23 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		while (start < end) {
 			int idx;
 
-			set_entryhi(start);
+			write_c0_entryhi(start);
 			start += (PAGE_SIZE << 1);
 			BARRIER;
 			tlb_probe();
 			BARRIER;
-			idx = get_index();
-			set_entrylo0(0);
-			set_entrylo1(0);
+			idx = read_c0_index();
+			write_c0_entrylo0(0);
+			write_c0_entrylo1(0);
 			if (idx < 0)
 				continue;
 			/* Make sure all entries differ. */
-			set_entryhi(KSEG0 + idx*0x2000);
+			write_c0_entryhi(KSEG0 + idx*0x2000);
 			BARRIER;
 			tlb_write_indexed();
 			BARRIER;
 		}
-		set_entryhi(pid);
+		write_c0_entryhi(pid);
 	} else {
 		local_flush_tlb_all();
 	}
@@ -195,24 +195,24 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		newpid = (vma->vm_mm->context & 0xff);
 		page &= (PAGE_MASK << 1);
 		local_irq_save(flags);
-		oldpid = (get_entryhi() & 0xff);
-		set_entryhi(page | newpid);
+		oldpid = (read_c0_entryhi() & 0xff);
+		write_c0_entryhi(page | newpid);
 		BARRIER;
 		tlb_probe();
 		BARRIER;
-		idx = get_index();
-		set_entrylo0(0);
-		set_entrylo1(0);
+		idx = read_c0_index();
+		write_c0_entrylo0(0);
+		write_c0_entrylo1(0);
 		if(idx < 0)
 			goto finish;
 		/* Make sure all entries differ. */
-		set_entryhi(KSEG0+idx*0x2000);
+		write_c0_entryhi(KSEG0+idx*0x2000);
 		BARRIER;
 		tlb_write_indexed();
 
 	finish:
 		BARRIER;
-		set_entryhi(oldpid);
+		write_c0_entryhi(oldpid);
 		local_irq_restore(flags);
 	}
 }
@@ -236,7 +236,7 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 	if (current->active_mm != vma->vm_mm)
 		return;
 
-	pid = get_entryhi() & 0xff;
+	pid = read_c0_entryhi() & 0xff;
 
 #ifdef DEBUG_TLB
 	if((pid != (vma->vm_mm->context & 0xff)) || (vma->vm_mm->context == 0)) {
@@ -247,18 +247,18 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 
 	local_irq_save(flags);
 	address &= (PAGE_MASK << 1);
-	set_entryhi(address | pid);
+	write_c0_entryhi(address | pid);
 	pgdp = pgd_offset(vma->vm_mm, address);
 	BARRIER;
 	tlb_probe();
 	BARRIER;
 	pmdp = pmd_offset(pgdp, address);
-	idx = get_index();
+	idx = read_c0_index();
 	ptep = pte_offset(pmdp, address);
 	BARRIER;
-	set_entrylo0(pte_val(*ptep++) >> 6);
-	set_entrylo1(pte_val(*ptep) >> 6);
-	set_entryhi(address | pid);
+	write_c0_entrylo0(pte_val(*ptep++) >> 6);
+	write_c0_entrylo1(pte_val(*ptep) >> 6);
+	write_c0_entryhi(address | pid);
 	BARRIER;
 	if (idx < 0) {
 		tlb_write_random();
@@ -266,7 +266,7 @@ void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
 		tlb_write_indexed();
 	}
 	BARRIER;
-	set_entryhi(pid);
+	write_c0_entryhi(pid);
 	BARRIER;
 	local_irq_restore(flags);
 }
@@ -283,14 +283,14 @@ static void r4k_update_mmu_cache_hwbug(struct vm_area_struct * vma,
 
 	local_irq_save(flags);
 	address &= (PAGE_MASK << 1);
-	set_entryhi(address | (get_entryhi() & 0xff));
+	write_c0_entryhi(address | (read_c0_entryhi() & 0xff));
 	pgdp = pgd_offset(vma->vm_mm, address);
 	tlb_probe();
 	pmdp = pmd_offset(pgdp, address);
-	idx = get_index();
+	idx = write_c0_index();
 	ptep = pte_offset(pmdp, address);
-	set_entrylo0(pte_val(*ptep++) >> 6);
-	set_entrylo1(pte_val(*ptep) >> 6);
+	write_c0_entrylo0(pte_val(*ptep++) >> 6);
+	write_c0_entrylo1(pte_val(*ptep) >> 6);
 	BARRIER;
 	if (idx < 0)
 		tlb_write_random();
@@ -311,23 +311,23 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = get_entryhi() & 0xff;
-	old_pagemask = get_pagemask();
-	wired = get_wired();
-	set_wired(wired + 1);
-	set_index(wired);
+	old_ctx = read_c0_entryhi() & 0xff;
+	old_pagemask = read_c0_pagemask();
+	wired = read_c0_wired();
+	write_c0_wired(wired + 1);
+	write_c0_index(wired);
 	BARRIER;
-	set_pagemask(pagemask);
-	set_entryhi(entryhi);
-	set_entrylo0(entrylo0);
-	set_entrylo1(entrylo1);
+	write_c0_pagemask(pagemask);
+	write_c0_entryhi(entryhi);
+	write_c0_entrylo0(entrylo0);
+	write_c0_entrylo1(entrylo1);
 	BARRIER;
 	tlb_write_indexed();
 	BARRIER;
 
-	set_entryhi(old_ctx);
+	write_c0_entryhi(old_ctx);
 	BARRIER;
-	set_pagemask(old_pagemask);
+	write_c0_pagemask(old_pagemask);
 	local_flush_tlb_all();
 	local_irq_restore(flags);
 }
@@ -351,28 +351,28 @@ __init int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = get_entryhi() & 0xff;
-	old_pagemask = get_pagemask();
-	wired = get_wired();
+	old_ctx = read_c0_entryhi() & 0xff;
+	old_pagemask = read_c0_pagemask();
+	wired = read_c0_wired();
 	if (--temp_tlb_entry < wired) {
 		printk(KERN_WARNING "No TLB space left for add_temporary_entry\n");
 		ret = -ENOSPC;
 		goto out;
 	}
 
-	set_index(temp_tlb_entry);
+	write_c0_index(temp_tlb_entry);
 	BARRIER;
-	set_pagemask(pagemask);
-	set_entryhi(entryhi);
-	set_entrylo0(entrylo0);
-	set_entrylo1(entrylo1);
+	write_c0_pagemask(pagemask);
+	write_c0_entryhi(entryhi);
+	write_c0_entrylo0(entrylo0);
+	write_c0_entrylo1(entrylo1);
 	BARRIER;
 	tlb_write_indexed();
 	BARRIER;
 
-	set_entryhi(old_ctx);
+	write_c0_entryhi(old_ctx);
 	BARRIER;
-	set_pagemask(old_pagemask);
+	write_c0_pagemask(old_pagemask);
 out:
 	local_irq_restore(flags);
 	return ret;
@@ -382,7 +382,7 @@ static void __init probe_tlb(unsigned long config)
 {
 	unsigned int prid, config1;
 
-	prid = read_32bit_cp0_register(CP0_PRID) & 0xff00;
+	prid = read_c0_prid() & 0xff00;
 	if (prid == PRID_IMP_RM7000 || !(config & (1 << 31)))
 		/*
 		 * Not a MIPS32 complianant CPU.  Config 1 register not
@@ -391,7 +391,7 @@ static void __init probe_tlb(unsigned long config)
 		 */
 		return;
 
-	config1 = read_mips32_cp0_config1();
+	config1 = read_c0_config1();
 	if (!((config >> 7) & 3))
 		panic("No MMU present");
 	else
@@ -400,7 +400,7 @@ static void __init probe_tlb(unsigned long config)
 
 void __init r4k_tlb_init(void)
 {
-	u32 config = read_32bit_cp0_register(CP0_CONFIG);
+	u32 config = read_c0_config();
 
 	/*
 	 * You should never change this register:
@@ -410,8 +410,8 @@ void __init r4k_tlb_init(void)
 	 *     be set for 4kb pages.
 	 */
 	probe_tlb(config);
-	set_pagemask(PM_4K);
-	write_32bit_cp0_register(CP0_WIRED, 0);
+	write_c0_pagemask(PM_4K);
+	write_c0_wired(0);
 	temp_tlb_entry = mips_cpu.tlbsize - 1;
 	local_flush_tlb_all();
 

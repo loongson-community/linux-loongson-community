@@ -44,12 +44,12 @@ int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp)
 void prom_init_secondary(void)
 {
 	/* Set up kseg0 to be cachable coherent */
-	clear_cp0_config(CONF_CM_CMASK);
-	set_cp0_config(0x5);
+	clear_c0_config(CONF_CM_CMASK);
+	set_c0_config(0x5);
 
 	/* Enable interrupts for lines 0-4 */
-	clear_cp0_status(0xe000);
-	set_cp0_status(0x1f01);
+	clear_c0_status(0xe000);
+	set_c0_status(0x1f01);
 }
 
 /*

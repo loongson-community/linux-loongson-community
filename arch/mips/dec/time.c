@@ -99,7 +99,7 @@ static unsigned long do_fast_gettimeoffset(void)
 	    }
 	}
 	/* Get last timer tick in absolute kernel time */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -387,7 +387,7 @@ static void r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * The cycle counter is only 32 bit which is good for about
 	 * a minute at current count rates of upto 150MHz or so.
 	 */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
@@ -397,7 +397,7 @@ static void r4k_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		 * update the timer[hi]/[lo] to make do_fast_gettimeoffset()
 		 * quotient calc still valid. -arca
 		 */
-		write_32bit_cp0_register(CP0_COUNT, 0);
+		write_c0_count(0);
 		timerhi = timerlo = 0;
 	}
 
@@ -479,7 +479,7 @@ void __init time_init(void)
 	write_unlock_irq(&xtime_lock);
 
 	if (mips_cpu.options & MIPS_CPU_COUNTER) {
-		write_32bit_cp0_register(CP0_COUNT, 0);
+		write_c0_count(0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
 	} else if (IOASIC) {

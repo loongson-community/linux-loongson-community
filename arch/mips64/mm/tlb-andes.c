@@ -34,20 +34,20 @@ void local_flush_tlb_all(void)
 
 	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
-	old_ctx = get_entryhi() & ASID_MASK;
-	set_entryhi(CKSEG0);
-	set_entrylo0(0);
-	set_entrylo1(0);
+	old_ctx = read_c0_entryhi() & ASID_MASK;
+	write_c0_entryhi(CKSEG0);
+	write_c0_entrylo0(0);
+	write_c0_entrylo1(0);
 
-	entry = get_wired();
+	entry = read_c0_wired();
 
 	/* Blast 'em all away. */
 	while (entry < NTLB_ENTRIES) {
-		set_index(entry);
+		write_c0_index(entry);
 		tlb_write_indexed();
 		entry++;
 	}
-	set_entryhi(old_ctx);
+	write_c0_entryhi(old_ctx);
 	local_irq_restore(flags);
 }
 
@@ -62,7 +62,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 		local_irq_save(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if(mm == current->mm)
-			set_entryhi(cpu_context(smp_processor_id(), mm)
+			write_c0_entryhi(cpu_context(smp_processor_id(), mm)
 				    & ASID_MASK);
 		local_irq_restore(flags);
 	}
@@ -85,7 +85,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= NTLB_ENTRIES_HALF) {
-			int oldpid = (get_entryhi() & ASID_MASK);
+			int oldpid = (read_c0_entryhi() & ASID_MASK);
 			int newpid = (cpu_context(smp_processor_id(), mm)
 				      & ASID_MASK);
 
@@ -95,22 +95,22 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 			while(start < end) {
 				int idx;
 
-				set_entryhi(start | newpid);
+				write_c0_entryhi(start | newpid);
 				start += (PAGE_SIZE << 1);
 				tlb_probe();
-				idx = get_index();
-				set_entrylo0(0);
-				set_entrylo1(0);
-				set_entryhi(KSEG0);
+				idx = write_c0_index();
+				write_c0_entrylo0(0);
+				write_c0_entrylo1(0);
+				write_c0_entryhi(KSEG0);
 				if(idx < 0)
 					continue;
 				tlb_write_indexed();
 			}
-			set_entryhi(oldpid);
+			write_c0_entryhi(oldpid);
 		} else {
 			get_new_mmu_context(mm, smp_processor_id());
 			if(mm == current->mm)
-				set_entryhi(cpu_context(smp_processor_id(), mm)
+				write_c0_entryhi(cpu_context(smp_processor_id(), mm)
 					    & ASID_MASK);
 		}
 		local_irq_restore(flags);
@@ -127,7 +127,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 
 	local_irq_save(flags);
 	if (size <= NTLB_ENTRIES_HALF) {
-		int pid = get_entryhi();
+		int pid = read_c0_entryhi();
 
 		start &= (PAGE_MASK << 1);
 		end += ((PAGE_SIZE << 1) - 1);
@@ -136,18 +136,18 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 		while (start < end) {
 			int idx;
 
-			set_entryhi(start);
+			write_c0_entryhi(start);
 			start += (PAGE_SIZE << 1);
 			tlb_probe();
-			idx = get_index();
-			set_entrylo0(0);
-			set_entrylo1(0);
-			set_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
+			idx = read_c0_index();
+			write_c0_entrylo0(0);
+			write_c0_entrylo1(0);
+			write_c0_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
 			if (idx < 0)
 				continue;
 			tlb_write_indexed();
 		}
-		set_entryhi(pid);
+		write_c0_entryhi(pid);
 	} else {
 		local_flush_tlb_all();
 	}
@@ -167,19 +167,19 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 			  ASID_MASK);
 		page &= (PAGE_MASK << 1);
 		local_irq_save(flags);
-		oldpid = (get_entryhi() & ASID_MASK);
-		set_entryhi(page | newpid);
+		oldpid = (read_c0_entryhi() & ASID_MASK);
+		write_c0_entryhi(page | newpid);
 		tlb_probe();
-		idx = get_index();
-		set_entrylo0(0);
-		set_entrylo1(0);
-		set_entryhi(KSEG0);
+		idx = read_c0_index();
+		write_c0_entrylo0(0);
+		write_c0_entrylo1(0);
+		write_c0_entryhi(KSEG0);
 		if (idx < 0)
 			goto finish;
 		tlb_write_indexed();
 
 	finish:
-		set_entryhi(oldpid);
+		write_c0_entryhi(oldpid);
 		local_irq_restore(flags);
 	}
 }
@@ -202,7 +202,7 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 	if (current->active_mm != vma->vm_mm)
 		return;
 
-	pid = get_entryhi() & ASID_MASK;
+	pid = read_c0_entryhi() & ASID_MASK;
 
 	if ((pid != (cpu_context(smp_processor_id(), vma->vm_mm) & ASID_MASK))
 	    || (cpu_context(smp_processor_id(), vma->vm_mm) == 0)) {
@@ -214,21 +214,21 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 
 	local_irq_save(flags);
 	address &= (PAGE_MASK << 1);
-	set_entryhi(address | (pid));
+	write_c0_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
 	tlb_probe();
 	pmdp = pmd_offset(pgdp, address);
-	idx = get_index();
+	idx = read_c0_index();
 	ptep = pte_offset(pmdp, address);
-	set_entrylo0(pte_val(*ptep++) >> 6);
-	set_entrylo1(pte_val(*ptep) >> 6);
-	set_entryhi(address | (pid));
+	write_c0_entrylo0(pte_val(*ptep++) >> 6);
+	write_c0_entrylo1(pte_val(*ptep) >> 6);
+	write_c0_entryhi(address | (pid));
 	if (idx < 0) {
 		tlb_write_random();
 	} else {
 		tlb_write_indexed();
 	}
-	set_entryhi(pid);
+	write_c0_entryhi(pid);
 	local_irq_restore(flags);
 }
 
@@ -243,9 +243,9 @@ void __init andes_tlb_init(void)
 	 *   - The entire mm handling assumes the c0_pagemask register to
 	 *     be set for 4kb pages.
 	 */
-	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
-	write_32bit_cp0_register(CP0_WIRED, 0);
-	write_32bit_cp0_register(CP0_FRAMEMASK, 0);
+	write_c0_pagemask(PM_4K);
+	write_c0_wired(0);
+	write_c0_framemask(0);
 
         /* From this point on the ARC firmware is dead.  */
 	local_flush_tlb_all();

@@ -69,7 +69,7 @@ static void r5k_sc_enable(void)
         unsigned long flags;
 
 	local_irq_save(flags);
-	change_cp0_config(CONF_SE, CONF_SE);
+	change_c0_config(CONF_SE, CONF_SE);
 	blast_r5000_scache();
 	local_irq_restore(flags);
 }
@@ -80,13 +80,13 @@ static void r5k_sc_disable(void)
 
 	local_irq_save(flags);
 	blast_r5000_scache();
-	change_cp0_config(CONF_SE, 0);
+	change_c0_config(CONF_SE, 0);
 	local_irq_restore(flags);
 }
 
 static inline int __init r5k_sc_probe(void)
 {
-	unsigned long config = read_32bit_cp0_register(CP0_CONFIG);
+	unsigned long config = read_c0_config();
 
 	if(config & CONF_SC)
 		return(0);

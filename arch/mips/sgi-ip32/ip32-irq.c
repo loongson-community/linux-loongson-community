@@ -124,7 +124,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
 
 static void enable_cpu_irq(unsigned int irq)
 {
-	set_cp0_status(STATUSF_IP7);
+	set_c0_status(STATUSF_IP7);
 }
 
 static unsigned int startup_cpu_irq(unsigned int irq)
@@ -135,7 +135,7 @@ static unsigned int startup_cpu_irq(unsigned int irq)
 
 static void disable_cpu_irq(unsigned int irq)
 {
-	clear_cp0_status(STATUSF_IP7);
+	clear_c0_status(STATUSF_IP7);
 }
 
 static void end_cpu_irq(unsigned int irq)
@@ -447,8 +447,8 @@ static void ip32_unknown_interrupt (struct pt_regs *regs)
 
 	printk ("Unknown interrupt occurred!\n");
 	printk ("cp0_status: %08x\tcp0_cause: %08x\n",
-		read_32bit_cp0_register (CP0_STATUS),
-		read_32bit_cp0_register (CP0_CAUSE));
+		read_c0_status(),
+		read_c0_cause());
 	crime = crime_read_64 (CRIME_INT_MASK);
 	printk ("CRIME interrupt mask: %016lx\n", crime);
 	crime = crime_read_64 (CRIME_INT_STAT);

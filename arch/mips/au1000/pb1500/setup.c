@@ -93,7 +93,7 @@ void __init au1500_setup(void)
 	/* NOTE: The memory map is established by YAMON 2.08+ */
 
 	/* Various early Au1500 Errata corrected by this */
-	set_cp0_config(1<<19); /* Config[OD] */
+	set_c0_config(1<<19); /* Config[OD] */
 
 #ifdef CONFIG_AU1000_SERIAL_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {

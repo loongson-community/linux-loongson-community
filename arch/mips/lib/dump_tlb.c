@@ -41,11 +41,11 @@ void dump_tlb(int first, int last)
 	unsigned long long entrylo0, entrylo1;
 	unsigned long entryhi;
 
-	asid = get_entryhi() & 0xff;
+	asid = read_c0_entryhi() & 0xff;
 
 	printk("\n");
 	for(i=first;i<=last;i++) {
-		write_32bit_cp0_register(CP0_INDEX, i);
+		write_c0_index(i);
 		__asm__ __volatile__(
 			".set\tmips3\n\t"
 			".set\tnoreorder\n\t"
@@ -54,10 +54,10 @@ void dump_tlb(int first, int last)
 			"nop;nop;nop;nop\n\t"
 			".set\treorder\n\t"
 			".set\tmips0\n\t");
-		pagemask = read_32bit_cp0_register(CP0_PAGEMASK);
-		entryhi  = read_32bit_cp0_register(CP0_ENTRYHI);
-		entrylo0 = get_entrylo0();
-		entrylo1 = get_entrylo1();
+		pagemask = read_c0_pagemask();
+		entryhi  = read_c0_entryhi();
+		entrylo0 = read_c0_entrylo0();
+		entrylo1 = read_c0_entrylo1();
 
 		/* Unused entries have a virtual address in KSEG0.  */
 		if ((entryhi & 0xf0000000) != 0x80000000
@@ -86,7 +86,7 @@ void dump_tlb(int first, int last)
 		}
 	}
 
-	set_entryhi(asid);
+	write_c0_entryhi(asid);
 }
 
 void dump_tlb_all(void)
@@ -98,9 +98,9 @@ void dump_tlb_wired(void)
 {
 	int	wired;
 
-	wired = read_32bit_cp0_register(CP0_WIRED);
+	wired = read_c0_wired();
 	printk("Wired: %d", wired);
-	dump_tlb(0, read_32bit_cp0_register(CP0_WIRED));
+	dump_tlb(0, read_c0_wired());
 }
 
 #define BARRIER						\
@@ -116,14 +116,14 @@ dump_tlb_addr(unsigned long addr)
 	int index;
 
 	local_irq_save(flags);
-	oldpid = get_entryhi() & 0xff;
+	oldpid = read_c0_entryhi() & 0xff;
 	BARRIER;
-	set_entryhi((addr & PAGE_MASK) | oldpid);
+	write_c0_entryhi((addr & PAGE_MASK) | oldpid);
 	BARRIER;
 	tlb_probe();
 	BARRIER;
-	index = get_index();
-	set_entryhi(oldpid);
+	index = read_c0_index();
+	write_c0_entryhi(oldpid);
 	local_irq_restore(flags);
 
 	if (index < 0) {
@@ -138,7 +138,7 @@ dump_tlb_addr(unsigned long addr)
 void
 dump_tlb_nonwired(void)
 {
-	dump_tlb(read_32bit_cp0_register(CP0_WIRED), mips_cpu.tlbsize - 1);
+	dump_tlb(read_c0_wired(), mips_cpu.tlbsize - 1);
 }
 
 void

@@ -85,9 +85,9 @@ static void disable_ev64120_irq(unsigned int irq_nr)
 	local_irq_save(flags);
 	if (irq_nr >= 8) {
 		/* All PCI interrupts are on line 5 or 2  */
-		clear_cp0_status(IE_IRQ0 | IE_IRQ3);
+		clear_c0_status(IE_IRQ0 | IE_IRQ3);
 	} else {
-		clear_cp0_status(0x100 << irq_nr);
+		clear_c0_status(0x100 << irq_nr);
 	}
 	local_irq_restore(flags);
 }
@@ -101,9 +101,9 @@ static inline void enable_ev64120_irq(unsigned int irq_nr)
 	local_irq_save(flags);
 	if (irq_nr >= 8) {
 		/* All PCI interrupts are on line 5 or 2  */
-		set_cp0_status(IE_IRQ0 | IE_IRQ3);
+		set_c0_status(IE_IRQ0 | IE_IRQ3);
 	} else {
-		set_cp0_status(IE_SW0 << irq_nr);
+		set_c0_status(IE_SW0 << irq_nr);
 	}
 	local_irq_restore(flags);
 }
@@ -179,7 +179,7 @@ void __init init_IRQ(void)
 	 * Enable timer.  Other interrupts will be enabled as they are
 	 * registered.
 	 */
-	change_cp0_status(ST0_IM | IE_IRQ2, IE_IRQ2);
+	change_c0_status(ST0_IM | IE_IRQ2, IE_IRQ2);
 
 	/* Sets the exception_handler array. */
 	set_except_vector(0, galileo_handle_int);

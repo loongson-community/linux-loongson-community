@@ -135,7 +135,7 @@ void __init it8172_setup(void)
 	}
 #endif
 
-	clear_cp0_status(ST0_FR);
+	clear_c0_status(ST0_FR);
 	rtc_ops = &it8172_rtc_ops;
 
 	board_time_init = it8172_time_init;

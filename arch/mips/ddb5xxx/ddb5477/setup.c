@@ -109,8 +109,8 @@ static void __init ddb_timer_setup(struct irqaction *irq)
 	setup_irq(7, irq);
 
         /* to generate the first timer interrupt */
-        count = read_32bit_cp0_register(CP0_COUNT);
-        write_32bit_cp0_register(CP0_COMPARE, count + 1000);
+        count = read_c0_count();
+        write_c0_compare(count + 1000);
 
 #else
 

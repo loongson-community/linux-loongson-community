@@ -47,7 +47,7 @@ static void tx39h_flush_icache_all(void)
 
 	/* disable icache (set ICE#) */
 	local_irq_save(flags);
-	config = read_32bit_cp0_register(CP0_CONF);
+	config = read_c0_conf();
 
 	/* invalidate icache */
 	while (start < end) {
@@ -55,7 +55,7 @@ static void tx39h_flush_icache_all(void)
 		start += 0x200;
 	}
 
-	write_32bit_cp0_register(CP0_CONF, config);
+	write_c0_conf(config);
 	local_irq_restore(flags);
 }
 
@@ -82,10 +82,10 @@ static inline void tx39_flush_cache_all(void)
 	local_irq_save(flags);
 	blast_dcache16_wayLSB();
 	/* disable icache (set ICE#) */
-	config = read_32bit_cp0_register(CP0_CONF);
-	write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
+	config = read_c0_conf();
+	write_c0_conf(config & ~TX39_CONF_ICE);
 	blast_icache16_wayLSB();
-	write_32bit_cp0_register(CP0_CONF, config);
+	write_c0_conf(config);
 	local_irq_restore(flags);
 }
 
@@ -113,10 +113,10 @@ static void tx39_flush_cache_range(struct vm_area_struct *vma,
 		local_irq_save(flags);
 		blast_dcache16_wayLSB();
 		/* disable icache (set ICE#) */
-		config = read_32bit_cp0_register(CP0_CONF);
-		write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
+		config = read_c0_conf();
+		write_c0_conf(config & ~TX39_CONF_ICE);
 		blast_icache16_wayLSB();
-		write_32bit_cp0_register(CP0_CONF, config);
+		write_c0_conf(config);
 		local_irq_restore(flags);
 	}
 }
@@ -239,10 +239,10 @@ static void tx39_flush_cache_sigtramp(unsigned long addr)
 	protected_writeback_dcache_line(addr & ~(dcache_lsize - 1));
 
 	/* disable icache (set ICE#) */
-	config = read_32bit_cp0_register(CP0_CONF);
-	write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
+	config = read_c0_conf();
+	write_c0_conf(config & ~TX39_CONF_ICE);
 	protected_flush_icache_line(addr & ~(icache_lsize - 1));
-	write_32bit_cp0_register(CP0_CONF, config);
+	write_c0_conf(config);
 	local_irq_restore(flags);
 }
 
@@ -250,7 +250,7 @@ static __init void tx39_probe_cache(void)
 {
 	unsigned long config;
 
-	config = read_32bit_cp0_register(CP0_CONF);
+	config = read_c0_conf();
 
 	icache_size = 1 << (10 + ((config >> 19) & 3));
 	dcache_size = 1 << (10 + ((config >> 16) & 3));
@@ -276,9 +276,9 @@ void __init ld_mmu_tx39(void)
 	_clear_page = r3k_clear_page;
 	_copy_page = r3k_copy_page;
 
-	config = read_32bit_cp0_register(CP0_CONF);
+	config = read_c0_conf();
 	config &= ~TX39_CONF_WBON;
-	write_32bit_cp0_register(CP0_CONF, config);
+	write_c0_conf(config);
 
 	tx39_probe_cache();
 
@@ -303,7 +303,7 @@ void __init ld_mmu_tx39(void)
 	default:
 		/* TX39/H2,H3 core (writeback 2way-set-associative cache) */
 		r3k_have_wired_reg = 1;
-		set_wired (0);	/* set 8 on reset... */
+		write_c0_wired(0);	/* set 8 on reset... */
 		/* board-dependent init code may set WBON */
 
 		_flush_cache_all = tx39_flush_cache_all;

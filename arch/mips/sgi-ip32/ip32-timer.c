@@ -53,12 +53,12 @@ void __init ip32_timer_setup (struct irqaction *irq)
 	printk("Calibrating system timer... ");
 
 	crime_time = crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK;
-	cc_tick = read_32bit_cp0_register (CP0_COUNT);
+	cc_tick = read_c0_count();
 
 	while ((crime_read_64 (CRIME_TIME) & CRIME_TIME_MASK) - crime_time
 		< WAIT_MS * 1000000 / CRIME_NS_PER_TICK)
 		;
-	cc_tick = read_32bit_cp0_register (CP0_COUNT) - cc_tick;
+	cc_tick = read_c0_count() - cc_tick;
 	cc_interval = cc_tick / HZ * (1000 / WAIT_MS);
 	/* The round-off seems unnecessary; in testing, the error of the
 	 * above procedure is < 100 ticks, which means it gets filtered
@@ -82,11 +82,11 @@ void cc_timer_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	 * The cycle counter is only 32 bit which is good for about
 	 * a minute at current count rates of upto 150MHz or so.
 	 */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 	timerhi += (count < timerlo);	/* Wrap around */
 	timerlo = count;
 
-	write_32bit_cp0_register (CP0_COMPARE,
+	write_c0_compare(
 				  (u32) (count + cc_interval));
 	kstat_cpu(0).irqs[irq]++;
 	do_timer (regs);
@@ -153,7 +153,7 @@ static unsigned long do_gettimeoffset(void)
 	}
 
 	/* Get last timer tick in absolute kernel time */
-	count = read_32bit_cp0_register(CP0_COUNT);
+	count = read_c0_count();
 
 	/* .. relative to previous jiffy (32 bits is enough) */
 	count -= timerlo;
@@ -223,16 +223,16 @@ void __init ip32_time_init(void)
 	xtime.tv_nsec = 0;
 	write_unlock_irq (&xtime_lock);
 
-	write_32bit_cp0_register(CP0_COUNT, 0);
+	write_c0_count(0);
 	irq0.handler = cc_timer_interrupt;
 
 	ip32_timer_setup (&irq0);
 
 #define ALLINTS (IE_IRQ0 | IE_IRQ1 | IE_IRQ2 | IE_IRQ3 | IE_IRQ4 | IE_IRQ5)
 	/* Set ourselves up for future interrupts */
-        write_32bit_cp0_register(CP0_COMPARE,
-				 read_32bit_cp0_register(CP0_COUNT)
+        write_c0_compare(
+				 read_c0_count()
 				 + cc_interval);
-        change_cp0_status(ST0_IM, ALLINTS);
+        change_c0_status(ST0_IM, ALLINTS);
 	sti ();
 }

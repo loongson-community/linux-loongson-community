@@ -113,7 +113,7 @@ done:
 
 static void enable_irq4(unsigned int irq)
 {
-	set_cp0_status(STATUSF_IP4);
+	set_c0_status(STATUSF_IP4);
 	if (irq == 2) {
 		outl(inl(TX3912_INT2_CLEAR) | TX3912_INT2_UARTA_TX_BITS,
 			TX3912_INT2_CLEAR);
@@ -131,7 +131,7 @@ static unsigned int startup_irq4(unsigned int irq)
 
 static void disable_irq4(unsigned int irq)
 {
-	clear_cp0_status(STATUSF_IP4);
+	clear_c0_status(STATUSF_IP4);
 }
 
 #define shutdown_irq4		disable_irq4
@@ -199,7 +199,7 @@ void __init nino_irq_setup(void)
 	unsigned int i;
 
 	/* Disable all hardware interrupts */
-	change_cp0_status(ST0_IM, 0x00);
+	change_c0_status(ST0_IM, 0x00);
 
 	/* Clear interrupts */
 	outl(0xffffffff, TX3912_INT1_CLEAR);
@@ -244,7 +244,7 @@ void __init nino_irq_setup(void)
 		TX3912_INT6_ENABLE);
 
 	/* Enable all interrupts */
-	change_cp0_status(ST0_IM, ALLINTS);
+	change_c0_status(ST0_IM, ALLINTS);
 }
 
 void (*irq_setup)(void);

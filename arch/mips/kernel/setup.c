@@ -135,8 +135,8 @@ init_arch(int argc, char **argv, char **envp, int *prom_vec)
 	loadmmu();
 
 	/* Disable coprocessors and set FPU for 16/32 FPR register model */
-	clear_cp0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
-	set_cp0_status(ST0_CU0);
+	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
+	set_c0_status(ST0_CU0);
 
 	start_kernel();
 }

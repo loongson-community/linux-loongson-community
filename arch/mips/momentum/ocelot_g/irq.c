@@ -60,18 +60,18 @@ static inline void modify_cp0_intmask(unsigned clr_mask_in, unsigned set_mask_in
 	/* do the low 8 bits first */
 	clr_mask = 0xff & clr_mask_in;
 	set_mask = 0xff & set_mask_in;
-	status = read_32bit_cp0_register(CP0_STATUS);
+	status = read_c0_status();
 	status &= ~((clr_mask & 0xFF) << 8);
 	status |= (set_mask & 0xFF) << 8;
-	write_32bit_cp0_register(CP0_STATUS, status);
+	write_c0_status(status);
 
 	/* do the high 8 bits */
 	clr_mask = 0xff & (clr_mask_in >> 8);
 	set_mask = 0xff & (set_mask_in >> 8);
-	status = read_32bit_cp0_set1_register(CP0_S1_INTCONTROL);
+	status = read_c0_intcontrol();
 	status &= ~((clr_mask & 0xFF) << 8);
 	status |= (set_mask & 0xFF) << 8;
-	write_32bit_cp0_set1_register(CP0_S1_INTCONTROL, status);
+	write_c0_intrcontrol(status);
 }
 
 static inline void mask_irq(unsigned int irq)
@@ -145,7 +145,7 @@ void __init init_IRQ(void)
 	 * Clear all of the interrupts while we change the able around a bit.
 	 * int-handler is not on bootstrap
 	 */
-	clear_cp0_status(ST0_IM | ST0_BEV);
+	clear_c0_status(ST0_IM | ST0_BEV);
 	local_irq_disable();
 
 	/* Sets the first-level interrupt dispatcher. */

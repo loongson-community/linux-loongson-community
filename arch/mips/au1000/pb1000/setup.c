@@ -83,12 +83,12 @@ void __init au1000_setup(void)
 	char *argptr;
 	u32 pin_func, static_cfg0;
 	u32 sys_freqctrl, sys_clksrc;
-	u32 prid = read_32bit_cp0_register(CP0_PRID);
+	u32 prid = read_c0_prid();
 
 	argptr = prom_getcmdline();
 
 	/* Various early Au1000 Errata corrected by this */
-	set_cp0_config(1<<19); /* Config[OD] */
+	set_c0_config(1<<19); /* Config[OD] */
 
 #ifdef CONFIG_AU1000_SERIAL_CONSOLE
 	if ((argptr = strstr(argptr, "console=")) == NULL) {

@@ -135,14 +135,14 @@ void __init ev64120_setup(void)
 
 #ifdef CONFIG_L2_L3_CACHE
 #error "external cache not implemented yet"
-	config_register = read_32bit_cp0_register(CP0_CONFIG);
+	config_register = read_c0_config();
 	printk("\n\n\nchecking second level cache cp0_config = %08lx\n",
 	       config_register);
 	if (config_register & CONF_SC) {	// second/third level cache available
 		config_register = config_register & (1 << 12);
-		write_32bit_cp0_register(CP0_CONFIG, config_register);
+		write_c0_config(config_register);
 		printk
-		    ("\n\n\nchecking second level cache cp0_config = %08lx\n",
+		    ("\n\n\nchecking second level cache c0_config = %08lx\n",
 		     config_register);
 	}
 #endif

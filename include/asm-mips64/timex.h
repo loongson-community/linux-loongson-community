@@ -10,6 +10,8 @@
 #ifndef _ASM_TIMEX_H
 #define _ASM_TIMEX_H
 
+#include <asm/mipsregs.h>
+
 #define CLOCK_TICK_RATE	1193180 /* Underlying HZ */
 #define CLOCK_TICK_FACTOR	20	/* Factor of both 1000000 and CLOCK_TICK_RATE */
 #define FINETUNE ((((((long)LATCH * HZ - CLOCK_TICK_RATE) << SHIFT_HZ) * \
@@ -32,15 +34,7 @@ extern cycles_t cacheflush_time;
 
 static inline cycles_t get_cycles (void)
 {
-	cycles_t val;
-
-	__asm__ __volatile__(
-		".set noreorder\n\t"
-		"mfc0 %0, $9\n\t"
-		".set reorder"
-		: "=r" (val));
-
-	return val;
+	return read_c0_count();
 }
 
 #endif /*  _ASM_TIMEX_H */

@@ -59,10 +59,10 @@ static inline int irq_to_pil(int irq_nr)
 
 static inline void modify_cp0_intmask(unsigned clr_mask, unsigned set_mask)
 {
-	unsigned long status = read_32bit_cp0_register(CP0_STATUS);
+	unsigned long status = read_c0_status();
 	status &= ~((clr_mask & 0xFF) << 8);
 	status |=   (set_mask & 0xFF) << 8;
-	write_32bit_cp0_register(CP0_STATUS, status);
+	write_c0_status(status);
 }
 
 /*
@@ -213,7 +213,7 @@ static void vic_reg_error(unsigned long address, unsigned char active_pils)
 	printk("\nNo VIC register found: reg=%08lx active_pils=%02x\n"
 	       "Current interrupt mask from CP0_CAUSE: %02x\n",
 	       address, 0xff & active_pils,
-	       0xff & (read_32bit_cp0_register(CP0_CAUSE)>>8));
+	       0xff & (read_c0_cause()>>8));
 	{ int i; for (i=0; i<10000; i++) udelay(1000); }
 }
 
@@ -230,7 +230,7 @@ asmlinkage void baget_interrupt(struct pt_regs *regs)
 		BAGET_INT_NONE, BAGET_INT_FPU,  BAGET_INT_NONE, BAGET_INT5_ACK
 	};
 	unsigned char active_pils;
-	while ((active_pils = read_32bit_cp0_register(CP0_CAUSE)>>8)) {
+	while ((active_pils = read_c0_cause()>>8)) {
 		int pil;
 		struct baget_int_reg* reg;
 
