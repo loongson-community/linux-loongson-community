@@ -226,7 +226,7 @@ static ssize_t write_getfs(struct file *file, const char *buf, size_t size)
 {
 	struct nfsctl_fsparm data;
 	struct sockaddr_in *sin;
-	struct svc_client *clp;
+	struct auth_domain *clp;
 	int err = 0;
 	struct knfsd_fh *res;
 
@@ -246,10 +246,12 @@ static ssize_t write_getfs(struct file *file, const char *buf, size_t size)
 		return -ENOMEM;
 	memset(res, 0, sizeof(struct knfsd_fh));
 	exp_readlock();
-	if (!(clp = exp_getclient(sin)))
+	if (!(clp = auth_unix_lookup(sin->sin_addr)))
 		err = -EPERM;
-	else
+	else {
 		err = exp_rootfh(clp, data.gd_path, res, data.gd_maxlen);
+		auth_domain_put(clp);
+	}
 	exp_readunlock();
 
 	down(&file->f_dentry->d_inode->i_sem);
@@ -271,7 +273,7 @@ static ssize_t write_getfd(struct file *file, const char *buf, size_t size)
 {
 	struct nfsctl_fdparm data;
 	struct sockaddr_in *sin;
-	struct svc_client *clp;
+	struct auth_domain *clp;
 	int err = 0;
 	struct knfsd_fh fh;
 	char *res;
@@ -291,10 +293,12 @@ static ssize_t write_getfd(struct file *file, const char *buf, size_t size)
 		return -ENOMEM;
 	sin = (struct sockaddr_in *)&data.gd_addr;
 	exp_readlock();
-	if (!(clp = exp_getclient(sin)))
+	if (!(clp = auth_unix_lookup(sin->sin_addr)))
 		err = -EPERM;
-	else
+	else {
 		err = exp_rootfh(clp, data.gd_path, &fh, NFS_FHSIZE);
+		auth_domain_put(clp);
+	}
 	exp_readunlock();
 
 	down(&file->f_dentry->d_inode->i_sem);

@@ -6,9 +6,9 @@
 #include "linux/sched.h"
 #include "linux/slab.h"
 #include "linux/bootmem.h"
+#include "asm/pgalloc.h"
 #include "asm-generic/tlb.h"
 #include "asm/pgtable.h"
-#include "asm/pgalloc.h"
 #include "asm/a.out.h"
 #include "asm/processor.h"
 #include "asm/mmu_context.h"
@@ -99,7 +99,7 @@ void flush_kernel_range(unsigned long start, unsigned long end, int update_seq)
 	int updated = 0, err;
 
 	mm = &init_mm;
-	for(addr = start_vm; addr < end_vm;){
+	for(addr = start; addr < end;){
 		pgd = pgd_offset(mm, addr);
 		pmd = pmd_offset(pgd, addr);
 		if(pmd_present(*pmd)){

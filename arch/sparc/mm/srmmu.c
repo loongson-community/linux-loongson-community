@@ -1340,8 +1340,9 @@ void __init srmmu_paging_init(void)
 		zones_size[ZONE_HIGHMEM] = npages;
 		zholes_size[ZONE_HIGHMEM] = npages - calc_highpages();
 
-		free_area_init_node(0, NULL, NULL, zones_size,
+		free_area_init_node(0, &contig_page_data, NULL, zones_size,
 				    phys_base >> PAGE_SHIFT, zholes_size);
+		mem_map = contig_page_data.node_mem_map;
 	}
 
 /* P3: easy to fix, todo. Current code is utterly broken, though. */

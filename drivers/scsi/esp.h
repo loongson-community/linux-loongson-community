@@ -8,6 +8,8 @@
 #ifndef _SPARC_ESP_H
 #define _SPARC_ESP_H
 
+#include <linux/config.h>
+
 /* For dvma controller register definitions. */
 #include <asm/dma.h>
 
@@ -60,6 +62,17 @@ enum esp_rev {
 	fast       = 0x05,
 	fashme     = 0x06,
 	espunknown = 0x07
+};
+
+/* We allocate one of these for each scsi device and attach it to
+ * SDptr->hostdata for use in the driver
+ */
+struct esp_device {
+  unsigned char sync_min_period;
+  unsigned char sync_max_offset;
+  unsigned sync:1;
+  unsigned wide:1;
+  unsigned disconnect:1;
 };
 
 /* We get one of these for each ESP probed. */
@@ -397,14 +410,15 @@ extern int esp_abort(Scsi_Cmnd *);
 extern int esp_reset(Scsi_Cmnd *, unsigned int);
 extern int esp_proc_info(char *buffer, char **start, off_t offset, int length,
 			 int hostno, int inout);
-extern int esp_revoke(Scsi_Device* SDptr);
+extern void esp_slave_detach(Scsi_Device* SDptr);
 
+#ifdef CONFIG_SPARC64
 #define SCSI_SPARC_ESP {                                        \
 		proc_name:      "esp",				\
 		proc_info:      &esp_proc_info,			\
 		name:           "Sun ESP 100/100a/200",		\
 		detect:         esp_detect,			\
-		revoke:		esp_revoke,			\
+		slave_detach:	esp_slave_detach,		\
 		info:           esp_info,			\
 		command:        esp_command,			\
 		queuecommand:   esp_queue,			\
@@ -417,6 +431,26 @@ extern int esp_revoke(Scsi_Device* SDptr);
 		use_clustering: ENABLE_CLUSTERING,		\
 		highmem_io:	1,				\
 }
+#else
+/* Sparc32's iommu code cannot handle highmem pages yet. */
+#define SCSI_SPARC_ESP {                                        \
+		proc_name:      "esp",				\
+		proc_info:      &esp_proc_info,			\
+		name:           "Sun ESP 100/100a/200",		\
+		detect:         esp_detect,			\
+		slave_detach:	esp_slave_detach,		\
+		info:           esp_info,			\
+		command:        esp_command,			\
+		queuecommand:   esp_queue,			\
+		abort:          esp_abort,			\
+		reset:          esp_reset,			\
+		can_queue:      7,				\
+		this_id:        7,				\
+		sg_tablesize:   SG_ALL,				\
+		cmd_per_lun:    1,				\
+		use_clustering: ENABLE_CLUSTERING,		\
+}
+#endif
 
 /* For our interrupt engine. */
 #define for_each_esp(esp) \

@@ -1953,9 +1953,7 @@ sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 	}
 
 	spin_lock_irq(&current->sig->siglock);
-	sig = dequeue_signal(&current->sig->shared_pending, &these, &info);
-	if (!sig)
-		sig = dequeue_signal(&current->pending, &these, &info);
+	sig = dequeue_signal(&these, &info);
 	if (!sig) {
 		/* None ready -- temporarily unblock those we're interested
 		   in so that we'll be awakened when they arrive.  */
@@ -1973,9 +1971,7 @@ sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 		timeout = schedule_timeout(timeout);
 
 		spin_lock_irq(&current->sig->siglock);
-		sig = dequeue_signal(&current->sig->shared_pending, &these, &info);
-		if (!sig)
-			sig = dequeue_signal(&current->pending, &these, &info);
+		sig = dequeue_signal(&these, &info);
 		current->blocked = current->real_blocked;
 		siginitset(&current->real_blocked, 0);
 		recalc_sigpending();
@@ -3680,7 +3676,7 @@ static int nfs_uud32_trans(struct nfsctl_arg *karg, struct nfsctl_arg32 *arg32)
 	memset(karg, 0, sizeof(*karg));
 	if(__get_user(karg->ca_version, &arg32->ca32_version))
 		return -EFAULT;
-	karg->ca_umap.ug_ident = (char *)get_free_page(GFP_USER);
+	karg->ca_umap.ug_ident = (char *)get_zeroed_page(GFP_USER);
 	if(!karg->ca_umap.ug_ident)
 		return -ENOMEM;
 	err = __get_user(uaddr, &arg32->ca32_umap.ug32_ident);

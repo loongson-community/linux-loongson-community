@@ -289,6 +289,7 @@ struct device {
 	void		*platform_data;	/* Platform specific data (e.g. ACPI,
 					   BIOS data relevant to device) */
 
+	u32		present;
 	u32		current_state;  /* Current operating state. In
 					   ACPI-speak, this is D0-D3, D0
 					   being fully functional, and D3
@@ -327,7 +328,7 @@ dev_set_drvdata (struct device *dev, void *data)
  * High level routines for use by the bus drivers
  */
 extern int device_register(struct device * dev);
-
+extern void device_unregister(struct device * dev);
 
 /* driverfs interface for exporting device attributes */
 
@@ -420,5 +421,24 @@ extern struct bus_type platform_bus_type;
 extern int device_suspend(u32 state, u32 level);
 extern void device_resume(u32 level);
 extern void device_shutdown(void);
+
+/* debugging and troubleshooting/diagnostic helpers. */
+#ifdef DEBUG
+#define dev_dbg(dev, format, arg...)		\
+	printk (KERN_DEBUG "%s %s: " format ,	\
+		dev.driver->name , dev.bus_id , ## arg)
+#else
+#define dev_dbg(dev, format, arg...) do {} while (0)
+#endif
+
+#define dev_err(dev, format, arg...)		\
+	printk (KERN_ERR "%s %s: " format ,	\
+		dev.driver->name , dev.bus_id , ## arg)
+#define dev_info(dev, format, arg...)		\
+	printk (KERN_INFO "%s %s: " format ,	\
+		dev.driver->name , dev.bus_id , ## arg)
+#define dev_warn(dev, format, arg...)		\
+	printk (KERN_WARN "%s %s: " format ,	\
+		dev.driver->name , dev.bus_id , ## arg)
 
 #endif /* _DEVICE_H_ */

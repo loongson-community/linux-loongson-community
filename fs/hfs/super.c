@@ -87,13 +87,13 @@ static void destroy_inodecache(void)
 /*================ Global variables ================*/
 
 static struct super_operations hfs_super_operations = { 
-	alloc_inode:	hfs_alloc_inode,
-	destroy_inode:	hfs_destroy_inode,
-	read_inode:	hfs_read_inode,
-	put_inode:	hfs_put_inode,
-	put_super:	hfs_put_super,
-	write_super:	hfs_write_super,
-	statfs:		hfs_statfs,
+	.alloc_inode	= hfs_alloc_inode,
+	.destroy_inode	= hfs_destroy_inode,
+	.read_inode	= hfs_read_inode,
+	.put_inode	= hfs_put_inode,
+	.put_super	= hfs_put_super,
+	.write_super	= hfs_write_super,
+	.statfs		= hfs_statfs,
 };
 
 /*================ File-local variables ================*/
@@ -105,11 +105,11 @@ static struct super_block *hfs_get_sb(struct file_system_type *fs_type,
 }
 
 static struct file_system_type hfs_fs = {
-	owner:		THIS_MODULE,
-	name:		"hfs",
-	get_sb:		hfs_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "hfs",
+	.get_sb		= hfs_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 /*================ File-local functions ================*/
@@ -181,8 +181,8 @@ static void hfs_put_super(struct super_block *sb)
 	/* release the MDB's resources */
 	hfs_mdb_put(mdb, sb->s_flags & MS_RDONLY);
 
-	kfree(sb->u.generic_sbp);
-	sb->u.generic_sbp = NULL;
+	kfree(sb->s_fs_info);
+	sb->s_fs_info = NULL;
 }
 
 /*
@@ -459,7 +459,7 @@ int hfs_fill_super(struct super_block *s, void *data, int silent)
 	sbi = kmalloc(sizeof(struct hfs_sb_info), GFP_KERNEL);
 	if (!sbi)
 		return -ENOMEM;
-	s->u.generic_sbp = sbi;
+	s->s_fs_info = sbi;
 	memset(sbi, 0, sizeof(struct hfs_sb_info));
 
 	if (!parse_options((char *)data, sbi, &part)) {
@@ -533,7 +533,7 @@ bail1:
 	hfs_mdb_put(mdb, s->s_flags & MS_RDONLY);
 bail2:
 	kfree(sbi);
-	s->u.generic_sbp = NULL;
+	s->s_fs_info = NULL;
 	return -EINVAL;	
 }
 

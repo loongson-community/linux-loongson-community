@@ -19,7 +19,7 @@
 #include "isdn_net.h"
 #include <linux/concap.h>
 #include "isdn_concap.h"
-
+#include <linux/if_arp.h>
 
 /* The following set of device service operations are for encapsulation
    protocols that require for reliable datalink semantics. That means:
@@ -253,5 +253,3 @@ struct isdn_netif_ops isdn_x25_ops = {
 	.open                = isdn_x25_open,
 	.close               = isdn_x25_close,
 };
-
-#endif /* CONFIG_ISDN_X25 */

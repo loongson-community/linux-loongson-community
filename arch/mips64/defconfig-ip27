@@ -71,6 +71,7 @@ CONFIG_SMP=y
 # CONFIG_ZAO_CAPCELLA is not set
 # CONFIG_HIGHMEM is not set
 # CONFIG_PREEMPT is not set
+CONFIG_NR_CPUS=4
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 # CONFIG_HP_LASERJET is not set
@@ -237,11 +238,6 @@ CONFIG_SCSI_QLOGIC_ISP=y
 # CONFIG_SCSI_T128 is not set
 # CONFIG_SCSI_U14_34F is not set
 # CONFIG_SCSI_NSP32 is not set
-
-#
-# Old non-SCSI/ATAPI CD-ROM drives
-#
-# CONFIG_CD_NO_IDESCSI is not set
 
 #
 # Multi-device support (RAID and LVM)
@@ -607,11 +603,13 @@ CONFIG_NFS_V3=y
 CONFIG_ROOT_NFS=y
 # CONFIG_NFSD is not set
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_V4 is not set
 # CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
 # CONFIG_EXPORTFS is not set
+# CONFIG_CIFS is not set
 # CONFIG_SMB_FS is not set
 # CONFIG_NCP_FS is not set
 # CONFIG_NCPFS_PACKET_SIGNING is not set

@@ -1788,7 +1788,7 @@ static int startup(struct mgsl_struct * info)
 	
 	if (!info->xmit_buf) {
 		/* allocate a page of memory for a transmit buffer */
-		info->xmit_buf = (unsigned char *)get_free_page(GFP_KERNEL);
+		info->xmit_buf = (unsigned char *)get_zeroed_page(GFP_KERNEL);
 		if (!info->xmit_buf) {
 			printk(KERN_ERR"%s(%d):%s can't allocate transmit buffer\n",
 				__FILE__,__LINE__,info->device_name);
@@ -3633,7 +3633,7 @@ static int mgsl_open(struct tty_struct *tty, struct file * filp)
 	}
 	
 	if (!tmp_buf) {
-		page = get_free_page(GFP_KERNEL);
+		page = get_zeroed_page(GFP_KERNEL);
 		if (!page) {
 			retval = -ENOMEM;
 			goto cleanup;
@@ -8002,7 +8002,7 @@ int mgsl_sppp_open(struct net_device *d)
 {
 	struct mgsl_struct *info = d->priv;
 	int err;
-	long flags;
+	unsigned long flags;
 
 	if (debug_level >= DEBUG_LEVEL_INFO)
 		printk("mgsl_sppp_open(%s)\n",info->netname);	
@@ -8045,7 +8045,7 @@ open_fail:
 void mgsl_sppp_tx_timeout(struct net_device *dev)
 {
 	struct mgsl_struct *info = dev->priv;
-	long flags;
+	unsigned long flags;
 
 	if (debug_level >= DEBUG_LEVEL_INFO)
 		printk("mgsl_sppp_tx_timeout(%s)\n",info->netname);	

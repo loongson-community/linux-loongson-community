@@ -197,7 +197,7 @@ void fat_put_super(struct super_block *sb)
 		kfree(sbi->options.iocharset);
 		sbi->options.iocharset = NULL;
 	}
-	sb->u.generic_sbp = NULL;
+	sb->s_fs_info = NULL;
 	kfree(sbi);
 }
 
@@ -648,7 +648,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent,
 	sbi = kmalloc(sizeof(struct msdos_sb_info), GFP_KERNEL);
 	if (!sbi)
 		return -ENOMEM;
-	sb->u.generic_sbp = sbi;
+	sb->s_fs_info = sbi;
 	memset(sbi, 0, sizeof(struct msdos_sb_info));
 
 	cvf_format[0] = '\0';
@@ -925,7 +925,7 @@ out_fail:
 	if (sbi->private_data)
 		kfree(sbi->private_data);
 	sbi->private_data = NULL;
-	sb->u.generic_sbp = NULL;
+	sb->s_fs_info = NULL;
 	kfree(sbi);
 
 	return error;
@@ -998,7 +998,7 @@ fat_commit_write(struct file *file, struct page *page,
 	return generic_commit_write(file, page, from, to);
 }
 
-static int _fat_bmap(struct address_space *mapping, long block)
+static sector_t _fat_bmap(struct address_space *mapping, sector_t block)
 {
 	return generic_block_bmap(mapping,block,fat_get_block);
 }

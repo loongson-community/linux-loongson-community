@@ -41,8 +41,8 @@ static int gs_debug;
 #define gs_dprintk(f, str...) /* nothing */
 #endif
 
-#define func_enter() gs_dprintk (GS_DEBUG_FLOW, "gs: enter " __FUNCTION__ "\n")
-#define func_exit()  gs_dprintk (GS_DEBUG_FLOW, "gs: exit  " __FUNCTION__ "\n")
+#define func_enter() gs_dprintk (GS_DEBUG_FLOW, "gs: enter %s\n", __FUNCTION__)
+#define func_exit()  gs_dprintk (GS_DEBUG_FLOW, "gs: exit  %s\n", __FUNCTION__)
 
 #if NEW_WRITE_LOCKING
 #define DECL      /* Nothing */
@@ -511,7 +511,7 @@ void gs_start(struct tty_struct * tty)
 
 void gs_shutdown_port (struct gs_port *port)
 {
-	long flags;
+	unsigned long flags;
 
 	func_enter();
 	
@@ -952,7 +952,7 @@ int gs_init_port(struct gs_port *port)
 
 	save_flags (flags);
 	if (!tmp_buf) {
-		page = get_free_page(GFP_KERNEL);
+		page = get_zeroed_page(GFP_KERNEL);
 
 		cli (); /* Don't expect this to make a difference. */ 
 		if (tmp_buf)
@@ -970,10 +970,10 @@ int gs_init_port(struct gs_port *port)
 		return 0;
 
 	if (!port->xmit_buf) {
-		/* We may sleep in get_free_page() */
+		/* We may sleep in get_zeroed_page() */
 		unsigned long tmp;
 
-		tmp = get_free_page(GFP_KERNEL);
+		tmp = get_zeroed_page(GFP_KERNEL);
 
 		/* Spinlock? */
 		cli ();

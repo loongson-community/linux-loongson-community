@@ -221,6 +221,17 @@ static inline void do_identify (ide_drive_t *drive, u8 cmd)
 	drive->media = ide_disk;
 	printk("%s DISK drive\n", (drive->is_flash) ? "CFA" : "ATA" );
 	QUIRK_LIST(drive);
+
+	/* Initialize queue depth settings */
+	drive->queue_depth = 1;
+#ifdef CONFIG_BLK_DEV_IDE_TCQ_DEPTH
+	drive->queue_depth = CONFIG_BLK_DEV_IDE_TCQ_DEPTH;
+#else
+	drive->queue_depth = drive->id->queue_depth + 1;
+#endif
+	if (drive->queue_depth < 1 || drive->queue_depth > IDE_MAX_TAG)
+		drive->queue_depth = IDE_MAX_TAG;
+
 	return;
 
 err_misc:
@@ -776,6 +787,7 @@ static void ide_init_queue(ide_drive_t *drive)
 
 	q->queuedata = HWGROUP(drive);
 	blk_init_queue(q, do_ide_request, &ide_lock);
+	drive->queue_setup = 1;
 	blk_queue_segment_boundary(q, 0xffff);
 
 #ifdef CONFIG_BLK_DEV_PDC4030
@@ -792,6 +804,10 @@ static void ide_init_queue(ide_drive_t *drive)
 	blk_queue_max_phys_segments(q, PRD_ENTRIES);
 
 	ide_toggle_bounce(drive, 1);
+
+#ifdef CONFIG_BLK_DEV_IDE_TCQ_DEFAULT
+	HWIF(drive)->ide_dma_queued_on(drive);
+#endif
 }
 
 /*
@@ -917,8 +933,11 @@ int init_irq (ide_hwif_t *hwif)
 			hwgroup->drive = drive;
 		drive->next = hwgroup->drive->next;
 		hwgroup->drive->next = drive;
+		spin_unlock_irqrestore(&ide_lock, flags);
 		ide_init_queue(drive);
+		spin_lock_irqsave(&ide_lock, flags);
 	}
+
 	if (!hwgroup->hwif) {
 		hwgroup->hwif = HWIF(hwgroup->drive);
 #ifdef DEBUG
@@ -979,15 +998,6 @@ static void init_gendisk (ide_hwif_t *hwif)
 		sprintf(disk->disk_name,"hd%c",'a'+hwif->index*MAX_DRIVES+unit);
 		disk->minor_shift = PARTN_BITS; 
 		disk->fops = ide_fops;
-
-		snprintf(disk->disk_dev.bus_id,BUS_ID_SIZE,"%u.%u",
-			 hwif->index,unit);
-		snprintf(disk->disk_dev.name,DEVICE_NAME_SIZE,
-			 "%s","IDE Drive");
-		disk->disk_dev.parent = &hwif->gendev;
-		disk->disk_dev.bus = &ide_bus_type;
-		device_register(&disk->disk_dev);
-
 		hwif->drives[unit].disk = disk;
 	}
 
@@ -1001,6 +1011,20 @@ static void init_gendisk (ide_hwif_t *hwif)
 		if (hwif->drives[unit].present)
 			hwif->drives[unit].de = devfs_mk_dir(ide_devfs_handle, name, NULL);
 	}
+	
+	for (unit = 0; unit < units; ++unit) {
+		ide_drive_t * drive = &hwif->drives[unit];
+
+		snprintf(drive->gendev.bus_id,BUS_ID_SIZE,"%u.%u",
+			 hwif->index,unit);
+		snprintf(drive->gendev.name,DEVICE_NAME_SIZE,
+			 "%s","IDE Drive");
+		drive->gendev.parent = &hwif->gendev;
+		drive->gendev.bus = &ide_bus_type;
+		if (drive->present)
+			device_register(&drive->gendev);
+	}
+
 	return;
 
 err_kmalloc_gd:

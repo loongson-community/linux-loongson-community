@@ -104,11 +104,11 @@ static struct super_block *udf_get_sb(struct file_system_type *fs_type,
 }
 
 static struct file_system_type udf_fstype = {
-	owner:		THIS_MODULE,
-	name:		"udf",
-	get_sb:		udf_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "udf",
+	.get_sb		= udf_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 static kmem_cache_t * udf_inode_cachep;
@@ -155,16 +155,16 @@ static void destroy_inodecache(void)
 
 /* Superblock operations */
 static struct super_operations udf_sb_ops = {
-	alloc_inode:		udf_alloc_inode,
-	destroy_inode:		udf_destroy_inode,
-	read_inode:		udf_read_inode,
-	write_inode:		udf_write_inode,
-	put_inode:		udf_put_inode,
-	delete_inode:		udf_delete_inode,
-	put_super:		udf_put_super,
-	write_super:		udf_write_super,
-	statfs:			udf_statfs,
-	remount_fs:		udf_remount_fs,
+	.alloc_inode		= udf_alloc_inode,
+	.destroy_inode		= udf_destroy_inode,
+	.read_inode		= udf_read_inode,
+	.write_inode		= udf_write_inode,
+	.put_inode		= udf_put_inode,
+	.delete_inode		= udf_delete_inode,
+	.put_super		= udf_put_super,
+	.write_super		= udf_write_super,
+	.statfs			= udf_statfs,
+	.remount_fs		= udf_remount_fs,
 };
 
 struct udf_options
@@ -1425,7 +1425,7 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 	sbi = kmalloc(sizeof(struct udf_sb_info), GFP_KERNEL);
 	if (!sbi)
 		return -ENOMEM;
-	sb->u.generic_sbp = sbi;
+	sb->s_fs_info = sbi;
 	memset(UDF_SB(sb), 0x00, sizeof(struct udf_sb_info));
 
 #if UDFFS_RW != 1
@@ -1615,7 +1615,7 @@ error_out:
 	udf_release_data(UDF_SB_LVIDBH(sb));
 	UDF_SB_FREE(sb);
 	kfree(sbi);
-	sb->u.generic_sbp = NULL;
+	sb->s_fs_info = NULL;
 	return -EINVAL;
 }
 
@@ -1706,8 +1706,8 @@ udf_put_super(struct super_block *sb)
 		udf_close_lvid(sb);
 	udf_release_data(UDF_SB_LVIDBH(sb));
 	UDF_SB_FREE(sb);
-	kfree(sb->u.generic_sbp);
-	sb->u.generic_sbp = NULL;
+	kfree(sb->s_fs_info);
+	sb->s_fs_info = NULL;
 }
 
 /*

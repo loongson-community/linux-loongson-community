@@ -1241,17 +1241,18 @@ static void idefloppy_create_rw_cmd (idefloppy_floppy_t *floppy, idefloppy_pc_t 
 /*
  *	idefloppy_do_request is our request handling function.	
  */
-static ide_startstop_t idefloppy_do_request (ide_drive_t *drive, struct request *rq, unsigned long block)
+static ide_startstop_t idefloppy_do_request (ide_drive_t *drive, struct request *rq, sector_t block_s)
 {
 	idefloppy_floppy_t *floppy = drive->driver_data;
 	idefloppy_pc_t *pc;
+	unsigned long block = (unsigned long)block_s;
 
 #if IDEFLOPPY_DEBUG_LOG
 	printk(KERN_INFO "rq_status: %d, rq_dev: %u, flags: %lx, errors: %d\n",
 			rq->rq_status, (unsigned int) rq->rq_dev,
 			rq->flags, rq->errors);
 	printk(KERN_INFO "sector: %ld, nr_sectors: %ld, "
-			"current_nr_sectors: %ld\n", rq->sector,
+			"current_nr_sectors: %ld\n", (long)rq->sector,
 			rq->nr_sectors, rq->current_nr_sectors);
 #endif /* IDEFLOPPY_DEBUG_LOG */
 
@@ -1268,7 +1269,7 @@ static ide_startstop_t idefloppy_do_request (ide_drive_t *drive, struct request 
 		return ide_stopped;
 	}
 	if (rq->flags & REQ_CMD) {
-		if ((rq->sector % floppy->bs_factor) ||
+		if (((long)rq->sector % floppy->bs_factor) ||
 		    (rq->nr_sectors % floppy->bs_factor)) {
 			printk("%s: unsupported r/w request size\n",
 				drive->name);
@@ -2042,39 +2043,39 @@ static int idefloppy_attach(ide_drive_t *drive);
  *	IDE subdriver functions, registered with ide.c
  */
 static ide_driver_t idefloppy_driver = {
-	owner:			THIS_MODULE,
-	name:			"ide-floppy",
-	version:		IDEFLOPPY_VERSION,
-	media:			ide_floppy,
-	busy:			0,
+	.owner			= THIS_MODULE,
+	.name			= "ide-floppy",
+	.version		= IDEFLOPPY_VERSION,
+	.media			= ide_floppy,
+	.busy			= 0,
 #ifdef CONFIG_IDEDMA_ONLYDISK
-	supports_dma:		0,
+	.supports_dma		= 0,
 #else
-	supports_dma:		1,
+	.supports_dma		= 1,
 #endif
-	supports_dsc_overlap:	0,
-	cleanup:		idefloppy_cleanup,
-	standby:		NULL,
-	suspend:		NULL,
-	resume:			NULL,
-	flushcache:		NULL,
-	do_request:		idefloppy_do_request,
-	end_request:		idefloppy_do_end_request,
-	sense:			NULL,
-	error:			NULL,
-	ioctl:			idefloppy_ioctl,
-	open:			idefloppy_open,
-	release:		idefloppy_release,
-	media_change:		idefloppy_media_change,
-	revalidate:		idefloppy_revalidate,
-	pre_reset:		NULL,
-	capacity:		idefloppy_capacity,
-	special:		NULL,
-	proc:			idefloppy_proc,
-	attach:			idefloppy_attach,
-	ata_prebuilder:		NULL,
-	atapi_prebuilder:	NULL,
-	drives:			LIST_HEAD_INIT(idefloppy_driver.drives),
+	.supports_dsc_overlap	= 0,
+	.cleanup		= idefloppy_cleanup,
+	.standby		= NULL,
+	.suspend		= NULL,
+	.resume			= NULL,
+	.flushcache		= NULL,
+	.do_request		= idefloppy_do_request,
+	.end_request		= idefloppy_do_end_request,
+	.sense			= NULL,
+	.error			= NULL,
+	.ioctl			= idefloppy_ioctl,
+	.open			= idefloppy_open,
+	.release		= idefloppy_release,
+	.media_change		= idefloppy_media_change,
+	.revalidate		= idefloppy_revalidate,
+	.pre_reset		= NULL,
+	.capacity		= idefloppy_capacity,
+	.special		= NULL,
+	.proc			= idefloppy_proc,
+	.attach			= idefloppy_attach,
+	.ata_prebuilder		= NULL,
+	.atapi_prebuilder	= NULL,
+	.drives			= LIST_HEAD_INIT(idefloppy_driver.drives),
 };
 
 static int idefloppy_attach (ide_drive_t *drive)

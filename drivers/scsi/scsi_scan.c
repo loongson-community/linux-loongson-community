@@ -1409,6 +1409,14 @@ static int scsi_add_lun(Scsi_Device *sdevscan, Scsi_Device **sdevnew,
 	sdev->lockable = sdev->removable;
 	sdev->soft_reset = (inq_result[7] & 1) && ((inq_result[3] & 7) == 2);
 
+	if (sdev->scsi_level >= SCSI_3 || (sdev->inquiry_len > 56 &&
+		inq_result[56] & 0x04))
+		sdev->ppr = 1;
+	if (inq_result[7] & 0x60)
+		sdev->wdtr = 1;
+	if (inq_result[7] & 0x10)
+		sdev->sdtr = 1;
+
 	/*
 	 * XXX maybe move the identifier and driverfs/devfs setup to a new
 	 * function, and call them after this function is called.
@@ -1469,6 +1477,15 @@ static int scsi_add_lun(Scsi_Device *sdevscan, Scsi_Device **sdevnew,
 		if (sdt->detect)
 			sdev->attached += (*sdt->detect) (sdev);
 
+	if (sdev->host->hostt->slave_attach != NULL) {
+		if (sdev->host->hostt->slave_attach(sdev) != 0) {
+			printk(KERN_INFO "%s: scsi_add_lun: failed low level driver attach, setting device offline", devname);
+			sdev->online = FALSE;
+		}
+	} else if(sdev->host->cmd_per_lun) {
+		scsi_adjust_queue_depth(sdev, 0, sdev->host->cmd_per_lun);
+	}
+
 	if (sdevnew != NULL)
 		*sdevnew = sdev;
 
@@ -1513,9 +1530,9 @@ static int scsi_probe_and_add_lun(Scsi_Device *sdevscan, Scsi_Device **sdevnew,
 	 * XXX maybe change scsi_release_commandblocks to not reset
 	 * queue_depth to 0.
 	 */
-	sdevscan->queue_depth = 1;
+	sdevscan->new_queue_depth = 1;
 	scsi_build_commandblocks(sdevscan);
-	if (sdevscan->has_cmdblocks == 0)
+	if (sdevscan->queue_depth == 0)
 		goto alloc_failed;
 
 	sreq = scsi_allocate_request(sdevscan);
@@ -1589,7 +1606,7 @@ alloc_failed:
 		kfree(scsi_result);
 	if (sreq != NULL)
 		scsi_release_request(sreq);
-	if (sdevscan->has_cmdblocks != 0)
+	if (sdevscan->queue_depth != 0)
 		scsi_release_commandblocks(sdevscan);
 	return SCSI_SCAN_NO_RESPONSE;
 }
@@ -1743,9 +1760,9 @@ static int scsi_report_lun_scan(Scsi_Device *sdevscan)
 	if (sdevscan->scsi_level < SCSI_3)
 		return 1;
 
-	sdevscan->queue_depth = 1;
+	sdevscan->new_queue_depth = 1;
 	scsi_build_commandblocks(sdevscan);
-	if (sdevscan->has_cmdblocks == 0) {
+	if (sdevscan->queue_depth == 0) {
 		printk(ALLOC_FAILURE_MSG, __FUNCTION__);
 		/*
 		 * We are out of memory, don't try scanning any further.
@@ -2003,21 +2020,6 @@ static void scsi_scan_selected_lun(struct Scsi_Host *shost, uint channel,
 	scsi_free_sdev(sdevscan);
 	if (res == SCSI_SCAN_LUN_PRESENT) {
 		BUG_ON(sdev == NULL);
-		/*
-		 * FIXME calling select_queue_depths is wrong for adapters
-		 * that modify queue depths of all scsi devices - the
-		 * adapter might change a queue depth (not for this sdev),
-		 * but the mid-layer will not change the queue depth. This
-		 * does not cause an oops, but queue_depth will not match
-		 * the actual queue depth used.
-		 *
-		 * Perhaps use a default queue depth, and allow them to be
-		 * modified at boot/insmod time, and/or via sysctl/ioctl/proc;
-		 * plus have dynamic queue depth adjustment like the
-		 * aic7xxx driver.
-		 */
-		if (shost->select_queue_depths != NULL)
-			(shost->select_queue_depths) (shost, shost->host_queue);
 
 		for (sdt = scsi_devicelist; sdt; sdt = sdt->next)
 			if (sdt->init && sdt->dev_noticed)
@@ -2028,7 +2030,7 @@ static void scsi_scan_selected_lun(struct Scsi_Host *shost, uint channel,
 				(*sdt->attach) (sdev);
 				if (sdev->attached) {
 					scsi_build_commandblocks(sdev);
-					if (sdev->has_cmdblocks == 0)
+					if (sdev->queue_depth == 0)
 						printk(ALLOC_FAILURE_MSG,
 						       __FUNCTION__);
 				}

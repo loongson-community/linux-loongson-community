@@ -27,14 +27,16 @@
 #include <linux/sunrpc/stats.h>
 #include <linux/sunrpc/svc.h>
 #include <linux/sunrpc/svcsock.h>
+#include <linux/sunrpc/cache.h>
 #include <linux/nfsd/nfsd.h>
 #include <linux/nfsd/stats.h>
 #include <linux/nfsd/cache.h>
 #include <linux/nfsd/xdr.h>
+#include <linux/nfsd/xdr3.h>
+#include <linux/nfsd/xdr4.h>
 #include <linux/lockd/bind.h>
 
 #define NFSDDBG_FACILITY	NFSDDBG_SVC
-#define NFSD_BUFSIZE		(1024 + NFSSVC_MAXBLKSIZE)
 
 /* these signals will be delivered to an nfsd thread 
  * when handling a request
@@ -172,8 +174,6 @@ nfsd(struct svc_rqst *rqstp)
 	current->rlim[RLIMIT_FSIZE].rlim_cur = RLIM_INFINITY;
 
 	nfsdstats.th_cnt++;
-	/* Let svc_process check client's authentication. */
-	rqstp->rq_auth = 1;
 
 	lockd_up();				/* start lockd */
 
@@ -197,7 +197,7 @@ nfsd(struct svc_rqst *rqstp)
 		 */
 		while ((err = svc_recv(serv, rqstp,
 				       5*60*HZ)) == -EAGAIN)
-		    ;
+			cache_clean();
 		if (err < 0)
 			break;
 		update_thread_usage(atomic_read(&nfsd_busy));
@@ -206,10 +206,6 @@ nfsd(struct svc_rqst *rqstp)
 		/* Lock the export hash tables for reading. */
 		exp_readlock();
 
-		/* Validate the client's address. This will also defeat
-		 * port probes on port 2049 by unauthorized clients.
-		 */
-		rqstp->rq_client = exp_getclient(&rqstp->rq_addr);
 		/* Process request with signals blocked.  */
 		spin_lock_irq(&current->sig->siglock);
 		siginitsetinv(&current->blocked, ALLOWED_SIGS);
@@ -337,10 +333,23 @@ static struct svc_version	nfsd_version3 = {
 		.vs_dispatch	= nfsd_dispatch
 };
 #endif
+#ifdef CONFIG_NFSD_V4
+static struct svc_version	nfsd_version4 = {
+		.vs_vers	= 4,
+		.vs_nproc	= 2,
+		.vs_proc	= nfsd_procedures4,
+		.vs_dispatch	= nfsd_dispatch
+};
+#endif
 static struct svc_version *	nfsd_version[] = {
 	[2] = &nfsd_version2,
-#ifdef CONFIG_NFSD_V3
+#if defined(CONFIG_NFSD_V3)
 	[3] = &nfsd_version3,
+#elif defined(CONFIG_NFSD_V4)
+	[3] = NULL,
+#endif
+#if defined(CONFIG_NFSD_V4)
+	[4] = &nfsd_version4,
 #endif
 };
 
@@ -352,5 +361,6 @@ struct svc_program		nfsd_program = {
 	.pg_nvers		= NFSD_NRVERS,		/* nr of entries in nfsd_version */
 	.pg_vers		= nfsd_version,		/* version table */
 	.pg_name		= "nfsd",		/* program name */
+	.pg_class		= "nfsd",		/* authentication class */
 	.pg_stats		= &nfsd_svcstats,	/* version table */
 };

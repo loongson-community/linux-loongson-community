@@ -130,11 +130,13 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 			dput(dentry);
 			dentry = dp;
 
-			exp2 = exp_parent(exp->ex_client, mnt, dentry);
+			exp2 = exp_parent(exp->ex_client, mnt, dentry,
+					  &rqstp->rq_chandle);
 			if (!exp2) {
 				dput(dentry);
 				dentry = dget(dparent);
 			} else {
+				exp_put(exp);
 				exp = exp2;
 			}
 			mntput(mnt);
@@ -154,14 +156,18 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 			struct dentry *mounts = dget(dentry);
 			while (follow_down(&mnt,&mounts)&&d_mountpoint(mounts))
 				;
-			exp2 = exp_get_by_name(rqstp->rq_client, mnt, mounts);
+			exp2 = exp_get_by_name(exp->ex_client, mnt, 
+					       mounts, &rqstp->rq_chandle);
 			if (exp2 && EX_CROSSMNT(exp2)) {
 				/* successfully crossed mount point */
+				exp_put(exp);
 				exp = exp2;
 				dput(dentry);
 				dentry = mounts;
-			} else
+			} else {
+				if (exp2) exp_put(exp2);
 				dput(mounts);
+			}
 			mntput(mnt);
 		}
 	}
@@ -1124,7 +1130,19 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	if (IS_ERR(dnew))
 		goto out_nfserr;
 
-	err = vfs_symlink(dentry->d_inode, dnew, path);
+	if (unlikely(path[plen] != 0)) {
+		char *path_alloced = kmalloc(plen+1, GFP_KERNEL);
+		if (path_alloced == NULL)
+			err = -ENOMEM;
+		else {
+			strncpy(path_alloced, path, plen);
+			path_alloced[plen] = 0;
+			err = vfs_symlink(dentry->d_inode, dnew, path_alloced);
+			kfree(path_alloced);
+		}
+	} else
+		err = vfs_symlink(dentry->d_inode, dnew, path);
+
 	if (!err) {
 		if (EX_ISSYNC(fhp->fh_export))
 			nfsd_sync_dir(dentry);

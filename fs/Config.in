@@ -121,6 +121,7 @@ if [ "$CONFIG_NET" = "y" ]; then
 
    dep_tristate 'NFS server support' CONFIG_NFSD $CONFIG_INET
    dep_mbool '  Provide NFSv3 server support' CONFIG_NFSD_V3 $CONFIG_NFSD
+   dep_mbool '  Provide NFSv4 server support (EXPERIMENTAL)' CONFIG_NFSD_V4 $CONFIG_NFSD_V3 $CONFIG_EXPERIMENTAL
    dep_mbool '  Provide NFS server over TCP support (EXPERIMENTAL)' CONFIG_NFSD_TCP $CONFIG_NFSD $CONFIG_EXPERIMENTAL
 
    if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
@@ -139,6 +140,8 @@ if [ "$CONFIG_NET" = "y" ]; then
      define_bool CONFIG_LOCKD_V4 y
    fi
    define_tristate CONFIG_EXPORTFS $CONFIG_NFSD
+
+   dep_tristate 'CIFS support (advanced network filesystem for Samba, Window and other CIFS compliant servers)(EXPERIMENTAL)' CONFIG_CIFS $CONFIG_INET
 
    dep_tristate 'SMB file system support (to mount Windows shares etc.)' CONFIG_SMB_FS $CONFIG_INET
    if [ "$CONFIG_SMB_FS" != "n" ]; then

@@ -84,6 +84,11 @@ typedef unsigned long long phys_t;
 typedef unsigned long phys_t;
 #endif
 
+#ifdef CONFIG_LBD
+typedef u64 sector_t;
+#define HAVE_SECTOR_T
+#endif
+
 #endif /* __KERNEL__ */
 
 #endif /* _ASM_TYPES_H */

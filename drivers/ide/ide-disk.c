@@ -352,13 +352,26 @@ static ide_startstop_t multwrite_intr (ide_drive_t *drive)
 	return DRIVER(drive)->error(drive, "multwrite_intr", stat);
 }
 
+static int idedisk_start_tag(ide_drive_t *drive, struct request *rq)
+{
+	unsigned long flags;
+	int ret = 1;
+
+	spin_lock_irqsave(&ide_lock, flags);
+
+	if (ata_pending_commands(drive) < drive->queue_depth)
+		ret = blk_queue_start_tag(&drive->queue, rq);
+
+	spin_unlock_irqrestore(&ide_lock, flags);
+	return ret;
+}
 
 /*
  * do_rw_disk() issues READ and WRITE commands to a disk,
  * using LBA if supported, or CHS otherwise, to address sectors.
  * It also takes care of issuing special DRIVE_CMDs.
  */
-static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsigned long block)
+static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, sector_t block)
 {
 	ide_hwif_t *hwif	= HWIF(drive);
 	u8 lba48		= (drive->addressing == 1) ? 1 : 0;
@@ -375,6 +388,13 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
 		return promise_rw_disk(drive, rq, block);
 #endif /* CONFIG_BLK_DEV_PDC4030 */
 
+	if (drive->using_tcq && idedisk_start_tag(drive, rq)) {
+		if (!ata_pending_commands(drive))
+			BUG();
+
+		return ide_started;
+	}
+
 	if (IDE_CONTROL_REG)
 		hwif->OUTB(drive->ctl, IDE_CONTROL_REG);
 
@@ -382,23 +402,34 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
 		if (drive->addressing == 1) {
 			task_ioreg_t tasklets[10];
 
-			tasklets[0] = 0;
-			tasklets[1] = 0;
-			tasklets[2] = nsectors.b.low;
-			tasklets[3] = nsectors.b.high;
+			if (blk_rq_tagged(rq)) {
+				tasklets[0] = nsectors.b.low;
+				tasklets[1] = nsectors.b.high;
+				tasklets[2] = rq->tag << 3;
+				tasklets[3] = 0;
+			} else {
+				tasklets[0] = 0;
+				tasklets[1] = 0;
+				tasklets[2] = nsectors.b.low;
+				tasklets[3] = nsectors.b.high;
+			}
+
 			tasklets[4] = (task_ioreg_t) block;
 			tasklets[5] = (task_ioreg_t) (block>>8);
 			tasklets[6] = (task_ioreg_t) (block>>16);
 			tasklets[7] = (task_ioreg_t) (block>>24);
-			tasklets[8] = (task_ioreg_t) 0;
-			tasklets[9] = (task_ioreg_t) 0;
-//			tasklets[8] = (task_ioreg_t) (block>>32);
-//			tasklets[9] = (task_ioreg_t) (block>>40);
+			if (sizeof(block) == 4) {
+				tasklets[8] = (task_ioreg_t) 0;
+				tasklets[9] = (task_ioreg_t) 0;
+			} else {
+				tasklets[8] = (task_ioreg_t)((u64)block >> 32);
+				tasklets[9] = (task_ioreg_t)((u64)block >> 40);
+			}
 #ifdef DEBUG
 			printk("%s: %sing: LBAsect=%lu, sectors=%ld, "
 				"buffer=0x%08lx, LBAsect=0x%012lx\n",
 				drive->name,
-				(rq->cmd==READ)?"read":"writ",
+				rq_data_dir(rq)==READ?"read":"writ",
 				block,
 				rq->nr_sectors,
 				(unsigned long) rq->buffer,
@@ -422,14 +453,21 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
 			hwif->OUTB(0x00|drive->select.all,IDE_SELECT_REG);
 		} else {
 #ifdef DEBUG
-			printk("%s: %sing: LBAsect=%ld, sectors=%ld, "
+			printk("%s: %sing: LBAsect=%llu, sectors=%ld, "
 				"buffer=0x%08lx\n",
-				drive->name, (rq->cmd==READ)?"read":"writ",
-				block, rq->nr_sectors,
+				drive->name,
+				rq_data_dir(rq)==READ?"read":"writ",
+				(unsigned long long)block, rq->nr_sectors,
 				(unsigned long) rq->buffer);
 #endif
-			hwif->OUTB(0x00, IDE_FEATURE_REG);
-			hwif->OUTB(nsectors.b.low, IDE_NSECTOR_REG);
+			if (blk_rq_tagged(rq)) {
+				hwif->OUTB(nsectors.b.low, IDE_FEATURE_REG);
+				hwif->OUTB(rq->tag << 3, IDE_NSECTOR_REG);
+			} else {
+				hwif->OUTB(0x00, IDE_FEATURE_REG);
+				hwif->OUTB(nsectors.b.low, IDE_NSECTOR_REG);
+			}
+
 			hwif->OUTB(block, IDE_SECTOR_REG);
 			hwif->OUTB(block>>=8, IDE_LCYL_REG);
 			hwif->OUTB(block>>=8, IDE_HCYL_REG);
@@ -437,29 +475,37 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
 		}
 	} else {
 		unsigned int sect,head,cyl,track;
-		track = block / drive->sect;
-		sect  = block % drive->sect + 1;
+		track = (int)block / drive->sect;
+		sect  = (int)block % drive->sect + 1;
 		hwif->OUTB(sect, IDE_SECTOR_REG);
 		head  = track % drive->head;
 		cyl   = track / drive->head;
 
-		hwif->OUTB(0x00, IDE_FEATURE_REG);
-		hwif->OUTB(nsectors.b.low, IDE_NSECTOR_REG);
+		if (blk_rq_tagged(rq)) {
+			hwif->OUTB(nsectors.b.low, IDE_FEATURE_REG);
+			hwif->OUTB(rq->tag << 3, IDE_NSECTOR_REG);
+		} else {
+			hwif->OUTB(0x00, IDE_FEATURE_REG);
+			hwif->OUTB(nsectors.b.low, IDE_NSECTOR_REG);
+		}
+
 		hwif->OUTB(cyl, IDE_LCYL_REG);
 		hwif->OUTB(cyl>>8, IDE_HCYL_REG);
 		hwif->OUTB(head|drive->select.all,IDE_SELECT_REG);
 #ifdef DEBUG
 		printk("%s: %sing: CHS=%d/%d/%d, sectors=%ld, buffer=0x%08lx\n",
-			drive->name, (rq->cmd==READ)?"read":"writ", cyl,
+			drive->name, rq_data_dir(rq)==READ?"read":"writ", cyl,
 			head, sect, rq->nr_sectors, (unsigned long) rq->buffer);
 #endif
 	}
 
 	if (rq_data_dir(rq) == READ) {
-#ifdef CONFIG_BLK_DEV_IDEDMA
+		if (blk_rq_tagged(rq))
+			return hwif->ide_dma_queued_read(drive);
+
 		if (drive->using_dma && !hwif->ide_dma_read(drive))
 			return ide_started;
-#endif /* CONFIG_BLK_DEV_IDEDMA */
+
 		if (HWGROUP(drive)->handler != NULL)
 			BUG();
 		ide_set_handler(drive, &read_intr, WAIT_CMD, NULL);
@@ -471,10 +517,12 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
 		return ide_started;
 	} else if (rq_data_dir(rq) == WRITE) {
 		ide_startstop_t startstop;
-#ifdef CONFIG_BLK_DEV_IDEDMA
+
+		if (blk_rq_tagged(rq))
+			return hwif->ide_dma_queued_write(drive);
+
 		if (drive->using_dma && !(HWIF(drive)->ide_dma_write(drive)))
 			return ide_started;
-#endif /* CONFIG_BLK_DEV_IDEDMA */
 
 		command = ((drive->mult_count) ?
 			   ((lba48) ? WIN_MULTWRITE_EXT : WIN_MULTWRITE) :
@@ -542,7 +590,7 @@ static ide_startstop_t lba_48_rw_disk(ide_drive_t *, struct request *, unsigned 
  * using LBA if supported, or CHS otherwise, to address sectors.
  * It also takes care of issuing special DRIVE_CMDs.
  */
-static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsigned long block)
+static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, sector_t block)
 {
 	BUG_ON(drive->blocked);
 	if (!blk_fs_request(rq)) {
@@ -562,6 +610,13 @@ static ide_startstop_t do_rw_disk (ide_drive_t *drive, struct request *rq, unsig
                 return promise_rw_disk(drive, rq, block);
 #endif /* CONFIG_BLK_DEV_PDC4030 */
 
+	if (drive->using_tcq && idedisk_start_tag(drive, rq)) {
+		if (!ata_pending_commands(drive))
+			BUG();
+
+		return ide_started;
+	}
+
 	if (drive->addressing == 1)		/* 48-bit LBA */
 		return lba_48_rw_disk(drive, rq, (unsigned long long) block);
 	if (drive->select.b.lba)		/* 28-bit LBA */
@@ -579,12 +634,16 @@ static task_ioreg_t get_command (ide_drive_t *drive, int cmd)
 	lba48bit = (drive->addressing == 1) ? 1 : 0;
 #endif
 
+	if ((cmd == READ) && drive->using_tcq)
+		return lba48bit ? WIN_READDMA_QUEUED_EXT : WIN_READDMA_QUEUED;
 	if ((cmd == READ) && (drive->using_dma))
 		return (lba48bit) ? WIN_READDMA_EXT : WIN_READDMA;
 	else if ((cmd == READ) && (drive->mult_count))
 		return (lba48bit) ? WIN_MULTREAD_EXT : WIN_MULTREAD;
 	else if (cmd == READ)
 		return (lba48bit) ? WIN_READ_EXT : WIN_READ;
+	else if ((cmd == WRITE) && drive->using_tcq)
+		return lba48bit ? WIN_WRITEDMA_QUEUED_EXT : WIN_WRITEDMA_QUEUED;
 	else if ((cmd == WRITE) && (drive->using_dma))
 		return (lba48bit) ? WIN_WRITEDMA_EXT : WIN_WRITEDMA;
 	else if ((cmd == WRITE) && (drive->mult_count))
@@ -618,7 +677,13 @@ static ide_startstop_t chs_rw_disk (ide_drive_t *drive, struct request *rq, unsi
 	memset(&args, 0, sizeof(ide_task_t));
 
 	sectors	= (rq->nr_sectors == 256) ? 0x00 : rq->nr_sectors;
-	args.tfRegister[IDE_NSECTOR_OFFSET]	= sectors;
+
+	if (blk_rq_tagged(rq)) {
+		args.tfRegister[IDE_FEATURE_OFFSET] = sectors;
+		args.tfRegister[IDE_NSECTOR_OFFSET] = rq->tag << 3;
+	} else
+		args.tfRegister[IDE_NSECTOR_OFFSET] = sectors;
+
 	args.tfRegister[IDE_SECTOR_OFFSET]	= sect;
 	args.tfRegister[IDE_LCYL_OFFSET]	= cyl;
 	args.tfRegister[IDE_HCYL_OFFSET]	= (cyl>>8);
@@ -650,7 +715,13 @@ static ide_startstop_t lba_28_rw_disk (ide_drive_t *drive, struct request *rq, u
 	memset(&args, 0, sizeof(ide_task_t));
 
 	sectors = (rq->nr_sectors == 256) ? 0x00 : rq->nr_sectors;
-	args.tfRegister[IDE_NSECTOR_OFFSET]	= sectors;
+
+	if (blk_rq_tagged(rq)) {
+		args.tfRegister[IDE_FEATURE_OFFSET] = sectors;
+		args.tfRegister[IDE_NSECTOR_OFFSET] = rq->tag << 3;
+	} else
+		args.tfRegister[IDE_NSECTOR_OFFSET] = sectors;
+
 	args.tfRegister[IDE_SECTOR_OFFSET]	= block;
 	args.tfRegister[IDE_LCYL_OFFSET]	= (block>>=8);
 	args.tfRegister[IDE_HCYL_OFFSET]	= (block>>=8);
@@ -688,13 +759,22 @@ static ide_startstop_t lba_48_rw_disk (ide_drive_t *drive, struct request *rq, u
 	memset(&args, 0, sizeof(ide_task_t));
 
 	sectors = (rq->nr_sectors == 65536) ? 0 : rq->nr_sectors;
-	args.tfRegister[IDE_NSECTOR_OFFSET]	= sectors;
+
+	if (blk_rq_tagged(rq)) {
+		args.tfRegister[IDE_FEATURE_OFFSET] = sectors;
+		args.tfRegister[IDE_NSECTOR_OFFSET] = rq->tag << 3;
+		args.hobRegister[IDE_FEATURE_OFFSET_HOB] = sectors >> 8;
+		args.hobRegister[IDE_NSECT_OFFSET_HOB] = 0;
+	} else {
+		args.tfRegister[IDE_NSECTOR_OFFSET] = sectors;
+		args.hobRegister[IDE_NSECTOR_OFFSET_HOB] = sectors >> 8;
+	}
+
 	args.tfRegister[IDE_SECTOR_OFFSET]	= block;	/* low lba */
 	args.tfRegister[IDE_LCYL_OFFSET]	= (block>>=8);	/* mid lba */
 	args.tfRegister[IDE_HCYL_OFFSET]	= (block>>=8);	/* hi  lba */
 	args.tfRegister[IDE_SELECT_OFFSET]	= drive->select.all;
 	args.tfRegister[IDE_COMMAND_OFFSET]	= command;
-	args.hobRegister[IDE_NSECTOR_OFFSET_HOB]= sectors >> 8;
 	args.hobRegister[IDE_SECTOR_OFFSET_HOB]	= (block>>=8);	/* low lba */
 	args.hobRegister[IDE_LCYL_OFFSET_HOB]	= (block>>=8);	/* mid lba */
 	args.hobRegister[IDE_HCYL_OFFSET_HOB]	= (block>>=8);	/* hi  lba */
@@ -825,8 +905,8 @@ static u8 idedisk_dump_status (ide_drive_t *drive, const char *msg, u8 stat)
 				}
 			}
 			if (HWGROUP(drive) && HWGROUP(drive)->rq)
-				printk(", sector=%ld",
-					HWGROUP(drive)->rq->sector);
+				printk(", sector=%llu",
+					(unsigned long long)HWGROUP(drive)->rq->sector);
 		}
 	}
 #endif	/* FANCY_STATUS_DUMPS */
@@ -1460,6 +1540,37 @@ static int set_acoustic (ide_drive_t *drive, int arg)
 	return 0;
 }
 
+#ifdef CONFIG_BLK_DEV_IDE_TCQ
+static int set_using_tcq(ide_drive_t *drive, int arg)
+{
+	ide_hwif_t *hwif = HWIF(drive);
+	int ret;
+
+	if (!drive->driver)
+		return -EPERM;
+	if (!hwif->ide_dma_queued_on || !hwif->ide_dma_queued_off)
+		return -ENXIO;
+	if (arg == drive->queue_depth && drive->using_tcq)
+		return 0;
+
+	/*
+	 * set depth, but check also id for max supported depth
+	 */
+	drive->queue_depth = arg ? arg : 1;
+	if (drive->id) {
+		if (drive->queue_depth > drive->id->queue_depth + 1)
+			drive->queue_depth = drive->id->queue_depth + 1;
+	}
+
+	if (arg)
+		ret = HWIF(drive)->ide_dma_queued_on(drive);
+	else
+		ret = HWIF(drive)->ide_dma_queued_off(drive);
+
+	return ret ? -EIO : 0;
+}
+#endif
+
 static int probe_lba_addressing (ide_drive_t *drive, int arg)
 {
 	drive->addressing =  0;
@@ -1494,6 +1605,9 @@ static void idedisk_add_settings(ide_drive_t *drive)
 	ide_add_setting(drive,	"acoustic",		SETTING_RW,					HDIO_GET_ACOUSTIC,	HDIO_SET_ACOUSTIC,	TYPE_BYTE,	0,	254,				1,	1,	&drive->acoustic,		set_acoustic);
  	ide_add_setting(drive,	"failures",		SETTING_RW,					-1,			-1,			TYPE_INT,	0,	65535,				1,	1,	&drive->failures,		NULL);
  	ide_add_setting(drive,	"max_failures",		SETTING_RW,					-1,			-1,			TYPE_INT,	0,	65535,				1,	1,	&drive->max_failures,		NULL);
+#ifdef CONFIG_BLK_DEV_IDE_TCQ
+	ide_add_setting(drive,	"using_tcq",		SETTING_RW,					HDIO_GET_QDMA,		HDIO_SET_QDMA,		TYPE_BYTE,	0,	IDE_MAX_TAG,			1,		1,		&drive->using_tcq,		set_using_tcq);
+#endif
 }
 
 static int idedisk_suspend(struct device *dev, u32 state, u32 level)
@@ -1550,14 +1664,6 @@ static int idedisk_resume(struct device *dev, u32 level)
 /* This is just a hook for the overall driver tree.
  */
 
-static struct device_driver idedisk_devdrv = {
-	.bus = &ide_bus_type,
-	.name = "IDE disk driver",
-
-	.suspend = idedisk_suspend,
-	.resume = idedisk_resume,
-};
-
 static int idedisk_ioctl (ide_drive_t *drive, struct inode *inode,
 	struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -1603,12 +1709,6 @@ static void idedisk_setup (ide_drive_t *drive)
 			drive->doorlocking = 1;
 		}
 	}
-	{
-		sprintf(drive->disk->disk_dev.name, "ide-disk");
-		drive->disk->disk_dev.driver = &idedisk_devdrv;
-		drive->disk->disk_dev.driver_data = drive;
-	}
-
 #if 1
 	(void) probe_lba_addressing(drive, 1);
 #else
@@ -1692,7 +1792,6 @@ static int idedisk_cleanup (ide_drive_t *drive)
 {
 	struct gendisk *g = drive->disk;
 
-	put_device(&drive->disk->disk_dev);
 	if ((drive->id->cfs_enable_2 & 0x3000) && drive->wcache)
 		if (do_idedisk_flushcache(drive))
 			printk (KERN_INFO "%s: Write Cache FAILED Flushing!\n",
@@ -1709,35 +1808,35 @@ static int idedisk_attach(ide_drive_t *drive);
  *      IDE subdriver functions, registered with ide.c
  */
 static ide_driver_t idedisk_driver = {
-	owner:			THIS_MODULE,
-	name:			"ide-disk",
-	version:		IDEDISK_VERSION,
-	media:			ide_disk,
-	busy:			0,
-	supports_dma:		1,
-	supports_dsc_overlap:	0,
-	cleanup:		idedisk_cleanup,
-	standby:		do_idedisk_standby,
-	suspend:		do_idedisk_suspend,
-	resume:			do_idedisk_resume,
-	flushcache:		do_idedisk_flushcache,
-	do_request:		do_rw_disk,
-	end_request:		NULL,
-	sense:			idedisk_dump_status,
-	error:			idedisk_error,
-	ioctl:			idedisk_ioctl,
-	open:			idedisk_open,
-	release:		idedisk_release,
-	media_change:		idedisk_media_change,
-	revalidate:		idedisk_revalidate,
-	pre_reset:		idedisk_pre_reset,
-	capacity:		idedisk_capacity,
-	special:		idedisk_special,
-	proc:			idedisk_proc,
-	attach:			idedisk_attach,
-	ata_prebuilder:		NULL,
-	atapi_prebuilder:	NULL,
-	drives:			LIST_HEAD_INIT(idedisk_driver.drives),
+	.owner			= THIS_MODULE,
+	.name			= "ide-disk",
+	.version		= IDEDISK_VERSION,
+	.media			= ide_disk,
+	.busy			= 0,
+	.supports_dma		= 1,
+	.supports_dsc_overlap	= 0,
+	.cleanup		= idedisk_cleanup,
+	.standby		= do_idedisk_standby,
+	.suspend		= do_idedisk_suspend,
+	.resume			= do_idedisk_resume,
+	.flushcache		= do_idedisk_flushcache,
+	.do_request		= do_rw_disk,
+	.end_request		= NULL,
+	.sense			= idedisk_dump_status,
+	.error			= idedisk_error,
+	.ioctl			= idedisk_ioctl,
+	.open			= idedisk_open,
+	.release		= idedisk_release,
+	.media_change		= idedisk_media_change,
+	.revalidate		= idedisk_revalidate,
+	.pre_reset		= idedisk_pre_reset,
+	.capacity		= idedisk_capacity,
+	.special		= idedisk_special,
+	.proc			= idedisk_proc,
+	.attach			= idedisk_attach,
+	.ata_prebuilder		= NULL,
+	.atapi_prebuilder	= NULL,
+	.drives			= LIST_HEAD_INIT(idedisk_driver.drives),
 };
 
 MODULE_DESCRIPTION("ATA DISK Driver");
@@ -1791,7 +1890,6 @@ static void __exit idedisk_exit (void)
 static int idedisk_init (void)
 {
 	ide_register_driver(&idedisk_driver);
-	driver_register(&idedisk_devdrv);
 	return 0;
 }
 

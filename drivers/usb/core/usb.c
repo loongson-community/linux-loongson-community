@@ -558,14 +558,6 @@ static int usb_hotplug (struct device *dev, char **envp, int num_envp,
 	 */
 	envp [i++] = scratch;
 	length += snprintf (scratch, buffer_size - length,
-			    "%s", "DEVFS=/proc/bus/usb");
-	if ((buffer_size - length <= 0) || (i >= num_envp))
-		return -ENOMEM;
-	++length;
-	scratch += length;
-
-	envp [i++] = scratch;
-	length += snprintf (scratch, buffer_size - length,
 			    "DEVICE=/proc/bus/usb/%03d/%03d",
 			    usb_dev->bus->busnum, usb_dev->devnum);
 	if ((buffer_size - length <= 0) || (i >= num_envp))
@@ -797,7 +789,7 @@ void usb_disconnect(struct usb_device **pdev)
 			struct usb_interface *interface = &dev->actconfig->interface[i];
 
 			/* remove this interface */
-			put_device(&interface->dev);
+			device_unregister(&interface->dev);
 		}
 	}
 
@@ -805,7 +797,7 @@ void usb_disconnect(struct usb_device **pdev)
 	if (dev->devnum > 0) {
 		clear_bit(dev->devnum, dev->bus->devmap.devicemap);
 		usbfs_remove_device(dev);
-		put_device(&dev->dev);
+		device_unregister(&dev->dev);
 	}
 
 	/* Decrement the reference count, it'll auto free everything when */

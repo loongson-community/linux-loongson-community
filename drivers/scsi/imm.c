@@ -27,8 +27,10 @@ static int device_check(int host_no);
 #include <linux/blk.h>
 #include <asm/io.h>
 #include <linux/parport.h>
+#include <linux/workqueue.h>
 #include "sd.h"
 #include "hosts.h"
+
 typedef struct {
     struct pardevice *dev;	/* Parport device entry         */
     int base;			/* Actual port address          */
@@ -1117,11 +1119,11 @@ int imm_biosparam(Disk * disk, struct block_device *dev, int ip[])
 {
     ip[0] = 0x40;
     ip[1] = 0x20;
-    ip[2] = (disk->capacity + 1) / (ip[0] * ip[1]);
+    ip[2] = ((unsigned long)disk->capacity + 1) / (ip[0] * ip[1]);
     if (ip[2] > 1024) {
 	ip[0] = 0xff;
 	ip[1] = 0x3f;
-	ip[2] = (disk->capacity + 1) / (ip[0] * ip[1]);
+	ip[2] = ((unsigned long)disk->capacity + 1) / (ip[0] * ip[1]);
     }
     return 0;
 }

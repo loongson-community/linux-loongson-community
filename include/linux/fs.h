@@ -305,7 +305,7 @@ struct address_space_operations {
 	int (*prepare_write)(struct file *, struct page *, unsigned, unsigned);
 	int (*commit_write)(struct file *, struct page *, unsigned, unsigned);
 	/* Unfortunately this kludge is needed for FIBMAP. Don't use it */
-	int (*bmap)(struct address_space *, long);
+	sector_t (*bmap)(struct address_space *, sector_t);
 	int (*invalidatepage) (struct page *, unsigned long);
 	int (*releasepage) (struct page *, int);
 	int (*direct_IO)(int, struct file *, const struct iovec *iov,
@@ -356,7 +356,7 @@ struct block_device {
 	int			bd_holders;
 	struct block_device *	bd_contains;
 	unsigned		bd_block_size;
-	unsigned long		bd_offset;
+	sector_t		bd_offset;
 	unsigned		bd_part_count;
 	int			bd_invalidated;
 };
@@ -667,9 +667,8 @@ struct super_block {
 
 	char s_id[32];				/* Informational name */
 
-	union {
-		void			*generic_sbp;
-	} u;
+	void 			*s_fs_info;	/* Filesystem private info */
+
 	/*
 	 * The next field is for VFS *only*. No filesystems have any business
 	 * even looking at it. You had been warned.
@@ -747,7 +746,7 @@ struct file_operations {
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
 	ssize_t (*aio_read) (struct kiocb *, char *, size_t, loff_t);
 	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
-	ssize_t (*aio_write) (struct kiocb *, char *, size_t, loff_t);
+	ssize_t (*aio_write) (struct kiocb *, const char *, size_t, loff_t);
 	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, struct poll_table_struct *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
@@ -1142,7 +1141,7 @@ extern void write_inode_now(struct inode *, int);
 extern int filemap_fdatawrite(struct address_space *);
 extern int filemap_fdatawait(struct address_space *);
 extern void sync_supers(void);
-extern int bmap(struct inode *, int);
+extern sector_t bmap(struct inode *, sector_t);
 extern int notify_change(struct dentry *, struct iattr *);
 extern int permission(struct inode *, int);
 extern int vfs_permission(struct inode *, int);
@@ -1199,6 +1198,10 @@ extern ino_t iunique(struct super_block *, ino_t);
 extern int inode_needs_sync(struct inode *inode);
 extern void generic_delete_inode(struct inode *inode);
 
+extern struct inode *ilookup5(struct super_block *sb, unsigned long hashval,
+		int (*test)(struct inode *, void *), void *data);
+extern struct inode *ilookup(struct super_block *sb, unsigned long ino);
+
 extern struct inode * iget5_locked(struct super_block *, unsigned long, int (*test)(struct inode *, void *), int (*set)(struct inode *, void *), void *);
 extern struct inode * iget_locked(struct super_block *, unsigned long);
 extern void unlock_new_inode(struct inode *);
@@ -1239,6 +1242,10 @@ extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *);
+extern ssize_t generic_file_aio_read(struct kiocb *, char *, size_t, loff_t);
+extern ssize_t generic_file_aio_write(struct kiocb *, const char *, size_t, loff_t);
+extern ssize_t do_sync_read(struct file *filp, char *buf, size_t len, loff_t *ppos);
+extern ssize_t do_sync_write(struct file *filp, const char *buf, size_t len, loff_t *ppos);
 ssize_t generic_file_write_nolock(struct file *file, const struct iovec *iov,
 				unsigned long nr_segs, loff_t *ppos);
 extern ssize_t generic_file_sendfile(struct file *, struct file *, loff_t *, size_t);
@@ -1286,6 +1293,12 @@ extern int dcache_dir_close(struct inode *, struct file *);
 extern loff_t dcache_dir_lseek(struct file *, loff_t, int);
 extern int dcache_readdir(struct file *, void *, filldir_t);
 extern int simple_statfs(struct super_block *, struct statfs *);
+extern int simple_link(struct dentry *, struct inode *, struct dentry *);
+extern int simple_unlink(struct inode *, struct dentry *);
+extern int simple_rmdir(struct inode *, struct dentry *);
+extern int simple_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
+extern int simple_sync_file(struct file *, struct dentry *, int);
+extern int simple_empty(struct dentry *);
 extern struct dentry *simple_lookup(struct inode *, struct dentry *);
 extern ssize_t generic_read_dir(struct file *, char *, size_t, loff_t *);
 extern struct file_operations simple_dir_operations;

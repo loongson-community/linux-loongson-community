@@ -217,11 +217,6 @@ CONFIG_BLK_DEV_IDE_MODES=y
 # CONFIG_SCSI is not set
 
 #
-# Old non-SCSI/ATAPI CD-ROM drives
-#
-# CONFIG_CD_NO_IDESCSI is not set
-
-#
 # Multi-device support (RAID and LVM)
 #
 # CONFIG_MD is not set
@@ -703,10 +698,12 @@ CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 CONFIG_NFSD=m
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_V4 is not set
 # CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 CONFIG_EXPORTFS=m
+# CONFIG_CIFS is not set
 CONFIG_SMB_FS=m
 # CONFIG_SMB_NLS_DEFAULT is not set
 # CONFIG_NCP_FS is not set

@@ -13,37 +13,29 @@
 #include <linux/sched.h>
 #include <linux/sunrpc/types.h>
 #include <linux/sunrpc/xdr.h>
-#include <linux/sunrpc/svcauth.h>
 #include <linux/sunrpc/svcsock.h>
+#include <linux/sunrpc/svcauth.h>
 #include <linux/err.h>
 
 #define RPCDBG_FACILITY	RPCDBG_AUTH
 
-/*
- * Type of authenticator function
- */
-typedef void	(*auth_fn_t)(struct svc_rqst *rqstp, u32 *statp, u32 *authp);
-
-/*
- * Builtin auth flavors
- */
-static void	svcauth_null(struct svc_rqst *rqstp, u32 *statp, u32 *authp);
-static void	svcauth_unix(struct svc_rqst *rqstp, u32 *statp, u32 *authp);
 
 /*
  * Table of authenticators
  */
-static auth_fn_t	authtab[RPC_AUTH_MAXFLAVOR] = {
-	svcauth_null,
-	svcauth_unix,
-	NULL,
+extern struct auth_ops svcauth_null;
+extern struct auth_ops svcauth_unix;
+
+static struct auth_ops	*authtab[RPC_AUTH_MAXFLAVOR] = {
+	[0] = &svcauth_null,
+	[1] = &svcauth_unix,
 };
 
-void
-svc_authenticate(struct svc_rqst *rqstp, u32 *statp, u32 *authp)
+int
+svc_authenticate(struct svc_rqst *rqstp, u32 *statp, u32 *authp, int proc)
 {
 	rpc_authflavor_t	flavor;
-	auth_fn_t		func;
+	struct auth_ops		*aops;
 
 	*statp = rpc_success;
 	*authp = rpc_auth_ok;
@@ -52,21 +44,53 @@ svc_authenticate(struct svc_rqst *rqstp, u32 *statp, u32 *authp)
 	flavor = ntohl(flavor);
 
 	dprintk("svc: svc_authenticate (%d)\n", flavor);
-	if (flavor >= RPC_AUTH_MAXFLAVOR || !(func = authtab[flavor])) {
+	if (flavor >= RPC_AUTH_MAXFLAVOR || !(aops = authtab[flavor])) {
 		*authp = rpc_autherr_badcred;
-		return;
+		return 0;
 	}
 
-	rqstp->rq_cred.cr_flavor = flavor;
-	func(rqstp, statp, authp);
+	rqstp->rq_authop = aops;
+	switch (aops->accept(rqstp, authp, proc)) {
+	case SVC_OK:
+		return 0;
+	case SVC_GARBAGE:
+		*statp = rpc_garbage_args;
+		return 0;
+	case SVC_SYSERR:
+		*statp = rpc_system_err;
+		return 0;
+	case SVC_DENIED:
+		return 0;
+	case SVC_DROP:
+		break;
+	}
+	return 1; /* drop the request */
+}
+
+/* A reqeust, which was authenticated, has now executed.
+ * Time to finalise the the credentials and verifier
+ * and release and resources
+ */
+int svc_authorise(struct svc_rqst *rqstp)
+{
+	struct auth_ops *aops = rqstp->rq_authop;
+	int rv = 0;
+
+	rqstp->rq_authop = NULL;
+	
+	if (aops) 
+		rv = aops->release(rqstp);
+
+	/* FIXME should I count and release authops */
+	return rv;
 }
 
 int
-svc_auth_register(rpc_authflavor_t flavor, auth_fn_t func)
+svc_auth_register(rpc_authflavor_t flavor, struct auth_ops *aops)
 {
 	if (flavor >= RPC_AUTH_MAXFLAVOR || authtab[flavor])
 		return -EINVAL;
-	authtab[flavor] = func;
+	authtab[flavor] = aops;
 	return 0;
 }
 
@@ -77,86 +101,91 @@ svc_auth_unregister(rpc_authflavor_t flavor)
 		authtab[flavor] = NULL;
 }
 
-static void
-svcauth_null(struct svc_rqst *rqstp, u32 *statp, u32 *authp)
+/**************************************************
+ * cache for domain name to auth_domain
+ * Entries are only added by flavours which will normally
+ * have a structure that 'inherits' from auth_domain.
+ * e.g. when an IP -> domainname is given to  auth_unix,
+ * and the domain name doesn't exist, it will create a
+ * auth_unix_domain and add it to this hash table.
+ * If it finds the name does exist, but isn't AUTH_UNIX,
+ * it will complain.
+ */
+
+int name_hash(char *name, int size)
 {
-	struct svc_buf	*argp = &rqstp->rq_argbuf;
-	struct svc_buf	*resp = &rqstp->rq_resbuf;
-
-	if ((argp->len -= 3) < 0) {
-		*statp = rpc_garbage_args;
-		return;
+	int hash = 0;
+	while (*name) {
+		hash += *name;
+		name++;
 	}
-	if (*(argp->buf)++ != 0) {	/* we already skipped the flavor */
-		dprintk("svc: bad null cred\n");
-		*authp = rpc_autherr_badcred;
-		return;
-	}
-	if (*(argp->buf)++ != RPC_AUTH_NULL || *(argp->buf)++ != 0) {
-		dprintk("svc: bad null verf\n");
-		*authp = rpc_autherr_badverf;
-		return;
-	}
-
-	/* Signal that mapping to nobody uid/gid is required */
-	rqstp->rq_cred.cr_uid = (uid_t) -1;
-	rqstp->rq_cred.cr_gid = (gid_t) -1;
-	rqstp->rq_cred.cr_groups[0] = NOGROUP;
-
-	/* Put NULL verifier */
-	rqstp->rq_verfed = 1;
-	svc_putu32(resp, RPC_AUTH_NULL);
-	svc_putu32(resp, 0);
+	return hash % size;
 }
 
-static void
-svcauth_unix(struct svc_rqst *rqstp, u32 *statp, u32 *authp)
+
+/*
+ * Auth auth_domain cache is somewhat different to other caches,
+ * largely because the entries are possibly of different types:
+ * each auth flavour has it's own type.
+ * One consequence of this that DefineCacheLookup cannot
+ * allocate a new structure as it cannot know the size.
+ * Notice that the "INIT" code fragment is quite different
+ * from other caches.  When auth_domain_lookup might be
+ * creating a new domain, the new domain is passed in
+ * complete and it is used as-is rather than being copied into
+ * another structure.
+ */
+#define	DN_HASHBITS	6
+#define	DN_HASHMAX	(1<<DN_HASHBITS)
+#define	DN_HASHMASK	(DN_HASHMAX-1)
+
+static struct cache_head	*auth_domain_table[DN_HASHMAX];
+void auth_domain_drop(struct cache_head *item, struct cache_detail *cd)
 {
-	struct svc_buf	*argp = &rqstp->rq_argbuf;
-	struct svc_buf	*resp = &rqstp->rq_resbuf;
-	struct svc_cred	*cred = &rqstp->rq_cred;
-	u32		*bufp = argp->buf, slen, i;
-	int		len   = argp->len;
+	struct auth_domain *dom = container_of(item, struct auth_domain, h);
+	if (cache_put(item,cd))
+		authtab[dom->flavour]->domain_release(dom);
+}
 
-	if ((len -= 3) < 0) {
-		*statp = rpc_garbage_args;
-		return;
-	}
 
-	bufp++;					/* length */
-	bufp++;					/* time stamp */
-	slen = (ntohl(*bufp++) + 3) >> 2;	/* machname length */
-	if (slen > 64 || (len -= slen + 3) < 0)
-		goto badcred;
-	bufp += slen;				/* skip machname */
+struct cache_detail auth_domain_cache = {
+	.hash_size	= DN_HASHMAX,
+	.hash_table	= auth_domain_table,
+	.name		= "auth.domain",
+	.cache_put	= auth_domain_drop,
+};
 
-	cred->cr_uid = ntohl(*bufp++);		/* uid */
-	cred->cr_gid = ntohl(*bufp++);		/* gid */
+void auth_domain_put(struct auth_domain *dom)
+{
+	auth_domain_drop(&dom->h, &auth_domain_cache);
+}
 
-	slen = ntohl(*bufp++);			/* gids length */
-	if (slen > 16 || (len -= slen + 2) < 0)
-		goto badcred;
-	for (i = 0; i < NGROUPS && i < slen; i++)
-		cred->cr_groups[i] = ntohl(*bufp++);
-	if (i < NGROUPS)
-		cred->cr_groups[i] = NOGROUP;
-	bufp += (slen - i);
+static inline int auth_domain_hash(struct auth_domain *item)
+{
+	return name_hash(item->name, DN_HASHMAX);
+}
+static inline int auth_domain_match(struct auth_domain *tmp, struct auth_domain *item)
+{
+	return strcmp(tmp->name, item->name) == 0;
+}
+DefineCacheLookup(struct auth_domain,
+		  h,
+		  auth_domain_lookup,
+		  (struct auth_domain *item, int set),
+		  /* no setup */,
+		  &auth_domain_cache,
+		  auth_domain_hash(item),
+		  auth_domain_match(tmp, item),
+		  kfree(new); if(!set) return NULL;
+		  new=item; atomic_inc(&new->h.refcnt),
+		  /* no update */
+		  )
 
-	if (*bufp++ != RPC_AUTH_NULL || *bufp++ != 0) {
-		*authp = rpc_autherr_badverf;
-		return;
-	}
+struct auth_domain *auth_domain_find(char *name)
+{
+	struct auth_domain *rv, ad;
 
-	argp->buf = bufp;
-	argp->len = len;
-
-	/* Put NULL verifier */
-	rqstp->rq_verfed = 1;
-	svc_putu32(resp, RPC_AUTH_NULL);
-	svc_putu32(resp, 0);
-
-	return;
-
-badcred:
-	*authp = rpc_autherr_badcred;
+	ad.name = name;
+	rv = auth_domain_lookup(&ad, 0);
+	return rv;
 }

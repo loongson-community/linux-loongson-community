@@ -273,7 +273,10 @@ void __init init_bsp_APIC(void)
 	value = apic_read(APIC_SPIV);
 	value &= ~APIC_VECTOR_MASK;
 	value |= APIC_SPIV_APIC_ENABLED;
-	value |= APIC_SPIV_FOCUS_DISABLED;
+	if ((boot_cpu_data.x86_vendor == X86_VENDOR_INTEL) && (boot_cpu_data.x86 == 15))
+		value &= ~APIC_SPIV_FOCUS_DISABLED;
+	else
+		value |= APIC_SPIV_FOCUS_DISABLED;
 	value |= SPURIOUS_APIC_VECTOR;
 	apic_write_around(APIC_SPIV, value);
 
@@ -713,7 +716,15 @@ void __init init_apic_mappings(void)
 		for (i = 0; i < nr_ioapics; i++) {
 			if (smp_found_config) {
 				ioapic_phys = mp_ioapics[i].mpc_apicaddr;
+				if (!ioapic_phys) {
+					printk(KERN_ERR "WARNING: bogus zero IO-APIC address found in MPTABLE, disabling IO/APIC support!\n");
+
+					smp_found_config = 0;
+					skip_ioapic_setup = 1;
+					goto fake_ioapic_page;
+				}
 			} else {
+fake_ioapic_page:
 				ioapic_phys = (unsigned long) alloc_bootmem_pages(PAGE_SIZE);
 				ioapic_phys = __pa(ioapic_phys);
 			}
@@ -1049,7 +1060,6 @@ inline void smp_local_timer_interrupt(struct pt_regs * regs)
  * [ if a single-CPU system runs an SMP kernel then we call the local
  *   interrupt as well. Thus we cannot inline the local irq ... ]
  */
-unsigned int apic_timer_irqs [NR_CPUS];
 
 void smp_apic_timer_interrupt(struct pt_regs regs)
 {
@@ -1058,7 +1068,7 @@ void smp_apic_timer_interrupt(struct pt_regs regs)
 	/*
 	 * the NMI deadlock-detector uses this.
 	 */
-	apic_timer_irqs[cpu]++;
+	irq_stat[cpu].apic_timer_irqs++;
 
 	/*
 	 * NOTE! We'd better ACK the irq immediately,

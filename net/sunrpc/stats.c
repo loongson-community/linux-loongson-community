@@ -25,7 +25,7 @@
 
 #define RPCDBG_FACILITY	RPCDBG_MISC
 
-static struct proc_dir_entry	*proc_net_rpc = NULL;
+struct proc_dir_entry	*proc_net_rpc = NULL;
 
 /*
  * Get RPC client stats
@@ -183,25 +183,3 @@ rpc_proc_exit(void)
 	}
 }
 
-
-static int __init
-init_sunrpc(void)
-{
-#ifdef RPC_DEBUG
-	rpc_register_sysctl();
-#endif
-	rpc_proc_init();
-	return 0;
-}
-
-static void __exit
-cleanup_sunrpc(void)
-{
-#ifdef RPC_DEBUG
-	rpc_unregister_sysctl();
-#endif
-	rpc_proc_exit();
-}
-MODULE_LICENSE("GPL");
-module_init(init_sunrpc);
-module_exit(cleanup_sunrpc);

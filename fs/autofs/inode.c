@@ -33,7 +33,7 @@ static void autofs_put_super(struct super_block *sb)
 			kfree(sbi->symlink[n].data);
 	}
 
-	kfree(sb->u.generic_sbp);
+	kfree(sb->s_fs_info);
 
 	DPRINTK(("autofs: shutting down\n"));
 }
@@ -41,9 +41,9 @@ static void autofs_put_super(struct super_block *sb)
 static void autofs_read_inode(struct inode *inode);
 
 static struct super_operations autofs_sops = {
-	read_inode:	autofs_read_inode,
-	put_super:	autofs_put_super,
-	statfs:		simple_statfs,
+	.read_inode	= autofs_read_inode,
+	.put_super	= autofs_put_super,
+	.statfs		= simple_statfs,
 };
 
 static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid, pid_t *pgrp, int *minproto, int *maxproto)
@@ -126,7 +126,7 @@ int autofs_fill_super(struct super_block *s, void *data, int silent)
 	memset(sbi, 0, sizeof(*sbi));
 	DPRINTK(("autofs: starting up, sbi = %p\n",sbi));
 
-	s->u.generic_sbp = sbi;
+	s->s_fs_info = sbi;
 	sbi->magic = AUTOFS_SBI_MAGIC;
 	sbi->catatonic = 0;
 	sbi->exp_timeout = 0;

@@ -614,7 +614,7 @@ jffs_build_fs(struct super_block *sb)
 		printk("JFFS: Failed to build file system.\n");
 		goto jffs_build_fs_fail;
 	}
-	sb->u.generic_sbp = (void *)c;
+	sb->s_fs_info = (void *)c;
 	c->building_fs = 0;
 
 	D1(jffs_print_hash_table(c));
@@ -3380,9 +3380,9 @@ jffs_garbage_collect_thread(void *ptr)
 
 			spin_lock_irq(&current->sig->siglock);
 			if (current->sig->shared_pending.head)
-				signr = dequeue_signal(&current->sig->shared_pending, &current->blocked, &info);
+				signr = dequeue_signal(&current->sig->shared_pending, &info);
 			if (!signr)
-				signr = dequeue_signal(&current->pending, &current->blocked, &info);
+				signr = dequeue_signal(&current->pending, &info);
 			spin_unlock_irq(&current->sig->siglock);
 
 			switch(signr) {

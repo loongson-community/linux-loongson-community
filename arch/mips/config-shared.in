@@ -109,6 +109,9 @@ bool 'Support for ZAO Networks Capcella' CONFIG_ZAO_CAPCELLA
 
 dep_bool 'High Memory Support' CONFIG_HIGHMEM $CONFIG_MIPS32
 bool 'Preemptible Kernel' CONFIG_PREEMPT
+if [ "$CONFIG_SMP" = "y" ]; then
+   int  'Maximum number of CPUs (2-32)' CONFIG_NR_CPUS 32
+fi
 
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
 define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
@@ -673,14 +676,16 @@ if [ "$CONFIG_SCSI" != "n" ]; then
 fi
 endmenu
 
-mainmenu_option next_comment
-comment 'Old non-SCSI/ATAPI CD-ROM drives'
+if [ "$CONFIG_ISA" = "y" ]; then
+   mainmenu_option next_comment
+   comment 'Old CD-ROM drivers (not SCSI, not IDE)'
 
-bool 'Support non-SCSI/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
-if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
-   source drivers/cdrom/Config.in
+   bool 'Support non-SCSI/IDE/ATAPI CDROM drives' CONFIG_CD_NO_IDESCSI
+   if [ "$CONFIG_CD_NO_IDESCSI" != "n" ]; then
+      source drivers/cdrom/Config.in
+   fi
+   endmenu
 fi
-endmenu
 
 source drivers/md/Config.in
 

@@ -200,6 +200,7 @@ static int ida_proc_get_info(char *buffer, char **start, off_t offset, int lengt
 	drv_info_t *drv;
 #ifdef CPQ_PROC_PRINT_QUEUES
 	cmdlist_t *c;
+	unsigned long flags;
 #endif
 
 	ctlr = h->ctlr;
@@ -236,6 +237,7 @@ static int ida_proc_get_info(char *buffer, char **start, off_t offset, int lengt
 	}
 
 #ifdef CPQ_PROC_PRINT_QUEUES
+	spin_lock_irqsave(IDA_LOCK(h->ctlr), flags); 
 	size = sprintf(buffer+len, "\nCurrent Queues:\n");
 	pos += size; len += size;
 
@@ -258,6 +260,7 @@ static int ida_proc_get_info(char *buffer, char **start, off_t offset, int lengt
 	}
 
 	size = sprintf(buffer+len, "\n"); pos += size; len += size;
+	spin_unlock_irqrestore(IDA_LOCK(h->ctlr), flags); 
 #endif
 	size = sprintf(buffer+len, "nr_allocs = %d\nnr_frees = %d\n",
 			h->nr_allocs, h->nr_frees);
@@ -355,7 +358,7 @@ static int __init cpqarray_init(void)
 		}
 		num_cntlrs_reg++;
 		for (j=0; j<NWD; j++) {
-			ida_gendisk[i][j] = disk_alloc();
+			ida_gendisk[i][j] = alloc_disk();
 			if (!ida_gendisk[i][j])
 				goto Enomem2;
 		}
@@ -372,8 +375,6 @@ static int __init cpqarray_init(void)
 			hba[i]->devname);
 		getgeometry(i);
 		start_fwbk(i); 
-
-		hba[i]->access.set_intr_mask(hba[i], FIFO_NOT_EMPTY);
 
 		ida_procinit(i);
 
@@ -394,6 +395,9 @@ static int __init cpqarray_init(void)
 		hba[i]->timer.data = (unsigned long)hba[i];
 		hba[i]->timer.function = ida_timer;
 		add_timer(&hba[i]->timer);
+
+		/* Enable IRQ now that spinlock and rate limit timer are set up */
+		hba[i]->access.set_intr_mask(hba[i], FIFO_NOT_EMPTY);
 
 		for(j=0; j<NWD; j++) {
 			struct gendisk *disk = ida_gendisk[i][j];
@@ -436,7 +440,6 @@ Enomem2:
 		return -ENODEV;
 	}
 	return 0;
-}
 }
 
 /*
@@ -522,6 +525,10 @@ static int cpqarray_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 	int i;
 
 	c->pci_dev = pdev;
+	if (pci_enable_device(pdev)) {
+		printk(KERN_ERR "cpqarray: Unable to Enable PCI device\n");
+		return -1;
+	}
 	vendor_id = pdev->vendor;
 	device_id = pdev->device;
 	irq = pdev->irq;
@@ -529,11 +536,6 @@ static int cpqarray_pci_init(ctlr_info_t *c, struct pci_dev *pdev)
 	for(i=0; i<6; i++)
 		addr[i] = pci_resource_start(pdev, i);
 
-	if (pci_enable_device(pdev))
-	{
-		printk(KERN_ERR "cpqarray: Unable to Enable PCI device\n");
-		return -1;
-	}
 	if (pci_set_dma_mask(pdev, CPQARRAY_DMA_MASK) != 0)
 	{
 		printk(KERN_ERR "cpqarray: Unable to set DMA mask\n");
@@ -811,8 +813,6 @@ queue_next:
 
 	blkdev_dequeue_request(creq);
 
-	spin_unlock_irq(q->queue_lock);
-
 	c->ctlr = h->ctlr;
 	c->hdr.unit = minor(creq->rq_dev) >> NWD_SHIFT;
 	c->hdr.size = sizeof(rblk_t) >> 2;
@@ -844,8 +844,6 @@ DBGPX(	printk("Submitting %d sectors in %d segments\n", creq->nr_sectors, seg); 
 	c->req.hdr.cmd = (rq_data_dir(creq) == READ) ? IDA_READ : IDA_WRITE;
 	c->type = CMD_RWREQ;
 
-	spin_lock_irq(q->queue_lock);
-
 	/* Put the request on the tail of the request queue */
 	addQ(&h->reqQ, c);
 	h->Qdepth++;
@@ -855,7 +853,6 @@ DBGPX(	printk("Submitting %d sectors in %d segments\n", creq->nr_sectors, seg); 
 	goto queue_next;
 
 startio:
-	__blk_stop_queue(q);
 	start_io(h);
 }
 
@@ -1008,8 +1005,8 @@ static void do_ida_intr(int irq, void *dev_id, struct pt_regs *regs)
 	/*
 	 * See if we can queue up some more IO
 	 */
-	spin_unlock_irqrestore(IDA_LOCK(h->ctlr), flags);
-	blk_start_queue(BLK_DEFAULT_QUEUE(MAJOR_NR + h->ctlr));
+	do_ida_request(BLK_DEFAULT_QUEUE(MAJOR_NR+h->ctlr));
+	spin_unlock_irqrestore(IDA_LOCK(h->ctlr), flags); 
 }
 
 /*

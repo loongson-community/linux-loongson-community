@@ -98,8 +98,10 @@ struct svc_rqst {
 
 	struct svc_serv *	rq_server;	/* RPC service definition */
 	struct svc_procedure *	rq_procinfo;	/* procedure info */
+	struct auth_ops *	rq_authop;	/* authentication flavour */
 	struct svc_cred		rq_cred;	/* auth info */
 	struct sk_buff *	rq_skbuff;	/* fast recv inet buffer */
+	struct svc_deferred_req*rq_deferred;	/* deferred request we are replaying */
 	struct svc_buf		rq_defbuf;	/* default buffer */
 	struct svc_buf		rq_argbuf;	/* argument buffer */
 	struct svc_buf		rq_resbuf;	/* result buffer */
@@ -108,10 +110,10 @@ struct svc_rqst {
 	u32			rq_vers;	/* program version */
 	u32			rq_proc;	/* procedure number */
 	u32			rq_prot;	/* IP protocol */
-	unsigned short		rq_verfed  : 1,	/* reply has verifier */
+	unsigned short
 				rq_userset : 1,	/* auth->setuser OK */
-				rq_secure  : 1,	/* secure port */
-				rq_auth    : 1;	/* check client */
+				rq_secure  : 1;	/* secure port */
+
 
 	void *			rq_argp;	/* decoded arguments */
 	void *			rq_resp;	/* xdr'd results */
@@ -120,15 +122,28 @@ struct svc_rqst {
 						 * reserved for this request
 						 */
 
+	struct cache_req	rq_chandle;	/* handle passed to caches for 
+						 * request delaying 
+						 */
 	/* Catering to nfsd */
-	struct svc_client *	rq_client;	/* RPC peer info */
+	struct auth_domain *	rq_client;	/* RPC peer info */
 	struct svc_cacherep *	rq_cacherep;	/* cache info */
 	struct knfsd_fh *	rq_reffh;	/* Referrence filehandle, used to
 						 * determine what device number
 						 * to report (real or virtual)
 						 */
 
-	wait_queue_head_t	rq_wait;	/* synchronozation */
+	wait_queue_head_t	rq_wait;	/* synchronization */
+};
+
+struct svc_deferred_req {
+	struct svc_serv		*serv;
+	u32			prot;	/* protocol (UDP or TCP) */
+	struct sockaddr_in	addr;
+	struct svc_sock		*svsk;	/* where reply must go */
+	struct cache_deferred_req handle;
+	int			argslen;
+	u32			args[0];
 };
 
 /*
@@ -141,6 +156,7 @@ struct svc_program {
 	unsigned int		pg_nvers;	/* number of versions */
 	struct svc_version **	pg_vers;	/* version array */
 	char *			pg_name;	/* service name */
+	char *			pg_class;	/* class name: services sharing authentication */
 	struct svc_stat *	pg_stats;	/* rpc statistics */
 };
 

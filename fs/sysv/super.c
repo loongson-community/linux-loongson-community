@@ -367,7 +367,7 @@ static int sysv_fill_super(struct super_block *sb, void *data, int silent)
 
 	sbi->s_sb = sb;
 	sbi->s_block_base = 0;
-	sb->u.generic_sbp = sbi;
+	sb->s_fs_info = sbi;
 	
 	sb_set_blocksize(sb, BLOCK_SIZE);
 
@@ -453,7 +453,7 @@ static int v7_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_block_base = 0;
 	sbi->s_type = FSTYPE_V7;
 	sbi->s_bytesex = BYTESEX_PDP;
-	sb->u.generic_sbp = sbi;
+	sb->s_fs_info = sbi;
 	
 	sb_set_blocksize(sb, 512);
 
@@ -509,19 +509,19 @@ static struct super_block *v7_get_sb(struct file_system_type *fs_type,
 }
 
 static struct file_system_type sysv_fs_type = {
-	owner:		THIS_MODULE,
-	name:		"sysv",
-	get_sb:		sysv_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "sysv",
+	.get_sb		= sysv_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 static struct file_system_type v7_fs_type = {
-	owner:		THIS_MODULE,
-	name:		"v7",
-	get_sb:		v7_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "v7",
+	.get_sb		= v7_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 extern int sysv_init_icache(void) __init;

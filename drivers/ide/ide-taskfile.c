@@ -201,6 +201,12 @@ ide_startstop_t do_rw_taskfile (ide_drive_t *drive, ide_task_t *task)
 			if (hwif->ide_dma_read(drive))
 				return ide_stopped;
 			break;
+		case WIN_READDMA_QUEUED:
+		case WIN_READDMA_QUEUED_EXT:
+			return hwif->ide_dma_queued_read(drive);
+		case WIN_WRITEDMA_QUEUED:
+		case WIN_WRITEDMA_QUEUED_EXT:
+			return hwif->ide_dma_queued_write(drive);
 		default:
 			if (task->handler == NULL)
 				return ide_stopped;
@@ -280,8 +286,8 @@ u8 taskfile_dump_status (ide_drive_t *drive, const char *msg, u8 stat)
 				}
 			}
 			if (HWGROUP(drive)->rq)
-				printk(", sector=%lu",
-					HWGROUP(drive)->rq->sector);
+				printk(", sector=%llu",
+					(unsigned long long)HWGROUP(drive)->rq->sector);
 		}
 media_out:
 #endif  /* FANCY_STATUS_DUMPS */

@@ -29,6 +29,7 @@
 #include <linux/file.h>
 #include <linux/quotaops.h>
 #include <linux/iobuf.h>
+#include <linux/highmem.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
 #include <linux/mempool.h>
@@ -461,12 +462,17 @@ void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
 static void free_more_memory(void)
 {
 	struct zone *zone;
+	pg_data_t *pgdat;
 
-	zone = contig_page_data.node_zonelists[GFP_NOFS&GFP_ZONEMASK].zones[0];
 	wakeup_bdflush(1024);
 	blk_run_queues();
 	yield();
-	try_to_free_pages(zone, GFP_NOFS, 0);
+
+	for_each_pgdat(pgdat) {
+		zone = pgdat->node_zonelists[GFP_NOFS&GFP_ZONEMASK].zones[0];
+		if (zone)
+			try_to_free_pages(zone, GFP_NOFS, 0);
+	}
 }
 
 /*
@@ -1770,7 +1776,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 		unsigned from, unsigned to, get_block_t *get_block)
 {
 	unsigned block_start, block_end;
-	unsigned long block;
+	sector_t block;
 	int err = 0;
 	unsigned blocksize, bbits;
 	struct buffer_head *bh, *head, *wait[2], **wait_bh=wait;
@@ -1786,7 +1792,7 @@ static int __block_prepare_write(struct inode *inode, struct page *page,
 	head = page_buffers(page);
 
 	bbits = inode->i_blkbits;
-	block = page->index << (PAGE_CACHE_SHIFT - bbits);
+	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
 	for(bh = head, block_start = 0; bh != head || !block_start;
 	    block++, block_start=block_end, bh = bh->b_this_page) {
@@ -1927,7 +1933,7 @@ static int __block_commit_write(struct inode *inode, struct page *page,
 int block_read_full_page(struct page *page, get_block_t *get_block)
 {
 	struct inode *inode = page->mapping->host;
-	unsigned long iblock, lblock;
+	sector_t iblock, lblock;
 	struct buffer_head *bh, *head, *arr[MAX_BUF_PER_PAGE];
 	unsigned int blocksize, blocks;
 	int nr, i;
@@ -1942,7 +1948,7 @@ int block_read_full_page(struct page *page, get_block_t *get_block)
 	head = page_buffers(page);
 
 	blocks = PAGE_CACHE_SIZE >> inode->i_blkbits;
-	iblock = page->index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
+	iblock = (sector_t)page->index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
 	lblock = (inode->i_size+blocksize-1) >> inode->i_blkbits;
 	bh = head;
 	nr = 0;
@@ -2448,7 +2454,7 @@ void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
 			}
 		} else {
 			if (!buffer_uptodate(bh)) {
-				submit_bh(READ, bh);
+				submit_bh(rw, bh);
 				continue;
 			}
 		}

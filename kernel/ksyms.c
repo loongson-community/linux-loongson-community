@@ -90,7 +90,6 @@ EXPORT_SYMBOL(exit_mm);
 
 /* internal kernel memory management */
 EXPORT_SYMBOL(__alloc_pages);
-EXPORT_SYMBOL(alloc_pages_node);
 EXPORT_SYMBOL(__get_free_pages);
 EXPORT_SYMBOL(get_zeroed_page);
 EXPORT_SYMBOL(__page_cache_release);
@@ -304,6 +303,12 @@ EXPORT_SYMBOL(simple_statfs);
 EXPORT_SYMBOL(simple_lookup);
 EXPORT_SYMBOL(simple_dir_operations);
 EXPORT_SYMBOL(simple_dir_inode_operations);
+EXPORT_SYMBOL(simple_link);
+EXPORT_SYMBOL(simple_unlink);
+EXPORT_SYMBOL(simple_rmdir);
+EXPORT_SYMBOL(simple_rename);
+EXPORT_SYMBOL(simple_sync_file);
+EXPORT_SYMBOL(simple_empty);
 EXPORT_SYMBOL(fd_install);
 EXPORT_SYMBOL(put_unused_fd);
 EXPORT_SYMBOL(get_sb_bdev);
@@ -601,6 +606,8 @@ EXPORT_SYMBOL(init_task);
 EXPORT_SYMBOL(init_thread_union);
 
 EXPORT_SYMBOL(tasklist_lock);
+EXPORT_SYMBOL(find_task_by_pid);
+EXPORT_SYMBOL(next_thread);
 #if defined(CONFIG_SMP) && defined(__GENERIC_PER_CPU)
 EXPORT_SYMBOL(__per_cpu_offset);
 #endif

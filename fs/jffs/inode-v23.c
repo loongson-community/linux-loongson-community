@@ -88,7 +88,7 @@ static int jffs_fill_super(struct super_block *sb, void *data, int silent)
 
 	sb->s_blocksize = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
-	sb->u.generic_sbp = (void *) 0;
+	sb->s_fs_info = (void *) 0;
 	sb->s_maxbytes = 0xFFFFFFFF;
 
 	/* Build the file system.  */
@@ -111,7 +111,7 @@ static int jffs_fill_super(struct super_block *sb, void *data, int silent)
 		goto jffs_sb_err3;
 	}
 
-	c = (struct jffs_control *) sb->u.generic_sbp;
+	c = (struct jffs_control *) sb->s_fs_info;
 
 #ifdef CONFIG_JFFS_PROC_FS
 	/* Set up the jffs proc file system.  */
@@ -149,7 +149,7 @@ static int jffs_fill_super(struct super_block *sb, void *data, int silent)
 jffs_sb_err3:
 	iput(root_inode);
 jffs_sb_err2:
-	jffs_cleanup_control((struct jffs_control *)sb->u.generic_sbp);
+	jffs_cleanup_control((struct jffs_control *)sb->s_fs_info);
 jffs_sb_err1:
 	printk(KERN_WARNING "JFFS: Failed to mount device %s.\n",
 	       sb->s_id);
@@ -161,7 +161,7 @@ jffs_sb_err1:
 static void
 jffs_put_super(struct super_block *sb)
 {
-	struct jffs_control *c = (struct jffs_control *) sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *) sb->s_fs_info;
 
 	D2(printk("jffs_put_super()\n"));
 
@@ -177,7 +177,7 @@ jffs_put_super(struct super_block *sb)
 
 	D1(printk (KERN_NOTICE "jffs_put_super(): Successfully waited on thread.\n"));
 
-	jffs_cleanup_control((struct jffs_control *)sb->u.generic_sbp);
+	jffs_cleanup_control((struct jffs_control *)sb->s_fs_info);
 	D1(printk(KERN_NOTICE "JFFS: Successfully unmounted device %s.\n",
 	       sb->s_id));
 }
@@ -204,7 +204,7 @@ jffs_setattr(struct dentry *dentry, struct iattr *iattr)
 	if ((res = inode_change_ok(inode, iattr))) 
 		goto out;
 
-	c = (struct jffs_control *)inode->i_sb->u.generic_sbp;
+	c = (struct jffs_control *)inode->i_sb->s_fs_info;
 	fmc = c->fmc;
 
 	D3(printk (KERN_NOTICE "notify_change(): down biglock\n"));
@@ -355,7 +355,7 @@ jffs_new_inode(const struct inode * dir, struct jffs_raw_inode *raw_inode,
 		return NULL;
 	}
 
-	c = (struct jffs_control *)sb->u.generic_sbp;
+	c = (struct jffs_control *)sb->s_fs_info;
 
 	inode->i_ino = raw_inode->ino;
 	inode->i_mode = raw_inode->mode;
@@ -382,7 +382,7 @@ jffs_new_inode(const struct inode * dir, struct jffs_raw_inode *raw_inode,
 int
 jffs_statfs(struct super_block *sb, struct statfs *buf)
 {
-	struct jffs_control *c = (struct jffs_control *) sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *) sb->s_fs_info;
 	struct jffs_fmcontrol *fmc;
 
 	lock_kernel();
@@ -436,7 +436,7 @@ jffs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		 new_dir, new_dentry->d_name.name));
 
 	lock_kernel();
-	c = (struct jffs_control *)old_dir->i_sb->u.generic_sbp;
+	c = (struct jffs_control *)old_dir->i_sb->s_fs_info;
 	ASSERT(if (!c) {
 		printk(KERN_ERR "jffs_rename(): The old_dir inode "
 		       "didn't have a reference to a jffs_file struct\n");
@@ -572,7 +572,7 @@ jffs_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	struct jffs_file *f;
 	struct dentry *dentry = filp->f_dentry;
 	struct inode *inode = dentry->d_inode;
-	struct jffs_control *c = (struct jffs_control *)inode->i_sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)inode->i_sb->s_fs_info;
 	int j;
 	int ddino;
 	lock_kernel();
@@ -643,7 +643,7 @@ jffs_lookup(struct inode *dir, struct dentry *dentry)
 {
 	struct jffs_file *d;
 	struct jffs_file *f;
-	struct jffs_control *c = (struct jffs_control *)dir->i_sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)dir->i_sb->s_fs_info;
 	int len;
 	int r = 0;
 	const char *name;
@@ -743,7 +743,7 @@ jffs_do_readpage_nolock(struct file *file, struct page *page)
 	int result;
 	struct inode *inode = (struct inode*)page->mapping->host;
 	struct jffs_file *f = (struct jffs_file *)inode->u.generic_ip;
-	struct jffs_control *c = (struct jffs_control *)inode->i_sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)inode->i_sb->s_fs_info;
 	int r;
 	loff_t offset;
 
@@ -919,7 +919,7 @@ jffs_mkdir_end:
 static int
 jffs_rmdir(struct inode *dir, struct dentry *dentry)
 {
-	struct jffs_control *c = (struct jffs_control *)dir->i_sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)dir->i_sb->s_fs_info;
 	int ret;
 	D3(printk("***jffs_rmdir()\n"));
 	D3(printk (KERN_NOTICE "rmdir(): down biglock\n"));
@@ -937,7 +937,7 @@ jffs_rmdir(struct inode *dir, struct dentry *dentry)
 static int
 jffs_unlink(struct inode *dir, struct dentry *dentry)
 {
-	struct jffs_control *c = (struct jffs_control *)dir->i_sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)dir->i_sb->s_fs_info;
 	int ret; 
 
 	lock_kernel();
@@ -1561,7 +1561,7 @@ jffs_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	D2(printk("***jffs_ioctl(): cmd = 0x%08x, arg = 0x%08lx\n",
 		  cmd, arg));
 
-	if (!(c = (struct jffs_control *)inode->i_sb->u.generic_sbp)) {
+	if (!(c = (struct jffs_control *)inode->i_sb->s_fs_info)) {
 		printk(KERN_ERR "JFFS: Bad inode in ioctl() call. "
 		       "(cmd = 0x%08x)\n", cmd);
 		return -EIO;
@@ -1615,9 +1615,9 @@ jffs_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 
 
 static struct address_space_operations jffs_address_operations = {
-	readpage: jffs_readpage,
-	prepare_write: jffs_prepare_write,
-	commit_write: jffs_commit_write,
+	.readpage	= jffs_readpage,
+	.prepare_write	= jffs_prepare_write,
+	.commit_write	= jffs_commit_write,
 };
 
 static int jffs_fsync(struct file *f, struct dentry *d, int datasync)
@@ -1634,41 +1634,41 @@ extern loff_t generic_file_llseek(struct file *, loff_t, int) __attribute__((wea
 
 static struct file_operations jffs_file_operations =
 {
-	open:		generic_file_open,
-	llseek:		generic_file_llseek,
-	read:		generic_file_read,
-	write:		generic_file_write,
-	ioctl:		jffs_ioctl,
-	mmap:		generic_file_mmap,
-	fsync:		jffs_fsync,
-	sendfile:	generic_file_sendfile,
+	.open		= generic_file_open,
+	.llseek		= generic_file_llseek,
+	.read		= generic_file_read,
+	.write		= generic_file_write,
+	.ioctl		= jffs_ioctl,
+	.mmap		= generic_file_mmap,
+	.fsync		= jffs_fsync,
+	.sendfile	= generic_file_sendfile,
 };
 
 
 static struct inode_operations jffs_file_inode_operations =
 {
-	lookup:  jffs_lookup,          /* lookup */
-	setattr: jffs_setattr,
+	.lookup		= jffs_lookup,          /* lookup */
+	.setattr	= jffs_setattr,
 };
 
 
 static struct file_operations jffs_dir_operations =
 {
-	readdir:	jffs_readdir,
+	.readdir	= jffs_readdir,
 };
 
 
 static struct inode_operations jffs_dir_inode_operations =
 {
-	create:   jffs_create,
-	lookup:   jffs_lookup,
-	unlink:   jffs_unlink,
-	symlink:  jffs_symlink,
-	mkdir:    jffs_mkdir,
-	rmdir:    jffs_rmdir,
-	mknod:    jffs_mknod,
-	rename:   jffs_rename,
-	setattr:  jffs_setattr,
+	.create		= jffs_create,
+	.lookup		= jffs_lookup,
+	.unlink		= jffs_unlink,
+	.symlink	= jffs_symlink,
+	.mkdir		= jffs_mkdir,
+	.rmdir		= jffs_rmdir,
+	.mknod		= jffs_mknod,
+	.rename		= jffs_rename,
+	.setattr	= jffs_setattr,
 };
 
 
@@ -1686,7 +1686,7 @@ jffs_read_inode(struct inode *inode)
 			 "No super block!\n"));
 		return;
 	}
-	c = (struct jffs_control *)inode->i_sb->u.generic_sbp;
+	c = (struct jffs_control *)inode->i_sb->s_fs_info;
 	D3(printk (KERN_NOTICE "read_inode(): down biglock\n"));
 	down(&c->fmc->biglock);
 	if (!(f = jffs_find_file(c, inode->i_ino))) {
@@ -1748,7 +1748,7 @@ jffs_delete_inode(struct inode *inode)
 	inode->u.generic_ip = 0;
 	clear_inode(inode);
 	if (inode->i_nlink == 0) {
-		c = (struct jffs_control *) inode->i_sb->u.generic_sbp;
+		c = (struct jffs_control *) inode->i_sb->s_fs_info;
 		f = (struct jffs_file *) jffs_find_file (c, inode->i_ino);
 		jffs_possibly_delete_file(f);
 	}
@@ -1760,7 +1760,7 @@ jffs_delete_inode(struct inode *inode)
 void
 jffs_write_super(struct super_block *sb)
 {
-	struct jffs_control *c = (struct jffs_control *)sb->u.generic_sbp;
+	struct jffs_control *c = (struct jffs_control *)sb->s_fs_info;
 	lock_kernel();
 	jffs_garbage_collect_trigger(c);
 	unlock_kernel();
@@ -1768,11 +1768,11 @@ jffs_write_super(struct super_block *sb)
 
 static struct super_operations jffs_ops =
 {
-	read_inode:   jffs_read_inode,
-	delete_inode: jffs_delete_inode,
-	put_super:    jffs_put_super,
-	write_super:  jffs_write_super,
-	statfs:       jffs_statfs,
+	.read_inode	= jffs_read_inode,
+	.delete_inode 	= jffs_delete_inode,
+	.put_super	= jffs_put_super,
+	.write_super	= jffs_write_super,
+	.statfs		= jffs_statfs,
 };
 
 static struct super_block *jffs_get_sb(struct file_system_type *fs_type,
@@ -1782,11 +1782,11 @@ static struct super_block *jffs_get_sb(struct file_system_type *fs_type,
 }
 
 static struct file_system_type jffs_fs_type = {
-	owner:		THIS_MODULE,
-	name:		"jffs",
-	get_sb:		jffs_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "jffs",
+	.get_sb		= jffs_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 static int __init

@@ -459,15 +459,15 @@ static int sysv_prepare_write(struct file *file, struct page *page, unsigned fro
 {
 	return block_prepare_write(page,from,to,get_block);
 }
-static int sysv_bmap(struct address_space *mapping, long block)
+static sector_t sysv_bmap(struct address_space *mapping, sector_t block)
 {
 	return generic_block_bmap(mapping,block,get_block);
 }
 struct address_space_operations sysv_aops = {
-	readpage: sysv_readpage,
-	writepage: sysv_writepage,
-	sync_page: block_sync_page,
-	prepare_write: sysv_prepare_write,
-	commit_write: generic_commit_write,
-	bmap: sysv_bmap
+	.readpage = sysv_readpage,
+	.writepage = sysv_writepage,
+	.sync_page = block_sync_page,
+	.prepare_write = sysv_prepare_write,
+	.commit_write = generic_commit_write,
+	.bmap = sysv_bmap
 };

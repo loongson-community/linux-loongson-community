@@ -146,18 +146,18 @@ static int udf_prepare_write(struct file *file, struct page *page, unsigned from
 	return block_prepare_write(page, from, to, udf_get_block);
 }
 
-static int udf_bmap(struct address_space *mapping, long block)
+static sector_t udf_bmap(struct address_space *mapping, sector_t block)
 {
 	return generic_block_bmap(mapping,block,udf_get_block);
 }
 
 struct address_space_operations udf_aops = {
-	readpage:		udf_readpage,
-	writepage:		udf_writepage,
-	sync_page:		block_sync_page,
-	prepare_write:		udf_prepare_write,
-	commit_write:		generic_commit_write,
-	bmap:			udf_bmap,
+	.readpage		= udf_readpage,
+	.writepage		= udf_writepage,
+	.sync_page		= block_sync_page,
+	.prepare_write		= udf_prepare_write,
+	.commit_write		= generic_commit_write,
+	.bmap			= udf_bmap,
 };
 
 void udf_expand_file_adinicb(struct inode * inode, int newsize, int * err)

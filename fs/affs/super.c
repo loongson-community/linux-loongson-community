@@ -56,7 +56,7 @@ affs_put_super(struct super_block *sb)
 	kfree(sbi->s_bitmap);
 	affs_brelse(sbi->s_root_bh);
 	kfree(sbi);
-	sb->u.generic_sbp = NULL;
+	sb->s_fs_info = NULL;
 	unlock_kernel();
 	return;
 }
@@ -130,17 +130,17 @@ static void destroy_inodecache(void)
 }
 
 static struct super_operations affs_sops = {
-	alloc_inode:	affs_alloc_inode,
-	destroy_inode:	affs_destroy_inode,
-	read_inode:	affs_read_inode,
-	write_inode:	affs_write_inode,
-	put_inode:	affs_put_inode,
-	delete_inode:	affs_delete_inode,
-	clear_inode:	affs_clear_inode,
-	put_super:	affs_put_super,
-	write_super:	affs_write_super,
-	statfs:		affs_statfs,
-	remount_fs:	affs_remount,
+	.alloc_inode	= affs_alloc_inode,
+	.destroy_inode	= affs_destroy_inode,
+	.read_inode	= affs_read_inode,
+	.write_inode	= affs_write_inode,
+	.put_inode	= affs_put_inode,
+	.delete_inode	= affs_delete_inode,
+	.clear_inode	= affs_clear_inode,
+	.put_super	= affs_put_super,
+	.write_super	= affs_write_super,
+	.statfs		= affs_statfs,
+	.remount_fs	= affs_remount,
 };
 
 static int
@@ -298,7 +298,7 @@ static int affs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi = kmalloc(sizeof(struct affs_sb_info), GFP_KERNEL);
 	if (!sbi)
 		return -ENOMEM;
-	sb->u.generic_sbp = sbi;
+	sb->s_fs_info = sbi;
 	memset(sbi, 0, sizeof(*AFFS_SB));
 	init_MUTEX(&sbi->s_bmlock);
 
@@ -483,7 +483,7 @@ out_error:
 	if (sbi->s_prefix)
 		kfree(sbi->s_prefix);
 	kfree(sbi);
-	sb->u.generic_sbp = NULL;
+	sb->s_fs_info = NULL;
 	return -EINVAL;
 }
 
@@ -550,11 +550,11 @@ static struct super_block *affs_get_sb(struct file_system_type *fs_type,
 }
 
 static struct file_system_type affs_fs_type = {
-	owner:		THIS_MODULE,
-	name:		"affs",
-	get_sb:		affs_get_sb,
-	kill_sb:	kill_block_super,
-	fs_flags:	FS_REQUIRES_DEV,
+	.owner		= THIS_MODULE,
+	.name		= "affs",
+	.get_sb		= affs_get_sb,
+	.kill_sb	= kill_block_super,
+	.fs_flags	= FS_REQUIRES_DEV,
 };
 
 static int __init init_affs_fs(void)

@@ -32,63 +32,215 @@
 #define NFSDDBG_FACILITY	NFSDDBG_EXPORT
 #define NFSD_PARANOIA 1
 
-typedef struct svc_client	svc_client;
+typedef struct auth_domain	svc_client;
 typedef struct svc_export	svc_export;
 
-static void		exp_unexport_all(svc_client *clp);
 static void		exp_do_unexport(svc_export *unexp);
-static svc_client *	exp_getclientbyname(char *name);
-static void		exp_freeclient(svc_client *clp);
-static void		exp_unhashclient(svc_client *clp);
 static int		exp_verify_string(char *cp, int max);
 
-#define CLIENT_HASHBITS		6
-#define CLIENT_HASHMAX		(1 << CLIENT_HASHBITS)
-#define CLIENT_HASHMASK		(CLIENT_HASHMAX - 1)
-#define CLIENT_HASH(a) \
-		((((a)>>24) ^ ((a)>>16) ^ ((a)>>8) ^(a)) & CLIENT_HASHMASK)
+/*
+ * We have two caches.
+ * One maps client+vfsmnt+dentry to export options - the export map
+ * The other maps client+filehandle-fragment to export options. - the expkey map
+ *
+ * The export options are actually stored in the first map, and the
+ * second map contains a reference to the entry in the first map.
+ */
 
 #define	EXPKEY_HASHBITS		8
 #define	EXPKEY_HASHMAX		(1 << EXPKEY_HASHBITS)
 #define	EXPKEY_HASHMASK		(EXPKEY_HASHMAX -1)
-static struct list_head expkey_table[EXPKEY_HASHMAX];
+static struct cache_head *expkey_table[EXPKEY_HASHMAX];
 
-static inline int expkey_hash(struct svc_client *clp, int type, u32 *fsidv)
+static inline int svc_expkey_hash(struct svc_expkey *item)
 {
-	int hash = type;
-	char * cp = (char*)fsidv;
-	int len = (type==0)?8:4;
+	int hash = item->ek_fsidtype;
+	char * cp = (char*)item->ek_fsid;
+	int len = (item->ek_fsidtype==0)?8:4;
 	while (len--)
 		hash += *cp++;
-	cp = (char*)&clp;
-	len = sizeof(clp);
+	cp = (char*)&item->ek_client;
+	len = sizeof(item->ek_client);
 	while (len--)
 		hash += *cp++;
 	return hash & EXPKEY_HASHMASK;
 }
 
-struct svc_clnthash {
-	struct svc_clnthash *	h_next;
-	struct in_addr		h_addr;
-	struct svc_client *	h_client;
-};
-static struct svc_clnthash *	clnt_hash[CLIENT_HASHMAX];
-static svc_client *		clients;
+void expkey_put(struct cache_head *item, struct cache_detail *cd)
+{
+	if (cache_put(item, cd)) {
+		struct svc_expkey *key = container_of(item, struct svc_expkey, h);
+		if (key->ek_export)
+			exp_put(key->ek_export);
+		auth_domain_put(key->ek_client);
+		kfree(key);
+	}
+}
 
-/* hash table of exports indexed by dentry+client */
+void expkey_request(struct cache_detail *cd,
+		    struct cache_head *h,
+		    char **bpp, int *blen)
+{
+	/* client fsidtype \xfsid */
+	struct svc_expkey *ek = container_of(h, struct svc_expkey, h);
+	char type[5];
+
+	add_word(bpp, blen, ek->ek_client->name);
+	snprintf(type, 5, "%d", ek->ek_fsidtype);
+	add_word(bpp, blen, type);
+	add_hex(bpp, blen, (char*)ek->ek_fsid, ek->ek_fsidtype==0?8:4);
+	(*bpp)[-1] = '\n';
+}
+
+static struct svc_expkey *svc_expkey_lookup(struct svc_expkey *, int);
+int expkey_parse(struct cache_detail *cd, char *mesg, int mlen)
+{
+	/* client fsidtype fsid [path] */
+	char *buf;
+	int len;
+	struct auth_domain *dom = NULL;
+	int err;
+	int fsidtype;
+	char *ep;
+	struct svc_expkey key;
+
+	if (mesg[mlen-1] != '\n')
+		return -EINVAL;
+	mesg[mlen-1] = 0;
+
+	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	err = -ENOMEM;
+	if (!buf) goto out;
+
+	err = -EINVAL;
+	if ((len=get_word(&mesg, buf, PAGE_SIZE)) <= 0)
+		goto out;
+
+	err = -ENOENT;
+	dom = auth_domain_find(buf);
+	if (!dom)
+		goto out;
+	dprintk("found domain %s\n", buf);
+
+	err = -EINVAL;
+	if ((len=get_word(&mesg, buf, PAGE_SIZE)) <= 0)
+		goto out;
+	fsidtype = simple_strtoul(buf, &ep, 10);
+	if (*ep)
+		goto out;
+	dprintk("found fsidtype %d\n", fsidtype);
+	if (fsidtype > 1)
+		goto out;
+	if ((len=get_word(&mesg, buf, PAGE_SIZE)) <= 0)
+		goto out;
+	dprintk("found fsid length %d\n", len);
+	if (len != ((fsidtype==0)?8:4))
+		goto out;
+
+	/* OK, we seem to have a valid key */
+	key.h.flags = 0;
+	key.h.expiry_time = get_expiry(&mesg);
+	if (key.h.expiry_time == 0)
+		goto out;
+
+	key.ek_client = dom;	
+	key.ek_fsidtype = fsidtype;
+	memcpy(key.ek_fsid, buf, len);
+
+	/* now we want a pathname, or empty meaning NEGATIVE  */
+	if ((len=get_word(&mesg, buf, PAGE_SIZE)) < 0)
+		goto out;
+	dprintk("Path seems to be <%s>\n", buf);
+	err = 0;
+	if (len == 0)
+		set_bit(CACHE_NEGATIVE, &key.h.flags);
+	else {
+		struct nameidata nd;
+		struct svc_expkey *ek;
+		struct svc_export *exp;
+		err = path_lookup(buf, 0, &nd);
+		if (err)
+			goto out;
+
+		dprintk("Found the path %s\n", buf);
+		exp = exp_get_by_name(dom, nd.mnt, nd.dentry, NULL);
+
+		err = -ENOENT;
+		if (!exp)
+			goto out_nd;
+		key.ek_export = exp;
+		dprintk("And found export\n");
+		
+		ek = svc_expkey_lookup(&key, 2);
+		if (ek)
+			expkey_put(&ek->h, &svc_expkey_cache);
+		svc_export_put(&exp->h, &svc_export_cache);
+		err = 0;
+	out_nd:
+		path_release(&nd);
+	}
+
+ out:
+	if (dom)
+		auth_domain_put(dom);
+	if (buf)
+		kfree(buf);
+	return err;
+}
+
+struct cache_detail svc_expkey_cache = {
+	.hash_size	= EXPKEY_HASHMAX,
+	.hash_table	= expkey_table,
+	.name		= "nfsd.fh",
+	.cache_put	= expkey_put,
+	.cache_request	= expkey_request,
+	.cache_parse	= expkey_parse,
+};
+
+static inline int svc_expkey_match (struct svc_expkey *a, struct svc_expkey *b)
+{
+	if (a->ek_fsidtype != b->ek_fsidtype ||
+	    a->ek_client != b->ek_client)
+		return 0;
+	if (a->ek_fsid[0] != b->ek_fsid[0])
+		return 0;
+	if (a->ek_fsidtype == 1)
+		return 1;
+	if (a->ek_fsid[1] != b->ek_fsid[1])
+		return 0;
+	return 1;
+}
+
+static inline void svc_expkey_init(struct svc_expkey *new, struct svc_expkey *item)
+{
+	cache_get(&item->ek_client->h);
+	new->ek_client = item->ek_client;
+	new->ek_fsidtype = item->ek_fsidtype;
+	new->ek_fsid[0] = item->ek_fsid[0];
+	new->ek_fsid[1] = item->ek_fsid[1];
+}
+
+static inline void svc_expkey_update(struct svc_expkey *new, struct svc_expkey *item)
+{
+	cache_get(&item->ek_export->h);
+	new->ek_export = item->ek_export;
+}
+
+static DefineSimpleCacheLookup(svc_expkey)
+
 #define	EXPORT_HASHBITS		8
 #define	EXPORT_HASHMAX		(1<< EXPORT_HASHBITS)
 #define	EXPORT_HASHMASK		(EXPORT_HASHMAX -1)
 
-struct list_head	export_table[EXPORT_HASHMAX];
+static struct cache_head *export_table[EXPORT_HASHMAX];
 
-static int export_hash(svc_client *clp, struct dentry *dentry)
+static inline int svc_export_hash(struct svc_export *item)
 {
 	void *k[2];
 	unsigned char *cp;
 	int rv, i;
-	k[0] = clp;
-	k[1] = dentry;
+	k[0] = item->ex_client;
+	k[1] = item->ex_dentry;
 
 	cp = (char*)k;
 	rv = 0;
@@ -97,24 +249,192 @@ static int export_hash(svc_client *clp, struct dentry *dentry)
 	return rv & EXPORT_HASHMASK;
 }
 
-struct svc_expkey *
-exp_find_key(svc_client *clp, int fsid_type, u32 *fsidv)
+void svc_export_put(struct cache_head *item, struct cache_detail *cd)
 {
-	struct list_head *head;
-	struct svc_expkey *ek;
+	if (cache_put(item, cd)) {
+		struct svc_export *exp = container_of(item, struct svc_export, h);
+		dput(exp->ex_dentry);
+		mntput(exp->ex_mnt);
+		auth_domain_put(exp->ex_client);
+		kfree(exp);
+	}
+}
+
+void svc_export_request(struct cache_detail *cd,
+			struct cache_head *h,
+			char **bpp, int *blen)
+{
+	/*  client path */
+	struct svc_export *exp = container_of(h, struct svc_export, h);
+	char *pth;
+
+	add_word(bpp, blen, exp->ex_client->name);
+	pth = d_path(exp->ex_dentry, exp->ex_mnt, *bpp, *blen);
+	add_word(bpp, blen, pth);
+	(*bpp)[-1] = '\n';
+}
+
+static struct svc_export *svc_export_lookup(struct svc_export *, int);
+int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
+{
+	/* client path expiry [flags anonuid anongid fsid] */
+	char *buf;
+	int len;
+	int err;
+	struct auth_domain *dom = NULL;
+	struct nameidata nd;
+	struct svc_export exp, *expp;
+	int an_int;
+
+	nd.dentry = NULL;
+
+	if (mesg[mlen-1] != '\n')
+		return -EINVAL;
+	mesg[mlen-1] = 0;
+
+	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	err = -ENOMEM;
+	if (!buf) goto out;
+
+	/* client */
+	len = get_word(&mesg, buf, PAGE_SIZE);
+	if (len <= 0) return -EINVAL;
+	err = -ENOENT;
+	dom = auth_domain_find(buf);
+	if (!dom)
+		goto out;
+
+	/* path */
+	err = -EINVAL;
+	if ((len=get_word(&mesg, buf, PAGE_SIZE)) <= 0)
+		goto out;
+	err = path_lookup(buf, 0, &nd);
+	if (err) goto out;
+
+	exp.h.flags = 0;
+	exp.ex_client = dom;
+	exp.ex_mnt = nd.mnt;
+	exp.ex_dentry = nd.dentry;
+
+	/* expiry */
+	err = -EINVAL;
+	exp.h.expiry_time = get_expiry(&mesg);
+	if (exp.h.expiry_time == 0)
+		goto out;
+
+	/* flags */
+	err = get_int(&mesg, &an_int);
+	if (err == -ENOENT)
+		set_bit(CACHE_NEGATIVE, &exp.h.flags);
+	else {
+		if (err || an_int < 0) goto out;	
+		exp.ex_flags= an_int;
+	
+		/* anon uid */
+		err = get_int(&mesg, &an_int);
+		if (err) goto out;
+		exp.ex_anon_uid= an_int;
+
+		/* anon gid */
+		err = get_int(&mesg, &an_int);
+		if (err) goto out;
+		exp.ex_anon_gid= an_int;
+
+		/* fsid */
+		err = get_int(&mesg, &an_int);
+		if (err) goto out;
+		exp.ex_fsid = an_int;
+	}
+
+	expp = svc_export_lookup(&exp, 1);
+	if (expp)
+		exp_put(expp);
+	err = 0;
+
+ out:
+	if (nd.dentry)
+		path_release(&nd);
+	if (dom)
+		auth_domain_put(dom);
+	if (buf)
+		kfree(buf);
+	return err;
+}
+
+struct cache_detail svc_export_cache = {
+	.hash_size	= EXPORT_HASHMAX,
+	.hash_table	= export_table,
+	.name		= "nfsd.export",
+	.cache_put	= svc_export_put,
+	.cache_request	= svc_export_request,
+	.cache_parse	= svc_export_parse,
+};
+
+static inline int svc_export_match(struct svc_export *a, struct svc_export *b)
+{
+	return a->ex_client == b->ex_client &&
+		a->ex_dentry == b->ex_dentry &&
+		a->ex_mnt == b->ex_mnt;
+}
+static inline void svc_export_init(struct svc_export *new, struct svc_export *item)
+{
+	cache_get(&item->ex_client->h);
+	new->ex_client = item->ex_client;
+	new->ex_dentry = dget(item->ex_dentry);
+	new->ex_mnt = mntget(item->ex_mnt);
+}
+
+static inline void svc_export_update(struct svc_export *new, struct svc_export *item)
+{
+	new->ex_flags = item->ex_flags;
+	new->ex_anon_uid = item->ex_anon_uid;
+	new->ex_anon_gid = item->ex_anon_gid;
+	new->ex_fsid = item->ex_fsid;
+}
+
+static DefineSimpleCacheLookup(svc_export)
+
+
+struct svc_expkey *
+exp_find_key(svc_client *clp, int fsid_type, u32 *fsidv, struct cache_req *reqp)
+{
+	struct svc_expkey key, *ek;
+	int err;
 	
 	if (!clp)
 		return NULL;
 
-	head = &expkey_table[expkey_hash(clp, fsid_type, fsidv)];
-	list_for_each_entry(ek, head, ek_hash)
-		if (ek->ek_fsidtype == fsid_type &&
-		    fsidv[0] == ek->ek_fsid[0] &&
-		    (fsid_type == 1 || fsidv[1] == ek->ek_fsid[1]) &&
-		    clp      == ek->ek_client)
-			return ek;
+	key.ek_client = clp;
+	key.ek_fsidtype = fsid_type;
+	key.ek_fsid[0] = fsidv[0];
+	key.ek_fsid[1] = fsidv[1];
 
-	return NULL;
+	ek = svc_expkey_lookup(&key, 0);
+	if (ek != NULL)
+		if ((err = cache_check(&svc_expkey_cache, &ek->h, reqp)))
+			ek = ERR_PTR(err);
+	return ek;
+}
+
+int exp_set_key(svc_client *clp, int fsid_type, u32 *fsidv, 
+		struct svc_export *exp)
+{
+	struct svc_expkey key, *ek;
+
+	key.ek_client = clp;
+	key.ek_fsidtype = fsid_type;
+	key.ek_fsid[0] = fsidv[0];
+	key.ek_fsid[1] = fsidv[1];
+	key.ek_export = exp;
+	key.h.expiry_time = NEVER;
+	key.h.flags = 0;
+
+	ek = svc_expkey_lookup(&key, 1);
+	if (ek) {
+		expkey_put(&ek->h, &svc_expkey_cache);
+		return 0;
+	}
+	return -ENOMEM;
 }
 
 /*
@@ -126,19 +446,7 @@ exp_get_key(svc_client *clp, dev_t dev, ino_t ino)
 	u32 fsidv[2];
 	
 	mk_fsid_v0(fsidv, dev, ino);
-	return exp_find_key(clp, 0, fsidv);
-}
-
-static inline svc_export *
-exp_get(svc_client *clp, dev_t dev, ino_t ino)
-{
-	struct svc_expkey *ek;
-
-	ek = exp_get_key(clp, dev, ino);
-	if (ek)
-		return ek->ek_export;
-	else
-		return NULL;
+	return exp_find_key(clp, 0, fsidv, NULL);
 }
 
 /*
@@ -151,52 +459,44 @@ exp_get_fsid_key(svc_client *clp, int fsid)
 
 	mk_fsid_v1(fsidv, fsid);
 
-	return exp_find_key(clp, 1, fsidv);
-}
-
-static inline svc_export *
-exp_get_fsid(svc_client *clp, int fsid)
-{
-	struct svc_expkey *ek;
-
-	ek = exp_get_fsid_key(clp, fsid);
-	if (ek)
-		return ek->ek_export;
-	else
-		return NULL;
+	return exp_find_key(clp, 1, fsidv, NULL);
 }
 
 svc_export *
-exp_get_by_name(svc_client *clp, struct vfsmount *mnt, struct dentry *dentry)
+exp_get_by_name(svc_client *clp, struct vfsmount *mnt, struct dentry *dentry,
+		struct cache_req *reqp)
 {
-	svc_export *exp;
-	struct list_head *head = &export_table[export_hash(clp, dentry)];
-
+	struct svc_export *exp, key;
+	
 	if (!clp)
 		return NULL;
 
-	list_for_each_entry(exp, head, ex_hash) {
-		if (exp->ex_dentry == dentry && 
-		    exp->ex_mnt    == mnt &&
-		    exp->ex_client == clp)
-			return exp;
-	}
-	return NULL;
+	key.ex_client = clp;
+	key.ex_mnt = mnt;
+	key.ex_dentry = dentry;
+
+	exp = svc_export_lookup(&key, 0);
+	if (exp != NULL) 
+		if (cache_check(&svc_export_cache, &exp->h, reqp))
+			exp = NULL;
+
+	return exp;
 }
 
 /*
  * Find the export entry for a given dentry.
  */
 struct svc_export *
-exp_parent(svc_client *clp, struct vfsmount *mnt, struct dentry *dentry)
+exp_parent(svc_client *clp, struct vfsmount *mnt, struct dentry *dentry,
+	   struct cache_req *reqp)
 {
 	svc_export *exp;
 
 	read_lock(&dparent_lock);
-	exp = exp_get_by_name(clp, mnt, dentry);
+	exp = exp_get_by_name(clp, mnt, dentry, reqp);
 	while (exp == NULL && dentry != dentry->d_parent) {
 		dentry = dentry->d_parent;
-		exp = exp_get_by_name(clp, mnt, dentry);
+		exp = exp_get_by_name(clp, mnt, dentry, reqp);
 	}
 	read_unlock(&dparent_lock);
 	return exp;
@@ -243,55 +543,32 @@ static void exp_fsid_unhash(struct svc_export *exp)
 		return;
 
 	ek = exp_get_fsid_key(exp->ex_client, exp->ex_fsid);
-	if (ek) {
-		list_del(&ek->ek_hash);
-		kfree(ek);
+	if (ek && !IS_ERR(ek)) {
+		ek->h.expiry_time = CURRENT_TIME-1;
+		expkey_put(&ek->h, &svc_expkey_cache);
 	}
+	svc_expkey_cache.nextcheck = CURRENT_TIME;
 }
 
-static int exp_fsid_hash(struct svc_client *clp, struct svc_export *exp)
+static int exp_fsid_hash(svc_client *clp, struct svc_export *exp)
 {
-	struct list_head *head;
-	struct svc_expkey *ek;
+	u32 fsid[2];
  
 	if ((exp->ex_flags & NFSEXP_FSID) == 0)
 		return 0;
 
-	ek = kmalloc(sizeof(*ek), GFP_KERNEL);
-	if (ek == NULL)
-		return -ENOMEM;
-
-	ek->ek_fsidtype = 1;
-	ek->ek_export = exp;
-	ek->ek_client = clp;
-
-	mk_fsid_v1(ek->ek_fsid, exp->ex_fsid);
-	
-	head = &expkey_table[expkey_hash(clp, 1, ek->ek_fsid)];
-	list_add(&ek->ek_hash, head);
-	return 0;
+	mk_fsid_v1(fsid, exp->ex_fsid);
+	return exp_set_key(clp, 1, fsid, exp);
 }
 
-static int exp_hash(struct svc_client *clp, struct svc_export *exp)
+static int exp_hash(struct auth_domain *clp, struct svc_export *exp)
 {
-	struct list_head *head;
-	struct svc_expkey *ek;
+	u32 fsid[2];
 	struct inode *inode;
- 
-	ek = kmalloc(sizeof(*ek), GFP_KERNEL);
-	if (ek == NULL)
-		return -ENOMEM;
-
-	ek->ek_fsidtype = 0;
-	ek->ek_export = exp;
-	ek->ek_client = clp;
 
 	inode = exp->ex_dentry->d_inode;
-	mk_fsid_v0(ek->ek_fsid, inode->i_sb->s_dev, inode->i_ino);
-	
-	head = &expkey_table[expkey_hash(clp, 0, ek->ek_fsid)];
-	list_add(&ek->ek_hash, head);
-	return 0;
+	mk_fsid_v0(fsid,  inode->i_sb->s_dev, inode->i_ino);
+	return exp_set_key(clp, 0, fsid, exp);
 }
 
 static void exp_unhash(struct svc_export *exp)
@@ -300,10 +577,11 @@ static void exp_unhash(struct svc_export *exp)
 	struct inode *inode = exp->ex_dentry->d_inode;
 
 	ek = exp_get_key(exp->ex_client, inode->i_sb->s_dev, inode->i_ino);
-	if (ek) {
-		list_del(&ek->ek_hash);
-		kfree(ek);
+	if (ek && !IS_ERR(ek)) {
+		ek->h.expiry_time = CURRENT_TIME-1;
+		expkey_put(&ek->h, &svc_expkey_cache);
 	}
+	svc_expkey_cache.nextcheck = CURRENT_TIME;
 }
 	
 extern struct dentry *
@@ -317,8 +595,9 @@ int
 exp_export(struct nfsctl_export *nxp)
 {
 	svc_client	*clp;
-	svc_export	*exp = NULL;
-	svc_export	*fsid_exp;
+	struct svc_export	*exp = NULL;
+	struct svc_export	new;
+	struct svc_expkey	*fsid_key = NULL;
 	struct nameidata nd;
 	struct inode	*inode = NULL;
 	int		err;
@@ -337,7 +616,7 @@ exp_export(struct nfsctl_export *nxp)
 	exp_writelock();
 
 	/* Look up client info */
-	if (!(clp = exp_getclientbyname(nxp->ex_client)))
+	if (!(clp = auth_domain_find(nxp->ex_client)))
 		goto out_unlock;
 
 
@@ -348,12 +627,14 @@ exp_export(struct nfsctl_export *nxp)
 	inode = nd.dentry->d_inode;
 	err = -EINVAL;
 
-	exp = exp_get_by_name(clp, nd.mnt, nd.dentry);
+	exp = exp_get_by_name(clp, nd.mnt, nd.dentry, NULL);
 
 	/* must make sure there wont be an ex_fsid clash */
 	if ((nxp->ex_flags & NFSEXP_FSID) &&
-	    (fsid_exp = exp_get_fsid(clp, nxp->ex_dev)) &&
-	    fsid_exp != exp)
+	    (fsid_key = exp_get_fsid_key(clp, nxp->ex_dev)) &&
+	    !IS_ERR(fsid_key) &&
+	    fsid_key->ek_export &&
+	    fsid_key->ek_export != exp)
 		goto finish;
 
 	if (exp != NULL) {
@@ -401,30 +682,41 @@ exp_export(struct nfsctl_export *nxp)
 			find_exported_dentry;
 
 	err = -ENOMEM;
-	if (!(exp = kmalloc(sizeof(*exp), GFP_USER)))
+
+	dprintk("nfsd: creating export entry %p for client %p\n", exp, clp);
+
+	new.h.expiry_time = NEVER;
+	new.h.flags = 0;
+	new.ex_client = clp;
+	new.ex_mnt = nd.mnt;
+	new.ex_dentry = nd.dentry;
+	new.ex_flags = nxp->ex_flags;
+	new.ex_anon_uid = nxp->ex_anon_uid;
+	new.ex_anon_gid = nxp->ex_anon_gid;
+	new.ex_fsid = nxp->ex_dev;
+
+	exp = svc_export_lookup(&new, 2);
+
+	if (exp == NULL)
 		goto finish;
-	dprintk("nfsd: created export entry %p for client %p\n", exp, clp);
 
-	exp->ex_client = clp;
-	exp->ex_mnt = mntget(nd.mnt);
-	exp->ex_dentry = dget(nd.dentry);
-	exp->ex_flags = nxp->ex_flags;
-	exp->ex_anon_uid = nxp->ex_anon_uid;
-	exp->ex_anon_gid = nxp->ex_anon_gid;
-	exp->ex_fsid = nxp->ex_dev;
-
-	list_add_tail(&exp->ex_hash,
-		      &export_table[export_hash(clp, nd.dentry)]);
 	err = 0;
 
 	if (exp_hash(clp, exp) ||
 	    exp_fsid_hash(clp, exp)) {
 		/* failed to create at least one index */
 		exp_do_unexport(exp);
+		cache_flush();
 		err = -ENOMEM;
 	}
 
 finish:
+	if (exp)
+		exp_put(exp);
+	if (fsid_key && !IS_ERR(fsid_key))
+		expkey_put(&fsid_key->h, &svc_expkey_cache);
+	if (clp)
+		auth_domain_put(clp);
 	path_release(&nd);
 out_unlock:
 	exp_writeunlock();
@@ -439,20 +731,10 @@ out:
 static void
 exp_do_unexport(svc_export *unexp)
 {
-	struct dentry	*dentry;
-	struct vfsmount *mnt;
-	struct inode	*inode;
-
-	list_del(&unexp->ex_hash);
+	unexp->h.expiry_time = CURRENT_TIME-1;
+	svc_export_cache.nextcheck = CURRENT_TIME;
 	exp_unhash(unexp);
 	exp_fsid_unhash(unexp);
-	dentry = unexp->ex_dentry;
-	mnt = unexp->ex_mnt;
-	inode = dentry->d_inode;
-	dput(dentry);
-	mntput(mnt);
-
-	kfree(unexp);
 }
 
 /*
@@ -461,17 +743,16 @@ exp_do_unexport(svc_export *unexp)
 static void
 exp_unexport_all(svc_client *clp)
 {
-	struct list_head *lp, *tmp;
+	struct svc_export *exp;
 	int index;
 
 	dprintk("unexporting all fs's for clnt %p\n", clp);
 
-	for (index=0; index<EXPORT_HASHMAX; index++)
-		list_for_each_safe(lp, tmp, &export_table[index]) {
-			svc_export *exp = list_entry(lp, struct svc_export, ex_hash);
-			if (exp->ex_client == clp)
-				exp_do_unexport(exp);
-		}
+	cache_for_each(exp, &svc_export_cache, index, h)
+		if (exp->ex_client == clp)
+			exp_do_unexport(exp);
+	cache_flush();
+
 }
 
 /*
@@ -480,7 +761,7 @@ exp_unexport_all(svc_client *clp)
 int
 exp_unexport(struct nfsctl_export *nxp)
 {
-	svc_client	*clp;
+	struct auth_domain *dom;
 	int		err;
 
 	/* Consistency check */
@@ -490,14 +771,21 @@ exp_unexport(struct nfsctl_export *nxp)
 	exp_writelock();
 
 	err = -EINVAL;
-	clp = exp_getclientbyname(nxp->ex_client);
-	if (clp) {
-		svc_export *exp = exp_get(clp, nxp->ex_dev, nxp->ex_ino);
-		if (exp) {
-			exp_do_unexport(exp);
+	dom = auth_domain_find(nxp->ex_client);
+
+	if (dom) {
+		struct svc_expkey *key = exp_get_key(dom, nxp->ex_dev, nxp->ex_ino);
+		if (key && !IS_ERR(key) && key->ek_export) {
+			exp_do_unexport(key->ek_export);
 			err = 0;
-		}
-	}
+			expkey_put(&key->h, &svc_expkey_cache);
+		} else
+			dprintk("nfsd: no export %x/%lx for %s\n",
+				nxp->ex_dev, nxp->ex_ino, nxp->ex_client);
+		auth_domain_put(dom);
+		cache_flush();
+	} else
+		dprintk("nfsd: unexport couldn't find %s\n", nxp->ex_client);
 
 	exp_writeunlock();
 	return err;
@@ -509,7 +797,7 @@ exp_unexport(struct nfsctl_export *nxp)
  * since its harder to fool a kernel module than a user space program.
  */
 int
-exp_rootfh(struct svc_client *clp, char *path, struct knfsd_fh *f, int maxsize)
+exp_rootfh(svc_client *clp, char *path, struct knfsd_fh *f, int maxsize)
 {
 	struct svc_export	*exp;
 	struct nameidata	nd;
@@ -526,9 +814,9 @@ exp_rootfh(struct svc_client *clp, char *path, struct knfsd_fh *f, int maxsize)
 	inode = nd.dentry->d_inode;
 
 	dprintk("nfsd: exp_rootfh(%s [%p] %s:%s/%ld)\n",
-		 path, nd.dentry, clp->cl_ident,
+		 path, nd.dentry, clp->name,
 		 inode->i_sb->s_id, inode->i_ino);
-	exp = exp_parent(clp, nd.mnt, nd.dentry);
+	exp = exp_parent(clp, nd.mnt, nd.dentry, NULL);
 	if (!exp) {
 		dprintk("nfsd: exp_rootfh export not found.\n");
 		goto out;
@@ -550,56 +838,26 @@ out:
 	return err;
 }
 
-
 /*
- * Find a valid client given an inet address. We always move the most
- * recently used client to the front of the hash chain to speed up
- * future lookups.
- * Locking against other processes is the responsibility of the caller.
+ * Called when we need the filehandle for the root of the pseudofs,
+ * for a given NFSv4 client.   The root is defined to be the
+ * export point with fsid==0
  */
-struct svc_client *
-exp_getclient(struct sockaddr_in *sin)
+int
+exp_pseudoroot(struct auth_domain *clp, struct svc_fh *fhp)
 {
-	struct svc_clnthash	**hp, **head, *tmp;
-	unsigned long		addr = sin->sin_addr.s_addr;
+	struct svc_expkey *fsid_key;
+	int rv;
 
-	head = &clnt_hash[CLIENT_HASH(addr)];
+	fsid_key = exp_get_fsid_key(clp, 0);
+	if (!fsid_key || IS_ERR(fsid_key))
+		return nfserr_perm;
 
-	for (hp = head; (tmp = *hp) != NULL; hp = &(tmp->h_next)) {
-		if (tmp->h_addr.s_addr == addr) {
-#if 0
-/* If we really want to do this, we need a spin
-lock to protect against multiple access (as we only
-have an exp_readlock) and need to protect
-the code in e_show() that walks this list too.
-*/
-			/* Move client to the front */
-			if (head != hp) {
-				*hp = tmp->h_next;
-				tmp->h_next = *head;
-				*head = tmp;
-			}
-#endif
-			return tmp->h_client;
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * Find a client given its identifier.
- */
-static svc_client *
-exp_getclientbyname(char *ident)
-{
-	svc_client *	clp;
-
-	for (clp = clients; clp; clp = clp->cl_next) {
-		if (!strcmp(clp->cl_ident, ident))
-			return clp;
-	}
-	return NULL;
+	dget(fsid_key->ek_export->ex_dentry);
+	rv = fh_compose(fhp, fsid_key->ek_export, 
+			  fsid_key->ek_export->ex_dentry, NULL);
+	expkey_put(&fsid_key->h, &svc_expkey_cache);
+	return rv;
 }
 
 /* Iterator */
@@ -608,55 +866,58 @@ static void *e_start(struct seq_file *m, loff_t *pos)
 {
 	loff_t n = *pos;
 	unsigned hash, export;
-	svc_export  *exp;
+	struct cache_head *ch;
 	
 	exp_readlock();
+	read_lock(&svc_export_cache.hash_lock);
 	if (!n--)
 		return (void *)1;
 	hash = n >> 32;
 	export = n & ((1LL<<32) - 1);
 
-	list_for_each_entry(exp, &export_table[hash], ex_hash)
+	
+	for (ch=export_table[hash]; ch; ch=ch->next)
 		if (!export--)
-			return exp;
+			return ch;
 	n &= ~((1LL<<32) - 1);
 	do {
 		hash++;
 		n += 1LL<<32;
-	} while(hash < EXPORT_HASHMAX && list_empty(&export_table[hash]));
+	} while(hash < EXPORT_HASHMAX && export_table[hash]==NULL);
 	if (hash >= EXPORT_HASHMAX)
 		return NULL;
 	*pos = n+1;
-	return list_entry(export_table[hash].next, svc_export, ex_hash);
+	return export_table[hash];
 }
 
 static void *e_next(struct seq_file *m, void *p, loff_t *pos)
 {
-	svc_export *exp = p;
+	struct cache_head *ch = p;
 	int hash = (*pos >> 32);
 
 	if (p == (void *)1)
 		hash = 0;
-	else if (exp->ex_hash.next == &export_table[hash]) {
+	else if (ch->next == NULL) {
 		hash++;
 		*pos += 1LL<<32;
 	} else {
 		++*pos;
-		return list_entry(exp->ex_hash.next, svc_export, ex_hash);
+		return ch->next;
 	}
 	*pos &= ~((1LL<<32) - 1);
-	while (hash < EXPORT_HASHMAX && list_empty(&export_table[hash])) {
+	while (hash < EXPORT_HASHMAX && export_table[hash] == NULL) {
 		hash++;
 		*pos += 1LL<<32;
 	}
 	if (hash >= EXPORT_HASHMAX)
 		return NULL;
 	++*pos;
-	return list_entry(export_table[hash].next, svc_export, ex_hash);
+	return export_table[hash];
 }
 
 static void e_stop(struct seq_file *m, void *p)
 {
+	read_unlock(&svc_export_cache.hash_lock);
 	exp_readunlock();
 }
 
@@ -707,8 +968,9 @@ static inline void mangle(struct seq_file *m, const char *s)
 
 static int e_show(struct seq_file *m, void *p)
 {
-	struct svc_export *exp = p;
-	struct svc_client *clp;
+	struct cache_head *cp = p;
+	struct svc_export *exp = container_of(cp, struct svc_export, h);
+	svc_client *clp;
 	char *pbuf;
 
 	if (p == (void *)1) {
@@ -718,13 +980,16 @@ static int e_show(struct seq_file *m, void *p)
 	}
 
 	clp = exp->ex_client;
-
+	cache_get(&exp->h);
+	if (cache_check(&svc_export_cache, &exp->h, NULL))
+		return 0;
+	if (cache_put(&exp->h, &svc_export_cache)) BUG();
 	pbuf = m->private;
 	mangle(m, d_path(exp->ex_dentry, exp->ex_mnt,
 			 pbuf, PAGE_SIZE));
 
 	seq_putc(m, '\t');
-	mangle(m, clp->cl_ident);
+	mangle(m, clp->name);
 	seq_putc(m, '(');
 	exp_flags(m, exp->ex_flags, exp->ex_fsid, 
 		  exp->ex_anon_uid, exp->ex_anon_gid);
@@ -747,13 +1012,12 @@ struct seq_operations nfs_exports_op = {
 int
 exp_addclient(struct nfsctl_client *ncp)
 {
-	struct svc_clnthash *	ch[NFSCLNT_ADDRMAX];
-	svc_client *		clp;
-	int			i, err, change = 0, ilen;
+	struct auth_domain	*dom;
+	int			i, err;
 
 	/* First, consistency check. */
 	err = -EINVAL;
-	if (!(ilen = exp_verify_string(ncp->cl_ident, NFSCLNT_IDMAX)))
+	if (! exp_verify_string(ncp->cl_ident, NFSCLNT_IDMAX))
 		goto out;
 	if (ncp->cl_naddr > NFSCLNT_ADDRMAX)
 		goto out;
@@ -761,56 +1025,19 @@ exp_addclient(struct nfsctl_client *ncp)
 	/* Lock the hashtable */
 	exp_writelock();
 
-	/* First check if this is a change request for a client. */
-	for (clp = clients; clp; clp = clp->cl_next)
-		if (!strcmp(clp->cl_ident, ncp->cl_ident))
-			break;
+	dom = unix_domain_find(ncp->cl_ident);
 
 	err = -ENOMEM;
-	if (clp) {
-		change = 1;
-	} else {
-		if (!(clp = kmalloc(sizeof(*clp), GFP_KERNEL)))
-			goto out_unlock;
-		memset(clp, 0, sizeof(*clp));
-
-		dprintk("created client %s (%p)\n", ncp->cl_ident, clp);
-
-		strcpy(clp->cl_ident, ncp->cl_ident);
-	}
-
-	/* Allocate hash buckets */
-	for (i = 0; i < ncp->cl_naddr; i++) {
-		ch[i] = kmalloc(sizeof(struct svc_clnthash), GFP_KERNEL);
-		if (!ch[i]) {
-			while (i--)
-				kfree(ch[i]);
-			if (!change)
-				kfree(clp);
-			goto out_unlock;
-		}
-	}
-
-	/* Remove old client hash entries. */
-	if (change)
-		exp_unhashclient(clp);
+	if (!dom)
+		goto out_unlock;
 
 	/* Insert client into hashtable. */
-	for (i = 0; i < ncp->cl_naddr; i++) {
-		struct in_addr	addr = ncp->cl_addrlist[i];
-		int		hash;
+	for (i = 0; i < ncp->cl_naddr; i++)
+		auth_unix_add_addr(ncp->cl_addrlist[i], dom);
 
-		hash = CLIENT_HASH(addr.s_addr);
-		ch[i]->h_client = clp;
-		ch[i]->h_addr = addr;
-		ch[i]->h_next = clnt_hash[hash];
-		clnt_hash[hash] = ch[i];
-	}
+	auth_unix_forget_old(dom);
+	auth_domain_put(dom);
 
-	if (!change) {
-		clp->cl_next = clients;
-		clients = clp;
-	}
 	err = 0;
 
 out_unlock:
@@ -825,8 +1052,8 @@ out:
 int
 exp_delclient(struct nfsctl_client *ncp)
 {
-	svc_client	**clpp, *clp;
 	int		err;
+	struct auth_domain *dom;
 
 	err = -EINVAL;
 	if (!exp_verify_string(ncp->cl_ident, NFSCLNT_IDMAX))
@@ -835,62 +1062,19 @@ exp_delclient(struct nfsctl_client *ncp)
 	/* Lock the hashtable */
 	exp_writelock();
 
-	for (clpp = &clients; (clp = *clpp); clpp = &(clp->cl_next))
-		if (!strcmp(ncp->cl_ident, clp->cl_ident))
-			break;
-
-	if (clp) {
-		*clpp = clp->cl_next;
-		exp_freeclient(clp);
-		err = 0;
+	dom = auth_domain_find(ncp->cl_ident);
+	/* just make sure that no addresses work 
+	 * and that it will expire soon 
+	 */
+	if (dom) {
+		err = auth_unix_forget_old(dom);
+		dom->h.expiry_time = CURRENT_TIME;
+		auth_domain_put(dom);
 	}
 
 	exp_writeunlock();
 out:
 	return err;
-}
-
-/*
- * Free a client. The caller has already removed it from the client list.
- */
-static void
-exp_freeclient(svc_client *clp)
-{
-	exp_unhashclient(clp);
-
-	exp_unexport_all(clp);
-	kfree (clp);
-}
-
-/*
- * Remove client from hashtable. We first collect all hashtable
- * entries and free them in one go.
- * The hash table must be writelocked by the caller.
- */
-static void
-exp_unhashclient(svc_client *clp)
-{
-	struct svc_clnthash	**hpp, *hp, *ch[NFSCLNT_ADDRMAX];
-	int			i, count, err;
-
-again:
-	err = 0;
-	for (i = 0, count = 0; i < CLIENT_HASHMAX && !err; i++) {
-		hpp = clnt_hash + i;
-		while ((hp = *hpp) && !err) {
-			if (hp->h_client == clp) {
-				*hpp = hp->h_next;
-				ch[count++] = hp;
-				err = (count >= NFSCLNT_ADDRMAX);
-			} else {
-				hpp = &(hp->h_next);
-			}
-		}
-	}
-	if (err)
-		goto again;
-	for (i = 0; i < count; i++)
-		kfree (ch[i]);
 }
 
 /*
@@ -915,19 +1099,10 @@ exp_verify_string(char *cp, int max)
 void
 nfsd_export_init(void)
 {
-	int		i;
-
 	dprintk("nfsd: initializing export module.\n");
 
-	for (i = 0; i < CLIENT_HASHMAX; i++)
-		clnt_hash[i] = NULL;
-	clients = NULL;
-
-	for (i = 0; i < EXPORT_HASHMAX ; i++)
-		INIT_LIST_HEAD(&export_table[i]);
-
-	for (i = 0; i < EXPKEY_HASHMAX; i++)
-		INIT_LIST_HEAD(&expkey_table[i]);
+	cache_register(&svc_export_cache);
+	cache_register(&svc_expkey_cache);
 
 }
 
@@ -937,18 +1112,17 @@ nfsd_export_init(void)
 void
 nfsd_export_shutdown(void)
 {
-	int	i;
 
 	dprintk("nfsd: shutting down export module.\n");
 
 	exp_writelock();
 
-	for (i = 0; i < CLIENT_HASHMAX; i++) {
-		while (clnt_hash[i])
-			exp_freeclient(clnt_hash[i]->h_client);
-	}
-	clients = NULL; /* we may be restarted before the module unloads */
-	
+	exp_unexport_all(NULL);
+	svcauth_unix_purge();
+
+	cache_unregister(&svc_export_cache);
+	cache_unregister(&svc_expkey_cache);
+
 	exp_writeunlock();
 	dprintk("nfsd: export shutdown complete.\n");
 }

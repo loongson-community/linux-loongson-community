@@ -34,6 +34,14 @@ CONFIG_HUGETLB_PAGE
 
   Otherwise, say N.
 
+CONFIG_NR_CPUS
+  This allows you to specify the maximum number of CPUs which this
+  kernel will support.  The maximum supported value is 32 and the
+  minimum value which makes sense is 2.
+
+  This is purely to save memory - each supported CPU adds
+  approximately eight kilobytes to the kernel image.
+
 CONFIG_PREEMPT
   This option reduces the latency of the kernel when reacting to
   real-time or interactive events by allowing a low priority process to
@@ -56,6 +64,14 @@ CONFIG_X86_NUMAQ
   and uses Clustered Logical APIC addressing mode instead of Flat Logical.
   You will need a new lynxer.elf file to flash your firmware with - send
   email to Martin.Bligh@us.ibm.com
+
+CONFIG_X86_CYCLONE
+  This patch used the Cyclone performance counter on IBM x440, x360,
+  and other Summit based systems for calculating gettimeofday. This 
+  fixes problems resulting from TSC skew found in multi-CEC system. 
+
+  If you are suffering from time skew using a multi-CEC system, say YES.
+  Otherwise it is safe to say NO.
 
 CONFIG_X86_UP_IOAPIC
   An IO-APIC (I/O Advanced Programmable Interrupt Controller) is an
@@ -425,7 +441,7 @@ CONFIG_M386
    - "Winchip-C6" for original IDT Winchip.
    - "Winchip-2" for IDT Winchip 2.
    - "Winchip-2A" for IDT Winchips with 3dNow! capabilities.
-   - "CyrixIII" for VIA Cyrix III or VIA C3.
+   - "CyrixIII/VIA C3" for VIA Cyrix III or VIA C3.
 
   If you don't know what to do, choose "386".
 

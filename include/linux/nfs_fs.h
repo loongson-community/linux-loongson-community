@@ -25,6 +25,7 @@
 #include <linux/nfs.h>
 #include <linux/nfs2.h>
 #include <linux/nfs3.h>
+#include <linux/nfs4.h>
 #include <linux/nfs_page.h>
 #include <linux/nfs_xdr.h>
 
@@ -143,6 +144,7 @@ struct nfs_inode {
 	__u64			read_cache_isize;
 	unsigned long		attrtimeo;
 	unsigned long		attrtimeo_timestamp;
+	__u64			change_attr;		/* v4 only */
 
 	/*
 	 * Timestamp that dates the change made to read_cache_mtime.
@@ -192,7 +194,7 @@ static inline struct nfs_inode *NFS_I(struct inode *inode)
 {
 	return container_of(inode, struct nfs_inode, vfs_inode);
 }
-#define NFS_SB(s)		((struct nfs_server *)(s->u.generic_sbp))
+#define NFS_SB(s)		((struct nfs_server *)(s->s_fs_info))
 
 #define NFS_FH(inode)			(&NFS_I(inode)->fh)
 #define NFS_SERVER(inode)		(NFS_SB(inode->i_sb))
@@ -207,6 +209,7 @@ static inline struct nfs_inode *NFS_I(struct inode *inode)
 #define NFS_CACHE_CTIME(inode)		(NFS_I(inode)->read_cache_ctime)
 #define NFS_CACHE_MTIME(inode)		(NFS_I(inode)->read_cache_mtime)
 #define NFS_CACHE_ISIZE(inode)		(NFS_I(inode)->read_cache_isize)
+#define NFS_CHANGE_ATTR(inode)		(NFS_I(inode)->change_attr)
 #define NFS_NEXTSCAN(inode)		(NFS_I(inode)->nextscan)
 #define NFS_CACHEINV(inode) \
 do { \
@@ -320,6 +323,14 @@ extern void nfs_complete_unlink(struct dentry *);
 extern int  nfs_writepage(struct page *);
 extern int  nfs_flush_incompatible(struct file *file, struct page *page);
 extern int  nfs_updatepage(struct file *, struct page *, unsigned int, unsigned int);
+extern void nfs_writeback_done(struct rpc_task *task, int stable,
+			       unsigned int arg_count, unsigned int res_count);
+extern void nfs_writedata_release(struct rpc_task *task);
+
+#if defined(CONFIG_NFS_V3) || defined(CONFIG_NFS_V4)
+extern void nfs_commit_done(struct rpc_task *);
+#endif
+
 /*
  * Try to write back everything synchronously (but check the
  * return value!)
@@ -329,7 +340,7 @@ extern int  nfs_flush_file(struct inode *, struct file *, unsigned long, unsigne
 extern int  nfs_flush_list(struct list_head *, int, int);
 extern int  nfs_scan_lru_dirty(struct nfs_server *, struct list_head *);
 extern int  nfs_scan_lru_dirty_timeout(struct nfs_server *, struct list_head *);
-#ifdef CONFIG_NFS_V3
+#if defined(CONFIG_NFS_V3) || defined(CONFIG_NFS_V4)
 extern int  nfs_commit_file(struct inode *, struct file *, unsigned long, unsigned int, int);
 extern int  nfs_commit_list(struct list_head *, int);
 extern int  nfs_scan_lru_commit(struct nfs_server *, struct list_head *);
@@ -376,6 +387,11 @@ nfs_wb_file(struct inode *inode, struct file *file)
 	return (error < 0) ? error : 0;
 }
 
+/* Hack for future NFS swap support */
+#ifndef IS_SWAPFILE
+# define IS_SWAPFILE(inode)	(0)
+#endif
+
 /*
  * linux/fs/nfs/read.c
  */
@@ -384,6 +400,8 @@ extern int  nfs_pagein_inode(struct inode *, unsigned long, unsigned int);
 extern int  nfs_pagein_list(struct list_head *, int);
 extern int  nfs_scan_lru_read(struct nfs_server *, struct list_head *);
 extern int  nfs_scan_lru_read_timeout(struct nfs_server *, struct list_head *);
+extern void nfs_readpage_result(struct rpc_task *, unsigned int count, int eof);
+extern void nfs_readdata_release(struct rpc_task *);
 
 /*
  * linux/fs/mount_clnt.c
@@ -452,28 +470,7 @@ extern void * nfs_root_data(void);
 	__retval;							\
 })
 
-#ifdef CONFIG_NFS_V3
-
 #define NFS_JUKEBOX_RETRY_TIME (5 * HZ)
-static inline int
-nfs_async_handle_jukebox(struct rpc_task *task)
-{
-	if (task->tk_status != -EJUKEBOX)
-		return 0;
-	task->tk_status = 0;
-	rpc_restart_call(task);
-	rpc_delay(task, NFS_JUKEBOX_RETRY_TIME);
-	return 1;
-}
-
-#else
-
-static inline int
-nfs_async_handle_jukebox(struct rpc_task *task)
-{
-	return 0;
-}
-#endif /* CONFIG_NFS_V3 */
 
 #endif /* __KERNEL__ */
 

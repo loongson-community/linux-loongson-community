@@ -738,7 +738,7 @@ S:	Maintained
 
 IBM ServeRAID RAID DRIVER
 P:	Jack Hammer
-P:	Dave Jeffrey	
+P:	Dave Jeffery
 M:	ipslinux@adaptec.com
 W:	http://www.developer.ibm.com/welcome/netfinity/serveraid.html
 S:	Supported 
@@ -929,10 +929,9 @@ S:	Maintained
 KERNEL NFSD
 P:	Neil Brown
 M:	neilb@cse.unsw.edu.au
-L:	nfs-devel@linux.kernel.org (Linux NFS)
 L:	nfs@lists.sourceforge.net
 W:	http://nfs.sourceforge.net/
-W:	http://www.cse.unsw.edu.au/~neilb/oss/knfsd/
+W:	http://www.cse.unsw.edu.au/~neilb/patches/linux-devel/
 S:	Maintained
 
 LANMEDIA WAN CARD DRIVER
@@ -1727,7 +1726,7 @@ L:	linux-usb-devel@lists.sourceforge.net
 W:	http://www.suse.cz/development/input/
 S:	Maintained
 
-USB HUB
+USB HUB DRIVER
 P:	Johannes Erdfelt
 M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
@@ -1870,13 +1869,12 @@ W:	http://www.linux-usb.org
 S:	Supported
 
 USB UHCI DRIVER
-P:	Georg Acher
-M:	usb@in.tum.de
+P:	Johannes Erdfelt
+M:	johannes@erdfelt.com
 L:	linux-usb-users@lists.sourceforge.net
 L:	linux-usb-devel@lists.sourceforge.net
-W:	http://usb.in.tum.de
 S:	Maintained
-	
+
 USB "USBNET" DRIVER
 P:	David Brownell
 M:	dbrownell@users.sourceforge.net

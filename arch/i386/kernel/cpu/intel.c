@@ -62,8 +62,7 @@ int __init ppro_with_ram_bug(void)
 	
 static void __init squash_the_stupid_serial_number(struct cpuinfo_x86 *c)
 {
-	if( test_bit(X86_FEATURE_PN, c->x86_capability) &&
-	    disable_x86_serial_nr ) {
+	if (cpu_has(c, X86_FEATURE_PN) && disable_x86_serial_nr ) {
 		/* Disable processor serial number */
 		unsigned long lo,hi;
 		rdmsr(MSR_IA32_BBL_CR_CTL,lo,hi);
@@ -95,6 +94,7 @@ __setup("noht", P4_disable_ht);
 #define LVL_1_DATA	2
 #define LVL_2		3
 #define LVL_3		4
+#define LVL_TRACE	5
 
 struct _cache_table
 {
@@ -114,6 +114,8 @@ static struct _cache_table cache_table[] __initdata =
 	{ 0x23, LVL_3,      1024 },
 	{ 0x25, LVL_3,      2048 },
 	{ 0x29, LVL_3,      4096 },
+	{ 0x39, LVL_2,      128 },
+	{ 0x3C, LVL_2,      256 },
 	{ 0x41, LVL_2,      128 },
 	{ 0x42, LVL_2,      256 },
 	{ 0x43, LVL_2,      512 },
@@ -122,20 +124,44 @@ static struct _cache_table cache_table[] __initdata =
 	{ 0x66, LVL_1_DATA, 8 },
 	{ 0x67, LVL_1_DATA, 16 },
 	{ 0x68, LVL_1_DATA, 32 },
+	{ 0x70, LVL_TRACE,  12 },
+	{ 0x71, LVL_TRACE,  16 },
+	{ 0x72, LVL_TRACE,  32 },
 	{ 0x79, LVL_2,      128 },
 	{ 0x7A, LVL_2,      256 },
 	{ 0x7B, LVL_2,      512 },
 	{ 0x7C, LVL_2,      1024 },
 	{ 0x82, LVL_2,      256 },
+	{ 0x83, LVL_2,      512 },
 	{ 0x84, LVL_2,      1024 },
 	{ 0x85, LVL_2,      2048 },
 	{ 0x00, 0, 0}
 };
 
+/*
+ * P4 Xeon errata 037 workaround.
+ * Hardware prefetcher may cause stale data to be loaded into the cache.
+ */
+static void __init Intel_errata_workarounds(struct cpuinfo_x86 *c)
+{
+	unsigned long lo, hi;
+
+	if ((c->x86 == 15) && (c->x86_model == 1) && (c->x86_mask == 1)) {
+		rdmsr (MSR_IA32_MISC_ENABLE, lo, hi);
+		if ((lo & (1<<9)) == 0) {
+			printk (KERN_INFO "CPU: C0 stepping P4 Xeon detected.\n");
+			printk (KERN_INFO "CPU: Disabling hardware prefetching (Errata 037)\n");
+			lo |= (1<<9);	/* Disable hw prefetching */
+			wrmsr (MSR_IA32_MISC_ENABLE, lo, hi);
+		}
+	}
+}
+
+
 static void __init init_intel(struct cpuinfo_x86 *c)
 {
 	char *p = NULL;
-	unsigned int l1i = 0, l1d = 0, l2 = 0, l3 = 0; /* Cache sizes */
+	unsigned int trace = 0, l1i = 0, l1d = 0, l2 = 0, l3 = 0; /* Cache sizes */
 
 #ifdef CONFIG_X86_F00F_BUG
 	/*
@@ -196,6 +222,9 @@ static void __init init_intel(struct cpuinfo_x86 *c)
 						case LVL_3:
 							l3 += cache_table[k].size;
 							break;
+						case LVL_TRACE:
+							trace += cache_table[k].size;
+							break;
 						}
 
 						break;
@@ -205,9 +234,13 @@ static void __init init_intel(struct cpuinfo_x86 *c)
 				}
 			}
 		}
-		if ( l1i || l1d )
-			printk(KERN_INFO "CPU: L1 I cache: %dK, L1 D cache: %dK\n",
-			      l1i, l1d);
+
+		if ( trace )
+			printk (KERN_INFO "CPU: Trace cache: %dK uops", trace);
+		else if ( l1i )
+			printk (KERN_INFO "CPU: L1 I cache: %dK", l1i);
+		if ( l1d )
+			printk(", L1 D cache: %dK\n", l1d);
 		if ( l2 )
 			printk(KERN_INFO "CPU: L2 cache: %dK\n", l2);
 		if ( l3 )
@@ -258,7 +291,7 @@ static void __init init_intel(struct cpuinfo_x86 *c)
 		strcpy(c->x86_model_id, p);
 	
 #ifdef CONFIG_X86_HT
-	if (test_bit(X86_FEATURE_HT, c->x86_capability) && !disable_P4_HT) {
+	if (cpu_has(c, X86_FEATURE_HT) && !disable_P4_HT) {
 		extern	int phys_proc_id[NR_CPUS];
 		
 		u32 	eax, ebx, ecx, edx;
@@ -312,7 +345,11 @@ too_many_siblings:
 
 	/* Disable the PN if appropriate */
 	squash_the_stupid_serial_number(c);
+
+	/* Work around errata */
+	Intel_errata_workarounds(c);
 }
+
 
 static unsigned int intel_size_cache(struct cpuinfo_x86 * c, unsigned int size)
 {
@@ -370,7 +407,10 @@ static struct cpu_dev intel_cpu_dev __initdata = {
 		},
 		{ X86_VENDOR_INTEL,     15,
 		  {
-			  [1] "Pentium 4 (Unknown)",
+			  [0] "Pentium 4 (Unknown)",
+			  [1] "Pentium 4 (Willamette)",
+			  [2] "Pentium 4 (Northwood)",
+			  [4] "Pentium 4 (Foster)",
 			  [5] "Pentium 4 (Foster)",
 		  }
 		},

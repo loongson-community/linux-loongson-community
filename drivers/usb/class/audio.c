@@ -487,7 +487,7 @@ static int dmabuf_init(struct dmabuf *db)
 	db->dmasize = db->numfrag << db->fragshift;
 	for(nr = 0; nr < NRSGBUF; nr++) {
 		if (!db->sgbuf[nr]) {
-			p = (void *)get_free_page(GFP_KERNEL);
+			p = (void *)get_zeroed_page(GFP_KERNEL);
 			if (!p)
 				return -ENOMEM;
 			db->sgbuf[nr] = p;
@@ -3841,8 +3841,7 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 		return;
 	}
 	down(&open_sem);
-	list_del(&s->audiodev);
-	INIT_LIST_HEAD(&s->audiodev);
+	list_del_init(&s->audiodev);
 	s->usbdev = NULL;
 	dev_set_drvdata (&intf->dev, NULL);
 

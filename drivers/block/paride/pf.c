@@ -369,11 +369,11 @@ static int pf_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		return -EINVAL;
 	capacity = get_capacity(pf->disk);
 	if (capacity < PF_FD_MAX) {
-		g.cylinders = capacity / (PF_FD_HDS * PF_FD_SPT);
+		g.cylinders = sector_div(capacity, PF_FD_HDS * PF_FD_SPT);
 		g.heads = PF_FD_HDS;
 		g.sectors = PF_FD_SPT;
 	} else {
-		g.cylinders = capacity / (PF_HD_HDS * PF_HD_SPT);
+		g.cylinders = sector_div(capacity, PF_HD_HDS * PF_HD_SPT);
 		g.heads = PF_HD_HDS;
 		g.sectors = PF_HD_SPT;
 	}
@@ -685,7 +685,8 @@ static int pf_identify(struct pf_unit *pf)
 	else {
 		if (pf->media_status == PF_RO)
 			printk(", RO");
-		printk(", %ld blocks\n", get_capacity(pf->disk));
+		printk(", %llu blocks\n",
+			(unsigned long long)get_capacity(pf->disk));
 	}
 	return 0;
 }
