@@ -1,9 +1,10 @@
-/* $Id: graphics.c,v 1.14 1998/09/19 19:17:50 ralf Exp $
+/* $Id: graphics.c,v 1.15 1999/02/06 03:57:38 adevries Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
  * Author: Miguel de Icaza (miguel@nuclecu.unam.mx)
-           Ralf Baechle (ralf@gnu.org)
+ *         Ralf Baechle (ralf@gnu.org)
+ *         Ulf Carlsson (ulfc@bun.falkenberg.se)
  *
  * On IRIX, /dev/graphics is [10, 146]
  *          /dev/opengl   is [10, 147]
@@ -40,6 +41,9 @@
 #include <asm/rrm.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
+#include <asm/newport.h>
+
+#define DEBUG
 
 /* The boards */
 extern struct graphics_ops *newport_probe (int, const char **);
@@ -58,6 +62,18 @@ void disable_gconsole(void) {};
 int
 sgi_graphics_open (struct inode *inode, struct file *file)
 {
+	struct newport_regs *nregs =
+		(struct newport_regs *) KSEG1ADDR(cards[0].g_regs);
+
+	newport_wait();
+	nregs->set.wrmask = 0xffffffff;
+	nregs->set.drawmode0 = (NPORT_DMODE0_DRAW | NPORT_DMODE0_BLOCK |
+			     NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
+			     NPORT_DMODE0_STOPY);
+	nregs->set.colori = 1;
+	nregs->set.xystarti = (0 << 16) | 0;
+	nregs->go.xyendi = (1280 << 16) | 1024;
+
 	return 0;
 }
 
@@ -134,8 +150,9 @@ sgi_graphics_ioctl (struct inode *inode, struct file *file, unsigned int cmd, un
 		 * sgi_graphics_mmap
 		 */
 		disable_gconsole ();
-		r = do_mmap (file, (unsigned long)vaddr, cards [board].g_regs_size,
-			 PROT_READ|PROT_WRITE, MAP_FIXED|MAP_PRIVATE, 0);
+		r = do_mmap (file, (unsigned long)vaddr,
+			     cards[board].g_regs_size, PROT_READ|PROT_WRITE,
+			     MAP_FIXED|MAP_PRIVATE, 0);
 		if (r)
 			return r;
 	}
@@ -180,7 +197,8 @@ sgi_graphics_close (struct inode *inode, struct file *file)
 	/* Was this file handle from the board owner?, clear it */
 	if (current == cards [board].g_owner){
 		cards [board].g_owner = 0;
-		(*cards [board].g_reset_console)();
+		if (cards [board].g_reset_console)
+			(*cards [board].g_reset_console)();
 		enable_gconsole ();
 	}
 	return 0;
@@ -191,37 +209,42 @@ sgi_graphics_close (struct inode *inode, struct file *file)
  */
 
 unsigned long
-sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int write_access)
+sgi_graphics_nopage (struct vm_area_struct *vma, unsigned long address, int
+		     no_share)
 {
-	unsigned long page;
+	pgd_t *pgd; pmd_t *pmd; pte_t *pte; 
 	int board = GRAPHICS_CARD (vma->vm_dentry->d_inode->i_rdev);
 
-#ifdef DEBUG_GRAPHICS
-	printk ("Got a page fault for board %d address=%lx guser=%lx\n", board, address,
-		cards [board].g_user);
+	unsigned long virt_add, phys_add;
+
+#ifdef DEBUG
+	printk ("Got a page fault for board %d address=%lx guser=%lx\n", board,
+		address, (unsigned long) cards[board].g_user);
 #endif
 	
-	/* 1. figure out if another process has this mapped,
-	 * and revoke the mapping in that case.
-	 */
-	if (cards [board].g_user && cards [board].g_user != current){
-		/* FIXME: save graphics context here, dump it to rendering node? */
-		remove_mapping (cards [board].g_user, vma->vm_start, vma->vm_end);
+	/* Figure out if another process has this mapped, and revoke the mapping
+	 * in that case. */
+	if (cards[board].g_user && cards[board].g_user != current) {
+		/* FIXME: save graphics context here, dump it to rendering
+		 * node? */
+
+		remove_mapping(cards[board].g_user, vma->vm_start, vma->vm_end);
 	}
+
 	cards [board].g_user = current;
-#if DEBUG_GRAPHICS
-	printk ("Registers: 0x%lx\n", cards [board].g_regs);
-	printk ("vm_start:  0x%lx\n", vma->vm_start);
-	printk ("address:   0x%lx\n", address);
-	printk ("diff:      0x%lx\n", (address - vma->vm_start));
 
-	printk ("page/pfn:  0x%lx\n", page);
-	printk ("TLB entry: %lx\n", pte_val (mk_pte (page + PAGE_OFFSET, PAGE_USERIO)));
-#endif
+	/* Map the physical address of the newport registers into the address
+	 * space of this process */
 
-	/* 2. Map this into the current process address space */
-	page = ((cards [board].g_regs) + (address - vma->vm_start));
-	return page + PAGE_OFFSET;
+	virt_add = address & PAGE_MASK;
+	phys_add = cards[board].g_regs + virt_add - vma->vm_start;
+	remap_page_range(virt_add, phys_add, PAGE_SIZE, vma->vm_page_prot);
+
+	pgd = pgd_offset(current->mm, address);
+	pmd = pmd_offset(pgd, address);
+	pte = pte_offset(pmd, address);
+	printk("page: %08lx\n", pte_page(*pte));
+	return pte_page(*pte);
 }
 
 /*
@@ -319,6 +342,8 @@ __initfunc(void gfx_init (const char **name))
 	shmiq_init ();
 	usema_init ();
 
+	boards++;
+
 #if 0
 	if ((g = newport_probe (boards, name)) != 0) {
 		cards [boards] = *g;
@@ -336,13 +361,31 @@ __initfunc(void gfx_init (const char **name))
 
 #ifdef MODULE
 int init_module(void) {
-  printk("SGI Newport Graphics version %i.%i.%i\n",42,54,69);
+	static int initiated = 0;
 
+	printk("SGI Newport Graphics version %i.%i.%i\n",42,54,69);
+
+	if (!initiated++) {
+		shmiq_init();
+		usema_init();
+		printk("Adding first board\n");
+		boards++;
+		cards[0].g_regs = 0x1f0f0000;
+		cards[0].g_regs_size = sizeof (struct newport_regs);
+	}
+
+	printk("Boards: %d\n", boards);
+
+	misc_register (&dev_graphics);
+	misc_register (&dev_opengl);
+
+	return 0;
 }
 
 void cleanup_module(void) {
+	printk("Shutting down SGI Newport Graphics\n");
 
-  printk("Shutting down SGI Newport Graphics\n");
-
+	misc_deregister (&dev_graphics);
+	misc_deregister (&dev_opengl);
 }
 #endif
