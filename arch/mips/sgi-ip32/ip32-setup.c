@@ -13,6 +13,7 @@
 #include <linux/interrupt.h>
 #include <linux/param.h>
 #include <linux/init.h>
+#include <linux/console.h>
 
 #include <asm/time.h>
 #include <asm/mipsregs.h>
