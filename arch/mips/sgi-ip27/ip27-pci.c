@@ -55,14 +55,16 @@ do {									\
 	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],        \
                                              bus_to_wid[bus_id]);       \
                                                                         \
+	__bit = (((where) & (bm)) << 3);				\
+	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
 	*value = (cf >> __bit) & (mask);				\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
-static int pci_conf0_read_config(struct pci_bus *bus, int where,
-	u32 *value)
+static int pci_conf0_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 *value)
 {
 	u32	vprod;
 
@@ -73,8 +75,6 @@ static int pci_conf0_read_config(struct pci_bus *bus, int where,
 		return PCIBIOS_SUCCESSFUL;
 	}
 
-	__bit = (((where) & (bm)) << 3);				\
-	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (size == 1)
 		CF0_READ_PCI_CFG(bus, devfn, where, (u8 *) value, 3, 0xff);
 	else if (size == 2)
@@ -105,24 +105,23 @@ do {									\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
-static int pci_conf0_write_config_byte(struct pci_bus *bus, int where,
-	u32 value)
+static int pci_conf0_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 value)
 {
 	u32	vprod;
 
 	CF0_READ_PCI_CFG(bus, devfn, PCI_VENDOR_ID, &vprod, 0, 0xffffffff);
 	if (vprod == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16))
 	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {
-		*value = 0;
 		return PCIBIOS_SUCCESSFUL;
 	}
 
 	if (size == 1)
-		CF0_WRITE_PCI_CFG(dev, devfn, where, (u8)  value, 3,0xff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u8)  value, 3,0xff);
 	else if (size == 2)
-		CF0_WRITE_PCI_CFG(dev, devfn, where, (u16) value, 2,0xffff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u16) value, 2,0xffff);
 	else
-		CF0_WRITE_PCI_CFG(dev, devfn, where, (u32) value, 0,0xffffffff);
+		CF0_WRITE_PCI_CFG(bus, devfn, where, (u32) value, 0,0xffffffff);
 }
 
 static struct pci_ops bridge_pci_ops = {
@@ -137,7 +136,7 @@ static int __init pcibios_init(void)
 
 	ioport_resource.end = ~0UL;
 
-	for (i=0; i<num_bridges; i++) {
+	for (i=0; i < num_bridges; i++) {
 		printk("PCI: Probing PCI hardware on host bus %2d.\n", i);
 		pci_scan_bus(i, ops, NULL);
 	}
@@ -332,20 +331,20 @@ static void __init pci_fixup_isp2x00(struct pci_dev *d)
 	pci_enable_swapping(d);
 
 	/* set card's base addr reg */
-	//pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x500001);
-	//pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_1, 0x8b00000);
-	//pci_conf0_write_config_dword(d, PCI_ROM_ADDRESS, 0x8b20000);
+	//pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x500001);
+	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0x8b00000);
+	//pci_write_config_dword(d, PCI_ROM_ADDRESS, 0x8b20000);
 
 	/* I got these from booting irix on system...*/
-	pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x200001);
-	//pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_1, 0xf800000);
-	pci_conf0_write_config_dword(d, PCI_ROM_ADDRESS,   0x10200000);
+	pci_write_config_dword(d, PCI_BASE_ADDRESS_0, 0x200001);
+	//pci_write_config_dword(d, PCI_BASE_ADDRESS_1, 0xf800000);
+	pci_write_config_dword(d, PCI_ROM_ADDRESS,   0x10200000);
 
-	pci_conf0_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
-	//pci_conf0_write_config_dword(d, PCI_ROM_ADDRESS, (start | 0x20000));
+	pci_write_config_dword(d, PCI_BASE_ADDRESS_1, start);
+	//pci_write_config_dword(d, PCI_ROM_ADDRESS, (start | 0x20000));
 
 	/* set cache line size */
-	pci_conf0_write_config_dword(d, PCI_CACHE_LINE_SIZE, 0xf080);
+	pci_write_config_dword(d, PCI_CACHE_LINE_SIZE, 0xf080);
 
 	/* set pci bus timeout */
 	bridge->b_bus_timeout |= BRIDGE_BUS_PCI_RETRY_HLD(0x3);
