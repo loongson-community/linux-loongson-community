@@ -52,8 +52,7 @@ void install_cpu_nmi_handler(int slice)
  * into the eframe format for the node under consideration.
  */
 
-void
-nmi_cpu_eframe_save(nasid_t nasid, int slice)
+void nmi_cpu_eframe_save(nasid_t nasid, int slice)
 {
 	struct reg_struct *nr;
 	int 		i;
@@ -87,9 +86,11 @@ nmi_cpu_eframe_save(nasid_t nasid, int slice)
 	printk("epc   : %016lx ", nr->epc);
 	print_symbol("%s ", nr->epc);
 	printk("%s\n", print_tainted());
+	printk("ErrEPC: %016lx ", nr->error_epc);
+	print_symbol("%s\n", nr->error_epc);
 	printk("ra    : %016lx ", nr->gpr[31]);
-	print_symbol("%s ", nr->gpr[31]);
-	printk("Status: %08lx    ", nr->sr);
+	print_symbol("%s\n", nr->gpr[31]);
+	printk("Status: %08lx         ", nr->sr);
 
 	if (nr->sr & ST0_KX)
 		printk("KX ");
@@ -124,10 +125,29 @@ nmi_cpu_eframe_save(nasid_t nasid, int slice)
 	printk("Cause : %08lx\n", nr->cause);
 	printk("PrId  : %08x\n", read_c0_prid());
 	printk("BadVA : %016lx\n", nr->badva);
-	printk("ErrEPC: %016lx\n", nr->error_epc);
 	printk("CErr  : %016lx\n", nr->cache_err);
 	printk("NMI_SR: %016lx\n", nr->nmi_sr);
 
+	printk("\n");
+}
+
+void nmi_dump_hub_irq(nasid_t nasid, int slice)
+{
+	hubreg_t mask0, mask1, pend0, pend1;
+
+	if (slice == 0) {				/* Slice A */
+		mask0 = REMOTE_HUB_L(nasid, PI_INT_MASK0_A);
+		mask1 = REMOTE_HUB_L(nasid, PI_INT_MASK1_A);
+	} else {					/* Slice B */
+		mask0 = REMOTE_HUB_L(nasid, PI_INT_MASK0_B);
+		mask1 = REMOTE_HUB_L(nasid, PI_INT_MASK1_B);
+	}
+
+	pend0 = REMOTE_HUB_L(nasid, PI_INT_PEND0);
+	pend1 = REMOTE_HUB_L(nasid, PI_INT_PEND1);
+
+	printk("PI_INT_MASK0: %16lx PI_INT_MASK1: %16lx\n", mask0, mask1);
+	printk("PI_INT_PEND0: %16lx PI_INT_PEND1: %16lx\n", pend0, pend1);
 	printk("\n\n");
 }
 
@@ -135,11 +155,10 @@ nmi_cpu_eframe_save(nasid_t nasid, int slice)
  * Copy the cpu registers which have been saved in the IP27prom format
  * into the eframe format for the node under consideration.
  */
-void
-nmi_node_eframe_save(cnodeid_t  cnode)
+void nmi_node_eframe_save(cnodeid_t  cnode)
 {
-	int		cpu;
-	nasid_t		nasid;
+	nasid_t nasid;
+	int slice;
 
 	/* Make sure that we have a valid node */
 	if (cnode == CNODEID_NONE)
@@ -150,8 +169,10 @@ nmi_node_eframe_save(cnodeid_t  cnode)
 		return;
 
 	/* Save the registers into eframe for each cpu */
-	for(cpu = 0; cpu < NODE_NUM_CPUS(cnode); cpu++)
-		nmi_cpu_eframe_save(nasid, cpu);
+	for (slice = 0; slice < NODE_NUM_CPUS(slice); slice++) {
+		nmi_cpu_eframe_save(nasid, slice);
+		nmi_dump_hub_irq(nasid, slice);
+	}
 }
 
 /*
