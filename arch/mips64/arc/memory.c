@@ -221,6 +221,7 @@ void __init prom_meminit(void)
 void __init
 prom_free_prom_memory (void)
 {
+	struct prom_pmemblock *p;
 	unsigned long freed = 0;
 	unsigned long addr, end;
 
