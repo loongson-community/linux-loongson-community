@@ -712,7 +712,7 @@ ioc3_alloc_rings(struct net_device *dev, struct ioc3_private *ip,
 
 	if (ip->rxr == NULL) {
 		/* Allocate and initialize rx ring.  4kb = 512 entries  */
-		ip->rxr = (unsigned long *) get_free_page(GFP_KERNEL);
+		ip->rxr = (unsigned long *) get_free_page(GFP_ATOMIC);
 		rxr = (unsigned long *) ip->rxr;
 		if (!rxr)
 			printk("ioc3_alloc_rings(): get_free_page() failed!\n");
