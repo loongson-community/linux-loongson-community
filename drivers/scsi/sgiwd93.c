@@ -1,4 +1,4 @@
-/* $Id: sgiwd93.c,v 1.7 1996/07/23 09:00:16 dm Exp $
+/* $Id: sgiwd93.c,v 1.4 1998/03/04 10:49:47 ralf Exp $
  * sgiwd93.c: SGI WD93 scsi driver.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -258,3 +258,13 @@ Scsi_Host_Template driver_template = SGIWD93_SCSI;
 #include "scsi_module.c"
 
 #endif
+
+int sgiwd93_release(struct Scsi_Host *instance)
+{
+#ifdef MODULE
+	free_irq(1, sgiwd93_intr);
+	free_page(KSEG0ADDR(hdata->dma_bounce_buffer));
+	wd33c93_release();
+#endif
+	return 1;
+}

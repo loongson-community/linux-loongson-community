@@ -3,7 +3,7 @@
  *	
  *		Alan Cox, <alan@cymru.net>
  *
- *	Version: $Id: icmp.c,v 1.3 1997/12/16 05:37:35 ralf Exp $
+ *	Version: $Id: icmp.c,v 1.4 1998/03/03 01:23:37 ralf Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *	modify it under the terms of the GNU General Public License
@@ -877,9 +877,9 @@ static void icmp_address_reply(struct icmphdr *icmph, struct sk_buff *skb, int l
 	struct in_ifaddr *ifa;
 	u32 mask;
 
-	if (!ipv4_config.log_martians ||
-	    !IS_ROUTER ||
-	    !in_dev || !in_dev->ifa_list ||
+	if (!in_dev || !in_dev->ifa_list ||
+	    !IN_DEV_LOG_MARTIANS(in_dev) ||
+	    !IN_DEV_FORWARD(in_dev) ||
 	    len < 4 ||
 	    !(rt->rt_flags&RTCF_DIRECTSRC))
 		return;
@@ -1007,7 +1007,7 @@ int icmp_rcv(struct sk_buff *skb, unsigned short len)
 	(icmp_pointers[icmph->type].handler)(icmph, skb, len);
 
 drop:
-	kfree_skb(skb, FREE_READ); 
+	kfree_skb(skb);
 	return 0;
 error:
 	icmp_statistics.IcmpInErrors++;

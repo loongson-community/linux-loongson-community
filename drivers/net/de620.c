@@ -100,7 +100,6 @@ static const char *version =
 
 /*
  * Enable debugging by "-DDE620_DEBUG=3" when compiling,
- * OR in "./CONFIG"
  * OR by enabling the following #define
  *
  * use 0 for production, 1 for verification, >2 for debug
@@ -580,7 +579,7 @@ de620_start_xmit(struct sk_buff *skb, struct device *dev)
 
 	restore_flags(flags); /* interrupts maybe back on */
 
-	dev_kfree_skb (skb, FREE_WRITE);
+	dev_kfree_skb (skb);
 
 	return 0;
 }

@@ -101,7 +101,7 @@ void fix_choice_cond()
   struct condition * cond;
   struct condition * cond2;
   struct kconfig * cfg;
-  char tmpbuf[10];
+  char tmpbuf[255];
 
   for(cfg = config;cfg != NULL; cfg = cfg->next)
     {
@@ -361,7 +361,6 @@ void fix_conditionals(struct kconfig * scfg)
 	case tok_hex:
 	case tok_string:
 	case tok_choice:
-	case tok_make:
 	  /*
 	   * We need to duplicate the chain of conditions and attach them to
 	   * this token.

@@ -1,6 +1,6 @@
 /* linux/drivers/cdrom/cdrom.c. 
    Copyright (c) 1996, 1997 David A. van Leeuwen.
-   Copyright (c) 1997 Erik Andersen (andersee@debian.org)
+   Copyright (c) 1997, 1998 Erik Andersen <andersee@debian.org>
 
    May be copied or modified under the terms of the GNU General Public
    License.  See linux/COPYING for more information.
@@ -10,46 +10,71 @@
 
    The routines in the file provide a uniform interface between the
    software that uses CD-ROMs and the various low-level drivers that
-   actually talk to actual hardware devices. Suggestions are welcome.
+   actually talk to the hardware. Suggestions are welcome.
    Patches that work are more welcome though.  ;-)
 
+ To Do List:
+ ----------------------------------
 
-  Recent Changes:
-  ----------------------------------
+ -- Modify sysctl/proc interface. I plan on having one directory per
+ drive, with entries for outputing general drive information, and sysctl
+ based tunable parameters such as whether the tray should auto-close for
+ that drive. Suggestions (or patches) for this welcome!
 
-  New maintainer! As David A. van Leeuwen has been too busy to activly
+ -- Change the CDROMREADMODE1, CDROMREADMODE2, CDROMREADAUDIO, and 
+ CDROMREADRAW ioctls so they go through the Uniform CD-ROM driver.
+
+
+
+
+ Revision History
+ ----------------------------------
+ 1.00  Date Unknown -- David van Leeuwen <david@tm.tno.nl>
+ -- Initial version by David A. van Leeuwen. I don't have a detailed
+  changelog for the 1.x series, David?
+
+2.00  Dec  2, 1997 -- Erik Andersen <andersee@debian.org>
+  -- New maintainer! As David A. van Leeuwen has been too busy to activly
   maintain and improve this driver, I am now carrying on the torch. If
   you have a problem with this driver, please feel free to contact me.
 
-  Added (rudimentary) sysctl interface. I realize this is really weak
-  right now, and is _very_ badly implemented. It will be improved... I
-  plan on having one directory per drive, with entries for outputing
-  general drive information, and sysctl based tunable parameters such
-  as whether the tray should auto-close for that drive. Suggestions (or
-  patches) for improvements are very welcome.
+  -- Added (rudimentary) sysctl interface. I realize this is really weak
+  right now, and is _very_ badly implemented. It will be improved...
 
-  Modified CDROM_DISC_STATUS so that it is now incorporated into
+  -- Modified CDROM_DISC_STATUS so that it is now incorporated into
   the Uniform CD-ROM driver via the cdrom_count_tracks function.
   The cdrom_count_tracks function helps resolve some of the false
   assumptions of the CDROM_DISC_STATUS ioctl, and is also used to check
   for the correct media type when mounting or playing audio from a CD.
 
-  Remove the calls to verify_area and only use the copy_from_user and
+  -- Remove the calls to verify_area and only use the copy_from_user and
   copy_to_user stuff, since these calls now provide their own memory
   checking with the 2.1.x kernels.
 
-  Major update to return codes so that errors from low-level drivers
+  -- Major update to return codes so that errors from low-level drivers
   are passed on through (thanks to Gerd Knorr for pointing out this
   problem).
 
-  Made it so if a function isn't implemented in a low-level driver,
+  -- Made it so if a function isn't implemented in a low-level driver,
   ENOSYS is now returned instead of EINVAL.
 
-  Simplified some complex logic so that the source code is easier to read.
+  -- Simplified some complex logic so that the source code is easier to read.
 
-  Other stuff I probably forgot to mention (lots of changes).
+  -- Other stuff I probably forgot to mention (lots of changes).
 
- */
+2.01 to 2.11 Dec 1997-Jan 1998
+  -- TO-DO!  Write changelogs for 2.01 to 2.12.
+
+2.12  Jan  24, 1998 -- Erik Andersen <andersee@debian.org>
+  -- Fixed a bug in the IOCTL_IN and IOCTL_OUT macros.  It turns out that
+  copy_*_user does not return EFAULT on error, but instead return the number 
+  of bytes not copied.  I was returning whatever non-zero stuff came back from 
+  the copy_*_user functions directly, which would result in strange errors.
+
+-------------------------------------------------------------------------*/
+
+#define REVISION "Revision: 2.12"
+#define VERSION "Id: cdrom.c 2.12 1998/01/24 22:15:45 erik Exp"
 
 
 #include <linux/config.h>
@@ -68,14 +93,6 @@
 #include <asm/uaccess.h>
 
 
-#define VERSION "$Id: cdrom.c,v 2.0 1997/11/20 01:58:03 erik Exp $"
-#define REVISION "revision 2.0"
-#define FM_WRITE	0x2                 /* file mode write bit */
-
-/* When VERBOSE_STATUS_INFO is not defined, the debugging printks don't 
-   get compiled in */
-#define VERBOSE_STATUS_INFO
-
 /* I use an error-log mask to give fine grain control over the type of
    error messages dumped to the system logs.  The available masks include: */
 #define CD_WARNING	0x1
@@ -83,9 +100,14 @@
 #define CD_DO_IOCTL	0x4
 #define CD_OPEN		0x8
 #define CD_CLOSE	0x10
+#define CD_COUNT_TRACKS 0x20
+
+/* When VERBOSE_STATUS_INFO is not defined, the debugging printks don't 
+   get compiled in at all */
+#define VERBOSE_STATUS_INFO
 
 #define ERRLOGMASK (CD_WARNING) 
-/* #define ERRLOGMASK (CD_WARNING|CD_OPEN|CD_CLOSE) */
+/* #define ERRLOGMASK (CD_WARNING|CD_OPEN|CD_COUNT_TRACKS|CD_CLOSE) */
 /* #define ERRLOGMASK (CD_WARNING|CD_REG_UNREG|CD_DO_IOCTL|CD_OPEN|CD_CLOSE) */
 
 #ifdef VERBOSE_STATUS_INFO
@@ -95,15 +117,17 @@
 #define cdinfo(type, fmt, args...) 
 #endif
 
-
 /* These are used to simplify getting data in from and back to user land */
 #define IOCTL_IN(arg, type, in) { \
-            int ret=copy_from_user(&in, (type *) arg, sizeof in); \
-            if (ret) return ret; }
+            if ( copy_from_user(&in, (type *) arg, sizeof in) ) \
+            	return -EFAULT; }
 
 #define IOCTL_OUT(arg, type, out) { \
-            int ret=copy_to_user((type *) arg, &out, sizeof out); \
-            if (ret) return ret; }
+            if ( copy_to_user((type *) arg, &out, sizeof out) ) \
+            	return -EFAULT; }
+
+
+#define FM_WRITE	0x2                 /* file mode write bit */
 
 /* Not-exported routines. */
 static int cdrom_open(struct inode *ip, struct file *fp);
@@ -177,7 +201,8 @@ int register_cdrom(struct cdrom_device_info *cdi)
 	ENSURE(reset, CDC_RESET);
 	ENSURE(audio_ioctl, CDC_PLAY_AUDIO);
 	ENSURE(dev_ioctl, CDC_IOCTLS);
-	cdi->options = CDO_AUTO_CLOSE | CDO_USE_FFLAGS | CDO_LOCK | CDO_CHECK_TYPE;
+	cdi->options = CDO_AUTO_CLOSE | CDO_USE_FFLAGS | CDO_LOCK;
+					/* default compatibility mode */
 	cdi->mc_flags = 0;
 	cdo->n_minors = 0;
 	cdinfo(CD_REG_UNREG, "drive \"/dev/%s\" registered\n", cdi->name);
@@ -305,15 +330,13 @@ int open_for_data(struct cdrom_device_info * cdi)
 		ret=-ENOMEDIUM;
 		goto clean_up_and_return;
 	}
-#if 0
-	/* this breaks CD-Players which don't use O_NONBLOCK, workman
-	 * for example, probably others too */
+	/* CD-Players which don't use O_NONBLOCK, workman
+	 * for example, need bit CDO_CHECK_TYPE cleared! */
 	if (cdi->options & CDO_CHECK_TYPE && tracks.data==0) {
 		cdinfo(CD_OPEN, "bummer. wrong media type...\n"); 
 		ret=-EMEDIUMTYPE;
 		goto clean_up_and_return;
 	}
-#endif
 
 	cdinfo(CD_OPEN, "all seems well, opening the device...\n"); 
 
@@ -481,7 +504,7 @@ void cdrom_count_tracks(struct cdrom_device_info *cdi, tracktype* tracks)
 	tracks->cdi=0;
 	tracks->xa=0;
 	tracks->error=0;
-	cdinfo(CD_OPEN, "entering cdrom_count_tracks\n"); 
+	cdinfo(CD_COUNT_TRACKS, "entering cdrom_count_tracks\n"); 
         if (!(cdi->ops->capability & CDC_PLAY_AUDIO)) { 
                 tracks->error=CDS_NO_INFO;
                 return;
@@ -509,10 +532,10 @@ void cdrom_count_tracks(struct cdrom_device_info *cdi, tracktype* tracks)
 			tracks->data++;
 		} else
 		    tracks->audio++;
-		cdinfo(CD_OPEN, "track %d: format=%d, ctrl=%d\n",
+		cdinfo(CD_COUNT_TRACKS, "track %d: format=%d, ctrl=%d\n",
 		       i, entry.cdte_format, entry.cdte_ctrl);
 	}	
-	cdinfo(CD_OPEN, "disc has %d tracks: %d=audio %d=data %d=Cd-I %d=XA\n", 
+	cdinfo(CD_COUNT_TRACKS, "disc has %d tracks: %d=audio %d=data %d=Cd-I %d=XA\n", 
 		header.cdth_trk1, tracks->audio, tracks->data, 
 		tracks->cdi, tracks->xa);
 }	
@@ -716,6 +739,10 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 	   returns with the above, but this more clearly demonstrates
 	   the problem with the current interface.  Too bad this wasn't 
 	   designed to use bitmasks...         -Erik 
+
+	   Well, now we have the option CDS_MIXED: a mixed-type CD. 
+	   User level programmers might feel the ioctl is not very useful.
+	   					---david
 	*/
 	case CDROM_DISC_STATUS: {
 		tracktype tracks;
@@ -725,11 +752,14 @@ int cdrom_ioctl(struct inode *ip, struct file *fp,
 			return(tracks.error);
 
 		/* Policy mode on */
-		if (tracks.audio>0 && tracks.data==0 && tracks.cdi==0 && tracks.xa==0) 
-			return CDS_AUDIO;
-		if (tracks.cdi>0) return CDS_XA_2_2;
-		if (tracks.xa>0) return CDS_XA_2_1;
-		if (tracks.data>0) return CDS_DATA_1;
+		if (tracks.audio > 0) {
+			if (tracks.data==0 && tracks.cdi==0 && tracks.xa==0) 
+				return CDS_AUDIO;
+			else return CDS_MIXED;
+		}
+		if (tracks.cdi > 0) return CDS_XA_2_2;
+		if (tracks.xa > 0) return CDS_XA_2_1;
+		if (tracks.data > 0) return CDS_DATA_1;
 		/* Policy mode off */
 
 		cdinfo(CD_WARNING,"This disc doesn't have any tracks I recognise!\n");

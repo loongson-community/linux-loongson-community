@@ -80,7 +80,6 @@ int keyboard_wait_for_keypress(struct console *co)
 /* shift state counters.. */
 static unsigned char k_down[NR_SHIFT] = {0, };
 /* keyboard key bitmap */
-#define BITS_PER_LONG (8*sizeof(unsigned long))
 static unsigned long key_down[256/BITS_PER_LONG] = { 0, };
 
 static int dead_key_next = 0;
@@ -619,7 +618,7 @@ static void do_fn(unsigned char value, char up_flag)
 static void do_pad(unsigned char value, char up_flag)
 {
 	static const char *pad_chars = "0123456789+-*/\015,.?()";
-	static const char *app_map = "pqrstuvwxylSRQMnn?PQ";
+	static const char *app_map = "pqrstuvwxylSRQMnnmPQ";
 
 	if (up_flag)
 		return;		/* no action, if this is a key release */

@@ -1,4 +1,4 @@
-/* $Id: irixsig.c,v 1.8 1997/12/15 17:38:34 ralf Exp $
+/* $Id: irixsig.c,v 1.9 1998/03/17 00:59:35 ralf Exp $
  * irixsig.c: WHEEE, IRIX signals!  YOW, am I compatable or what?!?!
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -179,8 +179,6 @@ asmlinkage int do_irix_signal(sigset_t *oldset, struct pt_regs *regs)
 	unsigned long r0 = regs->regs[0];
 	unsigned long r7 = regs->orig_reg7;
 	struct k_sigaction *ka;
-	unsigned long signr;
-	sigset_t _oldset;
 	siginfo_t info;
 
 	if (!oldset)

@@ -11,6 +11,9 @@
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
  *		Alan Cox, <gw4pts@gw4pts.ampr.org>
  *
+ * Changes:
+ *		Mike McLagan    :       Routing by source
+ *
  *		This program is free software; you can redistribute it and/or
  *		modify it under the terms of the GNU General Public License
  *		as published by the Free Software Foundation; either version
@@ -28,6 +31,7 @@
 #include <linux/inetdevice.h>
 #include <linux/in_route.h>
 #include <net/route.h>
+#include <net/arp.h>
 
 #ifndef _SNMP_H
 #include <net/snmp.h>
@@ -96,7 +100,7 @@ extern int		ip_acct_output(struct sk_buff *skb);
 #else
 #define ip_acct_output	dev_queue_xmit
 #endif
-extern void		ip_fragment(struct sk_buff *skb, int, int (*out)(struct sk_buff*));
+extern void		ip_fragment(struct sk_buff *skb, int (*out)(struct sk_buff*));
 extern struct sk_buff *	ip_reply(struct sk_buff *skb, int payload);
 extern int		ip_do_nat(struct sk_buff *skb);
 extern void		ip_send_check(struct iphdr *ip);
@@ -109,21 +113,60 @@ extern int		ip_build_xmit(struct sock *sk,
 						   unsigned int,
 						   unsigned int),
 				      const void *frag,
-				      unsigned short int length,
+				      unsigned length,
 				      struct ipcm_cookie *ipc,
 				      struct rtable *rt,
 				      int flags);
 
+extern int __ip_finish_output(struct sk_buff *skb);
 
-static __inline__
-void ip_send(struct sk_buff *skb)
+struct ipv4_config
 {
-	ip_ll_header(skb);
+	int	log_martians;
+	int	autoconfig;
+	int	no_pmtu_disc;
+};
 
-	if (skb->len > skb->dev->mtu + skb->dev->hard_header_len)
-		ip_fragment(skb, 0, ip_acct_output);
+extern struct ipv4_config ipv4_config;
+extern struct ip_mib	ip_statistics;
+
+extern int sysctl_local_port_range[2];
+
+extern __inline__ int ip_finish_output(struct sk_buff *skb)
+{
+	struct dst_entry *dst = skb->dst;
+	struct device *dev = dst->dev;
+	struct hh_cache *hh = dst->hh;
+
+	skb->dev = dev;
+	skb->protocol = __constant_htons(ETH_P_IP);
+
+	if (hh) {
+#ifdef __alpha__
+		/* Alpha has disguisting memcpy. Help it. */
+	        u64 *aligned_hdr = (u64*)(skb->data - 16);
+		u64 *aligned_hdr0 = hh->hh_data;
+		aligned_hdr[0] = aligned_hdr0[0];
+		aligned_hdr[1] = aligned_hdr0[1];
+#else
+		memcpy(skb->data - 16, hh->hh_data, 16);
+#endif
+	        skb_push(skb, dev->hard_header_len);
+		return hh->hh_output(skb);
+	} else if (dst->neighbour)
+		return dst->neighbour->output(skb);
+
+	printk(KERN_DEBUG "khm\n");
+	kfree_skb(skb);
+	return -EINVAL;
+}
+
+extern __inline__ void ip_send(struct sk_buff *skb)
+{
+	if (skb->len > skb->dst->pmtu)
+		ip_fragment(skb, __ip_finish_output);
 	else
-		ip_acct_output(skb);
+		ip_finish_output(skb);
 }
 
 static __inline__
@@ -137,28 +180,23 @@ int ip_decrease_ttl(struct iphdr *iph)
 	return --iph->ttl;
 }
 
-extern struct ip_mib	ip_statistics;
+/*
+ *	Map a multicast IP onto multicast MAC for type ethernet.
+ */
 
-struct ipv4_config
+extern __inline__ void ip_eth_mc_map(u32 addr, char *buf)
 {
-	int	accept_redirects;
-	int	secure_redirects;
-	int	rfc1620_redirects;
-	int	rfc1812_filter;
-	int	send_redirects;
-	int	log_martians;
-	int	source_route;
-	int	multicast_route;
-	int	proxy_arp;
-	int	bootp_relay;
-	int	autoconfig;
-	int	no_pmtu_disc;
-};
+	addr=ntohl(addr);
+	buf[0]=0x01;
+	buf[1]=0x00;
+	buf[2]=0x5e;
+	buf[5]=addr&0xFF;
+	addr>>=8;
+	buf[4]=addr&0xFF;
+	addr>>=8;
+	buf[3]=addr&0x7F;
+}
 
-extern struct ipv4_config ipv4_config;
-extern int sysctl_local_port_range[2];
-
-#define IS_ROUTER	(ip_statistics.IpForwarding == 1)
 
 extern int	ip_call_ra_chain(struct sk_buff *skb);
 

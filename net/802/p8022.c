@@ -16,7 +16,6 @@
  *		4 entries at most). The current demux assumes this.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
@@ -62,7 +61,7 @@ int p8022_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	}
 
 	skb->sk = NULL;
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 

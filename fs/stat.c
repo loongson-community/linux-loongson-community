@@ -4,13 +4,14 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
+#include <linux/sched.h>
+#include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/stat.h>
 #include <linux/fs.h>
-#include <linux/sched.h>
+#include <linux/file.h>
 #include <linux/kernel.h>
-#include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 
@@ -20,10 +21,11 @@
  * Revalidate the inode. This is required for proper NFS attribute caching.
  */
 static __inline__ int
-do_revalidate(struct inode *inode)
+do_revalidate(struct dentry *dentry)
 {
+	struct inode * inode = dentry->d_inode;
 	if (inode->i_op && inode->i_op->revalidate)
-		return inode->i_op->revalidate(inode);
+		return inode->i_op->revalidate(dentry);
 	return 0;
 }
 
@@ -128,10 +130,9 @@ asmlinkage int sys_stat(char * filename, struct __old_kernel_stat * statbuf)
 
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
-		struct inode * inode = dentry->d_inode;
-		error = do_revalidate(inode);
+		error = do_revalidate(dentry);
 		if (!error)
-			error = cp_old_stat(inode, statbuf);
+			error = cp_old_stat(dentry->d_inode, statbuf);
 
 		dput(dentry);
 	}
@@ -150,10 +151,9 @@ asmlinkage int sys_newstat(char * filename, struct stat * statbuf)
 
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
-		struct inode * inode = dentry->d_inode;
-		error = do_revalidate(inode);
+		error = do_revalidate(dentry);
 		if (!error)
-			error = cp_new_stat(inode,statbuf);
+			error = cp_new_stat(dentry->d_inode, statbuf);
 
 		dput(dentry);
 	}
@@ -177,10 +177,9 @@ asmlinkage int sys_lstat(char * filename, struct __old_kernel_stat * statbuf)
 
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
-		struct inode * inode = dentry->d_inode;
-		error = do_revalidate(inode);
+		error = do_revalidate(dentry);
 		if (!error)
-			error = cp_old_stat(inode, statbuf);
+			error = cp_old_stat(dentry->d_inode, statbuf);
 
 		dput(dentry);
 	}
@@ -200,10 +199,9 @@ asmlinkage int sys_newlstat(char * filename, struct stat * statbuf)
 
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
-		struct inode * inode = dentry->d_inode;
-		error = do_revalidate(inode);
+		error = do_revalidate(dentry);
 		if (!error)
-			error = cp_new_stat(inode,statbuf);
+			error = cp_new_stat(dentry->d_inode, statbuf);
 
 		dput(dentry);
 	}
@@ -223,13 +221,14 @@ asmlinkage int sys_fstat(unsigned int fd, struct __old_kernel_stat * statbuf)
 	int err = -EBADF;
 
 	lock_kernel();
-	if (fd < NR_OPEN && (f = current->files->fd[fd]) != NULL) {
+	f = fget(fd);
+	if (f) {
 		struct dentry * dentry = f->f_dentry;
-		struct inode * inode = dentry->d_inode;
 
-		err = do_revalidate(inode);
+		err = do_revalidate(dentry);
 		if (!err)
-			err = cp_old_stat(inode,statbuf);
+			err = cp_old_stat(dentry->d_inode, statbuf);
+		fput(f);
 	}
 	unlock_kernel();
 	return err;
@@ -243,13 +242,14 @@ asmlinkage int sys_newfstat(unsigned int fd, struct stat * statbuf)
 	int err = -EBADF;
 
 	lock_kernel();
-	if (fd < NR_OPEN && (f = current->files->fd[fd]) != NULL) {
+	f = fget(fd);
+	if (f) {
 		struct dentry * dentry = f->f_dentry;
-		struct inode * inode = dentry->d_inode;
 
-		err = do_revalidate(inode);
+		err = do_revalidate(dentry);
 		if (!err)
-			err = cp_new_stat(inode,statbuf);
+			err = cp_new_stat(dentry->d_inode, statbuf);
+		fput(f);
 	}
 	unlock_kernel();
 	return err;
@@ -271,9 +271,10 @@ asmlinkage int sys_readlink(const char * path, char * buf, int bufsiz)
 		struct inode * inode = dentry->d_inode;
 
 		error = -EINVAL;
-		if (inode->i_op && inode->i_op->readlink && !(error = do_revalidate(inode))) {
+		if (inode->i_op && inode->i_op->readlink &&
+		    !(error = do_revalidate(dentry))) {
 			UPDATE_ATIME(inode);
-			error = inode->i_op->readlink(inode,buf,bufsiz);
+			error = inode->i_op->readlink(dentry, buf, bufsiz);
 		}
 		dput(dentry);
 	}

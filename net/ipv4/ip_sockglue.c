@@ -5,7 +5,7 @@
  *
  *		The IP to API glue.
  *		
- * Version:	$Id: ip_sockglue.c,v 1.3 1997/12/16 05:37:41 ralf Exp $
+ * Version:	$Id: ip_sockglue.c,v 1.4 1998/03/03 01:23:41 ralf Exp $
  *
  * Authors:	see ip.c
  *
@@ -14,6 +14,7 @@
  *		Martin Mares	:	TOS setting fixed.
  *		Alan Cox	:	Fixed a couple of oopses in Martin's 
  *					TOS tweaks.
+ *		Mike McLagan	:	Routing by source
  */
 
 #include <linux/config.h>
@@ -32,7 +33,6 @@
 #include <linux/igmp.h>
 #include <linux/firewall.h>
 #include <linux/ip_fw.h>
-#include <net/checksum.h>
 #include <linux/route.h>
 #include <linux/mroute.h>
 #include <net/route.h>
@@ -314,14 +314,9 @@ int ip_setsockopt(struct sock *sk, int level, int optname, char *optval, int opt
 			if (IPTOS_PREC(val) >= IPTOS_PREC_CRITIC_ECP && !suser())
 				return -EPERM;
 			if (sk->ip_tos != val) {
-				start_bh_atomic(); 
 				sk->ip_tos=val;
 				sk->priority = rt_tos2priority(val);
-				if (sk->dst_cache) {
-					dst_release(sk->dst_cache); 
-					sk->dst_cache = NULL;
-				}
-				end_bh_atomic();
+				dst_release(xchg(&sk->dst_cache, NULL)); 
 			}
 			sk->priority = rt_tos2priority(val);
 			return 0;
@@ -352,7 +347,7 @@ int ip_setsockopt(struct sock *sk, int level, int optname, char *optval, int opt
 				struct sk_buff *skb;
 				/* Drain queued errors */
 				while((skb=skb_dequeue(&sk->error_queue))!=NULL)
-					kfree_skb(skb, FREE_READ);
+					kfree_skb(skb);
 			}
 			sk->ip_recverr = val?1:0;
 			release_sock(sk);

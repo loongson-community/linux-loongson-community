@@ -138,6 +138,9 @@ __initfunc(static int ethif_probe(struct device *dev))
 #if defined(CONFIG_MCA)
         && ultramca_probe(dev)
 #endif
+#if defined(CONFIG_ULTRA32)
+	&& ultra32_probe(dev)
+#endif
 #endif
 #if defined(CONFIG_SMC9194)
 	&& smc_init(dev)
@@ -277,6 +280,12 @@ __initfunc(static int ethif_probe(struct device *dev))
 #ifdef CONFIG_MIPS_JAZZ_SONIC
 	&& sonic_probe(dev)
 #endif	
+#ifdef CONFIG_ARCH_ACORN
+	&& acorn_ethif_probe(dev)
+#endif
+#ifdef CONFIG_ARM_AM79C961A
+	&& am79c961_probe(dev)
+#endif
 	&& 1 ) {
 	return 1;	/* -ENODEV or -EAGAIN would be more accurate. */
     }

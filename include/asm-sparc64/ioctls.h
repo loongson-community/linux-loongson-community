@@ -1,4 +1,4 @@
-/* $Id: ioctls.h,v 1.5 1997/08/12 04:13:13 ecd Exp $ */
+/* $Id: ioctls.h,v 1.6 1997/12/16 19:20:58 davem Exp $ */
 #ifndef _ASM_SPARC64_IOCTLS_H
 #define _ASM_SPARC64_IOCTLS_H
 
@@ -76,6 +76,9 @@
 #define TIOCGPGRP	_IOR('t', 131, int)
 #define TIOCSCTTY	_IO('t', 132)
 #define TIOCGSID	_IOR('t', 133, int)
+/* Get minor device of a pty master's FD -- Solaris equiv is ISPTM */
+#define TIOCGPTN	_IOR('t', 134, unsigned int) /* Get Pty Number */
+#define TIOCSPTLCK	_IOW('t', 135, int) /* Lock/unlock PTY */
 
 /* Little f */
 #define FIOCLEX		_IO('f', 1)

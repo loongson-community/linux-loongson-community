@@ -31,6 +31,7 @@ static const char *version =
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/init.h>
+#include <linux/delay.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -66,7 +67,7 @@ static void hp_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr,
 static void hp_block_input(struct device *dev, int count,
 					struct sk_buff *skb , int ring_offset);
 static void hp_block_output(struct device *dev, int count,
-							const unsigned char *buf, const start_page);
+							const unsigned char *buf, int start_page);
 
 static void hp_init_card(struct device *dev);
 
@@ -309,7 +310,7 @@ hp_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_offs
 
 static void
 hp_block_output(struct device *dev, int count,
-				const unsigned char *buf, const start_page)
+				const unsigned char *buf, int start_page)
 {
 	int nic_base = dev->base_addr;
 	int saved_config = inb_p(nic_base - NIC_OFFSET + HP_CONFIGURE);
@@ -432,11 +433,11 @@ cleanup_module(void)
 		struct device *dev = &dev_hp[this_dev];
 		if (dev->priv != NULL) {
 			int ioaddr = dev->base_addr - NIC_OFFSET;
+			unregister_netdev(dev);
 			kfree(dev->priv);
 			dev->priv = NULL;
 			free_irq(dev->irq, dev);
 			release_region(ioaddr, HP_IO_EXTENT);
-			unregister_netdev(dev);
 		}
 	}
 }

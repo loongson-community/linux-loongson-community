@@ -55,7 +55,7 @@ static void wd_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr,
 static void wd_block_input(struct device *dev, int count,
 						  struct sk_buff *skb, int ring_offset);
 static void wd_block_output(struct device *dev, int count,
-							const unsigned char *buf, const start_page);
+							const unsigned char *buf, int start_page);
 static int wd_close_card(struct device *dev);
 
 
@@ -497,11 +497,11 @@ cleanup_module(void)
 		struct device *dev = &dev_wd[this_dev];
 		if (dev->priv != NULL) {
 			int ioaddr = dev->base_addr - WD_NIC_OFFSET;
+			unregister_netdev(dev);
 			kfree(dev->priv);
 			dev->priv = NULL;
 			free_irq(dev->irq, dev);
 			release_region(ioaddr, WD_IO_EXTENT);
-			unregister_netdev(dev);
 		}
 	}
 }

@@ -10,14 +10,11 @@
  * for more info.
  */
 
-
+#include <linux/fs.h>
 #include "local.h.master"
-
+#include <linux/config.h>
 #include "os.h"
 #include "soundvers.h"
-
-
-
 
 
 
@@ -43,20 +40,20 @@
 
 #define FM_MONO		0x388	/* This is the I/O address used by AdLib */
 
-#ifndef PAS_BASE
-#define PAS_BASE	0x388
+#ifndef CONFIG_PAS_BASE
+#define CONFIG_PAS_BASE	0x388
 #endif
 
-#if defined(SB16_DMA) && !defined(SB_DMA2)
-#  define SB_DMA2 SB16_DMA
+#if defined(CONFIG_SB16_DMA) && !defined(CONFIG_SB_DMA2)
+#  define CONFIG_SB_DMA2 CONFIG_SB16_DMA
 #endif
 
-#if defined(SB16MIDI_BASE) && !defined(SB_MPU_BASE)
-#   define SB_MPU_BASE SB16MIDI_BASE
+#if defined(SB16MIDI_BASE) && !defined(CONFIG_SB_MPU_BASE)
+#   define CONFIG_SB_MPU_BASE SB16MIDI_BASE
 #endif
 
-#ifndef SB_MPU_IRQ
-#  define SB_MPU_IRQ SBC_IRQ
+#ifndef CONFIG_SB_MPU_IRQ
+#  define CONFIG_SB_MPU_IRQ CONFIG_SB_IRQ
 #endif
 
 /* SEQ_MAX_QUEUE is the maximum number of sequencer events buffered by the
@@ -91,20 +88,11 @@
 
 #define DSP_DEFAULT_SPEED	8000
 
-#define ON		1
-#define OFF		0
-
 #define MAX_AUDIO_DEV	5
 #define MAX_MIXER_DEV	5
 #define MAX_SYNTH_DEV	5
 #define MAX_MIDI_DEV	6
 #define MAX_TIMER_DEV	4
-
-struct fileinfo {
-       	  int mode;	      /* Open mode */
-	  int flags;
-	  int dummy;     /* Reference to file-flags. OS-dependent. */
-       };
 
 struct address_info {
 	int io_base;
@@ -154,6 +142,24 @@ struct channel_info {
 #define OPEN_WRITE	PCM_ENABLE_OUTPUT
 #define OPEN_READWRITE	(OPEN_READ|OPEN_WRITE)
 
+#if OPEN_READ == FMODE_READ && OPEN_WRITE == FMODE_WRITE
+
+extern __inline__ int translate_mode(struct file *file)
+{
+	return file->f_mode;
+}
+
+#else
+
+extern __inline__ int translate_mode(struct file *file)
+{
+	return ((file->f_mode & FMODE_READ) ? OPEN_READ : 0) |
+		((file->f_mode & FMODE_WRITE) ? OPEN_WRITE : 0);
+}
+
+#endif
+
+
 #include "sound_calls.h"
 #include "dev_table.h"
 
@@ -175,7 +181,3 @@ struct channel_info {
 
 #define TIMER_ARMED	121234
 #define TIMER_NOT_ARMED	1
-
-
-
-

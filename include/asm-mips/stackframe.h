@@ -8,46 +8,57 @@
 
 #include <asm/asm.h>
 #include <asm/offset.h>
+#include <asm/cacheops.h>	/* XXX */
 
 #define SAVE_ALL                                         \
 		.set	push;                            \
+	.set	mips3; \
 		.set	reorder;                         \
 		mfc0	k0, CP0_STATUS;                  \
 		sll	k0, 3;     /* extract cu0 bit */ \
-		.set	pop;                             \
+		.set	noreorder;                       \
 		bltz	k0, 8f;                          \
 		 move	k1, sp;                          \
+		.set	reorder;                         \
 		/* Called from user mode, new stack. */  \
 		lui	k1, %hi(kernelsp);               \
 		lw	k1, %lo(kernelsp)(k1);           \
 8:                                                       \
 		move	k0, sp;                          \
-		subu	sp, k1, PT_SIZE;                 \
+	/*	subu	sp, k1, PT_SIZE;     */            \
+	subu	sp, k1, ((PT_SIZE + 31) & ~31); \
+	ori	sp, 31;	\
+	xori	sp, 31;	\
+	cache	Create_Dirty_Excl_D, (sp); \
+	cache	Create_Dirty_Excl_D, 32(sp); \
+	cache	Create_Dirty_Excl_D, 64(sp); \
+	cache	Create_Dirty_Excl_D, 96(sp); \
+	cache	Create_Dirty_Excl_D, 128(sp); \
 		sw	k0, PT_R29(sp);                  \
-		sw	$2, PT_R2(sp);                   \
+		sw	$3, PT_R3(sp);                   \
 		sw	$1, PT_R1(sp);                   \
 		sw	$2, PT_OR2(sp);                  \
 		sw	$0, PT_R0(sp);			 \
-		mfc0	v0, CP0_STATUS;                  \
-		sw	$3, PT_R3(sp);                   \
-		sw	v0, PT_STATUS(sp);               \
+		mfc0	v1, CP0_STATUS;                  \
+		sw	$2, PT_R2(sp);                   \
+		sw	v1, PT_STATUS(sp);               \
 		sw	$4, PT_R4(sp);                   \
-		mfc0	v0, CP0_CAUSE;                   \
+		mfc0	v1, CP0_CAUSE;                   \
 		sw	$5, PT_R5(sp);                   \
-		sw	v0, PT_CAUSE(sp);                \
+		sw	v1, PT_CAUSE(sp);                \
 		sw	$6, PT_R6(sp);                   \
-		mfc0	v0, CP0_EPC;                     \
+		mfc0	v1, CP0_EPC;                     \
 		sw	$7, PT_R7(sp);                   \
-		sw	v0, PT_EPC(sp);                  \
+		sw	v1, PT_EPC(sp);                  \
 		sw	$7, PT_OR7(sp);                  \
 		sw	$8, PT_R8(sp);                   \
-		mfhi	v0;                              \
+		mfhi	v1;                              \
 		sw	$9, PT_R9(sp);                   \
-		sw	v0, PT_HI(sp);                   \
+		sw	v1, PT_HI(sp);                   \
 		sw	$10,PT_R10(sp);                  \
-		mflo	v0;                              \
+		mflo	v1;                              \
 		sw	$11, PT_R11(sp);                 \
-		sw	v0,  PT_LO(sp);                  \
+		sw	v1,  PT_LO(sp);                  \
 		sw	$12, PT_R12(sp);                 \
 		sw	$13, PT_R13(sp);                 \
 		sw	$14, PT_R14(sp);                 \
@@ -64,7 +75,8 @@
 		sw	$25, PT_R25(sp);                 \
 		sw	$28, PT_R28(sp);                 \
 		sw	$30, PT_R30(sp);                 \
-		sw	$31, PT_R31(sp);
+		sw	$31, PT_R31(sp);                 \
+		.set	pop
 
 /*
  * Note that we restore the IE flags from stack. This means

@@ -1,90 +1,19 @@
-/* $Id: parport.h,v 1.3 1997/10/19 18:02:00 phil Exp $ */
+/* $Id: parport.h,v 1.6 1997/12/29 12:31:05 phil Exp $ */
 
 #ifndef _PARPORT_H_
 #define _PARPORT_H_
 
-#include <asm/system.h>
-#include <asm/ptrace.h>
-#include <linux/proc_fs.h>
+/* Start off with user-visible constants */
 
 /* Maximum of 8 ports per machine */
 #define PARPORT_MAX  8 
 
 /* Magic numbers */
-#define PARPORT_IRQ_NONE  -2
-#define PARPORT_DMA_NONE  -2
-#define PARPORT_IRQ_AUTO  -1
-#define PARPORT_DMA_AUTO  -1
+#define PARPORT_IRQ_NONE  -1
+#define PARPORT_DMA_NONE  -1
+#define PARPORT_IRQ_AUTO  -2
+#define PARPORT_DMA_AUTO  -2
 #define PARPORT_DISABLE   -2
-
-/* Define this later. */
-struct parport;
-
-struct pc_parport_state {
-	unsigned int ctr;
-	unsigned int ecr;
-};
-
-struct parport_state {
-	union {
-		struct pc_parport_state pc;
-		/* ARC has no state. */
-		void *misc; 
-	} u;
-};
-
-/* Generic operations vector through the dispatch table. */
-#define parport_write_data(p,x)            (p)->ops->write_data(p,x)
-#define parport_read_data(p)               (p)->ops->read_data(p)
-#define parport_write_control(p,x)         (p)->ops->write_control(p,x)
-#define parport_read_control(p)            (p)->ops->read_control(p)
-#define parport_frob_control(p,m,v)        (p)->ops->frob_control(p,m,v)
-#define parport_write_econtrol(p,x)        (p)->ops->write_econtrol(p,x)
-#define parport_read_econtrol(p)           (p)->ops->read_econtrol(p)
-#define parport_frob_econtrol(p,m,v)       (p)->ops->frob_econtrol(p,m,v)
-#define parport_write_status(p,v)          (p)->ops->write_status(p,v)
-#define parport_read_status(p)             (p)->ops->read_status(p)
-#define parport_write_fifo(p,v)            (p)->ops->write_fifo(p,v)
-#define parport_read_fifo(p)               (p)->ops->read_fifo(p)
-#define parport_change_mode(p,m)           (p)->ops->change_mode(p,m)
-#define parport_release_resources(p)       (p)->ops->release_resources(p)
-#define parport_claim_resources(p)         (p)->ops->claim_resources(p)
-
-struct parport_operations {
-	void (*write_data)(struct parport *, unsigned int);
-	unsigned int (*read_data)(struct parport *);
-	void (*write_control)(struct parport *, unsigned int);
-	unsigned int (*read_control)(struct parport *);
-	unsigned int (*frob_control)(struct parport *, unsigned int mask, unsigned int val);
-	void (*write_econtrol)(struct parport *, unsigned int);
-	unsigned int (*read_econtrol)(struct parport *);
-	unsigned int (*frob_econtrol)(struct parport *, unsigned int mask, unsigned int val);
-	void (*write_status)(struct parport *, unsigned int);
-	unsigned int (*read_status)(struct parport *);
-	void (*write_fifo)(struct parport *, unsigned int);
-	unsigned int (*read_fifo)(struct parport *);
-
-	void (*change_mode)(struct parport *, int);
-
-	void (*release_resources)(struct parport *);
-	int (*claim_resources)(struct parport *);
-
-	unsigned int (*epp_write_block)(struct parport *, void *, unsigned int);
-	unsigned int (*epp_read_block)(struct parport *, void *, unsigned int);
-
-	unsigned int (*ecp_write_block)(struct parport *, void *, unsigned int, void (*fn)(struct parport *, void *, unsigned int), void *);
-	unsigned int (*ecp_read_block)(struct parport *, void *, unsigned int, void (*fn)(struct parport *, void *, unsigned int), void *);
-
-	void (*save_state)(struct parport *, struct parport_state *);
-	void (*restore_state)(struct parport *, struct parport_state *);
-
-	void (*enable_irq)(struct parport *);
-	void (*disable_irq)(struct parport *);
-	int (*examine_irq)(struct parport *);
-
-	void (*inc_use_count)(void);
-	void (*dec_use_count)(void);
-};
 
 #define PARPORT_CONTROL_STROBE    0x1
 #define PARPORT_CONTROL_AUTOFD    0x2
@@ -116,6 +45,83 @@ typedef enum {
 	PARPORT_CLASS_UNSPEC            /* No CLS field in ID */
 } parport_device_class;
 
+/* The "modes" entry in parport is a bit field representing the following
+ * modes.
+ * Note that PARPORT_MODE_PCECPEPP is for the SMC EPP+ECP mode which is NOT
+ * 100% compatible with EPP.
+ */
+#define PARPORT_MODE_PCSPP	        0x0001
+#define PARPORT_MODE_PCPS2		0x0002
+#define PARPORT_MODE_PCEPP		0x0004
+#define PARPORT_MODE_PCECP		0x0008
+#define PARPORT_MODE_PCECPEPP		0x0010
+#define PARPORT_MODE_PCECR		0x0020  /* ECR Register Exists */
+#define PARPORT_MODE_PCECPPS2		0x0040
+
+/* The rest is for the kernel only */
+#ifdef __KERNEL__
+
+#include <asm/system.h>
+#include <asm/ptrace.h>
+#include <asm/spinlock.h>
+#include <linux/proc_fs.h>
+#include <linux/config.h>
+
+#define PARPORT_NEED_GENERIC_OPS
+
+/* Define this later. */
+struct parport;
+
+struct pc_parport_state {
+	unsigned int ctr;
+	unsigned int ecr;
+};
+
+struct parport_state {
+	union {
+		struct pc_parport_state pc;
+		/* ARC has no state. */
+		/* AX uses same state information as PC */
+		void *misc; 
+	} u;
+};
+
+struct parport_operations {
+	void (*write_data)(struct parport *, unsigned char);
+	unsigned char (*read_data)(struct parport *);
+	void (*write_control)(struct parport *, unsigned char);
+	unsigned char (*read_control)(struct parport *);
+	unsigned char (*frob_control)(struct parport *, unsigned char mask, unsigned char val);
+	void (*write_econtrol)(struct parport *, unsigned char);
+	unsigned char (*read_econtrol)(struct parport *);
+	unsigned char (*frob_econtrol)(struct parport *, unsigned char mask, unsigned char val);
+	void (*write_status)(struct parport *, unsigned char);
+	unsigned char (*read_status)(struct parport *);
+	void (*write_fifo)(struct parport *, unsigned char);
+	unsigned char (*read_fifo)(struct parport *);
+
+	void (*change_mode)(struct parport *, int);
+
+	void (*release_resources)(struct parport *);
+	int (*claim_resources)(struct parport *);
+
+	size_t (*epp_write_block)(struct parport *, void *, size_t);
+	size_t (*epp_read_block)(struct parport *, void *, size_t);
+
+	int (*ecp_write_block)(struct parport *, void *, size_t, void (*fn)(struct parport *, void *, size_t), void *);
+	int (*ecp_read_block)(struct parport *, void *, size_t, void (*fn)(struct parport *, void *, size_t), void *);
+
+	void (*save_state)(struct parport *, struct parport_state *);
+	void (*restore_state)(struct parport *, struct parport_state *);
+
+	void (*enable_irq)(struct parport *);
+	void (*disable_irq)(struct parport *);
+	int (*examine_irq)(struct parport *);
+
+	void (*inc_use_count)(void);
+	void (*dec_use_count)(void);
+};
+
 struct parport_device_info {
 	parport_device_class class;
 	char *mfr;
@@ -144,18 +150,26 @@ struct pardevice {
 	void (*wakeup)(void *);
 	void *private;
 	void (*irq_func)(int, void *, struct pt_regs *);
-	int flags;
+	unsigned int flags;
 	struct pardevice *next;
 	struct pardevice *prev;
 	struct parport_state *state;     /* saved status over preemption */
+	struct wait_queue *wait_q;
+	unsigned long int time;
+	unsigned long int timeslice;
+	unsigned int waiting;
+	struct pardevice *waitprev;
+	struct pardevice *waitnext;
 };
 
+/* Directory information for the /proc interface */
 struct parport_dir {
 	struct proc_dir_entry *entry;    /* Directory /proc/parport/X     */
-	struct proc_dir_entry *irq;      /* IRQ entry /proc/parport/X/irq */
-	struct proc_dir_entry *devices;  /* /proc/parport/X/devices       */
-	struct proc_dir_entry *hardware; /* /proc/parport/X/hardware      */
-	char name[4];                    /* /proc/parport/"XXXX" */
+	struct proc_dir_entry *irq;	/*		.../irq           */
+	struct proc_dir_entry *devices;  /*		.../devices       */
+	struct proc_dir_entry *hardware; /*		.../hardware      */
+	struct proc_dir_entry *probe;	 /*		.../autoprobe	  */
+	char name[4];
 };
 
 /* A parallel port */
@@ -169,16 +183,21 @@ struct parport {
 
 	struct pardevice *devices;
 	struct pardevice *cad;	/* port owner */
-	struct pardevice *lurker;
+
+	struct pardevice *waithead;
+	struct pardevice *waittail;
 	
 	struct parport *next;
-	unsigned int flags; 
+	unsigned int flags;
 
 	struct parport_dir pdir;
 	struct parport_device_info probe_info; 
 
 	struct parport_operations *ops;
 	void *private_data;     /* for lowlevel driver */
+
+	int number;		/* port index - the `n' in `parportn' */
+	spinlock_t lock;
 };
 
 /* parport_register_port registers a new parallel port at the given address (if
@@ -190,14 +209,14 @@ struct parport *parport_register_port(unsigned long base, int irq, int dma,
 				      struct parport_operations *ops);
 
 /* Unregister a port. */
-void parport_unregister_port(struct parport *port);
+extern void parport_unregister_port(struct parport *port);
 
 /* parport_in_use returns nonzero if there are devices attached to a port. */
 #define parport_in_use(x)  ((x)->devices != NULL)
 
 /* Put a parallel port to sleep; release its hardware resources.  Only possible
  * if no devices are registered.  */
-void parport_quiesce(struct parport *);
+extern void parport_quiesce(struct parport *);
 
 /* parport_enumerate returns a pointer to the linked list of all the ports
  * in this machine.
@@ -219,13 +238,17 @@ struct pardevice *parport_register_device(struct parport *port,
 			  int flags, void *handle);
 
 /* parport_unregister unlinks a device from the chain. */
-void parport_unregister_device(struct pardevice *dev);
+extern void parport_unregister_device(struct pardevice *dev);
 
 /* parport_claim tries to gain ownership of the port for a particular driver.
  * This may fail (return non-zero) if another driver is busy.  If this
  * driver has registered an interrupt handler, it will be enabled. 
  */
-int parport_claim(struct pardevice *dev);
+extern int parport_claim(struct pardevice *dev);
+
+/* parport_claim_or_block is the same, but sleeps if the port cannot be 
+   claimed.  Return value is 1 if it slept, 0 normally and -errno on error.  */
+extern int parport_claim_or_block(struct pardevice *dev);
 
 /* parport_release reverses a previous parport_claim.  This can never fail, 
  * though the effects are undefined (except that they are bad) if you didn't
@@ -235,20 +258,32 @@ int parport_claim(struct pardevice *dev);
  * If you mess with the port state (enabling ECP for example) you should
  * clean up before releasing the port. 
  */
-void parport_release(struct pardevice *dev);
 
-/* The "modes" entry in parport is a bit field representing the following
- * modes.
- * Note that LP_ECPEPP is for the SMC EPP+ECP mode which is NOT
- * 100% compatible with EPP.
+extern void parport_release(struct pardevice *dev);
+
+/* parport_yield relinquishes the port if it would be helpful to other
+ * drivers.  The return value is the same as for parport_claim.
  */
-#define PARPORT_MODE_PCSPP	        0x0001
-#define PARPORT_MODE_PCPS2		0x0002
-#define PARPORT_MODE_PCEPP		0x0004
-#define PARPORT_MODE_PCECP		0x0008
-#define PARPORT_MODE_PCECPEPP		0x0010
-#define PARPORT_MODE_PCECR		0x0020  /* ECR Register Exists */
-#define PARPORT_MODE_PCECPPS2		0x0040
+extern __inline__ unsigned int parport_yield(struct pardevice *dev)
+{
+	unsigned long int timeslip = (jiffies - dev->time);
+	if ((dev->port->waithead == NULL) || (timeslip < dev->timeslice))
+		return 0;
+	parport_release(dev);
+	return parport_claim(dev);
+}
+
+/* parport_yield_blocking is the same but uses parport_claim_or_block
+ * instead of parport_claim.
+ */
+extern __inline__ unsigned int parport_yield_blocking(struct pardevice *dev)
+{
+	unsigned long int timeslip = (jiffies - dev->time);
+	if ((dev->port->waithead == NULL) || (timeslip < dev->timeslice))
+		return 0;
+	parport_release(dev);
+	return parport_claim_or_block(dev);
+}
 
 /* Flags used to identify what a device does. */
 #define PARPORT_DEV_TRAN	        0x0000  /* We're transient. */
@@ -262,7 +297,7 @@ extern int parport_wait_peripheral(struct parport *, unsigned char, unsigned
 
 /* Prototypes from parport_procfs */
 extern int parport_proc_init(void);
-extern int parport_proc_cleanup(void);
+extern void parport_proc_cleanup(void);
 extern int parport_proc_register(struct parport *pp);
 extern int parport_proc_unregister(struct parport *pp);
 
@@ -273,4 +308,45 @@ extern int parport_probe(struct parport *port, char *buffer, int len);
 extern void parport_probe_one(struct parport *port);
 extern void (*parport_probe_hook)(struct parport *port);
 
+/* If PC hardware is the only type supported, we can optimise a bit.  */
+#if (defined(CONFIG_PARPORT_PC) || defined(CONFIG_PARPORT_PC_MODULE)) && !(defined(CONFIG_PARPORT_AX) || defined(CONFIG_PARPORT_AX_MODULE)) && !(defined(CONFIG_PARPORT_ARC) || defined(CONFIG_PARPORT_ARC_MODULE)) && !defined(CONFIG_PARPORT_OTHER)
+#undef PARPORT_NEED_GENERIC_OPS
+#include <linux/parport_pc.h>
+#define parport_write_data(p,x)            parport_pc_write_data(p,x)
+#define parport_read_data(p)               parport_pc_read_data(p)
+#define parport_write_control(p,x)         parport_pc_write_control(p,x)
+#define parport_read_control(p)            parport_pc_read_control(p)
+#define parport_frob_control(p,m,v)        parport_pc_frob_control(p,m,v)
+#define parport_write_econtrol(p,x)        parport_pc_write_econtrol(p,x)
+#define parport_read_econtrol(p)           parport_pc_read_econtrol(p)
+#define parport_frob_econtrol(p,m,v)       parport_pc_frob_econtrol(p,m,v)
+#define parport_write_status(p,v)          parport_pc_write_status(p,v)
+#define parport_read_status(p)             parport_pc_read_status(p)
+#define parport_write_fifo(p,v)            parport_pc_write_fifo(p,v)
+#define parport_read_fifo(p)               parport_pc_read_fifo(p)
+#define parport_change_mode(p,m)           parport_pc_change_mode(p,m)
+#define parport_release_resources(p)       parport_pc_release_resources(p)
+#define parport_claim_resources(p)         parport_pc_claim_resources(p)
+#endif
+
+#ifdef PARPORT_NEED_GENERIC_OPS
+/* Generic operations vector through the dispatch table. */
+#define parport_write_data(p,x)            (p)->ops->write_data(p,x)
+#define parport_read_data(p)               (p)->ops->read_data(p)
+#define parport_write_control(p,x)         (p)->ops->write_control(p,x)
+#define parport_read_control(p)            (p)->ops->read_control(p)
+#define parport_frob_control(p,m,v)        (p)->ops->frob_control(p,m,v)
+#define parport_write_econtrol(p,x)        (p)->ops->write_econtrol(p,x)
+#define parport_read_econtrol(p)           (p)->ops->read_econtrol(p)
+#define parport_frob_econtrol(p,m,v)       (p)->ops->frob_econtrol(p,m,v)
+#define parport_write_status(p,v)          (p)->ops->write_status(p,v)
+#define parport_read_status(p)             (p)->ops->read_status(p)
+#define parport_write_fifo(p,v)            (p)->ops->write_fifo(p,v)
+#define parport_read_fifo(p)               (p)->ops->read_fifo(p)
+#define parport_change_mode(p,m)           (p)->ops->change_mode(p,m)
+#define parport_release_resources(p)       (p)->ops->release_resources(p)
+#define parport_claim_resources(p)         (p)->ops->claim_resources(p)
+#endif
+
+#endif /* __KERNEL__ */
 #endif /* _PARPORT_H_ */

@@ -5,7 +5,7 @@
  *
  *		The options processing module for ip.c
  *
- * Version:	$Id: ip_options.c,v 1.12 1997/10/10 22:41:08 davem Exp $
+ * Version:	$Id: ip_options.c,v 1.2 1997/12/16 05:37:40 ralf Exp $
  *
  * Authors:	A.N.Kuznetsov
  *		
@@ -452,7 +452,7 @@ eol:
 error:
 	if (skb) {
 		icmp_send(skb, ICMP_PARAMETERPROB, 0, pp_ptr-iph);
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	}
 	return -EINVAL;
 }

@@ -4,7 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 1994, 1995, 1996  Ralf Baechle
  *
- * $Id: signal.c,v 1.7 1997/12/01 17:57:31 ralf Exp $
+ * $Id: signal.c,v 1.8 1997/12/16 05:34:37 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -37,11 +37,11 @@ extern asmlinkage void (*restore_fp_context)(struct sigcontext *sc);
  * Atomically swap in the new signal mask, and wait for a signal.
  */
 asmlinkage inline int
-sys_sigsuspend(struct pt_regs *regs)
+sys_sigsuspend(struct pt_regs regs)
 {
 	sigset_t *uset, saveset, newset;
 
-	uset = (sigset_t *) regs->regs[4];
+	uset = (sigset_t *) regs.regs[4];
 	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -51,21 +51,37 @@ sys_sigsuspend(struct pt_regs *regs)
 	current->blocked = newset;
 	spin_unlock_irq(&current->sigmask_lock);
 
-	regs->regs[2] = -EINTR;
+	regs.regs[2] = -EINTR;
 	while (1) {
 		current->state = TASK_INTERRUPTIBLE;
 		schedule();
-		if (do_signal(&saveset, regs))
+		if (do_signal(&saveset, &regs))
 			return -EINTR;
 	}
 }
 
 asmlinkage int
-sys_rt_sigsuspend(struct pt_regs *regs)
+sys_rt_sigsuspend(struct pt_regs regs)
 {
-	if (regs->regs[5] != sizeof(sigset_t))
-		return -EINVAL;
-	return sys_sigsuspend(regs);
+	sigset_t *uset, saveset, newset;
+
+	uset = (sigset_t *) regs.regs[4];
+	if (copy_from_user(&newset, uset, sizeof(sigset_t)))
+		return -EFAULT;
+	sigdelsetmask(&newset, ~_BLOCKABLE);
+
+	spin_lock_irq(&current->sigmask_lock);
+	saveset = current->blocked;
+	current->blocked = newset;
+	spin_unlock_irq(&current->sigmask_lock);
+
+	regs.regs[2] = -EINTR;
+	while (1) {
+		current->state = TASK_INTERRUPTIBLE;
+		schedule();
+		if (do_signal(&saveset, &regs))
+			return -EINTR;
+	}
 }
 
 asmlinkage int 
@@ -165,14 +181,14 @@ struct rt_sigframe {
 	// struct ucontext uc;
 };
 
-asmlinkage int sys_sigreturn(struct pt_regs *regs)
+asmlinkage int sys_sigreturn(struct pt_regs regs)
 {
 	struct sigcontext *context;
 	sigset_t blocked;
 
-	context = (struct sigcontext *)(long) regs->regs[29];
+	context = (struct sigcontext *)(long) regs.regs[29];
 	if (!access_ok(VERIFY_READ, context, sizeof(struct sigcontext)) ||
-	    (regs->regs[29] & (SZREG - 1)))
+	    (regs.regs[29] & (SZREG - 1)))
 		goto badframe;
 
 	if (__copy_from_user(&blocked, &context->sc_sigset, sizeof(blocked)))
@@ -184,12 +200,12 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 	recalc_sigpending(current);
 	spin_unlock_irq(&current->sigmask_lock);
 
-	restore_sigcontext(regs, context);
+	restore_sigcontext(&regs, context);
 
 	/*
 	 * Disable syscall checks
 	 */
-	regs->orig_reg2 = -1;
+	regs.orig_reg2 = -1;
 
 	/*
 	 * Don't let your children do this ...
@@ -198,7 +214,7 @@ asmlinkage int sys_sigreturn(struct pt_regs *regs)
 		"move\t$29,%0\n\t"
 		"j\tret_from_sys_call"
 		:/* no outputs */
-		:"r" (regs));
+		:"r" (&regs));
 	/* Unreached */
 
 badframe:
@@ -208,7 +224,7 @@ badframe:
 }
 
 /* same as sys_sigreturn for now */
-asmlinkage int sys_rt_sigreturn(struct pt_regs *regs)
+asmlinkage int sys_rt_sigreturn(struct pt_regs regs)
 {
 	return -ENOSYS;
 }
@@ -255,7 +271,7 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc, sigset_t *set)
 	save_gp_reg(31);
 #undef save_gp_reg
 
-	save_fp_context(sc);				/* cpu dependand */
+	save_fp_context(sc);				/* cpu dependant */
 	__put_user(regs->hi, &sc->sc_mdhi);
 	__put_user(regs->lo, &sc->sc_mdlo);
 	__put_user(regs->cp0_cause, &sc->sc_cause);

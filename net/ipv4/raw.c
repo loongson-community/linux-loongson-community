@@ -5,7 +5,7 @@
  *
  *		RAW - implementation of IP "raw" sockets.
  *
- * Version:	$Id: raw.c,v 1.32 1997/10/24 17:16:00 kuznet Exp $
+ * Version:	$Id: raw.c,v 1.3 1997/12/16 05:37:44 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -155,7 +155,7 @@ void raw_err (struct sock *sk, struct sk_buff *skb)
 	if (sk->ip_recverr && !sk->sock_readers) {
 		struct sk_buff *skb2 = skb_clone(skb, GFP_ATOMIC);
 		if (skb2 && sock_queue_err_skb(sk, skb2))
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 	}
 
 	if (type == ICMP_DEST_UNREACH && code == ICMP_FRAG_NEEDED) {
@@ -173,7 +173,7 @@ static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 	if (__sock_queue_rcv_skb(sk,skb)<0)
 	{
 		ip_statistics.IpInDiscards++;
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return -1;
 	}
 
@@ -255,13 +255,24 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 {
 	struct ipcm_cookie ipc;
 	struct rawfakehdr rfh;
-	struct rtable *rt;
+	struct rtable *rt = NULL;
 	int free = 0;
 	u32 daddr;
 	u8  tos;
 	int err;
 
-	if (len>65535)
+	/* This check is ONLY to check for arithmetic overflow
+	   on integer(!) len. Not more! Real check will be made
+	   in ip_build_xmit --ANK
+
+	   BTW socket.c -> af_*.c -> ... make multiple
+	   invalid conversions size_t -> int. We MUST repair it f.e.
+	   by replacing all of them with size_t and revise all
+	   the places sort of len += sizeof(struct iphdr)
+	   If len was ULONG_MAX-10 it would be cathastrophe  --ANK
+	 */
+
+	if (len < 0 || len > 0xFFFF)
 		return -EMSGSIZE;
 
 	/*
@@ -308,10 +319,6 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 		int tmp = ip_cmsg_send(msg, &ipc);
 		if (tmp)
 			return tmp;
-		if (ipc.opt && sk->ip_hdrincl) {
-			kfree(ipc.opt);
-			return -EINVAL;
-		}
 		if (ipc.opt)
 			free=1;
 	}
@@ -321,12 +328,23 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 
 	if (!ipc.opt)
 		ipc.opt = sk->opt;
-	if (ipc.opt && ipc.opt->srr) {
-		if (!daddr)
-			return -EINVAL;
-		daddr = ipc.opt->faddr;
+
+	if (ipc.opt) {
+		err = -EINVAL;
+		/* Linux does not mangle headers on raw sockets,
+		 * so that IP options + IP_HDRINCL is non-sense.
+		 */
+		if (sk->ip_hdrincl)
+			goto done;
+		if (ipc.opt->srr) {
+			if (!daddr)
+				goto done;
+			daddr = ipc.opt->faddr;
+		}
 	}
-	tos = RT_TOS(sk->ip_tos) | (sk->localroute || (msg->msg_flags&MSG_DONTROUTE));
+	tos = RT_TOS(sk->ip_tos) | sk->localroute;
+	if (msg->msg_flags&MSG_DONTROUTE)
+		tos |= RTO_ONLINK;
 
 	if (MULTICAST(daddr)) {
 		if (!ipc.oif)
@@ -337,30 +355,21 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, int len)
 
 	err = ip_route_output(&rt, daddr, rfh.saddr, tos, ipc.oif);
 
-	if (err) {
-		if (free) kfree(ipc.opt);
-		return err;
-	}
+	if (err)
+		goto done;
 
-	if (rt->rt_flags&RTCF_BROADCAST && !sk->broadcast) {
-		if (free) kfree(ipc.opt);
-		ip_rt_put(rt);
-		return -EACCES;
-	}
+	err = -EACCES;
+	if (rt->rt_flags&RTCF_BROADCAST && !sk->broadcast)
+		goto done;
 
 	rfh.iov = msg->msg_iov;
 	rfh.saddr = rt->rt_src;
 	if (!ipc.addr)
 		ipc.addr = rt->rt_dst;
-	if(sk->ip_hdrincl)
-		err=ip_build_xmit(sk, raw_getrawfrag, &rfh, len, &ipc, rt, msg->msg_flags);
-	else {
-		if (len>65535-sizeof(struct iphdr))
-			err = -EMSGSIZE;
-		else
-			err=ip_build_xmit(sk, raw_getfrag, &rfh, len, &ipc, rt, msg->msg_flags);
-	}
+	err=ip_build_xmit(sk, sk->ip_hdrincl ? raw_getrawfrag : raw_getfrag,
+			  &rfh, len, &ipc, rt, msg->msg_flags);
 
+done:
 	if (free)
 		kfree(ipc.opt);
 	ip_rt_put(rt);
@@ -396,8 +405,7 @@ static int raw_bind(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	sk->rcv_saddr = sk->saddr = addr->sin_addr.s_addr;
 	if(chk_addr_ret == RTN_MULTICAST || chk_addr_ret == RTN_BROADCAST)
 		sk->saddr = 0;  /* Use device */
-	dst_release(sk->dst_cache);
-	sk->dst_cache = NULL;
+	dst_release(xchg(&sk->dst_cache, NULL));
 	return 0;
 }
 
@@ -446,6 +454,9 @@ int raw_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	}
 	
 	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
+	if (err)
+		goto done;
+
 	sk->stamp=skb->stamp;
 
 	/* Copy the address. */
@@ -455,8 +466,9 @@ int raw_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	}
 	if (sk->ip_cmsg_flags)
 		ip_cmsg_recv(msg, skb);
+done:
 	skb_free_datagram(sk, skb);
-	return err ? err : (copied);
+	return (err ? : copied);
 }
 
 static int raw_init(struct sock *sk)

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_output.c,v 1.50 1997/10/15 19:13:02 freitag Exp $
+ * Version:	$Id: tcp_output.c,v 1.51 1998/01/15 22:40:39 freitag Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -87,40 +87,12 @@ static __inline__ int tcp_snd_test(struct sock *sk, struct sk_buff *skb)
 		tp->retransmits == 0);
 }
 
-static __inline__ void tcp_build_options(__u32 *ptr, struct tcp_opt *tp)
-{
-	/* FIXME: We will still need to do SACK here. */
-	if (tp->tstamp_ok) {
-		*ptr++ = ntohl((TCPOPT_NOP << 24)
-			| (TCPOPT_NOP << 16)
-                        | (TCPOPT_TIMESTAMP << 8)
-			| TCPOLEN_TIMESTAMP);
-		/* WARNING: If HZ is ever larger than 1000 on some system,
-	 	 * then we will be violating RFC1323 here because our timestamps
-	 	 * will be moving too fast.
-		 * FIXME: code TCP so it uses at most ~ 1000 ticks a second?
-		 * (I notice alpha is 1024 ticks now). -- erics
-	 	 */
-		*ptr++ = htonl(jiffies);
-		*ptr = htonl(tp->ts_recent);
-	}
-}
-
-static __inline__ void tcp_update_options(__u32 *ptr, struct tcp_opt *tp)
-{
-	/* FIXME: We will still need to do SACK here. */
-	if (tp->tstamp_ok) {
-		*++ptr = htonl(jiffies);
-		*++ptr = htonl(tp->ts_recent);
-	}
-}
-
 /*
  *	This is the main buffer sending routine. We queue the buffer
  *	having checked it is sane seeming.
  */
  
-int tcp_send_skb(struct sock *sk, struct sk_buff *skb)
+void tcp_send_skb(struct sock *sk, struct sk_buff *skb)
 {
 	struct tcphdr * th = skb->h.th;
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
@@ -134,8 +106,8 @@ int tcp_send_skb(struct sock *sk, struct sk_buff *skb)
 		printk(KERN_DEBUG "tcp_send_skb: bad skb "
 		       "(skb = %p, data = %p, th = %p, len = %u)\n",
 		       skb, skb->data, th, skb->len);
-		kfree_skb(skb, FREE_WRITE);
-		return 0;
+		kfree_skb(skb);
+		return;
 	}
 
 	/* If we have queued a header size packet.. (these crash a few
@@ -146,8 +118,8 @@ int tcp_send_skb(struct sock *sk, struct sk_buff *skb)
 		/* If it's got a syn or fin discard. */
 		if(!th->syn && !th->fin) {
 			printk(KERN_DEBUG "tcp_send_skb: attempt to queue a bogon.\n");
-			kfree_skb(skb,FREE_WRITE);
-			return 0;
+			kfree_skb(skb);
+			return;
 		}
 	}
 
@@ -161,7 +133,8 @@ int tcp_send_skb(struct sock *sk, struct sk_buff *skb)
 		struct sk_buff * buff;
 
 		/* This is going straight out. */
-		tp->last_ack_sent = th->ack_seq = htonl(tp->rcv_nxt);
+		tp->last_ack_sent = tp->rcv_nxt;
+		th->ack_seq = htonl(tp->rcv_nxt);
 		th->window = htons(tcp_select_window(sk));
 		tcp_update_options((__u32 *)(th+1),tp);
 
@@ -185,7 +158,7 @@ int tcp_send_skb(struct sock *sk, struct sk_buff *skb)
 		if (!tcp_timer_is_set(sk, TIME_RETRANS))
 			tcp_reset_xmit_timer(sk, TIME_RETRANS, tp->rto);
 
-		return 0;
+		return;
 	}
 
 queue:
@@ -196,7 +169,7 @@ queue:
 		tp->pending = TIME_PROBE0;
 		tcp_reset_xmit_timer(sk, TIME_PROBE0, tp->rto);
 	}
-	return 0;
+	return;
 }
 
 /*
@@ -232,7 +205,7 @@ static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 	/* Put headers on the new packet. */
 	tmp = tp->af_specific->build_net_header(sk, buff);
 	if (tmp < 0) {
-		kfree_skb(buff, FREE_WRITE);
+		kfree_skb(buff);
 		return -1;
 	}
 		
@@ -290,7 +263,7 @@ static void tcp_wrxmit_prob(struct sock *sk, struct sk_buff *skb)
 	update_send_head(sk);
 
 	skb_unlink(skb);	
-	kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb);
 
 	if (!sk->dead)
 		sk->write_space(sk);
@@ -468,7 +441,7 @@ unsigned short tcp_select_window(struct sock *sk)
 {
 	struct tcp_opt *tp = &sk->tp_pinfo.af_tcp;
 	int mss = sk->mss;
-	long free_space = sock_rspace(sk)/2;
+	long free_space = sock_rspace(sk) / 2;
 	long window, cur_win;
 
 	if (tp->window_clamp) {
@@ -624,7 +597,7 @@ static int tcp_retrans_try_collapse(struct sock *sk, struct sk_buff *skb)
 		th1->fin = 1;
 
 	/* ... and off you go. */
-	kfree_skb(buff, FREE_WRITE);
+	kfree_skb(buff);
 	tp->packets_out--;
 
 	/* Header checksum will be set by the retransmit procedure
@@ -714,7 +687,7 @@ void tcp_do_retransmit(struct sock *sk, int all)
 			break;
 		}
 
-		SOCK_DEBUG(sk, "retransmit sending\n");
+		SOCK_DEBUG(sk, "retransmit sending seq=%x\n", skb->seq);
 
 		/* Update ack and window. */
 		tp->last_ack_sent = th->ack_seq = htonl(tp->rcv_nxt);
@@ -786,7 +759,7 @@ void tcp_send_fin(struct sock *sk)
   		/* FIXME: We must not throw this out. Eventually we must
                  * put a FIN into the queue, otherwise it never gets queued.
   		 */
-		kfree_skb(buff, FREE_WRITE);
+		kfree_skb(buff);
 		sk->write_seq++;
 		t = del_timer(&sk->timer);
 		if (t)
@@ -817,6 +790,9 @@ void tcp_send_fin(struct sock *sk)
 	/* The fin can only be transmited after the data. */
 	skb_queue_tail(&sk->write_queue, buff);
  	if (tp->send_head == NULL) {
+		/* FIXME: BUG! we need to check if the fin fits into the window
+		 * here. If not we need to do window probing (sick, but true)
+		 */
 		struct sk_buff *skb1;
 
 		tp->packets_out++;
@@ -853,7 +829,7 @@ int tcp_send_synack(struct sock *sk)
 
 	tmp = tp->af_specific->build_net_header(sk, skb);
 	if (tmp < 0) {
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return tmp;
 	}
 
@@ -974,7 +950,7 @@ void tcp_send_ack(struct sock *sk)
 	/* Put in the IP header and routing stuff. */
 	tmp = tp->af_specific->build_net_header(sk, buff);
 	if (tmp < 0) {
-		kfree_skb(buff, FREE_WRITE);
+		kfree_skb(buff);
 		return;
 	}
 
@@ -985,13 +961,16 @@ void tcp_send_ack(struct sock *sk)
 	/* Swap the send and the receive. */
 	th->window	= ntohs(tcp_select_window(sk));
 	th->seq		= ntohl(tp->snd_nxt);
-	tp->last_ack_sent = th->ack_seq	= ntohl(tp->rcv_nxt);
+	tp->last_ack_sent = tp->rcv_nxt;
+	th->ack_seq	= htonl(tp->rcv_nxt);
 
   	/* Fill in the packet and send it. */
 	tp->af_specific->send_check(sk, th, tp->tcp_header_len, buff);
 
+#if 0
 	SOCK_DEBUG(sk, "\rtcp_send_ack: seq %x ack %x\n",
 		   tp->snd_nxt, tp->rcv_nxt);
+#endif
 
 	tp->af_specific->queue_xmit(buff);
   	tcp_statistics.TcpOutSegs++;
@@ -1064,7 +1043,7 @@ void tcp_write_wakeup(struct sock *sk)
 		/* Put in the IP header and routing stuff. */
 		tmp = tp->af_specific->build_net_header(sk, buff);
 		if (tmp < 0) {
-			kfree_skb(buff, FREE_WRITE);
+			kfree_skb(buff);
 			return;
 		}
 
@@ -1103,9 +1082,6 @@ void tcp_write_wakeup(struct sock *sk)
 void tcp_send_probe0(struct sock *sk)
 {
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
-
-	if (sk->zapped)
-		return; /* After a valid reset we can send no more. */
 
 	tcp_write_wakeup(sk);
 	tp->pending = TIME_PROBE0;

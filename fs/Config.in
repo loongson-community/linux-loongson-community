@@ -25,10 +25,6 @@ if [ "$CONFIG_INET" = "y" ]; then
   tristate 'NFS filesystem support' CONFIG_NFS_FS
   if [ "$CONFIG_NFS_FS" = "y" -a "$CONFIG_IP_PNP" = "y" ]; then
     bool '   Root file system on NFS' CONFIG_ROOT_NFS
-    if [ "$CONFIG_ROOT_NFS" = "y" ]; then
-      bool '      BOOTP support' CONFIG_RNFS_BOOTP
-      bool '      RARP support' CONFIG_RNFS_RARP
-    fi
   fi
   tristate 'NFS server support' CONFIG_NFSD
   if [ "$CONFIG_NFS_FS" = "y" -o "$CONFIG_NFSD" = "y" ]; then
@@ -51,10 +47,20 @@ if [ "$CONFIG_INET" = "y" ]; then
 fi
 if [ "$CONFIG_IPX" != "n" ]; then
   tristate 'NCP filesystem support (to mount NetWare volumes)' CONFIG_NCP_FS
+  if [ "$CONFIG_NCP_FS" != "n" ]; then
+    source fs/ncpfs/Config.in
+  fi
 fi
 tristate 'OS/2 HPFS filesystem support (read only)' CONFIG_HPFS_FS
+
+tristate 'NTFS  filesystem support (read only)' CONFIG_NTFS_FS
+if [ "$CONFIG_NTFS_FS" != "n" -a "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  bool '   NTFS read-write support (experimental)' CONFIG_NTFS_RW
+fi
+
 tristate 'System V and Coherent filesystem support' CONFIG_SYSV_FS
 tristate 'Amiga FFS filesystem support' CONFIG_AFFS_FS
+tristate 'Apple Macintosh filesystem support (experimental)' CONFIG_HFS_FS
 tristate 'ROM filesystem support' CONFIG_ROMFS_FS
 tristate 'Kernel automounter support (experimental)' CONFIG_AUTOFS_FS
 if [ "$CONFIG_AFFS_FS" != "n" ]; then
@@ -64,9 +70,13 @@ tristate 'UFS filesystem support (read only)' CONFIG_UFS_FS
 if [ "$CONFIG_UFS_FS" != "n" ]; then
   bool 'BSD disklabel (FreeBSD partition tables) support' CONFIG_BSD_DISKLABEL
   bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
+  bool 'Solaris (x86) partition table support' CONFIG_SOLARIS_X86_PARTITION
 fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'SGI EFS filesystem support' CONFIG_EFS_FS
+fi
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  tristate 'ADFS filesystem support (read only) (EXPERIMENTAL)' CONFIG_ADFS_FS
 fi
 bool 'Macintosh partition map support' CONFIG_MAC_PARTITION
 endmenu

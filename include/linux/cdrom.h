@@ -4,7 +4,7 @@
  * Copyright (C) 1992         David Giller, rafetmad@oxy.edu
  *               1994, 1995   Eberhard Moenkeberg, emoenke@gwdg.de
  *               1996         David van Leeuwen, david@tm.tno.nl
- *               1997         Erik Andersen, andersee@debian.org
+ *               1997, 1998   Erik Andersen, andersee@debian.org
  */
  
 #ifndef	_LINUX_CDROM_H
@@ -352,6 +352,7 @@ struct cdrom_blk
 #define CDS_DATA_2		102
 #define CDS_XA_2_1		103
 #define CDS_XA_2_2		104
+#define CDS_MIXED		105
 
 /* User-configurable behavior options for the uniform CD-ROM driver */
 #define CDO_AUTO_CLOSE		0x1     /* close tray on first open() */
@@ -416,4 +417,4 @@ extern int register_cdrom(struct cdrom_device_info *cdi);
 extern int unregister_cdrom(struct cdrom_device_info *cdi);
 #endif  /* End of kernel only stuff */ 
 
-#endif  _LINUX_CDROM_H
+#endif  /* _LINUX_CDROM_H */

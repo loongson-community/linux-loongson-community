@@ -32,14 +32,15 @@ if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
 fi
 if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
      "$CONFIG_OLIVETTI_M700" = "y" ]; then
-       define_bool CONFIG_VIDEO_G364 y
+	define_bool CONFIG_MIPS_JAZZ y
+	define_bool CONFIG_VIDEO_G364 y
+	define_bool CONFIG_VGA_CONSOLE y
 fi
-if [ "$CONFIG_ACER_PICA_61" = "y" -o \
-     "$CONFIG_OLIVETTI_M700" = "y" -o \
-     "$CONFIG_MIPS_MAGNUM_4000" = "y" ]; then
+if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
 	define_bool CONFIG_MIPS_JAZZ y
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
+	define_bool CONFIG_VGA_CONSOLE y
 	define_bool CONFIG_PCI y
 fi
 endmenu
@@ -82,6 +83,7 @@ fi
 
 bool 'Networking support' CONFIG_NET
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 
 if [ "$CONFIG_SGI" != "y" ]; then

@@ -52,8 +52,28 @@ struct {
 
 static inline void d_free(struct dentry *dentry)
 {
+	if (dentry->d_op && dentry->d_op->d_release)
+		dentry->d_op->d_release(dentry);
 	kfree(dentry->d_name.name);
 	kfree(dentry);
+}
+
+/*
+ * Release the dentry's inode, using the fileystem
+ * d_iput() operation if defined.
+ */
+static inline void dentry_iput(struct dentry * dentry)
+{
+	struct inode *inode = dentry->d_inode;
+	if (inode) {
+		dentry->d_inode = NULL;
+		list_del(&dentry->d_alias);
+		INIT_LIST_HEAD(&dentry->d_alias);
+		if (dentry->d_op && dentry->d_op->d_iput)
+			dentry->d_op->d_iput(dentry, inode);
+		else
+			iput(inode);
+	}
 }
 
 /*
@@ -102,13 +122,10 @@ repeat:
 		list_del(&dentry->d_lru);
 	}
 	if (list_empty(&dentry->d_hash)) {
-		struct inode *inode = dentry->d_inode;
 		struct dentry * parent;
+
 		list_del(&dentry->d_child);
-		if (inode) {
-			dentry->d_inode = NULL;
-			iput(inode);
-		}
+		dentry_iput(dentry);
 		parent = dentry->d_parent;
 		d_free(dentry);
 		if (dentry == parent)
@@ -144,8 +161,9 @@ out:
 int d_invalidate(struct dentry * dentry)
 {
 	/* Check whether to do a partial shrink_dcache */
-	if (dentry->d_count > 1 && !list_empty(&dentry->d_subdirs))
+	if (!list_empty(&dentry->d_subdirs))
 		shrink_dcache_parent(dentry);
+
 	if (dentry->d_count != 1)
 		return -EBUSY;
 
@@ -257,12 +275,7 @@ static inline void prune_one_dentry(struct dentry * dentry)
 
 	list_del(&dentry->d_hash);
 	list_del(&dentry->d_child);
-	if (dentry->d_inode) {
-		struct inode * inode = dentry->d_inode;
-
-		dentry->d_inode = NULL;
-		iput(inode);
-	}
+	dentry_iput(dentry);
 	parent = dentry->d_parent;
 	d_free(dentry);
 	dput(parent);
@@ -497,11 +510,13 @@ printk("d_alloc: %d unused, pruning dcache\n", dentry_stat.nr_unused);
 	INIT_LIST_HEAD(&dentry->d_hash);
 	INIT_LIST_HEAD(&dentry->d_lru);
 	INIT_LIST_HEAD(&dentry->d_subdirs);
+	INIT_LIST_HEAD(&dentry->d_alias);
 
 	dentry->d_name.name = str;
 	dentry->d_name.len = name->len;
 	dentry->d_name.hash = name->hash;
 	dentry->d_op = NULL;
+	dentry->d_fsdata = NULL;
 	return dentry;
 }
 
@@ -517,6 +532,8 @@ printk("d_alloc: %d unused, pruning dcache\n", dentry_stat.nr_unused);
  */
 void d_instantiate(struct dentry *entry, struct inode * inode)
 {
+	if (inode)
+		list_add(&entry->d_alias, &inode->i_dentry);
 	entry->d_inode = inode;
 }
 
@@ -633,11 +650,7 @@ void d_delete(struct dentry * dentry)
 	 * Are we the only user?
 	 */
 	if (dentry->d_count == 1) {
-		struct inode * inode = dentry->d_inode;
-		if (inode) {
-			dentry->d_inode = NULL;
-			iput(inode);
-		}
+		dentry_iput(dentry);
 		return;
 	}
 
@@ -742,6 +755,30 @@ char * d_path(struct dentry *dentry, char *buffer, int buflen)
 		dentry = parent;
 	}
 	return retval;
+}
+
+/*
+ * Test whether new_dentry is a subdirectory of old_dentry.
+ *
+ * Trivially implemented using the dcache structure
+ */
+int is_subdir(struct dentry * new_dentry, struct dentry * old_dentry)
+{
+	int result;
+
+	result = 0;
+	for (;;) {
+		if (new_dentry != old_dentry) {
+			struct dentry * parent = new_dentry->d_parent;
+			if (parent == new_dentry)
+				break;
+			new_dentry = parent;
+			continue;
+		}
+		result = 1;
+		break;
+	}
+	return result;
 }
 
 /*

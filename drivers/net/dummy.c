@@ -30,9 +30,9 @@
 
 /* To have statistics (just packets sent) define this */
 
-#include <linux/module.h>
-
+#include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/fcntl.h>
@@ -73,6 +73,13 @@ static void set_multicast_list(struct device *dev)
 {
 }
 
+#ifdef CONFIG_NET_FASTROUTE
+static int dummy_accept_fastpath(struct device *dev, struct dst_entry *dst)
+{
+	return -1;
+}
+#endif
+
 __initfunc(int dummy_init(struct device *dev))
 {
 	/* Initialize the device structure. */
@@ -92,7 +99,10 @@ __initfunc(int dummy_init(struct device *dev))
 	ether_setup(dev);
 	dev->tx_queue_len = 0;
 	dev->flags |= IFF_NOARP;
-	dev->flags &= ~IFF_BROADCAST;
+	dev->flags &= ~(IFF_BROADCAST|IFF_MULTICAST);
+#ifdef CONFIG_NET_FASTROUTE
+	dev->accept_fastpath = dummy_accept_fastpath;
+#endif
 
 	return 0;
 }
@@ -100,7 +110,7 @@ __initfunc(int dummy_init(struct device *dev))
 static int dummy_xmit(struct sk_buff *skb, struct device *dev)
 {
 	struct net_device_stats *stats;
-	dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb(skb);
 
 	stats = (struct net_device_stats *)dev->priv;
 	stats->tx_packets++;

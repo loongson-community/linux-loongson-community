@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: mips_ksyms.c,v 1.4 1997/08/11 04:17:18 ralf Exp $
+ * $Id: mips_ksyms.c,v 1.4 1997/12/01 17:57:28 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/module.h>
@@ -46,6 +46,7 @@ EXPORT_SYMBOL_NOVERS(strtok);
 
 EXPORT_SYMBOL(clear_page);
 EXPORT_SYMBOL(__mips_bh_counter);
+EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 
 /*

@@ -51,6 +51,7 @@
  *						call.
  *						Fixed to match Linux networking
  *						changes - 2.1.15.
+ *	BPQ   004	Joerg(DL1BKE)		Fixed to not lock up on ifconfig.
  */
 
 #include <linux/config.h>
@@ -78,6 +79,7 @@
 #include <linux/firewall.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/rtnetlink.h>
 
 #include <net/ip.h>
 #include <net/arp.h>
@@ -186,7 +188,11 @@ static int bpq_check_devices(struct device *dev)
 			if (&bpq->axdev == dev)
 				result = 1;
 
-			unregister_netdev(&bpq->axdev);
+			/* We should be locked, call 
+			 * unregister_netdevice directly 
+			 */
+
+			unregister_netdevice(&bpq->axdev);
 			kfree(bpq);
 		}
 
@@ -217,7 +223,7 @@ static int bpq_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *
 	dev = bpq_get_ax25_dev(dev);
 
 	if (dev == NULL || dev->start == 0) {
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -230,7 +236,7 @@ static int bpq_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *
 
 	if (!(bpq->acpt_addr[0] & 0x01) && memcmp(eth->h_source, bpq->acpt_addr, ETH_ALEN)) {
 		printk(KERN_DEBUG "bpqether: wrong dest %s\n", bpq_print_ethaddr(eth->h_source));
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -271,7 +277,7 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 	 */
 	if (!dev->start) {
 		bpq_check_devices(dev);
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return -ENODEV;
 	}
 
@@ -285,14 +291,14 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 	if (skb_headroom(skb) < AX25_BPQ_HEADER_LEN) {	/* Ough! */
 		if ((newskb = skb_realloc_headroom(skb, AX25_BPQ_HEADER_LEN)) == NULL) {
 			printk(KERN_WARNING "bpqether: out of memory\n");
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return -ENOMEM;
 		}
 
 		if (skb->sk != NULL)
 			skb_set_owner_w(newskb, skb->sk);
 
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		skb = newskb;
 	}
 
@@ -307,7 +313,7 @@ static int bpq_xmit(struct sk_buff *skb, struct device *dev)
 
 	if ((dev = bpq_get_ether_dev(dev)) == NULL) {
 		bpq->stats.tx_dropped++;
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return -ENODEV;
 	}
 
@@ -531,7 +537,9 @@ static int bpq_new_device(struct device *dev)
 	dev->name = buf;
 	dev->init = bpq_dev_init;
 
-	if (register_netdev(dev) != 0) {
+	/* We should be locked, call register_netdevice() directly. */
+
+	if (register_netdevice(dev) != 0) {
 		kfree(bpq);
                 return -EIO;
         }

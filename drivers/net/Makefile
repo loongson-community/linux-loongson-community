@@ -3,10 +3,6 @@
 # Makefile for the Linux network (ethercard) device drivers.
 #
 
-# This will go away in some future future: hidden configuration files
-# are difficult for users to deal with.
-include CONFIG
-
 SUB_DIRS     := 
 MOD_SUB_DIRS := $(SUB_DIRS)
 ALL_SUB_DIRS := $(SUB_DIRS) hamradio
@@ -34,7 +30,7 @@ else
   ifeq ($(CONFIG_ISDN),m)
     ifeq ($(CONFIG_ISDN_PPP),y)
       CONFIG_SLHC_MODULE = y
-      CONFIG_PPPDEF_BUILTIN = y
+      CONFIG_PPPDEF_MODULE = y
     endif
   endif
 endif
@@ -89,6 +85,22 @@ L_OBJS += smc9194.o
 else
   ifeq ($(CONFIG_SMC9194),m)
   M_OBJS += smc9194.o
+  endif
+endif
+
+ifeq ($(CONFIG_ARM_AM79C961A),y)
+L_OBJS += am79c961a.o
+else
+  ifeq ($(CONFIG_ARM_AM79C961A),m)
+  M_OBJS += am79c961a.o
+  endif
+endif
+
+ifeq ($(CONFIG_ARM_ETHERH),y)
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ARM_ETHERH),m)
+  CONFIG_8390_MODULE = y
   endif
 endif
 
@@ -156,6 +168,16 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_ULTRA32),y)
+L_OBJS += smc-ultra32.o
+CONFIG_8390_BUILTIN = y
+else
+  ifeq ($(CONFIG_ULTRA32),m)
+  CONFIG_8390_MODULE = y
+  M_OBJS += smc-ultra32.o
+  endif
+endif
+
 ifeq ($(CONFIG_E2100),y)
 L_OBJS += e2100.o
 CONFIG_8390_BUILTIN = y
@@ -185,8 +207,11 @@ else
   endif
 endif
 
+# bsd_comp.o is *always* a module, for some undocumented reason
+# (perhaps licensing).
 ifeq ($(CONFIG_PPP),y)
 LX_OBJS += ppp.o
+M_OBJS += bsd_comp.o
 CONFIG_SLHC_BUILTIN = y
 CONFIG_PPPDEF_BUILTIN = y
 else
@@ -194,11 +219,8 @@ else
   CONFIG_SLHC_MODULE = y
   CONFIG_PPPDEF_MODULE = y
   MX_OBJS += ppp.o
-  endif
-endif
-
-ifdef CONFIG_PPP
   M_OBJS += bsd_comp.o
+  endif
 endif
 
 ifeq ($(CONFIG_SLIP),y)
@@ -563,9 +585,11 @@ else
 endif
 
 # if anything built-in uses ppp_deflate, then build it into the kernel also.
-# If not, but a module uses it, build as a module:
+# If not, but a module uses it, build as a module.
+# ... NO!!!  ppp_deflate.o does not work as resident;
+# it works only as a module!
 ifdef CONFIG_PPPDEF_BUILTIN
-LX_OBJS += ppp_deflate.o
+MX_OBJS += ppp_deflate.o
 else
   ifdef CONFIG_PPPDEF_MODULE
   MX_OBJS += ppp_deflate.o
@@ -735,80 +759,5 @@ include $(TOPDIR)/Rules.make
 clean:
 	rm -f core *.o *.a *.s
 
-wd.o:	wd.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WD_OPTS) -c $<
-
-3c503.o:	3c503.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(EL2_OPTS) -c $<
-
-3c505.o: 3c505.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(ELP_OPTS) -c $<
-
-de4x5.o: de4x5.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE4X5_OPTS) -c $<
-
-ewrk3.o: ewrk3.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(EWRK3_OPTS) -c $<
-
-depca.o: depca.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCA_OPTS) -c $<
-
-Space.o: Space.c ../../include/linux/autoconf.h CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(OPTS) -c $<
-
-net_init.o: ../../include/linux/autoconf.h
-
-ne.o:	ne.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(NE_OPTS) -c $<
-
-hp.o:	hp.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(HP_OPTS) -c $<
-
-plip.o:	plip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(PLIP_OPTS) -c $<
-
-slip.o:	slip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-strip.o: strip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-dummy.o: dummy.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-de600.o: de600.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE600_OPTS) -c $<
-
-de620.o: de620.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DE620_OPTS) -c $<
-
-lance.o: lance.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LANCE_OPTS) -c $<
-
-8390.o: 8390.c 8390.h CONFIG
-
-sdla.o: sdla.c CONFIG 
-
-dlci.o: dlci.c CONFIG
-
-sdladrv.o: sdladrv.c CONFIG
-
 wanpipe.o: $(WANPIPE_OBJS)
 	ld -r -o $@ $(WANPIPE_OBJS)
-
-sdlamain.o: sdlamain.c CONFIG
-
-sdla_x25.o: sdla_x25.c CONFIG
-
-sdla_fr.o: sdla_fr.c CONFIG
-
-sdla_ppp.o: sdla_ppp.c CONFIG
-
-dgrs.o: dgrs.c dgrs.h CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-ltpc.o: ltpc.c ltpc.h CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $<
-
-tulip.o: tulip.c CONFIG
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(TULIP_OPTS) -c $<

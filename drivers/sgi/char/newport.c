@@ -167,7 +167,6 @@ newport_ioctl (int card, int cmd, unsigned long arg)
 {
 	switch (cmd){
 	case NG1_SETDISPLAYMODE: {
-		int i;
 		struct ng1_setdisplaymode_args request;
 		
 		if (copy_from_user (&request, (void *) arg, sizeof (request)))

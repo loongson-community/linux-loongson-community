@@ -165,7 +165,7 @@ static inline void restore_i387(struct _fpstate *buf)
 #ifndef CONFIG_MATH_EMULATION
 	restore_i387_hard(buf);
 #else
-	if (hard_math)
+	if (boot_cpu_data.hard_math)
 		restore_i387_hard(buf);
 	else
 		restore_i387_soft(&current->tss.i387.soft, buf);
@@ -325,7 +325,7 @@ static struct _fpstate * save_i387(struct _fpstate *buf)
 #ifndef CONFIG_MATH_EMULATION
 	return save_i387_hard(buf);
 #else
-	return hard_math ? save_i387_hard(buf)
+	return boot_cpu_data.hard_math ? save_i387_hard(buf)
 	  : save_i387_soft(&current->tss.i387.soft, buf);
 #endif
 }
@@ -365,21 +365,33 @@ setup_sigcontext(struct sigcontext *sc, struct _fpstate *fpstate,
 	/* non-iBCS2 extensions.. */
 	__put_user(mask, &sc->oldmask);
 	__put_user(current->tss.cr2, &sc->cr2);
-}	
+}
+
+/*
+ * Determine which stack to use..
+ */
+static inline unsigned long sigstack_esp(struct k_sigaction *ka, struct pt_regs * regs)
+{
+	unsigned long esp;
+
+	/* Default to using normal stack */
+	esp = regs->esp;
+
+	/* This is the legacy signal stack switching. */
+	if ((regs->xss & 0xffff) != __USER_DS &&
+	    !(ka->sa.sa_flags & SA_RESTORER) &&
+	    ka->sa.sa_restorer)
+		esp = (unsigned long) ka->sa.sa_restorer;
+
+	return esp;
+}
 
 static void setup_frame(int sig, struct k_sigaction *ka,
 			sigset_t *set, struct pt_regs * regs)
 {
 	struct sigframe *frame;
 
-	frame = (struct sigframe *)((regs->esp - sizeof(*frame)) & -8);
-
-	/* XXX: Check here if we need to switch stacks.. */
-
-	/* This is legacy signal stack switching.  */
-	if ((regs->xss & 0xffff) != __USER_DS
-	    && !(ka->sa.sa_flags & SA_RESTORER) && ka->sa.sa_restorer)
-		frame = (struct sigframe *) ka->sa.sa_restorer;
+	frame = (struct sigframe *)((sigstack_esp(ka, regs) - sizeof(*frame)) & -8);
 
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto segv_and_exit;
@@ -416,7 +428,7 @@ static void setup_frame(int sig, struct k_sigaction *ka,
 	{
 		unsigned long seg = __USER_DS;
 		__asm__("mov %w0,%%fs ; mov %w0,%%gs": "=r"(seg) : "0"(seg));
-		set_fs(MAKE_MM_SEG(seg));
+		set_fs(USER_DS);
 		regs->xds = seg;
 		regs->xes = seg;
 		regs->xss = seg;
@@ -441,14 +453,7 @@ static void setup_rt_frame(int sig, struct k_sigaction *ka, siginfo_t *info,
 {
 	struct rt_sigframe *frame;
 
-	frame = (struct rt_sigframe *)((regs->esp - sizeof(*frame)) & -8);
-
-	/* XXX: Check here if we need to switch stacks.. */
-
-	/* This is legacy signal stack switching.  */
-	if ((regs->xss & 0xffff) != __USER_DS
-	    && !(ka->sa.sa_flags & SA_RESTORER) && ka->sa.sa_restorer)
-		frame = (struct rt_sigframe *) ka->sa.sa_restorer;
+	frame = (struct rt_sigframe *)((sigstack_esp(ka, regs) - sizeof(*frame)) & -8);
 
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto segv_and_exit;
@@ -488,7 +493,7 @@ static void setup_rt_frame(int sig, struct k_sigaction *ka, siginfo_t *info,
 	{
 		unsigned long seg = __USER_DS;
 		__asm__("mov %w0,%%fs ; mov %w0,%%gs": "=r"(seg) : "0"(seg));
-		set_fs(MAKE_MM_SEG(seg));
+		set_fs(USER_DS);
 		regs->xds = seg;
 		regs->xes = seg;
 		regs->xss = seg;

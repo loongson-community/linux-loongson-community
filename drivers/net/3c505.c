@@ -698,7 +698,7 @@ static void elp_interrupt(int irq, void *dev_id, struct pt_regs *reg_ptr)
 			outb_control(adapter->hcr_val & ~(DMAE | TCEN | DIR),
 				     dev);
 			if (adapter->current_dma.direction) {
-				dev_kfree_skb(adapter->current_dma.skb, FREE_WRITE);
+				dev_kfree_skb(adapter->current_dma.skb);
 			} else {
 				struct sk_buff *skb = adapter->current_dma.skb;
 				if (skb) {
@@ -1694,10 +1694,10 @@ void cleanup_module(void)
 	for (this_dev = 0; this_dev < ELP_MAX_CARDS; this_dev++) {
 		struct device *dev = &dev_3c505[this_dev];
 		if (dev->priv != NULL) {
+			unregister_netdev(dev);
 			kfree(dev->priv);
 			dev->priv = NULL;
 			release_region(dev->base_addr, ELP_IO_EXTENT);
-			unregister_netdev(dev);
 		}
 	}
 }

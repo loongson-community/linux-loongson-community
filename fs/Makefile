@@ -16,8 +16,8 @@ O_OBJS    = open.o read_write.o devices.o file_table.o buffer.o \
 		inode.o dcache.o attr.o bad_inode.o $(BINFMTS) 
 
 MOD_LIST_NAME := FS_MODULES
-ALL_SUB_DIRS = coda minix ext2 fat msdos vfat proc isofs nfs umsdos \
-		hpfs sysv smbfs ncpfs ufs affs romfs autofs lockd nfsd nls
+ALL_SUB_DIRS = coda minix ext2 fat msdos vfat proc isofs nfs umsdos ntfs \
+		hpfs sysv smbfs ncpfs ufs affs romfs autofs hfs lockd nfsd nls
 
 ifeq ($(CONFIG_QUOTA),y)
 O_OBJS += dquot.o
@@ -90,6 +90,14 @@ SUB_DIRS += isofs
 else
   ifeq ($(CONFIG_ISO9660_FS),m)
   MOD_SUB_DIRS += isofs
+  endif
+endif
+
+ifeq ($(CONFIG_HFS_FS),y)
+SUB_DIRS += hfs
+else
+  ifeq ($(CONFIG_HFS_FS),m)
+  MOD_SUB_DIRS += hfs
   endif
 endif
 
@@ -170,6 +178,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_NTFS_FS),y)
+SUB_DIRS += ntfs
+else
+  ifeq ($(CONFIG_NTFS_FS),m)
+  MOD_SUB_DIRS += ntfs
+  endif
+endif
+
 ifeq ($(CONFIG_UFS_FS),y)
 SUB_DIRS += ufs
 else
@@ -207,6 +223,14 @@ SUB_DIRS += efs
 else
   ifeq ($(CONFIG_EFS_FS),m)
   MOD_SUB_DIRS += efs
+  endif
+endif
+
+ifeq ($(CONFIG_ADFS_FS),y)
+SUB_DIRS += adfs
+else
+  ifeq ($(CONFIG_ADFS_FS),m)
+  MOD_SUB_DIRS += adfs
   endif
 endif
 

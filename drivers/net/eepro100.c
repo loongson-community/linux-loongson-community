@@ -36,9 +36,8 @@ static int rxdmacount = 0;
 static int rx_copybreak = 200;
 
 /* Maximum events (Rx packets, etc.) to handle at each interrupt. */
-static int max_interrupt_work = 20;
+static int max_interrupt_work = 200;
 
-#include <linux/config.h>
 #ifdef MODULE
 #ifdef MODVERSIONS
 #include <linux/modversions.h>
@@ -1186,7 +1185,7 @@ static void speedo_interrupt(int irq, void *dev_instance, struct pt_regs *regs)
 				/* Free the original skb. */
 				if (sp->tx_skbuff[entry]) {
 					sp->stats.tx_packets++;	/* Count only user packets. */
-					dev_kfree_skb(sp->tx_skbuff[entry], FREE_WRITE);
+					dev_kfree_skb(sp->tx_skbuff[entry]);
 					sp->tx_skbuff[entry] = 0;
 				}
 				dirty_tx++;
@@ -1426,7 +1425,7 @@ speedo_close(struct device *dev)
 		sp->rx_skbuff[i] = 0;
 		/* Clear the Rx descriptors. */
 		if (skb)
-			dev_kfree_skb(skb, FREE_WRITE);
+			dev_kfree_skb(skb);
 	}
 
 	for (i = 0; i < TX_RING_SIZE; i++) {
@@ -1434,7 +1433,7 @@ speedo_close(struct device *dev)
 		sp->tx_skbuff[i] = 0;
 		/* Clear the Tx descriptors. */
 		if (skb)
-			dev_kfree_skb(skb, FREE_WRITE);
+			dev_kfree_skb(skb);
 	}
 	if (sp->mc_setup_frm) {
 		kfree(sp->mc_setup_frm);

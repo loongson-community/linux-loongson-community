@@ -21,7 +21,7 @@
  *	When compiled as a loadable module, this driver can operate
  *	the board as either a 4/6 port switch with a 5th or 7th port
  *	that is a conventional NIC interface as far as the host is
- *	concerned, OR as 4/6 independant NICs.  To select multi-NIC
+ *	concerned, OR as 4/6 independent NICs.  To select multi-NIC
  *	mode, add "nicmode=1" on the insmod load line for the driver.
  *
  *	This driver uses the "dev" common ethernet device structure
@@ -406,7 +406,7 @@ do_plx_dma(
 		 */
 		udelay(1);
 
-		csr = (volatile) priv->vplxdma[PLX_DMA_CSR/4];
+		csr = (volatile unsigned long) priv->vplxdma[PLX_DMA_CSR/4];
 
                 if (csr & PLX_DMA_CSR_0_DONE)
                         break;
@@ -776,7 +776,7 @@ frame_done:
 
 	++privN->stats.tx_packets;
 
-	dev_kfree_skb (skb, FREE_WRITE);
+	dev_kfree_skb (skb);
 	return (0);
 
 no_resources:
@@ -871,7 +871,7 @@ static int dgrs_ioctl(struct device *devN, struct ifreq *ifr, int cmd)
 			/* Wait for old command to finish */
 			for (i = 0; i < 1000; ++i)
 			{
-				if ( (volatile) privN->bcomm->bc_filter_cmd <= 0 )
+				if ( (volatile long) privN->bcomm->bc_filter_cmd <= 0 )
 					break;
 				udelay(1);
 			}
@@ -1250,12 +1250,12 @@ dgrs_found_device(
 ))
 {
 	DGRS_PRIV	*priv;
-	int		i;
 
 	#ifdef MODULE
 	{
 		/* Allocate and fill new device structure. */
 		int dev_size = sizeof(struct device) + sizeof(DGRS_PRIV);
+		int i;
 
 		dev = (struct device *) kmalloc(dev_size, GFP_KERNEL);
 		memset(dev, 0, dev_size);
@@ -1358,6 +1358,8 @@ dgrs_found_device(
 /*
  *	Scan for all boards
  */
+static int is2iv[8] __initdata = { 0, 3, 5, 7, 10, 11, 12, 15 };
+
 __initfunc(static int
 dgrs_scan(struct device *dev))
 {
@@ -1463,8 +1465,6 @@ dgrs_scan(struct device *dev))
 	 */
 	if (EISA_bus)
 	{
-		static int      is2iv[8] __initdata = { 0, 3, 5, 7, 10, 11, 12, 15 };
-
 		for (io = 0x1000; io < 0x9000; io += 0x1000)
 		{
 			if (inb(io+ES4H_MANUFmsb) != 0x10

@@ -21,10 +21,11 @@
 #include <linux/coda.h>
 #include <linux/coda_linux.h>
 #include <linux/coda_psdev.h>
-#include <linux/coda_cnode.h>
-#include <linux/coda_namecache.h>
+#include <linux/coda_fs_i.h>
+#include <linux/coda_cache.h>
 
-static int coda_readlink(struct inode *inode, char *buffer, int length);
+static int coda_readlink(struct dentry *de, char *buffer, int length);
+static struct dentry *coda_follow_link(struct dentry *, struct dentry *);
 
 struct inode_operations coda_symlink_inode_operations = {
 	NULL,			/* no file-operations */
@@ -38,7 +39,7 @@ struct inode_operations coda_symlink_inode_operations = {
 	NULL,			/* mknod */
 	NULL,			/* rename */
 	coda_readlink,		/* readlink */
-	NULL,           	/* follow_link */
+	coda_follow_link,     	/* follow_link */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* bmap */
@@ -49,12 +50,13 @@ struct inode_operations coda_symlink_inode_operations = {
         NULL                    /* revalidate */
 };
 
-static int coda_readlink(struct inode *inode, char *buffer, int length)
+static int coda_readlink(struct dentry *de, char *buffer, int length)
 {
+	struct inode *inode = de->d_inode;
         int len;
 	int error;
         char *buf;
-	struct cnode *cp;
+	struct coda_inode_info *cp;
         ENTRY;
 
         cp = ITOC(inode);
@@ -76,7 +78,44 @@ static int coda_readlink(struct inode *inode, char *buffer, int length)
 		copy_to_user(buffer, buf, len);
 		put_user('\0', buffer + len);
 		error = len;
-		CODA_FREE(buf, len);
 	}
+	if ( buf )
+		CODA_FREE(buf, len);
 	return error;
+}
+
+static struct dentry *coda_follow_link(struct dentry *de, 
+				       struct dentry *base)
+{
+	struct inode *inode = de->d_inode;
+	int error;
+	struct coda_inode_info *cnp;
+	unsigned int len;
+	char mem[CFS_MAXPATHLEN];
+	char *path;
+ENTRY;
+	CDEBUG(D_INODE, "(%x/%ld)\n", inode->i_dev, inode->i_ino);
+	
+        cnp = ITOC(inode);
+        CHECK_CNODE(cnp);
+
+	len = CFS_MAXPATHLEN;
+	error = venus_readlink(inode->i_sb, &(cnp->c_fid), mem, &len);
+
+	if (error) {
+		dput(base);
+		return ERR_PTR(error);
+	}
+	len = strlen(mem);
+	path = kmalloc(len + 1, GFP_KERNEL);
+	if (!path) {
+		dput(base);
+		return ERR_PTR(-ENOMEM);
+	}
+	memcpy(path, mem, len);
+	path[len] = 0;
+
+	base = lookup_dentry(path, base, 1);
+	kfree(path);
+	return base;
 }

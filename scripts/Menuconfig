@@ -19,15 +19,31 @@
 # Portions of this script were borrowed from the original Configure
 # script.
 #
-# Please send comments / questions / bug fixes to roadcapw@cfw.com
+# William Roadcap was the original author of Menuconfig.
+# Michael Elizabeth Chastain (mec@shout.net) is the current maintainer.
 #
 # 070497 Bernhard Kaindl (bkaindl@netway.at) - get default values for
 # new bool, tristate and dep_tristate parameters from the defconfig file.
 # new configuration parameters are marked with '(NEW)' as in make config.
+#
 # 180697 Bernhard Kaindl (bkaindl@netway.at) - added the needed support
 # for string options. They are handled like the int and hex options.
+#
 # 081297 Pavel Machek (pavel@atrey.karlin.mff.cuni.cz) - better error 
 # handling
+#
+# 131197 Michael Chastain (mec@shout.net) - output all lines for a
+# choice list, not just the selected one.  This makes the output
+# the same as Configure output, which is important for smart config
+# dependencies.
+#
+# 101297 Michael Chastain (mec@shout.net) - remove sound driver cruft.
+#
+# 221297 Michael Chastain (mec@shout.net) - make define_bool actually
+# define its arguments so that later tests on them work right.
+#
+# 160198 Michael Chastain (mec@shout.net) - fix bug with 'c' command
+# (complement existing value) when used on virgin uninitialized variables.
 #----------------------------------------------------------------------------
 
 
@@ -96,10 +112,10 @@ function comment () {
 }
 
 #
-# Don't need this yet, but we don't want to puke either.
+# Define a boolean to a specific value.
 #
 function define_bool () {
-	:	
+	eval $1=$2
 }
 
 #
@@ -326,23 +342,6 @@ function submenu () {
 }
 
 #
-# Create a menu entry to handle the traditional sound configuration.
-#
-function soundcfg () {
-	echo -ne "'l_soundcfg' "\
-		 "'Old configuration script "\
-		 "(For: SM Wave, PSS & AudioTrix Pro) -->' " >>MCmenu
-}
-
-#
-# Startup the traditional sound configuration program.
-#
-function l_soundcfg () {
-	clear
-	$MAKE -C drivers/sound config
-}
-
-#
 # Handle a boolean (Yes/No) option.
 #
 function l_bool () {
@@ -354,6 +353,7 @@ function l_bool () {
 		   	case $x in
 		   	y) eval $1=n ;;
 		   	n) eval $1=y ;;
+			*) eval $1=y ;;
 		   	esac ;;
 		*)	eval $1=n ;;
 		esac
@@ -397,6 +397,7 @@ As a result, this feature will be built as a module." 4 70
 			case $x in
 			m) eval $1=n ;;
 			n) eval $1=m ;;
+			*) eval $1=m ;;
 			esac ;;
 		*)	eval $1=n ;;
 		esac
@@ -421,6 +422,7 @@ function l_tristate () {
 		   y) eval $1=n ;;
 		   n) eval $1=m ;;
 		   m) eval $1=y ;;
+		   *) eval $1=y ;;
 		   esac ;;
 		*) eval $1=n ;;
 		esac
@@ -445,7 +447,7 @@ function l_int () {
 
 			# Semantics of + and ? in GNU expr changed, so
 			# we avoid them:
-			if expr "$answer" : '0$\|\(-[1-9]\|[1-9]\)[0-9]*$' >/dev/null
+			if expr "$answer" : '0$\|-[1-9][0-9]*$\|[1-9][0-9]*$' >/dev/null
 			then
 				eval $2="$answer"
 			else
@@ -629,11 +631,6 @@ function parser(ifile,menu) {
 			printf("") >>menu
 		}
 		else if ($1 == "source") {
-			# Yuk!  Blah!  Phooey!
-			if ($2 ~ "drivers/sound") {
-				printf("soundcfg\n") >>menu
-			}
-
 			parser($2,menu)
 		}
 		else {
@@ -662,9 +659,6 @@ function parser(ifile,menu) {
 			printf("") >>menu
 		}
 		else if ($1 == "source") {
-			if ($2 ~ "drivers/sound") {
-				printf("soundcfg\n") >>menu
-			}
 			parser($2,menu)
 		}
 		else {
@@ -733,9 +727,8 @@ function activate_menu () {
 Menuconfig has encountered a possible error in one of the kernel's
 configuration files and is unable to continue.
 
-Please report this to the author <roadcapw@cfw.com>.  You may also
-send a problem report to linux-kernel@vger.rutgers.edu or post a
-message to the linux.dev.kernel news group.
+Please report this to the maintainer <mec@shout.net>.  You may also
+send a problem report to <linux-kernel@vger.rutgers.edu>.
 
 Please indicate the kernel version you are trying to configure and
 which menu you were trying to enter when this error occurred.
@@ -795,8 +788,8 @@ the /usr/src/linux/scripts/lxdialog directory and issuing the
 "make clean all" command.
 
 If you have verified that your ncurses install is correct, you may email
-the author <roadcapw@cfw.com> or post a message on the linux.dev.kernel
-news group for additional assistance. 
+the maintainer <mec@shout.net> or post a message to
+<linux-kernel@vger.rutgers.edu> for additional assistance. 
 
 EOM
 			cleanup
@@ -1069,11 +1062,19 @@ save_configuration () {
 		: ${current:=$default}
 
 		#
-		# Then extract the actual option from the list of choices.
+		# Output all choices (to be compatible with other configs).
 		#
-		current=${choices#*$current} ; set $current
-
-		define_bool "$1" "y"
+		set -- $choices
+		while [ -n "$2" ]
+		do
+			if eval [ "$1" = "$current" ]
+			then
+			    define_bool "$2" "y"
+			else
+			    define_bool "$2" "n"
+			fi
+			shift ; shift
+		done
 	}
 
 	function mainmenu_name () {
@@ -1121,25 +1122,11 @@ save_configuration () {
 	echo " */" >>$CONFIG_H
 	echo "#define AUTOCONF_INCLUDED" >> $CONFIG_H
 
-	MAKE=:	#To prevent sound Makefile from running.
-
 	echo -n "."
 	if . $CONFIG_IN >>.menuconfig.log 2>&1
 	then
 		if [ "$DEF_CONFIG" = ".config" ]
 		then
-			#
-			# Create the sound driver's config files for cards
-			# Which are compatible with the new config method.
-			#
-			if [ "_$CONFIG_TRIX"   != "_y" -a\
-			     "_$CONFIG_PSS"    != "_y" -a\
-			     "_$CONFIG_SMWAVE" != "_y"   ]
-			then
-				echo -n ", sound..."
-				make -C drivers/sound kernelconfig >>.menuconfig.log 2>&1
-			fi
-
 			mv $CONFIG_H $DEF_CONFIG_H
 		fi
 
@@ -1213,7 +1200,7 @@ followed by the <SPACE BAR>.
 Press <?> for additional information about this option."
 
 inputbox_instructions_int="\
-Please enter a decimal value between 1 and 9999. \
+Please enter a decimal value. \
 Fractions will not be accepted.  \
 Use the <TAB> key to move from the input field to the buttons below it."
 
@@ -1231,7 +1218,7 @@ kernel_version="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}"
 
 backtitle="Linux Kernel v$kernel_version Configuration"
 
-trap "cleanup ; rm -f .menuconfig ; exit 1" 1 2 15
+trap "cleanup ; exit 1" 1 2 15
 
 
 #
@@ -1260,32 +1247,6 @@ fi
 >.menuconfig.log
 
 echo -n "Preparing configuration scripts: version" 
-
-#
-# Check kernel version of previous menuconfig build.
-# If it's different then we should tell the sound driver
-# to rebuild its Config.in file.
-#
-rebuildsound=TRUE
-if [ -e .menuconfig ]
-then
-	read x <.menuconfig
-	if [ "$x" = "# $kernel_version" ]
-	then
-		rebuildsound=
-	fi
-fi
-
-if [ "$rebuildsound" ]
-then
-	echo -n ", sound"
-	# Activate the Linux compatible sound configuration.
-	# This may not work for all sound cards.  (See sound docs)
-	#
-	make -C drivers/sound mkscript kernelconfig >>.menuconfig.log 2>&1
-
-	echo "# $kernel_version" >.menuconfig
-fi
 
 # Load the functions used by the config.in files.
 echo -n ", functions"

@@ -11,7 +11,6 @@
  *	checksum routines from ppp.c
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 
 #include <asm/system.h>
@@ -244,7 +243,7 @@ static void x25_asy_bump(struct x25_asy *sl)
 	skb->protocol=htons(ETH_P_X25);
 	if((err=lapb_data_received(sl,skb))!=LAPB_OK)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		printk(KERN_DEBUG "x25_asy: data received err - %d\n",err);
 	}
 	else
@@ -342,13 +341,13 @@ static int x25_asy_xmit(struct sk_buff *skb, struct device *dev)
 		case 0x01: /* Connection request .. do nothing */
 			if((err=lapb_connect_request(sl))!=LAPB_OK)
 				printk(KERN_ERR "x25_asy: lapb_connect_request error - %d\n", err);
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return 0;
 		case 0x02: /* Disconnect request .. do nothing - hang up ?? */
 			if((err=lapb_disconnect_request(sl))!=LAPB_OK)
 				printk(KERN_ERR "x25_asy: lapb_disconnect_request error - %d\n", err);
 		default:
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return  0;
 	}
 	skb_pull(skb,1);	/* Remove control byte */
@@ -385,7 +384,7 @@ static int x25_asy_xmit(struct sk_buff *skb, struct device *dev)
 	if((err=lapb_data_request(sl,skb))!=LAPB_OK)
 	{
 		printk(KERN_ERR "lapbeth: lapb_data_request error - %d\n", err);
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return 0;
 	}
 	return 0;
@@ -418,7 +417,7 @@ static void x25_asy_data_transmit(void *token, struct sk_buff *skb)
 	if(sl->dev->tbusy)
 	{
 		printk(KERN_ERR "x25_asy: tbusy drop\n");
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return;
 	}
 	/* We were not busy, so we are now... :-) */
@@ -427,7 +426,7 @@ static void x25_asy_data_transmit(void *token, struct sk_buff *skb)
 		x25_asy_lock(sl);
 		sl->tx_bytes+=skb->len;
 		x25_asy_encaps(sl, skb->data, skb->len);
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 	}
 }
 

@@ -989,7 +989,7 @@ static void ni52_rcv_int(struct device *dev)
 	}
 #endif
 
-#ifdef 0
+#if 0
 	if(!at_least_one)
 	{
 		int i;
@@ -1203,7 +1203,7 @@ static int ni52_send_packet(struct sk_buff *skb, struct device *dev)
 			ni_attn586();
 			dev->trans_start = jiffies;
 			if(!i)
-				dev_kfree_skb(skb,FREE_WRITE);
+				dev_kfree_skb(skb);
 			WAIT_4_SCB_CMD();
 			if( (p->scb->cus & CU_ACTIVE)) /* test it, because CU sometimes doesn't start immediately */
 				break;
@@ -1223,7 +1223,7 @@ static int ni52_send_packet(struct sk_buff *skb, struct device *dev)
 		p->nop_cmds[p->nop_point]->cmd_link = make16((p->xmit_cmds[0]));
 		dev->trans_start = jiffies;
 		p->nop_point = next_nop;
-		dev_kfree_skb(skb,FREE_WRITE);
+		dev_kfree_skb(skb);
 #	endif
 #else
 		p->xmit_buffs[p->xmit_count]->size = TBD_LAST | len;
@@ -1248,7 +1248,7 @@ static int ni52_send_packet(struct sk_buff *skb, struct device *dev)
 			p->lock = 0;
 			restore_flags(flags);
 		}
-		dev_kfree_skb(skb,FREE_WRITE);
+		dev_kfree_skb(skb);
 #endif
 	}
 	return 0;
@@ -1338,9 +1338,9 @@ int init_module(void)
 void cleanup_module(void)
 {
 	release_region(dev_ni52.base_addr, NI52_TOTAL_SIZE);
+	unregister_netdev(&dev_ni52);
 	kfree(dev_ni52.priv);
 	dev_ni52.priv = NULL;
-	unregister_netdev(&dev_ni52);
 }
 #endif /* MODULE */
 

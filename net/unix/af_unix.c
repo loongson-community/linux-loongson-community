@@ -286,14 +286,14 @@ static void unix_destroy_socket(unix_socket *sk)
 		{
 			unix_socket *osk=skb->sk;
 			osk->state=TCP_CLOSE;
-			kfree_skb(skb, FREE_WRITE);	/* Now surplus - free the skb first before the socket */
+			kfree_skb(skb);			/* Now surplus - free the skb first before the socket */
 			osk->state_change(osk);		/* So the connect wakes and cleans up (if any) */
 			/* osk will be destroyed when it gets to close or the timer fires */			
 		}
 		else
 		{
 			/* passed fds are erased in the kfree_skb hook */
-			kfree_skb(skb,FREE_WRITE);
+			kfree_skb(skb);
 		}
 	}
 	
@@ -695,7 +695,7 @@ static int unix_stream_connect1(struct socket *sock, struct msghdr *msg,
 		other=unix_find_other(sunaddr, addr_len, sk->type, hash, &err);
 		if(other==NULL)
 		{
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return err;
 		}
 		other->ack_backlog++;
@@ -819,7 +819,7 @@ static int unix_accept(struct socket *sock, struct socket *newsock, int flags)
 		{
 			tsk=skb->sk;
 			tsk->state_change(tsk);
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			continue;
 		}
 		break;
@@ -838,7 +838,7 @@ static int unix_accept(struct socket *sock, struct socket *newsock, int flags)
 	unix_lock(newsk);		/* Swap lock over */
 	unix_unlock(sk);		/* Locked to child socket not master */
 	unix_lock(tsk);			/* Back lock */
-	kfree_skb(skb, FREE_WRITE);	/* The buffer is just used as a tag */
+	kfree_skb(skb);			/* The buffer is just used as a tag */
 	tsk->state_change(tsk);		/* Wake up any sleeping connect */
 	sock_wake_async(tsk->socket, 0);
 	return 0;
@@ -958,7 +958,7 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		unix_peer(sk)=NULL;
 		other = NULL;
 		if (sunaddr == NULL) {
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return -ECONNRESET;
 		}
 	}
@@ -968,13 +968,13 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		
 		if (other==NULL)
 		{
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return err;
 		}
 		if (!unix_may_send(sk, other))
 		{
 			unix_unlock(other);
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return -EINVAL;
 		}
 	}
@@ -1033,8 +1033,9 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		 
 		size=len-sent;
 
-		if (size>(sk->sndbuf-sizeof(struct sk_buff))/2)	/* Keep two messages in the pipe so it schedules better */
-			size=(sk->sndbuf-sizeof(struct sk_buff))/2;
+		/* Keep two messages in the pipe so it schedules better */
+		if (size > (sk->sndbuf - sizeof(struct sk_buff)) / 2)
+			size = (sk->sndbuf - sizeof(struct sk_buff)) / 2;
 
 		/*
 		 *	Keep to page sized kmalloc()'s as various people
@@ -1056,7 +1057,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		if (skb==NULL)
 		{
 			if (sent)
-				return sent;
+				goto out;
 			return err;
 		}
 
@@ -1074,15 +1075,16 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		if (scm->fp)
 			unix_attach_fds(scm, skb);
 
+		/* N.B. this could fail with -EFAULT */
 		memcpy_fromiovec(skb_put(skb,size), msg->msg_iov, size);
 
 		other=unix_peer(sk);
 
 		if (other->dead || (sk->shutdown & SEND_SHUTDOWN))
 		{
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			if(sent)
-				return sent;
+				goto out;
 			send_sig(SIGPIPE,current,0);
 			return -EPIPE;
 		}
@@ -1091,6 +1093,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 		other->data_ready(other,size);
 		sent+=size;
 	}
+out:
 	return sent;
 }
 
@@ -1121,20 +1124,20 @@ static int unix_dgram_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 
 	msg->msg_namelen = 0;
 
-	skb=skb_recv_datagram(sk, flags, noblock, &err);
-	if(skb==NULL)
-		return err;
+	skb = skb_recv_datagram(sk, flags, noblock, &err);
+	if (!skb)
+		goto out;
 
 	if (msg->msg_name)
 	{
+		msg->msg_namelen = sizeof(short);
 		if (skb->sk->protinfo.af_unix.addr)
 		{
-			memcpy(msg->msg_name, skb->sk->protinfo.af_unix.addr->name,
-			       skb->sk->protinfo.af_unix.addr->len);
 			msg->msg_namelen=skb->sk->protinfo.af_unix.addr->len;
+			memcpy(msg->msg_name,
+				skb->sk->protinfo.af_unix.addr->name,
+				skb->sk->protinfo.af_unix.addr->len);
 		}
-		else
-			msg->msg_namelen=sizeof(short);
 	}
 
 	if (size > skb->len)
@@ -1142,8 +1145,9 @@ static int unix_dgram_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	else if (size < skb->len)
 		msg->msg_flags |= MSG_TRUNC;
 
-	if (skb_copy_datagram_iovec(skb, 0, msg->msg_iov, size))
-		return -EFAULT;
+	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, size);
+	if (err)
+		goto out_free;
 
 	scm->creds = *UNIXCREDS(skb);
 
@@ -1169,8 +1173,12 @@ static int unix_dgram_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 		if (UNIXCB(skb).fp)
 			scm->fp = scm_fp_dup(UNIXCB(skb).fp);
 	}
+	err = size;
+
+out_free:
 	skb_free_datagram(sk,skb);
-	return size;
+out:
+	return err;
 }
 
 
@@ -1189,7 +1197,7 @@ static int unix_stream_recvmsg(struct socket *sock, struct msghdr *msg, int size
 
 	if (flags&MSG_OOB)
 		return -EOPNOTSUPP;
-	if(flags&MSG_WAITALL)
+	if (flags&MSG_WAITALL)
 		target = size;
 		
 		
@@ -1245,18 +1253,19 @@ static int unix_stream_recvmsg(struct socket *sock, struct msghdr *msg, int size
 		/* Copy address just once */
 		if (sunaddr)
 		{
+			msg->msg_namelen = sizeof(short);
 			if (skb->sk->protinfo.af_unix.addr)
 			{
-				memcpy(sunaddr, skb->sk->protinfo.af_unix.addr->name,
-				       skb->sk->protinfo.af_unix.addr->len);
 				msg->msg_namelen=skb->sk->protinfo.af_unix.addr->len;
+				memcpy(sunaddr,
+					skb->sk->protinfo.af_unix.addr->name,
+					skb->sk->protinfo.af_unix.addr->len);
 			}
-			else
-				msg->msg_namelen=sizeof(short);
 			sunaddr = NULL;
 		}
 
 		chunk = min(skb->len, size);
+		/* N.B. This could fail with -EFAULT */
 		memcpy_toiovec(msg->msg_iov, skb->data, chunk);
 		copied += chunk;
 		size -= chunk;
@@ -1280,7 +1289,7 @@ static int unix_stream_recvmsg(struct socket *sock, struct msghdr *msg, int size
 				break;
 			}
 
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 
 			if (scm->fp)
 				break;

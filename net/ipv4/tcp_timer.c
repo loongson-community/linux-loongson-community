@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_timer.c,v 1.4 1997/12/16 05:37:48 ralf Exp $
+ * Version:	$Id: tcp_timer.c,v 1.5 1998/03/03 01:23:44 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -156,10 +156,7 @@ static int tcp_write_timeout(struct sock *sk)
 	if ((sk->state == TCP_ESTABLISHED &&
 	     tp->retransmits && (tp->retransmits % TCP_QUICK_TRIES) == 0) ||
 	    (sk->state != TCP_ESTABLISHED && tp->retransmits > sysctl_tcp_retries1)) {
-		/*	Attempt to recover if arp has changed (unlikely!) or
-		 *	a route has shifted (not supported prior to 1.3).
-		 */
-		ip_rt_advice((struct rtable**)&sk->dst_cache, 0);
+		dst_negative_advice(&sk->dst_cache);
 	}
 	
 	/* Have we tried to SYN too many times (repent repent 8)) */

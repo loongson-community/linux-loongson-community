@@ -7,3 +7,4 @@ tags    TAGS
 *.a     *.olb   *.o     *.obj   *.so    *.exe
 *.Z     *.elc   *.ln
 .depend
+.*.flags

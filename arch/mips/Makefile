@@ -13,7 +13,7 @@
 # Copyright (C) 1994, 1995, 1996 by Ralf Baechle
 # DECStation modifications by Paul M. Antoine, 1996
 #
-# $Id: Makefile,v 1.9 1997/12/02 01:48:01 ralf Exp $
+# $Id: Makefile,v 1.10 1997/12/16 05:34:32 ralf Exp $
 #
 
 #
@@ -65,7 +65,7 @@ CFLAGS		:= $(CFLAGS) -g
 endif
 
 #
-# CPU dependand compiler/assembler options for optimization.
+# CPU-dependent compiler/assembler options for optimization.
 #
 ifdef CONFIG_CPU_R3000
 CFLAGS		:= $(CFLAGS) -mcpu=r3000 -mips1
@@ -93,7 +93,7 @@ CFLAGS		:= $(CFLAGS) -mcpu=r8000 -mips2
 endif
 
 #
-# Board dependand options and extra files
+# Board-dependent options and extra files
 #
 ifdef CONFIG_ALGOR_P4032
 CORE_FILES    += arch/mips/algor/algor.o

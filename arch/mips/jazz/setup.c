@@ -1,5 +1,5 @@
 /*
- * Setup pointers to hardware dependand routines.
+ * Setup pointers to hardware dependant routines.
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1996, 1997 by Ralf Baechle
  *
- * $Id: setup.c,v 1.7 1997/12/29 00:06:49 tsbogend Exp $
+ * $Id: setup.c,v 1.8 1998/03/04 08:29:10 ralf Exp $
  */
 #include <linux/init.h>
 #include <linux/ioport.h>

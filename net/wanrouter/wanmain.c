@@ -18,6 +18,7 @@
 *		as published by the Free Software Foundation; either version
 *		2 of the License, or (at your option) any later version.
 * ============================================================================
+* Oct 15, 1997  Farhan Thawar   changed wan_encapsulate to add a pad byte of 0
 * Jun 27, 1997  Alan Cox	realigned with vendor code
 * Jan 16, 1997	Gene Kozin	router_devlist made public
 * Jan 31, 1997  Alan Cox	Hacked it about a bit for 2.1
@@ -26,7 +27,6 @@
 
 #include <linux/stddef.h>	/* offsetof(), etc. */
 #include <linux/errno.h>	/* return codes */
-#include <linux/config.h>	/* OS configuration options */
 #include <linux/kernel.h>
 #include <linux/module.h>	/* support for loadable modules */
 #include <linux/malloc.h>	/* kmalloc(), kfree() */
@@ -79,8 +79,10 @@ static int delete_interface (wan_device_t* wandev, char* name, int forse);
  *	Global Data
  */
 
+#ifdef MODULE
 static char fullname[]		= "WAN Router";
 static char copyright[]		= "(c) 1995-1997 Sangoma Technologies Inc.";
+#endif
 static char modname[]		= ROUTER_NAME;	/* short module name */
 wan_device_t * router_devlist	= NULL;	/* list of registered devices */
 static int devcnt		= 0;
@@ -90,7 +92,9 @@ static int devcnt		= 0;
  */
  
 static unsigned char oui_ether[] = { 0x00, 0x00, 0x00 };
+#if 0
 static unsigned char oui_802_2[] = { 0x00, 0x80, 0xC2 };
+#endif
 
 #ifdef MODULE
 
@@ -279,9 +283,10 @@ int wanrouter_encapsulate (struct sk_buff* skb, struct device* dev)
 
 	case ETH_P_IPX:		/* SNAP encapsulation */
 	case ETH_P_ARP:
-		hdr_len += 6;
+		hdr_len += 7;
 		skb_push(skb, 6);
-		skb->data[0] = NLPID_SNAP;
+		skb->data[0] = 0;
+		skb->data[1] = NLPID_SNAP;
 		memcpy(&skb->data[1], oui_ether, sizeof(oui_ether));
 		*((unsigned short*)&skb->data[4]) = htons(skb->protocol);
 		break;

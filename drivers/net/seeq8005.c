@@ -209,10 +209,7 @@ __initfunc(static int seeq8005_probe1(struct device *dev, int ioaddr))
 #endif
 
 	outw( SEEQCFG2_RESET, SEEQ_CFG2);				/* reset the card */
-	SLOW_DOWN_IO;							/* have to wait 4us after a reset - should be fixed */
-	SLOW_DOWN_IO;
-	SLOW_DOWN_IO;
-	SLOW_DOWN_IO;
+	udelay(5);
 	outw( SEEQCMD_SET_ALL_OFF, SEEQ_CMD);
 	
 	if (net_debug) {
@@ -400,7 +397,7 @@ seeq8005_send_packet(struct sk_buff *skb, struct device *dev)
 		hardware_send_packet(dev, buf, length); 
 		dev->trans_start = jiffies;
 	}
-	dev_kfree_skb (skb, FREE_WRITE);
+	dev_kfree_skb (skb);
 
 	/* You might need to clean up and record Tx statistics here. */
 
@@ -626,10 +623,7 @@ void seeq8005_init(struct device *dev, int startp)
 	int i;
 	
 	outw(SEEQCFG2_RESET, SEEQ_CFG2);	/* reset device */
-	SLOW_DOWN_IO;				/* have to wait 4us after a reset - should be fixed */
-	SLOW_DOWN_IO;
-	SLOW_DOWN_IO;
-	SLOW_DOWN_IO;
+	udelay(5);
 	
 	outw( SEEQCMD_FIFO_WRITE | SEEQCMD_SET_ALL_OFF, SEEQ_CMD);
 	outw( 0, SEEQ_DMAAR);			/* load start address into both low and high byte */
@@ -638,7 +632,7 @@ void seeq8005_init(struct device *dev, int startp)
 	
 	for(i=0;i<6;i++) {			/* set Station address */
 		outb(dev->dev_addr[i], SEEQ_BUFFER);
-		SLOW_DOWN_IO;
+		udelay(2);
 	}
 	
 	outw( SEEQCFG1_BUFFER_TEA, SEEQ_CFG1);	/* set xmit end area pointer to 16K */

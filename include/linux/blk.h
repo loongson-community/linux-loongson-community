@@ -5,6 +5,15 @@
 #include <linux/locks.h>
 #include <linux/config.h>
 
+#include <asm/spinlock.h>
+
+/*
+ * Spinlock for protecting the request queue which
+ * is mucked around with in interrupts on potentially
+ * multiple CPU's..
+ */
+extern spinlock_t io_request_lock;
+
 /*
  * NR_REQUEST is the number of entries in the request-queue.
  * NOTE that writes may use only the low 2/3 of these: reads
@@ -39,6 +48,9 @@
 #ifdef CONFIG_CDROM
 extern int cdrom_init(void);
 #endif CONFIG_CDROM 
+#ifdef CONFIG_ISP16_CDI
+extern int isp16_init(void);
+#endif CONFIG_ISP16_CDI
 #ifdef CONFIG_CDU31A
 extern int cdu31a_init(void);
 #endif CONFIG_CDU31A
@@ -433,6 +445,11 @@ static void (DEVICE_REQUEST)(void);
 
 #if ! SCSI_BLK_MAJOR(MAJOR_NR)
 
+/*
+ * The [*_]end_request() handler has to be called with the request queue
+ * spinlock aquired. All functions called within end_request() _must be_
+ * atomic.
+ */
 #if defined(IDE_DRIVER) && !defined(_IDE_C) /* shared copy for IDE modules */
 void ide_end_request(byte uptodate, ide_hwgroup_t *hwgroup);
 #else

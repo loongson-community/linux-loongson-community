@@ -578,7 +578,7 @@ static void tnet_send(long cid,long type,char *src_addr,long byteSize,
 
 static void free_skb(struct sk_buff *skb, int op)
 {
-	dev_kfree_skb(skb,op);
+	dev_kfree_skb(skb);
 }
 
 void tnet_send_ip(int cid,struct sk_buff *skb)
@@ -596,11 +596,10 @@ void tnet_send_ip(int cid,struct sk_buff *skb)
 		int *info = (int *)skb->data; /* re-use the header */
 		info[0] = (int)data;
 		info[1] = size;
-		info[2] = tnet_add_completion(free_skb,(int)skb,(int)FREE_WRITE);
+		info[2] = tnet_add_completion(free_skb, (int)skb, 0);
 		tnet_send(cid,TNET_IP,info,sizeof(int)*3,0,0);
 	} else {
-		flag = tnet_add_completion(free_skb,
-					   (int)skb,(int)FREE_WRITE);
+		flag = tnet_add_completion(free_skb, (int)skb, 0);
 		tnet_send(cid,TNET_IP_SMALL,data,size,0,flag);
 		tnet_stats.small_packets_sent++;
 	}
@@ -613,7 +612,7 @@ void tnet_send_ip(int cid,struct sk_buff *skb)
 
 static void reschedule(void)
 {
-	resched_force();
+	need_resched = 1;
 	mark_bh(TQUEUE_BH);
 }
 

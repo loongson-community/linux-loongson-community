@@ -11,7 +11,7 @@
  *        Don't waste that much memory for empty entries in the syscall
  *        table.
  *
- * $Id: syscall.c,v 1.4 1997/12/01 17:57:31 ralf Exp $
+ * $Id: syscall.c,v 1.5 1997/12/16 05:34:37 ralf Exp $
  */
 #undef CONF_PRINT_SYSCALLS
 #undef CONF_DEBUG_IRIX
@@ -37,7 +37,7 @@ extern asmlinkage int (*do_syscalls)(struct pt_regs *regs, syscall_t fun,
 extern syscall_t sys_call_table[];
 extern unsigned char sys_narg_table[];
 
-asmlinkage int sys_pipe(struct pt_regs *regs)
+asmlinkage int sys_pipe(struct pt_regs regs)
 {
 	int fd[2];
 	int error, res;
@@ -48,7 +48,7 @@ asmlinkage int sys_pipe(struct pt_regs *regs)
 		res = error;
 		goto out;
 	}
-	regs->regs[3] = fd[1];
+	regs.regs[3] = fd[1];
 	res = fd[0];
 out:
 	unlock_kernel();
@@ -105,28 +105,28 @@ out:
 	return ret;
 }
 
-asmlinkage int sys_fork(struct pt_regs *regs)
+asmlinkage int sys_fork(struct pt_regs regs)
 {
 	int res;
 
 	lock_kernel();
-	res = do_fork(SIGCHLD, regs->regs[29], regs);
+	res = do_fork(SIGCHLD, regs.regs[29], &regs);
 	unlock_kernel();
 	return res;
 }
 
-asmlinkage int sys_clone(struct pt_regs *regs)
+asmlinkage int sys_clone(struct pt_regs regs)
 {
 	unsigned long clone_flags;
 	unsigned long newsp;
 	int res;
 
 	lock_kernel();
-	clone_flags = regs->regs[4];
-	newsp = regs->regs[5];
+	clone_flags = regs.regs[4];
+	newsp = regs.regs[5];
 	if (!newsp)
-		newsp = regs->regs[29];
-	res = do_fork(clone_flags, newsp, regs);
+		newsp = regs.regs[29];
+	res = do_fork(clone_flags, newsp, &regs);
 	unlock_kernel();
 	return res;
 }
@@ -134,18 +134,18 @@ asmlinkage int sys_clone(struct pt_regs *regs)
 /*
  * sys_execve() executes a new program.
  */
-asmlinkage int sys_execve(struct pt_regs *regs)
+asmlinkage int sys_execve(struct pt_regs regs)
 {
 	int error;
 	char * filename;
 
 	lock_kernel();
-	filename = getname((char *) (long)regs->regs[4]);
+	filename = getname((char *) (long)regs.regs[4]);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
 		goto out;
-	error = do_execve(filename, (char **) (long)regs->regs[5],
-	                  (char **) (long)regs->regs[6], regs);
+	error = do_execve(filename, (char **) (long)regs.regs[5],
+	                  (char **) (long)regs.regs[6], &regs);
 	putname(filename);
 
 out:
@@ -193,11 +193,13 @@ asmlinkage int sys_olduname(struct oldold_utsname * name)
 /*
  * Do the indirect syscall syscall.
  * Don't care about kernel locking; the actual syscall will do it.
+ *
+ * XXX This is borken.
  */
-asmlinkage int sys_syscall(struct pt_regs *regs)
+asmlinkage int sys_syscall(struct pt_regs regs)
 {
 	syscall_t syscall;
-	unsigned long syscallnr = regs->regs[4];
+	unsigned long syscallnr = regs.regs[4];
 	unsigned long a0, a1, a2, a3, a4, a5, a6;
 	int nargs, errno;
 
@@ -219,7 +221,7 @@ asmlinkage int sys_syscall(struct pt_regs *regs)
 	}
 
 	if(nargs > 3) {
-		unsigned long usp = regs->regs[29];
+		unsigned long usp = regs.regs[29];
 		unsigned long *sp = (unsigned long *) usp;
 		if(usp & 3) {
 			printk("unaligned usp -EFAULT\n");
@@ -252,9 +254,9 @@ asmlinkage int sys_syscall(struct pt_regs *regs)
 	} else {
 		a3 = a4 = a5 = a6 = 0;
 	}
-	a0 = regs->regs[5]; a1 = regs->regs[6]; a2 = regs->regs[7];
+	a0 = regs.regs[5]; a1 = regs.regs[6]; a2 = regs.regs[7];
 	if(nargs == 0)
-		a0 = (unsigned long) regs;
+		a0 = (unsigned long) &regs;
 	return syscall((void *)a0, a1, a2, a3, a4, a5, a6);
 }
 
@@ -268,6 +270,9 @@ asmlinkage void bad_stack(void)
 	do_exit(SIGSEGV);
 }
 
+/*
+ * Build the string table for the builtin "poor man's strace".
+ */
 #ifdef CONF_PRINT_SYSCALLS
 #define SYS(fun, narg) #fun,
 static char *sfnames[] = {
@@ -281,146 +286,3 @@ static char *irix_sys_names[] = {
 #include "irix5sys.h"
 };
 #endif
-
-/*
- * This isn't entirely correct with respect to kernel locking ...
- */
-void do_sys(struct pt_regs *regs)
-{
-	unsigned long syscallnr, usp;
-	syscall_t syscall;
-	int errno, narg;
-
-        /* Skip syscall instruction */
-	if (delay_slot(regs)) {
-		/*
-		 * By convention "li v0,<syscallno>" is always preceeding
-		 * the syscall instruction.  So if we're in a delay slot
-		 * userland is screwed up.
-		 */
-		force_sig(SIGILL, current);
-		return;
-	}
-	regs->cp0_epc += 4;
-
-	syscallnr = regs->regs[2];
-	if (syscallnr > (__NR_Linux + __NR_Linux_syscalls))
-		goto illegal_syscall;
-
-	syscall = sys_call_table[syscallnr];
-	if (syscall == NULL)
-		goto illegal_syscall;
-
-	narg = sys_narg_table[syscallnr];
-#ifdef CONF_PRINT_SYSCALLS
-	if(syscallnr >= 4000)
-		printk("do_sys(%s:%d): %s(%08lx,%08lx,%08lx,%08lx)<pc=%08lx>",
-		       current->comm, current->pid, sfnames[syscallnr - __NR_Linux],
-		       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7],
-		       regs->cp0_epc);
-#endif
-#if defined(CONFIG_BINFMT_IRIX) && defined(CONF_DEBUG_IRIX)
-	if(syscallnr < 2000 && syscallnr >= 1000) {
-		printk("irix_sys(%s:%d): %s(", current->comm,
-		       current->pid, irix_sys_names[syscallnr - 1000]);
-		if((narg < 4) && (narg != 0)) {
-			int i = 0;
-
-			while(i < (narg - 1)) {
-				printk("%08lx, ", regs->regs[i + 4]);
-				i++;
-			}
-			printk("%08lx) ", regs->regs[i + 4]);
-		} else if(narg == 0) {
-			printk("%08lx, %08lx, %08lx, %08lx) ",
-			       regs->regs[4], regs->regs[5], regs->regs[6],
-			       regs->regs[7]);
-		} else
-			printk("narg=%d) ", narg);
-	}
-#endif
-	if (narg > 4) {
-		/*
-		 * Verify that we can safely get the additional parameters
-		 * from the user stack.  Of course I could read the params
-		 * from unaligned addresses ...  Consider this a programming
-		 * course caliber .45.
-		 */
-		usp = regs->regs[29];
-		if (usp & 3) {
-			printk("unaligned usp\n");
-			force_sig(SIGSEGV, current);
-			regs->regs[2] = EFAULT;
-			regs->regs[7] = 1;
-			return;
-		}
-		if (!access_ok(VERIFY_READ, (void *) (usp + 16),
-		      (narg - 4) * sizeof(unsigned long))) {
-			regs->regs[2] = EFAULT;
-			regs->regs[7] = 1;
-			return;
-		}
-	}
-
-	if ((current->flags & PF_TRACESYS) == 0)
-	{
-		errno = do_syscalls(regs, syscall, narg);
-		if (errno < 0 && errno > (-ENOIOCTLCMD - 1)) {
-			goto bad_syscall;
-		}
-		regs->regs[2] = errno;
-		regs->regs[7] = 0;
-	}
-	else
-	{
-		syscall_trace();
-
-		errno = do_syscalls(regs, syscall, narg);
-		if (errno < 0)
-		{
-			regs->regs[2] = -errno;
-			regs->regs[7] = 1;
-		}
-		else
-		{
-			regs->regs[2] = errno;
-			regs->regs[7] = 0;
-		}
-
-		syscall_trace();
-	}
-#if defined(CONF_PRINT_SYSCALLS) || \
-    (defined(CONFIG_BINFMT_IRIX) && defined(CONF_DEBUG_IRIX))
-#if 0
-	printk(" returning: normal\n");
-#else
-	if(syscallnr >= 4000 && syscallnr < 5000)
-		printk(" returning: %08lx\n", (unsigned long) errno);
-#endif
-#endif
-	return;
-
-bad_syscall:
-	regs->regs[0] = regs->regs[2] = -errno;
-	regs->regs[7] = 1;
-#if defined(CONF_PRINT_SYSCALLS) || \
-    (defined(CONFIG_BINFMT_IRIX) && defined(CONF_DEBUG_IRIX))
-#if 0
-	printk(" returning: bad_syscall\n");
-#else
-	if(syscallnr >= 4000 && syscallnr < 5000)
-		printk(" returning error: %d\n", errno);
-#endif
-#endif
-	return;
-illegal_syscall:
-
-	regs->regs[2] = ENOSYS;
-	regs->regs[7] = 1;
-#if defined(CONF_PRINT_SYSCALLS) || \
-    (defined(CONFIG_BINFMT_IRIX) && defined(CONF_DEBUG_IRIX))
-	if(syscallnr >= 1000 && syscallnr < 2000)
-		printk(" returning: illegal_syscall\n");
-#endif
-	return;
-}

@@ -26,13 +26,7 @@
 #include <linux/in6.h>
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
-#include <asm/checksum.h>
-
-extern inline int min(int x, int y)
-{
-	return x>y?y:x;
-}
-
+#include <net/checksum.h>
 
 /*
  *	Verify iovec
@@ -44,9 +38,8 @@ extern inline int min(int x, int y)
 
 int verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
 {
-	int err=0;
-	int len=0;
-	int ct;
+	int size = m->msg_iovlen * sizeof(struct iovec);
+	int err, ct;
 	
 	if(m->msg_namelen)
 	{
@@ -54,7 +47,7 @@ int verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
 		{
 			err=move_addr_to_kernel(m->msg_name, m->msg_namelen, address);
 			if(err<0)
-				return err;
+				goto out;
 		}
 		
 		m->msg_name = address;
@@ -63,24 +56,26 @@ int verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
 
 	if (m->msg_iovlen > UIO_FASTIOV)
 	{
-		iov = kmalloc(m->msg_iovlen*sizeof(struct iovec), GFP_KERNEL);
+		err = -ENOMEM;
+		iov = kmalloc(size, GFP_KERNEL);
 		if (!iov)
-			return -ENOMEM;
+			goto out;
 	}
 	
-	err = copy_from_user(iov, m->msg_iov, sizeof(struct iovec)*m->msg_iovlen);
-	if (err)
-	{
-		if (m->msg_iovlen > UIO_FASTIOV)
-			kfree(iov);
-		return -EFAULT;
-	}
-
-	for(ct=0;ct<m->msg_iovlen;ct++)
-		len+=iov[ct].iov_len;
-
+	if (copy_from_user(iov, m->msg_iov, size))
+		goto out_free;
 	m->msg_iov=iov;
-	return len;
+
+	for (err = 0, ct = 0; ct < m->msg_iovlen; ct++)
+		err += iov[ct].iov_len;
+out:
+	return err;
+
+out_free:
+	err = -EFAULT;
+	if (m->msg_iovlen > UIO_FASTIOV)
+		kfree(iov);
+	goto out;
 }
 
 /*
@@ -89,15 +84,15 @@ int verify_iovec(struct msghdr *m, struct iovec *iov, char *address, int mode)
  
 int memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
 {
-	int err; 
+	int err = -EFAULT; 
+
 	while(len>0)
 	{
 		if(iov->iov_len)
 		{
-			int copy = min(iov->iov_len,len);
-			err = copy_to_user(iov->iov_base,kdata,copy);
-			if (err) 
-			    return err;
+			int copy = min(iov->iov_len, len);
+			if (copy_to_user(iov->iov_base, kdata, copy))
+				goto out;
 			kdata+=copy;
 			len-=copy;
 			iov->iov_len-=copy;
@@ -105,7 +100,9 @@ int memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
 		}
 		iov++;
 	}
-	return 0; 
+	err = 0;
+out:
+	return err; 
 }
 
 /*
@@ -114,17 +111,15 @@ int memcpy_toiovec(struct iovec *iov, unsigned char *kdata, int len)
  
 int memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
 {
-	int err; 
+	int err = -EFAULT; 
+
 	while(len>0)
 	{
 		if(iov->iov_len)
 		{
-			int copy=min(len,iov->iov_len);
-			err = copy_from_user(kdata, iov->iov_base, copy);
-			if (err)
-			{
-				return -EFAULT;
-			}
+			int copy = min(len, iov->iov_len);
+			if (copy_from_user(kdata, iov->iov_base, copy))
+				goto out;
 			len-=copy;
 			kdata+=copy;
 			iov->iov_base+=copy;
@@ -132,7 +127,9 @@ int memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
 		}
 		iov++;
 	}
-	return 0; 
+	err = 0;
+out:
+	return err; 
 }
 
 
@@ -143,28 +140,23 @@ int memcpy_fromiovec(unsigned char *kdata, struct iovec *iov, int len)
 int memcpy_fromiovecend(unsigned char *kdata, struct iovec *iov, int offset,
 			int len)
 {
-	int err; 
+	int err = -EFAULT;
+
 	while(offset>0)
 	{
 		if (offset > iov->iov_len)
 		{
 			offset -= iov->iov_len;
-
 		}
 		else
 		{
-			u8 *base;
-			int copy;
+			u8 *base = iov->iov_base + offset;
+			int copy = min(len, iov->iov_len - offset);
 
-			base = iov->iov_base + offset;
-			copy = min(len, iov->iov_len - offset);
 			offset = 0;
 
-			err = copy_from_user(kdata, base, copy);
-			if (err)
-			{
-				return -EFAULT;
-			}
+			if (copy_from_user(kdata, base, copy))
+				goto out;
 			len-=copy;
 			kdata+=copy;
 		}
@@ -173,17 +165,17 @@ int memcpy_fromiovecend(unsigned char *kdata, struct iovec *iov, int offset,
 
 	while (len>0)
 	{
-		int copy=min(len, iov->iov_len);
-		err = copy_from_user(kdata, iov->iov_base, copy);
-		if (err)
-		{
-			return -EFAULT;
-		}
+		int copy = min(len, iov->iov_len);
+
+		if (copy_from_user(kdata, iov->iov_base, copy))
+			goto out;
 		len-=copy;
 		kdata+=copy;
 		iov++;
 	}
-	return 0;
+	err = 0;
+out:
+	return err;
 }
 
 /*
@@ -206,25 +198,28 @@ int csum_partial_copy_fromiovecend(unsigned char *kdata,
 	do {
 		int copy = iov->iov_len - offset;
 
-		if (copy >= 0) {
+		if (copy > 0) {
 			u8 *base = iov->iov_base + offset;
 
 			/* Normal case (single iov component) is fastly detected */
 			if (len <= copy) {
-				*csump = csum_partial_copy_from_user(base, kdata, 
-								     len, *csump, &err);
-				return err;
+				*csump = csum_and_copy_from_user(base, kdata, 
+								 len, *csump, &err);
+				goto out;
 			}
 
 			partial_cnt = copy % 4;
 			if (partial_cnt) {
 				copy -= partial_cnt;
-				err |= copy_from_user(kdata+copy, base+copy, partial_cnt);
+				if (copy_from_user(kdata + copy, base + copy,
+						partial_cnt))
+					goto out_fault;
 			}
 
-			*csump = csum_partial_copy_from_user(base, kdata, 
-							     copy, *csump, &err);
-
+			*csump = csum_and_copy_from_user(base, kdata, copy,
+							 *csump, &err);
+			if (err)
+				goto out;
 			len   -= copy + partial_cnt;
 			kdata += copy + partial_cnt;
 			iov++;
@@ -236,19 +231,11 @@ int csum_partial_copy_fromiovecend(unsigned char *kdata,
 
 	csum = *csump;
 
-	while (len>0)
+	while (len > 0)
 	{
 		u8 *base = iov->iov_base;
 		unsigned int copy = min(len, iov->iov_len);
 
-		/* FIXME: more sanity checking is needed here, because
-                 * the iovs are copied from the user.
-		 */
-		if (base == NULL) {
-			printk(KERN_DEBUG "%s: iov too short\n",current->comm);
-			return -EINVAL;
-		}
-		
 		/* There is a remnant from previous iov. */
 		if (partial_cnt)
 		{
@@ -256,23 +243,26 @@ int csum_partial_copy_fromiovecend(unsigned char *kdata,
 
 			/* iov component is too short ... */
 			if (par_len > copy) {
-				err |= copy_from_user(kdata, base, copy);
+				if (copy_from_user(kdata, base, copy))
+					goto out_fault;
+				kdata += copy;
 				base += copy;
 				partial_cnt += copy;
-				kdata += copy;
 				len -= copy;
 				iov++;
 				if (len)
 					continue;
-				*csump = csum_partial(kdata-partial_cnt, partial_cnt, csum);
-				return err;
+				*csump = csum_partial(kdata - partial_cnt,
+							 partial_cnt, csum);
+				goto out;
 			}
-			err |= copy_from_user(kdata, base, par_len);
-			csum = csum_partial(kdata-partial_cnt, 4, csum);
+			if (copy_from_user(kdata, base, par_len))
+				goto out_fault;
+			csum = csum_partial(kdata - partial_cnt, 4, csum);
+			kdata += par_len;
 			base += par_len;
 			copy -= par_len;
 			len -= par_len;
-			kdata += par_len;
 			partial_cnt = 0;
 		}
 
@@ -282,18 +272,31 @@ int csum_partial_copy_fromiovecend(unsigned char *kdata,
 			if (partial_cnt)
 			{
 				copy -= partial_cnt;
-				err |= copy_from_user(kdata+copy, base + copy, partial_cnt);
+				if (copy_from_user(kdata + copy, base + copy,
+				 		partial_cnt))
+					goto out_fault;
 			}
 		}
 
-		if (copy == 0)
+		/* Why do we want to break?? There may be more to copy ... */
+		if (copy == 0) {
+if (len > partial_cnt)
+printk("csum_iovec: early break? len=%d, partial=%d\n", len, partial_cnt);
 			break;
+		}
 
-		csum = csum_partial_copy_from_user(base, kdata, copy, csum, &err);
+		csum = csum_and_copy_from_user(base, kdata, copy, csum, &err);
+		if (err)
+			goto out;
 		len   -= copy + partial_cnt;
 		kdata += copy + partial_cnt;
 		iov++;
 	}
         *csump = csum;
+out:
 	return err;
+
+out_fault:
+	err = -EFAULT;
+	goto out;
 }

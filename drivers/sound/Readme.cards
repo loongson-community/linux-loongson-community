@@ -3,7 +3,7 @@ Configuring version 3.8 (for Linux) with some most common soundcards
 
 This document describes configuring soundcards with freeware version of
 Open Sound Systems (OSS/Free). Information about the commercial version
-(OSS/Linux) and it's configuration is available from 
+(OSS/Linux) and its configuration is available from 
 http://www.opensound.com/linux.html. Information presented here is
 not valid for OSS/Linux. 
 
@@ -18,32 +18,8 @@ IMPORTANT!	This document covers only cards that were "known" when
 		http://www.opensound.com/ossfree for info about
 		cards introduced recently.
 
-		The following covers mainly the "old" configuration
-		method (make config). Most of it is valid for the "new"
-		configuration (make menuconfig/xconfig) too.
-
-		Cards having some kind of loadable "microcode" such as
-		PSS, SM Wave, AudioTrix Pro and Maui/Tropez must be
-		configured using the old method. The new one will not 
-		work with them. The "old" method is used by default by
-		"make config". "make xconfig" will always use the "new"
-		method. "make menuconfig" will allow you to select which
-		method to use. After you have used the "new" method once
-		it will always be used when you use any of the config
-		programs. To return back to the "old" method you should
-		execute "cp Config.std Config.in" in linux/drivers/sound.
-
-		The /etc/soundconf file (forget it if you don't know what
-		this file does) contains settings that are used only by
-		the "old" method. Don't ever think the "active" settings
-		are stored there (they really are _NOT_ stored
-		there). Don't try to edit /etc/soundconf or any other
-		kernel or sound driver config files manually. The _only_
-		proper ways to change the settings are make config or
-		make menuconfig (the "old" method).
-
-		When using make xconfig and/or make menuconfig, you should
-		carefully check each sound configuration option (particularly
+		When configuring the sound driver, you should carefully
+		check each sound configuration option (particularly
 		"Support for /dev/dsp and /dev/audio"). The default values
 		offered by these programs are not necessarily valid.
 
@@ -91,7 +67,7 @@ to be the most common cause.
 2. Trying to use a PnP (Plug & Play) card just like an ordinary soundcard
 -------------------------------------------------------------------------
 
-Plug & Play is a protocol defined by Intel and Microsoft. It let's operating
+Plug & Play is a protocol defined by Intel and Microsoft. It lets operating
 systems to easily identify and reconfigure I/O ports, IRQs and DMAs of ISA
 cards. The problem with PnP cards is that the standard Linux doesn't currently
 (versions 2.1.x and earlier) don't support PnP. This means that you will have
@@ -317,25 +293,26 @@ Yamaha OPL3-SA1
 4Front Technologies SoftOSS
 
 	SoftOSS is a software based wave table emulation which works with
-	any 16 bit stereo soundcard. Due to it's nature a fast CPU is
-	required (P133 is minumum). Althoug SoftOSS doesn _not_ use MMX
+	any 16 bit stereo soundcard. Due to its nature a fast CPU is
+	required (P133 is minimum). Although SoftOSS does _not_ use MMX
 	instructions it has proven out that recent processors (which appear
 	to have MMX) perform significantly better with SoftOSS than earlier
 	ones. For example a P166MMX beats a PPro200. SoftOSS should not be used
 	on 486 or 386 machines.
 
-	The amount of CPU load caused by SoftOSS can be controlled by 
-	selecting the SOFTOSS_RATE and SOFTOSS_VOICES parameters properly
-	(they will be prompted by make config). It's recommended to set
-	SOFTOSS_VOICES to 32. If you have a P166MMX or faster (PPro200 is
-	not faster) you can set SOFTOSS_RATE to 44100 (kHz). However with
-	slower systems it recommended to use sampling rates around 22050
-	or even 16000 kHz. Selecting too high values for these parameters
-        may hang your system when playing MIDI files with hight degree of
-	polyphony (number of concurrently playing notes). It's also possible to
-	decrease SOFTOSS_VOICES. This makes it possible to use higher sampling
-	rates. However using fewer voices decreases playback quality more than
-	decreasing the sampling rate.
+	The amount of CPU load caused by SoftOSS can be controlled by
+	selecting the CONFIG_SOFTOSS_RATE and CONFIG_SOFTOSS_VOICES
+	parameters properly (they will be prompted by make config). It's
+	recommended to set CONFIG_SOFTOSS_VOICES to 32. If you have a
+	P166MMX or faster (PPro200 is not faster) you can set
+	CONFIG_SOFTOSS_RATE to 44100 (kHz). However with slower systems it
+	recommended to use sampling rates around 22050 or even 16000 kHz.
+	Selecting too high values for these parameters may hang your
+	system when playing MIDI files with hight degree of polyphony
+	(number of concurrently playing notes). It's also possible to
+	decrease CONFIG_SOFTOSS_VOICES. This makes it possible to use
+	higher sampling rates. However using fewer voices decreases
+	playback quality more than decreasing the sampling rate.
 
 	SoftOSS keeps the samples loaded on system's RAM so large RAM is
 	required. SoftOSS should never be used on machines with less than 16M
@@ -354,7 +331,7 @@ Yamaha OPL3-SA1
 
         *********************************************************************
 	IMPORTANT NOTICE! The original patch set distributed with Gravis 
-	Ultrasound card is not in public domain (even it's available from
+	Ultrasound card is not in public domain (even though it's available from
 	some ftp sites). You should contact Voice Crystal (www.voicecrystal.com)
 	if you like to use these patches with SoftOSS included in OSS/Free.
         *********************************************************************
@@ -376,9 +353,6 @@ MediaTrix AudioTrix Pro
 	The ATP card is built around a CS4231 codec and an OPL4 synthesizer
 	chips. The OPL4 mode is supported by a microcontroller running a
 	General MIDI emulator. There is also a SB 1.5 compatible playback mode.
-
-	NOTE! You will have to use the "old" config script when configuring
-	AudioTrix Pro.
 
 Ensoniq SoundScape and compatibles
 	Ensoniq has designed a soundcard architecture based on the
@@ -411,8 +385,8 @@ OPTi MAD16 and Mozart based cards
 Audio Excel DSP16 
 	Support for this card was written by Riccardo Faccetti
 	(riccardo@cdc8g5.cdc.polimi.it). The AEDSP16 driver included in
-	the lowlevel/ directory. To use it you should use the "new" config
-	script and to enable the "Additional low level drivers" option.
+	the lowlevel/ directory. To use it you should enable the
+	"Additional low level drivers" option.
 
 Crystal CS4232 and CS4236 based cards such as AcerMagic S23, TB Tropez _Plus_ and 
 	many PC motherboards (Compaq, HP, Intel, ...)
@@ -431,8 +405,6 @@ Turtle Beach Maui and Tropez "classic"
 	described in the Maui/Tropez User's manual. 
 	There is now full initialization support too. The audio side of
 	the Tropez is based on the MAD16 chip (see above).
-	NOTE! You will have to use the "old" config script when configuring
-	Maui or Tropez.
 	NOTE! Tropez Plus is different card than Tropez "classic" and will not
 	work fully in Linux. You can get audio features working by configuring
 	the card as a CS4232 based card (above).
@@ -529,29 +501,20 @@ the kernel following instructions in the kernel README.
 The sound driver configuration dialog
 -------------------------------------
 
-All config information of the sound driver is written to file 
-linux/drivers/sound/local.h. You may save the old version is this file and
-use it again in case you want to use the same config later. In this case
-just answer n to each question made by the sound config program and put
-the original local.h back before running "make dep".
-Don't do this if the version number of the sound driver has changed. In this
-case you have to enter the configuration information again.
-
 If you already have the sound driver installed, consult printout of
 "cat /dev/sndstat" when configuring the driver again. It gives the I/O,
 IRQ and DMA settings you have used earlier.
 
-
-The sound config program (linux/drivers/sound/configure) starts by making
-some yes/no questions. Be careful when answering to these questions since
-answering y to a question may prevent some later ones from being asked. For
-example don't answer y to the first question (PAS16) if you don't really
-have a PAS16. Don't enable more cards than you really need since they
-just consume memory. Also some drivers (like MPU401) may conflict with your
-SCSI controller and prevent kernel from booting. If you card was in the list
-of supported cards (above), please look at the card specific config 
-instructions (later in this file) before starting to configure. Some cards
-must be configured in way which is not obvious.
+Sound configuration starts by making some yes/no questions. Be careful
+when answering to these questions since answering y to a question may
+prevent some later ones from being asked. For example don't answer y to
+the first question (PAS16) if you don't really have a PAS16. Don't enable
+more cards than you really need since they just consume memory. Also
+some drivers (like MPU401) may conflict with your SCSI controller and
+prevent kernel from booting. If you card was in the list of supported
+cards (above), please look at the card specific config instructions
+(later in this file) before starting to configure. Some cards must be
+configured in way which is not obvious.
 
 So here is the beginning of the config dialog. Answer 'y' or 'n' to these
 questions. The default answer is shown so that (y/n) means 'y' by default and
@@ -688,9 +651,7 @@ card specific configuration information. Usually just a set of
 I/O address, IRQ and DMA numbers are asked. With some cards the program
 asks for some files to be used during initialization of the card. For example
 many cards have a DSP chip or microprocessor which must be initialized by
-downloading a program (microcode) file to the card. In some cases this file
-is written to a .h file by the config program and then included to the driver
-during compile.
+downloading a program (microcode) file to the card.
 
 Instructions for answering these questions are given in the next section.
 
@@ -1041,9 +1002,6 @@ specific section for instructions about configuring more than one MPU401 cards.
 Logitech Soundman Wave
 ----------------------
 
-NOTE! You will have to use the "old" config script when configuring
-      SM Wave.
-
 Read the above MV Jazz specific instructions first.
 
 The Logitech SoundMan Wave (don't confuse with the SM16 or SM Games) is
@@ -1168,9 +1126,9 @@ the ioctl() for activating the "solo" mode.
 
 The following configuration parameters have worked fine for the PCM12
 in Markus Kuhn's system, many other configurations might work, too:
-MAD16_BASE=0x530, MAD16_IRQ=11, MAD16_DMA=3, MAD16_DMA2=0,
-MAD16_MPU_BASE=0x330, MAD16_MPU_IRQ=10, DSP_BUFFSIZE=65536,
-SELECTED_SOUND_OPTIONS=0x00281000.
+CONFIG_MAD16_BASE=0x530, CONFIG_MAD16_IRQ=11, CONFIG_MAD16_DMA=3, 
+CONFIG_MAD16_DMA2=0, CONFIG_MAD16_MPU_BASE=0x330, CONFIG_MAD16_MPU_IRQ=10,
+DSP_BUFFSIZE=65536, SELECTED_SOUND_OPTIONS=0x00281000.
 
 The miroSOUND PCM1 pro and the PCM20 are very similar to the PCM12.
 Perhaps the same ACI driver also works for these cards, however this

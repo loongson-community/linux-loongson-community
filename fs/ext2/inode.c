@@ -209,18 +209,30 @@ static struct buffer_head * inode_getblk (struct inode * inode, int nr,
 repeat:
 	tmp = *p;
 	if (tmp) {
-		result = getblk (inode->i_dev, tmp, inode->i_sb->s_blocksize);
+		struct buffer_head * result = getblk (inode->i_dev, tmp, inode->i_sb->s_blocksize);
 		if (tmp == *p)
 			return result;
 		brelse (result);
 		goto repeat;
 	}
-	if (!create || new_block >= 
-	    (current->rlim[RLIMIT_FSIZE].rlim_cur >>
-	     EXT2_BLOCK_SIZE_BITS(inode->i_sb))) {
-		*err = -EFBIG;
-		return NULL;
+	*err = -EFBIG;
+	if (!create)
+		goto dont_create;
+
+	/* Check file limits.. */
+	{
+		unsigned long limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
+		if (limit < RLIM_INFINITY) {
+			limit >>= EXT2_BLOCK_SIZE_BITS(inode->i_sb);
+			if (new_block >= limit) {
+				send_sig(SIGXFSZ, current, 0);
+dont_create:
+				*err = -EFBIG;
+				return NULL;
+			}
+		}
 	}
+
 	if (inode->u.ext2_i.i_next_alloc_block == new_block)
 		goal = inode->u.ext2_i.i_next_alloc_goal;
 
@@ -617,37 +629,33 @@ static int ext2_update_inode(struct inode * inode, int do_sync)
 
 void ext2_write_inode (struct inode * inode)
 {
-#if 0
-	printk("ext2_write(%04x:%06d)...", inode->i_dev, inode->i_ino);
-#endif
 	ext2_update_inode (inode, 0);
 }
 
 int ext2_sync_inode (struct inode *inode)
 {
-#if 0
-	printk("ext2_sync(%04x:%06d)...", inode->i_dev, inode->i_ino);
-#endif
 	return ext2_update_inode (inode, 1);
 }
 
-int ext2_notify_change(struct inode *inode, struct iattr *iattr)
+int ext2_notify_change(struct dentry *dentry, struct iattr *iattr)
 {
+	struct inode *inode = dentry->d_inode;
 	int		retval;
 	unsigned int	flags;
 	
+	retval = -EPERM;
 	if ((iattr->ia_attr_flags &
 	     (ATTR_FLAG_APPEND | ATTR_FLAG_IMMUTABLE)) ^
 	    (inode->u.ext2_i.i_flags &
 	     (EXT2_APPEND_FL | EXT2_IMMUTABLE_FL))) {
-		if (!fsuser() || securelevel > 0)
-			return -EPERM;
-	} else
-		if ((current->fsuid != inode->i_uid) && !fsuser())
-			return -EPERM;
+		if (securelevel > 0 || !fsuser())
+			goto out;
+	} else if ((current->fsuid != inode->i_uid) && !fsuser())
+		goto out;
 
-	if ((retval = inode_change_ok(inode, iattr)) != 0)
-		return retval;
+	retval = inode_change_ok(inode, iattr);
+	if (retval != 0)
+		goto out;
 
 	inode_setattr(inode, iattr);
 	
@@ -681,7 +689,7 @@ int ext2_notify_change(struct inode *inode, struct iattr *iattr)
 		inode->u.ext2_i.i_flags &= ~EXT2_IMMUTABLE_FL;
 	}
 	mark_inode_dirty(inode);
-
-	return 0;
+out:
+	return retval;
 }
 

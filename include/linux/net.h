@@ -93,7 +93,7 @@ struct proto_ops {
 			 int flags);
   int	(*getname)	(struct socket *sock, struct sockaddr *uaddr,
 			 int *usockaddr_len, int peer);
-  unsigned int (*poll)	(struct socket *sock, struct poll_table_struct *wait);
+  unsigned int (*poll)	(struct file *file, struct socket *sock, struct poll_table_struct *wait);
   int	(*ioctl)	(struct socket *sock, unsigned int cmd,
 			 unsigned long arg);
   int	(*listen)	(struct socket *sock, int len);
@@ -137,7 +137,9 @@ extern int	sock_recvmsg(struct socket *, struct msghdr *m, int len, int flags);
 extern int	sock_readv_writev(int type, struct inode * inode, struct file * file,
 				  const struct iovec * iov, long count, long size);
 
-int net_ratelimit(void);
+extern int	net_ratelimit(void);
+extern unsigned long net_random(void);
+extern void net_srandom(unsigned long);
 
 #endif /* __KERNEL__ */
 #endif	/* _LINUX_NET_H */

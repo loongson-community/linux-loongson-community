@@ -50,6 +50,9 @@ static struct file_operations proc_dir_operations = {
 	NULL			/* can't fsync */
 };
 
+int proc_readlink(struct dentry * dentry, char * buffer, int buflen);
+struct dentry * proc_follow_link(struct dentry *dentry, struct dentry *base);
+
 /*
  * proc directories can do almost nothing..
  */
@@ -149,7 +152,7 @@ struct proc_dir_entry proc_root = {
 	&proc_root, NULL
 };
 
-struct proc_dir_entry *proc_net, *proc_scsi;
+struct proc_dir_entry *proc_net, *proc_scsi, *proc_bus;
 
 #ifdef CONFIG_MCA
 struct proc_dir_entry proc_mca = {
@@ -332,15 +335,13 @@ int proc_register(struct proc_dir_entry * dir, struct proc_dir_entry * dp)
 		if (dp->ops == NULL)
 			dp->ops = &proc_dir_inode_operations;
 		dir->nlink++;
+	} else if (S_ISLNK(dp->mode)) {
+		if (dp->ops == NULL)
+			dp->ops = &proc_link_inode_operations;
 	} else {
 		if (dp->ops == NULL)
 			dp->ops = &proc_file_inode_operations;
 	}
-	/*
-	 * kludge until we fixup the md device driver
-	 */
-	if (dp->low_ino == PROC_MD)
-		dp->ops = &proc_array_inode_operations;
 	return 0;
 }
 
@@ -368,7 +369,7 @@ int proc_unregister(struct proc_dir_entry * dir, int ino)
 /*
  * /proc/self:
  */
-static int proc_self_readlink(struct inode * inode, char * buffer, int buflen)
+static int proc_self_readlink(struct dentry *dentry, char *buffer, int buflen)
 {
 	int len;
 	char tmp[30];
@@ -380,14 +381,58 @@ static int proc_self_readlink(struct inode * inode, char * buffer, int buflen)
 	return len;
 }
 
-static struct dentry * proc_self_follow_link(struct inode *inode, struct dentry *base)
+static struct dentry * proc_self_follow_link(struct dentry *dentry,
+						struct dentry *base)
 {
-	int len;
 	char tmp[30];
 
-	len = sprintf(tmp, "%d", current->pid);
+	sprintf(tmp, "%d", current->pid);
 	return lookup_dentry(tmp, base, 1);
 }	
+
+int proc_readlink(struct dentry * dentry, char * buffer, int buflen)
+{
+	struct inode *inode = dentry->d_inode;
+	struct proc_dir_entry * de;
+	char 	*page;
+	int len = 0;
+
+	de = (struct proc_dir_entry *) inode->u.generic_ip;
+	if (!de)
+		return -ENOENT;
+	if (!(page = (char*) __get_free_page(GFP_KERNEL)))
+		return -ENOMEM;
+
+	if (de->readlink_proc)
+		len = de->readlink_proc(de, page);
+
+	if (len > buflen)
+		len = buflen;
+
+	copy_to_user(buffer, page, len);
+	free_page((unsigned long) page);
+	return len;
+}
+
+struct dentry * proc_follow_link(struct dentry * dentry, struct dentry *base)
+{
+	struct inode *inode = dentry->d_inode;
+	struct proc_dir_entry * de;
+	char 	*page;
+	struct dentry *d;
+	int len = 0;
+
+	de = (struct proc_dir_entry *) inode->u.generic_ip;
+	if (!(page = (char*) __get_free_page(GFP_KERNEL)))
+		return NULL;
+
+	if (de->readlink_proc)
+		len = de->readlink_proc(de, page);
+
+	d = lookup_dentry(page, base, 1);
+	free_page((unsigned long) page);
+	return d;
+}
 
 static struct inode_operations proc_self_inode_operations = {
 	NULL,			/* no file-ops */
@@ -402,6 +447,26 @@ static struct inode_operations proc_self_inode_operations = {
 	NULL,			/* rename */
 	proc_self_readlink,	/* readlink */
 	proc_self_follow_link,	/* follow_link */
+	NULL,			/* readpage */
+	NULL,			/* writepage */
+	NULL,			/* bmap */
+	NULL,			/* truncate */
+	NULL			/* permission */
+};
+
+static struct inode_operations proc_link_inode_operations = {
+	NULL,			/* no file-ops */
+	NULL,			/* create */
+	NULL,			/* lookup */
+	NULL,			/* link */
+	NULL,			/* unlink */
+	NULL,			/* symlink */
+	NULL,			/* mkdir */
+	NULL,			/* rmdir */
+	NULL,			/* mknod */
+	NULL,			/* rename */
+	proc_readlink,		/* readlink */
+	proc_follow_link,	/* follow_link */
 	NULL,			/* readpage */
 	NULL,			/* writepage */
 	NULL,			/* bmap */
@@ -434,7 +499,7 @@ static struct proc_dir_entry proc_root_version = {
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_array_inode_operations
 };
-#ifdef CONFIG_PCI
+#ifdef CONFIG_PCI_OLD_PROC
 static struct proc_dir_entry proc_root_pci = {
 	PROC_PCI, 3, "pci",
 	S_IFREG | S_IRUGO, 1, 0, 0,
@@ -504,13 +569,6 @@ static struct proc_dir_entry proc_root_interrupts = {
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_array_inode_operations
 };
-#ifdef __SMP_PROF__
-static struct proc_dir_entry proc_root_smp = {
-	PROC_SMP_PROF, 3,"smp",
-	S_IFREG | S_IRUGO, 1, 0, 0,
-	0, &proc_array_inode_operations
-};
-#endif
 static struct proc_dir_entry proc_root_filesystems = {
 	PROC_FILESYSTEMS, 11,"filesystems",
 	S_IFREG | S_IRUGO, 1, 0, 0,
@@ -563,13 +621,6 @@ static struct proc_dir_entry proc_root_slab = {
 	S_IFREG | S_IRUGO, 1, 0, 0,
 	0, &proc_array_inode_operations
 };
-#ifdef CONFIG_OMIRR
-static struct proc_dir_entry proc_root_omirr = {
-	PROC_OMIRR, 5, "omirr",
-	S_IFREG | S_IRUSR, 1, 0, 0,
-	0, &proc_omirr_inode_operations
-};
-#endif
 #ifdef __powerpc__
 static struct proc_dir_entry proc_root_ppc_htab = {
 	PROC_PPC_HTAB, 8, "ppc_htab",
@@ -578,7 +629,6 @@ static struct proc_dir_entry proc_root_ppc_htab = {
 	NULL, NULL,                		/* get_info, fill_inode */
 	NULL,					/* next */
 	NULL, NULL				/* parent, subdir */
-
 };
 #endif
 
@@ -590,7 +640,7 @@ void proc_root_init(void)
 	proc_register(&proc_root, &proc_root_meminfo);
 	proc_register(&proc_root, &proc_root_kmsg);
 	proc_register(&proc_root, &proc_root_version);
-#ifdef CONFIG_PCI
+#ifdef CONFIG_PCI_OLD_PROC
 	proc_register(&proc_root, &proc_root_pci);
 #endif
 #ifdef CONFIG_ZORRO
@@ -620,9 +670,6 @@ void proc_root_init(void)
 	proc_register(&proc_root, &proc_root_stat);
 	proc_register(&proc_root, &proc_root_devices);
 	proc_register(&proc_root, &proc_root_interrupts);
-#ifdef __SMP_PROF__
-	proc_register(&proc_root, &proc_root_smp);
-#endif 
 	proc_register(&proc_root, &proc_root_filesystems);
 	proc_register(&proc_root, &proc_root_dma);
 	proc_register(&proc_root, &proc_root_ioports);
@@ -657,6 +704,11 @@ void proc_root_init(void)
 #endif
 #ifdef CONFIG_PROC_DEVICETREE
 	proc_device_tree_init();
+#endif
+
+	proc_bus = create_proc_entry("bus", S_IFDIR, 0);
+#ifdef CONFIG_PCI
+	proc_bus_pci_init();
 #endif
 }
 

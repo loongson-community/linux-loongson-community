@@ -1,5 +1,5 @@
-#ifndef __ASMaxp_ELF_H
-#define __ASMaxp_ELF_H
+#ifndef __ASM_ALPHA_ELF_H
+#define __ASM_ALPHA_ELF_H
 
 /*
  * ELF register definitions..
@@ -39,7 +39,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
    the loader.  We need to make sure that it is out of the way of the program
    that it will "exec", and that there is sufficient room for the brk.  */
 
-#define ELF_ET_DYN_BASE		(2 * TASK_SIZE / 3)
+#define ELF_ET_DYN_BASE		(TASK_UNMAPPED_BASE + 0x1000000)
 
 /* $0 is set by ld.so to a pointer to a function which might be 
    registered using atexit.  This provides a mean for the dynamic
@@ -97,5 +97,39 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 	_dest[31] = _dump.regs[EF_PC];	/* store PC here */	\
 	_dest[32] = _dump.regs[EF_PS];				\
 }
+
+/* This yields a mask that user programs can use to figure out what
+   instruction set this cpu supports.  This is trivial on Alpha, 
+   but not so on other machines. */
+
+#define ELF_HWCAP							\
+({									\
+	/* Sadly, most folks don't yet have assemblers that know about	\
+	   amask.  This is "amask v0, v0" */				\
+	register long _v0 __asm("$0") = -1;				\
+	__asm(".long 0x47e00c20" : "=r"(_v0) : "0"(_v0));		\
+	~_v0;								\
+})
+
+/* This yields a string that ld.so will use to load implementation
+   specific libraries for optimization.  This is more specific in
+   intent than poking at uname or /proc/cpuinfo.  
+
+   This might do with checking bwx simultaneously...  */
+
+#define ELF_PLATFORM				\
+({						\
+	/* Or "implver v0" ... */		\
+	register long _v0 __asm("$0");		\
+	__asm(".long 0x47e03d80" : "=r"(_v0));	\
+	_v0 == 0 ? "ev4" : "ev5";		\
+})
+
+#ifdef __KERNEL__
+#define SET_PERSONALITY(EX, IBCS2)				\
+	current->personality =					\
+	  ((EX).e_flags & EF_ALPHA_32BIT			\
+	   ? PER_LINUX_32BIT : (IBCS2) ? PER_SVR4 : PER_LINUX)
+#endif
 
 #endif

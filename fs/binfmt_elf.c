@@ -21,6 +21,7 @@
 #include <linux/signal.h>
 #include <linux/binfmts.h>
 #include <linux/string.h>
+#include <linux/file.h>
 #include <linux/fcntl.h>
 #include <linux/ptrace.h>
 #include <linux/malloc.h>
@@ -34,7 +35,7 @@
 
 #include <linux/config.h>
 
-#define DLINFO_ITEMS 12
+#define DLINFO_ITEMS 13
 
 #include <linux/elf.h>
 
@@ -135,15 +136,35 @@ create_elf_tables(char *p, int argc, int envc,
 	elf_caddr_t *argv;
 	elf_caddr_t *envp;
 	elf_addr_t *sp, *csp;
+	char *k_platform, *u_platform;
+	long hwcap;
+	size_t platform_len = 0;
+
+	/*
+	 * Get hold of platform and hardware capabilities masks for
+	 * the machine we are running on.  In some cases (Sparc), 
+	 * this info is impossible to get, in others (i386) it is
+	 * merely difficult.
+	 */
+
+	hwcap = ELF_HWCAP;
+	k_platform = ELF_PLATFORM;
+
+	if (k_platform) {
+		platform_len = strlen(k_platform) + 1;
+		u_platform = p - platform_len;
+		__copy_to_user(u_platform, k_platform, platform_len);
+	} else
+		u_platform = p;
 
 	/*
 	 * Force 16 byte _final_ alignment here for generality.
 	 * Leave an extra 16 bytes free so that on the PowerPC we
 	 * can move the aux table up to start on a 16-byte boundary.
 	 */
-	sp = (elf_addr_t *) ((~15UL & (unsigned long) p) - 16UL);
+	sp = (elf_addr_t *)((~15UL & (unsigned long)(u_platform)) - 16UL);
 	csp = sp;
-	csp -= exec ? DLINFO_ITEMS*2 : 2;
+	csp -= ((exec ? DLINFO_ITEMS*2 : 4) + (k_platform ? 2 : 0));
 	csp -= envc+1;
 	csp -= argc+1;
 	csp -= (!ibcs ? 3 : 1); /* argc itself */
@@ -160,21 +181,27 @@ create_elf_tables(char *p, int argc, int envc,
 
 	sp -= 2;
 	NEW_AUX_ENT(0, AT_NULL, 0);
+	if (k_platform) {
+		sp -= 2;
+		NEW_AUX_ENT(0, AT_PLATFORM, (elf_addr_t)(unsigned long) u_platform);
+	}
+	sp -= 2;
+	NEW_AUX_ENT(0, AT_HWCAP, hwcap);
 
 	if (exec) {
 		sp -= 11*2;
 
-		NEW_AUX_ENT (0, AT_PHDR, load_addr + exec->e_phoff);
-		NEW_AUX_ENT (1, AT_PHENT, sizeof (struct elf_phdr));
-		NEW_AUX_ENT (2, AT_PHNUM, exec->e_phnum);
-		NEW_AUX_ENT (3, AT_PAGESZ, ELF_EXEC_PAGESIZE);
-		NEW_AUX_ENT (4, AT_BASE, interp_load_addr);
-		NEW_AUX_ENT (5, AT_FLAGS, 0);
-		NEW_AUX_ENT (6, AT_ENTRY, (elf_addr_t) exec->e_entry);
-		NEW_AUX_ENT (7, AT_UID, (elf_addr_t) current->uid);
-		NEW_AUX_ENT (8, AT_EUID, (elf_addr_t) current->euid);
-		NEW_AUX_ENT (9, AT_GID, (elf_addr_t) current->gid);
-		NEW_AUX_ENT (10, AT_EGID, (elf_addr_t) current->egid);
+		NEW_AUX_ENT(0, AT_PHDR, load_addr + exec->e_phoff);
+		NEW_AUX_ENT(1, AT_PHENT, sizeof (struct elf_phdr));
+		NEW_AUX_ENT(2, AT_PHNUM, exec->e_phnum);
+		NEW_AUX_ENT(3, AT_PAGESZ, ELF_EXEC_PAGESIZE);
+		NEW_AUX_ENT(4, AT_BASE, interp_load_addr);
+		NEW_AUX_ENT(5, AT_FLAGS, 0);
+		NEW_AUX_ENT(6, AT_ENTRY, (elf_addr_t) exec->e_entry);
+		NEW_AUX_ENT(7, AT_UID, (elf_addr_t) current->uid);
+		NEW_AUX_ENT(8, AT_EUID, (elf_addr_t) current->euid);
+		NEW_AUX_ENT(9, AT_GID, (elf_addr_t) current->gid);
+		NEW_AUX_ENT(10, AT_EGID, (elf_addr_t) current->egid);
 	}
 #undef NEW_AUX_ENT
 
@@ -356,53 +383,61 @@ static unsigned long load_elf_interp(struct elfhdr * interp_elf_ex,
 
 	/* Map the last of the bss segment */
 	if (last_bss > elf_bss)
-	  do_mmap(NULL, elf_bss, last_bss-elf_bss,
-		  PROT_READ|PROT_WRITE|PROT_EXEC,
-		  MAP_FIXED|MAP_PRIVATE, 0);
-	kfree(elf_phdata);
+		do_mmap(NULL, elf_bss, last_bss - elf_bss,
+			PROT_READ|PROT_WRITE|PROT_EXEC,
+			MAP_FIXED|MAP_PRIVATE, 0);
 
 	*interp_load_addr = load_addr;
-	return ((unsigned long) interp_elf_ex->e_entry) + load_addr;
+	error = ((unsigned long) interp_elf_ex->e_entry) + load_addr;
+
+out_close:
+	fput(file);
+	sys_close(elf_exec_fileno);
+out_free:
+	kfree(elf_phdata);
+out:
+	return error;
 }
 
 static unsigned long load_aout_interp(struct exec * interp_ex,
 			     struct dentry * interpreter_dentry)
 {
-  int retval;
-  unsigned long elf_entry;
+	unsigned long text_data, offset, elf_entry = ~0UL;
+	char * addr;
+	int retval;
 
-  current->mm->brk = interp_ex->a_bss +
-    (current->mm->end_data = interp_ex->a_data +
-     (current->mm->end_code = interp_ex->a_text));
-  elf_entry = interp_ex->a_entry;
+	current->mm->end_code = interp_ex->a_text;
+	text_data = interp_ex->a_text + interp_ex->a_data;
+	current->mm->end_data = text_data;
+	current->mm->brk = interp_ex->a_bss + text_data;
 
+	switch (N_MAGIC(*interp_ex)) {
+	case OMAGIC:
+		offset = 32;
+		addr = (char *) 0;
+		break;
+	case ZMAGIC:
+	case QMAGIC:
+		offset = N_TXTOFF(*interp_ex);
+		addr = (char *) N_TXTADDR(*interp_ex);
+		break;
+	default:
+		goto out;
+	}
 
-  if (N_MAGIC(*interp_ex) == OMAGIC) {
-    do_mmap(NULL, 0, interp_ex->a_text+interp_ex->a_data,
-	    PROT_READ|PROT_WRITE|PROT_EXEC,
-	    MAP_FIXED|MAP_PRIVATE, 0);
-    retval = read_exec(interpreter_dentry, 32, (char *) 0,
-		       interp_ex->a_text+interp_ex->a_data, 0);
-  } else if (N_MAGIC(*interp_ex) == ZMAGIC || N_MAGIC(*interp_ex) == QMAGIC) {
-    do_mmap(NULL, 0, interp_ex->a_text+interp_ex->a_data,
-	    PROT_READ|PROT_WRITE|PROT_EXEC,
-	    MAP_FIXED|MAP_PRIVATE, 0);
-    retval = read_exec(interpreter_dentry,
-		       N_TXTOFF(*interp_ex) ,
-		       (char *) N_TXTADDR(*interp_ex),
-		       interp_ex->a_text+interp_ex->a_data, 0);
-  } else
-    retval = -1;
+	do_mmap(NULL, 0, text_data,
+		PROT_READ|PROT_WRITE|PROT_EXEC, MAP_FIXED|MAP_PRIVATE, 0);
+	retval = read_exec(interpreter_dentry, offset, addr, text_data, 0);
+	if (retval < 0)
+		goto out;
 
-  if (retval >= 0)
-    do_mmap(NULL, ELF_PAGESTART(interp_ex->a_text + interp_ex->a_data + ELF_EXEC_PAGESIZE - 1),
-	    interp_ex->a_bss,
-	    PROT_READ|PROT_WRITE|PROT_EXEC,
-	    MAP_FIXED|MAP_PRIVATE, 0);
-  if (retval < 0) {
-  	return ~0UL;
-  }
-  return elf_entry;
+	do_mmap(NULL, ELF_PAGESTART(text_data + ELF_EXEC_PAGESIZE - 1),
+		interp_ex->a_bss,
+		PROT_READ|PROT_WRITE|PROT_EXEC, MAP_FIXED|MAP_PRIVATE, 0);
+	elf_entry = interp_ex->a_entry;
+
+out:
+	return elf_entry;
 }
 
 /*
@@ -438,7 +473,6 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	unsigned long elf_entry, interp_load_addr = 0;
 	int status;
 	unsigned long start_code, end_code, end_data;
-	unsigned long elf_stack;
 	char passed_fileno[6];
 
 	ibcs2_interpreter = 0;
@@ -496,7 +530,6 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 
 	file = current->files->fd[elf_exec_fileno];
 
-	elf_stack = ~0UL;
 	elf_interpreter = NULL;
 	start_code = ~0UL;
 	end_code = 0;
@@ -611,34 +644,29 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		    bprm->argc++;
 		  }
 		}
-		if (!bprm->p) {
-			if (elf_interpreter) {
-			      kfree(elf_interpreter);
-			}
-			kfree (elf_phdata);
-			sys_close(elf_exec_fileno);
-			return -E2BIG;
-		}
+		retval = -E2BIG;
+		if (!bprm->p)
+			goto out_free_dentry;
 	}
 
 	/* Flush all traces of the currently running executable */
 	retval = flush_old_exec(bprm);
 	if (retval)
-		return retval;
+		goto out_free_dentry;
 
 	/* OK, This is the point of no return */
 	current->mm->end_data = 0;
 	current->mm->end_code = 0;
-	current->mm->start_mmap = ELF_START_MMAP;
 	current->mm->mmap = NULL;
 	elf_entry = (unsigned long) elf_ex.e_entry;
+
+	/* Do this immediately, since STACK_TOP as used in setup_arg_pages
+	   may depend on the personality.  */
+	SET_PERSONALITY(elf_ex, ibcs2_interpreter);
 
 	/* Do this so that we can load the interpreter, if need be.  We will
 	   change some of these later */
 	current->mm->rss = 0;
-#ifdef ELF_FLAGS_INIT
-	ELF_FLAGS_INIT;
-#endif
 	bprm->p = setup_arg_pages(bprm->p, bprm);
 	current->mm->start_stack = bprm->p;
 
@@ -679,11 +707,6 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 					(elf_ppnt->p_offset -
 					 ELF_PAGEOFFSET(elf_ppnt->p_vaddr)));
 
-#ifdef LOW_ELF_STACK
-			if (error < elf_stack)
-				elf_stack = error-1;
-#endif
-
 			if (!load_addr_set) {
 				load_addr_set = 1;
 				load_addr = (elf_ppnt->p_vaddr -
@@ -696,15 +719,19 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 			k = elf_ppnt->p_vaddr;
 			if (k < start_code) start_code = k;
 			k = elf_ppnt->p_vaddr + elf_ppnt->p_filesz;
-			if (k > elf_bss) elf_bss = k;
+			if (k > elf_bss)
+				elf_bss = k;
 			if ((elf_ppnt->p_flags & PF_X) && end_code <  k)
 				end_code = k;
-			if (end_data < k) end_data = k;
+			if (end_data < k)
+				end_data = k;
 			k = elf_ppnt->p_vaddr + elf_ppnt->p_memsz;
-			if (k > elf_brk) elf_brk = k;
+			if (k > elf_brk)
+				elf_brk = k;
 		}
 	}
 	set_fs(old_fs);
+	fput(file); /* all done with the file */
 
 	elf_entry += load_bias;
 	elf_bss += load_bias;
@@ -714,10 +741,10 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	end_data += load_bias;
 
 	if (elf_interpreter) {
-		if (interpreter_type & 1)
+		if (interpreter_type == INTERPRETER_AOUT)
 			elf_entry = load_aout_interp(&interp_ex,
 						     interpreter_dentry);
-		else if (interpreter_type & 2)
+		else
 			elf_entry = load_elf_interp(&interp_elf_ex,
 						    interpreter_dentry,
 						    &interp_load_addr);
@@ -726,7 +753,7 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		kfree(elf_interpreter);
 
 		if (elf_entry == ~0UL) {
-			printk("Unable to load interpreter\n");
+			printk(KERN_ERR "Unable to load interpreter\n");
 			kfree(elf_phdata);
 			send_sig(SIGSEGV, current, 0);
 			return 0;
@@ -735,8 +762,8 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 
 	kfree(elf_phdata);
 
-	if (interpreter_type != INTERPRETER_AOUT) sys_close(elf_exec_fileno);
-	current->personality = (ibcs2_interpreter ? PER_SVR4 : PER_LINUX);
+	if (interpreter_type != INTERPRETER_AOUT)
+		sys_close(elf_exec_fileno);
 
 	if (current->exec_domain && current->exec_domain->module)
 		__MOD_DEC_USE_COUNT(current->exec_domain->module);
@@ -752,9 +779,6 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 #ifndef VM_STACK_FLAGS
 	current->executable = dget(bprm->dentry);
 #endif
-#ifdef LOW_ELF_STACK
-	current->start_stack = bprm->p = elf_stack;
-#endif
 	current->suid = current->euid = current->fsuid = bprm->e_uid;
 	current->sgid = current->egid = current->fsgid = bprm->e_gid;
 	current->flags &= ~PF_FORKNOEXEC;
@@ -766,16 +790,18 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 			load_addr,
 			interp_load_addr,
 			(interpreter_type == INTERPRETER_AOUT ? 0 : 1));
+	/* N.B. passed_fileno might not be initialized? */
 	if (interpreter_type == INTERPRETER_AOUT)
-	  current->mm->arg_start += strlen(passed_fileno) + 1;
+		current->mm->arg_start += strlen(passed_fileno) + 1;
 	current->mm->start_brk = current->mm->brk = elf_brk;
 	current->mm->end_code = end_code;
 	current->mm->start_code = start_code;
 	current->mm->end_data = end_data;
 	current->mm->start_stack = bprm->p;
 
-	/* Calling set_brk effectively mmaps the pages that we need for the bss and break
-	   sections */
+	/* Calling set_brk effectively mmaps the pages that we need
+	 * for the bss and break sections
+	 */
 	set_brk(elf_bss, elf_brk);
 
 	padzero(elf_bss);
@@ -795,6 +821,7 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		   and some applications "depend" upon this behavior.
 		   Since we do not have the power to recompile these, we
 		   emulate the SVr4 behavior.  Sigh.  */
+		/* N.B. Shouldn't the size here be PAGE_SIZE?? */
 		error = do_mmap(NULL, 0, 4096, PROT_READ | PROT_EXEC,
 				MAP_FIXED | MAP_PRIVATE, 0);
 	}
@@ -809,11 +836,25 @@ do_load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 	ELF_PLAT_INIT(regs);
 #endif
 
-
 	start_thread(regs, elf_entry, bprm->p);
 	if (current->flags & PF_PTRACED)
 		send_sig(SIGTRAP, current, 0);
-	return 0;
+	retval = 0;
+out:
+	return retval;
+
+	/* error cleanup */
+out_free_dentry:
+	dput(interpreter_dentry);
+out_free_interp:
+	if (elf_interpreter)
+		kfree(elf_interpreter);
+out_free_file:
+	fput(file);
+	sys_close(elf_exec_fileno);
+out_free_ph:
+	kfree(elf_phdata);
+	goto out;
 }
 
 static int
@@ -831,75 +872,66 @@ load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
    a.out library that is given an ELF header. */
 
 static inline int
-do_load_elf_library(int fd){
+do_load_elf_library(int fd)
+{
 	struct file * file;
-	struct elfhdr elf_ex;
-	struct elf_phdr *elf_phdata  =  NULL;
 	struct dentry * dentry;
 	struct inode * inode;
-	unsigned long len;
-	int elf_bss;
-	int retval;
-	unsigned long bss;
-	int error;
-	int i,j, k;
+	struct elf_phdr *elf_phdata;
+	unsigned long elf_bss = 0, bss, len, k;
+	int retval, error, i, j;
+	struct elfhdr elf_ex;
+	loff_t offset = 0;
 
-	len = 0;
-	file = current->files->fd[fd];
+	error = -EACCES;
+	file = fget(fd);
+	if (!file || !file->f_op)
+		goto out;
 	dentry = file->f_dentry;
 	inode = dentry->d_inode;
-	elf_bss = 0;
-
-	if (!file || !file->f_op)
-		return -EACCES;
 
 	/* seek to the beginning of the file */
-	if (file->f_op->llseek) {
-		if ((error = file->f_op->llseek(file, 0, 0)) != 0)
-			return -ENOEXEC;
-	} else
-		file->f_pos = 0;
+	error = -ENOEXEC;
 
+	/* N.B. save current DS?? */
 	set_fs(KERNEL_DS);
-	error = file->f_op->read(file, (char *) &elf_ex,
-				 sizeof(elf_ex), &file->f_pos);
+	retval = file->f_op->read(file, (char *) &elf_ex, sizeof(elf_ex), &offset);
 	set_fs(USER_DS);
-	if (error != sizeof(elf_ex))
-		return -ENOEXEC;
+	if (retval != sizeof(elf_ex))
+		goto out_putf;
 
 	if (elf_ex.e_ident[0] != 0x7f ||
-	    strncmp(&elf_ex.e_ident[1], "ELF",3) != 0)
-		return -ENOEXEC;
+	    strncmp(&elf_ex.e_ident[1], "ELF", 3) != 0)
+		goto out_putf;
 
 	/* First of all, some simple consistency checks */
 	if (elf_ex.e_type != ET_EXEC || elf_ex.e_phnum > 2 ||
 	   !elf_check_arch(elf_ex.e_machine) ||
 	   (!inode->i_op || !inode->i_op->default_file_ops->mmap))
-		return -ENOEXEC;
+		goto out_putf;
 
 	/* Now read in all of the header information */
 
-	if (sizeof(struct elf_phdr) * elf_ex.e_phnum > ELF_EXEC_PAGESIZE)
-		return -ENOEXEC;
+	j = sizeof(struct elf_phdr) * elf_ex.e_phnum;
+	if (j > ELF_EXEC_PAGESIZE)
+		goto out_putf;
 
-	elf_phdata =  (struct elf_phdr *)
-		kmalloc(sizeof(struct elf_phdr) * elf_ex.e_phnum, GFP_KERNEL);
-	if (elf_phdata == NULL)
-		return -ENOMEM;
+	error = -ENOMEM;
+	elf_phdata = (struct elf_phdr *) kmalloc(j, GFP_KERNEL);
+	if (!elf_phdata)
+		goto out_putf;
 
+	/* N.B. check for error return?? */
 	retval = read_exec(dentry, elf_ex.e_phoff, (char *) elf_phdata,
 			   sizeof(struct elf_phdr) * elf_ex.e_phnum, 1);
 
-	j = 0;
-	for(i=0; i<elf_ex.e_phnum; i++)
+	error = -ENOEXEC;
+	for (j = 0, i = 0; i<elf_ex.e_phnum; i++)
 		if ((elf_phdata + i)->p_type == PT_LOAD) j++;
+	if (j != 1)
+		goto out_free_ph;
 
-	if (j != 1)  {
-		kfree(elf_phdata);
-		return -ENOEXEC;
-	}
-
-	while(elf_phdata->p_type != PT_LOAD) elf_phdata++;
+	while (elf_phdata->p_type != PT_LOAD) elf_phdata++;
 
 	/* Now use mmap to map the library into memory. */
 	error = do_mmap(file,
@@ -910,25 +942,29 @@ do_load_elf_library(int fd){
 			MAP_FIXED | MAP_PRIVATE | MAP_DENYWRITE,
 			(elf_phdata->p_offset -
 			 ELF_PAGEOFFSET(elf_phdata->p_vaddr)));
+	if (error != ELF_PAGESTART(elf_phdata->p_vaddr))
+		goto out_free_ph;
 
 	k = elf_phdata->p_vaddr + elf_phdata->p_filesz;
-	if (k > elf_bss) elf_bss = k;
-
-	if (error != ELF_PAGESTART(elf_phdata->p_vaddr)) {
-		kfree(elf_phdata);
-		return error;
-	}
-
+	if (k > elf_bss)
+		elf_bss = k;
 	padzero(elf_bss);
 
-	len = ELF_PAGESTART(elf_phdata->p_filesz + elf_phdata->p_vaddr+ ELF_EXEC_PAGESIZE - 1);
+	len = ELF_PAGESTART(elf_phdata->p_filesz + elf_phdata->p_vaddr + 
+				ELF_EXEC_PAGESIZE - 1);
 	bss = elf_phdata->p_memsz + elf_phdata->p_vaddr;
 	if (bss > len)
-	  do_mmap(NULL, len, bss-len,
-		  PROT_READ|PROT_WRITE|PROT_EXEC,
-		  MAP_FIXED|MAP_PRIVATE, 0);
+		do_mmap(NULL, len, bss - len,
+			PROT_READ|PROT_WRITE|PROT_EXEC,
+			MAP_FIXED|MAP_PRIVATE, 0);
+	error = 0;
+
+out_free_ph:
 	kfree(elf_phdata);
-	return 0;
+out_putf:
+	fput(file);
+out:
+	return error;
 }
 
 static int load_elf_library(int fd)
@@ -1187,8 +1223,8 @@ static int elf_core_dump(long signr, struct pt_regs * regs)
 	notes[0].datasz = sizeof(prstatus);
 	notes[0].data = &prstatus;
 	prstatus.pr_info.si_signo = prstatus.pr_cursig = signr;
-	prstatus.pr_sigpend = current->signal;
-	prstatus.pr_sighold = current->blocked;
+	prstatus.pr_sigpend = current->signal.sig[0];
+	prstatus.pr_sighold = current->blocked.sig[0];
 	psinfo.pr_pid = prstatus.pr_pid = current->pid;
 	psinfo.pr_ppid = prstatus.pr_ppid = current->p_pptr->pid;
 	psinfo.pr_pgrp = prstatus.pr_pgrp = current->pgrp;

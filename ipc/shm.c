@@ -561,7 +561,7 @@ asmlinkage int sys_shmat (int shmid, char *shmaddr, int shmflg, ulong *raddr)
 	shmd->vm_flags = VM_SHM | VM_MAYSHARE | VM_SHARED
 			 | VM_MAYREAD | VM_MAYEXEC | VM_READ | VM_EXEC
 			 | ((shmflg & SHM_RDONLY) ? 0 : VM_MAYWRITE | VM_WRITE);
-	shmd->vm_dentry = NULL;
+	shmd->vm_file = NULL;
 	shmd->vm_offset = 0;
 	shmd->vm_ops = &shm_vm_ops;
 
@@ -689,7 +689,7 @@ static pte_t shm_swap_in(struct vm_area_struct * shmd, unsigned long offset, uns
 			goto done;
 		}
 		if (!pte_none(pte)) {
-			read_swap_page(pte_val(pte), (char *) page);
+			rw_swap_page_nocache(READ, pte_val(pte), (char *)page);
 			pte = __pte(shp->shm_pages[idx]);
 			if (pte_present(pte))  {
 				free_page (page); /* doesn't sleep */
@@ -820,7 +820,7 @@ int shm_swap (int prio, int dma)
 	if (atomic_read(&mem_map[MAP_NR(pte_page(page))].count) != 1)
 		goto check_table;
 	shp->shm_pages[idx] = swap_nr;
-	write_swap_page (swap_nr, (char *) pte_page(page));
+	rw_swap_page_nocache (WRITE, swap_nr, (char *) pte_page(page));
 	free_page(pte_page(page));
 	swap_successes++;
 	shm_swp++;

@@ -18,6 +18,7 @@
 #include <linux/locks.h>
 #include <linux/malloc.h>
 #include <linux/init.h>
+#include <linux/file.h>
 #include <linux/dcache.h>
 
 #include <linux/smb_fs.h>
@@ -181,80 +182,15 @@ printk("smb_invalidate_inodes\n");
 }
 
 /*
- * This is called when we want to check whether the inode
- * has changed on the server.  If it has changed, we must
- * invalidate our local caches.
- */
-int
-smb_revalidate_inode(struct inode *inode)
-{
-	time_t last_time;
-	int error = 0;
-
-	pr_debug("smb_revalidate_inode\n");
-	/*
-	 * If this is a file opened with write permissions,
-	 * the inode will be up-to-date.
-	 */
-	if (S_ISREG(inode->i_mode) && smb_is_open(inode))
-	{
-		if (inode->u.smbfs_i.access != SMB_O_RDONLY)
-			goto out;
-	}
-
-	/*
-	 * Check whether we've recently refreshed the inode.
-	 */
-	if (jiffies < inode->u.smbfs_i.oldmtime + HZ/10)
-	{
-#ifdef SMBFS_DEBUG_VERBOSE
-printk("smb_revalidate_inode: up-to-date, jiffies=%lu, oldtime=%lu\n",
-jiffies, inode->u.smbfs_i.oldmtime);
-#endif
-		goto out;
-	}
-
-	/*
-	 * Save the last modified time, then refresh the inode.
-	 * (Note: a size change should have a different mtime.)
-	 */
-	last_time = inode->i_mtime;
-	error = smb_refresh_inode(inode);
-	if (error || inode->i_mtime != last_time)
-	{
-#ifdef SMBFS_DEBUG_VERBOSE
-printk("smb_revalidate: %s/%s changed, old=%ld, new=%ld\n",
-((struct dentry *)inode->u.smbfs_i.dentry)->d_parent->d_name.name,
-((struct dentry *)inode->u.smbfs_i.dentry)->d_name.name,
-(long) last_time, (long) inode->i_mtime);
-#endif
-		if (!S_ISDIR(inode->i_mode))
-			invalidate_inode_pages(inode);
-		else
-			smb_invalid_dir_cache(inode);
-	}
-out:
-	return error;
-}
-
-/*
  * This is called to update the inode attributes after
  * we've made changes to a file or directory.
  */
-int
-smb_refresh_inode(struct inode *inode)
+static int
+smb_refresh_inode(struct dentry *dentry)
 {
-	struct dentry * dentry = inode->u.smbfs_i.dentry;
-	struct smb_fattr fattr;
+	struct inode *inode = dentry->d_inode;
 	int error;
-
-	pr_debug("smb_refresh_inode\n");
-	if (!dentry)
-	{
-		printk("smb_refresh_inode: no dentry, can't refresh\n");
-		error = -EIO;
-		goto out;
-	}
+	struct smb_fattr fattr;
 
 	error = smb_proc_getattr(dentry, &fattr);
 	if (!error)
@@ -295,42 +231,76 @@ inode->i_mode, fattr.f_mode);
 			error = -EIO;
 		}
 	}
-out:
 	return error;
-
 }
 
 /*
- * This routine is called for every iput().
+ * This is called when we want to check whether the inode
+ * has changed on the server.  If it has changed, we must
+ * invalidate our local caches.
+ */
+int
+smb_revalidate_inode(struct dentry *dentry)
+{
+	struct inode *inode = dentry->d_inode;
+	time_t last_time;
+	int error = 0;
+
+	pr_debug("smb_revalidate_inode\n");
+	/*
+	 * If this is a file opened with write permissions,
+	 * the inode will be up-to-date.
+	 */
+	if (S_ISREG(inode->i_mode) && smb_is_open(inode))
+	{
+		if (inode->u.smbfs_i.access != SMB_O_RDONLY)
+			goto out;
+	}
+
+	/*
+	 * Check whether we've recently refreshed the inode.
+	 */
+	if (jiffies < inode->u.smbfs_i.oldmtime + HZ/10)
+	{
+#ifdef SMBFS_DEBUG_VERBOSE
+printk("smb_revalidate_inode: up-to-date, jiffies=%lu, oldtime=%lu\n",
+jiffies, inode->u.smbfs_i.oldmtime);
+#endif
+		goto out;
+	}
+
+	/*
+	 * Save the last modified time, then refresh the inode.
+	 * (Note: a size change should have a different mtime.)
+	 */
+	last_time = inode->i_mtime;
+	error = smb_refresh_inode(dentry);
+	if (error || inode->i_mtime != last_time)
+	{
+#ifdef SMBFS_DEBUG_VERBOSE
+printk("smb_revalidate: %s/%s changed, old=%ld, new=%ld\n",
+dentry->d_parent->d_name.name, dentry->d_name.name,
+(long) last_time, (long) inode->i_mtime);
+#endif
+		if (!S_ISDIR(inode->i_mode))
+			invalidate_inode_pages(inode);
+		else
+			smb_invalid_dir_cache(inode);
+	}
+out:
+	return error;
+}
+
+/*
+ * This routine is called for every iput(). We clear i_nlink
+ * on the last use to force a call to delete_inode.
  */
 static void
 smb_put_inode(struct inode *ino)
 {
 	pr_debug("smb_put_inode: count = %d\n", ino->i_count);
-
-	if (ino->i_count > 1) {
-		struct dentry * dentry;
-		/*
-		 * Check whether the dentry still holds this inode. 
-		 * This looks scary, but should work ... if this is
-		 * the last use, d_inode == NULL or d_count == 0. 
-		 */
-		dentry = (struct dentry *) ino->u.smbfs_i.dentry;
-		if (dentry && (dentry->d_inode != ino || dentry->d_count == 0))
-		{
-			ino->u.smbfs_i.dentry = NULL;
-#ifdef SMBFS_DEBUG_VERBOSE
-printk("smb_put_inode: cleared dentry for %s/%s (%ld), count=%d\n",
-dentry->d_parent->d_name.name, dentry->d_name.name, ino->i_ino, ino->i_count);
-#endif
-		}
-	} else {
-		/*
-		 * Last use ... clear i_nlink to force
-		 * smb_delete_inode to be called.
-	 	*/
+	if (ino->i_count == 1)
 		ino->i_nlink = 0;
-	}
 }
 
 /*
@@ -357,13 +327,14 @@ smb_put_super(struct super_block *sb)
 	if (server->sock_file) {
 		smb_proc_disconnect(server);
 		smb_dont_catch_keepalive(server);
-		close_fp(server->sock_file);
+		fput(server->sock_file);
 	}
 
 	if (server->conn_pid)
 	       kill_proc(server->conn_pid, SIGTERM, 1);
 
 	kfree(server->mnt);
+	kfree(sb->u.smbfs_sb.temp_buf);
 	if (server->packet)
 		smb_vfree(server->packet);
 	sb->s_dev = 0;
@@ -376,18 +347,15 @@ smb_put_super(struct super_block *sb)
 struct super_block *
 smb_read_super(struct super_block *sb, void *raw_data, int silent)
 {
-	struct smb_mount_data *mnt, *data = (struct smb_mount_data *) raw_data;
-	struct smb_fattr root;
-	kdev_t dev = sb->s_dev;
+	struct smb_mount_data *mnt;
 	struct inode *root_inode;
-	struct dentry *dentry;
+	struct smb_fattr root;
 
 	MOD_INC_USE_COUNT;
 
-	if (!data)
+	if (!raw_data)
 		goto out_no_data;
-		
-	if (data->version != SMB_MOUNT_VERSION)
+	if (((struct smb_mount_data *) raw_data)->version != SMB_MOUNT_VERSION)
 		goto out_wrong_data;
 
 	lock_super(sb);
@@ -396,7 +364,6 @@ smb_read_super(struct super_block *sb, void *raw_data, int silent)
 	sb->s_blocksize_bits = 10;
 	sb->s_magic = SMB_SUPER_MAGIC;
 	sb->s_flags = 0;
-	sb->s_dev = dev; /* shouldn't need this ... */
 	sb->s_op = &smb_sops;
 
 	sb->u.smbfs_sb.sock_file = NULL;
@@ -410,10 +377,16 @@ smb_read_super(struct super_block *sb, void *raw_data, int silent)
 	if (!sb->u.smbfs_sb.packet)
 		goto out_no_mem;
 
+	/* Allocate the global temp buffer */
+	sb->u.smbfs_sb.temp_buf = kmalloc(SMB_MAXPATHLEN + 20, GFP_KERNEL);
+	if (!sb->u.smbfs_sb.temp_buf)
+		goto out_no_temp;
+
+	/* Allocate the mount data structure */
 	mnt = kmalloc(sizeof(struct smb_mount_data), GFP_KERNEL);
 	if (!mnt)
 		goto out_no_mount;
-	*mnt = *data;
+	*mnt = *((struct smb_mount_data *) raw_data);
 	/* ** temp ** pass config flags in file mode */
 	mnt->version = (mnt->file_mode >> 9);
 #ifdef CONFIG_SMB_WIN95
@@ -431,6 +404,8 @@ smb_read_super(struct super_block *sb, void *raw_data, int silent)
 		printk("SMBFS: Win 95 bug fixes enabled\n");
 	if (mnt->version & SMB_FIX_OLDATTR)
 		printk("SMBFS: Using core getattr (Win 95 speedup)\n");
+	else if (mnt->version & SMB_FIX_DIRATTR)
+		printk("SMBFS: Using dir ff getattr\n");
 
 	/*
 	 * Keep the super block locked while we get the root inode.
@@ -440,29 +415,26 @@ smb_read_super(struct super_block *sb, void *raw_data, int silent)
 	if (!root_inode)
 		goto out_no_root;
 
-	dentry = d_alloc_root(root_inode, NULL);
-	if (!dentry)
+	sb->s_root = d_alloc_root(root_inode, NULL);
+	if (!sb->s_root)
 		goto out_no_root;
-	root_inode->u.smbfs_i.dentry = dentry;
-	sb->s_root = dentry;
 
 	unlock_super(sb);
 	return sb;
 
 out_no_root:
-	printk(KERN_ERR "smb_read_super: get root inode failed\n");
 	iput(root_inode);
 	kfree(sb->u.smbfs_sb.mnt);
 out_no_mount:
+	kfree(sb->u.smbfs_sb.temp_buf);
+out_no_temp:
 	smb_vfree(sb->u.smbfs_sb.packet);
-	goto out_unlock;
 out_no_mem:
-	printk("smb_read_super: could not alloc packet\n");
-out_unlock:
+	printk(KERN_ERR "smb_read_super: allocation failure\n");
 	unlock_super(sb);
 	goto out_fail;
 out_wrong_data:
-	printk("smb_read_super: need mount version %d\n", SMB_MOUNT_VERSION);
+	printk(KERN_ERR "SMBFS: need mount version %d\n", SMB_MOUNT_VERSION);
 	goto out_fail;
 out_no_data:
 	printk("smb_read_super: missing data argument\n");
@@ -489,22 +461,15 @@ smb_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 }
 
 int
-smb_notify_change(struct inode *inode, struct iattr *attr)
+smb_notify_change(struct dentry *dentry, struct iattr *attr)
 {
-	struct smb_sb_info *server = SMB_SERVER(inode);
-	struct dentry *dentry = inode->u.smbfs_i.dentry;
+	struct inode *inode = dentry->d_inode;
+	struct smb_sb_info *server = server_from_dentry(dentry);
 	unsigned int mask = (S_IFREG | S_IFDIR | S_IRWXU | S_IRWXG | S_IRWXO);
 	int error, changed, refresh = 0;
 	struct smb_fattr fattr;
 
-	error = -EIO;
-	if (!dentry)
-	{
-		printk("smb_notify_change: no dentry for inode!\n");
-		goto out;
-	}
-
-	error = smb_revalidate_inode(inode);
+	error = smb_revalidate_inode(dentry);
 	if (error)
 		goto out;
 
@@ -613,7 +578,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, fattr.f_mode,attr->ia_mode);
 
 out:
 	if (refresh)
-		smb_refresh_inode(inode);
+		smb_refresh_inode(dentry);
 	return error;
 }
 

@@ -67,6 +67,7 @@ typedef __signed__ long s64;
 typedef unsigned long u64;
 
 #endif
+#define BITS_PER_LONG _MIPS_SZLONG
 
 #endif /* __KERNEL__ */
 

@@ -3,7 +3,7 @@
 /*
  *	sc26198.h  -- SC26198 UART hardware info.
  *
- *	Copyright (C) 1995-1997  Stallion Technologies (support@stallion.oz.au).
+ *	Copyright (C) 1995-1998  Stallion Technologies (support@stallion.oz.au).
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -28,15 +28,15 @@
 /*
  *	Define the number of async ports per sc26198 uart device.
  */
-#define	SC26198_PORTS	8
+#define	SC26198_PORTS		8
 
 /*
  *	Baud rate timing clocks. All derived from a master 14.7456 MHz clock.
  */
-#define	SC26198_MASTERCLOCK		14745600L
-#define	SC26198_DCLK			(SC26198_MASTERCLOCK)
-#define	SC26198_CCLK			(SC26198_MASTERCLOCK / 2)
-#define	SC26198_BCLK			(SC26198_MASTERCLOCK / 4)
+#define	SC26198_MASTERCLOCK	14745600L
+#define	SC26198_DCLK		(SC26198_MASTERCLOCK)
+#define	SC26198_CCLK		(SC26198_MASTERCLOCK / 2)
+#define	SC26198_BCLK		(SC26198_MASTERCLOCK / 4)
 
 /*
  *	Define internal FIFO sizes for the 26198 ports.

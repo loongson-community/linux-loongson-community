@@ -5,7 +5,8 @@
  *      1992, 1993, 1994  Eric Youngdale Modified for ISO9660 filesystem.
  *      1994  Eberhard Moenkeberg - multi session handling.
  *      1995  Mark Dobie - allow mounting of some weird VideoCDs and PhotoCDs.
- *
+ *	1997  Gordon Chaffee - Joliet CDs
+ *	1998  Eric Lammerts - ISO9660 Level 3
  */
 
 #include <linux/config.h>
@@ -79,7 +80,6 @@ struct iso9660_options{
   char cruft;
   char unhide;
   unsigned char check;
-  unsigned char conversion;
   unsigned int blocksize;
   mode_t mode;
   gid_t gid;
@@ -98,7 +98,6 @@ static int parse_options(char *options, struct iso9660_options * popt)
 	popt->cruft = 'n';
 	popt->unhide = 'n';
 	popt->check = 's';		/* default: strict */
-	popt->conversion = 'b';		/* default: no conversion */
 	popt->blocksize = 1024;
 	popt->mode = S_IRUGO | S_IXUGO; /* r-x for all.  The disc could
 					   be shared with DOS machines so
@@ -166,12 +165,14 @@ static int parse_options(char *options, struct iso9660_options * popt)
 			else return 0;
 		}
 		else if (!strcmp(this_char,"conv") && value) {
-			if (value[0] && !value[1] && strchr("btma",*value))
-				popt->conversion = *value;
-			else if (!strcmp(value,"binary")) popt->conversion = 'b';
-			else if (!strcmp(value,"text")) popt->conversion = 't';
-			else if (!strcmp(value,"mtext")) popt->conversion = 'm';
-			else if (!strcmp(value,"auto")) popt->conversion = 'a';
+			/* no conversion is done anymore;
+			   we still accept the same mount options,
+			   but ignore them */
+			if (value[0] && !value[1] && strchr("btma",*value)) ;
+			else if (!strcmp(value,"binary")) ;
+			else if (!strcmp(value,"text")) ;
+			else if (!strcmp(value,"mtext")) ;
+			else if (!strcmp(value,"auto")) ;
 			else return 0;
 		}
 		else if (value &&
@@ -254,17 +255,17 @@ static unsigned int isofs_get_last_session(kdev_t dev)
 	  printk("isofs.inode: XA disk: %s\n", ms_info.xa_flag ? "yes":"no");
 	  printk("isofs.inode: vol_desc_start = %d\n", ms_info.addr.lba);
 	}
-#endif 0
+#endif
       if (i==0)
 #if WE_OBEY_THE_WRITTEN_STANDARDS
         if (ms_info.xa_flag) /* necessary for a valid ms_info.addr */
-#endif WE_OBEY_THE_WRITTEN_STANDARDS
+#endif
           vol_desc_start=ms_info.addr.lba;
     }
   return vol_desc_start;
 }
 
-struct super_block *isofs_read_super(struct super_block *s,void *data,
+struct super_block *isofs_read_super(struct super_block *s, void *data,
 				     int silent)
 {
 	struct buffer_head	      * bh = NULL;
@@ -301,7 +302,6 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	printk("check = %c\n", opt.check);
 	printk("cruft = %c\n", opt.cruft);
 	printk("unhide = %c\n", opt.unhide);
-	printk("conversion = %c\n", opt.conversion);
 	printk("blocksize = %d\n", opt.blocksize);
 	printk("gid = %d\n", opt.gid);
 	printk("uid = %d\n", opt.uid);
@@ -571,7 +571,6 @@ struct super_block *isofs_read_super(struct super_block *s,void *data,
 	s->u.isofs_sb.s_mapping = opt.map;
 	s->u.isofs_sb.s_rock = (opt.rock == 'y' ? 2 : 0);
 	s->u.isofs_sb.s_name_check = opt.check;
-	s->u.isofs_sb.s_conversion = opt.conversion;
 	s->u.isofs_sb.s_cruft = opt.cruft;
 	s->u.isofs_sb.s_unhide = opt.unhide;
 	s->u.isofs_sb.s_uid = opt.uid;
@@ -657,17 +656,24 @@ int isofs_statfs (struct super_block *sb, struct statfs *buf, int bufsiz)
 
 int isofs_bmap(struct inode * inode,int block)
 {
+	off_t b_off, offset, size;
+	struct inode *ino;
+	unsigned int firstext;
+	unsigned long nextino;
+	int i;
 
 	if (block<0) {
 		printk("_isofs_bmap: block<0");
 		return 0;
 	}
 
+	b_off = block << ISOFS_BUFFER_BITS(inode);
+
 	/*
 	 * If we are beyond the end of this file, don't give out any
 	 * blocks.
 	 */
-	if( (block << ISOFS_BUFFER_BITS(inode)) >= inode->i_size )
+	if( b_off > inode->i_size )
 	  {
 	    off_t	max_legal_read_offset;
 
@@ -681,7 +687,7 @@ int isofs_bmap(struct inode * inode,int block)
 	     */
 	    max_legal_read_offset = (inode->i_size + PAGE_SIZE - 1)
 	      & ~(PAGE_SIZE - 1);
-	    if( (block << ISOFS_BUFFER_BITS(inode)) >= max_legal_read_offset )
+	    if( b_off >= max_legal_read_offset )
 	      {
 
 		printk("_isofs_bmap: block>= EOF(%d, %ld)\n", block,
@@ -690,7 +696,42 @@ int isofs_bmap(struct inode * inode,int block)
 	    return 0;
 	  }
 
-	return (inode->u.isofs_i.i_first_extent >> ISOFS_BUFFER_BITS(inode)) + block;
+	offset = 0;
+	firstext = inode->u.isofs_i.i_first_extent;
+	size = inode->u.isofs_i.i_section_size;
+	nextino = inode->u.isofs_i.i_next_section_ino;
+#ifdef DEBUG
+	printk("first inode: inode=%lu nextino=%lu firstext=%u size=%lu\n",
+		inode->i_ino, nextino, firstext, size);
+#endif
+	i = 0;
+	while(b_off >= offset + size) {
+		offset += size;
+
+		if(nextino == 0) return 0;
+		ino = iget(inode->i_sb, nextino);
+		if(!ino) return 0;
+		firstext = ino->u.isofs_i.i_first_extent;
+		size = ino->u.isofs_i.i_section_size;
+#ifdef DEBUG
+		printk("read inode: inode=%lu ino=%lu nextino=%lu firstext=%u size=%lu\n",
+			inode->i_ino, nextino, ino->u.isofs_i.i_next_section_ino, firstext, size);
+#endif
+		nextino = ino->u.isofs_i.i_next_section_ino;
+		iput(ino);
+		
+		if(++i > 100) {
+			printk("isofs_bmap: More than 100 file sections ?!?, aborting...\n");
+			printk("isofs_bmap: ino=%lu block=%d firstext=%u size=%u nextino=%lu\n",
+				inode->i_ino, block, firstext, (unsigned)size, nextino);
+			return 0;
+		}
+	}
+#ifdef DEBUG
+	printk("isofs_bmap: mapped inode:block %lu:%d to block %lu\n",
+		inode->i_ino, block, (b_off - offset + firstext) >> ISOFS_BUFFER_BITS(inode));
+#endif
+	return (b_off - offset + firstext) >> ISOFS_BUFFER_BITS(inode);
 }
 
 
@@ -702,6 +743,82 @@ static void test_and_set_uid(uid_t *p, uid_t value)
 		printk("Resetting to %d\n", value);
 #endif
 	}
+}
+
+static int isofs_read_level3_size(struct inode * inode)
+{
+	unsigned long bufsize = ISOFS_BUFFER_SIZE(inode);
+	struct buffer_head * bh = NULL;
+	struct iso_directory_record * raw_inode = NULL;		/* quiet gcc */
+	unsigned char *pnt = NULL;
+	void *cpnt = NULL;
+	int block = 0;			/* Quiet GCC */
+	unsigned long ino;
+	int i;
+
+	inode->i_size = 0;
+	inode->u.isofs_i.i_next_section_ino = 0;
+	ino = inode->i_ino;
+	i = 0;
+	do {
+		if(i > 100) {
+			printk("isofs_read_level3_size: More than 100 file sections ?!?, aborting...\n"
+			       "isofs_read_level3_size: inode=%lu ino=%lu\n", inode->i_ino, ino);
+			return 0;
+		}
+
+		if(bh == NULL || block != ino >> ISOFS_BUFFER_BITS(inode)) {
+			if(bh) brelse(bh);
+			block = ino >> ISOFS_BUFFER_BITS(inode);
+			if (!(bh=bread(inode->i_dev,block, bufsize))) {
+				printk("unable to read i-node block");
+				return 1;
+			}
+		}
+		pnt = ((unsigned char *) bh->b_data
+		       + (ino & (bufsize - 1)));
+	
+		if ((ino & (bufsize - 1)) + *pnt > bufsize){
+		        int frag1, offset;
+	
+			offset = (ino & (bufsize - 1));
+			frag1 = bufsize - offset;
+		        cpnt = kmalloc(*pnt,GFP_KERNEL);
+			if (cpnt == NULL) {
+				printk(KERN_INFO "NoMem ISO inode %lu\n",inode->i_ino);
+				brelse(bh);
+				return 1;
+			}
+			memcpy(cpnt, bh->b_data + offset, frag1);
+			brelse(bh);
+			if (!(bh = bread(inode->i_dev,++block, bufsize))) {
+				kfree(cpnt);
+				printk("unable to read i-node block");
+				return 1;
+			}
+			offset += *pnt - bufsize;
+			memcpy((char *)cpnt+frag1, bh->b_data, offset);
+			pnt = ((unsigned char *) cpnt);
+		}
+		
+		if(*pnt == 0) {
+			ino = (ino & ~(ISOFS_BLOCK_SIZE - 1)) + ISOFS_BLOCK_SIZE;
+			continue;
+		}
+		raw_inode = ((struct iso_directory_record *) pnt);
+
+		inode->i_size += isonum_733 (raw_inode->size);
+		if(i == 1) inode->u.isofs_i.i_next_section_ino = ino;
+
+		ino += *pnt;
+		if (cpnt) {
+			kfree (cpnt);
+			cpnt = NULL;
+		}
+		i++;
+	} while(raw_inode->flags[-inode->i_sb->u.isofs_sb.s_high_sierra] & 0x80);
+	brelse(bh);
+	return 0;
 }
 
 void isofs_read_inode(struct inode * inode)
@@ -746,8 +863,15 @@ void isofs_read_inode(struct inode * inode)
 	}
 	inode->i_uid = inode->i_sb->u.isofs_sb.s_uid;
 	inode->i_gid = inode->i_sb->u.isofs_sb.s_gid;
-	inode->i_size = isonum_733 (raw_inode->size);
 	inode->i_blocks = inode->i_blksize = 0;
+
+
+	inode->u.isofs_i.i_section_size = isonum_733 (raw_inode->size);
+	if(raw_inode->flags[-high_sierra] & 0x80) {
+		if(isofs_read_level3_size(inode)) goto fail;
+	} else {
+		inode->i_size = isonum_733 (raw_inode->size);
+	}
 
 	/* There are defective discs out there - we do this to protect
 	   ourselves.  A cdrom will never contain more than 800Mb */
@@ -798,21 +922,6 @@ void isofs_read_inode(struct inode * inode)
 	inode->u.isofs_i.i_first_extent = (isonum_733 (raw_inode->extent) +
 					   isonum_711 (raw_inode->ext_attr_length))
 	  << inode -> i_sb -> u.isofs_sb.s_log_zone_size;
-
-	switch (inode->i_sb->u.isofs_sb.s_conversion){
-	case 'a':
-	  inode->u.isofs_i.i_file_format = ISOFS_FILE_UNKNOWN; /* File type */
-	  break;
-	case 'b':
-	  inode->u.isofs_i.i_file_format = ISOFS_FILE_BINARY; /* File type */
-	  break;
-	case 't':
-	  inode->u.isofs_i.i_file_format = ISOFS_FILE_TEXT; /* File type */
-	  break;
-	case 'm':
-	  inode->u.isofs_i.i_file_format = ISOFS_FILE_TEXT_M; /* File type */
-	  break;
-	}
 
 /* Now test for possible Rock Ridge extensions which will override some of
    these numbers in the inode structure. */

@@ -36,27 +36,28 @@
  
 static struct video_device *video_device[VIDEO_NUM_DEVICES];
 
-/*
- *	Initialiser list
- */
- 
-struct video_init
-{
-	char *name;
-	int (*init)(struct video_init *);
-};
-
+#ifdef CONFIG_VIDEO_BT848
 extern int init_bttv_cards(struct video_init *);
+#endif
+#ifdef CONFIG_VIDEO_CQCAM
+extern int init_colour_qcams(struct video_init *);
+#endif
+#ifdef CONFIG_VIDEO_BWQCAM
+extern int init_bw_qcams(struct video_init *);
+#endif
 
 static struct video_init video_init_list[]={
 #ifdef CONFIG_VIDEO_BT848
 	{"bttv", init_bttv_cards},
 #endif	
+#ifdef CONFIG_VIDEO_CQCAM
+	{"c-qcam", init_colour_qcams},
+#endif	
 #ifdef CONFIG_VIDEO_BWQCAM
-	{"bttv", init_bw_qcams},
+	{"bw-qcam", init_bw_qcams},
 #endif	
 #ifdef CONFIG_VIDEO_PMS
-	{"bttv", init_pms_cards},
+	{"PMS", init_pms_cards}, 	/* not defined anywhere */
 #endif	
 	{"end", NULL}
 };
@@ -69,7 +70,6 @@ static struct video_init video_init_list[]={
 static ssize_t video_read(struct file *file,
 	char *buf, size_t count, loff_t *ppos)
 {
-	int err;
 	struct video_device *vfl=video_device[MINOR(file->f_dentry->d_inode->i_rdev)];
 	return vfl->read(vfl, buf, count, file->f_flags&O_NONBLOCK);
 }
@@ -82,7 +82,6 @@ static ssize_t video_read(struct file *file,
 static ssize_t video_write(struct file *file, const char *buf, 
 	size_t count, loff_t *ppos)
 {
-	int err;
 	struct video_device *vfl=video_device[MINOR(file->f_dentry->d_inode->i_rdev)];
 	return vfl->write(vfl, buf, count, file->f_flags&O_NONBLOCK);
 }

@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp.c,v 1.75 1997/10/16 02:57:34 davem Exp $
+ * Version:	$Id: tcp.c,v 1.77 1998/01/15 22:40:18 freitag Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -196,6 +196,7 @@
  *					improvement.
  *	Stefan Magdalinski	:	adjusted tcp_readable() to fix FIONREAD
  *	Willy Konynenberg	:	Transparent proxying support.
+ *	Mike McLagan		:	Routing by source
  *		Keith Owens	:	Do proper meging with partial SKB's in
  *					tcp_do_sendmsg to avoid burstiness.
  *		Eric Schenk	:	Fix fast close down bug with
@@ -491,9 +492,9 @@ void tcp_time_wait(struct sock *sk)
 
 
 /*
- *	Walk down the receive queue counting readable data until we hit the 
- *	end or we find a gap in the received data queue (ie a frame missing 
- *	that needs sending to us). 
+ *	Walk down the receive queue counting readable data.
+ *
+ *	Must be called with the socket lock held.
  */
 
 static int tcp_readable(struct sock *sk)
@@ -502,14 +503,11 @@ static int tcp_readable(struct sock *sk)
 	unsigned long amount;
 	struct sk_buff *skb;
 	int sum;
-	unsigned long flags;
 
 	SOCK_DEBUG(sk, "tcp_readable: %p - ",sk);
 
-	save_flags(flags);
-	cli();
-	if (sk == NULL || (skb = skb_peek(&sk->receive_queue)) == NULL) {
-		restore_flags(flags);
+	skb = skb_peek(&sk->receive_queue);
+	if (skb == NULL) {
 		SOCK_DEBUG(sk, "empty\n");
 	  	return(0);
 	}
@@ -520,7 +518,7 @@ static int tcp_readable(struct sock *sk)
 	/* Do until a push or until we are out of data. */
 	do {
 		/* Found a hole so stops here. */
-		if (before(counted, skb->seq))	 	
+		if (before(counted, skb->seq))	/* should not happen */
 			break;
 
 		/* Length - header but start from where we are up to
@@ -562,7 +560,6 @@ static int tcp_readable(struct sock *sk)
 		skb = skb->next;
 	} while(skb != (struct sk_buff *)&sk->receive_queue);
 
-	restore_flags(flags);
 	SOCK_DEBUG(sk, "got %lu bytes.\n",amount);
 	return(amount);
 }
@@ -589,13 +586,13 @@ static unsigned int tcp_listen_poll(struct sock *sk, poll_table *wait)
  *	take care of normal races (between the test and the event) and we don't
  *	go look at any of the socket buffers directly.
  */
-unsigned int tcp_poll(struct socket *sock, poll_table *wait)
+unsigned int tcp_poll(struct file * file, struct socket *sock, poll_table *wait)
 {
 	unsigned int mask;
 	struct sock *sk = sock->sk;
 	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
 
-	poll_wait(sk->sleep, wait);
+	poll_wait(file, sk->sleep, wait);
 	if (sk->state == TCP_LISTEN)
 		return tcp_listen_poll(sk, wait);
 
@@ -604,24 +601,30 @@ unsigned int tcp_poll(struct socket *sock, poll_table *wait)
 		mask = POLLERR;
 	/* Connected? */
 	if ((1 << sk->state) & ~(TCPF_SYN_SENT|TCPF_SYN_RECV)) {
+		int space;
+
 		if (sk->shutdown & RCV_SHUTDOWN)
 			mask |= POLLHUP;
-
+		
 		if ((tp->rcv_nxt != sk->copied_seq) &&
 		    (sk->urg_seq != sk->copied_seq ||
 		     tp->rcv_nxt != sk->copied_seq+1 ||
 		     sk->urginline || !sk->urg_data))
 			mask |= POLLIN | POLLRDNORM;
 
-		/* FIXME: this assumed sk->mtu is correctly maintained.
-		 * I see no evidence this is the case. -- erics
-		 */
-		if (!(sk->shutdown & SEND_SHUTDOWN) &&
-		     (sock_wspace(sk) >= sk->mtu+128+sk->prot->max_header))
+#if 1 /* This needs benchmarking and real world tests */
+		space = (sk->dst_cache ? sk->dst_cache->pmtu : sk->mss) + 128;
+		if (space < 2048) /* XXX */
+			space = 2048;
+#else /* 2.0 way */
+		/* More than half of the socket queue free? */
+		space = atomic_read(&sk->wmem_alloc) / 2;
+#endif
+		/* Always wake the user up when an error occured */
+		if (sock_wspace(sk) >= space)
 			mask |= POLLOUT | POLLWRNORM;
-
 		if (sk->urg_data)
-			mask |= POLLPRI;
+		    	mask |= POLLPRI;
 	}
 	return mask;
 }
@@ -659,40 +662,8 @@ int tcp_ioctl(struct sock *sk, int cmd, unsigned long arg)
 			return put_user(amount, (int *)arg);
 		}
 		default:
-			return(-EINVAL);
+			return(-ENOIOCTLCMD);
 	};
-}
-
-
-/* 
- *	This routine builds a generic TCP header. 
- *	It also builds in the RFC1323 Timestamp.
- *	It can't (unfortunately) do SACK as well.
- */
- 
-extern __inline void tcp_build_header(struct tcphdr *th, struct sock *sk, int push)
-{
-	struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
-
-	memcpy(th,(void *) &(sk->dummy_th), sizeof(*th));
-	th->seq = htonl(sk->write_seq);
-	th->psh =(push == 0) ? 1 : 0;
-	th->ack_seq = htonl(tp->rcv_nxt);
-	th->window = htons(tcp_select_window(sk));
-
-	/* FIXME: could use the inline found in tcp_output.c as well.
-	 * Probably that means we should move these up to an include file. --erics
-	 */
-	if (tp->tstamp_ok) {
-		__u32 *ptr = (__u32 *)(th+1);
-		*ptr++ = ntohl((TCPOPT_NOP << 24) | (TCPOPT_NOP << 16)
-			| (TCPOPT_TIMESTAMP << 8) | TCPOLEN_TIMESTAMP);
-		/* FIXME: Not sure it's worth setting these here already, but I'm
-	 	 * also not sure we replace them on all paths later. --erics
-		 */
-		*ptr++ = jiffies;
-		*ptr++ = tp->ts_recent;
-	}
 }
 
 /*
@@ -700,12 +671,18 @@ extern __inline void tcp_build_header(struct tcphdr *th, struct sock *sk, int pu
  */
 static void wait_for_tcp_connect(struct sock * sk)
 {
+	struct task_struct *tsk = current;
+	struct wait_queue wait = { tsk, NULL };
+
+	tsk->state = TASK_INTERRUPTIBLE;
+	add_wait_queue(sk->sleep, &wait);
 	release_sock(sk);
-	cli();
-	if (((1 << sk->state) & ~(TCPF_ESTABLISHED|TCPF_CLOSE_WAIT)) &&
-	    sk->err == 0)
-		interruptible_sleep_on(sk->sleep);
-	sti();
+
+	if (((1 << sk->state) & ~(TCPF_ESTABLISHED|TCPF_CLOSE_WAIT)) && sk->err == 0)
+		schedule();
+
+	tsk->state = TASK_RUNNING;
+	remove_wait_queue(sk->sleep, &wait);
 	lock_sock(sk);
 }
 
@@ -814,7 +791,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 			struct sk_buff *skb;
 
 			if (err)
-				return (err);
+				return -EFAULT;
 
 			/* Stop on errors. */
 			if (sk->err) {
@@ -932,7 +909,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 			 */
 			tmp = tp->af_specific->build_net_header(sk, skb);
 			if (tmp < 0) {
-				kfree_skb(skb, FREE_WRITE);
+				kfree_skb(skb);
 				if (copied)
 					return(copied);
 				return(tmp);
@@ -942,7 +919,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 			  skb_put(skb,tp->tcp_header_len);
 
 			seglen -= copy;
-			tcp_build_header(skb->h.th, sk, seglen || iovlen);
+			tcp_build_header_data(skb->h.th, sk, seglen || iovlen);
 			/* FIXME: still need to think about SACK options here. */
 
 			if (flags & MSG_OOB) {
@@ -950,7 +927,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 				skb->h.th->urg_ptr = ntohs(copy);
 			}
 
-			skb->csum = csum_partial_copy_from_user(from,
+			skb->csum = csum_and_copy_from_user(from,
 					skb_put(skb, copy), copy, 0, &err);
 
 			from += copy;
@@ -968,7 +945,7 @@ int tcp_do_sendmsg(struct sock *sk, int iovlen, struct iovec *iov, int flags)
 	sk->err = 0;
 
 	if (err)
-		return (err);
+		return -EFAULT;
 
 	return copied;
 }
@@ -1070,14 +1047,15 @@ static inline void tcp_eat_skb(struct sock *sk, struct sk_buff * skb)
 	sk->tp_pinfo.af_tcp.delayed_acks++;
 
 	__skb_unlink(skb, &sk->receive_queue);
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 }
 
 
 static void cleanup_rbuf(struct sock *sk)
 {
 	struct sk_buff *skb;
-
+	struct tcp_opt *tp;
+	
 	/* NOTE! The socket must be locked, so that we don't get
 	 * a messed-up receive queue.
 	 */
@@ -1089,11 +1067,12 @@ static void cleanup_rbuf(struct sock *sk)
 
 	SOCK_DEBUG(sk, "sk->rspace = %lu\n", sock_rspace(sk));
 
+	tp = &(sk->tp_pinfo.af_tcp);
+
   	/* We send a ACK if the sender is blocked
   	 * else let tcp_data deal with the acking policy.
   	 */
-	if (sk->tp_pinfo.af_tcp.delayed_acks) {
-		struct tcp_opt *tp = &(sk->tp_pinfo.af_tcp);
+	if (tp->delayed_acks) {
 		__u32 rcv_wnd;
 
 	 	/* FIXME: double check this rule, then check against
@@ -1457,7 +1436,7 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 	 *  reader process may not have drained the data yet!
 	 */
 	while((skb=skb_dequeue(&sk->receive_queue))!=NULL)
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 
 	/*  Timeout is not the same thing - however the code likes
 	 *  to send both the same way (sigh).
@@ -1466,17 +1445,25 @@ void tcp_close(struct sock *sk, unsigned long timeout)
 		tcp_send_fin(sk);
 
 	if (timeout) {
-		cli();
+		struct task_struct *tsk = current;
+		struct wait_queue wait = { tsk, NULL };
+
+		tsk->state = TASK_INTERRUPTIBLE;
+		tsk->timeout = timeout;
+		add_wait_queue(sk->sleep, &wait);
 		release_sock(sk);
-		current->timeout = timeout;
-		while(closing(sk) && current->timeout) {
-			interruptible_sleep_on(sk->sleep);
-			if (signal_pending(current))
+
+		while (closing(sk)) {
+			schedule();
+			if (signal_pending(tsk) || !tsk->timeout)
 				break;
 		}
-		current->timeout=0;
+
+		tsk->timeout=0;
+		tsk->state = TASK_RUNNING;
+		remove_wait_queue(sk->sleep, &wait);
+		
 		lock_sock(sk);
-		sti();
 	}
 
 	/* Now that the socket is dead, if we are in the FIN_WAIT2 state
@@ -1536,43 +1523,45 @@ struct sock *tcp_accept(struct sock *sk, int flags)
 	struct sock *newsk = NULL;
 	int error;
 
+	lock_sock(sk); 
+
 	/* We need to make sure that this socket is listening,
 	 * and that it has something pending.
 	 */
 	error = EINVAL;
 	if (sk->state != TCP_LISTEN)
-		goto no_listen;
+		goto out;
 
-	lock_sock(sk);
-
+	/* Find already established connection */
 	req = tcp_find_established(tp, &prev);
-	if (req) {
-got_new_connect:
-		tcp_synq_unlink(tp, req, prev);
-		newsk = req->sk;
-		tcp_openreq_free(req);
-		sk->ack_backlog--;
-		/* FIXME: need to check here if socket has already
-		 * an soft_err or err set.
-		 * We have two options here then: reply (this behaviour matches
-		 * Solaris) or return the error to the application (old Linux)
-		 */
-		error = 0;
-out:
-		release_sock(sk);
-no_listen:
-		sk->err = error;
-		return newsk;
+	if (!req) {
+	    /* If this is a non blocking socket don't sleep */
+	    error = EAGAIN;
+	    if (flags & O_NONBLOCK)
+		goto out;
+	    
+	    error = ERESTARTSYS;
+	    req = wait_for_connect(sk, &prev);
+	    if (!req) 
+		goto out;
+	    error = 0; 
 	}
 
-	error = EAGAIN;
-	if (flags & O_NONBLOCK)
-		goto out;
-	req = wait_for_connect(sk, &prev);
-	if (req)
-		goto got_new_connect;
-	error = ERESTARTSYS;
-	goto out;
+	tcp_synq_unlink(tp, req, prev);
+	newsk = req->sk;
+	tcp_openreq_free(req);
+	sk->ack_backlog--;  /* XXX */
+
+	/* FIXME: need to check here if newsk has already
+	 * an soft_err or err set.
+	 * We have two options here then: reply (this behaviour matches
+	 * Solaris) or return the error to the application (old Linux)
+	 */
+	error = 0;
+ out:
+	release_sock(sk);
+	sk->err = error;
+	return newsk;
 }
 
 /*

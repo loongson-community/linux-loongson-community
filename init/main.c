@@ -33,9 +33,6 @@
 #include <linux/major.h>
 #include <linux/blk.h>
 #include <linux/init.h>
-#ifdef CONFIG_ROOT_NFS
-#include <linux/nfs_fs.h>
-#endif
 
 #include <asm/system.h>
 #include <asm/io.h>
@@ -80,8 +77,10 @@ extern long powermac_init(unsigned long, unsigned long);
 extern void sysctl_init(void);
 extern void filescache_init(void);
 extern void signals_init(void);
+extern void dquot_init(void);
 
 extern void smp_setup(char *str, int *ints);
+extern void ioapic_pirq_setup(char *str, int *ints);
 extern void no_scroll(char *str, int *ints);
 extern void swap_setup(char *str, int *ints);
 extern void buff_setup(char *str, int *ints);
@@ -91,6 +90,9 @@ extern void msmouse_setup(char *str, int *ints);
 extern void console_setup(char *str, int *ints);
 #ifdef CONFIG_PRINTER
 extern void lp_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_JOYSTICK
+extern void js_setup(char *str, int *ints);
 #endif
 extern void eth_setup(char *str, int *ints);
 #ifdef CONFIG_ARCNET_COM20020
@@ -108,12 +110,24 @@ extern void com90xx_setup(char *str, int *ints);
 #ifdef CONFIG_DECNET
 extern void decnet_setup(char *str, int *ints);
 #endif
+#ifdef CONFIG_BLK_DEV_XD
 extern void xd_setup(char *str, int *ints);
+extern void xd_manual_geo_init(char *str, int *ints);
+#endif
 #ifdef CONFIG_BLK_DEV_IDE
 extern void ide_setup(char *);
 #endif
-#ifdef CONFIG_BLK_DEV_EZ
-extern void ez_setup(char *str, int *ints);
+#ifdef CONFIG_PARIDE_PD
+extern void pd_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_PARIDE_PF
+extern void pf_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_PARIDE_PT
+extern void pt_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_PARIDE_PCD
+extern void pcd_setup(char *str, int *ints);
 #endif
 extern void floppy_setup(char *str, int *ints);
 extern void st_setup(char *str, int *ints);
@@ -138,10 +152,8 @@ extern void ibmmca_scsi_setup(char *str, int *ints);
 extern void in2000_setup(char *str, int *ints);
 extern void NCR53c406a_setup(char *str, int *ints);
 extern void wd7000_setup(char *str, int *ints);
-#ifdef NOTDEF
-extern void ppa_setup(char *str, int *ints);
-#endif
 extern void scsi_luns_setup(char *str, int *ints);
+extern void scsi_logging_setup(char *str, int *ints);
 extern void sound_setup(char *str, int *ints);
 extern void reboot_setup(char *str, int *ints);
 extern void video_setup(char *str, int *ints);
@@ -170,9 +182,6 @@ extern void sonycd535_setup(char *str, int *ints);
 #ifdef CONFIG_GSCD
 extern void gscd_setup(char *str, int *ints);
 #endif CONFIG_GSCD
-#ifdef CONFIG_BPCD
-extern void bpcd_setup(char *str, int *ints);
-#endif CONFIG_BPCD
 #ifdef CONFIG_CM206
 extern void cm206_setup(char *str, int *ints);
 #endif CONFIG_CM206
@@ -263,6 +272,12 @@ extern void plip_setup(char *str, int *ints);
 #ifdef CONFIG_HFMODEM
 extern void hfmodem_setup(char *str, int *ints);
 #endif
+#ifdef CONFIG_IP_PNP
+extern void ip_auto_config_setup(char *str, int *ints);
+#endif
+#ifdef CONFIG_ROOT_NFS
+extern void nfs_root_setup(char *str, int *ints);
+#endif
 #ifdef CONFIG_FTAPE
 extern void ftape_setup(char *str, int *ints);
 #endif
@@ -278,6 +293,10 @@ extern void ipc_init(void);
 #endif
 
 extern int serial_console;
+
+#ifdef CONFIG_MD_BOOT
+extern void md_setup(char *str,int *ints) __init;
+#endif
 
 #ifdef __sparc__
 extern int serial_console;
@@ -309,13 +328,6 @@ kdev_t real_root_dev;
 int root_mountflags = MS_RDONLY;
 char *execute_command = NULL;
 
-#ifdef CONFIG_ROOT_NFS
-char nfs_root_name[NFS_ROOT_NAME_LEN] = { "default" };
-char nfs_root_addrs[NFS_ROOT_ADDRS_LEN] = { "" };
-#endif
-
-extern void dquot_init(void);
-
 static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
 static char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
 
@@ -333,6 +345,7 @@ char *get_options(char *str, int *ints)
 	return(cur);
 }
 
+#ifdef CONFIG_PROFILE
 __initfunc(static void profile_setup(char *str, int *ints))
 {
 	if (ints[0] > 0)
@@ -344,16 +357,137 @@ __initfunc(static void profile_setup(char *str, int *ints))
 		prof_shift = 2;
 #endif
 }
+#endif
 
-struct {
+
+static struct dev_name_struct {
+	const char *name;
+	const int num;
+} root_dev_names[] __initdata = {
+#ifdef CONFIG_ROOT_NFS
+	{ "nfs",     0x00ff },
+#endif
+#ifdef CONFIG_BLK_DEV_IDE
+	{ "hda",     0x0300 },
+	{ "hdb",     0x0340 },
+	{ "hdc",     0x1600 },
+	{ "hdd",     0x1640 },
+	{ "hde",     0x2100 },
+	{ "hdf",     0x2140 },
+	{ "hdg",     0x2200 },
+	{ "hdh",     0x2240 },
+#endif
+#ifdef CONFIG_BLK_DEV_SD
+	{ "sda",     0x0800 },
+	{ "sdb",     0x0810 },
+	{ "sdc",     0x0820 },
+	{ "sdd",     0x0830 },
+	{ "sde",     0x0840 },
+#endif
+#ifdef CONFIG_ATARI_ACSI
+	{ "ada",     0x1c00 },
+	{ "adb",     0x1c10 },
+	{ "adc",     0x1c20 },
+	{ "add",     0x1c30 },
+	{ "ade",     0x1c40 },
+#endif
+#ifdef CONFIG_BLK_DEV_FD
+	{ "fd",      0x0200 },
+#endif
+#ifdef CONFIG_MD_BOOT
+	{ "md",      0x0900 },	     
+#endif     
+#ifdef CONFIG_BLK_DEV_XD
+	{ "xda",     0x0d00 },
+	{ "xdb",     0x0d40 },
+#endif
+#ifdef CONFIG_BLK_DEV_RAM
+	{ "ram",     0x0100 },
+#endif
+#ifdef CONFIG_BLK_DEV_SR
+	{ "scd",     0x0b00 },
+#endif
+#ifdef CONFIG_MCD
+	{ "mcd",     0x1700 },
+#endif
+#ifdef CONFIG_CDU535
+	{ "cdu535",  0x1800 },
+	{ "sonycd",  0x1800 },
+#endif
+#ifdef CONFIG_AZTCD
+	{ "aztcd",   0x1d00 },
+#endif
+#ifdef CONFIG_CM206
+	{ "cm206cd", 0x2000 },
+#endif
+#ifdef CONFIG_GSCD
+	{ "gscd",    0x1000 },
+#endif
+#ifdef CONFIG_SBPCD
+	{ "sbpcd",   0x1900 },
+#endif
+#ifdef CONFIG_BLK_DEV_PS2
+	{ "eda",     0x2400 },
+#endif
+#if CONFIG_APBLOCK
+	{ "apblock", APBLOCK_MAJOR << 8},
+#endif
+#if CONFIG_DDV
+	{ "ddv", DDV_MAJOR << 8},
+#endif
+	{ NULL, 0 }
+};
+
+__initfunc(kdev_t name_to_kdev_t(char *line))
+{
+	int base = 0;
+	if (strncmp(line,"/dev/",5) == 0) {
+		struct dev_name_struct *dev = root_dev_names;
+		line += 5;
+		do {
+			int len = strlen(dev->name);
+			if (strncmp(line,dev->name,len) == 0) {
+				line += len;
+				base = dev->num;
+				break;
+			}
+			dev++;
+		} while (dev->name);
+	}
+	return to_kdev_t(base + simple_strtoul(line,NULL,base?10:16));
+}
+
+__initfunc(static void root_dev_setup(char *line, int *num))
+{
+	ROOT_DEV = name_to_kdev_t(line);
+}
+
+/*
+ * List of kernel command line parameters. The first table lists parameters
+ * which are subject to values parsing (leading numbers are converted to
+ * an array of ints and chopped off the string), the second table contains
+ * the few exceptions which obey their own syntax rules.
+ */
+
+struct kernel_param {
 	const char *str;
 	void (*setup_func)(char *, int *);
-} bootsetups[] __initdata = {
+};
+
+static struct kernel_param cooked_params[] __initdata = {
+/* FIXME: make PNP just become reserve_setup */
+#ifndef CONFIG_KERNEL_PNP_RESOURCE
 	{ "reserve=", reserve_setup },
+#else
+	{ "reserve=", pnp_reserve_setup },
+#endif
+#ifdef CONFIG_PROFILE
 	{ "profile=", profile_setup },
+#endif
 #ifdef __SMP__
 	{ "nosmp", smp_setup },
 	{ "maxcpus=", smp_setup },
+	{ "pirq=", ioapic_pirq_setup },
 #endif
 #ifdef CONFIG_BLK_DEV_RAM
 	{ "ramdisk_start=", ramdisk_start_setup },
@@ -401,8 +535,12 @@ struct {
 #ifdef CONFIG_PRINTER
         { "lp=", lp_setup },
 #endif
+#ifdef CONFIG_JOYSTICK
+	{ "js=", js_setup },
+#endif
 #ifdef CONFIG_SCSI
 	{ "max_scsi_luns=", scsi_luns_setup },
+	{ "scsi_logging=", scsi_logging_setup },
 #endif
 #ifdef CONFIG_SCSI_ADVANSYS
 	{ "advansys=", advansys_setup },
@@ -472,19 +610,14 @@ struct {
 #ifdef CONFIG_SCSI_7000FASST
 	{ "wd7000=", wd7000_setup},
 #endif
-#ifdef NOTDEF /* CONFIG_SCSI_PPA */
-        { "ppa=", ppa_setup },
-#endif
 #ifdef CONFIG_SCSI_IBMMCA
         { "ibmmcascsi=", ibmmca_scsi_setup },
 #endif
 #ifdef CONFIG_BLK_DEV_XD
 	{ "xd=", xd_setup },
+	{ "xd_geo=", xd_manual_geo_init },
 #endif
-#ifdef CONFIG_BLK_DEV_EZ
-	{ "ez=", ez_setup },
-#endif
-#ifdef CONFIG_BLK_DEV_FD
+#if defined(CONFIG_BLK_DEV_FD) || defined(CONFIG_AMIGA_FLOPPY) || defined(CONFIG_ATARI_FLOPPY)
 	{ "floppy=", floppy_setup },
 #endif
 #ifdef CONFIG_BLK_DEV_PS2
@@ -512,9 +645,6 @@ struct {
 #ifdef CONFIG_GSCD
 	{ "gscd=", gscd_setup },
 #endif CONFIG_GSCD
-#ifdef CONFIG_BPCD
-	{ "bpcd=", bpcd_setup },
-#endif CONFIG_BPCD
 #ifdef CONFIG_CM206
 	{ "cm206=", cm206_setup },
 #endif CONFIG_CM206
@@ -598,7 +728,7 @@ struct {
 #ifdef CONFIG_PLIP
 	{ "plip=", plip_setup },
 #endif
-#ifdef CONFIG_SOUNDMODEM
+#ifdef CONFIG_HFMODEM
 	{ "hfmodem=", hfmodem_setup },
 #endif
 #ifdef CONFIG_PMAC_CONSOLE
@@ -607,6 +737,33 @@ struct {
 #endif
 #ifdef CONFIG_FTAPE
 	{ "ftape=", ftape_setup},
+#endif
+#ifdef CONFIG_MD_BOOT
+	{ "md=", md_setup},
+#endif
+	{ 0, 0 }
+};
+
+static struct kernel_param raw_params[] __initdata = {
+	{ "root=", root_dev_setup },
+#ifdef CONFIG_ROOT_NFS
+	{ "nfsroot=", nfs_root_setup },
+	{ "nfsaddrs=", ip_auto_config_setup },
+#endif
+#ifdef CONFIG_IP_PNP
+	{ "ip=", ip_auto_config_setup },
+#endif
+#ifdef CONFIG_PARIDE_PD
+	{ "pd.", pd_setup },
+#endif
+#ifdef CONFIG_PARIDE_PCD
+	{ "pcd.", pcd_setup },
+#endif
+#ifdef CONFIG_PARIDE_PF
+	{ "pf.", pf_setup },
+#endif
+#ifdef CONFIG_PARIDE_PT
+        { "pt.", pt_setup },
 #endif
 	{ 0, 0 }
 };
@@ -635,13 +792,11 @@ __initfunc(static void ramdisk_size(char *str, int *ints))
 	if (ints[0] > 0 && ints[1] >= 0)
 		rd_size = ints[1];
 }
-
 #endif
 
 __initfunc(static int checksetup(char *line))
 {
-	int i = 0;
-	int ints[11];
+	int i, ints[11];
 
 #ifdef CONFIG_BLK_DEV_IDE
 	/* ide driver needs the basic string, rather than pre-processed values */
@@ -650,13 +805,19 @@ __initfunc(static int checksetup(char *line))
 		return 1;
 	}
 #endif
-	while (bootsetups[i].str) {
-		int n = strlen(bootsetups[i].str);
-		if (!strncmp(line,bootsetups[i].str,n)) {
-			bootsetups[i].setup_func(get_options(line+n,ints), ints);
+	for (i=0; raw_params[i].str; i++) {
+		int n = strlen(raw_params[i].str);
+		if (!strncmp(line,raw_params[i].str,n)) {
+			raw_params[i].setup_func(line+n, NULL);
 			return 1;
 		}
-		i++;
+	}
+	for (i=0; cooked_params[i].str; i++) {
+		int n = strlen(cooked_params[i].str);
+		if (!strncmp(line,cooked_params[i].str,n)) {
+			cooked_params[i].setup_func(get_options(line+n, ints), ints);
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -677,7 +838,7 @@ __initfunc(void calibrate_delay(void))
 
 	loops_per_sec = (1<<12);
 
-	printk("Calibrating delay loop.. ");
+	printk("Calibrating delay loop... ");
 	while (loops_per_sec <<= 1) {
 		/* wait for "start of" clock tick */
 		ticks = jiffies;
@@ -708,75 +869,9 @@ __initfunc(void calibrate_delay(void))
 /* finally, adjust loops per second in terms of seconds instead of clocks */	
 	loops_per_sec *= HZ;
 /* Round the value and print it */	
-	printk("ok - %lu.%02lu BogoMIPS\n",
+	printk("%lu.%02lu BogoMIPS\n",
 		(loops_per_sec+2500)/500000,
 		((loops_per_sec+2500)/5000) % 100);
-}
-
-__initfunc(static void parse_root_dev(char * line))
-{
-	int base = 0;
-	static struct dev_name_struct {
-		const char *name;
-		const int num;
-	} devices[] = {
-		{ "nfs",     0x00ff },
-		{ "hda",     0x0300 },
-		{ "hdb",     0x0340 },
-		{ "hdc",     0x1600 },
-		{ "hdd",     0x1640 },
-		{ "hde",     0x2100 },
-		{ "hdf",     0x2140 },
-		{ "hdg",     0x2200 },
-		{ "hdh",     0x2240 },
-		{ "sda",     0x0800 },
-		{ "sdb",     0x0810 },
-		{ "sdc",     0x0820 },
-		{ "sdd",     0x0830 },
-		{ "sde",     0x0840 },
-		{ "ada",     0x1c00 },
-		{ "adb",     0x1c10 },
-		{ "adc",     0x1c20 },
-		{ "add",     0x1c30 },
-		{ "ade",     0x1c40 },
-		{ "fd",      0x0200 },
-		{ "xda",     0x0d00 },
-		{ "xdb",     0x0d40 },
-		{ "ram",     0x0100 },
-		{ "scd",     0x0b00 },
-		{ "mcd",     0x1700 },
-		{ "cdu535",  0x1800 },
-		{ "aztcd",   0x1d00 },
-		{ "cm206cd", 0x2000 },
-		{ "gscd",    0x1000 },
-		{ "sbpcd",   0x1900 },
-		{ "sonycd",  0x1800 },
-		{ "eda",     0x2400 },
-		{ "eza",     0x2800 },
-		{ "bpcd",    0x2900 },
-#if CONFIG_APBLOCK
-		{ "apblock", APBLOCK_MAJOR << 8},
-#endif
-#if CONFIG_DDV
-		{ "ddv", DDV_MAJOR << 8},
-#endif
-		{ NULL, 0 }
-	};
-
-	if (strncmp(line,"/dev/",5) == 0) {
-		struct dev_name_struct *dev = devices;
-		line += 5;
-		do {
-			int len = strlen(dev->name);
-			if (strncmp(line,dev->name,len) == 0) {
-				line += len;
-				base = dev->num;
-				break;
-			}
-			dev++;
-		} while (dev->name);
-	}
-	ROOT_DEV = to_kdev_t(base + simple_strtoul(line,NULL,base?10:16));
 }
 
 /*
@@ -784,7 +879,6 @@ __initfunc(static void parse_root_dev(char * line))
  * the command line, and fills in the arguments/environment to init
  * as appropriate. Any cmd-line option is taken to be an environment
  * variable if it contains the character '='.
- *
  *
  * This routine also checks for options meant for the kernel.
  * These options are not given to init - they are for internal kernel use only.
@@ -805,33 +899,6 @@ __initfunc(static void parse_options(char *line))
 		/*
 		 * check for kernel options first..
 		 */
-		if (!strncmp(line,"root=",5)) {
-			parse_root_dev(line+5);
-			continue;
-		}
-#ifdef CONFIG_ROOT_NFS
-		if (!strncmp(line, "nfsroot=", 8)) {
-			int n;
-			line += 8;
-			ROOT_DEV = MKDEV(UNNAMED_MAJOR, 255);
-			if (line[0] == '/' || line[0] == ',' || (line[0] >= '0' && line[0] <= '9')) {
-				strncpy(nfs_root_name, line, sizeof(nfs_root_name));
-				nfs_root_name[sizeof(nfs_root_name)-1] = '\0';
-				continue;
-			}
-			n = strlen(line) + strlen(NFS_ROOT);
-			if (n >= sizeof(nfs_root_name))
-				line[sizeof(nfs_root_name) - strlen(NFS_ROOT) - 1] = '\0';
-			sprintf(nfs_root_name, NFS_ROOT, line);
-			continue;
-		}
-		if (!strncmp(line, "nfsaddrs=", 9)) {
-			line += 9;
-			strncpy(nfs_root_addrs, line, sizeof(nfs_root_addrs));
-			nfs_root_addrs[sizeof(nfs_root_addrs)-1] = '\0';
-			continue;
-		}
-#endif
 		if (!strcmp(line,"ro")) {
 			root_mountflags |= MS_RDONLY;
 			continue;
@@ -942,6 +1009,7 @@ __initfunc(asmlinkage void start_kernel(void))
  * Interrupts are still disabled. Do necessary setups, then
  * enable them
  */
+	printk(linux_banner);
 	setup_arch(&command_line, &memory_start, &memory_end);
 	memory_start = paging_init(memory_start,memory_end);
 	trap_init();
@@ -949,17 +1017,11 @@ __initfunc(asmlinkage void start_kernel(void))
 	sched_init();
 	time_init();
 	parse_options(command_line);
+	memory_start = console_init(memory_start,memory_end);
 #ifdef CONFIG_MODULES
 	init_modules();
 #endif
 #ifdef CONFIG_PROFILE
-	if (!prof_shift)
-#ifdef CONFIG_PROFILE_SHIFT
-		prof_shift = CONFIG_PROFILE_SHIFT;
-#else
-		prof_shift = 2;
-#endif
-#endif
 	if (prof_shift) {
 		prof_buffer = (unsigned int *) memory_start;
 		/* only text is profiled */
@@ -968,13 +1030,22 @@ __initfunc(asmlinkage void start_kernel(void))
 		memory_start += prof_len * sizeof(unsigned int);
 		memset(prof_buffer, 0, prof_len * sizeof(unsigned int));
 	}
+#endif
 #ifdef CONFIG_SBUS
 	memory_start = sbus_init(memory_start,memory_end);
 #endif
-#ifdef CONFIG_PMAC
+#if defined(CONFIG_PMAC) || defined(CONFIG_CHRP)
 	memory_start = powermac_init(memory_start, memory_end);
 #endif
+#if defined(CONFIG_PCI) && defined(CONFIG_PCI_CONSOLE)
+	memory_start = pci_init(memory_start,memory_end);
+#endif
+#if HACK
 	memory_start = console_init(memory_start,memory_end);
+#endif
+#if defined(CONFIG_PCI) && !defined(CONFIG_PCI_CONSOLE)
+	memory_start = pci_init(memory_start,memory_end);
+#endif
 #ifdef CONFIG_REMOTE_DEBUG
 	set_debug_traps();
 	/* breakpoint(); */	/* execute a BREAK insn */
@@ -1016,10 +1087,8 @@ __initfunc(asmlinkage void start_kernel(void))
 	ipc_init();
 #endif
 	dquot_init();
-	sti();
 	check_bugs();
 
-	printk(linux_banner);
 	printk("POSIX conformance testing by UNIFIX\n");
 #ifdef __SMP__
 	smp_init();
@@ -1118,14 +1187,16 @@ static int init(void * unused)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	root_mountflags = real_root_mountflags;
-	if (mount_initrd && ROOT_DEV != real_root_dev && ROOT_DEV == MKDEV(RAMDISK_MAJOR,0)) {
+	if (mount_initrd && ROOT_DEV != real_root_dev
+	    && MAJOR(ROOT_DEV) == RAMDISK_MAJOR && MINOR(ROOT_DEV) == 0) {
 		int error;
 		int i, pid;
 
 		pid = kernel_thread(do_linuxrc, "/linuxrc", SIGCHLD);
 		if (pid>0)
 			while (pid != wait(&i));
-		if (real_root_dev != MKDEV(RAMDISK_MAJOR, 0)) {
+		if (MAJOR(real_root_dev) != RAMDISK_MAJOR
+		     || MINOR(real_root_dev) != 0) {
 			error = change_root(real_root_dev,"/initrd");
 			if (error)
 				printk(KERN_ERR "Change root to /initrd: "
@@ -1149,7 +1220,7 @@ static int init(void * unused)
 	 * trying to recover a really broken machine.
 	 */
 
-	if(execute_command)
+	if (execute_command)
 		execve(execute_command,argv_init,envp_init);
 	execve("/sbin/init",argv_init,envp_init);
 	execve("/etc/init",argv_init,envp_init);

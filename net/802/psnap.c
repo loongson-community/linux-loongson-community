@@ -10,7 +10,6 @@
  *		2 of the License, or (at your option) any later version.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
@@ -67,7 +66,7 @@ int snap_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 		return proto->rcvfunc(skb, dev, &psnap_packet_type);
 	}
 	skb->sk = NULL;
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 

@@ -47,7 +47,6 @@ static const char *version =
 #include <linux/version.h>
 #endif
 
-#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/types.h>
@@ -114,8 +113,8 @@ static int irq = 0;		/* Default IRQ */
  *	the same and just have different names or only have minor differences
  *	such as more IO ports. As this driver is tested it will
  *	become more clear on exactly what cards are supported. The driver
- *	defaults to using Dayna mode. To change the drivers mode adjust
- *	drivers/net/CONFIG, and the line COPS_OPTS = -DDAYNA to -DTANGENT.
+ *	defaults to using Dayna mode. To change the drivers mode, simply
+ *	select Dayna or Tangent mode when configuring the kernel.
  *
  *      This driver should support:
  *      TANGENT driver mode:
@@ -747,7 +746,7 @@ static void cops_rx(struct device *dev)
         {
                 printk(KERN_NOTICE "%s: Bad packet length of %d bytes.\n", dev->name, pkt_len);
                 lp->stats.tx_errors++;
-                kfree_skb(skb, FREE_READ);
+                kfree_skb(skb);
                 return;
         }
 
@@ -755,7 +754,7 @@ static void cops_rx(struct device *dev)
         if(rsp_type == LAP_INIT_RSP)
         {
                 lp->node_acquire = skb->data[0];        /* Nodeid taken from received packet. */
-                kfree_skb(skb, FREE_READ);
+                kfree_skb(skb);
                 return;
         }
 
@@ -764,7 +763,7 @@ static void cops_rx(struct device *dev)
         {
                 printk("%s: Bad packet type %d.\n", dev->name, rsp_type);
                 lp->stats.tx_errors++;
-                kfree_skb(skb, FREE_READ);
+                kfree_skb(skb);
                 return;
         }
 
@@ -856,7 +855,7 @@ static int cops_send_packet(struct sk_buff *skb, struct device *dev)
 		dev->trans_start = jiffies;
 	}
 
-	dev_kfree_skb (skb, FREE_WRITE);
+	dev_kfree_skb (skb);
 	dev->tbusy = 0;
 
         return 0;

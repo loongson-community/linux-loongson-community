@@ -1,47 +1,26 @@
 /*
- * PCI defines and function prototypes
- * Copyright 1994, Drew Eckhardt
+ *    $Id: pci.h,v 1.51 1997/12/27 13:55:23 mj Exp $
  *
- * For more information, please consult 
+ *    PCI defines and function prototypes
+ *    Copyright 1994, Drew Eckhardt
+ *    Copyright 1997, Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *
+ *    For more information, please consult 
  * 
- * PCI BIOS Specification Revision
- * PCI Local Bus Specification
- * PCI System Design Guide
+ *    PCI BIOS Specification Revision
+ *    PCI Local Bus Specification
+ *    PCI System Design Guide
  *
- * PCI Special Interest Group
- * M/S HF3-15A
- * 5200 N.E. Elam Young Parkway
- * Hillsboro, Oregon 97124-6497
- * +1 (503) 696-2000 
- * +1 (800) 433-5177
+ *    PCI Special Interest Group
+ *    M/S HF3-15A
+ *    5200 N.E. Elam Young Parkway
+ *    Hillsboro, Oregon 97124-6497
+ *    +1 (503) 696-2000 
+ *    +1 (800) 433-5177
  * 
- * Manuals are $25 each or $50 for all three, plus $7 shipping 
- * within the United States, $35 abroad.
+ *    Manuals are $25 each or $50 for all three, plus $7 shipping 
+ *    within the United States, $35 abroad.
  */
-
-
-
-/*	PROCEDURE TO REPORT NEW PCI DEVICES
- * We are trying to collect information on new PCI devices, using
- * the standard PCI identification procedure. If some warning is
- * displayed at boot time, please report 
- *	- /proc/pci
- *	- your exact hardware description. Try to find out
- *	  which device is unknown. It may be your mainboard chipset.
- *	  PCI-CPU bridge or PCI-ISA bridge.
- *	- If you can't find the actual information in your hardware
- *	  booklet, try to read the references of the chip on the board.
- *	- Send all that to linux-pcisupport@cck.uni-kl.de
- *	  and I'll add your device to the list as soon as possible
- *
- * BEFORE you send a mail, please check the latest linux releases
- * to be sure it has not been recently added.
- *
- *        Thanks
- *		Jens Maurer
- */
-
-
 
 #ifndef LINUX_PCI_H
 #define LINUX_PCI_H
@@ -102,7 +81,7 @@
  */
 #define PCI_BASE_ADDRESS_0	0x10	/* 32 bits */
 #define PCI_BASE_ADDRESS_1	0x14	/* 32 bits */
-#define PCI_BASE_ADDRESS_2	0x18	/* 32 bits */
+#define PCI_BASE_ADDRESS_2	0x18	/* 32 bits [htype 0 only] */
 #define PCI_BASE_ADDRESS_3	0x1c	/* 32 bits */
 #define PCI_BASE_ADDRESS_4	0x20	/* 32 bits */
 #define PCI_BASE_ADDRESS_5	0x24	/* 32 bits */
@@ -118,6 +97,7 @@
 #define  PCI_BASE_ADDRESS_IO_MASK	(~0x03)
 /* bit 1 is reserved if address_space = 1 */
 
+/* Header type 0 (normal devices) */
 #define PCI_CARDBUS_CIS		0x28
 #define PCI_SUBSYSTEM_ID	0x2c
 #define PCI_SUBSYSTEM_VENDOR_ID	0x2e  
@@ -130,6 +110,46 @@
 #define PCI_INTERRUPT_PIN	0x3d	/* 8 bits */
 #define PCI_MIN_GNT		0x3e	/* 8 bits */
 #define PCI_MAX_LAT		0x3f	/* 8 bits */
+
+/* Header type 1 (PCI-to-PCI bridges) */
+#define PCI_PRIMARY_BUS		0x18	/* Primary bus number */
+#define PCI_SECONDARY_BUS	0x19	/* Secondary bus number */
+#define PCI_SUBORDINATE_BUS	0x1a	/* Highest bus number behind the bridge */
+#define PCI_SEC_LATENCY_TIMER	0x1b	/* Latency timer for secondary interface */
+#define PCI_IO_BASE		0x1c	/* I/O range behind the bridge */
+#define PCI_IO_LIMIT		0x1d
+#define  PCI_IO_RANGE_TYPE_MASK	0x0f	/* I/O bridging type */
+#define  PCI_IO_RANGE_TYPE_16	0x00
+#define  PCI_IO_RANGE_TYPE_32	0x01
+#define  PCI_IO_RANGE_MASK	~0x0f
+#define PCI_SEC_STATUS		0x1e	/* Secondary status register, only bit 14 used */
+#define PCI_MEMORY_BASE		0x20	/* Memory range behind */
+#define PCI_MEMORY_LIMIT	0x22
+#define  PCI_MEMORY_RANGE_TYPE_MASK 0x0f
+#define  PCI_MEMORY_RANGE_MASK	~0x0f
+#define PCI_PREF_MEMORY_BASE	0x24	/* Prefetchable memory range behind */
+#define PCI_PREF_MEMORY_LIMIT	0x26
+#define  PCI_PREF_RANGE_TYPE_MASK 0x0f
+#define  PCI_PREF_RANGE_TYPE_32	0x00
+#define  PCI_PREF_RANGE_TYPE_64	0x01
+#define  PCI_PREF_RANGE_MASK	~0x0f
+#define PCI_PREF_BASE_UPPER32	0x28	/* Upper half of prefetchable memory range */
+#define PCI_PREF_LIMIT_UPPER32	0x2c
+#define PCI_IO_BASE_UPPER16	0x30	/* Upper half of I/O addresses */
+#define PCI_IO_LIMIT_UPPER16	0x32
+/* 0x34-0x3b is reserved */
+#define PCI_ROM_ADDRESS1	0x38	/* Same as PCI_ROM_ADDRESS, but for htype 1 */
+/* 0x3c-0x3d are same as for htype 0 */
+#define PCI_BRIDGE_CONTROL	0x3e
+#define  PCI_BRIDGE_CTL_PARITY	0x01	/* Enable parity detection on secondary interface */
+#define  PCI_BRIDGE_CTL_SERR	0x02	/* The same for SERR forwarding */
+#define  PCI_BRIDGE_CTL_NO_ISA	0x04	/* Disable bridging of ISA ports */
+#define  PCI_BRIDGE_CTL_VGA	0x08	/* Forward VGA addresses */
+#define  PCI_BRIDGE_CTL_MASTER_ABORT 0x20  /* Report master aborts */
+#define  PCI_BRIDGE_CTL_BUS_RESET 0x40	/* Secondary bus reset */
+#define  PCI_BRIDGE_CTL_FAST_BACK 0x80	/* Fast Back2Back enabled on secondary interface */
+
+/* Device classes and subclasses */
 
 #define PCI_CLASS_NOT_DEFINED		0x0000
 #define PCI_CLASS_NOT_DEFINED_VGA	0x0001
@@ -174,7 +194,6 @@
 #define  PCI_CLASS_BRIDGE_NUBUS		0x0606
 #define  PCI_CLASS_BRIDGE_CARDBUS	0x0607
 #define  PCI_CLASS_BRIDGE_OTHER		0x0680
-
 
 #define PCI_BASE_CLASS_COMMUNICATION	0x07
 #define PCI_CLASS_COMMUNICATION_SERIAL	0x0700
@@ -241,13 +260,14 @@
 #define PCI_DEVICE_ID_NCR_53C895	0x000c
 #define PCI_DEVICE_ID_NCR_53C885	0x000d
 #define PCI_DEVICE_ID_NCR_53C875	0x000f
-#define PCI_DEVICE_ID_NCR_53C876	0x008f
+#define PCI_DEVICE_ID_NCR_53C875J	0x008f
 
 #define PCI_VENDOR_ID_ATI		0x1002
 #define PCI_DEVICE_ID_ATI_68800		0x4158
 #define PCI_DEVICE_ID_ATI_215CT222	0x4354
 #define PCI_DEVICE_ID_ATI_210888CX	0x4358
 #define PCI_DEVICE_ID_ATI_215GB		0x4742
+#define PCI_DEVICE_ID_ATI_215GD		0x4744
 #define PCI_DEVICE_ID_ATI_215GP		0x4750
 #define PCI_DEVICE_ID_ATI_215GT		0x4754
 #define PCI_DEVICE_ID_ATI_215GTB	0x4755
@@ -261,6 +281,10 @@
 #define PCI_DEVICE_ID_VLSI_82C597	0x0009
 #define PCI_DEVICE_ID_VLSI_82C541	0x000c
 #define PCI_DEVICE_ID_VLSI_82C543	0x000d
+#define PCI_DEVICE_ID_VLSI_82C532	0x0101
+#define PCI_DEVICE_ID_VLSI_82C534	0x0102
+#define PCI_DEVICE_ID_VLSI_82C535	0x0104
+#define PCI_DEVICE_ID_VLSI_82C147	0x0105
 #define PCI_DEVICE_ID_VLSI_VAS96011	0x0702
 
 #define PCI_VENDOR_ID_ADL		0x1005
@@ -291,6 +315,7 @@
 #define PCI_DEVICE_ID_DEC_TULIP_PLUS	0x0014
 #define PCI_DEVICE_ID_DEC_21142		0x0019
 #define PCI_DEVICE_ID_DEC_21052		0x0021
+#define PCI_DEVICE_ID_DEC_21150		0x0022
 #define PCI_DEVICE_ID_DEC_21152		0x0024
 
 #define PCI_VENDOR_ID_CIRRUS		0x1013
@@ -313,7 +338,10 @@
 #define PCI_DEVICE_ID_IBM_FIRE_CORAL	0x000a
 #define PCI_DEVICE_ID_IBM_TR		0x0018
 #define PCI_DEVICE_ID_IBM_82G2675	0x001d
+#define PCI_DEVICE_ID_IBM_MCA		0x0020
 #define PCI_DEVICE_ID_IBM_82351		0x0022
+#define PCI_DEVICE_ID_IBM_SERVERAID	0x002e
+#define PCI_DEVICE_ID_IBM_MPEG2		0x007d
 
 #define PCI_VENDOR_ID_WD		0x101c
 #define PCI_DEVICE_ID_WD_7197		0x3296
@@ -323,6 +351,7 @@
 #define PCI_DEVICE_ID_AMD_SCSI		0x2020
 
 #define PCI_VENDOR_ID_TRIDENT		0x1023
+#define PCI_DEVICE_ID_TRIDENT_9397	0x9397
 #define PCI_DEVICE_ID_TRIDENT_9420	0x9420
 #define PCI_DEVICE_ID_TRIDENT_9440	0x9440
 #define PCI_DEVICE_ID_TRIDENT_9660	0x9660
@@ -336,6 +365,7 @@
 #define PCI_DEVICE_ID_MATROX_MIL	0x0519
 #define PCI_DEVICE_ID_MATROX_MYS	0x051A
 #define PCI_DEVICE_ID_MATROX_MIL_2	0x051b
+#define PCI_DEVICE_ID_MATROX_MIL_2_AGP	0x051f
 #define PCI_DEVICE_ID_MATROX_MGA_IMP	0x0d10
 
 #define PCI_VENDOR_ID_CT		0x102c
@@ -356,8 +386,8 @@
 #define PCI_VENDOR_ID_SI		0x1039
 #define PCI_DEVICE_ID_SI_6201		0x0001
 #define PCI_DEVICE_ID_SI_6202		0x0002
-#define PCI_DEVICE_ID_SI_6205		0x0205
 #define PCI_DEVICE_ID_SI_503		0x0008
+#define PCI_DEVICE_ID_SI_6205		0x0205
 #define PCI_DEVICE_ID_SI_501		0x0406
 #define PCI_DEVICE_ID_SI_496		0x0496
 #define PCI_DEVICE_ID_SI_601		0x0601
@@ -372,12 +402,12 @@
 #define PCI_DEVICE_ID_HP_J2585A		0x1030
 #define PCI_DEVICE_ID_HP_J2585B		0x1031
 
-#define PCI_VENDOR_ID_HOLTEK		0x9412
-#define PCI_DEVICE_ID_HOLTEK_6565	0x6565
-
 #define PCI_VENDOR_ID_PCTECH		0x1042
 #define PCI_DEVICE_ID_PCTECH_RZ1000	0x1000
 #define PCI_DEVICE_ID_PCTECH_RZ1001	0x1001
+#define PCI_DEVICE_ID_PCTECH_SAMURAI_0	0x3000
+#define PCI_DEVICE_ID_PCTECH_SAMURAI_1	0x3010
+#define PCI_DEVICE_ID_PCTECH_SAMURAI_IDE 0x3020
 
 #define PCI_VENDOR_ID_DPT               0x1044   
 #define PCI_DEVICE_ID_DPT               0xa400  
@@ -391,6 +421,7 @@
 #define PCI_DEVICE_ID_OPTI_82C701	0xc701
 #define PCI_DEVICE_ID_OPTI_82C814	0xc814
 #define PCI_DEVICE_ID_OPTI_82C822	0xc822
+#define PCI_DEVICE_ID_OPTI_82C825	0xd568
 
 #define PCI_VENDOR_ID_SGS		0x104a
 #define PCI_DEVICE_ID_SGS_2000		0x0008
@@ -406,6 +437,7 @@
 #define PCI_DEVICE_ID_TI_TVP4020	0x3d07
 #define PCI_DEVICE_ID_TI_PCI1130	0xac12
 #define PCI_DEVICE_ID_TI_PCI1131	0xac15
+#define PCI_DEVICE_ID_TI_PCI1250	0xac16
 
 #define PCI_VENDOR_ID_OAK		0x104e
 #define PCI_DEVICE_ID_OAK_OTI107	0x0107
@@ -456,11 +488,22 @@
 #define PCI_DEVICE_ID_QLOGIC_ISP1020	0x1020
 #define PCI_DEVICE_ID_QLOGIC_ISP1022	0x1022
 
+#define PCI_VENDOR_ID_CYRIX		0x1078
+#define PCI_DEVICE_ID_CYRIX_5510	0x0000
+#define PCI_DEVICE_ID_CYRIX_PCI_MASTER	0x0001
+#define PCI_DEVICE_ID_CYRIX_5520	0x0002
+#define PCI_DEVICE_ID_CYRIX_5530_LEGACY	0x0100
+#define PCI_DEVICE_ID_CYRIX_5530_SMI	0x0101
+#define PCI_DEVICE_ID_CYRIX_5530_IDE	0x0102
+#define PCI_DEVICE_ID_CYRIX_5530_AUDIO	0x0103
+#define PCI_DEVICE_ID_CYRIX_5530_VIDEO	0x0104
+
 #define PCI_VENDOR_ID_LEADTEK		0x107d
 #define PCI_DEVICE_ID_LEADTEK_805	0x0000
 
 #define PCI_VENDOR_ID_CONTAQ		0x1080
 #define PCI_DEVICE_ID_CONTAQ_82C599	0x0600
+/* ??? Alpha SX164 has reference to device nr 0xc693 as a CYPRESS bridge.  */
 
 #define PCI_VENDOR_ID_FOREX		0x1083
 
@@ -489,6 +532,8 @@
 
 #define PCI_VENDOR_ID_BROOKTREE		0x109e
 #define PCI_DEVICE_ID_BROOKTREE_848	0x0350
+#define PCI_DEVICE_ID_BROOKTREE_849A	0x0351
+#define PCI_DEVICE_ID_BROOKTREE_8474	0x8474
 
 #define PCI_VENDOR_ID_SIERRA		0x10a8
 #define PCI_DEVICE_ID_SIERRA_STB	0x0000
@@ -503,6 +548,9 @@
 
 #define PCI_VENDOR_ID_DATABOOK		0x10b3
 #define PCI_DEVICE_ID_DATABOOK_87144	0xb106
+
+#define PCI_VENDOR_ID_PLX		0x10b5
+#define PCI_DEVICE_ID_PLX_9080		0x9080
 
 #define PCI_VENDOR_ID_3COM		0x10b7
 #define PCI_DEVICE_ID_3COM_3C590	0x5900
@@ -528,9 +576,11 @@
 #define PCI_DEVICE_ID_AL_M1523		0x1523
 #define PCI_DEVICE_ID_AL_M1531		0x1531
 #define PCI_DEVICE_ID_AL_M1533		0x1533
+#define PCI_DEVICE_ID_AL_M3307		0x3307
 #define PCI_DEVICE_ID_AL_M4803		0x5215
 #define PCI_DEVICE_ID_AL_M5219		0x5219
 #define PCI_DEVICE_ID_AL_M5229		0x5229
+#define PCI_DEVICE_ID_AL_M5237		0x5237
 
 #define PCI_VENDOR_ID_MITSUBISHI	0x10ba
 
@@ -546,6 +596,7 @@
 #define PCI_VENDOR_ID_ASP		0x10cd
 #define PCI_DEVICE_ID_ASP_ABP940	0x1200
 #define PCI_DEVICE_ID_ASP_ABP940U	0x1300
+#define PCI_DEVICE_ID_ASP_ABP940UW	0x2300
 
 #define PCI_VENDOR_ID_CERN		0x10dc
 #define PCI_DEVICE_ID_CERN_SPSB_PMC	0x0001
@@ -565,6 +616,7 @@
 #define PCI_VENDOR_ID_AMCC		0x10e8
 #define PCI_DEVICE_ID_AMCC_MYRINET	0x8043
 #define PCI_DEVICE_ID_AMCC_S5933	0x807d
+#define PCI_DEVICE_ID_AMCC_S5933_HEPC3	0x809c
 
 #define PCI_VENDOR_ID_INTERG		0x10ea
 #define PCI_DEVICE_ID_INTERG_1680	0x1680
@@ -579,6 +631,7 @@
 
 #define PCI_VENDOR_ID_INIT		0x1101
 #define PCI_DEVICE_ID_INIT_320P		0x9100
+#define PCI_DEVICE_ID_INIT_360P		0x9500
 
 #define PCI_VENDOR_ID_VIA		0x1106
 #define PCI_DEVICE_ID_VIA_82C505	0x0505
@@ -588,11 +641,13 @@
 #define PCI_DEVICE_ID_VIA_82C585	0x0585
 #define PCI_DEVICE_ID_VIA_82C586_0	0x0586
 #define PCI_DEVICE_ID_VIA_82C595	0x0595
+#define PCI_DEVICE_ID_VIA_82C597_0	0x0597
 #define PCI_DEVICE_ID_VIA_82C926	0x0926
 #define PCI_DEVICE_ID_VIA_82C416	0x1571
 #define PCI_DEVICE_ID_VIA_82C595_97	0x1595
 #define PCI_DEVICE_ID_VIA_82C586_2	0x3038
 #define PCI_DEVICE_ID_VIA_82C586_3	0x3040
+#define PCI_DEVICE_ID_VIA_82C597_1	0x8597
 
 #define PCI_VENDOR_ID_VORTEX		0x1119
 #define PCI_DEVICE_ID_VORTEX_GDT60x0	0x0000
@@ -642,8 +697,8 @@
 #define PCI_VENDOR_ID_PHILIPS		0x1131
 #define PCI_DEVICE_ID_PHILIPS_SAA7146	0x7146
 
-#define PCI_VENDOR_ID_PLX		0x113c
-#define PCI_DEVICE_ID_PLX_9060		0x0001
+#define PCI_VENDOR_ID_CYCLONE		0x113c
+#define PCI_DEVICE_ID_CYCLONE_SDK	0x0001
 
 #define PCI_VENDOR_ID_ALLIANCE		0x1142
 #define PCI_DEVICE_ID_ALLIANCE_PROMOTIO	0x3210
@@ -655,19 +710,31 @@
 #define PCI_DEVICE_ID_VMIC_VME		0x7587
 
 #define PCI_VENDOR_ID_DIGI		0x114f
+#define PCI_DEVICE_ID_DIGI_EPC		0x0002
 #define PCI_DEVICE_ID_DIGI_RIGHTSWITCH	0x0003
+#define PCI_DEVICE_ID_DIGI_XEM		0x0004
+#define PCI_DEVICE_ID_DIGI_XR		0x0005
+#define PCI_DEVICE_ID_DIGI_CX		0x0006
+#define PCI_DEVICE_ID_DIGI_XRJ		0x0009
+#define PCI_DEVICE_ID_DIGI_EPCJ		0x000a
 
 #define PCI_VENDOR_ID_MUTECH		0x1159
 #define PCI_DEVICE_ID_MUTECH_MV1000	0x0001
 
 #define PCI_VENDOR_ID_RENDITION		0x1163
 #define PCI_DEVICE_ID_RENDITION_VERITE	0x0001
+#define PCI_DEVICE_ID_RENDITION_VERITE2100 0x2000
 
 #define PCI_VENDOR_ID_TOSHIBA		0x1179
 #define PCI_DEVICE_ID_TOSHIBA_601	0x0601
+#define PCI_DEVICE_ID_TOSHIBA_TOPIC95	0x060a
+#define PCI_DEVICE_ID_TOSHIBA_TOPIC97	0x060f
 
 #define PCI_VENDOR_ID_RICOH		0x1180
 #define PCI_DEVICE_ID_RICOH_RL5C466	0x0466
+
+#define PCI_VENDOR_ID_ARTOP		0x1191
+#define PCI_DEVICE_ID_ARTOP_ATP850UF	0x0005
 
 #define PCI_VENDOR_ID_ZEITNET		0x1193
 #define PCI_DEVICE_ID_ZEITNET_1221	0x0001
@@ -684,6 +751,9 @@
 
 #define PCI_VENDOR_ID_NP		0x11bc
 #define PCI_DEVICE_ID_NP_PCI_FDDI	0x0001
+
+#define PCI_VENDOR_ID_ATT		0x11c1
+#define PCI_DEVICE_ID_ATT_L56XMF	0x0440
 
 #define PCI_VENDOR_ID_SPECIALIX		0x11cb
 #define PCI_DEVICE_ID_SPECIALIX_XIO	0x4000
@@ -716,11 +786,20 @@
 #define PCI_DEVICE_ID_CYCLOM_Z_Lo	0x0200
 #define PCI_DEVICE_ID_CYCLOM_Z_Hi	0x0201
 
+#define PCI_VENDOR_ID_O2		0x1217
+#define PCI_DEVICE_ID_O2_6832		0x6832
+
 #define PCI_VENDOR_ID_3DFX		0x121a
 #define PCI_DEVICE_ID_3DFX_VOODOO	0x0001
+#define PCI_DEVICE_ID_3DFX_VOODOO2	0x0002
 
 #define PCI_VENDOR_ID_SIGMADES		0x1236
 #define PCI_DEVICE_ID_SIGMADES_6425	0x6401
+
+#define PCI_VENDOR_ID_STALLION		0x124d
+#define PCI_DEVICE_ID_STALLION_ECHPCI832 0x0000
+#define PCI_DEVICE_ID_STALLION_ECHPCI864 0x0002
+#define PCI_DEVICE_ID_STALLION_EIOPCI	0x0003
 
 #define PCI_VENDOR_ID_OPTIBASE		0x1255
 #define PCI_DEVICE_ID_OPTIBASE_FORGE	0x1110
@@ -775,6 +854,10 @@
 #define PCI_DEVICE_ID_S3_PLATO_PXG	0x8902
 #define PCI_DEVICE_ID_S3_ViRGE_DXGX	0x8a01
 #define PCI_DEVICE_ID_S3_ViRGE_GX2	0x8a10
+#define PCI_DEVICE_ID_S3_ViRGE_MX	0x8c01
+#define PCI_DEVICE_ID_S3_ViRGE_MXP	0x8c02
+#define PCI_DEVICE_ID_S3_ViRGE_MXPMV	0x8c03
+#define PCI_DEVICE_ID_S3_SONICVIBES	0xca00
 
 #define PCI_VENDOR_ID_INTEL		0x8086
 #define PCI_DEVICE_ID_INTEL_82375	0x0482
@@ -833,12 +916,14 @@
 #define PCI_VENDOR_ID_ATRONICS		0x907f
 #define PCI_DEVICE_ID_ATRONICS_2015	0x2015
 
+#define PCI_VENDOR_ID_HOLTEK		0x9412
+#define PCI_DEVICE_ID_HOLTEK_6565	0x6565
+
 #define PCI_VENDOR_ID_ARK		0xedd8
 #define PCI_DEVICE_ID_ARK_STING		0xa091
 #define PCI_DEVICE_ID_ARK_STINGARK	0xa099
 #define PCI_DEVICE_ID_ARK_2000MT	0xa0a1
 
-#ifdef __KERNEL__
 /*
  * The PCI interface treats multi-function devices as independent
  * devices.  The slot/function address of each device is encoded
@@ -851,6 +936,7 @@
 #define PCI_SLOT(devfn)		(((devfn) >> 3) & 0x1f)
 #define PCI_FUNC(devfn)		((devfn) & 0x07)
 
+#ifdef __KERNEL__
 /*
  * There is one pci_dev structure for each slot-number/function-number
  * combination:
@@ -902,32 +988,16 @@ struct pci_bus {
 	unsigned char	subordinate;	/* max number of subordinate buses */
 };
 
-/*
- * This is used to map a vendor-id/device-id pair into device-specific
- * information.
- */
-struct pci_dev_info {
-	unsigned short	vendor;		/* vendor id */
-	unsigned short	device;		/* device id */
-
-	const char	*name;		/* device name */
-	unsigned char	bridge_type;	/* bridge type or 0xff */
-};
-
 extern struct pci_bus	pci_root;	/* root bus */
 extern struct pci_dev	*pci_devices;	/* list of all devices */
 
-
 extern unsigned long pci_init (unsigned long mem_start, unsigned long mem_end);
 
-extern unsigned int pci_scan_bus(struct pci_bus *bus, unsigned long *mem_startp);
-
-extern struct pci_dev_info *pci_lookup_dev (unsigned int vendor,
-					    unsigned int dev);
-extern const char *pci_strclass (unsigned int class);
-extern const char *pci_strvendor (unsigned int vendor);
-extern const char *pci_strdev (unsigned int vendor, unsigned int device);
+extern unsigned int pci_scan_bus (struct pci_bus *bus, unsigned long *mem_startp);
 
 extern int get_pci_list (char *buf);
+
+extern void pci_quirks_init (void);
+
 #endif /* __KERNEL__ */
 #endif /* LINUX_PCI_H */

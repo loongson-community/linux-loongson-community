@@ -10,6 +10,9 @@
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
  */
+/*
+ * Thomas Sailer   : ioctl code reworked (vmalloc/vfree removed)
+ */
 #include <linux/config.h>
 #include <linux/module.h>
 
@@ -103,7 +106,7 @@ static struct synth_info softsyn_info =
 
 static struct softsyn_devc sdev_info =
 {0};
-softsyn_devc   *devc = &sdev_info;
+softsyn_devc   *devc = &sdev_info;	/* used in softoss_rs.c */
 
 static struct voice_alloc_info *voice_alloc;
 
@@ -113,6 +116,7 @@ static void     compute_step(int voice);
 
 static volatile int tmr_running = 0;
 static int      voice_limit = 24;
+
 
 static void
 set_max_voices(int nr)
@@ -662,10 +666,11 @@ softsyn_callback(int dev, int parm)
 }
 #endif
 
-static void
-start_engine(softsyn_devc * devc)
+static void start_engine(softsyn_devc * devc)
 {
 	struct dma_buffparms *dmap;
+	int trig, n;
+	mm_segment_t fs;
 
 	if (!devc->audio_opened)
 		if (softsyn_open(devc->synthdev, 0) < 0)
@@ -673,46 +678,37 @@ start_engine(softsyn_devc * devc)
 
 	if (devc->audiodev >= num_audiodevs)
 		return;
-
+	
 	dmap = audio_devs[devc->audiodev]->dmap_out;
-
+	
 	devc->usecs = 0;
 	devc->next_event_usecs = ~0;
 	devc->control_rate = 64;
 	devc->control_counter = 0;
 
-	if (devc->engine_state == ES_STOPPED)
-	  {
-		  int             trig, n = 0;
-
-		  trig = 0;
-		  dma_ioctl(devc->audiodev, SNDCTL_DSP_SETTRIGGER, (caddr_t) & trig);
+	if (devc->engine_state == ES_STOPPED) {
+		n = trig = 0;
+		fs = get_fs();
+		set_fs(get_ds());
+		dma_ioctl(devc->audiodev, SNDCTL_DSP_SETTRIGGER, (caddr_t)&trig);
 #ifdef POLLED_MODE
-		  ;
-
-		  {
-			  poll_timer.expires = (1) + jiffies;
-			  add_timer(&poll_timer);
-		  };		/* Start polling */
+		poll_timer.expires = (1) + jiffies;
+		add_timer(&poll_timer);
+		/* Start polling */
 #else
-		  dmap->audio_callback = softsyn_callback;
-		  dmap->qhead = dmap->qtail = dmap->qlen = 0;
+		dmap->audio_callback = softsyn_callback;
+		dmap->qhead = dmap->qtail = dmap->qlen = 0;
 #endif
-
-		  while (dmap->qlen < devc->max_playahead && n++ < 2)
-			  do_resample(0);
-
-		  devc->engine_state = ES_STARTED;
-		  last_resample_jiffies = jiffies;
-		  resample_counter = 0;
-
-		  trig = PCM_ENABLE_OUTPUT;
-		  if (dma_ioctl(devc->audiodev, SNDCTL_DSP_SETTRIGGER,
-				(caddr_t) & trig) < 0)
-		    {
-			    printk("SoftOSS: Trigger failed\n");
-		    }
-	  }
+		while (dmap->qlen < devc->max_playahead && n++ < 2)
+			do_resample(0);
+		devc->engine_state = ES_STARTED;
+		last_resample_jiffies = jiffies;
+		resample_counter = 0;
+		trig = PCM_ENABLE_OUTPUT;
+		if (dma_ioctl(devc->audiodev, SNDCTL_DSP_SETTRIGGER, (caddr_t)&trig) < 0)
+			printk(KERN_ERR "SoftOSS: Trigger failed\n");
+		set_fs(fs);
+	}
 }
 
 static void
@@ -760,34 +756,27 @@ softsynth_hook(int cmd, int parm1, int parm2, unsigned long parm3)
 	return 0;
 }
 
-static int
-softsyn_ioctl(int dev,
-	      unsigned int cmd, caddr_t arg)
+static int softsyn_ioctl(int dev, unsigned int cmd, caddr_t arg)
 {
-	switch (cmd)
-	  {
+	switch (cmd) {
 
-	  case SNDCTL_SYNTH_INFO:
-		  softsyn_info.nr_voices = devc->maxvoice;
+	case SNDCTL_SYNTH_INFO:
+		softsyn_info.nr_voices = devc->maxvoice;
+		if (__copy_to_user(arg, &softsyn_info, sizeof(softsyn_info)))
+			return -EFAULT;
+		return 0;
 
-		  memcpy((&((char *) arg)[0]), (char *) &softsyn_info, sizeof(softsyn_info));
-		  return 0;
-		  break;
+	case SNDCTL_SEQ_RESETSAMPLES:
+		stop_engine(devc);
+		reset_samples(devc);
+		return 0;
+		  
+	case SNDCTL_SYNTH_MEMAVL:
+		return devc->ram_size - devc->ram_used;
 
-	  case SNDCTL_SEQ_RESETSAMPLES:
-		  stop_engine(devc);
-		  reset_samples(devc);
-		  return 0;
-		  break;
-
-	  case SNDCTL_SYNTH_MEMAVL:
-		  return devc->ram_size - devc->ram_used;
-		  break;
-
-	  default:
-		  return -EINVAL;
-	  }
-
+	default:
+		return -EINVAL;
+	}
 }
 
 static int
@@ -994,19 +983,19 @@ softsyn_start_note(int dev, int voice, int note, int volume)
 	return 0;
 }
 
-static int
-softsyn_open(int synthdev, int mode)
+static int softsyn_open(int synthdev, int mode)
 {
 	int             err;
 	extern int      softoss_dev;
 	int             frags = 0x7fff0007;	/* fragment size of 128 bytes */
+	mm_segment_t fs;
 
 	if (devc->audio_opened)	/* Already opened */
 		return 0;
 
 	softsynth_disabled = 0;
-	devc->finfo.mode = OPEN_WRITE;
-	devc->finfo.flags = 0;
+	devc->finfo.f_mode = FMODE_WRITE;
+	devc->finfo.f_flags = 0;
 
 	if (softoss_dev >= num_audiodevs)
 		softoss_dev = num_audiodevs - 1;
@@ -1035,8 +1024,11 @@ softsyn_open(int synthdev, int mode)
 
 	DDB(printk("SoftOSS: Using audio dev %d, speed %d, bits %d, channels %d\n", devc->audiodev, devc->speed, devc->bits, devc->channels));
 
+	fs = get_fs();
+	set_fs(get_ds());
 	dma_ioctl(devc->audiodev, SNDCTL_DSP_SETFRAGMENT, (caddr_t) & frags);
 	dma_ioctl(devc->audiodev, SNDCTL_DSP_GETBLKSIZE, (caddr_t) & devc->fragsize);
+	set_fs(fs);
 
 	if (devc->bits != 16 || devc->channels != 2)
 	  {
@@ -1055,14 +1047,18 @@ softsyn_open(int synthdev, int mode)
 	return 0;
 }
 
-static void
-softsyn_close(int synthdev)
+static void softsyn_close(int synthdev)
 {
+	mm_segment_t fs;
+
 	devc->engine_state = ES_STOPPED;
 #ifdef POLLED_MODE
-	del_timer(&poll_timer);;
+	del_timer(&poll_timer);
 #endif
+	fs = get_fs();
+	set_fs(get_ds());
 	dma_ioctl(devc->audiodev, SNDCTL_DSP_RESET, 0);
+	set_fs(fs);
 	if (devc->audio_opened)
 		audio_release((devc->audiodev << 4) | SND_DEV_DSP16, &devc->finfo);
 	devc->audio_opened = 0;
@@ -1509,14 +1505,14 @@ probe_softsyn(struct address_info *hw_config)
 	devc->bits = 16;
 	devc->max_playahead = 32;
 
-#ifdef SOFTOSS_RATE
-	devc->speed = SOFTOSS_RATE;
+#ifdef CONFIG_SOFTOSS_RATE
+	devc->speed = CONFIG_SOFTOSS_RATE;
 #else
 	devc->speed = 32000;
 #endif
 
-#ifdef SOFTOSS_VOICES
-	devc->default_max_voices = SOFTOSS_VOICES;
+#ifdef CONFIG_SOFTOSS_VOICES
+	devc->default_max_voices = CONFIG_SOFTOSS_VOICES;
 #else
 	devc->default_max_voices = 32;
 #endif

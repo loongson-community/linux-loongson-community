@@ -1,5 +1,5 @@
 /*
- *  $Id: joystick.c,v 1.2 1997/12/06 23:52:28 ralf Exp $
+ *  $Id: joystick.c,v 1.3 1997/12/16 05:35:12 ralf Exp $
  *
  *  Copyright (C) 1997 Vojtech Pavlik
  */
@@ -10,7 +10,6 @@
  *  and credits.
  */
 
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/ioport.h>
@@ -595,7 +594,7 @@ static unsigned int js_poll(struct file *file, poll_table *wait)
 	unsigned int minor = MINOR(file->f_dentry->d_inode->i_rdev);
  	curl = file->private_data;
 
-	poll_wait(&jsd[minor].wait, wait);
+	poll_wait(file, &jsd[minor].wait, wait);
 	if (GOF(curl->tail) != jsd[minor].ahead) 
 		return POLLIN | POLLRDNORM;
         return 0;

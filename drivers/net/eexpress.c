@@ -537,7 +537,7 @@ static int eexp_xmit(struct sk_buff *buf, struct device *dev)
 
 	        eexp_hw_tx_pio(dev,data,length);
 	}
-	dev_kfree_skb(buf, FREE_WRITE);
+	dev_kfree_skb(buf);
 	outb(SIRQ_en|irqrmap[dev->irq],dev->base_addr+SET_IRQ);
 	return 0;
 }
@@ -1558,10 +1558,10 @@ void cleanup_module(void)
 	for (this_dev = 0; this_dev < EEXP_MAX_CARDS; this_dev++) {
 		struct device *dev = &dev_eexp[this_dev];
 		if (dev->priv != NULL) {
+			unregister_netdev(dev);
 			kfree(dev->priv);
 			dev->priv = NULL;
 			release_region(dev->base_addr, EEXP_IO_EXTENT);
-			unregister_netdev(dev);
 		}
 	}
 }

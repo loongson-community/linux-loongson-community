@@ -9,12 +9,13 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  *
- *	Version: $Id: ipmr.c,v 1.28 1997/10/30 00:43:16 davem Exp $
+ *	Version: $Id: ipmr.c,v 1.29 1997/12/13 21:52:55 kuznet Exp $
  *
  *	Fixes:
  *	Michael Chastain	:	Incorrect size of copying.
  *	Alan Cox		:	Added the cache manager code
  *	Alan Cox		:	Fixed the clone/copy bug and device race.
+ *	Mike McLagan		:	Routing by source
  *	Malcolm Beattie		:	Buffer handling fixes.
  *	Alexey Kuznetsov	:	Double buffer free and other fixes.
  *	SVR Anand		:	Fixed several multicast bugs and problems.
@@ -113,6 +114,7 @@ struct device *ipmr_new_tunnel(struct vifctl *v)
 			in_dev = dev->ip_ptr;
 			if (in_dev == NULL && (in_dev = inetdev_init(dev)) == NULL)
 				goto failure;
+			in_dev->cnf.rp_filter = 0;
 
 			if (dev_open(dev))
 				goto failure;
@@ -135,7 +137,7 @@ static struct device * reg_dev;
 static int reg_vif_xmit(struct sk_buff *skb, struct device *dev)
 {
 	ipmr_cache_report(skb, reg_vif_num, IGMPMSG_WHOLEPKT);
-	kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb);
 	return 0;
 }
 
@@ -176,9 +178,12 @@ struct device *ipmr_reg_vif(struct vifctl *v)
 		kfree(dev);
 		return NULL;
 	}
+	dev->iflink = 0;
 
 	if ((in_dev = inetdev_init(dev)) == NULL)
 		goto failure;
+
+	in_dev->cnf.rp_filter = 0;
 
 	if (dev_open(dev))
 		goto failure;
@@ -215,7 +220,7 @@ static int vif_delete(int vifi)
 	vifc_map &= ~(1<<vifi);
 
 	if ((in_dev = dev->ip_ptr) != NULL)
-		in_dev->flags &= ~IFF_IP_MFORWARD;
+		in_dev->cnf.mc_forwarding = 0;
 
 	dev_set_allmulti(dev, -1);
 	ip_rt_multicast_event(in_dev);
@@ -319,7 +324,7 @@ static void ipmr_cache_delete(struct mfc_cache *cache)
 				netlink_unicast(rtnl, skb, NETLINK_CB(skb).pid, MSG_DONTWAIT);
 			} else
 #endif
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 		}
 	}
 	kfree_s(cache,sizeof(cache));
@@ -503,7 +508,7 @@ static int ipmr_cache_report(struct sk_buff *pkt, vifi_t vifi, int assert)
 	if ((ret=sock_queue_rcv_skb(mroute_socket,skb))<0) {
 		if (net_ratelimit())
 			printk(KERN_WARNING "mroute: pending queue full, dropping entries.\n");
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	}
 
 	return ret;
@@ -522,7 +527,7 @@ static int ipmr_cache_unresolved(struct mfc_cache *cache, vifi_t vifi, struct sk
 		 */
 		if(cache_resolve_queue_len>=10 || (cache=ipmr_cache_alloc(GFP_ATOMIC))==NULL)
 		{
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return -ENOBUFS;
 		}
 		/*
@@ -555,7 +560,7 @@ static int ipmr_cache_unresolved(struct mfc_cache *cache, vifi_t vifi, struct sk
 			 */
 			if (ipmr_cache_report(skb, vifi, IGMPMSG_NOCACHE)<0) {
 				ipmr_cache_delete(cache);
-				kfree_skb(skb, FREE_WRITE);
+				kfree_skb(skb);
 				return -ENOBUFS;
 			}
 		}
@@ -565,7 +570,7 @@ static int ipmr_cache_unresolved(struct mfc_cache *cache, vifi_t vifi, struct sk
 	 */
 	if(cache->mfc_queuelen>3)
 	{
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return -ENOBUFS;
 	}
 	cache->mfc_queuelen++;
@@ -651,7 +656,7 @@ int ipmr_mfc_modify(int action, struct mfcctl *mfc)
 static void mrtsock_destruct(struct sock *sk)
 {
 	if (sk == mroute_socket) {
-		ipv4_config.multicast_route = 0;
+		ipv4_devconf.mc_forwarding = 0;
 		mroute_socket=NULL;
 		mroute_close(sk);
 	}
@@ -692,7 +697,7 @@ int ip_mroute_setsockopt(struct sock *sk,int optname,char *optval,int optlen)
 			if(mroute_socket)
 				return -EADDRINUSE;
 			mroute_socket=sk;
-			ipv4_config.multicast_route = 1;
+			ipv4_devconf.mc_forwarding = 1;
 			if (ip_ra_control(sk, 1, mrtsock_destruct) == 0)
 				return 0;
 			mrtsock_destruct(sk);
@@ -753,9 +758,9 @@ int ip_mroute_setsockopt(struct sock *sk,int optname,char *optval,int optlen)
 
 				if ((in_dev = dev->ip_ptr) == NULL)
 					return -EADDRNOTAVAIL;
-				if (in_dev->flags & IFF_IP_MFORWARD)
+				if (in_dev->cnf.mc_forwarding)
 					return -EADDRINUSE;
-				in_dev->flags |= IFF_IP_MFORWARD;
+				in_dev->cnf.mc_forwarding = 1;
 				dev_set_allmulti(dev, +1);
 				ip_rt_multicast_event(in_dev);
 
@@ -924,7 +929,7 @@ int ipmr_ioctl(struct sock *sk, int cmd, unsigned long arg)
 			}
 			return -EADDRNOTAVAIL;
 		default:
-			return -EINVAL;
+			return -ENOIOCTLCMD;
 	}
 }
 
@@ -1095,7 +1100,6 @@ static void ipmr_queue_xmit(struct sk_buff *skb, struct mfc_cache *c,
 	 * not mrouter) cannot join to more than one interface - it will
 	 * result in receiving multiple packets.
 	 */
-	ip_ll_header(skb2);
 	skb2->dst->output(skb2);
 }
 
@@ -1176,7 +1180,7 @@ int ip_mr_forward(struct sk_buff *skb, struct mfc_cache *cache, int local)
 
 dont_forward:
 	if (!local)
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 	return 0;
 }
 
@@ -1234,7 +1238,7 @@ int ip_mr_input(struct sk_buff *skb)
 			ipmr_cache_unresolved(cache, vif, skb);
 			return -EAGAIN;
 		}
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -1247,7 +1251,7 @@ int ip_mr_input(struct sk_buff *skb)
 dont_forward:
 	if (local)
 		return ip_local_deliver(skb);
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 
@@ -1265,7 +1269,7 @@ int pim_rcv_v1(struct sk_buff * skb, unsigned short len)
 	    len < sizeof(*pim) + sizeof(*encap) ||
 	    pim->group != PIM_V1_VERSION || pim->code != PIM_V1_REGISTER ||
 	    reg_dev == NULL) {
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
                 return -EINVAL;
         }
 
@@ -1279,9 +1283,10 @@ int pim_rcv_v1(struct sk_buff * skb, unsigned short len)
 	if (!MULTICAST(encap->daddr) ||
 	    ntohs(encap->tot_len) == 0 ||
 	    ntohs(encap->tot_len) + sizeof(*pim) > len) {
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return -EINVAL;
 	}
+	skb->mac.raw = skb->nh.raw;
 	skb_pull(skb, (u8*)encap - skb->data);
 	skb->nh.iph = (struct iphdr *)skb->data;
 	skb->dev = reg_dev;
@@ -1309,7 +1314,7 @@ int pim_rcv(struct sk_buff * skb, unsigned short len)
 	    (pim->flags&PIM_NULL_REGISTER) ||
 	    reg_dev == NULL ||
 	    ip_compute_csum((void *)pim, len)) {
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
                 return -EINVAL;
         }
 
@@ -1318,9 +1323,10 @@ int pim_rcv(struct sk_buff * skb, unsigned short len)
 	if (!MULTICAST(encap->daddr) ||
 	    ntohs(encap->tot_len) == 0 ||
 	    ntohs(encap->tot_len) + sizeof(*pim) > len) {
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return -EINVAL;
 	}
+	skb->mac.raw = skb->nh.raw;
 	skb_pull(skb, (u8*)encap - skb->data);
 	skb->nh.iph = (struct iphdr *)skb->data;
 	skb->dev = reg_dev;
@@ -1346,11 +1352,20 @@ ipmr_fill_mroute(struct sk_buff *skb, struct mfc_cache *c, struct rtmsg *rtm)
 	struct rtnexthop *nhp;
 	struct device *dev = vif_table[c->mfc_parent].dev;
 
+#ifdef CONFIG_RTNL_OLD_IFINFO
 	if (dev) {
 		u8 *o = skb->tail;
 		RTA_PUT(skb, RTA_IIF, 4, &dev->ifindex);
 		rtm->rtm_optlen += skb->tail - o;
 	}
+#else
+	struct rtattr *mp_head;
+
+	if (dev)
+		RTA_PUT(skb, RTA_IIF, 4, &dev->ifindex);
+
+	mp_head = (struct rtattr*)skb_put(skb, RTA_LENGTH(0));
+#endif
 
 	for (ct = c->mfc_minvif; ct < c->mfc_maxvif; ct++) {
 		if (c->mfc_ttls[ct] < 255) {
@@ -1361,9 +1376,15 @@ ipmr_fill_mroute(struct sk_buff *skb, struct mfc_cache *c, struct rtmsg *rtm)
 			nhp->rtnh_hops = c->mfc_ttls[ct];
 			nhp->rtnh_ifindex = vif_table[ct].dev->ifindex;
 			nhp->rtnh_len = sizeof(*nhp);
+#ifdef CONFIG_RTNL_OLD_IFINFO
 			rtm->rtm_nhs++;
+#endif
 		}
 	}
+#ifndef CONFIG_RTNL_OLD_IFINFO
+	mp_head->rta_type = RTA_MULTIPATH;
+	mp_head->rta_len = skb->tail - (u8*)mp_head;
+#endif
 	rtm->rtm_type = RTN_MULTICAST;
 	return 1;
 

@@ -37,6 +37,7 @@
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
 #include <linux/sysrq.h>
+#include <linux/file.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -52,10 +53,14 @@ static char buffersize_index[17] =
 #define NR_RESERVED (2*MAX_BUF_PER_PAGE)
 #define MAX_UNUSED_BUFFERS NR_RESERVED+20 /* don't ever have more than this 
 					     number of unused buffer heads */
-#define HASH_PAGES         4  /* number of pages to use for the hash table */
-#define HASH_PAGES_ORDER   2
-#define NR_HASH (HASH_PAGES*PAGE_SIZE/sizeof(struct buffer_head *))
-#define HASH_MASK (NR_HASH-1)
+
+/*
+ * How large a hash table do we need?
+ */
+#define HASH_PAGES_ORDER	4
+#define HASH_PAGES		(1UL << HASH_PAGES_ORDER)
+#define NR_HASH			(HASH_PAGES*PAGE_SIZE/sizeof(struct buffer_head *))
+#define HASH_MASK		(NR_HASH-1)
 
 static int grow_buffers(int pri, int size);
 
@@ -126,20 +131,22 @@ void wakeup_bdflush(int);
  */
 void __wait_on_buffer(struct buffer_head * bh)
 {
-	struct wait_queue wait = { current, NULL };
+	struct task_struct *tsk = current;
+	struct wait_queue wait;
 
 	bh->b_count++;
+	wait.task = tsk;
 	add_wait_queue(&bh->b_wait, &wait);
 repeat:
+	tsk->state = TASK_UNINTERRUPTIBLE;
 	run_task_queue(&tq_disk);
-	current->state = TASK_UNINTERRUPTIBLE;
 	if (buffer_locked(bh)) {
 		schedule();
 		goto repeat;
 	}
+	tsk->state = TASK_RUNNING;
 	remove_wait_queue(&bh->b_wait, &wait);
 	bh->b_count--;
-	current->state = TASK_RUNNING;
 }
 
 /* Call sync_buffers with wait!=0 to ensure that the call does not
@@ -263,6 +270,17 @@ void sync_dev(kdev_t dev)
 	sync_inodes(dev);
 	sync_buffers(dev, 0);
 	sync_dquots(dev, -1);
+	/* 
+	 * FIXME(eric) we need to sync the physical devices here. 
+	 * This is because some (scsi) controllers have huge amounts of
+	 * cache onboard (hundreds of Mb), and we need to instruct
+	 * them to commit all of the dirty memory to disk, and we should
+	 * not return until this has happened.
+	 *
+	 * This would need to get implemented by going through the assorted
+	 * layers so that each block major number can be synced, and this
+	 * would call down into the upper and mid-layer scsi.
+	 */
 }
 
 int fsync_dev(kdev_t dev)
@@ -315,31 +333,29 @@ asmlinkage int sys_fsync(unsigned int fd)
 
 	lock_kernel();
 	err = -EBADF;
-
-	if (fd >= NR_OPEN)
-		goto out;
-
-	file = current->files->fd[fd];
+	file = fget(fd);
 	if (!file)
 		goto out;
 
 	dentry = file->f_dentry;
 	if (!dentry)
-		goto out;
+		goto out_putf;
 
 	inode = dentry->d_inode;
 	if (!inode)
-		goto out;
+		goto out_putf;
 
 	err = -EINVAL;
 	if (!file->f_op || !file->f_op->fsync)
-		goto out;
+		goto out_putf;
 
 	/* We need to protect against concurrent writers.. */
 	down(&inode->i_sem);
-	err = file->f_op->fsync(file, file->f_dentry);
+	err = file->f_op->fsync(file, dentry);
 	up(&inode->i_sem);
 
+out_putf:
+	fput(file);
 out:
 	unlock_kernel();
 	return err;
@@ -354,29 +370,27 @@ asmlinkage int sys_fdatasync(unsigned int fd)
 
 	lock_kernel();
 	err = -EBADF;
-
-	if (fd >= NR_OPEN)
-		goto out;
-
-	file = current->files->fd[fd];
+	file = fget(fd);
 	if (!file)
 		goto out;
 
 	dentry = file->f_dentry;
 	if (!dentry)
-		goto out;
+		goto out_putf;
 
 	inode = dentry->d_inode;
 	if (!inode)
-		goto out;
+		goto out_putf;
 
 	err = -EINVAL;
 	if (!file->f_op || !file->f_op->fsync)
-		goto out;
+		goto out_putf;
 
 	/* this needs further work, at the moment it is identical to fsync() */
-	err = file->f_op->fsync(file, file->f_dentry);
+	err = file->f_op->fsync(file, dentry);
 
+out_putf:
+	fput(file);
 out:
 	unlock_kernel();
 	return err;
@@ -550,7 +564,7 @@ static inline void insert_into_queues(struct buffer_head * bh)
 	}
 }
 
-static inline struct buffer_head * find_buffer(kdev_t dev, int block, int size)
+struct buffer_head * find_buffer(kdev_t dev, int block, int size)
 {		
 	struct buffer_head * next;
 
@@ -566,11 +580,6 @@ static inline struct buffer_head * find_buffer(kdev_t dev, int block, int size)
 		break;
 	}
 	return next;
-}
-
-struct buffer_head *efind_buffer(kdev_t dev, int block, int size)
-{
-	return find_buffer(dev, block, size);
 }
 
 /*
@@ -589,7 +598,7 @@ struct buffer_head * get_hash_table(kdev_t dev, int block, int size)
 			break;
 		bh->b_count++;
 		bh->b_lru_time = jiffies;
-		if (!test_bit(BH_Lock, &bh->b_state)) 
+		if (!buffer_locked(bh)) 
 			break;
 		__wait_on_buffer(bh);
 		if (bh->b_dev == dev		&&
@@ -858,8 +867,7 @@ repeat:
 	/*
 	 * Convert a reserved page into buffers ... should happen only rarely.
 	 */
-	if (nr_free_pages > (min_free_pages >> 1) &&
-	    grow_buffers(GFP_ATOMIC, size)) {
+	if (grow_buffers(GFP_ATOMIC, size)) {
 #ifdef BUFFER_DEBUG
 printk("refill_freelist: used reserve page\n");
 #endif
@@ -1309,10 +1317,14 @@ no_grow:
 /* Run the hooks that have to be done when a page I/O has completed. */
 static inline void after_unlock_page (struct page * page)
 {
-	if (test_and_clear_bit(PG_decr_after, &page->flags))
+	if (test_and_clear_bit(PG_decr_after, &page->flags)) {
 		atomic_dec(&nr_async_pages);
-	if (test_and_clear_bit(PG_swap_unlock_after, &page->flags))
-		swap_after_unlock_page(page->pg_swap_entry);
+#ifdef DEBUG_SWAP
+		printk ("DebugVM: Finished IO on page %p, nr_async_pages %d\n",
+			(char *) page_address(page), 
+			atomic_read(&nr_async_pages));
+#endif
+	}
 	if (test_and_clear_bit(PG_free_after, &page->flags))
 		__free_page(page);
 }
@@ -1514,8 +1526,10 @@ void mark_buffer_uptodate(struct buffer_head * bh, int on)
  * mark_buffer_uptodate() functions propagate buffer state into the
  * page struct once IO has completed.
  */
-int generic_readpage(struct inode * inode, struct page * page)
+int generic_readpage(struct file * file, struct page * page)
 {
+	struct dentry *dentry = file->f_dentry;
+	struct inode *inode = dentry->d_inode;
 	unsigned long block;
 	int *p, nr[PAGE_SIZE/512];
 	int i;
@@ -1692,7 +1706,7 @@ void show_buffers(void)
 void buffer_init(void)
 {
 	hash_table = (struct buffer_head **)
-		__get_free_pages(GFP_ATOMIC, HASH_PAGES_ORDER, 0);
+		__get_free_pages(GFP_ATOMIC, HASH_PAGES_ORDER);
 	if (!hash_table)
 		panic("Failed to allocate buffer hash table\n");
 	memset(hash_table,0,NR_HASH*sizeof(struct buffer_head *));

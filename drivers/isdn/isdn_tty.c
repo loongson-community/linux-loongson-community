@@ -276,7 +276,7 @@ isdn_tty_try_read(modem_info * info, struct sk_buff *skb)
 						tty->flip.flag_buf_ptr[len - 1] = 0xff;
 					queue_task(&tty->flip.tqueue, &tq_timer);
 					SET_SKB_FREE(skb);
-					kfree_skb(skb, FREE_READ);
+					kfree_skb(skb);
 					return 1;
 				}
 			}
@@ -372,7 +372,7 @@ isdn_tty_rcv_skb(int i, int di, int channel, struct sk_buff *skb)
 		) {
 		/* If Modem not listening, drop data */
 		SET_SKB_FREE(skb);
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 1;
 	}
 	if (info->emu.mdmreg[13] & 2)
@@ -384,7 +384,7 @@ isdn_tty_rcv_skb(int i, int di, int channel, struct sk_buff *skb)
 		printk(KERN_WARNING
 		       "isdn_audio: insufficient skb_headroom, dropping\n");
 		SET_SKB_FREE(skb);
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 1;
 	}
 	ISDN_AUDIO_SKB_DLECOUNT(skb) = 0;
@@ -456,13 +456,13 @@ isdn_tty_cleanup_xmit(modem_info * info)
 	if (skb_queue_len(&info->xmit_queue))
 		while ((skb = skb_dequeue(&info->xmit_queue))) {
 			SET_SKB_FREE(skb);
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 		}
 #ifdef CONFIG_ISDN_AUDIO
 	if (skb_queue_len(&info->dtmf_queue))
 		while ((skb = skb_dequeue(&info->dtmf_queue))) {
 			SET_SKB_FREE(skb);
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 		}
 #endif
 	restore_flags(flags);
@@ -493,7 +493,7 @@ isdn_tty_tint(modem_info * info)
 	if (slen < 0) {
 		/* Error: no channel, already shutdown, or wrong parameter */
 		SET_SKB_FREE(skb);
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		return;
 	}
 	if (slen)
@@ -2445,14 +2445,18 @@ isdn_tty_get_msnstr(char *n, char **p)
  * Get phone-number from modem-commandbuffer
  */
 static void
-isdn_tty_getdial(char *p, char *q)
+isdn_tty_getdial(char *p, char *q,int cnt)
 {
 	int first = 1;
+	int limit=39;	/* MUST match the size in isdn_tty_parse to avoid
+				buffer overflow */
 
-	while (strchr("0123456789,#.*WPTS-", *p) && *p) {
+	while (strchr("0123456789,#.*WPTS-", *p) && *p && --cnt>0) {
 		if ((*p >= '0' && *p <= '9') || ((*p == 'S') && first))
 			*q++ = *p;
 		p++;
+		if(!--limit)
+			break;
 		first = 0;
 	}
 	*q = 0;
@@ -2589,7 +2593,7 @@ isdn_tty_cmd_ATand(char **p, modem_info * info)
 					m->mdmreg[i], ((i + 1) % 10) ? " " : "\r\n");
 				isdn_tty_at_cout(rb, info);
 			}
-			sprintf(rb, "\r\nEAZ/MSN: %s\r\n",
+			sprintf(rb, "\r\nEAZ/MSN: %.50s\r\n",
 				strlen(m->msn) ? m->msn : "None");
 			isdn_tty_at_cout(rb, info);
 			break;
@@ -3092,7 +3096,7 @@ isdn_tty_parse_at(modem_info * info)
 				break;
 			case 'D':
 				/* D - Dial */
-				isdn_tty_getdial(++p, ds);
+				isdn_tty_getdial(++p, ds, sizeof ds);
 				p += strlen(p);
 				if (!strlen(m->msn))
 					isdn_tty_modem_result(10, info);

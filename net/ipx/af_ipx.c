@@ -210,11 +210,10 @@ static void ipx_destroy_socket(struct sock *sk)
 
 	ipx_remove_socket(sk);
 	while((skb=skb_dequeue(&sk->receive_queue))!=NULL) {
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 	}
 
 	sk_free(sk);
-	MOD_DEC_USE_COUNT;
 }
 
 /* The following code is used to support IPX Interfaces (IPXITF).  An
@@ -378,11 +377,7 @@ static int ipxitf_def_skb_handler(struct sock *sock, struct sk_buff *skb)
 
 	if((retval = sock_queue_rcv_skb(sock, skb))<0)
 	{
-		/*
-		 * skb->sk is NULL here, so FREE_WRITE does not hurt
-		 * the sending socket.
-	 	 */
-		kfree_skb(skb,FREE_WRITE);
+		kfree_skb(skb);
 	}
 	return retval;
 }
@@ -415,14 +410,8 @@ static int ipxitf_demux_socket(ipx_interface *intrfc, struct sk_buff *skb, int c
 			if (copy != 0)
 			{
 				skb1 = skb_clone(skb, GFP_ATOMIC);
-				if (skb1 != NULL)
-				{
-					skb1->arp = 1;
-				}
-				else
-				{
+				if (skb1 == NULL)
 					return -ENOMEM;
-				}
 			}
 			else
 			{
@@ -445,10 +434,9 @@ static int ipxitf_demux_socket(ipx_interface *intrfc, struct sk_buff *skb, int c
 	if (copy == 0)
 	{
 		/* skb was solely for us, and we did not make a copy,
-		 * so free it. FREE_WRITE does not hurt, because
-		 * skb->sk is NULL here.
+		 * so free it.
 		 */
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 	}
 	return 0;
 }
@@ -500,7 +488,7 @@ static int ipxitf_demux_socket(ipx_interface *intrfc, struct sk_buff *skb, int c
 	if (sock1 == NULL && sock2 == NULL)
 	{
 		if (!copy)
-			kfree_skb(skb,FREE_WRITE);
+			kfree_skb(skb);
 		return 0;
 	}
 
@@ -515,8 +503,6 @@ static int ipxitf_demux_socket(ipx_interface *intrfc, struct sk_buff *skb, int c
 	if (copy)
 	{
 		skb1 = skb_clone(skb, GFP_ATOMIC);
-		if (skb1)
-			skb1->arp=1;
 	}
 	else
 	{
@@ -533,8 +519,6 @@ static int ipxitf_demux_socket(ipx_interface *intrfc, struct sk_buff *skb, int c
 	if (sock1 && sock2)
 	{
 		skb2 = skb_clone(skb1, GFP_ATOMIC);
-		if (skb2 != NULL)
-			skb2->arp = 1;
 	}
 	else
 		skb2 = skb1;
@@ -561,7 +545,6 @@ static struct sk_buff *ipxitf_adjust_skbuff(ipx_interface *intrfc, struct sk_buf
 
 	/* Hopefully, most cases */
 	if (in_offset >= out_offset) {
-		skb->arp = 1;
 		return skb;
 	}
 
@@ -572,11 +555,10 @@ static struct sk_buff *ipxitf_adjust_skbuff(ipx_interface *intrfc, struct sk_buf
 		skb_reserve(skb2,out_offset);
 		skb2->nh.raw=
 		skb2->h.raw=skb_put(skb2,skb->len);
-		skb2->arp=1;
 		memcpy(skb2->h.raw, skb->h.raw, skb->len);
 	}
-	kfree_skb(skb, FREE_WRITE);
-	return skb2;
+	kfree_skb(skb);
+	return NULL;
 }
 
 static int ipxitf_send(ipx_interface *intrfc, struct sk_buff *skb, char *node)
@@ -648,15 +630,7 @@ static int ipxitf_send(ipx_interface *intrfc, struct sk_buff *skb, char *node)
 
 	if (!send_to_wire)
 	{
-		/*
-		 *	We do a FREE_WRITE here because this indicates how
-		 *	to treat the socket with which the packet is
-	 	 *	associated.  If this packet is associated with a
-		 *	socket at all, it must be the originator of the
-		 *	packet.   Routed packets will have no socket associated
-		 *	with them.
-		 */
-		kfree_skb(skb,FREE_WRITE);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -707,7 +681,6 @@ static int ipxitf_add_local_route(ipx_interface *intrfc)
 
 static const char * ipx_frame_name(unsigned short);
 static const char * ipx_device_name(ipx_interface *);
-static int ipxrtr_route_skb(struct sk_buff *);
 
 static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 {
@@ -720,7 +693,7 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 
 	if (call_in_firewall(PF_IPX, skb->dev, ipx, NULL, &skb)!=FW_ACCEPT)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -813,20 +786,20 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 		 */
 		if (call_fw_firewall(PF_IPX, skb->dev, ipx, NULL, &skb)!=FW_ACCEPT)
 		{
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 			return 0;
 		}
 
 		/* We only route point-to-point packets. */
 		if (skb->pkt_type == PACKET_HOST)
 		{
-			skb=skb_unshare(skb, GFP_ATOMIC, FREE_READ);
+			skb=skb_unshare(skb, GFP_ATOMIC);
 			if(skb)
 				return ipxrtr_route_skb(skb);
 			else
 				return 0;
 		}
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -838,7 +811,7 @@ static int ipxitf_rcv(ipx_interface *intrfc, struct sk_buff *skb)
 	}
 
 	/* we couldn't pawn it off so unload it */
-	kfree_skb(skb,FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 
@@ -1025,7 +998,8 @@ static int ipxitf_delete(ipx_interface_definition *idef)
 		return -EPROTONOSUPPORT;
 
 	dev=dev_get(idef->ipx_device);
-	if(dev==NULL) return -ENODEV;
+	if (dev==NULL)
+		return -ENODEV;
 
 	intrfc = ipxitf_find_using_phys(dev, dlink_type);
 	if (intrfc != NULL) {
@@ -1134,9 +1108,9 @@ static int ipxitf_ioctl_real(unsigned int cmd, void *arg)
 			sipx->sipx_family=AF_IPX;
 			sipx->sipx_network=ipxif->if_netnum;
 			memcpy(sipx->sipx_node, ipxif->if_node, sizeof(sipx->sipx_node));
-			err = copy_to_user(arg,&ifr,sizeof(ifr));
-			if (err)
-				return -EFAULT;
+			err = -EFAULT;
+			if (!copy_to_user(arg, &ifr, sizeof(ifr)))
+				err = 0;
 			return err;
 		}
 		case SIOCAIPXITFCRT: 
@@ -1360,7 +1334,6 @@ static int ipxrtr_route_packet(struct sock *sk, struct sockaddr_ipx *usipx, stru
 		return err;
 
 	skb_reserve(skb,ipx_offset);
-	skb->arp=1;
 	skb->sk=sk;
 
 	/* Fill in IPX header */
@@ -1394,7 +1367,7 @@ static int ipxrtr_route_packet(struct sock *sk, struct sockaddr_ipx *usipx, stru
 	err = memcpy_fromiovec(skb_put(skb,len),iov,len);
 	if (err) 
 	{
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return -EFAULT; 
 	}	
 
@@ -1409,7 +1382,7 @@ static int ipxrtr_route_packet(struct sock *sk, struct sockaddr_ipx *usipx, stru
 
 	if(call_out_firewall(PF_IPX, skb->dev, ipx, NULL, &skb)!=FW_ACCEPT)
 	{
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return -EPERM;
 	}
 	
@@ -1417,7 +1390,7 @@ static int ipxrtr_route_packet(struct sock *sk, struct sockaddr_ipx *usipx, stru
 				rt->ir_router_node : ipx->ipx_dest.node);
 }
 	
-static int ipxrtr_route_skb(struct sk_buff *skb)
+int ipxrtr_route_skb(struct sk_buff *skb)
 {
 	struct ipxhdr	*ipx = skb->nh.ipxh;
 	ipx_route	*r;
@@ -1427,7 +1400,7 @@ static int ipxrtr_route_skb(struct sk_buff *skb)
 	if (r == NULL)
 	{
 		/* no known route */
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 	i = r->ir_intrfc;
@@ -1746,8 +1719,11 @@ static int ipx_create(struct socket *sock, int protocol)
 	switch(sock->type)
 	{
 		case SOCK_DGRAM:
-			sock->ops = &ipx_dgram_ops;
-			break;
+                        sock->ops = &ipx_dgram_ops;
+                        break;
+		case SOCK_STREAM:	/* Allow higher levels to piggyback */
+		case SOCK_SEQPACKET:
+			printk(KERN_CRIT "IPX: _create-ing non_DGRAM socket\n");
 		default:
 			sk_free(sk);
 			return(-ESOCKTNOSUPPORT);
@@ -1770,6 +1746,9 @@ static int ipx_release(struct socket *sock, struct socket *peer)
 	sk->dead=1;
 	sock->sk=NULL;
 	ipx_destroy_socket(sk);
+	if ( sock->type == SOCK_DGRAM ) {
+		MOD_DEC_USE_COUNT;
+	}
 	return(0);
 }
 
@@ -1845,7 +1824,9 @@ static int ipx_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 			sk->protinfo.af_ipx.node,
 			sk->protinfo.af_ipx.port) != NULL)
 		{
-			SOCK_DEBUG(sk, "IPX: bind failed because port %X in use.\n", (int)addr->sipx_port);
+			SOCK_DEBUG(sk,
+				"IPX: bind failed because port %X in use.\n",
+				ntohs((int)addr->sipx_port));
 			return -EADDRINUSE;
 		}
 	}
@@ -1860,7 +1841,9 @@ static int ipx_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 			IPX_NODE_LEN);
 
 		if(ipxitf_find_socket(intrfc, addr->sipx_port)!=NULL) {
-			SOCK_DEBUG(sk, "IPX: bind failed because port %X in use.\n", (int)addr->sipx_port);
+			SOCK_DEBUG(sk,
+				"IPX: bind failed because port %X in use.\n",
+				ntohs((int)addr->sipx_port));
 			return -EADDRINUSE;
 		}
 	}
@@ -1871,7 +1854,8 @@ static int ipx_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	   an interface routed to IPX with the ipx routing ioctl() */
 
 	if(ipxitf_find_socket(intrfc, addr->sipx_port)!=NULL) {
-		SOCK_DEBUG(sk, "IPX: bind failed because port %X in use.\n", (int)addr->sipx_port);
+		SOCK_DEBUG(sk, "IPX: bind failed because port %X in use.\n",
+				ntohs((int)addr->sipx_port));
 		return -EADDRINUSE;
 	}
 
@@ -1879,7 +1863,8 @@ static int ipx_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 
 	ipxitf_insert_socket(intrfc, sk);
 	sk->zapped=0;
-	SOCK_DEBUG(sk, "IPX: socket is bound.\n");
+	SOCK_DEBUG(sk, "IPX: bound socket 0x%04X.\n", ntohs(addr->sipx_port) );
+
 	return 0;
 }
 
@@ -1920,8 +1905,10 @@ static int ipx_connect(struct socket *sock, struct sockaddr *uaddr,
 	memcpy(sk->protinfo.af_ipx.dest_addr.node,
 		addr->sipx_node,IPX_NODE_LEN);
 	sk->protinfo.af_ipx.type=addr->sipx_type;
-	sock->state = SS_CONNECTED;
-	sk->state=TCP_ESTABLISHED;
+	if(sock->type == SOCK_DGRAM ) {
+		sock->state = SS_CONNECTED;
+		sk->state=TCP_ESTABLISHED;
+	}
 	return 0;
 }
 
@@ -2052,7 +2039,7 @@ int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	
 	/* Too small? */
 	if(ntohs(ipx->ipx_pktsize)<sizeof(struct ipxhdr)) {
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 	
@@ -2060,7 +2047,7 @@ int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	{
 		if(ipx_set_checksum(ipx, ntohs(ipx->ipx_pktsize))!=ipx->ipx_checksum)
 		{
-			kfree_skb(skb,FREE_READ);
+			kfree_skb(skb);
 			return 0;
 		}
 	}
@@ -2077,7 +2064,7 @@ int ipx_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 
 		if (intrfc == NULL) {
 			/* Not one of ours */
-			kfree_skb(skb,FREE_READ);
+			kfree_skb(skb);
 			return 0;
 		}
 	}
@@ -2148,32 +2135,28 @@ static int ipx_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 	struct sock *sk=sock->sk;
 	struct sockaddr_ipx *sipx=(struct sockaddr_ipx *)msg->msg_name;
 	struct ipxhdr *ipx = NULL;
-	int copied = 0;
-	int truesize;
 	struct sk_buff *skb;
-	int err;
+	int copied, err;
 
 	if (sk->zapped)
 		return -ENOTCONN;
 
 	skb=skb_recv_datagram(sk,flags&~MSG_DONTWAIT,flags&MSG_DONTWAIT,&err);
-	if(skb==NULL)
-		return err;
+	if (!skb)
+		goto out;
 
 	ipx = skb->nh.ipxh;
-	truesize=ntohs(ipx->ipx_pktsize) - sizeof(struct ipxhdr);
-	
-	copied = truesize;
+	copied = ntohs(ipx->ipx_pktsize) - sizeof(struct ipxhdr);
 	if(copied > size)
 	{
 		copied=size;
 		msg->msg_flags|=MSG_TRUNC;
 	}
 
-	err = skb_copy_datagram_iovec(skb,sizeof(struct ipxhdr),msg->msg_iov,copied);
-	
+	err = skb_copy_datagram_iovec(skb, sizeof(struct ipxhdr), msg->msg_iov,
+					copied);
 	if (err)
-		return err;
+		goto out_free;
 
 	msg->msg_namelen = sizeof(*sipx);
 
@@ -2185,9 +2168,12 @@ static int ipx_recvmsg(struct socket *sock, struct msghdr *msg, int size,
 		sipx->sipx_network=ipx->ipx_source.net;
 		sipx->sipx_type = ipx->ipx_type;
 	}
-	skb_free_datagram(sk, skb);
+	err = copied;
 
-	return(copied);
+out_free:
+	skb_free_datagram(sk, skb);
+out:
+	return err;
 }
 
 /*
@@ -2242,11 +2228,12 @@ static int ipx_ioctl(struct socket *sock,unsigned int cmd, unsigned long arg)
 			{
 				if(sk->stamp.tv_sec==0)
 					return -ENOENT;
-				ret = copy_to_user((void *)arg,&sk->stamp,sizeof(struct timeval));
-				if (ret)
-					ret = -EFAULT;
+				ret = -EFAULT;
+				if (!copy_to_user((void *)arg, &sk->stamp,
+						sizeof(struct timeval)))
+					ret = 0;
 			}
-			return 0;
+			return ret;
 		}
 		case SIOCGIFDSTADDR:
 		case SIOCSIFDSTADDR:
@@ -2372,6 +2359,19 @@ ipx_proto_init(struct net_proto *pro)
 	printk(KERN_INFO "IPX Portions Copyright (c) 1995 Caldera, Inc.\n");
 }
 
+/* Higher layers need this info to prep tx pkts */
+int ipx_if_offset(unsigned long ipx_net_number)
+{
+	ipx_route *rt = NULL;
+
+	rt = ipxrtr_lookup(ipx_net_number);
+	return ( rt ? rt->ir_intrfc->if_ipx_offset : -ENETUNREACH );
+}
+
+/* Export symbols for higher layers */
+EXPORT_SYMBOL(ipxrtr_route_skb);
+EXPORT_SYMBOL(ipx_if_offset);
+
 #ifdef MODULE
 /* Note on MOD_{INC,DEC}_USE_COUNT:
  *
@@ -2425,8 +2425,6 @@ __initfunc(static void ipx_proto_finito(void))
 
 	return;
 }
-
-EXPORT_NO_SYMBOLS;
 
 int init_module(void)
 {

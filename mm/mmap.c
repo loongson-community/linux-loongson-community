@@ -17,6 +17,7 @@
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/init.h>
+#include <linux/file.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -74,11 +75,11 @@ int vm_enough_memory(long pages)
 /* Remove one vm structure from the inode's i_mmap ring. */
 static inline void remove_shared_vm_struct(struct vm_area_struct *vma)
 {
-	struct dentry * dentry = vma->vm_dentry;
+	struct file * file = vma->vm_file;
 
-	if (dentry) {
+	if (file) {
 		if (vma->vm_flags & VM_DENYWRITE)
-			dentry->d_inode->i_writecount++;
+			file->f_dentry->d_inode->i_writecount++;
 		if(vma->vm_next_share)
 			vma->vm_next_share->vm_pprev_share = vma->vm_pprev_share;
 		*vma->vm_pprev_share = vma->vm_next_share;
@@ -173,6 +174,10 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	if (off + len < off)
 		return -EINVAL;
 
+	/* Too many mappings? */
+	if (mm->map_count > MAX_MAP_COUNT)
+		return -ENOMEM;
+
 	/* mlock MCL_FUTURE? */
 	if (mm->def_flags & VM_LOCKED) {
 		unsigned long locked = mm->locked_vm << PAGE_SHIFT;
@@ -257,7 +262,7 @@ unsigned long do_mmap(struct file * file, unsigned long addr, unsigned long len,
 	vma->vm_page_prot = protection_map[vma->vm_flags & 0x0f];
 	vma->vm_ops = NULL;
 	vma->vm_offset = off;
-	vma->vm_dentry = NULL;
+	vma->vm_file = NULL;
 	vma->vm_pte = 0;
 
 	/* Clear old maps */
@@ -390,8 +395,8 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 	if (addr == area->vm_start && end == area->vm_end) {
 		if (area->vm_ops && area->vm_ops->close)
 			area->vm_ops->close(area);
-		if (area->vm_dentry)
-			dput(area->vm_dentry);
+		if (area->vm_file)
+			fput(area->vm_file);
 		return 0;
 	}
 
@@ -414,7 +419,9 @@ static int unmap_fixup(struct vm_area_struct *area, unsigned long addr,
 		mpnt->vm_flags = area->vm_flags;
 		mpnt->vm_ops = area->vm_ops;
 		mpnt->vm_offset = area->vm_offset + (end - area->vm_start);
-		mpnt->vm_dentry = dget(area->vm_dentry);
+		mpnt->vm_file = area->vm_file;
+		if (mpnt->vm_file)
+			mpnt->vm_file->f_count++;
 		if (mpnt->vm_ops && mpnt->vm_ops->open)
 			mpnt->vm_ops->open(mpnt);
 		area->vm_end = addr;	/* Truncate area */
@@ -452,6 +459,7 @@ asmlinkage int sys_munmap(unsigned long addr, size_t len)
  */
 int do_munmap(unsigned long addr, size_t len)
 {
+	struct mm_struct * mm;
 	struct vm_area_struct *mpnt, *next, *free, *extra;
 	int freed;
 
@@ -466,7 +474,8 @@ int do_munmap(unsigned long addr, size_t len)
 	 * every area affected in some way (by any overlap) is put
 	 * on the list.  If nothing is put on, nothing is affected.
 	 */
-	mpnt = current->mm->mmap;
+	mm = current->mm;
+	mpnt = mm->mmap;
 	while(mpnt && mpnt->vm_end <= addr)
 		mpnt = mpnt->vm_next;
 	if (!mpnt)
@@ -496,6 +505,13 @@ int do_munmap(unsigned long addr, size_t len)
 		mpnt = next;
 	}
 
+	if (free && (free->vm_start < addr) && (free->vm_end > addr+len)) {
+		if (mm->map_count > MAX_MAP_COUNT) {
+			kmem_cache_free(vm_area_cachep, extra);
+			return -ENOMEM;
+		}
+	}
+
 	/* Ok - we have the memory areas we should free on the 'free' list,
 	 * so release them, and unmap the page range..
 	 * If the one of the segments is only being partially unmapped,
@@ -508,6 +524,7 @@ int do_munmap(unsigned long addr, size_t len)
 		free = free->vm_next;
 		freed = 1;
 
+		mm->map_count--;
 		remove_shared_vm_struct(mpnt);
 
 		st = addr < mpnt->vm_start ? mpnt->vm_start : addr;
@@ -518,9 +535,9 @@ int do_munmap(unsigned long addr, size_t len)
 		if (mpnt->vm_ops && mpnt->vm_ops->unmap)
 			mpnt->vm_ops->unmap(mpnt, st, size);
 
-		flush_cache_range(current->mm, st, end);
-		zap_page_range(current->mm, st, size);
-		flush_tlb_range(current->mm, st, end);
+		flush_cache_range(mm, st, end);
+		zap_page_range(mm, st, size);
+		flush_tlb_range(mm, st, end);
 
 		/*
 		 * Fix the mapping, and free the old area if it wasn't reused.
@@ -534,7 +551,7 @@ int do_munmap(unsigned long addr, size_t len)
 		kmem_cache_free(vm_area_cachep, extra);
 
 	if (freed)
-		current->mm->mmap_cache = NULL;	/* Kill the cache. */
+		mm->mmap_cache = NULL;	/* Kill the cache. */
 	return 0;
 }
 
@@ -560,13 +577,18 @@ void exit_mmap(struct mm_struct * mm)
 			if (mpnt->vm_ops->close)
 				mpnt->vm_ops->close(mpnt);
 		}
+		mm->map_count--;
 		remove_shared_vm_struct(mpnt);
 		zap_page_range(mm, start, size);
-		if (mpnt->vm_dentry)
-			dput(mpnt->vm_dentry);
+		if (mpnt->vm_file)
+			fput(mpnt->vm_file);
 		kmem_cache_free(vm_area_cachep, mpnt);
 		mpnt = next;
 	}
+
+	/* This is just debugging */
+	if (mm->map_count)
+		printk("exit_mmap: map count is %d\n", mm->map_count);
 }
 
 /* Insert vm structure into process list sorted by address
@@ -575,7 +597,9 @@ void exit_mmap(struct mm_struct * mm)
 void insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vmp)
 {
 	struct vm_area_struct **pprev = &mm->mmap;
-	struct dentry * dentry;
+	struct file * file;
+
+	mm->map_count++;
 
 	/* Find where to link it in. */
 	while(*pprev && (*pprev)->vm_start <= vmp->vm_start)
@@ -587,9 +611,9 @@ void insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vmp)
 	*pprev = vmp;
 	vmp->vm_pprev = pprev;
 
-	dentry = vmp->vm_dentry;
-	if (dentry) {
-		struct inode * inode = dentry->d_inode;
+	file = vmp->vm_file;
+	if (file) {
+		struct inode * inode = file->f_dentry->d_inode;
 		if (vmp->vm_flags & VM_DENYWRITE)
 			inode->i_writecount--;
       
@@ -636,8 +660,8 @@ void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned l
 	for ( ; mpnt && prev->vm_start < end_addr ; prev = mpnt, mpnt = next) {
 		next = mpnt->vm_next;
 
-		/* To share, we must have the same dentry, operations.. */
-		if ((mpnt->vm_dentry != prev->vm_dentry)||
+		/* To share, we must have the same file, operations.. */
+		if ((mpnt->vm_file != prev->vm_file)||
 		    (mpnt->vm_pte != prev->vm_pte)	||
 		    (mpnt->vm_ops != prev->vm_ops)	||
 		    (mpnt->vm_flags != prev->vm_flags)	||
@@ -645,10 +669,10 @@ void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned l
 			continue;
 
 		/*
-		 * If we have a dentry or it's a shared memory area
+		 * If we have a file or it's a shared memory area
 		 * the offsets must be contiguous..
 		 */
-		if ((mpnt->vm_dentry != NULL) || (mpnt->vm_flags & VM_SHM)) {
+		if ((mpnt->vm_file != NULL) || (mpnt->vm_flags & VM_SHM)) {
 			unsigned long off = prev->vm_offset+prev->vm_end-prev->vm_start;
 			if (off != mpnt->vm_offset)
 				continue;
@@ -668,9 +692,10 @@ void merge_segments (struct mm_struct * mm, unsigned long start_addr, unsigned l
 			mpnt->vm_start = mpnt->vm_end;
 			mpnt->vm_ops->close(mpnt);
 		}
+		mm->map_count--;
 		remove_shared_vm_struct(mpnt);
-		if (mpnt->vm_dentry)
-			dput(mpnt->vm_dentry);
+		if (mpnt->vm_file)
+			fput(mpnt->vm_file);
 		kmem_cache_free(vm_area_cachep, mpnt);
 		mpnt = prev;
 	}

@@ -252,7 +252,7 @@ sgi_graphics_mmap (struct inode *inode, struct file *file, struct vm_area_struct
 	vma->vm_page_prot = PAGE_USERIO;
 		
 	/* final setup */
-	vma->vm_dentry = dget (file->f_dentry);
+	vma->vm_file = file;
 	return 0;
 }
 	

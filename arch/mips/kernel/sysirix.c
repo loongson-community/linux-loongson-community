@@ -4,7 +4,7 @@
  * Copyright (C) 1996 David S. Miller
  * Copyright (C) 1997 Miguel de Icaza
  *
- * $Id: sysirix.c,v 1.8 1997/09/21 22:58:44 miguel Exp $
+ * $Id: sysirix.c,v 1.9 1997/12/16 05:34:38 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -1692,11 +1692,11 @@ static inline int chown_common(uid_t user, gid_t group, struct dentry *dentry)
 		error = -EDQUOT;
 		if (inode->i_sb->dq_op->transfer(inode, &newattrs, 0))
 			goto dput_and_out;
-		error = notify_change(inode, &newattrs);
+		error = notify_change(dentry, &newattrs);
 		if (error)
 			inode->i_sb->dq_op->transfer(inode, &newattrs, 1);
 	} else
-		error = notify_change(inode, &newattrs);
+		error = notify_change(dentry, &newattrs);
 
 dput_and_out:
 	dput(dentry);

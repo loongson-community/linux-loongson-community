@@ -15,7 +15,8 @@
 /* This decides where the kernel will search for a free chunk of vm
  * space during mmap's.
  */
-#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
+#define TASK_UNMAPPED_BASE \
+  ((current->personality & ADDR_LIMIT_32BIT) ? 0x40000000 : TASK_SIZE / 2)
 
 /*
  * Bus types
@@ -93,7 +94,7 @@ extern void release_thread(struct task_struct *);
 
 /* NOTE: The task struct and the stack go together!  */
 #define alloc_task_struct() \
-        ((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+        ((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)     free_pages((unsigned long)(p),1)
 
 #define init_task	(init_task_union.task)

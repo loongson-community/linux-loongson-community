@@ -50,6 +50,7 @@
 #include <linux/swap.h>
 #include <linux/ctype.h>
 #include <linux/file.h>
+#include <linux/console.h>
 
 extern unsigned char aux_device_present, kbd_read_mask;
 
@@ -69,7 +70,7 @@ extern unsigned char aux_device_present, kbd_read_mask;
 #endif
 
 extern char *get_options(char *str, int *ints);
-extern void set_device_ro(int dev,int flag);
+extern void set_device_ro(kdev_t dev,int flag);
 extern struct file_operations * get_blkfops(unsigned int);
 extern int blkdev_release(struct inode * inode);
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
@@ -99,7 +100,6 @@ EXPORT_SYMBOL(kerneld_send);
 EXPORT_SYMBOL(get_options);
 
 #ifdef CONFIG_PCI
-/* PCI BIOS support */
 EXPORT_SYMBOL(pcibios_present);
 EXPORT_SYMBOL(pcibios_find_class);
 EXPORT_SYMBOL(pcibios_find_device);
@@ -110,8 +110,6 @@ EXPORT_SYMBOL(pcibios_write_config_byte);
 EXPORT_SYMBOL(pcibios_write_config_word);
 EXPORT_SYMBOL(pcibios_write_config_dword);
 EXPORT_SYMBOL(pcibios_strerror);
-EXPORT_SYMBOL(pci_strvendor);
-EXPORT_SYMBOL(pci_strdev);
 #endif
 
 /* process memory management */
@@ -119,6 +117,8 @@ EXPORT_SYMBOL(do_mmap);
 EXPORT_SYMBOL(do_munmap);
 EXPORT_SYMBOL(exit_mm);
 EXPORT_SYMBOL(exit_files);
+EXPORT_SYMBOL(exit_fs);
+EXPORT_SYMBOL(exit_sighand);
 
 /* internal kernel memory management */
 EXPORT_SYMBOL(__get_free_pages);
@@ -143,6 +143,7 @@ EXPORT_SYMBOL(update_vm_cache);
 EXPORT_SYMBOL(vmtruncate);
 
 /* filesystem internal functions */
+EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(putname);
@@ -153,7 +154,6 @@ EXPORT_SYMBOL(__namei);
 EXPORT_SYMBOL(lookup_dentry);
 EXPORT_SYMBOL(open_namei);
 EXPORT_SYMBOL(sys_close);
-EXPORT_SYMBOL(close_fp);
 EXPORT_SYMBOL(d_alloc_root);
 EXPORT_SYMBOL(d_delete);
 EXPORT_SYMBOL(d_validate);
@@ -196,6 +196,7 @@ EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
 EXPORT_SYMBOL(posix_unblock_lock);
+EXPORT_SYMBOL(locks_remove_flock);
 EXPORT_SYMBOL(dput);
 EXPORT_SYMBOL(get_cached_page);
 EXPORT_SYMBOL(put_cached_page);
@@ -203,6 +204,7 @@ EXPORT_SYMBOL(prune_dcache);
 EXPORT_SYMBOL(shrink_dcache_sb);
 EXPORT_SYMBOL(shrink_dcache_parent);
 EXPORT_SYMBOL(find_inode_number);
+EXPORT_SYMBOL(is_subdir);
 
 #if !defined(CONFIG_NFSD) && defined(CONFIG_NFSD_MODULE)
 EXPORT_SYMBOL(do_nfsservctl);
@@ -238,9 +240,10 @@ EXPORT_SYMBOL(resetup_one_dev);
 EXPORT_SYMBOL(unplug_device);
 EXPORT_SYMBOL(make_request);
 EXPORT_SYMBOL(tq_disk);
-EXPORT_SYMBOL(efind_buffer);
+EXPORT_SYMBOL(find_buffer);
 EXPORT_SYMBOL(init_buffer);
 EXPORT_SYMBOL(max_sectors);
+EXPORT_SYMBOL(max_readahead);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
@@ -321,8 +324,7 @@ EXPORT_SYMBOL(request_region);
 EXPORT_SYMBOL(release_region);
 
 /* process management */
-EXPORT_SYMBOL(wake_up);
-EXPORT_SYMBOL(wake_up_interruptible);
+EXPORT_SYMBOL(__wake_up);
 EXPORT_SYMBOL(sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on);
 EXPORT_SYMBOL(schedule);
@@ -379,6 +381,7 @@ EXPORT_SYMBOL(read_ahead);
 EXPORT_SYMBOL(get_hash_table);
 EXPORT_SYMBOL(get_empty_inode);
 EXPORT_SYMBOL(insert_inode_hash);
+EXPORT_SYMBOL(remove_inode_hash);
 EXPORT_SYMBOL(make_bad_inode);
 EXPORT_SYMBOL(is_bad_inode);
 EXPORT_SYMBOL(event);
@@ -403,3 +406,7 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
 EXPORT_SYMBOL(put_write_access);
+
+/* dynamic registering of consoles */
+EXPORT_SYMBOL(register_console);
+EXPORT_SYMBOL(unregister_console);

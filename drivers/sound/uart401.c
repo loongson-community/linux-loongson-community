@@ -186,12 +186,6 @@ uart401_end_read(int dev)
 	return 0;
 }
 
-static int
-uart401_ioctl(int dev, unsigned cmd, caddr_t arg)
-{
-	return -EINVAL;
-}
-
 static void
 uart401_kick(int dev)
 {
@@ -214,7 +208,7 @@ static struct midi_operations uart401_operations =
 	{0},
 	uart401_open,
 	uart401_close,
-	uart401_ioctl,
+	NULL, /* ioctl */
 	uart401_out,
 	uart401_start_read,
 	uart401_end_read,
@@ -452,8 +446,8 @@ unload_uart401(struct address_info *hw_config)
 	if (!devc->share_irq)
 		snd_release_irq(devc->irq);
 
-	if (!devc)
-		vfree(devc);
+	if (devc)
+		devc = NULL;
 	sound_unload_mididev(hw_config->slots[4]);
 }
 

@@ -28,6 +28,13 @@
  *
  * Yves Arrouye      :  remove removal of trailing spaces in get_array.
  *			<Yves.Arrouye@marin.fdn.fr>
+
+ * Jerome Forissier  :  added per-cpu time information to /proc/stat
+ *                      and /proc/<pid>/cpu extension
+ *                      <forissier@isia.cma.fr>
+ *			- Incorporation and non-SMP safe operation
+ *			of forissier patch in 2.1.78 by 
+ *			Hans Marcus <crowbar@concepts.nl>
  */
 
 #include <linux/types.h>
@@ -221,7 +228,34 @@ static int get_kstat(char * buffer)
 
 	ticks = jiffies * smp_num_cpus;
 	for (i = 0 ; i < NR_IRQS ; i++)
-		sum += kstat.interrupts[i];
+		sum += kstat_irqs(i);
+
+#ifdef __SMP__
+	len = sprintf(buffer,
+		"cpu  %u %u %u %lu\n",
+		kstat.cpu_user,
+		kstat.cpu_nice,
+		kstat.cpu_system,
+		jiffies*smp_num_cpus - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system));
+	for (i = 0 ; i < smp_num_cpus; i++)
+		len += sprintf(buffer + len, "cpu%d %u %u %u %lu\n",
+			i,
+			kstat.per_cpu_user[cpu_logical_map(i)],
+			kstat.per_cpu_nice[cpu_logical_map(i)],
+			kstat.per_cpu_system[cpu_logical_map(i)],
+			jiffies - (  kstat.per_cpu_user[cpu_logical_map(i)] \
+			           + kstat.per_cpu_nice[cpu_logical_map(i)] \
+			           + kstat.per_cpu_system[cpu_logical_map(i)]));
+	len += sprintf(buffer + len,
+		"disk %u %u %u %u\n"
+		"disk_rio %u %u %u %u\n"
+		"disk_wio %u %u %u %u\n"
+		"disk_rblk %u %u %u %u\n"
+		"disk_wblk %u %u %u %u\n"
+		"page %u %u\n"
+		"swap %u %u\n"
+		"intr %u",
+#else
 	len = sprintf(buffer,
 		"cpu  %u %u %u %lu\n"
 		"disk %u %u %u %u\n"
@@ -236,6 +270,7 @@ static int get_kstat(char * buffer)
 		kstat.cpu_nice,
 		kstat.cpu_system,
 		ticks - (kstat.cpu_user + kstat.cpu_nice + kstat.cpu_system),
+#endif
 		kstat.dk_drive[0], kstat.dk_drive[1],
 		kstat.dk_drive[2], kstat.dk_drive[3],
 		kstat.dk_drive_rio[0], kstat.dk_drive_rio[1],
@@ -252,7 +287,7 @@ static int get_kstat(char * buffer)
 		kstat.pswpout,
 		sum);
 	for (i = 0 ; i < NR_IRQS ; i++)
-		len += sprintf(buffer + len, " %u", kstat.interrupts[i]);
+		len += sprintf(buffer + len, " %u", kstat_irqs(i));
 	len += sprintf(buffer + len,
 		"\nctxt %u\n"
 		"btime %lu\n"
@@ -427,6 +462,14 @@ static int get_arg(int pid, char * buffer)
 	return get_array(p, p->mm->arg_start, p->mm->arg_end, buffer);
 }
 
+/*
+ * These bracket the sleeping functions..
+ */
+extern void scheduling_functions_start_here(void);
+extern void scheduling_functions_end_here(void);
+#define first_sched	((unsigned long) scheduling_functions_start_here)
+#define last_sched	((unsigned long) scheduling_functions_end_here)
+
 static unsigned long get_wchan(struct task_struct *p)
 {
 	if (!p || p == current || p->state == TASK_RUNNING)
@@ -445,8 +488,7 @@ static unsigned long get_wchan(struct task_struct *p)
 			if (ebp < stack_page || ebp >= 4092+stack_page)
 				return 0;
 			eip = *(unsigned long *) (ebp+4);
-			if (eip < (unsigned long) interruptible_sleep_on
-			    || eip >= (unsigned long) add_timer)
+			if (eip < first_sched || eip >= last_sched)
 				return eip;
 			ebp = *(unsigned long *) ebp;
 		} while (count++ < 16);
@@ -466,7 +508,7 @@ static unsigned long get_wchan(struct task_struct *p)
 	    unsigned long pc;
 
 	    pc = thread_saved_pc(&p->tss);
-	    if (pc >= (unsigned long) interruptible_sleep_on && pc < (unsigned long) add_timer) {
+	    if (pc >= first_sched && pc < last_sched) {
 		schedule_frame = ((unsigned long *)p->tss.ksp)[6];
 		return ((unsigned long *)schedule_frame)[12];
 	    }
@@ -503,10 +545,7 @@ static unsigned long get_wchan(struct task_struct *p)
 			    return 0;
 		    pc = ((unsigned long *)fp)[1];
 		/* FIXME: This depends on the order of these functions. */
-		    if ((pc < (unsigned long) __down
-		         || pc >= (unsigned long) add_timer)
-		        && (pc < (unsigned long) schedule
-			    || pc >= (unsigned long) sys_pause))
+		    if (pc < first_sched || pc >= last_sched)
 		      return pc;
 		    fp = *(unsigned long *) fp;
 	    } while (count++ < 16);
@@ -592,30 +631,47 @@ static inline char * task_name(struct task_struct *p, char * buf)
 	return buf+1;
 }
 
+/*
+ * The task state array is a strange "bitmap" of
+ * reasons to sleep. Thus "running" is zero, and
+ * you can test for combinations of others with
+ * simple bit tests.
+ */
+static const char *task_state_array[] = {
+	"R (running)",		/*  0 */
+	"S (sleeping)",		/*  1 */
+	"D (disk sleep)",	/*  2 */
+	"Z (zombie)",		/*  4 */
+	"T (stopped)",		/*  8 */
+	"W (paging)"		/* 16 */
+};
+
+static inline const char * get_task_state(struct task_struct *tsk)
+{
+	unsigned int state = tsk->state & (TASK_RUNNING |
+					   TASK_INTERRUPTIBLE |
+					   TASK_UNINTERRUPTIBLE |
+					   TASK_ZOMBIE |
+					   TASK_STOPPED |
+					   TASK_SWAPPING);
+	const char **p = &task_state_array[0];
+
+	while (state) {
+		p++;
+		state >>= 1;
+	}
+	return *p;
+}
+
 static inline char * task_state(struct task_struct *p, char *buffer)
 {
-#define NR_STATES (sizeof(states)/sizeof(const char *))
-	unsigned int n = p->state;
-	static const char * states[] = {
-		"R (running)",
-		"S (sleeping)",
-		"D (disk sleep)",
-		"Z (zombie)",
-		"T (stopped)",
-		"W (paging)",
-		". Huh?"
-	};
-
-	if (n >= NR_STATES)
-		n = NR_STATES-1;
-
 	buffer += sprintf(buffer,
 		"State:\t%s\n"
 		"Pid:\t%d\n"
 		"PPid:\t%d\n"
 		"Uid:\t%d\t%d\t%d\t%d\n"
 		"Gid:\t%d\t%d\t%d\t%d\n",
-		states[n],
+		get_task_state(p),
 		p->pid, p->p_pptr->pid,
 		p->uid, p->euid, p->suid, p->fsuid,
 		p->gid, p->egid, p->sgid, p->fsgid);
@@ -633,7 +689,7 @@ static inline char * task_mem(struct task_struct *p, char *buffer)
 
 		for (vma = mm->mmap; vma; vma = vma->vm_next) {
 			unsigned long len = (vma->vm_end - vma->vm_start) >> 10;
-			if (!vma->vm_dentry) {
+			if (!vma->vm_file) {
 				data += len;
 				if (vma->vm_flags & VM_GROWSDOWN)
 					stack += len;
@@ -751,10 +807,7 @@ static int get_stat(int pid, char * buffer)
 
 	if (!tsk)
 		return 0;
-	if (tsk->state < 0 || tsk->state > 5)
-		state = '.';
-	else
-		state = "RSDZTW"[tsk->state];
+	state = *get_task_state(tsk);
 	vsize = eip = esp = 0;
 	if (tsk->mm && tsk->mm != &init_mm) {
 		struct vm_area_struct *vma = tsk->mm->mmap;
@@ -1031,10 +1084,10 @@ static ssize_t read_maps (int pid, struct file * file, char * buf,
 
 		dev = 0;
 		ino = 0;
-		if (map->vm_dentry != NULL) {
-			dev = map->vm_dentry->d_inode->i_dev;
-			ino = map->vm_dentry->d_inode->i_ino;
-			line = d_path(map->vm_dentry, buffer, PAGE_SIZE);
+		if (map->vm_file != NULL) {
+			dev = map->vm_file->f_dentry->d_inode->i_dev;
+			ino = map->vm_file->f_dentry->d_inode->i_ino;
+			line = d_path(map->vm_file->f_dentry, buffer, PAGE_SIZE);
 			buffer[PAGE_SIZE-1] = '\n';
 			line -= maxlen;
 			if(line < buffer)
@@ -1047,7 +1100,7 @@ static ssize_t read_maps (int pid, struct file * file, char * buf,
 			      map->vm_start, map->vm_end, str, map->vm_offset,
 			      kdevname(dev), ino);
 
-		if(map->vm_dentry) {
+		if(map->vm_file) {
 			for(i = len; i < maxlen; i++)
 				line[i] = ' ';
 			len = buffer + PAGE_SIZE - line;
@@ -1094,6 +1147,33 @@ out:
 	return retval;
 }
 
+#ifdef __SMP__
+static int get_pidcpu(int pid, char * buffer)
+{
+	struct task_struct * tsk = current ;
+	int i, len;
+	
+	if (pid != tsk->pid)
+		tsk = find_task_by_pid(pid);
+
+	if (tsk == NULL)
+		return 0;
+
+	len = sprintf(buffer,
+		"cpu  %lu %lu\n",
+		tsk->times.tms_utime,
+		tsk->times.tms_stime);
+		
+	for (i = 0 ; i < smp_num_cpus; i++)
+		len += sprintf(buffer + len, "cpu%d %lu %lu\n",
+			i,
+			tsk->per_cpu_utime[cpu_logical_map(i)],
+			tsk->per_cpu_stime[cpu_logical_map(i)]);
+
+	return len;
+}
+#endif
+
 #ifdef CONFIG_MODULES
 extern int get_module_list(char *);
 extern int get_ksyms_list(char *, char **, off_t, int);
@@ -1104,14 +1184,11 @@ extern int get_filesystem_info( char * );
 extern int get_irq_list(char *);
 extern int get_dma_list(char *);
 extern int get_cpuinfo(char *);
-extern int get_pci_list(char*);
+extern int get_pci_list(char *);
 extern int get_md_status (char *);
 extern int get_rtc_status (char *);
 extern int get_locks_status (char *, char **, off_t, int);
 extern int get_swaparea_info (char *);
-#ifdef __SMP_PROF__
-extern int get_smp_prof_list(char *);
-#endif
 #ifdef CONFIG_ZORRO
 extern int zorro_get_list(char *);
 #endif
@@ -1132,7 +1209,7 @@ static long get_root_array(char * page, int type, char **start,
 		case PROC_MEMINFO:
 			return get_meminfo(page);
 
-#ifdef CONFIG_PCI
+#ifdef CONFIG_PCI_OLD_PROC
   	        case PROC_PCI:
 			return get_pci_list(page);
 #endif
@@ -1180,10 +1257,6 @@ static long get_root_array(char * page, int type, char **start,
 	        case PROC_MD:
 			return get_md_status(page);
 #endif
-#ifdef __SMP_PROF__
-		case PROC_SMP_PROF:
-			return get_smp_prof_list(page);
-#endif
 		case PROC_CMDLINE:
 			return get_cmdline(page);
 
@@ -1223,6 +1296,10 @@ static int get_process_array(char * page, int pid, int type)
 			return get_stat(pid, page);
 		case PROC_PID_STATM:
 			return get_statm(pid, page);
+#ifdef __SMP__
+		case PROC_PID_CPU:
+			return get_pidcpu(pid, page);
+#endif
 	}
 	return -EBADF;
 }

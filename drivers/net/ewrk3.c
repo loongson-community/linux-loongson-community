@@ -847,7 +847,7 @@ static int ewrk3_queue_pkt(struct sk_buff *skb, struct device *dev)
 					}
 
 					dev->trans_start = jiffies;
-					dev_kfree_skb(skb, FREE_WRITE);
+					dev_kfree_skb(skb);
 
 				} else {	/* return unused page to the free memory queue */
 					outb(page, EWRK3_FMQ);
@@ -1904,13 +1904,13 @@ int init_module(void)
 
 void cleanup_module(void)
 {
+	unregister_netdev(&thisEthwrk);
 	if (thisEthwrk.priv) {
 		kfree(thisEthwrk.priv);
 		thisEthwrk.priv = NULL;
 	}
 	thisEthwrk.irq = 0;
 
-	unregister_netdev(&thisEthwrk);
 	release_region(thisEthwrk.base_addr, EWRK3_TOTAL_SIZE);
 }
 #endif				/* MODULE */

@@ -71,13 +71,10 @@ VM_MASK		= 0x00020000
  * these are offsets into the task-struct.
  */
 state		=  0
-counter		=  4
-priority	=  8
-flags		= 12
-sigpending	= 16
-dbgreg6		= 44
-dbgreg7		= 48
-exec_domain	= 52
+flags		=  4
+sigpending	=  8
+addr_limit	= 12
+exec_domain	= 16
 
 ENOSYS = 38
 
@@ -369,7 +366,7 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_time)
 	.long SYMBOL_NAME(sys_mknod)
 	.long SYMBOL_NAME(sys_chmod)		/* 15 */
-	.long SYMBOL_NAME(sys_chown)
+	.long SYMBOL_NAME(sys_lchown)
 	.long SYMBOL_NAME(sys_ni_syscall)				/* old break syscall holder */
 	.long SYMBOL_NAME(sys_stat)
 	.long SYMBOL_NAME(sys_lseek)
@@ -535,7 +532,8 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_rt_sigsuspend)
 	.long SYMBOL_NAME(sys_pread)		/* 180 */
 	.long SYMBOL_NAME(sys_pwrite)
+	.long SYMBOL_NAME(sys_chown)
 	
-	.rept NR_syscalls-181
+	.rept NR_syscalls-182
 		.long SYMBOL_NAME(sys_ni_syscall)
 	.endr

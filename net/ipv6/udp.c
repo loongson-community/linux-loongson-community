@@ -7,7 +7,7 @@
  *
  *	Based on linux/ipv4/udp.c
  *
- *	$Id: udp.c,v 1.18 1997/09/14 08:32:24 davem Exp $
+ *	$Id: udp.c,v 1.21 1997/12/29 19:52:52 kuznet Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -27,6 +27,7 @@
 #include <linux/ipv6.h>
 #include <linux/icmpv6.h>
 #include <linux/init.h>
+#include <asm/uaccess.h>
 
 #include <net/sock.h>
 #include <net/snmp.h>
@@ -282,16 +283,11 @@ int udpv6_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 
 static void udpv6_close(struct sock *sk, unsigned long timeout)
 {
-	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
-
 	lock_sock(sk);
 	sk->state = TCP_CLOSE;
-
-	if (np->dst)
-		dst_release(np->dst);
-
 	ipv6_sock_mc_close(sk);
 	udp_v6_unhash(sk);
+	sk->dead = 1;
 	release_sock(sk);
 	destroy_sock(sk);
 }
@@ -304,10 +300,8 @@ static void udpv6_close(struct sock *sk, unsigned long timeout)
 int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 		  int noblock, int flags, int *addr_len)
 {
-  	int copied = 0;
-  	int truesize;
   	struct sk_buff *skb;
-  	int err;
+  	int copied, err;
 
 	/*
 	 *	Check any passed addresses
@@ -322,16 +316,13 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	 */
 	 	
 	skb = skb_recv_datagram(sk, flags, noblock, &err);
-	if(skb==NULL)
-  		return err;
+	if (!skb)
+		goto out;
   
- 	truesize=ntohs(((struct udphdr *)skb->h.raw)->len) - sizeof(struct udphdr);
-  	
-  	copied=truesize;
-
-  	if(copied>len) {
-  		copied=len;
-  		msg->msg_flags|=MSG_TRUNC;
+ 	copied = ntohs(((struct udphdr *)skb->h.raw)->len) - sizeof(struct udphdr);
+  	if (copied > len) {
+  		copied = len;
+  		msg->msg_flags |= MSG_TRUNC;
   	}
 
   	/*
@@ -341,7 +332,7 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 	err = skb_copy_datagram_iovec(skb, sizeof(struct udphdr), 
 				      msg->msg_iov, copied);
 	if (err)
-		return err; 
+		goto out_free;
 	
 	sk->stamp=skb->stamp;
 
@@ -350,7 +341,6 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 		struct sockaddr_in6 *sin6;
 	  
 		sin6 = (struct sockaddr_in6 *) msg->msg_name;
-		
 		sin6->sin6_family = AF_INET6;
 		sin6->sin6_port = skb->h.uh->source;
 
@@ -365,9 +355,12 @@ int udpv6_recvmsg(struct sock *sk, struct msghdr *msg, int len,
 				datagram_recv_ctl(sk, msg, skb);
 		}
   	}
-	
-  	skb_free_datagram(sk, skb);
-  	return(copied);
+	err = copied;
+
+out_free:
+	skb_free_datagram(sk, skb);
+out:
+	return err;
 }
 
 void udpv6_err(int type, int code, unsigned char *buff, __u32 info,
@@ -406,14 +399,14 @@ static inline int udpv6_queue_rcv_skb(struct sock * sk, struct sk_buff *skb)
 		ipv6_statistics.Ip6InDiscards++;
 		ipv6_statistics.Ip6InDelivers--;
 		skb->sk = NULL;
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return 0;
 	}
 	udp_stats_in6.UdpInDatagrams++;
 	return 0;
 }
 
-static int __inline__ inet6_mc_check(struct sock *sk, struct in6_addr *addr)
+static __inline__ int inet6_mc_check(struct sock *sk, struct in6_addr *addr)
 {
 	struct ipv6_mc_socklist *mc;
 		
@@ -461,6 +454,7 @@ static void udpv6_mcast_deliver(struct udphdr *uh,
 {
 	struct sock *sk, *sk2;
 
+	SOCKHASH_LOCK();
 	sk = udp_hash[ntohs(uh->dest) & (UDP_HTABLE_SIZE - 1)];
 	sk = udp_v6_mcast_next(sk, uh->dest, daddr, uh->source, saddr);
 	if(sk) {
@@ -469,16 +463,17 @@ static void udpv6_mcast_deliver(struct udphdr *uh,
 					       uh->dest, saddr,
 					       uh->source, daddr))) {
 			struct sk_buff *buff = skb_clone(skb, GFP_ATOMIC);
-			if(sock_queue_rcv_skb(sk, buff) < 0) {
+			if (buff && sock_queue_rcv_skb(sk2, buff) < 0) {
 				buff->sk = NULL;
-				kfree_skb(buff, FREE_READ);
+				kfree_skb(buff);
 			}
 		}
 	}
 	if(!sk || sock_queue_rcv_skb(sk, skb) < 0) {
 		skb->sk = NULL;
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	}
+	SOCKHASH_UNLOCK();
 }
 
 int udpv6_rcv(struct sk_buff *skb, struct device *dev,
@@ -504,7 +499,7 @@ int udpv6_rcv(struct sk_buff *skb, struct device *dev,
 	if (ulen > len || len < sizeof(*uh)) {
 		printk(KERN_DEBUG "UDP: short packet: %d/%d\n", ulen, len);
 		udp_stats_in6.UdpInErrors++;
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return(0);
 	}
 
@@ -547,7 +542,7 @@ int udpv6_rcv(struct sk_buff *skb, struct device *dev,
 
 		icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_PORT_UNREACH, 0, dev);
 		
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return(0);
 	}
 
@@ -562,7 +557,7 @@ int udpv6_rcv(struct sk_buff *skb, struct device *dev,
 
 discard:
 	udp_stats_in6.UdpInErrors++;
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return(0);	
 }
 
@@ -649,6 +644,16 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 
 	int err;
 	
+	/* Rough check on arithmetic overflow,
+	   better check is made in ip6_build_xmit
+
+	   When jumbo header will be implemeted we will change it
+	   to something sort of (len will be size_t)
+	   ulen > SIZE_T_MAX - sizeof(struct udphdr)
+	 */
+	if (ulen < 0 || ulen > 0xFFFF - sizeof(struct udphdr))
+		return -EMSGSIZE;
+
 	if (msg->msg_flags & ~(MSG_DONTROUTE|MSG_DONTWAIT))
 		return(-EINVAL);
 
@@ -665,9 +670,12 @@ static int udpv6_sendmsg(struct sock *sk, struct msghdr *msg, int ulen)
 		udh.uh.dest = sin6->sin6_port;
 		daddr = &sin6->sin6_addr;
 
-		if (np->dst && ipv6_addr_cmp(daddr, &np->daddr)) {
-			dst_release(np->dst);
-			np->dst = NULL;
+		/* BUGGGG! If route is not cloned, this check always
+		   fails, hence dst_cache only slows down transmission --ANK
+		 */
+		if (sk->dst_cache && ipv6_addr_cmp(daddr, &np->daddr)) {
+			dst_release(sk->dst_cache);
+			sk->dst_cache = NULL;
 		}
 	} else {
 		if (sk->state != TCP_ESTABLISHED)

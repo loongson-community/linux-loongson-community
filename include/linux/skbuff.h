@@ -23,9 +23,6 @@
 #define HAVE_ALLOC_SKB		/* For the drivers to know */
 #define HAVE_ALIGNABLE_SKB	/* Ditto 8)		   */
 
-#define FREE_READ	1
-#define FREE_WRITE	0
-
 #define CHECKSUM_NONE 0
 #define CHECKSUM_HW 1
 #define CHECKSUM_UNNECESSARY 2
@@ -78,7 +75,12 @@ struct sk_buff
 	} mac;
 
 	struct  dst_entry *dst;
+
+#if (defined(__alpha__) || defined(__sparc64__)) && (defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE))
+	char		cb[48];	   /* sorry. 64bit pointers have a price */
+#else
 	char    	cb[32];
+#endif
 
 	__u32		seq;			/* TCP sequence number				*/
 	__u32		end_seq;		/* seq [+ fin] [+ syn] + datalen		*/
@@ -86,8 +88,7 @@ struct sk_buff
   
 	unsigned int 	len;			/* Length of actual data			*/
 	unsigned int	csum;			/* Checksum 					*/
-	volatile char 	used,			/* Are we in use ?				*/
-			arp;			/* Has IP/ARP resolution finished		*/
+	volatile char 	used;
 	unsigned char	tries,			/* Times tried					*/
   			inclone,		/* Inline clone					*/
   			pkt_type,		/* Packet class					*/
@@ -137,9 +138,6 @@ struct sk_buff
 
 #include <asm/system.h>
 
-#if 0
-extern void			print_skb(struct sk_buff *);
-#endif
 extern void			__kfree_skb(struct sk_buff *skb);
 extern void			skb_queue_head_init(struct sk_buff_head *list);
 extern void			skb_queue_head(struct sk_buff_head *list,struct sk_buff *buf);
@@ -156,7 +154,7 @@ extern void			kfree_skbmem(struct sk_buff *skb);
 extern struct sk_buff *		skb_clone(struct sk_buff *skb, int priority);
 extern struct sk_buff *		skb_copy(struct sk_buff *skb, int priority);
 extern struct sk_buff *		skb_realloc_headroom(struct sk_buff *skb, int newheadroom);
-#define dev_kfree_skb(a, b)	kfree_skb((a), (b))
+#define dev_kfree_skb(a)	kfree_skb(a)
 extern unsigned char *		skb_put(struct sk_buff *skb, unsigned int len);
 extern unsigned char *		skb_push(struct sk_buff *skb, unsigned int len);
 extern unsigned char *		skb_pull(struct sk_buff *skb, unsigned int len);
@@ -170,7 +168,7 @@ extern __inline__ int skb_queue_empty(struct sk_buff_head *list)
 	return (list->next == (struct sk_buff *) list);
 }
 
-extern __inline__ void kfree_skb(struct sk_buff *skb, int rw)
+extern __inline__ void kfree_skb(struct sk_buff *skb)
 {
 	if (atomic_dec_and_test(&skb->users))
 		__kfree_skb(skb);
@@ -193,13 +191,13 @@ extern __inline__ int skb_shared(struct sk_buff *skb)
  *	a packet thats being forwarded.
  */
  
-extern __inline__ struct sk_buff *skb_unshare(struct sk_buff *skb, int pri, int dir)
+extern __inline__ struct sk_buff *skb_unshare(struct sk_buff *skb, int pri)
 {
 	struct sk_buff *nskb;
 	if(!skb_cloned(skb))
 		return skb;
 	nskb=skb_copy(skb, pri);
-	kfree_skb(skb, dir);	/* Free our shared copy */
+	kfree_skb(skb);		/* Free our shared copy */
 	return nskb;
 }
 
@@ -213,6 +211,14 @@ extern __inline__ struct sk_buff *skb_unshare(struct sk_buff *skb, int pri, int 
 extern __inline__ struct sk_buff *skb_peek(struct sk_buff_head *list_)
 {
 	struct sk_buff *list = ((struct sk_buff *)list_)->next;
+	if (list == (struct sk_buff *)list_)
+		list = NULL;
+	return list;
+}
+
+extern __inline__ struct sk_buff *skb_peek_tail(struct sk_buff_head *list_)
+{
+	struct sk_buff *list = ((struct sk_buff *)list_)->prev;
 	if (list == (struct sk_buff *)list_)
 		list = NULL;
 	return list;
@@ -408,6 +414,28 @@ extern __inline__ void skb_unlink(struct sk_buff *skb)
 	restore_flags(flags);
 }
 
+/* XXX: more streamlined implementation */
+extern __inline__ struct sk_buff *__skb_dequeue_tail(struct sk_buff_head *list)
+{
+	struct sk_buff *skb = skb_peek_tail(list); 
+	if (skb)
+		__skb_unlink(skb, list);
+	return skb;
+}
+
+extern __inline__ struct sk_buff *skb_dequeue_tail(struct sk_buff_head *list)
+{
+	long flags;
+	struct sk_buff *result;
+
+	save_flags(flags);
+	cli();
+	result = __skb_dequeue_tail(list);
+	restore_flags(flags);
+	return result;
+}
+
+
 extern const char skb_put_errstr[];
 extern const char skb_push_errstr[];
 
@@ -484,33 +512,6 @@ extern __inline__ void skb_trim(struct sk_buff *skb, unsigned int len)
 	}
 }
 
-/* dev_tint can lock buffer at any moment,
- * so that cli(), unlink it and sti(),
- * now it is safe.
- */
-
-extern __inline__ int skb_steal(struct sk_buff *skb)
-{
-	unsigned long flags;
-
-	save_flags(flags);
-	cli();
-	if (skb->next) {
-		skb_unlink(skb);
-		atomic_dec(&skb->users);
-	}
-	restore_flags(flags);
-	return 1;
-}
-
-extern __inline__ void __skb_steal(struct sk_buff *skb)
-{
-	if (skb->next) {
-		skb_unlink(skb);
-		atomic_dec(&skb->users);
-	}
-}
-
 extern __inline__ void skb_orphan(struct sk_buff *skb)
 {
 	if (skb->destructor)
@@ -523,11 +524,21 @@ extern __inline__ void skb_queue_purge(struct sk_buff_head *list)
 {
 	struct sk_buff *skb;
 	while ((skb=skb_dequeue(list))!=NULL)
-		kfree_skb(skb,0);
+		kfree_skb(skb);
+}
+
+extern __inline__ struct sk_buff *dev_alloc_skb(unsigned int length)
+{
+	struct sk_buff *skb;
+
+	skb = alloc_skb(length+16, GFP_ATOMIC);
+	if (skb)
+		skb_reserve(skb,16);
+	return skb;
 }
 
 extern struct sk_buff *		skb_recv_datagram(struct sock *sk,unsigned flags,int noblock, int *err);
-extern unsigned int		datagram_poll(struct socket *sock, struct poll_table_struct *wait);
+extern unsigned int		datagram_poll(struct file *file, struct socket *sock, struct poll_table_struct *wait);
 extern int			skb_copy_datagram(struct sk_buff *from, int offset, char *to,int size);
 extern int			skb_copy_datagram_iovec(struct sk_buff *from, int offset, struct iovec *to,int size);
 extern void			skb_free_datagram(struct sock * sk, struct sk_buff *skb);

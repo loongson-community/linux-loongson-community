@@ -54,7 +54,7 @@ struct module *module_list = &kernel_module;
 static long get_mod_name(const char *user_name, char **buf);
 static void put_mod_name(char *buf);
 static struct module *find_module(const char *name);
-static void free_module(struct module *);
+static void free_module(struct module *, int tag_freed);
 
 
 /*
@@ -305,17 +305,17 @@ sys_init_module(const char *name_user, struct module *mod_user)
 	for (i = 0, dep = mod->deps; i < mod->ndeps; ++i, ++dep) {
 		struct module *o, *d = dep->dep;
 
-		/* Make sure the indicated dependancies are really modules.  */
+		/* Make sure the indicated dependencies are really modules.  */
 		if (d == mod) {
 			printk(KERN_ERR "init_module: self-referential "
-					"dependancy in mod->deps.\n");
+					"dependency in mod->deps.\n");
 			goto err3;
 		}
 
 		for (o = module_list; o != &kernel_module; o = o->next)
 			if (o == d) goto found_dep;
 
-		printk(KERN_ERR "init_module: found dependancy that is "
+		printk(KERN_ERR "init_module: found dependency that is "
 				"(no longer?) a module.\n");
 		goto err3;
 		
@@ -363,6 +363,7 @@ sys_delete_module(const char *name_user)
 	struct module *mod, *next;
 	char *name;
 	long error = -EPERM;
+	int something_changed;
 
 	lock_kernel();
 	if (!suser())
@@ -386,25 +387,35 @@ sys_delete_module(const char *name_user)
  		if (mod->refs != NULL || __MOD_IN_USE(mod))
 			goto out;
 
-		free_module(mod);
+		free_module(mod, 0);
 		error = 0;
 		goto out;
 	}
 
 	/* Do automatic reaping */
+restart:
+	something_changed = 0;
 	for (mod = module_list; mod != &kernel_module; mod = next) {
 		next = mod->next;
-		if (mod->refs == NULL &&
-		    ((mod->flags
-		      & (MOD_AUTOCLEAN|MOD_RUNNING|MOD_DELETED|MOD_USED_ONCE))
-		     == (MOD_AUTOCLEAN|MOD_RUNNING|MOD_USED_ONCE)) &&
-		    !__MOD_IN_USE(mod)) {
-			if (mod->flags & MOD_VISITED)
+		if (mod->refs == NULL
+		    && (mod->flags & MOD_AUTOCLEAN)
+		    && (mod->flags & MOD_RUNNING)
+		    && !(mod->flags & MOD_DELETED)
+		    && (mod->flags & MOD_USED_ONCE)
+		    && !__MOD_IN_USE(mod)) {
+			if ((mod->flags & MOD_VISITED)
+			    && !(mod->flags & MOD_JUST_FREED)) {
 				mod->flags &= ~MOD_VISITED;
-			else
-				free_module(mod);
+			} else {
+				free_module(mod, 1);
+				something_changed = 1;
+			}
 		}
 	}
+	if (something_changed)
+		goto restart;
+	for (mod = module_list; mod != &kernel_module; mod = mod->next)
+		mod->flags &= ~MOD_JUST_FREED;
 	error = 0;
 out:
 	unlock_kernel();
@@ -764,7 +775,7 @@ find_module(const char *name)
  */
 
 static void
-free_module(struct module *mod)
+free_module(struct module *mod, int tag_freed)
 {
 	struct module_ref *dep;
 	unsigned i;
@@ -772,18 +783,22 @@ free_module(struct module *mod)
 	/* Let the module clean up.  */
 
 	mod->flags |= MOD_DELETED;
-	if (mod->flags & MOD_RUNNING) {
-		mod->cleanup();
+	if (mod->flags & MOD_RUNNING) 
+	{
+		if(mod->cleanup)
+			mod->cleanup();
 		mod->flags &= ~MOD_RUNNING;
 	}
 
-	/* Remove the module from the dependancy lists.  */
+	/* Remove the module from the dependency lists.  */
 
 	for (i = 0, dep = mod->deps; i < mod->ndeps; ++i, ++dep) {
 		struct module_ref **pp;
 		for (pp = &dep->dep->refs; *pp != dep; pp = &(*pp)->next_ref)
 			continue;
 		*pp = dep->next_ref;
+		if (tag_freed && dep->dep->refs == NULL)
+			dep->dep->flags |= MOD_JUST_FREED;
 	}
 
 	/* And from the main module list.  */

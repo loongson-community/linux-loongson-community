@@ -11,9 +11,10 @@
 
 #include <linux/signal.h>
 #include <linux/sched.h>
-#include <linux/nfs.h>
 #include <linux/in.h>
-#include <linux/sunrpc/debug.h>
+
+#include <linux/sunrpc/sched.h>
+#include <linux/nfs.h>
 #include <linux/nfs_mount.h>
 
 /*
@@ -53,11 +54,12 @@
  */
 #define NFS_SUPER_MAGIC			0x6969
 
+#define NFS_FH(dentry)			((struct nfs_fh *) ((dentry)->d_fsdata))
+#define NFS_DSERVER(dentry)		(&(dentry)->d_sb->u.nfs_sb.s_server)
 #define NFS_SERVER(inode)		(&(inode)->i_sb->u.nfs_sb.s_server)
 #define NFS_CLIENT(inode)		(NFS_SERVER(inode)->client)
 #define NFS_ADDR(inode)			(RPC_PEERADDR(NFS_CLIENT(inode)))
 #define NFS_CONGESTED(inode)		(RPC_CONGESTED(NFS_CLIENT(inode)))
-#define NFS_FH(inode)			(&(inode)->u.nfs_i.fhandle)
 
 #define NFS_READTIME(inode)		((inode)->u.nfs_i.read_cache_jiffies)
 #define NFS_OLDMTIME(inode)		((inode)->u.nfs_i.read_cache_mtime)
@@ -76,8 +78,6 @@ do { \
 
 #define NFS_FLAGS(inode)		((inode)->u.nfs_i.flags)
 #define NFS_REVALIDATING(inode)		(NFS_FLAGS(inode) & NFS_INO_REVALIDATE)
-
-#define NFS_RENAMED_DIR(inode)		((inode)->u.nfs_i.silly_inode)
 #define NFS_WRITEBACK(inode)		((inode)->u.nfs_i.writeback)
 
 /*
@@ -86,6 +86,48 @@ do { \
 #define NFS_RPC_SWAPFLAGS		(RPC_TASK_SWAPPER|RPC_TASK_ROOTCREDS)
 
 #ifdef __KERNEL__
+
+/*
+ * This struct describes a file region to be written.
+ * It's kind of a pity we have to keep all these lists ourselves, rather
+ * than sticking an extra pointer into struct page.
+ */
+struct nfs_wreq {
+	struct rpc_listitem	wb_list;	/* linked list of req's */
+	struct rpc_task		wb_task;	/* RPC task */
+	struct dentry *		wb_dentry;	/* dentry referenced */
+	struct inode *		wb_inode;	/* inode referenced */
+	struct page *		wb_page;	/* page to be written */
+	unsigned int		wb_offset;	/* offset within page */
+	unsigned int		wb_bytes;	/* dirty range */
+	pid_t			wb_pid;		/* owner process */
+	unsigned short		wb_flags;	/* status flags */
+
+	struct nfs_writeargs	wb_args;	/* NFS RPC stuff */
+	struct nfs_fattr	wb_fattr;	/* file attributes */
+};
+#define wb_status		wb_task.tk_status
+
+#define WB_NEXT(req)		((struct nfs_wreq *) ((req)->wb_list.next))
+
+/*
+ * Various flags for wb_flags
+ */
+#define NFS_WRITE_WANTLOCK	0x0001	/* needs to lock page */
+#define NFS_WRITE_LOCKED	0x0002	/* holds lock on page */
+#define NFS_WRITE_CANCELLED	0x0004	/* has been cancelled */
+#define NFS_WRITE_UNCOMMITTED	0x0008	/* written but uncommitted (NFSv3) */
+#define NFS_WRITE_INVALIDATE	0x0010	/* invalidate after write */
+#define NFS_WRITE_INPROGRESS	0x0100	/* RPC call in progress */
+#define NFS_WRITE_COMPLETE	0x0200	/* RPC call completed */
+
+#define WB_WANTLOCK(req)	((req)->wb_flags & NFS_WRITE_WANTLOCK)
+#define WB_HAVELOCK(req)	((req)->wb_flags & NFS_WRITE_LOCKED)
+#define WB_CANCELLED(req)	((req)->wb_flags & NFS_WRITE_CANCELLED)
+#define WB_UNCOMMITTED(req)	((req)->wb_flags & NFS_WRITE_UNCOMMITTED)
+#define WB_INVALIDATE(req)	((req)->wb_flags & NFS_WRITE_INVALIDATE)
+#define WB_INPROGRESS(req)	((req)->wb_flags & NFS_WRITE_INPROGRESS)
+#define WB_COMPLETE(req)	((req)->wb_flags & NFS_WRITE_COMPLETE)
 
 /*
  * linux/fs/nfs/proc.c
@@ -135,11 +177,11 @@ extern int nfs_proc_statfs(struct nfs_server *server, struct nfs_fh *fhandle,
  */
 extern struct super_block *nfs_read_super(struct super_block *, void *, int);
 extern int init_nfs_fs(void);
-extern struct inode *nfs_fhget(struct super_block *, struct nfs_fh *,
-			       struct nfs_fattr *);
+extern struct inode *nfs_fhget(struct dentry *, struct nfs_fh *,
+				struct nfs_fattr *);
 extern int nfs_refresh_inode(struct inode *, struct nfs_fattr *);
-extern int nfs_revalidate(struct inode *);
-extern int _nfs_revalidate_inode(struct nfs_server *, struct inode *);
+extern int nfs_revalidate(struct dentry *);
+extern int _nfs_revalidate_inode(struct nfs_server *, struct dentry *);
 
 /*
  * linux/fs/nfs/file.c
@@ -150,6 +192,7 @@ extern struct inode_operations nfs_file_inode_operations;
  * linux/fs/nfs/dir.c
  */
 extern struct inode_operations nfs_dir_inode_operations;
+extern struct dentry_operations nfs_dentry_operations;
 extern void nfs_free_dircache(void);
 extern void nfs_invalidate_dircache(struct inode *);
 extern void nfs_invalidate_dircache_sb(struct super_block *);
@@ -162,25 +205,25 @@ extern struct inode_operations nfs_symlink_inode_operations;
 /*
  * linux/fs/nfs/locks.c
  */
-extern int nfs_lock(struct file *file, int cmd, struct file_lock *fl);
+extern int nfs_lock(struct file *, int, struct file_lock *);
 
 /*
  * linux/fs/nfs/write.c
  */
-extern int  nfs_writepage(struct inode *, struct page *);
+extern int  nfs_writepage(struct file *, struct page *);
+extern int  nfs_find_dentry_request(struct inode *, struct dentry *);
 extern int  nfs_check_failed_request(struct inode *);
 extern int  nfs_check_error(struct inode *);
 extern int  nfs_flush_dirty_pages(struct inode *, pid_t, off_t, off_t);
 extern int  nfs_truncate_dirty_pages(struct inode *, unsigned long);
 extern void nfs_invalidate_pages(struct inode *);
-extern int  nfs_updatepage(struct inode *, struct page *, const char *,
+extern int  nfs_updatepage(struct file *, struct page *, const char *,
 			unsigned long, unsigned int, int);
 
 /*
  * linux/fs/nfs/read.c
  */
-extern int  nfs_readpage(struct inode *, struct page *);
-extern int  nfs_readpage_sync(struct inode *, struct page *);
+extern int  nfs_readpage(struct file *, struct page *);
 
 /*
  * linux/fs/mount_clnt.c
@@ -192,11 +235,12 @@ extern int  nfs_mount(struct sockaddr_in *, char *, struct nfs_fh *);
  * inline functions
  */
 static inline int
-nfs_revalidate_inode(struct nfs_server *server, struct inode *inode)
+nfs_revalidate_inode(struct nfs_server *server, struct dentry *dentry)
 {
+	struct inode *inode = dentry->d_inode;
 	if (jiffies - NFS_READTIME(inode) < NFS_ATTRTIMEO(inode))
 		return 0;
-	return _nfs_revalidate_inode(server, inode);
+	return _nfs_revalidate_inode(server, dentry);
 }
 
 extern struct nfs_wreq *	nfs_failed_requests;
@@ -210,14 +254,7 @@ nfs_write_error(struct inode *inode)
 
 /* NFS root */
 
-#define NFS_ROOT		"/tftpboot/%s"
-#define NFS_ROOT_NAME_LEN	256
-#define NFS_ROOT_ADDRS_LEN	128
-
 extern int nfs_root_mount(struct super_block *sb);
-extern int nfs_root_init(char *nfsname, char *nfsaddrs);
-extern char nfs_root_name[];
-extern char nfs_root_addrs[];
 
 #endif /* __KERNEL__ */
 

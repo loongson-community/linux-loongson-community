@@ -75,9 +75,9 @@ extern int last_pid;
 #define TASK_RUNNING		0
 #define TASK_INTERRUPTIBLE	1
 #define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE		3
-#define TASK_STOPPED		4
-#define TASK_SWAPPING		5
+#define TASK_ZOMBIE		4
+#define TASK_STOPPED		8
+#define TASK_SWAPPING		16
 
 /*
  * Scheduling policies
@@ -140,14 +140,17 @@ struct fs_struct {
 	NULL, NULL \
 }
 
+/* Maximum number of active map areas.. This is a random (large) number */
+#define MAX_MAP_COUNT	(65536)
+
 struct mm_struct {
 	struct vm_area_struct *mmap, *mmap_cache;
 	pgd_t * pgd;
-	int count;
+	int count, map_count;
 	struct semaphore mmap_sem;
 	unsigned long context;
 	unsigned long start_code, end_code, start_data, end_data;
-	unsigned long start_brk, brk, start_stack, start_mmap;
+	unsigned long start_brk, brk, start_stack;
 	unsigned long arg_start, arg_end, env_start, env_end;
 	unsigned long rss, total_vm, locked_vm;
 	unsigned long def_flags;
@@ -155,11 +158,11 @@ struct mm_struct {
 };
 
 #define INIT_MM {					\
-		&init_mmap, NULL, swapper_pg_dir, 1,	\
+		&init_mmap, NULL, swapper_pg_dir, 1, 1,	\
 		MUTEX,					\
 		0,					\
 		0, 0, 0, 0,				\
-		0, 0, 0, 0,				\
+		0, 0, 0, 				\
 		0, 0, 0, 0,				\
 		0, 0, 0,				\
 		0, 0 }
@@ -179,13 +182,18 @@ struct signal_struct {
 struct task_struct {
 /* these are hardcoded - don't touch */
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
-	long counter;
-	long priority;
 	unsigned long flags;	/* per process flags, defined below */
 	int sigpending;
-	long debugreg[8];  /* Hardware debugging registers */
+	mm_segment_t addr_limit;	/* thread address space:
+					 	0-0xBFFFFFFF for user-thead
+						0-0xFFFFFFFF for kernel-thread
+					 */
 	struct exec_domain *exec_domain;
+
 /* various fields */
+	long debugreg[8];  /* Hardware debugging registers */
+	long counter;
+	long priority;
 	struct linux_binfmt *binfmt;
 	struct task_struct *next_task, *prev_task;
 	struct task_struct *next_run,  *prev_run;
@@ -226,6 +234,7 @@ struct task_struct {
 	struct timer_list real_timer;
 	struct tms times;
 	unsigned long start_time;
+	long per_cpu_utime[NR_CPUS], per_cpu_stime[NR_CPUS];
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt, nswap, cmin_flt, cmaj_flt, cnswap;
 	int swappable:1;
@@ -307,9 +316,9 @@ struct task_struct {
  * your own risk!. Base=0, limit=0x1fffff (=2MB)
  */
 #define INIT_TASK \
-/* state etc */	{ 0,DEF_PRIORITY,DEF_PRIORITY,0,0, \
+/* state etc */	{ 0,0,0,KERNEL_DS,&default_exec_domain, \
 /* debugregs */ { 0, },            \
-/* exec domain */&default_exec_domain, \
+/* counter */	DEF_PRIORITY,DEF_PRIORITY, \
 /* binfmt */	NULL, \
 /* schedlink */	&init_task,&init_task, &init_task, &init_task, \
 /* ec,brk... */	0,0,0,0,0,0, \
@@ -323,6 +332,7 @@ struct task_struct {
 /* timeout */	0,SCHED_OTHER,0,0,0,0,0,0,0, \
 /* timer */	{ NULL, NULL, 0, 0, it_real_fn }, \
 /* utime */	{0,0,0,0},0, \
+/* per cpu times */ {0, }, {0, }, \
 /* flt */	0,0,0,0,0,0, \
 /* swp */	0,0,0,0,0, \
 /* rlimits */   INIT_RLIMITS, \
@@ -438,11 +448,13 @@ extern int securelevel;	/* system security level */
 
 #define CURRENT_TIME (xtime.tv_sec)
 
+extern void FASTCALL(__wake_up(struct wait_queue ** p, unsigned int mode));
 extern void FASTCALL(sleep_on(struct wait_queue ** p));
 extern void FASTCALL(interruptible_sleep_on(struct wait_queue ** p));
-extern void FASTCALL(wake_up(struct wait_queue ** p));
-extern void FASTCALL(wake_up_interruptible(struct wait_queue ** p));
 extern void FASTCALL(wake_up_process(struct task_struct * tsk));
+
+#define wake_up(x)			__wake_up((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTIBLE)
+#define wake_up_interruptible(x)	__wake_up((x),TASK_INTERRUPTIBLE)
 
 extern void release(struct task_struct * p);
 extern int in_group_p(gid_t grp);
@@ -513,10 +525,24 @@ extern void free_irq(unsigned int irq, void *dev_id);
  * it returns true (to do BSD-style accounting where the process is flagged
  * if it uses root privs). The implication of this is that you should do
  * normal permissions checks first, and check suser() last.
+ *
+ * [Dec 1997 -- Chris Evans]
+ * For correctness, the above considerations need to be extended to
+ * fsuser(). This is done, along with moving fsuser() checks to be
+ * last.
  */
 extern inline int suser(void)
 {
 	if (current->euid == 0) {
+		current->flags |= PF_SUPERPRIV;
+		return 1;
+	}
+	return 0;
+}
+
+extern inline int fsuser(void)
+{
+	if (current->fsuid == 0) {
 		current->flags |= PF_SUPERPRIV;
 		return 1;
 	}

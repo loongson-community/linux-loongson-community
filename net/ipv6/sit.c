@@ -6,7 +6,7 @@
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *	Alexey Kuznetsov	<kuznet@ms2.inr.ac.ru>
  *
- *	$Id: sit.c,v 1.23 1997/11/08 18:15:49 kuznet Exp $
+ *	$Id: sit.c,v 1.24 1997/12/13 21:53:17 kuznet Exp $
  *
  *	This program is free software; you can redistribute it and/or
  *      modify it under the terms of the GNU General Public License
@@ -14,7 +14,6 @@
  *      2 of the License, or (at your option) any later version.
  */
 
-#include <linux/config.h>
 #define __NO_VERSION__
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -330,7 +329,7 @@ void ipip6_err(struct sk_buff *skb, unsigned char *dp, int len)
 			icmpv6_send(skb2, rel_type, rel_code, rel_info, skb2->dev);
 		}
 	}
-	kfree_skb(skb2, FREE_WRITE);
+	kfree_skb(skb2);
 	return;
 #endif
 }
@@ -359,7 +358,7 @@ int ipip6_rcv(struct sk_buff *skb, unsigned short len)
 	}
 
 	icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, 0);
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 
@@ -393,17 +392,17 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
 		goto tx_error;
 
 	if (!dst) {
-		struct nd_neigh *neigh = NULL;
+		struct neighbour *neigh = NULL;
 
 		if (skb->dst)
-			neigh = (struct nd_neigh *) skb->dst->neighbour;
+			neigh = skb->dst->neighbour;
 
 		if (neigh == NULL) {
 			printk(KERN_DEBUG "sit: nexthop == NULL\n");
 			goto tx_error;
 		}
 
-		addr6 = &neigh->ndn_addr;
+		addr6 = (struct in6_addr*)&neigh->primary_key;
 		addr_type = ipv6_addr_type(addr6);
 
 		if (addr_type == IPV6_ADDR_ANY) {
@@ -455,7 +454,7 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
 	if (tunnel->err_count > 0) {
 		if (jiffies - tunnel->err_time < IPTUNNEL_ERR_TIMEO) {
 			tunnel->err_count--;
-			icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0, skb->dev);
+			dst_link_failure(skb);
 		} else
 			tunnel->err_count = 0;
 	}
@@ -472,11 +471,11 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
 		if (!new_skb) {
 			ip_rt_put(rt);
   			stats->tx_dropped++;
-			dev_kfree_skb(skb, FREE_WRITE);
+			dev_kfree_skb(skb);
 			tunnel->recursion--;
 			return 0;
 		}
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		skb = new_skb;
 	}
 
@@ -517,10 +516,10 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct device *dev)
 	return 0;
 
 tx_error_icmp:
-	icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0, dev);
+	dst_link_failure(skb);
 tx_error:
 	stats->tx_errors++;
-	dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb(skb);
 	tunnel->recursion--;
 	return 0;
 }

@@ -392,18 +392,18 @@ static int par96_open(struct device *dev)
 		return -ENXIO;
 	}
 	if (pp->irq < 0) {
-		printk(KERN_ERR "baycom_par: parport at 0x%x has no irq\n", pp->base);
+		printk(KERN_ERR "baycom_par: parport at 0x%lx has no irq\n", pp->base);
 		return -ENXIO;
 	}
 	memset(&bc->modem, 0, sizeof(bc->modem));
 	bc->hdrv.par.bitrate = 9600;
 	if (!(bc->pdev = parport_register_device(pp, dev->name, par96_preempt, par96_wakeup, 
 						 par96_interrupt, PARPORT_DEV_LURK, dev))) {
-		printk(KERN_ERR "baycom_par: cannot register parport at 0x%x\n", pp->base);
+		printk(KERN_ERR "baycom_par: cannot register parport at 0x%lx\n", pp->base);
 		return -ENXIO;
 	}
 	if (parport_claim(bc->pdev)) {
-		printk(KERN_ERR "baycom_par: parport at 0x%x busy\n", pp->base);
+		printk(KERN_ERR "baycom_par: parport at 0x%lx busy\n", pp->base);
 		parport_unregister_device(bc->pdev);
 		return -EBUSY;
 	}
@@ -502,7 +502,7 @@ static int baycom_ioctl(struct device *dev, struct ifreq *ifr,
 		return 0;
 
 	case HDLCDRVCTL_SETMODE:
-		if (!suser() || dev->start)
+		if (dev->start || !suser())
 			return -EACCES;
 		hi->data.modename[sizeof(hi->data.modename)-1] = '\0';
 		return baycom_setmode(bc, hi->data.modename);

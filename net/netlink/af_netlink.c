@@ -359,6 +359,7 @@ retry:
 
 #ifdef NL_EMULATE_DEV
 		if (sk->protinfo.af_netlink.handler) {
+			skb_orphan(skb);
 			len = sk->protinfo.af_netlink.handler(protocol, skb);
 			netlink_unlock(sk);
 			return len;
@@ -370,7 +371,7 @@ retry:
 			if (nonblock) {
 				sti();
 				netlink_unlock(sk);
-				kfree_skb(skb, 0);
+				kfree_skb(skb);
 				return -EAGAIN;
 			}
 			interruptible_sleep_on(sk->sleep);
@@ -378,7 +379,7 @@ retry:
 			sti();
 
 			if (signal_pending(current)) {
-				kfree_skb(skb, 0);
+				kfree_skb(skb);
 				return -ERESTARTSYS;
 			}
 			goto retry;
@@ -392,7 +393,7 @@ Nprintk("unicast_deliver %d\n", skb->len);
 		netlink_unlock(sk);
 		return len;
 	}
-	kfree_skb(skb, 0);
+	kfree_skb(skb);
 	return -ECONNREFUSED;
 }
 
@@ -400,6 +401,7 @@ static __inline__ int netlink_broadcast_deliver(struct sock *sk, struct sk_buff 
 {
 #ifdef NL_EMULATE_DEV
 	if (sk->protinfo.af_netlink.handler) {
+		skb_orphan(skb);
 		sk->protinfo.af_netlink.handler(sk->protocol, skb);
 		return 0;
 	} else
@@ -466,8 +468,8 @@ void netlink_broadcast(struct sock *ssk, struct sk_buff *skb, pid_t pid,
 	netlink_unlock_table(protocol, allocation == GFP_KERNEL);
 
 	if (skb2)
-		kfree_skb(skb2, 0);
-	kfree_skb(skb, 0);
+		kfree_skb(skb2);
+	kfree_skb(skb);
 }
 
 void netlink_set_err(struct sock *ssk, pid_t pid, unsigned group, int code)
@@ -630,7 +632,7 @@ netlink_kernel_create(int unit, void (*input)(struct sock *sk, int len))
 static void netlink_destroy_callback(struct netlink_callback *cb)
 {
 	if (cb->skb)
-		kfree_skb(cb->skb, 0);
+		kfree_skb(cb->skb);
 	kfree(cb);
 }
 
@@ -758,15 +760,12 @@ void netlink_detach(int unit)
 int netlink_post(int unit, struct sk_buff *skb)
 {
 	if (netlink_kernel[unit]) {
+		memset(skb->cb, 0, sizeof(skb->cb));
 		netlink_broadcast(netlink_kernel[unit]->sk, skb, 0, ~0, GFP_ATOMIC);
 		return 0;
 	}
 	return -EUNATCH;;
 }
-
-EXPORT_SYMBOL(netlink_attach);
-EXPORT_SYMBOL(netlink_detach);
-EXPORT_SYMBOL(netlink_post);
 
 #endif
 

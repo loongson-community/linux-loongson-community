@@ -76,6 +76,8 @@
  *              Steve Whitehouse:       Added various other default routines
  *                                      common to several socket families.
  *              Chris Evans     :       Call suser() check last on F_SETOWN
+ *		Jay Schulist	:	Added SO_ATTACH_FILTER and SO_DETACH_FILTER.
+ *		Andi Kleen	:	Add sock_kmalloc()/sock_kfree_s()
  *
  * To Fix:
  *
@@ -122,6 +124,10 @@
 #include <net/icmp.h>
 #include <linux/ipsec.h>
 
+#ifdef CONFIG_FILTER
+#include <linux/filter.h>
+#endif
+
 #define min(a,b)	((a)<(b)?(a):(b))
 
 /* Run time adjustable parameters. */
@@ -147,6 +153,10 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 	struct linger ling;
 	struct ifreq req;
 	int ret = 0;
+
+#ifdef CONFIG_FILTER
+	struct sock_fprog fprog;
+#endif
 	
 	/*
 	 *	Options without arguments
@@ -278,48 +288,6 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 			break;
 			
 			
-#ifdef CONFIG_NET_SECURITY			
-		/*
-		 *	FIXME: make these error things that are not
-		 *	available!
-		 */
-		 
-		case SO_SECURITY_AUTHENTICATION:
-			if(val<=IPSEC_LEVEL_DEFAULT)
-			{
-				sk->authentication=val;
-				return 0;
-			}
-			if(net_families[sock->ops->family]->authentication)
-				sk->authentication=val;
-			else
-				return -EINVAL;
-			break;
-			
-		case SO_SECURITY_ENCRYPTION_TRANSPORT:
-			if(val<=IPSEC_LEVEL_DEFAULT)
-			{
-				sk->encryption=val;
-				return 0;
-			}
-			if(net_families[sock->ops->family]->encryption)
-				sk->encryption = val;
-			else
-				return -EINVAL;
-			break;
-			
-		case SO_SECURITY_ENCRYPTION_NETWORK:
-			if(val<=IPSEC_LEVEL_DEFAULT)
-			{
-				sk->encrypt_net=val;
-				return 0;
-			}
-			if(net_families[sock->ops->family]->encrypt_net)
-				sk->encrypt_net = val;
-			else
-				return -EINVAL;
-			break;
-#endif
 		case SO_BINDTODEVICE:
 			/* Bind this socket to a particular device like "eth0",
 			 * as specified in an ifreq structure. If the device
@@ -330,36 +298,51 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 				sk->bound_dev_if = 0;
 			}
 			else {
-				if (copy_from_user(&req, optval, sizeof(req)) < 0)
+				if (copy_from_user(&req, optval, sizeof(req)))
 					return -EFAULT;
 
 				/* Remove any cached route for this socket. */
-				if (sk->dst_cache) {
-					ip_rt_put((struct rtable*)sk->dst_cache);
-					sk->dst_cache = NULL;
-				}
+				dst_release(xchg(&sk->dst_cache, NULL));
 
 				if (req.ifr_ifrn.ifrn_name[0] == '\0') {
 					sk->bound_dev_if = 0;
-				}
-				else {
+				} else {
 					struct device *dev = dev_get(req.ifr_ifrn.ifrn_name);
 					if (!dev)
 						return -EINVAL;
 					sk->bound_dev_if = dev->ifindex;
-					if (sk->daddr) {
-						int ret;
-						ret = ip_route_output((struct rtable**)&sk->dst_cache,
-								     sk->daddr, sk->saddr,
-								     sk->ip_tos, sk->bound_dev_if);
-						if (ret)
-							return ret;
-					}
 				}
 			}
 			return 0;
 
 
+#ifdef CONFIG_FILTER
+		case SO_ATTACH_FILTER:
+			if(optlen < sizeof(struct sock_fprog))
+				return -EINVAL;
+
+			if(copy_from_user(&fprog, optval, sizeof(fprog)))
+			{
+				ret = -EFAULT;
+				break;
+			}
+
+			ret = sk_attach_filter(&fprog, sk);
+			break;
+
+		case SO_DETACH_FILTER:
+                        if(sk->filter)
+			{
+				fprog.filter = sk->filter_data;
+				kfree_s(fprog.filter, (sizeof(fprog.filter) * sk->filter));
+				sk->filter_data = NULL;
+				sk->filter = 0;
+				return 0;
+			}
+			else
+				return -EINVAL;
+			break;
+#endif
 		/* We implement the SO_SNDLOWAT etc to
 		   not be settable (1003.1g 5.3) */
 		default:
@@ -470,20 +453,6 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 				return -EFAULT;
 			goto lenout;
 			
-#ifdef CONFIG_NET_SECURITY			
-			
-		case SO_SECURITY_AUTHENTICATION:
-			v.val = sk->authentication;
-			break;
-			
-		case SO_SECURITY_ENCRYPTION_TRANSPORT:
-			v.val = sk->encryption;
-			break;
-			
-		case SO_SECURITY_ENCRYPTION_NETWORK:
-			v.val = sk->encrypt_net;
-			break;
-#endif
 		default:
 			return(-ENOPROTOOPT);
 	}
@@ -589,6 +558,36 @@ struct sk_buff *sock_rmalloc(struct sock *sk, unsigned long size, int force, int
 	return NULL;
 }
 
+void *sock_kmalloc(struct sock *sk, int size, int priority)
+{
+	void *mem = NULL;
+	/* Always use wmem.. */
+	if (atomic_read(&sk->wmem_alloc)+size < sk->sndbuf) {
+		/* First do the add, to avoid the race if kmalloc
+ 		 * might sleep.
+		 */
+		atomic_add(size, &sk->wmem_alloc);
+		mem = kmalloc(size, priority);
+		if (mem)
+			return mem; 
+		atomic_sub(size, &sk->wmem_alloc);
+	}
+	return mem;
+}
+
+void sock_kfree_s(struct sock *sk, void *mem, int size)
+{
+#if 1 /* Debug */
+	if (atomic_read(&sk->wmem_alloc) < size) {
+		printk(KERN_DEBUG "sock_kfree_s: mem not accounted.\n");
+		return;
+	}
+#endif
+	kfree_s(mem, size); 
+	atomic_sub(size, &sk->wmem_alloc);
+	sk->write_space(sk);
+}
+
 
 /* FIXME: this is insane. We are trying suppose to be controlling how
  * how much space we have for data bytes, not packet headers.
@@ -627,7 +626,7 @@ unsigned long sock_wspace(struct sock *sk)
 	if (sk != NULL) {
 		if (sk->shutdown & SEND_SHUTDOWN)
 			return(0);
-		if (atomic_read(&sk->wmem_alloc) >= sk->sndbuf)
+		if (atomic_read(&sk->wmem_alloc) >= sk->sndbuf) 
 			return(0);
 		return sk->sndbuf - atomic_read(&sk->wmem_alloc);
 	}
@@ -827,7 +826,7 @@ void sklist_destroy_socket(struct sock **list,struct sock *sk)
 
 	while((skb=skb_dequeue(&sk->receive_queue))!=NULL)
 	{
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 	}
 
 	if(atomic_read(&sk->wmem_alloc) == 0 &&
@@ -895,7 +894,7 @@ int sock_no_getname(struct socket *sock, struct sockaddr *saddr,
 	return -EOPNOTSUPP;
 }
 
-unsigned int sock_no_poll(struct socket *sock, poll_table *pt)
+unsigned int sock_no_poll(struct file * file, struct socket *sock, poll_table *pt)
 {
 	return -EOPNOTSUPP;
 }
@@ -1009,8 +1008,8 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 	init_timer(&sk->timer);
 	
 	sk->allocation	=	GFP_KERNEL;
-	sk->rcvbuf	=	sysctl_rmem_default*2;
-	sk->sndbuf	=	sysctl_wmem_default*2;
+	sk->rcvbuf	=	sysctl_rmem_default;
+	sk->sndbuf	=	sysctl_wmem_default;
 	sk->state 	= 	TCP_CLOSE;
 	sk->zapped	=	1;
 	sk->socket	=	sock;

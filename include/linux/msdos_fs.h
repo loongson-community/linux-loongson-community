@@ -161,7 +161,7 @@ struct msdos_dir_slot {
 	__u8    name11_12[4];	/* last 2 characters in name */
 };
 
-struct slot_info {
+struct vfat_slot_info {
 	int is_long;		       /* was the found entry long */
 	int long_slots;		       /* number of long slots in filename */
 	int total_slots;	       /* total slots (long and short) */
@@ -218,14 +218,14 @@ extern int fat_smap(struct inode *inode,int sector);
 extern int fat_free(struct inode *inode,int skip);
 void fat_cache_inval_inode(struct inode *inode);
 void fat_cache_inval_dev(kdev_t device);
-extern void cache_init(void);
-void cache_lookup(struct inode *inode,int cluster,int *f_clu,int *d_clu);
-void cache_add(struct inode *inode,int f_clu,int d_clu);
-int get_cluster(struct inode *inode,int cluster);
+extern void fat_cache_init(void);
+void fat_cache_lookup(struct inode *inode,int cluster,int *f_clu,int *d_clu);
+void fat_cache_add(struct inode *inode,int f_clu,int d_clu);
+int fat_get_cluster(struct inode *inode,int cluster);
 
 /* inode.c */
 extern int fat_bmap(struct inode *inode,int block);
-extern int fat_notify_change(struct inode *,struct iattr *);
+extern int fat_notify_change(struct dentry *, struct iattr *);
 extern void fat_put_inode(struct inode *inode);
 extern void fat_delete_inode(struct inode *inode);
 extern void fat_put_super(struct super_block *sb);
@@ -248,12 +248,14 @@ extern int fat_dir_ioctl(struct inode * inode, struct file * filp,
 /* file.c */
 extern struct inode_operations fat_file_inode_operations;
 extern struct inode_operations fat_file_inode_operations_1024;
+extern struct inode_operations fat_file_inode_operations_readpage;
 extern ssize_t fat_file_read(struct file *, char *, size_t, loff_t *);
 extern ssize_t fat_file_write(struct file *, const char *, size_t, loff_t *);
 extern void fat_truncate(struct inode *inode);
 
 /* mmap.c */
 extern int fat_mmap(struct file *, struct vm_area_struct *);
+extern int fat_readpage(struct file *, struct page *);
 
 
 /* vfat.c */

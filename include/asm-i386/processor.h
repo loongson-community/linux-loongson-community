@@ -12,21 +12,51 @@
 #include <asm/segment.h>
 
 /*
- * System setup and hardware bug flags..
- * [Note we don't test the 386 multiply bug or popad bug]
+ *  CPU type and hardware bug flags. Kept separately for each CPU.
+ *  Members of this structure are referenced in head.S, so think twice
+ *  before touching them. [mj]
  */
 
-extern char hard_math;
-extern char x86;		/* lower 4 bits */
-extern char x86_vendor_id[13];
-extern char x86_model;		/* lower 4 bits */
-extern char x86_mask;		/* lower 4 bits */
-extern int  x86_capability;	/* field of flags */
-extern int  fdiv_bug;		
+struct cpuinfo_x86 {
+	__u8	x86;		/* CPU family */
+	__u8	x86_vendor;	/* CPU vendor */
+	__u8	x86_model;
+	__u8	x86_mask;
+	char	wp_works_ok;	/* It doesn't on 386's */
+	char	hlt_works_ok;	/* Problems on some 486Dx4's and old 386's */
+	char	hard_math;
+	char	rfu;
+	int	cpuid_level;	/* Maximum supported CPUID level, -1=no CPUID */
+	__u32	x86_capability;
+	char	x86_vendor_id[16];
+	char	x86_model_id[64];
+	int	fdiv_bug;
+	int	f00f_bug;
+	unsigned long loops_per_sec;
+};
+
+#define X86_VENDOR_INTEL 0
+#define X86_VENDOR_CYRIX 1
+#define X86_VENDOR_AMD 2
+#define X86_VENDOR_UMC 3
+#define X86_VENDOR_NEXGEN 4
+#define X86_VENDOR_CENTAUR 5
+#define X86_VENDOR_UNKNOWN 0xff
+
+extern struct cpuinfo_x86 boot_cpu_data;
+
+#ifdef __SMP__
+extern struct cpuinfo_x86 cpu_data[];
+#define current_cpu_data cpu_data[smp_processor_id()]
+#else
+#define cpu_data &boot_cpu_data
+#define current_cpu_data boot_cpu_data
+#endif
+
 extern char ignore_irq13;
-extern char wp_works_ok;	/* doesn't work on a 386 */
-extern char hlt_works_ok;	/* problems on some 486Dx4's and old 386's */
-extern int  have_cpuid;		/* We have a CPUID */
+
+extern void identify_cpu(struct cpuinfo_x86 *);
+extern void print_cpu_info(struct cpuinfo_x86 *);
 
 /*
  * Bus types (default is ISA, but people can check others with these..)
@@ -142,7 +172,7 @@ struct thread_struct {
 	_LDT(0),0, \
 	0, 0x8000, \
 	{~0, }, /* ioperm */ \
-	_TSS(0), 0, 0, 0, KERNEL_DS, \
+	_TSS(0), 0, 0, 0, (mm_segment_t) { 0 } /* obsolete */ , \
 	{ { 0, }, },  /* 387 state */ \
 	NULL, 0, 0, 0, 0, 0 /* vm86_info */, \
 }
@@ -150,7 +180,7 @@ struct thread_struct {
 #define start_thread(regs, new_eip, new_esp) do {\
 	unsigned long seg = __USER_DS; \
 	__asm__("mov %w0,%%fs ; mov %w0,%%gs":"=r" (seg) :"0" (seg)); \
-	set_fs(MAKE_MM_SEG(seg)); \
+	set_fs(USER_DS); \
 	regs->xds = seg; \
 	regs->xes = seg; \
 	regs->xss = seg; \
@@ -175,7 +205,7 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
  * NOTE! The task struct and the stack go together
  */
 #define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)
 
 #define init_task	(init_task_union.task)

@@ -105,7 +105,7 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 					int len, struct svc_fh *resfh)
 {
 	struct svc_export	*exp;
-	struct dentry		*dparent;
+	struct dentry		*dparent, *dchild;
 	int			err;
 
 	dprintk("nfsd: nfsd_lookup(fh %p, %s)\n", SVCFH_DENTRY(fhp), name);
@@ -118,34 +118,48 @@ nfsd_lookup(struct svc_rqst *rqstp, struct svc_fh *fhp, const char *name,
 	dparent = fhp->fh_dentry;
 	exp  = fhp->fh_export;
 
-	/* Fast path... */
 	err = nfsd_permission(exp, dparent, MAY_EXEC);
-	if ((err == 0)					&&
-	    !fs_off_limits(dparent->d_inode->i_sb)	&&
-	    !nfsd_iscovered(dparent, exp)) {
-		struct dentry *dchild;
+	if (err)
+		goto out;
+	err = nfserr_noent;
+	if (fs_off_limits(dparent->d_sb))
+		goto out;
+	err = nfserr_acces;
+	if (nfsd_iscovered(dparent, exp))
+		goto out;
 
-		/* Lookup the name, but don't follow links */
-		dchild = lookup_dentry(name, dget(dparent), 0);
-		err = PTR_ERR(dchild);
-		if (IS_ERR(dchild))
-			return nfserrno(-err);
-
-		/*
-		 * Note: we compose the filehandle now, but as the
-		 * dentry may be negative, it may need to be updated.
-		 */
-		fh_compose(resfh, exp, dchild);
-		return (dchild->d_inode ? 0 : nfserr_noent);
+	/* Lookup the name, but don't follow links */
+	dchild = lookup_dentry(name, dget(dparent), 0);
+	if (IS_ERR(dchild))
+		goto out_nfserr;
+	/*
+	 * Make sure we haven't crossed a mount point ...
+	 */
+	if (dchild->d_sb != dparent->d_sb) {
+#ifdef NFSD_PARANOIA
+printk("nfsd_lookup: %s/%s crossed mount point!\n", dparent->d_name.name, name);
+#endif
+		goto out_dput;
 	}
 
-	/* Slow path... */
-	if (fs_off_limits(dparent->d_inode->i_sb))
-		return nfserr_noent;
-	if (nfsd_iscovered(dparent, exp))
-		return nfserr_acces;
+	/*
+	 * Note: we compose the filehandle now, but as the
+	 * dentry may be negative, it may need to be updated.
+	 */
+	fh_compose(resfh, exp, dchild);
+	err = nfserr_noent;
+	if (dchild->d_inode)
+		err = 0;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-PTR_ERR(dchild));
+	goto out;
+out_dput:
+	dput(dchild);
+	err = nfserr_acces;
+	goto out;
 }
 
 /*
@@ -176,20 +190,24 @@ nfsd_setattr(struct svc_rqst *rqstp, struct svc_fh *fhp, struct iattr *iap)
 	inode = dentry->d_inode;
 
 	/* The size case is special... */
-	if ((iap->ia_valid & ATTR_SIZE) && S_ISREG(inode->i_mode)) {
+	if (iap->ia_valid & ATTR_SIZE) {
+if (!S_ISREG(inode->i_mode))
+printk("nfsd_setattr: size change??\n");
 		if (iap->ia_size < inode->i_size) {
 			err = nfsd_permission(fhp->fh_export, dentry, MAY_TRUNC);
 			if (err != 0)
 				goto out;
 		}
-		if ((err = get_write_access(inode)) != 0)
-			return nfserrno(-err);
+		err = get_write_access(inode);
+		if (err)
+			goto out_nfserr;
+		/* N.B. Should we update the inode cache here? */
 		inode->i_size = iap->ia_size;
 		if (inode->i_op && inode->i_op->truncate)
 			inode->i_op->truncate(inode);
 		mark_inode_dirty(inode);
 		put_write_access(inode);
-		iap->ia_valid &= ATTR_SIZE;
+		iap->ia_valid &= ~ATTR_SIZE;
 		iap->ia_valid |= ATTR_MTIME;
 		iap->ia_mtime = CURRENT_TIME;
 	}
@@ -216,15 +234,19 @@ nfsd_setattr(struct svc_rqst *rqstp, struct svc_fh *fhp, struct iattr *iap)
 	if (iap->ia_valid) {
 		iap->ia_valid |= ATTR_CTIME;
 		iap->ia_ctime = CURRENT_TIME;
-		err = notify_change(inode, iap);
+		err = notify_change(dentry, iap);
 		if (err)
-			return nfserrno(-err);
+			goto out_nfserr;
 		if (EX_ISSYNC(fhp->fh_export))
 			write_inode_now(inode);
 	}
 	err = 0;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -461,7 +483,7 @@ nfsd_write(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 
 		ia.ia_valid = ATTR_MODE;
 		ia.ia_mode  = inode->i_mode & ~(S_ISUID | S_ISGID);
-		notify_change(inode, &ia);
+		notify_change(dentry, &ia);
 	}
 
 	fh_unlock(fhp);			/* unlock inode */
@@ -568,7 +590,8 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		dchild = lookup_dentry(fname, dget(dentry), 0);
 		err = PTR_ERR(dchild);
 		if(IS_ERR(dchild))
-			return nfserrno(-err);
+			goto out_nfserr;
+		fh_compose(resfhp, fhp->fh_export, dchild);
 	} else
 		dchild = resfhp->fh_dentry;
 	/*
@@ -597,19 +620,14 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 	fh_unlock(fhp);
 
 	if (err < 0)
-		return nfserrno(-err);
+		goto out_nfserr;
 	if (EX_ISSYNC(fhp->fh_export))
 		write_inode_now(dirp);
 
 	/*
-	 * Assemble the file handle for the newly created file,
-	 * or update the filehandle to get the new inode info.
+	 * Update the filehandle to get the new inode info.
 	 */
-	if (!resfhp->fh_dverified) {
-		fh_compose(resfhp, fhp->fh_export, dchild);
-	} else {
-		fh_update(resfhp);
-	}
+	fh_update(resfhp);
 
 	/* Set file attributes. Mode has already been set and
 	 * setting uid/gid works only for root. Irix appears to
@@ -621,6 +639,10 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		err = nfsd_setattr(rqstp, resfhp, iap);
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -654,7 +676,7 @@ nfsd_truncate(struct svc_rqst *rqstp, struct svc_fh *fhp, unsigned long size)
 	fh_lock(fhp);
 	newattrs.ia_size = size;
 	newattrs.ia_valid = ATTR_SIZE | ATTR_CTIME;
-	err = notify_change(inode, &newattrs);
+	err = notify_change(dentry, &newattrs);
 	if (!err) {
 		vmtruncate(inode, size);
 		if (inode->i_op && inode->i_op->truncate)
@@ -694,19 +716,21 @@ nfsd_readlink(struct svc_rqst *rqstp, struct svc_fh *fhp, char *buf, int *lenp)
 		goto out;
 
 	UPDATE_ATIME(inode);
+	/* N.B. Why does this call need a get_fs()?? */
 	oldfs = get_fs(); set_fs(KERNEL_DS);
-	err = inode->i_op->readlink(inode, buf, *lenp);
+	err = inode->i_op->readlink(dentry, buf, *lenp);
 	set_fs(oldfs);
 
 	if (err < 0)
-		err = nfserrno(-err);
-	else {
-		*lenp = err;
-		err = 0;
-	}
-
+		goto out_nfserr;
+	*lenp = err;
+	err = 0;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -755,12 +779,14 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 		}
 	}
 	fh_compose(resfhp, fhp->fh_export, dnew);
-
-out_nfserr:
 	if (err)
-		err = nfserrno(-err);
+		goto out_nfserr;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -771,7 +797,7 @@ int
 nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 				char *fname, int len, struct svc_fh *tfhp)
 {
-	struct dentry	*ddir, *dnew;
+	struct dentry	*ddir, *dnew, *dold;
 	struct inode	*dirp, *dest;
 	int		err;
 
@@ -793,11 +819,13 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 	err = -EEXIST;
 	if (dnew->d_inode)
 		goto dput_and_out;
-	dest = tfhp->fh_dentry->d_inode;
 
 	err = -EPERM;
 	if (!len)
 		goto dput_and_out;
+
+	dold = tfhp->fh_dentry;
+	dest = dold->d_inode;
 
 	err = -EACCES;
 	if (nfsd_iscovered(ddir, ffhp->fh_export))
@@ -812,7 +840,7 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 		goto dput_and_out;
 
 	fh_lock(ffhp);
-	err = dirp->i_op->link(dest, dirp, dnew);
+	err = dirp->i_op->link(dold, dirp, dnew);
 	fh_unlock(ffhp);
 
 	if (!err && EX_ISSYNC(ffhp->fh_export)) {
@@ -821,11 +849,14 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 	}
 dput_and_out:
 	dput(dnew);
-out_nfserr:
 	if (err)
-		err = nfserrno(-err);
+		goto out_nfserr;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -917,11 +948,14 @@ nfsd_rename(struct svc_rqst *rqstp, struct svc_fh *ffhp, char *fname, int flen,
 
 out_dput_old:
 	dput(odentry);
-out_nfserr:
 	if (err)
-		err = nfserrno(-err);
+		goto out_nfserr;
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -965,14 +999,16 @@ nfsd_unlink(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	fh_unlock(fhp);
 
 	dput(rdentry);
-	if (!err && EX_ISSYNC(fhp->fh_export))
-		write_inode_now(dirp);
-
-out_nfserr:
 	if (err)
-		err = nfserrno(-err);
+		goto out_nfserr;
+	if (EX_ISSYNC(fhp->fh_export))
+		write_inode_now(dirp);
 out:
 	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out;
 }
 
 /*
@@ -982,29 +1018,30 @@ int
 nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset, 
 			encode_dent_fn func, u32 *buffer, int *countp)
 {
-	struct readdir_cd cd;
 	struct inode	*inode;
-	struct file	file;
 	u32		*p;
 	int		oldlen, eof, err;
+	struct file	file;
+	struct readdir_cd cd;
 
+	err = 0;
 	if (offset > ~(u32) 0)
-		return 0;
+		goto out;
 
-	if ((err = nfsd_open(rqstp, fhp, S_IFDIR, OPEN_READ, &file)) != 0)
-		return err;
+	err = nfsd_open(rqstp, fhp, S_IFDIR, OPEN_READ, &file);
+	if (err)
+		goto out;
 
-	if (!file.f_op->readdir) {
-		nfsd_close(&file);
-		return nfserr_notdir;
-	}
+	err = nfserr_notdir;
+	if (!file.f_op->readdir)
+		goto out_close;
 	file.f_pos = offset;
 
 	/* Set up the readdir context */
 	memset(&cd, 0, sizeof(cd));
 	cd.rqstp  = rqstp;
 	cd.buffer = buffer;
-	cd.buflen = *countp >> 2;
+	cd.buflen = *countp; /* count of words */
 
 	/*
 	 * Read the directory entries. This silly loop is necessary because
@@ -1012,7 +1049,7 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	 * may choose to do less.
 	 */
 	inode = file.f_dentry->d_inode;
-	do {
+	while (1) {
 		oldlen = cd.buflen;
 
 		/*
@@ -1020,16 +1057,16 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 			file.f_inode->i_dev, file.f_inode->i_ino,
 			(int) file.f_pos, (int) oldlen, (int) cd.buflen);
 		 */
-		err = file.f_op->readdir(&file,
-					 &cd, (filldir_t) func);
-
-		if (err < 0) {
-			nfsd_close(&file);
-			return nfserrno(-err);
-		}
+		down(&inode->i_sem);
+		err = file.f_op->readdir(&file, &cd, (filldir_t) func);
+		up(&inode->i_sem);
+		if (err < 0)
+			goto out_nfserr;
 		if (oldlen == cd.buflen)
 			break;
-	} while (oldlen != cd.buflen && !cd.eob);
+		if (cd.eob)
+			break;
+	}
 
 	/* If we didn't fill the buffer completely, we're at EOF */
 	eof = !cd.eob;
@@ -1040,9 +1077,6 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	if (cd.offset && !eof)
 		*cd.offset = htonl(file.f_pos);
 
-	/* Close the file */
-	nfsd_close(&file);
-
 	p = cd.buffer;
 	*p++ = 0;			/* no more entries */
 	*p++ = htonl(eof);		/* end of directory */
@@ -1051,7 +1085,15 @@ nfsd_readdir(struct svc_rqst *rqstp, struct svc_fh *fhp, loff_t offset,
 	dprintk("nfsd: readdir result %d bytes, eof %d offset %ld\n",
 				*countp, eof,
 				cd.offset? ntohl(*cd.offset) : -1);
-	return 0;
+	err = 0;
+out_close:
+	nfsd_close(&file);
+out:
+	return err;
+
+out_nfserr:
+	err = nfserrno(-err);
+	goto out_close;
 }
 
 /*

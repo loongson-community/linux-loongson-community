@@ -71,7 +71,7 @@ static void es_reset_8390(struct device *dev);
 
 static void es_get_8390_hdr(struct device *dev, struct e8390_pkt_hdr *hdr, int ring_page);
 static void es_block_input(struct device *dev, int count, struct sk_buff *skb, int ring_offset);
-static void es_block_output(struct device *dev, int count, const unsigned char *buf, const start_page);
+static void es_block_output(struct device *dev, int count, const unsigned char *buf, int start_page);
 
 #define ES_START_PG	0x00    /* First page of TX buffer		*/
 #define ES_STOP_PG	0x40    /* Last page +1 of RX ring		*/
@@ -430,11 +430,11 @@ cleanup_module(void)
 	for (this_dev = 0; this_dev < MAX_ES_CARDS; this_dev++) {
 		struct device *dev = &dev_es3210[this_dev];
 		if (dev->priv != NULL) {
+			unregister_netdev(dev);
 			kfree(dev->priv);
 			dev->priv = NULL;
 			free_irq(dev->irq, dev);
 			release_region(dev->base_addr, ES_IO_EXTENT);
-			unregister_netdev(dev);
 		}
 	}
 }

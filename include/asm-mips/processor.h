@@ -5,7 +5,7 @@
  * written by Ralf Baechle
  * Modified further for R[236]000 compatibility by Paul M. Antoine
  *
- * $Id: processor.h,v 1.3 1997/12/01 18:00:41 ralf Exp $
+ * $Id: processor.h,v 1.4 1997/12/16 05:36:43 ralf Exp $
  */
 #ifndef __ASM_MIPS_PROCESSOR_H
 #define __ASM_MIPS_PROCESSOR_H
@@ -141,7 +141,7 @@ struct thread_struct {
 	/* \
 	 * For now the default is to fix address errors \
 	 */ \
-	MF_FIXADE, 0, 0, 0 \
+	MF_FIXADE, { 0 }, 0, 0 \
 }
 
 #ifdef __KERNEL__
@@ -183,7 +183,7 @@ extern int (*running_in_user_mode)(void);
  * NOTE! The task struct and the stack go together
  */
 #define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)
 
 #define init_task	(init_task_union.task)

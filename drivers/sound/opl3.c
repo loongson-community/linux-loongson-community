@@ -10,8 +10,12 @@
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
  */
+/*
+ * Thomas Sailer   : ioctl code reworked (vmalloc/vfree removed)
+ */
 #include <linux/config.h>
 #include <linux/module.h>
+#include <linux/delay.h>
 
 /*
  * Major improvements to the FM handling 30AUG92 by Rob Hooft,
@@ -102,40 +106,35 @@ static void enter_4op_mode(void)
 
 static int opl3_ioctl(int dev, unsigned int cmd, caddr_t arg)
 {
-	switch (cmd)
-	{
-
-		case SNDCTL_FM_LOAD_INSTR:
-		{
-			struct sbi_instrument ins;
-
-			printk(KERN_WARNING "Warning: Obsolete ioctl(SNDCTL_FM_LOAD_INSTR) used. Fix the program.\n");
-			memcpy((char *) &ins, (&((char *) arg)[0]), sizeof(ins));
-
-			if (ins.channel < 0 || ins.channel >= SBFM_MAXINSTR)
-			{
-				printk("FM Error: Invalid instrument number %d\n", ins.channel);
-				return -EINVAL;
-			}
-			return store_instr(ins.channel, &ins);
-		}
-
-		case SNDCTL_SYNTH_INFO:
-			devc->fm_info.nr_voices = 
-				(devc->nr_voice == 12) ? 6 : devc->nr_voice;
-			memcpy((&((char *) arg)[0]), (char *) &devc->fm_info, sizeof(devc->fm_info));
-			return 0;
-
-		case SNDCTL_SYNTH_MEMAVL:
-			return 0x7fffffff;
-
-		case SNDCTL_FM_4OP_ENABLE:
-			if (devc->model == 2)
-				enter_4op_mode();
-			return 0;
-
-		default:
+	struct sbi_instrument ins;
+	
+	switch (cmd) {
+	case SNDCTL_FM_LOAD_INSTR:
+		printk(KERN_WARNING "Warning: Obsolete ioctl(SNDCTL_FM_LOAD_INSTR) used. Fix the program.\n");
+		if (__copy_from_user(&ins, arg, sizeof(ins)))
+			return -EFAULT;
+		if (ins.channel < 0 || ins.channel >= SBFM_MAXINSTR) {
+			printk("FM Error: Invalid instrument number %d\n", ins.channel);
 			return -EINVAL;
+		}
+		return store_instr(ins.channel, &ins);
+
+	case SNDCTL_SYNTH_INFO:
+		devc->fm_info.nr_voices = (devc->nr_voice == 12) ? 6 : devc->nr_voice;
+		if (__copy_to_user(arg, &devc->fm_info, sizeof(devc->fm_info)))
+			return -EFAULT;
+		return 0;
+
+	case SNDCTL_SYNTH_MEMAVL:
+		return 0x7fffffff;
+
+	case SNDCTL_FM_4OP_ENABLE:
+		if (devc->model == 2)
+			enter_4op_mode();
+		return 0;
+
+	default:
+		return -EINVAL;
 	}
 }
 
@@ -219,17 +218,17 @@ int opl3_detect(int ioaddr, int *osp)
 			int tmp;
 
 			outb((0x02), ioaddr - 8);	/* Select OPL4 ID register */
-			tenmicrosec(devc->osp);
+			udelay(10);
 			tmp = inb(ioaddr - 7);		/* Read it */
-			tenmicrosec(devc->osp);
+			udelay(10);
 
 			if (tmp == 0x20)	/* OPL4 should return 0x20 here */
 			{
 				detected_model = 4;
 				outb((0xF8), ioaddr - 8);	/* Select OPL4 FM mixer control */
-				tenmicrosec(devc->osp);
+				udelay(10);
 				outb((0x1B), ioaddr - 7);	/* Write value */
-				tenmicrosec(devc->osp);
+				udelay(10);
 			}
 			else
 				detected_model = 3;
@@ -711,7 +710,7 @@ static void opl3_command    (int io_addr, unsigned int addr, unsigned int val)
 	outb(((unsigned char) (addr & 0xff)), io_addr);
 
 	if (devc->model != 2)
-		tenmicrosec(devc->osp);
+		udelay(10);
 	else
 		for (i = 0; i < 2; i++)
 			inb(io_addr);
@@ -719,11 +718,7 @@ static void opl3_command    (int io_addr, unsigned int addr, unsigned int val)
 	outb(((unsigned char) (val & 0xff)), io_addr + 1);
 
 	if (devc->model != 2)
-	{
-		tenmicrosec(devc->osp);
-		tenmicrosec(devc->osp);
-		tenmicrosec(devc->osp);
-	}
+		udelay(30);
 	else
 		for (i = 0; i < 2; i++)
 			inb(io_addr);
@@ -1204,7 +1199,6 @@ void cleanup_module(void)
 {
 	if (devc)
 	{
-		vfree(devc);
 		devc = NULL;
 		sound_unload_synthdev(me);
 	}

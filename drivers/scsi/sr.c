@@ -32,7 +32,6 @@
 #include <linux/errno.h>
 #include <linux/cdrom.h>
 #include <linux/interrupt.h>
-#include <linux/config.h>
 #include <asm/system.h>
 #include <asm/io.h>
 
@@ -385,6 +384,21 @@ static int sr_open(struct cdrom_device_info *cdi, int purpose)
 {
     check_disk_change(cdi->dev);
 
+    if(   MINOR(cdi->dev) >= sr_template.dev_max 
+       || !scsi_CDs[MINOR(cdi->dev)].device)
+      {
+	return -ENXIO;   /* No such device */
+      }
+
+    /*
+     * If the device is in error recovery, wait until it is done.
+     * If the device is offline, then disallow any access to it.
+     */
+    if( !scsi_block_when_processing_errors(scsi_CDs[MINOR(cdi->dev)].device) )
+      {
+        return -ENXIO;
+      }
+
     scsi_CDs[MINOR(cdi->dev)].device->access_count++;
     if (scsi_CDs[MINOR(cdi->dev)].device->host->hostt->module)
 	__MOD_INC_USE_COUNT(scsi_CDs[MINOR(cdi->dev)].device->host->hostt->module);
@@ -417,16 +431,28 @@ static void do_sr_request (void)
     int flag = 0;
 
     while (1==1){
-	save_flags(flags);
-	cli();
+    	spin_lock_irqsave(&io_request_lock, flags);
+
 	if (CURRENT != NULL && CURRENT->rq_status == RQ_INACTIVE) {
-	    restore_flags(flags);
+	    spin_unlock_irqrestore(&io_request_lock, flags);
 	    return;
 	};
 
 	INIT_SCSI_REQUEST;
 
 	SDev = scsi_CDs[DEVICE_NR(CURRENT->rq_dev)].device;
+
+        /*
+         * If the host for this device is in error recovery mode, don't
+         * do anything at all here.  When the host leaves error recovery
+         * mode, it will automatically restart things and start queueing
+         * commands again.
+         */
+        if( SDev->host->in_recovery )
+          {
+	    spin_unlock_irqrestore(&io_request_lock, flags);
+            return;
+          }
 
 	/*
 	 * I am not sure where the best place to do this is.  We need
@@ -443,7 +469,11 @@ static void do_sr_request (void)
  	     */
  	    if( SDev->removable && !in_interrupt() )
  	    {
+		spin_unlock_irqrestore(&io_request_lock, flags);
 		scsi_ioctl(SDev, SCSI_IOCTL_DOORLOCK, 0);
+		/* scsi_ioctl may allow CURRENT to change, so start over. */
+		SDev->was_reset = 0;
+		continue;
  	    }
  	    SDev->was_reset = 0;
 	}
@@ -460,10 +490,10 @@ static void do_sr_request (void)
 	}
 
 	if (flag++ == 0)
-	    SCpnt = allocate_device(&CURRENT,
+	    SCpnt = scsi_allocate_device(&CURRENT,
 				    scsi_CDs[DEVICE_NR(CURRENT->rq_dev)].device, 0);
 	else SCpnt = NULL;
-	restore_flags(flags);
+	spin_unlock_irqrestore(&io_request_lock, flags);
 
 	/* This is a performance enhancement.  We dig down into the request list and
 	 * try to find a queueable request (i.e. device not busy, and host able to
@@ -475,24 +505,23 @@ static void do_sr_request (void)
 	if (!SCpnt && sr_template.nr_dev > 1){
 	    struct request *req1;
 	    req1 = NULL;
-	    save_flags(flags);
-	    cli();
+	    spin_lock_irqsave(&io_request_lock, flags);
 	    req = CURRENT;
 	    while(req){
-		SCpnt = request_queueable(req,
+		SCpnt = scsi_request_queueable(req,
 					  scsi_CDs[DEVICE_NR(req->rq_dev)].device);
 		if(SCpnt) break;
 		req1 = req;
 		req = req->next;
-	    };
+	    }
 	    if (SCpnt && req->rq_status == RQ_INACTIVE) {
 		if (req == CURRENT)
 		    CURRENT = CURRENT->next;
 		else
 		    req1->next = req->next;
-	    };
-	    restore_flags(flags);
-	};
+	    }
+	    spin_unlock_irqrestore(&io_request_lock, flags);
+	}
 
 	if (!SCpnt)
 	    return; /* Could not find anything to do */
@@ -501,7 +530,7 @@ static void do_sr_request (void)
 
 	/* Queue command */
 	requeue_sr_request(SCpnt);
-    };  /* While */
+    }  /* While */
 }
 
 void requeue_sr_request (Scsi_Cmnd * SCpnt)
@@ -536,6 +565,13 @@ void requeue_sr_request (Scsi_Cmnd * SCpnt)
 		tries = 2;
 		goto repeat;
 	}
+
+	if( !scsi_CDs[dev].device->online )
+          {
+            SCpnt = end_scsi_request(SCpnt, 0, SCpnt->request.nr_sectors);
+            tries = 2;
+            goto repeat;
+          }
 
 	if (scsi_CDs[dev].device->changed) {
 	/*
@@ -583,8 +619,8 @@ void requeue_sr_request (Scsi_Cmnd * SCpnt)
 	SCpnt->use_sg = 0;
 
 	if (SCpnt->host->sg_tablesize > 0 &&
-	    (!need_isa_buffer ||
-	 dma_free_sectors >= 10)) {
+	    (!scsi_need_isa_buffer ||
+	 scsi_dma_free_sectors >= 10)) {
 	struct buffer_head * bh;
 	struct scatterlist * sgpnt;
 	int count, this_count_max;
@@ -655,7 +691,7 @@ void requeue_sr_request (Scsi_Cmnd * SCpnt)
 		    /* We try to avoid exhausting the DMA pool, since it is easier
 		     * to control usage here.  In other places we might have a more
 		     * pressing need, and we would be screwed if we ran out */
-		    if(dma_free_sectors < (sgpnt[count].length >> 9) + 5) {
+		    if(scsi_dma_free_sectors < (sgpnt[count].length >> 9) + 5) {
 			sgpnt[count].address = NULL;
 		    } else {
 			sgpnt[count].address = (char *) scsi_malloc(sgpnt[count].length);
@@ -728,7 +764,13 @@ void requeue_sr_request (Scsi_Cmnd * SCpnt)
 
 	if (scsi_CDs[dev].sector_size == 512) realcount = realcount << 2;
 
-	if (((realcount > 0xff) || (block > 0x1fffff)) && scsi_CDs[dev].ten)
+        /*
+         * Note: The scsi standard says that READ_6 is *optional*, while
+         * READ_10 is mandatory.   Thus there is no point in using
+         * READ_6.
+         */
+	if (scsi_CDs[dev].ten)
+          
     {
 		if (realcount > 0xffff)
 	{
@@ -821,8 +863,6 @@ static int sr_attach(Scsi_Device * SDp){
     SDp->scsi_request_fn = do_sr_request;
     scsi_CDs[i].device = SDp;
 
-    sr_vendor_init(i);
-
     sr_template.nr_dev++;
     if(sr_template.nr_dev > sr_template.dev_max)
 	panic ("scsi_devices corrupt (sr)");
@@ -849,7 +889,7 @@ void get_sectorsize(int i){
     Scsi_Cmnd * SCpnt;
 
     buffer = (unsigned char *) scsi_malloc(512);
-    SCpnt = allocate_device(NULL, scsi_CDs[i].device, 1);
+    SCpnt = scsi_allocate_device(NULL, scsi_CDs[i].device, 1);
 
     retries = 3;
     do {
@@ -877,9 +917,10 @@ void get_sectorsize(int i){
 
     } while(the_result && retries);
 
-    SCpnt->request.rq_status = RQ_INACTIVE;  /* Mark as not busy */
 
     wake_up(&SCpnt->device->device_wait);
+    scsi_release_command(SCpnt);
+    SCpnt = NULL;
 
     if (the_result) {
 	scsi_CDs[i].capacity = 0x1fffff;
@@ -952,13 +993,11 @@ void get_capabilities(int i){
     if (-EINVAL == rc) {
         /* failed, drive has'nt this mode page */
         scsi_CDs[i].cdi.speed      = 1;
-        scsi_CDs[i].cdi.capacity   = 1;
         /* disable speed select, drive probably can't do this either */
         scsi_CDs[i].cdi.mask      |= CDC_SELECT_SPEED;
     } else {
         n = buffer[3]+4;
         scsi_CDs[i].cdi.speed    = ((buffer[n+8] << 8) + buffer[n+9])/176;
-        scsi_CDs[i].cdi.capacity = 1;
       	scsi_CDs[i].readcd_known = 1;
         scsi_CDs[i].readcd_cdda  = buffer[n+5] & 0x01;
         /* print some capability bits */
@@ -1051,7 +1090,9 @@ void sr_finish()
 	scsi_CDs[i].cdi.handle     = &scsi_CDs[i];
 	scsi_CDs[i].cdi.dev        = MKDEV(MAJOR_NR,i);
 	scsi_CDs[i].cdi.mask       = 0;
+        scsi_CDs[i].cdi.capacity   = 1;
 	get_capabilities(i);
+	sr_vendor_init(i);
 
 	sprintf(name, "sr%d", i);
 	strcpy(scsi_CDs[i].cdi.name, name);

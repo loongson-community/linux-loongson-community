@@ -110,6 +110,7 @@ struct video_audio
 #define VIDEO_AUDIO_VOLUME	4
 #define VIDEO_AUDIO_BASS	8
 #define VIDEO_AUDIO_TREBLE	16	
+	char    name[16];
 };
 
 struct video_clip
@@ -158,14 +159,28 @@ struct video_key
 #define VIDIOCGFBUF		_IOR('v',11, struct video_buffer)	/* Get frame buffer */
 #define VIDIOCSFBUF		_IOW('v',12, struct video_buffer)	/* Set frame buffer - root only */
 #define VIDIOCKEY		_IOR('v',13, struct video_key)		/* Video key event - to dev 255 is to all - cuts capture on all DMA windows with this key (0xFFFFFFFF == all) */
-#define VIDIOCGFREQ		_IOR('v',15, unsigned long)		/* Set tuner */
+#define VIDIOCGFREQ		_IOR('v',14, unsigned long)		/* Set tuner */
 #define VIDIOCSFREQ		_IOW('v',15, unsigned long)		/* Set tuner */
 #define VIDIOCGAUDIO		_IOR('v',16, struct video_audio)	/* Get audio info */
 #define VIDIOCSAUDIO		_IOW('v',17, struct video_audio)	/* Audio source, mute etc */
 
 
+#define BASE_VIDIOCPRIVATE	192		/* 192-255 are private */
+
+
 #define VID_HARDWARE_BT848	1
 #define VID_HARDWARE_QCAM_BW	2
 #define VID_HARDWARE_PMS	3
+#define VID_HARDWARE_QCAM_C	4
+
+/*
+ *	Initialiser list
+ */
+ 
+struct video_init
+{
+	char *name;
+	int (*init)(struct video_init *);
+};
 
 #endif

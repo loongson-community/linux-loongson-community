@@ -6,9 +6,7 @@
 
 /*
  * 'Traps.c' handles hardware traps and faults after we have saved some
- * state in 'asm.s'. Currently mostly a debugging-aid, will be extended
- * to mainly kill the offending process (probably by giving it a signal,
- * but possibly by killing it outright if necessary).
+ * state in 'asm.s'.
  */
 #include <linux/config.h>
 #include <linux/head.h>
@@ -17,7 +15,6 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 #include <linux/ptrace.h>
-#include <linux/config.h>
 #include <linux/timer.h>
 #include <linux/mm.h>
 #include <linux/smp.h>

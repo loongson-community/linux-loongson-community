@@ -1003,7 +1003,7 @@
 #define __NR_time			(__NR_Linux +  13)
 #define __NR_mknod			(__NR_Linux +  14)
 #define __NR_chmod			(__NR_Linux +  15)
-#define __NR_chown			(__NR_Linux +  16)
+#define __NR_lchown			(__NR_Linux +  16)
 #define __NR_break			(__NR_Linux +  17)
 #define __NR_oldstat			(__NR_Linux +  18)
 #define __NR_lseek			(__NR_Linux +  19)
@@ -1189,11 +1189,12 @@
 #define __NR_rt_sigsuspend		(__NR_Linux + 199)
 #define __NR_pread			(__NR_Linux + 200)
 #define __NR_pwrite			(__NR_Linux + 201)
+#define __NR_chown			(__NR_Linux + 202)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		201
+#define __NR_Linux_syscalls		202
 
 #ifndef __LANGUAGE_ASSEMBLY__
 

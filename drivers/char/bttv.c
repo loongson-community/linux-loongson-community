@@ -24,7 +24,6 @@
 
 #include <linux/module.h>
 #include <linux/bios32.h>
-#include <linux/config.h>
 #include <linux/delay.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
@@ -129,16 +128,22 @@ static int I2CRead(struct bttv *btv, int addr)
 	btwrite(BT848_INT_I2CDONE, BT848_INT_STAT);
   
 	btwrite(((addr & 0xff) << 24) | I2C_COMMAND, BT848_I2C);
-  
-	for (i=0x7fffffff; i; i--)
+
+	/*
+	 * Timeout for I2CRead is 1 second (this should be enough, really!)
+	 */
+	for (i=1000; i; i--)
 	{
 		stat=btread(BT848_INT_STAT);
 		if (stat & BT848_INT_I2CDONE)
 			break;
+		udelay(1000); /* 1ms, as I2C is 1kHz (?) */
 	}
   
-	if (!i)
+	if (!i) {
+		printk(KERN_DEBUG "bttv: I2CRead timeout\n");
 		return -1;
+	}
 	if (!(stat & BT848_INT_RACK))
 		return -2;
   
@@ -167,15 +172,18 @@ static int I2CWrite(struct bttv *btv, unchar addr, unchar b1,
   
 	btwrite(data, BT848_I2C);
 
-	for (i=0x7fffffff; i; i--)
+	for (i=1000; i; i--)
 	{
 		stat=btread(BT848_INT_STAT);
 		if (stat & BT848_INT_I2CDONE)
 			break;
+		udelay(1000);
 	}
   
-	if (!i)
+	if (!i) {
+		printk(KERN_DEBUG "bttv: I2CWrite timeout\n");
 		return -1;
+	}
 	if (!(stat & BT848_INT_RACK))
 		return -2;
   
@@ -378,7 +386,7 @@ static void bt848_set_size(struct bttv *btv)
 		 */
 		case 1: 
 			btwrite(BT848_COLOR_FMT_RGB8, BT848_COLOR_FMT);
-			btand(~0x10, BT848_CAP_CTL); // Dithering looks much better in this mode
+			btand(~0x10, BT848_CAP_CTL);  /* Dithering looks much better in this mode */
 			break;
 		case 2: 
 			btwrite(BT848_COLOR_FMT_RGB16, BT848_COLOR_FMT);
@@ -523,21 +531,21 @@ static void bt848_set_size(struct bttv *btv)
  
 static struct tunertype tuners[] = {
 	{"Temic PAL", TEMIC, PAL,
-		16*140.25,16*463.25,0x02,0x04,0x01,0x8e,0xc2},
+		16*140.25,16*463.25,0x02,0x04,0x01,0x8e,0xc2, 623},
 	{"Philips PAL_I", Philips, PAL_I,
-		16*140.25,16*463.25,0x00,0x00,0x00,0x00,0x00},
+		16*140.25,16*463.25,0x00,0x00,0x00,0x00,0x00, 623},
 	{"Philips NTSC", Philips, NTSC,
-		16*157.25,16*451.25,0xA0,0x90,0x30,0x8e,0xc0},
+		16*157.25,16*451.25,0xA0,0x90,0x30,0x8e,0xc0, 732},
 	{"Philips SECAM", Philips, SECAM,
-		16*168.25,16*447.25,0xA3,0x93,0x33,0x8e,0xc0},
+		16*168.25,16*447.25,0xA3,0x93,0x33,0x8e,0xc0, 623},
 	{"NoTuner", NoTuner, NOTUNER,
-		0        ,0        ,0x00,0x00,0x00,0x00,0x00},
+		0        ,0        ,0x00,0x00,0x00,0x00,0x00, 0},
 	{"Philips PAL", Philips, PAL,
-		16*168.25,16*447.25,0xA0,0x90,0x30,0x8e,0xc0},
+		16*168.25,16*447.25,0xA0,0x90,0x30,0x8e,0xc0, 623},
 	{"Temic NTSC", TEMIC, NTSC,
-		16*157.25,16*463.25,0x02,0x04,0x01,0x8e,0xc2},
+		16*157.25,16*463.25,0x02,0x04,0x01,0x8e,0xc2, 732},
 	{"TEMIC PAL_I", TEMIC, PAL_I,
-		0        ,0        ,0x00,0x00,0x00,0x00,0xc2},
+		0        ,0        ,0x00,0x00,0x00,0x00,0xc2, 623},
 }; 
 
 /*
@@ -553,6 +561,7 @@ static void set_freq(struct bttv *btv, ushort freq)
 
 	audio(btv, AUDIO_MUTE);
 	udelay(AUDIO_MUTE_DELAY);
+	
 	if (freq < tun->thresh1) 
 		config = tun->VHF_L;
 	else if (freq < tun->thresh2) 
@@ -560,9 +569,17 @@ static void set_freq(struct bttv *btv, ushort freq)
 	else
 		config = tun->UHF;
 
-	div=freq+623; /* div=((freq+16*38.9));*/
-  
+	if(freq < tun->thresh1)
+		config = tun->VHF_L;
+	else if(freq < tun->thresh2)
+		config = tun->VHF_H;
+	else
+		config=tun->UHF;
+		
+	div=freq+tun->IFPCoff;
+	  
 	div&=0x7fff;
+	
 	if (I2CWrite(btv, btv->tuneradr, (div>>8)&0x7f, div&0xff, 1)<0)
 		return;
 	I2CWrite(btv, btv->tuneradr, tun->config, config, 1);
@@ -721,7 +738,9 @@ static inline void bt848_sat_v(struct bttv *btv, ulong data)
  *	Cliprect -> risc table.
  *
  *	FIXME: This is generating wrong code when we have some kinds of
- *	rectangle lists. I don't currently understand why.
+ *	rectangle lists. If you generate overlapped rectangles then it
+ *	gets a bit confused. Since we add the frame buffer clip rectangles
+ *	we need to fix this. Better yet to rewrite this function.
  */
  
 static void write_risc_data(struct bttv *btv, struct video_clip *vp, int count)
@@ -761,7 +780,7 @@ static void write_risc_data(struct bttv *btv, struct video_clip *vp, int count)
 	/*
 	 *	32bit depth frame buffers need extra flags setting
 	 */
-	 
+
 	if (depth==4)
 		mask=BT848_RISC_BYTE3;
 	else
@@ -818,6 +837,11 @@ static void write_risc_data(struct bttv *btv, struct video_clip *vp, int count)
 			while ((cur=cur->next));
 		}
 
+		/*
+		 *	Fixme - we have to handle overlapped rectangles
+		 *	here, but the overlap might be partial
+		 */
+		 
 		/* add rect to second (x-sorted) list if rect.y == y  */
 		if ((cur=first.next)) 
 		{
@@ -1068,7 +1092,7 @@ static int bttv_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			/* Only channel 0 has a tuner */
 			if(v.tuner!=0 || lastchan)
 				return -EINVAL;
-			if(v.mode!=VIDEO_MODE_PAL||v.mode!=VIDEO_MODE_NTSC)
+			if(v.mode!=VIDEO_MODE_PAL&&v.mode!=VIDEO_MODE_NTSC)
 				return -EOPNOTSUPP;
 			btv->win.norm = v.mode;
 			bt848_set_size(btv);
@@ -1077,13 +1101,13 @@ static int bttv_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 		case VIDIOCGPICT:
 		{
 			struct video_picture p=btv->picture;
-			if(btv->win.bpp==8)
+			if(btv->win.bpp==1)
 				p.palette=VIDEO_PALETTE_HI240;
-			if(btv->win.bpp==16)
+			if(btv->win.bpp==2)
 				p.palette=VIDEO_PALETTE_RGB565;
-			if(btv->win.bpp==24)
+			if(btv->win.bpp==3)
 				p.palette=VIDEO_PALETTE_RGB24;
-			if(btv->win.bpp==32)
+			if(btv->win.bpp==4)
 				p.palette=VIDEO_PALETTE_RGB32;
 			if(copy_to_user(arg, &p, sizeof(p)))
 				return -EFAULT;
@@ -1258,10 +1282,13 @@ static int bttv_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 	
 		case VIDIOCGAUDIO:
 		{
-			struct video_audio vp;
-			vp=btv->audio_dev;
-			vp.flags&=~(VIDEO_AUDIO_MUTE|VIDEO_AUDIO_MUTABLE);
-			vp.flags|=VIDEO_AUDIO_MUTABLE;
+			struct video_audio v;
+			v=btv->audio_dev;
+			v.flags&=~(VIDEO_AUDIO_MUTE|VIDEO_AUDIO_MUTABLE);
+			v.flags|=VIDEO_AUDIO_MUTABLE;
+			strcpy(v.name,"TV");
+			if(copy_to_user(arg,&v,sizeof(v)))
+				return -EFAULT;
 			return 0;
 		}
 		case VIDIOCSAUDIO:
@@ -1269,11 +1296,10 @@ static int bttv_ioctl(struct video_device *dev, unsigned int cmd, void *arg)
 			struct video_audio v;
 			if(copy_from_user(&v,arg, sizeof(v)))
 				return -EFAULT;
+			if(v.audio!=0)
+				return -EINVAL;
 			if(v.flags&VIDEO_AUDIO_MUTE)
 				audio(btv, AUDIO_MUTE);
-			if(v.audio<0||v.audio>2)
-				return -EINVAL;
-			bt848_muxsel(btv,v.audio);
 			if(!(v.flags&VIDEO_AUDIO_MUTE))
 				audio(btv, AUDIO_UNMUTE);
 			btv->audio_dev=v;
@@ -1459,7 +1485,20 @@ static void handle_chipset(void)
 		unsigned char bus, devfn;
 		unsigned char b, bo;
     
-		/* nothing wrong with this one, just checking buffer control config */
+		/* Beware the SiS 85C496 my friend - rev 49 don't work with a bttv */
+		
+		if (!pcibios_find_device(PCI_VENDOR_ID_SI, PCI_DEVICE_ID_SI_496, index, &bus, &devfn))
+		{
+			printk(KERN_WARNING "BT848 and SIS 85C496 chipset don't always work together.\n");
+		}			
+
+		if (!pcibios_find_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82441,
+			    index, &bus, &devfn)) 
+		{
+			pcibios_read_config_byte(bus, devfn, 0x53, &b);
+			DEBUG(printk(KERN_INFO "bttv: Host bridge: 82441FX Natoma, "));
+			DEBUG(printk("bufcon=0x%02x\n",b));
+		}
 
 		if (!pcibios_find_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82441,
 			    index, &bus, &devfn)) 
@@ -1644,7 +1683,7 @@ static int init_bt848(struct bttv *btv)
 		return -1;
 	if (!(btv->risc_even=(dword *) kmalloc(RISCMEM_LEN/2, GFP_KERNEL)))
 		return -1;
-	if (!(btv->risc_jmp =(dword *) kmalloc(1024, GFP_KERNEL)))
+	if (!(btv->risc_jmp =(dword *) kmalloc(2048, GFP_KERNEL)))
 		return -1;
 	btv->vbi_odd=btv->risc_jmp+12;
 	btv->vbi_even=btv->vbi_odd+256;
@@ -1702,6 +1741,12 @@ static int init_bt848(struct bttv *btv)
 
 	memcpy(&btv->video_dev,&bttv_template,sizeof(bttv_template));
 	idcard(btv);
+	
+	btv->picture.brightness=0x90<<8;
+	btv->picture.contrast = 0x70 << 8;
+	btv->picture.colour = 0x70<<8;
+	btv->picture.hue = 0x8000;
+	
 	if(video_register_device(&btv->video_dev)<0)
 		return -1;
 	return 0;

@@ -164,7 +164,7 @@ static inline void close_files(struct files_struct * files)
 				struct file * file = files->fd[i];
 				if (file) {
 					files->fd[i] = NULL;
-					close_fp(file);
+					close_fp(file, files);
 				}
 			}
 			i++;
@@ -418,8 +418,7 @@ repeat:
 				if (ru != NULL)
 					getrusage(p, RUSAGE_BOTH, ru);
 				if (stat_addr)
-					__put_user((p->exit_code << 8) | 0x7f,
-						   stat_addr);
+					__put_user((p->exit_code << 8) | 0x7f, stat_addr);
 				p->exit_code = 0;
 				retval = p->pid;
 				goto end_wait4;

@@ -18,6 +18,29 @@
 
 #include <linux/config.h>
 
+struct kern_rta
+{
+	void		*rta_dst;
+	void		*rta_src;
+	int		*rta_iif;
+	int		*rta_oif;
+	void		*rta_gw;
+	u32		*rta_priority;
+	void		*rta_prefsrc;
+#ifdef CONFIG_RTNL_OLD_IFINFO
+	unsigned	*rta_window;
+	unsigned	*rta_rtt;
+	unsigned	*rta_mtu;
+	unsigned char	*rta_ifname;
+#else
+	struct rtattr	*rta_mx;
+	struct rtattr	*rta_mp;
+	unsigned char	*rta_protoinfo;
+	unsigned char	*rta_flow;
+#endif
+	struct rta_cacheinfo *rta_ci;
+};
+
 struct fib_nh
 {
 	struct device		*nh_dev;
@@ -43,9 +66,17 @@ struct fib_info
 	unsigned		fib_flags;
 	int			fib_protocol;
 	u32			fib_prefsrc;
+#ifdef CONFIG_RTNL_OLD_IFINFO
 	unsigned		fib_mtu;
 	unsigned		fib_rtt;
 	unsigned		fib_window;
+#else
+#define FIB_MAX_METRICS RTAX_RTT
+	unsigned		fib_metrics[FIB_MAX_METRICS];
+#define fib_mtu fib_metrics[RTAX_MTU-1]
+#define fib_window fib_metrics[RTAX_WINDOW-1]
+#define fib_rtt fib_metrics[RTAX_RTT-1]
+#endif
 	int			fib_nhs;
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	int			fib_power;
@@ -128,8 +159,9 @@ extern __inline__ struct fib_table *fib_new_table(int id)
 
 extern __inline__ int fib_lookup(const struct rt_key *key, struct fib_result *res)
 {
-	if (local_table->tb_lookup(local_table, key, res))
-		return main_table->tb_lookup(main_table, key, res);
+	if (local_table->tb_lookup(local_table, key, res) &&
+	    main_table->tb_lookup(main_table, key, res))
+		return -ENETUNREACH;
 	return 0;
 }
 
@@ -180,7 +212,7 @@ extern int fib_nh_match(struct rtmsg *r, struct nlmsghdr *, struct kern_rta *rta
 extern int fib_dump_info(struct sk_buff *skb, pid_t pid, u32 seq, int event,
 			 u8 tb_id, u8 type, u8 scope, void *dst, int dst_len, u8 tos,
 			 struct fib_info *fi);
-extern int fib_sync_down(u32 local, struct device *dev);
+extern int fib_sync_down(u32 local, struct device *dev, int force);
 extern int fib_sync_up(struct device *dev);
 extern int fib_convert_rtentry(int cmd, struct nlmsghdr *nl, struct rtmsg *rtm,
 			       struct kern_rta *rta, struct rtentry *r);

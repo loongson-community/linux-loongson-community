@@ -433,19 +433,37 @@ exp_readlock(void)
 int
 exp_writelock(void)
 {
+	/* fast track */
+	if (!hash_count && !hash_lock) {
+	lock_it:
+		hash_lock = 1;
+		return 0;
+	}
+
+	current->sigpending = 0;
 	want_lock++;
-	while (hash_count || hash_lock)
+	while (hash_count || hash_lock) {
 		interruptible_sleep_on(&hash_wait);
+		if (signal_pending(current))
+			break;
+	}
 	want_lock--;
-	if (signal_pending(current))
-		return -EINTR;
-	hash_lock = 1;
-	return 0;
+
+	/* restore the task's signals */
+	spin_lock_irq(&current->sigmask_lock);
+	recalc_sigpending(current);
+	spin_unlock_irq(&current->sigmask_lock);
+
+	if (!hash_count && !hash_lock)
+		goto lock_it;
+	return -EINTR;
 }
 
 void
 exp_unlock(void)
 {
+	if (!hash_count && !hash_lock)
+		printk(KERN_WARNING "exp_unlock: not locked!\n");
 	if (hash_count)
 		hash_count--;
 	else
@@ -598,26 +616,28 @@ exp_delclient(struct nfsctl_client *ncp)
 	svc_client	**clpp, *clp;
 	int		err;
 
+	err = -EINVAL;
 	if (!exp_verify_string(ncp->cl_ident, NFSCLNT_IDMAX))
-		return -EINVAL;
+		goto out;
 
 	/* Lock the hashtable */
 	if ((err = exp_writelock()) < 0)
-		return err;
+		goto out;
 
+	err = -EINVAL;
 	for (clpp = &clients; (clp = *clpp); clpp = &(clp->cl_next))
 		if (!strcmp(ncp->cl_ident, clp->cl_ident))
 			break;
 
-	if (!clp) {
-		exp_unlock();
-		return -EINVAL;
+	if (clp) {
+		*clpp = clp->cl_next;
+		exp_freeclient(clp);
+		err = 0;
 	}
-	*clpp = clp->cl_next;
-	exp_freeclient(clp);
 
 	exp_unlock();
-	return 0;
+out:
+	return err;
 }
 
 /*
@@ -732,6 +752,8 @@ nfsd_export_shutdown(void)
 		while (clnt_hash[i])
 			exp_freeclient(clnt_hash[i]->h_client);
 	}
+	clients = NULL; /* we may be restarted before the module unloads */
+	
 	exp_unlock();
 	dprintk("nfsd: export shutdown complete.\n");
 }

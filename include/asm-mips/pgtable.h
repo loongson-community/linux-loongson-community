@@ -121,8 +121,7 @@ extern void (*add_wired_entry)(unsigned long entrylo0, unsigned long entrylo1,
 
 #define _PAGE_CHG_MASK  (PAGE_MASK | __READABLE | __WRITEABLE | _CACHE_MASK)
 
-#define PAGE_NONE	__pgprot(_PAGE_PRESENT | _PAGE_ACCESSED | \
-                        _CACHE_CACHABLE_NONCOHERENT)
+#define PAGE_NONE	__pgprot(0)
 #define PAGE_SHARED     __pgprot(_PAGE_PRESENT | _PAGE_READ | _PAGE_WRITE | \
 			_CACHE_CACHABLE_NONCOHERENT)
 #define PAGE_COPY       __pgprot(_PAGE_PRESENT | _PAGE_READ | \

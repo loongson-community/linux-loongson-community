@@ -30,10 +30,13 @@
 void soundcard_init(void);
 #endif
 #ifdef CONFIG_ISDN
-void isdn_init(void);
+int isdn_init(void);
 #endif
 #ifdef CONFIG_PCWATCHDOG
-void pcwatchdog_init(void);
+int pcwatchdog_init(void);
+#endif
+#ifdef CONFIG_VIDEO_DEV
+extern int videodev_init(void);
 #endif
 
 static ssize_t do_write_mem(struct file * file, void *p, unsigned long realp,
@@ -129,7 +132,7 @@ static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 	 * The surround logic should disable caching for the high device
 	 * addresses anyway, but right now this seems still needed.
 	 */
-	if (x86 > 3 && offset >= __pa(high_memory))
+	if (boot_cpu_data.x86 > 3 && offset >= __pa(high_memory))
 		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
 #endif
 #ifdef __powerpc__
@@ -139,7 +142,8 @@ static int mmap_mem(struct file * file, struct vm_area_struct * vma)
 	if (remap_page_range(vma->vm_start, offset, vma->vm_end-vma->vm_start,
 			     vma->vm_page_prot))
 		return -EAGAIN;
-	vma->vm_dentry = dget(file->f_dentry);
+	vma->vm_file = file;
+	file->f_count++;
 	return 0;
 }
 
@@ -549,6 +553,9 @@ __initfunc(int chr_dev_init(void))
 #endif
 #ifdef CONFIG_FTAPE
 	ftape_init();
+#endif
+#ifdef CONFIG_VIDEO_DEV
+	videodev_init();
 #endif
 	return 0;
 }

@@ -1,4 +1,4 @@
-/* $Id: sgiseeq.c,v 1.4 1997/12/06 04:11:41 ralf Exp $
+/* $Id: sgiseeq.c,v 1.5 1997/12/06 23:53:49 ralf Exp $
  * sgiseeq.c: Seeq8003 ethernet driver for SGI machines.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -576,7 +576,7 @@ static int sgiseeq_start_xmit(struct sk_buff *skb, struct device *dev)
 		kick_tx(&sp->srings.tx_desc[sp->tx_old], hregs);
 
 	dev->trans_start = jiffies;
-	dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb(skb);
 
 	if(TX_BUFFS_AVAIL(sp))
 		dev->tbusy = 0;

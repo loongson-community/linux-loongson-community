@@ -5,7 +5,7 @@
  *
  *		The Internet Protocol (IP) module.
  *
- * Version:	$Id: ip_input.c,v 1.24 1997/10/24 17:15:58 kuznet Exp $
+ * Version:	$Id: ip_input.c,v 1.2 1997/12/16 05:37:38 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -97,6 +97,7 @@
  *		Alan Cox	:	Multicast routing hooks
  *		Jos Vos		:	Do accounting *before* call_in_firewall
  *	Willy Konynenberg	:	Transparent proxying support
+ *	Mike McLagan		:	Routing by source
  *
  *  
  *
@@ -257,7 +258,7 @@ int ip_local_deliver(struct sk_buff *skb)
         {
 		int ret = ip_fw_demasquerade(&skb);
 		if (ret < 0) {
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			return 0;
 		}
 
@@ -267,7 +268,7 @@ int ip_local_deliver(struct sk_buff *skb)
 			dst_release(skb->dst);
 			skb->dst = NULL;
 			if (ip_route_input(skb, iph->daddr, iph->saddr, iph->tos, skb->dev)) {
-				kfree_skb(skb, FREE_WRITE);
+				kfree_skb(skb);
 				return 0;
 			}
 			return skb->dst->input(skb);
@@ -312,7 +313,7 @@ int ip_local_deliver(struct sk_buff *skb)
 						if(ipsec_sk_policy(raw_sk,skb1))	
 							raw_rcv(raw_sk, skb1);
 						else
-							kfree_skb(skb1, FREE_WRITE);
+							kfree_skb(skb1);
 					}
 				}
 				raw_sk = sknext;
@@ -375,12 +376,12 @@ int ip_local_deliver(struct sk_buff *skb)
 		if(ipsec_sk_policy(raw_sk, skb))
 			raw_rcv(raw_sk, skb);
 		else
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 	}
 	else if (!flag)		/* Free and report errors */
 	{
 		icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, 0);	
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 	}
 
 	return(0);
@@ -422,7 +423,9 @@ int ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	 */
 
 	if (skb->len<sizeof(struct iphdr) || iph->ihl<5 || iph->version != 4
+#ifndef CONFIG_IP_ROUTER
 	    || ip_fast_csum((unsigned char *)iph, iph->ihl) !=0
+#endif
 		|| skb->len < ntohs(iph->tot_len))
 		goto inhdr_error;
 
@@ -462,18 +465,18 @@ int ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 
 		opt = &(IPCB(skb)->opt);
 		if (opt->srr) {
-			if (!ipv4_config.source_route) {
-				if (ipv4_config.log_martians && net_ratelimit())
+			struct in_device *in_dev = dev->ip_ptr;
+			if (in_dev && !IN_DEV_SOURCE_ROUTE(in_dev)) {
+				if (IN_DEV_LOG_MARTIANS(in_dev) && net_ratelimit())
 					printk(KERN_INFO "source route option %08lx -> %08lx\n",
 					       ntohl(iph->saddr), ntohl(iph->daddr));
 				goto drop;
 			}
-			if (((struct rtable*)skb->dst)->rt_type == RTN_LOCAL &&
-			    ip_options_rcv_srr(skb))
+			if (ip_options_rcv_srr(skb))
 				goto drop;
 		}
 	}
-	
+
 	/*
 	 *	See if the firewall wants to dispose of the packet. 
 	 */
@@ -501,7 +504,7 @@ int ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 inhdr_error:
 	ip_statistics.IpInHdrErrors++;
 drop:
-        kfree_skb(skb, FREE_WRITE);
+        kfree_skb(skb);
         return(0);
 }
 

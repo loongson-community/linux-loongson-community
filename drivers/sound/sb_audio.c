@@ -833,7 +833,7 @@ static unsigned int sb16_audio_set_bits(int dev, unsigned int bits)
 
 	if (bits != 0)
 	{
-		if (devc->bits == AFMT_U8 || bits == AFMT_S16_LE)
+		if (bits == AFMT_U8 || bits == AFMT_S16_LE)
 			devc->bits = bits;
 		else
 			devc->bits = AFMT_U8;
@@ -956,18 +956,13 @@ static void sb16_audio_trigger(int dev, int bits)
 	devc->trigger_bits = bits;
 }
 
-static int sb_audio_ioctl(int dev, unsigned int cmd, caddr_t arg)
-{
-	return -EINVAL;
-}
-
 static struct audio_driver sb1_audio_driver =	/* SB1.x */
 {
 	sb_audio_open,
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL, /* ioctl */
 	sb1_audio_prepare_for_input,
 	sb1_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -987,7 +982,7 @@ static struct audio_driver sb20_audio_driver =	/* SB2.0 */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	sb1_audio_prepare_for_input,
 	sb1_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -1007,7 +1002,7 @@ static struct audio_driver sb201_audio_driver =		/* SB2.01 */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	sb1_audio_prepare_for_input,
 	sb1_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -1027,7 +1022,7 @@ static struct audio_driver sbpro_audio_driver =		/* SB Pro */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	sbpro_audio_prepare_for_input,
 	sbpro_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -1047,7 +1042,7 @@ static struct audio_driver jazz16_audio_driver =	/* Jazz16 and SM Wave */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	sbpro_audio_prepare_for_input,
 	sbpro_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -1067,7 +1062,7 @@ static struct audio_driver sb16_audio_driver =	/* SB16 */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	sb16_audio_prepare_for_input,
 	sb16_audio_prepare_for_output,
 	sb1_audio_halt_xfer,
@@ -1087,7 +1082,7 @@ static struct audio_driver ess_audio_driver =	/* ESS ES688/1688 */
 	sb_audio_close,
 	sb_set_output_parms,
 	sb_set_input_parms,
-	sb_audio_ioctl,
+	NULL,
 	ess_audio_prepare_for_input,
 	ess_audio_prepare_for_output,
 	sb1_audio_halt_xfer,

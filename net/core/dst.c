@@ -58,38 +58,43 @@ static void dst_run_gc(unsigned long dummy)
 	dst_gc_timer_inc += DST_GC_INC;
 	dst_gc_timer.expires = jiffies + dst_gc_timer_expires;
 #if RT_CACHE_DEBUG >= 2
-	printk("dst_total: %d/%d/%d %ld\n",
-	       atomic_read(&dst_total), delayed,
-	       atomic_read(&hh_count), dst_gc_timer_expires);
+	printk("dst_total: %d/%d %ld\n",
+	       atomic_read(&dst_total), delayed,  dst_gc_timer_expires);
 #endif
 	add_timer(&dst_gc_timer);
 }
 
 static int dst_discard(struct sk_buff *skb)
 {
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 
 static int dst_blackhole(struct sk_buff *skb)
 {
-	kfree_skb(skb, FREE_WRITE);
+	kfree_skb(skb);
 	return 0;
 }
 
 void * dst_alloc(int size, struct dst_ops * ops)
 {
 	struct dst_entry * dst;
+
+	if (ops->gc && atomic_read(&ops->entries) > ops->gc_thresh) {
+		if (ops->gc())
+			return NULL;
+	}
 	dst = kmalloc(size, GFP_ATOMIC);
 	if (!dst)
 		return NULL;
 	memset(dst, 0, size);
 	dst->ops = ops;
-	atomic_set(&dst->refcnt, 1);
+	atomic_set(&dst->refcnt, 0);
 	dst->lastuse = jiffies;
 	dst->input = dst_discard;
 	dst->output = dst_blackhole;
 	atomic_inc(&dst_total);
+	atomic_inc(&ops->entries);
 	return dst;
 }
 
@@ -107,4 +112,26 @@ void __dst_free(struct dst_entry * dst)
 		add_timer(&dst_gc_timer);
 	}
 	end_bh_atomic();
+}
+
+void dst_destroy(struct dst_entry * dst)
+{
+	struct neighbour *neigh = dst->neighbour;
+	struct hh_cache *hh = dst->hh;
+
+	dst->hh = NULL;
+	if (hh && atomic_dec_and_test(&hh->hh_refcnt))
+		kfree(hh);
+
+	if (neigh) {
+		dst->neighbour = NULL;
+		neigh_release(neigh);
+	}
+
+	atomic_dec(&dst->ops->entries);
+
+	if (dst->ops->destroy)
+		dst->ops->destroy(dst);
+	atomic_dec(&dst_total);
+	kfree(dst);
 }

@@ -8,7 +8,7 @@
  * Copyright 1994, 1995, 1996, 1997 by Ralf Baechle
  * Modified for R3000 by Paul M. Antoine, 1995, 1996
  *
- * $Id: traps.c,v 1.5 1997/12/01 17:57:33 ralf Exp $
+ * $Id: traps.c,v 1.6 1997/12/16 05:34:39 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/init.h>
@@ -460,13 +460,6 @@ void set_except_vector(int n, void *addr)
 	}
 }
 
-typedef asmlinkage int (*syscall_t)(void *a0,...);
-asmlinkage int (*do_syscalls)(struct pt_regs *regs, syscall_t fun, int narg);
-extern asmlinkage int r4k_do_syscalls(struct pt_regs *regs,
-				      syscall_t fun, int narg);
-extern asmlinkage int r2300_do_syscalls(struct pt_regs *regs,
-					syscall_t fun, int narg);
-
 asmlinkage void (*save_fp_context)(struct sigcontext *sc);
 extern asmlinkage void r4k_save_fp_context(struct sigcontext *sc);
 extern asmlinkage void r2300_save_fp_context(struct sigcontext *sc);
@@ -559,7 +552,6 @@ __initfunc(void trap_init(void))
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
 
-		do_syscalls = r4k_do_syscalls;
 		save_fp_context = r4k_save_fp_context;
 		restore_fp_context = r4k_restore_fp_context;
 		resume = r4xx0_resume;
@@ -606,7 +598,6 @@ __initfunc(void trap_init(void))
 	case CPU_R3000:
 	case CPU_R3000A:
 		memcpy((void *)KSEG0, &except_vec0_r2300, 0x80);
-		do_syscalls = r2300_do_syscalls;
 		save_fp_context = r2300_save_fp_context;
 		restore_fp_context = r2300_restore_fp_context;
 		resume = r2300_resume;

@@ -4,7 +4,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_int.c,v 1.4 1997/09/20 19:20:15 root Exp $
+ * $Id: indy_int.c,v 1.5 1997/12/01 17:57:38 ralf Exp $
  */
 #include <linux/config.h>
 
@@ -55,6 +55,7 @@ extern asmlinkage void indyIRQ(void);
 extern void rs_kgdb_hook(int);
 #endif
 
+unsigned int local_bh_count[NR_CPUS];
 unsigned int local_irq_count[NR_CPUS];
 unsigned long spurious_count = 0;
 
@@ -230,7 +231,7 @@ int get_irq_list(char *buf)
 		if (!action) 
 			continue;
 		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.interrupts[num],
+			num, kstat.irqs[0][num],
 			(action->flags & SA_INTERRUPT) ? '+' : ' ',
 			action->name);
 		for (action=action->next; action; action = action->next) {
@@ -245,7 +246,7 @@ int get_irq_list(char *buf)
 		if (!action) 
 			continue;
 		len += sprintf(buf+len, "%2d: %8d %c %s",
-			num, kstat.interrupts[num],
+			num, kstat.irqs[0][num],
 			(action->flags & SA_INTERRUPT) ? '+' : ' ',
 			action->name);
 		for (action=action->next; action; action = action->next) {
@@ -274,7 +275,7 @@ asmlinkage void do_IRQ(int irq, struct pt_regs * regs)
 
 	cpu = smp_processor_id();
 	irq_enter(cpu, irq);
-	kstat.interrupts[irq]++;
+	kstat.irqs[0][irq]++;
 
 	printk("Got irq %d, press a key.", irq);
 	prom_getchar();
@@ -440,7 +441,7 @@ void indy_local0_irqdispatch(struct pt_regs *regs)
 	}
 
 	irq_enter(cpu, irq);
-	kstat.interrupts[irq + 16]++;
+	kstat.irqs[0][irq + 16]++;
 	action->handler(irq, action->dev_id, regs);
 	irq_exit(cpu, irq);
 }
@@ -464,7 +465,7 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 		action = local_irq_action[irq];
 	}
 	irq_enter(cpu, irq);
-	kstat.interrupts[irq + 24]++;
+	kstat.irqs[0][irq + 24]++;
 	action->handler(irq, action->dev_id, regs);
 	irq_exit(cpu, irq);
 }
@@ -475,7 +476,7 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int irq = 6;
 
 	irq_enter(cpu, irq);
-	kstat.interrupts[irq]++;
+	kstat.irqs[0][irq]++;
 	printk("Got a bus error IRQ, shouldn't happen yet\n");
 	show_regs(regs);
 	printk("Spinning...\n");

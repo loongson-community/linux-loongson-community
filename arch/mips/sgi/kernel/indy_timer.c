@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id: indy_timer.c,v 1.4 1997/12/01 17:57:38 ralf Exp $
+ * $Id: indy_timer.c,v 1.5 1998/03/11 15:21:44 ralf Exp $
  */
 
 #include <linux/errno.h>
@@ -114,7 +114,7 @@ void indy_timer_interrupt(struct pt_regs *regs)
         else
             r4k_cur += r4k_offset;
 	ack_r4ktimer(r4k_cur);
-	kstat.interrupts[irq]++;
+	kstat.irqs[0][irq]++;
 	do_timer(regs);
 
 	/* We update the Dallas time of day approx. every 11 minutes,
@@ -280,7 +280,7 @@ void indy_8254timer_irq(void)
 	int irq = 4;
 
 	irq_enter(cpu, irq);
-	kstat.interrupts[irq]++;
+	kstat.irqs[0][irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
 	prom_getchar();
 	prom_imode();

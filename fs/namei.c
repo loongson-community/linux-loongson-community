@@ -221,59 +221,6 @@ void put_write_access(struct inode * inode)
 }
 
 /*
- * This is called when everything else fails, and we actually have
- * to go to the low-level filesystem to find out what we should do..
- *
- * We get the directory semaphore, and after getting that we also
- * make sure that nobody added the entry to the dcache in the meantime..
- */
-static struct dentry * real_lookup(struct dentry * parent, struct qstr * name)
-{
-	struct dentry * result;
-	struct inode *dir = parent->d_inode;
-
-	down(&dir->i_sem);
-	result = d_lookup(parent, name);
-	if (!result) {
-		struct dentry * dentry = d_alloc(parent, name);
-		result = ERR_PTR(-ENOMEM);
-		if (dentry) {
-			int error = dir->i_op->lookup(dir, dentry);
-			result = dentry;
-			if (error) {
-				dput(dentry);
-				result = ERR_PTR(error);
-			}
-		}
-	}
-	up(&dir->i_sem);
-	return result;
-}
-
-/*
- * Internal lookup() using the new generic dcache.
- *
- * Note the revalidation: we have to drop the dcache
- * lock when we revalidate, so we need to update the
- * counts around it.
- */
-static struct dentry * cached_lookup(struct dentry * parent, struct qstr * name)
-{
-	struct dentry * dentry = d_lookup(parent, name);
-
-	if (dentry && dentry->d_op && dentry->d_op->d_revalidate) {
-		int validated, (*revalidate)(struct dentry *) = dentry->d_op->d_revalidate;
-
-		validated = revalidate(dentry) || d_invalidate(dentry);
-		if (!validated) {
-			dput(dentry);
-			dentry = NULL;
-		}
-	}
-	return dentry;
-}
-
-/*
  * "." and ".." are special - ".." especially so because it has to be able
  * to know about the current root directory and parent relationships
  */
@@ -298,6 +245,59 @@ static struct dentry * reserved_lookup(struct dentry * parent, struct qstr * nam
 	return dget(result);
 }
 
+/*
+ * Internal lookup() using the new generic dcache.
+ */
+static struct dentry * cached_lookup(struct dentry * parent, struct qstr * name)
+{
+	struct dentry * dentry = d_lookup(parent, name);
+
+	if (dentry && dentry->d_op && dentry->d_op->d_revalidate) {
+		if (!dentry->d_op->d_revalidate(dentry) && !d_invalidate(dentry)) {
+			dput(dentry);
+			dentry = NULL;
+		}
+	}
+	return dentry;
+}
+
+/*
+ * This is called when everything else fails, and we actually have
+ * to go to the low-level filesystem to find out what we should do..
+ *
+ * We get the directory semaphore, and after getting that we also
+ * make sure that nobody added the entry to the dcache in the meantime..
+ */
+static struct dentry * real_lookup(struct dentry * parent, struct qstr * name)
+{
+	struct dentry * result;
+	struct inode *dir = parent->d_inode;
+
+	down(&dir->i_sem);
+	/*
+	 * First re-do the cached lookup just in case it was created
+	 * while we waited for the directory semaphore..
+	 *
+	 * FIXME! This could use version numbering or similar to
+	 * avoid unnecessary cache lookups.
+	 */
+	result = cached_lookup(parent, name);
+	if (!result) {
+		struct dentry * dentry = d_alloc(parent, name);
+		result = ERR_PTR(-ENOMEM);
+		if (dentry) {
+			int error = dir->i_op->lookup(dir, dentry);
+			result = dentry;
+			if (error) {
+				dput(dentry);
+				result = ERR_PTR(error);
+			}
+		}
+	}
+	up(&dir->i_sem);
+	return result;
+}
+
 static struct dentry * do_follow_link(struct dentry *base, struct dentry *dentry)
 {
 	struct inode * inode = dentry->d_inode;
@@ -308,7 +308,7 @@ static struct dentry * do_follow_link(struct dentry *base, struct dentry *dentry
 
 			current->link_count++;
 			/* This eats the base */
-			result = inode->i_op->follow_link(inode, base);
+			result = inode->i_op->follow_link(dentry, base);
 			current->link_count--;
 			dput(dentry);
 			return result;
@@ -358,7 +358,7 @@ struct dentry * lookup_dentry(const char * name, struct dentry * base, int follo
 
 	/* At this point we know we have a real path component. */
 	for(;;) {
-		int len, err;
+		int err;
 		unsigned long hash;
 		struct qstr this;
 		struct inode *inode;
@@ -379,16 +379,14 @@ struct dentry * lookup_dentry(const char * name, struct dentry * base, int follo
 			break;
 
 		this.name = name;
-		len = 0;
 		c = *name;
 
 		hash = init_name_hash();
 		do {
-			len++; name++;
 			hash = partial_name_hash(c, hash);
-			c = *name;
+			c = *++name;
 		} while (c && (c != '/'));
-		this.len = len;
+		this.len = name - (const char *) this.name;
 		this.hash = end_name_hash(hash);
 
 		/* remove trailing slashes? */
@@ -632,7 +630,7 @@ struct dentry * open_namei(const char * pathname, int flag, int mode)
 			if (inode->i_sb && inode->i_sb->dq_op)
 				inode->i_sb->dq_op->initialize(inode, -1);
 			
-			error = do_truncate(inode, 0);
+			error = do_truncate(dentry, 0);
 		}
 		put_write_access(inode);
 		if (error)
@@ -833,7 +831,7 @@ static inline int do_rmdir(const char * name)
 
 	/* Disallow removals of mountpoints. */
 	error = -EBUSY;
-	if (dentry == dir)
+	if (dentry->d_mounts != dentry->d_covers)
 		goto exit_lock;
 
 	error = -EPERM;
@@ -842,6 +840,9 @@ static inline int do_rmdir(const char * name)
 
 	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
 		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
+
+	if (dentry->d_count > 1)
+		shrink_dcache_parent(dentry);
 
 	error = dir->d_inode->i_op->rmdir(dir->d_inode, dentry);
 
@@ -1073,7 +1074,7 @@ static inline int do_link(const char * oldname, const char * newname)
 
 	if (dir->d_inode->i_sb && dir->d_inode->i_sb->dq_op)
 		dir->d_inode->i_sb->dq_op->initialize(dir->d_inode, -1);
-	error = dir->d_inode->i_op->link(inode, dir->d_inode, new_dentry);
+	error = dir->d_inode->i_op->link(old_dentry, dir->d_inode, new_dentry);
 
 exit_lock:
 	unlock_dir(dir);

@@ -1019,7 +1019,7 @@ static void handle_stripe(struct stripe_head *sh)
 				if (sh->bh_new[i])
 					continue;
 				block = (int) compute_blocknr(sh, i);
-				bh = efind_buffer(MKDEV(MD_MAJOR, minor), block, sh->size);
+				bh = find_buffer(MKDEV(MD_MAJOR, minor), block, sh->size);
 				if (bh && bh->b_count == 0 && buffer_dirty(bh) && !buffer_locked(bh)) {
 					PRINTK(("Whee.. sector %lu, index %d (%d) found in the buffer cache!\n", sh->sector, i, block));
 					add_stripe_bh(sh, bh, i, WRITE);
@@ -1372,7 +1372,7 @@ static int raid5_run (int minor, struct md_dev *mddev)
 	memset (raid_conf, 0, sizeof (*raid_conf));
 	raid_conf->mddev = mddev;
 
-	if ((raid_conf->stripe_hashtbl = (struct stripe_head **) __get_free_pages(GFP_ATOMIC, HASH_PAGES_ORDER, 0)) == NULL)
+	if ((raid_conf->stripe_hashtbl = (struct stripe_head **) __get_free_pages(GFP_ATOMIC, HASH_PAGES_ORDER)) == NULL)
 		goto abort;
 	memset(raid_conf->stripe_hashtbl, 0, HASH_PAGES * PAGE_SIZE);
 

@@ -1,4 +1,3 @@
-
 # Makefile for linux/drivers/scsi
 #
 # Note! Dependencies are done automagically by 'make dep', which also
@@ -14,8 +13,9 @@ MIX_OBJS :=
 MOD_LIST_NAME := SCSI_MODULES
 SCSI_SRCS = $(wildcard $(L_OBJS:%.o=%.c))
 
-AHA152X	= -DDEBUG_AHA152X -DAUTOCONF
-GDTH = #-DDEBUG_GDTH=2 -D__SERIAL__ -D__COM2__ -DGDTH_STATISTICS
+CFLAGS_aha152x.o =   -DDEBUG_AHA152X -DAUTOCONF
+CFLAGS_gdth.o    = # -DDEBUG_GDTH=2 -D__SERIAL__ -D__COM2__ -DGDTH_STATISTICS
+CFLAGS_seagate.o =   -DARBITRATE -DSLOW_HANDSHAKE -DFAST32 -DPARITY
 
 .SUFFIXES:
 .SUFFIXES: .c .o .h .a
@@ -34,14 +34,13 @@ endif
 ifeq ($(CONFIG_SCSI),y)
   # We must attach scsi_syms.o to scsi.o, as otherwise there is nothing to
   # pull the object file from the archive.
-  SCSI=scsi.o
+  O_TARGET := scsi_n_syms.o
+  O_OBJS   := scsi.o
   ifeq ($(CONFIG_MODULES),y)
-    O_TARGET := scsi_n_syms.o
-    O_OBJS   := scsi.o
     OX_OBJS  := scsi_syms.o
-    SCSI     := $(O_TARGET)
   endif
-  L_OBJS += $(SCSI) hosts.o scsi_ioctl.o constants.o scsicam.o
+  L_OBJS += scsi_n_syms.o hosts.o scsi_ioctl.o constants.o scsicam.o
+  L_OBJS += scsi_error.o scsi_obsolete.o scsi_queue.o
   ifeq ($(CONFIG_PROC_FS),y)
     L_OBJS += scsi_proc.o
   endif
@@ -439,6 +438,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SCSI_PLUTO),y)
+L_OBJS += pluto.o
+else
+  ifeq ($(CONFIG_SCSI_PLUTO),m)
+  M_OBJS += pluto.o
+  endif
+endif
+
 ifeq ($(CONFIG_SCSI_EATA),y)
 L_OBJS += eata.o
 else
@@ -469,24 +476,6 @@ endif
 
 include $(TOPDIR)/Rules.make
 
-BusLogic.o: BusLogic.c FlashPoint.c
-	$(CC) $(CFLAGS) -c BusLogic.c -o BusLogic.O
-	$(CC) $(CFLAGS) -c FlashPoint.c -o FlashPoint.O
-	$(LD) -r -o BusLogic.o BusLogic.O FlashPoint.O
-	rm -f BusLogic.O FlashPoint.O
-
-aha152x.o: aha152x.c
-	$(CC) $(CFLAGS) $(AHA152X) -c aha152x.c 
-
-gdth.o: gdth.c gdth.h gdth_proc.c gdth_proc.h
-	$(CC) $(CFLAGS) $(GDTH) -c gdth.c 
-
-aic7xxx.o: aic7xxx.c aic7xxx_seq.h aic7xxx_reg.h
-	$(CC) $(CFLAGS) -c -o $@ aic7xxx.c
-
-seagate.o: seagate.c
-	$(CC) $(CFLAGS) -DARBITRATE -DSLOW_HANDSHAKE -DFAST32 -DPARITY -c seagate.c 
-
 53c8xx_d.h 53c8xx_u.h : 53c7,8xx.scr script_asm.pl
 	ln -sf 53c7,8xx.scr fake.c
 	$(CPP) -traditional -DCHIP=810 fake.c | grep -v '^#' | perl script_asm.pl 
@@ -502,8 +491,10 @@ seagate.o: seagate.c
 	rm fake.c
 
 scsi_mod.o: $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o \
-		scsicam.o scsi_proc.o
-	$(LD) $(LD_RFLAG) -r -o $@ $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o constants.o scsicam.o scsi_proc.o
+		scsicam.o scsi_proc.o scsi_error.o scsi_obsolete.o scsi_queue.o
+	$(LD) $(LD_RFLAG) -r -o $@ $(MIX_OBJS) hosts.o scsi.o scsi_ioctl.o \
+		constants.o scsicam.o scsi_proc.o               \
+		scsi_error.o scsi_obsolete.o scsi_queue.o \
 
 sr_mod.o: sr.o sr_ioctl.o sr_vendor.o
 	$(LD) $(LD_RFLAG) -r -o $@ sr.o sr_ioctl.o sr_vendor.o

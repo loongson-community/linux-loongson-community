@@ -7,6 +7,7 @@
   */
 /* routines to control the AP1000 timer chip */   
 
+#include <linux/config.h> /* for CONFIG_PROFILE */
 #include <linux/time.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
@@ -73,6 +74,7 @@ void ap_gettimeofday(struct timeval *xt)
 	last_freerun = new_freerun;
 }
 
+#ifdef CONFIG_PROFILE
 
 static void profile_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 {
@@ -96,6 +98,8 @@ void ap_profile_init(void)
   }
 }
 
+#endif
+
 void ap_init_timers(void)
 {
 	extern void timer_interrupt(int irq, void *dev_id, struct pt_regs * regs);
@@ -109,11 +113,13 @@ void ap_init_timers(void)
 		    timer_interrupt,
 		    (SA_INTERRUPT | SA_STATIC_ALLOC),
 		    "timer", NULL);
-	
+
+#ifdef CONFIG_PROFILE	
 	request_irq(APTIM0_IRQ,
 		    profile_interrupt,
 		    (SA_INTERRUPT | SA_STATIC_ALLOC),
 		    "profile", NULL);
+#endif
 	
 	ap_clear_clock_irq();
 	

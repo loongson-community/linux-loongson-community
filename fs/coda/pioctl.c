@@ -18,10 +18,10 @@
 #include <linux/string.h>
 #include <asm/uaccess.h>
 
-#include <linux/coda_namecache.h>
 #include <linux/coda.h>
 #include <linux/coda_linux.h>
-#include <linux/coda_cnode.h>
+#include <linux/coda_fs_i.h>
+#include <linux/coda_cache.h>
 #include <linux/coda_psdev.h>
 
 /* pioctl ops */
@@ -103,7 +103,7 @@ static int coda_pioctl(struct inode * inode, struct file * filp,
         int error;
 	struct PioctlData data;
         struct inode *target_inode = NULL;
-        struct cnode *cnp;
+        struct coda_inode_info *cnp;
 
         ENTRY;
         /* get the Pioctl data arguments from user space */
@@ -115,16 +115,17 @@ static int coda_pioctl(struct inode * inode, struct file * filp,
          * Look up the pathname. Note that the pathname is in 
          * user memory, and namei takes care of this
          */
-	CDEBUG(D_PIOCTL, "namei, data.follow = %d\n", data.follow);
+	CDEBUG(D_PIOCTL, "namei, data.follow = %d\n", 
+	       data.follow);
         if ( data.follow ) {
                 target_de = namei(data.path);
 	} else {
 	        target_de = lnamei(data.path);
 	}
-
-	if (!target_de) {
+		
+	if ( PTR_ERR(target_de) == -ENOENT ) {
                 CDEBUG(D_PIOCTL, "error: lookup fails.\n");
-		return -EINVAL;
+		return PTR_ERR(target_de);
         } else {
 	        target_inode = target_de->d_inode;
 	}

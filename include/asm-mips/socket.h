@@ -1,5 +1,5 @@
 /*
- * $Id:$
+ * $Id: socket.h,v 1.4 1997/12/06 23:55:49 ralf Exp $
  */
 #ifndef __ASM_MIPS_SOCKET_H
 #define __ASM_MIPS_SOCKET_H
@@ -51,6 +51,10 @@ To add: #define SO_REUSEPORT 0x0200	/* Allow local address and port reuse.  */
 #define SO_SECURITY_ENCRYPTION_NETWORK		24
 
 #define SO_BINDTODEVICE		25
+
+/* Socket filtering */
+#define SO_ATTACH_FILTER        26
+#define SO_DETACH_FILTER        27
 
 /* Types of sockets.  */
 #define SOCK_DGRAM 1		/* Connectionless, unreliable datagrams

@@ -36,6 +36,7 @@
 #include <linux/major.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+#include <linux/file.h>
 
 #include <asm/uaccess.h>
 
@@ -52,8 +53,6 @@
 /*
  * External references and all of the globals.
  */
-extern int close_fp(struct file *);
-
 void acct_timeout(unsigned long);
 
 static volatile int acct_active = 0;
@@ -129,7 +128,7 @@ asmlinkage int sys_acct(const char *name)
 		        del_timer(&acct_timer);
 			acct_active = 0;
 			acct_needcheck = 0;
-			close_fp(acct_file);
+			fput(acct_file);
 		}
 		error = 0;
 		goto out;
@@ -268,8 +267,8 @@ int acct_process(long exitcode)
 
 
 	/*
-	 * Fill the accounting struct with the needed info as recorded by the different
-	 * kernel functions.
+	 * Fill the accounting struct with the needed info as recorded
+	 * by the different kernel functions.
 	 */
 	memset((caddr_t)&ac, 0, sizeof(struct acct));
 
@@ -304,7 +303,7 @@ int acct_process(long exitcode)
 	}
 	vsize = vsize / 1024;
 	ac.ac_mem = encode_comp_t(vsize);
-	ac.ac_io = encode_comp_t(current->io_usage);
+	ac.ac_io = encode_comp_t(0 /* current->io_usage */);	/* %% */
 	ac.ac_rw = encode_comp_t(ac.ac_io / 1024);
 	ac.ac_minflt = encode_comp_t(current->min_flt);
 	ac.ac_majflt = encode_comp_t(current->maj_flt);

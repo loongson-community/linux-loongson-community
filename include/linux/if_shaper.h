@@ -5,7 +5,7 @@
 
 #define SHAPER_QLEN	10
 /*
- *	This is a bit speed dependant (read it shouldnt be a constant!)
+ *	This is a bit speed dependent (read it shouldn't be a constant!)
  *
  *	5 is about right for 28.8 upwards. Below that double for every
  *	halving of speed or so. - ie about 20 for 9600 baud.
@@ -33,8 +33,7 @@ struct shaper
 		void *saddr,
 		unsigned len);
 	int  (*rebuild_header)(struct sk_buff *skb);
-	int (*hard_header_cache)(struct dst_entry *dst, struct neighbour *neigh,
-		struct hh_cache *hh);
+	int (*hard_header_cache)(struct neighbour *neigh, struct hh_cache *hh);
 	void (*header_cache_update)(struct hh_cache *hh, struct device *dev, unsigned char *  haddr);
 	struct net_device_stats* (*get_stats)(struct device *dev);
 	struct wait_queue *wait_queue;

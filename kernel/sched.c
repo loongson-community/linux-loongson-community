@@ -104,6 +104,8 @@ struct task_struct * task[NR_TASKS] = {&init_task, };
 
 struct kernel_stat kstat = { 0 };
 
+void scheduling_functions_start_here(void) { }
+
 static inline void add_to_runqueue(struct task_struct * p)
 {
 	if (p->policy != SCHED_OTHER || p->counter > current->counter + 3)
@@ -142,7 +144,6 @@ static inline void move_last_runqueue(struct task_struct * p)
 	prev->next_run = p;
 }
 
-#ifdef __SMP__
 /*
  * The tasklist_lock protects the linked list of processes.
  *
@@ -156,8 +157,7 @@ static inline void move_last_runqueue(struct task_struct * p)
  */
 rwlock_t tasklist_lock = RW_LOCK_UNLOCKED;
 spinlock_t scheduler_lock = SPIN_LOCK_UNLOCKED;
-static spinlock_t runqueue_lock = SPIN_LOCK_UNLOCKED;
-#endif
+spinlock_t runqueue_lock = SPIN_LOCK_UNLOCKED;
 
 /*
  * Wake up a process. Put it on the run-queue if it's not
@@ -313,7 +313,7 @@ static inline void internal_add_timer(struct timer_list *timer)
 	}
 }
 
-static spinlock_t timerlist_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t timerlist_lock = SPIN_LOCK_UNLOCKED;
 
 void add_timer(struct timer_list *timer)
 {
@@ -386,6 +386,8 @@ asmlinkage void schedule(void)
 	prev = current;
 	this_cpu = smp_processor_id();
 	if (local_irq_count[this_cpu])
+		goto scheduling_in_interrupt;
+	if (local_bh_count[this_cpu])
 		goto scheduling_in_interrupt;
 	release_kernel_lock(prev, this_cpu, lock_depth);
 	if (bh_active & bh_mask)
@@ -505,7 +507,7 @@ rwlock_t waitqueue_lock = RW_LOCK_UNLOCKED;
  * have to protect against interrupts), as the actual removal from the
  * queue is handled by the process itself.
  */
-void wake_up(struct wait_queue **q)
+void __wake_up(struct wait_queue **q, unsigned int mode)
 {
 	struct wait_queue *next;
 
@@ -517,27 +519,7 @@ void wake_up(struct wait_queue **q)
 		while (next != head) {
 			struct task_struct *p = next->task;
 			next = next->next;
-			if ((p->state == TASK_UNINTERRUPTIBLE) ||
-			    (p->state == TASK_INTERRUPTIBLE))
-				wake_up_process(p);
-		}
-	}
-	read_unlock(&waitqueue_lock);
-}
-
-void wake_up_interruptible(struct wait_queue **q)
-{
-	struct wait_queue *next;
-
-	read_lock(&waitqueue_lock);
-	if (q && (next = *q)) {
-		struct wait_queue *head;
-
-		head = WAIT_QUEUE_HEAD(q);
-		while (next != head) {
-			struct task_struct *p = next->task;
-			next = next->next;
-			if (p->state == TASK_INTERRUPTIBLE)
+			if (p->state & mode)
 				wake_up_process(p);
 		}
 	}
@@ -677,6 +659,8 @@ void sleep_on(struct wait_queue **p)
 {
 	__sleep_on(p,TASK_UNINTERRUPTIBLE);
 }
+
+void scheduling_functions_end_here(void) { }
 
 static inline void cascade_timers(struct timer_vec *tv)
 {
@@ -1027,8 +1011,10 @@ static inline void do_it_prof(struct task_struct * p, unsigned long ticks)
 }
 
 void update_one_process(struct task_struct *p,
-	unsigned long ticks, unsigned long user, unsigned long system)
+	unsigned long ticks, unsigned long user, unsigned long system, int cpu)
 {
+	p->per_cpu_utime[cpu] += user;
+	p->per_cpu_stime[cpu] += system;
 	do_process_times(p, user, system);
 	do_it_virt(p, user);
 	do_it_prof(p, ticks);
@@ -1054,7 +1040,7 @@ static void update_process_times(unsigned long ticks, unsigned long system)
 			kstat.cpu_user += user;
 		kstat.cpu_system += system;
 	}
-	update_one_process(p, ticks, user, system);
+	update_one_process(p, ticks, user, system, 0);
 #endif
 }
 

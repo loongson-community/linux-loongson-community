@@ -1,1 +1,3 @@
-.depend offset.s offset.h
+.depend
+.*.flags
+offset.s offset.h

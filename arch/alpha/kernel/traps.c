@@ -105,14 +105,24 @@ void die_if_kernel(char * str, struct pt_regs *regs, long err,
 	do_exit(SIGSEGV);
 }
 
+#ifndef CONFIG_MATHEMU
+static long dummy_alpha_fp_emul_imprecise(struct pt_regs *r, unsigned long wm)
+{
+  return 0;
+}
+
+long (*alpha_fp_emul_imprecise)(struct pt_regs *regs, unsigned long writemask)
+  = dummy_alpha_fp_emul_imprecise;
+#else
+long alpha_fp_emul_imprecise(struct pt_regs *regs, unsigned long writemask);
+#endif
+
 asmlinkage void do_entArith(unsigned long summary, unsigned long write_mask,
 			    unsigned long a2, unsigned long a3,
 			    unsigned long a4, unsigned long a5,
 			    struct pt_regs regs)
 {
 	if ((summary & 1)) {
-		extern long alpha_fp_emul_imprecise (struct pt_regs * regs,
-						     unsigned long write_mask);
 		/*
 		 * Software-completion summary bit is set, so try to
 		 * emulate the instruction.
@@ -863,9 +873,9 @@ asmlinkage long alpha_ni_syscall(unsigned long a0, unsigned long a1,
 				 unsigned long a4, unsigned long a5,
 				 struct pt_regs regs)
 {
-	/* Only report OSF system calls.  */
-	if (regs.r0 != 112 && regs.r0 < 300)
-		printk("<sc %ld(%lx,%lx,%lx)>", regs.r0, a0, a1, a2);
+	/* We only get here for OSF system calls, minus #112;
+	   the rest go to sys_ni_syscall.  */
+	printk("<sc %ld(%lx,%lx,%lx)>", regs.r0, a0, a1, a2);
 	return -ENOSYS;
 }
 

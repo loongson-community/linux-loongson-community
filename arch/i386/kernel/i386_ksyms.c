@@ -27,20 +27,19 @@ EXPORT_SYMBOL(drive_info);
 #endif
 
 /* platform dependent support */
-EXPORT_SYMBOL(x86);
+EXPORT_SYMBOL(boot_cpu_data);
 EXPORT_SYMBOL(EISA_bus);
 EXPORT_SYMBOL(MCA_bus);
-EXPORT_SYMBOL(wp_works_ok);
 EXPORT_SYMBOL(__verify_write);
 EXPORT_SYMBOL(dump_thread);
 EXPORT_SYMBOL(dump_fpu);
 EXPORT_SYMBOL(__ioremap);
 EXPORT_SYMBOL(iounmap);
+EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL_NOVERS(__down_failed);
 EXPORT_SYMBOL_NOVERS(__down_failed_interruptible);
 EXPORT_SYMBOL_NOVERS(__up_wakeup);
-EXPORT_SYMBOL(__intel_bh_counter);
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_partial_copy);
 /* Delay loops */
@@ -48,6 +47,20 @@ EXPORT_SYMBOL(__udelay);
 EXPORT_SYMBOL(__delay);
 EXPORT_SYMBOL(__const_udelay);
 
+EXPORT_SYMBOL_NOVERS(__get_user_1);
+EXPORT_SYMBOL_NOVERS(__get_user_2);
+EXPORT_SYMBOL_NOVERS(__get_user_4);
+EXPORT_SYMBOL_NOVERS(__put_user_1);
+EXPORT_SYMBOL_NOVERS(__put_user_2);
+EXPORT_SYMBOL_NOVERS(__put_user_4);
+
+EXPORT_SYMBOL(strncpy_from_user);
+EXPORT_SYMBOL(__strncpy_from_user);
+EXPORT_SYMBOL(clear_user);
+EXPORT_SYMBOL(__clear_user);
+EXPORT_SYMBOL(__generic_copy_from_user);
+EXPORT_SYMBOL(__generic_copy_to_user);
+EXPORT_SYMBOL(strlen_user);
 
 #ifdef __SMP__
 EXPORT_SYMBOL(apic_reg);	/* Needed internally for the I386 inlines */
@@ -60,6 +73,9 @@ EXPORT_SYMBOL(lk_lockmsg);
 
 /* Global SMP irq stuff */
 EXPORT_SYMBOL(synchronize_irq);
+EXPORT_SYMBOL(synchronize_bh);
+EXPORT_SYMBOL(global_bh_count);
+EXPORT_SYMBOL(global_bh_lock);
 EXPORT_SYMBOL(global_irq_holder);
 EXPORT_SYMBOL(__global_cli);
 EXPORT_SYMBOL(__global_sti);
@@ -80,3 +96,4 @@ EXPORT_SYMBOL(mca_set_adapter_procfn);
 EXPORT_SYMBOL(mca_isenabled);
 EXPORT_SYMBOL(mca_isadapter);
 #endif
+

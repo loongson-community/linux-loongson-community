@@ -32,7 +32,7 @@ static unsigned long fat_file_mmap_nopage(
 	unsigned long address,
 	int error_code)
 {
-	struct inode * inode = area->vm_dentry->d_inode;
+	struct inode * inode = area->vm_file->f_dentry->d_inode;
 	unsigned long page;
 	unsigned int clear;
 	int pos;
@@ -97,7 +97,10 @@ struct vm_operations_struct fat_file_mmap = {
 int fat_mmap(struct file * file, struct vm_area_struct * vma)
 {
 	struct inode *inode = file->f_dentry->d_inode;
-	
+	if (MSDOS_SB(inode->i_sb)->cvf_format &&
+	    MSDOS_SB(inode->i_sb)->cvf_format->cvf_mmap)
+		return MSDOS_SB(inode->i_sb)->cvf_format->cvf_mmap(file,vma);
+
 	if (vma->vm_flags & VM_SHARED)	/* only PAGE_COW or read-only supported now */
 		return -EINVAL;
 	if (vma->vm_offset & (inode->i_sb->s_blocksize - 1))
@@ -109,9 +112,22 @@ int fat_mmap(struct file * file, struct vm_area_struct * vma)
 		mark_inode_dirty(inode);
 	}
 
-	vma->vm_dentry = dget(file->f_dentry);
+	vma->vm_file = file;
+	file->f_count++;
 	vma->vm_ops = &fat_file_mmap;
 	return 0;
 }
 
+
+int fat_readpage(struct file *file, struct page * page)
+{
+	struct dentry * dentry = file->f_dentry;
+	struct inode * inode = dentry->d_inode;
+	if (MSDOS_SB(inode->i_sb)->cvf_format &&
+	    MSDOS_SB(inode->i_sb)->cvf_format->cvf_readpage)
+		return MSDOS_SB(inode->i_sb)->cvf_format->cvf_readpage(inode,page);
+	    
+	printk("fat_readpage called with no handler (shouldn't happen)\n");
+	return -1;
+}
 

@@ -10,7 +10,7 @@
 #define rti	.long PAL_rti
 #define SIGCHLD	20
 
-#define NR_SYSCALLS 360
+#define NR_SYSCALLS 370
 #define osf_vfork sys_fork
 
 /*
@@ -29,11 +29,10 @@
 /*
  * task structure offsets
  */
-#define TASK_STATE	0
-#define TASK_COUNTER	8
-#define TASK_PRIORITY	16
-#define TASK_FLAGS	24
-#define TASK_SIGPENDING	32	
+#define TASK_STATE	 0
+#define TASK_FLAGS	 8
+#define TASK_SIGPENDING	16
+#define TASK_SIZE	24	
 
 /*
  * task flags (must match include/linux/sched.h):
@@ -252,6 +251,28 @@ __kernel_thread:
 	call_pal PAL_halt
 .end	__kernel_thread
 
+/*
+ * __kernel_execve(path, argv, envp, regs)
+ */
+.align 3
+.globl	__kernel_execve
+.ent	__kernel_execve
+__kernel_execve:
+	ldgp	$29,0($27)	/* we can be called from modules.  */
+	subq	$30,16,$30
+	.frame	$30,16,$26,0
+	stq	$26,0($30)
+	stq	$19,8($30)
+	.prologue 1
+	jsr	$26,do_execve
+	bne	$0,1f		/* error! */
+	ldq	$30,8($30)
+	br	$31,ret_from_sys_call
+1:	ldq	$26,0($30)
+	addq	$30,16,$30
+	ret
+.end	__kernel_execve
+
 .align 3
 .ent	do_switch_stack
 do_switch_stack:
@@ -297,6 +318,7 @@ do_switch_stack:
 	stt $f29,296($30)
 	stt $f30,304($30)
 	stt $f0,312($30)	# save fpcr in slot of $f31
+	ldt $f0,64($30)		# don't let "do_switch_stack" change any fp state.
 	ret $31,($1),1
 .end do_switch_stack
 
@@ -508,7 +530,7 @@ entSys:
 	lda	$4,NR_SYSCALLS($31)
 	stq	$16,SP_OFF+24($30)
 	lda	$5,sys_call_table
-	lda	$27,alpha_ni_syscall
+	lda	$27,sys_ni_syscall
 	cmpult	$0,$4,$4
 	ldq	$3,TASK_FLAGS($8)
 	stq	$17,SP_OFF+32($30)
@@ -833,7 +855,7 @@ sys_call_table:
 	.quad alpha_ni_syscall
 	.quad alpha_ni_syscall			/* 110 */
 	.quad sys_sigsuspend
-	.quad alpha_ni_syscall
+	.quad sys_ni_syscall
 	.quad sys_recvmsg
 	.quad sys_sendmsg
 	.quad alpha_ni_syscall			/* 115 */
@@ -929,7 +951,7 @@ sys_call_table:
 	.quad sys_semget			/* 205 */
 	.quad sys_semop
 	.quad osf_utsname
-	.quad alpha_ni_syscall
+	.quad sys_lchown
 	.quad osf_shmat
 	.quad sys_shmctl			/* 210 */
 	.quad sys_shmdt
@@ -1025,7 +1047,7 @@ sys_call_table:
 	.quad sys_bdflush			/* 300 */
 	.quad sys_sethae
 	.quad sys_mount
-	.quad sys_adjtimex
+	.quad sys_old_adjtimex
 	.quad sys_swapoff
 	.quad sys_getdents			/* 305 */
 	.quad alpha_create_module
@@ -1060,7 +1082,7 @@ sys_call_table:
 	.quad sys_sched_get_priority_max	/* 335 */
 	.quad sys_sched_get_priority_min
 	.quad sys_sched_rr_get_interval
-	.quad alpha_ni_syscall /* sys_afs_syscall */
+	.quad sys_ni_syscall			/* sys_afs_syscall */
 	.quad sys_newuname
 	.quad sys_nanosleep			/* 340 */
 	.quad sys_mremap
@@ -1080,8 +1102,15 @@ sys_call_table:
 	.quad sys_rt_sigtimedwait		/* 355 */
 	.quad sys_rt_sigqueueinfo
 	.quad sys_rt_sigsuspend
-	.quad alpha_ni_syscall
-	.quad alpha_ni_syscall
-	.quad alpha_ni_syscall
-	.quad alpha_ni_syscall
-	.quad alpha_ni_syscall			/* 360 */
+	.quad sys_select
+	.quad sys_gettimeofday
+	.quad sys_settimeofday			/* 360 */
+	.quad sys_getitimer
+	.quad sys_setitimer
+	.quad sys_utimes
+	.quad sys_getrusage
+	.quad sys_wait4				/* 365 */
+	.quad sys_adjtimex
+	.quad sys_ni_syscall
+	.quad sys_ni_syscall
+	.quad sys_ni_syscall			/* 369 */

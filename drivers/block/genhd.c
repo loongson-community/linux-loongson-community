@@ -2,7 +2,7 @@
  *  Code extracted from
  *  linux/kernel/hd.c
  *
- *  Copyright (C) 1991, 1992  Linus Torvalds
+ *  Copyright (C) 1991-1998  Linus Torvalds
  *
  *
  *  Thanks to Branko Lankester, lankeste@fwi.uva.nl, who found a bug
@@ -105,6 +105,7 @@ static void add_partition (struct gendisk *hd, int minor, int start, int size)
 static inline int is_extended_partition(struct partition *p)
 {
 	return (SYS_IND(p) == DOS_EXTENDED_PARTITION ||
+		SYS_IND(p) == WIN98_EXTENDED_PARTITION ||
 		SYS_IND(p) == LINUX_EXTENDED_PARTITION);
 }
 
@@ -254,6 +255,45 @@ static void extended_partition(struct gendisk *hd, kdev_t dev)
 done:
 	brelse(bh);
 }
+#ifdef CONFIG_SOLARIS_X86_PARTITION
+static void
+solaris_x86_partition(struct gendisk *hd, kdev_t dev, long offset) {
+
+	struct buffer_head *bh;
+	struct solaris_x86_vtoc *v;
+	struct solaris_x86_slice *s;
+	int i;
+
+	if(!(bh = bread(dev, 0, get_ptable_blocksize(dev))))
+		return;
+	v = (struct solaris_x86_vtoc *)(bh->b_data + 512);
+	if(v->v_sanity != SOLARIS_X86_VTOC_SANE) {
+		brelse(bh);
+		return;
+	}
+	printk(" <solaris:");
+	if(v->v_version != 1) {
+		printk("  cannot handle version %ld vtoc>", v->v_version);
+		brelse(bh);
+		return;
+	}
+	for(i=0; i<SOLARIS_X86_NUMSLICE; i++) {
+		s = &v->v_slice[i];
+
+		if (s->s_size == 0)
+			continue;
+		printk(" [s%d]", i);
+		/* solaris partitions are relative to current MS-DOS
+		 * one but add_partition starts relative to sector
+		 * zero of the disk.  Therefore, must add the offset
+		 * of the current partition */
+		add_partition(hd, current_minor, s->s_start+offset, s->s_size);
+		current_minor++;
+	}
+	brelse(bh);
+	printk(" >");
+}
+#endif
 
 #ifdef CONFIG_BSD_DISKLABEL
 /* 
@@ -418,6 +458,18 @@ check_table:
 			printk(" <");
 			bsd_disklabel_partition(hd, MKDEV(hd->major, minor));
 			printk(" >");
+		}
+#endif
+#ifdef CONFIG_SOLARIS_X86_PARTITION
+
+		/* james@bpgc.com: Solaris has a nasty indicator: 0x82
+		 * which also means linux swap.  For that reason, all
+		 * of the prints are done inside the
+		 * solaris_x86_partition routine */
+
+		if(SYS_IND(p) == SOLARIS_X86_PARTITION) {
+			solaris_x86_partition(hd, MKDEV(hd->major, minor),
+					      first_sector+START_SECT(p));
 		}
 #endif
 	}
@@ -792,7 +844,9 @@ static int mac_partition(struct gendisk *hd, kdev_t dev, unsigned long fsec)
 	int blk, blocks_in_map;
 	int dev_bsize, dev_pos, pos;
 	unsigned secsize;
+#ifdef CONFIG_PMAC
 	int first_bootable = 1;
+#endif
 	struct mac_partition *part;
 	struct mac_driver_desc *md;
 
@@ -1112,6 +1166,9 @@ __initfunc(void device_setup(void))
 #ifdef CONFIG_PARPORT
 	extern int parport_init(void);
 #endif
+#ifdef CONFIG_MD_BOOT
+        extern void md_setup_drive(void) __init;
+#endif
 	struct gendisk *p;
 	int nr=0;
 
@@ -1141,5 +1198,8 @@ __initfunc(void device_setup(void))
 	else
 #endif
 	rd_load();
+#endif
+#ifdef CONFIG_MD_BOOT
+        md_setup_drive();
 #endif
 }

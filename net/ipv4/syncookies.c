@@ -92,7 +92,7 @@ found:
 	return isn; 
 }
 
-/* This value should be dependant on TCP_TIMEOUT_INIT and 
+/* This value should be dependent on TCP_TIMEOUT_INIT and 
  * sysctl_tcp_retries1. It's a rather complicated formula 
  * (exponential backoff) to compute at runtime so it's currently hardcoded
  * here.
@@ -203,7 +203,7 @@ cookie_v4_check(struct sock *sk, struct sk_buff *skb, struct ip_options *opt)
 			    opt && 
 			    opt->srr ? opt->faddr : req->af.v4_req.rmt_addr,
 			    req->af.v4_req.loc_addr,
-			    sk->ip_tos, 
+			    sk->ip_tos | RTO_CONN,
 			    0)) { 
 	    tcp_openreq_free(req);
 	    return NULL; 

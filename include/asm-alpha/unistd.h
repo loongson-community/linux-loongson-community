@@ -8,7 +8,7 @@
 #define __NR_write		  4
 #define __NR_osf_old_open	  5	/* not implemented */
 #define __NR_close		  6
-#define __NR_wait4		  7
+#define __NR_osf_wait4		  7
 #define __NR_osf_old_creat	  8	/* not implemented */
 #define __NR_link		  9
 #define __NR_unlink		 10
@@ -84,17 +84,17 @@
 #define __NR_setgroups		 80
 #define __NR_osf_old_getpgrp	 81	/* not implemented */
 #define __NR_setpgrp		 82	/* BSD alias for setpgid */
-#define __NR_setitimer		 83
+#define __NR_osf_setitimer	 83
 #define __NR_osf_old_wait	 84	/* not implemented */
 #define __NR_osf_table		 85	/* not implemented */
-#define __NR_getitimer		 86
+#define __NR_osf_getitimer	 86
 #define __NR_gethostname	 87
 #define __NR_sethostname	 88
 #define __NR_getdtablesize	 89
 #define __NR_dup2		 90
 #define __NR_fstat		 91
 #define __NR_fcntl		 92
-#define __NR_select		 93
+#define __NR_osf_select		 93
 #define __NR_poll		 94
 #define __NR_fsync		 95
 #define __NR_setpriority	 96
@@ -117,13 +117,13 @@
 #define __NR_recvmsg		113
 #define __NR_sendmsg		114
 #define __NR_osf_old_vtrace	115	/* not implemented */
-#define __NR_gettimeofday	116
-#define __NR_getrusage		117
+#define __NR_osf_gettimeofday	116
+#define __NR_osf_getrusage	117
 #define __NR_getsockopt		118
 
 #define __NR_readv		120
 #define __NR_writev		121
-#define __NR_settimeofday	122
+#define __NR_osf_settimeofday	122
 #define __NR_fchown		123
 #define __NR_fchmod		124
 #define __NR_recvfrom		125
@@ -139,7 +139,7 @@
 #define __NR_socketpair		135
 #define __NR_mkdir		136
 #define __NR_rmdir		137
-#define __NR_utimes		138
+#define __NR_osf_utimes		138
 #define __NR_osf_old_sigreturn	139	/* not implemented */
 #define __NR_osf_adjtime	140	/* not implemented */
 #define __NR_getpeername	141
@@ -156,7 +156,7 @@
 #define __NR_osf_pid_block	153	/* not implemented */
 #define __NR_osf_pid_unblock	154	/* not implemented */
 
-#define __NR_osf_sigaction	156
+#define __NR_sigaction		156
 #define __NR_osf_sigwaitprim	157	/* not implemented */
 #define __NR_osf_nfssvc		158	/* not implemented */
 #define __NR_osf_getdirentries	159
@@ -186,7 +186,7 @@
 #define __NR_semget		205
 #define __NR_semop		206
 #define __NR_osf_utsname	207
-#define __NR_osf_lchown		208	/* not implemented */
+#define __NR_lchown		208
 #define __NR_osf_shmat		209
 #define __NR_shmctl		210
 #define __NR_shmdt		211
@@ -240,7 +240,7 @@
 #define __NR_bdflush		300
 #define __NR_sethae		301
 #define __NR_mount		302
-#define __NR_adjtimex		303
+#define __NR_old_adjtimex	303
 #define __NR_swapoff		304
 #define __NR_getdents		305
 #define __NR_create_module	306
@@ -295,6 +295,15 @@
 #define __NR_rt_sigtimedwait		355
 #define __NR_rt_sigqueueinfo		356
 #define __NR_rt_sigsuspend		357
+#define __NR_select			358
+#define __NR_gettimeofday		359
+#define __NR_settimeofday		360
+#define __NR_getitimer			361
+#define __NR_setitimer			362
+#define __NR_utimes			363
+#define __NR_getrusage			364
+#define __NR_wait4			365
+#define __NR_adjtimex			366
 
 
 #if defined(__LIBRARY__) && defined(__GNUC__)
@@ -386,6 +395,12 @@ static inline int close(int fd)
 	return sys_close(fd);
 }
 
+extern off_t sys_lseek(int, off_t, int);
+static inline off_t lseek(int fd, off_t off, int whense)
+{
+	return sys_lseek(fd, off, whense);
+}
+
 extern int sys_exit(int);
 static inline int _exit(int value)
 {
@@ -406,22 +421,12 @@ static inline int read(int fd, char * buf, int nr)
 	return sys_read(fd, buf, nr);
 }
 
-extern int do_execve(char *, char **, char **, struct pt_regs *);
-extern void ret_from_sys_call(void);
+extern int __kernel_execve(char *, char **, char **, struct pt_regs *);
 static inline int execve(char * file, char ** argvp, char ** envp)
 {
-	int i;
 	struct pt_regs regs;
-
 	memset(&regs, 0, sizeof(regs));
-	i = do_execve(file, argvp, envp, &regs);
-	if (!i) {
-		__asm__ __volatile__("bis %0,%0,$30\n\t"
-				"bis %1,%1,$26\n\t"
-				"ret $31,($26),1\n\t"
-				: :"r" (&regs), "r" (ret_from_sys_call));
-	}
-	return -1;
+	return __kernel_execve(file, argvp, envp, &regs);
 }
 
 extern int sys_setsid(void);

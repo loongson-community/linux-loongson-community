@@ -14,12 +14,16 @@
 # In the future, some of these should be built conditionally.
 #
 
+SUB_DIRS     := 
+MOD_SUB_DIRS := $(SUB_DIRS)
+ALL_SUB_DIRS := $(SUB_DIRS) paride
+
 
 L_TARGET := block.a
-L_OBJS   := ll_rw_blk.o genhd.o
+L_OBJS   := genhd.o
 M_OBJS   :=
 MOD_LIST_NAME := BLOCK_MODULES
-LX_OBJS :=
+LX_OBJS := ll_rw_blk.o
 MX_OBJS :=
 
 ifeq ($(CONFIG_MAC_FLOPPY),y)
@@ -86,11 +90,12 @@ ifeq ($(CONFIG_BLK_DEV_IDE),y)
   L_OBJS += ide-probe.o
 else
   ifeq ($(CONFIG_BLK_DEV_IDE),m)
-  MX_OBJS += ide.o
+  MIX_OBJS += ide.o
   ifeq ($(CONFIG_PROC_FS),y)
     M_OBJS += ide-proc.o
   endif
-  M_OBJS += ide-probe.o
+  M_OBJS += ide-mod.o
+  MX_OBJS += ide-probe.o
   endif
 endif
 
@@ -113,7 +118,6 @@ endif
 ifeq ($(CONFIG_BLK_DEV_PS2),y)
 L_OBJS += ps2esdi.o
 endif
-
 
 ifeq ($(CONFIG_BLK_DEV_DTC2278),y)
 L_OBJS += dtc2278.o
@@ -191,14 +195,6 @@ else
   endif
 endif
 
-ifeq ($(CONFIG_BLK_DEV_EZ),y)
-L_OBJS += ez.o
-else
-  ifeq ($(CONFIG_BLK_DEV_EZ),m)
-  M_OBJS += ez.o
-  endif
-endif
-
 ifeq ($(CONFIG_BLK_DEV_MD),y)
 LX_OBJS += md.o
 
@@ -244,4 +240,16 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_PARIDE),y)
+SUB_DIRS	+= paride
+MOD_SUB_DIRS	+= paride
+else
+  ifeq ($(CONFIG_PARIDE),m)
+  MOD_SUB_DIRS	+= paride
+  endif
+endif
+
 include $(TOPDIR)/Rules.make
+
+ide-mod.o: ide.o ide-proc.o
+	$(LD) $(LD_RFLAG) -r -o $@ ide.o ide-proc.o

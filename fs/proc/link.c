@@ -15,8 +15,8 @@
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
 
-static int proc_readlink(struct inode *, char *, int);
-static struct dentry * proc_follow_link(struct inode *, struct dentry *);
+static int proc_readlink(struct dentry *, char *, int);
+static struct dentry * proc_follow_link(struct dentry *, struct dentry *);
 
 /*
  * PLAN9_SEMANTICS won't work any more: it used an ugly hack that broke 
@@ -60,8 +60,10 @@ struct inode_operations proc_link_inode_operations = {
 	NULL			/* permission */
 };
 
-static struct dentry * proc_follow_link(struct inode *inode, struct dentry *base)
+static struct dentry * proc_follow_link(struct dentry *dentry,
+					struct dentry *base)
 {
+	struct inode *inode = dentry->d_inode;
 	struct task_struct *p;
 	struct dentry * result;
 	int ino, pid;
@@ -73,7 +75,7 @@ static struct dentry * proc_follow_link(struct inode *inode, struct dentry *base
 	error = permission(inode, MAY_EXEC);
 	result = ERR_PTR(error);
 	if (error)
-		return result;
+		goto out;
 
 	ino = inode->i_ino;
 	pid = ino >> 16;
@@ -82,7 +84,7 @@ static struct dentry * proc_follow_link(struct inode *inode, struct dentry *base
 	p = find_task_by_pid(pid);
 	result = ERR_PTR(-ENOENT);
 	if (!p)
-		return result;
+		goto out;
 
 	switch (ino) {
 		case PROC_PID_CWD:
@@ -103,8 +105,8 @@ static struct dentry * proc_follow_link(struct inode *inode, struct dentry *base
 				break;
 			vma = p->mm->mmap;
 			while (vma) {
-				if (vma->vm_flags & VM_EXECUTABLE)
-					return dget(vma->vm_dentry);
+				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
+					return dget(vma->vm_file->f_dentry);
 
 				vma = vma->vm_next;
 			}
@@ -126,30 +128,56 @@ static struct dentry * proc_follow_link(struct inode *inode, struct dentry *base
 				break;
 			}
 	}
+out:
 	return result;
 }
 
-static int proc_readlink(struct inode * inode, char * buffer, int buflen)
+/*
+ * This pretty-prints the pathname of a dentry,
+ * clarifying sockets etc.
+ */
+static int do_proc_readlink(struct dentry *dentry, char * buffer, int buflen)
+{
+	struct inode * inode;
+	char * tmp = (char*)__get_free_page(GFP_KERNEL), *path, *pattern;
+	int len;
+
+	/* Check for special dentries.. */
+	pattern = NULL;
+	inode = dentry->d_inode;
+	if (inode && dentry->d_parent == dentry) {
+		if (S_ISSOCK(inode->i_mode))
+			pattern = "socket:[%lu]";
+		if (S_ISFIFO(inode->i_mode))
+			pattern = "pipe:[%lu]";
+	}
+	
+	if (pattern) {
+		len = sprintf(tmp, pattern, inode->i_ino);
+		path = tmp;
+	} else {
+		path = d_path(dentry, tmp, PAGE_SIZE);
+		len = tmp + PAGE_SIZE - path;
+	}
+
+	if (len < buflen)
+		buflen = len;
+	dput(dentry);
+	copy_to_user(buffer, path, buflen);
+	free_page((unsigned long)tmp);
+	return buflen;
+}
+
+static int proc_readlink(struct dentry * dentry, char * buffer, int buflen)
 {
 	int error;
-	struct dentry * dentry = proc_follow_link(inode, NULL);
 
+	dentry = proc_follow_link(dentry, NULL);
 	error = PTR_ERR(dentry);
 	if (!IS_ERR(dentry)) {
 		error = -ENOENT;
 		if (dentry) {
-			char * tmp = (char*)__get_free_page(GFP_KERNEL), *path;
-			int len;
-
-			path = d_path(dentry, tmp, PAGE_SIZE);
-			len = tmp + PAGE_SIZE - path;
-
-			if (len < buflen)
-				buflen = len;
-			dput(dentry);
-			copy_to_user(buffer, path, buflen);
-			free_page((unsigned long)tmp);
-			error = buflen;
+			error = do_proc_readlink(dentry, buffer, buflen);
 		}
 	}
 	return error;

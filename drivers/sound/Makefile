@@ -24,21 +24,9 @@ ifeq ($(ARCH),m68k)
   clean:
 	rm -f core *.o *.a *.s
 
-  # dummy rule to keep 'make xconfig' happy
-  mkscript:
-
-# More dummy targets for make [menu]config
-mkscript:
-kernelconfig:
-
 else
 
-ifeq (.defines,$(wildcard .defines))
-include .defines
-#include .objects
-endif
-
-TARGET_OS=linux
+include Defines
 
 ifndef TOPDIR
 TOPDIR=/usr/src/linux
@@ -53,11 +41,11 @@ M_OBJS   :=
 L_OBJS   :=
 
 ifeq ($(CONFIG_SOUND),y)
-  L_OBJS += soundcard.o dev_table.o sound_switch.o sequencer.o sys_timer.o sound_timer.o lowlevel/lowlevel.o midi_synth.o midibuf.o sound_firmware.o audio.o dmabuf.o
+  L_OBJS += soundcard.o dev_table.o sequencer.o sys_timer.o sound_timer.o lowlevel/lowlevel.o midi_synth.o midibuf.o sound_firmware.o audio.o dmabuf.o
 else
   ifeq ($(CONFIG_SOUND),m)
      M_OBJS += sound.o
-     MX_OBJS += sound_syms.o
+     MIX_OBJS += sound_syms.o
   endif
 endif
 
@@ -90,18 +78,26 @@ ifeq ($(CONFIG_GUS),y)
 L_OBJS += gus.o
 else
   ifeq ($(CONFIG_GUS),m)
-  M_OBJS += gus.o
+    M_OBJS += gus.o
+  endif
+  ifeq ($(CONFIG_GUSMAX),y)
+    ifneq ($(CONFIG_MSS),y)
+      CONFIG_MSS = m
+    endif
   endif
 endif
 
 ifeq ($(CONFIG_SB),y)
 L_OBJS += sb_audio.o sb_common.o sb_midi.o sb_mixer.o
-LX_OBJS += sb_card.o uart401.o
+LX_OBJS += sb_card.o
+CONFIG_UART401 = y
 else
   ifeq ($(CONFIG_SB),m)
   M_OBJS += sb.o
-  MX_OBJS += uart401.o
   MIX_OBJS += sb_card.o
+  ifneq ($(CONFIG_UART401),y)
+    CONFIG_UART401 = m
+  endif
   endif
 endif
 
@@ -181,7 +177,8 @@ ifeq ($(CONFIG_MAD16),y)
 L_OBJS += mad16.o
 else
   ifeq ($(CONFIG_MAD16),m)
-  M_OBJS += mad16.o
+  M_OBJS += mad16.o sb.o uart401.o
+  MX_OBJS += sb_card.o ad1848.o
   endif
 endif
 
@@ -219,6 +216,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VMIDI),y)
+L_OBJS += v_midi.o
+else
+   ifeq ($(CONFIG_VMIDI),m)
+      M_OBJS += v_midi.o
+   endif
+endif
+
 include $(TOPDIR)/Rules.make
 
 softoss2.o:	softoss.o softoss_rs.o
@@ -233,42 +238,88 @@ sb.o: sb_audio.o sb_card.o sb_common.o sb_midi.o sb_mixer.o
 lowlevel/lowlevel.o:
 	cd lowlevel; make
 
-sound.o: soundcard.o dev_table.o sound_switch.o audio.o dmabuf.o sequencer.o sys_timer.o sound_timer.o lowlevel/lowlevel.o midi_synth.o midibuf.o sound_firmware.o
-	ld -r -o sound.o soundcard.o dev_table.o sound_switch.o audio.o dmabuf.o \
+sound.o: soundcard.o dev_table.o audio.o dmabuf.o sequencer.o sys_timer.o sound_timer.o lowlevel/lowlevel.o midi_synth.o midibuf.o sound_firmware.o
+	ld -r -o sound.o soundcard.o dev_table.o audio.o dmabuf.o \
 	       sequencer.o sys_timer.o sound_timer.o lowlevel/lowlevel.o \
 	       midi_synth.o midibuf.o sound_firmware.o
-	rm sound_syms.o
 
 gus.o: gus_card.o gus_midi.o gus_vol.o gus_wave.o ics2101.o
 	ld -r -o gus.o gus_card.o gus_midi.o gus_vol.o gus_wave.o ics2101.o
 
-kernelconfig: setup
-	rm -f configure
-	$(HOSTCC) -o configure configure.c
-	./configure fixedlocal > local.h
-	./configure fixeddefines > .defines
-	@echo \#define SOUND_CONFIG_DATE \"`date`\" >> local.h
-	@echo \#define SOUND_CONFIG_BY \"`whoami`\" >> local.h
-#	@echo \#define SOUND_CONFIG_HOST \"`hostname`\" >> local.h 2>/dev/null
-#	@echo \#define SOUND_CONFIG_DOMAIN \"`hostname -d`\" >> local.h 2>/dev/null
-	@echo \#define SOUND_UNAME_A \"`uname -a`\" >> local.h
+# Firmware files that need translation
+#
+# The translated files are protected by a file that keeps track
+# of what name was used to build them.  If the name changes, they
+# will be forced to be remade.
 
-configure: configure.c
-	$(HOSTCC) -o configure configure.c
-	@cat .blurb
+bin2hex: bin2hex.c
+	$(HOSTCC) -o bin2hex bin2hex.c
 
-setup:
-	@echo Compiling Sound Driver v $(VERSION) for Linux
+hex2hex: hex2hex.c
+	$(HOSTCC) -o hex2hex hex2hex.c
 
-mkscript:
+ifeq ($(CONFIG_MAUI_HAVE_BOOT),y)
 
-config: configure
-	@$(MAKE) setup
-	@./configure > local.h
-	@echo \#define SOUND_CONFIG_DATE \"`date`\" >> local.h
-	@echo \#define SOUND_CONFIG_BY \"`whoami`\" >> local.h
-#	@echo \#define SOUND_CONFIG_HOST \"`hostname`\" >> local.h 2>/dev/null
-#	@echo \#define SOUND_CONFIG_DOMAIN \"`hostname -d`\" >> local.h 2>/dev/null
-	@echo \#define SOUND_UNAME_A \"`uname -a`\" >> local.h
+CONFIG_MAUI_BOOT_FILE := $(patsubst "%", %, $(CONFIG_MAUI_BOOT_FILE))
 
+maui.o: maui_boot.h
+
+maui_boot.h: $(CONFIG_MAUI_BOOT_FILE) bin2hex
+	bin2hex maui_os < "$(CONFIG_MAUI_BOOT_FILE)" > $@
+	@ ( \
+	    echo 'ifeq ($(strip $(CONFIG_MAUI_BOOT_FILE)),$$(strip $$(CONFIG_MAUI_BOOT_FILE)))'; \
+	    echo 'FILES_BOOT_UP_TO_DATE += $@'; \
+	    echo 'endif' \
+	) > .$@.boot
+
+endif
+
+ifeq ($(CONFIG_PSS_HAVE_BOOT),y)
+
+CONFIG_PSS_BOOT_FILE := $(patsubst "%", %, $(CONFIG_PSS_BOOT_FILE))
+
+pss.o: pss_boot.h
+
+pss_boot.h: $(CONFIG_PSS_BOOT_FILE) bin2hex
+	bin2hex pss_synth < "$(CONFIG_PSS_BOOT_FILE)" > $@
+	@ ( \
+	    echo 'ifeq ($(strip $(CONFIG_PSS_BOOT_FILE)),$$(strip $$(CONFIG_PSS_BOOT_FILE)))'; \
+	    echo 'FILES_BOOT_UP_TO_DATE += $@'; \
+	    echo 'endif' \
+	) > .$@.boot
+
+endif
+
+ifeq ($(CONFIG_TRIX_HAVE_BOOT),y)
+
+CONFIG_TRIX_BOOT_FILE := $(patsubst "%", %, $(CONFIG_TRIX_BOOT_FILE))
+
+trix.o: trix_boot.h
+
+trix_boot.h: $(CONFIG_TRIX_BOOT_FILE) hex2hex
+	hex2hex trix_boot < "$(CONFIG_TRIX_BOOT_FILE)" > $@
+	@ ( \
+	    echo 'ifeq ($(strip $(CONFIG_TRIX_BOOT_FILE)),$$(strip $$(CONFIG_TRIX_BOOT_FILE)))'; \
+	    echo 'FILES_BOOT_UP_TO_DATE += $@'; \
+	    echo 'endif' \
+	) > .$@.boot
+
+endif
+
+# Find boot files whose source file names have changed and force rebuild.
+
+FILES_BOOT_UP_TO_DATE :=
+
+FILES_BOOT_EXIST := $(wildcard .*.boot)
+ifneq ($(FILES_BOOT_EXIST),)
+include $(FILES_BOOT_EXIST)
+endif
+
+FILES_BOOT_CHANGED := $(strip \
+    $(filter-out $(FILES_BOOT_UP_TO_DATE), \
+	maui_boot.h pss_boot.h trix_boot.h))
+
+ifneq ($(FILES_BOOT_CHANGED),)
+$(FILES_BOOT_CHANGED): dummy
+endif
 endif

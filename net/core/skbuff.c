@@ -64,7 +64,6 @@ static atomic_t net_skbcount = ATOMIC_INIT(0);
 static atomic_t net_allocs = ATOMIC_INIT(0);
 static atomic_t net_fails  = ATOMIC_INIT(0);
 
-
 extern atomic_t ip_frag_mem;
 
 /*
@@ -113,23 +112,23 @@ void __kfree_skb(struct sk_buff *skb)
  *	to be a good idea.
  */
 
-struct sk_buff *alloc_skb(unsigned int size,int priority)
+struct sk_buff *alloc_skb(unsigned int size,int gfp_mask)
 {
 	struct sk_buff *skb;
 	unsigned char *bptr;
 	int len;
 
-	if (in_interrupt() && priority!=GFP_ATOMIC) {
+	if (in_interrupt() && (gfp_mask & __GFP_WAIT)) {
 		static int count = 0;
 		if (++count < 5) {
 			printk(KERN_ERR "alloc_skb called nonatomically "
 			       "from interrupt %p\n", __builtin_return_address(0));
-			priority = GFP_ATOMIC;
+			gfp_mask &= ~__GFP_WAIT;
 		}
 	}
 
 	/*
-	 *	FIXME: We could do with an architecture dependant
+	 *	FIXME: We could do with an architecture dependent
 	 *	'alignment mask'.
 	 */
 	 
@@ -144,7 +143,7 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 	 *	Allocate some space
 	 */
 	 
-	bptr = kmalloc(size,priority);
+	bptr = kmalloc(size,gfp_mask);
 	if (bptr == NULL) {
 		atomic_inc(&net_fails);
 		return NULL;
@@ -226,7 +225,7 @@ void kfree_skbmem(struct sk_buff *skb)
  *	Duplicate an sk_buff. The new one is not owned by a socket.
  */
 
-struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
+struct sk_buff *skb_clone(struct sk_buff *skb, int gfp_mask)
 {
 	struct sk_buff *n;
 	int inbuff = 0;
@@ -237,7 +236,7 @@ struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
 		skb->inclone = SKB_CLONE_ORIG;
 		inbuff = SKB_CLONE_INLINE;
 	} else {
-		n = kmalloc(sizeof(*n), priority);
+		n = kmalloc(sizeof(*n), gfp_mask);
 		if (!n)
 			return NULL;
 	}
@@ -263,7 +262,7 @@ struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
  *	This is slower, and copies the whole data area 
  */
  
-struct sk_buff *skb_copy(struct sk_buff *skb, int priority)
+struct sk_buff *skb_copy(struct sk_buff *skb, int gfp_mask)
 {
 	struct sk_buff *n;
 	unsigned long offset;
@@ -272,7 +271,7 @@ struct sk_buff *skb_copy(struct sk_buff *skb, int priority)
 	 *	Allocate the copy buffer
 	 */
 	 
-	n=alloc_skb(skb->end - skb->head, priority);
+	n=alloc_skb(skb->end - skb->head, gfp_mask);
 	if(n==NULL)
 		return NULL;
 
@@ -303,7 +302,6 @@ struct sk_buff *skb_copy(struct sk_buff *skb, int priority)
 	n->ack_seq=skb->ack_seq;
 	memcpy(n->cb, skb->cb, sizeof(skb->cb));
 	n->used=skb->used;
-	n->arp=skb->arp;
 	n->tries=0;
 	atomic_set(&n->users, 1);
 	n->pkt_type=skb->pkt_type;
@@ -354,7 +352,6 @@ struct sk_buff *skb_realloc_headroom(struct sk_buff *skb, int newheadroom)
  	n->end_seq=skb->end_seq;
 	n->ack_seq=skb->ack_seq;
 	n->used=skb->used;
-	n->arp=skb->arp;
 	n->tries=0;
 	atomic_set(&n->users, 1);
 	n->pkt_type=skb->pkt_type;
@@ -363,14 +360,4 @@ struct sk_buff *skb_realloc_headroom(struct sk_buff *skb, int newheadroom)
 	n->security=skb->security;
 
 	return n;
-}
-  
-struct sk_buff *dev_alloc_skb(unsigned int length)
-{
-	struct sk_buff *skb;
-
-	skb = alloc_skb(length+16, GFP_ATOMIC);
-	if (skb)
-		skb_reserve(skb,16);
-	return skb;
 }

@@ -90,14 +90,14 @@ static int open_mouse(struct inode *inode, struct file *file)
     return 0;
 }
 
-static long write_mouse(struct inode *inode, struct file *file,
-			const char *buffer, unsigned long count)
+static ssize_t write_mouse(struct file *file, const char *buffer,
+			  size_t count, loff_t *ppos)
 {
     return -EINVAL;
 }
 
-static long read_mouse(struct inode *inode, struct file *file,
-		       char *buffer, unsigned long count)
+static ssize_t read_mouse(struct file * file, char * buffer,
+			  size_t count, loff_t *ppos)
 {
     int dx, dy, buttons;
 
@@ -134,7 +134,7 @@ static long read_mouse(struct inode *inode, struct file *file,
 
 static unsigned int mouse_poll(struct file *file, poll_table *wait)
 {
-	poll_wait(&mouse.wait, wait);
+	poll_wait(file, &mouse.wait, wait);
 	if (mouse.ready)
 		return POLLIN | POLLRDNORM;
 	return 0;

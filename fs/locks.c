@@ -51,7 +51,7 @@
  *
  *  Removed some race conditions in flock_lock_file(), marked other possible
  *  races. Just grep for FIXME to see them. 
- *  Dmitry Gorodchanin (begemot@bgm.rosprint.net), February 09, 1996.
+ *  Dmitry Gorodchanin (pgmdsg@ibi.com), February 09, 1996.
  *
  *  Addressed Dmitry's concerns. Deadlock checking no longer recursive.
  *  Lock allocation changed to GFP_ATOMIC as we can't afford to sleep
@@ -111,6 +111,7 @@
 #include <linux/errno.h>
 #include <linux/stat.h>
 #include <linux/fcntl.h>
+#include <linux/file.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 
@@ -176,7 +177,10 @@ static inline int locks_overlap(struct file_lock *fl1, struct file_lock *fl2)
 		(fl2->fl_end >= fl1->fl_start));
 }
 
-/* Check whether two locks have the same owner
+/*
+ * Check whether two locks have the same owner
+ * N.B. Do we need the test on PID as well as owner?
+ * (Clone tasks should be considered as one "owner".)
  */
 static inline int
 locks_same_owner(struct file_lock *fl1, struct file_lock *fl2)
@@ -289,15 +293,21 @@ asmlinkage int sys_flock(unsigned int fd, unsigned int cmd)
 	int error;
 
 	lock_kernel();
-	if ((fd >= NR_OPEN) || !(filp = current->files->fd[fd]))
-		error = -EBADF;
-	else if (!flock_make_lock(filp, &file_lock, cmd))
-		error = -EINVAL;
-	else if ((file_lock.fl_type != F_UNLCK) && !(filp->f_mode & 3))
-		error = -EBADF;
-	else
-		error = flock_lock_file(filp, &file_lock,
-					(cmd & (LOCK_UN | LOCK_NB)) ? 0 : 1);
+	error = -EBADF;
+	filp = fget(fd);
+	if (!filp)
+		goto out;
+	error = -EINVAL;
+	if (!flock_make_lock(filp, &file_lock, cmd))
+		goto out_putf;
+	error = -EBADF;
+	if ((file_lock.fl_type != F_UNLCK) && !(filp->f_mode & 3))
+		goto out_putf;
+	error = flock_lock_file(filp, &file_lock,
+				(cmd & (LOCK_UN | LOCK_NB)) ? 0 : 1);
+out_putf:
+	fput(filp);
+out:
 	unlock_kernel();
 	return (error);
 }
@@ -307,36 +317,34 @@ asmlinkage int sys_flock(unsigned int fd, unsigned int cmd)
  */
 int fcntl_getlk(unsigned int fd, struct flock *l)
 {
-	struct flock flock;
 	struct file *filp;
-	struct dentry *dentry;
-	struct inode *inode;
 	struct file_lock *fl,file_lock;
+	struct flock flock;
 	int error;
 
-	if ((fd >= NR_OPEN) || !(filp = current->files->fd[fd]))
-		return -EBADF;
+	error = -EFAULT;
 	if (copy_from_user(&flock, l, sizeof(flock)))
-		return -EFAULT;
-
+		goto out;
+	error = -EINVAL;
 	if ((flock.l_type != F_RDLCK) && (flock.l_type != F_WRLCK))
-		return -EINVAL;
+		goto out;
 
-	dentry = filp->f_dentry;
-	if (!dentry)
-		return -EINVAL;
+	error = -EBADF;
+	filp = fget(fd);
+	if (!filp)
+		goto out;
 
-	inode = dentry->d_inode;
-	if (!inode)
-		return -EINVAL;
+	error = -EINVAL;
+	if (!filp->f_dentry || !filp->f_dentry->d_inode)
+		goto out_putf;
 
 	if (!posix_make_lock(filp, &file_lock, &flock))
-		return -EINVAL;
+		goto out_putf;
 
 	if (filp->f_op->lock) {
 		error = filp->f_op->lock(filp, F_GETLK, &file_lock);
 		if (error < 0)
-			return error;
+			goto out_putf;
 		fl = &file_lock;
 	} else {
 		fl = posix_test_lock(filp, &file_lock);
@@ -351,8 +359,14 @@ int fcntl_getlk(unsigned int fd, struct flock *l)
 		flock.l_whence = 0;
 		flock.l_type = fl->fl_type;
 	}
+	error = -EFAULT;
+	if (!copy_to_user(l, &flock, sizeof(flock)))
+		error = 0;
   
-	return (copy_to_user(l, &flock, sizeof(flock)) ? -EFAULT : 0);
+out_putf:
+	fput(filp);
+out:
+	return error;
 }
 
 /* Apply the lock described by l to an open file descriptor.
@@ -367,22 +381,26 @@ int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l)
 	struct inode *inode;
 	int error;
 
-	/* Get arguments and validate them ...
-	 */
-
-	if ((fd >= NR_OPEN) || !(filp = current->files->fd[fd]))
-		return -EBADF;
-
-	if (!(dentry = filp->f_dentry))
-		return -EINVAL;
-
-	if (!(inode = dentry->d_inode))
-		return -EINVAL;
 	/*
 	 * This might block, so we do it before checking the inode.
 	 */
+	error = -EFAULT;
 	if (copy_from_user(&flock, l, sizeof(flock)))
-		return (-EFAULT);
+		goto out;
+
+	/* Get arguments and validate them ...
+	 */
+
+	error = -EBADF;
+	filp = fget(fd);
+	if (!filp)
+		goto out;
+
+	error = -EINVAL;
+	if (!(dentry = filp->f_dentry))
+		goto out_putf;
+	if (!(inode = dentry->d_inode))
+		goto out_putf;
 
 	/* Don't allow mandatory locks on files that may be memory mapped
 	 * and shared.
@@ -391,23 +409,26 @@ int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l)
 	    (inode->i_mode & (S_ISGID | S_IXGRP)) == S_ISGID &&
 	    inode->i_mmap) {
 		struct vm_area_struct *vma = inode->i_mmap;
+		error = -EAGAIN;
 		do {
 			if (vma->vm_flags & VM_MAYSHARE)
-				return (-EAGAIN);
+				goto out_putf;
 		} while ((vma = vma->vm_next_share) != NULL);
 	}
 
+	error = -EINVAL;
 	if (!posix_make_lock(filp, &file_lock, &flock))
-		return (-EINVAL);
+		goto out_putf;
 	
+	error = -EBADF;
 	switch (flock.l_type) {
 	case F_RDLCK:
 		if (!(filp->f_mode & FMODE_READ))
-			return (-EBADF);
+			goto out_putf;
 		break;
 	case F_WRLCK:
 		if (!(filp->f_mode & FMODE_WRITE))
-			return (-EBADF);
+			goto out_putf;
 		break;
 	case F_UNLCK:
 		break;
@@ -425,46 +446,53 @@ int fcntl_setlk(unsigned int fd, unsigned int cmd, struct flock *l)
 	}
 }
 		if (!(filp->f_mode & 3))
-			return (-EBADF);
+			goto out_putf;
 		break;
 #endif
 	default:
-		return (-EINVAL);
+		error = -EINVAL;
+		goto out_putf;
 	}
 
 	if (filp->f_op->lock != NULL) {
 		error = filp->f_op->lock(filp, cmd, &file_lock);
 		if (error < 0)
-			return (error);
+			goto out_putf;
 	}
+	error = posix_lock_file(filp, &file_lock, cmd == F_SETLKW);
 
-	return (posix_lock_file(filp, &file_lock, cmd == F_SETLKW));
+out_putf:
+	fput(filp);
+out:
+	return error;
 }
 
-/* This function is called when the file is closed.
+/*
+ * This function is called when the file is being removed
+ * from the task's fd array.
  */
-void locks_remove_locks(struct task_struct *task, struct file *filp)
+void locks_remove_posix(struct file *filp, fl_owner_t owner)
 {
+	struct inode * inode = filp->f_dentry->d_inode;
 	struct file_lock file_lock, *fl;
 	struct file_lock **before;
-	struct inode * inode;
 
-	/* For POSIX locks we free all locks on this file for the given task.
-	 * For FLOCK we only free locks on this *open* file if it is the last
-	 * close on that file.
+	/*
+	 * For POSIX locks we free all locks on this file for the given task.
 	 */
-	inode = filp->f_dentry->d_inode;
 repeat:
 	before = &inode->i_flock;
 	while ((fl = *before) != NULL) {
-		if (((fl->fl_flags & FL_POSIX) && (fl->fl_owner == task)) ||
-		    ((fl->fl_flags & FL_FLOCK) && (fl->fl_file == filp) &&
-		     (filp->f_count == 1))) {
-			file_lock = *fl;
-			locks_delete_lock(before, 0);
-			if (filp->f_op->lock) {
+		if ((fl->fl_flags & FL_POSIX) && fl->fl_owner == owner) {
+			int (*lock)(struct file *, int, struct file_lock *);
+			lock = filp->f_op->lock;
+			if (lock) {
+				file_lock = *fl;
 				file_lock.fl_type = F_UNLCK;
-				filp->f_op->lock(filp, F_SETLK, &file_lock);
+			}
+			locks_delete_lock(before, 0);
+			if (lock) {
+				lock(filp, F_SETLK, &file_lock);
 				/* List may have changed: */
 				goto repeat;
 			}
@@ -472,8 +500,37 @@ repeat:
 		}
 		before = &fl->fl_next;
 	}
+}
 
-	return;
+/*
+ * This function is called on the last close of an open file.
+ */
+void locks_remove_flock(struct file *filp)
+{
+	struct inode * inode = filp->f_dentry->d_inode; 
+	struct file_lock file_lock, *fl;
+	struct file_lock **before;
+
+repeat:
+	before = &inode->i_flock;
+	while ((fl = *before) != NULL) {
+		if ((fl->fl_flags & FL_FLOCK) && fl->fl_file == filp) {
+			int (*lock)(struct file *, int, struct file_lock *);
+			lock = filp->f_op->lock;
+			if (lock) {
+				file_lock = *fl;
+				file_lock.fl_type = F_UNLCK;
+			}
+			locks_delete_lock(before, 0);
+			if (lock) {
+				lock(filp, F_SETLK, &file_lock);
+				/* List may have changed: */
+				goto repeat;
+			}
+			continue;
+		}
+		before = &fl->fl_next;
+	}
 }
 
 struct file_lock *
@@ -517,6 +574,7 @@ int locks_verify_area(int read_write, struct inode *inode, struct file *filp,
 
 int locks_mandatory_locked(struct inode *inode)
 {
+	fl_owner_t owner = current->files;
 	struct file_lock *fl;
 
 	/* Search the lock list for this inode for any POSIX locks.
@@ -524,7 +582,7 @@ int locks_mandatory_locked(struct inode *inode)
 	for (fl = inode->i_flock; fl != NULL; fl = fl->fl_next) {
 		if (!(fl->fl_flags & FL_POSIX))
 			continue;
-		if (fl->fl_owner != current)
+		if (fl->fl_owner != owner)
 			return (-EAGAIN);
 	}
 	return (0);
@@ -541,7 +599,7 @@ int locks_mandatory_area(int read_write, struct inode *inode,
 
 	tfl.fl_file = filp;
 	tfl.fl_flags = FL_POSIX | FL_ACCESS;
-	tfl.fl_owner = current;
+	tfl.fl_owner = current->files;
 	tfl.fl_pid = current->pid;
 	tfl.fl_type = (read_write == FLOCK_VERIFY_WRITE) ? F_WRLCK : F_RDLCK;
 	tfl.fl_start = offset;
@@ -625,7 +683,7 @@ static int posix_make_lock(struct file *filp, struct file_lock *fl,
 		fl->fl_end = OFFSET_MAX;
 	
 	fl->fl_file = filp;
-	fl->fl_owner = current;
+	fl->fl_owner = current->files;
 	fl->fl_pid = current->pid;
 
 	return (1);

@@ -61,18 +61,22 @@ struct dentry {
 	struct list_head d_lru;		/* d_count = 0 LRU list */
 	struct list_head d_child;	/* child of parent list */
 	struct list_head d_subdirs;	/* our children */
+	struct list_head d_alias;	/* inode alias list */
 	struct qstr d_name;
 	unsigned long d_time;		/* used by d_revalidate */
 	struct dentry_operations  *d_op;
 	struct super_block * d_sb;	/* The root of the dentry tree */
 	unsigned long d_reftime;	/* last time referenced */
+	void * d_fsdata;		/* fs-specific data */
 };
 
 struct dentry_operations {
 	int (*d_revalidate)(struct dentry *);
-	int (*d_hash) (struct dentry *,struct qstr *);
-	int (*d_compare) (struct dentry *,struct qstr *, struct qstr *);
+	int (*d_hash) (struct dentry *, struct qstr *);
+	int (*d_compare) (struct dentry *, struct qstr *, struct qstr *);
 	void (*d_delete)(struct dentry *);
+	void (*d_release)(struct dentry *);
+	void (*d_iput)(struct dentry *, struct inode *);
 };
 
 /* the dentry parameter passed to d_hash and d_compare is the parent

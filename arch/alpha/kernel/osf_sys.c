@@ -24,6 +24,7 @@
 #include <linux/a.out.h>
 #include <linux/utsname.h>
 #include <linux/time.h>
+#include <linux/timex.h>
 #include <linux/major.h>
 #include <linux/stat.h>
 #include <linux/mman.h>
@@ -246,7 +247,7 @@ asmlinkage unsigned long osf_mmap(unsigned long addr, unsigned long len,
 	unsigned long ret = -EBADF;
 
 	lock_kernel();
-	if (flags & (MAP_HASSEMAPHORE | MAP_INHERIT | MAP_UNALIGNED))
+	if (flags & (_MAP_HASSEMAPHORE | _MAP_INHERIT | _MAP_UNALIGNED))
 		printk("%s: unimplemented OSF mmap flags %04lx\n", current->comm, flags);
 	if (!(flags & MAP_ANONYMOUS)) {
 		if (fd >= NR_OPEN || !(file = current->files->fd[fd]))
@@ -846,10 +847,6 @@ asmlinkage unsigned long osf_getsysinfo(unsigned long op, void *buffer,
 	return -EOPNOTSUPP;
 }
 
-/* Dummy functions for now */
-#define wrfpcr(x)	do { } while (0)
-#define rdfpcr()	0
-
 asmlinkage unsigned long osf_setsysinfo(unsigned long op, void *buffer,
 					unsigned long nbytes,
 					int *start, void *arg)
@@ -875,7 +872,7 @@ asmlinkage unsigned long osf_setsysinfo(unsigned long op, void *buffer,
 		   software but have not been seen, enable the exception in
 		   hardware so that we can update our software status mask.  */
 		fpcr = rdfpcr() & (~FPCR_MASK | FPCR_DYN_MASK);
-		fpcr = ieee_swcr_to_fpcr(swcr | (~swcr & IEEE_STATUS_MASK)>>16);
+		fpcr |= ieee_swcr_to_fpcr(swcr | (~swcr & IEEE_STATUS_MASK)>>16);
 		wrfpcr(fpcr);
 		   
 		return 0;
@@ -929,6 +926,7 @@ extern int do_getitimer(int which, struct itimerval *value);
 extern int do_setitimer(int which, struct itimerval *, struct itimerval *);
 asmlinkage int sys_utimes(char *, struct timeval *);
 extern int sys_wait4(pid_t, int *, int, struct rusage *);
+extern int do_adjtimex(struct timex *);
 
 struct timeval32
 {
@@ -966,7 +964,7 @@ static inline long get_it32(struct itimerval *o, struct itimerval32 *i)
 
 static inline long put_it32(struct itimerval32 *o, struct itimerval *i)
 {
-	return (!access_ok(VERIFY_WRITE, i, sizeof(*i)) ||
+	return (!access_ok(VERIFY_WRITE, o, sizeof(*o)) ||
 		(__put_user(i->it_interval.tv_sec, &o->it_interval.tv_sec) |
 		 __put_user(i->it_interval.tv_usec, &o->it_interval.tv_usec) |
 		 __put_user(i->it_value.tv_sec, &o->it_value.tv_sec) |
@@ -1241,7 +1239,7 @@ asmlinkage int osf_wait4(pid_t pid, int *ustatus, int options,
  * seems to be a timeval pointer, and I suspect the second
  * one is the time remaining.. Ho humm.. No documentation.
  */
-asmlinkage int osf_usleep_thread(struct timeval *sleep, struct timeval *remain)
+asmlinkage int osf_usleep_thread(struct timeval32 *sleep, struct timeval32 *remain)
 {
 	struct timeval tmp;
 	unsigned long ticks;
@@ -1273,4 +1271,58 @@ asmlinkage int osf_usleep_thread(struct timeval *sleep, struct timeval *remain)
 	return 0;
 fault:
 	return -EFAULT;
+}
+
+
+struct timex32 {
+	unsigned int modes;	/* mode selector */
+	long offset;		/* time offset (usec) */
+	long freq;		/* frequency offset (scaled ppm) */
+	long maxerror;		/* maximum error (usec) */
+	long esterror;		/* estimated error (usec) */
+	int status;		/* clock command/status */
+	long constant;		/* pll time constant */
+	long precision;		/* clock precision (usec) (read only) */
+	long tolerance;		/* clock frequency tolerance (ppm)
+				 * (read only)
+				 */
+	struct timeval32 time;	/* (read only) */
+	long tick;		/* (modified) usecs between clock ticks */
+
+	long ppsfreq;           /* pps frequency (scaled ppm) (ro) */
+	long jitter;            /* pps jitter (us) (ro) */
+	int shift;              /* interval duration (s) (shift) (ro) */
+	long stabil;            /* pps stability (scaled ppm) (ro) */
+	long jitcnt;            /* jitter limit exceeded (ro) */
+	long calcnt;            /* calibration intervals (ro) */
+	long errcnt;            /* calibration errors (ro) */
+	long stbcnt;            /* stability limit exceeded (ro) */
+
+	int  :32; int  :32; int  :32; int  :32;
+	int  :32; int  :32; int  :32; int  :32;
+	int  :32; int  :32; int  :32; int  :32;
+};
+
+asmlinkage int sys_old_adjtimex(struct timex32 *txc_p)
+{
+        struct timex txc;
+	int ret;
+
+	/* copy relevant bits of struct timex. */
+	if (copy_from_user(&txc, txc_p, offsetof(struct timex32, time)) ||
+	    copy_from_user(&txc.tick, &txc_p->tick, sizeof(struct timex32) - 
+			   offsetof(struct timex32, time)))
+	  return -EFAULT;
+	
+	if ((ret = do_adjtimex(&txc)))
+	  return ret;
+	
+	/* copy back to timex32 */
+	if (copy_to_user(txc_p, &txc, offsetof(struct timex32, time)) ||
+	    (copy_to_user(&txc_p->tick, &txc.tick, sizeof(struct timex32) - 
+			  offsetof(struct timex32, tick))) ||
+	    (put_tv32(&txc_p->time, &txc.time)))
+	  return -EFAULT;
+
+	return 0;
 }

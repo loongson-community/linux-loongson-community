@@ -19,7 +19,6 @@
  *					Started restructuring handlers
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -136,7 +135,7 @@ int llc_mac_data_indicate(llcptr lp, struct sk_buff *skb)
 		 *	No auto free for I pdus
 		 */
 		skb->sk = NULL;
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	}
 
 	if(lp->llc_callbacks)

@@ -52,10 +52,11 @@ static char *revision = "$Revision: 1.4 $";
 
 /* ------------------------------------------------------------- */
 
-int portbase = 0x150;
-int irq = 15;
 int showcapimsgs = 0;		/* used in lli.c */
 int loaddebug = 0;
+static int portbase = 0x150;
+#ifdef MODULE
+static int irq = 15;
 
 #ifdef HAS_NEW_SYMTAB
 MODULE_AUTHOR("Carsten Paeth <calle@calle.in-berlin.de>");
@@ -63,6 +64,7 @@ MODULE_PARM(portbase, "i");
 MODULE_PARM(irq, "2-15i");
 MODULE_PARM(showcapimsgs, "0-3i");
 MODULE_PARM(loaddebug, "0-1i");
+#endif
 #endif
 
 /* ------------------------------------------------------------- */
@@ -298,13 +300,13 @@ static void recv_handler(void *dummy)
 		if (!VALID_APPLID(appl)) {
 			printk(KERN_ERR "b1capi: recv_handler: applid %d ? (%s)\n",
 			       appl, capi_message2str(skb->data));
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 			continue;
 		}
 		if (APPL(appl)->signal == 0) {
 			printk(KERN_ERR "b1capi: recv_handler: applid %d has no signal function\n",
 			       appl);
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 			continue;
 		}
 		if (   CAPIMSG_COMMAND(skb->data) == CAPI_DATA_B3
@@ -334,7 +336,7 @@ void avmb1_handle_capimsg(avmb1_card * card, __u16 appl, struct sk_buff *skb)
 	return;
 
       error:
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 }
 
 void avmb1_interrupt(int interrupt, void *devptr, struct pt_regs *regs)
@@ -535,7 +537,7 @@ static __u16 capi_release(__u16 applid)
 	if (!VALID_APPLID(applid) || APPL(applid)->releasing)
 		return CAPI_ILLAPPNR;
 	while ((skb = skb_dequeue(&APPL(applid)->recv_queue)) != 0)
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	for (i = 0; i < ncards; i++) {
 		if (cards[i].cardstate != CARD_RUNNING)
 			continue;

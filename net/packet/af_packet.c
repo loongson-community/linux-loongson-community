@@ -66,8 +66,16 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#if defined(CONFIG_DLCI) || defined(CONFIG_DLCI_MODULE)
-#include <linux/if_frad.h>
+#ifdef CONFIG_INET
+#include <net/inet_common.h>
+#endif
+
+#ifdef CONFIG_BRIDGE
+#include <net/br.h>
+#endif
+
+#ifdef CONFIG_DLCI
+extern int dlci_ioctl(unsigned int, void*);
 #endif
 
 /*
@@ -211,6 +219,11 @@ static int packet_rcv_spkt(struct sk_buff *skb, struct device *dev,  struct pack
 	 *	so that this procedure is noop.
 	 */
 
+	if (skb->pkt_type == PACKET_LOOPBACK) {
+		kfree_skb(skb);
+		return 0;
+	}
+
 	skb_push(skb, skb->data-skb->mac.raw);
 
 	/*
@@ -228,7 +241,7 @@ static int packet_rcv_spkt(struct sk_buff *skb, struct device *dev,  struct pack
 
 	if (sock_queue_rcv_skb(sk,skb)<0)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -318,16 +331,14 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg, int len,
 	 * notable one here. This should really be fixed at the driver level.
 	 */
 	skb_reserve(skb,(dev->hard_header_len+15)&~15);
-	skb->mac.raw = skb->nh.raw = skb->data;
+	skb->nh.raw = skb->data;
 
 	/* Try to align data part correctly */
 	if (dev->hard_header) {
 		skb->data -= dev->hard_header_len;
 		skb->tail -= dev->hard_header_len;
-		skb->mac.raw = skb->data;
 	}
 	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);
-	skb->arp = 1;	/* No ARP needs doing on this (complete) frame */
 	skb->protocol = proto;
 	skb->dev = dev;
 	skb->priority = sk->priority;
@@ -351,7 +362,7 @@ static int packet_sendmsg_spkt(struct socket *sock, struct msghdr *msg, int len,
 
 	if (err) 
 	{
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return err;
 	}
 
@@ -372,9 +383,10 @@ static int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_ty
 
 	sk = (struct sock *) pt->data;
 
-	/*
-	 *	The SOCK_PACKET socket receives _all_ frames.
-	 */
+	if (skb->pkt_type == PACKET_LOOPBACK) {
+		kfree_skb(skb);
+		return 0;
+	}
 
 	skb->dev = dev;
 
@@ -411,7 +423,7 @@ static int packet_rcv(struct sk_buff *skb, struct device *dev,  struct packet_ty
 
 	if (sock_queue_rcv_skb(sk,skb)<0)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 	return(0);
@@ -469,18 +481,17 @@ static int packet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	}
 
 	skb_reserve(skb, (dev->hard_header_len+15)&~15);
-	skb->mac.raw = skb->nh.raw = skb->data;
+	skb->nh.raw = skb->data;
 
 	if (dev->hard_header) {
 		if (dev->hard_header(skb, dev, ntohs(proto),
 				     saddr ? saddr->sll_addr : NULL,
 				     NULL, len) < 0
 		    && sock->type == SOCK_DGRAM) {
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 			dev_unlock_list();
 			return -EINVAL;
 		}
-		skb->mac.raw = skb->data;
 		if (sock->type != SOCK_DGRAM) {
 			skb->tail = skb->data;
 			skb->len = 0;
@@ -488,7 +499,6 @@ static int packet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	}
 
 	err = memcpy_fromiovec(skb_put(skb,len), msg->msg_iov, len);
-	skb->arp = 1;	/* No ARP needs doing on this (complete) frame */
 	skb->protocol = proto;
 	skb->dev = dev;
 	skb->priority = sk->priority;
@@ -506,7 +516,7 @@ static int packet_sendmsg(struct socket *sock, struct msghdr *msg, int len,
 	}
 
 	if (err) {
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return err;
 	}
 
@@ -575,7 +585,7 @@ static int packet_release(struct socket *sock, struct socket *peersock)
 	/* Purge queues */
 
 	while ((skb=skb_dequeue(&sk->receive_queue))!=NULL)
-		kfree_skb(skb,FREE_READ);
+		kfree_skb(skb);
 
 	if (atomic_read(&sk->rmem_alloc) || atomic_read(&sk->wmem_alloc)) {
 		sk->timer.data=(unsigned long)sk;
@@ -768,9 +778,8 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 			  int flags, struct scm_cookie *scm)
 {
 	struct sock *sk = sock->sk;
-	int copied=0;
 	struct sk_buff *skb;
-	int err;
+	int copied, err;
 
 #if 0
 	/* What error should we return now? EUNATTACH? */
@@ -806,7 +815,7 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 	 */
 
 	if(skb==NULL)
-		return err;
+		goto out;
 
 	/*
 	 *	You lose any data beyond the buffer you gave. If it worries a
@@ -814,7 +823,7 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 	 */
 
 	copied = skb->len;
-	if(copied>len)
+	if (copied > len)
 	{
 		copied=len;
 		msg->msg_flags|=MSG_TRUNC;
@@ -823,9 +832,7 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 	/* We can't use skb_copy_datagram here */
 	err = memcpy_toiovec(msg->msg_iov, skb->data, copied);
 	if (err)
-	{
-		return -EFAULT;
-	}
+		goto out_free;
 
 	sk->stamp=skb->stamp;
 
@@ -833,13 +840,15 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, int len,
 		memcpy(msg->msg_name, skb->cb, msg->msg_namelen);
 
 	/*
-	 *	Free or return the buffer as appropriate. Again this hides all the
-	 *	races and re-entrancy issues from us.
+	 *	Free or return the buffer as appropriate. Again this
+	 *	hides all the races and re-entrancy issues from us.
 	 */
+	err = copied;
 
+out_free:
 	skb_free_datagram(sk, skb);
-
-	return(copied);
+out:
+	return err;
 }
 
 #ifdef CONFIG_SOCK_PACKET
@@ -1107,7 +1116,9 @@ static int packet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 				err = -EFAULT;
 			return err;
 		case SIOCGIFFLAGS:
+#ifndef CONFIG_INET
 		case SIOCSIFFLAGS:
+#endif
 		case SIOCGIFCONF:
 		case SIOCGIFMETRIC:
 		case SIOCSIFMETRIC:
@@ -1136,23 +1147,28 @@ static int packet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg
 			return -ENOPKG;
 #endif						
 			
+#ifdef CONFIG_INET
+		case SIOCADDRT:
+		case SIOCDELRT:
+		case SIOCDARP:
+		case SIOCGARP:
+		case SIOCSARP:
+		case SIOCDRARP:
+		case SIOCGRARP:
+		case SIOCSRARP:
+		case SIOCGIFADDR:
+		case SIOCSIFADDR:
+		case SIOCGIFBRDADDR:
+		case SIOCSIFBRDADDR:
+		case SIOCGIFNETMASK:
+		case SIOCSIFNETMASK:
+		case SIOCGIFDSTADDR:
+		case SIOCSIFDSTADDR:
+		case SIOCSIFFLAGS:
 		case SIOCADDDLCI:
 		case SIOCDELDLCI:
-#ifdef CONFIG_DLCI
-			return(dlci_ioctl(cmd, (void *) arg));
+			return inet_dgram_ops.ioctl(sock, cmd, arg);
 #endif
-
-#ifdef CONFIG_DLCI_MODULE
-
-#ifdef CONFIG_KERNELD
-			if (dlci_ioctl_hook == NULL)
-				request_module("dlci");
-#endif
-
-			if (dlci_ioctl_hook)
-				return((*dlci_ioctl_hook)(cmd, (void *) arg));
-#endif
-			return -ENOPKG;
 
 		default:
 			if ((cmd >= SIOCDEVPRIVATE) &&

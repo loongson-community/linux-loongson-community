@@ -4,7 +4,6 @@
  * from linux/arch/i386/mm/extable.c
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <asm/uaccess.h>
 
@@ -16,17 +15,10 @@ search_one_table(const struct exception_table_entry *first,
 		 const struct exception_table_entry *last,
 		 unsigned long value)
 {
-	const struct exception_table_entry *mid;
-	for ( mid = first; mid < last; mid++)
-	{
-		if ( mid->insn == value )
-			return mid->fixup;
-	}
-	return 0;
-#if 0	
         while (first <= last) {
 		const struct exception_table_entry *mid;
 		long diff;
+
 		mid = (last - first) / 2 + first;
 		diff = mid->insn - value;
                 if (diff == 0)
@@ -36,7 +28,6 @@ search_one_table(const struct exception_table_entry *first,
                 else
                         last = mid-1;
         }
-#endif	
         return 0;
 }
 

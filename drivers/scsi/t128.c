@@ -141,11 +141,11 @@ static struct override {
 #define NO_OVERRIDES (sizeof(overrides) / sizeof(struct override))
 
 static struct base {
-    unsigned char *address;
+    unsigned int address;
     int noauto;
 } bases[] __initdata = {
-    {(unsigned char *) 0xcc000, 0}, {(unsigned char *) 0xc8000, 0},
-    {(unsigned char *) 0xdc000, 0}, {(unsigned char *) 0xd8000, 0}};
+    { 0xcc000, 0}, { 0xc8000, 0}, { 0xdc000, 0}, { 0xd8000, 0}
+};
 
 #define NO_BASES (sizeof (bases) / sizeof (struct base))
 
@@ -178,7 +178,7 @@ __initfunc(void t128_setup(char *str, int *ints)) {
 	    overrides[commandline_current].address = (unsigned char *) ints[1];
 	    overrides[commandline_current].irq = ints[2];
 	    for (i = 0; i < NO_BASES; ++i)
-		if (bases[i].address == (unsigned char *) ints[1]) {
+		if (bases[i].address == ints[1]) {
 		    bases[i].noauto = 1;
 		    break;
 		}
@@ -216,7 +216,7 @@ __initfunc(int t128_detect(Scsi_Host_Template * tpnt)) {
 	else 
 	    for (; !base && (current_base < NO_BASES); ++current_base) {
 #if (TDEBUG & TDEBUG_INIT)
-    printk("scsi-t128 : probing address %08x\n", (unsigned int) bases[current_base].address);
+    printk("scsi-t128 : probing address %08x\n", bases[current_base].address);
 #endif
 		for (sig = 0; sig < NO_SIGNATURES; ++sig) 
 		    if (!bases[current_base].noauto && 
@@ -224,7 +224,7 @@ __initfunc(int t128_detect(Scsi_Host_Template * tpnt)) {
 					signatures[sig].offset,
 					signatures[sig].string,
 					strlen(signatures[sig].string))) {
-		      base = bases[current_base].address;
+			base = (unsigned char *) bases[current_base].address;
 #if (TDEBUG & TDEBUG_INIT)
 			printk("scsi-t128 : detected board.\n");
 #endif
@@ -328,7 +328,7 @@ static inline int NCR5380_pread (struct Scsi_Host *instance, unsigned char *dst,
     int len) {
     register unsigned char *reg = (unsigned char *) (instance->base + 
 	T_DATA_REG_OFFSET), *d = dst;
-    register i = len;
+    register int i = len;
 
 
 #if 0
@@ -372,7 +372,7 @@ static inline int NCR5380_pwrite (struct Scsi_Host *instance, unsigned char *src
     int len) {
     register unsigned char *reg = (unsigned char *) (instance->base + 
 	T_DATA_REG_OFFSET), *s = src;
-    register i = len;
+    register int i = len;
 
 #if 0
     for (; i; --i) {

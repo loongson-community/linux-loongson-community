@@ -18,14 +18,17 @@
 #include <asm/hwrpb.h>
 #include <asm/ptrace.h>
 
+/* NOTE: Herein are back-to-back mb insns.  They are magic. 
+   A plausible explanation is that the i/o controler does not properly
+   handle the system transaction.  Another involves timing.  Ho hum.  */
+
 extern struct hwrpb_struct *hwrpb;
 extern asmlinkage void wrmces(unsigned long mces);
 extern int alpha_sys_type;
+
 /*
  * BIOS32-style PCI interface:
  */
-
-#ifdef CONFIG_ALPHA_APECS
 
 #ifdef DEBUG
 # define DBG(args)	printk args
@@ -88,7 +91,8 @@ static int mk_conf_addr(unsigned char bus, unsigned char device_fn,
 {
 	unsigned long addr;
 
-	DBG(("mk_conf_addr(bus=%d ,device_fn=0x%x, where=0x%x, pci_addr=0x%p, type1=0x%p)\n",
+	DBG(("mk_conf_addr(bus=%d ,device_fn=0x%x, where=0x%x,"
+	     " pci_addr=0x%p, type1=0x%p)\n",
 	     bus, device_fn, where, pci_addr, type1));
 
 	if (bus == 0) {
@@ -97,7 +101,8 @@ static int mk_conf_addr(unsigned char bus, unsigned char device_fn,
 		/* type 0 configuration cycle: */
 
 		if (device > 20) {
-			DBG(("mk_conf_addr: device (%d) > 20, returning -1\n", device));
+			DBG(("mk_conf_addr: device (%d) > 20, returning -1\n",
+			     device));
 			return -1;
 		}
 
@@ -142,15 +147,15 @@ static unsigned int conf_read(unsigned long addr, unsigned char type1)
 	DBG(("conf_read(addr=0x%lx, type1=%d)\n", addr, type1));
 
 	/* reset status register to avoid losing errors: */
-	stat0 = *((volatile unsigned int *)APECS_IOC_DCSR);
-	*((volatile unsigned int *)APECS_IOC_DCSR) = stat0;
+	stat0 = *(vuip)APECS_IOC_DCSR;
+	*(vuip)APECS_IOC_DCSR = stat0;
 	mb();
 	DBG(("conf_read: APECS DCSR was 0x%x\n", stat0));
 	/* if Type1 access, must set HAE #2 */
 	if (type1) {
-		haxr2 = *((unsigned int *)APECS_IOC_HAXR2);
+		haxr2 = *(vuip)APECS_IOC_HAXR2;
 		mb();
-		*((unsigned int *)APECS_IOC_HAXR2) = haxr2 | 1;
+		*(vuip)APECS_IOC_HAXR2 = haxr2 | 1;
 		DBG(("conf_read: TYPE1 access\n"));
 	}
 
@@ -159,9 +164,9 @@ static unsigned int conf_read(unsigned long addr, unsigned char type1)
 	apecs_mcheck_taken = 0;
 	mb();
 	/* access configuration space: */
-	value = *((volatile unsigned int *)addr);
+	value = *(vuip)addr;
 	mb();
-	mb();
+	mb();  /* magic */
 	if (apecs_mcheck_taken) {
 		apecs_mcheck_taken = 0;
 		value = 0xffffffffU;
@@ -169,17 +174,18 @@ static unsigned int conf_read(unsigned long addr, unsigned char type1)
 	}
 	apecs_mcheck_expected = 0;
 	mb();
+
+#if 1
 	/*
 	 * david.rusling@reo.mts.dec.com.  This code is needed for the
 	 * EB64+ as it does not generate a machine check (why I don't
 	 * know).  When we build kernels for one particular platform
 	 * then we can make this conditional on the type.
 	 */
-#if 1
 	draina();
 
 	/* now look for any errors */
-	stat0 = *((unsigned int *)APECS_IOC_DCSR);
+	stat0 = *(vuip)APECS_IOC_DCSR;
 	DBG(("conf_read: APECS DCSR after read 0x%x\n", stat0));
 	if (stat0 & 0xffe0U) { /* is any error bit set? */
 		/* if not NDEV, print status */
@@ -188,7 +194,7 @@ static unsigned int conf_read(unsigned long addr, unsigned char type1)
 		}
 
 		/* reset error status: */
-		*((volatile unsigned long *)APECS_IOC_DCSR) = stat0;
+		*(vulp)APECS_IOC_DCSR = stat0;
 		mb();
 		wrmces(0x7);			/* reset machine check */
 		value = 0xffffffff;
@@ -197,7 +203,7 @@ static unsigned int conf_read(unsigned long addr, unsigned char type1)
 
 	/* if Type1 access, must reset HAE #2 so normal IO space ops work */
 	if (type1) {
-		*((unsigned int *)APECS_IOC_HAXR2) = haxr2 & ~1;
+		*(vuip)APECS_IOC_HAXR2 = haxr2 & ~1;
 		mb();
 	}
 	restore_flags(flags);
@@ -224,37 +230,38 @@ static void conf_write(unsigned long addr, unsigned int value, unsigned char typ
 	cli();
 
 	/* reset status register to avoid losing errors: */
-	stat0 = *((volatile unsigned int *)APECS_IOC_DCSR);
-	*((volatile unsigned int *)APECS_IOC_DCSR) = stat0;
+	stat0 = *(vuip)APECS_IOC_DCSR;
+	*(vuip)APECS_IOC_DCSR = stat0;
 	mb();
 
 	/* if Type1 access, must set HAE #2 */
 	if (type1) {
-		haxr2 = *((unsigned int *)APECS_IOC_HAXR2);
+		haxr2 = *(vuip)APECS_IOC_HAXR2;
 		mb();
-		*((unsigned int *)APECS_IOC_HAXR2) = haxr2 | 1;
+		*(vuip)APECS_IOC_HAXR2 = haxr2 | 1;
 	}
 
 	draina();
 	apecs_mcheck_expected = 1;
 	mb();
 	/* access configuration space: */
-	*((volatile unsigned int *)addr) = value;
+	*(vuip)addr = value;
 	mb();
-	mb();
+	mb();  /* magic */
 	apecs_mcheck_expected = 0;
 	mb();
+
+#if 1
 	/*
 	 * david.rusling@reo.mts.dec.com.  This code is needed for the
 	 * EB64+ as it does not generate a machine check (why I don't
 	 * know).  When we build kernels for one particular platform
 	 * then we can make this conditional on the type.
 	 */
-#if 1
 	draina();
 
 	/* now look for any errors */
-	stat0 = *((unsigned int *)APECS_IOC_DCSR);
+	stat0 = *(vuip)APECS_IOC_DCSR;
 	if (stat0 & 0xffe0U) { /* is any error bit set? */
 		/* if not NDEV, print status */
 		if (!(stat0 & 0x0800)) {
@@ -262,7 +269,7 @@ static void conf_write(unsigned long addr, unsigned int value, unsigned char typ
 		}
 
 		/* reset error status: */
-		*((volatile unsigned long *)APECS_IOC_DCSR) = stat0;
+		*(vulp)APECS_IOC_DCSR = stat0;
 		mb();
 		wrmces(0x7);			/* reset machine check */
 	}
@@ -270,7 +277,7 @@ static void conf_write(unsigned long addr, unsigned int value, unsigned char typ
 
 	/* if Type1 access, must reset HAE #2 so normal IO space ops work */
 	if (type1) {
-		*((unsigned int *)APECS_IOC_HAXR2) = haxr2 & ~1;
+		*(vuip)APECS_IOC_HAXR2 = haxr2 & ~1;
 		mb();
 	}
 	restore_flags(flags);
@@ -433,7 +440,7 @@ unsigned long apecs_init(unsigned long mem_start, unsigned long mem_end)
 #ifdef CONFIG_ALPHA_CABRIOLET
 	/*
 	 * JAE: HACK!!! for now, hardwire if configured...
-	 * davidm: Older miniloader versions don't set the clockfrequency
+	 * davidm: Older miniloader versions don't set the clock frequency
 	 * right, so hardcode it for now.
 	 */
 	if (hwrpb->sys_type == ST_DEC_EB64P) {
@@ -448,7 +455,9 @@ unsigned long apecs_init(unsigned long mem_start, unsigned long mem_end)
 	    unsigned long *l, sum;
 
 	    sum = 0;
-	    for (l = (unsigned long *) hwrpb; l < (unsigned long *) &hwrpb->chksum; ++l)
+	    for (l = (unsigned long *) hwrpb;
+		 l < (unsigned long *) &hwrpb->chksum;
+		 ++l)
 	      sum += *l;
 	    hwrpb->chksum = sum;
 	}
@@ -462,10 +471,10 @@ unsigned long apecs_init(unsigned long mem_start, unsigned long mem_end)
         */
        {
 #if 0
-         unsigned int haxr2 = *((unsigned int *)APECS_IOC_HAXR2); mb();
+         unsigned int haxr2 = *(vuip)APECS_IOC_HAXR2; mb();
          if (haxr2) printk("apecs_init: HAXR2 was 0x%x\n", haxr2);
 #endif
-         *((unsigned int *)APECS_IOC_HAXR2) = 0; mb();
+         *(vuip)APECS_IOC_HAXR2 = 0; mb();
        }
 
 
@@ -474,15 +483,15 @@ unsigned long apecs_init(unsigned long mem_start, unsigned long mem_end)
 
 int apecs_pci_clr_err(void)
 {
-	apecs_jd = *((unsigned long *)APECS_IOC_DCSR);
+	apecs_jd = *(vulp)APECS_IOC_DCSR;
 	if (apecs_jd & 0xffe0L) {
-		apecs_jd1 = *((unsigned long *)APECS_IOC_SEAR);
-		*((unsigned long *)APECS_IOC_DCSR) = apecs_jd | 0xffe1L;
-		apecs_jd = *((unsigned long *)APECS_IOC_DCSR);
+		apecs_jd1 = *(vulp)APECS_IOC_SEAR;
+		*(vulp)APECS_IOC_DCSR = apecs_jd | 0xffe1L;
+		apecs_jd = *(vulp)APECS_IOC_DCSR;
 		mb();
 	}
-	*((unsigned long *)APECS_IOC_TBIA) = APECS_IOC_TBIA;
-	apecs_jd2 = *((unsigned long *)APECS_IOC_TBIA);
+	*(vulp)APECS_IOC_TBIA = APECS_IOC_TBIA;
+	apecs_jd2 = *(vulp)APECS_IOC_TBIA;
 	mb();
 	return 0;
 }
@@ -536,7 +545,7 @@ void apecs_machine_check(unsigned long vector, unsigned long la_ptr,
 		apecs_mcheck_expected = 0;
 		apecs_mcheck_taken = 1;
 		mb();
-		mb();
+		mb(); /* magic */
 		apecs_pci_clr_err();
 		wrmces(0x7);
 		mb();
@@ -547,7 +556,8 @@ void apecs_machine_check(unsigned long vector, unsigned long la_ptr,
 		wrmces(0x1f); /* disable correctable from now on */
 		mb();
 		draina();
-		printk("apecs_machine_check: HW correctable (0x%lx)\n", vector);
+		printk("apecs_machine_check: HW correctable (0x%lx)\n",
+		       vector);
 	}
 	else {
 		printk(KERN_CRIT "APECS machine check:\n");
@@ -572,4 +582,3 @@ void apecs_machine_check(unsigned long vector, unsigned long la_ptr,
 #endif
 	}
 }
-#endif /* CONFIG_ALPHA_APECS */

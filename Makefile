@@ -1,6 +1,6 @@
 VERSION = 2
 PATCHLEVEL = 1
-SUBLEVEL = 73
+SUBLEVEL = 89
 
 ARCH = mips
 
@@ -98,11 +98,6 @@ endif
 ifdef SMP
 CFLAGS += -D__SMP__
 AFLAGS += -D__SMP__
-
-ifdef SMP_PROF
-CFLAGS += -D__SMP_PROF__
-AFLAGS += -D__SMP_PROF__
-endif
 endif
 
 #
@@ -162,6 +157,10 @@ ifdef CONFIG_SGI
 DRIVERS := $(DRIVERS) drivers/sgi/sgi.a
 endif
 
+ifeq ($(CONFIG_PARIDE),y)
+DRIVERS := $(DRIVERS) drivers/block/paride/paride.a
+endif
+
 ifdef CONFIG_HAMRADIO
 DRIVERS := $(DRIVERS) drivers/net/hamradio/hamradio.a
 endif
@@ -210,20 +209,31 @@ symlinks:
 		mkdir include/linux/modules; \
 	fi
 
-oldconfig: symlinks
-	$(MAKE) -C drivers/sound mkscript
+oldconfig: symlinks scripts/split-include
 	$(CONFIG_SHELL) scripts/Configure -d arch/$(ARCH)/config.in
+	if [ -r include/linux/autoconf.h ]; then \
+	    scripts/split-include include/linux/autoconf.h include/config; \
+	fi
 
-xconfig: symlinks
+xconfig: symlinks scripts/split-include
 	$(MAKE) -C scripts kconfig.tk
 	wish -f scripts/kconfig.tk
+	if [ -r include/linux/autoconf.h ]; then \
+	    scripts/split-include include/linux/autoconf.h include/config; \
+	fi
 
-menuconfig: include/linux/version.h symlinks 
+menuconfig: include/linux/version.h symlinks scripts/split-include
 	$(MAKE) -C scripts/lxdialog all
 	$(CONFIG_SHELL) scripts/Menuconfig arch/$(ARCH)/config.in
+	if [ -r include/linux/autoconf.h ]; then \
+	    scripts/split-include include/linux/autoconf.h include/config; \
+	fi
 
-config: symlinks
+config: symlinks scripts/split-include
 	$(CONFIG_SHELL) scripts/Configure arch/$(ARCH)/config.in
+	if [ -r include/linux/autoconf.h ]; then \
+	    scripts/split-include include/linux/autoconf.h include/config; \
+	fi
 
 linuxsubdirs: dummy
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i; done
@@ -343,50 +353,54 @@ clean:	archclean
 	rm -f kernel/ksyms.lst include/linux/compile.h
 	rm -f core `find . -name '*.[oas]' ! -regex '.*lxdialog/.*' -print`
 	rm -f core `find . -type f -name 'core' -print`
+	rm -f core `find . -name '.*.flags' -print`
 	rm -f vmlinux System.map
-	rm -f .tmp* drivers/sound/configure
+	rm -f .tmp*
 	rm -f drivers/char/consolemap_deftbl.c drivers/char/conmakehash
-	rm -f `find modules/ -type f -print`
+	rm -f drivers/sound/bin2hex drivers/sound/hex2hex
+	if [ -d modules ]; then \
+		rm -f core `find modules/ -type f -print`; \
+	fi
 	rm -f submenu*
 
 mrproper: clean
 	rm -f include/linux/autoconf.h include/linux/version.h
-	rm -f drivers/sound/local.h drivers/sound/.defines
-	rm -f drivers/net/soundmodem/sm_tbl_{afsk1200,afsk2666,fsk9600}.h
-	rm -f drivers/net/soundmodem/sm_tbl_{hapn4800,psk4800}.h
-	rm -f drivers/net/soundmodem/sm_tbl_{afsk2400_7,afsk2400_8}.h
-	rm -f drivers/net/soundmodem/gentbl
+	rm -f drivers/net/hamradio/soundmodem/sm_tbl_{afsk1200,afsk2666,fsk9600}.h
+	rm -f drivers/net/hamradio/soundmodem/sm_tbl_{hapn4800,psk4800}.h
+	rm -f drivers/net/hamradio/soundmodem/sm_tbl_{afsk2400_7,afsk2400_8}.h
+	rm -f drivers/net/hamradio/soundmodem/gentbl
 	rm -f drivers/char/hfmodem/gentbl drivers/char/hfmodem/tables.h
+	rm -f drivers/sound/*_boot.h drivers/sound/.*.boot
 	rm -f .version .config* config.in config.old
 	rm -f scripts/tkparse scripts/kconfig.tk scripts/kconfig.tmp
 	rm -f scripts/lxdialog/*.o scripts/lxdialog/lxdialog
-	rm -f .menuconfig .menuconfig.log
+	rm -f .menuconfig.log
 	rm -f include/asm
+	rm -rf include/config
 	rm -f .depend `find . -name .depend -print`
-	rm -f .hdepend scripts/mkdep
+	rm -f core `find . -size 0 -print`
+	rm -f .hdepend scripts/mkdep scripts/split-include
 	rm -f $(TOPDIR)/include/linux/modversions.h
 	rm -rf $(TOPDIR)/include/linux/modules
 	rm -rf modules
 
 distclean: mrproper
-	rm -f core `find . \( -name '*.orig' -o -name '*.rej' -o -name '*~' \
-                -o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-                -o -name '.*.rej' -o -name '.SUMS' -o -size 0 \) -print` TAGS
-#	rm -f drivers/sound/Config.in
-#	cp drivers/sound/Config.std drivers/sound/Config.in
+	find . -type f \( -name core -o -name '*.orig' -o -name '*.rej' \
+		-o -name '*~' -o -name '*.bak' -o -name '#*#' \
+		-o -name '.*.orig' -o -name '.*.rej' -o -name '.SUMS' \
+		-o -size 0 -o -name TAGS \) -print | env -i xargs rm -f
 
 backup: mrproper
 	cd .. && tar cf - linux/ | gzip -9 > backup.gz
 	sync
 
 sums:
-	find . -type f -print | sort | xargs sum > .SUMS
+	find . -type f -print | sort | env -i xargs sum > .SUMS
 
 dep-files: scripts/mkdep archdep include/linux/version.h
-	scripts/mkdep init/*.c > .tmpdepend
+	scripts/mkdep init/*.c > .depend
 	find $(FINDHPATH) -follow -name \*.h ! -name modversions.h -print | env -i xargs scripts/mkdep > .hdepend
 	set -e; for i in $(SUBDIRS); do $(MAKE) -C $$i fastdep; done
-	mv .tmpdepend .depend
 
 MODVERFILE :=
 
@@ -395,6 +409,9 @@ MODVERFILE := $(TOPDIR)/include/linux/modversions.h
 endif
 
 depend dep: dep-files $(MODVERFILE)
+
+checkconfig:
+	perl -w scripts/checkconfig.pl `find * -name '*.[hcS]' -print | sort`
 
 ifdef CONFIGURATION
 ..$(CONFIGURATION):
@@ -424,3 +441,6 @@ include Rules.make
 
 scripts/mkdep: scripts/mkdep.c
 	$(HOSTCC) $(HOSTCFLAGS) -o scripts/mkdep scripts/mkdep.c
+
+scripts/split-include: scripts/split-include.c
+	$(HOSTCC) $(HOSTCFLAGS) -o scripts/split-include scripts/split-include.c

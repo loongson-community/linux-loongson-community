@@ -127,6 +127,7 @@ static inline void init_once(struct inode * inode)
 	memset(inode, 0, sizeof(*inode));
 	init_waitqueue(&inode->i_wait);
 	INIT_LIST_HEAD(&inode->i_hash);
+	INIT_LIST_HEAD(&inode->i_dentry);
 	sema_init(&inode->i_sem, 1);
 }
 
@@ -215,7 +216,7 @@ void write_inode_now(struct inode *inode)
 /*
  * This is called by the filesystem to tell us
  * that the inode is no longer useful. We just
- * terminate it with extreme predjudice.
+ * terminate it with extreme prejudice.
  */
 void clear_inode(struct inode *inode)
 {
@@ -224,6 +225,8 @@ void clear_inode(struct inode *inode)
 	wait_on_inode(inode);
 	if (IS_WRITABLE(inode) && inode->i_sb && inode->i_sb->dq_op)
 		inode->i_sb->dq_op->drop(inode);
+	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->clear_inode)
+		inode->i_sb->s_op->clear_inode(inode);
 
 	inode->i_state = 0;
 }
@@ -647,7 +650,17 @@ restock:
 void insert_inode_hash(struct inode *inode)
 {
 	struct list_head *head = inode_hashtable + hash(inode->i_sb, inode->i_ino);
+	spin_lock(&inode_lock);
 	list_add(&inode->i_hash, head);
+	spin_unlock(&inode_lock);
+}
+
+void remove_inode_hash(struct inode *inode)
+{
+	spin_lock(&inode_lock);
+	list_del(&inode->i_hash);
+	INIT_LIST_HEAD(&inode->i_hash);
+	spin_unlock(&inode_lock);
 }
 
 void iput(struct inode *inode)
@@ -688,16 +701,22 @@ void iput(struct inode *inode)
 				list_add(&inode->i_list, inode_in_use.prev);
 			}
 #ifdef INODE_PARANOIA
+if (inode->i_flock)
+printk(KERN_ERR "iput: inode %s/%ld still has locks!\n",
+kdevname(inode->i_dev), inode->i_ino);
+if (!list_empty(&inode->i_dentry))
+printk(KERN_ERR "iput: device %s inode %ld still has aliases!\n",
+kdevname(inode->i_dev), inode->i_ino);
 if (inode->i_count)
-printk("iput: device %s inode %ld count changed, count=%d\n",
+printk(KERN_ERR "iput: device %s inode %ld count changed, count=%d\n",
 kdevname(inode->i_dev), inode->i_ino, inode->i_count);
 if (atomic_read(&inode->i_sem.count) != 1)
-printk("iput: Aieee, semaphore in use device %s, count=%d\n",
+printk(KERN_ERR "iput: Aieee, semaphore in use device %s, count=%d\n",
 kdevname(inode->i_dev), atomic_read(&inode->i_sem.count));
 #endif
 		}
-		if (inode->i_count > (1<<15)) {
-			printk("iput: device %s inode %ld count wrapped\n",
+		if (inode->i_count > (1<<31)) {
+			printk(KERN_ERR "iput: inode %s/%ld count wrapped\n",
 				kdevname(inode->i_dev), inode->i_ino);
 		}
 		spin_unlock(&inode_lock);
@@ -745,3 +764,12 @@ int fs_may_remount_ro(struct super_block *sb)
 	}
 	return 1; /* Tis' cool bro. */
 }
+
+void update_atime (struct inode *inode)
+{
+    if ( IS_NOATIME (inode) ) return;
+    if ( IS_NODIRATIME (inode) && S_ISDIR (inode->i_mode) ) return;
+    if ( IS_RDONLY (inode) ) return;
+    inode->i_atime = CURRENT_TIME;
+    mark_inode_dirty (inode);
+}   /*  End Function update_atime  */

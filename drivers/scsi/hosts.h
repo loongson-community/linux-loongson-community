@@ -127,8 +127,32 @@ typedef struct	SHT
      * # and exit result when the command is complete.
      * Host number is the POSITION IN THE hosts array of THIS
      * host adapter.
+     *
+     * The done() function must only be called after QueueCommand() 
+     * has returned.
      */
     int (* queuecommand)(Scsi_Cmnd *, void (*done)(Scsi_Cmnd *));
+
+    /*
+     * This is an error handling strategy routine.  You don't need to
+     * define one of these if you don't want to - there is a default
+     * routine that is present that should work in most cases.  For those
+     * driver authors that have the inclination and ability to write their
+     * own strategy routine, this is where it is specified.  Note - the
+     * strategy routine is *ALWAYS* run in the context of the kernel eh
+     * thread.  Thus you are guaranteed to *NOT* be in an interrupt handler
+     * when you execute this, and you are also guaranteed to *NOT* have any
+     * other commands being queued while you are in the strategy routine.
+     * When you return from this function, operations return to normal.
+     *
+     * See scsi_error.c scsi_unjam_host for additional comments about what
+     * this function should and should not be attempting to do.
+     */
+     int (*eh_strategy_handler)(struct Scsi_Host *);
+     int (*eh_abort_handler)(Scsi_Cmnd *);
+     int (*eh_device_reset_handler)(Scsi_Cmnd *);
+     int (*eh_bus_reset_handler)(Scsi_Cmnd *);
+     int (*eh_host_reset_handler)(Scsi_Cmnd *);
 
     /*
      * Since the mid level driver handles time outs, etc, we want to
@@ -143,6 +167,9 @@ typedef struct	SHT
      *
      * Note that the scsi driver should "clean up" after itself,
      * resetting the bus, etc.	if necessary.
+     *
+     * NOTE - this interface is depreciated, and will go away.  Use
+     * the eh_ routines instead.
      */
     int (* abort)(Scsi_Cmnd *);
 
@@ -155,6 +182,9 @@ typedef struct	SHT
      * the first place.	 Some hosts do not implement a reset function,
      * and these hosts must call scsi_request_sense(SCpnt) to keep
      * the command alive.
+     *
+     * NOTE - this interface is depreciated, and will go away.  Use
+     * the eh_ routines instead.
      */
     int (* reset)(Scsi_Cmnd *, unsigned int);
 
@@ -227,6 +257,13 @@ typedef struct	SHT
      */
     unsigned use_clustering:1;
 
+    /*
+     * True if this driver uses the new error handling code.  This flag is
+     * really only temporary until all of the other drivers get converted
+     * to use the new error handling code.
+     */
+    unsigned use_new_eh_code:1;
+
 } Scsi_Host_Template;
 
 /*
@@ -240,14 +277,40 @@ typedef struct	SHT
 
 struct Scsi_Host
 {
-    struct Scsi_Host * next;
+/* private: */
+    /*
+     * This information is private to the scsi mid-layer.  Wrapping it in a
+     * struct private is a way of marking it in a sort of C++ type of way.
+     */
+    struct Scsi_Host      * next;
+    Scsi_Device           * host_queue;
+    /*
+     * List of commands that have been rejected because either the host
+     * or the device was busy.  These need to be retried relatively quickly,
+     * but we need to hold onto it for a short period until the host/device
+     * is available.
+     */
+    Scsi_Cmnd             * pending_commands;
+
+    struct task_struct    * ehandler;  /* Error recovery thread. */
+    struct semaphore      * eh_wait;   /* The error recovery thread waits on
+                                          this. */
+    struct semaphore      * eh_notify; /* wait for eh to begin */
+    struct semaphore      * eh_action; /* Wait for specific actions on the
+                                          host. */
+    unsigned int            eh_active:1; /* Indicates the eh thread is awake and active if
+                                          this is true. */
+    struct wait_queue     * host_wait;
+    Scsi_Host_Template    * hostt;
+    atomic_t                host_active; /* commands checked out */
+    volatile unsigned short host_busy;   /* commands actually active on low-level */
+    volatile unsigned short host_failed; /* commands that failed. */
+    
+/* public: */
     unsigned short extra_bytes;
-    volatile unsigned char host_busy;
-    char host_no;  /* Used for IOCTL_GET_IDLUN, /proc/scsi et al. */
+    unsigned short host_no;  /* Used for IOCTL_GET_IDLUN, /proc/scsi et al. */
     unsigned long last_reset;
-    struct wait_queue *host_wait;
-    Scsi_Cmnd *host_queue;
-    Scsi_Host_Template * hostt;
+
 
     /*
      *	These three parameters can be used to allow for wide scsi,
@@ -292,6 +355,8 @@ struct Scsi_Host
     int can_queue;
     short cmd_per_lun;
     short unsigned int sg_tablesize;
+
+    unsigned in_recovery:1;
     unsigned unchecked_isa_dma:1;
     unsigned use_clustering:1;
     /*
@@ -299,9 +364,20 @@ struct Scsi_Host
      */
     unsigned loaded_as_module:1;
 
+    /*
+     * Host has rejected a command because it was busy.
+     */
+    unsigned host_blocked:1;
+
     void (*select_queue_depths)(struct Scsi_Host *, Scsi_Device *);
 
-    unsigned long hostdata[0];  /* Used for storage of host specific stuff */
+    /*
+     * We should ensure that this is aligned, both for better performance
+     * and also because some compilers (m68k) don't automatically force
+     * alignment to a 4-byte boundary.
+     */
+    unsigned long hostdata[0]  /* Used for storage of host specific stuff */
+        __attribute__ ((aligned (sizeof(unsigned long))));
 };
 
 extern struct Scsi_Host * scsi_hostlist;
@@ -332,6 +408,8 @@ extern int scsi_loadable_module_flag;
 unsigned int scsi_init(void);
 extern struct Scsi_Host * scsi_register(Scsi_Host_Template *, int j);
 extern void scsi_unregister(struct Scsi_Host * i);
+
+extern void scsi_mark_host_reset(struct Scsi_Host *Host);
 
 #define BLANK_HOST {"", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 

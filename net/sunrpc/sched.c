@@ -16,6 +16,7 @@
 #include <linux/unistd.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
+
 #include <linux/sunrpc/clnt.h>
 
 #ifdef RPC_DEBUG
@@ -43,6 +44,11 @@ static struct rpc_wait_queue	schedq = RPC_INIT_WAITQ("schedq");
  * will wait on this queue for their child's completion
  */
 static struct rpc_wait_queue	childq = RPC_INIT_WAITQ("childq");
+
+/*
+ * RPC tasks sit here while waiting for conditions to improve.
+ */
+static struct rpc_wait_queue	delay_queue = RPC_INIT_WAITQ("delayq");
 
 /*
  * All RPC tasks are linked into this list
@@ -92,7 +98,8 @@ rpc_add_wait_queue(struct rpc_wait_queue *queue, struct rpc_task *task)
 }
 
 /*
- * Remove request from queue
+ * Remove request from queue.
+ * Note: must be called with interrupts disabled.
  */
 void
 rpc_remove_wait_queue(struct rpc_task *task)
@@ -149,6 +156,9 @@ rpc_del_timer(struct rpc_task *task)
 
 /*
  * Make an RPC task runnable.
+ *
+ * Note: If the task is ASYNC, this must be called with 
+ * interrupts disabled to protect the wait queue operation.
  */
 static inline void
 rpc_make_runnable(struct rpc_task *task)
@@ -313,8 +323,6 @@ static void	__rpc_atrun(struct rpc_task *);
 void
 rpc_delay(struct rpc_task *task, unsigned long delay)
 {
-	static struct rpc_wait_queue	delay_queue;
-
 	task->tk_timeout = delay;
 	rpc_sleep_on(&delay_queue, task, NULL, __rpc_atrun);
 }
@@ -388,12 +396,14 @@ __rpc_execute(struct rpc_task *task)
 			/* sync task: sleep here */
 			dprintk("RPC: %4d sync task going to sleep\n",
 							task->tk_pid);
+			if (current->pid == rpciod_pid)
+				printk("RPC: rpciod waiting on sync task!\n");
 			current->timeout = 0;
 			sleep_on(&task->tk_wait);
 
 			/* When the task received a signal, remove from
 			 * any queues etc, and make runnable again. */
-			if (signalled())
+			if (0 && signalled())
 				__rpc_wake_up(task);
 
 			dprintk("RPC: %4d sync task resuming\n",
@@ -433,10 +443,15 @@ rpc_execute(struct rpc_task *task)
 	static int	executing = 0;
 	int		incr = RPC_IS_ASYNC(task)? 1 : 0;
 
-	if (incr && (executing || rpc_inhibit)) {
-		printk("RPC: rpc_execute called recursively!\n");
-		return;
+	if (incr) {
+		if (rpc_inhibit) {
+			printk("RPC: execution inhibited!\n");
+			return;
+		}
+		if (executing)
+			printk("RPC: %d tasks executed\n", executing);
 	}
+	
 	executing += incr;
 	__rpc_execute(task);
 	executing -= incr;
@@ -519,6 +534,7 @@ rpc_allocate(unsigned int flags, unsigned int size)
 		if (flags & RPC_TASK_ASYNC)
 			return NULL;
 		current->timeout = jiffies + (HZ >> 4);
+		current->state = TASK_INTERRUPTIBLE;
 		schedule();
 	} while (!signalled());
 
@@ -684,20 +700,27 @@ rpc_new_child(struct rpc_clnt *clnt, struct rpc_task *parent)
 {
 	struct rpc_task	*task;
 
-	if (!(task = rpc_new_task(clnt, NULL, RPC_TASK_ASYNC|RPC_TASK_CHILD))) {
-		parent->tk_status = -ENOMEM;
-		return NULL;
-	}
+	task = rpc_new_task(clnt, NULL, RPC_TASK_ASYNC | RPC_TASK_CHILD);
+	if (!task)
+		goto fail;
 	task->tk_exit = rpc_child_exit;
 	task->tk_calldata = parent;
-
 	return task;
+
+fail:
+	parent->tk_status = -ENOMEM;
+	return NULL;
 }
 
 void
 rpc_run_child(struct rpc_task *task, struct rpc_task *child, rpc_action func)
 {
+	unsigned long oldflags;
+
+	save_flags(oldflags); cli();
 	rpc_make_runnable(child);
+	restore_flags(oldflags);
+	/* N.B. Is it possible for the child to have already finished? */
 	rpc_sleep_on(&childq, task, func, NULL);
 }
 
@@ -711,6 +734,7 @@ rpc_killall_tasks(struct rpc_clnt *clnt)
 	struct rpc_task	**q, *rovr;
 
 	dprintk("RPC:      killing all tasks for client %p\n", clnt);
+	/* N.B. Why bother to inhibit? Nothing blocks here ... */
 	rpc_inhibit++;
 	for (q = &all_tasks; (rovr = *q); q = &rovr->tk_next_task) {
 		if (!clnt || rovr->tk_client == clnt) {
@@ -792,29 +816,21 @@ static void
 rpciod_killall(void)
 {
 	unsigned long flags;
-	sigset_t old_set;
-
-	/* FIXME: What had been going on before was saving and restoring 
-	   current->signal.  This as opposed to blocking signals?  Do we
-	   still need them to wake up out of schedule?  In any case it 
-	   isn't playing nice and a better way should be found.  */
-
-	spin_lock_irqsave(&current->sigmask_lock, flags);
-	old_set = current->blocked;
-	sigfillset(&current->blocked);
-	recalc_sigpending(current);
-	spin_unlock_irqrestore(&current->sigmask_lock, flags);
 
 	while (all_tasks) {
+		current->sigpending = 0;
 		rpc_killall_tasks(NULL);
 		__rpc_schedule();
-		current->timeout = jiffies + HZ / 100;
-		need_resched = 1;
-		schedule();
+		if (all_tasks) {
+printk("rpciod_killall: waiting for tasks to exit\n");
+			current->state = TASK_INTERRUPTIBLE;
+			current->timeout = jiffies + 1;
+			schedule();
+			current->timeout = 0;
+		}
 	}
 
 	spin_lock_irqsave(&current->sigmask_lock, flags);
-	current->blocked = old_set;
 	recalc_sigpending(current);
 	spin_unlock_irqrestore(&current->sigmask_lock, flags);
 }
@@ -901,3 +917,37 @@ out:
 	up(&rpciod_sema);
 	MOD_DEC_USE_COUNT;
 }
+
+#ifdef RPC_DEBUG
+#include <linux/nfs_fs.h>
+void rpc_show_tasks(void)
+{
+	struct rpc_task *t = all_tasks, *next;
+	struct nfs_wreq *wreq;
+
+	if (!t)
+		return;
+	printk("-pid- proc flgs status -client- -prog- --rqstp- -timeout "
+		"-rpcwait -action- --exit--\n");
+	for (; t; t = next) {
+		next = t->tk_next_task;
+		printk("%05d %04d %04x %06d %8p %6d %8p %08ld %8s %8p %8p\n",
+			t->tk_pid, t->tk_proc, t->tk_flags, t->tk_status,
+			t->tk_client, t->tk_client->cl_prog,
+			t->tk_rqstp, t->tk_timeout,
+			t->tk_rpcwait ? rpc_qname(t->tk_rpcwait) : " <NULL> ",
+			t->tk_action, t->tk_exit);
+
+		if (!(t->tk_flags & RPC_TASK_NFSWRITE))
+			continue;
+		/* NFS write requests */
+		wreq = (struct nfs_wreq *) t->tk_calldata;
+		printk("     NFS: flgs=%08x, pid=%d, pg=%p, off=(%d, %d)\n",
+			wreq->wb_flags, wreq->wb_pid, wreq->wb_page,
+			wreq->wb_offset, wreq->wb_bytes);
+		printk("          name=%s/%s\n",
+			wreq->wb_dentry->d_parent->d_name.name,
+			wreq->wb_dentry->d_name.name);
+	}
+}
+#endif

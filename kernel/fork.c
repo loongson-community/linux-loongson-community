@@ -211,7 +211,7 @@ static inline int dup_mmap(struct mm_struct * mm)
 	flush_cache_mm(current->mm);
 	pprev = &mm->mmap;
 	for (mpnt = current->mm->mmap ; mpnt ; mpnt = mpnt->vm_next) {
-		struct dentry *dentry;
+		struct file *file;
 
 		retval = -ENOMEM;
 		tmp = kmem_cache_alloc(vm_area_cachep, SLAB_KERNEL);
@@ -220,12 +220,13 @@ static inline int dup_mmap(struct mm_struct * mm)
 		*tmp = *mpnt;
 		tmp->vm_flags &= ~VM_LOCKED;
 		tmp->vm_mm = mm;
+		mm->map_count++;
 		tmp->vm_next = NULL;
-		dentry = tmp->vm_dentry;
-		if (dentry) {
-			dget(dentry);
+		file = tmp->vm_file;
+		if (file) {
+			file->f_count++;
 			if (tmp->vm_flags & VM_DENYWRITE)
-				dentry->d_inode->i_writecount--;
+				file->f_dentry->d_inode->i_writecount--;
       
 			/* insert tmp into the share list, just after mpnt */
 			if((tmp->vm_next_share = mpnt->vm_next_share) != NULL)
@@ -272,6 +273,7 @@ struct mm_struct * mm_alloc(void)
 		*mm = *current->mm;
 		init_new_context(mm);
 		mm->count = 1;
+		mm->map_count = 0;
 		mm->def_flags = 0;
 		mm->mmap_sem = MUTEX;
 		/*
@@ -480,8 +482,14 @@ int do_fork(unsigned long clone_flags, unsigned long usp, struct pt_regs *regs)
 	p->times.tms_utime = p->times.tms_stime = 0;
 	p->times.tms_cutime = p->times.tms_cstime = 0;
 #ifdef __SMP__
-	p->has_cpu = 0;
-	p->processor = NO_PROC_ID;
+	{
+		int i;
+		p->has_cpu = 0;
+		p->processor = NO_PROC_ID;
+		/* ?? should we just memset this ?? */
+		for(i = 0; i < smp_num_cpus; i++)
+			p->per_cpu_utime[i] = p->per_cpu_stime[i] = 0;
+	}
 #endif
 	p->lock_depth = 0;
 	p->start_time = jiffies;

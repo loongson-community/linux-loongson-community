@@ -10,6 +10,9 @@
  * Version 2 (June 1991). See the "COPYING" file distributed with this software
  * for more info.
  */
+/*
+ * Thomas Sailer   : ioctl code reworked (vmalloc/vfree removed)
+ */
 #include <linux/config.h>
 
 #define USE_SEQ_MACROS
@@ -20,10 +23,6 @@
 #if defined(CONFIG_MIDI) || defined (MODULE)
 
 #define _MIDI_SYNTH_C_
-
-static struct wait_queue *sysex_sleeper = NULL;
-static volatile struct snd_wait sysex_sleep_flag =
-{0};
 
 #include "midi_synth.h"
 
@@ -258,30 +257,25 @@ midi_synth_output(int dev)
 	 */
 }
 
-int
-midi_synth_ioctl(int dev,
-		 unsigned int cmd, caddr_t arg)
+int midi_synth_ioctl(int dev, unsigned int cmd, caddr_t arg)
 {
 	/*
 	 * int orig_dev = synth_devs[dev]->midi_dev;
 	 */
 
-	switch (cmd)
-	  {
+	switch (cmd) {
 
-	  case SNDCTL_SYNTH_INFO:
-		  memcpy((&((char *) arg)[0]), (char *) synth_devs[dev]->info, sizeof(struct synth_info));
+	case SNDCTL_SYNTH_INFO:
+		if (__copy_to_user(arg, synth_devs[dev]->info, sizeof(struct synth_info)))
+			return -EFAULT;
+		return 0;
+		
+	case SNDCTL_SYNTH_MEMAVL:
+		return 0x7fffffff;
 
-		  return 0;
-		  break;
-
-	  case SNDCTL_SYNTH_MEMAVL:
-		  return 0x7fffffff;
-		  break;
-
-	  default:
-		  return -EINVAL;
-	  }
+	default:
+		return -EINVAL;
+	}
 }
 
 int
@@ -452,8 +446,6 @@ midi_synth_open(int dev, int mode)
 	inc->m_prev_status = 0x00;
 	restore_flags(flags);
 
-	sysex_sleep_flag.opts = WK_NONE;
-
 	return 1;
 }
 
@@ -525,8 +517,6 @@ midi_synth_load_patch(int dev, int format, const char *addr,
   	left = sysex.len;
   	src_offs = 0;
 
-	sysex_sleep_flag.opts = WK_NONE;
-
 	for (i = 0; i < left && !signal_pending(current); i++)
 	{
 		unsigned char   data;
@@ -548,23 +538,7 @@ midi_synth_load_patch(int dev, int format, const char *addr,
 		}
 		while (!midi_devs[orig_dev]->outputc(orig_dev, (unsigned char) (data & 0xff)) &&
 			!signal_pending(current))
-
-		{
-			unsigned long   tlimit;
-
-			if (1)
-				current->timeout = tlimit = jiffies + (1);
-			else
-				tlimit = (unsigned long) -1;
-			sysex_sleep_flag.opts = WK_SLEEP;
-			interruptible_sleep_on(&sysex_sleeper);
-			if (!(sysex_sleep_flag.opts & WK_WAKEUP))
-			{
-				if (jiffies >= tlimit)
-					sysex_sleep_flag.opts |= WK_TIMEOUT;
-			}
-			sysex_sleep_flag.opts &= ~WK_SLEEP;
-		};		/* Wait for timeout */
+			schedule();
 
 		if (!first_byte && data & 0x80)
 			return 0;

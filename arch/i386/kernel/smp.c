@@ -25,6 +25,7 @@
  *		Alan Cox	:	Dumb bug: 'B' step PPro's are fine
  *		Ingo Molnar	:	Added APIC timers, based on code
  *					from Jose Renau
+ *		Alan Cox	:	Added EBDA scanning
  */
 
 #include <linux/kernel.h>
@@ -51,10 +52,12 @@
 
 #include "irq.h"
 
+spinlock_t semaphore_wake_lock = SPIN_LOCK_UNLOCKED;
+
 extern unsigned long start_kernel, _etext;
 extern void update_one_process( struct task_struct *p,
 				unsigned long ticks, unsigned long user,
-				unsigned long system);
+				unsigned long system, int cpu);
 /*
  *	Some notes on processor bugs:
  *
@@ -114,7 +117,7 @@ unsigned long cpu_present_map = 0;			/* Bitmask of existing CPU's 				*/
 int smp_num_cpus = 1;					/* Total count of live CPU's 				*/
 int smp_threads_ready=0;				/* Set when the idlers are all forked 			*/
 volatile int cpu_number_map[NR_CPUS];			/* which CPU maps to which logical number		*/
-volatile int cpu_logical_map[NR_CPUS];			/* which logical number maps to which CPU		*/
+volatile int __cpu_logical_map[NR_CPUS];			/* which logical number maps to which CPU		*/
 volatile unsigned long cpu_callin_map[NR_CPUS] = {0,};	/* We always use 0 the rest is ready for parallel delivery */
 volatile unsigned long smp_invalidate_needed;		/* Used for the invalidate map that's also checked in the spinlock */
 volatile unsigned long kstack_ptr;			/* Stack vector for booting CPU's			*/
@@ -138,28 +141,19 @@ volatile unsigned long kernel_counter=0;		/* Number of times the processor holds
 volatile unsigned long syscall_count=0;			/* Number of times the processor holds the syscall lock	*/
 
 volatile unsigned long ipi_count;			/* Number of IPI's delivered				*/
-#ifdef __SMP_PROF__
-volatile unsigned long smp_spins[NR_CPUS]={0};          /* Count interrupt spins 				*/
-volatile unsigned long smp_spins_syscall[NR_CPUS]={0};  /* Count syscall spins                   		*/
-volatile unsigned long smp_spins_syscall_cur[NR_CPUS]={0};/* Count spins for the actual syscall                 */
-volatile unsigned long smp_spins_sys_idle[NR_CPUS]={0}; /* Count spins for sys_idle 				*/
-volatile unsigned long smp_idle_count[1+NR_CPUS]={0,};	/* Count idle ticks					*/
-
-/* Count local APIC timer ticks */
-volatile unsigned long smp_local_timer_ticks[1+NR_CPUS]={0,};
-
-#endif
-#if defined (__SMP_PROF__)
-volatile unsigned long smp_idle_map=0;			/* Map for idle processors 				*/
-#endif
 
 volatile unsigned long  smp_proc_in_lock[NR_CPUS] = {0,};/* for computing process time */
 volatile int smp_process_available=0;
 
 const char lk_lockmsg[] = "lock from interrupt context at %p\n"; 
 
+int mp_bus_id_to_type [MAX_MP_BUSSES] = { -1, };
+extern int mp_irq_entries;
+extern struct mpc_config_intsrc mp_irqs [MAX_IRQ_SOURCES];
+int mp_bus_id_to_pci_bus [MAX_MP_BUSSES] = { -1, };
+int mp_current_pci_id = 0;
 
-/*#define SMP_DEBUG*/
+/* #define SMP_DEBUG */
 
 #ifdef SMP_DEBUG
 #define SMP_PRINTK(x)	printk x
@@ -186,7 +180,7 @@ __initfunc(void smp_setup(char *str, int *ints))
 		max_cpus = 0;
 }
 
-static inline void ack_APIC_irq (void)
+void ack_APIC_irq (void)
 {
 	/* Clear the IPI */
 
@@ -268,10 +262,14 @@ __initfunc(static int smp_read_mpc(struct mp_config_table *mpc))
 	}
 	memcpy(str,mpc->mpc_oem,8);
 	str[8]=0;
+	memcpy(ioapic_OEM_ID,str,9);
 	printk("OEM ID: %s ",str);
+	
 	memcpy(str,mpc->mpc_productid,12);
 	str[12]=0;
+	memcpy(ioapic_Product_ID,str,13);
 	printk("Product ID: %s ",str);
+
 	printk("APIC at: 0x%lX\n",mpc->mpc_lapic);
 
 	/* set the local APIC address */
@@ -337,6 +335,18 @@ __initfunc(static int smp_read_mpc(struct mp_config_table *mpc))
 				SMP_PRINTK(("Bus #%d is %s\n",
 					m->mpc_busid,
 					str));
+				if ((strncmp(m->mpc_bustype,"ISA",3) == 0) ||
+					(strncmp(m->mpc_bustype,"EISA",4) == 0))
+					mp_bus_id_to_type[m->mpc_busid] =
+						MP_BUS_ISA;
+				else
+				if (strncmp(m->mpc_bustype,"PCI",3) == 0) {
+					mp_bus_id_to_type[m->mpc_busid] =
+						MP_BUS_PCI;
+					mp_bus_id_to_pci_bus[m->mpc_busid] =
+						mp_current_pci_id;
+					mp_current_pci_id++;
+				}
 				mpt+=sizeof(*m);
 				count+=sizeof(*m);
 				break;
@@ -361,6 +371,13 @@ __initfunc(static int smp_read_mpc(struct mp_config_table *mpc))
 			{
 				struct mpc_config_intsrc *m=
 					(struct mpc_config_intsrc *)mpt;
+
+				mp_irqs [mp_irq_entries] = *m;
+				if (++mp_irq_entries == MAX_IRQ_SOURCES) {
+					printk("Max irq sources exceeded!!\n");
+					printk("Skipping remaining sources.\n");
+					--mp_irq_entries;
+				}
 
 				mpt+=sizeof(*m);
 				count+=sizeof(*m);
@@ -460,7 +477,7 @@ __initfunc(int smp_scan_config(unsigned long base, unsigned long length))
 					cpu_present_map=3;
 					num_processors=2;
 					printk("I/O APIC at 0xFEC00000.\n");
-					printk("Bus#0 is ");
+					printk("Bus #0 is ");
 				}
 				switch(mpf->mpf_feature1)
 				{
@@ -513,7 +530,7 @@ __initfunc(int smp_scan_config(unsigned long base, unsigned long length))
 				 *	set some other information about it.
 				 */
 				nlong = boot_cpu_id<<24;	/* Dummy 'self' for bootup */
-				cpu_logical_map[0] = boot_cpu_id;
+				__cpu_logical_map[0] = boot_cpu_id;
 				global_irq_holder = boot_cpu_id;
 				current->processor = boot_cpu_id;
 
@@ -558,7 +575,7 @@ __initfunc(static unsigned long setup_trampoline(void))
 __initfunc(unsigned long smp_alloc_memory(unsigned long mem_base))
 {
 	if (virt_to_phys((void *)mem_base) >= 0x9F000)
-		panic("smp_alloc_memory: Insufficient low memory for kernel trampoline 0x%lx.\n", mem_base);
+		panic("smp_alloc_memory: Insufficient low memory for kernel trampoline 0x%lx.", mem_base);
 	trampoline_base = (void *)mem_base;
 	return mem_base + PAGE_SIZE;
 }
@@ -571,22 +588,17 @@ __initfunc(unsigned long smp_alloc_memory(unsigned long mem_base))
 __initfunc(void smp_store_cpu_info(int id))
 {
 	struct cpuinfo_x86 *c=&cpu_data[id];
-	c->hard_math=hard_math;			/* Always assumed same currently */
-	c->x86=x86;
-	c->x86_model=x86_model;
-	c->x86_mask=x86_mask;
+
+	*c = boot_cpu_data;
+	identify_cpu(c);
 	/*
 	 *	Mask B, Pentium, but not Pentium MMX
 	 */
-	if(x86_mask>=1 && x86_mask<=4 && x86==5 && (x86_model>=0&&x86_model<=3))
+	if (c->x86_vendor == X86_VENDOR_INTEL &&
+	    c->x86 == 5 &&
+	    c->x86_mask >= 1 && c->x86_mask <= 4 &&
+	    c->x86_model <= 3)
 		smp_b_stepping=1;		/* Remember we have B step Pentia with bugs */
-	c->x86_capability=x86_capability;
-	c->fdiv_bug=fdiv_bug;
-	c->wp_works_ok=wp_works_ok;		/* Always assumed the same currently */
-	c->hlt_works_ok=hlt_works_ok;
-	c->have_cpuid=have_cpuid;
-	c->udelay_val=loops_per_sec;
-	strcpy(c->x86_vendor_id, x86_vendor_id);
 }
 
 /*
@@ -626,7 +638,7 @@ __initfunc(void smp_callin(void))
 	/*
 	 * Set up our APIC timer.
 	 */
-	setup_APIC_clock ();
+	setup_APIC_clock();
 
  	sti();
 	/*
@@ -706,10 +718,10 @@ __initfunc(static void do_boot_cpu(int i))
 
 	idle = task[cpucount];
 	if (!idle)
-		panic("No idle process for CPU %d\n", i);
+		panic("No idle process for CPU %d", i);
 
 	idle->processor = i;
-	cpu_logical_map[cpucount] = i;
+	__cpu_logical_map[cpucount] = i;
 	cpu_number_map[i] = cpucount;
 
 	/* start_eip had better be page-aligned! */
@@ -853,8 +865,11 @@ __initfunc(static void do_boot_cpu(int i))
 			/* number CPUs logically, starting from 1 (BSP is 0) */
 #if 0
 			cpu_number_map[i] = cpucount;
-			cpu_logical_map[cpucount] = i;
+			__cpu_logical_map[cpucount] = i;
 #endif
+			printk("OK.\n");
+			printk("CPU%d: ", i);
+			print_cpu_info(&cpu_data[i]);
 		}
 		else
 		{
@@ -863,8 +878,14 @@ __initfunc(static void do_boot_cpu(int i))
 			else
 				printk("Not responding.\n");
 		}
-	}
 	SMP_PRINTK(("CPU has booted.\n"));
+	}
+	else
+	{
+		__cpu_logical_map[cpucount] = -1;
+		cpu_number_map[i] = -1;
+		cpucount--;
+	}
 
 	swapper_pg_dir[0]=maincfg;
 	local_flush_tlb();
@@ -901,20 +922,12 @@ __initfunc(void smp_boot_cpus(void))
 	 */
 
 	smp_store_cpu_info(boot_cpu_id);			/* Final full version of the data */
+	printk("CPU%d: ", boot_cpu_id);
+	print_cpu_info(&cpu_data[boot_cpu_id]);
 
 	cpu_present_map |= (1 << hard_smp_processor_id());
 	cpu_number_map[boot_cpu_id] = 0;
 	active_kernel_processor=boot_cpu_id;
-
-	/*
-	 *	If SMP should be disabled, then really disable it!
-	 */
-
-	if (!max_cpus && smp_found_config)
-	{
-		smp_found_config = 0;
-		printk("SMP mode deactivated, forcing use of dummy APIC emulation.\n");
-	}
 
 	/*
 	 *	If we don't conform to the Intel MPS standard, get out
@@ -922,7 +935,21 @@ __initfunc(void smp_boot_cpus(void))
 	 */
 
 	if (!smp_found_config)
+	{
+		printk(KERN_NOTICE "SMP motherboard not detected. Using dummy APIC emulation.\n");
+		io_apic_irqs = 0;
 		return;
+	}
+
+	/*
+	 *	If SMP should be disabled, then really disable it!
+	 */
+
+	if (!max_cpus)
+	{
+		smp_found_config = 0;
+		printk(KERN_INFO "SMP mode deactivated, forcing use of dummy APIC emulation.\n");
+	}
 
 	/*
 	 *	Map the local APIC into kernel space
@@ -931,7 +958,7 @@ __initfunc(void smp_boot_cpus(void))
 	apic_reg = ioremap(apic_addr,4096);
 
 	if(apic_reg == NULL)
-		panic("Unable to map local apic.\n");
+		panic("Unable to map local apic.");
 
 #ifdef SMP_DEBUG
 	{
@@ -1010,9 +1037,11 @@ __initfunc(void smp_boot_cpus(void))
 		 *	Make sure we unmap all failed CPUs
 		 */
 		
-		if (cpu_number_map[i] == -1)
+		if (cpu_number_map[i] == -1 && (cpu_present_map & (1 << i))) {
+			printk("CPU #%d not responding. Removing from cpu_present_map.\n",i);
 			cpu_present_map &= ~(1 << i);
-	}
+                }
+        }
 
 	/*
 	 *	Cleanup possible dangling ends...
@@ -1049,7 +1078,7 @@ __initfunc(void smp_boot_cpus(void))
 	SMP_PRINTK(("Before bogomips.\n"));
 	if(cpucount==0)
 	{
-		printk("Error: only one processor found.\n");
+		printk(KERN_ERR "Error: only one processor found.\n");
 		cpu_present_map=(1<<hard_smp_processor_id());
 	}
 	else
@@ -1058,9 +1087,9 @@ __initfunc(void smp_boot_cpus(void))
 		for(i=0;i<32;i++)
 		{
 			if(cpu_present_map&(1<<i))
-				bogosum+=cpu_data[i].udelay_val;
+				bogosum+=cpu_data[i].loops_per_sec;
 		}
-		printk("Total of %d processors activated (%lu.%02lu BogoMIPS).\n",
+		printk(KERN_INFO "Total of %d processors activated (%lu.%02lu BogoMIPS).\n",
 			cpucount+1,
 			(bogosum+2500)/500000,
 			((bogosum+2500)/5000)%100);
@@ -1069,8 +1098,14 @@ __initfunc(void smp_boot_cpus(void))
 		smp_num_cpus=cpucount+1;
 	}
 	if(smp_b_stepping)
-		printk("WARNING: SMP operation may be unreliable with B stepping processors.\n");
+		printk(KERN_WARNING "WARNING: SMP operation may be unreliable with B stepping processors.\n");
 	SMP_PRINTK(("Boot done.\n"));
+
+	/*
+	 * Here we can be sure that there is an IO-APIC in the system, lets
+	 * go and set it up:
+	 */
+	setup_IO_APIC();
 }
 
 /*
@@ -1340,37 +1375,31 @@ void smp_local_timer_interrupt(struct pt_regs * regs)
 		else
 			system=1;
 
-		irq_enter(cpu, 0);
+ 		irq_enter(cpu, 0);
 		if (p->pid) {
-
-			update_one_process(p, 1, user, system);
+			update_one_process(p, 1, user, system, cpu);
 
 			p->counter -= 1;
 			if (p->counter < 0) {
 				p->counter = 0;
 				need_resched = 1;
 			}
-			if (p->priority < DEF_PRIORITY)
+			if (p->priority < DEF_PRIORITY) {
 				kstat.cpu_nice += user;
-			else
+				kstat.per_cpu_nice[cpu] += user;
+			} else {
 				kstat.cpu_user += user;
+				kstat.per_cpu_user[cpu] += user;
+			}
 
 			kstat.cpu_system += system;
+			kstat.per_cpu_system[cpu] += system;
 
-		} else {
-#ifdef __SMP_PROF__
-			if (test_bit(cpu,&smp_idle_map))
-				smp_idle_count[cpu]++;
-#endif
 		}
 		prof_counter[cpu]=prof_multiplier[cpu];
-
 		irq_exit(cpu, 0);
 	}
 
-#ifdef __SMP_PROF__
-	smp_local_timer_ticks[cpu]++;
-#endif
 	/*
 	 * We take the 'long' return path, and there every subsystem
 	 * grabs the apropriate locks (kernel lock/ irq lock).
@@ -1378,7 +1407,7 @@ void smp_local_timer_interrupt(struct pt_regs * regs)
 	 * we might want to decouple profiling from the 'long path',
 	 * and do the profiling totally in assembly.
 	 *
-	 * Currently this isnt too much of an issue (performancewise),
+	 * Currently this isnt too much of an issue (performance wise),
 	 * we can take more than 100K local irqs per second on a 100 MHz P5.
 	 */
 }
@@ -1399,7 +1428,9 @@ void smp_apic_timer_interrupt(struct pt_regs * regs)
 	 * want to be able to accept NMI tlb invalidates
 	 * during this time.
 	 */
+	spin_lock(&irq_controller_lock);
 	ack_APIC_irq ();
+	spin_unlock(&irq_controller_lock);
 
 	smp_local_timer_interrupt(regs);
 }
@@ -1416,8 +1447,9 @@ asmlinkage void smp_reschedule_interrupt(void)
 	 * This looks silly, but we actually do need to wait
 	 * for the global interrupt lock.
 	 */
+	printk("huh, this is used, where???\n");
 	irq_enter(cpu, 0);
-	need_resched=1;
+	need_resched = 1;
 	irq_exit(cpu, 0);
 }
 
@@ -1451,7 +1483,7 @@ asmlinkage void smp_stop_cpu_interrupt(void)
  * closely follows bus clocks.
  */
 
-#define RTDSC(x)	__asm__ __volatile__ (  ".byte 0x0f,0x31" \
+#define RDTSC(x)	__asm__ __volatile__ (  "rdtsc" \
 				:"=a" (((unsigned long*)&x)[0]),  \
 				 "=d" (((unsigned long*)&x)[1]))
 
@@ -1576,7 +1608,7 @@ __initfunc(int calibrate_APIC_clock (void))
 	/*
 	 * We wrapped around just now, lets start:
 	 */
-	RTDSC(t1);
+	RDTSC(t1);
 	tt1=apic_read(APIC_TMCCT);
 
 #define LOOPS (HZ/10)
@@ -1587,7 +1619,7 @@ __initfunc(int calibrate_APIC_clock (void))
 		wait_8254_wraparound ();
 
 	tt2=apic_read(APIC_TMCCT);
-	RTDSC(t2);
+	RDTSC(t2);
 
 	/*
 	 * The APIC bus clock counter is 32 bits only, it
@@ -1696,6 +1728,3 @@ int setup_profiling_timer (unsigned int multiplier)
 }
 
 #undef APIC_DIVISOR
-#undef RTDSC
-
-

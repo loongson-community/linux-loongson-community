@@ -414,9 +414,9 @@ int minix_rmdir(struct inode * dir, struct dentry *dentry)
 	retval = -EPERM;
 	inode = dentry->d_inode;
 
-        if ((dir->i_mode & S_ISVTX) && !fsuser() &&
+        if ((dir->i_mode & S_ISVTX) &&
             current->fsuid != inode->i_uid &&
-            current->fsuid != dir->i_uid)
+            current->fsuid != dir->i_uid && !fsuser())
 		goto end_rmdir;
 	if (inode->i_dev != dir->i_dev)
 		goto end_rmdir;
@@ -480,9 +480,9 @@ repeat:
 		schedule();
 		goto repeat;
 	}
-	if ((dir->i_mode & S_ISVTX) && !fsuser() &&
+	if ((dir->i_mode & S_ISVTX) &&
 	    current->fsuid != inode->i_uid &&
-	    current->fsuid != dir->i_uid)
+	    current->fsuid != dir->i_uid && !fsuser())
 		goto end_unlink;
 	if (de->inode != inode->i_ino) {
 		retval = -ENOENT;
@@ -562,10 +562,11 @@ int minix_symlink(struct inode * dir, struct dentry *dentry,
 	return 0;
 }
 
-int minix_link(struct inode * inode, struct inode * dir,
+int minix_link(struct dentry * old_dentry, struct inode * dir,
 	       struct dentry *dentry)
 {
 	int error;
+	struct inode *inode = old_dentry->d_inode;
 	struct minix_dir_entry * de;
 	struct buffer_head * bh;
 
@@ -596,24 +597,6 @@ int minix_link(struct inode * inode, struct inode * dir,
 	inode->i_count++;
 	d_instantiate(dentry, inode);
 	return 0;
-}
-
-static int subdir(struct dentry * new_dentry, struct dentry * old_dentry)
-{
-	int result = 0;
-
-	for (;;) {
-		if (new_dentry != old_dentry) {
-			struct dentry * parent = new_dentry->d_parent;
-			if (parent == new_dentry)
-				break;
-			new_dentry = parent;
-			continue;
-		}
-		result = 1;
-		break;
-	}
-	return result;
 }
 
 #define PARENT_INO(buffer) \
@@ -678,7 +661,7 @@ start_up:
 		if (!S_ISDIR(old_inode->i_mode))
 			goto end_rename;
 		retval = -EINVAL;
-		if (subdir(new_dentry, old_dentry))
+		if (is_subdir(new_dentry, old_dentry))
 			goto end_rename;
 		retval = -ENOTEMPTY;
 		if (!empty_dir(new_inode))
@@ -697,7 +680,7 @@ start_up:
 		if (new_inode && !S_ISDIR(new_inode->i_mode))
 			goto end_rename;
 		retval = -EINVAL;
-		if (subdir(new_dentry, old_dentry))
+		if (is_subdir(new_dentry, old_dentry))
 			goto end_rename;
 		retval = -EIO;
 		dir_bh = minix_bread(old_inode,0,0);

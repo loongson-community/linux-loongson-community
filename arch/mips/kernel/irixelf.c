@@ -584,7 +584,7 @@ static inline int map_interpreter(struct elf_phdr *epp, struct elfhdr *ihp,
  * process and the system, here we map the page and fill the
  * structure
  */
-void irix_map_prda_page ()
+void irix_map_prda_page (void)
 {
 	unsigned long v;
 	struct prda *pp;
@@ -724,7 +724,6 @@ static inline int do_load_irix_binary(struct linux_binprm * bprm,
 	/* OK, This is the point of no return */
 	current->mm->end_data = 0;
 	current->mm->end_code = 0;
-	current->mm->start_mmap = ELF_START_MMAP;
 	current->mm->mmap = NULL;
 	elf_entry = (unsigned int) elf_ex.e_entry;
 	
@@ -1230,8 +1229,8 @@ static int irix_core_dump(long signr, struct pt_regs * regs)
 	notes[0].datasz = sizeof(prstatus);
 	notes[0].data = &prstatus;
 	prstatus.pr_info.si_signo = prstatus.pr_cursig = signr;
-	prstatus.pr_sigpend = current->signal;
-	prstatus.pr_sighold = current->blocked;
+	prstatus.pr_sigpend = current->signal.sig[0];
+	prstatus.pr_sighold = current->blocked.sig[0];
 	psinfo.pr_pid = prstatus.pr_pid = current->pid;
 	psinfo.pr_ppid = prstatus.pr_ppid = current->p_pptr->pid;
 	psinfo.pr_pgrp = prstatus.pr_pgrp = current->pgrp;

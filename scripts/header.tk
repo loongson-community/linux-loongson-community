@@ -50,9 +50,6 @@ proc menu_option { w menu_num text } {
 # Not used at the moment, but this runs a command in a subprocess and
 # displays the result in a window with a scrollbar.
 #
-# For now, we just do external "make" commands to stdout with do_make, so
-# this function is never called.
-#
 proc do_cmd { w command } {
 	catch {destroy $w}
 	toplevel $w -class Dialog
@@ -209,7 +206,7 @@ proc read_config { filename } {
 			set cmd "global $var; set $var $value"
 			eval $cmd
 		}
-		if [regexp {([0-9A-Za-z_]+)="([0-9A-Za-z]+)"} $line foo var value] {
+		if [regexp {([0-9A-Za-z_]+)="([^"]*)"} $line foo var value] {
 			set cmd "global $var; set $var $value"
 			eval $cmd
 		}
@@ -231,23 +228,23 @@ proc write_comment { file1 file2 text } {
 proc write_tristate { file1 file2 varname variable dep } {
 	if { $variable == 0 } \
 		then { puts $file1 "# $varname is not set"; \
-		       puts $file2 "#undef $varname"} \
+		       puts $file2 "#undef  $varname"} \
 	elseif { $variable == 2 || ($dep == 2 && $variable == 1) } \
 		then { puts $file1 "$varname=m"; \
-		       puts $file2 "#undef $varname"; \
+		       puts $file2 "#undef  $varname"; \
 		       puts $file2 "#define ${varname}_MODULE 1" } \
 	elseif { $variable == 1 && $dep != 2 } \
 		then { puts $file1 "$varname=y"; \
 		       puts $file2 "#define $varname 1" } \
 	else { \
-	    error "Attempting to write value for variable that is not configured ($varname)." \
+	    puts stdout "ERROR - Attempting to write value for unconfigured variable ($varname)." \
 	}
 }
 
 proc write_int { file1 file2 varname variable dep } {
 	if { $dep == 0 } \
 		then { puts $file1 "# $varname is not set"; \
-		       puts $file2 "#undef $varname"} \
+		       puts $file2 "#undef  $varname"} \
 	else {
 		puts $file1 "$varname=$variable"; \
 		puts $file2 "#define $varname $variable"; \
@@ -257,7 +254,7 @@ proc write_int { file1 file2 varname variable dep } {
 proc write_hex { file1 file2 varname variable dep } {
 	if { $dep == 0 } \
 		then { puts $file1 "# $varname is not set"; \
-		       puts $file2 "#undef $varname"} \
+		       puts $file2 "#undef  $varname"} \
 	else {
 		puts $file1 "$varname=$variable"; \
 		puts $file2 "#define $varname 0x$variable"; \
@@ -267,7 +264,7 @@ proc write_hex { file1 file2 varname variable dep } {
 proc write_string { file1 file2 varname variable dep } {
 	if { $dep == 0 } \
 		then { puts $file1 "# $varname is not set"; \
-		       puts $file2 "#undef $varname"} \
+		       puts $file2 "#undef  $varname"} \
 	else {
 		puts $file1 "$varname=\"$variable\""; \
 		puts $file2 "#define $varname \"$variable\""; \
@@ -284,7 +281,21 @@ proc option_name {w mnum line text helpidx} {
 	pack $w.x$line.l -side right -fill both -expand on
 }
 
-proc toggle_switch {w mnum line text variable} {
+proc toggle_switch2 {w mnum line text variable} {
+	frame $w.x$line -relief sunken
+	radiobutton $w.x$line.y -text "y" -variable $variable -value 1 \
+		-relief groove -width 2 -command "update_menu$mnum .menu$mnum"
+	radiobutton $w.x$line.m -text "-"  -variable $variable -value 2 \
+		-relief groove -width 2 -command "update_menu$mnum .menu$mnum"
+	radiobutton $w.x$line.n -text "n"  -variable $variable -value 0 \
+		-relief groove -width 2 -command "update_menu$mnum .menu$mnum"
+		
+	option_name $w $mnum $line $text $variable
+		
+	pack $w.x$line.n $w.x$line.m $w.x$line.y -side right -fill y
+}
+
+proc toggle_switch3 {w mnum line text variable} {
 	frame $w.x$line -relief sunken
 	radiobutton $w.x$line.y -text "y" -variable $variable -value 1 \
 		-relief groove -width 2 -command "update_menu$mnum .menu$mnum"
@@ -299,13 +310,13 @@ proc toggle_switch {w mnum line text variable} {
 }
 
 proc bool {w mnum line text variable} {
-	toggle_switch $w $mnum $line $text $variable
+	toggle_switch2 $w $mnum $line $text $variable
 	$w.x$line.m configure -state disabled
 	pack $w.x$line -anchor w -fill both -expand on
 }
 
 proc tristate {w mnum line text variable } {
-	toggle_switch $w $mnum $line $text $variable
+	toggle_switch3 $w $mnum $line $text $variable
 	pack $w.x$line -anchor w -fill both -expand on
 }
 
@@ -339,7 +350,7 @@ proc minimenu { w mnum line text variable helpidx } {
 	frame $w.x$line
 	menubutton $w.x$line.x -textvariable $variable -menu \
 		$w.x$line.x.menu -relief raised \
-		-width 15 -anchor w
+		-anchor w
 	option_name $w $mnum $line $text $helpidx
 	pack $w.x$line.x -anchor w -side right -fill y
 	pack $w.x$line -anchor w -fill both -expand on
@@ -347,11 +358,6 @@ proc minimenu { w mnum line text variable helpidx } {
 
 proc comment {w line text } {
 #nothing done for comments now.
-}
-
-proc do_make { command } {
-	exec sh -c $command <@stdin >@stdout 2>@stderr
-#	do_cmd .make_window "sh -c $command"
 }
 
 proc dohelp {w var }  {
@@ -441,15 +447,6 @@ proc wrapup {w }  {
 	set winx [expr [winfo x .]+30]; set winy [expr [winfo y .]+30]
 	wm geometry $w +$winx+$winy
 
-}
-
-proc check_sound_config { num } {
-#nothing for now.
-}
-
-proc do_sound {w mnum line} {
-	message $w.x$line -width 400 -aspect 300 -text "Note: The sound drivers cannot as of yet be configured via the X-based interface" -relief raised
-	pack $w.x$line -side top -pady 10
 }
 
 #

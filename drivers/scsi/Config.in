@@ -4,7 +4,7 @@ dep_tristate 'SCSI disk support' CONFIG_BLK_DEV_SD $CONFIG_SCSI
 dep_tristate 'SCSI tape support' CONFIG_CHR_DEV_ST $CONFIG_SCSI
 dep_tristate 'SCSI CD-ROM support' CONFIG_BLK_DEV_SR $CONFIG_SCSI
 if [ "$CONFIG_BLK_DEV_SR" != "n" ]; then
-  bool '  Enable vendor-specific extentions (for SCSI CDROM)' CONFIG_BLK_DEV_SR_VENDOR
+  bool '  Enable vendor-specific extensions (for SCSI CDROM)' CONFIG_BLK_DEV_SR_VENDOR
 fi
 dep_tristate 'SCSI generic support' CONFIG_CHR_DEV_SG $CONFIG_SCSI
 
@@ -13,6 +13,7 @@ comment 'Some SCSI devices (e.g. CD jukebox) support multiple LUNs'
 bool 'Probe all LUNs on each SCSI device' CONFIG_SCSI_MULTI_LUN
 
 bool 'Verbose SCSI error reporting (kernel size +=12K)' CONFIG_SCSI_CONSTANTS
+bool 'SCSI logging facility' CONFIG_SCSI_LOGGING
 
 mainmenu_option next_comment
 comment 'SCSI low-level drivers'
@@ -24,7 +25,7 @@ dep_tristate 'Adaptec AHA1740 support' CONFIG_SCSI_AHA1740 $CONFIG_SCSI
 dep_tristate 'Adaptec AIC7xxx support' CONFIG_SCSI_AIC7XXX $CONFIG_SCSI
 if [ "$CONFIG_SCSI_AIC7XXX" != "n" ]; then
     bool '   Enable tagged command queueing' CONFIG_AIC7XXX_TAGGED_QUEUEING Y
-    dep_tristate '   Override driver defaults for commands per LUN' CONFIG_OVERRIDE_CMDS N
+    bool '   Override driver defaults for commands per LUN' CONFIG_OVERRIDE_CMDS N
     if [ "$CONFIG_OVERRIDE_CMDS" != "n" ]; then
       int  '   Maximum number of commands per LUN' CONFIG_AIC7XXX_CMDS_PER_LUN 8
     fi
@@ -83,10 +84,11 @@ if [ "$CONFIG_PCI" = "y" -a "$CONFIG_SCSI_NCR53C7xx" != "y" ]; then
   fi
 fi
 if [ "$CONFIG_MCA" = "y" ]; then
-   dep_tristate 'IBMMCA SCSI support' CONFIG_SCSI_IBMMCA $CONFIG_SCSI
-   if [ "$CONFIG_SCSI_IBMMCA" != "n" ]; then
-      bool '  reset SCSI-devices while booting' CONFIG_SCSI_IBMMCA_DEV_RESET
-   fi
+  dep_tristate 'IBMMCA SCSI support' CONFIG_SCSI_IBMMCA $CONFIG_SCSI
+  if [ "$CONFIG_SCSI_IBMMCA" != "n" ]; then
+     bool '  Standard SCSI-order' CONFIG_IBMMCA_SCSI_ORDER_STANDARD
+     bool '  Reset SCSI-devices at boottime' CONFIG_IBMMCA_SCSI_DEV_RESET
+  fi
 fi
 if [ "$CONFIG_PARPORT" != "n" ]; then
   dep_tristate 'IOMEGA Parallel Port ZIP drive SCSI support' CONFIG_SCSI_PPA $CONFIG_SCSI $CONFIG_PARPORT
@@ -113,7 +115,17 @@ dep_tristate 'UltraStor 14F/34F support' CONFIG_SCSI_U14_34F $CONFIG_SCSI
     int  '  maximum number of queued commands' CONFIG_SCSI_U14_34F_MAX_TAGS 8
   fi
 dep_tristate 'UltraStor SCSI support' CONFIG_SCSI_ULTRASTOR $CONFIG_SCSI
-#dep_tristate 'SCSI debugging host adapter' CONFIG_SCSI_DEBUG $CONFIG_SCSI
+#
+# Note - this is a very special 'host' adapter that simulates the presence of some disks.
+# It can come in very handy for troubleshooting.  Anyone else is welcome to use it - all
+# you do is hack it to simulate the condition you want to test for, and then use it.
+#
+# The actual configuration in any kernel release could change at any time as I hack it to
+# simulate various conditions that I am testing.
+#
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  dep_tristate 'SCSI debugging host adapter' CONFIG_SCSI_DEBUG $CONFIG_SCSI
+fi
 if [ "$CONFIG_PPC" = "y" ]; then
   dep_tristate 'MESH (Power Mac internal SCSI) support' CONFIG_SCSI_MESH $CONFIG_SCSI
   if [ "$CONFIG_SCSI_MESH" != "n" ]; then

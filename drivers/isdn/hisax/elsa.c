@@ -488,7 +488,7 @@ hscx_interrupt(struct IsdnCardState *sp, u_char val, u_char hscx)
 				return;
 			} else {
 				SET_SKB_FREE(hsp->tx_skb);
-				dev_kfree_skb(hsp->tx_skb, FREE_WRITE);
+				dev_kfree_skb(hsp->tx_skb);
 				hsp->count = 0;
 				if (hsp->st->l4.l1writewakeup)
 					hsp->st->l4.l1writewakeup(hsp->st);
@@ -653,7 +653,7 @@ isac_interrupt(struct IsdnCardState *sp, u_char val)
 				goto afterXPR;
 			} else {
 				SET_SKB_FREE(sp->tx_skb);
-				dev_kfree_skb(sp->tx_skb, FREE_WRITE);
+				dev_kfree_skb(sp->tx_skb);
 				sp->tx_cnt = 0;
 				sp->tx_skb = NULL;
 			}
@@ -1180,7 +1180,7 @@ initelsa(struct IsdnCardState *sp)
 	int ret, irq_cnt, cnt = 3;
 	long flags;
 
-	irq_cnt = kstat.interrupts[sp->irq];
+	irq_cnt = kstat_irqs(sp->irq);
 	printk(KERN_INFO "Elsa: IRQ %d count %d\n", sp->irq, irq_cnt);
 	ret = get_irq(sp->cardnr, &elsa_interrupt);
 #ifdef CONFIG_HISAX_ELSA_PCC
@@ -1213,8 +1213,8 @@ initelsa(struct IsdnCardState *sp)
 		}
 #endif
 		printk(KERN_INFO "Elsa: IRQ %d count %d\n", sp->irq,
-		       kstat.interrupts[sp->irq]);
-		if (kstat.interrupts[sp->irq] == irq_cnt) {
+		       kstat_irqs(sp->irq));
+		if (kstat_irqs(sp->irq) == irq_cnt) {
 			printk(KERN_WARNING
 			       "Elsa: IRQ(%d) getting no interrupts during init %d\n",
 			       sp->irq, 4 - cnt);

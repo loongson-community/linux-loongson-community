@@ -31,6 +31,9 @@
  * 970912       Enabled board on open and disable on close.
  * 971107	Took account of recent VFS changes (broke read).
  * 971210       Disable board on initialisation in case board already ticking.
+ * 971222       Changed open/close for temperature handling
+ *              Michael Meskes <meskes@debian.org>.
+ * 980112       Used minor numbers from include/linux/miscdevice.h
  */
 
 #include <linux/module.h>
@@ -65,10 +68,6 @@
 static int pcwd_ioports[] = { 0x270, 0x350, 0x370, 0x000 };
 
 #define WD_VER                  "1.0 (11/18/96)"
-#define	WD_MINOR		130	/* Minor device number */
-#ifndef	TEMP_MINOR
-#define	TEMP_MINOR		131	/* Uses the same as WDT */
-#endif
 
 /*
  * It should be noted that PCWD_REVISION_B was removed because A and B
@@ -378,14 +377,23 @@ static ssize_t pcwd_write(struct file *file, const char *buf, size_t len,
 
 static int pcwd_open(struct inode *ino, struct file *filep)
 {
-	if (is_open)
-		return -EIO;
-	MOD_INC_USE_COUNT;
-	/*  Enable the port  */
-	if (revision == PCWD_REVISION_C)
-		outb_p(0x00, current_readport + 3);
-	is_open = 1;
-	return(0);
+        switch (MINOR(ino->i_rdev))
+        {
+                case WATCHDOG_MINOR:
+                    if (is_open)
+                        return -EBUSY;
+                    MOD_INC_USE_COUNT;
+                    /*  Enable the port  */
+                    if (revision == PCWD_REVISION_C)
+                        outb_p(0x00, current_readport + 3);
+                    is_open = 1;
+                    return(0);
+                case TEMP_MINOR:
+                    MOD_INC_USE_COUNT;
+                    return(0);
+                default:
+                    return (-ENODEV);
+        }
 }
 
 static ssize_t pcwd_read(struct file *file, char *buf, size_t count,
@@ -400,7 +408,8 @@ static ssize_t pcwd_read(struct file *file, char *buf, size_t count,
 	switch(MINOR(file->f_dentry->d_inode->i_rdev)) 
 	{
 		case TEMP_MINOR:
-			cp = c;
+		        /* c is in celsius, we need fahrenheit */
+		        cp = (c*9/5)+32;
 			if(copy_to_user(buf, &cp, 1))
 				return -EFAULT;
 			return 1;
@@ -411,15 +420,18 @@ static ssize_t pcwd_read(struct file *file, char *buf, size_t count,
 
 static int pcwd_close(struct inode *ino, struct file *filep)
 {
-	is_open = 0;
 	MOD_DEC_USE_COUNT;
+	if (MINOR(ino->i_rdev)==WATCHDOG_MINOR)
+	{
+	        is_open = 0;
 #ifndef CONFIG_WATCHDOG_NOWAYOUT
-	/*  Disable the board  */
-	if (revision == PCWD_REVISION_C) {
-		outb_p(0xA5, current_readport + 3);
-		outb_p(0xA5, current_readport + 3);
-	}
+		/*  Disable the board  */
+		if (revision == PCWD_REVISION_C) {
+			outb_p(0xA5, current_readport + 3);
+			outb_p(0xA5, current_readport + 3);
+		}
 #endif
+	}
 	return 0;
 }
 
@@ -512,8 +524,8 @@ static struct file_operations pcwd_fops = {
 };
 
 static struct miscdevice pcwd_miscdev = {
-	WD_MINOR,
-	"pcwatchdog",
+	WATCHDOG_MINOR,
+	"watchdog",
 	&pcwd_fops
 };
 

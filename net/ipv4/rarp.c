@@ -3,7 +3,7 @@
  * Copyright (C) 1994 by Ross Martin
  * Based on linux/net/inet/arp.c, Copyright (C) 1994 by Florian La Roche
  *
- * $Id: rarp.c,v 1.21 1997/10/27 09:13:16 geert Exp $
+ * $Id: rarp.c,v 1.3 1997/12/16 05:37:44 ralf Exp $
  *
  * This module implements the Reverse Address Resolution Protocol 
  * (RARP, RFC 903), which is used to convert low level addresses such
@@ -30,6 +30,7 @@
  * Fixes
  *	Alan Cox	:	Rarp delete on device down needed as
  *				reported by Walter Wolfgang.
+ *	Mike McLagan	:	Routing by source
  *
  */
 
@@ -190,6 +191,8 @@ static void rarp_init_pkt (void)
 	rarp_pkt_inited=1;
 }
 
+#ifdef MODULE
+
 static void rarp_end_pkt(void)
 {
 	if(!rarp_pkt_inited)
@@ -199,6 +202,7 @@ static void rarp_end_pkt(void)
 	rarp_pkt_inited=0;
 }
 
+#endif
 
 /*
  *	Receive an arp request by the device layer.  Maybe it should be 
@@ -225,7 +229,7 @@ static int rarp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type 
 	if (rarp->ar_hln != dev->addr_len || dev->type != ntohs(rarp->ar_hrd) 
 		|| dev->flags&IFF_NOARP || !in_dev || !in_dev->ifa_list)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -234,7 +238,7 @@ static int rarp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type 
  */
 	if (rarp->ar_op != htons(ARPOP_RREQUEST))
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -252,7 +256,7 @@ static int rarp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type 
 		/*
 		 *	This packet is not for us. Remove it. 
 		 */
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return 0;
 	}
   
@@ -284,7 +288,7 @@ static int rarp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type 
 			dev->dev_addr, sha);
 	}
 
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 

@@ -30,6 +30,9 @@
  * 3-Jul-96, 22-Aug-96 Roman Hodek <Roman.Hodek@informatik.uni-erlangen.de>
  *
  * Cleanup by Martin Mares, 01-Jun-97 (now uses the new PC kbd include)
+ *
+ * Renamed misc. name to "psaux",more in keeping with Documentation/devices.txt
+ * 13-Jan-1998, Richard Gooch <rgooch@atnf.csiro.au>
  */
 
 /* Uncomment the following line if your mouse needs initialization. */
@@ -583,7 +586,7 @@ repeat:
 
 static unsigned int aux_poll(struct file *file, poll_table * wait)
 {
-	poll_wait(&queue->proc_list, wait);
+	poll_wait(file, &queue->proc_list, wait);
 	if (aux_ready)
 		return POLLIN | POLLRDNORM;
 	return 0;
@@ -608,7 +611,7 @@ struct file_operations psaux_fops = {
  * forget about the Aux port and use the *_qp functions.
  */
 static struct miscdevice psaux_mouse = {
-	PSMOUSE_MINOR, "ps2aux", &psaux_fops
+	PSMOUSE_MINOR, "psaux", &psaux_fops
 };
 
 __initfunc(int psaux_init(void))

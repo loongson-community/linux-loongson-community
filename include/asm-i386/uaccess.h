@@ -18,49 +18,43 @@
  */
 
 #define MAKE_MM_SEG(s)	((mm_segment_t) { (s) })
-#define KERNEL_DS	MAKE_MM_SEG(0)
-#define USER_DS		MAKE_MM_SEG(3)
+
+
+#define KERNEL_DS	MAKE_MM_SEG(0xFFFFFFFF)
+#define USER_DS		MAKE_MM_SEG(0xC0000000)
 
 #define get_ds()	(KERNEL_DS)
-#define get_fs()	(current->tss.segment)
-#define set_fs(x)	(current->tss.segment = (x))
+#define get_fs()	(current->addr_limit)
+#define set_fs(x)	(current->addr_limit = (x))
 
 #define segment_eq(a,b)	((a).seg == (b).seg)
 
-
-/*
- * Address Ok:
- *
- *				     segment
- *			00 (kernel)		11 (user)
- *
- * high		00	1			1
- * two 		01	1			1
- * bits of	10	1			1
- * address	11	1			0
- */
-#define __addr_ok(x) \
-	((((unsigned long)(x)>>30)&get_fs().seg) != 3)
-
-#define __user_ok(addr,size) \
-	((size <= 0xC0000000UL) && (addr <= 0xC0000000UL - size))
-#define __kernel_ok \
-	(!get_fs().seg)
-
 extern int __verify_write(const void *, unsigned long);
 
-#if CPU > 386
-#define __access_ok(type,addr,size) \
-	(__kernel_ok || __user_ok(addr,size))
-#else
-#define __access_ok(type,addr,size) \
-	(__kernel_ok || (__user_ok(addr,size) && \
-			 ((type) == VERIFY_READ || wp_works_ok || \
-			  __verify_write((void *)(addr),(size)))))
-#endif /* CPU */
+#define __addr_ok(addr) ((unsigned long)(addr) < (current->addr_limit.seg))
 
-#define access_ok(type,addr,size) \
-	__access_ok((type),(unsigned long)(addr),(size))
+/*
+ * Uhhuh, this needs 33-bit arithmetic. We have a carry..
+ */
+#define __range_ok(addr,size) ({ \
+	unsigned long flag,sum; \
+	asm("addl %3,%1 ; sbbl %0,%0; cmpl %1,%4; sbbl $0,%0" \
+		:"=&r" (flag), "=r" (sum) \
+		:"1" (addr),"g" (size),"g" (current->addr_limit.seg)); \
+	flag; })
+
+#if CPU > 386
+
+#define access_ok(type,addr,size) (__range_ok(addr,size) == 0)
+
+#else
+
+#define access_ok(type,addr,size) ( (__range_ok(addr,size) == 0) && \
+			 ((type) == VERIFY_READ || boot_cpu_data.wp_works_ok || \
+			 segment_eq(get_fs(),KERNEL_DS) || \
+			  __verify_write((void *)(addr),(size))))
+
+#endif /* CPU */
 
 extern inline int verify_area(int type, const void * addr, unsigned long size)
 {
@@ -104,52 +98,62 @@ extern unsigned long search_exception_table(unsigned long);
  * with a separate "access_ok()" call (this is used when we do multiple
  * accesses to the same area of user memory).
  */
-#define get_user(x,ptr) \
-  __get_user_check((x),(ptr),sizeof(*(ptr)))
-#define put_user(x,ptr) \
-  __put_user_check((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
+
+extern void __get_user_1(void);
+extern void __get_user_2(void);
+extern void __get_user_4(void);
+
+#define __get_user_x(size,ret,x,ptr) \
+	__asm__ __volatile__("call __get_user_" #size \
+		:"=a" (ret),"=d" (x) \
+		:"0" (ptr))
+
+/* Careful: we have to cast the result to the type of the pointer for sign reasons */
+#define get_user(x,ptr)							\
+({	int __ret_gu,__val_gu;						\
+	switch(sizeof (*(ptr))) {					\
+	case 1:  __get_user_x(1,__ret_gu,__val_gu,ptr); break;		\
+	case 2:  __get_user_x(2,__ret_gu,__val_gu,ptr); break;		\
+	case 4:  __get_user_x(4,__ret_gu,__val_gu,ptr); break;		\
+	default: __get_user_x(X,__ret_gu,__val_gu,ptr); break;		\
+	}								\
+	(x) = (__typeof__(*(ptr)))__val_gu;				\
+	__ret_gu;							\
+})
+
+extern void __put_user_1(void);
+extern void __put_user_2(void);
+extern void __put_user_4(void);
+
+extern void __put_user_bad(void);
+
+#define __put_user_x(size,ret,x,ptr)					\
+	__asm__ __volatile__("call __put_user_" #size			\
+		:"=a" (ret)						\
+		:"0" (ptr),"d" (x)					\
+		:"cx")
+
+#define put_user(x,ptr)									\
+({	int __ret_pu;									\
+	switch(sizeof (*(ptr))) {							\
+	case 1:  __put_user_x(1,__ret_pu,(__typeof__(*(ptr)))(x),ptr); break;		\
+	case 2:  __put_user_x(2,__ret_pu,(__typeof__(*(ptr)))(x),ptr); break;		\
+	case 4:  __put_user_x(4,__ret_pu,(__typeof__(*(ptr)))(x),ptr); break;		\
+	default: __put_user_x(X,__ret_pu,x,ptr); break;					\
+	}										\
+	__ret_pu;									\
+})
 
 #define __get_user(x,ptr) \
   __get_user_nocheck((x),(ptr),sizeof(*(ptr)))
 #define __put_user(x,ptr) \
   __put_user_nocheck((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
 
-/*
- * The "xxx_ret" versions return constant specified in third argument, if
- * something bad happens. These macros can be optimized for the
- * case of just returning from the function xxx_ret is used.
- */
-
-#define put_user_ret(x,ptr,ret) ({ \
-if (put_user(x,ptr)) return ret; })
-
-#define get_user_ret(x,ptr,ret) ({ \
-if (get_user(x,ptr)) return ret; })
-
-#define __put_user_ret(x,ptr,ret) ({ \
-if (__put_user(x,ptr)) return ret; })
-
-#define __get_user_ret(x,ptr,ret) ({ \
-if (__get_user(x,ptr)) return ret; })
-
-
-
-extern long __put_user_bad(void);
-
 #define __put_user_nocheck(x,ptr,size)			\
 ({							\
 	long __pu_err;					\
 	__put_user_size((x),(ptr),(size),__pu_err);	\
 	__pu_err;					\
-})
-
-#define __put_user_check(x,ptr,size)				\
-({								\
-	long __pu_err = -EFAULT;				\
-	__typeof__(*(ptr)) *__pu_addr = (ptr);			\
-	if (access_ok(VERIFY_WRITE,__pu_addr,size))		\
-		__put_user_size((x),__pu_addr,(size),__pu_err);	\
-	__pu_err;						\
 })
 
 #define __put_user_size(x,ptr,size,retval)				\
@@ -195,16 +199,6 @@ struct __large_struct { unsigned long buf[100]; };
 	__gu_err;						\
 })
 
-#define __get_user_check(x,ptr,size)					\
-({									\
-	long __gu_err = -EFAULT, __gu_val = 0;				\
-	const __typeof__(*(ptr)) *__gu_addr = (ptr);			\
-	if (access_ok(VERIFY_READ,__gu_addr,size))			\
-		__get_user_size(__gu_val,__gu_addr,(size),__gu_err);	\
-	(x) = (__typeof__(*(ptr)))__gu_val;				\
-	__gu_err;							\
-})
-
 extern long __get_user_bad(void);
 
 #define __get_user_size(x,ptr,size,retval)				\
@@ -234,6 +228,20 @@ do {									\
 		: "=r"(err), ltype (x)				\
 		: "m"(__m(addr)), "i"(-EFAULT), "0"(err))
 
+/*
+ * The "xxx_ret" versions return constant specified in third argument, if
+ * something bad happens. These macros can be optimized for the
+ * case of just returning from the function xxx_ret is used.
+ */
+
+#define put_user_ret(x,ptr,ret) ({ if (put_user(x,ptr)) return ret; })
+
+#define get_user_ret(x,ptr,ret) ({ if (get_user(x,ptr)) return ret; })
+
+#define __put_user_ret(x,ptr,ret) ({ if (__put_user(x,ptr)) return ret; })
+
+#define __get_user_ret(x,ptr,ret) ({ if (__get_user(x,ptr)) return ret; })
+
 
 /*
  * Copy To/From Userspace
@@ -255,9 +263,27 @@ do {									\
 		"	.long 0b,3b\n"					\
 		"	.long 1b,2b\n"					\
 		".previous"						\
-		: "=c"(size)						\
+		: "=&c"(size)						\
 		: "r"(size & 3), "0"(size / 4), "D"(to), "S"(from)	\
 		: "di", "si", "memory")
+
+/* We let the __ versions of copy_from/to_user inline, because they're often
+ * used in fast paths and have only a small space overhead.
+ */
+static inline unsigned long
+__generic_copy_from_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__copy_user(to,from,n);
+	return n;
+}
+
+static inline unsigned long
+__generic_copy_to_user_nocheck(void *to, const void *from, unsigned long n)
+{
+	__copy_user(to,from,n);
+	return n;
+}
+
 
 /* Optimize just a little bit when we know the size of the move. */
 #define __constant_copy_user(to, from, size)			\
@@ -342,27 +368,14 @@ do {								\
 	}							\
 } while (0)
 
-static inline unsigned long
-__generic_copy_to_user(void *to, const void *from, unsigned long n)
-{
-	if (access_ok(VERIFY_WRITE, to, n))
-		__copy_user(to,from,n);
-	return n;
-}
+unsigned long __generic_copy_to_user(void *, const void *, unsigned long);
+unsigned long __generic_copy_from_user(void *, const void *, unsigned long);
 
 static inline unsigned long
 __constant_copy_to_user(void *to, const void *from, unsigned long n)
 {
 	if (access_ok(VERIFY_WRITE, to, n))
 		__constant_copy_user(to,from,n);
-	return n;
-}
-
-static inline unsigned long
-__generic_copy_from_user(void *to, const void *from, unsigned long n)
-{
-	if (access_ok(VERIFY_READ, from, n))
-		__copy_user(to,from,n);
 	return n;
 }
 
@@ -375,23 +388,9 @@ __constant_copy_from_user(void *to, const void *from, unsigned long n)
 }
 
 static inline unsigned long
-__generic_copy_to_user_nocheck(void *to, const void *from, unsigned long n)
-{
-	__copy_user(to,from,n);
-	return n;
-}
-
-static inline unsigned long
 __constant_copy_to_user_nocheck(void *to, const void *from, unsigned long n)
 {
 	__constant_copy_user(to,from,n);
-	return n;
-}
-
-static inline unsigned long
-__generic_copy_from_user_nocheck(void *to, const void *from, unsigned long n)
-{
-	__copy_user(to,from,n);
 	return n;
 }
 
@@ -412,15 +411,9 @@ __constant_copy_from_user_nocheck(void *to, const void *from, unsigned long n)
 	 __constant_copy_from_user((to),(from),(n)) :	\
 	 __generic_copy_from_user((to),(from),(n)))
 
-#define copy_to_user_ret(to,from,n,retval) ({ \
-if (copy_to_user(to,from,n)) \
-	return retval; \
-})
+#define copy_to_user_ret(to,from,n,retval) ({ if (copy_to_user(to,from,n)) return retval; })
 
-#define copy_from_user_ret(to,from,n,retval) ({ \
-if (copy_from_user(to,from,n)) \
-	return retval; \
-})
+#define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
 #define __copy_to_user(to,from,n)			\
 	(__builtin_constant_p(n) ?			\
@@ -432,116 +425,10 @@ if (copy_from_user(to,from,n)) \
 	 __constant_copy_from_user_nocheck((to),(from),(n)) :	\
 	 __generic_copy_from_user_nocheck((to),(from),(n)))
 
-
-/*
- * Zero Userspace
- */
-
-#define __do_clear_user(addr,size)						\
-	__asm__ __volatile__(						\
-		"0:	rep; stosl\n"					\
-		"	movl %1,%0\n"					\
-		"1:	rep; stosb\n"					\
-		"2:\n"							\
-		".section .fixup,\"ax\"\n"				\
-		"3:	lea 0(%1,%0,4),%0\n"				\
-		"	jmp 2b\n"					\
-		".previous\n"						\
-		".section __ex_table,\"a\"\n"				\
-		"	.align 4\n"					\
-		"	.long 0b,3b\n"					\
-		"	.long 1b,2b\n"					\
-		".previous"						\
-		: "=c"(size)						\
-		: "r"(size & 3), "0"(size / 4), "D"(addr), "a"(0)	\
-		: "di")
-
-static inline unsigned long
-clear_user(void *to, unsigned long n)
-{
-	if (access_ok(VERIFY_WRITE, to, n))
-		__do_clear_user(to, n);
-	return n;
-}
-
-static inline unsigned long
-__clear_user(void *to, unsigned long n)
-{
-	__do_clear_user(to, n);
-	return n;
-}
-
-
-/*
- * Copy a null terminated string from userspace.
- */
-
-#define __do_strncpy_from_user(dst,src,count,res)			   \
-	__asm__ __volatile__(						   \
-		"	testl %1,%1\n"					   \
-		"	jz 2f\n"					   \
-		"0:	lodsb\n"					   \
-		"	stosb\n"					   \
-		"	testb %%al,%%al\n"				   \
-		"	jz 1f\n"					   \
-		"	decl %1\n"					   \
-		"	jnz 0b\n"					   \
-		"1:	subl %1,%0\n"					   \
-		"2:\n"							   \
-		".section .fixup,\"ax\"\n"				   \
-		"3:	movl %2,%0\n"					   \
-		"	jmp 2b\n"					   \
-		".previous\n"						   \
-		".section __ex_table,\"a\"\n"				   \
-		"	.align 4\n"					   \
-		"	.long 0b,3b\n"					   \
-		".previous"						   \
-		: "=d"(res), "=c"(count)				   \
-		: "i"(-EFAULT), "0"(count), "1"(count), "S"(src), "D"(dst) \
-		: "si", "di", "ax", "memory")
-
-static inline long
-__strncpy_from_user(char *dst, const char *src, long count)
-{
-	long res;
-	__do_strncpy_from_user(dst, src, count, res);
-	return res;
-}
-
-static inline long
-strncpy_from_user(char *dst, const char *src, long count)
-{
-	long res = -EFAULT;
-	if (access_ok(VERIFY_READ, src, 1))
-		__do_strncpy_from_user(dst, src, count, res);
-	return res;
-}
-
-/*
- * Return the size of a string (including the ending 0)
- *
- * Return 0 for error
- */
-
-extern inline long strlen_user(const char *s)
-{
-	unsigned long res;
-
-	__asm__ __volatile__(
-		"0:	repne; scasb\n"
-		"	notl %0\n"
-		"1:\n"
-		".section .fixup,\"ax\"\n"
-		"2:	xorl %0,%0\n"
-		"	jmp 1b\n"
-		".previous\n"
-		".section __ex_table,\"a\"\n"
-		"	.align 4\n"
-		"	.long 0b,2b\n"
-		".previous"
-		:"=c" (res), "=D" (s)
-		:"1" (s), "a" (0), "0" (-__addr_ok(s)));
-	return res & -__addr_ok(s);
-}
+long strncpy_from_user(char *dst, const char *src, long count);
+long __strncpy_from_user(char *dst, const char *src, long count);
+long strlen_user(const char *str);
+unsigned long clear_user(void *mem, unsigned long len);
+unsigned long __clear_user(void *mem, unsigned long len);
 
 #endif /* __i386_UACCESS_H */

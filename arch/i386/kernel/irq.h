@@ -7,9 +7,42 @@
  * Interrupt entry/exit code at both C and assembly level
  */
 
+#define IO_APIC_GATE_OFFSET 0x51
+
+void mask_irq(unsigned int irq);
+void unmask_irq(unsigned int irq);
+void enable_IO_APIC_irq (unsigned int irq);
+void disable_IO_APIC_irq (unsigned int irq);
+void set_8259A_irq_mask(unsigned int irq);
+void ack_APIC_irq (void);
+void setup_IO_APIC (void);
+void init_IO_APIC_traps(void);
+int IO_APIC_get_PCI_irq_vector (int bus, int slot, int fn);
+void make_8259A_irq (unsigned int irq);
+
+extern unsigned int io_apic_irqs;
+
+#define MAX_IRQ_SOURCES 128
+#define MAX_MP_BUSSES 32
+enum mp_bustype {
+	MP_BUS_ISA,
+	MP_BUS_PCI
+};
+extern int mp_bus_id_to_type [MAX_MP_BUSSES];
+extern int mp_bus_id_to_pci_bus [MAX_MP_BUSSES];
+extern char ioapic_OEM_ID [16];
+extern char ioapic_Product_ID [16];
+
+extern spinlock_t irq_controller_lock; /*
+					* Protects both the 8259 and the
+					* IO-APIC
+					*/
+
 #ifdef __SMP__
 
-static inline void irq_enter(int cpu, int irq)
+#include <asm/atomic.h>
+
+static inline void irq_enter(int cpu, unsigned int irq)
 {
 	hardirq_enter(cpu);
 	while (test_bit(0,&global_irq_lock)) {
@@ -17,16 +50,24 @@ static inline void irq_enter(int cpu, int irq)
 	}
 }
 
-static inline void irq_exit(int cpu, int irq)
+static inline void irq_exit(int cpu, unsigned int irq)
 {
 	hardirq_exit(cpu);
 	release_irqlock(cpu);
 }
 
+#define IO_APIC_IRQ(x) ((1<<x) & io_apic_irqs)
+
 #else
 
 #define irq_enter(cpu, irq)	(++local_irq_count[cpu])
 #define irq_exit(cpu, irq)	(--local_irq_count[cpu])
+
+/* Make these no-ops when not using SMP */
+#define enable_IO_APIC_irq(x)	do { } while (0)
+#define disable_IO_APIC_irq(x)	do { } while (0)
+
+#define IO_APIC_IRQ(x)	(0)
 
 #endif
 
@@ -94,7 +135,7 @@ __asm__( \
 	"pushl $ret_from_intr\n\t" \
 	"jmp "SYMBOL_NAME_STR(do_IRQ));
 
-#define BUILD_IRQ(chip,nr,mask) \
+#define BUILD_IRQ(nr) \
 asmlinkage void IRQ_NAME(nr); \
 __asm__( \
 "\n"__ALIGN_STR"\n" \

@@ -33,6 +33,7 @@ enum nfs_stat {
 	NFSERR_EAGAIN = 11,
 	NFSERR_ACCES = 13,
 	NFSERR_EXIST = 17,
+	NFSERR_XDEV = 18,
 	NFSERR_NODEV = 19,
 	NFSERR_NOTDIR = 20,
 	NFSERR_ISDIR = 21,
@@ -137,6 +138,13 @@ struct nfs_fsinfo {
 	__u32			bavail;
 };
 
+struct nfs_writeargs {
+	struct nfs_fh *		fh;
+	__u32			offset;
+	__u32			count;
+	const void *		buffer;
+};
+
 #ifdef NFS_NEED_XDR_TYPES
 
 struct nfs_sattrargs {
@@ -154,13 +162,6 @@ struct nfs_readargs {
 	__u32			offset;
 	__u32			count;
 	void *			buffer;
-};
-
-struct nfs_writeargs {
-	struct nfs_fh *		fh;
-	__u32			offset;
-	__u32			count;
-	const void *		buffer;
 };
 
 struct nfs_createargs {

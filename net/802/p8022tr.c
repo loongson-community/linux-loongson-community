@@ -8,7 +8,6 @@
  *		2 of the License, or (at your option) any later version.
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
@@ -57,7 +56,7 @@ int p8022tr_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 	}
 
 	skb->sk = NULL;
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 

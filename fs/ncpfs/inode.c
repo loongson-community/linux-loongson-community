@@ -32,12 +32,9 @@
 #include <linux/ncp_fs.h>
 #include "ncplib_kernel.h"
 
-extern int close_fp(struct file *filp);
-
 static void ncp_read_inode(struct inode *);
 static void ncp_put_inode(struct inode *);
 static void ncp_delete_inode(struct inode *);
-static int  ncp_notify_change(struct inode *, struct iattr *);
 static void ncp_put_super(struct super_block *);
 static int  ncp_statfs(struct super_block *, struct statfs *, int);
 
@@ -53,6 +50,8 @@ static struct super_operations ncp_sops =
 	ncp_statfs,		/* stat filesystem */
 	NULL                    /* remount */
 };
+
+extern struct dentry_operations ncp_dentry_operations;
 
 static struct nw_file_info *read_nwinfo = NULL;
 static struct semaphore read_sem = MUTEX;
@@ -77,6 +76,31 @@ nwinfo->i.entryName, NCP_FINFO(inode)->volNumber, NCP_FINFO(inode)->dirEntNum);
 #endif
 }
 
+void ncp_update_inode2(struct inode* inode, struct nw_file_info *nwinfo)
+{
+	struct nw_info_struct *nwi = &nwinfo->i;
+	struct ncp_server *server = NCP_SERVER(inode);
+
+	if (!NCP_FINFO(inode)->opened) {
+		if (nwi->attributes & aDIR) {
+			inode->i_mode = server->m.dir_mode;
+			inode->i_size = 512;
+		} else {
+			inode->i_mode = server->m.file_mode;
+			inode->i_size = le32_to_cpu(nwi->dataStreamSize);
+		}
+		if (nwi->attributes & aRONLY) inode->i_mode &= ~0222;
+	}
+	inode->i_blocks = 0;
+	if ((inode->i_size)&&(inode->i_blksize)) {
+		inode->i_blocks = (inode->i_size-1)/(inode->i_blksize)+1;
+	}
+	/* TODO: times? I'm not sure... */
+	NCP_FINFO(inode)->DosDirNum = nwinfo->i.DosDirNum;
+	NCP_FINFO(inode)->dirEntNum = nwinfo->i.dirEntNum;
+	NCP_FINFO(inode)->volNumber = nwinfo->i.volNumber;
+}
+
 /*
  * Fill in the inode based on the nw_file_info structure.
  */
@@ -94,6 +118,7 @@ static void ncp_set_attr(struct inode *inode, struct nw_file_info *nwinfo)
 		inode->i_mode = server->m.file_mode;
 		inode->i_size = le32_to_cpu(nwi->dataStreamSize);
 	}
+	if (nwi->attributes & aRONLY) inode->i_mode &= ~0222;
 
 	DDPRINTK(KERN_DEBUG "ncp_read_inode: inode->i_mode = %u\n", inode->i_mode);
 
@@ -210,8 +235,9 @@ static void ncp_init_root(struct ncp_server *server,
 	i->entryName[0]  = '\0';
 
 	root->finfo.opened= 0;
-	info->ino = 1;
+	info->ino = 2; /* tradition */
 	info->nw_info = root->finfo;
+	return;
 }
 
 struct super_block *
@@ -223,6 +249,9 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 	struct inode *root_inode;
 	kdev_t dev = sb->s_dev;
 	int error;
+#ifdef CONFIG_NCPFS_PACKET_SIGNING
+	int options;
+#endif
 	struct ncpfs_inode_info finfo;
 
 	MOD_INC_USE_COUNT;
@@ -230,13 +259,13 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 		goto out_no_data;
 	if (data->version != NCP_MOUNT_VERSION)
 		goto out_bad_mount;
-	if ((data->ncp_fd >= NR_OPEN) ||
-	    ((ncp_filp = current->files->fd[data->ncp_fd]) == NULL) ||
-	    !S_ISSOCK(ncp_filp->f_dentry->d_inode->i_mode))
+	ncp_filp = fget(data->ncp_fd);
+	if (!ncp_filp)
 		goto out_bad_file;
+	if (!S_ISSOCK(ncp_filp->f_dentry->d_inode->i_mode))
+		goto out_bad_file2;
 
 	lock_super(sb);
-	ncp_filp->f_count++;
 
 	sb->s_blocksize = 1024;	/* Eh...  Is this correct? */
 	sb->s_blocksize_bits = 10;
@@ -257,6 +286,17 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 	server->packet = NULL;
 	server->buffer_size = 0;
 	server->conn_status = 0;
+	server->root_dentry = NULL;
+#ifdef CONFIG_NCPFS_PACKET_SIGNING
+	server->sign_wanted = 0;
+	server->sign_active = 0;
+#endif
+	server->auth.auth_type = NCP_AUTH_NONE;
+	server->auth.object_name_len = 0;
+	server->auth.object_name = NULL;
+	server->auth.object_type = 0;
+	server->priv.len = 0;
+	server->priv.data = NULL;
 
 	server->m = *data;
 	/* Althought anything producing this is buggy, it happens
@@ -282,21 +322,41 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 		goto out_no_connect;
 	DPRINTK(KERN_DEBUG "ncp_read_super: NCP_SBP(sb) = %x\n", (int) NCP_SBP(sb));
 
-	error = ncp_negotiate_buffersize(server, NCP_DEFAULT_BUFSIZE,
-				    		&(server->buffer_size));
-	if (error)
+#ifdef CONFIG_NCPFS_PACKET_SIGNING
+	if (ncp_negotiate_size_and_options(server, NCP_DEFAULT_BUFSIZE,
+		NCP_DEFAULT_OPTIONS, &(server->buffer_size), &options) == 0)
+	{
+		if (options != NCP_DEFAULT_OPTIONS)
+		{
+			if (ncp_negotiate_size_and_options(server, 
+				NCP_DEFAULT_BUFSIZE,
+				options & 2, 
+				&(server->buffer_size), &options) != 0)
+				
+			{
+				goto out_no_bufsize;
+			}
+		}
+		if (options & 2)
+			server->sign_wanted = 1;
+	}
+	else 
+#endif	/* CONFIG_NCPFS_PACKET_SIGNING */
+	if (ncp_negotiate_buffersize(server, NCP_DEFAULT_BUFSIZE,
+  				     &(server->buffer_size)) != 0)
 		goto out_no_bufsize;
 	DPRINTK(KERN_DEBUG "ncpfs: bufsize = %d\n", server->buffer_size);
 
 	ncp_init_root(server, &finfo);
+	server->name_space[finfo.nw_info.i.volNumber] = NW_NS_DOS;
         root_inode = ncp_iget(sb, &finfo);
         if (!root_inode)
 		goto out_no_root;
 	DPRINTK(KERN_DEBUG "ncp_read_super: root vol=%d\n", NCP_FINFO(root_inode)->volNumber);
-        sb->s_root = d_alloc_root(root_inode, NULL);
+        server->root_dentry = sb->s_root = d_alloc_root(root_inode, NULL);
         if (!sb->s_root)
 		goto out_no_root;
-
+	server->root_dentry->d_op = &ncp_dentry_operations;
 	unlock_super(sb);
 	return sb;
 
@@ -328,6 +388,8 @@ out_unlock:
 	unlock_super(sb);
 	goto out;
 
+out_bad_file2:
+	fput(ncp_filp);
 out_bad_file:
 	printk(KERN_ERR "ncp_read_super: invalid ncp socket\n");
 	goto out;
@@ -353,9 +415,13 @@ static void ncp_put_super(struct super_block *sb)
 	ncp_disconnect(server);
 	ncp_unlock_server(server);
 
-	close_fp(server->ncp_filp);
-	kill_proc(server->m.wdog_pid, SIGTERM, 0);
+	fput(server->ncp_filp);
+	kill_proc(server->m.wdog_pid, SIGTERM, 1);
 
+	if (server->priv.data) 
+		ncp_kfree_s(server->priv.data, server->priv.len);
+	if (server->auth.object_name)
+		ncp_kfree_s(server->auth.object_name, server->auth.object_name_len);
 	ncp_kfree_s(server->packet, server->packet_size);
 
 	ncp_kfree_s(NCP_SBP(sb), sizeof(struct ncp_server));
@@ -387,33 +453,64 @@ static int ncp_statfs(struct super_block *sb, struct statfs *buf, int bufsiz)
 	return copy_to_user(buf, &tmp, bufsiz) ? -EFAULT : 0;
 }
 
-static int ncp_notify_change(struct inode *inode, struct iattr *attr)
+int ncp_notify_change(struct dentry *dentry, struct iattr *attr)
 {
+	struct inode *inode = dentry->d_inode;
 	int result = 0;
 	int info_mask;
 	struct nw_modify_dos_info info;
 
-	if (!ncp_conn_valid(NCP_SERVER(inode))) {
-		return -EIO;
-	}
-	if ((result = inode_change_ok(inode, attr)) < 0)
-		return result;
+	result = -EIO;
+	if (!ncp_conn_valid(NCP_SERVER(inode)))
+		goto out;
 
+	result = inode_change_ok(inode, attr);
+	if (result < 0)
+		goto out;
+
+	result = -EPERM;
 	if (((attr->ia_valid & ATTR_UID) &&
 	     (attr->ia_uid != NCP_SERVER(inode)->m.uid)))
-		return -EPERM;
+		goto out;
 
 	if (((attr->ia_valid & ATTR_GID) &&
 	     (attr->ia_uid != NCP_SERVER(inode)->m.gid)))
-		return -EPERM;
+		goto out;
 
 	if (((attr->ia_valid & ATTR_MODE) &&
 	     (attr->ia_mode &
 	      ~(S_IFREG | S_IFDIR | S_IRWXU | S_IRWXG | S_IRWXO))))
-		return -EPERM;
+		goto out;
 
 	info_mask = 0;
 	memset(&info, 0, sizeof(info));
+
+#if 1 
+        if ((attr->ia_valid & ATTR_MODE) != 0)
+        {
+                if (!S_ISREG(inode->i_mode))
+                {
+                        return -EPERM;
+                }
+                else
+                {
+			umode_t newmode;
+
+                        info_mask |= DM_ATTRIBUTES;
+                        newmode=attr->ia_mode;
+                        newmode &= NCP_SERVER(inode)->m.file_mode;
+
+                        if (newmode & 0222) /* any write bit set */
+                        {
+                                info.attributes &= ~0x60001;
+                        }
+                        else
+                        {
+                                info.attributes |= 0x60001;
+                        }
+                }
+        }
+#endif
 
 	if ((attr->ia_valid & ATTR_CTIME) != 0) {
 		info_mask |= (DM_CREATE_TIME | DM_CREATE_DATE);
@@ -455,7 +552,8 @@ static int ncp_notify_change(struct inode *inode, struct iattr *attr)
 	if ((attr->ia_valid & ATTR_SIZE) != 0) {
 		int written;
 
-		DPRINTK(KERN_DEBUG "ncpfs: trying to change size to %ld\n", attr->ia_size);
+		DPRINTK(KERN_DEBUG "ncpfs: trying to change size to %ld\n",
+			attr->ia_size);
 
 		if ((result = ncp_make_open(inode, O_RDWR)) < 0) {
 			return -EACCES;
@@ -467,11 +565,8 @@ static int ncp_notify_change(struct inode *inode, struct iattr *attr)
 		   closing the file */
 		result = ncp_make_closed(inode);
 	}
-	/*
-	 * We need a dentry here ...
-	 */
-	/* ncp_invalid_dir_cache(NCP_INOP(inode)->dir->inode); */
-
+	ncp_invalid_dir_cache(dentry->d_parent->d_inode);
+out:
 	return result;
 }
 

@@ -20,6 +20,7 @@
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#include <asm/hardirq.h>
 
 extern void die_if_kernel(const char *,struct pt_regs *,long);
 
@@ -76,8 +77,6 @@ bad_area:
 
 asmlinkage void do_invalid_op (struct pt_regs *, unsigned long);
 
-extern int pentium_f00f_bug;
-
 /*
  * This routine handles page faults.  It determines the address,
  * and the problem, and then passes it off to one of the appropriate
@@ -101,6 +100,8 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long error_code)
 	/* get the address */
 	__asm__("movl %%cr2,%0":"=r" (address));
 
+	if (local_irq_count[smp_processor_id()])
+		die_if_kernel("page fault from irq handler",regs,error_code);
 	lock_kernel();
 	tsk = current;
 	mm = tsk->mm;
@@ -180,7 +181,7 @@ bad_area:
 	/*
 	 * Pentium F0 0F C7 C8 bug workaround.
 	 */
-	if (pentium_f00f_bug) {
+	if (boot_cpu_data.f00f_bug) {
 		unsigned long nr;
 		
 		nr = (address - (unsigned long) idt) >> 3;
@@ -194,11 +195,6 @@ bad_area:
 
 	/* Are we prepared to handle this kernel fault?  */
 	if ((fixup = search_exception_table(regs->eip)) != 0) {
-		printk(KERN_DEBUG "%s: Exception at [<%lx>] cr2=%lx (fixup: %lx)\n",
-			tsk->comm,
-			regs->eip,
-			address,
-			fixup);
 		regs->eip = fixup;
 		goto out;
 	}
@@ -209,10 +205,16 @@ bad_area:
  *
  * First we check if it was the bootup rw-test, though..
  */
-	if (wp_works_ok < 0 && address == TASK_SIZE && (error_code & 1)) {
-		wp_works_ok = 1;
-		pg0[0] = pte_val(mk_pte(TASK_SIZE, PAGE_SHARED));
-		flush_tlb();
+	if (boot_cpu_data.wp_works_ok < 0 &&
+	    address == PAGE_OFFSET && (error_code & 1)) {
+		boot_cpu_data.wp_works_ok = 1;
+		pg0[0] = pte_val(mk_pte(PAGE_OFFSET, PAGE_KERNEL));
+		local_flush_tlb();
+		/*
+		 * Beware: Black magic here. The printk is needed here to flush
+		 * CPU state on certain buggy processors.
+		 */
+		printk("Ok");
 		goto out;
 	}
 

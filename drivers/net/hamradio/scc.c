@@ -1,4 +1,4 @@
-#define RCS_ID "$Id: scc.c,v 1.71 1997/11/29 19:59:20 jreuter Exp jreuter $"
+#define RCS_ID "$Id: scc.c,v 1.73 1998/01/29 17:38:51 jreuter Exp jreuter $"
 
 #define VERSION "3.0"
 #define BANNER  "Z8530 SCC driver version "VERSION".dl1bke (experimental) by DL1BKE\n"
@@ -6,6 +6,9 @@
 /*
  * Please use z8530drv-utils-3.0 with this version.
  *            ------------------
+ *
+ * You can find a subset of the documentation in 
+ * linux/Documentation/networking/z8530drv.txt.
  */
 
 /*
@@ -16,7 +19,7 @@
 
    ********************************************************************
 
-	Copyright (c) 1993, 1997 Joerg Reuter DL1BKE
+	Copyright (c) 1993, 1998 Joerg Reuter DL1BKE
 
 	portions (c) 1993 Guido ten Dolle PE1NNZ
 
@@ -89,7 +92,8 @@
    970108	- Fixed the remaining problems.
    970402	- Hopefully fixed the problems with the new *_timer()
    		  routines, added calibration code.
-   971012	- made SCC_DELAY a CONFIG option, added CONFIG_SCC_TRXECHO
+   971012	- Made SCC_DELAY a CONFIG option, added CONFIG_SCC_TRXECHO
+   980129	- Small fix to avoid lock-up on initialization
 
    Thanks to all who contributed to this driver with ideas and bug
    reports!
@@ -166,10 +170,7 @@
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <time.h>
+#include <linux/ctype.h>
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
 
@@ -198,7 +199,7 @@ static void scc_key_trx (struct scc_channel *scc, char tx);
 static void scc_isr(int irq, void *dev_id, struct pt_regs *regs);
 static void scc_init_timer(struct scc_channel *scc);
 
-static int scc_net_setup(struct scc_channel *scc, unsigned char *name);
+static int scc_net_setup(struct scc_channel *scc, unsigned char *name, int addev);
 static int scc_net_init(struct device *dev);
 static int scc_net_open(struct device *dev);
 static int scc_net_close(struct device *dev);
@@ -323,12 +324,12 @@ extern __inline__ void scc_discard_buffers(struct scc_channel *scc)
 	
 	if (scc->tx_buff != NULL)
 	{
-		dev_kfree_skb(scc->tx_buff, FREE_WRITE);
+		dev_kfree_skb(scc->tx_buff);
 		scc->tx_buff = NULL;
 	}
 	
 	while (skb_queue_len(&scc->tx_queue))
-		dev_kfree_skb(skb_dequeue(&scc->tx_queue), FREE_WRITE);
+		dev_kfree_skb(skb_dequeue(&scc->tx_queue));
 
 	restore_flags(flags);
 }
@@ -371,7 +372,7 @@ extern __inline__ void flush_rx_FIFO(struct scc_channel *scc)
 	if(scc->rx_buff != NULL)		/* did we receive something? */
 	{
 		scc->stat.rxerrs++;  /* then count it as an error */
-		kfree_skb(scc->rx_buff, FREE_READ);
+		kfree_skb(scc->rx_buff);
 		scc->rx_buff = NULL;
 	}
 }
@@ -405,7 +406,7 @@ extern __inline__ void scc_txint(struct scc_channel *scc)
 		
 		if (skb->len == 0)		/* Paranoia... */
 		{
-			dev_kfree_skb(skb, FREE_WRITE);
+			dev_kfree_skb(skb);
 			scc->tx_buff = NULL;
 			scc_tx_done(scc);
 			Outb(scc->ctrl, RES_Tx_P);
@@ -431,7 +432,7 @@ extern __inline__ void scc_txint(struct scc_channel *scc)
 	{
 		Outb(scc->ctrl, RES_Tx_P);	/* reset pending int */
 		cl(scc, R10, ABUNDER);		/* send CRC */
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		scc->tx_buff = NULL;
 		scc->stat.tx_state = TXS_NEWFRAME; /* next frame... */
 		return;
@@ -512,7 +513,7 @@ extern __inline__ void scc_exint(struct scc_channel *scc)
 
 		if (scc->tx_buff != NULL)
 		{
-			dev_kfree_skb(scc->tx_buff, FREE_WRITE);
+			dev_kfree_skb(scc->tx_buff);
 			scc->tx_buff = NULL;
 		}
 		
@@ -562,7 +563,7 @@ extern __inline__ void scc_rxint(struct scc_channel *scc)
 #ifdef notdef
 		printk(KERN_DEBUG "z8530drv: oops, scc_rxint() received huge frame...\n");
 #endif
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		scc->rx_buff = NULL;
 		Inb(scc->data);
 		or(scc, R3, ENT_HM);
@@ -592,7 +593,7 @@ extern __inline__ void scc_spint(struct scc_channel *scc)
 		or(scc,R3,ENT_HM);               /* enter hunt mode for next flag */
 		
 		if (skb != NULL) 
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 		scc->rx_buff = NULL;
 	}
 
@@ -608,7 +609,7 @@ extern __inline__ void scc_spint(struct scc_channel *scc)
 			scc->rx_buff = NULL;
 			scc->stat.rxframes++;
 		} else {				/* a bad frame */
-			kfree_skb(skb, FREE_READ);
+			kfree_skb(skb);
 			scc->rx_buff = NULL;
 			scc->stat.rxerrs++;
 		}
@@ -1532,7 +1533,7 @@ static void z8530_init(void)
  * Allocate device structure, err, instance, and register driver
  */
 
-static int scc_net_setup(struct scc_channel *scc, unsigned char *name)
+static int scc_net_setup(struct scc_channel *scc, unsigned char *name, int addev)
 {
 	unsigned char *buf;
 	struct device *dev;
@@ -1556,11 +1557,11 @@ static int scc_net_setup(struct scc_channel *scc, unsigned char *name)
 	dev->name = buf;
 	dev->init = scc_net_init;
 
-	if (register_netdev(dev) != 0)
+	if ((addev? register_netdevice(dev) : register_netdev(dev)) != 0)
 	{
 		kfree(dev);
-		return -EIO;
-	}
+                return -EIO;
+        }
 
 	return 0;
 }
@@ -1670,7 +1671,7 @@ static void scc_net_rx(struct scc_channel *scc, struct sk_buff *skb)
 {
 	if (skb->len == 0)
 	{
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return;
 	}
 		
@@ -1694,14 +1695,14 @@ static int scc_net_tx(struct sk_buff *skb, struct device *dev)
 	
 	if (scc == NULL || scc->magic != SCC_MAGIC || dev->tbusy)
 	{
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		return 0;
 	}
 
 	if (skb->len > scc->stat.bufsize || skb->len < 2)
 	{
 		scc->dev_stat.tx_dropped++;	/* bogus frame */
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		return 0;
 	}
 	
@@ -1714,7 +1715,7 @@ static int scc_net_tx(struct sk_buff *skb, struct device *dev)
 	if (kisscmd)
 	{
 		scc_set_param(scc, kisscmd, *skb->data);
-		dev_kfree_skb(skb, FREE_WRITE);
+		dev_kfree_skb(skb);
 		return 0;
 	}
 
@@ -1725,7 +1726,7 @@ static int scc_net_tx(struct sk_buff *skb, struct device *dev)
 	{
 		struct sk_buff *skb_del;
 		skb_del = __skb_dequeue(&scc->tx_queue);
-		dev_kfree_skb(skb_del, FREE_WRITE);
+		dev_kfree_skb(skb_del);
 	}
 	__skb_queue_tail(&scc->tx_queue, skb);
 
@@ -1871,7 +1872,7 @@ static int scc_net_ioctl(struct device *dev, struct ifreq *ifr, int cmd)
 					request_region(SCC_Info[2*Nchips+chan].ctrl, 1, "scc ctrl");
 					request_region(SCC_Info[2*Nchips+chan].data, 1, "scc data");
 					if (Nchips+chan != 0)
-						scc_net_setup(&SCC_Info[2*Nchips+chan], device_name);
+						scc_net_setup(&SCC_Info[2*Nchips+chan], device_name, 1);
 				}
 			}
 			
@@ -2181,7 +2182,7 @@ __initfunc(int scc_init (void))
 
 	sprintf(devname,"%s0", SCC_DriverName);
 	
-	result = scc_net_setup(SCC_Info, devname);
+	result = scc_net_setup(SCC_Info, devname, 0);
 	if (result)
 	{
 		printk(KERN_ERR "z8530drv: cannot initialize module\n");
@@ -2206,7 +2207,7 @@ int init_module(void)
 	result = scc_init();
 
 	if (result == 0)
-		printk(KERN_INFO "Copyright 1993,1997 Joerg Reuter DL1BKE (jreuter@poboxes.com)\n");
+		printk(KERN_INFO "Copyright 1993,1998 Joerg Reuter DL1BKE (jreuter@poboxes.com)\n");
 		
 	return result;
 }

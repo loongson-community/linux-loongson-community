@@ -1,5 +1,5 @@
 /*
- *  $Id: ipconfig.c,v 1.5 1997/10/27 16:08:02 mj Exp $
+ *  $Id: ipconfig.c,v 1.6 1998/01/09 17:19:46 mj Exp $
  *
  *  Automatic Configuration of IP -- use BOOTP or RARP or user-supplied
  *  information to configure own IP address and routes.
@@ -350,7 +350,7 @@ ic_rarp_recv(struct sk_buff *skb, struct device *dev, struct packet_type *pt))
 
 	/* And throw the packet out... */
 drop:
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	return 0;
 }
 
@@ -868,6 +868,9 @@ __initfunc(static void ic_bootp_recv(void))
 			}
 		}
 	}
+
+	if (ic_gateway == INADDR_NONE && b->relay_ip)
+		ic_gateway = b->relay_ip;
 }
 
 #endif

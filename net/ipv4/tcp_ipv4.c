@@ -5,7 +5,7 @@
  *
  *		Implementation of the Transmission Control Protocol(TCP).
  *
- * Version:	$Id: tcp_ipv4.c,v 1.76 1997/12/07 04:44:19 freitag Exp $
+ * Version:	$Id: tcp_ipv4.c,v 1.79 1998/01/15 22:40:47 freitag Exp $
  *
  *		IPv4 specific functions
  *
@@ -40,7 +40,10 @@
  *					Added tail drop and some other bugfixes.
  *					Added new listen sematics (ifdefed by
  *					NEW_LISTEN for now)
+ *		Mike McLagan	:	Routing by source
  *	Juan Jose Ciarlante:		ip_dynaddr bits
+ *		Andi Kleen:		various fixes.
+ *	Vitaly E. Lavrov	:	Transparent proxy revived after year coma.
  */
 
 #include <linux/config.h>
@@ -48,13 +51,14 @@
 #include <linux/fcntl.h>
 #include <linux/random.h>
 #include <linux/ipsec.h>
-#include <linux/inet.h>
 
 #include <net/icmp.h>
 #include <net/tcp.h>
 #include <net/ipv6.h>
 
 #include <asm/segment.h>
+
+#include <linux/inet.h>
 
 extern int sysctl_tcp_sack;
 extern int sysctl_tcp_tsack;
@@ -171,7 +175,7 @@ static __inline__ int tcp_lport_inuse(int num)
 	return 0;
 }
 
-/* Find a "good" local port, this is family independant.
+/* Find a "good" local port, this is family independent.
  * There are several strategies working in unison here to
  * get the best possible performance.  The current socket
  * load is kept track of, if it is zero there is a strong
@@ -562,13 +566,10 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 			printk(KERN_DEBUG "%s forgot to set AF_INET in " __FUNCTION__ "\n", current->comm);
 	}
 
-	if (sk->dst_cache) {
-		dst_release(sk->dst_cache);
-		sk->dst_cache = NULL;
-	}
+	dst_release(xchg(&sk->dst_cache, NULL));
 
 	tmp = ip_route_connect(&rt, usin->sin_addr.s_addr, sk->saddr,
-			       RT_TOS(sk->ip_tos)|(sk->localroute || 0), sk->bound_dev_if);
+			       RT_TOS(sk->ip_tos)|sk->localroute, sk->bound_dev_if);
 	if (tmp < 0)
 		return tmp;
 
@@ -627,7 +628,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 		 */
 		sk->daddr = 0;
 		sk->saddr = sk->rcv_saddr = 0;
-		kfree_skb(buff, FREE_WRITE);
+		kfree_skb(buff);
 		release_sock(sk);
 		return(-ENETUNREACH);
 	}
@@ -648,7 +649,7 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	sk->mtu = rt->u.dst.pmtu;
 	if ((sk->ip_pmtudisc == IP_PMTUDISC_DONT ||
 	     (sk->ip_pmtudisc == IP_PMTUDISC_WANT &&
-	      rt->rt_flags&RTCF_NOPMTUDISC)) &&
+	      (rt->u.dst.mxlock&(1<<RTAX_MTU)))) &&
 	    rt->u.dst.pmtu > 576)
 		sk->mtu = 576;
 
@@ -808,8 +809,11 @@ static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip)
 			 * dropped. This is the new "fast" path mtu
 			 * discovery.
 			 */
-			if (!sk->sock_readers)
+			if (!sk->sock_readers) {
+				lock_sock(sk); 
 				tcp_simple_retransmit(sk);
+				release_sock(sk);
+			} /* else let the usual retransmit timer handle it */
 		}
 	}
 }
@@ -821,6 +825,12 @@ static inline void do_pmtu_discovery(struct sock *sk, struct iphdr *ip)
  * it's just the icmp type << 8 | icmp code.  After adjustment
  * header points to the first 8 bytes of the tcp header.  We need
  * to find the appropriate port.
+ *
+ * The locking strategy used here is very "optimistic". When
+ * someone else accesses the socket the ICMP is just dropped
+ * and for some paths there is no check at all.
+ * A more general error queue to queue errors for later handling
+ * is probably better.
  */
 
 void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
@@ -864,13 +874,15 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 
 	switch (type) {
 	case ICMP_SOURCE_QUENCH:
+#ifndef OLD_SOURCE_QUENCH /* This is deprecated */
 		tp->snd_ssthresh = max(tp->snd_cwnd >> 1, 2);
 		tp->snd_cwnd = tp->snd_ssthresh;
 		tp->high_seq = tp->snd_nxt;
+#endif
 		return;
 	case ICMP_PARAMETERPROB:
 		sk->err=EPROTO;
-		sk->error_report(sk);
+		sk->error_report(sk); /* This isn't serialized on SMP! */
 		break; 
 	case ICMP_DEST_UNREACH:
 		if (code == ICMP_FRAG_NEEDED) { /* PMTU discovery (RFC1191) */
@@ -900,7 +912,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 			 */
 			return;
 		}
-		
+
 		if (!th->syn && !th->ack)
 			return;
 		req = tcp_v4_search_req(tp, iph, th, &prev); 
@@ -930,6 +942,7 @@ void tcp_v4_err(struct sk_buff *skb, unsigned char *dp, int len)
 	}
 	
 	if(icmp_err_convert[code].fatal || opening) {
+		/* This code isn't serialized with the socket code */
 		sk->err = icmp_err_convert[code].errno;
 		if (opening) {
 			tcp_statistics.TcpAttemptFails++;
@@ -1043,7 +1056,7 @@ static void tcp_v4_send_synack(struct sock *sk, struct open_request *req)
 
 	if(ip_build_pkt(skb, sk, req->af.v4_req.loc_addr,
 			req->af.v4_req.rmt_addr, req->af.v4_req.opt) < 0) {
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 		return;
 	}
 	
@@ -1068,7 +1081,12 @@ static void tcp_v4_send_synack(struct sock *sk, struct open_request *req)
 	memset(th, 0, sizeof(struct tcphdr));
 	th->syn = 1;
 	th->ack = 1;
+	th->source =
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	req->lcl_port; /* LVE */
+#else
 	th->source = sk->dummy_th.source;
+#endif
 	th->dest = req->rmt_port;
 	skb->seq = req->snt_isn;
 	skb->end_seq = skb->seq + 1;
@@ -1110,8 +1128,7 @@ static void tcp_v4_send_synack(struct sock *sk, struct open_request *req)
 static void tcp_v4_or_free(struct open_request *req)
 {
 	if(!req->sk && req->af.v4_req.opt)
-		kfree_s(req->af.v4_req.opt,
-			sizeof(struct ip_options) + req->af.v4_req.opt->optlen);
+		kfree_s(req->af.v4_req.opt, optlength(req->af.v4_req.opt));
 }
 
 static inline void syn_flood_warning(struct sk_buff *skb)
@@ -1124,6 +1141,28 @@ static inline void syn_flood_warning(struct sk_buff *skb)
 		       "possible SYN flooding on port %d. Sending cookies.\n",  
 		       ntohs(skb->h.th->dest));
 	}
+}
+
+/* 
+ * Save and compile IPv4 options into the open_request if needed. 
+ */
+static inline struct ip_options * 
+tcp_v4_save_options(struct sock *sk, struct sk_buff *skb, 
+		    struct ip_options *opt)
+{
+	struct ip_options *dopt = NULL; 
+
+	if (opt && opt->optlen) {
+		int opt_size = optlength(opt); 
+		dopt = kmalloc(opt_size, GFP_ATOMIC);
+		if (dopt) {
+			if (ip_options_echo(dopt, skb)) {
+				kfree_s(dopt, opt_size);
+				dopt = NULL;
+			}
+		}
+	}
+	return dopt;
 }
 
 int sysctl_max_syn_backlog = 1024; 
@@ -1146,7 +1185,6 @@ struct or_calltable or_ipv4 = {
 int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb, void *ptr, 
 						__u32 isn)
 {
-	struct ip_options *opt = (struct ip_options *) ptr;
 	struct tcp_opt tp;
 	struct open_request *req;
 	struct tcphdr *th = skb->h.th;
@@ -1205,6 +1243,9 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb, void *ptr,
 	req->snd_wscale = tp.snd_wscale;
 	req->wscale_ok = tp.wscale_ok;
 	req->rmt_port = th->source;
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	req->lcl_port = th->dest ; /* LVE */
+#endif
 	req->af.v4_req.loc_addr = daddr;
 	req->af.v4_req.rmt_addr = saddr;
 
@@ -1216,20 +1257,8 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb, void *ptr,
 
 	req->snt_isn = isn;
 
-	/* IPv4 options */
-	req->af.v4_req.opt = NULL;
+	req->af.v4_req.opt = tcp_v4_save_options(sk, skb, ptr);
 
-	if (opt && opt->optlen) {
-		int opt_size = sizeof(struct ip_options) + opt->optlen;
-
-		req->af.v4_req.opt = kmalloc(opt_size, GFP_ATOMIC);
-		if (req->af.v4_req.opt) {
-			if (ip_options_echo(req->af.v4_req.opt, skb)) {
-				kfree_s(req->af.v4_req.opt, opt_size);
-				req->af.v4_req.opt = NULL;
-			}
-		}
-	}
 	req->class = &or_ipv4;
 	req->retrans = 0;
 	req->sk = NULL;
@@ -1237,26 +1266,27 @@ int tcp_v4_conn_request(struct sock *sk, struct sk_buff *skb, void *ptr,
 	tcp_v4_send_synack(sk, req);
 
 	if (want_cookie) {
-		if (req->af.v4_req.opt) 
-			kfree(req->af.v4_req.opt); 
+		if (req->af.v4_req.opt)
+			kfree(req->af.v4_req.opt);
+		tcp_v4_or_free(req); 
 	   	tcp_openreq_free(req); 
-	} else 	{
+	} else {
 		req->expires = jiffies + TCP_TIMEOUT_INIT;
 		tcp_inc_slow_timer(TCP_SLT_SYNACK);
 		tcp_synq_queue(&sk->tp_pinfo.af_tcp, req);
 	}
 
 	sk->data_ready(sk, 0);
-exit:
 	return 0;
 
 dead:
 	SOCK_DEBUG(sk, "Reset on %p: Connect on dead socket.\n",sk);
 	tcp_statistics.TcpAttemptFails++;
-	return -ENOTCONN;
+	return -ENOTCONN; /* send reset */
+
 error:
 	tcp_statistics.TcpAttemptFails++;
-	goto exit;
+	return 0;
 }
 
 struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
@@ -1282,7 +1312,7 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 	/* Or else we die! -DaveM */
 	newsk->sklist_next = NULL;
 
-	newsk->opt = req->af.v4_req.opt;
+	newsk->opt = req->af.v4_req.opt; 
 
 	skb_queue_head_init(&newsk->write_queue);
 	skb_queue_head_init(&newsk->receive_queue);
@@ -1338,7 +1368,12 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 
 	tcp_init_xmit_timers(newsk);
 
-	newsk->dummy_th.source = sk->dummy_th.source;
+	newsk->dummy_th.source = 
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	req->lcl_port; /* LVE */
+#else
+	sk->dummy_th.source;
+#endif
 	newsk->dummy_th.dest = req->rmt_port;
 	newsk->sock_readers=0;
 
@@ -1348,6 +1383,13 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 
 	newsk->socket = NULL;
 
+#ifdef CONFIG_IP_TRANSPARENT_PROXY
+	/*
+	*      Deal with possibly redirected traffic by setting num to
+	*      the intended destination port of the received packet.
+        */
+	newsk->num = ntohs(skb->h.th->dest);
+#endif
 	newsk->daddr = req->af.v4_req.rmt_addr;
 	newsk->saddr = req->af.v4_req.loc_addr;
 	newsk->rcv_saddr = req->af.v4_req.loc_addr;
@@ -1359,7 +1401,7 @@ struct sock * tcp_v4_syn_recv_sock(struct sock *sk, struct sk_buff *skb,
 		if (ip_route_output(&rt,
 				    newsk->opt && newsk->opt->srr ? 
 				    newsk->opt->faddr : newsk->daddr,
-				    newsk->saddr, newsk->ip_tos, 0)) {
+				    newsk->saddr, newsk->ip_tos|RTO_CONN, 0)) {
 			sk_free(newsk);
 			return NULL;
 		}
@@ -1467,13 +1509,26 @@ static inline struct sock *tcp_v4_hnd_req(struct sock *sk,struct sk_buff *skb)
 
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	skb_set_owner_r(skb, sk);
+#ifdef CONFIG_FILTER
+	if (sk->filter)
+	{
+		if (sk_filter(skb, sk->filter_data, sk->filter))
+			goto discard;
+	}
+#endif /* CONFIG_FILTER */
 
 	/*
 	 *	socket locking is here for SMP purposes as backlog rcv
 	 *	is currently called with bh processing disabled.
 	 */
 	lock_sock(sk); 
+
+	/* 
+	 * This doesn't check if the socket has enough room for the packet.
+	 * Either process the packet _without_ queueing it and then free it,
+	 * or do the check later.
+	 */
+	skb_set_owner_r(skb, sk);
 
 	if (sk->state == TCP_ESTABLISHED) { /* Fast path */
 		if (tcp_rcv_established(sk, skb, skb->h.th, skb->len))
@@ -1494,8 +1549,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 		sk = nsk;
 	}
 	
-	if (tcp_rcv_state_process(sk, skb, skb->h.th, 
-				  &(IPCB(skb)->opt), skb->len))
+	if (tcp_rcv_state_process(sk, skb, skb->h.th, &(IPCB(skb)->opt), skb->len))
 		goto reset;
 	release_sock(sk); 
 	return 0;
@@ -1503,7 +1557,7 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 reset:
 	tcp_v4_send_reset(skb);
 discard:
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
 	/* Be careful here. If this function gets more complicated and
 	 * gcc suffers from register pressure on the x86, sk (in %ebx) 
 	 * might be destroyed here. This current version compiles correctly,
@@ -1580,7 +1634,7 @@ no_tcp_socket:
 
 discard_it:
 	/* Discard frame. */
-	kfree_skb(skb, FREE_READ);
+	kfree_skb(skb);
   	return 0;
 }
 
@@ -1602,13 +1656,17 @@ int tcp_v4_rebuild_header(struct sock *sk, struct sk_buff *skb)
 	rt = (struct rtable*)skb->dst;
 
 	/* Force route checking if want_rewrite */
+	/* The idea is good, the implementation is disguisting.
+	   Well, if I made bind on this socket, you cannot randomly ovewrite
+	   its source address. --ANK
+	 */
 	if (want_rewrite) {
 		int tmp;
 		__u32 old_saddr = rt->rt_src;
 
 		/* Query new route */
 		tmp = ip_route_connect(&rt, rt->rt_dst, 0, 
-					RT_TOS(sk->ip_tos)|(sk->localroute||0),
+					RT_TOS(sk->ip_tos)|sk->localroute,
 					sk->bound_dev_if);
 
 		/* Only useful if different source addrs */
@@ -1622,7 +1680,7 @@ int tcp_v4_rebuild_header(struct sock *sk, struct sk_buff *skb)
 	} else 
 	if (rt->u.dst.obsolete) {
 		int err;
-		err = ip_route_output(&rt, rt->rt_dst, rt->rt_src, rt->key.tos, rt->key.oif);
+		err = ip_route_output(&rt, rt->rt_dst, rt->rt_src, rt->key.tos|RTO_CONN, rt->key.oif);
 		if (err) {
 			sk->err_soft=-err;
 			sk->error_report(skb->sk);
@@ -1631,9 +1689,6 @@ int tcp_v4_rebuild_header(struct sock *sk, struct sk_buff *skb)
 		dst_release(skb->dst);
 		skb->dst = &rt->u.dst;
 	}
-
-	/* Discard the surplus MAC header. */
-	skb_pull(skb, skb->nh.raw-skb->data);
 
 	iph = skb->nh.iph;
 	th = skb->h.th;
@@ -1778,11 +1833,11 @@ static int tcp_v4_destroy_sock(struct sock *sk)
 
 	/* Cleanup up the write buffer. */
   	while((skb = skb_dequeue(&sk->write_queue)) != NULL)
-		kfree_skb(skb, FREE_WRITE);
+		kfree_skb(skb);
 
 	/* Cleans up our, hopefuly empty, out_of_order_queue. */
   	while((skb = skb_dequeue(&sk->out_of_order_queue)) != NULL)
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 
 	return 0;
 }

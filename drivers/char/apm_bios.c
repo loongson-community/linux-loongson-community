@@ -26,6 +26,8 @@
  * April 1996, Stephen Rothwell (Stephen.Rothwell@canb.auug.org.au)
  *    Version 1.0 and 1.1
  * May 1996, Version 1.2
+ * Feb 1998, Version 1.3
+ * Feb 1998, Version 1.4
  *
  * History:
  *    0.6b: first version in official kernel, Linux 1.3.46
@@ -44,8 +46,12 @@
  *	   levels to the printk calls. APM is not defined for SMP machines.
  *         The new replacment for it is, but Linux doesn't yet support this.
  *         Alan Cox Linux 2.1.55
+ *    1.3: Set up a valid data descriptor 0x40 for buggy BIOS's
+ *    1.4: Upgraded to support APM 1.2. Integrated ThinkPad suspend patch by 
+ *         Dean Gaudet <dgaudet@arctic.org>.
+ *         C. Scott Ananian <cananian@alumni.princeton.edu> Linux 2.1.87
  *
- * Reference:
+ * APM 1.1 Reference:
  *
  *   Intel Corporation, Microsoft Corporation. Advanced Power Management
  *   (APM) BIOS Interface Specification, Revision 1.1, September 1993.
@@ -56,6 +62,15 @@
  * ftp://ftp.intel.com/pub/IAL/software_specs/apmv11.doc.  It is also
  * available from Microsoft by calling 206.882.8080.]
  *
+ * APM 1.2 Reference:
+ *   Intel Corporation, Microsoft Corporation. Advanced Power Management
+ *   (APM) BIOS Interface Specification, Revision 1.2, February 1996.
+ *
+ * [This document is available from Intel at:
+ *    http://www.intel.com/IAL/powermgm
+ *  or Microsoft at
+ *    http://www.microsoft.com/windows/thirdparty/hardware/pcfuture.htm
+ * ]
  */
 
 #include <linux/config.h>
@@ -126,6 +141,11 @@ extern unsigned long get_cmos_time(void);
  * problems have been reported when using this option with gpm (if you'd
  * like to debug this, please do so).
  *
+ * CONFIG_APM_IGNORE_MULTIPLE_SUSPEND: The IBM TP560 bios seems to insist
+ * on returning multiple suspend/standby events whenever one occurs.  We
+ * really only need one at a time, so just ignore any beyond the first.
+ * This is probably safe on most laptops.
+ *
  * If you are debugging the APM support for your laptop, note that code for
  * all of these options is contained in this file, so you can #define or
  * #undef these on the next line to avoid recompiling the whole kernel.
@@ -139,6 +159,8 @@ extern unsigned long get_cmos_time(void);
  * U: ACER 486DX4/75: uses dseg 0040, in violation of APM specification
  *                    [Confirmed by BIOS disassembly]
  * P: Toshiba 1950S: battery life information only gets updated after resume
+ * P: Midwest Micro Soundbook Elite DX2/66 monochrome: screen blanking
+ * 	broken in BIOS [Reported by Garst R. Reese <reese@isn.net>]
  *
  * Legend: U = unusable with APM patches
  *         P = partially usable with APM patches
@@ -162,8 +184,8 @@ extern unsigned long get_cmos_time(void);
 #define APM_NOINTS
 
 /*
- * Define to make the APM BIOS calls zero all data segment registers (do
- * that if an incorrect BIOS implementation will cause a kernel panic if it
+ * Define to make the APM BIOS calls zero all data segment registers (so
+ * that an incorrect BIOS implementation will cause a kernel panic if it
  * tries to write to arbitrary memory).
  */
 #define APM_ZERO_SEGS
@@ -277,9 +299,15 @@ extern unsigned long get_cmos_time(void);
 	: "a" (0x530a), "b" (1) \
 	APM_BIOS_CALL_END
 
-#define APM_GET_EVENT(event, error)	\
+#define APM_GET_BATTERY_STATUS(which, bx, cx, dx, si, error) \
 	APM_BIOS_CALL(al) \
-	: "=a" (error), "=b" (event) \
+	: "=a" (error), "=b" (bx), "=c" (cx), "=d" (dx), "=S" (si) \
+	: "a" (0x530a), "b" (0x8000 | (which)) \
+	APM_BIOS_CALL_END
+
+#define APM_GET_EVENT(event, info, error)	\
+	APM_BIOS_CALL(al) \
+	: "=a" (error), "=b" (event), "=c" (info) \
 	: "a" (0x530b) \
 	APM_BIOS_CALL_END
 
@@ -331,6 +359,9 @@ static int			clock_slowed = 0;
 #endif
 static int			suspends_pending = 0;
 static int			standbys_pending = 0;
+#ifdef CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
+static int			waiting_for_resume = 0;
+#endif
 
 static long			clock_cmos_diff;
 static int			got_clock_diff = 0;
@@ -340,7 +371,7 @@ static struct apm_bios_struct *	user_list = NULL;
 
 static struct timer_list	apm_timer;
 
-static char			driver_version[] = "1.2";/* no spaces */
+static char			driver_version[] = "1.4";	/* no spaces */
 
 #ifdef APM_DEBUG
 static char *	apm_event_name[] = {
@@ -354,7 +385,8 @@ static char *	apm_event_name[] = {
 	"critical suspend",
 	"user standby",
 	"user suspend",
-	"system standby resume"
+	"system standby resume",
+	"capabilities change"
 };
 #define NR_APM_EVENT_NAME	\
 		(sizeof(apm_event_name) / sizeof(apm_event_name[0]))
@@ -404,6 +436,8 @@ static const lookup_t error_table[] = {
 	{ APM_BAD_DEVICE,	"Unrecognized device ID" },
 	{ APM_BAD_PARAM,	"Parameter out of range" },
 	{ APM_NOT_ENGAGED,	"Interface not engaged" },
+	{ APM_BAD_FUNCTION,     "Function not supported" },
+	{ APM_RESUME_DISABLED,	"Resume timer disabled" },
 	{ APM_BAD_STATE,	"Unable to enter requested state" },
 /* N/A	{ APM_NO_EVENTS,	"No events pending" }, */
 	{ APM_NOT_PRESENT,	"No APM present" }
@@ -421,13 +455,15 @@ static int apm_driver_version(u_short *val)
 	return APM_SUCCESS;
 }
 
-static int apm_get_event(apm_event_t *event)
+static int apm_get_event(apm_event_t *event, apm_eventinfo_t *info)
 {
 	u_short	error;
 
-	APM_GET_EVENT(*event, error);
+	APM_GET_EVENT(*event, *info, error);
 	if (error & 0xff)
 		return (error >> 8);
+	if (apm_bios_info.version < 0x0102)
+		*info = ~0; /* indicate info not valid */
 	return APM_SUCCESS;
 }
 
@@ -474,6 +510,24 @@ static int apm_get_power_status(u_short *status, u_short *bat, u_short *life)
 	u_short	error;
 
 	APM_GET_POWER_STATUS(*status, *bat, *life, error);
+	if (error & 0xff)
+		return (error >> 8);
+	return APM_SUCCESS;
+}
+
+static int apm_get_battery_status(u_short which, 
+				  u_short *bat, u_short *life, u_short *nbat)
+{
+	u_short status, error;
+
+	if (apm_bios_info.version < 0x0102) {
+		/* pretend we only have one battery. */
+		if (which!=1) return APM_BAD_DEVICE;
+		*nbat = 1;
+		return apm_get_power_status(&status, bat, life);
+	}
+
+	APM_GET_BATTERY_STATUS(which, status, *bat, *life, *nbat, error);
 	if (error & 0xff)
 		return (error >> 8);
 	return APM_SUCCESS;
@@ -581,8 +635,15 @@ static int queue_event(apm_event_t event, struct apm_bios_struct *sender)
 		if (as == sender)
 			continue;
 		as->event_head = (as->event_head + 1) % APM_MAX_EVENTS;
-		if (as->event_head == as->event_tail)
+		if (as->event_head == as->event_tail) {
+			static int notified;
+
+			if (notified == 0) {
+			    printk( "apm_bios: an event queue overflowed\n" );
+			    notified = 1;
+			}
 			as->event_tail = (as->event_tail + 1) % APM_MAX_EVENTS;
+		}
 		as->events[as->event_head] = event;
 		if (!as->suser)
 			continue;
@@ -650,10 +711,12 @@ static apm_event_t get_event(void)
 {
 	int		error;
 	apm_event_t	event;
+	apm_eventinfo_t	info;
 
 	static int notified = 0;
 
-	error = apm_get_event(&event);
+	/* we don't use the eventinfo */
+	error = apm_get_event(&event, &info);
 	if (error == APM_SUCCESS)
 		return event;
 
@@ -687,9 +750,23 @@ static void check_events(void)
 	apm_event_t	event;
 
 	while ((event = get_event()) != 0) {
+#ifdef APM_DEBUG
+		if (event <= NR_APM_EVENT_NAME)
+			printk(KERN_DEBUG "APM BIOS received %s notify\n",
+			       apm_event_name[event - 1]);
+		else
+			printk(KERN_DEBUG "APM BIOS received unknown "
+			       "event 0x%02x\n", event);
+#endif
 		switch (event) {
 		case APM_SYS_STANDBY:
 		case APM_USER_STANDBY:
+#ifdef CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
+			if (waiting_for_resume) {
+			    return;
+			}
+			waiting_for_resume = 1;
+#endif
 			send_event(event, APM_STANDBY_RESUME, NULL);
 			if (standbys_pending <= 0)
 				standby();
@@ -702,6 +779,12 @@ static void check_events(void)
 			break;
 #endif
 		case APM_SYS_SUSPEND:
+#ifdef CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
+			if (waiting_for_resume) {
+			    return;
+			}
+			waiting_for_resume = 1;
+#endif
 			send_event(event, APM_NORMAL_RESUME, NULL);
 			if (suspends_pending <= 0)
 				suspend();
@@ -710,12 +793,16 @@ static void check_events(void)
 		case APM_NORMAL_RESUME:
 		case APM_CRITICAL_RESUME:
 		case APM_STANDBY_RESUME:
+#ifdef CONFIG_APM_IGNORE_MULTIPLE_SUSPEND
+			waiting_for_resume = 0;
+#endif
 			set_time();
 			send_event(event, 0, NULL);
 			break;
 
 		case APM_LOW_BATTERY:
 		case APM_POWER_STATUS_CHANGE:
+		case APM_CAPABILITY_CHANGE:
 			send_event(event, 0, NULL);
 			break;
 
@@ -727,14 +814,6 @@ static void check_events(void)
 			suspend();
 			break;
 		}
-#ifdef APM_DEBUG
-		if (event <= NR_APM_EVENT_NAME)
-			printk(KERN_DEBUG "APM BIOS received %s notify\n",
-			       apm_event_name[event - 1]);
-		else
-			printk(KERN_DEBUG "APM BIOS received unknown event 0x%02x\n",
-			       event);
-#endif
 	}
 }
 
@@ -869,7 +948,7 @@ static unsigned int do_poll(struct file *fp, poll_table * wait)
 	as = fp->private_data;
 	if (check_apm_bios_struct(as, "select"))
 		return 0;
-	poll_wait(&process_list, wait);
+	poll_wait(fp, &process_list, wait);
 	if (!queue_empty(as))
 		return POLLIN | POLLRDNORM;
 	return 0;
@@ -964,6 +1043,13 @@ static int do_open(struct inode * inode, struct file * filp)
 	as->event_tail = as->event_head = 0;
 	as->suspends_pending = as->standbys_pending = 0;
 	as->suspends_read = as->standbys_read = 0;
+	/*
+	 * XXX - this is a tiny bit broken, when we consider BSD
+         * process accounting. If the device is opened by root, we
+	 * instantly flag that we used superuser privs. Who knows,
+	 * we might close the device immediately without doing a
+	 * privileged operation -- cevans
+	 */
 	as->suser = suser();
 	as->next = user_list;
 	user_list = as;
@@ -1097,13 +1183,28 @@ __initfunc(void apm_bios_init(void))
 	if (apm_bios_info.version == 0x001)
 		apm_bios_info.version = 0x100;
 
+	/* BIOS < 1.2 doesn't set cseg_16_len */
+	if (apm_bios_info.version < 0x102)
+		apm_bios_info.cseg_16_len = 0xFFFF; /* 64k */
+
 	printk(KERN_INFO "    Entry %x:%lx cseg16 %x dseg %x",
 	       apm_bios_info.cseg, apm_bios_info.offset,
 	       apm_bios_info.cseg_16, apm_bios_info.dseg);
 	if (apm_bios_info.version > 0x100)
-		printk(" cseg len %x, dseg len %x",
-		       apm_bios_info.cseg_len, apm_bios_info.dseg_len);
+		printk(" cseg len %x, cseg16 len %x, dseg len %x",
+		       apm_bios_info.cseg_len, apm_bios_info.cseg_16_len,
+		       apm_bios_info.dseg_len);
 	printk("\n");
+
+	/*
+	 * Set up a segment that references the real mode segment 0x40
+	 * that extends up to the end of page zero (that we have reserved).
+	 * This is for buggy BIOS's that refer to (real mode) segment 0x40
+	 * even though they are called in protected mode.
+	 */
+	set_base(gdt[APM_40 >> 3],
+		 0xc0000000 + ((unsigned long)0x40 << 4));
+	set_limit(gdt[APM_40 >> 3], 4096 - (0x40 << 4));
 
 	apm_bios_entry.offset = apm_bios_info.offset;
 	apm_bios_entry.segment = APM_CS;
@@ -1127,19 +1228,25 @@ __initfunc(void apm_bios_init(void))
 		set_limit(gdt[APM_DS >> 3], 64 * 1024);
 #else
 		set_limit(gdt[APM_CS >> 3], apm_bios_info.cseg_len);
-		set_limit(gdt[APM_CS_16 >> 3], 64 * 1024);
+		set_limit(gdt[APM_CS_16 >> 3], apm_bios_info.cseg_16_len);
 		set_limit(gdt[APM_DS >> 3], apm_bios_info.dseg_len);
 #endif
-		apm_bios_info.version = 0x0101;
+		/* The APM 1.2 docs state that the apm_driver_version
+		 * call can fail if we try to connect as 1.2 to a 1.1 bios.
+		 */
+		apm_bios_info.version = 0x0102;
 		error = apm_driver_version(&apm_bios_info.version);
-		if (error != 0)
+		if (error != 0) { /* Fall back to an APM 1.1 connection. */
+			apm_bios_info.version = 0x0101;
+			error = apm_driver_version(&apm_bios_info.version);
+		}
+		if (error != 0) /* Fall back to an APM 1.0 connection. */
 			apm_bios_info.version = 0x100;
 		else {
 			apm_engage_power_management(0x0001);
 			printk( "    Connection version %d.%d\n",
 				(apm_bios_info.version >> 8) & 0xff,
 				apm_bios_info.version & 0xff );
-			apm_bios_info.version = 0x0101;
 		}
 	}
 

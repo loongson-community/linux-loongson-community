@@ -3,13 +3,14 @@
  * linux/drivers/block/ide-cd.c
  * Copyright (C) 1994, 1995, 1996  scott snyder  <snyder@fnald0.fnal.gov>
  * Copyright (C) 1996-1998  Erik Andersen <andersee@debian.org>
+ *
  * May be copied or modified under the terms of the GNU General Public
  * License.  See linux/COPYING for more information.
  *
  * ATAPI CD-ROM driver.  To be used with ide.c.
  * See Documentation/cdrom/ide-cd for usage information.
  *
- * Suggestions are welcome. Patches that work are more welcome though.
+ * Suggestions are welcome. Patches that work are more welcome though. ;-)
  * For those wishing to work on this driver, please be sure you download
  * and comply with the latest ATAPI standard. This document can be
  * obtained by anonymous ftp from fission.dt.wdc.com in directory:
@@ -27,10 +28,8 @@
  *     unless you have a patch to fix it.  I am working on it...)
  * -Implement ide_cdrom_select_speed using the generic cdrom interface
  * -Fix ide_cdrom_reset so that it works (it does nothing right now)
- *
- * MOSTLY DONE LIST:
- *  Query the drive to find what features are available
- *   before trying to use them.
+ * -Query the drive to find what features are available before trying to
+ *   use them (like trying to close the tray in drives that can't).
  *
  *
  * ----------------------------------
@@ -180,12 +179,21 @@
  *
  * 4.06  Dec 17, 1997  -- fixed endless "tray open" messages  -ml
  * 4.07  Dec 17, 1997  -- fallback to set pc->stat on "tray open"
+ * 4.08  Dec 18, 1997  -- spew less noise when tray is empty
+ *                     -- fix speed display for ACER 24X, 18X
+ * 4.09  Jan 04, 1998  -- fix handling of the last block so we return
+ *                         an end of file instead of an I/O error (Gadi)
+ * 4.10  Jan 24, 1998  -- fixed a bug so now changers can change to a new
+ *                         slot when there is no disc in the current slot.
+ *                     -- Fixed a memory leak where info->changer_info was
+ *                         malloc'ed but never free'd when closing the device.
+ *                     -- Cleaned up the global namespace a bit by making more
+ *                         functions static that should already have been.
  *
  *************************************************************************/
 
-#define IDECD_VERSION "4.07"
+#define IDECD_VERSION "4.10"
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -242,6 +250,15 @@ void cdrom_analyze_sense_data (ide_drive_t *drive,
 		if (failed_command &&
 		    failed_command->c[0] == SCMD_READ_SUBCHANNEL)
 			return;
+	}
+	if (reqbuf->error_code == 0x70 && reqbuf->sense_key  == 0x02
+	 && reqbuf->asc        == 0x3a && reqbuf->ascq       == 0x00)
+	{
+		/*
+		 * No disc in drive ("Medium not present"),
+		 * so keep the noise level down to a dull roar.
+		 */
+		return;
 	}
 
 #if VERBOSE_IDE_CD_ERRORS
@@ -466,7 +483,7 @@ static int cdrom_decode_status (ide_drive_t *drive, int good_stat,
 			/* Check for tray open. */
 			if (sense_key == NOT_READY) {
 				cdrom_saw_media_change (drive);
-
+#if 0	/* let the upper layers do the complaining */
 				/* Print an error message to the syslog.
 				   Exception: don't print anything if this
 				   is a read subchannel command.  This is
@@ -474,12 +491,13 @@ static int cdrom_decode_status (ide_drive_t *drive, int good_stat,
 				   with this command, and we don't want
 				   to uselessly fill up the syslog. */
 				if (pc->c[0] != SCMD_READ_SUBCHANNEL)
-					printk ("%s: tray open or drive not ready\n",
-						drive->name);
+					printk ("%s: tray open or drive not ready\n", drive->name);
+#endif
 			} else if (sense_key == UNIT_ATTENTION) {
 				/* Check for media change. */
 				cdrom_saw_media_change (drive);
 				printk ("%s: media changed\n", drive->name);
+				return 0;
 			} else {
 				/* Otherwise, print an error. */
 				ide_dump_status (drive, "packet command error",
@@ -1297,7 +1315,7 @@ int cdrom_queue_packet_command (ide_drive_t *drive, struct packet_command *pc)
 /****************************************************************************
  * cdrom driver request routine.
  */
-
+static
 void ide_do_rw_cdrom (ide_drive_t *drive, struct request *rq, unsigned long block)
 {
 	if (rq -> cmd == PACKET_COMMAND || rq -> cmd == REQUEST_SENSE_COMMAND)
@@ -1651,7 +1669,7 @@ cdrom_read_toc (ide_drive_t *drive,
 	if (stat) toc->capacity = 0x1fffff;
 
 	HWIF(drive)->gd->sizes[drive->select.b.unit << PARTN_BITS]
-		= toc->capacity * SECTORS_PER_FRAME;
+		= (toc->capacity * SECTORS_PER_FRAME) >> (BLOCK_SIZE_BITS - 9);
 	drive->part[0].nr_sects = toc->capacity * SECTORS_PER_FRAME;
 
 	/* Remember that we've read this stuff. */
@@ -2455,10 +2473,6 @@ int ide_cdrom_select_disc (struct cdrom_device_info *cdi, int slot)
 	if (drive->usage > 1)
 		return -EBUSY;
 
-	stat = cdrom_check_status (drive, &my_reqbuf);
-	if (stat && my_reqbuf.sense_key == NOT_READY)
-		return -ENOENT;
-
 	if (slot == CDSL_NONE) {
 		(void) cdrom_load_unload (drive, -1, NULL);
 		cdrom_saw_media_change (drive);
@@ -2734,12 +2748,13 @@ int ide_cdrom_probe_capabilities (ide_drive_t *drive)
 		}
 	}
 
-	if (drive->id && drive->id->model[0]) {
-		CDROM_STATE_FLAGS (drive)->current_speed  = (ntohs(buf.cap.curspeed) + (176/2)) / 176;
-		CDROM_CONFIG_FLAGS (drive)->max_speed = (ntohs(buf.cap.maxspeed) + (176/2)) / 176;
-	} else {  /* no-name ACERs (AOpen) have it backwards */
+	/* The ACER/AOpen 24X cdrom has the speed fields byte-swapped */
+	if (drive->id && !drive->id->model[0] && !strncmp(drive->id->fw_rev, "241N", 4)) {
 		CDROM_STATE_FLAGS (drive)->current_speed  = (((unsigned int)buf.cap.curspeed) + (176/2)) / 176;
 		CDROM_CONFIG_FLAGS (drive)->max_speed = (((unsigned int)buf.cap.maxspeed) + (176/2)) / 176;
+	} else {
+		CDROM_STATE_FLAGS (drive)->current_speed  = (ntohs(buf.cap.curspeed) + (176/2)) / 176;
+		CDROM_CONFIG_FLAGS (drive)->max_speed = (ntohs(buf.cap.maxspeed) + (176/2)) / 176;
 	}
 
         printk ("%s: ATAPI %dX CDROM", 
@@ -2752,11 +2767,21 @@ int ide_cdrom_probe_capabilities (ide_drive_t *drive)
         	printk (" changer w/%d slots", nslots);
         else 	
         	printk (" drive");
-	printk (" %s/%dkB Cache\n", 
-		(CDROM_CONFIG_FLAGS (drive)->is_changer)? "&" : "w",  
+	printk (", %dkB Cache\n", 
         	ntohs(buf.cap.buffer_size) );
 
 	return nslots;
+}
+
+static void ide_cdrom_add_settings(ide_drive_t *drive)
+{
+	int major = HWIF(drive)->major;
+	int minor = drive->select.b.unit << PARTN_BITS;
+
+	ide_add_setting(drive,	"breada_readahead",	SETTING_RW,					BLKRAGET,		BLKRASET,		TYPE_INT,	0,	255,				1,	2,	&read_ahead[major],		NULL);
+	ide_add_setting(drive,	"file_readahead",	SETTING_RW,					BLKFRAGET,		BLKFRASET,		TYPE_INTA,	0,	INT_MAX,			1,	1024,	&max_readahead[major][minor],	NULL);
+	ide_add_setting(drive,	"max_kb_per_request",	SETTING_RW,					BLKSECTGET,		BLKSECTSET,		TYPE_INTA,	1,	255,				1,	2,	&max_sectors[major][minor],	NULL);
+	ide_add_setting(drive,	"dsc_overlap",		SETTING_RW,					-1,			-1,			TYPE_BYTE,	0,	1,				1,	1,	&drive->dsc_overlap,		NULL);
 }
 
 static
@@ -2871,11 +2896,12 @@ int ide_cdrom_setup (ide_drive_t *drive)
 		info->devinfo.handle = NULL;
 		return 1;
 	}
+	ide_cdrom_add_settings(drive);
 	return 0;
 }
 
 /* Forwarding functions to generic routines. */
-
+static
 int ide_cdrom_ioctl (ide_drive_t *drive,
 		     struct inode *inode, struct file *file,
 		     unsigned int cmd, unsigned long arg)
@@ -2883,6 +2909,7 @@ int ide_cdrom_ioctl (ide_drive_t *drive,
 	return cdrom_fops.ioctl (inode, file, cmd, arg);
 }
 
+static
 int ide_cdrom_open (struct inode *ip, struct file *fp, ide_drive_t *drive)
 {
 	int rc;
@@ -2896,6 +2923,7 @@ int ide_cdrom_open (struct inode *ip, struct file *fp, ide_drive_t *drive)
 	return rc;
 }
 
+static
 void ide_cdrom_release (struct inode *inode, struct file *file,
 			ide_drive_t *drive)
 {
@@ -2903,6 +2931,7 @@ void ide_cdrom_release (struct inode *inode, struct file *file,
 	MOD_DEC_USE_COUNT;
 }
 
+static
 int ide_cdrom_check_media_change (ide_drive_t *drive)
 {
 	return cdrom_fops.check_media_change
@@ -2911,6 +2940,7 @@ int ide_cdrom_check_media_change (ide_drive_t *drive)
 }
 
 
+static
 int ide_cdrom_cleanup(ide_drive_t *drive)
 {
 	struct cdrom_info *info = drive->driver_data;
@@ -2922,19 +2952,14 @@ int ide_cdrom_cleanup(ide_drive_t *drive)
 		kfree (info->sector_buffer);
 	if (info->toc != NULL)
 		kfree (info->toc);
+	if (info->changer_info != NULL)
+		kfree (info->changer_info);
 	if (devinfo->handle == drive && unregister_cdrom (devinfo))
 		printk ("%s: ide_cdrom_cleanup failed to unregister device from the cdrom driver.\n", drive->name);
 	kfree (info);
 	drive->driver_data = NULL;
 	return 0;
 }
-
-int ide_cdrom_init (void);
-static ide_module_t ide_cdrom_module = {
-	IDE_DRIVER_MODULE,
-	ide_cdrom_init,
-	NULL
-};
 
 static ide_driver_t ide_cdrom_driver = {
 	"ide-cdrom",			/* name */
@@ -2956,6 +2981,13 @@ static ide_driver_t ide_cdrom_driver = {
 	NULL				/* proc */
 };
 
+int ide_cdrom_init (void);
+static ide_module_t ide_cdrom_module = {
+	IDE_DRIVER_MODULE,
+	ide_cdrom_init,
+	&ide_cdrom_driver,
+	NULL
+};
 
 #ifdef MODULE
 int init_module (void)
@@ -2968,7 +3000,7 @@ void cleanup_module(void)
 	ide_drive_t *drive;
 	int failed = 0;
 
-	while ((drive = ide_scan_devices (ide_cdrom, &ide_cdrom_driver, failed)) != NULL)
+	while ((drive = ide_scan_devices (ide_cdrom, ide_cdrom_driver.name, &ide_cdrom_driver, failed)) != NULL)
 		if (ide_cdrom_cleanup (drive)) {
 			printk ("%s: cleanup_module() called while still busy\n", drive->name);
 			failed++;
@@ -2984,7 +3016,7 @@ int ide_cdrom_init (void)
 	int failed = 0;
 
 	MOD_INC_USE_COUNT;
-	while ((drive = ide_scan_devices (ide_cdrom, NULL, failed++)) != NULL) {
+	while ((drive = ide_scan_devices (ide_cdrom, ide_cdrom_driver.name, NULL, failed++)) != NULL) {
 		info = (struct cdrom_info *) kmalloc (sizeof (struct cdrom_info), GFP_KERNEL);
 		if (info == NULL) {
 			printk ("%s: Can't allocate a cdrom structure\n", drive->name);

@@ -38,6 +38,11 @@ struct pol_chain {
 
 extern struct rt6_info	ip6_null_entry;
 
+extern int ip6_rt_max_size;
+extern int ip6_rt_gc_min;
+extern int ip6_rt_gc_timeout;
+extern int ip6_rt_gc_interval;
+
 extern void			ip6_route_input(struct sk_buff *skb);
 
 extern struct dst_entry *	ip6_route_output(struct sock *sk,
@@ -53,6 +58,9 @@ extern struct rt6_info *	ip6_route_add(struct in6_rtmsg *rtmsg,
 extern int			ip6_del_rt(struct rt6_info *);
 
 extern int			ip6_rt_addr_add(struct in6_addr *addr,
+						struct device *dev);
+
+extern int			ip6_rt_addr_del(struct in6_addr *addr,
 						struct device *dev);
 
 extern void			rt6_sndmsg(int type, struct in6_addr *dst,
@@ -87,7 +95,13 @@ extern void			rt6_pmtu_discovery(struct in6_addr *addr,
 						   struct device *dev,
 						   int pmtu);
 
-extern struct rt6_info *	ip6_rt_copy(struct rt6_info *rt);
+struct nlmsghdr;
+struct netlink_callback;
+extern int inet6_dump_fib(struct sk_buff *skb, struct netlink_callback *cb);
+extern int inet6_rtm_newroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg);
+extern int inet6_rtm_delroute(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg);
+
+extern void rt6_ifdown(struct device *dev);
 
 /*
  *	Store a destination cache entry in a socket
@@ -100,7 +114,7 @@ extern __inline__ void ip6_dst_store(struct sock *sk, struct dst_entry *dst)
 	struct rt6_info *rt;
 		
 	np = &sk->net_pinfo.af_inet6;
-	np->dst = dst;
+	sk->dst_cache = dst;
 	
 	rt = (struct rt6_info *) dst;
 	

@@ -10,6 +10,16 @@ bool 'Prompt for development and/or incomplete code/drivers' CONFIG_EXPERIMENTAL
 endmenu
 
 mainmenu_option next_comment
+comment 'Processor type and features'
+choice 'Processor family' \
+	"386			CONFIG_M386	\
+	 486/Cx486		CONFIG_M486	\
+	 Pentium/K5/5x86/6x86	CONFIG_M586	\
+	 PPro/K6/6x86MX		CONFIG_M686" Pentium
+bool 'Math emulation' CONFIG_MATH_EMULATION
+endmenu
+
+mainmenu_option next_comment
 comment 'Loadable module support'
 bool 'Enable loadable module support' CONFIG_MODULES
 if [ "$CONFIG_MODULES" = "y" ]; then
@@ -21,7 +31,6 @@ endmenu
 mainmenu_option next_comment
 comment 'General setup'
 
-bool 'Kernel math emulation' CONFIG_MATH_EMULATION
 bool 'Networking support' CONFIG_NET
 bool 'PCI support' CONFIG_PCI
 if [ "$CONFIG_PCI" = "y" ]; then
@@ -30,9 +39,11 @@ if [ "$CONFIG_PCI" = "y" ]; then
   if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
     bool '   PCI bridge optimization (experimental)' CONFIG_PCI_OPTIMIZE
   fi
+  bool '   Backward-compatible /proc/pci' CONFIG_PCI_OLD_PROC
 fi
 bool 'MCA support' CONFIG_MCA
 bool 'System V IPC' CONFIG_SYSVIPC
+bool 'BSD Process Accounting' CONFIG_BSD_PROCESS_ACCT
 bool 'Sysctl support' CONFIG_SYSCTL
 tristate 'Kernel support for a.out binaries' CONFIG_BINFMT_AOUT
 tristate 'Kernel support for ELF binaries' CONFIG_BINFMT_ELF
@@ -41,16 +52,14 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
   tristate 'Kernel support for JAVA binaries (obsolete)' CONFIG_BINFMT_JAVA
 fi
 
-choice 'Processor type' \
-	"386		CONFIG_M386	\
-	 486		CONFIG_M486	\
-	 Pentium	CONFIG_M586	\
-	 PPro		CONFIG_M686" Pentium
 bool 'Video mode selection support' CONFIG_VIDEO_SELECT
 
 tristate 'Parallel port support' CONFIG_PARPORT
 if [ "$CONFIG_PARPORT" != "n" ]; then
-  dep_tristate '  PC-style hardware' CONFIG_PARPORT_PC $CONFIG_PARPORT
+  dep_tristate '   PC-style hardware' CONFIG_PARPORT_PC $CONFIG_PARPORT
+  if [ "$CONFIG_PARPORT_PC" != "n" ]; then
+    bool '   Support foreign hardware' CONFIG_PARPORT_OTHER
+  fi
 fi
 
 endmenu
@@ -84,7 +93,7 @@ if [ "$CONFIG_NET" = "y" ]; then
   endmenu
 fi
 
-source drivers/net/hamradio/Config.in
+source net/ax25/Config.in
 
 mainmenu_option next_comment
 comment 'ISDN subsystem'
@@ -105,10 +114,10 @@ fi
 endmenu
 
 # Conditionally compile in the Uniform CD-ROM driver
-if [ "$CONFIG_BLK_DEV_IDECD" = "y" -o "$CONFIG_BLK_DEV_SR" = "y" -o "$CONFIG_SBPCD" = "y" -o "$CONFIG_MCD" = "y" -o "$CONFIG_CM206" = "y" -o "$CONFIG_CDU31A" = "y" ]; then
+if [ "$CONFIG_BLK_DEV_IDECD" = "y" -o "$CONFIG_BLK_DEV_SR" = "y" -o "$CONFIG_SBPCD" = "y" -o "$CONFIG_MCD" = "y" -o "$CONFIG_MCDX" = "y" -o "$CONFIG_CM206" = "y" -o "$CONFIG_CDU31A" = "y" ]; then
   define_bool CONFIG_CDROM y
 else
-  if [ "$CONFIG_BLK_DEV_IDECD" = "m" -o "$CONFIG_BLK_DEV_SR" = "m" -o "$CONFIG_SBPCD" = "m" -o "$CONFIG_MCD" = "m" -o "$CONFIG_CM206" = "m" -o "$CONFIG_CDU31A" = "m" ]; then
+  if [ "$CONFIG_BLK_DEV_IDECD" = "m" -o "$CONFIG_BLK_DEV_SR" = "m" -o "$CONFIG_SBPCD" = "m" -o "$CONFIG_MCD" = "m" -o "$CONFIG_MCDX" = "m" -o "$CONFIG_CM206" = "m" -o "$CONFIG_CDU31A" = "m" ]; then
     define_bool CONFIG_CDROM m
   else
     define_bool CONFIG_CDROM n
@@ -140,3 +149,5 @@ if [ "$CONFIG_PROFILE" = "y" ]; then
 fi
 bool 'Magic SysRq key' CONFIG_MAGIC_SYSRQ
 endmenu
+
+define_bool CONFIG_VGA_CONSOLE y

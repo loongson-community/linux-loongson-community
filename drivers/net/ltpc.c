@@ -180,7 +180,6 @@ static int debug=0;
 #define DEBUG_UPPER 2
 #define DEBUG_LOWER 4
 
-#include <linux/config.h> /* for CONFIG_MAX_16M */
 
 #ifdef MODULE
 #include <linux/module.h>
@@ -951,7 +950,7 @@ static int ltpc_xmit(struct sk_buff *skb, struct device *dev)
 	stats->tx_packets++;
 	stats->tx_bytes+=skb->len;
 
-	dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb(skb);
 	return 0;
 }
 

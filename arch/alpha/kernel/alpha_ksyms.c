@@ -21,10 +21,13 @@
 #include <asm/checksum.h>
 #include <linux/interrupt.h>
 #include <asm/softirq.h>
+#include <asm/fpu.h>
+
+#define __KERNEL_SYSCALLS__
+#include <asm/unistd.h>
 
 extern void bcopy (const char *src, char *dst, int len);
 extern struct hwrpb_struct *hwrpb;
-extern long __kernel_thread(unsigned long, int (*)(void *), void *);
 extern void dump_thread(struct pt_regs *, struct user *);
 extern int dump_fpu(struct pt_regs *, elf_fpregset_t *);
 
@@ -38,7 +41,7 @@ extern void __remlu (void);
 extern void __divqu (void);
 extern void __remqu (void);
 
-EXPORT_SYMBOL(__alpha_bh_counter);
+EXPORT_SYMBOL(local_bh_count);
 EXPORT_SYMBOL(local_irq_count);
 
 /* platform dependent support */
@@ -54,6 +57,9 @@ EXPORT_SYMBOL(_readl);
 EXPORT_SYMBOL(_writeb);
 EXPORT_SYMBOL(_writew);
 EXPORT_SYMBOL(_writel);
+EXPORT_SYMBOL(_memcpy_fromio);
+EXPORT_SYMBOL(_memcpy_toio);
+EXPORT_SYMBOL(_memset_io);
 EXPORT_SYMBOL(insb);
 EXPORT_SYMBOL(insw);
 EXPORT_SYMBOL(insl);
@@ -71,6 +77,7 @@ EXPORT_SYMBOL(strncat);
 EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(strtok);
 EXPORT_SYMBOL(strchr);
+EXPORT_SYMBOL(strrchr);
 EXPORT_SYMBOL(memcmp);
 EXPORT_SYMBOL(memmove);
 EXPORT_SYMBOL(__memcpy);
@@ -81,14 +88,35 @@ EXPORT_SYMBOL(dump_thread);
 EXPORT_SYMBOL(dump_fpu);
 EXPORT_SYMBOL(hwrpb);
 EXPORT_SYMBOL(wrusp);
-EXPORT_SYMBOL(__kernel_thread);
 EXPORT_SYMBOL(start_thread);
+EXPORT_SYMBOL(alpha_read_fp_reg);
+EXPORT_SYMBOL(alpha_write_fp_reg);
+
+/* In-kernel system calls.  */
+EXPORT_SYMBOL(__kernel_thread);
+EXPORT_SYMBOL(sys_open);
+EXPORT_SYMBOL(sys_dup);
+EXPORT_SYMBOL(sys_exit);
+EXPORT_SYMBOL(sys_write);
+EXPORT_SYMBOL(sys_read);
+EXPORT_SYMBOL(sys_lseek);
+EXPORT_SYMBOL(__kernel_execve);
+EXPORT_SYMBOL(sys_setsid);
+EXPORT_SYMBOL(sys_sync);
+EXPORT_SYMBOL(sys_wait4);
 
 /* Networking helper routines. */
 EXPORT_SYMBOL(csum_tcpudp_magic);
-EXPORT_SYMBOL(ip_fast_csum);
 EXPORT_SYMBOL(ip_compute_csum);
+EXPORT_SYMBOL(ip_fast_csum);
 EXPORT_SYMBOL(csum_partial_copy);
+EXPORT_SYMBOL(csum_partial_copy_from_user);
+EXPORT_SYMBOL(csum_ipv6_magic);
+
+#ifdef CONFIG_MATHEMU_MODULE
+extern long (*alpha_fp_emul_imprecise)(struct pt_regs *, unsigned long);
+EXPORT_SYMBOL(alpha_fp_emul_imprecise);
+#endif
 
 /*
  * The following are specially called from the uaccess assembly stubs.

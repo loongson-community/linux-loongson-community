@@ -61,36 +61,49 @@ static int selected_console = 0;
  */
 __initfunc(void console_setup(char *str, int *ints))
 {
-	char *s;
-	int i;
 	struct console_cmdline *c;
+	char name[sizeof(c->name)];
+	char *s, *options;
+	int i, idx;
 
-	for(i = 0; i < MAX_CMDLINECONSOLES && console_cmdline[i].name[0]; i++)
-		;
-	if (i == MAX_CMDLINECONSOLES)
-		return;
-	c = &console_cmdline[i];
-	selected_console = 1;
-
+	/*
+	 *	Decode str into name, index, options.
+	 */
 	if (str[0] >= '0' && str[0] <= '9') {
-		strcpy(c->name, "ttyS");
-		strncpy(c->name + 4, str, sizeof(c->name) - 5);
+		strcpy(name, "ttyS");
+		strncpy(name + 4, str, sizeof(name) - 5);
 	} else
-		strncpy(c->name, str, sizeof(c->name) - 1);
-	if ((c->options = strchr(str, ',')) != NULL)
-		*(c->options++) = 0;
+		strncpy(name, str, sizeof(name) - 1);
+	name[sizeof(name) - 1] = 0;
+	if ((options = strchr(str, ',')) != NULL)
+		*(options++) = 0;
 #ifdef __sparc__
 	if (!strcmp(str, "ttya"))
-		strcpy(c->name, "ttyS0");
+		strcpy(name, "ttyS0");
 	if (!strcmp(str, "ttyb"))
-		strcpy(c->name, "ttyS1");
+		strcpy(name, "ttyS1");
 #endif
-
-	for(s = c->name; *s; s++)
+	for(s = name; *s; s++)
 		if (*s >= '0' && *s <= '9')
 			break;
-	c->index = simple_strtoul(s, NULL, 10);
+	idx = simple_strtoul(s, NULL, 10);
 	*s = 0;
+
+	/*
+	 *	See if this tty is not yet registered, and
+	 *	if we have a slot free.
+	 */
+	for(i = 0; i < MAX_CMDLINECONSOLES && console_cmdline[i].name[0]; i++)
+		if (strcmp(console_cmdline[i].name, name) == 0 &&
+			  console_cmdline[i].index == idx)
+				return;
+	if (i == MAX_CMDLINECONSOLES)
+		return;
+	selected_console = 1;
+	c = &console_cmdline[i];
+	memcpy(c->name, name, sizeof(c->name));
+	c->options = options;
+	c->index = idx;
 }
 
 
@@ -218,6 +231,7 @@ out:
 	return error;
 }
 
+spinlock_t console_lock;
 
 asmlinkage int printk(const char *fmt, ...)
 {
@@ -228,8 +242,7 @@ asmlinkage int printk(const char *fmt, ...)
 	static signed char msg_level = -1;
 	long flags;
 
-	__save_flags(flags);
-	__cli();
+	spin_lock_irqsave(&console_lock, flags);
 	va_start(args, fmt);
 	i = vsprintf(buf + 3, fmt, args); /* hopefully i < sizeof(buf)-4 */
 	buf_end = buf + 3 + i;
@@ -277,7 +290,7 @@ asmlinkage int printk(const char *fmt, ...)
 		if (line_feed)
 			msg_level = -1;
 	}
-	__restore_flags(flags);
+	spin_unlock_irqrestore(&console_lock, flags);
 	wake_up_interruptible(&log_wait);
 	return i;
 }
@@ -324,6 +337,8 @@ void register_console(struct console * console)
 	 *	that registers here.
 	 */
 	if (selected_console == 0) {
+		if (console->index < 0)
+			console->index = 0;
 		if (console->setup == NULL ||
 		    console->setup(console, NULL) == 0) {
 			console->flags |= CON_ENABLED | CON_FIRST;
@@ -392,6 +407,26 @@ void register_console(struct console * console)
 	}
 }
 
+
+int unregister_console(struct console * console)
+{
+        struct console *a,*b;
+	
+	if (console_drivers == console) {
+		console_drivers=console->next;
+		return (0);
+	}
+	for (a=console_drivers->next, b=console_drivers ;
+	     a; b=a, a=b->next) {
+		if (a == console) {
+			b->next = a->next;
+			return 0;
+		}  
+	}
+	
+	return (1);
+}
+	
 /*
  * Write a message to a certain tty, not just the console. This is used for
  * messages that need to be redirected to a specific tty.

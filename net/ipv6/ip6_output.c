@@ -5,7 +5,7 @@
  *	Authors:
  *	Pedro Roque		<roque@di.fc.ul.pt>	
  *
- *	$Id: ip6_output.c,v 1.5 1997/09/21 18:33:14 kuznet Exp $
+ *	$Id: ip6_output.c,v 1.7 1997/12/29 19:52:46 kuznet Exp $
  *
  *	Based on linux/net/ipv4/ip_output.c
  *
@@ -35,32 +35,49 @@
 
 static u32	ipv6_fragmentation_id = 1;
 
-static void ipv6_build_mac_hdr(struct sk_buff *skb, struct dst_entry *dst,
-			       int len)
+int ip6_output(struct sk_buff *skb)
 {
-	struct device *dev;
-	
-	
-	dev = dst->dev;
+	struct dst_entry *dst = skb->dst;
+	struct device *dev = dst->dev;
+	struct hh_cache *hh = dst->hh;
 
-	skb->arp = 1;
-	
-	if (dev->hard_header) {
-		int mac;
+	skb->protocol = __constant_htons(ETH_P_IPV6);
+	skb->dev = dev;
 
-		/* Maybe when Alexey has done his new magic I'll hack this
-		   it seems to be worth 1-2% on IPv4 */
-#if 0
-		if (dst->hh)
-			hh_copy_header(dst->hh, skb);
-#endif
-		mac = dev->hard_header(skb, dev, ETH_P_IPV6, NULL, NULL, len);
+	if (ipv6_addr_is_multicast(&skb->nh.ipv6h->daddr)) {
+		if (!(dev->flags&IFF_LOOPBACK) &&
+		    (skb->sk == NULL || skb->sk->net_pinfo.af_inet6.mc_loop) &&
+		    ipv6_chk_mcast_addr(dev, &skb->nh.ipv6h->daddr)) {
+			/* Do not check for IFF_ALLMULTI; multicast routing
+			   is not supported in any case.
+			 */
+			dev_loopback_xmit(skb);
 
-		if (mac < 0)
-			skb->arp = 0;
+			if (skb->nh.ipv6h->hop_limit == 0) {
+				kfree_skb(skb);
+				return 0;
+			}
+		}
 	}
-	
-	skb->mac.raw = skb->data;
+
+	if (hh) {
+#ifdef __alpha__
+		/* Alpha has disguisting memcpy. Help it. */
+	        u64 *aligned_hdr = (u64*)(skb->data - 16);
+		u64 *aligned_hdr0 = hh->hh_data;
+		aligned_hdr[0] = aligned_hdr0[0];
+		aligned_hdr[1] = aligned_hdr0[1];
+#else
+		memcpy(skb->data - 16, hh->hh_data, 16);
+#endif
+	        skb_push(skb, dev->hard_header_len);
+		return hh->hh_output(skb);
+	} else if (dst->neighbour)
+		return dst->neighbour->output(skb);
+
+	printk(KERN_DEBUG "khm\n");
+	kfree_skb(skb);
+	return -EINVAL;
 }
 
 /*
@@ -78,14 +95,15 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 
 	hdr = skb->nh.ipv6h;
 
-	if (sk)
+	if (sk) {
 		np = &sk->net_pinfo.af_inet6;
 
-	if (np && np->dst) {
-		/*
-		 *	dst_check returns NULL if route is no longer valid
-		 */
-		dst = dst_check(&dst, np->dst_cookie);
+		if (sk->dst_cache) {
+			/*
+			 *	dst_check returns NULL if route is no longer valid
+			 */
+			dst = dst_check(&sk->dst_cache, np->dst_cookie);
+		}
 	}
 
 	if (dst == NULL) {
@@ -95,24 +113,15 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 			/*
 			 *	NETUNREACH usually
 			 */
+			dst_release(dst);
 			return dst->error;
 		}
 	}
 
 	skb->dst = dst_clone(dst);
-	skb->dev = dst->dev;
 	seg_len = skb->tail - ((unsigned char *) hdr);
-	
-	/*
-	 *	Link Layer headers
-	 */
-
-	skb->protocol = __constant_htons(ETH_P_IPV6);
 	hdr = skb->nh.ipv6h;
 
-	ipv6_build_mac_hdr(skb, dst, seg_len);
-
-	
 	/*
 	 *	Fill in the IPv6 header
 	 */
@@ -127,17 +136,21 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 
 	hdr->payload_len = htons(seg_len - sizeof(struct ipv6hdr));
 	hdr->nexthdr = fl->proto;
-	hdr->hop_limit = np ? np->hop_limit : ipv6_config.hop_limit;
-	
+	if (np == NULL || np->hop_limit < 0)
+		hdr->hop_limit = ((struct rt6_info*)dst)->rt6i_hoplimit;
+	else
+		hdr->hop_limit = np->hop_limit;
+
 	ipv6_addr_copy(&hdr->saddr, fl->nl_u.ip6_u.saddr);
 	ipv6_addr_copy(&hdr->daddr, fl->nl_u.ip6_u.daddr);
 
 	ipv6_statistics.Ip6OutRequests++;
 	dst->output(skb);
 
-	if (sk)
-		ip6_dst_store(sk, dst);
-	else
+	if (sk) {
+		if (sk->dst_cache == NULL)
+			ip6_dst_store(sk, dst);
+	} else
 		dst_release(dst);
 
 	return 0;
@@ -162,8 +175,6 @@ int ip6_nd_hdr(struct sock *sk, struct sk_buff *skb, struct device *dev,
 	skb->dev = dev;
 
 	totlen = len + sizeof(struct ipv6hdr);
-
-	skb->mac.raw = skb->data;
 
 	hdr = (struct ipv6hdr *) skb_put(skb, sizeof(struct ipv6hdr));
 	skb->nh.ipv6h = hdr;
@@ -211,7 +222,7 @@ static void ip6_bld_1(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 			 const void *data, struct dst_entry *dst,
 			 struct flowi *fl, struct ipv6_options *opt,
-			 int hlimit, int flags, unsigned short length)
+			 int hlimit, int flags, unsigned length)
 {
 	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
 	struct ipv6hdr *hdr;
@@ -245,8 +256,6 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 		payl_len += opt->opt_flen;
 	}
 
-	nfrags = payl_len / ((dst->pmtu - unfrag_len) & ~0x7);
-
 	/*
 	 *	Length of fragmented part on every packet but 
 	 *	the last must be an:
@@ -254,6 +263,8 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 	 */
 
 	frag_len = (dst->pmtu - unfrag_len) & ~0x7;
+
+	nfrags = payl_len / frag_len;
 
 	/*
 	 *	We must send from end to start because of 
@@ -281,18 +292,9 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 		return err;
 
 	last_skb->dst = dst_clone(dst);
-	last_skb->dev = dst->dev;
-	last_skb->protocol = htons(ETH_P_IPV6);
 	last_skb->when = jiffies;
-	last_skb->arp = 0;
 
-	/* 
-	 * build the mac header... 
-	 */
-	if (dst->dev->hard_header_len) {
-		skb_reserve(last_skb, (dst->dev->hard_header_len + 15) & ~15);
-		ipv6_build_mac_hdr(last_skb, dst, unfrag_len + frag_len);
-	}
+	skb_reserve(last_skb, (dst->dev->hard_header_len + 15) & ~15);
 	
 	hdr = (struct ipv6hdr *) skb_put(last_skb, sizeof(struct ipv6hdr));
 	last_skb->nh.ipv6h = hdr;
@@ -335,7 +337,9 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 			
 			struct frag_hdr *fhdr2;
 				
+#if 0
 			printk(KERN_DEBUG "sending frag %d\n", nfrags);
+#endif
 			skb = skb_copy(last_skb, sk->allocation);
 
 			if (skb == NULL)
@@ -356,7 +360,7 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 				      nfrags * frag_len, frag_len);
 
 			if (err) {
-				kfree_skb(skb, FREE_WRITE);
+				kfree_skb(skb);
 				break;
 			}
 
@@ -366,11 +370,13 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 	}
 
 	if (err) {
-		kfree_skb(last_skb, FREE_WRITE);
+		kfree_skb(last_skb);
 		return -EFAULT;
 	}
 
+#if 0
 	printk(KERN_DEBUG "sending last frag \n");
+#endif
 
 	hdr->payload_len = htons(unfrag_len + last_len - 
 				 sizeof(struct ipv6hdr));
@@ -383,18 +389,6 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 	last_skb->tail += last_len;
 	last_skb->len += last_len;
 
-	/* 
-	 *	toss the mac header out and rebuild it.
-	 *	needed because of the different frame length.
-	 *	ie: not needed for an ethernet.
-	 */
-
-	if (dst->dev->type != ARPHRD_ETHER && last_len != frag_len) {
-		skb_pull(last_skb, (unsigned char *)last_skb->nh.ipv6h - 
-			 last_skb->data);
-		ipv6_build_mac_hdr(last_skb, dst, unfrag_len + last_len);
-	}
-
 	ipv6_statistics.Ip6OutRequests++;
 	dst->output(last_skb);
 
@@ -402,7 +396,7 @@ static int ip6_frag_xmit(struct sock *sk, inet_getfrag_t getfrag,
 }
 
 int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
-		   struct flowi *fl, unsigned short length,
+		   struct flowi *fl, unsigned length,
 		   struct ipv6_options *opt, int hlimit, int flags)
 {
 	struct ipv6_pinfo *np = &sk->net_pinfo.af_inet6;
@@ -419,8 +413,8 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 
 	dst = NULL;
 	
-	if (np->dst)
-		dst = dst_check(&np->dst, np->dst_cookie);
+	if (sk->dst_cache)
+		dst = dst_check(&sk->dst_cache, np->dst_cookie);
 
 	if (dst == NULL)
 		dst = ip6_route_output(sk, fl);
@@ -449,13 +443,29 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 	
 	pktlength = length;
 
-	if (hlimit < 0)
-		hlimit = np->hop_limit;
+	if (hlimit < 0) {
+		if (ipv6_addr_is_multicast(fl->nl_u.ip6_u.daddr))
+			hlimit = np->mcast_hops;
+		else
+			hlimit = np->hop_limit;
+		if (hlimit < 0)
+			hlimit = ((struct rt6_info*)dst)->rt6i_hoplimit;
+	}
 
 	if (!sk->ip_hdrincl) {
 		pktlength += sizeof(struct ipv6hdr);
 		if (opt)
 			pktlength += opt->opt_flen + opt->opt_nflen;
+
+		/* Due to conservative check made by caller,
+		   pktlength cannot overflow here.
+
+		   When (and if) jumbo option will be implemented
+		   we could try soemething sort of:
+
+		   if (pktlength < length) return -EMSGSIZE;
+
+		*/
 	}
 
 	if (pktlength <= dst->pmtu) {
@@ -475,19 +485,13 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 		dev = dst->dev;
 		skb->dst = dst_clone(dst);
 
-		skb->dev = dev;
-		skb->protocol = htons(ETH_P_IPV6);
 		skb->when = jiffies;
-		skb->arp = 0;
 
-		if (dev && dev->hard_header_len) {
-			skb_reserve(skb, (dev->hard_header_len + 15) & ~15);
-			ipv6_build_mac_hdr(skb, dst, pktlength);
-		}
+		skb_reserve(skb, (dev->hard_header_len + 15) & ~15);
 
 		hdr = (struct ipv6hdr *) skb->tail;
 		skb->nh.ipv6h = hdr;
-		
+
 		if (!sk->ip_hdrincl) {
 			ip6_bld_1(sk, skb, fl, hlimit, pktlength);
 #if 0
@@ -511,14 +515,23 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 			dst->output(skb);
 		} else {
 			err = -EFAULT;
-			kfree_skb(skb, FREE_WRITE);
+			kfree_skb(skb);
 		}
 	} else {
 		if (sk->ip_hdrincl)
 			return -EMSGSIZE;
-		
+
+		/* pktlength includes IPv6 header, not included
+		   in IPv6 payload length.
+		   FIXME are non-fragmentable options included
+		   in packet after defragmentation? If not, we
+		   should subtract opt_nflen also. --ANK
+		 */
+		if (pktlength > 0xFFFF + sizeof(struct ipv6hdr))
+			return -EMSGSIZE;
+
 		err = ip6_frag_xmit(sk, getfrag, data, dst, fl, opt, hlimit,
-				    flags, pktlength);
+				    flags, length);
 	}
 	
 	/*
@@ -526,7 +539,7 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 	 */
   out:
 	
-	if (np->dst)
+	if (sk->dst_cache)
 		ip6_dst_store(sk, dst);
 	else
 		dst_release(dst);
@@ -540,8 +553,8 @@ int ip6_forward(struct sk_buff *skb)
 	struct ipv6hdr *hdr = skb->nh.ipv6h;
 	int size;
 	
-	if (ipv6_config.forwarding == 0) {
-		kfree_skb(skb, FREE_READ);
+	if (ipv6_devconf.forwarding == 0) {
+		kfree_skb(skb);
 		return -EINVAL;
 	}
 
@@ -560,7 +573,7 @@ int ip6_forward(struct sk_buff *skb)
 		icmpv6_send(skb, ICMPV6_TIME_EXCEED, ICMPV6_EXC_HOPLIMIT,
 			    0, skb->dev);
 
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return -ETIMEDOUT;
 	}
 
@@ -569,7 +582,7 @@ int ip6_forward(struct sk_buff *skb)
 	if (skb->dev == dst->dev && dst->neighbour) {
 		struct in6_addr *target = NULL;
 		struct rt6_info *rt;
-		struct nd_neigh *ndn = (struct nd_neigh *) dst->neighbour;
+		struct neighbour *n = dst->neighbour;
 
 		/*
 		 *	incoming and outgoing devices are the same
@@ -578,7 +591,7 @@ int ip6_forward(struct sk_buff *skb)
 
 		rt = (struct rt6_info *) dst;
 		if ((rt->rt6i_flags & RTF_GATEWAY))
-			target = &ndn->ndn_addr;
+			target = (struct in6_addr*)&n->primary_key;
 		else
 			target = &hdr->daddr;
 
@@ -589,45 +602,16 @@ int ip6_forward(struct sk_buff *skb)
 
 	if (size > dst->pmtu) {
 		icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, dst->pmtu, skb->dev);
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 		return -EMSGSIZE;
 	}
 
-	skb->dev = dst->dev;
-
-	/*
-	 *	Rebuild the mac header
-	 */
-	if (skb_headroom(skb) < dst->dev->hard_header_len) {
-		struct sk_buff *buff;
-
-		buff = alloc_skb(dst->dev->hard_header_len + skb->len + 15,
-				 GFP_ATOMIC);
-
-		if (buff == NULL) {
-			kfree_skb(skb, FREE_WRITE);
-			return -ENOMEM;
-		}
-		
-		skb_reserve(buff, (dst->dev->hard_header_len + 15) & ~15);
-
-		buff->protocol = __constant_htons(ETH_P_IPV6);
-		buff->h.raw = skb_put(buff, size);
-		buff->dst = dst_clone(dst);
-		buff->dev = dst->dev;
-
-		memcpy(buff->h.raw, hdr, size);
-		buff->nh.ipv6h = (struct ipv6hdr *) buff->h.raw;
-		kfree_skb(skb, FREE_READ);
-		skb = buff;
-	} else {
-		skb_pull(skb, skb->nh.raw - skb->data);
+	if (skb_headroom(skb) < dst->dev->hard_header_len || skb_cloned(skb)) {
+		struct sk_buff *skb2;
+		skb2 = skb_realloc_headroom(skb, (dst->dev->hard_header_len + 15)&~15);
+		kfree_skb(skb);
+		skb = skb2;
 	}
-
-	ipv6_build_mac_hdr(skb, dst, size);
-
-	if (dst->neighbour)
-		ndisc_event_send(dst->neighbour, skb);
 
 	ipv6_statistics.Ip6ForwDatagrams++;
 	dst->output(skb);

@@ -3,7 +3,7 @@
  * vendor-specific code for SCSI CD-ROM's goes here.
  *
  * This is needed becauce most of the new features (multisession and
- * the like) are to new to be included into the SCSI-II standard (to
+ * the like) are too new to be included into the SCSI-II standard (to
  * be exact: there is'nt anything in my draft copy).
  *
  * Aug 1997: Ha! Got a SCSI-3 cdrom spec across my fingers. SCSI-3 does
@@ -56,8 +56,7 @@
 
 #define VENDOR_NEC             2
 #define VENDOR_TOSHIBA         3
-#define VENDOR_HP_4020         4   /* HP 4xxx writers, others too ?? */
-#define VENDOR_HP_6020         5   /* HP 6020 writers */
+#define VENDOR_WRITER          4   /* pre-scsi3 writers */
 
 #define VENDOR_ID (scsi_CDs[minor].vendor)
 
@@ -72,20 +71,25 @@ sr_vendor_init(int minor)
 
 	/* default */
 	VENDOR_ID = VENDOR_SCSI3;
+	if (scsi_CDs[minor].readcd_known)
+		/* this is true for scsi3/mmc drives - no more checks */
+		return;
 
-	if ((!strncmp(vendor,"HP",2) || !strncmp(vendor,"PHILIPS",7)) &&
-	    scsi_CDs[minor].device->type == TYPE_WORM) {
-		if (!strncmp(model,"CD-Writer 6020",14))
-                    VENDOR_ID = VENDOR_HP_6020;
-                else
-                    VENDOR_ID = VENDOR_HP_4020;
+	if (scsi_CDs[minor].device->type == TYPE_WORM) {
+		VENDOR_ID = VENDOR_WRITER;
 
 	} else if (!strncmp (vendor, "NEC", 3)) {
 		VENDOR_ID = VENDOR_NEC;
 		if (!strncmp (model,"CD-ROM DRIVE:25", 15)  ||
 		    !strncmp (model,"CD-ROM DRIVE:36", 15)  ||
 		    !strncmp (model,"CD-ROM DRIVE:83", 15)  ||
-		    !strncmp (model,"CD-ROM DRIVE:84 ",16))
+		    !strncmp (model,"CD-ROM DRIVE:84 ",16)
+#if 0
+		        /* my NEC 3x returns the read-raw data if a read-raw
+		           is followed by a read for the same sector - aeb */
+		    || !strncmp (model,"CD-ROM DRIVE:500",16)
+#endif
+		   )
 			/* these can't handle multisession, may hang */
 			scsi_CDs[minor].cdi.mask |= CDC_MULTI_SESSION;
 
@@ -147,10 +151,10 @@ sr_set_blocklength(int minor, int blocklength)
 
 int sr_cd_check(struct cdrom_device_info *cdi)
 {
-	unsigned long   sector,min,sec,frame;
+	unsigned long   sector;
 	unsigned char   *buffer;     /* the buffer for the ioctl */
 	unsigned char   cmd[12];     /* the scsi-command */
-	int             rc,is_xa,no_multi,minor;
+	int             rc,no_multi,minor;
 
 	minor = MINOR(cdi->dev);
 	if (scsi_CDs[minor].cdi.mask & CDC_MULTI_SESSION)
@@ -160,7 +164,6 @@ int sr_cd_check(struct cdrom_device_info *cdi)
 	if(!buffer) return -ENOMEM;
 	
 	sector   = 0;         /* the multisession sector offset goes here  */
-	is_xa    = 0;         /* flag: the CD uses XA-Sectors              */
 	no_multi = 0;         /* flag: the drive can't handle multisession */
 	rc       = 0;
     
@@ -190,7 +193,8 @@ int sr_cd_check(struct cdrom_device_info *cdi)
 		break;
 		
 #ifdef CONFIG_BLK_DEV_SR_VENDOR
-	case VENDOR_NEC:
+	case VENDOR_NEC: {
+		unsigned long min,sec,frame;
 		memset(cmd,0,12);
 		cmd[0] = 0xde;
 		cmd[1] = (scsi_CDs[minor].device->lun << 5) | 0x03;
@@ -209,8 +213,11 @@ int sr_cd_check(struct cdrom_device_info *cdi)
 		frame  = BCD_TO_BIN(buffer[17]);
 		sector = min*CD_SECS*CD_FRAMES + sec*CD_FRAMES + frame;
 		break;
+	}
 
-	case VENDOR_TOSHIBA:
+	case VENDOR_TOSHIBA: {
+		unsigned long min,sec,frame;
+
 		/* we request some disc information (is it a XA-CD ?,
 		 * where starts the last session ?) */
 		memset(cmd,0,12);
@@ -232,17 +239,15 @@ int sr_cd_check(struct cdrom_device_info *cdi)
 		if (sector)
 			sector -= CD_MSF_OFFSET;
 		break;
+	}
 
-	case VENDOR_HP_4020:
-		/* Fallthrough */
-	case VENDOR_HP_6020:
+	case VENDOR_WRITER:
+		memset(cmd,0,12);
 		cmd[0] = READ_TOC;
 		cmd[1] = (scsi_CDs[minor].device->lun << 5);
-		cmd[8] = (VENDOR_ID == VENDOR_HP_4020) ?
-			0x04 : 0x0c;
+		cmd[8] = 0x04;
 		cmd[9] = 0x40;
-		rc = sr_do_ioctl(minor, cmd, buffer,
-		    (VENDOR_ID == VENDOR_HP_4020) ? 0x04 : 0x0c, 0);
+		rc = sr_do_ioctl(minor, cmd, buffer, 0x04, 0);
 		if (rc != 0) {
 			break;
 		}
@@ -252,16 +257,14 @@ int sr_cd_check(struct cdrom_device_info *cdi)
 			break;
 		}
 
- 		if (VENDOR_ID == VENDOR_HP_4020) {
- 		    cmd[0] = READ_TOC; /* Read TOC */
- 		    cmd[1] = (scsi_CDs[minor].device->lun << 5);
- 		    cmd[6] = rc & 0x7f;  /* number of last session */
- 		    cmd[8] = 0x0c;
- 		    cmd[9] = 0x40;
- 		    rc = sr_do_ioctl(minor, cmd, buffer, 12, 0);	
- 		    if (rc != 0) {
- 			    break;
- 		    }
+		cmd[0] = READ_TOC; /* Read TOC */
+		cmd[1] = (scsi_CDs[minor].device->lun << 5);
+		cmd[6] = rc & 0x7f;  /* number of last session */
+		cmd[8] = 0x0c;
+		cmd[9] = 0x40;
+		rc = sr_do_ioctl(minor, cmd, buffer, 12, 0);	
+		if (rc != 0) {
+			break;
 		}
 
 		sector = buffer[11] + (buffer[10] << 8) +

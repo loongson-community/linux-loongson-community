@@ -97,6 +97,7 @@ static char *version =
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/dma.h>
+#include <asm/delay.h>
 
 /* Few macros */
 #define BIT(a)		        ( (1 << (a)) )
@@ -724,7 +725,7 @@ static int eth16i_check_signature(short ioaddr)
 	creg[0] &= 0x0F;      /* Mask collision cnr */
 	creg[2] &= 0x7F;      /* Mask DCLEN bit */
 
-#ifdef 0
+#if 0
 /*
 	This was removed because the card was sometimes left to state
   	from which it couldn't be find anymore. If there is need
@@ -976,7 +977,7 @@ static int eth16i_tx(struct sk_buff *skb, struct device *dev)
 		/* Turn TX interrupts back on */
 		/* outb(TX_INTR_DONE | TX_INTR_16_COL, ioaddr + TX_INTR_REG); */
 	}
-	dev_kfree_skb(skb, FREE_WRITE);
+	dev_kfree_skb(skb);
 
 	return 0;
 }

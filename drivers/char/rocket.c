@@ -55,12 +55,10 @@
 #include <linux/modversions.h>
 #endif
 #include <linux/module.h>
-#include <linux/config.h>
 #else /* !NEW_MODULES */
 #ifdef MODVERSIONS
 #define MODULE
 #endif
-#include <linux/config.h>
 #include <linux/module.h>
 #endif /* NEW_MODULES */
 
@@ -224,7 +222,7 @@ static struct semaphore tmp_buf_sem = MUTEX;
 static void rp_start(struct tty_struct *tty);
 
 static inline int rocket_paranoia_check(struct r_port *info,
-					dev_t device, const char *routine)
+					kdev_t device, const char *routine)
 {
 #ifdef ROCKET_PARANOIA_CHECK
 	static const char *badmagic =
@@ -637,7 +635,10 @@ static void configure_r_port(struct r_port *info)
 {
 	unsigned cflag;
 	unsigned long 	flags;
-	int	i, bits, baud;
+	int	bits, baud;
+#if (LINUX_VERSION_CODE < 131393) /* Linux 2.1.65 */
+	int i;
+#endif
 	CHANNEL_t	*cp;
 	
 	if (!info->tty || !info->tty->termios)

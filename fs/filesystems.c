@@ -24,6 +24,8 @@
 #include <linux/ufs_fs.h>
 #include <linux/romfs_fs.h>
 #include <linux/auto_fs.h>
+#include <linux/ntfs_fs.h>
+#include <linux/hfs_fs.h>
 #include <linux/efs_fs.h>
 #include <linux/major.h>
 #include <linux/smp.h>
@@ -35,6 +37,10 @@
 #include <linux/lockd/xdr.h>
 #include <linux/init.h>
 #include <linux/nls.h>
+
+#ifdef CONFIG_CODA_FS
+extern int init_coda_fs(void);
+#endif
 
 extern void device_setup(void);
 extern void binfmt_setup(void);
@@ -86,6 +92,10 @@ __initfunc(static void do_sys_setup(void))
 	init_nfs_fs();
 #endif
 
+#ifdef CONFIG_CODA_FS
+	init_coda_fs();
+#endif
+
 #ifdef CONFIG_SMB_FS
 	init_smb_fs();
 #endif
@@ -106,6 +116,14 @@ __initfunc(static void do_sys_setup(void))
 	init_hpfs_fs();
 #endif
 
+#ifdef CONFIG_NTFS_FS
+	init_ntfs_fs();
+#endif
+
+#ifdef CONFIG_HFS_FS
+	init_hfs_fs();
+#endif
+
 #ifdef CONFIG_AFFS_FS
 	init_affs_fs();
 #endif
@@ -120,6 +138,10 @@ __initfunc(static void do_sys_setup(void))
 
 #ifdef CONFIG_EFS_FS
 	init_efs_fs();
+#endif
+
+#ifdef CONFIG_ADFS_FS
+	init_adfs_fs();
 #endif
 
 #ifdef CONFIG_NLS

@@ -288,6 +288,7 @@ struct tty_struct {
 #define TTY_CLOSING 7
 #define TTY_HW_COOK_OUT 14
 #define TTY_HW_COOK_IN 15
+#define TTY_PTY_LOCK 16
 
 #define TTY_WRITE_FLUSH(tty) tty_write_flush((tty))
 
@@ -309,6 +310,7 @@ extern int tty_init(void);
 extern int pcxe_init(void);
 extern int pc_init(void);
 extern int vcs_init(void);
+extern int rp_init(void);
 extern int cy_init(void);
 extern int stl_init(void);
 extern int stli_init(void);
@@ -357,10 +359,6 @@ extern long serial_console_init(long kmem_start, long kmem_end);
 /* pcxx.c */
 
 extern int pcxe_open(struct tty_struct *tty, struct file *filp);
-
-/* epca.c */
-
-extern int pc_open(struct tty_struct *tty, struct file *filp);
 
 /* console.c */
 

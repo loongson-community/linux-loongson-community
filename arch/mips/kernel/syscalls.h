@@ -7,7 +7,7 @@
  *
  * Copyright (C) 1995, 1996 by Ralf Baechle
  *
- * $Id: syscalls.h,v 1.9 1997/12/06 23:52:06 ralf Exp $
+ * $Id: syscalls.h,v 1.10 1997/12/16 05:34:38 ralf Exp $
  */
 
 /*
@@ -220,3 +220,4 @@ SYS(sys_rt_sigqueueinfo, 3)
 SYS(sys_rt_sigsuspend, 2)
 SYS(sys_pread, 4)				/* 4200 */
 SYS(sys_pwrite, 4)
+SYS(sys_lchown, 3)

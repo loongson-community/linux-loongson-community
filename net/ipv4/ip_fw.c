@@ -6,7 +6,7 @@
  *	license in recognition of the original copyright. 
  *				-- Alan Cox.
  *
- *	$Id: ip_fw.c,v 1.29 1997/10/10 22:41:01 davem Exp $
+ *	$Id: ip_fw.c,v 1.3 1997/12/16 05:37:37 ralf Exp $
  *
  *	Ported from BSD to Linux,
  *		Alan Cox 22/Nov/1994.
@@ -90,7 +90,6 @@
 #include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/errno.h>
-#include <linux/config.h>
 
 #include <linux/socket.h>
 #include <linux/sockios.h>
@@ -152,9 +151,12 @@ struct ip_fw *ip_fw_fwd_chain;
 struct ip_fw *ip_fw_in_chain;
 struct ip_fw *ip_fw_out_chain;
 struct ip_fw *ip_acct_chain;
+struct ip_fw *ip_masq_chain;
 
 static struct ip_fw **chains[] =
-	{&ip_fw_fwd_chain, &ip_fw_in_chain, &ip_fw_out_chain, &ip_acct_chain};
+	{&ip_fw_fwd_chain, &ip_fw_in_chain, &ip_fw_out_chain, &ip_acct_chain,
+	 &ip_masq_chain
+	};
 #endif /* CONFIG_IP_ACCT || CONFIG_IP_FIREWALL */
  
 #ifdef CONFIG_IP_FIREWALL
@@ -578,7 +580,7 @@ int ip_fw_chk(struct iphdr *ip, struct device *rif, __u16 *redirport, struct ip_
 				skb_put(skb,len);
 				memcpy(skb->data,ip,len);
 				if(netlink_post(NETLINK_FIREWALL, skb))
-					kfree_skb(skb, FREE_WRITE);
+					kfree_skb(skb);
 			}
 		}
 #endif		

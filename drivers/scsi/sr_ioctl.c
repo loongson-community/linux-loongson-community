@@ -30,7 +30,7 @@ extern void get_sectorsize(int);
 #define IOCTL_RETRIES 3
 /* The CDROM is fairly slow, so we need a little extra time */
 /* In fact, it is very slow if it has to spin up first */
-#define IOCTL_TIMEOUT 3000
+#define IOCTL_TIMEOUT 30*HZ
 
 static void sr_ioctl_done(Scsi_Cmnd * SCpnt)
 {
@@ -51,11 +51,15 @@ static void sr_ioctl_done(Scsi_Cmnd * SCpnt)
 int sr_do_ioctl(int target, unsigned char * sr_cmd, void * buffer, unsigned buflength, int quiet)
 {
     Scsi_Cmnd * SCpnt;
+    Scsi_Device * SDev;
     int result, err = 0, retries = 0;
 
-    SCpnt = allocate_device(NULL, scsi_CDs[target].device, 1);
+    SDev  = scsi_CDs[target].device;
+    SCpnt = scsi_allocate_device(NULL, scsi_CDs[target].device, 1);
 
 retry:
+    if( !scsi_block_when_processing_errors(SDev) )
+        return -ENODEV;
     {
 	struct semaphore sem = MUTEX_LOCKED;
 	SCpnt->request.sem = &sem;
@@ -63,12 +67,13 @@ retry:
 		    (void *) sr_cmd, buffer, buflength, sr_ioctl_done, 
 		    IOCTL_TIMEOUT, IOCTL_RETRIES);
 	down(&sem);
+        SCpnt->request.sem = NULL;
     }
     
     result = SCpnt->result;
     
     /* Minimal error checking.  Ignore cases we know about, and report the rest. */
-    if(driver_byte(result) != 0)
+    if(driver_byte(result) != 0) {
 	switch(SCpnt->sense_buffer[2] & 0xf) {
 	case UNIT_ATTENTION:
 	    scsi_CDs[target].device->changed = 1;
@@ -85,9 +90,7 @@ retry:
                     printk(KERN_INFO "sr%d: CDROM not ready yet.\n", target);
 		if (retries++ < 10) {
 		    /* sleep 2 sec and try again */
-                    current->state = TASK_INTERRUPTIBLE;
-                    current->timeout = jiffies + 200;
-                    schedule ();
+		    scsi_sleep(2*HZ);
                     goto retry;
 		} else {
 		    /* 20 secs are enouth? */
@@ -122,13 +125,14 @@ retry:
 	    print_command(sr_cmd);
 	    print_sense("sr", SCpnt);
             err = -EIO;
-	};
+	}
+    }
     
     result = SCpnt->result;
-    SCpnt->request.rq_status = RQ_INACTIVE; /* Deallocate */
-    /* Wake up a process waiting for device */
+    /* Wake up a process waiting for device*/
     wake_up(&SCpnt->device->device_wait);
-    
+    scsi_release_command(SCpnt);
+    SCpnt = NULL;
     return err;
 }
 
@@ -186,7 +190,7 @@ int sr_disk_status(struct cdrom_device_info *cdi)
         /* look for data tracks */
         if (0 != (rc = sr_audio_ioctl(cdi, CDROMREADTOCHDR, &toc_h)))
                 return (rc == -ENOMEDIUM) ? CDS_NO_DISC : CDS_NO_INFO;
-        
+
         for (i = toc_h.cdth_trk0; i <= toc_h.cdth_trk1; i++) {
                 toc_e.cdte_track  = i;
                 toc_e.cdte_format = CDROM_LBA;
@@ -798,6 +802,15 @@ int sr_dev_ioctl(struct cdrom_device_info *cdi,
 	return 0;
 
     RO_IOCTLS(cdi->dev,arg);
+
+    case BLKFLSBUF:
+	if(!suser())
+		return -EACCES;
+	if(!(cdi->dev))
+		return -EINVAL;
+	fsync_dev(cdi->dev);
+	invalidate_buffers(cdi->dev);
+	return 0;
 
     default:
 	return scsi_ioctl(scsi_CDs[target].device,cmd,(void *) arg);

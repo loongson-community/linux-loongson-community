@@ -48,7 +48,7 @@ struct thread_struct {
 
 #define INIT_TSS  { \
 	sizeof(init_stack) + (unsigned long) init_stack, 0, \
-	PS_S, KERNEL_DS, \
+	PS_S, __KERNEL_DS, \
 	{0, 0}, 0, {0,}, {0, 0, 0}, {0,}, \
 }
 
@@ -58,13 +58,6 @@ struct thread_struct {
 static inline void start_thread(struct pt_regs * regs, unsigned long pc,
 				unsigned long usp)
 {
-	unsigned long nilstate = 0;
-
-	/* clear floating point state */
-	__asm__ __volatile__ (".chip 68k/68881\n\t"
-			      "frestore %0@\n\t"
-			      ".chip 68k" : : "a" (&nilstate));
-
 	/* reads from user space */
 	set_fs(USER_DS);
 
@@ -74,7 +67,16 @@ static inline void start_thread(struct pt_regs * regs, unsigned long pc,
 }
 
 /* Free all resources held by a thread. */
-extern void release_thread(struct task_struct *);
+static inline void release_thread(struct task_struct *dead_task)
+{
+}
+
+/*
+ * Free current thread data structures etc..
+ */
+static inline void exit_thread(void)
+{
+}
 
 /*
  * Return saved PC of a blocked thread.
@@ -94,7 +96,7 @@ extern inline unsigned long thread_saved_pc(struct thread_struct *t)
 
 /* Allocation and freeing of basic task resources. */
 #define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1,0))
+	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
 #define free_task_struct(p)	free_pages((unsigned long)(p),1)
 
 #define init_task	(init_task_union.task)

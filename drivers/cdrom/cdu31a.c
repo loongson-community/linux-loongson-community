@@ -186,6 +186,10 @@
  *                 Heiko Eissfeldt <heiko@colossus.escape.de> with additional
  *                 changes by Erik Andersen <andersee@debian.org>
  *
+ *  24 January 1998 -- Removed the scd_disc_status() function, which was now
+ *                     just dead code left over from the port.
+ *                          Erik Andersen <andersee@debian.org>
+ *
 */
 
 #include <linux/major.h>
@@ -416,7 +420,8 @@ static int scd_drive_status(struct cdrom_device_info *cdi, int slot_nr)
      return -EINVAL;
   }
 
-  return sony_spun_up ? CDS_DISC_OK : CDS_DRIVE_NOT_READY;
+  /*return sony_spun_up ? CDS_DISC_OK : CDS_DRIVE_NOT_READY;*/
+  return sony_spun_up ? CDS_DISC_OK : CDS_TRAY_OPEN;
 }
 
 static inline void
@@ -1085,7 +1090,7 @@ handle_sony_cd_attention(void)
    volatile int val;
 
 
-#if DEBUG
+#if 0*DEBUG
    printk("Entering handle_sony_cd_attention\n");
 #endif
    if (is_attention())
@@ -1166,7 +1171,7 @@ handle_sony_cd_attention(void)
    }
 
    num_consecutive_attentions = 0;
-#if DEBUG
+#if 0*DEBUG
    printk("Leaving handle_sony_cd_attention at %d\n", __LINE__);
 #endif
    return(0);
@@ -1239,33 +1244,6 @@ size_to_buf(unsigned int size,
    size = size % 65536;
    buf[1] = size / 256;
    buf[2] = size % 256;
-}
-
-/* Uniform cdrom interface function.
-   Return the status of the current disc:
-   If it is recognized as CD-I -> return XA Mode 2 Form 2
-   If it is recognized as XA   -> return XA Mode 2 Form 1
-   If there is at least one data track return Mode 1
-   else return type AUDIO
- */
-static int scd_disc_status(struct cdrom_device_info *cdi)
-{
-  if (sony_spun_up)
-  {
-    int i;
-
-    sony_get_toc();
-    /* look into the TOC */
-    if (sony_toc.disk_type == 0x10)   /* this is a CD-I disc */
-      return CDS_XA_2_2;
-    if (sony_toc.disk_type == 0x20)   /* this is a XA disc */
-      return CDS_XA_2_1;
-    for (i = 0; i < sony_toc.track_entries; i++)
-      if (sony_toc.tracks[i].control & CDROM_DATA_TRACK)
-        return CDS_DATA_1;
-    return CDS_AUDIO;
-  } else 
-    return CDS_NO_INFO;
 }
 
 /* Starts a read operation. Returns 0 on success and 1 on failure. 
@@ -2835,8 +2813,11 @@ static int scd_tray_move(struct cdrom_device_info *cdi, int position)
 
     sony_audio_status = CDROM_AUDIO_INVALID;
     return do_sony_cd_cmd_chk("EJECT",SONY_EJECT_CMD, NULL, 0, res_reg, &res_size);
-  } else
-  return 0;
+  } else {
+    if (0 == scd_spinup())
+      sony_spun_up = 1;
+    return 0;
+  }
 }
 
 /*
@@ -3230,7 +3211,6 @@ scd_open(struct cdrom_device_info *cdi, int openmode)
             printk("CDU31A: Unable to set XA params: 0x%2.2x\n", res_reg[1]);
          }
          sony_xa_mode = 1;
-printk("sony_xa_mode is set\n");
       }
       /* A non-XA disk.  Set the parms back if necessary. */
       else if (sony_xa_mode)
@@ -3247,7 +3227,6 @@ printk("sony_xa_mode is set\n");
             printk("CDU31A: Unable to reset XA params: 0x%2.2x\n", res_reg[1]);
          }
          sony_xa_mode = 0;
-printk("sony_xa_mode is reset\n");
       }
 
       sony_spun_up = 1;
@@ -3293,7 +3272,7 @@ static struct cdrom_device_ops scd_dops = {
   scd_reset,                  /* hard reset */
   scd_audio_ioctl,            /* audio ioctl */
   scd_dev_ioctl,              /* device-specific ioctl */
-  CDC_OPEN_TRAY | CDC_LOCK | CDC_SELECT_SPEED | CDC_MULTI_SESSION | 
+  CDC_OPEN_TRAY | CDC_CLOSE_TRAY | CDC_LOCK | CDC_SELECT_SPEED | CDC_MULTI_SESSION | 
   CDC_MULTI_SESSION | CDC_MCN | CDC_MEDIA_CHANGED | CDC_PLAY_AUDIO |
   CDC_RESET | CDC_IOCTLS | CDC_DRIVE_STATUS, /* capability */
   1,                            /* number of minor devices */
@@ -3303,7 +3282,7 @@ static struct cdrom_device_info scd_info = {
   &scd_dops,                  /* device operations */
   NULL,                       /* link */
   NULL,                       /* handle */
-  MKDEV(MAJOR_NR,0),          /* dev */
+  0,			      /* dev */
   0,                          /* mask */
   2,                          /* maximum speed */
   1,                          /* number of discs */
@@ -3570,7 +3549,9 @@ cdu31a_init(void))
       init_timer(&cdu31a_abort_timer);
       cdu31a_abort_timer.function = handle_abort_timeout;
 
+      scd_info.dev = MKDEV(MAJOR_NR,0);
       scd_info.mask = deficiency;
+      strncpy(scd_info.name, "cdu31a", sizeof(scd_info.name));
 
       if (register_cdrom(&scd_info))
       {

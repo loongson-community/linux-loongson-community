@@ -16,8 +16,32 @@ all: kernel.o head.o
 
 O_TARGET := kernel.o
 O_OBJS   := entry.o traps.o process.o osf_sys.o irq.o signal.o setup.o \
-	    bios32.o ptrace.o time.o apecs.o lca.o cia.o
+	    bios32.o ptrace.o time.o fpreg.o
 OX_OBJS  := alpha_ksyms.o
+
+
+ifdef CONFIG_ALPHA_APECS
+O_OBJS   += apecs.o
+endif
+ifdef CONFIG_ALPHA_CIA
+O_OBJS   += cia.o
+endif
+ifdef CONFIG_ALPHA_LCA
+O_OBJS   += lca.o
+endif
+ifdef CONFIG_ALPHA_PYXIS
+O_OBJS   += pyxis.o
+endif
+ifdef CONFIG_ALPHA_T2
+O_OBJS   += t2.o
+endif
+ifneq ($(CONFIG_ALPHA_PC164)$(CONFIG_ALPHA_LX164),nn)
+O_OBJS   += smc37c93x.o
+endif
+ifdef CONFIG_ALPHA_SX164
+O_OBJS   += smc37c669.o
+endif
+
 
 all: kernel.o head.o
 

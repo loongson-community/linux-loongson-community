@@ -5,7 +5,7 @@
  *
  *		AF_INET protocol family socket handler.
  *
- * Version:	$Id: af_inet.c,v 1.58 1997/10/29 20:27:21 kuznet Exp $
+ * Version:	$Id: af_inet.c,v 1.5 1997/12/16 05:37:33 ralf Exp $
  *
  * Authors:	Ross Biro, <bir7@leland.Stanford.Edu>
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
@@ -150,16 +150,16 @@ static __inline__ void kill_sk_queues(struct sock *sk)
 		 */
 		if (skb->sk != NULL && skb->sk != sk)
 			skb->sk->prot->close(skb->sk, 0);
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 	}
 
 	/* Next, the error queue. */
 	while((skb = skb_dequeue(&sk->error_queue)) != NULL)
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 
   	/* Now the backlog. */
   	while((skb=skb_dequeue(&sk->back_log)) != NULL)
-		kfree_skb(skb, FREE_READ);
+		kfree_skb(skb);
 }
 
 static __inline__ void kill_sk_now(struct sock *sk)
@@ -326,7 +326,15 @@ static int inet_create(struct socket *sock, int protocol)
 	if (sock->type == SOCK_PACKET) {
 		static int warned; 
 		if (net_families[AF_PACKET]==NULL)
+		{
+#if defined(CONFIG_KERNELD) && defined(CONFIG_PACKET_MODULE)
+			char module_name[30];
+			sprintf(module_name,"net-pf-%d", AF_PACKET);
+			request_module(module_name);
+			if (net_families[AF_PACKET] == NULL)
+#endif
 			return -ESOCKTNOSUPPORT;
+		}
 		if (!warned++)
 			printk(KERN_INFO "%s uses obsolete (AF_INET,SOCK_PACKET)\n", current->comm);
 		return net_families[AF_PACKET]->create(sock, protocol);
@@ -828,13 +836,13 @@ int inet_shutdown(struct socket *sock, int how)
 }
 
 
-unsigned int inet_poll(struct socket *sock, poll_table *wait)
+unsigned int inet_poll(struct file * file, struct socket *sock, poll_table *wait)
 {
 	struct sock *sk = sock->sk;
 
 	if (sk->prot->poll == NULL)
 		return(0);
-	return sk->prot->poll(sock, wait);
+	return sk->prot->poll(file, sock, wait);
 }
 
 /*
@@ -904,29 +912,6 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		case SIOCGIFPFLAGS:	
 		case SIOCSIFFLAGS:
 			return(devinet_ioctl(cmd,(void *) arg));
-		case SIOCGIFCONF:
-		case SIOCGIFFLAGS:
-		case SIOCADDMULTI:
-		case SIOCDELMULTI:
-		case SIOCGIFMETRIC:
-		case SIOCSIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCSIFMEM:
-		case SIOCGIFMTU:
-		case SIOCSIFMTU:
-		case SIOCSIFLINK:
-		case SIOCGIFHWADDR:
-		case SIOCSIFHWADDR:
-		case SIOCSIFMAP:
-		case SIOCGIFMAP:
-		case SIOCSIFSLAVE:
-		case SIOCGIFSLAVE:
-		case SIOCGIFINDEX:
- 		case SIOCGIFNAME:
- 		case SIOCGIFCOUNT:
-		case SIOCSIFHWBROADCAST:
-			return(dev_ioctl(cmd,(void *) arg));
-
 		case SIOCGIFBR:
 		case SIOCSIFBR:
 #ifdef CONFIG_BRIDGE		
@@ -963,9 +948,9 @@ static int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 				return(dev_ioctl(cmd,(void *) arg));
 #endif
 
-			if (sk->prot->ioctl==NULL) 
-				return(-EINVAL);
-			return(sk->prot->ioctl(sk, cmd, arg));
+			if (sk->prot->ioctl==NULL || (err=sk->prot->ioctl(sk, cmd, arg))==-ENOIOCTLCMD)
+				return(dev_ioctl(cmd,(void *) arg));		
+			return err;
 	}
 	/*NOTREACHED*/
 	return(0);

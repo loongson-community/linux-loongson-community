@@ -48,7 +48,7 @@ struct vm_area_struct {
 
 	struct vm_operations_struct * vm_ops;
 	unsigned long vm_offset;
-	struct dentry * vm_dentry;
+	struct file * vm_file;
 	unsigned long vm_pte;			/* shared mem */
 };
 
@@ -123,7 +123,6 @@ typedef struct page {
 	struct wait_queue *wait;
 	struct page **pprev_hash;
 	struct buffer_head * buffers;
-	unsigned long pg_swap_entry;
 	unsigned long map_nr;	/* page->map_nr == page - mem_map */
 } mem_map_t;
 
@@ -134,7 +133,7 @@ typedef struct page {
 #define PG_uptodate		 3
 #define PG_free_after		 4
 #define PG_decr_after		 5
-#define PG_swap_unlock_after	 6
+/* Unused			 6 */
 #define PG_DMA			 7
 #define PG_Slab			 8
 #define PG_swap_cache		 9
@@ -147,7 +146,6 @@ typedef struct page {
 #define PageUptodate(page)	(test_bit(PG_uptodate, &(page)->flags))
 #define PageFreeAfter(page)	(test_bit(PG_free_after, &(page)->flags))
 #define PageDecrAfter(page)	(test_bit(PG_decr_after, &(page)->flags))
-#define PageSwapUnlockAfter(page) (test_bit(PG_swap_unlock_after, &(page)->flags))
 #define PageDMA(page)		(test_bit(PG_DMA, &(page)->flags))
 #define PageSlab(page)		(test_bit(PG_Slab, &(page)->flags))
 #define PageSwapCache(page)	(test_bit(PG_swap_cache, &(page)->flags))
@@ -238,21 +236,22 @@ extern mem_map_t * mem_map;
  * goes to clearing the page. If you want a page without the clearing
  * overhead, just use __get_free_page() directly..
  */
-#define __get_free_page(priority) __get_free_pages((priority),0,0)
-#define __get_dma_pages(priority, order) __get_free_pages((priority),(order),1)
-extern unsigned long FASTCALL(__get_free_pages(int priority, unsigned long gfporder, int dma));
+#define __get_free_page(gfp_mask) __get_free_pages((gfp_mask),0)
+#define __get_dma_pages(gfp_mask, order) __get_free_pages((gfp_mask) | GFP_DMA,(order))
+extern unsigned long FASTCALL(__get_free_pages(int gfp_mask, unsigned long gfp_order));
 
-extern inline unsigned long get_free_page(int priority)
+extern inline unsigned long get_free_page(int gfp_mask)
 {
 	unsigned long page;
 
-	page = __get_free_page(priority);
+	page = __get_free_page(gfp_mask);
 	if (page)
 		clear_page(page);
 	return page;
 }
 
 /* memory.c & swap.c*/
+extern int free_memory_available(void);
 
 #define free_page(addr) free_pages((addr),0)
 extern void FASTCALL(free_pages(unsigned long addr, unsigned long order));
@@ -298,23 +297,36 @@ extern void truncate_inode_pages(struct inode *, unsigned long);
 extern unsigned long get_cached_page(struct inode *, unsigned long, int);
 extern void put_cached_page(unsigned long);
 
-#define GFP_BUFFER	0x00
-#define GFP_ATOMIC	0x01
-#define GFP_USER	0x02
-#define GFP_KERNEL	0x03
-#define GFP_NOBUFFER	0x04
-#define GFP_NFS		0x05
+/*
+ * GFP bitmasks..
+ */
+#define __GFP_WAIT	0x01
+#define __GFP_IO	0x02
+#define __GFP_LOW	0x00
+#define __GFP_MED	0x04
+#define __GFP_HIGH	0x08
+
+#define __GFP_UNCACHED	0x40
+#define __GFP_DMA	0x80
+
+#define GFP_BUFFER	(__GFP_LOW | __GFP_WAIT)
+#define GFP_ATOMIC	(__GFP_HIGH)
+#define GFP_USER	(__GFP_LOW | __GFP_WAIT | __GFP_IO)
+#define GFP_KERNEL	(__GFP_LOW | __GFP_WAIT | __GFP_IO)
+#define GFP_NFS		(__GFP_MED | __GFP_WAIT | __GFP_IO)
 
 /* Flag - indicates that the buffer should be allocated uncached as for an
    architecture where the caches don't snoop DMA access.  This is a even
    stricter requirement than GFP_DMA as GFP_DMA allocated buffers might be
    writeback cacheable and not be suitable for use with devices like
    networks cards which manipulate objects smaller than a cacheline. */
-#define GFP_UNCACHED	0x40
+
+#define GFP_UNCACHED	__GFP_UNCACHED
 
 /* Flag - indicates that the buffer will be suitable for DMA.  Ignored on some
    platforms, used as appropriate on others */
-#define GFP_DMA		0x80
+
+#define GFP_DMA		__GFP_DMA
 
 #define GFP_LEVEL_MASK 0xf
 

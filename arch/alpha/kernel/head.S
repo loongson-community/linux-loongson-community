@@ -80,36 +80,44 @@ wrmces:
 	ret	($26)
 	.end wrmces
 
-	#
-	# The following two functions don't need trapb/excb instructions
-	# around the mf_fpcr/mt_fpcr instructions because (a) the kernel
-	# never generates arithmetic faults and (b) call_pal instructions
-	# are implied trap barriers.
-	#
 	.align 3
-	.globl	rdfpcr
-	.ent	rdfpcr
-rdfpcr:
-	lda	$30,-0x10($30)
-	stt	$f0,0($30)
-	mf_fpcr	$f0
-	stt	$f0,8($30)
-	ldt	$f0,0($30)
-	ldq	$0,8($30)
-	lda	$30,0x10($30)
-	ret	($26)
-	.end	rdfpcr
+	.globl  whami
+	.ent    whami
+whami:
+	call_pal PAL_whami
+	ret     ($26)
+	.end whami
+ 
+	.align 3
+	.globl  wripir
+	.ent    wripir
+wripir:
+	call_pal PAL_wripir
+	ret     ($26)
+	.end wripir
+
+	#
+	# The following two functions are needed for supporting SRM PALcode
+	# on the PC164 (at least), since that PALcode manages the interrupt
+	# masking, and we cannot duplicate the effort without causing problems
+	#
 
 	.align 3
-	.globl	wrfpcr
-	.ent	wrfpcr
-wrfpcr:
-	lda	$30,-0x10($30)
-	stt	$f0,0($30)
-	stq	$16,8($30)
-	ldt	$f0,8($30)
-	mt_fpcr	$f0
-	ldt	$f0,0($30)
-	lda	$30,0x10($30)
+	.globl	cserve_ena
+	.ent	cserve_ena
+cserve_ena:
+	bis	$16,$16,$17
+	lda	$16,52($31)
+	call_pal PAL_cserve
 	ret	($26)
-	.end	wrfpcr
+	.end	cserve_ena
+
+	.align 3
+	.globl	cserve_dis
+	.ent	cserve_dis
+cserve_dis:
+	bis	$16,$16,$17
+	lda	$16,53($31)
+	call_pal PAL_cserve
+	ret	($26)
+	.end	cserve_dis

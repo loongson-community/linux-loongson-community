@@ -323,6 +323,14 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_VIDEO_CQCAM),y)
+L_OBJS += c-qcam.o
+else
+  ifeq ($(CONFIG_VIDEO_CQCAM),m)
+    M_OBJS += c-qcam.o
+  endif
+endif
+
 ifeq ($(CONFIG_VIDEO_PMS),y)
 L_OBJS += pms.o
 else
@@ -375,18 +383,14 @@ else
   MX_OBJS += misc.o
   endif
 endif
-  
+
 ifdef CONFIG_VT
  ifdef CONFIG_TGA_CONSOLE
  L_OBJS += tga.o
  else
-  ifndef CONFIG_SUN_CONSOLE
-   ifndef CONFIG_VIDEO_G364
-     ifndef CONFIG_SGI
-     L_OBJS += vga.o vesa_blank.o
-     endif
+   ifdef CONFIG_VGA_CONSOLE
+   L_OBJS += vga.o vesa_blank.o
    endif
-  endif
  endif
 endif
 

@@ -77,6 +77,10 @@
 #include <net/dn.h>
 #endif
 
+#ifdef CONFIG_FILTER
+#include <linux/filter.h>
+#endif
+
 #include <asm/atomic.h>
 
 /*
@@ -144,10 +148,10 @@ struct ipv6_pinfo
 	struct in6_addr		daddr;
 
 	__u32			flow_lbl;
+	int			hop_limit;
+	int			mcast_hops;
 	__u8			priority;
-	__u8			hop_limit;
 
-	__u8			mcast_hops;
 
 	/* sockopt flags */
 
@@ -164,14 +168,6 @@ struct ipv6_pinfo
 	struct device		*oif;
 
 	struct ipv6_mc_socklist	*ipv6_mc_list;
-	/* 
-	 * destination cache entry pointer
-	 * contains a pointer to neighbour cache
-	 * and other info related to network level 
-	 * (ex. PMTU)
-	 */
-	
-	struct dst_entry	*dst;
 	__u32			dst_cookie;
 
 	struct ipv6_options	*opt;
@@ -452,10 +448,12 @@ struct sock
 	unsigned char		localroute;	/* Route locally only */
 	struct ucred		peercred;
 
-	/* What the user has tried to set with the security API */
-	short			authentication;
-	short			encryption;  
-	short			encrypt_net;
+#ifdef CONFIG_FILTER
+	/* Socket Filtering Instructions */
+	int			filter;
+	struct sock_filter      *filter_data;
+#endif /* CONFIG_FILTER */
+
 /*
  *	This is where all the private (optional) areas that don't
  *	overlap will eventually live. 
@@ -574,7 +572,7 @@ struct proto
 	void			(*write_wakeup)(struct sock *sk);
 	void			(*read_wakeup)(struct sock *sk);
 
-	unsigned int		(*poll)(struct socket *sock,
+	unsigned int		(*poll)(struct file * file, struct socket *sock,
 					struct poll_table_struct *wait);
 
 	int			(*ioctl)(struct sock *sk, int cmd,
@@ -779,6 +777,9 @@ extern struct sk_buff 		*sock_alloc_send_skb(struct sock *sk,
 						     unsigned long fallback,
 						     int noblock,
 						     int *errcode);
+extern void *sock_kmalloc(struct sock *sk, int size, int priority);
+extern void sock_kfree_s(struct sock *sk, void *mem, int size);
+
 
 /*
  * Functions to fill in entries in struct proto_ops when a protocol
@@ -797,7 +798,7 @@ extern int                      sock_no_accept(struct socket *,
 					       struct socket *, int);
 extern int                      sock_no_getname(struct socket *,
 						struct sockaddr *, int *, int);
-extern unsigned int             sock_no_poll(struct socket *,
+extern unsigned int             sock_no_poll(struct file *, struct socket *,
 					     struct poll_table_struct *);
 extern int                      sock_no_ioctl(struct socket *, unsigned int,
 					      unsigned long);
@@ -832,6 +833,26 @@ extern void sklist_remove_socket(struct sock **list, struct sock *sk);
 extern void sklist_insert_socket(struct sock **list, struct sock *sk);
 extern void sklist_destroy_socket(struct sock **list, struct sock *sk);
 
+#ifdef CONFIG_FILTER
+/*
+ * Run the filter code and then cut skb->data to correct size returned by
+ * sk_run_filter. If pkt_len is 0 we toss packet. If skb->len is smaller
+ * than pkt_len we keep whole skb->data.
+ */
+extern __inline__ int sk_filter(struct sk_buff *skb, struct sock_filter *filter, int flen)
+{
+	int pkt_len;
+
+        pkt_len = sk_run_filter(skb->data, skb->len, filter, flen);
+        if(!pkt_len)
+                return 1;	/* Toss Packet */
+        else
+                skb_trim(skb, pkt_len);
+
+	return 0;
+}
+#endif /* CONFIG_FILTER */
+
 /*
  * 	Queue a received datagram if it will fit. Stream and sequenced
  *	protocols can't normally use this as they need to fit buffers in
@@ -858,9 +879,21 @@ extern __inline__ void skb_set_owner_r(struct sk_buff *skb, struct sock *sk)
 
 extern __inline__ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
-	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= sk->rcvbuf)
-		return -ENOMEM;
-	skb_set_owner_r(skb, sk);
+	/* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
+	   number of warnings when compiling with -W --ANK
+	 */
+	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= (unsigned)sk->rcvbuf)
+                return -ENOMEM;
+        skb_set_owner_r(skb, sk);
+
+#ifdef CONFIG_FILTER
+	if (sk->filter)
+	{
+		if (sk_filter(skb, sk->filter_data, sk->filter))
+			return -EPERM;	/* Toss packet */
+	}
+#endif /* CONFIG_FILTER */
+
 	skb_queue_tail(&sk->receive_queue,skb);
 	if (!sk->dead)
 		sk->data_ready(sk,skb->len);
@@ -869,7 +902,10 @@ extern __inline__ int sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 extern __inline__ int __sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
-	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= sk->rcvbuf)
+	/* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
+	   number of warnings when compiling with -W --ANK
+	 */
+	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= (unsigned)sk->rcvbuf)
 		return -ENOMEM;
 	skb_set_owner_r(skb, sk);
 	__skb_queue_tail(&sk->receive_queue,skb);
@@ -880,7 +916,10 @@ extern __inline__ int __sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 extern __inline__ int sock_queue_err_skb(struct sock *sk, struct sk_buff *skb)
 {
-	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= sk->rcvbuf)
+	/* Cast skb->rcvbuf to unsigned... It's pointless, but reduces
+	   number of warnings when compiling with -W --ANK
+	 */
+	if (atomic_read(&sk->rmem_alloc) + skb->truesize >= (unsigned)sk->rcvbuf)
 		return -ENOMEM;
 	skb_set_owner_r(skb, sk);
 	__skb_queue_tail(&sk->error_queue,skb);

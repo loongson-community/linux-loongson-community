@@ -70,6 +70,8 @@ typedef struct svc_fh {
  * Shorthand for dprintk()'s
  */
 #define SVCFH_DENTRY(f)		((f)->fh_dentry)
+#define SVCFH_INO(f)		((f)->fh_handle.fh_ino)
+#define SVCFH_DEV(f)		((f)->fh_handle.fh_dev)
 
 /*
  * Function prototypes
@@ -114,12 +116,16 @@ fh_lock(struct svc_fh *fhp)
 	dfprintk(FILEOP, "nfsd: fh_lock(%x/%ld) locked = %d\n",
 			SVCFH_DEV(fhp), SVCFH_INO(fhp), fhp->fh_locked);
 	 */
-	if (!fhp->fh_locked) {
-		down(&inode->i_sem);
-		if (!fhp->fh_pre_mtime)
-			fhp->fh_pre_mtime = inode->i_mtime;
-		fhp->fh_locked = 1;
+	if (fhp->fh_locked) {
+		printk(KERN_WARNING "fh_lock: %s/%s already locked!\n",
+			fhp->fh_dentry->d_parent->d_name.name,
+			fhp->fh_dentry->d_name.name);
+		return;
 	}
+	down(&inode->i_sem);
+	if (!fhp->fh_pre_mtime)
+		fhp->fh_pre_mtime = inode->i_mtime;
+	fhp->fh_locked = 1;
 }
 
 /*
@@ -128,9 +134,8 @@ fh_lock(struct svc_fh *fhp)
 static inline void
 fh_unlock(struct svc_fh *fhp)
 {
-	struct inode	*inode = fhp->fh_dentry->d_inode;
-
 	if (fhp->fh_locked) {
+		struct inode *inode = fhp->fh_dentry->d_inode;
 		if (!fhp->fh_post_version)
 			fhp->fh_post_version = inode->i_version;
 		fhp->fh_locked = 0;

@@ -3,6 +3,7 @@
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
  */
 
+#include <linux/config.h> /* for CONFIG_PROFILE */
 #include <asm/head.h>
 
 #include <linux/kernel.h>
@@ -66,16 +67,6 @@ volatile int cpu_logical_map[NR_CPUS];
 struct klock_info klock_info = { KLOCK_CLEAR, 0 };
 
 volatile unsigned long ipi_count;
-#ifdef __SMP_PROF__
-volatile unsigned long smp_spins[NR_CPUS]={0};
-volatile unsigned long smp_spins_syscall[NR_CPUS]={0};
-volatile unsigned long smp_spins_syscall_cur[NR_CPUS]={0};
-volatile unsigned long smp_spins_sys_idle[NR_CPUS]={0};
-volatile unsigned long smp_idle_count[1+NR_CPUS]={0,};
-#endif
-#if defined (__SMP_PROF__)
-volatile unsigned long smp_idle_map=0;
-#endif
 
 volatile int smp_process_available=0;
 
@@ -558,7 +549,7 @@ void smp_flush_sig_insns(struct mm_struct *mm, unsigned long insn_addr)
 /* Reschedule call back. */
 void smp_reschedule_irq(void)
 {
-	resched_force();
+	need_resched = 1;
 }
 
 /* Running cross calls. */
@@ -583,6 +574,8 @@ void smp_stop_cpu_irq(void)
 /* Protects counters touched during level14 ticker */
 spinlock_t ticker_lock = SPIN_LOCK_UNLOCKED;
 
+#ifdef CONFIG_PROFILE
+
 /* 32-bit Sparc specific profiling function. */
 static inline void sparc_do_profile(unsigned long pc)
 {
@@ -601,7 +594,7 @@ static inline void sparc_do_profile(unsigned long pc)
 	}
 }
 
-volatile unsigned long smp_local_timer_ticks[1+NR_CPUS]={0,};
+#endif
 
 unsigned int prof_multiplier[NR_CPUS];
 unsigned int prof_counter[NR_CPUS];
@@ -614,8 +607,10 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 
 	clear_profile_irq(mid_xlate[cpu]);
+#ifdef CONFIG_PROFILE
 	if(!user_mode(regs))
 		sparc_do_profile(regs->pc);
+#endif
 	if(!--prof_counter[cpu]) {
 		int user = user_mode(regs);
 		if(current->pid) {
@@ -623,7 +618,7 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 
 			if(--current->counter < 0) {
 				current->counter = 0;
-				resched_force();
+				need_resched = 1;
 			}
 
 			spin_lock(&ticker_lock);
@@ -639,9 +634,6 @@ void smp_percpu_timer_interrupt(struct pt_regs *regs)
 		}
 		prof_counter[cpu] = prof_multiplier[cpu];
 	}
-#ifdef __SMP_PROF__
-	smp_local_timer_ticks[cpu]++;
-#endif
 }
 
 extern unsigned int lvl14_resolution;

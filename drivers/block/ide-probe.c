@@ -582,7 +582,7 @@ static void init_gendisk (ide_hwif_t *hwif)
 {
 	struct gendisk *gd, **gdp;
 	unsigned int unit, units, minors;
-	int *bs, *max_sect;
+	int *bs, *max_sect, *max_ra;
 
 	/* figure out maximum drive number on the interface */
 	for (units = MAX_DRIVES; units > 0; --units) {
@@ -595,15 +595,18 @@ static void init_gendisk (ide_hwif_t *hwif)
 	gd->part  = kmalloc (minors * sizeof(struct hd_struct), GFP_KERNEL);
 	bs        = kmalloc (minors*sizeof(int), GFP_KERNEL);
 	max_sect  = kmalloc (minors*sizeof(int), GFP_KERNEL);
+	max_ra    = kmalloc (minors*sizeof(int), GFP_KERNEL);
 
 	memset(gd->part, 0, minors * sizeof(struct hd_struct));
 
 	/* cdroms and msdos f/s are examples of non-1024 blocksizes */
 	blksize_size[hwif->major] = bs;
 	max_sectors[hwif->major] = max_sect;
+	max_readahead[hwif->major] = max_ra;
 	for (unit = 0; unit < minors; ++unit) {
 		*bs++ = BLOCK_SIZE;
-		*max_sect++ = 244;
+		*max_sect++ = MAX_SECTORS;
+		*max_ra++ = MAX_READAHEAD;
 	}
 
 	for (unit = 0; unit < units; ++unit)
@@ -621,6 +624,11 @@ static void init_gendisk (ide_hwif_t *hwif)
 
 	for (gdp = &gendisk_head; *gdp; gdp = &((*gdp)->next)) ;
 	hwif->gd = *gdp = gd;			/* link onto tail of list */
+
+	for (unit = 0; unit < units; ++unit) {
+		if (hwif->drives[unit].present)
+			ide_add_generic_settings(hwif->drives + unit);
+	}
 }
 
 static int hwif_init (ide_hwif_t *hwif)
@@ -673,6 +681,10 @@ static int hwif_init (ide_hwif_t *hwif)
 	}
 	return hwif->present;
 }
+
+
+int ideprobe_init(void);
+
 
 static ide_module_t ideprobe_module = {
 	IDE_PROBE_MODULE,

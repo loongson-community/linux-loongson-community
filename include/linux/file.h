@@ -29,6 +29,7 @@ extern inline int fput(struct file *file)
 	int error = 0;
 
 	if (!count) {
+		locks_remove_flock(file);
 		error = __fput(file);
 		file->f_count = 0;
 		remove_filp(file);
@@ -44,6 +45,14 @@ extern inline void put_filp(struct file *file)
 		remove_filp(file);
 		insert_file_free(file);
 	}
+}
+
+/*
+ * Install a file pointer in the files structure.
+ */
+extern inline void fd_install(unsigned long fd, struct file *file)
+{
+	current->files->fd[fd] = file;
 }
 
 #endif

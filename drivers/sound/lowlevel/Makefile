@@ -16,15 +16,16 @@ else
 endif
 ifeq ($(CONFIG_AEDSP16),y)
    OBJS := $(OBJS) aedsp16.o
+else 
+  ifeq ($(CONFIG_AEDSP16),m)
+     MX_OBJS := $(MX_OBJS) aedsp16.o
+  endif
 endif
 endif
 
 ifndef TOPDIR
 TOPDIR=/usr/src/linux
 endif
-
-.c.o:
-	$(CC) $(CFLAGS) -c $<
 
 lowlevel.o:	$(OBJS)
 	$(LD) -r -o lowlevel.o $(OBJS)

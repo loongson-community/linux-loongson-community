@@ -26,7 +26,6 @@
 
 
 #include <linux/module.h>
-#include <linux/config.h>
 #include <linux/version.h>
 
 #include <linux/kernel.h>
@@ -479,7 +478,7 @@ arcrimi_inthandler(struct device *dev)
 	      if (out->skb)
 		{
 		  lp->stats.tx_bytes += out->skb->len;
-		  dev_kfree_skb(out->skb,FREE_WRITE);
+		  dev_kfree_skb(out->skb);
 		}
 	      out->skb=NULL;
 

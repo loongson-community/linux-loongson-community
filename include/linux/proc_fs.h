@@ -36,9 +36,6 @@ enum root_directory_inos {
 	PROC_KSYMS,
 	PROC_DMA,	
 	PROC_IOPORTS,
-#ifdef __SMP_PROF__
-	PROC_SMP_PROF,
-#endif
 	PROC_PROFILE, /* whether enabled or not */
 	PROC_CMDLINE,
 	PROC_SYS,
@@ -51,8 +48,8 @@ enum root_directory_inos {
 	PROC_HARDWARE,
 	PROC_SLABINFO,
 	PROC_PARPORT,
-	PROC_OMIRR, /* whether enabled or not */
-	PROC_PPC_HTAB
+	PROC_PPC_HTAB,
+	PROC_SOUND
 };
 
 enum pid_directory_inos {
@@ -71,6 +68,7 @@ enum pid_directory_inos {
 #if CONFIG_AP1000
 	PROC_PID_RINGBUF,
 #endif
+	PROC_PID_CPU,
 };
 
 enum pid_subdirectory_inos {
@@ -199,6 +197,12 @@ enum mca_directory_inos {
 	PROC_MCA_LAST = (PROC_MCA_SLOT + 8)
 };
 
+enum bus_directory_inos {
+	PROC_BUS_PCI = PROC_MCA_LAST,
+	PROC_BUS_PCI_DEVICES,
+	PROC_BUS_LAST
+};
+
 /* Finally, the dynamically allocatable proc entries are reserved: */
 
 #define PROC_DYNAMIC_FIRST 4096
@@ -244,6 +248,7 @@ struct proc_dir_entry {
 			 int count, int *eof, void *data);
 	int (*write_proc)(struct file *file, const char *buffer,
 			  unsigned long count, void *data);
+	int (*readlink_proc)(struct proc_dir_entry *de, char *page);
 	unsigned int count;	/* use count */
 	int deleted;		/* delete flag */
 };
@@ -264,12 +269,13 @@ extern struct proc_dir_entry proc_openprom;
 extern struct proc_dir_entry proc_pid;
 extern struct proc_dir_entry proc_pid_fd;
 extern struct proc_dir_entry proc_mca;
+extern struct proc_dir_entry *proc_bus;
 
 extern struct inode_operations proc_scsi_inode_operations;
 
 extern void proc_root_init(void);
 extern void proc_base_init(void);
-extern void proc_net_init(void);
+extern void proc_bus_pci_init(void);
 
 extern int proc_register(struct proc_dir_entry *, struct proc_dir_entry *);
 extern int proc_unregister(struct proc_dir_entry *, int);

@@ -74,40 +74,6 @@ smb_dir_read(struct file *filp, char *buf, size_t count, loff_t *ppos)
 	return -EISDIR;
 }
 
-/*
- * Check whether a dentry already exists for the given name,
- * and return the inode number if it has an inode.  This is
- * needed to keep getcwd() working.
- */
-static ino_t
-find_inode_number(struct dentry *dir, struct qstr *name)
-{
-	struct dentry * dentry;
-	ino_t ino = 0;
-
-	/*
-	 * Check for a fs-specific hash function. Note that we must
-	 * calculate the standard hash first, as the d_op->d_hash()
-	 * routine may choose to leave the hash value unchanged.
-	 */
-	name->hash = full_name_hash(name->name, name->len);
-	if (dir->d_op && dir->d_op->d_hash)
-	{
-		if (dir->d_op->d_hash(dir, name) != 0)
-			goto out;
-	}
-
-	dentry = d_lookup(dir, name);
-	if (dentry)
-	{
-		if (dentry->d_inode)
-			ino = dentry->d_inode->i_ino;
-		dput(dentry);
-	}
-out:
-	return ino;
-}
-
 static int 
 smb_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
@@ -123,7 +89,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name, (int) filp->f_pos);
 	/*
 	 * Make sure our inode is up-to-date.
 	 */
-	result = smb_revalidate_inode(dir);
+	result = smb_revalidate_inode(dentry);
 	if (result)
 		goto out;
 	/*
@@ -193,7 +159,7 @@ out:
 
 /*
  * Note: in order to allow the smbclient process to open the
- * mount point, we don't revalidate for the connection pid.
+ * mount point, we don't revalidate if conn_pid is NULL.
  */
 static int
 smb_dir_open(struct inode *dir, struct file *file)
@@ -217,9 +183,7 @@ file->f_dentry->d_name.name);
 	}
 
 	if (server->conn_pid)
-		error = smb_revalidate_inode(dir);
-	else
-		printk("smb_dir_open: smbclient process\n");
+		error = smb_revalidate_inode(dentry);
 	return error;
 }
 
@@ -271,7 +235,7 @@ dentry->d_parent->d_name.name, dentry->d_name.name);
 #endif
 			valid = 0;
 		} else if (!valid)
-			valid = (smb_revalidate_inode(inode) == 0);
+			valid = (smb_revalidate_inode(dentry) == 0);
 	} else
 	{
 	/*
@@ -387,8 +351,6 @@ dentry->d_parent->d_name.name, dentry->d_name.name, error);
 		inode = smb_iget(dir->i_sb, &finfo);
 		if (inode)
 		{
-			/* cache the dentry pointer */
-			inode->u.smbfs_i.dentry = dentry;
 	add_entry:
 			dentry->d_op = &smbfs_dentry_operations;
 			d_add(dentry, inode);
@@ -408,8 +370,8 @@ smb_instantiate(struct dentry *dentry, __u16 fileid, int have_id)
 {
 	struct smb_sb_info *server = server_from_dentry(dentry);
 	struct inode *inode;
-	struct smb_fattr fattr;
 	int error;
+	struct smb_fattr fattr;
 
 #ifdef SMBFS_DEBUG_VERBOSE
 printk("smb_instantiate: file %s/%s, fileid=%u\n",
@@ -431,8 +393,6 @@ dentry->d_parent->d_name.name, dentry->d_name.name, fileid);
 		inode->u.smbfs_i.access = SMB_O_RDWR;
 		inode->u.smbfs_i.open = server->generation;
 	}
-	/* cache the dentry pointer */
-	inode->u.smbfs_i.dentry = dentry;
 	d_instantiate(dentry, inode);
 out:
 	return error;

@@ -37,6 +37,7 @@ enum {
 	SPECIALIX_BH,
 	ESP_BH,
 	NET_BH,
+	SCSI_BH,
 	IMMEDIATE_BH,
 	KEYBOARD_BH,
 	CYCLADES_BH,
@@ -46,6 +47,12 @@ enum {
 
 #include <asm/hardirq.h>
 #include <asm/softirq.h>
+
+/*
+ * Are we in an interrupt context? Either doing bottom half
+ * or hardware interrupt processing?
+ */
+#define in_interrupt() (local_irq_count[smp_processor_id()] + local_bh_count[smp_processor_id()] != 0)
 
 /*
  * Autoprobing for irqs:

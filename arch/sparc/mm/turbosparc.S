@@ -1,5 +1,5 @@
-/* $Id: turbosparc.S,v 1.1 1997/07/18 06:26:22 ralf Exp $
- * turbosparc.S: High speed Hypersparc mmu/cache operations.
+/* $Id: turbosparc.S,v 1.2 1998/03/16 08:40:31 ralf Exp $
+ * turbosparc.S: High speed TurboSparc mmu/cache operations.
  *
  * Copyright (C) 1997 David S. Miller (davem@caip.rutgers.edu)
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
