@@ -588,6 +588,17 @@ static irqreturn_t mv64340_eth_int_handler(int irq, void *dev_id,
 		if (eth_int_cause_ext != 0x0)
 			MV_WRITE(MV64340_ETH_INTERRUPT_CAUSE_EXTEND_REG(port_num),
 				 ~eth_int_cause_ext);
+
+		/* UDP change : We may need this */
+                 if (eth_int_cause_ext & 0x0000ffff) {
+                        if (mv64340_eth_free_tx_queue(dev, eth_int_cause_ext) == 0) {
+                                if (netif_queue_stopped(dev) &&
+				    (dev->flags & IFF_RUNNING) &&
+				    (MV64340_TX_QUEUE_SIZE > port_private->tx_ring_skbs + 1)) {
+                                         netif_wake_queue(dev);
+                                }
+                        }
+                 }
 #ifdef MV64340_NAPI
 	}
 	else {
@@ -1120,7 +1131,7 @@ static int mv64340_eth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* Update packet info data structure -- DMA owned, first last */
 #ifdef MV64340_CHECKSUM_OFFLOAD_TX
-	if (!skb_shinfo(skb)->nr_frags) {
+	if (!skb_shinfo(skb)->nr_frags || (skb_shinfo(skb)->nr_frags > 3)) {
 #endif
 		pkt_info.cmd_sts = ETH_TX_ENABLE_INTERRUPT |
 	    				ETH_TX_FIRST_DESC | ETH_TX_LAST_DESC;
@@ -1425,7 +1436,7 @@ module_init(mv64340_init_module);
 module_exit(mv64340_cleanup_module);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Rabeeh Khoury, Assaf Hoffman, and Matthew Dharm");
+MODULE_AUTHOR("Rabeeh Khoury, Assaf Hoffman, Matthew Dharm and Manish Lachwani");
 MODULE_DESCRIPTION("Ethernet driver for Marvell MV64340");
 
 /*************************************************************************
