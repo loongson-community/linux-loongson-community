@@ -153,7 +153,7 @@ struct sgimc_regs {
 	volatile u32 elock;		/* Locks EISA from GIO accesses */
 
 	/* GIO dma control registers. */
-	u32 _unused22[14];
+	u32 _unused22[15];
 	volatile u32 gio_dma_trans;	/* DMA mask to translation GIO addrs */
 	u32 _unused23;
 	volatile u32 gio_dma_sbits;	/* DMA GIO addr substitution bits */
@@ -163,7 +163,7 @@ struct sgimc_regs {
 	volatile u32 dma_ctrl;		/* Main DMA control reg */
 
 	/* DMA TLB entry 0 */
-	u32 _unused26;
+	u32 _unused26[5];
 	volatile u32 dtlb_hi0;
 	u32 _unused27;
 	volatile u32 dtlb_lo0;
