@@ -340,14 +340,15 @@ static int nic_init(struct ioc3 *ioc3)
 }
 
 /*
- * Read the NIC (Number-In-a-Can) device.
+ * Read the NIC (Number-In-a-Can) device used to store the MAC address on
+ * SN0 / SN00 nodeboards and PCI cards.
  */
-static void ioc3_get_eaddr(struct ioc3_private *ip)
+static void ioc3_get_eaddr_nic(struct ioc3_private *ip)
 {
 	struct ioc3 *ioc3 = ip->regs;
 	u8 nic[14];
-	int i;
 	int tries = 2; /* There may be some problem with the battery?  */
+	int i;
 
 	ioc3_w(gpcr_s, (1 << 21));
 
@@ -370,15 +371,122 @@ static void ioc3_get_eaddr(struct ioc3_private *ip)
 	for (i = 13; i >= 0; i--)
 		nic[i] = nic_read_byte(ioc3);
 
-	printk("Ethernet address is ");
-	for (i = 2; i < 8; i++) {
+	for (i = 2; i < 8; i++)
 		ip->dev->dev_addr[i - 2] = nic[i];
-		printk("%02x", nic[i]);
+}
+
+#if defined(CONFIG_IA64_SGI_SN1) || defined(CONFIG_IA64_SGI_SN2)
+/*
+ * Get the ether-address on SN1 nodes
+ */
+static void ioc3_get_eaddr_sn(struct ioc3_private *ip)
+{
+	int ibrick_mac_addr_get(nasid_t, char *);
+	struct ioc3 *ioc3 = ip->regs;
+	nasid_t nasid_of_ioc3;
+	char io7eaddr[20];
+	long mac;
+	int err_val;
+
+	/*
+	 * err_val = ibrick_mac_addr_get(get_nasid(), io7eaddr );
+	 * 
+	 * BAD!!  The above call uses get_nasid() and assumes that
+	 * the ioc3 pointed to by struct ioc3 is hooked up to the
+	 * cbrick that we're running on.  The proper way to make this call
+	 * is to figure out which nasid the ioc3 is connected to
+	 * and use that to call ibrick_mac_addr_get.  Below is
+	 * a hack to do just that.
+	 */
+
+	/*
+	 * Get the nasid of the ioc3 from the ioc3's base addr.
+	 * FIXME: the 8 at the end assumes we're in memory mode, 
+	 * not node mode (for that, we'd change it to a 9).
+	 * Is there a call to extract this info from a physical
+	 * addr somewhere in an sn header file already?  If so,
+	 * we should probably use that, or restructure this routine
+	 * to use pci_dev and generic numa nodeid getting stuff.
+	 */
+	nasid_of_ioc3 = (((unsigned long)ioc3 >> 33) & ~(-1 << 8));
+	err_val = ibrick_mac_addr_get(nasid_of_ioc3, io7eaddr );
+
+
+	if (err_val) {
+		/* Couldn't read the eeprom; try OSLoadOptions. */
+		printk("WARNING: ibrick_mac_addr_get failed: %d\n", err_val);
+
+		/* this is where we hardwire the mac address
+ 		 * 1st ibrick had 08:00:69:11:34:75
+ 		 * 2nd ibrick had 08:00:69:11:35:35
+ 		 *
+ 		 * Eagan Machines:
+ 		 *      mankato1 08:00:69:11:BE:95
+ 		 *      warroad  08:00:69:11:bd:60
+ 		 *      duron    08:00:69:11:34:60
+ 		 *
+ 		 * an easy way to get the mac address is to hook
+ 		 * up an ip35, then from L1 do 'cti serial'
+ 		 * and then look for MAC line XXX THIS DOESN"T QUITE WORK!!
+ 		 */
+		printk("ioc3_get_eaddr: setting ethernet address to:\n -----> ");
+		ip->dev->dev_addr[0] = 0x8;
+		ip->dev->dev_addr[1] = 0x0;
+		ip->dev->dev_addr[2] = 0x69;
+		ip->dev->dev_addr[3] = 0x11;
+		ip->dev->dev_addr[4] = 0x34;
+		ip->dev->dev_addr[5] = 0x60;
+	}
+	else {
+		long simple_strtol(const char *,char **,unsigned int);
+
+		mac = simple_strtol(io7eaddr, (char **)0, 16);
+		ip->dev->dev_addr[0] = (mac >> 40) & 0xff;
+		ip->dev->dev_addr[1] = (mac >> 32) & 0xff;
+		ip->dev->dev_addr[2] = (mac >> 24) & 0xff;
+		ip->dev->dev_addr[3] = (mac >> 16) & 0xff;
+		ip->dev->dev_addr[4] = (mac >> 8) & 0xff;
+		ip->dev->dev_addr[5] = mac & 0xff;
+	}
+}
+#endif
+
+/*
+ * Ok, this is hosed by design.  It's necessary to know what machine the
+ * NIC is in in order to know how to read the NIC address.  We also have
+ * to know if it's a PCI card or a NIC in on the node board ...
+ */
+static void ioc3_get_eaddr(struct ioc3_private *ip)
+{
+	void (*do_get_eaddr)(struct ioc3_private *ip) = NULL;
+	int i;
+
+	/*
+	 * We should also use this code for PCI cards, no matter what host
+	 * machine but how to know that we're a PCI card?
+	 */
+#ifdef CONFIG_SGI_IP27
+	do_get_eaddr = ioc3_get_eaddr_nic;
+#endif
+#if defined(CONFIG_IA64_SGI_SN1) || defined(CONFIG_IA64_SGI_SN2)
+	do_get_eaddr = ioc3_get_eaddr_sn;
+#endif
+
+	if (!do_get_eaddr) {
+		printk(KERN_ERR "Don't know how to read MAC address of this "
+		       "IOC3 NIC\n");
+		return;
+	}
+
+	printk("Ethernet address is ");
+	for (i = 0; i < 6; i++) {
+		printk("%02x", ip->dev->dev_addr[i]);
 		if (i < 7)
 			printk(":");
 	}
 	printk(".\n");
 }
+
 
 /*
  * Caller must hold the ioc3_lock ever for MII readers.  This is also
