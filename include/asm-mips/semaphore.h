@@ -1,5 +1,4 @@
-/* $Id: semaphore.h,v 1.12 1999/12/08 22:05:10 harald Exp $
- *
+/*
  * SMP- and interrupt-safe semaphores..
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -215,7 +214,7 @@ struct rw_semaphore {
 	atomic_t		count;
 	/* bit 0 means read bias granted;
 	   bit 1 means write bias granted.  */
-	unsigned		granted;
+	unsigned long		granted;
 	wait_queue_head_t	wait;
 	wait_queue_head_t	write_bias_wait;
 #if WAITQUEUE_DEBUG
