@@ -1249,7 +1249,6 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	struct sock *sk = sock->sk;
 	rose_cb *rose = rose_sk(sk);
 	void __user *argp = (void __user *)arg;
-	int err = 0;
 
 	switch (cmd) {
 	case TIOCOUTQ: {
@@ -1257,7 +1256,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		amount = sk->sk_sndbuf - atomic_read(&sk->sk_wmem_alloc);
 		if (amount < 0)
 			amount = 0;
-		return put_user(amount, (int __user *)argp);
+		return put_user(amount, (unsigned int __user *)argp);
 	}
 
 	case TIOCINQ: {
@@ -1266,11 +1265,13 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		/* These two are safe on a single CPU system as only user tasks fiddle here */
 		if ((skb = skb_peek(&sk->sk_receive_queue)) != NULL)
 			amount = skb->len;
-		return put_user(amount, (int __user *)argp);
+		return put_user(amount, (unsigned int __user *)argp);
 	}
 
 	case SIOCGSTAMP:
-		return sock_get_timestamp(sk, (struct timeval __user *)argp);
+		if (sk != NULL) 
+			return sock_get_timestamp(sk, (struct timeval __user *)argp);
+		return -EINVAL;
 
 	case SIOCGIFADDR:
 	case SIOCSIFADDR:
@@ -1337,7 +1338,7 @@ static int rose_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		return dev_ioctl(cmd, argp);
 	}
 
-	return err;
+	return 0;
 }
 
 #ifdef CONFIG_PROC_FS

@@ -1689,12 +1689,16 @@ static int ax25_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		/* These two are safe on a single CPU system as only user tasks fiddle here */
 		if ((skb = skb_peek(&sk->sk_receive_queue)) != NULL)
 			amount = skb->len;
-		res = put_user(amount, (int __user *) argp);
+		res = put_user(amount, (int __user *)argp);
 		break;
 	}
 
 	case SIOCGSTAMP:
-		res = sock_get_timestamp(sk, arg);
+		if (sk != NULL) {
+			res = sock_get_timestamp(sk, argp);
+			break;
+	 	}
+		res = -EINVAL;
 		break;
 
 	case SIOCAX25ADDUID:	/* Add a uid to the uid/call map table */
