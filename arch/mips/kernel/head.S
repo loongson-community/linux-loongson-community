@@ -226,7 +226,7 @@ ejtag_return:
 	.endm
 
 	.data
-	.align	12
+	.align	PAGE_SHIFT
 
 	page	swapper_pg_dir, _PGD_ORDER
 	page	empty_bad_page, 0

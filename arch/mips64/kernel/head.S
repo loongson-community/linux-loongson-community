@@ -178,7 +178,7 @@ NESTED(smp_bootstrap, 16, sp)
 	.endm
 
 	.data
-	.align	12
+	.align	PAGE_SHIFT
 
 	page	swapper_pg_dir, 1
 	page	invalid_pte_table, 0
