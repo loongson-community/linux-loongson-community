@@ -893,6 +893,8 @@ static int ser_console_setup(struct console *cons, char *str)
 			     port->mode_2, i);
 		WRITE_SERCSR(V_DUART_BAUD_RATE(115200),
 			     port->clk_sel, i);
+		WRITE_SERCSR(M_DUART_RX_EN|M_DUART_TX_EN,
+			     port->cmd, i);
 	}
 	return 0;
 }
