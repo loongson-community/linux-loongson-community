@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.1 1998/08/19 21:56:41 ralf Exp $
+/* $Id: newport_con.c,v 1.2 1998/08/25 09:19:51 ralf Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -260,11 +260,8 @@ static int newport_set_palette(struct vc_data *vc, unsigned char *table)
 
 static int newport_scrolldelta(struct vc_data *vc, int lines)
 {
-    if (!lines)
-	return 0;
-
-    npregs->cset.topscan = topscan = (topscan + (lines << 4)) & 0x3ff;
-    return 1;
+    /* there is (nearly) no off-screen memory, so we can't scroll back */
+    return 0;
 }
 
 static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
@@ -275,10 +272,10 @@ static int newport_scroll(struct vc_data *vc, int t, int b, int dir, int lines)
 
     if (t == 0 && b == vc->vc_rows) {
 	if (dir == SM_UP) {
-	    newport_scrolldelta (vc, lines);
+	    npregs->cset.topscan = topscan = (topscan + (lines << 4)) & 0x3ff;
 	    newport_clear_lines (vc->vc_rows-lines,vc->vc_rows-1);		
 	} else {
-	    newport_scrolldelta (vc, -lines);
+	    npregs->cset.topscan = topscan = (topscan + (-lines << 4)) & 0x3ff;
 	    newport_clear_lines (0,lines-1);
 	}
 	return 0;
@@ -355,13 +352,14 @@ static void newport_bmove(struct vc_data *vc, int sy, int sx, int dy, int dx, in
     ys = ((sy << 4) + topscan) & 0x3ff; ye = (((sy+h) << 4)-1+topscan) & 0x3ff;
     xoffs = (dx - sx) << 3;
     yoffs = (dy - sy) << 4;
-    if (xs > xe && xoffs > 0) {
+    if (xoffs > 0) {
 	/* move to the right, exchange starting points */
 	tmp = xe; xe = xs; xs = tmp;
     }
     newport_wait();
     npregs->set.drawmode0 = (NPORT_DMODE0_S2S | NPORT_DMODE0_BLOCK |
-			     NPORT_DMODE0_STOPX | NPORT_DMODE0_STOPY);
+			     NPORT_DMODE0_DOSETUP | NPORT_DMODE0_STOPX |
+			     NPORT_DMODE0_STOPY);
     npregs->set.xystarti = (xs << 16) | ys;
     npregs->set.xyendi = (xe << 16) | ye;
     npregs->go.xymove = (xoffs << 16) | yoffs;
