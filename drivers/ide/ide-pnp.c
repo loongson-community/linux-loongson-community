@@ -81,7 +81,7 @@ static int __init pnpide_generic_init(struct pci_dev *dev, int enable)
 
 /* Add your devices here :)) */
 struct pnp_dev_t idepnp_devices[] __initdata = {
-	/* Generic ESDI/IDE/ATA compatible hard disk controller */
+	/* Generic ESDI/IDE/ATA compatible hard disk controller */
 	{	ISAPNP_VENDOR('P', 'N', 'P'), ISAPNP_DEVICE(0x0600),
 		pnpide_generic_init },
 	{	0 }
