@@ -2,10 +2,12 @@
  * sgiwd93.c: SGI WD93 scsi driver.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
- *
+ *		 1999 Andrew R. Baker (andrewb@uab.edu)
+ *		      - Support for 2nd SCSI controller on Indigo2
+ * 
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.12 1999/03/28 22:03:20 tsbogend Exp $
+ * $Id: sgiwd93.c,v 1.13 1999/03/28 23:06:06 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -43,6 +45,7 @@ struct proc_dir_entry proc_scsi_sgiwd93 = {
 };
 
 struct Scsi_Host *sgiwd93_host = NULL;
+struct Scsi_Host *sgiwd93_host1 = NULL;
 
 /* Wuff wuff, wuff, wd33c93.c, wuff wuff, object oriented, bow wow. */
 static inline void write_wd33c93_count(wd33c93_regs *regp, unsigned long value)
@@ -70,7 +73,7 @@ static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned long flags;
 
 	spin_lock_irqsave(&io_request_lock, flags);
-	wd33c93_intr(sgiwd93_host);
+	wd33c93_intr((struct Scsi_Host *) dev_id);
 	spin_unlock_irqrestore(&io_request_lock, flags);
 }
 
@@ -236,9 +239,9 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 #endif
 }
 
-void sgiwd93_reset(void)
+void sgiwd93_reset(uchar *base)
 {
-	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;
+	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) base;
 
 	hregs->ctrl = HPC3_SCTRL_CRESET;
 	udelay (50);
@@ -266,9 +269,11 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 {
 	static unsigned char called = 0;
 	struct hpc3_scsiregs *hregs = &hpc3c0->scsi_chan0;
+	struct hpc3_scsiregs *hregs1 = &hpc3c0->scsi_chan1;
 	struct WD33C93_hostdata *hdata;
+	struct WD33C93_hostdata *hdata1;
 	uchar *buf;
-
+	
 	if(called)
 		return 0; /* Should bitch on the console about this... */
 
@@ -281,7 +286,7 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 	buf = (uchar *) get_free_page(GFP_KERNEL);
 	init_hpc_chain(buf);
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
-
+	/* HPC_SCSI_REG0 | 0x03 | KSEG1 */
 	wd33c93_init(sgiwd93_host, (wd33c93_regs *) 0xbfbc0003,
 		     dma_setup, dma_stop, WD33C93_FS_16_20);
 
@@ -291,6 +296,27 @@ __initfunc(int sgiwd93_detect(Scsi_Host_Template *HPsUX))
 	dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 
 	request_irq(1, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host);
+        /* set up second controller on the Indigo2 */
+	if(!sgi_guiness) {
+		sgiwd93_host1 = scsi_register(HPsUX, sizeof(struct WD33C93_hostdata));
+		sgiwd93_host1->base = (unsigned char *) hregs1;
+		sgiwd93_host1->irq = 2;
+
+		buf = (uchar *) get_free_page(GFP_KERNEL);
+		init_hpc_chain(buf);
+		dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
+		/* HPC_SCSI_REG1 | 0x03 | KSEG1 */
+		wd33c93_init(sgiwd93_host1, (wd33c93_regs *) 0xbfbc8003,
+			     dma_setup, dma_stop, WD33C93_FS_16_20);
+
+		hdata1 = (struct WD33C93_hostdata *)sgiwd93_host1->hostdata;
+		hdata1->no_sync = 0;
+		hdata1->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
+		dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
+
+		request_irq(2, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1);
+	}
+	
 	called = 1;
 
 	return 1; /* Found one. */

@@ -1362,7 +1362,7 @@ uchar sr;
 #ifdef CONFIG_SGI
 {
 int busycount = 0;
-extern void sgiwd93_reset(void);
+extern void sgiwd93_reset(uchar*);
 
    /* wait 'til the chip gets some time for us */
    while (READ_AUX_STAT() & ASR_BSY && busycount++ < 100)
@@ -1376,7 +1376,7 @@ extern void sgiwd93_reset(void);
     */
    /* still busy ? */
    if (READ_AUX_STAT() & ASR_BSY)
-	sgiwd93_reset(); /* yeah, give it the hard one */
+	sgiwd93_reset(instance->base); /* yeah, give it the hard one */
 }
 #endif
 
