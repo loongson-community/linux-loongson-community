@@ -229,10 +229,10 @@ EXPORT(exception_handlers)
 		.fill	32,PTRSIZE,0
 
 /*
- * Interrupt handler table with 16 entries.
+ * Interrupt handler table with 32 entries.
  */
 EXPORT(IRQ_vectors)
-		.fill	16,PTRSIZE,0
+		.fill	32,PTRSIZE,0
 
 /*
  * Table of syscalls

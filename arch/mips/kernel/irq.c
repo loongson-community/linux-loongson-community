@@ -11,7 +11,7 @@
  *
  * Mips support by Ralf Baechle and Andreas Busse
  *
- * $Id: irq.c,v 1.2 1997/06/28 23:26:25 ralf Exp $
+ * $Id: irq.c,v 1.2 1997/07/01 08:59:07 ralf Exp $
  */
 #include <linux/config.h>
 #include <linux/errno.h>
@@ -51,6 +51,9 @@ unsigned long spurious_count = 0;
 static inline void mask_irq(unsigned int irq_nr)
 {
 	unsigned char mask;
+    
+        if (irq_nr >= 16)
+	    return;
 
 	mask = 1 << (irq_nr & 7);
 	if (irq_nr < 8) {
@@ -65,6 +68,9 @@ static inline void mask_irq(unsigned int irq_nr)
 static inline void unmask_irq(unsigned int irq_nr)
 {
 	unsigned char mask;
+
+        if (irq_nr >= 16)
+	    return;
 
 	mask = ~(1 << (irq_nr & 7));
 	if (irq_nr < 8) {
