@@ -62,71 +62,69 @@
 static uint32_t	extract_ic(unsigned short addr, int data);
 static uint32_t	extract_dc(unsigned short addr, int data);
 
-spinlock_t in_cacheerr = SPIN_LOCK_UNLOCKED;
-
 static inline void breakout_errctl(unsigned int val)
 {
 	if (val & CP0_ERRCTL_RECOVERABLE)
-		printk(" recoverable");
+		prom_printf(" recoverable");
 	if (val & CP0_ERRCTL_DCACHE)
-		printk(" dcache");
+		prom_printf(" dcache");
 	if (val & CP0_ERRCTL_ICACHE)
-		printk(" icache");
+		prom_printf(" icache");
 	if (val & CP0_ERRCTL_MULTIBUS)
-		printk(" multiple-buserr");
-	printk("\n");
+		prom_printf(" multiple-buserr");
+	prom_printf("\n");
 }
 
 static inline void breakout_cerri(unsigned int val)
 {
 	if (val & CP0_CERRI_TAG_PARITY)
-		printk(" tag-parity");
+		prom_printf(" tag-parity");
 	if (val & CP0_CERRI_DATA_PARITY)
-		printk(" data-parity");
+		prom_printf(" data-parity");
 	if (val & CP0_CERRI_EXTERNAL)
-		printk(" external");
-	printk("\n");
+		prom_printf(" external");
+	prom_printf("\n");
 }
 
 static inline void breakout_cerrd(unsigned int val)
 {
 	switch (val & CP0_CERRD_CAUSES) {
 	case CP0_CERRD_LOAD:
-		printk(" load,");
+		prom_printf(" load,");
 		break;
 	case CP0_CERRD_STORE:
-		printk(" store,");
+		prom_printf(" store,");
 		break;
 	case CP0_CERRD_FILLWB:
-		printk(" fill/wb,");
+		prom_printf(" fill/wb,");
 		break;
 	case CP0_CERRD_COHERENCY:
-		printk(" coherency,");
+		prom_printf(" coherency,");
 		break;
 	case CP0_CERRD_DUPTAG:
-		printk(" duptags,");
+		prom_printf(" duptags,");
 		break;
 	default:
-		printk(" NO CAUSE,");
+		prom_printf(" NO CAUSE,");
 		break;
 	}
 	if (!(val & CP0_CERRD_TYPES))
-		printk(" NO TYPE");
+		prom_printf(" NO TYPE");
 	else {
 		if (val & CP0_CERRD_MULTIPLE)
-			printk(" multi-err");
+			prom_printf(" multi-err");
 		if (val & CP0_CERRD_TAG_STATE)
-			printk(" tag-state");
+			prom_printf(" tag-state");
 		if (val & CP0_CERRD_TAG_ADDRESS)
-			printk(" tag-address");
+			prom_printf(" tag-address");
 		if (val & CP0_CERRD_DATA_SBE)
-			printk(" data-SBE");
+			prom_printf(" data-SBE");
 		if (val & CP0_CERRD_DATA_DBE)
-			printk(" data-DBE");
+			prom_printf(" data-DBE");
 		if (val & CP0_CERRD_EXTERNAL)
-			printk(" external");
+			prom_printf(" external");
 	}
-	printk("\n");
+	prom_printf("\n");
 }
 
 asmlinkage void sb1_cache_error(void)
@@ -134,10 +132,8 @@ asmlinkage void sb1_cache_error(void)
 	uint64_t cerr_dpa;
 	uint32_t errctl, cerr_i, cerr_d, dpalo, dpahi, eepc, res;
 
-	/* Prevent re-entrance in the SMP case */
-	spin_lock(&in_cacheerr);
-	printk("Cache error exception on CPU %x:\n",
-	       (read_c0_prid() >> 25) & 0x7);
+	prom_printf("Cache error exception on CPU %x:\n",
+		    (read_c0_prid() >> 25) & 0x7);
 
 	__asm__ __volatile__ (
 	"	.set	push\n\t"
@@ -155,41 +151,41 @@ asmlinkage void sb1_cache_error(void)
 	  "=r" (dpahi), "=r" (dpalo), "=r" (eepc));
 
 	cerr_dpa = (((uint64_t)dpahi) << 32) | dpalo;
-	printk(" c0_errorepc ==   %08x\n", eepc);
-	printk(" c0_errctl   ==   %08x", errctl);
+	prom_printf(" c0_errorepc ==   %08x\n", eepc);
+	prom_printf(" c0_errctl   ==   %08x", errctl);
 	breakout_errctl(errctl);
 	if (errctl & CP0_ERRCTL_ICACHE) {
-		printk(" c0_cerr_i   ==   %08x", cerr_i);
+		prom_printf(" c0_cerr_i   ==   %08x", cerr_i);
 		breakout_cerri(cerr_i);
 		if (CP0_CERRI_IDX_VALID(cerr_i)) {
 			if ((eepc & SB1_CACHE_INDEX_MASK) != (cerr_i & SB1_CACHE_INDEX_MASK))
-				printk(" cerr_i idx doesn't match eepc\n");
+				prom_printf(" cerr_i idx doesn't match eepc\n");
 			else {
 				res = extract_ic(cerr_i & SB1_CACHE_INDEX_MASK,
 						 (cerr_i & CP0_CERRI_DATA) != 0);
 				if (!(res & cerr_i))
-					printk("...didn't see indicated icache problem\n");
+					prom_printf("...didn't see indicated icache problem\n");
 			}
 		}
 	}
 	if (errctl & CP0_ERRCTL_DCACHE) {
-		printk(" c0_cerr_d   ==   %08x", cerr_d);
+		prom_printf(" c0_cerr_d   ==   %08x", cerr_d);
 		breakout_cerrd(cerr_d);
 		if (CP0_CERRD_DPA_VALID(cerr_d)) {
-			printk(" c0_cerr_dpa == %010llx\n", cerr_dpa);
+			prom_printf(" c0_cerr_dpa == %010llx\n", cerr_dpa);
 			if (!CP0_CERRD_IDX_VALID(cerr_d)) {
 				res = extract_dc(cerr_dpa & SB1_CACHE_INDEX_MASK,
 						 (cerr_d & CP0_CERRD_DATA) != 0);
 				if (!(res & cerr_d))
-					printk("...didn't see indicated dcache problem\n");
+					prom_printf("...didn't see indicated dcache problem\n");
 			} else {
 				if ((cerr_dpa & SB1_CACHE_INDEX_MASK) != (cerr_d & SB1_CACHE_INDEX_MASK))
-					printk(" cerr_d idx doesn't match cerr_dpa\n");
+					prom_printf(" cerr_d idx doesn't match cerr_dpa\n");
 				else {
 					res = extract_dc(cerr_d & SB1_CACHE_INDEX_MASK,
 							 (cerr_d & CP0_CERRD_DATA) != 0);
 					if (!(res & cerr_d))
-						printk("...didn't see indicated problem\n");
+						prom_printf("...didn't see indicated problem\n");
 				}
 			}
 		}
@@ -268,7 +264,7 @@ static uint32_t extract_ic(unsigned short addr, int data)
 	uint8_t lru;
 	int res = 0;
 
-	printk("Icache index 0x%04x  ", addr);
+	prom_printf("Icache index 0x%04x  ", addr);
 	for (way = 0; way < 4; way++) {
 		/* Index-load-tag-I */
 		__asm__ __volatile__ (
@@ -288,13 +284,13 @@ static uint32_t extract_ic(unsigned short addr, int data)
 		taglo = ((unsigned long long)taglohi << 32) | taglolo;
 		if (way == 0) {
 			lru = (taghi >> 14) & 0xff;
-			printk("[Bank %d Set 0x%02x]  LRU > %d %d %d %d > MRU\n",
-			       ((addr >> 5) & 0x3), /* bank */
-			       ((addr >> 7) & 0x3f), /* index */
-			       (lru & 0x3),
-			       ((lru >> 2) & 0x3),
-			       ((lru >> 4) & 0x3),
-			       ((lru >> 6) & 0x3));
+			prom_printf("[Bank %d Set 0x%02x]  LRU > %d %d %d %d > MRU\n",
+				    ((addr >> 5) & 0x3), /* bank */
+				    ((addr >> 7) & 0x3f), /* index */
+				    (lru & 0x3),
+				    ((lru >> 2) & 0x3),
+				    ((lru >> 4) & 0x3),
+				    ((lru >> 6) & 0x3));
 		}
 		va = (taglo & 0xC0000FFFFFFFE000) | addr;
 		if ((taglo & (1 << 31)) && (((taglo >> 62) & 0x3) == 3))
@@ -303,20 +299,20 @@ static uint32_t extract_ic(unsigned short addr, int data)
 		if (valid) {
 			tlo_tmp = taglo & 0xfff3ff;
 			if (((taglo >> 10) & 1) ^ range_parity(tlo_tmp, 23, 0)) {
-				printk("   ** bad parity in VTag0/G/ASID\n");
+				prom_printf("   ** bad parity in VTag0/G/ASID\n");
 				res |= CP0_CERRI_TAG_PARITY;
 			}
 			if (((taglo >> 11) & 1) ^ range_parity(taglo, 63, 24)) {
-				printk("   ** bad parity in R/VTag1\n");
+				prom_printf("   ** bad parity in R/VTag1\n");
 				res |= CP0_CERRI_TAG_PARITY;
 			}
 		}
 		if (valid ^ ((taghi >> 27) & 1)) {
-			printk("   ** bad parity for valid bit\n");
+			prom_printf("   ** bad parity for valid bit\n");
 			res |= CP0_CERRI_TAG_PARITY;
 		}
-		printk(" %d  [VA %016llx]  [Vld? %d]  raw tags: %08X-%016llX\n",
-		       way, va, valid, taghi, taglo);
+		prom_printf(" %d  [VA %016llx]  [Vld? %d]  raw tags: %08X-%016llX\n",
+			    way, va, valid, taghi, taglo);
 
 		if (data) {
 			uint32_t datahi, insta, instb;
@@ -341,21 +337,21 @@ static uint32_t extract_ic(unsigned short addr, int data)
 				: "r" ((way << 13) | addr | (offset << 3)));
 				predecode = (datahi >> 8) & 0xff;
 				if (((datahi >> 16) & 1) != (uint32_t)range_parity(predecode, 7, 0)) {
-					printk("   ** bad parity in predecode\n");
+					prom_printf("   ** bad parity in predecode\n");
 					res |= CP0_CERRI_DATA_PARITY;
 				}
 				/* XXXKW should/could check predecode bits themselves */
 				if (((datahi >> 4) & 0xf) ^ inst_parity(insta)) {
-					printk("   ** bad parity in instruction a\n");
+					prom_printf("   ** bad parity in instruction a\n");
 					res |= CP0_CERRI_DATA_PARITY;
 				}
 				if ((datahi & 0xf) ^ inst_parity(instb)) {
-					printk("   ** bad parity in instruction b\n");
+					prom_printf("   ** bad parity in instruction b\n");
 					res |= CP0_CERRI_DATA_PARITY;
 				}
-				printk("  %05X-%08X%08X", datahi, insta, instb);
+				prom_printf("  %05X-%08X%08X", datahi, insta, instb);
 			}
-			printk("\n");
+			prom_printf("\n");
 		}
 	}
 	return res;
@@ -422,7 +418,7 @@ static uint32_t extract_dc(unsigned short addr, int data)
 	uint8_t ecc, lru;
 	int res = 0;
 
-	printk("Dcache index 0x%04x  ", addr);
+	prom_printf("Dcache index 0x%04x  ", addr);
 	for (way = 0; way < 4; way++) {
 		__asm__ __volatile__ (
 		"	.set	push\n\t"
@@ -442,25 +438,25 @@ static uint32_t extract_dc(unsigned short addr, int data)
 		pa = (taglo & 0xFFFFFFE000) | addr;
 		if (way == 0) {
 			lru = (taghi >> 14) & 0xff;
-			printk("[Bank %d Set 0x%02x]  LRU > %d %d %d %d > MRU\n",
-			       ((addr >> 11) & 0x2) | ((addr >> 5) & 1), /* bank */
-			       ((addr >> 6) & 0x3f), /* index */
-			       (lru & 0x3),
-			       ((lru >> 2) & 0x3),
-			       ((lru >> 4) & 0x3),
-			       ((lru >> 6) & 0x3));
+			prom_printf("[Bank %d Set 0x%02x]  LRU > %d %d %d %d > MRU\n",
+				    ((addr >> 11) & 0x2) | ((addr >> 5) & 1), /* bank */
+				    ((addr >> 6) & 0x3f), /* index */
+				    (lru & 0x3),
+				    ((lru >> 2) & 0x3),
+				    ((lru >> 4) & 0x3),
+				    ((lru >> 6) & 0x3));
 		}
 		state = (taghi >> 25) & 0x1f;
 		valid = DC_TAG_VALID(state);
-		printk(" %d  [PA %010llx]  [state %s (%02x)]  raw tags: %08X-%016llX\n",
-		       way, pa, dc_state_str(state), state, taghi, taglo);
+		prom_printf(" %d  [PA %010llx]  [state %s (%02x)]  raw tags: %08X-%016llX\n",
+			    way, pa, dc_state_str(state), state, taghi, taglo);
 		if (valid) {
 			if (((taglo >> 11) & 1) ^ range_parity(taglo, 39, 26)) {
-				printk("   ** bad parity in PTag1\n");
+				prom_printf("   ** bad parity in PTag1\n");
 				res |= CP0_CERRD_TAG_ADDRESS;
 			}
 			if (((taglo >> 10) & 1) ^ range_parity(taglo, 25, 13)) {
-				printk("   ** bad parity in PTag0\n");
+				prom_printf("   ** bad parity in PTag0\n");
 				res |= CP0_CERRD_TAG_ADDRESS;
 			}
 		} else {
@@ -491,8 +487,8 @@ static uint32_t extract_dc(unsigned short addr, int data)
 				ecc = dc_ecc(datalo);
 				if (ecc != datahi) {
 					int bits = 0;
-					printk("  ** bad ECC (%02x %02x) ->",
-					       datahi, ecc);
+					prom_printf("  ** bad ECC (%02x %02x) ->",
+						    datahi, ecc);
 					ecc ^= datahi;
 					while (ecc) {
 						if (ecc & 1) bits++;
@@ -500,9 +496,9 @@ static uint32_t extract_dc(unsigned short addr, int data)
 					}
 					res |= (bits == 1) ? CP0_CERRD_DATA_SBE : CP0_CERRD_DATA_DBE;
 				}
-				printk("  %02X-%016llX", datahi, datalo);
+				prom_printf("  %02X-%016llX", datahi, datalo);
 			}
-			printk("\n");
+			prom_printf("\n");
 		}
 	}
 	return res;
