@@ -115,42 +115,16 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 
 	hdata->dma_dir = datainp;
 
-	if(cmd->SCp.buffers_residual) {
-		struct scatterlist *slp = cmd->SCp.buffer;
-		int i, totlen = 0;
-
-#ifdef DEBUG_DMA
-		printk("SCLIST<");
-#endif
-		for(i = 0; i <= cmd->SCp.buffers_residual; i++) {
-#ifdef DEBUG_DMA
-			printk("[%p,%d]", slp[i].address, slp[i].length);
-#endif
-			fill_hpc_entries (&hcp, slp[i].address, slp[i].length);
-			totlen += slp[i].length;
-		}
-#ifdef DEBUG_DMA
-		printk(">tlen<%d>", totlen);
-#endif
-		hdata->dma_bounce_len = totlen; /* a trick... */
-		write_wd33c93_count(regs, totlen);
-	} else {
-		/* Non-scattered dma. */
-#ifdef DEBUG_DMA
-		printk("ONEBUF<%p,%d>", cmd->SCp.ptr, cmd->SCp.this_residual);
-#endif
-		/*
-		 * wd33c93 shouldn't pass us bogus dma_setups, but
-		 * it does:-( The other wd33c93 drivers deal with
-		 * it the same way (which isn't that obvious).
-		 * IMHO a better fix would be, not to do these
-		 * dma setups in the first place
-		 */
-		if (cmd->SCp.ptr == NULL)
-			return 1;
-		fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
-		write_wd33c93_count(regs, cmd->SCp.this_residual);
-	}
+	/*
+	 * wd33c93 shouldn't pass us bogus dma_setups, but
+	 * it does:-( The other wd33c93 drivers deal with
+	 * it the same way (which isn't that obvious).
+	 * IMHO a better fix would be, not to do these
+	 * dma setups in the first place
+	 */
+	if (cmd->SCp.ptr == NULL)
+		return 1;
+	fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
 
 	/* To make sure, if we trip an HPC bug, that we transfer
 	 * every single byte, we tag on an extra zero length dma
@@ -196,44 +170,6 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 	}
 	hregs->ctrl = 0;
 
-	/* See how far we got and update scatterlist state if necessary. */
-	if(SCpnt->SCp.buffers_residual) {
-		struct scatterlist *slp = SCpnt->SCp.buffer;
-		int totlen, wd93_residual, transferred, i;
-
-		/* Yep, we were doing the scatterlist thang. */
-		totlen = hdata->dma_bounce_len;
-		wd93_residual = read_wd33c93_count(regp);
-		transferred = totlen - wd93_residual;
-
-#ifdef DEBUG_DMA
-		printk("tlen<%d>resid<%d>transf<%d> ",
-		       totlen, wd93_residual, transferred);
-#endif
-
-		/* Avoid long winded partial-transfer search for common case. */
-		if(transferred != totlen) {
-			/* This is the nut case. */
-#ifdef DEBUG_DMA
-			printk("Jed was here...");
-#endif
-			for(i = 0; i <= SCpnt->SCp.buffers_residual; i++) {
-				if(slp[i].length >= transferred)
-					break;
-				transferred -= slp[i].length;
-			}
-		} else {
-			/* This is the common case. */
-#ifdef DEBUG_DMA
-			printk("did it all...");
-#endif
-			i = SCpnt->SCp.buffers_residual;
-		}
-		SCpnt->SCp.buffer = &slp[i];
-		SCpnt->SCp.buffers_residual = SCpnt->SCp.buffers_residual - i;
-		SCpnt->SCp.ptr = (char *) slp[i].address;
-		SCpnt->SCp.this_residual = slp[i].length;
-	}
 #ifdef DEBUG_DMA
 	printk("\n");
 #endif
