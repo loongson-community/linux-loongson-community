@@ -63,10 +63,11 @@ unsigned long spurious_count = 0;
 
 /*
  * we need to map irq's up to at least bit 7 of the INT_MASK0_A register
- * since bits 0-6 are pre-allocated for other purposes
+ * since bits 0-6 are pre-allocated for other purposes. 7,8,9 are taken 
+ * for intercpu and msc intrs.
  */
-#define IRQ_TO_SWLEVEL(i)	i + 7
-#define SWLEVEL_TO_IRQ(s)	s - 7
+#define IRQ_TO_SWLEVEL(i)	i + 10
+#define SWLEVEL_TO_IRQ(s)	s - 10
 
 void disable_irq(unsigned int irq_nr)
 {
