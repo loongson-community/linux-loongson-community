@@ -24,6 +24,7 @@
  *
  */
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -100,31 +101,20 @@ static inline int ls1bit32(unsigned int x)
 
 void atlas_hw0_irqdispatch(struct pt_regs *regs)
 {
-	struct irqaction *action;
 	unsigned long int_status;
 	int irq;
 
 	int_status = atlas_hw0_icregs->intstatus;
 
 	/* if int_status == 0, then the interrupt has already been cleared */
-	if (int_status == 0)
+	if (unlikely(int_status == 0))
 		return;
 
 	irq = ls1bit32(int_status);
-	action = irq_desc[irq].action;
 
 	DEBUG_INT("atlas_hw0_irqdispatch: irq=%d\n", irq);
 
-	/* if action == NULL, then we don't have a handler for the irq */
-	if (action == NULL) {
-		printk("No handler for hw0 irq: %i\n", irq);
-		atomic_inc(&irq_err_count);
-		return;
-	}
-
-	do_IRQ(irq, action->dev_id, regs);
-
-	return;
+	do_IRQ(irq, regs);
 }
 
 #ifdef CONFIG_REMOTE_DEBUG

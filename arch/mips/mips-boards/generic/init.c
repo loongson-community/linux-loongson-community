@@ -199,7 +199,6 @@ int __init prom_init(int argc, char **argv, char **envp)
 		while(1);   /* We die here... */
 	}
 #endif
-	setup_prom_printf(0);
 	prom_printf("\nLINUX started...\n");
 	prom_init_cmdline();
 	prom_meminit();

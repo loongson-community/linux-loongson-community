@@ -161,16 +161,20 @@ static const struct serial_uart_config uart_config[PORT_MAX_8250+1] = {
 };
 
 #if defined(CONFIG_MIPS_ATLAS) || defined(CONFIG_MIPS_SEAD)
-extern unsigned int atlas_serial_in(struct async_struct *info, int offset);
-extern void atlas_serial_out(struct async_struct *info, int offset, int value);
-static _INLINE_ unsigned int serial_in(struct async_struct *info, int offset)
+
+static _INLINE_ unsigned int serial_in(struct uart_8250_port *info, int offset)
 {
-	return (atlas_serial_in(info, offset) & 0xff);   
+	unsigned long reg = mips_io_port_base + info->port.iobase + offset * 8;
+
+	return 0xff & *(volatile unsigned int *) reg;
 }
 
-static _INLINE_ void serial_out(struct async_struct *info, int offset, int value)
+static _INLINE_ void
+serial_out(struct uart_8250_port *info, int offset, int value)
 {
-	atlas_serial_out(info, offset, value);
+	unsigned long reg = mips_io_port_base + info->port.iobase + offset * 8;
+
+	*(volatile unsigned int *) reg = value;
 }
 
 #else
