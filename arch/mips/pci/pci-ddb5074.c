@@ -24,9 +24,10 @@ static struct resource extpci_mem_resource = {
 
 extern struct pci_ops ddb5476_ext_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&ddb5476_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource},
-	{NULL, NULL, NULL}
+struct pci_controller ddb5476_controller = {
+	.pci_ops	= &ddb5476_ext_pci_ops,
+	.io_resource	= &extpci_io_resource,
+	.mem_resource	= &extpci_mem_resource,
 };
 
 #define     PCI_EXT_INTA        8

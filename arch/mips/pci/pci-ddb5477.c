@@ -52,11 +52,18 @@ static struct resource iopci_mem_resource = {
 extern struct pci_ops ddb5477_ext_pci_ops;
 extern struct pci_ops ddb5477_io_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&ddb5477_ext_pci_ops, &extpci_io_resource, &extpci_mem_resource},
-	{&ddb5477_io_pci_ops, &iopci_io_resource, &iopci_mem_resource},
-	{NULL, NULL, NULL}
+struct pci_controller ddb5477_ext_controller[] = {
+	.pci_ops	= &ddb5477_ext_pci_ops,
+	.io_resource	= &extpci_io_resource,
+	.mem_resource	= &extpci_mem_resource
 };
+
+struct pci_controller ddb5477_io_controller[] = {
+	.pci_ops	= &ddb5477_io_pci_ops,
+	.io_resource	= &iopci_io_resource,
+	.mem_resource	= &iopci_mem_resource
+};
+
 
 
 /*

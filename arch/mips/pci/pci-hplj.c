@@ -107,9 +107,10 @@ struct pci_ops hp_pci_ops = {
 };
 
 
-struct pci_channel mips_pci_channels[] = {
-	{&hp_pci_ops, &ioport_resource, &iomem_resource},
-	{NULL, NULL, NULL}
+struct pci_controller hp_controller = {
+	.pci_ops	= &hp_pci_ops,
+	.io_resource	= &ioport_resource,
+	.mem_resource	= &iomem_resource,
 };
 
 unsigned __init int pcibios_assign_all_busses(void)

@@ -45,7 +45,6 @@ obj-$(CONFIG_ZAO_CAPCELLA)	+= fixup-victor-mpc30x.o
 # Choosen on a per system base not per firmware
 #
 obj-$(CONFIG_NEW_PCI)		+= pci.o
-obj-$(CONFIG_PCI_AUTO)		+= pci-auto.o
 obj-$(CONFIG_MIPS_ATLAS)	+= common.o
 obj-$(CONFIG_MIPS_MALTA)	+= common.o
 obj-$(CONFIG_LASAT)		+= common.o

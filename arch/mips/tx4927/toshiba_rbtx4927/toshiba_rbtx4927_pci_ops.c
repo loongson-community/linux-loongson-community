@@ -60,11 +60,15 @@ struct resource pci_mem_resource = {
 
 extern struct pci_ops tx4927_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	/* h/w only supports devices 0x00 to 0x14 */
-	{&tx4927_pci_ops, &pci_io_resource, &pci_mem_resource,
-	 PCI_DEVFN(0x00, 0), PCI_DEVFN(0x14, 7)},
-	{NULL, NULL, NULL, 0, 0}
+/*
+ * h/w only supports devices 0x00 to 0x14
+ */
+struct pci_controller tx4927_controller = {
+	.pci_ops	= &tx4927_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+	.first_devfn	= PCI_DEVFN(0x00, 0),
+	.last_devfn	= PCI_DEVFN(0x14, 7),
 };
 
 unsigned int pcibios_assign_all_busses(void)

@@ -58,9 +58,12 @@ struct resource pci_mem_resource = {
 
 extern struct pci_ops jmr3927_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&jmr3927_pci_ops, &pci_io_resource, &pci_mem_resource, 0, 0xff},
-	{NULL, NULL, NULL, NULL, NULL}
+struct pci_controller jmr3927_controller = {
+	.pci_ops	= &jmr3927_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+	.first_devfn	= 0,
+	.last_devfn	= 0xff,
 };
 
 unsigned int pcibios_assign_all_busses(void)

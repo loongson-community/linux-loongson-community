@@ -67,11 +67,12 @@ static struct resource pci_mem_resource = {
 
 extern struct pci_ops au1x_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&au1x_pci_ops, &pci_io_resource, &pci_mem_resource,
-	 PCI_FIRST_DEVFN, PCI_LAST_DEVFN},
-	{(struct pci_ops *) NULL, (struct resource *) NULL,
-	 (struct resource *) NULL, (int) NULL, (int) NULL}
+struct pci_controller au1x_controller = {
+	.pci_ops	= &au1x_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+	.first_devfn	= PCI_FIRST_DEVFN,
+	.last_devfn	= PCI_LAST_DEVFN
 };
 
 

@@ -30,15 +30,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-/*
- * Changes:
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - Moved mips_pci_channels[] from arch/mips/vr41xx/vr4122/eagle/setup.c.
- *  - Added support for NEC Hawk.
- *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC Eagle is supported.
- */
 #include <linux/config.h>
 #include <linux/init.h>
 #include <linux/console.h>
@@ -80,9 +71,12 @@ static struct resource vr41xx_pci_mem_resource = {
 
 extern struct pci_ops vr41xx_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&vr41xx_pci_ops, &vr41xx_pci_io_resource, &vr41xx_pci_mem_resource, 0, 256},
-	{NULL, NULL, NULL, 0, 0}
+struct pci_controller vr41xx_controller = {
+	.pci_ops	= &vr41xx_pci_ops,
+	.io_resource	= &vr41xx_pci_io_resource,
+	.mem_resource	= &vr41xx_pci_mem_resource,
+	.first_devfn	= 0,
+	.last_devfn	= 256,
 };
 
 struct vr41xx_pci_address_space vr41xx_pci_mem1 = {

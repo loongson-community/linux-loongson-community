@@ -15,18 +15,27 @@
  * multiple PCI channels may have multiple PCI host controllers or a
  * single controller supporting multiple channels.
  */
-struct pci_channel {
+struct pci_controller {
+	struct pci_controller *next;
+	struct pci_bus *bus;
+
 	struct pci_ops *pci_ops;
 	struct resource *io_resource;
 	struct resource *mem_resource;
+
+	/* For compatibility with current (as of July 2003) pciutils
+	   and XFree86. Eventually will be removed. */
+	unsigned int need_domain_info;
+
 	int first_devfn;
 	int last_devfn;
 };
 
 /*
- * each board defines an array of pci_channels, that ends with all NULL entry
+ * Used by boards to register their PCI interfaces before the actual scanning.
  */
-extern struct pci_channel mips_pci_channels[];
+extern struct pci_controller * alloc_pci_controller(void);
+extern void register_pci_controller(struct pci_controller *hose);
 
 /*
  * board supplied pci irq fixup routine

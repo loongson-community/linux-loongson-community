@@ -30,18 +30,6 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
  */
-/*
- * Changes:
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - Moved mips_pci_channels[] to arch/mips/vr41xx/vr4122/eagle/setup.c.
- *  - Added support for NEC Hawk.
- *
- *  Paul Mundt <lethal@chaoticdreams.org>
- *  - Fix empty break statements.
- *
- *  MontaVista Software Inc. <yyuasa@mvista.com> or <source@mvista.com>
- *  - New creation, NEC Eagle is supported.
- */
 #include <linux/init.h>
 #include <linux/pci.h>
 

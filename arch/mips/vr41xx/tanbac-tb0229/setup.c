@@ -50,17 +50,12 @@ static struct resource vr41xx_pci_mem_resource = {
 
 extern struct pci_ops vr41xx_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{	.pci_ops	= &vr41xx_pci_ops,
-		.io_resource	= &vr41xx_pci_io_resource,
-		.mem_resource	= &vr41xx_pci_mem_resource,
-		.first_devfn	= 0,
-		.last_devfn	= 256,	},
-	{	.pci_ops	= NULL,
-		.io_resource	= NULL,
-		.mem_resource	= NULL,
-		.first_devfn	= 0,
-		.last_devfn	= 0,	}
+struct pci_controller vr41xx_controller = {
+	.pci_ops	= &vr41xx_pci_ops,
+	.io_resource	= &vr41xx_pci_io_resource,
+	.mem_resource	= &vr41xx_pci_mem_resource,
+	.first_devfn	= 0,
+	.last_devfn	= 256,
 };
 
 struct vr41xx_pci_address_space vr41xx_pci_mem1 = {

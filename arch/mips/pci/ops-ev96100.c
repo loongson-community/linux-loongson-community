@@ -74,9 +74,12 @@ static struct resource pci_mem_resource = {
 
 extern struct pci_ops gt96100_pci_ops;
 
-struct pci_channel mips_pci_channels[] = {
-	{&gt96100_pci_ops, &pci_io_resource, &pci_mem_resource, 1, 0xff},
-	{NULL, NULL, NULL, NULL, NULL}
+struct pci_controller gt96100_controller = {
+	.pci_ops	= &gt96100_pci_ops,
+	.io_resource	= &pci_io_resource,
+	.mem_resource	= &pci_mem_resource,
+	.first_devfn	= 1,
+	.fast_devfn	= 0xff
 };
 
 int

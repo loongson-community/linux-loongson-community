@@ -55,175 +55,29 @@
  *		Dave Rusling david.rusling@reo.mts.dec.com
  *		David Mosberger davidm@cs.arizona.edu
  */
-#include <linux/config.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
+#include <linux/bootmem.h>
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/pci.h>
 
 #include <asm/pci_channel.h>
 
-extern void pcibios_fixup(void);
-extern void pcibios_fixup_irqs(void);
+/*
+ * Indicate whether we respect the PCI setup left by the firmware.
+ *
+ * Make this long-lived  so that we know when shutting down
+ * whether we probed only or not.
+ */
+int pci_probe_only;
 
-void __init pcibios_fixup_irqs(void)
-{
-	struct pci_dev *dev = NULL;
-	int slot_num;
-
-
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
-		slot_num = PCI_SLOT(dev->devfn);
-		switch (slot_num) {
-		case 2:
-			dev->irq = 3;
-			break;
-		case 3:
-			dev->irq = 4;
-			break;
-		case 4:
-			dev->irq = 5;
-			break;
-		default:
-			break;
-		}
-	}
-}
-
-void __init pcibios_fixup_resources(struct pci_dev *dev)
-{
-	int pos;
-	int bases;
-
-	printk("adjusting pci device: %s\n", dev->name);
-
-	switch (dev->hdr_type) {
-	case PCI_HEADER_TYPE_NORMAL:
-		bases = 6;
-		break;
-	case PCI_HEADER_TYPE_BRIDGE:
-		bases = 2;
-		break;
-	case PCI_HEADER_TYPE_CARDBUS:
-		bases = 1;
-		break;
-	default:
-		bases = 0;
-		break;
-	}
-	for (pos = 0; pos < bases; pos++) {
-		struct resource *res = &dev->resource[pos];
-		if (res->start >= IO_MEM_LOGICAL_START &&
-		    res->end <= IO_MEM_LOGICAL_END) {
-			res->start += IO_MEM_VIRTUAL_OFFSET;
-			res->end += IO_MEM_VIRTUAL_OFFSET;
-		}
-		if (res->start >= IO_PORT_LOGICAL_START &&
-		    res->end <= IO_PORT_LOGICAL_END) {
-			res->start += IO_PORT_VIRTUAL_OFFSET;
-			res->end += IO_PORT_VIRTUAL_OFFSET;
-		}
-	}
-
-}
-
-struct pci_fixup pcibios_fixups[] = {
-	{PCI_FIXUP_HEADER, PCI_ANY_ID, PCI_ANY_ID, pcibios_fixup_resources},
-	{0}
-};
-
-extern int pciauto_assign_resources(int busno, struct pci_channel *hose);
-
-static int __init pcibios_init(void)
-{
-	struct pci_channel *p;
-	struct pci_bus *bus;
-	int busno;
-
-#ifdef CONFIG_PCI_AUTO
-	/* assign resources */
-	busno = 0;
-	for (p = mips_pci_channels; p->pci_ops != NULL; p++) {
-		busno = pciauto_assign_resources(busno, p) + 1;
-	}
-#endif
-
-	/* scan the buses */
-	busno = 0;
-	for (p = mips_pci_channels; p->pci_ops != NULL; p++) {
-		bus = pci_scan_bus(busno, p->pci_ops, p);
-		busno = bus->subordinate + 1;
-	}
-
-	/* machine dependent fixups */
-	pcibios_fixup();
-	/* fixup irqs (board specific routines) */
-	pcibios_fixup_irqs();
-
-	return 0;
-}
-
-subsys_initcall(pcibios_init);
-
-int pcibios_enable_device(struct pci_dev *dev, int mask)
-{
-	/* pciauto_assign_resources() will enable all devices found */
-	return 0;
-}
-
-unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
-{
-	u16 io;
-
-	pci_read_config_word(bridge, PCI_IO_BASE, &io);
-	if (!io) {
-		pci_write_config_word(bridge, PCI_IO_BASE, 0xf0f0);
-		pci_read_config_word(bridge, PCI_IO_BASE, &io);
-		pci_write_config_word(bridge, PCI_IO_BASE, 0x0);
-	}
-	if (io)
-		return IORESOURCE_IO;
-	//printk(KERN_WARNING "PCI: bridge %s does not support I/O forwarding!\n", bridge->name);
-	return 0;
-}
-
-void __devinit pcibios_fixup_bus(struct pci_bus *bus)
-{
-	/* Propogate hose info into the subordinate devices.  */
-
-	struct pci_channel *hose = bus->sysdata;
-	struct pci_dev *dev = bus->self;
-
-	if (!dev) {
-		/* Root bus */
-		bus->resource[0] = hose->io_resource;
-		bus->resource[1] = hose->mem_resource;
-	} else {
-		/* This is a bridge. Do not care how it's initialized,
-		   just link its resources to the bus ones */
-		int i;
-
-		for (i = 0; i < 3; i++) {
-			bus->resource[i] =
-			    &dev->resource[PCI_BRIDGE_RESOURCES + i];
-			bus->resource[i]->name = bus->name;
-		}
-		bus->resource[0]->flags |= pci_bridge_check_io(dev);
-		bus->resource[1]->flags |= IORESOURCE_MEM;
-		/* For now, propagate hose limits to the bus;
-		   we'll adjust them later. */
-		bus->resource[0]->end = hose->io_resource->end;
-		bus->resource[1]->end = hose->mem_resource->end;
-		/* Turn off downstream PF memory address range by default */
-		bus->resource[2]->start = 1024 * 1024;
-		bus->resource[2]->end = bus->resource[2]->start - 1;
-	}
-}
-
-char *pcibios_setup(char *str)
-{
-	return str;
-}
+/*
+ * The PCI controller list.
+ */
+                                                                                
+struct pci_controller *hose_head, **hose_tail = &hose_head;
+struct pci_controller *pci_isa_hose;
 
 /*
  * We need to avoid collisions with `mirrored' VGA ports
@@ -250,4 +104,193 @@ pcibios_align_resource(void *data, struct resource *res,
 			res->start = start;
 		}
 	}
+}
+
+extern void pcibios_fixup(void);
+
+void __init pcibios_fixup_irqs(void)
+{
+	struct pci_dev *dev = NULL;
+	int slot_num;
+
+
+	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
+		slot_num = PCI_SLOT(dev->devfn);
+		switch (slot_num) {
+		case 2:
+			dev->irq = 3;
+			break;
+		case 3:
+			dev->irq = 4;
+			break;
+		case 4:
+			dev->irq = 5;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+struct pci_controller * __init alloc_pci_controller(void)
+{
+	return alloc_bootmem(sizeof(struct pci_controller));
+}
+
+void __init register_pci_controller(struct pci_controller *hose)
+{
+	*hose_tail = hose;
+	hose_tail = &hose->next;
+}
+
+static int __init pcibios_init(void)
+{
+	struct pci_controller *hose;
+	struct pci_bus *bus;
+	int next_busno;
+	int need_domain_info = 0;
+
+	/* Scan all of the recorded PCI controllers.  */
+	for (next_busno = 0, hose = hose_head; hose; hose = hose->next) {
+		bus = pci_scan_bus(next_busno, hose->pci_ops, hose);
+		hose->bus = bus;
+		hose->need_domain_info = need_domain_info;
+		next_busno = bus->subordinate + 1;
+		/* Don't allow 8-bit bus number overflow inside the hose -
+		   reserve some space for bridges. */ 
+		if (next_busno > 224) {
+			next_busno = 0;
+			need_domain_info = 1;
+		}
+	}
+
+	/* machine dependent fixups */
+	pcibios_fixup();
+	/* fixup irqs (board specific routines) */
+	pcibios_fixup_irqs();
+
+	return 0;
+}
+
+subsys_initcall(pcibios_init);
+
+static int pcibios_enable_resources(struct pci_dev *dev, int mask)
+{
+	u16 cmd, old_cmd;
+	int idx;
+	struct resource *r;
+
+	pci_read_config_word(dev, PCI_COMMAND, &cmd);
+	old_cmd = cmd;
+	for(idx=0; idx<6; idx++) {
+		/* Only set up the requested stuff */
+		if (!(mask & (1<<idx)))
+			continue;
+
+		r = &dev->resource[idx];
+		if (!r->start && r->end) {
+			printk(KERN_ERR "PCI: Device %s not available because of resource collisions\n", pci_name(dev));
+			return -EINVAL;
+		}
+		if (r->flags & IORESOURCE_IO)
+			cmd |= PCI_COMMAND_IO;
+		if (r->flags & IORESOURCE_MEM)
+			cmd |= PCI_COMMAND_MEMORY;
+	}
+	if (dev->resource[PCI_ROM_RESOURCE].start)
+		cmd |= PCI_COMMAND_MEMORY;
+	if (cmd != old_cmd) {
+		printk("PCI: Enabling device %s (%04x -> %04x)\n", pci_name(dev), old_cmd, cmd);
+		pci_write_config_word(dev, PCI_COMMAND, cmd);
+	}
+	return 0;
+}
+
+static int pcibios_enable_irq(struct pci_dev *dev)
+{
+	return 0;
+}
+
+int pcibios_enable_device(struct pci_dev *dev, int mask)
+{
+	int err;
+
+	if ((err = pcibios_enable_resources(dev, mask)) < 0)
+		return err;
+
+	return pcibios_enable_irq(dev);
+}
+
+unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
+{
+	u16 io;
+
+	pci_read_config_word(bridge, PCI_IO_BASE, &io);
+	if (!io) {
+		pci_write_config_word(bridge, PCI_IO_BASE, 0xf0f0);
+		pci_read_config_word(bridge, PCI_IO_BASE, &io);
+		pci_write_config_word(bridge, PCI_IO_BASE, 0x0);
+	}
+	if (io)
+		return IORESOURCE_IO;
+	//printk(KERN_WARNING "PCI: bridge %s does not support I/O forwarding!\n", bridge->name);
+	return 0;
+}
+
+void __init
+pcibios_fixup_resource(struct resource *res, struct resource *root)
+{
+	res->start += root->start;
+	res->end += root->start;
+}
+
+void __init
+pcibios_fixup_device_resources(struct pci_dev *dev, struct pci_bus *bus)
+{
+	/* Update device resources.  */
+	struct pci_controller *hose = (struct pci_controller *)bus->sysdata;
+	int i;
+
+	for (i = 0; i < PCI_NUM_RESOURCES; i++) {
+		if (!dev->resource[i].start)
+			continue;
+		if (dev->resource[i].flags & IORESOURCE_IO)
+			pcibios_fixup_resource(&dev->resource[i],
+					       hose->io_resource);
+		else if (dev->resource[i].flags & IORESOURCE_MEM)
+			pcibios_fixup_resource(&dev->resource[i],
+					       hose->mem_resource);
+	}
+}
+
+void __init
+pcibios_fixup_bus(struct pci_bus *bus)
+{
+	/* Propagate hose info into the subordinate devices.  */
+
+	struct pci_controller *hose = bus->sysdata;
+	struct list_head *ln;
+	struct pci_dev *dev = bus->self;
+
+	if (!dev) {
+		bus->resource[0] = hose->io_resource;
+		bus->resource[1] = hose->mem_resource;
+	}
+	if (pci_probe_only &&
+		   (dev->class >> 8) == PCI_CLASS_BRIDGE_PCI) {
+		pci_read_bridge_bases(bus);
+		pcibios_fixup_device_resources(dev, bus);
+	} 
+
+	for (ln = bus->devices.next; ln != &bus->devices; ln = ln->next) {
+		struct pci_dev *dev = pci_dev_b(ln);
+
+		if ((dev->class >> 8) != PCI_CLASS_BRIDGE_PCI)
+			pcibios_fixup_device_resources(dev, bus);
+	}
+}
+
+char *pcibios_setup(char *str)
+{
+	return str;
 }

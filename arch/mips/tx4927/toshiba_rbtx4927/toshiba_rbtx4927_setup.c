@@ -325,7 +325,7 @@ void print_pci_status(void)
 	printk("PCIC STATUS %lx\n", tx4927_pcicptr->pcicstatus);
 }
 
-static struct pci_dev *fake_pci_dev(struct pci_channel *hose,
+static struct pci_dev *fake_pci_dev(struct pci_controller *hose,
 				    int top_bus, int busnr, int devfn)
 {
 	static struct pci_dev dev;
@@ -347,7 +347,7 @@ static struct pci_dev *fake_pci_dev(struct pci_channel *hose,
 }
 
 #define EARLY_PCI_OP(rw, size, type)                                    \
-static int early_##rw##_config_##size(struct pci_channel *hose,                \
+static int early_##rw##_config_##size(struct pci_controller *hose,      \
         int top_bus, int bus, int devfn, int offset, type value)        \
 {                                                                       \
         return pci_##rw##_config_##size(                                \
@@ -362,7 +362,7 @@ EARLY_PCI_OP(write, byte, u8)
 EARLY_PCI_OP(write, word, u16)
 EARLY_PCI_OP(write, dword, u32)
 
-static int __init tx4927_pcibios_init(int busno, struct pci_channel *hose)
+static int __init tx4927_pcibios_init(int busno, struct pci_controller *hose)
 {
 	u32 pci_devfn;
 	int devfn_start = 0;
@@ -603,7 +603,7 @@ static int __init tx4927_pcibios_init(int busno, struct pci_channel *hose)
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_PCIBIOS,
 				       "+\n");
 
-	return (busno);
+	return busno;
 }
 
 extern struct resource pci_io_resource;
@@ -851,17 +851,9 @@ void tx4927_pci_setup(void)
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_PCI2,
 				       ":pci setup complete:\n");
-      //tx4927_dump_pcic_settings();
+	//tx4927_dump_pcic_settings();
 
-	{
-		struct pci_channel *p;
-		int busno;
-
-		busno = 0;
-		for (p = mips_pci_channels; p->pci_ops != NULL; p++) {
-			busno = tx4927_pcibios_init(busno, p) + 1;
-		}
-	}
+	tx4927_pcibios_init(0, &tx4927_controller);
 
 	TOSHIBA_RBTX4927_SETUP_DPRINTK(TOSHIBA_RBTX4927_SETUP_PCI2, "+\n");
 }
@@ -1062,7 +1054,7 @@ void __init toshiba_rbtx4927_setup(void)
 
 	{
 		u32 id = 0;
-		early_read_config_dword(&mips_pci_channels[0], 0, 0, 0x90,
+		early_read_config_dword(&tx4927_controller, 0, 0, 0x90,
 					PCI_VENDOR_ID, &id);
 		if (id == 0x94601055) {
 			tx4927_using_backplane = 1;

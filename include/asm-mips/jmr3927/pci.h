@@ -1,5 +1,4 @@
-/***********************************************************************
- *
+/*
  * Copyright 2001 MontaVista Software Inc.
  * Author: MontaVista Software, Inc.
  *              ahennessy@mvista.com
@@ -30,31 +29,14 @@
  *  You should have received a copy of the  GNU General Public License along
  *  with this program; if not, write  to the Free Software Foundation, Inc.,
  *  675 Mass Ave, Cambridge, MA 02139, USA.
- *
- ***********************************************************************
  */
-
 #ifndef __ASM_TX3927_PCI_H
 #define __ASM_TX3927__PCI_H
 
 #include <linux/ioport.h>
 #include <linux/pci.h>
 
-/*
- * Each pci channel is a top-level PCI bus seem by CPU.  A machine  with
- * multiple PCI channels may have multiple PCI host controllers or a
- * single controller supporting multiple channels.
- */
-struct pci_channel {
-	struct pci_ops *pci_ops;
-	struct resource *io_resource;
-	struct resource *mem_resource;
-};
-
-/*
- * each board defines an array of pci_channels, that ends with all NULL entry
- */
-extern struct pci_channel mips_pci_channels[];
+#include <asm/pci_channel.h>
 
 /*
  * board supplied pci irq fixup routine
