@@ -1,4 +1,4 @@
-/* $Id: jazz.h,v 1.6 1998/08/18 20:46:39 ralf Exp $
+/* $Id: jazz.h,v 1.7 1998/08/25 09:21:56 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -208,6 +208,7 @@ typedef struct {
 #define JAZZ_SERIAL1_IRQ        18
 #define JAZZ_SERIAL2_IRQ        19
 #define JAZZ_PARALLEL_IRQ       20
+#define JAZZ_MOUSE_IRQ          21
 
 /*
  * JAZZ DMA Channels
