@@ -3,3 +3,5 @@
 .*.cmd
 .*.ver
 genksyms
+parse.c
+parse.h
