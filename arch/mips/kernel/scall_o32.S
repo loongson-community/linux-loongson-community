@@ -3,7 +3,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 1998, 1999, 2000 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001 by Ralf Baechle
+ * Copyright (C) 2001 MIPS Technologies, Inc.
  */
 #include <asm/asm.h>
 #include <linux/errno.h>
@@ -12,6 +13,7 @@
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/isadep.h>
+#include <asm/sysmips.h>
 #include <asm/unistd.h>
 
 /* This duplicates the definition from <linux/sched.h> */
@@ -192,3 +194,73 @@ illegal_syscall:
 	sw	t0, PT_R7(sp)
 	j	ret_from_sys_call
 	END(handle_sys)
+
+	LEAF(mips_atomic_set)
+	lw	v1, THREAD_CURDS($28)
+	addiu	a0, a1, 4
+	or	a0, a0, a1
+	li	v0, -EFAULT
+	and	a0, a0, v1
+	bltz	a0, 8f
+
+#ifdef CONFIG_CPU_HAS_LLSC
+	/* Ok, this is the ll/sc case.  World is sane :-)  */
+1:	ll	v0, (a1)
+	move	a0, a2
+2:	sc	a0, (a1)
+	beqz	a0, 1b
+
+	.section __ex_table,"a"
+	PTR	1b, bad_stack
+	PTR	2b, bad_stack
+	.previous
+#else
+	sw	a1, 16(sp)
+	sw	a2, 20(sp)
+
+	move	a0, sp
+	move	a2, a1
+	li	a1, 1
+	jal	do_page_fault
+
+	lw	a1, 16(sp)
+	lw	a2, 20(sp)
+
+	/*
+	 * At this point the page should be readable and writable unless
+	 * there was no more memory available.
+	 */
+1:	lw	v0, (a1)
+2:	sw	a2, (a1)
+
+	.section __ex_table,"a"
+	PTR	1b, no_mem
+	PTR	2b, no_mem
+	.previous
+#endif
+
+	sw	v0, PT_R2(sp)		# result
+1:
+
+	/* Success, so skip usual error handling garbage.  */
+	lw	t0, TASK_PTRACE($28)	# syscall tracing enabled?
+	andi	t0, PT_TRACESYS
+	bnez	t0, 1f
+	b	o32_ret_from_sys_call
+
+1:	SAVE_STATIC
+	jal	syscall_trace
+	li	a3, 0			# success
+	j	ret_from_sys_call
+
+no_mem:	li	v0, -ENOMEM
+	jr	ra
+
+8:	li	v0, -EFAULT
+9:	jr	ra
+	END(mips_atomic_set)	
+
+	LEAF(sys_sysmips)
+	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
+	j	_sys_sysmips
+	END(sys_sysmips)
