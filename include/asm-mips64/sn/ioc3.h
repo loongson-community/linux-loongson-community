@@ -154,8 +154,9 @@ struct ioc3 {
 	volatile u32	ehar_h;		/* 0x00140  */
 	volatile u32	ehar_l;		/* 0x00144  */
 	volatile u32	micr;		/* 0x00148  */
-	volatile u32	midr;		/* 0x0014c  */
-	volatile u32	pad1[(0x20000 - 0x00150) / 4];
+	volatile u32	midr_r;		/* 0x0014c  */
+	volatile u32	midr_w;		/* 0x00150  */
+	volatile u32	pad1[(0x20000 - 0x00154) / 4];
 
 	/* SuperIO Registers  XXX */
 	struct ioc3_sioregs	sregs;	/* 0x20000 */
