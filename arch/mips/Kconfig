@@ -187,6 +187,7 @@ config LASAT_SYSCTL
 
 config HP_LASERJET
 	bool "Support for Hewlett Packard LaserJet board"
+	depends on BROKEN
 
 config MIPS_ITE8172
 	bool "Support for ITE 8172G board"
