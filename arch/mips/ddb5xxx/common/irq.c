@@ -22,6 +22,7 @@ static int kgdb_flag = 1;
 static int __init nokgdb(char *str)
 {
 	kgdb_flag = 0;
+	return 1;
 }
 __setup("nokgdb", nokgdb);
 #endif
