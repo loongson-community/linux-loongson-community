@@ -323,6 +323,23 @@ void flush_tlb_range(struct vm_area_struct *vma, unsigned long start, unsigned l
 	local_flush_tlb_range(vma, start, end);
 }
 
+static void flush_tlb_kernel_range_ipi(void *info)
+{
+	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
+
+	local_flush_tlb_kernel_range(fd->addr1, fd->addr2);
+}
+
+void flush_tlb_kernel_range(unsigned long start, unsigned long end)
+{
+	struct flush_tlb_data fd;
+
+	fd.addr1 = start;
+	fd.addr2 = end;
+	smp_call_function(flush_tlb_kernel_range_ipi, (void *)&fd, 1, 1);
+	local_flush_tlb_kernel_range(start, end);
+}
+
 static void flush_tlb_page_ipi(void *info)
 {
 	struct flush_tlb_data *fd = (struct flush_tlb_data *)info;
