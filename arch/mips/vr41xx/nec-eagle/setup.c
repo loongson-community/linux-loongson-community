@@ -38,7 +38,6 @@
 #include <linux/root_dev.h>
 
 #include <asm/pci_channel.h>
-#include <asm/reboot.h>
 #include <asm/time.h>
 #include <asm/vr41xx/eagle.h>
 
@@ -114,10 +113,6 @@ static void __init nec_eagle_setup(void)
 	initrd_end = (unsigned long)&__rd_end;
 #endif
 
-	_machine_restart = vr41xx_restart;
-	_machine_halt = vr41xx_halt;
-	_machine_power_off = vr41xx_power_off;
-
 	board_time_init = vr41xx_time_init;
 	board_timer_setup = vr41xx_timer_setup;
 
@@ -126,6 +121,8 @@ static void __init nec_eagle_setup(void)
 	vr41xx_bcu_init();
 
 	vr41xx_cmu_init();
+
+	vr41xx_pmu_init();
 
 #ifdef CONFIG_SERIAL_8250
 	vr41xx_dsiu_init();
