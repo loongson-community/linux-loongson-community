@@ -242,31 +242,5 @@ do_sigbus:
 	return;
 
 vmalloc_fault:
-	{
-		/*
-		 * Synchronize this task's top level page-table
-		 * with the 'reference' page table.
-		 */
-		int offset = pgd_index(address);
-		pgd_t *pgd, *pgd_k;
-		pmd_t *pmd, *pmd_k;
-
-		pgd = tsk->active_mm->pgd + offset;
-		pgd_k = init_mm.pgd + offset;
-
-		if (!pgd_present(*pgd)) {
-			if (!pgd_present(*pgd_k))
-				goto bad_area_nosemaphore;
-			set_pgd(pgd, *pgd_k);
-			return;
-		}
-
-		pmd = pmd_offset(pgd, address);
-		pmd_k = pmd_offset(pgd_k, address);
-
-		if (pmd_present(*pmd) || !pmd_present(*pmd_k))
-			goto bad_area_nosemaphore;
-		set_pmd(pmd, *pmd_k);
-		return;
-	}
+	panic("Pagefault for kernel virtual memory");
 }
