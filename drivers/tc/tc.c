@@ -1,4 +1,4 @@
-/* $Id: tc.c,v 1.3 1999/10/09 00:01:32 ralf Exp $
+/*
  * tc-init: We assume the TURBOchannel to be up and running so
  * just probe for Modules and fill in the global data structure
  * tc_bus.
@@ -8,9 +8,7 @@
  * for more details.
  *
  * Copyright (c) Harald Koerfgen, 1998
- *
  */
-
 #include <linux/string.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
@@ -113,19 +111,19 @@ static void __init tc_probe(unsigned long startaddr, unsigned long size, int max
 	for (slot = 0; slot <= max_slot; slot++) {
 		module = (char *)(startaddr + slot * size);
 		offset = -1;
-		if (module[OLDCARD + PATTERN0] == 0x55 && module[OLDCARD + PATTERN1] == 0x00
-		  && module[OLDCARD + PATTERN2] == 0xaa && module[OLDCARD + PATTERN3] == 0xff)
+		if (module[OLDCARD + TC_PATTERN0] == 0x55 && module[OLDCARD + TC_PATTERN1] == 0x00
+		  && module[OLDCARD + TC_PATTERN2] == 0xaa && module[OLDCARD + TC_PATTERN3] == 0xff)
 			offset = OLDCARD;
-		if (module[PATTERN0] == 0x55 && module[PATTERN1] == 0x00
-		  && module[PATTERN2] == 0xaa && module[PATTERN3] == 0xff)
+		if (module[TC_PATTERN0] == 0x55 && module[TC_PATTERN1] == 0x00
+		  && module[TC_PATTERN2] == 0xaa && module[TC_PATTERN3] == 0xff)
 			offset = 0;
 
 		if (offset != -1) {
 			tc_bus[slot].base_addr = (unsigned long)module;
 			for(i = 0; i < 8; i++) {
-				tc_bus[slot].firmware[i] = module[FIRM_VER + offset + 4 * i];
-				tc_bus[slot].vendor[i] = module[VENDOR + offset + 4 * i];
-				tc_bus[slot].name[i] = module[MODULE + offset + 4 * i];
+				tc_bus[slot].firmware[i] = module[TC_FIRM_VER + offset + 4 * i];
+				tc_bus[slot].vendor[i] = module[TC_VENDOR + offset + 4 * i];
+				tc_bus[slot].name[i] = module[TC_MODULE + offset + 4 * i];
 			}
 			tc_bus[slot].firmware[8] = 0;
 			tc_bus[slot].vendor[8] = 0;
