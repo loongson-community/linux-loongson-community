@@ -168,7 +168,16 @@ struct mace_ethernet {
 
 /* Audio registers */
 struct mace_audio {
-	mace32_t xxx;	/* later... */
+	mace32_t control;
+	mace32_t codec_control;		/* codec status control */
+	mace32_t codec_mask;		/* codec status input mask */
+	mace32_t codec_read;		/* codec status read data */
+	struct {
+		mace32_t control;	/* channel control */
+		mace32_t read_ptr;	/* channel read pointer */
+		mace32_t write_ptr;	/* channel write pointer */
+		mace32_t depth;		/* channel depth */
+	} channel[3];
 };
 #define mace_perif_audio_read(r)	\
 	mace_read(mace->perif.audio.r)
