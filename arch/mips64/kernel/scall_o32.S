@@ -195,7 +195,7 @@ LEAF(mips_atomic_set)
 		daddiu	a0, a1, 4
 		or	a0, a0, a1
 		and	a0, a0, v1
-		bltz	a0, bad_address
+		bnez	a0, bad_address
 
 		/* Ok, this is the ll/sc case.  World is sane :-)  */
 1:		ll	v0, (a1)
@@ -258,7 +258,7 @@ LEAF(sys32_syscall)
 	ld	v1, TI_ADDR_LIMIT($28)
 	or	v0, v0, t1
 	and	v1, v1, v0
-	bltz	v1, efault
+	bnez	v1, efault
 
 	move	a0, a1			# shift argument registers
 	move	a1, a2

@@ -25,7 +25,7 @@
 LEAF(__strlen_user_asm)
 	ld	v0, TI_ADDR_LIMIT($28)			# pointer ok?
 	and	v0, a0
-	bltz	v0, fault
+	bnez	v0, fault
 
 FEXPORT(__strlen_user_nocheck_asm)
 	move	v0, a0

@@ -22,8 +22,8 @@
  *
  * For historical reasons, these macros are grossly misnamed.
  */
-#define KERNEL_DS	((mm_segment_t) { (unsigned long) 0L })
-#define USER_DS		((mm_segment_t) { (unsigned long) -1L })
+#define KERNEL_DS	((mm_segment_t) { 0UL })
+#define USER_DS		((mm_segment_t) { -TASK_SIZE })
 
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
@@ -46,19 +46,19 @@
  *  - OR we are in kernel mode.
  */
 #define __ua_size(size)							\
-	(__builtin_constant_p(size) && (signed long) (size) > 0 ? 0 : (size))
+	((__builtin_constant_p(size) && (size)) > 0 ? 0 : (size))
 
-#define __access_ok(addr,size,mask)					\
-	(((signed long)((mask)&(addr | (addr + size) | __ua_size(size)))) >= 0)
+#define __access_ok(addr, size, mask)					\
+	(((mask) & ((addr) | ((addr) + (size)) | __ua_size(size))) == 0)
 
-#define __access_mask ((long)(get_fs().seg))
+#define __access_mask get_fs().seg
 
-#define access_ok(type,addr,size) \
-	__access_ok(((unsigned long)(addr)),(size),__access_mask)
+#define access_ok(type, addr, size)					\
+	__access_ok((unsigned long)(addr), (size), __access_mask)
 
 static inline int verify_area(int type, const void * addr, unsigned long size)
 {
-	return access_ok(type,addr,size) ? 0 : -EFAULT;
+	return access_ok(type, addr, size) ? 0 : -EFAULT;
 }
 
 /*
@@ -340,8 +340,8 @@ __clear_user(void *addr, __kernel_size_t size)
 ({								\
 	void * __cl_addr = (addr);				\
 	unsigned long __cl_size = (n);				\
-	if (__cl_size && __access_ok(VERIFY_WRITE,		\
-	       ((unsigned long)(__cl_addr)), __cl_size))	\
+	if (__cl_size && access_ok(VERIFY_WRITE,		\
+		((unsigned long)(__cl_addr)), __cl_size))	\
 		__cl_size = __clear_user(__cl_addr, __cl_size);	\
 	__cl_size;						\
 })
