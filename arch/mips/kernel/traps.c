@@ -910,15 +910,21 @@ extern void tlb_init(void);
 void __init per_cpu_trap_init(void)
 {
 	unsigned int cpu = smp_processor_id();
+	unsigned int status_set = ST0_CU0;
 
-	/* Some firmware leaves the BEV flag set, clear it.  */
-	clear_c0_status(ST0_CU1|ST0_CU2|ST0_CU3|ST0_BEV);
+	/*
+	 * Disable coprocessors and select 32-bit or 64-bit addressing
+	 * and the 16/32 or 32/32 FPR register model.  Reset the BEV
+	 * flag that some firmware may have left set and the TS bit (for
+	 * IP27).  Set XX for ISA IV code to work.
+	 */
 #ifdef CONFIG_MIPS64
-	set_c0_status(ST0_CU0|ST0_FR|ST0_KX|ST0_SX|ST0_UX);
+	status_set |= ST0_FR|ST0_KX|ST0_SX|ST0_UX;
 #endif
-
 	if (current_cpu_data.isa_level == MIPS_CPU_ISA_IV)
-		set_c0_status(ST0_XX);
+		status_set |= ST0_XX;
+	change_c0_status(ST0_CU|ST0_FR|ST0_BEV|ST0_TS|ST0_KX|ST0_SX|ST0_UX,
+			 status_set);
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
