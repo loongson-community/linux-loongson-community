@@ -8,8 +8,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET := ip32-kern.a
 
 all: ip32-kern.a ip32-irq-glue.o

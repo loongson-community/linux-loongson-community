@@ -2,8 +2,6 @@
 # Makefile for the IP27 specific kernel interface routines under Linux.
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET = ip27.o
 
 export-objs		= ip27-rtc.o

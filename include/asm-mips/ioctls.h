@@ -103,6 +103,5 @@
 #define TIOCGICOUNT     0x5492 /* read serial port inline interrupt counts */
 #define TIOCGHAYESESP	0x5493 /* Get Hayes ESP configuration */
 #define TIOCSHAYESESP	0x5494 /* Set Hayes ESP configuration */
-#define FIOQSIZE	0x5460
 
 #endif /* __ASM_IOCTLS_H */

@@ -10,8 +10,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= ev96100.o
 
 obj-y	:= init.o pci_ops.o pci_fixups.o time.o irq.o int-handler.o setup.o \

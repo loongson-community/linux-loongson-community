@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all: vr41xx.o
 
 O_TARGET := vr41xx.o

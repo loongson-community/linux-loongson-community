@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= momenco_ocelot.o
 
 obj-y	 += int-handler.o irq.o pci.o prom.o reset.o setup.o

@@ -9,8 +9,6 @@
 # Note 2! The CFLAGS definitions are now in the main makefile...
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET = ddb5074.o
 
 obj-y				+= setup.o irq.o int-handler.o pci.o pci_ops.o nile4_pic.o time.o

@@ -10,8 +10,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all: au1000.o
 
 O_TARGET := au1000.o

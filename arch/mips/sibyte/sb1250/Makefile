@@ -1,5 +1,3 @@
-USE_STANDARD_AS_RULE := true
-
 O_TARGET := sb1250.o
 
 obj-y := setup.o irq.o irq_handler.o time.o

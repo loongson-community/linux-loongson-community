@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= ddb5477.o
 
 obj-y	 += int-handler.o irq.o irq_5477.o setup.o pci.o pci_ops.o lcd44780.o

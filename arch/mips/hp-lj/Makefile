@@ -7,8 +7,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all: hp-lj.o
 
 O_TARGET := hp-lj.o

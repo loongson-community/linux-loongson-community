@@ -450,6 +450,12 @@ static __inline__ unsigned long __ffs(unsigned long word)
 }
 
 /*
+ * fls: find last bit set.
+ */
+
+#define fls(x) generic_fls(x)
+
+/*
  * Every architecture must define this function. It's the fastest
  * way of searching a 168-bit bitmap where the first 128 bits are
  * unlikely to be set. It's guaranteed that at least one of the 168

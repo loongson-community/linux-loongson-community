@@ -41,8 +41,6 @@
 #
 # =============================================================
 
-USE_STANDARD_AS_RULE := true
-
 all: ramsys.srec \
      flashsys.srec \
      flashsys2.srec \

@@ -28,8 +28,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET := malta.o
 
 obj-y := malta_int.o malta_rtc.o malta_setup.o

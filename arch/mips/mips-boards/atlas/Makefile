@@ -28,8 +28,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-USE_STANDARD_AS_RULE := true
-
 all: atlas.o
 
 O_TARGET := atlas.o

@@ -156,13 +156,7 @@ obj-$(CONFIG_SPECIALIX) += specialix.o
 obj-$(CONFIG_AMIGA_BUILTIN_SERIAL) += amiserial.o
 obj-$(CONFIG_A2232) += ser_a2232.o generic_serial.o
 obj-$(CONFIG_SX) += sx.o generic_serial.o
-
-obj-$(CONFIG_RIO) += generic_serial.o
-subdir-$(CONFIG_RIO) += rio
-ifeq ($(CONFIG_RIO),y)
-  obj-y += rio/rio.o
-endif
-
+obj-$(CONFIG_RIO) += rio/ generic_serial.o
 obj-$(CONFIG_SH_SCI) += sh-sci.o generic_serial.o
 obj-$(CONFIG_SERIAL167) += serial167.o
 obj-$(CONFIG_MVME147_SCC) += generic_serial.o vme_scc.o
@@ -200,14 +194,7 @@ obj-$(CONFIG_AU1000_GPIO) += au1000_gpio.o
 obj-$(CONFIG_AU1000_USB_TTY) += au1000_usbtty.o
 obj-$(CONFIG_AU1000_USB_RAW) += au1000_usbraw.o
 obj-$(CONFIG_COBALT_LCD) += lcd.o
-
-obj-$(CONFIG_QIC02_TAPE) += tpqic02.o
-
-subdir-$(CONFIG_FTAPE) += ftape
-ifeq ($(CONFIG_FTAPE),y)
-  obj-y       += ftape/ftape.o
-endif
-
+obj-$(CONFIG_FTAPE) += ftape/
 obj-$(CONFIG_H8) += h8.o
 obj-$(CONFIG_PPDEV) += ppdev.o
 obj-$(CONFIG_DZ) += dz.o
@@ -235,26 +222,10 @@ obj-$(CONFIG_SH_WDT) += shwdt.o
 obj-$(CONFIG_EUROTECH_WDT) += eurotechwdt.o
 obj-$(CONFIG_SOFT_WATCHDOG) += softdog.o
 obj-$(CONFIG_INDYDOG) += indydog.o
-
-subdir-$(CONFIG_MWAVE) += mwave
-ifeq ($(CONFIG_MWAVE),y)
-  obj-y += mwave/mwave.o
-endif
-
-subdir-$(CONFIG_AGP) += agp
-ifeq ($(CONFIG_AGP),y)
-  obj-y += agp/agp.o
-endif
-
-subdir-$(CONFIG_DRM) += drm
-ifeq ($(CONFIG_DRM),y)
-  obj-y += drm/drm.o
-endif
-
-subdir-$(CONFIG_PCMCIA) += pcmcia
-ifeq ($(CONFIG_PCMCIA),y)
-  obj-y += pcmcia/pcmcia_char.o
-endif
+obj-$(CONFIG_MWAVE) += mwave/
+obj-$(CONFIG_AGP) += agp/
+obj-$(CONFIG_DRM) += drm/
+obj-$(CONFIG_PCMCIA) += pcmcia/
 
 include $(TOPDIR)/Rules.make
 

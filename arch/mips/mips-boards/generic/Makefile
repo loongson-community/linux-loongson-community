@@ -23,8 +23,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET := mipsboards.o
 
 obj-y				:= mipsIRQ.o pci.o reset.o display.o init.o \

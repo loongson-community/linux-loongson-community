@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= tx3927.o
 
 obj-y	 += prom.o puts.o rtc_ds1742.o

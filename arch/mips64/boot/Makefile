@@ -6,8 +6,6 @@
 # Copyright (C) 1995, 1998, 1999 by Ralf Baechle
 #
 
-USE_STANDARD_AS_RULE := true
-
 #
 # Some DECstations need all possible sections of an ECOFF executable
 #

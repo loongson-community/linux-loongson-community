@@ -10,8 +10,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all: it8172.o
 
 O_TARGET := it8172.o

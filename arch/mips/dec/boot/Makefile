@@ -6,10 +6,8 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 netboot: all
-	mipsel-linux-ld -N -G 0 -T ld.ecoff ../../boot/zImage \
+	$(LD) -N -G 0 -T ld.ecoff ../../boot/zImage \
 		dec_boot.o ramdisk.img -o nbImage
 
 all: dec_boot.o

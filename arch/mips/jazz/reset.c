@@ -1,7 +1,7 @@
 /*
  * Reset a Jazz machine.
  */
-#include <linux/sched.h>
+#include <linux/jiffies.h>
 #include <asm/jazz.h>
 #include <asm/io.h>
 #include <asm/system.h>
@@ -12,11 +12,12 @@
 static inline void kb_wait(void)
 {
 	unsigned long start = jiffies;
+	unsigned long timeout = start + HZ/2;
 
 	do {
 		if (! (kbd_read_status() & 0x02))
 			return;
-	} while (jiffies - start < 50);
+	} time_before_eq(jiffies, timeout);
 }
 
 void jazz_machine_restart(char *command)

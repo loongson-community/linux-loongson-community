@@ -8,8 +8,6 @@
 #
 # Note 2! The CFLAGS definitions are now in the main makefile...
 
-USE_STANDARD_AS_RULE := true
-
 L_TARGET  = rexlib.a
 
 obj-y +=  init.o memory.o cmdline.o identify.o locore.o

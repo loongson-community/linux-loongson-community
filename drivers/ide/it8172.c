@@ -47,18 +47,18 @@
 /*
  * Prototypes
  */
-static void it8172_tune_drive(ide_drive_t * drive, byte pio);
+static void it8172_tune_drive (struct ata_device *drive, byte pio);
 #if defined(CONFIG_BLK_DEV_IDEDMA) && defined(CONFIG_IT8172_TUNING)
 static byte it8172_dma_2_pio(byte xfer_rate);
-static int it8172_tune_chipset(ide_drive_t * drive, byte speed);
-static int it8172_config_chipset_for_dma(ide_drive_t * drive);
-static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t * drive);
+static int it8172_tune_chipset (struct ata_device *drive, byte speed);
+static int it8172_config_chipset_for_dma (struct ata_device *drive);
+static int it8172_dmaproc(ide_dma_action_t func, struct ata_device *drive);
 #endif
 void __init pci_init_it8172(struct pci_dev *dev)
 void __init ide_init_it8172(struct ata_channel *hwif)
 
 
-static void it8172_tune_drive(ide_drive_t * drive, byte pio)
+static void it8172_tune_drive (struct ata_device *drive, byte pio)
 {
 	unsigned long flags;
 	u16 drive_enables;
@@ -142,7 +142,7 @@ static byte it8172_dma_2_pio(byte xfer_rate)
 	}
 }
 
-static int it8172_tune_chipset(ide_drive_t * drive, byte speed)
+static int it8172_tune_chipset (struct ata_device *drive, byte speed)
 {
 	ide_hwif_t *hwif = HWIF(drive);
 	struct pci_dev *dev = hwif->pci_dev;
@@ -201,7 +201,7 @@ static int it8172_tune_chipset(ide_drive_t * drive, byte speed)
 	return err;
 }
 
-static int it8172_config_chipset_for_dma(ide_drive_t * drive)
+static int it8172_dmaproc(ide_dma_action_t func, struct ata_device *drive)
 {
 	struct hd_driveid *id = drive->id;
 	byte speed;

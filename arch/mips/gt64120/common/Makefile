@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= gt64120.o
 
 obj-y	 := gt_irq.o pci.o

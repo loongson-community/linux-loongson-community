@@ -5,8 +5,6 @@
 #
 TARGET	:= $(TOPDIR)/include/asm-$(ARCH)/offset.h
 
-USE_STANDARD_AS_RULE := true
-
 $(TARGET): offset.h
 	cmp -s $^ $@ || (cp $^ $(TARGET).new && mv $(TARGET).new $(TARGET))
 

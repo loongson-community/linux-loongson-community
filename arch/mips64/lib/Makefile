@@ -2,8 +2,6 @@
 # Makefile for MIPS-specific library files..
 #
 
-USE_STANDARD_AS_RULE := true
-
 L_TARGET = lib.a
 
 obj-y	+= csum_partial.o csum_partial_copy.o dump_tlb.o rtc-std.o \

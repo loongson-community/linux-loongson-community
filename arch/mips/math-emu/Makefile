@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= fpu_emulator.o
 
 obj-y	:= cp1emu.o ieee754m.o ieee754d.o ieee754dp.o ieee754sp.o ieee754.o \

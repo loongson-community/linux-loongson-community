@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= vr4181.o
 
 obj-y	 := irq.o int_handler.o serial.o time.o

@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all:	sni.o int-handler.o
 
 O_TARGET := sni.o

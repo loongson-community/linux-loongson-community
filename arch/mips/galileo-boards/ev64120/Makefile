@@ -10,8 +10,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all:	ev64120.o int-handler.o
 
 O_TARGET := ev64120.o

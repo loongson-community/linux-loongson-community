@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= jmr3927.o
 
 obj-y	 += init.o int-handler.o irq.o setup.o rtc.o pci_fixup.o pci_ops.o

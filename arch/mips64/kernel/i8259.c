@@ -219,6 +219,18 @@ spurious_8259A_irq:
 	}
 }
 
+static struct device device_i8259A = {
+	name:		"i8259A",
+	bus_id:		"0020",
+};
+
+static int __init init_8259A_devicefs(void)
+{
+	return register_sys_device(&device_i8259A);
+}
+
+__initcall(init_8259A_devicefs);
+
 void __init init_8259A(int auto_eoi)
 {
 	unsigned long flags;

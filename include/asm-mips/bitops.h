@@ -743,6 +743,13 @@ static __inline__ unsigned long __ffs(unsigned long word)
 	return ffz(~word);
 }
 
+/*
+ * fls: find last bit set.
+ */
+
+#define fls(x) generic_fls(x)
+
+
 #ifdef __KERNEL__
 
 /*

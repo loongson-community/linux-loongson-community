@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 all:	kernel.o head.o init_task.o
 
 O_TARGET := kernel.o

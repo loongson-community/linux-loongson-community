@@ -6,8 +6,6 @@
 # unless it's something special (ie not a .c file).
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET:= ddb5xxx.o
 
 obj-y	 += irq.o nile4.o prom.o rtc_ds1386.o

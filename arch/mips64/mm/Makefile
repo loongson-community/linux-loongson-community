@@ -2,8 +2,6 @@
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
 
-USE_STANDARD_AS_RULE := true
-
 O_TARGET := mm.o
 
 export-objs			+= umap.o
