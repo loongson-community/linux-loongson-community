@@ -504,8 +504,8 @@ ioc3_tx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 }
 
 /*
- * Deal with fatal IOC3 errors.  For now let's panic.  This condition might
- * be caused by a hard or software problems, so we should try to recover
+ * Deal with fatal IOC3 errors.  This condition might be caused by a hard or
+ * software problems, so we should try to recover
  * more gracefully if this ever happens.  In theory we might be flooded
  * with such error interrupts if something really goes wrong, so we might
  * also consider to take the interface down.
