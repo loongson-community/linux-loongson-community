@@ -130,13 +130,23 @@ static inline void duart_unmask_ints(unsigned int line, unsigned int mask)
 
 static inline unsigned long get_status_reg(unsigned int line)
 {
-	return in64(IO_SPACE_BASE | A_DUART_CHANREG(line, R_DUART_STATUS));
+	uint64_t status;
+
+	/* Workaround the UART synchronizer bug XXXKW Pass 2 Workaround */
+#ifdef CONFIG_SB1_PASS_2_WORKAROUNDS
+	in64(IO_SPACE_BASE | A_DUART_CHANREG(line, R_DUART_CMD));
+#endif
+	status = in64(IO_SPACE_BASE | A_DUART_CHANREG(line, R_DUART_STATUS));
+#ifdef CONFIG_SB1_PASS_2_WORKAROUNDS
+	in64(IO_SPACE_BASE | A_DUART_CHANREG(line, R_DUART_CMD));
+#endif
+	return status;
 }
 
 /* Derive which uart a call is for from the passed tty line.  */
 static inline unsigned int get_line(struct tty_struct *tty) 
 {
-	unsigned int line = minor(tty->device) - 64;
+	unsigned int line = MINOR(tty->device) - tty->driver.minor_start;
 	if (line > 1)
 		printk(KERN_CRIT "Invalid line\n");
 
@@ -796,7 +806,13 @@ static void ser_console_write(struct console *cons, const char *str,
 		}
 		out64(str[i], IO_SPACE_BASE | A_DUART_CHANREG(0, R_DUART_TX_HOLD));
 	}
-	spin_unlock_irqrestore(&uart_states[0].outp_lock, flags);
+	/*
+	 * Make sure we leave room, in case the higher-level uart
+         * driver expects it
+	 */
+	while (!(get_status_reg(0) & M_DUART_TX_RDY)) {
+		/* Spin, doing nothing.  */
+	}
 }
 
 static kdev_t ser_console_device(struct console *c)
