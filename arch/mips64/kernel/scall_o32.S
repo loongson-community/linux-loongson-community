@@ -512,8 +512,8 @@ out:	jr	ra
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
 	sys	sys32_mmap2	6			/* 4210 */
-	sys	sys_truncate64	2
-	sys	sys_ftruncate64	2
+	sys	sys32_truncate64	4
+	sys	sys32_ftruncate64	4
 	sys	sys_newstat	2
 	sys	sys_newlstat	2
 	sys	sys_newfstat	2			/* 4215 */

@@ -225,8 +225,8 @@ SYS(sys_sendfile, 4)
 SYS(sys_ni_syscall, 0)
 SYS(sys_ni_syscall, 0)
 SYS(sys_mmap2, 6)				/* 4210 */
-SYS(sys_truncate64, 2)
-SYS(sys_ftruncate64, 2)
+SYS(sys_truncate64, 4)
+SYS(sys_ftruncate64, 4)
 SYS(sys_stat64, 2)
 SYS(sys_lstat64, 2)
 SYS(sys_fstat64, 2)				/* 4215 */

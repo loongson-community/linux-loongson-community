@@ -698,6 +698,38 @@ sys32_fstatfs(unsigned int fd, struct statfs32 *buf)
 	return ret;
 }
 
+#ifdef __MIPSEB__
+asmlinkage long sys32_truncate64(const char * path, unsigned long __dummy,
+	int length_hi, int length_lo)
+#endif
+#ifdef __MIPSEL__
+asmlinkage long sys32_truncate64(const char * path, unsigned long __dummy,
+	int length_lo, int length_hi)
+#endif
+{
+	loff_t length;
+
+	length = ((unsigned long) length_hi << 32) | (unsigned int) length_lo;
+
+	return sys_truncate(path, length);
+}
+
+#ifdef __MIPSEB__
+asmlinkage long sys32_ftruncate64(unsigned int fd, unsigned long __dummy,
+	int length_hi, int length_lo)
+#endif
+#ifdef __MIPSEL__
+asmlinkage long sys32_ftruncate64(unsigned int fd, unsigned long __dummy,
+	int length_lo, int length_hi)
+#endif
+{
+	loff_t length;
+
+	length = ((unsigned long) length_hi << 32) | (unsigned int) length_lo;
+
+	return sys_ftruncate(fd, length);
+}
+
 extern asmlinkage int
 sys_getrusage(int who, struct rusage *ru);
 
