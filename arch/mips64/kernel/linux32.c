@@ -232,7 +232,7 @@ asmlinkage int sys_truncate64(const char *path, unsigned int high,
 {
 	if ((int)high < 0)
 		return -EINVAL;
-	return sys_truncate(path, (high << 32) | low);
+	return sys_truncate(path, ((long) high << 32) | low);
 }
 
 asmlinkage long sys_ftruncate(unsigned int fd, unsigned long length);
@@ -242,7 +242,7 @@ asmlinkage int sys_ftruncate64(unsigned int fd, unsigned int high,
 {
 	if ((int)high < 0)
 		return -EINVAL;
-	return sys_ftruncate(fd, (high << 32) | low);
+	return sys_ftruncate(fd, ((long) high << 32) | low);
 }
 
 asmlinkage long sys_newstat(char * filename, struct stat * statbuf);
