@@ -48,6 +48,7 @@ void (*_show_regs)(struct pt_regs *);
 
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_andes(void);
+extern void ld_mmu_sb1(void);
 
 void __init load_mmu(void)
 {
@@ -75,11 +76,16 @@ void __init load_mmu(void)
 		ld_mmu_r4xx0();
 		break;
 #endif
-
-#if defined (CONFIG_CPU_R10000)
+#ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
 		printk("Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
+		break;
+#endif
+#if defined CONFIG_CPU_SB1
+	case CPU_SB1:
+		printk("Loading SB1 MMU routines.\n");
+		ld_mmu_sb1();
 		break;
 #endif
 
