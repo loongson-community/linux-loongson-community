@@ -39,7 +39,6 @@
 #include <asm/mmu_context.h>
 #include <asm/smp.h>
 
-/* The 'big kernel lock' */
 int smp_threads_ready;	/* Not used */
 struct cpuinfo_mips cpu_data[NR_CPUS];
 
@@ -70,11 +69,6 @@ void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
  *  board code to clean up state, if needed
  */
 void prom_init_secondary(void);
-
-/*
- * Do whatever setup needs to be done for SMP at the board level.
- */
-void prom_setup_smp(void);
 
 void prom_smp_finish(void);
 
@@ -207,8 +201,8 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 	call_data = &data;
 
 	/* Send a message to all other CPUs and wait for them to respond */
-	for (i = 0; i < num_online_cpus(); i++)
-		if (i != cpu)
+	for (i = 0; i < NR_CPUS; i++)
+		if (cpu_online(cpu) && cpu != smp_processor_id())
 			core_send_ipi(i, SMP_CALL_FUNCTION);
 
 	/* Wait for response */
@@ -241,12 +235,14 @@ void smp_call_function_interrupt(void)
 	/*
 	 * At this point the info structure may be out of scope unless wait==1.
 	 */
+	irq_enter();
 	(*func)(info);
+	irq_exit();
+
 	if (wait) {
 		mb();
 		atomic_inc(&call_data->finished);
 	}
-	irq_exit();
 }
 
 static void stop_this_cpu(void *dummy)
@@ -256,7 +252,7 @@ static void stop_this_cpu(void *dummy)
 	 */
 	clear_bit(smp_processor_id(), &cpu_online_map);
 	local_irq_enable();	/* May need to service _machine_restart IPI */
-	for (;;);		/* Wait if available? */
+	for (;;);		/* Wait if available. */
 }
 
 void smp_send_stop(void)
@@ -386,6 +382,20 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	local_flush_tlb_page(vma, page);
 }
 
+static void flush_tlb_one_ipi(void *info)
+{
+	unsigned long vaddr = (unsigned long) info;
+
+	local_flush_tlb_one(vaddr);
+}
+
+void flush_tlb_one(unsigned long vaddr)
+{
+	smp_call_function(flush_tlb_one_ipi, (void *) vaddr, 1, 1);
+	local_flush_tlb_one(vaddr);
+}
+
 EXPORT_SYMBOL(flush_tlb_page);
+EXPORT_SYMBOL(flush_tlb_one);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);

@@ -22,6 +22,7 @@ extern void local_flush_tlb_kernel_range(unsigned long start,
 	unsigned long end);
 extern void local_flush_tlb_page(struct vm_area_struct *vma,
 	unsigned long page);
+extern void local_flush_tlb_one(unsigned long vaddr);
 
 #ifdef CONFIG_SMP
 
@@ -31,6 +32,7 @@ extern void flush_tlb_range(struct vm_area_struct *vma, unsigned long,
 	unsigned long);
 extern void flush_tlb_kernel_range(unsigned long, unsigned long);
 extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
+extern void flush_tlb_one(unsigned long vaddr);
 
 #else /* CONFIG_SMP */
 
@@ -40,6 +42,7 @@ extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
 #define flush_tlb_kernel_range(vmaddr,end) \
 	local_flush_tlb_kernel_range(vmaddr, end)
 #define flush_tlb_page(vma,page)	local_flush_tlb_page(vma, page)
+#define flush_tlb_one(vaddr)		local_flush_tlb_one(vaddr)
 
 #endif /* CONFIG_SMP */
 

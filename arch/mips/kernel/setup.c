@@ -40,6 +40,7 @@
 #include <asm/cpu.h>
 #include <asm/io.h>
 #include <asm/ptrace.h>
+#include <asm/sections.h>
 #include <asm/system.h>
 
 #ifndef CONFIG_SMP
@@ -83,7 +84,6 @@ unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 struct boot_mem_map boot_mem_map;
 
 unsigned char aux_device_present;
-extern char _ftext, _etext, _fdata, _edata, _end;
 
 static char command_line[CL_SIZE];
        char saved_command_line[CL_SIZE];
@@ -409,9 +409,9 @@ static inline void resource_init(void)
 {
 	int i;
 
-	code_resource.start = virt_to_phys(&_ftext);
+	code_resource.start = virt_to_phys(&_text);
 	code_resource.end = virt_to_phys(&_etext) - 1;
-	data_resource.start = virt_to_phys(&_fdata);
+	data_resource.start = virt_to_phys(&_data);
 	data_resource.end = virt_to_phys(&_edata) - 1;
 
 	/*

@@ -328,7 +328,7 @@ static LIST_HEAD(devs);
 
 /* --------------------------------------------------------------------- */
 
-extern inline unsigned ld2(unsigned int x)
+static inline unsigned ld2(unsigned int x)
 {
 	unsigned r = 0;
 	
@@ -532,7 +532,7 @@ static void waitcodec(struct ac97_codec *codec)
 
 /* --------------------------------------------------------------------- */
 
-extern inline void stop_adc(struct it8172_state *s)
+static inline void stop_adc(struct it8172_state *s)
 {
 	struct dmabuf* db = &s->dma_adc;
 	unsigned long flags;
@@ -556,7 +556,7 @@ extern inline void stop_adc(struct it8172_state *s)
 	spin_unlock_irqrestore(&s->lock, flags);
 }	
 
-extern inline void stop_dac(struct it8172_state *s)
+static inline void stop_dac(struct it8172_state *s)
 {
 	struct dmabuf* db = &s->dma_dac;
 	unsigned long flags;
@@ -655,7 +655,7 @@ static void start_adc(struct it8172_state *s)
 #define DMABUF_DEFAULTORDER (17-PAGE_SHIFT)
 #define DMABUF_MINORDER 1
 
-extern inline void dealloc_dmabuf(struct it8172_state *s, struct dmabuf *db)
+static inline void dealloc_dmabuf(struct it8172_state *s, struct dmabuf *db)
 {
 	struct page *page, *pend;
 
@@ -740,7 +740,7 @@ static int prog_dmabuf(struct it8172_state *s, struct dmabuf *db,
 	return 0;
 }
 
-extern inline int prog_dmabuf_adc(struct it8172_state *s)
+static inline int prog_dmabuf_adc(struct it8172_state *s)
 {
 	stop_adc(s);
 	return prog_dmabuf(s, &s->dma_adc, s->adcrate,
@@ -748,7 +748,7 @@ extern inline int prog_dmabuf_adc(struct it8172_state *s)
 			   IT_AC_CAPCC);
 }
 
-extern inline int prog_dmabuf_dac(struct it8172_state *s)
+static inline int prog_dmabuf_dac(struct it8172_state *s)
 {
 	stop_dac(s);
 	return prog_dmabuf(s, &s->dma_dac, s->dacrate,

@@ -11,7 +11,6 @@ if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
 fi
 dep_bool 'Support for Alchemy Semi PB1100 board' CONFIG_MIPS_PB1100 $CONFIG_MIPS32
 dep_bool 'Support for Alchemy Semi PB1500 board' CONFIG_MIPS_PB1500 $CONFIG_MIPS32
-dep_bool 'Support for Algorithmics P4032 (EXPERIMENTAL)' CONFIG_ALGOR_P4032 $CONFIG_EXPERIMENTAL
 dep_bool 'Support for BAGET MIPS series (EXPERIMENTAL)' CONFIG_BAGET_MIPS $CONFIG_MIPS32 $CONFIG_EXPERIMENTAL
 bool 'Support for CASIO CASSIOPEIA E-10/15/55/65' CONFIG_CASIO_E55
 dep_bool 'Support for Cobalt Server (EXPERIMENTAL)' CONFIG_MIPS_COBALT $CONFIG_EXPERIMENTAL
@@ -121,7 +120,7 @@ define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 #
 
 if [ "$CONFIG_ACER_PICA_61" = "y" ]; then
-   define_bool CONFIG_ARC32 y
+   define_bool CONFIG_ARC y
    define_bool CONFIG_GENERIC_ISA_DMA y
    define_bool CONFIG_I8259 y
    define_bool CONFIG_ISA y
@@ -143,6 +142,7 @@ if [ "$CONFIG_CASIO_E55" = "y" ]; then
    define_bool CONFIG_SCSI n
 fi
 if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
+   define_bool CONFIG_ALCHEMY_COMMON y
    define_bool CONFIG_MIPS_AU1000 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_NEW_PCI y
@@ -151,6 +151,7 @@ if [ "$CONFIG_MIPS_PB1000" = "y" ]; then
    define_bool CONFIG_AU1000_USB_DEVICE y
 fi
 if [ "$CONFIG_MIPS_PB1100" = "y" ]; then
+   define_bool CONFIG_ALCHEMY_COMMON y
    define_bool CONFIG_MIPS_AU1000 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_PCI_AUTO n
@@ -160,17 +161,13 @@ if [ "$CONFIG_MIPS_PB1100" = "y" ]; then
    define_bool CONFIG_AU1000_USB_DEVICE y
 fi
 if [ "$CONFIG_MIPS_PB1500" = "y" ]; then
+   define_bool CONFIG_ALCHEMY_COMMON y
    define_bool CONFIG_MIPS_AU1000 y
    define_bool CONFIG_PCI y
    define_bool CONFIG_NEW_PCI y
    define_bool CONFIG_PCI_AUTO y
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_AU1000_USB_DEVICE y
-fi
-if [ "$CONFIG_ALGOR_P4032" = "y" ]; then
-   define_bool CONFIG_PCI y
-   define_bool CONFIG_NONCOHERENT_IO y
-   define_bool CONFIG_OLD_TIME_C y
 fi
 if [ "$CONFIG_MIPS_COBALT" = "y" ]; then
    define_bool CONFIG_COBALT_LCD y
@@ -252,6 +249,7 @@ if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
 fi
 if [ "$CONFIG_MIPS_MAGNUM_4000" = "y" -o \
      "$CONFIG_OLIVETTI_M700"    = "y" ]; then
+   define_bool CONFIG_ARC y
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_GENERIC_ISA_DMA y
    define_bool CONFIG_I8259 y
@@ -352,6 +350,7 @@ if [ "$CONFIG_NINO" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
+   define_bool CONFIG_ARC y
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_CONSOLE y
    define_bool CONFIG_ARC_MEMORY y
@@ -367,17 +366,19 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_SGI y
 fi
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
-   define_bool CONFIG_BOOT_ELF64 y
+   define_bool CONFIG_ARC y
    define_bool CONFIG_ARC64 y
+   define_bool CONFIG_BOOT_ELF64 y
    #define_bool CONFIG_MAPPED_PCI_IO y
    define_bool CONFIG_PCI y
    define_bool CONFIG_QL_ISP_A64 y
    define_int CONFIG_L1_CACHE_SHIFT 7
 fi
 if [ "$CONFIG_SGI_IP32" = "y" ]; then
+   define_bool CONFIG_ARC y
+   define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_ARC_PROMLIB y
-   define_bool CONFIG_ARC32 y
    #define_bool CONFIG_BOARD_SCACHE y
    define_bool CONFIG_BOOT_ELF32 y
    define_int CONFIG_L1_CACHE_SHIFT 5
@@ -391,6 +392,7 @@ if [ "$CONFIG_SIBYTE_SB1250" = "y" ]; then
    define_bool CONFIG_BOOT_ELF32 y
 fi
 if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
+   define_bool CONFIG_ARC y
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_MEMORY y
    define_bool CONFIG_ARC_PROMLIB y

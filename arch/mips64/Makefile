@@ -69,6 +69,11 @@ CORE_FILES	+= arch/mips/ramdisk/ramdisk.o
 SUBDIRS		+= arch/mips/ramdisk
 endif
 
+#
+# Firmware support
+#
+libs-$(CONFIG_ARC)		+= arch/mips/arc/
+libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 
 #
 # Board-dependent options and extra files
@@ -77,70 +82,60 @@ endif
 #
 # MIPS Atlas board
 #
-ifdef CONFIG_MIPS_ATLAS
-core-y		+= arch/mips/mips-boards/generic/ arch/mips/mips-boards/atlas/
-LOADADDR	:= 0x80100000
-endif
+core-$(CONFIG_MIPS_ATLAS)	+= arch/mips/mips-boards/generic/ \
+				   arch/mips/mips-boards/atlas/
+load-$(CONFIG_MIPS_ATLAS)	+= 0x80100000
 
 #
 # MIPS Malta board
 #
-ifdef CONFIG_MIPS_MALTA
-core-y		+= arch/mips/mips-boards/malta/ arch/mips/mips-boards/generic/
-LOADADDR	:= 0x80100000
-endif
+core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mips-boards/malta/ \
+				   arch/mips/mips-boards/generic/
+load-$(CONFIG_MIPS_MALTA)	+= 0x80100000
 
 #
 # MIPS SEAD board
 #
-ifdef CONFIG_MIPS_SEAD
-core-y		+= arch/mips/mips-boards/generic/ arch/mips/mips-boards/sead/
-LOADADDR	:= 0x80100000
-endif
+core-$(CONFIG_MIPS_SEAD)	+= arch/mips/mips-boards/generic/ \
+				   arch/mips/mips-boards/sead/
+load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 
 #
 # SGI IP22 (Indy/Indigo2)
 #
-# Set LOADADDR to >= 0x88069000 if you want to leave space for symmon,
-# 0x88004000 for production kernels.  Note that the value must be
-# 16kb aligned or the handling of the current variable will break.
+# Set the load address to >= 0x88069000 if you want to leave space for symmon,
+# 0x88004000 for production kernels.  Note that the value must be 16kb aligned
+# or the handling of the current variable will break.
 #
-ifdef CONFIG_SGI_IP22
-core-y		+= arch/mips/sgi-ip22/
-libs-y		+= arch/mips/arc/
-LOADADDR	:= 0x88004000
-endif
+core-$(CONFIG_SGI_IP22)		+= arch/mips/sgi-ip22/
+load-$(CONFIG_SGI_IP22)		+= 0x88004000
 
 #
 # SGI-IP27 (Origin200/2000)
 #
-# Set LOADADDR to >= 0xc000000000300000 if you want to leave space for
+# Set the load address to >= 0xc000000000300000 if you want to leave space for
 # symmon, 0xc00000000001c000 for production kernels.  Note that the value
 # must be 16kb aligned or the handling of the current variable will break.
 #
 ifdef CONFIG_SGI_IP27
-core-y		+= arch/mips/sgi-ip27/
-libs-y		+= arch/mips/arc/
-#LOADADDR	:= 0xa80000000001c000
+core-$(CONFIG_SGI_IP27)		+= arch/mips/sgi-ip27/
+#load-$(CONFIG_SGI_IP27)	+= 0xa80000000001c000
 ifdef CONFIG_MAPPED_KERNEL
-LOADADDR	:= 0xc001c000
+load-$(CONFIG_SGI_IP27)		+= 0xc001c000
 else
-LOADADDR	:= 0x8001c000
+load-$(CONFIG_SGI_IP27)		+= 0x8001c000
 endif
 endif
 
 #
 # SGI-IP32 (O2)
 #
-# Set LOADADDR to >= 0x????????? if you want to leave space for symmon,
-# 0x80002000 for production kernels.  Note that the value must be
-# 16kb aligned or the handling of the current variable will break.
+# Set the load address to >= 0x????????? if you want to leave space for symmon,
+# 0x80002000 for production kernels.  Note that the value must be 16kb aligned
+# or the handling of the current variable will break.
 #
-ifdef CONFIG_SGI_IP32
-core-y		+= arch/mips/sgi-ip32/
-libs-y		+= arch/mips/arc/
-LOADADDR	:= 0x80002000
-endif
+core-$(CONFIG_SGI_IP32)		+= arch/mips/sgi-ip32/
+load-$(CONFIG_SGI_IP32)		+= 0x80002000
 
 #
 # Sibyte SB1250 SOC
@@ -149,22 +144,13 @@ endif
 # the sequence; but it is built as an object so that modules don't get
 # removed (as happens, even if they have __initcall/module_init)
 #
-ifdef CONFIG_SIBYTE_SB1250
-core-y		+= arch/mips/sibyte/sb1250/
-endif
+core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
 
 #
 # Sibyte SWARM board
 #
-ifdef CONFIG_SIBYTE_SWARM
-libs-y		+= arch/mips/sibyte/swarm/
-LOADADDR	:= 0x80100000
-endif
-
-#
-# Sibyte CFE firmware
-#
-libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
+libs-$(CONFIG_SIBYTE_SWARM)	+= arch/mips/sibyte/swarm/
+load-$(CONFIG_SIBYTE_SWARM)	+= 0x80100000
 
 #
 # Some machines like the Indy need 32-bit ELF binaries for booting purposes.
@@ -176,15 +162,15 @@ libs-$(CONFIG_SIBYTE_CFE)	+= arch/mips/sibyte/cfe/
 #
 #AS += -64
 #LDFLAGS += -m elf64bmip
-CFLAGS-$(CONFIG_BOOT_ELF32)	+= -Wa,-32
+cflags-$(CONFIG_BOOT_ELF32)	+= -Wa,-32
 cflags-$(CONFIG_BOOT_ELF64)	+= -Wa,-32
+
+LDFLAGS_vmlinux			+= -Ttext $(load-y)
 
 AFLAGS_vmlinux.lds.o := -imacros $(srctree)/include/asm-mips64/sn/mapped_kernel.h
 
 AFLAGS		+= $(cflags-y)
 CFLAGS		+= $(cflags-y)
-
-LDFLAGS_vmlinux += -Ttext $(LOADADDR)
 
 HEAD := arch/mips64/kernel/head.o arch/mips64/kernel/init_task.o
 

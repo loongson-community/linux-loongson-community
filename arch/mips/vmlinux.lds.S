@@ -3,18 +3,18 @@ ENTRY(kernel_entry)
 jiffies = JIFFIES32;
 SECTIONS
 {
-  /* Read-only sections, merged into text segment: */
   . = LOADADDR;
-  .init          : { *(.init)		} =0
-  .text      :
-  {
-    _ftext = . ;
+  /* read-only */
+  _text = .;			/* Text and read-only data */
+  .text : {
     *(.text)
-    *(.rodata)
-    *(.rodata1)
-    /* .gnu.warning sections are handled specially by elf32.em.  */
+    *(.fixup)
     *(.gnu.warning)
   } =0
+
+  _etext = .;			/* End of text section */
+
+  .rodata : {  *(.rodata) *(.rodata.*) }
   .kstrtab : { *(.kstrtab) }
 
   . = ALIGN(16);		/* Exception table */
@@ -30,19 +30,58 @@ SECTIONS
   __ksymtab : { *(__ksymtab) }
   __stop___ksymtab = .;
 
-  _etext = .;
+  __start___kallsyms = .;	/* All kernel symbols */
+  __kallsyms : { *(__kallsyms) }
+  __stop___kallsyms = .;
 
-  . = ALIGN(8192);
+  /* writeable */
+  .data : {			/* Data */
+    *(.data)
+
+   /* Align the initial ramdisk image (INITRD) on page boundaries. */
+   . = ALIGN(4096);
+   __rd_start = .;
+   *(.initrd)
+   __rd_end = .;
+   . = ALIGN(4096);
+
+    CONSTRUCTORS
+  }
+  _gp = . + 0x8000;
+  .lit8 : { *(.lit8) }
+  .lit4 : { *(.lit4) }
+  /* We want the small data sections together, so single-instruction offsets
+     can access them all, and initialized data all before uninitialized, so
+     we can shorten the on-disk segment size.  */
+  .sdata     : { *(.sdata) }
+
+  . = ALIGN(4096);
+  __nosave_begin = .;
+  .data_nosave : { *(.data.nosave) }
+  . = ALIGN(4096);
+  __nosave_end = .;
+
+  . = ALIGN(4096);
+  .data.page_aligned : { *(.data.idt) }
+
+  . = ALIGN(32);
+  .data.cacheline_aligned : { *(.data.cacheline_aligned) }
+
+  _edata =  .;			/* End of data section */
+
+  . = ALIGN(8192);		/* init_task */
   .data.init_task : { *(.data.init_task) }
 
-  /* Startup code */
-  . = ALIGN(4096);
+  /* will be freed after init */
+  . = ALIGN(4096);		/* Init code and data */
   __init_begin = .;
-  .text.init : { *(.text.init) }
-  .data.init : { *(.data.init) }
+  /* /DISCARD/ doesn't work for .reginfo */
+  .reginfo : { *(.reginfo) }
+  .init.text : { *(.init.text) }
+  .init.data : { *(.init.data) }
   . = ALIGN(16);
   __setup_start = .;
-  .setup.init : { *(.setup.init) }
+  .init.setup : { *(.init.setup) }
   __setup_end = .;
   __initcall_start = .;
   .initcall.init : {
@@ -59,84 +98,27 @@ SECTIONS
   __per_cpu_start = .;
   .data.percpu  : { *(.data.percpu) }
   __per_cpu_end = .;
-  . = ALIGN(4096);	/* Align double page for init_task_union */
-  __init_end = .;
-
   . = ALIGN(4096);
-  .data.page_aligned : { *(.data.idt) }
+  __init_end = .;
+  /* freed after init ends here */
 
-  . = ALIGN(32);
-  .data.cacheline_aligned : { *(.data.cacheline_aligned) }
-
-  .fini      : { *(.fini)    } =0
-  .reginfo : { *(.reginfo) }
-  /* Adjust the address for the data segment.  We want to adjust up to
-     the same address within the page on the next page up.  It would
-     be more correct to do this:
-       . = .;
-     The current expression does not correctly handle the case of a
-     text segment ending precisely at the end of a page; it causes the
-     data segment to skip a page.  The above expression does not have
-     this problem, but it will currently (2/95) cause BFD to allocate
-     a single segment, combining both text and data, for this case.
-     This will prevent the text segment from being shared among
-     multiple executions of the program; I think that is more
-     important than losing a page of the virtual address space (note
-     that no actual memory is lost; the page which is skipped can not
-     be referenced).  */
-  . = .;
-  .data    :
-  {
-    _fdata = . ;
-    *(.data)
-
-   /* Align the initial ramdisk image (INITRD) on page boundaries. */
-   . = ALIGN(4096);
-   __rd_start = .;
-   *(.initrd)
-   __rd_end = .;
-   . = ALIGN(4096);
-
-    CONSTRUCTORS
+  __bss_start = .;		/* BSS */
+  .sbss      : {
+    *(.sbss)
+    *(.scommon)
   }
-  .data1   : { *(.data1) }
-  _gp = . + 0x8000;
-  .lit8 : { *(.lit8) }
-  .lit4 : { *(.lit4) }
-  .ctors         : { *(.ctors)   }
-  .dtors         : { *(.dtors)   }
-  .got           : { *(.got.plt) *(.got) }
-  .dynamic       : { *(.dynamic) }
-  /* We want the small data sections together, so single-instruction offsets
-     can access them all, and initialized data all before uninitialized, so
-     we can shorten the on-disk segment size.  */
-  .sdata     : { *(.sdata) }
-  . = ALIGN(4);
-  _edata  =  .;
-  PROVIDE (edata = .);
+  .bss : {
+    *(.bss)
+    *(COMMON)
+  }
+  __bss_stop = .;
 
-  __start___kallsyms = .;	/* All kernel symbols */
-  __kallsyms : { *(__kallsyms) }
-  __stop___kallsyms = .;
-
-  __bss_start = .;
-  _fbss = .;
-  .sbss      : { *(.sbss) *(.scommon) }
-  .bss       :
-  {
-   *(.dynbss)
-   *(.bss)
-   *(COMMON)
-   .  = ALIGN(4);
   _end = . ;
-  PROVIDE (end = .);
-  }
 
   /* Sections to be discarded */
-  /DISCARD/ :
-  {
-        *(.text.exit)
-        *(.data.exit)
+  /DISCARD/ : {
+        *(.exit.text)
+        *(.exit.data)
         *(.exitcall.exit)
   }
 

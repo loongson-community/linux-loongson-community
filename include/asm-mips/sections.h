@@ -3,6 +3,4 @@
 
 #include <asm-generic/sections.h>
 
-extern char _ftext, _fdata;
-
 #endif /* __ASM_SECTIONS_H */

@@ -273,12 +273,12 @@ void __init mem_init(void)
 	totalram_pages += totalhigh_pages;
 #endif
 
-	codesize =  (unsigned long) &_etext - (unsigned long) &_ftext;
-	datasize =  (unsigned long) &_edata - (unsigned long) &_fdata;
+	codesize =  (unsigned long) &_etext - (unsigned long) &_text;
+	datasize =  (unsigned long) &_edata - (unsigned long) &_data;
 	initsize =  (unsigned long) &__init_end - (unsigned long) &__init_begin;
 
-	printk("Memory: %luk/%luk available (%ldk kernel code, %ldk reserved, "
-	       "%ldk data, %ldk init, %ldk highmem)\n",
+	printk(KERN_INFO "Memory: %luk/%luk available (%ldk kernel code, "
+	       "%ldk reserved, %ldk data, %ldk init, %ldk highmem)\n",
 	       (unsigned long) nr_free_pages() << (PAGE_SHIFT-10),
 	       ram << (PAGE_SHIFT-10),
 	       codesize >> 10,
@@ -292,7 +292,7 @@ void __init mem_init(void)
 void free_initrd_mem(unsigned long start, unsigned long end)
 {
 	if (start < end)
-		printk("Freeing initrd memory: %ldk freed\n",
+		printk(KERN_INFO "Freeing initrd memory: %ldk freed\n",
 		       (end - start) >> 10);
 
 	for (; start < end; start += PAGE_SIZE) {
@@ -321,6 +321,6 @@ void free_initmem(void)
 		totalram_pages++;
 		addr += PAGE_SIZE;
 	}
-	printk("Freeing unused kernel memory: %dk freed\n",
+	printk(KERN_INFO "Freeing unused kernel memory: %dk freed\n",
 	       (&__init_end - &__init_begin) >> 10);
 }

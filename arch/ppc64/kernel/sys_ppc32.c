@@ -61,6 +61,7 @@
 #include <asm/semaphore.h>
 
 #include <net/scm.h>
+#include <net/sock.h>
 #include <linux/elf.h>
 #include <asm/ppcdebug.h>
 #include <asm/time.h>
@@ -332,12 +333,15 @@ static void *do_smb_super_data_conv(void *raw_data)
 	struct smb_mount_data *s = (struct smb_mount_data *)raw_data;
 	struct smb_mount_data32 *s32 = (struct smb_mount_data32 *)raw_data;
 
+	if (s32->version != SMB_MOUNT_OLDVERSION)
+		goto out;
 	s->version = s32->version;
 	s->mounted_uid = s32->mounted_uid;
 	s->uid = s32->uid;
 	s->gid = s32->gid;
 	s->file_mode = s32->file_mode;
 	s->dir_mode = s32->dir_mode;
+out:
 	return raw_data;
 }
 
@@ -2361,10 +2365,14 @@ static long do_sys32_semctl(int first, int second, int third, void *uptr)
 			set_fs(old_fs);
 		}
 		break;
+	default:
+		err = -EINVAL;
 	}
 out:
 	return err;
 }
+
+#define MAXBUF (64*1024)
 
 static int 
 do_sys32_msgsnd(int first, int second, int third, void *uptr)
@@ -2374,14 +2382,14 @@ do_sys32_msgsnd(int first, int second, int third, void *uptr)
 	mm_segment_t old_fs;
 	int err;
 
-	if (second < 0)
+	if (second < 0 || (second >= MAXBUF-sizeof(struct msgbuf)))
 		return -EINVAL;
 
-	p = kmalloc(second + sizeof(struct msgbuf) + 4, GFP_USER);
+	p = kmalloc(second + sizeof(struct msgbuf), GFP_USER);
 	if (!p)
 		return -ENOMEM;
 	err = get_user(p->mtype, &up->mtype);
-	err |= __copy_from_user(p->mtext, &up->mtext, second);
+	err |= copy_from_user(p->mtext, &up->mtext, second);
 	if (err) {
 		err = -EFAULT;
 		goto out;
@@ -2404,35 +2412,35 @@ do_sys32_msgrcv(int first, int second, int msgtyp, int third,
 	mm_segment_t old_fs;
 	int err;
 
-	if (second < 0)
+	if (second < 0 || (second >= MAXBUF-sizeof(struct msgbuf)))
 		return -EINVAL;
 
 	if (!version) {
-		struct ipc_kludge *uipck = (struct ipc_kludge *)uptr;
-		struct ipc_kludge ipck;
+		struct ipc_kludge_32 *uipck = (struct ipc_kludge_32 *)uptr;
+		struct ipc_kludge_32 ipck;
 
 		err = -EINVAL;
 		if (!uptr)
 			goto out;
 		err = -EFAULT;
-		if (copy_from_user(&ipck, uipck, sizeof(struct ipc_kludge)))
+		if (copy_from_user(&ipck, uipck, sizeof(struct ipc_kludge_32)))
 			goto out;
 		uptr = (void *)A(ipck.msgp);
 		msgtyp = ipck.msgtyp;
 	}
 	err = -ENOMEM;
-	p = kmalloc(second + sizeof (struct msgbuf) + 4, GFP_USER);
+	p = kmalloc(second + sizeof (struct msgbuf), GFP_USER);
 	if (!p)
 		goto out;
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = sys_msgrcv(first, p, second + 4, msgtyp, third);
+	err = sys_msgrcv(first, p, second, msgtyp, third);
 	set_fs(old_fs);
 	if (err < 0)
 		goto free_then_out;
 	up = (struct msgbuf32 *)uptr;
 	if (put_user(p->mtype, &up->mtype) ||
-	    __copy_to_user(&up->mtext, p->mtext, err))
+	    copy_to_user(&up->mtext, p->mtext, err))
 		err = -EFAULT;
 free_then_out:
 	kfree(p);
@@ -2559,7 +2567,7 @@ do_sys32_shmat(int first, int second, int third, int version, void *uptr)
 static int
 do_sys32_shmctl(int first, int second, void *uptr)
 {
-	int err = -EFAULT, err2;
+	int err = -EINVAL, err2;
 	mm_segment_t old_fs;
 
 	switch (second & (~IPC_64)) {
@@ -2889,13 +2897,6 @@ __inline__ struct cmsghdr32 *cmsg32_nxthdr (struct msghdr *__msg,
 {
 	return __cmsg32_nxthdr(__msg->msg_control, __msg->msg_controllen,
 			       __cmsg, __cmsg_len);
-}
-
-extern struct socket *sockfd_lookup(int fd, int *err);
-
-extern __inline__ void sockfd_put(struct socket *sock)
-{
-	fput(sock->file);
 }
 
 static inline int msghdr_from_user32_to_kern(struct msghdr *kmsg, struct msghdr32 *umsg)
@@ -3690,7 +3691,7 @@ asmlinkage int ppc64_newuname(struct new_utsname * name)
 
 extern asmlinkage long sys_personality(unsigned long);
 
-asmlinkage int sys32_personality(unsigned long personality)
+asmlinkage int ppc64_personality(unsigned long personality)
 {
 	int ret;
 	if (current->personality == PER_LINUX32 && personality == PER_LINUX)

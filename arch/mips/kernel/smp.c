@@ -70,12 +70,6 @@ void prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
  */
 void prom_init_secondary(void);
 
-/*
- * Do whatever setup needs to be done for SMP at the board level.  Return
- * the number of cpus in the system, including this one
- */
-int prom_setup_smp(void);
-
 void prom_smp_finish(void);
 
 cycles_t cacheflush_time;
@@ -123,6 +117,7 @@ void smp_tune_scheduling (void)
 	printk("task migration cache decay timeout: %ld msecs.\n",
 		(cache_decay_ticks + 1) * 1000 / HZ);
 }
+
 void __init smp_callin(void)
 {
 #if 0
@@ -189,7 +184,7 @@ int smp_call_function (void (*func) (void *info), void *info, int retry,
 								int wait)
 {
 	struct call_data_struct data;
-	int i, cpus = num_online_cpus()-1;
+	int i, cpus = num_online_cpus() - 1;
 	int cpu = smp_processor_id();
 
 	if (!cpus)
@@ -248,7 +243,6 @@ void smp_call_function_interrupt(void)
 		mb();
 		atomic_inc(&call_data->finished);
 	}
-	irq_exit();
 }
 
 static void stop_this_cpu(void *dummy)
@@ -388,6 +382,20 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	local_flush_tlb_page(vma, page);
 }
 
+static void flush_tlb_one_ipi(void *info)
+{
+	unsigned long vaddr = (unsigned long) info;
+
+	local_flush_tlb_one(vaddr);
+}
+
+void flush_tlb_one(unsigned long vaddr)
+{
+	smp_call_function(flush_tlb_one_ipi, (void *) vaddr, 1, 1);
+	local_flush_tlb_one(vaddr);
+}
+
 EXPORT_SYMBOL(flush_tlb_page);
+EXPORT_SYMBOL(flush_tlb_one);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);

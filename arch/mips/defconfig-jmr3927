@@ -30,7 +30,6 @@ CONFIG_SYSCTL=y
 # CONFIG_MIPS_PB1000 is not set
 # CONFIG_MIPS_PB1100 is not set
 # CONFIG_MIPS_PB1500 is not set
-# CONFIG_ALGOR_P4032 is not set
 # CONFIG_BAGET_MIPS is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_MIPS_COBALT is not set
@@ -141,6 +140,12 @@ CONFIG_BINFMT_ELF=y
 # Plug and Play configuration
 #
 # CONFIG_PNP is not set
+# CONFIG_PNP_NAMES is not set
+# CONFIG_PNP_DEBUG is not set
+
+#
+# Protocols
+#
 # CONFIG_ISAPNP is not set
 # CONFIG_PNPBIOS is not set
 
@@ -696,7 +701,7 @@ CONFIG_FONT_8x16=y
 #
 # Bluetooth support
 #
-# CONFIG_BLUEZ is not set
+# CONFIG_BT is not set
 
 #
 # Kernel hacking

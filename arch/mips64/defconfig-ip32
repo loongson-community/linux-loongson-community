@@ -30,7 +30,6 @@ CONFIG_SYSCTL=y
 # CONFIG_MIPS_PB1000 is not set
 # CONFIG_MIPS_PB1100 is not set
 # CONFIG_MIPS_PB1500 is not set
-# CONFIG_ALGOR_P4032 is not set
 # CONFIG_BAGET_MIPS is not set
 # CONFIG_CASIO_E55 is not set
 # CONFIG_MIPS_COBALT is not set
@@ -67,9 +66,10 @@ CONFIG_SGI_IP32=y
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 # CONFIG_HP_LASERJET is not set
+CONFIG_ARC=y
+CONFIG_ARC32=y
 CONFIG_ARC_MEMORY=y
 CONFIG_ARC_PROMLIB=y
-CONFIG_ARC32=y
 CONFIG_BOOT_ELF32=y
 CONFIG_L1_CACHE_SHIFT=5
 CONFIG_NONCOHERENT_IO=y
@@ -143,6 +143,12 @@ CONFIG_BINFMT_MISC=y
 # Plug and Play configuration
 #
 # CONFIG_PNP is not set
+# CONFIG_PNP_NAMES is not set
+# CONFIG_PNP_DEBUG is not set
+
+#
+# Protocols
+#
 # CONFIG_ISAPNP is not set
 # CONFIG_PNPBIOS is not set
 
@@ -683,7 +689,7 @@ CONFIG_SGI_PARTITION=y
 #
 # Bluetooth support
 #
-# CONFIG_BLUEZ is not set
+# CONFIG_BT is not set
 
 #
 # Kernel hacking

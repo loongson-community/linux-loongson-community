@@ -83,11 +83,6 @@ CONFIG_ACER_PICA_61
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
   <http://oss.sgi.com/mips/>.
 
-CONFIG_ALGOR_P4032
-  This is an evaluation board of the British company Algorithmics.
-  The board uses the R4300 and a R5230 CPUs.  For more information
-  about this board see <http://www.algor.co.uk/>.
-
 CONFIG_BAGET_MIPS
   This enables support for the Baget, a Russian embedded system.  For
   more details about the Baget see the Linux/MIPS FAQ on

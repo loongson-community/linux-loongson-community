@@ -2461,19 +2461,11 @@ static int verify_iovec32(struct msghdr *kern_msg, struct iovec *kern_iov,
 	return tot_len;
 }
 
-extern __inline__ void
-sockfd_put(struct socket *sock)
-{
-	fput(sock->file);
-}
-
 /* XXX This really belongs in some header file... -DaveM */
 #define MAX_SOCK_ADDR	128		/* 108 for Unix domain - 
 					   16 for IP, 16 for IPX,
 					   24 for IPv6,
 					   about 80 for AX.25 */
-
-extern struct socket *sockfd_lookup(int fd, int *err);
 
 /* There is a lot of hair here because the alignment rules (and
  * thus placement) of cmsg headers and length are different for
