@@ -6,6 +6,7 @@
 #include <linux/init.h>
 #include <linux/config.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include "prom.h"
 
 /*
@@ -99,7 +100,7 @@ int __init prom_init(int argc, char **argv,
 	}
 #endif
 
-#if defined(CONFIG_CPU_R4x00)
+#if defined(CONFIG_CPU_R4X00)
 	if ((mips_cpu.cputype == CPU_R3000) ||
 	    (mips_cpu.cputype == CPU_R3000A)) {
 		prom_printf("Sorry, this kernel is compiled for the wrong CPU type!\n");
@@ -114,3 +115,4 @@ int __init prom_init(int argc, char **argv,
 
 	return 0;
 }
+

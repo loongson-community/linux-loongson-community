@@ -30,8 +30,8 @@
 	.align	5
 
 /*
- * task_struct *r4xx0_resume(task_struct *prev,
- *                           task_struct *next)
+ * task_struct *resume(task_struct *prev,
+ *                     task_struct *next)
  */
 LEAF(resume)
 	.set	reorder
@@ -94,12 +94,18 @@ LEAF(lazy_fpu_switch)
 /*
  * Save a thread's fp context.
  */
-	.set	noreorder
 LEAF(save_fp)
 	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 	jr	ra
-	 swc1	$f0, (THREAD_FPU + 0x00)(a0)
 	END(save_fp)
+
+/*
+ * Restore a thread's fp context.
+ */
+LEAF(restore_fp)
+	FPU_RESTORE_SINGLE(a0, t1)		# clobbers t1
+	jr	ra
+	END(restore_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
@@ -110,6 +116,8 @@ LEAF(save_fp)
  */
 
 #define FPU_DEFAULT  0x00000000
+
+	.set	noreorder
 
 LEAF(init_fpu)
 	mfc0	t0, CP0_STATUS
@@ -156,3 +164,4 @@ LEAF(init_fpu)
 	jr	ra
 	 mtc1	t0, $f31
 	END(init_fpu)
+

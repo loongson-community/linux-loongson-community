@@ -172,7 +172,7 @@ static inline void cpu_probe(void)
 		mips_cpu.cputype = CPU_R2000;
 		mips_cpu.isa_level = MIPS_CPU_ISA_I;
 		mips_cpu.options = MIPS_CPU_TLB;
-		mips_cpu.tlbsize = 32;
+		mips_cpu.tlbsize = 64;
 		break;
 	case PRID_IMP_R3000:
 		if ((mips_cpu.processor_id & 0xff) == PRID_REV_R3000A)
@@ -184,7 +184,7 @@ static inline void cpu_probe(void)
 			 mips_cpu.cputype = CPU_R3000;
 		mips_cpu.isa_level = MIPS_CPU_ISA_I;
 		mips_cpu.options = MIPS_CPU_TLB;
-		mips_cpu.tlbsize = 32;
+		mips_cpu.tlbsize = 64;
 		break;
 	case PRID_IMP_R4000:
 		if ((mips_cpu.processor_id & 0xff) == PRID_REV_R4400)
@@ -477,3 +477,4 @@ void r4k_wait(void)
 		"wait\n\t"
 		".set\tmips0");
 }
+
