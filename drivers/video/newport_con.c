@@ -1,4 +1,4 @@
-/* $Id: newport_con.c,v 1.3 1998/09/01 21:43:18 tsbogend Exp $
+/* $Id: newport_con.c,v 1.4 1999/02/09 22:54:12 adevries Exp $
  *
  * newport_con.c: Abscon for newport hardware
  * 
@@ -406,7 +406,7 @@ int init_module(void) {
     else 
        printk("Loading SGI Newport Console Driver\n");
 
-    take_over_console(&newport_con,13,16,0);
+    take_over_console(&newport_con,0,MAX_NR_CONSOLES-1,1);
 
     return 0;
 }
