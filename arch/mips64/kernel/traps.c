@@ -461,7 +461,16 @@ void do_cpu(struct pt_regs *regs)
 		goto bad_cid;
 
 	regs->cp0_status |= ST0_CU1;
-#ifndef CONFIG_SMP
+
+#ifdef CONFIG_SMP
+	if (current->used_math) {
+		lazy_fpu_switch(0, current);
+	} else {
+		init_fpu();
+		current->used_math = 1;
+	}
+	current->flags |= PF_USEDFPU;
+#else
 	if (last_task_used_math == current)
 		return;
 
@@ -473,14 +482,6 @@ void do_cpu(struct pt_regs *regs)
 		current->used_math = 1;
 	}
 	last_task_used_math = current;
-#else
-	if (current->used_math) {
-		lazy_fpu_switch(0, current);
-	} else {
-		init_fpu();
-		current->used_math = 1;
-	}
-	current->flags |= PF_USEDFPU;
 #endif
 	return;
 
