@@ -7,7 +7,7 @@
  * Copyright (C) 2001, 2002 Paul Mundt
  * Copyright (C) 2002 MontaVista Software, Inc.
  * Copyright (C) 2002 TimeSys Corp.
- * Copyright (C) 2003 Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
+ * Copyright (C) 2003-2004 Yoichi Yuasa <yuasa@hh.iij4u.or.jp>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -53,10 +53,8 @@ extern unsigned long vr41xx_get_tclock_frequency(void);
  * Clock Mask Unit
  */
 extern void vr41xx_cmu_init(void);
-extern void vr41xx_clock_supply(unsigned int clock);
-extern void vr41xx_clock_mask(unsigned int clock);
 
-enum {
+typedef enum {
 	PIU_CLOCK,
 	SIU_CLOCK,
 	AIU_CLOCK,
@@ -70,7 +68,10 @@ enum {
 	CEU_CLOCK,
 	ETHER0_CLOCK,
 	ETHER1_CLOCK
-};
+} vr41xx_clock_t;
+
+extern void vr41xx_supply_clock(vr41xx_clock_t clock);
+extern void vr41xx_mask_clock(vr41xx_clock_t clock);
 
 /*
  * Interrupt Control Unit
