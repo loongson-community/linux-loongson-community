@@ -229,5 +229,5 @@ void __init sgi_setup(void)
 #ifdef CONFIG_VIDEO_VINO
 	init_vino();
 #endif
+
 }
-__initcall(rs_init);

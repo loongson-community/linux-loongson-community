@@ -2251,3 +2251,4 @@ void __init serial_console_init(void)
 {
 	register_console(&sgi_console_driver);
 }
+__initcall(rs_init);
