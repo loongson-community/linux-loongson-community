@@ -112,18 +112,7 @@ dump_list_process(struct task_struct *t, void *address)
 void
 dump_list_current(void *address)
 {
-	unsigned int addr, *pt;
-
 	dump_list_process(current, address);
-
-	addr = (unsigned int) address;
-	pt = (unsigned int *) TLB_ROOT + (addr >> 22);
-	printk("L1: *%08x == ", (unsigned int) pt);
-	printk("%08x, ", *pt);
-
-	pt = (unsigned int *) (TLBMAP + ((addr >> 10) & ~3));
-	printk("L2: *%08x == ", (unsigned int) pt);
-	printk("%08x\n", *pt);
 }
 
 unsigned int
