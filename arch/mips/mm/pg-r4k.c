@@ -45,7 +45,7 @@ EXPORT_SYMBOL(clear_page);
  *
  * R4000 16 bytes D-cache, 128 bytes S-cache:		0xbc bytes
  * R4600 v1.7:						0x80 bytes
- * R4600 v2.0:						0x84 bytes
+ * R4600 v2.0:						0x7c bytes
  * With prefetching, 16 byte strides			0xb8 bytes
  */
 static unsigned int copy_page_array[0xb8 / 4];
@@ -94,17 +94,20 @@ static inline void build_src_pref(int advance)
 static inline void __build_load_reg(int reg)
 {
 	union mips_instruction mi;
+	unsigned int width;
 
-	if (cpu_has_64bit_registers)
+	if (cpu_has_64bit_registers) {
 		mi.i_format.opcode     = ld_op;
-	else
+		width = 8;
+	} else {
 		mi.i_format.opcode     = lw_op;
+		width = 4;
+	}
 	mi.i_format.rs         = 5;		/* $a1 */
 	mi.i_format.rt         = reg;		/* $reg */
 	mi.i_format.simmediate = load_offset;
 
-	load_offset += (cpu_has_64bit_registers ? 8 : 4);
-
+	load_offset += width;
 	*epc++ = mi.word;
 }
 
@@ -156,6 +159,9 @@ static inline void build_cdex(void)
 		*epc++ = 0;			/* nop */
 	}
 
+	if (R4600_V2_HIT_CACHEOP_WAR && ((read_c0_prid() & 0xfff0) == 0x2020))
+		*epc++ = 0x8c200000;		/* lw      $zero, ($at) */
+
 	mi.c_format.opcode     = cache_op;
 	mi.c_format.rs         = 4;		/* $a0 */
 	mi.c_format.c_op       = 3;		/* Create Dirty Exclusive */
@@ -165,47 +171,24 @@ static inline void build_cdex(void)
 	*epc++ = mi.word;
 }
 
-static inline void __build_store_zero_reg(void)
-{
-	union mips_instruction mi;
-
-	if (cpu_has_64bits)
-		mi.i_format.opcode     = sd_op;
-	else
-		mi.i_format.opcode     = sw_op;
-	mi.i_format.rs         = 4;		/* $a0 */
-	mi.i_format.rt         = 0;		/* $zero */
-	mi.i_format.simmediate = store_offset;
-
-	store_offset += (cpu_has_64bits ? 8 : 4);
-
-	*epc++ = mi.word;
-}
-
 static inline void __build_store_reg(int reg)
 {
 	union mips_instruction mi;
-	int reg_size;
+	unsigned int width;
 
-#ifdef CONFIG_MIPS32
-	if (cpu_has_64bit_registers && reg == 0) {
+	if (cpu_has_64bit_gp_regs ||
+	    (cpu_has_64bit_zero_reg && reg == 0)) {
 		mi.i_format.opcode     = sd_op;
-		reg_size               = 8;
+		width = 8;
 	} else {
 		mi.i_format.opcode     = sw_op;
-		reg_size               = 4;
+		width = 4;
 	}
-#endif
-#ifdef CONFIG_MIPS64
-	mi.i_format.opcode     = sd_op;
-	reg_size               = 8;
-#endif
 	mi.i_format.rs         = 4;		/* $a0 */
 	mi.i_format.rt         = reg;		/* $reg */
 	mi.i_format.simmediate = store_offset;
 
-	store_offset += reg_size;
-
+	store_offset += width;
 	*epc++ = mi.word;
 }
 
@@ -326,9 +309,7 @@ void __init build_clear_page(void)
 		*epc++ = 0x40816000;		/* mtc0    $at, $12	*/
 		*epc++ = 0x00000000;		/* nop			*/
 		*epc++ = 0x00000000;		/* nop			*/
-		*epc++ = 0x00000000;		/* nop			*/
 		*epc++ = 0x3c01a000;		/* lui     $at, 0xa000  */
-		*epc++ = 0x8c200000;		/* lw      $zero, ($at) */
 	}
 
 dest = epc;
@@ -395,9 +376,7 @@ void __init build_copy_page(void)
 		*epc++ = 0x40816000;		/* mtc0    $at, $12	*/
 		*epc++ = 0x00000000;		/* nop			*/
 		*epc++ = 0x00000000;		/* nop			*/
-		*epc++ = 0x00000000;		/* nop			*/
 		*epc++ = 0x3c01a000;		/* lui     $at, 0xa000  */
-		*epc++ = 0x8c200000;		/* lw      $zero, ($at) */
 	}
 
 dest = epc;
