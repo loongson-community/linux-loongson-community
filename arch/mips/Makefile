@@ -215,14 +215,6 @@ endif
 endif
 
 #
-# ramdisk/initrd support
-# You need a compressed ramdisk image, named
-# CONFIG_EMBEDDED_RAMDISK_IMAGE. Relative pathnames 
-# are relative to arch/mips/ramdisk/.
-#
-core-$(CONFIG_EMBEDDED_RAMDISK)	+= arch/mips/ramdisk/
-
-#
 # Firmware support
 #
 libs-$(CONFIG_ARC)		+= arch/mips/arc/

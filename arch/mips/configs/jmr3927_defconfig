@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.10-rc2
-# Mon Nov 15 11:07:58 2004
+# Sun Nov 21 14:12:01 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set

@@ -108,17 +108,6 @@ static __init void prom_meminit(void)
 	unsigned long initrd_pstart;
 	unsigned long initrd_pend;
 
-#ifdef CONFIG_EMBEDDED_RAMDISK
-	/* If we're using an embedded ramdisk, then __rd_start and __rd_end
-	   are defined by the linker to be on either side of the ramdisk
-	   area.  Otherwise, initrd_start should be defined by kernel command
-	   line arguments */
-	if (initrd_start == 0) {
-		initrd_start = (unsigned long)&__rd_start;
-		initrd_end = (unsigned long)&__rd_end;
-	}
-#endif
-
 	initrd_pstart = CPHYSADDR(initrd_start);
 	initrd_pend = CPHYSADDR(initrd_end);
 	if (initrd_start &&
