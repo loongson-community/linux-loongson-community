@@ -12,10 +12,8 @@
 
 #include <linux/config.h>
 #include <linux/errno.h>
+#include <asm/atomic.h>
 
-#define sem_read(a) ((a)->counter)
-#define sem_inc(a) (((a)->counter)++)
-#define sem_dec(a) (((a)->counter)--)
 /*
  * These two _must_ execute atomically wrt each other.
  */
@@ -56,8 +54,8 @@ static inline int waking_non_zero(struct semaphore *sem)
 	int ret = 0;
 
 	spin_lock_irqsave(&semaphore_lock, flags);
-	if (sem_read(&sem->waking) > 0) {
-		sem_dec(&sem->waking);
+	if (atomic_read(&sem->waking) > 0) {
+		atomic_set(&sem->waking, atomic_read(&sem->waking) - 1);
 		ret = 1;
 	}
 	spin_lock_irqrestore(&semaphore_lock, flags);
@@ -150,11 +148,11 @@ static inline int waking_non_zero_interruptible(struct semaphore *sem,
 	int ret = 0;
 
 	spin_lock_irqsave(&semaphore_lock, flags);
-	if (sem_read(&sem->waking) > 0) {
-		sem_dec(&sem->waking);
+	if (atomic_read(&sem->waking) > 0) {
+		atomic_set(&sem->waking, atomic_read(&sem->waking) - 1);
 		ret = 1;
 	} else if (signal_pending(tsk)) {
-		sem_inc(&sem->count);
+		atomic_set(&sem->count, atomic_read(&sem->count) + 1);
 		ret = -EINTR;
 	}
 	spin_lock_irqrestore(&semaphore_lock, flags);
@@ -168,10 +166,10 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
 	int ret = 1;
 
 	spin_lock_irqsave(&semaphore_lock, flags);
-	if (sem_read(&sem->waking) <= 0)
-		sem_inc(&sem->count);
+	if (atomic_read(&sem->waking) <= 0)
+		atomic_set(&sem->count, atomic_read(&sem->count) + 1);
 	else {
-		sem_dec(&sem->waking);
+		atomic_set(&sem->waking, atomic_read(&sem->waking) - 1);
 		ret = 0;
 	}
 	spin_lock_irqrestore(&semaphore_lock, flags);
