@@ -36,7 +36,7 @@
  *                              nop
  *                              cache       Hit_Writeback_Invalidate_D
  */
-#define R4600_V1_HIT_DCACHE_WAR
+#undef R4600_V1_HIT_DCACHE_WAR	/* Not used yet in 64-bit kernel */
 
 
 /*
@@ -50,7 +50,7 @@
  * (Revision 2.0 device errata from IDT available on http://www.idt.com/
  * in .pdf format.)
  */
-#define R4600_V2_HIT_CACHEOP_WAR
+#undef R4600_V2_HIT_CACHEOP_WAR	/* Not used yet in 64-bit kernel */
 
 #ifdef CONFIG_CPU_R5432
 

@@ -176,6 +176,9 @@ LEAF(spurious_interrupt)
 		.set	push
 		.set    mips3
 		.set	noat
+#if defined(R5432_CP0_INTERRUPT_WAR)
+		mfc0	k0, CP0_INDEX
+#endif
 		mfc0	k1, CP0_CAUSE
 		li	k0, 31<<2
 		andi	k1, k1, 0x7c
