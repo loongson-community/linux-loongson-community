@@ -19,7 +19,7 @@
 #ifndef _ASM_SIBYTE_64BIT_H
 #define _ASM_SIBYTE_64BIT_H
 
-#include <asm/types.h>
+#include <linux/types.h>
 
 /* These are provided so as to be able to use common
    driver code for the 32-bit and 64-bit trees */
@@ -34,4 +34,4 @@ extern inline u64 in64(unsigned long addr)
 	return *(volatile unsigned long *)addr;
 }
 
-#endif
+#endif /* _ASM_SIBYTE_64BIT_H */
