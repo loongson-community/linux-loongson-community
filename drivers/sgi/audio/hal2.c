@@ -159,24 +159,23 @@ static void ireg_clearbit(unsigned short write_address, unsigned short
 
 static int hal2_probe(void)
 {
-	int board, major, minor;
+        unsigned short board, major, minor;
 
-	printk("hal2: rev: %04hx\n", h2_ctrl->rev);
+	if (!(!h2_ctrl->rev & H2_REV_AUDIO_PRESENT)) {
 
-	if (!(h2_ctrl->rev & H2_REV_AUDIO_PRESENT)) {
 		printk("hal2: there was no device?\n");
 		return -ENODEV;
 	}
+	board = (h2_ctrl->rev & H2_REV_BOARD_M) >> 12;
+	major = (h2_ctrl->rev & H2_REV_MAJOR_CHIP_M) >> 4;
+	minor = (h2_ctrl->rev & H2_REV_MINOR_CHIP_M);
+        printk("SGI HAL2 Processor, Revision %i.%i.%i\n",
+           board, major, minor);
 
 #ifdef DEBUG
 	printk("hal2: card found\n");
 #endif
 
-	board = (h2_ctrl->rev & H2_REV_BOARD_M) >> 12;
-	major = (h2_ctrl->rev & H2_REV_MAJOR_CHIP_M) >> 4;
-	minor = (h2_ctrl->rev & H2_REV_MINOR_CHIP_M);
-
-	printk("hal2: revisions: board:%d chip:%d.%d\n", board, major, minor);
 
 #if 0
 	hp->volume = (struct hal2_volume_regs *)
