@@ -64,28 +64,10 @@ static __inline__ void ide_init_default_hwifs(void)
 #endif
 }
 
-#ifdef __BIG_ENDIAN
-
-/* get rid of defs from io.h - ide has its private and conflicting versions */
-#ifdef insw
-#undef insw
-#endif
-#ifdef outsw
-#undef outsw
-#endif
-#ifdef insl
-#undef insl
-#endif
-#ifdef outsl
-#undef outsl
-#endif
-
-#define insw(port, addr, count) ide_insw(port, addr, count)
-#define insl(port, addr, count) ide_insl(port, addr, count)
-#define outsw(port, addr, count) ide_outsw(port, addr, count)
-#define outsl(port, addr, count) ide_outsl(port, addr, count)
-
-#endif /* __BIG_ENDIAN */
+#define __ide_mm_insw   ide_insw
+#define __ide_mm_insl   ide_insl
+#define __ide_mm_outsw  ide_outsw
+#define __ide_mm_outsl  ide_outsl
 
 #endif /* __KERNEL__ */
 
