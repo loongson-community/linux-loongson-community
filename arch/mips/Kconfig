@@ -294,6 +294,7 @@ config MIPS_MALTA
 	select BOOT_ELF32
 	select HAVE_STD_PC_SERIAL_PORT
 	select DMA_NONCOHERENT
+	select GENERIC_ISA_DMA
 	select HW_HAS_PCI
 	select I8259
 	select MIPS_GT64120
