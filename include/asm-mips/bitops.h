@@ -1,14 +1,13 @@
-/*
- * include/asm-mips/bitops.h
+/* $Id$
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (c) 1994 - 1997  Ralf Baechle (ralf@gnu.org)
+ * Copyright (c) 1994 - 1997, 1999  Ralf Baechle (ralf@gnu.org)
  */
-#ifndef __ASM_MIPS_BITOPS_H
-#define __ASM_MIPS_BITOPS_H
+#ifndef _ASM_BITOPS_H
+#define _ASM_BITOPS_H
 
 #include <linux/types.h>
 #include <asm/byteorder.h>		/* sigh ... */
@@ -26,11 +25,13 @@
 #define __bi_flags unsigned long flags
 #define __bi_cli() __cli()
 #define __bi_save_flags(x) __save_flags(x)
+#define __bi_save_and_cli(x) __save_and_cli(x)
 #define __bi_restore_flags(x) __restore_flags(x)
 #else
 #define __bi_flags
 #define __bi_cli()
 #define __bi_save_flags(x)
+#define __bi_save_and_cli(x)
 #define __bi_restore_flags(x)
 #endif /* __KERNEL__ */
 
@@ -154,8 +155,7 @@ extern __inline__ void set_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	*a |= mask;
 	__bi_restore_flags(flags);
 }
@@ -168,8 +168,7 @@ extern __inline__ void clear_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	*a &= ~mask;
 	__bi_restore_flags(flags);
 }
@@ -182,8 +181,7 @@ extern __inline__ void change_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	*a ^= mask;
 	__bi_restore_flags(flags);
 }
@@ -196,8 +194,7 @@ extern __inline__ int test_and_set_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	retval = (mask & *a) != 0;
 	*a |= mask;
 	__bi_restore_flags(flags);
@@ -213,8 +210,7 @@ extern __inline__ int test_and_clear_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	retval = (mask & *a) != 0;
 	*a &= ~mask;
 	__bi_restore_flags(flags);
@@ -230,8 +226,7 @@ extern __inline__ int test_and_change_bit(int nr, void * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_flags(flags);
-	__bi_cli();
+	__bi_save_and_cli(flags);
 	retval = (mask & *a) != 0;
 	*a ^= mask;
 	__bi_restore_flags(flags);
@@ -459,7 +454,7 @@ extern __inline__ int ext2_set_bit(int nr,void * addr)
 
 	ADDR += nr >> 3;
 	mask = 1 << (nr & 0x07);
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	retval = (mask & *ADDR) != 0;
 	*ADDR |= mask;
 	restore_flags(flags);
@@ -473,7 +468,7 @@ extern __inline__ int ext2_clear_bit(int nr, void * addr)
 
 	ADDR += nr >> 3;
 	mask = 1 << (nr & 0x07);
-	save_flags(flags); cli();
+	save_and_cli(flags);
 	retval = (mask & *ADDR) != 0;
 	*ADDR &= ~mask;
 	restore_flags(flags);
@@ -564,4 +559,4 @@ found_middle:
 #define minix_test_bit(nr,addr) test_bit(nr,addr)
 #define minix_find_first_zero_bit(addr,size) find_first_zero_bit(addr,size)
 
-#endif /* __ASM_MIPS_BITOPS_H */
+#endif /* _ASM_BITOPS_H */

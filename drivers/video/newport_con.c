@@ -26,7 +26,7 @@
 #include <asm/system.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/newport.h>
+#include <video/newport.h>
 #define INCLUDE_LINUX_LOGO_DATA
 #include <asm/linux_logo.h>
 

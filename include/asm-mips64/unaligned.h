@@ -5,6 +5,7 @@
  * for more details.
  *
  * Copyright (C) 1996, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_UNALIGNED_H
 #define _ASM_UNALIGNED_H

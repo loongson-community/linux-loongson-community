@@ -1,10 +1,11 @@
-/* $Id$
+/* $Id: uaccess.h,v 1.1 1999/08/18 23:37:53 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
  * Copyright (C) 1996, 1997, 1998, 1999 by Ralf Baechle
+ * Copyright (C) 1999 Silicon Graphics, Inc.
  */
 #ifndef _ASM_UACCESS_H
 #define _ASM_UACCESS_H
@@ -128,7 +129,7 @@ switch (size) { \
 case 1: __get_user_asm("lb"); break; \
 case 2: __get_user_asm("lh"); break; \
 case 4: __get_user_asm("lw"); break; \
-case 8: __get_user_asm("dw"); break; \
+case 8: __get_user_asm("ld"); break; \
 default: __get_user_unknown(); break; \
 } } x = (__typeof__(*(ptr))) __gu_val; __gu_err; })
 

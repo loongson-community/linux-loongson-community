@@ -1,4 +1,4 @@
-/* $Id: graphics.c,v 1.15 1999/02/06 03:57:38 adevries Exp $
+/* $Id: graphics.c,v 1.16 1999/04/01 23:45:00 ulfc Exp $
  *
  * gfx.c: support for SGI's /dev/graphics, /dev/opengl
  *
@@ -41,7 +41,7 @@
 #include <asm/rrm.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
-#include <asm/newport.h>
+#include <video/newport.h>
 
 #define DEBUG
 

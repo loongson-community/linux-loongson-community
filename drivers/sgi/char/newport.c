@@ -11,7 +11,7 @@
 #include <asm/gfx.h>
 #include <asm/ng1.h>
 #include <asm/uaccess.h>
-#include <asm/newport.h>
+#include <video/newport.h>
 #include <linux/config.h>
 #include <linux/module.h>
 
