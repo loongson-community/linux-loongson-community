@@ -198,10 +198,6 @@ ddb_setup(void)
 	ddb5476_board_init();
 }
 
-void __init bus_error_init(void)
-{
-}
-
 /*
  * We don't trust bios.  We essentially does hardware re-initialization
  * as complete as possible, as far as we know we can safely do.
