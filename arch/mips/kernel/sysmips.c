@@ -109,6 +109,9 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 		if (current->ptrace & PT_TRACESYS)
 			syscall_trace();
 
+		((struct pt_regs *)&cmd)->regs[2] = tmp;
+		((struct pt_regs *)&cmd)->regs[7] = 0;
+
 		__asm__ __volatile__(
 			"move\t$29, %0\n\t"
 			"j\to32_ret_from_sys_call"
