@@ -263,7 +263,8 @@ int __ioremap_explicit(unsigned long pa, unsigned long ea,
 		 */
 		;
 	} else {
-		area = im_get_area(ea, size, IM_REGION_UNUSED|IM_REGION_SUBSET);
+		area = im_get_area(ea, size,
+			IM_REGION_UNUSED|IM_REGION_SUBSET|IM_REGION_EXISTS);
 		if (area == NULL) {
 			/* Expected when PHB-dlpar is in play */
 			return 1;
@@ -477,12 +478,18 @@ int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 	int index;
 	int err;
 
+#ifdef CONFIG_HUGETLB_PAGE
+	/* We leave htlb_segs as it was, but for a fork, we need to
+	 * clear the huge_pgdir. */
+	mm->context.huge_pgdir = NULL;
+#endif
+
 again:
 	if (!idr_pre_get(&mmu_context_idr, GFP_KERNEL))
 		return -ENOMEM;
 
 	spin_lock(&mmu_context_lock);
-	err = idr_get_new(&mmu_context_idr, NULL, &index);
+	err = idr_get_new_above(&mmu_context_idr, NULL, 1, &index);
 	spin_unlock(&mmu_context_lock);
 
 	if (err == -EAGAIN)
@@ -507,20 +514,9 @@ void destroy_context(struct mm_struct *mm)
 	spin_unlock(&mmu_context_lock);
 
 	mm->context.id = NO_CONTEXT;
+
+	hugetlb_mm_free_pgd(mm);
 }
-
-static int __init mmu_context_init(void)
-{
-	int index;
-
-	/* Reserve the first (invalid) context*/
-	idr_pre_get(&mmu_context_idr, GFP_KERNEL);
-	idr_get_new(&mmu_context_idr, NULL, &index);
-	BUG_ON(0 != index);
-
-	return 0;
-}
-arch_initcall(mmu_context_init);
 
 /*
  * Do very early mm setup.
@@ -873,14 +869,14 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long ea,
 	local_irq_restore(flags);
 }
 
-void * reserve_phb_iospace(unsigned long size)
+void __iomem * reserve_phb_iospace(unsigned long size)
 {
-	void *virt_addr;
+	void __iomem *virt_addr;
 		
 	if (phbs_io_bot >= IMALLOC_BASE) 
 		panic("reserve_phb_iospace(): phb io space overflow\n");
 			
-	virt_addr = (void *) phbs_io_bot;
+	virt_addr = (void __iomem *) phbs_io_bot;
 	phbs_io_bot += size;
 
 	return virt_addr;

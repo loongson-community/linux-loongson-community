@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10-rc1
-# Tue Nov  9 04:55:12 2004
+# Linux kernel version: 2.6.10-rc2
+# Mon Nov 15 11:07:58 2004
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -36,6 +36,10 @@ CONFIG_FUTEX=y
 CONFIG_EPOLL=y
 # CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
 CONFIG_SHMEM=y
+CONFIG_CC_ALIGN_FUNCTIONS=0
+CONFIG_CC_ALIGN_LABELS=0
+CONFIG_CC_ALIGN_LOOPS=0
+CONFIG_CC_ALIGN_JUMPS=0
 # CONFIG_TINY_SHMEM is not set
 
 #
@@ -243,6 +247,8 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_INET_ESP is not set
 # CONFIG_INET_IPCOMP is not set
 CONFIG_INET_TUNNEL=m
+CONFIG_IP_TCPDIAG=m
+# CONFIG_IP_TCPDIAG_IPV6 is not set
 # CONFIG_NETFILTER is not set
 CONFIG_XFRM=y
 CONFIG_XFRM_USER=m
@@ -310,7 +316,6 @@ CONFIG_EEPRO100=y
 # CONFIG_SUNDANCE is not set
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
-# CONFIG_VIA_VELOCITY is not set
 
 #
 # Ethernet (1000 Mbit)
@@ -322,6 +327,7 @@ CONFIG_EEPRO100=y
 # CONFIG_HAMACHI is not set
 # CONFIG_R8169 is not set
 # CONFIG_SK98LIN is not set
+# CONFIG_VIA_VELOCITY is not set
 # CONFIG_TIGON3 is not set
 CONFIG_MV643XX_ETH=y
 CONFIG_MV643XX_ETH_0=y
@@ -465,6 +471,8 @@ CONFIG_LEGACY_PTY_COUNT=256
 # USB support
 #
 # CONFIG_USB is not set
+CONFIG_USB_ARCH_HAS_HCD=y
+CONFIG_USB_ARCH_HAS_OHCI=y
 
 #
 # USB Gadget Support
@@ -483,6 +491,7 @@ CONFIG_LEGACY_PTY_COUNT=256
 # CONFIG_MINIX_FS is not set
 # CONFIG_ROMFS_FS is not set
 # CONFIG_QUOTA is not set
+CONFIG_DNOTIFY=y
 # CONFIG_AUTOFS_FS is not set
 # CONFIG_AUTOFS4_FS is not set
 

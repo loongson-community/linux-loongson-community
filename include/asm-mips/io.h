@@ -348,6 +348,9 @@ do {									\
 #define writel(l,addr)		__raw_writel(__ioswab32(l),(addr))
 #define writeq(q,addr)		__raw_writeq(__ioswab64(q),(addr))
 
+/* Depends on MIPS II instruction set */
+#define mmiowb() asm volatile ("sync" ::: "memory")
+
 #define memset_io(a,b,c)	memset((void *)(a),(b),(c))
 #define memcpy_fromio(a,b,c)	memcpy((a),(void *)(b),(c))
 #define memcpy_toio(a,b,c)	memcpy((void *)(a),(b),(c))

@@ -48,18 +48,14 @@ static int raid0_issue_flush(request_queue_t *q, struct gendisk *disk,
 	mdk_rdev_t **devlist = conf->strip_zone[0].dev;
 	int i, ret = 0;
 
-	for (i=0; i<mddev->raid_disks; i++) {
+	for (i=0; i<mddev->raid_disks && ret == 0; i++) {
 		struct block_device *bdev = devlist[i]->bdev;
 		request_queue_t *r_queue = bdev_get_queue(bdev);
 
-		if (!r_queue->issue_flush_fn) {
+		if (!r_queue->issue_flush_fn)
 			ret = -EOPNOTSUPP;
-			break;
-		}
-
-		ret =r_queue->issue_flush_fn(r_queue, bdev->bd_disk, error_sector);
-		if (ret)
-			break;
+		else
+			ret = r_queue->issue_flush_fn(r_queue, bdev->bd_disk, error_sector);
 	}
 	return ret;
 }
@@ -389,6 +385,7 @@ static int raid0_stop (mddev_t *mddev)
 {
 	raid0_conf_t *conf = mddev_to_conf(mddev);
 
+	blk_sync_queue(mddev->queue); /* the unplug fn references 'conf'*/
 	kfree (conf->hash_table);
 	conf->hash_table = NULL;
 	kfree (conf->strip_zone);

@@ -23,6 +23,10 @@
 #include <linux/kobject.h>
 #include <net/sock.h>
 
+#define BUFFER_SIZE	1024	/* buffer for the hotplug env */
+#define NUM_ENVP	32	/* number of env pointers */
+
+#if defined(CONFIG_KOBJECT_UEVENT) || defined(CONFIG_HOTPLUG)
 static char *action_to_string(enum kobject_action action)
 {
 	switch (action) {
@@ -36,10 +40,15 @@ static char *action_to_string(enum kobject_action action)
 		return "mount";
 	case KOBJ_UMOUNT:
 		return "umount";
+	case KOBJ_OFFLINE:
+		return "offline";
+	case KOBJ_ONLINE:
+		return "online";
 	default:
 		return NULL;
 	}
 }
+#endif
 
 #ifdef CONFIG_KOBJECT_UEVENT
 static struct sock *uevent_sock;
@@ -49,12 +58,11 @@ static struct sock *uevent_sock;
  *
  * @signal: signal name
  * @obj: object path (kobject)
- * @buf: buffer used to pass auxiliary data like the hotplug environment
- * @buflen:
- * gfp_mask:
+ * @envp: possible hotplug environment to pass with the message
+ * @gfp_mask:
  */
-static int send_uevent(const char *signal, const char *obj, const void *buf,
-			int buflen, int gfp_mask)
+static int send_uevent(const char *signal, const char *obj,
+		       char **envp, int gfp_mask)
 {
 	struct sk_buff *skb;
 	char *pos;
@@ -65,16 +73,25 @@ static int send_uevent(const char *signal, const char *obj, const void *buf,
 
 	len = strlen(signal) + 1;
 	len += strlen(obj) + 1;
-	len += buflen;
 
-	skb = alloc_skb(len, gfp_mask);
+	/* allocate buffer with the maximum possible message size */
+	skb = alloc_skb(len + BUFFER_SIZE, gfp_mask);
 	if (!skb)
 		return -ENOMEM;
 
 	pos = skb_put(skb, len);
+	sprintf(pos, "%s@%s", signal, obj);
 
-	pos += sprintf(pos, "%s@%s", signal, obj) + 1;
-	memcpy(pos, buf, buflen);
+	/* copy the environment key by key to our continuous buffer */
+	if (envp) {
+		int i;
+
+		for (i = 2; envp[i]; i++) {
+			len = strlen(envp[i]) + 1;
+			pos = skb_put(skb, len);
+			strcpy(pos, envp[i]);
+		}
+	}
 
 	return netlink_broadcast(uevent_sock, skb, 0, 1, gfp_mask);
 }
@@ -103,11 +120,10 @@ static int do_kobject_uevent(struct kobject *kobj, enum kobject_action action,
 		if (!attrpath)
 			goto exit;
 		sprintf(attrpath, "%s/%s", path, attr->name);
-		rc = send_uevent(signal, attrpath, NULL, 0, gfp_mask);
+		rc = send_uevent(signal, attrpath, NULL, gfp_mask);
 		kfree(attrpath);
-	} else {
-		rc = send_uevent(signal, path, NULL, 0, gfp_mask);
-	}
+	} else
+		rc = send_uevent(signal, path, NULL, gfp_mask);
 
 exit:
 	kfree(path);
@@ -133,7 +149,6 @@ int kobject_uevent_atomic(struct kobject *kobj, enum kobject_action action,
 {
 	return do_kobject_uevent(kobj, action, attr, GFP_ATOMIC);
 }
-
 EXPORT_SYMBOL_GPL(kobject_uevent_atomic);
 
 static int __init kobject_uevent_init(void)
@@ -149,11 +164,11 @@ static int __init kobject_uevent_init(void)
 	return 0;
 }
 
-core_initcall(kobject_uevent_init);
+postcore_initcall(kobject_uevent_init);
 
 #else
 static inline int send_uevent(const char *signal, const char *obj,
-			      const void *buf, int buflen, int gfp_mask)
+			      char **envp, int gfp_mask)
 {
 	return 0;
 }
@@ -162,11 +177,10 @@ static inline int send_uevent(const char *signal, const char *obj,
 
 
 #ifdef CONFIG_HOTPLUG
+char hotplug_path[HOTPLUG_PATH_LEN] = "/sbin/hotplug";
 u64 hotplug_seqnum;
 static spinlock_t sequence_lock = SPIN_LOCK_UNLOCKED;
 
-#define BUFFER_SIZE	1024	/* should be enough memory for the env */
-#define NUM_ENVP	32	/* number of env pointers */
 /**
  * kobject_hotplug - notify userspace by executing /sbin/hotplug
  *
@@ -178,6 +192,7 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 	char *argv [3];
 	char **envp = NULL;
 	char *buffer = NULL;
+	char *seq_buff;
 	char *scratch;
 	int i = 0;
 	int retval;
@@ -187,6 +202,8 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 	u64 seq;
 	struct kobject *top_kobj = kobj;
 	struct kset *kset;
+	static struct kset_hotplug_ops null_hotplug_ops;
+	struct kset_hotplug_ops *hotplug_ops = &null_hotplug_ops;
 
 	if (!top_kobj->kset && top_kobj->parent) {
 		do {
@@ -194,15 +211,18 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 		} while (!top_kobj->kset && top_kobj->parent);
 	}
 
-	if (top_kobj->kset && top_kobj->kset->hotplug_ops)
+	if (top_kobj->kset)
 		kset = top_kobj->kset;
 	else
 		return;
 
+	if (kset->hotplug_ops)
+		hotplug_ops = kset->hotplug_ops;
+
 	/* If the kset has a filter operation, call it.
 	   Skip the event, if the filter returns zero. */
-	if (kset->hotplug_ops->filter) {
-		if (!kset->hotplug_ops->filter(kset, kobj))
+	if (hotplug_ops->filter) {
+		if (!hotplug_ops->filter(kset, kobj))
 			return;
 	}
 
@@ -221,8 +241,8 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 	if (!buffer)
 		goto exit;
 
-	if (kset->hotplug_ops->name)
-		name = kset->hotplug_ops->name(kset, kobj);
+	if (hotplug_ops->name)
+		name = hotplug_ops->name(kset, kobj);
 	if (name == NULL)
 		name = kset->kobj.name;
 
@@ -246,19 +266,17 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 	envp [i++] = scratch;
 	scratch += sprintf (scratch, "DEVPATH=%s", kobj_path) + 1;
 
-	spin_lock(&sequence_lock);
-	seq = ++hotplug_seqnum;
-	spin_unlock(&sequence_lock);
-
-	envp [i++] = scratch;
-	scratch += sprintf(scratch, "SEQNUM=%lld", (long long)seq) + 1;
-
 	envp [i++] = scratch;
 	scratch += sprintf(scratch, "SUBSYSTEM=%s", name) + 1;
 
-	if (kset->hotplug_ops->hotplug) {
+	/* reserve space for the sequence,
+	 * put the real one in after the hotplug call */
+	envp[i++] = seq_buff = scratch;
+	scratch += strlen("SEQNUM=18446744073709551616") + 1;
+
+	if (hotplug_ops->hotplug) {
 		/* have the kset specific function add its stuff */
-		retval = kset->hotplug_ops->hotplug (kset, kobj,
+		retval = hotplug_ops->hotplug (kset, kobj,
 				  &envp[i], NUM_ENVP - i, scratch,
 				  BUFFER_SIZE - (scratch - buffer));
 		if (retval) {
@@ -268,10 +286,16 @@ void kobject_hotplug(struct kobject *kobj, enum kobject_action action)
 		}
 	}
 
-	pr_debug ("%s: %s %s %s %s %s %s %s\n", __FUNCTION__, argv[0], argv[1],
+	spin_lock(&sequence_lock);
+	seq = ++hotplug_seqnum;
+	spin_unlock(&sequence_lock);
+	sprintf(seq_buff, "SEQNUM=%llu", (unsigned long long)seq);
+
+	pr_debug ("%s: %s %s seq=%llu %s %s %s %s %s\n",
+		  __FUNCTION__, argv[0], argv[1], (unsigned long long)seq,
 		  envp[0], envp[1], envp[2], envp[3], envp[4]);
 
-	send_uevent(action_string, kobj_path, buffer, scratch - buffer, GFP_KERNEL);
+	send_uevent(action_string, kobj_path, envp, GFP_KERNEL);
 
 	if (!hotplug_path[0])
 		goto exit;

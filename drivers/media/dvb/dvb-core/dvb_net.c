@@ -37,9 +37,17 @@
 #include <linux/uio.h>
 #include <asm/uaccess.h>
 #include <linux/crc32.h>
+#include <linux/version.h>
 
 #include "dvb_demux.h"
 #include "dvb_net.h"
+
+static int dvb_net_debug;
+module_param(dvb_net_debug, int, 0444);
+MODULE_PARM_DESC(dvb_net_debug, "enable debug messages");
+
+#define dprintk(x...) do { if (dvb_net_debug) printk(x); } while (0)
+
 
 static inline __u32 iov_crc32( __u32 c, struct kvec *iov, unsigned int cnt )
 {
@@ -48,13 +56,6 @@ static inline __u32 iov_crc32( __u32 c, struct kvec *iov, unsigned int cnt )
 		c = crc32_be( c, iov[j].iov_base, iov[j].iov_len );
 	return c;
 }
-
-
-#if 1
-#define dprintk(x...) printk(x)
-#else
-#define dprintk(x...)
-#endif
 
 
 #define DVB_NET_MULTICAST_MAX 10
@@ -917,14 +918,6 @@ static void dvb_net_set_multicast_list (struct net_device *dev)
 }
 
 
-static int dvb_net_set_config(struct net_device *dev, struct ifmap *map)
-{
-	if (netif_running(dev))
-		return -EBUSY;
-	return 0;
-}
-
-
 static void wq_restart_net_feed (void *data)
 {
 	struct net_device *dev = data;
@@ -983,7 +976,6 @@ static void dvb_net_setup(struct net_device *dev)
 	dev->hard_start_xmit	= dvb_net_tx;
 	dev->get_stats		= dvb_net_get_stats;
 	dev->set_multicast_list = dvb_net_set_multicast_list;
-	dev->set_config         = dvb_net_set_config;
 	dev->set_mac_address    = dvb_net_set_mac;
 	dev->mtu		= 4096;
 	dev->mc_count           = 0;

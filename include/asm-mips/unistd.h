@@ -299,7 +299,7 @@
 #define __NR_mq_getsetattr		(__NR_Linux + 276)
 #define __NR_vserver			(__NR_Linux + 277)
 #define __NR_waitid			(__NR_Linux + 278)
-#define __NR_sys_setaltroot		(__NR_Linux + 279)
+/* #define __NR_sys_setaltroot		(__NR_Linux + 279) */
 #define __NR_add_key			(__NR_Linux + 280)
 #define __NR_request_key		(__NR_Linux + 281)
 #define __NR_keyctl			(__NR_Linux + 282)
@@ -558,7 +558,7 @@
 #define __NR_mq_getsetattr		(__NR_Linux + 235)
 #define __NR_vserver			(__NR_Linux + 236)
 #define __NR_waitid			(__NR_Linux + 237)
-#define __NR_sys_setaltroot		(__NR_Linux + 238)
+/* #define __NR_sys_setaltroot		(__NR_Linux + 238) */
 #define __NR_add_key			(__NR_Linux + 239)
 #define __NR_request_key		(__NR_Linux + 240)
 #define __NR_keyctl			(__NR_Linux + 241)
@@ -821,7 +821,7 @@
 #define __NR_mq_getsetattr		(__NR_Linux + 239)
 #define __NR_vserver			(__NR_Linux + 240)
 #define __NR_waitid			(__NR_Linux + 241)
-#define __NR_sys_setaltroot		(__NR_Linux + 242)
+/* #define __NR_sys_setaltroot		(__NR_Linux + 242) */
 #define __NR_add_key			(__NR_Linux + 243)
 #define __NR_request_key		(__NR_Linux + 244)
 #define __NR_keyctl			(__NR_Linux + 245)

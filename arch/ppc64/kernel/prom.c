@@ -52,7 +52,6 @@
 #include <asm/btext.h>
 #include <asm/sections.h>
 #include <asm/machdep.h>
-#include "open_pic.h"
 
 #ifdef DEBUG
 #define DBG(fmt...) udbg_printf(fmt)
@@ -1092,8 +1091,7 @@ prom_n_size_cells(struct device_node* np)
  * Work out the sense (active-low level / active-high edge)
  * of each interrupt from the device tree.
  */
-void __init
-prom_get_irq_senses(unsigned char *senses, int off, int max)
+void __init prom_get_irq_senses(unsigned char *senses, int off, int max)
 {
 	struct device_node *np;
 	int i, j;
@@ -1105,7 +1103,9 @@ prom_get_irq_senses(unsigned char *senses, int off, int max)
 		for (j = 0; j < np->n_intrs; j++) {
 			i = np->intrs[j].line;
 			if (i >= off && i < max)
-				senses[i-off] = np->intrs[j].sense;
+				senses[i-off] = np->intrs[j].sense ?
+					IRQ_SENSE_LEVEL | IRQ_POLARITY_NEGATIVE :
+					IRQ_SENSE_EDGE | IRQ_POLARITY_POSITIVE;
 		}
 	}
 }
@@ -1740,7 +1740,7 @@ static int of_finish_dynamic_node(struct device_node *node)
 	if (strcmp(node->name, "pci") == 0 &&
 	    get_property(node, "ibm,dma-window", NULL)) {
 		node->bussubno = node->busno;
-		iommu_devnode_init(node);
+		iommu_devnode_init_pSeries(node);
 	} else
 		node->iommu_table = parent->iommu_table;
 #endif /* CONFIG_PPC_PSERIES */
@@ -1802,6 +1802,15 @@ int of_add_node(const char *path, struct property *proplist)
 }
 
 /*
+ * Prepare an OF node for removal from system
+ */
+static void of_cleanup_node(struct device_node *np)
+{
+	if (np->iommu_table && get_property(np, "ibm,dma-window", NULL))
+		iommu_free_table(np);
+}
+
+/*
  * Remove an OF device node from the system.
  * Caller should have already "gotten" np.
  */
@@ -1817,6 +1826,8 @@ int of_remove_node(struct device_node *np)
 		of_node_put(child);
 		return -EBUSY;
 	}
+
+	of_cleanup_node(np);
 
 	write_lock(&devtree_lock);
 	OF_MARK_STALE(np);

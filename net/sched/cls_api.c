@@ -36,6 +36,7 @@
 #include <linux/kmod.h>
 #include <net/sock.h>
 #include <net/pkt_sched.h>
+#include <net/pkt_cls.h>
 
 #if 0 /* control */
 #define DPRINTK(format,args...) printk(KERN_DEBUG format,##args)
@@ -59,8 +60,11 @@ static struct tcf_proto_ops * tcf_proto_lookup_ops(struct rtattr *kind)
 	if (kind) {
 		read_lock(&cls_mod_lock);
 		for (t = tcf_proto_base; t; t = t->next) {
-			if (rtattr_strcmp(kind, t->kind) == 0)
+			if (rtattr_strcmp(kind, t->kind) == 0) {
+				if (!try_module_get(t->owner))
+					t = NULL;
 				break;
+			}
 		}
 		read_unlock(&cls_mod_lock);
 	}
@@ -230,11 +234,6 @@ static int tc_ctl_tfilter(struct sk_buff *skb, struct nlmsghdr *n, void *arg)
 		tp->q = q;
 		tp->classify = tp_ops->classify;
 		tp->classid = parent;
-		err = -EBUSY;
-		if (!try_module_get(tp_ops->owner)) {
-			kfree(tp);
-			goto errout;
-		}
 		if ((err = tp_ops->init(tp)) != 0) {
 			module_put(tp_ops->owner);
 			kfree(tp);
@@ -296,19 +295,6 @@ errout:
 		cops->put(q, cl);
 	return err;
 }
-
-unsigned long tcf_set_class(struct tcf_proto *tp, unsigned long *clp, 
-			    unsigned long cl)
-{
-	unsigned long old_cl;
-
-	tcf_tree_lock(tp);
-	old_cl = __cls_set_class(clp, cl);
-	tcf_tree_unlock(tp);
-
-	return old_cl;
-}
-
 
 static int
 tcf_fill_node(struct sk_buff *skb, struct tcf_proto *tp, unsigned long fh,
@@ -475,4 +461,3 @@ subsys_initcall(tc_filter_init);
 
 EXPORT_SYMBOL(register_tcf_proto_ops);
 EXPORT_SYMBOL(unregister_tcf_proto_ops);
-EXPORT_SYMBOL(tcf_set_class);

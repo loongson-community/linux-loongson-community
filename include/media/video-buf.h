@@ -1,5 +1,5 @@
 /*
- * $Id: video-buf.h,v 1.7 2004/10/11 14:53:13 kraxel Exp $
+ * $Id: video-buf.h,v 1.9 2004/11/07 13:17:15 kraxel Exp $
  *
  * generic helper functions for video4linux capture buffers, to handle
  * memory management and PCI DMA.  Right now bttv + saa7134 use it.
@@ -9,7 +9,7 @@
  * into PAGE_SIZE chunks).  They also assume the driver does not need
  * to touch the video data (thus it is probably not useful for USB as
  * data often must be uncompressed by the drivers).
- * 
+ *
  * (c) 2001,02 Gerd Knorr <kraxel@bytesex.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -102,7 +102,7 @@ int videobuf_dma_free(struct videobuf_dmabuf *dma);
  * functions, additionally some commonly used fields for v4l buffers
  * (width, height, lists, waitqueue) are in there.  That struct should
  * be used as first element in the drivers buffer struct.
- * 
+ *
  * about the mmap helpers (videobuf_mmap_*):
  *
  * The mmaper function allows to map any subset of contingous buffers.
@@ -121,7 +121,6 @@ struct videobuf_queue;
 
 struct videobuf_mapping {
 	unsigned int count;
-	int highmem_ok;
 	unsigned long start;
 	unsigned long end;
 	struct videobuf_queue *q;
@@ -167,12 +166,15 @@ struct videobuf_buffer {
 };
 
 struct videobuf_queue_ops {
-	int (*buf_setup)(void *priv,
+	int (*buf_setup)(struct videobuf_queue *q,
 			 unsigned int *count, unsigned int *size);
-	int (*buf_prepare)(void *priv,struct videobuf_buffer *vb,
+	int (*buf_prepare)(struct videobuf_queue *q,
+			   struct videobuf_buffer *vb,
 			   enum v4l2_field field);
-	void (*buf_queue)(void *priv,struct videobuf_buffer *vb);
-	void (*buf_release)(void *priv,struct videobuf_buffer *vb);
+	void (*buf_queue)(struct videobuf_queue *q,
+			  struct videobuf_buffer *vb);
+	void (*buf_release)(struct videobuf_queue *q,
+			    struct videobuf_buffer *vb);
 };
 
 struct videobuf_queue {
@@ -196,6 +198,9 @@ struct videobuf_queue {
 	unsigned int               reading;
 	unsigned int               read_off;
 	struct videobuf_buffer     *read_buf;
+
+	/* driver private data */
+	void                       *priv_data;
 };
 
 void* videobuf_alloc(unsigned int size);
@@ -205,44 +210,46 @@ int videobuf_iolock(struct pci_dev *pci, struct videobuf_buffer *vb,
 
 void videobuf_queue_init(struct videobuf_queue *q,
 			 struct videobuf_queue_ops *ops,
-			 struct pci_dev *pci, spinlock_t *irqlock,
+			 struct pci_dev *pci,
+			 spinlock_t *irqlock,
 			 enum v4l2_buf_type type,
 			 enum v4l2_field field,
-			 unsigned int msize);
+			 unsigned int msize,
+			 void *priv);
 int  videobuf_queue_is_busy(struct videobuf_queue *q);
-void videobuf_queue_cancel(void *priv, struct videobuf_queue *q);
+void videobuf_queue_cancel(struct videobuf_queue *q);
 
 enum v4l2_field videobuf_next_field(struct videobuf_queue *q);
 void videobuf_status(struct v4l2_buffer *b, struct videobuf_buffer *vb,
 		     enum v4l2_buf_type type);
-int videobuf_reqbufs(void *priv, struct videobuf_queue *q,
+int videobuf_reqbufs(struct videobuf_queue *q,
 		     struct v4l2_requestbuffers *req);
 int videobuf_querybuf(struct videobuf_queue *q, struct v4l2_buffer *b);
-int videobuf_qbuf(void *priv, struct videobuf_queue *q,
+int videobuf_qbuf(struct videobuf_queue *q,
 		  struct v4l2_buffer *b);
-int videobuf_dqbuf(void *priv, struct videobuf_queue *q,
+int videobuf_dqbuf(struct videobuf_queue *q,
 		   struct v4l2_buffer *b, int nonblocking);
-int videobuf_streamon(void *priv, struct videobuf_queue *q);
-int videobuf_streamoff(void *priv, struct videobuf_queue *q);
+int videobuf_streamon(struct videobuf_queue *q);
+int videobuf_streamoff(struct videobuf_queue *q);
 
-int videobuf_read_start(void *priv, struct videobuf_queue *q);
-void videobuf_read_stop(void *priv, struct videobuf_queue *q);
-ssize_t videobuf_read_stream(void *priv, struct videobuf_queue *q,
+int videobuf_read_start(struct videobuf_queue *q);
+void videobuf_read_stop(struct videobuf_queue *q);
+ssize_t videobuf_read_stream(struct videobuf_queue *q,
 			     char __user *data, size_t count, loff_t *ppos,
 			     int vbihack, int nonblocking);
-ssize_t videobuf_read_one(void *priv, struct videobuf_queue *q,
+ssize_t videobuf_read_one(struct videobuf_queue *q,
 			  char __user *data, size_t count, loff_t *ppos,
 			  int nonblocking);
-unsigned int videobuf_poll_stream(struct file *file, void *priv,
+unsigned int videobuf_poll_stream(struct file *file,
 				  struct videobuf_queue *q,
 				  poll_table *wait);
 
-int videobuf_mmap_setup(void *priv, struct videobuf_queue *q,
+int videobuf_mmap_setup(struct videobuf_queue *q,
 			unsigned int bcount, unsigned int bsize,
 			enum v4l2_memory memory);
-int videobuf_mmap_free(void *priv, struct videobuf_queue *q);
-int videobuf_mmap_mapper(struct vm_area_struct *vma,
-			 struct videobuf_queue *q);
+int videobuf_mmap_free(struct videobuf_queue *q);
+int videobuf_mmap_mapper(struct videobuf_queue *q,
+			 struct vm_area_struct *vma);
 
 /* --------------------------------------------------------------------- */
 

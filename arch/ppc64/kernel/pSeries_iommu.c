@@ -276,7 +276,7 @@ static void iommu_buses_init(void)
 		first_phb = 0;
 
 		for (dn = first_dn; dn != NULL; dn = dn->sibling)
-			iommu_devnode_init(dn);
+			iommu_devnode_init_pSeries(dn);
 	}
 }
 
@@ -298,7 +298,7 @@ static void iommu_buses_init_lpar(struct list_head *bus_list)
 			 * Do it now because iommu_table_setparms_lpar needs it.
 			 */
 			busdn->bussubno = bus->number;
-			iommu_devnode_init(busdn);
+			iommu_devnode_init_pSeries(busdn);
 		}
 
 		/* look for a window on a bridge even if the PHB had one */
@@ -397,7 +397,7 @@ static void iommu_table_setparms_lpar(struct pci_controller *phb,
 }
 
 
-void iommu_devnode_init(struct device_node *dn)
+void iommu_devnode_init_pSeries(struct device_node *dn)
 {
 	struct iommu_table *tbl;
 
@@ -411,7 +411,6 @@ void iommu_devnode_init(struct device_node *dn)
 	
 	dn->iommu_table = iommu_init_table(tbl);
 }
-
 
 void iommu_setup_pSeries(void)
 {
@@ -427,7 +426,7 @@ void iommu_setup_pSeries(void)
 	 * pci device_node.  This means get_iommu_table() won't need to search
 	 * up the device tree to find it.
 	 */
-	while ((dev = pci_find_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
+	for_each_pci_dev(dev) {
 		mydn = dn = PCI_GET_DN(dev);
 
 		while (dn && dn->iommu_table == NULL)
@@ -436,7 +435,6 @@ void iommu_setup_pSeries(void)
 			mydn->iommu_table = dn->iommu_table;
 	}
 }
-
 
 /* These are called very early. */
 void tce_init_pSeries(void)

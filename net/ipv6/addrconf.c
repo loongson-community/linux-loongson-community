@@ -326,7 +326,7 @@ static struct inet6_dev * ipv6_add_dev(struct net_device *dev)
 	if (ndev) {
 		memset(ndev, 0, sizeof(struct inet6_dev));
 
-		ndev->lock = RW_LOCK_UNLOCKED;
+		rwlock_init(&ndev->lock);
 		ndev->dev = dev;
 		memcpy(&ndev->cnf, &ipv6_devconf_dflt, sizeof(ndev->cnf));
 		ndev->cnf.mtu6 = dev->mtu;
@@ -404,6 +404,7 @@ static struct inet6_dev * ipv6_find_idev(struct net_device *dev)
 	return idev;
 }
 
+#ifdef CONFIG_SYSCTL
 static void dev_forward_change(struct inet6_dev *idev)
 {
 	struct net_device *dev;
@@ -449,7 +450,7 @@ static void addrconf_forward_change(void)
 	}
 	read_unlock(&dev_base_lock);
 }
-
+#endif
 
 /* Nobody refers to this ifaddr, destroy it */
 
@@ -760,7 +761,7 @@ static int inline ipv6_saddr_pref(const struct inet6_ifaddr *ifp, u8 invpref)
 #endif
 
 int ipv6_dev_get_saddr(struct net_device *dev,
-		   struct in6_addr *daddr, struct in6_addr *saddr, int onlink)
+		       struct in6_addr *daddr, struct in6_addr *saddr)
 {
 	struct inet6_ifaddr *ifp = NULL;
 	struct inet6_ifaddr *match = NULL;
@@ -769,10 +770,7 @@ int ipv6_dev_get_saddr(struct net_device *dev,
 	int err;
 	int hiscore = -1, score;
 
-	if (!onlink)
-		scope = ipv6_addr_scope(daddr);
-	else
-		scope = IFA_LINK;
+	scope = ipv6_addr_scope(daddr);
 
 	/*
 	 *	known dev
@@ -877,17 +875,7 @@ out:
 int ipv6_get_saddr(struct dst_entry *dst,
 		   struct in6_addr *daddr, struct in6_addr *saddr)
 {
-	struct rt6_info *rt;
-	struct net_device *dev = NULL;
-	int onlink;
-
-	rt = (struct rt6_info *) dst;
-	if (rt)
-		dev = rt->rt6i_dev;
-
-	onlink = (rt && (rt->rt6i_flags & RTF_ALLONLINK));
-
-	return ipv6_dev_get_saddr(dev, daddr, saddr, onlink);
+	return ipv6_dev_get_saddr(dst ? dst->dev : NULL, daddr, saddr);
 }
 
 
@@ -933,7 +921,7 @@ int ipv6_chk_addr(struct in6_addr *addr, struct net_device *dev, int strict)
 
 	read_lock_bh(&addrconf_hash_lock);
 	for(ifp = inet6_addr_lst[hash]; ifp; ifp=ifp->lst_next) {
-		if (ipv6_addr_cmp(&ifp->addr, addr) == 0 &&
+		if (ipv6_addr_equal(&ifp->addr, addr) &&
 		    !(ifp->flags&IFA_F_TENTATIVE)) {
 			if (dev == NULL || ifp->idev->dev == dev ||
 			    !(ifp->scope&(IFA_LINK|IFA_HOST) || strict))
@@ -952,7 +940,7 @@ int ipv6_chk_same_addr(const struct in6_addr *addr, struct net_device *dev)
 
 	read_lock_bh(&addrconf_hash_lock);
 	for(ifp = inet6_addr_lst[hash]; ifp; ifp=ifp->lst_next) {
-		if (ipv6_addr_cmp(&ifp->addr, addr) == 0) {
+		if (ipv6_addr_equal(&ifp->addr, addr)) {
 			if (dev == NULL || ifp->idev->dev == dev)
 				break;
 		}
@@ -968,7 +956,7 @@ struct inet6_ifaddr * ipv6_get_ifaddr(struct in6_addr *addr, struct net_device *
 
 	read_lock_bh(&addrconf_hash_lock);
 	for(ifp = inet6_addr_lst[hash]; ifp; ifp=ifp->lst_next) {
-		if (ipv6_addr_cmp(&ifp->addr, addr) == 0) {
+		if (ipv6_addr_equal(&ifp->addr, addr)) {
 			if (dev == NULL || ifp->idev->dev == dev ||
 			    !(ifp->scope&(IFA_LINK|IFA_HOST) || strict)) {
 				in6_ifa_hold(ifp);
@@ -1004,7 +992,7 @@ int ipv6_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2)
 		return 1;
 
 	if (sk2_rcv_saddr6 &&
-	    !ipv6_addr_cmp(sk_rcv_saddr6, sk2_rcv_saddr6))
+	    ipv6_addr_equal(sk_rcv_saddr6, sk2_rcv_saddr6))
 		return 1;
 
 	if (addr_type == IPV6_ADDR_MAPPED &&
@@ -1642,7 +1630,7 @@ static int inet6_addr_del(int ifindex, struct in6_addr *pfx, int plen)
 	read_lock_bh(&idev->lock);
 	for (ifp = idev->addr_list; ifp; ifp=ifp->if_next) {
 		if (ifp->prefix_len == plen &&
-		    (!memcmp(pfx, &ifp->addr, sizeof(struct in6_addr)))) {
+		    ipv6_addr_equal(pfx, &ifp->addr)) {
 			in6_ifa_hold(ifp);
 			read_unlock_bh(&idev->lock);
 			
@@ -3042,7 +3030,7 @@ int addrconf_sysctl_forward(ctl_table *ctl, int write, struct file * filp,
 			addrconf_forward_change();
 		}
 		if (*valp)
-			rt6_purge_dflt_routers(0);
+			rt6_purge_dflt_routers();
 	}
 
         return ret;
@@ -3096,7 +3084,7 @@ static int addrconf_sysctl_forward_strategy(ctl_table *table,
 		}
 
 		if (*valp)
-			rt6_purge_dflt_routers(0);
+			rt6_purge_dflt_routers();
 	} else
 		*valp = new;
 

@@ -296,12 +296,12 @@ static int lockdoor = 1;
 static int check_media_type;
 /* automatically restart mrw format */
 static int mrw_format_restart = 1;
-MODULE_PARM(debug, "i");
-MODULE_PARM(autoclose, "i");
-MODULE_PARM(autoeject, "i");
-MODULE_PARM(lockdoor, "i");
-MODULE_PARM(check_media_type, "i");
-MODULE_PARM(mrw_format_restart, "i");
+module_param(debug, bool, 0);
+module_param(autoclose, bool, 0);
+module_param(autoeject, bool, 0);
+module_param(lockdoor, bool, 0);
+module_param(check_media_type, bool, 0);
+module_param(mrw_format_restart, bool, 0);
 
 static spinlock_t cdrom_lock = SPIN_LOCK_UNLOCKED;
 
@@ -546,6 +546,8 @@ int cdrom_is_mrw(struct cdrom_device_info *cdi, int *write)
 		return ret;
 
 	mfd = (struct mrw_feature_desc *)&buffer[sizeof(struct feature_header)];
+	if (be16_to_cpu(mfd->feature_code) != CDF_MRW)
+		return 1;
 	*write = mfd->write;
 
 	if ((ret = cdrom_mrw_probe_pc(cdi))) {
@@ -868,13 +870,11 @@ static void cdrom_mmc3_profile(struct cdrom_device_info *cdi)
 	cgc.cmd[8] = sizeof(buffer);		/* Allocation Length */
 	cgc.quiet = 1;
 
-	if ((ret = cdi->ops->generic_packet(cdi, &cgc))) {
+	if ((ret = cdi->ops->generic_packet(cdi, &cgc)))
 		mmc3_profile = 0xffff;
-	} else {
+	else
 		mmc3_profile = (buffer[6] << 8) | buffer[7];
-		printk(KERN_INFO "cdrom: %s: mmc-3 profile capable, current profile: %Xh\n",
-		       cdi->name, mmc3_profile);
-	}
+
 	cdi->mmc3_profile = mmc3_profile;
 }
 

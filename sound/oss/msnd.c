@@ -33,6 +33,8 @@
 #include <linux/delay.h>
 #include <linux/mm.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
+
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -77,25 +79,6 @@ void msnd_unregister(multisound_dev_t *dev)
 
 	devs[i] = NULL;
 	--num_devs;
-}
-
-int msnd_get_num_devs(void)
-{
-	return num_devs;
-}
-
-multisound_dev_t *msnd_get_dev(int j)
-{
-	int i;
-
-	for (i = 0; i < MSND_MAX_DEVS && j; ++i)
-		if (devs[i] != NULL)
-			--j;
-
-	if (i == MSND_MAX_DEVS || j != 0)
-		return NULL;
-
-	return devs[i];
 }
 
 void msnd_init_queue(unsigned long base, int start, int size)
@@ -201,7 +184,7 @@ int msnd_fifo_read(msnd_fifo *f, char *buf, size_t len)
 	return count;
 }
 
-int msnd_wait_TXDE(multisound_dev_t *dev)
+static int msnd_wait_TXDE(multisound_dev_t *dev)
 {
 	register unsigned int io = dev->io;
 	register int timeout = 1000;
@@ -213,7 +196,7 @@ int msnd_wait_TXDE(multisound_dev_t *dev)
 	return -EIO;
 }
 
-int msnd_wait_HC0(multisound_dev_t *dev)
+static int msnd_wait_HC0(multisound_dev_t *dev)
 {
 	register unsigned int io = dev->io;
 	register int timeout = 1000;
@@ -337,8 +320,6 @@ int msnd_disable_irq(multisound_dev_t *dev)
 #ifndef LINUX20
 EXPORT_SYMBOL(msnd_register);
 EXPORT_SYMBOL(msnd_unregister);
-EXPORT_SYMBOL(msnd_get_num_devs);
-EXPORT_SYMBOL(msnd_get_dev);
 
 EXPORT_SYMBOL(msnd_init_queue);
 
@@ -349,8 +330,6 @@ EXPORT_SYMBOL(msnd_fifo_make_empty);
 EXPORT_SYMBOL(msnd_fifo_write);
 EXPORT_SYMBOL(msnd_fifo_read);
 
-EXPORT_SYMBOL(msnd_wait_TXDE);
-EXPORT_SYMBOL(msnd_wait_HC0);
 EXPORT_SYMBOL(msnd_send_dsp_cmd);
 EXPORT_SYMBOL(msnd_send_word);
 EXPORT_SYMBOL(msnd_upload_host);

@@ -913,20 +913,20 @@ static int __emul_lookup_dentry(const char *name, struct nameidata *nd)
 	return 1;
 }
 
-int __set_fs_altroot(const char *altroot)
+void set_fs_altroot(void)
 {
+	char *emul = __emul_prefix();
 	struct nameidata nd;
 	struct vfsmount *mnt = NULL, *oldmnt;
 	struct dentry *dentry = NULL, *olddentry;
 	int err;
-	if (!altroot)
+
+	if (!emul)
 		goto set_it;
-	err = path_lookup(altroot, LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_NOALT, &nd);
+	err = path_lookup(emul, LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_NOALT, &nd);
 	if (!err) {
 		mnt = nd.mnt;
 		dentry = nd.dentry;
-	} else {
-		return err;
 	}
 set_it:
 	write_lock(&current->fs->lock);
@@ -939,58 +939,6 @@ set_it:
 		dput(olddentry);
 		mntput(oldmnt);
 	}
-	return 0;
-}
-
-void set_fs_altroot(void)
-{
-	char *emul = __emul_prefix();
-
-	__set_fs_altroot(emul);
-}
-
-asmlinkage long sys_setaltroot(const char __user * altroot)
-{
-	char *emul = NULL;
-	int ret;
-
-	if (altroot) {
-		emul = getname(altroot);
-		if (IS_ERR(emul)) {
-			ret = PTR_ERR(emul);
-			goto out;
-		}
-	}
-
-	if (atomic_read(&current->fs->count) != 1) {
-		struct fs_struct *fsp, *ofsp;
-
-		fsp = copy_fs_struct(current->fs);
-		if (fsp == NULL) {
-			ret = -ENOMEM;
-			goto out_putname;
-		}
-
-		task_lock(current);
-		ofsp = current->fs;
-		current->fs = fsp;
-		task_unlock(current);
-
-		put_fs_struct(ofsp);
-	}
-
-	/*
-	 * At that point we are guaranteed to be the sole owner of
-	 * current->fs.
-	 */
-
-	ret = __set_fs_altroot(emul);
-
-out_putname:
-	if (emul)
-		putname(emul);
-out:
-	return ret;
 }
 
 int fastcall path_lookup(const char *name, unsigned int flags, struct nameidata *nd)
@@ -2388,18 +2336,6 @@ void page_put_link(struct dentry *dentry, struct nameidata *nd)
 	}
 }
 
-int page_follow_link(struct dentry *dentry, struct nameidata *nd)
-{
-	struct page *page = NULL;
-	char *s = page_getlink(dentry, &page);
-	int res = __vfs_follow_link(nd, s);
-	if (page) {
-		kunmap(page);
-		page_cache_release(page);
-	}
-	return res;
-}
-
 int page_symlink(struct inode *inode, const char *symname, int len)
 {
 	struct address_space *mapping = inode->i_mapping;
@@ -2455,7 +2391,6 @@ EXPORT_SYMBOL(getname);
 EXPORT_SYMBOL(lock_rename);
 EXPORT_SYMBOL(lookup_hash);
 EXPORT_SYMBOL(lookup_one_len);
-EXPORT_SYMBOL(page_follow_link);
 EXPORT_SYMBOL(page_follow_link_light);
 EXPORT_SYMBOL(page_put_link);
 EXPORT_SYMBOL(page_readlink);

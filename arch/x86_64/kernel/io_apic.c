@@ -36,6 +36,7 @@
 #include <asm/smp.h>
 #include <asm/desc.h>
 #include <asm/proto.h>
+#include <asm/mach_apic.h>
 
 #define __apicdebuginit  __init
 
@@ -653,11 +654,7 @@ static inline int IO_APIC_irq_trigger(int irq)
 /* irq_vectors is indexed by the sum of all RTEs in all I/O APICs. */
 u8 irq_vector[NR_IRQ_VECTORS] = { FIRST_DEVICE_VECTOR , 0 };
 
-#ifdef CONFIG_PCI_MSI
 int assign_irq_vector(int irq)
-#else
-int __init assign_irq_vector(int irq)
-#endif
 {
 	static int current_vector = FIRST_DEVICE_VECTOR, offset = 0;
 
@@ -726,8 +723,8 @@ void __init setup_IO_APIC_irqs(void)
 		 */
 		memset(&entry,0,sizeof(entry));
 
-		entry.delivery_mode = dest_LowestPrio;
-		entry.dest_mode = INT_DELIVERY_MODE;
+		entry.delivery_mode = INT_DELIVERY_MODE;
+		entry.dest_mode = INT_DEST_MODE;
 		entry.mask = 0;				/* enable IRQ */
 		entry.dest.logical.logical_dest = cpu_mask_to_apicid(TARGET_CPUS);
 
@@ -795,10 +792,10 @@ void __init setup_ExtINT_IRQ0_pin(unsigned int pin, int vector)
 	 * We use logical delivery to get the timer IRQ
 	 * to the first CPU.
 	 */
-	entry.dest_mode = INT_DELIVERY_MODE;
+	entry.dest_mode = INT_DEST_MODE;
 	entry.mask = 0;					/* unmask IRQ now */
 	entry.dest.logical.logical_dest = cpu_mask_to_apicid(TARGET_CPUS);
-	entry.delivery_mode = dest_LowestPrio;
+	entry.delivery_mode = INT_DELIVERY_MODE;
 	entry.polarity = 0;
 	entry.trigger = 0;
 	entry.vector = vector;
@@ -1146,7 +1143,6 @@ void disable_IO_APIC(void)
 static void __init setup_ioapic_ids_from_mpc (void)
 {
 	union IO_APIC_reg_00 reg_00;
-	physid_mask_t phys_id_present_map = phys_cpu_present_map;
 	int apic;
 	int i;
 	unsigned char old_id;
@@ -1172,28 +1168,7 @@ static void __init setup_ioapic_ids_from_mpc (void)
 			mp_ioapics[apic].mpc_apicid = reg_00.bits.ID;
 		}
 
-		/*
-		 * Sanity check, is the ID really free? Every APIC in a
-		 * system must have a unique ID or we get lots of nice
-		 * 'stuck on smp_invalidate_needed IPI wait' messages.
-	 	 */
-		if (physid_isset(mp_ioapics[apic].mpc_apicid, phys_id_present_map)) {
-			printk(KERN_ERR "BIOS bug, IO-APIC#%d ID %d is already used!...\n",
-				apic, mp_ioapics[apic].mpc_apicid);
-			for (i = 0; i < 0xf; i++)
-				if (!physid_isset(i, phys_id_present_map))
-					break;
-			if (i >= 0xf)
-				panic("Max APIC ID exceeded!\n");
-			printk(KERN_ERR "... fixing up to %d. (tell your hw vendor)\n",
-				i);
-			physid_set(i, phys_id_present_map);
-			mp_ioapics[apic].mpc_apicid = i;
-		} else {
-			printk(KERN_INFO 
-			       "Using IO-APIC %d\n", mp_ioapics[apic].mpc_apicid);
-			physid_set(mp_ioapics[apic].mpc_apicid, phys_id_present_map);
-		}
+		printk(KERN_INFO "Using IO-APIC %d\n", mp_ioapics[apic].mpc_apicid);
 
 
 		/*
@@ -1348,9 +1323,9 @@ static void set_ioapic_affinity_irq(unsigned int irq, cpumask_t mask)
 	dest = cpu_mask_to_apicid(mask);
 
 	/*
-	 * Only the first 8 bits are valid.
+	 * Only the high 8 bits are valid.
 	 */
-	dest = dest << 24;
+	dest = SET_APIC_LOGICAL_ID(dest);
 
 	spin_lock_irqsave(&ioapic_lock, flags);
 	__DO_ACTION(1, = dest, )
@@ -1832,7 +1807,7 @@ device_initcall(ioapic_init_sysfs);
 
 #ifdef CONFIG_ACPI_BOOT
 
-#define IO_APIC_MAX_ID		15
+#define IO_APIC_MAX_ID		0xFE
 
 int __init io_apic_get_unique_id (int ioapic, int apic_id)
 {
@@ -1949,8 +1924,8 @@ int io_apic_set_pci_routing (int ioapic, int pin, int irq, int edge_level, int a
 
 	memset(&entry,0,sizeof(entry));
 
-	entry.delivery_mode = dest_LowestPrio;
-	entry.dest_mode = INT_DELIVERY_MODE;
+	entry.delivery_mode = INT_DELIVERY_MODE;
+	entry.dest_mode = INT_DEST_MODE;
 	entry.dest.logical.logical_dest = cpu_mask_to_apicid(TARGET_CPUS);
 	entry.trigger = edge_level;
 	entry.polarity = active_high_low;
@@ -1983,24 +1958,6 @@ int io_apic_set_pci_routing (int ioapic, int pin, int irq, int edge_level, int a
 }
 
 #endif /*CONFIG_ACPI_BOOT*/
-
-#ifndef CONFIG_SMP
-void send_IPI_self(int vector)
-{
-	unsigned int cfg;
-
-       /*
-        * Wait for idle.
-        */
-	apic_wait_icr_idle();
-	cfg = APIC_DM_FIXED | APIC_DEST_SELF | vector | APIC_DEST_LOGICAL;
-
-	/*
-	 * Send the IPI. The write to APIC_ICR fires this off.
-	 */
-	apic_write_around(APIC_ICR, cfg);
-}
-#endif
 
 
 /*

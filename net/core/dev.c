@@ -520,35 +520,6 @@ struct net_device *dev_get_by_name(const char *name)
 	return dev;
 }
 
-/*
-   Return value is changed to int to prevent illegal usage in future.
-   It is still legal to use to check for device existence.
-
-   User should understand, that the result returned by this function
-   is meaningless, if it was not issued under rtnl semaphore.
- */
-
-/**
- *	dev_get	-	test if a device exists
- *	@name:	name to test for
- *
- *	Test if a name exists. Returns true if the name is found. In order
- *	to be sure the name is not allocated or removed during the test the
- *	caller must hold the rtnl semaphore.
- *
- *	This function exists only for back compatibility with older
- *	drivers.
- */
-int __dev_get(const char *name)
-{
-	struct net_device *dev;
-
-	read_lock(&dev_base_lock);
-	dev = __dev_get_by_name(name);
-	read_unlock(&dev_base_lock);
-	return dev != NULL;
-}
-
 /**
  *	__dev_get_by_index - find a device by its ifindex
  *	@ifindex: index of device
@@ -623,26 +594,17 @@ struct net_device *dev_getbyhwaddr(unsigned short type, char *ha)
 	return dev;
 }
 
-struct net_device *__dev_getfirstbyhwtype(unsigned short type)
-{
-	struct net_device *dev;
-
-	for (dev = dev_base; dev; dev = dev->next)
-		if (dev->type == type)
-			break;
-	return dev;
-}
-
-EXPORT_SYMBOL(__dev_getfirstbyhwtype);
-
 struct net_device *dev_getfirstbyhwtype(unsigned short type)
 {
 	struct net_device *dev;
 
 	rtnl_lock();
-	dev = __dev_getfirstbyhwtype(type);
-	if (dev)
-		dev_hold(dev);
+	for (dev = dev_base; dev; dev = dev->next) {
+		if (dev->type == type) {
+			dev_hold(dev);
+			break;
+		}
+	}
 	rtnl_unlock();
 	return dev;
 }
@@ -665,32 +627,14 @@ struct net_device * dev_get_by_flags(unsigned short if_flags, unsigned short mas
 	struct net_device *dev;
 
 	read_lock(&dev_base_lock);
-	dev = __dev_get_by_flags(if_flags, mask);
-	if (dev)
-		dev_hold(dev);
+	for (dev = dev_base; dev != NULL; dev = dev->next) {
+		if (((dev->flags ^ if_flags) & mask) == 0) {
+			dev_hold(dev);
+			break;
+		}
+	}
 	read_unlock(&dev_base_lock);
 	return dev;
-}
-
-/**
- *	__dev_get_by_flags - find any device with given flags
- *	@if_flags: IFF_* values
- *	@mask: bitmask of bits in if_flags to check
- *
- *	Search for any interface with the given flags. Returns NULL if a device
- *	is not found or a pointer to the device. The caller must hold either
- *	the RTNL semaphore or @dev_base_lock.
- */
-
-struct net_device *__dev_get_by_flags(unsigned short if_flags, unsigned short mask)
-{
-	struct net_device *dev;
-
-	for (dev = dev_base; dev != NULL; dev = dev->next) {
-		if (((dev->flags ^ if_flags) & mask) == 0)
-			return dev;
-	}
-	return NULL;
 }
 
 /**
@@ -1106,34 +1050,34 @@ void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
  * Invalidate hardware checksum when packet is to be mangled, and
  * complete checksum manually on outgoing path.
  */
-int skb_checksum_help(struct sk_buff **pskb, int inward)
+int skb_checksum_help(struct sk_buff *skb, int inward)
 {
 	unsigned int csum;
-	int ret = 0, offset = (*pskb)->h.raw - (*pskb)->data;
+	int ret = 0, offset = skb->h.raw - skb->data;
 
 	if (inward) {
-		(*pskb)->ip_summed = CHECKSUM_NONE;
+		skb->ip_summed = CHECKSUM_NONE;
 		goto out;
 	}
 
-	if (skb_cloned(*pskb)) {
-		ret = pskb_expand_head(*pskb, 0, 0, GFP_ATOMIC);
+	if (skb_cloned(skb)) {
+		ret = pskb_expand_head(skb, 0, 0, GFP_ATOMIC);
 		if (ret)
 			goto out;
 	}
 
-	if (offset > (int)(*pskb)->len)
+	if (offset > (int)skb->len)
 		BUG();
-	csum = skb_checksum(*pskb, offset, (*pskb)->len-offset, 0);
+	csum = skb_checksum(skb, offset, skb->len-offset, 0);
 
-	offset = (*pskb)->tail - (*pskb)->h.raw;
+	offset = skb->tail - skb->h.raw;
 	if (offset <= 0)
 		BUG();
-	if ((*pskb)->csum + 2 > offset)
+	if (skb->csum + 2 > offset)
 		BUG();
 
-	*(u16*)((*pskb)->h.raw + (*pskb)->csum) = csum_fold(csum);
-	(*pskb)->ip_summed = CHECKSUM_NONE;
+	*(u16*)(skb->h.raw + skb->csum) = csum_fold(csum);
+	skb->ip_summed = CHECKSUM_NONE;
 out:	
 	return ret;
 }
@@ -1282,9 +1226,8 @@ int dev_queue_xmit(struct sk_buff *skb)
 	    (!(dev->features & (NETIF_F_HW_CSUM | NETIF_F_NO_CSUM)) &&
 	     (!(dev->features & NETIF_F_IP_CSUM) ||
 	      skb->protocol != htons(ETH_P_IP))))
-	      	if (skb_checksum_help(&skb, 0))
+	      	if (skb_checksum_help(skb, 0))
 	      		goto out_kfree_skb;
-
 
 	/* Disable soft irqs for various locks below. Also 
 	 * stops preemption for RCU. 
@@ -1353,7 +1296,6 @@ int dev_queue_xmit(struct sk_buff *skb)
 			if (net_ratelimit())
 				printk(KERN_CRIT "Virtual device %s asks to "
 				       "queue packet!\n", dev->name);
-			goto out_enetdown;
 		} else {
 			/* Recursion is detected! It is possible,
 			 * unfortunately */
@@ -1362,10 +1304,13 @@ int dev_queue_xmit(struct sk_buff *skb)
 				       "%s, fix it urgently!\n", dev->name);
 		}
 	}
-out_enetdown:
+
 	rc = -ENETDOWN;
+	local_bh_enable();
+
 out_kfree_skb:
 	kfree_skb(skb);
+	return rc;
 out:
 	local_bh_enable();
 	return rc;
@@ -1389,66 +1334,6 @@ int mod_cong = 290;
 
 DEFINE_PER_CPU(struct netif_rx_stats, netdev_rx_stat) = { 0, };
 
-
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-atomic_t netdev_dropping = ATOMIC_INIT(0);
-static unsigned long netdev_fc_mask = 1;
-unsigned long netdev_fc_xoff;
-spinlock_t netdev_fc_lock = SPIN_LOCK_UNLOCKED;
-
-static struct
-{
-	void (*stimul)(struct net_device *);
-	struct net_device *dev;
-} netdev_fc_slots[BITS_PER_LONG];
-
-int netdev_register_fc(struct net_device *dev,
-		       void (*stimul)(struct net_device *dev))
-{
-	int bit = 0;
-	unsigned long flags;
-
-	spin_lock_irqsave(&netdev_fc_lock, flags);
-	if (netdev_fc_mask != ~0UL) {
-		bit = ffz(netdev_fc_mask);
-		netdev_fc_slots[bit].stimul = stimul;
-		netdev_fc_slots[bit].dev = dev;
-		set_bit(bit, &netdev_fc_mask);
-		clear_bit(bit, &netdev_fc_xoff);
-	}
-	spin_unlock_irqrestore(&netdev_fc_lock, flags);
-	return bit;
-}
-
-void netdev_unregister_fc(int bit)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&netdev_fc_lock, flags);
-	if (bit > 0) {
-		netdev_fc_slots[bit].stimul = NULL;
-		netdev_fc_slots[bit].dev = NULL;
-		clear_bit(bit, &netdev_fc_mask);
-		clear_bit(bit, &netdev_fc_xoff);
-	}
-	spin_unlock_irqrestore(&netdev_fc_lock, flags);
-}
-
-static void netdev_wakeup(void)
-{
-	unsigned long xoff;
-
-	spin_lock(&netdev_fc_lock);
-	xoff = netdev_fc_xoff;
-	netdev_fc_xoff = 0;
-	while (xoff) {
-		int i = ffz(~xoff);
-		xoff &= ~(1 << i);
-		netdev_fc_slots[i].stimul(netdev_fc_slots[i].dev);
-	}
-	spin_unlock(&netdev_fc_lock);
-}
-#endif
 
 static void get_sample_stats(int cpu)
 {
@@ -1559,13 +1444,8 @@ enqueue:
 			return queue->cng_level;
 		}
 
-		if (queue->throttle) {
+		if (queue->throttle)
 			queue->throttle = 0;
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-			if (atomic_dec_and_test(&netdev_dropping))
-				netdev_wakeup();
-#endif
-		}
 
 		netif_rx_schedule(&queue->backlog_dev);
 		goto enqueue;
@@ -1574,9 +1454,6 @@ enqueue:
 	if (!queue->throttle) {
 		queue->throttle = 1;
 		__get_cpu_var(netdev_rx_stat).throttled++;
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-		atomic_inc(&netdev_dropping);
-#endif
 	}
 
 drop:
@@ -1848,16 +1725,6 @@ static int process_backlog(struct net_device *backlog_dev, int *budget)
 		if (work >= quota || jiffies - start_time > 1)
 			break;
 
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-		if (queue->throttle &&
-		    queue->input_pkt_queue.qlen < no_cong_thresh ) {
-			queue->throttle = 0;
-			if (atomic_dec_and_test(&netdev_dropping)) {
-				netdev_wakeup();
-				break;
-			}
-		}
-#endif
 	}
 
 	backlog_dev->quota -= work;
@@ -1872,13 +1739,8 @@ job_done:
 	smp_mb__before_clear_bit();
 	netif_poll_enable(backlog_dev);
 
-	if (queue->throttle) {
+	if (queue->throttle)
 		queue->throttle = 0;
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-		if (atomic_dec_and_test(&netdev_dropping))
-			netdev_wakeup();
-#endif
-	}
 	local_irq_enable();
 	return 0;
 }
@@ -2458,8 +2320,11 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 			return dev_set_mtu(dev, ifr->ifr_mtu);
 
 		case SIOCGIFHWADDR:
-			memcpy(ifr->ifr_hwaddr.sa_data, dev->dev_addr,
-			       min(sizeof ifr->ifr_hwaddr.sa_data, (size_t) dev->addr_len));
+			if (!dev->addr_len)
+				memset(ifr->ifr_hwaddr.sa_data, 0, sizeof ifr->ifr_hwaddr.sa_data);
+			else
+				memcpy(ifr->ifr_hwaddr.sa_data, dev->dev_addr,
+				       min(sizeof ifr->ifr_hwaddr.sa_data, (size_t) dev->addr_len));
 			ifr->ifr_hwaddr.sa_family = dev->type;
 			return 0;
 
@@ -2779,7 +2644,7 @@ int dev_ioctl(unsigned int cmd, void __user *arg)
  *	number.  The caller must hold the rtnl semaphore or the
  *	dev_base_lock to be sure it remains unique.
  */
-int dev_new_index(void)
+static int dev_new_index(void)
 {
 	static int ifindex;
 	for (;;) {
@@ -3319,30 +3184,23 @@ out:
 
 subsys_initcall(net_dev_init);
 
-EXPORT_SYMBOL(__dev_get);
-EXPORT_SYMBOL(__dev_get_by_flags);
 EXPORT_SYMBOL(__dev_get_by_index);
 EXPORT_SYMBOL(__dev_get_by_name);
 EXPORT_SYMBOL(__dev_remove_pack);
 EXPORT_SYMBOL(__skb_linearize);
-EXPORT_SYMBOL(call_netdevice_notifiers);
 EXPORT_SYMBOL(dev_add_pack);
 EXPORT_SYMBOL(dev_alloc_name);
 EXPORT_SYMBOL(dev_close);
 EXPORT_SYMBOL(dev_get_by_flags);
 EXPORT_SYMBOL(dev_get_by_index);
 EXPORT_SYMBOL(dev_get_by_name);
-EXPORT_SYMBOL(dev_getbyhwaddr);
 EXPORT_SYMBOL(dev_ioctl);
-EXPORT_SYMBOL(dev_new_index);
 EXPORT_SYMBOL(dev_open);
 EXPORT_SYMBOL(dev_queue_xmit);
-EXPORT_SYMBOL(dev_queue_xmit_nit);
 EXPORT_SYMBOL(dev_remove_pack);
 EXPORT_SYMBOL(dev_set_allmulti);
 EXPORT_SYMBOL(dev_set_promiscuity);
 EXPORT_SYMBOL(dev_change_flags);
-EXPORT_SYMBOL(dev_change_name);
 EXPORT_SYMBOL(dev_set_mtu);
 EXPORT_SYMBOL(free_netdev);
 EXPORT_SYMBOL(netdev_boot_setup_check);
@@ -3364,12 +3222,6 @@ EXPORT_SYMBOL(br_handle_frame_hook);
 
 #ifdef CONFIG_KMOD
 EXPORT_SYMBOL(dev_load);
-#endif
-#ifdef CONFIG_NET_HW_FLOWCONTROL
-EXPORT_SYMBOL(netdev_dropping);
-EXPORT_SYMBOL(netdev_fc_xoff);
-EXPORT_SYMBOL(netdev_register_fc);
-EXPORT_SYMBOL(netdev_unregister_fc);
 #endif
 
 #ifdef CONFIG_NET_CLS_ACT

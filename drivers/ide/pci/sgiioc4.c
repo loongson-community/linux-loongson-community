@@ -332,17 +332,6 @@ sgiioc4_ide_dma_host_off(ide_drive_t * drive)
 }
 
 static int
-sgiioc4_ide_dma_verbose(ide_drive_t * drive)
-{
-	if (drive->using_dma == 1)
-		printk(", UDMA(16)");
-	else
-		printk(", PIO");
-
-	return 1;
-}
-
-static int
 sgiioc4_ide_dma_lostirq(ide_drive_t * drive)
 {
 	HWIF(drive)->resetproc(drive);
@@ -379,7 +368,7 @@ sgiioc4_INB(unsigned long port)
 }
 
 /* Creates a dma map for the scatter-gather list entries */
-static void __init
+static void __devinit
 ide_dma_sgiioc4(ide_hwif_t * hwif, unsigned long dma_base)
 {
 	int num_ports = sizeof (ioc4_dma_regs_t);
@@ -501,10 +490,7 @@ sgiioc4_build_dma_table(ide_drive_t * drive, struct request *rq, int ddir)
 	unsigned int count = 0, i = 1;
 	struct scatterlist *sg;
 
-	if (HWGROUP(drive)->rq->flags & REQ_DRIVE_TASKFILE)
-		hwif->sg_nents = i = ide_raw_build_sglist(drive, rq);
-	else
-		hwif->sg_nents = i = ide_build_sglist(drive, rq);
+	hwif->sg_nents = i = ide_build_sglist(drive, rq);
 
 	if (!i)
 		return 0;	/* sglist of length Zero */
@@ -593,7 +579,7 @@ static int sgiioc4_ide_dma_setup(ide_drive_t *drive)
 	return 0;
 }
 
-static void __init
+static void __devinit
 ide_init_sgiioc4(ide_hwif_t * hwif)
 {
 	hwif->mmio = 2;
@@ -623,13 +609,12 @@ ide_init_sgiioc4(ide_hwif_t * hwif)
 	hwif->ide_dma_test_irq = &sgiioc4_ide_dma_test_irq;
 	hwif->ide_dma_host_on = &sgiioc4_ide_dma_host_on;
 	hwif->ide_dma_host_off = &sgiioc4_ide_dma_host_off;
-	hwif->ide_dma_verbose = &sgiioc4_ide_dma_verbose;
 	hwif->ide_dma_lostirq = &sgiioc4_ide_dma_lostirq;
 	hwif->ide_dma_timeout = &__ide_dma_timeout;
 	hwif->INB = &sgiioc4_INB;
 }
 
-static int __init
+static int __devinit
 sgiioc4_ide_setup_pci_device(struct pci_dev *dev, ide_pci_device_t * d)
 {
 	unsigned long base, ctl, dma_base, irqport;
@@ -692,7 +677,7 @@ sgiioc4_ide_setup_pci_device(struct pci_dev *dev, ide_pci_device_t * d)
 	return 0;
 }
 
-static unsigned int __init
+static unsigned int __devinit
 pci_init_sgiioc4(struct pci_dev *dev, ide_pci_device_t * d)
 {
 	unsigned int class_rev;
@@ -745,13 +730,13 @@ static struct pci_device_id sgiioc4_pci_tbl[] = {
 };
 MODULE_DEVICE_TABLE(pci, sgiioc4_pci_tbl);
 
-static struct pci_driver driver = {
+static struct pci_driver __devinitdata driver = {
 	.name = "SGI-IOC4_IDE",
 	.id_table = sgiioc4_pci_tbl,
 	.probe = sgiioc4_init_one,
 };
 
-static int
+static int __devinit
 sgiioc4_ide_init(void)
 {
 	return ide_pci_register_driver(&driver);

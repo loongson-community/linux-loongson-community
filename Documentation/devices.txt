@@ -2546,12 +2546,7 @@ Your cooperation is appreciated.
 		  0 = /dev/usb/lp0	First USB printer
 		    ...
 		 15 = /dev/usb/lp15	16th USB printer
-		 16 = /dev/usb/mouse0	First USB mouse
-		    ...
-		 31 = /dev/usb/mouse15	16th USB mouse
-		 32 = /dev/usb/ez0	First USB firmware loader
-		    ...
-		 47 = /dev/usb/ez15	16th USB firmware loader
+		 32 = /dev/usb/mdc800	MDC800 USB camera
 		 48 = /dev/usb/scanner0	First USB scanner
 		    ...
 		 63 = /dev/usb/scanner15 16th USB scanner
@@ -2559,6 +2554,22 @@ Your cooperation is appreciated.
 		 65 = /dev/usb/usblcd	USBLCD Interface (info@usblcd.de)
 		 66 = /dev/usb/cpad0	Synaptics cPad (mouse/LCD)
 
+		 96 = /dev/usb/hiddev0	1st USB HID device
+		    ...
+		111 = /dev/usb/hiddev15	16th USB HID device
+		112 = /dev/usb/auer0	1st auerswald ISDN device
+		    ...
+		127 = /dev/usb/auer15	16th auerswald ISDN device
+		128 = /dev/usb/brlvgr0	First Braille Voyager device
+		    ...
+		131 = /dev/usb/brlvgr3	Fourth Braille Voyager device
+		144 = /dev/usb/lcd	USB LCD device
+		160 = /dev/usb/legousbtower0	1st USB Legotower device
+		    ...
+		175 = /dev/usb/legousbtower15	16th USB Legotower device
+		240 = /dev/usb/dabusb0	First daubusb device
+		    ...
+		243 = /dev/usb/dabusb3	Fourth dabusb device
 
 181 char	Conrad Electronic parallel port radio clocks
 		  0 = /dev/pcfclock0	First Conrad radio clock
@@ -2747,6 +2758,10 @@ Your cooperation is appreciated.
 		 43 = /dev/ttySMX2		Motorola i.MX - port 2
 		 44 = /dev/ttyMM0		Marvell MPSC - port 0
 		 45 = /dev/ttyMM1		Marvell MPSC - port 1
+		 46 = /dev/ttyCPM0		PPC CPM (SCC or SMC) - port 0
+		    ...
+		 49 = /dev/ttyCPM5		PPC CPM (SCC or SMC) - port 5
+
 
 205 char	Low-density serial ports (alternate device)
 		  0 = /dev/culu0		Callout device for ttyLU0
@@ -2775,6 +2790,9 @@ Your cooperation is appreciated.
 		 41 = /dev/ttySMX0		Callout device for ttySMX0
 		 42 = /dev/ttySMX1		Callout device for ttySMX1
 		 43 = /dev/ttySMX2		Callout device for ttySMX2
+		 46 = /dev/cucpm0		Callout device for ttyCPM0
+		    ...
+		 49 = /dev/cucpm5		Callout device for ttyCPM5
 
 206 char	OnStream SC-x0 tape devices
 		  0 = /dev/osst0		First OnStream SCSI tape, mode 0

@@ -698,8 +698,6 @@ static inline int sk_stream_rmem_schedule(struct sock *sk, struct sk_buff *skb)
  * Since ~2.3.5 it is also exclusive sleep lock serializing
  * accesses from user process context.
  */
-extern void __lock_sock(struct sock *sk);
-extern void __release_sock(struct sock *sk);
 #define sock_owned_by_user(sk)	((sk)->sk_lock.owner)
 
 extern void FASTCALL(lock_sock(struct sock *sk));
@@ -746,7 +744,6 @@ extern void sk_send_sigurg(struct sock *sk);
  * Functions to fill in entries in struct proto_ops when a protocol
  * does not implement a particular function.
  */
-extern int                      sock_no_release(struct socket *);
 extern int                      sock_no_bind(struct socket *, 
 					     struct sockaddr *, int);
 extern int                      sock_no_connect(struct socket *,
@@ -1275,7 +1272,6 @@ static inline void sk_eat_skb(struct sock *sk, struct sk_buff *skb)
 
 extern atomic_t netstamp_needed;
 extern void sock_enable_timestamp(struct sock *sk);
-extern void sock_disable_timestamp(struct sock *sk);
 
 static inline void net_timestamp(struct timeval *stamp) 
 { 

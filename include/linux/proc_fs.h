@@ -193,6 +193,7 @@ static inline void proc_net_remove(const char *name)
 
 #define proc_root_driver NULL
 #define proc_net NULL
+#define proc_bus NULL
 
 #define proc_net_fops_create(name, mode, fops)  ({ (void)(mode), NULL; })
 #define proc_net_create(name, mode, info)	({ (void)(mode), NULL; })
@@ -226,7 +227,7 @@ extern struct proc_dir_entry proc_root;
 
 #endif /* CONFIG_PROC_FS */
 
-#if !defined(CONFIG_PROC_FS)
+#if !defined(CONFIG_PROC_KCORE)
 static inline void kclist_add(struct kcore_list *new, void *addr, size_t size)
 {
 }

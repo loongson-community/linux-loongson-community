@@ -1,5 +1,5 @@
 /*
-    $Id: bttv-i2c.c,v 1.10 2004/10/06 17:30:51 kraxel Exp $
+    $Id: bttv-i2c.c,v 1.13 2004/11/07 13:17:15 kraxel Exp $
 
     bttv-i2c.c  --  all the i2c code is here
 
@@ -22,7 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-    
+
 */
 
 #include <linux/module.h>
@@ -37,19 +37,15 @@ static struct i2c_adapter bttv_i2c_adap_sw_template;
 static struct i2c_adapter bttv_i2c_adap_hw_template;
 static struct i2c_client bttv_i2c_client_template;
 
-#ifndef I2C_PEC
-static void bttv_inc_use(struct i2c_adapter *adap);
-static void bttv_dec_use(struct i2c_adapter *adap);
-#endif
 static int attach_inform(struct i2c_client *client);
 static int detach_inform(struct i2c_client *client);
 
 static int i2c_debug = 0;
 static int i2c_hw = 0;
 static int i2c_scan = 0;
-MODULE_PARM(i2c_debug,"i");
-MODULE_PARM(i2c_hw,"i");
-MODULE_PARM(i2c_scan,"i");
+module_param(i2c_debug, int, 0644);
+module_param(i2c_hw,    int, 0444);
+module_param(i2c_scan,  int, 0444);
 MODULE_PARM_DESC(i2c_scan,"scan i2c bus at insmod time");
 
 /* ----------------------------------------------------------------------- */
@@ -83,7 +79,7 @@ static int bttv_bit_getscl(void *data)
 {
 	struct bttv *btv = (struct bttv*)data;
 	int state;
-	
+
 	state = btread(BT848_I2C) & 0x02 ? 1 : 0;
 	return state;
 }
@@ -108,12 +104,7 @@ static struct i2c_algo_bit_data bttv_i2c_algo_bit_template = {
 };
 
 static struct i2c_adapter bttv_i2c_adap_sw_template = {
-#ifdef I2C_PEC
 	.owner             = THIS_MODULE,
-#else
-	.inc_use           = bttv_inc_use,
-	.dec_use           = bttv_dec_use,
-#endif
 #ifdef I2C_CLASS_TV_ANALOG
 	.class             = I2C_CLASS_TV_ANALOG,
 #endif
@@ -126,7 +117,7 @@ static struct i2c_adapter bttv_i2c_adap_sw_template = {
 /* ----------------------------------------------------------------------- */
 /* I2C functions - hardware i2c                                            */
 
-static int algo_control(struct i2c_adapter *adapter, 
+static int algo_control(struct i2c_adapter *adapter,
 			unsigned int cmd, unsigned long arg)
 {
 	return 0;
@@ -142,7 +133,7 @@ bttv_i2c_wait_done(struct bttv *btv)
 {
 	DECLARE_WAITQUEUE(wait, current);
 	int rc = 0;
-	
+
 	add_wait_queue(&btv->i2c_queue, &wait);
 	if (0 == btv->i2c_done)
 		msleep_interruptible(20);
@@ -290,12 +281,7 @@ static struct i2c_algorithm bttv_algo = {
 };
 
 static struct i2c_adapter bttv_i2c_adap_hw_template = {
-#ifdef I2C_PEC
 	.owner         = THIS_MODULE,
-#else
-	.inc_use       = bttv_inc_use,
-	.dec_use       = bttv_dec_use,
-#endif
 #ifdef I2C_CLASS_TV_ANALOG
 	.class         = I2C_CLASS_TV_ANALOG,
 #endif
@@ -305,6 +291,9 @@ static struct i2c_adapter bttv_i2c_adap_hw_template = {
 	.client_register = attach_inform,
 	.client_unregister = detach_inform,
 };
+
+/* ----------------------------------------------------------------------- */
+/* I2C functions - common stuff                                            */
 
 static int attach_inform(struct i2c_client *client)
 {
@@ -352,7 +341,7 @@ static struct i2c_client bttv_i2c_client_template = {
 
 
 /* read I2C */
-int bttv_I2CRead(struct bttv *btv, unsigned char addr, char *probe_for) 
+int bttv_I2CRead(struct bttv *btv, unsigned char addr, char *probe_for)
 {
         unsigned char buffer = 0;
 
@@ -397,7 +386,7 @@ int bttv_I2CWrite(struct bttv *btv, unsigned char addr, unsigned char b1,
 void __devinit bttv_readee(struct bttv *btv, unsigned char *eedata, int addr)
 {
 	int i;
-        
+
 	if (bttv_I2CWrite(btv, addr, 0, -1, 0)<0) {
 		printk(KERN_WARNING "bttv: readee error\n");
 		return;

@@ -196,10 +196,14 @@ struct Qdisc *qdisc_lookup(struct net_device *dev, u32 handle)
 {
 	struct Qdisc *q;
 
+	read_lock_bh(&qdisc_tree_lock);
 	list_for_each_entry(q, &dev->qdisc_list, list) {
-		if (q->handle == handle)
+		if (q->handle == handle) {
+			read_unlock_bh(&qdisc_tree_lock);
 			return q;
+		}
 	}
+	read_unlock_bh(&qdisc_tree_lock);
 	return NULL;
 }
 
@@ -229,8 +233,11 @@ struct Qdisc_ops *qdisc_lookup_ops(struct rtattr *kind)
 	if (kind) {
 		read_lock(&qdisc_mod_lock);
 		for (q = qdisc_base; q; q = q->next) {
-			if (rtattr_strcmp(kind, q->id) == 0)
+			if (rtattr_strcmp(kind, q->id) == 0) {
+				if (!try_module_get(q->owner))
+					q = NULL;
 				break;
+			}
 		}
 		read_unlock(&qdisc_mod_lock);
 	}
@@ -308,7 +315,7 @@ dev_graft_qdisc(struct net_device *dev, struct Qdisc *qdisc)
 		dev_deactivate(dev);
 
 	qdisc_lock_tree(dev);
-	if (qdisc && qdisc->flags&TCQ_F_INGRES) {
+	if (qdisc && qdisc->flags&TCQ_F_INGRESS) {
 		oqdisc = dev->qdisc_ingress;
 		/* Prune old scheduler */
 		if (oqdisc && atomic_read(&oqdisc->refcnt) <= 1) {
@@ -357,7 +364,7 @@ int qdisc_graft(struct net_device *dev, struct Qdisc *parent, u32 classid,
 
 
 	if (parent == NULL) { 
-		if (q && q->flags&TCQ_F_INGRES) {
+		if (q && q->flags&TCQ_F_INGRESS) {
 			*old = dev_graft_qdisc(dev, q);
 		} else {
 			*old = dev_graft_qdisc(dev, new);
@@ -409,9 +416,6 @@ qdisc_create(struct net_device *dev, u32 handle, struct rtattr **tca, int *errp)
 	err = -EINVAL;
 	if (ops == NULL)
 		goto err_out;
-	err = -EBUSY;
-	if (!try_module_get(ops->owner))
-		goto err_out;
 
 	/* ensure that the Qdisc and the private data are 32-byte aligned */
 	size = ((sizeof(*sch) + QDISC_ALIGN_CONST) & ~QDISC_ALIGN_CONST);
@@ -430,7 +434,7 @@ qdisc_create(struct net_device *dev, u32 handle, struct rtattr **tca, int *errp)
 	skb_queue_head_init(&sch->q);
 
 	if (handle == TC_H_INGRESS)
-		sch->flags |= TCQ_F_INGRES;
+		sch->flags |= TCQ_F_INGRESS;
 
 	sch->ops = ops;
 	sch->enqueue = ops->enqueue;
@@ -451,9 +455,6 @@ qdisc_create(struct net_device *dev, u32 handle, struct rtattr **tca, int *errp)
         else
                 sch->handle = handle;
 
-	/* enqueue is accessed locklessly - make sure it's visible
-	 * before we set a netdevice's qdisc pointer to sch */
-	smp_wmb();
 	if (!ops->init || (err = ops->init(sch, tca[TCA_OPTIONS-1])) == 0) {
 		qdisc_lock_tree(dev);
 		list_add_tail(&sch->list, &dev->qdisc_list);
@@ -728,19 +729,6 @@ graft:
 	}
 	return 0;
 }
-
-int qdisc_copy_stats(struct sk_buff *skb, struct tc_stats *st, spinlock_t *lock)
-{
-	spin_lock_bh(lock);
-	RTA_PUT(skb, TCA_STATS, sizeof(struct tc_stats), st);
-	spin_unlock_bh(lock);
-	return 0;
-
-rtattr_failure:
-	spin_unlock_bh(lock);
-	return -1;
-}
-
 
 static int tc_fill_qdisc(struct sk_buff *skb, struct Qdisc *q, u32 clid,
 			 u32 pid, u32 seq, unsigned flags, int event)
@@ -1099,8 +1087,54 @@ static int tc_dump_tclass(struct sk_buff *skb, struct netlink_callback *cb)
 	return skb->len;
 }
 
-int psched_us_per_tick = 1;
-int psched_tick_per_us = 1;
+/* Main classifier routine: scans classifier chain attached
+   to this qdisc, (optionally) tests for protocol and asks
+   specific classifiers.
+ */
+int tc_classify(struct sk_buff *skb, struct tcf_proto *tp,
+	struct tcf_result *res)
+{
+	int err = 0;
+	u32 protocol = skb->protocol;
+#ifdef CONFIG_NET_CLS_ACT
+	struct tcf_proto *otp = tp;
+reclassify:
+#endif
+	protocol = skb->protocol;
+
+	for ( ; tp; tp = tp->next) {
+		if ((tp->protocol == protocol ||
+			tp->protocol == __constant_htons(ETH_P_ALL)) &&
+			(err = tp->classify(skb, tp, res)) >= 0) {
+#ifdef CONFIG_NET_CLS_ACT
+			if ( TC_ACT_RECLASSIFY == err) {
+				__u32 verd = (__u32) G_TC_VERD(skb->tc_verd);
+				tp = otp;
+
+				if (MAX_REC_LOOP < verd++) {
+					printk("rule prio %d protocol %02x reclassify is buggy packet dropped\n",
+						tp->prio&0xffff, ntohs(tp->protocol));
+					return TC_ACT_SHOT;
+				}
+				skb->tc_verd = SET_TC_VERD(skb->tc_verd,verd);
+				goto reclassify;
+			} else {
+				if (skb->tc_verd) 
+					skb->tc_verd = SET_TC_VERD(skb->tc_verd,0);
+				return err;
+			}
+#else
+
+			return err;
+#endif
+		}
+
+	}
+	return -1;
+}
+
+static int psched_us_per_tick = 1;
+static int psched_tick_per_us = 1;
 
 #ifdef CONFIG_PROC_FS
 static int psched_show(struct seq_file *seq, void *v)
@@ -1124,21 +1158,6 @@ static struct file_operations psched_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };	
-#endif
-
-#ifdef CONFIG_NET_SCH_CLK_GETTIMEOFDAY
-int psched_tod_diff(int delta_sec, int bound)
-{
-	int delta;
-
-	if (bound <= 1000000 || delta_sec > (0x7FFFFFFF/1000000)-1)
-		return bound;
-	delta = delta_sec * 1000000;
-	if (delta > bound)
-		delta = bound;
-	return delta;
-}
-EXPORT_SYMBOL(psched_tod_diff);
 #endif
 
 #ifdef CONFIG_NET_SCH_CLK_CPU
@@ -1241,8 +1260,8 @@ static int __init pktsched_init(void)
 
 subsys_initcall(pktsched_init);
 
-EXPORT_SYMBOL(qdisc_copy_stats);
 EXPORT_SYMBOL(qdisc_get_rtab);
 EXPORT_SYMBOL(qdisc_put_rtab);
 EXPORT_SYMBOL(register_qdisc);
 EXPORT_SYMBOL(unregister_qdisc);
+EXPORT_SYMBOL(tc_classify);

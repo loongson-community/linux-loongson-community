@@ -448,8 +448,8 @@ static struct sock *__tcp_v4_lookup_listener(struct hlist_head *head, u32 daddr,
 }
 
 /* Optimize the common listener case. */
-inline struct sock *tcp_v4_lookup_listener(u32 daddr, unsigned short hnum,
-					   int dif)
+static inline struct sock *tcp_v4_lookup_listener(u32 daddr,
+		unsigned short hnum, int dif)
 {
 	struct sock *sk = NULL;
 	struct hlist_head *head;
@@ -534,6 +534,8 @@ inline struct sock *tcp_v4_lookup(u32 saddr, u16 sport, u32 daddr,
 
 	return sk;
 }
+
+EXPORT_SYMBOL_GPL(tcp_v4_lookup);
 
 static inline __u32 tcp_v4_init_sequence(struct sock *sk, struct sk_buff *skb)
 {
@@ -2653,7 +2655,6 @@ EXPORT_SYMBOL(tcp_unhash);
 EXPORT_SYMBOL(tcp_v4_conn_request);
 EXPORT_SYMBOL(tcp_v4_connect);
 EXPORT_SYMBOL(tcp_v4_do_rcv);
-EXPORT_SYMBOL(tcp_v4_lookup_listener);
 EXPORT_SYMBOL(tcp_v4_rebuild_header);
 EXPORT_SYMBOL(tcp_v4_remember_stamp);
 EXPORT_SYMBOL(tcp_v4_send_check);

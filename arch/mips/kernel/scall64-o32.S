@@ -479,17 +479,17 @@ sys_call_table:
 	PTR	sys_set_tid_address	
 	PTR	sys_restart_syscall	
 	PTR	sys_fadvise64_64	
-	PTR	compat_statfs64			/* 4255 */
-	PTR	compat_fstatfs64		
+	PTR	compat_sys_statfs64		/* 4255 */
+	PTR	compat_sys_fstatfs64		
 	PTR	sys_timer_create	
-	PTR	compat_timer_settime	
-	PTR	compat_timer_gettime	
+	PTR	compat_sys_timer_settime	
+	PTR	compat_sys_timer_gettime	
 	PTR	sys_timer_getoverrun		/* 4260 */
 	PTR	sys_timer_delete	
-	PTR	compat_clock_settime	
-	PTR	compat_clock_gettime	
-	PTR	compat_clock_getres	
-	PTR	compat_clock_nanosleep		/* 4265 */
+	PTR	compat_sys_clock_settime	
+	PTR	compat_sys_clock_gettime	
+	PTR	compat_sys_clock_getres	
+	PTR	compat_sys_clock_nanosleep	/* 4265 */
 	PTR	sys_tgkill		
 	PTR	compat_sys_utimes	
 	PTR	sys_ni_syscall			/* sys_mbind */
@@ -503,7 +503,7 @@ sys_call_table:
 	PTR	compat_sys_mq_getsetattr 
 	PTR	sys_ni_syscall			/* sys_vserver */
 	PTR	sys_waitid
-	PTR	sys_setaltroot
+	PTR	sys_ni_syscall			/* available, was setaltroot */
 	PTR	sys_add_key			/* 4280 */
 	PTR	sys_request_key	
 	PTR	sys_keyctl

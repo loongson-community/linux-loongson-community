@@ -52,8 +52,6 @@
 
 #include "ide-timing.h"
 
-extern void ide_do_request(ide_hwgroup_t *hwgroup, int masked_irq);
-
 #define IDE_PMAC_DEBUG
 
 #define DMA_WAIT_TIMEOUT	50
@@ -1362,10 +1360,10 @@ pmac_ide_macio_suspend(struct macio_dev *mdev, u32 state)
 	ide_hwif_t	*hwif = (ide_hwif_t *)dev_get_drvdata(&mdev->ofdev.dev);
 	int		rc = 0;
 
-	if (state != mdev->ofdev.dev.power_state && state >= 2) {
+	if (state != mdev->ofdev.dev.power.power_state && state >= 2) {
 		rc = pmac_ide_do_suspend(hwif);
 		if (rc == 0)
-			mdev->ofdev.dev.power_state = state;
+			mdev->ofdev.dev.power.power_state = state;
 	}
 
 	return rc;
@@ -1377,10 +1375,10 @@ pmac_ide_macio_resume(struct macio_dev *mdev)
 	ide_hwif_t	*hwif = (ide_hwif_t *)dev_get_drvdata(&mdev->ofdev.dev);
 	int		rc = 0;
 	
-	if (mdev->ofdev.dev.power_state != 0) {
+	if (mdev->ofdev.dev.power.power_state != 0) {
 		rc = pmac_ide_do_resume(hwif);
 		if (rc == 0)
-			mdev->ofdev.dev.power_state = 0;
+			mdev->ofdev.dev.power.power_state = 0;
 	}
 
 	return rc;
@@ -1470,10 +1468,10 @@ pmac_ide_pci_suspend(struct pci_dev *pdev, u32 state)
 	ide_hwif_t	*hwif = (ide_hwif_t *)pci_get_drvdata(pdev);
 	int		rc = 0;
 	
-	if (state != pdev->dev.power_state && state >= 2) {
+	if (state != pdev->dev.power.power_state && state >= 2) {
 		rc = pmac_ide_do_suspend(hwif);
 		if (rc == 0)
-			pdev->dev.power_state = state;
+			pdev->dev.power.power_state = state;
 	}
 
 	return rc;
@@ -1485,10 +1483,10 @@ pmac_ide_pci_resume(struct pci_dev *pdev)
 	ide_hwif_t	*hwif = (ide_hwif_t *)pci_get_drvdata(pdev);
 	int		rc = 0;
 	
-	if (pdev->dev.power_state != 0) {
+	if (pdev->dev.power.power_state != 0) {
 		rc = pmac_ide_do_resume(hwif);
 		if (rc == 0)
-			pdev->dev.power_state = 0;
+			pdev->dev.power.power_state = 0;
 	}
 
 	return rc;
@@ -1560,56 +1558,6 @@ pmac_ide_probe(void)
 #ifdef CONFIG_BLK_DEV_IDEDMA_PMAC
 
 /*
- * We build & map the sglist for a given request.
- */
-static int __pmac
-pmac_ide_build_sglist(ide_drive_t *drive, struct request *rq)
-{
-	ide_hwif_t *hwif = HWIF(drive);
-	struct scatterlist *sg = hwif->sg_table;
-	int nents;
-
-	nents = blk_rq_map_sg(drive->queue, rq, sg);
-		
-	if (rq_data_dir(rq) == READ)
-		hwif->sg_dma_direction = PCI_DMA_FROMDEVICE;
-	else
-		hwif->sg_dma_direction = PCI_DMA_TODEVICE;
-
-	return pci_map_sg(hwif->pci_dev, sg, nents, hwif->sg_dma_direction);
-}
-
-/*
- * Same as above but for a "raw" taskfile request
- */
-static int __pmac
-pmac_ide_raw_build_sglist(ide_drive_t *drive, struct request *rq)
-{
-	ide_hwif_t *hwif = HWIF(drive);
-	struct scatterlist *sg = hwif->sg_table;
-	int nents = 0;
-	ide_task_t *args = rq->special;
-	unsigned char *virt_addr = rq->buffer;
-	int sector_count = rq->nr_sectors;
-
-	if (args->command_type == IDE_DRIVE_TASK_RAW_WRITE)
-		hwif->sg_dma_direction = PCI_DMA_TODEVICE;
-	else
-		hwif->sg_dma_direction = PCI_DMA_FROMDEVICE;
-
-	if (sector_count > 128) {
-		sg_init_one(&sg[nents], virt_addr, 128 * SECTOR_SIZE);
-		nents++;
-		virt_addr = virt_addr + (128 * SECTOR_SIZE);
-		sector_count -= 128;
-	}
-	sg_init_one(&sg[nents], virt_addr, sector_count * SECTOR_SIZE);
-	nents++;
-
-	return pci_map_sg(hwif->pci_dev, sg, nents, hwif->sg_dma_direction);
-}
-
-/*
  * pmac_ide_build_dmatable builds the DBDMA command list
  * for a transfer and sets the DBDMA channel to point to it.
  */
@@ -1632,11 +1580,8 @@ pmac_ide_build_dmatable(ide_drive_t *drive, struct request *rq)
 	while (readl(&dma->status) & RUN)
 		udelay(1);
 
-	/* Build sglist */
-	if (HWGROUP(drive)->rq->flags & REQ_DRIVE_TASKFILE)
-		hwif->sg_nents = i = pmac_ide_raw_build_sglist(drive, rq);
-	else
-		hwif->sg_nents = i = pmac_ide_build_sglist(drive, rq);
+	hwif->sg_nents = i = ide_build_sglist(drive, rq);
+
 	if (!i)
 		return 0;
 
@@ -2078,16 +2023,8 @@ pmac_ide_setup_dma(pmac_ide_hwif_t *pmif, ide_hwif_t *hwif)
 	hwif->ide_dma_test_irq = &pmac_ide_dma_test_irq;
 	hwif->ide_dma_host_off = &pmac_ide_dma_host_off;
 	hwif->ide_dma_host_on = &pmac_ide_dma_host_on;
-	hwif->ide_dma_verbose = &__ide_dma_verbose;
 	hwif->ide_dma_timeout = &__ide_dma_timeout;
 	hwif->ide_dma_lostirq = &pmac_ide_dma_lostirq;
-
-#ifdef CONFIG_BLK_DEV_IDEDMA_PMAC_AUTO
-	if (!noautodma)
-		hwif->autodma = 1;
-#endif
-	hwif->drives[0].autodma = hwif->autodma;
-	hwif->drives[1].autodma = hwif->autodma;
 
 	hwif->atapi_dma = 1;
 	switch(pmif->kind) {

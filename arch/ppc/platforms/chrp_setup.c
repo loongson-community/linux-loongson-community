@@ -371,6 +371,14 @@ static void __init chrp_find_openpic(void)
 	}
 }
 
+#if defined(CONFIG_VT) && defined(CONFIG_INPUT_ADBHID) && defined(XMON)
+static struct irqaction xmon_irqaction = {
+	.handler = xmon_irq,
+	.mask = CPU_MASK_NONE,
+	.name = "XMON break",
+};
+#endif
+
 void __init chrp_init_IRQ(void)
 {
 	struct device_node *np;
@@ -416,7 +424,7 @@ void __init chrp_init_IRQ(void)
 		    && strcmp(kbd->parent->type, "adb") == 0)
 			break;
 	if (kbd)
-		request_irq(HYDRA_INT_ADB_NMI, xmon_irq, 0, "XMON break", 0);
+		setup_irq(HYDRA_INT_ADB_NMI, &xmon_irqaction);
 #endif
 }
 

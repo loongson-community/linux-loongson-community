@@ -353,8 +353,8 @@ static void intr_deschedule (
 	hcd_to_bus (&ehci->hcd)->bandwidth_allocated -= 
 		(qh->usecs + qh->c_usecs) / qh->period;
 
-	dbg ("descheduled qh %p, period = %d frame = %d count = %d, urbs = %d",
-		qh, qh->period, frame,
+	ehci_dbg (ehci, "descheduled qh%d/%p frame=%d count=%d, urbs=%d\n",
+		qh->period, qh, frame,
 		atomic_read (&qh->kref.refcount), ehci->periodic_sched);
 }
 
@@ -486,13 +486,14 @@ static int qh_schedule (struct ehci_hcd *ehci, struct ehci_qh *qh)
 		qh->hw_info2 &= ~__constant_cpu_to_le32(0xffff);
 		qh->hw_info2 |= cpu_to_le32 (1 << uframe) | c_mask;
 	} else
-		dbg ("reused previous qh %p schedule", qh);
+		ehci_dbg (ehci, "reused qh %p schedule\n", qh);
 
 	/* stuff into the periodic schedule */
 	qh->qh_state = QH_STATE_LINKED;
-	dbg ("scheduled qh %p usecs %d/%d period %d.0 starting %d.%d (gap %d)",
-		qh, qh->usecs, qh->c_usecs,
-		qh->period, frame, uframe, qh->gap_uf);
+	ehci_dbg(ehci,
+		"scheduled qh%d/%p usecs %d/%d starting %d.%d (gap %d)\n",
+		qh->period, qh, qh->usecs, qh->c_usecs,
+		frame, uframe, qh->gap_uf);
 	do {
 		if (unlikely (ehci->pshadow [frame].ptr != 0)) {
 
@@ -907,6 +908,7 @@ itd_urb_transaction (
 
 		if (unlikely (0 == itd)) {
 			iso_sched_free (stream, sched);
+			spin_unlock_irqrestore (&ehci->lock, flags);
 			return -ENOMEM;
 		}
 		memset (itd, 0, sizeof *itd);
@@ -1835,7 +1837,9 @@ restart:
 		while (q.ptr != 0) {
 			unsigned		uf;
 			union ehci_shadow	temp;
+			int			live;
 
+			live = HCD_IS_RUNNING (ehci->hcd.state);
 			switch (type) {
 			case Q_TYPE_QH:
 				/* handle any completions */
@@ -1860,7 +1864,7 @@ restart:
 			case Q_TYPE_ITD:
 				/* skip itds for later in the frame */
 				rmb ();
-				for (uf = uframes; uf < 8; uf++) {
+				for (uf = live ? uframes : 8; uf < 8; uf++) {
 					if (0 == (q.itd->hw_transaction [uf]
 							& ITD_ACTIVE))
 						continue;
@@ -1884,7 +1888,8 @@ restart:
 				q = *q_p;
 				break;
 			case Q_TYPE_SITD:
-				if (q.sitd->hw_results & SITD_ACTIVE) {
+				if ((q.sitd->hw_results & SITD_ACTIVE)
+						&& live) {
 					q_p = &q.sitd->sitd_next;
 					hw_p = &q.sitd->hw_next;
 					type = Q_NEXT_TYPE (q.sitd->hw_next);

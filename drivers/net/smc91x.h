@@ -39,11 +39,7 @@
  * Define your architecture specific bus configuration parameters here.
  */
 
-#if	defined(CONFIG_SA1100_GRAPHICSCLIENT) || \
-	defined(CONFIG_SA1100_PFS168) || \
-	defined(CONFIG_SA1100_FLEXANET) || \
-	defined(CONFIG_SA1100_GRAPHICSMASTER) || \
-	defined(CONFIG_ARCH_LUBBOCK)
+#if	defined(CONFIG_ARCH_LUBBOCK)
 
 /* We can only do 16-bit reads and writes in the static memory space. */
 #define SMC_CAN_USE_8BIT	0
@@ -245,7 +241,7 @@ smc_pxa_dma_insl(u_long ioaddr, u_long physaddr, int reg, int dma,
 	while (!(DCSR(dma) & DCSR_STOPSTATE))
 		cpu_relax();
 	DCSR(dma) = 0;
-	dma_unmap_single(NULL, dmabuf, len, PCI_DMA_FROMDEVICE);
+	dma_unmap_single(NULL, dmabuf, len, DMA_FROM_DEVICE);
 }
 #endif
 
@@ -273,7 +269,7 @@ smc_pxa_dma_insw(u_long ioaddr, u_long physaddr, int reg, int dma,
 	}
 
 	len *= 2;
-	dmabuf = dma_map_single(NULL, buf, len, PCI_DMA_FROMDEVICE);
+	dmabuf = dma_map_single(NULL, buf, len, DMA_FROM_DEVICE);
 	DCSR(dma) = DCSR_NODESC;
 	DTADR(dma) = dmabuf;
 	DSADR(dma) = physaddr + reg;

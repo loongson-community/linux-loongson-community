@@ -377,6 +377,8 @@ struct request_queue
 	 */
 	unsigned int		sg_timeout;
 	unsigned int		sg_reserved_size;
+
+	struct list_head	drain_list;
 };
 
 #define RQ_INACTIVE		(-1)
@@ -520,6 +522,7 @@ extern int blk_hw_contig_segment(request_queue_t *q, struct bio *, struct bio *)
 extern int scsi_cmd_ioctl(struct file *, struct gendisk *, unsigned int, void __user *);
 extern void blk_start_queue(request_queue_t *q);
 extern void blk_stop_queue(request_queue_t *q);
+extern void blk_sync_queue(struct request_queue *q);
 extern void __blk_stop_queue(request_queue_t *q);
 extern void blk_run_queue(request_queue_t *);
 extern void blk_queue_activity_fn(request_queue_t *, activity_fn *, void *);
@@ -604,7 +607,7 @@ extern void blk_dump_rq_flags(struct request *, char *);
 extern void generic_unplug_device(request_queue_t *);
 extern void __generic_unplug_device(request_queue_t *);
 extern long nr_blockdev_pages(void);
-extern void blk_wait_queue_drained(request_queue_t *);
+extern void blk_wait_queue_drained(request_queue_t *, int);
 extern void blk_finish_queue_drain(request_queue_t *);
 
 int blk_get_queue(request_queue_t *);

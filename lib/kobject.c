@@ -10,8 +10,6 @@
  * about using the kobject interface.
  */
 
-#undef DEBUG
-
 #include <linux/kobject.h>
 #include <linux/string.h>
 #include <linux/module.h>
@@ -123,7 +121,7 @@ char *kobject_get_path(struct kobject *kobj, int gfp_mask)
  */
 void kobject_init(struct kobject * kobj)
 {
- 	kref_init(&kobj->kref);
+	kref_init(&kobj->kref);
 	INIT_LIST_HEAD(&kobj->entry);
 	kobj->kset = kset_get(kobj->kset);
 }
@@ -182,6 +180,7 @@ int kobject_add(struct kobject * kobj)
 
 	error = create_dir(kobj);
 	if (error) {
+		/* unlink does the kobject_put() for us */
 		unlink(kobj);
 		if (parent)
 			kobject_put(parent);

@@ -12,6 +12,9 @@
  * Modifications:
  *	24-Aug-2004 BJD  Start of s3c2440 support
  *	12-Oct-2004 BJD	 Moved clock info out to clock.c
+ *	01-Nov-2004 BJD  Fixed clock build code
+ *	09-Nov-2004 BJD  Added sysdev for power management
+ *	04-Nov-2004 BJD  New serial registration
 */
 
 #include <linux/kernel.h>
@@ -21,6 +24,7 @@
 #include <linux/timer.h>
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/sysdev.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -29,13 +33,19 @@
 #include <asm/hardware.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/hardware/clock.h>
 
 #include <asm/arch/regs-clock.h>
 #include <asm/arch/regs-serial.h>
+#include <asm/arch/regs-gpio.h>
+#include <asm/arch/regs-gpioj.h>
+#include <asm/arch/regs-dsc.h>
 
 #include "s3c2440.h"
 #include "clock.h"
+#include "devs.h"
 #include "cpu.h"
+#include "pm.h"
 
 int s3c2440_clock_tick_rate = 12*1000*1000;  /* current timers at 12MHz */
 
@@ -120,6 +130,76 @@ static struct platform_device *uart_devices[] __initdata = {
 	&s3c_uart2
 };
 
+/* uart initialisation */
+
+static int __initdata s3c2440_uart_count;
+
+void __init s3c2440_init_uarts(struct s3c2410_uartcfg *cfg, int no)
+{
+	struct platform_device *platdev;
+	int uart;
+
+	for (uart = 0; uart < no; uart++, cfg++) {
+		platdev = uart_devices[cfg->hwport];
+
+		s3c24xx_uart_devs[uart] = platdev;
+		platdev->dev.platform_data = cfg;
+	}
+
+	s3c2440_uart_count = uart;
+}
+
+/* s3c2440 specific clock sources */
+
+static struct clk s3c2440_clk_cam = {
+	.name		= "camera",
+	.enable		= s3c2410_clkcon_enable,
+	.ctrlbit	= S3C2440_CLKCON_CAMERA
+};
+
+static struct clk s3c2440_clk_ac97 = {
+	.name		= "ac97",
+	.enable		= s3c2410_clkcon_enable,
+	.ctrlbit	= S3C2440_CLKCON_CAMERA
+};
+
+#ifdef CONFIG_PM
+
+struct sleep_save s3c2440_sleep[] = {
+	SAVE_ITEM(S3C2440_DSC0),
+	SAVE_ITEM(S3C2440_DSC1),
+	SAVE_ITEM(S3C2440_GPJDAT),
+	SAVE_ITEM(S3C2440_GPJCON),
+	SAVE_ITEM(S3C2440_GPJUP)
+};
+
+static int s3c2440_suspend(struct sys_device *dev, u32 state)
+{
+	s3c2410_pm_do_save(s3c2440_sleep, ARRAY_SIZE(s3c2440_sleep));
+	return 0;
+}
+
+static int s3c2440_resume(struct sys_device *dev)
+{
+	s3c2410_pm_do_restore(s3c2440_sleep, ARRAY_SIZE(s3c2440_sleep));
+	return 0;
+}
+
+#else
+#define s3c2440_suspend NULL
+#define s3c2440_resume  NULL
+#endif
+
+static struct sysdev_class s3c2440_sysclass = {
+	set_kset_name("s3c2440-core"),
+	.suspend	= s3c2440_suspend,
+	.resume		= s3c2440_resume
+};
+
+static struct sys_device s3c2440_sysdev = {
+	.cls		= &s3c2440_sysclass,
+};
+
 void __init s3c2440_map_io(struct map_desc *mach_desc, int size)
 {
 	unsigned long clkdiv;
@@ -167,9 +247,24 @@ void __init s3c2440_map_io(struct map_desc *mach_desc, int size)
 	printk("S3C2440: core %ld.%03ld MHz, memory %ld.%03ld MHz, peripheral %ld.%03ld MHz\n",
 	       print_mhz(s3c24xx_fclk), print_mhz(s3c24xx_hclk),
 	       print_mhz(s3c24xx_pclk));
+
+	/* initialise the clocks here, to allow other things like the
+	 * console to use them, and to add new ones after the initialisation
+	 */
+
+	s3c2410_init_clocks();
+
+	/* add s3c2440 specific clocks */
+
+	s3c2440_clk_cam.parent = clk_get(NULL, "hclk");
+	s3c2440_clk_ac97.parent = clk_get(NULL, "pclk");
+
+	s3c2410_register_clock(&s3c2440_clk_ac97);
+	s3c2410_register_clock(&s3c2440_clk_cam);
+
+	clk_disable(&s3c2440_clk_ac97);
+	clk_disable(&s3c2440_clk_cam);
 }
-
-
 
 int __init s3c2440_init(void)
 {
@@ -177,12 +272,15 @@ int __init s3c2440_init(void)
 
 	printk("S3C2440: Initialising architecture\n");
 
-	ret = platform_add_devices(uart_devices, ARRAY_SIZE(uart_devices));
-	if (ret)
-		return ret;
+	ret = sysdev_class_register(&s3c2440_sysclass);
+	if (ret == 0)
+		ret = sysdev_register(&s3c2440_sysdev);
 
-	// todo: board specific inits?
+	if (ret != 0)
+		printk(KERN_ERR "failed to register sysdev for s3c2440\n");
+
+	if (ret == 0)
+		ret = platform_add_devices(s3c24xx_uart_devs, s3c2440_uart_count);
 
 	return ret;
 }
-

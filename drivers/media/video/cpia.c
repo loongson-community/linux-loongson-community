@@ -3781,7 +3781,7 @@ static int cpia_mmap(struct file *file, struct vm_area_struct *vma)
 
 	pos = (unsigned long)(cam->frame_buf);
 	while (size > 0) {
-		page = page_to_pfn(vmalloc_to_page((void *)pos));
+		page = vmalloc_to_pfn((void *)pos);
 		if (remap_pfn_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
 			up(&cam->busy_lock);
 			return -EAGAIN;
@@ -4047,22 +4047,13 @@ static int __init cpia_init(void)
 	proc_cpia_create();
 #endif
 
-#ifdef CONFIG_KMOD
-#ifdef CONFIG_VIDEO_CPIA_PP_MODULE
-	request_module("cpia_pp");
-#endif
-
-#ifdef CONFIG_VIDEO_CPIA_USB_MODULE
-	request_module("cpia_usb");
-#endif
-#endif	/* CONFIG_KMOD */
-
 #ifdef CONFIG_VIDEO_CPIA_PP
 	cpia_pp_init();
 #endif
 #ifdef CONFIG_VIDEO_CPIA_USB
 	cpia_usb_init();
 #endif
+
 	return 0;
 }
 

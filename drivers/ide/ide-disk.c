@@ -643,9 +643,6 @@ static inline void idedisk_check_hpa(ide_drive_t *drive)
 			 capacity, sectors_to_MB(capacity),
 			 set_max, sectors_to_MB(set_max));
 
-	if (!drive->stroke)
-		return;
-
 	if (lba48)
 		set_max = idedisk_set_max_address_ext(drive, set_max);
 	else
@@ -815,6 +812,7 @@ static int get_smart_thresholds(ide_drive_t *drive, u8 *buf)
 	args.tfRegister[IDE_HCYL_OFFSET]	= SMART_HCYL_PASS;
 	args.tfRegister[IDE_COMMAND_OFFSET]	= WIN_SMART;
 	args.command_type			= IDE_DRIVE_TASK_IN;
+	args.data_phase				= TASKFILE_IN;
 	args.handler				= &task_in_intr;
 	(void) smart_enable(drive);
 	return ide_raw_taskfile(drive, &args, buf);
@@ -1244,7 +1242,7 @@ static void idedisk_setup (ide_drive_t *drive)
 	printk(", CHS=%d/%d/%d", 
 	       drive->bios_cyl, drive->bios_head, drive->bios_sect);
 	if (drive->using_dma)
-		(void) HWIF(drive)->ide_dma_verbose(drive);
+		ide_dma_verbose(drive);
 	printk("\n");
 
 	drive->mult_count = 0;

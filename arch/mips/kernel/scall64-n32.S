@@ -335,8 +335,8 @@ EXPORT(sysn32_call_table)
 	PTR	sys_restart_syscall
 	PTR	sys_semtimedop			/* 6215 */
 	PTR	sys_fadvise64_64
-	PTR	compat_statfs64
-	PTR	compat_fstatfs64
+	PTR	compat_sys_statfs64
+	PTR	compat_sys_fstatfs64
 	PTR	sys_sendfile64
 	PTR	sys_timer_create		/* 6220 */
 	PTR	sys_timer_settime
@@ -360,7 +360,7 @@ EXPORT(sysn32_call_table)
 	PTR	compat_sys_mq_getsetattr
 	PTR	sys_ni_syscall			/* 6240, sys_vserver */
 	PTR	sys_waitid
-	PTR	sys_setaltroot
+	PTR	sys_ni_syscall			/* available, was setaltroot */
 	PTR	sys_add_key
 	PTR	sys_request_key	
 	PTR	sys_keyctl			/* 6245 */

@@ -1323,23 +1323,28 @@ static int i810fb_blank (int blank_mode, struct fb_info *info)
 	
 	pwr = i810_readl(PWR_CLKC, mmio);
 
-	switch(blank_mode) {
-	case VESA_NO_BLANKING:
+	switch (blank_mode) {
+	case FB_BLANK_UNBLANK:
 		mode = POWERON;
 		pwr |= 1;
 		scr_off = ON;
 		break;
-	case VESA_VSYNC_SUSPEND:
+	case FB_BLANK_NORMAL:
+		mode = POWERON;
+		pwr |= 1;
+		scr_off = OFF;
+		break;
+	case FB_BLANK_VSYNC_SUSPEND:
 		mode = STANDBY;
 		pwr |= 1;
 		scr_off = OFF;
 		break;
-	case VESA_HSYNC_SUSPEND:
+	case FB_BLANK_HSYNC_SUSPEND:
 		mode = SUSPEND;
 		pwr |= 1;
 		scr_off = OFF;
 		break;
-	case VESA_POWERDOWN:
+	case FB_BLANK_POWERDOWN:
 		mode = POWERDOWN;
 		pwr &= ~1;
 		scr_off = OFF;
@@ -1347,9 +1352,11 @@ static int i810fb_blank (int blank_mode, struct fb_info *info)
 	default:
 		return -EINVAL; 
 	}
+
 	i810_screen_off(mmio, scr_off);
 	i810_writel(HVSYNC, mmio, mode);
 	i810_writel(PWR_CLKC, mmio, pwr);
+
 	return 0;
 }
 
@@ -1403,7 +1410,8 @@ static int i810fb_cursor(struct fb_info *info, struct fb_cursor *cursor)
 	struct i810fb_par *par = (struct i810fb_par *)info->par;
 	u8 __iomem *mmio = par->mmio_start_virtual;
 
-	if (!info->var.accel_flags || par->dev_flags & LOCKUP) 
+	if (!(par->dev_flags & USE_HWCUR) || !info->var.accel_flags ||
+	    par->dev_flags & LOCKUP)
 		return soft_cursor(info, cursor);
 
 	if (cursor->image.width > 64 || cursor->image.height > 64)
@@ -1416,62 +1424,50 @@ static int i810fb_cursor(struct fb_info *info, struct fb_cursor *cursor)
 
 	i810_enable_cursor(mmio, OFF);
 
-	if (cursor->set & FB_CUR_SETHOT)
-		info->cursor.hot = cursor->hot;
-	
 	if (cursor->set & FB_CUR_SETPOS) {
 		u32 tmp;
 
-		info->cursor.image.dx = cursor->image.dx;
-		info->cursor.image.dy = cursor->image.dy;
-		tmp = (info->cursor.image.dx - info->var.xoffset) & 0xffff;
-		tmp |= (info->cursor.image.dy - info->var.yoffset) << 16;
+		tmp = (cursor->image.dx - info->var.xoffset) & 0xffff;
+		tmp |= (cursor->image.dy - info->var.yoffset) << 16;
 		i810_writel(CURPOS, mmio, tmp);
 	}
 
-	if (cursor->set & FB_CUR_SETSIZE) {
+	if (cursor->set & FB_CUR_SETSIZE)
 		i810_reset_cursor_image(par);
-		info->cursor.image.height = cursor->image.height;
-		info->cursor.image.width = cursor->image.width;
-	}
 
-	if (cursor->set & FB_CUR_SETCMAP) {
+	if (cursor->set & FB_CUR_SETCMAP)
 		i810_load_cursor_colors(cursor->image.fg_color,
 					cursor->image.bg_color,
 					info);
-		info->cursor.image.fg_color = cursor->image.fg_color;
-		info->cursor.image.bg_color = cursor->image.bg_color;
 
-	}
-
-	if (cursor->set & (FB_CUR_SETSHAPE)) {
-		int size = ((info->cursor.image.width + 7) >> 3) * 
-			info->cursor.image.height;
+	if (cursor->set & (FB_CUR_SETSHAPE | FB_CUR_SETIMAGE)) {
+		int size = ((cursor->image.width + 7) >> 3) *
+			cursor->image.height;
 		int i;
 		u8 *data = kmalloc(64 * 8, GFP_KERNEL);
 
 		if (data == NULL)
 			return -ENOMEM;
-		info->cursor.image.data = cursor->image.data;
 
-		switch (info->cursor.rop) {
+		switch (cursor->rop) {
 		case ROP_XOR:
 			for (i = 0; i < size; i++)
-				data[i] = info->cursor.image.data[i] ^ info->cursor.mask[i];
+				data[i] = cursor->image.data[i] ^ cursor->mask[i];
 			break;
 		case ROP_COPY:
 		default:
 			for (i = 0; i < size; i++)
-				data[i] = info->cursor.image.data[i] & info->cursor.mask[i];
+				data[i] = cursor->image.data[i] & cursor->mask[i];
 			break;
 		}
-		i810_load_cursor_image(info->cursor.image.width, 
-				       info->cursor.image.height, data,
+
+		i810_load_cursor_image(cursor->image.width,
+				       cursor->image.height, data,
 				       par);
 		kfree(data);
 	}
 
-	if (info->cursor.enable)
+	if (cursor->enable)
 		i810_enable_cursor(mmio, ON);
 
 	return 0;
@@ -1523,8 +1519,8 @@ static int i810fb_suspend(struct pci_dev *dev, u32 state)
 	info->fbops->fb_blank(blank, info);
 
 	if (!prev_state) { 
-		par->drm_agp->unbind_memory(par->i810_gtt.i810_fb_memory);
-		par->drm_agp->unbind_memory(par->i810_gtt.i810_cursor_memory);
+		agp_unbind_memory(par->i810_gtt.i810_fb_memory);
+		agp_unbind_memory(par->i810_gtt.i810_cursor_memory);
 		pci_disable_device(dev);
 	}
 	pci_save_state(dev);
@@ -1544,10 +1540,10 @@ static int i810fb_resume(struct pci_dev *dev)
 	pci_restore_state(dev);
 	pci_set_power_state(dev, 0);
 	pci_enable_device(dev);
-	par->drm_agp->bind_memory(par->i810_gtt.i810_fb_memory, 
-				  par->fb.offset);
-	par->drm_agp->bind_memory(par->i810_gtt.i810_cursor_memory, 
-				  par->cursor_heap.offset);
+	agp_bind_memory(par->i810_gtt.i810_fb_memory,
+			par->fb.offset);
+	agp_bind_memory(par->i810_gtt.i810_cursor_memory,
+			par->cursor_heap.offset);
 
 	info->fbops->fb_blank(VESA_NO_BLANKING, info);
 
@@ -1599,39 +1595,36 @@ static int __devinit i810_alloc_agp_mem(struct fb_info *info)
 	i810_fix_offsets(par);
 	size = par->fb.size + par->iring.size;
 
-	par->drm_agp = (drm_agp_t *) inter_module_get("drm_agp");
-	if (!par->drm_agp) {
-		printk("i810fb: cannot acquire agp\n");
+	if (agp_backend_acquire()) {
+		printk("i810fb_alloc_fbmem: cannot acquire agpgart\n");
 		return -ENODEV;
 	}
-	par->drm_agp->acquire(); 
-
 	if (!(par->i810_gtt.i810_fb_memory = 
-	      par->drm_agp->allocate_memory(size >> 12, AGP_NORMAL_MEMORY))) {
+	      agp_allocate_memory(size >> 12, AGP_NORMAL_MEMORY))) {
 		printk("i810fb_alloc_fbmem: can't allocate framebuffer "
 		       "memory\n");
-		par->drm_agp->release();
+		agp_backend_release();
 		return -ENOMEM;
 	}
-	if (par->drm_agp->bind_memory(par->i810_gtt.i810_fb_memory, 
-				      par->fb.offset)) {
+	if (agp_bind_memory(par->i810_gtt.i810_fb_memory,
+			    par->fb.offset)) {
 		printk("i810fb_alloc_fbmem: can't bind framebuffer memory\n");
-		par->drm_agp->release();
+		agp_backend_release();
 		return -EBUSY;
 	}	
 	
 	if (!(par->i810_gtt.i810_cursor_memory = 
-	      par->drm_agp->allocate_memory(par->cursor_heap.size >> 12, 
-					    AGP_PHYSICAL_MEMORY))) {
+	      agp_allocate_memory(par->cursor_heap.size >> 12,
+				  AGP_PHYSICAL_MEMORY))) {
 		printk("i810fb_alloc_cursormem:  can't allocate" 
 		       "cursor memory\n");
-		par->drm_agp->release();
+		agp_backend_release();
 		return -ENOMEM;
 	}
-	if (par->drm_agp->bind_memory(par->i810_gtt.i810_cursor_memory, 
+	if (agp_bind_memory(par->i810_gtt.i810_cursor_memory,
 			    par->cursor_heap.offset)) {
 		printk("i810fb_alloc_cursormem: cannot bind cursor memory\n");
-		par->drm_agp->release();
+		agp_backend_release();
 		return -EBUSY;
 	}	
 
@@ -1639,7 +1632,7 @@ static int __devinit i810_alloc_agp_mem(struct fb_info *info)
 
 	i810_fix_pointers(par);
 
-	par->drm_agp->release();
+	agp_backend_release();
 
 	return 0;
 }
@@ -1874,12 +1867,12 @@ static int __devinit i810fb_init_pci (struct pci_dev *dev,
 	par = (struct i810fb_par *) info->par;
 	par->dev = dev;
 
-	if (!(info->pixmap.addr = kmalloc(64*1024, GFP_KERNEL))) {
+	if (!(info->pixmap.addr = kmalloc(8*1024, GFP_KERNEL))) {
 		i810fb_release_resource(info, par);
 		return -ENOMEM;
 	}
-	memset(info->pixmap.addr, 0, 64*1024);
-	info->pixmap.size = 64*1024;
+	memset(info->pixmap.addr, 0, 8*1024);
+	info->pixmap.size = 8*1024;
 	info->pixmap.buf_align = 8;
 	info->pixmap.flags = FB_PIXMAP_SYSTEM;
 
@@ -1945,19 +1938,13 @@ static int __devinit i810fb_init_pci (struct pci_dev *dev,
 static void i810fb_release_resource(struct fb_info *info, 
 				    struct i810fb_par *par)
 {
+	struct gtt_data *gtt = &par->i810_gtt;
 	unset_mtrr(par);
-	if (par->drm_agp) {
-		drm_agp_t *agp = par->drm_agp;
-		struct gtt_data *gtt = &par->i810_gtt;
 
-		if (par->i810_gtt.i810_cursor_memory)
-			agp->free_memory(gtt->i810_cursor_memory);
-		if (par->i810_gtt.i810_fb_memory)
-			agp->free_memory(gtt->i810_fb_memory);
-
-		inter_module_put("drm_agp");
-		par->drm_agp = NULL;
-	}
+	if (par->i810_gtt.i810_cursor_memory)
+		agp_free_memory(gtt->i810_cursor_memory);
+	if (par->i810_gtt.i810_fb_memory)
+		agp_free_memory(gtt->i810_fb_memory);
 
 	if (par->mmio_start_virtual)
 		iounmap(par->mmio_start_virtual);
@@ -2015,44 +2002,44 @@ int __init i810fb_init(void)
 	return pci_register_driver(&i810fb_driver);
 }
 
-MODULE_PARM(vram, "i");
+module_param(vram, int, 4);
 MODULE_PARM_DESC(vram, "System RAM to allocate to framebuffer in MiB" 
 		 " (default=4)");
-MODULE_PARM(voffset, "i");
+module_param(voffset, int, 0);
 MODULE_PARM_DESC(voffset, "at what offset to place start of framebuffer "
                  "memory (0 to maximum aperture size), in MiB (default = 48)");
-MODULE_PARM(bpp, "i");
+module_param(bpp, int, 8);
 MODULE_PARM_DESC(bpp, "Color depth for display in bits per pixel"
 		 " (default = 8)");
-MODULE_PARM(xres, "i");
+module_param(xres, int, 640);
 MODULE_PARM_DESC(xres, "Horizontal resolution in pixels (default = 640)");
-MODULE_PARM(yres, "i");
+module_param(yres, int, 480);
 MODULE_PARM_DESC(yres, "Vertical resolution in scanlines (default = 480)");
-MODULE_PARM(vyres, "i");
+module_param(vyres,int, 480);
 MODULE_PARM_DESC(vyres, "Virtual vertical resolution in scanlines"
 		 " (default = 480)");
-MODULE_PARM(hsync1, "i");
+module_param(hsync1, int, 0);
 MODULE_PARM_DESC(hsync1, "Minimum horizontal frequency of monitor in KHz"
 		 " (default = 31)");
-MODULE_PARM(hsync2, "i");
+module_param(hsync2, int, 0);
 MODULE_PARM_DESC(hsync2, "Maximum horizontal frequency of monitor in KHz"
 		 " (default = 31)");
-MODULE_PARM(vsync1, "i");
+module_param(vsync1, int, 0);
 MODULE_PARM_DESC(vsync1, "Minimum vertical frequency of monitor in Hz"
 		 " (default = 50)");
-MODULE_PARM(vsync2, "i");
+module_param(vsync2, int, 0);
 MODULE_PARM_DESC(vsync2, "Maximum vertical frequency of monitor in Hz" 
 		 " (default = 60)");
-MODULE_PARM(accel, "i");
+module_param(accel, bool, 0);
 MODULE_PARM_DESC(accel, "Use Acceleration (BLIT) engine (default = 0)");
-MODULE_PARM(mtrr, "i");
+module_param(mtrr, bool, 0);
 MODULE_PARM_DESC(mtrr, "Use MTRR (default = 0)");
-MODULE_PARM(ext_vga, "i");
+module_param(ext_vga, bool, 0);
 MODULE_PARM_DESC(ext_vga, "Enable external VGA connector (default = 0)");
-MODULE_PARM(sync, "i");
+module_param(sync, bool, 0);
 MODULE_PARM_DESC(sync, "wait for accel engine to finish drawing"
 		 " (default = 0)");
-MODULE_PARM(dcolor, "i");
+module_param(dcolor, bool, 0);
 MODULE_PARM_DESC(dcolor, "use DirectColor visuals"
 		 " (default = 0 = TrueColor)");
 

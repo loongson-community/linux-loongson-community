@@ -1103,6 +1103,8 @@ void show_free_areas(void)
 			" active:%lukB"
 			" inactive:%lukB"
 			" present:%lukB"
+			" pages_scanned:%lu"
+			" all_unreclaimable? %s"
 			"\n",
 			zone->name,
 			K(zone->free_pages),
@@ -1111,7 +1113,9 @@ void show_free_areas(void)
 			K(zone->pages_high),
 			K(zone->nr_active),
 			K(zone->nr_inactive),
-			K(zone->present_pages)
+			K(zone->present_pages),
+			zone->pages_scanned,
+			(zone->all_unreclaimable ? "yes" : "no")
 			);
 		printk("protections[]:");
 		for (i = 0; i < MAX_NR_ZONES; i++)
@@ -1208,6 +1212,12 @@ static int __init find_next_best_node(int node, void *used_node_mask)
 		/* Don't want a node to appear more than once */
 		if (test_bit(n, used_node_mask))
 			continue;
+
+		/* Use the local node if we haven't already */
+		if (!test_bit(node, used_node_mask)) {
+			best_node = node;
+			break;
+		}
 
 		/* Use the distance array to find the distance */
 		val = node_distance(node, n);

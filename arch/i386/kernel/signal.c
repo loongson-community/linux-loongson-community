@@ -413,7 +413,7 @@ static void setup_frame(int sig, struct k_sigaction *ka,
 	regs->xss = __USER_DS;
 	regs->xcs = __USER_CS;
 	if (regs->eflags & TF_MASK) {
-		if (current->ptrace & PT_PTRACED) {
+		if ((current->ptrace & (PT_PTRACED | PT_DTRACE)) == (PT_PTRACED | PT_DTRACE)) {
 			ptrace_notify(SIGTRAP);
 		} else {
 			regs->eflags &= ~TF_MASK;
@@ -600,7 +600,9 @@ int fastcall do_signal(struct pt_regs *regs, sigset_t *oldset)
 		 * have been cleared if the watchpoint triggered
 		 * inside the kernel.
 		 */
-		__asm__("movl %0,%%db7"	: : "r" (current->thread.debugreg[7]));
+		if (unlikely(current->thread.debugreg[7])) {
+			__asm__("movl %0,%%db7"	: : "r" (current->thread.debugreg[7]));
+		}
 
 		/* Whee!  Actually deliver the signal.  */
 		handle_signal(signr, &info, &ka, oldset, regs);

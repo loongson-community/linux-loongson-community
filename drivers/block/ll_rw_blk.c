@@ -100,7 +100,7 @@ static void blk_queue_congestion_threshold(struct request_queue *q)
 		nr = q->nr_requests;
 	q->nr_congestion_on = nr;
 
-	nr = q->nr_requests - (q->nr_requests / 8) - 1;
+	nr = q->nr_requests - (q->nr_requests / 8) - (q->nr_requests / 16) - 1;
 	if (nr < 1)
 		nr = 1;
 	q->nr_congestion_off = nr;
@@ -261,6 +261,8 @@ void blk_queue_make_request(request_queue_t * q, make_request_fn * mfn)
 	blk_queue_bounce_limit(q, BLK_BOUNCE_HIGH);
 
 	blk_queue_activity_fn(q, NULL, NULL);
+
+	INIT_LIST_HEAD(&q->drain_list);
 }
 
 EXPORT_SYMBOL(blk_queue_make_request);
@@ -1355,8 +1357,28 @@ void blk_stop_queue(request_queue_t *q)
 	blk_remove_plug(q);
 	set_bit(QUEUE_FLAG_STOPPED, &q->queue_flags);
 }
-
 EXPORT_SYMBOL(blk_stop_queue);
+
+/**
+ * blk_sync_queue - cancel any pending callbacks on a queue
+ * @q: the queue
+ *
+ * Description:
+ *     The block layer may perform asynchronous callback activity
+ *     on a queue, such as calling the unplug function after a timeout.
+ *     A block device may call blk_sync_queue to ensure that any
+ *     such activity is cancelled, thus allowing it to release resources
+ *     the the callbacks might use. The caller must already have made sure
+ *     that its ->make_request_fn will not re-add plugging prior to calling
+ *     this function.
+ *
+ */
+void blk_sync_queue(struct request_queue *q)
+{
+	del_timer_sync(&q->unplug_timer);
+	kblockd_flush();
+}
+EXPORT_SYMBOL(blk_sync_queue);
 
 /**
  * blk_run_queue - run a single device queue
@@ -1371,7 +1393,6 @@ void blk_run_queue(struct request_queue *q)
 	q->request_fn(q);
 	spin_unlock_irqrestore(q->queue_lock, flags);
 }
-
 EXPORT_SYMBOL(blk_run_queue);
 
 /**
@@ -1399,8 +1420,7 @@ void blk_cleanup_queue(request_queue_t * q)
 	if (q->elevator)
 		elevator_exit(q->elevator);
 
-	del_timer_sync(&q->unplug_timer);
-	kblockd_flush();
+	blk_sync_queue(q);
 
 	if (rl->rq_pool)
 		mempool_destroy(rl->rq_pool);
@@ -2481,11 +2501,33 @@ static inline void blk_partition_remap(struct bio *bio)
 void blk_finish_queue_drain(request_queue_t *q)
 {
 	struct request_list *rl = &q->rq;
+	struct request *rq;
 
+	spin_lock_irq(q->queue_lock);
 	clear_bit(QUEUE_FLAG_DRAIN, &q->queue_flags);
+
+	while (!list_empty(&q->drain_list)) {
+		rq = list_entry_rq(q->drain_list.next);
+
+		list_del_init(&rq->queuelist);
+		__elv_add_request(q, rq, ELEVATOR_INSERT_BACK, 1);
+	}
+
+	spin_unlock_irq(q->queue_lock);
+
 	wake_up(&rl->wait[0]);
 	wake_up(&rl->wait[1]);
 	wake_up(&rl->drain);
+}
+
+static int wait_drain(request_queue_t *q, struct request_list *rl, int dispatch)
+{
+	int wait = rl->count[READ] + rl->count[WRITE];
+
+	if (dispatch)
+		wait += !list_empty(&q->queue_head);
+
+	return wait;
 }
 
 /*
@@ -2494,7 +2536,7 @@ void blk_finish_queue_drain(request_queue_t *q)
  * type of request (allocated on stack or through kmalloc()) should not go
  * to the io scheduler core, but be attached to the queue head instead.
  */
-void blk_wait_queue_drained(request_queue_t *q)
+void blk_wait_queue_drained(request_queue_t *q, int wait_dispatch)
 {
 	struct request_list *rl = &q->rq;
 	DEFINE_WAIT(wait);
@@ -2502,10 +2544,10 @@ void blk_wait_queue_drained(request_queue_t *q)
 	spin_lock_irq(q->queue_lock);
 	set_bit(QUEUE_FLAG_DRAIN, &q->queue_flags);
 
-	while (rl->count[READ] || rl->count[WRITE]) {
+	while (wait_drain(q, rl, wait_dispatch)) {
 		prepare_to_wait(&rl->drain, &wait, TASK_UNINTERRUPTIBLE);
 
-		if (rl->count[READ] || rl->count[WRITE]) {
+		if (wait_drain(q, rl, wait_dispatch)) {
 			__generic_unplug_device(q);
 			spin_unlock_irq(q->queue_lock);
 			io_schedule();
@@ -2685,22 +2727,36 @@ void blk_recalc_rq_segments(struct request *rq)
 {
 	struct bio *bio, *prevbio = NULL;
 	int nr_phys_segs, nr_hw_segs;
+	unsigned int phys_size, hw_size;
+	request_queue_t *q = rq->q;
 
 	if (!rq->bio)
 		return;
 
-	nr_phys_segs = nr_hw_segs = 0;
+	phys_size = hw_size = nr_phys_segs = nr_hw_segs = 0;
 	rq_for_each_bio(bio, rq) {
 		/* Force bio hw/phys segs to be recalculated. */
 		bio->bi_flags &= ~(1 << BIO_SEG_VALID);
 
-		nr_phys_segs += bio_phys_segments(rq->q, bio);
-		nr_hw_segs += bio_hw_segments(rq->q, bio);
+		nr_phys_segs += bio_phys_segments(q, bio);
+		nr_hw_segs += bio_hw_segments(q, bio);
 		if (prevbio) {
-			if (blk_phys_contig_segment(rq->q, prevbio, bio))
+			int pseg = phys_size + prevbio->bi_size + bio->bi_size;
+			int hseg = hw_size + prevbio->bi_size + bio->bi_size;
+
+			if (blk_phys_contig_segment(q, prevbio, bio) &&
+			    pseg <= q->max_segment_size) {
 				nr_phys_segs--;
-			if (blk_hw_contig_segment(rq->q, prevbio, bio))
+				phys_size += prevbio->bi_size + bio->bi_size;
+			} else
+				phys_size = 0;
+
+			if (blk_hw_contig_segment(q, prevbio, bio) &&
+			    hseg <= q->max_segment_size) {
 				nr_hw_segs--;
+				hw_size += prevbio->bi_size + bio->bi_size;
+			} else
+				hw_size = 0;
 		}
 		prevbio = bio;
 	}

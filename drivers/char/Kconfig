@@ -508,6 +508,7 @@ config LEGACY_PTYS
 config LEGACY_PTY_COUNT
 	int "Maximum number of legacy PTY in use"
 	depends on LEGACY_PTYS
+	range 1 256
 	default "256"
 	---help---
 	  The maximum number of legacy PTYs that can be used at any one time.
@@ -819,6 +820,14 @@ config DS1302
 	  will get access to the real time clock (or hardware clock) built
 	  into your computer.
 
+config S3C2410_RTC
+	bool "S3C2410 RTC Driver"
+	depends on ARCH_S3C2410
+	help
+	  RTC (Realtime Clock) driver for the clock inbuilt into the
+	  Samsung S3C2410. This can provide periodic interrupt rates
+	  from 1Hz to 64Hz for user programs, and wakeup from Alarm.
+
 config COBALT_LCD
 	bool "Support for Cobalt LCD"
 	depends on MIPS_COBALT
@@ -865,7 +874,7 @@ config APPLICOM
 
 config SONYPI
 	tristate "Sony Vaio Programmable I/O Control Device support (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && X86 && PCI && !64BIT
+	depends on EXPERIMENTAL && X86 && PCI && INPUT && !64BIT
 	---help---
 	  This driver enables access to the Sony Programmable I/O Control
 	  Device which can be found in many (all ?) Sony Vaio laptops.
