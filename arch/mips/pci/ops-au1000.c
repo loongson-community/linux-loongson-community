@@ -33,8 +33,16 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/vmalloc.h>
 
 #include <asm/mach-au1x00/au1000.h>
+
+#undef DEBUG
+#ifdef DEBUG
+#define DBG(x...) printk(x)
+#else
+#define DBG(x...)
+#endif
 
 #define PCI_ACCESS_READ  0
 #define PCI_ACCESS_WRITE 1
@@ -77,11 +85,10 @@ static int first_cfg = 1;
 unsigned long last_entryLo0, last_entryLo1;
 
 static int config_access(unsigned char access_type, struct pci_bus *bus,
-			 unsigned int devfn, unsigned char where,
+			 unsigned int dev_fn, unsigned char where,
 			 u32 * data)
 {
 #if defined( CONFIG_SOC_AU1500 ) || defined( CONFIG_SOC_AU1550 )
-	unsigned char bus = dev->bus->number;
 	unsigned int device = PCI_SLOT(dev_fn);
 	unsigned int function = PCI_FUNC(dev_fn);
 	unsigned long offset, status;
@@ -117,8 +124,7 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 		if (!pci_cfg_vm) 
 			panic (KERN_ERR "PCI unable to get vm area\n");
 		pci_cfg_wired_entry = read_c0_wired();
-		add_wired_entry(0, 0, (unsigned long)pci_cfg_vm->addr, 
-				PM_4K);
+		add_wired_entry(0, 0, (unsigned long)pci_cfg_vm->addr, PM_4K);
 		last_entryLo0  = last_entryLo1 = 0xffffffff;
 	}
 
@@ -135,10 +141,10 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	}
 
         /* setup the config window */
-        if (bus == 0) {
+        if (bus->number == 0) {
                 cfg_base = ((1<<device)<<11);
         } else {
-                cfg_base = 0x80000000 | (bus<<16) | (device<<11);
+                cfg_base = 0x80000000 | (bus->number<<16) | (device<<11);
         }
 
         /* setup the lower bits of the 36 bit address */
@@ -166,8 +172,8 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	}
 	au_sync_udelay(2);
 
-	DBG("config_access: %d bus %d device %d at %x *data %x, conf %x\n", 
-			access_type, bus, device, where, *data, offset);
+	DBG("cfg_access %d bus->number %d dev %d at %x *data %x conf %x\n", 
+			access_type, bus->number, device, where, *data, offset);
 
 	/* check master abort */
 	status = au_readl(Au1500_PCI_STATCMD);
@@ -175,6 +181,7 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 	if (status & (1<<29)) { 
 		*data = 0xffffffff;
 		error = -1;
+		DBG("Au1x Master Abort\n");
 	} else if ((status >> 28) & 0xf) {
 		DBG("PCI ERR detected: status %x\n", status);
 		*data = 0xffffffff;

@@ -1141,14 +1141,14 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
 #define Au1500_PCI_MEM_START      0x440000000
 #define Au1500_PCI_MEM_END        0x44FFFFFFF
 
-#define PCI_IO_START    (Au1500_PCI_IO_START + 0x300)
+#define PCI_IO_START    (Au1500_PCI_IO_START + 0x1000)
 #define PCI_IO_END      (Au1500_PCI_IO_END)
 #define PCI_MEM_START   (Au1500_PCI_MEM_START)
 #define PCI_MEM_END     (Au1500_PCI_MEM_END)
 #define PCI_FIRST_DEVFN (0<<3)
 #define PCI_LAST_DEVFN  (19<<3)
 
-#define IOPORT_RESOURCE_START 0x00000000
+#define IOPORT_RESOURCE_START 0x00001000 /* skip the legacy ide probing */
 #define IOPORT_RESOURCE_END   0xffffffff
 #define IOMEM_RESOURCE_START  0x10000000
 #define IOMEM_RESOURCE_END    0xffffffff
