@@ -14,6 +14,7 @@
 #undef CONF_DEBUG_IRIX
 
 #include <linux/config.h>
+#include <linux/compiler.h>
 #include <linux/linkage.h>
 #include <linux/mm.h>
 #include <linux/smp.h>
@@ -234,76 +235,6 @@ asmlinkage int sys_olduname(struct oldold_utsname * name)
 	error = error ? -EFAULT : 0;
 
 	return error;
-}
-
-/*
- * Do the indirect syscall syscall.
- * Don't care about kernel locking; the actual syscall will do it.
- *
- * XXX This is borken.
- */
-asmlinkage int sys_syscall(struct pt_regs regs)
-{
-	syscall_t syscall;
-	unsigned long syscallnr = regs.regs[4];
-	unsigned long a0, a1, a2, a3, a4, a5, a6;
-	int nargs, errno;
-
-	if (syscallnr > __NR_Linux + __NR_Linux_syscalls)
-		return -ENOSYS;
-
-	syscall = sys_call_table[syscallnr];
-	nargs = sys_narg_table[syscallnr];
-	/*
-	 * Prevent stack overflow by recursive
-	 * syscall(__NR_syscall, __NR_syscall,...);
-	 */
-	if (syscall == (syscall_t) sys_syscall) {
-		return -EINVAL;
-	}
-
-	if (syscall == NULL) {
-		return -ENOSYS;
-	}
-
-	if(nargs > 3) {
-		unsigned long usp = regs.regs[29];
-		unsigned long *sp = (unsigned long *) usp;
-		if(usp & 3) {
-			printk("unaligned usp -EFAULT\n");
-			force_sig(SIGSEGV, current);
-			return -EFAULT;
-		}
-		errno = verify_area(VERIFY_READ, (void *) (usp + 16),
-		                    (nargs - 3) * sizeof(unsigned long));
-		if(errno) {
-			return -EFAULT;
-		}
-		switch(nargs) {
-		case 7:
-			a3 = sp[4]; a4 = sp[5]; a5 = sp[6]; a6 = sp[7];
-			break;
-		case 6:
-			a3 = sp[4]; a4 = sp[5]; a5 = sp[6]; a6 = 0;
-			break;
-		case 5:
-			a3 = sp[4]; a4 = sp[5]; a5 = a6 = 0;
-			break;
-		case 4:
-			a3 = sp[4]; a4 = a5 = a6 = 0;
-			break;
-
-		default:
-			a3 = a4 = a5 = a6 = 0;
-			break;
-		}
-	} else {
-		a3 = a4 = a5 = a6 = 0;
-	}
-	a0 = regs.regs[5]; a1 = regs.regs[6]; a2 = regs.regs[7];
-	if(nargs == 0)
-		a0 = (unsigned long) &regs;
-	return syscall((void *)a0, a1, a2, a3, a4, a5, a6);
 }
 
 /*

@@ -17,12 +17,6 @@
 #include <asm/sysmips.h>
 #include <asm/unistd.h>
 
-/* This duplicates the definition from <linux/sched.h> */
-#define PT_TRACESYS	0x00000002	/* tracing system calls */
-
-/* This duplicates the definition from <asm/signal.h> */
-#define SIGILL		4		/* Illegal instruction (ANSI).  */
-
 /* Highest syscall used of any syscall flavour */
 #define MAX_SYSCALL_NO	__NR_Linux + __NR_Linux_syscalls
 
@@ -272,3 +266,69 @@ bad_alignment:
 	beq	a0, MIPS_ATOMIC_SET, mips_atomic_set
 	j	_sys_sysmips
 	END(sys_sysmips)
+
+	LEAF(sys_syscall)
+	lw	t0, PT_R29(sp)			# user sp
+
+	sltu	v0, a0, __NR_Linux + __NR_Linux_syscalls + 1
+	beqz	v0, enosys
+
+	sll	v0, t1, 2
+	la	v1, sys_syscall
+	lw	t2, sys_call_table(v0)		# function pointer
+	lbu	t4, sys_narg_table(t1)		# number of arguments
+
+	li	v0, -EINVAL
+	beq	t2, v1, out			# do not recurse
+
+	beqz	t2, enosys			# null function pointer?
+
+	andi	v0, t0, 0x3			# unaligned stack pointer?
+	bnez	v0, sigsegv
+
+	addu	v0, t0, 16			# v0 = usp + 16
+	addu	t1, v0, 12			# 3 32-bit arguments
+	lw	v1, THREAD_CURDS($28)
+	or	v0, v0, t1
+	and	v1, v1, v0
+	bltz	v1, efault
+
+	move	a0, a1				# shit argument registers
+	move	a1, a2
+	move	a2, a3
+
+1:	lw	a3, 16(t0)
+2:	lw	t3, 20(t0)
+3:	lw	t4, 24(t0)
+
+	.section	__ex_table, "a"
+	.word	1b, efault
+	.word	2b, efault
+	.word	3b, efault
+	.previous
+
+	sw	t3, 16(sp)			# put into new stackframe
+	sw	t4, 20(sp)
+
+	bnez	t4, 1f				# zero arguments?
+	addu	a0, sp, 32			# then pass sp in a0
+1:
+
+	sw	t3, 16(sp)
+	sw	v1, 20(sp)
+	jr	t2
+	/* Unreached */
+
+enosys:	li	v0, -ENOSYS
+	b	out
+
+sigsegv:
+	li	a0, _SIGSEGV
+	move	a1, $28
+	jal	force_sig
+	/* Fall through */
+
+efault:	li	v0, -EFAULT
+
+out:	jr	ra
+	END(sys_syscall)
