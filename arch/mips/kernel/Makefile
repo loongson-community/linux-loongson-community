@@ -14,7 +14,7 @@ EXTRA_ASFLAGS = -mips3 -mcpu=r4000
 O_TARGET := kernel.o
 O_OBJS	:= branch.o process.o signal.o entry.o traps.o ptrace.o vm86.o \
 	   ioport.o reset.o semaphore.o setup.o syscall.o sysmips.o ipc.o \
-	   scall_o32.o softfp.o unaligned.o
+	   scall_o32.o unaligned.o
 OX_OBJS := mips_ksyms.o
 
 ifdef CONFIG_CPU_R3000
@@ -30,6 +30,10 @@ endif
 
 ifdef CONFIG_MIPS_FPE_MODULE
 M_OBJS += fpe.o
+endif
+
+ifndef CONFIG_MIPS_FPU_EMULATOR
+O_OBJS += softfp.o
 endif
 
 ifdef CONFIG_ROTTEN_IRQ

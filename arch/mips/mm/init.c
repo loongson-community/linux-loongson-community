@@ -1,5 +1,4 @@
-/* $Id: init.c,v 1.26 2000/02/23 00:41:00 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -29,6 +28,7 @@
 
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
 #include <asm/system.h>
@@ -123,7 +123,7 @@ static inline unsigned long setup_zero_pages(void)
 	unsigned long order, size;
 	struct page *page;
 
-	switch (mips_cputype) {
+	switch (mips_cpu.cputype) {
 	case CPU_R4000SC:
 	case CPU_R4000MC:
 	case CPU_R4400SC:

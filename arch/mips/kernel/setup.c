@@ -36,6 +36,7 @@
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
 #include <asm/cachectl.h>
+#include <asm/cpu.h>
 #include <asm/io.h>
 #include <asm/stackframe.h>
 #include <asm/system.h>
@@ -95,7 +96,6 @@ struct kbd_ops *kbd_ops;
  * These are initialized so they are in the .data section
  */
 unsigned long mips_memory_upper = KSEG0; /* this is set by kernel_entry() */
-unsigned long mips_cputype = CPU_UNKNOWN;
 unsigned long mips_machtype = MACH_UNKNOWN;
 unsigned long mips_machgroup = MACH_GROUP_UNKNOWN;
 
@@ -152,63 +152,153 @@ static inline int cpu_has_confreg(void)
 #endif
 }
 
+/* declaration of the global struct */
+struct mips_cpu mips_cpu = {PRID_IMP_UNKNOWN, CPU_UNKNOWN, 0, 0, 0,
+			    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
+
+/* Shortcut for assembler access to mips_cpu.options */
+int *cpuoptions = &mips_cpu.options;
+
+#define R4K_OPTS (MIPS_CPU_TLB | MIPS_CPU_4KEX | MIPS_CPU_4KTLB \
+		| MIPS_CPU_COUNTER | MIPS_CPU_CACHE_CDEX)
+
 static inline void cpu_probe(void)
 {
-	unsigned int prid = read_32bit_cp0_register(CP0_PRID);
-	switch(prid & 0xff00) {
+	unsigned long config1;
+
+	mips_cpu.processor_id = read_32bit_cp0_register(CP0_PRID);
+	switch (mips_cpu.processor_id & 0xff00) {
 	case PRID_IMP_R2000:
-		mips_cputype = CPU_R2000;
+		mips_cpu.cputype = CPU_R2000;
+		mips_cpu.isa_level = MIPS_CPU_ISA_I;
+		mips_cpu.options = MIPS_CPU_TLB;
+		mips_cpu.tlbsize = 32;
 		break;
 	case PRID_IMP_R3000:
-		if((prid & 0xff) == PRID_REV_R3000A)
-			if(cpu_has_confreg())
-				mips_cputype = CPU_R3081E;
+		if ((mips_cpu.processor_id & 0xff) == PRID_REV_R3000A)
+			if (cpu_has_confreg())
+				mips_cpu.cputype = CPU_R3081E;
 			else
-				mips_cputype = CPU_R3000A;
+				mips_cpu.cputype = CPU_R3000A;
 		else
-			 mips_cputype = CPU_R3000;
+			 mips_cpu.cputype = CPU_R3000;
+		mips_cpu.isa_level = MIPS_CPU_ISA_I;
+		mips_cpu.options = MIPS_CPU_TLB;
+		mips_cpu.tlbsize = 32;
 		break;
 	case PRID_IMP_R4000:
-		if((prid & 0xff) == PRID_REV_R4400)
-			mips_cputype = CPU_R4400SC;
+		if ((mips_cpu.processor_id & 0xff) == PRID_REV_R4400)
+			mips_cpu.cputype = CPU_R4400SC;
 		else
-			mips_cputype = CPU_R4000SC;
+			mips_cpu.cputype = CPU_R4000SC;
+		mips_cpu.isa_level = MIPS_CPU_ISA_III;
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR |
+		                   MIPS_CPU_WATCH | MIPS_CPU_VCE;
+		mips_cpu.tlbsize = 48;
 		break;
 	case PRID_IMP_R4600:
-		mips_cputype = CPU_R4600;
+		mips_cpu.cputype = CPU_R4600;
+		mips_cpu.isa_level = MIPS_CPU_ISA_III;
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
+		mips_cpu.tlbsize = 48;
 		break;
 	case PRID_IMP_R4650:
-		mips_cputype = CPU_R4650;
+		mips_cpu.cputype = CPU_R4650;
+		mips_cpu.isa_level = MIPS_CPU_ISA_III;
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU;
+		mips_cpu.tlbsize = 48;
 		break;
 	case PRID_IMP_R4700:
-		mips_cputype = CPU_R4700;
+		mips_cpu.cputype = CPU_R4700;
+		mips_cpu.isa_level = MIPS_CPU_ISA_III;
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+		mips_cpu.tlbsize = 48;
 		break;
 	case PRID_IMP_R5000:
-		mips_cputype = CPU_R5000;
+		mips_cpu.cputype = CPU_R5000;
+		mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+		mips_cpu.tlbsize = 48;
 		break;
-       case PRID_IMP_R5432:
-               mips_cputype = CPU_R5432;
-               break;
+	case PRID_IMP_R5432:
+	        mips_cpu.cputype = CPU_R5432;
+		mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+		mips_cpu.tlbsize = 48;
+		break;
 	case PRID_IMP_NEVADA:
-		mips_cputype = CPU_NEVADA;
+		mips_cpu.cputype = CPU_NEVADA;
+		mips_cpu.isa_level = MIPS_CPU_ISA_IV; 
+		mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR | 
+		                   MIPS_CPU_DIVEC;
+		mips_cpu.tlbsize = 48;
 		break;
 	case PRID_IMP_R6000:
-		mips_cputype = CPU_R6000;
+		mips_cpu.cputype = CPU_R6000;
+		mips_cpu.isa_level = MIPS_CPU_ISA_II;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_FPU;
+		mips_cpu.tlbsize = 32;
 		break;
 	case PRID_IMP_R6000A:
-		mips_cputype = CPU_R6000A;
+		mips_cpu.cputype = CPU_R6000A;
+		mips_cpu.isa_level = MIPS_CPU_ISA_II;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_FPU;
+		mips_cpu.tlbsize = 32;
 		break;
 	case PRID_IMP_RM7000:
-		mips_cputype = CPU_RM7000;
+		mips_cpu.cputype = CPU_RM7000;
+	        mips_cpu.isa_level = MIPS_CPU_ISA_IV;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+		                   MIPS_CPU_FPU | MIPS_CPU_32FPR |
+		                   MIPS_CPU_COUNTER;
 		break;
 	case PRID_IMP_R8000:
-		mips_cputype = CPU_R8000;
+		mips_cpu.cputype = CPU_R8000;
+	        mips_cpu.isa_level = MIPS_CPU_ISA_IV;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX |
+		                   MIPS_CPU_FPU | MIPS_CPU_32FPR;
+		mips_cpu.tlbsize = 384;      /* has wierd TLB: 3-way x 128 */
 		break;
 	case PRID_IMP_R10000:
-		mips_cputype = CPU_R10000;
+		mips_cpu.cputype = CPU_R10000;
+		mips_cpu.cputype = MIPS_CPU_ISA_IV;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+		                   MIPS_CPU_FPU | MIPS_CPU_32FPR | 
+		                   MIPS_CPU_COUNTER | MIPS_CPU_WATCH;
+		mips_cpu.tlbsize = 64;
 		break;
+#ifdef CONFIG_CPU_MIPS32
+	case PRID_IMP_4KC:
+		mips_cpu.cputype = CPU_4KC;
+		mips_cpu.cputype = MIPS_CPU_ISA_M32;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+		                   MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
+		                   MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
+		config1 = read_mips32_cp0_config1();
+		if (config1 & (1 << 3))
+		        mips_cpu.options |= MIPS_CPU_WATCH;
+		if (config1 & (1 << 2))
+		        mips_cpu.options |= MIPS_CPU_MIPS16;
+		if (config1 & 1)
+		        mips_cpu.options |= MIPS_CPU_FPU;
+		break;
+	case PRID_IMP_5KC:
+		mips_cpu.cputype = CPU_5KC;
+		mips_cpu.cputype = MIPS_CPU_ISA_M64;
+		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
+		                   MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | 
+		                   MIPS_CPU_DIVEC | MIPS_CPU_WATCH;
+		config1 = read_mips32_cp0_config1();
+		if (config1 & (1 << 3))
+		        mips_cpu.options |= MIPS_CPU_WATCH;
+		if (config1 & (1 << 2))
+		        mips_cpu.options |= MIPS_CPU_MIPS16;
+		if (config1 & 1)
+		        mips_cpu.options |= MIPS_CPU_FPU;
+		break;
+#endif
 	default:
-		mips_cputype = CPU_UNKNOWN;
+		mips_cpu.cputype = CPU_UNKNOWN;
 	}
 }
 
@@ -232,9 +322,9 @@ asmlinkage void __init init_arch(int argc, char **argv, char **envp, int *prom_v
 	 */
 	loadmmu();
 
-	/* Disable coprocessors */
+	/* Disable coprocessors and set FPU for 16 FPRs */
 	s = read_32bit_cp0_register(CP0_STATUS);
-	s &= ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX);
+	s &= ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_KX|ST0_SX|ST0_FR);
 	s |= ST0_CU0;
 	write_32bit_cp0_register(CP0_STATUS, s);
 

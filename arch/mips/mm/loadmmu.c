@@ -9,10 +9,11 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 
+#include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
-#include <asm/bootinfo.h>
 
 /* memory functions */
 void (*_clear_page)(void * page);
@@ -45,7 +46,7 @@ extern void ld_mmu_andes(void);
 
 void __init loadmmu(void)
 {
-	switch(mips_cputype) {
+	switch (mips_cpu.cputype) {
 #ifdef CONFIG_CPU_R3000
 	case CPU_R2000:
 	case CPU_R3000:

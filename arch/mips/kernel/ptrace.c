@@ -23,6 +23,7 @@
 #include <asm/page.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
+#include <asm/bootinfo.h>
 
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 {

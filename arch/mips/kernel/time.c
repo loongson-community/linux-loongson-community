@@ -17,6 +17,7 @@
 #include <linux/kernel_stat.h>
 
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -448,7 +449,7 @@ char cyclecounter_available;
 
 static inline void init_cycle_counter(void)
 {
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_UNKNOWN:
 	case CPU_R2000:
 	case CPU_R3000:

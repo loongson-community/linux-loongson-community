@@ -19,12 +19,13 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 
+#include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/bcache.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
-#include <asm/bootinfo.h>
 #include <asm/mmu_context.h>
 
 /* CP0 hazard avoidance. */
@@ -2699,7 +2700,7 @@ void __init ld_mmu_r4xx0(void)
 	probe_dcache(config);
 	setup_scache(config);
 
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_R4600:			/* QED style two way caches? */
 	case CPU_R4700:
 	case CPU_R5000:

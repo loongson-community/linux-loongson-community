@@ -95,6 +95,14 @@ LEAF(save_fp)
 	END(save_fp)
 
 /*
+ * Restore a thread's fp context.
+ */
+LEAF(restore_fp)
+	FPU_RESTORE_DOUBLE(a0, t1)		# clobbers t1
+	jr	ra
+	END(r4xx0_restore_fp)
+
+/*
  * Load the FPU with signalling NANS.  This bit pattern we're using has
  * the property that no matter whether considered as single or as double
  * precision represents signaling NANS.

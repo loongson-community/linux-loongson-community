@@ -79,6 +79,11 @@ ifdef CONFIG_CPU_R10000
 GCCFLAGS	+= -mcpu=r8000 -mips2 -Wa,--trap
 endif
 
+ifdef CONFIG_MIPS_FPU_EMULATOR
+CORE_FILES	+=arch/mips/math-emu/fpu_emulator.o
+SUBDIRS		+=arch/mips/math-emu
+endif
+
 #
 # The pipe options is bad for my low-mem machine
 # Uncomment this if you want this.

@@ -196,7 +196,7 @@ typedef struct mips_arc_DisplayInfo {	/* video adapter information */
  * .data section
  */
 extern unsigned long mips_memory_upper;
-extern unsigned long mips_cputype;
+extern struct mips_cpu mips_cpu;
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
 extern unsigned long mips_tlb_entries;

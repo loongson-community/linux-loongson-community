@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
 #include <asm/watch.h>
@@ -50,11 +51,9 @@ int get_cpuinfo(char *buffer)
 
 	len = sprintf(buffer, "cpu\t\t\t: MIPS\n");
 	len += sprintf(buffer + len, "cpu model\t\t: %s V%d.%d\n",
-	               cpu_name[mips_cputype <= CPU_LAST ?
-	                        mips_cputype :
-	                        CPU_UNKNOWN],
-	               (version >> 4) & 0x0f,
-	               version & 0x0f);
+	               cpu_name[mips_cpu.cputype <= CPU_LAST ?
+	                        mips_cpu.cputype : CPU_UNKNOWN],
+	               (version >> 4) & 0x0f, version & 0x0f);
 	len += sprintf(buffer + len, "system type\t\t: %s %s\n",
 		       mach_group_names[mips_machgroup],
 		       mach_group_to_name[mips_machgroup][mips_machtype]);

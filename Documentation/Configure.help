@@ -1683,6 +1683,12 @@ CONFIG_JAZZ_ESP
   4000, Acer PICA, Olivetti M700-10 and a few other identical OEM
   systems.
 
+Kernel floating-point instruction emulation
+CONFIG_MIPS_FPU_EMULATOR
+  This option enables the MIPS software floatingpoint support.  Due to the
+  way floatingpoint works you should always enable this option unless
+  you exactly know what you're doing.
+
 PCMCIA SCSI adapter support
 CONFIG_SCSI_PCMCIA
   Say Y here if you intend to attach a PCMCIA or CardBus card to your

@@ -16,12 +16,14 @@
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
 
+#include <asm/bootinfo.h>
 #include <asm/branch.h>
+#include <asm/cpu.h>
 #include <asm/cachectl.h>
+#include <asm/inst.h>
 #include <asm/jazz.h>
 #include <asm/pgtable.h>
 #include <asm/io.h>
-#include <asm/bootinfo.h>
 #include <asm/watch.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -65,6 +67,8 @@ extern asmlinkage void handle_tr(void);
 extern asmlinkage void handle_fpe(void);
 extern asmlinkage void handle_watch(void);
 extern asmlinkage void handle_reserved(void);
+
+extern int fpu_emulator_cop1Handler(int, struct pt_regs *);
 
 static char *cpu_names[] = CPU_NAMES;
 
@@ -318,9 +322,11 @@ int unregister_fpe(void (*handler)(struct pt_regs *regs, unsigned int fcr31))
  */
 void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 {
-	unsigned long pc;
-	unsigned int insn;
-	extern void simfp(unsigned int);
+
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+	if(!(mips_cpu.options & MIPS_CPU_FPU))
+		panic("Floating Point Exception with No FPU");
+#endif
 
 #ifdef CONFIG_MIPS_FPE_MODULE
 	if (fpe_handler != NULL) {
@@ -328,12 +334,50 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		return;
 	}
 #endif
-	if (fcr31 & 0x20000) {
+
+	if (fcr31 & FPU_CSR_UNI_X) {
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+		extern void save_fp(struct task_struct *);
+		extern void restore_fp(struct task_struct *);
+		int sig;
+		/*
+	 	 * Unimplemented operation exception.  If we've got the
+	 	 * Full software emulator on-board, let's use it...
+		 *
+		 * Force FPU to dump state into task/thread context.
+		 * We're moving a lot of data here for what is probably
+		 * a single instruction, but the alternative is to 
+		 * pre-decode the FP register operands before invoking
+		 * the emulator, which seems a bit extreme for what
+		 * should be an infrequent event.
+		 */
+		save_fp(current);
+	
+		/* Run the emulator */
+		sig = fpu_emulator_cop1Handler(0, regs);
+
+		/* 
+		 * We can't allow the emulated instruction to leave the
+		 * Unimplemented Operation bit set in the FCR31 fp-register.
+		 */
+		current->thread.fpu.soft.sr &= ~FPU_CSR_UNI_X;
+
+		/* Restore the hardware register state */
+		restore_fp(current);
+
+		/* If something went wrong, signal */
+		if (sig)
+			force_sig(sig, current);
+#else
+		/* Else use mini-emulator */
+
+		extern void simfp(int);
+		unsigned long pc;
+		unsigned int insn;
+
 		/* Retry instruction with flush to zero ...  */
 		if (!(fcr31 & (1<<24))) {
-			printk("Setting flush to zero for %s.\n",
-			       current->comm);
-			fcr31 &= ~0x20000;
+			fcr31 &= ~FPU_CSR_UNI_X;
 			fcr31 |= (1<<24);
 			__asm__ __volatile__(
 				"ctc1\t%0,$31"
@@ -342,20 +386,13 @@ void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 			return;
 		}
 		pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
-		if (get_user(insn, (unsigned int *)pc)) {
-			/* XXX Can this happen?  */
+		if (get_user(insn, (unsigned int *)pc))
 			force_sig(SIGSEGV, current);
-		}
-
-		printk(KERN_DEBUG "Unimplemented exception for insn %08x at 0x%08lx in %s.\n",
-		       insn, regs->cp0_epc, current->comm);
-		simfp(insn);
+#endif /* !CONFIG_MIPS_FPU_EMULATOR */
 	}
 
-	if (compute_return_epc(regs))
-		return;
-	//force_sig(SIGFPE, current);
-	printk(KERN_DEBUG "Should send SIGFPE to %s\n", current->comm);
+	if (!compute_return_epc(regs))
+		force_sig(SIGFPE, current);
 }
 
 static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
@@ -530,10 +567,32 @@ void do_cpu(struct pt_regs *regs)
 	unsigned int cpid;
 	extern void lazy_fpu_switch(void*);
 	extern void init_fpu(void);
-
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+	void fpu_emulator_init_fpu(void);
+	int sig;
+#endif
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 	if (cpid != 1)
 		goto bad_cid;
+
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+	if(!(mips_cpu.options & MIPS_CPU_FPU)) {
+	    if (last_task_used_math != current) {
+		if(!current->used_math) {
+		    fpu_emulator_init_fpu();
+		    current->used_math = 1;
+		}
+	    }
+	    sig = fpu_emulator_cop1Handler(0, regs);
+	    last_task_used_math = current;
+	    if(sig) {
+		force_sig(sig, current);
+	    }
+	    return;
+	}
+#else
+	if(!(mips_cpu.options & MIPS_CPU_FPU)) goto bad_cid;
+#endif
 
 	regs->cp0_status |= ST0_CU1;
 	if (last_task_used_math == current)
@@ -599,7 +658,7 @@ static inline void watch_init(unsigned long cputype)
 static inline void setup_dedicated_int(void)
 {
 	extern void except_vec4(void);
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_NEVADA:
 		memcpy((void *)(KSEG0 + 0x200), except_vec4, 8);
 		set_cp0_cause(CAUSEF_IV, CAUSEF_IV);
@@ -655,7 +714,7 @@ void __init trap_init(void)
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
-	watch_init(mips_cputype);
+	watch_init(mips_cpu.cputype);
 	setup_dedicated_int();
 
 	set_except_vector(1, handle_mod);
@@ -684,7 +743,7 @@ void __init trap_init(void)
 	/*
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
-	switch(mips_cputype) {
+	switch(mips_cpu.cputype) {
 	case CPU_R10000:
 		/*
 		 * The R10000 is in most aspects similar to the R4400.  It
@@ -714,9 +773,9 @@ void __init trap_init(void)
         case CPU_R5432:
         case CPU_NEVADA:
         case CPU_RM7000:
-		if(mips_cputype == CPU_NEVADA) {
+		if(mips_cpu.cputype == CPU_NEVADA) {
 			memcpy((void *)KSEG0, &except_vec0_nevada, 0x80);
-		} else if (mips_cputype == CPU_R4600)
+		} else if (mips_cpu.cputype == CPU_R4600)
 			memcpy((void *)KSEG0, &except_vec0_r4600, 0x80);
 		else
 			memcpy((void *)KSEG0, &except_vec0_r4000, 0x80);
@@ -759,7 +818,7 @@ void __init trap_init(void)
 		break;
 	case CPU_R8000:
 		printk("Detected unsupported CPU type %s.\n",
-			cpu_names[mips_cputype]);
+			cpu_names[mips_cpu.cputype]);
 		panic("Can't handle CPU");
 		break;
 

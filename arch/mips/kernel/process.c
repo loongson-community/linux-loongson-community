@@ -6,6 +6,7 @@
  * Copyright (C) 1994 - 2000 by Ralf Baechle and others.
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
+#include <linux/config.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -20,6 +21,7 @@
 #include <linux/a.out.h>
 
 #include <asm/bootinfo.h>
+#include <asm/cpu.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/mipsregs.h>
@@ -80,9 +82,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	childksp = (unsigned long)p + KERNEL_STACK_SIZE - 32;
 
-	if (last_task_used_math == current) {
-		set_cp0_status(ST0_CU1, ST0_CU1);
-		save_fp(p);
+	if (last_task_used_math == current)
+#ifdef CONFIG_MIPS_FPU_EMULATOR
+		if (mips_cpu.options & MIPS_CPU_FPU)
+#endif
+	{
+			set_cp0_status(ST0_CU1, ST0_CU1);
+			save_fp(p);
 	}
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;
