@@ -61,6 +61,7 @@ static void get_rtc_time(struct rtc_time *rtc_tm);
 #define RTC_TIMER_ON		0x02	/* missed irq timer active	*/
 
 static unsigned char rtc_status;	/* bitmapped status byte.	*/
+static spinlock_t rtc_status_lock = SPIN_LOCK_UNLOCKED;
 static unsigned long rtc_freq;	/* Current periodic IRQ rate	*/
 static struct m48t35_rtc *rtc;
 
@@ -166,10 +167,16 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 static int rtc_open(struct inode *inode, struct file *file)
 {
-	if(rtc_status & RTC_IS_OPEN)
+	spin_lock(rtc_status_lock);
+
+	if (rtc_status & RTC_IS_OPEN) {
+		spin_unlock(rtc_status_lock);
 		return -EBUSY;
+	}
 
 	rtc_status |= RTC_IS_OPEN;
+	spin_unlock(rtc_status_lock);
+
 	return 0;
 }
 
@@ -180,9 +187,10 @@ static int rtc_release(struct inode *inode, struct file *file)
 	 * in use, and clear the data.
 	 */
 
-	lock_kernel();
+	spin_lock(rtc_status_lock);
 	rtc_status &= ~RTC_IS_OPEN;
-	unlock_kernel();
+	spin_unlock(rtc_status_lock);
+
 	return 0;
 }
 
