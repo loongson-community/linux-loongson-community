@@ -793,7 +793,7 @@ static int __init ioc3_probe(void)
 	return cards ? -ENODEV : 0;
 }
 
-static void __exit ioc3_probe(void)
+static void __exit ioc3_cleanup_module(void)
 {
 	/* Later, when we really support modules.  */
 }
