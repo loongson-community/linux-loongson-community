@@ -50,9 +50,8 @@
 #endif
 
 
-static const char *version="meth.c: Ilya Volynets (ilya@theIlya.com)";
 static const char *meth_str="SGI O2 Fast Ethernet";
-MODULE_AUTHOR("Ilya Volynets");
+MODULE_AUTHOR("Ilya Volynets <ilya@theIlya.com>");
 MODULE_DESCRIPTION("SGI O2 Builtin Fast Ethernet driver");
 
 #define HAVE_TX_TIMEOUT
@@ -89,7 +88,6 @@ typedef struct meth_private {
 	spinlock_t meth_lock;
 } meth_private;
 
-extern struct net_device meth_devs[];
 void meth_tx_timeout (struct net_device *dev);
 irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs);
         
@@ -127,30 +125,6 @@ static int mdio_read(meth_private *priv,int phyreg)
 	udelay(25);
 	WAIT_FOR_PHY(regs,rval);
 	return rval&MDIO_DATA_MASK;
-}
-
-/*write phy register */
-static void mdio_write(meth_private* priv,int pfyreg,int val)
-{
-	volatile meth_regs* regs=priv->regs;
-	int rval;
-	spin_lock(&priv->meth_lock);
-	WAIT_FOR_PHY(regs,rval);
-	regs->phy_registers=(priv->phy_addr<<5)|(pfyreg&0x1f);
-	regs->phy_data=val;
-	udelay(25);
-	WAIT_FOR_PHY(regs,rval);
-	spin_unlock(&priv->meth_lock);
-}
-
-/* Modify phy register using given mask and value */
-static void mdio_update(meth_private* priv,int phyreg, int val, int mask)
-{
-	int rval;
-	DPRINTK("RMW value %i to PHY register %i with mask %i\n",val,phyreg,mask);
-	rval=mdio_read(priv,phyreg);
-	rval=(rval&~mask)|(val&mask);
-	mdio_write(priv,phyreg,rval);
 }
 
 static int mdio_probe(meth_private *priv)
@@ -525,7 +499,7 @@ irqreturn_t meth_interrupt(int irq, void *dev_id, struct pt_regs *pregs)
 
 	status = priv->regs->int_flags;
     
-	if (status & METH_INT_RX_THRESHOLD) {
+	if (status & (METH_INT_RX_THRESHOLD|METH_INT_RX_UNDERFLOW)) {
 		/* send it to meth_rx for handling */
 		meth_rx(dev);
 	}
@@ -741,7 +715,7 @@ struct net_device_stats *meth_stats(struct net_device *dev)
  */
 int meth_init(struct net_device *dev)
 {
-	meth_private *priv;
+	meth_private *priv=(meth_private*)dev->priv;
 	/* 
 	 * Then, assign other fields in dev, using ether_setup() and some
 	 * hand assignments
@@ -761,15 +735,6 @@ int meth_init(struct net_device *dev)
 	dev->irq		 = MACE_ETHERNET_IRQ;
 	SET_MODULE_OWNER(dev);
 
-	/*
-	 * Then, allocate the priv field. This encloses the statistics
-	 * and a few private fields.
-	 */
-	priv = kmalloc(sizeof(struct meth_private), GFP_KERNEL);
-	if (priv == NULL)
-		return -ENOMEM;
-	dev->priv=priv;
-	memset(priv, 0, sizeof(struct meth_private));
 	spin_lock_init(&((struct meth_private *) dev->priv)->meth_lock);
 	/*
 	 * Make the usual checks: check_region(), probe irq, ...  -ENODEV
@@ -789,9 +754,7 @@ int meth_init(struct net_device *dev)
  * The devices
  */
 
-struct net_device meth_devs[1] = {
-	{ init: meth_init, }  /* init, nothing more */
-};
+struct net_device *meth_dev;
 
 /*
  * Finally, the module stuff
@@ -801,11 +764,12 @@ int meth_init_module(void)
 {
 	int result, device_present = 0;
 
-	strcpy(meth_devs[0].name, "eth%d");
+	meth_dev=alloc_etherdev(sizeof(meth_private));
+	meth_init(meth_dev);
 
-	if ( (result = register_netdev(meth_devs)) )
+	if ( (result = register_netdev(meth_dev)) )
 		printk("meth: error %i registering device \"%s\"\n",
-		       result, meth_devs->name);
+		       result, meth_dev->name);
 	else device_present++;
 	
 	return device_present ? 0 : -ENODEV;
@@ -813,8 +777,8 @@ int meth_init_module(void)
 
 void meth_cleanup(void)
 {
-	kfree(meth_devs->priv);
-	unregister_netdev(meth_devs);
+	unregister_netdev(meth_dev);
+	kfree(meth_dev);
 	return;
 }
 

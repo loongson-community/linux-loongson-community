@@ -85,7 +85,7 @@ typedef struct tx_packet {
 } tx_packet;
 
 typedef union rx_status_vector {
-	struct {
+	volatile struct {
 		u64		pad1:1;/*fill it with ones*/
 		u64		pad2:15;/*fill with 0*/
 		u64		ip_chk_sum:16;
@@ -103,7 +103,7 @@ typedef union rx_status_vector {
 		u64		rx_code_violation:1;
 		u64		rx_len:16;
 	} parsed;
-	u64 raw;
+	volatile u64 raw;
 } rx_status_vector;
 
 typedef struct rx_packet {
@@ -113,6 +113,8 @@ typedef struct rx_packet {
 	char buf[METH_RX_BUFF_SIZE-sizeof(rx_status_vector)-3*sizeof(u64)-sizeof(u16)];/* data */
 } rx_packet;
 
+#define TX_INFO_RPTR    0x00FF0000
+#define TX_INFO_WPTR    0x000000FF
 typedef struct meth_regs {
 	u64		mac_ctrl;		/*0x00,rw,31:0*/
 	u64		int_flags;		/*0x08,rw,30:0*/
@@ -120,10 +122,7 @@ typedef struct meth_regs {
 	u64		timer;			/*0x18,rw,5:0*/
 	u64		int_tx;			/*0x20,wo,0:0*/
 	u64		int_rx;			/*0x28,wo,9:4*/
-	struct {
-		u32 tx_info_pad;
-		u32 rptr:16,wptr:16;
-	}		tx_info;		/*0x30,rw,31:0*/
+	u64             tx_info;		/*0x30,rw,31:0*/
 	u64		tx_info_al;		/*0x38,rw,31:0*/
 	struct {
 		u32	rx_buff_pad1;
