@@ -103,7 +103,7 @@ endif
 ifeq ($(CONFIG_DECSTATION),y)
   KEYMAP   =
   KEYBD    =
-  SERIAL   =
+  SERIAL   = decserial.o
 endif
 
 ifeq ($(CONFIG_BAGET_MIPS),y)
