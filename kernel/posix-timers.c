@@ -77,6 +77,18 @@ static spinlock_t idr_lock = SPIN_LOCK_UNLOCKED;
 # define timer_active(tmr) BARFY	// error to use outside of SMP
 # define set_timer_inactive(tmr) do { } while (0)
 #endif
+
+/*
+ * For some reason mips/mips64 define the SIGEV constants plus 128.
+ * Here we define a mask to get rid of the common bits.	 The
+ * optimizer should make this costless to all but mips.
+ */
+#define MIPS_SIGEV ~(SIGEV_NONE & \
+		      SIGEV_SIGNAL & \
+		      SIGEV_THREAD &  \
+		      SIGEV_THREAD_ID)
+
+#define REQUEUE_PENDING 1
 /*
  * The timer ID is turned into a timer address by idr_find().
  * Verifying a valid ID consists of:
@@ -225,10 +237,9 @@ static void schedule_next_timer(struct k_itimer *timr)
 	struct now_struct now;
 
 	/* Set up the timer for the next interval (if there is one) */
-	if (!timr->it_incr) {
-		set_timer_inactive(timr);
+	if (!timr->it_incr) 
 		return;
-	}
+
 	posix_get_now(&now);
 	do {
 		posix_bump_timer(timr);
@@ -236,7 +247,7 @@ static void schedule_next_timer(struct k_itimer *timr)
 
 	timr->it_overrun_last = timr->it_overrun;
 	timr->it_overrun = -1;
-	timr->it_requeue_pending = 0;
+	++timr->it_requeue_pending;
 	add_timer(&timr->it_timer);
 }
 
@@ -258,7 +269,7 @@ void do_schedule_next_timer(struct siginfo *info)
 
 	timr = lock_timer(info->si_tid, &flags);
 
-	if (!timr || !timr->it_requeue_pending)
+	if (!timr || timr->it_requeue_pending != info->si_sys_private)
 		goto exit;
 
 	schedule_next_timer(timr);
@@ -276,6 +287,16 @@ exit:
  * indicating that the signal was either not queued or was queued
  * without an info block.  In this case, we will not get a call back to
  * do_schedule_next_timer() so we do it here.  This should be rare...
+
+ * An interesting problem can occur if, while a signal, and thus a call
+ * back is pending, the timer is rearmed, i.e. stopped and restarted.
+ * We then need to sort out the call back and do the right thing.  What
+ * we do is to put a counter in the info block and match it with the
+ * timers copy on the call back.  If they don't match, we just ignore
+ * the call back.  The counter is local to the timer and we use odd to
+ * indicate a call back is pending.  Note that we do allow the timer to 
+ * be deleted while a signal is pending.  The standard says we can
+ * allow that signal to be delivered, and we do. 
  */
 
 static void timer_notify_task(struct k_itimer *timr)
@@ -291,12 +312,14 @@ static void timer_notify_task(struct k_itimer *timr)
 	info.si_code = SI_TIMER;
 	info.si_tid = timr->it_id;
 	info.si_value = timr->it_sigev_value;
-	if (!timr->it_incr)
-		set_timer_inactive(timr);
-	else
-		timr->it_requeue_pending = info.si_sys_private = 1;
+	if (timr->it_incr)
+		info.si_sys_private = ++timr->it_requeue_pending;
 
-	ret = send_sig_info(info.si_signo, &info, timr->it_process);
+	if (timr->it_sigev_notify & SIGEV_THREAD_ID & MIPS_SIGEV)
+		ret = send_sig_info(info.si_signo, &info, timr->it_process);
+	else
+		ret = send_group_sig_info(info.si_signo, &info, 
+					  timr->it_process);
 	switch (ret) {
 
 	default:
@@ -332,23 +355,11 @@ static void posix_timer_fn(unsigned long __data)
 	unsigned long flags;
 
 	spin_lock_irqsave(&timr->it_lock, flags);
+ 	set_timer_inactive(timr);
 	timer_notify_task(timr);
 	unlock_timer(timr, flags);
 }
 
-/*
- * For some reason mips/mips64 define the SIGEV constants plus 128.
- * Here we define a mask to get rid of the common bits.	 The
- * optimizer should make this costless to all but mips.
- */
-#if (ARCH == mips) || (ARCH == mips64)
-#define MIPS_SIGEV ~(SIGEV_NONE & \
-		      SIGEV_SIGNAL & \
-		      SIGEV_THREAD &  \
-		      SIGEV_THREAD_ID)
-#else
-#define MIPS_SIGEV (int)-1
-#endif
 
 static inline struct task_struct * good_sigevent(sigevent_t * event)
 {
@@ -402,7 +413,8 @@ static void release_posix_timer(struct k_itimer *tmr)
 
 asmlinkage long
 sys_timer_create(clockid_t which_clock,
-		 struct sigevent *timer_event_spec, timer_t * created_timer_id)
+		 struct sigevent __user *timer_event_spec,
+		 timer_t __user * created_timer_id)
 {
 	int error = 0;
 	struct k_itimer *new_timer = NULL;
@@ -602,7 +614,7 @@ do_timer_gettime(struct k_itimer *timr, struct itimerspec *cur_setting)
 			posix_time_before(&timr->it_timer, &now))
 		timr->it_timer.expires = expires = 0;
 	if (expires) {
-		if (timr->it_requeue_pending ||
+		if (timr->it_requeue_pending & REQUEUE_PENDING ||
 		    (timr->it_sigev_notify & SIGEV_NONE))
 			while (posix_time_before(&timr->it_timer, &now))
 				posix_bump_timer(timr);
@@ -623,7 +635,7 @@ do_timer_gettime(struct k_itimer *timr, struct itimerspec *cur_setting)
 
 /* Get the time remaining on a POSIX.1b interval timer. */
 asmlinkage long
-sys_timer_gettime(timer_t timer_id, struct itimerspec *setting)
+sys_timer_gettime(timer_t timer_id, struct itimerspec __user *setting)
 {
 	struct k_itimer *timr;
 	struct itimerspec cur_setting;
@@ -764,7 +776,8 @@ do_timer_settime(struct k_itimer *timr, int flags,
 #else
 	del_timer(&timr->it_timer);
 #endif
-	timr->it_requeue_pending = 0;
+	timr->it_requeue_pending = (timr->it_requeue_pending + 2) & 
+		~REQUEUE_PENDING;
 	timr->it_overrun_last = 0;
 	timr->it_overrun = -1;
 	/*
@@ -801,8 +814,8 @@ do_timer_settime(struct k_itimer *timr, int flags,
 /* Set a POSIX.1b interval timer */
 asmlinkage long
 sys_timer_settime(timer_t timer_id, int flags,
-		  const struct itimerspec *new_setting,
-		  struct itimerspec *old_setting)
+		  const struct itimerspec __user *new_setting,
+		  struct itimerspec __user *old_setting)
 {
 	struct k_itimer *timr;
 	struct itimerspec new_spec, old_spec;
@@ -847,8 +860,7 @@ static inline int do_timer_delete(struct k_itimer *timer)
 {
 	timer->it_incr = 0;
 #ifdef CONFIG_SMP
-	if (timer_active(timer) &&
-	    !del_timer(&timer->it_timer) && !timer->it_requeue_pending)
+	if (timer_active(timer) && !del_timer(&timer->it_timer))
 		/*
 		 * It can only be active if on an other cpu.  Since
 		 * we have cleared the interval stuff above, it should
@@ -985,7 +997,7 @@ int do_posix_clock_monotonic_settime(struct timespec *tp)
 }
 
 asmlinkage long
-sys_clock_settime(clockid_t which_clock, const struct timespec *tp)
+sys_clock_settime(clockid_t which_clock, const struct timespec __user *tp)
 {
 	struct timespec new_tp;
 
@@ -1002,7 +1014,7 @@ sys_clock_settime(clockid_t which_clock, const struct timespec *tp)
 }
 
 asmlinkage long
-sys_clock_gettime(clockid_t which_clock, struct timespec *tp)
+sys_clock_gettime(clockid_t which_clock, struct timespec __user *tp)
 {
 	struct timespec rtn_tp;
 	int error = 0;
@@ -1021,7 +1033,7 @@ sys_clock_gettime(clockid_t which_clock, struct timespec *tp)
 }
 
 asmlinkage long
-sys_clock_getres(clockid_t which_clock, struct timespec *tp)
+sys_clock_getres(clockid_t which_clock, struct timespec __user *tp)
 {
 	struct timespec rtn_tp;
 
@@ -1074,7 +1086,7 @@ extern long do_clock_nanosleep(clockid_t which_clock, int flags,
 #ifdef FOLD_NANO_SLEEP_INTO_CLOCK_NANO_SLEEP
 
 asmlinkage long
-sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
+sys_nanosleep(struct timespec __user *rqtp, struct timespec __user *rmtp)
 {
 	struct timespec t;
 	long ret;
@@ -1096,7 +1108,8 @@ sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp)
 
 asmlinkage long
 sys_clock_nanosleep(clockid_t which_clock, int flags,
-		    const struct timespec *rqtp, struct timespec *rmtp)
+		    const struct timespec __user *rqtp,
+		    struct timespec __user *rmtp)
 {
 	struct timespec t;
 	int ret;
@@ -1218,7 +1231,7 @@ clock_nanosleep_restart(struct restart_block *restart_block)
 	int ret = do_clock_nanosleep(restart_block->arg0, 0, &t);
 
 	if ((ret == -ERESTART_RESTARTBLOCK) && restart_block->arg1 &&
-	    copy_to_user((struct timespec *)(restart_block->arg1), &t,
+	    copy_to_user((struct timespec __user *)(restart_block->arg1), &t,
 			 sizeof (t)))
 		return -EFAULT;
 	return ret;

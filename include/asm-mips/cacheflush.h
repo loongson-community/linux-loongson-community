@@ -20,7 +20,6 @@
  *  - flush_cache_mm(mm) flushes the specified mm context's cache lines
  *  - flush_cache_page(mm, vmaddr) flushes a single page
  *  - flush_cache_range(vma, start, end) flushes a range of pages
- *  - flush_page_to_ram(page) write back kernel page to ram
  *  - flush_icache_range(start, end) flush a range of instructions
  *  - flush_dcache_page(pg) flushes(wback&invalidates) a page for dcache
  *  - flush_icache_page(vma, pg) flushes(invalidates) a page for icache
@@ -38,7 +37,6 @@ extern void (*flush_cache_range)(struct vm_area_struct *vma,
 	unsigned long start, unsigned long end);
 extern void (*flush_cache_page)(struct vm_area_struct *vma,
 	unsigned long page);
-#define flush_page_to_ram(page)		do { } while (0)
 extern void flush_dcache_page(struct page *page);
 extern void (*flush_icache_page)(struct vm_area_struct *vma,
 	struct page *page);

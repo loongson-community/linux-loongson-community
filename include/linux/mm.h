@@ -231,8 +231,8 @@ static inline void get_page(struct page *page)
 static inline void put_page(struct page *page)
 {
 	if (PageCompound(page)) {
+		page = (struct page *)page->lru.next;
 		if (put_page_testzero(page)) {
-			page = (struct page *)page->lru.next;
 			if (page->lru.prev) {	/* destructor? */
 				(*(void (*)(struct page *))page->lru.prev)(page);
 			} else {
@@ -486,6 +486,8 @@ extern void free_area_init(unsigned long * zones_size);
 extern void free_area_init_node(int nid, pg_data_t *pgdat, struct page *pmap,
 	unsigned long * zones_size, unsigned long zone_start_pfn, 
 	unsigned long *zholes_size);
+extern void memmap_init_zone(struct page *, unsigned long, int,
+	unsigned long, unsigned long);
 extern void mem_init(void);
 extern void show_mem(void);
 extern void si_meminfo(struct sysinfo * val);

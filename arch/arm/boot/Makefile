@@ -13,9 +13,6 @@
 #   PARAMS_PHYS must be with 4MB of ZRELADDR
 #   INITRD_PHYS must be in RAM
 
-   zreladdr-$(CONFIG_CPU_26)		:= 0x02080000 
-params_phys-$(CONFIG_CPU_26)		:= 0x0207c000
-initrd_phys-$(CONFIG_CPU_26)		:= 0x02180000
    zreladdr-$(CONFIG_ARCH_RPC)		:= 0x10008000
 params_phys-$(CONFIG_ARCH_RPC)		:= 0x10000100
 initrd_phys-$(CONFIG_ARCH_RPC)		:= 0x18000000
@@ -48,6 +45,7 @@ endif
   zreladdr-$(CONFIG_ARCH_PXA)		:= 0xa0008000
   zreladdr-$(CONFIG_ARCH_ANAKIN)	:= 0x20008000
   zreladdr-$(CONFIG_ARCH_IQ80310)	:= 0xa0008000
+  zreladdr-$(CONFIG_ARCH_IQ80321)	:= 0xa0008000
   zreladdr-$(CONFIG_ARCH_ADIFCC)	:= 0xc0008000
 
 ZRELADDR    := $(zreladdr-y)

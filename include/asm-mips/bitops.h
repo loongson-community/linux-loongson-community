@@ -903,6 +903,23 @@ found_middle:
 	__test_and_set_le_bit((nr),(unsigned long*)addr)
 #define ext2_clear_bit(nr, addr) \
 	__test_and_clear_le_bit((nr),(unsigned long*)addr)
+ #define ext2_set_bit_atomic(lock, nr, addr)		\
+({							\
+	int ret;					\
+	spin_lock(lock);				\
+	ret = ext2_set_bit((nr), (addr));		\
+	spin_unlock(lock);				\
+	ret;						\
+})
+
+#define ext2_clear_bit_atomic(lock, nr, addr)		\
+({							\
+	int ret;					\
+	spin_lock(lock);				\
+	ret = ext2_clear_bit((nr), (addr));		\
+	spin_unlock(lock);				\
+	ret;						\
+})
 #define ext2_test_bit(nr, addr)	test_le_bit((nr),(unsigned long*)addr)
 #define ext2_find_first_zero_bit(addr, size) \
 	find_first_zero_le_bit((unsigned long*)addr, size)

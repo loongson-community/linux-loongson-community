@@ -138,6 +138,7 @@ get_dirty_limits(struct page_state *ps, long *background, long *dirty)
 void balance_dirty_pages(struct address_space *mapping)
 {
 	struct page_state ps;
+	long nr_reclaimable;
 	long background_thresh;
 	long dirty_thresh;
 	unsigned long pages_written = 0;
@@ -145,8 +146,7 @@ void balance_dirty_pages(struct address_space *mapping)
 
 	struct backing_dev_info *bdi = mapping->backing_dev_info;
 
-	get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
-	while (ps.nr_dirty + ps.nr_writeback > dirty_thresh) {
+	for (;;) {
 		struct writeback_control wbc = {
 			.bdi		= bdi,
 			.sync_mode	= WB_SYNC_NONE,
@@ -154,24 +154,37 @@ void balance_dirty_pages(struct address_space *mapping)
 			.nr_to_write	= write_chunk,
 		};
 
+		get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
+		nr_reclaimable = ps.nr_dirty + ps.nr_unstable;
+		if (nr_reclaimable + ps.nr_writeback <= dirty_thresh)
+			break;
+
 		dirty_exceeded = 1;
 
-		if (ps.nr_dirty)
+		/* Note: nr_reclaimable denotes nr_dirty + nr_unstable.
+		 * Unstable writes are a feature of certain networked
+		 * filesystems (i.e. NFS) in which data may have been
+		 * written to the server's write cache, but has not yet
+		 * been flushed to permanent storage.
+		 */
+		if (nr_reclaimable) {
 			writeback_inodes(&wbc);
-
-		get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
-		if (ps.nr_dirty + ps.nr_writeback <= dirty_thresh)
-			break;
-		pages_written += write_chunk - wbc.nr_to_write;
-		if (pages_written >= write_chunk)
-			break;		/* We've done our duty */
+			get_dirty_limits(&ps, &background_thresh,
+					&dirty_thresh);
+			nr_reclaimable = ps.nr_dirty + ps.nr_unstable;
+			if (nr_reclaimable + ps.nr_writeback <= dirty_thresh)
+				break;
+			pages_written += write_chunk - wbc.nr_to_write;
+			if (pages_written >= write_chunk)
+				break;		/* We've done our duty */
+		}
 		blk_congestion_wait(WRITE, HZ/10);
 	}
 
-	if (ps.nr_dirty + ps.nr_writeback <= dirty_thresh)
+	if (nr_reclaimable + ps.nr_writeback <= dirty_thresh)
 		dirty_exceeded = 0;
 
-	if (!writeback_in_progress(bdi) && ps.nr_dirty > background_thresh)
+	if (!writeback_in_progress(bdi) && nr_reclaimable > background_thresh)
 		pdflush_operation(background_writeout, 0);
 }
 
@@ -231,7 +244,8 @@ static void background_writeout(unsigned long _min_pages)
 		long dirty_thresh;
 
 		get_dirty_limits(&ps, &background_thresh, &dirty_thresh);
-		if (ps.nr_dirty < background_thresh && min_pages <= 0)
+		if (ps.nr_dirty + ps.nr_unstable < background_thresh
+				&& min_pages <= 0)
 			break;
 		wbc.encountered_congestion = 0;
 		wbc.nr_to_write = MAX_WRITEBACK_PAGES;
@@ -302,7 +316,7 @@ static void wb_kupdate(unsigned long arg)
 	oldest_jif = jiffies - (dirty_expire_centisecs * HZ) / 100;
 	start_jif = jiffies;
 	next_jif = start_jif + (dirty_writeback_centisecs * HZ) / 100;
-	nr_to_write = ps.nr_dirty;
+	nr_to_write = ps.nr_dirty + ps.nr_unstable;
 	while (nr_to_write > 0) {
 		wbc.encountered_congestion = 0;
 		wbc.nr_to_write = MAX_WRITEBACK_PAGES;
@@ -425,12 +439,12 @@ int write_one_page(struct page *page, int wait)
 	if (wait && PageWriteback(page))
 		wait_on_page_writeback(page);
 
-	write_lock(&mapping->page_lock);
+	spin_lock(&mapping->page_lock);
 	list_del(&page->list);
 	if (test_clear_page_dirty(page)) {
 		list_add(&page->list, &mapping->locked_pages);
 		page_cache_get(page);
-		write_unlock(&mapping->page_lock);
+		spin_unlock(&mapping->page_lock);
 		ret = mapping->a_ops->writepage(page, &wbc);
 		if (ret == 0 && wait) {
 			wait_on_page_writeback(page);
@@ -440,7 +454,7 @@ int write_one_page(struct page *page, int wait)
 		page_cache_release(page);
 	} else {
 		list_add(&page->list, &mapping->clean_pages);
-		write_unlock(&mapping->page_lock);
+		spin_unlock(&mapping->page_lock);
 		unlock_page(page);
 	}
 	return ret;
@@ -513,14 +527,14 @@ int __set_page_dirty_buffers(struct page *page)
 	spin_unlock(&mapping->private_lock);
 
 	if (!TestSetPageDirty(page)) {
-		write_lock(&mapping->page_lock);
+		spin_lock(&mapping->page_lock);
 		if (page->mapping) {	/* Race with truncate? */
 			if (!mapping->backing_dev_info->memory_backed)
 				inc_page_state(nr_dirty);
 			list_del(&page->list);
 			list_add(&page->list, &mapping->dirty_pages);
 		}
-		write_unlock(&mapping->page_lock);
+		spin_unlock(&mapping->page_lock);
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 	
@@ -550,7 +564,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			write_lock(&mapping->page_lock);
+			spin_lock(&mapping->page_lock);
 			if (page->mapping) {	/* Race with truncate? */
 				BUG_ON(page->mapping != mapping);
 				if (!mapping->backing_dev_info->memory_backed)
@@ -558,7 +572,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 				list_del(&page->list);
 				list_add(&page->list, &mapping->dirty_pages);
 			}
-			write_unlock(&mapping->page_lock);
+			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}

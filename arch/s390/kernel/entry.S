@@ -18,6 +18,7 @@
 #include <asm/ptrace.h>
 #include <asm/thread_info.h>
 #include <asm/offsets.h>
+#include <asm/unistd.h>
 
 /*
  * Stack layout for the system_call stack entry.
@@ -97,8 +98,7 @@ entry_base:
         stam    %a0,%a15,SP_AREGS(%r15)   # store access registers to kst.
         mvc     SP_AREGS+8(12,%r15),__LC_SAVE_AREA+12 # store ac. regs
         mvc     SP_PSW(8,%r15),\psworg    # move user PSW to stack
-        la      %r0,\psworg               # store trap indication
-        st      %r0,SP_TRAP(%r15)
+	mvc	SP_TRAP(4,%r15),BASED(.L\psworg) # store trap indication
         xc      0(4,%r15),0(%r15)         # clear back chain
         .endm
 
@@ -179,12 +179,18 @@ system_call:
 	SAVE_ALL_BASE
         SAVE_ALL __LC_SVC_OLD_PSW,1
 	lh	%r7,0x8a	  # get svc number from lowcore
-        GET_THREAD_INFO           # load pointer to task_struct to R9
-	sll	%r7,2
         stosm   24(%r15),0x03     # reenable interrupts
+        GET_THREAD_INFO           # load pointer to task_struct to R9
+	sla	%r7,2             # *4 and test for svc 0
+	bnz	BASED(sysc_do_restart)  # svc number > 0
+	# svc 0: system call number in %r1
+	cl	%r1,BASED(.Lnr_syscalls)
+	bnl	BASED(sysc_do_restart)
+	lr	%r7,%r1           # copy svc number to %r7
+	sla	%r7,2             # *4
 sysc_do_restart:
-        l       %r8,sys_call_table-entry_base(%r7,%r13) # get system call addr.
 	tm	__TI_flags+3(%r9),_TIF_SYSCALL_TRACE
+        l       %r8,sys_call_table-entry_base(%r7,%r13) # get system call addr.
         bo      BASED(sysc_tracesys)
         basr    %r14,%r8          # call sys_xxxx
         st      %r2,SP_R2(%r15)   # store return value (change R2 on stack)
@@ -247,7 +253,7 @@ sysc_restart:
 	ni	__TI_flags+3(%r9),255-_TIF_RESTART_SVC # clear TIF_RESTART_SVC
 	stosm	24(%r15),0x03          # reenable interrupts
 	l	%r7,SP_R2(%r15)        # load new svc number
-	sll	%r7,2
+	sla	%r2,2
 	mvc	SP_R2(4,%r15),SP_ORIG_R2(%r15) # restore first argument
 	lm	%r2,%r6,SP_R2(%r15)    # load svc arguments
 	b	BASED(sysc_do_restart) # restart svc
@@ -260,9 +266,10 @@ sysc_tracesys:
 	srl	%r7,2
 	st	%r7,SP_R2(%r15)
 	basr	%r14,%r1
+	clc	SP_R2(4,%r15),BASED(.Lnr_syscalls)
+	bl	BASED(sysc_tracego)
 	l	%r7,SP_R2(%r15)        # strace might have changed the 
-	n	%r7,BASED(.Lc256)      #  system call
-	sll	%r7,2
+	sll	%r7,2                  #  system call
 	l	%r8,sys_call_table-entry_base(%r7,%r13)
 sysc_tracego:
 	lm	%r3,%r6,SP_R3(%r15)
@@ -283,13 +290,9 @@ ret_from_fork:
         basr    %r13,0
         l       %r13,.Lentry_base-.(%r13)  # setup base pointer to &entry_base
         GET_THREAD_INFO           # load pointer to task_struct to R9
-#if CONFIG_SMP || CONFIG_PREEMPT
         l       %r1,BASED(.Lschedtail)
 	la      %r14,BASED(sysc_return)
         br      %r1               # call schedule_tail, return to sysc_return
-#else
-	b	BASED(sysc_return)
-#endif
 
 #
 # clone, fork, vfork, exec and sigreturn need glue,
@@ -361,265 +364,12 @@ sys_sigaltstack_glue:
         l       %r1,BASED(.Lsigaltstack)
         br      %r1                   # branch to sys_sigreturn
 
-	.globl  sys_call_table	
+
+#define SYSCALL(esa,esame,emu)	.long esa
+	.globl  sys_call_table
 sys_call_table:
-        .long  sys_ni_syscall            /* 0 */
-        .long  sys_exit
-        .long  sys_fork_glue
-        .long  sys_read
-        .long  sys_write
-        .long  sys_open                  /* 5 */
-        .long  sys_close
-        .long  sys_restart_syscall
-        .long  sys_creat
-        .long  sys_link
-        .long  sys_unlink                /* 10 */
-        .long  sys_execve_glue
-        .long  sys_chdir
-        .long  sys_time
-        .long  sys_mknod
-        .long  sys_chmod                /* 15 */
-        .long  sys_lchown16
-        .long  sys_ni_syscall           /* old break syscall holder */
-        .long  sys_ni_syscall           /* old stat syscall holder */
-        .long  sys_lseek
-        .long  sys_getpid               /* 20 */
-        .long  sys_mount
-        .long  sys_oldumount
-        .long  sys_setuid16
-        .long  sys_getuid16
-        .long  sys_stime                /* 25 */
-        .long  sys_ptrace
-        .long  sys_alarm
-        .long  sys_ni_syscall           /* old fstat syscall holder */
-        .long  sys_pause
-        .long  sys_utime                /* 30 */
-        .long  sys_ni_syscall           /* old stty syscall holder */
-        .long  sys_ni_syscall           /* old gtty syscall holder */
-        .long  sys_access
-        .long  sys_nice
-        .long  sys_ni_syscall           /* 35 */  /* old ftime syscall holder */
-        .long  sys_sync
-        .long  sys_kill
-        .long  sys_rename
-        .long  sys_mkdir
-        .long  sys_rmdir                /* 40 */
-        .long  sys_dup
-        .long  sys_pipe
-        .long  sys_times
-        .long  sys_ni_syscall           /* old prof syscall holder */
-        .long  sys_brk                  /* 45 */
-        .long  sys_setgid16
-        .long  sys_getgid16
-        .long  sys_signal
-        .long  sys_geteuid16
-        .long  sys_getegid16            /* 50 */
-        .long  sys_acct
-        .long  sys_umount
-        .long  sys_ni_syscall           /* old lock syscall holder */
-        .long  sys_ioctl
-        .long  sys_fcntl                /* 55 */
-        .long  sys_ni_syscall           /* old mpx syscall holder */
-        .long  sys_setpgid
-        .long  sys_ni_syscall           /* old ulimit syscall holder */
-        .long  sys_ni_syscall           /* old uname syscall holder */
-        .long  sys_umask                /* 60 */
-        .long  sys_chroot
-        .long  sys_ustat
-        .long  sys_dup2
-        .long  sys_getppid
-        .long  sys_getpgrp              /* 65 */
-        .long  sys_setsid
-        .long  sys_sigaction
-        .long  sys_ni_syscall           /* old sgetmask syscall holder */
-        .long  sys_ni_syscall           /* old ssetmask syscall holder */
-        .long  sys_setreuid16           /* 70 */
-        .long  sys_setregid16
-        .long  sys_sigsuspend_glue
-        .long  sys_sigpending
-        .long  sys_sethostname
-        .long  sys_setrlimit            /* 75 */
-        .long  sys_old_getrlimit
-        .long  sys_getrusage
-        .long  sys_gettimeofday
-        .long  sys_settimeofday
-        .long  sys_getgroups16          /* 80 */
-        .long  sys_setgroups16
-        .long  sys_ni_syscall           /* old select syscall holder */
-        .long  sys_symlink
-        .long  sys_ni_syscall           /* old lstat syscall holder */
-        .long  sys_readlink             /* 85 */
-        .long  sys_uselib
-        .long  sys_swapon
-        .long  sys_reboot
-        .long  sys_ni_syscall           /* old readdir syscall holder */
-        .long  old_mmap                 /* 90 */
-        .long  sys_munmap
-        .long  sys_truncate
-        .long  sys_ftruncate
-        .long  sys_fchmod
-        .long  sys_fchown16              /* 95 */
-        .long  sys_getpriority
-        .long  sys_setpriority
-        .long  sys_ni_syscall            /* old profil syscall holder */
-        .long  sys_statfs
-        .long  sys_fstatfs               /* 100 */
-        .long  sys_ioperm
-        .long  sys_socketcall
-        .long  sys_syslog
-        .long  sys_setitimer
-        .long  sys_getitimer             /* 105 */
-        .long  sys_newstat
-        .long  sys_newlstat
-        .long  sys_newfstat
-        .long  sys_ni_syscall            /* old uname syscall holder */
-        .long  sys_ni_syscall            /* 110 */ /* iopl for i386 */
-        .long  sys_vhangup
-        .long  sys_ni_syscall            /* old "idle" system call */
-        .long  sys_ni_syscall            /* vm86old for i386 */
-        .long  sys_wait4
-        .long  sys_swapoff               /* 115 */
-        .long  sys_sysinfo
-        .long  sys_ipc
-        .long  sys_fsync
-        .long  sys_sigreturn_glue
-        .long  sys_clone_glue            /* 120 */
-        .long  sys_setdomainname
-        .long  sys_newuname
-        .long  sys_ni_syscall            /* modify_ldt for i386 */
-        .long  sys_adjtimex
-        .long  sys_mprotect              /* 125 */
-        .long  sys_sigprocmask
-        .long  sys_ni_syscall		 /* old "create module" */
-        .long  sys_init_module
-        .long  sys_delete_module
-        .long  sys_ni_syscall		 /* 130: old get_kernel_syms */
-        .long  sys_quotactl
-        .long  sys_getpgid
-        .long  sys_fchdir
-        .long  sys_bdflush
-        .long  sys_sysfs                 /* 135 */
-        .long  sys_personality
-        .long  sys_ni_syscall            /* for afs_syscall */
-        .long  sys_setfsuid16
-        .long  sys_setfsgid16
-        .long  sys_llseek                /* 140 */
-        .long  sys_getdents
-        .long  sys_select
-        .long  sys_flock
-        .long  sys_msync
-        .long  sys_readv                 /* 145 */
-        .long  sys_writev
-        .long  sys_getsid
-        .long  sys_fdatasync
-        .long  sys_sysctl
-        .long  sys_mlock                 /* 150 */
-        .long  sys_munlock
-        .long  sys_mlockall
-        .long  sys_munlockall
-        .long  sys_sched_setparam
-        .long  sys_sched_getparam        /* 155 */
-        .long  sys_sched_setscheduler
-        .long  sys_sched_getscheduler
-        .long  sys_sched_yield
-        .long  sys_sched_get_priority_max
-        .long  sys_sched_get_priority_min  /* 160 */
-        .long  sys_sched_rr_get_interval
-        .long  sys_nanosleep
-        .long  sys_mremap
-        .long  sys_setresuid16
-        .long  sys_getresuid16           /* 165 */
-        .long  sys_ni_syscall            /* for vm86 */
-        .long  sys_ni_syscall		 /* old sys_query_module */
-        .long  sys_poll
-        .long  sys_nfsservctl
-        .long  sys_setresgid16           /* 170 */
-        .long  sys_getresgid16
-        .long  sys_prctl
-        .long  sys_rt_sigreturn_glue
-        .long  sys_rt_sigaction
-        .long  sys_rt_sigprocmask        /* 175 */
-        .long  sys_rt_sigpending
-        .long  sys_rt_sigtimedwait
-        .long  sys_rt_sigqueueinfo
-        .long  sys_rt_sigsuspend_glue
-        .long  sys_pread64               /* 180 */
-        .long  sys_pwrite64
-        .long  sys_chown16
-        .long  sys_getcwd
-        .long  sys_capget
-        .long  sys_capset                /* 185 */
-        .long  sys_sigaltstack_glue
-        .long  sys_sendfile
-        .long  sys_ni_syscall            /* streams1 */
-        .long  sys_ni_syscall            /* streams2 */
-        .long  sys_vfork_glue            /* 190 */
-        .long  sys_getrlimit
-	.long  sys_mmap2
-        .long  sys_truncate64
-        .long  sys_ftruncate64
-        .long  sys_stat64                /* 195 */
-        .long  sys_lstat64
-        .long  sys_fstat64
-	.long  sys_lchown
-	.long  sys_getuid
-	.long  sys_getgid		 /* 200 */
-	.long  sys_geteuid
-	.long  sys_getegid
-	.long  sys_setreuid
-	.long  sys_setregid
-	.long  sys_getgroups             /* 205 */
-	.long  sys_setgroups
-	.long  sys_fchown
-	.long  sys_setresuid
-	.long  sys_getresuid
-	.long  sys_setresgid             /* 210 */
-	.long  sys_getresgid
-	.long  sys_chown
-	.long  sys_setuid
-	.long  sys_setgid
-	.long  sys_setfsuid              /* 215 */
-	.long  sys_setfsgid
-        .long  sys_pivot_root
-        .long  sys_mincore
-        .long  sys_madvise
-	.long  sys_getdents64		 /* 220 */
-        .long  sys_fcntl64 
-	.long  sys_readahead
-	.long  sys_sendfile64
-	.long  sys_setxattr
-	.long  sys_lsetxattr		 /* 225 */
-	.long  sys_fsetxattr
-	.long  sys_getxattr
-	.long  sys_lgetxattr
-	.long  sys_fgetxattr
-	.long  sys_listxattr		 /* 230 */
-	.long  sys_llistxattr
-	.long  sys_flistxattr
-	.long  sys_removexattr
-	.long  sys_lremovexattr
-	.long  sys_fremovexattr		 /* 235 */
-	.long  sys_gettid
-	.long  sys_tkill
-	.long  sys_futex
-	.long  sys_sched_setaffinity
-	.long  sys_sched_getaffinity	 /* 240 */
-	.long  sys_ni_syscall
-	.long  sys_ni_syscall		 /* reserved for TUX */
-	.long  sys_io_setup
-	.long  sys_io_destroy
-	.long  sys_io_getevents		 /* 245 */
-	.long  sys_io_submit
-	.long  sys_io_cancel
-	.long  sys_exit_group
-	.long  sys_epoll_create
-	.long  sys_epoll_ctl		 /* 250 */
-	.long  sys_epoll_wait
-	.long  sys_set_tid_address
-	.long  sys_fadvise64
-	.rept  255-253
-	.long  sys_ni_syscall
-	.endr
+#include "syscalls.S"
+#undef SYSCALL
 
 /*
  * Program check handler routine
@@ -644,13 +394,12 @@ pgm_check_handler:
         tm      __LC_PGM_INT_CODE+1,0x80 # check whether we got a per exception
         bnz     BASED(pgm_per)           # got per exception -> special case
 	SAVE_ALL __LC_PGM_OLD_PSW,1
-	la	%r8,0x7f
         l       %r3,__LC_PGM_ILC         # load program interruption code
+	la	%r8,0x7f
         l       %r7,BASED(.Ljump_table)
 	nr	%r8,%r3
         sll     %r8,2
 	GET_THREAD_INFO
-        stosm   24(%r15),0x03            # reenable interrupts
         l       %r7,0(%r8,%r7)		 # load address of handler routine
         la      %r2,SP_PTREGS(%r15)	 # address of register-save area
 	la      %r14,BASED(sysc_return)
@@ -677,7 +426,6 @@ pgm_per_std:
 	GET_THREAD_INFO
 	la	%r4,0x7f
 	l	%r3,__LC_PGM_ILC	 # load program interruption code
-        stosm   24(%r15),0x03            # reenable interrupts
         nr      %r4,%r3                  # clear per-event-bit and ilc
         be      BASED(pgm_per_only)      # only per or per+check ?
         l       %r1,BASED(.Ljump_table)
@@ -696,12 +444,19 @@ pgm_per_only:
 #
 pgm_svcper:
 	SAVE_ALL __LC_SVC_OLD_PSW,1
-        GET_THREAD_INFO           # load pointer to task_struct to R9
+	lh	%r7,0x8a	  # get svc number from lowcore
         stosm   24(%r15),0x03     # reenable interrupts
-	lh	%r8,0x8a	  # get svc number from lowcore
-        sll     %r8,2
-        l       %r8,sys_call_table-entry_base(%r8,%r13) # get system call addr.
+        GET_THREAD_INFO           # load pointer to task_struct to R9
+        sla     %r7,2             # *4 and test for svc 0
+	bnz	BASED(pgm_svcstd) # svc number > 0 ?
+	# svc 0: system call number in %r1
+	cl	%r1,BASED(.Lnr_syscalls)
+	bnl	BASED(pgm_svcstd)
+	lr	%r7,%r1           # copy svc number to %r7
+	sla	%r7,2             # *4
+pgm_svcstd:
 	tm	__TI_flags+3(%r9),_TIF_SYSCALL_TRACE
+        l       %r8,sys_call_table-entry_base(%r7,%r13) # get system call addr.
         bo      BASED(pgm_tracesys)
         basr    %r14,%r8          # call sys_xxxx
         st      %r2,SP_R2(%r15)   # store return value (change R2 on stack)
@@ -727,13 +482,14 @@ pgm_svcper_nosig:
 #
 pgm_tracesys:
         l       %r1,BASED(.Ltrace)
-	mvc	SP_R2(%r15),BASED(.Lc_ENOSYS)
+	srl	%r7,2
+	st	%r7,SP_R2(%r15)
         basr    %r14,%r1
-	clc	SP_R2(4,%r15),BASED(.Lc256)
-	bnl	BASED(pgm_svc_go)
-	l	%r8,SP_R2(%r15)   # strace changed the syscall
-	sll     %r8,2
-	l	%r8,sys_call_table-entry_base(%r8,%r13)
+	clc	SP_R2(4,%r15),BASED(.Lnr_syscalls)
+	bl	BASED(pgm_svc_go)
+	l	%r7,SP_R2(%r15)   # strace changed the syscall
+	sll     %r7,2
+	l	%r8,sys_call_table-entry_base(%r7,%r13)
 pgm_svc_go:
 	lm      %r3,%r6,SP_R3(%r15)
 	l       %r2,SP_ORIG_R2(%r15)
@@ -924,7 +680,12 @@ restart_go:
 .Lc_ENOSYS:    .long  -ENOSYS
 .Lc_pactive:   .long  PREEMPT_ACTIVE
 .Lc0xff:       .long  0xff
-.Lc256:        .long  256
+.Lnr_syscalls: .long  NR_syscalls
+.L0x018:       .long  0x018
+.L0x020:       .long  0x020
+.L0x028:       .long  0x028
+.L0x030:       .long  0x030
+.L0x038:       .long  0x038
 
 /*
  * Symbol constants
@@ -949,8 +710,6 @@ restart_go:
 .Lsigaltstack: .long  sys_sigaltstack
 .Ltrace:       .long  syscall_trace
 .Lvfork:       .long  sys_vfork
-#if CONFIG_SMP || CONFIG_PREEMPT
 .Lschedtail:   .long  schedule_tail
-#endif
 
 

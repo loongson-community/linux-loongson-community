@@ -21,7 +21,6 @@
 #include <linux/etherdevice.h>
 #include <linux/init.h>
 #include <linux/if_bridge.h>
-#include <linux/brlock.h>
 #include <asm/uaccess.h>
 #include "br_private.h"
 
@@ -31,16 +30,6 @@
 
 int (*br_should_route_hook) (struct sk_buff **pskb) = NULL;
 
-void br_dec_use_count()
-{
-	module_put(THIS_MODULE);
-}
-
-void br_inc_use_count()
-{
-	try_module_get(THIS_MODULE);
-}
-
 static int __init br_init(void)
 {
 	printk(KERN_INFO "NET4: Ethernet Bridge 008 for NET4.0\n");
@@ -49,8 +38,9 @@ static int __init br_init(void)
 	if (br_netfilter_init())
 		return 1;
 #endif
+	brioctl_set(br_ioctl_deviceless_stub);
 	br_handle_frame_hook = br_handle_frame;
-	br_ioctl_hook = br_ioctl_deviceless_stub;
+
 #if defined(CONFIG_ATM_LANE) || defined(CONFIG_ATM_LANE_MODULE)
 	br_fdb_get_hook = br_fdb_get;
 	br_fdb_put_hook = br_fdb_put;
@@ -60,27 +50,23 @@ static int __init br_init(void)
 	return 0;
 }
 
-static void __br_clear_ioctl_hook(void)
-{
-	br_ioctl_hook = NULL;
-}
-
 static void __exit br_deinit(void)
 {
 #ifdef CONFIG_NETFILTER
 	br_netfilter_fini();
 #endif
 	unregister_netdevice_notifier(&br_device_notifier);
-	br_call_ioctl_atomic(__br_clear_ioctl_hook);
-
-	br_write_lock_bh(BR_NETPROTO_LOCK);
+	brioctl_set(NULL);
 	br_handle_frame_hook = NULL;
-	br_write_unlock_bh(BR_NETPROTO_LOCK);
 
 #if defined(CONFIG_ATM_LANE) || defined(CONFIG_ATM_LANE_MODULE)
 	br_fdb_get_hook = NULL;
 	br_fdb_put_hook = NULL;
 #endif
+
+	br_cleanup_bridges();
+
+	synchronize_net();
 }
 
 EXPORT_SYMBOL(br_should_route_hook);

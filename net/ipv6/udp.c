@@ -352,8 +352,8 @@ ipv4_connected:
 	fl.fl6_dst = &np->daddr;
 	fl.fl6_src = &saddr;
 	fl.oif = sk->bound_dev_if;
-	fl.uli_u.ports.dport = inet->dport;
-	fl.uli_u.ports.sport = inet->sport;
+	fl.fl_ip_dport = inet->dport;
+	fl.fl_ip_sport = inet->sport;
 
 	if (!fl.oif && (addr_type&IPV6_ADDR_MULTICAST))
 		fl.oif = np->mcast_oif;
@@ -592,7 +592,7 @@ static struct sock *udp_v6_mcast_next(struct sock *sk,
 				if (!ipv6_addr_cmp(&np->rcv_saddr, loc_addr))
 					return s;
 			}
-			if(!inet6_mc_check(s, loc_addr))
+			if(!inet6_mc_check(s, loc_addr, rmt_addr))
 				continue;
 			return s;
 		}
@@ -640,7 +640,7 @@ free_skb:
 	read_unlock(&udp_hash_lock);
 }
 
-static int udpv6_rcv(struct sk_buff **pskb)
+static int udpv6_rcv(struct sk_buff **pskb, unsigned int *nhoffp)
 {
 	struct sk_buff *skb = *pskb;
 	struct sock *sk;
@@ -936,8 +936,8 @@ static int udpv6_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg
 	fl.fl6_dst = daddr;
 	if (fl.fl6_src == NULL && !ipv6_addr_any(&np->saddr))
 		fl.fl6_src = &np->saddr;
-	fl.uli_u.ports.dport = udh.uh.dest;
-	fl.uli_u.ports.sport = udh.uh.source;
+	fl.fl_ip_dport = udh.uh.dest;
+	fl.fl_ip_sport = udh.uh.source;
 
 	err = ip6_build_xmit(sk, udpv6_getfrag, &udh, &fl, len, opt, hlimit,
 			     msg->msg_flags);
@@ -954,7 +954,7 @@ static int udpv6_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg
 static struct inet6_protocol udpv6_protocol = {
 	.handler	=	udpv6_rcv,
 	.err_handler	=	udpv6_err,
-	.no_policy	=	1,
+	.flags		=	INET6_PROTO_NOPOLICY|INET6_PROTO_FINAL,
 };
 
 #define LINE_LEN 190

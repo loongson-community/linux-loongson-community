@@ -99,7 +99,7 @@ static inline void newport_init_cmap(void)
 static void newport_show_logo(void)
 {
 #ifdef CONFIG_LOGO_SGI_CLUT224
-	const struct linux_logo *logo = fb_find_logo(LINUX_LOGO_CLUT224);
+	const struct linux_logo *logo = find_logo(LINUX_LOGO_CLUT224);
 	const unsigned char *clut = logo->clut;
 	const unsigned char *data = logo->data;
 	unsigned long i;

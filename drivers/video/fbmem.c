@@ -409,22 +409,22 @@ u8 sys_inbuf(u8 *src)
 	return *src;
 }
 
-void sys_outbuf(u8 src, u8 *dst)
+void sys_outbuf(u8 *src, u8 *dst, unsigned int size)
 {
-	*dst = src;
+	memcpy(dst, src, size);
 }	
 
 void move_buf_aligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch, 
 			u32 s_pitch, u32 height)
 {
-	int i, j;
-	
+	int i;
+
 	for (i = height; i--; ) {
-		for (j = 0; j < s_pitch; j++)
-			info->pixmap.outbuf(*src++, dst+j);
+		info->pixmap.outbuf(src, dst, s_pitch);
+		src += s_pitch;
 		dst += d_pitch;
-	}	
-}	
+	}
+}
 
 void move_buf_unaligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch, 
 			u32 height, u32 mask, u32 shift_high, u32 shift_low,
@@ -438,20 +438,23 @@ void move_buf_unaligned(struct fb_info *info, u8 *dst, u8 *src, u32 d_pitch,
 			tmp = info->pixmap.inbuf(dst+j);
 			tmp &= mask;
 			tmp |= *src >> shift_low;
-			info->pixmap.outbuf(tmp, dst+j);
-			info->pixmap.outbuf(*src << shift_high, dst+j+1);
+			info->pixmap.outbuf(&tmp, dst+j, 1);
+			tmp = *src << shift_high;
+			info->pixmap.outbuf(&tmp, dst+j+1, 1);
 			src++;
 		}
 		tmp = info->pixmap.inbuf(dst+idx);
 		tmp &= mask;
 		tmp |= *src >> shift_low;
-		info->pixmap.outbuf(tmp, dst+idx);
-		if (shift_high < mod)
-			info->pixmap.outbuf(*src<<shift_high, dst+idx+1);
+		info->pixmap.outbuf(&tmp, dst+idx, 1);
+		if (shift_high < mod) {
+			tmp = *src << shift_high;
+			info->pixmap.outbuf(&tmp, dst+idx+1, 1);
+		}	
 		src++;
 		dst += d_pitch;
-	}	
-}	
+	}
+}
 
 /*
  * we need to lock this section since fb_cursor
@@ -462,8 +465,7 @@ u32 fb_get_buffer_offset(struct fb_info *info, u32 size)
 	u32 align = info->pixmap.buf_align - 1;
 	u32 offset, count = 1000;
 
-	spin_lock_irqsave(&info->pixmap.lock,
-			  info->pixmap.lock_flags);
+	spin_lock(&info->pixmap.lock);
 	offset = info->pixmap.offset + align;
 	offset &= ~align;
 	if (offset + size > info->pixmap.size) {
@@ -474,12 +476,9 @@ u32 fb_get_buffer_offset(struct fb_info *info, u32 size)
 		offset = 0;
 	}
 	info->pixmap.offset = offset + size;
-
 	atomic_inc(&info->pixmap.count);	
 	smp_mb__after_atomic_inc();
-
-	spin_unlock_irqrestore(&info->pixmap.lock,
-			       info->pixmap.lock_flags);
+	spin_unlock(&info->pixmap.lock);
 	return offset;
 }
 
@@ -572,13 +571,13 @@ static void __init fb_set_logo_directpalette(struct fb_info *info,
 
 static void __init fb_set_logo(struct fb_info *info,
 			       const struct linux_logo *logo, u8 *dst,
-			       int needs_logo)
+			       int depth)
 {
 	int i, j, shift;
 	const u8 *src = logo->data;
 	u8 d, xor = 0;
 
-	switch (needs_logo) {
+	switch (depth) {
 	case 4:
 		for (i = 0; i < logo->height; i++)
 			for (j = 0; j < logo->width; src++) {
@@ -626,20 +625,18 @@ static void __init fb_set_logo(struct fb_info *info,
  * to set the DAC or the pseudo_palette.  However, the bitmap is packed, ie,
  * each byte contains color information for two pixels (upper and lower nibble).
  * To be consistent with fb_imageblit() usage, we therefore separate the two
- * nibbles into separate bytes. The "needs_logo" flag will be set to 4.
+ * nibbles into separate bytes. The "depth" flag will be set to 4.
  *
  * Case 3 - linux_logo_mono:
  * This is similar with Case 2.  Each byte contains information for 8 pixels.
- * We isolate each bit and expand each into a byte. The "needs_logo" flag will
+ * We isolate each bit and expand each into a byte. The "depth" flag will
  * be set to 1.
  */
 static struct logo_data {
 	int depth;
-	int needs_logo;
 	int needs_directpalette;
 	int needs_truepalette;
 	int needs_cmapreset;
-	int type;
 	const struct linux_logo *logo;
 } fb_logo;
 
@@ -647,74 +644,48 @@ int fb_prepare_logo(struct fb_info *info)
 {
 	memset(&fb_logo, 0, sizeof(struct logo_data));
 
-	fb_logo.depth = info->var.bits_per_pixel;
-
 	switch (info->fix.visual) {
 	case FB_VISUAL_TRUECOLOR:
-		if (fb_logo.depth >= 8) {
+		if (info->var.bits_per_pixel >= 8)
 			fb_logo.needs_truepalette = 1;
-			fb_logo.needs_logo = 8;
-		} else if (fb_logo.depth >= 4)
-			fb_logo.needs_logo = 4;
-		else 
-			fb_logo.needs_logo = 1;
 		break;
 	case FB_VISUAL_DIRECTCOLOR:
-		if (fb_logo.depth >= 24) {
+		if (info->var.bits_per_pixel >= 24) {
 			fb_logo.needs_directpalette = 1;
 			fb_logo.needs_cmapreset = 1;
-			fb_logo.needs_logo = 8;
-		} else if (fb_logo.depth >= 16)	/* 16 colors */
-			fb_logo.needs_logo = 4;
-		else
-			fb_logo.needs_logo = 1;	/* 2 colors */
-		break;
-	case FB_VISUAL_MONO01:
-		/* reversed 0 = fg, 1 = bg */
-		fb_logo.needs_logo = ~1;
-		break;
-	case FB_VISUAL_MONO10:
-		fb_logo.needs_logo = 1;
+		}
 		break;
 	case FB_VISUAL_PSEUDOCOLOR:
-	case FB_VISUAL_STATIC_PSEUDOCOLOR:
-		if (fb_logo.depth >= 8) {
-			fb_logo.needs_logo = 8;
-			if (info->fix.visual == FB_VISUAL_PSEUDOCOLOR)
-				fb_logo.needs_cmapreset = 1;
-		} else if (fb_logo.depth >= 4)
-			fb_logo.needs_logo = 4;	/* 16 colors */
-		else
-			fb_logo.needs_logo = 1;	
+		fb_logo.needs_cmapreset = 1;
 		break;
 	}
 
-	if (fb_logo.needs_logo >= 8)
-		fb_logo.type = LINUX_LOGO_CLUT224;
-	else if (fb_logo.needs_logo >= 4)
-		fb_logo.type = LINUX_LOGO_VGA16;
-	else
-		fb_logo.type = LINUX_LOGO_MONO;
-
 	/* Return if no suitable logo was found */
-	fb_logo.logo = fb_find_logo(fb_logo.type);
+	fb_logo.logo = find_logo(info->var.bits_per_pixel);
+	
 	if (!fb_logo.logo || fb_logo.logo->height > info->var.yres) {
 		fb_logo.logo = NULL;
 		return 0;
 	}
+	/* What depth we asked for might be different from what we get */
+	if (fb_logo.logo->type == LINUX_LOGO_CLUT224)
+		fb_logo.depth = 8;
+	else if (fb_logo.logo->type == LINUX_LOGO_VGA16)
+		fb_logo.depth = 4;
+	else
+		fb_logo.depth = 1;		
 	return fb_logo.logo->height;
 }
 
 int fb_show_logo(struct fb_info *info)
 {
-	unsigned char *fb = info->screen_base, *logo_new = NULL;
 	u32 *palette = NULL, *saved_pseudo_palette = NULL;
+	unsigned char *logo_new = NULL;
 	struct fb_image image;
 	int x;
 
 	/* Return if the frame buffer is not mapped */
-	if (!fb || !info->fbops->fb_imageblit ||
-	    fb_logo.logo == NULL)
+	if (fb_logo.logo == NULL)
 		return 0;
 
 	image.depth = fb_logo.depth;
@@ -738,7 +709,7 @@ int fb_show_logo(struct fb_info *info)
 		info->pseudo_palette = palette;
 	}
 
-	if (fb_logo.needs_logo != 8) {
+	if (fb_logo.depth == 4) {
 		logo_new = kmalloc(fb_logo.logo->width * fb_logo.logo->height, 
 				   GFP_KERNEL);
 		if (logo_new == NULL) {
@@ -748,9 +719,8 @@ int fb_show_logo(struct fb_info *info)
 				info->pseudo_palette = saved_pseudo_palette;
 			return 0;
 		}
-
 		image.data = logo_new;
-		fb_set_logo(info, fb_logo.logo, logo_new, fb_logo.needs_logo);
+		fb_set_logo(info, fb_logo.logo, logo_new, fb_logo.depth);
 	}
 
 	image.width = fb_logo.logo->width;
@@ -761,8 +731,8 @@ int fb_show_logo(struct fb_info *info)
 	     x <= info->var.xres-fb_logo.logo->width; x += (fb_logo.logo->width + 8)) {
 		image.dx = x;
 		info->fbops->fb_imageblit(info, &image);
-		atomic_dec(&info->pixmap.count);
-		smp_mb__after_atomic_dec();
+		//atomic_dec(&info->pixmap.count);
+		//smp_mb__after_atomic_dec();
 	}
 	
 	if (palette != NULL)
@@ -882,7 +852,54 @@ static void try_to_load(int fb)
 #endif /* CONFIG_KMOD */
 
 int
-fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
+fb_cursor(struct fb_info *info, struct fb_cursor *sprite)
+{
+	struct fb_cursor cursor;
+	int err;
+	
+	if (copy_from_user(&cursor, sprite, sizeof(struct fb_cursor)))
+		return -EFAULT;
+
+	if (cursor.set & FB_CUR_SETCUR)
+		info->cursor.enable = 1;
+	
+	if (cursor.set & FB_CUR_SETCMAP) {
+		err = fb_copy_cmap(&cursor.image.cmap, &sprite->image.cmap, 1);
+		if (err)
+			return err;
+	}
+	
+	if (cursor.set & FB_CUR_SETSHAPE) {
+		int size = ((cursor.image.width + 7) >> 3) * cursor.image.height;		
+		if ((cursor.image.height != info->cursor.image.height) ||
+		    (cursor.image.width != info->cursor.image.width))
+			cursor.set |= FB_CUR_SETSIZE;
+		
+		cursor.image.data = kmalloc(size, GFP_KERNEL);
+		if (!cursor.image.data)
+			return -ENOMEM;
+		
+		cursor.mask = kmalloc(size, GFP_KERNEL);
+		if (!cursor.mask) {
+			kfree(cursor.image.data);
+			return -ENOMEM;
+		}
+		
+		if (copy_from_user(&cursor.image.data, sprite->image.data, size) ||
+		    copy_from_user(cursor.mask, sprite->mask, size)) { 
+			kfree(cursor.image.data);
+			kfree(cursor.mask);
+			return -EFAULT;
+		}
+	}
+	info->cursor.set = cursor.set;
+	info->cursor.rop = cursor.rop;
+	err = info->fbops->fb_cursor(info, &cursor);
+	return err;
+}
+
+int
+fb_pan_display(struct fb_info *info, struct fb_var_screeninfo *var)
 {
         int xoffset = var->xoffset;
         int yoffset = var->yoffset;
@@ -904,7 +921,7 @@ fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 }
 
 int
-fb_set_var(struct fb_var_screeninfo *var, struct fb_info *info)
+fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 {
 	int err;
 
@@ -923,7 +940,7 @@ fb_set_var(struct fb_var_screeninfo *var, struct fb_info *info)
 			if (info->fbops->fb_set_par)
 				info->fbops->fb_set_par(info);
 
-			fb_pan_display(&info->var, info);
+			fb_pan_display(info, &info->var);
 
 			fb_set_cmap(&info->cmap, 1, info);
 		}
@@ -932,7 +949,7 @@ fb_set_var(struct fb_var_screeninfo *var, struct fb_info *info)
 }
 
 int
-fb_blank(int blank, struct fb_info *info)
+fb_blank(struct fb_info *info, int blank)
 {	
 	/* ??? Varible sized stack allocation.  */
 	u16 black[info->cmap.len];
@@ -966,7 +983,7 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	struct fb_cmap cmap;
 	int i;
 	
-	if (! fb)
+	if (!fb)
 		return -ENODEV;
 	switch (cmd) {
 	case FBIOGET_VSCREENINFO:
@@ -975,7 +992,7 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	case FBIOPUT_VSCREENINFO:
 		if (copy_from_user(&var, (void *) arg, sizeof(var)))
 			return -EFAULT;
-		i = fb_set_var(&var, info);
+		i = fb_set_var(info, &var);
 		if (i) return i;
 		if (copy_to_user((void *) arg, &var, sizeof(var)))
 			return -EFAULT;
@@ -989,16 +1006,17 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	case FBIOGETCMAP:
 		if (copy_from_user(&cmap, (void *) arg, sizeof(cmap)))
 			return -EFAULT;
-		fb_copy_cmap(&info->cmap, &cmap, 0);
-		return 0;
+		return (fb_copy_cmap(&info->cmap, &cmap, 0));
 	case FBIOPAN_DISPLAY:
 		if (copy_from_user(&var, (void *) arg, sizeof(var)))
 			return -EFAULT;
-		if ((i = fb_pan_display(&var, info)))
+		if ((i = fb_pan_display(info, &var)))
 			return i;
 		if (copy_to_user((void *) arg, &var, sizeof(var)))
 			return -EFAULT;
-		return i;
+		return 0;
+	case FBIO_CURSOR:
+		return (fb_cursor(info, (struct fb_cursor *) arg));
 #ifdef CONFIG_FRAMEBUFFER_CONSOLE
 	case FBIOGET_CON2FBMAP:
 		if (copy_from_user(&con2fb, (void *)arg, sizeof(con2fb)))
@@ -1028,7 +1046,7 @@ fb_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		return 0;
 #endif	/* CONFIG_FRAMEBUFFER_CONSOLE */
 	case FBIOBLANK:
-		return fb_blank(arg, info);
+		return fb_blank(info, arg);
 	default:
 		if (fb->fb_ioctl == NULL)
 			return -EINVAL;
@@ -1141,6 +1159,8 @@ fb_open(struct inode *inode, struct file *file)
 	struct fb_info *info;
 	int res = 0;
 
+	if (fbidx >= FB_MAX)
+		return -ENODEV;
 #ifdef CONFIG_KMOD
 	if (!(info = registered_fb[fbidx]))
 		try_to_load(fbidx);
@@ -1224,7 +1244,7 @@ register_framebuffer(struct fb_info *fb_info)
 	if (fb_info->pixmap.inbuf == NULL)
 		fb_info->pixmap.inbuf = sys_inbuf;
 	spin_lock_init(&fb_info->pixmap.lock);
-	
+
 	registered_fb[i] = fb_info;
 	sprintf(name_buf, "fb/%d", i);
 	devfs_register(NULL, name_buf, DEVFS_FL_DEFAULT,

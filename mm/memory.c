@@ -292,13 +292,11 @@ skip_copy_pte_range:
 				 * and not mapped via rmap - duplicate the
 				 * mapping as is.
 				 */
-				if (!pfn_valid(pfn)) {
+				page = pfn_to_page(pfn);
+				if (!pfn_valid(pfn) || PageReserved(page)) {
 					set_pte(dst_pte, pte);
 					goto cont_copy_pte_range_noset;
 				}
-				page = pfn_to_page(pfn);
-				if (PageReserved(page))
-					goto cont_copy_pte_range;
 
 				/*
 				 * If it's a COW mapping, write protect it both
@@ -319,7 +317,6 @@ skip_copy_pte_range:
 				get_page(page);
 				dst->rss++;
 
-cont_copy_pte_range:
 				set_pte(dst_pte, pte);
 				pte_chain = page_add_rmap(page, dst_pte,
 							pte_chain);
@@ -601,7 +598,6 @@ void zap_page_range(struct vm_area_struct *vma,
 
 	lru_add_drain();
 	spin_lock(&mm->page_table_lock);
-	flush_cache_range(vma, address, end);
 	tlb = tlb_gather_mmu(mm, 0);
 	unmap_vmas(&tlb, mm, vma, address, end, &nr_accounted);
 	tlb_finish_mmu(tlb, address, end);
@@ -916,7 +912,6 @@ static inline void break_cow(struct vm_area_struct * vma, struct page * new_page
 		pte_t *page_table)
 {
 	invalidate_vcache(address, vma->vm_mm, new_page);
-	flush_page_to_ram(new_page);
 	flush_cache_page(vma, address);
 	establish_pte(vma, address, page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
 }
@@ -1206,7 +1201,6 @@ static int do_swap_page(struct mm_struct * mm,
 		pte = pte_mkdirty(pte_mkwrite(pte));
 	unlock_page(page);
 
-	flush_page_to_ram(page);
 	flush_icache_page(vma, page);
 	set_pte(page_table, pte);
 	pte_chain = page_add_rmap(page, page_table, pte_chain);
@@ -1271,7 +1265,6 @@ do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 			goto out;
 		}
 		mm->rss++;
-		flush_page_to_ram(page);
 		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 		lru_cache_add_active(page);
 		mark_page_accessed(page);
@@ -1365,7 +1358,6 @@ do_no_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	/* Only go through if we didn't race with anybody else... */
 	if (pte_none(*page_table)) {
 		++mm->rss;
-		flush_page_to_ram(new_page);
 		flush_icache_page(vma, new_page);
 		entry = mk_pte(new_page, vma->vm_page_prot);
 		if (write_access)

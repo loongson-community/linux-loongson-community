@@ -87,7 +87,6 @@
 
 /*****************************************************************************/
       
-#include <linux/version.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -951,11 +950,11 @@ static int solo1_ioctl_mixdev(struct inode *inode, struct file *file, unsigned i
 }
 
 static /*const*/ struct file_operations solo1_mixer_fops = {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	ioctl:		solo1_ioctl_mixdev,
-	open:		solo1_open_mixdev,
-	release:	solo1_release_mixdev,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.ioctl		= solo1_ioctl_mixdev,
+	.open		= solo1_open_mixdev,
+	.release	= solo1_release_mixdev,
 };
 
 /* --------------------------------------------------------------------- */
@@ -1650,15 +1649,15 @@ static int solo1_open(struct inode *inode, struct file *file)
 }
 
 static /*const*/ struct file_operations solo1_audio_fops = {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	read:		solo1_read,
-	write:		solo1_write,
-	poll:		solo1_poll,
-	ioctl:		solo1_ioctl,
-	mmap:		solo1_mmap,
-	open:		solo1_open,
-	release:	solo1_release,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.read		= solo1_read,
+	.write		= solo1_write,
+	.poll		= solo1_poll,
+	.ioctl		= solo1_ioctl,
+	.mmap		= solo1_mmap,
+	.open		= solo1_open,
+	.release	= solo1_release,
 };
 
 /* --------------------------------------------------------------------- */
@@ -2001,13 +2000,13 @@ static int solo1_midi_release(struct inode *inode, struct file *file)
 }
 
 static /*const*/ struct file_operations solo1_midi_fops = {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	read:		solo1_midi_read,
-	write:		solo1_midi_write,
-	poll:		solo1_midi_poll,
-	open:		solo1_midi_open,
-	release:	solo1_midi_release,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.read		= solo1_midi_read,
+	.write		= solo1_midi_write,
+	.poll		= solo1_midi_poll,
+	.open		= solo1_midi_open,
+	.release	= solo1_midi_release,
 };
 
 /* --------------------------------------------------------------------- */
@@ -2189,11 +2188,11 @@ static int solo1_dmfm_release(struct inode *inode, struct file *file)
 }
 
 static /*const*/ struct file_operations solo1_dmfm_fops = {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	ioctl:		solo1_dmfm_ioctl,
-	open:		solo1_dmfm_open,
-	release:	solo1_dmfm_release,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.ioctl		= solo1_dmfm_ioctl,
+	.open		= solo1_dmfm_open,
+	.release	= solo1_dmfm_release,
 };
 
 /* --------------------------------------------------------------------- */
@@ -2449,12 +2448,12 @@ static struct pci_device_id id_table[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, id_table);
 
 static struct pci_driver solo1_driver = {
-	name: "ESS Solo1",
-	id_table: id_table,
-	probe: solo1_probe,
-	remove: solo1_remove,
-	suspend: solo1_suspend,
-	resume: solo1_resume
+	.name		= "ESS Solo1",
+	.id_table	= id_table,
+	.probe		= solo1_probe,
+	.remove		= solo1_remove,
+	.suspend	= solo1_suspend,
+	.resume		= solo1_resume,
 };
 
 

@@ -99,7 +99,7 @@ struct sock *__raw_v6_lookup(struct sock *sk, unsigned short num,
 				if (!ipv6_addr_cmp(&np->rcv_saddr, loc_addr))
 					break;
 				if ((addr_type & IPV6_ADDR_MULTICAST) &&
-				    inet6_mc_check(s, loc_addr))
+				    inet6_mc_check(s, loc_addr, rmt_addr))
 					break;
 				continue;
 			}
@@ -622,8 +622,8 @@ static int rawv6_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg
 	fl.fl6_dst = daddr;
 	if (fl.fl6_src == NULL && !ipv6_addr_any(&np->saddr))
 		fl.fl6_src = &np->saddr;
-	fl.uli_u.icmpt.type = 0;
-	fl.uli_u.icmpt.code = 0;
+	fl.fl_icmp_type = 0;
+	fl.fl_icmp_code = 0;
 	
 	if (raw_opt->checksum) {
 		struct rawv6_fakehdr hdr;

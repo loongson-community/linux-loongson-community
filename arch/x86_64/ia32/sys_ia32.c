@@ -836,82 +836,6 @@ sys32_writev(int fd, struct compat_iovec *vector, u32 count)
 	return ret;
 }
 
-#define RLIM_INFINITY32	0xffffffff
-#define RESOURCE32(x) ((x > RLIM_INFINITY32) ? RLIM_INFINITY32 : x)
-
-struct rlimit32 {
-	int	rlim_cur;
-	int	rlim_max;
-};
-
-extern asmlinkage long sys_getrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage long
-sys32_getrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_getrlimit(resource, &r);
-	set_fs(old_fs);
-	if (!ret) {
-		if (verify_area(VERIFY_WRITE, rlim, sizeof(struct rlimit32)) ||
-		    __put_user(RESOURCE32(r.rlim_cur), &rlim->rlim_cur) ||
-		    __put_user(RESOURCE32(r.rlim_max), &rlim->rlim_max))
-			ret = -EFAULT;
-	}
-	return ret;
-}
-
-extern asmlinkage long sys_old_getrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage long
-sys32_old_getrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs;
-	
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_old_getrlimit(resource, &r);
-	set_fs(old_fs);
-	if (!ret) {
-		if (verify_area(VERIFY_WRITE, rlim, sizeof(struct rlimit32)) ||
-		    __put_user(r.rlim_cur, &rlim->rlim_cur) ||
-		    __put_user(r.rlim_max, &rlim->rlim_max))
-			ret = -EFAULT;
-	}
-	return ret;
-}
-
-extern asmlinkage long sys_setrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage long
-sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-
-	if (resource >= RLIM_NLIMITS) return -EINVAL;	
-	if (verify_area(VERIFY_READ, rlim, sizeof(struct rlimit32)) ||
-	    __get_user (r.rlim_cur, &rlim->rlim_cur) ||
-	    __get_user (r.rlim_max, &rlim->rlim_max))
-		return -EFAULT;
-	if (r.rlim_cur == RLIM_INFINITY32)
-		r.rlim_cur = RLIM_INFINITY;
-	if (r.rlim_max == RLIM_INFINITY32)
-		r.rlim_max = RLIM_INFINITY;
-	set_fs (KERNEL_DS);
-	ret = sys_setrlimit(resource, &r);
-	set_fs (old_fs);
-	return ret;
-}
-
 /*
  * sys_time() can be implemented in user-level using
  * sys_gettimeofday().  x86-64 did this but i386 Linux did not
@@ -931,80 +855,10 @@ asmlinkage long sys32_time(int * tloc)
 	return i;
 }
 
-struct rusage32 {
-        struct compat_timeval ru_utime;
-        struct compat_timeval ru_stime;
-        int    ru_maxrss;
-        int    ru_ixrss;
-        int    ru_idrss;
-        int    ru_isrss;
-        int    ru_minflt;
-        int    ru_majflt;
-        int    ru_nswap;
-        int    ru_inblock;
-        int    ru_oublock;
-        int    ru_msgsnd; 
-        int    ru_msgrcv; 
-        int    ru_nsignals;
-        int    ru_nvcsw;
-        int    ru_nivcsw;
-};
-
-static int
-put_rusage (struct rusage32 *ru, struct rusage *r)
-{
-	if (verify_area(VERIFY_WRITE, ru, sizeof(struct rusage32)) ||
-	    __put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec) ||
-	    __put_user (r->ru_utime.tv_usec, &ru->ru_utime.tv_usec) ||
-	    __put_user (r->ru_stime.tv_sec, &ru->ru_stime.tv_sec) ||
-	    __put_user (r->ru_stime.tv_usec, &ru->ru_stime.tv_usec) ||
-	    __put_user (r->ru_maxrss, &ru->ru_maxrss) ||
-	    __put_user (r->ru_ixrss, &ru->ru_ixrss) ||
-	    __put_user (r->ru_idrss, &ru->ru_idrss) ||
-	    __put_user (r->ru_isrss, &ru->ru_isrss) ||
-	    __put_user (r->ru_minflt, &ru->ru_minflt) ||
-	    __put_user (r->ru_majflt, &ru->ru_majflt) ||
-	    __put_user (r->ru_nswap, &ru->ru_nswap) ||
-	    __put_user (r->ru_inblock, &ru->ru_inblock) ||
-	    __put_user (r->ru_oublock, &ru->ru_oublock) ||
-	    __put_user (r->ru_msgsnd, &ru->ru_msgsnd) ||
-	    __put_user (r->ru_msgrcv, &ru->ru_msgrcv) ||
-	    __put_user (r->ru_nsignals, &ru->ru_nsignals) ||
-	    __put_user (r->ru_nvcsw, &ru->ru_nvcsw) ||
-	    __put_user (r->ru_nivcsw, &ru->ru_nivcsw))
-		return -EFAULT;
-	return 0;
-}
-
-extern asmlinkage long sys_wait4(pid_t pid,unsigned int * stat_addr,
-				int options, struct rusage * ru);
-
-asmlinkage long
-sys32_wait4(compat_pid_t pid, unsigned int *stat_addr, int options,
-	    struct rusage32 *ru)
-{
-	if (!ru)
-		return sys_wait4(pid, stat_addr, options, NULL);
-	else {
-		struct rusage r;
-		int ret;
-		unsigned int status;
-		mm_segment_t old_fs = get_fs();
-		
-		set_fs (KERNEL_DS);
-		ret = sys_wait4(pid, stat_addr ? &status : NULL, options, &r);
-		set_fs (old_fs);
-		if (put_rusage (ru, &r)) return -EFAULT;
-		if (stat_addr && put_user (status, stat_addr))
-			return -EFAULT;
-		return ret;
-	}
-}
-
 asmlinkage long
 sys32_waitpid(compat_pid_t pid, unsigned int *stat_addr, int options)
 {
-	return sys32_wait4(pid, stat_addr, options, NULL);
+	return compat_sys_wait4(pid, stat_addr, options, NULL);
 }
 
 
@@ -2037,41 +1891,6 @@ long sys32_module_warning(void)
 		       current->comm);
 	return -ENOSYS ;
 } 
-
-long sys_sched_getaffinity(pid_t pid, unsigned int len, unsigned long *new_mask_ptr); 
-long sys_sched_setaffinity(pid_t pid, unsigned int len, unsigned long *new_mask_ptr); 
-
-/* only works on LE */
-long sys32_sched_setaffinity(pid_t pid, unsigned int len,
-			    unsigned int *new_mask_ptr)
-{
-	mm_segment_t oldfs = get_fs(); 
-	unsigned long mask; 
-	int err;
-	if (get_user(mask, new_mask_ptr)) 
-		return -EFAULT;	
-	set_fs(KERNEL_DS); 
-	err = sys_sched_setaffinity(pid,sizeof(mask),&mask); 	
-	set_fs(oldfs); 
-	return err;
-}
-
-/* only works on LE */ 
-long sys32_sched_getaffinity(pid_t pid, unsigned int len,
-			    unsigned int *new_mask_ptr)
-{
-	mm_segment_t oldfs = get_fs(); 
-	unsigned long mask; 
-	int err;
-	mask = 0; 
-	set_fs(KERNEL_DS); 
-	err = sys_sched_getaffinity(pid,sizeof(mask),&mask); 	
-	set_fs(oldfs); 
-	if (err > 0) 
-		err = put_user((u32)mask, new_mask_ptr); 
-	return err;
-}
-
 
 extern long sys_io_setup(unsigned nr_reqs, aio_context_t *ctx);
 

@@ -313,7 +313,7 @@ struct backing_dev_info;
 struct address_space {
 	struct inode		*host;		/* owner: inode, block_device */
 	struct radix_tree_root	page_tree;	/* radix tree of all pages */
-	rwlock_t		page_lock;	/* and rwlock protecting it */
+	spinlock_t		page_lock;	/* and rwlock protecting it */
 	struct list_head	clean_pages;	/* list of clean pages */
 	struct list_head	dirty_pages;	/* list of dirty pages */
 	struct list_head	locked_pages;	/* list of locked pages */
@@ -321,8 +321,8 @@ struct address_space {
 	unsigned long		nrpages;	/* number of total pages */
 	struct address_space_operations *a_ops;	/* methods */
 	struct list_head	i_mmap;		/* list of private mappings */
-	struct list_head	i_mmap_shared;	/* list of private mappings */
-	struct semaphore	i_shared_sem;	/* and sem protecting it */
+	struct list_head	i_mmap_shared;	/* list of shared mappings */
+	struct semaphore	i_shared_sem;	/* protect both above lists */
 	unsigned long		dirtied_when;	/* jiffies of first page dirtying */
 	int			gfp_mask;	/* how to allocate the pages */
 	struct backing_dev_info *backing_dev_info; /* device readahead, etc */
@@ -705,10 +705,10 @@ typedef int (*read_actor_t)(read_descriptor_t *, struct page *, unsigned long, u
 struct file_operations {
 	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
-	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
-	ssize_t (*aio_read) (struct kiocb *, char *, size_t, loff_t);
-	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
-	ssize_t (*aio_write) (struct kiocb *, const char *, size_t, loff_t);
+	ssize_t (*read) (struct file *, char __user *, size_t, loff_t *);
+	ssize_t (*aio_read) (struct kiocb *, char __user *, size_t, loff_t);
+	ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
+	ssize_t (*aio_write) (struct kiocb *, const char __user *, size_t, loff_t);
 	int (*readdir) (struct file *, void *, filldir_t);
 	unsigned int (*poll) (struct file *, struct poll_table_struct *);
 	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
@@ -738,7 +738,7 @@ struct inode_operations {
 	int (*mknod) (struct inode *,struct dentry *,int,dev_t);
 	int (*rename) (struct inode *, struct dentry *,
 			struct inode *, struct dentry *);
-	int (*readlink) (struct dentry *, char *,int);
+	int (*readlink) (struct dentry *, char __user *,int);
 	int (*follow_link) (struct dentry *, struct nameidata *);
 	void (*truncate) (struct inode *);
 	int (*permission) (struct inode *, int);
@@ -752,11 +752,11 @@ struct inode_operations {
 
 struct seq_file;
 
-extern ssize_t vfs_read(struct file *, char *, size_t, loff_t *);
-extern ssize_t vfs_write(struct file *, const char *, size_t, loff_t *);
-extern ssize_t vfs_readv(struct file *, const struct iovec *,
+extern ssize_t vfs_read(struct file *, char __user *, size_t, loff_t *);
+extern ssize_t vfs_write(struct file *, const char __user *, size_t, loff_t *);
+extern ssize_t vfs_readv(struct file *, const struct iovec __user *,
 		unsigned long, loff_t *);
-extern ssize_t vfs_writev(struct file *, const struct iovec *,
+extern ssize_t vfs_writev(struct file *, const struct iovec __user *,
 		unsigned long, loff_t *);
 
 /*
@@ -1024,7 +1024,7 @@ extern int do_truncate(struct dentry *, loff_t start);
 extern struct file *filp_open(const char *, int, int);
 extern struct file * dentry_open(struct dentry *, struct vfsmount *, int);
 extern int filp_close(struct file *, fl_owner_t id);
-extern char * getname(const char *);
+extern char * getname(const char __user *);
 
 /* fs/dcache.c */
 extern void vfs_caches_init(unsigned long);
@@ -1202,16 +1202,16 @@ extern int generic_file_mmap(struct file *, struct vm_area_struct *);
 extern int generic_file_readonly_mmap(struct file *, struct vm_area_struct *);
 extern int file_read_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
 extern int file_send_actor(read_descriptor_t * desc, struct page *page, unsigned long offset, unsigned long size);
-extern ssize_t generic_file_read(struct file *, char *, size_t, loff_t *);
+extern ssize_t generic_file_read(struct file *, char __user *, size_t, loff_t *);
 int generic_write_checks(struct inode *inode, struct file *file,
 			loff_t *pos, size_t *count, int isblk);
-extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *);
+extern ssize_t generic_file_write(struct file *, const char __user *, size_t, loff_t *);
 extern ssize_t generic_file_aio_read(struct kiocb *, char *, size_t, loff_t);
 extern ssize_t generic_file_aio_write(struct kiocb *, const char *, size_t, loff_t);
 extern ssize_t generic_file_aio_write_nolock(struct kiocb *, const struct iovec *,
 				unsigned long, loff_t *);
-extern ssize_t do_sync_read(struct file *filp, char *buf, size_t len, loff_t *ppos);
-extern ssize_t do_sync_write(struct file *filp, const char *buf, size_t len, loff_t *ppos);
+extern ssize_t do_sync_read(struct file *filp, char __user *buf, size_t len, loff_t *ppos);
+extern ssize_t do_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos);
 ssize_t generic_file_write_nolock(struct file *file, const struct iovec *iov,
 				unsigned long nr_segs, loff_t *ppos);
 extern ssize_t generic_file_sendfile(struct file *, loff_t *, size_t, read_actor_t, void *);
@@ -1247,9 +1247,9 @@ static inline void do_generic_file_read(struct file * filp, loff_t *ppos,
 
 extern struct file_operations generic_ro_fops;
 
-extern int vfs_readlink(struct dentry *, char *, int, const char *);
+extern int vfs_readlink(struct dentry *, char __user *, int, const char *);
 extern int vfs_follow_link(struct nameidata *, const char *);
-extern int page_readlink(struct dentry *, char *, int);
+extern int page_readlink(struct dentry *, char __user *, int);
 extern int page_follow_link(struct dentry *, struct nameidata *);
 extern int page_symlink(struct inode *inode, const char *symname, int len);
 extern struct inode_operations page_symlink_inode_operations;

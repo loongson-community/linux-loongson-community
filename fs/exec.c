@@ -111,7 +111,7 @@ static inline void put_binfmt(struct linux_binfmt * fmt)
  *
  * Also note that we take the address to load from from the file itself.
  */
-asmlinkage long sys_uselib(const char * library)
+asmlinkage long sys_uselib(const char __user * library)
 {
 	struct file * file;
 	struct nameidata nd;
@@ -164,13 +164,13 @@ exit:
 /*
  * count() counts the number of strings in array ARGV.
  */
-static int count(char ** argv, int max)
+static int count(char __user * __user * argv, int max)
 {
 	int i = 0;
 
 	if (argv != NULL) {
 		for (;;) {
-			char * p;
+			char __user * p;
 
 			if (get_user(p, argv))
 				return -EFAULT;
@@ -189,14 +189,14 @@ static int count(char ** argv, int max)
  * memory to free pages in kernel mem. These are in a format ready
  * to be put directly into the top of new user memory.
  */
-int copy_strings(int argc,char ** argv, struct linux_binprm *bprm) 
+int copy_strings(int argc,char __user * __user * argv, struct linux_binprm *bprm) 
 {
 	struct page *kmapped_page = NULL;
 	char *kaddr = NULL;
 	int ret;
 
 	while (argc-- > 0) {
-		char *str;
+		char __user *str;
 		int len;
 		unsigned long pos;
 
@@ -275,7 +275,7 @@ int copy_strings_kernel(int argc,char ** argv, struct linux_binprm *bprm)
 	int r;
 	mm_segment_t oldfs = get_fs();
 	set_fs(KERNEL_DS); 
-	r = copy_strings(argc, argv, bprm);
+	r = copy_strings(argc, (char __user * __user *)argv, bprm);
 	set_fs(oldfs);
 	return r; 
 }
@@ -314,7 +314,6 @@ void put_dirty_page(struct task_struct * tsk, struct page *page, unsigned long a
 	}
 	lru_cache_add_active(page);
 	flush_dcache_page(page);
-	flush_page_to_ram(page);
 	set_pte(pte, pte_mkdirty(pte_mkwrite(mk_pte(page, PAGE_COPY))));
 	pte_chain = page_add_rmap(page, pte, pte_chain);
 	pte_unmap(pte);
@@ -407,7 +406,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 		mpnt->vm_start = PAGE_MASK & (unsigned long) bprm->p;
 		mpnt->vm_end = STACK_TOP;
 #endif
-		mpnt->vm_page_prot = PAGE_COPY;
+		mpnt->vm_page_prot = protection_map[VM_STACK_FLAGS & 0x7];
 		mpnt->vm_flags = VM_STACK_FLAGS;
 		mpnt->vm_ops = NULL;
 		mpnt->vm_pgoff = 0;
@@ -492,7 +491,8 @@ int kernel_read(struct file *file, unsigned long offset,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	result = vfs_read(file, addr, count, &pos);
+	/* The cast to a user pointer is valid due to the set_fs() */
+	result = vfs_read(file, (void __user *)addr, count, &pos);
 	set_fs(old_fs);
 	return result;
 }
@@ -750,7 +750,7 @@ static inline void flush_old_files(struct files_struct * files)
 {
 	long j = -1;
 
-	write_lock(&files->file_lock);
+	spin_lock(&files->file_lock);
 	for (;;) {
 		unsigned long set, i;
 
@@ -762,16 +762,16 @@ static inline void flush_old_files(struct files_struct * files)
 		if (!set)
 			continue;
 		files->close_on_exec->fds_bits[j] = 0;
-		write_unlock(&files->file_lock);
+		spin_unlock(&files->file_lock);
 		for ( ; set ; i++,set >>= 1) {
 			if (set & 1) {
 				sys_close(i);
 			}
 		}
-		write_lock(&files->file_lock);
+		spin_lock(&files->file_lock);
 
 	}
-	write_unlock(&files->file_lock);
+	spin_unlock(&files->file_lock);
 }
 
 int flush_old_exec(struct linux_binprm * bprm)
@@ -1050,7 +1050,10 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 /*
  * sys_execve() executes a new program.
  */
-int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs)
+int do_execve(char * filename,
+	char __user *__user *argv,
+	char __user *__user *envp,
+	struct pt_regs * regs)
 {
 	struct linux_binprm bprm;
 	struct file *file;

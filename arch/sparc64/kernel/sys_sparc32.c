@@ -756,7 +756,7 @@ asmlinkage int sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u
 			err = do_sys32_semctl (first, second, third, (void *)AA(ptr));
 			goto out;
 		default:
-			err = -EINVAL;
+			err = -ENOSYS;
 			goto out;
 		};
 	if (call <= MSGCTL) 
@@ -775,7 +775,7 @@ asmlinkage int sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u
 			err = do_sys32_msgctl (first, second, (void *)AA(ptr));
 			goto out;
 		default:
-			err = -EINVAL;
+			err = -ENOSYS;
 			goto out;
 		}
 	if (call <= SHMCTL) 
@@ -794,11 +794,11 @@ asmlinkage int sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u
 			err = do_sys32_shmctl (first, second, (void *)AA(ptr));
 			goto out;
 		default:
-			err = -EINVAL;
+			err = -ENOSYS;
 			goto out;
 		}
 
-	err = -EINVAL;
+	err = -ENOSYS;
 
 out:
 	return err;
@@ -1521,70 +1521,6 @@ out:
 	return err;
 }
 
-struct rusage32 {
-        struct compat_timeval ru_utime;
-        struct compat_timeval ru_stime;
-        s32    ru_maxrss;
-        s32    ru_ixrss;
-        s32    ru_idrss;
-        s32    ru_isrss;
-        s32    ru_minflt;
-        s32    ru_majflt;
-        s32    ru_nswap;
-        s32    ru_inblock;
-        s32    ru_oublock;
-        s32    ru_msgsnd; 
-        s32    ru_msgrcv; 
-        s32    ru_nsignals;
-        s32    ru_nvcsw;
-        s32    ru_nivcsw;
-};
-
-static int put_rusage (struct rusage32 *ru, struct rusage *r)
-{
-	int err;
-	
-	err = put_user (r->ru_utime.tv_sec, &ru->ru_utime.tv_sec);
-	err |= __put_user (r->ru_utime.tv_usec, &ru->ru_utime.tv_usec);
-	err |= __put_user (r->ru_stime.tv_sec, &ru->ru_stime.tv_sec);
-	err |= __put_user (r->ru_stime.tv_usec, &ru->ru_stime.tv_usec);
-	err |= __put_user (r->ru_maxrss, &ru->ru_maxrss);
-	err |= __put_user (r->ru_ixrss, &ru->ru_ixrss);
-	err |= __put_user (r->ru_idrss, &ru->ru_idrss);
-	err |= __put_user (r->ru_isrss, &ru->ru_isrss);
-	err |= __put_user (r->ru_minflt, &ru->ru_minflt);
-	err |= __put_user (r->ru_majflt, &ru->ru_majflt);
-	err |= __put_user (r->ru_nswap, &ru->ru_nswap);
-	err |= __put_user (r->ru_inblock, &ru->ru_inblock);
-	err |= __put_user (r->ru_oublock, &ru->ru_oublock);
-	err |= __put_user (r->ru_msgsnd, &ru->ru_msgsnd);
-	err |= __put_user (r->ru_msgrcv, &ru->ru_msgrcv);
-	err |= __put_user (r->ru_nsignals, &ru->ru_nsignals);
-	err |= __put_user (r->ru_nvcsw, &ru->ru_nvcsw);
-	err |= __put_user (r->ru_nivcsw, &ru->ru_nivcsw);
-	return err;
-}
-
-asmlinkage int sys32_wait4(compat_pid_t pid, unsigned int *stat_addr, int options, struct rusage32 *ru)
-{
-	if (!ru)
-		return sys_wait4(pid, stat_addr, options, NULL);
-	else {
-		struct rusage r;
-		int ret;
-		unsigned int status;
-		mm_segment_t old_fs = get_fs();
-		
-		set_fs (KERNEL_DS);
-		ret = sys_wait4(pid, stat_addr ? &status : NULL, options, &r);
-		set_fs (old_fs);
-		if (put_rusage (ru, &r)) return -EFAULT;
-		if (stat_addr && put_user (status, stat_addr))
-			return -EFAULT;
-		return ret;
-	}
-}
-
 struct sysinfo32 {
         s32 uptime;
         u32 loads[3];
@@ -1802,69 +1738,6 @@ sys32_rt_sigqueueinfo(int pid, int sig, siginfo_t32 *uinfo)
 	set_fs (KERNEL_DS);
 	ret = sys_rt_sigqueueinfo(pid, sig, &info);
 	set_fs (old_fs);
-	return ret;
-}
-
-#define RLIM_INFINITY32	0x7fffffff
-#define RESOURCE32(x) ((x > RLIM_INFINITY32) ? RLIM_INFINITY32 : x)
-
-struct rlimit32 {
-	u32	rlim_cur;
-	u32	rlim_max;
-};
-
-extern asmlinkage int sys_getrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage int sys32_getrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-	
-	set_fs (KERNEL_DS);
-	ret = sys_getrlimit(resource, &r);
-	set_fs (old_fs);
-	if (!ret) {
-		ret = put_user (RESOURCE32(r.rlim_cur), &rlim->rlim_cur);
-		ret |= __put_user (RESOURCE32(r.rlim_max), &rlim->rlim_max);
-	}
-	return ret;
-}
-
-extern asmlinkage int sys_setrlimit(unsigned int resource, struct rlimit *rlim);
-
-asmlinkage int sys32_setrlimit(unsigned int resource, struct rlimit32 *rlim)
-{
-	struct rlimit r;
-	int ret;
-	mm_segment_t old_fs = get_fs ();
-
-	if (resource >= RLIM_NLIMITS) return -EINVAL;	
-	if (get_user (r.rlim_cur, &rlim->rlim_cur) ||
-	    __get_user (r.rlim_max, &rlim->rlim_max))
-		return -EFAULT;
-	if (r.rlim_cur == RLIM_INFINITY32)
-		r.rlim_cur = RLIM_INFINITY;
-	if (r.rlim_max == RLIM_INFINITY32)
-		r.rlim_max = RLIM_INFINITY;
-	set_fs (KERNEL_DS);
-	ret = sys_setrlimit(resource, &r);
-	set_fs (old_fs);
-	return ret;
-}
-
-extern asmlinkage int sys_getrusage(int who, struct rusage *ru);
-
-asmlinkage int sys32_getrusage(int who, struct rusage32 *ru)
-{
-	struct rusage r;
-	int ret;
-	mm_segment_t old_fs = get_fs();
-		
-	set_fs (KERNEL_DS);
-	ret = sys_getrusage(who, &r);
-	set_fs (old_fs);
-	if (put_rusage (ru, &r)) return -EFAULT;
 	return ret;
 }
 
@@ -2831,59 +2704,9 @@ asmlinkage long sys32_sysctl(struct __sysctl_args32 *args)
 	return error;
 }
 
-extern asmlinkage int sys_sched_setaffinity(pid_t pid, unsigned int len,
-					    unsigned long *user_mask_ptr);
+extern long sys_lookup_dcookie(u64 cookie64, char *buf, size_t len);
 
-asmlinkage int sys32_sched_setaffinity(compat_pid_t pid, unsigned int len,
-				       u32 *user_mask_ptr)
-{
-	unsigned long kernel_mask;
-	mm_segment_t old_fs;
-	int ret;
-
-	if (get_user(kernel_mask, user_mask_ptr))
-		return -EFAULT;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_sched_setaffinity(pid,
-				    /* XXX Nice api... */
-				    sizeof(kernel_mask),
-				    &kernel_mask);
-	set_fs(old_fs);
-
-	return ret;
-}
-
-extern asmlinkage int sys_sched_getaffinity(pid_t pid, unsigned int len,
-					    unsigned long *user_mask_ptr);
-
-asmlinkage int sys32_sched_getaffinity(compat_pid_t pid, unsigned int len,
-				       u32 *user_mask_ptr)
-{
-	unsigned long kernel_mask;
-	mm_segment_t old_fs;
-	int ret;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_sched_getaffinity(pid,
-				    /* XXX Nice api... */
-				    sizeof(kernel_mask),
-				    &kernel_mask);
-	set_fs(old_fs);
-
-	if (ret > 0) {
-		if (put_user(kernel_mask, user_mask_ptr))
-			ret = -EFAULT;
-	}
-
-	return ret;
-}
-
-extern int sys_lookup_dcookie(u64 cookie64, char *buf, size_t len);
-
-int sys32_lookup_dcookie(u32 cookie_high, u32 cookie_low, char *buf, size_t len)
+long sys32_lookup_dcookie(u32 cookie_high, u32 cookie_low, char *buf, size_t len)
 {
 	return sys_lookup_dcookie((u64)cookie_high << 32 | cookie_low,
 				  buf, len);

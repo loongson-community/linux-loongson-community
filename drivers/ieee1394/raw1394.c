@@ -49,6 +49,7 @@
 #include "highlevel.h"
 #include "iso.h"
 #include "ieee1394_transactions.h"
+#include "ieee1394_hotplug.h"
 #include "raw1394.h"
 #include "raw1394-private.h"
 
@@ -70,8 +71,6 @@ printk(KERN_INFO "raw1394:" fmt "\n" , ## args)
 #else
 #define DBGMSG(fmt, args...)
 #endif
-
-static devfs_handle_t devfs_handle;
 
 static LIST_HEAD(host_info_list);
 static int host_count;
@@ -189,13 +188,13 @@ static void queue_complete_cb(struct pending_request *req)
 }
 
 
-static void add_host(struct hpsb_host *host)
+static void add_host(struct hpsb_host *host, struct hpsb_highlevel *hl)
 {
         struct host_info *hi;
         unsigned long flags;
 
-        hi = (struct host_info *)kmalloc(sizeof(struct host_info),
-		in_interrupt() ? SLAB_ATOMIC : SLAB_KERNEL);
+        hi = (struct host_info *)kmalloc(sizeof(struct host_info), GFP_KERNEL);
+
         if (hi != NULL) {
                 INIT_LIST_HEAD(&hi->list);
                 hi->host = host;
@@ -2474,6 +2473,40 @@ static int raw1394_release(struct inode *inode, struct file *file)
         return 0;
 }
 
+
+/*** HOTPLUG STUFF **********************************************************/
+/*
+ * Export information about protocols/devices supported by this driver.
+ */
+static struct ieee1394_device_id raw1394_id_table[] = {
+	{
+		.match_flags	= IEEE1394_MATCH_SPECIFIER_ID | IEEE1394_MATCH_VERSION,
+		.specifier_id	= AVC_UNIT_SPEC_ID_ENTRY & 0xffffff,
+		.version	= AVC_SW_VERSION_ENTRY & 0xffffff
+	},
+	{
+		.match_flags	= IEEE1394_MATCH_SPECIFIER_ID | IEEE1394_MATCH_VERSION,
+		.specifier_id	= CAMERA_UNIT_SPEC_ID_ENTRY & 0xffffff,
+		.version	= CAMERA_SW_VERSION_ENTRY & 0xffffff
+	},
+	{ }
+};
+
+MODULE_DEVICE_TABLE(ieee1394, raw1394_id_table);
+
+static struct hpsb_protocol_driver raw1394_driver = {
+	.name		= "raw1394 Driver",
+	.id_table	= raw1394_id_table,
+	.driver		= {
+		.name	= "raw1394",
+		.bus	= &ieee1394_bus_type,
+	},
+};
+
+
+/******************************************************************************/
+
+
 static struct hpsb_highlevel_ops hl_ops = {
         .add_host =    add_host,
         .remove_host = remove_host,
@@ -2501,28 +2534,30 @@ static int __init init_raw1394(void)
                 return -ENOMEM;
         }
 
-        devfs_handle = devfs_register(NULL,
-                                      RAW1394_DEVICE_NAME, DEVFS_FL_NONE,
-                                      IEEE1394_MAJOR,
-                                      IEEE1394_MINOR_BLOCK_RAW1394 * 16,
-                                      S_IFCHR | S_IRUSR | S_IWUSR, &file_ops,
-                                      NULL);
+        devfs_register(NULL, RAW1394_DEVICE_NAME, 0,
+			IEEE1394_MAJOR, IEEE1394_MINOR_BLOCK_RAW1394 * 16,
+			S_IFCHR | S_IRUSR | S_IWUSR, &file_ops, NULL);
 
         if (ieee1394_register_chardev(IEEE1394_MINOR_BLOCK_RAW1394,
                                       THIS_MODULE, &file_ops)) {
                 HPSB_ERR("raw1394 failed to register minor device block");
-                devfs_unregister(devfs_handle);
+                devfs_remove(RAW1394_DEVICE_NAME);
                 hpsb_unregister_highlevel(hl_handle);
                 return -EBUSY;
         }
+
         printk(KERN_INFO "raw1394: /dev/%s device initialized\n", RAW1394_DEVICE_NAME);
+
+	hpsb_register_protocol(&raw1394_driver);
+
         return 0;
 }
 
 static void __exit cleanup_raw1394(void)
 {
+	hpsb_unregister_protocol(&raw1394_driver);
         ieee1394_unregister_chardev(IEEE1394_MINOR_BLOCK_RAW1394);
-        devfs_unregister(devfs_handle);
+        devfs_remove(RAW1394_DEVICE_NAME);
         hpsb_unregister_highlevel(hl_handle);
 }
 

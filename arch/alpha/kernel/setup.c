@@ -162,6 +162,7 @@ WEAK(eb66p_mv);
 WEAK(eiger_mv);
 WEAK(jensen_mv);
 WEAK(lx164_mv);
+WEAK(lynx_mv);
 WEAK(marvel_ev7_mv);
 WEAK(miata_mv);
 WEAK(mikasa_mv);
@@ -268,7 +269,7 @@ move_initrd(unsigned long mem_limit)
 	unsigned long size;
 
 	size = initrd_end - initrd_start;
-	start = __alloc_bootmem(size, PAGE_SIZE, 0);
+	start = __alloc_bootmem(PAGE_ALIGN(size), PAGE_SIZE, 0);
 	if (!start || __pa(start) + size > mem_limit) {
 		initrd_start = initrd_end = 0;
 		return NULL;
@@ -486,7 +487,7 @@ setup_arch(char **cmdline_p)
 	notifier_chain_register(&panic_notifier_list, &alpha_panic_block);
 
 #ifdef CONFIG_ALPHA_GENERIC
-	/* Assume that we've booted from SRM if we havn't booted from MILO.
+	/* Assume that we've booted from SRM if we haven't booted from MILO.
 	   Detect the later by looking for "MILO" in the system serial nr.  */
 	alpha_using_srm = strncmp((const char *)hwrpb->ssn, "MILO", 4) != 0;
 #endif
@@ -569,7 +570,7 @@ setup_arch(char **cmdline_p)
 #endif
 
 	/*
-	 * Indentify and reconfigure for the current system.
+	 * Identify and reconfigure for the current system.
 	 */
 	cpu = (struct percpu_struct*)((char*)hwrpb + hwrpb->processor_offset);
 
@@ -739,7 +740,7 @@ get_sysvec(unsigned long type, unsigned long variation, unsigned long cpu)
 		NULL,		/* Turbolaser */
 		&avanti_mv,
 		NULL,		/* Mustang */
-		&alcor_mv,	/* Alcor, Bret, Maverick.  */
+		NULL,		/* Alcor, Bret, Maverick. HWRPB inaccurate? */
 		NULL,		/* Tradewind */
 		NULL,		/* Mikasa -- see below.  */
 		NULL,		/* EB64 */
@@ -748,7 +749,7 @@ get_sysvec(unsigned long type, unsigned long variation, unsigned long cpu)
 		&alphabook1_mv,
 		&rawhide_mv,
 		NULL,		/* K2 */
-		NULL,		/* Lynx */
+		&lynx_mv,	/* Lynx */
 		&xl_mv,
 		NULL,		/* EB164 -- see variation.  */
 		NULL,		/* Noritake -- see below.  */
@@ -930,6 +931,7 @@ get_sysvec_byname(const char *name)
 		&eiger_mv,
 		&jensen_mv,
 		&lx164_mv,
+		&lynx_mv,
 		&miata_mv,
 		&mikasa_mv,
 		&mikasa_primo_mv,

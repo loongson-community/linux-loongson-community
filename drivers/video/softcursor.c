@@ -24,30 +24,9 @@ int soft_cursor(struct fb_info *info, struct fb_cursor *cursor)
 	unsigned int i, size, dsize, s_pitch, d_pitch;
 	u8 *dst, src[64];
 
-	info->cursor.enable = (cursor->set & FB_CUR_SETCUR) ? 1 : 0;
-
 	if (cursor->set & FB_CUR_SETSIZE) {
-		info->cursor.image.width = cursor->image.width;
 		info->cursor.image.height = cursor->image.height;
-		cursor->set |= FB_CUR_SETSHAPE;
-	}
-
-	s_pitch = (info->cursor.image.width + 7) >> 3;
-	dsize = s_pitch * info->cursor.image.height;
-	d_pitch = (s_pitch + scan_align) & ~scan_align;
-	size = d_pitch * info->cursor.image.height + buf_align;
-	size &= ~buf_align;
-	dst = info->pixmap.addr + fb_get_buffer_offset(info, size);
-	info->cursor.image.data = dst;
-
-	if (cursor->set & FB_CUR_SETSHAPE) {
-		if (info->cursor.mask)
-			kfree(info->cursor.mask);
-		info->cursor.mask = kmalloc(dsize, GFP_KERNEL);
-		if (cursor->mask)
-			memcpy(info->cursor.mask, cursor->mask, dsize);
-		else
-			memset(info->cursor.mask, 0, dsize);
+		info->cursor.image.width = cursor->image.width;
 	}
 
 	if (cursor->set & FB_CUR_SETPOS) {
@@ -57,9 +36,9 @@ int soft_cursor(struct fb_info *info, struct fb_cursor *cursor)
 
 	if (cursor->set & FB_CUR_SETHOT)
 		info->cursor.hot = cursor->hot;
-
+	
 	if (cursor->set & FB_CUR_SETCMAP) {
-		if (cursor->image.depth == 0) {
+		if (cursor->image.depth == 1) {
 			info->cursor.image.bg_color = cursor->image.bg_color;
 			info->cursor.image.fg_color = cursor->image.fg_color;
 		} else {
@@ -67,37 +46,41 @@ int soft_cursor(struct fb_info *info, struct fb_cursor *cursor)
 				fb_copy_cmap(&cursor->image.cmap, &info->cursor.image.cmap, 0);
 		}
 		info->cursor.image.depth = cursor->image.depth;
-	}
+	}	
+
+	s_pitch = (info->cursor.image.width + 7) >> 3;
+	dsize = s_pitch * info->cursor.image.height;
+	d_pitch = (s_pitch + scan_align) & ~scan_align;
+	size = d_pitch * info->cursor.image.height + buf_align;
+	size &= ~buf_align;
+	dst = info->pixmap.addr + fb_get_buffer_offset(info, size);
 
 	if (info->cursor.enable) {
-		switch (cursor->rop) {
+		switch (info->cursor.rop) {
 		case ROP_XOR:
-			for (i = 0; i < dsize; i++) {
-				src[i] = (cursor->image.data[i] &
-					  cursor->mask[i]) ^
-				    	  cursor->dest[i];
-			}
+			for (i = 0; i < dsize; i++)
+				src[i] = cursor->image.data[i] ^ info->cursor.mask[i]; 
 			break;
 		case ROP_COPY:
 		default:
-			for (i = 0; i < dsize; i++) {
-				src[i] = cursor->image.data[i] &
-				    	 cursor->mask[i];
-			}
+			for (i = 0; i < dsize; i++)
+				src[i] = cursor->image.data[i] & info->cursor.mask[i];
 			break;
 		}
-		move_buf_aligned(info, dst, src, d_pitch, s_pitch,
-				 cursor->image.height);
-	} else {
-		move_buf_aligned(info, dst, cursor->dest, s_pitch, d_pitch,
-				 cursor->image.height);
-	}
+	} else 
+		memcpy(src, cursor->image.data, dsize);
+	
+	move_buf_aligned(info, dst, src, d_pitch, s_pitch, info->cursor.image.height);
+	info->cursor.image.data = dst;
+	
 	info->fbops->fb_imageblit(info, &info->cursor.image);
+	atomic_dec(&info->pixmap.count);
+	smp_mb__after_atomic_dec();
 	return 0;
 }
 
 EXPORT_SYMBOL(soft_cursor);
-
+ 
 MODULE_AUTHOR("James Simmons <jsimmons@users.sf.net>");
 MODULE_DESCRIPTION("Generic software cursor");
 MODULE_LICENSE("GPL");

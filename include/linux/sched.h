@@ -633,7 +633,7 @@ extern void daemonize(const char *, ...);
 extern int allow_signal(int);
 extern task_t *child_reaper;
 
-extern int do_execve(char *, char **, char **, struct pt_regs *);
+extern int do_execve(char *, char __user * __user *, char __user * __user *, struct pt_regs *);
 extern struct task_struct *do_fork(unsigned long, unsigned long, struct pt_regs *, unsigned long, int *, int *);
 
 #ifdef CONFIG_SMP
@@ -690,7 +690,11 @@ static inline int thread_group_empty(task_t *p)
 
 extern void unhash_process(struct task_struct *p);
 
-/* Protects ->fs, ->files, ->mm, and synchronises with wait4().  Nests inside tasklist_lock */
+/* Protects ->fs, ->files, ->mm, and synchronises with wait4().
+ * Nests both inside and outside of read_lock(&tasklist_lock).
+ * It must not be nested with write_lock_irq(&tasklist_lock),
+ * neither inside nor outside.
+ */
 static inline void task_lock(struct task_struct *p)
 {
 	spin_lock(&p->alloc_lock);

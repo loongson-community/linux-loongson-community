@@ -165,8 +165,8 @@ static int sctp_v6_xmit(struct sk_buff *skb, struct sctp_transport *transport,
 		fl.oif = transport->saddr.v6.sin6_scope_id;
 	else
 		fl.oif = sk->bound_dev_if;
-	fl.uli_u.ports.sport = inet_sk(sk)->sport;
-	fl.uli_u.ports.dport = transport->ipaddr.v6.sin6_port;
+	fl.fl_ip_sport = inet_sk(sk)->sport;
+	fl.fl_ip_dport = transport->ipaddr.v6.sin6_port;
 
 	if (np->opt && np->opt->srcrt) {
 		struct rt0_hdr *rt0 = (struct rt0_hdr *) np->opt->srcrt;
@@ -776,18 +776,18 @@ static struct inet_protosw sctpv6_stream_protosw = {
 	.ops           = &inet6_seqpacket_ops,
 	.capability    = -1,
 	.no_check      = 0,
-	.flags         = SCTP_PROTOSW_FLAG
+	.flags         = SCTP_PROTOSW_FLAG,
 };
 
-static int sctp6_rcv(struct sk_buff **pskb)
+static int sctp6_rcv(struct sk_buff **pskb, unsigned int *nhoffp)
 {
-	return sctp_rcv(*pskb);
+	return sctp_rcv(*pskb) ? -1 : 0;
 }
 
 static struct inet6_protocol sctpv6_protocol = {
 	.handler      = sctp6_rcv,
 	.err_handler  = sctp_v6_err,
-	.no_policy    = 1,
+	.flags        = INET6_PROTO_NOPOLICY | INET6_PROTO_FINAL,
 };
 
 static struct sctp_af sctp_ipv6_specific = {

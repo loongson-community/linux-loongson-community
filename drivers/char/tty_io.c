@@ -136,7 +136,7 @@ extern void disable_early_printk(void);
  * redirect is the pseudo-tty that console output
  * is redirected to if asked by TIOCCONS.
  */
-struct tty_struct * redirect;
+static struct tty_struct *redirect;
 
 static void initialize_tty_struct(struct tty_struct *tty);
 
@@ -152,7 +152,7 @@ extern int vme_scc_init (void);
 extern int serial167_init(void);
 extern void au1000_serial_console_init(void);
 extern int rs_8xx_init(void);
-extern void hwc_tty_init(void);
+extern void sclp_tty_init(void);
 extern void tty3215_init(void);
 extern void tub3270_con_init(void);
 extern void tub3270_init(void);
@@ -1293,7 +1293,14 @@ static void release_dev(struct file * filp)
 	}
 	
 	/*
-	 * Make sure that the tty's task queue isn't activated. 
+	 * Prevent flush_to_ldisc() from rescheduling the work for later.  Then
+	 * kill any delayed work.
+	 */
+	clear_bit(TTY_DONT_FLIP, &tty->flags);
+	cancel_delayed_work(&tty->flip.work);
+
+	/*
+	 * Wait for ->hangup_work and ->flip.work handlers to terminate
 	 */
 	flush_scheduled_work();
 
@@ -1355,46 +1362,38 @@ retry_open:
 
 	if (IS_PTMX_DEV(device)) {
 #ifdef CONFIG_UNIX98_PTYS
-
 		/* find a free pty. */
 		int major, minor;
 		struct tty_driver *driver;
 
 		/* find a device that is not in use. */
 		retval = -1;
-		for ( major = 0 ; major < UNIX98_NR_MAJORS ; major++ ) {
+		for (major = 0 ; major < UNIX98_NR_MAJORS ; major++) {
 			driver = &ptm_driver[major];
-			for (minor = driver->minor_start ;
-			     minor < driver->minor_start + driver->num ;
+			for (minor = driver->minor_start;
+			     minor < driver->minor_start + driver->num;
 			     minor++) {
 				device = mk_kdev(driver->major, minor);
-				if (!init_dev(device, &tty)) goto ptmx_found; /* ok! */
+				if (!init_dev(device, &tty))
+					goto ptmx_found; /* ok! */
 			}
 		}
 		return -EIO; /* no free ptys */
+
 	ptmx_found:
 		set_bit(TTY_PTY_LOCK, &tty->flags); /* LOCK THE SLAVE */
 		minor -= driver->minor_start;
 		devpts_pty_new(driver->other->name_base + minor, MKDEV(driver->other->major, minor + driver->other->minor_start));
-		tty_register_device(&pts_driver[major],
-				   pts_driver[major].minor_start + minor);
 		noctty = 1;
-		goto init_dev_done;
-
-#else   /* CONFIG_UNIX_98_PTYS */
-
+#else
 		return -ENODEV;
-
 #endif  /* CONFIG_UNIX_98_PTYS */
+	} else {
+		retval = init_dev(device, &tty);
+		if (retval)
+			return retval;
 	}
 
-	retval = init_dev(device, &tty);
-	if (retval)
-		return retval;
-
-#ifdef CONFIG_UNIX98_PTYS
-init_dev_done:
-#endif
 	filp->private_data = tty;
 	file_move(filp, &tty->tty_files);
 	check_tty_count(tty, "tty_open");
@@ -1691,6 +1690,55 @@ static int send_break(struct tty_struct *tty, int duration)
 	return 0;
 }
 
+static int
+tty_tiocmget(struct tty_struct *tty, struct file *file, unsigned long arg)
+{
+	int retval = -EINVAL;
+
+	if (tty->driver.tiocmget) {
+		retval = tty->driver.tiocmget(tty, file);
+
+		if (retval >= 0)
+			retval = put_user(retval, (int *)arg);
+	}
+	return retval;
+}
+
+static int
+tty_tiocmset(struct tty_struct *tty, struct file *file, unsigned int cmd,
+	     unsigned long arg)
+{
+	int retval = -EINVAL;
+
+	if (tty->driver.tiocmset) {
+		unsigned int set, clear, val;
+
+		retval = get_user(val, (unsigned int *)arg);
+		if (retval)
+			return retval;
+
+		set = clear = 0;
+		switch (cmd) {
+		case TIOCMBIS:
+			set = val;
+			break;
+		case TIOCMBIC:
+			clear = val;
+			break;
+		case TIOCMSET:
+			set = val;
+			clear = ~val;
+			break;
+		}
+
+		set &= TIOCM_DTR|TIOCM_RTS|TIOCM_OUT1|TIOCM_OUT2;
+		clear &= TIOCM_DTR|TIOCM_RTS|TIOCM_OUT1|TIOCM_OUT2;
+
+		retval = tty->driver.tiocmset(tty, file, set, clear);
+	}
+	return retval;
+}
+
 /*
  * Split this up, as gcc can choke on it otherwise..
  */
@@ -1816,6 +1864,14 @@ int tty_ioctl(struct inode * inode, struct file * file,
 			return 0;
 		case TCSBRKP:	/* support for POSIX tcsendbreak() */	
 			return send_break(tty, arg ? arg*(HZ/10) : HZ/4);
+
+		case TIOCMGET:
+			return tty_tiocmget(tty, file, arg);
+
+		case TIOCMSET:
+		case TIOCMBIC:
+		case TIOCMBIS:
+			return tty_tiocmset(tty, file, cmd, arg);
 	}
 	if (tty->driver.ioctl) {
 		int retval = (tty->driver.ioctl)(tty, file, cmd, arg);
@@ -1881,7 +1937,7 @@ static void __do_SAK(void *arg)
 		}
 		task_lock(p);
 		if (p->files) {
-			read_lock(&p->files->file_lock);
+			spin_lock(&p->files->file_lock);
 			for (i=0; i < p->files->max_fds; i++) {
 				filp = fcheck_files(p->files, i);
 				if (filp && (filp->f_op == &tty_fops) &&
@@ -1893,7 +1949,7 @@ static void __do_SAK(void *arg)
 					break;
 				}
 			}
-			read_unlock(&p->files->file_lock);
+			spin_unlock(&p->files->file_lock);
 		}
 		task_unlock(p);
 	}
@@ -2052,51 +2108,48 @@ static void tty_default_put_char(struct tty_struct *tty, unsigned char ch)
 	tty->driver.write(tty, 0, &ch, 1);
 }
 
-void tty_register_devfs (struct tty_driver *driver, unsigned int flags, unsigned minor)
-{
 #ifdef CONFIG_DEVFS_FS
+static void tty_register_devfs(struct tty_driver *driver, unsigned minor)
+{
 	umode_t mode = S_IFCHR | S_IRUSR | S_IWUSR;
-	kdev_t device = mk_kdev(driver->major, minor);
+	kdev_t dev = mk_kdev(driver->major, minor);
 	int idx = minor - driver->minor_start;
 	char buf[32];
 
-	if (IS_TTY_DEV(device) || IS_PTMX_DEV(device)) 
-		mode |= S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-	else {
-		if (driver->major == PTY_MASTER_MAJOR)
-			mode |= S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-	}
-	if ( (minor <  driver->minor_start) || 
-	     (minor >= driver->minor_start + driver->num) ) {
+	if ((minor < driver->minor_start) || 
+	    (minor >= driver->minor_start + driver->num)) {
 		printk(KERN_ERR "Attempt to register invalid minor number "
 		       "with devfs (%d:%d).\n", (int)driver->major,(int)minor);
 		return;
 	}
-#  ifdef CONFIG_UNIX98_PTYS
-	if ( (driver->major >= UNIX98_PTY_SLAVE_MAJOR) &&
-	     (driver->major < UNIX98_PTY_SLAVE_MAJOR + UNIX98_NR_MAJORS) )
-		flags |= DEVFS_FL_CURRENT_OWNER;
-#  endif
+
+	if (IS_TTY_DEV(dev) || IS_PTMX_DEV(dev)) 
+		mode |= S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+
 	sprintf(buf, driver->name, idx + driver->name_base);
-	devfs_register (NULL, buf, flags | DEVFS_FL_DEFAULT,
-			driver->major, minor, mode, &tty_fops, NULL);
-#endif /* CONFIG_DEVFS_FS */
+	devfs_register(NULL, buf, 0, driver->major, minor, mode,
+		       &tty_fops, NULL);
 }
 
-void tty_unregister_devfs (struct tty_driver *driver, unsigned minor)
+static void tty_unregister_devfs(struct tty_driver *driver, unsigned minor)
 {
-	devfs_remove(driver->name, minor-driver->minor_start+driver->name_base);
+	devfs_remove(driver->name,
+		     minor - driver->minor_start + driver->name_base);
 }
+#else
+# define tty_register_devfs(driver, minor)	do { } while (0)
+# define tty_unregister_devfs(driver, minor)	do { } while (0)
+#endif /* CONFIG_DEVFS_FS */
 
 /*
  * Register a tty device described by <driver>, with minor number <minor>.
  */
-void tty_register_device (struct tty_driver *driver, unsigned minor)
+void tty_register_device(struct tty_driver *driver, unsigned minor)
 {
-	tty_register_devfs(driver, 0, minor);
+	tty_register_devfs(driver, minor);
 }
 
-void tty_unregister_device (struct tty_driver *driver, unsigned minor)
+void tty_unregister_device(struct tty_driver *driver, unsigned minor)
 {
 	tty_unregister_devfs(driver, minor);
 }

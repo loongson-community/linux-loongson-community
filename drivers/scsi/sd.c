@@ -123,7 +123,7 @@ static int sd_major(int major_idx)
 	case 1 ... 7:
 		return SCSI_DISK1_MAJOR + major_idx - 1;
 	case 8 ... 15:
-		return SCSI_DISK8_MAJOR + major_idx;
+		return SCSI_DISK8_MAJOR + major_idx - 8;
 	default:
 		BUG();
 		return 0;	/* shut up gcc */
@@ -1327,7 +1327,6 @@ static int sd_attach(struct scsi_device * sdp)
 	sdkp->disk = gd;
 	sdkp->index = index;
 
-	gd->de = sdp->de;
 	gd->major = sd_major(index >> 4);
 	gd->first_minor = (index & 15) << 4;
 	gd->minors = 16;
@@ -1340,10 +1339,12 @@ static int sd_attach(struct scsi_device * sdp)
 		sprintf(gd->disk_name, "sd%c", 'a' + index % 26);
 	}
 
+	strcpy(gd->devfs_name, sdp->devfs_name);
+
 	sd_init_onedisk(sdkp, gd);
 
 	gd->driverfs_dev = &sdp->sdev_driverfs_dev;
-	gd->flags = GENHD_FL_DRIVERFS | GENHD_FL_DEVFS;
+	gd->flags = GENHD_FL_DRIVERFS;
 	if (sdp->removable)
 		gd->flags |= GENHD_FL_REMOVABLE;
 	gd->private_data = &sdkp->driver;

@@ -74,10 +74,11 @@ DEFINE_SNMP_STAT(struct icmpv6_mib, icmpv6_statistics);
 static struct socket *__icmpv6_socket[NR_CPUS];
 #define icmpv6_socket	__icmpv6_socket[smp_processor_id()]
 
-static int icmpv6_rcv(struct sk_buff **pskb);
+static int icmpv6_rcv(struct sk_buff **pskb, unsigned int *nhoffp);
 
 static struct inet6_protocol icmpv6_protocol = {
 	.handler	=	icmpv6_rcv,
+	.flags		=	INET6_PROTO_FINAL,
 };
 
 struct icmpv6_msg {
@@ -312,12 +313,12 @@ void icmpv6_send(struct sk_buff *skb, int type, int code, __u32 info,
 	}
 
 	fl.proto = IPPROTO_ICMPV6;
-	fl.nl_u.ip6_u.daddr = &hdr->saddr;
-	fl.nl_u.ip6_u.saddr = saddr;
+	fl.fl6_dst = &hdr->saddr;
+	fl.fl6_src = saddr;
 	fl.oif = iif;
 	fl.fl6_flowlabel = 0;
-	fl.uli_u.icmpt.type = type;
-	fl.uli_u.icmpt.code = code;
+	fl.fl_icmp_type = type;
+	fl.fl_icmp_code = code;
 
 	icmpv6_xmit_lock();
 
@@ -386,12 +387,12 @@ static void icmpv6_echo_reply(struct sk_buff *skb)
 	msg.daddr =  &skb->nh.ipv6h->saddr;
 
 	fl.proto = IPPROTO_ICMPV6;
-	fl.nl_u.ip6_u.daddr = msg.daddr;
-	fl.nl_u.ip6_u.saddr = saddr;
+	fl.fl6_dst = msg.daddr;
+	fl.fl6_src = saddr;
 	fl.oif = skb->dev->ifindex;
 	fl.fl6_flowlabel = 0;
-	fl.uli_u.icmpt.type = ICMPV6_ECHO_REPLY;
-	fl.uli_u.icmpt.code = 0;
+	fl.fl_icmp_type = ICMPV6_ECHO_REPLY;
+	fl.fl_icmp_code = 0;
 
 	icmpv6_xmit_lock();
 
@@ -459,7 +460,7 @@ static void icmpv6_notify(struct sk_buff *skb, int type, int code, u32 info)
  *	Handle icmp messages
  */
 
-static int icmpv6_rcv(struct sk_buff **pskb)
+static int icmpv6_rcv(struct sk_buff **pskb, unsigned int *nhoffp)
 {
 	struct sk_buff *skb = *pskb;
 	struct net_device *dev = skb->dev;

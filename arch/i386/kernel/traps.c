@@ -51,12 +51,17 @@
 #include <linux/irq.h>
 #include <linux/module.h>
 
+#include "mach_traps.h"
+
 asmlinkage int system_call(void);
 asmlinkage void lcall7(void);
 asmlinkage void lcall27(void);
 
 struct desc_struct default_ldt[] = { { 0, 0 }, { 0, 0 }, { 0, 0 },
 		{ 0, 0 }, { 0, 0 } };
+
+/* Do we ignore FPU interrupts ? */
+char ignore_fpu_irq = 0;
 
 /*
  * The IDT has to be page-aligned to simplify the Pentium
@@ -257,6 +262,15 @@ void die(const char * str, struct pt_regs * regs, long err)
 	show_registers(regs);
 	bust_spinlocks(0);
 	spin_unlock_irq(&die_lock);
+	if (in_interrupt())
+		panic("Fatal exception in interrupt");
+
+	if (panic_on_oops) {
+		printk(KERN_EMERG "Fatal exception: panic in 5 seconds\n");
+		set_current_state(TASK_UNINTERRUPTIBLE);
+		schedule_timeout(5 * HZ);
+		panic("Fatal exception");
+	}
 	do_exit(SIGSEGV);
 }
 
@@ -384,8 +398,7 @@ static void mem_parity_error(unsigned char reason, struct pt_regs * regs)
 	printk("You probably have a hardware problem with your RAM chips\n");
 
 	/* Clear and disable the memory parity error line. */
-	reason = (reason & 0xf) | 4;
-	outb(reason, 0x61);
+	clear_mem_error(reason);
 }
 
 static void io_check_error(unsigned char reason, struct pt_regs * regs)
@@ -422,7 +435,7 @@ static void unknown_nmi_error(unsigned char reason, struct pt_regs * regs)
 
 static void default_do_nmi(struct pt_regs * regs)
 {
-	unsigned char reason = inb(0x61);
+	unsigned char reason = get_nmi_reason();
  
 	if (!(reason & 0xc0)) {
 #if CONFIG_X86_LOCAL_APIC
@@ -446,10 +459,7 @@ static void default_do_nmi(struct pt_regs * regs)
 	 * Reassert NMI in case it became active meanwhile
 	 * as it's edge-triggered.
 	 */
-	outb(0x8f, 0x70);
-	inb(0x71);		/* dummy */
-	outb(0x0f, 0x70);
-	inb(0x71);		/* dummy */
+	reassert_nmi();
 }
 
 static int dummy_nmi_callback(struct pt_regs * regs, int cpu)
@@ -643,7 +653,7 @@ void math_error(void *eip)
 
 asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
 {
-	ignore_irq13 = 1;
+	ignore_fpu_irq = 1;
 	math_error((void *)regs->eip);
 }
 
@@ -700,7 +710,7 @@ asmlinkage void do_simd_coprocessor_error(struct pt_regs * regs,
 {
 	if (cpu_has_xmm) {
 		/* Handle SIMD FPU exceptions on PIII+ processors. */
-		ignore_irq13 = 1;
+		ignore_fpu_irq = 1;
 		simd_math_error((void *)regs->eip);
 	} else {
 		/*

@@ -9,14 +9,10 @@
  *
  * /proc interface for the dasd driver.
  *
- * $Revision: 1.17 $
- *
- * History of changes
- * 05/04/02 split from dasd.c, code restructuring.
+ * $Revision: 1.21 $
  */
 
 #include <linux/config.h>
-#include <linux/version.h>
 #include <linux/ctype.h>
 #include <linux/seq_file.h>
 #include <linux/vmalloc.h>
@@ -56,17 +52,14 @@ dasd_get_user_string(const char *user_buf, size_t user_len)
 static int
 dasd_devices_show(struct seq_file *m, void *v)
 {
-	dasd_devmap_t *devmap;
-	dasd_device_t *device;
+	struct dasd_device *device;
 	char *substr;
 
-	devmap = dasd_devmap_from_devindex((unsigned long) v - 1);
-	device = (devmap != NULL) ?
-		dasd_get_device(devmap) : ERR_PTR(-ENODEV);
+	device = dasd_device_from_devindex((unsigned long) v - 1);
 	if (IS_ERR(device))
 		return 0;
 	/* Print device number. */
-	seq_printf(m, "%04x", devmap->devno);
+	seq_printf(m, "%04x", _ccw_device_get_device_number(device->cdev));
 	/* Print discipline string. */
 	if (device != NULL && device->discipline != NULL)
 		seq_printf(m, "(%s)", device->discipline->name);
@@ -113,7 +106,7 @@ dasd_devices_show(struct seq_file *m, void *v)
 		seq_printf(m, "no stat");
 		break;
 	}
-	dasd_put_device(devmap);
+	dasd_put_device(device);
 	if (dasd_probeonly)
 		seq_printf(m, "(probeonly)");
 	seq_printf(m, "\n");
@@ -189,7 +182,7 @@ dasd_statistics_read(char *page, char **start, off_t off,
 {
 	unsigned long len;
 #ifdef CONFIG_DASD_PROFILE
-	dasd_profile_info_t *prof;
+	struct dasd_profile_info_t *prof;
 	char *str;
 	int shift;
 
@@ -266,14 +259,15 @@ dasd_statistics_write(struct file *file, const char *user_buf,
 		} else if (strcmp(str, "off") == 0) {
 			/* switch off and reset statistics profiling */
 			memset(&dasd_global_profile,
-			       0, sizeof (dasd_profile_info_t));
+			       0, sizeof (struct dasd_profile_info_t));
 			dasd_profile_level = DASD_PROFILE_OFF;
 			MESSAGE(KERN_INFO, "%s", "Statictics switched off");
 		} else
 			goto out_error;
 	} else if (strncmp(str, "reset", 5) == 0) {
 		/* reset the statistics */
-		memset(&dasd_global_profile, 0, sizeof (dasd_profile_info_t));
+		memset(&dasd_global_profile, 0,
+		       sizeof (struct dasd_profile_info_t));
 		MESSAGE(KERN_INFO, "%s", "Statictics reset");
 	} else
 		goto out_error;

@@ -56,7 +56,7 @@ int vfs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 	return 0;
 }
 
-int vfs_stat(char *name, struct kstat *stat)
+int vfs_stat(char __user *name, struct kstat *stat)
 {
 	struct nameidata nd;
 	int error;
@@ -69,7 +69,7 @@ int vfs_stat(char *name, struct kstat *stat)
 	return error;
 }
 
-int vfs_lstat(char *name, struct kstat *stat)
+int vfs_lstat(char __user *name, struct kstat *stat)
 {
 	struct nameidata nd;
 	int error;
@@ -103,7 +103,7 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
  * For backward compatibility?  Maybe this should be moved
  * into arch/i386 instead?
  */
-static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat * statbuf)
+static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat __user * statbuf)
 {
 	static int warncount = 5;
 	struct __old_kernel_stat tmp;
@@ -135,7 +135,7 @@ static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat * statbuf)
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
-asmlinkage long sys_stat(char * filename, struct __old_kernel_stat * statbuf)
+asmlinkage long sys_stat(char __user * filename, struct __old_kernel_stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_stat(filename, &stat);
@@ -145,7 +145,7 @@ asmlinkage long sys_stat(char * filename, struct __old_kernel_stat * statbuf)
 
 	return error;
 }
-asmlinkage long sys_lstat(char * filename, struct __old_kernel_stat * statbuf)
+asmlinkage long sys_lstat(char __user * filename, struct __old_kernel_stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_lstat(filename, &stat);
@@ -155,7 +155,7 @@ asmlinkage long sys_lstat(char * filename, struct __old_kernel_stat * statbuf)
 
 	return error;
 }
-asmlinkage long sys_fstat(unsigned int fd, struct __old_kernel_stat * statbuf)
+asmlinkage long sys_fstat(unsigned int fd, struct __old_kernel_stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
@@ -168,7 +168,7 @@ asmlinkage long sys_fstat(unsigned int fd, struct __old_kernel_stat * statbuf)
 
 #endif
 
-static int cp_new_stat(struct kstat *stat, struct stat *statbuf)
+static int cp_new_stat(struct kstat *stat, struct stat __user *statbuf)
 {
 	struct stat tmp;
 
@@ -198,7 +198,7 @@ static int cp_new_stat(struct kstat *stat, struct stat *statbuf)
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
-asmlinkage long sys_newstat(char * filename, struct stat * statbuf)
+asmlinkage long sys_newstat(char __user * filename, struct stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_stat(filename, &stat);
@@ -208,7 +208,7 @@ asmlinkage long sys_newstat(char * filename, struct stat * statbuf)
 
 	return error;
 }
-asmlinkage long sys_newlstat(char * filename, struct stat * statbuf)
+asmlinkage long sys_newlstat(char __user * filename, struct stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_lstat(filename, &stat);
@@ -218,7 +218,7 @@ asmlinkage long sys_newlstat(char * filename, struct stat * statbuf)
 
 	return error;
 }
-asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf)
+asmlinkage long sys_newfstat(unsigned int fd, struct stat __user * statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
@@ -229,7 +229,7 @@ asmlinkage long sys_newfstat(unsigned int fd, struct stat * statbuf)
 	return error;
 }
 
-asmlinkage long sys_readlink(const char * path, char * buf, int bufsiz)
+asmlinkage long sys_readlink(const char __user * path, char __user * buf, int bufsiz)
 {
 	struct nameidata nd;
 	int error;
@@ -258,7 +258,7 @@ asmlinkage long sys_readlink(const char * path, char * buf, int bufsiz)
 /* ---------- LFS-64 ----------- */
 #if !defined(__alpha__) && !defined(__ia64__) && !defined(__mips64) && !defined(__x86_64__) && !defined(CONFIG_ARCH_S390X)
 
-static long cp_new_stat64(struct kstat *stat, struct stat64 *statbuf)
+static long cp_new_stat64(struct kstat *stat, struct stat64 __user *statbuf)
 {
 	struct stat64 tmp;
 
@@ -285,7 +285,7 @@ static long cp_new_stat64(struct kstat *stat, struct stat64 *statbuf)
 	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
 }
 
-asmlinkage long sys_stat64(char * filename, struct stat64 * statbuf, long flags)
+asmlinkage long sys_stat64(char __user * filename, struct stat64 __user * statbuf, long flags)
 {
 	struct kstat stat;
 	int error = vfs_stat(filename, &stat);
@@ -295,7 +295,7 @@ asmlinkage long sys_stat64(char * filename, struct stat64 * statbuf, long flags)
 
 	return error;
 }
-asmlinkage long sys_lstat64(char * filename, struct stat64 * statbuf, long flags)
+asmlinkage long sys_lstat64(char __user * filename, struct stat64 __user * statbuf, long flags)
 {
 	struct kstat stat;
 	int error = vfs_lstat(filename, &stat);
@@ -305,7 +305,7 @@ asmlinkage long sys_lstat64(char * filename, struct stat64 * statbuf, long flags
 
 	return error;
 }
-asmlinkage long sys_fstat64(unsigned long fd, struct stat64 * statbuf, long flags)
+asmlinkage long sys_fstat64(unsigned long fd, struct stat64 __user * statbuf, long flags)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);

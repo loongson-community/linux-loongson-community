@@ -53,6 +53,7 @@
 #define _SUN4C_PAGE_NOCACHE      0x10000000   /* non-cacheable page */
 #define _SUN4C_PAGE_PRESENT      0x08000000   /* implemented in software */
 #define _SUN4C_PAGE_IO           0x04000000   /* I/O page */
+#define _SUN4C_PAGE_FILE         0x02000000   /* implemented in software */
 #define _SUN4C_PAGE_READ         0x00800000   /* implemented in software */
 #define _SUN4C_PAGE_WRITE        0x00400000   /* implemented in software */
 #define _SUN4C_PAGE_ACCESSED     0x00200000   /* implemented in software */

@@ -72,7 +72,11 @@ SECTIONS
   __init_begin = .;
   /* /DISCARD/ doesn't work for .reginfo */
   .reginfo : { *(.reginfo) }
-  .init.text : { *(.init.text) }
+  .init.text : {
+	_sinittext = .;
+	*(.init.text)
+	_einittext = .;
+  }
   .init.data : { *(.init.data) }
   . = ALIGN(16);
   __setup_start = .;

@@ -183,8 +183,10 @@ static int scsi_host_legacy_release(struct Scsi_Host *shost)
 {
 	if (shost->irq)
 		free_irq(shost->irq, NULL);
+#ifdef CONFIG_GENERIC_ISA_DMA
 	if (shost->dma_channel != 0xff)
 		free_dma(shost->dma_channel);
+#endif
 	if (shost->io_port && shost->n_io_port)
 		release_region(shost->io_port, shost->n_io_port);
 
@@ -383,6 +385,7 @@ struct Scsi_Host * scsi_register(Scsi_Host_Template *shost_tp, int xtr_bytes)
 	scsi_assign_lock(shost, &shost->default_lock);
 	INIT_LIST_HEAD(&shost->my_devices);
 	INIT_LIST_HEAD(&shost->eh_cmd_q);
+	INIT_LIST_HEAD(&shost->starved_list);
 
 	init_waitqueue_head(&shost->host_wait);
 	shost->dma_channel = 0xff;
@@ -619,7 +622,6 @@ void scsi_host_busy_dec_and_test(struct Scsi_Host *shost, Scsi_Device *sdev)
 
 	spin_lock_irqsave(shost->host_lock, flags);
 	shost->host_busy--;
-	sdev->device_busy--;
 	if (shost->in_recovery && shost->host_failed &&
 	    (shost->host_busy == shost->host_failed))
 	{

@@ -383,18 +383,20 @@ static struct cache_sizes {
 } malloc_sizes[] = {
 #define CACHE(x) { .cs_size = (x) },
 #include <linux/kmalloc_sizes.h>
+	{ 0, }
 #undef CACHE
 };
 
 /* Must match cache_sizes above. Out of line to keep cache footprint low. */
-static struct { 
-	char *name; 
+static struct cache_names {
+	char *name;
 	char *name_dma;
-} cache_names[] = { 
+} cache_names[] = {
 #define CACHE(x) { .name = "size-" #x, .name_dma = "size-" #x "(DMA)" },
 #include <linux/kmalloc_sizes.h>
+	{ 0, }
 #undef CACHE
-}; 
+};
 
 struct arraycache_init initarray_cache __initdata = { { 0, BOOT_CPUCACHE_ENTRIES, 1, 0} };
 struct arraycache_init initarray_generic __initdata = { { 0, BOOT_CPUCACHE_ENTRIES, 1, 0} };
@@ -595,7 +597,9 @@ void __init kmem_cache_init(void)
  */
 void __init kmem_cache_sizes_init(void)
 {
-	int i;
+	struct cache_sizes *sizes = malloc_sizes;
+	struct cache_names *names = cache_names;
+
 	/*
 	 * Fragmentation resistance on low memory - only use bigger
 	 * page orders on machines with more than 32MB of memory.
@@ -603,15 +607,14 @@ void __init kmem_cache_sizes_init(void)
 	if (num_physpages > (32 << 20) >> PAGE_SHIFT)
 		slab_break_gfp_order = BREAK_GFP_ORDER_HI;
 
-	for (i = 0; i < ARRAY_SIZE(malloc_sizes); i++) {
-		struct cache_sizes *sizes = malloc_sizes + i;
+	while (sizes->cs_size) {
 		/* For performance, all the general caches are L1 aligned.
 		 * This should be particularly beneficial on SMP boxes, as it
 		 * eliminates "false sharing".
 		 * Note for systems short on memory removing the alignment will
 		 * allow tighter packing of the smaller caches. */
 		sizes->cs_cachep = kmem_cache_create(
-			cache_names[i].name, sizes->cs_size,
+			names->name, sizes->cs_size,
 			0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 		if (!sizes->cs_cachep)
 			BUG();
@@ -623,10 +626,13 @@ void __init kmem_cache_sizes_init(void)
 		}
 
 		sizes->cs_dmacachep = kmem_cache_create(
-			cache_names[i].name_dma, sizes->cs_size,
+			names->name_dma, sizes->cs_size,
 			0, SLAB_CACHE_DMA|SLAB_HWCACHE_ALIGN, NULL, NULL);
 		if (!sizes->cs_dmacachep)
 			BUG();
+
+		sizes++;
+		names++;
 	}
 	/*
 	 * The generic caches are running - time to kick out the

@@ -20,7 +20,7 @@
 	.globl sys_call_table32
 sys_call_table32:
 /*0*/	.word sys_restart_syscall, sparc_exit, sys_fork, sys_read, sys_write
-/*5*/	.word sparc32_open, sys_close, sys32_wait4, sys_creat, sys_link
+/*5*/	.word sparc32_open, sys_close, compat_sys_wait4, sys_creat, sys_link
 /*10*/  .word sys_unlink, sunos_execv, sys_chdir, sys32_chown16, sys32_mknod
 /*15*/	.word sys32_chmod, sys32_lchown16, sparc_brk, sys_perfctr, sys32_lseek
 /*20*/	.word sys_getpid, sys_capget, sys_capset, sys32_setuid16, sys32_getuid16
@@ -42,16 +42,16 @@ sys_call_table32:
 /*100*/ .word sys_getpriority, sys32_rt_sigreturn, sys32_rt_sigaction, sys32_rt_sigprocmask, sys32_rt_sigpending
 	.word sys32_rt_sigtimedwait, sys32_rt_sigqueueinfo, sys32_rt_sigsuspend, sys_setresuid, sys_getresuid
 /*110*/	.word sys_setresgid, sys_getresgid, sys_setregid, sys_nis_syscall, sys_nis_syscall
-	.word sys_getgroups, sys32_gettimeofday, sys32_getrusage, sys_nis_syscall, sys_getcwd
+	.word sys_getgroups, sys32_gettimeofday, compat_sys_getrusage, sys_nis_syscall, sys_getcwd
 /*120*/	.word sys32_readv, sys32_writev, sys32_settimeofday, sys32_fchown16, sys_fchmod
 	.word sys_nis_syscall, sys32_setreuid16, sys32_setregid16, sys_rename, sys_truncate
 /*130*/	.word sys_ftruncate, sys_flock, sys_lstat64, sys_nis_syscall, sys_nis_syscall
 	.word sys_nis_syscall, sys_mkdir, sys_rmdir, sys32_utimes, sys_stat64
-/*140*/	.word sys32_sendfile64, sys_nis_syscall, compat_sys_futex, sys_gettid, sys32_getrlimit
-	.word sys32_setrlimit, sys_pivot_root, sys32_prctl, sys32_pciconfig_read, sys32_pciconfig_write
+/*140*/	.word sys32_sendfile64, sys_nis_syscall, compat_sys_futex, sys_gettid, compat_sys_getrlimit
+	.word compat_sys_setrlimit, sys_pivot_root, sys32_prctl, sys32_pciconfig_read, sys32_pciconfig_write
 /*150*/	.word sys_nis_syscall, sys_nis_syscall, sys_nis_syscall, sys_poll, sys_getdents64
 	.word compat_sys_fcntl64, sys_ni_syscall, compat_sys_statfs, compat_sys_fstatfs, sys_oldumount
-/*160*/	.word sys32_sched_setaffinity, sys32_sched_getaffinity, sys_getdomainname, sys_setdomainname, sys_nis_syscall
+/*160*/	.word compat_sys_sched_setaffinity, compat_sys_sched_getaffinity, sys_getdomainname, sys_setdomainname, sys_nis_syscall
 	.word sys_quotactl, sys_set_tid_address, sys32_mount, sys_ustat, sys_setxattr
 /*170*/	.word sys_lsetxattr, sys_fsetxattr, sys_getxattr, sys_lgetxattr, sys32_getdents
 	.word sys_setsid, sys_fchdir, sys_fgetxattr, sys_listxattr, sys_llistxattr
@@ -180,7 +180,7 @@ sunos_sys_table:
 	.word sys_listen, sunos_nosys, sunos_sigaction
 	.word sunos_sigblock, sunos_sigsetmask, sys_sigpause
 	.word sys32_sigstack, compat_sys_recvmsg, compat_sys_sendmsg
-	.word sunos_nosys, sys32_gettimeofday, sys32_getrusage
+	.word sunos_nosys, sys32_gettimeofday, compat_sys_getrusage
 	.word sunos_getsockopt, sunos_nosys, sunos_readv
 	.word sunos_writev, sys32_settimeofday, sys32_fchown16
 	.word sys_fchmod, sys32_recvfrom, sys32_setreuid16
@@ -189,8 +189,8 @@ sunos_sys_table:
 	.word sys32_sendto, sys_shutdown, sys_socketpair
 	.word sys_mkdir, sys_rmdir, sys32_utimes
 	.word sys32_sigreturn, sunos_nosys, sys_getpeername
-	.word sunos_gethostid, sunos_nosys, sys32_getrlimit
-	.word sys32_setrlimit, sunos_killpg, sunos_nosys
+	.word sunos_gethostid, sunos_nosys, compat_sys_getrlimit
+	.word compat_sys_setrlimit, sunos_killpg, sunos_nosys
 	.word sunos_nosys, sunos_nosys
 /*150*/	.word sys_getsockname, sunos_nosys, sunos_nosys
 	.word sys_poll, sunos_nosys, sunos_nosys

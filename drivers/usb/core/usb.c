@@ -11,7 +11,7 @@
  	more docs, etc)
  * (C) Copyright Yggdrasil Computing, Inc. 2000
  *     (usb_device_id matching changes by Adam J. Richter)
- * (C) Copyright Greg Kroah-Hartman 2002
+ * (C) Copyright Greg Kroah-Hartman 2002-2003
  *
  * NOTE! This is not actually a driver at all, rather this is
  * just a collection of helper routines that implement the
@@ -76,6 +76,8 @@ static struct device_driver usb_generic_driver = {
 	.remove = generic_remove,
 };
 
+static int usb_generic_driver_data;
+
 /* needs to be called with BKL held */
 int usb_device_probe(struct device *dev)
 {
@@ -89,11 +91,6 @@ int usb_device_probe(struct device *dev)
 	if (!driver->probe)
 		return error;
 
-	if (!try_module_get(driver->owner)) {
-		dev_err (dev, "Can't get a module reference for %s\n", driver->name);
-		return error;
-	}
-
 	id = usb_match_id (intf, driver->id_table);
 	if (id) {
 		dev_dbg (dev, "%s - got id\n", __FUNCTION__);
@@ -103,8 +100,6 @@ int usb_device_probe(struct device *dev)
 	}
 	if (!error)
 		intf->driver = driver;
-
-	module_put(driver->owner);
 
 	return error;
 }
@@ -117,22 +112,6 @@ int usb_device_remove(struct device *dev)
 	intf = list_entry(dev,struct usb_interface,dev);
 	driver = to_usb_driver(dev->driver);
 
-	if (!driver) {
-		dev_err(dev, "%s does not have a valid driver to work with!",
-		    __FUNCTION__);
-		return -ENODEV;
-	}
-
-	if (!try_module_get(driver->owner)) {
-		// FIXME this happens even when we just rmmod
-		// drivers that aren't in active use...
-		dev_err(dev, "Dieing driver still bound to device.\n");
-		return -EIO;
-	}
-
-	/* if we sleep here on an umanaged driver 
-	 * the holder of the lock guards against 
-	 * module unload */
 	down(&driver->serialize);
 
 	if (intf->driver && intf->driver->disconnect)
@@ -143,7 +122,6 @@ int usb_device_remove(struct device *dev)
 		usb_driver_release_interface(driver, intf);
 
 	up(&driver->serialize);
-	module_put(driver->owner);
 
 	return 0;
 }
@@ -498,9 +476,6 @@ struct usb_interface *usb_find_interface(struct usb_driver *drv, kdev_t kdev)
 			continue;
 
 		intf = to_usb_interface(dev);
-		if (!intf)
-			continue;
-
 		if (kdev_same(intf->kdev,kdev)) {
 			return intf;
 		}
@@ -562,16 +537,13 @@ static int usb_hotplug (struct device *dev, char **envp, int num_envp,
 	if (!dev)
 		return -ENODEV;
 
-	if (dev->driver == &usb_generic_driver)
+	/* Must check driver_data here, as on remove driver is always NULL */
+	if ((dev->driver == &usb_generic_driver) || 
+	    (dev->driver_data == &usb_generic_driver_data))
 		return 0;
 
 	intf = to_usb_interface(dev);
-	if (!intf)
-		return -ENODEV;
-
 	usb_dev = interface_to_usbdev (intf);
-	if (!usb_dev)
-		return -ENODEV;
 	
 	if (usb_dev->devnum < 0) {
 		dbg ("device already deleted ??");
@@ -748,8 +720,6 @@ static void usb_release_dev(struct device *dev)
 	struct usb_device *udev;
 
 	udev = to_usb_device(dev);
-	if (!udev)
-		return;
 
 	if (udev->bus && udev->bus->op && udev->bus->op->deallocate)
 		udev->bus->op->deallocate(udev);
@@ -820,8 +790,12 @@ int __usb_get_extra_descriptor(char *buffer, unsigned size, unsigned char type, 
  */
 void usb_disconnect(struct usb_device **pdev)
 {
-	struct usb_device * dev = *pdev;
-	int i;
+	struct usb_device	*dev = *pdev;
+	struct usb_bus		*bus = dev->bus;
+	struct usb_operations	*ops = bus->op;
+	int			i;
+
+	might_sleep ();
 
 	if (!dev)
 		return;
@@ -842,13 +816,25 @@ void usb_disconnect(struct usb_device **pdev)
 			usb_disconnect(child);
 	}
 
+	/* disconnect() drivers from interfaces (a key side effect) */
 	dev_dbg (&dev->dev, "unregistering interfaces\n");
 	if (dev->actconfig) {
 		for (i = 0; i < dev->actconfig->desc.bNumInterfaces; i++) {
-			struct usb_interface *interface = &dev->actconfig->interface[i];
+			struct usb_interface	*interface;
 
 			/* remove this interface */
+			interface = &dev->actconfig->interface[i];
 			device_unregister(&interface->dev);
+		}
+	}
+
+	/* deallocate hcd/hardware state */
+	if (ops->disable) {
+		void	(*disable)(struct usb_device *, int) = ops->disable;
+
+		for (i = 0; i < 15; i++) {
+			disable (dev, i);
+			disable (dev, USB_DIR_IN | i);
 		}
 	}
 
@@ -1012,6 +998,7 @@ int usb_new_device(struct usb_device *dev, struct device *parent)
 	dev->dev.driver = &usb_generic_driver;
 	dev->dev.bus = &usb_bus_type;
 	dev->dev.release = usb_release_dev;
+	dev->dev.driver_data = &usb_generic_driver_data;
 	usb_get_dev(dev);
 	if (dev->dev.bus_id[0] == 0)
 		sprintf (&dev->dev.bus_id[0], "%d-%s",

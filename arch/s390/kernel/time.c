@@ -49,8 +49,9 @@
 u64 jiffies_64 = INITIAL_JIFFIES;
 
 static ext_int_info_t ext_int_info_timer;
-static uint64_t xtime_cc;
-static uint64_t init_timer_cc;
+static u64 init_timer_cc;
+static u64 jiffies_timer_cc;
+static u64 xtime_cc;
 
 extern unsigned long wall_jiffies;
 
@@ -70,7 +71,7 @@ static inline unsigned long do_gettimeoffset(void)
 	__u64 now;
 
 	asm volatile ("STCK 0(%0)" : : "a" (&now) : "memory", "cc");
-        now = (now - init_timer_cc) >> 12;
+        now = (now - jiffies_timer_cc) >> 12;
 	/* We require the offset from the latest update of xtime */
 	now -= (__u64) wall_jiffies*USECS_PER_JIFFY;
 	return (unsigned long) now;
@@ -127,14 +128,27 @@ void do_settimeofday(struct timeval *tv)
 	write_sequnlock_irq(&xtime_lock);
 }
 
-static inline __u32 div64_32(__u64 dividend, __u32 divisor)
+#ifndef CONFIG_ARCH_S390X
+
+static inline __u32
+__calculate_ticks(__u64 elapsed)
 {
 	register_pair rp;
 
-	rp.pair = dividend;
-	asm ("dr %0,%1" : "+d" (rp) : "d" (divisor));
+	rp.pair = elapsed >> 1;
+	asm ("dr %0,%1" : "+d" (rp) : "d" (CLK_TICKS_PER_JIFFY >> 1));
 	return rp.subreg.odd;
 }
+
+#else /* CONFIG_ARCH_S390X */
+
+static inline __u32
+__calculate_ticks(__u64 elapsed)
+{
+	return elapsed / CLK_TICKS_PER_JIFFY;
+}
+
+#endif /* CONFIG_ARCH_S390X */
 
 /*
  * timer_interrupt() needs to keep up the real-time clock,
@@ -149,7 +163,7 @@ static void do_comparator_interrupt(struct pt_regs *regs, __u16 error_code)
 	asm volatile ("STCK 0(%0)" : : "a" (&tmp) : "memory", "cc");
 	tmp = tmp - S390_lowcore.jiffy_timer;
 	if (tmp >= 2*CLK_TICKS_PER_JIFFY) {  /* more than one tick ? */
-		ticks = div64_32(tmp >> 1, CLK_TICKS_PER_JIFFY >> 1);
+		ticks = __calculate_ticks(tmp);
 		S390_lowcore.jiffy_timer +=
 			CLK_TICKS_PER_JIFFY * (__u64) ticks;
 	} else {
@@ -174,7 +188,7 @@ static void do_comparator_interrupt(struct pt_regs *regs, __u16 error_code)
 
 		tmp = S390_lowcore.jiffy_timer - xtime_cc;
 		if (tmp >= 2*CLK_TICKS_PER_JIFFY) {
-			xticks = div64_32(tmp >> 1, CLK_TICKS_PER_JIFFY >> 1);
+			xticks = __calculate_ticks(tmp);
 			xtime_cc += (__u64) xticks * CLK_TICKS_PER_JIFFY;
 		} else {
 			xticks = 1;
@@ -202,14 +216,14 @@ void init_cpu_timer(void)
 	unsigned long cr0;
 	__u64 timer;
 
-        /* allow clock comparator timer interrupt */
-        asm volatile ("STCTL 0,0,%0" : "=m" (cr0) : : "memory");
-        cr0 |= 0x800;
-        asm volatile ("LCTL 0,0,%0" : : "m" (cr0) : "memory");
-	timer = init_timer_cc + jiffies_64 * CLK_TICKS_PER_JIFFY;
+	timer = jiffies_timer_cc + jiffies_64 * CLK_TICKS_PER_JIFFY;
 	S390_lowcore.jiffy_timer = timer;
 	timer += CLK_TICKS_PER_JIFFY + CPU_DEVIATION;
 	asm volatile ("SCKC %0" : : "m" (timer));
+        /* allow clock comparator timer interrupt */
+	__ctl_store(cr0, 0, 0);
+        cr0 |= 0x800;
+	__ctl_load(cr0, 0, 0);
 }
 
 /*
@@ -239,6 +253,7 @@ void __init time_init(void)
                 printk("time_init: TOD clock stopped/non-operational\n");
                 break;
         }
+	jiffies_timer_cc = init_timer_cc - jiffies_64 * CLK_TICKS_PER_JIFFY;
 
 	/* set xtime */
 	xtime_cc = init_timer_cc;

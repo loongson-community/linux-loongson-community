@@ -110,7 +110,8 @@ int ip6_output(struct sk_buff *skb)
 		struct ipv6_pinfo* np = skb->sk ? inet6_sk(skb->sk) : NULL;
 
 		if (!(dev->flags & IFF_LOOPBACK) && (!np || np->mc_loop) &&
-		    ipv6_chk_mcast_addr(dev, &skb->nh.ipv6h->daddr)) {
+		    ipv6_chk_mcast_addr(dev, &skb->nh.ipv6h->daddr,
+				&skb->nh.ipv6h->saddr)) {
 			struct sk_buff *newskb = skb_clone(skb, GFP_ATOMIC);
 
 			/* Do not check for IFF_ALLMULTI; multicast routing
@@ -146,14 +147,15 @@ int ip6_route_me_harder(struct sk_buff *skb)
 	fl.fl6_src = &iph->saddr;
 	fl.oif = skb->sk ? skb->sk->bound_dev_if : 0;
 	fl.fl6_flowlabel = 0;
-	fl.uli_u.ports.dport = 0;
-	fl.uli_u.ports.sport = 0;
+	fl.fl_ip_dport = 0;
+	fl.fl_ip_sport = 0;
 
 	dst = ip6_route_output(skb->sk, &fl);
 
 	if (dst->error) {
 		if (net_ratelimit())
 			printk(KERN_DEBUG "ip6_route_me_harder: No more route.\n");
+		dst_release(dst);
 		return -EINVAL;
 	}
 
@@ -186,7 +188,7 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	     struct ipv6_txoptions *opt)
 {
 	struct ipv6_pinfo *np = sk ? inet6_sk(sk) : NULL;
-	struct in6_addr *first_hop = fl->nl_u.ip6_u.daddr;
+	struct in6_addr *first_hop = fl->fl6_dst;
 	struct dst_entry *dst = skb->dst;
 	struct ipv6hdr *hdr;
 	u8  proto = fl->proto;
@@ -241,7 +243,7 @@ int ip6_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl,
 	hdr->nexthdr = proto;
 	hdr->hop_limit = hlimit;
 
-	ipv6_addr_copy(&hdr->saddr, fl->nl_u.ip6_u.saddr);
+	ipv6_addr_copy(&hdr->saddr, fl->fl6_src);
 	ipv6_addr_copy(&hdr->daddr, first_hop);
 
 	mtu = dst_pmtu(dst);
@@ -306,8 +308,8 @@ static struct ipv6hdr * ip6_bld_1(struct sock *sk, struct sk_buff *skb, struct f
 	hdr->hop_limit = hlimit;
 	hdr->nexthdr = fl->proto;
 
-	ipv6_addr_copy(&hdr->saddr, fl->nl_u.ip6_u.saddr);
-	ipv6_addr_copy(&hdr->daddr, fl->nl_u.ip6_u.daddr);
+	ipv6_addr_copy(&hdr->saddr, fl->fl6_src);
+	ipv6_addr_copy(&hdr->daddr, fl->fl6_dst);
 	return hdr;
 }
 
@@ -524,7 +526,7 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 		fl->fl6_dst = rt0->addr;
 	}
 
-	if (!fl->oif && ipv6_addr_is_multicast(fl->nl_u.ip6_u.daddr))
+	if (!fl->oif && ipv6_addr_is_multicast(fl->fl6_dst))
 		fl->oif = np->mcast_oif;
 
 	dst = __sk_dst_check(sk, np->dst_cookie);
@@ -701,7 +703,7 @@ int ip6_build_xmit(struct sock *sk, inet_getfrag_t getfrag, const void *data,
 	 *	cleanup
 	 */
 out:
-	ip6_dst_store(sk, dst, fl->nl_u.ip6_u.daddr == &np->daddr ? &np->daddr : NULL);
+	ip6_dst_store(sk, dst, fl->fl6_dst == &np->daddr ? &np->daddr : NULL);
 	if (err > 0)
 		err = np->recverr ? net_xmit_errno(err) : 0;
 	return err;

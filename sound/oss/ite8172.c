@@ -52,7 +52,6 @@
  *    02.08.2001  Initial release
  *    06.22.2001  Added I2S support
  */
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/ioport.h>

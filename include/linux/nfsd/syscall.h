@@ -91,6 +91,13 @@ struct nfsctl_arg {
 		struct nfsctl_export	u_export;
 		struct nfsctl_fdparm	u_getfd;
 		struct nfsctl_fsparm	u_getfs;
+		/*
+		 * The following dummy member is needed to preserve binary compatibility
+		 * on platforms where alignof(void*)>alignof(int).  It's needed because
+		 * this union used to contain a member (u_umap) which contained a
+		 * pointer.
+		 */
+		void *u_ptr;
 	} u;
 #define ca_svc		u.u_svc
 #define ca_client	u.u_client
@@ -109,7 +116,7 @@ union nfsctl_res {
 /*
  * Kernel syscall implementation.
  */
-extern asmlinkage long	sys_nfsservctl(int, struct nfsctl_arg *, void *);
+extern asmlinkage long	sys_nfsservctl(int, struct nfsctl_arg __user *, void __user *);
 extern int		exp_addclient(struct nfsctl_client *ncp);
 extern int		exp_delclient(struct nfsctl_client *ncp);
 extern int		exp_export(struct nfsctl_export *nxp);

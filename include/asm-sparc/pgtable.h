@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 #include <linux/spinlock.h>
-/* #include <asm/asi.h> */	/* doesn't seem like being used XXX */
+#include <asm/types.h>
 #ifdef CONFIG_SUN4
 #include <asm/pgtsun4.h>
 #else
@@ -252,6 +252,19 @@ extern __inline__ int pte_young(pte_t pte)
 	return pte_val(pte) & BTFIXUP_HALF(pte_youngi);
 }
 
+/*
+ * The following only work if pte_present() is not true.
+ */
+BTFIXUPDEF_HALF(pte_filei)
+
+extern int pte_file(pte_t pte) __attribute__((const));
+extern __inline__ int pte_file(pte_t pte)
+{
+	return pte_val(pte) & BTFIXUP_HALF(pte_filei);
+}
+
+/*
+ */
 BTFIXUPDEF_HALF(pte_wrprotecti)
 BTFIXUPDEF_HALF(pte_mkcleani)
 BTFIXUPDEF_HALF(pte_mkoldi)
@@ -373,6 +386,21 @@ extern int invalid_segment;
 #define __pte_to_swp_entry(pte)		((swp_entry_t) { pte_val(pte) })
 #define __swp_entry_to_pte(x)		((pte_t) { (x).val })
 
+/* file-offset-in-pte helpers */
+BTFIXUPDEF_CALL(unsigned long, pte_to_pgoff, pte_t pte);
+BTFIXUPDEF_CALL(pte_t, pgoff_to_pte, unsigned long pgoff);
+
+#define pte_to_pgoff(pte) BTFIXUP_CALL(pte_to_pgoff)(pte)
+#define pgoff_to_pte(off) BTFIXUP_CALL(pgoff_to_pte)(off)
+
+/*
+ * This is made a constant because mm/fremap.c required a constant.
+ * Note that layout of these bits is different between sun4c.c and srmmu.c.
+ */
+#define PTE_FILE_MAX_BITS 24
+
+/*
+ */
 struct ctx_list {
 	struct ctx_list *next;
 	struct ctx_list *prev;

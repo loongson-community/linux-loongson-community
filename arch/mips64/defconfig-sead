@@ -246,6 +246,7 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 #
 # I2C Hardware Sensors Chip support
 #
+# CONFIG_I2C_SENSOR is not set
 
 #
 # Mice

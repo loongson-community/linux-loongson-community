@@ -257,7 +257,7 @@ int tms380tr_open(struct net_device *dev)
 	int err;
 	
 	/* init the spinlock */
-	spin_lock_init(tp->lock);
+	spin_lock_init(&tp->lock);
 
 	/* Reset the hardware here. Don't forget to set the station address. */
 
@@ -761,7 +761,7 @@ static void tms380tr_timer_chk(unsigned long data)
 	if(time_before(tp->LastSendTime + SEND_TIMEOUT, jiffies)
 		&& (tp->QueueSkb < MAX_TX_QUEUE || tp->TplFree != tp->TplBusy))
 	{
-		/* Anything to send, but stalled to long */
+		/* Anything to send, but stalled too long */
 		tp->LastSendTime = jiffies;
 		tms380tr_exec_cmd(dev, OC_CLOSE);	/* Does reopen automatically */
 	}
@@ -1458,7 +1458,7 @@ static int tms380tr_init_adapter(struct net_device *dev)
 	if(tms380tr_debug > 3)
 	{
 		printk(KERN_DEBUG "%s: buffer (real): %lx\n", dev->name, (long) &tp->scb);
-		printk(KERN_DEBUG "%s: buffer (virt): %lx\n", dev->name, (long) ((char *)&tp->scb - (char *)tp) + tp->dmabuffer);
+		printk(KERN_DEBUG "%s: buffer (virt): %lx\n", dev->name, (long) ((char *)&tp->scb - (char *)tp) + (long) tp->dmabuffer);
 		printk(KERN_DEBUG "%s: buffer (DMA) : %lx\n", dev->name, (long) tp->dmabuffer);
 		printk(KERN_DEBUG "%s: buffer (tp)  : %lx\n", dev->name, (long) tp);
 	}

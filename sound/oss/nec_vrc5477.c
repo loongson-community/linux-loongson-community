@@ -63,7 +63,6 @@
  *    02.08.2001  0.1   Initial release
  */
 
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
@@ -934,11 +933,11 @@ static int vrc5477_ac97_ioctl_mixdev(struct inode *inode, struct file *file,
 }
 
 static /*const*/ struct file_operations vrc5477_ac97_mixer_fops = {
-	owner:		THIS_MODULE,
-	llseek:		no_llseek,
-	ioctl:		vrc5477_ac97_ioctl_mixdev,
-	open:		vrc5477_ac97_open_mixdev,
-	release:	vrc5477_ac97_release_mixdev,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.ioctl		= vrc5477_ac97_ioctl_mixdev,
+	.open		= vrc5477_ac97_open_mixdev,
+	.release	= vrc5477_ac97_release_mixdev,
 };
 
 /* --------------------------------------------------------------------- */
@@ -1696,15 +1695,15 @@ static int vrc5477_ac97_release(struct inode *inode, struct file *file)
 }
 
 static /*const*/ struct file_operations vrc5477_ac97_audio_fops = {
-	owner:	THIS_MODULE,
-	llseek:		no_llseek,
-	read:		vrc5477_ac97_read,
-	write:		vrc5477_ac97_write,
-	poll:		vrc5477_ac97_poll,
-	ioctl:		vrc5477_ac97_ioctl,
-	// mmap:	vrc5477_ac97_mmap,
-	open:		vrc5477_ac97_open,
-	release:	vrc5477_ac97_release,
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.read		= vrc5477_ac97_read,
+	.write		= vrc5477_ac97_write,
+	.poll		= vrc5477_ac97_poll,
+	.ioctl		= vrc5477_ac97_ioctl,
+	// .mmap	= vrc5477_ac97_mmap,
+	.open		= vrc5477_ac97_open,
+	.release	= vrc5477_ac97_release,
 };
 
 
@@ -2040,10 +2039,10 @@ static struct pci_device_id id_table[] __devinitdata = {
 MODULE_DEVICE_TABLE(pci, id_table);
 
 static struct pci_driver vrc5477_ac97_driver = {
-	name: VRC5477_AC97_MODULE_NAME,
-	id_table: id_table,
-	probe: vrc5477_ac97_probe,
-	remove: vrc5477_ac97_remove
+	.name		= VRC5477_AC97_MODULE_NAME,
+	.id_table	= id_table,
+	.probe		= vrc5477_ac97_probe,
+	.remove		= vrc5477_ac97_remove,
 };
 
 static int __init init_vrc5477_ac97(void)

@@ -84,6 +84,7 @@ extern struct semaphore xfrm_cfg_sem;
 /* Full description of state of transformer. */
 struct xfrm_state
 {
+	/* Note: bydst is re-used during gc */
 	struct list_head	bydst;
 	struct list_head	byspi;
 
@@ -294,11 +295,11 @@ extern int xfrm_unregister_km(struct xfrm_mgr *km);
 
 static inline u32 __flow_hash4(struct flowi *fl)
 {
-	u32 hash = fl->fl4_src ^ fl->uli_u.ports.sport;
+	u32 hash = fl->fl4_src ^ fl->fl_ip_sport;
 
 	hash = ((hash & 0xF0F0F0F0) >> 4) | ((hash & 0x0F0F0F0F) << 4);
 
-	hash ^= fl->fl4_dst ^ fl->uli_u.ports.dport;
+	hash ^= fl->fl4_dst ^ fl->fl_ip_dport;
 	hash ^= (hash >> 10);
 	hash ^= (hash >> 20);
 	return hash & (XFRM_FLOWCACHE_HASH_SIZE-1);
@@ -308,13 +309,13 @@ static inline u32 __flow_hash6(struct flowi *fl)
 {
 	u32 hash = fl->fl6_src->s6_addr32[2] ^
 		   fl->fl6_src->s6_addr32[3] ^ 
-		   fl->uli_u.ports.sport;
+		   fl->fl_ip_sport;
 
 	hash = ((hash & 0xF0F0F0F0) >> 4) | ((hash & 0x0F0F0F0F) << 4);
 
 	hash ^= fl->fl6_dst->s6_addr32[2] ^
 		fl->fl6_dst->s6_addr32[3] ^ 
-		fl->uli_u.ports.dport;
+		fl->fl_ip_dport;
 	hash ^= (hash >> 10);
 	hash ^= (hash >> 20);
 	return hash & (XFRM_FLOWCACHE_HASH_SIZE-1);
@@ -453,8 +454,8 @@ __xfrm4_selector_match(struct xfrm_selector *sel, struct flowi *fl)
 {
 	return  addr_match(&fl->fl4_dst, &sel->daddr, sel->prefixlen_d) &&
 		addr_match(&fl->fl4_src, &sel->saddr, sel->prefixlen_s) &&
-		!((fl->uli_u.ports.dport^sel->dport)&sel->dport_mask) &&
-		!((fl->uli_u.ports.sport^sel->sport)&sel->sport_mask) &&
+		!((fl->fl_ip_dport^sel->dport)&sel->dport_mask) &&
+		!((fl->fl_ip_sport^sel->sport)&sel->sport_mask) &&
 		(fl->proto == sel->proto || !sel->proto) &&
 		(fl->oif == sel->ifindex || !sel->ifindex);
 }
@@ -464,8 +465,8 @@ __xfrm6_selector_match(struct xfrm_selector *sel, struct flowi *fl)
 {
 	return  addr_match(fl->fl6_dst, &sel->daddr, sel->prefixlen_d) &&
 		addr_match(fl->fl6_src, &sel->saddr, sel->prefixlen_s) &&
-		!((fl->uli_u.ports.dport^sel->dport)&sel->dport_mask) &&
-		!((fl->uli_u.ports.sport^sel->sport)&sel->sport_mask) &&
+		!((fl->fl_ip_dport^sel->dport)&sel->dport_mask) &&
+		!((fl->fl_ip_sport^sel->sport)&sel->sport_mask) &&
 		(fl->proto == sel->proto || !sel->proto) &&
 		(fl->oif == sel->ifindex || !sel->ifindex);
 }
@@ -722,6 +723,12 @@ struct xfrm_algo_desc {
 	struct sadb_alg desc;
 };
 
+/* XFRM tunnel handlers.  */
+struct xfrm_tunnel {
+	int (*handler)(struct sk_buff *skb);
+	void (*err_handler)(struct sk_buff *skb, void *info);
+};
+
 extern void xfrm_init(void);
 extern void xfrm4_init(void);
 extern void xfrm4_fini(void);
@@ -751,7 +758,9 @@ extern void xfrm_replay_advance(struct xfrm_state *x, u32 seq);
 extern int xfrm_check_selectors(struct xfrm_state **x, int n, struct flowi *fl);
 extern int xfrm4_rcv(struct sk_buff *skb);
 extern int xfrm4_rcv_encap(struct sk_buff *skb, __u16 encap_type);
-extern int xfrm6_rcv(struct sk_buff **pskb);
+extern int xfrm4_tunnel_register(struct xfrm_tunnel *handler);
+extern int xfrm4_tunnel_deregister(struct xfrm_tunnel *handler);
+extern int xfrm6_rcv(struct sk_buff **pskb, unsigned int *nhoffp);
 extern int xfrm6_clear_mutable_options(struct sk_buff *skb, u16 *nh_offset, int dir);
 extern int xfrm_user_policy(struct sock *sk, int optname, u8 *optval, int optlen);
 

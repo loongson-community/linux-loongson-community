@@ -405,8 +405,8 @@ static inline void ndisc_flow_init(struct flowi *fl, u8 type,
 	fl->fl6_src		= saddr;
 	fl->fl6_dst	 	= daddr;
 	fl->proto	 	= IPPROTO_ICMPV6;
-	fl->uli_u.icmpt.type	= type;
-	fl->uli_u.icmpt.code	= 0;
+	fl->fl_icmp_type	= type;
+	fl->fl_icmp_code	= 0;
 }
 
 static void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
@@ -462,7 +462,7 @@ static void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
 	}
 
 	skb = sock_alloc_send_skb(sk, MAX_HEADER + len + dev->hard_header_len + 15,
-				  0, &err);
+				  1, &err);
 
 	if (skb == NULL) {
 		ND_PRINTK1("send_na: alloc skb failed\n");
@@ -546,7 +546,7 @@ void ndisc_send_ns(struct net_device *dev, struct neighbour *neigh,
 		len += NDISC_OPT_SPACE(dev->addr_len);
 
 	skb = sock_alloc_send_skb(sk, MAX_HEADER + len + dev->hard_header_len + 15,
-				  0, &err);
+				  1, &err);
 	if (skb == NULL) {
 		ND_PRINTK1("send_ns: alloc skb failed\n");
 		return;
@@ -616,7 +616,7 @@ void ndisc_send_rs(struct net_device *dev, struct in6_addr *saddr,
 		len += NDISC_OPT_SPACE(dev->addr_len);
 
         skb = sock_alloc_send_skb(sk, MAX_HEADER + len + dev->hard_header_len + 15,
-				  0, &err);
+				  1, &err);
 	if (skb == NULL) {
 		ND_PRINTK1("send_ns: alloc skb failed\n");
 		return;
@@ -961,7 +961,7 @@ void ndisc_recv_na(struct sk_buff *skb)
 				struct rt6_info *rt;
 				rt = rt6_get_dflt_router(saddr, dev);
 				if (rt)
-					ip6_del_rt(rt);
+					ip6_del_rt(rt, NULL);
 			}
 		} else {
 			if (msg->icmph.icmp6_router)
@@ -1035,7 +1035,7 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 	rt = rt6_get_dflt_router(&skb->nh.ipv6h->saddr, skb->dev);
 
 	if (rt && lifetime == 0) {
-		ip6_del_rt(rt);
+		ip6_del_rt(rt, NULL);
 		rt = NULL;
 	}
 
@@ -1328,7 +1328,7 @@ void ndisc_send_redirect(struct sk_buff *skb, struct neighbour *neigh,
 	len += rd_len;
 
 	buff = sock_alloc_send_skb(sk, MAX_HEADER + len + dev->hard_header_len + 15,
-				   0, &err);
+				   1, &err);
 	if (buff == NULL) {
 		ND_PRINTK1("ndisc_send_redirect: alloc_skb failed\n");
 		return;

@@ -233,6 +233,7 @@ CONFIG_IP_PNP=y
 # CONFIG_SYN_COOKIES is not set
 CONFIG_INET_AH=y
 CONFIG_INET_ESP=y
+CONFIG_INET_IPCOMP=y
 # CONFIG_IPV6 is not set
 CONFIG_XFRM_USER=y
 
@@ -383,6 +384,7 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # I2C Hardware Sensors Chip support
 #
+# CONFIG_I2C_SENSOR is not set
 
 #
 # Mice
@@ -419,6 +421,11 @@ CONFIG_UNIX98_PTY_COUNT=256
 # Multimedia devices
 #
 # CONFIG_VIDEO_DEV is not set
+
+#
+# Digital Video Broadcasting Devices
+#
+# CONFIG_DVB is not set
 
 #
 # File systems

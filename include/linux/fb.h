@@ -2,6 +2,7 @@
 #define _LINUX_FB_H
 
 #include <linux/tty.h>
+#include <linux/workqueue.h>
 #include <asm/types.h>
 #include <asm/io.h>
 
@@ -310,7 +311,6 @@ struct fb_image {
 #define FB_CUR_SETCMAP  0x08
 #define FB_CUR_SETSHAPE 0x10
 #define FB_CUR_SETSIZE	0x20
-#define FB_CUR_SETDEST	0x40
 #define FB_CUR_SETALL   0xFF
 
 struct fbcurpos {
@@ -322,7 +322,6 @@ struct fb_cursor {
 	__u16 enable;		/* cursor on/off */
 	__u16 rop;		/* bitop operation */
 	char *mask;		/* cursor mask bits */
-	char *dest;		/* destination */
 	struct fbcurpos hot;	/* cursor hot spot */
 	struct fb_image	image;	/* Cursor image */
 };
@@ -339,9 +338,9 @@ struct fb_pixmap {
 	__u32 buf_align;                  /* byte alignment of each bitmap */
 	__u32 scan_align;                 /* alignment per scanline        */
 	__u32 flags;                      /* see FB_PIXMAP_*               */
-	void (*outbuf)(u8 dst, u8 *addr); /* access methods                */
+					  /* access methods                */
+	void (*outbuf)(u8 *dst, u8 *addr, unsigned int size); 
 	u8   (*inbuf) (u8 *addr);
-	unsigned long lock_flags;         /* flags for locking             */
 	spinlock_t lock;                  /* spinlock                      */
 	atomic_t count;
 };
@@ -406,8 +405,9 @@ struct fb_info {
    struct fb_fix_screeninfo fix;        /* Current fix */
    struct fb_monspecs monspecs;         /* Current Monitor specs */
    struct fb_cursor cursor;		/* Current cursor */	
-   struct fb_cmap cmap;                 /* Current cmap */
+   struct work_struct queue;		/* Framebuffer event queue */
    struct fb_pixmap pixmap;	        /* Current pixmap */
+   struct fb_cmap cmap;                 /* Current cmap */
    struct fb_ops *fbops;
    char *screen_base;                   /* Virtual address */
    struct vc_data *display_fg;		/* Console visible on this display */
@@ -469,9 +469,9 @@ struct fb_info {
      *  `Generic' versions of the frame buffer device operations
      */
 
-extern int fb_set_var(struct fb_var_screeninfo *var, struct fb_info *info); 
-extern int fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info); 
-extern int fb_blank(int blank, struct fb_info *info);
+extern int fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var); 
+extern int fb_pan_display(struct fb_info *info, struct fb_var_screeninfo *var); 
+extern int fb_blank(struct fb_info *info, int blank);
 extern int soft_cursor(struct fb_info *info, struct fb_cursor *cursor);
 extern void cfb_fillrect(struct fb_info *info, const struct fb_fillrect *rect); 
 extern void cfb_copyarea(struct fb_info *info, const struct fb_copyarea *area); 
@@ -505,12 +505,21 @@ extern int fb_get_mode(int flags, u32 val, struct fb_var_screeninfo *var,
 		       struct fb_info *info);
 extern int fb_validate_mode(struct fb_var_screeninfo *var,
 			    struct fb_info *info);
+extern int parse_edid(unsigned char *edid, struct fb_var_screeninfo *var);
+extern int fb_get_monitor_limits(unsigned char *edid, struct fb_monspecs *specs);
+extern struct fb_videomode *fb_create_modedb(unsigned char *edid, int *dbsize);
+extern void fb_destroy_modedb(struct fb_videomode *modedb);
+extern void show_edid(unsigned char *edid);
+
+/* drivers/video/modedb.c */
+#define VESA_MODEDB_SIZE 34
+extern const struct fb_videomode vesa_modes[];
 
 /* drivers/video/fbcmap.c */
 extern int fb_alloc_cmap(struct fb_cmap *cmap, int len, int transp);
 extern void fb_dealloc_cmap(struct fb_cmap *cmap);
-extern void fb_copy_cmap(struct fb_cmap *from, struct fb_cmap *to,
-			 int fsfromto);
+extern int fb_copy_cmap(struct fb_cmap *from, struct fb_cmap *to,
+			int fsfromto);
 extern int fb_set_cmap(struct fb_cmap *cmap, int kspc, struct fb_info *fb_info);
 extern struct fb_cmap *fb_default_cmap(int len);
 extern void fb_invert_cmaps(void);
