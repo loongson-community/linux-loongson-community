@@ -1357,10 +1357,48 @@ ioc3_close(struct net_device *dev)
 	return 0;
 }
 
+/*
+ * MENET cards have four IOC3 chips, which are attached to two sets of
+ * PCI slot resources each: the primary connections are on slots
+ * 0..3 and the secondaries are on 4..7
+ *
+ * All four ethernets are brought out to connectors; six serial ports
+ * (a pair from each of the first three IOC3s) are brought out to
+ * MiniDINs; all other subdevices are left swinging in the wind, leave
+ * them disabled.
+ */
+static inline int ioc3_is_menet(struct pci_dev *pdev)
+{
+	struct pci_dev *dev;
+
+	return pdev->bus->parent == NULL
+	       && (dev = pci_find_slot(pdev->bus->number, PCI_DEVFN(0, 0)))
+	       && dev->vendor == PCI_VENDOR_ID_SGI
+	       && dev->device == PCI_DEVICE_ID_SGI_IOC3
+	       && (dev = pci_find_slot(pdev->bus->number, PCI_DEVFN(1, 0)))
+	       && dev->vendor == PCI_VENDOR_ID_SGI
+	       && dev->device == PCI_DEVICE_ID_SGI_IOC3
+	       && (dev = pci_find_slot(pdev->bus->number, PCI_DEVFN(2, 0)))
+	       && dev->vendor == PCI_VENDOR_ID_SGI
+	       && dev->device == PCI_DEVICE_ID_SGI_IOC3;
+}
+
 static void inline ioc3_serial_probe(struct pci_dev *pdev,
 				struct ioc3 *ioc3)
 {
 	struct serial_struct req;
+
+	/*
+	 * We need to recognice and treat the fourth MENET serial as it
+	 * does not have an SuperIO chip attached to it, therefore attempting
+	 * to access it will result in bus errors.  We call something an
+	 * MENET if PCI slot 0, 1, 2 and 3 of a master PCI bus all have an IOC3
+	 * in it.  This is paranoid but we want to avoid blowing up on a
+	 * showhorn PCI box that happens to have 4 IOC3 cards in it so it's
+	 * not paranoid enough ...
+	 */
+	if (ioc3_is_menet(pdev) && PCI_SLOT(pdev->devfn) == 3)
+		return;
 
 	/* Register to interrupt zero because we share the interrupt with
 	   the serial driver which we don't properly support yet.  */
