@@ -40,7 +40,7 @@ extern void prom_printf(char *fmt, ...);
 /* Memory descriptor management. */
 #define PROM_MAX_PMEMBLOCKS    32
 struct prom_pmemblock {
-	LONG	base;		/* Within KSEG0 or XKPHYS. */
+	LONG base;		/* Within KSEG0 or XKPHYS. */
 	ULONG size;		/* In bytes. */
 	ULONG type;		/* free or prom memory */
 };
