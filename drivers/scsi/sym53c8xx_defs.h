@@ -52,10 +52,6 @@
 **    Copyright (C) 1997 Richard Waltham <dormouse@farsrobt.demon.co.uk>
 **
 **  Added support for MIPS big endian systems.
-**  Carsten Langgaard, carstenl@mips.com
-**  Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
-**
-**  Added support for MIPS big endian systems.
 **    Carsten Langgaard, carstenl@mips.com
 **    Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
 **
