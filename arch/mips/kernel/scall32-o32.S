@@ -623,7 +623,7 @@ out:	jr	ra
 	sys	sys_clock_nanosleep	4	/* 4265 */
 	sys	sys_tgkill		3
 	sys	sys_utimes		2
-	sys	sys_ni_syscall		0	/* sys_mbind */
+	sys	sys_mbind		4
 	sys	sys_ni_syscall		0	/* sys_get_mempolicy */
 	sys	sys_ni_syscall		0	/* 4270 sys_set_mempolicy */
 	sys	sys_mq_open		4

@@ -443,7 +443,7 @@ sys_call_table:
 	PTR	sys_clock_nanosleep
 	PTR	sys_tgkill			/* 5225 */
 	PTR	sys_utimes
-	PTR	sys_ni_syscall			/* sys_mbind */
+	PTR	sys_mbind
 	PTR	sys_ni_syscall			/* sys_get_mempolicy */
 	PTR	sys_ni_syscall			/* sys_set_mempolicy */
 	PTR	sys_mq_open			/* 5230 */
