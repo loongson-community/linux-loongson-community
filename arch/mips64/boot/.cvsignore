@@ -1,0 +1,6 @@
+.*.d
+mkboot
+elf2ecoff
+zImage
+zImage.tmp
+.*.cmd
