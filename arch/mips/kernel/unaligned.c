@@ -92,7 +92,7 @@
 unsigned long unaligned_instructions;
 #endif
 
-static inline int emulate_load_store_insn(struct pt_regs *regs,
+static inline void emulate_load_store_insn(struct pt_regs *regs,
 	unsigned long addr, unsigned long pc)
 {
 	union mips_instruction insn;
@@ -168,7 +168,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return 0;
+		break;
 
 	case lw_op:
 		if (verify_area(VERIFY_READ, addr, 4))
@@ -197,7 +197,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return 0;
+		break;
 
 	case lhu_op:
 		if (verify_area(VERIFY_READ, addr, 2))
@@ -230,7 +230,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return 0;
+		break;
 
 	case lwu_op:
 #ifdef CONFIG_MIPS64
@@ -269,7 +269,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return 0;
+		break;
 #endif /* CONFIG_MIPS64 */
 
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
@@ -310,7 +310,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		if (res)
 			goto fault;
 		regs->regs[insn.i_format.rt] = value;
-		return 0;
+		break;
 #endif /* CONFIG_MIPS64 */
 
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
@@ -350,7 +350,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 			: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		return 0;
+		break;
 
 	case sw_op:
 		if (verify_area(VERIFY_WRITE, addr, 4))
@@ -380,7 +380,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		return 0;
+		break;
 
 	case sd_op:
 #ifdef CONFIG_MIPS64
@@ -418,7 +418,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 		: "r" (value), "r" (addr), "i" (-EFAULT));
 		if (res)
 			goto fault;
-		return 0;
+		break;
 #endif /* CONFIG_MIPS64 */
 
 		/* Cannot handle 64-bit instructions in 32-bit kernel */
@@ -458,7 +458,7 @@ static inline int emulate_load_store_insn(struct pt_regs *regs,
 	unaligned_instructions++;
 #endif
 
-	return 0;
+	return;
 
 fault:
 	/* Did we have an exception handler installed? */
@@ -475,19 +475,19 @@ fault:
 	die_if_kernel ("Unhandled kernel unaligned access", regs);
 	send_sig(SIGSEGV, current, 1);
 
-	return 0;
+	return;
 
 sigbus:
 	die_if_kernel("Unhandled kernel unaligned access", regs);
 	send_sig(SIGBUS, current, 1);
 
-	return 0;
+	return;
 
 sigill:
 	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	send_sig(SIGILL, current, 1);
 
-	return 0;
+	return;
 }
 
 asmlinkage void do_ade(struct pt_regs *regs)
