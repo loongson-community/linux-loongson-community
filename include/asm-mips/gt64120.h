@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2000, 2004  MIPS Technologies, Inc.  All rights reserved.
+ * Copyright (C) 2000, 2004, 2005  MIPS Technologies, Inc.
+ *	All rights reserved.
  *	Authors: Carsten Langgaard <carstenl@mips.com>
  *		 Maciej W. Rozycki <macro@mips.com>
  * Copyright (C) 2005 Ralf Baechle (ralf@linux-mips.org)
@@ -302,9 +303,9 @@
 #define GT_PCI_LD_SHF		0
 #define GT_PCI_LD_MSK		(MSK(15) << GT_PCI_LD_SHF)
 #define GT_PCI_HD_SHF		0
-#define GT_PCI_HD_MSK		(MSK(7) << GT_PCI_LD_SHF)
+#define GT_PCI_HD_MSK		(MSK(7) << GT_PCI_HD_SHF)
 #define GT_PCI_REMAP_SHF	0
-#define GT_PCI_REMAP_MSK	(MSK(11) << GT_PCI_LD_SHF)
+#define GT_PCI_REMAP_MSK	(MSK(11) << GT_PCI_REMAP_SHF)
 
 
 #define GT_CFGADDR_CFGEN_SHF	31
