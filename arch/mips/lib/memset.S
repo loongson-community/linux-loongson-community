@@ -54,7 +54,6 @@ LEAF(memset)
 1:
 
 EXPORT(__bzero)
-	.type   __bzero, @function
 	sltiu	t0, a2, 4			/* very small region? */
 	bnez	t0, small_memset
 	 andi	t0, a0, 3			/* aligned? */

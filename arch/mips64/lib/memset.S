@@ -52,7 +52,6 @@ LEAF(memset)
 1:
 
 FEXPORT(__bzero)
-	.type	__bzero, @function
 	sltiu	t0, a2, 8			/* very small region? */
 	bnez	t0, small_memset
 	 andi	t0, a0, 7			/* aligned? */
