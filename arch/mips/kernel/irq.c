@@ -30,12 +30,7 @@
 /*
  * Controller mappings for all interrupt sources:
  */
-irq_desc_t irq_desc[NR_IRQS] __cacheline_aligned = {
-	[0 ... NR_IRQS-1] = {
-		.handler = &no_irq_type,
-		.lock = SPIN_LOCK_UNLOCKED
-	}
-};
+irq_desc_t irq_desc[NR_IRQS] __cacheline_aligned;
 
 static void register_irq_proc (unsigned int irq);
 
@@ -831,6 +826,7 @@ void __init init_IRQ(void)
 		irq_desc[i].action  = NULL;
 		irq_desc[i].depth   = 1;
 		irq_desc[i].handler = &no_irq_type;
+		irq_desc[i].lock = SPIN_LOCK_UNLOCKED;
 	}
 
 	arch_init_irq();
