@@ -272,6 +272,7 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	bridgereg_t device;
 	bridge_t *bridge;
 	int pin, swlevel;
+	cpuid_t cpu;
 
 	pin = SLOT_FROM_PCI_IRQ(irq);
 	bc = IRQ_TO_BRIDGE(irq);
@@ -282,13 +283,10 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	 * "map" irq to a swlevel greater than 6 since the first 6 bits
 	 * of INT_PEND0 are taken
 	 */
-	swlevel = alloc_level(bc->irq_cpu, irq);
-	intr_connect_level(bc->irq_cpu, swlevel);
-
+	swlevel = find_level(&cpu, irq);
 	bridge->b_int_addr[pin].addr = (0x20000 | swlevel | (bc->nasid << 8));
 	bridge->b_int_enable |= (1 << pin);
-	/* more stuff in int_enable reg */
-	bridge->b_int_enable |= 0x7ffffe00;
+	bridge->b_int_enable |= 0x7ffffe00;	/* more stuff in int_enable */
 
 	/*
 	 * Enable sending of an interrupt clear packt to the hub on a high to
@@ -308,7 +306,7 @@ static unsigned int startup_bridge_irq(unsigned int irq)
 	device |= (pin << (pin*3));
 	bridge->b_int_device = device;
 
-        bridge->b_widget.w_tflush;                      /* Flush */
+        bridge->b_wid_tflush;
 
         return 0;       /* Never anything pending.  */
 }
@@ -336,7 +334,7 @@ static void shutdown_bridge_irq(unsigned int irq)
 	si->level_to_irq[swlevel] = -1;
 
 	bridge->b_int_enable &= ~(1 << pin);
-	bridge->b_widget.w_tflush;                      /* Flush */
+	bridge->b_wid_tflush;
 }
 
 static inline void enable_bridge_irq(unsigned int irq)
@@ -370,15 +368,15 @@ static struct hw_interrupt_type bridge_irq_type = {
 
 static unsigned long irq_map[NR_IRQS / BITS_PER_LONG];
 
-unsigned int allocate_irqno(void)
+static int allocate_irqno(void)
 {
 	int irq;
 
 again:
-	irq = find_first_zero_bit(irq_map, LEVELS_PER_SLICE);
+	irq = find_first_zero_bit(irq_map, NR_IRQS);
 
 	if (irq >= NR_IRQS)
-		return -1;
+		return -ENOSPC;
 
 	if (test_and_set_bit(irq, irq_map))
 		goto again;
@@ -391,21 +389,42 @@ void free_irqno(unsigned int irq)
 	clear_bit(irq, irq_map);
 }
 
-void __init arch_init_irq(void)
+void __devinit register_bridge_irq(unsigned int irq)
 {
-	int i;
+	irq_desc[irq].status	= IRQ_DISABLED;
+	irq_desc[irq].action	= 0;
+	irq_desc[irq].depth	= 1;
+	irq_desc[irq].handler	= &bridge_irq_type;
+}
 
-	set_except_vector(0, ip27_irq);
+int __devinit request_bridge_irq(struct bridge_controller *bc)
+{
+	int irq = allocate_irqno();
+	int swlevel;
+
+	if (irq < 0)
+		return irq;
 
 	/*
-	 * Right now the bridge irq is our kitchen sink interrupt type
+	 * "map" irq to a swlevel greater than 6 since the first 6 bits
+	 * of INT_PEND0 are taken
 	 */
-	for (i = 0; i <= NR_IRQS; i++) {
-		irq_desc[i].status	= IRQ_DISABLED;
-		irq_desc[i].action	= 0;
-		irq_desc[i].depth	= 1;
-		irq_desc[i].handler	= &bridge_irq_type;
+	swlevel = alloc_level(bc->irq_cpu, irq);
+	if (unlikely(swlevel < 0)) {
+		free_irqno(irq);
+
+		return -EAGAIN;
 	}
+	intr_connect_level(bc->irq_cpu, swlevel);
+
+	register_bridge_irq(irq);
+
+	return irq;
+}
+
+void __init arch_init_irq(void)
+{
+	set_except_vector(0, ip27_irq);
 }
 
 void install_ipi(void)

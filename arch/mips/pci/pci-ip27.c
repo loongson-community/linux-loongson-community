@@ -386,7 +386,7 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	/*
  	 * Until otherwise set up, assume all interrupts are from slot 0
  	 */
-	bridge->b_int_device = (u32) 0x0;
+	bridge->b_int_device = 0x0;
 
 	/*
  	 * swap pio's to pci mem and io space (big windows)
@@ -403,10 +403,10 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 	bridge->b_dir_map = (masterwid << 20);	/* DMA */
 	bridge->b_int_enable = 0;
 
-	for (slot = 0; slot < 8; slot ++)
+	for (slot = 0; slot < 8; slot ++) {
 		bridge->b_device[slot].reg |= BRIDGE_DEV_SWAP_DIR;
-	bridge->b_widget.w_tflush;	/* Flush */
-
+		bc->pci_int[slot] = -1;
+	}
 	bridge->b_wid_tflush;     /* wait until Bridge PIO complete */
 
 	bc->base = bridge;
@@ -430,17 +430,13 @@ int __init bridge_probe(nasid_t nasid, int widget_id, int masterwid)
 int __devinit pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
 	struct bridge_controller *bc = BRIDGE_CONTROLLER(dev->bus);
-	int irq;
+	int irq = bc->pci_int[slot];
 
-	irq = allocate_irqno();
-
-	/*
-	 * Argh...  This API doesn't handle with errors at all ...
-	 */
 	if (irq == -1) {
-		printk(KERN_ERR "Can't allocate interrupt for PCI device %s\n",
-		       pci_name(dev));
-		return -1;
+		irq = bc->pci_int[slot] = request_bridge_irq(bc);
+		if (irq < 0)
+			panic("Can't allocate interrupt for PCI device %s\n",
+			      pci_name(dev));
 	}
 
 	irq_to_bridge[irq] = bc;
