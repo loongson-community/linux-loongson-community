@@ -59,7 +59,7 @@ asmlinkage int irix_sysmp(struct pt_regs *regs)
 		error = smp_num_cpus;
 		break;
 	default:
-		printk("SYSMP[%s:%ld]: Unsupported opcode %d\n",
+		printk("SYSMP[%s:%d]: Unsupported opcode %d\n",
 		       current->comm, current->pid, (int)cmd);
 		error = -EINVAL;
 		break;
@@ -97,7 +97,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	cmd = regs->regs[base + 4];
 	switch(cmd) {
 	case PR_MAXPROCS:
-		printk("irix_prctl[%s:%ld]: Wants PR_MAXPROCS\n",
+		printk("irix_prctl[%s:%d]: Wants PR_MAXPROCS\n",
 		       current->comm, current->pid);
 		error = max_threads;
 		break;
@@ -105,7 +105,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	case PR_ISBLOCKED: {
 		struct task_struct *task;
 
-		printk("irix_prctl[%s:%ld]: Wants PR_ISBLOCKED\n",
+		printk("irix_prctl[%s:%d]: Wants PR_ISBLOCKED\n",
 		       current->comm, current->pid);
 		task = find_task_by_pid(regs->regs[base + 5]);
 		if(!task) {
@@ -120,7 +120,7 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	case PR_SETSTACKSIZE: {
 		long value = regs->regs[base + 5];
 
-		printk("irix_prctl[%s:%ld]: Wants PR_SETSTACKSIZE<%08lx>\n",
+		printk("irix_prctl[%s:%d]: Wants PR_SETSTACKSIZE<%08lx>\n",
 		       current->comm, current->pid, (unsigned long) value);
 		if(value > RLIM_INFINITY)
 			value = RLIM_INFINITY;
@@ -140,25 +140,25 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 	}
 
 	case PR_GETSTACKSIZE:
-		printk("irix_prctl[%s:%ld]: Wants PR_GETSTACKSIZE\n",
+		printk("irix_prctl[%s:%d]: Wants PR_GETSTACKSIZE\n",
 		       current->comm, current->pid);
 		error = current->rlim[RLIMIT_STACK].rlim_cur;
 		break;
 
 	case PR_MAXPPROCS:
-		printk("irix_prctl[%s:%ld]: Wants PR_MAXPROCS\n",
+		printk("irix_prctl[%s:%d]: Wants PR_MAXPROCS\n",
 		       current->comm, current->pid);
 		error = 1;
 		break;
 
 	case PR_UNBLKONEXEC:
-		printk("irix_prctl[%s:%ld]: Wants PR_UNBLKONEXEC\n",
+		printk("irix_prctl[%s:%d]: Wants PR_UNBLKONEXEC\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_SETEXITSIG:
-		printk("irix_prctl[%s:%ld]: Wants PR_SETEXITSIG\n",
+		printk("irix_prctl[%s:%d]: Wants PR_SETEXITSIG\n",
 		       current->comm, current->pid);
 
 		/* We can probably play some game where we set the task
@@ -169,31 +169,31 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 		break;
 
 	case PR_RESIDENT:
-		printk("irix_prctl[%s:%ld]: Wants PR_RESIDENT\n",
+		printk("irix_prctl[%s:%d]: Wants PR_RESIDENT\n",
 		       current->comm, current->pid);
 		error = 0; /* Compatibility indeed. */
 		break;
 
 	case PR_ATTACHADDR:
-		printk("irix_prctl[%s:%ld]: Wants PR_ATTACHADDR\n",
+		printk("irix_prctl[%s:%d]: Wants PR_ATTACHADDR\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_DETACHADDR:
-		printk("irix_prctl[%s:%ld]: Wants PR_DETACHADDR\n",
+		printk("irix_prctl[%s:%d]: Wants PR_DETACHADDR\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_TERMCHILD:
-		printk("irix_prctl[%s:%ld]: Wants PR_TERMCHILD\n",
+		printk("irix_prctl[%s:%d]: Wants PR_TERMCHILD\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_GETSHMASK:
-		printk("irix_prctl[%s:%ld]: Wants PR_GETSHMASK\n",
+		printk("irix_prctl[%s:%d]: Wants PR_GETSHMASK\n",
 		       current->comm, current->pid);
 		error = -EINVAL; /* Until I have the sproc() stuff in. */
 		break;
@@ -203,24 +203,24 @@ asmlinkage int irix_prctl(struct pt_regs *regs)
 		break;
 
 	case PR_COREPID:
-		printk("irix_prctl[%s:%ld]: Wants PR_COREPID\n",
+		printk("irix_prctl[%s:%d]: Wants PR_COREPID\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_ATTACHADDRPERM:
-		printk("irix_prctl[%s:%ld]: Wants PR_ATTACHADDRPERM\n",
+		printk("irix_prctl[%s:%d]: Wants PR_ATTACHADDRPERM\n",
 		       current->comm, current->pid);
 		error = -EINVAL;
 		break;
 
 	case PR_PTHREADEXIT:
-		printk("irix_prctl[%s:%ld]: Wants PR_PTHREADEXIT\n",
+		printk("irix_prctl[%s:%d]: Wants PR_PTHREADEXIT\n",
 		       current->comm, current->pid);
 		do_exit(regs->regs[base + 5]);
 
 	default:
-		printk("irix_prctl[%s:%ld]: Non-existant opcode %d\n",
+		printk("irix_prctl[%s:%d]: Non-existant opcode %d\n",
 		       current->comm, current->pid, (int)cmd);
 		error = -EINVAL;
 		break;
@@ -341,7 +341,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 	
 	case SGI_SETPGID: {
 #ifdef DEBUG_PROCGRPS
-		printk("[%s:%ld] setpgid(%d, %d) ",
+		printk("[%s:%d] setpgid(%d, %d) ",
 		       current->comm, current->pid,
 		       (int) regs->regs[base + 5], (int)regs->regs[base + 6]);
 #endif
@@ -438,7 +438,7 @@ asmlinkage int irix_syssgi(struct pt_regs *regs)
 
 	case SGI_GETSID:
 #ifdef DEBUG_PROCGRPS
-		printk("[%s:%ld] getsid(%d) ", current->comm, current->pid,
+		printk("[%s:%d] getsid(%d) ", current->comm, current->pid,
 		       (int) regs->regs[base + 5]);
 #endif
 		retval = sys_getsid(regs->regs[base + 5]);
@@ -706,7 +706,7 @@ asmlinkage int irix_mount(char *dev_name, char *dir_name, unsigned long flags,
 	int ret;
 
 	lock_kernel();
-	printk("[%s:%ld] irix_mount(%p,%p,%08lx,%p,%p,%d)\n",
+	printk("[%s:%d] irix_mount(%p,%p,%08lx,%p,%p,%d)\n",
 	       current->comm, current->pid,
 	       dev_name, dir_name, flags, type, data, datalen);
 	ret = sys_mount(dev_name, dir_name, type, flags, data);
@@ -813,7 +813,7 @@ asmlinkage int irix_setpgrp(int flags)
 
 	lock_kernel();
 #ifdef DEBUG_PROCGRPS
-	printk("[%s:%ld] setpgrp(%d) ", current->comm, current->pid, flags);
+	printk("[%s:%d] setpgrp(%d) ", current->comm, current->pid, flags);
 #endif
 	if(!flags)
 		error = current->pgrp;
@@ -891,7 +891,7 @@ out:
 asmlinkage unsigned long irix_gethostid(void)
 {
 	lock_kernel();
-	printk("[%s:%ld]: irix_gethostid() called...\n",
+	printk("[%s:%d]: irix_gethostid() called...\n",
 	       current->comm, current->pid);
 	unlock_kernel();
 	return -EINVAL;
@@ -900,7 +900,7 @@ asmlinkage unsigned long irix_gethostid(void)
 asmlinkage unsigned long irix_sethostid(unsigned long val)
 {
 	lock_kernel();
-	printk("[%s:%ld]: irix_sethostid(%08lx) called...\n",
+	printk("[%s:%d]: irix_sethostid(%08lx) called...\n",
 	       current->comm, current->pid, val);
 	unlock_kernel();
 	return -EINVAL;
@@ -1114,7 +1114,7 @@ out:
 asmlinkage int irix_madvise(unsigned long addr, int len, int behavior)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_madvise(%08lx,%d,%d)\n",
+	printk("[%s:%d] Wheee.. irix_madvise(%08lx,%d,%d)\n",
 	       current->comm, current->pid, addr, len, behavior);
 	unlock_kernel();
 	return -EINVAL;
@@ -1123,7 +1123,7 @@ asmlinkage int irix_madvise(unsigned long addr, int len, int behavior)
 asmlinkage int irix_pagelock(char *addr, int len, int op)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_pagelock(%p,%d,%d)\n",
+	printk("[%s:%d] Wheee.. irix_pagelock(%p,%d,%d)\n",
 	       current->comm, current->pid, addr, len, op);
 	unlock_kernel();
 	return -EINVAL;
@@ -1132,7 +1132,7 @@ asmlinkage int irix_pagelock(char *addr, int len, int op)
 asmlinkage int irix_quotactl(struct pt_regs *regs)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_quotactl()\n",
+	printk("[%s:%d] Wheee.. irix_quotactl()\n",
 	       current->comm, current->pid);
 	unlock_kernel();
 	return -EINVAL;
@@ -1144,7 +1144,7 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 
 	lock_kernel();
 #ifdef DEBUG_PROCGRPS
-	printk("[%s:%ld] BSDsetpgrp(%d, %d) ", current->comm, current->pid,
+	printk("[%s:%d] BSDsetpgrp(%d, %d) ", current->comm, current->pid,
 	       pid, pgrp);
 #endif
 	if(!pid)
@@ -1167,7 +1167,7 @@ asmlinkage int irix_BSDsetpgrp(int pid, int pgrp)
 asmlinkage int irix_systeminfo(int cmd, char *buf, int cnt)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_systeminfo(%d,%p,%d)\n",
+	printk("[%s:%d] Wheee.. irix_systeminfo(%d,%p,%d)\n",
 	       current->comm, current->pid, cmd, buf, cnt);
 	unlock_kernel();
 	return -EINVAL;
@@ -1295,7 +1295,7 @@ asmlinkage int irix_xstat(int version, char *filename, struct stat *statbuf)
 
 	lock_kernel();
 #ifdef DEBUG_XSTAT
-	printk("[%s:%ld] Wheee.. irix_xstat(%d,%s,%p) ",
+	printk("[%s:%d] Wheee.. irix_xstat(%d,%s,%p) ",
 	       current->comm, current->pid, version, filename, statbuf);
 #endif
 	switch(version) {
@@ -1346,7 +1346,7 @@ asmlinkage int irix_lxstat(int version, char *filename, struct stat *statbuf)
 
 	lock_kernel();
 #ifdef DEBUG_XSTAT
-	printk("[%s:%ld] Wheee.. irix_lxstat(%d,%s,%p) ",
+	printk("[%s:%d] Wheee.. irix_lxstat(%d,%s,%p) ",
 	       current->comm, current->pid, version, filename, statbuf);
 #endif
 	switch(version) {
@@ -1397,7 +1397,7 @@ asmlinkage int irix_fxstat(int version, int fd, struct stat *statbuf)
 
 	lock_kernel();
 #ifdef DEBUG_XSTAT
-	printk("[%s:%ld] Wheee.. irix_fxstat(%d,%d,%p) ",
+	printk("[%s:%d] Wheee.. irix_fxstat(%d,%d,%p) ",
 	       current->comm, current->pid, version, fd, statbuf);
 #endif
 	switch(version) {
@@ -1447,7 +1447,7 @@ asmlinkage int irix_xmknod(int ver, char *filename, int mode, dev_t dev)
 	int retval;
 
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_xmknod(%d,%s,%x,%x)\n",
+	printk("[%s:%d] Wheee.. irix_xmknod(%d,%s,%x,%x)\n",
 	       current->comm, current->pid, ver, filename, mode, (int) dev);
 	switch(ver) {
 	case 2:
@@ -1467,7 +1467,7 @@ out:
 asmlinkage int irix_swapctl(int cmd, char *arg)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_swapctl(%d,%p)\n",
+	printk("[%s:%d] Wheee.. irix_swapctl(%d,%p)\n",
 	       current->comm, current->pid, cmd, arg);
 	unlock_kernel();
 	return -EINVAL;
@@ -1488,7 +1488,7 @@ asmlinkage int irix_statvfs(char *fname, struct irix_statvfs *buf)
 	int error, i;
 
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_statvfs(%s,%p)\n",
+	printk("[%s:%d] Wheee.. irix_statvfs(%s,%p)\n",
 	       current->comm, current->pid, fname, buf);
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
 	if (error)
@@ -1536,7 +1536,7 @@ asmlinkage int irix_fstatvfs(int fd, struct irix_statvfs *buf)
 	int error, i;
 
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_fstatvfs(%d,%p)\n",
+	printk("[%s:%d] Wheee.. irix_fstatvfs(%d,%p)\n",
 	       current->comm, current->pid, fd, buf);
 
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
@@ -1579,7 +1579,7 @@ out:
 asmlinkage int irix_priocntl(struct pt_regs *regs)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_priocntl()\n",
+	printk("[%s:%d] Wheee.. irix_priocntl()\n",
 	       current->comm, current->pid);
 	unlock_kernel();
 	return -EINVAL;
@@ -1588,7 +1588,7 @@ asmlinkage int irix_priocntl(struct pt_regs *regs)
 asmlinkage int irix_sigqueue(int pid, int sig, int code, int val)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_sigqueue(%d,%d,%d,%d)\n",
+	printk("[%s:%d] Wheee.. irix_sigqueue(%d,%d,%d,%d)\n",
 	       current->comm, current->pid, pid, sig, code, val);
 	unlock_kernel();
 	return -EINVAL;
@@ -1708,7 +1708,7 @@ out:
 
 asmlinkage int irix_dmi(struct pt_regs *regs)
 {
-	printk("[%s:%ld] Wheee.. irix_dmi()\n",
+	printk("[%s:%d] Wheee.. irix_dmi()\n",
 	       current->comm, current->pid);
 
 	return -EINVAL;
@@ -1717,7 +1717,7 @@ asmlinkage int irix_dmi(struct pt_regs *regs)
 asmlinkage int irix_pread(int fd, char *buf, int cnt, int off64,
 			  int off1, int off2)
 {
-	printk("[%s:%ld] Wheee.. irix_pread(%d,%p,%d,%d,%d,%d)\n",
+	printk("[%s:%d] Wheee.. irix_pread(%d,%p,%d,%d,%d,%d)\n",
 	       current->comm, current->pid, fd, buf, cnt, off64, off1, off2);
 
 	return -EINVAL;
@@ -1726,7 +1726,7 @@ asmlinkage int irix_pread(int fd, char *buf, int cnt, int off64,
 asmlinkage int irix_pwrite(int fd, char *buf, int cnt, int off64,
 			   int off1, int off2)
 {
-	printk("[%s:%ld] Wheee.. irix_pwrite(%d,%p,%d,%d,%d,%d)\n",
+	printk("[%s:%d] Wheee.. irix_pwrite(%d,%p,%d,%d,%d,%d)\n",
 	       current->comm, current->pid, fd, buf, cnt, off64, off1, off2);
 
 	return -EINVAL;
@@ -1736,7 +1736,7 @@ asmlinkage int irix_sgifastpath(int cmd, unsigned long arg0, unsigned long arg1,
 				unsigned long arg2, unsigned long arg3,
 				unsigned long arg4, unsigned long arg5)
 {
-	printk("[%s:%ld] Wheee.. irix_fastpath(%d,%08lx,%08lx,%08lx,%08lx,"
+	printk("[%s:%d] Wheee.. irix_fastpath(%d,%08lx,%08lx,%08lx,%08lx,"
 	       "%08lx,%08lx)\n",
 	       current->comm, current->pid, cmd, arg0, arg1, arg2,
 	       arg3, arg4, arg5);
@@ -1762,7 +1762,7 @@ asmlinkage int irix_statvfs64(char *fname, struct irix_statvfs64 *buf)
 	int error, i;
 
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_statvfs(%s,%p)\n",
+	printk("[%s:%d] Wheee.. irix_statvfs(%s,%p)\n",
 	       current->comm, current->pid, fname, buf);
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
 	if(error)
@@ -1810,7 +1810,7 @@ asmlinkage int irix_fstatvfs64(int fd, struct irix_statvfs *buf)
 	int error, i;
 
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_fstatvfs(%d,%p)\n",
+	printk("[%s:%d] Wheee.. irix_fstatvfs(%d,%p)\n",
 	       current->comm, current->pid, fd, buf);
 
 	error = verify_area(VERIFY_WRITE, buf, sizeof(struct irix_statvfs));
@@ -1855,7 +1855,7 @@ asmlinkage int irix_getmountid(char *fname, unsigned long *midbuf)
 	int error;
 
 	lock_kernel();
-	printk("[%s:%ld] irix_getmountid(%s, %p)\n",
+	printk("[%s:%d] irix_getmountid(%s, %p)\n",
 	       current->comm, current->pid, fname, midbuf);
 	error = verify_area(VERIFY_WRITE, midbuf, (sizeof(unsigned long) * 4));
 	if(error)
@@ -1882,7 +1882,7 @@ asmlinkage int irix_nsproc(unsigned long entry, unsigned long mask,
 			   unsigned long arg, unsigned long sp, int slen)
 {
 	lock_kernel();
-	printk("[%s:%ld] Wheee.. irix_nsproc(%08lx,%08lx,%08lx,%08lx,%d)\n",
+	printk("[%s:%d] Wheee.. irix_nsproc(%08lx,%08lx,%08lx,%08lx,%d)\n",
 	       current->comm, current->pid, entry, mask, arg, sp, slen);
 	unlock_kernel();
 	return -EINVAL;
@@ -1946,7 +1946,7 @@ asmlinkage int irix_ngetdents(unsigned int fd, void * dirent, unsigned int count
 	int error;
 
 #ifdef DEBUG_GETDENTS
-	printk("[%s:%ld] ngetdents(%d, %p, %d, %p) ", current->comm,
+	printk("[%s:%d] ngetdents(%d, %p, %d, %p) ", current->comm,
 	       current->pid, fd, dirent, count, eob);
 #endif
 	error = -EBADF;
@@ -2143,41 +2143,41 @@ asmlinkage int irix_uadmin(unsigned long op, unsigned long func, unsigned long a
 	switch(op) {
 	case 1:
 		/* Reboot */
-		printk("[%s:%ld] irix_uadmin: Wants to reboot...\n",
+		printk("[%s:%d] irix_uadmin: Wants to reboot...\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 2:
 		/* Shutdown */
-		printk("[%s:%ld] irix_uadmin: Wants to shutdown...\n",
+		printk("[%s:%d] irix_uadmin: Wants to shutdown...\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 4:
 		/* Remount-root */
-		printk("[%s:%ld] irix_uadmin: Wants to remount root...\n",
+		printk("[%s:%d] irix_uadmin: Wants to remount root...\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 8:
 		/* Kill all tasks. */
-		printk("[%s:%ld] irix_uadmin: Wants to kill all tasks...\n",
+		printk("[%s:%d] irix_uadmin: Wants to kill all tasks...\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 256:
 		/* Set magic mushrooms... */
-		printk("[%s:%ld] irix_uadmin: Wants to set magic mushroom[%d]...\n",
+		printk("[%s:%d] irix_uadmin: Wants to set magic mushroom[%d]...\n",
 		       current->comm, current->pid, (int) func);
 		retval = -EINVAL;
 		goto out;
 
 	default:
-		printk("[%s:%ld] irix_uadmin: Unknown operation [%d]...\n",
+		printk("[%s:%d] irix_uadmin: Unknown operation [%d]...\n",
 		       current->comm, current->pid, (int) op);
 		retval = -EINVAL;
 		goto out;
@@ -2201,20 +2201,20 @@ asmlinkage int irix_utssys(char *inbuf, int arg, int type, char *outbuf)
 
 	case 2:
 		/* ustat() */
-		printk("[%s:%ld] irix_utssys: Wants to do ustat()\n",
+		printk("[%s:%d] irix_utssys: Wants to do ustat()\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 3:
 		/* fusers() */
-		printk("[%s:%ld] irix_utssys: Wants to do fusers()\n",
+		printk("[%s:%d] irix_utssys: Wants to do fusers()\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	default:
-		printk("[%s:%ld] irix_utssys: Wants to do unknown type[%d]\n",
+		printk("[%s:%d] irix_utssys: Wants to do unknown type[%d]\n",
 		       current->comm, current->pid, (int) type);
 		retval = -EINVAL;
 		goto out;
@@ -2238,7 +2238,7 @@ asmlinkage int irix_fcntl(int fd, int cmd, int arg)
 
 	lock_kernel();
 #ifdef DEBUG_FCNTL
-	printk("[%s:%ld] irix_fcntl(%d, %d, %d) ", current->comm,
+	printk("[%s:%d] irix_fcntl(%d, %d, %d) ", current->comm,
 	       current->pid, fd, cmd, arg);
 #endif
 	if (cmd == IRIX_F_ALLOCSP){
@@ -2259,26 +2259,26 @@ asmlinkage int irix_ulimit(int cmd, int arg)
 	lock_kernel();
 	switch(cmd) {
 	case 1:
-		printk("[%s:%ld] irix_ulimit: Wants to get file size limit.\n",
+		printk("[%s:%d] irix_ulimit: Wants to get file size limit.\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 2:
-		printk("[%s:%ld] irix_ulimit: Wants to set file size limit.\n",
+		printk("[%s:%d] irix_ulimit: Wants to set file size limit.\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 3:
-		printk("[%s:%ld] irix_ulimit: Wants to get brk limit.\n",
+		printk("[%s:%d] irix_ulimit: Wants to get brk limit.\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	case 4:
 #if 0
-		printk("[%s:%ld] irix_ulimit: Wants to get fd limit.\n",
+		printk("[%s:%d] irix_ulimit: Wants to get fd limit.\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
@@ -2287,13 +2287,13 @@ asmlinkage int irix_ulimit(int cmd, int arg)
 		goto out;
 
 	case 5:
-		printk("[%s:%ld] irix_ulimit: Wants to get txt offset.\n",
+		printk("[%s:%d] irix_ulimit: Wants to get txt offset.\n",
 		       current->comm, current->pid);
 		retval = -EINVAL;
 		goto out;
 
 	default:
-		printk("[%s:%ld] irix_ulimit: Unknown command [%d].\n",
+		printk("[%s:%d] irix_ulimit: Unknown command [%d].\n",
 		       current->comm, current->pid, cmd);
 		retval = -EINVAL;
 		goto out;
@@ -2305,7 +2305,7 @@ out:
 
 asmlinkage int irix_unimp(struct pt_regs *regs)
 {
-	printk("irix_unimp [%s:%ld] v0=%d v1=%d a0=%08lx a1=%08lx a2=%08lx "
+	printk("irix_unimp [%s:%d] v0=%d v1=%d a0=%08lx a1=%08lx a2=%08lx "
 	       "a3=%08lx\n", current->comm, current->pid,
 	       (int) regs->regs[2], (int) regs->regs[3],
 	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
