@@ -1882,7 +1882,7 @@ r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		flush_cache_l1();
 	} else {
 		/* Workaround for R4600 bug.  See comment above. */
 		__save_and_cli(flags);
@@ -1906,7 +1906,7 @@ r4k_dma_cache_wback_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		flush_cache_all();
+		flush_cache_l1();
 		return;
 	}
 
@@ -1926,7 +1926,7 @@ r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	unsigned int flags;
 
 	if (size >= dcache_size) {
-		flush_cache_all();
+		flush_cache_l1();
 	} else {
 		/* Workaround for R4600 bug.  See comment above. */
 		__save_and_cli(flags);
@@ -1951,7 +1951,7 @@ r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 	unsigned long end, a;
 
 	if (size >= scache_size) {
-		flush_cache_all();
+		flush_cache_l1();
 		return;
 	}
 
@@ -2376,7 +2376,7 @@ static void __init setup_noscache_funcs(void)
 	case 16:
 		_clear_page = r4k_clear_page_d16;
 		_copy_page = r4k_copy_page_d16;
-		_flush_cache_all = r4k_flush_cache_all_d16i16;
+		_flush_cache_l1 = r4k_flush_cache_all_d16i16;
 		_flush_cache_mm = r4k_flush_cache_mm_d16i16;
 		_flush_cache_range = r4k_flush_cache_range_d16i16;
 		_flush_cache_page = r4k_flush_cache_page_d16i16;
@@ -2394,7 +2394,7 @@ static void __init setup_noscache_funcs(void)
 			_clear_page = r4k_clear_page_d32;
 			_copy_page = r4k_copy_page_d32;
 		}
-		_flush_cache_all = r4k_flush_cache_all_d32i32;
+		_flush_cache_l1 = r4k_flush_cache_all_d32i32;
 		_flush_cache_mm = r4k_flush_cache_mm_d32i32;
 		_flush_cache_range = r4k_flush_cache_range_d32i32;
 		_flush_cache_page = r4k_flush_cache_page_d32i32;
@@ -2412,7 +2412,7 @@ static void __init setup_scache_funcs(void)
 	case 16:
 		switch(dc_lsize) {
 		case 16:
-			_flush_cache_all = r4k_flush_cache_all_s16d16i16;
+			_flush_cache_l1 = r4k_flush_cache_all_s16d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s16d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s16d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s16d16i16;
@@ -2427,14 +2427,14 @@ static void __init setup_scache_funcs(void)
 	case 32:
 		switch(dc_lsize) {
 		case 16:
-			_flush_cache_all = r4k_flush_cache_all_s32d16i16;
+			_flush_cache_l1 = r4k_flush_cache_all_s32d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s32d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s32d16i16;
 			_flush_page_to_ram = r4k_flush_page_to_ram_s32d16i16;
 			break;
 		case 32:
-			_flush_cache_all = r4k_flush_cache_all_s32d32i32;
+			_flush_cache_l1 = r4k_flush_cache_all_s32d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s32d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s32d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s32d32i32;
@@ -2447,14 +2447,14 @@ static void __init setup_scache_funcs(void)
 	case 64:
 		switch(dc_lsize) {
 		case 16:
-			_flush_cache_all = r4k_flush_cache_all_s64d16i16;
+			_flush_cache_l1 = r4k_flush_cache_all_s64d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s64d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s64d16i16;
 			_flush_page_to_ram = r4k_flush_page_to_ram_s64d16i16;
 			break;
 		case 32:
-			_flush_cache_all = r4k_flush_cache_all_s64d32i32;
+			_flush_cache_l1 = r4k_flush_cache_all_s64d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s64d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s64d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s64d32i32;
@@ -2467,14 +2467,14 @@ static void __init setup_scache_funcs(void)
 	case 128:
 		switch(dc_lsize) {
 		case 16:
-			_flush_cache_all = r4k_flush_cache_all_s128d16i16;
+			_flush_cache_l1 = r4k_flush_cache_all_s128d16i16;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d16i16;
 			_flush_cache_range = r4k_flush_cache_range_s128d16i16;
 			_flush_cache_page = r4k_flush_cache_page_s128d16i16;
 			_flush_page_to_ram = r4k_flush_page_to_ram_s128d16i16;
 			break;
 		case 32:
-			_flush_cache_all = r4k_flush_cache_all_s128d32i32;
+			_flush_cache_l1 = r4k_flush_cache_all_s128d32i32;
 			_flush_cache_mm = r4k_flush_cache_mm_s128d32i32;
 			_flush_cache_range = r4k_flush_cache_range_s128d32i32;
 			_flush_cache_page = r4k_flush_cache_page_s128d32i32;
@@ -2550,7 +2550,7 @@ void __init ld_mmu_r4xx0(void)
 	_show_regs = r4k_show_regs;
 	_user_mode = r4k_user_mode;
 
-	flush_cache_all();
+	flush_cache_l1();
 
 	/*
 	 * You should never change this register:

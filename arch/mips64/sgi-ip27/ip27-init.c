@@ -301,7 +301,7 @@ void per_hub_init(cnodeid_t cnode)
 			memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
 								0x100);
-			flush_cache_all();
+			flush_cache_l1();
 			flush_cache_l2();
 		}
 #endif
@@ -419,7 +419,7 @@ void cboot(void)
 	init_mfhi_war();
 #endif
 	_flush_tlb_all();
-	flush_cache_all();
+	flush_cache_l1();
 	flush_cache_l2();
 	start_secondary();
 }

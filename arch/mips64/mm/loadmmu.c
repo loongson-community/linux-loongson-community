@@ -25,7 +25,6 @@ void (*_clear_page)(void * page);
 void (*_copy_page)(void * to, void * from);
 
 /* Cache operations. */
-void (*_flush_cache_all)(void);
 void (*_flush_cache_mm)(struct mm_struct *mm);
 void (*_flush_cache_range)(struct mm_struct *mm, unsigned long start,
                            unsigned long end);
@@ -35,6 +34,7 @@ void (*_flush_page_to_ram)(struct page * page);
 /* MIPS specific cache operations */
 void (*_flush_cache_sigtramp)(unsigned long addr);
 void (*_flush_cache_l2)(void);
+void (*_flush_cache_l1)(void);
 
 
 /* DMA cache operations. */

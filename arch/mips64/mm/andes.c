@@ -84,7 +84,7 @@ static void andes_copy_page(void * to, void * from)
 /* Cache operations.  These are only used with the virtual memory system,
    not for non-coherent I/O so it's ok to ignore the secondary caches.  */
 static void
-andes_flush_cache_all(void)
+andes_flush_cache_l1(void)
 {
 	blast_dcache32(); blast_icache64();
 }
@@ -116,7 +116,7 @@ andes_flush_cache_mm(struct mm_struct *mm)
 #ifdef DEBUG_CACHE
 		printk("cmm[%d]", (int)mm->context);
 #endif
-		andes_flush_cache_all();
+		andes_flush_cache_l1();
 	}
 }
 
@@ -461,7 +461,7 @@ void __init ld_mmu_andes(void)
 	_clear_page = andes_clear_page;
 	_copy_page = andes_copy_page;
 
-	_flush_cache_all = andes_flush_cache_all;
+	_flush_cache_l1 = andes_flush_cache_l1;
 	_flush_cache_l2 = andes_flush_cache_l2;
 	_flush_cache_mm = andes_flush_cache_mm;
 	_flush_cache_range = andes_flush_cache_range;
@@ -479,7 +479,7 @@ void __init ld_mmu_andes(void)
 	_show_regs = andes_show_regs;
 	_user_mode = andes_user_mode;
 
-        flush_cache_all();
+        flush_cache_l1();
 
 	/*
 	 * You should never change this register:
