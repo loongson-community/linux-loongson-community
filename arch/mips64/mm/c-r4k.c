@@ -73,8 +73,8 @@ dc_32:
 	return;
 
 dc_32_r4600:
-#ifdef R4600_V1_HIT_DCACHE_WAR
 	{
+#ifdef R4600_V1_HIT_DCACHE_WAR
 	unsigned long flags;
 
 	local_irq_save(flags);
