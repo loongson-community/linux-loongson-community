@@ -13,6 +13,7 @@
 #include <linux/sched.h>
 #include <linux/mmzone.h>	/* for numnodes */
 #include <linux/mm.h>
+#include <linux/cpumask.h>
 #include <asm/cpu.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
@@ -128,7 +129,7 @@ int do_cpumask(cnodeid_t cnode, nasid_t nasid, cpumask_t *boot_cpumask,
 			/* Only let it join in if it's marked enabled */
 			if ((acpu->cpu_info.flags & KLINFO_ENABLE) &&
 						(tot_cpus_found != max_cpus)) {
-				CPUMASK_SETB(*boot_cpumask, cpuid);
+				cpu_set(cpuid, *boot_cpumask);
 				cpus_found++;
 				tot_cpus_found++;
 			}
@@ -185,7 +186,7 @@ int cpu_enabled(cpuid_t cpu)
 {
 	if (cpu == CPU_NONE)
 		return 0;
-	return CPUMASK_TSTB(boot_cpumask, cpu) != 0;
+	return cpu_isset(cpu, boot_cpumask);
 }
 
 void mlreset(void)
@@ -202,7 +203,7 @@ void mlreset(void)
 	 * Probe for all CPUs - this creates the cpumask and
 	 * sets up the mapping tables.
 	 */
-	CPUMASK_CLRALL(boot_cpumask);
+	cpu_clear(boot_cpumask);
 	maxcpus = cpu_node_probe(&boot_cpumask, &numnodes);
 	printk("Discovered %d cpus on %d nodes\n", maxcpus, numnodes);
 
@@ -417,92 +418,14 @@ static void alloc_cpupda(cpuid_t cpu, int cpunum)
 	cpu_data[cpunum].p_cpuid = cpu;
 }
 
-static struct task_struct * __init fork_by_hand(void)
+void __init prom_build_cpu_map(void)
 {
-	struct pt_regs regs;
-	/*
-	 * don't care about the eip and regs settings since
-	 * we'll never reschedule the forked task.
-	 */
-	return copy_process(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0, NULL, NULL);
+	/* Work was already done; just expose it */
+	phys_cpu_present_map = boot_cpumask;
 }
 
-static int __init do_boot_cpu(int cpu, int num_cpus)
+void __init prom_prepare_cpus(void)
 {
-	extern void smp_bootstrap(void);
-	cpuid_t mycpuid = getcpuid();
-	struct task_struct *idle;
-
-	if (cpu == mycpuid) {
-		alloc_cpupda(cpu, num_cpus);
-		return 1;
-	}
-
-	/* Skip holes in CPU space */
-	if (!CPUMASK_TSTB(boot_cpumask, cpu))
-		return 0;
-
-	/*
-	 * The following code is purely to make sure
-	 * Linux can schedule processes on this slave.
-	 */
-	idle = fork_by_hand();
-	if (IS_ERR(idle))
-		panic("failed fork for CPU %d", cpu);
-
-	/*
-	 * We remove it from the pidhash and the runqueue
-	 * once we got the process:
-	 */
-	init_idle(idle, cpu);
-
-	alloc_cpupda(cpu, num_cpus);
-
-	unhash_process(idle);
-
-	/*
- 	 * Launch a slave into smp_bootstrap().  It doesn't take an
-	 * argument, and we set sp to the kernel stack of the newly
-	 * created idle process, gp to the proc struct so that
-	 * current_thread_info() will work.
- 	 */
-	LAUNCH_SLAVE(cputonasid(num_cpus),cputoslice(num_cpus),
-		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
-		0, (void *)((unsigned long)idle->thread_info +
-		THREAD_SIZE - 32), (void *)idle);
-
-	/*
-	 * Now optimistically set the mapping arrays. We
-	 * need to wait here, verify the cpu booted up, then
-	 * fire up the next cpu.
-	 */
-	__cpu_number_map[cpu] = num_cpus;
-	__cpu_logical_map[num_cpus] = cpu;
-	cpu_set(cpu, cpu_online_map);
-
-	/*
-	 * Wait this cpu to start up and initialize its hub,
-	 * and discover the io devices it will control.
-	 *
-	 * XXX: We really want to fire up launch all the CPUs
-	 * at once.  We have to preserve the order of the
-	 * devices on the bridges first though.
-	 */
-	while (atomic_read(&numstarted) != num_cpus);
-
-	return 1;
-}
-
-void __init smp_boot_cpus(void)
-{
-	int		num_cpus = 0;
-	cpuid_t		cpu;
-	cnodeid_t	cnode;
-
-	init_new_context(current, &init_mm);
-	current_thread_info()->cpu = 0;
-	smp_tune_scheduling();
-
 	sn_mp_setup();
 	/* Master has already done per_cpu_init() */
 	install_cpuintr(smp_processor_id());
@@ -512,10 +435,31 @@ void __init smp_boot_cpus(void)
 #endif
 
 	replicate_kernel_text(numnodes);
-	/* Launch slaves. */
-	for (cpu = 0; cpu < maxcpus; cpu++) {
-		num_cpus += do_boot_cpu(cpu, num_cpus);
-	}
+
+	/* Done on master only */
+	/* XXXKW need first == physical, second == logical */
+	alloc_cpupda(cpu, 0);
+}
+
+int __init prom_boot_secondary(int cpu, struct *task_struct idle)
+{
+	/*
+ 	 * Launch a slave into smp_bootstrap().  It doesn't take an
+	 * argument, and we set sp to the kernel stack of the newly
+	 * created idle process, gp to the proc struct so that
+	 * current_thread_info() will work.
+ 	 */
+	LAUNCH_SLAVE(cputonasid(cpu),cputoslice(cpu),
+		(launch_proc_t)MAPPED_KERN_RW_TO_K0(smp_bootstrap),
+		0, (void *)((unsigned long)idle->thread_info +
+		THREAD_SIZE - 32), (void *)idle);
+}
+
+/* XXXKW implement prom_init_secondary() and prom_smp_finish to share
+ * start_secondary with kernel/smp.c; otherwise, roll your own. */
+
+void __init prom_cpus_done(void)
+{
 
 #ifdef LATER
 	Wait logic goes here.

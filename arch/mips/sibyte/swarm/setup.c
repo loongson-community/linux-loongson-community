@@ -57,6 +57,10 @@ extern int m41t81_probe(void);
 extern int m41t81_set_time(unsigned long);
 extern unsigned long m41t81_get_time(void);
 
+#ifdef CONFIG_SMP
+extern void prom_build_cpu_map(void);
+#endif
+
 const char *get_system_type(void)
 {
 	return "SiByte " SIBYTE_BOARD_NAME;
@@ -145,6 +149,11 @@ void __init swarm_setup(void)
 		16              /* orig_video_points */
        };
        /* XXXKW for CFE, get lines/cols from environment */
+#endif
+
+#ifdef CONFIG_SMP
+	/* Detect available CPUs, populate phys_cpu_present_map */
+	prom_build_cpu_map();
 #endif
 }
 

@@ -28,30 +28,44 @@
 #include <asm/sibyte/sb1250_regs.h>
 #include <asm/sibyte/sb1250_int.h>
 
-extern irqreturn_t smp_call_function_interrupt(int irq, void *dev,
-	struct pt_regs *regs);
-extern void smp_tune_scheduling(void);
+static void *mailbox_set_regs[] = {
+	(void *)IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU),
+	(void *)IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU)
+};
+
+static void *mailbox_clear_regs[] = {
+	(void *)IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU),
+	(void *)IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU)
+};
+
+static void *mailbox_regs[] = {
+	(void *)IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU),
+	(void *)IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU)
+};
+
+/*
+ * SMP init and finish on secondary CPUs
+ */
+void sb1250_smp_init(void)
+{
+	unsigned int imask = STATUSF_IP4 | STATUSF_IP3 | STATUSF_IP2 |
+		STATUSF_IP1 | STATUSF_IP0;
+
+	/* Set interrupt mask, but don't enable */
+	change_c0_status(ST0_IM, imask);
+}
+
+void sb1250_smp_finish(void)
+{
+	extern void sb1250_time_init(void);
+	sb1250_time_init();
+	local_irq_enable();
+}
 
 /*
  * These are routines for dealing with the sb1250 smp capabilities
  * independent of board/firmware
  */
-
-static u64 mailbox_set_regs[] = {
-	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_SET_CPU),
-	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_SET_CPU)
-};
-
-static u64 mailbox_clear_regs[] = {
-	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CLR_CPU),
-	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CLR_CPU)
-};
-
-static u64 mailbox_regs[] = {
-	IOADDR(A_IMR_CPU0_BASE + R_IMR_MAILBOX_CPU),
-	IOADDR(A_IMR_CPU1_BASE + R_IMR_MAILBOX_CPU)
-};
-
 
 /*
  * Simple enough; everything is set up, so just poke the appropriate mailbox
@@ -62,14 +76,8 @@ void core_send_ipi(int cpu, unsigned int action)
 	__raw_writeq((((u64)action)<< 48), mailbox_set_regs[cpu]);
 }
 
-
-void sb1250_smp_finish(void)
-{
-	extern void sb1_sanitize_tlb(void);
-
-	sb1_sanitize_tlb();
-	sb1250_time_init();
-}
+extern irqreturn_t smp_call_function_interrupt(int irq, void *dev,
+	struct pt_regs *regs);
 
 void sb1250_mailbox_interrupt(struct pt_regs *regs)
 {
@@ -91,67 +99,4 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	if (action & SMP_CALL_FUNCTION) {
 		smp_call_function_interrupt(0, NULL, regs);
 	}
-}
-
-extern atomic_t cpus_booted;
-extern void prom_setup_smp(void);
-extern int prom_boot_secondary(int cpu, unsigned long sp, unsigned long gp);
-
-void __init smp_boot_cpus(void)
-{
-	int cur_cpu = 0;
-	int cpu;
-
-	prom_setup_smp();
-	init_new_context(current, &init_mm);
-	current_thread_info()->cpu = 0;
-	cpu_data[0].udelay_val = loops_per_jiffy;
-	cpu_data[0].asid_cache = ASID_FIRST_VERSION;
-	cpus_clear(cpu_online_map);
-	cpu_set(0, cpu_online_map);
-	atomic_set(&cpus_booted, 1);  /* Master CPU is already booted... */
-	smp_tune_scheduling();
-
-	/*
-	 * This loop attempts to compensate for "holes" in the CPU
-	 * numbering.  It's overkill, but general.
-	 */
-	for (cpu = 1; cpu < num_online_cpus(); ) {
-		struct task_struct *idle;
-		struct pt_regs regs;
-		int retval;
-		printk("Starting CPU %d... ", cpu);
-
-		/* Spawn a new process normally.  Grab a pointer to
-		   its task struct so we can mess with it */
-		idle = copy_process(CLONE_VM | CLONE_IDLETASK, 0, &regs, 0,
-		                    NULL, NULL);
-		if (IS_ERR(idle))
-			panic("failed fork for CPU %d", cpu);
-
-		/*
-		 * We remove it from the pidhash and the runqueue
-		 * once we got the process:
-		 */
-		init_idle(idle, cpu);
-
-		unhash_process(idle);
-
-		do {
-			/* Iterate until we find a CPU that comes up */
-			cur_cpu++;
-			retval = prom_boot_secondary(cur_cpu,
-					    (unsigned long)idle + THREAD_SIZE - 32,
-					    (unsigned long)idle);
-		} while (!retval && (cur_cpu < NR_CPUS));
-		if (retval) {
-			cpu++;
-		} else {
-			panic("CPU discovery disaster");
-		}
-	}
-
-	/* Wait for everyone to come up */
-	while (atomic_read(&cpus_booted) != num_online_cpus());
-	smp_threads_ready = 1;
 }
