@@ -33,7 +33,6 @@ void __init prom_init(void)
 {
 	int argc = fw_arg0;
 	char **argv = (char **) fw_arg1;
-	u32 config;
 	int i;
 
 	/*
@@ -47,17 +46,6 @@ void __init prom_init(void)
 
 	mips_machgroup = MACH_GROUP_NEC_VR41XX;
 	mips_machtype = MACH_TANBAC_TB0226;
-
-	switch (current_cpu_data.processor_id) {
-	case PRID_VR4131_REV1_2:
-		config = read_c0_config();
-		config &= ~0x00000030UL;
-		config |= 0x00410000UL;
-		write_c0_config(config);
-		break;
-	default:
-		break;
-	}
 }
 
 unsigned long __init prom_free_prom_memory(void)
