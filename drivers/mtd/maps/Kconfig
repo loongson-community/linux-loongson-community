@@ -207,52 +207,6 @@ config MTD_NETtel
 	help
 	  Support for flash chips on NETtel/SecureEdge/SnapGear boards.
 
-config MTD_PB1550
-	tristate "Flash devices on Alchemy PB1550 board"
-	depends on MIPS && MIPS_PB1550
-	help
-	  Flash memory access on Alchemy Pb1550 board
-
-config MTD_PB1550_BOOT
-	bool "PB1550 boot flash device"
-	depends on MTD_PB1550
-	help
-	  Use the first of the two 64MiB flash banks on Pb1550 board.
-	  You can say 'Y' to both this and 'MTD_PB1550_USER' below, to use
-	  both banks.
-
-config MTD_PB1550_USER
-	bool "PB1550 user flash device"
-	depends on MTD_PB1550
-	default y if MTD_PB1550_BOOT = n
-	help
-	  Use the second of the two 64MiB flash banks on Pb1550 board.
-	  You can say 'Y' to both this and 'MTD_PB1550_BOOT' above, to use
-	  both banks.
-
-config MTD_DB1550
-	tristate "Flash devices on Alchemy DB1550 board"
-	depends on MIPS && MIPS_DB1550
-	help
-	  Flash memory access on Alchemy Db1550 board
-
-config MTD_DB1550_BOOT
-	bool "DB1550 boot flash device"
-	depends on MTD_DB1550
-	help
-	  Use the first of the two 64MiB flash banks on Db1550 board.
-	  You can say 'Y' to both this and 'MTD_DB1550_USER' below, to use
-	  both banks.
-
-config MTD_DB1550_USER
-	bool "DB1550 user flash device"
-	depends on MTD_DB1550
-	default y if MTD_DB1550_BOOT = n
-	help
-	  Use the second of the two 64MiB flash banks on Db1550 board.
-	  You can say 'Y' to both this and 'MTD_DB1550_BOOT' above, to use
-	  both banks.
-
 config MTD_DILNETPC
 	tristate "CFI Flash device mapped on DIL/Net PC"
 	depends on X86 && MTD_CONCAT && MTD_PARTITIONS && MTD_CFI_INTELEXT
@@ -328,67 +282,11 @@ config MTD_CFI_FLAGADM
 	  Mapping for the Flaga digital module. If you don't have one, ignore
 	  this setting.
 
-config MTD_PB1000
-	tristate "Pb1000 Boot Flash device"
-	depends on MIPS && MIPS_PB1000
+config MTD_ALCHEMY
+	tristate '  AMD Alchemy Pb1xxx/Db1xxx/RDK MTD support' 
+	depends on MIPS && SOC_AU1X00
 	help
-	  Flash memory access on Alchemy Pb1000
-
-config MTD_PB1100
-	tristate "Pb1100 Flash device"
-	depends on MIPS && MIPS_PB1100
-	help
-	  Flash memory access on Alchemy Pb1100
-
-config MTD_PB1500
-	tristate "Pb1500 Flash device"
-	depends on MIPS && MIPS_PB1500
-	help
-	  Flash memory access on Alchemy Pb1500
-
-config MTD_PB1500_BOOT
-	bool "Pb1100/Pb1500 Boot Flash device"
-	depends on MIPS && (MTD_PB1500 || MTD_PB1100)
-	help
-	  Use the first of the two 32MB flash banks on Pb1100/Pb1500 board.
-	  You can say 'Y' to both this and the USER flash option, to use
-	  both banks.
-
-config MTD_PB1500_USER
-	bool "Pb1100/Pb1500 User Flash device (2nd 32MB bank)"
-	depends on MIPS && (MTD_PB1500 || MTD_PB1100)
-	help
-	  Use the second of the two 32MB flash banks on Pb1100/Pb1500 board.
-	  You can say 'Y' to both this and the BOOT flash option, to use
-	  both banks.
-
-config MTD_DB1X00
-	tristate "Db1X00 Flash device"
-	depends on MIPS && (MIPS_DB1000 || MIPS_DB1100 || MIPS_DB1500)
-	help
-	  Flash memory access on Alchemy Db1X00 Boards
-
-config MTD_DB1X00_BOOT
-	bool "Db1X00 Boot Flash device"
-	depends on MIPS && MTD_DB1X00
-	help
-	  Use the first of the two 32MB flash banks on Db1X00 board.
-	  You can say 'Y' to both this and the USER flash option, to use
-	  both banks.
-
-config MTD_DB1X00_USER
-	bool "Db1X00 User Flash device (2nd 32MB bank)"
-	depends on MIPS && MTD_DB1X00
-	help
-	  Use the second of the two 32MB flash banks on Db1X00 boards.
-	  You can say 'Y' to both this and the BOOT flash option, to use
-	  both banks.
-
-config MTD_BOSPORUS
-	tristate "Bosporus Flash device"
-	depends on MIPS && MIPS_BOSPORUS
-	help
-	  Flash memory access on Alchemy Bosporus Board
+	  Flash memory access on AMD Alchemy Pb/Db/RDK Reference Boards
 
 config MTD_XXS1500
 	tristate "MyCable XXS1500 Flash device"
