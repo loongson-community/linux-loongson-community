@@ -267,7 +267,7 @@ void show_trace(unsigned int *sp)
 
 void show_trace_task(struct task_struct *tsk)
 {
-	show_trace(tsk->thread.reg29);
+	show_trace((unsigned int *)tsk->thread.reg29);
 }
 
 void show_code(unsigned int *pc)
@@ -702,6 +702,7 @@ asmlinkage void do_watch(struct pt_regs *regs)
 	 * We use the watch exception where available to detect stack
 	 * overflows.
 	 */
+	dump_tlb();
 	show_regs(regs);
 	panic("Caught WATCH exception - probably caused by stack overflow.");
 }
