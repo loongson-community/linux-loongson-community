@@ -675,7 +675,7 @@ static inline void parity_protection_init(void)
 	}
 }
 
-void cache_parity_error(void)
+asmlinkage void cache_parity_error(void)
 {
 	unsigned int reg_val;
 
