@@ -142,10 +142,10 @@ static void c0_hpt_init(unsigned int count)
 /* For a known frequency.  Used as an interrupt source.  */
 static void c0_fixed_hpt_init(unsigned int count)
 {
-	expirelo = cycles_per_jiffy;
 	count = read_c0_count() - count;
-	write_c0_count(0);
-	write_c0_compare(cycles_per_jiffy);
+	expirelo = (count / cycles_per_jiffy + 1) * cycles_per_jiffy;
+	write_c0_count(expirelo - cycles_per_jiffy);
+	write_c0_compare(expirelo);
 	write_c0_count(count);
 }
 
@@ -346,9 +346,9 @@ static unsigned long calibrate_div64_gettimeoffset(void)
 				"dsll32	%1,%2,0\n\t"
 				"or	%1,%1,%0\n\t"
 				"ddivu	$0,%1,%4\n\t"
+				"mflo	%1\n\t"
 				"dsll32	%0,%5,0\n\t"
 				"or	%0,%0,%6\n\t"
-				"mflo	%1\n\t"
 				"ddivu	$0,%0,%1\n\t"
 				"mflo	%0\n\t"
 				".set	pop"
@@ -427,6 +427,7 @@ void local_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
  */
 irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
+	unsigned long j;
 	unsigned int count;
 
 	count = mips_hpt_read();
@@ -464,10 +465,41 @@ irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * If jiffies has overflown in this timer_interrupt, we must
 	 * update the timer[hi]/[lo] to make fast gettimeoffset funcs
 	 * quotient calc still valid. -arca
+	 *
+	 * The first timer interrupt comes late as interrupts are
+	 * enabled long after timers are initialized.  Therefore the
+	 * high precision timer is fast, leading to wrong gettimeoffset()
+	 * calculations.  We deal with it by setting it based on the
+	 * number of its ticks between the second and the third interrupt.
+	 * That is still somewhat imprecise, but it's a good estimate.
+	 * --macro
 	 */
-	if (!jiffies) {
-		timerhi = timerlo = 0;
-		mips_hpt_init(count);
+	j = jiffies;
+	if (j < 4) {
+		static unsigned int prev_count;
+		static int hpt_initialized;
+
+		switch (j) {
+		case 0:
+			timerhi = timerlo = 0;
+			mips_hpt_init(count);
+			break;
+		case 2:
+			prev_count = count;
+			break;
+		case 3:
+			if (!hpt_initialized) {
+				unsigned int c3 = 3 * (count - prev_count);
+
+				timerhi = 0;
+				timerlo = c3;
+				mips_hpt_init(count - c3);
+				hpt_initialized = 1;
+			}
+			break;
+		default:
+			break;
+		}
 	}
 
 #if !defined(CONFIG_SMP)
