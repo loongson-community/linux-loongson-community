@@ -49,13 +49,10 @@ extern void breakpoint(void);
 static int remote_debug = 0;
 #endif
 
-#ifdef CONFIG_BLK_DEV_IDE
 extern struct ide_ops std_ide_ops;
-#endif
-#ifdef CONFIG_BLK_DEV_FD
 extern struct fd_ops std_fd_ops;
-#endif
 extern struct rtc_ops malta_rtc_ops;
+extern struct kbd_ops std_kbd_ops;
 
 extern void mips_reboot_setup(void);
 
@@ -130,6 +127,9 @@ void __init malta_setup(void)
 #endif
 #ifdef CONFIG_BLK_DEV_FD
         fd_ops = &std_fd_ops;
+#endif
+#ifdef CONFIG_PC_KEYB
+	kbd_ops = &std_kbd_ops;
 #endif
 	mips_reboot_setup();
 }
