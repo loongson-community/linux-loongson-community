@@ -231,10 +231,10 @@ endef
 
 prepare: include/asm-$(ARCH)/offset.h
 
-arch/$(ARCH)/tools/offset.s: include/asm include/linux/version.h \
+arch/$(ARCH)/kernel/offset.s: include/asm include/linux/version.h \
 				   include/config/MARKER
 
-include/asm-$(ARCH)/offset.h.tmp: arch/$(ARCH)/tools/offset.s
+include/asm-$(ARCH)/offset.h.tmp: arch/$(ARCH)/kernel/offset.s
 	@$(generate-asm-offset.h) < $< > $@
 
 include/asm-$(ARCH)/offset.h: include/asm-$(ARCH)/offset.h.tmp
