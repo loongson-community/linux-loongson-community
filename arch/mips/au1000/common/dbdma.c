@@ -590,11 +590,23 @@ au1xxx_dbdma_stop(u32 chanid)
 {
 	chan_tab_t	*ctp;
 	volatile au1x_dma_chan_t *cp;
+	int halt_timeout = 0;
 
 	ctp = *((chan_tab_t **)chanid);
 
 	cp = ctp->chan_ptr;
 	cp->ddma_cfg &= ~DDMA_CFG_EN;	/* Disable channel */
+	au_sync();
+	while (!(cp->ddma_stat & DDMA_STAT_H)) {
+		udelay(1);
+		halt_timeout++;
+		if (halt_timeout > 100) {
+			printk("warning: DMA channel won't halt\n");
+			break;
+		}
+	}
+	/* clear current desc valid and doorbell */
+	cp->ddma_stat |= (DDMA_STAT_DB | DDMA_STAT_V);
 	au_sync();
 }
 

@@ -862,7 +862,7 @@ drain_dac(struct au1550_state *s, int nonblock)
 		spin_lock_irqsave(&s->lock, flags);
 		count = s->dma_dac.count;
 		spin_unlock_irqrestore(&s->lock, flags);
-		if (count <= 0)
+		if (count <= s->dma_dac.fragsize)
 			break;
 		if (signal_pending(current))
 			break;
@@ -1200,7 +1200,6 @@ au1550_write(struct file *file, const char *buffer, size_t count, loff_t * ppos)
 			db->nextOut += db->fragsize;
 			if (db->nextOut >= db->rawbuf + db->dmasize)
 				db->nextOut -= db->dmasize;
-			db->count -= db->fragsize;
 			db->total_bytes += db->dma_fragsize;
 			if (db->dma_qcount == 0)
 				start_dac(s);
