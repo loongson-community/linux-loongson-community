@@ -75,9 +75,6 @@ struct rt_sigframe_n32 {
 	struct ucontextn32 rs_uc;
 };
 
-extern int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc);
-extern int inline setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc);
-
 save_static_function(sysn32_rt_sigreturn);
 __attribute_used__ noinline static void
 _sysn32_rt_sigreturn(nabi_no_regargs struct pt_regs regs)
