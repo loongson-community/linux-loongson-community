@@ -432,6 +432,7 @@ static inline int simulate_llsc(struct pt_regs *regs)
 		simulate_sc(regs, opcode);
 		return 0;
 	}
+	return -EFAULT;			/* Strange things going on ... */
 }
 
 asmlinkage void do_ov(struct pt_regs *regs)
