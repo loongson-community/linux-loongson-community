@@ -24,6 +24,7 @@
  *
  */
 #include <linux/mc146818rtc.h>
+#include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/malta.h>
 
 static unsigned char malta_rtc_read_data(unsigned long addr)
