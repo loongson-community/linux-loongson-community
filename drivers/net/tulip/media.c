@@ -399,6 +399,9 @@ void tulip_select_media(struct net_device *dev, int startup)
 	}
 
 	tp->csr6 = new_csr6 | (tp->csr6 & 0xfdff) | (tp->full_duplex ? 0x0200 : 0);
+
+	udelay(1000);
+
 	return;
 }
 
