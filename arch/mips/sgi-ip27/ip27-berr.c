@@ -15,6 +15,7 @@
 #include <asm/sn/addrs.h>
 #include <asm/sn/arch.h>
 #include <asm/sn/sn0/hub.h>
+#include <asm/tlbdebug.h>
 #include <asm/traps.h>
 #include <asm/uaccess.h>
 

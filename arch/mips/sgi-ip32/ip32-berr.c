@@ -13,6 +13,7 @@
 #include <asm/uaccess.h>
 #include <asm/addrspace.h>
 #include <asm/ptrace.h>
+#include <asm/tlbdebug.h>
 
 int
 be_ip32_handler(struct pt_regs *regs, int is_fixup)
