@@ -62,6 +62,7 @@ static phys_t au1500_fixup_bigphys_addr(phys_t phys_addr, phys_t size);
 #endif
 extern void au1xxx_time_init(void);
 extern void au1xxx_timer_setup(struct irqaction *irq);
+extern void set_cpuspec(void);
 
 static int __init au1x00_setup(void)
 {
@@ -76,7 +77,7 @@ static int __init au1x00_setup(void)
 
 	prid = read_c0_prid();
 	cpupll = (au_readl(0xB1900060) & 0x3F) * 12;
-	printk("(PRId %08X) @ %dMHZ\n", prid, cpupll);
+	printk("(PRId %08lx) @ %ldMHZ\n", prid, cpupll);
 
 	bclk = sp->cpu_bclk;
 	if (bclk)

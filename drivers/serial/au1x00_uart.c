@@ -67,30 +67,7 @@
 #define is_real_interrupt(irq)	((irq) != 0)
 
 static struct old_serial_port old_serial_port[] = {
-	{	.baud_base = 0,
-		.iomem_base = (u8 *)UART0_ADDR,
-		.irq = AU1000_UART0_INT,
-		.flags = STD_COM_FLAGS,
-		.iomem_reg_shift = 2,
-	}, {
-		.baud_base = 0,
-		.iomem_base = (u8 *)UART1_ADDR,
-		.irq = AU1000_UART1_INT,
-		.flags = STD_COM_FLAGS,
-		.iomem_reg_shift = 2
-	}, {
-		.baud_base = 0,
-		.iomem_base = (u8 *)UART2_ADDR,
-		.irq = AU1000_UART2_INT,
-		.flags = STD_COM_FLAGS,
-		.iomem_reg_shift = 2
-	}, {
-		.baud_base = 0,
-		.iomem_base = (u8 *)UART3_ADDR,
-		.irq = AU1000_UART3_INT,
-		.flags = STD_COM_FLAGS,
-		.iomem_reg_shift = 2
-	}
+	SERIAL_PORT_DFNS
 };
 
 #define UART_NR	ARRAY_SIZE(old_serial_port)

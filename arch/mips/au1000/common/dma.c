@@ -30,6 +30,7 @@
  *
  */
 
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
@@ -233,4 +234,9 @@ void free_au1000_dma(unsigned int dmanr)
 	chan->irq_dev = NULL;
 	chan->dev_id = -1;
 }
+
+EXPORT_SYMBOL(free_au1000_dma);
+EXPORT_SYMBOL(au1000_dma_table);
+EXPORT_SYMBOL(request_au1000_dma);
+
 #endif // AU1000 AU1500 AU1100
