@@ -8,8 +8,6 @@
 #ifndef __ASM_PROC_PGTABLE_H
 #define __ASM_PROC_PGTABLE_H
 
-#include <asm/proc/domain.h>
-
 /*
  * PMD_SHIFT determines the size of the area a second-level page table can map
  */

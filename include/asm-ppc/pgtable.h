@@ -243,12 +243,12 @@ extern unsigned long empty_zero_page[1024];
  * ZERO_PAGE is a global shared page that is always zero: used
  * for zero-mapped memory areas etc..
  */
-#ifndef __ASSEMBLY__
 extern pte_t __bad_page(void);
 extern pte_t * __bad_pagetable(void);
 
 #define BAD_PAGETABLE	__bad_pagetable()
 #define BAD_PAGE	__bad_page()
+#endif /* __ASSEMBLY__ */
 
 /* number of bits that fit into a memory pointer */
 #define BITS_PER_PTR	(8*sizeof(unsigned long))

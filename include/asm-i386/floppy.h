@@ -1,7 +1,17 @@
+/*
+ * Architecture specific parts of the Floppy driver
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ * Copyright (C) 1995
+ */
 #ifndef __ASM_I386_FLOPPY_H
 #define __ASM_I386_FLOPPY_H
 
 #include <linux/vmalloc.h>
+
 
 /*
  * The DMA channel used by the floppy controller cannot access data at
@@ -23,13 +33,14 @@
 
 #define fd_inb(port)			inb_p(port)
 #define fd_outb(port,value)		outb_p(port,value)
-#define fd_request_dma()		CSW._request_dma(FLOPPY_DMA,"floppy")
-#define fd_free_dma()			CSW._free_dma(FLOPPY_DMA)
-#define fd_enable_irq(irq)		enable_irq(irq)
-#define fd_disable_irq(irq)		disable_irq(irq)
-#define fd_free_irq(irq)		free_irq(irq, NULL)
-#define fd_get_dma_residue(channel)	SW._get_dma_residue(channel)
-#define fd_dma_mem_alloc(size)		SW._dma_mem_alloc(size)
+
+#define fd_request_dma()        CSW._request_dma(FLOPPY_DMA,"floppy")
+#define fd_free_dma()           CSW._free_dma(FLOPPY_DMA)
+#define fd_enable_irq()         enable_irq(FLOPPY_IRQ)
+#define fd_disable_irq()        disable_irq(FLOPPY_IRQ)
+#define fd_free_irq()		free_irq(FLOPPY_IRQ, NULL)
+#define fd_get_dma_residue()    SW._get_dma_residue(FLOPPY_DMA)
+#define fd_dma_mem_alloc(size)	SW._dma_mem_alloc(size)
 #define fd_dma_setup(addr, size, mode, io) SW._dma_setup(addr, size, mode, io)
 
 #define FLOPPY_CAN_FALLBACK_ON_NODMA
@@ -175,20 +186,6 @@ static int fd_request_irq(void)
 						   SA_INTERRUPT|SA_SAMPLE_RANDOM,
 						   "floppy", NULL);	
 
-}
-
-/* Pure 2^n version of get_order */
-extern __inline__ int __get_order(unsigned long size)
-{
-	int order;
-
-	size = (size-1) >> (PAGE_SHIFT-1);
-	order = -1;
-	do {
-		size >>= 1;
-		order++;
-	} while (size);
-	return order;
 }
 
 static unsigned long dma_mem_alloc(unsigned long size)

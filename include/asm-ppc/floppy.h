@@ -13,23 +13,21 @@
 #define fd_inb(port)			inb_p(port)
 #define fd_outb(port,value)		outb_p(port,value)
 
-#define fd_enable_dma(channel)		enable_dma(channel)
-#define fd_disable_dma(channel)		disable_dma(channel)
-#define fd_request_dma(channel)		request_dma(channel,"floppy")
-#define fd_free_dma(channel)		free_dma(channel)
-#define fd_clear_dma_ff(channel)	clear_dma_ff(channel)
-#define fd_set_dma_mode(channel,mode)	set_dma_mode(channel,mode)
-#define fd_set_dma_addr(channel,addr)	set_dma_addr(channel, \
-					     (unsigned int)virt_to_bus(addr))
-#define fd_set_dma_count(channel,count)	set_dma_count(channel, count)
-
-#define fd_enable_irq(irq)		enable_irq(irq)
-#define fd_disable_irq(irq)		disable_irq(irq)
-#define fd_request_irq()		request_irq(irq, floppy_interrupt, \
-					            SA_INTERRUPT \
-					            | SA_SAMPLE_RANDOM, \
-					            "floppy", NULL)
-#define fd_free_irq(irq)		free_irq(irq, NULL);
+#define fd_enable_dma()         enable_dma(FLOPPY_DMA)
+#define fd_disable_dma()        disable_dma(FLOPPY_DMA)
+#define fd_request_dma()        request_dma(FLOPPY_DMA,"floppy")
+#define fd_free_dma()           free_dma(FLOPPY_DMA)
+#define fd_clear_dma_ff()       clear_dma_ff(FLOPPY_DMA)
+#define fd_set_dma_mode(mode)   set_dma_mode(FLOPPY_DMA,mode)
+#define fd_set_dma_addr(addr)   set_dma_addr(FLOPPY_DMA,(unsigned int)virt_to_bus(addr))
+#define fd_set_dma_count(count) set_dma_count(FLOPPY_DMA,count)
+#define fd_enable_irq()         enable_irq(FLOPPY_IRQ)
+#define fd_disable_irq()        disable_irq(FLOPPY_IRQ)
+#define fd_cacheflush(addr,size) /* nothing */
+#define fd_request_irq()        request_irq(FLOPPY_IRQ, floppy_interrupt, \
+					    SA_INTERRUPT|SA_SAMPLE_RANDOM, \
+				            "floppy", NULL)
+#define fd_free_irq()           free_irq(FLOPPY_IRQ, NULL);
 
 __inline__ void virtual_dma_init(void)
 {

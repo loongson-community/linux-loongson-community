@@ -1,4 +1,4 @@
-/* $Id: floppy.h,v 1.18 1999/03/21 10:51:38 davem Exp $
+/* $Id: floppy.h,v 1.22 1999/08/31 07:02:12 davem Exp $
  * asm-sparc64/floppy.h: Sparc specific parts of the Floppy driver.
  *
  * Copyright (C) 1996 David S. Miller (davem@caip.rutgers.edu)
@@ -71,38 +71,25 @@ struct sun_floppy_ops {
 
 static struct sun_floppy_ops sun_fdops;
 
-#define fd_inb(port)			sun_fdops.fd_inb(port)
-#define fd_outb(value,port)		sun_fdops.fd_outb(value,port)
+#define fd_inb(port)              sun_fdops.fd_inb(port)
+#define fd_outb(value,port)       sun_fdops.fd_outb(value,port)
+#define fd_enable_dma()           sun_fdops.fd_enable_dma()
+#define fd_disable_dma()          sun_fdops.fd_disable_dma()
+#define fd_request_dma()          (0) /* nothing... */
+#define fd_free_dma()             /* nothing... */
+#define fd_clear_dma_ff()         /* nothing... */
+#define fd_set_dma_mode(mode)     sun_fdops.fd_set_dma_mode(mode)
+#define fd_set_dma_addr(addr)     sun_fdops.fd_set_dma_addr(addr)
+#define fd_set_dma_count(count)   sun_fdops.fd_set_dma_count(count)
+#define get_dma_residue(x)        sun_fdops.get_dma_residue()
+#define fd_enable_irq()           sun_fdops.fd_enable_irq()
+#define fd_disable_irq()          sun_fdops.fd_disable_irq()
+#define fd_cacheflush(addr, size) /* nothing... */
+#define fd_request_irq()          sun_fdops.fd_request_irq()
+#define fd_free_irq()             sun_fdops.fd_free_irq()
+#define fd_eject(drive)           sun_fdops.fd_eject(drive)
 
-#define fd_enable_dma(channel)		sun_fdops.fd_enable_dma()
-#define fd_disable_dma(channel)		sun_fdops.fd_disable_dma()
-#define fd_request_dma(channel)		(0) /* nothing... */
-#define fd_free_dma(channel)		/* nothing... */
-#define fd_clear_dma_ff(channel)	/* nothing... */
-#define fd_set_dma_mode(channel,mode)	sun_fdops.fd_set_dma_mode(mode)
-#define fd_set_dma_addr(channel,addr)	sun_fdops.fd_set_dma_addr(addr)
-#define fd_set_dma_count(channel,count)	sun_fdops.fd_set_dma_count(count)
-#define get_dma_residue(channel,x)	sun_fdops.get_dma_residue()
-
-#define fd_enable_irq(irq)		/* nothing... */
-#define fd_disable_irq(irq)		/* nothing... */
-#define fd_request_irq(irq)		sun_fd_request_irq()
-#define fd_free_irq(irq)		/* nothing... */
-
-#define fd_eject(drive)			sun_fdops.fd_eject(drive)
-#if 0  /* P3: added by Alain, these cause a MMU corruption. 19960524 XXX */
-#define fd_dma_mem_alloc(size)    ((unsigned long) vmalloc(size))
-#define fd_dma_mem_free(addr,size) (vfree((void *)(addr)))
-#endif
-
-#define FLOPPY_MOTOR_MASK         0x10
-
-/* It's all the same... */
-#define virt_to_bus(x)            (x)
-#define bus_to_virt(x)            (x)
-
-/* XXX This isn't really correct. XXX */
-#define get_dma_residue(x)        (0)
+static int FLOPPY_MOTOR_MASK = 0x10;
 
 /* Super paranoid... */
 #undef HAVE_DISABLE_HLT

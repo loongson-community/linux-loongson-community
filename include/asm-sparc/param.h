@@ -4,7 +4,6 @@
 
 #ifndef HZ
 #define HZ 100
-#define HZ_TO_STD(a) (a)
 #endif
 
 #define EXEC_PAGESIZE	8192    /* Thanks for sun4's we carry baggage... */

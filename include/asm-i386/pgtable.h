@@ -225,12 +225,12 @@ extern unsigned long pg0[1024];
  * for zero-mapped memory areas etc..
  */
 extern unsigned long empty_zero_page[1024];
-#define ZERO_PAGE(vaddr) ((unsigned long) empty_zero_page)
+#define ZERO_PAGE(vaddr) (mem_map + MAP_NR(empty_zero_page))
 
 /*
  * Handling allocation failures during page table setup.
  */
-extern void __handle_bad_pmd (pmd_t * pmd);
+extern void __handle_bad_pmd(pmd_t * pmd);
 extern void __handle_bad_pmd_kernel(pmd_t * pmd);
 
 #define pte_none(x)	(!pte_val(x))

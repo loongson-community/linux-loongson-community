@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: uaccess.h,v 1.3 1999/10/12 14:46:20 gniibe Exp $
  *
  * User space memory access functions
  *
