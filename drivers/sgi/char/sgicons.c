@@ -159,6 +159,11 @@ void set_vesa_blanking(const unsigned long arg) { }
 void vesa_powerdown(void) { }
 void set_palette (void) { }
 
+__initfunc(int con_is_present())
+{
+	return 1;
+}
+
 extern unsigned long video_mem_base, video_screen_size, video_mem_term;
 
 __initfunc(unsigned long con_type_init(unsigned long start_mem, const char **name))
