@@ -22,6 +22,7 @@
 #undef DEBUG
 
 extern char _end;
+extern char _ftext;
 
 struct linux_mdesc * __init
 ArcGetMemoryDescriptor(struct linux_mdesc *Current)
@@ -146,7 +147,7 @@ static inline struct prom_pmemblock *find_largest_memblock(void)
 void __init prom_meminit(void)
 {
 	struct prom_pmemblock *largest;
-	unsigned long bootmap_size;
+	unsigned long bootmap_size, kbegin, kend;
 	struct linux_mdesc *p;
 	int totram;
 	int i = 0;
@@ -195,6 +196,11 @@ void __init prom_meminit(void)
 	pblocks[i].size = 0;
 
 	max_low_pfn = find_max_low_pfn();
+
+	/* FIXME: We are assuming the first pages of largest block
+	   are free - This musnt be true as the start of the 
+	   largest block might be occupied by the kernel */
+
 	largest = find_largest_memblock();
 	bootmap_size = init_bootmem(largest->base >> PAGE_SHIFT, max_low_pfn);
 
@@ -208,7 +214,22 @@ void __init prom_meminit(void)
 		prom_printf("CRITIAL: overwriting PROM data.\n");
 		BUG();
 	}
+
+	/* Reserve the memory bootmap itself */
 	reserve_bootmem(largest->base, bootmap_size);
+
+	/* Reserve kernel pages */
+
+	kbegin=(unsigned long) PHYSADDR(&_ftext);
+	kend=(unsigned long) PHYSADDR(&_end);
+
+#ifdef DEBUG
+	prom_printf("_end address 0x%08lx\n",kend);
+	prom_printf("_ftext address 0x%08lx\n",kbegin);
+	prom_printf("size 0x%08lx\n",kend-kbegin);
+#endif	
+
+	reserve_bootmem(kbegin, kend-kbegin);
 
 	printk("PROMLIB: Total free ram %dK / %dMB.\n",
 	       totram >> 10, totram >> 20);
