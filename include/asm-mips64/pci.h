@@ -211,7 +211,8 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 	for (i = 0; i < nents; i++, sg++) {
 		dma_cache_wback_inv((unsigned long)page_address(sg->page),
 		                    sg->length);
-		sg->address = (char *)(bus_to_baddr[hwdev->bus->number] | __pa(sg->address));
+		sg->address = bus_to_baddr[hwdev->bus->number] +
+		               page_to_bus(sg->page) + sg->offset;
 	}
 
 	return nents;
@@ -340,7 +341,7 @@ pci_dac_dma_sync_single(struct pci_dev *pdev, dma64_addr_t dma_addr,
  * returns, or alternatively stop on the first sg_dma_len(sg) which
  * is 0.
  */
-#define sg_dma_address(sg)	((unsigned long)((sg)->address))
+#define sg_dma_address(sg)	((sg)->address)
 #define sg_dma_len(sg)		((sg)->length)
 
 #endif /* __KERNEL__ */

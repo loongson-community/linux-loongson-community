@@ -115,6 +115,8 @@ extern __inline__ int get_order(unsigned long size)
  * We handle pages at KSEG0 for kernels with 32 bit address space.
  */
 #define PAGE_OFFSET	0x80000000UL
+#define UNCAC_BASE	0xa0000000UL
+
 #define __pa(x)		((unsigned long) (x) - PAGE_OFFSET)
 #define __va(x)		((void *)((unsigned long) (x) + PAGE_OFFSET))
 #define virt_to_page(kaddr)	(mem_map + (__pa(kaddr) >> PAGE_SHIFT))
@@ -122,6 +124,9 @@ extern __inline__ int get_order(unsigned long size)
 
 #define VM_DATA_DEFAULT_FLAGS  (VM_READ | VM_WRITE | VM_EXEC | \
                                 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+
+#define UNCAC_ADDR(addr)	((addr) - (PAGE_OFFSET + UNCAC_BASE))
+#define CAC_ADDR(addr)		((addr) - (UNCAC_BASE + PAGE_OFFSET))
 
 /*
  * Memory above this physical address will be considered highmem.
