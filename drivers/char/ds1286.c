@@ -422,7 +422,7 @@ void ds1286_get_time(struct rtc_time *rtc_tm)
 
 	rtc_tm->tm_sec = CMOS_READ(RTC_SECONDS);
 	rtc_tm->tm_min = CMOS_READ(RTC_MINUTES);
-	rtc_tm->tm_hour = CMOS_READ(RTC_HOURS) & 0x1f;
+	rtc_tm->tm_hour = CMOS_READ(RTC_HOURS) & 0x3f;
 	rtc_tm->tm_mday = CMOS_READ(RTC_DATE);
 	rtc_tm->tm_mon = CMOS_READ(RTC_MONTH) & 0x1f;
 	rtc_tm->tm_year = CMOS_READ(RTC_YEAR);
