@@ -148,7 +148,7 @@ struct feature jazz_feature = {
 	rtc_write_data
 };
 
-static volatile keyboard_hardware *jazz_kh = JAZZ_KEYBOARD_ADDRESS;
+static volatile keyboard_hardware *jazz_kh = (keyboard_hardware *)JAZZ_KEYBOARD_ADDRESS;
 
 static unsigned char jazz_read_input(void)
 {
@@ -177,4 +177,5 @@ void jazz_keyboard_setup(void)
 	kbd_write_command = jazz_write_command;
 	kbd_read_status = jazz_read_status;
 	request_region(0x60, 16, "keyboard");
+        r4030_write_reg16(JAZZ_IO_IRQ_ENABLE, r4030_read_reg16(JAZZ_IO_IRQ_ENABLE) | JAZZ_IE_KEYBOARD);
 }
