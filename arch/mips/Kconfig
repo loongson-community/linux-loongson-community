@@ -32,7 +32,7 @@ config ACER_PICA_61
 	  This is a machine with a R4400 133/150 MHz CPU. To compile a Linux
 	  kernel that runs on these, say Y here. For details about Linux on
 	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-	  <http://oss.sgi.com/mips/>.
+	  <http://www.linux-mips.org/>.
 
 config BAGET_MIPS
 	bool "Support for BAGET MIPS series (EXPERIMENTAL)"
@@ -40,7 +40,7 @@ config BAGET_MIPS
 	help
 	  This enables support for the Baget, a Russian embedded system.  For
 	  more details about the Baget see the Linux/MIPS FAQ on
-	  <http://oss.sgi.com/mips/>.
+	  <http://www.linux-mips.org/>.
 
 config CASIO_E55
 	bool "Support for CASIO CASSIOPEIA E-10/15/55/65"
@@ -54,7 +54,7 @@ config DECSTATION
 	depends on MIPS32 || EXPERIMENTAL
 	---help---
 	  This enables support for DEC's MIPS based workstations.  For details
-	  see the Linux/MIPS FAQ on <http://oss.sgi.com/mips/> and the
+	  see the Linux/MIPS FAQ on <http://www.linux-mips.org/> and the
 	  DECstation porting pages on <http://decstation.unix-ag.org/>.
 
 	  If you have one of the following DECstation Models you definitely
@@ -74,7 +74,7 @@ config MIPS_EV64120
 	  This is an evaluation board based on the Galileo GT-64120
 	  single-chip system controller that contains a MIPS R5000 compatible
 	  core running at 75/100MHz.  Their website is located at
-	  <http://www.galileot.com/>.  Say Y here if you wish to build a
+	  <http://www.marvell.com/>.  Say Y here if you wish to build a
 	  kernel for this platform.
 
 config EVB_PCI1
@@ -113,7 +113,7 @@ config MIPS_EV96100
 	help
 	  This is an evaluation board based on the Galielo GT-96100 LAN/WAN
 	  communications controllers containing a MIPS R5000 compatible core
-	  running at 83MHz. Their website is <http://www.galileot.com/>. Say Y
+	  running at 83MHz. Their website is <http://www.marvell.com/>. Say Y
 	  here if you wish to build a kernel for this platform.
 
 config MIPS_IVR
@@ -122,8 +122,8 @@ config MIPS_IVR
 	  This is an evaluation board built by Globespan to showcase thir
 	  iVR (Internet Video Recorder) design. It utilizes a QED RM5231
 	  R5000 MIPS core. More information can be found out their website
-	  located at <http://www.globespan.net/products/product4.html>P. Say Y
-	  here if you wish to build a kernel for this platform.
+	  located at <http://www.globespan.net/>. Say Y here if you wish to
+	  build a kernel for this platform.
 
 config LASAT
 	bool "Support for LASAT Networks platforms"
@@ -166,7 +166,7 @@ config IT8172_REVC
 	  Say Y here to support the older, Revision C version of the Integrated
 	  Technology Express, Inc. ITE8172 SBC.  Vendor page at
 	  <http://www.ite.com.tw/ia/brief_it8172bsp.htm>; picture of the
-	  board at <http://www.mvista.com/allies/semiconductor/ite.html>.
+	  board at <http://www.mvista.com/partners/semiconductor/ite.html>.
 
 config MIPS_ATLAS
 	bool "Support for MIPS Atlas board"
@@ -180,7 +180,7 @@ config MIPS_MAGNUM_4000
 	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
 	  kernel that runs on these, say Y here. For details about Linux on
 	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-	  <http://oss.sgi.com/mips/>.
+	  <http://www.linux-mips.org/>.
 
 config MIPS_MALTA
 	bool "Support for MIPS Malta board"
@@ -253,7 +253,7 @@ config OLIVETTI_M700
 	  This is a machine with a R4000 100 MHz CPU. To compile a Linux
 	  kernel that runs on these, say Y here. For details about Linux on
 	  the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-	  <http://oss.sgi.com/mips/>.
+	  <http://www.linux-mips.org/>.
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
@@ -803,9 +803,8 @@ config FB
 
 	  You need an utility program called fbset to make full use of frame
 	  buffer devices. Please read <file:Documentation/fb/framebuffer.txt>
-	  and the Framebuffer-HOWTO at
-	  <http://www.tahallah.demon.co.uk/programming/prog.html> for more
-	  information.
+	  and the Framebuffer-HOWTO at <http://www.tldp.org/docs.html#howto>
+	  for more information.
 
 	  Say Y here and to the driver for your graphics board below if you
 	  are compiling a kernel for a non-x86 architecture.
