@@ -95,7 +95,7 @@ do {									\
 #define VMALLOC_START     XKSEG
 #define VMALLOC_VMADDR(x) ((unsigned long)(x))
 #define VMALLOC_END       \
-  (VMALLOC_START + ((PAGE_SIZE << KPTBL_PAGE_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
+  (VMALLOC_START + ((1 << KPTBL_PAGE_ORDER) * PTRS_PER_PTE * PAGE_SIZE))
 
 /* Note that we shift the lower 32bits of each EntryLo[01] entry
  * 6 bits to the left. That way we can convert the PFN into the
