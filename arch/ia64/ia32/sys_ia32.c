@@ -1973,10 +1973,10 @@ struct sysctl32 {
 	unsigned int	__unused[4];
 };
 
+#ifdef CONFIG_SYSCTL
 asmlinkage long
 sys32_sysctl (struct sysctl32 __user *args)
 {
-#ifdef CONFIG_SYSCTL
 	struct sysctl32 a32;
 	mm_segment_t old_fs = get_fs ();
 	void __user *oldvalp, *newvalp;
@@ -2015,10 +2015,8 @@ sys32_sysctl (struct sysctl32 __user *args)
 		return -EFAULT;
 
 	return ret;
-#else
-	return -ENOSYS;
-#endif
 }
+#endif
 
 asmlinkage long
 sys32_newuname (struct new_utsname __user *name)
@@ -2656,7 +2654,7 @@ asmlinkage long sys32_waitid(int which, compat_pid_t pid,
 	info.si_signo = 0;
 	set_fs (KERNEL_DS);
 	ret = sys_waitid(which, pid, (siginfo_t __user *) &info, options,
-			 uru ? &ru : NULL);
+			 uru ? (struct rusage __user *) &ru : NULL);
 	set_fs (old_fs);
 
 	if (ret < 0 || info.si_signo == 0)

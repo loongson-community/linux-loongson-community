@@ -283,8 +283,8 @@ M:	john@dnsworld.co.uk
 S:	Maintained
 
 ARM MFM AND FLOPPY DRIVERS
-P:	Dave Gilbert
-M:	linux@treblig.org
+P:	Ian Molton
+M:	spyro@f2s.com
 S:	Maintained
 
 ARM/CORGI MACHINE SUPPORT
@@ -1798,7 +1798,7 @@ S:	Maintained
 
 PPP OVER ETHERNET
 P:	Michal Ostrowski
-M:	mostrows@styx.uwaterloo.ca
+M:	mostrows@speakeasy.net
 S:	Maintained
 
 PREEMPTIBLE KERNEL
@@ -1827,6 +1827,12 @@ P:	Nicolas Pitre
 M:	nico@cam.org
 L:	linux-arm-kernel@lists.arm.linux.org.uk
 S:	Maintained
+
+QLOGIC QLA2XXX FC-SCSI DRIVER
+P:	Andrew Vasquez
+M:	andrew.vasquez@qlogic.com
+L:	linux-scsi@vger.kernel.org
+S:	Supported
 
 QNX4 FILESYSTEM
 P:	Anders Larsen

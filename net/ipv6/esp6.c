@@ -329,7 +329,7 @@ static int esp6_init_state(struct xfrm_state *x, void *args)
 			goto error;
 		esp->auth.icv = esp_hmac_digest;
  
-		aalg_desc = xfrm_aalg_get_byname(x->aalg->alg_name);
+		aalg_desc = xfrm_aalg_get_byname(x->aalg->alg_name, 0);
 		BUG_ON(!aalg_desc);
  
 		if (aalg_desc->uinfo.auth.icv_fullbits/8 !=
@@ -364,7 +364,8 @@ static int esp6_init_state(struct xfrm_state *x, void *args)
 			goto error;
 		get_random_bytes(esp->conf.ivec, esp->conf.ivlen);
 	}
-	crypto_cipher_setkey(esp->conf.tfm, esp->conf.key, esp->conf.key_len);
+	if (crypto_cipher_setkey(esp->conf.tfm, esp->conf.key, esp->conf.key_len))
+		goto error;
 	x->props.header_len = sizeof(struct ipv6_esp_hdr) + esp->conf.ivlen;
 	if (x->props.mode)
 		x->props.header_len += sizeof(struct ipv6hdr);
@@ -372,15 +373,9 @@ static int esp6_init_state(struct xfrm_state *x, void *args)
 	return 0;
 
 error:
-	if (esp) {
-		if (esp->auth.tfm)
-			crypto_free_tfm(esp->auth.tfm);
-		if (esp->auth.work_icv)
-			kfree(esp->auth.work_icv);
-		if (esp->conf.tfm)
-			crypto_free_tfm(esp->conf.tfm);
-		kfree(esp);
-	}
+	x->data = esp;
+	esp6_destroy(x);
+	x->data = NULL;
 	return -EINVAL;
 }
 

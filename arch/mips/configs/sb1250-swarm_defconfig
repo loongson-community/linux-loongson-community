@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc2
-# Thu Feb  3 15:26:56 2005
+# Linux kernel version: 2.6.11-rc3
+# Mon Feb  7 01:00:16 2005
 #
 CONFIG_MIPS=y
 
@@ -565,7 +565,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 # Graphics support
 #
 # CONFIG_FB is not set
-# CONFIG_BACKLIGHT_LCD_SUPPORT is not set
 
 #
 # Sound
@@ -611,6 +610,10 @@ CONFIG_FS_MBCACHE=y
 # CONFIG_REISERFS_FS is not set
 # CONFIG_JFS_FS is not set
 CONFIG_FS_POSIX_ACL=y
+
+#
+# XFS support
+#
 # CONFIG_XFS_FS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_ROMFS_FS is not set

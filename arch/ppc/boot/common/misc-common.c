@@ -52,7 +52,6 @@ extern char _end[];
 void puts(const char *);
 void putc(const char c);
 void puthex(unsigned long val);
-void _bcopy(char *src, char *dst, int len);
 void gunzip(void *, int, unsigned char *, int *);
 static int _cvt(unsigned long val, char *buf, long radix, char *digits);
 
@@ -60,7 +59,8 @@ void _vprintk(void(*putc)(const char), const char *fmt0, va_list ap);
 unsigned char *ISA_io = NULL;
 
 #if defined(CONFIG_SERIAL_CPM_CONSOLE) || defined(CONFIG_SERIAL_8250_CONSOLE) \
-	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE)
+	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE) \
+	|| defined(CONFIG_SERIAL_MPSC_CONSOLE)
 extern unsigned long com_port;
 
 extern int serial_tstc(unsigned long com_port);
@@ -82,7 +82,8 @@ void exit(void)
 int tstc(void)
 {
 #if defined(CONFIG_SERIAL_CPM_CONSOLE) || defined(CONFIG_SERIAL_8250_CONSOLE) \
-	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE)
+	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE) \
+	|| defined(CONFIG_SERIAL_MPSC_CONSOLE)
 	if(keyb_present)
 		return (CRT_tstc() || serial_tstc(com_port));
 	else
@@ -96,7 +97,8 @@ int getc(void)
 {
 	while (1) {
 #if defined(CONFIG_SERIAL_CPM_CONSOLE) || defined(CONFIG_SERIAL_8250_CONSOLE) \
-	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE)
+	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE) \
+	|| defined(CONFIG_SERIAL_MPSC_CONSOLE)
 		if (serial_tstc(com_port))
 			return (serial_getc(com_port));
 #endif /* serial console */
@@ -112,7 +114,8 @@ putc(const char c)
 	int x,y;
 
 #if defined(CONFIG_SERIAL_CPM_CONSOLE) || defined(CONFIG_SERIAL_8250_CONSOLE) \
-	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE)
+	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE) \
+	|| defined(CONFIG_SERIAL_MPSC_CONSOLE)
 	serial_putc(com_port, c);
 	if ( c == '\n' )
 		serial_putc(com_port, '\r');
@@ -160,7 +163,8 @@ void puts(const char *s)
 
 	while ( ( c = *s++ ) != '\0' ) {
 #if defined(CONFIG_SERIAL_CPM_CONSOLE) || defined(CONFIG_SERIAL_8250_CONSOLE) \
-	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE)
+	|| defined(CONFIG_SERIAL_MPC52xx_CONSOLE) \
+	|| defined(CONFIG_SERIAL_MPSC_CONSOLE)
 	        serial_putc(com_port, c);
 	        if ( c == '\n' ) serial_putc(com_port, '\r');
 #endif /* serial console */

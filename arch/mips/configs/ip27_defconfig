@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc2
-# Mon Jan 31 18:27:35 2005
+# Linux kernel version: 2.6.11-rc3
+# Mon Feb  7 01:30:35 2005
 #
 CONFIG_MIPS=y
 
@@ -642,7 +642,6 @@ CONFIG_SGI_IP27_RTC=y
 # Graphics support
 #
 # CONFIG_FB is not set
-# CONFIG_BACKLIGHT_LCD_SUPPORT is not set
 
 #
 # Sound
@@ -696,6 +695,10 @@ CONFIG_FS_MBCACHE=y
 # CONFIG_REISERFS_FS is not set
 # CONFIG_JFS_FS is not set
 CONFIG_FS_POSIX_ACL=y
+
+#
+# XFS support
+#
 CONFIG_XFS_FS=m
 # CONFIG_XFS_RT is not set
 CONFIG_XFS_QUOTA=y

@@ -1196,9 +1196,22 @@ static void __i810_update_lvi(struct i810_state *state, int rec)
 	if (count < fragsize)
 		return;
 
+	/* if we are currently stopped, then our CIV is actually set to our
+	 * *last* sg segment and we are ready to wrap to the next.  However,
+	 * if we set our LVI to the last sg segment, then it won't wrap to
+	 * the next sg segment, it won't even get a start.  So, instead, when
+	 * we are stopped, we set both the LVI value and also we increment
+	 * the CIV value to the next sg segment to be played so that when
+	 * we call start, things will operate properly.  Since the CIV can't
+	 * be written to directly for this purpose, we set the LVI to CIV + 1
+	 * temporarily.  Once the engine has started we set the LVI to its
+	 * final value.
+	 */
 	if (!dmabuf->enable && dmabuf->ready) {
 		if (!(dmabuf->trigger & trigger))
 			return;
+
+		CIV_TO_LVI(state->card, port, 1);
 
 		start(state);
 		while (!(I810_IOREADB(state->card, port + OFF_CR) & ((1<<4) | (1<<2))))

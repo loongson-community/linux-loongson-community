@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc2
-# Sun Jan 30 19:03:36 2005
+# Linux kernel version: 2.6.11-rc3
+# Mon Feb  7 01:00:13 2005
 #
 CONFIG_MIPS=y
 
@@ -903,7 +903,6 @@ CONFIG_RTC=y
 #
 # CONFIG_VGA_CONSOLE is not set
 CONFIG_DUMMY_CONSOLE=y
-# CONFIG_BACKLIGHT_LCD_SUPPORT is not set
 
 #
 # Sound
@@ -960,7 +959,12 @@ CONFIG_JFS_SECURITY=y
 # CONFIG_JFS_DEBUG is not set
 # CONFIG_JFS_STATISTICS is not set
 CONFIG_FS_POSIX_ACL=y
+
+#
+# XFS support
+#
 CONFIG_XFS_FS=m
+CONFIG_XFS_EXPORT=y
 # CONFIG_XFS_RT is not set
 CONFIG_XFS_QUOTA=y
 CONFIG_XFS_SECURITY=y
@@ -1041,7 +1045,7 @@ CONFIG_NFSD_V3=y
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
-CONFIG_EXPORTFS=y
+CONFIG_EXPORTFS=m
 CONFIG_SUNRPC=y
 # CONFIG_RPCSEC_GSS_KRB5 is not set
 # CONFIG_RPCSEC_GSS_SPKM3 is not set

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.11-rc2
-# Sun Jan 30 19:03:42 2005
+# Linux kernel version: 2.6.11-rc3
+# Mon Feb  7 01:00:13 2005
 #
 CONFIG_MIPS=y
 
@@ -744,7 +744,12 @@ CONFIG_REISERFS_FS=m
 # CONFIG_REISERFS_PROC_INFO is not set
 # CONFIG_REISERFS_FS_XATTR is not set
 # CONFIG_JFS_FS is not set
+
+#
+# XFS support
+#
 CONFIG_XFS_FS=m
+CONFIG_XFS_EXPORT=y
 # CONFIG_XFS_RT is not set
 # CONFIG_XFS_QUOTA is not set
 # CONFIG_XFS_SECURITY is not set
@@ -816,7 +821,7 @@ CONFIG_NFSD_V3=y
 CONFIG_ROOT_NFS=y
 CONFIG_LOCKD=y
 CONFIG_LOCKD_V4=y
-CONFIG_EXPORTFS=y
+CONFIG_EXPORTFS=m
 CONFIG_SUNRPC=y
 # CONFIG_RPCSEC_GSS_KRB5 is not set
 # CONFIG_RPCSEC_GSS_SPKM3 is not set

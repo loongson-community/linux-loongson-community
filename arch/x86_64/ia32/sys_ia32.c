@@ -73,10 +73,7 @@
 #include <net/sock.h>
 #include <asm/ia32.h>
 
-#define A(__x)		((unsigned long)(__x))
 #define AA(__x)		((unsigned long)(__x))
-#define ROUND_UP(x,a)	((__typeof__(x))(((unsigned long)(x) + ((a) - 1)) & ~((a) - 1)))
-#define NAME_OFFSET(de) ((int) ((de)->d_name - (char __user *) (de)))
 
 int cp_compat_stat(struct kstat *kbuf, struct compat_stat __user *ubuf)
 {
@@ -305,8 +302,8 @@ sys32_rt_sigaction(int sig, struct sigaction32 __user *act,
 			set32.sig[0] = old_ka.sa.sa_mask.sig[0];
 		}
 		if (verify_area(VERIFY_WRITE, oact, sizeof(*oact)) ||
-		    __put_user((long)old_ka.sa.sa_handler, &oact->sa_handler) ||
-		    __put_user((long)old_ka.sa.sa_restorer, &oact->sa_restorer) ||
+		    __put_user(ptr_to_compat(old_ka.sa.sa_handler), &oact->sa_handler) ||
+		    __put_user(ptr_to_compat(old_ka.sa.sa_restorer), &oact->sa_restorer) ||
 		    __put_user(old_ka.sa.sa_flags, &oact->sa_flags) ||
 		    __copy_to_user(&oact->sa_mask, &set32, sizeof(compat_sigset_t)))
 			return -EFAULT;
@@ -342,8 +339,8 @@ sys32_sigaction (int sig, struct old_sigaction32 __user *act, struct old_sigacti
 
 	if (!ret && oact) {
 		if (verify_area(VERIFY_WRITE, oact, sizeof(*oact)) ||
-		    __put_user((long)old_ka.sa.sa_handler, &oact->sa_handler) ||
-		    __put_user((long)old_ka.sa.sa_restorer, &oact->sa_restorer) ||
+		    __put_user(ptr_to_compat(old_ka.sa.sa_handler), &oact->sa_handler) ||
+		    __put_user(ptr_to_compat(old_ka.sa.sa_restorer), &oact->sa_restorer) ||
 		    __put_user(old_ka.sa.sa_flags, &oact->sa_flags) ||
 		    __put_user(old_ka.sa.sa_mask.sig[0], &oact->sa_mask))
 			return -EFAULT;
@@ -653,6 +650,7 @@ sys32_pause(void)
 }
 
 
+#ifdef CONFIG_SYSCTL
 struct sysctl_ia32 {
 	unsigned int	name;
 	int		nlen;
@@ -667,14 +665,11 @@ struct sysctl_ia32 {
 asmlinkage long
 sys32_sysctl(struct sysctl_ia32 __user *args32)
 {
-#ifndef CONFIG_SYSCTL
-	return -ENOSYS; 
-#else
 	struct sysctl_ia32 a32;
 	mm_segment_t old_fs = get_fs ();
-	void *oldvalp, *newvalp;
+	void __user *oldvalp, *newvalp;
 	size_t oldlen;
-	int *namep;
+	int __user *namep;
 	long ret;
 	extern int do_sysctl(int *name, int nlen, void *oldval, size_t *oldlenp,
 		     void *newval, size_t newlen);
@@ -690,9 +685,9 @@ sys32_sysctl(struct sysctl_ia32 __user *args32)
 	 * addresses, we KNOW that access_ok() will always succeed, so this is an
 	 * expensive NOP, but so what...
 	 */
-	namep = (int *) A(a32.name);
-	oldvalp = (void *) A(a32.oldval);
-	newvalp = (void *) A(a32.newval);
+	namep = compat_ptr(a32.name);
+	oldvalp = compat_ptr(a32.oldval);
+	newvalp =  compat_ptr(a32.newval);
 
 	if ((oldvalp && get_user(oldlen, (int __user *)compat_ptr(a32.oldlenp)))
 	    || !access_ok(VERIFY_WRITE, namep, 0)
@@ -710,8 +705,8 @@ sys32_sysctl(struct sysctl_ia32 __user *args32)
 		return -EFAULT;
 
 	return ret;
-#endif
 }
+#endif
 
 /* warning: next two assume little endian */ 
 asmlinkage long
@@ -1081,8 +1076,6 @@ long sys32_lookup_dcookie(u32 addr_low, u32 addr_high,
 {
 	return sys_lookup_dcookie(((u64)addr_high << 32) | addr_low, buf, len);
 }
-
-cond_syscall(sys32_ipc)
 
 static int __init ia32_init (void)
 {

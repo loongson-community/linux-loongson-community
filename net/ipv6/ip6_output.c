@@ -463,6 +463,7 @@ static void ip6_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 	to->priority = from->priority;
 	to->protocol = from->protocol;
 	to->security = from->security;
+	dst_release(to->dst);
 	to->dst = dst_clone(from->dst);
 	to->dev = from->dev;
 
@@ -592,6 +593,7 @@ static int ip6_fragment(struct sk_buff *skb, int (*output)(struct sk_buff *))
 			/* Prepare header of the next frame,
 			 * before previous one went down. */
 			if (frag) {
+				frag->ip_summed = CHECKSUM_NONE;
 				frag->h.raw = frag->data;
 				fh = (struct frag_hdr*)__skb_push(frag, sizeof(struct frag_hdr));
 				frag->nh.raw = __skb_push(frag, hlen);

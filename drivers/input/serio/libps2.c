@@ -60,9 +60,9 @@ int ps2_sendbyte(struct ps2dev *ps2dev, unsigned char byte, int timeout)
 	serio_continue_rx(ps2dev->serio);
 
 	if (serio_write(ps2dev->serio, byte) == 0)
-		wait_event_interruptible_timeout(ps2dev->wait,
-					!(ps2dev->flags & PS2_FLAG_ACK),
-					msecs_to_jiffies(timeout));
+		wait_event_timeout(ps2dev->wait,
+				   !(ps2dev->flags & PS2_FLAG_ACK),
+				   msecs_to_jiffies(timeout));
 
 	serio_pause_rx(ps2dev->serio);
 	ps2dev->flags &= ~PS2_FLAG_ACK;
@@ -115,8 +115,8 @@ int ps2_command(struct ps2dev *ps2dev, unsigned char *param, int command)
 	 */
 	timeout = msecs_to_jiffies(command == PS2_CMD_RESET_BAT ? 4000 : 500);
 
-	wait_event_interruptible_timeout(ps2dev->wait,
-		!(ps2dev->flags & PS2_FLAG_CMD1), timeout);
+	timeout = wait_event_timeout(ps2dev->wait,
+				     !(ps2dev->flags & PS2_FLAG_CMD1), timeout);
 
 	if (ps2dev->cmdcnt && timeout > 0) {
 
@@ -147,8 +147,8 @@ int ps2_command(struct ps2dev *ps2dev, unsigned char *param, int command)
 			serio_continue_rx(ps2dev->serio);
 		}
 
-		wait_event_interruptible_timeout(ps2dev->wait,
-				!(ps2dev->flags & PS2_FLAG_CMD), timeout);
+		wait_event_timeout(ps2dev->wait,
+				   !(ps2dev->flags & PS2_FLAG_CMD), timeout);
 	}
 
 	if (param)
@@ -223,7 +223,8 @@ void ps2_init(struct ps2dev *ps2dev, struct serio *serio)
 }
 
 /*
- * ps2_handle_ack()
+ * ps2_handle_ack() is supposed to be used in interrupt handler
+ * to properly process ACK/NAK of a command from a PS/2 device.
  */
 
 int ps2_handle_ack(struct ps2dev *ps2dev, unsigned char data)
@@ -250,18 +251,27 @@ int ps2_handle_ack(struct ps2dev *ps2dev, unsigned char data)
 			}
 			/* Fall through */
 		default:
-			return 1;
+			return 0;
 	}
+
 
 	if (!ps2dev->nak && ps2dev->cmdcnt)
 		ps2dev->flags |= PS2_FLAG_CMD | PS2_FLAG_CMD1;
 
 	ps2dev->flags &= ~PS2_FLAG_ACK;
-	wake_up_interruptible(&ps2dev->wait);
+	wake_up(&ps2dev->wait);
 
-	return data == PS2_RET_ACK || data == PS2_RET_NAK;
+	if (data != PS2_RET_ACK)
+		ps2_handle_response(ps2dev, data);
+
+	return 1;
 }
 
+/*
+ * ps2_handle_response() is supposed to be used in interrupt handler
+ * to properly store device's response to a command and notify process
+ * waiting for completion of the command.
+ */
 
 int ps2_handle_response(struct ps2dev *ps2dev, unsigned char data)
 {
@@ -271,12 +281,12 @@ int ps2_handle_response(struct ps2dev *ps2dev, unsigned char data)
 	if (ps2dev->flags & PS2_FLAG_CMD1) {
 		ps2dev->flags &= ~PS2_FLAG_CMD1;
 		if (ps2dev->cmdcnt)
-			wake_up_interruptible(&ps2dev->wait);
+			wake_up(&ps2dev->wait);
 	}
 
 	if (!ps2dev->cmdcnt) {
 		ps2dev->flags &= ~PS2_FLAG_CMD;
-		wake_up_interruptible(&ps2dev->wait);
+		wake_up(&ps2dev->wait);
 	}
 
 	return 1;
@@ -288,7 +298,7 @@ void ps2_cmd_aborted(struct ps2dev *ps2dev)
 		ps2dev->nak = 1;
 
 	if (ps2dev->flags & (PS2_FLAG_ACK | PS2_FLAG_CMD))
-		wake_up_interruptible(&ps2dev->wait);
+		wake_up(&ps2dev->wait);
 
 	ps2dev->flags = 0;
 }

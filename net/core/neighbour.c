@@ -109,7 +109,7 @@ static int neigh_blackhole(struct sk_buff *skb)
 
 unsigned long neigh_rand_reach_time(unsigned long base)
 {
-	return (net_random() % base) + (base >> 1);
+	return (base ? (net_random() % base) + (base >> 1) : 0);
 }
 
 
@@ -1556,6 +1556,7 @@ static int neigh_fill_info(struct sk_buff *skb, struct neighbour *n,
 					 sizeof(struct ndmsg));
 	struct ndmsg *ndm = NLMSG_DATA(nlh);
 
+	nlh->nlmsg_flags = pid ? NLM_F_MULTI : 0;
 	ndm->ndm_family	 = n->ops->family;
 	ndm->ndm_flags	 = n->flags;
 	ndm->ndm_type	 = n->type;

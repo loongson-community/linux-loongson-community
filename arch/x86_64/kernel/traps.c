@@ -405,15 +405,6 @@ void die_nmi(char *str, struct pt_regs *regs)
 	do_exit(SIGSEGV);
 }
 
-static inline unsigned long get_cr2(void)
-{
-	unsigned long address;
-
-	/* get the address */
-	__asm__("movq %%cr2,%0":"=r" (address));
-	return address;
-}
-
 static void do_trap(int trapnr, int signr, char *str, 
 			   struct pt_regs * regs, long error_code, siginfo_t *info)
 {
@@ -901,7 +892,7 @@ asmlinkage void math_state_restore(void)
 	struct task_struct *me = current;
 	clts();			/* Allow maths ops (or we recurse) */
 
-	if (!me->used_math)
+	if (!used_math())
 		init_fpu(me);
 	restore_fpu_checking(&me->thread.i387.fxsave);
 	me->thread_info->status |= TS_USEDFPU;
@@ -917,7 +908,7 @@ void __init trap_init(void)
 	set_intr_gate(0,&divide_error);
 	set_intr_gate_ist(1,&debug,DEBUG_STACK);
 	set_intr_gate_ist(2,&nmi,NMI_STACK);
-	set_intr_gate(3,&int3);
+	set_system_gate(3,&int3);
 	set_system_gate(4,&overflow);	/* int4-5 can be called from all */
 	set_system_gate(5,&bounds);
 	set_intr_gate(6,&invalid_op);
