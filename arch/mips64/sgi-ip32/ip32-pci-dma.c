@@ -16,8 +16,6 @@
 #include <asm/addrspace.h>
 #include <asm/ip32/mace.h>
 
-unsigned long bus_to_baddr[256] = { MACEPCI_SWAPPED_VIEW, 0, };
-
 void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 			   dma_addr_t * dma_handle)
 {
@@ -31,7 +29,7 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 	if (ret != NULL) {
 		memset(ret, 0, size);
 		dma_cache_wback_inv((unsigned long) ret, size);
-		*dma_handle = (bus_to_baddr[0] | __pa (ret));
+		*dma_handle = virt_to_bus(ret);
 	}
 	return ret;
 }

@@ -50,8 +50,6 @@ int *_prom_argv, *_prom_envp;
 
 int init_debug = 0;
 
-unsigned long bus_to_baddr[256];
-
 char *prom_getenv(char *envname)
 {
         /*
@@ -144,7 +142,6 @@ int __init prom_init(int argc, char **argv, char **envp)
 #else
 	mips_io_port_base = KSEG1;
 #endif
-	bus_to_baddr[0] = 0UL;
 
 	setup_prom_printf(0);
 	prom_printf("\nLINUX started...\n");
