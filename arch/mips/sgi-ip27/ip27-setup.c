@@ -314,7 +314,8 @@ static void __init ip27_setup(void)
 	ioc3_eth_init();
 	per_cpu_init();
 
-	mips_io_port_base = IO_BASE;
+	set_io_port_base(IO_BASE);
+
 	board_time_init = ip27_time_init;
 }
 
