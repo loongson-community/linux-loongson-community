@@ -297,11 +297,11 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 	hdata->dma_bounce_buffer = (uchar *) (KSEG1ADDR(buf));
 
 	if (request_irq(SGI_WD93_0_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host)) {
-		printk(KERN_WARNING "sgiwd93: Could not register IRQ %d (for host 0).\n", sgiwd93_intr);
+		printk(KERN_WARNING "sgiwd93: Could not register IRQ %d (for host 0).\n", SGI_WD93_0_IRQ);
 #ifdef MODULE
 		wd33c93_release();
 #endif
-		free_page(buf);
+		free_page((unsigned long)buf);
 		scsi_unregister(sgiwd93_host);
 		return 0;
 	}
@@ -332,11 +332,11 @@ int __init sgiwd93_detect(Scsi_Host_Template *SGIblows)
 			dma_cache_wback_inv((unsigned long) buf, PAGE_SIZE);
 	
 			if (request_irq(SGI_WD93_1_IRQ, sgiwd93_intr, 0, "SGI WD93", (void *) sgiwd93_host1)) {
-				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", sgiwd93_intr);
+				printk(KERN_WARNING "sgiwd93: Could not allocate irq %d (for host1).\n", SGI_WD93_1_IRQ);
 #ifdef MODULE
 				wd33c93_release();
 #endif
-				free_page(buf);
+				free_page((unsigned long)buf);
 				scsi_unregister(sgiwd93_host1);
 				/* Fall through since host0 registered OK */
 			}
