@@ -270,6 +270,13 @@ config MOMENCO_JAGUAR_ATX
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
+config JAGUAR_DMALOW
+	bool "Low DMA Mode"
+	depends on MOMENCO_JAGUAR_ATX
+	help
+	  Select to Y if jump JP5 is set on your board, N otherwise.  Normally
+	  the jumper is set, so if you feel unsafe, just say Y.
+
 config PMC_YOSEMITE
 	bool "Support for PMC-Siera Yosemite eval board"
 	help
