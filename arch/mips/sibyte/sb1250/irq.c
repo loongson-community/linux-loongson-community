@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/linkage.h>
@@ -35,17 +35,11 @@
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/64bit.h>
 
-/* Sanity check.  We're an sb1250, with 2 SB1 cores on die; we'd better have configured for 
-   an sb1 cpu */
-#ifndef CONFIG_CPU_SB1
-#error "SB1250 requires configuration of SB1 cpu"
-#endif
-
 /*
- *  These are the routines that handle all the low level interrupt stuff. 
- *  Actions handled here are: initialization of the interrupt map, 
- *  requesting of interrupt lines by handlers, dispatching if interrupts
- *   to handlers, probing for interrupt lines 
+ * These are the routines that handle all the low level interrupt stuff. 
+ * Actions handled here are: initialization of the interrupt map, requesting of
+ * interrupt lines by handlers, dispatching if interrupts to handlers, probing
+ * for interrupt lines 
  */
 
 
@@ -104,8 +98,7 @@ void sb1250_unmask_irq(int cpu, int irq)
 /* Defined in arch/mips/sibyte/sb1250/irq_handler.S */
 extern void sb1250_irq_handler(void);
 
-
-/* ********************************************************************************************* */
+/*****************************************************************************/
 
 static unsigned int startup_sb1250_irq(unsigned int irq)
 {
@@ -208,16 +201,15 @@ void __init init_IRQ(void)
 
 	init_sb1250_irqs();
 
-	/* Map the high 16 bits of the mailbox registers to IP[3], for inter-cpu messages */
+	/*
+	 * Map the high 16 bits of the mailbox registers to IP[3], for
+	 * inter-cpu messages
+	 */
 	/* Was I1 */
-	out64(IMR_IP3_VAL,
-	      KSEG1 + A_IMR_REGISTER(0,
-				     R_IMR_INTERRUPT_MAP_BASE) +
-	      (K_INT_MBOX_0 << 3));
-	out64(IMR_IP3_VAL,
-	      KSEG1 + A_IMR_REGISTER(1,
-				     R_IMR_INTERRUPT_MAP_BASE) +
-	      (K_INT_MBOX_0 << 3));
+	out64(IMR_IP3_VAL, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) +
+	                   (K_INT_MBOX_0 << 3));
+	out64(IMR_IP3_VAL, KSEG1 + A_IMR_REGISTER(1, R_IMR_INTERRUPT_MAP_BASE) +
+	                   (K_INT_MBOX_0 << 3));
 
 	/* Clear the mailboxes.  The firmware may leave them dirty */
 	out64(0xffffffffffffffff,
@@ -230,8 +222,10 @@ void __init init_IRQ(void)
 	out64(tmp, KSEG1 + A_IMR_REGISTER(0, R_IMR_INTERRUPT_MASK));
 	out64(tmp, KSEG1 + A_IMR_REGISTER(1, R_IMR_INTERRUPT_MASK));
 
-	/* Note that the timer interrupts are also mapped, but this is 
-	   done in sb1250_time_init() */
+	/*
+	 * Note that the timer interrupts are also mapped, but this is 
+	 * done in sb1250_time_init()
+	 */
 
 #ifdef CONFIG_SIBYTE_SB1250_PROF
 	/* Enable IP[7,4:0], disable the rest */
