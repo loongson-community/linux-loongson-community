@@ -4,20 +4,21 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
  */
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/addrspace.h>
 #include <asm/ptrace.h>
+#include <asm/sgialib.h>
 #include <asm/sgi/sgimc.h>
 #include <asm/sgi/sgihpc.h>
-#include <asm/sgialib.h>
 
 /* #define DEBUG_SGIMC */
 
 struct sgimc_misc_ctrl *mcmisc_regs;
-u32 *rpsscounter;
 struct sgimc_dma_ctrl *dmactrlregs;
+u32 *rpsscounter;
 
 static inline char *mconfig_string(unsigned long val)
 {
@@ -42,7 +43,7 @@ static inline char *mconfig_string(unsigned long val)
 
 	default:
 		return "wheee, unknown";
-	};
+	}
 }
 
 void __init sgimc_init(void)
@@ -50,8 +51,8 @@ void __init sgimc_init(void)
 	unsigned long tmpreg;
 
 	mcmisc_regs = (struct sgimc_misc_ctrl *)(KSEG1+0x1fa00000);
-	rpsscounter = (unsigned int *) (KSEG1 + 0x1fa01004);
-	dmactrlregs = (struct sgimc_dma_ctrl *) (KSEG1+0x1fa02000);
+	rpsscounter = (unsigned int *)(KSEG1+0x1fa01004);
+	dmactrlregs = (struct sgimc_dma_ctrl *)(KSEG1+0x1fa02000);
 
 	printk(KERN_INFO "MC: SGI memory controller Revision %d\n",
 	       (int) mcmisc_regs->systemid & SGIMC_SYSID_MASKREV);
@@ -81,7 +82,7 @@ void __init sgimc_init(void)
 	/* Place the MC into a known state.  This must be done before
 	 * interrupts are first enabled etc.
 	 */
-
+	
 	/* Step 0: Make sure we turn off the watchdog in case it's
 	 *         still running (which might be the case after a
 	 *         soft reboot).
@@ -137,7 +138,7 @@ void __init sgimc_init(void)
 	 *       revision on this machine.  You have been warned.
 	 */
 
-	/* First the basic invariants across all gio64 implementations. */
+	/* First the basic invariants across all GIO64 implementations. */
 	tmpreg = SGIMC_GIOPARM_HPC64;    /* All 1st HPC's interface at 64bits. */
 	tmpreg |= SGIMC_GIOPARM_ONEBUS;  /* Only one physical GIO bus exists. */
 

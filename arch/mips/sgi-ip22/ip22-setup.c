@@ -46,6 +46,7 @@ extern struct hpc3_miscregs *hpc3mregs;
 extern struct rtc_ops indy_rtc_ops;
 extern void indy_reboot_setup(void);
 extern void sgi_volume_set(unsigned char);
+extern void create_gio_proc_entry(void);
 
 #define sgi_kh ((struct hpc_keyb *) &(hpc3mregs->kbdmouse0))
 
@@ -61,11 +62,17 @@ static void sgi_request_region(void)
 static int sgi_request_irq(void (*handler)(int, void *, struct pt_regs *))
 {
 	/* Dirty hack, this get's called as a callback from the keyboard
-	   driver.  We piggyback the initialization of the front panel
-	   button handling on it even though they're technically not
-	   related with the keyboard driver in any way.  Doing it from
-	   indy_setup wouldn't work since kmalloc isn't initialized yet.  */
+	 * driver.  We piggyback the initialization of the front panel
+	 * button handling on it even though they're technically not
+	 * related with the keyboard driver in any way.  Doing it from
+	 * ip22_setup wouldn't work since kmalloc isn't initialized yet.
+	 */
 	indy_reboot_setup();
+
+	/* Ehm, well... once David used hack above, let's add yet another.
+	 * Register GIO bus proc entry here.
+	 */
+	create_gio_proc_entry();
 
 	return request_irq(SGI_KEYBD_IRQ, handler, 0, "keyboard", NULL);
 }
@@ -123,10 +130,6 @@ struct kbd_ops sgi_kbd_ops = {
 	sgi_write_command,
 	sgi_read_status
 };
-
-void __init bus_error_init(void)
-{
-}
 
 void __init ip22_setup(void)
 {

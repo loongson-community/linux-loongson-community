@@ -16,8 +16,8 @@
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/irq.h>
 
-#include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/addrspace.h>
 #include <asm/gdb-stub.h>
@@ -279,6 +279,8 @@ void indy_local1_irqdispatch(struct pt_regs *regs)
 	return;	
 }
 
+extern void be_ip22_interrupt(int irq, struct pt_regs *regs);
+
 void indy_buserror_irq(struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
@@ -286,9 +288,7 @@ void indy_buserror_irq(struct pt_regs *regs)
 
 	irq_enter(cpu, irq);
 	kstat.irqs[cpu][irq]++;
-	die("Got a bus error IRQ, shouldn't happen yet\n", regs);
-	printk("Spinning...\n");
-	while(1);
+	be_ip22_interrupt(irq, regs);
 	irq_exit(cpu, irq);
 }
 
@@ -305,9 +305,8 @@ static struct irqaction map1_cascade =
 	{ no_action, SA_INTERRUPT, 0, "mappable1 cascade", NULL, NULL };
 #endif
 
-extern int setup_irq(unsigned int irq, struct irqaction *irqaction);
-extern void mips_cpu_irq_init(u32 irq_base);
-	
+extern void mips_cpu_irq_init(unsigned int irq_base);
+
 void __init init_IRQ(void)
 {
 	int i;
