@@ -66,8 +66,6 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 {
 	long ret, tmp;
 
-#ifdef __MIPSEB__
-
         __asm__ __volatile__(
 	".set\tpush\t\t\t# waking_non_zero_interruptible\n\t"
 	".set\tnoat\n\t"
@@ -87,38 +85,6 @@ waking_non_zero_interruptible(struct semaphore *sem, struct task_struct *tsk)
 	".set\tpop"
 	: "=&r" (ret), "=&r" (tmp), "=m" (*sem)
 	: "r" (signal_pending(tsk)), "i" (-EINTR));
-
-#elif defined(__MIPSEL__)
-
-	__asm__ __volatile__(
-	".set\tpush\t\t\t# waking_non_zero_interruptible\n\t"
-	".set\t	noat\n"
-	"0:\tlld\t%1, %2\n\t"
-	"li\t%0, 0\n\t"
-	"blez\t%1, 1f\n\t"
-	"dli\t$1, 0x0000000100000000\n\t"
-	"dsubu\t%1, %1, $1\n\t"
-	"li\t%0, 1\n\t"
-	"b\t2f\n"
-	"1:\tbeqz\t%3, 2f\n\t"
-	"li\t%0, %4\n\t"
-	/*
-	 * It would be nice to assume that sem->count
-	 * is != -1, but we will guard against that case
-	 */
-	"daddiu\t$1, %1, 1\n\t"
-	"dsll32\t$1, $1, 0\n\t"
-	"dsrl32\t$1, $1, 0\n\t"
-	"dsrl32\t%1, %1, 0\n\t"
-	"dsll32\t%1, %1, 0\n\t"
-	"or\t%1, %1, $1\n"
-	"2:\tscd\t%1, %2\n\t"
-	"beqz\t	%1, 0b\n\t"
-	".set\tpop"
-	: "=&r" (ret), "=&r" (tmp), "=m" (*sem)
-	: "r" (signal_pending(tsk)), "i" (-EINTR));
-
-#endif
 
 	return ret;
 }
