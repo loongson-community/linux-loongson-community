@@ -105,20 +105,20 @@ symbol		=	value
 		TEXT(string)
 
 #define	TEXT(msg)                                       \
-		.data;                                  \
+		.pushsection .data;			\
 8:		.asciiz	msg;                            \
-		.previous;
+		.popsection;
 
 /*
  * Build text tables
  */
 #define TTABLE(string)                                  \
-		.text;                                  \
+		.pushsection .text;			\
 		.word	1f;                             \
 		.previous;                              \
 		.data;                                  \
 1:		.asciz	string;                         \
-		.previous
+		.popsection
 
 /*
  * MIPS IV pref instruction.

@@ -1,6 +1,4 @@
 /*
- * include/asm-mips/asm.h
- *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -124,20 +122,20 @@ symbol		=	value
 		TEXT(string)
 
 #define	TEXT(msg)                                       \
-		.data;                                  \
+		.pushsection .data;			\
 8:		.asciiz	msg;                            \
-		.previous;
+		.popsection;
 
 /*
  * Build text tables
  */
 #define TTABLE(string)                                  \
-		.text;                                  \
+		.pushsection .text;			\
 		.word	1f;                             \
 		.previous;                              \
 		.data;                                  \
 1:		.asciz	string;                         \
-		.previous
+		.popsection
 
 /*
  * MIPS IV pref instruction.
