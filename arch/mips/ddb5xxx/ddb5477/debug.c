@@ -15,8 +15,6 @@
  */
 
 #include <linux/kernel.h>
-#include <linux/interrupt.h>
-#include <linux/signal.h>		/* SA_INTERRUPT */
 
 #include <asm/mipsregs.h>
 #include <asm/ddb5xxx/ddb5xxx.h>
