@@ -3,7 +3,7 @@
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
- * $Id:$
+ * $Id: cons_newport.c,v 1.5 1997/09/12 01:32:50 ralf Exp $
  */
 
 #include <linux/kernel.h>
@@ -542,6 +542,26 @@ struct ng1_info newport_board_info = {
 	0
 };
 
+void
+newport_reset (void)
+{
+	newport_wait();
+	newport_enable_video();
+
+	/* Init the cursor disappear. */
+	newport_wait();
+#if 0
+	newport_init_cursor();
+#else
+	newport_disable_cursor();
+#endif
+
+	newport_init_cmap();
+
+	/* Clear the screen. */
+	newport_clear_screen();
+}
+
 /* right now the newport does not do anything at all */
 struct graphics_ops newport_graphic_ops = {
 	0,			      /* owner */
@@ -549,7 +569,8 @@ struct graphics_ops newport_graphic_ops = {
 	(void *) &newport_board_info, /* board info */
 	sizeof (struct ng1_info),     /* size of our data structure */
 	0, 0,			      /* g_regs, g_regs_size */
-	newport_save, newport_restore /* save_context, restore_context */
+	newport_save, newport_restore, /* g_save_context, g_restore_context */
+	newport_reset, newport_ioctl /* g_reset_console, g_ioctl */
 };
 
 struct graphics_ops *
@@ -579,21 +600,7 @@ newport_probe (int slot, const char **name)
 		*name = "NEWPORT";
 	}
 
-	newport_wait();
-	newport_enable_video();
-
-	/* Init the cursor disappear. */
-	newport_wait();
-#if 0
-	newport_init_cursor();
-#else
-	newport_disable_cursor();
-#endif
-
-	newport_init_cmap();
-
-	/* Clear the screen. */
-	newport_clear_screen();
+	newport_reset ();
 	newport_render_version();
 #if 0
 	newport_render_logo();
