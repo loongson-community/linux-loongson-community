@@ -226,11 +226,6 @@ CONFIG_SERIAL_CONSOLE=y
 # CONFIG_DRM is not set
 
 #
-# Multimedia devices
-#
-# CONFIG_VIDEO_DEV is not set
-
-#
 # File systems
 #
 # CONFIG_QUOTA is not set
@@ -303,6 +298,11 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_SMB_NLS is not set
 # CONFIG_NLS is not set
+
+#
+# Multimedia devices
+#
+# CONFIG_VIDEO_DEV is not set
 
 #
 # Sound

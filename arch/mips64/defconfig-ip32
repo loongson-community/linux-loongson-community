@@ -66,7 +66,6 @@ CONFIG_ARC_MEMORY=y
 CONFIG_ARC32=y
 CONFIG_BOOT_ELF32=y
 CONFIG_L1_CACHE_SHIFT=5
-# CONFIG_MAPPED_PCI_IO is not set
 CONFIG_NONCOHERENT_IO=y
 CONFIG_PC_KEYB=y
 CONFIG_PCI=y
@@ -440,11 +439,6 @@ CONFIG_PSMOUSE=y
 # CONFIG_DRM is not set
 
 #
-# Multimedia devices
-#
-# CONFIG_VIDEO_DEV is not set
-
-#
 # File systems
 #
 # CONFIG_QUOTA is not set
@@ -535,6 +529,11 @@ CONFIG_SGI_PARTITION=y
 # CONFIG_SUN_PARTITION is not set
 # CONFIG_SMB_NLS is not set
 # CONFIG_NLS is not set
+
+#
+# Multimedia devices
+#
+# CONFIG_VIDEO_DEV is not set
 
 #
 # Sound

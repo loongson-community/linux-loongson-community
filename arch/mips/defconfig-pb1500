@@ -551,11 +551,6 @@ CONFIG_RTC=y
 # CONFIG_TS_AU1000_ADS7846 is not set
 
 #
-# Multimedia devices
-#
-# CONFIG_VIDEO_DEV is not set
-
-#
 # File systems
 #
 # CONFIG_QUOTA is not set
@@ -678,6 +673,11 @@ CONFIG_NLS_DEFAULT="iso8859-1"
 # CONFIG_NLS_KOI8_R is not set
 # CONFIG_NLS_KOI8_U is not set
 # CONFIG_NLS_UTF8 is not set
+
+#
+# Multimedia devices
+#
+# CONFIG_VIDEO_DEV is not set
 
 #
 # Console drivers
