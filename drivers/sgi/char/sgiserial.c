@@ -147,7 +147,7 @@ static inline int serial_paranoia_check(struct sgi_serial *info,
 	static const char *badmagic =
 		"Warning: bad magic number for serial struct (%d, %d) in %s\n";
 	static const char *badinfo =
-		"Warning: null sun_serial for (%d, %d) in %s\n";
+		"Warning: null sgi_serial for (%d, %d) in %s\n";
 
 	if (!info) {
 		printk(badinfo, MAJOR(device), MINOR(device), routine);
@@ -178,7 +178,8 @@ static int baud_table[] = {
  * interrupts are enabled. Therefore we have to check ioc_iocontrol before we
  * access it.
  */
-static inline unsigned char read_zsreg(struct sgi_zschannel *channel, unsigned char reg)
+static inline unsigned char read_zsreg(struct sgi_zschannel *channel,
+                                       unsigned char reg)
 {
 	unsigned char retval;
 	volatile unsigned char junk;
@@ -192,7 +193,8 @@ static inline unsigned char read_zsreg(struct sgi_zschannel *channel, unsigned c
 	return retval;
 }
 
-static inline void write_zsreg(struct sgi_zschannel *channel, unsigned char reg, unsigned char value)
+static inline void write_zsreg(struct sgi_zschannel *channel,
+                               unsigned char reg, unsigned char value)
 {
 	volatile unsigned char junk;
 
@@ -1302,6 +1304,59 @@ static int get_lsr_info(struct sgi_serial * info, unsigned int *value)
 	junk = ioc_icontrol->istat0;
 	sti();
 	return put_user(status,value);
+} 
+
+static int get_modem_info(struct sgi_serial * info, unsigned int *value)
+{
+	unsigned char status;
+	unsigned int result;
+
+	cli();
+	status = info->zs_channel->control;
+	udelay(2);
+	sti();
+	result =  ((info->curregs[5] & RTS) ? TIOCM_RTS : 0)
+		| ((info->curregs[5] & DTR) ? TIOCM_DTR : 0)
+		| ((status  & DCD) ? TIOCM_CAR : 0)
+		| ((status  & SYNC) ? TIOCM_DSR : 0)
+		| ((status  & CTS) ? TIOCM_CTS : 0);
+	if (put_user(result, value))
+		return -EFAULT;
+	return 0;
+}
+
+static int set_modem_info(struct sgi_serial * info, unsigned int cmd,
+			  unsigned int *value)
+{
+	unsigned int arg;
+
+	if (get_user(arg, value))
+		return -EFAULT;
+	switch (cmd) {
+	case TIOCMBIS: 
+		if (arg & TIOCM_RTS)
+			info->curregs[5] |= RTS;
+		if (arg & TIOCM_DTR)
+			info->curregs[5] |= DTR;
+		break;
+	case TIOCMBIC:
+		if (arg & TIOCM_RTS)
+			info->curregs[5] &= ~RTS;
+		if (arg & TIOCM_DTR)
+			info->curregs[5] &= ~DTR;
+		break;
+	case TIOCMSET:
+		info->curregs[5] = ((info->curregs[5] & ~(RTS | DTR))
+			     | ((arg & TIOCM_RTS) ? RTS : 0)
+			     | ((arg & TIOCM_DTR) ? DTR : 0));
+		break;
+	default:
+		return -EINVAL;
+	}
+	cli();
+	write_zsreg(info->zs_channel, 5, info->curregs[5]);
+	sti();
+	return 0;
 }
 
 /*
@@ -1322,11 +1377,10 @@ static void send_break(	struct sgi_serial * info, int duration)
 static int rs_ioctl(struct tty_struct *tty, struct file * file,
 		    unsigned int cmd, unsigned long arg)
 {
-	int error;
-	struct sgi_serial * info = (struct sgi_serial *)tty->driver_data;
+	struct sgi_serial * info = (struct sgi_serial *) tty->driver_data;
 	int retval;
 
-	if (serial_paranoia_check(info, tty->device, "rs_ioctl"))
+	if (serial_paranoia_check(info, tty->device, "zs_ioctl"))
 		return -ENODEV;
 
 	if ((cmd != TIOCGSERIAL) && (cmd != TIOCSSERIAL) &&
@@ -1353,45 +1407,36 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 			send_break(info, arg ? arg*(HZ/10) : HZ/4);
 			return 0;
 		case TIOCGSOFTCAR:
-			error = verify_area(VERIFY_WRITE, (void *) arg,sizeof(long));
-			if (error)
-				return error;
-			put_user(C_CLOCAL(tty) ? 1 : 0,
-			         (unsigned long *) arg);
+			if (put_user(C_CLOCAL(tty) ? 1 : 0,
+				     (unsigned long *) arg))
+				return -EFAULT;
 			return 0;
 		case TIOCSSOFTCAR:
-			error = get_user(arg, (unsigned long *)arg);
-			if (error)
-				return error;
+			if (get_user(arg, (unsigned long *) arg))
+				return -EFAULT;
 			tty->termios->c_cflag =
 				((tty->termios->c_cflag & ~CLOCAL) |
 				 (arg ? CLOCAL : 0));
 			return 0;
+		case TIOCMGET:
+			return get_modem_info(info, (unsigned int *) arg);
+		case TIOCMBIS:
+		case TIOCMBIC:
+		case TIOCMSET:
+			return set_modem_info(info, cmd, (unsigned int *) arg);
 		case TIOCGSERIAL:
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-						sizeof(struct serial_struct));
-			if (error)
-				return error;
 			return get_serial_info(info,
 					       (struct serial_struct *) arg);
 		case TIOCSSERIAL:
 			return set_serial_info(info,
 					       (struct serial_struct *) arg);
 		case TIOCSERGETLSR: /* Get line status register */
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-				sizeof(unsigned int));
-			if (error)
-				return error;
-			else
-			    return get_lsr_info(info, (unsigned int *) arg);
+			return get_lsr_info(info, (unsigned int *) arg);
 
 		case TIOCSERGSTRUCT:
-			error = verify_area(VERIFY_WRITE, (void *) arg,
-						sizeof(struct sgi_serial));
-			if (error)
-				return error;
-			copy_to_user((struct sun_serial *) arg,
-				    info, sizeof(struct sgi_serial));
+			if (copy_to_user((struct sgi_serial *) arg,
+				    info, sizeof(struct sgi_serial)))
+				return -EFAULT;
 			return 0;
 			
 		default:
