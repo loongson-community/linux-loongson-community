@@ -519,6 +519,7 @@ CONFIG_8139TOO=y
 # CONFIG_INPUT_TSDEV is not set
 # CONFIG_INPUT_EVDEV is not set
 # CONFIG_INPUT_EVBUG is not set
+# CONFIG_INPUT_UINPUT is not set
 
 #
 # Input I/O drivers
@@ -527,7 +528,7 @@ CONFIG_8139TOO=y
 CONFIG_SOUND_GAMEPORT=y
 # CONFIG_GAMEPORT_NS558 is not set
 # CONFIG_GAMEPORT_L4 is not set
-# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_GAMEPORT_EMU10K1 is not set
 # CONFIG_GAMEPORT_VORTEX is not set
 # CONFIG_GAMEPORT_FM801 is not set
 # CONFIG_GAMEPORT_CS461x is not set
@@ -535,6 +536,7 @@ CONFIG_SERIO=y
 # CONFIG_SERIO_I8042 is not set
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
+# CONFIG_SERIO_Q40KBD is not set
 # CONFIG_SERIO_PARKBD is not set
 
 #
@@ -566,14 +568,13 @@ CONFIG_UNIX98_PTY_COUNT=256
 # Mice
 #
 # CONFIG_BUSMOUSE is not set
-# CONFIG_MOUSE is not set
+# CONFIG_PSMOUSE is not set
 # CONFIG_QIC02_TAPE is not set
 
 #
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
-# CONFIG_INTEL_RNG is not set
 # CONFIG_NVRAM is not set
 CONFIG_RTC=y
 # CONFIG_DTLK is not set

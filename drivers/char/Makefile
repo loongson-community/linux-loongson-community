@@ -162,8 +162,6 @@ obj-$(CONFIG_SERIAL_TX3912) += generic_serial.o serial_tx3912.o
 obj-$(CONFIG_TXX927_SERIAL) += serial_txx927.o
 obj-$(CONFIG_HVC_CONSOLE) += hvc_console.o
 
-obj-$(CONFIG_ATIXL_BUSMOUSE) += atixlmouse.o
-obj-$(CONFIG_LOGIBUSMOUSE) += logibusmouse.o
 obj-$(CONFIG_PRINTER) += lp.o
 
 obj-$(CONFIG_BUSMOUSE) += busmouse.o
@@ -171,12 +169,7 @@ obj-$(CONFIG_DTLK) += dtlk.o
 obj-$(CONFIG_R3964) += n_r3964.o
 obj-$(CONFIG_APPLICOM) += applicom.o
 obj-$(CONFIG_SONYPI) += sonypi.o
-obj-$(CONFIG_MS_BUSMOUSE) += msbusmouse.o
-obj-$(CONFIG_82C710_MOUSE) += qpmouse.o
-obj-$(CONFIG_AMIGAMOUSE) += amigamouse.o
 obj-$(CONFIG_ATARIMOUSE) += atarimouse.o
-obj-$(CONFIG_ADBMOUSE) += adbmouse.o
-obj-$(CONFIG_PC110_PAD) += pc110pad.o
 obj-$(CONFIG_RTC) += rtc.o
 obj-$(CONFIG_EFI_RTC) += efirtc.o
 ifeq ($(CONFIG_PPC),)
