@@ -97,6 +97,14 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		: "i" (Hit_Writeback_D), "r" (addr));
 }
 
+/*
+ * This one is RM7000-specific
+ */
+static inline void invalidate_tcache_page(unsigned long addr)
+{
+	cache_op(Page_Invalidate_T, addr);
+}
+
 #define cache16_unroll32(base,op)				\
 	__asm__ __volatile__("					\
 		.set noreorder;					\

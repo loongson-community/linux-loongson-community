@@ -683,7 +683,7 @@ config ARC_PROMLIB
 
 config BOARD_SCACHE
 	bool
-	depends on SGI_IP22
+	depends on MIPS_EV96100 || MOMENCO_OCELOT || SGI_IP22
 	default y
 
 config ARC64

@@ -33,7 +33,7 @@
 #define Hit_Invalidate_SD	0x13
 #define Fill			0x14
 #define Hit_Writeback_Inv_D	0x15
-					/* 0x16 is unused */
+#define Page_Invalidate_T	0x16		/* RM7000-specific */
 #define Hit_Writeback_Inv_SD	0x17
 #define R5K_Page_Invalidate_S	0x17
 #define Hit_Writeback_I		0x18

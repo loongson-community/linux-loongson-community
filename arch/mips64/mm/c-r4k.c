@@ -27,8 +27,8 @@
 #include <asm/war.h>
 
 /* Primary cache parameters. */
-static unsigned long icache_size, dcache_size; /* Size in bytes */
-static unsigned long icache_way_size, dcache_way_size; /* Size divided by ways */
+static unsigned long icache_size, dcache_size;	/* Size in bytes */
+unsigned long icache_way_size, dcache_way_size;	/* Size divided by ways */
 static unsigned long scache_size, sc_lsize;	/* S-cache parameters. */
 
 #include <asm/cacheops.h>
@@ -623,6 +623,38 @@ static void r4k_flush_icache_all(void)
 		r4k_blast_icache();
 }
 
+static inline void rm7k_erratum31(void)
+{
+	const unsigned long ic_lsize = 32;
+	unsigned long addr;
+
+	/* RM7000 erratum #31. The icache is screwed at startup. */
+	write_c0_taglo(0);
+	write_c0_taghi(0);
+
+	for (addr = KSEG0; addr <= KSEG0 + 4096; addr += ic_lsize) {
+		__asm__ __volatile__ (
+			".set noreorder\n\t"
+			".set mips3\n\t"
+			"cache\t%1, 0(%0)\n\t"
+			"cache\t%1, 0x1000(%0)\n\t"
+			"cache\t%1, 0x2000(%0)\n\t"
+			"cache\t%1, 0x3000(%0)\n\t"
+			"cache\t%2, 0(%0)\n\t"
+			"cache\t%2, 0x1000(%0)\n\t"
+			"cache\t%2, 0x2000(%0)\n\t"
+			"cache\t%2, 0x3000(%0)\n\t"
+			"cache\t%1, 0(%0)\n\t"
+			"cache\t%1, 0x1000(%0)\n\t"
+			"cache\t%1, 0x2000(%0)\n\t"
+			"cache\t%1, 0x3000(%0)\n\t"
+			".set\tmips0\n\t"
+			".set\treorder\n\t"
+			:
+			: "r" (addr), "i" (Index_Store_Tag_I), "i" (Fill));
+	}
+}
+
 static char *way_string[] = { NULL, "direct mapped", "2-way", "3-way", "4-way",
 	"5-way", "6-way", "7-way", "8-way"
 };
@@ -720,6 +752,20 @@ static void __init probe_pcache(void)
 		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
 		c->dcache.ways = 1;
 		c->dcache.waybit = 0;	/* does not matter */
+		break;
+
+	case CPU_RM7000:
+		rm7k_erratum31();
+
+		icache_size = 1 << (12 + ((config & CONF_IC) >> 9));
+		c->icache.linesz = 16 << ((config & CONF_IB) >> 5);
+		c->icache.ways = 4;
+		c->icache.waybit = ffs(icache_size / c->icache.ways) - 1;
+
+		dcache_size = 1 << (12 + ((config & CONF_DC) >> 6));
+		c->dcache.linesz = 16 << ((config & CONF_DB) >> 4);
+		c->dcache.ways = 4;
+		c->dcache.waybit = ffs(dcache_size / c->dcache.ways) - 1;
 		break;
 
 	default:
@@ -954,6 +1000,7 @@ static void __init setup_scache_funcs(void)
 
 typedef int (*probe_func_t)(unsigned long);
 extern int r5k_sc_init(void);
+extern int rm7k_sc_init(void);
 
 static inline void __init setup_scache(void)
 {
@@ -985,6 +1032,13 @@ static inline void __init setup_scache(void)
 #endif
                 return;
 
+	case CPU_RM7000:
+		setup_noscache_funcs();
+#ifdef CONFIG_RM7000_CPU_SCACHE
+		rm7k_sc_init();
+#endif
+		return;
+
 	default:
 		sc_present = 0;
 	}
@@ -1010,6 +1064,9 @@ void __init ld_mmu_r4xx0(void)
 	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
 
+	probe_pcache();
+	setup_scache();
+
 	change_c0_config(CONF_CM_CMASK, CONF_CM_DEFAULT);
 
 	/*
@@ -1029,9 +1086,6 @@ void __init ld_mmu_r4xx0(void)
 		clear_c0_config(CONF_CU);
 		break;
 	}
-
-	probe_pcache();
-	setup_scache();
 
 	if (current_cpu_data.dcache.sets *
 	    current_cpu_data.dcache.ways > PAGE_SIZE)

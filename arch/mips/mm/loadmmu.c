@@ -57,9 +57,7 @@ EXPORT_SYMBOL(_dma_cache_inv);
 extern void ld_mmu_r23000(void);
 extern void ld_mmu_r4xx0(void);
 extern void ld_mmu_tx39(void);
-extern void ld_mmu_tx49(void);
 extern void ld_mmu_r6000(void);
-extern void ld_mmu_rm7k(void);
 extern void ld_mmu_tfp(void);
 extern void ld_mmu_andes(void);
 extern void ld_mmu_sb1(void);
@@ -75,12 +73,9 @@ void __init load_mmu(void)
     defined(CONFIG_CPU_R4300)  || defined(CONFIG_CPU_R5000)  || \
     defined(CONFIG_CPU_NEVADA) || defined(CONFIG_CPU_R5432)  || \
     defined(CONFIG_CPU_R5500)  || defined(CONFIG_CPU_MIPS32) || \
-    defined(CONFIG_CPU_MIPS64) || defined(CONFIG_CPU_TX49XX)
+    defined(CONFIG_CPU_MIPS64) || defined(CONFIG_CPU_TX49XX) || \
+    defined(CONFIG_CPU_RM7000)
 		ld_mmu_r4xx0();
-		r4k_tlb_init();
-#endif
-#if defined(CONFIG_CPU_RM7000)
-		ld_mmu_rm7k();
 		r4k_tlb_init();
 #endif
 	} else switch (current_cpu_data.cputype) {
