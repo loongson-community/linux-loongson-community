@@ -50,6 +50,8 @@
 #define SO_SECURITY_ENCRYPTION_TRANSPORT	20
 #define SO_SECURITY_ENCRYPTION_NETWORK		21
 
+/* Nast libc5 fixup - bletch */
+#if defined(__KERNEL__)
 /* Socket types. */
 #define SOCK_STREAM	1		/* stream (connection) socket	*/
 #define SOCK_DGRAM	2		/* datagram (conn.less) socket	*/
@@ -61,5 +63,6 @@
 					/* level.  For writing rarp and	*/
 					/* other similar things on the	*/
 					/* user level.			*/
+#endif
 
 #endif /* _ASM_SOCKET_H */
