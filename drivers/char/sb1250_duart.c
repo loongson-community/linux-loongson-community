@@ -296,8 +296,8 @@ static inline int copy_buf(char *dest, const char *src, int size, int from_user)
  * Buffer up to count characters from buf to be written.  If we don't have
  * other characters buffered, enable the tx interrupt to start sending
  */
-static int duart_write(struct tty_struct * tty, int from_user,
-	const unsigned char *buf, int count)
+static int duart_write(struct tty_struct *tty, const unsigned char *buf,
+		       int count)
 {
 	uart_state_t *us;
 	int c, t, total = 0;
@@ -325,15 +325,7 @@ static int duart_write(struct tty_struct * tty, int from_user,
 
 		if (c <= 0) break;
 
-		if (from_user) {
-			spin_unlock_irqrestore(&us->outp_lock, flags);
-			if (copy_from_user(us->outp_buf + us->outp_tail, buf, c)) {
-				return -EFAULT;
-			}
-			spin_lock_irqsave(&us->outp_lock, flags);
-		} else {
-			memcpy(us->outp_buf + us->outp_tail, buf, c);
-		}
+		memcpy(us->outp_buf + us->outp_tail, buf, c);
 
 		us->outp_count += c;
 		us->outp_tail = (us->outp_tail + c) & (SERIAL_XMIT_SIZE - 1);
