@@ -51,6 +51,8 @@
 #include <asm/pb1000.h>
 #elif defined(CONFIG_MIPS_PB1500)
 #include <asm/pb1500.h>
+#elif defined(CONFIG_MIPS_PB1100)
+#include <asm/pb1100.h>
 #else
 #error unsupported alchemy board
 #endif
@@ -402,6 +404,12 @@ void __init init_IRQ(void)
 			case AU1000_SSI1_INT:
 #endif
 
+#ifdef CONFIG_MIPS_PB1100
+			case AU1000_UART1_INT:
+
+			case AU1000_SSI0_INT:
+			case AU1000_SSI1_INT:
+#endif
 		        case AU1000_DMA_INT_BASE:
 		        case AU1000_DMA_INT_BASE+1:
 		        case AU1000_DMA_INT_BASE+2:
@@ -441,6 +449,14 @@ void __init init_IRQ(void)
 			case AU1500_GPIO_203:
 			case AU1500_GPIO_205:
 			case AU1500_GPIO_207:
+#endif
+
+#ifdef CONFIG_MIPS_PB1100
+			case AU1000_GPIO_9: // PCMCIA Card Fully_Interted#
+			case AU1000_GPIO_10: // PCMCIA_STSCHG#
+			case AU1000_GPIO_11: // PCMCIA_IRQ#
+			case AU1000_GPIO_13: // DC_IRQ# 
+			case AU1000_GPIO_23: // 2-wire SCL
 #endif
 				setup_local_irq(i, INTC_INT_LOW_LEVEL, 0);
 				irq_desc[i].handler = &level_irq_type;

@@ -156,8 +156,9 @@
 /*
  * Valid machtype for group Alchemy
  */
-#define MACH_PB1000	0	         /* Au1000-based eval board */
-#define MACH_PB1500	1	         /* Au1500-based eval board */
+#define MACH_PB1000		0	/* Au1000-based eval board */
+#define MACH_PB1100		1	/* Au1100-based eval board */
+#define MACH_PB1500		2	/* Au1500-based eval board */
  
 /*
  * Valid machtype for group NEC_VR41XX

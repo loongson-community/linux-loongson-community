@@ -127,7 +127,7 @@ static struct mtd_partition pb1xxx_partitions[] = {
         }
 };
 
-#elif defined(CONFIG_MIPS_PB1500)
+#elif defined(CONFIG_MIPS_PB1500) || defined(CONFIG_MIPS_PB1100)
 
 static unsigned char flash_buswidth = 4;
 #if defined(CONFIG_MTD_PB1500_BOOT) && defined(CONFIG_MTD_PB1500_USER)

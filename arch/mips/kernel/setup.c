@@ -815,6 +815,11 @@ void __init setup_arch(char **cmdline_p)
 		au1000_setup();
 		break;
 #endif
+#ifdef CONFIG_MIPS_PB1100
+	case MACH_GROUP_ALCHEMY:
+		au1100_setup();
+		break;
+#endif
 #ifdef CONFIG_MIPS_PB1500
 	case MACH_GROUP_ALCHEMY:
 		au1500_setup();
