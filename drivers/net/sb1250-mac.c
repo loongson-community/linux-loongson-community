@@ -2399,17 +2399,6 @@ static int sbmac_init(struct net_device *dev, int idx)
 	
 	sbmac_initctx(sc);
 	
-	
-	/*
-	 * Display Ethernet address (this is called during the config
-	 * process so we need to finish off the config message that
-	 * was being displayed)
-	 */
-	printk(KERN_INFO
-	       "%s: SiByte Ethernet at 0x%08lX, address: %02X-%02X-%02X-%02X-%02X-%02X\n", 
-	       dev->name, dev->base_addr,
-	       eaddr[0],eaddr[1],eaddr[2],eaddr[3],eaddr[4],eaddr[5]);
-	
 	/*
 	 * Set up Linux device callins
 	 */
@@ -2432,7 +2421,24 @@ static int sbmac_init(struct net_device *dev, int idx)
 
 	err = register_netdev(dev);
 	if (err)
-		sbmac_uninitctx(sc);
+		goto out_uninit;
+
+	/*
+	 * Display Ethernet address (this is called during the config
+	 * process so we need to finish off the config message that
+	 * was being displayed)
+	 */
+	printk(KERN_INFO
+	       "%s: SiByte Ethernet at 0x%08lX, address: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+	       dev->name, dev->base_addr,
+	       eaddr[0],eaddr[1],eaddr[2],eaddr[3],eaddr[4],eaddr[5]);
+	
+
+	return 0;
+
+out_uninit:
+	sbmac_uninitctx(sc);
+
 	return err;
 }
 
