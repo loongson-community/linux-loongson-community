@@ -1,7 +1,7 @@
 VERSION = 2
 PATCHLEVEL = 4
 SUBLEVEL = 0
-EXTRAVERSION = -test6-pre1
+EXTRAVERSION = -test6-pre2
 
 KERNELRELEASE=$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
 
@@ -177,8 +177,6 @@ include arch/$(ARCH)/Makefile
 
 # use '-fno-strict-aliasing', but only if the compiler can take it
 CFLAGS += $(shell if $(CC) -fno-strict-aliasing -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-strict-aliasing"; fi)
-# likewise for -fno-delete-null-pointer-checks
-CFLAGS += $(shell if $(CC) -fno-delete-null-pointer-checks -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-fno-delete-null-pointer-checks"; fi)
 
 export	CPPFLAGS CFLAGS AFLAGS
 
