@@ -8,6 +8,7 @@
  * Copyright (C) 2000 Harald Koerfgen
  */
 #include <linux/config.h>
+#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>
@@ -72,7 +73,7 @@ void __init ip32_setup(void)
 #endif
 	TLBMISS_HANDLER_SETUP ();
 
-	mips_io_port_base = UNCACHEDADDR(MACEPCI_HI_IO);;
+	set_io_port_base(UNCACHEDADDR(MACEPCI_HI_IO));
 
 #ifdef CONFIG_SERIAL_CONSOLE
 	ctype = ArcGetEnvironmentVariable("console");
