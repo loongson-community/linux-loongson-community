@@ -50,4 +50,4 @@ obj-$(CONFIG_TOSHIBA_JMR3927)	+= fixup-jmr3927.o pci-jmr3927.o
 obj-$(CONFIG_TOSHIBA_RBTX4927)	+= fixup-rbtx4927.o ops-tx4927.o
 obj-$(CONFIG_VICTOR_MPC30X)	+= fixup-capcella.o
 obj-$(CONFIG_MACH_VR41XX)	+= pci-vr41xx.o
-obj-$(CONFIG_ZAO_CAPCELLA)	+= fixup-victor-mpc30x.o
+obj-$(CONFIG_ZAO_CAPCELLA)	+= fixup-capcella.o
