@@ -11,14 +11,14 @@
 
 #include "op_impl.h"
 
-#define RM9k_COUNTER1_EVENT(event)	((event) << 0)
+#define RM9K_COUNTER1_EVENT(event)	((event) << 0)
 #define RM9K_COUNTER1_SUPERVISOR	(1ULL    <<  7)
 #define RM9K_COUNTER1_KERNEL		(1ULL    <<  8)
 #define RM9K_COUNTER1_USER		(1ULL    <<  9)
 #define RM9K_COUNTER1_ENABLE		(1ULL    << 10)
 #define RM9K_COUNTER1_OVERFLOW		(1ULL    << 15)
 
-#define RM9k_COUNTER2_EVENT(event)	((event) << 16)
+#define RM9K_COUNTER2_EVENT(event)	((event) << 16)
 #define RM9K_COUNTER2_SUPERVISOR	(1ULL    << 23)
 #define RM9K_COUNTER2_KERNEL		(1ULL    << 24)
 #define RM9K_COUNTER2_USER		(1ULL    << 25)
@@ -42,12 +42,12 @@ static void rm9000_reg_setup(struct op_counter_config *ctr)
 	/* Compute the performance counter control word.  */
 	/* For now count kernel and user mode */
 	if (ctr[0].enabled)
-		control |= RM9k_COUNTER1_EVENT(ctr[0].event) |
+		control |= RM9K_COUNTER1_EVENT(ctr[0].event) |
 		           RM9K_COUNTER1_KERNEL |
 		           RM9K_COUNTER1_USER |
 		           RM9K_COUNTER1_ENABLE;
 	if (ctr[1].enabled)
-		control |= RM9k_COUNTER2_EVENT(ctr[1].event) |
+		control |= RM9K_COUNTER2_EVENT(ctr[1].event) |
 		           RM9K_COUNTER2_KERNEL |
 		           RM9K_COUNTER2_USER |
 		           RM9K_COUNTER2_ENABLE;
