@@ -144,21 +144,21 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	long retval;
 
 	__asm__ __volatile__(
-		".set noreorder               \n"
-		"    move    $6,$sp           \n"
-		"    move    $4,%5            \n"
-		"    li      $2,%1            \n"
-		"    syscall                  \n"
-		"    beq     $6,$sp,1f        \n"
-		"    subu    $sp,32           \n"	/* delay slot */
-		"    jalr    %4               \n"
-		"    move    $4,%3            \n"	/* delay slot */
-		"    move    $4,$2            \n"
-		"    li      $2,%2            \n"
-		"    syscall                  \n"
-		"1:  addiu   $sp,32           \n"
-		"    move    %0,$2            \n"
-		".set reorder"
+		"	.set	noreorder	\n"
+		"	move    $6, $sp		\n"
+		"	move    $4, %5		\n"
+		"	li      $2, %1		\n"
+		"	syscall			\n"
+		"	beq     $6, $sp, 1f	\n"
+		"	 subu    $sp, 32	\n"
+		"	jalr    %4		\n"
+		"	 move    $4, %3		\n"
+		"	move    $4, $2		\n"
+		"	li      $2, %2		\n"
+		"	syscall			\n"
+		"1:	addiu   $sp, 32		\n"
+		"	move    %0, $2		\n"
+		"	.set	reorder"
 		: "=r" (retval)
 		: "i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
 		  "r" (flags | CLONE_VM | CLONE_UNTRACED)
@@ -167,7 +167,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		  * at, result, argument or temporary registers ...
 		  */
 		: "$2", "$3", "$4", "$5", "$6", "$7", "$8",
-		  "$9","$10","$11","$12","$13","$14","$15","$24","$25");
+		  "$9","$10","$11","$12","$13","$14","$15","$24","$25", "$31");
 
 	return retval;
 }

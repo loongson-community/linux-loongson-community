@@ -140,25 +140,26 @@ int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 	int retval;
 
 	__asm__ __volatile__(
-		"move\t$6, $sp\n\t"
-		"move\t$4, %5\n\t"
-		"li\t$2, %1\n\t"
-		"syscall\n\t"
-		"beq\t$6, $sp, 1f\n\t"
-		"move\t$4, %3\n\t"
-		"jalr\t%4\n\t"
-		"move\t$4, $2\n\t"
-		"li\t$2, %2\n\t"
-		"syscall\n"
-		"1:\tmove\t%0, $2"
-		:"=r" (retval)
-		:"i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
-		 "r" (flags | CLONE_VM | CLONE_UNTRACED)
-
-		 /* The called subroutine might have destroyed any of the
-		  * at, result, argument or temporary registers ...  */
+		"	move	$6, $sp		\n"
+		"	move	$4, %5		\n"
+		"	li	$2, %1		\n"
+		"	syscall			\n"
+		"	beq	$6, $sp, 1f	\n"
+		"	move	$4, %3		\n"
+		"	jalr	%4		\n"
+		"	move	$4, $2		\n"
+		"	li	$2, %2		\n"
+		"	syscall			\n"
+		"1:	move	%0, $2"
+		: "=r" (retval)
+		: "i" (__NR_clone), "i" (__NR_exit), "r" (arg), "r" (fn),
+		  "r" (flags | CLONE_VM | CLONE_UNTRACED)
+		 /*
+		  * The called subroutine might have destroyed any of the
+		  * at, result, argument or temporary registers ...
+		  */
 		: "$2", "$3", "$4", "$5", "$6", "$7", "$8",
-		  "$9","$10","$11","$12","$13","$14","$15","$24","$25");
+		  "$9","$10","$11","$12","$13","$14","$15","$24","$25","$31");
 
 	return retval;
 }
