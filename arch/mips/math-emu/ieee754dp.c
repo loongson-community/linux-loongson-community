@@ -162,7 +162,9 @@ ieee754dp ieee754dp_format(int sn, int xe, unsigned long long xm)
 			}
 		}
 
-		if (get_rounding(sn, xm) >> (DP_MBITS + 1 + 3)) {
+		if (xe == DP_EMIN - 1
+				&& get_rounding(sn, xm) >> (DP_MBITS + 1 + 3))
+		{
 			/* Not tiny after rounding */
 			SETCX(IEEE754_INEXACT);
 			xm = get_rounding(sn, xm);

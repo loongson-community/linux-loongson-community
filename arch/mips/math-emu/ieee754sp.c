@@ -163,7 +163,9 @@ ieee754sp ieee754sp_format(int sn, int xe, unsigned xm)
 			}
 		}
 
-		if (get_rounding(sn, xm) >> (SP_MBITS + 1 + 3)) {
+		if (xe == SP_EMIN - 1
+				&& get_rounding(sn, xm) >> (SP_MBITS + 1 + 3))
+		{
 			/* Not tiny after rounding */
 			SETCX(IEEE754_INEXACT);
 			xm = get_rounding(sn, xm);
