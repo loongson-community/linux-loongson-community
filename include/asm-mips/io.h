@@ -244,9 +244,9 @@ static inline void iounmap(void *addr)
 	__iounmap(addr);
 }
 
-#define __raw_readb(addr)	(*(volatile unsigned char *)(addr))
-#define __raw_readw(addr)	(*(volatile unsigned short *)(addr))
-#define __raw_readl(addr)	(*(volatile unsigned int *)(addr))
+#define __raw_readb(addr) (*(volatile unsigned char *) __swizzle_addr_b(addr))
+#define __raw_readw(addr) (*(volatile unsigned short *) __swizzle_addr_w(addr))
+#define __raw_readl(addr) (*(volatile unsigned int *) __swizzle_addr_l(addr))
 #ifdef CONFIG_MIPS32
 #define ____raw_readq(addr)						\
 ({									\
@@ -259,7 +259,7 @@ static inline void iounmap(void *addr)
 		"	sll	%L0, %L0, 0			\n"	\
 		"	.set	mips0				\n"	\
 		: "=r" (__res)						\
-		: "r" (addr));						\
+		: "r" (__swizzle_addr_q(addr)));			\
 	__res;								\
 })
 #define __raw_readq(addr)						\
@@ -274,7 +274,7 @@ static inline void iounmap(void *addr)
 })
 #endif
 #ifdef CONFIG_MIPS64
-#define ____raw_readq(addr)	(*(volatile unsigned long *)(addr))
+#define ____raw_readq(addr) (*(volatile unsigned long *)__swizzle_addr_q(addr))
 #define __raw_readq(addr)	____raw_readq(addr)
 #endif
 
@@ -287,12 +287,24 @@ static inline void iounmap(void *addr)
 #define readl_relaxed(addr)	readl(addr)
 #define readq_relaxed(addr)	readq(addr)
 
-#define __raw_writeb(b,addr)	((*(volatile unsigned char *)(addr)) = (b))
-#define __raw_writew(w,addr)	((*(volatile unsigned short *)(addr)) = (w))
-#define __raw_writel(l,addr)	((*(volatile unsigned int *)(addr)) = (l))
+#define __raw_writeb(b,addr)						\
+do {									\
+	((*(volatile unsigned char *)__swizzle_addr_b(addr)) = (b));	\
+} while (0)
+
+#define __raw_writew(w,addr)						\
+do {									\
+	((*(volatile unsigned short *)__swizzle_addr_w(addr)) = (w));	\
+} while (0)
+
+#define __raw_writel(l,addr)						\
+do {									\
+	((*(volatile unsigned int *)__swizzle_addr_l(addr)) = (l));	\
+} while (0)
+
 #ifdef CONFIG_MIPS32
-#define ____raw_writeq(val,addr)						\
-({									\
+#define ____raw_writeq(val,addr)					\
+do {									\
 	u64 __tmp;							\
 									\
 	__asm__ __volatile__ (						\
@@ -304,19 +316,25 @@ static inline void iounmap(void *addr)
 		"	sd	%L0, (%2)			\n"	\
 		"	.set	mips0				\n"	\
 		: "=r" (__tmp)						\
-		: "0" ((unsigned long long)val), "r" (addr));		\
-})
+		: "0" ((unsigned long long)val),			\
+		  "r" (__swizzle_addr_q(addr)));			\
+} while (0)
+
 #define __raw_writeq(val,addr)						\
-({									\
+do {									\
 	unsigned long __flags;						\
 									\
 	local_irq_save(__flags);					\
 	____raw_writeq(val, addr);					\
 	local_irq_restore(__flags);					\
-})
+} while (0)
 #endif
 #ifdef CONFIG_MIPS64
-#define ____raw_writeq(q,addr)	((*(volatile unsigned long *)(addr)) = (q))
+#define ____raw_writeq(q,addr)						\
+do {									\
+	*(volatile unsigned long *)__swizzle_addr_q(addr) = (q);	\
+} while (0)
+
 #define __raw_writeq(q,addr)	____raw_writeq(q, addr)
 #endif
 
