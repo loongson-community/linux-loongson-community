@@ -113,9 +113,16 @@ cflags-$(CONFIG_CPU_NEVADA)	+= -mcpu=r8000 -mmad
 cflags-$(CONFIG_CPU_RM7000)	+= $(call check_gcc, -march=rm7000, -mcpu=r5000)
 32bit-isa-$(CONFIG_CPU_RM7000)	+= -mips2 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_RM7000)	+= -mips4 -Wa,--trap
-cflags-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mcpu=sb1, -mcpu=r8000)
-32bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mips32, -mips2) -Wa,--trap
-64bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, -mips64, -mips4) -Wa,--trap
+cflags-$(CONFIG_CPU_SB1)	+= -Wa,--trap
+32bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, \
+					$(call check_gcc, -mcpu=sb1 -mips2, \
+						-march=mips32 -mtune=sb1), \
+					-mcpu=r5000 -mips2)
+64bit-isa-$(CONFIG_CPU_SB1)	+= $(call check_gcc, \
+					$(call check_gcc, -mcpu=sb1 -mips4, \
+						-march=sb1 -mtune=sb1), \
+					-mcpu=r5000 -mips4) \
+					-mgp64
 cflags-$(CONFIG_CPU_R8000)	+= -mcpu=r8000
 32bit-isa-$(CONFIG_CPU_R8000)	+= -mips2 -Wa,--trap
 64bit-isa-$(CONFIG_CPU_R8000)	+= -mips4 -Wa,--trap
