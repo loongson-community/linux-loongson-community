@@ -100,6 +100,6 @@ void __init loadmmu(void)
 #endif
 
 	default:
-		prom_printf("Yeee, unsupported mmu/cache architecture.");
+		panic("Yeee, unsupported mmu/cache architecture.");
 	}
 }
