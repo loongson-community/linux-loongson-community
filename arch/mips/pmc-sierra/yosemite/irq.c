@@ -111,8 +111,6 @@ asmlinkage void ll_ht_smp_irq_handler(int irq, struct pt_regs *regs)
 
 #ifdef CONFIG_KGDB
 extern void init_second_port(void);
-extern void breakpoint(void);
-extern void set_debug_traps(void);
 #endif
 
 /*
@@ -129,9 +127,6 @@ void __init arch_init_irq(void)
 #ifdef CONFIG_KGDB
 	/* At this point, initialize the second serial port */
 	init_second_port();
-	printk("Start kgdb ... \n");
-	set_debug_traps();
-	breakpoint();
 #endif
 
 #ifdef CONFIG_GDB_CONSOLE

@@ -29,12 +29,6 @@
 #include <asm/sgi/hpc3.h>
 #include <asm/sgi/ip22.h>
 
-#ifdef CONFIG_KGDB
-extern void rs_kgdb_hook(int);
-extern void breakpoint(void);
-static int remote_debug = 0;
-#endif
-
 unsigned long sgi_gfxaddr;
 
 /*
@@ -63,9 +57,6 @@ extern void ip22_time_init(void) __init;
 static int __init ip22_setup(void)
 {
 	char *ctype;
-#ifdef CONFIG_KGDB
-	char *kgdb_ttyd;
-#endif
 
 	board_be_init = ip22_be_init;
 	ip22_time_init();
@@ -106,7 +97,9 @@ static int __init ip22_setup(void)
 	}
 
 #ifdef CONFIG_KGDB
-	kgdb_ttyd = prom_getcmdline();
+	{
+	char *kgdb_ttyd = prom_getcmdline();
+
 	if ((kgdb_ttyd = strstr(kgdb_ttyd, "kgdb=ttyd")) != NULL) {
 		int line;
 		kgdb_ttyd += strlen("kgdb=ttyd");
@@ -121,8 +114,9 @@ static int __init ip22_setup(void)
 		printk(KERN_INFO "KGDB: Using serial line /dev/ttyd%d for "
 		       "session, please connect your debugger\n", line ? 1:2);
 
-		remote_debug = 1;
+		kgdb_enabled = 1;
 		/* Breakpoints and stuff are in sgi_irq_setup() */
+	}
 	}
 #endif
 

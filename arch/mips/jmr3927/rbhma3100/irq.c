@@ -425,16 +425,6 @@ void (*irq_setup)(void);
 
 void __init arch_init_irq(void)
 {
-
-#ifdef CONFIG_KGDB
-        extern void breakpoint(void);
-        extern void set_debug_traps(void);
-
-        puts("Wait for gdb client connection ...\n");
-        set_debug_traps();
-        breakpoint();
-#endif
-
         /* invoke board-specific irq setup */
         irq_setup();
 }

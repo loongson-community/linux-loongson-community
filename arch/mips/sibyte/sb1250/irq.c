@@ -61,18 +61,7 @@ extern unsigned long ldt_eoi_space;
 #endif
 
 #ifdef CONFIG_KGDB
-#include <asm/gdb-stub.h>
-extern void breakpoint(void);
 static int kgdb_irq;
-
-/* kgdb is on when configured.  Pass "nokgdb" kernel arg to turn it off */
-static int kgdb_flag = 1;
-static int __init nokgdb(char *str)
-{
-	kgdb_flag = 0;
-	return 1;
-}
-__setup("nokgdb", nokgdb);
 
 /* Default to UART1 */
 int kgdb_port = 1;
@@ -405,10 +394,6 @@ void __init arch_init_irq(void)
 			     IOADDR(A_IMR_REGISTER(0, R_IMR_INTERRUPT_MAP_BASE) +
 				    (kgdb_irq<<3)));
 		sb1250_unmask_irq(0, kgdb_irq);
-
-		prom_printf("Waiting for GDB on UART port %d\n", kgdb_port);
-		set_debug_traps();
-		breakpoint();
 	}
 #endif
 }

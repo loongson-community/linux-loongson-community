@@ -22,10 +22,6 @@
 extern char CommandLine[];
 extern void pci_setup(void);
 
-#ifdef CONFIG_KGDB
-int remote_debug = 0;
-#endif
-
 const char *get_system_type(void)
 {
 	return "HP LaserJet";	/* But which exactly?  */
@@ -139,10 +135,6 @@ static void __init hp_setup(void)
 	_machine_power_off = hplj_halt;
 
 	board_timer_setup = hp_time_init;
-
-#ifdef CONFIG_KGDB
-	remote_debug = (strstr(CommandLine, "kgdb") != NULL);
-#endif
 
 	printk("HP SETUP\n");
 }

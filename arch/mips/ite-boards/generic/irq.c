@@ -65,10 +65,6 @@
 #define DPRINTK(fmt, args...)
 #endif
 
-#ifdef CONFIG_KGDB
-extern void breakpoint(void);
-#endif
-
 /* revisit */
 #define EXT_IRQ0_TO_IP 2 /* IP 2 */
 #define EXT_IRQ5_TO_IP 7 /* IP 7 */
@@ -295,13 +291,6 @@ void __init arch_init_irq(void)
 	}
 	irq_desc[MIPS_CPU_TIMER_IRQ].handler = &cp0_irq_type;
 	set_c0_status(ALLINTS_NOTIMER);
-
-#ifdef CONFIG_KGDB
-	/* If local serial I/O used for debug port, enter kgdb at once */
-	puts("Waiting for kgdb to connect...");
-	set_debug_traps();
-	breakpoint();
-#endif
 }
 
 void mips_spurious_interrupt(struct pt_regs *regs)

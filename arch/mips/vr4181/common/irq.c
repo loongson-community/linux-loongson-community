@@ -236,13 +236,4 @@ void __init arch_init_irq(void)
 	 */
 	setup_irq(VR4181_IRQ_RTCL1, &reserved);
 	setup_irq(VR4181_IRQ_RTCL2, &reserved);
-
-#ifdef CONFIG_KGDB
-	printk("Setting debug traps - please connect the remote debugger.\n");
-
-	set_debug_traps();
-
-	// you may move this line to whereever you want
-	breakpoint();
-#endif
 }

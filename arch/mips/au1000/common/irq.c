@@ -66,10 +66,6 @@
 #define EXT_INTC1_REQ1 5 /* IP 5 */
 #define MIPS_TIMER_IP  7 /* IP 7 */
 
-#ifdef CONFIG_KGDB
-extern void breakpoint(void);
-#endif
-
 extern asmlinkage void au1000_IRQ(void);
 extern void set_debug_traps(void);
 extern irq_cpustat_t irq_stat [NR_CPUS];
@@ -479,13 +475,6 @@ void __init arch_init_irq(void)
 	*/
 	if (board_init_irq)
 		(*board_init_irq)();
-
-#ifdef CONFIG_KGDB
-	/* If local serial I/O used for debug port, enter kgdb at once */
-	puts("Waiting for kgdb to connect...");
-	set_debug_traps();
-	breakpoint();
-#endif
 }
 
 

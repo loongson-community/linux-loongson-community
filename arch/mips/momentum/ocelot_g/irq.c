@@ -67,10 +67,4 @@ void __init arch_init_irq(void)
 	rm7k_cpu_irq_init(8);
 
 	gt64240_irq_init();
-
-#ifdef CONFIG_KGDB
-	printk("start kgdb ...\n");
-	set_debug_traps();
-	breakpoint();	/* you may move this line to whereever you want :-) */
-#endif
 }

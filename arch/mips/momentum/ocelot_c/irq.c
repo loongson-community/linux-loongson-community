@@ -81,10 +81,4 @@ void __init arch_init_irq(void)
 	mv64340_irq_init(16);
 	uart_irq_init();
 	cpci_irq_init();
-
-#ifdef CONFIG_KGDB
-	printk("start kgdb ...\n");
-	set_debug_traps();
-	breakpoint();	/* you may move this line to whereever you want :-) */
-#endif
 }

@@ -36,10 +36,6 @@
 #define TIMER_IRQ			(VRC5476_IRQ_BASE + VRC5476_IRQ_GPT)
 #endif
 
-#ifdef CONFIG_KGDB
-extern void breakpoint(void);
-#endif
-
 static void (*back_to_prom) (void) = (void (*)(void)) 0xbfc00000;
 
 static void ddb_machine_restart(char *command)

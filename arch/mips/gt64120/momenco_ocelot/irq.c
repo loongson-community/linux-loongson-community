@@ -65,10 +65,4 @@ void __init arch_init_irq(void)
 
 	mips_cpu_irq_init(0);
 	rm7k_cpu_irq_init(8);
-
-#ifdef CONFIG_KGDB
-	printk("start kgdb ...\n");
-	set_debug_traps();
-	breakpoint();	/* you may move this line to whereever you want :-) */
-#endif
 }

@@ -17,28 +17,8 @@
 
 void (*irq_setup)(void);
 
-#ifdef CONFIG_KGDB
-static int kgdb_flag = 1;
-static int __init nokgdb(char *str)
-{
-	kgdb_flag = 0;
-	return 1;
-}
-__setup("nokgdb", nokgdb);
-#endif
-
 void __init arch_init_irq(void)
 {
-#ifdef CONFIG_KGDB
-	extern void breakpoint(void);
-	extern void set_debug_traps(void);
-
-	if (kgdb_flag) {
-		printk("Wait for gdb client connection ...\n");
-		set_debug_traps();
-		breakpoint();
-	}
-#endif
 	/* invoke board-specific irq setup */
 	irq_setup();
 }
