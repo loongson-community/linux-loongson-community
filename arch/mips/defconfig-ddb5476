@@ -93,6 +93,7 @@ CONFIG_SYSCTL=y
 #
 # CONFIG_PNP is not set
 # CONFIG_ISAPNP is not set
+# CONFIG_PNPBIOS is not set
 
 #
 # Memory Technology Devices (MTD)

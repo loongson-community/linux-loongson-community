@@ -44,5 +44,9 @@
 #define IRQTYPE_DSP                 IPR_FXDSP
 
 void emu10k1_timer_irqhandler(struct emu10k1_card *);
+void emu10k1_dsp_irqhandler(struct emu10k1_card *);
+void emu10k1_mute_irqhandler(struct emu10k1_card *);
+void emu10k1_volincr_irqhandler(struct emu10k1_card *);
+void emu10k1_voldecr_irqhandler(struct emu10k1_card *);
 
 #endif /* _IRQ_H */

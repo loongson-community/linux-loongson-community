@@ -448,7 +448,7 @@ try_again:
 		 * to give up than to deadlock the kernel looping here.
 		 */
 		if (gfp_mask & __GFP_WAIT) {
-			if (!order || free_shortage()) {
+			if (!order || total_free_shortage()) {
 				int progress = try_to_free_pages(gfp_mask);
 				if (progress || (gfp_mask & __GFP_FS))
 					goto try_again;
@@ -585,25 +585,23 @@ unsigned int nr_inactive_clean_pages (void)
  */
 unsigned int nr_free_buffer_pages (void)
 {
-	unsigned int sum;
+	unsigned int sum = 0;
+	zonelist_t *zonelist;
+	zone_t **zonep, *zone;
 
-	sum = nr_free_pages();
-	sum += nr_inactive_clean_pages();
-	sum += nr_inactive_dirty_pages;
+	zonelist = contig_page_data.node_zonelists + (GFP_NOFS & GFP_ZONEMASK);
+	zonep = zonelist->zones;
 
-	/*
-	 * Keep our write behind queue filled, even if
-	 * kswapd lags a bit right now.
-	 */
-	if (sum < freepages.high + inactive_target)
-		sum = freepages.high + inactive_target;
-	/*
-	 * We don't want dirty page writebehind to put too
-	 * much pressure on the working set, but we want it
-	 * to be possible to have some dirty pages in the
-	 * working set without upsetting the writebehind logic.
-	 */
-	sum += nr_active_pages >> 4;
+	for (zone = *zonep++; zone; zone = *zonep++) {
+		unsigned int pages = zone->free_pages +
+			zone->inactive_clean_pages +
+			zone->inactive_dirty_pages;
+
+		/* Allow the buffer cache to fill up at least "pages_high" pages */
+		if (pages < zone->pages_high)
+			pages = zone->pages_high;
+		sum += pages;
+	}
 
 	return sum;
 }
@@ -856,7 +854,6 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 		}
 
 		offset += size;
-		mask = -1;
 		for (i = 0; ; i++) {
 			unsigned long bitmap_size;
 
@@ -865,11 +862,32 @@ void __init free_area_init_core(int nid, pg_data_t *pgdat, struct page **gmap,
 				zone->free_area[i].map = NULL;
 				break;
 			}
-			mask += mask;
-			size = (size + ~mask) & mask;
-			bitmap_size = size >> (i+1);
-			bitmap_size = (bitmap_size + 7) >> 3;
-			bitmap_size = LONG_ALIGN(bitmap_size);
+
+			/*
+			 * Page buddy system uses "index >> (i+1)",
+			 * where "index" is at most "size-1".
+			 *
+			 * The extra "+3" is to round down to byte
+			 * size (8 bits per byte assumption). Thus
+			 * we get "(size-1) >> (i+4)" as the last byte
+			 * we can access.
+			 *
+			 * The "+1" is because we want to round the
+			 * byte allocation up rather than down. So
+			 * we should have had a "+7" before we shifted
+			 * down by three. Also, we have to add one as
+			 * we actually _use_ the last bit (it's [0,n]
+			 * inclusive, not [0,n[).
+			 *
+			 * So we actually had +7+1 before we shift
+			 * down by 3. But (n+8) >> 3 == (n >> 3) + 1
+			 * (modulo overflows, which we do not have).
+			 *
+			 * Finally, we LONG_ALIGN because all bitmap
+			 * operations are on longs.
+			 */
+			bitmap_size = (size-1) >> (i+4);
+			bitmap_size = LONG_ALIGN(bitmap_size+1);
 			zone->free_area[i].map = 
 			  (unsigned long *) alloc_bootmem_node(pgdat, bitmap_size);
 		}

@@ -60,7 +60,7 @@ extern void page_cache_init(unsigned long);
  * For the time being it will work for struct address_space too (most of
  * them sitting inside the inodes). We might want to change it later.
  */
-extern inline unsigned long _page_hashfn(struct address_space * mapping, unsigned long index)
+static inline unsigned long _page_hashfn(struct address_space * mapping, unsigned long index)
 {
 #define i (((unsigned long) mapping)/(sizeof(struct inode) & ~ (sizeof(struct inode) - 1)))
 #define s(x) ((x)+((x)>>PAGE_HASH_BITS))
@@ -72,7 +72,9 @@ extern inline unsigned long _page_hashfn(struct address_space * mapping, unsigne
 #define page_hash(mapping,index) (page_hash_table+_page_hashfn(mapping,index))
 
 extern struct page * __find_get_page(struct address_space *mapping,
-				     unsigned long offset, struct page **hash);
+				unsigned long index, struct page **hash);
+#define find_get_page(mapping, index) \
+	__find_get_page(mapping, index, page_hash(mapping, index))
 extern struct page * __find_lock_page (struct address_space * mapping,
 				unsigned long index, struct page **hash);
 extern void lock_page(struct page *page);
@@ -91,7 +93,7 @@ extern void add_to_page_cache_locked(struct page * page, struct address_space *m
 
 extern void ___wait_on_page(struct page *);
 
-extern inline void wait_on_page(struct page * page)
+static inline void wait_on_page(struct page * page)
 {
 	if (PageLocked(page))
 		___wait_on_page(page);

@@ -14,9 +14,7 @@ typedef struct elevator_s elevator_t;
 
 /*
  * Ok, this is an expanded form so that we can use the same
- * request for paging requests when that is implemented. In
- * paging, 'bh' is NULL, and the completion is used to wait
- * for the IO to be ready.
+ * request for paging requests.
  */
 struct request {
 	struct list_head queue;
@@ -176,8 +174,6 @@ extern int * max_sectors[MAX_BLKDEV];
 
 extern int * max_segments[MAX_BLKDEV];
 
-extern atomic_t queued_sectors;
-
 #define MAX_SEGMENTS 128
 #define MAX_SECTORS 255
 
@@ -205,14 +201,7 @@ static inline int get_hardsect_size(kdev_t dev)
 		return 512;
 }
 
-#define blk_finished_io(nsects)				\
-	atomic_sub(nsects, &queued_sectors);		\
-	if (atomic_read(&queued_sectors) < 0) {		\
-		printk("block: queued_sectors < 0\n");	\
-		atomic_set(&queued_sectors, 0);		\
-	}
-
-#define blk_started_io(nsects)				\
-	atomic_add(nsects, &queued_sectors);
+#define blk_finished_io(nsects)	do { } while (0)
+#define blk_started_io(nsects)	do { } while (0)
 
 #endif

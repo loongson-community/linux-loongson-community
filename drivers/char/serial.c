@@ -3180,6 +3180,9 @@ static int rs_open(struct tty_struct *tty, struct file * filp)
 	info->tty->low_latency = (info->flags & ASYNC_LOW_LATENCY) ? 1 : 0;
 #endif
 
+	/*
+	 *	This relies on lock_kernel() stuff so wants tidying for 2.5
+	 */
 	if (!tmp_buf) {
 		page = get_zeroed_page(GFP_KERNEL);
 		if (!page) {
@@ -5452,6 +5455,10 @@ static int __init rs_init(void)
 			state->io_type = SERIAL_IO_HUB6;
 		if (state->port && check_region(state->port,8))
 			continue;
+#ifdef CONFIG_MCA			
+		if ((state->flags & ASYNC_BOOT_ONLYMCA) && !MCA_bus)
+			continue;
+#endif			
 		if (state->flags & ASYNC_BOOT_AUTOCONF)
 			autoconfig(state);
 	}

@@ -106,6 +106,13 @@ M:	p_gortmaker@yahoo.com
 L:	linux-net@vger.kernel.org
 S:	Maintained
 
+A2232 SERIAL BOARD DRIVER
+P:      Enver Haase
+M:      ehaase@inf.fu-berlin.de
+M:      A2232@gmx.net
+L:      linux-m68k@lists.linux-m68k.org
+S:      Maintained
+
 ACENIC DRIVER
 P:	Jes Sorensen
 M:	jes@trained-monkey.org
@@ -479,7 +486,7 @@ ETHERNET BRIDGE
 P:	Lennert Buytenhek
 M:	buytenh@gnu.org
 L:	bridge@math.leidenuniv.nl
-W:	http://www.math.leidenuniv.nl/~buytenh/bridge
+W:	http://bridge.sourceforge.net/
 S:	Maintained
 
 ETHERTEAM 16I DRIVER
@@ -606,6 +613,13 @@ i810 TCO TIMER WATCHDOG
 P:	Nils Faerber
 M:	nils@kernelconcepts.de
 W:	http://www.kernelconcepts.de/
+S:	Maintained
+
+IA64 (Itanium) PLATFORM
+P:	David Mosberger-Tang
+M:	davidm@hpl.hp.com
+L:	linux-ia64@linuxia64.org
+W:	http://www.linuxia64.org/
 S:	Maintained
 
 IBM MCA SCSI SUBSYSTEM DRIVER

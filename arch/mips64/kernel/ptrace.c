@@ -376,6 +376,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
+				unsigned long long *fregs
+					= (unsigned long long *)
+					&child->thread.fpu.hard.fp_regs[0];
 #ifndef CONFIG_SMP
 				if (last_task_used_math == child) {
 					set_cp0_status(ST0_CU1, ST0_CU1);

@@ -619,9 +619,9 @@ int lock_kiovec(int nr, struct kiobuf *iovec[], int wait)
 			
 			if (TryLockPage(page)) {
 				while (j--) {
-					page = *(--ppage);
-					if (page)
-						UnlockPage(page);
+					struct page *tmp = *--ppage;
+					if (tmp)
+						UnlockPage(tmp);
 				}
 				goto retry;
 			}
@@ -862,10 +862,9 @@ static inline void establish_pte(struct vm_area_struct * vma, unsigned long addr
 /*
  * We hold the mm semaphore for reading and vma->vm_mm->page_table_lock
  */
-static inline void break_cow(struct vm_area_struct * vma, struct page *	old_page, struct page * new_page, unsigned long address, 
+static inline void break_cow(struct vm_area_struct * vma, struct page * new_page, unsigned long address, 
 		pte_t *page_table)
 {
-	copy_cow_page(old_page,new_page,address);
 	flush_page_to_ram(new_page);
 	flush_cache_page(vma, address);
 	establish_pte(vma, address, page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
@@ -936,19 +935,23 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 	/*
 	 * Ok, we need to copy. Oh, well..
 	 */
+	page_cache_get(old_page);
 	spin_unlock(&mm->page_table_lock);
+
 	new_page = alloc_page(GFP_HIGHUSER);
-	spin_lock(&mm->page_table_lock);
 	if (!new_page)
-		return -1;
+		goto no_mem;
+	copy_cow_page(old_page,new_page,address);
+	page_cache_release(old_page);
 
 	/*
 	 * Re-check the pte - we dropped the lock
 	 */
+	spin_lock(&mm->page_table_lock);
 	if (pte_same(*page_table, pte)) {
 		if (PageReserved(old_page))
 			++mm->rss;
-		break_cow(vma, old_page, new_page, address, page_table);
+		break_cow(vma, new_page, address, page_table);
 
 		/* Free the old page.. */
 		new_page = old_page;
@@ -958,6 +961,10 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 
 bad_wp_page:
 	printk("do_wp_page: bogus page at address %08lx (page 0x%lx)\n",address,(unsigned long)old_page);
+	return -1;
+no_mem:
+	page_cache_release(old_page);
+	spin_lock(&mm->page_table_lock);
 	return -1;
 }
 
@@ -1091,9 +1098,10 @@ void swapin_readahead(swp_entry_t entry)
  */
 static int do_swap_page(struct mm_struct * mm,
 	struct vm_area_struct * vma, unsigned long address,
-	pte_t * page_table, swp_entry_t entry, int write_access)
+	pte_t * page_table, pte_t orig_pte, int write_access)
 {
 	struct page *page;
+	swp_entry_t entry = pte_to_swp_entry(orig_pte);
 	pte_t pte;
 
 	spin_unlock(&mm->page_table_lock);
@@ -1105,7 +1113,11 @@ static int do_swap_page(struct mm_struct * mm,
 		unlock_kernel();
 		if (!page) {
 			spin_lock(&mm->page_table_lock);
-			return -1;
+			/*
+			 * Back out if somebody else faulted in this pte while
+			 * we released the page table lock.
+			 */
+			return pte_same(*page_table, orig_pte) ? -1 : 1;
 		}
 	}
 
@@ -1121,7 +1133,7 @@ static int do_swap_page(struct mm_struct * mm,
 	 * released the page table lock.
 	 */
 	spin_lock(&mm->page_table_lock);
-	if (pte_present(*page_table)) {
+	if (!pte_same(*page_table, orig_pte)) {
 		UnlockPage(page);
 		page_cache_release(page);
 		return 1;
@@ -1132,8 +1144,14 @@ static int do_swap_page(struct mm_struct * mm,
 	pte = mk_pte(page, vma->vm_page_prot);
 
 	swap_free(entry);
-	if (write_access && exclusive_swap_page(page))
-		pte = pte_mkwrite(pte_mkdirty(pte));
+	if (exclusive_swap_page(page)) {	
+		if (write_access)
+			pte = pte_mkwrite(pte_mkdirty(pte));
+		if (vm_swap_full()) {
+			delete_from_swap_cache_nolock(page);
+			pte = pte_mkdirty(pte);
+		}
+	}
 	UnlockPage(page);
 
 	flush_page_to_ram(page);
@@ -1163,16 +1181,18 @@ static int do_anonymous_page(struct mm_struct * mm, struct vm_area_struct * vma,
 
 		/* Allocate our own private page. */
 		spin_unlock(&mm->page_table_lock);
+
 		page = alloc_page(GFP_HIGHUSER);
-		spin_lock(&mm->page_table_lock);
 		if (!page)
-			return -1;
+			goto no_mem;
+		clear_user_highpage(page, addr);
+
+		spin_lock(&mm->page_table_lock);
 		if (!pte_none(*page_table)) {
 			page_cache_release(page);
 			return 1;
 		}
 		mm->rss++;
-		clear_user_highpage(page, addr);
 		flush_page_to_ram(page);
 		entry = pte_mkwrite(pte_mkdirty(mk_pte(page, vma->vm_page_prot)));
 	}
@@ -1182,6 +1202,10 @@ static int do_anonymous_page(struct mm_struct * mm, struct vm_area_struct * vma,
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, addr, entry);
 	return 1;	/* Minor fault */
+
+no_mem:
+	spin_lock(&mm->page_table_lock);
+	return -1;
 }
 
 /*
@@ -1284,7 +1308,7 @@ static inline int handle_pte_fault(struct mm_struct *mm,
 		 */
 		if (pte_none(entry))
 			return do_no_page(mm, vma, address, write_access, pte);
-		return do_swap_page(mm, vma, address, pte, pte_to_swp_entry(entry), write_access);
+		return do_swap_page(mm, vma, address, pte, entry, write_access);
 	}
 
 	if (write_access) {

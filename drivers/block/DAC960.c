@@ -20,7 +20,7 @@
 
 
 #define DAC960_DriverVersion			"2.4.10"
-#define DAC960_DriverDate			"1 February 2001"
+#define DAC960_DriverDate			"23 July 2001"
 
 
 #include <linux/version.h>
@@ -28,6 +28,7 @@
 #include <linux/types.h>
 #include <linux/blk.h>
 #include <linux/blkdev.h>
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/hdreg.h>
 #include <linux/interrupt.h>
@@ -484,14 +485,14 @@ static void DAC960_PD_QueueCommand(DAC960_Command_T *Command)
 static void DAC960_ExecuteCommand(DAC960_Command_T *Command)
 {
   DAC960_Controller_T *Controller = Command->Controller;
-  DECLARE_MUTEX_LOCKED(Semaphore);
+  DECLARE_COMPLETION(Completion);
   unsigned long ProcessorFlags;
-  Command->Semaphore = &Semaphore;
+  Command->Completion = &Completion;
   DAC960_AcquireControllerLock(Controller, &ProcessorFlags);
   DAC960_QueueCommand(Command);
   DAC960_ReleaseControllerLock(Controller, &ProcessorFlags);
   if (in_interrupt()) return;
-  down(&Semaphore);
+  wait_for_completion(&Completion);
 }
 
 
@@ -1316,7 +1317,7 @@ static boolean DAC960_V1_ReadDeviceConfiguration(DAC960_Controller_T
 						 *Controller)
 {
   DAC960_V1_DCDB_T DCDBs[DAC960_V1_MaxChannels], *DCDB;
-  Semaphore_T Semaphores[DAC960_V1_MaxChannels], *Semaphore;
+  Completion_T Completions[DAC960_V1_MaxChannels], *Completion;
   unsigned long ProcessorFlags;
   int Channel, TargetID;
   for (TargetID = 0; TargetID < Controller->Targets; TargetID++)
@@ -1327,12 +1328,12 @@ static boolean DAC960_V1_ReadDeviceConfiguration(DAC960_Controller_T
 	  DAC960_SCSI_Inquiry_T *InquiryStandardData =
 	    &Controller->V1.InquiryStandardData[Channel][TargetID];
 	  InquiryStandardData->PeripheralDeviceType = 0x1F;
-	  Semaphore = &Semaphores[Channel];
-	  init_MUTEX_LOCKED(Semaphore);
+	  Completion = &Completions[Channel];
+	  init_completion(Completion);
 	  DCDB = &DCDBs[Channel];
 	  DAC960_V1_ClearCommand(Command);
 	  Command->CommandType = DAC960_ImmediateCommand;
-	  Command->Semaphore = Semaphore;
+	  Command->Completion = Completion;
 	  Command->V1.CommandMailbox.Type3.CommandOpcode = DAC960_V1_DCDB;
 	  Command->V1.CommandMailbox.Type3.BusAddress = Virtual_to_Bus32(DCDB);
 	  DCDB->Channel = Channel;
@@ -1363,11 +1364,11 @@ static boolean DAC960_V1_ReadDeviceConfiguration(DAC960_Controller_T
 	  DAC960_SCSI_Inquiry_UnitSerialNumber_T *InquiryUnitSerialNumber =
 	    &Controller->V1.InquiryUnitSerialNumber[Channel][TargetID];
 	  InquiryUnitSerialNumber->PeripheralDeviceType = 0x1F;
-	  Semaphore = &Semaphores[Channel];
-	  down(Semaphore);
+	  Completion = &Completions[Channel];
+	  wait_for_completion(Completion);
 	  if (Command->V1.CommandStatus != DAC960_V1_NormalCompletion)
 	    continue;
-	  Command->Semaphore = Semaphore;
+	  Command->Completion = Completion;
 	  DCDB = &DCDBs[Channel];
 	  DCDB->TransferLength = sizeof(DAC960_SCSI_Inquiry_UnitSerialNumber_T);
 	  DCDB->BusAddress = Virtual_to_Bus32(InquiryUnitSerialNumber);
@@ -1381,7 +1382,7 @@ static boolean DAC960_V1_ReadDeviceConfiguration(DAC960_Controller_T
 	  DAC960_AcquireControllerLock(Controller, &ProcessorFlags);
 	  DAC960_QueueCommand(Command);
 	  DAC960_ReleaseControllerLock(Controller, &ProcessorFlags);
-	  down(Semaphore);
+	  wait_for_completion(Completion);
 	}
     }
   return true;
@@ -2768,7 +2769,7 @@ static boolean DAC960_ProcessRequest(DAC960_Controller_T *Controller,
   if (Request->cmd == READ)
     Command->CommandType = DAC960_ReadCommand;
   else Command->CommandType = DAC960_WriteCommand;
-  Command->Semaphore = Request->sem;
+  Command->Completion = Request->waiting;
   Command->LogicalDriveNumber = DAC960_LogicalDriveNumber(Request->rq_dev);
   Command->BlockNumber =
     Request->sector
@@ -2921,13 +2922,10 @@ static void DAC960_V1_ProcessCompletedCommand(DAC960_Command_T *Command)
 	      DAC960_ProcessCompletedBuffer(BufferHeader, true);
 	      BufferHeader = NextBufferHeader;
 	    }
-	  /*
-	    Wake up requestor for swap file paging requests.
-	  */
-	  if (Command->Semaphore != NULL)
+	  if (Command->Completion != NULL)
 	    {
-	      up(Command->Semaphore);
-	      Command->Semaphore = NULL;
+	      complete(Command->Completion);
+	      Command->Completion = NULL;
 	    }
 	  add_blkdev_randomness(DAC960_MAJOR + Controller->ControllerNumber);
 	}
@@ -2969,13 +2967,10 @@ static void DAC960_V1_ProcessCompletedCommand(DAC960_Command_T *Command)
 	      DAC960_ProcessCompletedBuffer(BufferHeader, false);
 	      BufferHeader = NextBufferHeader;
 	    }
-	  /*
-	    Wake up requestor for swap file paging requests.
-	  */
-	  if (Command->Semaphore != NULL)
+	  if (Command->Completion != NULL)
 	    {
-	      up(Command->Semaphore);
-	      Command->Semaphore = NULL;
+	      complete(Command->Completion);
+	      Command->Completion = NULL;
 	    }
 	}
     }
@@ -3589,8 +3584,8 @@ static void DAC960_V1_ProcessCompletedCommand(DAC960_Command_T *Command)
     }
   if (CommandType == DAC960_ImmediateCommand)
     {
-      up(Command->Semaphore);
-      Command->Semaphore = NULL;
+      complete(Command->Completion);
+      Command->Completion = NULL;
       return;
     }
   if (CommandType == DAC960_QueuedCommand)
@@ -3931,13 +3926,10 @@ static void DAC960_V2_ProcessCompletedCommand(DAC960_Command_T *Command)
 	      DAC960_ProcessCompletedBuffer(BufferHeader, true);
 	      BufferHeader = NextBufferHeader;
 	    }
-	  /*
-	    Wake up requestor for swap file paging requests.
-	  */
-	  if (Command->Semaphore != NULL)
+	  if (Command->Completion != NULL)
 	    {
-	      up(Command->Semaphore);
-	      Command->Semaphore = NULL;
+	      complete(Command->Completion);
+	      Command->Completion = NULL;
 	    }
 	  add_blkdev_randomness(DAC960_MAJOR + Controller->ControllerNumber);
 	}
@@ -3979,13 +3971,10 @@ static void DAC960_V2_ProcessCompletedCommand(DAC960_Command_T *Command)
 	      DAC960_ProcessCompletedBuffer(BufferHeader, false);
 	      BufferHeader = NextBufferHeader;
 	    }
-	  /*
-	    Wake up requestor for swap file paging requests.
-	  */
-	  if (Command->Semaphore != NULL)
+	  if (Command->Completion != NULL)
 	    {
-	      up(Command->Semaphore);
-	      Command->Semaphore = NULL;
+	      complete(Command->Completion);
+	      Command->Completion = NULL;
 	    }
 	}
     }
@@ -4539,8 +4528,8 @@ static void DAC960_V2_ProcessCompletedCommand(DAC960_Command_T *Command)
     }
   if (CommandType == DAC960_ImmediateCommand)
     {
-      up(Command->Semaphore);
-      Command->Semaphore = NULL;
+      complete(Command->Completion);
+      Command->Completion = NULL;
       return;
     }
   if (CommandType == DAC960_QueuedCommand)

@@ -100,11 +100,6 @@ struct zone_t;
 
 /* linux/mm/swap.c */
 extern int memory_pressure;
-extern void age_page_up(struct page *);
-extern void age_page_up_nolock(struct page *);
-extern void age_page_down(struct page *);
-extern void age_page_down_nolock(struct page *);
-extern void age_page_down_ageonly(struct page *);
 extern void deactivate_page(struct page *);
 extern void deactivate_page_nolock(struct page *);
 extern void activate_page(struct page *);
@@ -121,7 +116,9 @@ extern wait_queue_head_t kswapd_wait;
 extern wait_queue_head_t kreclaimd_wait;
 extern int page_launder(int, int);
 extern int free_shortage(void);
+extern int total_free_shortage(void);
 extern int inactive_shortage(void);
+extern int total_inactive_shortage(void);
 extern void wakeup_kswapd(void);
 extern int try_to_free_pages(unsigned int gfp_mask);
 
@@ -151,6 +148,7 @@ extern void delete_from_swap_cache_nolock(struct page *page);
 extern void free_page_and_swap_cache(struct page *page);
 
 /* linux/mm/swapfile.c */
+extern int vm_swap_full(void);
 extern unsigned int nr_swapfiles;
 extern struct swap_info_struct swap_info[];
 extern int is_swap_partition(kdev_t);

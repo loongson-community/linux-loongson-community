@@ -1217,10 +1217,10 @@ int netif_rx(struct sk_buff *skb)
 enqueue:
 			dev_hold(skb->dev);
 			__skb_queue_tail(&queue->input_pkt_queue,skb);
+			local_irq_restore(flags);
 
 			/* Runs from irqs or BH's, no need to wake BH */
 			__cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
-			local_irq_restore(flags);
 #ifndef OFFLINE_SAMPLE
 			get_sample_stats(this_cpu);
 #endif
@@ -1529,10 +1529,10 @@ softnet_break:
 
 	local_irq_disable();
 	netdev_rx_stat[this_cpu].time_squeeze++;
+	local_irq_enable();
 
 	/* This already runs in BH context, no need to wake up BH's */
 	__cpu_raise_softirq(this_cpu, NET_RX_SOFTIRQ);
-	local_irq_enable();
 
 	NET_PROFILE_LEAVE(softnet_process);
 	return;
@@ -2169,7 +2169,10 @@ static int dev_ifsioc(struct ifreq *ifr, unsigned int cmd)
 		default:
 			if ((cmd >= SIOCDEVPRIVATE &&
 			    cmd <= SIOCDEVPRIVATE + 15) ||
-			    cmd == SIOCETHTOOL) {
+			    cmd == SIOCETHTOOL ||
+			    cmd == SIOCGMIIPHY ||
+			    cmd == SIOCGMIIREG ||
+			    cmd == SIOCSMIIREG) {
 				if (dev->do_ioctl) {
 					if (!netif_device_present(dev))
 						return -ENODEV;
@@ -2291,6 +2294,9 @@ int dev_ioctl(unsigned int cmd, void *arg)
 		case SIOCSIFTXQLEN:
 		case SIOCSIFNAME:
 		case SIOCETHTOOL:
+		case SIOCGMIIPHY:
+		case SIOCGMIIREG:
+		case SIOCSMIIREG:
 			if (!capable(CAP_NET_ADMIN))
 				return -EPERM;
 			dev_load(ifr.ifr_name);

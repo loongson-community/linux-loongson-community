@@ -293,12 +293,13 @@ static void build_speed_map(struct hpsb_host *host, int nodecount)
 void hpsb_selfid_received(struct hpsb_host *host, quadlet_t sid)
 {
         if (host->in_bus_reset) {
-                HPSB_DEBUG("Including SelfID 0x%x", sid);
+#ifdef CONFIG_IEEE1394_VERBOSEDEBUG
+                HPSB_INFO("Including SelfID 0x%x", sid);
+#endif
                 host->topology_map[host->selfid_count++] = sid;
         } else {
-                /* FIXME - info on which host */
-                HPSB_NOTICE("Spurious SelfID packet (0x%08x) received from %s",
-			    sid, host->template->name);
+                HPSB_NOTICE("Spurious SelfID packet (0x%08x) received from bus %d",
+			    sid, (host->node_id & BUS_MASK) >> 6);
         }
 }
 
@@ -352,7 +353,7 @@ void hpsb_packet_sent(struct hpsb_host *host, struct hpsb_packet *packet,
         }
 
         if (ackcode != ACK_PENDING || !packet->expect_response) {
-                packet->state = complete;
+                packet->state = completed;
                 up(&packet->state_change);
                 up(&packet->state_change);
                 run_task_queue(&packet->complete_tq);
@@ -505,7 +506,7 @@ void handle_packet_response(struct hpsb_host *host, int tcode, quadlet_t *data,
                 break;
         }
 
-        packet->state = complete;
+        packet->state = completed;
         up(&packet->state_change);
         run_task_queue(&packet->complete_tq);
 }
@@ -725,7 +726,7 @@ void abort_requests(struct hpsb_host *host)
         while (lh != &llist) {
                 packet = list_entry(lh, struct hpsb_packet, list);
                 lh = lh->next;
-                packet->state = complete;
+                packet->state = completed;
                 packet->ack_code = ACKX_ABORTED;
                 up(&packet->state_change);
                 run_task_queue(&packet->complete_tq);
@@ -770,7 +771,7 @@ void abort_timedouts(struct hpsb_host *host)
         while (lh != &expiredlist) {
                 packet = list_entry(lh, struct hpsb_packet, list);
                 lh = lh->next;
-                packet->state = complete;
+                packet->state = completed;
                 packet->ack_code = ACKX_TIMEOUT;
                 up(&packet->state_change);
                 run_task_queue(&packet->complete_tq);
