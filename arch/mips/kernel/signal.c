@@ -374,7 +374,7 @@ static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
 	else
 		almask = ALMASK;
 
-	return (void *)((sp - frame_size) & almask;
+	return (void *)((sp - frame_size) & almask);
 }
 
 #ifdef CONFIG_TRAD_SIGNALS
