@@ -404,7 +404,8 @@ static inline unsigned long __cmpxchg_u32(volatile int * m, unsigned long old,
 
 	local_irq_save(flags);
 	retval = *m;
-	*m = val;
+	if (retval == old)
+		*m = new;
 	local_irq_restore(flags);	/* implies memory barrier  */
 #endif
 
@@ -440,7 +441,8 @@ static inline unsigned long __cmpxchg_u64(volatile int * m, unsigned long old,
 
 	local_irq_save(flags);
 	retval = *m;
-	*m = val;
+	if (retval == old)
+		*m = new;
 	local_irq_restore(flags);	/* implies memory barrier  */
 #endif
 
