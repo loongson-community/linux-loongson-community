@@ -161,6 +161,7 @@ extern void tx3912_console_init(void);
 extern void tx3912_rs_init(void);
 extern void txx927_console_init(void);
 extern void sb1250_serial_console_init(void);
+extern void arc_console_init(void);
 extern void hvc_console_init(void);
 
 #ifndef MIN
