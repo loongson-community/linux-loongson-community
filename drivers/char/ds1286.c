@@ -174,6 +174,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 		 * tm_min, and tm_sec values are filled in.
 		 */
 
+		memset(&wtime, 0, sizeof(* wtime));
 		ds1286_get_alm_time(&wtime);
 		break;
 	}
@@ -216,6 +217,7 @@ static int ds1286_ioctl(struct inode *inode, struct file *file,
 	}
 	case RTC_RD_TIME:	/* Read the time/date from RTC	*/
 	{
+		memset(&wtime, 0, sizeof(* wtime));
 		ds1286_get_time(&wtime);
 		break;
 	}
