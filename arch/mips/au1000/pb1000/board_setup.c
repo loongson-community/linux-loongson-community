@@ -37,8 +37,8 @@
 #include <asm/mipsregs.h>
 #include <asm/reboot.h>
 #include <asm/pgtable.h>
-#include <asm/au1000.h>
-#include <asm/pb1000.h>
+#include <asm/mach-au1x00/au1000.h>
+#include <asm/mach-au1x00/pb1000.h>
 
 void board_reset (void)
 {

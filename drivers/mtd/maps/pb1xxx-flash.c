@@ -17,7 +17,7 @@
 #include <linux/mtd/partitions.h>
 
 #include <asm/io.h>
-#include <asm/au1000.h>
+#include <asm/mach-au1x00/au1000.h>
 
 #ifdef 	DEBUG_RW
 #define	DBG(x...)	printk(x)
