@@ -99,9 +99,11 @@ work_resched:
 
 work_notifysig:					# deal with pending signals and
 						# notify-resume requests
+		SAVE_STATIC
 		move	a0, sp
 		li	a1, 0
 		jal	do_notify_resume	# a2 already loaded
+		RESTORE_STATIC
 		j	restore_all
 
 syscall_exit_work:
