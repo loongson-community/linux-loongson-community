@@ -446,7 +446,6 @@ if [ "$CONFIG_DECSTATION" = "y" ]; then
 #      bool 'MAXINE Access.Bus mouse (VSXXX-BB/GB) support' CONFIG_DTOP_MOUSE
 #   fi
    bool 'Enhanced Real Time Clock Support' CONFIG_RTC
-
    endmenu
 fi
 
@@ -460,10 +459,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
       else
 	 define_bool CONFIG_FONT_8x16 y
       fi
-   fi
-   bool 'PS/2 mouse support' CONFIG_PSMOUSE
-   if [ "$CONFIG_PSMOUSE" != "n" ]; then
-      define_bool CONFIG_MOUSE y
    fi
    endmenu
 fi
