@@ -1,3 +1,4 @@
+#include <linux/kallsyms.h>
 #include <linux/kernel.h>
 #include <linux/mmzone.h>
 #include <linux/spinlock.h>
@@ -83,7 +84,11 @@ nmi_cpu_eframe_save(nasid_t nasid, int slice)
 	/*
 	 * Saved cp0 registers
 	 */
-	printk("epc   : %016lx    %s\n", nr->epc, print_tainted());
+	printk("epc   : %016lx ", nr->epc);
+	print_symbol("%s ", nr->epc);
+	printk("%s\n", print_tainted());
+	printk("ra    : %016lx ", nr->gpr[31]);
+	print_symbol("%s ", nr->gpr[31]);
 	printk("Status: %08lx    ", nr->sr);
 
 	if (nr->sr & ST0_KX)
