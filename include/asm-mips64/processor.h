@@ -31,6 +31,7 @@
 })
 
 #ifndef __ASSEMBLY__
+#include <linux/smp.h>
 #include <linux/threads.h>
 
 #include <asm/cachectl.h>
