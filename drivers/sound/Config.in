@@ -15,10 +15,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
      bool 'Joystick support at boot time' CONFIG_SOUND_ES1370_JOYPORT_BOOT
   fi  
   dep_tristate 'Creative Ensoniq AudioPCI 97 (ES1371)' CONFIG_SOUND_ES1371 $CONFIG_SOUND
-  dep_tristate 'S3 SonicVibes' CONFIG_SOUND_SONICVIBES $CONFIG_SOUND
-  if [ "$CONFIG_SGI" = "y" ]; then
-    dep_tristate 'SGI Indy HAL2' CONFIG_SOUND_HAL2 $CONFIG_SOUND
-  fi
 fi
 dep_tristate 'S3 SonicVibes' CONFIG_SOUND_SONICVIBES $CONFIG_SOUND
 
