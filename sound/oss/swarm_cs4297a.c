@@ -2747,8 +2747,6 @@ static void __exit cs4297a_cleanup(void)
 
 // --------------------------------------------------------------------- 
 
-EXPORT_NO_SYMBOLS;
-
 MODULE_AUTHOR("Kip Walker, Broadcom Corp.");
 MODULE_DESCRIPTION("Cirrus Logic CS4297a Driver for Broadcom SWARM board");
 
