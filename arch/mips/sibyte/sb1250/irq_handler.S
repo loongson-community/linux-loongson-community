@@ -28,6 +28,8 @@
  * Note that we take care of all raised interrupts in one go at the handler.
  * This is more BSDish than the Indy code, and also, IMHO, more sane. 
  */
+#include <linux/config.h>
+
 #include <asm/addrspace.h>
 #include <asm/processor.h>
 #include <asm/asm.h>
