@@ -4,8 +4,7 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *
  *  1997-11-28  Modified for POSIX.1b signals by Richard Henderson
- *  Pentium III support by Ingo Molnar, modifications and OS Exception support
- *              by Goutham Rao
+ *  2000-05-25  Pentium III FXSR, SSE support by Gareth Hughes
  */
 
 #include <linux/config.h>
@@ -187,12 +186,36 @@ struct rt_sigframe
 	char retcode[8];
 };
 
-
 static inline int restore_i387_hard(struct _fpstate *buf)
 {
 	struct task_struct *tsk = current;
+#ifdef CONFIG_X86_FXSR
+	struct _fpreg *from;
+	struct _fpxreg *to;
+	int i;
+#endif
 	clear_fpu(tsk);
-	return i387_user_to_hard(&tsk->thread.i387.hard, buf);
+
+#ifdef CONFIG_X86_FXSR
+	if (__copy_from_user(&tsk->thread.i387.hard, buf, 7 * sizeof(long)))
+		return 1;
+
+	from = &buf->_st[0];
+	to = (struct _fpxreg *) &tsk->thread.i387.hard.st_space[0];
+	for (i = 0; i < 8; i++, to++, from++) {
+		if (__copy_from_user(to, from, sizeof(*from)))
+			return 1;
+	}
+
+	if (__copy_from_user(&tsk->thread.i387.hard.fxsr_space[0],
+			     &buf->_fxsr_env[0], X86_FXSR_SIZE))
+		return 1;
+#else
+	if (__copy_from_user(&tsk->thread.i387.hard, buf,
+			     sizeof(struct i387_hard_struct)))
+		return 1;
+#endif
+	return 0;
 }
 
 static inline int restore_i387(struct _fpstate *buf)
@@ -343,11 +366,39 @@ badframe:
 static inline int save_i387_hard(struct _fpstate * buf)
 {
 	struct task_struct *tsk = current;
-
+#ifdef CONFIG_X86_FXSR
+	struct _fpreg *to;
+	struct _fpxreg *from;
+	int i;
+	int err = 0;
+#endif
 	unlazy_fpu(tsk);
 	tsk->thread.i387.hard.status = tsk->thread.i387.hard.swd;
-	if (i387_hard_to_user(buf, &tsk->thread.i387.hard))
+
+#ifdef CONFIG_X86_FXSR
+	if (__copy_to_user(buf, &tsk->thread.i387.hard, 7 * sizeof(long)))
 		return -1;
+
+	to = &buf->_st[0];
+	from = (struct _fpxreg *) &tsk->thread.i387.hard.st_space[0];
+	for (i = 0; i < 8; i++, to++, from++) {
+		if (__copy_to_user(to, from, sizeof(*to)))
+			return -1;
+	}
+	err |= __put_user(tsk->thread.i387.hard.swd & 0xffff, &buf->status);
+	err |= __put_user(X86_FXSR_MAGIC, &buf->magic);
+	if (err)
+		return -1;
+
+	if (__copy_to_user(&buf->_fxsr_env[0],
+			   &tsk->thread.i387.hard.fxsr_space[0],
+			   X86_FXSR_SIZE))
+		return -1;
+#else
+	if (__copy_to_user(buf, &tsk->thread.i387.hard,
+			   sizeof(struct i387_hard_struct)))
+		return -1;
+#endif
 	return 1;
 }
 
@@ -662,7 +713,7 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 		if (!signr)
 			break;
 
-		if ((current->flags & PF_PTRACED) && signr != SIGKILL) {
+		if ((current->ptrace&PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
 			current->state = TASK_STOPPED;

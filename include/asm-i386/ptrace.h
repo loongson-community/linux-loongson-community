@@ -46,6 +46,8 @@ struct pt_regs {
 #define PTRACE_SETREGS            13
 #define PTRACE_GETFPREGS          14
 #define PTRACE_SETFPREGS          15
+#define PTRACE_GETXFPREGS         25
+#define PTRACE_SETXFPREGS         26
 
 #ifdef __KERNEL__
 #define user_mode(regs) ((VM_MASK & (regs)->eflags) || (3 & (regs)->xcs))

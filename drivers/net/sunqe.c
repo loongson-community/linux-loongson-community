@@ -999,7 +999,7 @@ static int __init qec_probe(void)
 #endif
 
 	if (called)
-		return ENODEV;
+		return -ENODEV;
 	called++;
 
 	for_each_sbus(bus) {
@@ -1015,7 +1015,7 @@ static int __init qec_probe(void)
 		}
 	}
 	if (!cards)
-		return ENODEV;
+		return -ENODEV;
 	return 0;
 }
 

@@ -847,7 +847,7 @@ static int do_wp_page(struct mm_struct *mm, struct vm_area_struct * vma,
 			UnlockPage(old_page);
 			break;
 		}
-		delete_from_swap_cache_nolock(old_page);
+		SetPageDirty(old_page);
 		UnlockPage(old_page);
 		/* FallThrough */
 	case 1:
@@ -1058,7 +1058,7 @@ static int do_swap_page(struct mm_struct * mm,
 	 */
 	lock_page(page);
 	swap_free(entry);
-	if (write_access && !is_page_shared(page)) {
+	if (write_access && !is_page_shared(page) && nr_free_highpages()) {
 		delete_from_swap_cache_nolock(page);
 		UnlockPage(page);
 		page = replace_with_highmem(page);

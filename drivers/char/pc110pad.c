@@ -83,8 +83,7 @@ static struct semaphore reader_lock;
 static void wake_readers(void)
 {
 	wake_up_interruptible(&queue);
-	if(asyncptr)
-		kill_fasync(asyncptr, SIGIO, POLL_IN);
+	kill_fasync(&asyncptr, SIGIO, POLL_IN);
 }
 
 
@@ -588,7 +587,6 @@ static int close_pad(struct inode * inode, struct file * file)
 	if (--active)
 		return 0;
 	outb(0x30, current_params.io+2);	/* switch off digitiser */
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -610,7 +608,6 @@ static int open_pad(struct inode * inode, struct file * file)
 	
 	if (active++)
 		return 0;
-	MOD_INC_USE_COUNT;
 
 	save_flags(flags);
 	cli();
@@ -772,6 +769,7 @@ static int pad_ioctl(struct inode *inode, struct file * file,
 
 
 static struct file_operations pad_fops = {
+	owner:		THIS_MODULE,
 	read:		read_pad,
 	write:		write_pad,
 	poll:		pad_poll,

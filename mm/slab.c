@@ -106,11 +106,6 @@
 #include	<linux/slab.h>
 #include	<linux/interrupt.h>
 #include	<linux/init.h>
-#ifdef __mips__
-#include	<asm/pgtable.h>
-#include	<asm/addrspace.h>
-#include	<asm/pgalloc.h>
-#endif
 
 /* If there is a different PAGE_SIZE around, and it works with this allocator,
  * then change the following.
@@ -1691,19 +1686,11 @@ void *
 kmalloc(size_t size, int flags)
 {
 	cache_sizes_t	*csizep = cache_sizes;
-	unsigned long	addr;
 
 	for (; csizep->cs_size; csizep++) {
 		if (size > csizep->cs_size)
 			continue;
-		addr = __kmem_cache_alloc(csizep->cs_cachep, flags);
-#ifdef __mips__
-		if (addr && (flags & GFP_UNCACHED)) {
-			flush_cache_all(); /* Ouch ... */
-			addr = KSEG1ADDR(addr);
-		}
-#endif /* __mips__ */
-		return addr;
+		return __kmem_cache_alloc(csizep->cs_cachep, flags);
 	}
 	printk(KERN_ERR "kmalloc: Size (%lu) too large\n", (unsigned long) size);
 	return NULL;
@@ -1717,10 +1704,6 @@ kfree(const void *objp)
 
 	if (!objp)
 		goto null_ptr;
-#ifdef __mips__
-	if (KSEGX(objp) == KSEG1)
-		objp = KSEG0ADDR(objp);
-#endif __mips__
 	nr = MAP_NR(objp);
 	if (nr >= max_mapnr)
 		goto bad_ptr;

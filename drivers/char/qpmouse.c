@@ -133,8 +133,7 @@ static void qp_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
 		head &= QP_BUF_SIZE-1;
 	}
 	queue->head = head;
-	if (queue->fasync)
-		kill_fasync(queue->fasync, SIGIO, POLL_IN);
+	kill_fasync(&queue->fasync, SIGIO, POLL_IN);
 	wake_up_interruptible(&queue->proc_list);
 }
 
@@ -151,7 +150,6 @@ static int release_qp(struct inode * inode, struct file * file)
 		if (!poll_qp_status())
 			printk("Warning: Mouse device busy in release_qp()\n");
 		free_irq(QP_IRQ, NULL);
-		MOD_DEC_USE_COUNT;
 	}
 	return 0;
 }
@@ -196,7 +194,6 @@ static int open_qp(struct inode * inode, struct file * file)
 	}
 
 	outb_p(AUX_ENABLE_DEV, qp_data);	/* Wake up mouse */
-	MOD_INC_USE_COUNT;
 	return 0;
 }
 
@@ -290,6 +287,7 @@ repeat:
 }
 
 struct file_operations qp_fops = {
+	owner:		THIS_MODULE,
 	read:		read_qp,
 	write:		write_qp,
 	poll:		poll_qp,

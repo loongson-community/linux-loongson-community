@@ -37,8 +37,8 @@ static struct i2c_driver *drivers[I2C_DRIVER_MAX];
 static int bus_count = 0, driver_count = 0;
 
 #ifdef CONFIG_VIDEO_BT848
-extern int i2c_tuner_init(void);
-extern int msp3400c_init(void);
+extern int tuner_init_module(void);
+extern int msp3400_init_module(void);
 #endif
 #ifdef CONFIG_VIDEO_BUZ
 extern int saa7111_init(void);
@@ -55,8 +55,8 @@ int i2c_init(void)
 		scan ? " (i2c bus scan enabled)" : "");
 	/* anything to do here ? */
 #ifdef CONFIG_VIDEO_BT848
-	i2c_tuner_init();
-	msp3400c_init();
+	tuner_init_module();
+	msp3400_init_module();
 #endif	
 #ifdef CONFIG_VIDEO_BUZ
 	saa7111_init();

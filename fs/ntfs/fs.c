@@ -80,7 +80,7 @@ ntfs_read(struct file * filp, char *buf, size_t count, loff_t *off)
 	io.param=buf;
 	io.size=count;
 	error=ntfs_read_attr(ino,ino->vol->at_data,NULL,*off,&io);
-	if(error)return -error;
+	if(error && !io.size)return -error;
 	
 	*off+=io.size;
 	return io.size;
@@ -218,7 +218,7 @@ static int ntfs_readdir(struct file* filp, void *dirent, filldir_t filldir)
 	       (unsigned)dir->i_ino,(unsigned int)dir->i_mode);
 
 	ntfs_debug(DEBUG_OTHER, "readdir: Looking for file %x dircount %d\n",
-	       (unsigned)filp->f_pos,dir->i_count);
+	       (unsigned)filp->f_pos,atomic_read(&dir->i_count));
 	cb.pl=filp->f_pos & 0xFFFF;
 	cb.ph=filp->f_pos >> 16;
 	/* end of directory */
@@ -707,7 +707,7 @@ static void ntfs_read_inode(struct inode* inode)
 
 #ifdef CONFIG_NTFS_RW
 static void 
-ntfs_write_inode (struct inode *ino)
+ntfs_write_inode (struct inode *ino, int unused)
 {
 	ntfs_debug (DEBUG_LINUX, "ntfs:write inode %x\n", ino->i_ino);
 	ntfs_update_inode (NTFS_LINO2NINO (ino));

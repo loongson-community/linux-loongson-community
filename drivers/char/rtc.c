@@ -179,8 +179,7 @@ static void rtc_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	/* Now do the rest of the actions */
 	wake_up_interruptible(&rtc_wait);	
 
-	if (rtc_async_queue)
-		kill_fasync (rtc_async_queue, SIGIO, POLL_IN);
+	kill_fasync (&rtc_async_queue, SIGIO, POLL_IN);
 }
 #endif
 
@@ -513,8 +512,6 @@ static int rtc_open(struct inode *inode, struct file *file)
 	if(rtc_status & RTC_IS_OPEN)
 		return -EBUSY;
 
-	MOD_INC_USE_COUNT;
-
 	rtc_status |= RTC_IS_OPEN;
 
 	spin_lock_irq (&rtc_lock);
@@ -558,7 +555,6 @@ static int rtc_release(struct inode *inode, struct file *file)
 	}
 
 #endif
-	MOD_DEC_USE_COUNT;
 
 	spin_lock_irq (&rtc_lock);
 	rtc_irq_data = 0;
@@ -590,6 +586,7 @@ static unsigned int rtc_poll(struct file *file, poll_table *wait)
  */
 
 static struct file_operations rtc_fops = {
+	owner:		THIS_MODULE,
 	llseek:		rtc_llseek,
 	read:		rtc_read,
 #if !defined(__alpha__) && !defined(CONFIG_DECSTATION)
@@ -783,8 +780,7 @@ static void rtc_dropped_irq(unsigned long data)
 	/* Now we have new data */
 	wake_up_interruptible(&rtc_wait);
 
-	if (rtc_async_queue)
-		kill_fasync (rtc_async_queue, SIGIO, POLL_IN);
+	kill_fasync (&rtc_async_queue, SIGIO, POLL_IN);
 }
 #endif
 

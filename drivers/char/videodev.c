@@ -51,7 +51,6 @@ struct videodev_proc_data {
 	char name[16];
 	struct video_device *vdev;
 	struct proc_dir_entry *proc_entry;
-	struct video_capability vcap;
 };
 
 static struct proc_dir_entry *video_dev_proc_entry = NULL;
@@ -63,7 +62,7 @@ LIST_HEAD(videodev_proc_list);
 
 
 #ifdef CONFIG_VIDEO_BT848
-extern int i2c_tuner_init(struct video_init *);
+extern int tuner_init_module(struct video_init *);
 #endif
 #ifdef CONFIG_VIDEO_BWQCAM
 extern int init_bw_qcams(struct video_init *);
@@ -80,7 +79,7 @@ extern int init_zoran_cards(struct video_init *);
 
 static struct video_init video_init_list[]={
 #ifdef CONFIG_VIDEO_BT848
-        {"i2c-tuner", i2c_tuner_init},
+        {"i2c-tuner", tuner_init_module},
 #endif 
 #ifdef CONFIG_VIDEO_BWQCAM
 	{"bw-qcam", init_bw_qcams},
@@ -287,14 +286,6 @@ static int videodev_proc_read(char *page, char **start, off_t off,
 		PRINT_VID_TYPE(VID_TYPE_MJPEG_ENCODER);
 	out += sprintf (out, "\n");
 	out += sprintf (out, "hardware        : 0x%x\n", vfd->hardware);
-#if 0
-	out += sprintf (out, "channels        : %d\n", d->vcap.channels);
-	out += sprintf (out, "audios          : %d\n", d->vcap.audios);
-	out += sprintf (out, "maxwidth        : %d\n", d->vcap.maxwidth);
-	out += sprintf (out, "maxheight       : %d\n", d->vcap.maxheight);
-	out += sprintf (out, "minwidth        : %d\n", d->vcap.minwidth);
-	out += sprintf (out, "minheight       : %d\n", d->vcap.minheight);
-#endif
 
 skip:
 	len = out - page;
@@ -359,8 +350,6 @@ static void videodev_proc_create_dev (struct video_device *vfd, char *name)
 	d->proc_entry = p;
 	d->vdev = vfd;
 	strcpy (d->name, name);
-
-	/* How can I get capability information ? */
 
 	list_add (&d->proc_list, &videodev_proc_list);
 }
@@ -575,3 +564,4 @@ EXPORT_SYMBOL(video_unregister_device);
 
 MODULE_AUTHOR("Alan Cox");
 MODULE_DESCRIPTION("Device registrar for Video4Linux drivers");
+

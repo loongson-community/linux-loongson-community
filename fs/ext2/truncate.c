@@ -211,7 +211,7 @@ static int trunc_indirect (struct inode * inode, int offset, u32 * p, struct buf
 			inode->i_ino, tmp);
 		*p = 0;
 		if (dind_bh)
-			mark_buffer_dirty(dind_bh, 1);
+			mark_buffer_dirty_inode(dind_bh, 1, inode);
 		else
 			mark_inode_dirty(inode);
 		return 0;
@@ -279,7 +279,7 @@ static int trunc_dindirect (struct inode * inode, int offset, u32 * p,
 			inode->i_ino, tmp);
 		*p = 0;
 		if (tind_bh)
-			mark_buffer_dirty(tind_bh, 1);
+			mark_buffer_dirty_inode(tind_bh, 1, inode);
 		else
 			mark_inode_dirty(inode);
 		return 0;

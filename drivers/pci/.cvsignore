@@ -3,3 +3,4 @@
 gen-devlist
 devlist.h
 classlist.h
+pcisyms.c

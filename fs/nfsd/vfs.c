@@ -30,6 +30,8 @@
 #include <linux/unistd.h>
 #include <linux/malloc.h>
 #include <linux/in.h>
+#define __NO_VERSION__
+#include <linux/module.h>
 
 #include <linux/sunrpc/svc.h>
 #include <linux/nfsd/nfsd.h>
@@ -312,7 +314,7 @@ nfsd_setattr(struct svc_rqst *rqstp, struct svc_fh *fhp, struct iattr *iap)
 	if (err)
 		goto out_nfserr;
 	if (EX_ISSYNC(fhp->fh_export))
-		write_inode_now(inode);
+		write_inode_now(inode, 0);
 	err = 0;
 
 	/* Don't unlock inode; the nfssvc_release functions are supposed
@@ -451,7 +453,7 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 		goto out_nfserr;
 
 	memset(filp, 0, sizeof(*filp));
-	filp->f_op    = inode->i_fop;
+	filp->f_op    = fops_get(inode->i_fop);
 	atomic_set(&filp->f_count, 1);
 	filp->f_dentry = dentry;
 	if (access & MAY_WRITE) {
@@ -467,6 +469,7 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, int type,
 	if (filp->f_op && filp->f_op->open) {
 		err = filp->f_op->open(inode, filp);
 		if (err) {
+			fops_put(filp->f_op);
 			if (access & MAY_WRITE)
 				put_write_access(inode);
 
@@ -492,16 +495,11 @@ nfsd_close(struct file *filp)
 	struct dentry	*dentry = filp->f_dentry;
 	struct inode	*inode = dentry->d_inode;
 
-	if (!inode->i_count)
-		printk(KERN_WARNING "nfsd: inode count == 0!\n");
-	if (!dentry->d_count)
-		printk(KERN_WARNING "nfsd: wheee, %s/%s d_count == 0!\n",
-			dentry->d_parent->d_name.name, dentry->d_name.name);
 	if (filp->f_op && filp->f_op->release)
 		filp->f_op->release(inode, filp);
-	if (filp->f_mode & FMODE_WRITE) {
+	fops_put(filp->f_op);
+	if (filp->f_mode & FMODE_WRITE)
 		put_write_access(inode);
-	}
 }
 
 /*
@@ -514,7 +512,7 @@ nfsd_sync(struct file *filp)
 {
 	dprintk("nfsd: sync file %s\n", filp->f_dentry->d_name.name);
 	down(&filp->f_dentry->d_inode->i_sem);
-	filp->f_op->fsync(filp, filp->f_dentry);
+	filp->f_op->fsync(filp, filp->f_dentry,0);
 	up(&filp->f_dentry->d_inode->i_sem);
 }
 
@@ -522,10 +520,10 @@ void
 nfsd_sync_dir(struct dentry *dp)
 {
 	struct inode *inode = dp->d_inode;
-	int (*fsync) (struct file *, struct dentry *);
+	int (*fsync) (struct file *, struct dentry *, int);
 	
 	if (inode->i_fop && (fsync = inode->i_fop->fsync)) {
-		fsync(NULL, dp);
+		fsync(NULL, dp, 0);
 	}
 }
 
@@ -893,7 +891,7 @@ nfsd_create(struct svc_rqst *rqstp, struct svc_fh *fhp,
 
 	if (EX_ISSYNC(fhp->fh_export)) {
 		nfsd_sync_dir(dentry);
-		write_inode_now(dchild->d_inode);
+		write_inode_now(dchild->d_inode, 0);
 	}
 
 
@@ -1120,7 +1118,7 @@ nfsd_symlink(struct svc_rqst *rqstp, struct svc_fh *fhp,
 					| S_IFLNK;
 				err = notify_change(dnew, iap);
 				if (!err && EX_ISSYNC(fhp->fh_export))
-					write_inode_now(dentry->d_inode);
+					write_inode_now(dentry->d_inode, 0);
 		       }
 		}
 	} else
@@ -1180,7 +1178,7 @@ nfsd_link(struct svc_rqst *rqstp, struct svc_fh *ffhp,
 	if (!err) {
 		if (EX_ISSYNC(ffhp->fh_export)) {
 			nfsd_sync_dir(ddir);
-			write_inode_now(dest);
+			write_inode_now(dest, 0);
 		}
 	} else {
 		if (err == -EXDEV && rqstp->rq_vers == 2)

@@ -1,7 +1,9 @@
 /* ptrace.c */
 /* By Ross Biro 1/23/92 */
-/* FXSAVE/FXRSTOR support by Ingo Molnar and modifications by Goutham Rao */
-/* edited by Linus Torvalds */
+/*
+ * Pentium III FXSR, SSE support
+ *	Gareth Hughes <gareth@valinux.com>, May 2000
+ */
 
 #include <linux/config.h> /* for CONFIG_MATH_EMULATION */
 #include <linux/kernel.h>
@@ -131,6 +133,54 @@ static unsigned long getreg(struct task_struct *child,
 	return retval;
 }
 
+static inline int save_i387_user(struct user_i387_struct *buf,
+				 struct i387_hard_struct *hard)
+{
+#ifdef CONFIG_X86_FXSR
+	unsigned short *to;
+	unsigned short *from;
+	int i;
+
+	if (__copy_to_user(buf, hard, 7 * sizeof(long)))
+		return 1;
+
+	to = (unsigned short *)&buf->st_space[0];
+	from = (unsigned short *)&hard->st_space[0];
+	for (i = 0; i < 8; i++, to += 5, from += 8) {
+		if (__copy_to_user(to, from, 5 * sizeof(unsigned short)))
+			return 1;
+	}
+#else
+	if (__copy_to_user(buf, hard, sizeof(struct user_i387_struct)))
+		return 1;
+#endif
+	return 0;
+}
+
+static inline int restore_i387_user(struct i387_hard_struct *hard,
+				    struct user_i387_struct *buf)
+{
+#ifdef CONFIG_X86_FXSR
+	unsigned short *to;
+	unsigned short *from;
+	int i;
+
+	if (__copy_from_user(hard, buf, 7 * sizeof(long)))
+		return 1;
+
+	to = (unsigned short *)&hard->st_space[0];
+	from = (unsigned short *)&buf->st_space[0];
+	for (i = 0; i < 8; i++, to += 8, from += 5) {
+		if (__copy_from_user(to, from, 5 * sizeof(unsigned short)))
+			return 1;
+	}
+#else
+	if (__copy_from_user(hard, buf, sizeof(struct user_i387_struct)))
+		return 1;
+#endif
+	return 0;
+}
+
 asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 {
 	struct task_struct *child;
@@ -141,10 +191,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	ret = -EPERM;
 	if (request == PTRACE_TRACEME) {
 		/* are we already being traced? */
-		if (current->flags & PF_PTRACED)
+		if (current->ptrace & PT_PTRACED)
 			goto out;
 		/* set the ptrace bit in the process flags. */
-		current->flags |= PF_PTRACED;
+		current->ptrace |= PT_PTRACED;
 		ret = 0;
 		goto out;
 	}
@@ -174,9 +224,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	 	    (current->gid != child->gid)) && !capable(CAP_SYS_PTRACE))
 			goto out_tsk;
 		/* the same process cannot be attached many times */
-		if (child->flags & PF_PTRACED)
+		if (child->ptrace & PT_PTRACED)
 			goto out_tsk;
-		child->flags |= PF_PTRACED;
+		child->ptrace |= PT_PTRACED;
 
 		write_lock_irq(&tasklist_lock);
 		if (child->p_pptr != current) {
@@ -191,7 +241,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		goto out_tsk;
 	}
 	ret = -ESRCH;
-	if (!(child->flags & PF_PTRACED))
+	if (!(child->ptrace & PT_PTRACED))
 		goto out_tsk;
 	if (child->state != TASK_STOPPED) {
 		if (request != PTRACE_KILL)
@@ -291,9 +341,9 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		if ((unsigned long) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL)
-			child->flags |= PF_TRACESYS;
+			child->ptrace |= PT_TRACESYS;
 		else
-			child->flags &= ~PF_TRACESYS;
+			child->ptrace &= ~PT_TRACESYS;
 		child->exit_code = data;
 	/* make sure the single step bit is not set. */
 		tmp = get_stack_long(child, EFL_OFFSET) & ~TRAP_FLAG;
@@ -328,10 +378,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		ret = -EIO;
 		if ((unsigned long) data > _NSIG)
 			break;
-		child->flags &= ~PF_TRACESYS;
-		if ((child->flags & PF_DTRACE) == 0) {
+		child->ptrace &= ~PT_TRACESYS;
+		if ((child->ptrace & PT_DTRACE) == 0) {
 			/* Spurious delayed TF traps may occur */
-			child->flags |= PF_DTRACE;
+			child->ptrace |= PT_DTRACE;
 		}
 		tmp = get_stack_long(child, EFL_OFFSET) | TRAP_FLAG;
 		put_stack_long(child, EFL_OFFSET, tmp);
@@ -348,7 +398,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		ret = -EIO;
 		if ((unsigned long) data > _NSIG)
 			break;
-		child->flags &= ~(PF_PTRACED|PF_TRACESYS);
+		child->ptrace &= ~(PT_PTRACED|PT_TRACESYS);
 		child->exit_code = data;
 		write_lock_irq(&tasklist_lock);
 		REMOVE_LINKS(child);
@@ -399,14 +449,14 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		ret = 0;
 		if ( !child->used_math ) {
 			/* Simulate an empty FPU. */
-			i387_set_cwd(child->thread.i387.hard, 0x037f);
-			i387_set_swd(child->thread.i387.hard, 0x0000);
-			i387_set_twd(child->thread.i387.hard, 0xffff);
-	}
+			child->thread.i387.hard.cwd = 0xffff037f;
+			child->thread.i387.hard.swd = 0xffff0000;
+			child->thread.i387.hard.twd = 0xffffffff;
+		}
 #ifdef CONFIG_MATH_EMULATION
 		if ( boot_cpu_data.hard_math ) {
 #endif
-			i387_hard_to_user((struct _fpstate *)data, &child->thread.i387.hard);
+			save_i387_user((struct user_i387_struct *)data, &child->thread.i387.hard);
 #ifdef CONFIG_MATH_EMULATION
 		} else {
 			save_i387_soft(&child->thread.i387.soft, (struct _fpstate *)data);
@@ -424,13 +474,58 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 #ifdef CONFIG_MATH_EMULATION
 		if ( boot_cpu_data.hard_math ) {
 #endif
-			i387_user_to_hard(&child->thread.i387.hard,(struct _fpstate *)data);
+			restore_i387_user(&child->thread.i387.hard, (struct user_i387_struct *)data);
 #ifdef CONFIG_MATH_EMULATION
 		} else {
 			restore_i387_soft(&child->thread.i387.soft, (struct _fpstate *)data);
 		}
 #endif
 		ret = 0;
+		break;
+	}
+
+	case PTRACE_GETXFPREGS: { /* Get the child extended FPU state. */
+#ifdef CONFIG_X86_FXSR
+		if (!access_ok(VERIFY_WRITE, (unsigned *)data,
+			       sizeof(struct user_xfpregs_struct))) {
+			ret = -EIO;
+			break;
+		}
+		ret = 0;
+		if ( !child->used_math ) {
+			/* Simulate an empty FPU. */
+			child->thread.i387.hard.cwd = 0xffff037f;
+			child->thread.i387.hard.swd = 0xffff0000;
+			child->thread.i387.hard.twd = 0xffffffff;
+		}
+		printk("PTRACE_GETXFPREGS: copying %d bytes from %p to %p\n",
+		       sizeof(struct user_xfpregs_struct),
+		       &child->thread.i387.hard, data);
+		__copy_to_user((void *)data, &child->thread.i387.hard,
+			       sizeof(struct user_xfpregs_struct));
+#else
+		ret = -EIO;
+#endif
+		break;
+	}
+
+	case PTRACE_SETXFPREGS: { /* Set the child extended FPU state. */
+#ifdef CONFIG_X86_FXSR
+		if (!access_ok(VERIFY_READ, (unsigned *)data,
+			       sizeof(struct user_xfpregs_struct))) {
+			ret = -EIO;
+			break;
+		}
+		child->used_math = 1;
+		printk("PTRACE_SETXFPREGS: copying %d bytes from %p to %p\n",
+		       sizeof(struct user_xfpregs_struct),
+		       data, &child->thread.i387.hard);
+		__copy_from_user(&child->thread.i387.hard, (void *)data,
+				 sizeof(struct user_xfpregs_struct));
+		ret = 0;
+#else
+		ret = -EIO;
+#endif
 		break;
 	}
 
@@ -447,8 +542,8 @@ out:
 
 asmlinkage void syscall_trace(void)
 {
-	if ((current->flags & (PF_PTRACED|PF_TRACESYS))
-			!= (PF_PTRACED|PF_TRACESYS))
+	if ((current->ptrace & (PT_PTRACED|PT_TRACESYS)) !=
+			(PT_PTRACED|PT_TRACESYS))
 		return;
 	current->exit_code = SIGTRAP;
 	current->state = TASK_STOPPED;

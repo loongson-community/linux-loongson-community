@@ -62,6 +62,10 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 		goto out_failed;
 	}
 
+	/* Can only do this if we age all active pages. */
+	if (PageActive(page) && page->age > 1)
+		goto out_failed;
+
 	if (TryLockPage(page))
 		goto out_failed;
 
@@ -74,6 +78,8 @@ static int try_to_swap_out(struct mm_struct * mm, struct vm_area_struct* vma, un
 	 * memory, and we should just continue our scan.
 	 */
 	if (PageSwapCache(page)) {
+		if (pte_dirty(pte))
+			SetPageDirty(page);
 		entry.val = page->index;
 		swap_duplicate(entry);
 		set_pte(page_table, swp_entry_to_pte(entry));
@@ -181,7 +187,10 @@ drop_pte:
 	vmlist_access_unlock(vma->vm_mm);
 
 	/* OK, do a physical asynchronous write to swap.  */
-	rw_swap_page(WRITE, page, 0);
+	// rw_swap_page(WRITE, page, 0);
+	/* Let shrink_mmap handle this swapout. */
+	SetPageDirty(page);
+	UnlockPage(page);
 
 out_free_success:
 	page_cache_release(page);
@@ -430,12 +439,12 @@ out:
  * latency.
  */
 #define FREE_COUNT	8
-#define SWAP_COUNT	16
 static int do_try_to_free_pages(unsigned int gfp_mask)
 {
 	int priority;
 	int count = FREE_COUNT;
-	int swap_count;
+	int swap_count = 0;
+	int ret = 0;
 
 	/* Always trim SLAB caches when memory gets low. */
 	kmem_cache_reap(gfp_mask);
@@ -443,6 +452,7 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 	priority = 64;
 	do {
 		while (shrink_mmap(priority, gfp_mask)) {
+			ret = 1;
 			if (!--count)
 				goto done;
 		}
@@ -457,9 +467,12 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 			 */
 			count -= shrink_dcache_memory(priority, gfp_mask);
 			count -= shrink_icache_memory(priority, gfp_mask);
-			if (count <= 0)
+			if (count <= 0) {
+				ret = 1;
 				goto done;
+			}
 			while (shm_swap(priority, gfp_mask)) {
+				ret = 1;
 				if (!--count)
 					goto done;
 			}
@@ -471,24 +484,30 @@ static int do_try_to_free_pages(unsigned int gfp_mask)
 		 * This will not actually free any pages (they get
 		 * put in the swap cache), so we must not count this
 		 * as a "count" success.
+		 *
+		 * The amount we page out is the amount of pages we're
+		 * short freeing, amplified by the number of times we
+		 * failed above. This generates a negative feedback loop:
+		 * the more difficult it was to free pages, the easier we
+		 * will make it.
 		 */
-		swap_count = SWAP_COUNT;
-		while (swap_out(priority, gfp_mask))
+		swap_count += count;
+		while (swap_out(priority, gfp_mask)) {
 			if (--swap_count < 0)
 				break;
+		}
 
 	} while (--priority >= 0);
 
 	/* Always end on a shrink_mmap.. */
 	while (shrink_mmap(0, gfp_mask)) {
+		ret = 1;
 		if (!--count)
 			goto done;
 	}
-	/* We return 1 if we are freed some page */
-	return (count != FREE_COUNT);
 
 done:
-	return 1;
+	return ret;
 }
 
 DECLARE_WAIT_QUEUE_HEAD(kswapd_wait);

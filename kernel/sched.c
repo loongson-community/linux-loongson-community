@@ -337,16 +337,23 @@ out:
 	spin_unlock_irqrestore(&runqueue_lock, flags);
 }
 
+struct foo_struct {
+	struct task_struct *process;
+	struct timer_list timer;
+};
+
 static void process_timeout(unsigned long __data)
 {
-	struct task_struct * p = (struct task_struct *) __data;
+	struct foo_struct * foo = (struct foo_struct *) __data;
 
-	wake_up_process(p);
+	wake_up_process(foo->process);
+
+	timer_exit(&foo->timer);
 }
 
 signed long schedule_timeout(signed long timeout)
 {
-	struct timer_list timer;
+	struct foo_struct foo;
 	unsigned long expire;
 
 	switch (timeout)
@@ -381,14 +388,16 @@ signed long schedule_timeout(signed long timeout)
 
 	expire = timeout + jiffies;
 
-	init_timer(&timer);
-	timer.expires = expire;
-	timer.data = (unsigned long) current;
-	timer.function = process_timeout;
+	init_timer(&foo.timer);
+	foo.timer.expires = expire;
+	foo.timer.data = (unsigned long) &foo;
+	foo.timer.function = process_timeout;
 
-	add_timer(&timer);
+	foo.process = current;
+
+	add_timer(&foo.timer);
 	schedule();
-	del_timer(&timer);
+	del_timer_sync(&foo.timer);
 	/* RED-PEN. Timer may be running now on another cpu.
 	 * Pray that process will not exit enough fastly.
 	 */
@@ -920,16 +929,11 @@ asmlinkage long sys_sched_getscheduler(pid_t pid)
 	if (pid < 0)
 		goto out_nounlock;
 
-	read_lock(&tasklist_lock);
-
 	retval = -ESRCH;
+	read_lock(&tasklist_lock);
 	p = find_process_by_pid(pid);
-	if (!p)
-		goto out_unlock;
-			
-	retval = p->policy;
-
-out_unlock:
+	if (p)
+		retval = p->policy & ~SCHED_YIELD;
 	read_unlock(&tasklist_lock);
 
 out_nounlock:

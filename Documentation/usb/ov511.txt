@@ -6,8 +6,9 @@ Author: Mark McClelland
 Homepage: http://alpha.dyndns.org/ov511
 
 NEW IN THIS VERSION:
- o 384x288 and 448x336 modes
- o better /proc/video support
+ o Greyscale mode and timestamps restored
+ o Image quality improvements
+ o Experimental GBR422 mode
 
 INTRODUCTION:
 

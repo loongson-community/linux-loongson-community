@@ -218,16 +218,8 @@ uctrl_ioctl(struct inode *inode, struct file *file,
 static int
 uctrl_open(struct inode *inode, struct file *file)
 {
-	MOD_INC_USE_COUNT;
 	uctrl_get_event_status();
 	uctrl_get_external_status();
-	return 0;
-}
-
-static int
-uctrl_release(struct inode *inode, struct file *file)
-{
-	MOD_DEC_USE_COUNT;
 	return 0;
 }
 
@@ -238,10 +230,10 @@ void uctrl_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 }
 
 static struct file_operations uctrl_fops = {
+	owner:		THIS_MODULE,
 	llseek:		uctrl_llseek,
 	ioctl:		uctrl_ioctl,
 	open:		uctrl_open,
-	release:	uctrl_release,
 };
 
 static struct miscdevice uctrl_dev = {

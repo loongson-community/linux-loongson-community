@@ -186,24 +186,6 @@ void ext2_free_inode (struct inode * inode)
 	struct ext2_group_desc * gdp;
 	struct ext2_super_block * es;
 
-	if (!inode->i_dev) {
-		printk ("ext2_free_inode: inode has no device\n");
-		return;
-	}
-	if (inode->i_count > 1) {
-		printk ("ext2_free_inode: inode has count=%d\n", inode->i_count);
-		return;
-	}
-	if (inode->i_nlink) {
-		printk ("ext2_free_inode: inode has nlink=%d\n",
-			inode->i_nlink);
-		return;
-	}
-	if (!sb) {
-		printk("ext2_free_inode: inode on nonexistent device\n");
-		return;
-	}
-
 	ino = inode->i_ino;
 	ext2_debug ("freeing inode %lu\n", ino);
 
@@ -305,7 +287,6 @@ struct inode * ext2_new_inode (const struct inode * dir, int mode, int * err)
 repeat:
 	gdp = NULL; i=0;
 	
-	*err = -ENOSPC;
 	if (S_ISDIR(mode)) {
 		avefreei = le32_to_cpu(es->s_free_inodes_count) /
 			sb->u.ext2_sb.s_groups_count;
@@ -387,6 +368,7 @@ repeat:
 	if (!gdp) {
 		unlock_super (sb);
 		iput(inode);
+		*err = -ENOSPC;
 		return NULL;
 	}
 	bitmap_nr = load_inode_bitmap (sb, i);
@@ -416,9 +398,8 @@ repeat:
 			ext2_error (sb, "ext2_new_inode",
 				    "Free inodes count corrupted in group %d",
 				    i);
-			unlock_super (sb);
-			iput (inode);
-			return NULL;
+			/* If we continue recover from this case */
+			gdp->bg_free_inodes_count = 0;
 		}
 		goto repeat;
 	}
@@ -429,6 +410,7 @@ repeat:
 			    "block_group = %d,inode=%d", i, j);
 		unlock_super (sb);
 		iput (inode);
+		*err = EIO;	/* Should never happen */
 		return NULL;
 	}
 	gdp->bg_free_inodes_count =

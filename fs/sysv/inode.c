@@ -43,7 +43,8 @@ void sysv_print_inode(struct inode * inode)
         printk("ino %lu  mode 0%6.6o  lk %d  uid %d  gid %d"
                "  sz %lu  blks %lu  cnt %u\n",
                inode->i_ino, inode->i_mode, inode->i_nlink, inode->i_uid,
-               inode->i_gid, inode->i_size, inode->i_blocks, inode->i_count);
+               inode->i_gid, inode->i_size, inode->i_blocks,
+               atomic_read(&inode->i_count));
         printk("  db <0x%lx 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx 0x%lx"
                " 0x%lx 0x%lx>\n",
                 inode->u.sysv_i.i_data[0], inode->u.sysv_i.i_data[1],
@@ -495,7 +496,6 @@ static struct super_block *sysv_read_super(struct super_block *sb,
 	sb->s_blocksize = sb->sv_block_size;
 	sb->s_blocksize_bits = sb->sv_block_size_bits;
 	/* set up enough so that it can read an inode */
-	sb->s_dev = dev;
 	sb->s_op = &sysv_sops;
 	root_inode = iget(sb,SYSV_ROOT_INO);
 	sb->s_root = d_alloc_root(root_inode);
@@ -1153,7 +1153,7 @@ static struct buffer_head * sysv_update_inode(struct inode * inode)
 	return bh;
 }
 
-void sysv_write_inode(struct inode * inode)
+void sysv_write_inode(struct inode * inode, int unused)
 {
 	struct buffer_head *bh;
 	bh = sysv_update_inode(inode);

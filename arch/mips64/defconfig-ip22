@@ -57,16 +57,14 @@ CONFIG_BINFMT_ELF=y
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
-
-#
-# Additional Block Devices
-#
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_LVM is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
+# CONFIG_MD_RAID1 is not set
+# CONFIG_MD_RAID5 is not set
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_BLK_DEV_INITRD is not set
 
@@ -101,6 +99,7 @@ CONFIG_SKB_LARGE=y
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
 # CONFIG_DECNET is not set
+# CONFIG_BRIDGE is not set
 
 #
 # Telephony Support
@@ -228,6 +227,7 @@ CONFIG_VT_CONSOLE=y
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
+# CONFIG_INTEL_RNG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 
@@ -295,6 +295,7 @@ CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 # CONFIG_NFSD is not set
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set

@@ -74,17 +74,14 @@ CONFIG_KMOD=y
 # CONFIG_PARIDE is not set
 # CONFIG_BLK_CPQ_DA is not set
 # CONFIG_BLK_DEV_DAC960 is not set
-
-#
-# Additional Block Devices
-#
 # CONFIG_BLK_DEV_LOOP is not set
 # CONFIG_BLK_DEV_NBD is not set
 # CONFIG_BLK_DEV_LVM is not set
 # CONFIG_BLK_DEV_MD is not set
 # CONFIG_MD_LINEAR is not set
 # CONFIG_MD_RAID0 is not set
-# CONFIG_RAID15_DANGEROUS is not set
+# CONFIG_MD_RAID1 is not set
+# CONFIG_MD_RAID5 is not set
 # CONFIG_BLK_DEV_RAM is not set
 # CONFIG_BLK_DEV_INITRD is not set
 
@@ -123,9 +120,9 @@ CONFIG_IP_PNP_BOOTP=y
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
 # CONFIG_DECNET is not set
+# CONFIG_BRIDGE is not set
 # CONFIG_X25 is not set
 # CONFIG_LAPB is not set
-# CONFIG_BRIDGE is not set
 # CONFIG_LLC is not set
 # CONFIG_ECONET is not set
 # CONFIG_WAN_ROUTER is not set
@@ -267,6 +264,7 @@ CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set

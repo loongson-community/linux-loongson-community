@@ -458,7 +458,7 @@ static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 		if (elf_ppnt->p_type == PT_INTERP) {
 			retval = -EINVAL;
 		  	if (elf_interpreter)
-				goto out_free_interp;
+				goto out_free_dentry;
 
 			/* This is the program interpreter used for
 			 * shared libraries - for now assume that this
@@ -674,9 +674,8 @@ static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 						    interpreter,
 						    &interp_load_addr);
 
-		lock_kernel();
+		allow_write_access(interpreter);
 		fput(interpreter);
-		unlock_kernel();
 		kfree(elf_interpreter);
 
 		if (elf_entry == ~0UL) {
@@ -755,7 +754,7 @@ static int load_elf_binary(struct linux_binprm * bprm, struct pt_regs * regs)
 #endif
 
 	start_thread(regs, elf_entry, bprm->p);
-	if (current->flags & PF_PTRACED)
+	if (current->ptrace&PT_PTRACED)
 		send_sig(SIGTRAP, current, 0);
 	retval = 0;
 out:
@@ -763,9 +762,8 @@ out:
 
 	/* error cleanup */
 out_free_dentry:
-	lock_kernel();
+	allow_write_access(interpreter);
 	fput(interpreter);
-	unlock_kernel();
 out_free_interp:
 	if (elf_interpreter)
 		kfree(elf_interpreter);

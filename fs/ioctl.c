@@ -88,8 +88,12 @@ asmlinkage long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			/* Did FASYNC state change ? */
 			if ((flag ^ filp->f_flags) & FASYNC) {
 				if (filp->f_op && filp->f_op->fasync)
-					filp->f_op->fasync(fd, filp, on); 
+					error = filp->f_op->fasync(fd, filp, on);
+				else error = -ENOTTY;
 			}
+			if (error != 0)
+				break;
+
 			if (on)
 				filp->f_flags |= FASYNC;
 			else
@@ -103,8 +107,8 @@ asmlinkage long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
 			else if (filp->f_op && filp->f_op->ioctl)
 				error = filp->f_op->ioctl(filp->f_dentry->d_inode, filp, cmd, arg);
 	}
-	fput(filp);
 	unlock_kernel();
+	fput(filp);
 
 out:
 	return error;

@@ -294,7 +294,7 @@ sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->flags & PF_TRACESYS)
+	if (current->ptrace & PT_TRACESYS)
 		syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
@@ -622,7 +622,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		if (!signr)
 			break;
 
-		if ((current->flags & PF_PTRACED) && signr != SIGKILL) {
+		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
 			current->state = TASK_STOPPED;

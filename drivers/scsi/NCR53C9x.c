@@ -412,7 +412,7 @@ static void esp_reset_esp(struct NCR_ESP *esp, struct ESP_regs *eregs)
 		else if(family_code == 0x00) {
 			if ((version & 7) == 2)
 				esp->erev = fas100a; /* NCR53C9X */
-		else
+			else
 				esp->erev = espunknown;
 		} else if(family_code == 0x14) {
 			if ((version & 7) == 2)
@@ -463,18 +463,18 @@ static void esp_reset_esp(struct NCR_ESP *esp, struct ESP_regs *eregs)
 		panic("esp: FAS366 support not present, please notify "
 		      "jongk@cs.utwente.nl");
 		break;
-	case fas216:	    
+	case fas216:
 	case fas236:
 	case fsc:
 		/* Fast ESP variants */
 		esp_write(eregs->esp_cfg2, esp->config2);
 		for(i=0; i<8; i++)
-				esp->config3[i] |= ESP_CONFIG3_FCLK;
+			esp->config3[i] |= ESP_CONFIG3_FCLK;
 		esp->prev_cfg3 = esp->config3[0];
 		esp_write(eregs->esp_cfg3, esp->prev_cfg3);
-			if(esp->diff)
-				esp->radelay = 0;
-			else
+		if(esp->diff)
+			esp->radelay = 0;
+		else
 			esp->radelay = 16;
 		/* Different timeout constant for these chips */
 		esp->neg_defp =
@@ -692,7 +692,7 @@ void esp_initialize(struct NCR_ESP *esp)
 			esp->erev = esp100a;
 		} else {
 			int target;
-			
+
 			for(target=0; target<8; target++)
 				esp->config3[target] = 0;
 			esp->prev_cfg3 = 0;
@@ -707,12 +707,12 @@ void esp_initialize(struct NCR_ESP *esp)
 			}
 		}
 	}				
-	
+
 	/* Initialize the command queues */
 	esp->current_SC = 0;
 	esp->disconnected_SC = 0;
 	esp->issue_SC = 0;
-	
+
 	/* Clear the state machines. */
 	esp->targets_present = 0;
 	esp->resetting_bus = 0;
@@ -733,7 +733,7 @@ void esp_initialize(struct NCR_ESP *esp)
 
 	/* Reset the thing before we try anything... */
 	esp_bootup_reset(esp, eregs);
-	
+
 #ifdef MODULE
 	MOD_INC_USE_COUNT;
 #endif
@@ -1117,12 +1117,12 @@ do_sync_known:
 		 * Macintosh. Well, maybe later when we figured out how to 
 		 * do DMA on the machines that support it ...
 		 */
-				SDptr->disconnect = 1;
-			SDptr->sync_max_offset = 0;
-			SDptr->sync_min_period = 0;
-			SDptr->sync = 1;
-			esp->snip = 0;
-			goto do_sync_known;
+		SDptr->disconnect = 1;
+		SDptr->sync_max_offset = 0;
+		SDptr->sync_min_period = 0;
+		SDptr->sync = 1;
+		esp->snip = 0;
+		goto do_sync_known;
 #endif
 		/* We've talked to this guy before,
 		 * but never negotiated.  Let's try
@@ -1228,14 +1228,14 @@ do_sync_known:
 		/* Tell ESP to "go". */
 		esp_cmd(esp, eregs, the_esp_command);
 	} else {
-			/* Set up the ESP counters */
+		/* Set up the ESP counters */
 		esp_write(eregs->esp_tclow, i);
 		esp_write(eregs->esp_tcmed, 0);
-			esp->dma_init_write(esp, esp->esp_command_dvma, i);
+		esp->dma_init_write(esp, esp->esp_command_dvma, i);
 
-			/* Tell ESP to "go". */
-			esp_cmd(esp, eregs, the_esp_command);
-		}
+		/* Tell ESP to "go". */
+		esp_cmd(esp, eregs, the_esp_command);
+	}
 }
 
 /* Queue a SCSI command delivered from the mid-level Linux SCSI code. */
@@ -1301,7 +1301,7 @@ static void esp_dump_cmd(Scsi_Cmnd *SCptr)
 }
 
 static void esp_dump_state(struct NCR_ESP *esp, 
-				  struct ESP_regs *eregs)
+			   struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 #ifdef DEBUG_ESP_CMDS
@@ -1656,13 +1656,13 @@ static inline int reconnect_target(struct NCR_ESP *esp, struct ESP_regs *eregs)
 	if(2 != fcount(esp, eregs))
 		return -1;
 	it = esp_read(eregs->esp_fdata);
-		if(!(it & me))
-			return -1;
-		it &= ~me;
-		if(it & (it - 1))
-			return -1;
-		while(!(it & 1))
-			targ++, it >>= 1;
+	if(!(it & me))
+		return -1;
+	it &= ~me;
+	if(it & (it - 1))
+		return -1;
+	while(!(it & 1))
+		targ++, it >>= 1;
 	return targ;
 }
 
@@ -1733,7 +1733,7 @@ static inline void esp_reconnect(struct NCR_ESP *esp, Scsi_Cmnd *sp)
 /* Begin message in phase. */
 static int esp_do_msgin(struct NCR_ESP *esp, struct ESP_regs *eregs)
 {
-		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
+	esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 	esp_maybe_nop(esp, eregs);
 	esp_cmd(esp, eregs, ESP_CMD_TI);
 	esp->msgin_len = 1;
@@ -1747,10 +1747,10 @@ static inline void advance_sg(struct NCR_ESP *esp, Scsi_Cmnd *sp)
 	++sp->SCp.buffer;
 	--sp->SCp.buffers_residual;
 	sp->SCp.this_residual = sp->SCp.buffer->length;
-        if (esp->dma_advance_sg)
-	       esp->dma_advance_sg (sp);
-        else
-	       sp->SCp.ptr = (char *)virt_to_phys(sp->SCp.buffer->address);
+	if (esp->dma_advance_sg)
+		esp->dma_advance_sg (sp);
+	else
+		sp->SCp.ptr = (char *)virt_to_phys(sp->SCp.buffer->address);
 }
 
 /* Please note that the way I've coded these routines is that I _always_
@@ -1790,8 +1790,8 @@ static int esp_do_data(struct NCR_ESP *esp, struct ESP_regs *eregs)
 		/*
 		 * DMA
 		 */
-	ESPDATA(("hmuch<%d> ", hmuch));
-	esp->current_transfer_size = hmuch;
+		ESPDATA(("hmuch<%d> ", hmuch));
+		esp->current_transfer_size = hmuch;
 		esp_setcount(eregs, (esp->fas_premature_intr_workaround ?
 				     (hmuch + 0x40) : hmuch));
 		esp->dma_setup(esp, (__u32)((unsigned long)SCptr->SCp.ptr), 
@@ -1860,7 +1860,7 @@ static int esp_do_data(struct NCR_ESP *esp, struct ESP_regs *eregs)
 
 				if (!fifocnt)
 					fifo_stuck++;
-		else
+				else
 					fifo_stuck = 0;
 
 				ESPDATA(("\rgot %d st %x ph %x", fifocnt, esp->sreg, newphase));
@@ -1880,7 +1880,7 @@ static int esp_do_data(struct NCR_ESP *esp, struct ESP_regs *eregs)
 					esp->ireg = esp_read(eregs->esp_intrpt);
 					break;
 				}
-	} else {
+			} else {
 #define MAX_FIFO 8
 				/* how much will fit ? */
 				int this_count = MAX_FIFO - fifocnt;
@@ -1979,7 +1979,7 @@ static int esp_do_data(struct NCR_ESP *esp, struct ESP_regs *eregs)
 
 /* See how successful the data transfer was. */
 static int esp_do_data_finale(struct NCR_ESP *esp,
-				     struct ESP_regs *eregs)
+			      struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	int bogus_data = 0, bytes_sent = 0, fifocnt, ecount = 0;
@@ -2017,25 +2017,25 @@ static int esp_do_data_finale(struct NCR_ESP *esp,
 
 	/* Check for partial transfers and other horrible events. */
 	fifocnt = (esp_read(eregs->esp_fflags) & ESP_FF_FBYTES);
-		ecount = esp_getcount(eregs);
+	ecount = esp_getcount(eregs);
 	if(esp->fas_premature_intr_workaround)
 		ecount -= 0x40;
 	bytes_sent = esp->current_transfer_size;
 
 	ESPDATA(("trans_sz=%d, ", bytes_sent));
-		if(!(esp->sreg & ESP_STAT_TCNT))
-			bytes_sent -= ecount;
-		if(SCptr->SCp.phase == in_dataout)
-			bytes_sent -= fifocnt;
+	if(!(esp->sreg & ESP_STAT_TCNT))
+		bytes_sent -= ecount;
+	if(SCptr->SCp.phase == in_dataout)
+		bytes_sent -= fifocnt;
 
 	ESPDATA(("bytes_sent=%d (ecount=%d, fifocnt=%d), ", bytes_sent,
 		 ecount, fifocnt));
 
 	/* If we were in synchronous mode, check for peculiarities. */
-		if(SCptr->device->sync_max_offset)
-			bogus_data = esp100_sync_hwbug(esp, eregs, SCptr, fifocnt);
-		else
-			esp_cmd(esp, eregs, ESP_CMD_FLUSH);
+	if(SCptr->device->sync_max_offset)
+		bogus_data = esp100_sync_hwbug(esp, eregs, SCptr, fifocnt);
+	else
+		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 
 	/* Until we are sure of what has happened, we are certainly
 	 * in the dark.
@@ -2134,7 +2134,7 @@ static int esp_do_data_finale(struct NCR_ESP *esp,
 		if(sreg_datainp(esp->sreg) || sreg_dataoutp(esp->sreg)) {
 			ESPDATA(("to more data\n"));
 		} else {
-		ESPDATA(("to new phase\n"));
+			ESPDATA(("to new phase\n"));
 		}
 #endif
 		return esp_do_phase_determine(esp, eregs);
@@ -2259,33 +2259,33 @@ static int esp_do_freebus(struct NCR_ESP *esp, struct ESP_regs *eregs)
  */
 static int esp_bad_reconnect(struct NCR_ESP *esp)
 {
-		Scsi_Cmnd *sp;
+	Scsi_Cmnd *sp;
 
-		ESPLOG(("esp%d: Eieeee, reconnecting unknown command!\n",
-			esp->esp_id));
-		ESPLOG(("QUEUE DUMP\n"));
-		sp = esp->issue_SC;
-		ESPLOG(("esp%d: issue_SC[", esp->esp_id));
-		while(sp) {
-			ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
-			sp = (Scsi_Cmnd *) sp->host_scribble;
-		}
-		ESPLOG(("]\n"));
-		sp = esp->current_SC;
-		ESPLOG(("esp%d: current_SC[", esp->esp_id));
-		while(sp) {
-			ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
-			sp = (Scsi_Cmnd *) sp->host_scribble;
-		}
-		ESPLOG(("]\n"));
-		sp = esp->disconnected_SC;
-		ESPLOG(("esp%d: disconnected_SC[", esp->esp_id));
-		while(sp) {
-			ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
-			sp = (Scsi_Cmnd *) sp->host_scribble;
-		}
-		ESPLOG(("]\n"));
-		return do_reset_bus;
+	ESPLOG(("esp%d: Eieeee, reconnecting unknown command!\n",
+		esp->esp_id));
+	ESPLOG(("QUEUE DUMP\n"));
+	sp = esp->issue_SC;
+	ESPLOG(("esp%d: issue_SC[", esp->esp_id));
+	while(sp) {
+		ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
+		sp = (Scsi_Cmnd *) sp->host_scribble;
+	}
+	ESPLOG(("]\n"));
+	sp = esp->current_SC;
+	ESPLOG(("esp%d: current_SC[", esp->esp_id));
+	while(sp) {
+		ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
+		sp = (Scsi_Cmnd *) sp->host_scribble;
+	}
+	ESPLOG(("]\n"));
+	sp = esp->disconnected_SC;
+	ESPLOG(("esp%d: disconnected_SC[", esp->esp_id));
+	while(sp) {
+		ESPLOG(("<%02x,%02x>", sp->target, sp->lun));
+		sp = (Scsi_Cmnd *) sp->host_scribble;
+	}
+	ESPLOG(("]\n"));
+	return do_reset_bus;
 }
 
 /* Do the needy when a target tries to reconnect to us. */
@@ -2447,11 +2447,11 @@ static int esp_do_status(struct NCR_ESP *esp, struct ESP_regs *eregs)
 }
 
 static int esp_enter_status(struct NCR_ESP *esp,
-				  struct ESP_regs *eregs)
+			    struct ESP_regs *eregs)
 {
 	unchar thecmd = ESP_CMD_ICCSEQ;
 
-			esp_cmd(esp, eregs, ESP_CMD_FLUSH);
+	esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 
 	if(esp->do_pio_cmds) {
 		esp_advance_phase(esp->current_SC, in_status);
@@ -2464,11 +2464,11 @@ static int esp_enter_status(struct NCR_ESP *esp,
 		esp->esp_command[0] = esp->esp_command[1] = 0xff;
 		esp_write(eregs->esp_tclow, 2);
 		esp_write(eregs->esp_tcmed, 0);
-					esp->dma_init_read(esp, esp->esp_command_dvma, 2);
+		esp->dma_init_read(esp, esp->esp_command_dvma, 2);
 		thecmd |= ESP_CMD_DMA;
 		esp_cmd(esp, eregs, thecmd);
 		esp_advance_phase(esp->current_SC, in_status);
-				}
+	}
 
 	return esp_do_status(esp, eregs);
 }
@@ -2479,43 +2479,43 @@ static int esp_disconnect_amidst_phases(struct NCR_ESP *esp,
 	Scsi_Cmnd *sp = esp->current_SC;
 	Scsi_Device *dp = sp->device;
 
-		/* This means real problems if we see this
-		 * here.  Unless we were actually trying
-		 * to force the device to abort/reset.
-		 */
+	/* This means real problems if we see this
+	 * here.  Unless we were actually trying
+	 * to force the device to abort/reset.
+	 */
 	ESPLOG(("esp%d: Disconnect amidst phases, ", esp->esp_id));
-		ESPLOG(("pphase<%s> cphase<%s>, ",
+	ESPLOG(("pphase<%s> cphase<%s>, ",
 		phase_string(sp->SCp.phase),
 		phase_string(sp->SCp.sent_command)));
 
 	if(esp->disconnected_SC)
-			esp_cmd(esp, eregs, ESP_CMD_ESEL);
+		esp_cmd(esp, eregs, ESP_CMD_ESEL);
 
-		switch(esp->cur_msgout[0]) {
-		default:
-			/* We didn't expect this to happen at all. */
-			ESPLOG(("device is bolixed\n"));
+	switch(esp->cur_msgout[0]) {
+	default:
+		/* We didn't expect this to happen at all. */
+		ESPLOG(("device is bolixed\n"));
 		esp_advance_phase(sp, in_tgterror);
-			esp_done(esp, (DID_ERROR << 16));
-			break;
+		esp_done(esp, (DID_ERROR << 16));
+		break;
 
-		case BUS_DEVICE_RESET:
-			ESPLOG(("device reset successful\n"));
-			dp->sync_max_offset = 0;
-			dp->sync_min_period = 0;
-			dp->sync = 0;
+	case BUS_DEVICE_RESET:
+		ESPLOG(("device reset successful\n"));
+		dp->sync_max_offset = 0;
+		dp->sync_min_period = 0;
+		dp->sync = 0;
 		esp_advance_phase(sp, in_resetdev);
-			esp_done(esp, (DID_RESET << 16));
-			break;
+		esp_done(esp, (DID_RESET << 16));
+		break;
 
-		case ABORT:
-			ESPLOG(("device abort successful\n"));
+	case ABORT:
+		ESPLOG(("device abort successful\n"));
 		esp_advance_phase(sp, in_abortone);
-			esp_done(esp, (DID_ABORT << 16));
-			break;
+		esp_done(esp, (DID_ABORT << 16));
+		break;
 
-		};
-		return do_intr_end;
+	};
+	return do_intr_end;
 }
 
 static int esp_enter_msgout(struct NCR_ESP *esp,
@@ -2687,7 +2687,7 @@ static int esp_select_complete(struct NCR_ESP *esp, struct ESP_regs *eregs)
 			if(SCptr->SCp.phase == in_slct_norm)
 				cmd_bytes_sent -= 1;
 		};
-			esp_cmd(esp, eregs, ESP_CMD_NULL);
+		esp_cmd(esp, eregs, ESP_CMD_NULL);
 
 		/* Be careful, we could really get fucked during synchronous
 		 * data transfers if we try to flush the fifo now.
@@ -2851,7 +2851,7 @@ static int esp_do_msgincont(struct NCR_ESP *esp, struct ESP_regs *eregs)
 }
 
 static int check_singlebyte_msg(struct NCR_ESP *esp,
-				       struct ESP_regs *eregs)
+				struct ESP_regs *eregs)
 {
 	esp->prevmsgin = esp->cur_msgin[0];
 	if(esp->cur_msgin[0] & 0x80) {
@@ -2929,8 +2929,8 @@ static int check_singlebyte_msg(struct NCR_ESP *esp,
  * this because so many initiators cannot cope with this occuring.
  */
 static int target_with_ants_in_pants(struct NCR_ESP *esp,
-					    Scsi_Cmnd *SCptr,
-					    Scsi_Device *SDptr)
+				     Scsi_Cmnd *SCptr,
+				     Scsi_Device *SDptr)
 {
 	if(SDptr->sync || SDptr->borken) {
 		/* sorry, no can do */
@@ -2982,7 +2982,7 @@ static void sync_report(struct NCR_ESP *esp)
 }
 
 static int check_multibyte_msg(struct NCR_ESP *esp,
-				       struct ESP_regs *eregs)
+			       struct ESP_regs *eregs)
 {
 	Scsi_Cmnd *SCptr = esp->current_SC;
 	Scsi_Device *SDptr = SCptr->device;
@@ -3111,7 +3111,7 @@ static int check_multibyte_msg(struct NCR_ESP *esp,
 		return 0;
 	} else if(esp->cur_msgin[2] == EXTENDED_WDTR) {
 		ESPLOG(("esp%d: AIEEE wide msg received\n", esp->esp_id));
-			message_out = MESSAGE_REJECT;
+		message_out = MESSAGE_REJECT;
 	} else if(esp->cur_msgin[2] == EXTENDED_MODIFY_DATA_POINTER) {
 		ESPLOG(("esp%d: rejecting modify data ptr msg\n", esp->esp_id));
 		message_out = MESSAGE_REJECT;
@@ -3142,7 +3142,7 @@ static int esp_do_msgindone(struct NCR_ESP *esp, struct ESP_regs *eregs)
 				esp_advance_phase(SCptr, in_msgincont);
 			} else {
 				/* it is ok and we want it */
-					it = esp->cur_msgin[esp->msgin_ctr] =
+				it = esp->cur_msgin[esp->msgin_ctr] =
 					esp_read(eregs->esp_fdata);
 				esp->msgin_ctr++;
 			}
@@ -3200,17 +3200,17 @@ static int esp_do_cmdbegin(struct NCR_ESP *esp, struct ESP_regs *eregs)
 	Scsi_Cmnd *SCptr = esp->current_SC;
 
 	esp_advance_phase(SCptr, in_cmdend);
-		esp_cmd(esp, eregs, ESP_CMD_FLUSH);
+	esp_cmd(esp, eregs, ESP_CMD_FLUSH);
 	tmp = *esp->esp_scmdp++;
-		esp->esp_scmdleft--;
+	esp->esp_scmdleft--;
 	esp_write(eregs->esp_fdata, tmp);
-		esp_cmd(esp, eregs, ESP_CMD_TI);
+	esp_cmd(esp, eregs, ESP_CMD_TI);
 	return do_intr_end;
 }
 
 static int esp_do_cmddone(struct NCR_ESP *esp, struct ESP_regs *eregs)
 {
-		esp_cmd(esp, eregs, ESP_CMD_NULL);
+	esp_cmd(esp, eregs, ESP_CMD_NULL);
 	if(esp->ireg & ESP_INTR_BSERV) {
 		esp_advance_phase(esp->current_SC, in_the_dark);
 		return esp_do_phase_determine(esp, eregs);
@@ -3237,10 +3237,10 @@ static int esp_do_msgout(struct NCR_ESP *esp, struct ESP_regs *eregs)
 		} else {
 			esp->esp_command[0] = esp->cur_msgout[0];
 			esp->esp_command[1] = esp->cur_msgout[1];
-				esp->dma_setup(esp, esp->esp_command_dvma, 2, 0);
+			esp->dma_setup(esp, esp->esp_command_dvma, 2, 0);
 			esp_setcount(eregs, 2);
-				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
-			}
+			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+		}
 		break;
 
 	case 4:
@@ -3256,10 +3256,10 @@ static int esp_do_msgout(struct NCR_ESP *esp, struct ESP_regs *eregs)
 			esp->esp_command[1] = esp->cur_msgout[1];
 			esp->esp_command[2] = esp->cur_msgout[2];
 			esp->esp_command[3] = esp->cur_msgout[3];
-				esp->dma_setup(esp, esp->esp_command_dvma, 4, 0);
+			esp->dma_setup(esp, esp->esp_command_dvma, 4, 0);
 			esp_setcount(eregs, 4);
-				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
-			}
+			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+		}
 		break;
 
 	case 5:
@@ -3270,17 +3270,17 @@ static int esp_do_msgout(struct NCR_ESP *esp, struct ESP_regs *eregs)
 			esp_write(eregs->esp_fdata, esp->cur_msgout[2]);
 			esp_write(eregs->esp_fdata, esp->cur_msgout[3]);
 			esp_write(eregs->esp_fdata, esp->cur_msgout[4]);
-				esp_cmd(esp, eregs, ESP_CMD_TI);
-			} else {
+			esp_cmd(esp, eregs, ESP_CMD_TI);
+		} else {
 			esp->esp_command[0] = esp->cur_msgout[0];
 			esp->esp_command[1] = esp->cur_msgout[1];
 			esp->esp_command[2] = esp->cur_msgout[2];
 			esp->esp_command[3] = esp->cur_msgout[3];
 			esp->esp_command[4] = esp->cur_msgout[4];
-				esp->dma_setup(esp, esp->esp_command_dvma, 5, 0);
+			esp->dma_setup(esp, esp->esp_command_dvma, 5, 0);
 			esp_setcount(eregs, 5);
-				esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
-			}
+			esp_cmd(esp, eregs, ESP_CMD_DMA | ESP_CMD_TI);
+		}
 		break;
 
 	default:
@@ -3297,13 +3297,13 @@ static int esp_do_msgout(struct NCR_ESP *esp, struct ESP_regs *eregs)
 }
 
 static int esp_do_msgoutdone(struct NCR_ESP *esp, 
-				    struct ESP_regs *eregs)
+			     struct ESP_regs *eregs)
 {
 	if((esp->msgout_len > 1) && esp->dma_barrier)
 		esp->dma_barrier(esp);
 
 	if(!(esp->ireg & ESP_INTR_DC)) {
-			esp_cmd(esp, eregs, ESP_CMD_NULL);
+		esp_cmd(esp, eregs, ESP_CMD_NULL);
 		switch(esp->sreg & ESP_STAT_PMASK) {
 		case ESP_MOP:
 			/* whoops, parity error */
@@ -3532,10 +3532,10 @@ state_machine:
 		    what_next < do_intr_end)
 			what_next = isvc_vector[what_next](esp, eregs);
 		else {
-		/* state is completely lost ;-( */
-		ESPLOG(("esp%d: interrupt engine loses state, resetting bus\n",
-			esp->esp_id));
-		what_next = do_reset_bus;
+			/* state is completely lost ;-( */
+			ESPLOG(("esp%d: interrupt engine loses state, resetting bus\n",
+				esp->esp_id));
+			what_next = do_reset_bus;
 		}
 	}
 	if(esp->dma_irq_exit)
@@ -3578,7 +3578,7 @@ repeat:
 }
 #else
 /* For SMP we only service one ESP on the list list at our IRQ level! */
-static void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
+void esp_intr(int irq, void *dev_id, struct pt_regs *pregs)
 {
 	struct NCR_ESP *esp;
 	unsigned long flags;

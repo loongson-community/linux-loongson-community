@@ -190,10 +190,10 @@ struct ucred {
 /* Maximum queue length specifiable by listen.  */
 #define SOMAXCONN	128
 
-/* Flags we can use with send/ and recv.
+/* Flags we can use with send/ and recv. 
    Added those for 1003.1g not all are supported yet
  */
-
+ 
 #define MSG_OOB		1
 #define MSG_PEEK	2
 #define MSG_DONTROUTE	4

@@ -56,6 +56,8 @@ spinlock_t pagemap_lru_lock = SPIN_LOCK_UNLOCKED;
 #define CLUSTER_PAGES		(1 << page_cluster)
 #define CLUSTER_OFFSET(x)	(((x) >> page_cluster) << page_cluster)
 
+#define min(a,b)		((a < b) ? a : b)
+
 void __add_page_to_hash_queue(struct page * page, struct page **p)
 {
 	atomic_inc(&page_cache_size);
@@ -90,10 +92,16 @@ static inline int sync_page(struct page *page)
 /*
  * Remove a page from the page cache and free it. Caller has to make
  * sure the page is locked and that nobody else uses it - or that usage
- * is safe.
+ * is safe. We need that the page don't have any buffers.
  */
 static inline void __remove_inode_page(struct page *page)
 {
+	if (!PageLocked(page))
+		PAGE_BUG(page);
+
+	if (page->buffers)
+		BUG();
+
 	remove_page_from_inode_queue(page);
 	remove_page_from_hash_queue(page);
 	page->mapping = NULL;
@@ -101,9 +109,6 @@ static inline void __remove_inode_page(struct page *page)
 
 void remove_inode_page(struct page *page)
 {
-	if (!PageLocked(page))
-		PAGE_BUG(page);
-
 	spin_lock(&pagecache_lock);
 	__remove_inode_page(page);
 	spin_unlock(&pagecache_lock);
@@ -114,16 +119,16 @@ void remove_inode_page(struct page *page)
  * @inode: the inode which pages we want to invalidate
  *
  * This function only removes the unlocked pages, if you want to
- * remove all the pages of one inode, you must call truncate_inode_pages.
+ * remove all the pages of one inode, you must call
+ * truncate_inode_pages.  This function is not supposed to be called
+ * by block based filesystems.
  */
-
 void invalidate_inode_pages(struct inode * inode)
 {
 	struct list_head *head, *curr;
 	struct page * page;
 
 	head = &inode->i_mapping->pages;
-
 	spin_lock(&pagecache_lock);
 	spin_lock(&pagemap_lru_lock);
 	curr = head->next;
@@ -135,20 +140,53 @@ void invalidate_inode_pages(struct inode * inode)
 		/* We cannot invalidate a locked page */
 		if (TryLockPage(page))
 			continue;
+		/* We _should not be called_ by block based filesystems */
+		if (page->buffers) 
+			BUG();
 
-		__lru_cache_del(page);
 		__remove_inode_page(page);
+		__lru_cache_del(page);
 		UnlockPage(page);
 		page_cache_release(page);
 	}
-
 	spin_unlock(&pagemap_lru_lock);
 	spin_unlock(&pagecache_lock);
 }
 
-/*
+static inline void truncate_partial_page(struct page *page, unsigned partial)
+{
+	memclear_highpage_flush(page, partial, PAGE_CACHE_SIZE-partial);
+				
+	if (page->buffers)
+		block_flushpage(page, partial);
+
+}
+
+static inline void truncate_complete_page(struct page *page)
+{
+	if (page->buffers)
+		block_destroy_buffers(page);
+	lru_cache_del(page);
+	
+	/*
+	 * We remove the page from the page cache _after_ we have
+	 * destroyed all buffer-cache references to it. Otherwise some
+	 * other process might think this inode page is not in the
+	 * page cache and creates a buffer-cache alias to it causing
+	 * all sorts of fun problems ...  
+	 */
+	remove_inode_page(page);
+	page_cache_release(page);
+}
+
+/**
+ * truncate_inode_pages - truncate *all* the pages from an offset
+ * @mapping: mapping to truncate
+ * @lstart: offset from with to truncate
+ *
  * Truncate the page cache at a set offset, removing the pages
  * that are beyond that offset (and zeroing out partial pages).
+ * If any page is locked we wait for it to become unlocked.
  */
 void truncate_inode_pages(struct address_space * mapping, loff_t lstart)
 {
@@ -168,11 +206,10 @@ repeat:
 
 		page = list_entry(curr, struct page, list);
 		curr = curr->next;
-
 		offset = page->index;
 
-		/* page wholly truncated - free it */
-		if (offset >= start) {
+		/* Is one of the pages to truncate? */
+		if ((offset >= start) || (partial && (offset + 1) == start)) {
 			if (TryLockPage(page)) {
 				page_cache_get(page);
 				spin_unlock(&pagecache_lock);
@@ -183,21 +220,13 @@ repeat:
 			page_cache_get(page);
 			spin_unlock(&pagecache_lock);
 
-			if (!page->buffers || block_flushpage(page, 0))
-				lru_cache_del(page);
-
-			/*
-			 * We remove the page from the page cache
-			 * _after_ we have destroyed all buffer-cache
-			 * references to it. Otherwise some other process
-			 * might think this inode page is not in the
-			 * page cache and creates a buffer-cache alias
-			 * to it causing all sorts of fun problems ...
-			 */
-			remove_inode_page(page);
+			if (partial && (offset + 1) == start) {
+				truncate_partial_page(page, partial);
+				partial = 0;
+			} else 
+				truncate_complete_page(page);
 
 			UnlockPage(page);
-			page_cache_release(page);
 			page_cache_release(page);
 
 			/*
@@ -209,38 +238,59 @@ repeat:
 			 */
 			goto repeat;
 		}
-		/*
-		 * there is only one partial page possible.
-		 */
-		if (!partial)
-			continue;
+	}
+	spin_unlock(&pagecache_lock);
+}
 
-		/* and it's the one preceeding the first wholly truncated page */
-		if ((offset + 1) != start)
-			continue;
+/**
+ * truncate_all_inode_pages - truncate *all* the pages
+ * @mapping: mapping to truncate
+ *
+ * Truncate all the inode pages.  If any page is locked we wait for it
+ * to become unlocked. This function can block.
+ */
+void truncate_all_inode_pages(struct address_space * mapping)
+{
+	struct list_head *head, *curr;
+	struct page * page;
 
-		/* partial truncate, clear end of page */
+	head = &mapping->pages;
+repeat:
+	spin_lock(&pagecache_lock);
+	spin_lock(&pagemap_lru_lock);
+	curr = head->next;
+
+	while (curr != head) {
+		page = list_entry(curr, struct page, list);
+		curr = curr->next;
+
 		if (TryLockPage(page)) {
+			page_cache_get(page);
+			spin_unlock(&pagemap_lru_lock);
 			spin_unlock(&pagecache_lock);
+			wait_on_page(page);
+			page_cache_release(page);
 			goto repeat;
 		}
-		page_cache_get(page);
-		spin_unlock(&pagecache_lock);
-
-		memclear_highpage_flush(page, partial, PAGE_CACHE_SIZE-partial);
-		if (page->buffers)
-			block_flushpage(page, partial);
-
-		partial = 0;
-
-		/*
-		 * we have dropped the spinlock so we have to
-		 * restart.
-		 */
+		if (page->buffers) {
+			page_cache_get(page);
+			spin_unlock(&pagemap_lru_lock);
+			spin_unlock(&pagecache_lock);
+			block_destroy_buffers(page);
+			remove_inode_page(page);
+			lru_cache_del(page);
+			page_cache_release(page);
+			UnlockPage(page);
+			page_cache_release(page);
+			goto repeat;
+		}
+		__lru_cache_del(page);
+		__remove_inode_page(page);
 		UnlockPage(page);
 		page_cache_release(page);
-		goto repeat;
 	}
+
+	spin_unlock(&pagemap_lru_lock);
 	spin_unlock(&pagecache_lock);
 }
 
@@ -264,7 +314,15 @@ int shrink_mmap(int priority, int gfp_mask)
 		page = list_entry(page_lru, struct page, lru);
 		list_del(page_lru);
 
-		if (PageTestandClearReferenced(page))
+		if (PageTestandClearReferenced(page)) {
+			page->age += PG_AGE_ADV;
+			if (page->age > PG_AGE_MAX)
+				page->age = PG_AGE_MAX;
+			goto dispose_continue;
+		}
+		page->age -= min(PG_AGE_DECL, page->age);
+
+		if (page->age)
 			goto dispose_continue;
 
 		count--;
@@ -322,17 +380,23 @@ int shrink_mmap(int priority, int gfp_mask)
 		 * were to be marked referenced..
 		 */
 		if (PageSwapCache(page)) {
-			spin_unlock(&pagecache_lock);
-			__delete_from_swap_cache(page);
-			goto made_inode_progress;
-		}	
-
-		/*
-		 * Page is from a zone we don't care about.
-		 * Don't drop page cache entries in vain.
-		 */
-		if (page->zone->free_pages > page->zone->pages_high)
+			if (!PageDirty(page)) {
+				spin_unlock(&pagecache_lock);
+				__delete_from_swap_cache(page);
+				goto made_inode_progress;
+			}
+			/* PageDeferswap -> we swap out the page now. */
+			if (gfp_mask & __GFP_IO) {
+				spin_unlock(&pagecache_lock);
+				/* Do NOT unlock the page ... brw_page does. */
+				ClearPageDirty(page);
+				rw_swap_page(WRITE, page, 0);
+				spin_lock(&pagemap_lru_lock);
+				page_cache_release(page);
+				goto dispose_continue;
+			}
 			goto cache_unlock_continue;
+		}
 
 		/* is it a page-cache page? */
 		if (page->mapping) {
@@ -1744,7 +1808,7 @@ static int msync_interval(struct vm_area_struct * vma,
 		if (!error && (flags & MS_SYNC)) {
 			struct file * file = vma->vm_file;
 			if (file && file->f_op && file->f_op->fsync)
-				error = file->f_op->fsync(file, file->f_dentry);
+				error = file->f_op->fsync(file, file->f_dentry, 1);
 		}
 		return error;
 	}
@@ -2483,7 +2547,7 @@ generic_file_write(struct file *file,const char *buf,size_t count,loff_t *ppos)
 	if (count) {
 		remove_suid(inode);
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		mark_inode_dirty(inode);
+		mark_inode_dirty_sync(inode);
 	}
 
 	while (count) {
@@ -2540,7 +2604,13 @@ unlock:
 	if (cached_page)
 		page_cache_free(cached_page);
 
+	/* For now, when the user asks for O_SYNC, we'll actually
+	 * provide O_DSYNC. */
+	if ((status >= 0) && (file->f_flags & O_SYNC))
+		status = generic_osync_inode(inode, 1); /* 1 means datasync */
+	
 	err = written ? written : status;
+
 out:
 	up(&inode->i_sem);
 	return err;

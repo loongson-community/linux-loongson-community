@@ -226,6 +226,7 @@ int __init applicom_init(void)
 			continue;
 		}
 
+		/* &ac_open as dev_id? David, could you pass me this joint? */
 		if (request_irq(dev->irq, &ac_interrupt, SA_SHIRQ, "Applicom PCI", &ac_open)) {
 			printk(KERN_INFO "Could not allocate IRQ %d for PCI Applicom device.\n", dev->irq);
 			iounmap(RamIO);

@@ -98,6 +98,7 @@ extern void signals_init(void);
 extern void bdev_init(void);
 extern int init_pcmcia_ds(void);
 extern int usb_init(void);
+extern void filelock_init(void);
 
 extern void free_initmem(void);
 extern void filesystem_setup(void);
@@ -141,44 +142,6 @@ char root_device_name[64];
 
 static char * argv_init[MAX_INIT_ARGS+2] = { "init", NULL, };
 static char * envp_init[MAX_INIT_ENVS+2] = { "HOME=/", "TERM=linux", NULL, };
-
-/*
- * Read an int from an option string; if available accept a subsequent
- * comma as well.
- *
- * Return values:
- * 0 : no int in string
- * 1 : int found, no subsequent comma
- * 2 : int found including a subsequent comma
- */
-int get_option(char **str, int *pint)
-{
-    char *cur = *str;
-
-    if (!cur || !(*cur)) return 0;
-    *pint = simple_strtol(cur,str,0);
-    if (cur==*str) return 0;
-    if (**str==',') {
-        (*str)++;
-        return 2;
-    }
-
-    return 1;
-}
-
-char *get_options(char *str, int nints, int *ints)
-{
-	int res,i=1;
-
-    while (i<nints) {
-        res = get_option(&str, ints+i);
-        if (res==0) break;
-        i++;
-        if (res==1) break;
-    }
-	ints[0] = i-1;
-	return(str);
-}
 
 static int __init profile_setup(char *str)
 {
@@ -539,12 +502,12 @@ asmlinkage void __init start_kernel(void)
 	printk(linux_banner);
 	setup_arch(&command_line);
 	printk("Kernel command line: %s\n", saved_command_line);
+	parse_options(command_line);
 	trap_init();
 	init_IRQ();
 	sched_init();
 	time_init();
 	softirq_init();
-	parse_options(command_line);
 
 	/*
 	 * HACK ALERT! This is early. We're enabling the console before
@@ -600,6 +563,7 @@ asmlinkage void __init start_kernel(void)
 	bdev_init();
 	inode_init(mempages);
 	file_table_init();
+	filelock_init();
 #if defined(CONFIG_SYSVIPC)
 	ipc_init();
 #endif
@@ -752,7 +716,8 @@ static void __init do_basic_setup(void)
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	root_mountflags = real_root_mountflags;
-	if (mount_initrd && MAJOR(ROOT_DEV) == RAMDISK_MAJOR && MINOR(ROOT_DEV) == 0) {
+	if (mount_initrd && ROOT_DEV != real_root_dev
+	    && MAJOR(ROOT_DEV) == RAMDISK_MAJOR && MINOR(ROOT_DEV) == 0) {
 		int error;
 		int i, pid;
 
@@ -762,7 +727,7 @@ static void __init do_basic_setup(void)
 		if (MAJOR(real_root_dev) != RAMDISK_MAJOR
 		     || MINOR(real_root_dev) != 0) {
 #ifdef CONFIG_BLK_DEV_MD
-			autodetect_raid();
+			md_run_setup();
 #endif
 			error = change_root(real_root_dev,"/initrd");
 			if (error)

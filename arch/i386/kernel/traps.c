@@ -2,12 +2,14 @@
  *  linux/arch/i386/traps.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
- *  FXSAVE/FXRSTOR support by Ingo Molnar, OS exception support by Goutham Rao
+ *
+ *  Pentium III FXSR, SSE support
+ *	Gareth Hughes <gareth@valinux.com>, May 2000
  */
 
 /*
  * 'Traps.c' handles hardware traps and faults after we have saved some
- * state in 'asm.s'.
+ * state in 'entry.S'.
  */
 #include <linux/config.h>
 #include <linux/sched.h>
@@ -136,8 +138,6 @@ out: \
 	unlock_kernel(); \
 }
 
-void page_exception(void);
-
 asmlinkage void divide_error(void);
 asmlinkage void debug(void);
 asmlinkage void nmi(void);
@@ -154,10 +154,12 @@ asmlinkage void stack_segment(void);
 asmlinkage void general_protection(void);
 asmlinkage void page_fault(void);
 asmlinkage void coprocessor_error(void);
+#ifdef CONFIG_X86_XMM
+asmlinkage void simd_coprocessor_error(void);
+#endif
 asmlinkage void reserved(void);
 asmlinkage void alignment_check(void);
 asmlinkage void spurious_interrupt_bug(void);
-asmlinkage void xmm_fault(void);
 
 int kstack_depth_to_print = 24;
 
@@ -320,7 +322,6 @@ DO_ERROR(11, SIGBUS,  "segment not present", segment_not_present, current)
 DO_ERROR(12, SIGBUS,  "stack segment", stack_segment, current)
 DO_ERROR_INFO(17, SIGBUS, "alignment check", alignment_check, current, BUS_ADRALN, get_cr2())
 DO_ERROR(18, SIGSEGV, "reserved", reserved, current)
-DO_VM86_ERROR(19, SIGFPE, "XMM fault", xmm_fault, current)
 
 asmlinkage void do_general_protection(struct pt_regs * regs, long error_code)
 {
@@ -537,12 +538,12 @@ asmlinkage void do_debug(struct pt_regs * regs, long error_code)
 		 * The TF error should be masked out only if the current
 		 * process is not traced and if the TRAP flag has been set
 		 * previously by a tracing process (condition detected by
-		 * the PF_DTRACE flag); remember that the i386 TRAP flag
+		 * the PT_DTRACE flag); remember that the i386 TRAP flag
 		 * can be modified by the process itself in user mode,
 		 * allowing programs to debug themselves without the ptrace()
 		 * interface.
 		 */
-		if ((tsk->flags & (PF_DTRACE|PF_PTRACED)) == PF_DTRACE)
+		if ((tsk->ptrace & (PT_DTRACE|PT_PTRACED)) == PT_DTRACE)
 			goto clear_TF;
 	}
 
@@ -588,11 +589,10 @@ void math_error(void *eip)
 	siginfo_t info;
 
 	/*
-	 * Save the info for the exception handler
-	 * (this will also clear the error)
+	 * Save the info for the exception handler and clear the error
 	 */
 	task = current;
-	save_fpu(task);
+	save_init_fpu(task);
 	task->thread.trap_no = 16;
 	task->thread.error_code = 0;
 	info.si_signo = SIGFPE;
@@ -643,6 +643,63 @@ asmlinkage void do_coprocessor_error(struct pt_regs * regs, long error_code)
 	math_error((void *)regs->eip);
 }
 
+#ifdef CONFIG_X86_XMM
+void simd_math_error(void *eip)
+{
+	struct task_struct * task;
+	siginfo_t info;
+
+	/*
+	 * Save the info for the exception handler and clear the error
+	 */
+	task = current;
+	save_init_fpu(task);
+	set_fpu_mxcsr(XMM_DEFAULT_MXCSR);
+	task->thread.trap_no = 19;
+	task->thread.error_code = 0;
+	info.si_signo = SIGFPE;
+	info.si_errno = 0;
+	info.si_code = __SI_FAULT;
+	info.si_addr = eip;
+	/*
+	 * The SIMD FPU exceptions are handled a little differently, as there
+	 * is only a single status/control register.  Thus, to determine which
+	 * unmasked exception was caught we must mask the exception mask bits
+	 * at 0x1f80, and then use these to mask the exception bits at 0x3f.
+	 */
+	switch (~((task->thread.i387.hard.mxcsr & 0x1f80) >> 7) &
+		(task->thread.i387.hard.mxcsr & 0x3f)) {
+		case 0x000:
+		default:
+			break;
+		case 0x001: /* Invalid Op */
+			info.si_code = FPE_FLTINV;
+			break;
+		case 0x002: /* Denormalize */
+		case 0x010: /* Underflow */
+			info.si_code = FPE_FLTUND;
+			break;
+		case 0x004: /* Zero Divide */
+			info.si_code = FPE_FLTDIV;
+			break;
+		case 0x008: /* Overflow */
+			info.si_code = FPE_FLTOVF;
+			break;
+		case 0x020: /* Precision */
+			info.si_code = FPE_FLTRES;
+			break;
+	}
+	force_sig_info(SIGFPE, &info, task);
+}
+
+asmlinkage void do_simd_coprocessor_error(struct pt_regs * regs,
+					  long error_code)
+{
+	ignore_irq13 = 1;
+	simd_math_error((void *)regs->eip);
+}
+#endif /* CONFIG_X86_XMM */
+
 asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
 					  long error_code)
 {
@@ -661,19 +718,18 @@ asmlinkage void do_spurious_interrupt_bug(struct pt_regs * regs,
  */
 asmlinkage void math_state_restore(struct pt_regs regs)
 {
-	__asm__ __volatile__("clts");		/* Allow maths ops (or we recurse) */
+	__asm__ __volatile__("clts");	/* Allow maths ops (or we recurse) */
 
-	if(current->used_math)
-		i387_restore_hard(current->thread.i387);
-	else
-	{
+	if (current->used_math) {
+		restore_fpu(current);
+	} else {
 		/*
 		 *	Our first FPU usage, clean the chip.
 		 */
 		__asm__("fninit");
 		current->used_math = 1;
 	}
-	current->flags|=PF_USEDFPU;		/* So we fnsave on switch_to() */
+	current->flags |= PF_USEDFPU;	/* So we fnsave on switch_to() */
 }
 
 #ifndef CONFIG_MATH_EMULATION
@@ -907,8 +963,10 @@ void __init trap_init(void)
 	set_trap_gate(15,&spurious_interrupt_bug);
 	set_trap_gate(16,&coprocessor_error);
 	set_trap_gate(17,&alignment_check);
-	set_trap_gate(19,&xmm_fault);
-
+#ifdef CONFIG_X86_XMM
+	if (cpu_has_xmm)
+		set_trap_gate(19,&simd_coprocessor_error);
+#endif
 	set_system_gate(SYSCALL_VECTOR,&system_call);
 
 	/*

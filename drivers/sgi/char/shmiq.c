@@ -118,8 +118,7 @@ shmiq_push_event (struct shmqevent *e)
 		e->data.device, e->data.which, e->data.type, e->data.flags);
 	s->tail = tail_next;
 	shmiqs [device].tail = tail_next;
-	if (shmiqs [device].fasync)
-		kill_fasync (shmiqs [device].fasync, SIGIO, POLL_IN);
+	kill_fasync (&shmiqs [device].fasync, SIGIO, POLL_IN);
 	wake_up_interruptible (&shmiqs [device].proc_list);
 }
 
@@ -287,6 +286,7 @@ qcntl_ioctl (struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
 			    sizeof (struct sharedMemoryInputQueue);
 			v = sys_munmap (vaddr, s);
 			down(&current->mm->mmap_sem);
+			do_munmap(current->mm, vaddr, s);
 			do_mmap(filp, vaddr, s, PROT_READ | PROT_WRITE,
 			        MAP_PRIVATE|MAP_FIXED, 0);
 			up(&current->mm->mmap_sem);

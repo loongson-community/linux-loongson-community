@@ -255,13 +255,12 @@ int w83977af_open(int i, unsigned int iobase, unsigned int irq,
 	dev->get_stats	     = w83977af_net_get_stats;
 
 	rtnl_lock();
-	err = register_netdev(dev);
+	err = register_netdevice(dev);
 	rtnl_unlock();
 	if (err) {
-		ERROR(__FUNCTION__ "(), register_netdev() failed!\n");
+		ERROR(__FUNCTION__ "(), register_netdevice() failed!\n");
 		return -1;
 	}
-
 	MESSAGE("IrDA: Registered device %s\n", dev->name);
 	
 	return 0;
@@ -302,7 +301,7 @@ static int w83977af_close(struct w83977af_ir *self)
 
 	/* Release the PORT that this driver is using */
 	IRDA_DEBUG(0 , __FUNCTION__ "(), Releasing Region %03x\n", 
-	      self->io.fir_base);
+		   self->io.fir_base);
 	release_region(self->io.fir_base, self->io.fir_ext);
 
 	if (self->tx_buff.head)
@@ -1332,7 +1331,12 @@ static int w83977af_net_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	
 	switch (cmd) {
 	case SIOCSBANDWIDTH: /* Set bandwidth */
-		if (!capable(CAP_NET_ADMIN))
+		/*
+		 * This function will also be used by IrLAP to change the
+		 * speed, so we still must allow for speed change within
+		 * interrupt context.
+		 */
+		if (!in_interrupt() && !capable(CAP_NET_ADMIN))
 			return -EPERM;
 		w83977af_change_speed(self, irq->ifr_baudrate);
 		break;

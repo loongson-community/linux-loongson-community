@@ -196,7 +196,7 @@ EXPORT_SYMBOL(__scm_send);
 
 /* Needed by unix.o */
 EXPORT_SYMBOL(scm_fp_dup);
-EXPORT_SYMBOL(max_files);
+EXPORT_SYMBOL(files_stat);
 EXPORT_SYMBOL(memcpy_toiovec);
 EXPORT_SYMBOL(csum_partial);
 
@@ -252,6 +252,8 @@ EXPORT_SYMBOL(ip_defrag);
 /* Route manipulation */
 EXPORT_SYMBOL(ip_rt_ioctl);
 EXPORT_SYMBOL(devinet_ioctl);
+EXPORT_SYMBOL(register_inetaddr_notifier);
+EXPORT_SYMBOL(unregister_inetaddr_notifier);
 
 /* needed for ip_gre -cw */
 EXPORT_SYMBOL(ip_statistics);
@@ -522,7 +524,7 @@ EXPORT_SYMBOL(dev_mc_delete);
 EXPORT_SYMBOL(dev_mc_upload);
 EXPORT_SYMBOL(n_tty_ioctl);
 EXPORT_SYMBOL(tty_register_ldisc);
-EXPORT_SYMBOL(kill_fasync);
+EXPORT_SYMBOL(__kill_fasync);
 
 EXPORT_SYMBOL(if_port_text);
 

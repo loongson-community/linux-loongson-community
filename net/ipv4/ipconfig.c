@@ -40,7 +40,6 @@
 #include <net/ip.h>
 #include <net/ipconfig.h>
 
-#include <asm/segment.h>
 #include <asm/uaccess.h>
 #include <asm/checksum.h>
 

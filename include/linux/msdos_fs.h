@@ -69,7 +69,7 @@
 #define MSDOS_DOT    ".          " /* ".", padded to MSDOS_NAME chars */
 #define MSDOS_DOTDOT "..         " /* "..", padded to MSDOS_NAME chars */
 
-#define MSDOS_FAT12 4078 /* maximum number of clusters in a 12 bit FAT */
+#define MSDOS_FAT12 4084 /* maximum number of clusters in a 12 bit FAT */
 
 #define EOF_FAT12 0xFF8		/* standard EOF */
 #define EOF_FAT16 0xFFF8
@@ -248,7 +248,7 @@ extern struct inode *fat_build_inode(struct super_block*,struct msdos_dir_entry*
 extern struct super_block *fat_read_super(struct super_block *s, void *data, int silent, struct inode_operations *dir_ops);
 extern void msdos_put_super(struct super_block *sb);
 extern int fat_statfs(struct super_block *sb,struct statfs *buf);
-extern void fat_write_inode(struct inode *inode);
+extern void fat_write_inode(struct inode *inode, int);
 
 /* dir.c */
 extern struct file_operations fat_dir_operations;

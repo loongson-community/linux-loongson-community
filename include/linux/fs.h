@@ -47,7 +47,12 @@ struct poll_table_struct;
 #define BLOCK_SIZE (1<<BLOCK_SIZE_BITS)
 
 /* And dynamically-tunable limits and defaults: */
-extern int max_files, nr_files, nr_free_files;
+struct files_stat_struct {
+	int nr_files;		/* read only */
+	int nr_free_files;	/* read only */
+	int max_files;		/* tunable */
+};
+extern struct files_stat_struct files_stat;
 extern int max_super_blocks, nr_super_blocks;
 
 #define NR_FILE  8192	/* this can well be larger on a larger system */
@@ -236,6 +241,9 @@ struct buffer_head {
 	unsigned long b_rsector;	/* Real buffer location on disk */
 	wait_queue_head_t b_wait;
 	struct kiobuf * b_kiobuf;	/* kiobuf which owns this IO */
+
+	struct inode *	     b_inode;
+	struct list_head     b_inode_buffers;	/* doubly linked list of inode dirty buffers */
 };
 
 typedef void (bh_end_io_t)(struct buffer_head *bh, int uptodate);
@@ -375,8 +383,10 @@ struct inode {
 	struct list_head	i_list;
 	struct list_head	i_dentry;
 
+	struct list_head	i_dirty_buffers;
+
 	unsigned long		i_ino;
-	unsigned int		i_count;
+	atomic_t		i_count;
 	kdev_t			i_dev;
 	umode_t			i_mode;
 	nlink_t			i_nlink;
@@ -441,16 +451,24 @@ struct inode {
 };
 
 /* Inode state bits.. */
-#define I_DIRTY		1
-#define I_LOCK		2
-#define I_FREEING	4
-#define I_CLEAR		8
+#define I_DIRTY_SYNC		1 /* Not dirty enough for O_DATASYNC */
+#define I_DIRTY_DATASYNC	2 /* Data-related inode changes pending */
+#define I_LOCK			4
+#define I_FREEING		8
+#define I_CLEAR			16
 
-extern void __mark_inode_dirty(struct inode *);
+#define I_DIRTY (I_DIRTY_SYNC | I_DIRTY_DATASYNC)
+
+extern void __mark_inode_dirty(struct inode *, int);
 static inline void mark_inode_dirty(struct inode *inode)
 {
-	if (!(inode->i_state & I_DIRTY))
-		__mark_inode_dirty(inode);
+	if ((inode->i_state & I_DIRTY) != I_DIRTY)
+		__mark_inode_dirty(inode, I_DIRTY);
+}
+static inline void mark_inode_dirty_sync(struct inode *inode)
+{
+	if (!(inode->i_state & I_DIRTY_SYNC))
+		__mark_inode_dirty(inode, I_DIRTY_SYNC);
 }
 
 struct fown_struct {
@@ -504,10 +522,8 @@ typedef struct files_struct *fl_owner_t;
 
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
-	struct file_lock *fl_nextlink;	/* doubly linked list of all locks */
-	struct file_lock *fl_prevlink;	/* used to simplify lock removal */
-	struct file_lock *fl_nextblock; /* circular list of blocked processes */
-	struct file_lock *fl_prevblock;
+	struct list_head fl_link;	/* doubly linked list of all locks */
+	struct list_head fl_block; /* circular list of blocked processes */
 	fl_owner_t fl_owner;
 	unsigned int fl_pid;
 	wait_queue_head_t fl_wait;
@@ -532,7 +548,7 @@ struct file_lock {
 #define OFFSET_MAX	INT_LIMIT(loff_t)
 #endif
 
-extern struct file_lock			*file_lock_table;
+extern struct list_head file_lock_list;
 
 #include <linux/fcntl.h>
 
@@ -554,6 +570,15 @@ struct fasync_struct {
 	struct	file 		*fa_file;
 };
 
+#define FASYNC_MAGIC 0x4601
+
+/* SMP safe fasync helpers: */
+extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
+/* can be called from interrupts */
+extern void kill_fasync(struct fasync_struct **, int, int);
+/* only for net: no internal synchronization */
+extern void __kill_fasync(struct fasync_struct *, int, int);
+
 struct nameidata {
 	struct dentry *dentry;
 	struct vfsmount *mnt;
@@ -561,10 +586,6 @@ struct nameidata {
 	unsigned int flags;
 	int last_type;
 };
-
-#define FASYNC_MAGIC 0x4601
-
-extern int fasync_helper(int, struct file *, int, struct fasync_struct **);
 
 #define DQUOT_USR_ENABLED	0x01		/* User diskquotas enabled */
 #define DQUOT_GRP_ENABLED	0x02		/* Group diskquotas enabled */
@@ -705,6 +726,7 @@ struct block_device_operations {
  *   without the big kernel lock held in all filesystems.
  */
 struct file_operations {
+	struct module *owner;
 	loff_t (*llseek) (struct file *, loff_t, int);
 	ssize_t (*read) (struct file *, char *, size_t, loff_t *);
 	ssize_t (*write) (struct file *, const char *, size_t, loff_t *);
@@ -715,7 +737,7 @@ struct file_operations {
 	int (*open) (struct inode *, struct file *);
 	int (*flush) (struct file *);
 	int (*release) (struct inode *, struct file *);
-	int (*fsync) (struct file *, struct dentry *);
+	int (*fsync) (struct file *, struct dentry *, int datasync);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
 	ssize_t (*readv) (struct file *, const struct iovec *, unsigned long, loff_t *);
@@ -748,7 +770,7 @@ struct inode_operations {
  */
 struct super_operations {
 	void (*read_inode) (struct inode *);
-	void (*write_inode) (struct inode *);
+	void (*write_inode) (struct inode *, int);
 	void (*put_inode) (struct inode *);
 	void (*delete_inode) (struct inode *);
 	void (*put_super) (struct super_block *);
@@ -788,6 +810,18 @@ struct file_system_type var = { \
 
 #define DECLARE_FSTYPE_DEV(var,type,read) \
 	DECLARE_FSTYPE(var,type,read,FS_REQUIRES_DEV)
+
+/* Alas, no aliases. Too much hassle with bringing module.h everywhere */
+#define fops_get(fops) \
+	(((fops) && (fops)->owner)	\
+		? __MOD_INC_USE_COUNT((fops)->owner), (fops) \
+		: (fops))
+
+#define fops_put(fops) \
+do {	\
+	if ((fops) && (fops)->owner) \
+		__MOD_DEC_USE_COUNT((fops)->owner);	\
+} while(0)
 
 extern int register_filesystem(struct file_system_type *);
 extern int unregister_filesystem(struct file_system_type *);
@@ -841,8 +875,8 @@ static inline int locks_verify_truncate(struct inode *inode,
 		return locks_mandatory_area(
 			FLOCK_VERIFY_WRITE, inode, filp,
 			size < inode->i_size ? size : inode->i_size,
-			abs(inode->i_size - size)
-		);
+			size < inode->i_size ? inode->i_size - size
+			: size - inode->i_size);
 	return 0;
 }
 
@@ -853,9 +887,6 @@ asmlinkage long sys_open(const char *, int, int);
 asmlinkage long sys_close(unsigned int);	/* yes, it's really unsigned */
 extern int do_close(unsigned int, int);		/* yes, it's really unsigned */
 extern int do_truncate(struct dentry *, loff_t start);
-extern int get_unused_fd(void);
-extern void __put_unused_fd(struct files_struct *, unsigned int); /* locked outside */
-extern void put_unused_fd(unsigned int);                          /* locked inside */
 
 extern struct file *filp_open(const char *, int, int);
 extern struct file * dentry_open(struct dentry *, struct vfsmount *, int);
@@ -865,7 +896,6 @@ extern char * getname(const char *);
 #define putname(name)	free_page((unsigned long)(name))
 
 enum {BDEV_FILE, BDEV_SWAP, BDEV_FS, BDEV_RAW};
-extern void kill_fasync(struct fasync_struct *, int, int);
 extern int register_blkdev(unsigned int, const char *, struct block_device_operations *);
 extern int unregister_blkdev(unsigned int, const char *);
 extern struct block_device *bdget(dev_t);
@@ -967,23 +997,44 @@ static inline void buffer_IO_error(struct buffer_head * bh)
 	bh->b_end_io(bh, 0);
 }
 
+extern void buffer_insert_inode_queue(struct buffer_head *, struct inode *);
+static inline void mark_buffer_dirty_inode(struct buffer_head *bh, int flag, struct inode *inode)
+{
+	mark_buffer_dirty(bh, flag);
+	buffer_insert_inode_queue(bh, inode);
+}
+
 extern void balance_dirty(kdev_t);
 extern int check_disk_change(kdev_t);
 extern int invalidate_inodes(struct super_block *);
 extern void invalidate_inode_pages(struct inode *);
+extern void invalidate_inode_buffers(struct inode *);
 #define invalidate_buffers(dev)	__invalidate_buffers((dev), 0)
 #define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
 extern void __invalidate_buffers(kdev_t dev, int);
 extern void sync_inodes(kdev_t);
-extern void write_inode_now(struct inode *);
+extern void write_inode_now(struct inode *, int);
 extern void sync_dev(kdev_t);
 extern int fsync_dev(kdev_t);
+extern int fsync_inode_buffers(struct inode *);
+extern int osync_inode_buffers(struct inode *);
+extern int generic_osync_inode(struct inode *, int);
+extern int inode_has_buffers(struct inode *);
 extern void sync_supers(kdev_t);
 extern int bmap(struct inode *, int);
 extern int notify_change(struct dentry *, struct iattr *);
 extern int permission(struct inode *, int);
 extern int get_write_access(struct inode *);
-extern void put_write_access(struct inode *);
+extern int deny_write_access(struct file *);
+static inline void put_write_access(struct inode * inode)
+{
+	atomic_dec(&inode->i_writecount);
+}
+static inline void allow_write_access(struct file *file)
+{
+	if (file)
+		atomic_inc(&file->f_dentry->d_inode->i_writecount);
+}
 extern int do_pipe(int *);
 
 extern int open_namei(const char *, int, int, struct nameidata *);
@@ -1058,6 +1109,7 @@ extern struct dentry * lookup_hash(struct qstr *, struct dentry *);
 #define user_path_walk_link(name,nd) __user_walk(name, LOOKUP_POSITIVE, nd)
 
 extern void iput(struct inode *);
+extern void force_delete(struct inode *);
 extern struct inode * igrab(struct inode *);
 extern ino_t iunique(struct super_block *, ino_t);
 
@@ -1104,6 +1156,7 @@ typedef int (get_block_t)(struct inode*,long,struct buffer_head*,int);
 
 /* Generic buffer handling for block filesystems.. */
 extern int block_flushpage(struct page *, unsigned long);
+extern void block_destroy_buffers(struct page *);
 extern int block_symlink(struct inode *, const char *, int);
 extern int block_write_full_page(struct page*, get_block_t*);
 extern int block_read_full_page(struct page*, get_block_t*);
@@ -1157,7 +1210,7 @@ extern int read_ahead[];
 extern ssize_t char_write(struct file *, const char *, size_t, loff_t *);
 extern ssize_t block_write(struct file *, const char *, size_t, loff_t *);
 
-extern int file_fsync(struct file *, struct dentry *);
+extern int file_fsync(struct file *, struct dentry *, int);
 extern int generic_buffer_fdatasync(struct inode *inode, unsigned long start_idx, unsigned long end_idx);
 
 extern int inode_change_ok(struct inode *, struct iattr *);
@@ -1169,20 +1222,6 @@ extern void inode_setattr(struct inode *, struct iattr *);
  * functions were in linux/fs/ C (VFS) files.
  *
  */
-
-/*
- * We need to do a check-parent every time
- * after we have locked the parent - to verify
- * that the parent is still our parent and
- * that we are still hashed onto it..
- *
- * This is required in case two processes race
- * on removing (or moving) the same entry: the
- * parent lock will serialize them, but the
- * other process will be too late..
- */
-#define check_parent(dir, dentry) \
-	((dir) == (dentry)->d_parent && !d_unhashed(dentry))
 
 /*
  * Locking the parent is needed to:

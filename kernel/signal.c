@@ -248,7 +248,7 @@ static int ignored_signal(int sig, struct task_struct *t)
 	struct k_sigaction *ka;
 
 	/* Don't ignore traced or blocked signals */
-	if ((t->flags & PF_PTRACED) || sigismember(&t->blocked, sig))
+	if ((t->ptrace & PT_PTRACED) || sigismember(&t->blocked, sig))
 		return 0;
 	
 	signals = t->sig;
@@ -376,7 +376,7 @@ printk("SIG queue (%s:%d): %d ", t->comm, t->pid, sig);
 				break;
 		}
 	} else if (sig >= SIGRTMIN && info && (unsigned long)info != 1
-		   && info->si_code < 0) {
+		   && info->si_code != SI_USER) {
 		/*
 		 * Queue overflow, abort.  We may abort if the signal was rt
 		 * and sent by user using something other than kill().
@@ -626,7 +626,7 @@ notify_parent(struct task_struct *tsk, int sig)
 		break;
 	case TASK_STOPPED:
 		/* FIXME -- can we deduce CLD_TRAPPED or CLD_CONTINUED? */
-		if (tsk->flags & PF_PTRACED)
+		if (tsk->ptrace & PT_PTRACED)
 			why = CLD_TRAPPED;
 		else
 			why = CLD_STOPPED;
@@ -1110,7 +1110,7 @@ sys_ssetmask(int newmask)
 }
 #endif /* !defined(__alpha__) */
 
-#if !defined(__alpha__) && !defined(__mips__)
+#if !defined(__alpha__) && !defined(__ia64__) && !defined(__mips__)
 /*
  * For backwards compatibility.  Functionality superseded by sigaction.
  */

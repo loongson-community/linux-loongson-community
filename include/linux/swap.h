@@ -161,6 +161,16 @@ static inline int is_page_shared(struct page *page)
 extern spinlock_t pagemap_lru_lock;
 
 /*
+ * Magic constants for page aging. If the system is programmed
+ * right, tweaking these should have almost no effect...
+ * The 2.4 code, however, is mostly simple and stable ;)
+ */
+#define PG_AGE_MAX	64
+#define PG_AGE_START	2
+#define PG_AGE_ADV	3
+#define PG_AGE_DECL	1
+
+/*
  * Helper macros for lru_pages handling.
  */
 #define	lru_cache_add(page)			\
@@ -168,12 +178,16 @@ do {						\
 	spin_lock(&pagemap_lru_lock);		\
 	list_add(&(page)->lru, &lru_cache);	\
 	nr_lru_pages++;				\
+	page->age = PG_AGE_START;		\
+	ClearPageReferenced(page);		\
+	SetPageActive(page);			\
 	spin_unlock(&pagemap_lru_lock);		\
 } while (0)
 
 #define	__lru_cache_del(page)			\
 do {						\
 	list_del(&(page)->lru);			\
+	ClearPageActive(page);			\
 	nr_lru_pages--;				\
 } while (0)
 

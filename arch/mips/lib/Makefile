@@ -21,7 +21,7 @@ else
 endif
 
 ifdef CONFIG_BLK_DEV_FD
-  L_OBJS += flopyy-no.o flopyy-std.o
+  L_OBJS += floppy-no.o floppy-std.o
 endif
 
 ifdef CONFIG_IDE

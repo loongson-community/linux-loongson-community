@@ -1,6 +1,3 @@
-/*
- * $Id: socket.h,v 1.6 2000/02/25 21:52:09 ralf Exp $
- */
 #ifndef _ASM_SOCKET_H
 #define _ASM_SOCKET_H
 

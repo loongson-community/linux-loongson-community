@@ -415,8 +415,7 @@ static inline void handle_mouse_event(unsigned char scancode)
 		head = (head + 1) & (AUX_BUF_SIZE-1);
 		if (head != queue->tail) {
 			queue->head = head;
-			if (queue->fasync)
-				kill_fasync(queue->fasync, SIGIO, POLL_IN);
+			kill_fasync(&queue->fasync, SIGIO, POLL_IN);
 			wake_up_interruptible(&queue->proc_list);
 		}
 	}
@@ -452,7 +451,9 @@ static unsigned char handle_kbd_event(void)
 
 		scancode = kbd_read_input();
 
-#if 0
+		/* Error bytes must be ignored to make the 
+		   Synaptics touchpads compaq use work */
+#if 1
 		/* Ignore error bytes */
 		if (!(status & (KBD_STAT_GTO | KBD_STAT_PERR)))
 #endif

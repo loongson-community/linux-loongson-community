@@ -26,7 +26,7 @@ struct file_operations ext2_dir_operations = {
 	read:		generic_read_dir,
 	readdir:	ext2_readdir,
 	ioctl:		ext2_ioctl,
-	fsync:		ext2_sync_file,
+	fsync:		ext2_fsync_file,
 };
 
 int ext2_check_dir_entry (const char * function, struct inode * dir,

@@ -378,7 +378,7 @@ printk("%s called.\n", __FUNCTION__);
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->flags & PF_TRACESYS)
+	if (current->ptrace & PT_TRACESYS)
 		syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
@@ -697,7 +697,7 @@ printk("%s: delivering signal.\n", current->comm);
 		if (!signr)
 			break;
 
-		if ((current->flags & PF_PTRACED) && signr != SIGKILL) {
+		if ((current->ptrace & PT_PTRACED) && signr != SIGKILL) {
 			/* Let the debugger run.  */
 			current->exit_code = signr;
 			current->state = TASK_STOPPED;

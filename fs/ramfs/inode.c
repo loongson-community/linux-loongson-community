@@ -22,13 +22,14 @@
  * caches is sufficient.
  */
 
+
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
 #include <linux/init.h>
 #include <linux/string.h>
 #include <linux/locks.h>
-
+#include <linux/highmem.h>
 #include <asm/uaccess.h>
 
 /* some random number */
@@ -65,7 +66,8 @@ static struct dentry * ramfs_lookup(struct inode *dir, struct dentry *dentry)
 static int ramfs_readpage(struct file *file, struct page * page)
 {
 	if (!Page_Uptodate(page)) {
-		memset((void *) page_address(page), 0, PAGE_CACHE_SIZE);
+		memset((void *) kmap(page), 0, PAGE_CACHE_SIZE);
+		kunmap(page);
 		SetPageUptodate(page);
 	}
 	UnlockPage(page);
@@ -86,7 +88,6 @@ static int ramfs_prepare_write(struct file *file, struct page *page, unsigned of
 {
 	void *addr;
 
-	addr = (void *) kmap(page);
 	if (!Page_Uptodate(page)) {
 		memset(addr, 0, PAGE_CACHE_SIZE);
 		SetPageUptodate(page);
@@ -181,7 +182,7 @@ static int ramfs_link(struct dentry *old_dentry, struct inode * dir, struct dent
 		return -EPERM;
 
 	inode->i_nlink++;
-	inode->i_count++;	/* New dentry reference */
+	atomic_inc(&inode->i_count);	/* New dentry reference */
 	dget(dentry);		/* Extra pinning count for the created dentry */
 	d_instantiate(dentry, inode);
 	return 0;

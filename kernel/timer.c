@@ -238,7 +238,17 @@ int del_timer_sync(struct timer_list * timer)
 
 		if (!running)
 			return ret;
-		timer_synchronize(timer);
+
+		{
+			int count = 50*1000*1000;
+			while (timer_is_running(timer) && --count)
+				;
+			if (count == 0) {
+				printk(	"del_timer_sync(%p): deadlock! Called from %p\n",
+					timer, __builtin_return_address(0));
+				printk("See http://www.uow.edu.au/~andrewm/linux/deadlock.html\n");
+			}
+		}
 	}
 
 	return ret;

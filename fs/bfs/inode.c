@@ -1,7 +1,7 @@
 /*
  *	fs/bfs/inode.c
  *	BFS superblock and inode operations.
- *	Copyright (C) 1999 Tigran Aivazian <tigran@ocston.org>
+ *	Copyright (C) 1999 Tigran Aivazian <tigran@veritas.com>
  *	From fs/minix, Copyright (C) 1991, 1992 Linus Torvalds.
  */
 
@@ -16,7 +16,7 @@
 
 #include "bfs_defs.h"
 
-MODULE_AUTHOR("Tigran A. Aivazian");
+MODULE_AUTHOR("Tigran A. Aivazian <tigran@veritas.com>");
 MODULE_DESCRIPTION("SCO UnixWare BFS filesystem for Linux");
 EXPORT_NO_SYMBOLS;
 
@@ -84,7 +84,7 @@ static void bfs_read_inode(struct inode * inode)
 	brelse(bh);
 }
 
-static void bfs_write_inode(struct inode * inode)
+static void bfs_write_inode(struct inode * inode, int unused)
 {
 	unsigned long ino = inode->i_ino;
 	kdev_t dev = inode->i_dev;
@@ -139,8 +139,6 @@ static void bfs_delete_inode(struct inode * inode)
 
 	dprintf("ino=%08lx\n", inode->i_ino);
 
-	if (!inode || !inode->i_dev || inode->i_count > 1 || inode->i_nlink || !s)
-		return;
 	if (inode->i_ino < BFS_ROOT_INO || inode->i_ino > inode->i_sb->su_lasti) {
 		printf("invalid ino=%08lx\n", inode->i_ino);
 		return;

@@ -255,9 +255,9 @@ static ctl_table fs_table[] = {
 	 0444, NULL, &proc_dointvec},
 	{FS_STATINODE, "inode-state", &inodes_stat, 7*sizeof(int),
 	 0444, NULL, &proc_dointvec},
-	{FS_NRFILE, "file-nr", &nr_files, 3*sizeof(int),
+	{FS_NRFILE, "file-nr", &files_stat, 3*sizeof(int),
 	 0444, NULL, &proc_dointvec},
-	{FS_MAXFILE, "file-max", &max_files, sizeof(int),
+	{FS_MAXFILE, "file-max", &files_stat.max_files, sizeof(int),
 	 0644, NULL, &proc_dointvec},
 	{FS_NRSUPER, "super-nr", &nr_super_blocks, sizeof(int),
 	 0444, NULL, &proc_dointvec},
@@ -803,8 +803,11 @@ int proc_dointvec(ctl_table *table, int write, struct file *filp,
 int proc_dointvec_bset(ctl_table *table, int write, struct file *filp,
 			void *buffer, size_t *lenp)
 {
+	if (!capable(CAP_SYS_MODULE)) {
+		return -EPERM;
+	}
 	return do_proc_dointvec(table,write,filp,buffer,lenp,1,
-		(current->pid == 1) ? OP_SET : OP_AND);
+				(current->pid == 1) ? OP_SET : OP_AND);
 }
 
 int proc_dointvec_minmax(ctl_table *table, int write, struct file *filp,

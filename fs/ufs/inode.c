@@ -744,7 +744,7 @@ static int ufs_update_inode(struct inode * inode, int do_sync)
 	return 0;
 }
 
-void ufs_write_inode (struct inode * inode)
+void ufs_write_inode (struct inode * inode, int unused)
 {
 	ufs_update_inode (inode, 0);
 }

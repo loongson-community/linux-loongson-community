@@ -1,4 +1,4 @@
-/* $Id: entry.S,v 1.164 2000/05/09 17:40:13 davem Exp $
+/* $Id: entry.S,v 1.165 2000/06/05 06:08:45 anton Exp $
  * arch/sparc/kernel/entry.S:  Sparc trap low-level entry points.
  *
  * Copyright (C) 1995 David S. Miller (davem@caip.rutgers.edu)
@@ -945,7 +945,7 @@ sun4c_fault:
 	 and	%l5, %l4, %l5
 
 	/* Test for NULL pte_t * in vmalloc area. */
-	sethi   %hi(SUN4C_VMALLOC_START), %l4
+	sethi   %hi(VMALLOC_START), %l4
 	cmp     %l5, %l4
 	blu,a   C_LABEL(invalid_segment_patch1)
 	 lduXa	[%l5] ASI_SEGMAP, %l4
@@ -1072,7 +1072,7 @@ C_LABEL(invalid_segment_patch2):
 	andn	%l4, 0x1ff, %l5
 
 1:
-	sethi	%hi(SUN4C_VMALLOC_START), %l4
+	sethi	%hi(VMALLOC_START), %l4
 	cmp	%l5, %l4
 
 	bgeu	1f

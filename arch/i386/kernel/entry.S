@@ -78,6 +78,7 @@ addr_limit	= 12
 exec_domain	= 16
 need_resched	= 20
 processor	= 56
+tsk_ptrace	= 60
 
 ENOSYS = 38
 
@@ -180,7 +181,7 @@ ENTRY(ret_from_fork)
 	call SYMBOL_NAME(schedule_tail)
 	addl $4, %esp
 	GET_CURRENT(%ebx)
-	testb $0x20,flags(%ebx)		# PF_TRACESYS
+	testb $0x02,tsk_ptrace(%ebx)	# PT_TRACESYS
 	jne tracesys_exit
 	jmp	ret_from_sys_call
 
@@ -197,7 +198,7 @@ ENTRY(system_call)
 	GET_CURRENT(%ebx)
 	cmpl $(NR_syscalls),%eax
 	jae badsys
-	testb $0x20,flags(%ebx)		# PF_TRACESYS
+	testb $0x02,tsk_ptrace(%ebx)	# PT_TRACESYS
 	jne tracesys
 	call *SYMBOL_NAME(sys_call_table)(,%eax,4)
 	movl %eax,EAX(%esp)		# save the return value
@@ -322,13 +323,20 @@ ENTRY(coprocessor_error)
 	pushl $ SYMBOL_NAME(do_coprocessor_error)
 	jmp error_code
 
+#ifdef CONFIG_X86_XMM
+ENTRY(simd_coprocessor_error)
+	pushl $0
+	pushl $ SYMBOL_NAME(do_simd_coprocessor_error)
+	jmp error_code
+#endif
+
 ENTRY(device_not_available)
 	pushl $-1		# mark this as an int
 	SAVE_ALL
 	GET_CURRENT(%ebx)
 	pushl $ret_from_exception
 	movl %cr0,%eax
-	testl $0x4,%eax			# EM (math emulation bit)
+	testl $0x4,%eax		# EM (math emulation bit)
 	je SYMBOL_NAME(math_state_restore)
 	pushl $0		# temporary storage for ORIG_EIP
 	call  SYMBOL_NAME(math_emulate)
@@ -411,11 +419,6 @@ ENTRY(page_fault)
 ENTRY(spurious_interrupt_bug)
 	pushl $0
 	pushl $ SYMBOL_NAME(do_spurious_interrupt_bug)
-	jmp error_code
-
-ENTRY(xmm_fault)
-	pushl $0
-	pushl $ SYMBOL_NAME(do_xmm_fault)
 	jmp error_code
 
 .data

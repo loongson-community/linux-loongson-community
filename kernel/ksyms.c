@@ -44,6 +44,7 @@
 #include <linux/capability.h>
 #include <linux/highuid.h>
 #include <linux/brlock.h>
+#include <linux/fs.h>
 
 #if defined(CONFIG_PROC_FS)
 #include <linux/proc_fs.h>
@@ -80,10 +81,9 @@ EXPORT_SYMBOL(exec_usermodehelper);
 
 #ifdef CONFIG_MODULES
 EXPORT_SYMBOL(get_module_symbol);
+EXPORT_SYMBOL(put_module_symbol);
 EXPORT_SYMBOL(try_inc_mod_count);
 #endif
-EXPORT_SYMBOL(get_option);
-EXPORT_SYMBOL(get_options);
 
 /* process memory management */
 EXPORT_SYMBOL(do_mmap_pgoff);
@@ -129,7 +129,6 @@ EXPORT_SYMBOL(highmem_start_page);
 
 /* filesystem internal functions */
 EXPORT_SYMBOL(def_blk_fops);
-EXPORT_SYMBOL(in_group_p);
 EXPORT_SYMBOL(update_atime);
 EXPORT_SYMBOL(get_super);
 EXPORT_SYMBOL(get_empty_super);
@@ -139,6 +138,7 @@ EXPORT_SYMBOL(igrab);
 EXPORT_SYMBOL(iunique);
 EXPORT_SYMBOL(iget4);
 EXPORT_SYMBOL(iput);
+EXPORT_SYMBOL(force_delete);
 EXPORT_SYMBOL(follow_up);
 EXPORT_SYMBOL(follow_down);
 EXPORT_SYMBOL(path_init);
@@ -172,6 +172,8 @@ EXPORT_SYMBOL(__invalidate_buffers);
 EXPORT_SYMBOL(invalidate_inodes);
 EXPORT_SYMBOL(invalidate_inode_pages);
 EXPORT_SYMBOL(truncate_inode_pages);
+EXPORT_SYMBOL(fsync_inode_buffers);
+EXPORT_SYMBOL(buffer_insert_inode_queue);
 EXPORT_SYMBOL(fsync_dev);
 EXPORT_SYMBOL(permission);
 EXPORT_SYMBOL(inode_setattr);
@@ -205,7 +207,7 @@ EXPORT_SYMBOL(generic_ro_fops);
 EXPORT_SYMBOL(generic_buffer_fdatasync);
 EXPORT_SYMBOL(page_hash_bits);
 EXPORT_SYMBOL(page_hash_table);
-EXPORT_SYMBOL(file_lock_table);
+EXPORT_SYMBOL(file_lock_list);
 EXPORT_SYMBOL(posix_lock_file);
 EXPORT_SYMBOL(posix_test_lock);
 EXPORT_SYMBOL(posix_block_lock);
@@ -294,6 +296,8 @@ EXPORT_SYMBOL(refile_buffer);
 EXPORT_SYMBOL(max_sectors);
 EXPORT_SYMBOL(max_readahead);
 EXPORT_SYMBOL(file_moveto);
+EXPORT_SYMBOL(drive_stat_acct);
+EXPORT_SYMBOL(set_bh_page);
 
 /* tty routines */
 EXPORT_SYMBOL(tty_hangup);
@@ -446,8 +450,6 @@ EXPORT_SYMBOL(sys_call_table);
 EXPORT_SYMBOL(machine_restart);
 EXPORT_SYMBOL(machine_halt);
 EXPORT_SYMBOL(machine_power_off);
-EXPORT_SYMBOL(register_reboot_notifier);
-EXPORT_SYMBOL(unregister_reboot_notifier);
 EXPORT_SYMBOL(_ctype);
 EXPORT_SYMBOL(secure_tcp_sequence_number);
 EXPORT_SYMBOL(get_random_bytes);
@@ -497,6 +499,7 @@ EXPORT_SYMBOL(fs_overflowgid);
 
 /* all busmice */
 EXPORT_SYMBOL(fasync_helper);
+EXPORT_SYMBOL(kill_fasync);
 
 #ifdef CONFIG_BLK_DEV_MD
 EXPORT_SYMBOL(disk_name);	/* for md.c */
@@ -504,7 +507,6 @@ EXPORT_SYMBOL(disk_name);	/* for md.c */
 
 /* binfmt_aout */
 EXPORT_SYMBOL(get_write_access);
-EXPORT_SYMBOL(put_write_access);
 
 /* dynamic registering of consoles */
 EXPORT_SYMBOL(register_console);

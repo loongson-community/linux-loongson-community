@@ -111,7 +111,7 @@ static inline void *__constant_memset(void *s, int c, __kernel_size_t count)
 
 extern __kernel_size_t __strlen(const char *);
 
-#if __GNUC__ > 2 || __GNUC_MINOR__ >= 91
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ >= 91)
 extern __kernel_size_t strlen(const char *);
 #else /* !EGCS */
 /* Ugly but it works around a bug in our original sparc64-linux-gcc.  */

@@ -107,7 +107,9 @@ static struct inode *rd_inode[NUM_RAMDISKS];		/* Protected device inodes */
  * architecture-specific setup routine (from the stored boot sector
  * information). 
  */
-int rd_size = 4096;		/* Size of the RAM disks */
+
+int rd_size = CONFIG_BLK_DEV_RAM_SIZE;	/* Size of the RAM disks */
+
 /*
  * It would be very desiderable to have a soft-blocksize (that in the case
  * of the ramdisk driver is also the hardblocksize ;) of PAGE_SIZE because
@@ -693,6 +695,9 @@ free_inode:
 	iput(inode);
 }
 
+#ifdef CONFIG_MAC_FLOPPY
+int swim3_fd_eject(int devnum);
+#endif
 
 static void __init rd_load_disk(int n)
 {
@@ -713,6 +718,12 @@ static void __init rd_load_disk(int n)
 	if (rd_prompt) {
 #ifdef CONFIG_BLK_DEV_FD
 		floppy_eject();
+#endif
+#ifdef CONFIG_MAC_FLOPPY
+		if(MAJOR(ROOT_DEV) == FLOPPY_MAJOR)
+			swim3_fd_eject(MINOR(ROOT_DEV));
+		else if(MAJOR(real_root_dev) == FLOPPY_MAJOR)
+			swim3_fd_eject(MINOR(real_root_dev));
 #endif
 		printk(KERN_NOTICE
 		       "VFS: Insert root floppy disk to be loaded into RAM disk and press ENTER\n");

@@ -313,7 +313,7 @@ ssize_t block_read(struct file * filp, char * buf, size_t count, loff_t *ppos)
  *	since the vma has no handle.
  */
  
-static int block_fsync(struct file *filp, struct dentry *dentry)
+static int block_fsync(struct file *filp, struct dentry *dentry, int datasync)
 {
 	return fsync_dev(dentry->d_inode->i_rdev);
 }
@@ -597,6 +597,8 @@ int blkdev_get(struct block_device *bdev, mode_t mode, unsigned flags, int kind)
 				ret = bdev->bd_op->open(fake_inode, &fake_file);
 			if (!ret)
 				atomic_inc(&bdev->bd_openers);
+			else if (!atomic_read(&bdev->bd_openers))
+				bdev->bd_op = NULL;
 			iput(fake_inode);
 		}
 	}
@@ -617,6 +619,8 @@ int blkdev_open(struct inode * inode, struct file * filp)
 			ret = bdev->bd_op->open(inode,filp);
 		if (!ret)
 			atomic_inc(&bdev->bd_openers);
+		else if (!atomic_read(&bdev->bd_openers))
+			bdev->bd_op = NULL;
 	}	
 	up(&bdev->bd_sem);
 	return ret;

@@ -114,7 +114,6 @@ bad_area:
 	up(&mm->mmap_sem);
 
 	if (user_mode(regs)) {
-		struct siginfo si;
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
 #if 0

@@ -228,12 +228,12 @@ void hpfs_write_inode_ea(struct inode *i, struct fnode *fnode)
 	}
 }
 
-void hpfs_write_inode(struct inode *i)
+void hpfs_write_inode(struct inode *i, int unused)
 {
 	struct inode *parent;
 	if (!i->i_nlink) return;
 	if (i->i_ino == i->i_sb->s_hpfs_root) return;
-	if (i->i_hpfs_rddir_off && !i->i_count) {
+	if (i->i_hpfs_rddir_off && !atomic_read(&i->i_count)) {
 		if (*i->i_hpfs_rddir_off) printk("HPFS: write_inode: some position still there\n");
 		kfree(i->i_hpfs_rddir_off);
 		i->i_hpfs_rddir_off = NULL;
@@ -300,14 +300,14 @@ int hpfs_notify_change(struct dentry *dentry, struct iattr *attr)
 	if (inode->i_sb->s_hpfs_root == inode->i_ino) return -EINVAL;
 	if ((error = inode_change_ok(inode, attr))) return error;
 	inode_setattr(inode, attr);
-	hpfs_write_inode(inode);
+	hpfs_write_inode(inode, 0);
 	return 0;
 }
 
 void hpfs_write_if_changed(struct inode *inode)
 {
 	if (inode->i_hpfs_dirty) {
-		hpfs_write_inode(inode);
+		hpfs_write_inode(inode, 0);
 	}
 }
 

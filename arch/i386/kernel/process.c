@@ -2,8 +2,9 @@
  *  linux/arch/i386/kernel/process.c
  *
  *  Copyright (C) 1995  Linus Torvalds
- *  Pentium III code by Ingo Molnar with changes and support for 
- *  OS exception support by Goutham Rao
+ *
+ *  Pentium III FXSR, SSE support
+ *	Gareth Hughes <gareth@valinux.com>, May 2000
  */
 
 /*
@@ -342,7 +343,7 @@ void machine_power_off(void)
 
 void show_regs(struct pt_regs * regs)
 {
-	long cr0 = 0L, cr2 = 0L, cr3 = 0L;
+	long cr0 = 0L, cr2 = 0L, cr3 = 0L, cr4 = 0L;
 
 	printk("\n");
 	printk("EIP: %04x:[<%08lx>]",0xffff & regs->xcs,regs->eip);
@@ -359,7 +360,15 @@ void show_regs(struct pt_regs * regs)
 	__asm__("movl %%cr0, %0": "=r" (cr0));
 	__asm__("movl %%cr2, %0": "=r" (cr2));
 	__asm__("movl %%cr3, %0": "=r" (cr3));
-	printk("CR0: %08lx CR2: %08lx CR3: %08lx\n", cr0, cr2, cr3);
+	printk("CR0: %08lx CR2: %08lx CR3: %08lx", cr0, cr2, cr3);
+	if (current_cpu_data.x86_capability &
+	    (X86_FEATURE_VME | X86_FEATURE_DE | X86_FEATURE_PSE |
+	     X86_FEATURE_TSC | X86_FEATURE_PAE | X86_FEATURE_MCE |
+	     X86_FEATURE_PGE | X86_FEATURE_FXSR | X86_FEATURE_XMM)) {
+		__asm__("movl %%cr4, %0": "=r" (cr4));
+		printk(" CR4: %08lx\n", cr4);
+	}
+	printk("\n");
 }
 
 /*
@@ -471,94 +480,6 @@ void copy_segments(struct task_struct *p, struct mm_struct *new_mm)
 	return;
 }
 
-#ifdef CONFIG_X86_FX
-
-int i387_hard_to_user ( struct _fpstate * user,
-			struct i387_hard_struct * hard)
-{
-	int	i, err = 0;
-	short	*tmp, *tmp2;
-	long 	*ltmp1, *ltmp2;
-
-	err |= put_user(hard->cwd, &user->cw);
-	err |= put_user(hard->swd, &user->sw);
-	err |= put_user(fputag_KNIto387(hard->twd), &user->tag);
-	err |= put_user(hard->fip, &user->ipoff);
-	err |= put_user(hard->fcs, &user->cssel);
-	err |= put_user(hard->fdp, &user->dataoff);
-	err |= put_user(hard->fds, &user->datasel);
-	err |= put_user(hard->mxcsr, &user->mxcsr);
-
-	tmp = (short *)&user->_st;
-	tmp2 = (short *)&hard->st_space;
-
-	/*
-	 * Transform the two layouts:
-	 * (we do not mix 32-bit access with 16-bit access because
-	 * thats suboptimal on PPros)
-	 */
-	for (i = 0; i < 8; i++) 
-	{
-		err |= put_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= put_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= put_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= put_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= put_user(*tmp2, tmp); tmp++; tmp2 += 3;
-	}
-
-	ltmp1 = (unsigned long *)&(user->_xmm[0]);
-	ltmp2 = (unsigned long *)&(hard->xmm_space[0]);
-	for(i = 0; i < 88; i++)
-	{
-		err |= put_user(*ltmp2, ltmp1);
-		ltmp1++; ltmp2++;
-	}
-
-	return err;
-}
-
-int i387_user_to_hard (struct i387_hard_struct * hard,
-		       struct _fpstate * user)
-{
-	int 	i, err = 0;
-	short 	*tmp, *tmp2;
-	long 	*ltmp1, *ltmp2;
-
-	err |= get_user(hard->cwd, &user->cw);
-	err |= get_user(hard->swd, &user->sw);
-	err |= get_user(hard->twd, &user->tag);
-	hard->twd = fputag_387toKNI(hard->twd);
-	err |= get_user(hard->fip, &user->ipoff);
-	err |= get_user(hard->fcs, &user->cssel);
-	err |= get_user(hard->fdp, &user->dataoff);
-	err |= get_user(hard->fds, &user->datasel);
-	err |= get_user(hard->mxcsr, &user->mxcsr);
-
-	tmp2 = (short *)&hard->st_space;
-	tmp = (short *)&user->_st;
-
-	for (i = 0; i < 8; i++) 
-	{
-		err |= get_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= get_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= get_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= get_user(*tmp2, tmp); tmp++; tmp2++;
-		err |= get_user(*tmp2, tmp); tmp++; tmp2 += 3;
-	}
-
-	ltmp1 = (unsigned long *)(&user->_xmm[0]);
-	ltmp2 = (unsigned long *)(&hard->xmm_space[0]);
-	for(i = 0; i < (88); i++)
-	{
-		err |= get_user(*ltmp2, ltmp1);
-		ltmp2++; ltmp1++;
-	}
-
-	return err;
-}
-
-#endif
-
 /*
  * Save a segment.
  */
@@ -596,11 +517,26 @@ int dump_fpu (struct pt_regs * regs, struct user_i387_struct* fpu)
 {
 	int fpvalid;
 	struct task_struct *tsk = current;
-
+#ifdef CONFIG_X86_FXSR
+	unsigned short *to;
+	unsigned short *from;
+	int i;
+#endif
 	fpvalid = tsk->used_math;
 	if (fpvalid) {
 		unlazy_fpu(tsk);
-		memcpy(fpu,&tsk->thread.i387.hard,sizeof(*fpu));
+#ifdef CONFIG_X86_FXSR
+		memcpy(fpu, &tsk->thread.i387.hard, 7 * sizeof(long));
+
+		to = (unsigned short *)&fpu->st_space[0];
+		from = (unsigned short *)&tsk->thread.i387.hard.st_space[0];
+		for (i = 0; i < 8; i++, to += 5, from += 8) {
+			memcpy(to, from, 5 * sizeof(unsigned short));
+		}
+#else
+		memcpy(fpu, &tsk->thread.i387.hard,
+		       sizeof(struct user_i387_struct));
+#endif
 	}
 
 	return fpvalid;
@@ -659,8 +595,8 @@ void dump_thread(struct pt_regs * regs, struct user * dump)
 /*
  *	switch_to(x,yn) should switch tasks from x to y.
  *
- * We fsave/fwait so that an exception goes off at the right time
- * (as a call from the fsave or fwait in effect) rather than to
+ * We f*save/fwait so that an exception goes off at the right time
+ * (as a call from the f*save or fwait in effect) rather than to
  * the wrong process. Lazy FP saving no longer makes any sense
  * with modern CPU's, and this simplifies a lot of things (SMP
  * and UP become the same).
@@ -788,7 +724,7 @@ asmlinkage int sys_execve(struct pt_regs regs)
 		goto out;
 	error = do_execve(filename, (char **) regs.ecx, (char **) regs.edx, &regs);
 	if (error == 0)
-		current->flags &= ~PF_DTRACE;
+		current->ptrace &= ~PT_DTRACE;
 	putname(filename);
 out:
 	return error;

@@ -1106,7 +1106,7 @@ static void setup_DMA(void)
 	}
 #endif
 	f=claim_dma_lock();
-	fd_disable_dma(FLOPPY_DMA);
+	fd_disable_dma();
 #ifdef fd_dma_setup
 	if (fd_dma_setup(raw_cmd->kernel_data, raw_cmd->length, 
 			(raw_cmd->flags & FD_RAW_READ)?
@@ -1118,17 +1118,15 @@ static void setup_DMA(void)
 		return;
 	}
 	release_dma_lock(f);
-#else
-	fd_clear_dma_ff(FLOPPY_DMA);
-	dma_cache_wback_inv((unsigned long)raw_cmd->kernel_data,
-	                    raw_cmd->length);
-	fd_set_dma_mode(FLOPPY_DMA, (raw_cmd->flags & FD_RAW_READ)
-	                            ? DMA_MODE_READ
-	                            : DMA_MODE_WRITE);
-	fd_set_dma_addr(FLOPPY_DMA, raw_cmd->kernel_data);
-	fd_set_dma_count(FLOPPY_DMA, raw_cmd->length);
+#else	
+	fd_clear_dma_ff();
+	fd_cacheflush(raw_cmd->kernel_data, raw_cmd->length);
+	fd_set_dma_mode((raw_cmd->flags & FD_RAW_READ)?
+			DMA_MODE_READ : DMA_MODE_WRITE);
+	fd_set_dma_addr(raw_cmd->kernel_data);
+	fd_set_dma_count(raw_cmd->length);
 	virtual_dma_port = FDCS->address;
-	fd_enable_dma(FLOPPY_DMA);
+	fd_enable_dma();
 	release_dma_lock(f);
 #endif
 	floppy_disable_hlt();
@@ -1738,9 +1736,9 @@ void floppy_interrupt(int irq, void *dev_id, struct pt_regs * regs)
 	interruptjiffies = jiffies;
 
 	f=claim_dma_lock();
-	fd_disable_dma(FLOPPY_DMA);
+	fd_disable_dma();
 	release_dma_lock(f);
-
+	
 	floppy_enable_hlt();
 	CLEAR_INTR;
 	if (fdc >= N_FDC || FDCS->address == -1){
@@ -1817,16 +1815,16 @@ static void reset_interrupt(void)
 static void reset_fdc(void)
 {
 	unsigned long flags;
-
+	
 	SET_INTR(reset_interrupt);
 	FDCS->reset = 0;
 	reset_fdc_info(0);
 
 	/* Pseudo-DMA may intercept 'reset finished' interrupt.  */
 	/* Irrelevant for systems with true DMA (i386).          */
-
+	
 	flags=claim_dma_lock();
-	fd_disable_dma(FLOPPY_DMA);
+	fd_disable_dma();
 	release_dma_lock(flags);
 
 	if (FDCS->version >= FDC_82072A)
@@ -1887,17 +1885,17 @@ static void show_floppy(void)
 static void floppy_shutdown(void)
 {
 	unsigned long flags;
-
+	
 	if (!initialising)
 		show_floppy();
 	cancel_activity();
 
 	floppy_enable_hlt();
-
+	
 	flags=claim_dma_lock();
-	fd_disable_dma(FLOPPY_DMA);
+	fd_disable_dma();
 	release_dma_lock(flags);
-
+	
 	/* avoid dma going to a random drive after shutdown */
 
 	if (!initialising)
@@ -3088,7 +3086,7 @@ static void raw_cmd_done(int flag)
 		{
 			unsigned long flags;
 			flags=claim_dma_lock();
-			raw_cmd->length = fd_get_dma_residue(FLOPPY_DMA);
+			raw_cmd->length = fd_get_dma_residue();
 			release_dma_lock(flags);
 		}
 		
@@ -4249,7 +4247,7 @@ static int floppy_grab_irq_and_dma(void)
 	}
 	spin_unlock_irqrestore(&floppy_usage_lock, flags);
 	MOD_INC_USE_COUNT;
-	if (fd_request_irq(FLOPPY_IRQ)) {
+	if (fd_request_irq()) {
 		DPRINT("Unable to grab IRQ%d for the floppy driver\n",
 			FLOPPY_IRQ);
 		MOD_DEC_USE_COUNT;
@@ -4258,10 +4256,10 @@ static int floppy_grab_irq_and_dma(void)
 		spin_unlock_irqrestore(&floppy_usage_lock, flags);
 		return -1;
 	}
-	if (fd_request_dma(FLOPPY_DMA)) {
+	if (fd_request_dma()) {
 		DPRINT("Unable to grab DMA%d for the floppy driver\n",
 			FLOPPY_DMA);
-		fd_free_irq(FLOPPY_IRQ);
+		fd_free_irq();
 		MOD_DEC_USE_COUNT;
 		spin_lock_irqsave(&floppy_usage_lock, flags);
 		usage_count--;
@@ -4273,10 +4271,9 @@ static int floppy_grab_irq_and_dma(void)
 		if (FDCS->address != -1){
 			if (check_region(FDCS->address, 6) < 0 ||
 			    check_region(FDCS->address+7, 1) < 0) {
-				DPRINT("Floppy io-port 0x%04lx in use\n",
-				       FDCS->address);
-				fd_free_irq(FLOPPY_IRQ);
-				fd_free_dma(FLOPPY_DMA);
+				DPRINT("Floppy io-port 0x%04lx in use\n", FDCS->address);
+				fd_free_irq();
+				fd_free_dma();
 				while(--fdc >= 0) {
 					release_region(FDCS->address, 6);
 					release_region(FDCS->address+7, 1);
@@ -4334,9 +4331,9 @@ static void floppy_release_irq_and_dma(void)
 	spin_unlock_irqrestore(&floppy_usage_lock, flags);
 	if(irqdma_allocated)
 	{
-		fd_disable_dma(FLOPPY_DMA);
-		fd_free_dma(FLOPPY_DMA);
-		fd_free_irq(FLOPPY_IRQ);
+		fd_disable_dma();
+		fd_free_dma();
+		fd_free_irq();
 		irqdma_allocated=0;
 	}
 	set_dor(0, ~0, 8);

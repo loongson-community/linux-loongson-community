@@ -421,7 +421,11 @@ void __init time_init(void)
 		tmp  = (frqcr & 0x2000) >> 11;
 		tmp |= frqcr & 0x0003;
 		pfc = pfc_table[tmp];
+#ifdef CONFIG_SH_HP600
+		master_clock = cpu_clock/6;
+#else
 		master_clock = cpu_clock;
+#endif
 		bus_clock = master_clock/pfc;
 	}
 #elif defined(__SH4__)
@@ -443,6 +447,11 @@ void __init time_init(void)
 	interval = (module_clock/(HZ*4));
 
 	printk("Interval = %ld\n", interval);
+
+	current_cpu_data.cpu_clock    = cpu_clock;
+	current_cpu_data.master_clock = master_clock;
+	current_cpu_data.bus_clock    = bus_clock;
+	current_cpu_data.module_clock = module_clock;
 
 	/* Start TMU0 */
 	ctrl_outb(TMU_TOCR_INIT, TMU_TOCR);

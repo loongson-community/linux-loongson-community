@@ -96,6 +96,7 @@ static void init_once(void * foo, kmem_cache_t * cachep, unsigned long flags)
 		INIT_LIST_HEAD(&inode->i_hash);
 		INIT_LIST_HEAD(&inode->i_data.pages);
 		INIT_LIST_HEAD(&inode->i_dentry);
+		INIT_LIST_HEAD(&inode->i_dirty_buffers);
 		sema_init(&inode->i_sem, 1);
 		sema_init(&inode->i_zombie, 1);
 		spin_lock_init(&inode->i_data.i_shared_lock);
@@ -122,14 +123,14 @@ static void init_once(void * foo, kmem_cache_t * cachep, unsigned long flags)
  *	Mark an inode as dirty. Callers should use mark_inode_dirty.
  */
  
-void __mark_inode_dirty(struct inode *inode)
+void __mark_inode_dirty(struct inode *inode, int flags)
 {
 	struct super_block * sb = inode->i_sb;
 
 	if (sb) {
 		spin_lock(&inode_lock);
-		if (!(inode->i_state & I_DIRTY)) {
-			inode->i_state |= I_DIRTY;
+		if ((inode->i_state & flags) != flags) {
+			inode->i_state |= flags;
 			/* Only add valid (ie hashed) inodes to the dirty list */
 			if (!list_empty(&inode->i_hash)) {
 				list_del(&inode->i_list);
@@ -162,26 +163,27 @@ static inline void wait_on_inode(struct inode *inode)
 }
 
 
-static inline void write_inode(struct inode *inode)
+static inline void write_inode(struct inode *inode, int wait)
 {
 	if (inode->i_sb && inode->i_sb->s_op && inode->i_sb->s_op->write_inode)
-		inode->i_sb->s_op->write_inode(inode);
+		inode->i_sb->s_op->write_inode(inode, wait);
 }
 
 static inline void __iget(struct inode * inode)
 {
-	if (!inode->i_count++)
-	{
-		if (!(inode->i_state & I_DIRTY))
-		{
-			list_del(&inode->i_list);
-			list_add(&inode->i_list, &inode_in_use);
-		}
-		inodes_stat.nr_unused--;
+	if (atomic_read(&inode->i_count)) {
+		atomic_inc(&inode->i_count);
+		return;
 	}
+	atomic_inc(&inode->i_count);
+	if (!(inode->i_state & I_DIRTY)) {
+		list_del(&inode->i_list);
+		list_add(&inode->i_list, &inode_in_use);
+	}
+	inodes_stat.nr_unused--;
 }
 
-static inline void sync_one(struct inode *inode)
+static inline void sync_one(struct inode *inode, int wait)
 {
 	if (inode->i_state & I_LOCK) {
 		__iget(inode);
@@ -191,13 +193,15 @@ static inline void sync_one(struct inode *inode)
 		spin_lock(&inode_lock);
 	} else {
 		list_del(&inode->i_list);
-		list_add(&inode->i_list,
-			 inode->i_count ? &inode_in_use : &inode_unused);
+		list_add(&inode->i_list, atomic_read(&inode->i_count)
+							? &inode_in_use
+							: &inode_unused);
 		/* Set I_LOCK, reset I_DIRTY */
-		inode->i_state ^= I_DIRTY | I_LOCK;
+		inode->i_state |= I_LOCK;
+		inode->i_state &= ~I_DIRTY;
 		spin_unlock(&inode_lock);
 
-		write_inode(inode);
+		write_inode(inode, wait);
 
 		spin_lock(&inode_lock);
 		inode->i_state &= ~I_LOCK;
@@ -210,7 +214,7 @@ static inline void sync_list(struct list_head *head)
 	struct list_head * tmp;
 
 	while ((tmp = head->prev) != head)
-		sync_one(list_entry(tmp, struct inode, i_list));
+		sync_one(list_entry(tmp, struct inode, i_list), 0);
 }
 
 /**
@@ -243,6 +247,7 @@ void sync_inodes(kdev_t dev)
 	spin_unlock(&inode_lock);
 }
 
+
 /*
  * Called with the spinlock already held..
  */
@@ -259,23 +264,78 @@ static void sync_all_inodes(void)
 /**
  *	write_inode_now	-	write an inode to disk
  *	@inode: inode to write to disk
+ *	@wait: if set, we wait for the write to complete on disk
  *
  *	This function commits an inode to disk immediately if it is
  *	dirty. This is primarily needed by knfsd.
  */
  
-void write_inode_now(struct inode *inode)
+void write_inode_now(struct inode *inode, int wait)
 {
 	struct super_block * sb = inode->i_sb;
 
 	if (sb) {
 		spin_lock(&inode_lock);
 		while (inode->i_state & I_DIRTY)
-			sync_one(inode);
+			sync_one(inode, wait);
 		spin_unlock(&inode_lock);
 	}
 	else
 		printk("write_inode_now: no super block\n");
+}
+
+/**
+ * generic_osync_inode - flush all dirty data for a given inode to disk
+ * @inode: inode to write
+ * @datasync: if set, don't bother flushing timestamps
+ *
+ * This is called by generic_file_write for files which have the O_SYNC
+ * flag set, to flush dirty writes to disk.
+ */
+
+int generic_osync_inode(struct inode *inode, int datasync)
+{
+	int err;
+	
+	/* 
+	 * WARNING
+	 *
+	 * Currently, the filesystem write path does not pass the
+	 * filp down to the low-level write functions.  Therefore it
+	 * is impossible for (say) __block_commit_write to know if
+	 * the operation is O_SYNC or not.
+	 *
+	 * Ideally, O_SYNC writes would have the filesystem call
+	 * ll_rw_block as it went to kick-start the writes, and we
+	 * could call osync_inode_buffers() here to wait only for
+	 * those IOs which have already been submitted to the device
+	 * driver layer.  As it stands, if we did this we'd not write
+	 * anything to disk since our writes have not been queued by
+	 * this point: they are still on the dirty LRU.
+	 * 
+	 * So, currently we will call fsync_inode_buffers() instead,
+	 * to flush _all_ dirty buffers for this inode to disk on 
+	 * every O_SYNC write, not just the synchronous I/Os.  --sct
+	 */
+
+#ifdef WRITERS_QUEUE_IO
+	err = osync_inode_buffers(inode);
+#else
+	err = fsync_inode_buffers(inode);
+#endif
+
+	spin_lock(&inode_lock);
+	if (!(inode->i_state & I_DIRTY))
+		goto out;
+	if (datasync && !(inode->i_state & I_DIRTY_DATASYNC))
+		goto out;
+	spin_unlock(&inode_lock);
+	write_inode_now(inode, 1);
+	return err;
+
+ out:
+	spin_unlock(&inode_lock);
+	return err;
 }
 
 /**
@@ -322,7 +382,7 @@ static void dispose_list(struct list_head * head)
 
 		inode = list_entry(inode_entry, struct inode, i_list);
 		if (inode->i_data.nrpages)
-			truncate_inode_pages(&inode->i_data, 0);
+			truncate_all_inode_pages(&inode->i_data);
 		clear_inode(inode);
 		destroy_inode(inode);
 	}
@@ -347,7 +407,8 @@ static int invalidate_list(struct list_head *head, struct super_block * sb, stru
 		inode = list_entry(tmp, struct inode, i_list);
 		if (inode->i_sb != sb)
 			continue;
-		if (!inode->i_count) {
+		invalidate_inode_buffers(inode);
+		if (!atomic_read(&inode->i_count)) {
 			list_del(&inode->i_hash);
 			INIT_LIST_HEAD(&inode->i_hash);
 			list_del(&inode->i_list);
@@ -408,7 +469,8 @@ int invalidate_inodes(struct super_block * sb)
  *      dispose_list.
  */
 #define CAN_UNUSE(inode) \
-	(((inode)->i_state | (inode)->i_data.nrpages) == 0)
+	((((inode)->i_state | (inode)->i_data.nrpages) == 0) && \
+	 !inode_has_buffers(inode))
 #define INODE(entry)	(list_entry(entry, struct inode, i_list))
 
 void prune_icache(int goal)
@@ -433,7 +495,7 @@ void prune_icache(int goal)
 			BUG();
 		if (!CAN_UNUSE(inode))
 			continue;
-		if (inode->i_count)
+		if (atomic_read(&inode->i_count))
 			BUG();
 		list_del(tmp);
 		list_del(&inode->i_hash);
@@ -551,7 +613,7 @@ struct inode * get_empty_inode(void)
 		inode->i_dev = 0;
 		inode->i_ino = ++last_ino;
 		inode->i_flags = 0;
-		inode->i_count = 1;
+		atomic_set(&inode->i_count, 1);
 		inode->i_state = 0;
 		spin_unlock(&inode_lock);
 		clean_inode(inode);
@@ -583,7 +645,7 @@ static struct inode * get_new_inode(struct super_block *sb, unsigned long ino, s
 			inode->i_dev = sb->s_dev;
 			inode->i_ino = ino;
 			inode->i_flags = 0;
-			inode->i_count = 1;
+			atomic_set(&inode->i_count, 1);
 			inode->i_state = I_LOCK;
 			spin_unlock(&inode_lock);
 
@@ -758,7 +820,7 @@ void iput(struct inode *inode)
 			op->put_inode(inode);
 
 		spin_lock(&inode_lock);
-		if (!--inode->i_count) {
+		if (atomic_dec_and_test(&inode->i_count)) {
 			if (!inode->i_nlink) {
 				list_del(&inode->i_hash);
 				INIT_LIST_HEAD(&inode->i_hash);
@@ -768,7 +830,7 @@ void iput(struct inode *inode)
 				spin_unlock(&inode_lock);
 
 				if (inode->i_data.nrpages)
-					truncate_inode_pages(&inode->i_data, 0);
+					truncate_all_inode_pages(&inode->i_data);
 
 				destroy = 1;
 				if (op && op->delete_inode) {
@@ -807,15 +869,15 @@ kdevname(inode->i_dev), inode->i_ino);
 if (!list_empty(&inode->i_dentry))
 printk(KERN_ERR "iput: device %s inode %ld still has aliases!\n",
 kdevname(inode->i_dev), inode->i_ino);
-if (inode->i_count)
+if (atomic_read(&inode->i_count))
 printk(KERN_ERR "iput: device %s inode %ld count changed, count=%d\n",
-kdevname(inode->i_dev), inode->i_ino, inode->i_count);
+kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_count));
 if (atomic_read(&inode->i_sem.count) != 1)
 printk(KERN_ERR "iput: Aieee, semaphore in use inode %s/%ld, count=%d\n",
 kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
 #endif
 		}
-		if (inode->i_count > (1<<31)) {
+		if ((unsigned)atomic_read(&inode->i_count) > (1U<<31)) {
 			printk(KERN_ERR "iput: inode %s/%ld count wrapped\n",
 				kdevname(inode->i_dev), inode->i_ino);
 		}
@@ -823,6 +885,16 @@ kdevname(inode->i_dev), inode->i_ino, atomic_read(&inode->i_sem.count));
 		if (destroy)
 			destroy_inode(inode);
 	}
+}
+
+void force_delete(struct inode *inode)
+{
+	/*
+	 * Kill off unused inodes ... iput() will unhash and
+	 * delete the inode if we set i_nlink to zero.
+	 */
+	if (atomic_read(&inode->i_count) == 1)
+		inode->i_nlink = 0;
 }
 
 /**
@@ -913,7 +985,7 @@ void update_atime (struct inode *inode)
 	if ( IS_NODIRATIME (inode) && S_ISDIR (inode->i_mode) ) return;
 	if ( IS_RDONLY (inode) ) return;
 	inode->i_atime = CURRENT_TIME;
-	mark_inode_dirty (inode);
+	mark_inode_dirty_sync (inode);
 }   /*  End Function update_atime  */
 
 

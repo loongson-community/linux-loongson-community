@@ -29,7 +29,7 @@ int nr_lru_pages;
 pg_data_t *pgdat_list;
 
 static char *zone_names[MAX_NR_ZONES] = { "DMA", "Normal", "HighMem" };
-static int zone_balance_ratio[MAX_NR_ZONES] = { 128, 128, 128, };
+static int zone_balance_ratio[MAX_NR_ZONES] = { 128, 128, 512, };
 static int zone_balance_min[MAX_NR_ZONES] = { 10 , 10, 10, };
 static int zone_balance_max[MAX_NR_ZONES] = { 255 , 255, 255, };
 
@@ -93,6 +93,8 @@ void __free_pages_ok (struct page *page, unsigned long order)
 		BUG();
 	if (PageDecrAfter(page))
 		BUG();
+	if (PageDirty(page))
+		BUG();
 
 	zone = page->zone;
 
@@ -139,9 +141,12 @@ void __free_pages_ok (struct page *page, unsigned long order)
 
 	spin_unlock_irqrestore(&zone->lock, flags);
 
-	if (zone->free_pages > zone->pages_high) {
-		zone->zone_wake_kswapd = 0;
+	if (zone->free_pages >= zone->pages_low) {
 		zone->low_on_memory = 0;
+	}
+
+	if (zone->free_pages >= zone->pages_high) {
+		zone->zone_wake_kswapd = 0;
 	}
 }
 
@@ -217,6 +222,9 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 {
 	zone_t **zone = zonelist->zones;
 	extern wait_queue_head_t kswapd_wait;
+	static int last_woke_kswapd;
+	static int kswapd_pause = HZ;
+	int gfp_mask = zonelist->gfp_mask;
 
 	/*
 	 * (If anyone calls gfp from interrupts nonatomically then it
@@ -237,8 +245,6 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 			struct page *page = rmqueue(z, order);
 			if (z->free_pages < z->pages_low) {
 				z->zone_wake_kswapd = 1;
-				if (waitqueue_active(&kswapd_wait))
-					wake_up_interruptible(&kswapd_wait);
 			}
 			if (page)
 				return page;
@@ -246,9 +252,27 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 	}
 
 	/*
+	 * Kswapd should be freeing enough memory to satisfy all allocations
+	 * immediately.  Calling try_to_free_pages from processes will slow
+	 * down the system a lot.  On the other hand, waking up kswapd too
+	 * often means wasted memory and cpu time.
+	 *
+	 * We tune the kswapd pause interval in such a way that kswapd is
+	 * always just agressive enough to free the amount of memory we
+	 * want freed.
+	 */
+	if (waitqueue_active(&kswapd_wait) &&
+			time_after(jiffies, last_woke_kswapd + kswapd_pause)) {
+		kswapd_pause++;
+		last_woke_kswapd = jiffies;
+		wake_up_interruptible(&kswapd_wait);
+	}
+
+	/*
 	 * Ok, we don't have any zones that don't need some
 	 * balancing.. See if we have any that aren't critical..
 	 */
+again:
 	zone = zonelist->zones;
 	for (;;) {
 		zone_t *z = *(zone++);
@@ -256,11 +280,25 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 			break;
 		if (!z->low_on_memory) {
 			struct page *page = rmqueue(z, order);
-			if (z->free_pages < z->pages_min)
+			if (z->free_pages < (z->pages_min + z->pages_low) / 2)
 				z->low_on_memory = 1;
 			if (page)
 				return page;
+		} else {
+			if (kswapd_pause > 0)
+				kswapd_pause--;
 		}
+	}
+
+	/* We didn't kick kswapd often enough... */
+	kswapd_pause /= 2;
+	if (waitqueue_active(&kswapd_wait))
+		wake_up_interruptible(&kswapd_wait);
+	/* If we're low priority, we just wait a bit and try again later. */
+	if ((gfp_mask & __GFP_WAIT) && current->need_resched &&
+				current->state == TASK_RUNNING) {
+		schedule();
+		goto again;
 	}
 
 	/*
@@ -269,7 +307,6 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 	 * been able to cope..
 	 */
 	if (!(current->flags & PF_MEMALLOC)) {
-		int gfp_mask = zonelist->gfp_mask;
 		if (!try_to_free_pages(gfp_mask)) {
 			if (!(gfp_mask & __GFP_HIGH))
 				goto fail;
@@ -277,7 +314,7 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 	}
 
 	/*
-	 * Final phase: allocate anything we can!
+	 * We freed something, so we're allowed to allocate anything we can!
 	 */
 	zone = zonelist->zones;
 	for (;;) {
@@ -292,6 +329,18 @@ struct page * __alloc_pages(zonelist_t *zonelist, unsigned long order)
 	}
 
 fail:
+	/* Last try, zone->low_on_memory isn't reset until we hit pages_low */
+	zone = zonelist->zones;
+	for (;;) {
+		zone_t *z = *(zone++);
+		if (!z)
+			break;
+		if (z->free_pages > z->pages_min) {
+			struct page *page = rmqueue(z, order);
+			if (page)
+				return page;
+		}
+	}
 	/* No luck.. */
 	return NULL;
 }

@@ -101,37 +101,54 @@ static inline void put_binfmt(struct linux_binfmt * fmt)
  */
 asmlinkage long sys_uselib(const char * library)
 {
-	int fd, retval;
 	struct file * file;
+	struct nameidata nd;
+	int error;
 
-	fd = sys_open(library, 0, 0);
-	if (fd < 0)
-		return fd;
-	file = fget(fd);
-	retval = -ENOEXEC;
-	if (file) {
-		if(file->f_op && file->f_op->read) {
-			struct linux_binfmt * fmt;
+	error = user_path_walk(library, &nd);
+	if (error)
+		goto out;
 
-			read_lock(&binfmt_lock);
-			for (fmt = formats ; fmt ; fmt = fmt->next) {
-				if (!fmt->load_shlib)
-					continue;
-				if (!try_inc_mod_count(fmt->module))
-					continue;
-				read_unlock(&binfmt_lock);
-				retval = fmt->load_shlib(file);
-				read_lock(&binfmt_lock);
-				put_binfmt(fmt);
-				if (retval != -ENOEXEC)
-					break;
-			}
+	error = -EINVAL;
+	if (!S_ISREG(nd.dentry->d_inode->i_mode))
+		goto exit;
+
+	error = permission(nd.dentry->d_inode, MAY_READ | MAY_EXEC);
+	if (error)
+		goto exit;
+
+	lock_kernel();
+	file = dentry_open(nd.dentry, nd.mnt, O_RDONLY);
+	unlock_kernel();
+	error = PTR_ERR(file);
+	if (IS_ERR(file))
+		goto out;
+
+	error = -ENOEXEC;
+	if(file->f_op && file->f_op->read) {
+		struct linux_binfmt * fmt;
+
+		read_lock(&binfmt_lock);
+		for (fmt = formats ; fmt ; fmt = fmt->next) {
+			if (!fmt->load_shlib)
+				continue;
+			if (!try_inc_mod_count(fmt->module))
+				continue;
 			read_unlock(&binfmt_lock);
+			error = fmt->load_shlib(file);
+			read_lock(&binfmt_lock);
+			put_binfmt(fmt);
+			if (error != -ENOEXEC)
+				break;
 		}
-		fput(file);
+		read_unlock(&binfmt_lock);
 	}
-	sys_close(fd);
-  	return retval;
+	fput(file);
+out:
+  	return error;
+exit:
+	path_release(&nd);
+	goto out;
 }
 
 /*
@@ -319,6 +336,7 @@ int setup_arg_pages(struct linux_binprm *bprm)
 struct file *open_exec(const char *name)
 {
 	struct nameidata nd;
+	struct inode *inode;
 	struct file *file;
 	int err = 0;
 
@@ -328,14 +346,22 @@ struct file *open_exec(const char *name)
 	unlock_kernel();
 	file = ERR_PTR(err);
 	if (!err) {
+		inode = nd.dentry->d_inode;
 		file = ERR_PTR(-EACCES);
-		if (S_ISREG(nd.dentry->d_inode->i_mode)) {
-			int err = permission(nd.dentry->d_inode, MAY_EXEC);
+		if (!IS_NOEXEC(inode) && S_ISREG(inode->i_mode)) {
+			int err = permission(inode, MAY_EXEC);
 			file = ERR_PTR(err);
 			if (!err) {
 				lock_kernel();
 				file = dentry_open(nd.dentry, nd.mnt, O_RDONLY);
 				unlock_kernel();
+				if (!IS_ERR(file)) {
+					err = deny_write_access(file);
+					if (err) {
+						fput(file);
+						file = ERR_PTR(err);
+					}
+				}
 out:
 				return file;
 			}
@@ -484,6 +510,8 @@ int flush_old_exec(struct linux_binprm * bprm)
 	/* This is the point of no return */
 	release_old_signals(oldsig);
 
+	current->sas_ss_sp = current->sas_ss_size = 0;
+
 	if (current->euid == current->uid && current->egid == current->gid)
 		current->dumpable = 1;
 	name = bprm->filename;
@@ -528,7 +556,7 @@ flush_failed:
  */
 static inline int must_not_trace_exec(struct task_struct * p)
 {
-	return (p->flags & PF_PTRACED) && !cap_raised(p->p_pptr->cap_effective, CAP_SYS_PTRACE);
+	return (p->ptrace&PT_PTRACED) && !cap_raised(p->p_pptr->cap_effective, CAP_SYS_PTRACE);
 }
 
 /* 
@@ -538,23 +566,13 @@ static inline int must_not_trace_exec(struct task_struct * p)
 int prepare_binprm(struct linux_binprm *bprm)
 {
 	int mode;
-	int retval,id_change,cap_raised;
+	int id_change,cap_raised;
 	struct inode * inode = bprm->file->f_dentry->d_inode;
 
 	mode = inode->i_mode;
-	if (!S_ISREG(mode))			/* must be regular file */
+	/* Huh? We had already checked for MAY_EXEC, WTF do we check this? */
+	if (!(mode & 0111))	/* with at least _one_ execute bit set */
 		return -EACCES;
-	if (!(mode & 0111))			/* with at least _one_ execute bit set */
-		return -EACCES;
-	if (IS_NOEXEC(inode))			/* FS mustn't be mounted noexec */
-		return -EACCES;
-	if (!inode->i_sb)
-		return -EACCES;
-	if ((retval = permission(inode, MAY_EXEC)) != 0)
-		return retval;
-	/* better not execute files which are being written to */
-	if (atomic_read(&inode->i_writecount) > 0)
-		return -ETXTBSY;
 
 	bprm->e_uid = current->euid;
 	bprm->e_gid = current->egid;
@@ -585,21 +603,18 @@ int prepare_binprm(struct linux_binprm *bprm)
 	cap_clear(bprm->cap_effective);
 
 	/*  To support inheritance of root-permissions and suid-root
-         *  executables under compatibility mode, we raise the
-         *  effective and inherited bitmasks of the executable file
-         *  (translation: we set the executable "capability dumb" and
-         *  set the allowed set to maximum). We don't set any forced
-         *  bits.
+         *  executables under compatibility mode, we raise all three
+         *  capability sets for the file.
          *
          *  If only the real uid is 0, we only raise the inheritable
-         *  bitmask of the executable file (translation: we set the
-         *  allowed set to maximum and the application to "capability
-         *  smart"). 
+         *  and permitted sets of the executable file.
          */
 
 	if (!issecure(SECURE_NOROOT)) {
-		if (bprm->e_uid == 0 || current->uid == 0)
+		if (bprm->e_uid == 0 || current->uid == 0) {
 			cap_set_full(bprm->cap_inheritable);
+			cap_set_full(bprm->cap_permitted);
+		}
 		if (bprm->e_uid == 0) 
 			cap_set_full(bprm->cap_effective);
 	}
@@ -610,10 +625,12 @@ int prepare_binprm(struct linux_binprm *bprm)
          * privilege does not go against other system constraints.
          * The new Permitted set is defined below -- see (***). */
 	{
-		kernel_cap_t working =
-			cap_combine(bprm->cap_permitted,
-				    cap_intersect(bprm->cap_inheritable,
-						  current->cap_inheritable));
+		kernel_cap_t permitted, working;
+
+		permitted = cap_intersect(bprm->cap_permitted, cap_bset);
+		working = cap_intersect(bprm->cap_inheritable,
+					current->cap_inheritable);
+		working = cap_combine(permitted, working);
 		if (!cap_issubset(working, current->cap_permitted)) {
 			cap_raised = 1;
 		}
@@ -646,26 +663,29 @@ int prepare_binprm(struct linux_binprm *bprm)
  * The formula used for evolving capabilities is:
  *
  *       pI' = pI
- * (***) pP' = fP | (fI & pI)
+ * (***) pP' = (fP & X) | (fI & pI)
  *       pE' = pP' & fE          [NB. fE is 0 or ~0]
  *
  * I=Inheritable, P=Permitted, E=Effective // p=process, f=file
- * ' indicates post-exec().
+ * ' indicates post-exec(), and X is the global 'cap_bset'.
  */
 
 void compute_creds(struct linux_binprm *bprm) 
 {
-	int new_permitted = cap_t(bprm->cap_permitted) |
-		(cap_t(bprm->cap_inheritable) & 
-		 cap_t(current->cap_inheritable));
+	kernel_cap_t new_permitted, working;
+
+	new_permitted = cap_intersect(bprm->cap_permitted, cap_bset);
+	working = cap_intersect(bprm->cap_inheritable,
+				current->cap_inheritable);
+	new_permitted = cap_combine(new_permitted, working);
 
 	/* For init, we want to retain the capabilities set
          * in the init_task struct. Thus we skip the usual
          * capability rules */
 	if (current->pid != 1) {
-		cap_t(current->cap_permitted) = new_permitted;
-		cap_t(current->cap_effective) = new_permitted & 
-						cap_t(bprm->cap_effective);
+		current->cap_permitted = new_permitted;
+		current->cap_effective =
+			cap_intersect(new_permitted, bprm->cap_effective);
 	}
 	
         /* AUD: Audit candidate if current->cap_effective is set */
@@ -724,6 +744,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 		char * dynloader[] = { "/sbin/loader" };
 		struct file * file;
 
+		allow_write_access(bprm->file);
 		fput(bprm->file);
 		bprm->file = NULL;
 
@@ -757,6 +778,7 @@ int search_binary_handler(struct linux_binprm *bprm,struct pt_regs *regs)
 			retval = fn(bprm, regs);
 			if (retval >= 0) {
 				put_binfmt(fmt);
+				allow_write_access(bprm->file);
 				if (bprm->file)
 					fput(bprm->file);
 				bprm->file = NULL;
@@ -818,11 +840,13 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 	bprm.loader = 0;
 	bprm.exec = 0;
 	if ((bprm.argc = count(argv, bprm.p / sizeof(void *))) < 0) {
+		allow_write_access(file);
 		fput(file);
 		return bprm.argc;
 	}
 
 	if ((bprm.envc = count(envp, bprm.p / sizeof(void *))) < 0) {
+		allow_write_access(file);
 		fput(file);
 		return bprm.envc;
 	}
@@ -851,6 +875,7 @@ int do_execve(char * filename, char ** argv, char ** envp, struct pt_regs * regs
 
 out:
 	/* Something went wrong, return the inode and free the argument pages*/
+	allow_write_access(bprm.file);
 	if (bprm.file)
 		fput(bprm.file);
 

@@ -110,8 +110,7 @@ void busmouse_add_movementbuttons(int mousedev, int dx, int dy, int buttons)
 	if (changed) {
 		wake_up(&mse->wait);
 
-		if (mse->fasyncptr)
-			kill_fasync(mse->fasyncptr, SIGIO, POLL_IN);
+		kill_fasync(&mse->fasyncptr, SIGIO, POLL_IN);
 	}
 }
 
@@ -171,13 +170,13 @@ static int busmouse_release(struct inode *inode, struct file *file)
 	busmouse_fasync(-1, file, 0);
 
 	if (--mse->active == 0) {
-		if (mse->ops &&
-		    mse->ops->release)
-			ret = mse->ops->release(inode, file);
-
+		if (mse->ops) {
+			if (mse->ops->release)
+				ret = mse->ops->release(inode, file);
+		   	if (mse->ops->owner)
+				__MOD_DEC_USE_COUNT(mse->ops->owner);
+		}
 		mse->ready = 0;
-
-		MOD_DEC_USE_COUNT;
 	}
 
 	return ret;
@@ -192,16 +191,20 @@ static int busmouse_open(struct inode *inode, struct file *file)
 	mousedev = DEV_TO_MOUSE(inode->i_rdev);
 	if (mousedev >= NR_MICE)
 		return -EINVAL;
-	
+
 	down(&mouse_sem);
 	mse = busmouse_data[mousedev];
 	if (!mse)
 		/* shouldn't happen, but... */
 		goto end;
 	
-	if (mse->ops &&
-	    mse->ops->open)
+	if (mse->ops && mse->ops->owner)
+		__MOD_INC_USE_COUNT(mse->ops->owner);
+	if (mse->ops && mse->ops->open) {
 		ret = mse->ops->open(inode, file);
+		if (ret && mse->ops->owner)
+			__MOD_DEC_USE_COUNT(mse->ops->owner);
+	}
 
 	if (ret)
 		goto end;
@@ -210,8 +213,6 @@ static int busmouse_open(struct inode *inode, struct file *file)
 
 	if (mse->active++)
 		goto end;
-
-	MOD_INC_USE_COUNT;
 
 	spin_lock_irq(&mse->lock);
 
@@ -333,6 +334,7 @@ static unsigned int busmouse_poll(struct file *file, poll_table *wait)
 
 struct file_operations busmouse_fops=
 {
+	owner:		THIS_MODULE,
 	read:		busmouse_read,
 	write:		busmouse_write,
 	poll:		busmouse_poll,

@@ -29,7 +29,7 @@ static struct dentry *check_pseudo_root(struct super_block *);
 
 
 /*
- * Initialize a private filp
+ * Initialize a private filp. dentry is always a regular file one.
  */
 void fill_new_filp (struct file *filp, struct dentry *dentry)
 {
@@ -51,14 +51,14 @@ void UMSDOS_put_inode (struct inode *inode)
 		"put inode %p (%lu) pos %lu count=%d\n"
 		 ,inode, inode->i_ino
 		 ,inode->u.umsdos_i.pos
-		 ,inode->i_count));
+		 ,atomic_read(&inode->i_count)));
 
 	if (inode == pseudo_root) {
 		printk (KERN_ERR "Umsdos: Oops releasing pseudo_root."
 			" Notify jacques@solucorp.qc.ca\n");
 	}
 
-	if (inode->i_count == 1)
+	if (atomic_read(&inode->i_count) == 1)
 		inode->u.umsdos_i.i_patched = 0;
 }
 
@@ -293,11 +293,11 @@ out:
 /*
  * Update the disk with the inode content
  */
-void UMSDOS_write_inode (struct inode *inode)
+void UMSDOS_write_inode (struct inode *inode, int unused)
 {
 	struct iattr newattrs;
 
-	fat_write_inode (inode);
+	fat_write_inode (inode, 0);
 	newattrs.ia_mtime = inode->i_mtime;
 	newattrs.ia_atime = inode->i_atime;
 	newattrs.ia_ctime = inode->i_ctime;

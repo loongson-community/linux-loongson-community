@@ -191,21 +191,35 @@ int permission(struct inode * inode,int mask)
  * < 0: (-i_writecount) vm_area_structs with VM_DENYWRITE set exist
  * > 0: (i_writecount) users are writing to the file.
  *
- * WARNING: as soon as we will move get_write_access(), do_mmap() or
- * prepare_binfmt() out of the big lock we will need a spinlock protecting
- * the checks in all 3. For the time being it is not needed.
+ * Normally we operate on that counter with atomic_{inc,dec} and it's safe
+ * except for the cases where we don't hold i_writecount yet. Then we need to
+ * use {get,deny}_write_access() - these functions check the sign and refuse
+ * to do the change if sign is wrong. Exclusion between them is provided by
+ * spinlock (arbitration_lock) and I'll rip the second arsehole to the first
+ * who will try to move it in struct inode - just leave it here.
  */
+static spinlock_t arbitration_lock = SPIN_LOCK_UNLOCKED;
 int get_write_access(struct inode * inode)
 {
-	if (atomic_read(&inode->i_writecount) < 0)
+	spin_lock(&arbitration_lock);
+	if (atomic_read(&inode->i_writecount) < 0) {
+		spin_unlock(&arbitration_lock);
 		return -ETXTBSY;
+	}
 	atomic_inc(&inode->i_writecount);
+	spin_unlock(&arbitration_lock);
 	return 0;
 }
-
-void put_write_access(struct inode * inode)
+int deny_write_access(struct file * file)
 {
-	atomic_dec(&inode->i_writecount);
+	spin_lock(&arbitration_lock);
+	if (atomic_read(&file->f_dentry->d_inode->i_writecount) > 0) {
+		spin_unlock(&arbitration_lock);
+		return -ETXTBSY;
+	}
+	atomic_dec(&file->f_dentry->d_inode->i_writecount);
+	spin_unlock(&arbitration_lock);
+	return 0;
 }
 
 void path_release(struct nameidata *nd)
@@ -337,7 +351,34 @@ int follow_down(struct vfsmount **mnt, struct dentry **dentry)
 {
 	return __follow_down(mnt,dentry);
 }
-
+ 
+static inline void follow_dotdot(struct nameidata *nd)
+{
+	while(1) {
+		struct vfsmount *parent;
+		struct dentry *dentry;
+		if (nd->dentry == current->fs->root &&
+		    nd->mnt == current->fs->rootmnt)  {
+			break;
+		}
+		if (nd->dentry != nd->mnt->mnt_root) {
+			dentry = dget(nd->dentry->d_parent);
+			dput(nd->dentry);
+			nd->dentry = dentry;
+			break;
+		}
+		parent=nd->mnt->mnt_parent;
+		if (parent == nd->mnt) {
+			break;
+		}
+		mntget(parent);
+		dentry=dget(nd->mnt->mnt_mountpoint);
+		dput(nd->dentry);
+		nd->dentry = dentry;
+		mntput(nd->mnt);
+		nd->mnt = parent;
+	}
+}
 /*
  * Name resolution.
  *
@@ -403,19 +444,7 @@ int path_walk(const char * name, struct nameidata *nd)
 			case 2:	
 				if (this.name[1] != '.')
 					break;
-				while (1) {
-					if (nd->dentry == current->fs->root &&
-					    nd->mnt == current->fs->rootmnt)
-						break;
-					if (nd->dentry != nd->mnt->mnt_root) {
-						dentry = dget(nd->dentry->d_parent);
-						dput(nd->dentry);
-						nd->dentry = dentry;
-						break;
-					}
-					if (!__follow_up(&nd->mnt, &nd->dentry))
-						break;
-				}
+				follow_dotdot(nd);
 				inode = nd->dentry->d_inode;
 				/* fallthrough */
 			case 1:
@@ -483,19 +512,7 @@ last_component:
 			case 2:	
 				if (this.name[1] != '.')
 					break;
-				while (1) {
-					if (nd->dentry == current->fs->root &&
-					    nd->mnt == current->fs->rootmnt)
-						break;
-					if (nd->dentry != nd->mnt->mnt_root) {
-						dentry = dget(nd->dentry->d_parent);
-						dput(nd->dentry);
-						nd->dentry = dentry;
-						break;
-					}
-					if (!__follow_up(&nd->mnt, &nd->dentry))
-						break;
-				}
+				follow_dotdot(nd);
 				inode = nd->dentry->d_inode;
 				/* fallthrough */
 			case 1:
@@ -771,8 +788,6 @@ static inline int may_delete(struct inode *dir,struct dentry *victim, int isdir)
 	int error;
 	if (!victim->d_inode || victim->d_parent->d_inode != dir)
 		return -ENOENT;
-	if (IS_DEADDIR(dir))
-		return -ENOENT;
 	error = permission(dir,MAY_WRITE | MAY_EXEC);
 	if (error)
 		return error;
@@ -785,8 +800,6 @@ static inline int may_delete(struct inode *dir,struct dentry *victim, int isdir)
 		if (!S_ISDIR(victim->d_inode->i_mode))
 			return -ENOTDIR;
 		if (IS_ROOT(victim))
-			return -EBUSY;
-		if (d_mountpoint(victim))
 			return -EBUSY;
 	} else if (S_ISDIR(victim->d_inode->i_mode))
 		return -EISDIR;
@@ -917,6 +930,22 @@ int open_namei(const char * pathname, int flag, int mode, struct nameidata *nd)
 			error = -EEXIST;
 			if (flag & O_EXCL)
 				goto exit_dput;
+			if (flag & O_NOFOLLOW) {
+				error = -ELOOP;
+				if (dentry->d_inode->i_op &&
+				    dentry->d_inode->i_op->follow_link)
+					goto exit_dput;
+				if (d_mountpoint(dentry))
+					goto exit_dput;
+				goto got_it;
+			}
+			/* Check mountpoints - it may be a binding on file. */
+			while (d_mountpoint(dentry) &&
+			       __follow_down(&nd->mnt, &dentry))
+				;
+			error = -ENOENT;
+			if (!dentry->d_inode)
+				goto exit_dput;
 			if (dentry->d_inode->i_op &&
 			    dentry->d_inode->i_op->follow_link) {
 				/*
@@ -930,6 +959,7 @@ int open_namei(const char * pathname, int flag, int mode, struct nameidata *nd)
 					return error;
 				dentry = nd->dentry;
 			} else {
+		got_it:
 				dput(nd->dentry);
 				nd->dentry = dentry;
 			}
@@ -962,6 +992,10 @@ int open_namei(const char * pathname, int flag, int mode, struct nameidata *nd)
 	if (S_ISDIR(inode->i_mode) && (flag & FMODE_WRITE))
 		goto exit;
 
+	error = -EOPNOTSUPP;
+	if (S_ISSOCK(inode->i_mode))
+		goto exit;
+		
 	error = permission(inode,acc_mode);
 	if (error)
 		goto exit;
@@ -1213,9 +1247,15 @@ int vfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	double_down(&dir->i_zombie, &dentry->d_inode->i_zombie);
 	d_unhash(dentry);
-	error = dir->i_op->rmdir(dir, dentry);
-	if (!error)
-		dentry->d_inode->i_flags |= S_DEAD;
+	if (IS_DEADDIR(dir))
+		error = -ENOENT;
+	else if (d_mountpoint(dentry))
+		error = -EBUSY;
+	else {
+		error = dir->i_op->rmdir(dir, dentry);
+		if (!error)
+			dentry->d_inode->i_flags |= S_DEAD;
+	}
 	double_up(&dir->i_zombie, &dentry->d_inode->i_zombie);
 	if (!error)
 		d_delete(dentry);
@@ -1275,9 +1315,13 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 		error = -EPERM;
 		if (dir->i_op && dir->i_op->unlink) {
 			DQUOT_INIT(dir);
-			error = dir->i_op->unlink(dir, dentry);
-			if (!error)
-				d_delete(dentry);
+			if (d_mountpoint(dentry))
+				error = -EBUSY;
+			else {
+				error = dir->i_op->unlink(dir, dentry);
+				if (!error)
+					d_delete(dentry);
+			}
 		}
 	}
 	up(&dir->i_zombie);
@@ -1555,7 +1599,12 @@ int vfs_rename_dir(struct inode *old_dir, struct dentry *old_dentry,
 	} else
 		double_down(&old_dir->i_zombie,
 			    &new_dir->i_zombie);
-	error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
+	if (IS_DEADDIR(old_dir)||IS_DEADDIR(new_dir))
+		error = -ENOENT;
+	else if (d_mountpoint(old_dentry)||d_mountpoint(new_dentry))
+		error = -EBUSY;
+	else 
+		error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
 	if (target) {
 		if (!error)
 			target->i_flags |= S_DEAD;
@@ -1603,7 +1652,10 @@ int vfs_rename_other(struct inode *old_dir, struct dentry *old_dentry,
 	DQUOT_INIT(old_dir);
 	DQUOT_INIT(new_dir);
 	double_down(&old_dir->i_zombie, &new_dir->i_zombie);
-	error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
+	if (d_mountpoint(old_dentry)||d_mountpoint(new_dentry))
+		error = -EBUSY;
+	else
+		error = old_dir->i_op->rename(old_dir, old_dentry, new_dir, new_dentry);
 	double_up(&old_dir->i_zombie, &new_dir->i_zombie);
 	if (error)
 		return error;

@@ -2,6 +2,9 @@
  * include/asm-i386/processor.h
  *
  * Copyright (C) 1994 Linus Torvalds
+ *
+ * Pentium III FXSR, SSE support
+ *	Gareth Hughes <gareth@valinux.com>, May 2000
  */
 
 #ifndef __ASM_I386_PROCESSOR_H
@@ -90,17 +93,15 @@ struct cpuinfo_x86 {
 #define X86_FEATURE_20		0x00100000
 #define X86_FEATURE_21		0x00200000
 #define X86_FEATURE_22		0x00400000
-#define X86_FEATURE_MMX		0x00800000	/* multimedia extensions */
+#define X86_FEATURE_MMX		0x00800000	/* Multimedia Extensions */
 #define X86_FEATURE_FXSR	0x01000000	/* FXSAVE and FXRSTOR instructions (fast save and restore of FPU context), and CR4.OSFXSR (OS uses these instructions) available */
-#define X86_FEATURE_XMM         0x02000000      /* Intel MMX2 instruction set */
+#define X86_FEATURE_XMM         0x02000000      /* Streaming SIMD Extensions */
 #define X86_FEATURE_26		0x04000000
 #define X86_FEATURE_27		0x08000000
 #define X86_FEATURE_28		0x10000000
 #define X86_FEATURE_29		0x20000000
 #define X86_FEATURE_30		0x40000000
 #define X86_FEATURE_AMD3D	0x80000000
-#define X86_CR4_OSFXSR		0x0200 		/* fast FPU save/restore */
-#define X86_CR4_OSXMMEXCPT	0x0400 		/* KNI (MMX2) unmasked exception 16 */
 
 extern struct cpuinfo_x86 boot_cpu_data;
 extern struct tss_struct init_tss[NR_CPUS];
@@ -125,6 +126,10 @@ extern struct cpuinfo_x86 cpu_data[];
 		(boot_cpu_data.x86_capability & X86_FEATURE_DE)
 #define cpu_has_vme \
 		(boot_cpu_data.x86_capability & X86_FEATURE_VME)
+#define cpu_has_fxsr \
+		(boot_cpu_data.x86_capability & X86_FEATURE_FXSR)
+#define cpu_has_xmm \
+		(boot_cpu_data.x86_capability & X86_FEATURE_XMM)
 
 extern char ignore_irq13;
 
@@ -142,23 +147,24 @@ extern inline void cpuid(int op, int *eax, int *ebx, int *ecx, int *edx)
 		  "=b" (*ebx),
 		  "=c" (*ecx),
 		  "=d" (*edx)
-		: "a" (op)
-		: "cc");
+		: "a" (op));
 }
 
 
 /*
  * Intel CPU features in CR4
  */
-#define X86_CR4_VME	0x0001	/* enable vm86 extensions */
-#define X86_CR4_PVI	0x0002	/* virtual interrupts flag enable */
-#define X86_CR4_TSD	0x0004	/* disable time stamp at ipl 3 */
-#define X86_CR4_DE	0x0008	/* enable debugging extensions */
-#define X86_CR4_PSE	0x0010	/* enable page size extensions */
-#define X86_CR4_PAE	0x0020	/* enable physical address extensions */
-#define X86_CR4_MCE	0x0040	/* Machine check enable */
-#define X86_CR4_PGE	0x0080	/* enable global pages */
-#define X86_CR4_PCE	0x0100	/* enable performance counters at ipl 3 */
+#define X86_CR4_VME		0x0001	/* enable vm86 extensions */
+#define X86_CR4_PVI		0x0002	/* virtual interrupts flag enable */
+#define X86_CR4_TSD		0x0004	/* disable time stamp at ipl 3 */
+#define X86_CR4_DE		0x0008	/* enable debugging extensions */
+#define X86_CR4_PSE		0x0010	/* enable page size extensions */
+#define X86_CR4_PAE		0x0020	/* enable physical address extensions */
+#define X86_CR4_MCE		0x0040	/* Machine check enable */
+#define X86_CR4_PGE		0x0080	/* enable global pages */
+#define X86_CR4_PCE		0x0100	/* enable performance counters at ipl 3 */
+#define X86_CR4_OSFXSR		0x0200	/* enable fast FPU save and restore */
+#define X86_CR4_OSXMMEXCPT	0x0400	/* enable unmasked SSE exceptions */
 
 /*
  * Save the cr4 feature set we're using (ie
@@ -244,21 +250,7 @@ extern unsigned int mca_pentium_flag;
 #define IO_BITMAP_OFFSET offsetof(struct tss_struct,io_bitmap)
 #define INVALID_IO_BITMAP_OFFSET 0x8000
 
-#ifndef CONFIG_X86_FX
-
-#define i387_save_hard(x) \
-	__asm__("fnsave %0\n\tfwait": :"m" (x))
-#define i387_restore_hard(x) \
-	__asm__("frstor %0": :"m" (x))
-
-#define i387_hard_to_user(uaddr, x) \
-	__copy_to_user((uaddr), (x), sizeof(struct i387_hard_struct))
-#define i387_user_to_hard(x, uaddr) \
-	__copy_from_user((x), (uaddr), sizeof(struct i387_hard_struct))
-
-#define i387_set_cwd(x,v) do { (x).cwd = 0xffff0000 | (v); } while (0)
-#define i387_set_swd(x,v) do { (x).swd = 0xffff0000 | (v); } while (0)
-#define i387_set_twd(x,v) do { (x).twd = 0xffff0000 | (v); } while (0)
+#ifndef CONFIG_X86_FXSR
 
 struct i387_hard_struct {
 	long	cwd;
@@ -274,65 +266,29 @@ struct i387_hard_struct {
 
 #else
 
-/*
- * has to be 128-bit aligned
- */
+/* It doesn't matter if the CPU writes only part of this struct;  it gets
+ * copied by do_fork, so the unimplemented area never changes from what
+ * init_task.i387 is initialized to (all zeroes).  */
+
 struct i387_hard_struct {
-	unsigned short	cwd;
-	unsigned short	swd;
-	unsigned short	twd;
-	unsigned short	fopcode;
-	unsigned int	fip;
-	unsigned short	fcs;
-	unsigned short	__reserved_01;
-	unsigned int	fdp;
-	unsigned short	fds;
-	unsigned short	__reserved_02;
-	unsigned int	mxcsr;
-	unsigned int	__reserved_03;
-	unsigned int	st_space[32]; /* 8*16 bytes for each FP/MMX-reg = 128 bytes */
-	unsigned int	xmm_space[22*4]; /* 22 cachelines for MMX2 registers */
-	unsigned long	status;
+	long	cwd;
+	long	swd;
+	long	twd;
+	long	fip;
+	long	fcs;
+	long	foo;
+	long	fos;
+	long	status;		/* software status information */
+	long	fxsr_space[6];	/* FXSR FPU environment must not be used */
+	long	mxcsr;
+	long	reserved;
+	long	st_space[32];	/* 8*16 bytes for each FP-reg = 128 bytes */
+	long	xmm_space[32];	/* 8*16 bytes for each XMM-reg = 128 bytes */
+	long	padding[56];
 } __attribute__ ((aligned (16)));
 
-/*
- * tag word conversion (thanks to Gabriel Paubert for noticing the
- * subtle format difference and implementing these functions)
- *
- * there are several erratas wrt. the tag word in the i387, thus
- * any software relying on it's value is questionable, but we
- * definitely want to be as close as possible.
- */
-static inline unsigned short fputag_KNIto387(unsigned char tb) {
-	unsigned short tw = tb;
-	tw = ((tw<<4) | tw) &0x0f0f; /* zzzz7654zzzz3210 */
-	tw = ((tw<<2) | tw) &0x3333; /* zz76zz54zz32zz10 */
-	tw = ((tw<<1) | tw) &0x5555; /* z7z6z5z4z3z2z1z0 */
-	return ~(tw*3);
-}
-
-static inline unsigned char fputag_387toKNI(unsigned short tw) {
-	tw = ~tw;
-	tw = (tw | (tw>>1)) & 0x5555; /* z7z6z5z4z3z2z1z0 */
-	tw = (tw | (tw>>1)) & 0x3333; /* zz76zz54zz32zz10 */
-	tw = (tw | (tw>>3)) & 0x0f0f; /* zzzz7654zzzz3210 */
-	return (tw|(tw>>4)) & 0x00ff; /* zzzzzzzz76543210 */
-}
-
-#define i387_set_cwd(x,v) do { (x).cwd = (short)(v); } while (0)
-#define i387_set_swd(x,v) do { (x).swd = (short)(v); } while (0)
-#define i387_set_twd(x,v) do { (x).twd = fputag_387toKNI(v); } while (0)
-
-#define i387_save_hard(x) \
- { __asm__ __volatile__(".byte 0x0f, 0xae, 0x06": :"S" (&(x))); } while (0)
-
-#define i387_restore_hard(x) \
-do { __asm__ __volatile__(".byte 0x0f, 0xae, 0x4f, 0x00": :"D" (&(x))); } while(0)
-
-extern int i387_hard_to_user ( struct _fpstate * user,
-			      struct i387_hard_struct * hard);
-extern int i387_user_to_hard (struct i387_hard_struct * hard,
-			      struct _fpstate * user);
+#define X86_FXSR_MAGIC		0x0000
+#define X86_FXSR_SIZE		512
 #endif
 
 struct i387_soft_struct {
@@ -469,11 +425,47 @@ extern void forget_segments(void);
 /*
  * FPU lazy state save handling..
  */
+#ifndef CONFIG_X86_FXSR
+
 #define save_fpu(tsk) do { \
-        i387_save_hard(tsk->thread.i387); \
+	asm volatile("fnsave %0 ; fwait" \
+		     : "=m" (tsk->thread.i387.hard)); \
 	tsk->flags &= ~PF_USEDFPU; \
 	stts(); \
 } while (0)
+
+#define save_init_fpu(tsk) save_fpu(tsk)
+
+#define restore_fpu(tsk) do { \
+	asm volatile("frstor %0" \
+		     : : "m" (tsk->thread.i387.hard)); \
+} while (0)
+
+#else /* CONFIG_X86_FXSR */
+
+#define save_fpu(tsk) do { \
+	asm volatile("fnstenv %0 ; fxsave %1 ; fwait" \
+		     : "=m" (tsk->thread.i387.hard), \
+		       "=m" (tsk->thread.i387.hard.fxsr_space[0])); \
+	tsk->flags &= ~PF_USEDFPU; \
+	stts(); \
+} while (0)
+
+#define save_init_fpu(tsk) do { \
+	asm volatile("fnstenv %0 ; fxsave %1 ; fnclex" \
+		     : "=m" (tsk->thread.i387.hard), \
+		       "=m" (tsk->thread.i387.hard.fxsr_space[0])); \
+	tsk->flags &= ~PF_USEDFPU; \
+	stts(); \
+} while (0)
+
+#define restore_fpu(tsk) do { \
+	asm volatile("fxrstor %0 ; fldenv %1" \
+		     : : "m" (tsk->thread.i387.hard.fxsr_space[0]), \
+		         "m" (tsk->thread.i387.hard)); \
+} while (0)
+
+#endif /* CONFIG_X86_FXSR */
 
 #define unlazy_fpu(tsk) do { \
 	if (tsk->flags & PF_USEDFPU) \
@@ -486,6 +478,18 @@ extern void forget_segments(void);
 		stts(); \
 	} \
 } while (0)
+
+#ifdef CONFIG_X86_XMM
+#define XMM_DEFAULT_MXCSR	0x1f80
+#define XMM_UNMASKED_MXCSR	0x0000
+
+#define set_fpu_mxcsr(val) do { \
+	if (cpu_has_xmm) { \
+		unsigned long __mxcsr = ((unsigned long)(val) & 0xffff); \
+		asm volatile("ldmxcsr %0" : : "m" (__mxcsr)); \
+	} \
+} while (0)
+#endif
 
 /*
  * Return saved PC of a blocked thread.
@@ -518,5 +522,7 @@ struct microcode {
 	unsigned int reserved[5];
 	unsigned int bits[500];
 };
+
+#define MICROCODE_IOCFREE	_IO('6',0) /* because it is for P6 */
 
 #endif /* __ASM_I386_PROCESSOR_H */

@@ -1197,7 +1197,6 @@ static int capi_open(struct inode *inode, struct file *file)
 	if ((file->private_data = capidev_alloc(file)) == 0)
 		return -ENOMEM;
 
-	MOD_INC_USE_COUNT;
 #ifdef _DEBUG_REFCOUNT
 	printk(KERN_DEBUG "capi_open %d\n", GET_USE_COUNT(THIS_MODULE));
 #endif
@@ -1211,7 +1210,6 @@ static int capi_release(struct inode *inode, struct file *file)
 	capincci_free(cdev, 0xffffffff);
 	capidev_free(cdev);
 
-	MOD_DEC_USE_COUNT;
 #ifdef _DEBUG_REFCOUNT
 	printk(KERN_DEBUG "capi_release %d\n", GET_USE_COUNT(THIS_MODULE));
 #endif
@@ -1220,6 +1218,7 @@ static int capi_release(struct inode *inode, struct file *file)
 
 static struct file_operations capi_fops =
 {
+	owner:		THIS_MODULE,
 	llseek:         capi_llseek,
 	read:           capi_read,
 	write:          capi_write,
@@ -1407,18 +1406,14 @@ capinc_raw_release(struct inode *inode, struct file *file)
 
 struct file_operations capinc_raw_fops =
 {
-	capinc_raw_llseek,
-	capinc_raw_read,
-	capinc_raw_write,
-	NULL,			/* capi_readdir */
-	capinc_raw_poll,
-	capinc_raw_ioctl,
-	NULL,			/* capi_mmap */
-	capinc_raw_open,
-        NULL,                   /* capi_flush */
-	capinc_raw_release,
-	NULL,			/* capi_fsync */
-	NULL,			/* capi_fasync */
+	owner:		THIS_MODULE,
+	llseek:		capinc_raw_llseek,
+	read:		capinc_raw_read,
+	write:		capinc_raw_write,
+	poll:		capinc_raw_poll,
+	ioctl:		capinc_raw_ioctl,
+	open:		capinc_raw_open,
+	release:	capinc_raw_release,
 };
 
 /* -------- tty_operations for capincci ----------------------------- */
@@ -1879,7 +1874,7 @@ endloop:
 		*eof = 1;
 	if (off >= len+begin)
 		return 0;
-	*start = page + (begin-off);
+	*start = page + (off-begin);
 	return ((count < begin+len-off) ? count : begin+len-off);
 }
 

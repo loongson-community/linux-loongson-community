@@ -31,14 +31,13 @@
 
 #include "ncplib_kernel.h"
 
-static void ncp_put_inode(struct inode *);
 static void ncp_delete_inode(struct inode *);
 static void ncp_put_super(struct super_block *);
 static int  ncp_statfs(struct super_block *, struct statfs *);
 
 static struct super_operations ncp_sops =
 {
-	put_inode:	ncp_put_inode,
+	put_inode:	force_delete,
 	delete_inode:	ncp_delete_inode,
 	put_super:	ncp_put_super,
 	statfs:		ncp_statfs,
@@ -62,7 +61,6 @@ void ncp_update_inode(struct inode *inode, struct ncp_entry_info *nwinfo)
 #ifdef CONFIG_NCPFS_STRONG
 	NCP_FINFO(inode)->nwattr = nwinfo->i.attributes;
 #endif
-	NCP_FINFO(inode)->opened = nwinfo->opened;
 	NCP_FINFO(inode)->access = nwinfo->access;
 	NCP_FINFO(inode)->server_file_handle = nwinfo->server_file_handle;
 	memcpy(NCP_FINFO(inode)->file_handle, nwinfo->file_handle,
@@ -77,7 +75,7 @@ void ncp_update_inode2(struct inode* inode, struct ncp_entry_info *nwinfo)
 	struct nw_info_struct *nwi = &nwinfo->i;
 	struct ncp_server *server = NCP_SERVER(inode);
 
-	if (!NCP_FINFO(inode)->opened) {
+	if (!atomic_read(&NCP_FINFO(inode)->opened)) {
 #ifdef CONFIG_NCPFS_STRONG
 		NCP_FINFO(inode)->nwattr = nwi->attributes;
 #endif
@@ -217,6 +215,9 @@ ncp_iget(struct super_block *sb, struct ncp_entry_info *info)
 
 	inode = get_empty_inode();
 	if (inode) {
+		init_MUTEX(&NCP_FINFO(inode)->open_sem);
+		atomic_set(&NCP_FINFO(inode)->opened, info->opened);
+
 		inode->i_sb = sb;
 		inode->i_dev = sb->s_dev;
 		inode->i_ino = info->ino;
@@ -239,12 +240,6 @@ ncp_iget(struct super_block *sb, struct ncp_entry_info *info)
 	return inode;
 }
 
-static void ncp_put_inode(struct inode *inode)
-{
-	if (inode->i_count == 1)
-		inode->i_nlink = 0;
-}
-
 static void
 ncp_delete_inode(struct inode *inode)
 {
@@ -252,7 +247,7 @@ ncp_delete_inode(struct inode *inode)
 		DDPRINTK("ncp_delete_inode: put directory %ld\n", inode->i_ino);
 	}
 
-	if (NCP_FINFO(inode)->opened && ncp_make_closed(inode) != 0) {
+	if (ncp_make_closed(inode) != 0) {
 		/* We can't do anything but complain. */
 		printk(KERN_ERR "ncp_delete_inode: could not close\n");
 	}
@@ -325,7 +320,6 @@ ncp_read_super(struct super_block *sb, void *raw_data, int silent)
 	sb->s_blocksize = 1024;	/* Eh...  Is this correct? */
 	sb->s_blocksize_bits = 10;
 	sb->s_magic = NCP_SUPER_MAGIC;
-	sb->s_dev = dev;
 	sb->s_op = &ncp_sops;
 
 	server = NCP_SBP(sb);
@@ -683,6 +677,7 @@ int ncp_notify_change(struct dentry *dentry, struct iattr *attr)
 
 		/* According to ndir, the changes only take effect after
 		   closing the file */
+		ncp_inode_close(inode);
 		result = ncp_make_closed(inode);
 		if (!result)
 			vmtruncate(inode, attr->ia_size);
