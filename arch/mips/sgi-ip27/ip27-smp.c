@@ -133,3 +133,7 @@ void __init prom_cpus_done(void)
 	init_mfhi_war();
 #endif
 }
+
+void prom_smp_finish(void)
+{
+}
