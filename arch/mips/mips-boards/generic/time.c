@@ -35,6 +35,7 @@
 #include <asm/div64.h>
 #include <asm/cpu.h>
 #include <asm/time.h>
+#include <asm/mc146818-time.h>
 
 #include <asm/mips-boards/generic.h>
 #include <asm/mips-boards/prom.h>
@@ -131,37 +132,7 @@ static unsigned int __init estimate_cpu_frequency(void)
 
 unsigned long __init mips_rtc_get_time(void)
 {
-	unsigned int year, mon, day, hour, min, sec;
-	unsigned char save_control;
-
-	save_control = CMOS_READ(RTC_CONTROL);
-
-	/* Freeze it. */
-	CMOS_WRITE(save_control | RTC_SET, RTC_CONTROL);
-
-	/* Read regs. */
-	sec = CMOS_READ(RTC_SECONDS);
-	min = CMOS_READ(RTC_MINUTES);
-	hour = CMOS_READ(RTC_HOURS);
-
-	if (!(save_control & RTC_24H))
-	{
-		if ((hour & 0xf) == 0xc)
-		        hour &= 0x80;
-	        if (hour & 0x80)
-		        hour = (hour & 0xf) + 12;
-	}
-	day = CMOS_READ(RTC_DAY_OF_MONTH);
-	mon = CMOS_READ(RTC_MONTH);
-	year = CMOS_READ(RTC_YEAR);
-
-	/* Unfreeze clock. */
-	CMOS_WRITE(save_control, RTC_CONTROL);
-
-	if ((year += 1900) < 1970)
-	        year += 100;
-
-	return mktime(year, mon, day, hour, min, sec);
+	return mc146818_get_cmos_time();
 }
 
 void __init mips_time_init(void)
