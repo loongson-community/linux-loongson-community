@@ -28,7 +28,9 @@ CONFIG_ORION=y
 #
 # Loadable module support
 #
-# CONFIG_MODULES is not set
+CONFIG_MODULES=y
+# CONFIG_MODVERSIONS is not set
+# CONFIG_KMOD is not set
 
 #
 # CPU selection
@@ -291,4 +293,5 @@ CONFIG_MSDOS_PARTITION=y
 # Kernel hacking
 #
 CONFIG_CROSSCOMPILE=y
+# CONFIG_MIPS_FPE_MODULE is not set
 # CONFIG_MAGIC_SYSRQ is not set
