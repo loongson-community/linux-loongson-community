@@ -321,7 +321,7 @@ static inline void outsl(unsigned long port, void *addr, unsigned int count)
 static inline void insl(unsigned long port, void *addr, unsigned int count)
 {
 	while (count--) {
-		*(u32 *)addr = inw(port);
+		*(u32 *)addr = inl(port);
 		addr += 4;
 	}
 }
