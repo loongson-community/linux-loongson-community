@@ -303,8 +303,8 @@ void show_regs(struct pt_regs * regs)
 	printk("$24: %08lx %08lx                   %08lx %08lx %08lx %08lx\n",
 	       regs->regs[24], regs->regs[25],
 	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
-	printk("Hi      : %016lx\n", regs->hi);
-	printk("Lo      : %016lx\n", regs->lo);
+	printk("Hi : %08lx\n", regs->hi);
+	printk("Lo : %08lx\n", regs->lo);
 
 	/*
 	 * Saved cp0 registers
