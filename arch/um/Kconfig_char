@@ -1,6 +1,12 @@
 
 menu "Character Devices"
 
+config STDERR_CONSOLE
+	bool "stderr console"
+	default y
+	help
+	console driver which dumps all printk messages to stderr.
+
 config STDIO_CONSOLE
 	bool
 	default y
@@ -16,15 +22,6 @@ config SSL
         information and command line examples of how to use this facility.
 
         Unless you have a specific reason for disabling this, say Y.
-
-config FD_CHAN
-	bool "file descriptor channel support"
-	help
-        This option enables support for attaching UML consoles and serial
-        lines to already set up file descriptors.  Generally, the main
-        console is attached to file descriptors 0 and 1 (stdin and stdout),
-        so it would be wise to leave this enabled unless you intend to
-        attach it to some other host device.
 
 config NULL_CHAN
 	bool "null channel support"
@@ -74,7 +71,7 @@ config XTERM_CHAN
 
 config NOCONFIG_CHAN
 	bool
-	default !(XTERM_CHAN && TTY_CHAN && PTY_CHAN && PORT_CHAN && FD_CHAN && NULL_CHAN)
+	default !(XTERM_CHAN && TTY_CHAN && PTY_CHAN && PORT_CHAN && NULL_CHAN)
 
 config CON_ZERO_CHAN
 	string "Default main console channel initialization"

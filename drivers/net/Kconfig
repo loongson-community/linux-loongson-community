@@ -695,6 +695,7 @@ config ELMC_II
 config VORTEX
 	tristate "3c590/3c900 series (592/595/597) \"Vortex/Boomerang\" support"
 	depends on NET_VENDOR_3COM && (PCI || EISA)
+	select MII
 	---help---
 	  This option enables driver support for a large number of 10mbps and
 	  10/100mbps EISA, PCI and PCMCIA 3Com network cards:
@@ -1183,37 +1184,38 @@ config IBMVETH
 	  be called ibmveth.
 
 config IBM_EMAC
-       tristate "IBM PPC4xx EMAC driver support"
-       depends on 4xx
-       ---help---
-       This driver supports the IBM PPC4xx EMAC family of on-chip
-       Ethernet controllers.
+	tristate "IBM PPC4xx EMAC driver support"
+	depends on 4xx
+	select CRC32
+	---help---
+	  This driver supports the IBM PPC4xx EMAC family of on-chip
+	  Ethernet controllers.
 
 config IBM_EMAC_ERRMSG
-       bool "Verbose error messages"
-       depends on IBM_EMAC
+	bool "Verbose error messages"
+	depends on IBM_EMAC
 
 config IBM_EMAC_RXB
-       int "Number of receive buffers"
-       depends on IBM_EMAC
-       default "128" if IBM_EMAC4
-       default "64"
+	int "Number of receive buffers"
+	depends on IBM_EMAC
+	default "128" if IBM_EMAC4
+	default "64"
 
 config IBM_EMAC_TXB
-       int "Number of transmit buffers"
-       depends on IBM_EMAC
-       default "128" if IBM_EMAC4
-       default "8"
+	int "Number of transmit buffers"
+	depends on IBM_EMAC
+	default "128" if IBM_EMAC4
+	default "8"
 
 config IBM_EMAC_FGAP
-       int "Frame gap"
-       depends on IBM_EMAC
-       default "8"
+	int "Frame gap"
+	depends on IBM_EMAC
+	default "8"
 
 config IBM_EMAC_SKBRES
-       int "Skb reserve amount"
-       depends on IBM_EMAC
-       default "0"
+	int "Skb reserve amount"
+	depends on IBM_EMAC
+	default "0"
 
 config NET_PCI
 	bool "EISA, VLB, PCI and on board controllers"
@@ -1401,16 +1403,6 @@ config EEPRO100
 	  <file:Documentation/networking/net-modules.txt>.  The module
 	  will be called eepro100.
 
-
-config EEPRO100_PIO
-	bool "Use PIO instead of MMIO" if !X86_VISWS
-	depends on EEPRO100
-	default y if X86_VISWS
-	help
-	  This instructs the driver to use programmed I/O ports (PIO) instead
-	  of PCI shared memory (MMIO).  This can possibly solve some problems
-	  in case your mainboard has memory consistency issues.  If unsure,
-	  say N.
 
 config E100
 	tristate "Intel(R) PRO/100+ support"
@@ -1979,6 +1971,15 @@ config NET_SB1250_MAC
 	tristate "SB1250 Ethernet support"
 	depends on SIBYTE_SB1xxx_SOC
 
+config R8169_VLAN
+	bool "VLAN support"
+	depends on R8169 && VLAN_8021Q
+	---help---
+	  Say Y here for the r8169 driver to support the functions required
+	  by the kernel 802.1Q code.
+	  
+	  If in doubt, say Y.
+
 config SK98LIN
 	tristate "Marvell Yukon Chipset / SysKonnect SK-98xx Support"
 	depends on PCI
@@ -2204,6 +2205,17 @@ config S2IO_NAPI
 	  information.
 
 	  If in doubt, say N.
+
+config 2BUFF_MODE
+	bool "Use 2 Buffer Mode on Rx side."
+	depends on S2IO
+	---help---
+	On enabling the 2 buffer mode, the received frame will be
+	split into 2 parts before being DMA'ed to the hosts memory.
+	The parts are the ethernet header and ethernet payload. 
+	This is useful on systems where DMA'ing to to unaligned 
+	physical memory loactions comes with a heavy price.
+	If not sure please say N.
 
 endmenu
 

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10
-# Mon Dec 27 19:11:05 2004
+# Linux kernel version: 2.6.11-rc1
+# Wed Jan 12 22:42:31 2005
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -80,6 +80,7 @@ CONFIG_PMC_YOSEMITE=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_TOSHIBA_RBTX4927 is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
+CONFIG_GENERIC_CALIBRATE_DELAY=y
 CONFIG_HAVE_DEC_LOCK=y
 CONFIG_DMA_COHERENT=y
 # CONFIG_CPU_LITTLE_ENDIAN is not set
@@ -134,6 +135,19 @@ CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
 
 #
+# PCCARD (PCMCIA/CardBus) support
+#
+# CONFIG_PCCARD is not set
+
+#
+# PC-card bridges
+#
+
+#
+# PCI Hotplug Support
+#
+
+#
 # Executable file formats
 #
 CONFIG_BINFMT_ELF=y
@@ -149,6 +163,7 @@ CONFIG_TRAD_SIGNALS=y
 #
 CONFIG_STANDALONE=y
 CONFIG_PREVENT_FIRMWARE_BUILD=y
+# CONFIG_FW_LOADER is not set
 # CONFIG_DEBUG_DRIVER is not set
 
 #
@@ -190,6 +205,7 @@ CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
+CONFIG_ATA_OVER_ETH=m
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -470,6 +486,11 @@ CONFIG_USB_ARCH_HAS_OHCI=y
 # CONFIG_MMC is not set
 
 #
+# InfiniBand support
+#
+# CONFIG_INFINIBAND is not set
+
+#
 # File systems
 #
 # CONFIG_EXT2_FS is not set
@@ -559,6 +580,7 @@ CONFIG_DEBUG_KERNEL=y
 # CONFIG_DEBUG_KOBJECT is not set
 # CONFIG_DEBUG_HIGHMEM is not set
 # CONFIG_DEBUG_INFO is not set
+# CONFIG_DEBUG_FS is not set
 CONFIG_CROSSCOMPILE=y
 CONFIG_CMDLINE=""
 # CONFIG_DEBUG_STACK_USAGE is not set
@@ -576,6 +598,10 @@ CONFIG_KEYS_DEBUG_PROC_KEYS=y
 # Cryptographic options
 #
 # CONFIG_CRYPTO is not set
+
+#
+# Hardware crypto devices
+#
 
 #
 # Library routines

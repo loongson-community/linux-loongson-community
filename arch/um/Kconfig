@@ -31,6 +31,10 @@ config RWSEM_GENERIC_SPINLOCK
 	bool
 	default y
 
+config GENERIC_CALIBRATE_DELAY
+	bool
+	default y
+
 menu "UML-specific options"
 
 config MODE_TT
@@ -63,6 +67,8 @@ config MODE_SKAS
 	host, then you certainly want to say Y here (and consider saying N
 	to CONFIG_MODE_TT).  Otherwise, it is safe to say Y.  Disabling this
 	option will shrink the UML binary slightly.
+
+source "arch/um/Kconfig_arch"
 
 config NET
 	bool "Networking support"
@@ -279,7 +285,10 @@ if BROKEN
 endif
 
 config INPUT
-	bool
+	bool "Dummy option"
+	depends BROKEN
 	default n
+	help
+	This is a dummy option to get rid of warnings.
 
 source "arch/um/Kconfig.debug"

@@ -8,6 +8,8 @@
  *         Greg Lonnon glonnon@ridgerun.com or info@ridgerun.com
  *
  */
+
+#include <linux/types.h>
 #include <linux/kdev_t.h>
 #include <linux/time.h>
 #include <linux/devfs_fs_kernel.h>
@@ -128,7 +130,6 @@ static int __init mmapper_init(void)
 	p_buf = __pa(v_buf);
 
 	devfs_mk_cdev(MKDEV(30, 0), S_IFCHR|S_IRUGO|S_IWUGO, "mmapper");
-	devfs_mk_symlink("mmapper0", "mmapper");
 	return(0);
 }
 

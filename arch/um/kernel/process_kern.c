@@ -235,18 +235,28 @@ void *um_virt_to_phys(struct task_struct *task, unsigned long addr,
 		      pte_t *pte_out)
 {
 	pgd_t *pgd;
+	pud_t *pud;
 	pmd_t *pmd;
 	pte_t *pte;
 
 	if(task->mm == NULL) 
 		return(ERR_PTR(-EINVAL));
 	pgd = pgd_offset(task->mm, addr);
-	pmd = pmd_offset(pgd, addr);
+	if(!pgd_present(*pgd))
+		return(ERR_PTR(-EINVAL));
+
+	pud = pud_offset(pgd, addr);
+	if(!pud_present(*pud))
+		return(ERR_PTR(-EINVAL));
+
+	pmd = pmd_offset(pud, addr);
 	if(!pmd_present(*pmd)) 
 		return(ERR_PTR(-EINVAL));
+
 	pte = pte_offset_kernel(pmd, addr);
 	if(!pte_present(*pte)) 
 		return(ERR_PTR(-EINVAL));
+
 	if(pte_out != NULL)
 		*pte_out = *pte;
 	return((void *) (pte_val(*pte) & PAGE_MASK) + (addr & ~PAGE_MASK));
@@ -290,8 +300,6 @@ void disable_hlt(void)
 }
 
 EXPORT_SYMBOL(disable_hlt);
-
-extern int signal_frame_size;
 
 void *um_kmalloc(int size)
 {
@@ -360,22 +368,22 @@ void *get_init_task(void)
 	return(&init_thread_union.thread_info.task);
 }
 
-int copy_to_user_proc(void *to, void *from, int size)
+int copy_to_user_proc(void __user *to, void *from, int size)
 {
 	return(copy_to_user(to, from, size));
 }
 
-int copy_from_user_proc(void *to, void *from, int size)
+int copy_from_user_proc(void *to, void __user *from, int size)
 {
 	return(copy_from_user(to, from, size));
 }
 
-int clear_user_proc(void *buf, int size)
+int clear_user_proc(void __user *buf, int size)
 {
 	return(clear_user(buf, size));
 }
 
-int strlen_user_proc(char *str)
+int strlen_user_proc(char __user *str)
 {
 	return(strlen_user(str));
 }
@@ -406,7 +414,9 @@ int sysemu_supported;
 
 void set_using_sysemu(int value)
 {
-	atomic_set(&using_sysemu, sysemu_supported && value);
+	if (value > sysemu_supported)
+		return;
+	atomic_set(&using_sysemu, value);
 }
 
 int get_using_sysemu(void)
@@ -429,7 +439,7 @@ static int proc_write_sysemu(struct file *file,const char *buf, unsigned long co
 	if (copy_from_user(tmp, buf, 1))
 		return -EFAULT;
 
-	if (tmp[0] == '0' || tmp[0] == '1')
+	if (tmp[0] >= '0' && tmp[0] <= '2')
 		set_using_sysemu(tmp[0] - '0');
 	return count; /*We use the first char, but pretend to write everything*/
 }
@@ -464,9 +474,9 @@ int singlestepping(void * t)
 		return(0);
 
 	if (task->thread.singlestep_syscall)
-		return(0);
+		return(1);
 
-	return 1;
+	return 2;
 }
 
 /*

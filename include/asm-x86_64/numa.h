@@ -2,16 +2,11 @@
 #define _ASM_X8664_NUMA_H 1
 
 #include <linux/nodemask.h>
-
-#define MAXNODE 8 
-#define NODEMASK 0xff
+#include <asm/numnodes.h>
 
 struct node { 
 	u64 start,end; 
 };
-
-#define for_all_nodes(x) for ((x) = 0; (x) < numnodes; (x)++) \
-				if (node_online(x))
 
 extern int compute_hash_shift(struct node *nodes);
 
@@ -19,5 +14,6 @@ extern int compute_hash_shift(struct node *nodes);
 
 extern void numa_add_cpu(int cpu);
 extern void numa_init_array(void);
+extern int numa_off;
 
 #endif

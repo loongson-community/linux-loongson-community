@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10
-# Mon Dec 27 19:10:57 2004
+# Linux kernel version: 2.6.11-rc1
+# Wed Jan 12 22:42:00 2005
 #
 CONFIG_MIPS=y
 CONFIG_MIPS64=y
@@ -78,8 +78,11 @@ CONFIG_SGI_IP32=y
 # CONFIG_SIBYTE_SB1xxx_SOC is not set
 # CONFIG_SNI_RM200_PCI is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
+CONFIG_GENERIC_CALIBRATE_DELAY=y
 CONFIG_HAVE_DEC_LOCK=y
 CONFIG_ARC=y
+CONFIG_DMA_IP32=y
+CONFIG_OWN_DMA=y
 CONFIG_DMA_NONCOHERENT=y
 # CONFIG_CPU_LITTLE_ENDIAN is not set
 CONFIG_ARC32=y
@@ -130,6 +133,20 @@ CONFIG_PCI_NAMES=y
 CONFIG_MMU=y
 
 #
+# PCCARD (PCMCIA/CardBus) support
+#
+# CONFIG_PCCARD is not set
+
+#
+# PC-card bridges
+#
+
+#
+# PCI Hotplug Support
+#
+# CONFIG_HOTPLUG_PCI is not set
+
+#
 # Executable file formats
 #
 CONFIG_BINFMT_ELF=y
@@ -150,6 +167,7 @@ CONFIG_BINFMT_ELF32=y
 #
 CONFIG_STANDALONE=y
 CONFIG_PREVENT_FIRMWARE_BUILD=y
+# CONFIG_FW_LOADER is not set
 
 #
 # Memory Technology Devices (MTD)
@@ -191,6 +209,7 @@ CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
+CONFIG_ATA_OVER_ETH=y
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -225,6 +244,7 @@ CONFIG_SCSI_LOGGING=y
 #
 # CONFIG_SCSI_SPI_ATTRS is not set
 # CONFIG_SCSI_FC_ATTRS is not set
+# CONFIG_SCSI_ISCSI_ATTRS is not set
 
 #
 # SCSI low-level drivers
@@ -264,7 +284,6 @@ CONFIG_SCSI_QLA2XXX=y
 # CONFIG_SCSI_QLA2300 is not set
 # CONFIG_SCSI_QLA2322 is not set
 # CONFIG_SCSI_QLA6312 is not set
-# CONFIG_SCSI_QLA6322 is not set
 # CONFIG_SCSI_DC395x is not set
 # CONFIG_SCSI_DC390T is not set
 # CONFIG_SCSI_DEBUG is not set
@@ -464,6 +483,7 @@ CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
 # CONFIG_SERIO_MACEPS2 is not set
+# CONFIG_SERIO_LIBPS2 is not set
 CONFIG_SERIO_RAW=y
 
 #
@@ -581,6 +601,11 @@ CONFIG_USB_ARCH_HAS_OHCI=y
 # MMC/SD Card support
 #
 # CONFIG_MMC is not set
+
+#
+# InfiniBand support
+#
+# CONFIG_INFINIBAND is not set
 
 #
 # File systems
@@ -708,6 +733,10 @@ CONFIG_KEYS_DEBUG_PROC_KEYS=y
 # Cryptographic options
 #
 # CONFIG_CRYPTO is not set
+
+#
+# Hardware crypto devices
+#
 
 #
 # Library routines

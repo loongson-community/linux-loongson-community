@@ -45,6 +45,7 @@
 #include <linux/sysdev.h>
 #include <linux/bcd.h>
 #include <linux/efi.h>
+#include <linux/mca.h>
 
 #include <asm/io.h>
 #include <asm/smp.h>
@@ -261,8 +262,7 @@ static inline void do_timer_interrupt(int irq, void *dev_id,
 			last_rtc_update = xtime.tv_sec - 600; /* do it again in 60 s */
 	}
 
-#ifdef CONFIG_MCA
-	if( MCA_bus ) {
+	if (MCA_bus) {
 		/* The PS/2 uses level-triggered interrupts.  You can't
 		turn them off, nor would you want to (any attempt to
 		enable edge-triggered interrupts usually gets intercepted by a
@@ -275,7 +275,6 @@ static inline void do_timer_interrupt(int irq, void *dev_id,
 		irq = inb_p( 0x61 );	/* read the current state */
 		outb_p( irq|0x80, 0x61 );	/* reset the IRQ */
 	}
-#endif
 }
 
 /*
@@ -343,12 +342,13 @@ static int timer_resume(struct sys_device *dev)
 		hpet_reenable();
 #endif
 	sec = get_cmos_time() + clock_cmos_diff;
-	sleep_length = get_cmos_time() - sleep_start;
+	sleep_length = (get_cmos_time() - sleep_start) * HZ;
 	write_seqlock_irqsave(&xtime_lock, flags);
 	xtime.tv_sec = sec;
 	xtime.tv_nsec = 0;
 	write_sequnlock_irqrestore(&xtime_lock, flags);
-	jiffies += sleep_length * HZ;
+	jiffies += sleep_length;
+	wall_jiffies += sleep_length;
 	return 0;
 }
 

@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
-# Linux kernel version: 2.6.10
-# Mon Dec 27 19:10:53 2004
+# Linux kernel version: 2.6.11-rc1
+# Wed Jan 12 22:41:47 2005
 #
 CONFIG_MIPS=y
 # CONFIG_MIPS64 is not set
@@ -101,6 +101,7 @@ CONFIG_MIPS_DB1500=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_TOSHIBA_RBTX4927 is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
+CONFIG_GENERIC_CALIBRATE_DELAY=y
 CONFIG_HAVE_DEC_LOCK=y
 CONFIG_DMA_COHERENT=y
 CONFIG_MIPS_DISABLE_OBSOLETE_IDE=y
@@ -153,7 +154,6 @@ CONFIG_MMU=y
 #
 CONFIG_PCCARD=m
 # CONFIG_PCMCIA_DEBUG is not set
-# CONFIG_PCMCIA_OBSOLETE is not set
 CONFIG_PCMCIA=m
 CONFIG_CARDBUS=y
 
@@ -233,6 +233,7 @@ CONFIG_MTD_CFI_UTIL=y
 # CONFIG_MTD_RAM is not set
 # CONFIG_MTD_ROM is not set
 # CONFIG_MTD_ABSENT is not set
+# CONFIG_MTD_XIP is not set
 
 #
 # Mapping drivers for chip access
@@ -251,6 +252,7 @@ CONFIG_MTD_DB1X00_USER=y
 # CONFIG_MTD_PHRAM is not set
 # CONFIG_MTD_MTDRAM is not set
 # CONFIG_MTD_BLKMTD is not set
+# CONFIG_MTD_BLOCK2MTD is not set
 
 #
 # Disk-On-Chip Device Drivers
@@ -301,6 +303,7 @@ CONFIG_IOSCHED_NOOP=y
 CONFIG_IOSCHED_AS=y
 CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
+CONFIG_ATA_OVER_ETH=m
 
 #
 # ATA/ATAPI/MFM/RLL support
@@ -402,8 +405,6 @@ CONFIG_IP_NF_CONNTRACK_MARK=y
 # CONFIG_IP_NF_QUEUE is not set
 # CONFIG_IP_NF_IPTABLES is not set
 # CONFIG_IP_NF_ARPTABLES is not set
-# CONFIG_IP_NF_COMPAT_IPCHAINS is not set
-# CONFIG_IP_NF_COMPAT_IPFWADM is not set
 CONFIG_XFRM=y
 CONFIG_XFRM_USER=m
 
@@ -557,6 +558,7 @@ CONFIG_SERIO=y
 CONFIG_SERIO_SERPORT=y
 # CONFIG_SERIO_CT82C710 is not set
 # CONFIG_SERIO_PCIPS2 is not set
+# CONFIG_SERIO_LIBPS2 is not set
 CONFIG_SERIO_RAW=m
 
 #
@@ -774,7 +776,6 @@ CONFIG_USB_HIDINPUT=y
 #
 # CONFIG_USB_EMI62 is not set
 # CONFIG_USB_EMI26 is not set
-# CONFIG_USB_TIGL is not set
 # CONFIG_USB_AUERSWALD is not set
 # CONFIG_USB_RIO500 is not set
 # CONFIG_USB_LEGOTOWER is not set
@@ -797,6 +798,11 @@ CONFIG_USB_HIDINPUT=y
 # MMC/SD Card support
 #
 # CONFIG_MMC is not set
+
+#
+# InfiniBand support
+#
+# CONFIG_INFINIBAND is not set
 
 #
 # File systems
@@ -993,6 +999,10 @@ CONFIG_CRYPTO_DEFLATE=y
 CONFIG_CRYPTO_MICHAEL_MIC=y
 CONFIG_CRYPTO_CRC32C=m
 # CONFIG_CRYPTO_TEST is not set
+
+#
+# Hardware crypto devices
+#
 
 #
 # Library routines

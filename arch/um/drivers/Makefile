@@ -20,8 +20,10 @@ ubd-objs := ubd_kern.o ubd_user.o
 port-objs := port_kern.o port_user.o
 harddog-objs := harddog_kern.o harddog_user.o
 
-obj-y = 
-obj-$(CONFIG_SSL) += ssl.o 
+obj-y := stdio_console.o fd.o $(CHAN_OBJS)
+obj-$(CONFIG_SSL) += ssl.o
+obj-$(CONFIG_STDERR_CONSOLE) += stderr_console.o
+
 obj-$(CONFIG_UML_NET_SLIP) += slip.o
 obj-$(CONFIG_UML_NET_SLIRP) += slirp.o
 obj-$(CONFIG_UML_NET_DAEMON) += daemon.o 
@@ -32,7 +34,6 @@ obj-$(CONFIG_MCONSOLE) += mconsole.o
 obj-$(CONFIG_MMAPPER) += mmapper_kern.o 
 obj-$(CONFIG_BLK_DEV_UBD) += ubd.o 
 obj-$(CONFIG_HOSTAUDIO) += hostaudio.o
-obj-$(CONFIG_FD_CHAN) += fd.o 
 obj-$(CONFIG_NULL_CHAN) += null.o 
 obj-$(CONFIG_PORT_CHAN) += port.o
 obj-$(CONFIG_PTY_CHAN) += pty.o
@@ -41,7 +42,6 @@ obj-$(CONFIG_XTERM_CHAN) += xterm.o xterm_kern.o
 obj-$(CONFIG_UML_WATCHDOG) += harddog.o
 obj-$(CONFIG_BLK_DEV_COW_COMMON) += cow_user.o
 
-obj-y += stdio_console.o $(CHAN_OBJS)
 
 USER_SINGLE_OBJS = $(foreach f,$(patsubst %.o,%,$(obj-y) $(obj-m)),$($(f)-objs))
 

@@ -17,6 +17,7 @@
 #include "linux/sysrq.h"
 #include "linux/seq_file.h"
 #include "linux/delay.h"
+#include "linux/module.h"
 #include "asm/page.h"
 #include "asm/pgtable.h"
 #include "asm/ptrace.h"
@@ -43,11 +44,6 @@ struct cpuinfo_um boot_cpu_data = {
 	.loops_per_jiffy	= 0,
 	.ipi_pipe		= { -1, -1 }
 };
-
-/* Placeholder to make UML link until the vsyscall stuff is actually
- * implemented
- */
-void *__kernel_vsyscall;
 
 unsigned long thread_saved_pc(struct task_struct *task)
 {
@@ -161,6 +157,8 @@ static int __init uml_version_setup(char *line, int *add)
 {
 	printf("%s\n", system_utsname.release);
 	exit(0);
+
+	return 0;
 }
 
 __uml_setup("--version", uml_version_setup,
@@ -261,6 +259,8 @@ static int __init Usage(char *line, int *add)
  		p++;
  	}
 	exit(0);
+
+	return 0;
 }
 
 __uml_setup("--help", Usage,
@@ -300,6 +300,7 @@ static void __init uml_postsetup(void)
 /* Set during early boot */
 unsigned long brk_start;
 unsigned long end_iomem;
+EXPORT_SYMBOL(end_iomem);
 
 #define MIN_VMALLOC (32 * 1024 * 1024)
 

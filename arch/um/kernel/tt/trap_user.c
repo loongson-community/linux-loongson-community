@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <signal.h>
-#include <asm/sigcontext.h>
 #include "sysdep/ptrace.h"
 #include "signal_user.h"
 #include "user_util.h"
@@ -22,13 +21,6 @@ void sig_handler_common_tt(int sig, void *sc_ptr)
 	int save_errno = errno, is_user;
 
 	unprotect_kernel_mem();
-
-	/* This is done because to allow SIGSEGV to be delivered inside a SEGV
-	 * handler.  This can happen in copy_user, and if SEGV is disabled,
-	 * the process will die.
-	 */
-	if(sig == SIGSEGV)
-		change_sig(SIGSEGV, 1);
 
 	/* This is done because to allow SIGSEGV to be delivered inside a SEGV
 	 * handler.  This can happen in copy_user, and if SEGV is disabled,
