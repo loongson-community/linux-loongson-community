@@ -470,6 +470,9 @@ static irqreturn_t titan_ge_int_handler(int irq, void *dev_id,
 			if (port_num == 1)
 				ack &= ~(0x300);
 
+			if (port_num == 2)
+				ack &= ~(0x30000);
+
 			/* Interrupts have been disabled */
 			TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_IE, ack);
 
@@ -911,6 +914,52 @@ static int titan_ge_port_start(struct net_device *netdev,
 		TITAN_GE_WRITE(0x494c, reg_data);
 	}
 
+	/*
+	 * Titan 1.2 revision does support port #2
+	 */
+	if (port_num == 2) {
+		/*
+		 * Put the descriptors in the SRAM
+		 */
+		reg_data = TITAN_GE_READ(0x48a0);
+
+		reg_data |= 0x100000;
+		reg_data |= (0xff << 10) | (2*(0xff + 1));
+
+		TITAN_GE_WRITE(0x48a0, reg_data);
+		/*
+		 * BAV2,BAV and DAV settings for the Rx FIFO
+		 */
+		reg_data1 = TITAN_GE_READ(0x48a4);
+		reg_data1 |= ( (0x10 << 20) | (0x10 << 10) | 0x1);
+		TITAN_GE_WRITE(0x48a4, reg_data1);
+
+		reg_data &= ~(0x00100000);
+		reg_data |= 0x200000;
+
+		TITAN_GE_WRITE(0x48a0, reg_data);
+		
+		reg_data = TITAN_GE_READ(0x4958);
+		reg_data |= 0x100000;
+
+		TITAN_GE_WRITE(0x4958, reg_data);
+		reg_data |= (0xff << 10) | (2*(0xff + 1));
+		TITAN_GE_WRITE(0x4958, reg_data);
+
+		/*
+		 * BAV2, BAV and DAV settings for the Tx FIFO
+		 */
+		reg_data1 = TITAN_GE_READ(0x495c);
+		reg_data1 = ( (0x1 << 20) | (0x1 << 10) | 0x10);
+
+		TITAN_GE_WRITE(0x495c, reg_data1);
+
+		reg_data &= ~(0x00100000);
+		reg_data |= 0x200000;
+
+		TITAN_GE_WRITE(0x4958, reg_data);
+	}
+
 	if (port_num == 2) {
 		reg_data = TITAN_GE_READ(0x48a0);
 
@@ -1033,6 +1082,9 @@ static int titan_ge_port_start(struct net_device *netdev,
 	if (port_num == 1) {
 		reg_data1 |= 0x300;
 	}
+
+	if (port_num == 2)
+		reg_data1 |= 0x30000;
 
 	TITAN_GE_WRITE(TITAN_GE_INTR_XDMA_IE, reg_data1);
 	TITAN_GE_WRITE(0x003c, 0x300);
@@ -2037,6 +2089,13 @@ static int __init titan_ge_init_module(void)
 	if (titan_ge_init(1))
 		printk(KERN_ERR "Error registering the TITAN Ethernet"
 				"driver for port 1\n");
+
+	/*
+	 * Titan 1.2 does support port #2
+	 */
+	if (titan_ge_init(2))
+		printk(KERN_ERR "Error registering the TITAN Ethernet"
+				"driver for port 2\n");
 
 	return 0;
 
