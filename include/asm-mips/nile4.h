@@ -8,10 +8,8 @@
  *
  *	NEC Vrc 5074 System Controller Data Sheet, June 1998
  *
- *  $Id$
+ *  $Id: nile4.h,v 1.1 2000/01/26 00:07:45 ralf Exp $
  */
-
-#include <asm/addrspace.h>
 
 
 #define NILE4_BASE		0xbfa00000

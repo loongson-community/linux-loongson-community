@@ -30,7 +30,7 @@ extern asmlinkage void i8259_do_irq(int irq, struct pt_regs *regs);
 extern asmlinkage void do_IRQ(int irq, struct pt_regs * regs);
 
 
-static void no_action(int cpl, void *dev_id, struct pt_regs *regs)
+void no_action(int cpl, void *dev_id, struct pt_regs *regs)
 {
 }
 

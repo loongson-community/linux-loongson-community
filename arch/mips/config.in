@@ -57,6 +57,8 @@ if [ "$CONFIG_SNI_RM200_PCI" = "y" ]; then
 fi
 if [ "$CONFIG_DDB5074" = "y" ]; then
    define_bool CONFIG_HAVE_IO_PORTS y
+   define_bool CONFIG_ISA y
+   define_bool CONFIG_PCI y
 fi
 
 if [ "$CONFIG_ISA" != "y" ]; then
