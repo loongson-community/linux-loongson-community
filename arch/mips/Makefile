@@ -357,12 +357,6 @@ core-$(CONFIG_MIPS_IVR)		+= arch/mips/ite-boards/ivr/
 load-$(CONFIG_MIPS_IVR)		+= 0xffffffff80100000
 
 #
-# HP LaserJet
-#
-core-$(CONFIG_HP_LASERJET)	+= arch/mips/hp-lj/
-load-$(CONFIG_HP_LASERJET)	+= 0xffffffff80030000
-
-#
 # ITE 8172 eval board with QED 5231 CPU
 #
 core-$(CONFIG_MIPS_ITE8172)	+= arch/mips/ite-boards/qed-4n-s01b/
