@@ -6,9 +6,9 @@
     *  This module contains constants and macros useful for 
     *  manipulating the SB1250's UARTs
     *
-    *  SB1250 specification level:  01/02/2002
+    *  SB1250 specification level:  User's manual 1/02/02
     *  
-    *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
+    *  Author:  Mitch Lichtenberg (mpl@broadcom.com)
     *  
     *********************************************************************  
     *
@@ -96,6 +96,7 @@
 #define M_DUART_STOP_BIT_LEN_1      0
 
 #define M_DUART_TX_CTS_ENA          _SB_MAKEMASK1(4)
+
 
 #define M_DUART_MODE_RESERVED2      _SB_MAKEMASK1(5)    /* must be zero */
 
@@ -207,6 +208,7 @@
 #define S_DUART_IN_PIN_CHNG         4
 #define M_DUART_IN_PIN_CHNG         _SB_MAKEMASK(4,S_DUART_IN_PIN_CHNG)
 
+
 /*
  * DUART Output port control register (Table 10-14)
  * Register: DUART_OPCR
@@ -228,6 +230,9 @@
 #define M_DUART_IP2_CHNG_ENA        _SB_MAKEMASK1(2)
 #define M_DUART_IP3_CHNG_ENA        _SB_MAKEMASK1(3)
 #define M_DUART_ACR_RESERVED        _SB_MAKEMASK(4,4)
+
+#define M_DUART_CTS_CHNG_ENA        _SB_MAKEMASK1(0)
+#define M_DUART_CIN_CHNG_ENA        _SB_MAKEMASK1(2)
 
 /*
  * DUART Interrupt Status Register (Table 10-16)
@@ -326,9 +331,20 @@
 #define M_DUART_OUT_PIN_CLR(chan) \
     (chan == 0 ? M_DUART_OUT_PIN_CLR0 : M_DUART_OUT_PIN_CLR1)
 
-/*
- * XXX To be added: Synchronous Serial definitions
+/* 
+ * Full Interrupt Control Register (PASS2)
  */
+
+#define S_DUART_SIG_FULL           _SB_MAKE64(0)
+#define M_DUART_SIG_FULL           _SB_MAKEMASK(4,S_DUART_SIG_FULL)
+#define V_DUART_SIG_FULL(x)        _SB_MAKEVALUE(x,S_DUART_SIG_FULL)
+#define G_DUART_SIG_FULL(x)        _SB_GETVALUE(x,S_DUART_SIG_FULL,M_DUART_SIG_FULL)
+
+#define S_DUART_INT_TIME           _SB_MAKE64(4)
+#define M_DUART_INT_TIME           _SB_MAKEMASK(4,S_DUART_INT_TIME)
+#define V_DUART_INT_TIME(x)        _SB_MAKEVALUE(x,S_DUART_INT_TIME)
+#define G_DUART_INT_TIME(x)        _SB_GETVALUE(x,S_DUART_INT_TIME,M_DUART_INT_TIME)
+
 
 /* ********************************************************************** */
 
