@@ -60,6 +60,9 @@ if [ "$CONFIG_UFS_FS" != "n" ]; then
   bool 'BSD disklabel (FreeBSD partition tables) support' CONFIG_BSD_DISKLABEL
   bool 'SMD disklabel (Sun partition tables) support' CONFIG_SMD_DISKLABEL
 fi
+if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
+  tristate 'SGI EFS filesystem support' CONFIG_EFS_FS
+fi
 bool 'Macintosh partition map support' CONFIG_MAC_PARTITION
 endmenu
 

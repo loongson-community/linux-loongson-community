@@ -24,6 +24,7 @@
 #include <linux/ufs_fs.h>
 #include <linux/romfs_fs.h>
 #include <linux/auto_fs.h>
+#include <linux/efs_fs.h>
 #include <linux/major.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
@@ -114,6 +115,10 @@ __initfunc(static void do_sys_setup(void))
 
 #ifdef CONFIG_AUTOFS_FS
 	init_autofs_fs();
+#endif
+
+#ifdef CONFIG_EFS_FS
+	init_efs_fs();
 #endif
 
 	mount_root();
