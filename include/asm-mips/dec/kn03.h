@@ -24,6 +24,10 @@
  */
 #define KN03_IOASIC_BASE	KSEG1ADDR(0x1f840000)	/* I/O ASIC */
 #define KN03_RTC_BASE		KSEG1ADDR(0x1fa00000)	/* RTC */
+#define KN03_MCR_BASE		KSEG1ADDR(0x1fac0000)	/* MCR */
+
+#define KN03_MCR_BNK32M		(1<<10)			/* 32M stride */
+#define KN03_MCR_ECCEN		(1<<13)			/* ECC enabled */
 
 #define KN03_IOASIC_REG(r)	(KN03_IOASIC_BASE+(r))
 
