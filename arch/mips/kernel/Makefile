@@ -32,6 +32,10 @@ ifdef CONFIG_MIPS_FPE_MODULE
 M_OBJS += fpe.o
 endif
 
+ifdef CONFIG_ROTTEN_IRQ
+  OX_OBJS += old-irq.o
+endif
+
 ifndef CONFIG_DECSTATION
   ifndef CONFIG_BAGET_MIPS
     ifndef CONFIG_ORION
@@ -39,11 +43,6 @@ ifndef CONFIG_DECSTATION
 	ifndef CONFIG_MIPS_MALTA
           ifndef CONFIG_MIPS_EV96100
 	    O_OBJS += time.o
-            ifndef CONFIG_SGI_IP22
-              ifndef CONFIG_MIPS_EV96100
-	        OX_OBJS += irq.o
-              endif
-	    endif
           endif
         endif
       endif

@@ -7,6 +7,9 @@
  *
  * Copyright (C) 1992 Linus Torvalds
  * Copyright (C) 1994 - 2000 Ralf Baechle
+ *
+ * Old rotten IRQ code.  To be killed as soon as everybody had converted or
+ * in 2.5.0, whatever comes first.
  */
 #include <linux/config.h>
 #include <linux/errno.h>

@@ -31,6 +31,7 @@ CONFIG_I8259=y
 CONFIG_ISA=y
 CONFIG_PC_KEYB=y
 CONFIG_PCI=y
+CONFIG_ROTTEN_IRQ=y
 
 #
 # Loadable module support
