@@ -565,7 +565,7 @@ void __init trap_init(void)
 {
 	extern char except_vec0;
 	extern char except_vec1_r10k;
-	extern char except_vec2_generic;
+	extern char except_vec2_generic, except_vec2_sb1;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec4;
 	extern void bus_error_init(void);
@@ -609,14 +609,18 @@ void __init trap_init(void)
 	 * Handling the following exceptions depends mostly of the cpu type
 	 */
 	switch(mips_cpu.cputype) {
-	case CPU_R10000:
-		/*
-		 * The R10000 is in most aspects similar to the R4400.  It
-		 * should get some special optimizations.
-		 */
-		write_32bit_cp0_register(CP0_FRAMEMASK, 0);
-		goto r4k;
+        case CPU_SB1:
+#ifdef CONFIG_SB1_CACHE_ERROR
+		/* Special cache error handler for SB1 */
+		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
+		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
+#endif
+		/* Enable timer interrupt and scd mapped interrupt */
+		clear_cp0_status(0xf000);
+		set_cp0_status(0xc00);
+		break;
 
+	case CPU_R10000:
 	case CPU_R4000MC:
 	case CPU_R4400MC:
 	case CPU_R4000SC:

@@ -372,9 +372,10 @@ void __init ld_mmu_andes(void)
 	 *     be set for 4kb pages.
 	 */
 	write_32bit_cp0_register(CP0_PAGEMASK, PM_4K);
+	write_32bit_cp0_register(CP0_FRAMEMASK, 0);
 
         /* From this point on the ARC firmware is dead.  */
 	local_flush_tlb_all();
 
-        /* Did I tell you that ARC SUCKS?  */
+	/* Did I tell you that ARC SUCKS?  */
 }
