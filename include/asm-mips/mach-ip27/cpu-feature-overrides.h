@@ -28,7 +28,6 @@
 
 #define cpu_has_nofpuex		0
 #define cpu_has_64bits		1
-#define cpu_has_64bit_addresses	1
 
 #define cpu_has_subset_pcaches	1
 
