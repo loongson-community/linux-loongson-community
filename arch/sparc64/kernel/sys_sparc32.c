@@ -1,4 +1,4 @@
-/* $Id: sys_sparc32.c,v 1.182 2001/10/18 09:06:36 davem Exp $
+/* $Id: sys_sparc32.c,v 1.184 2002/02/09 19:49:31 davem Exp $
  * sys_sparc32.c: Conversion between 32bit and 64bit native syscalls.
  *
  * Copyright (C) 1997,1998 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -49,6 +49,7 @@
 #include <linux/in.h>
 #include <linux/icmpv6.h>
 #include <linux/sysctl.h>
+#include <linux/binfmts.h>
 
 #include <asm/types.h>
 #include <asm/ipc.h>
@@ -1459,138 +1460,63 @@ out_nofds:
 	return ret;
 }
 
-static int cp_new_stat32(struct inode *inode, struct stat32 *statbuf)
+static int cp_new_stat32(struct kstat *stat, struct stat32 *statbuf)
 {
-	unsigned long ino, blksize, blocks;
-	kdev_t dev, rdev;
-	umode_t mode;
-	nlink_t nlink;
-	uid_t uid;
-	gid_t gid;
-	off_t size;
-	time_t atime, mtime, ctime;
 	int err;
 
-	/* Stream the loads of inode data into the load buffer,
-	 * then we push it all into the store buffer below.  This
-	 * should give optimal cache performance.
-	 */
-	ino = inode->i_ino;
-	dev = inode->i_dev;
-	mode = inode->i_mode;
-	nlink = inode->i_nlink;
-	uid = inode->i_uid;
-	gid = inode->i_gid;
-	rdev = inode->i_rdev;
-	size = inode->i_size;
-	atime = inode->i_atime;
-	mtime = inode->i_mtime;
-	ctime = inode->i_ctime;
-	blksize = inode->i_blksize;
-	blocks = inode->i_blocks;
-
-	err  = put_user(kdev_t_to_nr(dev), &statbuf->st_dev);
-	err |= put_user(ino, &statbuf->st_ino);
-	err |= put_user(mode, &statbuf->st_mode);
-	err |= put_user(nlink, &statbuf->st_nlink);
-	err |= put_user(high2lowuid(uid), &statbuf->st_uid);
-	err |= put_user(high2lowgid(gid), &statbuf->st_gid);
-	err |= put_user(kdev_t_to_nr(rdev), &statbuf->st_rdev);
-	err |= put_user(size, &statbuf->st_size);
-	err |= put_user(atime, &statbuf->st_atime);
+	err  = put_user(stat->dev, &statbuf->st_dev);
+	err |= put_user(stat->ino, &statbuf->st_ino);
+	err |= put_user(stat->mode, &statbuf->st_mode);
+	err |= put_user(stat->nlink, &statbuf->st_nlink);
+	err |= put_user(high2lowuid(stat->uid), &statbuf->st_uid);
+	err |= put_user(high2lowgid(stat->gid), &statbuf->st_gid);
+	err |= put_user(stat->rdev, &statbuf->st_rdev);
+	err |= put_user(stat->size, &statbuf->st_size);
+	err |= put_user(stat->atime, &statbuf->st_atime);
 	err |= put_user(0, &statbuf->__unused1);
-	err |= put_user(mtime, &statbuf->st_mtime);
+	err |= put_user(stat->mtime, &statbuf->st_mtime);
 	err |= put_user(0, &statbuf->__unused2);
-	err |= put_user(ctime, &statbuf->st_ctime);
+	err |= put_user(stat->ctime, &statbuf->st_ctime);
 	err |= put_user(0, &statbuf->__unused3);
-	if (blksize) {
-		err |= put_user(blksize, &statbuf->st_blksize);
-		err |= put_user(blocks, &statbuf->st_blocks);
-	} else {
-		unsigned int tmp_blocks;
-
-#define D_B   7
-#define I_B   (BLOCK_SIZE / sizeof(unsigned short))
-		tmp_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-		if (tmp_blocks > D_B) {
-			unsigned int indirect;
-
-			indirect = (tmp_blocks - D_B + I_B - 1) / I_B;
-			tmp_blocks += indirect;
-			if (indirect > 1) {
-				indirect = (indirect - 1 + I_B - 1) / I_B;
-				tmp_blocks += indirect;
-				if (indirect > 1)
-					tmp_blocks++;
-			}
-		}
-		err |= put_user(BLOCK_SIZE, &statbuf->st_blksize);
-		err |= put_user((BLOCK_SIZE / 512) * tmp_blocks, &statbuf->st_blocks);
-#undef D_B
-#undef I_B
-	}
+	err |= put_user(stat->blksize, &statbuf->st_blksize);
+	err |= put_user(stat->blocks, &statbuf->st_blocks);
 	err |= put_user(0, &statbuf->__unused4[0]);
 	err |= put_user(0, &statbuf->__unused4[1]);
 
 	return err;
 }
 
-/* Perhaps this belongs in fs.h or similar. -DaveM */
-static __inline__ int
-do_revalidate(struct dentry *dentry)
-{
-	struct inode * inode = dentry->d_inode;
-	if (inode->i_op && inode->i_op->revalidate)
-		return inode->i_op->revalidate(dentry);
-	return 0;
-}
-
 asmlinkage int sys32_newstat(char * filename, struct stat32 *statbuf)
 {
-	struct nameidata nd;
-	int error;
+	struct kstat stat;
+	int error = vfs_stat(filename, &stat);
 
-	error = user_path_walk(filename, &nd);
-	if (!error) {
-		error = do_revalidate(nd.dentry);
-		if (!error)
-			error = cp_new_stat32(nd.dentry->d_inode, statbuf);
-		path_release(&nd);
-	}
+	if (!error)
+		error = cp_new_stat32(&stat, statbuf);
+
 	return error;
 }
 
 asmlinkage int sys32_newlstat(char * filename, struct stat32 *statbuf)
 {
-	struct nameidata nd;
-	int error;
+	struct kstat stat;
+	int error = vfs_lstat(filename, &stat);
 
-	error = user_path_walk_link(filename, &nd);
-	if (!error) {
-		error = do_revalidate(nd.dentry);
-		if (!error)
-			error = cp_new_stat32(nd.dentry->d_inode, statbuf);
+	if (!error)
+		error = cp_new_stat32(&stat, statbuf);
 
-		path_release(&nd);
-	}
 	return error;
 }
 
 asmlinkage int sys32_newfstat(unsigned int fd, struct stat32 *statbuf)
 {
-	struct file *f;
-	int err = -EBADF;
+	struct kstat stat;
+	int error = vfs_fstat(fd, &stat);
 
-	f = fget(fd);
-	if (f) {
-		struct dentry * dentry = f->f_dentry;
+	if (!error)
+		error = cp_new_stat32(&stat, statbuf);
 
-		err = do_revalidate(dentry);
-		if (!err)
-			err = cp_new_stat32(dentry->d_inode, statbuf);
-		fput(f);
-	}
-	return err;
+	return error;
 }
 
 extern asmlinkage int sys_sysfs(int option, unsigned long arg1, unsigned long arg2);
@@ -2801,8 +2727,8 @@ asmlinkage int sys32_sigaction (int sig, struct old_sigaction32 *act, struct old
         struct k_sigaction new_ka, old_ka;
         int ret;
 
-	if(sig < 0) {
-		current->thread.flags |= SPARC_FLAG_NEWSIGNALS;
+	if (sig < 0) {
+		set_thread_flag(TIF_NEWSIGNALS);
 		sig = -sig;
 	}
 
@@ -2846,7 +2772,7 @@ sys32_rt_sigaction(int sig, struct sigaction32 *act, struct sigaction32 *oact,
 	/* All tasks which use RT signals (effectively) use
 	 * new style signals.
 	 */
-	current->thread.flags |= SPARC_FLAG_NEWSIGNALS;
+	set_thread_flag(TIF_NEWSIGNALS);
 
         if (act) {
 		new_ka.ka_restorer = restorer;
@@ -3069,8 +2995,8 @@ asmlinkage int sparc32_execve(struct pt_regs *regs)
 
 	if(!error) {
 		fprs_write(0);
-		current->thread.xfsr[0] = 0;
-		current->thread.fpsaved[0] = 0;
+		current_thread_info()->xfsr[0] = 0;
+		current_thread_info()->fpsaved[0] = 0;
 		regs->tstate &= ~TSTATE_PEF;
 	}
 out:

@@ -16,7 +16,7 @@
 #include <linux/threads.h>
 #include <linux/irq.h>
 
-#define smp_processor_id()	(current->cpu)
+#define smp_processor_id()	(current_thread_info()->cpu)
 
 /* Map from cpu id to sequential logical cpu number.  This will only
    not be idempotent when cpus failed to come on-line.  */

@@ -155,13 +155,14 @@ void nbd_send_req(struct socket *sock, struct request *req)
 	unsigned long size = req->nr_sectors << 9;
 
 	DEBUG("NBD: sending control, ");
+	
+	rw = rq_data_dir(req);
+	
 	request.magic = htonl(NBD_REQUEST_MAGIC);
-	request.type = htonl(req->flags);
+	request.type = htonl((rw & WRITE) ? 1 : 0);
 	request.from = cpu_to_be64( (u64) req->sector << 9);
 	request.len = htonl(size);
 	memcpy(request.handle, &req, sizeof(req));
-
-	rw = rq_data_dir(req);
 
 	result = nbd_xmit(1, sock, (char *) &request, sizeof(request), rw & WRITE ? MSG_MORE : 0);
 	if (result <= 0)
@@ -417,10 +418,13 @@ static int nbd_ioctl(struct inode *inode, struct file *file,
 		file = fget(arg);
 		if (file) {
 			inode = file->f_dentry->d_inode;
-			/* N.B. Should verify that it's a socket */
-			lo->file = file;
-			lo->sock = &inode->u.socket_i;
-			error = 0;
+			if (inode->i_sock) {
+				lo->file = file;
+				lo->sock = SOCKET_I(inode);
+				error = 0;
+			} else {
+				fput(file);
+			}
 		}
 		return error;
 	case NBD_SET_BLKSIZE:

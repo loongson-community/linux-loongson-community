@@ -281,6 +281,11 @@ int cb_alloc(socket_info_t * s)
 
 		pci_setup_device(dev);
 
+		dev->dev.parent = bus->dev;
+		strcpy(dev->dev.name, dev->name);
+		strcpy(dev->dev.bus_id, dev->slot_name);
+		device_register(&dev->dev);
+
 		/* FIXME: Do we need to enable the expansion ROM? */
 		for (r = 0; r < 7; r++) {
 			struct resource *res = dev->resource + r;

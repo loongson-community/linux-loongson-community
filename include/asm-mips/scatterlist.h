@@ -2,8 +2,7 @@
 #define __ASM_SCATTERLIST_H
 
 struct scatterlist {
-	char * address;		/* Location data is to be transferred to */
-	struct page * page;	/* Location for highmem page, if any */
+	struct page * page;
 	unsigned int offset;
 	unsigned int length;
 	__u32 dvma_address;
@@ -16,6 +15,6 @@ struct mmu_sglist {
 	__u32 dvma_addr;
 };
 
-#define ISA_DMA_THRESHOLD (0x00ffffff)
+#define ISA_DMA_THRESHOLD (0x00ffffffUL)
 
 #endif /* __ASM_SCATTERLIST_H */

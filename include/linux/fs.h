@@ -91,7 +91,6 @@ extern int leases_enable, dir_notify_enable, lease_break_time;
 #define FS_NO_PRELIM	4 /* prevent preloading of dentries, even if
 			   * FS_NO_DCACHE is not set.
 			   */
-#define FS_SINGLE	8 /* Filesystem that can have only one superblock */
 #define FS_NOMOUNT	16 /* Never mount from userland */
 #define FS_LITTER	32 /* Keeps the tree in dcache */
 #define FS_ODD_RENAME	32768	/* Temporary stuff; will go away as soon
@@ -208,6 +207,7 @@ extern void update_atime (struct inode *);
 extern void buffer_init(unsigned long);
 extern void inode_init(unsigned long);
 extern void mnt_init(unsigned long);
+extern void files_init(unsigned long);
 
 /* bh state bits */
 enum bh_state_bits {
@@ -289,7 +289,6 @@ extern void set_bh_page(struct buffer_head *bh, struct page *page, unsigned long
 #include <linux/pipe_fs_i.h>
 /* #include <linux/umsdos_fs_i.h> */
 #include <linux/romfs_fs_i.h>
-#include <linux/proc_fs_i.h>
 #include <linux/cramfs_fs_sb.h>
 
 /*
@@ -455,11 +454,24 @@ struct inode {
 	union {
 		/* struct umsdos_inode_info	umsdos_i; */
 		struct romfs_inode_info		romfs_i;
-		struct proc_inode_info		proc_i;
-		struct socket			socket_i;
 		void				*generic_ip;
 	} u;
 };
+
+struct socket_alloc {
+	struct socket socket;
+	struct inode vfs_inode;
+};
+
+static inline struct socket *SOCKET_I(struct inode *inode)
+{
+	return &list_entry(inode, struct socket_alloc, vfs_inode)->socket;
+}
+
+static inline struct inode *SOCK_INODE(struct socket *socket)
+{
+	return &list_entry(socket, struct socket_alloc, socket)->vfs_inode;
+}
 
 #include <linux/shmem_fs.h>
 /* will die */
@@ -506,6 +518,14 @@ extern spinlock_t files_lock;
 extern int init_private_file(struct file *, struct dentry *, int);
 
 #define	MAX_NON_LFS	((1UL<<31) - 1)
+
+/* Page cache limit. The filesystems should put that into their s_maxbytes 
+   limits, otherwise bad things can happen in VM. */ 
+#if BITS_PER_LONG==32
+#define MAX_LFS_FILESIZE	(((u64)PAGE_CACHE_SIZE << (BITS_PER_LONG-1))-1) 
+#elif BITS_PER_LONG==64
+#define MAX_LFS_FILESIZE 	0x7fffffffffffffff
+#endif
 
 #define FL_POSIX	1
 #define FL_FLOCK	2
@@ -917,22 +937,21 @@ struct dquot_operations {
 struct file_system_type {
 	const char *name;
 	int fs_flags;
-	struct super_block *(*read_super) (struct super_block *, void *, int);
+	struct super_block *(*get_sb) (struct file_system_type *, int, char *, void *);
 	struct module *owner;
 	struct file_system_type * next;
 	struct list_head fs_supers;
 };
 
-#define DECLARE_FSTYPE(var,type,read,flags) \
-struct file_system_type var = { \
-	name:		type, \
-	read_super:	read, \
-	fs_flags:	flags, \
-	owner:		THIS_MODULE, \
-}
-
-#define DECLARE_FSTYPE_DEV(var,type,read) \
-	DECLARE_FSTYPE(var,type,read,FS_REQUIRES_DEV)
+struct super_block *get_sb_bdev(struct file_system_type *fs_type,
+	int flags, char *dev_name, void * data,
+	int (*fill_super)(struct super_block *, void *, int));
+struct super_block *get_sb_single(struct file_system_type *fs_type,
+	int flags, void *data,
+	int (*fill_super)(struct super_block *, void *, int));
+struct super_block *get_sb_nodev(struct file_system_type *fs_type,
+	int flags, void *data,
+	int (*fill_super)(struct super_block *, void *, int));
 
 /* Alas, no aliases. Too much hassle with bringing module.h everywhere */
 #define fops_get(fops) \
@@ -1238,28 +1257,7 @@ extern struct file * open_exec(const char *);
 extern int is_subdir(struct dentry *, struct dentry *);
 extern ino_t find_inode_number(struct dentry *, struct qstr *);
 
-/*
- * Kernel pointers have redundant information, so we can use a
- * scheme where we can return either an error code or a dentry
- * pointer with the same return value.
- *
- * This should be a per-architecture thing, to allow different
- * error and pointer decisions.
- */
-static inline void *ERR_PTR(long error)
-{
-	return (void *) error;
-}
-
-static inline long PTR_ERR(const void *ptr)
-{
-	return (long) ptr;
-}
-
-static inline long IS_ERR(const void *ptr)
-{
-	return (unsigned long)ptr > (unsigned long)-1000L;
-}
+#include <linux/err.h>
 
 /*
  * The bitmask for a lookup event:
@@ -1449,6 +1447,7 @@ extern ssize_t generic_file_write(struct file *, const char *, size_t, loff_t *)
 extern void do_generic_file_read(struct file *, loff_t *, read_descriptor_t *, read_actor_t);
 extern loff_t no_llseek(struct file *file, loff_t offset, int origin);
 extern loff_t generic_file_llseek(struct file *file, loff_t offset, int origin);
+extern loff_t remote_llseek(struct file *file, loff_t offset, int origin);
 extern ssize_t generic_read_dir(struct file *, char *, size_t, loff_t *);
 extern int generic_file_open(struct inode * inode, struct file * filp);
 
@@ -1463,6 +1462,10 @@ extern struct inode_operations page_symlink_inode_operations;
 extern int vfs_readdir(struct file *, filldir_t, void *);
 extern int dcache_readdir(struct file *, void *, filldir_t);
 
+extern int vfs_stat(char *, struct kstat *);
+extern int vfs_lstat(char *, struct kstat *);
+extern int vfs_fstat(unsigned int, struct kstat *);
+
 extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
 extern void drop_super(struct super_block *sb);
@@ -1475,8 +1478,6 @@ static inline int is_mounted(kdev_t dev)
 	}
 	return 0;
 }
-unsigned long generate_cluster(kdev_t, int b[], int);
-unsigned long generate_cluster_swab32(kdev_t, int b[], int);
 extern kdev_t ROOT_DEV;
 extern char root_device_name[];
 

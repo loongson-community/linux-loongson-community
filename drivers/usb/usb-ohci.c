@@ -68,6 +68,7 @@
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/unaligned.h>
+#include <asm/byteorder.h>
 
 #define OHCI_USE_NPS		// force NoPowerSwitching mode
 // #define OHCI_VERBOSE_DEBUG	/* not always helpful */
@@ -532,7 +533,7 @@ static int sohci_return_urb (struct ohci *hc, struct urb * urb)
 
 /* get a transfer request */
  
-static int sohci_submit_urb (struct urb * urb)
+static int sohci_submit_urb (struct urb * urb, int mem_flags)
 {
 	ohci_t * ohci;
 	ed_t * ed;
@@ -542,7 +543,6 @@ static int sohci_submit_urb (struct urb * urb)
 	int i, size = 0;
 	unsigned long flags;
 	int bustime = 0;
-	int mem_flags = ALLOC_FLAGS;
 	
 	if (!urb->dev || !urb->dev->bus)
 		return -ENODEV;
@@ -612,8 +612,7 @@ static int sohci_submit_urb (struct urb * urb)
 	}
 
 	/* allocate the private part of the URB */
-	urb_priv = kmalloc (sizeof (urb_priv_t) + size * sizeof (td_t *), 
-							in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
+	urb_priv = kmalloc (sizeof (urb_priv_t) + size * sizeof (td_t *), mem_flags);
 	if (!urb_priv) {
 		usb_dec_dev_use (urb->dev);	
 		return -ENOMEM;
@@ -919,11 +918,11 @@ static int sohci_get_current_frame_number (struct usb_device *usb_dev)
 /*-------------------------------------------------------------------------*/
 
 struct usb_operations sohci_device_operations = {
-	sohci_alloc_dev,
-	sohci_free_dev,
-	sohci_get_current_frame_number,
-	sohci_submit_urb,
-	sohci_unlink_urb
+	allocate:		sohci_alloc_dev,
+	deallocate:		sohci_free_dev,
+	get_frame_number:	sohci_get_current_frame_number,
+	submit_urb:		sohci_submit_urb,
+	unlink_urb:		sohci_unlink_urb,
 };
 
 /*-------------------------------------------------------------------------*
@@ -2233,7 +2232,7 @@ static int hc_start (ohci_t * ohci)
 	dev = usb_to_ohci (usb_dev);
 	ohci->bus->root_hub = usb_dev;
 	usb_connect (usb_dev);
-	if (usb_new_device (usb_dev) != 0) {
+	if (usb_register_root_hub (usb_dev, &ohci->ohci_dev->dev) != 0) {
 		usb_free_dev (usb_dev); 
 		ohci->disabled = 1;
 		return -ENODEV;

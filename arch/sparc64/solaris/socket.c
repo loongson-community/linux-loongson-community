@@ -1,4 +1,4 @@
-/* $Id: socket.c,v 1.5 2001/02/13 01:16:44 davem Exp $
+/* $Id: socket.c,v 1.6 2002/02/08 03:57:14 davem Exp $
  * socket.c: Socket syscall emulation for Solaris 2.6+
  *
  * Copyright (C) 1998 Jakub Jelinek (jj@ultra.linux.cz)
@@ -248,12 +248,6 @@ asmlinkage int solaris_getsockname(int fd, struct sockaddr *addr, int *addrlen)
 					   24 for IPv6,
 					   about 80 for AX.25 */
 
-/* XXX These as well... */
-extern __inline__ struct socket *socki_lookup(struct inode *inode)
-{
-	return &inode->u.socket_i;
-}
-
 extern __inline__ struct socket *sockfd_lookup(int fd, int *err)
 {
 	struct file *file;
@@ -265,13 +259,13 @@ extern __inline__ struct socket *sockfd_lookup(int fd, int *err)
 	}
 
 	inode = file->f_dentry->d_inode;
-	if (!inode->i_sock || !socki_lookup(inode)) {
+	if (!inode->i_sock) {
 		*err = -ENOTSOCK;
 		fput(file);
 		return NULL;
 	}
 
-	return socki_lookup(inode);
+	return SOCKET_I(inode);
 }
 
 extern __inline__ void sockfd_put(struct socket *sock)

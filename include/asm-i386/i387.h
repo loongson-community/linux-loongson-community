@@ -12,6 +12,7 @@
 #define __ASM_I386_I387_H
 
 #include <linux/sched.h>
+#include <linux/spinlock.h>
 #include <asm/processor.h>
 #include <asm/sigcontext.h>
 #include <asm/user.h>
@@ -24,20 +25,21 @@ extern void save_init_fpu( struct task_struct *tsk );
 extern void restore_fpu( struct task_struct *tsk );
 
 extern void kernel_fpu_begin(void);
-#define kernel_fpu_end() stts()
+#define kernel_fpu_end() do { stts(); preempt_enable(); } while(0)
 
 
 #define unlazy_fpu( tsk ) do { \
-	if ( tsk->flags & PF_USEDFPU ) \
+	if (test_tsk_thread_flag(tsk, TIF_USEDFPU)) \
 		save_init_fpu( tsk ); \
 } while (0)
 
-#define clear_fpu( tsk ) do { \
-	if ( tsk->flags & PF_USEDFPU ) { \
-		asm volatile("fwait"); \
-		tsk->flags &= ~PF_USEDFPU; \
-		stts(); \
-	} \
+#define clear_fpu( tsk )					\
+do {								\
+	if (test_tsk_thread_flag(tsk, TIF_USEDFPU)) {		\
+		asm volatile("fwait");				\
+		clear_tsk_thread_flag(tsk, TIF_USEDFPU);	\
+		stts();						\
+	}							\
 } while (0)
 
 /*

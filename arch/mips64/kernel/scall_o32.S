@@ -14,7 +14,6 @@
  */
 #include <asm/asm.h>
 #include <linux/errno.h>
-#include <asm/current.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -54,7 +53,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	bgez	t0, stackargs
 
 stack_done:
-		lbu	t0, TASK_SYSCALL_TRACE($28)
+		lw	t0, TI_FLAGS($28)
 						# syscall tracing enabled?
 		bnez	t0, trace_a_syscall
 
@@ -76,7 +75,7 @@ FEXPORT(o32_syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# current->work
+		lw	a2, TI_FLAGS($28)
 		bnez	a2, o32_syscall_exit_work
 
 restore_all:	RESTORE_SOME
@@ -184,7 +183,7 @@ LEAF(mips_atomic_set)
 		andi	v0, a1, 3		# must be word aligned
 		bnez	v0, bad_alignment
 
-		ld	v1, THREAD_CURDS($28)	# in legal address range?
+		ld	v1, TI_ADDR_LIMIT($28)	# in legal address range?
 		daddiu	a0, a1, 4
 		or	a0, a0, a1
 		and	a0, a0, v1
@@ -204,9 +203,8 @@ LEAF(mips_atomic_set)
 1:		sd	v0, PT_R2(sp)		# result
 
 		/* Success, so skip usual error handling garbage.  */
-		lbu	t0, TASK_SYSCALL_TRACE($28)
-						# syscall tracing enabled?
-		bnez	t0, 1f
+		lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+		bltz	t0, 1f
 		b	o32_syscall_exit
 
 1:		SAVE_STATIC
@@ -453,6 +451,7 @@ LEAF(sys32_sysmips)
 	sys	sys_ni_syscall	0
 	sys	sys_gettid	0
 	sys	sys32_readahead	5
+	sys	sys_tkill	2
 	.endm
 
 	.macro	sys function, nargs

@@ -16,7 +16,7 @@
  */
 
 #include <linux/config.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/fcntl.h>
@@ -171,7 +171,7 @@ nfs_readpage_async(struct file *file, struct inode *inode, struct page *page)
 	struct nfs_inode *nfsi = NFS_I(inode);
 	struct nfs_page	*new;
 
-	new = nfs_create_request(file, inode, page, 0, PAGE_CACHE_SIZE);
+	new = nfs_create_request(nfs_file_cred(file), inode, page, 0, PAGE_CACHE_SIZE);
 	if (IS_ERR(new))
 		return PTR_ERR(new);
 	nfs_mark_request_read(new);
@@ -227,8 +227,9 @@ nfs_async_read_error(struct list_head *head)
 		nfs_list_remove_request(req);
 		SetPageError(page);
 		UnlockPage(page);
-		nfs_unlock_request(req);
+		nfs_clear_request(req);
 		nfs_release_request(req);
+		nfs_unlock_request(req);
 	}
 }
 
@@ -433,6 +434,7 @@ nfs_readpage_result(struct rpc_task *task)
                         (long long)NFS_FILEID(req->wb_inode),
                         req->wb_bytes,
                         (long long)(page_offset(page) + req->wb_offset));
+		nfs_clear_request(req);
 		nfs_release_request(req);
 		nfs_unlock_request(req);
 	}
@@ -450,18 +452,8 @@ nfs_readpage_result(struct rpc_task *task)
 int
 nfs_readpage(struct file *file, struct page *page)
 {
-	struct inode *inode;
+	struct inode *inode = page->mapping->host;
 	int		error;
-
-	if (!file) {
-		struct address_space *mapping = page->mapping;
-		if (!mapping)
-			BUG();
-		inode = mapping->host;
-	} else
-		inode = file->f_dentry->d_inode;
-	if (!inode)
-		BUG();
 
 	dprintk("NFS: nfs_readpage (%p %ld@%lu)\n",
 		page, PAGE_CACHE_SIZE, page->index);

@@ -31,7 +31,7 @@ typedef struct {
  * We make no fairness assumptions.  They have a cost.
  */
 
-static inline void spin_lock(spinlock_t *lock)
+static inline void _raw_spin_lock(spinlock_t *lock)
 {
 	unsigned int tmp;
 
@@ -49,7 +49,7 @@ static inline void spin_lock(spinlock_t *lock)
 	: "memory");
 }
 
-static inline void spin_unlock(spinlock_t *lock)
+static inline void _raw_spin_unlock(spinlock_t *lock)
 {
 	__asm__ __volatile__(
 	".set\tnoreorder\t\t\t# spin_unlock\n\t"
@@ -80,7 +80,7 @@ typedef struct {
 
 #define rwlock_init(x)  do { *(x) = RW_LOCK_UNLOCKED; } while(0)
 
-static inline void read_lock(rwlock_t *rw)
+static inline void _raw_read_lock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
@@ -101,7 +101,7 @@ static inline void read_lock(rwlock_t *rw)
 /* Note the use of sub, not subu which will make the kernel die with an
    overflow exception if we ever try to unlock an rwlock that is already
    unlocked or is being held by a writer.  */
-static inline void read_unlock(rwlock_t *rw)
+static inline void _raw_read_unlock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
@@ -118,7 +118,7 @@ static inline void read_unlock(rwlock_t *rw)
 	: "memory");
 }
 
-static inline void write_lock(rwlock_t *rw)
+static inline void _raw_write_lock(rwlock_t *rw)
 {
 	unsigned int tmp;
 
@@ -136,7 +136,7 @@ static inline void write_lock(rwlock_t *rw)
 	: "memory");
 }
 
-static inline void write_unlock(rwlock_t *rw)
+static inline void _raw_write_unlock(rwlock_t *rw)
 {
 	__asm__ __volatile__(
 	".set\tnoreorder\t\t\t# write_unlock\n\t"

@@ -55,7 +55,7 @@
 #include <linux/config.h>
 #include <linux/types.h>
 #include <linux/errno.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/kernel.h>
 #include <linux/kernel_stat.h>
 #include <linux/tty.h>
@@ -391,7 +391,7 @@ int proc_pid_stat(struct task_struct *task, char * buffer)
 		task->nswap,
 		task->cnswap,
 		task->exit_signal,
-		task->cpu);
+		task->thread_info->cpu);
 	if(mm)
 		mmput(mm);
 	return res;

@@ -213,9 +213,10 @@ static inline int pci_map_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 	/* Make sure that gcc doesn't leave the empty loop body.  */
 	for (i = 0; i < nents; i++, sg++) {
 #ifdef CONFIG_NONCOHERENT_IO
-		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
+		dma_cache_wback_inv((unsigned long)page_address(sg->page),
+		                    sg->length);
 #endif
-		sg->address = (char *)(bus_to_baddr[hwdev->bus->number] | __pa(sg->address));
+	//	sg->address = (char *)(bus_to_baddr[hwdev->bus->number] | __pa(sg->address));
 	}
 
 	return nents;
@@ -277,7 +278,8 @@ static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
 	/*  Make sure that gcc doesn't leave the empty loop body.  */
 #ifdef CONFIG_NONCOHERENT_IO
 	for (i = 0; i < nelems; i++, sg++)
-		dma_cache_wback_inv((unsigned long)sg->address, sg->length);
+		dma_cache_wback_inv((unsigned long)page_address(sg->page),
+		                    sg->length);
 #endif
 }
 #endif /* CONFIG_MAPPED_PCI_IO  */

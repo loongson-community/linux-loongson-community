@@ -45,7 +45,7 @@
 #include <asm/uaccess.h>
 #include <asm/system.h>
 
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <asm/semaphore.h>
 
 #include <linux/vmalloc.h>
@@ -797,7 +797,7 @@ static void remove_all_from_journal_list(struct super_block *p_s_sb, struct reis
   while(cn) {
     if (cn->blocknr != 0) {
       if (debug) {
-        printk("block %lu, bh is %d, state %d\n", cn->blocknr, cn->bh ? 1: 0, 
+        printk("block %lu, bh is %d, state %ld\n", cn->blocknr, cn->bh ? 1: 0, 
 	        cn->state) ;
       }
       cn->state = 0 ;

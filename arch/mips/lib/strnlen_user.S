@@ -27,7 +27,7 @@
  *       bytes.  There's nothing secret there ...
  */
 LEAF(__strnlen_user_asm)
-	lw	v0, THREAD_CURDS($28)	# pointer ok?
+	lw	v0, TI_ADDR_LIMIT($28)	# pointer ok?
 	and	v0, a0
 	bltz	v0, fault
 

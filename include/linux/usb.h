@@ -1,6 +1,8 @@
 #ifndef __LINUX_USB_H
 #define __LINUX_USB_H
 
+#include <linux/device.h>
+
 /* USB constants */
 
 /*
@@ -260,6 +262,7 @@ struct usb_interface {
 	int max_altsetting;             /* total memory allocated */
  
 	struct usb_driver *driver;	/* driver */
+	struct device dev;		/* interface specific device info */
 	void *private_data;
 };
 
@@ -857,7 +860,7 @@ extern struct urb *usb_alloc_urb(int iso_packets);
 extern void usb_free_urb(struct urb *urb);
 #define usb_put_urb usb_free_urb
 extern struct urb *usb_get_urb(struct urb *urb);
-extern int usb_submit_urb(struct urb *urb);
+extern int usb_submit_urb(struct urb *urb, int mem_flags);
 extern int usb_unlink_urb(struct urb *urb);
 
 /*-------------------------------------------------------------------*
@@ -906,7 +909,7 @@ struct usb_operations {
 	int (*allocate)(struct usb_device *);
 	int (*deallocate)(struct usb_device *);
 	int (*get_frame_number) (struct usb_device *usb_dev);
-	int (*submit_urb) (struct urb *urb);
+	int (*submit_urb) (struct urb *urb, int mem_flags);
 	int (*unlink_urb) (struct urb *urb);
 };
 
@@ -945,6 +948,7 @@ extern struct usb_bus *usb_alloc_bus(struct usb_operations *);
 extern void usb_free_bus(struct usb_bus *);
 extern void usb_register_bus(struct usb_bus *);
 extern void usb_deregister_bus(struct usb_bus *);
+extern int usb_register_root_hub(struct usb_device *usb_dev, struct device *parent_dev);
 
 extern int usb_check_bandwidth (struct usb_device *dev, struct urb *urb);
 extern void usb_claim_bandwidth (struct usb_device *dev, struct urb *urb,
@@ -1040,6 +1044,8 @@ struct usb_device {
 
 	struct usb_device *parent;
 	struct usb_bus *bus;		/* Bus we're part of */
+
+	struct device dev;		/* Generic device interface */
 
 	struct usb_device_descriptor descriptor;/* Descriptor */
 	struct usb_config_descriptor *config;	/* All of the configs */

@@ -162,13 +162,6 @@ static inline int null_set_power_state(struct pci_dev *dev, int state)
 									(dev)->watchdog_timeo = (tm); \
 								} while(0)
 
-#ifndef PCI_DEVICE_ID_INTEL_ID1029
-#define PCI_DEVICE_ID_INTEL_ID1029 0x1029
-#endif
-#ifndef PCI_DEVICE_ID_INTEL_ID1030
-#define PCI_DEVICE_ID_INTEL_ID1030 0x1030
-#endif
-
 
 static int speedo_debug = 1;
 
@@ -833,6 +826,10 @@ static int speedo_found1(struct pci_dev *pdev,
 	sp->phy[0] = eeprom[6];
 	sp->phy[1] = eeprom[7];
 	sp->rx_bug = (eeprom[3] & 0x03) == 3 ? 0 : 1;
+	if (((pdev->device > 0x1030 && (pdev->device < 0x1039))) 
+	    || (pdev->device == 0x2449)) {
+	    	sp->chip_id = 1;
+	}
 
 	if (sp->rx_bug)
 		printk(KERN_INFO "  Receiver lock-up workaround activated.\n");
@@ -987,6 +984,11 @@ speedo_open(struct net_device *dev)
 	if ((sp->phy[0] & 0x8000) == 0)
 		sp->advertising = mdio_read(ioaddr, sp->phy[0] & 0x1f, 4);
 
+	if (mdio_read(ioaddr, sp->phy[0] & 0x1f, MII_BMSR) & BMSR_LSTATUS)
+		netif_carrier_on(dev);
+	else
+		netif_carrier_off(dev);
+
 	if (speedo_debug > 2) {
 		printk(KERN_DEBUG "%s: Done speedo_open(), status %8.8x.\n",
 			   dev->name, inw(ioaddr + SCBStatus));
@@ -1098,10 +1100,10 @@ static void speedo_timer(unsigned long data)
 			/* Clear sticky bit. */
 			mdio_read(ioaddr, phy_num, 1);
 			/* If link beat has returned... */
-			if (mdio_read(ioaddr, phy_num, 1) & 0x0004)
-				dev->flags |= IFF_RUNNING;
+			if (mdio_read(ioaddr, phy_num, MII_BMSR) & BMSR_LSTATUS)
+				netif_carrier_on(dev);
 			else
-				dev->flags &= ~IFF_RUNNING;
+				netif_carrier_off(dev);
 		}
 	}
 	if (speedo_debug > 3) {
@@ -1375,7 +1377,7 @@ speedo_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* workaround for hardware bug on 10 mbit half duplex */
 
-	if ((sp->partner==0) && (sp->chip_id==1)) {
+	if ((sp->partner == 0) || (sp->chip_id == 1)) {
 		wait_for_cmd_done(ioaddr + SCBCmd);
 		outb(0 , ioaddr + SCBCmd);
 	}
@@ -2263,18 +2265,24 @@ static void __devexit eepro100_remove_one (struct pci_dev *pdev)
 static struct pci_device_id eepro100_pci_tbl[] __devinitdata = {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82557,
 		PCI_ANY_ID, PCI_ANY_ID, },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82562ET,
-		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82559ER,
-		PCI_ANY_ID, PCI_ANY_ID, },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801CAM,
-		PCI_ANY_ID, PCI_ANY_ID, },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ID1029,
-		PCI_ANY_ID, PCI_ANY_ID, },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ID1030,
 		PCI_ANY_ID, PCI_ANY_ID, },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801BA_7,
 		PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1029, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1030, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1031, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1032, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1033, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1034, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1035, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1036, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1037, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1038, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1227, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x1228, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x5200, PCI_ANY_ID, PCI_ANY_ID, },
+	{ PCI_VENDOR_ID_INTEL, 0x5201, PCI_ANY_ID, PCI_ANY_ID, },
 	{ 0,}
 };
 MODULE_DEVICE_TABLE(pci, eepro100_pci_tbl);

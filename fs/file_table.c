@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/smp_lock.h>
 #include <linux/iobuf.h>
+#include <linux/fs.h>
 
 /* sysctl tunables... */
 struct files_stat_struct files_stat = {0, 0, NR_FILE};
@@ -186,3 +187,17 @@ too_bad:
 	file_list_unlock();
 	return 0;
 }
+
+void __init files_init(unsigned long mempages)
+{ 
+	int n; 
+	/* One file with associated inode and dcache is very roughly 1K. 
+	 * Per default don't use more than 10% of our memory for files. 
+	 */ 
+
+	n = (mempages * (PAGE_SIZE / 1024)) / 10;
+	files_stat.max_files = n; 
+	if (files_stat.max_files < NR_FILE)
+		files_stat.max_files = NR_FILE;
+} 
+

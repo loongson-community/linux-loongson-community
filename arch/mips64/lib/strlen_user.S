@@ -23,7 +23,7 @@
  * Return 0 for error
  */
 LEAF(__strlen_user_asm)
-	ld	v0, THREAD_CURDS($28)			# pointer ok?
+	ld	v0, TI_ADDR_LIMIT($28)			# pointer ok?
 	and	v0, a0
 	bltz	v0, fault
 

@@ -54,11 +54,13 @@ struct svc_client {
 	int			cl_naddr;
 	struct in_addr		cl_addr[NFSCLNT_ADDRMAX];
 	struct svc_uidmap *	cl_umap;
-	struct svc_export *	cl_export[NFSCLNT_EXPMAX];
+	struct list_head	cl_export[NFSCLNT_EXPMAX];
+	struct list_head	cl_list;
 };
 
 struct svc_export {
-	struct svc_export *	ex_next;
+	struct list_head	ex_hash;
+	struct list_head	ex_list;
 	char			ex_path[NFS_MAXPATHLEN+1];
 	struct svc_export *	ex_parent;
 	struct svc_client *	ex_client;
@@ -90,7 +92,10 @@ void			exp_unlock(void);
 struct svc_client *	exp_getclient(struct sockaddr_in *sin);
 void			exp_putclient(struct svc_client *clp);
 struct svc_export *	exp_get(struct svc_client *clp, kdev_t dev, ino_t ino);
-int			exp_rootfh(struct svc_client *, kdev_t, ino_t,
+struct svc_export *	exp_get_by_name(struct svc_client *clp,
+					struct vfsmount *mnt,
+					struct dentry *dentry);
+int			exp_rootfh(struct svc_client *, 
 					char *path, struct knfsd_fh *, int maxsize);
 int			nfserrno(int errno);
 void			exp_nlmdetach(void);

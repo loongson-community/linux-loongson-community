@@ -70,7 +70,8 @@ fi
 bool 'Support for SNI RM200 PCI' CONFIG_SNI_RM200_PCI
 bool 'Support for Toshiba JMR-TX3927 board' CONFIG_TOSHIBA_JMR3927
 
-dep_bool 'High Memory Support (EXPERIMENTAL)' CONFIG_HIGHMEM $CONFIG_EXPERIMENTAL
+bool 'High Memory Support' CONFIG_HIGHMEM
+bool 'Preemptible Kernel' CONFIG_PREEMPT
 
 define_bool CONFIG_RWSEM_GENERIC_SPINLOCK y
 define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n

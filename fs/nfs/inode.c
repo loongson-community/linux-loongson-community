@@ -17,7 +17,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/string.h>
@@ -245,8 +245,7 @@ nfs_get_root(struct super_block *sb, struct nfs_fh *rootfh)
  * and the root file handle obtained from the server's mount
  * daemon. We stash these away in the private superblock fields.
  */
-struct super_block *
-nfs_read_super(struct super_block *sb, void *raw_data, int silent)
+int nfs_fill_super(struct super_block *sb, void *raw_data, int silent)
 {
 	struct nfs_mount_data	*data = (struct nfs_mount_data *) raw_data;
 	struct nfs_server	*server;
@@ -455,6 +454,8 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
                 server->namelen = maxlen;
 
 	sb->s_maxbytes = fsinfo.maxfilesize;
+	if (sb->s_maxbytes > MAX_LFS_FILESIZE) 
+		sb->s_maxbytes = MAX_LFS_FILESIZE; 
 
 	/* Fire up the writeback cache */
 	if (nfs_reqlist_alloc(server) < 0) {
@@ -467,7 +468,7 @@ nfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* Check whether to start the lockd process */
 	if (!(server->flags & NFS_MOUNT_NONLM))
 		lockd_up();
-	return sb;
+	return 0;
 
 	/* Yargs. It didn't work out. */
  failure_kill_reqlist:
@@ -506,7 +507,7 @@ out_miss_args:
 	printk("nfs_read_super: missing data argument\n");
 
 out_fail:
-	return NULL;
+	return -EINVAL;
 }
 
 static int
@@ -630,37 +631,16 @@ nfs_find_actor(struct inode *inode, unsigned long ino, void *opaque)
 	struct nfs_fh		*fh = desc->fh;
 	struct nfs_fattr	*fattr = desc->fattr;
 
-	if (NFS_FSID(inode) != fattr->fsid)
-		return 0;
 	if (NFS_FILEID(inode) != fattr->fileid)
 		return 0;
 	if (memcmp(NFS_FH(inode), fh, sizeof(struct nfs_fh)) != 0)
+		return 0;
+	if (is_bad_inode(inode))
 		return 0;
 	/* Force an attribute cache update if inode->i_count == 0 */
 	if (!atomic_read(&inode->i_count))
 		NFS_CACHEINV(inode);
 	return 1;
-}
-
-int
-nfs_inode_is_stale(struct inode *inode, struct nfs_fh *fh, struct nfs_fattr *fattr)
-{
-	/* Empty inodes are not stale */
-	if (!inode->i_mode)
-		return 0;
-
-	if ((fattr->mode & S_IFMT) != (inode->i_mode & S_IFMT))
-		return 1;
-
-	if (is_bad_inode(inode) || NFS_STALE(inode))
-		return 1;
-
-	/* Has the filehandle changed? If so is the old one stale? */
-	if (memcmp(NFS_FH(inode), fh, sizeof(struct nfs_fh)) != 0 &&
-	    __nfs_revalidate_inode(NFS_SERVER(inode),inode) == -ESTALE)
-		return 1;
-
-	return 0;
 }
 
 /*
@@ -713,7 +693,6 @@ __nfs_fhget(struct super_block *sb, struct nfs_fh *fh, struct nfs_fattr *fattr)
 		/* We can't support UPDATE_ATIME(), since the server will reset it */
 		NFS_FLAGS(inode) &= ~NFS_INO_NEW;
 		NFS_FILEID(inode) = fattr->fileid;
-		NFS_FSID(inode) = fattr->fsid;
 		memcpy(NFS_FH(inode), fh, sizeof(struct nfs_fh));
 		inode->i_flags |= S_NOATIME;
 		inode->i_mode = fattr->mode;
@@ -787,7 +766,7 @@ nfs_notify_change(struct dentry *dentry, struct iattr *attr)
 	/*
 	 * Make sure the inode is up-to-date.
 	 */
-	error = nfs_revalidate(dentry);
+	error = nfs_revalidate_inode(NFS_SERVER(inode),inode);
 	if (error) {
 #ifdef NFS_PARANOIA
 printk("nfs_notify_change: revalidate failed, error=%d\n", error);
@@ -1025,12 +1004,11 @@ __nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr)
 			inode->i_sb->s_id, inode->i_ino,
 			atomic_read(&inode->i_count), fattr->valid);
 
-	if (NFS_FSID(inode) != fattr->fsid ||
-	    NFS_FILEID(inode) != fattr->fileid) {
+	if (NFS_FILEID(inode) != fattr->fileid) {
 		printk(KERN_ERR "nfs_refresh_inode: inode number mismatch\n"
-		       "expected (0x%Lx/0x%Lx), got (0x%Lx/0x%Lx)\n",
-		       (long long)NFS_FSID(inode), (long long)NFS_FILEID(inode),
-		       (long long)fattr->fsid, (long long)fattr->fileid);
+		       "expected (%s/0x%Lx), got (%s/0x%Lx)\n",
+		       inode->i_sb->s_id, (long long)NFS_FILEID(inode),
+		       inode->i_sb->s_id, (long long)fattr->fileid);
 		goto out_err;
 	}
 
@@ -1100,8 +1078,11 @@ __nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr)
 
 	inode->i_atime = new_atime;
 
-	NFS_CACHE_MTIME(inode) = new_mtime;
-	inode->i_mtime = nfs_time_to_secs(new_mtime);
+	if (NFS_CACHE_MTIME(inode) != new_mtime) {
+		NFS_MTIME_UPDATE(inode) = jiffies;
+		NFS_CACHE_MTIME(inode) = new_mtime;
+		inode->i_mtime = nfs_time_to_secs(new_mtime);
+	}
 
 	NFS_CACHE_ISIZE(inode) = new_size;
 	inode->i_size = new_isize;
@@ -1157,7 +1138,25 @@ __nfs_refresh_inode(struct inode *inode, struct nfs_fattr *fattr)
 /*
  * File system information
  */
-static DECLARE_FSTYPE(nfs_fs_type, "nfs", nfs_read_super, FS_ODD_RENAME);
+
+/*
+ *  Right now we are using get_sb_nodev, but we ought to switch to
+ *  get_anon_super() with appropriate comparison function.  The only
+ *  question being, when two NFS mounts are the same?  Identical IP
+ *  of server + identical root fhandle?  Trond?
+ */
+static struct super_block *nfs_get_sb(struct file_system_type *fs_type,
+	int flags, char *dev_name, void *data)
+{
+	return get_sb_nodev(fs_type, flags, data, nfs_fill_super);
+}
+
+static struct file_system_type nfs_fs_type = {
+	owner:		THIS_MODULE,
+	name:		"nfs",
+	get_sb:		nfs_get_sb,
+	fs_flags:	FS_ODD_RENAME,
+};
 
 extern int nfs_init_nfspagecache(void);
 extern void nfs_destroy_nfspagecache(void);
@@ -1175,10 +1174,6 @@ static struct inode *nfs_alloc_inode(struct super_block *sb)
 	if (!nfsi)
 		return NULL;
 	nfsi->flags = NFS_INO_NEW;
-	/* do we need the next 4 lines? */
-	nfsi->hash_next = NULL;
-	nfsi->hash_prev = NULL;
-	nfsi->nextscan = 0;
 	nfsi->mm_cred = NULL;
 	return &nfsi->vfs_inode;
 }

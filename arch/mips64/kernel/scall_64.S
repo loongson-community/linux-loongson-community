@@ -10,7 +10,6 @@
 #include <linux/config.h>
 #include <asm/asm.h>
 #include <linux/errno.h>
-#include <asm/current.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -47,8 +46,8 @@ NESTED(handle_sys64, PT_SIZE, sp)
 
 		sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
-		lbu	t0, TASK_SYSCALL_TRACE($28)
-		bnez	t0, syscall_trace_entry	# syscall tracing enabled?
+		lw	t0, TI_FLAGS($28)
+		bltz	t0, syscall_trace_entry	# syscall tracing enabled?
 
 		jalr	t2			# Do The Real Thing (TM)
 
@@ -69,7 +68,7 @@ syscall_exit:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# current->work
+		lw	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
 FEXPORT(restore_all)
@@ -78,16 +77,8 @@ FEXPORT(restore_all)
 		eret
 
 EXPORT(work_pending)
-#ifdef __MIPSEB__
-		srl	t0, a2, 24		# current->work.need_resched
-						# test high 8 bits
+		andi	t0, a2, _TIF_NEED_RESCHED
 		bltz	t0, work_notifysig
-#endif
-#ifdef __MIPSEL__
-		andi	t0, a2, 0xff		# current->work.need_resched
-						# test low 8 bits
-		bltz	t0, work_notifysig
-#endif
 work_resched:
 		jal	schedule
 
@@ -97,24 +88,12 @@ work_resched:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# This also converts into
-						# a union of four chars
-#ifdef __MIPSEB__
-		li	t1, 0xff00ffff		# current->work (ignoring
-		and	t0, t1			# syscall_trace)
+		lw	a2, TI_FLAGS($28)
+		andi	a2, _TIF_WORK_MASK	# is there any work to be done
+						# other than syscall tracing
 		beqz	a2, restore_all
-		srl	t0, a2, 24		# current->work.need_resched
-						# test high 8 bits
-		bltz	t0, work_notifysig
-#endif
-#ifdef __MIPSEL__
-		ori	t0, 0x0000ff00		# current->work (ignoring
-		xori	t0, 0x0000ff00		# syscall_trace)
-		beqz	a2, restore_all
-		andi	t0, a2, 0xff		# current->work.need_resched
-						# test low 8 bits
-		bltz	t0, work_notifysig
-#endif
+		andi	t0, a2, _TIF_NEED_RESCHED
+		bnez	t0, work_resched
 
 work_notifysig:					# deal with pending signals and
 						# notify-resume requests
@@ -124,9 +103,9 @@ work_notifysig:					# deal with pending signals and
 		j	restore_all
 
 syscall_exit_work:
-		lb	t0, TASK_SYSCALL_TRACE($28)
-						# current->work.syscall_trace
-		beqz	t0, work_pending
+		lw	t0, TI_FLAGS($28)	# current->work.syscall_trace
+		bgez	t0, work_pending
+
 		mfc0	t0, CP0_STATUS		# sti
 		ori	t0, t0, 1
 		mtc0	t0, CP0_STATUS
@@ -385,3 +364,4 @@ sys_call_table:
 	PTR	sys_ni_syscall
 	PTR	sys_gettid				/* 5215 */
 	PTR	sys_readahead
+	PTR	sys_tkill

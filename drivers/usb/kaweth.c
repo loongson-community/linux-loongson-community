@@ -55,6 +55,7 @@
 #include <linux/usb.h>
 #include <linux/types.h>
 #include <asm/semaphore.h>
+#include <asm/byteorder.h>
 
 #define DEBUG
 
@@ -155,6 +156,7 @@ MODULE_DEVICE_TABLE (usb, usb_klsi_table);
  *     kaweth_driver
  ****************************************************************/
 static struct usb_driver kaweth_driver = {
+	owner:		THIS_MODULE,
 	name:		"kaweth",
 	probe:		kaweth_probe,
 	disconnect:	kaweth_disconnect,
@@ -238,8 +240,7 @@ static int kaweth_control(struct kaweth_device *kaweth,
 		return -EBUSY;
 	}
 
-	dr = kmalloc(sizeof(struct usb_ctrlrequest), 
-                     in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
+	dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_ATOMIC);
 
 	if (!dr) {
 		kaweth_dbg("kmalloc() failed");
@@ -447,7 +448,8 @@ static void kaweth_usb_receive(struct urb *);
 /****************************************************************
  *     kaweth_resubmit_rx_urb
  ****************************************************************/
-static inline void kaweth_resubmit_rx_urb(struct kaweth_device *kaweth)
+static inline void kaweth_resubmit_rx_urb(struct kaweth_device *kaweth,
+						int mem_flags)
 {
 	int result;
 
@@ -461,7 +463,7 @@ static inline void kaweth_resubmit_rx_urb(struct kaweth_device *kaweth)
 		      kaweth_usb_receive,
 		      kaweth);
 
-	if((result = usb_submit_urb(kaweth->rx_urb))) {
+	if((result = usb_submit_urb(kaweth->rx_urb, mem_flags))) {
 		kaweth_err("resubmitting rx_urb %d failed", result);
 	}
 }
@@ -493,7 +495,7 @@ static void kaweth_usb_receive(struct urb *urb)
 			   urb->status,
 			   count, 
 			   (int)pkt_len);
-		kaweth_resubmit_rx_urb(kaweth);
+		kaweth_resubmit_rx_urb(kaweth, GFP_ATOMIC);
                 return;
 	}
 
@@ -502,12 +504,12 @@ static void kaweth_usb_receive(struct urb *urb)
 			kaweth_err("Packet length too long for USB frame (pkt_len: %x, count: %x)",pkt_len, count);
 			kaweth_err("Packet len & 2047: %x", pkt_len & 2047);
 			kaweth_err("Count 2: %x", count2);
-		        kaweth_resubmit_rx_urb(kaweth);
+		        kaweth_resubmit_rx_urb(kaweth, GFP_ATOMIC);
                         return;
                 }
 		
 		if(!(skb = dev_alloc_skb(pkt_len+2))) {
-		        kaweth_resubmit_rx_urb(kaweth);
+		        kaweth_resubmit_rx_urb(kaweth, GFP_ATOMIC);
                         return;
 		}
 
@@ -525,7 +527,7 @@ static void kaweth_usb_receive(struct urb *urb)
 		kaweth->stats.rx_bytes += pkt_len;
 	}
 
-	kaweth_resubmit_rx_urb(kaweth);
+	kaweth_resubmit_rx_urb(kaweth, GFP_ATOMIC);
 }
 
 /****************************************************************
@@ -539,11 +541,11 @@ static int kaweth_open(struct net_device *net)
 
 	kaweth_dbg("Opening network device.");
 
-	kaweth_resubmit_rx_urb(kaweth);
+	MOD_INC_USE_COUNT;
+
+	kaweth_resubmit_rx_urb(kaweth, GFP_KERNEL);
 
 	netif_start_queue(net);
-
-	MOD_INC_USE_COUNT;
 
 	kaweth_async_set_rx_mode(kaweth);
 	return 0;
@@ -586,14 +588,10 @@ static void kaweth_usb_transmit_complete(struct urb *urb)
 {
 	struct kaweth_device *kaweth = urb->context;
 
-	spin_lock(&kaweth->device_lock);
-
-	if (urb->status)
+	if (unlikely(urb->status != 0))
 		kaweth_dbg("%s: TX status %d.", kaweth->net->name, urb->status);
 
 	netif_wake_queue(kaweth->net);
-
-	spin_unlock(&kaweth->device_lock);
 }
 
 /****************************************************************
@@ -625,7 +623,7 @@ static int kaweth_start_xmit(struct sk_buff *skb, struct net_device *net)
 		      kaweth_usb_transmit_complete,
 		      kaweth);
 
-	if((res = usb_submit_urb(kaweth->tx_urb)))
+	if((res = usb_submit_urb(kaweth->tx_urb, GFP_ATOMIC)))
 	{
 		kaweth_warn("kaweth failed tx_urb %d", res);
 		kaweth->stats.tx_errors++;
@@ -757,9 +755,7 @@ static void *kaweth_probe(
 	memset(kaweth, 0, sizeof(struct kaweth_device));
 
 	kaweth->dev = dev;
-	kaweth->status = 0;
-	kaweth->net = NULL;
-	kaweth->device_lock = SPIN_LOCK_UNLOCKED;
+	spin_lock_init(&kaweth->device_lock);
 		
 	kaweth_dbg("Resetting.");
 
@@ -824,6 +820,7 @@ static void *kaweth_probe(
 
 		/* Device will now disappear for a moment...  */
 		kaweth_info("Firmware loaded.  I'll be back...");
+		kfree(kaweth);
 		return NULL;
 	}
 
@@ -925,6 +922,8 @@ static void kaweth_disconnect(struct usb_device *dev, void *ptr)
 		kaweth_warn("unregistering non-existant device");
 		return;
 	}
+	usb_unlink_urb(kaweth->tx_urb);
+	usb_unlink_urb(kaweth->rx_urb);
 
 	if(kaweth->net) {
 		if(kaweth->net->flags & IFF_UP) {
@@ -978,7 +977,7 @@ static int usb_start_wait_urb(struct urb *urb, int timeout, int* actual_length)
         set_current_state(TASK_INTERRUPTIBLE);
         add_wait_queue(&awd.wqh, &wait);
         urb->context = &awd;
-        status = usb_submit_urb(urb);
+        status = usb_submit_urb(urb, GFP_KERNEL);
         if (status) {
                 // something went wrong
                 usb_free_urb(urb);

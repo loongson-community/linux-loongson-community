@@ -1,4 +1,4 @@
-/* $Id: timod.c,v 1.18 2002/01/08 16:00:21 davem Exp $
+/* $Id: timod.c,v 1.19 2002/02/08 03:57:14 davem Exp $
  * timod.c: timod emulation.
  *
  * Copyright (C) 1998 Patrik Rak (prak3264@ss1000.ms.mff.cuni.cz)
@@ -149,7 +149,7 @@ static void timod_wake_socket(unsigned int fd)
 	struct socket *sock;
 
 	SOLD("wakeing socket");
-	sock = &current->files->fd[fd]->f_dentry->d_inode->u.socket_i;
+	sock = SOCKET_I(current->files->fd[fd]->f_dentry->d_inode);
 	wake_up_interruptible(&sock->wait);
 	read_lock(&sock->sk->callback_lock);
 	if (sock->fasync_list && !test_bit(SOCK_ASYNC_WAITDATA, &sock->flags))
@@ -640,7 +640,7 @@ int timod_getmsg(unsigned int fd, char *ctl_buf, int ctl_maxlen, s32 *ctl_len,
 	ino = filp->f_dentry->d_inode;
 	sock = (struct sol_socket_struct *)filp->private_data;
 	SOLDD(("%p %p\n", sock->pfirst, sock->pfirst ? sock->pfirst->next : NULL));
-	if ( ctl_maxlen > 0 && !sock->pfirst && ino->u.socket_i.type == SOCK_STREAM
+	if ( ctl_maxlen > 0 && !sock->pfirst && SOCKET_I(ino)->type == SOCK_STREAM
 		&& sock->state == TS_IDLE) {
 		SOLD("calling LISTEN");
 		args[0] = fd;
@@ -730,7 +730,7 @@ int timod_getmsg(unsigned int fd, char *ctl_buf, int ctl_maxlen, s32 *ctl_len,
 	*flags_p = 0;
 	if (ctl_maxlen >= 0) {
 		SOLD("ACCEPT perhaps?");
-		if (ino->u.socket_i.type == SOCK_STREAM && sock->state == TS_IDLE) {
+		if (SOCKET_I(ino)->type == SOCK_STREAM && sock->state == TS_IDLE) {
 			struct T_conn_ind ind;
 			char *buf = getpage();
 			int len = BUF_SIZE;

@@ -394,10 +394,10 @@ static void setup_frame(int sig, struct k_sigaction *ka,
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto give_sigsegv;
 
-	err |= __put_user((current->exec_domain
-		           && current->exec_domain->signal_invmap
+	err |= __put_user((current_thread_info()->exec_domain
+		           && current_thread_info()->exec_domain->signal_invmap
 		           && sig < 32
-		           ? current->exec_domain->signal_invmap[sig]
+		           ? current_thread_info()->exec_domain->signal_invmap[sig]
 		           : sig),
 		          &frame->sig);
 	if (err)
@@ -464,10 +464,10 @@ static void setup_rt_frame(int sig, struct k_sigaction *ka, siginfo_t *info,
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto give_sigsegv;
 
-	err |= __put_user((current->exec_domain
-		    	   && current->exec_domain->signal_invmap
+	err |= __put_user((current_thread_info()->exec_domain
+		    	   && current_thread_info()->exec_domain->signal_invmap
 		    	   && sig < 32
-		    	   ? current->exec_domain->signal_invmap[sig]
+		    	   ? current_thread_info()->exec_domain->signal_invmap[sig]
 			   : sig),
 			  &frame->sig);
 	err |= __put_user(&frame->info, &frame->pinfo);
@@ -683,10 +683,7 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 				/* FALLTHRU */
 
 			default:
-				sigaddset(&current->pending.signal, signr);
-				recalc_sigpending(current);
-				current->flags |= PF_SIGNALED;
-				do_exit(exit_code);
+				sig_exit(signr, exit_code, &info);
 				/* NOTREACHED */
 			}
 		}
@@ -714,4 +711,17 @@ int do_signal(struct pt_regs *regs, sigset_t *oldset)
 		}
 	}
 	return 0;
+}
+
+/*
+ * notification of userspace execution resumption
+ * - triggered by current->work.notify_resume
+ */
+__attribute__((regparm(3)))
+void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
+		      __u32 thread_info_flags)
+{
+	/* deal with pending signal delivery */
+	if (thread_info_flags & _TIF_SIGPENDING)
+		do_signal(regs,oldset);
 }

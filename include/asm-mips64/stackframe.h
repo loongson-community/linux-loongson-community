@@ -7,8 +7,8 @@
  * Copyright (C) 1994, 1995, 1996 Paul M. Antoine.
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#ifndef _ASM_STACKFRAME_H
-#define _ASM_STACKFRAME_H
+#ifndef __ASM_STACKFRAME_H
+#define __ASM_STACKFRAME_H
 
 #include <linux/config.h>
 
@@ -266,4 +266,4 @@
 
 #endif /* __ASSEMBLY__ */
 
-#endif /* _ASM_STACKFRAME_H */
+#endif /* __ASM_STACKFRAME_H */

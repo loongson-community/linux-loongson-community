@@ -9,7 +9,6 @@
 #include <linux/config.h>
 #include <linux/errno.h>
 #include <asm/asm.h>
-#include <asm/current.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>
 #include <asm/stackframe.h>
@@ -47,9 +46,8 @@ NESTED(handle_sys, PT_SIZE, sp)
 
 stack_done:
 		sw	a3, PT_R26(sp)          # save for syscall restart
-		lbu	t0, TASK_SYSCALL_TRACE($28)
-						# syscall tracing enabled?
-		bnez	t0, syscall_trace_entry
+		lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+		bltz	t0, syscall_trace_entry	# -> yes
 
 		jalr	t2			# Do The Real Thing (TM)
 
@@ -70,7 +68,7 @@ EXPORT(o32_syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# current->work
+		lw	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, o32_syscall_exit_work
 
 o32_restore_all:
@@ -182,7 +180,7 @@ illegal_syscall:
 	andi	v0, a1, 3			# must be word aligned
 	bnez	v0, bad_alignment
 
-	lw	v1, THREAD_CURDS($28)		# in legal address range?
+	lw	v1, TI_ADDR_LIMIT($28)		# in legal address range?
 	addiu	a0, a1, 4
 	or	a0, a0, a1
 	and	a0, a0, v1
@@ -228,8 +226,8 @@ illegal_syscall:
 1:
 
 	/* Success, so skip usual error handling garbage.  */
-	lbu	t0, TASK_SYSCALL_TRACE($28)	# syscall tracing enabled?
-	bnez	t0, 1f
+	lw	t0, TI_FLAGS($28)	# syscall tracing enabled?
+	bltz	t0, 1f
 	b	o32_syscall_exit
 
 1:	SAVE_STATIC
@@ -275,7 +273,7 @@ bad_alignment:
 
 	addu	v0, t0, 16			# v0 = usp + 16
 	addu	t1, v0, 12			# 3 32-bit arguments
-	lw	v1, THREAD_CURDS($28)
+	lw	v1, TI_ADDR_LIMIT($28)
 	or	v0, v0, t1
 	and	v1, v1, v0
 	bltz	v1, efault

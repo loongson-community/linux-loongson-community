@@ -8,7 +8,9 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/string.h>
-#include <linux/malloc.h>
+#include <linux/slab.h>
+#include <linux/err.h>
+#include <linux/stat.h>
 
 extern struct driver_file_entry * device_default_files[];
 
@@ -102,28 +104,6 @@ int device_make_dir(struct device * dev)
 		}
 	}
 	return 0;
-}
-
-void iobus_remove_dir(struct iobus * iobus)
-{
-	if (iobus)
-		driverfs_remove_dir(&iobus->dir);
-}
-
-int iobus_make_dir(struct iobus * iobus)
-{
-	struct driver_dir_entry * parent = NULL;
-	int error;
-
-	INIT_LIST_HEAD(&iobus->dir.files);
-	iobus->dir.mode = (S_IFDIR| S_IRWXU | S_IRUGO | S_IXUGO);
-	iobus->dir.name = iobus->bus_id;
-
-	if (iobus->parent)
-		parent = &iobus->parent->dir;
-
-	error = driverfs_create_dir(&iobus->dir,parent);
-	return error;
 }
 
 EXPORT_SYMBOL(device_create_file);

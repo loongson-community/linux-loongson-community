@@ -13,7 +13,6 @@
 #include <linux/config.h>
 
 #include <asm/asm.h>
-#include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/cachectl.h>
 #include <asm/fpregdef.h>

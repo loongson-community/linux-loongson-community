@@ -66,10 +66,8 @@ struct device_driver {
 
 struct device {
 	struct list_head node;		/* node in sibling list */
-	struct iobus	*parent;	/* parent bus */
-
-	struct iobus	*subordinate;	/* only valid if this device is a
-					   bridge device */
+	struct list_head children;
+	struct device 	* parent;
 
 	char	name[DEVICE_NAME_SIZE];	/* descriptive ascii string */
 	char	bus_id[BUS_ID_SIZE];	/* position on parent bus */
@@ -113,34 +111,10 @@ struct iobus_driver {
 	int	(*add_device)	(struct iobus*, char*);
 };
 
-struct iobus {
-	spinlock_t	lock;		/* lock for bus */
-	atomic_t	refcount;
-
-	struct list_head node;		/* node in sibling list */
-	struct iobus *parent;		/* parent bus */
-	struct list_head children;	/* children buses */
-	struct list_head devices;	/* children devices */
-
-	struct device *self;		/* pointer to controlling device */
-	struct driver_dir_entry	dir;	/* driverfs directory */
-
-	char	name[DEVICE_NAME_SIZE];
-	char	bus_id[BUS_ID_SIZE];
-
-	struct	iobus_driver *driver;	/* bus operations */
-};
-
 static inline struct device *
 list_to_dev(struct list_head *node)
 {
 	return list_entry(node, struct device, node);
-}
-
-static inline struct iobus *
-list_to_iobus(const struct list_head *node)
-{
-	return list_entry(node, struct iobus, node);
 }
 
 /*
@@ -162,9 +136,6 @@ extern void device_remove_file(struct device * dev, const char * name);
 extern int (*platform_notify)(struct device * dev);
 
 extern int (*platform_notify_remove)(struct device * dev);
-
-extern int device_driver_init(void);
-
 
 /* device and bus locking helpers.
  *
@@ -191,23 +162,5 @@ static inline void get_device(struct device * dev)
 }
 
 extern void put_device(struct device * dev);
-
-static inline void lock_iobus(struct iobus * iobus)
-{
-	spin_lock(&iobus->lock);
-}
-
-static inline void unlock_iobus(struct iobus * iobus)
-{
-	spin_unlock(&iobus->lock);
-}
-
-static inline void get_iobus(struct iobus * iobus)
-{
-	BUG_ON(!atomic_read(&iobus->refcount));
-	atomic_inc(&iobus->refcount);
-}
-
-extern void put_iobus(struct iobus * iobus);
 
 #endif /* _DEVICE_H_ */

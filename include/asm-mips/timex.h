@@ -17,6 +17,9 @@
 		<< (SHIFT_SCALE-SHIFT_HZ)) / HZ)
 
 #ifdef __KERNEL__
+
+#include <asm/mipsregs.h>
+
 /*
  * Standard way to access the cycle counter.
  * Currently only used on SMP for scheduling.

@@ -52,6 +52,7 @@ static inline void *kmap(struct page *page)
 {
 	if (in_interrupt())
 		BUG();
+
 	if (page < highmem_start_page)
 		return page_address(page);
 	return kmap_high(page);
@@ -77,6 +78,7 @@ static inline void *kmap_atomic(struct page *page, enum km_type type)
 	enum fixed_addresses idx;
 	unsigned long vaddr;
 
+	preempt_disable();
 	if (page < highmem_start_page)
 		return page_address(page);
 
@@ -91,6 +93,7 @@ static inline void *kmap_atomic(struct page *page, enum km_type type)
 
 static inline void kunmap_atomic(void *kvaddr, enum km_type type)
 {
+	preempt_enable();
 }
 
 #endif /* __KERNEL__ */

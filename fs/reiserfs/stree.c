@@ -54,7 +54,7 @@
  */
 
 #include <linux/config.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/string.h>
 #include <linux/locks.h>
 #include <linux/pagemap.h>
@@ -126,19 +126,19 @@ inline int  comp_keys (const struct key * le_key, const struct cpu_key * cpu_key
   retval = comp_short_keys (le_key, cpu_key);
   if (retval)
       return retval;
-  if (le_key_k_offset (cpu_key->version, le_key) < cpu_key_k_offset (cpu_key))
+  if (le_key_k_offset (le_key_version(le_key), le_key) < cpu_key_k_offset (cpu_key))
       return -1;
-  if (le_key_k_offset (cpu_key->version, le_key) > cpu_key_k_offset (cpu_key))
+  if (le_key_k_offset (le_key_version(le_key), le_key) > cpu_key_k_offset (cpu_key))
       return 1;
 
   if (cpu_key->key_length == 3)
       return 0;
 
   /* this part is needed only when tail conversion is in progress */
-  if (le_key_k_type (cpu_key->version, le_key) < cpu_key_k_type (cpu_key))
+  if (le_key_k_type (le_key_version(le_key), le_key) < cpu_key_k_type (cpu_key))
     return -1;
 
-  if (le_key_k_type (cpu_key->version, le_key) > cpu_key_k_type (cpu_key))
+  if (le_key_k_type (le_key_version(le_key), le_key) > cpu_key_k_type (cpu_key))
     return 1;
 
   return 0;
@@ -166,7 +166,7 @@ inline int comp_cpu_keys (const struct cpu_key * key1,
     if (cpu_key_k_offset (key1) > cpu_key_k_offset (key2))
 	return 1;
 
-    reiserfs_warning ("comp_cpu_keys: type are compared for %k and %k\n",
+    reiserfs_warning ("comp_cpu_keys: type are compared for %K and %K\n",
 		      key1, key2);
 
     if (cpu_key_k_type (key1) < cpu_key_k_type (key2))
@@ -1338,8 +1338,10 @@ void reiserfs_delete_solid_item (struct reiserfs_transaction_handle *th,
 	}
 	if (retval != ITEM_FOUND) {
 	    pathrelse (&path);
-	    reiserfs_warning ("vs-5355: reiserfs_delete_solid_item: %k not found",
-			      key);
+	    // No need for a warning, if there is just no free space to insert '..' item into the newly-created subdir
+	    if ( !( (unsigned long long) GET_HASH_VALUE (le_key_k_offset (le_key_version (key), key)) == 0 && \
+		 (unsigned long long) GET_GENERATION_NUMBER (le_key_k_offset (le_key_version (key), key)) == 1 ) )
+		reiserfs_warning ("vs-5355: reiserfs_delete_solid_item: %k not found", key);
 	    break;
 	}
 	if (!tb_init) {
@@ -1522,7 +1524,7 @@ int reiserfs_cut_from_item (struct reiserfs_transaction_handle *th,
 	    set_cpu_key_k_offset (p_s_item_key, n_new_file_size + 1);
 	    if ( search_for_position_by_key(p_s_sb, p_s_item_key, p_s_path) == POSITION_NOT_FOUND ){
 		print_block (PATH_PLAST_BUFFER (p_s_path), 3, PATH_LAST_POSITION (p_s_path) - 1, PATH_LAST_POSITION (p_s_path) + 1);
-		reiserfs_panic(p_s_sb, "PAP-5580: reiserfs_cut_from_item: item to convert does not exist (%k)", p_s_item_key);
+		reiserfs_panic(p_s_sb, "PAP-5580: reiserfs_cut_from_item: item to convert does not exist (%K)", p_s_item_key);
 	    }
 	    continue;
 	}
@@ -1716,7 +1718,7 @@ void reiserfs_do_truncate (struct reiserfs_transaction_handle *th,
 	}
 
 	RFALSE( n_deleted > n_file_size,
-		"PAP-5670: reiserfs_truncate_file returns too big number: deleted %d, file_size %lu, item_key %k",
+		"PAP-5670: reiserfs_truncate_file returns too big number: deleted %d, file_size %lu, item_key %K",
 		n_deleted, n_file_size, &s_item_key);
 
 	/* Change key to search the last file item. */

@@ -14,17 +14,45 @@
 #include <asm/addrspace.h>
 #include <asm/asm.h>
 #include <asm/cacheops.h>
-#include <asm/current.h>
 #include <asm/errno.h>
 #include <asm/mipsregs.h>
 #include <asm/page.h>
 #include <asm/pgtable-bits.h>
+#include <asm/regdef.h>
 #include <asm/stackframe.h>
 #include <asm/processor.h>
-#include <asm/regdef.h>
 #include <asm/fpregdef.h>
 #include <asm/unistd.h>
 #include <asm/isadep.h>
+#include <asm/thread_info.h>
+
+#ifdef CONFIG_PREEMPT
+		.macro	preempt_stop
+		cli
+		.endm
+
+		.macro	init_ret_intr temp
+		mfc0	t0, CP0_STATUS			# cli
+		ori	t0, t0, 1
+		xori	t0, t0, 1
+		mtc0	t0, CP0_STATUS
+		SSNOP; SSNOP; SSNOP
+
+		lw	\temp, TI_PRE_COUNT($28)
+		subu	\temp, \temp, 1
+		sw	\temp, TI_PRE_COUNT($28)
+		.endm
+#else
+		.macro	preempt_stop
+		.endm
+
+		.macro	init_ret_intr
+		.endm
+
+		.macro	resume_kernel
+		restore_all
+		.endm
+#endif
 
 		.text
 		.align 4
@@ -48,15 +76,9 @@ EXPORT(resume_userspace)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)
-#ifdef __MIPSEB__
-		li	t1, 0xff00ffff		# current->work (ignoring
-		and	a2, t1			# syscall_trace)
-#endif
-#ifdef __MIPSEL__
-		ori	a2, 0x0000ff00		# current->work (ignoring
-		xori	a2, 0x0000ff00		# syscall_trace)
-#endif
+		lw	a2, TI_FLAGS($28)
+		andi	a2, _TIF_WORK_MASK	# current->work (ignoring
+						# syscall_trace)
 		bnez	a2, work_pending
 		j	restore_all
 
@@ -67,7 +89,7 @@ EXPORT(syscall_exit)
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# current->work
+		lw	a2, TI_FLAGS($28)	# current->work
 		bnez	a2, syscall_exit_work
 
 FEXPORT(restore_all)
@@ -76,16 +98,8 @@ FEXPORT(restore_all)
 		.set	at
 
 EXPORT(work_pending)
-#ifdef __MIPSEB__
-		srl	t0, a2, 24		# current->work.need_resched
-						# test high 8 bits
-		bltz	t0, work_notifysig
-#endif
-#ifdef __MIPSEL__
-		andi	t0, a2, 0xff		# current->work.need_resched
-						# test low 8 bits
-		bltz	t0, work_notifysig
-#endif
+		andi	t0, a2, _TIF_NEED_RESCHED
+		bnez	t0, work_notifysig
 work_resched:
 		jal	schedule
 
@@ -95,24 +109,12 @@ work_resched:
 		mtc0	t0, CP0_STATUS
 		SSNOP; SSNOP; SSNOP
 
-		lw	a2, TASK_WORK($28)	# This also converts into
-						# a union of four chars
-#ifdef __MIPSEB__
-		li	t1, 0xff00ffff		# current->work (ignoring
-		and	t0, t1			# syscall_trace)
+		lw	a2, TI_FLAGS($28)
+		andi	a2, _TIF_WORK_MASK	# is there any work to be done
+						# other than syscall tracing?
 		beqz	a2, restore_all
-		srl	t0, a2, 24		# current->work.need_resched
-						# test high 8 bits
-		bltz	t0, work_notifysig
-#endif
-#ifdef __MIPSEL__
-		ori	t0, 0x0000ff00		# current->work (ignoring
-		xori	t0, 0x0000ff00		# syscall_trace)
-		beqz	a2, restore_all
-		andi	t0, a2, 0xff		# current->work.need_resched
-						# test low 8 bits
-		bltz	t0, work_notifysig
-#endif
+		andi	t0, a2, _TIF_NEED_RESCHED
+		bnez	t0, work_resched
 
 work_notifysig:					# deal with pending signals and
 						# notify-resume requests
@@ -122,14 +124,14 @@ work_notifysig:					# deal with pending signals and
 		j	restore_all
 
 FEXPORT(syscall_exit_work)
-		lb	t0, TASK_SYSCALL_TRACE($28)
-						# current->work.syscall_trace
-		beqz	t0, work_pending
+		lw	t0, TI_FLAGS($28)
+		bgez	t0, work_pending	# trace bit is set
 		mfc0	t0, CP0_STATUS		# sti
 		ori	t0, t0, 1
 		mtc0	t0, CP0_STATUS
 		jal	do_syscall_trace
 		b	resume_userspace
+
 /*
  * Common spurious interrupt handler.
  */

@@ -109,19 +109,29 @@ static inline void * phys_to_virt(unsigned long address)
 }
 
 /*
- * IO bus memory addresses are also 1:1 with the physical address
+ * ISA I/O bus memory addresses are 1:1 with the physical address.
  */
-static inline unsigned long virt_to_bus(volatile void * address)
+static inline unsigned long isa_virt_to_bus(volatile void * address)
 {
 	return PHYSADDR(address);
 }
 
-static inline void * bus_to_virt(unsigned long address)
+static inline void * isa_bus_to_virt(unsigned long address)
 {
 	return (void *)KSEG0ADDR(address);
 }
 
-#define page_to_bus page_to_phys
+#define isa_page_to_bus page_to_phys
+
+/*
+ * However PCI ones are not necessarily 1:1 and therefore these interfaces
+ * are forbidden in portable PCI drivers.
+ */
+extern unsigned long virt_to_bus_not_defined_use_pci_map(volatile void *addr);
+#define virt_to_bus virt_to_bus_not_defined_use_pci_map
+extern unsigned long bus_to_virt_not_defined_use_pci_map(volatile void *addr);
+#define bus_to_virt bus_to_virt_not_defined_use_pci_map
+
 
 /*
  * isa_slot_offset is the address where E(ISA) busaddress 0 is mapped

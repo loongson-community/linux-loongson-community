@@ -1007,10 +1007,10 @@ void __init setup_arch(char **cmdline_p)
 
 	paging_init();
 
-	code_resource.start = virt_to_bus(&_ftext);
-	code_resource.end = virt_to_bus(&_etext) - 1;
-	data_resource.start = virt_to_bus(&_fdata);
-	data_resource.end = virt_to_bus(&_edata) - 1;
+	code_resource.start = virt_to_phys(&_ftext);
+	code_resource.end = virt_to_phys(&_etext) - 1;
+	data_resource.start = virt_to_phys(&_fdata);
+	data_resource.end = virt_to_phys(&_edata) - 1;
 
 	/*
 	 * Request address space for all standard RAM.

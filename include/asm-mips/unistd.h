@@ -233,11 +233,12 @@
 #define __NR_security			(__NR_Linux + 221)
 #define __NR_gettid			(__NR_Linux + 222)
 #define __NR_readahead			(__NR_Linux + 223)
+#define __NR_tkill			(__NR_Linux + 224)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		223
+#define __NR_Linux_syscalls		224
 
 #ifndef __ASSEMBLY__
 

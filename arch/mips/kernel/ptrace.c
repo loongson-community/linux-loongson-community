@@ -16,7 +16,6 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
-#include <linux/personality.h>
 #include <linux/ptrace.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
@@ -279,16 +278,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		if ((unsigned long) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL) {
-			if (!(child->ptrace & PT_SYSCALLTRACE)) {
-				child->ptrace |= PT_SYSCALLTRACE;
-				child->work.syscall_trace++;
-			}
+			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		else {
-			if (child->ptrace & PT_SYSCALLTRACE) {
-				child->ptrace &= ~PT_SYSCALLTRACE;
-				child->work.syscall_trace--;
-			}
+			clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		child->exit_code = data;
 		wake_up_process(child);
@@ -326,7 +319,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		goto out;
 	}
 out_tsk:
-	free_task_struct(child);
+	put_task_struct(child);
 out:
 	unlock_kernel();
 	return ret;
@@ -338,9 +331,11 @@ out:
  */
 asmlinkage void do_syscall_trace(void)
 {
-	if ((current->ptrace & (PT_PTRACED|PT_SYSCALLTRACE))
-			!= (PT_PTRACED|PT_SYSCALLTRACE))
+	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return;
+	if (!(current->ptrace & PT_PTRACED))
+		return;
+
 	/* The 0x80 provides a way for the tracing parent to distinguish
 	   between a syscall stop and SIGTRAP delivery */
 	current->exit_code = SIGTRAP | ((current->ptrace & PT_TRACESYSGOOD)
@@ -356,45 +351,5 @@ asmlinkage void do_syscall_trace(void)
 	if (current->exit_code) {
 		send_sig(current->exit_code, current, 1);
 		current->exit_code = 0;
-	}
-}
-
-struct task_work_bf {
-#ifdef __MIPSEB__
-	signed		need_resched  :8;
-	unsigned	syscall_trace;	/* count of syscall interceptors */
-	unsigned	sigpending;
-	unsigned	notify_resume;	/* request for notification on
-					   userspace execution resumption */
-#endif
-#ifdef __MIPSEL__
-	unsigned	notify_resume : 8;	/* request for notification on
-						   userspace execution
-						   resumption */
-	unsigned	sigpending    : 8;
-	unsigned	syscall_trace : 8;	/* count of syscall
-						   interceptors */
-	signed		need_resched : 8;
-#endif
-};
-
-extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
-
-/*
- * notification of userspace execution resumption
- * - triggered by current->work.notify_resume
- */
-asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
-	struct task_work_bf work_pending)
-{
-	/* deal with pending signal delivery */
-	if (work_pending.sigpending) {
-#ifdef CONFIG_BINFMT_IRIX
-		if (unlikely(current->personality != PER_LINUX)) {
-			do_irix_signal(oldset, regs);
-			return;
-		}
-#endif
-		do_signal(regs,oldset);
 	}
 }

@@ -18,6 +18,7 @@
 #include <asm/uaccess.h>
 #include <linux/smp_lock.h>
 #include <linux/interrupt.h>
+#include <linux/completion.h>
 #include <asm/mmu_context.h>
 
 #define BITMAP_SIZE ((((MAX_PRIO+7)/8)+sizeof(long)-1)/sizeof(long))
@@ -51,7 +52,7 @@ static struct runqueue runqueues[NR_CPUS] __cacheline_aligned;
 
 #define cpu_rq(cpu)		(runqueues + (cpu))
 #define this_rq()		cpu_rq(smp_processor_id())
-#define task_rq(p)		cpu_rq((p)->cpu)
+#define task_rq(p)		cpu_rq((p)->thread_info->cpu)
 #define cpu_curr(cpu)		(cpu_rq(cpu)->curr)
 #define rt_task(p)		((p)->policy != SCHED_OTHER)
 
@@ -61,10 +62,12 @@ static inline runqueue_t *lock_task_rq(task_t *p, unsigned long *flags)
 	struct runqueue *__rq;
 
 repeat_lock_task:
+	preempt_disable();
 	__rq = task_rq(p);
 	spin_lock_irqsave(&__rq->lock, *flags);
 	if (unlikely(__rq != task_rq(p))) {
 		spin_unlock_irqrestore(&__rq->lock, *flags);
+		preempt_enable();
 		goto repeat_lock_task;
 	}
 	return __rq;
@@ -73,6 +76,7 @@ repeat_lock_task:
 static inline void unlock_task_rq(runqueue_t *rq, unsigned long *flags)
 {
 	spin_unlock_irqrestore(&rq->lock, *flags);
+	preempt_enable();
 }
 /*
  * Adding/removing a task to/from a priority array:
@@ -192,13 +196,21 @@ static inline void deactivate_task(struct task_struct *p, runqueue_t *rq)
 
 static inline void resched_task(task_t *p)
 {
-	int need_resched;
+#ifdef CONFIG_SMP
+	int need_resched, nrpolling;
 
-	need_resched = p->work.need_resched;
-	wmb();
-	p->work.need_resched = 1;
-	if (!need_resched && (p->cpu != smp_processor_id()))
-		smp_send_reschedule(p->cpu);
+	preempt_disable();
+	/* minimise the chance of sending an interrupt to poll_idle() */
+	nrpolling = test_tsk_thread_flag(p,TIF_POLLING_NRFLAG);
+	need_resched = test_and_set_tsk_thread_flag(p,TIF_NEED_RESCHED);
+	nrpolling |= test_tsk_thread_flag(p,TIF_POLLING_NRFLAG);
+
+	if (!need_resched && !nrpolling && (p->thread_info->cpu != smp_processor_id()))
+		smp_send_reschedule(p->thread_info->cpu);
+	preempt_enable();
+#else
+	set_tsk_need_resched(p);
+#endif
 }
 
 #ifdef CONFIG_SMP
@@ -213,6 +225,7 @@ void wait_task_inactive(task_t * p)
 	runqueue_t *rq;
 
 repeat:
+	preempt_disable();
 	rq = task_rq(p);
 	while (unlikely(rq->curr == p)) {
 		cpu_relax();
@@ -221,9 +234,11 @@ repeat:
 	rq = lock_task_rq(p, &flags);
 	if (unlikely(rq->curr == p)) {
 		unlock_task_rq(rq, &flags);
+		preempt_enable();
 		goto repeat;
 	}
 	unlock_task_rq(rq, &flags);
+	preempt_enable();
 }
 
 /*
@@ -236,7 +251,7 @@ repeat:
 void sched_task_migrated(task_t *new_task)
 {
 	wait_task_inactive(new_task);
-	new_task->cpu = smp_processor_id();
+	new_task->thread_info->cpu = smp_processor_id();
 	wake_up_process(new_task);
 }
 
@@ -289,7 +304,10 @@ int wake_up_process(task_t * p)
 
 void wake_up_forked_process(task_t * p)
 {
-	runqueue_t *rq = this_rq();
+	runqueue_t *rq;
+	
+	preempt_disable();
+	rq = this_rq();
 
 	p->state = TASK_RUNNING;
 	if (!rt_task(p)) {
@@ -299,9 +317,10 @@ void wake_up_forked_process(task_t * p)
 		current->sleep_avg = current->sleep_avg * PARENT_FORK_PENALTY / 100;
 	}
 	spin_lock_irq(&rq->lock);
-	p->cpu = smp_processor_id();
+	p->thread_info->cpu = smp_processor_id();
 	activate_task(p, rq);
 	spin_unlock_irq(&rq->lock);
+	preempt_enable();
 }
 
 asmlinkage void schedule_tail(task_t *prev)
@@ -519,11 +538,11 @@ skip_queue:
 	 */
 	dequeue_task(next, array);
 	busiest->nr_running--;
-	next->cpu = this_cpu;
+	next->thread_info->cpu = this_cpu;
 	this_rq->nr_running++;
 	enqueue_task(next, this_rq->active);
 	if (next->prio < current->prio)
-		current->work.need_resched = 1;
+		set_need_resched();
 	if (!idle && --imbalance) {
 		if (array == busiest->expired) {
 			array = busiest->active;
@@ -572,7 +591,7 @@ void scheduler_tick(task_t *p)
 #endif
 	/* Task might have expired already, but not scheduled off yet */
 	if (p->array != rq->active) {
-		p->work.need_resched = 1;
+		set_tsk_need_resched(p);
 		return;
 	}
 	spin_lock(&rq->lock);
@@ -583,7 +602,7 @@ void scheduler_tick(task_t *p)
 		 */
 		if ((p->policy == SCHED_RR) && !--p->time_slice) {
 			p->time_slice = NICE_TO_TIMESLICE(p->__nice);
-			p->work.need_resched = 1;
+			set_tsk_need_resched(p);
 
 			/* put it at the end of the queue: */
 			dequeue_task(p, rq->active);
@@ -603,7 +622,7 @@ void scheduler_tick(task_t *p)
 		p->sleep_avg--;
 	if (!--p->time_slice) {
 		dequeue_task(p, rq->active);
-		p->work.need_resched = 1;
+		set_tsk_need_resched(p);
 		p->prio = effective_prio(p);
 		p->time_slice = NICE_TO_TIMESLICE(p->__nice);
 
@@ -629,17 +648,31 @@ void scheduling_functions_start_here(void) { }
  */
 asmlinkage void schedule(void)
 {
-	task_t *prev = current, *next;
-	runqueue_t *rq = this_rq();
+	task_t *prev, *next;
+	runqueue_t *rq;
 	prio_array_t *array;
 	list_t *queue;
 	int idx;
 
 	if (unlikely(in_interrupt()))
 		BUG();
+
+	preempt_disable();
+	prev = current;
+	rq = this_rq();
+	
 	release_kernel_lock(prev, smp_processor_id());
 	spin_lock_irq(&rq->lock);
 
+#ifdef CONFIG_PREEMPT
+	/*
+	 * if entering from preempt_schedule, off a kernel preemption,
+	 * go straight to picking the next task.
+	 */
+	if (unlikely(preempt_get_count() & PREEMPT_ACTIVE))
+		goto pick_next_task;
+#endif
+	
 	switch (prev->state) {
 	case TASK_RUNNING:
 		prev->sleep_timestamp = jiffies;
@@ -653,7 +686,7 @@ asmlinkage void schedule(void)
 	default:
 		deactivate_task(prev, rq);
 	}
-#if CONFIG_SMP
+#if CONFIG_SMP || CONFIG_PREEMPT
 pick_next_task:
 #endif
 	if (unlikely(!rq->nr_running)) {
@@ -684,7 +717,7 @@ pick_next_task:
 
 switch_tasks:
 	prefetch(next);
-	prev->work.need_resched = 0;
+	clear_tsk_need_resched(prev);
 
 	if (likely(prev != next)) {
 		rq->nr_switches++;
@@ -701,8 +734,24 @@ switch_tasks:
 	spin_unlock_irq(&rq->lock);
 
 	reacquire_kernel_lock(current);
+	preempt_enable_no_resched();
 	return;
 }
+
+#ifdef CONFIG_PREEMPT
+/*
+ * this is is the entry point to schedule() from in-kernel preemption.
+ */
+asmlinkage void preempt_schedule(void)
+{
+	do {
+		current_thread_info()->preempt_count += PREEMPT_ACTIVE;
+		schedule();
+		current_thread_info()->preempt_count -= PREEMPT_ACTIVE;
+		barrier();
+	} while (test_thread_flag(TIF_NEED_RESCHED));
+}
+#endif /* CONFIG_PREEMPT */
 
 /*
  * The core wakeup function.  Non-exclusive wakeups (nr_exclusive == 0) just
@@ -1099,8 +1148,11 @@ out_unlock:
 
 asmlinkage long sys_sched_yield(void)
 {
-	runqueue_t *rq = this_rq();
+	runqueue_t *rq;
 	prio_array_t *array;
+
+	preempt_disable();
+	rq = this_rq();
 
 	/*
 	 * Decrease the yielding task's priority by one, to avoid
@@ -1128,6 +1180,7 @@ asmlinkage long sys_sched_yield(void)
 		__set_bit(current->prio, array->bitmap);
 	}
 	spin_unlock(&rq->lock);
+	preempt_enable_no_resched();
 
 	schedule();
 
@@ -1203,12 +1256,12 @@ static void show_task(task_t * p)
 	if (p == current)
 		printk(" current  ");
 	else
-		printk(" %08lX ", thread_saved_pc(&p->thread));
+		printk(" %08lX ", thread_saved_pc(p));
 #else
 	if (p == current)
 		printk("   current task   ");
 	else
-		printk(" %016lx ", thread_saved_pc(&p->thread));
+		printk(" %016lx ", thread_saved_pc(p));
 #endif
 	{
 		unsigned long * n = (unsigned long *) (p+1);
@@ -1320,9 +1373,9 @@ void __init init_idle(task_t *idle, int cpu)
 	idle->array = NULL;
 	idle->prio = MAX_PRIO;
 	idle->state = TASK_RUNNING;
-	idle->cpu = cpu;
+	idle->thread_info->cpu = cpu;
 	double_rq_unlock(idle_rq, rq);
-	idle->work.need_resched = 1;
+	set_tsk_need_resched(idle);
 	__restore_flags(flags);
 }
 

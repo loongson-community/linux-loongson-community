@@ -1,4 +1,4 @@
-/* $Id: siginfo.h,v 1.8 2000/05/27 00:49:37 davem Exp $
+/* $Id: siginfo.h,v 1.9 2002/02/08 03:57:18 davem Exp $
  * siginfo.c:
  */
 
@@ -112,6 +112,7 @@ typedef struct siginfo {
 #define SI_MESGQ	-3		/* sent by real time mesq state change */
 #define SI_ASYNCIO	-4		/* sent by AIO completion */
 #define SI_SIGIO	-5		/* sent by queued SIGIO */
+#define SI_TKILL	-6		/* sent by tkill system call */
 
 #define SI_FROMUSER(siptr)	((siptr)->si_code <= 0)
 #define SI_FROMKERNEL(siptr)	((siptr)->si_code > 0)

@@ -13,6 +13,7 @@
 #include <linux/smp_lock.h>
 #include <linux/init.h>
 #include <linux/sched.h>
+#include <linux/fs.h>
 
 #include <asm/param.h>
 #include <asm/uaccess.h>
@@ -24,7 +25,7 @@
 #define DEBUG_SIG 0
 
 #if DEBUG_SIG
-#define SIG_SLAB_DEBUG	(SLAB_DEBUG_FREE | SLAB_RED_ZONE /* | SLAB_POISON */)
+#define SIG_SLAB_DEBUG	(SLAB_RED_ZONE /* | SLAB_POISON */)
 #else
 #define SIG_SLAB_DEBUG	0
 #endif
@@ -106,7 +107,7 @@ static void flush_sigqueue(struct sigpending *queue)
 void
 flush_signals(struct task_struct *t)
 {
-	t->work.sigpending = 0;
+	clear_tsk_thread_flag(t,TIF_SIGPENDING);
 	flush_sigqueue(&t->pending);
 }
 
@@ -120,7 +121,7 @@ void exit_sighand(struct task_struct *tsk)
 		if (atomic_dec_and_test(&sig->count))
 			kmem_cache_free(sigact_cachep, sig);
 	}
-	tsk->work.sigpending = 0;
+	clear_tsk_thread_flag(tsk,TIF_SIGPENDING);
 	flush_sigqueue(&tsk->pending);
 	spin_unlock_irq(&tsk->sigmask_lock);
 }
@@ -141,6 +142,35 @@ flush_signal_handlers(struct task_struct *t)
 		sigemptyset(&ka->sa.sa_mask);
 		ka++;
 	}
+}
+
+/*
+ * sig_exit - cause the current task to exit due to a signal.
+ */
+
+void
+sig_exit(int sig, int exit_code, struct siginfo *info)
+{
+	struct task_struct *t;
+
+	sigaddset(&current->pending.signal, sig);
+	recalc_sigpending(current);
+	current->flags |= PF_SIGNALED;
+
+	/* Propagate the signal to all the tasks in
+	 *  our thread group
+	 */
+	if (info && (unsigned long)info != 1
+	    && info->si_code != SI_TKILL) {
+		read_lock(&tasklist_lock);
+		for_each_thread(t) {
+			force_sig_info(sig, info, t);
+		}
+		read_unlock(&tasklist_lock);
+	}
+
+	do_exit(exit_code);
+	/* NOTREACHED */
 }
 
 /* Notify the system that a driver wants to block all signals for this
@@ -247,7 +277,7 @@ printk("SIG dequeue (%s:%d): %d ", current->comm, current->pid,
 		if (current->notifier) {
 			if (sigismember(current->notifier_mask, sig)) {
 				if (!(current->notifier)(current->notifier_data)) {
-					current->work.sigpending = 0;
+					clear_thread_flag(TIF_SIGPENDING);
 					return 0;
 				}
 			}
@@ -466,7 +496,7 @@ static int send_signal(int sig, struct siginfo *info, struct sigpending *signals
  */
 static inline void signal_wake_up(struct task_struct *t)
 {
-	t->work.sigpending = 1;
+	set_tsk_thread_flag(t,TIF_SIGPENDING);
 
 #ifdef CONFIG_SMP
 	/*
@@ -479,7 +509,7 @@ static inline void signal_wake_up(struct task_struct *t)
 	 * process of changing - but no harm is done by that
 	 * other than doing an extra (lightweight) IPI interrupt.
 	 */
-	if ((t->state == TASK_RUNNING) && (t->cpu != smp_processor_id()))
+	if ((t->state == TASK_RUNNING) && (t->thread_info->cpu != smp_processor_id()))
 		kick_if_running(t);
 #endif
 	if (t->state & TASK_INTERRUPTIBLE) {
@@ -590,7 +620,7 @@ kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
 		retval = -ESRCH;
 		read_lock(&tasklist_lock);
 		for_each_task(p) {
-			if (p->pgrp == pgrp) {
+			if (p->pgrp == pgrp && thread_group_leader(p)) {
 				int err = send_sig_info(sig, info, p);
 				if (retval)
 					retval = err;
@@ -637,8 +667,15 @@ kill_proc_info(int sig, struct siginfo *info, pid_t pid)
 	read_lock(&tasklist_lock);
 	p = find_task_by_pid(pid);
 	error = -ESRCH;
-	if (p)
+	if (p) {
+		if (!thread_group_leader(p)) {
+                       struct task_struct *tg;
+                       tg = find_task_by_pid(p->tgid);
+                       if (tg)
+                               p = tg;
+                }
 		error = send_sig_info(sig, info, p);
+	}
 	read_unlock(&tasklist_lock);
 	return error;
 }
@@ -661,7 +698,7 @@ static int kill_something_info(int sig, struct siginfo *info, int pid)
 
 		read_lock(&tasklist_lock);
 		for_each_task(p) {
-			if (p->pid > 1 && p != current) {
+			if (p->pid > 1 && p != current && thread_group_leader(p)) {
 				int err = send_sig_info(sig, info, p);
 				++count;
 				if (err != -EPERM)
@@ -984,6 +1021,36 @@ sys_kill(int pid, int sig)
 	info.si_uid = current->uid;
 
 	return kill_something_info(sig, &info, pid);
+}
+
+/*
+ *  Kill only one task, even if it's a CLONE_THREAD task.
+ */
+asmlinkage long
+sys_tkill(int pid, int sig)
+{
+       struct siginfo info;
+       int error;
+       struct task_struct *p;
+
+       /* This is only valid for single tasks */
+       if (pid <= 0)
+           return -EINVAL;
+
+       info.si_signo = sig;
+       info.si_errno = 0;
+       info.si_code = SI_TKILL;
+       info.si_pid = current->pid;
+       info.si_uid = current->uid;
+
+       read_lock(&tasklist_lock);
+       p = find_task_by_pid(pid);
+       error = -ESRCH;
+       if (p) {
+               error = send_sig_info(sig, &info, p);
+       }
+       read_unlock(&tasklist_lock);
+       return error;
 }
 
 asmlinkage long

@@ -49,7 +49,8 @@
  *  constructors and destructors are called without any locking.
  *  Several members in kmem_cache_t and slab_t never change, they
  *	are accessed without any locking.
- *  The per-cpu arrays are never accessed from the wrong cpu, no locking.
+ *  The per-cpu arrays are never accessed from the wrong cpu, no locking,
+ *  	and local interrupts are disabled so slab code is preempt-safe.
  *  The non-constant members are protected with a per-cache irq spinlock.
  *
  * Further notes from the original documentation:
@@ -75,6 +76,7 @@
 #include	<linux/interrupt.h>
 #include	<linux/init.h>
 #include	<linux/compiler.h>
+#include	<linux/seq_file.h>
 #include	<asm/uaccess.h>
 
 /*
@@ -186,8 +188,6 @@ typedef struct cpucache_s {
  * manages a cache.
  */
 
-#define CACHE_NAMELEN	20	/* max name length for a slab cache */
-
 struct kmem_cache_s {
 /* 1) each alloc & free */
 	/* full, partial first, then free */
@@ -225,7 +225,7 @@ struct kmem_cache_s {
 	unsigned long		failures;
 
 /* 3) cache creation/removal */
-	char			name[CACHE_NAMELEN];
+	const char		*name;
 	struct list_head	next;
 #ifdef CONFIG_SMP
 /* 4) per-cpu data */
@@ -335,6 +335,7 @@ typedef struct cache_sizes {
 	kmem_cache_t	*cs_dmacachep;
 } cache_sizes_t;
 
+/* These are the default caches for kmalloc. Custom caches can have other sizes. */
 static cache_sizes_t cache_sizes[] = {
 #if PAGE_SIZE == 4096
 	{    32,	NULL, NULL},
@@ -353,6 +354,29 @@ static cache_sizes_t cache_sizes[] = {
 	{131072,	NULL, NULL},
 	{     0,	NULL, NULL}
 };
+/* Must match cache_sizes above. Out of line to keep cache footprint low. */
+#define CN(x) { x, x " (DMA)" }
+static struct { 
+	char *name; 
+	char *name_dma;
+} cache_names[] = { 
+#if PAGE_SIZE == 4096
+	CN("size-32"),
+#endif
+	CN("size-64"),
+	CN("size-128"),
+	CN("size-256"),
+	CN("size-512"),
+	CN("size-1024"),
+	CN("size-2048"),
+	CN("size-4096"),
+	CN("size-8192"),
+	CN("size-16384"),
+	CN("size-32768"),
+	CN("size-65536"),
+	CN("size-131072")
+}; 
+#undef CN
 
 /* internal cache of cache description objs */
 static kmem_cache_t cache_cache = {
@@ -437,7 +461,6 @@ void __init kmem_cache_init(void)
 void __init kmem_cache_sizes_init(void)
 {
 	cache_sizes_t *sizes = cache_sizes;
-	char name[20];
 	/*
 	 * Fragmentation resistance on low memory - only use bigger
 	 * page orders on machines with more than 32MB of memory.
@@ -450,9 +473,9 @@ void __init kmem_cache_sizes_init(void)
 		 * eliminates "false sharing".
 		 * Note for systems short on memory removing the alignment will
 		 * allow tighter packing of the smaller caches. */
-		sprintf(name,"size-%Zd",sizes->cs_size);
 		if (!(sizes->cs_cachep =
-			kmem_cache_create(name, sizes->cs_size,
+			kmem_cache_create(cache_names[sizes-cache_sizes].name, 
+					  sizes->cs_size,
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL))) {
 			BUG();
 		}
@@ -462,9 +485,10 @@ void __init kmem_cache_sizes_init(void)
 			offslab_limit = sizes->cs_size-sizeof(slab_t);
 			offslab_limit /= 2;
 		}
-		sprintf(name, "size-%Zd(DMA)",sizes->cs_size);
-		sizes->cs_dmacachep = kmem_cache_create(name, sizes->cs_size, 0,
-			      SLAB_CACHE_DMA|SLAB_HWCACHE_ALIGN, NULL, NULL);
+		sizes->cs_dmacachep = kmem_cache_create(
+		    cache_names[sizes-cache_sizes].name_dma, 
+			sizes->cs_size, 0,
+			SLAB_CACHE_DMA|SLAB_HWCACHE_ALIGN, NULL, NULL);
 		if (!sizes->cs_dmacachep)
 			BUG();
 		sizes++;
@@ -604,6 +628,11 @@ static void kmem_slab_destroy (kmem_cache_t *cachep, slab_t *slabp)
  * Cannot be called within a int, but can be interrupted.
  * The @ctor is run when new pages are allocated by the cache
  * and the @dtor is run before the pages are handed back.
+ *
+ * @name must be valid until the cache is destroyed. This implies that
+ * the module calling this has to destroy the cache before getting 
+ * unloaded.
+ * 
  * The flags are
  *
  * %SLAB_POISON - Poison the slab with a known test pattern (a5a5a5a5)
@@ -632,7 +661,6 @@ kmem_cache_create (const char *name, size_t size, size_t offset,
 	 * Sanity checks... these are all serious usage bugs.
 	 */
 	if ((!name) ||
-		((strlen(name) >= CACHE_NAMELEN - 1)) ||
 		in_interrupt() ||
 		(size < BYTES_PER_WORD) ||
 		(size > (1<<MAX_OBJ_ORDER)*PAGE_SIZE) ||
@@ -797,8 +825,7 @@ next:
 		cachep->slabp_cache = kmem_find_general_cachep(slab_size,0);
 	cachep->ctor = ctor;
 	cachep->dtor = dtor;
-	/* Copy name over so we don't have problems with unloaded modules */
-	strcpy(cachep->name, name);
+	cachep->name = name;
 
 #ifdef CONFIG_SMP
 	if (g_cpucache_up)
@@ -811,10 +838,20 @@ next:
 
 		list_for_each(p, &cache_chain) {
 			kmem_cache_t *pc = list_entry(p, kmem_cache_t, next);
-
-			/* The name field is constant - no lock needed. */
-			if (!strcmp(pc->name, name))
-				BUG();
+			char tmp;
+			/* This happens when the module gets unloaded and doesn't
+			   destroy its slab cache and noone else reuses the vmalloc
+			   area of the module. Print a warning. */
+			if (__get_user(tmp,pc->name)) { 
+				printk("SLAB: cache with size %d has lost its name\n", 
+					pc->objsize); 
+				continue; 
+			} 	
+			if (!strcmp(pc->name,name)) { 
+				printk("kmem_cache_create: duplicate cache %s\n",name); 
+				up(&cache_chain_sem); 
+				BUG(); 
+			}	
 		}
 	}
 
@@ -1834,31 +1871,56 @@ out:
 }
 
 #ifdef CONFIG_PROC_FS
-/* /proc/slabinfo
- *	cache-name num-active-objs total-objs
- *	obj-size num-active-slabs total-slabs
- *	num-pages-per-slab
- */
-#define FIXUP(t)				\
-	do {					\
-		if (len <= off) {		\
-			off -= len;		\
-			len = 0;		\
-		} else {			\
-			if (len-off > count)	\
-				goto t;		\
-		}				\
-	} while (0)
 
-static int proc_getdata (char*page, char**start, off_t off, int count)
+static void *s_start(struct seq_file *m, loff_t *pos)
 {
+	loff_t n = *pos;
 	struct list_head *p;
-	int len = 0;
 
-	/* Output format version, so at least we can change it without _too_
-	 * many complaints.
-	 */
-	len += sprintf(page+len, "slabinfo - version: 1.1"
+	down(&cache_chain_sem);
+	if (!n)
+		return (void *)1;
+	p = &cache_cache.next;
+	while (--n) {
+		p = p->next;
+		if (p == &cache_cache.next)
+			return NULL;
+	}
+	return list_entry(p, kmem_cache_t, next);
+}
+
+static void *s_next(struct seq_file *m, void *p, loff_t *pos)
+{
+	kmem_cache_t *cachep = p;
+	++*pos;
+	if (p == (void *)1)
+		return &cache_cache;
+	cachep = list_entry(cachep->next.next, kmem_cache_t, next);
+	return cachep == &cache_cache ? NULL : cachep;
+}
+
+static void s_stop(struct seq_file *m, void *p)
+{
+	up(&cache_chain_sem);
+}
+
+static int s_show(struct seq_file *m, void *p)
+{
+	kmem_cache_t *cachep = p;
+	struct list_head *q;
+	slab_t		*slabp;
+	unsigned long	active_objs;
+	unsigned long	num_objs;
+	unsigned long	active_slabs = 0;
+	unsigned long	num_slabs;
+	const char *name; 
+
+	if (p == (void*)1) {
+		/*
+		 * Output format version, so at least we can change it
+		 * without _too_ many complaints.
+		 */
+		seq_puts(m, "slabinfo - version: 1.1"
 #if STATS
 				" (statistics)"
 #endif
@@ -1866,108 +1928,89 @@ static int proc_getdata (char*page, char**start, off_t off, int count)
 				" (SMP)"
 #endif
 				"\n");
-	FIXUP(got_data);
+		return 0;
+	}
 
-	down(&cache_chain_sem);
-	p = &cache_cache.next;
-	do {
-		kmem_cache_t	*cachep;
-		struct list_head *q;
-		slab_t		*slabp;
-		unsigned long	active_objs;
-		unsigned long	num_objs;
-		unsigned long	active_slabs = 0;
-		unsigned long	num_slabs;
-		cachep = list_entry(p, kmem_cache_t, next);
+	spin_lock_irq(&cachep->spinlock);
+	active_objs = 0;
+	num_slabs = 0;
+	list_for_each(q,&cachep->slabs_full) {
+		slabp = list_entry(q, slab_t, list);
+		if (slabp->inuse != cachep->num)
+			BUG();
+		active_objs += cachep->num;
+		active_slabs++;
+	}
+	list_for_each(q,&cachep->slabs_partial) {
+		slabp = list_entry(q, slab_t, list);
+		if (slabp->inuse == cachep->num || !slabp->inuse)
+			BUG();
+		active_objs += slabp->inuse;
+		active_slabs++;
+	}
+	list_for_each(q,&cachep->slabs_free) {
+		slabp = list_entry(q, slab_t, list);
+		if (slabp->inuse)
+			BUG();
+		num_slabs++;
+	}
+	num_slabs+=active_slabs;
+	num_objs = num_slabs*cachep->num;
 
-		spin_lock_irq(&cachep->spinlock);
-		active_objs = 0;
-		num_slabs = 0;
-		list_for_each(q,&cachep->slabs_full) {
-			slabp = list_entry(q, slab_t, list);
-			if (slabp->inuse != cachep->num)
-				BUG();
-			active_objs += cachep->num;
-			active_slabs++;
-		}
-		list_for_each(q,&cachep->slabs_partial) {
-			slabp = list_entry(q, slab_t, list);
-			if (slabp->inuse == cachep->num || !slabp->inuse)
-				BUG();
-			active_objs += slabp->inuse;
-			active_slabs++;
-		}
-		list_for_each(q,&cachep->slabs_free) {
-			slabp = list_entry(q, slab_t, list);
-			if (slabp->inuse)
-				BUG();
-			num_slabs++;
-		}
-		num_slabs+=active_slabs;
-		num_objs = num_slabs*cachep->num;
+	name = cachep->name; 
+	{
+	char tmp; 
+	if (__get_user(tmp, name)) 
+		name = "broken"; 
+	} 	
 
-		len += sprintf(page+len, "%-17s %6lu %6lu %6u %4lu %4lu %4u",
-			cachep->name, active_objs, num_objs, cachep->objsize,
-			active_slabs, num_slabs, (1<<cachep->gfporder));
+	seq_printf(m, "%-17s %6lu %6lu %6u %4lu %4lu %4u",
+		name, active_objs, num_objs, cachep->objsize,
+		active_slabs, num_slabs, (1<<cachep->gfporder));
 
 #if STATS
-		{
-			unsigned long errors = cachep->errors;
-			unsigned long high = cachep->high_mark;
-			unsigned long grown = cachep->grown;
-			unsigned long reaped = cachep->reaped;
-			unsigned long allocs = cachep->num_allocations;
+	{
+		unsigned long errors = cachep->errors;
+		unsigned long high = cachep->high_mark;
+		unsigned long grown = cachep->grown;
+		unsigned long reaped = cachep->reaped;
+		unsigned long allocs = cachep->num_allocations;
 
-			len += sprintf(page+len, " : %6lu %7lu %5lu %4lu %4lu",
-					high, allocs, grown, reaped, errors);
-		}
+		seq_printf(m, " : %6lu %7lu %5lu %4lu %4lu",
+				high, allocs, grown, reaped, errors);
+	}
 #endif
 #ifdef CONFIG_SMP
-		{
-			unsigned int batchcount = cachep->batchcount;
-			unsigned int limit;
+	{
+		unsigned int batchcount = cachep->batchcount;
+		unsigned int limit;
 
-			if (cc_data(cachep))
-				limit = cc_data(cachep)->limit;
-			 else
-				limit = 0;
-			len += sprintf(page+len, " : %4u %4u",
-					limit, batchcount);
-		}
+		if (cc_data(cachep))
+			limit = cc_data(cachep)->limit;
+		 else
+			limit = 0;
+		seq_printf(m, " : %4u %4u", limit, batchcount);
+	}
 #endif
 #if STATS && defined(CONFIG_SMP)
-		{
-			unsigned long allochit = atomic_read(&cachep->allochit);
-			unsigned long allocmiss = atomic_read(&cachep->allocmiss);
-			unsigned long freehit = atomic_read(&cachep->freehit);
-			unsigned long freemiss = atomic_read(&cachep->freemiss);
-			len += sprintf(page+len, " : %6lu %6lu %6lu %6lu",
-					allochit, allocmiss, freehit, freemiss);
-		}
+	{
+		unsigned long allochit = atomic_read(&cachep->allochit);
+		unsigned long allocmiss = atomic_read(&cachep->allocmiss);
+		unsigned long freehit = atomic_read(&cachep->freehit);
+		unsigned long freemiss = atomic_read(&cachep->freemiss);
+		seq_printf(m, " : %6lu %6lu %6lu %6lu",
+				allochit, allocmiss, freehit, freemiss);
+	}
 #endif
-		len += sprintf(page+len,"\n");
-		spin_unlock_irq(&cachep->spinlock);
-		FIXUP(got_data_up);
-		p = cachep->next.next;
-	} while (p != &cache_cache.next);
-got_data_up:
-	up(&cache_chain_sem);
-
-got_data:
-	*start = page+off;
-	return len;
+	spin_unlock_irq(&cachep->spinlock);
+	seq_putc(m, '\n');
+	return 0;
 }
 
 /**
- * slabinfo_read_proc - generates /proc/slabinfo
- * @page: scratch area, one page long
- * @start: pointer to the pointer to the output buffer
- * @off: offset within /proc/slabinfo the caller is interested in
- * @count: requested len in bytes
- * @eof: eof marker
- * @data: unused
+ * slabinfo_op - iterator that generates /proc/slabinfo
  *
- * The contents of the buffer are
+ * Output layout:
  * cache-name
  * num-active-objs
  * total-objs
@@ -1977,28 +2020,24 @@ got_data:
  * num-pages-per-slab
  * + further values on SMP and with statistics enabled
  */
-int slabinfo_read_proc (char *page, char **start, off_t off,
-				 int count, int *eof, void *data)
-{
-	int len = proc_getdata(page, start, off, count);
-	len -= (*start-page);
-	if (len <= count)
-		*eof = 1;
-	if (len>count) len = count;
-	if (len<0) len = 0;
-	return len;
-}
+
+struct seq_operations slabinfo_op = {
+	start:	s_start,
+	next:	s_next,
+	stop:	s_stop,
+	show:	s_show
+};
 
 #define MAX_SLABINFO_WRITE 128
 /**
- * slabinfo_write_proc - SMP tuning for the slab allocator
+ * slabinfo_write - SMP tuning for the slab allocator
  * @file: unused
  * @buffer: user buffer
  * @count: data len
  * @data: unused
  */
-int slabinfo_write_proc (struct file *file, const char *buffer,
-				unsigned long count, void *data)
+ssize_t slabinfo_write(struct file *file, const char *buffer,
+				size_t count, loff_t *ppos)
 {
 #ifdef CONFIG_SMP
 	char kbuf[MAX_SLABINFO_WRITE+1], *tmp;

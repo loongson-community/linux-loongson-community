@@ -189,7 +189,6 @@ struct thread_struct {
 #define MF_LOGADE 2			/* Log address errors to syslog */
 #define MF_32BIT  4			/* Process is in 32-bit compat mode */
 	unsigned long mflags;
-	mm_segment_t current_ds;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
 };
@@ -265,7 +264,7 @@ do {									\
 	regs->cp0_status = __status;					\
 	regs->cp0_epc = pc;						\
 	regs->regs[29] = sp;						\
-	current->thread.current_ds = USER_DS;				\
+	current_thread_info()->addr_limit = USER_DS;			\
 } while(0)
 
 unsigned long get_wchan(struct task_struct *p);
@@ -274,19 +273,6 @@ unsigned long get_wchan(struct task_struct *p);
 #define __KSTK_TOS(tsk) ((unsigned long)(tsk) + KERNEL_STACK_SIZE - 32)
 #define KSTK_EIP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_epc)))
 #define KSTK_ESP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(regs[29])))
-
-/* Allocation and freeing of basic task resources. */
-/*
- * NOTE! The task struct and the stack go together
- */
-#define THREAD_SIZE (2*PAGE_SIZE)
-#define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL, 2))
-#define free_task_struct(p)	free_pages((unsigned long)(p), 2)
-#define get_task_struct(tsk)	atomic_inc(&virt_to_page(tsk)->count)
-
-#define init_task	(init_task_union.task)
-#define init_stack	(init_task_union.stack)
 
 #define cpu_relax()	do { } while (0)
 

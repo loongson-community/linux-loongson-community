@@ -72,6 +72,7 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 		 unsigned long unused,
                  struct task_struct * p, struct pt_regs * regs)
 {
+	struct thread_info *ti = p->thread_info;
 	struct pt_regs * childregs;
 	long childksp;
 
@@ -99,10 +100,10 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	if (childregs->cp0_status & ST0_CU0) {
 		childregs->regs[28] = (unsigned long) p;
 		childregs->regs[29] = childksp;
-		p->thread.current_ds = KERNEL_DS;
+		ti->addr_limit = KERNEL_DS;
 	} else {
 		childregs->regs[29] = usp;
-		p->thread.current_ds = USER_DS;
+		ti->addr_limit = USER_DS;
 	}
 	p->thread.reg29 = (unsigned long) childregs;
 	p->thread.reg31 = (unsigned long) ret_from_fork;

@@ -203,7 +203,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 			fregs = (unsigned long long *)&child->thread.fpu.hard.fp_regs[0];
 			if (child->used_math) {
 #ifndef CONFIG_SMP
-				if (last_task_used_math == child) 
+				if (last_task_used_math == child) { 
 					if (mips_cpu.options & MIPS_CPU_FPU) {
 						__enable_fpu();
 						save_fp(child);
@@ -214,6 +214,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 						fregs = (unsigned long long *)
 						child->thread.fpu.soft.regs;
 					}
+				}
 #endif
 			} else {
 				/* FP not yet used  */
@@ -263,16 +264,10 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 		if ((unsigned int) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL) {
-			if (!(child->ptrace & PT_SYSCALLTRACE)) {
-				child->ptrace |= PT_SYSCALLTRACE;
-				child->work.syscall_trace++;
-			}
+			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		else {
-			if (child->ptrace & PT_SYSCALLTRACE) {
-				child->ptrace &= ~PT_SYSCALLTRACE;
-				child->work.syscall_trace--;
-			}
+			clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		child->exit_code = data;
 		wake_up_process(child);
@@ -312,7 +307,7 @@ asmlinkage int sys32_ptrace(int request, int pid, int addr, int data)
 	}
 
 out_tsk:
-	free_task_struct(child);
+	put_task_struct(child);
 out:
 	unlock_kernel();
 	return ret;
@@ -544,16 +539,10 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 		if ((unsigned long) data > _NSIG)
 			break;
 		if (request == PTRACE_SYSCALL) {
-			if (!(child->ptrace & PT_SYSCALLTRACE)) {
-				child->ptrace |= PT_SYSCALLTRACE;
-				child->work.syscall_trace++;
-			}
+			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		else {
-			if (child->ptrace & PT_SYSCALLTRACE) {
-				child->ptrace &= ~PT_SYSCALLTRACE;
-				child->work.syscall_trace--;
-			}
+			clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 		}
 		child->exit_code = data;
 		wake_up_process(child);
@@ -593,7 +582,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 	}
 
 out_tsk:
-	free_task_struct(child);
+	put_task_struct(child);
 out:
 	unlock_kernel();
 	return ret;
@@ -620,8 +609,9 @@ struct task_work_bf {
 
 asmlinkage void do_syscall_trace(void)
 {
-	if ((current->ptrace & (PT_PTRACED|PT_SYSCALLTRACE))
-	    != (PT_PTRACED|PT_SYSCALLTRACE))
+	if (!test_thread_flag(TIF_SYSCALL_TRACE))
+		return;
+	if (!(current->ptrace & PT_PTRACED))
 		return;
 
 	/* The 0x80 provides a way for the tracing parent to distinguish
@@ -639,31 +629,5 @@ asmlinkage void do_syscall_trace(void)
 	if (current->exit_code) {
 		send_sig(current->exit_code, current, 1);
 		current->exit_code = 0;
-	}
-}
-
-extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
-
-/*
- * notification of userspace execution resumption
- * - triggered by current->work.notify_resume
- */
-asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
-	struct task_work_bf work_pending)
-{
-	/* deal with pending signal delivery */
-	if (work_pending.sigpending) {
-#ifdef CONFIG_BINFMT_ELF32
-		if (likely((current->thread.mflags & MF_32BIT))) {
-			return do_signal32(oldset, regs);
-		}
-#endif
-#ifdef CONFIG_BINFMT_IRIX
-		if (unlikely(current->personality != PER_LINUX)) {
-			do_irix_signal(oldset, regs);
-			return;
-		}
-#endif
-		do_signal(regs,oldset);
 	}
 }

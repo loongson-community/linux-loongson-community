@@ -7,7 +7,8 @@
  *  Please add a note about your changes to smbfs in the ChangeLog file.
  */
 
-#include <linux/sched.h>
+#include <linux/fs.h>
+#include <linux/time.h>
 #include <linux/errno.h>
 #include <linux/socket.h>
 #include <linux/fcntl.h>
@@ -176,7 +177,7 @@ int
 smb_valid_socket(struct inode * inode)
 {
 	return (inode && S_ISSOCK(inode->i_mode) && 
-		inode->u.socket_i.type == SOCK_STREAM);
+		SOCKET_I(inode)->type == SOCK_STREAM);
 }
 
 static struct socket *
@@ -190,7 +191,7 @@ server_sock(struct smb_sb_info *server)
 		if (!smb_valid_socket(file->f_dentry->d_inode))
 			PARANOIA("bad socket!\n");
 #endif
-		return &file->f_dentry->d_inode->u.socket_i;
+		return SOCKET_I(file->f_dentry->d_inode);
 	}
 	return NULL;
 }

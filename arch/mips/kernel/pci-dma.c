@@ -32,7 +32,7 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 		dma_cache_wback_inv((unsigned long) ret, size);
 		ret = KSEG1ADDR(ret);
 #endif
-		*dma_handle = virt_to_bus(ret);
+		*dma_handle = virt_to_phys(ret);
 	}
 
 	return ret;

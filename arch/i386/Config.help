@@ -25,6 +25,16 @@ CONFIG_SMP
 
   If you don't know what to do here, say N.
 
+CONFIG_PREEMPT
+  This option reduces the latency of the kernel when reacting to
+  real-time or interactive events by allowing a low priority process to
+  be preempted even if it is in kernel mode executing a system call.
+  This allows applications to run more reliably even when the system is
+  under load.
+
+  Say Y here if you are building a kernel for a desktop, embedded
+  or real-time system.  Say N if you are unsure.
+
 CONFIG_X86
   This is Linux's home port.  Linux was originally native to the Intel
   386, and runs on all the later x86 processors including the Intel
@@ -386,7 +396,7 @@ CONFIG_M386
      will run on a 386 class machine.
    - "486" for the AMD/Cyrix/IBM/Intel 486DX/DX2/DX4 or
      SL/SLC/SLC2/SLC3/SX/SX2 and UMC U5D or U5S.
-   - "586" for generic Pentium CPUs, possibly lacking the TSC
+   - "586" for generic Pentium CPUs lacking the TSC
      (time stamp counter) register.
    - "Pentium-Classic" for the Intel Pentium.
    - "Pentium-MMX" for the Intel Pentium MMX.
@@ -413,11 +423,68 @@ CONFIG_M486
 CONFIG_M586
   Select this for an x586 or x686 processor such as the AMD K5, the
   Intel 5x86 or 6x86, or the Intel 6x86MX.  This choice does not
-  assume the RDTSC instruction.
+  assume the RDTSC (Read Time Stamp Counter) instruction.
 
 CONFIG_M586TSC
   Select this for a Pentium Classic processor with the RDTSC (Read
   Time Stamp Counter) instruction for benchmarking.
+
+CONFIG_M586MMX
+  Select this for a Pentium with the MMX graphics/multimedia
+  extended instructions.
+
+CONFIG_M686
+  Select this for a Pro/Celeron/Pentium II.  This enables the use of
+  Pentium Pro extended instructions, and disables the init-time guard
+  against the f00f bug found in earlier Pentiums.
+
+CONFIG_MPENTIUMIII
+  Select this for Intel chips based on the Pentium-III and
+  Celeron-Coppermine core.  Enables use of some extended prefetch
+  instructions, in addition to the Pentium II extensions.
+
+CONFIG_MPENTIUM4
+  Select this for Intel Pentium 4 chips.  Presently these are
+  treated almost like Pentium IIIs, but with a different cache
+  shift.
+
+CONFIG_MCRUSOE
+  Select this for Transmeta Crusoe processor.  Treats the processor
+  like a 586 with TSC, and sets some GCC optimization flags (like a
+  Pentium Pro with no alignment requirements).
+
+CONFIG_MK6
+  Select this for an AMD K6-family processor.  Enables use of
+  some extended instructions, and passes appropriate optimization
+  flags to GCC.
+
+CONFIG_MK7
+  Select this for an AMD Athlon K7-family processor.  Enables use of
+  some extended instructions, and passes appropriate optimization
+  flags to GCC.
+
+CONFIG_MCYRIXIII
+  Select this for a Cyrix III or C3 chip.  Presently Linux and GCC
+  treat this chip as a generic 586. Whilst the CPU is 686 class,
+  it lacks the cmov extension which gcc assumes is present when
+  generating 686 code.
+
+CONFIG_MWINCHIPC6
+  Select this for a IDT Winchip C6 chip.  Linux and GCC
+  treat this chip as a 586TSC with some extended instructions
+  and alignment requirements.
+
+CONFIG_MWINCHIP2
+  Select this for a IDT Winchip-2.  Linux and GCC
+  treat this chip as a 586TSC with some extended instructions
+  and alignment requirements.
+
+CONFIG_MWINCHIP3D
+  Select this for a IDT Winchip-2A or 3.  Linux and GCC
+  treat this chip as a 586TSC with some extended instructions
+  and alignment reqirements.  Development kernels also enable
+  out of order memory stores for this CPU, which can increase
+  performance of some operations.
 
 CONFIG_VGA_CONSOLE
   Saying Y here will allow you to use Linux in text mode through a
@@ -832,31 +899,6 @@ CONFIG_MAGIC_SYSRQ
   send a BREAK and then within 5 seconds a command keypress. The
   keys are documented in <file:Documentation/sysrq.txt>. Don't say Y
   unless you really know what this hack does.
-
-CONFIG_ISDN
-  ISDN ("Integrated Services Digital Networks", called RNIS in France)
-  is a special type of fully digital telephone service; it's mostly
-  used to connect to your Internet service provider (with SLIP or
-  PPP).  The main advantage is that the speed is higher than ordinary
-  modem/telephone connections, and that you can have voice
-  conversations while downloading stuff.  It only works if your
-  computer is equipped with an ISDN card and both you and your service
-  provider purchased an ISDN line from the phone company.  For
-  details, read <http://alumni.caltech.edu/~dank/isdn/> on the WWW.
-
-  This driver allows you to use an ISDN-card for networking
-  connections and as dialin/out device.  The isdn-tty's have a built
-  in AT-compatible modem emulator.  Network devices support autodial,
-  channel-bundling, callback and caller-authentication without having
-  a daemon running.  A reduced T.70 protocol is supported with tty's
-  suitable for German BTX.  On D-Channel, the protocols EDSS1
-  (Euro-ISDN) and 1TR6 (German style) are supported.  See
-  <file:Documentation/isdn/README> for more information.
-
-  If you want to compile the ISDN code as a module ( = code which can
-  be inserted in and removed from the running kernel whenever you
-  want), say M here and read <file:Documentation/modules.txt>.  The
-  module will be called isdn.o. If unsure, say N.
 
 CONFIG_DEBUG_HIGHMEM
   This options enables addition error checking for high memory systems.

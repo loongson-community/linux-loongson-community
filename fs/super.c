@@ -597,11 +597,8 @@ static void put_anon_dev(kdev_t dev)
  *
  *	Rather than duplicating all that logics every time when
  *	we want something that doesn't fit "nodev" and "single" we pull
- *	the relevant code into common helper and let get_sb_...() call
+ *	the relevant code into common helper and let ->get_sb() call
  *	it.
- *
- *	NB: get_sb_...() is going to become an fs type method, with
- *	current ->read_super() becoming a callback used by common instances.
  */
 struct super_block *get_anon_super(struct file_system_type *type,
 	int (*compare)(struct super_block *,void *), void *data)
@@ -641,8 +638,9 @@ retry:
 	return s;
 }
 
-static struct super_block *get_sb_bdev(struct file_system_type *fs_type,
-	int flags, char *dev_name, void * data)
+struct super_block *get_sb_bdev(struct file_system_type *fs_type,
+	int flags, char *dev_name, void * data,
+	int (*fill_super)(struct super_block *, void *, int))
 {
 	struct inode *inode;
 	struct block_device *bdev;
@@ -698,7 +696,7 @@ restart:
 
 	list_for_each(p, &super_blocks) {
 		struct super_block *old = sb_entry(p);
-		if (!kdev_same(old->s_dev, dev))
+		if (old->s_bdev != bdev)
 			continue;
 		if (old->s_type != fs_type ||
 		    ((flags ^ old->s_flags) & MS_RDONLY)) {
@@ -718,8 +716,8 @@ restart:
 	s->s_flags = flags;
 	insert_super(s, fs_type);
 	strncpy(s->s_id, bdevname(dev), sizeof(s->s_id));
-	error = -EINVAL;
-	if (!fs_type->read_super(s, data, flags & MS_VERBOSE ? 1 : 0))
+	error = fill_super(s, data, flags & MS_VERBOSE ? 1 : 0);
+	if (error)
 		goto failed;
 	s->s_flags |= MS_ACTIVE;
 	path_release(&nd);
@@ -736,19 +734,23 @@ out:
 	return ERR_PTR(error);
 }
 
-static struct super_block *get_sb_nodev(struct file_system_type *fs_type,
-	int flags, char *dev_name, void *data)
+struct super_block *get_sb_nodev(struct file_system_type *fs_type,
+	int flags, void *data,
+	int (*fill_super)(struct super_block *, void *, int))
 {
+	int error;
 	struct super_block *s = get_anon_super(fs_type, NULL, NULL);
 
 	if (IS_ERR(s))
 		return s;
 
 	s->s_flags = flags;
-	if (!fs_type->read_super(s, data, flags & MS_VERBOSE ? 1 : 0)) {
+
+	error = fill_super(s, data, flags & MS_VERBOSE ? 1 : 0);
+	if (error) {
 		deactivate_super(s);
 		remove_super(s);
-		return ERR_PTR(-EINVAL);
+		return ERR_PTR(error);
 	}
 	s->s_flags |= MS_ACTIVE;
 	return s;
@@ -759,19 +761,22 @@ static int compare_single(struct super_block *s, void *p)
 	return 1;
 }
 
-static struct super_block *get_sb_single(struct file_system_type *fs_type,
-	int flags, char *dev_name, void *data)
+struct super_block *get_sb_single(struct file_system_type *fs_type,
+	int flags, void *data,
+	int (*fill_super)(struct super_block *, void *, int))
 {
+	int error;
 	struct super_block *s = get_anon_super(fs_type, compare_single, NULL);
 
 	if (IS_ERR(s))
 		return s;
 	if (!s->s_root) {
 		s->s_flags = flags;
-		if (!fs_type->read_super(s, data, flags & MS_VERBOSE ? 1 : 0)) {
+		error = fill_super(s, data, flags & MS_VERBOSE ? 1 : 0);
+		if (error) {
 			deactivate_super(s);
 			remove_super(s);
-			return ERR_PTR(-EINVAL);
+			return ERR_PTR(error);
 		}
 		s->s_flags |= MS_ACTIVE;
 	}
@@ -792,12 +797,7 @@ do_kern_mount(const char *fstype, int flags, char *name, void *data)
 	mnt = alloc_vfsmnt(name);
 	if (!mnt)
 		goto out;
-	if (type->fs_flags & FS_REQUIRES_DEV)
-		sb = get_sb_bdev(type, flags, name, data);
-	else if (type->fs_flags & FS_SINGLE)
-		sb = get_sb_single(type, flags, name, data);
-	else
-		sb = get_sb_nodev(type, flags, name, data);
+	sb = type->get_sb(type, flags, name, data);
 	if (IS_ERR(sb))
 		goto out_mnt;
 	if (type->fs_flags & FS_NOMOUNT)

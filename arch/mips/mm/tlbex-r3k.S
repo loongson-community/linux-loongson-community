@@ -14,7 +14,6 @@
  */
 #include <linux/init.h>
 #include <asm/asm.h>
-#include <asm/current.h>
 #include <asm/cachectl.h>
 #include <asm/fpregdef.h>
 #include <asm/mipsregs.h>

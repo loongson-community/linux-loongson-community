@@ -20,7 +20,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/string.h>
 #include <linux/wait.h>
 #include <asm/uaccess.h>
@@ -145,7 +145,7 @@ extern struct file_operations autofs_dir_operations;
 
 /* Initializing function */
 
-struct super_block *autofs_read_super(struct super_block *, void *,int);
+int autofs_fill_super(struct super_block *, void *, int);
 
 /* Queue management functions */
 

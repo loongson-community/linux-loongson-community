@@ -238,3 +238,4 @@ SYS(sys_fcntl64, 3)				/* 4220 */
 SYS(sys_ni_syscall, 0)
 SYS(sys_gettid, 0)
 SYS(sys_readahead, 5)
+SYS(sys_tkill, 2)

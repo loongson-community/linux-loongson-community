@@ -499,7 +499,7 @@ void mts_int_submit_urb (struct urb* transfer,
 
 	transfer->status = 0;
 
-	res = usb_submit_urb( transfer );
+	res = usb_submit_urb( transfer, GFP_ATOMIC );
 	if ( unlikely(res) ) {
 		MTS_INT_ERROR( "could not submit URB! Error was %d\n",(int)res );
 		context->srb->result = DID_ERROR << 16;
@@ -609,10 +609,11 @@ static void mts_do_sg (struct urb* transfer)
 	sg = context->srb->buffer;
 	context->fragment++;
 	mts_int_submit_urb(transfer,
-			context->data_pipe,
-			sg[context->fragment].address,
-			sg[context->fragment].length,
-			context->fragment + 1 == context->srb->use_sg ? mts_data_done : mts_do_sg);
+			   context->data_pipe,
+			   page_address(sg[context->fragment].page) +
+			   sg[context->fragment].offset,
+			   sg[context->fragment].length,
+			   context->fragment + 1 == context->srb->use_sg ? mts_data_done : mts_do_sg);
 	return;
 }
 
@@ -654,7 +655,7 @@ mts_build_transfer_context( Scsi_Cmnd *srb, struct mts_desc* desc )
 	} else {
 		MTS_DEBUG("Using scatter/gather\n");
 		sg = srb->buffer;
-		desc->context.data = sg[0].address;
+		desc->context.data = page_address(sg[0].page) + sg[0].offset;
 		desc->context.data_length = sg[0].length;
 	}
 
@@ -719,7 +720,8 @@ int mts_scsi_queuecommand( Scsi_Cmnd *srb, mts_scsi_cmnd_callback callback )
 	mts_build_transfer_context( srb, desc );
 	desc->context.final_callback = callback;
 	
-	res=usb_submit_urb(desc->urb);
+	/* here we need ATOMIC as we are called with the iolock */
+	res=usb_submit_urb(desc->urb, GFP_ATOMIC);
 
 	if(unlikely(res)){
 		MTS_ERROR("error %d submitting URB\n",(int)res);

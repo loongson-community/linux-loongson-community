@@ -13,7 +13,7 @@
 
 #include <linux/config.h>
 #include <linux/module.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <asm/uaccess.h>
 #include <linux/reiserfs_fs.h>
 #include <linux/smp_lock.h>
@@ -284,7 +284,8 @@ void add_save_link (struct reiserfs_transaction_handle * th,
     /* look for its place in the tree */
     retval = search_item (inode->i_sb, &key, &path);
     if (retval != ITEM_NOT_FOUND) {
-	reiserfs_warning ("vs-2100: add_save_link:"
+	if ( retval != -ENOSPC )
+	    reiserfs_warning ("vs-2100: add_save_link:"
 			  "search_by_key (%K) returned %d\n", &key, retval);
 	pathrelse (&path);
 	return;
@@ -748,6 +749,14 @@ static int read_super_block (struct super_block * s, int offset)
 	return 1;
     }
 
+    if ( rs->s_v1.s_root_block == -1 ) {
+       brelse(bh) ;
+       printk("dev %s: Unfinished reiserfsck --rebuild-tree run detected. Please run\n"
+              "reiserfsck --rebuild-tree and wait for a completion. If that fais\n"
+              "get newer reiserfsprogs package\n", kdevname (s->s_dev));
+       return 1;
+    }
+
     SB_BUFFER_WITH_SB (s) = bh;
     SB_DISK_SUPER_BLOCK (s) = rs;
 
@@ -956,7 +965,7 @@ int function2code (hashf_t func)
 // at the ext2 code and comparing. It's subfunctions contain no code
 // used as a template unless they are so labeled.
 //
-static struct super_block * reiserfs_read_super (struct super_block * s, void * data, int silent)
+static int reiserfs_fill_super(struct super_block *s, void *data, int silent)
 {
     int size;
     struct inode *root_inode;
@@ -972,12 +981,12 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
     memset (&s->u.reiserfs_sb, 0, sizeof (struct reiserfs_sb_info));
     jdev_name = NULL;
     if (parse_options ((char *) data, &(s->u.reiserfs_sb.s_mount_opt), &blocks, &jdev_name) == 0) {
-	return NULL;
+	return -EINVAL;
     }
 
     if (blocks) {
   	printk("reserfs: resize option for remount only\n");
-	return NULL;
+	return -EINVAL;
     }	
 
     size = block_size(s->s_dev);
@@ -988,14 +997,14 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
       old_format = 1;
     /* try new format (64-th 1k block), which can contain reiserfs super block */
     else if (read_super_block (s, REISERFS_DISK_OFFSET_IN_BYTES)) {
-      printk("sh-2021: reiserfs_read_super: can not find reiserfs on %s\n", s->s_id);
+      printk("sh-2021: reiserfs_fill_super: can not find reiserfs on %s\n", s->s_id);
       goto error;    
     }
     s->u.reiserfs_sb.s_mount_state = SB_REISERFS_STATE(s);
     s->u.reiserfs_sb.s_mount_state = REISERFS_VALID_FS ;
 
     if (old_format ? read_old_bitmaps(s) : read_bitmaps(s)) { 
-	printk ("reiserfs_read_super: unable to read bitmap\n");
+	printk ("reiserfs_fill_super: unable to read bitmap\n");
 	goto error;
     }
 #ifdef CONFIG_REISERFS_CHECK
@@ -1005,7 +1014,7 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
 
     // set_device_ro(s->s_dev, 1) ;
     if( journal_init(s, jdev_name, old_format) ) {
-	printk("sh-2022: reiserfs_read_super: unable to initialize journal space\n") ;
+	printk("sh-2022: reiserfs_fill_super: unable to initialize journal space\n") ;
 	goto error ;
     } else {
 	jinit_done = 1 ; /* once this is set, journal_release must be called
@@ -1013,7 +1022,7 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
 			 */
     }
     if (reread_meta_blocks(s)) {
-	printk("reiserfs_read_super: unable to reread meta blocks after journal init\n") ;
+	printk("reiserfs_fill_super: unable to reread meta blocks after journal init\n") ;
 	goto error ;
     }
 
@@ -1027,7 +1036,7 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
     args.objectid = REISERFS_ROOT_PARENT_OBJECTID ;
     root_inode = iget4 (s, REISERFS_ROOT_OBJECTID, 0, (void *)(&args));
     if (!root_inode) {
-	printk ("reiserfs_read_super: get root inode failed\n");
+	printk ("reiserfs_fill_super: get root inode failed\n");
 	goto error;
     }
 
@@ -1106,7 +1115,7 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
     reiserfs_proc_register( s, "journal", reiserfs_journal_in_proc );
     init_waitqueue_head (&(s->u.reiserfs_sb.s_wait));
 
-    return s;
+    return 0;
 
  error:
     if (jinit_done) { /* kill the commit thread, free journal ram */
@@ -1123,7 +1132,7 @@ static struct super_block * reiserfs_read_super (struct super_block * s, void * 
     if (SB_BUFFER_WITH_SB (s))
 	brelse(SB_BUFFER_WITH_SB (s));
 
-    return NULL;
+    return -EINVAL;
 }
 
 
@@ -1150,7 +1159,18 @@ static int reiserfs_statfs (struct super_block * s, struct statfs * buf)
   return 0;
 }
 
-static DECLARE_FSTYPE_DEV(reiserfs_fs_type,"reiserfs",reiserfs_read_super);
+static struct super_block *reiserfs_get_sb(struct file_system_type *fs_type,
+	int flags, char *dev_name, void *data)
+{
+	return get_sb_bdev(fs_type, flags, dev_name, data, reiserfs_fill_super);
+}
+
+static struct file_system_type reiserfs_fs_type = {
+	owner:		THIS_MODULE,
+	name:		"reiserfs",
+	get_sb:		reiserfs_get_sb,
+	fs_flags:	FS_REQUIRES_DEV,
+};
 
 //
 // this is exactly what 2.3.99-pre9's init_ext2_fs is

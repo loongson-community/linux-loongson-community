@@ -1,4 +1,4 @@
-/* $Id: ioctl.c,v 1.16 2000/11/18 02:10:59 davem Exp $
+/* $Id: ioctl.c,v 1.17 2002/02/08 03:57:14 davem Exp $
  * ioctl.c: Solaris ioctl emulation.
  *
  * Copyright (C) 1997 Jakub Jelinek (jj@sunsite.mff.cuni.cz)
@@ -308,7 +308,7 @@ static inline int solaris_sockmod(unsigned int fd, unsigned int cmd, u32 arg)
 	case 110: /* SI_GETUDATA */
 	{
 		int etsdusize, servtype;
-		switch (ino->u.socket_i.type) {
+		switch (SOCKET_I(ino)->type) {
 		case SOCK_STREAM:
 			etsdusize = 1;
 			servtype = 2;
@@ -326,16 +326,16 @@ static inline int solaris_sockmod(unsigned int fd, unsigned int cmd, u32 arg)
 		    __put_user(0, &((struct solaris_si_udata *)A(arg))->so_state) ||
 		    __put_user(0, &((struct solaris_si_udata *)A(arg))->so_options) ||
 		    __put_user(16384, &((struct solaris_si_udata *)A(arg))->tsdusize) ||
-		    __put_user(ino->u.socket_i.ops->family, &((struct solaris_si_udata *)A(arg))->sockparams.sp_family) ||
-		    __put_user(ino->u.socket_i.type, &((struct solaris_si_udata *)A(arg))->sockparams.sp_type) ||
-		    __put_user(ino->u.socket_i.ops->family, &((struct solaris_si_udata *)A(arg))->sockparams.sp_protocol))
+		    __put_user(SOCKET_I(ino)->ops->family, &((struct solaris_si_udata *)A(arg))->sockparams.sp_family) ||
+		    __put_user(SOCKET_I(ino)->type, &((struct solaris_si_udata *)A(arg))->sockparams.sp_type) ||
+		    __put_user(SOCKET_I(ino)->ops->family, &((struct solaris_si_udata *)A(arg))->sockparams.sp_protocol))
 			return (EFAULT << 8) | TSYSERR;
 		return 0;
 	}
 	case 101: /* O_SI_GETUDATA */
 	{
 		int etsdusize, servtype;
-		switch (ino->u.socket_i.type) {
+		switch (SOCKET_I(ino)->type) {
 		case SOCK_STREAM:
 			etsdusize = 1;
 			servtype = 2;

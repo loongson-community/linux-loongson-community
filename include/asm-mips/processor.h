@@ -147,7 +147,6 @@ struct thread_struct {
 #define MF_FIXADE 1			/* Fix address errors in software */
 #define MF_LOGADE 2			/* Log address errors to syslog */
 	unsigned long mflags;
-	mm_segment_t current_ds;
 	unsigned long irix_trampoline;  /* Wheee... */
 	unsigned long irix_oldctx;
 };
@@ -215,7 +214,7 @@ static inline unsigned long thread_saved_pc(struct thread_struct *t)
 	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU|ST0_CU1)) | KU_USER;\
 	regs->cp0_epc = new_pc;						\
 	regs->regs[29] = new_sp;					\
-	current->thread.current_ds = USER_DS;				\
+	current_thread_info()->addr_limit = USER_DS;			\
 } while (0)
 
 unsigned long get_wchan(struct task_struct *p);
@@ -224,19 +223,6 @@ unsigned long get_wchan(struct task_struct *p);
 #define __KSTK_TOS(tsk) ((unsigned long)(tsk) + KERNEL_STACK_SIZE - 32)
 #define KSTK_EIP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(cp0_epc)))
 #define KSTK_ESP(tsk) (*(unsigned long *)(__KSTK_TOS(tsk) + __PT_REG(regs[29])))
-
-/* Allocation and freeing of basic task resources. */
-/*
- * NOTE! The task struct and the stack go together
- */
-#define THREAD_SIZE (2*PAGE_SIZE)
-#define alloc_task_struct() \
-	((struct task_struct *) __get_free_pages(GFP_KERNEL,1))
-#define free_task_struct(p)	free_pages((unsigned long)(p),1)
-#define get_task_struct(tsk)      atomic_inc(&virt_to_page(tsk)->count)
-
-#define init_task	(init_task_union.task)
-#define init_stack	(init_task_union.stack)
 
 #define cpu_relax()	do { } while (0)
 

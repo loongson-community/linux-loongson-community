@@ -320,7 +320,7 @@ rp_sidt:
 	ret
 
 ENTRY(stack_start)
-	.long SYMBOL_NAME(init_task_union)+8192
+	.long SYMBOL_NAME(init_thread_union)+8192
 	.long __KERNEL_DS
 
 /* This is the default interrupt "handler" :-) */
@@ -456,12 +456,3 @@ ENTRY(gdt_table)
 	.quad 0x0000000000000000	/* 0x98 not used */
 	/* Per CPU segments */
 	.fill NR_CPUS*4,8,0		/* space for TSS's and LDT's */
-		
-/*
- * This is to aid debugging, the various locking macros will be putting
- * code fragments here.  When an oops occurs we'd rather know that it's
- * inside the .text.lock section rather than as some offset from whatever
- * function happens to be last in the .text segment.
- */
-.section .text.lock
-ENTRY(stext_lock)

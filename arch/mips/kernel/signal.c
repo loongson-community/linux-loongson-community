@@ -10,6 +10,7 @@
 #include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/personality.h>
 #include <linux/smp.h>
 #include <linux/smp_lock.h>
 #include <linux/kernel.h>
@@ -323,7 +324,7 @@ asmlinkage void sys_sigreturn(struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->work.need_resched)
+	if (current_thread_info()->flags & TIF_SYSCALL_TRACE)
 		do_syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
@@ -726,10 +727,7 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 				/* FALLTHRU */
 
 			default:
-				sigaddset(&current->pending.signal, signr);
-				recalc_sigpending(current);
-				current->flags |= PF_SIGNALED;
-				do_exit(exit_code);
+				sig_exit(signr, exit_code, &info);
 				/* NOTREACHED */
 			}
 		}
@@ -755,4 +753,25 @@ asmlinkage int do_signal(sigset_t *oldset, struct pt_regs *regs)
 		}
 	}
 	return 0;
+}
+
+extern int do_irix_signal(sigset_t *oldset, struct pt_regs *regs);
+
+/*
+ * notification of userspace execution resumption
+ * - triggered by current->work.notify_resume
+ */
+asmlinkage void do_notify_resume(struct pt_regs *regs, sigset_t *oldset,
+	__u32 thread_info_flags)
+{
+	/* deal with pending signal delivery */
+	if (thread_info_flags & _TIF_SIGPENDING) {
+#ifdef CONFIG_BINFMT_IRIX
+		if (unlikely(current->personality != PER_LINUX)) {
+			do_irix_signal(oldset, regs);
+			return;
+		}
+#endif
+		do_signal(regs,oldset);
+	}
 }

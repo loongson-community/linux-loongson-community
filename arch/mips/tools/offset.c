@@ -82,17 +82,21 @@ void output_task_defines(void)
 	text("/* MIPS task_struct offsets. */");
 	offset("#define TASK_STATE         ", struct task_struct, state);
 	offset("#define TASK_FLAGS         ", struct task_struct, flags);
-	offset("#define TASK_WORK          ", struct task_struct, work);
-	offset("#define TASK_NEED_RESCHED  ", struct task_struct,
-                                              work.need_resched);
-	offset("#define TASK_SYSCALL_TRACE ", struct task_struct,
-                                              work.syscall_trace);
-	offset("#define TASK_SIGPENDING    ", struct task_struct,
-	                                      work.sigpending);
 	offset("#define TASK_MM            ", struct task_struct, mm);
-	offset("#define TASK_CPU           ", struct task_struct, cpu);
 	offset("#define TASK_PID           ", struct task_struct, pid);
 	size(  "#define TASK_STRUCT_SIZE   ", struct task_struct);
+	linefeed;
+}
+
+void output_thread_info_defines(void)
+{
+	text("/* MIPS thread_info offsets. */");
+	offset("#define TI_TASK            ", struct thread_info, task);
+	offset("#define TI_EXEC_DOMAIN     ", struct thread_info, exec_domain);
+	offset("#define TI_FLAGS           ", struct thread_info, flags);
+	offset("#define TI_CPU             ", struct thread_info, cpu);
+	offset("#define TI_PRE_COUNT       ", struct thread_info, preempt_count);
+	offset("#define TI_ADDR_LIMIT      ", struct thread_info, addr_limit);
 	linefeed;
 }
 
@@ -121,8 +125,6 @@ void output_thread_defines(void)
 	       thread.error_code);
 	offset("#define THREAD_TRAPNO  ", struct task_struct, thread.trap_no);
 	offset("#define THREAD_MFLAGS  ", struct task_struct, thread.mflags);
-	offset("#define THREAD_CURDS   ", struct task_struct, \
-	       thread.current_ds);
 	offset("#define THREAD_TRAMP   ", struct task_struct, \
 	       thread.irix_trampoline);
 	offset("#define THREAD_OLDCTX  ", struct task_struct, \

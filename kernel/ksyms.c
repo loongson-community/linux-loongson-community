@@ -47,6 +47,7 @@
 #include <linux/in6.h>
 #include <linux/completion.h>
 #include <linux/seq_file.h>
+#include <linux/binfmts.h>
 #include <asm/checksum.h>
 
 #if defined(CONFIG_PROC_FS)
@@ -249,8 +250,12 @@ EXPORT_SYMBOL(vfs_rmdir);
 EXPORT_SYMBOL(vfs_unlink);
 EXPORT_SYMBOL(vfs_rename);
 EXPORT_SYMBOL(vfs_statfs);
+EXPORT_SYMBOL(vfs_fstat);
+EXPORT_SYMBOL(vfs_stat);
+EXPORT_SYMBOL(vfs_lstat);
 EXPORT_SYMBOL(generic_read_dir);
 EXPORT_SYMBOL(generic_file_llseek);
+EXPORT_SYMBOL(remote_llseek);
 EXPORT_SYMBOL(no_llseek);
 EXPORT_SYMBOL(__pollwait);
 EXPORT_SYMBOL(poll_freewait);
@@ -274,6 +279,9 @@ EXPORT_SYMBOL(lock_may_write);
 EXPORT_SYMBOL(dcache_readdir);
 EXPORT_SYMBOL(fd_install);
 EXPORT_SYMBOL(put_unused_fd);
+EXPORT_SYMBOL(get_sb_bdev);
+EXPORT_SYMBOL(get_sb_nodev);
+EXPORT_SYMBOL(get_sb_single);
 
 /* for stackable file systems (lofs, wrapfs, cryptfs, etc.) */
 EXPORT_SYMBOL(default_llseek);
@@ -441,6 +449,9 @@ EXPORT_SYMBOL(sleep_on_timeout);
 EXPORT_SYMBOL(interruptible_sleep_on);
 EXPORT_SYMBOL(interruptible_sleep_on_timeout);
 EXPORT_SYMBOL(schedule);
+#ifdef CONFIG_PREEMPT
+EXPORT_SYMBOL(preempt_schedule);
+#endif
 EXPORT_SYMBOL(schedule_timeout);
 EXPORT_SYMBOL(sys_sched_yield);
 EXPORT_SYMBOL(set_user_nice);
@@ -559,7 +570,8 @@ EXPORT_SYMBOL(__tasklet_hi_schedule);
 
 /* init task, for moving kthread roots - ought to export a function ?? */
 
-EXPORT_SYMBOL(init_task_union);
+EXPORT_SYMBOL(init_task);
+EXPORT_SYMBOL(init_thread_union);
 
 EXPORT_SYMBOL(tasklist_lock);
 EXPORT_SYMBOL(pidhash);

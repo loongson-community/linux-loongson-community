@@ -414,7 +414,7 @@ int usb_stor_control_msg(struct us_data *us, unsigned int pipe,
 	us->current_urb->transfer_flags = USB_ASYNC_UNLINK;
 
 	/* submit the URB */
-	status = usb_submit_urb(us->current_urb);
+	status = usb_submit_urb(us->current_urb, GFP_NOIO);
 	if (status) {
 		/* something went wrong */
 		up(&(us->current_urb_sem));
@@ -461,7 +461,7 @@ int usb_stor_bulk_msg(struct us_data *us, void *data, int pipe,
 	us->current_urb->transfer_flags = USB_ASYNC_UNLINK;
 
 	/* submit the URB */
-	status = usb_submit_urb(us->current_urb);
+	status = usb_submit_urb(us->current_urb, GFP_NOIO);
 	if (status) {
 		/* something went wrong */
 		up(&(us->current_urb_sem));
@@ -584,11 +584,11 @@ void usb_stor_transfer(Scsi_Cmnd *srb, struct us_data* us)
 			if (transfer_amount - total_transferred >= 
 					sg[i].length) {
 				result = usb_stor_transfer_partial(us,
-						sg[i].address, sg[i].length);
+						page_address(sg[i].page) + sg[i].offset, sg[i].length);
 				total_transferred += sg[i].length;
 			} else
 				result = usb_stor_transfer_partial(us,
-						sg[i].address,
+						page_address(sg[i].page) + sg[i].offset,
 						transfer_amount - total_transferred);
 
 			/* if we get an error, end the loop here */

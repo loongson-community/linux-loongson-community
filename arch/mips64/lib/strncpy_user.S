@@ -28,7 +28,7 @@
  */
 
 LEAF(__strncpy_from_user_asm)
-	ld	v0, THREAD_CURDS($28)		# pointer ok?
+	ld	v0, TI_ADDR_LIMIT($28)		# pointer ok?
 	and	v0, a1
 	bltz	v0, fault
 

@@ -105,7 +105,7 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	la	$28, init_task_union		# init current pointer
+	la	$28, init_thread_union		# init current pointer
 	daddiu	sp, $28, KERNEL_STACK_SIZE-32
 	set_saved_sp	sp, t0
 

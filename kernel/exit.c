@@ -18,6 +18,7 @@
 #include <linux/acct.h>
 #endif
 #include <linux/file.h>
+#include <linux/binfmts.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -65,7 +66,7 @@ void release_task(struct task_struct * p)
 	__restore_flags(flags);
 
 	p->pid = 0;
-	free_task_struct(p);
+	put_task_struct(p);
 }
 
 /*
@@ -390,8 +391,8 @@ static inline void __exit_mm(struct task_struct * tsk)
 		/* more a memory barrier than a real lock */
 		task_lock(tsk);
 		tsk->mm = NULL;
-		task_unlock(tsk);
 		enter_lazy_tlb(mm, current, smp_processor_id());
+		task_unlock(tsk);
 		mmput(mm);
 	}
 }
@@ -529,7 +530,7 @@ fake_volatile:
 	if (current->leader)
 		disassociate_ctty(1);
 
-	put_exec_domain(tsk->exec_domain);
+	put_exec_domain(tsk->thread_info->exec_domain);
 	if (tsk->binfmt && tsk->binfmt->module)
 		__MOD_DEC_USE_COUNT(tsk->binfmt->module);
 

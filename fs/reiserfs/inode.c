@@ -3,7 +3,7 @@
  */
 
 #include <linux/config.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/reiserfs_fs.h>
 #include <linux/locks.h>
 #include <linux/smp_lock.h>
@@ -743,7 +743,8 @@ int reiserfs_get_block (struct inode * inode, sector_t block,
 
 		retval = convert_tail_for_hole(inode, bh_result, tail_offset) ;
 		if (retval) {
-		    printk("clm-6004: convert tail failed inode %lu, error %d\n", inode->i_ino, retval) ;
+		    if ( retval != -ENOSPC )
+			printk("clm-6004: convert tail failed inode %lu, error %d\n", inode->i_ino, retval) ;
 		    if (allocated_block_nr)
 			reiserfs_free_block (&th, allocated_block_nr);
 		    goto failure ;
@@ -888,6 +889,15 @@ static void init_inode (struct inode * inode, struct path * path)
     copy_key (INODE_PKEY (inode), &(ih->ih_key));
     inode->i_blksize = PAGE_SIZE;
 
+    INIT_LIST_HEAD(&(REISERFS_I(inode)->i_prealloc_list ));
+    REISERFS_I(inode)->i_flags = 0;
+    REISERFS_I(inode)->i_prealloc_block = 0;
+    REISERFS_I(inode)->i_prealloc_count = 0;
+    REISERFS_I(inode)->i_trans_id = 0;
+    REISERFS_I(inode)->i_trans_index = 0;
+    /* nopack = 0, by default */
+    REISERFS_I(inode)->i_flags &= ~i_nopack_mask;
+
     if (stat_data_v1 (ih)) {
 	struct stat_data_v1 * sd = (struct stat_data_v1 *)B_I_PITEM (bh, ih);
 	unsigned long blocks;
@@ -947,13 +957,6 @@ static void init_inode (struct inode * inode, struct path * path)
 	    set_inode_item_key_version (inode, KEY_FORMAT_3_6);
 	REISERFS_I(inode)->i_first_direct_byte = 0;
     }
-    REISERFS_I(inode)->i_flags = 0;
-    REISERFS_I(inode)->i_prealloc_block = 0;
-    REISERFS_I(inode)->i_prealloc_count = 0;
-    REISERFS_I(inode)->i_trans_id = 0;
-    REISERFS_I(inode)->i_trans_index = 0;
-    /* nopack = 0, by default */
-    REISERFS_I(inode)->i_flags &= ~i_nopack_mask;
 
     pathrelse (path);
     if (S_ISREG (inode->i_mode)) {
@@ -1152,6 +1155,7 @@ void reiserfs_read_inode2 (struct inode * inode, void *p)
 	/* a stale NFS handle can trigger this without it being an error */
 	pathrelse (&path_to_sd);
 	make_bad_inode(inode) ;
+	inode->i_nlink = 0;
 	return;
     }
 
@@ -1184,6 +1188,27 @@ void reiserfs_read_inode2 (struct inode * inode, void *p)
 
 }
 
+/**
+ * reiserfs_find_actor() - "find actor" reiserfs supplies to iget4().
+ *
+ * @inode:    inode from hash table to check
+ * @inode_no: inode number we are looking for
+ * @opaque:   "cookie" passed to iget4(). This is &reiserfs_iget4_args.
+ *
+ * This function is called by iget4() to distinguish reiserfs inodes
+ * having the same inode numbers. Such inodes can only exist due to some
+ * error condition. One of them should be bad. Inodes with identical
+ * inode numbers (objectids) are distinguished by parent directory ids.
+ *
+ */
+static int reiserfs_find_actor( struct inode *inode, 
+				unsigned long inode_no, void *opaque )
+{
+    struct reiserfs_iget4_args *args;
+
+    args = opaque;
+    return INODE_PKEY( inode ) -> k_dir_id == args -> objectid;
+}
 
 struct inode * reiserfs_iget (struct super_block * s, const struct cpu_key * key)
 {
@@ -1191,7 +1216,8 @@ struct inode * reiserfs_iget (struct super_block * s, const struct cpu_key * key
     struct reiserfs_iget4_args args ;
 
     args.objectid = key->on_disk_key.k_dir_id ;
-    inode = iget4 (s, key->on_disk_key.k_objectid, 0, (void *)(&args));
+    inode = iget4 (s, key->on_disk_key.k_objectid, 
+		   reiserfs_find_actor, (void *)(&args));
     if (!inode) 
 	return ERR_PTR(-ENOMEM) ;
 
@@ -1532,6 +1558,7 @@ struct inode * reiserfs_new_inode (struct reiserfs_transaction_handle *th,
     REISERFS_I(inode)->i_first_direct_byte = S_ISLNK(mode) ? 1 : 
       U32_MAX/*NO_BYTES_IN_DIRECT_ITEM*/;
 
+    INIT_LIST_HEAD(&(REISERFS_I(inode)->i_prealloc_list ));
     REISERFS_I(inode)->i_flags = 0;
     REISERFS_I(inode)->i_prealloc_block = 0;
     REISERFS_I(inode)->i_prealloc_count = 0;

@@ -31,6 +31,7 @@
 #include <linux/init.h>
 #include <linux/devfs_fs_kernel.h>
 #include <linux/spinlock.h>
+#include <asm/byteorder.h>
 
 #ifdef CONFIG_USB_DEBUG
 	#define DEBUG
@@ -980,8 +981,16 @@ static void usb_find_drivers(struct usb_device *dev)
 	unsigned claimed = 0;
 
 	for (ifnum = 0; ifnum < dev->actconfig->bNumInterfaces; ifnum++) {
+		struct usb_interface *interface = &dev->actconfig->interface[ifnum];
+		
+		/* register this interface with driverfs */
+		interface->dev.parent = &dev->dev;
+		sprintf (&interface->dev.bus_id[0], "%03d", ifnum);
+		sprintf (&interface->dev.name[0], "figure out some name...");
+		device_register (&interface->dev);
+
 		/* if this interface hasn't already been claimed */
-		if (!usb_interface_claimed(dev->actconfig->interface + ifnum)) {
+		if (!usb_interface_claimed(interface)) {
 			if (usb_find_interface_driver(dev, ifnum))
 				rejected++;
 			else
@@ -1100,7 +1109,7 @@ struct urb *usb_alloc_urb(int iso_packets)
 	}
 
 	memset(urb, 0, sizeof(*urb));
-	atomic_inc(&urb->count);
+	urb->count = (atomic_t)ATOMIC_INIT(1);
 	spin_lock_init(&urb->lock);
 
 	return urb;
@@ -1148,6 +1157,7 @@ struct urb * usb_get_urb(struct urb *urb)
 /**
  * usb_submit_urb - asynchronously issue a transfer request for an endpoint
  * @urb: pointer to the urb describing the request
+ * @mem_flags: the type of memory to allocate, see kmalloc() for a list of valid options for this.
  *
  * This submits a transfer request, and transfers control of the URB
  * describing that request to the USB subsystem.  Request completion will
@@ -1197,12 +1207,49 @@ struct urb * usb_get_urb(struct urb *urb)
  *
  * If the USB subsystem can't reserve sufficient bandwidth to perform
  * the periodic request, and bandwidth reservation is being done for
- * this controller, submitting such a periodic request will fail. 
+ * this controller, submitting such a periodic request will fail.
+ *
+ * Memory Flags:
+ *
+ * General rules for how to decide which mem_flags to use:
+ * 
+ * Basically the rules are the same as for kmalloc.  There are four
+ * different possible values; GFP_KERNEL, GFP_NOFS, GFP_NOIO and
+ * GFP_ATOMIC.
+ *
+ * GFP_NOFS is not ever used, as it has not been implemented yet.
+ *
+ * There are three situations you must use GFP_ATOMIC.
+ *    a) you are inside a completion handler, an interrupt, bottom half,
+ *       tasklet or timer.
+ *    b) you are holding a spinlock or rwlock (does not apply to
+ *       semaphores)
+ *    c) current->state != TASK_RUNNING, this is the case only after
+ *       you've changed it.
+ * 
+ * GFP_NOIO is used in the block io path and error handling of storage
+ * devices.
+ *
+ * All other situations use GFP_KERNEL.
+ *
+ * Specfic rules for how to decide which mem_flags to use:
+ *
+ *    - start_xmit, timeout, and receive methods of network drivers must
+ *      use GFP_ATOMIC (spinlock)
+ *    - queuecommand methods of scsi drivers must use GFP_ATOMIC (spinlock)
+ *    - If you use a kernel thread with a network driver you must use
+ *      GFP_NOIO, unless b) or c) apply
+ *    - After you have done a down() you use GFP_KERNEL, unless b) or c)
+ *      apply or your are in a storage driver's block io path
+ *    - probe and disconnect use GFP_KERNEL unless b) or c) apply
+ *    - Changing firmware on a running storage or net device uses
+ *      GFP_NOIO, unless b) or c) apply
+ *
  */
-int usb_submit_urb(struct urb *urb)
+int usb_submit_urb(struct urb *urb, int mem_flags)
 {
 	if (urb && urb->dev && urb->dev->bus && urb->dev->bus->op)
-		return urb->dev->bus->op->submit_urb(urb);
+		return urb->dev->bus->op->submit_urb(urb, mem_flags);
 	else
 		return -ENODEV;
 }
@@ -1272,7 +1319,7 @@ static int usb_start_wait_urb(struct urb *urb, int timeout, int* actual_length)
 	add_wait_queue(&awd.wqh, &wait);
 
 	urb->context = &awd;
-	status = usb_submit_urb(urb);
+	status = usb_submit_urb(urb, GFP_KERNEL);
 	if (status) {
 		// something went wrong
 		usb_free_urb(urb);
@@ -1931,8 +1978,10 @@ void usb_disconnect(struct usb_device **pdev)
 				if (driver->owner)
 					__MOD_DEC_USE_COUNT(driver->owner);
 				/* if driver->disconnect didn't release the interface */
-				if (interface->driver)
+				if (interface->driver) {
+					put_device (&interface->dev);
 					usb_driver_release_interface(driver, interface);
+				}
 			}
 		}
 	}
@@ -1951,6 +2000,7 @@ void usb_disconnect(struct usb_device **pdev)
 	if (dev->devnum > 0) {
 		clear_bit(dev->devnum, &dev->bus->devmap.devicemap);
 		usbfs_remove_device(dev);
+		put_device(&dev->dev);
 	}
 
 	/* Free up the device itself */
@@ -2283,7 +2333,7 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 	/* 9.4.10 says devices don't need this, if the interface
 	   only has one alternate setting */
 	if (iface->num_altsetting == 1) {
-		warn("ignoring set_interface for dev %d, iface %d, alt %d",
+		dbg("ignoring set_interface for dev %d, iface %d, alt %d",
 			dev->devnum, interface, alternate);
 		return 0;
 	}
@@ -2677,6 +2727,11 @@ int usb_new_device(struct usb_device *dev)
 		usb_show_string(dev, "SerialNumber", dev->descriptor.iSerialNumber);
 #endif
 
+	/* register this device in the driverfs tree */
+	err = device_register (&dev->dev);
+	if (err)
+		return err;
+
 	/* now that the basic setup is over, add a /proc/bus/usb entry */
 	usbfs_add_device(dev);
 
@@ -2687,6 +2742,29 @@ int usb_new_device(struct usb_device *dev)
 	call_policy ("add", dev);
 
 	return 0;
+}
+
+/**
+ * usb_register_root_hub - called by a usb host controller to register the root hub device in the system
+ * @usb_dev: the usb root hub device to be registered.
+ * @parent_dev: the parent device of this root hub.
+ *
+ * The USB host controller calls this function to register the root hub
+ * properly with the USB subsystem.  It sets up the device properly in
+ * the driverfs tree, and then calls usb_new_device() to register the
+ * usb device.
+ */
+int usb_register_root_hub (struct usb_device *usb_dev, struct device *parent_dev)
+{
+	int retval;
+
+	usb_dev->dev.parent = parent_dev;
+	strcpy (&usb_dev->dev.name[0], "usb_name");
+	strcpy (&usb_dev->dev.bus_id[0], "usb_bus");
+	retval = usb_new_device (usb_dev);
+	if (retval)
+		put_device (&usb_dev->dev);
+	return retval;
 }
 
 static int usb_open(struct inode * inode, struct file * file)
@@ -2794,6 +2872,7 @@ EXPORT_SYMBOL(usb_alloc_bus);
 EXPORT_SYMBOL(usb_free_bus);
 EXPORT_SYMBOL(usb_register_bus);
 EXPORT_SYMBOL(usb_deregister_bus);
+EXPORT_SYMBOL(usb_register_root_hub);
 EXPORT_SYMBOL(usb_alloc_dev);
 EXPORT_SYMBOL(usb_free_dev);
 EXPORT_SYMBOL(usb_inc_dev_use);

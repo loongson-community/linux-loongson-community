@@ -10,6 +10,7 @@
 
 #include <linux/config.h>
 #include <linux/sched.h>
+#include <linux/spinlock.h>
 #include <asm/processor.h>
 #include <asm/i387.h>
 #include <asm/math_emu.h>
@@ -52,7 +53,7 @@ static inline void __save_init_fpu( struct task_struct *tsk )
 		asm volatile( "fnsave %0 ; fwait"
 			      : "=m" (tsk->thread.i387.fsave) );
 	}
-	tsk->flags &= ~PF_USEDFPU;
+	clear_tsk_thread_flag(tsk, TIF_USEDFPU);
 }
 
 void save_init_fpu( struct task_struct *tsk )
@@ -63,10 +64,9 @@ void save_init_fpu( struct task_struct *tsk )
 
 void kernel_fpu_begin(void)
 {
-	struct task_struct *tsk = current;
-
-	if (tsk->flags & PF_USEDFPU) {
-		__save_init_fpu(tsk);
+	preempt_disable();
+	if (test_thread_flag(TIF_USEDFPU)) {
+		__save_init_fpu(current);
 		return;
 	}
 	clts();

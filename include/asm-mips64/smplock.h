@@ -6,13 +6,23 @@
 #ifndef _ASM_SMPLOCK_H
 #define _ASM_SMPLOCK_H
 
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 
 extern spinlock_t kernel_flag;
 
+#ifdef CONFIG_SMP
 #define kernel_locked()			spin_is_locked(&kernel_flag)
+#else
+#ifdef CONFIG_PREEMPT
+#define kernel_locked()			preempt_get_count()
+#define global_irq_holder		0
+#else
+#define kernel_locked()			1
+#endif
+#endif
 
 /*
  * Release global kernel lock and global interrupt lock
@@ -43,8 +53,14 @@ static __inline__ void reacquire_kernel_lock(struct task_struct *task)
  */
 static __inline__ void lock_kernel(void)
 {
+#ifdef CONFIG_PREEMPT
+	if (current->lock_depth == -1)
+		spin_lock(&kernel_flag);
+	++current->lock_depth;
+#else
 	if (!++current->lock_depth)
 		spin_lock(&kernel_flag);
+#endif
 }
 
 static __inline__ void unlock_kernel(void)

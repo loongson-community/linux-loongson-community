@@ -15,6 +15,7 @@
 
 static inline void cpu_bh_disable(int cpu)
 {
+	preempt_disable();
 	local_bh_count(cpu)++;
 	barrier();
 }
@@ -23,12 +24,13 @@ static inline void __cpu_bh_enable(int cpu)
 {
 	barrier();
 	local_bh_count(cpu)--;
+	preempt_enable();
 }
 
 
 #define local_bh_disable()	cpu_bh_disable(smp_processor_id())
 #define __local_bh_enable()	__cpu_bh_enable(smp_processor_id())
-#define local_bh_enable()					\
+#define _local_bh_enable()					\
 do {								\
 	int cpu;						\
 								\
@@ -37,6 +39,8 @@ do {								\
 	if (!--local_bh_count(cpu) && softirq_pending(cpu))	\
 		do_softirq();					\
 } while (0)
+
+#define local_bh_enable() do { _local_bh_enable(); preempt_enable(); } while (0)
 
 #define in_softirq() (local_bh_count(smp_processor_id()) != 0)
 

@@ -365,7 +365,7 @@ asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 	/*
 	 * Don't let your children do this ...
 	 */
-	if (current->work.need_resched)
+	if (current_thread_info()->flags & TIF_SYSCALL_TRACE)
 		do_syscall_trace();
 	__asm__ __volatile__(
 		"move\t$29, %0\n\t"
@@ -753,10 +753,7 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 				/* FALLTHRU */
 
 			default:
-				sigaddset(&current->pending.signal, signr);
-				recalc_sigpending(current);
-				current->flags |= PF_SIGNALED;
-				do_exit(exit_code);
+				sig_exit(signr, exit_code, &info);
 				/* NOTREACHED */
 			}
 		}

@@ -46,7 +46,7 @@ extern struct fd_ops *fd_ops;
 #define fd_clear_dma_ff()	fd_ops->fd_clear_dma_ff(FLOPPY_DMA)
 #define fd_set_dma_mode(mode)	fd_ops->fd_set_dma_mode(FLOPPY_DMA, mode)
 #define fd_set_dma_addr(addr)	fd_ops->fd_set_dma_addr(FLOPPY_DMA, \
-				                       virt_to_bus(addr))
+				                       isa_virt_to_bus(addr))
 #define fd_set_dma_count(count)	fd_ops->fd_set_dma_count(FLOPPY_DMA,count)
 #define fd_get_dma_residue()	fd_ops->fd_get_dma_residue(FLOPPY_DMA)
 

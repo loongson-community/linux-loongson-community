@@ -40,6 +40,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
+#include <asm/byteorder.h>
 
 /* This enables more detailed sanity checks in submit_iso */
 //#define ISO_SANITY_CHECK
@@ -87,7 +88,6 @@
 #endif
 
 #define SLAB_FLAG     (in_interrupt ()? SLAB_ATOMIC : SLAB_KERNEL)
-#define KMALLOC_FLAG  (in_interrupt ()? GFP_ATOMIC : GFP_KERNEL)
 
 /* CONFIG_USB_UHCI_HIGH_BANDWITH turns on Full Speed Bandwidth
  * Reclamation: feature that puts loop on descriptor loop when
@@ -685,7 +685,6 @@ _static int init_skel (uhci_t *s)
 	insert_td_horizontal (s, s->int_chain[5], td);
 
 	mb();
-	//uhci_show_queue(s->control_chain);   
 	dbg("init_skel exit");
 	return 0;
 
@@ -800,7 +799,6 @@ _static int uhci_submit_control_urb (struct urb *urb)
 
 	qh->hw.qh.element &= cpu_to_le32(~UHCI_PTR_TERM);
 
-	//uhci_show_queue(qh);
 	/* Start it up... put low speed first */
 	if (urb->dev->speed == USB_SPEED_LOW)
 		insert_qh (s, s->control_chain, qh, 0);
@@ -949,7 +947,6 @@ _static int uhci_submit_bulk_urb (struct urb *urb, struct urb *bulk_urb)
 			insert_qh (s, s->chain_end, qh, 0);
 	}
 	
-	//uhci_show_queue(s->bulk_chain);
 	//dbg("uhci_submit_bulk_urb: exit\n");
 	return 0;
 }
@@ -1502,7 +1499,7 @@ _static int uhci_submit_int_urb (struct urb *urb)
 	return 0;
 }
 /*-------------------------------------------------------------------*/
-_static int uhci_submit_iso_urb (struct urb *urb)
+_static int uhci_submit_iso_urb (struct urb *urb, int mem_flags)
 {
 	uhci_t *s = (uhci_t*) urb->dev->bus->hcpriv;
 	urb_priv_t *urb_priv = urb->hcpriv;
@@ -1522,7 +1519,7 @@ _static int uhci_submit_iso_urb (struct urb *urb)
 	if (ret)
 		goto err;
 
-	tdm = (uhci_desc_t **) kmalloc (urb->number_of_packets * sizeof (uhci_desc_t*), KMALLOC_FLAG);
+	tdm = (uhci_desc_t **) kmalloc (urb->number_of_packets * sizeof (uhci_desc_t*), mem_flags);
 
 	if (!tdm) {
 		ret = -ENOMEM;
@@ -1619,7 +1616,7 @@ _static struct urb* search_dev_ep (uhci_t *s, struct urb *urb)
 	return 0;
 }
 /*-------------------------------------------------------------------*/
-_static int uhci_submit_urb (struct urb *urb)
+_static int uhci_submit_urb (struct urb *urb, int mem_flags)
 {
 	uhci_t *s;
 	urb_priv_t *urb_priv;
@@ -1676,7 +1673,7 @@ _static int uhci_submit_urb (struct urb *urb)
 #ifdef DEBUG_SLAB
 	urb_priv = kmem_cache_alloc(urb_priv_kmem, SLAB_FLAG);
 #else
-	urb_priv = kmalloc (sizeof (urb_priv_t), KMALLOC_FLAG);
+	urb_priv = kmalloc (sizeof (urb_priv_t), mem_flags);
 #endif
 	if (!urb_priv) {
 		usb_dec_dev_use (urb->dev);
@@ -1729,12 +1726,12 @@ _static int uhci_submit_urb (struct urb *urb)
 				if (bustime < 0) 
 					ret = bustime;
 				else {
-					ret = uhci_submit_iso_urb(urb);
+					ret = uhci_submit_iso_urb(urb, mem_flags);
 					if (ret == 0)
 						usb_claim_bandwidth (urb->dev, urb, bustime, 1);
 				}
 			} else {        /* bandwidth is already set */
-				ret = uhci_submit_iso_urb(urb);
+				ret = uhci_submit_iso_urb(urb, mem_flags);
 			}
 			break;
 		case PIPE_INTERRUPT:
@@ -2279,11 +2276,11 @@ _static int uhci_get_current_frame_number (struct usb_device *usb_dev)
 
 struct usb_operations uhci_device_operations =
 {
-	uhci_alloc_dev,
-	uhci_free_dev,
-	uhci_get_current_frame_number,
-	uhci_submit_urb,
-	uhci_unlink_urb
+	allocate:		uhci_alloc_dev,
+	deallocate:		uhci_free_dev,
+	get_frame_number:	uhci_get_current_frame_number,
+	submit_urb:		uhci_submit_urb,
+	unlink_urb:		uhci_unlink_urb,
 };
 
 _static void correct_data_toggles(struct urb *urb)
@@ -2697,7 +2694,10 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 
 						spin_unlock(&s->urb_list_lock);
 
-						ret_submit=uhci_submit_urb(next_urb);
+						// FIXME!!!
+						// We need to know the real state, so 
+						// GFP_ATOMIC is probably not correct
+						ret_submit=uhci_submit_urb(next_urb, GFP_ATOMIC);
 						spin_lock(&s->urb_list_lock);
 						
 						if (ret_submit)
@@ -2721,7 +2721,10 @@ _static int process_urb (uhci_t *s, struct list_head *p)
 				// Re-submit the URB if ring-linked
 				if (is_ring && !was_unlinked && !contains_killed) {
 					urb->dev=usb_dev;
-					uhci_submit_urb (urb);
+					// FIXME!!!
+					// We need to know the real state, so 
+					// GFP_ATOMIC is probably not correct
+					uhci_submit_urb (urb, GFP_ATOMIC);
 				}
 				spin_lock(&s->urb_list_lock);
 			}
@@ -2902,7 +2905,7 @@ _static int __init uhci_start_usb (uhci_t *s)
 	s->bus->root_hub = usb_dev;
 	usb_connect (usb_dev);
 
-	if (usb_new_device (usb_dev) != 0) {
+	if (usb_register_root_hub (usb_dev, &s->uhci_pci->dev) != 0) {
 		usb_free_dev (usb_dev);
 		return -1;
 	}

@@ -7,17 +7,17 @@ CONFIG_ISA=y
 CONFIG_UID16=y
 
 #
+# Code maturity level options
+#
+# CONFIG_EXPERIMENTAL is not set
+
+#
 # General setup
 #
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
-
-#
-# Code maturity level options
-#
-# CONFIG_EXPERIMENTAL is not set
 
 #
 # Loadable module support
@@ -68,6 +68,7 @@ CONFIG_NOHIGHMEM=y
 # CONFIG_MATH_EMULATION is not set
 # CONFIG_MTRR is not set
 CONFIG_SMP=y
+# CONFIG_PREEMPT is not set
 # CONFIG_MULTIQUAD is not set
 CONFIG_HAVE_DEC_LOCK=y
 
@@ -404,7 +405,6 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNBMAC is not set
 # CONFIG_SUNQE is not set
-# CONFIG_SUNLANCE is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
@@ -437,6 +437,7 @@ CONFIG_EEPRO100=y
 # CONFIG_8139TOO_PIO is not set
 # CONFIG_8139TOO_TUNE_TWISTER is not set
 # CONFIG_8139TOO_8129 is not set
+# CONFIG_8139_NEW_RX_RESET is not set
 # CONFIG_SIS900 is not set
 # CONFIG_EPIC100 is not set
 # CONFIG_SUNDANCE is not set
@@ -518,13 +519,23 @@ CONFIG_PCMCIA_RAYCS=y
 # CONFIG_CD_NO_IDESCSI is not set
 
 #
-# Input core support
+# Input device support
 #
 # CONFIG_INPUT is not set
 # CONFIG_INPUT_KEYBDEV is not set
 # CONFIG_INPUT_MOUSEDEV is not set
 # CONFIG_INPUT_JOYDEV is not set
 # CONFIG_INPUT_EVDEV is not set
+# CONFIG_GAMEPORT is not set
+CONFIG_SOUND_GAMEPORT=y
+# CONFIG_GAMEPORT_NS558 is not set
+# CONFIG_GAMEPORT_L4 is not set
+# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_GAMEPORT_PCIGAME is not set
+# CONFIG_GAMEPORT_FM801 is not set
+# CONFIG_GAMEPORT_CS461x is not set
+# CONFIG_SERIO is not set
+# CONFIG_SERIO_SERPORT is not set
 
 #
 # Character devices
@@ -551,19 +562,6 @@ CONFIG_MOUSE=y
 CONFIG_PSMOUSE=y
 # CONFIG_82C710_MOUSE is not set
 # CONFIG_PC110_PAD is not set
-
-#
-# Joysticks
-#
-# CONFIG_INPUT_GAMEPORT is not set
-
-#
-# Input core support is needed for gameports
-#
-
-#
-# Input core support is needed for joysticks
-#
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -585,7 +583,7 @@ CONFIG_AGP=y
 CONFIG_AGP_INTEL=y
 CONFIG_AGP_I810=y
 CONFIG_AGP_VIA=y
-CONFIG_AGP_AMD=y
+# CONFIG_AGP_AMD is not set
 CONFIG_AGP_SIS=y
 CONFIG_AGP_ALI=y
 # CONFIG_AGP_SWORKS is not set
@@ -721,6 +719,7 @@ CONFIG_SOUND_ES1371=y
 # CONFIG_MIDI_VIA82CXXX is not set
 # CONFIG_SOUND_OSS is not set
 # CONFIG_SOUND_TVMIXER is not set
+CONFIG_INPUT_GAMEPORT=y
 
 #
 # USB support

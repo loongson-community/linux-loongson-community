@@ -5,17 +5,17 @@ CONFIG_MIPS=y
 CONFIG_MIPS32=y
 
 #
+# Code maturity level options
+#
+CONFIG_EXPERIMENTAL=y
+
+#
 # General setup
 #
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
-
-#
-# Code maturity level options
-#
-CONFIG_EXPERIMENTAL=y
 
 #
 # Loadable module support
@@ -52,6 +52,7 @@ CONFIG_MIPS_MALTA=y
 # CONFIG_SNI_RM200_PCI is not set
 # CONFIG_TOSHIBA_JMR3927 is not set
 # CONFIG_HIGHMEM is not set
+# CONFIG_PREEMPT is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 CONFIG_I8259=y
@@ -317,7 +318,6 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNBMAC is not set
 # CONFIG_SUNQE is not set
-# CONFIG_SUNLANCE is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
@@ -347,6 +347,7 @@ CONFIG_PCNET32=y
 # CONFIG_8139TOO_PIO is not set
 # CONFIG_8139TOO_TUNE_TWISTER is not set
 # CONFIG_8139TOO_8129 is not set
+# CONFIG_8139_NEW_RX_RESET is not set
 # CONFIG_SIS900 is not set
 # CONFIG_EPIC100 is not set
 # CONFIG_SUNDANCE is not set
@@ -427,19 +428,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # CONFIG_BUSMOUSE is not set
 # CONFIG_MOUSE is not set
-
-#
-# Joysticks
-#
-# CONFIG_INPUT_GAMEPORT is not set
-
-#
-# Input core support is needed for gameports
-#
-
-#
-# Input core support is needed for joysticks
-#
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -660,13 +648,23 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_AUERSWALD is not set
 
 #
-# Input core support
+# Input device support
 #
 # CONFIG_INPUT is not set
 # CONFIG_INPUT_KEYBDEV is not set
 # CONFIG_INPUT_MOUSEDEV is not set
 # CONFIG_INPUT_JOYDEV is not set
 # CONFIG_INPUT_EVDEV is not set
+# CONFIG_GAMEPORT is not set
+CONFIG_SOUND_GAMEPORT=y
+# CONFIG_GAMEPORT_NS558 is not set
+# CONFIG_GAMEPORT_L4 is not set
+# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_GAMEPORT_PCIGAME is not set
+# CONFIG_GAMEPORT_FM801 is not set
+# CONFIG_GAMEPORT_CS461x is not set
+CONFIG_SERIO=y
+CONFIG_SERIO_SERPORT=y
 
 #
 # Kernel hacking

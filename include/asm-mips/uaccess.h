@@ -28,9 +28,9 @@
 #define VERIFY_READ    0
 #define VERIFY_WRITE   1
 
-#define get_fs()        (current->thread.current_ds)
 #define get_ds()	(KERNEL_DS)
-#define set_fs(x)       (current->thread.current_ds=(x))
+#define get_fs()        (current_thread_info()->addr_limit)
+#define set_fs(x)       (current_thread_info()->addr_limit = (x))
 
 #define segment_eq(a,b)	((a).seg == (b).seg)
 

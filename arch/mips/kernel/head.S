@@ -19,7 +19,6 @@
 #include <linux/threads.h>
 
 #include <asm/asm.h>
-#include <asm/current.h>
 #include <asm/offset.h>
 #include <asm/pgtable-bits.h>
 #include <asm/processor.h>
@@ -151,7 +150,7 @@ ejtag_return:
 		/*
 		 * Stack for kernel and init, current variable
 		 */
-		la	$28, init_task_union
+		la	$28, init_thread_union
 		addiu	t0, $28, KERNEL_STACK_SIZE-32
 		subu	sp, t0, 4*SZREG
 

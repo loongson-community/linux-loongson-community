@@ -21,7 +21,7 @@
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/string.h>
 #include <linux/wait.h>
 #include <asm/uaccess.h>
@@ -144,7 +144,7 @@ extern struct file_operations autofs4_root_operations;
 
 /* Initializing function */
 
-struct super_block *autofs4_read_super(struct super_block *, void *,int);
+int autofs4_fill_super(struct super_block *, void *, int);
 struct autofs_info *autofs4_init_ino(struct autofs_info *, struct autofs_sb_info *sbi, mode_t mode);
 
 /* Queue management functions */

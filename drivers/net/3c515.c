@@ -16,9 +16,17 @@
 	2/2/00- Added support for kernel-level ISAPnP 
 		by Stephen Frost <sfrost@snowman.net> and Alessandro Zummo
 	Cleaned up for 2.3.x/softnet by Jeff Garzik and Alan Cox.
+	
+	11/17/2001 - Added ethtool support (jgarzik)
+
 */
 
-static char *version = "3c515.c:v0.99-sn 2000/02/12 becker@cesdis.gsfc.nasa.gov and others\n";
+#define DRV_NAME		"3c515"
+#define DRV_VERSION		"0.99t"
+#define DRV_RELDATE		"17-Nov-2001"
+
+static char *version =
+DRV_NAME ".c:v" DRV_VERSION " " DRV_RELDATE " becker@scyld.com and others\n";
 
 #define CORKSCREW 1
 
@@ -63,6 +71,9 @@ static int max_interrupt_work = 20;
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/timer.h>
+#include <linux/ethtool.h>
+
+#include <asm/uaccess.h>
 #include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/dma.h>
@@ -393,6 +404,7 @@ static int corkscrew_close(struct net_device *dev);
 static void update_stats(int addr, struct net_device *dev);
 static struct net_device_stats *corkscrew_get_stats(struct net_device *dev);
 static void set_rx_mode(struct net_device *dev);
+static int netdev_ioctl (struct net_device *dev, struct ifreq *rq, int cmd);
 
 
 /* 
@@ -721,6 +733,7 @@ static int corkscrew_probe1(struct net_device *dev)
 	dev->stop = &corkscrew_close;
 	dev->get_stats = &corkscrew_get_stats;
 	dev->set_multicast_list = &set_rx_mode;
+	dev->do_ioctl = netdev_ioctl;
 
 	return 0;
 }
@@ -844,7 +857,7 @@ static int corkscrew_open(struct net_device *dev)
 			struct sk_buff *skb;
 			if (i < (RX_RING_SIZE - 1))
 				vp->rx_ring[i].next =
-				    virt_to_bus(&vp->rx_ring[i + 1]);
+				    isa_virt_to_bus(&vp->rx_ring[i + 1]);
 			else
 				vp->rx_ring[i].next = 0;
 			vp->rx_ring[i].status = 0;	/* Clear complete bit. */
@@ -855,10 +868,10 @@ static int corkscrew_open(struct net_device *dev)
 				break;	/* Bad news!  */
 			skb->dev = dev;	/* Mark as being used by this device. */
 			skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
-			vp->rx_ring[i].addr = virt_to_bus(skb->tail);
+			vp->rx_ring[i].addr = isa_virt_to_bus(skb->tail);
 		}
-		vp->rx_ring[i - 1].next = virt_to_bus(&vp->rx_ring[0]);	/* Wrap the ring. */
-		outl(virt_to_bus(&vp->rx_ring[0]), ioaddr + UpListPtr);
+		vp->rx_ring[i - 1].next = isa_virt_to_bus(&vp->rx_ring[0]);	/* Wrap the ring. */
+		outl(isa_virt_to_bus(&vp->rx_ring[0]), ioaddr + UpListPtr);
 	}
 	if (vp->full_bus_master_tx) {	/* Boomerang bus master Tx. */
 		vp->cur_tx = vp->dirty_tx = 0;
@@ -1053,7 +1066,7 @@ static int corkscrew_start_xmit(struct sk_buff *skb,
 		/* vp->tx_full = 1; */
 		vp->tx_skbuff[entry] = skb;
 		vp->tx_ring[entry].next = 0;
-		vp->tx_ring[entry].addr = virt_to_bus(skb->data);
+		vp->tx_ring[entry].addr = isa_virt_to_bus(skb->data);
 		vp->tx_ring[entry].length = skb->len | 0x80000000;
 		vp->tx_ring[entry].status = skb->len | 0x80000000;
 
@@ -1066,9 +1079,9 @@ static int corkscrew_start_xmit(struct sk_buff *skb,
 			    0) break;
 		if (prev_entry)
 			prev_entry->next =
-			    virt_to_bus(&vp->tx_ring[entry]);
+			    isa_virt_to_bus(&vp->tx_ring[entry]);
 		if (inl(ioaddr + DownListPtr) == 0) {
-			outl(virt_to_bus(&vp->tx_ring[entry]),
+			outl(isa_virt_to_bus(&vp->tx_ring[entry]),
 			     ioaddr + DownListPtr);
 			queued_packet++;
 		}
@@ -1205,7 +1218,7 @@ static void corkscrew_interrupt(int irq, void *dev_id,
 			while (lp->cur_tx - dirty_tx > 0) {
 				int entry = dirty_tx % TX_RING_SIZE;
 				if (inl(ioaddr + DownListPtr) ==
-				    virt_to_bus(&lp->tx_ring[entry]))
+				    isa_virt_to_bus(&lp->tx_ring[entry]))
 					break;	/* It still hasn't been processed. */
 				if (lp->tx_skbuff[entry]) {
 					dev_kfree_skb_irq(lp->
@@ -1414,7 +1427,7 @@ static int boomerang_rx(struct net_device *dev)
 				skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
 				/* 'skb_put()' points to the start of sk_buff data area. */
 				memcpy(skb_put(skb, pkt_len),
-				       bus_to_virt(vp->rx_ring[entry].
+				       isa_bus_to_virt(vp->rx_ring[entry].
 						   addr), pkt_len);
 				rx_copy++;
 			} else {
@@ -1424,11 +1437,11 @@ static int boomerang_rx(struct net_device *dev)
 				vp->rx_skbuff[entry] = NULL;
 				temp = skb_put(skb, pkt_len);
 				/* Remove this checking code for final release. */
-				if (bus_to_virt(vp->rx_ring[entry].addr) != temp)
+				if (isa_bus_to_virt(vp->rx_ring[entry].addr) != temp)
 					    printk("%s: Warning -- the skbuff addresses do not match"
 					     " in boomerang_rx: %p vs. %p / %p.\n",
 					     dev->name,
-					     bus_to_virt(vp->
+					     isa_bus_to_virt(vp->
 							 rx_ring[entry].
 							 addr), skb->head,
 					     temp);
@@ -1451,7 +1464,7 @@ static int boomerang_rx(struct net_device *dev)
 				break;	/* Bad news!  */
 			skb->dev = dev;	/* Mark as being used by this device. */
 			skb_reserve(skb, 2);	/* Align IP on 16 byte boundaries */
-			vp->rx_ring[entry].addr = virt_to_bus(skb->tail);
+			vp->rx_ring[entry].addr = isa_virt_to_bus(skb->tail);
 			vp->rx_skbuff[entry] = skb;
 		}
 		vp->rx_ring[entry].status = 0;	/* Clear complete bit. */
@@ -1591,6 +1604,87 @@ static void set_rx_mode(struct net_device *dev)
 
 	outw(new_mode, ioaddr + EL3_CMD);
 }
+
+/**
+ * netdev_ethtool_ioctl: Handle network interface SIOCETHTOOL ioctls
+ * @dev: network interface on which out-of-band action is to be performed
+ * @useraddr: userspace address to which data is to be read and returned
+ *
+ * Process the various commands of the SIOCETHTOOL interface.
+ */
+
+static int netdev_ethtool_ioctl (struct net_device *dev, void *useraddr)
+{
+	u32 ethcmd;
+
+	/* dev_ioctl() in ../../net/core/dev.c has already checked
+	   capable(CAP_NET_ADMIN), so don't bother with that here.  */
+
+	if (get_user(ethcmd, (u32 *)useraddr))
+		return -EFAULT;
+
+	switch (ethcmd) {
+
+	case ETHTOOL_GDRVINFO: {
+		struct ethtool_drvinfo info = { ETHTOOL_GDRVINFO };
+		strcpy (info.driver, DRV_NAME);
+		strcpy (info.version, DRV_VERSION);
+		sprintf(info.bus_info, "ISA 0x%lx", dev->base_addr);
+		if (copy_to_user (useraddr, &info, sizeof (info)))
+			return -EFAULT;
+		return 0;
+	}
+
+	/* get message-level */
+	case ETHTOOL_GMSGLVL: {
+		struct ethtool_value edata = {ETHTOOL_GMSGLVL};
+		edata.data = corkscrew_debug;
+		if (copy_to_user(useraddr, &edata, sizeof(edata)))
+			return -EFAULT;
+		return 0;
+	}
+	/* set message-level */
+	case ETHTOOL_SMSGLVL: {
+		struct ethtool_value edata;
+		if (copy_from_user(&edata, useraddr, sizeof(edata)))
+			return -EFAULT;
+		corkscrew_debug = edata.data;
+		return 0;
+	}
+
+	default:
+		break;
+	}
+
+	return -EOPNOTSUPP;
+}
+
+/**
+ * netdev_ioctl: Handle network interface ioctls
+ * @dev: network interface on which out-of-band action is to be performed
+ * @rq: user request data
+ * @cmd: command issued by user
+ *
+ * Process the various out-of-band ioctls passed to this driver.
+ */
+
+static int netdev_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
+{
+	int rc = 0;
+
+	switch (cmd) {
+	case SIOCETHTOOL:
+		rc = netdev_ethtool_ioctl(dev, (void *) rq->ifr_data);
+		break;
+
+	default:
+		rc = -EOPNOTSUPP;
+		break;
+	}
+
+	return rc;
+}
+ 
 
 #ifdef MODULE
 void cleanup_module(void)

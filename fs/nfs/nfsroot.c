@@ -70,7 +70,7 @@
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/sunrpc/clnt.h>
@@ -453,7 +453,7 @@ static int __init root_nfs_get_handle(void)
 
 /*
  *  Get the NFS port numbers and file handle, and return the prepared 'data'
- *  argument for ->read_super() if everything went OK. Return NULL otherwise.
+ *  argument for mount() if everything went OK. Return NULL otherwise.
  */
 void * __init nfs_root_data(void)
 {

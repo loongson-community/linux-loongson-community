@@ -15,7 +15,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/affs_fs.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -265,15 +265,13 @@ out_inv_arg:
  * hopefully have the guts to do so. Until then: sorry for the mess.
  */
 
-static struct super_block *
-affs_read_super(struct super_block *sb, void *data, int silent)
+static int affs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct buffer_head	*root_bh = NULL;
 	struct buffer_head	*boot_bh;
 	struct inode		*root_inode = NULL;
-	kdev_t			 dev = sb->s_dev;
 	s32			 root_block;
-	int			 blocks, size, blocksize;
+	int			 size, blocksize;
 	u32			 chksum;
 	int			 num_bm;
 	int			 i, j;
@@ -294,7 +292,7 @@ affs_read_super(struct super_block *sb, void *data, int silent)
 				&blocksize,&AFFS_SB->s_prefix,
 				AFFS_SB->s_volume, &mount_flags)) {
 		printk(KERN_ERR "AFFS: Error parsing options\n");
-		return NULL;
+		return -EINVAL;
 	}
 	/* N.B. after this point s_prefix must be released */
 
@@ -309,12 +307,7 @@ affs_read_super(struct super_block *sb, void *data, int silent)
 	 * blocks, we will have to change it.
 	 */
 
-	blocks = blk_size[major(dev)] ? blk_size[major(dev)][minor(dev)] : 0;
-	if (!blocks) {
-		printk(KERN_ERR "AFFS: Could not determine device size\n");
-		goto out_error;
-	}
-	size = (BLOCK_SIZE / 512) * blocks;
+	size = sb->s_bdev->bd_inode->i_size >> 9;
 	pr_debug("AFFS: initial blksize=%d, blocks=%d\n", 512, blocks);
 
 	affs_set_blocksize(sb, PAGE_SIZE);
@@ -462,7 +455,7 @@ got_root:
 	sb->s_root->d_op = &affs_dentry_operations;
 
 	pr_debug("AFFS: s_flags=%lX\n",sb->s_flags);
-	return sb;
+	return 0;
 
 	/*
 	 * Begin the cascaded cleanup ...
@@ -475,7 +468,7 @@ out_error:
 	affs_brelse(root_bh);
 	if (AFFS_SB->s_prefix)
 		kfree(AFFS_SB->s_prefix);
-	return NULL;
+	return -EINVAL;
 }
 
 static int
@@ -533,7 +526,18 @@ affs_statfs(struct super_block *sb, struct statfs *buf)
 	return 0;
 }
 
-static DECLARE_FSTYPE_DEV(affs_fs_type, "affs", affs_read_super);
+static struct super_block *affs_get_sb(struct file_system_type *fs_type,
+	int flags, char *dev_name, void *data)
+{
+	return get_sb_bdev(fs_type, flags, dev_name, data, affs_fill_super);
+}
+
+static struct file_system_type affs_fs_type = {
+	owner:		THIS_MODULE,
+	name:		"affs",
+	get_sb:		affs_get_sb,
+	fs_flags:	FS_REQUIRES_DEV,
+};
 
 static int __init init_affs_fs(void)
 {

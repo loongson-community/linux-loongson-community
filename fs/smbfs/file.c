@@ -7,7 +7,7 @@
  *  Please add a note about your changes to smbfs in the ChangeLog file.
  */
 
-#include <linux/sched.h>
+#include <linux/time.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/fcntl.h>
@@ -381,7 +381,7 @@ smb_file_permission(struct inode *inode, int mask)
 
 struct file_operations smb_file_operations =
 {
-	llseek:		generic_file_llseek,
+	llseek:		remote_llseek,
 	read:		smb_file_read,
 	write:		smb_file_write,
 	ioctl:		smb_ioctl,

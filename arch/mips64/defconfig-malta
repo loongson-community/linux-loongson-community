@@ -5,17 +5,17 @@ CONFIG_MIPS=y
 CONFIG_MIPS64=y
 
 #
+# Code maturity level options
+#
+CONFIG_EXPERIMENTAL=y
+
+#
 # General setup
 #
 CONFIG_NET=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_SYSCTL is not set
-
-#
-# Code maturity level options
-#
-CONFIG_EXPERIMENTAL=y
 
 #
 # Loadable module support
@@ -31,6 +31,7 @@ CONFIG_MIPS_MALTA=y
 # CONFIG_SGI_IP27 is not set
 # CONFIG_SGI_IP32 is not set
 # CONFIG_SIBYTE_SB1250 is not set
+# CONFIG_PREEMPT is not set
 CONFIG_RWSEM_GENERIC_SPINLOCK=y
 # CONFIG_RWSEM_XCHGADD_ALGORITHM is not set
 CONFIG_BOOT_ELF32=y
@@ -280,7 +281,6 @@ CONFIG_NET_ETHERNET=y
 # CONFIG_HAPPYMEAL is not set
 # CONFIG_SUNBMAC is not set
 # CONFIG_SUNQE is not set
-# CONFIG_SUNLANCE is not set
 # CONFIG_SUNGEM is not set
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_LANCE is not set
@@ -361,19 +361,6 @@ CONFIG_UNIX98_PTY_COUNT=256
 #
 # CONFIG_BUSMOUSE is not set
 # CONFIG_MOUSE is not set
-
-#
-# Joysticks
-#
-# CONFIG_INPUT_GAMEPORT is not set
-
-#
-# Input core support is needed for gameports
-#
-
-#
-# Input core support is needed for joysticks
-#
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -594,13 +581,23 @@ CONFIG_MSDOS_PARTITION=y
 # CONFIG_USB_AUERSWALD is not set
 
 #
-# Input core support
+# Input device support
 #
 # CONFIG_INPUT is not set
 # CONFIG_INPUT_KEYBDEV is not set
 # CONFIG_INPUT_MOUSEDEV is not set
 # CONFIG_INPUT_JOYDEV is not set
 # CONFIG_INPUT_EVDEV is not set
+# CONFIG_GAMEPORT is not set
+CONFIG_SOUND_GAMEPORT=y
+# CONFIG_GAMEPORT_NS558 is not set
+# CONFIG_GAMEPORT_L4 is not set
+# CONFIG_INPUT_EMU10K1 is not set
+# CONFIG_GAMEPORT_PCIGAME is not set
+# CONFIG_GAMEPORT_FM801 is not set
+# CONFIG_GAMEPORT_CS461x is not set
+CONFIG_SERIO=y
+CONFIG_SERIO_SERPORT=y
 
 #
 # Kernel hacking

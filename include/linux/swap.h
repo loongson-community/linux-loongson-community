@@ -2,6 +2,9 @@
 #define _LINUX_SWAP_H
 
 #include <linux/spinlock.h>
+#include <linux/kdev_t.h>
+#include <linux/linkage.h>
+#include <linux/mmzone.h>
 #include <asm/page.h>
 
 #define SWAP_FLAG_PREFER	0x8000	/* set if swap priority specified */
@@ -39,6 +42,14 @@ union swap_header {
 	} info;
 };
 
+ /* A swap entry has to fit into a "unsigned long", as
+  * the entry is hidden in the "index" field of the
+  * swapper address space.
+  */
+typedef struct {
+	unsigned long val;
+} swp_entry_t;
+
 #ifdef __KERNEL__
 
 /*
@@ -50,8 +61,12 @@ union swap_header {
 
 #include <asm/atomic.h>
 
-#define SWP_USED	1
-#define SWP_WRITEOK	3
+enum {
+	SWP_USED	= (1 << 0),	/* is slot in swap_info[] used? */
+	SWP_WRITEOK	= (1 << 1),	/* ok to write to this swap?	*/
+	SWP_BLOCKDEV	= (1 << 2),	/* is this swap a block device? */
+	SWP_ACTIVE	= (SWP_USED | SWP_WRITEOK),
+};
 
 #define SWAP_CLUSTER_MAX 32
 
@@ -63,7 +78,6 @@ union swap_header {
  */
 struct swap_info_struct {
 	unsigned int flags;
-	kdev_t swap_device;
 	spinlock_t sdev_lock;
 	struct file *swap_file;
 	unsigned short * swap_map;
