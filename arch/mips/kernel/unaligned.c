@@ -494,10 +494,10 @@ asmlinkage void do_ade(struct pt_regs *regs)
 
 	/*
 	 * Did we catch a fault trying to load an instruction?
-	 * This also catches attempts to activate MIPS16 code on
-	 * CPUs which don't support it.
+	 * Or are we running in MIPS16 mode?
 	 */
-	if (regs->cp0_badvaddr == regs->cp0_epc)
+	if ((regs->cp0_badvaddr == regs->cp0_epc) ||
+	    (regs->cp0_epc & 0x1))
 		goto sigbus;
 
 	pc = regs->cp0_epc + ((regs->cp0_cause & CAUSEF_BD) ? 4 : 0);
