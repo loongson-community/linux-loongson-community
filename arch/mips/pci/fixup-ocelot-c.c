@@ -19,52 +19,21 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-void __init mv64340_board_pcibios_fixup_bus(struct pci_bus *bus)
+int __init pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	struct pci_bus *current_bus = bus;
-	struct pci_dev *devices;
-	struct list_head *devices_link;
-	u16 cmd;
+	int bus = dev->bus->number;
 
-	/* loop over all known devices on this bus */
-	list_for_each(devices_link, &(current_bus->devices)) {
+	if (bus == 0 && slot == 1)
+		return 2;       /* PCI-X A */
+	if (bus == 1 && slot == 1)
+		return 12;      /* PCI-X B */
+	if (bus == 1 && slot == 2)
+		return 4;       /* PCI B */
 
-		devices = pci_dev_b(devices_link);
-		if (devices == NULL)
-			continue;
-
-		if ((current_bus->number == 0) &&
-			(PCI_SLOT(devices->devfn) == 1) &&
-			(PCI_FUNC(devices->devfn) == 0)) {
-			/* LSI 53C10101R SCSI (A) */
-			devices->irq = 2;
-		} else if ((current_bus->number == 0) &&
-			(PCI_SLOT(devices->devfn) == 1) &&
-			(PCI_FUNC(devices->devfn) == 1)) {
-			/* LSI 53C10101R SCSI (B) */
-			devices->irq = 2;
-		} else if ((current_bus->number == 1) &&
-			(PCI_SLOT(devices->devfn) == 1)) {
-			/* Intel 21555 bridge */
-			devices->irq = 12;
-		} else if ((current_bus->number == 1) &&
-			(PCI_SLOT(devices->devfn) == 2)) {
-			/* PMC Slot */
-			devices->irq = 4;
-		} else {
-			/* We don't have assign interrupts for other devices. */
-			devices->irq = 0xff;
-		}
-
-		/* Assign an interrupt number for the device */
-		bus->ops->write_byte(devices, PCI_INTERRUPT_LINE, devices->irq);
-
-		/* enable master for everything but the MV-64340 */
-		if (((current_bus->number != 0) && (current_bus->number != 1))
-				|| (PCI_SLOT(devices->devfn) != 0)) {
-			bus->ops->read_word(devices, PCI_COMMAND, &cmd);
-			cmd |= PCI_COMMAND_MASTER;
-			bus->ops->write_word(devices, PCI_COMMAND, cmd);
-		}
-	}
+return 0;
+	panic("Whooops in pcibios_map_irq");
 }
+
+struct pci_fixup pcibios_fixups[] = {
+	{0}
+};
