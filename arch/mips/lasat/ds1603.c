@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <asm/lasat/lasat.h>
 #include <linux/delay.h>
+#include <asm/lasat/ds1603.h>
 
 #include "ds1603.h"
 
@@ -16,65 +17,62 @@
 #define TRIMMER_VALUE_MASK 0x38
 #define TRIMMER_SHIFT 3
 
-/* HW specific register functions */
-static volatile unsigned long *rtc_reg = (unsigned long *)DS1603_RTC_REG;
+struct ds_defs *ds1603 = NULL;
 
+/* HW specific register functions */
 static void rtc_reg_write(unsigned long val) 
 {
-	*rtc_reg = val;
+	*ds1603->reg = val;
 }
 
 static unsigned long rtc_reg_read(void) 
 {
-	unsigned long tmp = *rtc_reg;
+	unsigned long tmp = *ds1603->reg;
 	return tmp;
 }
 
 static unsigned long rtc_datareg_read(void)
 {
-	unsigned long tmp;
-	tmp = *(volatile unsigned int *)(DS1603_RTC_DATA_REG);
+	unsigned long tmp = *ds1603->data_reg;
 	return tmp;
 }
 
 static void rtc_nrst_high(void)
 {
-	rtc_reg_write(rtc_reg_read() | DS1603_RTC_RST);
+	rtc_reg_write(rtc_reg_read() | ds1603->rst);
 }
 
 static void rtc_nrst_low(void)
 {
-	rtc_reg_write(rtc_reg_read() & ~DS1603_RTC_RST);
+	rtc_reg_write(rtc_reg_read() & ~ds1603->rst);
 }
 
 static void rtc_cycle_clock(unsigned long data)
 {
-	data |= DS1603_RTC_CLK;
+	data |= ds1603->clk;
 	rtc_reg_write(data);
 	ndelay(250);
-#ifdef DS1603_RTC_DATA_REVERSED
-	data &= ~DS1603_RTC_DATA;
-#else
-	data |= DS1603_RTC_DATA;
-#endif
-	data &= ~DS1603_RTC_CLK;
+	if (ds1603->data_reversed)
+		data &= ~ds1603->data;
+	else
+		data |= ds1603->data;
+	data &= ~ds1603->clk;
 	rtc_reg_write(data);
-	ndelay(250 + DS1603_HUGE_DELAY);
+	ndelay(250 + ds1603->huge_delay);
 }
 
 static void rtc_write_databit(unsigned int bit)
 {
 	unsigned long data = rtc_reg_read();
-#ifdef DS1603_RTC_DATA_REVERSED
-	bit = !bit;
-#endif
+	if (ds1603->data_reversed)
+		bit = !bit;
 	if (bit)
-		data |= DS1603_RTC_DATA;
+		data |= ds1603->data;
 	else
-		data &= ~DS1603_RTC_DATA;
+		data &= ~ds1603->data;
 
 	rtc_reg_write(data);
-	ndelay(50 + DS1603_HUGE_DELAY);
+	ndelay(50 + ds1603->huge_delay);
 	rtc_cycle_clock(data);
 }
 
@@ -82,7 +80,8 @@ static unsigned int rtc_read_databit(void)
 {
 	unsigned int data;
 
-	data = (rtc_datareg_read() &  DS1603_RTC_DATA_READ) >> DS1603_RTC_DATA_READ_SHIFT;
+	data = (rtc_datareg_read() & (1 << ds1603->data_read_shift)) 
+		>> ds1603->data_read_shift;
 	rtc_cycle_clock(rtc_reg_read());
 	return data;
 }
@@ -124,7 +123,7 @@ static void rtc_init_op(void)
 {
 	rtc_nrst_high();
 
-	rtc_reg_write(rtc_reg_read() & ~DS1603_RTC_CLK);
+	rtc_reg_write(rtc_reg_read() & ~ds1603->clk);
 
 	ndelay(50);
 }
@@ -146,12 +145,14 @@ unsigned long ds1603_read(void)
 	return word;
 }
 
-void ds1603_set(unsigned long time)
+int ds1603_set(unsigned long time)
 {
 	rtc_init_op();
 	rtc_write_byte(SET_TIME_CMD);
 	rtc_write_word(time);
 	rtc_end_op();
+
+	return 0;
 }
 
 void ds1603_set_trimmer(unsigned int trimval)

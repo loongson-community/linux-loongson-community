@@ -156,13 +156,13 @@
 #endif
 
 #ifdef CONFIG_LASAT
-#include <asm/lasat/lasat.h>
+#include <asm/lasat/serial.h>
 #define LASAT_SERIAL_PORT_DEFNS						\
 	{ .baud_base = LASAT_BASE_BAUD, .irq = LASATINT_UART,		\
 	  .flags = STD_COM_FLAGS,						\
 	  .port = LASAT_UART_REGS_BASE, /* Only for display */		\
 	  .iomem_base = (u8 *)KSEG1ADDR(LASAT_UART_REGS_BASE),		\
-	  .iomem_reg_shift = LASAT_UART_REGS_SHIFT, .io_type = SERIAL_IO_MEM }
+	  .iomem_reg_shift = LASAT_UART_REGS_SHIFT, .io_type = SERIAL_IO_MEM },
 #else
 #define LASAT_SERIAL_PORT_DEFNS
 #endif

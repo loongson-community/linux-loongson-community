@@ -6,12 +6,25 @@
  */
 #include <asm/semaphore.h>
 
+struct pvc_defs {
+	volatile u32 *reg;
+	u32 data_shift;
+	u32 data_mask;
+	u32 e;
+	u32 rw;
+	u32 rs;
+};
+
+extern struct pvc_defs *picvue;
+
 #define PVC_NLINES		2
 #define PVC_DISPMEM		80
 #define PVC_LINELEN		PVC_DISPMEM / PVC_NLINES
 #define PVC_VISIBLE_CHARS	16
 
 void pvc_write_string(const unsigned char *str, u8 addr, int line);
+void pvc_write_string_centered(const unsigned char *str, int line);
+void pvc_dump_string(const unsigned char *str);
 
 #define BM_SIZE			8
 #define MAX_PROGRAMMABLE_CHARS	8

@@ -27,23 +27,23 @@
 #ifndef _LASAT_H
 #define _LASAT_H
 
-#include <linux/config.h>
-
-#ifdef CONFIG_LASAT_100
-#include <asm/lasat/lasat100.h>
-#endif
-
-#ifdef CONFIG_LASAT_200
-#include <asm/lasat/lasat200.h>
-#endif
-
-/*
- * Configuration block magic word(s)
- */
-#define LASAT_CONFIG_MAGIC     ('L'|('C'<<8)|('B'<<16)|('2'<<24)) /* LCB2 */
-#define LASAT_CONFIG_MAGIC_INT ('L'|('C'<<8)|('B'<<16)|('x'<<24)) /* LCBx */
-
 #ifndef _LANGUAGE_ASSEMBLY
+
+extern struct lasat_misc {
+	volatile u32 *reset_reg;
+	volatile u32 *flash_wp_reg;
+	u32 flash_wp_bit;
+} *lasat_misc;
+
+enum lasat_mtdparts {
+	LASAT_MTD_BOOTLOADER,
+	LASAT_MTD_SERVICE,
+	LASAT_MTD_NORMAL,
+	LASAT_MTD_CONFIG,
+	LASAT_MTD_FS,
+	LASAT_MTD_LAST
+};
+
 /*
  * The format of the data record in the EEPROM.
  * See Documentation/LASAT/eeprom.txt for a detailed description
@@ -182,42 +182,17 @@ struct lasat_eeprom_struct_pre7 {
 struct lasat_info {
 	unsigned int  li_cpu_hz;
 	unsigned int  li_bus_hz;
-	unsigned int  li_flags;
 	unsigned int  li_bmid;
 	unsigned int  li_memsize;
 	unsigned int  li_flash_size;
-	unsigned int  li_edhac;
-	unsigned int  li_eadi;
-	unsigned int  li_hifn;
-	unsigned int  li_isdn;
-	unsigned int  li_ide;
-	unsigned int  li_hdlc;
-	unsigned int  li_leasedline;
-	unsigned int  li_usversion;
-	unsigned int  li_hw_flags;
-	unsigned int  li_vendid;
 	unsigned int  li_prid;
 	unsigned char li_bmstr[16];
-	unsigned char li_vendstr[32];
 	unsigned char li_namestr[32];
 	unsigned char li_typestr[16];
-	unsigned char li_partno[13];
-	unsigned char li_serial[15];
-	unsigned int  li_vpn_kbps;	/* kbit/s */
-	unsigned int  li_vpn_tunnels;
-	unsigned int  li_vpn_clients;
 	/* Info on the Flash layout */
 	unsigned int  li_flash_base;
-	unsigned int  li_flash_service_base;
-	unsigned int  li_flash_service_size;
-	unsigned int  li_flash_normal_base;
-	unsigned int  li_flash_normal_size;
-	unsigned int  li_flash_cfg_base;
-	unsigned int  li_flash_cfg_size;
-	unsigned int  li_flash_fs_base;
-	unsigned int  li_flash_fs_size;
-	unsigned int  li_flash_fs2_base;
-	unsigned int  li_flash_fs2_size;
+	unsigned long li_flashpart_base[LASAT_MTD_LAST];
+	unsigned long li_flashpart_size[LASAT_MTD_LAST];
 	struct lasat_eeprom_struct li_eeprom_info;
 	unsigned int  li_eeprom_upgrade_version;
 	unsigned int  li_debugaccess;
@@ -225,104 +200,51 @@ struct lasat_info {
 
 extern struct lasat_info lasat_board_info;
 
+static inline unsigned long lasat_flash_partition_start(int partno)
+{
+	if (partno < 0 || partno >= LASAT_MTD_LAST)
+		return 0;
+
+	return lasat_board_info.li_flashpart_base[partno];
+}
+
+static inline unsigned long lasat_flash_partition_size(int partno)
+{
+	if (partno < 0 || partno >= LASAT_MTD_LAST)
+		return 0;
+
+	return lasat_board_info.li_flashpart_size[partno];
+}
+
 /* Called from setup() to initialize the global board_info struct */
 extern int lasat_init_board_info(void);
 
 /* Write the modified EEPROM info struct */
 extern void lasat_write_eeprom_info(void);
 
-/* Returns the CPU clock frequency in Hz */
-static inline unsigned long lasat_get_cpu_hz(void)
-{
-	return lasat_board_info.li_cpu_hz;
-}
-
-/* Returns the local bus clock frequency in Hz */
-static inline unsigned long lasat_get_bus_hz(void)
-{
-	return lasat_board_info.li_bus_hz;
-}
-
-/* Returns the ide info of this boardz */
-static inline unsigned int lasat_get_ide(void)
-{
-	return lasat_board_info.li_ide;
-}
-
-/* Returns the hifn info of this boardz */
-static inline unsigned int lasat_get_hifn(void)
-{
-	return lasat_board_info.li_hifn;
-}
-
-/* Returns the hdlc info of this boardz */
-static inline unsigned int lasat_get_hdlc(void)
-{
-	return lasat_board_info.li_hdlc;
-}
-
-/* Returns the usversion setting */
-static inline unsigned int lasat_get_usversion(void)
-{
-	return lasat_board_info.li_usversion;
-}
-
-/* Returns the edhac info of this LASAT board */
-static inline const unsigned int lasat_get_edhac(void)
-{
-	return lasat_board_info.li_edhac;
-}
-
-/* Returns the level 2 cache size of this LASAT board */
-static inline const unsigned int lasat_get_level2_cache_size(void)
-{
-	return ((lasat_board_info.li_eeprom_info.cfg[0] & 0xf0000000) >> 28);
-}
-
-/* Returns presence of ISDN of this LASAT board */
-static inline const unsigned int lasat_get_isdn(void)
-{
-	return lasat_board_info.li_isdn;
-}
-
-
-/* Returns the requested sequential MAC address */
-/* Returns 0 on ok or negative on failure (overflow or seq out of range) */
-#if 1
-
-static inline int lasat_get_mac_address(unsigned char * mac, int seq)
-{
-	int c, v;
-
-	for (c = 5; c >= 0; c--) {
-		v = lasat_board_info.li_eeprom_info.hwaddr[c];
-		mac[c] = (v + seq) & 0xff;
-		seq = (v + seq <= 0xff) ? 0 : 1;
-	}
-	return (seq == 0) ? 0 : -1;
-}
-
-#else
-extern int lasat_get_mac_address(unsigned char * mac, int seq);
-#endif
-
-/* The low level driver functions */
-
-/* Flash access */
-int lasat_flash_wp(int protected);
-
-/* For EEPROM */
-extern char lasat_eeprom_read(int pos);
-extern int  lasat_eeprom_write(int pos, char val);
-extern void lasat_eeprom_wp(int protected);
+#define N_MACHTYPES		2
+/* for calibration of delays */
 
 #include <asm/delay.h>
 #define NANOTH 1000000000L
 extern inline void ndelay(unsigned int ns) {
 	if (ns != 0)
-		__delay(TICKS_PER_SECOND / (NANOTH / ns) + 1);
+		__delay(lasat_board_info.li_cpu_hz / 2 / (NANOTH / ns) + 1);
 }
 
+extern void (* prom_printf)(const char *fmt, ...);
+
 #endif /* !defined (_LANGUAGE_ASSEMBLY) */
+
+#define LASAT_SERVICEMODE_MAGIC_1     0xdeadbeef
+#define LASAT_SERVICEMODE_MAGIC_2     0xfedeabba
+
+/* Lasat 100 boards */
+#define LASAT_GT_BASE           (KSEG1ADDR(0x14000000))
+
+/* Lasat 200 boards */
+#define Vrc5074_PHYS_BASE       0x1fa00000
+#define Vrc5074_BASE            (KSEG1ADDR(Vrc5074_PHYS_BASE))
+#define PCI_WINDOW1             0x1a000000
 
 #endif /* _LASAT_H */

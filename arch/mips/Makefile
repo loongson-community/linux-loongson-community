@@ -365,7 +365,7 @@ endif
 
 ifdef CONFIG_LASAT
 rom.bin rom.sw: vmlinux
-	$(MAKE) -C arch/$(ARCH)/lasat/image $@
+	$(call descend,arch/mips/lasat/image,$@)
 endif
 
 makeboot = $(call descend,arch/mips/boot,$(1))

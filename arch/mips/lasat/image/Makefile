@@ -11,44 +11,40 @@ ifndef Version
 endif
 
 MKLASATIMG = mklasatimg
-ifndef MKLASATIMG_ARCH
-MKLASATIMG_ARCH = mqpro
-endif
+MKLASATIMG_ARCH = mq2,mqpro,sp100,sp200
 KERNEL_IMAGE = $(TOPDIR)/vmlinux
-KERNEL_START = $(shell $(NM) $(KERNEL_IMAGE) | grep _ftext | cut -f1 -d\ )
+KERNEL_START = $(shell $(NM) $(KERNEL_IMAGE) | grep " _text" | cut -f1 -d\ )
 KERNEL_ENTRY = $(shell $(NM) $(KERNEL_IMAGE) | grep kernel_entry | cut -f1 -d\ )
 
-LDSCRIPT= -Tromscript.normal
+LDSCRIPT= -L$(obj) -Tromscript.normal
 
-AFLAGS_head.o = -D_kernel_start=0x$(KERNEL_START) \
+AFLAGS_head.o += -D_kernel_start=0x$(KERNEL_START) \
 		-D_kernel_entry=0x$(KERNEL_ENTRY) \
 		-D VERSION="\"$(Version)\"" \
 		-D TIMESTAMP=$(shell date +%s) 
 
 head.o: $(KERNEL_IMAGE)
 
-OBJECTS= head.o kImage.o
+obj-y = head.o kImage.o
 
 rom.sw:	rom.bin
-	$(MKLASATIMG) -o rom.sw -k rom.bin -m $(MKLASATIMG_ARCH)
+	$(MKLASATIMG) -o $@ -k $^ -m $(MKLASATIMG_ARCH)
 
-rom.bin: rom
+rom.bin: $(obj)/rom
 	$(OBJCOPY) -O binary -S rom rom.bin
 
 # Rule to make the bootloader
-rom:	$(OBJECTS)
-	$(LD) $(LDFLAGS) $(LDSCRIPT) -o rom $(OBJECTS) 
+$(obj)/rom: $(addprefix $(obj)/,$(obj-y))
+	$(LD) $(LDFLAGS) $(LDSCRIPT) -o rom $^
 
-%.o: %.gz
+$(obj)/%.o: $(obj)/%.gz
 	$(LD) -r -o $@ -b binary $<
 
-%.gz: %.bin
+$(obj)/%.gz: $(obj)/%.bin
 	gzip -cf -9 $< > $@
 
-kImage.bin: $(KERNEL_IMAGE)
-	$(OBJCOPY) -O binary -S $(TOPDIR)/vmlinux kImage.bin
+$(obj)/kImage.bin: $(KERNEL_IMAGE)
+	$(OBJCOPY) -O binary -S $^ $@
 
 clean:
-	rm -f rom rom.bin rom.sw kImage.bin
-
-EXTRA_AFLAGS := $(CFLAGS)
+	rm -f rom rom.bin rom.sw kImage.bin kImage.o

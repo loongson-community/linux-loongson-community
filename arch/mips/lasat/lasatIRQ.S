@@ -68,9 +68,7 @@
 	 * this is the case.
 	 */
 	move	a1,s0
-	PRINT("Got interrupt: c0_cause = %08x\n")
 	mfc0	a1, CP0_EPC
-	PRINT("c0_epc = %08x\n")
 
 	j	ret_from_irq
 	 nop
