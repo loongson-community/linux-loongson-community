@@ -109,6 +109,7 @@
 #ifdef __mips__
 #include	<asm/pgtable.h>
 #include	<asm/addrspace.h>
+#include	<asm/pgalloc.h>
 #endif
 
 /* If there is a different PAGE_SIZE around, and it works with this allocator,
