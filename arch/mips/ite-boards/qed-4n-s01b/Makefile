@@ -10,4 +10,3 @@
 obj-y := init.o
 
 obj-$(CONFIG_PCI) += pci_fixup.o
-obj-$(CONFIG_BLK_DEV_INITRD) += le_ramdisk.o
