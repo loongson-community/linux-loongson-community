@@ -316,7 +316,7 @@ out:	jr	ra
 	sys	sys_olduname	1
 	sys	sys_umask	1			/* 4060 */
 	sys	sys_chroot	1
-	sys	sys_ustat	2
+	sys	sys32_ustat	2
 	sys	sys_dup2	2
 	sys	sys_getppid	0
 	sys	sys_getpgrp	0			/* 4065 */
