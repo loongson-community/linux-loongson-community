@@ -1010,10 +1010,8 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1051,10 +1049,8 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1091,10 +1087,8 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1131,10 +1125,8 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1171,10 +1163,8 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1211,10 +1201,8 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -1251,10 +1239,8 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 			pgd_t *pgd;
 			pmd_t *pmd;
 			pte_t *pte;
-			int text;
 
 			save_and_cli(flags);
-			text = vma->vm_flags & VM_EXEC;
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
