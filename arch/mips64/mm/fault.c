@@ -32,23 +32,19 @@
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
 
-extern void die(char *, struct pt_regs *, unsigned long write)
-	__attribute__((noreturn));
-
 /*
  * Macro for exception fixup code to access integer registers.
  */
 #define dpf_reg(r) (regs->regs[r])
 
-asmlinkage void
-dodebug(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void dodebug(abi64_no_regargs, struct pt_regs regs)
 {
-	printk("Got syscall %ld, cpu %d proc %s:%d epc 0x%lx\n", regs.regs[2],
-	       smp_processor_id(), current->comm, current->pid, regs.cp0_epc);
+	printk(KERN_DEBUG "Got syscall %ld, cpu %d proc %s:%d epc 0x%lx\n",
+	       regs.regs[2], smp_processor_id(), current->comm, current->pid,
+	       regs.cp0_epc);
 }
 
-asmlinkage void
-dodebug2(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void dodebug2(abi64_no_regargs, struct pt_regs regs)
 {
 	unsigned long retaddr;
 
@@ -57,7 +53,8 @@ dodebug2(abi64_no_regargs, struct pt_regs regs)
 		"add %0,$0,$31\n\t"
 		".set reorder"
 		: "=r" (retaddr));
-	printk("Got exception 0x%lx at 0x%lx\n", retaddr, regs.cp0_epc);
+	printk(KERN_DEBUG "Got exception 0x%lx at 0x%lx\n", retaddr,
+	       regs.cp0_epc);
 }
 
 extern spinlock_t timerlist_lock;
@@ -98,8 +95,8 @@ void bust_spinlocks(int yes)
  * and the problem, and then passes it off to one of the appropriate
  * routines.
  */
-asmlinkage void
-do_page_fault(struct pt_regs *regs, unsigned long write, unsigned long address)
+asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
+			      unsigned long address)
 {
 	struct vm_area_struct * vma;
 	struct task_struct *tsk = current;
