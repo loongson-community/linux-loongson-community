@@ -162,7 +162,6 @@ void __init init_sb1250_irqs(void)
 		irq_desc[i].status = IRQ_DISABLED;
 		irq_desc[i].action = 0;
 		irq_desc[i].depth = 1;
-		irq_desc[i].handler = &sb1250_irq_type;
 		if (i < SB1250_NR_IRQS)
 			irq_desc[i].handler = &sb1250_irq_type;
 		else
