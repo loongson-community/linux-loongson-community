@@ -708,7 +708,7 @@ unsigned int probe_irq_mask(unsigned long val)
  *	appears to have triggered the interrupt. If no interrupt was
  *	found then zero is returned. If more than one interrupt is
  *	found then minus the first candidate is returned to indicate
- *	their is doubt.
+ *	there is doubt.
  *
  *	The interrupt probe logic state is returned to its previous
  *	value.
