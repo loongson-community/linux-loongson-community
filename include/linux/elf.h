@@ -40,6 +40,8 @@ typedef __s64	Elf64_Sxword;
 #define EF_MIPS_CPIC      0x00000004
 #define EF_MIPS_ABI2      0x00000020
 #define EF_MIPS_OPTIONS_FIRST 0x00000080
+#define EF_MIPS_32BITMODE 0x00000100
+#define EF_MIPS_ABI       0x0000f000
 #define EF_MIPS_ARCH      0xf0000000
 
 /* These constants define the different elf file types */

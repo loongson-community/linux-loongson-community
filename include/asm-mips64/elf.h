@@ -9,21 +9,23 @@
 #include <asm/ptrace.h>
 #include <asm/user.h>
 
-#ifndef ELF_ARCH
-/* ELF register definitions */
-#define ELF_NGREG	45
-#define ELF_NFPREG	33
-
-/* ELF header e_flags defines. MIPS architecture level. */
+/* ELF header e_flags defines. */
+/* MIPS architecture level. */
 #define EF_MIPS_ARCH_1      0x00000000  /* -mips1 code.  */
 #define EF_MIPS_ARCH_2      0x10000000  /* -mips2 code.  */
 #define EF_MIPS_ARCH_3      0x20000000  /* -mips3 code.  */
 #define EF_MIPS_ARCH_4      0x30000000  /* -mips4 code.  */
 #define EF_MIPS_ARCH_5      0x40000000  /* -mips5 code.  */
-#define EF_MIPS_ARCH_32     0x60000000  /* MIPS32 code.  */
-#define EF_MIPS_ARCH_64     0x70000000  /* MIPS64 code.  */
-#define EF_MIPS_ARCH_32R2   0x80000000  /* MIPS32 code.  */
-#define EF_MIPS_ARCH_64R2   0x90000000  /* MIPS64 code.  */
+#define EF_MIPS_ARCH_32     0x50000000  /* MIPS32 code.  */
+#define EF_MIPS_ARCH_64     0x60000000  /* MIPS64 code.  */
+/* The ABI of a file. */
+#define EF_MIPS_ABI_O32     0x00001000  /* O32 ABI.  */
+#define EF_MIPS_ABI_O64     0x00002000  /* O32 extended for 64 bit.  */
+
+#ifndef ELF_ARCH
+/* ELF register definitions */
+#define ELF_NGREG	45
+#define ELF_NFPREG	33
 
 typedef unsigned long elf_greg_t;
 typedef elf_greg_t elf_gregset_t[ELF_NGREG];
@@ -41,14 +43,9 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 									\
 	if (__h->e_machine != EM_MIPS)					\
 		__res = 0;						\
-	if (sizeof(elf_caddr_t) == 8 &&					\
-	    __h->e_ident[EI_CLASS] == ELFCLASS32)			\
-	        __res = 0;						\
-	if (((__h->e_flags & EF_MIPS_ARCH) != EF_MIPS_ARCH_1) &&	\
-	    ((__h->e_flags & EF_MIPS_ARCH) != EF_MIPS_ARCH_2) &&	\
-	    ((__h->e_flags & EF_MIPS_ARCH) != EF_MIPS_ARCH_32) &&	\
-	    ((__h->e_flags & EF_MIPS_ARCH) != EF_MIPS_ARCH_32R2))	\
-                __res = 0;						\
+	if ((__h->e_ident[EI_CLASS] == ELFCLASS32) &&			\
+	    ((__h->e_flags & EF_MIPS_ABI2) == 0))			\
+		__res = 0;						\
 									\
 	__res;								\
 })
