@@ -326,10 +326,11 @@ static int duart_write(struct tty_struct * tty, int from_user,
 		if (c <= 0) break;
 
 		if (from_user) {
+			spin_unlock_irqrestore(&us->outp_lock, flags);
 			if (copy_from_user(us->outp_buf + us->outp_tail, buf, c)) {
-				spin_unlock_irqrestore(&us->outp_lock, flags);
 				return -EFAULT;
 			}
+			spin_lock_irqsave(&us->outp_lock, flags);
 		} else {
 			memcpy(us->outp_buf + us->outp_tail, buf, c);
 		}
