@@ -11,11 +11,17 @@
  *
  * Copyright (C) 1996, 97, 99, 2000, 03 by Ralf Baechle
  */
-#ifndef _ASM_ATOMIC_H
-#define _ASM_ATOMIC_H
 
+/*
+ * As workaround for the ATOMIC_DEC_AND_LOCK / atomic_dec_and_lock mess in
+ * <linux/spinlock.h> we have to include <linux/spinlock.h> outside the
+ * main big wrapper ...
+ */
 #include <linux/config.h>
 #include <linux/spinlock.h>
+
+#ifndef _ASM_ATOMIC_H
+#define _ASM_ATOMIC_H
 
 /*
  * This lock is intensionally undeclared and undefined so attempts to reference
