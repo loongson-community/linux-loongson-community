@@ -16,8 +16,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifndef _SWARM_H
-#define _SWARM_H
+#ifndef _ASM_SIBYTE_SWARM_H
+#define _ASM_SIBYTE_SWARM_H
 
 #define KERNEL_RESERVED_MEM 0x100000
 #define LED_BASE_ADDR 0x100a0020
@@ -26,4 +26,4 @@ void swarm_setup(void);
 
 void setleds(char *str); 
 
-#endif
+#endif /* _ASM_SIBYTE_SWARM_H */

@@ -19,19 +19,10 @@
 #ifndef _ASM_SIBYTE_SWARM_H
 #define _ASM_SIBYTE_SWARM_H
 
-#include <asm/addrspace.h>
-
-/*#define IO_SPACE_BASE 0xffffffffa0000000UL*/
-#define IO_SPACE_BASE K1BASE
-
-/* Not sure this is right... ---JDC */
-#define IO_SPACE_LIMIT 0xffff
-
 #define KERNEL_RESERVED_MEM 0x100000
+#define LED_BASE_ADDR 0x100a0020
 
 void swarm_setup(void);
-
-#define LED_BASE_ADDR 0x100a0020
 void setleds(char *str); 
 
-#endif
+#endif /* _ASM_SIBYTE_SWARM_H */
