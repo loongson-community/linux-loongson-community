@@ -540,7 +540,13 @@ void update_mmu_cache(struct vm_area_struct * vma,
 	pte_t *ptep;
 	int idx, pid;
 
-	pid = (get_entryhi() & 0xfc0);
+	/*
+	 * Handle debugger faulting in for debugee.
+	 */
+	if (current->active_mm != vma->vm_mm)
+		return;
+
+	pid = get_entryhi() & 0xfc0;
 
 #ifdef DEBUG_TLB
 	if((pid != (vma->vm_mm->context & 0xfc0)) || (vma->vm_mm->context == 0)) {
