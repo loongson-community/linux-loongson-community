@@ -793,6 +793,8 @@ static int lance_open(struct net_device *dev)
 	ib->mode = 0;
 	ib->filter [0] = 0;
 	ib->filter [2] = 0;
+	ib->filter [4] = 0;
+	ib->filter [6] = 0;
 
 	lance_init_ring(dev);
 	load_csrs(lp);
@@ -920,7 +922,7 @@ static void lance_load_multicast(struct net_device *dev)
 	struct dev_mc_list *dmi = dev->mc_list;
 	char *addrs;
 	int i, j, bit, byte;
-	u32 crc, poly = CRC_POLYNOMIAL_BE;
+	u32 crc, poly = CRC_POLYNOMIAL_LE;
 
 	/* set all multicast bits */
 	if (dev->flags & IFF_ALLMULTI) {
@@ -959,7 +961,7 @@ static void lance_load_multicast(struct net_device *dev)
 			}
 
 		crc = crc >> 26;
-		mcast_table[crc >> 3] |= 1 << (crc & 0xf);
+		mcast_table[2 * (crc >> 4)] |= 1 << (crc & 0xf);
 	}
 	return;
 }
