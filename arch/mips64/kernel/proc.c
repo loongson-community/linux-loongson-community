@@ -112,7 +112,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	seq_printf(m, "extra interrupt vector\t: %s\n",
 	              (current_cpu_data.options & MIPS_CPU_DIVEC) ? "yes" : "no");
 	seq_printf(m, "hardware watchpoint\t: %s\n",
-	              watch_available ? "yes" : "no");
+	              cpu_has_watch ? "yes" : "no");
 
 	sprintf(fmt, "VCE%%c exceptions\t\t: %s\n",
 	        (current_cpu_data.options & MIPS_CPU_VCE) ? "%d" : "not available");

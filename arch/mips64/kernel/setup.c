@@ -44,20 +44,11 @@
 #include <asm/sections.h>
 #include <asm/pgalloc.h>
 
-#ifndef CONFIG_SMP
-struct cpuinfo_mips cpu_data[1];
-#endif
+struct cpuinfo_mips cpu_data[NR_CPUS];
 
 #ifdef CONFIG_VT
 struct screen_info screen_info;
 #endif
-
-/*
- * Not all of the MIPS CPUs have the "wait" instruction available.  This
- * is set to true if it is available.  The wait instruction stops the
- * pipeline and reduces the power consumption of the CPU very much.
- */
-char wait_available;
 
 /*
  * Set if box has EISA slots.

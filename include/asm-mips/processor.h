@@ -53,11 +53,11 @@ struct cpuinfo_mips {
 	/*
 	 * Capability and feature descriptor structure for MIPS CPU
 	 */
+	unsigned long options;
 	unsigned int processor_id;
 	unsigned int fpu_id;
 	unsigned int cputype;
 	int isa_level;
-	int options;
 	int tlbsize;
 	struct cache_desc icache;	/* Primary I-cache */
 	struct cache_desc dcache;	/* Primary D or combined I/D cache */
@@ -66,18 +66,20 @@ struct cpuinfo_mips {
 } __attribute__((__aligned__(SMP_CACHE_BYTES)));
 
 /*
+ * Assumption: Options of CPU 0 are a superset of all processors.
+ * This is true for all known MIPS systems.
+ */
+#define cpu_has_watch	(test_bit(MIPS_CPU_WATCH, cpu_data[0].options))
+
+extern struct cpuinfo_mips cpu_data[];
+#define current_cpu_data cpu_data[smp_processor_id()]
+
+/*
  * System setup and hardware flags..
  */
 extern void (*cpu_wait)(void);
 
-extern struct cpuinfo_mips cpu_data[];
 extern unsigned int vced_count, vcei_count;
-
-#ifdef CONFIG_SMP
-#define current_cpu_data cpu_data[smp_processor_id()]
-#else
-#define current_cpu_data cpu_data[0]
-#endif
 
 /*
  * Bus types (default is ISA, but people can check others with these..)

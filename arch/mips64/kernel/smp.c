@@ -40,7 +40,6 @@
 #include <asm/smp.h>
 
 int smp_threads_ready;	/* Not used */
-struct cpuinfo_mips cpu_data[NR_CPUS];
 
 // static atomic_t cpus_booted = ATOMIC_INIT(0);
 atomic_t cpus_booted = ATOMIC_INIT(0);

@@ -12,6 +12,7 @@
 #define _ASM_PROCESSOR_H
 
 #include <linux/config.h>
+#include <linux/cache.h>
 
 /*
  * Return current * instruction pointer ("program counter").
@@ -80,32 +81,33 @@ struct cpuinfo_mips {
 	/*
 	 * Capability and feature descriptor structure for MIPS CPU
 	 */
+	unsigned long options;
 	unsigned int processor_id;
 	unsigned int fpu_id;
 	unsigned int cputype;
 	int isa_level;
-	int options;
 	int tlbsize;
 	struct cache_desc icache;	/* Primary I-cache */
 	struct cache_desc dcache;	/* Primary D or combined I/D cache */
 	struct cache_desc scache;	/* Secondary cache */
 	struct cache_desc tcache;	/* Tertiary/split secondary cache */
-} __attribute__((aligned(128)));
+} __attribute__((aligned(SMP_CACHE_BYTES)));
+
+/*
+ * Assumption: Options of CPU 0 are a superset of all processors.
+ * This is true for all known MIPS systems.
+ */
+#define cpu_has_watch	(test_bit(MIPS_CPU_WATCH, cpu_data[0].options))
+
+extern struct cpuinfo_mips cpu_data[];
+#define current_cpu_data cpu_data[smp_processor_id()]
 
 /*
  * System setup and hardware flags..
- * XXX: Should go into mips_cpuinfo.
  */
 extern void (*cpu_wait)(void);
 
 extern unsigned int vced_count, vcei_count;
-extern struct cpuinfo_mips cpu_data[];
-
-#ifdef CONFIG_SMP
-#define current_cpu_data cpu_data[smp_processor_id()]
-#else
-#define current_cpu_data cpu_data[0]
-#endif
 
 /*
  * Bus types (default is ISA, but people can check others with these..)

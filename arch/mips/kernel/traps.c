@@ -59,8 +59,6 @@ extern asmlinkage void handle_reserved(void);
 extern int fpu_emulator_cop1Handler(int xcptno, struct pt_regs *xcp,
 	struct mips_fpu_soft_struct *ctx);
 
-char watch_available = 0;
-
 int (*be_board_handler)(struct pt_regs *regs, int is_fixup);
 
 /*
@@ -751,14 +749,6 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 	      (regs->cp0_cause & 0x7f) >> 2);
 }
 
-static inline void watch_init(void)
-{
-	if (current_cpu_data.options & MIPS_CPU_WATCH) {
-		set_except_vector(23, handle_watch);
- 		watch_available = 1;
- 	}
-}
-
 /*
  * Some MIPS CPUs can enable/disable for cache parity detection, but do
  * it different ways.
@@ -935,7 +925,8 @@ void __init trap_init(void)
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
-	watch_init();
+	if (current_cpu_data.options & MIPS_CPU_WATCH)
+		set_except_vector(23, handle_watch);
 
 	/*
 	 * Some MIPS CPUs have a dedicated interrupt vector which reduces the
