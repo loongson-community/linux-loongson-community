@@ -579,7 +579,6 @@ put_tv32(struct compat_timeval *o, struct timeval *i)
 }
 
 extern struct timezone sys_tz;
-extern int do_sys_settimeofday(struct timeval *tv, struct timezone *tz);
 
 asmlinkage int
 sys32_gettimeofday(struct compat_timeval *tv, struct timezone *tz)
@@ -597,14 +596,28 @@ sys32_gettimeofday(struct compat_timeval *tv, struct timezone *tz)
 	return 0;
 }
 
+static inline long get_ts32(struct timespec *o, struct compat_timeval *i)
+{
+	long usec;
+
+	if (!access_ok(VERIFY_READ, i, sizeof(*i)))
+		return -EFAULT;
+	if (__get_user(o->tv_sec, &i->tv_sec))
+		return -EFAULT;
+	if (__get_user(usec, &i->tv_usec))
+		return -EFAULT;
+	o->tv_nsec = usec * 1000;
+		return 0;
+}
+
 asmlinkage int
 sys32_settimeofday(struct compat_timeval *tv, struct timezone *tz)
 {
-	struct timeval ktv;
+	struct timespec kts;
 	struct timezone ktz;
 
  	if (tv) {
-		if (get_tv32(&ktv, tv))
+		if (get_ts32(&kts, tv))
 			return -EFAULT;
 	}
 	if (tz) {
@@ -612,7 +625,7 @@ sys32_settimeofday(struct compat_timeval *tv, struct timezone *tz)
 			return -EFAULT;
 	}
 
-	return do_sys_settimeofday(tv ? &ktv : NULL, tz ? &ktz : NULL);
+	return do_sys_settimeofday(tv ? &kts : NULL, tz ? &ktz : NULL);
 }
 
 extern asmlinkage long sys_llseek(unsigned int fd, unsigned long offset_high,
