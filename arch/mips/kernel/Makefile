@@ -34,7 +34,7 @@ obj-y	+= r4k_fpu.o
 endif
 endif
 
-obj-$(CONFIG_SMP)               += smp.o
+obj-$(CONFIG_SMP)		+= smp.o
 obj-$(CONFIG_MIPS_FPE_MODULE)	+= fpe.o
 ifndef CONFIG_MIPS_FPU_EMULATOR
   obj-y				+= softfp.o
@@ -47,9 +47,9 @@ obj-$(CONFIG_ROTTEN_IRQ)	+= old-irq.o
 
 # transition from old time.c to new time.c
 # some boards uses old-time.c, some use time.c, and some use their own ones
-exprot-objs                    += old-time.o time.o
-obj-$(CONFIG_OLD_TIME_C)       += old-time.o
-obj-$(CONFIG_NEW_TIME_C)       += time.o
+export-objs			+= old-time.o time.o
+obj-$(CONFIG_OLD_TIME_C)	+= old-time.o
+obj-$(CONFIG_NEW_TIME_C)	+= time.o
 
 obj-$(CONFIG_BINFMT_IRIX)	+= irixelf.o irixioctl.o irixsig.o sysirix.o \
 				   irixinv.o
