@@ -476,7 +476,7 @@ static void r4k_flush_cache_page(struct vm_area_struct *vma,
 	 * Do indexed flush, too much work to get the (possible) TLB refills
 	 * to work correctly.
 	 */
-	page = (KSEG0 + (page & (dcache_size - 1)));
+	page = KSEG0 + (page & (dcache_size - 1));
 	if (cpu_has_dc_aliases || (exec && !cpu_has_ic_fills_f_dc))
 		r4k_blast_dcache_page_indexed(page);
 	if (exec) {
@@ -692,7 +692,12 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 			".set push\n\t"
 			".set noat\n\t"
 			".set mips3\n\t"
+#if CONFIG_MIPS32
 			"la	$at,1f\n\t"
+#endif
+#if CONFIG_MIPS64
+			"dla	$at,1f\n\t"
+#endif
 			"cache	%0,($at)\n\t"
 			"nop; nop; nop\n"
 			"1:\n\t"
@@ -1202,8 +1207,8 @@ void __init ld_mmu_r4xx0(void)
 	struct cpuinfo_mips *c = &current_cpu_data;
 
 	/* Default cache error handler for R4000 and R5000 family */
-	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
-	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(K0BASE + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(K1BASE + 0x100), &except_vec2_generic, 0x80);
 
 	probe_pcache();
 	setup_scache();
