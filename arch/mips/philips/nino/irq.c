@@ -96,15 +96,15 @@ void irq6_dispatch(struct pt_regs *regs)
 		irq = 3;
 		goto done;
 	}
-	if((inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_PERINT) ==
+	if ((inl(TX3912_INT6_STATUS) & TX3912_INT6_STATUS_INTVEC_PERINT) ==
 		TX3912_INT6_STATUS_INTVEC_PERINT) {
 		irq = 0;
 		goto done;
 	}
 
 	/* if irq == -1, then interrupt was cleared or is invalid */
-	if(irq == -1) {
-		panic("Unhandled High Priority PR31700 Interrupt = 0x%08x\n",
+	if (irq == -1) {
+		panic("Unhandled High Priority PR31700 Interrupt = 0x%08x",
 			inl(TX3912_INT6_STATUS));
 	}
 
@@ -115,7 +115,7 @@ done:
 static void enable_irq4(unsigned int irq)
 {
 	set_cp0_status(STATUSF_IP4);
-	if(irq == 2) {
+	if (irq == 2) {
 		outl(inl(TX3912_INT2_CLEAR) | TX3912_INT2_UARTA_TX_BITS,
 			TX3912_INT2_CLEAR);
 		outl(inl(TX3912_INT2_ENABLE) | TX3912_INT2_UARTA_TX_BITS,
@@ -176,7 +176,7 @@ void irq4_dispatch(struct pt_regs *regs)
 			inl(TX3912_INT4_STATUS));
 		printk("PR31700 Interrupt Status Register 5 = 0x%08x\n",
 			inl(TX3912_INT5_STATUS));
-		panic("Unhandled Low Priority PR31700 Interrupt\n");
+		panic("Unhandled Low Priority PR31700 Interrupt");
 	}
 
 done:
@@ -190,7 +190,7 @@ void irq_bad(struct pt_regs *regs)
 	printk(" CAUSE register = 0x%08lx\n", regs->cp0_cause);
 	printk("STATUS register = 0x%08lx\n", regs->cp0_status);
 	printk("   EPC register = 0x%08lx\n", regs->cp0_epc);
-	panic("Stray interrupt, spinning...\n");
+	panic("Stray interrupt, spinning...");
 }
 
 void __init nino_irq_setup(void)

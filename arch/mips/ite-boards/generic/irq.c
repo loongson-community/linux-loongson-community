@@ -158,10 +158,9 @@ void disable_it8172_irq(unsigned int irq_nr)
 		DPRINTK("DA nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
 	}
 	else {
-		panic("disable_it8172_irq: bad irq %d\n", irq_nr);
+		panic("disable_it8172_irq: bad irq %d", irq_nr);
 	}
 }
-
 
 void enable_it8172_irq(unsigned int irq_nr)
 {
@@ -195,7 +194,7 @@ void enable_it8172_irq(unsigned int irq_nr)
 		DPRINTK("EA nmi_mask  %x\n", it8172_hw0_icregs->nmi_mask);
 	}
 	else {
-		panic("enable_it8172_irq: bad irq %d\n", irq_nr);
+		panic("enable_it8172_irq: bad irq %d", irq_nr);
 	}
 }
 
@@ -333,7 +332,7 @@ void it8172_hw0_irqdispatch(struct pt_regs *regs)
 
 	intstatus = it8172_hw0_icregs->intstatus;
 	if (intstatus & 0x8) {
-		panic("Got NMI interrupt\n");
+		panic("Got NMI interrupt");
 	}
 	else if (intstatus & 0x4) {
 		/* PCI interrupt */

@@ -1916,9 +1916,9 @@ int rs_init(void)
 	callout_driver.subtype = SERIAL_TYPE_CALLOUT;
 
 	if (tty_register_driver(&serial_driver))
-		panic("Couldn't register serial driver\n");
+		panic("Couldn't register serial driver");
 	if (tty_register_driver(&callout_driver))
-		panic("Couldn't register callout driver\n");
+		panic("Couldn't register callout driver");
 	
 	save_flags(flags); cli();
 
@@ -2017,7 +2017,7 @@ int rs_init(void)
 
 	if (request_irq(zilog_irq, rs_interrupt, (SA_INTERRUPT),
 			"Zilog8530", zs_chain))
-		panic("Unable to attach zs intr\n");
+		panic("Unable to attach zs intr");
 	restore_flags(flags);
 
 	return 0;

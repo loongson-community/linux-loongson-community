@@ -150,7 +150,7 @@ vrc5477_irq_dispatch(struct pt_regs *regs)
 #if defined(CONFIG_DEBUG)
 		vrc5477_show_int_regs();
 #endif
-		panic("error interrupt has happened.\n");
+		panic("error interrupt has happened.");
 	}
 
 	intStatus = ddb_in32(DDB_INT0STAT);

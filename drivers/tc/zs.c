@@ -1925,9 +1925,9 @@ int __init zs_init(void)
 	callout_driver.subtype = SERIAL_TYPE_CALLOUT;
 
 	if (tty_register_driver(&serial_driver))
-		panic("Couldn't register serial driver\n");
+		panic("Couldn't register serial driver");
 	if (tty_register_driver(&callout_driver))
-		panic("Couldn't register callout driver\n");
+		panic("Couldn't register callout driver");
 
 	save_flags(flags); cli();
 

@@ -44,7 +44,7 @@ static int __init string_to_cpu(char *s)
 		if(!strcmp(s, sgi_cputable[i].name))
 			return sgi_cputable[i].type;
 	}
-	panic("\nYeee, could not determine MIPS cpu type <%s>", s);
+	panic("Yeee, could not determine MIPS cpu type <%s>", s);
 	return 0;
 }
 
@@ -70,7 +70,7 @@ void __init sgi_sysinit(void)
 
 		if(p->type == Cpu) {
 			if (++ncpus > 1)
-				panic("\nYeee, SGI MP not ready yet");
+				panic("Yeee, SGI MP not ready yet");
 			printk("CPU: %s ", p->iname);
 			cpup = p;
 			cputype = string_to_cpu(cpup->iname);
@@ -78,7 +78,7 @@ void __init sgi_sysinit(void)
 		p = ArcGetPeer(p);
 	}
 	if (cputype == -1) {
-		panic("\nYeee, could not find cpu ARCS component");
+		panic("Yeee, could not find cpu ARCS component");
 	}
 	p = ArcGetChild(cpup);
 	while(p) {

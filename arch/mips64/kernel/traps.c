@@ -590,7 +590,7 @@ r4k:
 		break;
 
 	case CPU_R8000:
-		panic("unsupported CPU type %s.\n", cpu_names[mips_cpu.cputype]);
+		panic("unsupported CPU type %s.", cpu_names[mips_cpu.cputype]);
 		break;
 
 	case CPU_UNKNOWN:

@@ -35,7 +35,7 @@ int sys_boot_secondary(int cpu, unsigned long sp, unsigned long gp)
 	int retval;
 	if ((retval = cfe_start_cpu(1, &smp_bootstrap, sp, gp, 0)) != 0) {
 		printk("cfe_start_cpu returned %i\n" , retval);
-		panic ("secondary bootstrap failed\n");
+		panic("secondary bootstrap failed");
 	}
 	return 1;
 }

@@ -345,7 +345,7 @@ r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 static void
 r4k_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("r4k_dma_cache called - should not happen.\n");
+	panic("r4k_dma_cache called - should not happen.");
 }
 
 /*

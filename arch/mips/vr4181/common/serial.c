@@ -45,7 +45,7 @@ void __init vr4181_init_serial(void)
 	s.iomem_reg_shift = 0;
 	s.io_type = SERIAL_IO_MEM;
 	if (early_serial_setup(&s) != 0) {
-		panic("vr4181_init_serial() failed!\n");
+		panic("vr4181_init_serial() failed!");
 	}
 }
 

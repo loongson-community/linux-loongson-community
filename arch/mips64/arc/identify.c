@@ -46,7 +46,7 @@ static struct smatch * __init string_to_mach(const char *s)
 		if(!strcmp(s, mach_table[i].name))
 			return &mach_table[i];
 	}
-	panic("\nYeee, could not determine architecture type <%s>", s);
+	panic("Yeee, could not determine architecture type <%s>", s);
 
 	return NULL;
 }

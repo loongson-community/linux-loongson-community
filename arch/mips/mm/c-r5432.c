@@ -417,7 +417,7 @@ r5432_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 static void
 r5432_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("r5432_dma_cache called - should not happen.\n");
+	panic("r5432_dma_cache called - should not happen.");
 }
 
 /*

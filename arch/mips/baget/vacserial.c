@@ -2406,9 +2406,9 @@ int __init rs_init(void)
 	callout_driver.proc_entry = 0;
 
 	if (tty_register_driver(&serial_driver))
-		panic("Couldn't register serial driver\n");
+		panic("Couldn't register serial driver");
 	if (tty_register_driver(&callout_driver))
-		panic("Couldn't register callout driver\n");
+		panic("Couldn't register callout driver");
 	
 	for (i = 0, state = rs_table; i < NR_PORTS; i++,state++) {
 		state->magic = SSTATE_MAGIC;

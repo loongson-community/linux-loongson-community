@@ -179,7 +179,7 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 			pte_t *pte;
 
 			__save_and_cli(flags);
-			while(start < end) {
+			while (start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
 				pte = pte_offset(pmd, start);
@@ -1244,7 +1244,7 @@ r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 static void
 r4k_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("r4k_dma_cache called - should not happen.\n");
+	panic("r4k_dma_cache called - should not happen.");
 }
 
 /*

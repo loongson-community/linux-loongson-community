@@ -399,7 +399,7 @@ mips32_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 static void
 mips32_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("mips32_dma_cache called - should not happen.\n");
+	panic("mips32_dma_cache called - should not happen.");
 }
 
 /*

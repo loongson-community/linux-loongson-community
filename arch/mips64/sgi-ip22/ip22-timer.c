@@ -237,7 +237,7 @@ void indy_8254timer_irq(void)
 
 	irq_enter(cpu, irq);
 	kstat.irqs[0][irq]++;
-	panic("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
+	panic("indy_8254timer_irq: Whoops, should not have gotten this IRQ");
 	irq_exit(cpu, irq);
 }
 

@@ -192,7 +192,7 @@ pci_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 	if ((dev->bus->number >= MAX_PCI_BUSSES)
 	    || (pin != 1)
 	    || (slot >= MAX_DEVICES_PER_PCIBUS))
-		panic("Increase supported PCI busses %d,%d,%d\n",
+		panic("Increase supported PCI busses %d,%d,%d",
 		      dev->bus->number, slot, pin);
 
 	/*

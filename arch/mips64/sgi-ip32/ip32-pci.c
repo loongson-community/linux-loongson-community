@@ -152,7 +152,7 @@ void __init pcibios_init (void)
 
 	if (request_irq (MACE_PCI_BRIDGE_IRQ, macepci_error, 0,
 			 "MACE PCI error", NULL))
-		panic ("PCI bridge can't get interrupt; can't happen.\n");
+		panic("PCI bridge can't get interrupt; can't happen.");
 
 	pci_scan_bus (0, &macepci_ops, NULL);
 

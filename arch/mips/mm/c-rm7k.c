@@ -181,7 +181,7 @@ rm7k_dma_cache_inv(unsigned long addr, unsigned long size)
 static void
 rm7k_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("rm7k_dma_cache_wback called - should not happen.\n");
+	panic("rm7k_dma_cache_wback called - should not happen.");
 }
 
 /*

@@ -227,7 +227,7 @@ static void tx39_dma_cache_inv(unsigned long addr, unsigned long size)
 
 static void tx39_dma_cache_wback(unsigned long addr, unsigned long size)
 {
-	panic("tx39_dma_cache called - should not happen.\n");
+	panic("tx39_dma_cache called - should not happen.");
 }
 
 static void tx39_flush_cache_sigtramp(unsigned long addr)

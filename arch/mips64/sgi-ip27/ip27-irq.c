@@ -429,7 +429,7 @@ void free_irq(unsigned int irq, void *dev_id)
 /* Useless ISA nonsense.  */
 unsigned long probe_irq_on (void)
 {
-	panic("probe_irq_on called!\n");
+	panic("probe_irq_on called!");
 	return 0;
 }
 
@@ -563,16 +563,16 @@ void install_cpuintr(int cpu)
 
 		if (request_irq(CPU_RESCHED_A_IRQ, handle_resched_intr, 
 							0, "resched", 0))
-			panic("intercpu intr unconnectible\n");
+			panic("intercpu intr unconnectible");
 		if (request_irq(CPU_RESCHED_B_IRQ, handle_resched_intr, 
 							0, "resched", 0))
-			panic("intercpu intr unconnectible\n");
+			panic("intercpu intr unconnectible");
 		if (request_irq(CPU_CALL_A_IRQ, smp_call_function_interrupt,
 							0, "callfunc", 0))
-			panic("intercpu intr unconnectible\n");
+			panic("intercpu intr unconnectible");
 		if (request_irq(CPU_CALL_B_IRQ, smp_call_function_interrupt,
 							0, "callfunc", 0))
-			panic("intercpu intr unconnectible\n");
+			panic("intercpu intr unconnectible");
 
 		for (j = 0; j < PERNODE_LEVELS; j++)
 			LEVEL_TO_IRQ(0, j) = -1;

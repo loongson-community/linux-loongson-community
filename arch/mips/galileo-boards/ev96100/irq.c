@@ -203,7 +203,7 @@ asmlinkage void do_IRQ(unsigned long cause, struct pt_regs * regs)
 		if (irq_desc[irq].handler)
 		{
 			/* revisit */
-			panic("Unprepared to handle irq_desc[%d].handler %x\n",
+			panic("Unprepared to handle irq_desc[%d].handler %x",
 					irq, (unsigned)irq_desc[irq].handler);
 		}
 		unmask_irq(1<<irq);
