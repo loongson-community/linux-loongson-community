@@ -35,6 +35,9 @@ unsigned int pci_probe = PCI_ASSIGN_ALL_BUSSES;
 struct pci_controller *hose_head, **hose_tail = &hose_head;
 struct pci_controller *pci_isa_hose;
 
+unsigned long PCIBIOS_MIN_IO	= 0x1000;
+unsigned long PCIBIOS_MIN_MEM	= 0;
+
 /*
  * We need to avoid collisions with `mirrored' VGA ports
  * and other strange ISA hardware, so we always want the
@@ -52,14 +55,27 @@ void
 pcibios_align_resource(void *data, struct resource *res,
 		       unsigned long size, unsigned long align)
 {
-	if (res->flags & IORESOURCE_IO) {
-		unsigned long start = res->start;
+	struct pci_dev *dev = data;
+	struct pci_controller *hose = dev->sysdata;
+	unsigned long start = res->start;
 
-		if (start & 0x300) {
+	if (res->flags & IORESOURCE_IO) {
+		/* Make sure we start at our min on all hoses */
+		if (start - hose->io_resource->start < PCIBIOS_MIN_IO)
+			start = PCIBIOS_MIN_IO + hose->io_resource->start;
+
+		/*
+		 * Put everything into 0x00-0xff region modulo 0x400
+		 */
+		if (start & 0x300)
 			start = (start + 0x3ff) & ~0x3ff;
-			res->start = start;
-		}
+	} else if (res->flags & IORESOURCE_MEM) {
+		/* Make sure we start at our min on all hoses */
+		if (start - hose->mem_resource->start < PCIBIOS_MIN_MEM)
+			start = PCIBIOS_MIN_MEM + hose->mem_resource->start;
 	}
+
+	res->start = start;
 }
 
 struct pci_controller * __init alloc_pci_controller(void)
@@ -94,9 +110,10 @@ static int __init pcibios_init(void)
 		}
 	}
 
-	/* fixup irqs (board specific routines) */
-	pcibios_fixup_irqs();
+	pci_assign_unassigned_resources();
+	pcibios_fixup_irqs();			/* fixup irqs (board specific routines) */
 
+//while(1);
 	return 0;
 }
 
@@ -191,17 +208,13 @@ unsigned long __init pci_bridge_check_io(struct pci_dev *bridge)
 	return 0;
 }
 
-void __init
-pcibios_fixup_resource(struct resource *res, struct resource *root)
+static void __init pcibios_fixup_resource(struct resource *res, struct resource *root)
 {
-#if 0
 	res->start += root->start;
 	res->end += root->start;
-#endif
 }
 
-void __init
-pcibios_fixup_device_resources(struct pci_dev *dev, struct pci_bus *bus)
+static void __init pcibios_fixup_device_resources(struct pci_dev *dev, struct pci_bus *bus)
 {
 	/* Update device resources.  */
 	struct pci_controller *hose = (struct pci_controller *)bus->sysdata;

@@ -17,13 +17,8 @@
 
 extern unsigned int pcibios_assign_all_busses(void);
 
-#if defined(CONFIG_DDB5074) || defined(CONFIG_DDB5476)
-#define PCIBIOS_MIN_IO		0x0100000
-#define PCIBIOS_MIN_MEM		0x1000000
-#else
-#define PCIBIOS_MIN_IO		0x1000
-#define PCIBIOS_MIN_MEM		0x10000000
-#endif
+extern unsigned long PCIBIOS_MIN_IO;
+extern unsigned long PCIBIOS_MIN_MEM;
 
 #define PCIBIOS_MIN_CARDBUS_IO	0x4000
 
