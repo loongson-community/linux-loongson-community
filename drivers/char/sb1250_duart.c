@@ -781,7 +781,7 @@ static int __init sb1250_duart_init(void)
 			panic("Couldn't get uart0 interrupt line");
 		}
 		__raw_writeq(M_DUART_RX_EN|M_DUART_TX_EN,
-			     IOADDR(A_DUART_CHANREG(i, R_DUART_CMD)));
+			     (u8 *) IOADDR(A_DUART_CHANREG(i, R_DUART_CMD)));
 		duart_set_cflag(i, DEFAULT_CFLAGS);
 	}
 

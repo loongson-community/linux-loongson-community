@@ -1247,8 +1247,6 @@ int i2c_check_functionality (struct i2c_adapter *adap, u32 func)
 	return (func & adap_func) == func;
 }
 
-
-
 EXPORT_SYMBOL(i2c_add_adapter);
 EXPORT_SYMBOL(i2c_del_adapter);
 EXPORT_SYMBOL(i2c_add_driver);
