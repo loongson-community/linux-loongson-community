@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 
+#include <asm/vr41xx/vrc4173.h>
 #include <asm/vr41xx/mpc30x.h>
 
 void __init pcibios_fixup_resources(struct pci_dev *dev)
@@ -38,32 +39,28 @@ void __init pcibios_fixup_irqs(void)
 		dev->irq = 0;
 
 		switch (slot) {
-#ifdef CONFIG_VRC4173
 		case 12:	/* NEC VRC4173 CARDU1 */
-			dev->irq = PCMCIA1_IRQ;
+			dev->irq = VRC4173_PCMCIA1_IRQ;
 			break;
 		case 13:	/* NEC VRC4173 CARDU2 */
-			dev->irq = PCMCIA2_IRQ;
+			dev->irq = VRC4173_PCMCIA2_IRQ;
 			break;
-#endif
 		case 29:	/* mediaQ MQ-200 */
 			dev->irq = MQ200_IRQ;
 			break;
-#ifdef CONFIG_VRC4173
 		case 30:
 			switch (func) {
 			case 0:	/* NEC VRC4173 */
 				dev->irq = VRC4173_CASCADE_IRQ;
 				break;
 			case 1:	/* NEC VRC4173 AC97U */
-				dev->irq = AC97_IRQ;
+				dev->irq = VRC4173_AC97_IRQ;
 				break;
 			case 2:	/* NEC VRC4173 USBU */
-				dev->irq = USB_IRQ;
+				dev->irq = VRC4173_USB_IRQ;
 				break;
 			}
 			break;
-#endif
 		}
 
 		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, dev->irq);

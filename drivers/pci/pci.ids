@@ -1076,6 +1076,7 @@
 	0074  56k Voice Modem
 		1033 8014  RCV56ACF 56k Voice Modem
 	009b  Vrc5476
+	00a5  VRC4173
 	00a6  VRC5477 AC97
 	00cd  IEEE 1394 [OrangeLink] Host Controller
 		12ee 8011  Root hub

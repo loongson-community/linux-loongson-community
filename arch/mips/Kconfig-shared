@@ -521,6 +521,10 @@ config VR41XX_COMMON
 	depends on NEC_EAGLE || ZAO_CAPCELLA || VICTOR_MPC30X || IBM_WORKPAD || CASIO_E55
 	default y
 
+config VRC4173
+	tristate "NEC VRC4173 Support"
+	depends on NEC_EAGLE || VICTOR_MPC30X
+
 config DDB5XXX_COMMON
 	bool
 	depends on DDB5074 || DDB5476 || DDB5477

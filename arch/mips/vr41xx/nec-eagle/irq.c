@@ -164,9 +164,6 @@ void __init eagle_irq_init(void)
 	writeb(0, NEC_EAGLE_SDBINTMSK);
 	writeb(0, NEC_EAGLE_PCIINTMSKREG);
 
-	vr41xx_set_irq_trigger(VRC4173_PIN, TRIGGER_LEVEL, SIGNAL_THROUGH);
-	vr41xx_set_irq_level(VRC4173_PIN, LEVEL_LOW);
-
 	vr41xx_set_irq_trigger(PCISLOT_PIN, TRIGGER_LEVEL, SIGNAL_THROUGH);
 	vr41xx_set_irq_level(PCISLOT_PIN, LEVEL_HIGH);
 
