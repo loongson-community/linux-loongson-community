@@ -111,11 +111,6 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 
 	CLI					# disable interrupts
 
-	PTR_LA		$28, init_thread_union
-	PTR_ADDIU	sp, $28, _THREAD_SIZE - 32
-	set_saved_sp	sp, t0, t1
-	PTR_SUBU	sp, 4 * SZREG		# init stack pointer
-
 	/*
 	 * The firmware/bootloader passes argc/argp/envp
 	 * to us as arguments.  But clear bss first because
@@ -129,6 +124,11 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	PTR_ADDIU	t0, LONGSIZE
 	LONG_S		zero, (t0)
 	bne		t0, t1, 1b
+
+	PTR_LA		$28, init_thread_union
+	PTR_ADDIU	sp, $28, _THREAD_SIZE - 32
+	set_saved_sp	sp, t0, t1
+	PTR_SUBU	sp, 4 * SZREG		# init stack pointer
 
 	jal		init_arch
 	END(kernel_entry)
