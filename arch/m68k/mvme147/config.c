@@ -21,6 +21,8 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 #include <linux/major.h>
+#include <linux/genhd.h>
+#include <linux/rtc.h>
 
 #include <asm/bootinfo.h>
 #include <asm/system.h>
@@ -48,7 +50,6 @@ extern int mvme147_kbdrate (struct kbd_repeat *);
 extern unsigned long mvme147_gettimeoffset (void);
 extern int mvme147_hwclk (int, struct rtc_time *);
 extern int mvme147_set_clock_mmss (unsigned long);
-extern void mvme147_check_partition (struct gendisk *hd, unsigned int dev);
 extern void mvme147_reset (void);
 extern void mvme147_waitbut(void);
 
@@ -101,8 +102,10 @@ void __init config_mvme147(void)
 {
 	mach_max_dma_address	= 0x01000000;
 	mach_sched_init		= mvme147_sched_init;
+#ifdef CONFIG_VT
 	mach_keyb_init		= mvme147_keyb_init;
 	mach_kbdrate		= mvme147_kbdrate;
+#endif
 	mach_init_IRQ		= mvme147_init_IRQ;
 	mach_gettimeoffset	= mvme147_gettimeoffset;
 	mach_hwclk		= mvme147_hwclk;

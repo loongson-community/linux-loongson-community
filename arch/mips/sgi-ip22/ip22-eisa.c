@@ -105,13 +105,13 @@ static void enable_eisa1_irq(unsigned int irq)
 	unsigned long flags;
 	u8 mask;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	mask = EISA_READ_8(EISA_INT1_MASK);
 	mask &= ~((u8) (1 << irq));
 	EISA_WRITE_8(EISA_INT1_MASK, mask);
 
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_eisa1_irq(unsigned int irq)
@@ -168,13 +168,13 @@ static void enable_eisa2_irq(unsigned int irq)
 	unsigned long flags;
 	u8 mask;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	mask = EISA_READ_8(EISA_INT2_MASK);
 	mask &= ~((u8) (1 << (irq - 8)));
 	EISA_WRITE_8(EISA_INT2_MASK, mask);
 
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_eisa2_irq(unsigned int irq)

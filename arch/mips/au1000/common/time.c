@@ -80,7 +80,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 	unsigned long count;
 	int cpu = smp_processor_id();
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 
 #ifdef CONFIG_PM
@@ -104,8 +104,6 @@ void mips_timer_interrupt(struct pt_regs *regs)
 
 	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
 	         - r4k_cur) < 0x7fffffff);
-
-	irq_exit(cpu, irq);
 
 	if (softirq_pending(cpu))
 		do_softirq();
@@ -174,7 +172,7 @@ unsigned long cal_r4koff(void)
 	int trim_divide = 16;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	counter = au_readl(SYS_COUNTER_CNTRL);
 	au_writel(counter | SYS_CNTRL_EN1, SYS_COUNTER_CNTRL);
@@ -202,7 +200,7 @@ unsigned long cal_r4koff(void)
 	cpu_speed = count * 2;
 	mips_counter_frequency = count;
 	set_au1000_uart_baud_base(((cpu_speed) / 4) / 16);
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return (cpu_speed / HZ);
 }
 

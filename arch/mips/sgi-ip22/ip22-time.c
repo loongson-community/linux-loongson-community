@@ -198,12 +198,12 @@ void indy_8254timer_irq(struct pt_regs *regs)
 	long cnt;
 	char c;
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 	printk("indy_8254timer_irq: Whoops, should not have gotten this IRQ\n");
 	ArcRead(0, &c, 1, &cnt);
 	ArcEnterInteractiveMode();
-	irq_exit(cpu, irq);
+	irq_exit();
 }
 
 void indy_r4k_timer_interrupt(struct pt_regs *regs)
@@ -211,10 +211,10 @@ void indy_r4k_timer_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = SGI_TIMER_IRQ;
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 	timer_interrupt(irq, NULL, regs);
-	irq_exit(cpu, irq);
+	irq_exit();
 
 	if (softirq_pending(cpu))
 		do_softirq();

@@ -3468,12 +3468,6 @@ static int fd_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	const char *outparam; /* parameters passed back to user space */
 
 	device = inode->i_rdev;
-	switch (cmd) {
-		case BLKROSET:
-		case BLKROGET:
-		case BLKFLSBUF:
-			return blk_ioctl(inode->i_bdev, cmd, param);
-	}
 	type = TYPE(device);
 	drive = DRIVE(device);
 
@@ -4260,9 +4254,12 @@ int __init floppy_init(void)
 		CLEARSTRUCT(FDCS);
 		FDCS->dtr = -1;
 		FDCS->dor = 0x4;
-#ifdef __sparc__
-		/*sparcs don't have a DOR reset which we can fall back on to*/
-		FDCS->version = FDC_82072A;
+#if defined(__sparc__) || defined(__mc68000__)
+		/*sparcs/sun3x don't have a DOR reset which we can fall back on to*/
+#ifdef __mc68000__
+		if (MACH_IS_SUN3X)
+#endif
+			FDCS->version = FDC_82072A;		
 #endif
 	}
 

@@ -98,8 +98,7 @@ static int grip_gpp_read_packet(struct gameport *gameport, int shift, unsigned i
 	t = strobe;
 	i = 0;
 
-	__save_flags(flags);
-	__cli();
+	local_irq_save(flags);
 
 	v = gameport_read(gameport) >> shift;
 
@@ -112,7 +111,7 @@ static int grip_gpp_read_packet(struct gameport *gameport, int shift, unsigned i
 		}
 	} while (i < GRIP_LENGTH_GPP && t > 0);
 
-	__restore_flags(flags);
+	local_irq_restore(flags);
 
 	if (i < GRIP_LENGTH_GPP) return -1;
 
@@ -140,8 +139,7 @@ static int grip_xt_read_packet(struct gameport *gameport, int shift, unsigned in
 	status = buf = i = j = 0;
 	t = strobe;
 
-	__save_flags(flags);
-	__cli();
+	local_irq_save(flags);
 
 	v = w = (gameport_read(gameport) >> shift) & 3;
 
@@ -176,7 +174,7 @@ static int grip_xt_read_packet(struct gameport *gameport, int shift, unsigned in
 
 	} while (status != 0xf && i < GRIP_MAX_BITS_XT && j < GRIP_MAX_CHUNKS_XT && t > 0);
 
-	__restore_flags(flags);
+	local_irq_restore(flags);
 
 	return -(status != 0xf);
 }

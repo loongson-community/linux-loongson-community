@@ -46,12 +46,12 @@ static void enable_local0_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	/* don't allow mappable interrupt to be enabled from setup_irq,
 	 * we have our own way to do so */
 	if (irq != SGI_MAP_0_IRQ)
 		ioc_icontrol->imask0 |= (1 << (irq - SGINT_LOCAL0));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_local0_irq(unsigned int irq)
@@ -64,9 +64,9 @@ static void disable_local0_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->imask0 &= ~(1 << (irq - SGINT_LOCAL0));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define shutdown_local0_irq	disable_local0_irq
@@ -93,12 +93,12 @@ static void enable_local1_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	/* don't allow mappable interrupt to be enabled from setup_irq,
 	 * we have our own way to do so */
 	if (irq != SGI_MAP_1_IRQ)
 		ioc_icontrol->imask1 |= (1 << (irq - SGINT_LOCAL1));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_local1_irq(unsigned int irq)
@@ -111,9 +111,9 @@ void disable_local1_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->imask1 &= ~(1 << (irq - SGINT_LOCAL1));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define shutdown_local1_irq	disable_local1_irq
@@ -140,10 +140,10 @@ static void enable_local2_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->imask0 |= (1 << (SGI_MAP_0_IRQ - SGINT_LOCAL0));
 	ioc_icontrol->cmeimask0 |= (1 << (irq - SGINT_LOCAL2));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_local2_irq(unsigned int irq)
@@ -156,11 +156,11 @@ void disable_local2_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->cmeimask0 &= ~(1 << (irq - SGINT_LOCAL2));
 	if (!ioc_icontrol->cmeimask0)
 		ioc_icontrol->imask0 &= ~(1 << (SGI_MAP_0_IRQ - SGINT_LOCAL0));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define shutdown_local2_irq disable_local2_irq
@@ -188,10 +188,10 @@ static void enable_local3_irq(unsigned int irq)
 #ifdef I_REALLY_NEED_THIS_IRQ
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->imask1 |= (1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
 	ioc_icontrol->cmeimask1 |= (1 << (irq - SGINT_LOCAL3));
-	restore_flags(flags);
+	local_irq_restore(flags);
 #else
 	panic("Who need local 3 irq? see ip22-int.c");
 #endif
@@ -207,11 +207,11 @@ void disable_local3_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	ioc_icontrol->cmeimask1 &= ~(1 << (irq - SGINT_LOCAL3));
 	if (!ioc_icontrol->cmeimask1)
 		ioc_icontrol->imask1 &= ~(1 << (SGI_MAP_1_IRQ - SGINT_LOCAL1));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define shutdown_local3_irq disable_local3_irq
@@ -286,10 +286,10 @@ void indy_buserror_irq(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = SGI_BUSERR_IRQ;
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 	be_ip22_interrupt(irq, regs);
-	irq_exit(cpu, irq);
+	irq_exit();
 }
 
 static struct irqaction local0_cascade =

@@ -159,7 +159,7 @@ void r4k_clear_page_r4600_v2(void * page)
 {
 	unsigned int flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	*(volatile unsigned int *)KSEG1;
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
@@ -182,7 +182,7 @@ void r4k_clear_page_r4600_v2(void * page)
 		: "=r" (page)
 		: "0" (page), "I" (PAGE_SIZE), "i" (Create_Dirty_Excl_D)
 		: "memory");
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -434,7 +434,7 @@ void r4k_copy_page_r4600_v2(void * to, void * from)
 	unsigned long dummy1, dummy2, reg1, reg2;
 	unsigned int flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tnoreorder\n\t"
 		".set\tnoat\n\t"
@@ -473,7 +473,7 @@ void r4k_copy_page_r4600_v2(void * to, void * from)
 		:"=r" (dummy1), "=r" (dummy2), "=&r" (reg1), "=&r" (reg2)
 		:"0" (to), "1" (from), "I" (PAGE_SIZE),
 		 "i" (Create_Dirty_Excl_D));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*

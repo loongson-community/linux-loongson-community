@@ -62,28 +62,28 @@ static inline void r49_flush_cache_all_d16i32(void)
 {
 	unsigned long flags, config;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_dcache16_wayLSB();
 	/* disable icache (set ICE#) */
 	config = read_32bit_cp0_register(CP0_CONFIG);
 	write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
 	blast_icache32_wayLSB();
 	write_32bit_cp0_register(CP0_CONFIG, config);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline void r49_flush_cache_all_d32i32(void)
 {
 	unsigned long flags, config;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_dcache32_wayLSB();
 	/* disable icache (set ICE#) */
 	config = read_32bit_cp0_register(CP0_CONFIG);
 	write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
 	blast_icache32_wayLSB();
 	write_32bit_cp0_register(CP0_CONFIG, config);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void r49_flush_cache_range_d16i32(struct vm_area_struct *vma,
@@ -98,14 +98,14 @@ static void r49_flush_cache_range_d16i32(struct vm_area_struct *vma,
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start,
 		       end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		blast_dcache16_wayLSB();
 		/* disable icache (set ICE#) */
 		config = read_32bit_cp0_register(CP0_CONFIG);
 		write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
 		blast_icache32_wayLSB();
 		write_32bit_cp0_register(CP0_CONFIG, config);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -120,14 +120,14 @@ static void r49_flush_cache_range_d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		blast_dcache32_wayLSB();
 		/* disable icache (set ICE#) */
 		config = read_32bit_cp0_register(CP0_CONFIG);
 		write_32bit_cp0_register(CP0_CONFIG, config|TX49_CONF_IC);
 		blast_icache32_wayLSB();
 		write_32bit_cp0_register(CP0_CONFIG, config);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -175,7 +175,7 @@ static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -205,7 +205,7 @@ static void r49_flush_cache_page_d16i32(struct vm_area_struct *vma,
 		blast_dcache16_page_indexed_wayLSB(page);
 	}
 out:
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void r49_flush_cache_page_d32i32(struct vm_area_struct *vma,
@@ -227,7 +227,7 @@ static void r49_flush_cache_page_d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -257,7 +257,7 @@ static void r49_flush_cache_page_d32i32(struct vm_area_struct *vma,
 		blast_dcache32_page_indexed_wayLSB(page);
 	}
 out:
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /* If the addresses passed to these routines are valid, they are
@@ -311,7 +311,7 @@ r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
-		__save_and_cli(flags);
+		local_irq_save(flags);
 
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
@@ -320,7 +320,7 @@ r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -333,7 +333,7 @@ r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
-		__save_and_cli(flags);
+		local_irq_save(flags);
 
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
@@ -342,7 +342,7 @@ r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 

@@ -168,11 +168,11 @@ static void enable_crime_irq(unsigned int irq)
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= 1 << (irq - 1);
 	crime_write_64(CRIME_INT_MASK, crime_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_crime_irq(unsigned int irq)
@@ -186,11 +186,11 @@ static void disable_crime_irq(unsigned int irq)
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask &= ~(1 << (irq - 1));
 	crime_write_64(CRIME_INT_MASK, crime_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void mask_and_ack_crime_irq (unsigned int irq)
@@ -202,11 +202,11 @@ static void mask_and_ack_crime_irq (unsigned int irq)
 	if ((irq >= CRIME_GBE0_IRQ && irq <= CRIME_GBE3_IRQ)
 	    || (irq >= CRIME_RE_EMPTY_E_IRQ && irq <= CRIME_RE_IDLE_E_IRQ)
 	    || (irq >= CRIME_SOFT0_IRQ && irq <= CRIME_SOFT2_IRQ)) {
-		save_and_cli(flags);
+		local_irq_save(flags);
 		crime_mask = crime_read_64(CRIME_HARD_INT);
 		crime_mask &= ~(1 << (irq - 1));
 		crime_write_64(CRIME_HARD_INT, crime_mask);
-		restore_flags(flags);
+		local_irq_restore(flags);
 	}
 	disable_crime_irq(irq);
 }
@@ -242,7 +242,7 @@ static void enable_macepci_irq(unsigned int irq)
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	mace_mask = mace_read_32(MACEPCI_CONTROL);
 	mace_mask |= MACEPCI_CONTROL_INT(irq - 9);
 	mace_write_32(MACEPCI_CONTROL, mace_mask);
@@ -253,7 +253,7 @@ static void enable_macepci_irq(unsigned int irq)
 	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= 1 << (irq - 1);
 	crime_write_64(CRIME_INT_MASK, crime_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_macepci_irq(unsigned int irq)
@@ -268,11 +268,11 @@ static void disable_macepci_irq(unsigned int irq)
 	u32 mace_mask;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	mace_mask = mace_read_32(MACEPCI_CONTROL);
 	mace_mask &= ~MACEPCI_CONTROL_INT(irq - 9);
 	mace_write_32(MACEPCI_CONTROL, mace_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void end_macepci_irq(unsigned int irq)
@@ -320,14 +320,14 @@ static void enable_maceisa_irq (unsigned int irq)
 		break;
 	}
 	DBG ("crime_int %016lx enabled\n", crime_int);
-	save_and_cli(flags);
+	local_irq_save(flags);
 	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_mask |= crime_int;
 	crime_write_64(CRIME_INT_MASK, crime_mask);
 	mace_mask = mace_read_32(MACEISA_INT_MASK);
 	mace_mask |= 1 << (irq - 33);
 	mace_write_32(MACEISA_INT_MASK, mace_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_maceisa_irq (unsigned int irq)
@@ -341,11 +341,11 @@ static void disable_maceisa_irq(unsigned int irq)
 	u32 mace_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
+	local_irq_save(flags);
 	mace_mask = mace_read_32(MACEISA_INT_MASK);
 	mace_mask &= ~(1 << (irq - 33));
 	mace_write_32(MACEISA_INT_MASK, mace_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void mask_and_ack_maceisa_irq(unsigned int irq)
@@ -357,11 +357,11 @@ static void mask_and_ack_maceisa_irq(unsigned int irq)
 	case MACEISA_PARALLEL_IRQ:
 	case MACEISA_SERIAL1_TDMAPR_IRQ:
 	case MACEISA_SERIAL2_TDMAPR_IRQ:
-		save_and_cli(flags);
+		local_irq_save(flags);
 		mace_mask = mace_read_32(MACEISA_INT_STAT);
 		mace_mask &= ~(1 << (irq - 33));
 		mace_write_32(MACEISA_INT_STAT, mace_mask);
-		restore_flags(flags);
+		local_irq_restore(flags);
 		break;
 	}
 	disable_maceisa_irq(irq);
@@ -395,11 +395,11 @@ static void enable_mace_irq(unsigned int irq)
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
+	local_irq_save(flags);
 	crime_mask = crime_read_64 (CRIME_INT_MASK);
 	crime_mask |= 1 << (irq - 1);
 	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	local_irq_restore (flags);
 }
 
 static unsigned int startup_mace_irq(unsigned int irq)
@@ -413,11 +413,11 @@ static void disable_mace_irq(unsigned int irq)
 	u64 crime_mask;
 	unsigned long flags;
 
-	save_and_cli (flags);
+	local_irq_save(flags);
 	crime_mask = crime_read_64 (CRIME_INT_MASK);
 	crime_mask &= ~(1 << (irq - 1));
 	crime_write_64 (CRIME_INT_MASK, crime_mask);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void end_mace_irq(unsigned int irq)
@@ -478,7 +478,7 @@ void ip32_irq0(struct pt_regs *regs)
 	int irq = 0;
 	unsigned long flags;
 
-	save_and_cli (flags);
+	local_irq_save(flags);
 	/* disable crime interrupts */
 	crime_mask = crime_read_64(CRIME_INT_MASK);
 	crime_write_64(CRIME_INT_MASK, 0);
@@ -510,7 +510,7 @@ void ip32_irq0(struct pt_regs *regs)
 
 	/* enable crime interrupts */
 	crime_write_64(CRIME_INT_MASK, crime_mask);
-	restore_flags (flags);
+	local_irq_restore (flags);
 }
 
 void ip32_irq1(struct pt_regs *regs)

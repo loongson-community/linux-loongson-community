@@ -89,7 +89,7 @@ static __inline__ void vino_reg_and(unsigned long long value,
 	unsigned long virt_addr = KSEG1ADDR(addr + VINO_BASE);
 	unsigned long tmp, flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tmips3\t\t\t# vino_reg_and\n\t"
 		".set\tnoat\n\t"

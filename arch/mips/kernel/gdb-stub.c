@@ -373,7 +373,7 @@ void set_debug_traps(void)
 	unsigned long flags;
 	unsigned char c;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	for (ht = hard_trap_info; ht->tt && ht->signo; ht++)
 		saved_vectors[ht->tt] = set_except_vector(ht->tt, trap_low);
 
@@ -389,7 +389,7 @@ void set_debug_traps(void)
 	putDebugChar('+'); /* ack it */
 
 	initialized = 1;
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*

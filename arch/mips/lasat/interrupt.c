@@ -120,7 +120,7 @@ void lasat_hw0_irqdispatch(struct pt_regs *regs)
 {
 	struct irqaction *action;
 	unsigned long int_status;
-	int irq, cpu = smp_processor_id();
+	int irq;
 
 	int_status = get_int_status();
 
@@ -140,10 +140,10 @@ void lasat_hw0_irqdispatch(struct pt_regs *regs)
 		return;
 	}
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[0][irq]++;
 	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu, irq);
+	irq_exit();
 
 	return;		
 }

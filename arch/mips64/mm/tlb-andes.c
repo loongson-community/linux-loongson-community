@@ -32,7 +32,7 @@ void local_flush_tlb_all(void)
 	printk("[tlball]");
 #endif
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = get_entryhi() & ASID_MASK;
 	set_entryhi(CKSEG0);
@@ -48,7 +48,7 @@ void local_flush_tlb_all(void)
 		entry++;
 	}
 	set_entryhi(old_ctx);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_mm(struct mm_struct *mm)
@@ -59,12 +59,12 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 #ifdef DEBUG_TLB
 		printk("[tlbmm<%d>]", mm->context);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if(mm == current->mm)
 			set_entryhi(cpu_context(smp_processor_id(), mm)
 				    & ASID_MASK);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -81,7 +81,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		printk("[tlbrange<%02x,%08lx,%08lx>]",
 		       (mm->context & ASID_MASK), start, end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		size = (size + 1) >> 1;
 		if (size <= NTLB_ENTRIES_HALF) {
@@ -113,7 +113,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 				set_entryhi(cpu_context(smp_processor_id(), mm)
 					    & ASID_MASK);
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -125,7 +125,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	if (size <= NTLB_ENTRIES_HALF) {
 		int pid = get_entryhi();
 
@@ -151,7 +151,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	} else {
 		local_flush_tlb_all();
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
@@ -166,7 +166,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 		newpid = (cpu_context(smp_processor_id(), vma->vm_mm) &
 			  ASID_MASK);
 		page &= (PAGE_MASK << 1);
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		oldpid = (get_entryhi() & ASID_MASK);
 		set_entryhi(page | newpid);
 		tlb_probe();
@@ -180,7 +180,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 
 	finish:
 		set_entryhi(oldpid);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -212,7 +212,7 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 		       vma->vm_mm) & ASID_MASK), pid);
 	}
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	address &= (PAGE_MASK << 1);
 	set_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -229,7 +229,7 @@ static void andes_update_mmu_cache(struct vm_area_struct * vma,
 		tlb_write_indexed();
 	}
 	set_entryhi(pid);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void __init andes_tlb_init(void)

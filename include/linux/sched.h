@@ -116,7 +116,7 @@ extern unsigned long nr_uninterruptible(void);
 /*
  * Scheduling policies
  */
-#define SCHED_OTHER		0
+#define SCHED_NORMAL		0
 #define SCHED_FIFO		1
 #define SCHED_RR		2
 
@@ -207,7 +207,7 @@ struct signal_struct {
 
 /*
  * Priority of a process goes from 0..MAX_PRIO-1, valid RT
- * priority is 0..MAX_RT_PRIO-1, and SCHED_OTHER tasks are
+ * priority is 0..MAX_RT_PRIO-1, and SCHED_NORMAL tasks are
  * in the range MAX_RT_PRIO..MAX_PRIO-1. Priority values
  * are inverted: lower p->prio value means higher priority.
  *
@@ -264,7 +264,7 @@ struct task_struct {
 
 	unsigned long policy;
 	unsigned long cpus_allowed;
-	unsigned int time_slice;
+	unsigned int time_slice, first_time_slice;
 
 	struct list_head tasks;
 
@@ -361,6 +361,8 @@ struct task_struct {
    	u32 self_exec_id;
 /* Protection of (de-)allocation: mm, files, fs, tty */
 	spinlock_t alloc_lock;
+/* context-switch lock */
+	spinlock_t switch_lock;
 
 /* journalling filesystem info */
 	void *journal_info;
@@ -814,6 +816,27 @@ static inline char * d_path(struct dentry *dentry, struct vfsmount *vfsmnt,
 	return res;
 }
 
+ 
+/**
+ * get_task_mm - acquire a reference to the task's mm
+ *
+ * Returns %NULL if the task has no mm. User must release
+ * the mm via mmput() after use.
+ */
+static inline struct mm_struct * get_task_mm(struct task_struct * task)
+{
+	struct mm_struct * mm;
+ 
+	task_lock(task);
+	mm = task->mm;
+	if (mm)
+		atomic_inc(&mm->mm_users);
+	task_unlock(task);
+
+	return mm;
+}
+ 
+ 
 /* set thread flags in other task's structures
  * - see asm/thread_info.h for TIF_xxxx flags available
  */

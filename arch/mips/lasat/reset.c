@@ -38,7 +38,7 @@ int lasat_boot_to_service = 0;
 
 static void lasat_machine_restart(char *command)
 {
-	cli();
+	local_irq_disable();
 
 	{
 		volatile unsigned int *softres_reg = (volatile unsigned int *)LASAT_RESET_REG;
@@ -57,7 +57,7 @@ static void lasat_machine_halt(void)
 {
 	/* Disable interrupts and loop forever */
 	printk(KERN_NOTICE "System halted.\n");
-	cli();
+	local_irq_disable();
 	for (;;) ;
 }
 
@@ -65,7 +65,7 @@ static void lasat_machine_power_off(void)
 {
 	/* We can't power off without the user's assistance */
 	printk(KERN_NOTICE "Please turn off the power now.\n");
-	cli();
+	local_irq_disable();
 	for (;;) ;
 }
 

@@ -166,12 +166,14 @@ extern inline int jmr3927_have_isac(void)
 	unsigned char idt;
 	unsigned long flags;
 	unsigned long romcr3;
-	save_and_cli(flags);
+
+	local_irq_save(flags);
 	romcr3 = tx3927_romcptr->cr[3];
 	tx3927_romcptr->cr[3] &= 0xffffefff;	/* do not wait infinitely */
 	idt = jmr3927_isac_reg_in(JMR3927_ISAC_REV_ADDR) & JMR3927_IDT_MASK;
 	tx3927_romcptr->cr[3] = romcr3;
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return idt == JMR3927_ISAC_IDT;
 }
 #define jmr3927_have_nvram() \

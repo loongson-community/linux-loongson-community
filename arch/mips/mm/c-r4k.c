@@ -915,12 +915,12 @@ static void r4k_flush_page_to_ram_d32_r4600(struct page *page)
 #ifdef R4600_V1_HIT_DCACHE_WAR
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__("nop;nop;nop;nop");
 #endif
 	blast_dcache32_page((unsigned long)page_address(page));
 #ifdef R4600_V1_HIT_DCACHE_WAR
-	__restore_flags(flags);
+	local_irq_restore(flags);
 #endif
 }
 
@@ -961,7 +961,7 @@ static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	} else {
 #ifdef R4600_V2_HIT_CACHEOP_WAR
 		/* Workaround for R4600 bug.  See comment in <asm/war>. */
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		*(volatile unsigned long *)KSEG1;
 #endif
 
@@ -973,7 +973,7 @@ static void r4k_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 			a += dc_lsize;
 		}
 #ifdef R4600_V2_HIT_CACHEOP_WAR
-		__restore_flags(flags);
+		local_irq_restore(flags);
 #endif
 	}
 	bc_wback_inv(addr, size);
@@ -1007,7 +1007,7 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	} else {
 #ifdef R4600_V2_HIT_CACHEOP_WAR
 		/* Workaround for R4600 bug.  See comment in <asm/war>. */
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		*(volatile unsigned long *)KSEG1;
 #endif
 
@@ -1019,7 +1019,7 @@ static void r4k_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 			a += dc_lsize;
 		}
 #ifdef R4600_V2_HIT_CACHEOP_WAR
-		__restore_flags(flags);
+		local_irq_restore(flags);
 #endif
 	}
 
@@ -1054,7 +1054,7 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 #ifdef R4600_V1_HIT_DCACHE_WAR
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__("nop;nop;nop;nop");
 #endif
 
@@ -1062,7 +1062,7 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 
 #ifdef R4600_V1_HIT_DCACHE_WAR
-	__restore_flags(flags);
+	local_irq_restore(flags);
 #endif
 }
 
@@ -1071,7 +1071,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 #ifdef R4600_V2_HIT_CACHEOP_WAR
 	unsigned int flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
 	/* Clear internal cache refill buffer */
 	*(volatile unsigned int *)KSEG1;
@@ -1081,7 +1081,7 @@ static void r4600v20k_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 
 #ifdef R4600_V2_HIT_CACHEOP_WAR
-	__restore_flags(flags);
+	local_irq_restore(flags);
 #endif
 }
 
@@ -1168,7 +1168,7 @@ static int __init probe_scache(unsigned long config)
 	 * This is such a bitch, you'd think they would make it easy to do
 	 * this.  Away you daemons of stupidity!
 	 */
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
 	/* Fill each size-multiple cache line with a valid tag. */
 	pow2 = (64 * 1024);
@@ -1196,7 +1196,7 @@ static int __init probe_scache(unsigned long config)
 			break;
 		pow2 <<= 1;
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 	addr -= begin;
 	printk("Secondary cache sized at %dK linesize %d bytes.\n",
 	       (int) (addr >> 10), sc_lsize);

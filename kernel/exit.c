@@ -184,7 +184,7 @@ void reparent_to_init(void)
 	current->exit_signal = SIGCHLD;
 
 	current->ptrace = 0;
-	if ((current->policy == SCHED_OTHER) && (task_nice(current) < 0))
+	if ((current->policy == SCHED_NORMAL) && (task_nice(current) < 0))
 		set_user_nice(current, 0);
 	/* cpus_allowed? */
 	/* rt_priority? */
@@ -530,10 +530,10 @@ NORET_TYPE void do_exit(long code)
 	tsk->flags |= PF_EXITING;
 	del_timer_sync(&tsk->real_timer);
 
-	if (unlikely(preempt_get_count()))
+	if (unlikely(preempt_count()))
 		printk(KERN_INFO "note: %s[%d] exited with preempt_count %d\n",
 				current->comm, current->pid,
-				preempt_get_count());
+				preempt_count());
 
 fake_volatile:
 	acct_process(code);

@@ -160,9 +160,9 @@ static void jmr3927_irq_disable(unsigned int irq_nr)
 	db_assert(irq >= jmr3927_irq_base);
 	db_assert(irq < jmr3927_irq_base + JMR3927_NR_IRQ_IRC + JMR3927_NR_IRQ_IOC);
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	mask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void jmr3927_irq_enable(unsigned int irq_nr)
@@ -173,9 +173,9 @@ static void jmr3927_irq_enable(unsigned int irq_nr)
 	db_assert(irq >= jmr3927_irq_base);
 	db_assert(irq < jmr3927_irq_base + JMR3927_NR_IRQ_IRC + JMR3927_NR_IRQ_IOC);
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	unmask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*

@@ -50,7 +50,7 @@ void local_flush_tlb_all(void)
 	printk("[tlball]");
 #endif
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	old_ctx = get_entryhi() & 0xfc0;
 	set_entrylo0(0);
 	entry = r3k_have_wired_reg ? get_wired() : 8;
@@ -61,7 +61,7 @@ void local_flush_tlb_all(void)
 		tlb_write_indexed();
 	}
 	set_entryhi(old_ctx);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_mm(struct mm_struct *mm)
@@ -72,11 +72,11 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 #ifdef DEBUG_TLB
 		printk("[tlbmm<%lu>]", (unsigned long)mm->context);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		get_new_mmu_context(mm, smp_processor_id());
 		if (mm == current->active_mm)
 			set_entryhi(mm->context & 0xfc0);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -93,7 +93,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 		printk("[tlbrange<%lu,0x%08lx,0x%08lx>]",
 			(mm->context & 0xfc0), start, end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		if (size <= mips_cpu.tlbsize) {
 			int oldpid = get_entryhi() & 0xfc0;
@@ -121,7 +121,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 			if (mm == current->active_mm)
 				set_entryhi(mm->context & 0xfc0);
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -133,7 +133,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 #ifdef DEBUG_TLB
 	printk("[tlbrange<%lu,0x%08lx,0x%08lx>]", start, end);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	if (size <= mips_cpu.tlbsize) {
 		int pid = get_entryhi();
@@ -159,7 +159,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	} else {
 		local_flush_tlb_all();
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
@@ -173,7 +173,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 #endif
 		newpid = vma->vm_mm->context & 0xfc0;
 		page &= PAGE_MASK;
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		oldpid = get_entryhi() & 0xfc0;
 		set_entryhi(page | newpid);
 		BARRIER;
@@ -187,7 +187,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 
 finish:
 		set_entryhi(oldpid);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -212,7 +212,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	}
 #endif
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	address &= PAGE_MASK;
 	set_entryhi(address | pid);
 	BARRIER;
@@ -226,7 +226,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		tlb_write_indexed();
 	}
 	set_entryhi(pid);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
@@ -245,7 +245,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		       entrylo0, entryhi, pagemask);
 #endif
 
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		/* Save old context and create impossible VPN2 value */
 		old_ctx = get_entryhi() & 0xfc0;
 		old_pagemask = get_pagemask();
@@ -265,7 +265,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		set_entryhi(old_ctx);
 		set_pagemask(old_pagemask);
 		local_flush_tlb_all();
-		__restore_flags(flags);
+		local_irq_restore(flags);
 
 	} else if (wired < 8) {
 #ifdef DEBUG_TLB
@@ -273,7 +273,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		       entrylo0, entryhi);
 #endif
 
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		old_ctx = get_entryhi() & 0xfc0;
 		set_entrylo0(entrylo0);
 		set_entryhi(entryhi);
@@ -282,7 +282,7 @@ void __init add_wired_entry(unsigned long entrylo0, unsigned long entrylo1,
 		tlb_write_indexed();
 		set_entryhi(old_ctx);
 		local_flush_tlb_all();
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 

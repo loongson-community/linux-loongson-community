@@ -96,10 +96,10 @@ void mask_irq_count(int irq_nr)
 	unsigned long flags;
 	int pil = irq_to_pil(irq_nr);
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	if (!--pil_in_use[pil])
 		mask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void unmask_irq_count(int irq_nr)
@@ -107,10 +107,10 @@ void unmask_irq_count(int irq_nr)
 	unsigned long flags;
 	int pil = irq_to_pil(irq_nr);
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	if (!pil_in_use[pil]++)
 		unmask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -121,18 +121,18 @@ void disable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	mask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void enable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	unmask_irq(irq_nr);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -178,14 +178,14 @@ static void do_IRQ(int irq, struct pt_regs * regs)
 	int do_random, cpu;
 
 	cpu = smp_processor_id();
-	irq_enter(cpu, irq);
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 
 	mask_irq(irq);
 	action = *(irq + irq_action);
 	if (action) {
 		if (!(action->flags & SA_INTERRUPT))
-			__sti();
+			local_irq_enable();
 		action = *(irq + irq_action);
 		do_random = 0;
         	do {
@@ -195,12 +195,12 @@ static void do_IRQ(int irq, struct pt_regs * regs)
         	} while (action);
 		if (do_random & SA_SAMPLE_RANDOM)
 			add_interrupt_randomness(irq);
-		__cli();
+		local_irq_disable();
 	} else {
 		printk("do_IRQ: Unregistered IRQ (0x%X) occurred\n", irq);
 	}
 	unmask_irq(irq);
-	irq_exit(cpu, irq);
+	irq_exit();
 
 	/* unmasking and bottom half handling is done magically for us. */
 }
@@ -286,9 +286,9 @@ int setup_baget_irq(int irq, struct irqaction * new)
 	if (new->flags & SA_SAMPLE_RANDOM)
 		rand_initialize_irq(irq);
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	*p = new;
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	if (!shared) {
 		unmask_irq_count(irq);
@@ -346,11 +346,11 @@ void free_irq(unsigned int irq, void *dev_id)
 			continue;
 
 		/* Found it - now free it */
-		save_and_cli(flags);
+		local_irq_save(flags);
 		*p = action->next;
 		if (!irq[irq_action])
 			unmask_irq_count(irq);
-		restore_flags(flags);
+		local_irq_restore(flags);
 		kfree(action);
 		return;
 	}

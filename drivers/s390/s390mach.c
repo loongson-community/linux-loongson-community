@@ -254,8 +254,7 @@ s390_machine_check_handler(void *parm)
 
 		found = 0;	/* init ... */
 
-		__save_flags(flags);
-		__cli();
+		local_irq_save(flags);
 
 		do {
 
@@ -311,7 +310,7 @@ s390_machine_check_handler(void *parm)
 
 		} while (pmache);
 
-		__restore_flags(flags);
+		local_irq_restore(flags);
 
 	} while (1);
 

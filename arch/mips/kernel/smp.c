@@ -238,9 +238,8 @@ void smp_call_function_interrupt(void)
 	void (*func) (void *info) = call_data->func;
 	void *info = call_data->info;
 	int wait = call_data->wait;
-	int cpu = smp_processor_id();
 
-	irq_enter(cpu, 0);	/* XXX choose an irq number? */
+	irq_enter();
 	/*
 	 * Notify initiating CPU that I've grabbed the data and am
 	 * about to execute the function.
@@ -256,7 +255,7 @@ void smp_call_function_interrupt(void)
 		mb();
 		atomic_inc(&call_data->finished);
 	}
-	irq_exit(cpu, 0);	/* XXX choose an irq number? */
+	irq_exit();
 }
 
 static void stop_this_cpu(void *dummy)
@@ -265,7 +264,7 @@ static void stop_this_cpu(void *dummy)
 	 * Remove this CPU:
 	 */
 	clear_bit(smp_processor_id(), &cpu_online_map);
-	__sti();		/* May need to service _machine_restart IPI */
+	local_irq_enable();	/* May need to service _machine_restart IPI */
 	for (;;);		/* Wait if available. */
 }
 
@@ -400,7 +399,3 @@ EXPORT_SYMBOL(flush_tlb_page);
 EXPORT_SYMBOL(cpu_data);
 EXPORT_SYMBOL(synchronize_irq);
 EXPORT_SYMBOL(kernel_flag);
-EXPORT_SYMBOL(__global_sti);
-EXPORT_SYMBOL(__global_cli);
-EXPORT_SYMBOL(__global_save_flags);
-EXPORT_SYMBOL(__global_restore_flags);

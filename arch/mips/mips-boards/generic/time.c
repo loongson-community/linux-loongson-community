@@ -89,7 +89,7 @@ static unsigned int __init cal_r4koff(void)
 {
 	unsigned int flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
 	/* Start counter exactly on falling edge of update flag */
 	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
@@ -105,7 +105,7 @@ static unsigned int __init cal_r4koff(void)
 	mips_counter_frequency = read_32bit_cp0_register(CP0_COUNT);
 
 	/* restore interrupts */
-	__restore_flags(flags);
+	local_irq_restore(flags);
 
 	return (mips_counter_frequency / HZ);
 }
@@ -149,7 +149,7 @@ void __init mips_time_init(void)
 {
         unsigned int est_freq, flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
         /* Set Data mode - binary. */
         CMOS_WRITE(CMOS_READ(RTC_CONTROL) | RTC_DM_BINARY, RTC_CONTROL);
@@ -169,7 +169,7 @@ void __init mips_time_init(void)
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void __init mips_timer_setup(struct irqaction *irq)

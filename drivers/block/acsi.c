@@ -68,6 +68,7 @@ typedef void Scsi_Device; /* hack to avoid including scsi.h */
 #include <scsi/scsi_ioctl.h>
 #include <linux/hdreg.h> /* for HDIO_GETGEO */
 #include <linux/blkpg.h>
+#include <linux/buffer_head.h>
 
 #include <asm/setup.h>
 #include <asm/pgtable.h>
@@ -248,8 +249,6 @@ static int				NDevices = 0;
 static int				acsi_sizes[MAX_DEV<<4] = { 0, };
 static struct hd_struct	acsi_part[MAX_DEV<<4] = { {0,0}, };
 static int 				access_count[MAX_DEV] = { 0, };
-static char 			busy[MAX_DEV] = { 0, };
-static DECLARE_WAIT_QUEUE_HEAD(busy_wait);
 
 static int				CurrentNReq;
 static int				CurrentNSect;
@@ -372,13 +371,13 @@ static void acsi_prevent_removal( int target, int flag );
 static int acsi_change_blk_size( int target, int lun);
 static int acsi_mode_sense( int target, int lun, SENSE_DATA *sd );
 static void acsi_geninit(void);
-static int revalidate_acsidisk( int dev, int maxusage );
-static int acsi_revalidate (dev_t);
+static int revalidate_acsidisk( kdev_t dev, int maxusage );
+static int acsi_revalidate (kdev_t);
 
 /************************* End of Prototypes **************************/
 
 
-struct timer_list acsi_timer = { NULL, NULL, 0, 0, acsi_times_out };
+struct timer_list acsi_timer = { function: acsi_times_out };
 
 
 #ifdef CONFIG_ATARI_SLM
@@ -786,7 +785,7 @@ static void read_intr( void )
 	
 	status = acsi_getstatus();
 	if (status != 0) {
-		int dev = DEVICE_NR(minor(CURRENT->rq_dev));
+		int dev = minor(CURRENT->rq_dev);
 		printk( KERN_ERR "ad%c: ", dev+'a' );
 		if (!acsi_reqsense( acsi_buffer, acsi_info[dev].target, 
 					acsi_info[dev].lun))
@@ -817,7 +816,7 @@ static void write_intr(void)
 
 	status = acsi_getstatus();
 	if (status != 0) {
-		int	dev = DEVICE_NR(minor(CURRENT->rq_dev));
+		int	dev = minor(CURRENT->rq_dev);
 		printk( KERN_ERR "ad%c: ", dev+'a' );
 		if (!acsi_reqsense( acsi_buffer, acsi_info[dev].target,
 					acsi_info[dev].lun))
@@ -969,7 +968,7 @@ static void redo_acsi_request( void )
 		return;
 	}
 
-	if (MAJOR(CURRENT->rq_dev) != MAJOR_NR)
+	if (major(CURRENT->rq_dev) != MAJOR_NR)
 		panic(DEVICE_NAME ": request list destroyed");
 	if (CURRENT->bh) {
 		if (!CURRENT->bh && !buffer_locked(CURRENT->bh))
@@ -978,26 +977,26 @@ static void redo_acsi_request( void )
 
 	dev = minor(CURRENT->rq_dev);
 	block = CURRENT->sector;
-	if (DEVICE_NR(dev) >= NDevices ||
+	if (dev >= NDevices ||
 		block+CURRENT->nr_sectors >= acsi_part[dev].nr_sects) {
 #ifdef DEBUG
 		printk( "ad%c: attempted access for blocks %d...%ld past end of device at block %ld.\n",
-		       DEVICE_NR(dev)+'a',
+		       dev+'a',
 		       block, block + CURRENT->nr_sectors - 1,
 		       acsi_part[dev].nr_sects);
 #endif
 		end_request(CURRENT, 0);
 		goto repeat;
 	}
-	if (acsi_info[DEVICE_NR(dev)].changed) {
+	if (acsi_info[dev].changed) {
 		printk( KERN_NOTICE "ad%c: request denied because cartridge has "
-				"been changed.\n", DEVICE_NR(dev)+'a' );
+				"been changed.\n", dev+'a' );
 		end_request(CURRENT, 0);
 		goto repeat;
 	}
 	
-	target = acsi_info[DEVICE_NR(dev)].target;
-	lun    = acsi_info[DEVICE_NR(dev)].lun;
+	target = acsi_info[dev].target;
+	lun    = acsi_info[dev].lun;
 
 	/* Find out how many sectors should be transferred from/to
 	 * consecutive buffers and thus can be done with a single command.
@@ -1045,7 +1044,7 @@ static void redo_acsi_request( void )
 	CurrentBuffer = buffer;
 	CurrentNSect  = nsect;
 
-	if (CURRENT->cmd == WRITE) {
+	if (rq_data_dir(CURRENT) == WRITE) {
 		CMDSET_TARG_LUN( write_cmd, target, lun );
 		CMDSET_BLOCK( write_cmd, block );
 		CMDSET_LEN( write_cmd, nsect );
@@ -1062,7 +1061,7 @@ static void redo_acsi_request( void )
 		SET_TIMER();
 		return;
 	}
-	if (CURRENT->cmd == READ) {
+	if (rq_data_dir(CURRENT) == READ) {
 		CMDSET_TARG_LUN( read_cmd, target, lun );
 		CMDSET_BLOCK( read_cmd, block );
 		CMDSET_LEN( read_cmd, nsect );
@@ -1090,11 +1089,12 @@ static void redo_acsi_request( void )
 
 static int acsi_ioctl( struct inode *inode, struct file *file,
 					   unsigned int cmd, unsigned long arg )
-{	int dev;
+{
+	dev_t dev;
 
 	if (!inode)
 		return -EINVAL;
-	dev = DEVICE_NR(minor(inode->i_rdev));
+	dev = minor(inode->i_rdev);
 	if (dev >= NDevices)
 		return -EINVAL;
 	switch (cmd) {
@@ -1107,7 +1107,7 @@ static int acsi_ioctl( struct inode *inode, struct file *file,
 	    put_user( 64, &geo->heads );
 	    put_user( 32, &geo->sectors );
 	    put_user( acsi_info[dev].size >> 11, &geo->cylinders );
-		put_user(get_start_sect(inode->i_rdev), &geo->start);
+		put_user(get_start_sect(inode->i_bdev), &geo->start);
 		return 0;
 	  }
 		
@@ -1118,14 +1118,6 @@ static int acsi_ioctl( struct inode *inode, struct file *file,
 		put_user( 0, &((Scsi_Idlun *) arg)->host_unique_id );
 		return 0;
 		
-	  case BLKGETSIZE:
-	  case BLKGETSIZE64:
-	  case BLKROSET:
-	  case BLKROGET:
-	  case BLKFLSBUF:
-	  case BLKPG:
-		return blk_ioctl(inode->i_bdev, cmd, arg);
-
 	  case BLKRRPART: /* Re-read partition tables */
 	        if (!capable(CAP_SYS_ADMIN)) 
 			return -EACCES;
@@ -1157,12 +1149,10 @@ static int acsi_open( struct inode * inode, struct file * filp )
 	int  device;
 	struct acsi_info_struct *aip;
 
-	device = DEVICE_NR(minor(inode->i_rdev));
+	device = minor(inode->i_rdev);
 	if (device >= NDevices)
 		return -ENXIO;
 	aip = &acsi_info[device];
-	while (busy[device])
-		sleep_on(&busy_wait);
 
 	if (access_count[device] == 0 && aip->removable) {
 #if 0
@@ -1195,7 +1185,7 @@ static int acsi_open( struct inode * inode, struct file * filp )
 
 static int acsi_release( struct inode * inode, struct file * file )
 {
-	int device = DEVICE_NR(minor(inode->i_rdev));
+	int device = minor(inode->i_rdev);
 	if (--access_count[device] == 0 && acsi_info[device].removable)
 		acsi_prevent_removal(device, 0);
 	return( 0 );
@@ -1221,9 +1211,9 @@ static void acsi_prevent_removal(int device, int flag)
 	stdma_release();
 }
 
-static int acsi_media_change (dev_t dev)
+static int acsi_media_change (kdev_t dev)
 {
-	int device = DEVICE_NR(minor(dev));
+	int device = minor(dev);
 	struct acsi_info_struct *aip;
 
 	aip = &acsi_info[device];
@@ -1803,10 +1793,6 @@ void cleanup_module(void)
 }
 #endif
 
-#define DEVICE_BUSY busy[device]
-#define USAGE access_count[device]
-#define GENDISK_STRUCT acsi_gendisk
-
 /*
  * This routine is called to flush all partitions and partition tables
  * for a changed scsi disk, and then re-read the new partition table.
@@ -1826,26 +1812,17 @@ void cleanup_module(void)
  *
  */
 
-static int revalidate_acsidisk( int dev, int maxusage )
+static int revalidate_acsidisk(kdev_t dev, int maxusage )
 {
-	int device;
-	struct gendisk * gdev;
-	int res;
-	struct acsi_info_struct *aip;
-	
-	device = DEVICE_NR(minor(dev));
-	aip = &acsi_info[device];
-	gdev = &GENDISK_STRUCT;
+	int unit = DEVICE_NR(minor(dev));
+	struct acsi_info_struct *aip = &acsi_info[unit];
+	kdev_t device = mk_kdev(MAJOR_NR, unit<<4);
+	int res = dev_lock_part(device);
 
-	cli();
-	if (DEVICE_BUSY || USAGE > maxusage) {
-		sti();
-		return -EBUSY;
-	};
-	DEVICE_BUSY = 1;
-	sti();
+	if (res < 0)
+		return res;
 
-	res = wipe_partitions(dev);
+	res = wipe_partitions(device);
 
 	stdma_lock( NULL, NULL );
 
@@ -1862,15 +1839,14 @@ static int revalidate_acsidisk( int dev, int maxusage )
 	stdma_release();
 
 	if (!res)
-		grok_partitions(dev, aip->size);
+		grok_partitions(device, aip->size);
 
-	DEVICE_BUSY = 0;
-	wake_up(&busy_wait);
+	dev_unlock_part(device);
 	return res;
 }
 
 
-static int acsi_revalidate (dev_t dev)
+static int acsi_revalidate (kdev_t dev)
 {
   return revalidate_acsidisk (dev, 0);
 }

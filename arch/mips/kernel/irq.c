@@ -105,176 +105,17 @@ int show_interrupts(struct seq_file *p, void *v)
 	return 0;
 }
 
-#ifdef CONFIG_SMP
-int global_irq_holder = NO_PROC_ID;
-spinlock_t global_irq_lock = SPIN_LOCK_UNLOCKED;
-
-/*
- * Most of this code is take from the mips64 tree (ip27-irq.c).  It's virtually
- * identical to the i386 implentation in arh/i386/irq.c, with translations for
- * the interrupt enable bit
- */
-
-#define MAXCOUNT 		100000000
-#define SYNC_OTHER_CORES(x)	udelay(x+1)
-
-static inline void wait_on_irq(int cpu)
+#if CONFIG_SMP
+inline void synchronize_irq(void)
 {
-	int count = MAXCOUNT;
+	/* is there anything to synchronize with? */
+	if (!irq_desc[irq].action)
+		return;
 
-	for (;;) {
-
-		/*
-		 * Wait until all interrupts are gone. Wait
-		 * for bottom half handlers unless we're
-		 * already executing in one..
-		 */
-		if (!irqs_running())
-			if (local_bh_count(cpu) || !spin_is_locked(&global_bh_lock))
-				break;
-
-		/* Duh, we have to loop. Release the lock to avoid deadlocks */
-		spin_unlock(&global_irq_lock);
-
-		for (;;) {
-			if (!--count) {
-				printk("Count spun out.  Huh?\n");
-				count = ~0;
-			}
-			__sti();
-			SYNC_OTHER_CORES(cpu);
-			__cli();
-			if (irqs_running())
-				continue;
-			if (spin_is_locked(&global_irq_lock))
-				continue;
-			if (!local_bh_count(cpu) && spin_is_locked(&global_bh_lock))
-				continue;
-			if (spin_trylock(&global_irq_lock))
-				break;
-		}
-	}
+	while (irq_desc[irq].status & IRQ_INPROGRESS)
+		cpu_relax();
 }
-
-/*
- * This is called when we want to synchronize with
- * interrupts. We may for example tell a device to
- * stop sending interrupts: but to make sure there
- * are no interrupts that are executing on another
- * CPU we need to call this function.
- */
-void synchronize_irq(void)
-{
-	if (irqs_running()) {
-		/* Stupid approach */
-		cli();
-		sti();
-	}
-}
-
-static inline void get_irqlock(int cpu)
-{
-	if (!spin_trylock(&global_irq_lock)) {
-		/* do we already hold the lock? */
-		if ((unsigned char) cpu == global_irq_holder)
-			return;
-		/* Uhhuh.. Somebody else got it. Wait.. */
-		spin_lock(&global_irq_lock);
-	}
-	/*
-	 * We also to make sure that nobody else is running
-	 * in an interrupt context.
-	 */
-	wait_on_irq(cpu);
-
-	/*
-	 * Ok, finally..
-	 */
-	global_irq_holder = cpu;
-}
-
-/*
- * A global "cli()" while in an interrupt context turns into just a local
- * cli(). Interrupts should use spinlocks for the (very unlikely) case that
- * they ever want to protect against each other.
- *
- * If we already have local interrupts disabled, this will not turn a local
- * disable into a global one (problems with spinlocks: this makes
- * save_flags+cli+sti usable inside a spinlock).
- */
-
-void __global_cli(void)
-{
-	unsigned int flags;
-
-	__save_flags(flags);
-	if (flags & ST0_IE) {
-		int cpu = smp_processor_id();
-		__cli();
-		if (!local_irq_count(cpu))
-			get_irqlock(cpu);
-	}
-}
-
-void __global_sti(void)
-{
-	int cpu = smp_processor_id();
-
-	if (!local_irq_count(cpu))
-		release_irqlock(cpu);
-	__sti();
-}
-
-/*
- * SMP flags value to restore to:
- * 0 - global cli
- * 1 - global sti
- * 2 - local cli
- * 3 - local sti
- */
-unsigned long __global_save_flags(void)
-{
-	int retval;
-	int local_enabled;
-	unsigned long flags;
-	int cpu = smp_processor_id();
-
-	__save_flags(flags);
-	local_enabled = (flags & ST0_IE);
-	/* default to local */
-	retval = 2 + local_enabled;
-
-	/* check for global flags if we're not in an interrupt */
-	if (!local_irq_count(cpu)) {
-		if (local_enabled)
-			retval = 1;
-		if (global_irq_holder == cpu)
-			retval = 0;
-	}
-
-	return retval;
-}
-
-void __global_restore_flags(unsigned long flags)
-{
-	switch (flags) {
-		case 0:
-			__global_cli();
-			break;
-		case 1:
-			__global_sti();
-			break;
-		case 2:
-			__cli();
-			break;
-		case 3:
-			__sti();
-			break;
-		default:
-			printk("global_restore_flags: %08lx\n", flags);
-	}
-}
-#endif /* CONFIG_SMP */
+#endif
 
 /*
  * This should really return information about whether
@@ -285,15 +126,10 @@ void __global_restore_flags(unsigned long flags)
  */
 int handle_IRQ_event(unsigned int irq, struct pt_regs * regs, struct irqaction * action)
 {
-	int status;
-	int cpu = smp_processor_id();
-
-	irq_enter(cpu, irq);
-
-	status = 1;	/* Force the "do bottom halves" bit */
+	int status = 1;	/* Force the "do bottom halves" bit */
 
 	if (!(action->flags & SA_INTERRUPT))
-		__sti();
+		local_irq_enable();
 
 	do {
 		status |= action->flags;
@@ -302,9 +138,7 @@ int handle_IRQ_event(unsigned int irq, struct pt_regs * regs, struct irqaction *
 	} while (action);
 	if (status & SA_SAMPLE_RANDOM)
 		add_interrupt_randomness(irq);
-	__cli();
-
-	irq_exit(cpu, irq);
+	local_irq_disable();
 
 	return status;
 }
@@ -356,12 +190,7 @@ void inline disable_irq_nosync(unsigned int irq)
 void disable_irq(unsigned int irq)
 {
 	disable_irq_nosync(irq);
-
-	if (!local_irq_count(smp_processor_id())) {
-		do {
-			barrier();
-		} while (irq_desc[irq].status & IRQ_INPROGRESS);
-	}
+	synchronize_irq(irq);
 }
 
 /**
@@ -423,6 +252,7 @@ asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs)
 	struct irqaction * action;
 	unsigned int status;
 
+	irq_enter();
 	kstat.irqs[cpu][irq]++;
 	spin_lock(&desc->lock);
 	desc->handler->ack(irq);
@@ -482,8 +312,8 @@ out:
 	desc->handler->end(irq);
 	spin_unlock(&desc->lock);
 
-	if (softirq_pending(cpu))
-		do_softirq();
+	irq_exit();
+
 	return 1;
 }
 
@@ -610,11 +440,8 @@ void free_irq(unsigned int irq, void *dev_id)
 			}
 			spin_unlock_irqrestore(&desc->lock,flags);
 
-#ifdef CONFIG_SMP
 			/* Wait to make sure it's not being used on another CPU */
-			while (desc->status & IRQ_INPROGRESS)
-				barrier();
-#endif
+			synchronize_irq(irq);
 			kfree(action);
 			return;
 		}
@@ -666,7 +493,7 @@ unsigned long probe_irq_on(void)
 
 	/* Wait for longstanding interrupts to trigger. */
 	for (delay = jiffies + HZ/50; time_after(delay, jiffies); )
-		/* about 20ms delay */ synchronize_irq();
+		/* about 20ms delay */ barrier();
 
 	/*
 	 * enable any unassigned irqs
@@ -689,7 +516,7 @@ unsigned long probe_irq_on(void)
 	 * Wait for spurious interrupts to trigger
 	 */
 	for (delay = jiffies + HZ/10; time_after(delay, jiffies); )
-		/* about 100ms delay */ synchronize_irq();
+		/* about 100ms delay */ barrier();
 
 	/*
 	 * Now filter out any obviously spurious interrupts

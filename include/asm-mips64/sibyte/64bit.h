@@ -38,8 +38,8 @@ static inline void out64(u64 val, unsigned long addr)
 	unsigned long flags;
 	high = val >> 32;
 	low = val & 0xffffffff;
-	// save_flags(flags);
-	__save_and_cli(flags);
+
+	local_irq_save(flags);
 	__asm__ __volatile__ (
 		".set push\n"
 		".set noreorder\n"
@@ -53,14 +53,15 @@ static inline void out64(u64 val, unsigned long addr)
 		".set pop\n"
 		::"r" (high), "r" (low), "r" (addr)
 		:"$1", "$2");
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline u64 in64(unsigned long addr)
 {
 	u32 low, high;
 	unsigned long flags;
-	__save_and_cli(flags);
+
+	local_irq_save(flags);
 	__asm__ __volatile__ (
 		".set push\n"
 		".set noreorder\n"
@@ -71,7 +72,7 @@ static inline u64 in64(unsigned long addr)
 		"  sll    %1, %1, 0\n"
 		".set pop\n"
 		:"=r" (high), "=r" (low): "r" (addr));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 	return (((u64)high) << 32) | low;
 }
 

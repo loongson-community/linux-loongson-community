@@ -118,16 +118,17 @@ static int lasat_pcibios_read_config_byte(struct pci_dev *dev, int reg, u8 *val)
 {
         u32 data=0, flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	if (lasat_pcibios_config_access(PCI_ACCESS_READ, dev, reg, &data)) {
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return -1;
 	}
 
 	*val = (data >> ((reg & 3) << 3)) & 0xff;
 
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -139,16 +140,18 @@ static int lasat_pcibios_read_config_word(struct pci_dev *dev, int reg, u16 *val
 	if (reg & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	if (lasat_pcibios_config_access(PCI_ACCESS_READ, dev, reg, &data)) {
-		restore_flags(flags);
+		local_irq_restore(flags);
+
 		return -1;
 	}
 
 	*val = (data >> ((reg & 3) << 3)) & 0xffff;
 
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -159,16 +162,18 @@ static int lasat_pcibios_read_config_dword(struct pci_dev *dev, int reg, u32 *va
 	if (reg & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	if (lasat_pcibios_config_access(PCI_ACCESS_READ, dev, reg, &data)) {
-		restore_flags(flags);
+		local_irq_restore(flags);
+
 		return -1;
 	}
 
 	*val = data;
 
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return PCIBIOS_SUCCESSFUL;
 }
 
@@ -177,7 +182,7 @@ static int lasat_pcibios_write_config_byte(struct pci_dev *dev, int reg, u8 val)
 {
         u32 data=0, flags, err;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
         err = lasat_pcibios_config_access(PCI_ACCESS_READ, dev, reg, &data);
         if (err)
@@ -188,7 +193,7 @@ static int lasat_pcibios_write_config_byte(struct pci_dev *dev, int reg, u8 val)
 
 	err = lasat_pcibios_config_access(PCI_ACCESS_WRITE, dev, reg, &data);
 out:
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	if (err)
 		return -1;
@@ -203,7 +208,7 @@ static int lasat_pcibios_write_config_word(struct pci_dev *dev, int reg, u16 val
 	if (reg & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
        
-	save_and_cli(flags);
+	local_irq_save(flags);
 
         err = lasat_pcibios_config_access(PCI_ACCESS_READ, dev, reg, &data);
         if (err)
@@ -214,7 +219,7 @@ static int lasat_pcibios_write_config_word(struct pci_dev *dev, int reg, u16 val
 
 	err = lasat_pcibios_config_access(PCI_ACCESS_WRITE, dev, reg, &data);
 out:
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	if (err)
 		return -1;
@@ -229,10 +234,10 @@ static int lasat_pcibios_write_config_dword(struct pci_dev *dev, int reg, u32 va
 	if (reg & 3)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 
 	err = lasat_pcibios_config_access(PCI_ACCESS_WRITE, dev, reg, &val);
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	if (err)
 		return -1;

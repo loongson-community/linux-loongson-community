@@ -94,7 +94,7 @@ void rt_timer_interrupt(struct pt_regs *regs)
 	int cpuA = ((cputoslice(cpu)) == 0);
 	int irq = 9;				/* XXX Assign number */
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	write_lock(&xtime_lock);
 
 again:
@@ -135,7 +135,7 @@ again:
         }
 
 	write_unlock(&xtime_lock);
-	irq_exit(cpu, irq);
+	irq_exit();
 
 	if (softirq_pending(cpu))
 		do_softirq();

@@ -110,18 +110,18 @@ void local_disable_irq(unsigned int irq_nr)
 {
         unsigned long flags;
 
-        save_and_cli(flags);
+        local_irq_save(flags);
 	disable_it8172_irq(irq_nr);
-        restore_flags(flags);
+        local_irq_restore(flags);
 }
 
 void local_enable_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-        save_and_cli(flags);
+        local_irq_save(flags);
 	enable_it8172_irq(irq_nr);
-        restore_flags(flags);
+        local_irq_restore(flags);
 }
 
 
@@ -249,9 +249,9 @@ void enable_cpu_timer(void)
 {
         unsigned long flags;
 
-        save_and_cli(flags);
+        local_irq_save(flags);
 	unmask_irq(1<<EXT_IRQ5_TO_IP); /* timer interrupt */
-        restore_flags(flags);
+        local_irq_restore(flags);
 }
 
 

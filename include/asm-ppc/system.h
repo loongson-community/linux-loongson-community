@@ -83,11 +83,6 @@ extern void cacheable_memzero(void *p, unsigned int nb);
 struct device_node;
 extern void note_scsi_host(struct device_node *, void *);
 
-#define prepare_arch_schedule(prev)		do { } while(0)
-#define finish_arch_schedule(prev)		do { } while(0)
-#define prepare_arch_switch(rq)			do { } while(0)
-#define finish_arch_switch(rq)			spin_unlock_irq(&(rq)->lock)
-
 struct task_struct;
 extern void __switch_to(struct task_struct *, struct task_struct *);
 #define switch_to(prev, next, last)	__switch_to((prev), (next))
@@ -103,11 +98,11 @@ extern void dump_regs(struct pt_regs *);
 
 #ifndef CONFIG_SMP
 
-#define cli()	__cli()
-#define sti()	__sti()
-#define save_flags(flags)	__save_flags(flags)
-#define restore_flags(flags)	__restore_flags(flags)
-#define save_and_cli(flags)	__save_and_cli(flags)
+#define cli()	local_irq_disable()
+#define sti()	local_irq_enable()
+#define save_flags(flags)	local_save_flags(flags)
+#define restore_flags(flags)	local_irq_restore(flags)
+#define save_and_cli(flags)	local_irq_save(flags)
 
 #else /* CONFIG_SMP */
 
@@ -121,11 +116,6 @@ extern void __global_restore_flags(unsigned long);
 #define restore_flags(x) __global_restore_flags(x)
 
 #endif /* !CONFIG_SMP */
-
-#define local_irq_disable()		__cli()
-#define local_irq_enable()		__sti()
-#define local_irq_save(flags)		__save_and_cli(flags)
-#define local_irq_restore(flags)	__restore_flags(flags)
 
 static __inline__ unsigned long
 xchg_u32(volatile void *p, unsigned long val)

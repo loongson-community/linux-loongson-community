@@ -611,7 +611,6 @@ struct task_struct *do_fork(unsigned long clone_flags,
 			    unsigned long stack_size)
 {
 	int retval;
-	unsigned long flags;
 	struct task_struct *p = NULL;
 	struct completion vfork;
 
@@ -675,6 +674,7 @@ struct task_struct *do_fork(unsigned long clone_flags,
 		init_completion(&vfork);
 	}
 	spin_lock_init(&p->alloc_lock);
+	spin_lock_init(&p->switch_lock);
 
 	clear_tsk_thread_flag(p,TIF_SIGPENDING);
 	init_sigpending(&p->pending);
@@ -740,10 +740,15 @@ struct task_struct *do_fork(unsigned long clone_flags,
 	 * total amount of pending timeslices in the system doesnt change,
 	 * resulting in more scheduling fairness.
 	 */
-	__save_flags(flags);
-	__cli();
-	p->time_slice = (current->time_slice + 1) >> 1;
+	local_irq_disable();
+        p->time_slice = (current->time_slice + 1) >> 1;
+	/*
+	 * The remainder of the first timeslice might be recovered by
+	 * the parent if the child exits early enough.
+	 */
+	p->first_time_slice = 1;
 	current->time_slice >>= 1;
+	p->sleep_timestamp = jiffies;
 	if (!current->time_slice) {
 		/*
 	 	 * This case is rare, it happens when the parent has only
@@ -751,11 +756,12 @@ struct task_struct *do_fork(unsigned long clone_flags,
 		 * runqueue lock is not a problem.
 		 */
 		current->time_slice = 1;
+		preempt_disable();
 		scheduler_tick(0, 0);
-	}
-	p->sleep_timestamp = jiffies;
-	__restore_flags(flags);
-
+		local_irq_enable();
+		preempt_enable();
+	} else
+		local_irq_enable();
 	/*
 	 * Ok, add it to the run-queues and make it
 	 * visible to the rest of the system.

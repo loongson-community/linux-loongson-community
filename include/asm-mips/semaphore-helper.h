@@ -55,12 +55,12 @@ static inline int waking_non_zero(struct semaphore *sem)
 	unsigned long flags;
 	int ret = 0;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	if (sem_read(&sem->waking) > 0) {
 		sem_dec(&sem->waking);
 		ret = 1;
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return ret;
 }
 #endif /* !CONFIG_CPU_HAS_LLSC */
@@ -148,7 +148,7 @@ static inline int waking_non_zero_interruptible(struct semaphore *sem,
 	int ret = 0;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	if (sem_read(&sem->waking) > 0) {
 		sem_dec(&sem->waking);
 		ret = 1;
@@ -156,7 +156,7 @@ static inline int waking_non_zero_interruptible(struct semaphore *sem,
 		sem_inc(&sem->count);
 		ret = -EINTR;
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return ret;
 }
 
@@ -165,14 +165,14 @@ static inline int waking_non_zero_trylock(struct semaphore *sem)
         int ret = 1;
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	if (sem_read(&sem->waking) <= 0)
 		sem_inc(&sem->count);
 	else {
 		sem_dec(&sem->waking);
 		ret = 0;
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	return ret;
 }

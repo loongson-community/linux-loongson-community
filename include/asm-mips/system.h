@@ -25,7 +25,7 @@
 #include <asm/ptrace.h>
 
 __asm__ (
-	".macro\t__sti\n\t"
+	".macro\tlocal_irq_enable\n\t"
 	".set\tpush\n\t"
 	".set\treorder\n\t"
 	".set\tnoat\n\t"
@@ -36,11 +36,10 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern __inline__ void
-__sti(void)
+extern inline void local_irq_enable(void)
 {
 	__asm__ __volatile__(
-		"__sti"
+		"local_irq_enable"
 		: /* no outputs */
 		: /* no inputs */
 		: "memory");
@@ -54,7 +53,7 @@ __sti(void)
  * no nops at all.
  */
 __asm__ (
-	".macro\t__cli\n\t"
+	".macro\tlocal_irq_disable\n\t"
 	".set\tpush\n\t"
 	".set\tnoat\n\t"
 	"mfc0\t$1,$12\n\t"
@@ -68,31 +67,30 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-extern __inline__ void
-__cli(void)
+extern inline void local_irq_disable(void)
 {
 	__asm__ __volatile__(
-		"__cli"
+		"local_irq_disable"
 		: /* no outputs */
 		: /* no inputs */
 		: "memory");
 }
 
 __asm__ (
-	".macro\t__save_flags flags\n\t"
+	".macro\tlocal_save_flags flags\n\t"
 	".set\tpush\n\t"
 	".set\treorder\n\t"
 	"mfc0\t\\flags, $12\n\t"
 	".set\tpop\n\t"
 	".endm");
 
-#define __save_flags(x)							\
+#define local_save_flags(x)							\
 __asm__ __volatile__(							\
-	"__save_flags %0"						\
+	"local_save_flags %0"						\
 	: "=r" (x))
 
 __asm__ (
-	".macro\t__save_and_cli result\n\t"
+	".macro\tlocal_irq_save result\n\t"
 	".set\tpush\n\t"
 	".set\treorder\n\t"
 	".set\tnoat\n\t"
@@ -107,14 +105,14 @@ __asm__ (
 	".set\tpop\n\t"
 	".endm");
 
-#define __save_and_cli(x)						\
+#define local_irq_save(x)						\
 __asm__ __volatile__(							\
-	"__save_and_cli\t%0"						\
+	"local_irq_save\t%0"						\
 	: "=r" (x)							\
 	: /* no inputs */						\
 	: "memory")
 
-__asm__(".macro\t__restore_flags flags\n\t"
+__asm__(".macro\tlocal_irq_restore flags\n\t"
 	".set\tnoreorder\n\t"
 	".set\tnoat\n\t"
 	"mfc0\t$1, $12\n\t"
@@ -130,44 +128,23 @@ __asm__(".macro\t__restore_flags flags\n\t"
 	".set\treorder\n\t"
 	".endm");
 
-#define __restore_flags(flags)						\
+#define local_irq_restore(flags)						\
 do {									\
 	unsigned long __tmp1;						\
 									\
 	__asm__ __volatile__(						\
-		"__restore_flags\t%0"					\
+		"local_irq_restore\t%0"					\
 		: "=r" (__tmp1)						\
 		: "0" (flags)						\
 		: "memory");						\
 } while(0)
 
-#ifdef CONFIG_SMP
-
-extern void __global_sti(void);
-extern void __global_cli(void);
-extern unsigned long __global_save_flags(void);
-extern void __global_restore_flags(unsigned long);
-#  define sti() __global_sti()
-#  define cli() __global_cli()
-#  define save_flags(x) do { x = __global_save_flags(); } while (0)
-#  define restore_flags(x) __global_restore_flags(x)
-#  define save_and_cli(x) do { save_flags(x); cli(); } while(0)
-
-#else /* Single processor */
-
-#  define sti() __sti()
-#  define cli() __cli()
-#  define save_flags(x) __save_flags(x)
-#  define save_and_cli(x) __save_and_cli(x)
-#  define restore_flags(x) __restore_flags(x)
-
-#endif /* SMP */
-
-/* For spinlocks etc */
-#define local_irq_save(x)	__save_and_cli(x)
-#define local_irq_restore(x)	__restore_flags(x)
-#define local_irq_disable()	__cli()
-#define local_irq_enable()	__sti()
+#define irqs_disabled()							\
+({									\
+	unsigned long flags;						\
+	local_save_flags(flags);					\
+	!(flags & 1);							\
+})
 
 #ifdef CONFIG_CPU_HAS_SYNC
 #define __sync()				\
@@ -245,11 +222,6 @@ do { var = value; wmb(); } while (0)
  */
 extern asmlinkage void *resume(void *last, void *next, void *next_ti);
 #endif /* !__ASSEMBLY__ */
-
-#define prepare_arch_schedule(prev)		do { } while(0)
-#define finish_arch_schedule(prev)		do { } while(0)
-#define prepare_arch_switch(rq)			do { } while(0)
-#define finish_arch_switch(rq)			spin_unlock_irq(&(rq)->lock)
 
 struct task_struct;
 

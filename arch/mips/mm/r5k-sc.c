@@ -68,20 +68,20 @@ static void r5k_sc_enable(void)
 {
         unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	change_cp0_config(CONF_SE, CONF_SE);
 	blast_r5000_scache();
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void r5k_sc_disable(void)
 {
         unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_r5000_scache();
 	change_cp0_config(CONF_SE, 0);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline int __init r5k_sc_probe(void)

@@ -64,7 +64,7 @@ void sb1_dump_tlb(void)
 	unsigned long old_ctx;
 	unsigned long flags;
 	int entry;
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	old_ctx = get_entryhi();
 	printk("Current TLB registers state:\n"
 	       "      EntryHi       EntryLo0          EntryLo1     PageMask  Index\n"
@@ -82,7 +82,7 @@ void sb1_dump_tlb(void)
 	}
 	printk("\n");
 	set_entryhi(old_ctx);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_all(void)
@@ -91,7 +91,7 @@ void local_flush_tlb_all(void)
 	unsigned long old_ctx;
 	int entry;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	/* Save old context and create impossible VPN2 value */
 	old_ctx = get_entryhi() & 0xff;
 	set_entrylo0(0);
@@ -102,7 +102,7 @@ void local_flush_tlb_all(void)
 		tlb_write_indexed();
 	}
 	set_entryhi(old_ctx);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 
@@ -143,7 +143,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 	unsigned long flags;
 	int cpu;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	cpu = smp_processor_id();
 	if (cpu_context(cpu, mm) != 0) {
 		int size;
@@ -183,7 +183,7 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 			}
 		}
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
@@ -194,7 +194,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 	size = (size + 1) >> 1;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	if (size <= (mips_cpu.tlbsize/2)) {
 		int pid = get_entryhi();
 
@@ -220,7 +220,7 @@ void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 	} else {
 		local_flush_tlb_all();
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -232,7 +232,7 @@ void __flush_tlb_one(unsigned long page)
 	unsigned long flags;
 	int oldpid, idx;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 #ifdef DEBUG_TLB
 	printk("[tlbpage<%d,%08lx>]", cpu_context(cpu, vma->vm_mm), page);
 #endif
@@ -250,7 +250,7 @@ void __flush_tlb_one(unsigned long page)
 	}
 	set_entryhi(oldpid);
 
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
@@ -266,7 +266,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	int cpu = smp_processor_id();
 #endif
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	if (cpu_context(cpu, vma->vm_mm) != 0) {
 		int oldpid, newpid, idx;
 #ifdef DEBUG_TLB
@@ -288,7 +288,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	finish:
 		set_entryhi(oldpid);
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 
@@ -298,7 +298,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	unsigned long flags;
 	int cpu;
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	cpu = smp_processor_id();
 	if (cpu_context(cpu, mm) != 0) {
 		get_new_mmu_context(mm, smp_processor_id());
@@ -306,7 +306,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 			set_entryhi(cpu_context(cpu, mm) & 0xff);
 		}
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /* Stolen from mips32 routines */
@@ -326,7 +326,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	if (current->active_mm != vma->vm_mm)
 		return;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
 
 	pid = get_entryhi() & 0xff;
@@ -354,7 +354,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		tlb_write_indexed();
 	}
 	set_entryhi(pid);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*

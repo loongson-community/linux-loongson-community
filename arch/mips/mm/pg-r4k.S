@@ -155,7 +155,7 @@ LEAF(r4k_clear_page_r4600_v2)
 	sd	zero, -8(a0)
 	bne	AT, a0, 1b
 
-	mfc0	AT, CP0_STATUS			# __restore_flags
+	mfc0	AT, CP0_STATUS			# local_irq_restore
 	andi	a1, 1
 	ori	AT, 1
 	xori	AT, 1
@@ -456,7 +456,7 @@ LEAF(r4k_copy_page_r4600_v2)
 	sw	a2, -4(a0)
 	bne	AT, a0, 1b
 
-	mfc0	AT, CP0_STATUS			# __restore_flags
+	mfc0	AT, CP0_STATUS			# local_irq_restore
 	andi	v1, 1
 	ori	AT, 1
 	xori	AT, 1

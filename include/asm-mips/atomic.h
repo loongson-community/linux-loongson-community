@@ -59,9 +59,9 @@ extern __inline__ void atomic_add(int i, atomic_t * v)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	v->counter += i;
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -76,9 +76,9 @@ extern __inline__ void atomic_sub(int i, atomic_t * v)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	v->counter -= i;
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 extern __inline__ int atomic_add_return(int i, atomic_t * v)
@@ -86,11 +86,11 @@ extern __inline__ int atomic_add_return(int i, atomic_t * v)
 	unsigned long flags;
 	int temp;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	temp = v->counter;
 	temp += i;
 	v->counter = temp;
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	return temp;
 }
@@ -100,11 +100,11 @@ extern __inline__ int atomic_sub_return(int i, atomic_t * v)
 	unsigned long flags;
 	int temp;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	temp = v->counter;
 	temp -= i;
 	v->counter = temp;
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	return temp;
 }

@@ -112,7 +112,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		return VDMA_ERROR;	/* invalid physical address */
 	}
 
-	save_and_cli(flags);
+	local_irq_save(flags);		/* Really should be a spinlock */
 	/*
 	 * Find free chunk
 	 */
@@ -122,7 +122,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		while (entry[first].owner != VDMA_PAGE_EMPTY &&
 		       first < VDMA_PGTBL_ENTRIES) first++;
 		if (first + pages > VDMA_PGTBL_ENTRIES) {	/* nothing free */
-			restore_flags(flags);
+			local_irq_restore(flags);
 			return VDMA_ERROR;
 		}
 
@@ -170,7 +170,7 @@ unsigned long vdma_alloc(unsigned long paddr, unsigned long size)
 		printk("\n");
 	}
 
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return laddr;
 }
 

@@ -635,7 +635,7 @@ static inline void set_entrylo0(unsigned long long val)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tmips3\n\t"
 		"dsll\t%L0, %L0, 32\n\t"
@@ -645,14 +645,14 @@ static inline void set_entrylo0(unsigned long long val)
 		"dmtc0\t%L0, $2\n\t"
 		".set\tmips0"
 		: : "r" (val));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline void set_entrylo1(unsigned long long val)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tmips3\n\t"
 		"dsll\t%L0, %L0, 32\n\t"
@@ -662,14 +662,14 @@ static inline void set_entrylo1(unsigned long long val)
 		"dmtc0\t%L0, $3\n\t"
 		".set\tmips0"
 		: : "r" (val));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline unsigned long long get_entrylo0(void)
 {
 	unsigned long flags, val;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tmips3\n\t"
 		"dmfc0\t%M0, $2\n\t"
@@ -678,7 +678,7 @@ static inline unsigned long long get_entrylo0(void)
 		"dsrl\t%L0, %L0, 32\n\t"
 		".set\tmips0"
 		: "=r" (val));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 
 	return val;
 }
@@ -687,7 +687,7 @@ static inline unsigned long long get_entrylo1(void)
 {
 	unsigned long flags, val;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	__asm__ __volatile__(
 		".set\tmips3\n\t"
 		"dmfc0\t%M0, $3\n\t"
@@ -696,7 +696,7 @@ static inline unsigned long long get_entrylo1(void)
 		"dsll\t%L0, %L0, 32\n\t"
 		".set\tmips0"
 		: "=r" (val));
-	__restore_flags(flags);
+	local_irq_restore(flags);
 
 	return val;
 }

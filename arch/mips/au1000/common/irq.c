@@ -296,8 +296,8 @@ unsigned long save_local_and_disable(int controller)
 {
 	int i;
 	unsigned long flags, mask;
-	save_and_cli(flags);
 
+	local_irq_save(flags);
 	if (controller) {
 		mask = au_readl(IC1_MASKSET);
 		for (i=32; i<64; i++) {
@@ -310,7 +310,8 @@ unsigned long save_local_and_disable(int controller)
 			local_disable_irq(i);
 		}
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return mask;
 }
 
@@ -318,8 +319,8 @@ void restore_local_and_enable(int controller, unsigned long mask)
 {
 	int i;
 	unsigned long flags, new_mask;
-	save_and_cli(flags);
 
+	local_irq_save(flags);
 	for (i=0; i<32; i++) {
 		if (mask & (1<<i)) {
 			if (controller)
@@ -333,7 +334,7 @@ void restore_local_and_enable(int controller, unsigned long mask)
 	else
 		new_mask = au_readl(IC0_MASKSET);
 
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 

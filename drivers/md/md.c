@@ -118,14 +118,14 @@ static devfs_handle_t devfs_handle;
 
 static struct gendisk md_gendisk=
 {
-	major: MD_MAJOR,
-	major_name: "md",
-	minor_shift: 0,
-	part: md_hd_struct,
-	sizes: md_size,
-	nr_real: MAX_MD_DEVS,
-	next: NULL,
-	fops: &md_fops,
+	.major		= MD_MAJOR,
+	.major_name	= "md",
+	.minor_shift	= 0,
+	.part		= md_hd_struct,
+	.sizes		= md_size,
+	.nr_real	= MAX_MD_DEVS,
+	.next		= NULL,
+	.fops		= &md_fops,
 };
 
 /*
@@ -847,7 +847,7 @@ static void sync_sbs(mddev_t * mddev)
 		MD_BUG();
 		return;
 	}
-	rdev = list_entry(&mddev->disks.next, mdk_rdev_t, same_set);
+	rdev = list_entry(mddev->disks.next, mdk_rdev_t, same_set);
 	sb = rdev->sb;
 
 	memset(sb, 0, sizeof(*sb));
@@ -1044,8 +1044,6 @@ static mdk_rdev_t *md_import_device(dev_t newdev, int on_disk)
 	}
 	INIT_LIST_HEAD(&rdev->same_set);
 
-	if (rdev->faulty && rdev->sb)
-		free_disk_sb(rdev);
 	return rdev;
 
 abort_free:
@@ -2241,28 +2239,6 @@ static int md_ioctl(struct inode *inode, struct file *file,
 			autostart_arrays();
 			goto done;
 #endif
-
-		case BLKGETSIZE:	/* Return device size */
-			if (!arg) {
-				err = -EINVAL;
-				MD_BUG();
-				goto abort;
-			}
-			err = put_user(md_hd_struct[minor].nr_sects,
-						(unsigned long *) arg);
-			goto done;
-
-		case BLKGETSIZE64:	/* Return device size */
-			err = put_user((u64)md_hd_struct[minor].nr_sects << 9,
-						(u64 *) arg);
-			goto done;
-
-		case BLKFLSBUF:
-		case BLKBSZGET:
-		case BLKBSZSET:
-			err = blk_ioctl(inode->i_bdev, cmd, arg);
-			goto abort;
-
 		default:;
 	}
 
@@ -2386,7 +2362,7 @@ static int md_ioctl(struct inode *inode, struct file *file,
 						(short *) &loc->cylinders);
 			if (err)
 				goto abort_unlock;
-			err = put_user (get_start_sect(dev),
+			err = put_user (get_start_sect(inode->i_bdev),
 						(long *) &loc->start);
 			goto done_unlock;
 	}
@@ -2498,10 +2474,10 @@ static int md_release(struct inode *inode, struct file * file)
 
 static struct block_device_operations md_fops =
 {
-	owner:		THIS_MODULE,
-	open:		md_open,
-	release:	md_release,
-	ioctl:		md_ioctl,
+	.owner		= THIS_MODULE,
+	.open		= md_open,
+	.release	= md_release,
+	.ioctl		= md_ioctl,
 };
 
 
@@ -3189,9 +3165,9 @@ int md_notify_reboot(struct notifier_block *this,
 }
 
 struct notifier_block md_notifier = {
-	notifier_call:	md_notify_reboot,
-	next:		NULL,
-	priority:	INT_MAX, /* before any real devices */
+	.notifier_call	= md_notify_reboot,
+	.next		= NULL,
+	.priority	= INT_MAX, /* before any real devices */
 };
 
 static void md_geninit(void)

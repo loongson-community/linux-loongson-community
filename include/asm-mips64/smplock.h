@@ -1,43 +1,33 @@
 /*
- * <asm/smplock.h>
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
  *
  * Default SMP lock implementation
  */
-#ifndef _ASM_SMPLOCK_H
-#define _ASM_SMPLOCK_H
-
 #include <linux/config.h>
-#include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/spinlock.h>
 
 extern spinlock_t kernel_flag;
 
 #ifdef CONFIG_SMP
-#define kernel_locked()			spin_is_locked(&kernel_flag)
-#define check_irq_holder(cpu) \
-do { \
-	if (global_irq_holder == (cpu)) \
-		BUG(); \
-} while(0)
+#define kernel_locked()		spin_is_locked(&kernel_flag)
 #else
 #ifdef CONFIG_PREEMPT
-#define kernel_locked()			preempt_get_count()
-#define check_irq_holder(cpu)		do { } while(0)
+#define kernel_locked()		preempt_count()
 #else
-#define kernel_locked()			1
+#define kernel_locked()		1
 #endif
 #endif
 
 /*
  * Release global kernel lock and global interrupt lock
  */
-#define release_kernel_lock(task, cpu)		\
+#define release_kernel_lock(task)		\
 do {						\
-	if (unlikely(task->lock_depth >= 0)) {	\
+	if (unlikely(task->lock_depth >= 0))	\
 		spin_unlock(&kernel_flag);	\
-		check_irq_holder(cpu);		\
-	}					\
 } while (0)
 
 /*
@@ -48,6 +38,7 @@ do {						\
 	if (unlikely(task->lock_depth >= 0))	\
 		spin_lock(&kernel_flag);	\
 } while (0)
+
 
 /*
  * Getting the big kernel lock.
@@ -63,6 +54,7 @@ static __inline__ void lock_kernel(void)
 		spin_lock(&kernel_flag);
 	++current->lock_depth;
 #else
+
 	if (!++current->lock_depth)
 		spin_lock(&kernel_flag);
 #endif
@@ -70,11 +62,6 @@ static __inline__ void lock_kernel(void)
 
 static __inline__ void unlock_kernel(void)
 {
-	if (current->lock_depth < 0)
-		BUG();
-
 	if (--current->lock_depth < 0)
 		spin_unlock(&kernel_flag);
 }
-
-#endif /* _ASM_SMPLOCK_H */

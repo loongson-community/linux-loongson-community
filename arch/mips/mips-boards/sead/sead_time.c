@@ -72,7 +72,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = MIPS_CPU_TIMER_IRQ;
 
-	irq_enter(cpu, irq);
+	irq_enter();
 
 	do {
 		kstat.irqs[cpu][irq]++;
@@ -90,7 +90,7 @@ void mips_timer_interrupt(struct pt_regs *regs)
 	} while (((unsigned long)read_32bit_cp0_register(CP0_COUNT)
 	         - r4k_cur) < 0x7fffffff);
 
-	irq_exit(cpu, irq);
+	irq_exit();
 	if (softirq_pending(cpu))
 		do_softirq();
 }
@@ -113,7 +113,7 @@ void __init mips_time_init(void)
 {
         unsigned int est_freq, flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
         /* Start r4k counter. */
         write_32bit_cp0_register(CP0_COUNT, 0);
@@ -133,7 +133,7 @@ void __init mips_time_init(void)
 	printk("CPU frequency %d.%02d MHz\n", est_freq/1000000,
 	       (est_freq%1000000)*100/1000000);
 
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 void __init mips_timer_setup(struct irqaction *irq)

@@ -34,10 +34,10 @@ enum sparc_cpu {
 #define setipl(__new_ipl) \
 	__asm__ __volatile__("wrpr	%0, %%pil"  : : "r" (__new_ipl) : "memory")
 
-#define __cli() \
+#define local_irq_disable() \
 	__asm__ __volatile__("wrpr	15, %%pil" : : : "memory")
 
-#define __sti() \
+#define local_irq_enable() \
 	__asm__ __volatile__("wrpr	0, %%pil" : : : "memory")
 
 #define getipl() \
@@ -62,20 +62,16 @@ enum sparc_cpu {
 	retval; \
 })
 
-#define __save_flags(flags)		((flags) = getipl())
-#define __save_and_cli(flags)		((flags) = read_pil_and_cli())
-#define __restore_flags(flags)		setipl((flags))
-#define local_irq_disable()		__cli()
-#define local_irq_enable()		__sti()
-#define local_irq_save(flags)		__save_and_cli(flags)
-#define local_irq_restore(flags)	__restore_flags(flags)
+#define local_save_flags(flags)		((flags) = getipl())
+#define local_irq_save(flags)		((flags) = read_pil_and_cli())
+#define local_irq_restore(flags)		setipl((flags))
 
 #ifndef CONFIG_SMP
-#define cli() __cli()
-#define sti() __sti()
-#define save_flags(x) __save_flags(x)
-#define restore_flags(x) __restore_flags(x)
-#define save_and_cli(x) __save_and_cli(x)
+#define cli() local_irq_disable()
+#define sti() local_irq_enable()
+#define save_flags(x) local_save_flags(x)
+#define restore_flags(x) local_irq_restore(x)
+#define save_and_cli(x) local_irq_save(x)
 #else
 
 #ifndef __ASSEMBLY__
@@ -144,13 +140,17 @@ extern void __flushw_user(void);
 #define flush_user_windows flushw_user
 #define flush_register_windows flushw_all
 
-#define prepare_arch_schedule(prev)	task_lock(prev)
-#define finish_arch_schedule(prev)	task_unlock(prev)
-#define prepare_arch_switch(rq)		\
-do {	spin_unlock(&(rq)->lock);	\
-	flushw_all();			\
+#define prepare_arch_switch(rq, next)		\
+do {	spin_lock(&(next)->switch_lock);	\
+	spin_unlock(&(rq)->lock);		\
+	flushw_all();				\
 } while (0)
-#define finish_arch_switch(rq)		__sti()
+
+#define finish_arch_switch(rq, prev)		\
+do {	spin_unlock_irq(&(prev)->switch_lock);	\
+} while (0)
+
+
 
 #ifndef CONFIG_DEBUG_SPINLOCK
 #define CHECK_LOCKS(PREV)	do { } while(0)

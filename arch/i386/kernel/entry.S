@@ -72,12 +72,8 @@ VM_MASK		= 0x00020000
 
 #ifdef CONFIG_PREEMPT
 #define preempt_stop		cli
-#define INC_PRE_COUNT(reg)	incl TI_PRE_COUNT(reg);
-#define DEC_PRE_COUNT(reg)	decl TI_PRE_COUNT(reg);
 #else
 #define preempt_stop
-#define INC_PRE_COUNT(reg)
-#define DEC_PRE_COUNT(reg)
 #define resume_kernel		restore_all
 #endif
 
@@ -189,10 +185,10 @@ ENTRY(ret_from_fork)
 
 	# userspace resumption stub bypassing syscall exit tracing
 	ALIGN
-ret_from_intr:
-	preempt_stop
-	DEC_PRE_COUNT(%ebx)
 ret_from_exception:
+	preempt_stop
+ret_from_intr:
+	GET_THREAD_INFO(%ebx)
 	movl EFLAGS(%esp), %eax		# mix EFLAGS and CS
 	movb CS(%esp), %al
 	testl $(VM_MASK | 3), %eax
@@ -268,7 +264,7 @@ work_resched:
 
 work_notifysig:				# deal with pending signals and
 					# notify-resume requests
-	testl $(VM_MASK),EFLAGS(%esp)
+	testl $VM_MASK, EFLAGS(%esp)
 	movl %esp, %eax
 	jne work_notifysig_v86		# returning to kernel-space or
 					# vm86-space
@@ -338,8 +334,6 @@ vector=vector+1
 	ALIGN
 common_interrupt:
 	SAVE_ALL
-	GET_THREAD_INFO(%ebx)
-	INC_PRE_COUNT(%ebx)
 	call do_IRQ
 	jmp ret_from_intr
 
@@ -347,8 +341,6 @@ common_interrupt:
 ENTRY(name)				\
 	pushl $nr-256;			\
 	SAVE_ALL			\
-	GET_THREAD_INFO(%ebx);		\
-	INC_PRE_COUNT(%ebx)		\
 	call smp_/**/name;	\
 	jmp ret_from_intr;
 
@@ -408,10 +400,8 @@ error_code:
 	movl $(__KERNEL_DS), %edx
 	movl %edx, %ds
 	movl %edx, %es
-	GET_THREAD_INFO(%ebx)
 	call *%edi
 	addl $8, %esp
-	preempt_stop
 	jmp ret_from_exception
 
 ENTRY(coprocessor_error)
@@ -438,7 +428,6 @@ device_not_available_emulate:
 	pushl $0			# temporary storage for ORIG_EIP
 	call math_emulate
 	addl $4, %esp
-	preempt_stop
 	jmp ret_from_exception
 
 ENTRY(debug)

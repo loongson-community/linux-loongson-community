@@ -46,7 +46,7 @@ static void tx39h_flush_icache_all(void)
 	unsigned long flags, config;
 
 	/* disable icache (set ICE#) */
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	config = read_32bit_cp0_register(CP0_CONF);
 
 	/* invalidate icache */
@@ -56,7 +56,7 @@ static void tx39h_flush_icache_all(void)
 	}
 
 	write_32bit_cp0_register(CP0_CONF, config);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void tx39h_dma_cache_wback_inv(unsigned long addr, unsigned long size)
@@ -79,14 +79,14 @@ static inline void tx39_flush_cache_all(void)
 {
 	unsigned long flags, config;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_dcache16_wayLSB();
 	/* disable icache (set ICE#) */
 	config = read_32bit_cp0_register(CP0_CONF);
 	write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
 	blast_icache16_wayLSB();
 	write_32bit_cp0_register(CP0_CONF, config);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void tx39_flush_cache_mm(struct mm_struct *mm)
@@ -110,14 +110,14 @@ static void tx39_flush_cache_range(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		blast_dcache16_wayLSB();
 		/* disable icache (set ICE#) */
 		config = read_32bit_cp0_register(CP0_CONF);
 		write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
 		blast_icache16_wayLSB();
 		write_32bit_cp0_register(CP0_CONF, config);
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -140,7 +140,7 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -170,7 +170,7 @@ static void tx39_flush_cache_page(struct vm_area_struct *vma,
 		blast_dcache16_page_indexed_wayLSB(page);
 	}
 out:
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void tx39_flush_page_to_ram(struct page * page)
@@ -235,7 +235,7 @@ static void tx39_flush_cache_sigtramp(unsigned long addr)
 	unsigned long config;
 	unsigned int flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	protected_writeback_dcache_line(addr & ~(dcache_lsize - 1));
 
 	/* disable icache (set ICE#) */
@@ -243,7 +243,7 @@ static void tx39_flush_cache_sigtramp(unsigned long addr)
 	write_32bit_cp0_register(CP0_CONF, config&~TX39_CONF_ICE);
 	protected_flush_icache_line(addr & ~(icache_lsize - 1));
 	write_32bit_cp0_register(CP0_CONF, config);
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static __init void tx39_probe_cache(void)

@@ -102,7 +102,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 {
 	struct irqaction *action;
 	unsigned long int_status;
-	int irq, cpu = smp_processor_id();
+	int irq;
 
 	int_status = atlas_hw0_icregs->intstatus;
 
@@ -122,10 +122,7 @@ void atlas_hw0_irqdispatch(struct pt_regs *regs)
 		return;
 	}
 
-	irq_enter(cpu, irq);
-	kstat.irqs[0][irq]++;
-	action->handler(irq, action->dev_id, regs);
-	irq_exit(cpu, irq);
+	do_IRQ(irq, action->dev_id, regs);
 
 	return;
 }

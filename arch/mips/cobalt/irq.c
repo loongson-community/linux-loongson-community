@@ -76,9 +76,9 @@ static void enable_cpu_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	change_cp0_status(irqnr_to_type[irq], irqnr_to_type[irq]);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned startup_cpu_irq(unsigned int irq)
@@ -92,9 +92,9 @@ static void disable_cpu_irq(unsigned int irq)
 {
 	unsigned long flags;
 
-	save_and_cli(flags);
+	local_irq_save(flags);
 	change_cp0_status(irqnr_to_type[irq], ~(irqnr_to_type[irq]));
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define shutdown_cpu_irq	disable_cpu_irq

@@ -295,6 +295,7 @@ extern inline int blk_hw_contig_segment(request_queue_t *q, struct bio *, struct
 extern int block_ioctl(struct block_device *, unsigned int, unsigned long);
 extern void blk_start_queue(request_queue_t *q);
 extern void blk_stop_queue(request_queue_t *q);
+extern void __blk_stop_queue(request_queue_t *q);
 
 /*
  * get ready for proper ref counting
@@ -387,20 +388,6 @@ extern inline unsigned int blksize_bits(unsigned int size)
 extern inline unsigned int block_size(struct block_device *bdev)
 {
 	return bdev->bd_block_size;
-}
-
-static inline loff_t blkdev_size_in_bytes(kdev_t dev)
-{
-#if 0
-	if (blk_size_in_bytes[major(dev)])
-		return blk_size_in_bytes[major(dev)][minor(dev)];
-	else
-#endif
-	if (blk_size[major(dev)])
-		return (loff_t) blk_size[major(dev)][minor(dev)]
-			<< BLOCK_SIZE_BITS;
-	else
-		return 0;
 }
 
 typedef struct {struct page *v;} Sector;

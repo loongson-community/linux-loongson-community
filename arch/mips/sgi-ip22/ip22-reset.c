@@ -59,7 +59,7 @@ static void sgi_machine_power_off(void)
 {
 	unsigned char val;
 
-	cli();
+	local_irq_disable();
 
 	/* Disable watchdog */
 	val = CMOS_READ(RTC_CMD);

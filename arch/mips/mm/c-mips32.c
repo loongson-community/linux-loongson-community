@@ -65,18 +65,18 @@ static inline void mips32_flush_cache_all_sc(void)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_dcache(); blast_icache(); blast_scache();
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static inline void mips32_flush_cache_all_pc(void)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	blast_dcache(); blast_icache();
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void mips32_flush_cache_range_sc(struct vm_area_struct *vma,
@@ -102,7 +102,7 @@ static void mips32_flush_cache_range_sc(struct vm_area_struct *vma,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
+			local_irq_save(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -112,7 +112,7 @@ static void mips32_flush_cache_range_sc(struct vm_area_struct *vma,
 					blast_scache_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
+			local_irq_restore(flags);
 		}
 	}
 }
@@ -128,9 +128,9 @@ static void mips32_flush_cache_range_pc(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		__save_and_cli(flags);
+		local_irq_save(flags);
 		blast_dcache(); blast_icache();
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 }
 
@@ -178,7 +178,7 @@ static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -208,7 +208,7 @@ static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 	} else
 		blast_scache_page(page);
 out:
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
@@ -230,7 +230,7 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -259,7 +259,7 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 		blast_dcache_page_indexed(page);
 	}
 out:
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /* If the addresses passed to these routines are valid, they are
@@ -319,7 +319,7 @@ mips32_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
-	        __save_and_cli(flags);
+	        local_irq_save(flags);
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
 		while (1) {
@@ -327,7 +327,7 @@ mips32_dma_cache_wback_inv_pc(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 	bc_wback_inv(addr, size);
 }
@@ -360,7 +360,7 @@ mips32_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 	if (size >= dcache_size) {
 		flush_cache_all();
 	} else {
-	        __save_and_cli(flags);
+	        local_irq_save(flags);
 		a = addr & ~(dc_lsize - 1);
 		end = (addr + size) & ~(dc_lsize - 1);
 		while (1) {
@@ -368,7 +368,7 @@ mips32_dma_cache_inv_pc(unsigned long addr, unsigned long size)
 			if (a == end) break;
 			a += dc_lsize;
 		}
-		__restore_flags(flags);
+		local_irq_restore(flags);
 	}
 
 	bc_inv(addr, size);
@@ -537,7 +537,7 @@ static int __init probe_scache(unsigned long config)
 	/* This is such a bitch, you'd think they would make it
 	 * easy to do this.  Away you daemons of stupidity!
 	 */
-	__save_and_cli(flags);
+	local_irq_save(flags);
 
 	/* Fill each size-multiple cache line with a valid tag. */
 	pow2 = (64 * 1024);
@@ -581,7 +581,7 @@ static int __init probe_scache(unsigned long config)
 			break;
 		pow2 <<= 1;
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 	addr -= begin;
 	printk("Secondary cache sized at %dK linesize %d bytes.\n",
 	       (int) (addr >> 10), sc_lsize);

@@ -27,7 +27,7 @@ VOID
 ArcHalt(VOID)
 {
 	bc_disable();
-	cli();
+	local_irq_disable();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
@@ -39,7 +39,7 @@ VOID
 ArcPowerDown(VOID)
 {
 	bc_disable();
-	cli();
+	local_irq_disable();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
@@ -52,7 +52,7 @@ VOID
 ArcRestart(VOID)
 {
 	bc_disable();
-	cli();
+	local_irq_disable();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
@@ -64,7 +64,7 @@ VOID
 ArcReboot(VOID)
 {
 	bc_disable();
-	cli();
+	local_irq_disable();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif
@@ -76,7 +76,7 @@ VOID
 ArcEnterInteractiveMode(VOID)
 {
 	bc_disable();
-	cli();
+	local_irq_disable();
 #if CONFIG_SCSI_SGIWD93
 	reset_wd33c93(sgiwd93_host);
 #endif

@@ -900,7 +900,8 @@ void generic_unplug_device(void *data)
  * Description:
  *   blk_start_queue() will clear the stop flag on the queue, and call
  *   the request_fn for the queue if it was in a stopped state when
- *   entered. Also see blk_stop_queue()
+ *   entered. Also see blk_stop_queue(). Must not be called from driver
+ *   request function due to recursion issues.
  **/
 void blk_start_queue(request_queue_t *q)
 {
@@ -912,6 +913,18 @@ void blk_start_queue(request_queue_t *q)
 			q->request_fn(q);
 		spin_unlock_irqrestore(q->queue_lock, flags);
 	}
+}
+
+/**
+ * __blk_stop_queue: see blk_stop_queue()
+ *
+ * Description:
+ *  Like blk_stop_queue(), bust queue_lock must be held
+ **/
+void __blk_stop_queue(request_queue_t *q)
+{
+	blk_remove_plug(q);
+	set_bit(QUEUE_FLAG_STOPPED, &q->queue_flags);
 }
 
 /**
@@ -933,10 +946,8 @@ void blk_stop_queue(request_queue_t *q)
 	unsigned long flags;
 
 	spin_lock_irqsave(q->queue_lock, flags);
-	blk_remove_plug(q);
+	__blk_stop_queue(q);
 	spin_unlock_irqrestore(q->queue_lock, flags);
-
-	set_bit(QUEUE_FLAG_STOPPED, &q->queue_flags);
 }
 
 /**
@@ -1573,16 +1584,10 @@ end_io:
 static inline void blk_partition_remap(struct bio *bio)
 {
 	struct block_device *bdev = bio->bi_bdev;
-	struct gendisk *g;
-
 	if (bdev == bdev->bd_contains)
 		return;
 
-	g = get_gendisk(to_kdev_t(bdev->bd_dev));
-	if (!g)
-		BUG();
-
-	bio->bi_sector += g->part[minor(to_kdev_t((bdev->bd_dev)))].start_sect;
+	bio->bi_sector += bdev->bd_offset;
 	bio->bi_bdev = bdev->bd_contains;
 	/* lots of checks are possible */
 }
@@ -2047,9 +2052,6 @@ int __init blk_dev_init(void)
 #if defined(CONFIG_IDE) && defined(CONFIG_BLK_DEV_HD)
 	hd_init();
 #endif
-#if defined(__i386__)	/* Do we even need this? */
-	outb_p(0xc, 0x3f2);
-#endif
 
 	return 0;
 };
@@ -2098,4 +2100,5 @@ EXPORT_SYMBOL(blk_queue_invalidate_tags);
 
 EXPORT_SYMBOL(blk_start_queue);
 EXPORT_SYMBOL(blk_stop_queue);
+EXPORT_SYMBOL(__blk_stop_queue);
 EXPORT_SYMBOL(blk_run_queues);

@@ -448,9 +448,9 @@ void indy_r4k_timer_interrupt (struct pt_regs *regs)
 	int cpu = smp_processor_id();
 	int irq = 7;
 
-	irq_enter(cpu, irq);
+	irq_enter();
 	r4k_timer_interrupt(irq, NULL, regs);
-	irq_exit(cpu, irq);
+	irq_exit();
 
 	if (softirq_pending(cpu))
 		do_softirq();

@@ -37,17 +37,17 @@
  * Only disable interrupt for kernel mode stuff to keep usermode stuff
  * that dares to use kernel include files alive.
  */
-#define __bi_flags unsigned long flags
-#define __bi_cli() __cli()
-#define __bi_save_flags(x) __save_flags(x)
-#define __bi_save_and_cli(x) __save_and_cli(x)
-#define __bi_restore_flags(x) __restore_flags(x)
+#define __bi_flags			unsigned long flags
+#define __bi_cli()			local_irq_disable()
+#define __bi_save_flags(x)		local_save_flags(x)
+#define __bi_local_irq_save(x)		local_irq_save(x)
+#define __bi_local_irq_restore(x)	local_irq_restore(x)
 #else
 #define __bi_flags
 #define __bi_cli()
 #define __bi_save_flags(x)
-#define __bi_save_and_cli(x)
-#define __bi_restore_flags(x)
+#define __bi_local_irq_save(x)
+#define __bi_local_irq_restore(x)
 #endif /* __KERNEL__ */
 
 #ifdef CONFIG_CPU_HAS_LLSC
@@ -361,9 +361,9 @@ static __inline__ void set_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	*a |= mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 }
 
 /*
@@ -403,9 +403,9 @@ static __inline__ void clear_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	*a &= ~mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 }
 
 static __inline__ void __clear_bit(int nr, volatile unsigned long * addr)
@@ -435,9 +435,9 @@ static __inline__ void change_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	*a ^= mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 }
 
 /*
@@ -473,10 +473,10 @@ static __inline__ int test_and_set_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	retval = (mask & *a) != 0;
 	*a |= mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 
 	return retval;
 }
@@ -521,10 +521,10 @@ static __inline__ int test_and_clear_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	retval = (mask & *a) != 0;
 	*a &= ~mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 
 	return retval;
 }
@@ -569,10 +569,10 @@ static __inline__ int test_and_change_bit(int nr, volatile unsigned long * addr)
 
 	a += nr >> 5;
 	mask = 1 << (nr & 0x1f);
-	__bi_save_and_cli(flags);
+	__bi_local_irq_save(flags);
 	retval = (mask & *a) != 0;
 	*a ^= mask;
-	__bi_restore_flags(flags);
+	__bi_local_irq_restore(flags);
 
 	return retval;
 }
@@ -604,7 +604,7 @@ static __inline__ int __test_and_change_bit(int nr,
 #undef __bi_flags
 #undef __bi_cli
 #undef __bi_save_flags
-#undef __bi_restore_flags
+#undef __bi_local_irq_restore
 
 #endif /* MIPS I */
 

@@ -3,44 +3,29 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 1998, 1999, 2000, 2001 by Ralf Baechle
+ * Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002 Ralf Baechle
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
- * Copyright (C) 2001 MIPS Technologies, Inc.
+ * Copyright (C) 1999, 2001 MIPS Technologies, Inc.
  */
-#ifndef _ASM_SOFTIRQ_H
-#define _ASM_SOFTIRQ_H
+#ifndef __ASM_SOFTIRQ_H
+#define __ASM_SOFTIRQ_H
 
-#include <asm/atomic.h>
+#include <linux/preempt.h>
 #include <asm/hardirq.h>
 
-static inline void cpu_bh_disable(int cpu)
-{
-	preempt_disable();
-	local_bh_count(cpu)++;
-	barrier();
-}
+#define local_bh_disable() \
+	do { preempt_count() += SOFTIRQ_OFFSET; barrier(); } while (0)
+#define __local_bh_enable() \
+	do { barrier(); preempt_count() -= SOFTIRQ_OFFSET; } while (0)
 
-static inline void __cpu_bh_enable(int cpu)
-{
-	barrier();
-	local_bh_count(cpu)--;
-	 preempt_enable();
-}
-
-#define local_bh_disable()	cpu_bh_disable(smp_processor_id())
-#define __local_bh_enable()	__cpu_bh_enable(smp_processor_id())
-#define _local_bh_enable()					\
-do {								\
-	int cpu;						\
-								\
-	barrier();						\
-	cpu = smp_processor_id();				\
-	if (!--local_bh_count(cpu) && softirq_pending(cpu))	\
-		do_softirq();					\
+#define local_bh_enable()						\
+do {									\
+	__local_bh_enable();						\
+	if (unlikely(!in_interrupt() && softirq_pending(smp_processor_id()))) \
+		do_softirq();						\
+	preempt_check_resched();					\
 } while (0)
 
 #define local_bh_enable() do { _local_bh_enable(); preempt_enable(); } while (0)
 
-#define in_softirq() (local_bh_count(smp_processor_id()) != 0)
-
-#endif /* _ASM_SOFTIRQ_H */
+#endif /* __ASM_SOFTIRQ_H */

@@ -275,12 +275,12 @@ static void rs_stop(struct tty_struct *tty)
 	if (serial_paranoia_check(info, tty->device, "rs_stop"))
 		return;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (info->IER & UART_IER_THRI) {
 		info->IER &= ~UART_IER_THRI;
 		serial_out(info, UART_IER, info->IER);
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void rs_start(struct tty_struct *tty)
@@ -291,14 +291,14 @@ static void rs_start(struct tty_struct *tty)
 	if (serial_paranoia_check(info, tty->device, "rs_start"))
 		return;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (info->xmit.head != info->xmit.tail
 	    && info->xmit.buf
 	    && !(info->IER & UART_IER_THRI)) {
 		info->IER |= UART_IER_THRI;
 		serial_out(info, UART_IER, info->IER);
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -664,9 +664,9 @@ static void rs_timer(unsigned long dummy)
 			info = IRQ_ports[i];
 			if (!info)
 				continue;
-			save_flags(flags); cli();
+			local_irq_save(flags);
 				rs_interrupt_single(i, NULL, NULL);
-			restore_flags(flags);
+			local_irq_restore(flags);
 		}
 	}
 	last_strobe = jiffies;
@@ -674,9 +674,9 @@ static void rs_timer(unsigned long dummy)
 
 #if 0
 	if (IRQ_ports[0]) {
-		save_flags(flags); cli();
+		local_irq_save(flags);
 		rs_interrupt_single(0, NULL, NULL);
-		restore_flags(flags);
+		local_irq_restore(flags);
 
 		mod_timer(&serial_timer, jiffies + IRQ_timeout[0]);
 	}
@@ -730,7 +730,7 @@ static int startup(struct async_struct * info)
 	if (!page)
 		return -ENOMEM;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 
 	if (info->flags & ASYNC_INITIALIZED) {
 		free_page(page);
@@ -890,11 +890,12 @@ static int startup(struct async_struct * info)
 	change_speed(info, 0);
 
 	info->flags |= ASYNC_INITIALIZED;
-	restore_flags(flags);
+	local_irq_restore(flags);
+
 	return 0;
 
 errout:
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return retval;
 }
 
@@ -918,7 +919,7 @@ static void shutdown(struct async_struct * info)
 	       state->irq);
 #endif
 
-	save_flags(flags); cli(); /* Disable interrupts */
+	local_irq_save(flags); /* Disable interrupts */
 
 	/*
 	 * clear delta_msr_wait queue to avoid mem leaks: we may free the irq
@@ -990,7 +991,7 @@ static void shutdown(struct async_struct * info)
 	au_writel(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
 #endif
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 
@@ -1136,12 +1137,12 @@ static void change_speed(struct async_struct *info,
 	 */
 	if ((cflag & CREAD) == 0)
 		info->ignore_status_mask |= UART_LSR_DR;
-	save_flags(flags); cli();
+	local_irq_save(flags);
 
 	serial_outp(info, UART_CLK, quot & 0xffff);
 	serial_outp(info, UART_LCR, cval);
 	info->LCR = cval;				/* Save LCR */
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void rs_put_char(struct tty_struct *tty, unsigned char ch)
@@ -1155,17 +1156,17 @@ static void rs_put_char(struct tty_struct *tty, unsigned char ch)
 	if (!tty || !info->xmit.buf)
 		return;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (CIRC_SPACE(info->xmit.head,
 		       info->xmit.tail,
 		       SERIAL_XMIT_SIZE) == 0) {
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return;
 	}
 
 	info->xmit.buf[info->xmit.head] = ch;
 	info->xmit.head = (info->xmit.head + 1) & (SERIAL_XMIT_SIZE-1);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void rs_flush_chars(struct tty_struct *tty)
@@ -1182,10 +1183,10 @@ static void rs_flush_chars(struct tty_struct *tty)
 	    || !info->xmit.buf)
 		return;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	info->IER |= UART_IER_THRI;
 	serial_out(info, UART_IER, info->IER);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static int rs_write(struct tty_struct * tty, int from_user,
@@ -1201,7 +1202,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 	if (!tty || !info->xmit.buf || !tmp_buf)
 		return 0;
 
-	save_flags(flags);
+	local_irq_save(flags);
 	if (from_user) {
 		down(&tmp_buf_sem);
 		while (1) {
@@ -1229,7 +1230,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 			memcpy(info->xmit.buf + info->xmit.head, tmp_buf, c);
 			info->xmit.head = ((info->xmit.head + c) &
 					   (SERIAL_XMIT_SIZE-1));
-			restore_flags(flags);
+			local_irq_restore(flags);
 			buf += c;
 			count -= c;
 			ret += c;
@@ -1253,7 +1254,7 @@ static int rs_write(struct tty_struct * tty, int from_user,
 			count -= c;
 			ret += c;
 		}
-		restore_flags(flags);
+		local_irq_restore(flags);
 	}
 	if (info->xmit.head != info->xmit.tail
 	    && !tty->stopped
@@ -1290,9 +1291,9 @@ static void rs_flush_buffer(struct tty_struct *tty)
 
 	if (serial_paranoia_check(info, tty->device, "rs_flush_buffer"))
 		return;
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	info->xmit.head = info->xmit.tail = 0;
-	restore_flags(flags);
+	local_irq_restore(flags);
 	wake_up_interruptible(&tty->write_wait);
 #ifdef SERIAL_HAVE_POLL_WAIT
 	wake_up_interruptible(&tty->poll_wait);
@@ -1349,9 +1350,9 @@ static void rs_throttle(struct tty_struct * tty)
 	if (tty->termios->c_cflag & CRTSCTS)
 		info->MCR &= ~UART_MCR_RTS;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	serial_out(info, UART_MCR, info->MCR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void rs_unthrottle(struct tty_struct * tty)
@@ -1376,9 +1377,9 @@ static void rs_unthrottle(struct tty_struct * tty)
 	}
 	if (tty->termios->c_cflag & CRTSCTS)
 		info->MCR |= UART_MCR_RTS;
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	serial_out(info, UART_MCR, info->MCR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 /*
@@ -1562,9 +1563,9 @@ static int get_lsr_info(struct async_struct * info, unsigned int *value)
 	unsigned int result;
 	unsigned long flags;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	status = serial_in(info, UART_LSR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 	result = ((status & UART_LSR_TEMT) ? TIOCSER_TEMT : 0);
 
 	/*
@@ -1592,9 +1593,9 @@ static int get_modem_info(struct async_struct * info, unsigned int *value)
 	unsigned long flags;
 
 	control = info->MCR;
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	status = serial_in(info, UART_MSR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 	result =  ((control & UART_MCR_RTS) ? TIOCM_RTS : 0)
 		| ((control & UART_MCR_DTR) ? TIOCM_DTR : 0)
 #ifdef TIOCM_OUT1
@@ -1668,10 +1669,10 @@ static int set_modem_info(struct async_struct * info, unsigned int cmd,
 	default:
 		return -EINVAL;
 	}
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	info->MCR |= ALPHA_KLUDGE_MCR; 		/* Don't ask */
 	serial_out(info, UART_MCR, info->MCR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 	return 0;
 }
 
@@ -1707,13 +1708,13 @@ static void rs_break(struct tty_struct *tty, int break_state)
 
 	if (!CONFIGURED_SERIAL_PORT(info))
 		return;
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (break_state == -1)
 		info->LCR |= UART_LCR_SBC;
 	else
 		info->LCR &= ~UART_LCR_SBC;
 	serial_out(info, UART_LCR, info->LCR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 
@@ -1768,10 +1769,10 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 		 * Caller should use TIOCGICOUNT to see which one it was
 		 */
 		case TIOCMIWAIT:
-			save_flags(flags); cli();
+			local_irq_save(flags);
 			/* note the counters on entry */
 			cprev = info->state->icount;
-			restore_flags(flags);
+			local_irq_restore(flags);
 			/* Force modem status interrupts on */
 			info->IER |= UART_IER_MSI;
 			serial_out(info, UART_IER, info->IER);
@@ -1780,9 +1781,9 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 				/* see if a signal did it */
 				if (signal_pending(current))
 					return -ERESTARTSYS;
-				save_flags(flags); cli();
+				local_irq_save(flags);
 				cnow = info->state->icount; /* atomic copy */
-				restore_flags(flags);
+				local_irq_restore(flags);
 				if (cnow.rng == cprev.rng && cnow.dsr == cprev.dsr &&
 				    cnow.dcd == cprev.dcd && cnow.cts == cprev.cts)
 					return -EIO; /* no change => error */
@@ -1803,9 +1804,9 @@ static int rs_ioctl(struct tty_struct *tty, struct file * file,
 		 *     RI where only 0->1 is counted.
 		 */
 		case TIOCGICOUNT:
-			save_flags(flags); cli();
+			local_irq_save(flags);
 			cnow = info->state->icount;
-			restore_flags(flags);
+			local_irq_restore(flags);
 			icount.cts = cnow.cts;
 			icount.dsr = cnow.dsr;
 			icount.rng = cnow.rng;
@@ -1850,9 +1851,9 @@ static void rs_set_termios(struct tty_struct *tty, struct termios *old_termios)
 	if ((old_termios->c_cflag & CBAUD) &&
 	    !(cflag & CBAUD)) {
 		info->MCR &= ~(UART_MCR_DTR|UART_MCR_RTS);
-		save_flags(flags); cli();
+		local_irq_save(flags);
 		serial_out(info, UART_MCR, info->MCR);
-		restore_flags(flags);
+		local_irq_restore(flags);
 	}
 
 	/* Handle transition away from B0 status */
@@ -1863,9 +1864,9 @@ static void rs_set_termios(struct tty_struct *tty, struct termios *old_termios)
 		    !test_bit(TTY_THROTTLED, &tty->flags)) {
 			info->MCR |= UART_MCR_RTS;
 		}
-		save_flags(flags); cli();
+		local_irq_save(flags);
 		serial_out(info, UART_MCR, info->MCR);
-		restore_flags(flags);
+		local_irq_restore(flags);
 	}
 
 	/* Handle turning off CRTSCTS */
@@ -1897,12 +1898,12 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 
 	state = info->state;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 
 	if (tty_hung_up_p(filp)) {
 		DBG_CNT("before DEC-hung");
 		MOD_DEC_USE_COUNT;
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return;
 	}
 
@@ -1929,11 +1930,11 @@ static void rs_close(struct tty_struct *tty, struct file * filp)
 	if (state->count) {
 		DBG_CNT("before DEC-2");
 		MOD_DEC_USE_COUNT;
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return;
 	}
 	info->flags |= ASYNC_CLOSING;
-	restore_flags(flags);
+	local_irq_restore(flags);
 	/*
 	 * Save the termios structure, since this port may have
 	 * separate termios for callout and dialin.
@@ -2158,21 +2159,21 @@ static int block_til_ready(struct tty_struct *tty, struct file * filp,
 	printk("block_til_ready before block: ttys%d, count = %d\n",
 	       state->line, state->count);
 #endif
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (!tty_hung_up_p(filp)) {
 		extra_count = 1;
 		state->count--;
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 	info->blocked_open++;
 	while (1) {
-		save_flags(flags); cli();
+		local_irq_save(flags);
 		if (!(info->flags & ASYNC_CALLOUT_ACTIVE) &&
 		    (tty->termios->c_cflag & CBAUD))
 			serial_out(info, UART_MCR,
 				   serial_inp(info, UART_MCR) |
 				   (UART_MCR_DTR | UART_MCR_RTS));
-		restore_flags(flags);
+		local_irq_restore(flags);
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (tty_hung_up_p(filp) ||
 		    !(info->flags & ASYNC_INITIALIZED)) {
@@ -2395,10 +2396,10 @@ static inline int line_info(char *buf, struct serial_state *state)
 		info->quot = 0;
 		info->tty = 0;
 	}
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	status = serial_in(info, UART_MSR);
 	control = info != &scr_info ? info->MCR : serial_in(info, UART_MCR);
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	stat_buf[0] = 0;
 	stat_buf[1] = 0;
@@ -2531,7 +2532,7 @@ static void autoconfig(struct serial_state * state)
 	info->iomem_reg_shift = state->iomem_reg_shift;
 
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	state->xmit_fifo_size =	uart_config[state->type].dfl_xmit_fifo_size;
 
 	if (info->port) {
@@ -2547,7 +2548,7 @@ static void autoconfig(struct serial_state * state)
 	serial_outp(info, UART_FCR, 0);
 	(void)serial_in(info, UART_RX);
 	serial_outp(info, UART_IER, 0);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 int register_serial(struct serial_struct *req);
@@ -2726,7 +2727,7 @@ int register_serial(struct serial_struct *req)
 	if (HIGH_BITS_OFFSET)
 		port += (unsigned long) req->port_high << HIGH_BITS_OFFSET;
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	for (i = 0; i < NR_PORTS; i++) {
 		if ((rs_table[i].port == port) &&
 		    (rs_table[i].iomem_base == req->iomem_base))
@@ -2739,12 +2740,12 @@ int register_serial(struct serial_struct *req)
 				break;
 	}
 	if (i == NR_PORTS) {
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return -1;
 	}
 	state = &rs_table[i];
 	if (rs_table[i].count) {
-		restore_flags(flags);
+		local_irq_restore(flags);
 		printk("Couldn't configure serial #%d (port=%ld,irq=%d): "
 		       "device already open\n", i, port, req->irq);
 		return -1;
@@ -2766,11 +2767,11 @@ int register_serial(struct serial_struct *req)
 	}
 	autoconfig(state);
 	if (state->type == PORT_UNKNOWN) {
-		restore_flags(flags);
+		local_irq_restore(flags);
 		printk("register_serial(): autoconfig failed\n");
 		return -1;
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 
        printk(KERN_INFO "ttyS%02d at %s 0x%04lx (irq = %d) is a %s\n",
 	      state->line + SERIAL_DEV_OFFSET,
@@ -2798,7 +2799,7 @@ void unregister_serial(int line)
 	unsigned long flags;
 	struct serial_state *state = &rs_table[line];
 
-	save_flags(flags); cli();
+	local_irq_save(flags);
 	if (state->info && state->info->tty)
 		tty_hangup(state->info->tty);
 	state->type = PORT_UNKNOWN;
@@ -2810,19 +2811,19 @@ void unregister_serial(int line)
 			     serial_driver.minor_start + state->line);
 	tty_unregister_devfs(&callout_driver,
 			     callout_driver.minor_start + state->line);
-	restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static void __exit rs_fini(void)
 {
+	struct async_struct *info;
 	unsigned long flags;
 	int e1, e2;
 	int i;
-	struct async_struct *info;
 
 	/* printk("Unloading %s: version %s\n", serial_name, serial_version); */
 	del_timer_sync(&serial_timer);
-	save_flags(flags); cli();
+	local_irq_save(flags);
         remove_bh(SERIAL_BH);
 	if ((e1 = tty_unregister_driver(&serial_driver)))
 		printk("serial: failed to unregister serial driver (%d)\n",
@@ -2830,7 +2831,7 @@ static void __exit rs_fini(void)
 	if ((e2 = tty_unregister_driver(&callout_driver)))
 		printk("serial: failed to unregister callout driver (%d)\n",
 		       e2);
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	for (i = 0; i < NR_PORTS; i++) {
 		if ((info = rs_table[i].info)) {

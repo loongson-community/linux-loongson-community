@@ -125,10 +125,9 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if ((yrs -= epoch) > 255)    /* They are unsigned */
 			return -EINVAL;
 
-		save_flags(flags);
-		cli();
+		local_irq_save(flags);
 		if (yrs > 169) {
-			restore_flags(flags);
+			local_irq_restore(flags);
 			return -EINVAL;
 		}
 		if (yrs >= 100)
@@ -150,7 +149,7 @@ static int rtc_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		rtc->sec = sec;
 		rtc->control &= ~M48T35_RTC_SET;
 
-		restore_flags(flags);
+		local_irq_restore(flags);
 		return 0;
 	}
 	default:
@@ -225,11 +224,8 @@ static int __init rtc_init(void)
 	if (misc_register(&rtc_dev))
 		return -ENODEV;
 	create_proc_read_entry ("rtc", 0, NULL, rtc_read_proc, NULL);
-
-	save_flags(flags);
-	cli();
-	restore_flags(flags);
 	rtc_freq = 1024;
+
 	return 0;
 }
 
@@ -303,8 +299,7 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	 * RTC has RTC_DAY_OF_WEEK, we ignore it, as it is only updated
 	 * by the RTC when initially set to a non-zero value.
 	 */
-	save_flags(flags);
-	cli();
+	local_irq_save(flags);
         rtc->control |= M48T35_RTC_READ;
 	rtc_tm->tm_sec = rtc->sec;
 	rtc_tm->tm_min = rtc->min;
@@ -313,7 +308,7 @@ static void get_rtc_time(struct rtc_time *rtc_tm)
 	rtc_tm->tm_mon = rtc->month;
 	rtc_tm->tm_year = rtc->year;
 	rtc->control &= ~M48T35_RTC_READ;
-	restore_flags(flags);
+	local_irq_restore(flags);
 
 	BCD_TO_BIN(rtc_tm->tm_sec);
 	BCD_TO_BIN(rtc_tm->tm_min);

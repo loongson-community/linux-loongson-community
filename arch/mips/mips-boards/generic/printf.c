@@ -124,7 +124,7 @@ void __init prom_printf(char *fmt, ...)
 	int putPromChar(char);
 
 	/* Low level, brute force, not SMP safe... */
-	save_and_cli(flags);
+	local_irq_save(flags);
 	va_start(args, fmt);
 	l = vsprintf(buf, fmt, args); /* hopefully i < sizeof(buf) */
 	va_end(args);
@@ -136,5 +136,5 @@ void __init prom_printf(char *fmt, ...)
 		if(*p == '\n')putPromChar('\r');
 		putPromChar(*p);
 	}
-	restore_flags(flags);
+	local_irq_restore(flags);
 }

@@ -82,14 +82,14 @@ static void disable_ev64120_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	if (irq_nr >= 8) {
 		/* All PCI interrupts are on line 5 or 2  */
 		clear_cp0_status(IE_IRQ0 | IE_IRQ3);
 	} else {
 		clear_cp0_status(0x100 << irq_nr);
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 #define mask_and_ack_ev64120_irq disable_ev64120_irq
@@ -98,14 +98,14 @@ static inline void enable_ev64120_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
+	local_irq_save(flags);
 	if (irq_nr >= 8) {
 		/* All PCI interrupts are on line 5 or 2  */
 		set_cp0_status(IE_IRQ0 | IE_IRQ3);
 	} else {
 		set_cp0_status(IE_SW0 << irq_nr);
 	}
-	__restore_flags(flags);
+	local_irq_restore(flags);
 }
 
 static unsigned int startup_ev64120_irq(unsigned int irq)
