@@ -1965,9 +1965,6 @@ static void __init titan_ge_cleanup_module(void)
 	iounmap((void *)titan_ge_base);
 }
 
-module_init(titan_ge_init_module);
-module_exit(titan_ge_cleanup_module);
-
 /*
  * Initialize the Rx descriptor ring for the Titan Ge
  */
@@ -2209,3 +2206,10 @@ static unsigned long titan_ge_tx_coal(unsigned long delay, int port)
 
 	return delay;
 }
+
+MODULE_AUTHOR("Manish Lachwani <lachwani@pmc-sierra.com>");
+MODULE_DESCRIPTION("Titan GE Ethernet driver");
+MODULE_LICENSE("GPL");
+
+module_init(titan_ge_init_module);
+module_exit(titan_ge_cleanup_module);
