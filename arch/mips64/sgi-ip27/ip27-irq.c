@@ -36,6 +36,14 @@
 #include <asm/sn/intr.h>
 #include <asm/sn/intr_public.h>
 
+#undef DEBUG_IRQ
+#ifdef DEBUG_IRQ
+#define DBG(x...) printk(x)
+#else
+#define DBG(x...)
+#endif
+
+
 /*
  * Linux has a controller-independent x86 interrupt architecture.
  * every controller has a 'controller-template', that is used
@@ -69,6 +77,13 @@ unsigned long spurious_count = 0;
  */
 #define IRQ_TO_SWLEVEL(i)	i + 7
 #define SWLEVEL_TO_IRQ(s)	s - 7
+/*
+ * use these macros to get the encoded nasid, widget id, and real irq
+ * from the irq value
+ */
+#define NASID_FROM_IRQ(i)       ((i >> 16)&(0xff))
+#define WID_FROM_IRQ(i)          ((i >> 8)&(0xff))
+#define IRQ_FROM_IRQ(i)               ((i)&(0xff))
 
 void disable_irq(unsigned int irq_nr)
 {
@@ -187,122 +202,141 @@ void ip27_do_irq(struct pt_regs *regs)
 /* Startup one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int bridge_startup(unsigned int irq)
 {
-	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-	int pin, swlevel;
+        bridge_t *bridge;
+        int pin, swlevel;
+        int real_irq = IRQ_FROM_IRQ(irq);
 
-	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
-	   setup in _my_ Origin.  */
-	switch (irq) {
- 	case QLOGICFC_SLOT5:	pin = 5; break;
-	case IOC3_SERIAL_INT:	pin = 3; break;
-	case IOC3_ETH_INT:	pin = 2; break;
-	case SCSI1_INT:		pin = 1; break;
-	case SCSI0_INT:		pin = 0; break;
-	case CPU_RESCHED_A_IRQ:
-	case CPU_RESCHED_B_IRQ:
-	case CPU_CALL_A_IRQ:
-	case CPU_CALL_B_IRQ:
-				return 0;
-	default:		panic("bridge_startup: whoops? %d\n", irq);
-	}
+	DBG("bridge_startup(): irq= 0x%x  real_irq= %d\n", irq, real_irq);
+        bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_IRQ(irq), WID_FROM_IRQ(irq));
 
-	/* 
-	 * "map" irq to a swlevel greater than 6 since the first 6 bits
-	 * of INT_PEND0 are taken
-	 */
-	swlevel = IRQ_TO_SWLEVEL(irq);
-	intr_connect_level(smp_processor_id(), swlevel);
+        /* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
+           setup in _my_ Origin.  */
 
-	bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
-	bridge->b_int_enable |= (1 << pin);
-	if (irq < 2 || irq==5) {
-		bridgereg_t device;
+        if (irq != real_irq)            /* pci device interrupt */
+                switch (real_irq) {
+                        case IRQ_FROM_IRQ(IOC3_ETH_INT):        pin = 2; break;
+			default:		  pin = real_irq; break;
+                }
+        else
+                switch (real_irq) {
+                        case CPU_RESCHED_A_IRQ:
+                        case CPU_RESCHED_B_IRQ:
+                        case CPU_CALL_A_IRQ:
+                        case CPU_CALL_B_IRQ:
+                                                return 0;
+                        default:                panic("bridge_startup: whoops? %d\n", irq);
+                }
+
+        /*
+         * "map" irq to a swlevel greater than 6 since the first 6 bits
+         * of INT_PEND0 are taken
+         */
+        swlevel = IRQ_TO_SWLEVEL(real_irq);
+        intr_connect_level(smp_processor_id(), swlevel);
+
+        bridge->b_int_addr[pin].addr = 0x20000 | swlevel;
+        bridge->b_int_enable |= (1 << pin);
+	/* set more stuff in int_enable reg */
+	bridge->b_int_enable |= 0x7ffffe00;
+
+        if (real_irq < 2 || real_irq==4 || real_irq==5) {
+                bridgereg_t device;
 #if 0
-		/*
-	 	 * Allocate enough RRBs on the bridge for the DMAs.
-	 	 * Right now allocating 2 RRBs on the normal channel
-	 	 * and 2 on the virtual channel for slot 0 on the bus.
-		 * And same for slot 1, to get ioc3 eth working.
-	 	 */
-		Not touching b_even_resp	  /* boot doesn't go far */
-		bridge->b_even_resp = 0xdd99cc88; /* boot doesn't go far */
-		bridge->b_even_resp = 0xcccc8888; /* breaks eth0 */
-		bridge->b_even_resp = 0xcc88;	  /* breaks eth0 */
+                /*
+                 * Allocate enough RRBs on the bridge for the DMAs.
+                 * Right now allocating 2 RRBs on the normal channel
+                 * and 2 on the virtual channel for slot 0 on the bus.
+                 * And same for slot 1, to get ioc3 eth working.
+                 */
+                Not touching b_even_resp          /* boot doesn't go far */
+                bridge->b_even_resp = 0xdd99cc88; /* boot doesn't go far */
+                bridge->b_even_resp = 0xcccc8888; /* breaks eth0 */
+                bridge->b_even_resp = 0xcc88;     /* breaks eth0 */
 #endif
-		/* Turn on bridge swapping */
-		device = bridge->b_device[irq].reg;
-		device |= BRIDGE_DEV_SWAP_DIR;
-		bridge->b_device[irq].reg = device;
-		/* 
-		 * Associate interrupt pin with device 
-		 * XXX This only works if b_int_device is initialized to 0!
-		 */
-		device = bridge->b_int_device;
-		device |= (pin << (irq*3));
-		bridge->b_int_device = device;
-	}
-	bridge->b_widget.w_tflush;			/* Flush */
+                /* Turn on bridge swapping */
+                device = bridge->b_device[real_irq].reg;
+                device |= BRIDGE_DEV_SWAP_DIR;
+                bridge->b_device[real_irq].reg = device;
+                /*
+                 * Associate interrupt pin with device
+                 * XXX This only works if b_int_device is initialized to 0!
+                 */
+                device = bridge->b_int_device;
+                device |= (pin << (real_irq*3));
+                bridge->b_int_device = device;
+        }
+        bridge->b_widget.w_tflush;                      /* Flush */
 
-	return 0;	/* Never anything pending.  */
+        return 0;       /* Never anything pending.  */
 }
 
 /* Shutdown one of the (PCI ...) IRQs routes over a bridge.  */
 static unsigned int bridge_shutdown(unsigned int irq)
 {
-	bridge_t *bridge = (bridge_t *) 0x9200000008000000;
-	int pin, swlevel;
+        bridge_t *bridge;
+        int pin, swlevel;
+        int real_irq = IRQ_FROM_IRQ(irq);
+        struct irqaction **p;
 
-	/* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
-	   setup in _my_ Origin.  */
-	switch (irq) {
- 	case QLOGICFC_SLOT5:	pin = 5; break;
-	case IOC3_SERIAL_INT:	pin = 3; break;
-	case IOC3_ETH_INT:	pin = 2; break;
-	case SCSI1_INT:		pin = 1; break;
-	case SCSI0_INT:		pin = 0; break;
-	case CPU_RESCHED_A_IRQ:
-	case CPU_RESCHED_B_IRQ:
-	case CPU_CALL_A_IRQ:
-	case CPU_CALL_B_IRQ:
-				return 0;
-	default:		panic("bridge_startup: whoops?");
-	}
+        bridge = (bridge_t *) NODE_SWIN_BASE(NASID_FROM_IRQ(irq), WID_FROM_IRQ(irq));
+	DBG("bridge_shutdown: irq 0x%x\n", irq);
+        /* FIIIIIXME ...  Temporary kludge.  This knows how interrupts are
+           setup in _my_ Origin.  */
 
-	/* 
-	 * map irq to a swlevel greater than 6 since the first 6 bits
-	 * of INT_PEND0 are taken
-	 */
-	swlevel = IRQ_TO_SWLEVEL(irq);
-	intr_disconnect_level(smp_processor_id(), swlevel);
+        if (irq != real_irq)            /* pci device interrupt */
+                switch (real_irq) {
+                        case IRQ_FROM_IRQ(IOC3_ETH_INT):        pin = 2; break;
+			default:		  pin = real_irq; break;
+                }
+        else
+                switch (real_irq) {
+                        case CPU_RESCHED_A_IRQ:
+                        case CPU_RESCHED_B_IRQ:
+                        case CPU_CALL_A_IRQ:
+                        case CPU_CALL_B_IRQ:
+                                                return 0;
+                        default:                panic("bridge_startup: whoops?");
+                }
 
-	bridge->b_int_enable &= ~(1 << pin);
-	bridge->b_widget.w_tflush;			/* Flush */
+        /*
+         * map irq to a swlevel greater than 6 since the first 6 bits
+         * of INT_PEND0 are taken
+         */
+        swlevel = IRQ_TO_SWLEVEL(real_irq);
+        intr_disconnect_level(smp_processor_id(), swlevel);
 
-	return 0;	/* Never anything pending.  */
+        bridge->b_int_enable &= ~(1 << pin);
+        bridge->b_widget.w_tflush;                      /* Flush */
+
+        return 0;       /* Never anything pending.  */
 }
 
 static void bridge_init(void)
 {
 	bridge_t *bridge;
 	nasid_t   nasid;
+        char    wid;
+        int     bus;
 
-	nasid = get_nasid();
-	bridge = (bridge_t *) NODE_SWIN_BASE(nasid, 8); /* bridge is widget 8 on origin */
+        nasid = get_nasid();
 
-	/* Hmm...  IRIX sets additional bits in the address which are
-	   documented as reserved in the bridge docs ...  */
-	bridge->b_int_mode = 0x0;			/* Don't clear ints */
+        for (bus=0; bus<num_bridges; bus++) {
+          bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus],bus_to_wid[bus]);          
+          /* Hmm...  IRIX sets additional bits in the address which are
+             documented as reserved in the bridge docs ...  */
+          bridge->b_int_mode = 0x0;                     /* Don't clear ints */
 #if 0
-	bridge->b_wid_int_upper = 0x000a8000;           /* Ints to node 0 */
-	bridge->b_wid_int_lower = 0x01000090;
-	bridge->b_dir_map = 0xa00000;			/* DMA */
+          bridge->b_wid_int_upper = 0x000a8000;           /* Ints to node 0 */
+          bridge->b_wid_int_lower = 0x01000090;
+          bridge->b_dir_map = 0xa00000;                 /* DMA */
 #endif /* shouldn't lower= 0x01800090 ??? */
-        bridge->b_wid_int_upper = 0x00098000;           /* Ints to node 0 */
-        bridge->b_wid_int_lower = 0x01800090;
-        bridge->b_dir_map = 0x900000;                   /* DMA */
+          bridge->b_wid_int_upper = 0x000a8000;           /* Ints to widget A */
+          bridge->b_wid_int_lower = 0x01800090;
+          bridge->b_dir_map = 0xa00000;                   /* DMA */
 
-	bridge->b_int_enable = 0;
-	bridge->b_widget.w_tflush;			/* Flush */
+          bridge->b_int_enable = 0;
+          bridge->b_widget.w_tflush;                    /* Flush */
+        }
 }
 
 void irq_debug(void)
@@ -321,11 +355,12 @@ int setup_irq(unsigned int irq, struct irqaction *new)
 	struct irqaction *old, **p;
 	unsigned long flags;
 
+	DBG("setup_irq: 0x%x\n", irq);
 	if (new->flags & SA_SAMPLE_RANDOM)
 		rand_initialize_irq(irq);
 
 	save_and_cli(flags);
-	p = irq_action + irq;
+	p = irq_action + IRQ_FROM_IRQ(irq);
 	if ((old = *p) != NULL) {
 		/* Can't share interrupts unless both agree to */
 		if (!(old->flags & new->flags & SA_SHIRQ)) {
@@ -358,7 +393,8 @@ int request_irq(unsigned int irq,
 	int retval;
 	struct irqaction *action;
 
-	if (irq > 9)
+	DBG("request_irq(): irq= 0x%x\n", irq);
+	if (IRQ_FROM_IRQ(irq) > 9)
 		return -EINVAL;
 	if (!handler)
 		return -EINVAL;
@@ -374,7 +410,9 @@ int request_irq(unsigned int irq,
 	action->next = NULL;
 	action->dev_id = dev_id;
 
+	DBG("request_irq(): %s  devid= 0x%x\n", devname, dev_id);
 	retval = setup_irq(irq, action);
+	DBG("request_irq(): retval= %d\n", retval);
 	if (retval)
 		kfree(action);
 	return retval;
@@ -385,11 +423,11 @@ void free_irq(unsigned int irq, void *dev_id)
 	struct irqaction * action, **p;
 	unsigned long flags;
 
-	if (irq > 9) {
+	if (IRQ_FROM_IRQ(irq) > 9) {
 		printk("Trying to free IRQ%d\n", irq);
 		return;
 	}
-	for (p = irq + irq_action; (action = *p) != NULL; p = &action->next) {
+	for (p = IRQ_FROM_IRQ(irq) + irq_action; (action = *p) != NULL; p = &action->next) {
 		if (action->dev_id != dev_id)
 			continue;
 

@@ -111,7 +111,7 @@ extern inline void * phys_to_virt(unsigned long address)
 	return (void *)(address + PAGE_OFFSET);
 }
 
-#define	BRIDGE_DIRECT_MAPPED_BASE	0xa200000000000000ull
+#define	BRIDGE_DIRECT_MAPPED_BASE	0xa180000000000000ull
 
 /*
  * IO bus memory addresses are also 1:1 with the physical address

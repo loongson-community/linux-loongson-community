@@ -828,4 +828,11 @@ typedef union ate_u {
 
 #define BRIDGE_INTERNAL_ATES	128
 
+/* ========================================================================
+ *    Linux pci bus mappings to sn physical id's
+ */
+unsigned char bus_to_wid[256];	/* widget id for linux pci bus */
+unsigned char bus_to_nid[256];	/* nasid for linux pci bus */
+unsigned char num_bridges;	/* number of bridges in the system */
+
 #endif /* _ASM_PCI_BRIDGE_H */
