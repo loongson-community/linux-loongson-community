@@ -61,7 +61,7 @@ static inline void _raw_spin_unlock(spinlock_t *lock)
 	: "memory");
 }
 
-#define spin_trylock(lock) (!test_and_set_bit(0,(lock)))
+#define _raw_spin_trylock(lock) (!test_and_set_bit(0,(lock)))
 
 /*
  * Read-write spinlocks, allowing multiple readers but only one writer.

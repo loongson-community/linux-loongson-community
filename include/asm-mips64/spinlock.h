@@ -61,7 +61,7 @@ static inline void _raw_spin_unlock(spinlock_t *lock)
 	: "memory");
 }
 
-static inline unsigned int spin_trylock(spinlock_t *lock)
+static inline unsigned int _raw_spin_trylock(spinlock_t *lock)
 {
 	unsigned int temp, res;
 
