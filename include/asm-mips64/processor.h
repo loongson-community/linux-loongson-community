@@ -29,13 +29,13 @@
 	_a;								\
 })
 
-#if !defined (_LANGUAGE_ASSEMBLY)
+#if !defined(_LANGUAGE_ASSEMBLY)
 #include <asm/cachectl.h>
 #include <asm/mipsregs.h>
 #include <asm/reg.h>
 #include <asm/system.h>
 
-#if (defined(CONFIG_SGI_IP27))
+#if defined(CONFIG_SGI_IP27)
 #include <asm/sn/types.h>
 #include <asm/sn/intr_public.h>
 #endif

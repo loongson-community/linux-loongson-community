@@ -316,8 +316,7 @@ asmlinkage int sys_ipc (uint call, int first, int second,
 /*
  * No implemented yet ...
  */
-asmlinkage int
-sys_cachectl(char *addr, int nbytes, int op)
+asmlinkage int sys_cachectl(char *addr, int nbytes, int op)
 {
 	return -ENOSYS;
 }

@@ -26,8 +26,7 @@
 
 #undef DEBUG
 
-struct linux_mdesc * __init
-ArcGetMemoryDescriptor(struct linux_mdesc *Current)
+struct linux_mdesc* __init ArcGetMemoryDescriptor(struct linux_mdesc *Current)
 {
 	return (struct linux_mdesc *) ARC_CALL1(get_mdesc, Current);
 }
@@ -100,7 +99,7 @@ static inline int memtype_classify_arc (union linux_memtypes type)
 
 static int __init prom_memtype_classify (union linux_memtypes type)
 {
-	if (prom_flags & PROM_FLAG_ARCS)	/* SGI is ``different'' ...  */
+	if (prom_flags & PROM_FLAG_ARCS)	/* SGI is ``different'' ... */
 		return memtype_classify_arcs(type);
 
 	return memtype_classify_arc(type);

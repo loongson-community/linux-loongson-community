@@ -14,27 +14,27 @@
 /*
  * Values for machgroup
  */
-#define MACH_GROUP_UNKNOWN      0 /* whatever... */
-#define MACH_GROUP_JAZZ     	1 /* Jazz                                     */
-#define MACH_GROUP_DEC          2 /* Digital Equipment                        */
+#define MACH_GROUP_UNKNOWN      0 /* whatever...                            */
+#define MACH_GROUP_JAZZ     	1 /* Jazz                                   */
+#define MACH_GROUP_DEC          2 /* Digital Equipment                      */
 #define MACH_GROUP_ARC		3 /* Wreckstation Tyne, rPC44, possibly other */
-#define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series                */
+#define MACH_GROUP_SNI_RM	4 /* Siemens Nixdorf RM series              */
 #define MACH_GROUP_ACN		5
-#define MACH_GROUP_SGI          6 /* Silicon Graphics                         */
-#define MACH_GROUP_COBALT       7 /* Cobalt servers		 	      */
-#define MACH_GROUP_NEC_DDB	8 /* NEC DDB                                  */
-#define MACH_GROUP_BAGET	9 /* Baget                                    */
-#define MACH_GROUP_COSINE      10 /* CoSine Orion                             */
-#define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                      */
-#define MACH_GROUP_MOMENCO     12 /* Momentum Boards                          */
-#define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                     */
+#define MACH_GROUP_SGI          6 /* Silicon Graphics                       */
+#define MACH_GROUP_COBALT       7 /* Cobalt servers		 	    */
+#define MACH_GROUP_NEC_DDB	8 /* NEC DDB                                */
+#define MACH_GROUP_BAGET	9 /* Baget                                  */
+#define MACH_GROUP_COSINE      10 /* CoSine Orion                           */
+#define MACH_GROUP_GALILEO     11 /* Galileo Eval Boards                    */
+#define MACH_GROUP_MOMENCO     12 /* Momentum Boards                        */
+#define MACH_GROUP_ITE         13 /* ITE Semi Eval Boards                   */
 #define MACH_GROUP_PHILIPS     14
-#define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board           */
-#define MACH_GROUP_SIBYTE      16 /* Sibyte Eval Boards                       */
-#define MACH_GROUP_TOSHIBA     17 /* Toshiba Reference Systems TSBREF         */
-#define MACH_GROUP_ALCHEMY     18 /* Alchemy Semi Eval Boards*/
-#define MACH_GROUP_NEC_VR41XX  19 /* NEC Vr41xx based boards/gadgets          */
-#define MACH_GROUP_HP_LJ	20 /* Hewlett Packard LaserJet */
+#define MACH_GROUP_GLOBESPAN   15 /* Globespan PVR Referrence Board         */
+#define MACH_GROUP_SIBYTE      16 /* Sibyte Eval Boards                     */
+#define MACH_GROUP_TOSHIBA     17 /* Toshiba Reference Systems TSBREF       */
+#define MACH_GROUP_ALCHEMY     18 /* Alchemy Semi Eval Boards               */
+#define MACH_GROUP_NEC_VR41XX  19 /* NEC Vr41xx based boards/gadgets        */
+#define MACH_GROUP_HP_LJ       20 /* Hewlett Packard LaserJet               */
 
 /*
  * Valid machtype values for group unknown (low order halfword of mips_machtype)
@@ -120,8 +120,7 @@
 /*
  * Valid machtype for group MOMENCO
  */
-#define MACH_MOMENCO_OCELOT		0
-
+#define MACH_MOMENCO_OCELOT	0
  
 /*
  * Valid machtype for group ITE

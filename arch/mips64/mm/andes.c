@@ -96,8 +96,7 @@ andes_flush_cache_l1(void)
  * This is only used during initialization time. vmalloc() also calls
  * this, but that will be changed pretty soon.
  */
-static void
-andes_flush_cache_l2(void)
+static void andes_flush_cache_l2(void)
 {
 	switch (sc_lsize()) {
 		case 64:

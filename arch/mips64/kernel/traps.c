@@ -114,7 +114,7 @@ void show_trace(unsigned long *sp)
 
 	printk("\nCall Trace:");
 
-	while ((unsigned long) stack & (PAGE_SIZE -1)) {
+	while ((unsigned long) stack & (PAGE_SIZE - 1)) {
 		unsigned long addr;
 
 		if (__get_user(addr, stack++)) {

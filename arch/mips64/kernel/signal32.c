@@ -69,11 +69,12 @@ static inline int store_fp_context(struct sigcontext *sc)
 	unsigned int fcr0;
 	int err = 0;
 
-	err |= __copy_to_user(&sc->sc_fpregs[0], 
-		&current->thread.fpu.hard.fp_regs[0], NUM_FPU_REGS * 
-						sizeof(unsigned long));
-	err |= __copy_to_user(&sc->sc_fpc_csr, &current->thread.fpu.hard.control,
-						sizeof(unsigned int));
+	err |= __copy_to_user(&sc->sc_fpregs[0],
+			      &current->thread.fpu.hard.fp_regs[0],
+			      NUM_FPU_REGS * sizeof(unsigned long));
+	err |= __copy_to_user(&sc->sc_fpc_csr,
+			      &current->thread.fpu.hard.control,
+			      sizeof(unsigned int));
 	__asm__ __volatile__("cfc1 %0, $0\n\t" : "=r" (fcr0));
 	err |= __copy_to_user(&sc->sc_fpc_eir, &fcr0, sizeof(unsigned int));
 
@@ -86,18 +87,18 @@ static inline int refill_fp_context(struct sigcontext *sc)
 
 	if (verify_area(VERIFY_READ, sc, sizeof(*sc)))
 		return -EFAULT;
-	err |= __copy_from_user(&current->thread.fpu.hard.fp_regs[0], 
-			&sc->sc_fpregs[0], NUM_FPU_REGS * sizeof(unsigned long));
-	err |= __copy_from_user(&current->thread.fpu.hard.control, &sc->sc_fpc_csr,
-							sizeof(unsigned int));
+	err |= __copy_from_user(&current->thread.fpu.hard.fp_regs[0],
+				&sc->sc_fpregs[0],
+				NUM_FPU_REGS * sizeof(unsigned long));
+	err |= __copy_from_user(&current->thread.fpu.hard.control,
+				&sc->sc_fpc_csr, sizeof(unsigned int));
 	return err;
 }
 
 extern void __put_sigset_unknown_nsig(void);
 extern void __get_sigset_unknown_nsig(void);
 
-static inline int
-put_sigset(const sigset_t *kbuf, sigset32_t *ubuf)
+static inline int put_sigset(const sigset_t *kbuf, sigset32_t *ubuf)
 {
 	int err = 0;
 
@@ -118,8 +119,7 @@ put_sigset(const sigset_t *kbuf, sigset32_t *ubuf)
 	return err;
 }
 
-static inline int
-get_sigset(sigset_t *kbuf, const sigset32_t *ubuf)
+static inline int get_sigset(sigset_t *kbuf, const sigset32_t *ubuf)
 {
 	int err = 0;
 	unsigned long sig[4];
@@ -146,8 +146,7 @@ get_sigset(sigset_t *kbuf, const sigset32_t *ubuf)
 /*
  * Atomically swap in the new signal mask, and wait for a signal.
  */
-asmlinkage inline int
-sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
+asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
 	sigset32_t *uset;
 	sigset_t newset, saveset;
@@ -174,8 +173,7 @@ sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 	}
 }
 
-asmlinkage int
-sys32_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
+asmlinkage int sys32_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
 	sigset32_t *uset;
 	sigset_t newset, saveset;
@@ -253,8 +251,7 @@ asmlinkage int sys32_sigaction(int sig, const struct sigaction32 *act,
 	return ret;
 }
 
-asmlinkage int
-sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
+asmlinkage int sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
 {
 	const stack32_t *uss = (const stack32_t *) regs.regs[4];
 	stack32_t *uoss = (stack32_t *) regs.regs[5];
@@ -292,8 +289,8 @@ sys32_sigaltstack(abi64_no_regargs, struct pt_regs regs)
 	return ret;
 }
 
-static asmlinkage int
-restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+static asmlinkage int restore_sigcontext(struct pt_regs *regs,
+					 struct sigcontext *sc)
 {
 	int owned_fp;
 	int err = 0;
@@ -345,8 +342,7 @@ struct rt_sigframe {
 	struct ucontext rs_uc;
 };
 
-asmlinkage void
-sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys32_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -382,8 +378,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-asmlinkage void
-sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys32_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct rt_sigframe *frame;
 	sigset_t set;
@@ -424,8 +419,8 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-static int inline
-setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+static int inline setup_sigcontext(struct pt_regs *regs,
+				   struct sigcontext *sc)
 {
 	int err = 0;
 
@@ -470,8 +465,8 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 /*
  * Determine which stack to use..
  */
-static inline void *
-get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
+static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
+				 size_t frame_size)
 {
 	unsigned long sp;
 
@@ -485,9 +480,8 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((sp - frame_size) & ALMASK);
 }
 
-static void inline
-setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
-            int signr, sigset_t *set)
+static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
+			       int signr, sigset_t *set)
 {
 	struct sigframe *frame;
 	int err = 0;
@@ -549,9 +543,9 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static void inline
-setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
-               int signr, sigset_t *set, siginfo_t *info)
+static void inline setup_rt_frame(struct k_sigaction * ka,
+				  struct pt_regs *regs, int signr,
+				  sigset_t *set, siginfo_t *info)
 {
 	struct rt_sigframe *frame;
 	int err = 0;
@@ -626,9 +620,9 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static inline void
-handle_signal(unsigned long sig, struct k_sigaction *ka,
-	siginfo_t *info, sigset_t *oldset, struct pt_regs * regs)
+static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
+				 siginfo_t *info, sigset_t *oldset,
+				 struct pt_regs * regs)
 {
 	if (ka->sa.sa_flags & SA_SIGINFO)
 		setup_rt_frame(ka, regs, sig, oldset, info);
@@ -646,8 +640,8 @@ handle_signal(unsigned long sig, struct k_sigaction *ka,
 	}
 }
 
-static inline void
-syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
+static inline void syscall_restart(struct pt_regs *regs,
+				   struct k_sigaction *ka)
 {
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:
@@ -917,5 +911,12 @@ asmlinkage int sys32_rt_sigpending(sigset32_t *uset, unsigned int sigsetsize)
 	return ret;
 }
 
-asmlinkage void sys32_rt_sigtimedwait(void) { panic(__FUNCTION__ " called."); }
-asmlinkage void sys32_rt_sigqueueinfo(void) { panic(__FUNCTION__ " called."); }
+asmlinkage void sys32_rt_sigtimedwait(void)
+{
+	panic("%s called.", __FUNCTION__);
+}
+
+asmlinkage void sys32_rt_sigqueueinfo(void)
+{
+	panic("%s called.", __FUNCTION__);
+}
