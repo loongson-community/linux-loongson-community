@@ -38,9 +38,8 @@ extern void sni_machine_power_off(void);
 
 extern struct ide_ops std_ide_ops;
 extern struct rtc_ops std_rtc_ops;
-extern struct kbd_ops std_kbd_ops;
 
-static void __init sni_rm200_pci_time_init(struct irqaction *irq)
+static void __init sni_rm200_pci_timer_setup(struct irqaction *irq)
 {
 	/* set the clock to 100 Hz */
 	outb_p(0x34,0x43);		/* binary, mode 2, LSB/MSB, ch 0 */
@@ -97,7 +96,7 @@ void __init sni_rm200_pci_setup(void)
 	request_region(0x70,0x10,"rtc");
 	request_region(0x80,0x10,"dma page reg");
 	request_region(0xc0,0x20,"dma2");
-	board_time_init = sni_rm200_pci_time_init;
+	board_timer_setup = sni_rm200_pci_timer_setup;
 
 	_machine_restart = sni_machine_restart;
 	_machine_halt = sni_machine_halt;
@@ -129,7 +128,6 @@ void __init sni_rm200_pci_setup(void)
 	};
 
 	rtc_ops = &std_rtc_ops;
-	kbd_ops = &std_kbd_ops;
 #ifdef CONFIG_PSMOUSE
 	aux_device_present = 0xaa;
 #endif
