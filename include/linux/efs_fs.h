@@ -9,7 +9,7 @@
 #ifndef __EFS_FS_H__
 #define __EFS_FS_H__
 
-#define EFS_VERSION "0.97e"
+#define EFS_VERSION "0.98b"
 
 static const char cprt[] = "EFS: "EFS_VERSION" - (c) 1999 Al Smith <Al.Smith@aeschi.ch.eu.org>";
 

@@ -15,17 +15,22 @@ typedef uint32_t	efs_ino_t;
 #define	EFS_DIRECTEXTENTS	12
 
 /*
- * layout of an extent, in memory and on disk. 8 bytes exactly
+ * layout of an extent, in memory and on disk. 8 bytes exactly.
  */
 typedef union extent_u {
+	unsigned char raw[8];
 	struct extent_s {
 		unsigned int	ex_magic:8;	/* magic # (zero) */
 		unsigned int	ex_bn:24;	/* basic block */
 		unsigned int	ex_length:8;	/* numblocks in this extent */
 		unsigned int	ex_offset:24;	/* logical offset into file */
 	} cooked;
-	unsigned char	raw[8];
 } efs_extent;
+
+typedef struct edevs {
+	short		odev;
+	unsigned int	ndev;
+} efs_devs;
 
 /*
  * extent based filesystem inode as it appears on disk.  The efs inode
@@ -45,8 +50,8 @@ struct	efs_dinode {
 	u_char		di_version;	/* version of inode */
 	u_char		di_spare;	/* spare - used by AFS */
 	union di_addr {
-		efs_extent di_extents[EFS_DIRECTEXTENTS];
-		dev_t	di_dev;		/* device for IFCHR/IFBLK */
+		efs_extent	di_extents[EFS_DIRECTEXTENTS];
+		efs_devs	di_dev;	/* device for IFCHR/IFBLK */
 	} di_u;
 };
 

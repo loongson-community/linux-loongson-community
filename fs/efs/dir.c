@@ -46,8 +46,6 @@ struct inode_operations efs_dir_inode_operations = {
 	NULL			/* smap */
 };
 
-/* read the next entry for a given directory */
-
 static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 	struct inode *inode = filp->f_dentry->d_inode;
 	struct efs_inode_info *ini = INODE_INFO(inode);
@@ -94,6 +92,11 @@ static int efs_readdir(struct file *filp, void *dirent, filldir_t filldir) {
 		}
 
 		while(slot < dirblock->slots) {
+			if (dirblock->space[slot] == 0) {
+				slot++;
+				continue;
+			}
+
 			dirslot  = (struct efs_dentry *) (((char *) bh->b_data) + EFS_SLOTAT(dirblock, slot));
 
 			inodenum = be32_to_cpu(dirslot->inode);

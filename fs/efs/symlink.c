@@ -9,10 +9,8 @@
 #include <linux/malloc.h>
 #include <linux/efs_fs.h>
 
-static int
-	efs_readlink(struct dentry *, char *, int);
-static struct dentry *
-	efs_follow_link(struct dentry *, struct dentry *, unsigned int);
+static int efs_readlink(struct dentry *, char *, int);
+static struct dentry * efs_follow_link(struct dentry *, struct dentry *, unsigned int);
 
 struct inode_operations efs_symlink_inode_operations = {
 	NULL,			/* no symlink file-operations */

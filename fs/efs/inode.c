@@ -68,7 +68,6 @@ void efs_read_inode(struct inode *inode) {
 
 	efs_inode = (struct efs_dinode *) (bh->b_data + offset);
     
-	/* fill in standard inode infos */
 	inode->i_mode  = be16_to_cpu(efs_inode->di_mode);
 	inode->i_nlink = be16_to_cpu(efs_inode->di_nlink);
 	inode->i_uid   = be16_to_cpu(efs_inode->di_uid);
@@ -85,10 +84,20 @@ void efs_read_inode(struct inode *inode) {
 		inode->i_blocks = ((inode->i_size - 1) >> EFS_BLOCKSIZE_BITS) + 1;
 	}
 
-    	device = be32_to_cpu(efs_inode->di_u.di_dev);
-
-	/* The following values are stored in my private part of the Inode.
-	   They are necessary for further operations with the file */
+	/*
+	 * BUG: irix devices are 32-bits. linux devices are only 16-bits.
+	 *
+	 * apparently linux will change to 32-bit devices sometime during
+	 * linux 2.3.
+	 *
+	 * as is, this code maps devices that can't be represented in
+	 * 16-bits (ie major > 255 or minor > 255) to major = minor = 255.
+	 *
+	 * during 2.3 when 32-bit devices become available, we should test
+	 * to see whether odev contains 65535. if this is the case then we
+	 * should do device = be32_to_cpu(efs_inode->di_u.di_dev.ndec).
+	 */
+    	device = be16_to_cpu(efs_inode->di_u.di_dev.odev);
 
 	/* get the number of extents for this object */
 	in->numextents = be16_to_cpu(efs_inode->di_numextents);
@@ -111,7 +120,6 @@ void efs_read_inode(struct inode *inode) {
 		inode->i_ino, in->numextents);
 #endif
 
-	/* Install the filetype Handler */
 	switch (inode->i_mode & S_IFMT) {
 		case S_IFDIR: 
 			inode->i_op = &efs_dir_inode_operations; 
@@ -164,9 +172,9 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sb) {
 	efs_block_t offset;
 
 	/*
-	** given an extent and a logical block within a file,
-	** can this block be found within this extent ?
-	*/
+	 * given an extent and a logical block within a file,
+	 * can this block be found within this extent ?
+	 */
 	start  = ptr->cooked.ex_bn;
 	length = ptr->cooked.ex_length;
 	offset = ptr->cooked.ex_offset;
@@ -177,8 +185,6 @@ efs_extent_check(efs_extent *ptr, efs_block_t block, struct efs_sb_info *sb) {
 		return 0;
 	}
 }
-
-/* find the disk block number for a given logical file block number */
 
 efs_block_t efs_map_block(struct inode *inode, efs_block_t block) {
 	struct efs_sb_info    *sb = SUPER_INFO(inode->i_sb);
@@ -205,8 +211,10 @@ efs_block_t efs_map_block(struct inode *inode, efs_block_t block) {
 
 		direxts = in->numextents;
 
-		/* check the stored extents in the inode */
-		/* start with next extent and check forwards */
+		/*
+		 * check the stored extents in the inode
+		 * start with next extent and check forwards
+		 */
 		for(dirext = 1; dirext < direxts; dirext++) {
 			cur = (last + dirext) % in->numextents;
 			if ((result = efs_extent_check(&in->extents[cur], block, sb))) {

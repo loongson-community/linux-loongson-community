@@ -8,8 +8,6 @@
 
 #include <linux/efs_fs.h>
 
-/* search an efs directory inode for the given name */
-
 static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) {
 	struct efs_inode_info *in = INODE_INFO(inode);
 	struct buffer_head *bh;
@@ -59,9 +57,6 @@ static efs_ino_t efs_find_entry(struct inode *inode, const char *name, int len) 
 	}
 	return(0);
 }
-
-
-/* get inode associated with directory entry */
 
 int efs_lookup(struct inode *dir, struct dentry *dentry) {
 	efs_ino_t inodenum;
