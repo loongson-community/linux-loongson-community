@@ -139,7 +139,15 @@ struct sgint_regs {
 #define SGINT_TCWORD_CRBCK	0xc0	/* Readback command */
 };
 
-#define SGINT_TCSAMP_COUNTER	10255
+/*
+ * The timer is the good old 8254.  Unlike in PCs it's clocked at exactly 1MHz
+ */
+#define SGINT_TIMER_CLOCK	1000000
+
+/*
+ * This is the constant we're using for calibrating the counter.
+ */
+#define SGINT_TCSAMP_COUNTER	((SGINT_TIMER_CLOCK / HZ) + 255)
 
 /* We need software copies of these because they are write only. */
 extern u8 sgi_ioc_reset, sgi_ioc_write;
