@@ -85,8 +85,9 @@ void __init ip22_setup(void)
 	/* Now enable boardcaches, if any. */
 	indy_sc_init();
 #endif
+#ifdef CONFIG_VT
 	conswitchp = NULL;
-
+#endif
 	/* Set the IO space to some sane value */
 	set_io_port_base (KSEG1ADDR (0x00080000));
 
