@@ -52,24 +52,11 @@ extern cpumask_t cpu_online_map;
 #define cpu_possible(cpu)	cpu_isset(cpu, phys_cpu_present_map)
 #define cpu_online(cpu)		cpu_isset(cpu, cpu_online_map)
 
-static inline unsigned int num_online_cpus(void)
-{
-	return cpus_weight(cpu_online_map);
-}
-
 extern cpumask_t cpu_callout_map;
 /* We don't mark CPUs online until __cpu_up(), so we need another measure */
 static inline int num_booting_cpus(void)
 {
 	return cpus_weight(cpu_callout_map);
-}
-
-extern inline unsigned int any_online_cpu(unsigned int mask)
-{
-	if (mask & cpu_online_map)
-		return __ffs(mask & cpu_online_map);
-
-	return NR_CPUS;
 }
 
 #endif /* CONFIG_SMP */
