@@ -28,11 +28,11 @@
  *
  */
 #include <linux/config.h>
-#include <linux/bootmem.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/mm.h>
+#include <linux/bootmem.h>
 #include <linux/swap.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
