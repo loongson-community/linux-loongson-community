@@ -1,51 +1,106 @@
 /*
- * ip22-mc.c: Routines for manipulating the INDY memory controller.
+ * ip22-mc.c: Routines for manipulating SGI Memory Controller.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  * Copyright (C) 1999 Andrew R. Baker (andrewb@uab.edu) - Indigo2 changes
+ * Copyright (C) 2003 Ladislav Michl  (ladis@linux-mips.org)
  */
 
 #include <linux/init.h>
 #include <linux/kernel.h>
 
 #include <asm/addrspace.h>
+#include <asm/bootinfo.h>
 #include <asm/ptrace.h>
 #include <asm/sgialib.h>
 #include <asm/sgi/mc.h>
 #include <asm/sgi/hpc3.h>
 #include <asm/sgi/ip22.h>
 
-/* #define DEBUG_SGIMC */
-
 struct sgimc_regs *sgimc;
 
-#ifdef DEBUG_SGIMC
-static inline char *mconfig_string(unsigned long val)
+static inline unsigned long get_bank_addr(unsigned int memconfig)
 {
-	switch(val & SGIMC_MCONFIG_RMASK) {
-	case SGIMC_MCONFIG_FOURMB:
-		return "4MB";
-
-	case SGIMC_MCONFIG_EIGHTMB:
-		return "8MB";
-
-	case SGIMC_MCONFIG_SXTEENMB:
-		return "16MB";
-
-	case SGIMC_MCONFIG_TTWOMB:
-		return "32MB";
-
-	case SGIMC_MCONFIG_SFOURMB:
-		return "64MB";
-
-	case SGIMC_MCONFIG_OTEIGHTMB:
-		return "128MB";
-
-	default:
-		return "wheee, unknown";
-	}
+	return ((memconfig & SGIMC_MCONFIG_BASEADDR) <<
+		((sgimc->systemid & SGIMC_SYSID_MASKREV) >= 5 ? 24 : 22));
 }
-#endif
+
+static inline unsigned long get_bank_size(unsigned int memconfig)
+{
+	return ((memconfig & SGIMC_MCONFIG_RMASK) + 0x0100) <<
+		((sgimc->systemid & SGIMC_SYSID_MASKREV) >= 5 ? 16 : 14);
+}
+
+static inline unsigned int get_bank_config(int bank)
+{
+	unsigned int res = bank > 1 ? sgimc->mconfig1 : sgimc->mconfig0;
+	return bank % 2 ? res & 0xffff : res >> 16;
+}
+
+struct mem {
+	unsigned long addr;
+	unsigned long size;
+};
+
+/*
+ * Detect installed memory, do some sanity checks and notify kernel about it
+ */
+static void probe_memory(void)
+{
+	int i, j, found, cnt = 0;
+	struct mem bank[4];
+	struct mem space[2] = {{SGIMC_SEG0_BADDR, 0}, {SGIMC_SEG1_BADDR, 0}};
+
+	printk(KERN_INFO "MC: Probing memory configuration:\n");
+	for (i = 0; i < ARRAY_SIZE(bank); i++) {
+		unsigned int tmp = get_bank_config(i);
+		if (!(tmp & SGIMC_MCONFIG_BVALID))
+			continue;
+
+		bank[cnt].size = get_bank_size(tmp);
+		bank[cnt].addr = get_bank_addr(tmp);
+		printk(KERN_INFO " bank%d: %3ldM @ %08lx\n",
+			i, bank[cnt].size / 1024 / 1024, bank[cnt].addr);
+		cnt++;
+	}
+
+	/* And you thought bubble sort is dead algorithm... */
+	do {
+		unsigned long addr, size;
+
+		found = 0;
+		for (i = 1; i < cnt; i++)
+			if (bank[i-1].addr > bank[i].addr) {
+				addr = bank[i].addr;
+				size = bank[i].size;
+				bank[i].addr = bank[i-1].addr;
+				bank[i].size = bank[i-1].size;
+				bank[i-1].addr = addr;
+				bank[i-1].size = size;
+				found = 1;
+			}
+	} while (found);
+
+	/* Figure out how are memory banks mapped into spaces */
+	for (i = 0; i < cnt; i++) {
+		found = 0;
+		for (j = 0; j < ARRAY_SIZE(space) && !found; j++)
+			if (space[j].addr + space[j].size == bank[i].addr) {
+				space[j].size += bank[i].size;
+				found = 1;
+			}
+		/* There is either hole or overlapping memory */
+		if (!found)
+			printk(KERN_CRIT "MC: Memory configuration mismatch "
+					 "(%08lx), expect Bus Error soon\n",
+					 bank[i].addr);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(space); i++)
+		if (space[i].size)
+			add_memory_region(space[i].addr, space[i].size,
+					  BOOT_MEM_RAM);
+}
 
 void __init sgimc_init(void)
 {
@@ -55,17 +110,6 @@ void __init sgimc_init(void)
 
 	printk(KERN_INFO "MC: SGI memory controller Revision %d\n",
 	       (int) sgimc->systemid & SGIMC_SYSID_MASKREV);
-
-#ifdef DEBUG_SGIMC
-	prom_printf("sgimc_init: memconfig0<%s> mconfig1<%s>\n",
-		    mconfig_string(sgimc->mconfig0),
-		    mconfig_string(sgimc->mconfig1));
-
-	prom_printf("mcdump: cpuctrl0<%08lx> cpuctrl1<%08lx>\n",
-		    sgimc->cpuctrl0, sgimc->cpuctrl1);
-	prom_printf("mcdump: divider<%08lx>, gioparm<%04x>\n",
-		    sgimc->divider, sgimc->gioparm);
-#endif
 
 	/* Place the MC into a known state.  This must be done before
 	 * interrupts are first enabled etc.
@@ -126,27 +170,32 @@ void __init sgimc_init(void)
 	 */
 
 	/* First the basic invariants across all GIO64 implementations. */
-	tmp = SGIMC_GIOPAR_HPC64;    /* All 1st HPC's interface at 64bits. */
-	tmp |= SGIMC_GIOPAR_ONEBUS;  /* Only one physical GIO bus exists. */
+	tmp = SGIMC_GIOPAR_HPC64;	/* All 1st HPC's interface at 64bits */
+	tmp |= SGIMC_GIOPAR_ONEBUS;	/* Only one physical GIO bus exists */
 
 	if (ip22_is_fullhouse()) {
 		/* Fullhouse specific settings. */
 		if (SGIOC_SYSID_BOARDREV(sgioc->sysid) < 2) {
-			tmp |= SGIMC_GIOPAR_HPC264; /* 2nd HPC at 64bits */
-			tmp |= SGIMC_GIOPAR_PLINEEXP0; /* exp0 pipelines */
-			tmp |= SGIMC_GIOPAR_MASTEREXP1;/* exp1 masters */
-			tmp |= SGIMC_GIOPAR_RTIMEEXP0; /* exp0 is realtime */
+			tmp |= SGIMC_GIOPAR_HPC264;	/* 2nd HPC at 64bits */
+			tmp |= SGIMC_GIOPAR_PLINEEXP0;	/* exp0 pipelines */
+			tmp |= SGIMC_GIOPAR_MASTEREXP1;	/* exp1 masters */
+			tmp |= SGIMC_GIOPAR_RTIMEEXP0;	/* exp0 is realtime */
 		} else {
-			tmp |= SGIMC_GIOPAR_HPC264; /* 2nd HPC 64bits */
-			tmp |= SGIMC_GIOPAR_PLINEEXP0; /* exp[01] pipelined */
+			tmp |= SGIMC_GIOPAR_HPC264;	/* 2nd HPC 64bits */
+			tmp |= SGIMC_GIOPAR_PLINEEXP0;	/* exp[01] pipelined */
 			tmp |= SGIMC_GIOPAR_PLINEEXP1;
-			tmp |= SGIMC_GIOPAR_MASTEREISA;/* EISA masters */
-			tmp |= SGIMC_GIOPAR_GFX64; 	/* GFX at 64 bits */
+			tmp |= SGIMC_GIOPAR_MASTEREISA;	/* EISA masters */
+			tmp |= SGIMC_GIOPAR_GFX64;	/* GFX at 64 bits */
 		}
 	} else {
 		/* Guiness specific settings. */
-		tmp |= SGIMC_GIOPAR_EISA64;     /* MC talks to EISA at 64bits */
-		tmp |= SGIMC_GIOPAR_MASTEREISA; /* EISA bus can act as master */
+		tmp |= SGIMC_GIOPAR_EISA64;	/* MC talks to EISA at 64bits */
+		tmp |= SGIMC_GIOPAR_MASTEREISA;	/* EISA bus can act as master */
 	}
-	sgimc->giopar = tmp; /* poof */
+	sgimc->giopar = tmp;	/* poof */
+
+	probe_memory();
 }
+
+void __init prom_meminit(void) {}
+void __init prom_free_prom_memory (void) {}

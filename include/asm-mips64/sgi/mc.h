@@ -95,19 +95,16 @@ struct sgimc_regs {
 	u32 _unused10[3];
 	volatile u32 lbursttp;	/* Time period for long bursts */
 
+	/* MC chip can drive up to 4 bank 4 SIMMs each. All SIMMs in bank must
+	 * be the same size. The size encoding for supported SIMMs is bellow */
 	u32 _unused11[9];
 	volatile u32 mconfig0;	/* Memory config register zero */
 	u32 _unused12;
 	volatile u32 mconfig1;	/* Memory config register one */
-
-	/* These defines apply to both mconfig registers above. */
-#define SGIMC_MCONFIG_FOURMB	0x00000000 /* Physical ram = 4megs */
-#define SGIMC_MCONFIG_EIGHTMB	0x00000100 /* Physical ram = 8megs */
-#define SGIMC_MCONFIG_SXTEENMB	0x00000300 /* Physical ram = 16megs */
-#define SGIMC_MCONFIG_TTWOMB	0x00000700 /* Physical ram = 32megs */
-#define SGIMC_MCONFIG_SFOURMB	0x00000f00 /* Physical ram = 64megs */
-#define SGIMC_MCONFIG_OTEIGHTMB	0x00001f00 /* Physical ram = 128megs */
+#define SGIMC_MCONFIG_BASEADDR	0x000000ff /* Base address of bank*/
 #define SGIMC_MCONFIG_RMASK	0x00001f00 /* Ram config bitmask */
+#define SGIMC_MCONFIG_BVALID	0x00002000 /* Bank is valid */
+#define SGIMC_MCONFIG_SBANKS	0x00004000 /* Number of subbanks */
 
 	u32 _unused13;
 	volatile u32 cmacc;        /* Mem access config for CPU */

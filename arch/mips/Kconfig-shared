@@ -676,7 +676,7 @@ config ARC_CONSOLE
 
 config ARC_MEMORY
 	bool
-	depends on SNI_RM200_PCI || SGI_IP32 || SGI_IP22
+	depends on SNI_RM200_PCI || SGI_IP32
 	default y
 
 config ARC_PROMLIB
