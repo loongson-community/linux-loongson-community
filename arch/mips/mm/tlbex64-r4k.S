@@ -116,6 +116,7 @@ LEAF(handle_vec1_r4k)
 	PTE_RELOAD k0 k1
 	mtc0_tlbw_hazard
 	tlbwr
+	nop
 	tlbw_eret_hazard
 	eret
 
@@ -128,7 +129,8 @@ LEAF(handle_vec1_r4k)
 	ld	k1, 8(k1)			# get odd pte
 	PTE_RELOAD k0 k1
 	mtc0_tlbw_hazard
-	 tlbwr
+	tlbwr
+	nop
 	tlbw_eret_hazard
 	eret
 END(handle_vec1_r4k)
