@@ -69,12 +69,12 @@
  */
 static inline u32 READCFG32(u32 addr)
 {
-	hs_read32(addr & ~3);
+	return hs_read32(addr & ~3);
 }
 
 static inline void WRITECFG32(u32 addr, u32 data)
 {
-	return hs_write32(addr & ~3,(data));
+	hs_write32(addr & ~3,(data));
 }
 
 /*
@@ -264,7 +264,8 @@ void __init pcibios_init(void)
 	 * big-endian Linuxes will have CONFIG_SWAP_IO_SPACE set.
 	 */
 
-	set_io_port_base(ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
+	set_io_port_base((unsigned long)
+		ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES, 65536));
 	isa_slot_offset = (unsigned long)
 		ioremap(A_PHYS_LDTPCI_IO_MATCH_BYTES_32, 1024*1024);
 

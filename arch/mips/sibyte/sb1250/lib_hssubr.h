@@ -26,44 +26,46 @@ typedef long hsaddr_t;
 
 #ifdef CONFIG_MIPS64
 
+#define PHYS_TO_XKSEG_UNCACHED(b) ((b) | K1BASE)
+
 static inline void hs_write8(hsaddr_t a, uint8_t b)
 {
-	*(volatile uint8_t *) a = PHYS_TO_XKSEG_UNCACHED(b);
+	*(volatile uint8_t *) PHYS_TO_XKSEG_UNCACHED(a) = b;
 }
 
 static inline void hs_write16(hsaddr_t a, uint16_t b)
 {
-	*(volatile uint16_t *) a = PHYS_TO_XKSEG_UNCACHED(b);
+	*(volatile uint16_t *) PHYS_TO_XKSEG_UNCACHED(a) = b;
 }
 
 static inline void hs_write32(hsaddr_t a, uint32_t b)
 {
-	*(volatile uint32_t *) a = PHYS_TO_XKSEG_UNCACHED(b);
+	*(volatile uint32_t *) PHYS_TO_XKSEG_UNCACHED(a) = b;
 }
 
 static inline void hs_write64(hsaddr_t a, uint64_t b)
 {
-	*(volatile uint32_t *) a = PHYS_TO_XKSEG_UNCACHED(b);
+	*(volatile uint32_t *) PHYS_TO_XKSEG_UNCACHED(a) = b;
 }
 
 static inline uint8_t hs_read8(hsaddr_t a)
 {
-	return *(volatile uint8_t *) a;
+	return *(volatile uint8_t *) PHYS_TO_XKSEG_UNCACHED(a);
 }
 
 static inline uint16_t hs_read16(hsaddr_t a)
 {
-	return *(volatile uint16_t *) a;
+	return *(volatile uint16_t *) PHYS_TO_XKSEG_UNCACHED(a);
 }
 
 static inline uint32_t hs_read32(hsaddr_t a)
 {
-	return *(volatile uint32_t *) a;
+	return *(volatile uint32_t *) PHYS_TO_XKSEG_UNCACHED(a);
 }
 
 static inline uint64_t hs_read64(hsaddr_t a)
 {
-	return *(volatile uint64_t *) a;
+	return *(volatile uint64_t *) PHYS_TO_XKSEG_UNCACHED(a);
 }
 
 #else	/* just CONFIG_MIPS32 */
