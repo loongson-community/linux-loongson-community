@@ -36,11 +36,12 @@ asmlinkage void sb1_cache_error(void)
 	eepc = read_32bit_cp0_register(CP0_ERROREPC);
 	__asm__ __volatile__ (
 		".set push\n"
-		".set mips64\n"
-		"mfc0 %0, $26, 0\n"
-		"mfc0 %1, $27, 0\n"
-		"mfc0 %2, $27, 1\n"
-		"mfc0 %3, $27, 3\n"
+		"#.set mips64\n"
+		".set mips4\n"
+		".word 0x4001D000; move %0, $1; # mfc0 %0, $26, 0\n"
+		".word 0x4001D800; move %1, $1; # mfc0 %1, $27, 0\n"
+		".word 0x4001D801; move %2, $1; # mfc0 %2, $27, 1\n"
+		".word 0x4001D803; move %3, $1; # mfc0 %3, $27, 3\n"
 		".set pop\n"
 		: "=r" (errctl), "=r" (cerr_i), "=r" (cerr_d), "=r" (cerr_dpa));
 
