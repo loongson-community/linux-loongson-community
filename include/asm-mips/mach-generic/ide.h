@@ -64,7 +64,17 @@ static __inline__ unsigned long ide_default_io_base(int index)
 #define ide_init_default_irq(base)	ide_default_irq(base)
 #endif
 
-#include <asm-generic/ide_iops.h>
+/* MIPS port and memory-mapped I/O string operations.  */
+
+#define __ide_insw	insw
+#define __ide_insl	insl
+#define __ide_outsw	outsw
+#define __ide_outsl	outsl
+
+#define __ide_mm_insw	readsw
+#define __ide_mm_insl	readsl
+#define __ide_mm_outsw	writesw
+#define __ide_mm_outsl	writesl
 
 #endif /* __KERNEL__ */
 
