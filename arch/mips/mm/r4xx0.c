@@ -1973,12 +1973,13 @@ r4k_flush_icache_page_i16(struct vm_area_struct *vma, struct page *page,
 
 static void
 r4k_flush_icache_page_i32(struct vm_area_struct *vma, struct page *page,
-                      unsigned long address)
+                          unsigned long address)
 {
 	if (!(vma->vm_flags & VM_EXEC))
 		return;
 
-	blast_icache32_page(address);
+	address = KSEG0 + (address & PAGE_MASK & (dcache_size - 1));
+	blast_icache32_page_indexed(address);
 }
 
 /*
