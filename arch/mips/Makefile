@@ -299,8 +299,8 @@ load-$(CONFIG_SGI_IP22)		+= 0x88002000
 # the sequence; but it is built as an object so that modules don't get
 # removed (as happens, even if they have __initcall/module_init)
 #
-libs-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
-libs-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
+core-$(CONFIG_SIBYTE_BCM112X)	+= arch/mips/sibyte/sb1250/
+core-$(CONFIG_SIBYTE_SB1250)	+= arch/mips/sibyte/sb1250/
 
 #
 # Sibyte BCM91120x (Carmel) board
