@@ -244,8 +244,7 @@ static void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr)
 
 	args.vma = vma;
 	args.addr = addr;
-	smp_call_function(sb1_flush_cache_page_ipi, (void *) &args, 1, 1);
-	local_sb1_flush_cache_page(vma, addr);
+	on_each_cpu(sb1_flush_cache_page_ipi, (void *) &args, 1, 1);
 }
 #else
 void sb1_flush_cache_page(struct vm_area_struct *vma, unsigned long addr);
@@ -302,8 +301,7 @@ asm("sb1___flush_cache_all_ipi = local_sb1___flush_cache_all");
 
 static void sb1___flush_cache_all(void)
 {
-	smp_call_function(sb1___flush_cache_all_ipi, 0, 1, 1);
-	local_sb1___flush_cache_all();
+	on_each_cpu(sb1___flush_cache_all_ipi, 0, 1, 1);
 }
 #else
 extern void sb1___flush_cache_all(void);
@@ -353,8 +351,7 @@ void sb1_flush_icache_range(unsigned long start, unsigned long end)
 
 	args.start = start;
 	args.end = end;
-	smp_call_function(sb1_flush_icache_range_ipi, &args, 1, 1);
-	local_sb1_flush_icache_range(start, end);
+	on_each_cpu(sb1_flush_icache_range_ipi, &args, 1, 1);
 }
 #else
 void sb1_flush_icache_range(unsigned long start, unsigned long end);
@@ -411,8 +408,7 @@ static void sb1_flush_icache_page(struct vm_area_struct *vma,
 		return;
 	args.vma = vma;
 	args.page = page;
-	smp_call_function(sb1_flush_icache_page_ipi, (void *) &args, 1, 1);
-	local_sb1_flush_icache_page(vma, page);
+	on_each_cpu(sb1_flush_icache_page_ipi, (void *) &args, 1, 1);
 }
 #else
 void sb1_flush_icache_page(struct vm_area_struct *vma, struct page *page);
@@ -460,8 +456,7 @@ static void sb1_flush_cache_sigtramp_ipi(void *info)
 
 static void sb1_flush_cache_sigtramp(unsigned long addr)
 {
-	local_sb1_flush_cache_sigtramp(addr);
-	smp_call_function(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
+	on_each_cpu(sb1_flush_cache_sigtramp_ipi, (void *) addr, 1, 1);
 }
 #else
 void sb1_flush_cache_sigtramp(unsigned long addr);
