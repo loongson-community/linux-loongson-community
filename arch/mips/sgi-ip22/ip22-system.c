@@ -29,7 +29,7 @@ static struct smatch sgi_cputable[] = {{
 	.name	= "MIPS-R3000A",
 	.type	= CPU_R3000A,
 },{
-	.name	= "MIPS-4000",
+	.name	= "MIPS-R4000",
 	.type	= CPU_R4000SC,
 },{
 	.name	= "MIPS-R4400",
