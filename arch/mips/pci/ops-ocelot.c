@@ -39,7 +39,6 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
-#include <linux/version.h>
 #include <linux/cache.h>
 #include <asm/pci.h>
 #include <asm/io.h>

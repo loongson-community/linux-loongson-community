@@ -61,7 +61,6 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
-#include <linux/version.h>
 #include <linux/bootmem.h>
 #include <linux/blkdev.h>
 #include <asm/mv64340.h>

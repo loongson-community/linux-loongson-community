@@ -39,7 +39,6 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <linux/timex.h>
-#include <linux/version.h>
 
 #include <asm/bootinfo.h>
 #include <asm/page.h>

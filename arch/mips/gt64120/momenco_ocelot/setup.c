@@ -60,7 +60,6 @@
 #include <asm/reboot.h>
 #include <asm/mc146818rtc.h>
 #include <asm/traps.h>
-#include <linux/version.h>
 #include <linux/bootmem.h>
 #include <linux/initrd.h>
 #include <asm/gt64120/gt64120.h>

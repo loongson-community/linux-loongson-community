@@ -60,7 +60,6 @@
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/time.h>
-#include <linux/version.h>
 #include <linux/bootmem.h>
 #include <linux/blkdev.h>
 #include <linux/console.h>
