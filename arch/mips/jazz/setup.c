@@ -78,6 +78,14 @@ static void __init jazz_irq_setup(void)
 	i8259_setup_irq(2, &irq2);
 }
 
+static struct resource jazz_io_resources[] = {
+	{ "dma1", 0x00, 0x1f, IORESOURCE_BUSY },
+	{ "timer", 0x40, 0x5f, IORESOURCE_BUSY },
+	{ "dma page reg", 0x80, 0x8f, IORESOURCE_BUSY },
+	{ "dma2", 0xc0, 0xdf, IORESOURCE_BUSY },
+};
+
+#define JAZZ_IO_RESOURCES (sizeof(pcimt_io_resources)/sizeof(struct resource))
 
 void __init jazz_setup(void)
 {
@@ -97,10 +105,11 @@ void __init jazz_setup(void)
 		EISA_bus = 1;
 #endif
 	isa_slot_offset = 0xe3000000;
-	request_region(0x00,0x20,"dma1");
-	request_region(0x40,0x20,"timer");
-	request_region(0x80,0x10,"dma page reg");
-	request_region(0xc0,0x20,"dma2");
+
+	/* request I/O space for devices used on all i[345]86 PCs */
+	for (i = 0; i < JAZZ_IO_RESOURCES; i++)
+		request_resource(&ioport_resource, jazz_io_resources + i);
+
         board_time_init = jazz_time_init;
 	/* The RTC is outside the port address space */
 
