@@ -1,4 +1,4 @@
-/* $Id: init.c,v 1.10 1999/01/04 16:03:53 ralf Exp $
+/* $Id: init.c,v 1.11 1999/02/15 02:16:54 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -304,10 +304,7 @@ __initfunc(void mem_init(unsigned long start_mem, unsigned long end_mem))
 	for(tmp = MAP_NR(start_mem);tmp < max_mapnr;tmp++)
 		clear_bit(PG_reserved, &mem_map[tmp].flags);
 
-
-#ifdef CONFIG_SGI
 	prom_fixup_mem_map(start_mem, (unsigned long)high_memory);
-#endif
 
 	for (tmp = PAGE_OFFSET; tmp < end_mem; tmp += PAGE_SIZE) {
 		/*
@@ -351,7 +348,9 @@ extern char __init_begin, __init_end;
 void free_initmem(void)
 {
 	unsigned long addr;
-        
+
+	prom_free_prom_memory ();
+    
 	addr = (unsigned long)(&__init_begin);
 	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
 		mem_map[MAP_NR(addr)].flags &= ~(1 << PG_reserved);
