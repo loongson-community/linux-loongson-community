@@ -22,7 +22,7 @@
 #include <asm/bootinfo.h>
 #include <asm/cpu.h>
 
-extern void except_vec1_r4k(void);
+extern void except_vec1_sb1(void);
 
 /* Dump the current entry* and pagemask registers */
 static inline void dump_cur_tlb_regs(void)
@@ -239,9 +239,6 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	local_irq_save(flags);
 	if (cpu_context(cpu, vma->vm_mm) != 0) {
 		int oldpid, newpid, idx;
-#ifdef DEBUG_TLB
-		printk("[tlbpage<%d,%08lx>]", cpu_context(cpu, vma->vm_mm), page);
-#endif
 		newpid = (cpu_context(cpu, vma->vm_mm) & 0xff);
 		page &= (PAGE_MASK << 1);
 		oldpid = (read_c0_entryhi() & 0xff);
@@ -291,16 +288,7 @@ void sb1_update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 
 	local_irq_save(flags);
 
-
 	pid = read_c0_entryhi() & 0xff;
-
-#ifdef DEBUG_TLB
-	if((pid != (cpu_context(cpu, vma->vm_mm) & 0xff)) || (cpu_context(cpu, vma->vm_mm) == 0)) {
-		printk("update_mmu_cache: Wheee, bogus tlbpid mmpid=%d tlbpid=%d\n",
-		       (int) (cpu_context(cpu, vma->vm_mm) & 0xff), pid);
-	}
-#endif
-
 	address &= (PAGE_MASK << 1);
 	write_c0_entryhi(address | (pid));
 	pgdp = pgd_offset(vma->vm_mm, address);
@@ -329,6 +317,7 @@ void sb1_tlb_init(void)
 {
 	u32 config1;
 
+	write_c0_pagemask(PM_4K);
 	config1 = read_c0_config1();
 	mips_cpu.tlbsize = ((config1 >> 25) & 0x3f) + 1;
 
@@ -340,10 +329,6 @@ void sb1_tlb_init(void)
 	sb1_sanitize_tlb();
 	_update_mmu_cache = sb1_update_mmu_cache;
 
-#ifdef BCM1250_M3_WAR
-	memcpy((void *)KSEG0 + 0x080, except_vec1_sb1_m3, 0x80);
-#else
-	memcpy((void *)KSEG0 + 0x080, except_vec1_r4k, 0x80);
-#endif
+	memcpy((void *)KSEG0 + 0x080, except_vec1_sb1, 0x80);
 	flush_icache_range(KSEG0, KSEG0 + 0x80);
 }

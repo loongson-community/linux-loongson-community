@@ -247,16 +247,15 @@
 	eret					# return from trap
 	END(except_vec0_nevada)
 
-#ifdef BCM1250_M3_WAR
-
 	/* TLB refill, EXL == 0, SB1 with M3 errata handling version */
-	LEAF(except_vec0_sb1_m3)
+	LEAF(except_vec0_sb1)
+#ifdef BCM1250_M3_WAR
 	mfc0	k0, CP0_BADVADDR
 	mfc0	k1, CP0_ENTRYHI
 	xor	k0, k1
-	srl	k0, k0, 13			# PAGE_SHIFT + 1
-	bnez	k0, 2f
-
+	srl	k0, k0, PAGE_SHIFT+1
+	bnez	k0, 1f
+#endif
 	GET_PGD(k0, k1)				# get pgd pointer
 	mfc0	k0, CP0_BADVADDR		# Get faulting address
 	srl	k0, k0, _PGDIR_SHIFT		# get pgd only bits
@@ -273,12 +272,9 @@
 	P_MTC0	k0, CP0_ENTRYLO0		# load it
 	PTE_SRL	k1, k1, 6			# convert to entrylo1
 	P_MTC0	k1, CP0_ENTRYLO1		# load it
-	b	1f
 	tlbwr					# write random tlb entry
-1:	nop
-2:	eret					# return from trap
-	END(except_vec0_sb1_m3)
-#endif /* BCM1250_M3_WAR */
+1:	eret					# return from trap
+	END(except_vec0_sb1)
 
 	/* TLB refill, EXL == 0, R4[40]00/R5000 badvaddr hwbug version */
 	LEAF(except_vec0_r45k_bvahwbug)
