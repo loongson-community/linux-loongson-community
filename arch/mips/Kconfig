@@ -76,18 +76,22 @@ config MACH_VR41XX
 config CASIO_E55
 	bool "Support for CASIO CASSIOPEIA E-10/15/55/65"
 	depends on MACH_VR41XX
+	select IRQ_CPU
 
 config IBM_WORKPAD
 	bool "Support for IBM WorkPad z50"
 	depends on MACH_VR41XX
+	select IRQ_CPU
 
 config NEC_EAGLE
 	bool "Support for NEC Eagle/Hawk board"
+	select IRQ_CPU
 	depends on MACH_VR41XX
 
 config TANBAC_TB0226
 	bool "Support for TANBAC TB0226 (Mbase)"
 	depends on MACH_VR41XX
+	select IRQ_CPU
 	help
 	  The TANBAC TB0226 (Mbase) is a MIPS-based platform manufactured by TANBAC.
 	  Please refer to <http://www.tanbac.co.jp/> about Mbase.
@@ -95,17 +99,20 @@ config TANBAC_TB0226
 config TANBAC_TB0229
 	bool "Support for TANBAC TB0229 (VR4131DIMM)"
 	depends on MACH_VR41XX
+	select IRQ_CPU
 	help
 	  The TANBAC TB0229 (VR4131DIMM) is a MIPS-based platform manufactured by TANBAC.
 	  Please refer to <http://www.tanbac.co.jp/> about VR4131DIMM.
 
 config VICTOR_MPC30X
 	bool "Support for Victor MP-C303/304"
+	select IRQ_CPU
 	depends on MACH_VR41XX
 
 config ZAO_CAPCELLA
 	bool "Support for ZAO Networks Capcella"
 	depends on MACH_VR41XX
+	select IRQ_CPU
 
 config TOSHIBA_JMR3927
 	bool "Support for Toshiba JMR-TX3927 board"
@@ -114,9 +121,11 @@ config TOSHIBA_JMR3927
 config MIPS_COBALT
 	bool "Support for Cobalt Server (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select IRQ_CPU
 
 config MACH_DECSTATION
 	bool "Support for DECstations"
+	select IRQ_CPU
 	depends on MIPS32 || EXPERIMENTAL
 	---help---
 	  This enables support for DEC's MIPS based workstations.  For details
@@ -150,6 +159,7 @@ config EVB_PCI1
 config MIPS_EV96100
 	bool "Support for Galileo EV96100 Evaluation board (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select IRQ_CPU
 	select MIPS_GT96100
 	help
 	  This is an evaluation board based on the Galileo GT-96100 LAN/WAN
@@ -188,6 +198,7 @@ config LASAT_SYSCTL
 config HP_LASERJET
 	bool "Support for Hewlett Packard LaserJet board"
 	depends on BROKEN
+	select IRQ_CPU
 
 config MIPS_ITE8172
 	bool "Support for ITE 8172G board"
@@ -221,28 +232,35 @@ config MIPS_MALTA
 
 config MIPS_SEAD
 	bool "Support for MIPS SEAD board (EXPERIMENTAL)"
+	select IRQ_CPU
 	depends on EXPERIMENTAL
 
 config MOMENCO_OCELOT
 	bool "Support for Momentum Ocelot board"
+	select IRQ_CPU
+	select IRQ_CPU_RM7K
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
 config MOMENCO_OCELOT_G
 	bool "Support for Momentum Ocelot-G board"
+	select IRQ_CPU
+	select IRQ_CPU_RM7K
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
 config MOMENCO_OCELOT_C
 	bool "Support for Momentum Ocelot-C board"
+	select IRQ_CPU
 	help
 	  The Ocelot is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
 
 config MOMENCO_JAGUAR_ATX
 	bool "Support for Momentum Jaguar board"
+	select IRQ_CPU_RM7K
 	help
 	  The Jaguar ATX is a MIPS-based Single Board Computer (SBC) made by
 	  Momentum Computer <http://www.momenco.com/>.
@@ -260,12 +278,14 @@ config HYPERTRANSPORT
 config DDB5074
 	bool "Support for NEC DDB Vrc-5074 (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select IRQ_CPU
 	help
 	  This enables support for the VR5000-based NEC DDB Vrc-5074
 	  evaluation board.
 
 config DDB5476
 	bool "Support for NEC DDB Vrc-5476"
+	select IRQ_CPU
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5476
 	  evaluation board.
@@ -276,6 +296,7 @@ config DDB5476
 
 config DDB5477
 	bool "Support for NEC DDB Vrc-5477"
+	select IRQ_CPU
 	help
 	  This enables support for the R5432-based NEC DDB Vrc-5477,
 	  or Rockhopper/SolutionGear boards with R5432/R5500 CPUs.
@@ -290,9 +311,11 @@ config DDB5477_BUS_FREQUENCY
 	
 config NEC_OSPREY
 	bool "Support for NEC Osprey board"
+	select IRQ_CPU
 
 config SGI_IP22
 	bool "Support for SGI IP22 (Indy/Indigo2)"
+	select IRQ_CPU
 	help
 	  This are the SGI Indy, Challenge S and Indigo2, as well as certain
 	  OEM variants like the Tandem CMN B006S. To compile a Linux kernel
@@ -736,13 +759,9 @@ config CPU_LITTLE_ENDIAN
 
 config IRQ_CPU
 	bool
-	depends on CASIO_E55 || DDB5074 || DDB5476 || DDB5477 || MACH_DECSTATION || HP_LASERJET || IBM_WORKPAD || MIPS_COBALT || MIPS_EV96100 || MOMENCO_OCELOT || MIPS_SEAD || MOMENCO_OCELOT_G || NEC_EAGLE || NEC_OSPREY || SGI_IP22 || VICTOR_MPC30X || TANBAC_TB0226 || TANBAC_TB0229 || ZAO_CAPCELLA
-	default y
 
 config IRQ_CPU_RM7K
 	bool
-	depends on MOMENCO_JAGUAR_ATX || MOMENCO_OCELOT || MOMENCO_OCELOT_G
-	default y
 
 config DUMMY_KEYB
 	bool
