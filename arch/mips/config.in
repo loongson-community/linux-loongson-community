@@ -22,6 +22,8 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
    bool 'Support for Galileo Evaluation board or CoSine Orion' CONFIG_ORION
+   bool 'Support for MIPS Atlas board' CONFIG_MIPS_ATLAS
+   bool 'Support for MIPS Malta board' CONFIG_MIPS_MALTA
 fi
 bool 'Support for Mips Magnum 4000' CONFIG_MIPS_MAGNUM_4000
 bool 'Support for Olivetti M700-10' CONFIG_OLIVETTI_M700
@@ -66,6 +68,11 @@ if [ "$CONFIG_COBALT_MICRO_SERVER" = "y" ]; then
    define_bool CONFIG_COBALT_LCD y
    define_bool CONFIG_COBALT_SERIAL y
    define_bool CONFIG_PCI y
+fi
+if [ "$CONFIG_MIPS_ATLAS" = "y" -o \
+     "$CONFIG_MIPS_MALTA" = "y" ]; then
+   define_bool CONFIG_PCI y
+   define_bool CONFIG_ISA n
 fi
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y

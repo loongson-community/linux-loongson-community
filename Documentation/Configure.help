@@ -1612,6 +1612,16 @@ CONFIG_DDB5074
   This enables support for the VR5000-based NEC DDB Vrc-5074
   evaluation board.
 
+Support for MIPS Atlas board
+CONFIG_DDB5074
+  This enables support for the QED R5231-based MIPS Atlas evaluation
+  board.
+
+Support for MIPS Malta board
+CONFIG_DDB5074
+  This enables support for the VR5000-based MIPS Malta evaluation
+  board.
+
 Support for Mips Magnum 4000
 CONFIG_MIPS_MAGNUM_4000
   This is a machine with a R4000 100 MHz CPU. To compile a Linux

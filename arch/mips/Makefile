@@ -102,6 +102,18 @@ LIBS          += arch/mips/dec/prom/rexlib.a
 LOADADDR      += 0x80040000
 endif
 
+ifdef CONFIG_MIPS_ATLAS
+LIBS          += arch/mips/mips-boards/atlas/atlas.a arch/mips/mips-boards/generic/mipsboards.a
+SUBDIRS       += arch/mips/mips-boards/generic arch/mips/mips-boards/atlas
+LOADADDR      += 0x80100000
+endif
+
+ifdef CONFIG_MIPS_MALTA
+LIBS          += arch/mips/mips-boards/malta/malta.a arch/mips/mips-boards/generic/mipsboards.a
+SUBDIRS       += arch/mips/mips-boards/malta arch/mips/mips-boards/generic
+LOADADDR      += 0x80100000
+endif
+
 #
 # Acer PICA 61, Mips Magnum 4000 and Olivetti M700.
 #
