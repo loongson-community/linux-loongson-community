@@ -1,7 +1,8 @@
 #ifndef _I8042_IP22_H
 #define _I8042_IP22_H
 
-#include <asm/sgihpc.h>
+#include <asm/sgi/sgihpc.h>
+#include <asm/sgi/sgint23.h>
 
 #define sgi_kh ((struct hpc_keyb *) &(hpc3mregs->kbdmouse0))
 
@@ -25,6 +26,14 @@
 #define I8042_KBD_IRQ SGI_KEYBD_IRQ
 #define I8042_AUX_IRQ SGI_KEYBD_IRQ
 
+/*
+ * Register numbers.
+ */
+
+#define I8042_COMMAND_REG	((unsigned int)&sgi_kh->command)
+#define I8042_STATUS_REG	((unsigned int)&sgi_kh->command)
+#define I8042_DATA_REG		((unsigned int)&sgi_kh->data)
+
 static inline int i8042_read_data(void)
 {
 	return sgi_kh->data;
@@ -32,26 +41,16 @@ static inline int i8042_read_data(void)
 
 static inline int i8042_read_status(void)
 {
-	return jazz_kh->command;
+	return sgi_kh->command;
 }
 
 static inline void i8042_write_data(int val)
 {
-	int status;
-
-	do {
-		status = sgi_kh->command;
-	} while (status & KBD_STAT_IBF);
 	sgi_kh->data = val;
 }
 
 static inline void i8042_write_command(int val)
 {
-	int status;
-
-	do {
-		status = sgi_kh->command;
-	} while (status & KBD_STAT_IBF);
 	sgi_kh->command = val;
 }
 

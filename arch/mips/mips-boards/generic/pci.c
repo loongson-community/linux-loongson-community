@@ -52,10 +52,9 @@
 #define PCI_CFG_TYPE1_BUS_SHF           16
 
 static int mips_pcibios_config_access(unsigned char access_type,
-	struct pci_dev *dev, unsigned char where, u32 *data)
+	struct pci_bus *bus, unsigned int devfn, u32 *data)
 {
-	unsigned char bus = dev->bus->number;
-	unsigned char dev_fn = dev->devfn;
+	unsigned char busnum = bus->number;
 	unsigned char type;
 	u32 intr, dummy;
 	u64 pci_addr;
@@ -66,7 +65,7 @@ static int mips_pcibios_config_access(unsigned char access_type,
 	case MIPS_REVISION_CORID_CORE_FPGA:
 	        /* Galileo GT64120 system controller. */
 
-		if ((bus == 0) && (dev_fn >= PCI_DEVFN(31,0)))
+		if ((busnum == 0) && (devfn >= PCI_DEVFN(31,0)))
 			return -1; /* Because of a bug in the galileo (for slot 31). */
 
 		/* Clear cause register bits */
@@ -77,13 +76,13 @@ static int mips_pcibios_config_access(unsigned char access_type,
 
 		/* Setup address */
 		GT_WRITE(GT_PCI0_CFGADDR_OFS,
-			 (bus         << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
-			 (dev_fn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
+			 (busnum     << GT_PCI0_CFGADDR_BUSNUM_SHF)   |
+			 (devfn      << GT_PCI0_CFGADDR_FUNCTNUM_SHF) |
 			 ((where / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
 			 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 		if (access_type == PCI_ACCESS_WRITE) {
-			if (bus == 0 && dev_fn == 0) {
+			if (busnum == 0 && devfn == 0) {
 				/*
 				 * The Galileo system controller is acting
 				 * differently than other devices.
@@ -93,7 +92,7 @@ static int mips_pcibios_config_access(unsigned char access_type,
 				GT_PCI_WRITE(GT_PCI0_CFGDATA_OFS, *data);
 			}
 		} else {
-			if (bus == 0 && dev_fn == 0) {
+			if (busnum == 0 && devfn == 0) {
 				/*
 				 * The Galileo system controller is acting
 				 * differently than other devices.
@@ -127,7 +126,7 @@ static int mips_pcibios_config_access(unsigned char access_type,
 	case MIPS_REVISION_CORID_CORE_20K:
 	        /* Algorithmics Bonito64 system controller. */
 
-	        if ((bus == 0) && (PCI_SLOT(dev_fn) == 0)) {
+	        if ((busnum == 0) && (PCI_SLOT(devfn) == 0)) {
 		        return -1;
 		}
 
@@ -139,24 +138,24 @@ static int mips_pcibios_config_access(unsigned char access_type,
 		 * Setup pattern to be used as PCI "address" for
 		 * Type 0 cycle
 		 */
-		if (bus == 0) {
+		if (busnum == 0) {
 		        /* IDSEL */
-		        pci_addr = (u64)1 << (PCI_SLOT(dev_fn) + 10);
+		        pci_addr = (u64)1 << (PCI_SLOT(devfn) + 10);
 		} else {
 		        /* Bus number */
-		        pci_addr = bus << PCI_CFG_TYPE1_BUS_SHF;
+		        pci_addr = busnum << PCI_CFG_TYPE1_BUS_SHF;
 
 			/* Device number */
-			pci_addr |= PCI_SLOT(dev_fn) << PCI_CFG_TYPE1_DEV_SHF;
+			pci_addr |= PCI_SLOT(devfn) << PCI_CFG_TYPE1_DEV_SHF;
 		}
 
 		/* Function (same for Type 0/1) */
-		pci_addr |= PCI_FUNC(dev_fn) << PCI_CFG_TYPE0_FUNC_SHF;
+		pci_addr |= PCI_FUNC(devfn) << PCI_CFG_TYPE0_FUNC_SHF;
 
 		/* Register number (same for Type 0/1) */
 		pci_addr |= (where & ~0x3) << PCI_CFG_TYPE0_REG_SHF;
 
-		if (bus == 0) {
+		if (busnum == 0) {
 		        /* Type 0 */
 		        BONITO_PCIMAP_CFG = pci_addr >> 16;
 		} else {
@@ -204,7 +203,7 @@ static int mips_pcibios_config_access(unsigned char access_type,
 	case MIPS_REVISION_CORID_CORE_MSC:
 	        /* MIPS system controller. */
 
-	        if ((bus == 0) && (PCI_SLOT(dev_fn) == 0)) {
+	        if ((busnum == 0) && (PCI_SLOT(devfn) == 0)) {
 		        return -1;
 		}
 
@@ -214,15 +213,15 @@ static int mips_pcibios_config_access(unsigned char access_type,
 			   MSC01_PCI_INTCFG_TA_BIT));
 
 		/* Setup address */
-		if (bus == 0)
+		if (busnum == 0)
 			type = 0;  /* Type 0 */
 		else
 			type = 1;  /* Type 1 */
 
 		MSC_WRITE(MSC01_PCI_CFGADDR,
-			  ((bus              << MSC01_PCI_CFGADDR_BNUM_SHF) |
-			   (PCI_SLOT(dev_fn) << MSC01_PCI_CFGADDR_DNUM_SHF) |
-			   (PCI_FUNC(dev_fn) << MSC01_PCI_CFGADDR_FNUM_SHF) |
+			  ((busnum          << MSC01_PCI_CFGADDR_BNUM_SHF) |
+			   (PCI_SLOT(devfn) << MSC01_PCI_CFGADDR_DNUM_SHF) |
+			   (PCI_FUNC(devfn) << MSC01_PCI_CFGADDR_FNUM_SHF) |
 			   ((where /4 )      << MSC01_PCI_CFGADDR_RNUM_SHF) |
 			   (type)));
 
@@ -262,108 +261,58 @@ static int mips_pcibios_config_access(unsigned char access_type,
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int mips_pcibios_read_config_byte (struct pci_dev *dev, int where,
-	u8 *val)
+static int mips_pcibios_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u16 *val)
 {
 	u32 data = 0;
 
-	if (mips_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-		return -1;
-
-	*val = (data >> ((where & 3) << 3)) & 0xff;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int mips_pcibios_read_config_word (struct pci_dev *dev, int where,
-	u16 *val)
-{
-	u32 data = 0;
-
-	if (where & 1)
+	if ((size == 2) && (where & 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (mips_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
+	if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, where, &data))
 	       return -1;
 
-	*val = (data >> ((where & 3) << 3)) & 0xffff;
+	if (size == 1)
+		*val = (data >> ((where & 3) << 3)) & 0xff;
+	else if (size == 2)
+		*val = (data >> ((where & 3) << 3)) & 0xffff;
+	else
+		*val = data;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int mips_pcibios_read_config_dword (struct pci_dev *dev, int where,
-	u32 *val)
-{
-	u32 data = 0;
-
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (mips_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-		return -1;
-
-	*val = data;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int mips_pcibios_write_config_byte (struct pci_dev *dev, int where,
-	u8 val)
-{
-	u32 data = 0;
-
-	if (mips_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-		return -1;
-
-	data = (data & ~(0xff << ((where & 3) << 3))) |
-	       (val << ((where & 3) << 3));
-
-	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &data))
-		return -1;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int mips_pcibios_write_config_word (struct pci_dev *dev, int where,
-	u16 val)
+static int mips_pcibios_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u16 val)
 {
         u32 data = 0;
 
-	if (where & 1)
+	if ((size == 2) && (where & 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	else if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
-        if (mips_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
+        if (mips_pcibios_config_access(PCI_ACCESS_READ, bus, where, &data))
 	       return -1;
 
-	data = (data & ~(0xffff << ((where & 3) << 3))) |
-	       (val << ((where & 3) << 3));
+	if (size == 1)
+		data = (data & ~(0xff << ((where & 3) << 3))) |
+		       (val << ((where & 3) << 3));
+	else if (size == 2)
+		data = (data & ~(0xffff << ((where & 3) << 3))) |
+		       (val << ((where & 3) << 3));
 
-	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &data))
-	       return -1;
-
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int mips_pcibios_write_config_dword(struct pci_dev *dev, int where,
-	u32 val)
-{
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &val))
+	if (mips_pcibios_config_access(PCI_ACCESS_WRITE, bus, where, &data))
 	       return -1;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 struct pci_ops mips_pci_ops = {
-	mips_pcibios_read_config_byte,
-        mips_pcibios_read_config_word,
-	mips_pcibios_read_config_dword,
-	mips_pcibios_write_config_byte,
-	mips_pcibios_write_config_word,
-	mips_pcibios_write_config_dword
+	.read	= mips_pcibios_read,
+	.write	= mips_pcibios_write
 };
 
 int mips_pcibios_iack(void)

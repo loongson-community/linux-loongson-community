@@ -40,84 +40,74 @@ do {									\
 
 void macepci_error (int irq, void *dev, struct pt_regs *regs);
 
-static int macepci_read_config_byte (struct pci_dev *dev, int where,
-				     u8 *val)
+static int macepci_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 *val)
 {
-	*val = 0xff;
-	chkslot (dev);
-	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	*val = mace_read_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL));
+	switch (size) {
+	case 1:
+		*val = 0xff;
+		chkslot (dev);
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		*val = mace_read_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL));
 
-	return PCIBIOS_SUCCESSFUL;
+		return PCIBIOS_SUCCESSFUL;
+
+	case 2:
+		*val = 0xffff;
+		chkslot (dev);
+		if (where & 1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+ 		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		*val = mace_read_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL));
+
+		return PCIBIOS_SUCCESSFUL;
+
+	case 4:
+		*val = 0xffffffff;
+		chkslot (dev);
+		if (where & 3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		*val = mace_read_32 (MACEPCI_CONFIG_DATA);
+
+		return PCIBIOS_SUCCESSFUL;
+	}
 }
 
-static int macepci_read_config_word (struct pci_dev *dev, int where,
-				     u16 *val)
+static int macepci_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 val)
 {
-	*val = 0xffff;
-	chkslot (dev);
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
- 	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	*val = mace_read_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL));
+	switch (size) {
+	case 1:
+		chkslot (dev);
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL), val);
 
-	return PCIBIOS_SUCCESSFUL;
-}
+		return PCIBIOS_SUCCESSFUL;
 
-static int macepci_read_config_dword (struct pci_dev *dev, int where,
-				      u32 *val)
-{
-	*val = 0xffffffff;
-	chkslot (dev);
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	*val = mace_read_32 (MACEPCI_CONFIG_DATA);
+	case 2:
+		chkslot (dev);
+		if (where & 1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL), val);
 
-	return PCIBIOS_SUCCESSFUL;
-}
+		return PCIBIOS_SUCCESSFUL;
 
-static int macepci_write_config_byte (struct pci_dev *dev, int where,
-				      u8 val)
-{
-	chkslot (dev);
-	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	mace_write_8 (MACEPCI_CONFIG_DATA + ((where & 3UL) ^ 3UL), val);
+	case 4:
+		chkslot (dev);
+		if (where & 3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
+		mace_write_32 (MACEPCI_CONFIG_DATA, val);
 
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int macepci_write_config_word (struct pci_dev *dev, int where,
-				      u16 val)
-{
-	chkslot (dev);
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	mace_write_16 (MACEPCI_CONFIG_DATA + ((where & 2UL) ^ 2UL), val);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int macepci_write_config_dword (struct pci_dev *dev, int where,
-                                          u32 val)
-{
-	chkslot (dev);
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	mace_write_32 (MACEPCI_CONFIG_ADDR, mkaddr (dev, where));
-	mace_write_32 (MACEPCI_CONFIG_DATA, val);
-
-	return PCIBIOS_SUCCESSFUL;
+		return PCIBIOS_SUCCESSFUL;
+	}
 }
 
 static struct pci_ops macepci_ops = {
-	macepci_read_config_byte,
-	macepci_read_config_word,
-	macepci_read_config_dword,
-	macepci_write_config_byte,
-	macepci_write_config_word,
-	macepci_write_config_dword
+	.read	= macepci_read_config,
+	.write	= macepci_write_config,
 };
 
 struct pci_fixup pcibios_fixups[] = { { 0 } };

@@ -30,8 +30,10 @@ struct cache_desc {
 
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_R6000) || defined(CONFIG_CPU_TX39XX)
 #define L1_CACHE_BYTES		16
+#define L1_CACHE_SHIFT_MAX	 4	/* largest L1 which this arch supports */
 #else
 #define L1_CACHE_BYTES 		32	/* A guess */
+#define L1_CACHE_SHIFT_MAX	 6	/* largest L1 which this arch supports */
 #endif
 
 #define SMP_CACHE_BYTES		L1_CACHE_BYTES

@@ -86,23 +86,16 @@ struct pci_channel mips_pci_channels[] = {
 	{ NULL, NULL, NULL, NULL, NULL}
 };
 
-static int
-it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
-                           unsigned char where, u32 *data)
+static int it8172_pcibios_config_access(unsigned char access_type,
+	struct pci_bus *bus, unsigned int devfn, int where, u32 *data)
 {
 	/*
 	 * config cycles are on 4 byte boundary only
 	 */
-	unsigned char bus = dev->bus->number;
-	unsigned char dev_fn = dev->devfn;
-
-	DBG("it config: type %d dev %x bus %d dev_fn %x data %x\n",
-			access_type, dev, bus, dev_fn, *data);
 
 	/* Setup address */
-	IT_WRITE(IT_CONFADDR, (bus << IT_BUSNUM_SHF) |
-			(dev_fn << IT_FUNCNUM_SHF) | (where & ~0x3));
-
+	IT_WRITE(IT_CONFADDR, (bus->number << IT_BUSNUM_SHF) |
+	                      (devfn << IT_FUNCNUM_SHF) | (where & ~0x3));
 
 	if (access_type == PCI_ACCESS_WRITE) {
 		IT_WRITE(IT_CONFDATA, *data);
@@ -115,8 +108,6 @@ it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
 	 * Revisit: check for master or target abort.
 	 */
 	return 0;
-
-
 }
 
 
@@ -124,120 +115,108 @@ it8172_pcibios_config_access(unsigned char access_type, struct pci_dev *dev,
  * We can't address 8 and 16 bit words directly.  Instead we have to
  * read/write a 32bit word and mask/modify the data we actually want.
  */
-static int
-read_config_byte (struct pci_dev *dev, int where, u8 *val)
+static write_config(struct pci_bus *bus, unsigned int devfn, int where,
+	int size, u32 val)
 {
 	u32 data = 0;
 
-	if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
+	switch (size) {
+	case 1:
+		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
+		                                 &data))
 		return -1;
 
-	*val = (data >> ((where & 3) << 3)) & 0xff;
-        DBG("cfg read byte: bus %d dev_fn %x where %x: val %x\n",
-                dev->bus->number, dev->devfn, where, *val);
+		*val = (data >> ((where & 3) << 3)) & 0xff;
 
-	return PCIBIOS_SUCCESSFUL;
+		return PCIBIOS_SUCCESSFUL;
+
+	case 2:
+
+		if (where & 1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+
+		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
+		                                 &data))
+		       return -1;
+
+		*val = (data >> ((where & 3) << 3)) & 0xffff;
+		DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n",
+		    dev->bus->number, dev->devfn, where, *val);
+
+		return PCIBIOS_SUCCESSFUL;
+
+	case 4:
+
+		if (where & 3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+
+		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
+		                                 &data))
+			return -1;
+
+		*val = data;
+
+		return PCIBIOS_SUCCESSFUL;
+	}
 }
 
 
-static int
-read_config_word (struct pci_dev *dev, int where, u16 *val)
+static write_config(struct pci_bus *bus, unsigned int devfn, int where,
+	int size, u32 val)
 {
 	u32 data = 0;
 
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
+	switch (size) {
+	case 1:
+		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
+		                                 &data))
+			return -1;
 
-	if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-	       return -1;
+		data = (data & ~(0xff << ((where & 3) << 3))) |
+		       (val << ((where & 3) << 3));
 
-	*val = (data >> ((where & 3) << 3)) & 0xffff;
-        DBG("cfg read word: bus %d dev_fn %x where %x: val %x\n",
-                dev->bus->number, dev->devfn, where, *val);
+		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
+		                                 &data))
+			return -1;
 
-	return PCIBIOS_SUCCESSFUL;
-}
+		return PCIBIOS_SUCCESSFUL;
 
-static int
-read_config_dword (struct pci_dev *dev, int where, u32 *val)
-{
-	u32 data = 0;
+	case 2:
+		if (where & 1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
+		if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where,
+		                                 &data))
+			eturn -1;
 
-	if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-		return -1;
+		data = (data & ~(0xffff << ((where & 3) << 3))) |
+	               (val << ((where & 3) << 3));
 
-	*val = data;
-        DBG("cfg read dword: bus %d dev_fn %x where %x: val %x\n",
-                dev->bus->number, dev->devfn, where, *val);
+		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
+		                                 &data))
+			return -1;
 
-	return PCIBIOS_SUCCESSFUL;
-}
+		return PCIBIOS_SUCCESSFUL;
 
+	case 4:
+		if (where & 3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
 
-static int
-write_config_byte (struct pci_dev *dev, int where, u8 val)
-{
-	u32 data = 0;
+		if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where,
+		                                 &val))
+		       return -1;
 
-	if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-		return -1;
-
-	data = (data & ~(0xff << ((where & 3) << 3))) |
-	       (val << ((where & 3) << 3));
-
-	if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &data))
-		return -1;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-write_config_word (struct pci_dev *dev, int where, u16 val)
-{
-        u32 data = 0;
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-        if (it8172_pcibios_config_access(PCI_ACCESS_READ, dev, where, &data))
-	       return -1;
-
-	data = (data & ~(0xffff << ((where & 3) << 3))) |
-	       (val << ((where & 3) << 3));
-
-	if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &data))
-	       return -1;
-
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-write_config_dword(struct pci_dev *dev, int where, u32 val)
-{
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	if (it8172_pcibios_config_access(PCI_ACCESS_WRITE, dev, where, &val))
-	       return -1;
-
-	return PCIBIOS_SUCCESSFUL;
+		return PCIBIOS_SUCCESSFUL;
+	}
 }
 
 struct pci_ops it8172_pci_ops = {
-	read_config_byte,
-        read_config_word,
-	read_config_dword,
-	write_config_byte,
-	write_config_word,
-	write_config_dword
+	.read	= read_config,
+	.write	= write_config,
 };
 
 unsigned __init int pcibios_assign_all_busses(void)
 {
-       return 1;
+	eturn 1;
 }
 #endif /* CONFIG_PCI */

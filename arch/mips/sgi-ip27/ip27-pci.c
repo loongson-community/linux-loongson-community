@@ -43,68 +43,58 @@ int irq_to_slot[MAX_PCI_BUSSES * MAX_DEVICES_PER_PCIBUS];
  * Therefore we use type 0 accesses for now even though they won't work
  * correcly for PCI-to-PCI bridges.
  */
-#define CF0_READ_PCI_CFG(dev,where,value,bm,mask)			\
+#define CF0_READ_PCI_CFG(bus,devfn,where,value,bm,mask)			\
 do {									\
 	bridge_t *bridge;                                               \
-	int slot = PCI_SLOT(dev->devfn);				\
-	int fn = PCI_FUNC(dev->devfn);					\
+	int slot = PCI_SLOT(devfn);					\
+	int fn = PCI_FUNC(devfn);					\
 	volatile u32 *addr;						\
 	u32 cf, __bit;							\
-	unsigned int bus_id = (unsigned) dev->bus->number;              \
+	unsigned int bus_id = (unsigned) bus->number;              	\
 									\
 	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],        \
                                              bus_to_wid[bus_id]);       \
                                                                         \
-	if (dev->vendor == PCI_VENDOR_ID_SGI				\
-	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
-	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {	\
-		*value = 0;						\
-		return PCIBIOS_SUCCESSFUL;				\
-	}								\
-									\
-	__bit = (((where) & (bm)) << 3);				\
-	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
 		return PCIBIOS_DEVICE_NOT_FOUND;			\
 	*value = (cf >> __bit) & (mask);				\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
-static int pci_conf0_read_config_byte(struct pci_dev *dev, int where,
-	u8 *value)
-{
-	CF0_READ_PCI_CFG(dev,where,value,3,0xff);
-}
-
-static int pci_conf0_read_config_word(struct pci_dev *dev, int where,
-	u16 *value)
-{
-	CF0_READ_PCI_CFG(dev,where,value,2,0xffff);
-}
-
-static int pci_conf0_read_config_dword(struct pci_dev *dev, int where,
+static int pci_conf0_read_config(struct pci_bus *bus, int where,
 	u32 *value)
 {
-	CF0_READ_PCI_CFG(dev,where,value,0,0xffffffff);
+	u32	vprod;
+
+	CF0_READ_PCI_CFG(bus, devfn, PCI_VENDOR_ID, &vprod, 0, 0xffffffff);
+	if (vprod == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16))
+	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {
+		*value = 0;
+		return PCIBIOS_SUCCESSFUL;
+	}
+
+	__bit = (((where) & (bm)) << 3);				\
+	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
+	if (size == 1)
+		CF0_READ_PCI_CFG(bus, devfn, where, (u8 *) value, 3, 0xff);
+	else if (size == 2)
+		CF0_READ_PCI_CFG(bus, devfn, where, (u16 *) value, 2, 0xffff);
+	else
+		CF0_READ_PCI_CFG(bus, devfn, where, (u32 *) value, 0, 0xffffffff);
 }
 
-#define CF0_WRITE_PCI_CFG(dev,where,value,bm,mask)			\
+#define CF0_WRITE_PCI_CFG(bus,devfn,where,value,bm,mask)		\
 do {									\
 	bridge_t *bridge;                                               \
-	int slot = PCI_SLOT(dev->devfn);				\
-	int fn = PCI_FUNC(dev->devfn);					\
+	int slot = PCI_SLOT(devfn);					\
+	int fn = PCI_FUNC(devfn);					\
 	volatile u32 *addr;						\
 	u32 cf, __bit;							\
-	unsigned int bus_id = (unsigned) dev->bus->number;              \
+	unsigned int bus_id = (unsigned) bus->number;              	\
 									\
 	bridge = (bridge_t *) NODE_SWIN_BASE(bus_to_nid[bus_id],        \
                                              bus_to_wid[bus_id]);       \
                                                                         \
-	if (dev->vendor == PCI_VENDOR_ID_SGI				\
-	    && dev->device == PCI_DEVICE_ID_SGI_IOC3			\
-	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48)))	\
-		return PCIBIOS_SUCCESSFUL;				\
-									\
 	__bit = (((where) & (bm)) << 3);				\
 	addr = &bridge->b_type0_cfg_dev[slot].f[fn].l[where >> 2];	\
 	if (get_dbe(cf, addr))						\
@@ -115,32 +105,29 @@ do {									\
 	return PCIBIOS_SUCCESSFUL;					\
 } while (0)
 
-static int pci_conf0_write_config_byte(struct pci_dev *dev, int where,
-	u8 value)
-{
-	CF0_WRITE_PCI_CFG(dev,where,value,3,0xff);
-}
-
-static int pci_conf0_write_config_word(struct pci_dev *dev, int where,
-	u16 value)
-{
-	CF0_WRITE_PCI_CFG(dev,where,value,2,0xffff);
-}
-
-static int pci_conf0_write_config_dword(struct pci_dev *dev, int where,
+static int pci_conf0_write_config_byte(struct pci_bus *bus, int where,
 	u32 value)
 {
-	CF0_WRITE_PCI_CFG(dev,where,value,0,0xffffffff);
+	u32	vprod;
+
+	CF0_READ_PCI_CFG(bus, devfn, PCI_VENDOR_ID, &vprod, 0, 0xffffffff);
+	if (vprod == (PCI_VENDOR_ID_SGI | (PCI_DEVICE_ID_SGI_IOC3 << 16))
+	    && ((where >= 0x14 && where < 0x40) || (where >= 0x48))) {
+		*value = 0;
+		return PCIBIOS_SUCCESSFUL;
+	}
+
+	if (size == 1)
+		CF0_WRITE_PCI_CFG(dev, devfn, where, (u8)  value, 3,0xff);
+	else if (size == 2)
+		CF0_WRITE_PCI_CFG(dev, devfn, where, (u16) value, 2,0xffff);
+	else
+		CF0_WRITE_PCI_CFG(dev, devfn, where, (u32) value, 0,0xffffffff);
 }
 
-
 static struct pci_ops bridge_pci_ops = {
-	pci_conf0_read_config_byte,
-	pci_conf0_read_config_word,
-	pci_conf0_read_config_dword,
-	pci_conf0_write_config_byte,
-	pci_conf0_write_config_word,
-	pci_conf0_write_config_dword
+	.read	= pci_conf0_read_config,
+	.write	= pci_conf0_write_config,
 };
 
 void __init pcibios_init(void)

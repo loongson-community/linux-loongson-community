@@ -61,8 +61,8 @@
  * Using the above offset, this macro calcuates the physical address in the
  * config space.
  */
-#define CFGADDR(dev,where) (A_PHYS_LDTPCI_CFG_MATCH_BITS + \
-			    CFGOFFSET(dev->bus->number,dev->devfn,where))
+#define CFGADDR(bus,devfn,where) (A_PHYS_LDTPCI_CFG_MATCH_BITS + \
+			    CFGOFFSET(bus->number, devfn, where))
 
 /*
  * Read/write 32-bit values in config space.
@@ -100,34 +100,11 @@ static int sb1250_bus_status = 0;
  * in config space.
  */
 
-static int
-sb1250_pci_read_config_byte(struct pci_dev *dev, int where, u8 * val)
+static int sb1250_pci_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 * val)
 {
 	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	data = READCFG32(cfgaddr);
-
-	/*
-	 * If the LDT was not configured, make it look like the bridge
-	 * header is not there.
-	 */
-	if (!(sb1250_bus_status & LDT_BUS_ENABLED) &&
-	    (cfgaddr >= LDT_BRIDGE_START) && (cfgaddr < LDT_BRIDGE_END)) {
-		data = 0xFFFFFFFF;
-	}
-
-	*val = (data >> ((where & 3) << 3)) & 0xff;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-
-static int
-sb1250_pci_read_config_word(struct pci_dev *dev, int where, u16 * val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
+	u32 cfgaddr = CFGADDR(dev, devfn, where);
 
 	if (where & 1)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
@@ -143,94 +120,45 @@ sb1250_pci_read_config_word(struct pci_dev *dev, int where, u16 * val)
 		data = 0xFFFFFFFF;
 	}
 
-	*val = (data >> ((where & 3) << 3)) & 0xffff;
+	if (size == 1)
+		*val = (data >> ((where & 3) << 3)) & 0xff;
+	else if (size == 2)
+		*val = (data >> ((where & 3) << 3)) & 0xffff;
+	else
+		*val = data;
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int
-sb1250_pci_read_config_dword(struct pci_dev *dev, int where, u32 * val)
+static int sb1250_pci_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 val)
 {
 	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
+	u32 cfgaddr = CFGADDR(dev, devfn, where);
 
-	if (where & 3)
+	if ((size == 2) && (where & 1))
+		return PCIBIOS_BAD_REGISTER_NUMBER;
+	if ((size == 4) && (where & 3))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	data = READCFG32(cfgaddr);
 
-	/*
-	 * If the LDT was not configured, make it look like the bridge
-	 * header is not there.
-	 */
-	if (!(sb1250_bus_status & LDT_BUS_ENABLED) &&
-	    (cfgaddr >= LDT_BRIDGE_START) && (cfgaddr < LDT_BRIDGE_END)) {
-		data = 0xFFFFFFFF;
-	}
-
-	*val = data;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-
-static int
-sb1250_pci_write_config_byte(struct pci_dev *dev, int where, u8 val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	data = READCFG32(cfgaddr);
-
-	data = (data & ~(0xff << ((where & 3) << 3))) |
-	    (val << ((where & 3) << 3));
+	if (size == 1)
+		data = (data & ~(0xff << ((where & 3) << 3))) |
+		       (val << ((where & 3) << 3));
+	if (size == 2)
+		data = (data & ~(0xffff << ((where & 3) << 3))) |
+		       (val << ((where & 3) << 3));
 
 	WRITECFG32(cfgaddr, data);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-sb1250_pci_write_config_word(struct pci_dev *dev, int where, u16 val)
-{
-	u32 data = 0;
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (where & 1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	data = READCFG32(cfgaddr);
-
-	data = (data & ~(0xffff << ((where & 3) << 3))) |
-	    (val << ((where & 3) << 3));
-
-	WRITECFG32(cfgaddr, data);
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-sb1250_pci_write_config_dword(struct pci_dev *dev, int where, u32 val)
-{
-	u32 cfgaddr = CFGADDR(dev, where);
-
-	if (where & 3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-
-	WRITECFG32(cfgaddr, val);
 
 	return PCIBIOS_SUCCESSFUL;
 }
 
 struct pci_ops sb1250_pci_ops = {
-	sb1250_pci_read_config_byte,
-	sb1250_pci_read_config_word,
-	sb1250_pci_read_config_dword,
-	sb1250_pci_write_config_byte,
-	sb1250_pci_write_config_word,
-	sb1250_pci_write_config_dword
+	.read	= sb1250_pci_read_config,
+	.write	= sb1250_pci_write_config,
 };
-
 
 void __init pcibios_init(void)
 {

@@ -1377,13 +1377,13 @@ static int vrc5477_ac97_ioctl(struct inode *inode, struct file *file,
 	case SNDCTL_DSP_RESET:
 		if (file->f_mode & FMODE_WRITE) {
 			stop_dac(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
 			s->dma_dac.count = 0;
 			s->dma_dac.nextIn = s->dma_dac.nextOut = 0;
 		}
 		if (file->f_mode & FMODE_READ) {
 			stop_adc(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
 			s->dma_adc.count = 0;
 			s->dma_adc.nextIn = s->dma_adc.nextOut = 0;
 		}

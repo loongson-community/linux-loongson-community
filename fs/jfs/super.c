@@ -146,7 +146,6 @@ static void jfs_put_super(struct super_block *sb)
 	 * We need to clean out the direct_inode pages since this inode
 	 * is not in the inode hash.
 	 */
-	filemap_fdatawait(sbi->direct_inode->i_mapping);
 	filemap_fdatawrite(sbi->direct_inode->i_mapping);
 	filemap_fdatawait(sbi->direct_inode->i_mapping);
 	truncate_inode_pages(sbi->direct_mapping, 0);
@@ -362,7 +361,6 @@ out_no_rw:
 		jERROR(1, ("jfs_umount failed with return code %d\n", rc));
 	}
 out_mount_failed:
-	filemap_fdatawait(sbi->direct_inode->i_mapping);
 	filemap_fdatawrite(sbi->direct_inode->i_mapping);
 	filemap_fdatawait(sbi->direct_inode->i_mapping);
 	truncate_inode_pages(sbi->direct_mapping, 0);
@@ -377,6 +375,31 @@ out_kfree:
 	return -EINVAL;
 }
 
+static void jfs_write_super_lockfs(struct super_block *sb)
+{
+	struct jfs_sb_info *sbi = JFS_SBI(sb);
+	log_t *log = sbi->log;
+
+	if (!(sb->s_flags & MS_RDONLY)) {
+		txQuiesce(sb);
+		lmLogShutdown(log);
+	}
+}
+
+static void jfs_unlockfs(struct super_block *sb)
+{
+	struct jfs_sb_info *sbi = JFS_SBI(sb);
+	log_t *log = sbi->log;
+	int rc = 0;
+
+	if (!(sb->s_flags & MS_RDONLY)) {
+		if ((rc = lmLogInit(log)))
+			jERROR(1,
+			       ("jfs_unlock failed with return code %d\n", rc));
+		else
+			txResume(sb);
+	}
+}
 static struct super_block *jfs_get_sb(struct file_system_type *fs_type,
 		int flags, char *dev_name, void *data)
 {
@@ -390,6 +413,8 @@ static struct super_operations jfs_super_operations = {
 	.write_inode	= jfs_write_inode,
 	.delete_inode	= jfs_delete_inode,
 	.put_super	= jfs_put_super,
+	.write_super_lockfs = jfs_write_super_lockfs,
+	.unlockfs       = jfs_unlockfs,
 	.statfs		= jfs_statfs,
 	.remount_fs	= jfs_remount,
 };

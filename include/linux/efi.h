@@ -1,5 +1,5 @@
-#ifndef _ASM_IA64_EFI_H
-#define _ASM_IA64_EFI_H
+#ifndef _LINUX_EFI_H
+#define _LINUX_EFI_H
 
 /*
  * Extensible Firmware Interface
@@ -281,4 +281,4 @@ extern u64 efi_mem_attributes (unsigned long phys_addr);
 extern struct proc_dir_entry *efi_dir;
 #endif
 
-#endif /* _ASM_IA64_EFI_H */
+#endif /* _LINUX_EFI_H */

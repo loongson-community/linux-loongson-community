@@ -5,9 +5,8 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1995, 1996, 1997 by Ralf Baechle
+ * Copyright (C) 1995, 1996, 1997, 2002 by Ralf Baechle
  * Copyright (C) 2001 by Liam Davies (ldavies@agile.tv)
- *
  */
 
 #include <linux/config.h>
@@ -261,12 +260,12 @@ struct pci_fixup pcibios_fixups[] = {
 };
 
 
-static __inline__ int pci_range_ck(struct pci_dev *dev)
+static inline int pci_range_ck(struct pci_bus *bus, unsigned int devfn)
 {
-       if ((dev->bus->number == 0)
-           && ((PCI_SLOT (dev->devfn) == 0)
-               || ((PCI_SLOT (dev->devfn) > 6)
-                   && (PCI_SLOT (dev->devfn) <= 12))))
+       if ((bus->number == 0)
+           && ((PCI_SLOT(devfn) == 0)
+               || ((PCI_SLOT(devfn) > 6)
+                   && (PCI_SLOT (devfn) <= 12))))
 		return 0;  /* OK device number  */
 
 	return -1;  /* NOT ok device number */
@@ -275,121 +274,103 @@ static __inline__ int pci_range_ck(struct pci_dev *dev)
 #define PCI_CFG_DATA	((volatile unsigned long *)0xb4000cfc)
 #define PCI_CFG_CTRL	((volatile unsigned long *)0xb4000cf8)
 
-#define PCI_CFG_SET(dev,where) \
-       ((*PCI_CFG_CTRL) = (0x80000000 | (PCI_SLOT ((dev)->devfn) << 11) | \
-                           (PCI_FUNC ((dev)->devfn) << 8) | (where)))
+#define PCI_CFG_SET(devfn,where) \
+       ((*PCI_CFG_CTRL) = (0x80000000 | (PCI_SLOT (devfn) << 11) | \
+                           (PCI_FUNC (devfn) << 8) | (where)))
 
-static int qube_pci_read_config_dword (struct pci_dev *dev,
-                                          int where,
-                                          u32 *val)
+static int qube_pci_read_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 *val)
 {
-	if (where & 0x3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (pci_range_ck (dev)) {
-		*val = 0xFFFFFFFF;
-		return PCIBIOS_DEVICE_NOT_FOUND;
+	switch (size) {
+	case 4:
+		if (where & 0x3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		if (pci_range_ck(bus, devfn)) {
+			*val = 0xFFFFFFFF;
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
+		PCI_CFG_SET(devfn, where);
+		*val = *PCI_CFG_DATA;
+		return PCIBIOS_SUCCESSFUL;
+
+	case 2:
+		if (where & 0x1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		if (pci_range_ck(bus, devfn)) {
+			*val = 0xffff;
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
+		PCI_CFG_SET(devfn, (where & ~0x3));
+		*val = *PCI_CFG_DATA >> ((where & 3) * 8);
+		return PCIBIOS_SUCCESSFUL;
+
+	case 1:
+		if (pci_range_ck(bus, devfn)) {
+			*val = 0xff;
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		}
+		PCI_CFG_SET(devfn, (where & ~0x3));
+		*val = *PCI_CFG_DATA >> ((where & 3) * 8);
+		return PCIBIOS_SUCCESSFUL;
 	}
-	PCI_CFG_SET(dev, where);
-	*val = *PCI_CFG_DATA;
-	return PCIBIOS_SUCCESSFUL;
 }
 
-static int qube_pci_read_config_word (struct pci_dev *dev,
-                                         int where,
-                                         u16 *val)
+static int qube_pci_write_config(struct pci_bus *bus, unsigned int devfn,
+	int where, int size, u32 val)
 {
-        if (where & 0x1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (pci_range_ck (dev)) {
-		*val = 0xffff;
-		return PCIBIOS_DEVICE_NOT_FOUND;
+	u32 tmp;
+
+	switch (size) {
+	case 4:
+		if(where & 0x3)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		if (pci_range_ck(bus, devfn))
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		PCI_CFG_SET(devfn, where);
+		*PCI_CFG_DATA = val;
+
+		return PCIBIOS_SUCCESSFUL;
+
+	case 2:
+		if (where & 0x1)
+			return PCIBIOS_BAD_REGISTER_NUMBER;
+		if (pci_range_ck(bus, devfn))
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		PCI_CFG_SET(devfn, (where & ~0x3));
+		tmp = *PCI_CFG_DATA;
+		tmp &= ~(0xffff << ((where & 0x3) * 8));
+		tmp |=  (val << ((where & 0x3) * 8));
+		*PCI_CFG_DATA = tmp;
+
+		return PCIBIOS_SUCCESSFUL;
+
+	case 1:
+
+		if (pci_range_ck(bus, devfn))
+			return PCIBIOS_DEVICE_NOT_FOUND;
+		PCI_CFG_SET(devfn, (where & ~0x3));
+		tmp = *PCI_CFG_DATA;
+		tmp &= ~(0xff << ((where & 0x3) * 8));
+		tmp |=  (val << ((where & 0x3) * 8));
+		*PCI_CFG_DATA = tmp;
+
+		return PCIBIOS_SUCCESSFUL;
 	}
-	PCI_CFG_SET(dev, (where & ~0x3));
-	*val = *PCI_CFG_DATA >> ((where & 3) * 8);
-	return PCIBIOS_SUCCESSFUL;
 }
-
-static int qube_pci_read_config_byte (struct pci_dev *dev,
-                                         int where,
-                                         u8 *val)
-{
-	if (pci_range_ck (dev)) {
-		*val = 0xff;
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	}
-	PCI_CFG_SET(dev, (where & ~0x3));
-	*val = *PCI_CFG_DATA >> ((where & 3) * 8);
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int qube_pci_write_config_dword (struct pci_dev *dev,
-                                           int where,
-                                           u32 val)
-{
-	if(where & 0x3)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (pci_range_ck (dev))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	PCI_CFG_SET(dev, where);
-	*PCI_CFG_DATA = val;
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-qube_pci_write_config_word (struct pci_dev *dev,
-                                int where,
-                               u16 val)
-{
-	unsigned long tmp;
-
-	if (where & 0x1)
-		return PCIBIOS_BAD_REGISTER_NUMBER;
-	if (pci_range_ck (dev))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	PCI_CFG_SET(dev, (where & ~0x3));
-	tmp = *PCI_CFG_DATA;
-	tmp &= ~(0xffff << ((where & 0x3) * 8));
-	tmp |=  (val << ((where & 0x3) * 8));
-	*PCI_CFG_DATA = tmp;
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-qube_pci_write_config_byte (struct pci_dev *dev,
-                                int where,
-                               u8 val)
-{
-	unsigned long tmp;
-
-	if (pci_range_ck (dev))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-	PCI_CFG_SET(dev, (where & ~0x3));
-	tmp = *PCI_CFG_DATA;
-	tmp &= ~(0xff << ((where & 0x3) * 8));
-	tmp |=  (val << ((where & 0x3) * 8));
-	*PCI_CFG_DATA = tmp;
-	return PCIBIOS_SUCCESSFUL;
-}
-
 
 struct pci_ops qube_pci_ops = {
-	qube_pci_read_config_byte,
-	qube_pci_read_config_word,
-	qube_pci_read_config_dword,
-	qube_pci_write_config_byte,
-	qube_pci_write_config_word,
-	qube_pci_write_config_dword
+	.read	= qube_pci_read_config,
+	.write	= qube_pci_write_config,
 };
 
 void __init pcibios_init(void)
 {
-	struct pci_dev dev;
+	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
 
 	printk("PCI: Probing PCI hardware\n");
 
 	/* Read the cobalt id register out of the PCI config space */
-	dev.devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
-	PCI_CFG_SET(&dev, (VIA_COBALT_BRD_ID_REG & ~0x3));
+	PCI_CFG_SET(devfn, (VIA_COBALT_BRD_ID_REG & ~0x3));
 	cobalt_board_id = *PCI_CFG_DATA >> ((VIA_COBALT_BRD_ID_REG & 3) * 8);
 	cobalt_board_id = VIA_COBALT_BRD_REG_to_ID(cobalt_board_id);
 

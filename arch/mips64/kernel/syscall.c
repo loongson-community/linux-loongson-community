@@ -139,7 +139,7 @@ asmlinkage int sys_fork(abi64_no_regargs, struct pt_regs regs)
 	struct task_struct *p;
 
 	save_static(&regs);
-	p = do_fork(SIGCHLD, regs.regs[29], &regs, 0);
+	p = do_fork(SIGCHLD, regs.regs[29], &regs, 0, NULL);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 
@@ -148,13 +148,15 @@ asmlinkage int sys_clone(abi64_no_regargs, struct pt_regs regs)
 	unsigned long clone_flags;
 	unsigned long newsp;
 	struct task_struct *p;
+	int *user_tid;
 
 	save_static(&regs);
 	clone_flags = regs.regs[4];
 	newsp = regs.regs[5];
 	if (!newsp)
 		newsp = regs.regs[29];
-	p = do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0);
+	user_tid = regs.regs[6];
+	p = do_fork(clone_flags & ~CLONE_IDLETASK, newsp, &regs, 0, user_tid);
 	return IS_ERR(p) ? PTR_ERR(p) : p->pid;
 }
 

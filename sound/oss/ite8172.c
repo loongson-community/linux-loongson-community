@@ -1405,14 +1405,14 @@ static int it8172_ioctl(struct inode *inode, struct file *file,
 	case SNDCTL_DSP_RESET:
 		if (file->f_mode & FMODE_WRITE) {
 			stop_dac(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
 			s->dma_dac.count = s->dma_dac.total_bytes = 0;
 			s->dma_dac.nextIn = s->dma_dac.nextOut =
 				s->dma_dac.rawbuf;
 		}
 		if (file->f_mode & FMODE_READ) {
 			stop_adc(s);
-			synchronize_irq();
+			synchronize_irq(s->irq);
 			s->dma_adc.count = s->dma_adc.total_bytes = 0;
 			s->dma_adc.nextIn = s->dma_adc.nextOut =
 				s->dma_adc.rawbuf;
@@ -2166,7 +2166,7 @@ static void __devinit it8172_remove(struct pci_dev *dev)
 	if (s->ps)
 		remove_proc_entry(IT8172_MODULE_NAME, NULL);
 #endif /* IT8172_DEBUG */
-	synchronize_irq();
+	synchronize_irq(s->irq);
 	free_irq(s->irq, s);
 	release_region(s->io, pci_resource_len(dev,0));
 	unregister_sound_dsp(s->dev_audio);

@@ -197,7 +197,7 @@ static void __init print_memory_map(void)
 	}
 }
 
-static inline void parse_mem_cmdline(void)
+static inline void parse_cmdline_early(void)
 {
 	char c = ' ', *to = command_line, *from = saved_command_line;
 	unsigned long start_at, mem_size;
@@ -448,7 +448,7 @@ void __init setup_arch(char **cmdline_p)
 
 	*cmdline_p = command_line;
 
-	parse_mem_cmdline();
+	parse_cmdline_early();
 
 	bootmem_init();
 

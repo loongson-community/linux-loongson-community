@@ -1,6 +1,8 @@
 #ifndef _I8042_H
 #define _I8042_H
 
+#include <linux/config.h>
+
 /*
  *  Copyright (c) 1999-2002 Vojtech Pavlik
  *
@@ -19,6 +21,8 @@
 #include "i8042-ip22.h"
 #elif defined(CONFIG_PPC)
 #include "i8042-ppcio.h"
+#elif defined(CONFIG_SPARC32) || defined(CONFIG_SPARC64)
+#include "i8042-sparcio.h"
 #else
 #include "i8042-io.h"
 #endif

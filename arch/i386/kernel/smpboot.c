@@ -395,7 +395,7 @@ void __init smp_callin(void)
 	Dprintk("CALLIN, before setup_local_APIC().\n");
 	/*
 	 * Because we use NMIs rather than the INIT-STARTUP sequence to
-	 * bootstrap the CPUs, the APIC may be in a wierd state. Kick it.
+	 * bootstrap the CPUs, the APIC may be in a weird state. Kick it.
 	 */
 	if (clustered_apic_mode)
 		clear_local_APIC();
@@ -495,7 +495,7 @@ static struct task_struct * __init fork_by_hand(void)
 	 * don't care about the eip and regs settings since
 	 * we'll never reschedule the forked task.
 	 */
-	return do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0);
+	return do_fork(CLONE_VM|CLONE_IDLETASK, 0, &regs, 0, NULL);
 }
 
 /* which physical APIC ID maps to which logical CPU number */

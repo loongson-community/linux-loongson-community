@@ -23,7 +23,7 @@
 
 #include "i8042.h"
 
-MODULE_AUTHOR("Vojtech Pavlik <vojtech@ucw.cz>");
+MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("i8042 keyboard and mouse controller driver");
 MODULE_LICENSE("GPL");
 
@@ -299,7 +299,7 @@ static void i8042_close(struct serio *port)
  */
 
 static struct i8042_values i8042_kbd_values = {
-	.irq =		I8042_KBD_IRQ,
+	.irq =		0,
 	.irqen =	I8042_CTR_KBDINT,
 	.disable =	I8042_CTR_KBDDIS,
 	.name =		"KBD",
@@ -318,7 +318,7 @@ static struct serio i8042_kbd_port =
 };
 
 static struct i8042_values i8042_aux_values = {
-	.irq =		I8042_AUX_IRQ,
+	.irq =		0,
 	.irqen =	I8042_CTR_AUXINT,
 	.disable =	I8042_CTR_AUXDIS,
 	.name =		"AUX",
@@ -347,6 +347,11 @@ static void i8042_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned long flags;
 	unsigned char str, data;
 	unsigned int dfl;
+	struct {
+		int data;
+		int str;
+	} buffer[I8042_BUFFER_SIZE];
+	int i, j = 0;
 
 #ifdef CONFIG_VT
 	kbd_pt_regs = regs;
@@ -354,20 +359,31 @@ static void i8042_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 	spin_lock_irqsave(&i8042_lock, flags);
 
-	while ((str = i8042_read_status()) & I8042_STR_OBF) {
+	while (j < I8042_BUFFER_SIZE && 
+	    (buffer[j].str = i8042_read_status()) & I8042_STR_OBF)
+		buffer[j++].data = i8042_read_data();
 
-		data = i8042_read_data();
+	spin_unlock_irqrestore(&i8042_lock, flags);
+
+	for (i = 0; i < j; i++) {
+
+		str = buffer[i].str;
+		data = buffer[i].data;
+
 		dfl = ((str & I8042_STR_PARITY) ? SERIO_PARITY : 0) |
 		      ((str & I8042_STR_TIMEOUT) ? SERIO_TIMEOUT : 0);
 
 #ifdef I8042_DEBUG_IO
-		printk(KERN_DEBUG "i8042.c: %02x <- i8042 (interrupt, %s, %d) [%d]\n",
-			data, (str & I8042_STR_AUXDATA) ? "aux" : "kbd", irq, (int) (jiffies - i8042_start));
+		printk(KERN_DEBUG "i8042.c: %02x <- i8042 (interrupt, %s, %d%s%s) [%d]\n",
+			data, (str & I8042_STR_AUXDATA) ? "aux" : "kbd", irq, 
+			dfl & SERIO_PARITY ? ", bad parity" : "",
+			dfl & SERIO_TIMEOUT ? ", timeout" : "",
+			(int) (jiffies - i8042_start));
 #endif
 
-		if (i8042_aux_values.exists && (str & I8042_STR_AUXDATA)) {
-			serio_interrupt(&i8042_aux_port, data, dfl);
-		} else {
+		if (i8042_aux_values.exists && (buffer[i].str & I8042_STR_AUXDATA)) {
+			serio_interrupt(&i8042_aux_port, buffer[i].data, dfl);
+		} else 
 			if (i8042_kbd_values.exists) {
 				if (!i8042_direct) {
 					if (data > 0x7f) {
@@ -385,10 +401,8 @@ static void i8042_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 				}
 				serio_interrupt(&i8042_kbd_port, data, dfl);
 			}
-		}
 	}
 
-	spin_unlock_irqrestore(&i8042_lock, flags);
 }
 
 /*
@@ -562,9 +576,12 @@ static int __init i8042_check_aux(struct i8042_values *values, struct serio *por
 
 /*
  * External connection test - filters out AT-soldered PS/2 i8042's
+ * 0x00 - no error, 0x01-0x03 - clock/data stuck, 0xff - general error
+ * We ignore general error, since some chips report it even under normal
+ * operation.
  */
 
-	if (i8042_command(&param, I8042_CMD_AUX_TEST) || param)
+	if (i8042_command(&param, I8042_CMD_AUX_TEST) || (param && param != 0xff))
 		return -1;
 
 /*
@@ -573,23 +590,11 @@ static int __init i8042_check_aux(struct i8042_values *values, struct serio *por
 	
 	if (i8042_command(&param, I8042_CMD_AUX_DISABLE))
 		return -1;
-
 	if (i8042_command(&param, I8042_CMD_CTL_RCTR) || (~param & I8042_CTR_AUXDIS))
 		return -1;	
 
-	if (i8042_command(&param, I8042_CMD_AUX_TEST) || param) {
-
-/*
- * We've got an old AMI i8042 with 'Bad Cache' commands.
- */
-
-		i8042_command(&param, I8042_CMD_AUX_ENABLE);
-		return -1;
-	}
-
 	if (i8042_command(&param, I8042_CMD_AUX_ENABLE))
 		return -1;
-
 	if (i8042_command(&param, I8042_CMD_CTL_RCTR) || (param & I8042_CTR_AUXDIS))
 		return -1;	
 
@@ -624,8 +629,11 @@ static int __init i8042_port_register(struct i8042_values *values, struct serio 
 
 	serio_register_port(port);
 
-	printk(KERN_INFO "serio: i8042 %s port at %#x,%#x irq %d\n",
-		values->name, I8042_DATA_REG, I8042_COMMAND_REG, values->irq);
+	printk(KERN_INFO "serio: i8042 %s port at %#lx,%#lx irq %d\n",
+	       values->name,
+	       (unsigned long) I8042_DATA_REG,
+	       (unsigned long) I8042_COMMAND_REG,
+	       values->irq);
 
 	return 0;
 }
@@ -702,6 +710,9 @@ int __init i8042_init(void)
 
 	if (!i8042_platform_init())
 		return -EBUSY;
+
+	i8042_kbd_values.irq = I8042_KBD_IRQ;
+	i8042_aux_values.irq = I8042_AUX_IRQ;
 
 	if (i8042_controller_init())
 		return -ENODEV;

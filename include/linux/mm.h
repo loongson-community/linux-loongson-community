@@ -157,7 +157,7 @@ struct page {
 	struct address_space *mapping;	/* The inode (or ...) we belong to. */
 	unsigned long index;		/* Our offset within mapping. */
 	struct list_head lru;		/* Pageout list, eg. active_list;
-					   protected by pagemap_lru_lock !! */
+					   protected by zone->lru_lock !! */
 	union {
 		struct pte_chain * chain;	/* Reverse pte mapping pointer.
 					 * protected by PG_chainlock */
@@ -182,6 +182,12 @@ struct page {
 };
 
 /*
+ * FIXME: take this include out, include page-flags.h in
+ * files which need it (119 of them)
+ */
+#include <linux/page-flags.h>
+
+/*
  * Methods to modify the page usage count.
  *
  * What counts for a page usage:
@@ -195,16 +201,22 @@ struct page {
  */
 #define get_page(p)		atomic_inc(&(p)->count)
 #define __put_page(p)		atomic_dec(&(p)->count)
-#define put_page_testzero(p) 	atomic_dec_and_test(&(p)->count)
+#define put_page_testzero(p)				\
+	({						\
+		BUG_ON(page_count(page) == 0);		\
+		atomic_dec_and_test(&(p)->count);	\
+	})
 #define page_count(p)		atomic_read(&(p)->count)
 #define set_page_count(p,v) 	atomic_set(&(p)->count, v)
+
 extern void FASTCALL(__page_cache_release(struct page *));
-#define put_page(p)							\
-	do {								\
-		if (!PageReserved(p) && put_page_testzero(p))		\
-			__page_cache_release(p);			\
-	} while (0)
 void FASTCALL(__free_pages_ok(struct page *page, unsigned int order));
+
+static inline void put_page(struct page *page)
+{
+	if (!PageReserved(page) && put_page_testzero(page))
+		__page_cache_release(page);
+}
 
 /*
  * Multiple processes may "see" the same page. E.g. for untouched
@@ -256,22 +268,16 @@ void FASTCALL(__free_pages_ok(struct page *page, unsigned int order));
  */
 
 /*
- * FIXME: take this include out, include page-flags.h in
- * files which need it (119 of them)
- */
-#include <linux/page-flags.h>
-
-/*
  * The zone field is never updated after free_area_init_core()
  * sets it, so none of the operations on it need to be atomic.
  */
 #define NODE_SHIFT 4
 #define ZONE_SHIFT (BITS_PER_LONG - 8)
 
-struct zone_struct;
-extern struct zone_struct *zone_table[];
+struct zone;
+extern struct zone *zone_table[];
 
-static inline zone_t *page_zone(struct page *page)
+static inline struct zone *page_zone(struct page *page)
 {
 	return zone_table[page->flags >> ZONE_SHIFT];
 }
@@ -449,7 +455,6 @@ static inline int can_vma_merge(struct vm_area_struct * vma, unsigned long vm_fl
 		return 0;
 }
 
-struct zone_t;
 /* filemap.c */
 extern unsigned long page_unuse(struct page *);
 extern void truncate_inode_pages(struct address_space *, loff_t);

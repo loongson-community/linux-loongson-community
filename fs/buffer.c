@@ -307,10 +307,7 @@ asmlinkage long sys_fsync(unsigned int fd)
 
 	/* We need to protect against concurrent writers.. */
 	down(&inode->i_sem);
-	ret = filemap_fdatawait(inode->i_mapping);
-	err = filemap_fdatawrite(inode->i_mapping);
-	if (!ret)
-		ret = err;
+	ret = filemap_fdatawrite(inode->i_mapping);
 	err = file->f_op->fsync(file, dentry, 0);
 	if (!ret)
 		ret = err;
@@ -345,10 +342,7 @@ asmlinkage long sys_fdatasync(unsigned int fd)
 		goto out_putf;
 
 	down(&inode->i_sem);
-	ret = filemap_fdatawait(inode->i_mapping);
-	err = filemap_fdatawrite(inode->i_mapping);
-	if (!ret)
-		ret = err;
+	ret = filemap_fdatawrite(inode->i_mapping);
 	err = file->f_op->fsync(file, dentry, 1);
 	if (!ret)
 		ret = err;
@@ -469,7 +463,7 @@ void __invalidate_buffers(kdev_t dev, int destroy_dirty_buffers)
  */
 static void free_more_memory(void)
 {
-	zone_t *zone;
+	struct zone *zone;
 
 	zone = contig_page_data.node_zonelists[GFP_NOFS & GFP_ZONEMASK].zones[0];
 
@@ -1648,11 +1642,18 @@ void unmap_underlying_metadata(struct block_device *bdev, sector_t block)
  * the page lock, whoever dirtied the buffers may decide to clean them
  * again at any time.  We handle that by only looking at the buffer
  * state inside lock_buffer().
+ *
+ * If block_write_full_page() is called for regular writeback
+ * (called_for_sync() is false) then it will return -EAGAIN for a locked
+ * buffer.   This only can happen if someone has written the buffer directly,
+ * with submit_bh().  At the address_space level PageWriteback prevents this
+ * contention from occurring.
  */
 static int __block_write_full_page(struct inode *inode,
 			struct page *page, get_block_t *get_block)
 {
 	int err;
+	int ret = 0;
 	unsigned long block;
 	unsigned long last_block;
 	struct buffer_head *bh, *head;
@@ -1724,7 +1725,14 @@ static int __block_write_full_page(struct inode *inode,
 	do {
 		get_bh(bh);
 		if (buffer_mapped(bh) && buffer_dirty(bh)) {
-			lock_buffer(bh);
+			if (called_for_sync()) {
+				lock_buffer(bh);
+			} else {
+				if (test_set_buffer_locked(bh)) {
+					ret = -EAGAIN;
+					continue;
+				}
+			}
 			if (test_clear_buffer_dirty(bh)) {
 				if (!buffer_uptodate(bh))
 					buffer_error();
@@ -1733,8 +1741,7 @@ static int __block_write_full_page(struct inode *inode,
 				unlock_buffer(bh);
 			}
 		}
-		bh = bh->b_this_page;
-	} while (bh != head);
+	} while ((bh = bh->b_this_page) != head);
 
 	BUG_ON(PageWriteback(page));
 	SetPageWriteback(page);		/* Keeps try_to_free_buffers() away */
@@ -1774,6 +1781,8 @@ done:
 			SetPageUptodate(page);
 		end_page_writeback(page);
 	}
+	if (err == 0)
+		return ret;
 	return err;
 recover:
 	/*
@@ -2580,7 +2589,7 @@ void __init buffer_init(void)
 
 	bh_cachep = kmem_cache_create("buffer_head",
 			sizeof(struct buffer_head), 0,
-			SLAB_HWCACHE_ALIGN, init_buffer_head, NULL);
+			0, init_buffer_head, NULL);
 	bh_mempool = mempool_create(MAX_UNUSED_BUFFERS, bh_mempool_alloc,
 				bh_mempool_free, NULL);
 	for (i = 0; i < ARRAY_SIZE(bh_wait_queue_heads); i++)

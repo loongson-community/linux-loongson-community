@@ -1413,7 +1413,7 @@ S:	Maintained
 SCHEDULER
 P:	Ingo Molnar
 M:	mingo@elte.hu
-P:	Robert Love
+P:	Robert Love    [the preemptible kernel bits]
 M:	rml@tech9.net
 L:	linux-kernel@vger.kernel.org
 S:	Maintained
@@ -1895,7 +1895,6 @@ S:	Maintained
 VIDEO FOR LINUX
 P:	Gerd Knorr
 M:	kraxel@bytesex.org
-W:	http://roadrunner.swansea.linux.org.uk/v4l.shtml
 S:	Maintained
 
 WAN ROUTER & SANGOMA WANPIPE DRIVERS & API (X.25, FRAME RELAY, PPP, CISCO HDLC)

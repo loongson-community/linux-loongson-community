@@ -36,9 +36,12 @@
 typedef struct free_pte_ctx {
 	struct mm_struct	*mm;
 	unsigned int		nr;	/* set to ~0U means fast mode */
+	unsigned int		need_flush;/* Really unmapped some ptes? */
 	unsigned int		fullmm; /* non-zero means full mm flush */
 	unsigned long		freed;
 	struct page *		pages[FREE_PTE_NR];
+	unsigned long		flushes;/* stats: count avoided flushes */
+	unsigned long		avoided_flushes;
 } mmu_gather_t;
 
 /* Users of the generic TLB shootdown code must declare this storage space. */
@@ -66,13 +69,18 @@ static inline void tlb_flush_mmu(mmu_gather_t *tlb, unsigned long start, unsigne
 {
 	unsigned long nr;
 
+	if (!tlb->need_flush) {
+		tlb->avoided_flushes++;
+		return;
+	}
+	tlb->need_flush = 0;
+	tlb->flushes++;
+
 	tlb_flush(tlb);
 	nr = tlb->nr;
 	if (!tlb_fast_mode(tlb)) {
-		unsigned long i;
+		free_pages_and_swap_cache(tlb->pages, tlb->nr);
 		tlb->nr = 0;
-		for (i=0; i < nr; i++)
-			free_page_and_swap_cache(tlb->pages[i]);
 	}
 }
 
@@ -103,6 +111,7 @@ static inline void tlb_finish_mmu(mmu_gather_t *tlb, unsigned long start, unsign
  */
 static inline void tlb_remove_page(mmu_gather_t *tlb, struct page *page)
 {
+	tlb->need_flush = 1;
 	if (tlb_fast_mode(tlb)) {
 		free_page_and_swap_cache(page);
 		return;
@@ -112,5 +121,29 @@ static inline void tlb_remove_page(mmu_gather_t *tlb, struct page *page)
 		tlb_flush_mmu(tlb, 0, 0);
 }
 
-#endif /* _ASM_GENERIC__TLB_H */
+/**
+ * tlb_remove_tlb_entry - remember a pte unmapping for later tlb invalidation.
+ *
+ * Record the fact that pte's were really umapped in ->need_flush, so we can
+ * later optimise away the tlb invalidate.   This helps when userspace is
+ * unmapping already-unmapped pages, which happens quite a lot.
+ */
+#define tlb_remove_tlb_entry(tlb, ptep, address)		\
+	do {							\
+		tlb->need_flush = 1;				\
+		__tlb_remove_tlb_entry(tlb, ptep, address);	\
+	} while (0)
 
+#define pte_free_tlb(tlb, ptep)					\
+	do {							\
+		tlb->need_flush = 1;				\
+		__pte_free_tlb(tlb, ptep);			\
+	} while (0)
+
+#define pmd_free_tlb(tlb, pmdp)					\
+	do {							\
+		tlb->need_flush = 1;				\
+		__pmd_free_tlb(tlb, pmdp);			\
+	} while (0)
+
+#endif /* _ASM_GENERIC__TLB_H */

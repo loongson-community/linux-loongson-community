@@ -924,7 +924,7 @@ static void kbd_bh(unsigned long dummy)
 
 DECLARE_TASKLET_DISABLED(keyboard_tasklet, kbd_bh, 0);
 
-#if defined(CONFIG_X86) || defined(CONFIG_IA64) || defined(CONFIG_ALPHA) || defined(CONFIG_MIPS) || defined(CONFIG_PPC)
+#if defined(CONFIG_X86) || defined(CONFIG_IA64) || defined(CONFIG_ALPHA) || defined(CONFIG_MIPS) || defined(CONFIG_PPC) || defined(CONFIG_SPARC32) || defined(CONFIG_SPARC64)
 
 static unsigned short x86_keycodes[256] =
 	{ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
@@ -946,6 +946,11 @@ static unsigned short x86_keycodes[256] =
 #ifdef CONFIG_MAC_EMUMOUSEBTN
 extern int mac_hid_mouse_emulate_buttons(int, int, int);
 #endif /* CONFIG_MAC_EMUMOUSEBTN */
+
+#if defined(CONFIG_SPARC32) || defined(CONFIG_SPARC64)
+static int sparc_l1_a_state = 0;
+extern void sun_do_break(void);
+#endif
 
 static int emulate_raw(struct vc_data *vc, unsigned int keycode, 
 		       unsigned char up_flag)
@@ -1019,6 +1024,10 @@ void kbd_keycode(unsigned int keycode, int down)
 
 	if (keycode == KEY_LEFTALT || keycode == KEY_RIGHTALT)
 		sysrq_alt = down;
+#if defined(CONFIG_SPARC32) || defined(CONFIG_SPARC64)
+	if (keycode == KEY_STOP)
+		sparc_l1_a_state = down;
+#endif
 
 	rep = (down == 2);
 
@@ -1034,6 +1043,12 @@ void kbd_keycode(unsigned int keycode, int down)
 	if (sysrq_down && down && !rep) {
 		handle_sysrq(kbd_sysrq_xlate[keycode], kbd_pt_regs, tty);
 		return;
+	}
+#endif
+#if defined(CONFIG_SPARC32) || defined(CONFIG_SPARC64)
+	if (keycode == KEY_A && sparc_l1_a_state) {
+		sparc_l1_a_state = 0;
+		sun_do_break();
 	}
 #endif
 
@@ -1198,8 +1213,10 @@ int __init kbd_init(void)
         for (i = 0 ; i < MAX_NR_CONSOLES ; i++)
                 kbd_table[i] = kbd0;
 
+	input_register_handler(&kbd_handler);
+
 	tasklet_enable(&keyboard_tasklet);
 	tasklet_schedule(&keyboard_tasklet);
-	input_register_handler(&kbd_handler);
+
 	return 0;
 }

@@ -330,7 +330,6 @@ static ssize_t mousedev_write(struct file * file, const char * buffer, size_t co
 
 		list->ps2[0] = 0xfa;
 		list->bufsiz = 1;
-		list->ready = 1;
 
 		switch (c) {
 
@@ -350,6 +349,15 @@ static ssize_t mousedev_write(struct file * file, const char * buffer, size_t co
 			case 0xe9: /* Get info */
 				list->ps2[1] = 0x60; list->ps2[2] = 3; list->ps2[3] = 200;
 				list->bufsiz = 4;
+				break;
+
+			case 0xff: /* Reset */
+				list->impsseq = 0;
+				list->imexseq = 0;
+				list->mode = 0;
+				list->ps2[0] = 0xaa;
+				list->ps2[1] = 0x00;
+				list->bufsiz = 2;
 				break;
 		}
 
@@ -395,16 +403,16 @@ static ssize_t mousedev_read(struct file * file, char * buffer, size_t count, lo
 	if (retval)
 		return retval;
 
-	if (!list->buffer)
+	if (!list->buffer && list->ready)
 		mousedev_packet(list, 0);
 
 	if (count > list->buffer)
 		count = list->buffer;
 
-	if (copy_to_user(buffer, list->ps2 + list->bufsiz - list->buffer, count))
-		return -EFAULT;
-	
 	list->buffer -= count;
+
+	if (copy_to_user(buffer, list->ps2 + list->bufsiz - list->buffer - count, count))
+		return -EFAULT;
 
 	return count;	
 }
