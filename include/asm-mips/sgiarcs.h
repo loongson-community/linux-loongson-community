@@ -477,7 +477,7 @@ struct linux_smonblock {
 #endif /* defined(CONFIG_MIPS64) && defined(CONFIG_ARC32) */
 
 #if (defined(CONFIG_MIPS32) && defined(CONFIG_ARC32)) ||		\
-    (defined(CONFIG_MIPS64) && defined(CONFIG_ARC32))
+    (defined(CONFIG_MIPS64) && defined(CONFIG_ARC64))
 
 #define ARC_CALL0(dest)							\
 ({	long __res;							\
