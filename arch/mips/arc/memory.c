@@ -124,7 +124,7 @@ void __init prom_meminit(void)
 		size = p->pages << PAGE_SHIFT;
 		type = prom_memtype_classify(p->type);
 
-		add_memory_region(base, pages, type);
+		add_memory_region(base, size, type);
 	}
 }
 

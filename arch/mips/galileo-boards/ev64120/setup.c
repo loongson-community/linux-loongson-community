@@ -69,7 +69,7 @@ extern struct pci_ops galileo_pci_ops;
 
 extern unsigned long mips_machgroup;
 
-char arcs_cmdline[CL_SIZE] = { "console=ttyS0,115200 "
+char arcs_cmdline[COMMAND_LINE_SIZE] = { "console=ttyS0,115200 "
 	    "root=/dev/nfs rw nfsroot=192.168.1.1:/mnt/disk2/fs.gal "
 	    "ip=192.168.1.211:192.168.1.1:::gt::"
 };
@@ -77,20 +77,11 @@ char arcs_cmdline[CL_SIZE] = { "console=ttyS0,115200 "
 //struct eeprom_parameters eeprom_param;
 
 /*
- * These two functions are added because arch/mips/mm/init.c needs them 
- * basically they do nothing
+ * This function is added because arch/mips/mm/init.c needs it
+ * basically it does nothing
  */
-void __init prom_fixup_mem_map(unsigned long start, unsigned long end)
-{
-}
-
 void prom_free_prom_memory(void)
 {
-}
-
-int /*__init*/ page_is_ram(unsigned long pagenr)
-{
-	return 1;
 }
 
 void (*board_time_init) (struct irqaction * irq);
@@ -183,51 +174,11 @@ void SetUpBootInfo(int argc, char **argv, char **envp)
 	mips_machtype = MACH_EV64120A;
 }
 
-#define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
-#define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
-
-extern int _end;
-
 unsigned long mem_size;
 void __init prom_init(int a, char **b, char **c, int *d)
 {
 	unsigned long free_start, free_end, start_pfn, bootmap_size;
 
 	mips_machgroup = MACH_GROUP_GALILEO;
-	/* 32 MB  */
-	mem_size = 32 << 20;
-	mips_memory_upper = 0x81000000;
-
-	free_start = PHYSADDR(PFN_ALIGN(&_end));
-	free_end = mem_size;
-	start_pfn = PFN_UP((unsigned long) &_end);
-
-	/* Register all the contiguous memory with the bootmem allocator
-	   and free it.  Be careful about the bootmem freemap.  */
-	bootmap_size = init_bootmem(start_pfn, mem_size >> PAGE_SHIFT);
-
-	/* Free the entire available memory after the _end symbol.  */
-	free_start += bootmap_size;
-	free_bootmem(free_start, free_end - free_start);
+	add_memory_region(0, 32 << 20, BOOT_MEM_RAM);
 }
-
-#if 0
-void prom_free_prom_memory(void)
-{
-}
-
-int page_is_ram(unsigned long pagenr)
-{
-	if (pagenr < (mem_size >> PAGE_SHIFT))
-		return 1;
-	return 0;
-}
-
-void turn_on_debug_led();
-
-void turn_on_debug_led()
-{
-#define DEBUG_LIGHT (*(char *)0xbc080000)
-	DEBUG_LIGHT = 1;
-}
-#endif

@@ -43,10 +43,6 @@
 #include <asm/galileo-boards/ev96100.h>
 
 
-extern char _end;
-
-#define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
-#define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
 /* Environment variable */
 
 typedef struct {
@@ -129,8 +125,6 @@ int get_ethernet_addr(char *ethernet_addr)
 
 void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 {
-	unsigned long mem_size, free_start, free_end, start_pfn,
-	    bootmap_size;
 	volatile unsigned char *uart;
 	char ppbuf[8];
 
@@ -143,17 +137,5 @@ void __init prom_init(int argc, char **argv, char **envp, int *prom_vec)
 	prom_init_cmdline();
 
 	/* 64 MB non-upgradable */
-	mem_size = 64 << 20;
-
-	free_start = PHYSADDR(PFN_ALIGN(&_end));
-	free_end = mem_size;
-	start_pfn = PFN_UP((unsigned long) &_end);
-
-	/* Register all the contiguous memory with the bootmem allocator
-	   and free it.  Be careful about the bootmem freemap.  */
-	bootmap_size = init_bootmem(start_pfn, mem_size >> PAGE_SHIFT);
-
-	/* Free the entire available memory after the _end symbol.  */
-	free_start += bootmap_size;
-	free_bootmem(free_start, free_end - free_start);
+	add_memory_region(0, 64 << 20, BOOT_MEM_RAM);
 }

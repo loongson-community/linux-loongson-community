@@ -48,28 +48,6 @@
   * FIX ME!!!
   */
 
-
-int __init page_is_ram(unsigned long pagenr)
-{
-	return 1;
-#if 0
-	if ((pagenr << PAGE_SHIFT) < mdesc[3].base + mdesc[3].size)
-		return 1;
-
-	return 0;
-#endif
-}
-
-
-static inline unsigned long find_max_low_pfn(void)
-{
-	return 0;
-}
-
-static inline struct prom_pmemblock *find_largest_memblock(void)
-{
-}
-
 void __init prom_meminit(void)
 {
 }

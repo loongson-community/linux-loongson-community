@@ -246,12 +246,6 @@ void __init ddb_setup(void)
 
 }
 
-int __init page_is_ram(unsigned long pagenr)
-{
-	return 1;
-}
-
-
 #define USE_NILE4_SERIAL	0
 
 #if USE_NILE4_SERIAL
