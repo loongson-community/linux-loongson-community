@@ -258,7 +258,7 @@ config SERIAL_CLPS711X_OLD_NAME
 
 config SERIAL_DZ
 	bool "DECstation DZ serial driver"
-	depends on MACH_DECSTATION
+	depends on MACH_DECSTATION && MIPS32
 	select SERIAL_CORE
 	help
 	  DZ11-family serial controllers for VAXstations, including the
