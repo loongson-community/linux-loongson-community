@@ -67,9 +67,6 @@ static struct fb_fix_screeninfo maxinefb_fix = {
 	.line_length	= 1024,
 }
 
-/* Reference to machine type set in arch/mips/dec/prom/identify.c, KM */
-extern unsigned long mips_machtype;
-
 /* Handle the funny Inmos RamDAC/video controller ... */
 
 void maxinefb_ims332_write_register(int regno, register unsigned int val)
@@ -128,7 +125,7 @@ static struct fb_ops maxinefb_ops = {
 
 int __init maxinefb_init(void)
 {
-	volatile unsigned char *fboff;
+	unsigned long fboff;
 	unsigned long fb_start;
 	int i;
 
@@ -145,7 +142,7 @@ int __init maxinefb_init(void)
 
 	/* Clear screen */
 	for (fboff = fb_start; fboff < fb_start + 0x1ffff; fboff++)
-		*fboff = 0x0;
+		*(volatile unsigned char *)fboff = 0x0;
 
 	maxinefb_fix.smem_start = fb_start;
 	
@@ -167,7 +164,7 @@ int __init maxinefb_init(void)
 	fb_info.changevar = NULL;
 	fb_info.node = NODEV;
 	fb_info.fbops = &maxinefb_ops;
-	fb_info.screen_base = (char *) maxinefb_fix.smem_start;
+	fb_info.screen_base = (char *)maxinefb_fix.smem_start;
 	fb_info.var = maxinefb_defined;
 	fb_info.fix = maxinefb_fix;
 	fb_info.disp = &disp;
