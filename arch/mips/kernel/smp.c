@@ -84,7 +84,7 @@ int prom_setup_smp(void);
  * Hook for doing final board-specific setup after the generic smp setup
  * is done
  */
-int start_secondary(void *unused)
+asmlinkage int start_secondary(void)
 {
 	prom_init_secondary();
 
