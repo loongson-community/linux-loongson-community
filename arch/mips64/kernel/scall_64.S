@@ -160,7 +160,7 @@ sys_call_table:
 	PTR	sys_ni_syscall		/* ptrace */
 	PTR	sys_alarm
 	PTR	sys_fstat
-	PTR	sys_ni_syscall
+	PTR	sys_pause
 	PTR	sys_utime				/* 4030 */
 	PTR	sys_ni_syscall
 	PTR	sys_ni_syscall

@@ -321,3 +321,10 @@ asmlinkage void bad_stack(void)
 {
 	do_exit(SIGSEGV);
 }
+
+asmlinkage int sys_pause(void)
+{
+	current->state = TASK_INTERRUPTIBLE;
+	schedule();
+	return -ERESTARTNOHAND;
+}

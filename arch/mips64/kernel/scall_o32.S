@@ -229,7 +229,7 @@ illegal_syscall:
 	sys	sys32_ptrace	4
 	sys	sys32_alarm	1
 	sys	sys_fstat	2
-	sys	sys_ni_syscall	0
+	sys	sys_pause	0
 	sys	sys_utime	2			/* 4030 */
 	sys	sys_ni_syscall	0
 	sys	sys_ni_syscall	0
