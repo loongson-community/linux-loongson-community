@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: ng1hw.h,v 1.2 1999/07/04 01:10:23 ulfc Exp $
  * 
  * ng1hw.h: Tweaks the newport.h structures and definations to be compatible
  * 	    with IRIX.  Quite ugly, but it works.
@@ -33,9 +33,9 @@ struct rex3chip {
 	struct newport_rexregs go;
 	unsigned long _unused1[0x22e];
 	struct {
-		struct newport_cregs cset;
+		struct newport_cregs set;
 		unsigned long _unused2[0x1ef];
-		struct newport_cregs cgo;
+		struct newport_cregs go;
 	} p1;
 };
 
