@@ -1,4 +1,6 @@
 .*.o
 .*.cmd
+*.ko
+*.mod.c
 crc32table.h
 gen_crc32table
