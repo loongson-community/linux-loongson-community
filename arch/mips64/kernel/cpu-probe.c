@@ -33,6 +33,18 @@ static void r4k_wait(void)
 		".set\tmips0");
 }
 
+void au1k_wait(void)
+{
+#ifdef CONFIG_PM
+	/* using the wait instruction makes CP0 counter unusable */
+	__asm__(".set\tmips3\n\t"
+		"wait\n\t"
+		"nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" ".set\tmips0");
+#else
+	__asm__("nop\n\t" "nop\n\t");
+#endif
+}
+
 static inline void check_wait(void)
 {
 	printk("Checking for 'wait' instruction... ");
@@ -63,6 +75,12 @@ static inline void check_wait(void)
 	case CPU_5KC:
 /*	case CPU_20KC:*/
 		cpu_wait = r4k_wait;
+		printk(" available.\n");
+		break;
+	case CPU_AU1000:
+	case CPU_AU1100:
+	case CPU_AU1500:
+		cpu_wait = au1k_wait;
 		printk(" available.\n");
 		break;
 	default:
@@ -135,12 +153,13 @@ int *cpuoptions = &mips_cpu.options;
 
 __init void cpu_probe(void)
 {
-#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64) 
+#ifdef CONFIG_CPU_MIPS32
 	unsigned long config0 = read_32bit_cp0_register(CP0_CONFIG);
 	unsigned long config1;
 
         if (config0 & (1 << 31)) {
-		/* MIPS32 or MIPS64 compliant CPU. Read Config 1 register. */
+		/* MIPS32 compliant CPU. Read Config 1 register. */
+		mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 		mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_4KEX | 
 			MIPS_CPU_4KTLB | MIPS_CPU_COUNTER | MIPS_CPU_DIVEC;
 		config1 = read_mips32_cp0_config1();
@@ -151,12 +170,7 @@ __init void cpu_probe(void)
 		if (config1 & (1 << 1))
 			mips_cpu.options |= MIPS_CPU_EJTAG;
 		if (config1 & 1)
-		{
 			mips_cpu.options |= MIPS_CPU_FPU;
-#if defined(CONFIG_CPU_MIPS64)
-			mips_cpu.options |= MIPS_CPU_32FPR;
-#endif
-		}
 		mips_cpu.scache.flags = MIPS_CACHE_NOT_PRESENT;
 	}
 #endif
@@ -385,20 +399,17 @@ __init void cpu_probe(void)
 			break;
 		}
 		break;
-#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64) 
+#ifdef CONFIG_CPU_MIPS32
 	case PRID_COMP_MIPS:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_4KC:
 			mips_cpu.cputype = CPU_4KC;
-			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_4KEC:
 			mips_cpu.cputype = CPU_4KEC;
-			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_4KSC:
 			mips_cpu.cputype = CPU_4KSC;
-			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
 			break;
 		case PRID_IMP_5KC:
 			mips_cpu.cputype = CPU_5KC;
@@ -417,17 +428,28 @@ __init void cpu_probe(void)
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_AU1_REV1:
 		case PRID_IMP_AU1_REV2:
-			if (mips_cpu.processor_id & 0xff000000)
+			switch ((mips_cpu.processor_id >> 24) & 0xff) {
+			case 0:
+ 				mips_cpu.cputype = CPU_AU1000;
+				break;
+			case 1:
 				mips_cpu.cputype = CPU_AU1500;
-			else
-				mips_cpu.cputype = CPU_AU1000;
-			break;
+				break;
+			case 2:
+				mips_cpu.cputype = CPU_AU1100;
+				break;
+			default:
+				panic("Unknown Au Core!");
+				break;
+			}
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
+ 			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
 		}
 		break;
-#endif /* CONFIG_CPU_MIPS32 || CONFIG_CPU_MIPS64 */
+#endif /* CONFIG_CPU_MIPS32 */
 	case PRID_COMP_SIBYTE:
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_SB1:

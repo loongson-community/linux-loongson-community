@@ -49,7 +49,7 @@
 #  define DPRINTK(fmt, args...)
 #endif
 
-inline void au1_wait(void);
+extern void au1k_wait(void);
 static void calibrate_delay(void);
 
 extern void set_au1000_speed(unsigned int new_freq);
@@ -138,7 +138,7 @@ static int pm_do_suspend(ctl_table * ctl, int write, struct file *file,
 		if (retval)
 			return retval;
 		suspend_mode = 1;
-		au1_wait();
+		au1k_wait();
 		retval = pm_send_all(PM_RESUME, (void *) 0);
 	}
 	return retval;
@@ -278,13 +278,6 @@ static int __init pm_init(void)
 
 __initcall(pm_init);
 
-inline void au1_wait(void)
-{
-	__asm__(".set\tmips3\n\t"
-		"wait\n\t"
-		"nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" ".set\tmips0");
-}
-
 
 /*
  * This is right out of init/main.c
@@ -328,14 +321,6 @@ static void calibrate_delay(void)
 		if (jiffies != ticks)	/* longer than 1 tick */
 			loops_per_jiffy &= ~loopbit;
 	}
-}
-
-
-#else				/* CONFIG_PM */
-
-void au1_wait(void)
-{
-	__asm__("nop\n\t" "nop\n\t");
 }
 
 #endif				/* CONFIG_PM */

@@ -33,6 +33,18 @@ static void r4k_wait(void)
 		".set\tmips0");
 }
 
+void au1k_wait(void)
+{
+#ifdef CONFIG_PM
+	/* using the wait instruction makes CP0 counter unusable */
+	__asm__(".set\tmips3\n\t"
+		"wait\n\t"
+		"nop\n\t" "nop\n\t" "nop\n\t" "nop\n\t" ".set\tmips0");
+#else
+	__asm__("nop\n\t" "nop\n\t");
+#endif
+}
+
 static inline void check_wait(void)
 {
 	printk("Checking for 'wait' instruction... ");
@@ -63,6 +75,12 @@ static inline void check_wait(void)
 	case CPU_5KC:
 /*	case CPU_20KC:*/
 		cpu_wait = r4k_wait;
+		printk(" available.\n");
+		break;
+	case CPU_AU1000:
+	case CPU_AU1100:
+	case CPU_AU1500:
+		cpu_wait = au1k_wait;
 		printk(" available.\n");
 		break;
 	default:
@@ -410,11 +428,22 @@ __init void cpu_probe(void)
 		switch (mips_cpu.processor_id & 0xff00) {
 		case PRID_IMP_AU1_REV1:
 		case PRID_IMP_AU1_REV2:
-			if (mips_cpu.processor_id & 0xff000000)
+			switch ((mips_cpu.processor_id >> 24) & 0xff) {
+			case 0:
+ 				mips_cpu.cputype = CPU_AU1000;
+				break;
+			case 1:
 				mips_cpu.cputype = CPU_AU1500;
-			else
-				mips_cpu.cputype = CPU_AU1000;
-			break;
+				break;
+			case 2:
+				mips_cpu.cputype = CPU_AU1100;
+				break;
+			default:
+				panic("Unknown Au Core!");
+				break;
+			}
+			mips_cpu.isa_level = MIPS_CPU_ISA_M32;
+ 			break;
 		default:
 			mips_cpu.cputype = CPU_UNKNOWN;
 			break;
