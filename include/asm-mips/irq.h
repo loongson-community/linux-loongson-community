@@ -11,7 +11,7 @@
 
 #include <linux/config.h>
 
-#define NR_IRQS 64
+#define NR_IRQS 64		/* Largest number of ints of all machines.  */
 
 #define TIMER_IRQ 0
 
@@ -27,7 +27,7 @@ static inline int irq_cannonicalize(int irq)
 struct irqaction;
 extern int i8259_setup_irq(int irq, struct irqaction * new);
 extern void disable_irq(unsigned int);
-#define disable_irq_nosync	disable_irq
+extern void disable_irq_nosync(unsigned int);
 extern void enable_irq(unsigned int);
 
 /* Machine specific interrupt initialization  */
