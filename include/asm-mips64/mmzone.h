@@ -80,7 +80,9 @@ extern plat_pg_data_t *plat_node_data[];
 	NODE_DATA(KVADDR_TO_NID((unsigned long)addr))->valid_addr_bitmap)))
 
 #define pfn_to_page(pfn)	(mem_map + (pfn))
-#define page_to_pfn(page)	((unsigned long)((page) - mem_map))
+#define page_to_pfn(page) \
+	((((page)-(page)->zone->zone_mem_map) + (page)->zone->zone_start_pfn) \
+	 << PAGE_SHIFT)
 #define virt_to_page(kaddr)	pfn_to_page(MIPS64_NR(kaddr))
 
 #define pfn_valid(pfn)		((pfn) < max_mapnr)
