@@ -27,6 +27,7 @@
 #include <linux/compiler.h>
 #include <linux/completion.h>
 #include <linux/pid.h>
+#include <linux/percpu.h>
 
 struct exec_domain;
 
@@ -87,6 +88,8 @@ extern unsigned long avenrun[];		/* Load averages */
 
 extern int nr_threads;
 extern int last_pid;
+DECLARE_PER_CPU(unsigned long, process_counts);
+extern int nr_processes(void);
 extern unsigned long nr_running(void);
 extern unsigned long nr_uninterruptible(void);
 extern unsigned long nr_iowait(void);
@@ -442,6 +445,14 @@ do { if (atomic_dec_and_test(&(tsk)->usage)) __put_task_struct(tsk); } while(0)
 extern void set_cpus_allowed(task_t *p, unsigned long new_mask);
 #else
 # define set_cpus_allowed(p, new_mask) do { } while (0)
+#endif
+
+#ifdef CONFIG_NUMA
+extern void sched_balance_exec(void);
+extern void node_nr_running_init(void);
+#else
+#define sched_balance_exec()   {}
+#define node_nr_running_init() {}
 #endif
 
 extern void set_user_nice(task_t *p, long nice);

@@ -27,7 +27,7 @@
 
 #include <linux/i8k.h>
 
-#define I8K_VERSION		"1.7 21/11/2001"
+#define I8K_VERSION		"1.13 14/05/2002"
 
 #define I8K_SMM_FN_STATUS	0x0025
 #define I8K_SMM_POWER_STATUS	0x0069
@@ -67,14 +67,17 @@ static char bios_version [4]  = "?";
 static char serial_number[16] = "?";
 
 static int force = 0;
+static int restricted = 0;
 static int power_status = 0;
 
 MODULE_AUTHOR("Massimo Dal Zotto (dz@debian.org)");
 MODULE_DESCRIPTION("Driver for accessing SMM BIOS on Dell laptops");
 MODULE_LICENSE("GPL");
 MODULE_PARM(force, "i");
+MODULE_PARM(restricted, "i");
 MODULE_PARM(power_status, "i");
 MODULE_PARM_DESC(force, "Force loading without checking for supported models");
+MODULE_PARM_DESC(restricted, "Allow fan control if SYS_ADMIN capability set");
 MODULE_PARM_DESC(power_status, "Report power status in /proc/i8k");
 
 static ssize_t i8k_read(struct file *, char *, size_t, loff_t *);
@@ -370,6 +373,9 @@ static int i8k_ioctl(struct inode *ip, struct file *fp, unsigned int cmd,
 	break;
 
     case I8K_SET_FAN:
+	if (restricted && !capable(CAP_SYS_ADMIN)) {
+	    return -EPERM;
+	}
 	if (copy_from_user(&val, (int *)arg, sizeof(int))) {
 	    return -EFAULT;
 	}

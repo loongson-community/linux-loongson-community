@@ -38,12 +38,8 @@ extern asmlinkage void do_syscall_trace(void);
 
 /* 32-bit compatibility types */
 
-#define _NSIG32_BPW	32
-#define _NSIG32_WORDS	(_NSIG / _NSIG32_BPW)
-
-typedef struct {
-	unsigned int sig[_NSIG32_WORDS];
-} sigset32_t;
+#define _NSIG_BPW32	32
+#define _NSIG_WORDS32	(_NSIG / _NSIG_BPW32)
 
 typedef unsigned int __sighandler32_t;
 typedef void (*vfptr_t)(void);
@@ -51,7 +47,7 @@ typedef void (*vfptr_t)(void);
 struct sigaction32 {
 	unsigned int		sa_flags;
 	__sighandler32_t	sa_handler;
-	sigset32_t		sa_mask;
+	compat_sigset_t		sa_mask;
 };
 
 /* IRIX compatible stack_t  */
@@ -64,7 +60,7 @@ typedef struct sigaltstack32 {
 extern void __put_sigset_unknown_nsig(void);
 extern void __get_sigset_unknown_nsig(void);
 
-static inline int put_sigset(const sigset_t *kbuf, sigset32_t *ubuf)
+static inline int put_sigset(const sigset_t *kbuf, compat_sigset_t *ubuf)
 {
 	int err = 0;
 
@@ -85,7 +81,7 @@ static inline int put_sigset(const sigset_t *kbuf, sigset32_t *ubuf)
 	return err;
 }
 
-static inline int get_sigset(sigset_t *kbuf, const sigset32_t *ubuf)
+static inline int get_sigset(sigset_t *kbuf, const compat_sigset_t *ubuf)
 {
 	int err = 0;
 	unsigned long sig[4];
@@ -114,11 +110,11 @@ static inline int get_sigset(sigset_t *kbuf, const sigset32_t *ubuf)
  */
 asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
-	sigset32_t *uset;
+	compat_sigset_t *uset;
 	sigset_t newset, saveset;
 
 	save_static(&regs);
-	uset = (sigset32_t *) regs.regs[4];
+	uset = (compat_sigset_t *) regs.regs[4];
 	if (get_sigset(&newset, uset))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -141,17 +137,17 @@ asmlinkage inline int sys32_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 
 asmlinkage int sys32_rt_sigsuspend(abi64_no_regargs, struct pt_regs regs)
 {
-	sigset32_t *uset;
+	compat_sigset_t *uset;
 	sigset_t newset, saveset;
         size_t sigsetsize;
 
 	save_static(&regs);
 	/* XXX Don't preclude handling different sized sigset_t's.  */
 	sigsetsize = regs.regs[5];
-	if (sigsetsize != sizeof(sigset32_t))
+	if (sigsetsize != sizeof(compat_sigset_t))
 		return -EINVAL;
 
-	uset = (sigset32_t *) regs.regs[4];
+	uset = (compat_sigset_t *) regs.regs[4];
 	if (get_sigset(&newset, uset))
 		return -EFAULT;
 	sigdelsetmask(&newset, ~_BLOCKABLE);
@@ -688,47 +684,6 @@ asmlinkage int do_signal32(sigset_t *oldset, struct pt_regs *regs)
 	return 0;
 }
 
-extern asmlinkage int sys_sigprocmask(int how, old_sigset_t *set,
-						old_sigset_t *oset);
-
-asmlinkage int sys32_sigprocmask(int how, old_sigset_t32 *set,
-				 old_sigset_t32 *oset)
-{
-	old_sigset_t s;
-	int ret;
-	mm_segment_t old_fs = get_fs();
-
-	if (set && get_user (s, set))
-		return -EFAULT;
-
-	set_fs (KERNEL_DS);
-	ret = sys_sigprocmask(how, set ? &s : NULL, oset ? &s : NULL);
-	set_fs (old_fs);
-
-	if (!ret && oset && put_user (s, oset))
-		return -EFAULT;
-
-	return ret;
-}
-
-asmlinkage long sys_sigpending(old_sigset_t *set);
-
-asmlinkage int sys32_sigpending(old_sigset_t32 *set)
-{
-	old_sigset_t pending;
-	int ret;
-	mm_segment_t old_fs = get_fs();
-
-	set_fs (KERNEL_DS);
-	ret = sys_sigpending(&pending);
-	set_fs (old_fs);
-
-	if (put_user(pending, set))
-		return -EFAULT;
-
-	return ret;
-}
-
 asmlinkage int sys32_rt_sigaction(int sig, const struct sigaction32 *act,
 				  struct sigaction32 *oact,
 				  unsigned int sigsetsize)
@@ -775,8 +730,8 @@ out:
 asmlinkage long sys_rt_sigprocmask(int how, sigset_t *set, sigset_t *oset,
 				   size_t sigsetsize);
 
-asmlinkage int sys32_rt_sigprocmask(int how, sigset32_t *set, sigset32_t *oset,
-				    unsigned int sigsetsize)
+asmlinkage int sys32_rt_sigprocmask(int how, compat_sigset_t *set,
+	compat_sigset_t *oset, unsigned int sigsetsize)
 {
 	sigset_t old_set, new_set;
 	int ret;
@@ -798,7 +753,8 @@ asmlinkage int sys32_rt_sigprocmask(int how, sigset32_t *set, sigset32_t *oset,
 
 asmlinkage long sys_rt_sigpending(sigset_t *set, size_t sigsetsize);
 
-asmlinkage int sys32_rt_sigpending(sigset32_t *uset, unsigned int sigsetsize)
+asmlinkage int sys32_rt_sigpending(compat_sigset_t *uset,
+	unsigned int sigsetsize)
 {
 	int ret;
 	sigset_t set;
@@ -814,12 +770,13 @@ asmlinkage int sys32_rt_sigpending(sigset32_t *uset, unsigned int sigsetsize)
 	return ret;
 }
 
-asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
-	struct compat_timespec *uts, compat_time_t sigsetsize)
+asmlinkage int sys32_rt_sigtimedwait(compat_sigset_t *uthese,
+	siginfo_t32 *uinfo, struct compat_timespec *uts,
+	compat_time_t sigsetsize)
 {
 	int ret, sig;
 	sigset_t these;
-	sigset_t32 these32;
+	compat_sigset_t these32;
 	struct timespec ts;
 	siginfo_t info;
 	long timeout = 0;
@@ -830,7 +787,7 @@ asmlinkage int sys32_rt_sigtimedwait(sigset_t32 *uthese, siginfo_t32 *uinfo,
 	 * but nothing so far is actually using that many, 64 are enough.  So
 	 * for now we just drop the high bits.
 	 */
-	if (copy_from_user (&these32, uthese, sizeof(old_sigset_t32)))
+	if (copy_from_user (&these32, uthese, sizeof(compat_old_sigset_t)))
 		return -EFAULT;
 
 	switch (_NSIG_WORDS) {

@@ -16,12 +16,6 @@ CONFIG_EXPERIMENTAL=y
 CONFIG_SYSVIPC=y
 # CONFIG_BSD_PROCESS_ACCT is not set
 CONFIG_SYSCTL=y
-# CONFIG_LOG_BUF_SHIFT_17 is not set
-# CONFIG_LOG_BUF_SHIFT_16 is not set
-# CONFIG_LOG_BUF_SHIFT_15 is not set
-CONFIG_LOG_BUF_SHIFT_14=y
-# CONFIG_LOG_BUF_SHIFT_13 is not set
-# CONFIG_LOG_BUF_SHIFT_12 is not set
 CONFIG_LOG_BUF_SHIFT=14
 
 #
@@ -632,14 +626,14 @@ CONFIG_DUMMY_CONSOLE=y
 CONFIG_SOUND=y
 
 #
-# Open Sound System
-#
-# CONFIG_SOUND_PRIME is not set
-
-#
 # Advanced Linux Sound Architecture
 #
 # CONFIG_SND is not set
+
+#
+# Open Sound System
+#
+# CONFIG_SOUND_PRIME is not set
 
 #
 # USB support

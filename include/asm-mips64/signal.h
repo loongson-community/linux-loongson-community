@@ -19,16 +19,7 @@ typedef struct {
 	unsigned long sig[_NSIG_WORDS];
 } sigset_t;
 
-#define _NSIG32		128
-#define _NSIG_BPW32	32
-#define _NSIG_WORDS32	(_NSIG32 / _NSIG_BPW32)
-
-typedef struct {
-	unsigned int sig[_NSIG_WORDS32];
-} sigset_t32;
-
 typedef unsigned long old_sigset_t;		/* at least 32 bits */
-typedef unsigned int old_sigset_t32;
 
 #define SIGHUP		 1	/* Hangup (POSIX).  */
 #define SIGINT		 2	/* Interrupt (ANSI).  */

@@ -508,6 +508,7 @@ EXPORT_SYMBOL(tr_type_trans);
 /* Device callback registration */
 EXPORT_SYMBOL(register_netdevice_notifier);
 EXPORT_SYMBOL(unregister_netdevice_notifier);
+EXPORT_SYMBOL(call_netdevice_notifiers);
 
 /* support for loadable net drivers */
 #ifdef CONFIG_NET
@@ -534,6 +535,7 @@ EXPORT_SYMBOL(alloc_skb);
 EXPORT_SYMBOL(__kfree_skb);
 EXPORT_SYMBOL(skb_clone);
 EXPORT_SYMBOL(skb_copy);
+EXPORT_SYMBOL(skb_pad);
 EXPORT_SYMBOL(netif_rx);
 EXPORT_SYMBOL(netif_receive_skb);
 EXPORT_SYMBOL(dev_add_pack);

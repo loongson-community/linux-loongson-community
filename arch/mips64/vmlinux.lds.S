@@ -1,3 +1,5 @@
+#include <asm-generic/vmlinux.lds.h>
+
 #undef mips		/* CPP really sucks for this job  */
 #define mips mips
 OUTPUT_ARCH(mips)
@@ -31,9 +33,6 @@ SECTIONS
 
   _etext = .;			/* End of text section */
 
-  .rodata : {  *(.rodata) *(.rodata.*) }
-  .kstrtab : { *(.kstrtab) }
-
   . = ALIGN(16);		/* Exception table */
   __start___ex_table = .;
   __ex_table : { *(__ex_table) }
@@ -43,19 +42,11 @@ SECTIONS
   __dbe_table : { *(__dbe_table) }
   __stop___dbe_table = .;
 
-  . = ALIGN(64);
-  __start___ksymtab = .;	/* Kernel symbol table */
-  __ksymtab : { *(__ksymtab) }
-  __stop___ksymtab = .;
-
-  __start___gpl_ksymtab = .;	/* Kernel symbol table: GPL-only symbols */
-  __gpl_ksymtab : { *(__gpl_ksymtab) }
-  __stop___gpl_ksymtab = .;
-
-
   __start___kallsyms = .;	/* All kernel symbols */
   __kallsyms : { *(__kallsyms) }
   __stop___kallsyms = .;
+
+  . = ALIGN(64);
 
   /* writeable */
   .data : {			/* Data */

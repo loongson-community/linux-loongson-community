@@ -376,7 +376,7 @@ out:	jr	ra
 	sys	sys_setreuid	2			/* 4070 */
 	sys	sys_setregid	2
 	sys	sys32_sigsuspend	0
-	sys	sys32_sigpending	1
+	sys	compat_sys_sigpending	1
 	sys	sys_sethostname	2
 	sys	sys32_setrlimit	2			/* 4075 */
 	sys	sys32_getrlimit	2
@@ -429,7 +429,7 @@ out:	jr	ra
 	sys	sys_ni_syscall	0	/* sys_modify_ldt */
 	sys	sys32_adjtimex	1
 	sys	sys_mprotect	3			/* 4125 */
-	sys	sys32_sigprocmask	3
+	sys	compat_sys_sigprocmask	3
 	sys	sys_ni_syscall	0			/* was creat_module */
 	sys	sys_init_module	5
 	sys	sys_delete_module 1

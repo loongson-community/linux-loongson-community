@@ -240,6 +240,9 @@ struct fb_monspecs {
 	__u32 hfmax; 			/* hfreq upper limit (Hz) */
 	__u16 vfmin;			/* vfreq lower limit (Hz) */
 	__u16 vfmax;			/* vfreq upper limit (Hz) */
+	__u32 dclkmin;                  /* pixelclock lower limit (Hz) */
+	__u32 dclkmax;                  /* pixelclock upper limit (Hz) */
+	unsigned gtf  : 1;              /* supports GTF */
 	unsigned dpms : 1;		/* supports DPMS */
 };
 
@@ -466,9 +469,19 @@ extern struct fb_info *registered_fb[FB_MAX];
 extern int num_registered_fb;
 
 /* drivers/video/fbmon.c */
+#define FB_MAXTIMINGS       0
+#define FB_VSYNCTIMINGS     1
+#define FB_HSYNCTIMINGS     2
+#define FB_DCLKTIMINGS      3
+#define FB_IGNOREMON    0x100
+
 extern int fbmon_valid_timings(u_int pixclock, u_int htotal, u_int vtotal,
 			       const struct fb_info *fb_info);
 extern int fbmon_dpms(const struct fb_info *fb_info);
+extern int fb_get_mode(int flags, u32 val, struct fb_var_screeninfo *var,
+		       struct fb_info *info);
+extern int fb_validate_mode(struct fb_var_screeninfo *var,
+			    struct fb_info *info);
 
 /* drivers/video/fbcmap.c */
 extern int fb_alloc_cmap(struct fb_cmap *cmap, int len, int transp);
