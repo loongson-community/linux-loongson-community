@@ -367,6 +367,10 @@ void prom_init_secondary(void)
 	}
 }
 
+void prom_smp_finish(void)
+{
+}
+
 cnodeid_t get_compact_nodeid(void)
 {
 	nasid_t nasid;
