@@ -1398,6 +1398,11 @@ CONFIG_JAZZ_ESP
   This is the driver for the onboard SCSI hostadapter of MIPS Magnum 4000,
   Acer PICA, Olivetti M700-10 and a few other identical OEM systems.
 
+Support for SGI IP27
+  This are the SGI Origin 200, Origin 2000 and Onyx 2 Graphics
+  workstations.  To compile a Linux kernel that runs on these, say Y
+  here.
+
 CPU type
 CONFIG_CPU_R3000
   Please make shure to pick the right CPU type. Linux/MIPS is not
