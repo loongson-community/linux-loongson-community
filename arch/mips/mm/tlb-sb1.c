@@ -257,7 +257,6 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	unsigned long flags;
 
-	__save_and_cli(flags);
 #ifdef CONFIG_SMP
 	/*
 	 * This variable is eliminated from cpu_context() if SMP isn't defined,
@@ -267,6 +266,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 	int cpu = smp_processor_id();
 #endif
 
+	__save_and_cli(flags);
 	if (cpu_context(cpu, vma->vm_mm) != 0) {
 		int oldpid, newpid, idx;
 #ifdef DEBUG_TLB
