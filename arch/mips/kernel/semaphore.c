@@ -1,8 +1,8 @@
 /*
- *  Generic semaphore code. Buyer beware. Do your own
+ * Generic semaphore code. Buyer beware. Do your own
  * specific changes in <asm/semaphore-helper.h>
  */
-
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <asm/semaphore-helper.h>
 
@@ -41,6 +41,8 @@ void __up(struct semaphore *sem)
 	wake_one_more(sem);
 	wake_up(&sem->wait);
 }
+
+EXPORT_SYMBOL(__up);
 
 /*
  * Perform the "down" function.  Return zero for semaphore acquired,
@@ -104,6 +106,8 @@ void __down(struct semaphore * sem)
 	DOWN_TAIL(TASK_UNINTERRUPTIBLE)
 }
 
+EXPORT_SYMBOL(__down);
+
 int __down_interruptible(struct semaphore * sem)
 {
 	int ret = 0;
@@ -123,7 +127,11 @@ int __down_interruptible(struct semaphore * sem)
 	return ret;
 }
 
+EXPORT_SYMBOL(__down_interruptible);
+
 int __down_trylock(struct semaphore * sem)
 {
 	return waking_non_zero_trylock(sem);
 }
+
+EXPORT_SYMBOL(__down_trylock);
