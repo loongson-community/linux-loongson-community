@@ -117,7 +117,6 @@ static int __init ic_open_devs(void)
 
 	last = &ic_first_dev;
 	read_lock(&dev_base_lock);
-	rtnl_lock();
 	for (dev = dev_base; dev; dev = dev->next) {
 		if (user_dev_name[0] ? !strcmp(dev->name, user_dev_name) :
 		    (!(dev->flags & IFF_LOOPBACK) &&
@@ -149,7 +148,6 @@ static int __init ic_open_devs(void)
 			DBG(("IP-Config: Opened %s (able=%d)\n", dev->name, able));
 		}
 	}
-	rtnl_unlock();
 	read_unlock(&dev_base_lock);
 
 	*last = NULL;
