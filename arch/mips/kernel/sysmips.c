@@ -52,41 +52,45 @@ sys_sysmips(int cmd, int arg1, int arg2, int arg3)
 	int	flags, tmp, len, retval;
 
 	switch(cmd) {
-	case SETNAME:
-		retval = -EPERM;
+	case SETNAME: {
+		char nodename[__NEW_UTS_LEN + 1];
+
 		if (!capable(CAP_SYS_ADMIN))
-			goto out;
+			return -EPERM;
 
 		name = (char *) arg1;
-		len = strlen_user(name);
 
-		retval = len;
-		if (len < 0)
-			goto out;
+		len = strncpy_from_user(nodename, name, sizeof(nodename));
+		if (len < 0) 
+			return -EFAULT;
 
-		retval = -EINVAL;
-		if (len == 0 || len > __NEW_UTS_LEN)
-			goto out;
-
-		copy_from_user(system_utsname.nodename, name, len);
 		down_write(&uts_sem);
-		system_utsname.nodename[len] = '\0';
+		strncpy(system_utsname.nodename, name, len);
 		up_write(&uts_sem);
-		retval = 0;
-		goto out;
+		system_utsname.nodename[len] = '\0'; 
+		return 0;
+	}
 
-	case MIPS_ATOMIC_SET:
+	case MIPS_ATOMIC_SET: {
 		/* This is broken in case of page faults and SMP ...
-		   Risc/OS fauls after maximum 20 tries with EAGAIN.  */
+		    Risc/OS faults after maximum 20 tries with EAGAIN.  */
+		unsigned int tmp;
+
 		p = (int *) arg1;
-		retval = verify_area(VERIFY_WRITE, p, sizeof(*p));
-		if (retval)
-			goto out;
+		errno = verify_area(VERIFY_WRITE, p, sizeof(*p));
+		if (errno)
+			return errno;
+		errno = 0;
 		save_and_cli(flags);
-		retval = *p;
-		*p = arg2;
+		errno |= __get_user(tmp, p);
+		errno |= __put_user(arg2, p);
 		restore_flags(flags);
-		goto out;
+
+		if (errno)
+			return tmp;
+
+		return tmp;             /* This is broken ...  */ 
+        }
 
 	case MIPS_FIXADE:
 		tmp = current->thread.mflags & ~3;
