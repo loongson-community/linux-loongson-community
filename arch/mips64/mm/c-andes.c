@@ -16,6 +16,7 @@
 #include <asm/r10kcache.h>
 #include <asm/system.h>
 #include <asm/mmu_context.h>
+#include <asm/io.h>
 
 extern void andes_clear_page(void * page);
 extern void andes_copy_page(void * to, void * from);
