@@ -52,4 +52,6 @@
 #define setleds(t0,t1,c0,c1,c2,c3)
 #endif /* LEDS_PHYS */
 
+#endif /* __ASSEMBLY__ */
+
 #endif /* _SIBYTE_BOARD_H */
