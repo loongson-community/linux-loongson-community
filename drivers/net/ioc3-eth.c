@@ -1671,7 +1671,6 @@ static inline unsigned int
 ioc3_hash(const unsigned char *addr)
 {
 	unsigned int temp = 0;
-	unsigned char byte;
 	u32 crc;
 	int bits;
 
