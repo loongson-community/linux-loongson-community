@@ -88,6 +88,7 @@ FEXPORT(o32_ret_from_sys_call)
 
 restore_all:	RESTORE_SOME
 		RESTORE_SP
+		sync
 		.set	mips3
 		eret
 		.set	mips0
@@ -376,7 +377,7 @@ bad_alignment:
 	sys	sys_create_module 2
 	sys	sys_init_module	5
 	sys	sys_delete_module 1
-	sys	sys_get_kernel_syms 1			/* 4130 */
+	sys	sys32_get_kernel_syms 1			/* 4130 */
 	sys	sys_quotactl	0
 	sys	sys_getpgid	1
 	sys	sys_fchdir	1

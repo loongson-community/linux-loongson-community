@@ -27,6 +27,7 @@
 #include <linux/personality.h>
 #include <linux/timex.h>
 #include <linux/dnotify.h>
+#include <linux/module.h>
 #include <net/sock.h>
 
 #include <asm/uaccess.h>
@@ -2346,3 +2347,47 @@ asmlinkage ssize_t sys32_readahead(int fd, u32 pad0, u64 a2, u64 a3,
 {
 	return sys_readahead(fd, merge_64(a2, a3), count);
 }
+
+#ifdef CONFIG_MODULES
+
+/* From sparc64 */
+
+struct kernel_sym32 {
+        u32 value;
+        char name[60];
+};
+
+extern asmlinkage int sys_get_kernel_syms(struct kernel_sym *table);
+
+asmlinkage int sys32_get_kernel_syms(struct kernel_sym32 *table)
+{
+        int len, i;
+        struct kernel_sym *tbl;
+        mm_segment_t old_fs;
+
+        len = sys_get_kernel_syms(NULL);
+        if (!table) return len;
+        tbl = kmalloc (len * sizeof (struct kernel_sym), GFP_KERNEL);
+        if (!tbl) return -ENOMEM;
+        old_fs = get_fs();
+        set_fs (KERNEL_DS);
+        sys_get_kernel_syms(tbl);
+        set_fs (old_fs);
+        for (i = 0; i < len; i++, table++) {
+                if (put_user (tbl[i].value, &table->value) ||
+                    copy_to_user (table->name, tbl[i].name, 60))
+                        break;
+        }
+        kfree (tbl);
+        return i;
+}
+
+#else
+
+asmlinkage long
+sys32_get_kernel_syms(struct kernel_sym *table)
+{
+	return -ENOSYS;
+}
+
+#endif
