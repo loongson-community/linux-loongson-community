@@ -327,23 +327,7 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			break;
 		case FPR_BASE ... FPR_BASE + 31:
 			if (child->used_math) {
-				unsigned long *fregs
-					= (unsigned long *)
-					&child->thread.fpu.hard.fp_regs[0];
-				if (mips_cpu.options & MIPS_CPU_FPU) {
-#ifndef CONFIG_SMP
-					if (last_task_used_math == child) {
-						__enable_fpu();
-						save_fp(child);
-						__disable_fpu();
-						last_task_used_math = NULL;
-					}
-#endif
-				} else {
-					fregs = (unsigned long *)
-						child->thread.fpu.soft.regs;
-				}
-
+				unsigned long *fregs = get_fpu_regs(child);
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
@@ -414,25 +398,8 @@ asmlinkage int sys_ptrace(long request, long pid, long addr, long data)
 			regs->regs[addr] = data;
 			break;
 		case FPR_BASE ... FPR_BASE + 31: {
-			unsigned long *fregs = (unsigned long *)
-				&child->thread.fpu.hard.fp_regs[0];
-
-			if (child->used_math) {
-#ifndef CONFIG_SMP
-				if (mips_cpu.options & MIPS_CPU_FPU) {
-					if (last_task_used_math == child) {
-						__enable_fpu();
-						save_fp(child);
-						__disable_fpu();
-						last_task_used_math = NULL;
-						regs->cp0_status &= ~ST0_CU1;
-					} else {
-						fregs = (unsigned long *)
-						child->thread.fpu.soft.regs;
-					}
-				}
-#endif
-			} else {
+			unsigned long *fregs = get_fpu_regs(child);
+			if (!child->used_math) {
 				/* FP not yet used  */
 				memset(&child->thread.fpu.hard, ~0,
 				       sizeof(child->thread.fpu.hard));
