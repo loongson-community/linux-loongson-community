@@ -125,8 +125,8 @@ extern __inline__ int get_order(unsigned long size)
 #define VM_DATA_DEFAULT_FLAGS  (VM_READ | VM_WRITE | VM_EXEC | \
                                 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
 
-#define UNCAC_ADDR(addr)	((addr) - (PAGE_OFFSET + UNCAC_BASE))
-#define CAC_ADDR(addr)		((addr) - (UNCAC_BASE + PAGE_OFFSET))
+#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
+#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
 
 /*
  * Memory above this physical address will be considered highmem.

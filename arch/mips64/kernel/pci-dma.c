@@ -30,11 +30,11 @@ void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 
 	if (ret != NULL) {
 		memset(ret, 0, size);
+		*dma_handle = virt_to_phys(ret);
 #ifdef CONFIG_NONCOHERENT_IO
 		dma_cache_wback_inv((unsigned long) ret, size);
 		ret = UNCAC_ADDR(ret);
 #endif
-		*dma_handle = virt_to_phys(ret);
 	}
 
 	return ret;

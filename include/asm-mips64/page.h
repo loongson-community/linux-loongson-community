@@ -98,8 +98,8 @@ extern __inline__ int get_order(unsigned long size)
 #define VALID_PAGE(page)	((page - mem_map) < max_mapnr)
 #endif
 
-#define UNCAC_ADDR(addr)	((addr) - (PAGE_OFFSET + UNCAC_BASE))
-#define CAC_ADDR(addr)		((addr) - (UNCAC_BASE + PAGE_OFFSET))
+#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
+#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
 
 #define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
 				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)

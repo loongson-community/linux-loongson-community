@@ -317,7 +317,7 @@ pci_dac_dma_sync_single(struct pci_dev *pdev, dma64_addr_t dma_addr,
  * returns, or alternatively stop on the first sg_dma_len(sg) which
  * is 0.
  */
-#define sg_dma_address(sg)	(((sg)->address))
+#define sg_dma_address(sg)	(((sg)->dma_address))
 #define sg_dma_len(sg)		((sg)->length)
 
 #endif /* __KERNEL__ */
