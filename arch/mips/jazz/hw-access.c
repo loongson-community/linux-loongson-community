@@ -1,4 +1,4 @@
-/* $Id: hw-access.c,v 1.10 1998/07/13 23:32:11 tsbogend Exp $
+/* $Id: hw-access.c,v 1.12 1998/08/26 21:39:02 tsbogend Exp $
  *
  * Low-level hardware access stuff for Jazz family machines.
  *
@@ -64,4 +64,25 @@ __initfunc(void jazz_keyboard_setup(void))
 	r4030_write_reg16(JAZZ_IO_IRQ_ENABLE,
 	                  r4030_read_reg16(JAZZ_IO_IRQ_ENABLE) |
 	                                   JAZZ_IE_KEYBOARD);
+}
+
+int jazz_ps2_request_irq(void)
+{
+    extern void aux_interrupt(int, void *, struct pt_regs *);
+    int ret;
+    
+    ret = request_irq(JAZZ_MOUSE_IRQ, aux_interrupt, 0, "PS/2 Mouse", NULL);
+    if (!ret)
+	r4030_write_reg16(JAZZ_IO_IRQ_ENABLE, 
+			  r4030_read_reg16(JAZZ_IO_IRQ_ENABLE) | 
+			  JAZZ_IE_MOUSE);
+    return ret;
+}
+
+void jazz_ps2_free_irq(void)
+{
+    r4030_write_reg16(JAZZ_IO_IRQ_ENABLE, 
+		      r4030_read_reg16(JAZZ_IO_IRQ_ENABLE) | 
+		      JAZZ_IE_MOUSE);
+    free_irq(JAZZ_MOUSE_IRQ, NULL);
 }

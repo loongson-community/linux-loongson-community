@@ -1,9 +1,8 @@
-/* $Id: int-handler.S,v 1.5 1998/05/07 14:17:39 ralf Exp $
+/* $Id: int-handler.S,v 1.11 1998/08/26 21:39:03 tsbogend Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
- * arch/mips/jazz/pica.S
  *
  * Copyright (C) 1995, 1996, 1997, 1998 by Ralf Baechle and Andreas Busse
  *
@@ -262,7 +261,12 @@ loc_keyboard:	li	s1,~JAZZ_IE_KEYBOARD
 		li	a0,JAZZ_KEYBOARD_IRQ
 		b	loc_call
 
-loc_mouse:	PANIC("Unimplemented loc_mouse handler")
+/*
+ * Mouse interrupt handler
+ */
+loc_mouse:	li	s1,~JAZZ_IE_MOUSE
+		li	a0,JAZZ_MOUSE_IRQ
+		b	loc_call
 
 /*
  * Serial port 1 IRQ
