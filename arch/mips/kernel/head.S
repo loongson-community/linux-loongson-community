@@ -27,7 +27,10 @@
  */
 #define GET_CURRENT(reg)			\
 	lui	reg, %hi(kernelsp);		\
+	.set	push;				\
+	.set	noreorder;			\
 	lw	reg, %lo(kernelsp)(reg);	\
+	.set	pop;				\
 	ori	reg, 8191;			\
 	xori	reg, 8191
 
