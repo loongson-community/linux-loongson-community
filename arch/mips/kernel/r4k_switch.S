@@ -100,7 +100,7 @@ LEAF(save_fp)
 LEAF(restore_fp)
 	FPU_RESTORE_DOUBLE(a0, t1)		# clobbers t1
 	jr	ra
-	END(r4xx0_restore_fp)
+	END(restore_fp)
 
 /*
  * Load the FPU with signalling NANS.  This bit pattern we're using has

@@ -9,7 +9,7 @@
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  *
  * Further modifications to make this work:
- * Copyright (c) 1998 Harald Koerfgen
+ * Copyright (c) 1998-2000 Harald Koerfgen
  */
 #include <asm/asm.h>
 #include <asm/bootinfo.h>
@@ -81,7 +81,6 @@ LEAF(lazy_fpu_switch)
 	.set	noreorder
 	and	t1, t3
 	sw	t1, ST_OFF(a0)
-	swc1	$f0, (THREAD_FPU + 0x00)(a0)
 	FPU_SAVE_SINGLE(a0, t1)			# clobbers t1
 
 2:
