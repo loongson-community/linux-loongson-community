@@ -19,11 +19,10 @@ $(TARGET): offset.h
 offset.h: offset.s
 	sed -n '/^@@@/s///p' $^ >$@
 
-offset.s: offset.c
+offset.s: offset.c $(TOPDIR)/.config
 
 clean:
 	rm -f offset.[hs] $(TARGET).new
 	rm -f $(TARGET)
-	echo "/* dummy */" >$(TARGET)
 
 include $(TOPDIR)/Rules.make
