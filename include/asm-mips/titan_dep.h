@@ -16,9 +16,6 @@
 #include <asm/addrspace.h>              /* for KSEG1ADDR() */
 #include <asm/byteorder.h>              /* for cpu_to_le32() */
 
-/* Turn on serial */
-#define	CONFIG_TITAN_SERIAL
-
 /* PCI */
 #define	TITAN_PCI_BASE			0xbb000000
 
