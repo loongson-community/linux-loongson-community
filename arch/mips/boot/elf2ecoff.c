@@ -123,8 +123,16 @@ int phcmp ();
 char *saveRead (int file, off_t offset, off_t len, char *name);
 int copy (int, int, off_t, off_t);
 int translate_syms (int, int, off_t, off_t, off_t, off_t);
+void convert_elf_hdr (Elf32_Ehdr *);
+void convert_elf_phdrs (Elf32_Phdr *, int);
+void convert_elf_shdrs (Elf32_Shdr *, int);
+void convert_ecoff_filehdr(struct filehdr *);
+void convert_ecoff_aouthdr(struct aouthdr *);
+void convert_ecoff_esecs(struct scnhdr *, int);
 extern int errno;
 int *symTypeTable;
+int must_convert_endian = 0;
+int format_bigendian = 0;
 
 main (int argc, char **argv, char **envp)
 {
@@ -178,12 +186,29 @@ main (int argc, char **argv, char **envp)
       exit (1);
     }
 
+  if (ex.e_ident[EI_DATA] == ELFDATA2MSB)
+	format_bigendian = 1;
+
+  if (ntohs (0xaa55) == 0xaa55) {
+	if (!format_bigendian)
+		must_convert_endian = 1;
+  } else {
+	if (format_bigendian)
+		must_convert_endian = 1;
+  }
+  if (must_convert_endian)
+	convert_elf_hdr (&ex);
+
   /* Read the program headers... */
   ph = (Elf32_Phdr *)saveRead (infile, ex.e_phoff,
 				ex.e_phnum * sizeof (Elf32_Phdr), "ph");
+  if (must_convert_endian)
+	convert_elf_phdrs (ph, ex.e_phnum);
   /* Read the section headers... */
   sh = (Elf32_Shdr *)saveRead (infile, ex.e_shoff,
 				ex.e_shnum * sizeof (Elf32_Shdr), "sh");
+  if (must_convert_endian)
+	convert_elf_shdrs (sh, ex.e_shnum);
   /* Read in the section string table. */
   shstrtab = saveRead (infile, sh [ex.e_shstrndx].sh_offset,
 		       sh [ex.e_shstrndx].sh_size, "shstrtab");
@@ -275,7 +300,10 @@ main (int argc, char **argv, char **envp)
   memset (&eah.cprmask, '\0', sizeof eah.cprmask);
   eah.gp_value = 0; /* unused. */
 
-  efh.f_magic = MIPSELMAGIC;
+  if (format_bigendian)
+    efh.f_magic = MIPSEBMAGIC;
+  else
+    efh.f_magic = MIPSELMAGIC;
   efh.f_nscns = 3;
   efh.f_timdat = 0;	/* bogus */
   efh.f_symptr = 0;
@@ -283,6 +311,7 @@ main (int argc, char **argv, char **envp)
   efh.f_opthdr = sizeof eah;
   efh.f_flags = 0x100f; /* Stripped, not sharable. */
 
+  memset (esecs, 0, sizeof esecs);
   strcpy (esecs [0].s_name, ".text");
   strcpy (esecs [1].s_name, ".data");
   strcpy (esecs [2].s_name, ".bss");
@@ -315,6 +344,8 @@ main (int argc, char **argv, char **envp)
       exit (1);
     }
 
+  if (must_convert_endian)
+	convert_ecoff_filehdr (&efh);
   /* Write the headers... */
   i = write (outfile, &efh, sizeof efh);
   if (i != sizeof efh)
@@ -331,6 +362,8 @@ main (int argc, char **argv, char **envp)
     }
   fprintf (stderr, "wrote %d byte file header.\n", i);
 
+  if (must_convert_endian)
+	convert_ecoff_aouthdr (&eah);
   i = write (outfile, &eah, sizeof eah);
   if (i != sizeof eah)
     {
@@ -339,6 +372,8 @@ main (int argc, char **argv, char **envp)
     }
   fprintf (stderr, "wrote %d byte a.out header.\n", i);
 
+  if (must_convert_endian)
+	convert_ecoff_esecs (&esecs[0], sizeof esecs / sizeof (struct scnhdr));
   i = write (outfile, &esecs, sizeof esecs);
   if (i != sizeof esecs)
     {
@@ -497,4 +532,115 @@ char *saveRead (int file, off_t offset, off_t len, char *name)
       exit (1);
     }
   return tmp;
+}
+
+#define swab16(x) \
+	((unsigned short)( \
+		(((unsigned short)(x) & (unsigned short)0x00ffU) << 8) | \
+		(((unsigned short)(x) & (unsigned short)0xff00U) >> 8) ))
+
+#define swab32(x) \
+	((unsigned int)( \
+		(((unsigned int)(x) & (unsigned int)0x000000ffUL) << 24) | \
+		(((unsigned int)(x) & (unsigned int)0x0000ff00UL) <<  8) | \
+		(((unsigned int)(x) & (unsigned int)0x00ff0000UL) >>  8) | \
+		(((unsigned int)(x) & (unsigned int)0xff000000UL) >> 24) ))
+
+void convert_elf_hdr (Elf32_Ehdr *e)
+{
+	e->e_type      = swab16(e->e_type);
+	e->e_machine   = swab16(e->e_machine);
+	e->e_version   = swab32(e->e_version);
+	e->e_entry     = swab32(e->e_entry);
+	e->e_phoff     = swab32(e->e_phoff);
+	e->e_shoff     = swab32(e->e_shoff);
+	e->e_flags     = swab32(e->e_flags);
+	e->e_ehsize    = swab16(e->e_ehsize);
+	e->e_phentsize = swab16(e->e_phentsize);
+	e->e_phnum     = swab16(e->e_phnum);
+	e->e_shentsize = swab16(e->e_shentsize);
+	e->e_shnum     = swab16(e->e_shnum);
+	e->e_shstrndx  = swab16(e->e_shstrndx);
+}
+
+void convert_elf_phdrs (Elf32_Phdr *p, int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++,p++) {
+		p->p_type   = swab32(p->p_type);
+		p->p_offset = swab32(p->p_offset);
+		p->p_vaddr  = swab32(p->p_vaddr);
+		p->p_paddr  = swab32(p->p_paddr);
+		p->p_filesz = swab32(p->p_filesz);
+		p->p_memsz  = swab32(p->p_memsz);
+		p->p_flags  = swab32(p->p_flags);
+		p->p_align  = swab32(p->p_align);
+	}
+
+}
+
+void convert_elf_shdrs (Elf32_Shdr *s, int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++,s++) {
+		s->sh_name      = swab32(s->sh_name);
+		s->sh_type      = swab32(s->sh_type);
+		s->sh_flags     = swab32(s->sh_flags);
+		s->sh_addr      = swab32(s->sh_addr);
+		s->sh_offset    = swab32(s->sh_offset);
+		s->sh_size      = swab32(s->sh_size);
+		s->sh_link      = swab32(s->sh_link);
+		s->sh_info      = swab32(s->sh_info);
+		s->sh_addralign = swab32(s->sh_addralign);
+		s->sh_entsize   = swab32(s->sh_entsize);
+	}
+}
+
+void convert_ecoff_filehdr(struct filehdr *f)
+{
+	f->f_magic  = swab16(f->f_magic);
+	f->f_nscns  = swab16(f->f_nscns);
+	f->f_timdat = swab32(f->f_timdat);
+	f->f_symptr = swab32(f->f_symptr);
+	f->f_nsyms  = swab32(f->f_nsyms);
+	f->f_opthdr = swab16(f->f_opthdr);
+	f->f_flags  = swab16(f->f_flags);
+}
+
+void convert_ecoff_aouthdr(struct aouthdr *a)
+{
+	a->magic      = swab16(a->magic);
+	a->vstamp     = swab16(a->vstamp);
+	a->tsize      = swab32(a->tsize);
+	a->dsize      = swab32(a->dsize);
+	a->bsize      = swab32(a->bsize);
+	a->entry      = swab32(a->entry);
+	a->text_start = swab32(a->text_start);
+	a->data_start = swab32(a->data_start);
+	a->bss_start  = swab32(a->bss_start);
+	a->gprmask    = swab32(a->gprmask);
+	a->cprmask[0] = swab32(a->cprmask[0]);
+	a->cprmask[1] = swab32(a->cprmask[1]);
+	a->cprmask[2] = swab32(a->cprmask[2]);
+	a->cprmask[3] = swab32(a->cprmask[3]);
+	a->gp_value   = swab32(a->gp_value);
+}
+
+void convert_ecoff_esecs(struct scnhdr *s, int num)
+{
+	int i;
+
+	for (i = 0; i < num; i++, s++) {
+		s->s_paddr   = swab32(s->s_paddr);
+		s->s_vaddr   = swab32(s->s_vaddr);
+		s->s_size    = swab32(s->s_size);
+		s->s_scnptr  = swab32(s->s_scnptr);
+		s->s_relptr  = swab32(s->s_relptr);
+		s->s_lnnoptr = swab32(s->s_lnnoptr);
+		s->s_nreloc  = swab16(s->s_nreloc);
+		s->s_nlnno   = swab16(s->s_nlnno);
+		s->s_flags   = swab32(s->s_flags);
+	}
 }
