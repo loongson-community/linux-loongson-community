@@ -6,7 +6,7 @@
     *  This module contains constants and macros useful for 
     *  manipulating the SB1250's UARTs
     *
-    *  SB1250 specification level:  0.2
+    *  SB1250 specification level:  01/02/2002
     *  
     *  Author:  Mitch Lichtenberg (mitch@sibyte.com)
     *  
@@ -63,7 +63,7 @@
 
 
 #define M_DUART_PARITY_TYPE_EVEN    0x00
-#define M_DUART_PARITY_TYPE_ODD     _SB_MAKEMASK1(3)
+#define M_DUART_PARITY_TYPE_ODD     _SB_MAKEMASK1(2)
 
 #define S_DUART_PARITY_MODE          3
 #define M_DUART_PARITY_MODE         _SB_MAKEMASK(2,S_DUART_PARITY_MODE)
