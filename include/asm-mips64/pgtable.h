@@ -165,7 +165,7 @@ extern void (*_flush_cache_l1)(void);
 #define _CACHE_CACHABLE_CE          (4<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_COW         (5<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_CUW         (6<<9)  /* R4[04]00 only           */
-#define _CACHE_CACHABLE_ACCELERATED (7<<9)  /* R10000 only             */
+#define _CACHE_UNCACHED_ACCELERATED (7<<9)  /* R10000 only             */
 #define _CACHE_MASK                 (7<<9)
 
 #define __READABLE	(_PAGE_READ | _PAGE_SILENT_READ | _PAGE_ACCESSED)

@@ -185,6 +185,7 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _CACHE_UNCACHED             (2<<9)  
 #define _CACHE_CACHABLE_COW         (5<<9)  
 #define _CACHE_CACHABLE_NONCOHERENT (5<<9)  
+#define _CACHE_UNCACHED_ACCELERATED (7<<9)  
 
 #else
 
@@ -195,7 +196,7 @@ extern int add_temporary_entry(unsigned long entrylo0, unsigned long entrylo1,
 #define _CACHE_CACHABLE_CE          (4<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_COW         (5<<9)  /* R4[04]00 only           */
 #define _CACHE_CACHABLE_CUW         (6<<9)  /* R4[04]00 only           */
-#define _CACHE_CACHABLE_ACCELERATED (7<<9)  /* R10000 only             */
+#define _CACHE_UNCACHED_ACCELERATED (7<<9)  /* R10000 only             */
 
 #endif
 #endif
