@@ -41,7 +41,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 
 struct timeval32
 {
-	unsigned int tv_sec, tv_usec;
+	int tv_sec, tv_usec;
 };
 
 #define elf_prstatus elf_prstatus32
