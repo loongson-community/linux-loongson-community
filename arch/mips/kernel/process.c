@@ -100,9 +100,13 @@ int copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 
 	childksp = (unsigned long)ti + THREAD_SIZE - 32;
 
+	preempt_disable();
+
 	if (is_fpu_owner()) {
 		save_fp(p);
 	}
+
+	preempt_enable();
 
 	/* set up new TSS. */
 	childregs = (struct pt_regs *) childksp - 1;

@@ -181,6 +181,8 @@ asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 
 	err |= __get_user(current->used_math, &sc->sc_used_math);
 
+	preempt_disable();
+
 	if (current->used_math) {
 		/* restore fpu context if we have used it before */
 		own_fpu();
@@ -189,6 +191,8 @@ asmlinkage int restore_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 		/* signal handler may have used FPU.  Give it up. */
 		lose_fpu();
 	}
+
+	preempt_enable();
 
 	return err;
 }
@@ -323,11 +327,15 @@ inline int setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 	 * Save FPU state to signal context.  Signal handler will "inherit"
 	 * current FPU state.
 	 */
+	preempt_disable();
+
 	if (!is_fpu_owner()) {
 		own_fpu();
 		restore_fp(current);
 	}
 	err |= save_fp_context(sc);
+
+	preempt_enable();
 
 out:
 	return err;

@@ -286,10 +286,17 @@ void local_flush_tlb_one(unsigned long page)
    these entries, we just bump the asid. */
 void local_flush_tlb_mm(struct mm_struct *mm)
 {
-	int cpu = smp_processor_id();
+	int cpu;
+
+	preempt_disable();
+
+	cpu = smp_processor_id();
+
 	if (cpu_context(cpu, mm) != 0) {
 		drop_mmu_context(mm, cpu);
 	}
+
+	preempt_enable();
 }
 
 /* Stolen from mips32 routines */

@@ -390,12 +390,16 @@ static inline void simulate_ll(struct pt_regs *regs, unsigned int opcode)
 		goto sig;
 	}
 
+	preempt_disable();
+
 	if (ll_task == NULL || ll_task == current) {
 		ll_bit = 1;
 	} else {
 		ll_bit = 0;
 	}
 	ll_task = current;
+
+	preempt_enable();
 
 	regs->regs[(opcode & RT) >> 16] = value;
 
@@ -429,11 +433,17 @@ static inline void simulate_sc(struct pt_regs *regs, unsigned int opcode)
 		signal = SIGBUS;
 		goto sig;
 	}
+
+	preempt_disable();
+
 	if (ll_bit == 0 || ll_task != current) {
 		regs->regs[reg] = 0;
+		preempt_enable();
 		compute_return_epc(regs);
 		return;
 	}
+
+	preempt_enable();
 
 	if (put_user(regs->regs[reg], vaddr)) {
 		signal = SIGSEGV;
@@ -494,6 +504,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	if (fcr31 & FPU_CSR_UNI_X) {
 		int sig;
 
+		preempt_disable();
+
 		/*
 	 	 * Unimplemented operation exception.  If we've got the full
 		 * software emulator on-board, let's use it...
@@ -518,6 +530,8 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 		/* Restore the hardware register state */
 		restore_fp(current);
+
+		preempt_enable();
 
 		/* If something went wrong, signal */
 		if (sig)
@@ -638,6 +652,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		break;
 
 	case 1:
+		preempt_disable();
+
 		own_fpu();
 		if (current->used_math) {	/* Using the FPU again.  */
 			restore_fp(current);
@@ -652,6 +668,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 			if (sig)
 				force_sig(sig, current);
 		}
+
+		preempt_enable();
 
 		return;
 
