@@ -72,6 +72,11 @@ static void andes_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+}
+
 void __init ld_mmu_andes(void)
 {
 	/* Default cache error handler for SB1 */

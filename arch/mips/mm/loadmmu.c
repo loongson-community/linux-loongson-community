@@ -33,7 +33,7 @@ void (*_flush_cache_sigtramp)(unsigned long addr);
 void (*_flush_icache_range)(unsigned long start, unsigned long end);
 void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
 
-void (*_flush_page_to_ram)(struct page * page);
+void (*_flush_dcache_page)(struct page * page);
 void (*_flush_icache_all)(void);
 
 #ifdef CONFIG_NONCOHERENT_IO
@@ -98,13 +98,6 @@ void __init loadmmu(void)
 	case CPU_R3000A:
 	case CPU_R3081E:
 		ld_mmu_r23000();
-		r3k_tlb_init();
-		break;
-	case CPU_TX3912:
-	case CPU_TX3922:
-	case CPU_TX3927:
-	case CPU_TX39XX:
-		ld_mmu_tx39();
 		r3k_tlb_init();
 		break;
 #endif

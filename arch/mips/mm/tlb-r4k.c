@@ -219,8 +219,7 @@ void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
  * updates the TLB with the new pte(s), and another which also checks
  * for the R4k "end of page" hardware bug and does the needy.
  */
-void update_mmu_cache(struct vm_area_struct * vma, unsigned long address,
-		      pte_t pte)
+void __update_tlb(struct vm_area_struct * vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;

@@ -92,12 +92,10 @@ static void rm7k_flush_cache_mm_d32i32(struct mm_struct *mm)
 static void rm7k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 					unsigned long page)
 {
-	/* RM7000 caches are sane ...  */
 }
 
-static void rm7k_flush_page_to_ram_d32i32(struct page * page)
+static void rm7k_flush_dcache_page(struct page * page)
 {
-	/* Yes!  Caches that don't suck!  */
 }
 
 static void rm7k_flush_icache_range(unsigned long start, unsigned long end)
@@ -193,6 +191,11 @@ static void rm7k_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+}
+
 /* Detect and size the caches. */
 static inline void probe_icache(unsigned long config)
 {
@@ -220,7 +223,7 @@ static inline void probe_dcache(unsigned long config)
  *	- Pray that GCC doesn't randomly start using the stack.
  *
  * This being Linux, we obviously take the least sane of those options -
- * following DaveM's lead in r4xx0.c
+ * following DaveM's lead in c-r4k.c
  *
  * It seems we get our kicks from relying on unguaranteed behaviour in GCC
  */
@@ -337,7 +340,7 @@ void __init ld_mmu_rm7k(void)
 	_flush_cache_mm = rm7k_flush_cache_mm_d32i32;
 	_flush_cache_range = rm7k_flush_cache_range_d32i32;
 	_flush_cache_page = rm7k_flush_cache_page_d32i32;
-	_flush_page_to_ram = rm7k_flush_page_to_ram_d32i32;
+	_flush_dcache_page = rm7k_flush_dcache_page;
 	_flush_cache_sigtramp = rm7k_flush_cache_sigtramp;
 	_flush_icache_range = rm7k_flush_icache_range;
 	_flush_icache_page = rm7k_flush_icache_page;

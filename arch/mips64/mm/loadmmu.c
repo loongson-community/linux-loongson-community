@@ -30,7 +30,7 @@ void (*_flush_cache_mm)(struct mm_struct *mm);
 void (*_flush_cache_range)(struct vm_area_struct *vma, unsigned long start,
                            unsigned long end);
 void (*_flush_cache_page)(struct vm_area_struct *vma, unsigned long page);
-void (*_flush_page_to_ram)(struct page * page);
+void (*_flush_dcache_page)(struct page *page);
 void (*_flush_icache_range)(unsigned long start, unsigned long end);
 void (*_flush_icache_page)(struct vm_area_struct *vma, struct page *page);
 void (*_flush_icache_all)(void);

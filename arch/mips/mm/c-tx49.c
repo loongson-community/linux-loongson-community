@@ -254,23 +254,34 @@ static void r49_flush_cache_page_d32i32(struct vm_area_struct *vma,
 	}
 }
 
-/* If the addresses passed to these routines are valid, they are
- * either:
- *
- * 1) In KSEG0, so we can do a direct flush of the page.
- * 2) In KSEG2, and since every process can translate those
- *    addresses all the time in kernel mode we can do a direct
- *    flush.
- * 3) In KSEG1, no flush necessary.
- */
-static void r4k_flush_page_to_ram_d16(struct page *page)
+static r49_flush_dcache_page_impl(struct page *page)
 {
-	blast_dcache16_page((unsigned long)page_address(page));
+	unsigned long addr;
+
+	addr = (unsigned long)page_address(page);
+
+	if (dc_lsize == 16)
+		blast_dcache16_page(addr);
+	else
+		blast_dcache32_page(addr);
 }
 
-static void r4k_flush_page_to_ram_d32(struct page *page)
+static void tx49_flush_dcache_page(struct page *page)
 {
-	blast_dcache32_page((unsigned long)page_address(page));
+	if (page->mapping &&
+	    list_empty(&page->mapping->i_mmap) &&
+	    list_empty(&page->mapping->i_mmap_shared)) {
+		SetPageDcacheDirty(page);
+
+		return;
+	}
+
+	/*
+	 * We could delay the flush for the !page->mapping case too.  But that
+	 * case is for exec env/arg pages and those are %99 certainly going to
+	 * get faulted into the tlb (and thus flushed) anyways.
+	 */
+	r49_flush_dcache_page_impl(page);
 }
 
 static void
@@ -357,6 +368,20 @@ static void r4k_flush_cache_sigtramp(unsigned long addr)
 	protected_flush_icache_line(addr & ~(ic_lsize - 1));
 }
 
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+	struct page *page = pte_page(pte);
+	unsigned long pg_flags;
+
+	if (VALID_PAGE(page) && page->mapping &&
+	    ((pg_flags = page->flags) & (1UL << PG_dcache_dirty))) {
+		r49_flush_dcache_page_impl(page);
+
+		ClearPageDcacheDirty(page);
+	}
+}
+
 /* Detect and size the various r4k caches. */
 static void __init probe_icache(unsigned long config)
 {
@@ -403,11 +428,10 @@ void __init ld_mmu_tx49(void)
 	mips_cpu.dcache.sets =
 		dcache_size / mips_cpu.dcache.ways / mips_cpu.dcache.linesz;
 
-	switch(dc_lsize) {
+	switch (dc_lsize) {
 	case 16:
 		_clear_page = r4k_clear_page_d16;
 		_copy_page = r4k_copy_page_d16;
-		_flush_page_to_ram = r4k_flush_page_to_ram_d16;
 		_flush_cache_all = r49_flush_cache_all_d16i32;
 		_flush_cache_mm = r49_flush_cache_mm_d16i32;
 		_flush_cache_range = r49_flush_cache_range_d16i32;
@@ -416,7 +440,6 @@ void __init ld_mmu_tx49(void)
 	case 32:
 		_clear_page = r4k_clear_page_d32;
 		_copy_page = r4k_copy_page_d32;
-		_flush_page_to_ram = r4k_flush_page_to_ram_d32;
 		_flush_cache_all = r49_flush_cache_all_d32i32;
 		_flush_cache_mm = r49_flush_cache_mm_d32i32;
 		_flush_cache_range = r49_flush_cache_range_d32i32;
@@ -426,6 +449,7 @@ void __init ld_mmu_tx49(void)
 	___flush_cache_all = _flush_cache_all;
 
 	_flush_icache_page = r4k_flush_icache_page;
+	_flush_dcache_page = r49_flush_dcache_page;
 
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv;
 	_dma_cache_wback = r4k_dma_cache_wback;

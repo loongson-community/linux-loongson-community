@@ -258,11 +258,8 @@ static void r3k_flush_cache_page(struct vm_area_struct *vma,
 {
 }
 
-static void r3k_flush_page_to_ram(struct page * page)
+static void r3k_flush_dcache_page(struct page * page)
 {
-	/*
-	 * Nothing to be done
-	 */
 }
 
 static void r3k_flush_icache_page(struct vm_area_struct *vma, struct page *page)
@@ -317,6 +314,11 @@ static void r3k_dma_cache_wback_inv(unsigned long start, unsigned long size)
 	r3k_flush_dcache_range(start, start + size);
 }
 
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+}
+
 void __init ld_mmu_r23000(void)
 {
 	unsigned long config;
@@ -332,7 +334,7 @@ void __init ld_mmu_r23000(void)
 	_flush_cache_range = r3k_flush_cache_range;
 	_flush_cache_page = r3k_flush_cache_page;
 	_flush_cache_sigtramp = r3k_flush_cache_sigtramp;
-	_flush_page_to_ram = r3k_flush_page_to_ram;
+	_flush_dcache_page = r3k_flush_dcache_page;
 	_flush_icache_page = r3k_flush_icache_page;
 	_flush_icache_range = r3k_flush_icache_range;
 

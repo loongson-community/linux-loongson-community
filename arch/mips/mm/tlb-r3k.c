@@ -188,8 +188,7 @@ finish:
 	}
 }
 
-void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
-		      pte_t pte)
+void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	int idx, pid;

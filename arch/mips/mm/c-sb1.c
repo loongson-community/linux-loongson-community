@@ -529,7 +529,7 @@ void ld_mmu_sb1(void)
 	_flush_cache_page = (void (*)(struct vm_area_struct *, unsigned long))sb1_nop;
 	_flush_cache_mm = (void (*)(struct mm_struct *))sb1_nop;
 	_flush_cache_all = sb1_nop;
-	_flush_page_to_ram = (void (*)(struct page *)) sb1_nop;
+	_flush_dcache_page = (void *) sb1_nop;
 
 	/* These routines are for Icache coherence with the Dcache */
 	_flush_icache_range = sb1_flush_icache_range;

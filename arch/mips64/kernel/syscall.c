@@ -223,7 +223,7 @@ asmlinkage int sys_sysmips(int cmd, long arg1, int arg2, int arg3)
 		return 0;
 
 	case FLUSH_CACHE:
-		_flush_cache_l2();
+		flush_cache_l2();
 		return 0;
 
 	case MIPS_RDNVRAM:

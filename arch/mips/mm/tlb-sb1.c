@@ -315,8 +315,7 @@ void local_flush_tlb_mm(struct mm_struct *mm)
 
 /* Stolen from mips32 routines */
 
-void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
-		      pte_t pte)
+void __update_tlb(struct vm_area_struct *vma, unsigned long address, pte_t pte)
 {
 	unsigned long flags;
 	pgd_t *pgdp;

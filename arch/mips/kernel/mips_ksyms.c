@@ -82,7 +82,6 @@ EXPORT_SYMBOL_NOVERS(__strnlen_user_asm);
 /*
  * Functions to control caches.
  */
-EXPORT_SYMBOL(_flush_page_to_ram);
 EXPORT_SYMBOL(_flush_cache_all);
 
 EXPORT_SYMBOL(invalid_pte_table);

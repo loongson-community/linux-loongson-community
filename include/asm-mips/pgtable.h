@@ -361,8 +361,17 @@ static inline pmd_t *pmd_offset(pgd_t *dir, unsigned long address)
 extern pgd_t swapper_pg_dir[1024];
 extern void paging_init(void);
 
-extern void update_mmu_cache(struct vm_area_struct *vma,
-				unsigned long address, pte_t pte);
+extern void __update_tlb(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte);
+extern void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte);
+
+static inline void update_mmu_cache(struct vm_area_struct *vma,
+	unsigned long address, pte_t pte)
+{
+	__update_tlb(vma, address, pte);
+	__update_cache(vma, address, pte);
+}
 
 /* Swap entries must have VALID and GLOBAL bits cleared. */
 #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)

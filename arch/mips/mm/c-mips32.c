@@ -163,7 +163,6 @@ static void mips32_flush_cache_page_sc(struct vm_area_struct *vma,
 				    unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -212,7 +211,6 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 				    unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -256,23 +254,32 @@ static void mips32_flush_cache_page_pc(struct vm_area_struct *vma,
 	}
 }
 
-/* If the addresses passed to these routines are valid, they are
- * either:
- *
- * 1) In KSEG0, so we can do a direct flush of the page.
- * 2) In KSEG2, and since every process can translate those
- *    addresses all the time in kernel mode we can do a direct
- *    flush.
- * 3) In KSEG1, no flush necessary.
- */
-static void mips32_flush_page_to_ram_sc(struct page *page)
+static void mips32_flush_dcache_page_impl(struct page *page)
 {
-	blast_scache_page((unsigned long)page_address(page));
+	unsigned long addr = (unsigned long)page_address(page);
+
+	if (sc_lsize)
+		blast_scache_page(addr);
+	else
+		blast_dcache_page(addr);
 }
 
-static void mips32_flush_page_to_ram_pc(struct page *page)
+static void mips32_flush_dcache_page(struct page *page)
 {
-	blast_dcache_page((unsigned long)page_address(page));
+	if (page->mapping &&
+	    list_empty(&page->mapping->i_mmap) &&
+	    list_empty(&page->mapping->i_mmap_shared)) {
+		SetPageDcacheDirty(page);
+
+		return;
+	}
+
+	/*
+	 * We could delay the flush for the !page->mapping case too.  But that
+	 * case is for exec env/arg pages and those are %99 certainly going to
+	 * get faulted into the tlb (and thus flushed) anyways.
+	 */
+	mips32_flush_dcache_page_impl(page);
 }
 
 static void
@@ -415,6 +422,22 @@ static void mips32_flush_icache_all(void)
 		blast_icache();
 	}
 }
+
+void __update_cache(struct vm_area_struct *vma, unsigned long address,
+	pte_t pte)
+{
+	struct page *page;
+	unsigned long pfn;
+
+	pfn = pte_pfn(pte);
+	if (pfn_valid(pfn) && (page = pfn_to_page(pfn), page->mapping) &&
+	    Page_dcache_dirty(page)) {
+		mips32_flush_dcache_page_impl(page);
+
+		ClearPageDcacheDirty(page);
+	}
+}
+
 
 /* Detect and size the various caches. */
 static void __init probe_icache(unsigned long config)
@@ -609,7 +632,6 @@ static void __init setup_noscache_funcs(void)
 	_flush_cache_mm = mips32_flush_cache_mm_pc;
 	_flush_cache_range = mips32_flush_cache_range_pc;
 	_flush_cache_page = mips32_flush_cache_page_pc;
-	_flush_page_to_ram = mips32_flush_page_to_ram_pc;
 
 	_flush_icache_page = mips32_flush_icache_page;
 
@@ -625,7 +647,6 @@ static void __init setup_scache_funcs(void)
 	_flush_cache_mm = mips32_flush_cache_mm_sc;
 	_flush_cache_range = mips32_flush_cache_range_sc;
 	_flush_cache_page = mips32_flush_cache_page_sc;
-	_flush_page_to_ram = mips32_flush_page_to_ram_sc;
 	_clear_page = (void *)mips32_clear_page_sc;
 	_copy_page = (void *)mips32_copy_page_sc;
 
@@ -680,6 +701,7 @@ void __init ld_mmu_mips32(void)
 	setup_scache(config);
 
 	_flush_cache_sigtramp = mips32_flush_cache_sigtramp;
+	_flush_dcache_page = mips32_flush_dcache_page;
 	_flush_icache_range = mips32_flush_icache_range;	/* Ouch */
 	_flush_icache_all = mips32_flush_icache_all;
 
