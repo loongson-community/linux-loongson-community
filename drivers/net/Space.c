@@ -101,7 +101,6 @@ extern int etherh_probe (struct net_device *dev);
 extern int am79c961_probe(struct net_device *dev);
 extern int hplance_probe(struct net_device *dev);
 extern int bagetlance_probe(struct net_device *);
-extern int dec_lance_probe(struct net_device *);
 extern int mvme147lance_probe(struct net_device *dev);
 extern int tc515_probe(struct net_device *dev);
 extern int lance_probe(struct net_device *dev);
@@ -388,9 +387,6 @@ struct devprobe mips_probes[] __initdata = {
 #endif
 #ifdef CONFIG_SGI_IOC3_ETH
 	{ioc3_probe, 0},
-#endif
-#ifdef CONFIG_DECLANCE		/* DECstation on-board controller */
-	{dec_lance_probe, 0},   /* and maybe TURBOchannel option boards */
 #endif
 #ifdef CONFIG_BAGETLANCE        /* Lance-based Baget ethernet boards */
         {bagetlance_probe, 0},
