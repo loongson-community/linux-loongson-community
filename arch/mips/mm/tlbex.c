@@ -766,6 +766,7 @@ static __init void build_tlb_write_random_entry(u32 **p, struct label **l,
 	case CPU_R5000:
 	case CPU_R5000A:
 	case CPU_5KC:
+	case CPU_TX49XX:
 	case CPU_AU1000:
 	case CPU_AU1100:
 	case CPU_AU1500:
