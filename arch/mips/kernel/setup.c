@@ -611,6 +611,11 @@ void __init setup_arch(char **cmdline_p)
 			casio_e55_setup();
 			break;
 #endif
+#ifdef CONFIG_TANBAC_TB0229
+		case MACH_TANBAC_TB0229:
+			tanbac_tb0229_setup();
+			break;
+#endif
 		}
 		break;
 #endif

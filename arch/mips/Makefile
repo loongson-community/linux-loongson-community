@@ -272,6 +272,12 @@ core-$(CONFIG_TANBAC_TB0226)	+= arch/mips/vr41xx/tanbac-tb0226/
 load-$(CONFIG_TANBAC_TB0226)	+= 0x80000000
 
 #
+# TANBAC TB0229 VR4131DIMM (VR4131)
+#
+core-$(CONFIG_TANBAC_TB0229)	+= arch/mips/vr41xx/tanbac-tb0229/
+load-$(CONFIG_TANBAC_TB0229)	+= 0x80000000
+
+#
 # Philips Nino
 #
 core-$(CONFIG_NINO)		+= arch/mips/philips/nino/

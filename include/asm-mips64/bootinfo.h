@@ -170,6 +170,9 @@
 #define MACH_PB1000		0	/* Au1000-based eval board */
 #define MACH_PB1100		1	/* Au1100-based eval board */
 #define MACH_PB1500		2	/* Au1500-based eval board */
+#define MACH_DB1000		3       /* Au1000-based eval board */
+#define MACH_DB1100		4       /* Au1100-based eval board */
+#define MACH_DB1500		5       /* Au1500-based eval board */
 
 /*
  * Valid machtype for group NEC_VR41XX
@@ -181,6 +184,7 @@
 #define MACH_IBM_WORKPAD	4	/* IBM WorkPad z50 */
 #define MACH_CASIO_E55		5	/* CASIO CASSIOPEIA E-10/15/55/65 */
 #define MACH_TANBAC_TB0226	6	/* TANBAC TB0226 (Mbase) */
+#define MACH_TANBAC_TB0229	7	/* TANBAC TB0229 (VR4131DIMM) */
 
 #define CL_SIZE			(256)
 
