@@ -121,24 +121,22 @@ static void qube_raq_via_bmIDE_fixup(struct pci_dev *dev)
 static void qube_raq_tulip_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
-	extern int cobalt_is_raq;
 
 	/* Fixup the first tulip located at device PCICONF_ETH0 */
 	if (PCI_SLOT(dev->devfn) == COBALT_PCICONF_ETH0) {
 		/*
-		 * Now tell the Ethernet device that we expect an interrupt at
-		 * IRQ 13 and not the default 189.
-		 *
 		 * The IRQ of the first Tulip is different on Qube and RaQ
 		 */
-		if (!cobalt_is_raq) {
-			/* All Qube's route this the same way. */
-			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-                                              COBALT_QUBE_ETH_IRQ);
-		} else {
+		if (cobalt_board_id == COBALT_BRD_ID_RAQ2) {
 			/* Setup the first Tulip on the RAQ */
 			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
-                                              COBALT_RAQ_ETH0_IRQ);
+					      COBALT_RAQ_ETH0_IRQ);
+			dev->irq = COBALT_RAQ_ETH0_IRQ;
+		} else {
+			/* All Qube's route this the same way. */
+			pci_write_config_byte(dev, PCI_INTERRUPT_LINE,
+					      COBALT_QUBE_ETH_IRQ);
+			dev->irq = COBALT_QUBE_ETH_IRQ;
 		}
 		dev->resource[0].start = 0x100000;
 		dev->resource[0].end = 0x10007f;
@@ -170,7 +168,6 @@ static void qube_raq_tulip_fixup(struct pci_dev *dev)
 static void qube_raq_scsi_fixup(struct pci_dev *dev)
 {
 	unsigned short pci_cmd;
-	extern int cobalt_is_raq;
 
         /*
          * Tell the SCSI device that we expect an interrupt at
@@ -178,7 +175,7 @@ static void qube_raq_scsi_fixup(struct pci_dev *dev)
          */
         pci_write_config_byte(dev, PCI_INTERRUPT_LINE, COBALT_SCSI_IRQ);
 
-	if (cobalt_is_raq) {
+	if (cobalt_board_id == COBALT_BRD_ID_RAQ2) {
 
 		/* Enable the device. */
 		pci_read_config_word(dev, PCI_COMMAND, &pci_cmd);
