@@ -267,8 +267,7 @@ struct rt_sigframe {
 	struct ucontext rs_uc;
 };
 
-asmlinkage void
-sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct sigframe *frame;
 	sigset_t blocked;
@@ -304,8 +303,7 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-asmlinkage void
-sys_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
+asmlinkage void sys_rt_sigreturn(abi64_no_regargs, struct pt_regs regs)
 {
 	struct rt_sigframe *frame;
 	sigset_t set;
@@ -346,8 +344,8 @@ badframe:
 	force_sig(SIGSEGV, current);
 }
 
-static int inline
-setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
+static int inline setup_sigcontext(struct pt_regs *regs,
+				   struct sigcontext *sc)
 {
 	int err = 0;
 
@@ -392,8 +390,8 @@ setup_sigcontext(struct pt_regs *regs, struct sigcontext *sc)
 /*
  * Determine which stack to use..
  */
-static inline void *
-get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
+static inline void *get_sigframe(struct k_sigaction *ka, struct pt_regs *regs,
+				 size_t frame_size)
 {
 	unsigned long sp;
 
@@ -407,9 +405,8 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((sp - frame_size) & ALMASK);
 }
 
-static void inline
-setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
-            int signr, sigset_t *set)
+static void inline setup_frame(struct k_sigaction * ka, struct pt_regs *regs,
+			       int signr, sigset_t *set)
 {
 	struct sigframe *frame;
 	int err = 0;
@@ -470,9 +467,9 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static void inline
-setup_rt_frame(struct k_sigaction * ka, struct pt_regs *regs,
-               int signr, sigset_t *set, siginfo_t *info)
+static void inline setup_rt_frame(struct k_sigaction * ka,
+				  struct pt_regs *regs, int signr,
+				  sigset_t *set, siginfo_t *info)
 {
 	struct rt_sigframe *frame;
 	int err = 0;
@@ -546,9 +543,9 @@ give_sigsegv:
 	force_sig(SIGSEGV, current);
 }
 
-static inline void
-handle_signal(unsigned long sig, struct k_sigaction *ka,
-	siginfo_t *info, sigset_t *oldset, struct pt_regs * regs)
+static inline void handle_signal(unsigned long sig, struct k_sigaction *ka,
+				 siginfo_t *info, sigset_t *oldset,
+				 struct pt_regs *regs)
 {
 	if (ka->sa.sa_flags & SA_SIGINFO)
 		setup_rt_frame(ka, regs, sig, oldset, info);
@@ -566,8 +563,8 @@ handle_signal(unsigned long sig, struct k_sigaction *ka,
 	}
 }
 
-static inline void
-syscall_restart(struct pt_regs *regs, struct k_sigaction *ka)
+static inline void syscall_restart(struct pt_regs *regs,
+				   struct k_sigaction *ka)
 {
 	switch(regs->regs[0]) {
 	case ERESTARTNOHAND:

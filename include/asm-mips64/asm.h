@@ -232,7 +232,7 @@ symbol		=	value
 #define INT_ADDI	addi
 #define INT_ADDU	addu
 #define INT_ADDIU	addiu
-#define INT_SUB	add
+#define INT_SUB		add
 #define INT_SUBI	subi
 #define INT_SUBU	subu
 #define INT_SUBIU	subu
@@ -245,7 +245,7 @@ symbol		=	value
 #define INT_ADDI	daddi
 #define INT_ADDU	daddu
 #define INT_ADDIU	daddiu
-#define INT_SUB	dadd
+#define INT_SUB		dadd
 #define INT_SUBI	dsubi
 #define INT_SUBU	dsubu
 #define INT_SUBIU	dsubu
