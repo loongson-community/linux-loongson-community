@@ -43,7 +43,8 @@ extern __inline__ void __udelay(unsigned long usecs, unsigned long lps)
 	__asm__("dmultu\t%0,%2\n\t"
 		"mfhi\t%0"
 		:"=r" (usecs)
-		:"0" (usecs),"r" (lps));
+		:"0" (usecs),"r" (lps)
+		:"hi", "lo");
 	__delay(usecs);
 }
 
