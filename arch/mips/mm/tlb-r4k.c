@@ -335,10 +335,11 @@ out:
 
 static void __init probe_tlb(unsigned long config)
 {
-	unsigned long config1;
+	unsigned int prid, config1;
 
-	if (!(config & (1 << 31)))
-	        /* 
+	prid = read_32bit_cp0_register(CP0_PRID) & 0xff0000;
+	if (prid == PRID_IMP_RM7000 || !(config & (1 << 31)))
+		/* 
 		 * Not a MIPS32 complianant CPU.  Config 1 register not
 		 * supported, we assume R4k style.  Cpu probing already figured
 		 * out the number of tlb entries.
