@@ -55,21 +55,6 @@
 /* Toggle spewing of debugging output */
 #undef DUART_SPEW
 
-/*
- *  Just stole some device numbers for now.  We'll have to either commit to
- *  being gung-ho devfs, or get some official numbers assigned to us in
- *  the future
- *
- */
-
-#define SB1250_DUART_NAME       "ttySB"
-#define SB1250_DUART_MAJOR      204
-#define SB1250_DUART_MINOR      0
-
-#define SB1250_DUART_AUXNAME    "cuaSB"
-#define SB1250_DUART_AUXMAJOR   205
-#define SB1250_DUART_AUXMINOR   0
-
 #define DEFAULT_CFLAGS          (CS8 | B115200)
 
 
@@ -183,10 +168,10 @@ static inline unsigned long get_status_reg(unsigned int line)
 /* Derive which uart a call is for from the passed tty line.  */
 static inline unsigned int get_line(struct tty_struct *tty) 
 {
-	unsigned int line = MINOR(tty->device)-SB1250_DUART_MINOR;
-	if (line > 1) {
-		panic("Invalid line\n");
-	}
+	unsigned int line = MINOR(tty->device) - 64;
+	if (line > 1)
+		printk(KERN_CRIT "Invalid line\n");
+
 	return line;
 }
 
@@ -593,20 +578,24 @@ static void duart_wait_until_sent(struct tty_struct *tty, int timeout)
 #endif
 }
 
-/* Open a tty line.  Note that this can be called multiple times,
-   so ->open can be >1.  Only set up the tty struct if this is
-   a "new" open, e.g. ->open was zero */
+/*
+ * Open a tty line.  Note that this can be called multiple times, so ->open can
+ * be >1.  Only set up the tty struct if this is a "new" open, e.g. ->open was
+ * zero
+ */
 static int duart_open(struct tty_struct *tty, struct file *filp)
 {
 	unsigned long flags;
 	unsigned int line;
 	uart_state_t *us;
+
 	MOD_INC_USE_COUNT;
 #ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
-	if ((MINOR(tty->device)-SB1250_DUART_MINOR) > 1) {
+	if (get_line(tty) > 1)
 #else
-	if ((MINOR(tty->device)-SB1250_DUART_MINOR) > 0) {
+	if (get_line(tty) > 0)
 #endif
+	                      {
 		MOD_DEC_USE_COUNT;
 		return -ENODEV;
 	}
@@ -674,13 +663,17 @@ static void duart_close(struct tty_struct *tty, struct file *filp)
 
 /* Set up the driver and register it, register the 2 1250 UART interrupts.  This
    is called from tty_init, or as a part of the module init */
-int __init sb1250_duart_init(void) 
+static int __init sb1250_duart_init(void) 
 {
 	sb1250_duart_driver.magic            = TTY_DRIVER_MAGIC;
-	sb1250_duart_driver.driver_name      = "ttySB";
-	sb1250_duart_driver.name             = SB1250_DUART_NAME;
-	sb1250_duart_driver.major            = SB1250_DUART_MAJOR;
-	sb1250_duart_driver.minor_start      = SB1250_DUART_MINOR;
+	sb1250_duart_driver.driver_name      = "serial";
+#ifdef CONFIG_DEVFS_FS
+	sb1250_duart_driver.name             = "tts/%d";
+#else
+	sb1250_duart_driver.name             = "ttyS";
+#endif
+	sb1250_duart_driver.major            = TTY_MAJOR;
+	sb1250_duart_driver.minor_start      = 64;
 	sb1250_duart_driver.num              = 2;
 	sb1250_duart_driver.type             = TTY_DRIVER_TYPE_SERIAL;
 	sb1250_duart_driver.subtype          = SERIAL_TYPE_NORMAL;
@@ -690,7 +683,7 @@ int __init sb1250_duart_init(void)
 	sb1250_duart_driver.table            = duart_table;
 	sb1250_duart_driver.termios          = duart_termios;
 	sb1250_duart_driver.termios_locked   = duart_termios_locked;
-	
+
 	sb1250_duart_driver.open             = duart_open;
 	sb1250_duart_driver.close            = duart_close;
 	sb1250_duart_driver.write            = duart_write;
@@ -703,18 +696,18 @@ int __init sb1250_duart_init(void)
 	sb1250_duart_driver.stop             = duart_stop;
 	sb1250_duart_driver.start            = duart_start;
 	sb1250_duart_driver.wait_until_sent  = duart_wait_until_sent;
-	
-	sb1250_duart_callout_driver                = sb1250_duart_driver;
-	sb1250_duart_callout_driver.name           = SB1250_DUART_AUXNAME;
-	sb1250_duart_callout_driver.major          = SB1250_DUART_AUXMAJOR;
-	sb1250_duart_callout_driver.subtype        = SERIAL_TYPE_CALLOUT;
-	
+
+	sb1250_duart_callout_driver          = sb1250_duart_driver;
+	sb1250_duart_callout_driver.name     = "cua/%d";
+	sb1250_duart_callout_driver.major    = TTYAUX_MAJOR;
+	sb1250_duart_callout_driver.subtype  = SERIAL_TYPE_CALLOUT;
+
 	if (request_irq(K_INT_UART_0, duart_int, 0, "uart0", &uart_states[0])) {
-		panic("Couldn't get uart0 interrupt line\n");
+		panic("Couldn't get uart0 interrupt line");
 	}
 #ifndef CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
 	if (request_irq(K_INT_UART_1, duart_int, 0, "uart1", &uart_states[1])) {
-		panic("Couldn't get uart1 interrupt line\n");
+		panic("Couldn't get uart1 interrupt line");
 	}
 #endif	
 
@@ -738,7 +731,7 @@ static void __exit sb1250_duart_fini(void)
 {
 	unsigned long flags;
 	int ret;
-	
+
 	save_flags(flags);
 	cli();
 	ret = tty_unregister_driver(&sb1250_duart_callout_driver);
@@ -751,20 +744,20 @@ static void __exit sb1250_duart_fini(void)
 	}
 	free_irq(K_INT_UART_0, &uart_states[0]);
 	free_irq(K_INT_UART_1, &uart_states[1]);
-	
+
 	/* mask lines in the scd */
 	disable_irq(K_INT_UART_0);
 	disable_irq(K_INT_UART_1);
-	
+
 	restore_flags(flags);
 }
 
-#ifdef MODULE
 module_init(sb1250_duart_init);
 module_exit(sb1250_duart_fini);
 MODULE_DESCRIPTION("SB1250 Duart serial driver");
 MODULE_AUTHOR("Justin Carlson <carlson@sibyte.com>");
-#endif
+
+#ifdef CONFIG_SERIAL_CONSOLE
 
 /*
  * Serial console stuff. 
@@ -774,11 +767,13 @@ MODULE_AUTHOR("Justin Carlson <carlson@sibyte.com>");
  * Worst that can happen for now, though, is dropped characters.
  */
 
-static void ser_console_write(struct console *cons, const char *str, unsigned int count)
+static void ser_console_write(struct console *cons, const char *str,
+                              unsigned int count)
 {
 	unsigned int i;
 	unsigned long flags;
 	spin_lock_irqsave(&uart_states[0].outp_lock, flags);
+
 	for (i = 0; i < count; i++) {
                 if (str[i] == '\n') {
                         /* Expand LF -> CRLF */
@@ -827,10 +822,12 @@ static struct console sb1250_ser_cons = {
         NULL
 };
 
-void sb1250_serial_console_init(void)
+void __init sb1250_serial_console_init(void)
 {
 	register_console(&sb1250_ser_cons);
 	
 	/*JDCXXX - this should be called from console_setup...but isn't.  Why? */
 	ser_console_setup(NULL, NULL);  
 }
+
+#endif /* CONFIG_SERIAL_CONSOLE */
