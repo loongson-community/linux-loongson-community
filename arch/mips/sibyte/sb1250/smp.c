@@ -94,5 +94,5 @@ void sb1250_mailbox_interrupt(struct pt_regs *regs)
 	 */
 
 	if (action & SMP_CALL_FUNCTION)
-		smp_call_function_interrupt(0, NULL, regs);
+		smp_call_function_interrupt();
 }
