@@ -107,7 +107,7 @@ static pfn_t slot_psize_compute(cnodeid_t node, int slot)
 		return 0;
 
 	/* Get the memory bank structure */
-	banks = (klmembnk_t *)find_first_component(brd, KLSTRUCT_MEMBNK);
+	banks = (klmembnk_t *) find_first_component(brd, KLSTRUCT_MEMBNK);
 	if (!banks)
 		return 0;
 
@@ -116,16 +116,15 @@ static pfn_t slot_psize_compute(cnodeid_t node, int slot)
 
 	/* hack for 128 dimm banks */
 	if (size <= 128) {
-		if (slot%4 == 0) {
+		if (slot % 4 == 0) {
 			size <<= 20;		/* size in bytes */
 			return(size >> PAGE_SHIFT);
-		} else {
+		} else
 			return 0;
-		}
 	} else {
 		size /= 4;
 		size <<= 20;
-		return(size >> PAGE_SHIFT);
+		return size >> PAGE_SHIFT;
 	}
 }
 
@@ -191,7 +190,8 @@ void __init prom_meminit(void)
 		slot_firstpfn = slot_getbasepfn(node, 0);
 		slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
 		slot_freepfn = node_getfirstfree(node);
-		/* Foll line hack for non discontigmem; remove once discontigmem
+		/*
+		 * Foll line hack for non discontigmem; remove once discontigmem
 		 * becomes the default. */
 		max_low_pfn = (slot_lastpfn - slot_firstpfn);
 
