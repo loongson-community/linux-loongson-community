@@ -8,6 +8,7 @@
  *
  * Copyright (C) 1997 by Paul M. Antoine.
  * reworked 1998 by Harald Koerfgen.
+ * Copyright (C) 2001, 2002  Maciej W. Rozycki
  */
 
 #ifndef __ASM_DEC_INTERRUPTS_H 
@@ -15,77 +16,110 @@
 
 #include <asm/mipsregs.h>
 
-/*
- * DECstation Interrupts
- */
 
 /*
- * This list reflects the priority of the Interrupts.
- * Exception: on kmins we have to handle Memory Error 
- * Interrupts before the TC Interrupts.
+ * The list of possible system devices which provide an
+ * interrupt.  Not all devices exist on a given system.
  */
-#define CLOCK	 	0
-#define SCSI_DMA_INT 	1
-#define SCSI_INT	2
-#define ETHER		3
-#define SERIAL		4
-#define TC0		5
-#define TC1		6
-#define TC2		7
-#define MEMORY		8
-#define HALT		9
+#define DEC_IRQ_CASCADE		0	/* cascade from CSR or I/O ASIC */
 
-#define NR_INTS		10
+/* Ordinary interrupts */
+#define DEC_IRQ_AB_RECV		1	/* ACCESS.bus receive */
+#define DEC_IRQ_AB_XMIT		2	/* ACCESS.bus transmit */
+#define DEC_IRQ_DZ11		3	/* DZ11 (DC7085) serial */
+#define DEC_IRQ_ASC		4	/* ASC (NCR53C94) SCSI */
+#define DEC_IRQ_FLOPPY		5	/* 82077 FDC */
+#define DEC_IRQ_FPU		6	/* R3k FPU */
+#define DEC_IRQ_HALT		7	/* HALT button or from ACCESS.Bus */
+#define DEC_IRQ_ISDN		8	/* Am79C30A ISDN */
+#define DEC_IRQ_LANCE		9	/* LANCE (Am7990) Ethernet */
+#define DEC_IRQ_MEMORY		10	/* memory, I/O bus write errors */
+#define DEC_IRQ_PSU		11	/* power supply unit warning */
+#define DEC_IRQ_RTC		12	/* DS1287 RTC */
+#define DEC_IRQ_SCC0		13	/* SCC (Z85C30) serial #0 */
+#define DEC_IRQ_SCC1		14	/* SCC (Z85C30) serial #1 */
+#define DEC_IRQ_SII		15	/* SII (DC7061) SCSI */
+#define DEC_IRQ_TC0		16	/* TURBOchannel slot #0 */
+#define DEC_IRQ_TC1		17	/* TURBOchannel slot #1 */
+#define DEC_IRQ_TC2		18	/* TURBOchannel slot #2 */
+#define DEC_IRQ_TIMER		19	/* ARC periodic timer */
+#define DEC_IRQ_VIDEO		20	/* framebuffer */
+
+/* I/O ASIC DMA interrupts */
+#define DEC_IRQ_ASC_MERR	21	/* ASC memory read error */
+#define DEC_IRQ_ASC_ERR		22	/* ASC page overrun */
+#define DEC_IRQ_ASC_DMA		23	/* ASC buffer pointer loaded */
+#define DEC_IRQ_FLOPPY_ERR	24	/* FDC error */
+#define DEC_IRQ_ISDN_ERR	25	/* ISDN memory read/overrun error */
+#define DEC_IRQ_ISDN_RXDMA	26	/* ISDN recv buffer pointer loaded */
+#define DEC_IRQ_ISDN_TXDMA	27	/* ISDN xmit buffer pointer loaded */
+#define DEC_IRQ_LANCE_MERR	28	/* LANCE memory read error */
+#define DEC_IRQ_SCC0A_RXERR	29	/* SCC0A (printer) receive overrun */
+#define DEC_IRQ_SCC0A_RXDMA	30	/* SCC0A receive half page */
+#define DEC_IRQ_SCC0A_TXERR	31	/* SCC0A xmit memory read/overrun */
+#define DEC_IRQ_SCC0A_TXDMA	32	/* SCC0A transmit page end */
+#define DEC_IRQ_SCC0B_RXERR	33	/* SCC0B (ACCESS.bus) receive overrun */
+#define DEC_IRQ_SCC0B_RXDMA	34	/* SCC0B receive half page */
+#define DEC_IRQ_SCC0B_TXERR	35	/* SCC0B xmit memory read/overrun */
+#define DEC_IRQ_SCC0B_TXDMA	36	/* SCC0B transmit page end */
+#define DEC_IRQ_SCC1A_RXERR	37	/* SCC1A (modem) receive overrun */
+#define DEC_IRQ_SCC1A_RXDMA	38	/* SCC1A receive half page */
+#define DEC_IRQ_SCC1A_TXERR	39	/* SCC1A xmit memory read/overrun */
+#define DEC_IRQ_SCC1A_TXDMA	40	/* SCC1A transmit page end */
+
+/* TC5 & TC6 are virtual slots for KN02's onboard devices */
+#define DEC_IRQ_TC5		DEC_IRQ_ASC	/* virtual PMAZ-AA */
+#define DEC_IRQ_TC6		DEC_IRQ_LANCE	/* virtual PMAD-AA */
+
+#define DEC_NR_INTS		41
+
+
+/* Largest of cpu mask_nr tables. */
+#define DEC_MAX_CPU_INTS	6
+/* Largest of asic mask_nr tables. */
+#define DEC_MAX_ASIC_INTS	9
+
 
 /*
- * The FPU is special.  It must always be handled first.
- * Since it bypasses the regular IRQ handler we define
- * the line it uses here.  All DECstations use the same
- * one.
+ * CPU interrupt bits common to all systems.
  */
-#define DEC_IE_FPU	IE_IRQ5
+#define DEC_CPU_INR_FPU		7	/* R3k FPU */
+#define DEC_CPU_INR_SW1		1	/* software #1 */
+#define DEC_CPU_INR_SW0		0	/* software #0 */
+
+#define DEC_CPU_IRQ_BASE	0	/* first IRQ assigned to CPU */
+
+#define DEC_CPU_IRQ_NR(n)	((n) + DEC_CPU_IRQ_BASE)
+#define DEC_CPU_IRQ_MASK(n)	(1 << ((n) + CAUSEB_IP))
+#define DEC_CPU_IRQ_ALL		(0xff << CAUSEB_IP)
+
 
 #ifndef __ASSEMBLY__
-/*
- * Data structure to hide the differences between the DECstation Interrupts
- *
- * If asic_mask == NULL, the interrupt is directly handled by the CPU.
- * Otherwise this Interrupt is handled the IRQ Controller.
- */
-
-typedef struct
-{
-	unsigned int	cpu_mask;	/* checking and enabling interrupts in CP0	*/
-	unsigned int	iemask;		/* enabling interrupts in IRQ Controller	*/
-} decint_t;
-
-extern volatile unsigned int *isr;
-				/* address of the interrupt status register  */
-extern volatile unsigned int *imr;
-				/* address of the interrupt mask register    */
-extern decint_t dec_interrupt[NR_INTS];
 
 /*
- * Interrupt table structure to hide differences between different
- * systems such.
+ * Interrupt table structures to hide differences between systems.
  */
-extern void *cpu_ivec_tbl[8];
-extern long cpu_mask_tbl[8];
-extern long cpu_irq_nr[8];
-extern long asic_irq_nr[32];
-extern long asic_mask_tbl[32];
+typedef union { int i; void *p; } int_ptr;
+extern int dec_interrupt[DEC_NR_INTS];
+extern int_ptr cpu_mask_nr_tbl[DEC_MAX_CPU_INTS][2];
+extern int_ptr asic_mask_nr_tbl[DEC_MAX_ASIC_INTS][2];
+extern int cpu_fpu_mask;
+
 
 /*
  * Common interrupt routine prototypes for all DECStations
  */
-extern void	dec_intr_unimplemented(void);
+extern void kn02_io_int(void);
+extern void kn02xa_io_int(void);
+extern void kn03_io_int(void);
+extern void asic_dma_int(void);
+extern void asic_all_int(void);
+extern void kn02_all_int(void);
+extern void cpu_all_int(void);
 
-extern void	kn02_io_int(void);
-extern void	kn02xa_io_int(void);
-extern void	kn03_io_int(void);
+extern void dec_intr_unimplemented(void);
+extern void asic_intr_unimplemented(void);
 
-extern void	asic_intr_unimplemented(void);
+#endif /* __ASSEMBLY__ */
 
-#endif
 #endif 
-

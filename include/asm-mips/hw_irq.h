@@ -8,6 +8,8 @@
 #ifndef _ASM_HW_IRQ_H
 #define _ASM_HW_IRQ_H
 
+#include <asm/atomic.h>
+
 extern atomic_t irq_err_count;
 
 /* This may not be apropriate for all machines, we'll see ...  */

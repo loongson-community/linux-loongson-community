@@ -1,5 +1,5 @@
 /*
- *	linux/asm-mips/dec/kn05.h
+ *	include/asm-mips/dec/kn05.h
  *
  *	DECstation 5000/260 (4max+ or KN05) and DECsystem 5900-260
  *	definitions.

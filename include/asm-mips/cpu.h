@@ -160,5 +160,6 @@ enum cputype {
 #define MIPS_CPU_CACHE_CDEX	0x00000800 /* Create_Dirty_Exclusive CACHE op */
 #define MIPS_CPU_MCHECK		0x00001000 /* Machine check exception */
 #define MIPS_CPU_EJTAG		0x00002000 /* EJTAG exception */
+#define MIPS_CPU_NOFPUEX	0x00004000 /* no FPU exception */
 
 #endif /* _ASM_CPU_H */

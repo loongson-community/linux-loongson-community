@@ -135,22 +135,27 @@ static void __init tc_probe(unsigned long startaddr, unsigned long size, int max
 			 */
 			switch (slot) {
 			case 0:
-				tc_bus[slot].interrupt = TC0;
+				tc_bus[slot].interrupt =
+					dec_interrupt[DEC_IRQ_TC0];
 				break;
 			case 1:
-				tc_bus[slot].interrupt = TC1;
+				tc_bus[slot].interrupt =
+					dec_interrupt[DEC_IRQ_TC1];
 				break;
 			case 2:
-				tc_bus[slot].interrupt = TC2;
+				tc_bus[slot].interrupt =
+					dec_interrupt[DEC_IRQ_TC2];
 				break;
 			/*
 			 * Yuck! DS5000/200 onboard devices
 			 */
 			case 5:
-				tc_bus[slot].interrupt = SCSI_INT;
+				tc_bus[slot].interrupt =
+					dec_interrupt[DEC_IRQ_TC5];
 				break;
 			case 6:
-				tc_bus[slot].interrupt = ETHER;
+				tc_bus[slot].interrupt =
+					dec_interrupt[DEC_IRQ_TC6];
 				break;
 			default:
 				tc_bus[slot].interrupt = -1;

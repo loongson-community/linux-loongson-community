@@ -3,6 +3,8 @@
 
 #include <linux/config.h>
 
+#include <asm/system.h>
+
 /*
  * These are the generic versions of the spinlocks and read-write
  * locks..

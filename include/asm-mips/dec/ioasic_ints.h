@@ -3,7 +3,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Definitions for the interrupt related bits in the JUNKIO Asic
+ * Definitions for the interrupt related bits in the I/O ASIC
  * interrupt status register (and the interrupt mask register, of course)
  *
  * Created with Information from:
@@ -11,99 +11,64 @@
  * "DEC 3000 300/400/500/600/700/800/900 AXP Models System Programmer's Manual"
  *
  * and the Mach Sources
+ *
+ * Copyright (C) 199x  the Anonymous
+ * Copyright (C) 2002  Maciej W. Rozycki
  */
+
+#ifndef __ASM_DEC_IOASIC_INTS_H
+#define __ASM_DEC_IOASIC_INTS_H
 
 /* 
- * the upper 16 bits are common to all JUNKIO machines
- * (except the FLOPPY and ISDN bits, which are Maxine sepcific)
+ * The upper 16 bits are a part of the I/O ASIC's internal DMA engine
+ * and thus are common to all I/O ASIC machines.  The exception is
+ * the Maxine, which makes use of the FLOPPY and ISDN bits (otherwise
+ * unused) and has a different SCC wiring.
  */
-#define SCC0_TRANS_PAGEEND	0x80000000	/* Serial DMA Errors	*/
-#define SCC0_TRANS_MEMRDERR	0x40000000	/* see below		*/
-#define SCC0_RECV_HALFPAGE	0x20000000
-#define	SCC0_RECV_PAGOVRRUN	0x10000000
-#define SCC1_TRANS_PAGEEND	0x08000000	/* end of page reached	*/
-#define SCC1_TRANS_MEMRDERR	0x04000000	/* SCC1 DMA memory err	*/
-#define SCC1_RECV_HALFPAGE	0x02000000	/* SCC1 half page	*/
-#define	SCC1_RECV_PAGOVRRUN	0x01000000	/* SCC1 receive overrun	*/
-#define FLOPPY_DMA_ERROR	0x00800000	/* FDI DMA error	*/
-#define	ISDN_TRANS_PTR_LOADED	0x00400000	/* xmitbuf ptr loaded	*/
-#define ISDN_RECV_PTR_LOADED	0x00200000	/* rcvbuf ptr loaded	*/
-#define ISDN_DMA_MEMRDERR	0x00100000	/* read or ovrrun error	*/
-#define SCSI_PTR_LOADED		0x00080000
-#define SCSI_PAGOVRRUN		0x00040000	/* page overrun? */
-#define SCSI_DMA_MEMRDERR	0x00020000
-#define LANCE_DMA_MEMRDERR	0x00010000
+					/* all systems */
+#define IO_INR_SCC0A_TXDMA	31	/* SCC0A transmit page end */
+#define IO_INR_SCC0A_TXERR	30	/* SCC0A transmit memory read error */
+#define IO_INR_SCC0A_RXDMA	29	/* SCC0A receive half page */
+#define IO_INR_SCC0A_RXERR	28	/* SCC0A receive overrun */
+#define IO_INR_ASC_DMA		19	/* ASC buffer pointer loaded */
+#define IO_INR_ASC_ERR		18	/* ASC page overrun */
+#define IO_INR_ASC_MERR		17	/* ASC memory read error */
+#define IO_INR_LANCE_MERR	16	/* LANCE memory read error */
+
+					/* except Maxine */
+#define IO_INR_SCC1A_TXDMA	27	/* SCC1A transmit page end */
+#define IO_INR_SCC1A_TXERR	26	/* SCC1A transmit memory read error */
+#define IO_INR_SCC1A_RXDMA	25	/* SCC1A receive half page */
+#define IO_INR_SCC1A_RXERR	24	/* SCC1A receive overrun */
+#define IO_INR_RES_23		23	/* unused */
+#define IO_INR_RES_22		22	/* unused */
+#define IO_INR_RES_21		21	/* unused */
+#define IO_INR_RES_20		20	/* unused */
+
+					/* Maxine */
+#define IO_INR_SCC0B_TXDMA	27	/* SCC0B transmit page end */
+#define IO_INR_SCC0B_TXERR	26	/* SCC0B transmit memory read error */
+#define IO_INR_SCC0B_RXDMA	25	/* SCC0B receive half page */
+#define IO_INR_SCC0B_RXERR	24	/* SCC0B receive overrun */
+#define IO_INR_FLOPPY_ERR	23	/* FDC error */
+#define IO_INR_ISDN_TXDMA	22	/* ISDN xmit buffer pointer loaded */
+#define IO_INR_ISDN_RXDMA	21	/* ISDN recv buffer pointer loaded */
+#define IO_INR_ISDN_ERR		20	/* ISDN memory read/overrun error */
+
+#define IO_INR_DMA		16	/* first DMA IRQ */
 
 /*
- * the lower 16 bits are system specific
+ * The lower 16 bits are system-specific and thus defined in
+ * system-specific headers.
  */
 
-/*
- * The following three seem to be in common
- */
-#define SCSI_CHIP		0x00000200
-#define LANCE_CHIP		0x00000100
-#define SCC1_CHIP		0x00000080	/* NOT on maxine	*/
-#define SCC0_CHIP		0x00000040
 
-/*
- * The rest is different
- */
+#define IO_IRQ_BASE		8	/* first IRQ assigned to I/O ASIC */
+#define IO_IRQ_LINES		32	/* number of I/O ASIC interrupts */
 
-/* kmin aka 3min aka kn02ba aka DS5000_1xx */
-#define KMIN_TIMEOUT		0x00001000	/* CPU IO-Write Timeout	*/
-#define KMIN_CLOCK		0x00000020
-#define KMIN_SCSI_FIFO		0x00000004	/* SCSI Data Ready	*/
+#define IO_IRQ_NR(n)		((n) + IO_IRQ_BASE)
+#define IO_IRQ_MASK(n)		(1 << (n))
+#define IO_IRQ_ALL		0x0000ffff
+#define IO_IRQ_DMA		0xffff0000
 
-/* kn02ca aka maxine */
-#define MAXINE_FLOPPY		0x00008000	/* FDI Interrupt        */
-#define MAXINE_TC0		0x00001000	/* TC Option 0      	*/
-#define MAXINE_ISDN		0x00000800	/* ISDN	Chip		*/
-#define MAXINE_FLOPPY_HDS	0x00000080	/* Floppy Status      	*/
-#define MAXINE_TC1		0x00000020	/* TC Option 1		*/
-#define MAXINE_FLOPPY_XDS	0x00000010	/* Floppy Status      	*/
-#define MAXINE_VINT		0x00000008	/* Video Frame		*/
-#define MAXINE_N_VINT		0x00000004	/* Not Video frame	*/
-#define MAXINE_DTOP_TRANS	0x00000002	/* DTI Xmit-Rdy		*/
-#define MAXINE_DTOP_RECV	0x00000001	/* DTI Recv-Available	*/
-
-/* kn03 aka 3max+ aka DS5000_2x0 */
-#define KN03_TC2		0x00002000
-#define KN03_TC1		0x00001000
-#define KN03_TC0		0x00000800
-#define KN03_SCSI_FIFO		0x00000004	/* ??? Info from Mach	*/
-
-/*
- * Now form groups, i.e. all serial interrupts, all SCSI interrupts and so on. 
- */
-#define SERIAL_INTS	(SCC0_TRANS_PAGEEND | SCC0_TRANS_MEMRDERR | \
-			SCC0_RECV_HALFPAGE | SCC0_RECV_PAGOVRRUN | \
-			SCC1_TRANS_PAGEEND | SCC1_TRANS_MEMRDERR | \
-			SCC1_RECV_HALFPAGE | SCC1_RECV_PAGOVRRUN | \
-			SCC1_CHIP | SCC0_CHIP)
-
-#define XINE_SERIAL_INTS	(SCC0_TRANS_PAGEEND | SCC0_TRANS_MEMRDERR | \
-			SCC0_RECV_HALFPAGE | SCC0_RECV_PAGOVRRUN | \
-			SCC0_CHIP)
-
-#define SCSI_DMA_INTS	(/* SCSI_PTR_LOADED | */ SCSI_PAGOVRRUN | \
-			SCSI_DMA_MEMRDERR)
-
-#define KMIN_SCSI_INTS	(SCSI_PTR_LOADED | SCSI_PAGOVRRUN | \
-			SCSI_DMA_MEMRDERR | SCSI_CHIP | KMIN_SCSI_FIFO)
-
-#define LANCE_INTS	(LANCE_DMA_MEMRDERR | LANCE_CHIP)
-
-/*
- * For future use ...
- */
-#define XINE_FLOPPY_INTS (MAXINE_FLOPPY | MAXINE_FLOPPY_HDS | \
-			FLOPPY_DMA_ERROR | MAXINE_FLOPPY_XDS)
-
-#define XINE_ISDN_INTS	(MAXINE_ISDN | ISDN_TRANS_PTR_LOADED | \
-			ISDN_RECV_PTR_LOADED | ISDN_DMA_MEMRDERR)
-
-#define XINE_DTOP_INTS	(MAXINE_DTOP_TRANS | DTOP_RECV | \
-			ISDN_TRANS_PTR_LOADED | ISDN_RECV_PTR_LOADED | \
-			ISDN_DMA_MEMRDERR)
-
+#endif /* __ASM_DEC_IOASIC_INTS_H */

@@ -898,7 +898,8 @@ void __init trap_init(void)
 	set_except_vector(12, handle_ov);
 	set_except_vector(13, handle_tr);
 
-	if (mips_cpu.options & MIPS_CPU_FPU)
+	if ((mips_cpu.options & MIPS_CPU_FPU) &&
+	    !(mips_cpu.options & MIPS_CPU_NOFPUEX))
 		set_except_vector(15, handle_fpe);
 	if (mips_cpu.options & MIPS_CPU_MCHECK)
 		set_except_vector(24, handle_mcheck);

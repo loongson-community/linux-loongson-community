@@ -41,7 +41,7 @@
 static char *version =
 "declance.c: v0.008 by Linux Mips DECstation task force\n";
 
-static char *lancestr = "LANCE";
+static char *lancestr = "lance";
 
 /*
  * card types
@@ -252,6 +252,7 @@ struct lance_init_block {
 
 struct lance_private {
 	char *name;
+	int dma_irq;
 	volatile struct lance_regs *ll;
 	volatile struct lance_init_block *init_block;
 	volatile unsigned long *dma_ptr_reg;
@@ -713,6 +714,14 @@ out:
 	spin_unlock(&lp->lock);
 }
 
+static void lance_dma_merr_int(const int irq, void *dev_id,
+				struct pt_regs *regs)
+{
+	struct net_device *dev = (struct net_device *) dev_id;
+
+	printk("%s: DMA error\n", dev->name);
+}
+
 static void lance_interrupt(const int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct net_device *dev = (struct net_device *) dev_id;
@@ -744,19 +753,8 @@ static void lance_interrupt(const int irq, void *dev_id, struct pt_regs *regs)
 		lp->stats.rx_errors++;
 
 	if (csr0 & LE_C0_MERR) {
-		volatile unsigned long int_stat = *(unsigned long *) (system_base + IOCTL + SIR);
-
 		printk("%s: Memory error, status %04x\n", dev->name, csr0);
 
-		if (int_stat & LANCE_DMA_MEMRDERR) {
-			printk("%s: DMA error\n", dev->name);
-			int_stat |= LANCE_DMA_MEMRDERR;
-			/*
-			 * re-enable LANCE DMA
-			 */
-			*(unsigned long *) (system_base + IOCTL + SSR) |= (1 << 16);
-			wbflush();
-		}
 		writereg(&ll->rdp, LE_C0_STOP);
 
 		lance_init_ring(dev);
@@ -803,7 +801,14 @@ static int lance_open(struct net_device *dev)
 
 	/* Associate IRQ with lance_interrupt */
 	if (request_irq(dev->irq, &lance_interrupt, 0, lp->name, dev)) {
-		printk("Lance: Can't get irq %d\n", dev->irq);
+		printk("lance: Can't get irq %d\n", dev->irq);
+		return -EAGAIN;
+	}
+	if (lp->dma_irq >= 0 &&
+	    request_irq(lp->dma_irq,
+			&lance_dma_merr_int, 0, "lance error", dev)) {
+		free_irq(dev->irq, dev);
+		printk("lance: Can't get dma irq %d\n", lp->dma_irq);
 		return -EAGAIN;
 	}
 
@@ -829,7 +834,9 @@ static int lance_close(struct net_device *dev)
 	writereg(&ll->rap, LE_CSR0);
 	writereg(&ll->rdp, LE_C0_STOP);
 
-	free_irq(dev->irq, (void *) dev);
+	if (lp->dma_irq >= 0)
+		free_irq(lp->dma_irq, dev);
+	free_irq(dev->irq, dev);
 	/*
 	   MOD_DEC_USE_COUNT;
 	 */
@@ -1046,7 +1053,7 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		 */
 		dev->mem_start = KSEG1ADDR(0x00020000);
 		dev->mem_end = dev->mem_start + 0x00020000;
-		dev->irq = ETHER;
+		dev->irq = dec_interrupt[DEC_IRQ_LANCE];
 		esar_base = system_base + ESAR;
 	
 		/* Workaround crash with booting KN04 2.1k from Disk */
@@ -1073,6 +1080,7 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		/*
 		 * setup and enable IOASIC LANCE DMA
 		 */
+		lp->dma_irq = dec_interrupt[DEC_IRQ_LANCE_MERR];
 		lp->dma_ptr_reg = (unsigned long *) (system_base + IOCTL + LANCE_DMA_P);
 		*(lp->dma_ptr_reg) = PHYSADDR(dev->mem_start) << 3;
 		*(unsigned long *) (system_base + IOCTL + SSR) |= (1 << 16);
@@ -1087,10 +1095,11 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 		dev->base_addr = dev->mem_start + 0x100000;
 		dev->irq = get_tc_irq_nr(slot);
 		esar_base = dev->mem_start + 0x1c0002;
+		lp->dma_irq = -1;
 		break;
 #endif
 	case PMAX_LANCE:
-		dev->irq = ETHER;
+		dev->irq = dec_interrupt[DEC_IRQ_LANCE];
 		dev->base_addr = KN01_LANCE_BASE;
 		dev->mem_start = KN01_LANCE_BASE + 0x01000000;
 		esar_base = KN01_RTC_BASE + 1;
@@ -1117,6 +1126,7 @@ static int __init dec_lance_init(struct net_device *dev, const int type)
 						     + i * TX_BUFF_SIZE);
 
 		}
+		lp->dma_irq = -1;
 		break;
 	default:
 		printk("declance_init called with unknown type\n");

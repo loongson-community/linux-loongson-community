@@ -107,7 +107,8 @@ struct zs_parms {
 	unsigned long scc1;
 	int channel_a_offset;
 	int channel_b_offset;
-	int irq;
+	int irq0;
+	int irq1;
 	int clock;
 };
 
@@ -119,7 +120,8 @@ static struct zs_parms ds_parms = {
 	scc1 : SCC1,
 	channel_a_offset : 1,
 	channel_b_offset : 9,
-	irq : SERIAL,
+	irq0 : -1,
+	irq1 : -1,
 	clock : ZS_CLOCK
 };
 #endif
@@ -129,7 +131,8 @@ static struct zs_parms baget_parms = {
 	scc1 : UNI_SCC1,
 	channel_a_offset : 9,
 	channel_b_offset : 1,
-	irq : BAGET_SCC_IRQ,
+	irq0 : BAGET_SCC_IRQ,
+	irq1 : BAGET_SCC_IRQ,
 	clock : 14745000
 };
 #endif
@@ -1751,16 +1754,21 @@ static void __init probe_sccs(void)
 		system_base = 0xbf800000;
 		n_chips = 2;
 		zs_parms = &ds_parms;
+		zs_parms->irq0 = dec_interrupt[DEC_IRQ_SCC0];
+		zs_parms->irq1 = dec_interrupt[DEC_IRQ_SCC1];
 		break;
 	case MACH_DS5000_1XX:
 		system_base = 0xbc000000;
 		n_chips = 2;
 		zs_parms = &ds_parms;
+		zs_parms->irq0 = dec_interrupt[DEC_IRQ_SCC0];
+		zs_parms->irq1 = dec_interrupt[DEC_IRQ_SCC1];
 		break;
 	case MACH_DS5000_XX:
 		system_base = 0xbc000000;
 		n_chips = 1;
 		zs_parms = &ds_parms;
+		zs_parms->irq0 = dec_interrupt[DEC_IRQ_SCC0];
 		break;
 #endif
 #ifdef CONFIG_BAGET_MIPS
@@ -1809,7 +1817,11 @@ static void __init probe_sccs(void)
 				       ZS_CHAN_IO_SIZE, "SCC");
 #endif
 			zs_soft[n_channels].zs_channel = &zs_channels[n_channels];
-			zs_soft[n_channels].irq = zs_parms->irq;
+			/* HACK alert! */
+			if (!(chip & 1))
+				zs_soft[n_channels].irq = zs_parms->irq0;
+			else
+				zs_soft[n_channels].irq = zs_parms->irq1;
 
 			/* 
 			 *  Identification of channel A. Location of channel A
@@ -1934,10 +1946,10 @@ int __init zs_init(void)
 	save_flags(flags); cli();
 
 	for (channel = 0; channel < zs_channels_found; ++channel) {
-		if (request_irq(zs_parms->irq, rs_interrupt, SA_SHIRQ,
-				"SCC", &zs_soft[channel]))
+		if (request_irq(zs_soft[channel].irq, rs_interrupt, SA_SHIRQ,
+				"scc", &zs_soft[channel]))
 			printk(KERN_ERR "decserial: can't get irq %d\n",
-			       zs_parms->irq);
+			       zs_soft[channel].irq);
 
 		zs_soft[channel].clk_divisor = 16;
 		zs_soft[channel].zs_baud = get_zsbaud(&zs_soft[channel]);

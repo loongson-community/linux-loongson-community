@@ -252,7 +252,7 @@ static inline void cpu_probe(void)
 		case PRID_IMP_R2000:
 			mips_cpu.cputype = CPU_R2000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
-			mips_cpu.options = MIPS_CPU_TLB;
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
 			if (cpu_has_fpu())
 				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
@@ -266,7 +266,7 @@ static inline void cpu_probe(void)
 			else
 				mips_cpu.cputype = CPU_R3000;
 			mips_cpu.isa_level = MIPS_CPU_ISA_I;
-			mips_cpu.options = MIPS_CPU_TLB;
+			mips_cpu.options = MIPS_CPU_TLB | MIPS_CPU_NOFPUEX;
 			if (cpu_has_fpu())
 				mips_cpu.options |= MIPS_CPU_FPU;
 			mips_cpu.tlbsize = 64;
@@ -291,7 +291,8 @@ static inline void cpu_probe(void)
 		case PRID_IMP_R4300:
 			mips_cpu.cputype = CPU_R4300;
 			mips_cpu.isa_level = MIPS_CPU_ISA_III;
-			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU | MIPS_CPU_32FPR;
+			mips_cpu.options = R4K_OPTS | MIPS_CPU_FPU |
+					   MIPS_CPU_32FPR;
 			mips_cpu.tlbsize = 32;
 			break;
 		case PRID_IMP_R4600:

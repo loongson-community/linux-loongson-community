@@ -866,7 +866,7 @@ static int get_serial_info(struct dz_serial *info,
 	tmp.type = info->type;
 	tmp.line = info->line;
 	tmp.port = info->port;
-	tmp.irq = SERIAL;
+	tmp.irq = dec_interrupt[DEC_IRQ_DZ11];
 	tmp.flags = info->flags;
 	tmp.baud_base = info->baud_base;
 	tmp.close_delay = info->close_delay;
@@ -1408,7 +1408,7 @@ int __init dz_init(void)
 			return 0;
 
 		printk("ttyS%02d at 0x%08x (irq = %d)\n", info->line,
-		       info->port, SERIAL);
+		       info->port, dec_interrupt[DEC_IRQ_DZ11]);
 
 		tty_register_devfs(&serial_driver, 0,
 				 serial_driver.minor_start + info->line);
@@ -1432,7 +1432,8 @@ int __init dz_init(void)
 	restore_flags(flags);
 
 
-	if (request_irq(SERIAL, dz_interrupt, SA_INTERRUPT, "DZ", lines[0]))
+	if (request_irq(dec_interrupt[DEC_IRQ_DZ11], dz_interrupt,
+			SA_INTERRUPT, "DZ", lines[0]))
 		panic("Unable to register DZ interrupt");
 
 	return 0;

@@ -90,6 +90,7 @@ define_bool CONFIG_MCA n
 define_bool CONFIG_SBUS n
 
 if [ "$CONFIG_DECSTATION" = "y" ]; then
+   define_bool CONFIG_IRQ_CPU y
    define_bool CONFIG_NONCOHERENT_IO y
 fi
 
