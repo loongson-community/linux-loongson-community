@@ -788,5 +788,4 @@ extern unsigned int get_au1000_lcd_clock(void);
 #define Au1500_PCI_MEM_START      0x80000000
 #define Au1500_PCI_MEM_END        0x83FFFFFF
 
-#define Au1500_EXT_CFG_TYPE1      0x680000000
 #endif
