@@ -5,7 +5,7 @@
  *
  * (In all truth, Jed Schimmel wrote all this code.)
  *
- * $Id: sgiwd93.c,v 1.8 1998/08/25 09:18:49 ralf Exp $
+ * $Id: sgiwd93.c,v 1.9 1998/09/16 21:49:41 tsbogend Exp $
  */
 #include <linux/init.h>
 #include <linux/types.h>
@@ -75,6 +75,28 @@ static void sgiwd93_intr(int irq, void *dev_id, struct pt_regs *regs)
 
 #undef DEBUG_DMA
 
+static inline
+void fill_hpc_entries (struct hpc_chunk **hcp, char *addr, unsigned long len)
+{
+	unsigned long physaddr;
+	unsigned long count;
+	
+	dma_cache_wback_inv((unsigned long)addr,len);
+	physaddr = PHYSADDR(addr);
+	while (len) {
+		/*
+		 * even cntinfo could be up to 16383, without
+		 * magic only 8192 works correctly
+		 */
+		count = len > 8192 ? 8192 : len;
+		(*hcp)->desc.pbuf = physaddr;
+		(*hcp)->desc.cntinfo = count;
+		(*hcp)++;
+		len -= count;
+		physaddr += count;
+	}
+}
+
 static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 {
 	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)cmd->host->hostdata;
@@ -96,14 +118,11 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 #ifdef DEBUG_DMA
 		printk("SCLIST<");
 #endif
-		for(i = 0; i <= cmd->SCp.buffers_residual; i++, hcp++) {
+		for(i = 0; i <= cmd->SCp.buffers_residual; i++) {
 #ifdef DEBUG_DMA
 			printk("[%p,%d]", slp[i].address, slp[i].length);
 #endif
-			dma_cache_wback_inv((unsigned long)slp[i].address,
-			                    PAGE_SIZE);
-			hcp->desc.pbuf = PHYSADDR(slp[i].address);
-			hcp->desc.cntinfo = (slp[i].length & HPCDMA_BCNT);
+			fill_hpc_entries (&hcp, slp[i].address, slp[i].length);
 			totlen += slp[i].length;
 		}
 #ifdef DEBUG_DMA
@@ -113,13 +132,10 @@ static int dma_setup(Scsi_Cmnd *cmd, int datainp)
 		write_wd33c93_count(regp, totlen);
 	} else {
 		/* Non-scattered dma. */
-#ifdef DEBUG_DMA
+#ifdef DEBUG_DMA */
 		printk("ONEBUF<%p,%d>", cmd->SCp.ptr, cmd->SCp.this_residual);
 #endif
-		dma_cache_wback_inv((unsigned long)cmd->SCp.ptr, PAGE_SIZE);
-		hcp->desc.pbuf = PHYSADDR(cmd->SCp.ptr);
-		hcp->desc.cntinfo = (cmd->SCp.this_residual & HPCDMA_BCNT);
-		hcp++;
+		fill_hpc_entries (&hcp, cmd->SCp.ptr,cmd->SCp.this_residual);
 		write_wd33c93_count(regp, cmd->SCp.this_residual);
 	}
 
@@ -148,7 +164,12 @@ static void dma_stop(struct Scsi_Host *instance, Scsi_Cmnd *SCpnt,
 {
 	struct WD33C93_hostdata *hdata = (struct WD33C93_hostdata *)instance->hostdata;
 	wd33c93_regs *regp = hdata->regp;
-	struct hpc3_scsiregs *hregs = (struct hpc3_scsiregs *) SCpnt->host->base;
+	struct hpc3_scsiregs *hregs;
+
+	if (!SCpnt)
+		return;
+
+	hregs = (struct hpc3_scsiregs *) SCpnt->host->base;
 
 #ifdef DEBUG_DMA
 	printk("dma_stop: status<%d> ", status);
