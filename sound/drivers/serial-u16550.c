@@ -39,7 +39,7 @@
  * 
  *      Usage example for MS-124T, with A-B switch in A position:
  *        setserial /dev/ttyS0 uart none
- *        /sbin/modprobe snd-card-serial snd_port=0x3f8 snd_irq=4 \
+ *        /sbin/modprobe snd-serial-u16550 snd_port=0x3f8 snd_irq=4 \
  *            snd_adaptor=1 snd_speed=19200
  *
  *      - In MS-124W S/A mode, one raw MIDI substream is supported
@@ -49,7 +49,7 @@
  * 
  *      Usage example for S/A mode:
  *        setserial /dev/ttyS0 uart none
- *        /sbin/modprobe snd-card-serial snd_port=0x3f8 snd_irq=4 \
+ *        /sbin/modprobe snd-serial-u16550 snd_port=0x3f8 snd_irq=4 \
  *            snd_adaptor=2
  *
  *      - In MS-124W M/B mode, the driver supports 16 ALSA raw MIDI
@@ -67,7 +67,7 @@
  * 
  *      Usage example for M/B mode:
  *        setserial /dev/ttyS0 uart none
- *        /sbin/insmod snd-card-serial snd_port=0x3f8 snd_irq=4 \
+ *        /sbin/insmod snd-serial-u16550 snd_port=0x3f8 snd_irq=4 \
  *            snd_adaptor=3
  *
  *      - The MS-124W hardware's M/A mode is currently not supported.
@@ -106,6 +106,7 @@
 #include <asm/io.h>
 #include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/ioport.h>
 #include <sound/core.h>
 #include <sound/rawmidi.h>
 #define SNDRV_GET_ID
@@ -891,7 +892,7 @@ static int __init snd_serial_probe(int dev)
 
 	if ((err = snd_uart16550_detect(snd_port[dev])) <= 0) {
 		snd_card_free(card);
-		snd_printk("no UART detected at 0x%lx\n", (long)snd_port[dev]);
+		printk(KERN_ERR "no UART detected at 0x%lx\n", (long)snd_port[dev]);
 		return err;
 	}
 
@@ -940,7 +941,7 @@ static int __init alsa_card_serial_init(void)
 
 	if (cards == 0) {
 #ifdef MODULE
-		snd_printk("serial midi soundcard not found or device busy\n");
+		printk(KERN_ERR "serial midi soundcard not found or device busy\n");
 #endif
 		return -ENODEV;
 	}

@@ -106,7 +106,7 @@ ENTRY(resume_kernel)
 #endif
 
 EXPORT(ret_from_fork)
-#if defined(CONFIG_SMP)
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT)
 		jal	schedule_tail
 #endif
 

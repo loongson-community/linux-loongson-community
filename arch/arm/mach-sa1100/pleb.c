@@ -28,15 +28,15 @@ fixup_pleb(struct machine_desc *desc, struct param_struct *params,
 	/* make it 1 if a 16MB memory card is used */
 	mi->nr_banks = 2; /* Default 32MB */
 
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR, 0);
 	setup_ramdisk(1, 0, 0, 8192);
 	setup_initrd(0xc0400000, 4*1024*1024);
 }
 
 static struct map_desc pleb_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xe8000000, 0x00000000, 0x00400000, DOMAIN_IO, 1, 1, 0, 0 }, /* main flash memory */
-  { 0xe8400000, 0x08000000, 0x00400000, DOMAIN_IO, 1, 1, 0, 0 }, /* main flash, alternative location */
+  { 0xe8000000, 0x00000000, 0x00400000, DOMAIN_IO, 0, 1, 0, 0 }, /* main flash memory */
+  { 0xe8400000, 0x08000000, 0x00400000, DOMAIN_IO, 0, 1, 0, 0 }, /* main flash, alternative location */
   LAST_DESC
 };
 

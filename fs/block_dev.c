@@ -94,7 +94,7 @@ int set_blocksize(kdev_t dev, int size)
 
 	/* Ok, we're actually changing the blocksize.. */
 	bdev = bdget(kdev_t_to_nr(dev));
-	sync_buffers(dev, 2);
+	sync_buffers(bdev, 2);
 	blksize_size[major(dev)][minor(dev)] = size;
 	bdev->bd_inode->i_blkbits = blksize_bits(size);
 	kill_bdev(bdev);
@@ -198,7 +198,7 @@ static int __block_fsync(struct inode * inode)
 	int ret, err;
 
 	ret = filemap_fdatasync(inode->i_mapping);
-	err = sync_buffers(inode->i_rdev, 1);
+	err = sync_buffers(inode->i_bdev, 1);
 	if (err && !ret)
 		ret = err;
 	err = filemap_fdatawait(inode->i_mapping);
@@ -439,6 +439,27 @@ void bd_forget(struct inode *inode)
 	spin_lock(&bdev_lock);
 	if (inode->i_bdev)
 		__bd_forget(inode);
+	spin_unlock(&bdev_lock);
+}
+
+int bd_claim(struct block_device *bdev, void *holder)
+{
+	int res = -EBUSY;
+	spin_lock(&bdev_lock);
+	if (!bdev->bd_holder || bdev->bd_holder == holder) {
+		bdev->bd_holder = holder;
+		bdev->bd_holders++;
+		res = 0;
+	}
+	spin_unlock(&bdev_lock);
+	return res;
+}
+
+void bd_release(struct block_device *bdev)
+{
+	spin_lock(&bdev_lock);
+	if (!--bdev->bd_holders)
+		bdev->bd_holder = NULL;
 	spin_unlock(&bdev_lock);
 }
 

@@ -1,10 +1,5 @@
 /*
- *  linux/drivers/ide/ht6560b.c		Version 0.07	Feb  1, 2000
- *
  *  Copyright (C) 1995-2000  Linus Torvalds & author (see below)
- */
-
-/*
  *
  *  Version 0.01        Initial version hacked out of ide.c
  *
@@ -35,8 +30,6 @@
  */
 
 #define HT6560B_VERSION "v0.07"
-
-#undef REALLY_SLOW_IO		/* most systems can safely undef this */
 
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -143,7 +136,7 @@ static void ht6560b_selectproc (ide_drive_t *drive)
 	if (select != current_select || timing != current_timing) {
 		current_select = select;
 		current_timing = timing;
-		if (drive->media != ide_disk || !drive->present)
+		if (drive->type != ATA_DISK || !drive->present)
 			select |= HT_PREFETCH_MODE;
 		(void) inb(HT_CONFIG_PORT);
 		(void) inb(HT_CONFIG_PORT);
@@ -207,7 +200,6 @@ static byte ht_pio2timings(ide_drive_t *drive, byte pio)
 	int active_time, recovery_time;
 	int active_cycles, recovery_cycles;
 	ide_pio_data_t d;
-	int bus_speed = system_bus_clock();
 	
         if (pio) {
 		pio = ide_get_best_pio_mode(drive, pio, 5, &d);
@@ -224,8 +216,8 @@ static byte ht_pio2timings(ide_drive_t *drive, byte pio)
 		/*
 		 *  Cycle times should be Vesa bus cycles
 		 */
-		active_cycles   = (active_time   * bus_speed + 999) / 1000;
-		recovery_cycles = (recovery_time * bus_speed + 999) / 1000;
+		active_cycles   = (active_time   * system_bus_speed + 999) / 1000;
+		recovery_cycles = (recovery_time * system_bus_speed + 999) / 1000;
 		/*
 		 *  Upper and lower limits
 		 */

@@ -25,6 +25,11 @@ have_mcpu_ev6 := $(shell if $(CC) -mcpu=ev6 -S -o /dev/null -xc /dev/null > /dev
 
 have_mcpu_ev67 := $(shell if $(CC) -mcpu=ev67 -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo y; else echo n; fi)
 
+have_msmall_data := $(shell if $(CC) -msmall-data -S -o /dev/null -xc /dev/null > /dev/null 2>&1; then echo y; else echo n; fi)
+ifeq ($(have_msmall_data),y)
+  CFLAGS := $(CFLAGS) -msmall-data
+endif
+
 # Turn on the proper cpu optimizations.
 ifeq ($(have_mcpu),y)
   # If GENERIC, make sure to turn off any instruction set extensions that
@@ -40,20 +45,20 @@ ifeq ($(have_mcpu),y)
     CFLAGS := $(CFLAGS) -mcpu=pca56
     mcpu_done := y
   endif
-  ifeq ($(mcpu_done)$(CONFIG_ALPHA_PYXIS),ny)
-    CFLAGS := $(CFLAGS) -mcpu=ev56
-    mcpu_done := y
-  endif
-  ifeq ($(mcpu_done)$(CONFIG_ALPHA_POLARIS),ny)
-    ifeq ($(have_mcpu_pca56),y)
-      CFLAGS := $(CFLAGS) -mcpu=pca56
-    else
-      CFLAGS := $(CFLAGS) -mcpu=ev56
-    endif
+  ifeq ($(mcpu_done)$(CONFIG_ALPHA_POLARIS)$(have_mcpu_pca56),nyy)
+    CFLAGS := $(CFLAGS) -mcpu=pca56
     mcpu_done := y
   endif
   ifeq ($(mcpu_done)$(CONFIG_ALPHA_EV4),ny)
     CFLAGS := $(CFLAGS) -mcpu=ev4
+    mcpu_done := y
+  endif
+  ifeq ($(mcpu_done)$(CONFIG_ALPHA_EV56),ny)
+    CFLAGS := $(CFLAGS) -mcpu=ev56
+    mcpu_done := y
+  endif
+  ifeq ($(mcpu_done)$(CONFIG_ALPHA_EV5),ny)
+    CFLAGS := $(CFLAGS) -mcpu=ev5
     mcpu_done := y
   endif
   ifeq ($(mcpu_done)$(CONFIG_ALPHA_EV67)$(have_mcpu_ev67),nyy)

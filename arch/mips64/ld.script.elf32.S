@@ -55,6 +55,10 @@ SECTIONS
 	*(.initcall7.init)
   }
   __initcall_end = .;
+  . = ALIGN(32);
+  __per_cpu_start = .;
+  .data.percpu  : { *(.data.percpu) }
+  __per_cpu_end = .;
   . = ALIGN(4096);	/* Align double page for init_task_union */
   __init_end = .;
 

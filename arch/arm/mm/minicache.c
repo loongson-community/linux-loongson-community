@@ -16,9 +16,14 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <asm/page.h>
+#include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 
-#define minicache_address (0xffff2000)
+/*
+ * 0xffff8000 to 0xffffffff is reserved for any ARM architecture
+ * specific hacks for copying pages efficiently.
+ */
+#define minicache_address (0xffff8000)
 #define minicache_pgprot __pgprot(L_PTE_PRESENT | L_PTE_YOUNG | \
 				  L_PTE_CACHEABLE)
 
@@ -39,7 +44,7 @@ static pte_t *minicache_pte;
 unsigned long map_page_minicache(unsigned long virt)
 {
 	set_pte(minicache_pte, mk_pte_phys(__pa(virt), minicache_pgprot));
-	cpu_tlb_invalidate_page(minicache_address, 0);
+	flush_kern_tlb_page(minicache_address);
 
 	return minicache_address;
 }
@@ -53,7 +58,7 @@ static int __init minicache_init(void)
 	pmd = pmd_alloc(&init_mm, pgd, minicache_address);
 	if (!pmd)
 		BUG();
-	minicache_pte = pte_alloc(&init_mm, pmd, minicache_address);
+	minicache_pte = pte_alloc_kernel(&init_mm, pmd, minicache_address);
 	if (!minicache_pte)
 		BUG();
 

@@ -8,8 +8,6 @@
  * Drive tuning added from Rebel.com's kernel sources
  *  -- Russell King (15/11/98) linux@arm.linux.org.uk
  */
-
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/timer.h>
@@ -225,7 +223,7 @@ static unsigned int sl82c105_bridge_revision(struct pci_dev *dev)
 /*
  * Enable the PCI device
  */
-unsigned int __init pci_init_sl82c105(struct pci_dev *dev, const char *msg)
+unsigned int __init pci_init_sl82c105(struct pci_dev *dev)
 {
 	unsigned char ctrl_stat;
 

@@ -119,7 +119,7 @@ static int __init snd_sgalaxy_setup_wss(unsigned long port, int irq, int dma)
 	static int dma_bits[] = {1, 2, 0, 3};
 	int tmp, tmp1;
 
-	unsigned int flags;
+	unsigned long flags;
 
 	if ((tmp = inb(port + 3)) == 0xff)
 	{
@@ -305,7 +305,7 @@ static int __init alsa_card_sgalaxy_init(void)
 	}
 	if (!cards) {
 #ifdef MODULE
-		snd_printk("Sound Galaxy soundcard not found or device busy\n");
+		printk(KERN_ERR "Sound Galaxy soundcard not found or device busy\n");
 #endif
 		return -ENODEV;
 	}

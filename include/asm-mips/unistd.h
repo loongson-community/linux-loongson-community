@@ -234,11 +234,12 @@
 #define __NR_gettid			(__NR_Linux + 222)
 #define __NR_readahead			(__NR_Linux + 223)
 #define __NR_tkill			(__NR_Linux + 224)
+#define __NR_sendfile64			(__NR_Linux + 225)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		224
+#define __NR_Linux_syscalls		225
 
 #ifndef __ASSEMBLY__
 

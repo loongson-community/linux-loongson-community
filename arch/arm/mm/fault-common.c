@@ -83,10 +83,14 @@ void show_pte(struct mm_struct *mm, unsigned long addr)
 			break;
 		}
 
-		pte = pte_offset(pmd, addr);
+#ifndef CONFIG_HIGHMEM
+		/* We must not map this if we have highmem enabled */
+		pte = pte_offset_map(pmd, addr);
 		printk(", *pte = %08lx", pte_val(*pte));
 #ifdef CONFIG_CPU_32
 		printk(", *ppte = %08lx", pte_val(pte[-PTRS_PER_PTE]));
+#endif
+		pte_unmap(pte);
 #endif
 	} while(0);
 
@@ -138,9 +142,10 @@ __do_user_fault(struct task_struct *tsk, unsigned long addr, int error_code,
 	struct siginfo si;
 
 #ifdef CONFIG_DEBUG_USER
-	printk(KERN_DEBUG "%s: unhandled page fault at pc=0x%08lx, "
-	       "lr=0x%08lx (bad address=0x%08lx, code %d)\n",
-	       tsk->comm, regs->ARM_pc, regs->ARM_lr, addr, error_code);
+	printk(KERN_DEBUG "%s: unhandled page fault at 0x%08lx, code 0x%03x\n",
+	       tsk->comm, addr, error_code);
+	show_pte(tsk->mm, addr);
+	show_regs(regs);
 #endif
 
 	tsk->thread.address = addr;
@@ -224,8 +229,7 @@ survive:
 	 * If we are out of memory for pid1,
 	 * sleep for a while and retry
 	 */
-	tsk->policy |= SCHED_YIELD;
-	schedule();
+	yield();
 	goto survive;
 
 check_stack:

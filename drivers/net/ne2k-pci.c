@@ -82,9 +82,9 @@ MODULE_LICENSE("GPL");
 MODULE_PARM(debug, "i");
 MODULE_PARM(options, "1-" __MODULE_STRING(MAX_UNITS) "i");
 MODULE_PARM(full_duplex, "1-" __MODULE_STRING(MAX_UNITS) "i");
-MODULE_PARM_DESC(debug, "PCI NE2000 debug level (1-2)");
-MODULE_PARM_DESC(options, "PCI NE2000: Bit 5: full duplex");
-MODULE_PARM_DESC(full_duplex, "PCI NE2000 full duplex setting(s) (1)");
+MODULE_PARM_DESC(debug, "debug level (1-2)");
+MODULE_PARM_DESC(options, "Bit 5: full duplex");
+MODULE_PARM_DESC(full_duplex, "full duplex setting(s) (1)");
 
 /* Some defines that people can play with if so inclined. */
 
@@ -642,7 +642,7 @@ static void __devexit ne2k_pci_remove_one (struct pci_dev *pdev)
 static struct pci_driver ne2k_driver = {
 	name:		DRV_NAME,
 	probe:		ne2k_pci_init_one,
-	remove:		ne2k_pci_remove_one,
+	remove:		__devexit_p(ne2k_pci_remove_one),
 	id_table:	ne2k_pci_tbl,
 };
 

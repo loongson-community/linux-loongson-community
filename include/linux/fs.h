@@ -377,8 +377,8 @@ struct address_space {
 	unsigned long		nrpages;	/* number of total pages */
 	struct address_space_operations *a_ops;	/* methods */
 	struct inode		*host;		/* owner: inode, block_device */
-	struct vm_area_struct	*i_mmap;	/* list of private mappings */
-	struct vm_area_struct	*i_mmap_shared; /* list of shared mappings */
+	list_t			i_mmap;		/* list of private mappings */
+	list_t			i_mmap_shared;	/* list of private mappings */
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 	int			gfp_mask;	/* how to allocate the pages */
 };
@@ -400,6 +400,8 @@ struct block_device {
 	const struct block_device_operations *bd_op;
 	struct semaphore	bd_sem;	/* open/close mutex */
 	struct list_head	bd_inodes;
+	void *			bd_holder;
+	int			bd_holders;
 };
 
 struct inode {
@@ -1069,6 +1071,8 @@ extern struct file_operations def_fifo_fops;
 extern int ioctl_by_bdev(struct block_device *, unsigned, unsigned long);
 extern int blkdev_get(struct block_device *, mode_t, unsigned, int);
 extern int blkdev_put(struct block_device *, int);
+extern int bd_claim(struct block_device *, void *);
+extern void bd_release(struct block_device *);
 
 /* fs/devices.c */
 extern const struct block_device_operations *get_blkfops(unsigned int);
@@ -1212,12 +1216,12 @@ extern void invalidate_inode_buffers(struct inode *);
 #define destroy_buffers(dev)	__invalidate_buffers((dev), 1)
 extern void invalidate_bdev(struct block_device *, int);
 extern void __invalidate_buffers(kdev_t dev, int);
-extern void sync_inodes(kdev_t);
+extern void sync_inodes(void);
 extern void sync_unlocked_inodes(void);
 extern void write_inode_now(struct inode *, int);
-extern int sync_buffers(kdev_t, int);
-extern void sync_dev(kdev_t);
+extern int sync_buffers(struct block_device *, int);
 extern int fsync_dev(kdev_t);
+extern int fsync_bdev(struct block_device *);
 extern int fsync_super(struct super_block *);
 extern int fsync_no_super(struct block_device *);
 extern void sync_inodes_sb(struct super_block *);
@@ -1234,7 +1238,7 @@ static inline int fsync_inode_data_buffers(struct inode *inode)
 extern int inode_has_buffers(struct inode *);
 extern int filemap_fdatasync(struct address_space *);
 extern int filemap_fdatawait(struct address_space *);
-extern void sync_supers(kdev_t);
+extern void sync_supers(void);
 extern int bmap(struct inode *, int);
 extern int notify_change(struct dentry *, struct iattr *);
 extern int permission(struct inode *, int);
@@ -1273,7 +1277,6 @@ extern ino_t find_inode_number(struct dentry *, struct qstr *);
 #define LOOKUP_FOLLOW		(1)
 #define LOOKUP_DIRECTORY	(2)
 #define LOOKUP_CONTINUE		(4)
-#define LOOKUP_POSITIVE		(8)
 #define LOOKUP_PARENT		(16)
 #define LOOKUP_NOALT		(32)
 /*
@@ -1306,13 +1309,20 @@ extern int FASTCALL(__user_walk(const char *, unsigned, struct nameidata *));
 extern int FASTCALL(path_init(const char *, unsigned, struct nameidata *));
 extern int FASTCALL(path_walk(const char *, struct nameidata *));
 extern int FASTCALL(link_path_walk(const char *, struct nameidata *));
+static inline int path_lookup(const char *path, unsigned flags, struct nameidata *nd)
+{
+	int error = 0;
+	if (path_init(path, flags, nd))
+		error = path_walk(path, nd);
+	return error;
+}
 extern void path_release(struct nameidata *);
 extern int follow_down(struct vfsmount **, struct dentry **);
 extern int follow_up(struct vfsmount **, struct dentry **);
 extern struct dentry * lookup_one_len(const char *, struct dentry *, int);
 extern struct dentry * lookup_hash(struct qstr *, struct dentry *);
-#define user_path_walk(name,nd)	 __user_walk(name, LOOKUP_FOLLOW|LOOKUP_POSITIVE, nd)
-#define user_path_walk_link(name,nd) __user_walk(name, LOOKUP_POSITIVE, nd)
+#define user_path_walk(name,nd)	 __user_walk(name, LOOKUP_FOLLOW, nd)
+#define user_path_walk_link(name,nd) __user_walk(name, 0, nd)
 
 extern void inode_init_once(struct inode *);
 extern void iput(struct inode *);
@@ -1474,15 +1484,6 @@ extern int vfs_fstat(unsigned int, struct kstat *);
 extern struct file_system_type *get_fs_type(const char *name);
 extern struct super_block *get_super(kdev_t);
 extern void drop_super(struct super_block *sb);
-static inline int is_mounted(kdev_t dev)
-{
-	struct super_block *sb = get_super(dev);
-	if (sb) {
-		drop_super(sb);
-		return 1;
-	}
-	return 0;
-}
 extern kdev_t ROOT_DEV;
 extern char root_device_name[];
 
@@ -1511,9 +1512,9 @@ extern int inode_setattr(struct inode *, struct iattr *);
 static inline ino_t parent_ino(struct dentry *dentry)
 {
 	ino_t res;
-	spin_lock(&dcache_lock);
+	read_lock(&dparent_lock);
 	res = dentry->d_parent->d_inode->i_ino;
-	spin_unlock(&dcache_lock);
+	read_unlock(&dparent_lock);
 	return res;
 }
 

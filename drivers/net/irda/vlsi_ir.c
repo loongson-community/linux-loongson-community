@@ -637,6 +637,7 @@ static int vlsi_rx_interrupt(struct net_device *ndev)
 				skb->mac.raw = skb->data;
 				skb->protocol = htons(ETH_P_IRDA);
 				netif_rx(skb);				
+				ndev->last_rx = jiffies;
 			}
 			else {
 				idev->stats.rx_dropped++;
@@ -1291,7 +1292,7 @@ static struct pci_driver vlsi_irda_driver = {
 	name:           drivername,
 	id_table:       vlsi_irda_table,
 	probe:          vlsi_irda_probe,
-	remove:         vlsi_irda_remove,
+	remove:         __devexit_p(vlsi_irda_remove),
 	suspend:        vlsi_irda_suspend,
 	resume:         vlsi_irda_resume,
 };

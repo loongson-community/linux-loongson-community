@@ -38,7 +38,7 @@ EXPORT(resume_userspace)
 		j	restore_all
 
 FEXPORT(ret_from_fork)
-#if defined(CONFIG_SMP)
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT)
 		jal	schedule_tail
 #endif
 

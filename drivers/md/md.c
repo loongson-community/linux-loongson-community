@@ -645,8 +645,14 @@ static int lock_rdev(mdk_rdev_t *rdev)
 	if (!bdev)
 		return -ENOMEM;
 	err = blkdev_get(bdev, FMODE_READ|FMODE_WRITE, 0, BDEV_RAW);
-	if (!err)
-		rdev->bdev = bdev;
+	if (err)
+		return err;
+	err = bd_claim(bdev, lock_rdev);
+	if (err) {
+		blkdev_put(bdev, BDEV_RAW);
+		return err;
+	}
+	rdev->bdev = bdev;
 	return err;
 }
 
@@ -656,6 +662,7 @@ static void unlock_rdev(mdk_rdev_t *rdev)
 	rdev->bdev = NULL;
 	if (!bdev)
 		MD_BUG();
+	bd_release(bdev);
 	blkdev_put(bdev, BDEV_RAW);
 }
 
@@ -890,7 +897,8 @@ static mdk_rdev_t * find_rdev_all(kdev_t dev)
 
 static int write_disk_sb(mdk_rdev_t * rdev)
 {
-	struct address_space *mapping = rdev->bdev->bd_inode->i_mapping;
+	struct block_device *bdev = rdev->bdev;
+	struct address_space *mapping = bdev->bd_inode->i_mapping;
 	struct page *page;
 	unsigned offs;
 	int error;
@@ -929,7 +937,7 @@ static int write_disk_sb(mdk_rdev_t * rdev)
 	}
 
 	printk(KERN_INFO "(write) %s's sb offset: %ld\n", partition_name(dev), sb_offset);
-	fsync_dev(dev);
+	fsync_bdev(bdev);
 	page = grab_cache_page(mapping, sb_offset/(PAGE_CACHE_SIZE/BLOCK_SIZE));
 	offs = sb_offset % (PAGE_CACHE_SIZE/BLOCK_SIZE);
 	if (!page)
@@ -946,7 +954,7 @@ static int write_disk_sb(mdk_rdev_t * rdev)
 	UnlockPage(page);
 	wait_on_page(page);
 	page_cache_release(page);
-	fsync_dev(dev);
+	fsync_bdev(bdev);
 skip:
 	return 0;
 unlock:
@@ -1084,13 +1092,6 @@ static int md_import_device(kdev_t newdev, int on_disk)
 		return -ENOMEM;
 	}
 	memset(rdev, 0, sizeof(*rdev));
-
-	if (is_mounted(newdev)) {
-		printk(KERN_WARNING "md: can not import %s, has active inodes!\n",
-			partition_name(newdev));
-		err = -EBUSY;
-		goto abort_free;
-	}
 
 	if ((err = alloc_disk_sb(rdev)))
 		goto abort_free;
@@ -2624,7 +2625,7 @@ static int md_ioctl(struct inode *inode, struct file *file,
 		case BLKFLSBUF:
 		case BLKBSZGET:
 		case BLKBSZSET:
-			err = blk_ioctl(dev, cmd, arg);
+			err = blk_ioctl(inode->i_bdev, cmd, arg);
 			goto abort;
 
 		default:;

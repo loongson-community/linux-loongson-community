@@ -9,8 +9,6 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
@@ -113,7 +111,6 @@ static void flexanet_set_mctrl(struct uart_port *port, u_int mctrl)
  *
  * get_mctrl : set state of modem control lines
  * set_mctrl : set the modem control lines
- * enable_ms : enable modem-status interrupts
  * pm        : power-management. Turn device on/off.
  *
  */
@@ -121,7 +118,6 @@ static struct sa1100_port_fns	flexanet_port_fns __initdata =
 {
 	set_mctrl : flexanet_set_mctrl,
 	get_mctrl : flexanet_get_mctrl,
-	enable_ms : NULL,
 	pm        : NULL,
 };
 
@@ -168,7 +164,7 @@ fixup_flexanet(struct machine_desc *desc, struct param_struct *params,
 	mi->nr_banks = 1;
 
 	/* setup ramdisk */
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR,0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR,0);
 	setup_ramdisk( 1, 0, 0, 8192 );
 	setup_initrd( 0xc0800000, 3*1024*1024 );
 }
@@ -176,10 +172,10 @@ fixup_flexanet(struct machine_desc *desc, struct param_struct *params,
 
 static struct map_desc flexanet_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xf0000000, 0x10000000, 0x00001000, DOMAIN_IO, 1, 1, 0, 0 }, /* Board Control Register */
-  { 0xf1000000, 0x18000000, 0x01000000, DOMAIN_IO, 1, 1, 0, 0 }, /* Ethernet controller */
-  { 0xD0000000, 0x40000000, 0x01000000, DOMAIN_IO, 1, 1, 0, 0 }, /* Instrument boards */
-  { 0xD8000000, 0x48000000, 0x01000000, DOMAIN_IO, 1, 1, 0, 0 }, /* External peripherals */
+  { 0xf0000000, 0x10000000, 0x00001000, DOMAIN_IO, 0, 1, 0, 0 }, /* Board Control Register */
+  { 0xf1000000, 0x18000000, 0x01000000, DOMAIN_IO, 0, 1, 0, 0 }, /* Ethernet controller */
+  { 0xD0000000, 0x40000000, 0x01000000, DOMAIN_IO, 0, 1, 0, 0 }, /* Instrument boards */
+  { 0xD8000000, 0x48000000, 0x01000000, DOMAIN_IO, 0, 1, 0, 0 }, /* External peripherals */
   LAST_DESC
 };
 

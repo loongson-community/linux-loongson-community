@@ -26,8 +26,6 @@
 #include <asm/mach/map.h>
 #include <asm/mach/serial_sa1100.h>
 
-#include <asm/arch/irq.h>
-
 #include "generic.h"
 #include "sa1111.h"
 
@@ -120,14 +118,14 @@ fixup_adsbitsy(struct machine_desc *desc, struct param_struct *params,
 	SET_BANK( 0, 0xc0000000, 32*1024*1024 );
 	mi->nr_banks = 1;
 
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR,0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR,0);
 	setup_ramdisk( 1, 0, 0, 8192 );
 	setup_initrd( __phys_to_virt(0xc0800000), 4*1024*1024 );
 }
 
 static struct map_desc adsbitsy_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xf4000000, 0x18000000, 0x00800000, DOMAIN_IO, 1, 1, 0, 0 }, /* SA1111 */
+  { 0xf4000000, 0x18000000, 0x00800000, DOMAIN_IO, 0, 1, 0, 0 }, /* SA1111 */
   LAST_DESC
 };
 

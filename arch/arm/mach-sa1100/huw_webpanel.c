@@ -2,8 +2,6 @@
  * linux/arch/arm/mach-sa1100/huw_webpanel.c
  *
  */
-
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -66,7 +64,7 @@ fixup_huw_webpanel(struct machine_desc *desc, struct param_struct *params,
 	 **/
 	SET_BANK( 0, 0xc0000000, ((32*1024 - (256 + 32)) * 1024));
 	mi->nr_banks = 1;
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR,0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR,0);
 	setup_ramdisk( 1, 0, 0, 8192 );
 	setup_initrd( __phys_to_virt(0xc0800000), 8*1024*1024 );
 }
@@ -79,7 +77,7 @@ fixup_huw_webpanel(struct machine_desc *desc, struct param_struct *params,
 **/
 static struct map_desc huw_webpanel_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xf0000000, 0xc1fb8000, 0x00048000, DOMAIN_IO, 1, 1, 0, 0 }, /* Parameter */
+  { 0xf0000000, 0xc1fb8000, 0x00048000, DOMAIN_IO, 0, 1, 0, 0 }, /* Parameter */
   { 0xf1000000, 0x18000000, 0x00100000, DOMAIN_IO, 0, 1, 0, 0 }, /* Paules CS3, write only */
   LAST_DESC
 };

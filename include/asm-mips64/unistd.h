@@ -241,11 +241,12 @@
 #define __NR_Linux32_gettid		(__NR_Linux32 + 222)
 #define __NR_Linux32_readahead		(__NR_Linux32 + 223)
 #define __NR_Linux32_tkill		(__NR_Linux32 + 224)
+#define __NR_sendfile64			(__NR_Linux32 + 225)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux32_syscalls		224
+#define __NR_Linux32_syscalls		225
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
@@ -469,11 +470,12 @@
 #define __NR__gettid			(__NR_Linux + 215)
 #define __NR__readahead			(__NR_Linux + 216)
 #define __NR__tkill			(__NR_Linux + 217)
+#define __NR_sendfile64			(__NR_Linux + 218)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		217
+#define __NR_Linux_syscalls		218
 
 #ifndef __ASSEMBLY__
 

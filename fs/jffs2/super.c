@@ -31,7 +31,8 @@
  * provisions above, a recipient may use your version of this file
  * under either the RHEPL or the GPL.
  *
- * $Id: super.c,v 1.48 2001/10/02 09:16:23 dwmw2 Exp $
+ * $Id: super.c,v 1.48.2.1 2002/02/23 14:13:34 dwmw2 Exp $
+ * + zlib_init calls from v1.56
  *
  */
 
@@ -214,7 +215,7 @@ static int jffs2_fill_super(struct super_block *sb, void *data, int silent)
 	
 	c->mtd = get_mtd_device(NULL, minor(sb->s_dev));
 	if (!c->mtd) {
-		D1(printk(KERN_DEBUG "jffs2: MTD device #%u doesn't appear to exist\n", MINOR(sb->s_dev)));
+		D1(printk(KERN_DEBUG "jffs2: MTD device #%u doesn't appear to exist\n", minor(sb->s_dev)));
 		return -EINVAL;
 	}
 	c->sector_size = c->mtd->erasesize;
@@ -249,10 +250,15 @@ static int jffs2_fill_super(struct super_block *sb, void *data, int silent)
 	INIT_LIST_HEAD(&c->bad_used_list);
 	c->highest_ino = 1;
 
+	c->flags |= JFFS2_SB_FLAG_MOUNTING;
+
 	if (jffs2_build_filesystem(c)) {
 		D1(printk(KERN_DEBUG "build_fs failed\n"));
 		goto out_nodes;
 	}
+
+	c->flags &= ~JFFS2_SB_FLAG_MOUNTING;
+
 	sb->s_op = &jffs2_super_operations;
 
 	D1(printk(KERN_DEBUG "jffs2_read_super(): Getting root inode\n"));
@@ -368,6 +374,11 @@ static int __init init_jffs2_fs(void)
 	}
 #endif
 
+	ret = jffs2_zlib_init();
+	if (ret) {
+		printk(KERN_ERR "JFFS2 error: Failed to initialise zlib workspaces\n");
+		return ret;
+	}
 	ret = jffs2_create_slab_caches();
 	if (ret) {
 		printk(KERN_ERR "JFFS2 error: Failed to initialise slab caches\n");
@@ -384,6 +395,7 @@ static int __init init_jffs2_fs(void)
 static void __exit exit_jffs2_fs(void)
 {
 	jffs2_destroy_slab_caches();
+	jffs2_zlib_exit();
 	unregister_filesystem(&jffs2_fs_type);
 }
 

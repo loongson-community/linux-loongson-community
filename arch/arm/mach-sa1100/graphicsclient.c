@@ -25,8 +25,6 @@
 #include <asm/mach/serial_sa1100.h>
 #include <linux/serial_core.h>
 
-#include <asm/arch/irq.h>
-
 #include "generic.h"
 
 
@@ -34,60 +32,67 @@
  * Handlers for GraphicsClient's external IRQ logic
  */
 
-static void ADS_IRQ_demux( int irq, void *dev_id, struct pt_regs *regs )
+static void
+gc_irq_handler(unsigned int irq, struct irqdesc *desc, struct pt_regs *regs)
 {
-	int i;
+	unsigned int mask;
 
-	while( (irq = ADS_INT_ST1 | (ADS_INT_ST2 << 8)) ){
-		for( i = 0; i < 16; i++ )
-			if( irq & (1<<i) )
-				do_IRQ( ADS_EXT_IRQ(i), regs );
+	while ((mask = ADS_INT_ST1 | (ADS_INT_ST2 << 8))) {
+		/* clear the parent IRQ */
+		GEDR = GPIO_GPIO0;
+
+		irq = ADS_EXT_IRQ(0);
+		desc = irq_desc + irq;
+
+		do {
+			if (mask & 1)
+				desc->handle(irq, desc, regs);
+			mask >>= 1;
+			irq++;
+			desc++;
+		} while (mask);
 	}
 }
 
-static struct irqaction ADS_ext_irq = {
-	name:		"ADS_ext_IRQ",
-	handler:	ADS_IRQ_demux,
-	flags:		SA_INTERRUPT
-};
-
-static void ADS_mask_and_ack_irq0(unsigned int irq)
+static void gc_mask_irq1(unsigned int irq)
 {
 	int mask = (1 << (irq - ADS_EXT_IRQ(0)));
 	ADS_INT_EN1 &= ~mask;
 	ADS_INT_ST1 = mask;
 }
 
-static void ADS_mask_irq0(unsigned int irq)
-{
-	ADS_INT_ST1 = (1 << (irq - ADS_EXT_IRQ(0)));
-}
-
-static void ADS_unmask_irq0(unsigned int irq)
+static void gc_unmask_irq1(unsigned int irq)
 {
 	ADS_INT_EN1 |= (1 << (irq - ADS_EXT_IRQ(0)));
 }
 
-static void ADS_mask_and_ack_irq1(unsigned int irq)
+static struct irqchip gc_irq1_chip = {
+	ack:	gc_mask_irq1,
+	mask:	gc_mask_irq1,
+	unmask:	gc_unmask_irq1,
+};
+
+static void gc_mask_irq2(unsigned int irq)
 {
 	int mask = (1 << (irq - ADS_EXT_IRQ(8)));
 	ADS_INT_EN2 &= ~mask;
 	ADS_INT_ST2 = mask;
 }
 
-static void ADS_mask_irq1(unsigned int irq)
-{
-	ADS_INT_ST2 = (1 << (irq - ADS_EXT_IRQ(8)));
-}
-
-static void ADS_unmask_irq1(unsigned int irq)
+static void gc_unmask_irq2(unsigned int irq)
 {
 	ADS_INT_EN2 |= (1 << (irq - ADS_EXT_IRQ(8)));
 }
 
+static struct irqchip gc_irq2_chip = {
+	ack:	gc_mask_irq2,
+	mask:	gc_mask_irq2,
+	unmask:	gc_unmask_irq2,
+};
+
 static void __init graphicsclient_init_irq(void)
 {
-	int irq;
+	unsigned int irq;
 
 	/* First the standard SA1100 IRQs */
 	sa1100_init_irq();
@@ -95,26 +100,23 @@ static void __init graphicsclient_init_irq(void)
 	/* disable all IRQs */
 	ADS_INT_EN1 = 0;
 	ADS_INT_EN2 = 0;
+
 	/* clear all IRQs */
 	ADS_INT_ST1 = 0xff;
 	ADS_INT_ST2 = 0xff;
 
 	for (irq = ADS_EXT_IRQ(0); irq <= ADS_EXT_IRQ(7); irq++) {
-		irq_desc[irq].valid	= 1;
-		irq_desc[irq].probe_ok	= 1;
-		irq_desc[irq].mask_ack	= ADS_mask_and_ack_irq0;
-		irq_desc[irq].mask	= ADS_mask_irq0;
-		irq_desc[irq].unmask	= ADS_unmask_irq0;
+		set_irq_chip(irq, &gc_irq1_chip);
+		set_irq_handler(irq, do_level_IRQ);
+		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 	for (irq = ADS_EXT_IRQ(8); irq <= ADS_EXT_IRQ(15); irq++) {
-		irq_desc[irq].valid	= 1;
-		irq_desc[irq].probe_ok	= 1;
-		irq_desc[irq].mask_ack	= ADS_mask_and_ack_irq1;
-		irq_desc[irq].mask	= ADS_mask_irq1;
-		irq_desc[irq].unmask	= ADS_unmask_irq1;
+		set_irq_chip(irq, &gc_irq2_chip);
+		set_irq_handler(irq, do_level_IRQ);
+		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
-	set_GPIO_IRQ_edge(GPIO_GPIO0, GPIO_FALLING_EDGE);
-	setup_arm_irq( IRQ_GPIO0, &ADS_ext_irq );
+	set_irq_type(IRQ_GPIO0, IRQT_FALLING);
+	set_irq_chained_handler(IRQ_GPIO0, gc_irq_handler);
 }
 
 
@@ -130,7 +132,7 @@ fixup_graphicsclient(struct machine_desc *desc, struct param_struct *params,
 	SET_BANK( 1, 0xc8000000, 16*1024*1024 );
 	mi->nr_banks = 2;
 
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR,0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR,0);
 	setup_ramdisk( 1, 0, 0, 8192 );
 	setup_initrd( __phys_to_virt(0xc0800000), 4*1024*1024 );
 }
@@ -141,108 +143,6 @@ static struct map_desc graphicsclient_io_desc[] __initdata = {
   { 0xf1000000, 0x18000000, 0x00400000, DOMAIN_IO, 0, 1, 0, 0 }, /* CAN */
   LAST_DESC
 };
-
-static struct gc_uart_ctrl_data_t gc_uart_ctrl_data[] = {
-  { GPIO_GC_UART0_CTS, 0, NULL,NULL },
-  { GPIO_GC_UART1_CTS, 0, NULL,NULL },
-  { GPIO_GC_UART2_CTS, 0, NULL,NULL }
-};
-
-static void
-graphicsclient_cts_intr(int irq, void *dev_id, struct pt_regs *regs)
-{
-	struct gc_uart_ctrl_data_t * uart_data = (struct gc_uart_ctrl_data_t *)dev_id;
-	int cts = !(GPLR & uart_data->cts_gpio);
-
-	/* NOTE: I supose that we will no get any interrupt
-	   if the GPIO is not changed, so maybe
-	   the cts_prev_state can be removed ... */
-	if (cts != uart_data->cts_prev_state) {
-		uart_data->cts_prev_state = cts;
-
-		uart_handle_cts_change(uart_data->info, cts);
-	}
-}
-
-static int
-graphicsclient_register_cts_intr(int gpio, int irq,
-				 struct gc_uart_ctrl_data_t *uart_data)
-{
-	int ret = 0;
-
-	set_GPIO_IRQ_edge(gpio, GPIO_BOTH_EDGES);
-
-	ret = request_irq(irq, graphicsclient_cts_intr,
-			  0, "GC RS232 CTS", uart_data);
-	if (ret) {
-		printk(KERN_ERR "uart_open: failed to register CTS irq (%d)\n",
-		       ret);
-		free_irq(irq, uart_data);
-	}
-
-	return ret;
-}
-
-static int
-graphicsclient_uart_open(struct uart_port *port, struct uart_info *info)
-{
-	int ret = 0;
-
-	if (port->mapbase == _Ser1UTCR0) {
-		Ser1SDCR0 |= SDCR0_UART;
-		/* Set RTS Output */
-		GPSR  = GPIO_GC_UART0_RTS;
-
-		gc_uart_ctrl_data[0].cts_prev_state = 0;
-		gc_uart_ctrl_data[0].info = info;
-		gc_uart_ctrl_data[0].port = port;
-
-		/* register uart0 CTS irq */
-		ret = graphicsclient_register_cts_intr(GPIO_GC_UART0_CTS,
-							IRQ_GC_UART0_CTS,
-							&gc_uart_ctrl_data[0]);
-	} else if (port->mapbase == _Ser2UTCR0) {
-		Ser2UTCR4 = Ser2HSCR0 = 0;
-		/* Set RTS Output */
-		GPSR  = GPIO_GC_UART1_RTS;
-
-		gc_uart_ctrl_data[1].cts_prev_state = 0;
-		gc_uart_ctrl_data[1].info = info;
-		gc_uart_ctrl_data[1].port = port;
-
-		/* register uart1 CTS irq */
-		ret = graphicsclient_register_cts_intr(GPIO_GC_UART1_CTS,
-							IRQ_GC_UART1_CTS,
-							&gc_uart_ctrl_data[1]);
-	} else if (port->mapbase == _Ser3UTCR0) {
-		/* Set RTS Output */
-		GPSR =	GPIO_GC_UART2_RTS;
-
-		gc_uart_ctrl_data[2].cts_prev_state = 0;
-		gc_uart_ctrl_data[2].info = info;
-		gc_uart_ctrl_data[2].port = port;
-
-		/* register uart2 CTS irq */
-		ret = graphicsclient_register_cts_intr(GPIO_GC_UART2_CTS,
-							IRQ_GC_UART2_CTS,
-							&gc_uart_ctrl_data[2]);
-	}
-	return ret;
-}
-
-static int
-graphicsclient_uart_close(struct uart_port *port, struct uart_info *info)
-{
-	if (port->mapbase == _Ser1UTCR0) {
-		free_irq(IRQ_GC_UART0_CTS, &gc_uart_ctrl_data[0]);
-	} else if (port->mapbase == _Ser2UTCR0) {
-		free_irq(IRQ_GC_UART1_CTS, &gc_uart_ctrl_data[1]);
-	} else if (port->mapbase == _Ser3UTCR0) {
-		free_irq(IRQ_GC_UART2_CTS, &gc_uart_ctrl_data[2]);
-	}
-
-	return 0;
-}
 
 static u_int graphicsclient_get_mctrl(struct uart_port *port)
 {
@@ -296,8 +196,6 @@ graphicsclient_uart_pm(struct uart_port *port, u_int state, u_int oldstate)
 }
 
 static struct sa1100_port_fns graphicsclient_port_fns __initdata = {
-	open:		graphicsclient_uart_open,
-	close:		graphicsclient_uart_close,
 	get_mctrl:	graphicsclient_get_mctrl,
 	set_mctrl:	graphicsclient_set_mctrl,
 	pm:		graphicsclient_uart_pm,

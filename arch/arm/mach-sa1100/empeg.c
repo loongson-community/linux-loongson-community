@@ -24,14 +24,14 @@ fixup_empeg(struct machine_desc *desc, struct param_struct *params,
 	SET_BANK( 1, 0xc8000000, 4*1024*1024 );
 	mi->nr_banks = 2;
 
-	ROOT_DEV = MKDEV( 3, 1 );  /* /dev/hda1 */
+	ROOT_DEV = mk_kdev( 3, 1 );  /* /dev/hda1 */
 	setup_ramdisk( 1, 0, 0, 4096 );
 	setup_initrd( 0xd0000000+((1024-320)*1024), (320*1024) );
 }
 
 static struct map_desc empeg_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { EMPEG_FLASHBASE, 0x00000000, 0x00200000, DOMAIN_IO, 1, 1, 0, 0 }, /* Flash */
+  { EMPEG_FLASHBASE, 0x00000000, 0x00200000, DOMAIN_IO, 0, 1, 0, 0 }, /* Flash */
   LAST_DESC
 };
 

@@ -1,6 +1,4 @@
 /*
- *  linux/drivers/ide/qd65xx.c		Version 0.07	Sep 30, 2001
- *
  *  Copyright (C) 1996-2001  Linus Torvalds & author (see below)
  */
 
@@ -9,23 +7,19 @@
  *  Version 0.04	Added second channel tuning
  *  Version 0.05	Enhanced tuning ; added qd6500 support
  *  Version 0.06	Added dos driver's list
- *  Version 0.07	Second channel bug fix 
+ *  Version 0.07	Second channel bug fix
  *
  * QDI QD6500/QD6580 EIDE controller fast support
  *
  * Please set local bus speed using kernel parameter idebus
- * 	for example, "idebus=33" stands for 33Mhz VLbus
+ *	for example, "idebus=33" stands for 33Mhz VLbus
  * To activate controller support, use "ide0=qd65xx"
  * To enable tuning, use "ide0=autotune"
  * To enable second channel tuning (qd6580 only), use "ide1=autotune"
- */
-
-/*
+ *
  * Rewritten from the work of Colten Edwards <pje120@cs.usask.ca> by
  * Samuel Thibault <samuel.thibault@fnac.net>
  */
-
-#undef REALLY_SLOW_IO		/* most systems can safely undef this */
 
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -139,12 +133,12 @@ static byte qd6500_compute_timing (ide_hwif_t *hwif, int active_time, int recove
 {
 	byte active_cycle,recovery_cycle;
 
-	if (ide_system_bus_speed()<=33) {
-		active_cycle =   9  - IDE_IN(active_time   * ide_system_bus_speed() / 1000 + 1, 2, 9);
-		recovery_cycle = 15 - IDE_IN(recovery_time * ide_system_bus_speed() / 1000 + 1, 0, 15);
+	if (system_bus_speed <= 33) {
+		active_cycle =   9  - IDE_IN(active_time   * system_bus_speed / 1000 + 1, 2, 9);
+		recovery_cycle = 15 - IDE_IN(recovery_time * system_bus_speed / 1000 + 1, 0, 15);
 	} else {
-		active_cycle =   8  - IDE_IN(active_time   * ide_system_bus_speed() / 1000 + 1, 1, 8);
-		recovery_cycle = 18 - IDE_IN(recovery_time * ide_system_bus_speed() / 1000 + 1, 3, 18);
+		active_cycle =   8  - IDE_IN(active_time   * system_bus_speed / 1000 + 1, 1, 8);
+		recovery_cycle = 18 - IDE_IN(recovery_time * system_bus_speed / 1000 + 1, 3, 18);
 	}
 
 	return((recovery_cycle<<4) | 0x08 | active_cycle);
@@ -158,8 +152,8 @@ static byte qd6500_compute_timing (ide_hwif_t *hwif, int active_time, int recove
 
 static byte qd6580_compute_timing (int active_time, int recovery_time)
 {
-	byte active_cycle   = 17-IDE_IN(active_time   * ide_system_bus_speed() / 1000 + 1, 2, 17);
-	byte recovery_cycle = 15-IDE_IN(recovery_time * ide_system_bus_speed() / 1000 + 1, 2, 15);
+	byte active_cycle   = 17-IDE_IN(active_time   * system_bus_speed / 1000 + 1, 2, 17);
+	byte recovery_cycle = 15-IDE_IN(recovery_time * system_bus_speed / 1000 + 1, 2, 15);
 
 	return((recovery_cycle<<4) | active_cycle);
 }
@@ -262,7 +256,7 @@ static void qd6580_tune_drive (ide_drive_t *drive, byte pio)
 
 	if (drive->id && !qd_find_disk_type(drive,&active_time,&recovery_time)) {
 		pio = ide_get_best_pio_mode(drive, pio, 255, &d);
-		pio = IDE_MIN(pio,4);
+		pio = min(pio,4);
 
 		switch (pio) {
 			case 0: break;
@@ -293,7 +287,7 @@ static void qd6580_tune_drive (ide_drive_t *drive, byte pio)
 		printk(KERN_INFO "%s: PIO mode%d\n",drive->name,pio);
 	}
 
-	if (!HWIF(drive)->channel && drive->media != ide_disk) {
+	if (!HWIF(drive)->channel && drive->type != ATA_DISK) {
 		qd_write_reg(0x5f,QD_CONTROL_PORT);
 		printk(KERN_WARNING "%s: ATAPI: disabled read-ahead FIFO and post-write buffer on %s.\n",drive->name,HWIF(drive)->name);
 	}

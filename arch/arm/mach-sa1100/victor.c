@@ -48,7 +48,7 @@ fixup_victor(struct machine_desc *desc, struct param_struct *params,
 	SET_BANK( 0, 0xc0000000, 4*1024*1024 );
 	mi->nr_banks = 1;
 
-	ROOT_DEV = MKDEV( 60, 2 );
+	ROOT_DEV = mk_kdev( 60, 2 );
 
 	/* Get command line parameters passed from the loader (if any) */
 	if( *((char*)0xc0000000) )
@@ -60,7 +60,7 @@ fixup_victor(struct machine_desc *desc, struct param_struct *params,
 
 static struct map_desc victor_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xe8000000, 0x00000000, 0x00200000, DOMAIN_IO, 1, 1, 0, 0 }, /* Flash */
+  { 0xe8000000, 0x00000000, 0x00200000, DOMAIN_IO, 0, 1, 0, 0 }, /* Flash */
   LAST_DESC
 };
 

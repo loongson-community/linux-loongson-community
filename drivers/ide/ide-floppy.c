@@ -1113,7 +1113,7 @@ static ide_startstop_t idefloppy_issue_pc (ide_drive_t *drive, idefloppy_pc_t *p
 	pc->retries++;
 	pc->actually_transferred=0;					/* We haven't transferred any data yet */
 	pc->current_position=pc->buffer;
-	bcount.all = IDE_MIN(pc->request_transfer, 63 * 1024);
+	bcount.all = min(pc->request_transfer, 63 * 1024);
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
 	if (test_and_clear_bit (PC_DMA_ERROR, &pc->flags)) {
@@ -1819,19 +1819,11 @@ static void idefloppy_release (struct inode *inode, struct file *filp, ide_drive
 /*
  *	Check media change. Use a simple algorithm for now.
  */
-static int idefloppy_media_change (ide_drive_t *drive)
+static int idefloppy_check_media_change (ide_drive_t *drive)
 {
 	idefloppy_floppy_t *floppy = drive->driver_data;
-	
-	return test_and_clear_bit (IDEFLOPPY_MEDIA_CHANGED, &floppy->flags);
-}
 
-/*
- *	Revalidate the new media. Should set blk_size[]
- */
-static void idefloppy_revalidate (ide_drive_t *drive)
-{
-	ide_revalidate_drive(drive);
+	return test_and_clear_bit (IDEFLOPPY_MEDIA_CHANGED, &floppy->flags);
 }
 
 /*
@@ -2046,69 +2038,25 @@ static ide_proc_entry_t idefloppy_proc[] = {
 
 #endif	/* CONFIG_PROC_FS */
 
-int idefloppy_init(void);
-int idefloppy_reinit(ide_drive_t *drive);
-
 /*
  *	IDE subdriver functions, registered with ide.c
  */
-static ide_driver_t idefloppy_driver = {
-	name:			"ide-floppy",
-	media:			ide_floppy,
-	busy:			0,
-	supports_dma:		1,
-	supports_dsc_overlap:	0,
+static struct ata_operations idefloppy_driver = {
+	owner:			THIS_MODULE,
 	cleanup:		idefloppy_cleanup,
 	standby:		NULL,
-	flushcache:		NULL,
 	do_request:		idefloppy_do_request,
 	end_request:		idefloppy_end_request,
 	ioctl:			idefloppy_ioctl,
 	open:			idefloppy_open,
 	release:		idefloppy_release,
-	media_change:		idefloppy_media_change,
-	revalidate:		idefloppy_revalidate,
+	check_media_change:	idefloppy_check_media_change,
+	revalidate:		NULL, /* use default method */
 	pre_reset:		NULL,
 	capacity:		idefloppy_capacity,
 	special:		NULL,
-	proc:			idefloppy_proc,
-	driver_init:		idefloppy_init,
-	driver_reinit:		idefloppy_reinit,
+	proc:			idefloppy_proc
 };
-
-int idefloppy_reinit (ide_drive_t *drive)
-{
-	idefloppy_floppy_t *floppy;
-	int failed = 0;
-
-	MOD_INC_USE_COUNT;
-	while ((drive = ide_scan_devices (ide_floppy, idefloppy_driver.name, NULL, failed++)) != NULL) {
-		if (!idefloppy_identify_device (drive, drive->id)) {
-			printk (KERN_ERR "ide-floppy: %s: not supported by this version of ide-floppy\n", drive->name);
-			continue;
-		}
-		if (drive->scsi) {
-			printk("ide-floppy: passing drive %s to ide-scsi emulation.\n", drive->name);
-			continue;
-		}
-		if ((floppy = (idefloppy_floppy_t *) kmalloc (sizeof (idefloppy_floppy_t), GFP_KERNEL)) == NULL) {
-			printk (KERN_ERR "ide-floppy: %s: Can't allocate a floppy structure\n", drive->name);
-			continue;
-		}
-		if (ide_register_subdriver (drive, &idefloppy_driver)) {
-			printk (KERN_ERR "ide-floppy: %s: Failed to register the driver with ide.c\n", drive->name);
-			kfree (floppy);
-			continue;
-		}
-		DRIVER(drive)->busy++;
-		idefloppy_setup (drive, floppy);
-		DRIVER(drive)->busy--;
-		failed--;
-	}
-	ide_register_module(&idefloppy_driver);
-	MOD_DEC_USE_COUNT;
-	return 0;
-}
 
 MODULE_DESCRIPTION("ATAPI FLOPPY Driver");
 
@@ -2117,7 +2065,7 @@ static void __exit idefloppy_exit (void)
 	ide_drive_t *drive;
 	int failed = 0;
 
-	while ((drive = ide_scan_devices (ide_floppy, idefloppy_driver.name, &idefloppy_driver, failed)) != NULL) {
+	while ((drive = ide_scan_devices(ATA_FLOPPY, "ide-floppy", &idefloppy_driver, failed)) != NULL) {
 		if (idefloppy_cleanup (drive)) {
 			printk ("%s: cleanup_module() called while still busy\n", drive->name);
 			failed++;
@@ -2130,7 +2078,6 @@ static void __exit idefloppy_exit (void)
 			ide_remove_proc_entries(drive->proc, idefloppy_proc);
 #endif
 	}
-	ide_unregister_module(&idefloppy_driver);
 }
 
 /*
@@ -2144,7 +2091,7 @@ int idefloppy_init (void)
 
 	printk("ide-floppy driver " IDEFLOPPY_VERSION "\n");
 	MOD_INC_USE_COUNT;
-	while ((drive = ide_scan_devices (ide_floppy, idefloppy_driver.name, NULL, failed++)) != NULL) {
+	while ((drive = ide_scan_devices (ATA_FLOPPY, "ide-floppy", NULL, failed++)) != NULL) {
 		if (!idefloppy_identify_device (drive, drive->id)) {
 			printk (KERN_ERR "ide-floppy: %s: not supported by this version of ide-floppy\n", drive->name);
 			continue;
@@ -2162,12 +2109,14 @@ int idefloppy_init (void)
 			kfree (floppy);
 			continue;
 		}
-		DRIVER(drive)->busy++;
+		/* ATA-PATTERN */
+		ata_ops(drive)->busy++;
 		idefloppy_setup (drive, floppy);
-		DRIVER(drive)->busy--;
+		ata_ops(drive)->busy--;
+
 		failed--;
 	}
-	ide_register_module(&idefloppy_driver);
+	revalidate_drives();
 	MOD_DEC_USE_COUNT;
 	return 0;
 }

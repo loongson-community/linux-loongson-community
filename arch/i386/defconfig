@@ -98,6 +98,7 @@ CONFIG_CARDBUS=y
 # CONFIG_I82092 is not set
 # CONFIG_I82365 is not set
 # CONFIG_TCIC is not set
+# CONFIG_PCMCIA_SA1100 is not set
 
 #
 # PCI Hotplug Support
@@ -105,6 +106,7 @@ CONFIG_CARDBUS=y
 # CONFIG_HOTPLUG_PCI is not set
 # CONFIG_HOTPLUG_PCI_COMPAQ is not set
 # CONFIG_HOTPLUG_PCI_COMPAQ_NVRAM is not set
+# CONFIG_HOTPLUG_PCI_IBM is not set
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 CONFIG_BINFMT_AOUT=y
@@ -121,7 +123,18 @@ CONFIG_PM=y
 #
 # Parallel port support
 #
-# CONFIG_PARPORT is not set
+CONFIG_PARPORT=y
+CONFIG_PARPORT_PC=y
+CONFIG_PARPORT_PC_CML1=y
+# CONFIG_PARPORT_SERIAL is not set
+# CONFIG_PARPORT_PC_PCMCIA is not set
+# CONFIG_PARPORT_AMIGA is not set
+# CONFIG_PARPORT_MFC3 is not set
+# CONFIG_PARPORT_ATARI is not set
+# CONFIG_PARPORT_GSC is not set
+# CONFIG_PARPORT_SUNBPP is not set
+# CONFIG_PARPORT_OTHER is not set
+# CONFIG_PARPORT_1284 is not set
 
 #
 # Plug and Play configuration
@@ -227,10 +240,9 @@ CONFIG_BLK_DEV_IDECD=y
 # CONFIG_BLK_DEV_IDETAPE is not set
 # CONFIG_BLK_DEV_IDEFLOPPY is not set
 # CONFIG_BLK_DEV_IDESCSI is not set
-CONFIG_IDE_TASK_IOCTL=y
 
 #
-# IDE chipset support/bugfixes
+# IDE chipset support
 #
 CONFIG_BLK_DEV_CMD640=y
 # CONFIG_BLK_DEV_CMD640_ENHANCED is not set
@@ -240,7 +252,6 @@ CONFIG_BLK_DEV_IDEPCI=y
 CONFIG_IDEPCI_SHARE_IRQ=y
 CONFIG_BLK_DEV_IDEDMA_PCI=y
 # CONFIG_BLK_DEV_OFFBOARD is not set
-# CONFIG_BLK_DEV_IDEDMA_FORCED is not set
 CONFIG_IDEDMA_PCI_AUTO=y
 # CONFIG_IDEDMA_ONLYDISK is not set
 CONFIG_BLK_DEV_IDEDMA=y
@@ -333,6 +344,8 @@ CONFIG_SCSI_CONSTANTS=y
 # CONFIG_SCSI_IPS is not set
 # CONFIG_SCSI_INITIO is not set
 # CONFIG_SCSI_INIA100 is not set
+# CONFIG_SCSI_PPA is not set
+# CONFIG_SCSI_IMM is not set
 # CONFIG_SCSI_NCR53C406A is not set
 # CONFIG_SCSI_NCR53C7xx is not set
 # CONFIG_SCSI_SYM53C8XX_2 is not set
@@ -422,12 +435,9 @@ CONFIG_NET_PCI=y
 # CONFIG_AC3200 is not set
 # CONFIG_APRICOT is not set
 # CONFIG_CS89x0 is not set
-# CONFIG_DE2104X is not set
-# CONFIG_TULIP is not set
-# CONFIG_DE4X5 is not set
 # CONFIG_DGRS is not set
-# CONFIG_DM9102 is not set
-CONFIG_EEPRO100=y
+# CONFIG_EEPRO100 is not set
+CONFIG_E100=y
 # CONFIG_LNE390 is not set
 # CONFIG_FEALNX is not set
 # CONFIG_NATSEMI is not set
@@ -446,7 +456,6 @@ CONFIG_EEPRO100=y
 # CONFIG_TLAN is not set
 # CONFIG_VIA_RHINE is not set
 # CONFIG_VIA_RHINE_MMIO is not set
-# CONFIG_WINBOND_840 is not set
 # CONFIG_NET_POCKET is not set
 
 #
@@ -454,11 +463,13 @@ CONFIG_EEPRO100=y
 #
 # CONFIG_ACENIC is not set
 # CONFIG_DL2K is not set
+# CONFIG_E1000 is not set
 # CONFIG_MYRI_SBUS is not set
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_SK98LIN is not set
+# CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
 # CONFIG_PLIP is not set
 # CONFIG_PPP is not set
@@ -481,6 +492,11 @@ CONFIG_EEPRO100=y
 # CONFIG_WAN is not set
 
 #
+# "Tulip" family network device support
+#
+# CONFIG_NET_TULIP is not set
+
+#
 # PCMCIA network device support
 #
 CONFIG_NET_PCMCIA=y
@@ -494,8 +510,6 @@ CONFIG_PCMCIA_PCNET=y
 # CONFIG_PCMCIA_AXNET is not set
 # CONFIG_ARCNET_COM20020_CS is not set
 # CONFIG_PCMCIA_IBMTR is not set
-# CONFIG_PCMCIA_XIRCOM is not set
-# CONFIG_PCMCIA_XIRTULIP is not set
 CONFIG_NET_PCMCIA_RADIO=y
 CONFIG_PCMCIA_RAYCS=y
 # CONFIG_AIRONET4500_CS is not set
@@ -550,6 +564,9 @@ CONFIG_SERIAL=y
 # CONFIG_SERIAL_NONSTANDARD is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
+CONFIG_PRINTER=y
+# CONFIG_LP_CONSOLE is not set
+# CONFIG_PPDEV is not set
 
 #
 # I2C support
@@ -638,6 +655,9 @@ CONFIG_RAMFS=y
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
 # CONFIG_ZISOFS is not set
+# CONFIG_JFS_FS is not set
+# CONFIG_JFS_DEBUG is not set
+# CONFIG_JFS_STATISTICS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_NTFS_FS is not set
@@ -668,6 +688,7 @@ CONFIG_NFS_FS=y
 # CONFIG_ROOT_NFS is not set
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set
@@ -710,19 +731,28 @@ CONFIG_SOUND=y
 # Advanced Linux Sound Architecture
 #
 CONFIG_SND=y
-# CONFIG_SND_RTCTIMER is not set
 CONFIG_SND_SEQUENCER=y
 # CONFIG_SND_SEQ_DUMMY is not set
 CONFIG_SND_OSSEMUL=y
 CONFIG_SND_MIXER_OSS=y
 CONFIG_SND_PCM_OSS=y
 CONFIG_SND_SEQUENCER_OSS=y
+# CONFIG_SND_RTCTIMER is not set
+# CONFIG_SND_VERBOSE_PRINTK is not set
 # CONFIG_SND_DEBUG is not set
+
+#
+# Generic devices
+#
 # CONFIG_SND_DUMMY is not set
 # CONFIG_SND_VIRMIDI is not set
 # CONFIG_SND_MTPAV is not set
 # CONFIG_SND_SERIAL_U16550 is not set
 # CONFIG_SND_MPU401 is not set
+
+#
+# ISA devices
+#
 # CONFIG_SND_AD1816A is not set
 # CONFIG_SND_AD1848 is not set
 # CONFIG_SND_CS4231 is not set
@@ -749,6 +779,10 @@ CONFIG_SND_SEQUENCER_OSS=y
 # CONFIG_SND_DT0197H is not set
 # CONFIG_SND_OPL3SA2 is not set
 # CONFIG_SND_SGALAXY is not set
+
+#
+# PCI devices
+#
 # CONFIG_SND_ALI5451 is not set
 # CONFIG_SND_CS46XX is not set
 # CONFIG_SND_EMU10K1 is not set

@@ -61,8 +61,7 @@ struct vm_area_struct {
 	 * one of the address_space->i_mmap{,shared} lists,
 	 * for shm areas, the list of attaches, otherwise unused.
 	 */
-	struct vm_area_struct *vm_next_share;
-	struct vm_area_struct **vm_pprev_share;
+	list_t shared;
 
 	/* Function pointers to deal with this struct. */
 	struct vm_operations_struct * vm_ops;
@@ -193,11 +192,6 @@ typedef struct page {
 #define put_page_testzero(p) 	atomic_dec_and_test(&(p)->count)
 #define page_count(p)		atomic_read(&(p)->count)
 #define set_page_count(p,v) 	atomic_set(&(p)->count, v)
-
-static inline void init_page_count(struct page *page)
-{
-	page->count.counter = 0;
-}
 
 /*
  * Various page->flags bits:
@@ -585,7 +579,7 @@ static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * m
 
 extern struct vm_area_struct *find_extend_vma(struct mm_struct *mm, unsigned long addr);
 
-extern struct page * vmalloc_to_page(unsigned long adr);
+extern struct page * vmalloc_to_page(void *addr);
 
 #endif /* __KERNEL__ */
 

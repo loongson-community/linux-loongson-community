@@ -58,7 +58,7 @@ fixup_freebird(struct machine_desc *desc, struct param_struct *params,
 #ifdef CONFIG_SA1100_FREEBIRD_OLD
 	SET_BANK( 0, 0xc0000000, 32*1024*1024 );
 	mi->nr_banks = 1;
-	ROOT_DEV = MKDEV(RAMDISK_MAJOR,0);
+	ROOT_DEV = mk_kdev(RAMDISK_MAJOR,0);
 	setup_ramdisk( 1, 0 ,0 , 8192 );
 	setup_initrd( 0xc0800000, 3*1024*1024 );
 #endif
@@ -66,8 +66,8 @@ fixup_freebird(struct machine_desc *desc, struct param_struct *params,
 
 static struct map_desc freebird_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xf0000000, 0x12000000, 0x00100000, DOMAIN_IO, 1, 1, 0, 0 }, /* Board Control Register */
-  { 0xf2000000, 0x19000000, 0x00100000, DOMAIN_IO, 1, 1, 0, 0},
+  { 0xf0000000, 0x12000000, 0x00100000, DOMAIN_IO, 0, 1, 0, 0 }, /* Board Control Register */
+  { 0xf2000000, 0x19000000, 0x00100000, DOMAIN_IO, 0, 1, 0, 0},
    LAST_DESC
 };
 

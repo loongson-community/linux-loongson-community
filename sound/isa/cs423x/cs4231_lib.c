@@ -32,6 +32,7 @@
 #include <linux/pm.h>
 #include <linux/init.h>
 #include <linux/slab.h>
+#include <linux/ioport.h>
 #include <sound/core.h>
 #include <sound/cs4231.h>
 
@@ -1335,7 +1336,7 @@ static int snd_cs4231_free(cs4231_t *chip)
 	}
 	if (chip->res_cport) {
 		release_resource(chip->res_cport);
-		kfree_nocheck(chip->res_port);
+		kfree_nocheck(chip->res_cport);
 	}
 	if (chip->irq >= 0) {
 		disable_irq(chip->irq);

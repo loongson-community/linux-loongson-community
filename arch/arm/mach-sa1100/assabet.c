@@ -20,6 +20,7 @@
 #include <linux/serial_core.h>
 
 #include <asm/hardware.h>
+#include <asm/irq.h>
 #include <asm/setup.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
@@ -89,7 +90,7 @@ static int __init assabet_init(void)
 	/*
 	 * Set the IRQ edges
 	 */
-	set_GPIO_IRQ_edge(GPIO_GPIO23, GPIO_RISING_EDGE);	/* UCB1300 */
+	set_irq_type(IRQ_GPIO23, IRQT_RISING);	/* UCB1300 */
 
 	sa1100fb_lcd_power = assabet_lcd_power;
 	sa1100fb_backlight_power = assabet_backlight_power;
@@ -229,8 +230,8 @@ fixup_assabet(struct machine_desc *desc, struct param_struct *params,
 
 static struct map_desc assabet_io_desc[] __initdata = {
  /* virtual     physical    length      domain     r  w  c  b */
-  { 0xf1000000, 0x12000000, 0x00100000, DOMAIN_IO, 1, 1, 0, 0 }, /* Board Control Register */
-  { 0xf2800000, 0x4b800000, 0x00800000, DOMAIN_IO, 1, 1, 0, 0 }, /* MQ200 */
+  { 0xf1000000, 0x12000000, 0x00100000, DOMAIN_IO, 0, 1, 0, 0 }, /* Board Control Register */
+  { 0xf2800000, 0x4b800000, 0x00800000, DOMAIN_IO, 0, 1, 0, 0 }, /* MQ200 */
   /*  f3000000 - neponset system registers */
   /*  f4000000 - neponset SA1111 registers */
   LAST_DESC

@@ -269,7 +269,34 @@ static void __init smp_init(void)
 #define smp_init()	do { } while (0)
 #endif
 
+static inline void setup_per_cpu_areas(void)
+{
+}
 #else
+
+#ifndef __HAVE_ARCH_PER_CPU
+unsigned long __per_cpu_offset[NR_CPUS];
+
+static void __init setup_per_cpu_areas(void)
+{
+	unsigned long size, i;
+	char *ptr;
+	/* Created by linker magic */
+	extern char __per_cpu_start[], __per_cpu_end[];
+
+	/* Copy section for each CPU (we discard the original) */
+	size = ALIGN(__per_cpu_end - __per_cpu_start, SMP_CACHE_BYTES);
+	if (!size)
+		return;
+
+	ptr = alloc_bootmem(size * NR_CPUS);
+
+	for (i = 0; i < NR_CPUS; i++, ptr += size) {
+		__per_cpu_offset[i] = ptr - __per_cpu_start;
+		memcpy(ptr, __per_cpu_start, size);
+	}
+}
+#endif /* !__HAVE_ARCH_PER_CPU */
 
 /* Called by boot processor to activate the rest. */
 static void __init smp_init(void)
@@ -313,6 +340,7 @@ asmlinkage void __init start_kernel(void)
 	lock_kernel();
 	printk(linux_banner);
 	setup_arch(&command_line);
+	setup_per_cpu_areas();
 	printk("Kernel command line: %s\n", saved_command_line);
 	parse_options(command_line);
 	trap_init();
@@ -376,6 +404,7 @@ asmlinkage void __init start_kernel(void)
 	printk("POSIX conformance testing by UNIFIX\n");
 
 	init_idle(current, smp_processor_id());
+
 	/* 
 	 *	We count on the initial thread going ok 
 	 *	Like idlers init is an unlocked kernel thread, which will
@@ -412,7 +441,12 @@ static void __init do_initcalls(void)
  */
 static void __init do_basic_setup(void)
 {
-
+	/*
+	 * Let the per-CPU migration threads start up:
+	 */
+#if CONFIG_SMP
+	migration_init();
+#endif
 	/*
 	 * Tell the world that we're going to be the grim
 	 * reaper of innocent orphaned children.
@@ -454,6 +488,8 @@ extern void prepare_namespace(void);
 
 static int init(void * unused)
 {
+	static char * argv_sh[] = { "sh", NULL, };
+
 	lock_kernel();
 	do_basic_setup();
 
@@ -485,6 +521,6 @@ static int init(void * unused)
 	execve("/sbin/init",argv_init,envp_init);
 	execve("/etc/init",argv_init,envp_init);
 	execve("/bin/init",argv_init,envp_init);
-	execve("/bin/sh",argv_init,envp_init);
+	execve("/bin/sh",argv_sh,envp_init);
 	panic("No init found.  Try passing init= option to kernel.");
 }

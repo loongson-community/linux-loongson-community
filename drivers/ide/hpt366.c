@@ -355,7 +355,6 @@ extern char *ide_xfer_verbose (byte xfer_rate);
 #if defined(DISPLAY_HPT366_TIMINGS) && defined(CONFIG_PROC_FS)
 static int hpt366_get_info(char *, char **, off_t, int);
 extern int (*hpt366_display_info)(char *, char **, off_t, int); /* ide-proc.c */
-extern char *ide_media_verbose(ide_drive_t *);
 
 static int hpt366_get_info (char *buffer, char **addr, off_t offset, int count)
 {
@@ -375,7 +374,8 @@ static int hpt366_get_info (char *buffer, char **addr, off_t offset, int count)
 		class_rev &= 0xff;
 
 		p += sprintf(p, "\nController: %d\n", i);
-		p += sprintf(p, "Chipset: HPT%s\n", chipset_nums[class_rev]);
+		p += sprintf(p, "Chipset: HPT%s\n",
+			class_rev < sizeof(chipset_nums) / sizeof(char *) ? chipset_nums[class_rev] : "???");
 		p += sprintf(p, "--------------- Primary Channel "
 				"--------------- Secondary Channel "
 				"--------------\n");
@@ -579,7 +579,7 @@ static void hpt370_tune_chipset (ide_drive_t *drive, byte speed)
 
 static int hpt3xx_tune_chipset (ide_drive_t *drive, byte speed)
 {
-	if ((drive->media != ide_disk) && (speed < XFER_SW_DMA_0))
+	if ((drive->type != ATA_DISK) && (speed < XFER_SW_DMA_0))
 		return -1;
 
 	if (!drive->init_speed)
@@ -664,7 +664,7 @@ static int config_chipset_for_dma (ide_drive_t *drive)
 	byte ultra66		= eighty_ninty_three(drive);
 	int  rval;
 
-	if ((drive->media != ide_disk) && (speed < XFER_SW_DMA_0))
+	if ((drive->type != ATA_DISK) && (speed < XFER_SW_DMA_0))
 		return ((int) ide_dma_off_quietly);
 
 	if ((id->dma_ultra & 0x0020) &&
@@ -1097,7 +1097,7 @@ init_hpt370_done:
 	udelay(100);
 }
 
-unsigned int __init pci_init_hpt366 (struct pci_dev *dev, const char *name)
+unsigned int __init pci_init_hpt366(struct pci_dev *dev)
 {
 	byte test = 0;
 
@@ -1120,12 +1120,11 @@ unsigned int __init pci_init_hpt366 (struct pci_dev *dev, const char *name)
 	if (test != 0x08)
 		pci_write_config_byte(dev, PCI_MAX_LAT, 0x08);
 
-	if (pci_rev_check_hpt3xx(dev)) {
+	if (pci_rev_check_hpt3xx(dev))
 		init_hpt370(dev);
+
+	if (n_hpt_devs < HPT366_MAX_DEVS)
 		hpt_devs[n_hpt_devs++] = dev;
-	} else {
-		hpt_devs[n_hpt_devs++] = dev;
-	}
 	
 #if defined(DISPLAY_HPT366_TIMINGS) && defined(CONFIG_PROC_FS)
 	if (!hpt366_proc) {

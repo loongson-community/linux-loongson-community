@@ -233,8 +233,7 @@ static int snd_virmidi_output_open(snd_rawmidi_substream_t * substream)
 	}
 	vmidi->seq_mode = rdev->seq_mode;
 	vmidi->client = rdev->client;
-	vmidi->port = rdev->port;	
-	snd_midi_event_init(vmidi->parser);
+	vmidi->port = rdev->port;
 	snd_virmidi_init_event(vmidi, &vmidi->event);
 	vmidi->rdev = rdev;
 	runtime->private_data = vmidi;
@@ -431,7 +430,7 @@ static int snd_virmidi_dev_register(snd_rawmidi_t *rmidi)
 		/* should check presence of port more strictly.. */
 		break;
 	default:
-		snd_printk("seq_mode is not set: %d\n", rdev->seq_mode);
+		snd_printk(KERN_ERR "seq_mode is not set: %d\n", rdev->seq_mode);
 		return -EINVAL;
 	}
 	return 0;

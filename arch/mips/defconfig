@@ -339,11 +339,13 @@ CONFIG_SGISEEQ=y
 #
 # CONFIG_ACENIC is not set
 # CONFIG_DL2K is not set
+# CONFIG_E1000 is not set
 # CONFIG_MYRI_SBUS is not set
 # CONFIG_NS83820 is not set
 # CONFIG_HAMACHI is not set
 # CONFIG_YELLOWFIN is not set
 # CONFIG_SK98LIN is not set
+# CONFIG_TIGON3 is not set
 # CONFIG_FDDI is not set
 # CONFIG_HIPPI is not set
 # CONFIG_PLIP is not set
@@ -367,6 +369,11 @@ CONFIG_SGISEEQ=y
 # Wan interfaces
 #
 # CONFIG_WAN is not set
+
+#
+# "Tulip" family network device support
+#
+# CONFIG_NET_TULIP is not set
 
 #
 # Amateur Radio support
@@ -479,6 +486,9 @@ CONFIG_RAMFS=y
 CONFIG_ISO9660_FS=y
 # CONFIG_JOLIET is not set
 # CONFIG_ZISOFS is not set
+# CONFIG_JFS_FS is not set
+# CONFIG_JFS_DEBUG is not set
+# CONFIG_JFS_STATISTICS is not set
 # CONFIG_MINIX_FS is not set
 # CONFIG_VXFS_FS is not set
 # CONFIG_NTFS_FS is not set
@@ -509,6 +519,7 @@ CONFIG_NFS_FS=y
 CONFIG_ROOT_NFS=y
 CONFIG_NFSD=y
 # CONFIG_NFSD_V3 is not set
+# CONFIG_NFSD_TCP is not set
 CONFIG_SUNRPC=y
 CONFIG_LOCKD=y
 # CONFIG_SMB_FS is not set
@@ -577,108 +588,6 @@ CONFIG_SGI_DS1286=y
 # USB support
 #
 # CONFIG_USB is not set
-
-#
-# USB Host Controller Drivers
-#
-# CONFIG_USB_EHCI_HCD is not set
-# CONFIG_USB_OHCI_HCD is not set
-# CONFIG_USB_UHCI is not set
-# CONFIG_USB_UHCI_ALT is not set
-# CONFIG_USB_OHCI is not set
-
-#
-# USB Device Class drivers
-#
-# CONFIG_USB_AUDIO is not set
-# CONFIG_USB_BLUETOOTH is not set
-# CONFIG_USB_STORAGE is not set
-# CONFIG_USB_STORAGE_DEBUG is not set
-# CONFIG_USB_STORAGE_DATAFAB is not set
-# CONFIG_USB_STORAGE_FREECOM is not set
-# CONFIG_USB_STORAGE_ISD200 is not set
-# CONFIG_USB_STORAGE_DPCM is not set
-# CONFIG_USB_STORAGE_HP8200e is not set
-# CONFIG_USB_STORAGE_SDDR09 is not set
-# CONFIG_USB_STORAGE_JUMPSHOT is not set
-# CONFIG_USB_ACM is not set
-# CONFIG_USB_PRINTER is not set
-
-#
-# USB Human Interface Devices (HID)
-#
-
-#
-#   Input core support is needed for USB HID
-#
-
-#
-# USB Imaging devices
-#
-# CONFIG_USB_DC2XX is not set
-# CONFIG_USB_MDC800 is not set
-# CONFIG_USB_SCANNER is not set
-# CONFIG_USB_MICROTEK is not set
-# CONFIG_USB_HPUSBSCSI is not set
-
-#
-# USB Multimedia devices
-#
-
-#
-#   Video4Linux support is needed for USB Multimedia device support
-#
-
-#
-# USB Network adaptors
-#
-# CONFIG_USB_PEGASUS is not set
-# CONFIG_USB_KAWETH is not set
-# CONFIG_USB_CATC is not set
-# CONFIG_USB_CDCETHER is not set
-# CONFIG_USB_USBNET is not set
-
-#
-# USB port drivers
-#
-# CONFIG_USB_USS720 is not set
-
-#
-# USB Serial Converter support
-#
-# CONFIG_USB_SERIAL is not set
-# CONFIG_USB_SERIAL_GENERIC is not set
-# CONFIG_USB_SERIAL_BELKIN is not set
-# CONFIG_USB_SERIAL_WHITEHEAT is not set
-# CONFIG_USB_SERIAL_DIGI_ACCELEPORT is not set
-# CONFIG_USB_SERIAL_EMPEG is not set
-# CONFIG_USB_SERIAL_FTDI_SIO is not set
-# CONFIG_USB_SERIAL_VISOR is not set
-# CONFIG_USB_SERIAL_IPAQ is not set
-# CONFIG_USB_SERIAL_IR is not set
-# CONFIG_USB_SERIAL_EDGEPORT is not set
-# CONFIG_USB_SERIAL_KEYSPAN_PDA is not set
-# CONFIG_USB_SERIAL_KEYSPAN is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA28 is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA28X is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA28XA is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA28XB is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA19 is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA18X is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA19W is not set
-# CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
-# CONFIG_USB_SERIAL_MCT_U232 is not set
-# CONFIG_USB_SERIAL_KLSI is not set
-# CONFIG_USB_SERIAL_PL2303 is not set
-# CONFIG_USB_SERIAL_CYBERJACK is not set
-# CONFIG_USB_SERIAL_XIRCOM is not set
-# CONFIG_USB_SERIAL_OMNINET is not set
-
-#
-# USB Miscellaneous drivers
-#
-# CONFIG_USB_RIO500 is not set
-# CONFIG_USB_AUERSWALD is not set
 
 #
 # Bluetooth support

@@ -280,7 +280,7 @@ static int reint_mknod (int slot_offset, struct kml_rec *rec)
         old_fs = get_fs();
         set_fs (get_ds());
         error = lento_mknod (mknod->path, mknod->mode, 
-                MKDEV(mknod->major, mknod->minor), &info);
+                mk_kdev(mknod->major, mknod->minor), &info);
         set_fs (old_fs);
         kmlreint_post_secure (rec);
         EXIT;
@@ -360,8 +360,7 @@ static int set_system_mtpt (char *mtpt, struct dentry **old_root)
         struct dentry *dentry;
 	int error;
 
-	if (path_init(pathname, LOOKUP_PARENT, &nd))
-		error = path_walk(mtpt, &nd);
+	error = path_lookup(pathname, LOOKUP_PARENT, &nd);
         if (error) {
                 CDEBUG (D_KML, "Yean!!!!::Can't find mtpt::%s\n", mtpt);
                 return error;

@@ -1633,6 +1633,7 @@ static ide_startstop_t cdrom_do_block_pc(ide_drive_t *drive, struct request *rq)
 	return startstop;
 }
 
+#define IDE_LARGE_SEEK(b1,b2,t)	(((b1) > (b2) + (t)) || ((b2) > (b1) + (t)))
 
 /****************************************************************************
  * cdrom driver request routine.
@@ -2906,85 +2907,41 @@ int ide_cdrom_cleanup(ide_drive_t *drive)
 	return 0;
 }
 
-int ide_cdrom_init(void);
-int ide_cdrom_reinit (ide_drive_t *drive);
-
-static ide_driver_t ide_cdrom_driver = {
-	name:			"ide-cdrom",
-	media:			ide_cdrom,
-	busy:			0,
-	supports_dma:		1,
-	supports_dsc_overlap:	1,
+static struct ata_operations ide_cdrom_driver = {
+	owner:			THIS_MODULE,
 	cleanup:		ide_cdrom_cleanup,
 	standby:		NULL,
-	flushcache:		NULL,
 	do_request:		ide_do_rw_cdrom,
 	end_request:		NULL,
 	ioctl:			ide_cdrom_ioctl,
 	open:			ide_cdrom_open,
 	release:		ide_cdrom_release,
-	media_change:		ide_cdrom_check_media_change,
+	check_media_change:	ide_cdrom_check_media_change,
 	revalidate:		ide_cdrom_revalidate,
 	pre_reset:		NULL,
 	capacity:		ide_cdrom_capacity,
 	special:		NULL,
-	proc:			NULL,
-	driver_init:		ide_cdrom_init,
-	driver_reinit:		ide_cdrom_reinit,
+	proc:			NULL
 };
 
 /* options */
-char *ignore = NULL;
+static char *ignore = NULL;
 
 MODULE_PARM(ignore, "s");
 MODULE_DESCRIPTION("ATAPI CD-ROM Driver");
-
-int ide_cdrom_reinit (ide_drive_t *drive)
-{
-	struct cdrom_info *info;
-	int failed = 0;
-
-	MOD_INC_USE_COUNT;
-	info = (struct cdrom_info *) kmalloc (sizeof (struct cdrom_info), GFP_KERNEL);
-	if (info == NULL) {
-		printk ("%s: Can't allocate a cdrom structure\n", drive->name);
-		return 1;
-	}
-	if (ide_register_subdriver (drive, &ide_cdrom_driver)) {
-		printk ("%s: Failed to register the driver with ide.c\n", drive->name);
-		kfree (info);
-		return 1;
-	}
-	memset (info, 0, sizeof (struct cdrom_info));
-	drive->driver_data = info;
-	DRIVER(drive)->busy++;
-	if (ide_cdrom_setup (drive)) {
-		DRIVER(drive)->busy--;
-		if (ide_cdrom_cleanup (drive))
-			printk ("%s: ide_cdrom_cleanup failed in ide_cdrom_init\n", drive->name);
-		return 1;
-	}
-	DRIVER(drive)->busy--;
-	failed--;
-
-	ide_register_module(&ide_cdrom_driver);
-	MOD_DEC_USE_COUNT;
-	return 0;
-}
 
 static void __exit ide_cdrom_exit(void)
 {
 	ide_drive_t *drive;
 	int failed = 0;
 
-	while ((drive = ide_scan_devices (ide_cdrom, ide_cdrom_driver.name, &ide_cdrom_driver, failed)) != NULL)
+	while ((drive = ide_scan_devices(ATA_ROM, "ide-cdrom", &ide_cdrom_driver, failed)) != NULL)
 		if (ide_cdrom_cleanup (drive)) {
 			printk ("%s: cleanup_module() called while still busy\n", drive->name);
 			failed++;
 		}
-	ide_unregister_module (&ide_cdrom_driver);
 }
- 
+
 int ide_cdrom_init(void)
 {
 	ide_drive_t *drive;
@@ -2992,7 +2949,7 @@ int ide_cdrom_init(void)
 	int failed = 0;
 
 	MOD_INC_USE_COUNT;
-	while ((drive = ide_scan_devices (ide_cdrom, ide_cdrom_driver.name, NULL, failed++)) != NULL) {
+	while ((drive = ide_scan_devices (ATA_ROM, "ide-cdrom", NULL, failed++)) != NULL) {
 		/* skip drives that we were told to ignore */
 		if (ignore != NULL) {
 			if (strstr(ignore, drive->name)) {
@@ -3016,17 +2973,20 @@ int ide_cdrom_init(void)
 		}
 		memset (info, 0, sizeof (struct cdrom_info));
 		drive->driver_data = info;
-		DRIVER(drive)->busy++;
+
+		/* ATA-PATTERN */
+		ata_ops(drive)->busy++;
 		if (ide_cdrom_setup (drive)) {
-			DRIVER(drive)->busy--;
+			ata_ops(drive)->busy--;
 			if (ide_cdrom_cleanup (drive))
 				printk ("%s: ide_cdrom_cleanup failed in ide_cdrom_init\n", drive->name);
 			continue;
 		}
-		DRIVER(drive)->busy--;
+		ata_ops(drive)->busy--;
+
 		failed--;
 	}
-	ide_register_module(&ide_cdrom_driver);
+	revalidate_drives();
 	MOD_DEC_USE_COUNT;
 	return 0;
 }

@@ -24,6 +24,7 @@
 #include <linux/init.h>
 #include <linux/vmalloc.h>
 #include <linux/time.h>
+#include <linux/smp_lock.h>
 #include <sound/core.h>
 #include <sound/minors.h>
 #include <sound/info.h>
@@ -54,7 +55,7 @@ int snd_info_check_reserved_words(const char *str)
 		"memdebug",
 		"detect",
 		"devices",
-		"oss-devices",
+		"oss",
 		"cards",
 		"timers",
 		"synth",
@@ -123,6 +124,9 @@ int snd_iprintf(snd_info_buffer_t * buffer, char *fmt,...)
 struct proc_dir_entry *snd_proc_root = NULL;
 struct proc_dir_entry *snd_proc_dev = NULL;
 snd_info_entry_t *snd_seq_root = NULL;
+#ifdef CONFIG_SND_OSSEMUL
+snd_info_entry_t *snd_oss_root = NULL;
+#endif
 
 #ifdef LINUX_2_2
 static void snd_info_fill_inode(struct inode *inode, int fill)
@@ -162,31 +166,45 @@ static loff_t snd_info_entry_llseek(struct file *file, loff_t offset, int orig)
 {
 	snd_info_private_data_t *data;
 	struct snd_info_entry *entry;
+	loff_t ret;
 
 	data = snd_magic_cast(snd_info_private_data_t, file->private_data, return -ENXIO);
 	entry = data->entry;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 3)
+	lock_kernel();
+#endif
 	switch (entry->content) {
 	case SNDRV_INFO_CONTENT_TEXT:
 		switch (orig) {
 		case 0:	/* SEEK_SET */
 			file->f_pos = offset;
-			return file->f_pos;
+			ret = file->f_pos;
+			goto out;
 		case 1:	/* SEEK_CUR */
 			file->f_pos += offset;
-			return file->f_pos;
+			ret = file->f_pos;
+			goto out;
 		case 2:	/* SEEK_END */
 		default:
-			return -EINVAL;
+			ret = -EINVAL;
+			goto out;
 		}
 		break;
 	case SNDRV_INFO_CONTENT_DATA:
-		if (entry->c.ops->llseek)
-			return entry->c.ops->llseek(entry,
+		if (entry->c.ops->llseek) {
+			ret = entry->c.ops->llseek(entry,
 						    data->file_private_data,
 						    file, offset, orig);
+			goto out;
+		}
 		break;
 	}
-	return -ENXIO;
+	ret = -ENXIO;
+out:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 3)
+	unlock_kernel();
+#endif
+	return ret;
 }
 
 static ssize_t snd_info_entry_read(struct file *file, char *buffer,
@@ -420,7 +438,7 @@ static int snd_info_entry_release(struct inode *inode, struct file *file)
 			if (entry->c.text.write) {
 				entry->c.text.write(entry, data->wbuffer);
 				if (data->wbuffer->error) {
-					snd_printk("data write error to %s (%i)\n",
+					snd_printk(KERN_WARNING "data write error to %s (%i)\n",
 						entry->name,
 						data->wbuffer->error);
 				}
@@ -613,6 +631,19 @@ int __init snd_info_init(void)
 	if (p == NULL)
 		return -ENOMEM;
 	snd_proc_dev = p;
+#ifdef CONFIG_SND_OSSEMUL
+	{
+		snd_info_entry_t *entry;
+		if ((entry = snd_info_create_module_entry(THIS_MODULE, "oss", NULL)) == NULL)
+			return -ENOMEM;
+		entry->mode = S_IFDIR | S_IRUGO | S_IXUGO;
+		if (snd_info_register(entry) < 0) {
+			snd_info_free_entry(entry);
+			return -ENOMEM;
+		}
+		snd_oss_root = entry;
+	}
+#endif
 #if defined(CONFIG_SND_SEQUENCER) || defined(CONFIG_SND_SEQUENCER_MODULE)
 	{
 		snd_info_entry_t *entry;
@@ -653,6 +684,10 @@ int __exit snd_info_done(void)
 #if defined(CONFIG_SND_SEQUENCER) || defined(CONFIG_SND_SEQUENCER_MODULE)
 		if (snd_seq_root)
 			snd_info_unregister(snd_seq_root);
+#endif
+#ifdef CONFIG_SND_OSSEMUL
+		if (snd_oss_root)
+			snd_info_unregister(snd_oss_root);
 #endif
 		snd_remove_proc_entry(snd_proc_root, snd_proc_dev);
 		snd_remove_proc_entry(&proc_root, snd_proc_root);

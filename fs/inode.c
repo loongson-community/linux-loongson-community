@@ -144,6 +144,8 @@ void inode_init_once(struct inode *inode)
 	INIT_LIST_HEAD(&inode->i_devices);
 	sema_init(&inode->i_sem, 1);
 	spin_lock_init(&inode->i_data.i_shared_lock);
+	INIT_LIST_HEAD(&inode->i_data.i_mmap);
+	INIT_LIST_HEAD(&inode->i_data.i_mmap_shared);
 }
 
 static void init_once(void * foo, kmem_cache_t * cachep, unsigned long flags)
@@ -289,15 +291,15 @@ static inline void __sync_one(struct inode *inode, int sync)
 
 static inline void sync_one(struct inode *inode, int sync)
 {
-	if (inode->i_state & I_LOCK) {
+	while (inode->i_state & I_LOCK) {
 		__iget(inode);
 		spin_unlock(&inode_lock);
 		__wait_on_inode(inode);
 		iput(inode);
 		spin_lock(&inode_lock);
-	} else {
-		__sync_one(inode, sync);
 	}
+
+	__sync_one(inode, sync);
 }
 
 static inline void sync_list(struct list_head *head)
@@ -417,23 +419,15 @@ restart:
  *	writes them out, and puts them back on the normal list.
  */
 
-void sync_inodes(kdev_t dev)
+void sync_inodes(void)
 {
 	struct super_block * s;
-
 	/*
 	 * Search the super_blocks array for the device(s) to sync.
 	 */
-	if (!kdev_none(dev)) {
-		if ((s = get_super(dev)) != NULL) {
-			sync_inodes_sb(s);
-			drop_super(s);
-		}
-	} else {
-		while ((s = get_super_to_sync()) != NULL) {
-			sync_inodes_sb(s);
-			drop_super(s);
-		}
+	while ((s = get_super_to_sync()) != NULL) {
+		sync_inodes_sb(s);
+		drop_super(s);
 	}
 }
 

@@ -268,7 +268,7 @@ static int rd_make_request(request_queue_t * q, struct bio *sbh)
 		goto fail;
 
 	set_bit(BIO_UPTODATE, &sbh->bi_flags);
-	sbh->bi_end_io(sbh, len >> 9);
+	sbh->bi_end_io(sbh);
 	return 0;
  fail:
 	bio_io_error(sbh);
@@ -311,7 +311,7 @@ static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 		case BLKROSET:
 		case BLKROGET:
 		case BLKSSZGET:
-			error = blk_ioctl(inode->i_rdev, cmd, arg);
+			error = blk_ioctl(inode->i_bdev, cmd, arg);
 	};
 out:
 	return error;
