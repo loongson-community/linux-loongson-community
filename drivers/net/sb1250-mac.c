@@ -76,6 +76,7 @@ static int int_timeout = 0;
 #include <asm/io.h>
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/64bit.h>
+#include <asm/cache.h>
 
 /* This is only here until the firmware is ready.  In that case,
    the firmware leaves the ethernet address in the register for us. */
@@ -142,8 +143,7 @@ typedef enum { sbmac_state_uninit, sbmac_state_off, sbmac_state_on,
 			  (d)->sbdma_dscrtable : (d)->f+1)
 
 
-#define CACHELINESIZE 32
-#define NUMCACHEBLKS(x) (((x)+CACHELINESIZE-1)/CACHELINESIZE)
+#define NUMCACHEBLKS(x) (((x)+SMP_CACHE_BYTES-1)/SMP_CACHE_BYTES)
 #define KMALLOC(x) kmalloc((x),GFP_KERNEL)
 #define KFREE(x) kfree(x)
 #define KVTOPHYS(x) virt_to_bus((void *)(x))
@@ -921,7 +921,7 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	if (nextdsc == d->sbdma_remptr) {
 		return -ENOSPC;
 	}
-	
+
 	/* 
 	 * Allocate a sk_buff if we don't already have one.  
 	 * If we do have an sk_buff, reset it so that it's empty.
@@ -942,15 +942,15 @@ static int sbdma_add_rcvbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 */
 	
 	if (sb == NULL) {
-		sb_new = dev_alloc_skb(ENET_PACKET_SIZE + CACHELINESIZE*2 + ETHER_ALIGN);
+		sb_new = dev_alloc_skb(ENET_PACKET_SIZE + SMP_CACHE_BYTES * 2 + ETHER_ALIGN);
 		if (sb_new == NULL) {
 			printk(KERN_INFO "%s: sk_buff allocation failed\n",
 			       d->sbdma_eth->sbm_dev->name);
 			return -ENOBUFS;
 		}
-		
-		sbdma_align_skb(sb_new,CACHELINESIZE,ETHER_ALIGN);
-		
+
+		sbdma_align_skb(sb_new, SMP_CACHE_BYTES, ETHER_ALIGN);
+
 		/* mark skbuff owned by our device */
 		sb_new->dev = d->sbdma_eth->sbm_dev;
 	}
@@ -1058,8 +1058,8 @@ static int sbdma_add_txbuffer(sbmacdma_t *d,struct sk_buff *sb)
 	 */
 	
 	phys = KVTOPHYS(sb->data);
-	ncb = NUMCACHEBLKS(length+(phys & (CACHELINESIZE-1)));
-	
+	ncb = NUMCACHEBLKS(length+(phys & (SMP_CACHE_BYTES - 1)));
+
 	dsc->dscr_a = phys | 
 		V_DMA_DSCRA_A_SIZE(ncb) |
 		M_DMA_DSCRA_INTERRUPT |
@@ -2418,8 +2418,8 @@ static int sbmac_init(struct net_device *dev)
 	 * Init packet size 
 	 */
 	
-	sc->sbm_buffersize = ENET_PACKET_SIZE + CACHELINESIZE*2 + ETHER_ALIGN;
-	
+	sc->sbm_buffersize = ENET_PACKET_SIZE + SMP_CACHE_BYTES * 2 + ETHER_ALIGN;
+
 	/* 
 	 * Initialize context (get pointers to registers and stuff), then
 	 * allocate the memory for the descriptor tables.
