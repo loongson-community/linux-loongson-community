@@ -37,7 +37,6 @@ unsigned long sgi_gfxaddr;
  *
  * FIXME: provide a mechanism to change the value of stop_a_enabled.
  */
-int serial_console;
 int stop_a_enabled;
 
 void ip22_do_break(void)
