@@ -33,7 +33,6 @@ typedef unsigned long pfn_t;			/* into <asm/sn/types.h> */
 extern char _end;
 
 #define PFN_UP(x)	(((x) + PAGE_SIZE-1) >> PAGE_SHIFT)
-#define PFN_ALIGN(x)	(((unsigned long)(x) + (PAGE_SIZE - 1)) & PAGE_MASK)
 #define SLOT_IGNORED	0xffff
 
 short slot_lastfilled_cache[MAX_COMPACT_NODES];
@@ -41,7 +40,7 @@ unsigned short slot_psize_cache[MAX_COMPACT_NODES][MAX_MEM_SLOTS];
 static pfn_t numpages;
 static pfn_t pagenr = 0;
 
-plat_pg_data_t plat_node_data[MAX_COMPACT_NODES];
+plat_pg_data_t *plat_node_data[MAX_COMPACT_NODES];
 bootmem_data_t plat_node_bdata[MAX_COMPACT_NODES];
 
 int numa_debug(void)
@@ -66,8 +65,8 @@ pfn_t node_getfirstfree(cnodeid_t cnode)
 	return KDM_TO_PHYS(SYMMON_STK_ADDR(nasid, 0));
 #endif
 	if (cnode == 0)
-		return (KDM_TO_PHYS(PFN_ALIGN(&_end) - (CKSEG0 - K0BASE)) 
-								>> PAGE_SHIFT);
+		return (KDM_TO_PHYS(PAGE_ALIGN((unsigned long)(&_end)) - 
+					(CKSEG0 - K0BASE)) >> PAGE_SHIFT);
 	return slot_getbasepfn(cnode, 0);
 }
 
@@ -223,11 +222,12 @@ void __init prom_meminit(void)
 	cnodeid_t node;
 	pfn_t slot_firstpfn, slot_lastpfn, slot_freepfn;
 	unsigned long bootmap_size;
+	int node_datasz;
 
+	node_datasz = PFN_UP(sizeof(plat_pg_data_t));
 	mlreset();
 	numpages = szmem(0, 0);
 	for (node = (numnodes - 1); node >= 0; node--) {
-		NODE_DATA(node)->bdata = plat_node_bdata + node;
 		slot_firstpfn = slot_getbasepfn(node, 0);
 		slot_lastpfn = slot_firstpfn + slot_getsize(node, 0);
 		slot_freepfn = node_getfirstfree(node);
@@ -236,6 +236,13 @@ void __init prom_meminit(void)
 		max_low_pfn = (slot_lastpfn - slot_firstpfn);
 		if (node != 0) 
 			setup_test(node, slot_freepfn, slot_lastpfn);
+		/*
+		 * Allocate the node data structure on the node first.
+		 */
+		plat_node_data[node] = (plat_pg_data_t *)(__va(slot_freepfn \
+							<< PAGE_SHIFT));
+		NODE_DATA(node)->bdata = plat_node_bdata + node;
+		slot_freepfn += node_datasz;
 	  	bootmap_size = init_bootmem_node(node, slot_freepfn, 
 						slot_firstpfn, slot_lastpfn);
 		free_bootmem_node(node, slot_firstpfn << PAGE_SHIFT, 
