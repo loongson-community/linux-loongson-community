@@ -124,6 +124,41 @@ int get_ethernet_addr(char *ethernet_addr)
 	return 0;
 }
 
+#ifdef CONFIG_SERIAL_8250_CONSOLE
+static void __init console_config(void)
+{
+	char console_string[40];
+	int baud = 0;
+	char parity = '\0', bits = '\0', flow = '\0';
+	char *s;
+
+	if ((strstr(prom_getcmdline(), "console=")) == NULL) {
+		s = prom_getenv("modetty0");
+		if (s) {
+			while (*s >= '0' && *s <= '9')
+				baud = baud*10 + *s++ - '0';
+			if (*s == ',') s++;
+			if (*s) parity = *s++;
+			if (*s == ',') s++;
+			if (*s) bits = *s++;
+			if (*s == ',') s++;
+			if (*s == 'h') flow = 'r';
+		}
+		if (baud == 0)
+			baud = 38400;
+		if (parity != 'n' && parity != 'o' && parity != 'e')
+			parity = 'n';
+		if (bits != '7' && bits != '8')
+			bits = '8';
+		if (flow == '\0')
+			flow = 'r';
+		sprintf (console_string, " console=ttyS0,%d%c%c%c", baud, parity, bits, flow);
+		strcat (prom_getcmdline(), console_string);
+		prom_printf("Config serial console:%s\n", console_string);
+	}
+}
+#endif
+
 int __init prom_init(int argc, char **argv, char **envp)
 {
 	prom_argc = argc;
@@ -210,6 +245,9 @@ int __init prom_init(int argc, char **argv, char **envp)
 	prom_printf("\nLINUX started...\n");
 	prom_init_cmdline();
 	prom_meminit();
+#ifdef CONFIG_SERIAL_8250_CONSOLE
+	console_config();
+#endif
 
 	return 0;
 }

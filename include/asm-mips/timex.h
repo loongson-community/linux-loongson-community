@@ -48,6 +48,12 @@
 #define CLOCK_TICK_RATE		1193182
 #elif defined(CONFIG_SOC_AU1X00)
 #define CLOCK_TICK_RATE         ((HZ * 100000UL) / 2)
+#elif defined(CONFIG_MIPS_ATLAS)
+#define CLOCK_TICK_RATE		1000000
+#elif defined(CONFIG_MIPS_MALTA)
+#define CLOCK_TICK_RATE		1000000
+#elif defined(CONFIG_MIPS_SEAD)
+#define CLOCK_TICK_RATE		1000000
 #endif
 
 /*

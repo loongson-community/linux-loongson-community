@@ -51,11 +51,13 @@ extern asmlinkage void mipsIRQ(void);
 void disable_atlas_irq(unsigned int irq_nr)
 {
 	atlas_hw0_icregs->intrsten = (1 << irq_nr);
+	iob();
 }
 
 void enable_atlas_irq(unsigned int irq_nr)
 {
 	atlas_hw0_icregs->intseten = (1 << irq_nr);
+	iob();
 }
 
 static unsigned int startup_atlas_irq(unsigned int irq)

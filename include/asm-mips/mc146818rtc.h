@@ -56,6 +56,11 @@ rtc_ops->rtc_bcd_mode()
 #define RTC_IOMAPPED	0
 #define RTC_IRQ		0
 
+#elif defined(CONFIG_MIPS_ATLAS)
+
+#define RTC_PORT(x)	(0x70 + (x))
+#define RTC_IRQ		4
+
 #else
 
 #define RTC_PORT(x)	(0x70 + (x))

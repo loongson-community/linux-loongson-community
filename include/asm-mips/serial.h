@@ -78,26 +78,6 @@
 #define JAZZ_SERIAL_PORT_DEFNS
 #endif
 
-#ifdef CONFIG_MIPS_ATLAS
-#include <asm/mips-boards/atlas.h>
-#include <asm/mips-boards/atlasint.h>
-#define ATLAS_SERIAL_PORT_DEFNS			\
-	/* UART CLK   PORT IRQ     FLAGS        */			\
-	{ 0, ATLAS_BASE_BAUD, ATLAS_UART_REGS_BASE, ATLASINT_UART, STD_COM_FLAGS },     /* ttyS0 */
-#else
-#define ATLAS_SERIAL_PORT_DEFNS
-#endif
-
-#ifdef CONFIG_MIPS_SEAD
-#include <asm/mips-boards/sead.h>
-#include <asm/mips-boards/seadint.h>
-#define SEAD_SERIAL_PORT_DEFNS			\
-	/* UART CLK   PORT IRQ     FLAGS        */			\
-	{ 0, SEAD_BASE_BAUD, SEAD_UART0_REGS_BASE, SEADINT_UART0, STD_COM_FLAGS },     /* ttyS0 */
-#else
-#define SEAD_SERIAL_PORT_DEFNS
-#endif
-
 #ifdef CONFIG_MIPS_COBALT
 #include <asm/cobalt/cobalt.h>
 #define COBALT_BASE_BAUD  (18432000 / 16)
@@ -430,8 +410,6 @@
 #define SERIAL_PORT_DFNS				\
 	IVR_SERIAL_PORT_DEFNS           		\
 	ITE_SERIAL_PORT_DEFNS           		\
-	ATLAS_SERIAL_PORT_DEFNS				\
-	SEAD_SERIAL_PORT_DEFNS				\
 	COBALT_SERIAL_PORT_DEFNS			\
 	LASAT_SERIAL_PORT_DEFNS				\
 	EV96100_SERIAL_PORT_DEFNS			\

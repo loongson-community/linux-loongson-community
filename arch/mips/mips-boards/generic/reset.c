@@ -66,7 +66,7 @@ void mips_reboot_setup(void)
 #if defined(CONFIG_MIPS_ATLAS)
 	_machine_power_off = atlas_machine_power_off;
 #endif
-#if defined(CONFIG_MIPS_MALTA)
+#if defined(CONFIG_MIPS_MALTA) || defined(CONFIG_MIPS_SEAD)
 	_machine_power_off = mips_machine_halt;
 #endif
 }

@@ -82,7 +82,7 @@ void __init malta_setup(void)
 	extern char (*generic_getDebugChar)(void);
 #endif
 	char *argptr;
-	int i;
+	unsigned int i;
 
 	/* Request I/O space for devices used on the Malta board. */
 	for (i = 0; i < STANDARD_IO_RESOURCES; i++)
@@ -93,51 +93,13 @@ void __init malta_setup(void)
 	 */
 	enable_dma(4);
 
-#ifdef CONFIG_SERIAL_8250_CONSOLE
-	argptr = prom_getcmdline();
-	if ((argptr = strstr(argptr, "console=")) == NULL) {
-		char console_string[40];
-		int baud = 0;
-		char parity = '\0', bits = '\0', flow = '\0';
-		char *s = prom_getenv("modetty0");
-		if (s) {
-			while (*s >= '0' && *s <= '9')
-				baud = baud*10 + *s++ - '0';
-			if (*s == ',')
-				s++;
-			if (*s)
-				parity = *s++;
-			if (*s == ',')
-				s++;
-			if (*s)
-				bits = *s++;
-			if (*s == ',')
-				s++;
-			if (*s == 'h')
-				flow = 'r';
-		}
-		if (baud == 0)
-			baud = 38400;
-		if (parity != 'n' && parity != 'o' && parity != 'e')
-			parity = 'n';
-		if (bits != '7' && bits != '8')
-			bits = '8';
-		if (flow == '\0')
-			flow = 'r';
-		sprintf (console_string, " console=ttyS0,%d%c%c%c", baud, parity, bits, flow);
-		argptr = prom_getcmdline();
-		strcat (argptr, console_string);
-		prom_printf("Config serial console:%s\n", console_string);
-	}
-#endif
-
 #ifdef CONFIG_KGDB
 	argptr = prom_getcmdline();
 	if ((argptr = strstr(argptr, "kgdb=ttyS")) != NULL) {
 		int line;
 		argptr += strlen("kgdb=ttyS");
 		if (*argptr != '0' && *argptr != '1')
-			printk("KGDB: Uknown serial line /dev/ttyS%c, "
+			printk("KGDB: Unknown serial line /dev/ttyS%c, "
 			       "falling back to /dev/ttyS1\n", *argptr);
 		line = *argptr == '0' ? 0 : 1;
 		printk("KGDB: Using serial line /dev/ttyS%d for session\n",

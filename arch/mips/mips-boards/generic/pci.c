@@ -88,7 +88,7 @@ static void __init malta_fixup(void)
 #endif
 }
 
-void __init pcibios_init(void)
+static int __init pcibios_init(void)
 {
 	printk("PCI: Probing PCI hardware on host bus 0.\n");
 
@@ -127,7 +127,11 @@ void __init pcibios_init(void)
 	}
 
 	malta_fixup();
+
+	return 0;
 }
+
+subsys_initcall(pcibios_init);
 
 /*
  *  Called after each bus is probed, but before its children
