@@ -1,10 +1,8 @@
 /*
- * ip22zilog.c
- *
  * Driver for Zilog serial chips found on SGI workstations and
  * servers.  This driver could actually be made more generic.
  *
- * This is based on the drivers/serial/sunzilog.c code as of 2.5.56 and the
+ * This is based on the drivers/serial/sunzilog.c code as of 2.5.70 and the
  * old drivers/sgi/char/sgiserial.c code which itself is based of the original
  * drivers/sbus/char/zs.c code.  A lot of code has been simply moved over
  * directly from there but much has been rewritten.  Credits therefore go out
@@ -14,7 +12,6 @@
  *  Copyright (C) 2002 Ralf Baechle (ralf@linux-mips.org)
  *  Copyright (C) 2002 David S. Miller (davem@redhat.com)
  */
-
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -256,7 +253,7 @@ static void ip22zilog_receive_chars(struct uart_ip22zilog_port *up,
 				   struct zilog_channel *channel,
 				   struct pt_regs *regs)
 {
-	struct tty_struct *tty = up->port.info->tty;
+	struct tty_struct *tty = up->port.info->tty;	/* XXX info==NULL? */
 
 	while (1) {
 		unsigned char ch, r1;
@@ -264,7 +261,7 @@ static void ip22zilog_receive_chars(struct uart_ip22zilog_port *up,
 		if (unlikely(tty->flip.count >= TTY_FLIPBUF_SIZE)) {
 			tty->flip.work.func((void *)tty);
 			if (tty->flip.count >= TTY_FLIPBUF_SIZE)
-				return;
+				return;		/* XXX Ignores SysRq when we need it most. Fix. */
 		}
 
 		r1 = read_zsreg(channel, R1);
@@ -390,7 +387,7 @@ static void ip22zilog_status_handle(struct uart_ip22zilog_port *up,
 static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 				    struct zilog_channel *channel)
 {
-	struct circ_buf *xmit = &up->port.info->xmit;
+	struct circ_buf *xmit;
 
 	if (ZS_IS_CONS(up)) {
 		unsigned char status = readb(&channel->control);
@@ -408,6 +405,8 @@ static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 			return;
 	}
 
+	up->flags &= ~IP22ZILOG_FLAG_TX_ACTIVE;
+
 	if (ZS_REGS_HELD(up)) {
 		__load_zsregs(channel, up->curregs);
 		up->flags &= ~IP22ZILOG_FLAG_REGS_HELD;
@@ -415,10 +414,11 @@ static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 
 	if (ZS_TX_STOPPED(up)) {
 		up->flags &= ~IP22ZILOG_FLAG_TX_STOPPED;
-		goto disable_tx_int;
+		goto ack_tx_int;
 	}
 
 	if (up->port.x_char) {
+		up->flags |= IP22ZILOG_FLAG_TX_ACTIVE;
 		writeb(up->port.x_char, &channel->data);
 		ZSDELAY();
 		ZS_WSYNC(channel);
@@ -428,9 +428,17 @@ static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 		return;
 	}
 
-	if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port))
-		goto disable_tx_int;
+	if (up->port.info == NULL)
+		goto ack_tx_int;
+	xmit = &up->port.info->xmit;
+	if (uart_circ_empty(xmit)) {
+		uart_write_wakeup(&up->port);
+		goto ack_tx_int;
+	}
+	if (uart_tx_stopped(&up->port))
+		goto ack_tx_int;
 
+	up->flags |= IP22ZILOG_FLAG_TX_ACTIVE;
 	writeb(xmit->buf[xmit->tail], &channel->data);
 	ZSDELAY();
 	ZS_WSYNC(channel);
@@ -441,15 +449,15 @@ static void ip22zilog_transmit_chars(struct uart_ip22zilog_port *up,
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(&up->port);
 
-	if (!uart_circ_empty(xmit))
-		return;
+	return;
 
-disable_tx_int:
-	up->curregs[R5] &= ~TxENAB;
-	write_zsreg(ZILOG_CHANNEL_FROM_PORT(&up->port), R5, up->curregs[R5]);
+ack_tx_int:
+	writeb(RES_Tx_P, &channel->control);
+	ZSDELAY();
+	ZS_WSYNC(channel);
 }
 
-static void ip22zilog_interrupt(int irq, void *dev_id, struct pt_regs *regs)
+static irqreturn_t ip22zilog_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 {
 	struct uart_ip22zilog_port *up = dev_id;
 
@@ -459,7 +467,7 @@ static void ip22zilog_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		unsigned char r3;
 
 		spin_lock(&up->port.lock);
-		r3 = read_zsreg(channel, 3);
+		r3 = read_zsreg(channel, R3);
 
 		/* Channel A */
 		if (r3 & (CHAEXT | CHATxIP | CHARxIP)) {
@@ -497,6 +505,8 @@ static void ip22zilog_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 		up = up->next;
 	}
+
+	return IRQ_HANDLED;
 }
 
 /* A convenient way to quickly get R0 status.  The caller must _not_ hold the
@@ -595,13 +605,6 @@ static void ip22zilog_start_tx(struct uart_port *port, unsigned int tty_start)
 	up->flags |= IP22ZILOG_FLAG_TX_ACTIVE;
 	up->flags &= ~IP22ZILOG_FLAG_TX_STOPPED;
 
-	/* Enable the transmitter.  */
-	if (!(up->curregs[R5] & TxENAB)) {
-		/* NOTE: Not subject to 'transmitter active' rule.  */ 
-		up->curregs[R5] |= TxENAB;
-		write_zsreg(channel, R5, up->curregs[R5]);
-	}
-
 	status = readb(&channel->control);
 	ZSDELAY();
 
@@ -640,6 +643,9 @@ static void ip22zilog_stop_rx(struct uart_port *port)
 	struct uart_ip22zilog_port *up = UART_ZILOG(port);
 	struct zilog_channel *channel;
 	unsigned long flags;
+
+	if (ZS_IS_CONS(up))
+		return;
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -701,38 +707,68 @@ static void ip22zilog_break_ctl(struct uart_port *port, int break_state)
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
-static int ip22zilog_startup(struct uart_port *port)
+static void __ip22zilog_startup(struct uart_ip22zilog_port *up)
 {
-	struct uart_ip22zilog_port *up = UART_ZILOG(port);
 	struct zilog_channel *channel;
-	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
-
-	channel = ZILOG_CHANNEL_FROM_PORT(port);
+	channel = ZILOG_CHANNEL_FROM_PORT(&up->port);
 	up->prev_status = readb(&channel->control);
 
 	/* Enable receiver and transmitter.  */
 	up->curregs[R3] |= RxENAB;
 	up->curregs[R5] |= TxENAB;
 
-	/* Enable RX and status interrupts.  TX interrupts are enabled
-	 * as needed.
-	 */
-	up->curregs[R1] |= EXT_INT_ENAB | INT_ALL_Rx;
-	up->curregs[R9] |= MIE;
+	up->curregs[R1] |= EXT_INT_ENAB | INT_ALL_Rx | TxINT_ENAB;
 	ip22zilog_maybe_update_regs(up, channel);
+}
 
+static int ip22zilog_startup(struct uart_port *port)
+{
+	struct uart_ip22zilog_port *up = UART_ZILOG(port);
+	unsigned long flags;
+
+	if (ZS_IS_CONS(up))
+		return 0;
+
+	spin_lock_irqsave(&port->lock, flags);
+	__ip22zilog_startup(up);
 	spin_unlock_irqrestore(&port->lock, flags);
-
 	return 0;
 }
 
+/*
+ * The test for ZS_IS_CONS is explained by the following e-mail:
+ *****
+ * From: Russell King <rmk@arm.linux.org.uk>
+ * Date: Sun, 8 Dec 2002 10:18:38 +0000
+ *
+ * On Sun, Dec 08, 2002 at 02:43:36AM -0500, Pete Zaitcev wrote:
+ * > I boot my 2.5 boxes using "console=ttyS0,9600" argument,
+ * > and I noticed that something is not right with reference
+ * > counting in this case. It seems that when the console
+ * > is open by kernel initially, this is not accounted
+ * > as an open, and uart_startup is not called.
+ *
+ * That is correct.  We are unable to call uart_startup when the serial
+ * console is initialised because it may need to allocate memory (as
+ * request_irq does) and the memory allocators may not have been
+ * initialised.
+ *
+ * 1. initialise the port into a state where it can send characters in the
+ *    console write method.
+ *
+ * 2. don't do the actual hardware shutdown in your shutdown() method (but
+ *    do the normal software shutdown - ie, free irqs etc)
+ *****
+ */
 static void ip22zilog_shutdown(struct uart_port *port)
 {
 	struct uart_ip22zilog_port *up = UART_ZILOG(port);
 	struct zilog_channel *channel;
 	unsigned long flags;
+
+	if (ZS_IS_CONS(up))
+		return;
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -745,7 +781,6 @@ static void ip22zilog_shutdown(struct uart_port *port)
 	/* Disable all interrupts and BRK assertion.  */
 	up->curregs[R1] &= ~(EXT_INT_ENAB | TxINT_ENAB | RxINT_MASK);
 	up->curregs[R5] &= ~SND_BRK;
-	up->curregs[R9] &= ~MIE;
 	ip22zilog_maybe_update_regs(up, channel);
 
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -759,18 +794,15 @@ ip22zilog_convert_to_zs(struct uart_ip22zilog_port *up, unsigned int cflag,
 		       unsigned int iflag, int brg)
 {
 
-	/* Don't modify MIE. */
-	up->curregs[R9] |= NV;
-
 	up->curregs[R10] = NRZ;
-	up->curregs[11] = TCBR | RCBR;
+	up->curregs[R11] = TCBR | RCBR;
 
 	/* Program BAUD and clock source. */
-	up->curregs[4] &= ~XCLK_MASK;
-	up->curregs[4] |= X16CLK;
-	up->curregs[12] = brg & 0xff;
-	up->curregs[13] = (brg >> 8) & 0xff;
-	up->curregs[14] = BRSRC | BRENAB;
+	up->curregs[R4] &= ~XCLK_MASK;
+	up->curregs[R4] |= X16CLK;
+	up->curregs[R12] = brg & 0xff;
+	up->curregs[R13] = (brg >> 8) & 0xff;
+	up->curregs[R14] = BRSRC | BRENAB;
 
 	/* Character size, stop bits, and parity. */
 	up->curregs[3] &= ~RxN_MASK;
@@ -917,9 +949,9 @@ static struct uart_driver ip22zilog_reg = {
 	.owner		=	THIS_MODULE,
 	.driver_name	=	"ttyS",
 #ifdef CONFIG_DEVFS_FS
-	.dev_name	=	"ttyS%d",
+	.dev_name	=	"tty/",
 #else
-	.dev_name	=	"ttyS%d",
+	.dev_name	=	"tty/",
 #endif
 	.major		=	TTY_MAJOR,
 };
@@ -943,7 +975,7 @@ static void __init ip22zilog_alloc_tables(void)
 		alloc_one_table(NUM_IP22ZILOG * sizeof(struct zilog_layout *));
 
 	if (ip22zilog_port_table == NULL || ip22zilog_chip_regs == NULL) {
-		panic("ip22zilog_init: Cannot alloc IP22-Zilog tables.");
+		panic("IP22-Zilog: Cannot allocate IP22-Zilog tables.");
 	}
 }
 
@@ -1006,11 +1038,6 @@ ip22zilog_console_write(struct console *con, const char *s, unsigned int count)
 	spin_unlock_irqrestore(&up->port.lock, flags);
 }
 
-static kdev_t ip22zilog_console_device(struct console *con)
-{
-	return mk_kdev(ip22zilog_reg.major, ip22zilog_reg.minor + con->index);
-}
-
 void
 ip22serial_console_termios(struct console *con, char *options)
 {
@@ -1062,7 +1089,7 @@ static int __init ip22zilog_console_setup(struct console *con, char *options)
 	unsigned long flags;
 	int baud, brg;
 
-	printk("Console: ttyS%d (Zilog8530)\n",
+	printk("Console: ttyS%d (IP22-Zilog)\n",
 	       (ip22zilog_reg.minor - 64) + con->index);
 
 	/* Get firmware console settings.  */
@@ -1085,21 +1112,14 @@ static int __init ip22zilog_console_setup(struct console *con, char *options)
 
 	brg = BPS_TO_BRG(baud, ZS_CLOCK / ZS_CLOCK_DIVISOR);
 
-	/*
-	 * Temporary fix.
-	 */
-	spin_lock_init(&up->port.lock);
-
 	spin_lock_irqsave(&up->port.lock, flags);
 
 	up->curregs[R15] = BRKIE;
-
 	ip22zilog_convert_to_zs(up, con->cflag, 0, brg);
 
-	spin_unlock_irqrestore(&up->port.lock, flags);
+	__ip22zilog_startup(up);
 
-	ip22zilog_set_mctrl(&up->port, TIOCM_DTR | TIOCM_RTS);
-	ip22zilog_startup(&up->port);
+	spin_unlock_irqrestore(&up->port.lock, flags);
 
 	return 0;
 }
@@ -1107,10 +1127,11 @@ static int __init ip22zilog_console_setup(struct console *con, char *options)
 static struct console ip22zilog_console = {
 	.name	=	"ttyS",
 	.write	=	ip22zilog_console_write,
-	.device	=	ip22zilog_console_device,
+	.device	=	uart_console_device,
 	.setup	=	ip22zilog_console_setup,
 	.flags	=	CON_PRINTBUFFER,
 	.index	=	-1,
+	.data	=	&ip22zilog_reg,
 };
 
 static int __init ip22zilog_console_init(void)
@@ -1139,6 +1160,12 @@ static void __init ip22zilog_prepare(void)
 	struct uart_ip22zilog_port *up;
 	struct zilog_layout *rp;
 	int channel, chip;
+
+	/*
+	 * Temporary fix.
+	 */
+	for (channel = 0; channel < NUM_CHANNELS; channel++)
+		spin_lock_init(&ip22zilog_port_table[channel].port.lock);
 
 	ip22zilog_irq_chain = up = &ip22zilog_port_table[0];
 	for (channel = 0; channel < NUM_CHANNELS - 1; channel++)
@@ -1195,24 +1222,21 @@ static void __init ip22zilog_init_hw(void)
 			(void) read_zsreg(channel, R0);
 		}
 
-		if (ZS_IS_CONS(up)) {
-			/* ip22zilog_console_setup takes care of this */
-		} else {
-			/* Normal serial TTY. */
-			up->parity_mask = 0xff;
-			up->curregs[R4] = PAR_EVEN | X16CLK | SB1;
-			up->curregs[R3] = RxENAB | Rx8;
-			up->curregs[R5] = TxENAB | Tx8;
-			up->curregs[R9] = NV | MIE;
-			up->curregs[R10] = NRZ;
-			up->curregs[R11] = TCBR | RCBR;
-			baud = 9600;
-			brg = BPS_TO_BRG(baud, (ZS_CLOCK / ZS_CLOCK_DIVISOR));
-			up->curregs[R12] = (brg & 0xff);
-			up->curregs[R13] = (brg >> 8) & 0xff;
-			up->curregs[R14] = BRSRC | BRENAB;
-			ip22zilog_maybe_update_regs(up, channel);
-		}
+		/* Normal serial TTY. */
+		up->parity_mask = 0xff;
+		up->curregs[R1] = EXT_INT_ENAB | INT_ALL_Rx | TxINT_ENAB;
+		up->curregs[R4] = PAR_EVEN | X16CLK | SB1;
+		up->curregs[R3] = RxENAB | Rx8;
+		up->curregs[R5] = TxENAB | Tx8;
+		up->curregs[R9] = NV | MIE;
+		up->curregs[R10] = NRZ;
+		up->curregs[R11] = TCBR | RCBR;
+		baud = 9600;
+		brg = BPS_TO_BRG(baud, ZS_CLOCK / ZS_CLOCK_DIVISOR);
+		up->curregs[R12] = (brg & 0xff);
+		up->curregs[R13] = (brg >> 8) & 0xff;
+		up->curregs[R14] = BRSRC | BRENAB;
+		__load_zsregs(channel, up->curregs);
 
 		spin_unlock_irqrestore(&up->port.lock, flags);
 	}
@@ -1283,8 +1307,6 @@ static void __exit ip22zilog_exit(void)
 
 module_init(ip22zilog_init);
 module_exit(ip22zilog_exit);
-
-EXPORT_NO_SYMBOLS;
 
 /* David wrote it but I'm to blame for the bugs ...  */
 MODULE_AUTHOR("Ralf Baechle <ralf@linux-mips.org>");
