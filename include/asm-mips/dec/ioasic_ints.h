@@ -46,10 +46,10 @@
 #define IO_INR_RES_20		20	/* unused */
 
 					/* Maxine */
-#define IO_INR_SCC0B_TXDMA	27	/* SCC0B transmit page end */
-#define IO_INR_SCC0B_TXERR	26	/* SCC0B transmit memory read error */
-#define IO_INR_SCC0B_RXDMA	25	/* SCC0B receive half page */
-#define IO_INR_SCC0B_RXERR	24	/* SCC0B receive overrun */
+#define IO_INR_AB_TXDMA		27	/* ACCESS.bus transmit page end */
+#define IO_INR_AB_TXERR		26	/* ACCESS.bus xmit memory read error */
+#define IO_INR_AB_RXDMA		25	/* ACCESS.bus receive half page */
+#define IO_INR_AB_RXERR		24	/* ACCESS.bus receive overrun */
 #define IO_INR_FLOPPY_ERR	23	/* FDC error */
 #define IO_INR_ISDN_TXDMA	22	/* ISDN xmit buffer pointer loaded */
 #define IO_INR_ISDN_RXDMA	21	/* ISDN recv buffer pointer loaded */

@@ -58,10 +58,10 @@
 #define DEC_IRQ_SCC0A_RXDMA	30	/* SCC0A receive half page */
 #define DEC_IRQ_SCC0A_TXERR	31	/* SCC0A xmit memory read/overrun */
 #define DEC_IRQ_SCC0A_TXDMA	32	/* SCC0A transmit page end */
-#define DEC_IRQ_SCC0B_RXERR	33	/* SCC0B (ACCESS.bus) receive overrun */
-#define DEC_IRQ_SCC0B_RXDMA	34	/* SCC0B receive half page */
-#define DEC_IRQ_SCC0B_TXERR	35	/* SCC0B xmit memory read/overrun */
-#define DEC_IRQ_SCC0B_TXDMA	36	/* SCC0B transmit page end */
+#define DEC_IRQ_AB_RXERR	33	/* ACCESS.bus receive overrun */
+#define DEC_IRQ_AB_RXDMA	34	/* ACCESS.bus receive half page */
+#define DEC_IRQ_AB_TXERR	35	/* ACCESS.bus xmit memory read/ovrn */
+#define DEC_IRQ_AB_TXDMA	36	/* ACCESS.bus transmit page end */
 #define DEC_IRQ_SCC1A_RXERR	37	/* SCC1A (modem) receive overrun */
 #define DEC_IRQ_SCC1A_RXDMA	38	/* SCC1A receive half page */
 #define DEC_IRQ_SCC1A_TXERR	39	/* SCC1A xmit memory read/overrun */
