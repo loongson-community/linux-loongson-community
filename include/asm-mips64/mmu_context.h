@@ -17,6 +17,8 @@
 #include <asm/pgalloc.h>
 #include <asm/processor.h>
 
+extern unsigned long pgd_current[];
+
 #ifndef CONFIG_SMP
 #define CPU_CONTEXT(cpu, mm)	(mm)->context
 #else
@@ -85,7 +87,9 @@ extern inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if ((CPU_CONTEXT(cpu, next) ^ ASID_CACHE(cpu)) & ASID_VERSION_MASK)
 		get_new_cpu_mmu_context(next, cpu);
 
-	set_entryhi(CPU_CONTEXT(cpu, next));
+	set_entryhi(CPU_CONTEXT(cpu, next) & 0xff);
+	set_context((unsigned long) smp_processor_id() << (23 + 3));
+	pgd_current[smp_processor_id()] = next->pgd;
 }
 
 /*
@@ -110,7 +114,9 @@ activate_mm(struct mm_struct *prev, struct mm_struct *next)
 	/* Unconditionally get a new ASID.  */
 	get_new_cpu_mmu_context(next, smp_processor_id());
 
-	set_entryhi(CPU_CONTEXT(smp_processor_id(), next));
+	set_entryhi(CPU_CONTEXT(smp_processor_id(), next) & 0xff);
+	set_context((unsigned long) smp_processor_id() << (23 + 3));
+	pgd_current[smp_processor_id()] = next->pgd;
 }
 
 #endif /* _ASM_MMU_CONTEXT_H */

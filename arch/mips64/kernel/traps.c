@@ -41,9 +41,9 @@ static inline void console_verbose(void)
 		console_loglevel = 15;
 }
 
-extern asmlinkage void __xtlb_mod_debug(void);
-extern asmlinkage void __xtlb_tlbl_debug(void);
-extern asmlinkage void __xtlb_tlbs_debug(void);
+extern asmlinkage void handle_mod(void);
+extern asmlinkage void handle_tlbl(void);
+extern asmlinkage void handle_tlbs(void);
 extern asmlinkage void handle_adel(void);
 extern asmlinkage void handle_ades(void);
 extern asmlinkage void handle_ibe(void);
@@ -471,8 +471,8 @@ static inline void go_64(void)
 
 void __init trap_init(void)
 {
-	extern char __tlb_refill_debug_tramp;
-	extern char __xtlb_refill_debug_tramp;
+	extern char except_vec0;
+	extern char except_vec1_r10k;
 	extern char except_vec2_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern void bus_error_init(void);
@@ -528,8 +528,8 @@ void __init trap_init(void)
 	case CPU_NEVADA:
 r4k:
 		/* Debug TLB refill handler.  */
-		memcpy((void *)KSEG0, &__tlb_refill_debug_tramp, 0x80);
-		memcpy((void *)KSEG0 + 0x080, &__xtlb_refill_debug_tramp, 0x80);
+		memcpy((void *)KSEG0, &except_vec0, 0x80);
+		memcpy((void *)KSEG0 + 0x080, &except_vec1_r10k, 0x80);
 
 		/* Cache error vector  */
 		memcpy((void *)(KSEG0 + 0x100), (void *) KSEG0, 0x80);
@@ -542,9 +542,9 @@ r4k:
 			       0x100);
 		}
 
-		set_except_vector(1, __xtlb_mod_debug);
-		set_except_vector(2, __xtlb_tlbl_debug);
-		set_except_vector(3, __xtlb_tlbs_debug);
+		set_except_vector(1, handle_mod);
+		set_except_vector(2, handle_tlbl);
+		set_except_vector(3, handle_tlbs);
 		set_except_vector(4, handle_adel);
 		set_except_vector(5, handle_ades);
 
