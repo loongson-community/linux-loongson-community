@@ -250,7 +250,11 @@ void aux_interrupt(unsigned char status, unsigned char data)
 
 
 #else /* !defined(CONFIG_SGI) */
+#ifdef CONFIG_MIPS_JAZZ
+void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
+#else
 static void aux_interrupt(int cpl, void *dev_id, struct pt_regs * regs)
+#endif
 {
 	int head = queue->head;
 	int maxhead = (queue->tail-1) & (AUX_BUF_SIZE-1);
@@ -628,7 +632,7 @@ __initfunc(int psaux_init(void))
 		psaux_fops.release = release_qp;
 	} else
 #endif
-#if defined(CONFIG_SGI) && defined(CONFIG_PSMOUSE)
+#if (defined(CONFIG_SGI) || defined(CONFIG_MIPS_JAZZ)) && defined(CONFIG_PSMOUSE)
 	if (1) {
 #else
 	if (aux_device_present == 0xaa) {
