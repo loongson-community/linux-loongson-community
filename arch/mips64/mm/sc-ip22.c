@@ -14,9 +14,7 @@
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/bootinfo.h>
-#include <asm/mmu_context.h>
-#include <asm/sgialib.h>
-#include <asm/sgi/sgi.h>
+#include <asm/sgi/ip22.h>
 #include <asm/sgi/mc.h>
 
 /* Secondary cache size in bytes, if present.  */
@@ -149,60 +147,14 @@ static void indy_sc_disable(void)
 
 static inline int __init indy_sc_probe(void)
 {
-	volatile unsigned int *cpu_control;
-	unsigned short cmd = 0xc220;
-	unsigned long data = 0;
-	int i, n;
-
-#ifdef __MIPSEB__
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00034);
-#else
-	cpu_control = (volatile unsigned int *) KSEG1ADDR(0x1fa00030);
-#endif
-#define DEASSERT(bit) (*(cpu_control) &= (~(bit)))
-#define ASSERT(bit) (*(cpu_control) |= (bit))
-#define DELAY  for(n = 0; n < 100000; n++) __asm__ __volatile__("")
-	DEASSERT(SGIMC_EEPROM_PRE);
-	DEASSERT(SGIMC_EEPROM_SDATAO);
-	DEASSERT(SGIMC_EEPROM_SECLOCK);
-	DEASSERT(SGIMC_EEPROM_PRE);
-	DELAY;
-	ASSERT(SGIMC_EEPROM_CSEL); ASSERT(SGIMC_EEPROM_SECLOCK);
-	for(i = 0; i < 11; i++) {
-		if(cmd & (1<<15))
-			ASSERT(SGIMC_EEPROM_SDATAO);
-		else
-			DEASSERT(SGIMC_EEPROM_SDATAO);
-		DEASSERT(SGIMC_EEPROM_SECLOCK);
-		ASSERT(SGIMC_EEPROM_SECLOCK);
-		cmd <<= 1;
-	}
-	DEASSERT(SGIMC_EEPROM_SDATAO);
-	for(i = 0; i < (sizeof(unsigned short) * 8); i++) {
-		unsigned int tmp;
-
-		DEASSERT(SGIMC_EEPROM_SECLOCK);
-		DELAY;
-		ASSERT(SGIMC_EEPROM_SECLOCK);
-		DELAY;
-		data <<= 1;
-		tmp = *cpu_control;
-		if(tmp & SGIMC_EEPROM_SDATAI)
-			data |= 1;
-	}
-	DEASSERT(SGIMC_EEPROM_SECLOCK);
-	DEASSERT(SGIMC_EEPROM_CSEL);
-	ASSERT(SGIMC_EEPROM_PRE);
-	ASSERT(SGIMC_EEPROM_SECLOCK);
-
-	data <<= PAGE_SHIFT;
-	if (data == 0)
+	unsigned int size = ip22_eeprom_read(&sgimc->eeprom, 17);
+	if (size == 0)
 		return 0;
 
-	scache_size = data;
-
+	size <<= PAGE_SHIFT;
 	printk(KERN_INFO "R4600/R5000 SCACHE size %ldK, linesize 32 bytes.\n",
-	       scache_size >> 10);
+	       size >> 10);
+	scache_size = size;
 
 	return 1;
 }
