@@ -6,6 +6,7 @@
 .tmpconfig
 .tmpconfig.h
 .version
+.vmlinux.cmd
 System.map
 vmlinux
 vmlinux.64
