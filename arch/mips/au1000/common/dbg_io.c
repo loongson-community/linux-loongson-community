@@ -53,8 +53,8 @@ typedef         unsigned int  uint32;
 #define UART_MOD_CNTRL	0x100	/* Module Control */
 
 /* memory-mapped read/write of the port */
-#define UART16550_READ(y)    (readl(DEBUG_BASE + y) & 0xff)
-#define UART16550_WRITE(y,z) (writel(z&0xff, DEBUG_BASE + y))
+#define UART16550_READ(y)    (au_readl(DEBUG_BASE + y) & 0xff)
+#define UART16550_WRITE(y,z) (au_writel(z&0xff, DEBUG_BASE + y))
 
 extern unsigned long get_au1000_uart_baud_base(void);
 extern unsigned long cal_r4koff(void);

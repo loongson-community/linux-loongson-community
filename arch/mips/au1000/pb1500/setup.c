@@ -133,8 +133,8 @@ void __init au1500_setup(void)
 #endif
 
 	// set AUX clock to 12MHz * 8 = 96 MHz
-	writel(8, SYS_AUXPLL);
-	outl(0, SYS_PINSTATERD);
+	au_writel(8, SYS_AUXPLL);
+	au_writel(0, SYS_PINSTATERD);
 	udelay(100);
 
 #if defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
@@ -150,24 +150,24 @@ void __init au1500_setup(void)
 #endif
 
 	/* zero and disable FREQ2 */
-	sys_freqctrl = readl(SYS_FREQCTRL0);
+	sys_freqctrl = au_readl(SYS_FREQCTRL0);
 	sys_freqctrl &= ~0xFFF00000;
-	writel(sys_freqctrl, SYS_FREQCTRL0);
+	au_writel(sys_freqctrl, SYS_FREQCTRL0);
 
 	/* zero and disable USBH/USBD clocks */
-	sys_clksrc = readl(SYS_CLKSRC);
+	sys_clksrc = au_readl(SYS_CLKSRC);
 	sys_clksrc &= ~0x00007FE0;
-	writel(sys_clksrc, SYS_CLKSRC);
+	au_writel(sys_clksrc, SYS_CLKSRC);
 
-	sys_freqctrl = readl(SYS_FREQCTRL0);
+	sys_freqctrl = au_readl(SYS_FREQCTRL0);
 	sys_freqctrl &= ~0xFFF00000;
 
-	sys_clksrc = readl(SYS_CLKSRC);
+	sys_clksrc = au_readl(SYS_CLKSRC);
 	sys_clksrc &= ~0x00007FE0;
 
 	// FREQ2 = aux/2 = 48 MHz
 	sys_freqctrl |= ((0<<22) | (1<<21) | (1<<20));
-	writel(sys_freqctrl, SYS_FREQCTRL0);
+	au_writel(sys_freqctrl, SYS_FREQCTRL0);
 
 	/*
 	 * Route 48MHz FREQ2 into USB Host and/or Device
@@ -178,28 +178,28 @@ void __init au1500_setup(void)
 #ifdef CONFIG_AU1000_USB_DEVICE
 	sys_clksrc |= ((4<<7) | (0<<6) | (0<<5));
 #endif
-	writel(sys_clksrc, SYS_CLKSRC);
+	au_writel(sys_clksrc, SYS_CLKSRC);
 
 
-	pin_func = readl(SYS_PINFUNC) & (u32)(~0x8000);
+	pin_func = au_readl(SYS_PINFUNC) & (u32)(~0x8000);
 #ifndef CONFIG_AU1000_USB_DEVICE
 	// 2nd USB port is USB host
 	pin_func |= 0x8000;
 #endif
-	writel(pin_func, SYS_PINFUNC);
+	au_writel(pin_func, SYS_PINFUNC);
 #endif // defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1000_USB_DEVICE)
 
 
 #ifdef CONFIG_USB_OHCI
 	// enable host controller and wait for reset done
-	writel(0x08, USB_HOST_CONFIG);
+	au_writel(0x08, USB_HOST_CONFIG);
 	udelay(1000);
-	writel(0x0c, USB_HOST_CONFIG);
+	au_writel(0x0c, USB_HOST_CONFIG);
 	udelay(1000);
-	readl(USB_HOST_CONFIG);
-	while (!(readl(USB_HOST_CONFIG) & 0x10))
+	au_readl(USB_HOST_CONFIG);
+	while (!(au_readl(USB_HOST_CONFIG) & 0x10))
 	    ;
-	readl(USB_HOST_CONFIG);
+	au_readl(USB_HOST_CONFIG);
 #endif
 	
 #ifdef CONFIG_FB
@@ -215,9 +215,9 @@ void __init au1500_setup(void)
 
 #ifndef CONFIG_SERIAL_NONSTANDARD
 	/* don't touch the default serial console */
-	writel(0, UART0_ADDR + UART_CLK);
+	au_writel(0, UART0_ADDR + UART_CLK);
 #endif
-	writel(0, UART3_ADDR + UART_CLK);
+	au_writel(0, UART3_ADDR + UART_CLK);
 
 #ifdef CONFIG_BLK_DEV_IDE
 	ide_ops = &std_ide_ops;
@@ -225,25 +225,25 @@ void __init au1500_setup(void)
 
 #ifdef CONFIG_PCI
 	// Setup PCI bus controller
-	writel(0, Au1500_PCI_CMEM);
-	writel(0x00003fff, Au1500_CFG_BASE);
-	writel(0xf, Au1500_PCI_CFG);
-	writel(0xf0000000, Au1500_PCI_MWMASK_DEV);
-	writel(0, Au1500_PCI_MWBASE_REV_CCL);
-	writel(0x02a00356, Au1500_PCI_STATCMD);
-	writel(0x00003c04, Au1500_PCI_HDRTYPE);	
-	writel(0x00000008, Au1500_PCI_MBAR);
+	au_writel(0, Au1500_PCI_CMEM);
+	au_writel(0x00003fff, Au1500_CFG_BASE);
+	au_writel(0xf, Au1500_PCI_CFG);
+	au_writel(0xf0000000, Au1500_PCI_MWMASK_DEV);
+	au_writel(0, Au1500_PCI_MWBASE_REV_CCL);
+	au_writel(0x02a00356, Au1500_PCI_STATCMD);
+	au_writel(0x00003c04, Au1500_PCI_HDRTYPE);	
+	au_writel(0x00000008, Au1500_PCI_MBAR);
 	au_sync();
 #endif
 
-	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
-	writel(SYS_CNTRL_E0 | SYS_CNTRL_EN0, SYS_COUNTER_CNTRL);
+	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
+	au_writel(SYS_CNTRL_E0 | SYS_CNTRL_EN0, SYS_COUNTER_CNTRL);
 	au_sync();
-	while (readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
-	outl(0, SYS_TOYTRIM);
+	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_T0S);
+	au_writel(0, SYS_TOYTRIM);
 
 	/* Enable BCLK switching */
-	writel(0x00000060, 0xb190003c);
+	au_writel(0x00000060, 0xb190003c);
 
 #ifdef CONFIG_RTC
 	rtc_ops = &pb1500_rtc_ops;

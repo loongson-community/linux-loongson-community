@@ -53,22 +53,34 @@ void static inline au_sync_delay(int ms)
 	mdelay(ms);
 }
 
-void static inline outb_sync(u8 val, int reg)
+void static inline au_writeb(u8 val, int reg)
 {
-	outb(val, reg);
-	au_sync();
+	*(volatile u8 *)(reg) = val;
 }
 
-void static inline outw_sync(u16 val, int reg)
+void static inline au_writew(u16 val, int reg)
 {
-	outw(val, reg);
-	au_sync();
+	*(volatile u16 *)(reg) = val;
 }
 
-void static inline outl_sync(u32 val, int reg)
+void static inline au_writel(u32 val, int reg)
 {
-	outl(val, reg);
-	au_sync();
+	*(volatile u32 *)(reg) = val;
+}
+
+static inline u8 au_readb(unsigned long port)
+{
+	return (*(volatile u8 *)port);
+}
+
+static inline u16 au_readw(unsigned long port)
+{
+	return (*(volatile u16 *)port);
+}
+
+static inline u32 au_readl(unsigned long port)
+{
+	return (*(volatile u32 *)port);
 }
 
 /* arch/mips/au1000/common/clocks.c */

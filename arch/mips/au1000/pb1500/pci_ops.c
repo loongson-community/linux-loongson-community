@@ -110,9 +110,9 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	}
 #endif
 
-	writel(((0x2000 << 16) | (readl(Au1500_PCI_STATCMD) & 0xffff)),
+	au_writel(((0x2000 << 16) | (au_readl(Au1500_PCI_STATCMD) & 0xffff)),
 			Au1500_PCI_STATCMD);
-	//writel(readl(Au1500_PCI_CFG) & ~PCI_ERROR, Au1500_PCI_CFG);
+	//au_writel(au_readl(Au1500_PCI_CFG) & ~PCI_ERROR, Au1500_PCI_CFG);
 	au_sync_udelay(1);
 
 	/* setup the lower 31 bits of the 36 bit address */
@@ -125,9 +125,9 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 #endif
 
 	if (access_type == PCI_ACCESS_WRITE) {
-		writel(*data, config);
+		au_writel(*data, config);
 	} else {
-		*data = readl(config);
+		*data = au_readl(config);
 	}
 	au_sync_udelay(1);
 
@@ -135,7 +135,7 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 			access_type, bus, device, where, *data, config);
 
 	/* check master abort */
-	status = readl(Au1500_PCI_STATCMD);
+	status = au_readl(Au1500_PCI_STATCMD);
 	if (status & (1<<29)) { 
 		*data = 0xffffffff;
 		return -1;

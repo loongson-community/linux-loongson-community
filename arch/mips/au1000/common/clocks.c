@@ -75,9 +75,9 @@ void set_au1000_lcd_clock(void)
 	unsigned int static_cfg0;
 	unsigned int sys_busclk =
 		(get_au1000_speed()/1000) /
-		((int)(inl(SYS_POWERCTRL)&0x03) + 2);
+		((int)(au_readl(SYS_POWERCTRL)&0x03) + 2);
 
-	static_cfg0 = inl(MEM_STCFG0);
+	static_cfg0 = au_readl(MEM_STCFG0);
 
 	if (static_cfg0 & (1<<11))
 		lcd_clock = sys_busclk / 5; /* note: BCLK switching fails with D5 */

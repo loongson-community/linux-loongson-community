@@ -55,14 +55,14 @@ static int pb1000_pcmcia_init(struct pcmcia_init *init)
 	u32 pcr;
 	pcr = PCR_SLOT_0_RST | PCR_SLOT_1_RST;
 
-	writel(0x8000, PB1000_MDR); /* clear pcmcia interrupt */
+	au_writel(0x8000, PB1000_MDR); /* clear pcmcia interrupt */
 	au_sync_delay(100);
-	writel(0x4000, PB1000_MDR); /* enable pcmcia interrupt */
+	au_writel(0x4000, PB1000_MDR); /* enable pcmcia interrupt */
 	au_sync();
 
 	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,0);
 	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,1);
-	writew(pcr, PB1000_PCR);
+	au_writew(pcr, PB1000_PCR);
 	au_sync_delay(20);
 	  
 	/* There's two sockets, but only the first one, 0, is used and tested */
@@ -75,7 +75,7 @@ static int pb1000_pcmcia_shutdown(void)
 	pcr = PCR_SLOT_0_RST | PCR_SLOT_1_RST;
 	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,0);
 	pcr |= SET_VCC_VPP(VCC_HIZ,VPP_HIZ,1);
-	writew(pcr, PB1000_PCR);
+	au_writew(pcr, PB1000_PCR);
 	au_sync_delay(20);
 	return 0;
 }
@@ -86,8 +86,8 @@ pb1000_pcmcia_socket_state(unsigned sock, struct pcmcia_state *state)
 	u16 levels, pcr;
 	unsigned char vs;
 
-	levels = readw(PB1000_ACR1);
-	pcr = readw(PB1000_PCR);
+	levels = au_readw(PB1000_ACR1);
+	pcr = au_readw(PB1000_PCR);
 
 	state->ready = 0;
 	state->vs_Xv = 0;
@@ -170,7 +170,7 @@ pb1000_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 
 	if(configure->sock > PCMCIA_MAX_SOCK) return -1;
 
-	pcr = readw(PB1000_PCR);
+	pcr = au_readw(PB1000_PCR);
 
 	if (configure->sock == 0) {
 		pcr &= ~(PCR_SLOT_0_VCC0 | PCR_SLOT_0_VCC1 | 
@@ -183,7 +183,7 @@ pb1000_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 
 	pcr &= ~PCR_SLOT_0_RST;
 	/*
-	writew(pcr, PB1000_PCR);
+	au_writew(pcr, PB1000_PCR);
 	au_sync_delay(200);
 	*/
 	DEBUG(KERN_INFO "Vcc %dV Vpp %dV, pcr %x\n", 
@@ -284,7 +284,7 @@ pb1000_pcmcia_configure_socket(const struct pcmcia_configure *configure)
 	if (configure->reset) {
 		pcr |= PCR_SLOT_0_RST;
 	}
-	writew(pcr, PB1000_PCR);
+	au_writew(pcr, PB1000_PCR);
 	au_sync_delay(300);
 	return 0;
 }

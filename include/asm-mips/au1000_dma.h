@@ -145,21 +145,21 @@ static __inline__ void enable_dma_buffer0(unsigned int dmanr)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(DMA_BE0, chan->io + DMA_MODE_SET);
+	au_writel(DMA_BE0, chan->io + DMA_MODE_SET);
 }
 static __inline__ void enable_dma_buffer1(unsigned int dmanr)
 {
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(DMA_BE1, chan->io + DMA_MODE_SET);
+	au_writel(DMA_BE1, chan->io + DMA_MODE_SET);
 }
 static __inline__ void enable_dma_buffers(unsigned int dmanr)
 {
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(DMA_BE0 | DMA_BE1, chan->io + DMA_MODE_SET);
+	au_writel(DMA_BE0 | DMA_BE1, chan->io + DMA_MODE_SET);
 }
 
 /* enable/disable a specific DMA channel */
@@ -170,10 +170,10 @@ static __inline__ void enable_dma(unsigned int dmanr)
 		return;
 
 	// set device FIFO address
-	outl_sync(virt_to_phys((void *) chan->fifo_addr),
+	au_writel(virt_to_phys((void *) chan->fifo_addr),
 		  chan->io + DMA_PERIPHERAL_ADDR);
 
-	outl_sync(chan->
+	au_writel(chan->
 		  mode | (chan->dev_id << DMA_DID_BIT) | DMA_IE | DMA_GO,
 		  chan->io + DMA_MODE_SET);
 }
@@ -187,17 +187,17 @@ static __inline__ void disable_dma(unsigned int dmanr)
 	if (!chan)
 		return;
 
-	outl_sync(DMA_D1 | DMA_D0 | DMA_GO, chan->io + DMA_MODE_CLEAR);
+	au_writel(DMA_D1 | DMA_D0 | DMA_GO, chan->io + DMA_MODE_CLEAR);
 
 	// poll the halt bit
 	for (i = 0; i < DMA_HALT_POLL; i++)
-		if (inl(chan->io + DMA_MODE_SET) & DMA_HALT)
+		if (au_readl(chan->io + DMA_MODE_SET) & DMA_HALT)
 			break;
 	if (i == DMA_HALT_POLL) {
 		printk(KERN_INFO "disable_dma: HALT poll expired!\n");
 	} else {
 		// now we can disable the buffers
-		outl_sync(~DMA_GO, chan->io + DMA_MODE_CLEAR);
+		au_writel(~DMA_GO, chan->io + DMA_MODE_CLEAR);
 	}
 }
 
@@ -224,7 +224,7 @@ static __inline__ int get_dma_active_buffer(unsigned int dmanr)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return -1;
-	return (inl(chan->io + DMA_MODE_SET) & DMA_AB) ? 1 : 0;
+	return (au_readl(chan->io + DMA_MODE_SET) & DMA_AB) ? 1 : 0;
 }
 
 
@@ -243,7 +243,7 @@ static __inline__ void set_dma_fifo_addr(unsigned int dmanr,
 	if (chan->dev_id != DMA_ID_GP04 && chan->dev_id != DMA_ID_GP05)
 		return;
 
-	outl_sync(virt_to_phys((void *) a),
+	au_writel(virt_to_phys((void *) a),
 		  chan->io + DMA_PERIPHERAL_ADDR);
 }
 
@@ -255,14 +255,14 @@ static __inline__ void clear_dma_done0(unsigned int dmanr)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(DMA_D0, chan->io + DMA_MODE_CLEAR);
+	au_writel(DMA_D0, chan->io + DMA_MODE_CLEAR);
 }
 static __inline__ void clear_dma_done1(unsigned int dmanr)
 {
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(DMA_D1, chan->io + DMA_MODE_CLEAR);
+	au_writel(DMA_D1, chan->io + DMA_MODE_CLEAR);
 }
 
 /*
@@ -280,7 +280,7 @@ static __inline__ void set_dma_addr0(unsigned int dmanr, unsigned int a)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(a, chan->io + DMA_BUFFER0_START);
+	au_writel(a, chan->io + DMA_BUFFER0_START);
 }
 
 /*
@@ -291,7 +291,7 @@ static __inline__ void set_dma_addr1(unsigned int dmanr, unsigned int a)
 	struct dma_chan *chan = get_dma_chan(dmanr);
 	if (!chan)
 		return;
-	outl_sync(a, chan->io + DMA_BUFFER1_START);
+	au_writel(a, chan->io + DMA_BUFFER1_START);
 }
 
 
@@ -305,7 +305,7 @@ static __inline__ void set_dma_count0(unsigned int dmanr,
 	if (!chan)
 		return;
 	count &= DMA_COUNT_MASK;
-	outl_sync(count, chan->io + DMA_BUFFER0_COUNT);
+	au_writel(count, chan->io + DMA_BUFFER0_COUNT);
 }
 
 /*
@@ -318,7 +318,7 @@ static __inline__ void set_dma_count1(unsigned int dmanr,
 	if (!chan)
 		return;
 	count &= DMA_COUNT_MASK;
-	outl_sync(count, chan->io + DMA_BUFFER1_COUNT);
+	au_writel(count, chan->io + DMA_BUFFER1_COUNT);
 }
 
 /*
@@ -331,8 +331,8 @@ static __inline__ void set_dma_count(unsigned int dmanr,
 	if (!chan)
 		return;
 	count &= DMA_COUNT_MASK;
-	outl_sync(count, chan->io + DMA_BUFFER0_COUNT);
-	outl_sync(count, chan->io + DMA_BUFFER1_COUNT);
+	au_writel(count, chan->io + DMA_BUFFER0_COUNT);
+	au_writel(count, chan->io + DMA_BUFFER1_COUNT);
 }
 
 /*
@@ -345,7 +345,7 @@ static __inline__ unsigned int get_dma_buffer_done(unsigned int dmanr)
 	if (!chan)
 		return 0;
 
-    return inl(chan->io + DMA_MODE_SET) & (DMA_D0 | DMA_D1);
+    return au_readl(chan->io + DMA_MODE_SET) & (DMA_D0 | DMA_D1);
 }
 
 
@@ -371,10 +371,10 @@ static __inline__ int get_dma_residue(unsigned int dmanr)
 	if (!chan)
 		return 0;
 
-	curBufCntReg = (inl(chan->io + DMA_MODE_SET) & DMA_AB) ?
+	curBufCntReg = (au_readl(chan->io + DMA_MODE_SET) & DMA_AB) ?
 	    DMA_BUFFER1_COUNT : DMA_BUFFER0_COUNT;
 
-	count = inl(chan->io + curBufCntReg) & DMA_COUNT_MASK;
+	count = au_readl(chan->io + curBufCntReg) & DMA_COUNT_MASK;
 
 	if ((chan->mode & DMA_DW_MASK) == DMA_DW16)
 		count <<= 1;

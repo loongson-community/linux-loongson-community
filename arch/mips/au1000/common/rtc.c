@@ -15,13 +15,13 @@
 static unsigned char std_rtc_read_data(unsigned long addr)
 {
 	addr <<= 2;
-	return readb(addr + PB1500_RTC_ADDR);
+:	return (u8)(au_readl(addr + PB1500_RTC_ADDR) & 0xff);
 }
 
 static void std_rtc_write_data(unsigned char data, unsigned long addr)
 {
 	addr <<= 2;
-	writeb(data, addr + PB1500_RTC_ADDR);
+	au_writel(data, addr + PB1500_RTC_ADDR);
 }
 
 static int std_rtc_bcd_mode(void)

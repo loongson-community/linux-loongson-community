@@ -164,9 +164,9 @@ static int __init au1000_pcmcia_driver_init(void)
 
 	/* setup the static bus controller */
 	timing3 = 0x100e3a07;
-	writel(0x00000002, MEM_STCFG3);  /* type = PCMCIA */
-	writel(timing3, MEM_STTIME3); 
-	writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
+	au_writel(0x00000002, MEM_STCFG3);  /* type = PCMCIA */
+	au_writel(timing3, MEM_STTIME3); 
+	au_writel(0x10000000, MEM_STADDR3); /* any PCMCIA select */
 	au_sync_delay(1);
 
 	pcmcia_socket = 

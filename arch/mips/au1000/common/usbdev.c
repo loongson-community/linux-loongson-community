@@ -537,14 +537,13 @@ flush_pkt_list(endpoint_t * ep, pkt_list_t * list)
 		free_packet(ep, list);
 }
 
-
 static inline void
 flush_write_fifo(endpoint_t * ep)
 {
 	if (ep->reg->write_fifo_status >= 0) {
-		outl_sync(USBDEV_FSTAT_FLUSH, ep->reg->write_fifo_status);
+		au_writel(USBDEV_FSTAT_FLUSH, ep->reg->write_fifo_status);
 		udelay(100);
-		outl_sync(USBDEV_FSTAT_UF | USBDEV_FSTAT_OF,
+		au_writel(USBDEV_FSTAT_UF | USBDEV_FSTAT_OF,
 			  ep->reg->write_fifo_status);
 	}
 }
@@ -554,9 +553,9 @@ static inline void
 flush_read_fifo(endpoint_t * ep)
 {
 	if (ep->reg->read_fifo_status >= 0) {
-		outl_sync(USBDEV_FSTAT_FLUSH, ep->reg->read_fifo_status);
+		au_writel(USBDEV_FSTAT_FLUSH, ep->reg->read_fifo_status);
 		udelay(100);
-		outl_sync(USBDEV_FSTAT_UF | USBDEV_FSTAT_OF,
+		au_writel(USBDEV_FSTAT_UF | USBDEV_FSTAT_OF,
 			  ep->reg->read_fifo_status);
 	}
 }
@@ -591,8 +590,8 @@ endpoint_stall(endpoint_t * ep)
 
 	spin_lock_irqsave(&ep->lock, flags);
 
-	cs = inl(ep->reg->ctrl_stat) | USBDEV_CS_STALL;
-	outl_sync(cs, ep->reg->ctrl_stat);
+	cs = au_readl(ep->reg->ctrl_stat) | USBDEV_CS_STALL;
+	au_writel(cs, ep->reg->ctrl_stat);
 
 	spin_unlock_irqrestore(&ep->lock, flags);
 }
@@ -607,8 +606,8 @@ endpoint_unstall(endpoint_t * ep)
 
 	spin_lock_irqsave(&ep->lock, flags);
 
-	cs = inl(ep->reg->ctrl_stat) & ~USBDEV_CS_STALL;
-	outl_sync(cs, ep->reg->ctrl_stat);
+	cs = au_readl(ep->reg->ctrl_stat) & ~USBDEV_CS_STALL;
+	au_writel(cs, ep->reg->ctrl_stat);
 
 	spin_unlock_irqrestore(&ep->lock, flags);
 }
@@ -635,8 +634,8 @@ endpoint_fifo_read(endpoint_t * ep)
 	spin_lock_irqsave(&ep->lock, flags);
 
 	bufptr = pkt->bufptr;
-	while (inl(ep->reg->read_fifo_status) & USBDEV_FSTAT_FCNT_MASK) {
-		*bufptr++ = inl(ep->reg->read_fifo) & 0xff;
+	while (au_readl(ep->reg->read_fifo_status) & USBDEV_FSTAT_FCNT_MASK) {
+		*bufptr++ = au_readl(ep->reg->read_fifo) & 0xff;
 		read_count++;
 		pkt->size++;
 	}
@@ -661,10 +660,10 @@ endpoint_fifo_write(endpoint_t * ep)
 	spin_lock_irqsave(&ep->lock, flags);
 
 	bufptr = pkt->bufptr;
-	while ((inl(ep->reg->write_fifo_status) & USBDEV_FSTAT_FCNT_MASK) <
+	while ((au_readl(ep->reg->write_fifo_status) & USBDEV_FSTAT_FCNT_MASK) <
 	       EP_FIFO_DEPTH) {
 		if (bufptr < pkt->buf + pkt->size) {
-			outl_sync(*bufptr++, ep->reg->write_fifo);
+			au_writel(*bufptr++, ep->reg->write_fifo);
 			write_count++;
 		} else {
 			break;
@@ -698,9 +697,9 @@ kickstart_send_packet(endpoint_t * ep)
 	 * working right, but flush it anyway just in case.
 	 */
 	flush_write_fifo(ep);
-	cs = inl(ep->reg->ctrl_stat) & USBDEV_CS_STALL;
+	cs = au_readl(ep->reg->ctrl_stat) & USBDEV_CS_STALL;
 	cs |= (pkt->size << USBDEV_CS_TSIZE_BIT);
-	outl_sync(cs, ep->reg->ctrl_stat);
+	au_writel(cs, ep->reg->ctrl_stat);
 #ifdef USBDEV_PIO
 	endpoint_fifo_write(ep);
 #else
@@ -731,7 +730,7 @@ send_packet_complete(endpoint_t * ep)
 		dbg(__FUNCTION__ ": pkt=%p, ab=%d",
 		    ep->inlist.head, get_dma_active_buffer(ep->indma));
 
-	outl_sync(inl(ep->reg->ctrl_stat) & USBDEV_CS_STALL,
+	au_writel(au_readl(ep->reg->ctrl_stat) & USBDEV_CS_STALL,
 		  ep->reg->ctrl_stat);
 	//disable_dma(ep->indma);
 	free_packet(ep, &ep->inlist);
@@ -1084,7 +1083,7 @@ process_complete (struct usb_serial* serial, int fifo_num)
 	pkt_t *pkt = 0;
 	u32 cs;
 
-	cs = inl(ep->reg->ctrl_stat);
+	cs = au_readl(ep->reg->ctrl_stat);
 
 	switch (fifo_num) {
 	case 0:
@@ -1151,8 +1150,8 @@ req_sus_intr (int irq, void *dev_id, struct pt_regs *regs)
 	int i;
 	u32 status;
 
-	status = inl(USB_DEV_INT_STATUS);
-	outl_sync(status, USB_DEV_INT_STATUS);	// ack'em
+	status = au_readl(USB_DEV_INT_STATUS);
+	au_writel(status, USB_DEV_INT_STATUS);	// ack'em
 
 #ifdef USBDEV_PIO
 	for (i = 0; i < 6; i++) {
@@ -1181,7 +1180,7 @@ dma_done_ctrl(struct usb_serial* serial)
 	u32 cs0, buff_done;
 
 	spin_lock(&ep->lock);
-	cs0 = inl(ep->reg->ctrl_stat);
+	cs0 = au_readl(ep->reg->ctrl_stat);
 
 	// first check packet transmit done
 	if ((buff_done = get_dma_buffer_done(ep->indma)) != 0) {
@@ -1602,8 +1601,8 @@ void usbdev_serial_exit(void)
 	endpoint_t *ep;
 	int i;
 
-	outl_sync(0, USB_DEV_INT_ENABLE);	// disable usb dev ints
-	outl_sync(0, USB_DEV_ENABLE);	// disable usb dev
+	au_writel(0, USB_DEV_INT_ENABLE);	// disable usb dev ints
+	au_writel(0, USB_DEV_ENABLE);	// disable usb dev
 
 	// first free all control endpoint resources
 	ep = &usbserial.ep_ctrl;
@@ -1805,12 +1804,12 @@ int usbdev_serial_init(void)
 	}
 
 	// enable device controller
-	outl_sync(0x0002, USB_DEV_ENABLE);
+	au_writel(0x0002, USB_DEV_ENABLE);
 	udelay(100);
-	outl_sync(0x0003, USB_DEV_ENABLE);
+	au_writel(0x0003, USB_DEV_ENABLE);
 	udelay(100);
 	for (i = 0; i < sizeof(au1000_config_table) / sizeof(u32); ++i)
-		outl_sync(au1000_config_table[i], USB_DEV_CONFIG);
+		au_writel(au1000_config_table[i], USB_DEV_CONFIG);
 
 	// Flush the endpoint buffers and FIFOs
 	ep = &usbserial.ep_ctrl;
@@ -1830,7 +1829,7 @@ int usbdev_serial_init(void)
 	 * Enable Receive FIFO Complete interrupts only. Transmit
 	 * complete is being handled by the DMA done interrupts.
 	 */
-	outl_sync(0x31, USB_DEV_INT_ENABLE);
+	au_writel(0x31, USB_DEV_INT_ENABLE);
 
 	return 0;
 

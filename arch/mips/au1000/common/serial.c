@@ -238,15 +238,14 @@ static inline int serial_paranoia_check(struct async_struct *info,
 	return 0;
 }
 
-
 static _INLINE_ unsigned int serial_in(struct async_struct *info, int offset)
 {
-	return (inl(info->port+offset) & 0xffff);
+	return (au_readl(info->port+offset) & 0xffff);
 }
 
 static _INLINE_ void serial_out(struct async_struct *info, int offset, int value)
 {
-	outl(value & 0xffff, info->port+offset);
+	au_writel(value & 0xffff, info->port+offset);
 }
 
 
@@ -750,8 +749,8 @@ static int startup(struct async_struct * info)
 		info->xmit.buf = (unsigned char *) page;
 
 
-	if (inl(UART_MOD_CNTRL + state->port) != 0x3) {
-		outl(3, UART_MOD_CNTRL + state->port);
+	if (au_readl(UART_MOD_CNTRL + state->port) != 0x3) {
+		au_writel(3, UART_MOD_CNTRL + state->port);
 		au_sync_delay(10);
 	}
 #ifdef SERIAL_DEBUG_OPEN
@@ -988,7 +987,7 @@ static void shutdown(struct async_struct * info)
 
 	info->flags &= ~ASYNC_INITIALIZED;
 #ifndef CONFIG_REMOTE_DEBUG
-	outl(0, UART_MOD_CNTRL + state->port);
+	au_writel(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
 #endif
 	restore_flags(flags);
@@ -2515,8 +2514,8 @@ static void autoconfig(struct serial_state * state)
 	if (!CONFIGURED_SERIAL_PORT(state))
 		return;
 
-	if (inl(UART_MOD_CNTRL + state->port) != 0x3) {
-		outl(3, UART_MOD_CNTRL + state->port);
+	if (au_readl(UART_MOD_CNTRL + state->port) != 0x3) {
+		au_writel(3, UART_MOD_CNTRL + state->port);
 		au_sync_delay(10);
 	}
 		
@@ -2550,7 +2549,7 @@ static void autoconfig(struct serial_state * state)
 	serial_outp(info, UART_IER, 0);
 
 #ifndef CONFIG_REMOTE_DEBUG
-	outl(0, UART_MOD_CNTRL + state->port);
+	au_writel(0, UART_MOD_CNTRL + state->port);
 	au_sync_delay(10);
 #endif
 	restore_flags(flags);

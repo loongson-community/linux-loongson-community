@@ -218,25 +218,25 @@ static u16 rdcodec(struct ac97_codec *codec, u8 addr)
 	spin_lock_irqsave(&s->lock, flags);
 
 	for (i = 0; i < POLL_COUNT; i++)
-		if (!(inl(AC97C_STATUS) & AC97C_CP))
+		if (!(au_readl(AC97C_STATUS) & AC97C_CP))
 			break;
 	if (i == POLL_COUNT)
 		err("rdcodec: codec cmd pending expired!");
 
 	cmd = (u32) addr & AC97C_INDEX_MASK;
 	cmd |= AC97C_READ;	// read command
-	outl(cmd, AC97C_CMD);
+	au_writel(cmd, AC97C_CMD);
 
 	/* now wait for the data */
 	for (i = 0; i < POLL_COUNT; i++)
-		if (!(inl(AC97C_STATUS) & AC97C_CP))
+		if (!(au_readl(AC97C_STATUS) & AC97C_CP))
 			break;
 	if (i == POLL_COUNT) {
 		err("rdcodec: read poll expired!");
 		return 0;
 	}
 
-	data = inl(AC97C_CMD) & 0xffff;
+	data = au_readl(AC97C_CMD) & 0xffff;
 
 	spin_unlock_irqrestore(&s->lock, flags);
 
@@ -254,7 +254,7 @@ static void wrcodec(struct ac97_codec *codec, u8 addr, u16 data)
 	spin_lock_irqsave(&s->lock, flags);
 
 	for (i = 0; i < POLL_COUNT; i++)
-		if (!(inl(AC97C_STATUS) & AC97C_CP))
+		if (!(au_readl(AC97C_STATUS) & AC97C_CP))
 			break;
 	if (i == POLL_COUNT)
 		err("wrcodec: codec cmd pending expired!");
@@ -262,7 +262,7 @@ static void wrcodec(struct ac97_codec *codec, u8 addr, u16 data)
 	cmd = (u32) addr & AC97C_INDEX_MASK;
 	cmd &= ~AC97C_READ;	// write command
 	cmd |= ((u32) data << AC97C_WD_BIT);	// OR in the data word
-	outl(cmd, AC97C_CMD);
+	au_writel(cmd, AC97C_CMD);
 
 	spin_unlock_irqrestore(&s->lock, flags);
 }
@@ -278,7 +278,7 @@ static void waitcodec(struct ac97_codec *codec)
 
 	// first poll the CODEC_READY tag bit
 	for (i = 0; i < POLL_COUNT; i++)
-		if (inl(AC97C_STATUS) & AC97C_READY)
+		if (au_readl(AC97C_STATUS) & AC97C_READY)
 			break;
 	if (i == POLL_COUNT) {
 		err("waitcodec: CODEC_READY poll expired!");
@@ -431,7 +431,7 @@ static void  stop_adc(struct au1000_state *s)
 
 static void set_xmit_slots(int num_channels)
 {
-	u32 ac97_config = inl(AC97C_CONFIG) & ~AC97C_XMIT_SLOTS_MASK;
+	u32 ac97_config = au_readl(AC97C_CONFIG) & ~AC97C_XMIT_SLOTS_MASK;
 
 	switch (num_channels) {
 	case 1:		// mono
@@ -446,12 +446,12 @@ static void set_xmit_slots(int num_channels)
 		break;
 	}
 
-	outl(ac97_config, AC97C_CONFIG);
+	au_writel(ac97_config, AC97C_CONFIG);
 }
 
 static void     set_recv_slots(int num_channels)
 {
-	u32 ac97_config = inl(AC97C_CONFIG) & ~AC97C_RECV_SLOTS_MASK;
+	u32 ac97_config = au_readl(AC97C_CONFIG) & ~AC97C_RECV_SLOTS_MASK;
 
 	/*
 	 * Always enable slots 3 and 4 (stereo). Slot 6 is
@@ -459,7 +459,7 @@ static void     set_recv_slots(int num_channels)
 	 */
 	ac97_config |= (0x3 << AC97C_RECV_SLOTS_BIT);
 
-	outl(ac97_config, AC97C_CONFIG);
+	au_writel(ac97_config, AC97C_CONFIG);
 }
 
 static void start_dac(struct au1000_state *s)
@@ -473,7 +473,7 @@ static void start_dac(struct au1000_state *s)
 
 	spin_lock_irqsave(&s->lock, flags);
 
-	inl(AC97C_STATUS);	// read status to clear sticky bits
+	au_readl(AC97C_STATUS);	// read status to clear sticky bits
 
 	// reset Buffer 1 and 2 pointers to nextOut and nextOut+dma_fragsize
 	buf1 = virt_to_phys(db->nextOut);
@@ -515,7 +515,7 @@ static void start_adc(struct au1000_state *s)
 
 	spin_lock_irqsave(&s->lock, flags);
 
-	inl(AC97C_STATUS);	// read status to clear sticky bits
+	au_readl(AC97C_STATUS);	// read status to clear sticky bits
 
 	// reset Buffer 1 and 2 pointers to nextIn and nextIn+dma_fragsize
 	buf1 = virt_to_phys(db->nextIn);
@@ -675,7 +675,7 @@ static void dac_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned long   newptr;
 	u32 ac97c_stat, buff_done;
 
-	ac97c_stat = inl(AC97C_STATUS);
+	ac97c_stat = au_readl(AC97C_STATUS);
 #ifdef AU1000_VERBOSE_DEBUG
 	if (ac97c_stat & (AC97C_XU | AC97C_XO | AC97C_TE))
 		dbg("AC97C status = 0x%08x", ac97c_stat);
@@ -741,7 +741,7 @@ static void adc_dma_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	unsigned long   newptr;
 	u32 ac97c_stat, buff_done;
 
-	ac97c_stat = inl(AC97C_STATUS);
+	ac97c_stat = au_readl(AC97C_STATUS);
 #ifdef AU1000_VERBOSE_DEBUG
 	if (ac97c_stat & (AC97C_RU | AC97C_RO))
 		dbg("AC97C status = 0x%08x", ac97c_stat);
@@ -1906,9 +1906,9 @@ static int proc_au1000_dump(char *buf, char **start, off_t fpos,
 	// print out digital controller state
 	len += sprintf(buf + len, "AU1000 Audio Controller registers\n");
 	len += sprintf(buf + len, "---------------------------------\n");
-	len += sprintf (buf + len, "AC97C_CONFIG = %08x\n", inl(AC97C_CONFIG));
-	len += sprintf (buf + len, "AC97C_STATUS = %08x\n", inl(AC97C_STATUS));
-	len += sprintf (buf + len, "AC97C_CNTRL  = %08x\n", inl(AC97C_CNTRL));
+	len += sprintf (buf + len, "AC97C_CONFIG = %08x\n", au_readl(AC97C_CONFIG));
+	len += sprintf (buf + len, "AC97C_STATUS = %08x\n", au_readl(AC97C_STATUS));
+	len += sprintf (buf + len, "AC97C_CNTRL  = %08x\n", au_readl(AC97C_CNTRL));
 
 	/* print out CODEC state */
 	len += sprintf(buf + len, "\nAC97 CODEC registers\n");
@@ -2007,26 +2007,26 @@ static int __devinit au1000_probe(void)
 #endif /* AU1000_DEBUG */
 
 	// configure pins for AC'97
-	outl(inl(SYS_PINFUNC) & ~0x02, SYS_PINFUNC);
+	au_writel(au_readl(SYS_PINFUNC) & ~0x02, SYS_PINFUNC);
 
 	// Assert reset for 10msec to the AC'97 controller, and enable clock
-	outl(AC97C_RS | AC97C_CE, AC97C_CNTRL);
+	au_writel(AC97C_RS | AC97C_CE, AC97C_CNTRL);
 	au1000_delay(10);
-	outl(AC97C_CE, AC97C_CNTRL);
+	au_writel(AC97C_CE, AC97C_CNTRL);
 	au1000_delay(10);	// wait for clock to stabilize
 
 	/* cold reset the AC'97 */
-	outl(AC97C_RESET, AC97C_CONFIG);
+	au_writel(AC97C_RESET, AC97C_CONFIG);
 	au1000_delay(10);
-	outl(0, AC97C_CONFIG);
+	au_writel(0, AC97C_CONFIG);
 	/* need to delay around 500msec(bleech) to give
 	   some CODECs enough time to wakeup */
 	au1000_delay(500);
 
 	/* warm reset the AC'97 to start the bitclk */
-	outl(AC97C_SG | AC97C_SYNC, AC97C_CONFIG);
+	au_writel(AC97C_SG | AC97C_SYNC, AC97C_CONFIG);
 	udelay(100);
-	outl(0, AC97C_CONFIG);
+	au_writel(0, AC97C_CONFIG);
 
 	/* codec init */
 	if (!ac97_probe_codec(&s->codec))

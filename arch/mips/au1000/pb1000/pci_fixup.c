@@ -54,15 +54,15 @@ void __init pcibios_fixup(void)
 {
 	unsigned long pci_mem_start = (unsigned long) PCI_MEM_START;
 
-	writel(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
-	writel(0, SDRAM_MBAR);        // set mbar to 0
-	writel(0x2, SDRAM_CMD);       // enable memory accesses
+	au_writel(0, PCI_BRIDGE_CONFIG); // set extend byte to 0
+	au_writel(0, SDRAM_MBAR);        // set mbar to 0
+	au_writel(0x2, SDRAM_CMD);       // enable memory accesses
 	au_sync_delay(1);
 
 	// set extend byte to mbar of ext slot
-	writel(((pci_mem_start >> 24) & 0xff) |
+	au_writel(((pci_mem_start >> 24) & 0xff) |
 	       (1 << 8 | 1 << 9 | 1 << 10 | 1 << 27), PCI_BRIDGE_CONFIG);
-	DBG("Set bridge config to %x\n", readl(PCI_BRIDGE_CONFIG));
+	DBG("Set bridge config to %x\n", au_readl(PCI_BRIDGE_CONFIG));
 }
 
 void __init pcibios_fixup_irqs(void)

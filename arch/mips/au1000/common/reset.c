@@ -35,6 +35,7 @@
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/system.h>
+#include <asm/au1000.h>
 
 extern int au_sleep(void);
 
@@ -47,40 +48,40 @@ void au1000_restart(char *command)
 	switch (prid & 0xFF000000)
 	{
 	case 0x00000000: /* Au1000 */
-		outl(0x02, 0xb0000010); /* ac97_enable */
-		outl(0x08, 0xb017fffc); /* usbh_enable - early errata */
+		au_writel(0x02, 0xb0000010); /* ac97_enable */
+		au_writel(0x08, 0xb017fffc); /* usbh_enable - early errata */
 		asm("sync");
-		outl(0x00, 0xb017fffc); /* usbh_enable */
-		outl(0x00, 0xb0200058); /* usbd_enable */
-		outl(0x00, 0xb0300040); /* ir_enable */
-		outl(0x00, 0xb0520000); /* macen0 */
-		outl(0x00, 0xb0520004); /* macen1 */
-		outl(0x00, 0xb1000008); /* i2s_enable  */
-		outl(0x00, 0xb1100100); /* uart0_enable */
-		outl(0x00, 0xb1200100); /* uart1_enable */
-		outl(0x00, 0xb1300100); /* uart2_enable */
-		outl(0x00, 0xb1400100); /* uart3_enable */
-		outl(0x02, 0xb1600100); /* ssi0_enable */
-		outl(0x02, 0xb1680100); /* ssi1_enable */
-		outl(0x00, 0xb1900020); /* sys_freqctrl0 */
-		outl(0x00, 0xb1900024); /* sys_freqctrl1 */
-		outl(0x00, 0xb1900028); /* sys_clksrc */
-		outl(0x00, 0xb1900100); /* sys_pininputen */
+		au_writel(0x00, 0xb017fffc); /* usbh_enable */
+		au_writel(0x00, 0xb0200058); /* usbd_enable */
+		au_writel(0x00, 0xb0300040); /* ir_enable */
+		au_writel(0x00, 0xb0520000); /* macen0 */
+		au_writel(0x00, 0xb0520004); /* macen1 */
+		au_writel(0x00, 0xb1000008); /* i2s_enable  */
+		au_writel(0x00, 0xb1100100); /* uart0_enable */
+		au_writel(0x00, 0xb1200100); /* uart1_enable */
+		au_writel(0x00, 0xb1300100); /* uart2_enable */
+		au_writel(0x00, 0xb1400100); /* uart3_enable */
+		au_writel(0x02, 0xb1600100); /* ssi0_enable */
+		au_writel(0x02, 0xb1680100); /* ssi1_enable */
+		au_writel(0x00, 0xb1900020); /* sys_freqctrl0 */
+		au_writel(0x00, 0xb1900024); /* sys_freqctrl1 */
+		au_writel(0x00, 0xb1900028); /* sys_clksrc */
+		au_writel(0x00, 0xb1900100); /* sys_pininputen */
 		break;
 	case 0x01000000: /* Au1500 */
-		outl(0x02, 0xb0000010); /* ac97_enable */
-		outl(0x08, 0xb017fffc); /* usbh_enable - early errata */
+		au_writel(0x02, 0xb0000010); /* ac97_enable */
+		au_writel(0x08, 0xb017fffc); /* usbh_enable - early errata */
 		asm("sync");
-		outl(0x00, 0xb017fffc); /* usbh_enable */
-		outl(0x00, 0xb0200058); /* usbd_enable */
-		outl(0x00, 0xb1520000); /* macen0 */
-		outl(0x00, 0xb1520004); /* macen1 */
-		outl(0x00, 0xb1100100); /* uart0_enable */
-		outl(0x00, 0xb1400100); /* uart3_enable */
-		outl(0x00, 0xb1900020); /* sys_freqctrl0 */
-		outl(0x00, 0xb1900024); /* sys_freqctrl1 */
-		outl(0x00, 0xb1900028); /* sys_clksrc */
-		outl(0x00, 0xb1900100); /* sys_pininputen */
+		au_writel(0x00, 0xb017fffc); /* usbh_enable */
+		au_writel(0x00, 0xb0200058); /* usbd_enable */
+		au_writel(0x00, 0xb1520000); /* macen0 */
+		au_writel(0x00, 0xb1520004); /* macen1 */
+		au_writel(0x00, 0xb1100100); /* uart0_enable */
+		au_writel(0x00, 0xb1400100); /* uart3_enable */
+		au_writel(0x00, 0xb1900020); /* sys_freqctrl0 */
+		au_writel(0x00, 0xb1900024); /* sys_freqctrl1 */
+		au_writel(0x00, 0xb1900028); /* sys_clksrc */
+		au_writel(0x00, 0xb1900100); /* sys_pininputen */
 
 	default:
 		break;

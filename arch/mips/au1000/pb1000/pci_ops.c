@@ -92,18 +92,18 @@ static int config_access(unsigned char access_type, struct pci_dev *dev,
 	config = PCI_CONFIG_BASE | (where & ~0x3);
 
 	if (access_type == PCI_ACCESS_WRITE) {
-		outl(*data, config);
+		au_writel(*data, config);
 	} else {
-		*data = inl(config);
+		*data = au_readl(config);
 	}
 	au_sync_udelay(1);
 
 	DBG("config_access: %d bus %d dev_fn %x at %x *data %x, conf %x\n", 
 			access_type, bus, dev_fn, where, *data, config);
 
-	DBG("bridge config reg: %x (%x)\n", inl(PCI_BRIDGE_CONFIG), *data);
+	DBG("bridge config reg: %x (%x)\n", au_readl(PCI_BRIDGE_CONFIG), *data);
 
-	if (inl(PCI_BRIDGE_CONFIG) & (1 << 16)) {
+	if (au_readl(PCI_BRIDGE_CONFIG) & (1 << 16)) {
 		*data = 0xffffffff;
 		return -1;
 	} else {
