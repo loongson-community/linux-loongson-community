@@ -79,7 +79,7 @@ static inline void protected_flush_icache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "i" (Hit_Invalidate_I), "i" (Hit_Invalidate_I));
+		: "i" (Hit_Invalidate_I), "i" (addr));
 }
 
 static inline void protected_writeback_dcache_line(unsigned long addr)
@@ -94,7 +94,7 @@ static inline void protected_writeback_dcache_line(unsigned long addr)
 		STR(PTR)"\t1b,2b\n\t"
 		".previous"
 		:
-		: "i" (Hit_Invalidate_I), "i" (Hit_Invalidate_I));
+		: "i" (Hit_Invalidate_I), "i" (addr));
 }
 
 #define cache16_unroll32(base,op)				\
