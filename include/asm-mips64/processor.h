@@ -1,4 +1,4 @@
-/* $Id: processor.h,v 1.10 2000/02/24 00:13:20 ralf Exp $
+/* $Id: processor.h,v 1.11 2000/03/14 01:39:27 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -216,13 +216,19 @@ extern int (*_user_mode)(struct pt_regs *);
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-#define start_thread(regs, new_pc, new_sp) do {				\
+#define start_thread(regs, pc, sp) 					\
+do {									\
+	unsigned long __status;						\
+									\
 	/* New thread looses kernel privileges. */			\
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU)) | KSU_USER;\
-	regs->cp0_epc = new_pc;						\
-	regs->regs[29] = new_sp;					\
+	__status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);	\
+	__status |= KSU_USER;						\
+	__status |= (current->thread.mflags & MF_32BIT) ? 0 : ST0_FR;	\
+	regs->cp0_status = __status;					\
+	regs->cp0_epc = pc;						\
+	regs->regs[29] = sp;						\
 	current->thread.current_ds = USER_DS;				\
-} while (0)
+} while(0)
 
 unsigned long get_wchan(struct task_struct *p);
 

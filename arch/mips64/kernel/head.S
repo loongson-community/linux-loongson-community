@@ -1,4 +1,4 @@
-/* $Id: head.S,v 1.5 2000/03/16 04:04:32 kanoj Exp $
+/* $Id: head.S,v 1.6 2000/03/27 21:05:04 ulfc Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -47,9 +47,9 @@ NESTED(kernel_entry, 16, sp)			# kernel entry point
 	CLI					# disable interrupts
 
 	mfc0	t0, CP0_STATUS
-	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3|ST0_FR)
+	li	t1, ~(ST0_CU1|ST0_CU2|ST0_CU3)
 	and	t0, t1
-	or	t0, (ST0_CU0|ST0_KX|ST0_SX)
+	or	t0, (ST0_CU0|ST0_KX|ST0_SX|ST0_FR)
 	mtc0	t0, CP0_STATUS
 
 	la	$28, init_task_union		# init current pointer
