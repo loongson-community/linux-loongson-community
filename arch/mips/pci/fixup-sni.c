@@ -35,7 +35,7 @@
  * Device 6: Slot 3
  * Device 7: Slot 4	
  */
-static char irq_tab[8][5] __initdata = {
+static char irq_tab_rm200[8][5] __initdata = {
 	/*       INTA  INTB  INTC  INTD */
 	{     0,    0,    0,    0,    0 },	/* EISA bridge */
 	{  SCSI, SCSI, SCSI, SCSI, SCSI },	/* SCSI */
@@ -47,9 +47,34 @@ static char irq_tab[8][5] __initdata = {
 	{     0, INTD, INTA, INTB, INTC },	/* Slot 4 */
 };
 
+/*
+ * In Revision D of the RM300 Device 2 has become a normal purpose Slot 1
+ */
+static char irq_tab_rm300d[8][5] __initdata = {
+	/*       INTA  INTB  INTC  INTD */
+	{     0,    0,    0,    0,    0 },	/* EISA bridge */
+	{  SCSI, SCSI, SCSI, SCSI, SCSI },	/* SCSI */
+	{     0, INTC, INTD, INTA, INTB },	/* Slot 1 */
+	{     0,    0,    0,    0,    0 },	/* Unused */
+	{     0,    0,    0,    0,    0 },	/* Unused */
+	{     0, INTB, INTC, INTD, INTA },	/* Slot 2 */
+	{     0, INTC, INTD, INTA, INTB },	/* Slot 3 */
+	{     0, INTD, INTA, INTB, INTC },	/* Slot 4 */
+};
+
+static inline int is_rm300_revd(void)
+{
+	unsigned char csmsr = *(volatile unsigned char *)PCIMT_CSMSR;
+
+	return (csmsr & 0xa0) == 0x20;
+}
+
 static int __init sni_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	return irq_tab[slot][pin];
+	if (is_rm300_revd())
+		return irq_tab_rm300d[slot][pin];
+
+	return irq_tab_rm200[slot][pin];
 }
 
 void __init pcibios_fixup_irqs(void)
