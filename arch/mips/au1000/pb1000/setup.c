@@ -101,7 +101,7 @@ void __init au1000_setup(void)
 	ioport_resource.start = 0;
 	ioport_resource.end = 0xffffffff;
 	iomem_resource.start = 0;
-	ioport_resource.end = 0xffffffff;
+	iomem_resource.end = 0xffffffff;
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
