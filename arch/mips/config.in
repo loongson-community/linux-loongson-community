@@ -18,7 +18,6 @@ if [ "$CONFIG_EXPERIMENTAL" = "y" ]; then
    bool 'Support for DECstations (EXPERIMENTAL)' CONFIG_DECSTATION
    bool 'Support for NEC DDB Vrc-5074 (EXPERIMENTAL)' CONFIG_DDB5074
    bool 'Support for NEC DDB Vrc-5476 (EXPERIMENTAL)' CONFIG_DDB5476
-   bool 'Support for Galileo Evaluation board or CoSine Orion' CONFIG_ORION
    bool 'Support for Galileo EV96100 Evaluation board' CONFIG_MIPS_EV96100
    bool 'Support for Galileo EV64120 Evaluation board' CONFIG_MIPS_EV64120
    if [ "$CONFIG_MIPS_EV64120" = "y" ]; then

@@ -420,11 +420,6 @@ void __init setup_arch(char **cmdline_p)
                ddb_setup();
                break;
 #endif
-#ifdef CONFIG_ORION
-	case MACH_GROUP_ORION:
-		orion_setup();
-		break;
-#endif
 #ifdef CONFIG_MIPS_EV96100
 	case MACH_GROUP_GALILEO:
 		ev96100_setup();
