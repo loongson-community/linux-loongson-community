@@ -114,10 +114,11 @@ LEAF(save_fp)
 LEAF(restore_fp)
 	mfc0	t0, CP0_STATUS
 	sll	t1, t0, 5
-	bgez	t0, 1f				# 16 register mode?
+	bgez	t1, 1f				# 16 register mode?
 
 	fpu_restore_16odd a0
 1:	fpu_restore_16even a0, t0		# clobbers t0
+	 ldc1	$f0, (THREAD_FPU + 0x00)(a0)
 
 	jr	ra
 	END(restore_fp)
