@@ -25,16 +25,16 @@
 #include <asm/cpu.h>
 
 /* These are probed at ld_mmu time */
-static unsigned int icache_size;
-static unsigned int dcache_size;
+static unsigned long icache_size;
+static unsigned long dcache_size;
 
-static unsigned int icache_line_size;
-static unsigned int dcache_line_size;
+static unsigned long icache_line_size;
+static unsigned long dcache_line_size;
 
 static unsigned int icache_index_mask;
 
-static unsigned int icache_assoc;
-static unsigned int dcache_assoc;
+static unsigned long icache_assoc;
+static unsigned long dcache_assoc;
 
 static unsigned int icache_sets;
 static unsigned int dcache_sets;
@@ -75,7 +75,7 @@ static void local_sb1___flush_cache_all(void)
 		"1:   cache  %3, 0($1)      \n" /* WB/Invalidate this index */
 		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
-		"      addu   $1, $1, %0    \n" /* Next address */
+		"      daddu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
 		:
 		: "r" (dcache_line_size), "r" (dcache_sets * dcache_assoc),
@@ -100,7 +100,7 @@ static void local_sb1___flush_cache_all(void)
 		"1:   cache  %3, 0($1)       \n" /* Invalidate this index */
 		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
-		"      addu   $1, $1, %0    \n" /* Next address */
+		"      daddu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
 		:
 		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
@@ -130,7 +130,8 @@ asm("sb1___flush_cache_all = local_sb1___flush_cache_all");
  * The start/end arguments are expected to be Kseg addresses.
  */
 
-static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
+static void local_sb1_flush_icache_range(unsigned long start,
+	unsigned long end)
 {
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 	unsigned long flags;
@@ -151,11 +152,11 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 #endif
 		"     cache  %3, 0($1)      \n" /* Hit-WB{,-inval} this address */
 		"     bne    $1, %1, 1b     \n" /* loop test */
-		"      addu  $1, $1, %2     \n" /* next line */
+		"      daddu  $1, $1, %2    \n" /* next line */
 		".set pop                   \n"
 		:
-		: "r" (start  & ~(dcache_line_size - 1)),
-		  "r" ((end - 1) & ~(dcache_line_size - 1)),
+		: "r" ((start + dcache_line_size - 1)  & ~(dcache_line_size - 1)),
+		  "r" ((end + dcache_line_size - 1) & ~(dcache_line_size - 1)),
 		  "r" (dcache_line_size),
 #ifdef CONFIG_SB1_PASS_1_WORKAROUNDS
 		  "i" (Hit_Writeback_Inv_D)
@@ -188,7 +189,7 @@ static void local_sb1_flush_icache_range(unsigned long start, unsigned long end)
 		"     cache  %3, (2<<13)($1) \n" /* Index-inval this address */
 		"     cache  %3, (3<<13)($1) \n" /* Index-inval this address */
 		"     bne    $1, %1, 1b     \n" /* loop test */
-		"      addu  $1, $1, %2     \n" /* next line */
+		"      daddu  $1, $1, %2     \n" /* next line */
 		".set pop                   \n"
 		:
 		: "r" (start & ~(icache_line_size - 1)),
@@ -355,7 +356,7 @@ static void sb1_flush_icache_all(void)
 		"1:   cache  %3, 0($1)      \n" /* Invalidate this index */
 		"     daddiu  %1, %1, -1     \n" /* Decrement loop count */
 		"     bnez   %1, 1b         \n" /* loop test */
-		"      addu   $1, $1, %0    \n" /* Next address */
+		"      daddu   $1, $1, %0    \n" /* Next address */
 		".set pop                   \n"
 		:
 		: "r" (icache_line_size), "r" (icache_sets * icache_assoc),
