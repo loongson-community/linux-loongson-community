@@ -38,9 +38,7 @@ FEXPORT(resume_userspace)
 		j	restore_all
 
 FEXPORT(ret_from_fork)
-#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT)
 		jal	schedule_tail
-#endif
 
 FEXPORT(syscall_exit)
 		mfc0	t0, CP0_STATUS		# make sure need_resched and
