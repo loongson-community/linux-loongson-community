@@ -77,9 +77,9 @@ static int  ipaq_open (struct usb_serial_port *port, struct file *filp);
 static void ipaq_close (struct usb_serial_port *port, struct file *filp);
 static int  ipaq_startup (struct usb_serial *serial);
 static void ipaq_shutdown (struct usb_serial *serial);
-static int ipaq_write(struct usb_serial_port *port, int from_user, const unsigned char *buf,
+static int ipaq_write(struct usb_serial_port *port, const unsigned char *buf,
 		       int count);
-static int ipaq_write_bulk(struct usb_serial_port *port, int from_user, const unsigned char *buf,
+static int ipaq_write_bulk(struct usb_serial_port *port, const unsigned char *buf,
 			   int count);
 static void ipaq_write_gather(struct usb_serial_port *port);
 static void ipaq_read_bulk_callback (struct urb *urb, struct pt_regs *regs);
@@ -288,8 +288,8 @@ static void ipaq_close(struct usb_serial_port *port, struct file *filp)
 	/*
 	 * shut down bulk read and write
 	 */
-	usb_unlink_urb(port->write_urb);
-	usb_unlink_urb(port->read_urb);
+	usb_kill_urb(port->write_urb);
+	usb_kill_urb(port->read_urb);
 	ipaq_destroy_lists(port);
 	kfree(priv);
 	usb_set_serial_port_data(port, NULL);
@@ -339,7 +339,7 @@ static void ipaq_read_bulk_callback(struct urb *urb, struct pt_regs *regs)
 	return;
 }
 
-static int ipaq_write(struct usb_serial_port *port, int from_user, const unsigned char *buf,
+static int ipaq_write(struct usb_serial_port *port, const unsigned char *buf,
 		       int count)
 {
 	const unsigned char	*current_position = buf;
@@ -350,7 +350,7 @@ static int ipaq_write(struct usb_serial_port *port, int from_user, const unsigne
 
 	while (count > 0) {
 		transfer_size = min(count, PACKET_SIZE);
-		if (ipaq_write_bulk(port, from_user, current_position, transfer_size)) {
+		if (ipaq_write_bulk(port, current_position, transfer_size)) {
 			break;
 		}
 		current_position += transfer_size;
@@ -362,7 +362,7 @@ static int ipaq_write(struct usb_serial_port *port, int from_user, const unsigne
 	return bytes_sent;
 } 
 
-static int ipaq_write_bulk(struct usb_serial_port *port, int from_user, const unsigned char *buf,
+static int ipaq_write_bulk(struct usb_serial_port *port, const unsigned char *buf,
 			   int count)
 {
 	struct ipaq_private	*priv = usb_get_serial_port_data(port);
@@ -387,12 +387,7 @@ static int ipaq_write_bulk(struct usb_serial_port *port, int from_user, const un
 		return -EAGAIN;
 	}
 
-	if (from_user) {
-		if (copy_from_user(pkt->data, buf, count))
-			return -EFAULT;
-	} else {
-		memcpy(pkt->data, buf, count);
-	}
+	memcpy(pkt->data, buf, count);
 	usb_serial_debug_data(debug, &port->dev, __FUNCTION__, count, pkt->data);
 
 	pkt->len = count;
@@ -419,9 +414,8 @@ static void ipaq_write_gather(struct usb_serial_port *port)
 	struct ipaq_private	*priv = usb_get_serial_port_data(port);
 	struct usb_serial	*serial = port->serial;
 	int			count, room;
-	struct ipaq_packet	*pkt;
+	struct ipaq_packet	*pkt, *tmp;
 	struct urb		*urb = port->write_urb;
-	struct list_head	*tmp;
 
 	if (urb->status == -EINPROGRESS) {
 		/* Should never happen */
@@ -429,9 +423,7 @@ static void ipaq_write_gather(struct usb_serial_port *port)
 		return;
 	}
 	room = URBDATA_SIZE;
-	for (tmp = priv->queue.next; tmp != &priv->queue;) {
-		pkt = list_entry(tmp, struct ipaq_packet, list);
-		tmp = tmp->next;
+	list_for_each_entry_safe(pkt, tmp, &priv->queue, list) {
 		count = min(room, (int)(pkt->len - pkt->written));
 		memcpy(urb->transfer_buffer + (URBDATA_SIZE - room),
 		       pkt->data + pkt->written, count);
@@ -503,22 +495,16 @@ static int ipaq_chars_in_buffer(struct usb_serial_port *port)
 static void ipaq_destroy_lists(struct usb_serial_port *port)
 {
 	struct ipaq_private	*priv = usb_get_serial_port_data(port);
-	struct list_head	*tmp;
-	struct ipaq_packet	*pkt;
+	struct ipaq_packet	*pkt, *tmp;
 
-	for (tmp = priv->queue.next; tmp != &priv->queue;) {
-		pkt = list_entry(tmp, struct ipaq_packet, list);
-		tmp = tmp->next;
+	list_for_each_entry_safe(pkt, tmp, &priv->queue, list) {
 		kfree(pkt->data);
 		kfree(pkt);
 	}
-	for (tmp = priv->freelist.next; tmp != &priv->freelist;) {
-		pkt = list_entry(tmp, struct ipaq_packet, list);
-		tmp = tmp->next;
+	list_for_each_entry_safe(pkt, tmp, &priv->freelist, list) {
 		kfree(pkt->data);
 		kfree(pkt);
 	}
-	return;
 }
 
 

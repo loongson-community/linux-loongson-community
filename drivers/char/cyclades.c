@@ -652,12 +652,12 @@ static char rcsid[] =
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/spinlock.h>
+#include <linux/bitops.h>
 
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
-#include <asm/bitops.h>
 
 #define	CY_LOCK(info,flags)					\
 		do {						\
@@ -2690,20 +2690,16 @@ cy_wait_until_sent(struct tty_struct *tty, int timeout)
 #ifdef CY_DEBUG_WAIT_UNTIL_SENT
 	    printk("Not clean (jiff=%lu)...", jiffies);
 #endif
-	    current->state = TASK_INTERRUPTIBLE;
-	    schedule_timeout(char_time);
-	    if (signal_pending(current))
+	    if (msleep_interruptible(jiffies_to_msecs(char_time)))
 		break;
 	    if (timeout && time_after(jiffies, orig_jiffies + timeout))
 		break;
 	}
-	current->state = TASK_RUNNING;
     } else {
 	// Nothing to do!
     }
     /* Run one more char cycle */
-    current->state = TASK_INTERRUPTIBLE;
-    schedule_timeout(char_time * 5);
+    msleep_interruptible(jiffies_to_msecs(char_time * 5));
 #ifdef CY_DEBUG_WAIT_UNTIL_SENT
     printk("Clean (jiff=%lu)...done\n", jiffies);
 #endif
@@ -2828,8 +2824,7 @@ cy_close(struct tty_struct *tty, struct file *filp)
     if (info->blocked_open) {
 	CY_UNLOCK(info, flags);
         if (info->close_delay) {
-            current->state = TASK_INTERRUPTIBLE;
-            schedule_timeout(info->close_delay);
+            msleep_interruptible(jiffies_to_msecs(info->close_delay));
         }
         wake_up_interruptible(&info->open_wait);
 	CY_LOCK(info, flags);
@@ -2860,8 +2855,7 @@ cy_close(struct tty_struct *tty, struct file *filp)
  *
  */
 static int
-cy_write(struct tty_struct * tty, int from_user,
-           const unsigned char *buf, int count)
+cy_write(struct tty_struct * tty, const unsigned char *buf, int count)
 {
   struct cyclades_port *info = (struct cyclades_port *)tty->driver_data;
   unsigned long flags;
@@ -2879,56 +2873,22 @@ cy_write(struct tty_struct * tty, int from_user,
         return 0;
     }
 
-    if (from_user) {
-	down(&tmp_buf_sem);
-	while (1) {
-	    int c1;
-	    
-	    c = min(count, min((int)(SERIAL_XMIT_SIZE - info->xmit_cnt - 1),
-				(int)(SERIAL_XMIT_SIZE - info->xmit_head)));
-	    if (c <= 0)
-		break;
-
-	    c -= copy_from_user(tmp_buf, buf, c);
-	    if (!c) {
-		if (!ret) {
-		    ret = -EFAULT;
-		}
-		break;
-	    }
-	    CY_LOCK(info, flags);
-	    c1 = min(c, min((int)(SERIAL_XMIT_SIZE - info->xmit_cnt - 1),
-			(int)(SERIAL_XMIT_SIZE - info->xmit_head)));
-			
-	    if (c1 < c)
-	    	c = c1;
-	    memcpy(info->xmit_buf + info->xmit_head, tmp_buf, c);
-	    info->xmit_head = ((info->xmit_head + c) & (SERIAL_XMIT_SIZE-1));
-	    info->xmit_cnt += c;
-            CY_UNLOCK(info, flags);
-	    buf += c;
-	    count -= c;
-	    ret += c;
-	}
-	up(&tmp_buf_sem);
-    } else {
-	CY_LOCK(info, flags);
-	while (1) {
-	    c = min(count, min((int)(SERIAL_XMIT_SIZE - info->xmit_cnt - 1),
+    CY_LOCK(info, flags);
+    while (1) {
+	c = min(count, min((int)(SERIAL_XMIT_SIZE - info->xmit_cnt - 1),
 			(int)(SERIAL_XMIT_SIZE - info->xmit_head)));
 	        
-	    if (c <= 0)
-		break;
+	if (c <= 0)
+	    break;
 
-	    memcpy(info->xmit_buf + info->xmit_head, buf, c);
-	    info->xmit_head = (info->xmit_head + c) & (SERIAL_XMIT_SIZE-1);
-	    info->xmit_cnt += c;
-	    buf += c;
-	    count -= c;
-	    ret += c;
-	}
-        CY_UNLOCK(info, flags);
+	memcpy(info->xmit_buf + info->xmit_head, buf, c);
+	info->xmit_head = (info->xmit_head + c) & (SERIAL_XMIT_SIZE-1);
+	info->xmit_cnt += c;
+	buf += c;
+	count -= c;
+	ret += c;
     }
+    CY_UNLOCK(info, flags);
 
     info->idle_stats.xmit_bytes += ret;
     info->idle_stats.xmit_idle   = jiffies;

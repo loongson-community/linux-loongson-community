@@ -38,8 +38,8 @@
 #include <linux/pagemap.h>
 #include <linux/mount.h>
 #include <linux/version.h>
+#include <linux/bitops.h>
 
-#include <asm/bitops.h>
 #include <asm/errno.h>
 #include <asm/intrinsics.h>
 #include <asm/page.h>
@@ -572,12 +572,6 @@ pfm_unreserve_page(unsigned long a)
 	ClearPageReserved(vmalloc_to_page((void*)a));
 }
 
-static inline int
-pfm_remap_page_range(struct vm_area_struct *vma, unsigned long from, unsigned long phys_addr, unsigned long size, pgprot_t prot)
-{
-	return remap_page_range(vma, from, phys_addr, size, prot);
-}
-
 static inline unsigned long
 pfm_protect_ctx_ctxsw(pfm_context_t *x)
 {
@@ -803,18 +797,6 @@ pfm_reset_msgq(pfm_context_t *ctx)
 {
 	ctx->ctx_msgq_head = ctx->ctx_msgq_tail = 0;
 	DPRINT(("ctx=%p msgq reset\n", ctx));
-}
-
-
-/* Here we want the physical address of the memory.
- * This is used when initializing the contents of the
- * area and marking the pages as reserved.
- */
-static inline unsigned long
-pfm_kvirt_to_pa(unsigned long adr)
-{
-	__u64 pa = ia64_tpa(adr);
-	return pa;
 }
 
 static void *
@@ -2244,14 +2226,14 @@ pfm_free_fd(int fd, struct file *file)
 static int
 pfm_remap_buffer(struct vm_area_struct *vma, unsigned long buf, unsigned long addr, unsigned long size)
 {
-	unsigned long page;
-
 	DPRINT(("CPU%d buf=0x%lx addr=0x%lx size=%ld\n", smp_processor_id(), buf, addr, size));
 
 	while (size > 0) {
-		page = pfm_kvirt_to_pa(buf);
+		unsigned long pfn = ia64_tpa(buf) >> PAGE_SHIFT;
 
-		if (pfm_remap_page_range(vma, addr, page, PAGE_SIZE, PAGE_READONLY)) return -ENOMEM;
+
+		if (remap_pfn_range(vma, addr, pfn, PAGE_SIZE, PAGE_READONLY))
+			return -ENOMEM;
 
 		addr  += PAGE_SIZE;
 		buf   += PAGE_SIZE;
@@ -2287,7 +2269,8 @@ pfm_smpl_buffer_alloc(struct task_struct *task, pfm_context_t *ctx, unsigned lon
 	 * if ((mm->total_vm << PAGE_SHIFT) + len> task->rlim[RLIMIT_AS].rlim_cur)
 	 * 	return -ENOMEM;
 	 */
-	if (size > task->rlim[RLIMIT_MEMLOCK].rlim_cur) return -ENOMEM;
+	if (size > task->signal->rlim[RLIMIT_MEMLOCK].rlim_cur)
+		return -EAGAIN;
 
 	/*
 	 * We do the easy to undo allocations first.
@@ -2592,7 +2575,7 @@ pfm_task_incompatible(pfm_context_t *ctx, struct task_struct *task)
 		return -EINVAL;
 	}
 
-	if (task->state == TASK_ZOMBIE) {
+	if (task->exit_state == EXIT_ZOMBIE) {
 		DPRINT(("cannot attach to  zombie task [%d]\n", task->pid));
 		return -EBUSY;
 	}

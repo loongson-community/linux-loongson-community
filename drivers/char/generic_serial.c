@@ -27,6 +27,7 @@
 #include <linux/mm.h>
 #include <linux/generic_serial.h>
 #include <linux/interrupt.h>
+#include <linux/delay.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
@@ -103,7 +104,7 @@ void gs_put_char(struct tty_struct * tty, unsigned char ch)
 >       -3- Other processes that are also trying to do a "write". 
 */
 
-int gs_write(struct tty_struct * tty, int from_user, 
+int gs_write(struct tty_struct * tty, 
                     const unsigned char *buf, int count)
 {
 	struct gs_port *port;
@@ -144,15 +145,8 @@ int gs_write(struct tty_struct * tty, int from_user,
  
 		/* Can't copy more? break out! */
 		if (c <= 0) break;
-		if (from_user) {
-			if (copy_from_user (port->xmit_buf + port->xmit_head, 
-					    buf, c)) {
-				up (& port->port_write_sem);
-				return -EFAULT;
-			}
 
-		} else
-			memcpy (port->xmit_buf + port->xmit_head, buf, c);
+		memcpy (port->xmit_buf + port->xmit_head, buf, c);
 
 		port -> xmit_cnt += c;
 		port -> xmit_head = (port->xmit_head + c) & (SERIAL_XMIT_SIZE -1);
@@ -183,7 +177,7 @@ int gs_write(struct tty_struct * tty, int from_user,
 >       -3- Other processes that are also trying to do a "write". 
 */
 
-int gs_write(struct tty_struct * tty, int from_user, 
+int gs_write(struct tty_struct * tty,
                     const unsigned char *buf, int count)
 {
 	struct gs_port *port;
@@ -216,79 +210,35 @@ int gs_write(struct tty_struct * tty, int from_user,
 		return -EIO;
 
 	save_flags(flags);
-	if (from_user) {
-		down(&tmp_buf_sem);
-		while (1) {
-			c = count;
+	while (1) {
+		cli();
+		c = count;
 
-			/* This is safe because we "OWN" the "head". Noone else can 
-			   change the "head": we own the port_write_sem. */
-			/* Don't overrun the end of the buffer */
-			t = SERIAL_XMIT_SIZE - port->xmit_head;
-			if (t < c) c = t;
- 
-			/* This is safe because the xmit_cnt can only decrease. This 
-			   would increase "t", so we might copy too little chars. */
-			/* Don't copy past the "head" of the buffer */
-			t = SERIAL_XMIT_SIZE - 1 - port->xmit_cnt;
-			if (t < c) c = t;	 
+		/* This is safe because we "OWN" the "head". Noone else can 
+		   change the "head": we own the port_write_sem. */
+		/* Don't overrun the end of the buffer */
+		t = SERIAL_XMIT_SIZE - port->xmit_head;
+		if (t < c) c = t;
 
-			/* Can't copy more? break out! */
-			if (c <= 0) break;
+		/* This is safe because the xmit_cnt can only decrease. This 
+		   would increase "t", so we might copy too little chars. */
+		/* Don't copy past the "head" of the buffer */
+		t = SERIAL_XMIT_SIZE - 1 - port->xmit_cnt;
+		if (t < c) c = t;
 
-			c -= copy_from_user(tmp_buf, buf, c);
-			if (!c) {
-				if (!total)
-					total = -EFAULT;
-				break;
-			}
-			cli();
-			t = SERIAL_XMIT_SIZE - port->xmit_head;
-			if (t < c) c = t;
-			t = SERIAL_XMIT_SIZE - 1 - port->xmit_cnt;
-			if (t < c) c = t;
-
-			memcpy(port->xmit_buf + port->xmit_head, tmp_buf, c);
-			port->xmit_head = ((port->xmit_head + c) &
-			                   (SERIAL_XMIT_SIZE-1));
-			port->xmit_cnt += c;
+		/* Can't copy more? break out! */
+		if (c <= 0) {
 			restore_flags(flags);
-			buf += c;
-			count -= c;
-			total += c;
+			break;
 		}
-		up(&tmp_buf_sem);
-	} else {
-		while (1) {
-			cli();
-			c = count;
-
-			/* This is safe because we "OWN" the "head". Noone else can 
-			   change the "head": we own the port_write_sem. */
-			/* Don't overrun the end of the buffer */
-			t = SERIAL_XMIT_SIZE - port->xmit_head;
-			if (t < c) c = t;
- 
-			/* This is safe because the xmit_cnt can only decrease. This 
-			   would increase "t", so we might copy too little chars. */
-			/* Don't copy past the "head" of the buffer */
-			t = SERIAL_XMIT_SIZE - 1 - port->xmit_cnt;
-			if (t < c) c = t;
- 
-			/* Can't copy more? break out! */
-			if (c <= 0) {
-				restore_flags(flags);
-				break;
-			}
-			memcpy(port->xmit_buf + port->xmit_head, buf, c);
-			port->xmit_head = ((port->xmit_head + c) &
-			                   (SERIAL_XMIT_SIZE-1));
-			port->xmit_cnt += c;
-			restore_flags(flags);
-			buf += c;
-			count -= c;
-			total += c;
-		}
+		memcpy(port->xmit_buf + port->xmit_head, buf, c);
+		port->xmit_head = ((port->xmit_head + c) &
+		                   (SERIAL_XMIT_SIZE-1));
+		port->xmit_cnt += c;
+		restore_flags(flags);
+		buf += c;
+		count -= c;
+		total += c;
 	}
 
 	if (port->xmit_cnt && 
@@ -400,8 +350,7 @@ static int gs_wait_tx_flushed (void * ptr, int timeout)
 		gs_dprintk (GS_DEBUG_FLUSH, "Expect to finish in %d jiffies "
 			    "(%d chars).\n", jiffies_to_transmit, charsleft); 
 
-		set_current_state (TASK_INTERRUPTIBLE);
-		schedule_timeout(jiffies_to_transmit);
+		msleep_interruptible(jiffies_to_msecs(jiffies_to_transmit));
 		if (signal_pending (current)) {
 			gs_dprintk (GS_DEBUG_FLUSH, "Signal pending. Bombing out: "); 
 			rv = -EINTR;
@@ -768,8 +717,7 @@ void gs_close(struct tty_struct * tty, struct file * filp)
 
 	if (port->blocked_open) {
 		if (port->close_delay) {
-			set_current_state (TASK_INTERRUPTIBLE);
-			schedule_timeout(port->close_delay);
+			msleep_interruptible(jiffies_to_msecs(port->close_delay));
 		}
 		wake_up_interruptible(&port->open_wait);
 	}

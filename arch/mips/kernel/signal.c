@@ -23,7 +23,7 @@
 #include <linux/compiler.h>
 
 #include <asm/asm.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <asm/cacheflush.h>
 #include <asm/fpu.h>
 #include <asm/sim.h>

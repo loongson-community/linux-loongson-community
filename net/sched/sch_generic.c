@@ -13,7 +13,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -318,11 +318,11 @@ pfifo_fast_enqueue(struct sk_buff *skb, struct Qdisc* qdisc)
 	if (list->qlen < qdisc->dev->tx_queue_len) {
 		__skb_queue_tail(list, skb);
 		qdisc->q.qlen++;
-		qdisc->stats.bytes += skb->len;
-		qdisc->stats.packets++;
+		qdisc->bstats.bytes += skb->len;
+		qdisc->bstats.packets++;
 		return 0;
 	}
-	qdisc->stats.drops++;
+	qdisc->qstats.drops++;
 	kfree_skb(skb);
 	return NET_XMIT_DROP;
 }
@@ -353,6 +353,7 @@ pfifo_fast_requeue(struct sk_buff *skb, struct Qdisc* qdisc)
 
 	__skb_queue_head(list, skb);
 	qdisc->q.qlen++;
+	qdisc->qstats.requeues++;
 	return 0;
 }
 
@@ -465,7 +466,7 @@ static void __qdisc_destroy(struct rcu_head *head)
 	struct Qdisc_ops  *ops = qdisc->ops;
 
 #ifdef CONFIG_NET_ESTIMATOR
-	qdisc_kill_estimator(&qdisc->stats);
+	gen_kill_estimator(&qdisc->bstats, &qdisc->rate_est);
 #endif
 	write_lock(&qdisc_tree_lock);
 	if (ops->reset)

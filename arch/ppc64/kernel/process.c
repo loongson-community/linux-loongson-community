@@ -315,8 +315,6 @@ copy_thread(int nr, unsigned long clone_flags, unsigned long usp,
 	extern void ret_from_fork(void);
 	unsigned long sp = (unsigned long)p->thread_info + THREAD_SIZE;
 
-	p->set_child_tid = p->clear_child_tid = NULL;
-
 	/* Copy registers */
 	sp -= sizeof(struct pt_regs);
 	childregs = (struct pt_regs *) sp;
@@ -512,8 +510,11 @@ int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
 	error = do_execve(filename, (char __user * __user *) a1,
 				    (char __user * __user *) a2, regs);
   
-	if (error == 0)
+	if (error == 0) {
+		task_lock(current);
 		current->ptrace &= ~PT_DTRACE;
+		task_unlock(current);
+	}
 	putname(filename);
 
 out:

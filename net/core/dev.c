@@ -74,7 +74,7 @@
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <linux/config.h>
 #include <linux/cpu.h>
 #include <linux/types.h>
@@ -1587,6 +1587,21 @@ drop:
 	return NET_RX_DROP;
 }
 
+int netif_rx_ni(struct sk_buff *skb)
+{
+	int err;
+
+	preempt_disable();
+	err = netif_rx(skb);
+	if (softirq_pending(smp_processor_id()))
+		do_softirq();
+	preempt_enable();
+
+	return err;
+}
+
+EXPORT_SYMBOL(netif_rx_ni);
+
 static __inline__ void skb_bond(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -2745,7 +2760,7 @@ int dev_ioctl(unsigned int cmd, void __user *arg)
 				/* Follow me in net/core/wireless.c */
 				ret = wireless_process_ioctl(&ifr, cmd);
 				rtnl_unlock();
-				if (!ret && IW_IS_GET(cmd) &&
+				if (IW_IS_GET(cmd) &&
 				    copy_to_user(arg, &ifr,
 					    	 sizeof(struct ifreq)))
 					ret = -EFAULT;
@@ -2869,6 +2884,14 @@ int register_netdevice(struct net_device *dev)
 		printk("%s: Dropping NETIF_F_SG since no checksum feature.\n",
 		       dev->name);
 		dev->features &= ~NETIF_F_SG;
+	}
+
+	/* TSO requires that SG is present as well. */
+	if ((dev->features & NETIF_F_TSO) &&
+	    !(dev->features & NETIF_F_SG)) {
+		printk("%s: Dropping NETIF_F_TSO since no SG feature.\n",
+		       dev->name);
+		dev->features &= ~NETIF_F_TSO;
 	}
 
 	/*

@@ -455,8 +455,12 @@ static int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len)
 {
 	struct tcp_opt *tp = tcp_sk(sk);
 	struct sk_buff *buff;
-	int nsize = skb->len - len;
+	int nsize;
 	u16 flags;
+
+	nsize = skb_headlen(skb) - len;
+	if (nsize < 0)
+		nsize = 0;
 
 	if (skb_cloned(skb) &&
 	    skb_is_nonlinear(skb) &&
@@ -562,8 +566,6 @@ static unsigned char *__pskb_trim_head(struct sk_buff *skb, int len)
 
 int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 {
-	struct tcp_opt *tp = tcp_sk(sk);
-
 	if (skb_cloned(skb) &&
 	    pskb_expand_head(skb, 0, 0, GFP_ATOMIC))
 		return -ENOMEM;
@@ -586,7 +588,7 @@ int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 	/* Any change of skb->len requires recalculation of tso
 	 * factor and mss.
 	 */
-	tcp_set_skb_tso_segs(skb, tp->mss_cache_std);
+	tcp_set_skb_tso_segs(skb, tcp_skb_mss(skb));
 
 	return 0;
 }
@@ -1101,6 +1103,8 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb)
 	if (err == 0) {
 		/* Update global TCP statistics. */
 		TCP_INC_STATS(TCP_MIB_RETRANSSEGS);
+
+		tp->total_retrans++;
 
 #if FASTRETRANS_DEBUG > 0
 		if (TCP_SKB_CB(skb)->sacked&TCPCB_SACKED_RETRANS) {

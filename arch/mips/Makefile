@@ -554,6 +554,7 @@ ifdef CONFIG_BUILD_ELF64
 ifdef CONFIG_MAPPED_KERNEL
 load-$(CONFIG_SGI_IP27)		+= 0xc00000004001c000
 OBJCOPYFLAGS			:= --change-addresses=0x3fffffff80000000
+dataoffset-$(CONFIG_SGI_IP27)	+= 0x01000000
 else
 load-$(CONFIG_SGI_IP27)		+= 0xa80000000001c000
 OBJCOPYFLAGS			:= --change-addresses=0x57ffffff80000000
@@ -562,6 +563,7 @@ else
 ifdef CONFIG_MAPPED_KERNEL
 load-$(CONFIG_SGI_IP27)		+= 0xffffffffc001c000
 OBJCOPYFLAGS			:= --change-addresses=0xc000000080000000
+dataoffset-$(CONFIG_SGI_IP27)	+= 0x01000000
 else
 load-$(CONFIG_SGI_IP27)		+= 0xffffffff8001c000
 OBJCOPYFLAGS			:= --change-addresses=0xa800000080000000
@@ -666,7 +668,7 @@ CPPFLAGS_vmlinux.lds := \
 	$(CFLAGS) \
 	-D"LOADADDR=$(load-y)" \
 	-D"JIFFIES=$(JIFFIES)" \
-	-imacros $(srctree)/include/asm-$(ARCH)/sn/mapped_kernel.h
+	-D"DATAOFFSET=$(if $(dataoffset-y),$(dataoffset-y),0)"
 
 head-y := arch/mips/kernel/head.o arch/mips/kernel/init_task.o
 

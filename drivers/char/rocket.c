@@ -91,7 +91,7 @@
 #include <linux/pci.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <linux/spinlock.h>
 #include <asm/semaphore.h>
 #include <linux/init.h>
@@ -1112,8 +1112,7 @@ static void rp_close(struct tty_struct *tty, struct file *filp)
 
 	if (info->blocked_open) {
 		if (info->close_delay) {
-			current->state = TASK_INTERRUPTIBLE;
-			schedule_timeout(info->close_delay);
+			msleep_interruptible(jiffies_to_msecs(info->close_delay));
 		}
 		wake_up_interruptible(&info->open_wait);
 	} else {
@@ -1538,8 +1537,7 @@ static void rp_wait_until_sent(struct tty_struct *tty, int timeout)
 #ifdef ROCKET_DEBUG_WAIT_UNTIL_SENT
 		printk(KERN_INFO "txcnt = %d (jiff=%lu,check=%d)...", txcnt, jiffies, check_time);
 #endif
-		current->state = TASK_INTERRUPTIBLE;
-		schedule_timeout(check_time);
+		msleep_interruptible(jiffies_to_msecs(check_time));
 		if (signal_pending(current))
 			break;
 	}
@@ -1635,7 +1633,7 @@ static void rp_put_char(struct tty_struct *tty, unsigned char ch)
  *  or get control of the CPU if the copy_from_user() blocks due to a page fault (swapped out). 
  *  Spinlocks protect the info xmit members.
  */
-static int rp_write(struct tty_struct *tty, int from_user,
+static int rp_write(struct tty_struct *tty,
 		    const unsigned char *buf, int count)
 {
 	struct r_port *info = (struct r_port *) tty->driver_data;
@@ -1664,16 +1662,6 @@ static int rp_write(struct tty_struct *tty, int from_user,
 	if (!tty->stopped && !tty->hw_stopped && info->xmit_cnt == 0 && info->xmit_fifo_room > 0) {
 		c = min(count, info->xmit_fifo_room);
 		b = buf;
-		if (from_user) {
-			if (copy_from_user(info->xmit_buf, buf, c)) {
-				retval = -EFAULT;
-				goto end;
-			}
-			if (info->tty == 0)
-				goto end;
-			b = info->xmit_buf;
-			c = min(c, info->xmit_fifo_room);
-		}
 
 		/*  Push data into FIFO, 2 bytes at a time */
 		sOutStrW(sGetTxRxDataIO(cp), (unsigned short *) b, c / 2);
@@ -1705,14 +1693,7 @@ static int rp_write(struct tty_struct *tty, int from_user,
 			break;
 
 		b = buf;
-		if (from_user) {
-			if (copy_from_user(info->xmit_buf + info->xmit_head, b, c)) {
-				retval = -EFAULT;
-				goto end_intr;
-			} else {
-				memcpy(info->xmit_buf + info->xmit_head, b, c);
-			}
-		}
+		memcpy(info->xmit_buf + info->xmit_head, b, c);
 
 		spin_lock_irqsave(&info->slock, flags);
 		info->xmit_head =
@@ -1725,7 +1706,6 @@ static int rp_write(struct tty_struct *tty, int from_user,
 		retval += c;
 	}
 
-end_intr:
 	if ((retval > 0) && !tty->stopped && !tty->hw_stopped)
 		set_bit((info->aiop * 8) + info->chan, (void *) &xmit_flags[info->board]);
 	

@@ -189,6 +189,7 @@ struct ata_probe_ent {
 	Scsi_Host_Template	*sht;
 	struct ata_ioports	port[ATA_MAX_PORTS];
 	unsigned int		n_ports;
+	unsigned int		hard_port_no;
 	unsigned int		pio_mask;
 	unsigned int		mwdma_mask;
 	unsigned int		udma_mask;
@@ -229,6 +230,10 @@ struct ata_queued_cmd {
 
 	unsigned int		nsect;
 	unsigned int		cursect;
+
+	unsigned int		nbytes;
+	unsigned int		curbytes;
+
 	unsigned int		cursg;
 	unsigned int		cursg_ofs;
 
@@ -273,6 +278,7 @@ struct ata_port {
 	unsigned long		flags;	/* ATA_FLAG_xxx */
 	unsigned int		id;	/* unique id req'd by scsi midlyr */
 	unsigned int		port_no; /* unique port #; from zero */
+	unsigned int		hard_port_no;	/* hardware port #; from zero */
 
 	struct ata_prd		*prd;	 /* our SG list */
 	dma_addr_t		prd_dma; /* and its DMA mapping */
@@ -403,7 +409,7 @@ extern void ata_sg_init_one(struct ata_queued_cmd *qc, void *buf,
 extern void ata_sg_init(struct ata_queued_cmd *qc, struct scatterlist *sg,
 		 unsigned int n_elem);
 extern unsigned int ata_dev_classify(struct ata_taskfile *tf);
-extern void ata_dev_id_string(struct ata_device *dev, unsigned char *s,
+extern void ata_dev_id_string(u16 *id, unsigned char *s,
 			      unsigned int ofs, unsigned int len);
 extern void ata_bmdma_setup (struct ata_queued_cmd *qc);
 extern void ata_bmdma_start (struct ata_queued_cmd *qc);
@@ -415,7 +421,9 @@ extern int ata_std_bios_param(struct scsi_device *sdev,
 			      struct block_device *bdev,
 			      sector_t capacity, int geom[]);
 extern int ata_scsi_slave_config(struct scsi_device *sdev);
-
+extern void ata_scsi_simulate(u16 *id,
+			      struct scsi_cmnd *cmd,
+			      void (*done)(struct scsi_cmnd *));
 
 static inline unsigned int ata_tag_valid(unsigned int tag)
 {
@@ -613,9 +621,9 @@ static inline u8 ata_bmdma_status(struct ata_port *ap)
 
 static inline int ata_try_flush_cache(struct ata_device *dev)
 {
-	return ata_id_wcache_enabled(dev) ||
-	       ata_id_has_flush(dev) ||
-	       ata_id_has_flush_ext(dev);
+	return ata_id_wcache_enabled(dev->id) ||
+	       ata_id_has_flush(dev->id) ||
+	       ata_id_has_flush_ext(dev->id);
 }
 
 #endif /* __LINUX_LIBATA_H__ */

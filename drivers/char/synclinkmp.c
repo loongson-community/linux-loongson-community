@@ -63,7 +63,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/dma.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <asm/types.h>
 #include <linux/termios.h>
 #include <linux/workqueue.h>
@@ -521,7 +521,7 @@ static void close(struct tty_struct *tty, struct file * filp);
 static void hangup(struct tty_struct *tty);
 static void set_termios(struct tty_struct *tty, struct termios *old_termios);
 
-static int  write(struct tty_struct *tty, int from_user, const unsigned char *buf, int count);
+static int  write(struct tty_struct *tty, const unsigned char *buf, int count);
 static void put_char(struct tty_struct *tty, unsigned char ch);
 static void send_xchar(struct tty_struct *tty, char ch);
 static void wait_until_sent(struct tty_struct *tty, int timeout);
@@ -878,8 +878,7 @@ static void close(struct tty_struct *tty, struct file *filp)
 
 	if (info->blocked_open) {
 		if (info->close_delay) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(info->close_delay);
+			msleep_interruptible(jiffies_to_msecs(info->close_delay));
 		}
 		wake_up_interruptible(&info->open_wait);
 	}
@@ -972,16 +971,15 @@ static void set_termios(struct tty_struct *tty, struct termios *old_termios)
  * Arguments:
  *
  * 	tty		pointer to tty information structure
- * 	from_user	flag: 1 = from user process
  * 	buf		pointer to buffer containing send data
  * 	count		size of send data in bytes
  *
  * Return Value:	number of characters written
  */
-static int write(struct tty_struct *tty, int from_user,
+static int write(struct tty_struct *tty,
 		 const unsigned char *buf, int count)
 {
-	int	c, ret = 0, err;
+	int	c, ret = 0;
 	SLMP_INFO *info = (SLMP_INFO *)tty->driver_data;
 	unsigned long flags;
 
@@ -1008,11 +1006,9 @@ static int write(struct tty_struct *tty, int from_user,
 			tx_load_dma_buffer(info, info->tx_buf, info->tx_count);
 			goto start;
 		}
-		if (!from_user) {
-			ret = info->tx_count = count;
-			tx_load_dma_buffer(info, buf, count);
-			goto start;
-		}
+		ret = info->tx_count = count;
+		tx_load_dma_buffer(info, buf, count);
+		goto start;
 	}
 
 	for (;;) {
@@ -1022,15 +1018,7 @@ static int write(struct tty_struct *tty, int from_user,
 		if (c <= 0)
 			break;
 			
-		if (from_user) {
-			COPY_FROM_USER(err, info->tx_buf + info->tx_put, buf, c);
-			if (err) {
-				if (!ret)
-					ret = -EFAULT;
-				break;
-			}
-		} else
-			memcpy(info->tx_buf + info->tx_put, buf, c);
+		memcpy(info->tx_buf + info->tx_put, buf, c);
 
 		spin_lock_irqsave(&info->lock,flags);
 		info->tx_put += c;
@@ -1164,8 +1152,7 @@ static void wait_until_sent(struct tty_struct *tty, int timeout)
 
 	if ( info->params.mode == MGSL_MODE_HDLC ) {
 		while (info->tx_active) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(char_time);
+			msleep_interruptible(jiffies_to_msecs(char_time));
 			if (signal_pending(current))
 				break;
 			if (timeout && time_after(jiffies, orig_jiffies + timeout))
@@ -1175,8 +1162,7 @@ static void wait_until_sent(struct tty_struct *tty, int timeout)
 		//TODO: determine if there is something similar to USC16C32
 		// 	TXSTATUS_ALL_SENT status
 		while ( info->tx_active && info->tx_enabled) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(char_time);
+			msleep_interruptible(jiffies_to_msecs(char_time));
 			if (signal_pending(current))
 				break;
 			if (timeout && time_after(jiffies, orig_jiffies + timeout))
@@ -5209,8 +5195,7 @@ int irq_test(SLMP_INFO *info)
 
 	timeout=100;
 	while( timeout-- && !info->irq_occurred ) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(msecs_to_jiffies(10));
+		msleep_interruptible(10);
 	}
 
 	spin_lock_irqsave(&info->lock,flags);
@@ -5360,8 +5345,7 @@ int loopback_test(SLMP_INFO *info)
 	/* wait for receive complete */
 	/* Set a timeout for waiting for interrupt. */
 	for ( timeout = 100; timeout; --timeout ) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(msecs_to_jiffies(10));
+		msleep_interruptible(10);
 
 		if (rx_get_frame(info)) {
 			rc = TRUE;

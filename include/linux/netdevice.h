@@ -309,7 +309,9 @@ struct net_device
 
 	/* List of functions to handle Wireless Extensions (instead of ioctl).
 	 * See <net/iw_handler.h> for details. Jean II */
-	struct iw_handler_def *	wireless_handlers;
+	const struct iw_handler_def *	wireless_handlers;
+	/* Instance data managed by the core of Wireless Extensions. */
+	struct iw_public_data *	wireless_data;
 
 	struct ethtool_ops *ethtool_ops;
 
@@ -675,6 +677,7 @@ static inline void dev_kfree_skb_any(struct sk_buff *skb)
 
 #define HAVE_NETIF_RX 1
 extern int		netif_rx(struct sk_buff *skb);
+extern int		netif_rx_ni(struct sk_buff *skb);
 #define HAVE_NETIF_RECEIVE_SKB 1
 extern int		netif_receive_skb(struct sk_buff *skb);
 extern int		dev_ioctl(unsigned int cmd, void __user *);
@@ -688,17 +691,6 @@ extern void		dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev);
 extern void		dev_init(void);
 
 extern int		netdev_nit;
-
-/* Post buffer to the network code from _non interrupt_ context.
- * see net/core/dev.c for netif_rx description.
- */
-static inline int netif_rx_ni(struct sk_buff *skb)
-{
-       int err = netif_rx(skb);
-       if (softirq_pending(smp_processor_id()))
-               do_softirq();
-       return err;
-}
 
 /* Called by rtnetlink.c:rtnl_unlock() */
 extern void netdev_run_todo(void);

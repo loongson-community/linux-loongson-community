@@ -66,7 +66,7 @@ static int jazz_esp_release(struct Scsi_Host *shost)
 }
 
 static Scsi_Host_Template driver_template = {
-	.proc_name		= "esp",
+	.proc_name		= "jazz_esp",
 	.proc_info		= &esp_proc_info,
 	.name			= "ESP 100/100a/200",
 	.detect			= jazz_esp_detect,

@@ -6,7 +6,16 @@ ifeq ($(CONFIG_PCMCIA_DEBUG),y)
 EXTRA_CFLAGS += -DDEBUG
 endif
 
-obj-$(CONFIG_PCMCIA)				+= pcmcia_core.o ds.o
+pcmcia_core-y					+= cs.o cistpl.o rsrc_mgr.o socket_sysfs.o
+pcmcia_core-$(CONFIG_CARDBUS)			+= cardbus.o
+obj-$(CONFIG_PCCARD)				+= pcmcia_core.o
+
+pcmcia-y					+= ds.o bulkmem.o pcmcia_compat.o
+obj-$(CONFIG_PCMCIA)				+= pcmcia.o
+
+
+# socket drivers
+
 obj-$(CONFIG_YENTA) 				+= yenta_socket.o
 
 obj-$(CONFIG_PD6729)				+= pd6729.o

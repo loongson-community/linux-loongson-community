@@ -60,8 +60,8 @@
 
 #define DRV_MODULE_NAME		"tg3"
 #define PFX DRV_MODULE_NAME	": "
-#define DRV_MODULE_VERSION	"3.10"
-#define DRV_MODULE_RELDATE	"September 14, 2004"
+#define DRV_MODULE_VERSION	"3.11"
+#define DRV_MODULE_RELDATE	"October 20, 2004"
 
 #define TG3_DEF_MAC_MODE	0
 #define TG3_DEF_RX_MODE		0
@@ -143,6 +143,7 @@ MODULE_DESCRIPTION("Broadcom Tigon3 ethernet driver");
 MODULE_LICENSE("GPL");
 MODULE_PARM(tg3_debug, "i");
 MODULE_PARM_DESC(tg3_debug, "Tigon3 bitmapped debugging message enable value");
+MODULE_VERSION(DRV_MODULE_VERSION);
 
 static int tg3_debug = -1;	/* -1 == use TG3_DEF_MSG_ENABLE as value */
 
@@ -3788,7 +3789,7 @@ static int tg3_chip_reset(struct tg3 *tp)
 		val |= PCISTATE_RETRY_SAME_DMA;
 	pci_write_config_dword(tp->pdev, TG3PCI_PCISTATE, val);
 
-	pci_restore_state(tp->pdev, tp->pci_cfg_state);
+	pci_restore_state(tp->pdev);
 
 	/* Make sure PCI-X relaxed ordering bit is clear. */
 	pci_read_config_dword(tp->pdev, TG3PCI_X_CAPS, &val);
@@ -6319,8 +6320,8 @@ static int tg3_get_eeprom_len(struct net_device *dev)
 	return EEPROM_CHIP_SIZE;
 }
 
-static int __devinit tg3_nvram_read_using_eeprom(struct tg3 *tp,
-						 u32 offset, u32 *val);
+static int tg3_nvram_read_using_eeprom(struct tg3 *tp,
+					u32 offset, u32 *val);
 static int tg3_get_eeprom(struct net_device *dev, struct ethtool_eeprom *eeprom, u8 *data)
 {
 	struct tg3 *tp = dev->priv;
@@ -6851,8 +6852,8 @@ static void __devinit tg3_nvram_init(struct tg3 *tp)
 	}
 }
 
-static int __devinit tg3_nvram_read_using_eeprom(struct tg3 *tp,
-						 u32 offset, u32 *val)
+static int tg3_nvram_read_using_eeprom(struct tg3 *tp,
+					u32 offset, u32 *val)
 {
 	u32 tmp;
 	int i;
@@ -8316,7 +8317,7 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 	 */
 	if ((tr32(HOSTCC_MODE) & HOSTCC_MODE_ENABLE) ||
 	    (tr32(WDMAC_MODE) & WDMAC_MODE_ENABLE)) {
-		pci_save_state(tp->pdev, tp->pci_cfg_state);
+		pci_save_state(tp->pdev);
 		tw32(MEMARB_MODE, MEMARB_MODE_ENABLE);
 		tg3_halt(tp);
 	}
@@ -8355,7 +8356,7 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 	 * of the PCI config space.  We need to restore this after
 	 * GRC_MISC_CFG core clock resets and some resume events.
 	 */
-	pci_save_state(tp->pdev, tp->pci_cfg_state);
+	pci_save_state(tp->pdev);
 
 	printk(KERN_INFO "%s: Tigon3 [partno(%s) rev %04x PHY(%s)] (PCI%s:%s:%s) %sBaseT Ethernet ",
 	       dev->name,
@@ -8474,7 +8475,7 @@ static int tg3_resume(struct pci_dev *pdev)
 	if (!netif_running(dev))
 		return 0;
 
-	pci_restore_state(tp->pdev, tp->pci_cfg_state);
+	pci_restore_state(tp->pdev);
 
 	err = tg3_set_power_state(tp, 0);
 	if (err)

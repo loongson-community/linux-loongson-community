@@ -438,8 +438,8 @@ static int __init noexec_setup(char *str)
 
 __setup("noexec=", noexec_setup);
 
-#ifdef CONFIG_X86_PAE
 int nx_enabled = 0;
+#ifdef CONFIG_X86_PAE
 
 static void __init set_nx(void)
 {
@@ -704,6 +704,7 @@ void free_initmem(void)
 	for (; addr < (unsigned long)(&__init_end); addr += PAGE_SIZE) {
 		ClearPageReserved(virt_to_page(addr));
 		set_page_count(virt_to_page(addr), 1);
+		memset((void *)addr, 0xcc, PAGE_SIZE);
 		free_page(addr);
 		totalram_pages++;
 	}

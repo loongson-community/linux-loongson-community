@@ -63,7 +63,6 @@
 #include <asm/pgtable.h>
 #include <asm/irq.h>
 #include <asm/system.h>
-#include <asm/bitops.h>
 #include <asm/uaccess.h>
 #include <asm/bootinfo.h>
 #include <asm/dec/serial.h>
@@ -913,7 +912,7 @@ static void rs_flush_chars(struct tty_struct *tty)
 	restore_flags(flags);
 }
 
-static int rs_write(struct tty_struct * tty, int from_user,
+static int rs_write(struct tty_struct * tty,
 		    const unsigned char *buf, int count)
 {
 	int	c, total = 0;

@@ -65,7 +65,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/dma.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <asm/types.h>
 #include <linux/termios.h>
 #include <linux/workqueue.h>
@@ -1744,16 +1744,15 @@ static void mgslpc_flush_chars(struct tty_struct *tty)
  * Arguments:
  * 
  * tty        pointer to tty information structure
- * from_user  flag: 1 = from user process
  * buf	      pointer to buffer containing send data
  * count      size of send data in bytes
  * 	
  * Returns: number of characters written
  */
-static int mgslpc_write(struct tty_struct * tty, int from_user,
+static int mgslpc_write(struct tty_struct * tty,
 			const unsigned char *buf, int count)
 {
-	int c, ret = 0, err;
+	int c, ret = 0;
 	MGSLPC_INFO *info = (MGSLPC_INFO *)tty->driver_data;
 	unsigned long flags;
 	
@@ -1783,15 +1782,7 @@ static int mgslpc_write(struct tty_struct * tty, int from_user,
 		if (c <= 0)
 			break;
 			
-		if (from_user) {
-			COPY_FROM_USER(err, info->tx_buf + info->tx_put, buf, c);
-			if (err) {
-				if (!ret)
-					ret = -EFAULT;
-				break;
-			}
-		} else
-			memcpy(info->tx_buf + info->tx_put, buf, c);
+		memcpy(info->tx_buf + info->tx_put, buf, c);
 
 		spin_lock_irqsave(&info->lock,flags);
 		info->tx_put = (info->tx_put + c) & (TXBUFSIZE-1);
@@ -2609,8 +2600,7 @@ static void mgslpc_close(struct tty_struct *tty, struct file * filp)
 	
 	if (info->blocked_open) {
 		if (info->close_delay) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(info->close_delay);
+			msleep_interruptible(jiffies_to_msecs(info->close_delay));
 		}
 		wake_up_interruptible(&info->open_wait);
 	}
@@ -2665,8 +2655,7 @@ static void mgslpc_wait_until_sent(struct tty_struct *tty, int timeout)
 		
 	if (info->params.mode == MGSL_MODE_HDLC) {
 		while (info->tx_active) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(char_time);
+			msleep_interruptible(jiffies_to_msecs(char_time));
 			if (signal_pending(current))
 				break;
 			if (timeout && time_after(jiffies, orig_jiffies + timeout))
@@ -2675,8 +2664,7 @@ static void mgslpc_wait_until_sent(struct tty_struct *tty, int timeout)
 	} else {
 		while ((info->tx_count || info->tx_active) &&
 			info->tx_enabled) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(char_time);
+			msleep_interruptible(jiffies_to_msecs(char_time));
 			if (signal_pending(current))
 				break;
 			if (timeout && time_after(jiffies, orig_jiffies + timeout))
@@ -4129,8 +4117,7 @@ BOOLEAN irq_test(MGSLPC_INFO *info)
 
 	end_time=100;
 	while(end_time-- && !info->irq_occurred) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(msecs_to_jiffies(10));
+		msleep_interruptible(10);
 	}
 	
 	info->testing_irq = FALSE;

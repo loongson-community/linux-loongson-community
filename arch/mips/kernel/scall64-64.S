@@ -444,3 +444,7 @@ sys_call_table:
 	PTR	sys_mq_getsetattr		/* 5235 */
 	PTR	sys_ni_syscall			/* sys_vserver */
 	PTR	sys_waitid
+	PTR	sys_setaltroot
+	PTR	sys_add_key
+	PTR	sys_request_key			/* 5240 */
+	PTR	sys_keyctl

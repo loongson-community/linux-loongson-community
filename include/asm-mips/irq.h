@@ -22,12 +22,14 @@ static inline int irq_canonicalize(int irq)
 #define irq_canonicalize(irq) (irq)	/* Sane hardware, sane code ... */
 #endif
 
-extern void disable_irq(unsigned int);
-extern void disable_irq_nosync(unsigned int);
-extern void enable_irq(unsigned int);
-
 struct pt_regs;
-extern asmlinkage unsigned int do_IRQ(int irq, struct pt_regs *regs);
+
+/*
+ * do_IRQ handles all normal device IRQ's (the special
+ * SMP cross-CPU interrupts have their own specific
+ * handlers).
+ */
+#define do_IRQ(irq, regs)	__do_IRQ((irq), (regs))
 
 extern void arch_init_irq(void);
 

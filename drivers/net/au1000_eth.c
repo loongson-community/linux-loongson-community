@@ -37,6 +37,7 @@
 #include <linux/errno.h>
 #include <linux/in.h>
 #include <linux/ioport.h>
+#include <linux/bitops.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
@@ -49,7 +50,6 @@
 #include <linux/delay.h>
 #include <asm/mipsregs.h>
 #include <asm/irq.h>
-#include <asm/bitops.h>
 #include <asm/io.h>
 #include <asm/processor.h>
 

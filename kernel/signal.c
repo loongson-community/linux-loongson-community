@@ -20,6 +20,7 @@
 #include <linux/tty.h>
 #include <linux/binfmts.h>
 #include <linux/security.h>
+#include <linux/syscalls.h>
 #include <linux/ptrace.h>
 #include <asm/param.h>
 #include <asm/uaccess.h>
@@ -264,18 +265,18 @@ next_signal(struct sigpending *pending, sigset_t *mask)
 	return sig;
 }
 
-static struct sigqueue *__sigqueue_alloc(void)
+static inline struct sigqueue *__sigqueue_alloc(struct task_struct *t, int flags)
 {
 	struct sigqueue *q = NULL;
 
-	if (atomic_read(&current->user->sigpending) <
-			current->rlim[RLIMIT_SIGPENDING].rlim_cur)
-		q = kmem_cache_alloc(sigqueue_cachep, GFP_ATOMIC);
+	if (atomic_read(&t->user->sigpending) <
+			t->signal->rlim[RLIMIT_SIGPENDING].rlim_cur)
+		q = kmem_cache_alloc(sigqueue_cachep, flags);
 	if (q) {
 		INIT_LIST_HEAD(&q->list);
 		q->flags = 0;
 		q->lock = NULL;
-		q->user = get_uid(current->user);
+		q->user = get_uid(t->user);
 		atomic_inc(&q->user->sigpending);
 	}
 	return(q);
@@ -763,14 +764,8 @@ static int send_signal(int sig, struct siginfo *info, struct task_struct *t,
 	   make sure at least one signal gets delivered and don't
 	   pass on the info struct.  */
 
-	if (atomic_read(&t->user->sigpending) <
-			t->rlim[RLIMIT_SIGPENDING].rlim_cur)
-		q = kmem_cache_alloc(sigqueue_cachep, GFP_ATOMIC);
-
+	q = __sigqueue_alloc(t, GFP_ATOMIC);
 	if (q) {
-		q->flags = 0;
-		q->user = get_uid(t->user);
-		atomic_inc(&q->user->sigpending);
 		list_add_tail(&q->list, &signals->list);
 		switch ((unsigned long) info) {
 		case 0:
@@ -913,7 +908,7 @@ __group_complete_signal(int sig, struct task_struct *p)
 	 * Don't bother zombies and stopped tasks (but
 	 * SIGKILL will punch through stopped state)
 	 */
-	mask = TASK_DEAD | TASK_ZOMBIE | TASK_TRACED;
+	mask = EXIT_DEAD | EXIT_ZOMBIE | TASK_TRACED;
 	if (sig != SIGKILL)
 		mask |= TASK_STOPPED;
 
@@ -1069,7 +1064,7 @@ void zap_other_threads(struct task_struct *p)
 		/*
 		 * Don't bother with already dead threads
 		 */
-		if (t->state & (TASK_ZOMBIE|TASK_DEAD))
+		if (t->exit_state & (EXIT_ZOMBIE|EXIT_DEAD))
 			continue;
 
 		/*
@@ -1139,36 +1134,6 @@ kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
 	retval = __kill_pg_info(sig, info, pgrp);
 	read_unlock(&tasklist_lock);
 
-	return retval;
-}
-
-/*
- * kill_sl_info() sends a signal to the session leader: this is used
- * to send SIGHUP to the controlling process of a terminal when
- * the connection is lost.
- */
-
-
-int
-kill_sl_info(int sig, struct siginfo *info, pid_t sid)
-{
-	int err, retval = -EINVAL;
-	struct task_struct *p;
-
-	if (sid <= 0)
-		goto out;
-
-	retval = -ESRCH;
-	read_lock(&tasklist_lock);
-	do_each_task_pid(sid, PIDTYPE_SID, p) {
-		if (!p->signal->leader)
-			continue;
-		err = group_send_sig_info(sig, info, p);
-		if (retval)
-			retval = err;
-	} while_each_task_pid(sid, PIDTYPE_SID, p);
-	read_unlock(&tasklist_lock);
-out:
 	return retval;
 }
 
@@ -1308,12 +1273,6 @@ kill_pg(pid_t pgrp, int sig, int priv)
 }
 
 int
-kill_sl(pid_t sess, int sig, int priv)
-{
-	return kill_sl_info(sig, (void *)(long)(priv != 0), sess);
-}
-
-int
 kill_proc(pid_t pid, int sig, int priv)
 {
 	return kill_proc_info(sig, (void *)(long)(priv != 0), pid);
@@ -1333,7 +1292,7 @@ struct sigqueue *sigqueue_alloc(void)
 {
 	struct sigqueue *q;
 
-	if ((q = __sigqueue_alloc()))
+	if ((q = __sigqueue_alloc(current, GFP_KERNEL)))
 		q->flags |= SIGQUEUE_PREALLOC;
 	return(q);
 }
@@ -1978,21 +1937,11 @@ EXPORT_SYMBOL(recalc_sigpending);
 EXPORT_SYMBOL_GPL(dequeue_signal);
 EXPORT_SYMBOL(flush_signals);
 EXPORT_SYMBOL(force_sig);
-EXPORT_SYMBOL(force_sig_info);
 EXPORT_SYMBOL(kill_pg);
-EXPORT_SYMBOL(kill_pg_info);
 EXPORT_SYMBOL(kill_proc);
-EXPORT_SYMBOL(kill_proc_info);
-EXPORT_SYMBOL(kill_sl);
-EXPORT_SYMBOL(kill_sl_info);
 EXPORT_SYMBOL(ptrace_notify);
 EXPORT_SYMBOL(send_sig);
 EXPORT_SYMBOL(send_sig_info);
-EXPORT_SYMBOL(send_group_sig_info);
-EXPORT_SYMBOL(sigqueue_alloc);
-EXPORT_SYMBOL(sigqueue_free);
-EXPORT_SYMBOL(send_sigqueue);
-EXPORT_SYMBOL(send_group_sigqueue);
 EXPORT_SYMBOL(sigprocmask);
 EXPORT_SYMBOL(block_all_signals);
 EXPORT_SYMBOL(unblock_all_signals);

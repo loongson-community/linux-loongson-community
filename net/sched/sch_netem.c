@@ -15,7 +15,7 @@
 
 #include <linux/config.h>
 #include <linux/module.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -153,12 +153,12 @@ static int delay_skb(struct Qdisc *sch, struct sk_buff *skb)
 	if (likely(q->delayed.qlen < q->limit)) {
 		__skb_queue_tail(&q->delayed, skb);
 		sch->q.qlen++;
-		sch->stats.bytes += skb->len;
-		sch->stats.packets++;
+		sch->bstats.bytes += skb->len;
+		sch->bstats.packets++;
 		return NET_XMIT_SUCCESS;
 	}
 
-	sch->stats.drops++;
+	sch->qstats.drops++;
 	kfree_skb(skb);
 	return NET_XMIT_DROP;
 }
@@ -172,7 +172,7 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	/* Random packet drop 0 => none, ~0 => all */
 	if (q->loss && q->loss >= get_crandom(&q->loss_cor)) {
 		pr_debug("netem_enqueue: random loss\n");
-		sch->stats.drops++;
+		sch->qstats.drops++;
 		return 0;	/* lie about loss so TCP doesn't know */
 	}
 
@@ -195,8 +195,12 @@ static int netem_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 
 		++q->counter;
 		ret = q->qdisc->enqueue(skb, q->qdisc);
-		if (ret)
-			sch->stats.drops++;
+		if (likely(ret == NET_XMIT_SUCCESS)) {
+			sch->q.qlen++;
+			sch->bstats.bytes += skb->len;
+			sch->bstats.packets++;
+		} else
+			sch->qstats.drops++;
 		return ret;
 	}
 	
@@ -211,8 +215,10 @@ static int netem_requeue(struct sk_buff *skb, struct Qdisc *sch)
 	struct netem_sched_data *q = qdisc_priv(sch);
 	int ret;
 
-	if ((ret = q->qdisc->ops->requeue(skb, q->qdisc)) == 0)
+	if ((ret = q->qdisc->ops->requeue(skb, q->qdisc)) == 0) {
 		sch->q.qlen++;
+		sch->qstats.requeues++;
+	}
 
 	return ret;
 }
@@ -224,7 +230,7 @@ static unsigned int netem_drop(struct Qdisc* sch)
 
 	if ((len = q->qdisc->ops->drop(q->qdisc)) != 0) {
 		sch->q.qlen--;
-		sch->stats.drops++;
+		sch->qstats.drops++;
 	}
 	return len;
 }
@@ -256,7 +262,7 @@ static struct sk_buff *netem_dequeue(struct Qdisc *sch)
 		__skb_unlink(skb, &q->delayed);
 
 		if (q->qdisc->enqueue(skb, q->qdisc))
-			sch->stats.drops++;
+			sch->qstats.drops++;
 	}
 
 	skb = q->qdisc->dequeue(q->qdisc);
@@ -487,7 +493,7 @@ static int netem_graft(struct Qdisc *sch, unsigned long arg, struct Qdisc *new,
 	sch_tree_lock(sch);
 	*old = xchg(&q->qdisc, new);
 	qdisc_reset(*old);
-	sch->q.qlen = 0;
+	sch->q.qlen = q->delayed.qlen;
 	sch_tree_unlock(sch);
 
 	return 0;

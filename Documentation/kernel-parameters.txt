@@ -754,8 +754,8 @@ running once the system is up.
 
 	noalign		[KNL,ARM] 
  
-	noapic		[SMP,APIC] Tells the kernel not to make use of any
-			APIC that may be present on the system.
+	noapic		[SMP,APIC] Tells the kernel to not make use of any
+			IOAPICs that may be present in the system.
 
 	noasync		[HW,M68K] Disables async and sync negotiation for
 			all devices.
@@ -769,7 +769,7 @@ running once the system is up.
 
 	noexec		[IA-64]
 
-	noexec		[i386]
+	noexec		[i386, x86_64]
 			noexec=on: enable non-executable mappings (default)
 			noexec=off: disable nn-executable mappings
 
@@ -1060,8 +1060,6 @@ running once the system is up.
 
 	scsi_logging=	[SCSI]
 
-	scsihosts=	[SCSI]
-
 	serialnumber	[BUGS=IA-32]
 
 	sf16fm=		[HW] SF16FMI radio driver for Linux
@@ -1311,6 +1309,8 @@ running once the system is up.
 
 	uart6850=	[HW,OSS]
 			Format: <io>,<irq>
+
+	usb-handoff	[HW] Enable early USB BIOS -> OS handoff
  
 	video=		[FB] Frame buffer configuration
 			See Documentation/fb/modedb.txt.

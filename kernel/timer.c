@@ -31,6 +31,7 @@
 #include <linux/time.h>
 #include <linux/jiffies.h>
 #include <linux/cpu.h>
+#include <linux/syscalls.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -789,13 +790,12 @@ static void update_wall_time(unsigned long ticks)
 	do {
 		ticks--;
 		update_wall_time_one_tick();
+		if (xtime.tv_nsec >= 1000000000) {
+			xtime.tv_nsec -= 1000000000;
+			xtime.tv_sec++;
+			second_overflow();
+		}
 	} while (ticks);
-
-	if (xtime.tv_nsec >= 1000000000) {
-	    xtime.tv_nsec -= 1000000000;
-	    xtime.tv_sec++;
-	    second_overflow();
-	}
 }
 
 static inline void do_process_times(struct task_struct *p,
@@ -805,12 +805,13 @@ static inline void do_process_times(struct task_struct *p,
 
 	psecs = (p->utime += user);
 	psecs += (p->stime += system);
-	if (psecs / HZ >= p->rlim[RLIMIT_CPU].rlim_cur) {
+	if (p->signal && !unlikely(p->state & (EXIT_DEAD|EXIT_ZOMBIE)) &&
+	    psecs / HZ >= p->signal->rlim[RLIMIT_CPU].rlim_cur) {
 		/* Send SIGXCPU every second.. */
 		if (!(psecs % HZ))
 			send_sig(SIGXCPU, p, 1);
 		/* and SIGKILL when we go over max.. */
-		if (psecs / HZ >= p->rlim[RLIMIT_CPU].rlim_max)
+		if (psecs / HZ >= p->signal->rlim[RLIMIT_CPU].rlim_max)
 			send_sig(SIGKILL, p, 1);
 	}
 }
@@ -958,11 +959,6 @@ static inline void update_times(void)
 void do_timer(struct pt_regs *regs)
 {
 	jiffies_64++;
-#ifndef CONFIG_SMP
-	/* SMP process accounting uses the local APIC timer */
-
-	update_process_times(user_mode(regs));
-#endif
 	update_times();
 }
 

@@ -168,7 +168,7 @@
 /* function prototypes for a handspring visor */
 static int  visor_open		(struct usb_serial_port *port, struct file *filp);
 static void visor_close		(struct usb_serial_port *port, struct file *filp);
-static int  visor_write		(struct usb_serial_port *port, int from_user, const unsigned char *buf, int count);
+static int  visor_write		(struct usb_serial_port *port, const unsigned char *buf, int count);
 static int  visor_write_room		(struct usb_serial_port *port);
 static int  visor_chars_in_buffer	(struct usb_serial_port *port);
 static void visor_throttle	(struct usb_serial_port *port);
@@ -446,9 +446,9 @@ static void visor_close (struct usb_serial_port *port, struct file * filp)
 	dbg("%s - port %d", __FUNCTION__, port->number);
 			 
 	/* shutdown our urbs */
-	usb_unlink_urb (port->read_urb);
+	usb_kill_urb(port->read_urb);
 	if (port->interrupt_in_urb)
-		usb_unlink_urb (port->interrupt_in_urb);
+		usb_kill_urb(port->interrupt_in_urb);
 
 	/* Try to send shutdown message, if the device is gone, this will just fail. */
 	transfer_buffer =  kmalloc (0x12, GFP_KERNEL);
@@ -466,7 +466,7 @@ static void visor_close (struct usb_serial_port *port, struct file * filp)
 }
 
 
-static int visor_write (struct usb_serial_port *port, int from_user, const unsigned char *buf, int count)
+static int visor_write (struct usb_serial_port *port, const unsigned char *buf, int count)
 {
 	struct usb_serial *serial = port->serial;
 	struct urb *urb;
@@ -488,15 +488,7 @@ static int visor_write (struct usb_serial_port *port, int from_user, const unsig
 		return -ENOMEM;
 	}
 
-	if (from_user) {
-		if (copy_from_user (buffer, buf, count)) {
-			kfree (buffer);
-			usb_free_urb (urb);
-			return -EFAULT;
-		}
-	} else {
-		memcpy (buffer, buf, count);
-	}
+	memcpy (buffer, buf, count);
 
 	usb_serial_debug_data(debug, &port->dev, __FUNCTION__, count, buffer);
 
@@ -655,7 +647,7 @@ exit:
 static void visor_throttle (struct usb_serial_port *port)
 {
 	dbg("%s - port %d", __FUNCTION__, port->number);
-	usb_unlink_urb (port->read_urb);
+	usb_kill_urb(port->read_urb);
 }
 
 

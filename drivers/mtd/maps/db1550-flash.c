@@ -131,7 +131,7 @@ int setup_flash_params(void)
 			window_addr = 0x1C000000;
 			window_size = 0x4000000; 
 #else /* USER ONLY */
-			window_addr = 0x1E000000;
+			window_addr = 0x18000000;
 			window_size = 0x4000000; 
 #endif
 	return 0;
@@ -176,6 +176,7 @@ static void __exit db1550_mtd_cleanup(void)
 	if (mymtd) {
 		del_mtd_partitions(mymtd);
 		map_destroy(mymtd);
+		iounmap((void *) db1550_map.virt);
 	}
 }
 

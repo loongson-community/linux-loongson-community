@@ -634,6 +634,10 @@ out:	jr	ra
 	sys	sys_mq_getsetattr	3
 	sys	sys_ni_syscall		0	/* sys_vserver */
 	sys	sys_waitid		4
+	sys	sys_setaltroot		1
+	sys	sys_add_key		5
+	sys	sys_request_key		4
+	sys	sys_keyctl		5
 
 	.endm
 

@@ -503,4 +503,8 @@ sys_call_table:
 	PTR	compat_sys_mq_getsetattr 
 	PTR	sys_ni_syscall			/* sys_vserver */
 	PTR	sys_waitid
+	PTR	sys_setaltroot
+	PTR	sys_add_key			/* 4280 */
+	PTR	sys_request_key	
+	PTR	sys_keyctl
 	.size	sys_call_table,.-sys_call_table

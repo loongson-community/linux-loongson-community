@@ -1124,11 +1124,10 @@ static void isicom_close(struct tty_struct * tty, struct file * filp)
 	port->tty = NULL;
 	if (port->blocked_open) {
 		if (port->close_delay) {
-			set_current_state(TASK_INTERRUPTIBLE);
 #ifdef ISICOM_DEBUG			
 			printk(KERN_DEBUG "ISICOM: scheduling until time out.\n");
 #endif			
-			schedule_timeout(port->close_delay);
+			msleep_interruptible(jiffies_to_msecs(port->close_delay));
 		}
 		wake_up_interruptible(&port->open_wait);
 	}	
@@ -1141,7 +1140,7 @@ static void isicom_close(struct tty_struct * tty, struct file * filp)
 }
 
 /* write et all */
-static int isicom_write(struct tty_struct * tty, int from_user,
+static int isicom_write(struct tty_struct * tty,
 			const unsigned char * buf, int count)
 {
 	struct isi_port * port = (struct isi_port *) tty->driver_data;
@@ -1156,8 +1155,6 @@ static int isicom_write(struct tty_struct * tty, int from_user,
 	
 	if (!tty || !port->xmit_buf || !tmp_buf)
 		return 0;
-	if (from_user)
-		down(&tmp_buf_sem); /* acquire xclusive access to tmp_buf */
 		
 	save_flags(flags);
 	while(1) {	
@@ -1167,24 +1164,7 @@ static int isicom_write(struct tty_struct * tty, int from_user,
 		if (cnt <= 0) 
 			break;
 		
-		if (from_user) {
-			/* the following may block for paging... hence 
-			   enabling interrupts but tx routine may have 
-			   created more space in xmit_buf when the ctrl 
-			   gets back here  */
-			sti(); 
-			if (copy_from_user(tmp_buf, buf, cnt)) {
-				up(&tmp_buf_sem);
-				restore_flags(flags);
-				return -EFAULT;
-			}
-			cli();
-			cnt = min_t(int, cnt, min(SERIAL_XMIT_SIZE - port->xmit_cnt - 1,
-						  SERIAL_XMIT_SIZE - port->xmit_head));
-			memcpy(port->xmit_buf + port->xmit_head, tmp_buf, cnt);
-		}	
-		else
-			memcpy(port->xmit_buf + port->xmit_head, buf, cnt);
+		memcpy(port->xmit_buf + port->xmit_head, buf, cnt);
 		port->xmit_head = (port->xmit_head + cnt) & (SERIAL_XMIT_SIZE - 1);
 		port->xmit_cnt += cnt;
 		restore_flags(flags);
@@ -1192,8 +1172,6 @@ static int isicom_write(struct tty_struct * tty, int from_user,
 		count -= cnt;
 		total += cnt;
 	}		
-	if (from_user)
-		up(&tmp_buf_sem);
 	if (port->xmit_cnt && !tty->stopped && !tty->hw_stopped)
 		port->status |= ISI_TXOK;
 	restore_flags(flags);

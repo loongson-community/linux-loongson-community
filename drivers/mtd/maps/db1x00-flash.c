@@ -199,7 +199,7 @@ int __init db1x00_mtd_init(void)
 	 */
 	printk(KERN_NOTICE "Db1xxx flash: probing %d-bit flash bus\n", 
 			db1xxx_mtd_map.bankwidth*8);
-	db1xxx_mtd_map.virt = (unsigned long)ioremap(window_addr, window_size);
+	db1xxx_mtd_map.virt = (void __iomem *)ioremap(window_addr, window_size);
 	db1xxx_mtd = do_map_probe("cfi_probe", &db1xxx_mtd_map);
 	if (!db1xxx_mtd) return -ENXIO;
 	db1xxx_mtd->owner = THIS_MODULE;

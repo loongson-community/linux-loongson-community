@@ -9,6 +9,7 @@
 #include <net/pkt_cls.h>
 #include <linux/module.h>
 #include <linux/rtnetlink.h>
+#include <net/gen_stats.h>
 
 struct rtattr;
 struct Qdisc;
@@ -41,6 +42,7 @@ struct Qdisc_class_ops
 
 	/* rtnetlink specific */
 	int			(*dump)(struct Qdisc *, unsigned long, struct sk_buff *skb, struct tcmsg*);
+	int			(*dump_stats)(struct Qdisc *, unsigned long, struct gnet_dump *);
 };
 
 struct module;
@@ -63,6 +65,7 @@ struct Qdisc_ops
 	int			(*change)(struct Qdisc *, struct rtattr *arg);
 
 	int			(*dump)(struct Qdisc *, struct sk_buff *);
+	int			(*dump_stats)(struct Qdisc *, struct gnet_dump *);
 
 	struct module		*owner;
 };
@@ -86,7 +89,9 @@ struct Qdisc
 	struct net_device	*dev;
 	struct list_head	list;
 
-	struct tc_stats		stats;
+	struct gnet_stats_basic	bstats;
+	struct gnet_stats_queue	qstats;
+	struct gnet_stats_rate_est	rate_est;
 	spinlock_t		*stats_lock;
 	struct rcu_head 	q_rcu;
 	int			(*reshape_fail)(struct sk_buff *skb, struct Qdisc *q);
