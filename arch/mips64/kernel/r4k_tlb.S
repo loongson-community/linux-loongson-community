@@ -1,5 +1,4 @@
-/* $Id: r4k_tlb.S,v 1.2 2000/06/13 23:48:20 kanoj Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -7,6 +6,7 @@
  * Copyright (C) 2000 Silicon Graphics, Inc.
  * Written by Ulf Carlsson (ulfc@engr.sgi.com)
  */
+#include <linux/config.h>
 #include <linux/threads.h>
 #include <asm/asm.h>
 #include <asm/regdef.h>
