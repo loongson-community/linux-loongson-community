@@ -38,7 +38,6 @@
 #include <linux/kernel.h>
 #include <linux/kdev_t.h>
 #include <linux/types.h>
-#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
 #include <linux/ide.h>
@@ -308,10 +307,6 @@ static void __init jmr3927_board_init(void)
 #endif
 
 	tx3927_setup();
-
-#ifdef CONFIG_VT
-	conswitchp = &dummy_con;
-#endif
 
 	if (jmr3927_have_isac()) {
 

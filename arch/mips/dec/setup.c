@@ -150,10 +150,6 @@ static void __init decstation_setup(void)
 	_machine_restart = dec_machine_restart;
 	_machine_halt = dec_machine_halt;
 	_machine_power_off = dec_machine_power_off;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 }
 
 early_initcall(decstation_setup);

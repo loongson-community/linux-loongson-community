@@ -28,7 +28,6 @@
 #include <linux/sched.h>
 #include <linux/ioport.h>
 #include <linux/mm.h>
-#include <linux/console.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 
@@ -163,11 +162,6 @@ static void au1x00_setup(void)
 		au_readl(USB_HOST_CONFIG);
 #endif
 #endif /* defined (CONFIG_USB_OHCI) || defined (CONFIG_AU1X00_USB_DEVICE) */
-
-#ifdef CONFIG_FB
-	/* Needed if PCI video card in use */
-	conswitchp = &dummy_con;
-#endif
 
 	while (au_readl(SYS_COUNTER_CNTRL) & SYS_CNTRL_E0S);
 	au_writel(SYS_CNTRL_E0 | SYS_CNTRL_EN0, SYS_COUNTER_CNTRL);

@@ -87,11 +87,6 @@ static void __init sni_display_setup(void)
 		si->orig_video_isVGA	= VIDEO_TYPE_VGAC;
 		si->orig_video_points	= 16;
 	}
-
-	conswitchp = &vga_con;
-
-#elif defined(CONFIG_DUMMY_CONSOLE)
-	conswitchp = &dummy_con;
 #endif
 #endif
 }

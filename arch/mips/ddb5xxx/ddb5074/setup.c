@@ -10,7 +10,6 @@
 #include <linux/kernel.h>
 #include <linux/kdev_t.h>
 #include <linux/types.h>
-#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
 #include <linux/ide.h>
@@ -112,10 +111,6 @@ static void __init ddb5074_setup(void)
 
 	ddb_set_pmr(DDB_PCIINIT0, DDB_PCICMD_IO, 0, 0x10);
 	ddb_set_pmr(DDB_PCIINIT1, DDB_PCICMD_MEM, DDB_PCI_MEM_BASE , 0x10);
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	/* Reboot on panic */
 	panic_timeout = 180;

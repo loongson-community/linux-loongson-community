@@ -26,7 +26,6 @@
 #include <linux/bootmem.h>
 #include <linux/blkdev.h>
 #include <linux/init.h>
-#include <linux/console.h>
 
 #include <asm/irq.h>
 #include <asm/io.h>
@@ -119,9 +118,6 @@ static void __init swarm_setup(void)
 	       " CFE\n");
 
 #ifdef CONFIG_VT
-#ifdef CONFIG_DUMMY_CONSOLE
-	conswitchp = &dummy_con;
-#endif
 	screen_info = (struct screen_info) {
 		0, 0,           /* orig-x, orig-y */
 		0,              /* unused */

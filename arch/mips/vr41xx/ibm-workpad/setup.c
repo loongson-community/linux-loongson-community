@@ -15,7 +15,6 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
-#include <linux/console.h>
 #include <linux/ioport.h>
 #include <linux/major.h>
 #include <linux/kdev_t.h>
@@ -50,10 +49,6 @@ static void __init ibm_workpad_setup(void)
 
 	board_time_init = vr41xx_time_init;
 	board_timer_setup = vr41xx_timer_setup;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	vr41xx_bcu_init();
 

@@ -30,7 +30,6 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/ioport.h>
-#include <linux/console.h>
 #include <linux/serial_reg.h>
 #include <linux/major.h>
 #include <linux/kdev_t.h>
@@ -167,10 +166,6 @@ static void __init it8172_setup(void)
 	dsr |= IT_PM_DSR_IDESB;
 #endif
 	IT_IO_WRITE16(IT_PM_DSR, dsr);
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	InitLPCInterface();
 

@@ -16,7 +16,6 @@
  */
 
 #include <linux/config.h>
-#include <linux/console.h>
 #include <linux/ide.h>
 #include <linux/init.h>
 #include <linux/delay.h>
@@ -39,10 +38,6 @@ static void __init nec_osprey_setup(void)
 
 	vr4181_init_serial();
 	vr4181_init_time();
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	_machine_restart = nec_osprey_restart;
 	_machine_halt = nec_osprey_halt;

@@ -124,7 +124,6 @@ static int __init ip22_setup(void)
 #endif
 
 #ifdef CONFIG_VT
-	conswitchp = &dummy_con;
 #ifdef CONFIG_SGI_NEWPORT_CONSOLE
 	if (ctype && *ctype == 'g'){
 		ULONG *gfxinfo;

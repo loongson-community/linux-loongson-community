@@ -32,7 +32,6 @@
  */
 #include <linux/config.h>
 #include <linux/init.h>
-#include <linux/console.h>
 #include <linux/ioport.h>
 #include <linux/major.h>
 #include <linux/kdev_t.h>
@@ -123,10 +122,6 @@ static void __init nec_eagle_setup(void)
 	board_timer_setup = vr41xx_timer_setup;
 
 	board_irq_init = eagle_irq_init;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	vr41xx_bcu_init();
 

@@ -166,8 +166,6 @@ static int __init malta_setup(void)
 #endif
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
-        conswitchp = &vga_con;
-
 	screen_info = (struct screen_info) {
 		0, 25,			/* orig-x, orig-y */
 		0,			/* unused */
@@ -179,8 +177,6 @@ static int __init malta_setup(void)
 		VIDEO_TYPE_VGAC,	/* orig-video-isVGA */
 		16			/* orig-video-points */
 	};
-#elif defined(CONFIG_DUMMY_CONSOLE)
-        conswitchp = &dummy_con;
 #endif
 #endif
 	mips_reboot_setup();

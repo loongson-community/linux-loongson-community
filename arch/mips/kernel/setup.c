@@ -32,6 +32,7 @@
 #include <linux/kdev_t.h>
 #include <linux/root_dev.h>
 #include <linux/highmem.h>
+#include <linux/console.h>
 
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
@@ -471,6 +472,15 @@ void __init setup_arch(char **cmdline_p)
 	set_c0_status(ST0_CU0|ST0_KX|ST0_SX|ST0_FR);
 #endif
 
+#if defined(CONFIG_VT)
+#if defined(CONFIG_VGA_CONSOLE)
+        conswitchp = &vga_con;
+#elif defined(CONFIG_DUMMY_CONSOLE)
+        conswitchp = &dummy_con;
+#endif
+#endif
+
+	/* call board setup routine */
 	do_earlyinitcalls();
 
 	strlcpy(command_line, arcs_cmdline, sizeof(command_line));

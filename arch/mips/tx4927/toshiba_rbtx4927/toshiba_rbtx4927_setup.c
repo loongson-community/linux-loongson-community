@@ -60,7 +60,6 @@
 #include <asm/time.h>
 #include <linux/bootmem.h>
 #include <linux/blkdev.h>
-#include <linux/console.h>
 #ifdef CONFIG_RTC_DS1742
 #include <asm/rtc_ds1742.h>
 #endif
@@ -944,10 +943,6 @@ void __init toshiba_rbtx4927_setup(void)
 	_machine_restart = toshiba_rbtx4927_restart;
 	_machine_halt = toshiba_rbtx4927_halt;
 	_machine_power_off = toshiba_rbtx4927_power_off;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 #ifdef CONFIG_PCI
 

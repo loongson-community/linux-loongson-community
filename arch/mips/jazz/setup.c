@@ -81,10 +81,6 @@ static void __init jazz_setup(void)
 	_machine_halt = jazz_machine_halt;
 	_machine_power_off = jazz_machine_power_off;
 
-#ifdef CONFIG_VT
-	conswitchp = &dummy_con;
-#endif
-
 #warning "Somebody should check if screen_info is ok for Jazz."
 
 	screen_info = (struct screen_info) {

@@ -10,7 +10,6 @@
 #include <linux/kernel.h>
 #include <linux/kdev_t.h>
 #include <linux/types.h>
-#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
 
@@ -165,10 +164,6 @@ static void __init ddb5476_setup(void)
 
 	/* [jsun] we need to set BAR0 so that SDRAM 0 appears at 0x0 in PCI */
 	/* *(long*)0xbfa00218 = 0x8; */
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	/* board initialization stuff */
 	ddb5476_board_init();

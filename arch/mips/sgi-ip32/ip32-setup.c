@@ -8,7 +8,6 @@
  * Copyright (C) 2000 Harald Koerfgen
  */
 #include <linux/config.h>
-#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/param.h>
@@ -127,11 +126,6 @@ static int __init ip32_setup(void)
 					      baud ? options : NULL);
 		}
 	}
-#endif
-#ifdef CONFIG_VT
-# ifdef CONFIG_DUMMY_CONSOLE
-	conswitchp = &dummy_con;
-# endif
 #endif
 
 	board_be_init = ip32_be_init;

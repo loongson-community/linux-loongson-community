@@ -15,7 +15,6 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
-#include <linux/console.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
 #include <linux/ide.h>
@@ -169,10 +168,6 @@ static void ddb5477_board_init(void);
 extern void ddb5477_irq_setup(void);
 extern void (*irq_setup)(void);
 
-#if defined(CONFIG_BLK_DEV_INITRD)
-extern unsigned long __rd_start, __rd_end, initrd_start, initrd_end;
-#endif
-
 extern struct pci_controller ddb5477_ext_controller;
 extern struct pci_controller ddb5477_io_controller;
 
@@ -199,16 +194,6 @@ static int  ddb5477_setup(void)
 
 	/* Reboot on panic */
 	panic_timeout = 180;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
-
-#if defined(CONFIG_BLK_DEV_INITRD)
-	ROOT_DEV = Root_RAM0;
-	initrd_start = (unsigned long)&__rd_start;
-	initrd_end = (unsigned long)&__rd_end;
-#endif
 
 	register_pci_controller (&ddb5477_ext_controller);
 	register_pci_controller (&ddb5477_io_controller);

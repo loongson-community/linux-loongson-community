@@ -19,7 +19,6 @@
  */
 #include <linux/config.h>
 #include <linux/blkdev.h>
-#include <linux/console.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
 #include <linux/root_dev.h>
@@ -101,10 +100,6 @@ static void __init tanbac_tb0229_setup(void)
 
 	board_time_init = vr41xx_time_init;
 	board_timer_setup = vr41xx_timer_setup;
-
-#ifdef CONFIG_FB
-	conswitchp = &dummy_con;
-#endif
 
 	vr41xx_bcu_init();
 
