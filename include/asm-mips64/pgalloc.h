@@ -149,9 +149,7 @@ extern void __bad_pte(pmd_t *pmd);
 extern void __bad_pte_kernel(pmd_t *pmd);
 extern void __bad_pmd(pgd_t *pgd);
 
-#define pte_free_kernel(pte)    free_pte_fast(pte)
 #define pte_free(pte)           free_pte_fast(pte)
-#define pmd_free_kernel(pte)    free_pmd_fast(pte)
 #define pmd_free(pte)           free_pmd_fast(pte)
 #define pgd_free(pgd)           free_pgd_fast(pgd)
 #define pgd_alloc()             get_pgd_fast()
@@ -193,17 +191,13 @@ extern inline pmd_t *pmd_alloc(pgd_t * pgd, unsigned long address)
 	return (pmd_t *) pgd_page(*pgd) + address;
 }
 
-extern pte_t kptbl[(PAGE_SIZE<<KPTBL_PAGE_ORDER)*PAGE_SIZE/sizeof(pte_t)];
+extern pte_t kptbl[(PAGE_SIZE<<KPTBL_PAGE_ORDER)/sizeof(pte_t)];
 
 #define MAGIC_PMD_VAL		((pmd_t *)0x1234)
 #define pmd_alloc_kernel(d,a)	MAGIC_PMD_VAL
 
 extern inline pte_t * pte_alloc_kernel(pmd_t * pmd, unsigned long address)
 {
-	if (pmd != MAGIC_PMD_VAL) {
-		printk("pte_alloc_kernel problem\n");
-		while(1);
-	}
 	return (kptbl + (address >> PAGE_SHIFT));
 }
 
