@@ -110,6 +110,7 @@ void __init pcibios_init(void)
 	struct pci_ops *ops = &bridge_pci_ops;
 	nasid_t nid = get_nasid();
 
+	ioport_resource.end = ~0UL;
 	/* Nothing to do for now.  */
 	printk("%s called.\n", __FUNCTION__);
 
