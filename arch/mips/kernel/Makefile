@@ -6,8 +6,10 @@
 # unless it's something special (ie not a .c file).
 #
 
+.S.s:
+	$(CPP) $(AFLAGS) $< -o $@
 .S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+	$(CC) $(AFLAGS) -c $< -o $@
 
 all:	kernel.o head.o init_task.o
 EXTRA_ASFLAGS = -mips3 -mcpu=r4000

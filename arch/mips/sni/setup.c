@@ -75,11 +75,6 @@ static inline void sni_pcimt_detect(void)
 	printk("%s.\n", boardtype);
 }
 
-int __init page_is_ram(unsigned long pagenr)
-{
-	return 1;
-}
-
 void __init sni_rm200_pci_setup(void)
 {
 	sni_pcimt_detect();

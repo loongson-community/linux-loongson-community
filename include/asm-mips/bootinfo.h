@@ -170,9 +170,14 @@
         "R5000A", "R4640", "Nevada", "RM7000", "R5432", "MIPS 4Kc",          \
         "MIPS 5Kc", "R4310" }
 
-#define CL_SIZE      (255)
+#define COMMAND_LINE_SIZE	256
 
-#ifndef _LANGUAGE_ASSEMBLY
+#define BOOT_MEM_MAP_MAX	32
+#define BOOT_MEM_RAM		1
+#define BOOT_MEM_ROM_DATA	2
+#define BOOT_MEM_RESERVED	3
+
+#ifndef __ASSEMBLY__
 
 /*
  * Some machine parameters passed by the bootloaders. 
@@ -206,6 +211,24 @@ extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
 extern unsigned long mips_tlb_entries;
 
-#endif /* _LANGUAGE_ASSEMBLY */
+/*
+ * A memory map that's built upon what was determined
+ * or specified on the command line.
+ */
+struct boot_mem_map {
+	int nr_map;
+	struct {
+		unsigned long addr;	/* start of memory segment */
+		unsigned long size;	/* size of memory segment */
+		long type;		/* type of memory segment */
+	} map[BOOT_MEM_MAP_MAX];
+};
+
+extern struct boot_mem_map boot_mem_map;
+
+extern void add_memory_region(unsigned long start, unsigned long size,
+			      long type);
+
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _ASM_BOOTINFO_H */

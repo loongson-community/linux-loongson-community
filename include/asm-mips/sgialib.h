@@ -1,9 +1,8 @@
-/* $Id: sgialib.h,v 1.5 2000/03/19 01:28:58 ralf Exp $
+/*
  * sgialib.h: SGI ARCS firmware interface library for the Linux kernel.
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
  */
-
 #ifndef _ASM_SGIALIB_H
 #define _ASM_SGIALIB_H
 
@@ -30,28 +29,12 @@ extern char prom_getchar(void);
 /* Generic printf() using ARCS console I/O. */
 extern void prom_printf(char *fmt, ...);
 
-/* Memory descriptor management. */
-#define PROM_MAX_PMEMBLOCKS    32
-struct prom_pmemblock {
-	unsigned long base; /* Within KSEG0. */
-	unsigned int size;  /* In bytes. */
-        unsigned int type;  /* free or prom memory */
-};
-
-/* Get next memory descriptor after CURR, returns first descriptor
- * in chain is CURR is NULL.
- */
-extern struct linux_mdesc *prom_getmdesc(struct linux_mdesc *curr);
 #define PROM_NULL_MDESC   ((struct linux_mdesc *) 0)
 
 /* Called by prom_init to setup the physical memory pmemblock
  * array.
  */
 extern void prom_meminit(void);
-extern void prom_fixup_mem_map(unsigned long start_mem, unsigned long end_mem);
-
-/* Returns pointer to PROM physical memory block array. */
-extern struct prom_pmemblock *prom_getpblock_array(void);
 
 /* PROM device tree library routines. */
 #define PROM_NULL_COMPONENT ((pcomponent *) 0)

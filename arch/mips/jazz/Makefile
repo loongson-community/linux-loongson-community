@@ -1,4 +1,3 @@
-# $Id: Makefile,v 1.5 1999/01/03 17:50:47 ralf Exp $
 #
 # Makefile for the Jazz family specific parts of the kernel
 #
@@ -8,9 +7,9 @@
 #
 
 .S.s:
-	$(CPP) $(CFLAGS) $< -o $*.s
+	$(CPP) $(CFLAGS) $< -o $@
 .S.o:
-	$(CC) $(CFLAGS) -c $< -o $*.o
+	$(CC) $(CFLAGS) -c $< -o $@
 
 all: jazz.o
 O_TARGET := jazz.o

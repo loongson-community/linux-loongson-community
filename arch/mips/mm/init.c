@@ -41,7 +41,6 @@
 
 static unsigned long totalram_pages;
 
-extern void prom_fixup_mem_map(unsigned long start, unsigned long end);
 extern void prom_free_prom_memory(void);
 
 
@@ -271,7 +270,30 @@ void __init paging_init(void)
 	free_area_init(zones_size);
 }
 
-extern int page_is_ram(unsigned long pagenr);
+#define PFN_UP(x)	(((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
+#define PFN_DOWN(x)	((x) >> PAGE_SHIFT)
+
+static inline int page_is_ram(unsigned long pagenr)
+{
+	int i;
+
+	for (i = 0; i < boot_mem_map.nr_map; i++) {
+		unsigned long addr, end;
+
+		if (boot_mem_map.map[i].type != BOOT_MEM_RAM)
+			/* not usable memory */
+			continue;
+
+		addr = PFN_UP(boot_mem_map.map[i].addr);
+		end = PFN_DOWN(boot_mem_map.map[i].addr
+			       + boot_mem_map.map[i].size);
+
+		if (pagenr >= addr && pagenr < end)
+			return 1;
+	}
+
+	return 0;
+}
 
 void __init mem_init(void)
 {

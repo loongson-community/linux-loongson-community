@@ -1,5 +1,4 @@
-/* $Id: setup.c,v 1.24 1999/10/09 00:00:58 ralf Exp $
- *
+/*
  * Setup pointers to hardware-dependent routines.
  *
  * This file is subject to the terms and conditions of the GNU General Public
@@ -78,11 +77,6 @@ static void __init jazz_irq_setup(void)
 	request_region(0x20, 0x20, "pic1");
 	request_region(0xa0, 0x20, "pic2");
 	i8259_setup_irq(2, &irq2);
-}
-
-int __init page_is_ram(unsigned long pagenr)
-{
-	return 1;
 }
 
 void __init jazz_setup(void)

@@ -128,15 +128,6 @@ static void __init sgi_irq_setup(void)
 #endif
 }
 
-int __init page_is_ram(unsigned long pagenr)
-{
-	if ((pagenr<<PAGE_SHIFT) < 0x2000UL)
-		return 1;
-	if ((pagenr<<PAGE_SHIFT) > 0x08002000)
-		return 1;
-	return 0;
-}
-
 void (*board_time_init)(struct irqaction *irq);
 
 static unsigned long dosample(volatile unsigned char *tcwp,
