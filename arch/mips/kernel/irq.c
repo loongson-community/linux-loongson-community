@@ -21,6 +21,7 @@
 #include <linux/random.h>
 #include <linux/sched.h>
 
+#include <asm/atomic.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 
@@ -67,7 +68,7 @@ struct hw_interrupt_type no_irq_type = {
 	end_none
 };
 
-volatile unsigned long irq_err_count;
+atomic_t irq_err_count;
 
 /*
  * Generic, controller-independent functions:
