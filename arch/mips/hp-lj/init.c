@@ -2,8 +2,6 @@
  * init.c: PROM library initialisation code.
  *
  * Copyright (C) 1998 Gleb Raiko & Vladimir Roganov 
- *
- * $Id: init.c,v 1.1 2001/11/08 20:35:30 linux Exp $
  */
 
 #include <linux/mm.h>

@@ -1,5 +1,4 @@
-/* $Id: setup.c,v 1.4 2001/11/12 22:16:02 linux Exp $
- *
+/*
  * Setup pointers to hardware-dependent routines.
  *
  * This file is subject to the terms and conditions of the GNU General Public
