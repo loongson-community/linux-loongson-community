@@ -221,11 +221,30 @@ void __init pcibios_init (void)
 		pci_write_config_byte (dev, PCI_CACHE_LINE_SIZE, 0x20);
 		pci_write_config_byte (dev, PCI_LATENCY_TIMER, 0x30);
 		pci_read_config_word (dev, PCI_COMMAND, &cmd);
-		cmd |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_PARITY);
+		cmd |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_SPECIAL | PCI_COMMAND_INVALIDATE | PCI_COMMAND_PARITY);
 		pci_write_config_word (dev, PCI_COMMAND, cmd);
 		pci_set_master (dev);
 	}
+        /*
+         * Fixup O2 PCI slot. Bad hack.
+         */
+/*        devtag = pci_make_tag(0, 0, 3, 0);
 
+        slot = macepci_conf_read(0, devtag, PCI_COMMAND_STATUS_REG);
+        slot |= PCI_COMMAND_IO_ENABLE | PCI_COMMAND_MEM_ENABLE;
+        macepci_conf_write(0, devtag, PCI_COMMAND_STATUS_REG, slot);
+
+        slot = macepci_conf_read(0, devtag, PCI_MAPREG_START);
+        if (slot == 0xffffffe1)
+                macepci_conf_write(0, devtag, PCI_MAPREG_START, 0x00001000);
+
+        slot = macepci_conf_read(0, devtag, PCI_MAPREG_START + (2 << 2));
+        if ((slot & 0xffff0000) == 0) {
+                slot += 0x00010000;
+                macepci_conf_write(0, devtag, PCI_MAPREG_START + (2 << 2),
+                    0x00000000);
+        }
+ */
 #ifdef DEBUG_MACE_PCI
 	printk ("Triggering PCI bridge interrupt...\n");
 	mace_write_32 (MACEPCI_ERROR_FLAGS, MACEPCI_ERROR_INTERRUPT_TEST);

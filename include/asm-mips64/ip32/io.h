@@ -3,7 +3,12 @@
 
 #include <asm/ip32/mace.h>
 
-#define UNCACHEDADDR(x) (0x9000000000000000UL | (x))
+/*#ifdef CONFIG_MIPS_UNCACHED*/
+#define UNCACHEDADDR(x) (0x9000000000000000UL | (u64)(x))
+/*#else
+#define UNCACHEDADDR(x) (x)
+#endif*/
+/*#define UNCACHEDADDR(x) (KSEG1ADDR (x)) */
 #define IO_SPACE_BASE UNCACHEDADDR (MACEPCI_HI_MEMORY)
 #define IO_SPACE_LIMIT 0xffffffffUL
 

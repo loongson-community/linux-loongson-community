@@ -27,11 +27,32 @@ extern u32 cc_interval;
 
 unsigned long mips_io_port_base = UNCACHEDADDR (MACEPCI_HI_IO);;
 
-
-void __init ip32_init (int argc, char **argv, char **envp) {
-	prom_meminit ();
+#ifdef CONFIG_SGI_O2MACE_ETH
+/* this is taken care of in here 'cause they say using Arc later on is problematic */
+extern char o2meth_eaddr[8];
+static inline unsigned char str2hexnum(unsigned char c)
+{
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	return 0; /* foo */
 }
+static inline void str2eaddr(unsigned char *ea, unsigned char *str)
+{
+	int i;
 
+	for (i = 0; i < 6; i++) {
+		unsigned char num;
+
+		if(*str == ':')
+			str++;
+		num = str2hexnum(*str++) << 4;
+		num |= (str2hexnum(*str++));
+		ea[i] = num;
+	}
+}
+#endif
 void __init ip32_setup(void)
 {
 #ifdef CONFIG_SERIAL_CONSOLE
@@ -46,6 +67,12 @@ void __init ip32_setup(void)
 			console_setup ("ttyS1");
 		else
 			console_setup ("ttyS0");
+	}
+#endif
+#ifdef CONFIG_SGI_O2MACE_ETH
+	{
+		char *mac=ArcGetEnvironmentVariable("eaddr");
+		str2eaddr(o2meth_eaddr, mac);
 	}
 #endif
 

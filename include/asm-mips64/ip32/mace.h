@@ -31,53 +31,6 @@
 #define MACE_I2C_BASE		(MACE_PERIF + 0x00030000)
 #define MACE_UST_BASE		(MACE_PERIF + 0x00040000)
 
-#ifndef _LANGUAGE_ASSEMBLY
-#include <asm/types.h>
-
-/*
- * XXX Some of these are probably not needed (or even legal?)
- */
-static inline u8 mace_read_8 (unsigned long __offset)
-{
-	return *((volatile u8 *) (MACE_BASE + __offset));
-}
-
-static inline u16 mace_read_16 (unsigned long __offset)
-{
-	return *((volatile u16 *) (MACE_BASE + __offset));
-}
-
-static inline u32 mace_read_32 (unsigned long __offset)
-{
-	return *((volatile u32 *) (MACE_BASE + __offset));
-}
-
-static inline u64 mace_read_64 (unsigned long __offset)
-{
-	return *((volatile u64 *) (MACE_BASE + __offset));
-}
-
-static inline void mace_write_8 (unsigned long __offset, u8 __val)
-{
-	*((volatile u8 *) (MACE_BASE + __offset)) = __val;
-}
-
-static inline void mace_write_16 (unsigned long __offset, u16 __val)
-{
-	*((volatile u16 *) (MACE_BASE + __offset)) = __val;
-}
-
-static inline void mace_write_32 (unsigned long __offset, u32 __val)
-{
-	*((volatile u32 *) (MACE_BASE + __offset)) = __val;
-}
-
-static inline void mace_write_64 (unsigned long __offset, u64 __val)
-{
-	*((volatile u64 *) (MACE_BASE + __offset)) = __val;
-}
-
-#endif
 
 #undef BIT
 #define BIT(__bit_offset) (1UL << (__bit_offset))
@@ -89,7 +42,7 @@ static inline void mace_write_64 (unsigned long __offset, u64 __val)
 #define MACEPCI_ERROR_FLAGS		(MACE_PCI + 0x00000004)
 #define MACEPCI_CONTROL			(MACE_PCI + 0x00000008)
 #define MACEPCI_REV			(MACE_PCI + 0x0000000c)
-#define MACEPCI_WFLUSH			(MACE_PCI + 0x0000000c) /* ??? */
+#define MACEPCI_WFLUSH			(MACE_PCI + 0x0000000c) /* ??? --IV !!! It's for flushing read buffers on PCI MEMORY accesses!!! */
 #define MACEPCI_CONFIG_ADDR		(MACE_PCI + 0x00000cf8)
 #define MACEPCI_CONFIG_DATA		(MACE_PCI + 0x00000cfc)
 #define MACEPCI_LOW_MEMORY		0x1a000000
@@ -97,7 +50,8 @@ static inline void mace_write_64 (unsigned long __offset, u64 __val)
 #define MACEPCI_SWAPPED_VIEW		0
 #define MACEPCI_NATIVE_VIEW		0x40000000
 #define MACEPCI_IO			0x80000000
-#define MACEPCI_HI_MEMORY		0x0000000280000000UL
+/*#define MACEPCI_HI_MEMORY		0x0000000280000000UL * This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */ 
+#define MACEPCI_HI_MEMORY		0x0000000200000000UL /* This mipght be just 0x0000000200000000UL 2G more :) (or maybe it is different between 1.1 & 1.5 */ 
 #define MACEPCI_HI_IO			0x0000000100000000UL
 
 /*
@@ -242,5 +196,59 @@ static inline void mace_write_64 (unsigned long __offset, u64 __val)
 #define MACEISA_SERIAL2_TDMAME_INT	BIT (29)
 #define MACEISA_SERIAL2_RDMAT_INT	BIT (30)
 #define MACEISA_SERIAL2_RDMAOR_INT	BIT (31)
+
+#ifndef _LANGUAGE_ASSEMBLY
+#include <asm/types.h>
+
+/*
+ * XXX Some of these are probably not needed (or even legal?)
+ */
+static inline u8 mace_read_8 (unsigned long __offset)
+{
+	return *((volatile u8 *) (MACE_BASE + __offset));
+}
+
+static inline u16 mace_read_16 (unsigned long __offset)
+{
+	return *((volatile u16 *) (MACE_BASE + __offset));
+}
+
+static inline u32 mace_read_32 (unsigned long __offset)
+{
+	return *((volatile u32 *) (MACE_BASE + __offset));
+}
+
+static inline u64 mace_read_64 (unsigned long __offset)
+{
+	return *((volatile u64 *) (MACE_BASE + __offset));
+}
+
+static inline void mace_write_8 (unsigned long __offset, u8 __val)
+{
+	*((volatile u8 *) (MACE_BASE + __offset)) = __val;
+}
+
+static inline void mace_write_16 (unsigned long __offset, u16 __val)
+{
+	*((volatile u16 *) (MACE_BASE + __offset)) = __val;
+}
+
+static inline void mace_write_32 (unsigned long __offset, u32 __val)
+{
+	*((volatile u32 *) (MACE_BASE + __offset)) = __val;
+}
+
+static inline void mace_write_64 (unsigned long __offset, u64 __val)
+{
+	*((volatile u64 *) (MACE_BASE + __offset)) = __val;
+}
+
+/* Call it whenever device needs to read data from main memory coherently */
+static inline void mace_inv_read_buffers(void)
+{
+/*	mace_write_32(MACEPCI_WFLUSH,0xffffffff);*/
+}
+#endif
+
 
 #endif /* __ASM_MACE_H__ */
