@@ -3,11 +3,13 @@
  *
  * (C) Copyright 1996 Linus Torvalds
  * (C) Copyright 1999 Andrea Arcangeli
- * (C) Copyright 1999, 2001 Ralf Baechle
+ * (C) Copyright 1999, 2001, 2002 Ralf Baechle
  * (C) Copyright 1999, 2001 Silicon Graphics, Inc.
  */
 #ifndef _ASM_SEMAPHORE_HELPER_H
 #define _ASM_SEMAPHORE_HELPER_H
+
+#include <linux/errno.h>
 
 /*
  * These two _must_ execute atomically wrt each other.

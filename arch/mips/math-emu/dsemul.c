@@ -14,7 +14,7 @@
 #include <asm/branch.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
-#include <asm/pgtable.h>
+#include <asm/cacheflush.h>
 
 #include <asm/fpu_emulator.h>
 

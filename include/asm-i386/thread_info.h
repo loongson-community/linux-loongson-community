@@ -23,7 +23,7 @@
 struct thread_info {
 	struct task_struct	*task;		/* main task structure */
 	struct exec_domain	*exec_domain;	/* execution domain */
-	__u32			flags;		/* low level flags */
+	unsigned long		flags;		/* low level flags */
 	__u32			cpu;		/* current CPU */
 	__s32			preempt_count; /* 0 => preemptable, <0 => BUG */
 
@@ -46,6 +46,8 @@ struct thread_info {
 #define TI_ADDR_LIMIT	0x00000014
 
 #endif
+
+#define PREEMPT_ACTIVE		0x4000000
 
 /*
  * macros/functions for gaining access to the thread information structure

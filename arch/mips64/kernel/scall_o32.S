@@ -524,6 +524,8 @@ out:	jr	ra
 	sys	sys_tkill	2
 	sys	sys_sendfile64	5			/* 4225 */
 	sys	sys_futex	2
+	sys	sys_sched_setaffinity	3
+	sys	sys_sched_getaffinity	3
 	.endm
 
 	.macro	sys function, nargs

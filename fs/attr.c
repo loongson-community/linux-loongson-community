@@ -21,6 +21,8 @@ int inode_change_ok(struct inode *inode, struct iattr *attr)
 	int retval = -EPERM;
 	unsigned int ia_valid = attr->ia_valid;
 
+	lock_kernel();
+
 	/* If force is set do it anyway. */
 	if (ia_valid & ATTR_FORCE)
 		goto fine;
@@ -55,6 +57,7 @@ int inode_change_ok(struct inode *inode, struct iattr *attr)
 fine:
 	retval = 0;
 error:
+	unlock_kernel();
 	return retval;
 }
 
@@ -62,7 +65,8 @@ int inode_setattr(struct inode * inode, struct iattr * attr)
 {
 	unsigned int ia_valid = attr->ia_valid;
 	int error = 0;
-
+	
+	lock_kernel();
 	if (ia_valid & ATTR_SIZE) {
 		error = vmtruncate(inode, attr->ia_size);
 		if (error)
@@ -86,6 +90,7 @@ int inode_setattr(struct inode * inode, struct iattr * attr)
 	}
 	mark_inode_dirty(inode);
 out:
+	unlock_kernel();
 	return error;
 }
 
@@ -114,6 +119,7 @@ static int setattr_mask(unsigned int ia_valid)
 int notify_change(struct dentry * dentry, struct iattr * attr)
 {
 	struct inode *inode = dentry->d_inode;
+	mode_t mode = inode->i_mode;
 	int error;
 	time_t now = CURRENT_TIME;
 	unsigned int ia_valid = attr->ia_valid;
@@ -126,8 +132,25 @@ int notify_change(struct dentry * dentry, struct iattr * attr)
 		attr->ia_atime = now;
 	if (!(ia_valid & ATTR_MTIME_SET))
 		attr->ia_mtime = now;
+	if (ia_valid & ATTR_KILL_SUID) {
+		if (mode & S_ISUID) {
+			if (!ia_valid & ATTR_MODE) {
+				ia_valid = attr->ia_valid |= ATTR_MODE;
+				attr->ia_mode = inode->i_mode;
+			}
+			attr->ia_mode &= ~S_ISUID;
+		}
+	}
+	if (ia_valid & ATTR_KILL_SGID) {
+		if ((mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) {
+			if (!ia_valid & ATTR_MODE) {
+				ia_valid = attr->ia_valid |= ATTR_MODE;
+				attr->ia_mode = inode->i_mode;
+			}
+			attr->ia_mode &= ~S_ISGID;
+		}
+	}
 
-	lock_kernel();
 	if (inode->i_op && inode->i_op->setattr) 
 		error = inode->i_op->setattr(dentry, attr);
 	else {
@@ -140,7 +163,6 @@ int notify_change(struct dentry * dentry, struct iattr * attr)
 				error = inode_setattr(inode, attr);
 		}
 	}
-	unlock_kernel();
 	if (!error) {
 		unsigned long dn_mask = setattr_mask(ia_valid);
 		if (dn_mask)

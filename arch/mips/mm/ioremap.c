@@ -4,7 +4,7 @@
  * for more details.
  *
  * (C) Copyright 1995 1996 Linus Torvalds
- * (C) Copyright 2001 Ralf Baechle
+ * (C) Copyright 2001, 2002 Ralf Baechle
  */
 #include <linux/module.h>
 #include <asm/addrspace.h>
@@ -13,6 +13,7 @@
 #include <linux/vmalloc.h>
 #include <asm/io.h>
 #include <asm/pgalloc.h>
+#include <asm/tlbflush.h>
 
 static inline void remap_area_pte(pte_t * pte, unsigned long address,
 	phys_t size, phys_t phys_addr, unsigned long flags)

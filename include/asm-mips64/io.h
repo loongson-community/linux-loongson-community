@@ -80,24 +80,41 @@ extern unsigned long bus_to_baddr[256];
 #define page_to_phys(page)	PHYSADDR(page_address(page))
 
 /*
- * On MIPS, we have the whole physical address space mapped at all
- * times, so "ioremap()" and "iounmap()" do not need to do anything.
+ * ioremap     -   map bus memory into CPU space
+ * @offset:    bus address of the memory
+ * @size:      size of the resource to map
  *
- * We cheat a bit and always return uncachable areas until we've fixed
- * the drivers to handle caching properly.
+ * ioremap performs a platform specific sequence of operations to
+ * make bus memory CPU accessible via the readb/readw/readl/writeb/
+ * writew/writel functions and the other mmio helpers. The returned
+ * address is not guaranteed to be usable directly as a virtual
+ * address. 
  */
-static inline void *
-ioremap(unsigned long offset, unsigned long size)
+static inline void * ioremap(unsigned long offset, unsigned long size)
 {
 	return (void *) (IO_SPACE_BASE | offset);
 }
 
-/* This one maps high address device memory and turns off caching for that
- *  area.  It's useful if some control registers are in such an area and write
- * combining or read caching is not desirable.
+/*
+ * ioremap_nocache     -   map bus memory into CPU space
+ * @offset:    bus address of the memory
+ * @size:      size of the resource to map
+ *
+ * ioremap_nocache performs a platform specific sequence of operations to
+ * make bus memory CPU accessible via the readb/readw/readl/writeb/
+ * writew/writel functions and the other mmio helpers. The returned
+ * address is not guaranteed to be usable directly as a virtual
+ * address. 
+ *
+ * This version of ioremap ensures that the memory is marked uncachable
+ * on the CPU as well as honouring existing caching rules from things like
+ * the PCI bus. Note that there are other caches and buffers on many 
+ * busses. In paticular driver authors should read up on PCI writes
+ *
+ * It's useful if some control registers are in such an area and
+ * write combining or read caching is not desirable:
  */
-static inline void *
-ioremap_nocache (unsigned long offset, unsigned long size)
+static inline void * ioremap_nocache (unsigned long offset, unsigned long size)
 {
 	return (void *) (IO_SPACE_BASE | offset);
 }
@@ -157,32 +174,47 @@ extern const unsigned long mips_io_port_base;
 #endif
 
 /*
- * Change virtual addresses to physical addresses and vv.
- * These are trivial on the 1:1 Linux/MIPS mapping
+ *     virt_to_phys    -       map virtual addresses to physical
+ *     @address: address to remap
+ *
+ *     The returned physical address is the physical (CPU) mapping for
+ *     the memory address given. It is only valid to use this function on
+ *     addresses directly mapped or allocated via kmalloc. 
+ *
+ *     This function does not give bus mappings for DMA transfers. In
+ *     almost all conceivable cases a device driver should not be using
+ *     this function
  */
 static inline unsigned long virt_to_phys(volatile void * address)
 {
 	return (unsigned long)address - PAGE_OFFSET;
 }
 
+/*
+ *     phys_to_virt    -       map physical address to virtual
+ *     @address: address to remap
+ *
+ *     The returned virtual address is a current CPU mapping for
+ *     the memory address given. It is only valid to use this function on
+ *     addresses that have a kernel mapping
+ *
+ *     This function does not handle bus mappings for DMA transfers. In
+ *     almost all conceivable cases a device driver should not be using
+ *     this function
+ */
 static inline void * phys_to_virt(unsigned long address)
 {
 	return (void *)(address + PAGE_OFFSET);
 }
 
 /*
- * IO bus memory addresses are also 1:1 with the physical address
+ * However PCI ones are not necessarily 1:1 and therefore these interfaces
+ * are forbidden in portable PCI drivers.
+ *
+ * Allow them for x86 for legacy drivers, though.
  */
-static inline unsigned long virt_to_bus(volatile void * address)
-{
-	return (unsigned long)address - PAGE_OFFSET;
-}
-
-static inline void * bus_to_virt(unsigned long address)
-{
-	return (void *)(address + PAGE_OFFSET);
-}
-
+#define virt_to_bus virt_to_phys
+#define bus_to_virt phys_to_virt
 
 /* This is too simpleminded for more sophisticated than dumb hardware ...  */
 #define page_to_bus page_to_phys
@@ -220,9 +252,18 @@ extern unsigned long isa_slot_offset;
  */
 #define eth_io_copy_and_sum(skb,src,len,unused) memcpy_fromio((skb)->data,(src),(len))
 
-static inline int
-check_signature(unsigned long io_addr, const unsigned char *signature,
-                int length)
+/**
+ *     check_signature         -       find BIOS signatures
+ *     @io_addr: mmio address to check 
+ *     @signature:  signature block
+ *     @length: length of signature
+ *
+ *     Perform a signature comparison with the mmio address io_addr. This
+ *     address should have been obtained by ioremap.
+ *     Returns 1 on a match.
+ */
+static inline int check_signature(unsigned long io_addr,
+	const unsigned char *signature, int length)
 {
 	int retval = 0;
 	do {
@@ -236,6 +277,20 @@ check_signature(unsigned long io_addr, const unsigned char *signature,
 out:
 	return retval;
 }
+
+/*
+ *     isa_check_signature             -       find BIOS signatures
+ *     @io_addr: mmio address to check 
+ *     @signature:  signature block
+ *     @length: length of signature
+ *
+ *     Perform a signature comparison with the ISA mmio address io_addr.
+ *     Returns 1 on a match.
+ *
+ *     This function is deprecated. New drivers should use ioremap and
+ *     check_signature.
+ */
+#define isa_check_signature(io, s, l)	check_signature(i,s,l)
 
 #define outb(val,port)							\
 do {									\

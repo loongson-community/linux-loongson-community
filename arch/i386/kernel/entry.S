@@ -47,6 +47,7 @@
 #include <asm/errno.h>
 #include <asm/segment.h>
 #include <asm/smp.h>
+#include <asm/irq_vectors.h>
 
 EBX		= 0x00
 ECX		= 0x04
@@ -94,12 +95,12 @@ local_bh_count	= 8
 
 #ifdef CONFIG_PREEMPT
 #define preempt_stop cli
-#define init_ret_intr \
-	cli; \
-	decl TI_PRE_COUNT(%ebx);
+#define INC_PRE_COUNT(reg) incl TI_PRE_COUNT(reg);
+#define DEC_PRE_COUNT(reg) decl TI_PRE_COUNT(reg);
 #else
 #define preempt_stop
-#define init_ret_intr
+#define INC_PRE_COUNT(reg)
+#define DEC_PRE_COUNT(reg)
 #define resume_kernel restore_all
 #endif
 
@@ -210,9 +211,9 @@ ENTRY(ret_from_fork)
 
 	# userspace resumption stub bypassing syscall exit tracing
 	ALIGN
-ENTRY(ret_from_intr)
-	GET_THREAD_INFO(%ebx)
-	init_ret_intr
+ret_from_intr:
+	preempt_stop
+	DEC_PRE_COUNT(%ebx)
 ret_from_exception:
 	movl EFLAGS(%esp), %eax		# mix EFLAGS and CS
 	movb CS(%esp), %al
@@ -238,12 +239,11 @@ ENTRY(resume_kernel)
 	movl SYMBOL_NAME(irq_stat)+local_bh_count CPU_IDX, %ecx
 	addl SYMBOL_NAME(irq_stat)+local_irq_count CPU_IDX, %ecx
 	jnz restore_all
-	incl TI_PRE_COUNT(%ebx)
+	movl $PREEMPT_ACTIVE,TI_PRE_COUNT(%ebx)
 	sti
-	movl TI_TASK(%ebx), %ecx		# ti->task
-	movl $0,(%ecx)			# current->state = TASK_RUNNING
 	call SYMBOL_NAME(schedule)
-	jmp ret_from_intr
+	movl $0,TI_PRE_COUNT(%ebx) 
+	jmp restore_all
 #endif
 
 	# system call handler stub
@@ -335,6 +335,67 @@ syscall_exit_work:
 syscall_badsys:
 	movl $-ENOSYS,EAX(%esp)
 	jmp resume_userspace
+
+/*
+ * Build the entry stubs and pointer table with
+ * some assembler magic.
+ */
+.data
+ENTRY(interrupt)
+.text
+
+vector=0
+ENTRY(irq_entries_start)
+.rept NR_IRQS
+	ALIGN
+1:	pushl $vector-256
+	jmp common_interrupt
+.data
+	.long 1b
+.text
+vector=vector+1
+.endr
+
+	ALIGN
+common_interrupt:
+	SAVE_ALL
+	GET_THREAD_INFO(%ebx)
+	INC_PRE_COUNT(%ebx)
+	call SYMBOL_NAME(do_IRQ)
+	jmp ret_from_intr
+
+#define BUILD_INTERRUPT(name, nr)	\
+ENTRY(name)				\
+	pushl $nr-256;			\
+	SAVE_ALL			\
+	GET_THREAD_INFO(%ebx);		\
+	INC_PRE_COUNT(%ebx)		\
+	call SYMBOL_NAME(smp_/**/name);	\
+	jmp ret_from_intr;
+
+/*
+ * The following vectors are part of the Linux architecture, there
+ * is no hardware IRQ pin equivalent for them, they are triggered
+ * through the ICC by us (IPIs)
+ */
+#ifdef CONFIG_SMP
+BUILD_INTERRUPT(reschedule_interrupt,RESCHEDULE_VECTOR)
+BUILD_INTERRUPT(invalidate_interrupt,INVALIDATE_TLB_VECTOR)
+BUILD_INTERRUPT(call_function_interrupt,CALL_FUNCTION_VECTOR)
+#endif
+
+/*
+ * every pentium local APIC has two 'local interrupts', with a
+ * soft-definable vector attached to both interrupts, one of
+ * which is a timer interrupt, the other one is error counter
+ * overflow. Linux uses the local APIC timer interrupt to get
+ * a much simpler SMP time architecture:
+ */
+#ifdef CONFIG_X86_LOCAL_APIC
+BUILD_INTERRUPT(apic_timer_interrupt,LOCAL_TIMER_VECTOR)
+BUILD_INTERRUPT(error_interrupt,ERROR_APIC_VECTOR)
+BUILD_INTERRUPT(spurious_interrupt,SPURIOUS_APIC_VECTOR)
+#endif
 
 ENTRY(divide_error)
 	pushl $0			# no error code
@@ -718,6 +779,8 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_tkill)
 	.long SYMBOL_NAME(sys_sendfile64)
 	.long SYMBOL_NAME(sys_futex)		/* 240 */
+	.long SYMBOL_NAME(sys_sched_setaffinity)
+	.long SYMBOL_NAME(sys_sched_getaffinity)
 
 	.rept NR_syscalls-(.-sys_call_table)/4
 		.long SYMBOL_NAME(sys_ni_syscall)

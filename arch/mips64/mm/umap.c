@@ -23,6 +23,7 @@
 
 #include <asm/system.h>
 #include <asm/pgalloc.h>
+#include <asm/tlbflush.h>
 #include <asm/page.h>
 
 static inline void remove_mapping_pte_range (pmd_t *pmd, unsigned long address,

@@ -1869,6 +1869,49 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 	}
 }
 
+void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
+{
+	unsigned long flags;
+	int size;
+
+#ifdef DEBUG_TLB
+	printk("[tlbkernelrange<%08lx,%08lx>]", start, end);
+#endif
+	__save_and_cli(flags);
+	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	size = (size + 1) >> 1;
+	if (size <= NTLB_ENTRIES_HALF) {
+		int pid = get_entryhi();
+
+		start &= (PAGE_MASK << 1);
+		end += ((PAGE_SIZE << 1) - 1);
+		end &= (PAGE_MASK << 1);
+
+		while(start < end) {
+			int idx;
+
+			set_entryhi(start);
+			start += (PAGE_SIZE << 1);
+			BARRIER;
+			tlb_probe();
+			BARRIER;
+			idx = get_index();
+			set_entrylo0(0);
+			set_entrylo1(0);
+			set_entryhi(KSEG0);
+			BARRIER;
+			if (idx < 0)
+				continue;
+			tlb_write_indexed();
+			BARRIER;
+		}
+		set_entryhi(pid);
+	} else {
+		local_flush_tlb_all();
+	}
+	__restore_flags(flags);
+}
+
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {
 	if (CPU_CONTEXT(smp_processor_id(), vma->vm_mm) != 0) {

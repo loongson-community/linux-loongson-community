@@ -39,45 +39,45 @@
 
 #ifdef CONFIG_BLK_DEV_AEC62XX
 extern unsigned int pci_init_aec62xx(struct pci_dev *);
-extern unsigned int ata66_aec62xx(ide_hwif_t *);
-extern void ide_init_aec62xx(ide_hwif_t *);
-extern void ide_dmacapable_aec62xx(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_aec62xx(struct ata_channel *);
+extern void ide_init_aec62xx(struct ata_channel *);
+extern void ide_dmacapable_aec62xx(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_ALI15X3
 extern unsigned int pci_init_ali15x3(struct pci_dev *);
-extern unsigned int ata66_ali15x3(ide_hwif_t *);
-extern void ide_init_ali15x3(ide_hwif_t *);
-extern void ide_dmacapable_ali15x3(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_ali15x3(struct ata_channel *);
+extern void ide_init_ali15x3(struct ata_channel *);
+extern void ide_dmacapable_ali15x3(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_AMD74XX
 extern unsigned int pci_init_amd74xx(struct pci_dev *);
-extern unsigned int ata66_amd74xx(ide_hwif_t *);
-extern void ide_init_amd74xx(ide_hwif_t *);
-extern void ide_dmacapable_amd74xx(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_amd74xx(struct ata_channel *);
+extern void ide_init_amd74xx(struct ata_channel *);
+extern void ide_dmacapable_amd74xx(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_CMD64X
 extern unsigned int pci_init_cmd64x(struct pci_dev *);
-extern unsigned int ata66_cmd64x(ide_hwif_t *);
-extern void ide_init_cmd64x(ide_hwif_t *);
-extern void ide_dmacapable_cmd64x(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_cmd64x(struct ata_channel *);
+extern void ide_init_cmd64x(struct ata_channel *);
+extern void ide_dmacapable_cmd64x(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_CY82C693
 extern unsigned int pci_init_cy82c693(struct pci_dev *);
-extern void ide_init_cy82c693(ide_hwif_t *);
+extern void ide_init_cy82c693(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_CS5530
 extern unsigned int pci_init_cs5530(struct pci_dev *);
-extern void ide_init_cs5530(ide_hwif_t *);
+extern void ide_init_cs5530(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_HPT34X
 extern unsigned int pci_init_hpt34x(struct pci_dev *);
-extern void ide_init_hpt34x(ide_hwif_t *);
+extern void ide_init_hpt34x(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_HPT366
@@ -85,10 +85,9 @@ extern byte hpt363_shared_irq;
 extern byte hpt363_shared_pin;
 
 extern unsigned int pci_init_hpt366(struct pci_dev *);
-extern unsigned int pci_init_hpt366(struct pci_dev *, const char *);
-extern unsigned int ata66_hpt366(ide_hwif_t *);
-extern void ide_init_hpt366(ide_hwif_t *);
-extern void ide_dmacapable_hpt366(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_hpt366(struct ata_channel *);
+extern void ide_init_hpt366(struct ata_channel *);
+extern void ide_dmacapable_hpt366(struct ata_channel *, unsigned long);
 #else
 /* FIXME: those have to be killed */
 static byte hpt363_shared_irq;
@@ -96,81 +95,69 @@ static byte hpt363_shared_pin;
 #endif
 
 #ifdef CONFIG_BLK_DEV_NS87415
-extern void ide_init_ns87415(ide_hwif_t *);
+extern void ide_init_ns87415(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_OPTI621
-extern void ide_init_opti621(ide_hwif_t *);
+extern void ide_init_opti621(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_PDC_ADMA
 extern unsigned int pci_init_pdcadma(struct pci_dev *);
-extern unsigned int ata66_pdcadma(ide_hwif_t *);
-extern void ide_init_pdcadma(ide_hwif_t *);
-extern void ide_dmacapable_pdcadma(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_pdcadma(struct ata_channel *);
+extern void ide_init_pdcadma(struct ata_channel *);
+extern void ide_dmacapable_pdcadma(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_PDC202XX
 extern unsigned int pci_init_pdc202xx(struct pci_dev *);
-extern unsigned int ata66_pdc202xx(ide_hwif_t *);
-extern void ide_init_pdc202xx(ide_hwif_t *);
+extern unsigned int ata66_pdc202xx(struct ata_channel *);
+extern void ide_init_pdc202xx(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_PIIX
 extern unsigned int pci_init_piix(struct pci_dev *);
-extern unsigned int ata66_piix(ide_hwif_t *);
-extern void ide_init_piix(ide_hwif_t *);
-extern void ide_dmacapable_piix(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_piix(struct ata_channel *);
+extern void ide_init_piix(struct ata_channel *);
+extern void ide_dmacapable_piix(struct ata_channel *, unsigned long);
 #endif
 
 #ifdef CONFIG_BLK_DEV_IT8172
 extern unsigned int pci_init_it8172(struct pci_dev *);
-extern void ide_init_it8172(ide_hwif_t *);
-#endif
-
-#ifdef CONFIG_BLK_DEV_IT8172
-extern unsigned int pci_init_it8172(struct pci_dev *, const char *);
-extern unsigned int ata66_it8172(ide_hwif_t *);
-extern void ide_init_it8172(ide_hwif_t *);
-#define PCI_IT8172	&pci_init_it8172
-#define INIT_IT8172	&ide_init_it8172
-#else
-#define PCI_IT8172	NULL
-#define ATA66_IT8172	NULL
-#define INIT_IT8172	IDE_NO_DRIVER
+extern void ide_init_it8172(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_RZ1000
-extern void ide_init_rz1000(ide_hwif_t *);
+extern void ide_init_rz1000(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_SVWKS
 extern unsigned int pci_init_svwks(struct pci_dev *);
-extern unsigned int ata66_svwks(ide_hwif_t *);
-extern void ide_init_svwks(ide_hwif_t *);
+extern unsigned int ata66_svwks(struct ata_channel *);
+extern void ide_init_svwks(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_SIS5513
 extern unsigned int pci_init_sis5513(struct pci_dev *);
-extern unsigned int ata66_sis5513(ide_hwif_t *);
-extern void ide_init_sis5513(ide_hwif_t *);
+extern unsigned int ata66_sis5513(struct ata_channel *);
+extern void ide_init_sis5513(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_SL82C105
 extern unsigned int pci_init_sl82c105(struct pci_dev *);
-extern void dma_init_sl82c105(ide_hwif_t *, unsigned long);
-extern void ide_init_sl82c105(ide_hwif_t *);
+extern void dma_init_sl82c105(struct ata_channel *, unsigned long);
+extern void ide_init_sl82c105(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_TRM290
-extern void ide_init_trm290(ide_hwif_t *);
+extern void ide_init_trm290(struct ata_channel *);
 #endif
 
 #ifdef CONFIG_BLK_DEV_VIA82CXXX
 extern unsigned int pci_init_via82cxxx(struct pci_dev *);
-extern unsigned int ata66_via82cxxx(ide_hwif_t *);
-extern void ide_init_via82cxxx(ide_hwif_t *);
-extern void ide_dmacapable_via82cxxx(ide_hwif_t *, unsigned long);
+extern unsigned int ata66_via82cxxx(struct ata_channel *);
+extern void ide_init_via82cxxx(struct ata_channel *);
+extern void ide_dmacapable_via82cxxx(struct ata_channel *, unsigned long);
 #endif
 
 typedef struct ide_pci_enablebit_s {
@@ -194,9 +181,9 @@ typedef struct ide_pci_device_s {
 	unsigned short		vendor;
 	unsigned short		device;
 	unsigned int		(*init_chipset)(struct pci_dev *dev);
-	unsigned int		(*ata66_check)(ide_hwif_t *hwif);
-	void			(*init_hwif)(ide_hwif_t *hwif);
-	void			(*dma_init)(ide_hwif_t *hwif, unsigned long dmabase);
+	unsigned int		(*ata66_check)(struct ata_channel *hwif);
+	void			(*init_channel)(struct ata_channel *hwif);
+	void			(*dma_init)(struct ata_channel *hwif, unsigned long dmabase);
 	ide_pci_enablebit_t	enablebits[2];
 	unsigned int		bootable;
 	unsigned int		extra;
@@ -242,6 +229,7 @@ static ide_pci_device_t pci_chipsets[] __initdata = {
 	{PCI_VENDOR_ID_PROMISE, PCI_DEVICE_ID_PROMISE_20268R, pci_init_pdc202xx, ata66_pdc202xx, ide_init_pdc202xx, NULL, {{0x00,0x00,0x00}, {0x00,0x00,0x00}}, OFF_BOARD, 0, ATA_F_IRQ  | ATA_F_DMA },
 	{PCI_VENDOR_ID_PROMISE, PCI_DEVICE_ID_PROMISE_20269, pci_init_pdc202xx, ata66_pdc202xx, ide_init_pdc202xx, NULL, {{0x00,0x00,0x00}, {0x00,0x00,0x00}}, OFF_BOARD, 0, ATA_F_IRQ | ATA_F_DMA },
 	{PCI_VENDOR_ID_PROMISE, PCI_DEVICE_ID_PROMISE_20275, pci_init_pdc202xx, ata66_pdc202xx,	ide_init_pdc202xx, NULL, {{0x00,0x00,0x00}, {0x00,0x00,0x00}}, OFF_BOARD, 0, ATA_F_IRQ | ATA_F_DMA },
+	{PCI_VENDOR_ID_PROMISE, PCI_DEVICE_ID_PROMISE_20276, pci_init_pdc202xx, ata66_pdc202xx,	ide_init_pdc202xx, NULL, {{0x00,0x00,0x00}, {0x00,0x00,0x00}}, OFF_BOARD, 0, ATA_F_IRQ | ATA_F_DMA },
 #endif
 #ifdef CONFIG_BLK_DEV_RZ1000
 	{PCI_VENDOR_ID_PCTECH, PCI_DEVICE_ID_PCTECH_RZ1000, NULL, NULL,	ide_init_rz1000, NULL, {{0x00,0x00,0x00}, {0x00,0x00,0x00}}, ON_BOARD, 0, 0 },
@@ -341,10 +329,10 @@ static unsigned int __init trust_pci_irq(ide_pci_device_t *d, struct pci_dev *de
  * Match a PCI IDE port against an entry in ide_hwifs[],
  * based on io_base port if possible.
  */
-static ide_hwif_t __init *lookup_hwif (unsigned long io_base, int bootable, const char *name)
+static struct ata_channel __init *lookup_hwif (unsigned long io_base, int bootable, const char *name)
 {
 	int h;
-	ide_hwif_t *hwif;
+	struct ata_channel *hwif;
 
 	/*
 	 * Look for a hwif with matching io_base specified using
@@ -443,29 +431,26 @@ static int __init setup_pci_baseregs (struct pci_dev *dev, const char *name)
 /*
  * Fetch the DMA Bus-Master-I/O-Base-Address (BMIBA) from PCI space:
  */
-static unsigned long __init get_dma_base(ide_hwif_t *hwif, int extra, const char *name)
+static unsigned long __init get_dma_base(struct ata_channel *hwif, int extra, const char *name)
 {
 	unsigned long	dma_base = 0;
 	struct pci_dev	*dev = hwif->pci_dev;
 
-	/*
-	 * If we are on the second channel, the dma base address will be one
-	 * entry away from the primary interface.
-	 */
-
-	if (hwif->mate && hwif->mate->dma_base)
-		dma_base = hwif->mate->dma_base - (hwif->channel ? 0 : 8);
-	else
-		dma_base = pci_resource_start(dev, 4);
-
+	dma_base = pci_resource_start(dev, 4);
 	if (!dma_base)
 		return 0;
 
-	if (extra) /* PDC20246, PDC20262, HPT343, & HPT366 */
+	/* PDC20246, PDC20262, HPT343, & HPT366 */
+	if (extra) {
 		request_region(dma_base + 16, extra, name);
+		hwif->dma_extra = extra;
+	}
 
-	dma_base += hwif->channel ? 8 : 0;
-	hwif->dma_extra = extra;
+	/* If we are on the second channel, the dma base address will be one
+	 * entry away from the primary interface.
+	 */
+	if (hwif->unit == ATA_SECONDARY)
+		dma_base += 8;
 
 	if ((dev->vendor == PCI_VENDOR_ID_AL && dev->device == PCI_DEVICE_ID_AL_M5219) ||
 			(dev->vendor == PCI_VENDOR_ID_AMD && dev->device == PCI_DEVICE_ID_AMD_VIPER_7409) ||
@@ -475,8 +460,7 @@ static unsigned long __init get_dma_base(ide_hwif_t *hwif, int extra, const char
 			printk(KERN_INFO "%s: simplex device: DMA forced\n", name);
 	} else {
 
-		/*
-		 * If the device claims "simplex" DMA, this means only one of
+		/* If the device claims "simplex" DMA, this means only one of
 		 * the two interfaces can be trusted with DMA at any point in
 		 * time.  So we should enable DMA only on one of the two
 		 * interfaces.
@@ -484,7 +468,7 @@ static unsigned long __init get_dma_base(ide_hwif_t *hwif, int extra, const char
 
 		if ((inb(dma_base + 2) & 0x80)) {
 			if ((!hwif->drives[0].present && !hwif->drives[1].present) ||
-					(hwif->mate && hwif->mate->dma_base)) {
+				hwif->unit == ATA_SECONDARY) {
 				printk("%s: simplex device:  DMA disabled\n", name);
 				dma_base = 0;
 			}
@@ -497,12 +481,13 @@ static unsigned long __init get_dma_base(ide_hwif_t *hwif, int extra, const char
 /*
  * Setup DMA transfers on a channel.
  */
-static void __init setup_channel_dma(ide_hwif_t *hwif, struct pci_dev *dev,
+static void __init setup_channel_dma(struct ata_channel *hwif, struct pci_dev *dev,
 		ide_pci_device_t *d,
 		int port,
 		u8 class_rev,
-		int pciirq, ide_hwif_t **mate,
-		int autodma, unsigned short *pcicmd)
+		int pciirq,
+		int autodma,
+		unsigned short *pcicmd)
 {
 	unsigned long dma_base;
 
@@ -515,8 +500,13 @@ static void __init setup_channel_dma(ide_hwif_t *hwif, struct pci_dev *dev,
 	if (!((d->flags & ATA_F_DMA) || ((dev->class >> 8) == PCI_CLASS_STORAGE_IDE && (dev->class & 0x80))))
 		return;
 
-	dma_base = get_dma_base(hwif, (!*mate && d->extra) ? d->extra : 0, dev->name);
-	if (dma_base && !(*pcicmd & PCI_COMMAND_MASTER)) {
+	dma_base = get_dma_base(hwif, ((port == ATA_PRIMARY) && d->extra) ? d->extra : 0, dev->name);
+	if (!dma_base) {
+		printk("%s: %s Bus-Master DMA was disabled by BIOS\n", hwif->name, dev->name);
+
+		return;
+	}
+	if (!(*pcicmd & PCI_COMMAND_MASTER)) {
 
 		/*
 		 * Set up BM-DMA capability (PnP BIOS should have done this already)
@@ -529,13 +519,10 @@ static void __init setup_channel_dma(ide_hwif_t *hwif, struct pci_dev *dev,
 			dma_base = 0;
 		}
 	}
-	if (dma_base) {
-		if (d->dma_init)
-			d->dma_init(hwif, dma_base);
-		else
-			ide_setup_dma(hwif, dma_base, 8);
-	} else
-		printk("%s: %s Bus-Master DMA was disabled by BIOS\n", hwif->name, dev->name);
+	if (d->dma_init)
+		d->dma_init(hwif, dma_base);
+	else
+		ide_setup_dma(hwif, dma_base, 8);
 }
 #endif
 
@@ -548,17 +535,17 @@ static int __init setup_host_channel(struct pci_dev *dev,
 		ide_pci_device_t *d,
 		int port,
 		u8 class_rev,
-		int pciirq, ide_hwif_t **mate,
+		int pciirq,
 		int autodma,
 		unsigned short *pcicmd)
 {
 	unsigned long base = 0;
 	unsigned long ctl = 0;
 	ide_pci_enablebit_t *e = &(d->enablebits[port]);
-	ide_hwif_t *hwif;
+	struct ata_channel *ch;
 
 	u8 tmp;
-	if (port == 1) {
+	if (port == ATA_SECONDARY) {
 
 		/* If this is a Promise FakeRaid controller, the 2nd controller
 		 * will be marked as disabled while it is actually there and
@@ -580,7 +567,7 @@ static int __init setup_host_channel(struct pci_dev *dev,
 
 	/* Nothing to be done for the second port.
 	 */
-	if (port == 1) {
+	if (port == ATA_SECONDARY) {
 		if ((d->flags & ATA_F_HPTHACK) && (class_rev < 0x03))
 			return 0;
 	}
@@ -610,57 +597,50 @@ controller_ok:
 	if (!base)
 		base = port ? 0x170 : 0x1f0;
 
-	if ((hwif = lookup_hwif(base, d->bootable, dev->name)) == NULL)
+	if ((ch = lookup_hwif(base, d->bootable, dev->name)) == NULL)
 		return -ENOMEM;	/* no room in ide_hwifs[] */
 
-	if (hwif->io_ports[IDE_DATA_OFFSET] != base) {
-		ide_init_hwif_ports(&hwif->hw, base, (ctl | 2), NULL);
-		memcpy(hwif->io_ports, hwif->hw.io_ports, sizeof(hwif->io_ports));
-		hwif->noprobe = !hwif->io_ports[IDE_DATA_OFFSET];
+	if (ch->io_ports[IDE_DATA_OFFSET] != base) {
+		ide_init_hwif_ports(&ch->hw, base, (ctl | 2), NULL);
+		memcpy(ch->io_ports, ch->hw.io_ports, sizeof(ch->io_ports));
+		ch->noprobe = !ch->io_ports[IDE_DATA_OFFSET];
 	}
 
-	hwif->chipset = ide_pci;
-	hwif->pci_dev = dev;
-	hwif->channel = port;
-	if (!hwif->irq)
-		hwif->irq = pciirq;
+	ch->chipset = ide_pci;
+	ch->pci_dev = dev;
+	ch->unit = port;
+	if (!ch->irq)
+		ch->irq = pciirq;
 
-	/* Setup the mate interface if we have two channels.
+	/* Serialize the interfaces if requested by configuration information.
 	 */
-	if (*mate) {
-		hwif->mate = *mate;
-		(*mate)->mate = hwif;
-		if (d->flags & ATA_F_SER) {
-			hwif->serialized = 1;
-			(*mate)->serialized = 1;
-		}
-	}
+	if (d->flags & ATA_F_SER)
+	    ch->serialized = 1;
 
 	/* Cross wired IRQ lines on UMC chips and no DMA transfers.*/
 	if (d->flags & ATA_F_FIXIRQ) {
-		hwif->irq = port ? 15 : 14;
+		ch->irq = port ? 15 : 14;
 		goto no_dma;
 	}
 	if (d->flags & ATA_F_NODMA)
 		goto no_dma;
 
 	/* Check whatever this interface is UDMA4 mode capable. */
-	if (hwif->udma_four) {
+	if (ch->udma_four) {
 		printk("%s: warning: ATA-66/100 forced bit set!\n", dev->name);
 	} else {
 		if (d->ata66_check)
-			hwif->udma_four = d->ata66_check(hwif);
+			ch->udma_four = d->ata66_check(ch);
 	}
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
-	setup_channel_dma(hwif, dev, d, port, class_rev, pciirq,  mate, autodma, pcicmd);
+	setup_channel_dma(ch, dev, d, port, class_rev, pciirq, autodma, pcicmd);
 #endif
 
 no_dma:
-	if (d->init_hwif)  /* Call chipset-specific routine for each enabled hwif */
-		d->init_hwif(hwif);
-
-	*mate = hwif;
+	/* Call chipset-specific routine for each enabled channel. */
+	if (d->init_channel)
+		d->init_channel(ch);
 
 	return 0;
 }
@@ -682,7 +662,6 @@ static void __init setup_pci_device(struct pci_dev *dev, ide_pci_device_t *d)
 	int pciirq = 0;
 	unsigned short pcicmd = 0;
 	unsigned short tried_config = 0;
-	ide_hwif_t *mate = NULL;
 	unsigned int class_rev;
 
 #ifdef CONFIG_IDEDMA_AUTO
@@ -690,9 +669,9 @@ static void __init setup_pci_device(struct pci_dev *dev, ide_pci_device_t *d)
 		autodma = 1;
 #endif
 
-	if (d->init_hwif == IDE_NO_DRIVER) {
+	if (d->init_channel == IDE_NO_DRIVER) {
 		printk(KERN_WARNING "%s: detected chipset, but driver not compiled in!\n", dev->name);
-		d->init_hwif = NULL;
+		d->init_channel = NULL;
 	}
 
 	if (pci_enable_device(dev)) {
@@ -790,8 +769,8 @@ check_if_enabled:
 	/*
 	 * Set up IDE chanells. First the primary, then the secondary.
 	 */
-	setup_host_channel(dev, d, 0, class_rev, pciirq, &mate, autodma, &pcicmd);
-	setup_host_channel(dev, d, 1, class_rev, pciirq, &mate, autodma, &pcicmd);
+	setup_host_channel(dev, d, ATA_PRIMARY, class_rev, pciirq, autodma, &pcicmd);
+	setup_host_channel(dev, d, ATA_SECONDARY, class_rev, pciirq, autodma, &pcicmd);
 }
 
 static void __init pdc20270_device_order_fixup (struct pci_dev *dev, ide_pci_device_t *d)
@@ -867,12 +846,6 @@ static void __init hpt366_device_order_fixup (struct pci_dev *dev, ide_pci_devic
 			if (hpt363_shared_pin && hpt363_shared_irq) {
 				d->bootable = ON_BOARD;
 				printk("%s: onboard version of chipset, pin1=%d pin2=%d\n", dev->name, pin1, pin2);
-#if 0
-				/* I forgot why I did this once, but it fixed something. */
-				pci_write_config_byte(dev2, PCI_INTERRUPT_PIN, dev->irq);
-				printk("PCI: %s: Fixing interrupt %d pin %d to ZERO \n", d->name, dev2->irq, pin2);
-				pci_write_config_byte(dev2, PCI_INTERRUPT_LINE, 0);
-#endif
 			}
 			break;
 		}
@@ -905,7 +878,7 @@ static void __init scan_pcidev(struct pci_dev *dev)
 	while (d->vendor && !(d->vendor == vendor && d->device == device))
 		++d;
 
-	if (d->init_hwif == ATA_PCI_IGNORE)
+	if (d->init_channel == ATA_PCI_IGNORE)
 		printk("%s: has been ignored by PCI bus scan\n", dev->name);
 	else if ((d->vendor == PCI_VENDOR_ID_OPTI && d->device == PCI_DEVICE_ID_OPTI_82C558) && !(PCI_FUNC(dev->devfn) & 1))
 		return;

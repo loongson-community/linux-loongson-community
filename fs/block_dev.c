@@ -19,6 +19,7 @@
 #include <linux/highmem.h>
 #include <linux/blkdev.h>
 #include <linux/module.h>
+#include <linux/blkpg.h>
 
 #include <asm/uaccess.h>
 
@@ -27,33 +28,22 @@
 static unsigned long max_block(kdev_t dev)
 {
 	unsigned int retval = ~0U;
-	int major = major(dev);
+	loff_t sz = blkdev_size_in_bytes(dev);
 
-	if (blk_size[major]) {
-		int minor = minor(dev);
-		unsigned int blocks = blk_size[major][minor];
-		if (blocks) {
-			unsigned int size = block_size(dev);
-			unsigned int sizebits = blksize_bits(size);
-			blocks += (size-1) >> BLOCK_SIZE_BITS;
-			retval = blocks << (BLOCK_SIZE_BITS - sizebits);
-			if (sizebits > BLOCK_SIZE_BITS)
-				retval = blocks >> (sizebits - BLOCK_SIZE_BITS);
-		}
+	if (sz) {
+		unsigned int size = block_size(dev);
+		unsigned int sizebits = blksize_bits(size);
+		retval = (sz >> sizebits);
 	}
 	return retval;
 }
 
 static loff_t blkdev_size(kdev_t dev)
 {
-	unsigned int blocks = ~0U;
-	int major = major(dev);
-
-	if (blk_size[major]) {
-		int minor = minor(dev);
-		blocks = blk_size[major][minor];
-	}
-	return (loff_t) blocks << BLOCK_SIZE_BITS;
+	loff_t sz = blkdev_size_in_bytes(dev);
+	if (sz)
+		return sz;
+	return ~0ULL;
 }
 
 /* Kill _all_ buffers, dirty or not.. */
@@ -183,7 +173,6 @@ static loff_t block_llseek(struct file *file, loff_t offset, int origin)
 	if (offset >= 0 && offset <= size) {
 		if (offset != file->f_pos) {
 			file->f_pos = offset;
-			file->f_reada = 0;
 			file->f_version = ++event;
 		}
 		retval = offset;
@@ -337,7 +326,7 @@ static struct block_device *bdfind(dev_t dev, struct list_head *head)
 {
 	struct list_head *p;
 	struct block_device *bdev;
-	for (p=head->next; p!=head; p=p->next) {
+	list_for_each(p, head) {
 		bdev = list_entry(p, struct block_device, bd_hash);
 		if (bdev->bd_dev != dev)
 			continue;
@@ -703,9 +692,20 @@ int blkdev_close(struct inode * inode, struct file * filp)
 static int blkdev_ioctl(struct inode *inode, struct file *file, unsigned cmd,
 			unsigned long arg)
 {
-	if (inode->i_bdev->bd_op->ioctl)
-		return inode->i_bdev->bd_op->ioctl(inode, file, cmd, arg);
-	return -EINVAL;
+	int ret = -EINVAL;
+	switch (cmd) {
+	case BLKRAGET:
+	case BLKFRAGET:
+	case BLKRASET:
+	case BLKFRASET:
+		ret = blk_ioctl(inode->i_bdev, cmd, arg);
+		break;
+	default:
+		if (inode->i_bdev->bd_op->ioctl)
+			ret =inode->i_bdev->bd_op->ioctl(inode, file, cmd, arg);
+		break;
+	}
+	return ret;
 }
 
 struct address_space_operations def_blk_aops = {

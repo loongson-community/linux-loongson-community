@@ -14,7 +14,7 @@
 #include <linux/config.h>
 #include <linux/slab.h>
 #include <asm/pgalloc.h>
-#include <asm/pgtable.h>
+#include <asm/tlbflush.h>
 
 /*
  * For the fast tlb miss handlers, we currently keep a per cpu array

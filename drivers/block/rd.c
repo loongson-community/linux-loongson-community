@@ -87,7 +87,7 @@ static struct block_device *rd_bdev[NUM_RAMDISKS];/* Protected device data */
  */
 int rd_size = CONFIG_BLK_DEV_RAM_SIZE;		/* Size of the RAM disks */
 /*
- * It would be very desirable to have a soft-blocksize (that in the case
+ * It would be very desiderable to have a soft-blocksize (that in the case
  * of the ramdisk driver is also the hardblocksize ;) of PAGE_SIZE because
  * doing that we'll achieve a far better MM footprint. Using a rd_blocksize of
  * BLOCK_SIZE in the worst case we'll make PAGE_SIZE/BLOCK_SIZE buffer-pages
@@ -156,7 +156,6 @@ static int rd_blkdev_pagecache_IO(int rw, struct bio_vec *vec,
 
 	do {
 		int count;
-		struct page ** hash;
 		struct page * page;
 		char * src, * dst;
 		int unlock = 0;
@@ -166,8 +165,7 @@ static int rd_blkdev_pagecache_IO(int rw, struct bio_vec *vec,
 			count = size;
 		size -= count;
 
-		hash = page_hash(mapping, index);
-		page = __find_get_page(mapping, index, hash);
+		page = find_get_page(mapping, index);
 		if (!page) {
 			page = grab_cache_page(mapping, index);
 			err = -ENOMEM;
@@ -300,19 +298,13 @@ static int rd_ioctl(struct inode *inode, struct file *file, unsigned int cmd, un
 			}
 			up(&inode->i_bdev->bd_sem);
 			break;
-         	case BLKGETSIZE:   /* Return device size */
-			if (!arg)
-				break;
-			error = put_user(rd_kbsize[minor] << 1, (unsigned long *) arg);
-			break;
+         	case BLKGETSIZE:
          	case BLKGETSIZE64:
-			error = put_user((u64)rd_kbsize[minor]<<10, (u64*)arg);
-			break;
 		case BLKROSET:
 		case BLKROGET:
 		case BLKSSZGET:
 			error = blk_ioctl(inode->i_bdev, cmd, arg);
-	};
+	}
 out:
 	return error;
 }
@@ -405,9 +397,10 @@ static void __exit rd_cleanup (void)
 	for (i = 0 ; i < NUM_RAMDISKS; i++) {
 		struct block_device *bdev = rd_bdev[i];
 		rd_bdev[i] = NULL;
-		if (bdev)
+		if (bdev) {
+			invalidate_bdev(bdev, 1);
 			blkdev_put(bdev, BDEV_FILE);
-		destroy_buffers(mk_kdev(MAJOR_NR, i));
+		}
 	}
 
 	devfs_unregister (devfs_handle);
@@ -418,11 +411,10 @@ static void __exit rd_cleanup (void)
 /* This is the registration and initialization section of the RAM disk driver */
 static int __init rd_init (void)
 {
-	int		i;
+	int i;
 
 	if (rd_blocksize > PAGE_SIZE || rd_blocksize < 512 ||
-	    (rd_blocksize & (rd_blocksize-1)))
-	{
+	    (rd_blocksize & (rd_blocksize-1))) {
 		printk("RAMDISK: wrong blocksize %d, reverting to defaults\n",
 		       rd_blocksize);
 		rd_blocksize = BLOCK_SIZE;
@@ -449,7 +441,8 @@ static int __init rd_init (void)
 			       &rd_bd_op, NULL);
 
 	for (i = 0; i < NUM_RAMDISKS; i++)
-		register_disk(NULL, mk_kdev(MAJOR_NR,i), 1, &rd_bd_op, rd_size<<1);
+		register_disk(NULL, mk_kdev(MAJOR_NR,i), 1, &rd_bd_op,
+			      rd_size<<1);
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	/* We ought to separate initrd operations here */
@@ -458,10 +451,10 @@ static int __init rd_init (void)
 			INITRD_MINOR, S_IFBLK | S_IRUSR, &rd_bd_op, NULL);
 #endif
 
-	blksize_size[MAJOR_NR] = rd_blocksizes;		/* Avoid set_blocksize() check */
-	blk_size[MAJOR_NR] = rd_kbsize;			/* Size of the RAM disk in kB  */
+	blksize_size[MAJOR_NR] = rd_blocksizes;	/* Avoid set_blocksize() check */
+	blk_size[MAJOR_NR] = rd_kbsize;		/* Size of the RAM disk in kB  */
 
-		/* rd_size is given in kB */
+	/* rd_size is given in kB */
 	printk("RAMDISK driver initialized: "
 	       "%d RAM disks of %dK size %d blocksize\n",
 	       NUM_RAMDISKS, rd_size, rd_blocksize);

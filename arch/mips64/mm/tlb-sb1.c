@@ -136,7 +136,6 @@ void sb1_sanitize_tlb(void)
 	local_flush_tlb_all();
 }
 
-
 void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 	unsigned long end)
 {
@@ -180,6 +179,43 @@ void local_flush_tlb_range(struct vm_area_struct *vma, unsigned long start,
 	}
 	__restore_flags(flags);
 }
+
+void local_flush_tlb_kernel_range(unsigned long start, unsigned long end)
+{
+	unsigned long flags;
+	int size;
+
+	size = (end - start + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+	size = (size + 1) >> 1;
+
+	__save_and_cli(flags);
+	if (size <= (mips_cpu.tlbsize/2)) {
+		int pid = get_entryhi();
+
+		start &= (PAGE_MASK << 1);
+		end += ((PAGE_SIZE << 1) - 1);
+		end &= (PAGE_MASK << 1);
+		while (start < end) {
+			int idx;
+
+			set_entryhi(start);
+			start += (PAGE_SIZE << 1);
+			tlb_probe();
+			idx = get_index();
+			set_entrylo0(0);
+			set_entrylo1(0);
+			set_entryhi(KSEG0 + (idx << (PAGE_SHIFT+1)));
+			if (idx < 0)
+				continue;
+			tlb_write_indexed();
+		}
+		set_entryhi(pid);
+	} else {
+		local_flush_tlb_all();
+	}
+	__restore_flags(flags);
+}
+
 
 void local_flush_tlb_page(struct vm_area_struct *vma, unsigned long page)
 {

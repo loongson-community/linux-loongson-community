@@ -1,5 +1,5 @@
 /*
- * $Id: piix.c,v 1.2 2002/03/13 22:50:43 vojtech Exp $
+ * $Id: piix.c,v 1.3 2002/03/29 16:06:06 vojtech Exp $
  *
  *  Copyright (c) 2000-2002 Vojtech Pavlik
  *
@@ -128,7 +128,7 @@ static int piix_get_info(char *buffer, char **addr, off_t offset, int count)
 
 	piix_print("----------PIIX BusMastering IDE Configuration---------------");
 
-	piix_print("Driver Version:                     1.2");
+	piix_print("Driver Version:                     1.3");
 	piix_print("South Bridge:                       %s", bmide_dev->name);
 
 	pci_read_config_byte(dev, PCI_REVISION_ID, &t);
@@ -199,7 +199,7 @@ static int piix_get_info(char *buffer, char **addr, off_t offset, int count)
 
 		if (~piix_config->flags & PIIX_VICTORY) {
 			if ((piix_config->flags & PIIX_UDMA) >= PIIX_UDMA_66 && (u & (1 << i))) umul = 2;
-			if ((piix_config->flags & PIIX_UDMA) >= PIIX_UDMA_100 && (u & ((1 << i) + 12))) umul = 1;
+			if ((piix_config->flags & PIIX_UDMA) >= PIIX_UDMA_100 && (u & (1 << (i + 12)))) umul = 1;
 			udma[i] = (4 - ((e >> (i << 2)) & 3)) * umul;
 		} else  udma[i] = (8 - ((e >> (i << 2)) & 7)) * 2;
 
@@ -316,7 +316,7 @@ static void piix_set_speed(struct pci_dev *dev, unsigned char dn, struct ata_tim
 
 static int piix_set_drive(ide_drive_t *drive, unsigned char speed)
 {
-	ide_drive_t *peer = HWIF(drive)->drives + (~drive->dn & 1);
+	ide_drive_t *peer = drive->channel->drives + (~drive->dn & 1);
 	struct ata_timing t, p;
 	int err, T, UT, umul;
 
@@ -331,7 +331,7 @@ static int piix_set_drive(ide_drive_t *drive, unsigned char speed)
 		umul = 2;
 
 	T = 1000000000 / piix_clock;
-	UT = T / umul;
+	UT = umul ? (T / umul) : 0;
 
 	ata_timing_compute(drive, speed, &t, T, UT);
 
@@ -341,7 +341,7 @@ static int piix_set_drive(ide_drive_t *drive, unsigned char speed)
 				ata_timing_merge(&p, &t, &t, IDE_TIMING_ALL);
 	}
 
-	piix_set_speed(HWIF(drive)->pci_dev, drive->dn, &t, umul);
+	piix_set_speed(drive->channel->pci_dev, drive->dn, &t, umul);
 
 	if (!drive->init_speed)	
 		drive->init_speed = speed;
@@ -357,7 +357,7 @@ static int piix_set_drive(ide_drive_t *drive, unsigned char speed)
 
 static void piix_tune_drive(ide_drive_t *drive, unsigned char pio)
 {
-	if (!((piix_enabled >> HWIF(drive)->channel) & 1))
+	if (!((piix_enabled >> drive->channel->unit) & 1))
 		return;
 
 	if (pio == 255) {
@@ -381,7 +381,7 @@ int piix_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 
 	if (func == ide_dma_check) {
 
-		short w80 = HWIF(drive)->udma_four;
+		short w80 = drive->channel->udma_four;
 
 		short speed = ata_timing_mode(drive,
 			XFER_PIO | XFER_EPIO | 
@@ -392,7 +392,7 @@ int piix_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 
 		piix_set_drive(drive, speed);
 
-		func = (HWIF(drive)->autodma && (speed & XFER_MODE) != XFER_PIO)
+		func = (drive->channel->autodma && (speed & XFER_MODE) != XFER_PIO)
 			? ide_dma_on : ide_dma_off_quietly;
 
 	}
@@ -533,12 +533,12 @@ unsigned int __init pci_init_piix(struct pci_dev *dev, const char *name)
 	return 0;
 }
 
-unsigned int __init ata66_piix(ide_hwif_t *hwif)
+unsigned int __init ata66_piix(struct ata_channel *hwif)
 {
-	return ((piix_enabled & piix_80w) >> hwif->channel) & 1;
+	return ((piix_enabled & piix_80w) >> hwif->unit) & 1;
 }
 
-void __init ide_init_piix(ide_hwif_t *hwif)
+void __init ide_init_piix(struct ata_channel *hwif)
 {
 	int i;
 
@@ -550,7 +550,7 @@ void __init ide_init_piix(ide_hwif_t *hwif)
 		hwif->drives[i].io_32bit = 1;
 		hwif->drives[i].unmask = 1;
 		hwif->drives[i].autotune = 1;
-		hwif->drives[i].dn = hwif->channel * 2 + i;
+		hwif->drives[i].dn = hwif->unit * 2 + i;
 	}
 
 #ifdef CONFIG_BLK_DEV_IDEDMA
@@ -570,9 +570,9 @@ void __init ide_init_piix(ide_hwif_t *hwif)
  * and only if DMA is safe with the chip and bridge.
  */
 
-void __init ide_dmacapable_piix(ide_hwif_t *hwif, unsigned long dmabase)
+void __init ide_dmacapable_piix(struct ata_channel *hwif, unsigned long dmabase)
 {
-	if (((piix_enabled >> hwif->channel) & 1)
+	if (((piix_enabled >> hwif->unit) & 1)
 		&& !(piix_config->flags & PIIX_NODMA))
 			ide_setup_dma(hwif, dmabase, 8);
 }

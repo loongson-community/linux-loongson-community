@@ -638,12 +638,15 @@ found_middle:
 #else /* !(__MIPSEB__) */
 
 /* Native ext2 byte ordering, just collapse using defines. */
-#define ext2_set_bit(nr, addr) test_and_set_bit((nr), (addr))
-#define ext2_clear_bit(nr, addr) test_and_clear_bit((nr), (addr))
-#define ext2_test_bit(nr, addr) test_bit((nr), (addr))
-#define ext2_find_first_zero_bit(addr, size) find_first_zero_bit((addr), (size))
-#define ext2_find_next_zero_bit(addr, size, offset) \
-                find_next_zero_bit((addr), (size), (offset))
+#define ext2_clear_bit(nr, addr) \
+	__test_and_clear_bit((nr),(unsigned long*)addr)
+#define ext2_test_bit(nr, addr) \
+	test_bit((nr),(unsigned long*)addr)
+#define ext2_find_first_zero_bit(addr, size) \
+	find_first_zero_bit((unsigned long*)addr, size)
+#define ext2_find_next_zero_bit(addr, size, off) \
+	find_next_zero_bit((unsigned long*)addr, size, off)
+
 
 #endif /* !(__MIPSEB__) */
 

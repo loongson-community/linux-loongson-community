@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2002 Ladislav Michl
  */
-
+#include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>

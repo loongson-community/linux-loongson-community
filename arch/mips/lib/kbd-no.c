@@ -6,8 +6,9 @@
  * Stub keyboard and psaux routines to keep Linux from crashing on machines
  * without a keyboard.
  *
- * Copyright (C) 1998 by Ralf Baechle
+ * Copyright (C) 1998, 2002 by Ralf Baechle
  */
+#include <linux/errno.h>
 #include <linux/sched.h>
 #include <asm/keyboard.h>
 

@@ -496,25 +496,15 @@ _GLOBAL(cvt_df)
  *   kernel_thread(fn, arg, flags)
  */
 _GLOBAL(kernel_thread)
+	/* XXX fix this when we optimise syscall entry to not save volatiles */
 	mr	r6,r3		/* function */
 	ori	r3,r5,CLONE_VM	/* flags */
 	li	r0,__NR_clone
 	sc
 	cmpi	0,r3,0		/* parent or child? */
 	bnelr			/* return if parent */
-
-	li	r0,0		/* clear out p->thread.regs */
-	std	r0,THREAD+PT_REGS(r13)	/* since we don't have user ctx */
-
-	clrrdi	r5,r1,THREAD_SHIFT
-	ld	r0,TI_FLAGS(r5)
-	li	r7,_TIF_32BIT
-	andc	r0,r0,r7
-#ifdef CONFIG_PPC_ISERIES
-	ori	r0,r0,_TIF_RUN_LIGHT	/* Run light on */
-#endif
-	std	r0,TI_FLAGS(r5)
-
+	li	r0,0
+	stdu	r0,-STACK_FRAME_OVERHEAD(r1)
 	ld	r2,8(r6)
 	ld	r6,0(r6)
 	mtlr	r6              /* fn addr in lr */
@@ -526,8 +516,7 @@ _GLOBAL(kernel_thread)
 
 #ifdef CONFIG_BINFMT_ELF32
 /* Why isn't this a) automatic, b) written in 'C'? */	
-	.data
-	.align 8
+	.balign 8
 _GLOBAL(sys_call_table32)
 	.llong .sys_ni_syscall	/* 0  -  old "setup()" system call */
 	.llong .sys32_exit
@@ -554,7 +543,7 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_oldumount
 	.llong .sys_setuid
 	.llong .sys_getuid
-	.llong .ppc64_sys_stime		/* 25 */
+	.llong .ppc64_sys32_stime       /* 25 */
 	.llong .sys32_ptrace
 	.llong .sys_alarm
 	.llong .sys32_fstat
@@ -738,12 +727,25 @@ _GLOBAL(sys_call_table32)
 	.llong .sys_mincore		/* 206 */
 	.llong .sys_gettid		/* 207 */
 	.llong .sys_tkill		/* 208 */
-	.rept NR_syscalls-208
+	.llong .sys_setxattr
+	.llong .sys_lsetxattr	/* 210 */
+	.llong .sys_fsetxattr
+	.llong .sys_getxattr
+	.llong .sys_lgetxattr
+	.llong .sys_fgetxattr
+	.llong .sys_listxattr	/* 215 */
+	.llong .sys_llistxattr
+	.llong .sys_flistxattr
+	.llong .sys_removexattr
+	.llong .sys_lremovexattr
+	.llong .sys_fremovexattr	/* 220 */
+	.llong .sys_futex
+	.rept NR_syscalls-221
 		.llong .sys_ni_syscall
 	.endr
 #endif
-	.data
-	.align 8
+
+	.balign 8
 _GLOBAL(sys_call_table)
 	.llong .sys_ni_syscall	/* 0  -  old "setup()" system call */
 	.llong .sys_exit
@@ -954,6 +956,19 @@ _GLOBAL(sys_call_table)
 	.llong .sys_mincore		/* 206 */
 	.llong .sys_gettid		/* 207 */
 	.llong .sys_tkill		/* 208 */
-	.rept NR_syscalls-208
+	.llong .sys_setxattr
+	.llong .sys_lsetxattr	/* 210 */
+	.llong .sys_fsetxattr
+	.llong .sys_getxattr
+	.llong .sys_lgetxattr
+	.llong .sys_fgetxattr
+	.llong .sys_listxattr	/* 215 */
+	.llong .sys_llistxattr
+	.llong .sys_flistxattr
+	.llong .sys_removexattr
+	.llong .sys_lremovexattr
+	.llong .sys_fremovexattr	/* 220 */
+	.llong .sys_futex
+	.rept NR_syscalls-221
 	.llong .sys_ni_syscall
 	.endr

@@ -31,6 +31,19 @@
 #include <asm/elf.h>
 #include <asm/cpu.h>
 
+/*
+ * We use this if we don't have any better idle routine..
+ * (This to kill: kernel/platform.c.
+ */
+void default_idle (void)
+{
+}
+
+/*
+ * The idle thread. There's no useful work to be done, so just try to conserve
+ * power and have a low exit latency (ie sit in a loop waiting for somebody to
+ * say that they'd like to reschedule)
+ */
 ATTRIB_NORET void cpu_idle(void)
 {
 	/* endless idle loop with no priority at all */

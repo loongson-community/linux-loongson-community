@@ -6,12 +6,13 @@
  * Copyright (C) 1995, 1996, 1997, 1998, 1999 by Ralf Baechle
  * Copyright (C) 1999 Silicon Graphics, Inc.
  * Copyright (C) 2001 Thiemo Seufer.
- * Copyright (C) 2002  Maciej W. Rozycki
+ * Copyright (C) 2002 Maciej W. Rozycki
  */
 #ifndef _ASM_CHECKSUM_H
 #define _ASM_CHECKSUM_H
 
 #include <asm/uaccess.h>
+#include <linux/in6.h>
 
 /*
  * computes the checksum of a memory block at buff, length len,

@@ -13,7 +13,9 @@
 #include <linux/proc_fs.h>
 #include <linux/device.h>
 #include <linux/devfs_fs_kernel.h>
+#include <linux/interrupt.h>
 #include <asm/hdreg.h>
+#include <asm/bitops.h>
 
 /*
  * This is the multiple IDE interface driver, as evolved from hd.c.
@@ -68,8 +70,8 @@ typedef unsigned char	byte;	/* used everywhere */
  */
 #define DMA_PIO_RETRY	1	/* retrying in PIO */
 
-#define HWIF(drive)		((drive)->hwif)
-#define HWGROUP(drive)		(HWIF(drive)->hwgroup)
+#define HWIF(drive)		((drive)->channel)
+#define HWGROUP(drive)		(drive->channel->hwgroup)
 
 /*
  * Definitions for accessing IDE controller registers
@@ -90,37 +92,16 @@ typedef unsigned char	byte;	/* used everywhere */
 #define IDE_FEATURE_OFFSET	IDE_ERROR_OFFSET
 #define IDE_COMMAND_OFFSET	IDE_STATUS_OFFSET
 
-#define IDE_DATA_OFFSET_HOB	(0)
-#define IDE_ERROR_OFFSET_HOB	(1)
-#define IDE_NSECTOR_OFFSET_HOB	(2)
-#define IDE_SECTOR_OFFSET_HOB	(3)
-#define IDE_LCYL_OFFSET_HOB	(4)
-#define IDE_HCYL_OFFSET_HOB	(5)
-#define IDE_SELECT_OFFSET_HOB	(6)
-#define IDE_CONTROL_OFFSET_HOB	(7)
-
-#define IDE_FEATURE_OFFSET_HOB	IDE_ERROR_OFFSET_HOB
-
-#define IDE_DATA_REG		(HWIF(drive)->io_ports[IDE_DATA_OFFSET])
-#define IDE_ERROR_REG		(HWIF(drive)->io_ports[IDE_ERROR_OFFSET])
-#define IDE_NSECTOR_REG		(HWIF(drive)->io_ports[IDE_NSECTOR_OFFSET])
-#define IDE_SECTOR_REG		(HWIF(drive)->io_ports[IDE_SECTOR_OFFSET])
-#define IDE_LCYL_REG		(HWIF(drive)->io_ports[IDE_LCYL_OFFSET])
-#define IDE_HCYL_REG		(HWIF(drive)->io_ports[IDE_HCYL_OFFSET])
-#define IDE_SELECT_REG		(HWIF(drive)->io_ports[IDE_SELECT_OFFSET])
-#define IDE_STATUS_REG		(HWIF(drive)->io_ports[IDE_STATUS_OFFSET])
-#define IDE_CONTROL_REG		(HWIF(drive)->io_ports[IDE_CONTROL_OFFSET])
-#define IDE_IRQ_REG		(HWIF(drive)->io_ports[IDE_IRQ_OFFSET])
-
-#define IDE_DATA_REG_HOB	(HWIF(drive)->io_ports[IDE_DATA_OFFSET])
-#define IDE_ERROR_REG_HOB	(HWIF(drive)->io_ports[IDE_ERROR_OFFSET])
-#define IDE_NSECTOR_REG_HOB	(HWIF(drive)->io_ports[IDE_NSECTOR_OFFSET])
-#define IDE_SECTOR_REG_HOB	(HWIF(drive)->io_ports[IDE_SECTOR_OFFSET])
-#define IDE_LCYL_REG_HOB	(HWIF(drive)->io_ports[IDE_LCYL_OFFSET])
-#define IDE_HCYL_REG_HOB	(HWIF(drive)->io_ports[IDE_HCYL_OFFSET])
-#define IDE_SELECT_REG_HOB	(HWIF(drive)->io_ports[IDE_SELECT_OFFSET])
-#define IDE_STATUS_REG_HOB	(HWIF(drive)->io_ports[IDE_STATUS_OFFSET])
-#define IDE_CONTROL_REG_HOB	(HWIF(drive)->io_ports[IDE_CONTROL_OFFSET])
+#define IDE_DATA_REG		(drive->channel->io_ports[IDE_DATA_OFFSET])
+#define IDE_ERROR_REG		(drive->channel->io_ports[IDE_ERROR_OFFSET])
+#define IDE_NSECTOR_REG		(drive->channel->io_ports[IDE_NSECTOR_OFFSET])
+#define IDE_SECTOR_REG		(drive->channel->io_ports[IDE_SECTOR_OFFSET])
+#define IDE_LCYL_REG		(drive->channel->io_ports[IDE_LCYL_OFFSET])
+#define IDE_HCYL_REG		(drive->channel->io_ports[IDE_HCYL_OFFSET])
+#define IDE_SELECT_REG		(drive->channel->io_ports[IDE_SELECT_OFFSET])
+#define IDE_STATUS_REG		(drive->channel->io_ports[IDE_STATUS_OFFSET])
+#define IDE_CONTROL_REG		(drive->channel->io_ports[IDE_CONTROL_OFFSET])
+#define IDE_IRQ_REG		(drive->channel->io_ports[IDE_IRQ_OFFSET])
 
 #define IDE_FEATURE_REG		IDE_ERROR_REG
 #define IDE_COMMAND_REG		IDE_STATUS_REG
@@ -132,10 +113,14 @@ typedef unsigned char	byte;	/* used everywhere */
 #define GET_ERR()		IN_BYTE(IDE_ERROR_REG)
 #define GET_STAT()		IN_BYTE(IDE_STATUS_REG)
 #define GET_ALTSTAT()		IN_BYTE(IDE_CONTROL_REG)
+#define GET_FEAT()		IN_BYTE(IDE_NSECTOR_REG)
+
 #define OK_STAT(stat,good,bad)	(((stat)&((good)|(bad)))==(good))
+
 #define BAD_R_STAT		(BUSY_STAT   | ERR_STAT)
 #define BAD_W_STAT		(BAD_R_STAT  | WRERR_STAT)
 #define BAD_STAT		(BAD_R_STAT  | DRQ_STAT)
+
 #define DRIVE_READY		(READY_STAT  | SEEK_STAT)
 #define DATA_READY		(DRQ_STAT)
 
@@ -153,6 +138,7 @@ typedef unsigned char	byte;	/* used everywhere */
  */
 #define PRD_BYTES	8
 #define PRD_ENTRIES	(PAGE_SIZE / (2 * PRD_BYTES))
+#define PRD_SEGMENTS	32
 
 /*
  * Some more useful definitions
@@ -175,24 +161,24 @@ typedef unsigned char	byte;	/* used everywhere */
 #define WAIT_CMD	(10*HZ)		/* 10sec  - maximum wait for an IRQ to happen */
 #define WAIT_MIN_SLEEP	(2*HZ/100)	/* 20msec - minimum sleep time */
 
-#define SELECT_DRIVE(hwif,drive)				\
+#define SELECT_DRIVE(channel, drive)				\
 {								\
-	if (hwif->selectproc)					\
-		hwif->selectproc(drive);			\
-	OUT_BYTE((drive)->select.all, hwif->io_ports[IDE_SELECT_OFFSET]); \
+	if (channel->selectproc)				\
+		channel->selectproc(drive);			\
+	OUT_BYTE((drive)->select.all, channel->io_ports[IDE_SELECT_OFFSET]); \
 }
 
-#define SELECT_MASK(hwif,drive,mask)				\
+#define SELECT_MASK(channel, drive, mask)			\
 {								\
-	if (hwif->maskproc)					\
-		hwif->maskproc(drive,mask);			\
+	if (channel->maskproc)					\
+		channel->maskproc(drive,mask);			\
 }
 
 /*
  * Check for an interrupt and acknowledge the interrupt status
  */
-struct hwif_s;
-typedef int (ide_ack_intr_t)(struct hwif_s *);
+struct ata_channel;
+typedef int (ide_ack_intr_t)(struct ata_channel *);
 
 #ifndef NO_DMA
 # define NO_DMA  255
@@ -235,7 +221,6 @@ typedef struct hw_regs_s {
 	int		irq;			/* our irq number */
 	int		dma;			/* our dma entry */
 	ide_ack_intr_t	*ack_intr;		/* acknowledge interrupt */
-	void		*priv;			/* interface specific data */
 	hwif_chipset_t  chipset;
 } hw_regs_t;
 
@@ -288,37 +273,81 @@ typedef union {
 	} b;
 } special_t;
 
+#define IDE_MAX_TAG	32		/* spec says 32 max */
+
+struct ata_request;
+typedef struct ide_tag_info_s {
+	unsigned long tag_mask;			/* next tag bit mask */
+	struct ata_request *ar[IDE_MAX_TAG];	/* in-progress requests */
+	int active_tag;				/* current active tag */
+	int queued;				/* current depth */
+
+	/*
+	 * stats ->
+	 */
+	int max_depth;				/* max depth ever */
+	int max_last_depth;			/* max since last check */
+
+	/*
+	 * Either the command completed immediately after being started
+	 * (immed_comp), or the device did a bus release before dma was
+	 * started (immed_rel).
+	 */
+	int immed_rel;
+	int immed_comp;
+} ide_tag_info_t;
+
+#define IDE_GET_AR(drive, tag)	((drive)->tcq->ar[(tag)])
+#define IDE_CUR_TAG(drive)	(IDE_GET_AR((drive), (drive)->tcq->active_tag))
+#define IDE_SET_CUR_TAG(drive, tag)	((drive)->tcq->active_tag = (tag))
+
+#define IDE_CUR_AR(drive)	\
+	((drive)->using_tcq ? IDE_CUR_TAG((drive)) : HWGROUP((drive))->rq->special)
+
 struct ide_settings_s;
 
 typedef struct ide_drive_s {
-	unsigned int	usage;		/* current "open()" count for drive */
+	struct ata_channel *channel;	/* parent pointer to the channel we are attached to  */
+
+	unsigned int usage;		/* current "open()" count for drive */
 	char type; /* distingiush different devices: disk, cdrom, tape, floppy, ... */
 
 	/* NOTE: If we had proper separation between channel and host chip, we
-	 * could move this to the chanell and many sync problems would
+	 * could move this to the channel and many sync problems would
 	 * magically just go away.
 	 */
-	request_queue_t		 queue;	/* per device request queue */
+	request_queue_t	queue;	/* per device request queue */
+
+	struct list_head free_req; /* free ata requests */
 
 	struct ide_drive_s	*next;	/* circular list of hwgroup drives */
-	unsigned long sleep;		/* sleep until this time */
-	unsigned long service_start;	/* time we started last request */
-	unsigned long service_time;	/* service time of last request */
-	unsigned long timeout;		/* max time to wait for irq */
+
+	/* Those are directly injected jiffie values. They should go away and
+	 * we should use generic timers instead!!!
+	 */
+
+	unsigned long PADAM_sleep;		/* sleep until this time */
+	unsigned long PADAM_service_start;	/* time we started last request */
+	unsigned long PADAM_service_time;	/* service time of last request */
+	unsigned long PADAM_timeout;		/* max time to wait for irq */
+
 	special_t	special;	/* special action flags */
 	byte     keep_settings;		/* restore settings after drive reset */
 	byte     using_dma;		/* disk is using dma for read/write */
+	byte	 using_tcq;		/* disk is using queued dma operations*/
 	byte	 retry_pio;		/* retrying dma capable host in pio */
 	byte	 state;			/* retry state */
 	byte     unmask;		/* flag: okay to unmask other irqs */
 	byte     slow;			/* flag: slow data port */
 	byte     bswap;			/* flag: byte swap data */
 	byte     dsc_overlap;		/* flag: DSC overlap */
-	byte     nice1;			/* flag: give potential excess bandwidth */
+
 	unsigned waiting_for_dma: 1;	/* dma currently in progress */
+	unsigned busy		: 1;	/* currently doing revalidate_disk() */
+	unsigned blocked        : 1;	/* 1=powermanagment told us not to do anything, so sleep nicely */
+
 	unsigned present	: 1;	/* drive is physically present */
 	unsigned noprobe	: 1;	/* from:  hdx=noprobe */
-	unsigned busy		: 1;	/* currently doing revalidate_disk() */
 	unsigned removable	: 1;	/* 1 if need to do check_media_change */
 	unsigned forced_geom	: 1;	/* 1 if hdx=c,h,s was given at boot */
 	unsigned no_unmask	: 1;	/* disallow setting unmask bit */
@@ -326,21 +355,18 @@ typedef struct ide_drive_s {
 	unsigned nobios		: 1;	/* flag: do not probe bios for drive */
 	unsigned revalidate	: 1;	/* request revalidation */
 	unsigned atapi_overlap	: 1;	/* flag: ATAPI overlap (not supported) */
-	unsigned nice0		: 1;	/* flag: give obvious excess bandwidth */
-	unsigned nice2		: 1;	/* flag: give a share in our own bandwidth */
 	unsigned doorlocking	: 1;	/* flag: for removable only: door lock/unlock works */
 	unsigned autotune	: 2;	/* 1=autotune, 2=noautotune, 0=default */
 	unsigned remap_0_to_1	: 2;	/* 0=remap if ezdrive, 1=remap, 2=noremap */
 	unsigned ata_flash	: 1;	/* 1=present, 0=default */
-	unsigned blocked        : 1;	/* 1=powermanagment told us not to do anything, so sleep nicely */
 	unsigned	addressing;	/* : 2; 0=28-bit, 1=48-bit, 2=64-bit */
 	byte		scsi;		/* 0=default, 1=skip current ide-subdriver for ide-scsi emulation */
 	select_t	select;		/* basic drive/head select reg value */
 	byte		ctl;		/* "normal" value for IDE_CONTROL_REG */
 	byte		ready_stat;	/* min status value for drive ready */
 	byte		mult_count;	/* current multiple sector setting */
-	byte 		mult_req;	/* requested multiple sector setting */
-	byte 		tune_req;	/* requested drive tuning setting */
+	byte		mult_req;	/* requested multiple sector setting */
+	byte		tune_req;	/* requested drive tuning setting */
 	byte		io_32bit;	/* 0=16-bit, 1=32-bit, 2/3=32bit+sync */
 	byte		bad_wstat;	/* used for ignoring WRERR_STAT */
 	byte		nowerr;		/* used for ignoring WRERR_STAT */
@@ -354,20 +380,25 @@ typedef struct ide_drive_s {
 	unsigned long	capacity;	/* total number of sectors */
 	unsigned long long capacity48;	/* total number of sectors */
 	unsigned int	drive_data;	/* for use by tuneproc/selectproc as needed */
-	struct hwif_s   *hwif;		/* parent pointer to the interface we are attached to  */
+
 	wait_queue_head_t wqueue;	/* used to wait for drive in open() */
+
 	struct hd_driveid *id;		/* drive model identification info */
 	struct hd_struct  *part;	/* drive partition table */
-	char		name[4];	/* drive name, such as "hda" */
+
+	char		name[6];	/* drive name, such as "hda" */
 	struct ata_operations *driver;
+
 	void		*driver_data;	/* extra driver data */
 	devfs_handle_t	de;		/* directory for device */
 	struct proc_dir_entry *proc;	/* /proc/ide/ directory entry */
 	struct ide_settings_s *settings;    /* /proc/ide/ drive settings */
 	char		driver_req[10];	/* requests specific driver */
+
 	int		last_lun;	/* last logical unit */
 	int		forced_lun;	/* if hdxlun was given at boot */
 	int		lun;		/* logical unit */
+
 	int		crc_count;	/* crc counter to reduce drive speed */
 	byte		quirk_list;	/* drive is considered quirky if set for a specific host */
 	byte		suspend_reset;	/* drive suspend mode flag, soft-reset recovers */
@@ -379,6 +410,8 @@ typedef struct ide_drive_s {
 	unsigned int	failures;	/* current failure count */
 	unsigned int	max_failures;	/* maximum allowed failure count */
 	struct device	device;		/* global device tree handle */
+	unsigned int	queue_depth;
+	ide_tag_info_t	*tcq;
 } ide_drive_t;
 
 /*
@@ -397,7 +430,10 @@ typedef enum {	ide_dma_read,	ide_dma_write,		ide_dma_begin,
 		ide_dma_off,	ide_dma_off_quietly,	ide_dma_test_irq,
 		ide_dma_bad_drive,			ide_dma_good_drive,
 		ide_dma_verbose,			ide_dma_retune,
-		ide_dma_lostirq,			ide_dma_timeout
+		ide_dma_lostirq,			ide_dma_timeout,
+		ide_dma_read_queued,			ide_dma_write_queued,
+		ide_dma_queued_start,			ide_dma_queued_on,
+		ide_dma_queued_off,
 } ide_dma_action_t;
 
 typedef int (ide_dmaproc_t)(ide_dma_action_t, ide_drive_t *);
@@ -409,7 +445,7 @@ typedef int (ide_dmaproc_t)(ide_dma_action_t, ide_drive_t *);
  *
  * If it is not defined for a controller, standard-code is used from ide.c.
  *
- * Controllers which are not memory-mapped in the standard way need to 
+ * Controllers which are not memory-mapped in the standard way need to
  * override that mechanism using this function to work.
  *
  */
@@ -443,16 +479,23 @@ typedef void (ide_intrproc_t) (ide_drive_t *);
 typedef void (ide_maskproc_t) (ide_drive_t *, int);
 typedef void (ide_rw_proc_t) (ide_drive_t *, ide_dma_action_t);
 
-/*
- * ide soft-power support
- */
-typedef int (ide_busproc_t) (ide_drive_t *, int);
+enum {
+	ATA_PRIMARY	= 0,
+	ATA_SECONDARY	= 1
+};
 
-typedef struct hwif_s {
-	struct hwif_s	*next;		/* for linked-list in ide_hwgroup_t */
+struct ata_channel {
+	struct device	dev;		/* device handle */
+	int		unit;		/* channel number */
+
+	struct ata_channel *next;	/* for linked-list in ide_hwgroup_t */
 	struct hwgroup_s *hwgroup;	/* actually (ide_hwgroup_t *) */
+
 	ide_ioreg_t	io_ports[IDE_NR_PORTS];	/* task file registers */
 	hw_regs_t	hw;		/* Hardware info */
+#ifdef CONFIG_BLK_DEV_IDEPCI
+	struct pci_dev	*pci_dev;	/* for pci chipsets */
+#endif
 	ide_drive_t	drives[MAX_DRIVES];	/* drive info */
 	struct gendisk	*gd;		/* gendisk structure */
 	ide_tuneproc_t	*tuneproc;	/* routine to tune PIO mode for drives */
@@ -465,12 +508,6 @@ typedef struct hwif_s {
 	ide_rw_proc_t	*rwproc;	/* adjust timing based upon rq->cmd direction */
 	ide_ideproc_t   *ideproc;       /* CPU-polled transfer routine */
 	ide_dmaproc_t	*dmaproc;	/* dma read/write/abort routine */
-	unsigned int	*dmatable_cpu;	/* dma physical region descriptor table (cpu view) */
-	dma_addr_t	dmatable_dma;	/* dma physical region descriptor table (dma view) */
-	struct scatterlist *sg_table;	/* Scatter-gather list used to build the above */
-	int sg_nents;			/* Current number of entries in it */
-	int sg_dma_direction;		/* dma transfer direction */
-	struct hwif_s	*mate;		/* other hwif from same PCI chip */
 	unsigned long	dma_base;	/* base addr for dma ports */
 	unsigned	dma_extra;	/* extra addr for dma ports */
 	unsigned long	config_data;	/* for use by chipset-specific code */
@@ -478,50 +515,46 @@ typedef struct hwif_s {
 	struct proc_dir_entry *proc;	/* /proc/ide/ directory entry */
 	int		irq;		/* our irq number */
 	int		major;		/* our major number */
-	char		name[80];	/* name of interface */
+	char		name[8];	/* name of interface */
 	int		index;		/* 0 for ide0; 1 for ide1; ... */
 	hwif_chipset_t	chipset;	/* sub-module for tuning.. */
 	unsigned	noprobe    : 1;	/* don't probe for this interface */
 	unsigned	present    : 1;	/* there is a device on this interface */
-	unsigned	serialized : 1;	/* serialized operation with mate hwif */
+	unsigned	serialized : 1;	/* serialized operation between channels */
 	unsigned	sharing_irq: 1;	/* 1 = sharing irq with another hwif */
 	unsigned	reset      : 1;	/* reset after probe */
 	unsigned	autodma    : 1;	/* automatically try to enable DMA at boot */
 	unsigned	udma_four  : 1;	/* 1=ATA-66 capable, 0=default */
 	unsigned	highmem	   : 1; /* can do full 32-bit dma */
-	byte		channel;	/* for dual-port chips: 0=primary, 1=secondary */
-#ifdef CONFIG_BLK_DEV_IDEPCI
-	struct pci_dev	*pci_dev;	/* for pci chipsets */
-#endif
 #if (DISK_RECOVERY_TIME > 0)
 	unsigned long	last_time;	/* time when previous rq was done */
 #endif
 	byte		straight8;	/* Alan's straight 8 check */
-	ide_busproc_t	*busproc;	/* driver soft-power interface */
+	int (*busproc)(ide_drive_t *, int);	/* driver soft-power interface */
 	byte		bus_state;	/* power state of the IDE bus */
-	struct device	device;		/* global device tree handle */
-} ide_hwif_t;
+};
 
 /*
  * Register new hardware with ide
  */
-extern int ide_register_hw(hw_regs_t *hw, struct hwif_s **hwifp);
-extern void ide_unregister(ide_hwif_t *hwif);
+extern int ide_register_hw(hw_regs_t *hw, struct ata_channel **hwifp);
+extern void ide_unregister(struct ata_channel *hwif);
 
 /*
- * Status returned from various ide_ functions
+ * Status returned by various functions.
  */
 typedef enum {
 	ide_stopped,	/* no drive operation was started */
-	ide_started	/* a drive operation was started, and a handler was set */
+	ide_started,	/* a drive operation was started, and a handler was set */
+	ide_released	/* started and released bus */
 } ide_startstop_t;
 
 /*
- *  internal ide interrupt handler type
+ *  Interrupt handler types.
  */
+struct ata_taskfile;
 typedef ide_startstop_t (ide_pre_handler_t)(ide_drive_t *, struct request *);
 typedef ide_startstop_t (ide_handler_t)(ide_drive_t *);
-typedef ide_startstop_t (ide_post_handler_t)(ide_drive_t *);
 
 /*
  * when ide_timer_expiry fires, invoke a handler of this type
@@ -529,22 +562,23 @@ typedef ide_startstop_t (ide_post_handler_t)(ide_drive_t *);
  */
 typedef int (ide_expiry_t)(ide_drive_t *);
 
-#define IDE_BUSY	0
+#define IDE_BUSY	0	/* awaiting an interrupt */
 #define IDE_SLEEP	1
+#define IDE_DMA		2	/* DMA in progress */
 
 typedef struct hwgroup_s {
-	ide_handler_t		*handler;/* irq handler, if active */
-	unsigned long		flags;	/* BUSY, SLEEPING */
-	ide_drive_t		*drive;	/* current drive */
-	ide_hwif_t		*hwif;	/* ptr to current hwif in linked-list */
-	struct request		*rq;	/* current request */
-	struct timer_list	timer;	/* failsafe timer */
-	struct request		wrq;	/* local copy of current write rq */
+	ide_handler_t		*handler;	/* irq handler, if active */
+	unsigned long		flags;		/* BUSY, SLEEPING */
+	ide_drive_t		*drive;		/* current drive */
+	struct ata_channel	*hwif;		/* ptr to current hwif in linked-list */
+
+	struct request		*rq;		/* current request */
+
+	struct timer_list	timer;		/* failsafe timer */
+	struct request		wrq;		/* local copy of current write rq */
 	unsigned long		poll_timeout;	/* timeout value during long polls */
 	ide_expiry_t		*expiry;	/* queried upon timeouts */
 } ide_hwgroup_t;
-
-/* structure attached to the request for IDE_TASK_CMDS */
 
 /*
  * configurable drive settings
@@ -595,7 +629,7 @@ typedef struct {
 #ifdef CONFIG_PROC_FS
 void proc_ide_create(void);
 void proc_ide_destroy(void);
-void destroy_proc_ide_drives(ide_hwif_t *);
+void destroy_proc_ide_drives(struct ata_channel *);
 void create_proc_ide_interfaces(void);
 void ide_add_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p, void *data);
 void ide_remove_proc_entries(struct proc_dir_entry *dir, ide_proc_entry_t *p);
@@ -618,7 +652,7 @@ read_proc_t proc_ide_read_geometry;
 	return len;			\
 }
 #else
-#define PROC_IDE_READ_RETURN(page,start,off,count,eof,len) return 0;
+# define PROC_IDE_READ_RETURN(page,start,off,count,eof,len) return 0;
 #endif
 
 /*
@@ -630,7 +664,6 @@ read_proc_t proc_ide_read_geometry;
 
 struct ata_operations {
 	struct module *owner;
-	unsigned busy: 1; /* FIXME: this will go soon away... */
 	int (*cleanup)(ide_drive_t *);
 	int (*standby)(ide_drive_t *);
 	ide_startstop_t	(*do_request)(ide_drive_t *, struct request *, unsigned long);
@@ -645,6 +678,7 @@ struct ata_operations {
 	void (*pre_reset)(ide_drive_t *);
 	unsigned long (*capacity)(ide_drive_t *);
 	ide_startstop_t	(*special)(ide_drive_t *);
+
 	ide_proc_entry_t *proc;
 };
 
@@ -670,15 +704,7 @@ extern int register_ata_driver(unsigned int type, struct ata_operations *driver)
 
 #define ata_ops(drive)		((drive)->driver)
 
-/*
- * ide_hwifs[] is the master data structure used to keep track
- * of just about everything in ide.c.  Whenever possible, routines
- * should be using pointers to a drive (ide_drive_t *) or
- * pointers to a hwif (ide_hwif_t *), rather than indexing this
- * structure directly (the allocation/layout may change!).
- *
- */
-extern struct hwif_s ide_hwifs[];		/* master data repository */
+extern struct ata_channel ide_hwifs[];		/* master data repository */
 extern int noautodma;
 
 /*
@@ -690,6 +716,7 @@ extern int noautodma;
 
 extern int __ide_end_request(ide_drive_t *drive, int uptodate, int nr_secs);
 extern int ide_end_request(ide_drive_t *drive, int uptodate);
+extern void ide_end_queued_request(ide_drive_t *drive, int, struct request *);
 
 /*
  * This is used on exit from the driver, to designate the next irq handler
@@ -712,7 +739,7 @@ ide_startstop_t ide_error (ide_drive_t *drive, const char *msg, byte stat);
  * Issue a simple drive command
  * The drive must be selected beforehand.
  */
-void ide_cmd (ide_drive_t *drive, byte cmd, byte nsect, ide_handler_t *handler);
+void ide_cmd(ide_drive_t *drive, byte cmd, byte nsect, ide_handler_t *handler);
 
 /*
  * ide_fixstring() cleans up and (optionally) byte-swaps a text string,
@@ -720,7 +747,7 @@ void ide_cmd (ide_drive_t *drive, byte cmd, byte nsect, ide_handler_t *handler);
  * It is primarily used to tidy up the model name/number fields as
  * returned by the WIN_[P]IDENTIFY commands.
  */
-void ide_fixstring (byte *s, const int bytecount, const int byteswap);
+void ide_fixstring(byte *s, const int bytecount, const int byteswap);
 
 /*
  * This routine busy-waits for the drive status to be not "busy".
@@ -730,31 +757,32 @@ void ide_fixstring (byte *s, const int bytecount, const int byteswap);
  * caller should return the updated value of "startstop" in this case.
  * "startstop" is unchanged when the function returns 0;
  */
-int ide_wait_stat (ide_startstop_t *startstop, ide_drive_t *drive, byte good, byte bad, unsigned long timeout);
+int ide_wait_stat(ide_startstop_t *startstop, ide_drive_t *drive, byte good, byte bad, unsigned long timeout);
 
-int ide_wait_noerr (ide_drive_t *drive, byte good, byte bad, unsigned long timeout);
+int ide_wait_noerr(ide_drive_t *drive, byte good, byte bad, unsigned long timeout);
 
 /*
  * This routine is called from the partition-table code in genhd.c
  * to "convert" a drive to a logical geometry with fewer than 1024 cyls.
  */
-int ide_xlate_1024 (kdev_t, int, int, const char *);
+int ide_xlate_1024(kdev_t, int, int, const char *);
 
 /*
  * Convert kdev_t structure into ide_drive_t * one.
  */
-ide_drive_t *get_info_ptr (kdev_t i_rdev);
+ide_drive_t *get_info_ptr(kdev_t i_rdev);
 
 /*
  * Re-Start an operation for an IDE interface.
  * The caller should return immediately after invoking this.
  */
-ide_startstop_t restart_request (ide_drive_t *);
+ide_startstop_t restart_request(ide_drive_t *);
 
 /*
  * This function is intended to be used prior to invoking ide_do_drive_cmd().
  */
-void ide_init_drive_cmd (struct request *rq);
+extern void ide_init_drive_cmd(struct request *rq);
+extern void init_taskfile_request(struct request *rq);
 
 /*
  * "action" parameter type for ide_do_drive_cmd() below.
@@ -771,54 +799,45 @@ typedef enum {
  */
 #define ide_rq_offset(rq) (((rq)->hard_cur_sectors - (rq)->current_nr_sectors) << 9)
 
-#define task_rq_offset(rq) \
-	(((rq)->nr_sectors - (rq)->current_nr_sectors) * SECTOR_SIZE)
-
-/*
- * This function issues a special IDE device request
- * onto the request queue.
- *
- * If action is ide_wait, then the rq is queued at the end of the
- * request queue, and the function sleeps until it has been processed.
- * This is for use when invoked from an ioctl handler.
- *
- * If action is ide_preempt, then the rq is queued at the head of
- * the request queue, displacing the currently-being-processed
- * request and this function returns immediately without waiting
- * for the new rq to be completed.  This is VERY DANGEROUS, and is
- * intended for careful use by the ATAPI tape/cdrom driver code.
- *
- * If action is ide_next, then the rq is queued immediately after
- * the currently-being-processed-request (if any), and the function
- * returns without waiting for the new rq to be completed.  As above,
- * This is VERY DANGEROUS, and is intended for careful use by the
- * ATAPI tape/cdrom driver code.
- *
- * If action is ide_end, then the rq is queued at the end of the
- * request queue, and the function returns immediately without waiting
- * for the new rq to be completed. This is again intended for careful
- * use by the ATAPI tape/cdrom driver code.
- */
-int ide_do_drive_cmd (ide_drive_t *drive, struct request *rq, ide_action_t action);
+extern int ide_do_drive_cmd(ide_drive_t *drive, struct request *rq, ide_action_t action);
 
 /*
  * Clean up after success/failure of an explicit drive cmd.
  */
 void ide_end_drive_cmd (ide_drive_t *drive, byte stat, byte err);
 
-typedef struct ide_task_s {
-	task_ioreg_t		tfRegister[8];
-	task_ioreg_t		hobRegister[8];
-	ide_reg_valid_t		tf_out_flags;
-	ide_reg_valid_t		tf_in_flags;
-	int			data_phase;
+struct ata_taskfile {
+	struct hd_drive_task_hdr taskfile;
+	struct hd_drive_hob_hdr  hobfile;
 	int			command_type;
 	ide_pre_handler_t	*prehandler;
 	ide_handler_t		*handler;
-	void			*special;	/* valid_t generally */
-	struct request		*rq;		/* copy of request */
-	unsigned long		block;		/* copy of block */
-} ide_task_t;
+	struct ata_request	*ar;
+};
+
+/*
+ * Merge this with the above struct soon.
+ */
+struct ata_request {
+	struct request		*ar_rq;		/* real request */
+	struct ide_drive_s	*ar_drive;	/* associated drive */
+	unsigned long		ar_flags;	/* ATA_AR_* flags */
+	int			ar_tag;		/* tag number, if any */
+	struct list_head	ar_queue;	/* pending list */
+	struct ata_taskfile	ar_task;	/* associated taskfile */
+	unsigned long		ar_time;
+
+	/* DMA stuff, PCI layer */
+	struct scatterlist	*ar_sg_table;
+	int			ar_sg_nents;
+	int			ar_sg_ddir;
+
+	/* CPU related DMA stuff  */
+	unsigned int		*ar_dmatable_cpu;
+	dma_addr_t		ar_dmatable;
+};
+
+#define AR_TASK_CMD(ar)	((ar)->ar_task.taskfile.command)
 
 void ata_input_data (ide_drive_t *drive, void *buffer, unsigned int wcount);
 void ata_output_data (ide_drive_t *drive, void *buffer, unsigned int wcount);
@@ -827,15 +846,8 @@ void atapi_output_bytes (ide_drive_t *drive, void *buffer, unsigned int bytecoun
 void taskfile_input_data (ide_drive_t *drive, void *buffer, unsigned int wcount);
 void taskfile_output_data (ide_drive_t *drive, void *buffer, unsigned int wcount);
 
-/*
- * taskfile io for disks for now...
- */
-ide_startstop_t do_rw_taskfile (ide_drive_t *drive, ide_task_t *task);
-
-/*
- * Builds request from ide_ioctl
- */
-void do_taskfile (ide_drive_t *drive, struct hd_drive_task_hdr *taskfile, struct hd_drive_hob_hdr *hobfile, ide_handler_t *handler);
+extern ide_startstop_t ata_taskfile(ide_drive_t *drive,
+		struct ata_taskfile *args, struct request *rq);
 
 /*
  * Special Flagged Register Validation Caller
@@ -846,24 +858,23 @@ extern ide_startstop_t set_geometry_intr(ide_drive_t *drive);
 extern ide_startstop_t set_multmode_intr(ide_drive_t *drive);
 extern ide_startstop_t task_no_data_intr(ide_drive_t *drive);
 
-int ide_wait_taskfile (ide_drive_t *drive, struct hd_drive_task_hdr *taskfile, struct hd_drive_hob_hdr *hobfile, byte *buf);
 
-int ide_raw_taskfile (ide_drive_t *drive, ide_task_t *cmd, byte *buf);
+/* This is setting up all fields in args, which depend upon the command type.
+ */
+extern void ide_cmd_type_parser(struct ata_taskfile *args);
+extern int ide_raw_taskfile(ide_drive_t *drive, struct ata_taskfile *cmd, byte *buf);
 
-/* Expects args is a full set of TF registers and parses the command type */
-extern void ide_cmd_type_parser(ide_task_t *args);
+extern int ide_cmd_ioctl(ide_drive_t *drive, unsigned long arg);
+extern int ide_task_ioctl(ide_drive_t *drive, unsigned long arg);
 
-int ide_cmd_ioctl (ide_drive_t *drive, struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
-int ide_task_ioctl (ide_drive_t *drive, struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
-
-void ide_delay_50ms (void);
+void ide_delay_50ms(void);
 
 byte ide_auto_reduce_xfer (ide_drive_t *drive);
 int ide_driveid_update (ide_drive_t *drive);
-int ide_ata66_check (ide_drive_t *drive, ide_task_t *args);
+int ide_ata66_check (ide_drive_t *drive, struct ata_taskfile *args);
 int ide_config_drive_speed (ide_drive_t *drive, byte speed);
 byte eighty_ninty_three (ide_drive_t *drive);
-int set_transfer (ide_drive_t *drive, ide_task_t *args);
+int set_transfer (ide_drive_t *drive, struct ata_taskfile *args);
 
 extern int system_bus_speed;
 
@@ -871,7 +882,7 @@ extern int system_bus_speed;
  * idedisk_input_data() is a wrapper around ide_input_data() which copes
  * with byte-swapping the input data if required.
  */
-inline void idedisk_input_data (ide_drive_t *drive, void *buffer, unsigned int wcount);
+extern void idedisk_input_data(ide_drive_t *drive, void *buffer, unsigned int wcount);
 
 /*
  * ide_stall_queue() can be used by a drive to give excess bandwidth back
@@ -928,31 +939,118 @@ extern int ide_register_subdriver(ide_drive_t *drive, struct ata_operations *dri
 extern int ide_unregister_subdriver(ide_drive_t *drive);
 
 #ifdef CONFIG_BLK_DEV_IDEPCI
-#define ON_BOARD		1
-#define NEVER_BOARD		0
-#ifdef CONFIG_BLK_DEV_OFFBOARD
-# define OFF_BOARD		ON_BOARD
-#else
-# define OFF_BOARD		NEVER_BOARD
-#endif
+# define ON_BOARD		1
+# define NEVER_BOARD		0
+# ifdef CONFIG_BLK_DEV_OFFBOARD
+#  define OFF_BOARD		ON_BOARD
+# else
+#  define OFF_BOARD		NEVER_BOARD
+# endif
 
-void __init ide_scan_pcibus(int scan_direction);
+/* FIXME: This should go away possible. */
+extern void __init ide_scan_pcibus(int scan_direction);
 #endif
 #ifdef CONFIG_BLK_DEV_IDEDMA
-# define BAD_DMA_DRIVE		0
-# define GOOD_DMA_DRIVE		1
-int ide_build_dmatable (ide_drive_t *drive, ide_dma_action_t func);
-void ide_destroy_dmatable (ide_drive_t *drive);
-ide_startstop_t ide_dma_intr (ide_drive_t *drive);
-int check_drive_lists (ide_drive_t *drive, int good_bad);
-int ide_dmaproc (ide_dma_action_t func, ide_drive_t *drive);
-extern void ide_release_dma(ide_hwif_t *hwif);
-void ide_setup_dma (ide_hwif_t *hwif, unsigned long dmabase, unsigned int num_ports) __init;
+extern int ide_build_dmatable(ide_drive_t *drive, struct request *rq, ide_dma_action_t func);
+extern void ide_destroy_dmatable(ide_drive_t *drive);
+extern int ide_start_dma(struct ata_channel *, ide_drive_t *, ide_dma_action_t);
+extern ide_startstop_t ide_dma_intr(ide_drive_t *drive);
+extern int check_drive_lists(ide_drive_t *drive, int good_bad);
+extern int ide_dmaproc(ide_dma_action_t func, ide_drive_t *drive);
+extern void ide_release_dma(struct ata_channel *hwif);
+extern void ide_setup_dma(struct ata_channel *hwif,
+		unsigned long dmabase, unsigned int num_ports) __init;
 #endif
 
 extern spinlock_t ide_lock;
 
+#define DRIVE_LOCK(drive)		((drive)->queue.queue_lock)
+
 extern int drive_is_ready(ide_drive_t *drive);
 extern void revalidate_drives(void);
 
-#endif /* _IDE_H */
+/*
+ * Tagged Command Queueing:
+ */
+
+/*
+ * ata_request flag bits
+ */
+#define ATA_AR_QUEUED	1
+#define ATA_AR_SETUP	2
+#define ATA_AR_RETURN	4
+
+#define list_ata_entry(entry) list_entry((entry), struct ata_request, ar_queue)
+
+static inline void ata_ar_init(ide_drive_t *drive, struct ata_request *ar)
+{
+	ar->ar_rq = NULL;
+	ar->ar_drive = drive;
+	ar->ar_flags = 0;
+	ar->ar_tag = 0;
+	memset(&ar->ar_task, 0, sizeof(ar->ar_task));
+	ar->ar_sg_nents = 0;
+	ar->ar_sg_ddir = 0;
+}
+
+/*
+ * Return a free command, automatically add it to busy list.
+ */
+static inline struct ata_request *ata_ar_get(ide_drive_t *drive)
+{
+	struct ata_request *ar = NULL;
+
+	if (drive->tcq && drive->tcq->queued >= drive->queue_depth)
+		return NULL;
+
+	if (!list_empty(&drive->free_req)) {
+		ar = list_ata_entry(drive->free_req.next);
+		list_del(&ar->ar_queue);
+		ata_ar_init(drive, ar);
+	}
+
+	return ar;
+}
+
+static inline void ata_ar_put(ide_drive_t *drive, struct ata_request *ar)
+{
+	list_add(&ar->ar_queue, &drive->free_req);
+
+	if (ar->ar_flags & ATA_AR_QUEUED) {
+		/* clear the tag */
+		drive->tcq->ar[ar->ar_tag] = NULL;
+		__clear_bit(ar->ar_tag, &drive->tcq->tag_mask);
+		drive->tcq->queued--;
+	}
+
+	ar->ar_rq = NULL;
+}
+
+extern inline int ide_get_tag(ide_drive_t *drive)
+{
+	int tag = ffz(drive->tcq->tag_mask);
+
+	BUG_ON(drive->tcq->tag_mask == 0xffffffff);
+
+	__set_bit(tag, &drive->tcq->tag_mask);
+
+	if (tag + 1 > drive->tcq->max_depth)
+		drive->tcq->max_depth = tag + 1;
+	if (tag + 1 > drive->tcq->max_last_depth)
+		drive->tcq->max_last_depth = tag + 1;
+
+	return tag;
+}
+
+#ifdef CONFIG_BLK_DEV_IDE_TCQ
+# define ide_pending_commands(drive)	((drive)->using_tcq && (drive)->tcq->queued)
+#else
+# define ide_pending_commands(drive)	0
+#endif
+
+int ide_build_commandlist(ide_drive_t *);
+void ide_teardown_commandlist(ide_drive_t *);
+int ide_tcq_dmaproc(ide_dma_action_t, ide_drive_t *);
+ide_startstop_t ide_start_tag(ide_dma_action_t, ide_drive_t *, struct ata_request *);
+
+#endif

@@ -32,6 +32,8 @@ struct thread_info {
 						*/
 };
 
+#define PREEMPT_ACTIVE		0x4000000
+
 /*
  * macros/functions for gaining access to the thread information structure
  */

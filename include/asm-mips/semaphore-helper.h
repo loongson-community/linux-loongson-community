@@ -11,6 +11,7 @@
 #define _ASM_SEMAPHORE_HELPER_H
 
 #include <linux/config.h>
+#include <linux/errno.h>
 
 #define sem_read(a) ((a)->counter)
 #define sem_inc(a) (((a)->counter)++)

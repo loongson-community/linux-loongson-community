@@ -113,23 +113,6 @@ unsigned long __max_memory;
  */
 mmu_gather_t     mmu_gathers[NR_CPUS];
 
-int do_check_pgt_cache(int low, int high)
-{
-	int freed = 0;
-
-	if (pgtable_cache_size > high) {
-		do {
-			if (pgd_quicklist)
-				free_page((unsigned long)pgd_alloc_one_fast(0)), ++freed;
-			if (pmd_quicklist)
-				free_page((unsigned long)pmd_alloc_one_fast(0, 0)), ++freed;
-			if (pte_quicklist)
-				free_page((unsigned long)pte_alloc_one_fast(0, 0)), ++freed;
-		} while (pgtable_cache_size > low);
-	}
-	return freed;	
-}
-
 void show_mem(void)
 {
 	int i,free = 0,total = 0,reserved = 0;
@@ -155,7 +138,6 @@ void show_mem(void)
 	printk("%d reserved pages\n",reserved);
 	printk("%d pages shared\n",shared);
 	printk("%d pages swap cached\n",cached);
-	printk("%d pages in page table cache\n",(int)pgtable_cache_size);
 	show_buffers();
 }
 
@@ -260,7 +242,7 @@ static void map_io_page(unsigned long ea, unsigned long pa, int flags)
 		spin_lock(&ioremap_mm.page_table_lock);
 		pgdp = pgd_offset_i(ea);
 		pmdp = pmd_alloc(&ioremap_mm, pgdp, ea);
-		ptep = pte_alloc(&ioremap_mm, pmdp, ea);
+		ptep = pte_alloc_kernel(&ioremap_mm, pmdp, ea);
 
 		pa = absolute_to_phys(pa);
 		set_pte(ptep, mk_pte_phys(pa & PAGE_MASK, __pgprot(flags)));
@@ -271,7 +253,7 @@ static void map_io_page(unsigned long ea, unsigned long pa, int flags)
 		 * entry in the hardware page table. 
  		 */
 		vsid = get_kernel_vsid(ea);
-		make_pte(htab_data.htab,
+		ppc_md.make_pte(htab_data.htab,
 			(vsid << 28) | (ea & 0xFFFFFFF), // va (NOT the ea)
 			pa, 
 			_PAGE_NO_CACHE | _PAGE_GUARDED | PP_RWXX,
@@ -280,42 +262,37 @@ static void map_io_page(unsigned long ea, unsigned long pa, int flags)
 }
 
 void
-local_flush_tlb_all(void)
+flush_tlb_mm(struct mm_struct *mm)
 {
-	/* Implemented to just flush the vmalloc area.
-	 * vmalloc is the only user of flush_tlb_all.
-	 */
-	local_flush_tlb_range( NULL, VMALLOC_START, VMALLOC_END );
-}
-
-void
-local_flush_tlb_mm(struct mm_struct *mm)
-{
-	if ( mm->map_count ) {
+	if (mm->map_count) {
 		struct vm_area_struct *mp;
-		for ( mp = mm->mmap; mp != NULL; mp = mp->vm_next )
-			local_flush_tlb_range( mm, mp->vm_start, mp->vm_end );
-	}
-	else	/* MIKEC: It is not clear why this is needed */
+		for (mp = mm->mmap; mp != NULL; mp = mp->vm_next)
+			__flush_tlb_range(mm, mp->vm_start, mp->vm_end);
+	} else {
+		/* MIKEC: It is not clear why this is needed */
 		/* paulus: it is needed to clear out stale HPTEs
 		 * when an address space (represented by an mm_struct)
 		 * is being destroyed. */
-		local_flush_tlb_range( mm, USER_START, USER_END );
-}
+		__flush_tlb_range(mm, USER_START, USER_END);
+	}
 
+	/* XXX are there races with checking cpu_vm_mask? - Anton */
+	mm->cpu_vm_mask = 0;
+}
 
 /*
  * Callers should hold the mm->page_table_lock
  */
 void
-local_flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
+flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 {
 	unsigned long context = 0;
 	pgd_t *pgd;
 	pmd_t *pmd;
 	pte_t *ptep;
 	pte_t pte;
-	
+	int local = 0;
+
 	switch( REGION_ID(vmaddr) ) {
 	case VMALLOC_REGION_ID:
 		pgd = pgd_offset_k( vmaddr );
@@ -326,28 +303,34 @@ local_flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 	case USER_REGION_ID:
 		pgd = pgd_offset( vma->vm_mm, vmaddr );
 		context = vma->vm_mm->context;
+
+		/* XXX are there races with checking cpu_vm_mask? - Anton */
+		if (vma->vm_mm->cpu_vm_mask == (1 << smp_processor_id()))
+			local = 1;
+
 		break;
 	default:
-		panic("local_flush_tlb_page: invalid region 0x%016lx", vmaddr);
+		panic("flush_tlb_page: invalid region 0x%016lx", vmaddr);
 	
 	}
-
 
 	if (!pgd_none(*pgd)) {
 		pmd = pmd_offset(pgd, vmaddr);
 		if (!pmd_none(*pmd)) {
-			ptep = pte_offset(pmd, vmaddr);
+			ptep = pte_offset_kernel(pmd, vmaddr);
 			/* Check if HPTE might exist and flush it if so */
 			pte = __pte(pte_update(ptep, _PAGE_HPTEFLAGS, 0));
 			if ( pte_val(pte) & _PAGE_HASHPTE ) {
-				flush_hash_page(context, vmaddr, pte);
+				flush_hash_page(context, vmaddr, pte, local);
 			}
 		}
 	}
 }
 
+struct tlb_batch_data tlb_batch_array[NR_CPUS][MAX_BATCH_FLUSH];
+
 void
-local_flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
+__flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long end)
 {
 	pgd_t *pgd;
 	pmd_t *pmd;
@@ -355,6 +338,9 @@ local_flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long e
 	pte_t pte;
 	unsigned long pgd_end, pmd_end;
 	unsigned long context;
+	int i = 0;
+	struct tlb_batch_data *ptes = &tlb_batch_array[smp_processor_id()][0];
+	int local = 0;
 
 	if ( start >= end )
 		panic("flush_tlb_range: start (%016lx) greater than end (%016lx)\n", start, end );
@@ -374,6 +360,12 @@ local_flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long e
 	case USER_REGION_ID:
 		pgd = pgd_offset( mm, start );
 		context = mm->context;
+
+		/* XXX are there races with checking cpu_vm_mask? - Anton */
+		if (mm->cpu_vm_mask == (1 << smp_processor_id())) {
+			local = 1;
+		}
+
 		break;
 	default:
 		panic("flush_tlb_range: invalid region for start (%016lx) and end (%016lx)\n", start, end);
@@ -391,12 +383,21 @@ local_flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long e
 				if ( pmd_end > end )
 					pmd_end = end;
 				if ( !pmd_none( *pmd ) ) {
-					ptep = pte_offset( pmd, start );
+					ptep = pte_offset_kernel( pmd, start );
 					do {
 						if ( pte_val(*ptep) & _PAGE_HASHPTE ) {
 							pte = __pte(pte_update(ptep, _PAGE_HPTEFLAGS, 0));
-							if ( pte_val(pte) & _PAGE_HASHPTE )
-								flush_hash_page( context, start, pte );
+							if ( pte_val(pte) & _PAGE_HASHPTE ) {
+								ptes->pte = pte;
+								ptes->addr = start;
+								ptes++;
+								i++;
+								if (i == MAX_BATCH_FLUSH) {
+									flush_hash_range(context, MAX_BATCH_FLUSH, local);
+									i = 0;
+									ptes = &tlb_batch_array[smp_processor_id()][0];
+								}
+							}
 						}
 						start += PAGE_SIZE;
 						++ptep;
@@ -411,6 +412,9 @@ local_flush_tlb_range(struct mm_struct *mm, unsigned long start, unsigned long e
 			start = pgd_end;
 		++pgd;
 	} while ( start < end );
+
+	if (i)
+		flush_hash_range(context, i, local);
 }
 
 
@@ -517,8 +521,14 @@ void __init do_init_bootmem(void)
 
 	/* add all physical memory to the bootmem map */
 	for (i=0; i < lmb.memory.cnt ;i++) {
-		unsigned long physbase = lmb.memory.region[i].physbase;
-		unsigned long size = lmb.memory.region[i].size;
+		unsigned long physbase, size;
+		unsigned long type = lmb.memory.region[i].type;
+
+		if ( type != LMB_MEMORY_AREA )
+			continue;
+
+		physbase = lmb.memory.region[i].physbase;
+		size = lmb.memory.region[i].size;
 		free_bootmem(physbase, size);
 	}
 	/* reserve the sections we're already using */
@@ -558,6 +568,8 @@ extern unsigned int * prof_buffer;
 extern unsigned long dprof_shift;
 extern unsigned long dprof_len;
 extern unsigned int * dprof_buffer;
+
+void initialize_paca_hardware_interrupt_stack(void);
 
 void __init mem_init(void)
 {
@@ -611,8 +623,8 @@ void __init mem_init(void)
 	       PAGE_OFFSET, (unsigned long)__va(lmb_end_of_DRAM()));
 	mem_init_done = 1;
 
-    /* set the last page of each hardware interrupt stack to be protected       */
-    initialize_paca_hardware_interrupt_stack();
+	/* set the last page of each hardware interrupt stack to be protected */
+	initialize_paca_hardware_interrupt_stack();
 
 #ifdef CONFIG_PPC_ISERIES
 	create_virtual_bus_tce_table();
@@ -660,4 +672,35 @@ void flush_icache_user_range(struct vm_area_struct *vma, struct page *page,
 
 	maddr = (unsigned long)page_address(page) + (addr & ~PAGE_MASK);
 	flush_icache_range(maddr, maddr + len);
+}
+
+extern pte_t *find_linux_pte(pgd_t *pgdir, unsigned long ea);
+int __hash_page(unsigned long ea, unsigned long access, unsigned long vsid,
+		pte_t *ptep);
+
+/*
+ * This is called at the end of handling a user page fault, when the
+ * fault has been handled by updating a PTE in the linux page tables.
+ * We use it to preload an HPTE into the hash table corresponding to
+ * the updated linux PTE.
+ */
+void update_mmu_cache(struct vm_area_struct *vma, unsigned long ea,
+		      pte_t pte)
+{
+	unsigned long vsid;
+	void *pgdir;
+	pte_t *ptep;
+
+	/* We only want HPTEs for linux PTEs that have _PAGE_ACCESSED set */
+	if (!pte_young(pte))
+		return;
+
+	pgdir = vma->vm_mm->pgd;
+	if (pgdir == NULL)
+		return;
+
+	ptep = find_linux_pte(pgdir, ea);
+	vsid = get_vsid(vma->vm_mm->context, ea);
+
+	__hash_page(ea, pte_val(pte) & (_PAGE_USER|_PAGE_RW), vsid, ptep);
 }

@@ -121,7 +121,6 @@ CONFIG_PCMCIA=m
 # CONFIG_I82365 is not set
 # CONFIG_TCIC is not set
 # CONFIG_PCMCIA_AU1000 is not set
-# CONFIG_PCMCIA_SA1100 is not set
 
 #
 # PCI Hotplug Support
@@ -129,7 +128,6 @@ CONFIG_PCMCIA=m
 # CONFIG_HOTPLUG_PCI is not set
 # CONFIG_HOTPLUG_PCI_COMPAQ is not set
 # CONFIG_HOTPLUG_PCI_COMPAQ_NVRAM is not set
-# CONFIG_HOTPLUG_PCI_IBM is not set
 CONFIG_KCORE_ELF=y
 # CONFIG_KCORE_AOUT is not set
 # CONFIG_BINFMT_AOUT is not set
@@ -296,6 +294,8 @@ CONFIG_BLK_DEV_IDEDMA_PCI=y
 CONFIG_IDEDMA_PCI_AUTO=y
 # CONFIG_IDEDMA_ONLYDISK is not set
 CONFIG_BLK_DEV_IDEDMA=y
+# CONFIG_BLK_DEV_IDE_TCQ is not set
+# CONFIG_BLK_DEV_IDE_TCQ_DEFAULT is not set
 # CONFIG_IDEDMA_PCI_WIP is not set
 # CONFIG_IDEDMA_NEW_DRIVE_LISTINGS is not set
 # CONFIG_BLK_DEV_AEC62XX is not set
@@ -507,13 +507,12 @@ CONFIG_SERIAL_NONSTANDARD=y
 # CONFIG_SX is not set
 # CONFIG_RIO is not set
 # CONFIG_STALDRV is not set
-# CONFIG_SERIAL_TX3912 is not set
-# CONFIG_SERIAL_TX3912_CONSOLE is not set
+# CONFIG_AU1000_GPIO is not set
+# CONFIG_TS_AU1000_ADS7846 is not set
 CONFIG_AU1000_UART=y
 CONFIG_AU1000_SERIAL_CONSOLE=y
 # CONFIG_AU1000_USB_TTY is not set
 # CONFIG_AU1000_USB_RAW is not set
-# CONFIG_TXX927_SERIAL is not set
 CONFIG_UNIX98_PTYS=y
 CONFIG_UNIX98_PTY_COUNT=256
 
@@ -551,8 +550,6 @@ CONFIG_RTC=y
 # PCMCIA character devices
 #
 # CONFIG_PCMCIA_SERIAL_CS is not set
-# CONFIG_AU1000_GPIO is not set
-# CONFIG_TS_AU1000_ADS7846 is not set
 
 #
 # File systems
@@ -666,6 +663,7 @@ CONFIG_NLS_DEFAULT="iso8859-1"
 # CONFIG_NLS_CODEPAGE_949 is not set
 # CONFIG_NLS_CODEPAGE_874 is not set
 # CONFIG_NLS_ISO8859_8 is not set
+# CONFIG_NLS_CODEPAGE_1250 is not set
 # CONFIG_NLS_CODEPAGE_1251 is not set
 # CONFIG_NLS_ISO8859_1 is not set
 # CONFIG_NLS_ISO8859_2 is not set
@@ -793,13 +791,15 @@ CONFIG_USB=y
 # CONFIG_USB_UHCI is not set
 # CONFIG_USB_UHCI_ALT is not set
 CONFIG_USB_OHCI=y
+CONFIG_USB_HOST=y
 
 #
 # USB Device Class drivers
 #
 # CONFIG_USB_AUDIO is not set
-# CONFIG_USB_EMI26 is not set
-# CONFIG_USB_BLUETOOTH is not set
+# CONFIG_USB_BLUETOOTH_TTY is not set
+# CONFIG_USB_ACM is not set
+# CONFIG_USB_PRINTER is not set
 
 #
 #   SCSI support is needed for USB Storage
@@ -813,15 +813,15 @@ CONFIG_USB_OHCI=y
 # CONFIG_USB_STORAGE_HP8200e is not set
 # CONFIG_USB_STORAGE_SDDR09 is not set
 # CONFIG_USB_STORAGE_JUMPSHOT is not set
-# CONFIG_USB_ACM is not set
-# CONFIG_USB_PRINTER is not set
 
 #
 # USB Human Interface Devices (HID)
 #
 CONFIG_USB_HID=y
+# CONFIG_USB_HIDINPUT is not set
 # CONFIG_USB_HIDDEV is not set
 # CONFIG_USB_WACOM is not set
+CONFIG_USB_INPUT=y
 
 #
 # USB Imaging devices
@@ -835,18 +835,28 @@ CONFIG_USB_HID=y
 #
 # USB Multimedia devices
 #
+# CONFIG_USB_DABUSB is not set
 
 #
 #   Video4Linux support is needed for USB Multimedia device support
 #
+# CONFIG_USB_VICAM is not set
+# CONFIG_USB_DSBR is not set
+# CONFIG_USB_IBMCAM is not set
+# CONFIG_USB_KONICAWC is not set
+# CONFIG_USB_OV511 is not set
+# CONFIG_USB_PWC is not set
+# CONFIG_USB_SE401 is not set
+# CONFIG_USB_STV680 is not set
 
 #
 # USB Network adaptors
 #
-# CONFIG_USB_PEGASUS is not set
-# CONFIG_USB_KAWETH is not set
 # CONFIG_USB_CATC is not set
 # CONFIG_USB_CDCETHER is not set
+# CONFIG_USB_KAWETH is not set
+# CONFIG_USB_PEGASUS is not set
+# CONFIG_USB_RTL8150 is not set
 # CONFIG_USB_USBNET is not set
 
 #
@@ -878,9 +888,11 @@ CONFIG_USB_HID=y
 # CONFIG_USB_SERIAL_KEYSPAN_USA18X is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA19W is not set
 # CONFIG_USB_SERIAL_KEYSPAN_USA49W is not set
-# CONFIG_USB_SERIAL_MCT_U232 is not set
 # CONFIG_USB_SERIAL_KLSI is not set
+# CONFIG_USB_SERIAL_MCT_U232 is not set
 # CONFIG_USB_SERIAL_PL2303 is not set
+# CONFIG_USB_SERIAL_SAFE is not set
+# CONFIG_USB_SERIAL_SAFE_PADDED is not set
 # CONFIG_USB_SERIAL_CYBERJACK is not set
 # CONFIG_USB_SERIAL_XIRCOM is not set
 # CONFIG_USB_SERIAL_OMNINET is not set
@@ -888,8 +900,10 @@ CONFIG_USB_HID=y
 #
 # USB Miscellaneous drivers
 #
-# CONFIG_USB_RIO500 is not set
+# CONFIG_USB_EMI26 is not set
+# CONFIG_USB_TIGL is not set
 # CONFIG_USB_AUERSWALD is not set
+# CONFIG_USB_RIO500 is not set
 
 #
 # Bluetooth support

@@ -283,10 +283,7 @@ char * partition_name(kdev_t dev)
 static unsigned int calc_dev_sboffset(kdev_t dev, mddev_t *mddev,
 						int persistent)
 {
-	unsigned int size = 0;
-
-	if (blk_size[major(dev)])
-		size = blk_size[major(dev)][minor(dev)];
+	unsigned int size = (blkdev_size_in_bytes(dev) >> BLOCK_SIZE_BITS);
 	if (persistent)
 		size = MD_NEW_SIZE_BLOCKS(size);
 	return size;
@@ -1106,12 +1103,11 @@ static int md_import_device(kdev_t newdev, int on_disk)
 	rdev->desc_nr = -1;
 	rdev->faulty = 0;
 
-	size = 0;
-	if (blk_size[major(newdev)])
-		size = blk_size[major(newdev)][minor(newdev)];
+	size = (blkdev_size_in_bytes(newdev) >> BLOCK_SIZE_BITS);
 	if (!size) {
-		printk(KERN_WARNING "md: %s has zero size, marking faulty!\n",
-				partition_name(newdev));
+		printk(KERN_WARNING
+		       "md: %s has zero or unknown size, marking faulty!\n",
+		       partition_name(newdev));
 		err = -EINVAL;
 		goto abort_free;
 	}
@@ -1581,7 +1577,7 @@ static int device_size_calculation(mddev_t * mddev)
 	if (!md_size[mdidx(mddev)])
 		md_size[mdidx(mddev)] = sb->size * data_disks;
 
-	readahead = MD_READAHEAD;
+	readahead = (blk_get_readahead(rdev->dev) * 512) / PAGE_SIZE;
 	if (!sb->level || (sb->level == 4) || (sb->level == 5)) {
 		readahead = (mddev->sb->chunk_size>>PAGE_SHIFT) * 4 * data_disks;
 		if (readahead < data_disks * (MAX_SECTORS>>(PAGE_SHIFT-9))*2)
@@ -3391,7 +3387,7 @@ recheck:
 	/*
 	 * Tune reconstruction:
 	 */
-	window = MAX_READAHEAD*(PAGE_SIZE/512);
+	window = 32*(PAGE_SIZE/512);
 	printk(KERN_INFO "md: using %dk window, over a total of %d blocks.\n",
 	       window/2,max_sectors/2);
 
@@ -3609,7 +3605,7 @@ static void md_geninit(void)
 	for(i = 0; i < MAX_MD_DEVS; i++) {
 		md_blocksizes[i] = 1024;
 		md_size[i] = 0;
-		md_maxreadahead[i] = MD_READAHEAD;
+		md_maxreadahead[i] = 32;
 	}
 	blksize_size[MAJOR_NR] = md_blocksizes;
 	blk_size[MAJOR_NR] = md_size;
@@ -3768,7 +3764,7 @@ static int __init md_setup(char *str)
 		printk(KERN_WARNING "md: md=%d, Minor device number too high.\n", minor);
 		return 0;
 	} else if (md_setup_args.device_names[minor]) {
-		printk(KERN_WARNING "md: md=%d, Specified more then once. "
+		printk(KERN_WARNING "md: md=%d, Specified more than once. "
 		       "Replacing previous definition.\n", minor);
 	}
 	switch (get_option(&str, &level)) {	/* RAID Personality */

@@ -62,7 +62,7 @@ struct blk_dev_struct blk_dev[MAX_BLKDEV]; /* initialized by blk_dev_init() */
 
 /*
  * blk_size contains the size of all block-devices in units of 1024 byte
- * sectors:
+ * blocks:
  *
  * blk_size[MAJOR][MINOR]
  *
@@ -106,6 +106,47 @@ inline request_queue_t *blk_get_queue(kdev_t dev)
 		return bdev->queue(dev);
 	else
 		return &blk_dev[major(dev)].request_queue;
+}
+
+/**
+ * blk_set_readahead - set a queue's readahead tunable
+ * @dev:	device
+ * @sectors:	readahead, in 512 byte sectors
+ *
+ * Returns zero on success, else negative errno
+ */
+int blk_set_readahead(kdev_t dev, unsigned sectors)
+{
+	int ret = -EINVAL;
+	request_queue_t *q = blk_get_queue(dev);
+
+	if (q) {
+		q->ra_sectors = sectors;
+		ret = 0;
+	}
+	return ret;
+}
+
+/**
+ * blk_get_readahead - query a queue's readahead tunable
+ * @dev:	device
+ *
+ * Locates the passed device's request queue and returns its
+ * readahead setting.
+ *
+ * The returned value is in units of 512 byte sectors.
+ *
+ * Will return zero if the queue has never had its readahead
+ * setting altered.
+ */
+unsigned blk_get_readahead(kdev_t dev)
+{
+	unsigned ret = 0;
+	request_queue_t *q = blk_get_queue(dev);
+
+	if (q)
+		ret = q->ra_sectors;
+	return ret;
 }
 
 void blk_queue_prep_rq(request_queue_t *q, prep_rq_fn *pfn)
@@ -810,7 +851,8 @@ int blk_init_queue(request_queue_t *q, request_fn_proc *rfn, spinlock_t *lock)
 	q->plug_tq.data		= q;
 	q->queue_flags		= (1 << QUEUE_FLAG_CLUSTER);
 	q->queue_lock		= lock;
-	
+	q->ra_sectors		= 0;		/* Use VM default */
+
 	blk_queue_segment_boundary(q, 0xffffffff);
 
 	blk_queue_make_request(q, __make_request);
@@ -1274,32 +1316,27 @@ static inline void blk_partition_remap(struct bio *bio)
  * */
 void generic_make_request(struct bio *bio)
 {
-	int major = major(bio->bi_dev);
-	int minor = minor(bio->bi_dev);
 	request_queue_t *q;
-	sector_t minorsize = 0;
+	sector_t maxsector;
 	int ret, nr_sectors = bio_sectors(bio);
 
 	/* Test device or partition size, when known. */
-	if (blk_size[major])
-		minorsize = blk_size[major][minor];
-	if (minorsize) {
-		unsigned long maxsector = (minorsize << 1) + 1;
-		unsigned long sector = bio->bi_sector;
+	maxsector = (blkdev_size_in_bytes(bio->bi_dev) >> 9);
+	if (maxsector) {
+		sector_t sector = bio->bi_sector;
 
-		if (maxsector < nr_sectors || maxsector - nr_sectors < sector) {
-			if (blk_size[major][minor]) {
-				
-				/* This may well happen - the kernel calls
-				 * bread() without checking the size of the
-				 * device, e.g., when mounting a device. */
-				printk(KERN_INFO
-				       "attempt to access beyond end of device\n");
-				printk(KERN_INFO "%s: rw=%ld, want=%ld, limit=%Lu\n",
-				       kdevname(bio->bi_dev), bio->bi_rw,
-				       (sector + nr_sectors)>>1,
-				       (long long) blk_size[major][minor]);
-			}
+		if (maxsector < nr_sectors ||
+		    maxsector - nr_sectors < sector) {
+			/* This may well happen - the kernel calls
+			 * bread() without checking the size of the
+			 * device, e.g., when mounting a device. */
+			printk(KERN_INFO
+			       "attempt to access beyond end of device\n");
+			printk(KERN_INFO "%s: rw=%ld, want=%ld, limit=%Lu\n",
+			       kdevname(bio->bi_dev), bio->bi_rw,
+			       sector + nr_sectors,
+			       (long long) maxsector);
+
 			set_bit(BIO_EOF, &bio->bi_flags);
 			goto end_io;
 		}

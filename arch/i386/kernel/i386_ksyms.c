@@ -28,6 +28,7 @@
 #include <asm/desc.h>
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
+#include <asm/tlbflush.h>
 
 extern void dump_thread(struct pt_regs *, struct user *);
 extern spinlock_t rtc_lock;
@@ -93,7 +94,6 @@ EXPORT_SYMBOL_NOVERS(__get_user_1);
 EXPORT_SYMBOL_NOVERS(__get_user_2);
 EXPORT_SYMBOL_NOVERS(__get_user_4);
 
-EXPORT_SYMBOL(strtok);
 EXPORT_SYMBOL(strpbrk);
 EXPORT_SYMBOL(strstr);
 
@@ -143,6 +143,10 @@ EXPORT_SYMBOL(smp_call_function);
 
 /* TLB flushing */
 EXPORT_SYMBOL(flush_tlb_page);
+#endif
+
+#ifdef CONFIG_X86_IO_APIC
+EXPORT_SYMBOL(IO_APIC_get_PCI_irq_vector);
 #endif
 
 #ifdef CONFIG_MCA

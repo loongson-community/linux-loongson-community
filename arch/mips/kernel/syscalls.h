@@ -241,3 +241,5 @@ SYS(sys_readahead, 5)
 SYS(sys_tkill, 2)
 SYS(sys_sendfile64, 5)				/* 4225 */
 SYS(sys_futex, 2)
+SYS(sys_sched_setaffinity, 3)
+SYS(sys_sched_getaffinity, 3)

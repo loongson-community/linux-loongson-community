@@ -245,6 +245,8 @@
 #define __NR_tkill		238
 #define __NR_sendfile64		239
 #define __NR_futex		240
+#define __NR_sched_setaffinity	241
+#define __NR_sched_getaffinity	242
 
 /* user-visible error numbers are in the range -1 - -124: see <asm-i386/errno.h> */
 
@@ -370,5 +372,13 @@ static inline pid_t wait(int * wait_stat)
 }
 
 #endif
+
+/*
+ * "Conditional" syscalls
+ *
+ * What we want is __attribute__((weak,alias("sys_ni_syscall"))),
+ * but it doesn't work on all toolchains, so we just do it by hand
+ */
+#define cond_syscall(x) asm(".weak\t" #x "\n\t.set\t" #x ",sys_ni_syscall");
 
 #endif /* _ASM_I386_UNISTD_H_ */

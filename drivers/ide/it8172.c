@@ -41,7 +41,7 @@
 #include <asm/io.h>
 #include <asm/it8172/it8172_int.h>
 
-#include "ata-timing.h"
+#include "ide_modes.h"
 
 /*
  * Prototypes
@@ -53,6 +53,7 @@ static int it8172_tune_chipset (ide_drive_t *drive, byte speed);
 static int it8172_config_chipset_for_dma (ide_drive_t *drive);
 static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive);
 #endif
+unsigned int __init pci_init_it8172 (struct pci_dev *dev, const char *name);
 void __init ide_init_it8172 (ide_hwif_t *hwif);
 
 
@@ -62,12 +63,8 @@ static void it8172_tune_drive (ide_drive_t *drive, byte pio)
     u16 drive_enables;
     u32 drive_timing;
     int is_slave	= (&HWIF(drive)->drives[1] == drive);
- 
-    if (pio == 255)
-	pio = ata_timing_mode(drive, XFER_PIO | XFER_EPIO) - XFER_PIO_0;
-    else
-	pio = min_t(byte, pio, 4);
- 
+    
+    pio = ide_get_best_pio_mode(drive, pio, 4, NULL);
     pci_read_config_word(HWIF(drive)->pci_dev, 0x40, &drive_enables);
     pci_read_config_dword(HWIF(drive)->pci_dev, 0x44, &drive_timing);
 
@@ -192,12 +189,34 @@ static int it8172_tune_chipset (ide_drive_t *drive, byte speed)
     return err;
 }
 
-static int it8172_config_chipset_for_dma(ide_drive_t *drive)
+static int it8172_config_chipset_for_dma (ide_drive_t *drive)
 {
     struct hd_driveid *id = drive->id;
     byte speed;
 
-    speed = ata_timing_mode(drive, XFER_PIO | XFER_EPIO | XFER_SWDMA | XFER_MWDMA | XFER_UDMA);
+    if (id->dma_ultra & 0x0010) {
+	speed = XFER_UDMA_2;
+    } else if (id->dma_ultra & 0x0008) {
+	speed = XFER_UDMA_1;
+    } else if (id->dma_ultra & 0x0004) {
+	speed = XFER_UDMA_2;
+    } else if (id->dma_ultra & 0x0002) {
+	speed = XFER_UDMA_1;
+    } else if (id->dma_ultra & 0x0001) {
+	speed = XFER_UDMA_0;
+    } else if (id->dma_mword & 0x0004) {
+	speed = XFER_MW_DMA_2;
+    } else if (id->dma_mword & 0x0002) {
+	speed = XFER_MW_DMA_1;
+    } else if (id->dma_mword & 0x0001) {
+	speed = XFER_MW_DMA_0;
+    } else if (id->dma_1word & 0x0004) {
+	speed = XFER_SW_DMA_2;
+    } else {
+	speed = XFER_PIO_0 + ide_get_best_pio_mode(drive, 255, 4, NULL);
+    }
+
+    (void) it8172_tune_chipset(drive, speed);
 
     return ((int)((id->dma_ultra >> 11) & 7) ? ide_dma_on :
 	    ((id->dma_ultra >> 8) & 7) ? ide_dma_on :
@@ -222,7 +241,7 @@ static int it8172_dmaproc(ide_dma_action_t func, ide_drive_t *drive)
 #endif /* defined(CONFIG_BLK_DEV_IDEDMA) && (CONFIG_IT8172_TUNING) */
 
 
-unsigned int __init pci_init_it8172 (struct pci_dev *dev)
+unsigned int __init pci_init_it8172 (struct pci_dev *dev, const char *name)
 {
     unsigned char progif;
     

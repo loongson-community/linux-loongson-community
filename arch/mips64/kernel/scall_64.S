@@ -368,3 +368,5 @@ sys_call_table:
 	PTR	sys_tkill
 	PTR	sys_sendfile64
 	PTR	sys_futex
+	PTR	sys_sched_setaffinity			/* 5220 */
+	PTR	sys_sched_getaffinity

@@ -236,11 +236,13 @@
 #define __NR_tkill			(__NR_Linux + 224)
 #define __NR_sendfile64			(__NR_Linux + 225)
 #define __NR_futex			(__NR_Linux + 226)
+#define __NR_sched_setaffinity		(__NR_Linux + 227)
+#define __NR_sched_getaffinity		(__NR_Linux + 228)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		226
+#define __NR_Linux_syscalls		228
 
 #ifndef __ASSEMBLY__
 
@@ -497,5 +499,13 @@ static inline pid_t wait(int * wait_stat)
 
 #endif /* __KERNEL_SYSCALLS__ */
 #endif /* !__ASSEMBLY__ */
+
+/*
+ * "Conditional" syscalls
+ *
+ * What we want is __attribute__((weak,alias("sys_ni_syscall"))),
+ * but it doesn't work on all toolchains, so we just do it by hand
+ */
+#define cond_syscall(x) asm(".weak\t" #x "\n" #x "\t=\tsys_ni_syscall");
 
 #endif /* _ASM_UNISTD_H */

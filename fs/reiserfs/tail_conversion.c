@@ -35,7 +35,7 @@ int direct2indirect (struct reiserfs_transaction_handle *th, struct inode * inod
 				       tree. */
 
 
-    sb->u.reiserfs_sb.s_direct2indirect ++;
+    REISERFS_SB(sb)->s_direct2indirect ++;
 
     n_blk_size = sb->s_blocksize;
 
@@ -49,9 +49,13 @@ int direct2indirect (struct reiserfs_transaction_handle *th, struct inode * inod
     make_cpu_key (&end_key, inode, tail_offset, TYPE_INDIRECT, 4);
 
     // FIXME: we could avoid this 
-    if ( search_for_position_by_key (sb, &end_key, path) == POSITION_FOUND )
-	reiserfs_panic (sb, "PAP-14030: direct2indirect: "
-			"pasted or inserted byte exists in the tree");
+    if ( search_for_position_by_key (sb, &end_key, path) == POSITION_FOUND ) {
+	reiserfs_warning ("PAP-14030: direct2indirect: "
+			"pasted or inserted byte exists in the tree %K. "
+			"Use fsck to repair.\n", &end_key);
+	pathrelse(path);
+	return -EIO;
+    }
     
     p_le_ih = PATH_PITEM_HEAD (path);
 
@@ -156,10 +160,10 @@ unmap_buffers(struct page *page, loff_t pos) {
   unsigned long cur_index ;
 
   if (page) {
-    if (page->buffers) {
+    if (page_has_buffers(page)) {
       tail_index = pos & (PAGE_CACHE_SIZE - 1) ;
       cur_index = 0 ;
-      head = page->buffers ;
+      head = page_buffers(page) ;
       bh = head ;
       do {
 	next = bh->b_this_page ;
@@ -202,7 +206,7 @@ int indirect2direct (struct reiserfs_transaction_handle *th,
     loff_t pos, pos1; /* position of first byte of the tail */
     struct cpu_key key;
 
-    p_s_sb->u.reiserfs_sb.s_indirect2direct ++;
+    REISERFS_SB(p_s_sb)->s_indirect2direct ++;
 
     *p_c_mode = M_SKIP_BALANCING;
 

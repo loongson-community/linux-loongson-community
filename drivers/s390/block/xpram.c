@@ -655,7 +655,7 @@ int xpram_ioctl (struct inode *inode, struct file *filp,
 
 	case BLKFLSBUF: /* flush, 0x1261 */
 		fsync_bdev(inode->i_bdev);
-		if ( capable(CAP_SYS_ADMIN) )invalidate_buffers(inode->i_rdev);
+		if ( capable(CAP_SYS_ADMIN) )invalidate_bdev(inode->i_bdev, 0);
 		return 0;
 
 	case BLKRRPART: /* re-read partition table: can't do it, 0x1259 */
@@ -1045,7 +1045,7 @@ int xpram_init(void)
 		for (i=0; i < xpram_devs; i++) 
 			if (xpram_sizes[i] == 0) xpram_sizes[i] = mem_auto;
 	}
-	blk_size[major]=xpram_sizes;
+	blk_size[major] = xpram_sizes;
 
 	xpram_offsets = kmalloc(xpram_devs * sizeof(int), GFP_KERNEL);
 	if (!xpram_offsets) {

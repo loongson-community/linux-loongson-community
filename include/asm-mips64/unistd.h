@@ -241,13 +241,15 @@
 #define __NR_Linux32_gettid		(__NR_Linux32 + 222)
 #define __NR_Linux32_readahead		(__NR_Linux32 + 223)
 #define __NR_Linux32_tkill		(__NR_Linux32 + 224)
-#define __NR_sendfile64			(__NR_Linux32 + 225)
-#define __NR_futex			(__NR_Linux32 + 226)
+#define __NR_Linux32_sendfile64		(__NR_Linux32 + 225)
+#define __NR_Linux32_futex		(__NR_Linux32 + 226)
+#define __NR_Linux32_sched_setaffinity	(__NR_Linux32 + 227)
+#define __NR_Linux32_sched_getaffinity	(__NR_Linux32 + 228)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux32_syscalls		226
+#define __NR_Linux32_syscalls		228
 
 /*
  * Linux 64-bit syscalls are in the range from 5000 to 5999.
@@ -473,11 +475,13 @@
 #define __NR__tkill			(__NR_Linux + 217)
 #define __NR_sendfile64			(__NR_Linux + 218)
 #define __NR_futex			(__NR_Linux + 219)
+#define __NR_sched_setaffinity		(__NR_Linux + 220)
+#define __NR_sched_getaffinity		(__NR_Linux + 221)
 
 /*
  * Offset of the last Linux flavoured syscall
  */
-#define __NR_Linux_syscalls		219
+#define __NR_Linux_syscalls		221
 
 #ifndef __ASSEMBLY__
 
@@ -827,5 +831,13 @@ static inline pid_t wait(int * wait_stat)
 
 #endif /* __KERNEL_SYSCALLS__ */
 #endif /* !__ASSEMBLY__ */
+
+/*
+ * "Conditional" syscalls
+ *
+ * What we want is __attribute__((weak,alias("sys_ni_syscall"))),
+ * but it doesn't work on all toolchains, so we just do it by hand
+ */
+#define cond_syscall(x) asm(".weak\t" #x "\n" #x "\t=\tsys_ni_syscall");
 
 #endif /* _ASM_UNISTD_H */

@@ -62,34 +62,58 @@ if [ "$CONFIG_SERIAL_NONSTANDARD" = "y" ]; then
      tristate '    Stallion EasyIO or EC8/32 support' CONFIG_STALLION
      tristate '    Stallion EC8/64, ONboard, Brumby support' CONFIG_ISTALLION
    fi
-   if [ "$CONFIG_MIPS" = "y" ]; then
-      bool '  TX3912/PR31700 serial port support' CONFIG_SERIAL_TX3912
-      dep_bool '     Console on TX3912/PR31700 serial port' CONFIG_SERIAL_TX3912_CONSOLE $CONFIG_SERIAL_TX3912
+fi
+
+if [ "$CONFIG_MIPS" = "y" ]; then
+   if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
+      tristate ' Alchemy Au1000 GPIO device support' CONFIG_AU1000_GPIO
+      tristate ' Au1000/ADS7846 touchscreen support' CONFIG_TS_AU1000_ADS7846
       bool '  Enable Au1000 UART Support' CONFIG_AU1000_UART
       if [ "$CONFIG_AU1000_UART" = "y" ]; then
          bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
       fi
       if [ "$CONFIG_AU1000_USB_DEVICE" = "y" ]; then
-         dep_tristate '  Au1000 USB TTY Device support' CONFIG_AU1000_USB_TTY $CONFIG_AU1000_USB_DEVICE
-         if [ "$CONFIG_AU1000_USB_TTY" != "y" ]; then
+	 dep_tristate '  Au1000 USB TTY Device support' CONFIG_AU1000_USB_TTY $CONFIG_AU1000_USB_DEVICE
+	 if [ "$CONFIG_AU1000_USB_TTY" != "y" ]; then
 	    dep_tristate '  Au1000 USB Raw Device support' CONFIG_AU1000_USB_RAW $CONFIG_AU1000_USB_DEVICE
 	 fi
       fi
+   fi
+   if [ "$CONFIG_CPU_TX39XX" = "y" ]; then
+      bool '  TX3912/PR31700 serial port support' CONFIG_SERIAL_TX3912
+      dep_bool '     Console on TX3912/PR31700 serial port' CONFIG_SERIAL_TX3912_CONSOLE $CONFIG_SERIAL_TX3912
       bool 'TXx927 SIO support' CONFIG_TXX927_SERIAL 
       if [ "$CONFIG_TXX927_SERIAL" = "y" ]; then
-         bool 'TXx927 SIO Console support' CONFIG_TXX927_SERIAL_CONSOLE  
-      fi                             
-      if [ "$CONFIG_SIBYTE_SB1xxx_SOC" = "y" ]; then
-	 bool '  Support for BCM1xxx onchip DUART' CONFIG_SIBYTE_SB1250_DUART
-	 if [ "$CONFIG_SIBYTE_SB1250_DUART" = "y" ]; then
-	    bool '  Console on BCM1xxx DUART' CONFIG_SIBYTE_SB1250_DUART_CONSOLE
-	    if [ "$CONFIG_SIBYTE_SB1250_DUART_CONSOLE" = "y" ]; then
-	       define_bool CONFIG_SERIAL_CONSOLE y
-	    fi
-	    int  '  Output buffers size (in bytes)' CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE 1024
-	    bool '  Leave port 1 alone (for kgdb or audio)' CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
+	 bool 'TXx927 SIO Console support' CONFIG_TXX927_SERIAL_CONSOLE  
+      fi
+   fi                             
+   if [ "$CONFIG_SIBYTE_SB1xxx_SOC" = "y" ]; then
+      bool '  Support for BCM1xxx onchip DUART' CONFIG_SIBYTE_SB1250_DUART
+      if [ "$CONFIG_SIBYTE_SB1250_DUART" = "y" ]; then
+	 bool '  Console on BCM1xxx DUART' CONFIG_SIBYTE_SB1250_DUART_CONSOLE
+	 if [ "$CONFIG_SIBYTE_SB1250_DUART_CONSOLE" = "y" ]; then
+	    define_bool CONFIG_SERIAL_CONSOLE y
+	 fi
+	 int  '  Output buffers size (in bytes)' CONFIG_SB1250_DUART_OUTPUT_BUF_SIZE 1024
+	 bool '  Leave port 1 alone (for kgdb or audio)' CONFIG_SIBYTE_SB1250_DUART_NO_PORT_1
+      fi
+   fi
+   if [ "$CONFIG_MIPS_ITE8172" = "y" -o "$CONFIG_MIPS_IVR" = "y" ]; then
+      bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
+      if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
+	 define_bool CONFIG_IT8172_CIR y
+      else
+	 if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+	    bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
 	 fi
       fi
+      bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
+      if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+	 bool 'Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
+      fi
+   fi
+   if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
+      tristate ' ITE GPIO' CONFIG_ITE_GPIO
    fi
 fi
 if [ "$CONFIG_EXPERIMENTAL" = "y" -a "$CONFIG_ZORRO" = "y" ]; then
@@ -103,31 +127,6 @@ if [ "$CONFIG_FOOTBRIDGE" = "y" ]; then
       fi
       bool '  Console on DC21285 serial port' CONFIG_SERIAL_21285_CONSOLE
    fi
-   if [ "$CONFIG_MIPS" = "y" ]; then
-     bool '  TMPTX3912/PR31700 serial port support' CONFIG_SERIAL_TX3912
-     dep_bool '     Console on TMPTX3912/PR31700 serial port' CONFIG_SERIAL_TX3912_CONSOLE $CONFIG_SERIAL_TX3912
-     bool '  Enable Au1000 UART Support' CONFIG_AU1000_UART
-     if [ "$CONFIG_AU1000_UART" = "y" ]; then
-         bool '        Enable Au1000 serial console' CONFIG_AU1000_SERIAL_CONSOLE
-     fi
-   fi
-fi
-if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
-   bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
-   if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
-     define_bool CONFIG_IT8172_CIR y
-   else
-     bool '    Enable PS2 Keyboard Support' CONFIG_PC_KEYB
-   fi
-   bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
-   bool 'Enable Smart Card Reader 1 Support ' CONFIG_IT8172_SCR1
-fi
-if [ "$CONFIG_MIPS_IVR" = "y" ]; then
-   bool 'Enable Qtronix 990P Keyboard Support' CONFIG_QTRONIX_KEYBOARD
-   if [ "$CONFIG_QTRONIX_KEYBOARD" = "y" ]; then
-     define_bool CONFIG_IT8172_CIR y
-   fi
-   bool 'Enable Smart Card Reader 0 Support ' CONFIG_IT8172_SCR0
 fi
 bool 'Unix98 PTY support' CONFIG_UNIX98_PTYS
 if [ "$CONFIG_UNIX98_PTYS" = "y" ]; then
@@ -241,11 +240,6 @@ tristate 'Ftape (QIC-80/Travan) support' CONFIG_FTAPE
 if [ "$CONFIG_FTAPE" != "n" ]; then
    source drivers/char/ftape/Config.in
 fi
-
-if [ "$CONFIG_X86" = "y" ]; then
-   tristate 'ACP Modem (Mwave) support' CONFIG_MWAVE
-fi
-
 endmenu
 
 dep_tristate '/dev/agpgart (AGP Support)' CONFIG_AGP $CONFIG_DRM_AGP
@@ -264,11 +258,9 @@ source drivers/char/drm/Config.in
 if [ "$CONFIG_HOTPLUG" = "y" -a "$CONFIG_PCMCIA" != "n" ]; then
    source drivers/char/pcmcia/Config.in
 fi
-if [ "$CONFIG_MIPS_AU1000" = "y" ]; then
-   tristate ' Alchemy Au1000 GPIO device support' CONFIG_AU1000_GPIO
-   tristate ' Au1000/ADS7846 touchscreen support' CONFIG_TS_AU1000_ADS7846
+
+if [ "$CONFIG_X86" = "y" ]; then
+   tristate 'ACP Modem (Mwave) support' CONFIG_MWAVE
 fi
-if [ "$CONFIG_MIPS_ITE8172" = "y" ]; then
-  tristate ' ITE GPIO' CONFIG_ITE_GPIO
-fi
+
 endmenu

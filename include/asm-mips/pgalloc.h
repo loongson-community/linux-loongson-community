@@ -13,46 +13,6 @@
 #include <linux/highmem.h>
 #include <asm/fixmap.h>
 
-/* TLB flushing:
- *
- *  - flush_tlb_all() flushes all processes TLB entries
- *  - flush_tlb_mm(mm) flushes the specified mm context TLB entries
- *  - flush_tlb_page(vma, vmaddr) flushes a single page
- *  - flush_tlb_range(vma, start, end) flushes a range of pages
- *  - flush_tlb_pgtables(mm, start, end) flushes a range of page tables
- */
-extern void local_flush_tlb_all(void);
-extern void local_flush_tlb_mm(struct mm_struct *mm);
-extern void local_flush_tlb_range(struct vm_area_struct *vma,
-	unsigned long start, unsigned long end);
-extern void local_flush_tlb_page(struct vm_area_struct *vma,
-	unsigned long page);
-
-#ifdef CONFIG_SMP
-
-extern void flush_tlb_all(void);
-extern void flush_tlb_mm(struct mm_struct *);
-extern void flush_tlb_range(struct vm_area_struct *vma, unsigned long,
-	unsigned long);
-extern void flush_tlb_page(struct vm_area_struct *, unsigned long);
-
-#else /* CONFIG_SMP */
-
-#define flush_tlb_all()			local_flush_tlb_all()
-#define flush_tlb_mm(mm)		local_flush_tlb_mm(mm)
-#define flush_tlb_range(vma,vmaddr,end)	local_flush_tlb_range(vma, vmaddr, end)
-#define flush_tlb_page(vma,page)	local_flush_tlb_page(vma, page)
-
-#endif /* CONFIG_SMP */
-
-static inline void flush_tlb_pgtables(struct mm_struct *mm,
-                                      unsigned long start, unsigned long end)
-{
-	/* Nothing to do on MIPS.  */
-}
-
-#define check_pgt_cache()	do { } while (0)
-
 #define pmd_populate_kernel(mm, pmd, pte)	set_pmd(pmd, __pmd(pte))
 #define pmd_populate(mm, pmd, pte)		set_pmd(pmd, __pmd(pte))
 
@@ -136,5 +96,7 @@ static inline void pte_free(struct page *pte)
  */
 #define pmd_alloc_one(mm, addr)		({ BUG(); ((pmd_t *)2); })
 #define pmd_free(x)			do { } while (0)
+
+#define check_pgt_cache()	do { } while (0)
 
 #endif /* _ASM_PGALLOC_H */

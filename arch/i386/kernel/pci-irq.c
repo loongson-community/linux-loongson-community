@@ -23,6 +23,7 @@
 #define PIRQ_VERSION 0x0100
 
 int pci_use_acpi_routing = 0;
+int broken_hp_bios_irq9;
 
 static struct irq_routing_table *pirq_table;
 
@@ -208,6 +209,24 @@ static int pirq_via_set(struct pci_dev *router, struct pci_dev *dev, int pirq, i
 }
 
 /*
+ * ITE 8330G pirq rules are nibble-based
+ * FIXME: pirqmap may be { 1, 0, 3, 2 },
+ * 	  2+3 are both mapped to irq 9 on my system
+ */
+static int pirq_ite_get(struct pci_dev *router, struct pci_dev *dev, int pirq)
+{
+	static unsigned char pirqmap[4] = { 1, 0, 2, 3 };
+	return read_config_nybble(router,0x43, pirqmap[pirq-1]);
+}
+
+static int pirq_ite_set(struct pci_dev *router, struct pci_dev *dev, int pirq, int irq)
+{
+	static unsigned char pirqmap[4] = { 1, 0, 2, 3 };
+	write_config_nybble(router, 0x43, pirqmap[pirq-1], irq);
+	return 1;
+}
+
+/*
  * OPTI: high four bits are nibble pointer..
  * I wonder what the low bits do?
  */
@@ -227,12 +246,12 @@ static int pirq_opti_set(struct pci_dev *router, struct pci_dev *dev, int pirq, 
  */
 static int pirq_cyrix_get(struct pci_dev *router, struct pci_dev *dev, int pirq)
 {
-	return read_config_nybble(router, 0x5C, pirq-1);
+	return read_config_nybble(router, 0x5C, (pirq-1)^1);
 }
 
 static int pirq_cyrix_set(struct pci_dev *router, struct pci_dev *dev, int pirq, int irq)
 {
-	write_config_nybble(router, 0x5C, pirq-1, irq);
+	write_config_nybble(router, 0x5C, (pirq-1)^1, irq);
 	return 1;
 }
 
@@ -445,9 +464,16 @@ static struct irq_router pirq_routers[] = {
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371AB_0, pirq_piix_get, pirq_piix_set },
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371MX,   pirq_piix_get, pirq_piix_set },
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82443MX_0, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801AA_0, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801AB_0, pirq_piix_get, pirq_piix_set },
 	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801BA_0, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801BA_10, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801CA_0, pirq_piix_get, pirq_piix_set },
+	{ "PIIX", PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82801CA_12, pirq_piix_get, pirq_piix_set },
 
 	{ "ALI", PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1533, pirq_ali_get, pirq_ali_set },
+
+	{ "ITE", PCI_VENDOR_ID_ITE, PCI_DEVICE_ID_ITE_IT8330G_0, pirq_ite_get, pirq_ite_set },
 
 	{ "VIA", PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C586_0, pirq_via_get, pirq_via_set },
 	{ "VIA", PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_82C596, pirq_via_get, pirq_via_set },
@@ -514,6 +540,18 @@ static void __init pirq_find_router(void)
 		pirq_router_dev->slot_name);
 }
 
+static struct irq_info *pirq_get_info(struct pci_dev *dev)
+{
+	struct irq_routing_table *rt = pirq_table;
+	int entries = (rt->size - sizeof(struct irq_routing_table)) / sizeof(struct irq_info);
+	struct irq_info *info;
+
+	for (info = rt->slots; entries--; info++)
+		if (info->bus == dev->bus->number && PCI_SLOT(info->devfn) == PCI_SLOT(dev->devfn))
+			return info;
+	return NULL;
+}
+
 static void pcibios_test_irq_handler(int irq, void *dev_id, struct pt_regs *regs)
 {
 }
@@ -531,55 +569,77 @@ static int acpi_lookup_irq (
 	/* TBD: Select IRQ from possible to improve routing performance. */
 
 	result = acpi_prt_get_irq(dev, pin, &irq);
-	if ((0 != result) || !irq) {
-		printk(KERN_ERR "PCI: Unable to resolve IRQ for device %s\n",
-			dev->slot_name);
+	if (!irq)
+		result = -ENODEV;
+	if (0 != result) {
+		printk(KERN_WARNING "PCI: No IRQ known for interrupt pin %c of device %s\n",
+		       'A'+pin, dev->slot_name);
 		return result;
 	}
 
-	printk(KERN_INFO "PCI: Found IRQ %d for device %s\n", irq, 
-		dev->slot_name);
-
 	dev->irq = irq;
 
-	pirq_penalty[irq]++;
+	if (!assign) {
+		/* only check for the IRQ */
+		printk(KERN_INFO "PCI: Found IRQ %d for device %s\n", irq, 
+		       dev->slot_name);
+		return 1;
+	}
+
+	/* also assign an IRQ */
+	if (irq && (dev->class >> 8) != PCI_CLASS_DISPLAY_VGA) {
+		result = acpi_prt_set_irq(dev, pin, irq);
+		if (0 != result) {
+			printk(KERN_WARNING "PCI: Could not assign IRQ %d to device %s\n", irq, dev->slot_name);
+			return result;
+		}
+
+		eisa_set_level_irq(irq);
+
+		printk(KERN_INFO "PCI: Assigned IRQ %d for device %s\n", irq, dev->slot_name);
+	}
 
 	return 1;
 }
 
 #endif /* CONFIG_ACPI_PCI */
 
-static struct irq_info *pirq_get_info(struct pci_dev *dev)
+static int pcibios_lookup_irq(struct pci_dev *dev, int assign)
 {
-	struct irq_routing_table *rt = pirq_table;
-	int entries = (rt->size - sizeof(struct irq_routing_table)) / sizeof(struct irq_info);
+	u8 pin;
 	struct irq_info *info;
-
-	for (info = rt->slots; entries--; info++)
-		if (info->bus == dev->bus->number && PCI_SLOT(info->devfn) == PCI_SLOT(dev->devfn))
-			return info;
-	return NULL;
-}
-
-static int pirq_lookup_irq(struct pci_dev *dev, u8 pin, int assign)
-{
+	int i, pirq, newirq;
+	int irq = 0;
+	u32 mask;
 	struct irq_router *r = pirq_router;
-	struct irq_info *info;
-	int  newirq, pirq, i, irq = 0;
 	struct pci_dev *dev2;
 	char *msg = NULL;
-	u32 mask;
+
+	/* Find IRQ pin */
+	pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
+	if (!pin) {
+		DBG(" -> no interrupt pin\n");
+		return 0;
+	}
+	pin = pin - 1;
+
+#ifdef CONFIG_ACPI_PCI
+	/* Use ACPI to lookup IRQ */
+	if (pci_use_acpi_routing)
+		return acpi_lookup_irq(dev, pin, assign);
+#endif
+
+	/* Find IRQ routing entry */
 
 	if (!pirq_table)
 		return 0;
-
+	
 	DBG("IRQ for %s:%d", dev->slot_name, pin);
 	info = pirq_get_info(dev);
 	if (!info) {
 		DBG(" -> not found in routing table\n");
 		return 0;
 	}
-
 	pirq = info->irq[pin].link;
 	mask = info->irq[pin].bitmap;
 	if (!pirq) {
@@ -588,6 +648,15 @@ static int pirq_lookup_irq(struct pci_dev *dev, u8 pin, int assign)
 	}
 	DBG(" -> PIRQ %02x, mask %04x, excl %04x", pirq, mask, pirq_table->exclusive_irqs);
 	mask &= pcibios_irq_mask;
+
+	/* Work around broken HP Pavilion Notebooks which assign USB to
+	   IRQ 9 even though it is actually wired to IRQ 11 */
+
+	if (broken_hp_bios_irq9 && pirq == 0x59 && dev->irq == 9) {
+		dev->irq = 11;
+		pci_write_config_byte(dev, PCI_INTERRUPT_LINE, 11);
+		r->set(pirq_router_dev, dev, pirq, 11);
+	}
 
 	/*
 	 * Find the best IRQ to assign: use the one
@@ -667,38 +736,20 @@ static int pirq_lookup_irq(struct pci_dev *dev, u8 pin, int assign)
 	return 1;
 }
 
-static int pcibios_lookup_irq(struct pci_dev *dev, int assign)
-{
-	u8 pin;
-
-	/* Find IRQ routing entry */
-	pci_read_config_byte(dev, PCI_INTERRUPT_PIN, &pin);
-	if (!pin) {
-		DBG("PCI: %s: no interrupt pin\n", dev->slot_name);
-		return 0;
-	}
-	pin -= 1;
-
-#ifdef CONFIG_ACPI_PCI
-	if (pci_use_acpi_routing)
-		return acpi_lookup_irq(dev, pin, assign);
-	else
-#endif
-		return pirq_lookup_irq(dev, pin, assign);
-}
-
 void __init pcibios_irq_init(void)
 {
 	DBG("PCI: IRQ init\n");
 
 #ifdef CONFIG_ACPI_PCI
-	if (acpi_prts.count && !(pci_probe & PCI_NO_ACPI_ROUTING)) {
-		printk(KERN_INFO "PCI: Using ACPI for IRQ routing\n");
-		pci_use_acpi_routing = 1;
-		return;
+	if (!(pci_probe & PCI_NO_ACPI_ROUTING)) {
+		if (acpi_prts.count) {
+			printk(KERN_INFO "PCI: Using ACPI for IRQ routing\n");
+			pci_use_acpi_routing = 1;
+			return;
+		}
+		else
+			printk(KERN_WARNING "PCI: Invalid ACPI-PCI IRQ routing table\n");
 	}
-	if (!acpi_prts.count)
-		printk(KERN_INFO "PCI: Invalid acpi_prts [%d]\n", acpi_prts.count);
 #endif
 
 	pirq_table = pirq_find_routing_table();
