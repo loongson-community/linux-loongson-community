@@ -65,10 +65,8 @@
 	 andi	a0, s0, CAUSEF_IP2	# delay slot, check local level zero
 
 	/* Wheee, a timer interrupt. */
-	move	a0, sp
 	jal	indy_r4k_timer_interrupt
-	 nop				# delay slot
-
+	 move	a0, sp			# delay slot
 	j	ret_from_irq
 	 nop				# delay slot
 
@@ -88,38 +86,33 @@
 	 andi	a0, s0, CAUSEF_IP6	# delay slot, check bus error
 
 	/* Wheee, local level one interrupt. */
-	move	a0, sp
 	jal	indy_local1_irqdispatch
-	 nop
-
+	 move	a0, sp			# delay slot
 	j	ret_from_irq
-	 nop
+	 nop				# delay slot
 
 1:
 	beq	a0, zero, 1f
-	 nop
+	 andi	a0, s0, (CAUSEF_IP4 | CAUSEF_IP5)	# delay slot
 
 	/* Wheee, an asynchronous bus error... */
-	move	a0, sp
 	jal	indy_buserror_irq
-	 nop
-
+	 move	a0, sp			# delay slot
 	j	ret_from_irq
-	 nop
+	 nop				# delay slot
 
 1:
 	/* Here by mistake? It is possible, that by the time we take
 	 * the exception the IRQ pin goes low, so just leave if this 
 	 * is the case.
 	 */
-	andi	a0, s0, (CAUSEF_IP4 | CAUSEF_IP5)
 	beq	a0, zero, 1f
+	 nop			  	# delay slot
 
 	/* Must be one of the 8254 timers... */
-	move	a0, sp
 	jal	indy_8254timer_irq
-	 nop
+	 move	a0, sp			# delay slot
 1:
 	j	ret_from_irq
-	 nop
+	 nop				# delay slot
 	END(indyIRQ)
