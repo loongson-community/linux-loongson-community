@@ -54,7 +54,6 @@ static struct console arc_cons = {
     write:	prom_console_write,
     device:	prom_console_device,
     wait_key:	prom_console_wait_key,
-    setup:	prom_console_setup,
     flags:	CON_PRINTBUFFER,
     index:	-1,
 };
