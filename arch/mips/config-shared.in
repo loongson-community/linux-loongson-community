@@ -398,6 +398,14 @@ choice 'CPU type' \
 	 RM7000	CONFIG_CPU_RM7000 \
 	 SB1	CONFIG_CPU_SB1" R4x00
 
+if [ "$CONFIG_CPU_R5000" = "y" ]; then
+   define_bool CONFIG_BOARD_SCACHE y
+fi
+
+if [ "$CONFIG_CPU_NEVADA" = "y" ]; then
+   define_bool CONFIG_BOARD_SCACHE y
+fi
+ 
 if [ "$CONFIG_CPU_MIPS32" = "y" ]; then
    define_bool CONFIG_CPU_HAS_PREFETCH y
    bool '  Support for Virtual Tagged I-cache' CONFIG_VTAG_ICACHE

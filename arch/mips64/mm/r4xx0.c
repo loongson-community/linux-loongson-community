@@ -2274,6 +2274,7 @@ static void __init setup_scache_funcs(void)
 }
 
 typedef int (*probe_func_t)(unsigned long);
+extern int r5k_sc_init(void);
 
 static inline void __init setup_scache(unsigned int config)
 {
@@ -2284,12 +2285,23 @@ static inline void __init setup_scache(unsigned int config)
 	probe_scache_kseg1 = (probe_func_t) (KSEG1ADDR(&probe_scache));
 	sc_present = probe_scache_kseg1(config);
 
-	if (sc_present) {
-		setup_scache_funcs();
+	if (!sc_present) {
+		setup_noscache_funcs();
 		return;
 	}
 
-	setup_noscache_funcs();
+	switch(mips_cpu.cputype) {
+	case CPU_R5000:
+	case CPU_NEVADA:
+			setup_noscache_funcs();
+#if defined(CONFIG_CPU_R5000) || defined(CONFIG_CPU_NEVADA)
+			r5k_sc_init();
+#endif
+			break;
+	default:
+			setup_scache_funcs();
+	}
+
 }
 
 void __init ld_mmu_r4xx0(void)
