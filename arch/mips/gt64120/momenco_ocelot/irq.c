@@ -45,6 +45,7 @@
 #include <asm/bootinfo.h>
 #include <asm/io.h>
 #include <asm/irq.h>
+#include <asm/irq_cpu.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
 
