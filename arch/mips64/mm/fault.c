@@ -188,7 +188,6 @@ bad_area:
 		       address,
 		       (unsigned long) regs->cp0_epc,
 		       (unsigned long) regs->regs[31]);
-while(1);
 #endif
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
