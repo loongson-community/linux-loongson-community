@@ -128,8 +128,9 @@ out:
 		       "Skipping PCI bus scan due to resource conflict\n");
 	}
 
-	pci_assign_unassigned_resources();
-	pcibios_fixup_irqs();			/* fixup irqs (board specific routines) */
+	if (!pci_probe_only)
+		pci_assign_unassigned_resources();
+	pcibios_fixup_irqs();
 
 	return 0;
 }
