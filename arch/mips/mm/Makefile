@@ -27,7 +27,7 @@ O_OBJS   += r4xx0.o
 endif
 
 ifdef CONFIG_CPU_R5432
-O_OBJS   += r4xx0.o
+O_OBJS   += r5432.o
 endif
 
 ifdef CONFIG_CPU_RM7000
