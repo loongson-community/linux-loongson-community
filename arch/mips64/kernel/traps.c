@@ -674,7 +674,7 @@ void __init per_cpu_trap_init(void)
 
 void __init trap_init(void)
 {
-	extern char except_vec0_generic, except_vec2_generic;
+	extern char except_vec0_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
 	extern char except_vec4;
 	unsigned long i;
@@ -683,7 +683,6 @@ void __init trap_init(void)
 
 	/* Copy the generic exception handlers to their final destination. */
 	memcpy((void *) KSEG0         , &except_vec0_generic, 0x80);
-	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
 	memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 
 	/*
@@ -762,12 +761,6 @@ void __init trap_init(void)
 	}
 
 	if (mips_cpu.cputype == CPU_SB1) {
-		extern char except_vec2_sb1;
-
-		/* Special cache error handler for SB1 */
-		memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
-		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
-
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_c0_status(0xf000);
 		set_c0_status(0xc00);

@@ -491,7 +491,12 @@ static __init void probe_cache_sizes(void)
  */
 void ld_mmu_sb1(void)
 {
+	extern char except_vec2_sb1;
 	unsigned long temp;
+
+	/* Special cache error handler for SB1 */
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_sb1, 0x80);
+	memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
 
 	probe_cache_sizes();
 

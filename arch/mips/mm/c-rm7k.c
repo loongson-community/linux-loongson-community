@@ -289,8 +289,12 @@ static inline void probe_tcache(unsigned long config)
 void __init ld_mmu_rm7k(void)
 {
 	unsigned long config = read_c0_config();
+	extern char except_vec2_generic;
 	unsigned long addr;
 
+	/* Default cache error handler for RM7000 */
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
         change_c0_config(CONF_CM_CMASK, CONF_CM_UNCACHED);
 
 	/* RM7000 erratum #31. The icache is screwed at startup. */

@@ -381,6 +381,12 @@ void __init ld_mmu_tx49(void)
 {
 	unsigned long config = read_c0_config();
 
+	/* Default cache error handler for SB1 */
+	extern char except_vec2_generic;
+
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
+
 	if (mips_configk0 != -1)
 		change_c0_config(CONF_CM_CMASK, mips_configk0);
 	else

@@ -94,6 +94,11 @@ andes_flush_cache_sigtramp(unsigned long addr)
 
 void __init ld_mmu_andes(void)
 {
+	/* Default cache error handler for R10000 */
+	extern char except_vec2_generic;
+
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
 	printk("Primary instruction cache %dkb, linesize %d bytes\n",
 	       icache_size >> 10, ic_lsize);
 	printk("Primary data cache %dkb, linesize %d bytes\n",

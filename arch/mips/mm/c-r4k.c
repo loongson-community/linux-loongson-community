@@ -1371,6 +1371,12 @@ static inline void __init setup_scache(unsigned int config)
 void __init ld_mmu_r4xx0(void)
 {
 	unsigned long config = read_c0_config();
+	extern char except_vec2_generic;
+
+	/* Default cache error handler for R4000 family */
+
+	memcpy((void *)(KSEG0 + 0x100), &except_vec2_generic, 0x80);
+	memcpy((void *)(KSEG1 + 0x100), &except_vec2_generic, 0x80);
 
 	change_c0_config(CONF_CM_CMASK | CONF_CU, CONF_CM_DEFAULT);
 
