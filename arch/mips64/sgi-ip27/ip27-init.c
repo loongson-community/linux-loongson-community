@@ -462,7 +462,6 @@ void allowboot(void)
 			__cpu_number_map[cpu] = num_cpus;
 			__cpu_logical_map[num_cpus] = cpu;
 			num_cpus++;
-			/* smp_num_cpus++; Do after smp_send_reschedule works */
 		}
 	}
 
@@ -487,6 +486,7 @@ void allowboot(void)
 	cpu_io_setup();
 	init_mfhi_war();
 #endif
+	smp_num_cpus = num_cpus;
 }
 
 #else /* CONFIG_SMP */
