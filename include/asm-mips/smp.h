@@ -51,5 +51,41 @@ struct smp_fn_call_struct {
 
 extern struct smp_fn_call_struct smp_fn_call;
 
+#if (NR_CPUS <= _MIPS_SZLONG)
+
+typedef unsigned long   cpumask_t;
+
+#define CPUMASK_CLRALL(p)	(p) = 0
+#define CPUMASK_SETB(p, bit)	(p) |= 1 << (bit)
+#define CPUMASK_CLRB(p, bit)	(p) &= ~(1ULL << (bit))
+#define CPUMASK_TSTB(p, bit)	((p) & (1ULL << (bit)))
+
+#elif (NR_CPUS <= 128)
+
+/*
+ * The foll should work till 128 cpus.
+ */
+#define CPUMASK_SIZE		(NR_CPUS/_MIPS_SZLONG)
+#define CPUMASK_INDEX(bit)	((bit) >> 6)
+#define CPUMASK_SHFT(bit)	((bit) & 0x3f)
+
+typedef struct {
+	unsigned long	_bits[CPUMASK_SIZE];
+} cpumask_t;
+
+#define	CPUMASK_CLRALL(p)	(p)._bits[0] = 0, (p)._bits[1] = 0
+#define CPUMASK_SETB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] |= \
+					(1ULL << CPUMASK_SHFT(bit))
+#define CPUMASK_CLRB(p, bit)	(p)._bits[CPUMASK_INDEX(bit)] &= \
+					~(1ULL << CPUMASK_SHFT(bit))
+#define CPUMASK_TSTB(p, bit)	((p)._bits[CPUMASK_INDEX(bit)] & \
+					(1ULL << CPUMASK_SHFT(bit)))
+
+#else
+#error cpumask macros only defined for 128p kernels
+#endif
+
+extern cpumask_t cpu_online_map;
+
 #endif /* CONFIG_SMP */
 #endif /* __ASM_MIPS_SMP_H */
