@@ -19,7 +19,10 @@
  *     9  - PCI
  *    14  - IDE0
  *    15  - IDE1
- *
+ */
+#define COBALT_QUBE_SLOT_IRQ	9
+
+/*
  * CPU IRQs  are 16 ... 23
  */
 #define COBALT_TIMER_IRQ	18
@@ -30,7 +33,6 @@
 #define COBALT_SERIAL_IRQ	21
 #define COBALT_SCSI_IRQ         21
 #define COBALT_VIA_IRQ		22		/* Chained to VIA ISA bridge */
-#define COBALT_QUBE_SLOT_IRQ	23
 
 /*
  * PCI configuration space manifest constants.  These are wired into
@@ -69,13 +71,16 @@
  * Most of this really should go into a separate GT64111 header file.
  */
 #define GT64111_IO_BASE		0x10000000UL
+#define GT64111_IO_END		0x11ffffffUL
+#define GT64111_MEM_BASE	0x12000000UL
+#define GT64111_MEM_END		0x13ffffffUL
 #define GT64111_BASE		0x14000000UL
-#define GALILEO_REG(ofs)	(KSEG0 + GT64111_BASE + (unsigned long)(ofs))
+#define GALILEO_REG(ofs)	CKSEG1ADDR(GT64111_BASE + (unsigned long)(ofs))
 
 #define GALILEO_INL(port)	(*(volatile unsigned int *) GALILEO_REG(port))
 #define GALILEO_OUTL(val, port)						\
 do {									\
-	*(volatile unsigned int *) GALILEO_REG(port) = (port);		\
+	*(volatile unsigned int *) GALILEO_REG(port) = (val);		\
 } while (0)
 
 #define GALILEO_T0EXP		0x0100
@@ -86,5 +91,21 @@ do {									\
 	GALILEO_OUTL((0x80000000 | (PCI_SLOT (devfn) << 11) |		\
 		(PCI_FUNC (devfn) << 8) | (where)), GT_PCI0_CFGADDR_OFS)
 
+#define COBALT_LED_PORT		(*(volatile unsigned char *) CKSEG1ADDR(0x1c000000))
+# define COBALT_LED_BAR_LEFT	(1 << 0)	/* Qube */
+# define COBALT_LED_BAR_RIGHT	(1 << 1)	/* Qube */
+# define COBALT_LED_WEB		(1 << 2)	/* RaQ */
+# define COBALT_LED_POWER_OFF	(1 << 3)	/* RaQ */
+# define COBALT_LED_RESET	0x0f
+
+#define COBALT_KEY_PORT		((~*(volatile unsigned int *) CKSEG1ADDR(0x1d000000) >> 24) & COBALT_KEY_MASK)
+# define COBALT_KEY_CLEAR	(1 << 1)
+# define COBALT_KEY_LEFT	(1 << 2)
+# define COBALT_KEY_UP		(1 << 3)
+# define COBALT_KEY_DOWN	(1 << 4)
+# define COBALT_KEY_RIGHT	(1 << 5)
+# define COBALT_KEY_ENTER	(1 << 6)
+# define COBALT_KEY_SELECT	(1 << 7)
+# define COBALT_KEY_MASK	0xfe
 
 #endif /* __ASM_COBALT_H */

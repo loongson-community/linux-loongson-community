@@ -30,27 +30,25 @@ extern void cobalt_machine_power_off(void);
 
 int cobalt_board_id;
 
-static char my_cmdline[CL_SIZE] = {
- "console=ttyS0,115200 "
-#ifdef CONFIG_IP_PNP
- "ip=on "
-#endif
-#ifdef CONFIG_ROOT_NFS
- "root=/dev/nfs "
-#else
- "root=/dev/hda1 "
-#endif
- };
-
 const char *get_system_type(void)
 {
+	switch (cobalt_board_id) {
+		case COBALT_BRD_ID_QUBE1:
+			return "Cobalt Qube";
+		case COBALT_BRD_ID_RAQ1:
+			return "Cobalt RaQ";
+		case COBALT_BRD_ID_QUBE2:
+			return "Cobalt Qube2";
+		case COBALT_BRD_ID_RAQ2:
+			return "Cobalt RaQ2";
+	}
 	return "MIPS Cobalt";
 }
 
 static void __init cobalt_timer_setup(struct irqaction *irq)
 {
-	/* Load timer value for 150 Hz */
-	GALILEO_OUTL(500000, GT_TC0_OFS);
+	/* Load timer value for 1KHz */
+	GALILEO_OUTL(50*1000*1000 / 1000, GT_TC0_OFS);
 
 	/* Register our timer interrupt */
 	setup_irq(COBALT_TIMER_IRQ, irq);
@@ -58,17 +56,17 @@ static void __init cobalt_timer_setup(struct irqaction *irq)
 	/* Enable timer ints */
 	GALILEO_OUTL((GALILEO_ENTC0 | GALILEO_SELTC0), GT_TC_CONTROL_OFS);
 	/* Unmask timer int */
-	GALILEO_OUTL(0x100, GT_INTRMASK_OFS);
+	GALILEO_OUTL(GALILEO_T0EXP, GT_INTRMASK_OFS);
 }
 
 extern struct pci_ops gt64111_pci_ops;
 
 static struct resource cobalt_mem_resource = {
-	"GT64111 PCI MEM", GT64111_IO_BASE, 0xffffffffUL, IORESOURCE_MEM
+	"GT64111 PCI MEM", GT64111_MEM_BASE, GT64111_MEM_END, IORESOURCE_MEM
 };
 
 static struct resource cobalt_io_resource = {
-	"GT64111 IO MEM", 0x00001000UL, 0x0fffffffUL, IORESOURCE_IO
+	"GT64111 IO MEM", 0x00001000UL, GT64111_IO_END - GT64111_IO_BASE, IORESOURCE_IO
 };
 
 static struct resource cobalt_io_resources[] = {
@@ -86,10 +84,10 @@ static struct pci_controller cobalt_pci_controller = {
 	.mem_resource	= &cobalt_mem_resource,
 	.mem_offset	= 0,
 	.io_resource	= &cobalt_io_resource,
-	.io_offset	= 0x00001000UL - GT64111_IO_BASE
+	.io_offset	= 0 - GT64111_IO_BASE
 };
 
-static void __init cobalt_setup(void)
+static int __init cobalt_setup(void)
 {
 	unsigned int devfn = PCI_DEVFN(COBALT_PCICONF_VIA, 0);
 	int i;
@@ -100,7 +98,10 @@ static void __init cobalt_setup(void)
 
 	board_timer_setup = cobalt_timer_setup;
 
-        set_io_port_base(KSEG1ADDR(GT64111_IO_BASE));
+        set_io_port_base(CKSEG1ADDR(GT64111_IO_BASE));
+
+	/* IO region should cover all Galileo IO */
+	ioport_resource.end = 0x0fffffff;
 
 	/*
 	 * This is a prom style console. We just poke at the
@@ -120,27 +121,50 @@ static void __init cobalt_setup(void)
         cobalt_board_id >>= ((VIA_COBALT_BRD_ID_REG & 3) * 8);
         cobalt_board_id = VIA_COBALT_BRD_REG_to_ID(cobalt_board_id);
 
+	printk("Cobalt board ID: %d\n", cobalt_board_id);
+
 #ifdef CONFIG_PCI
 	register_pci_controller(&cobalt_pci_controller);
 #endif
+
+	return 0;
 }
 
 early_initcall(cobalt_setup);
 
 /*
  * Prom init. We read our one and only communication with the firmware.
- * Grab the amount of installed memory
+ * Grab the amount of installed memory.
+ * Better boot loaders (CoLo) pass a command line too :-)
  */
 
 void __init prom_init(void)
 {
-	int argc = fw_arg0;
-
-	strcpy(arcs_cmdline, my_cmdline);
+	int narg, indx, posn, nchr;
+	unsigned long memsz;
+	char **argv;
 
 	mips_machgroup = MACH_GROUP_COBALT;
 
-	add_memory_region(0x0, argc & 0x7fffffff, BOOT_MEM_RAM);
+	memsz = fw_arg0 & 0x7fff0000;
+	narg = fw_arg0 & 0x0000ffff;
+
+	if (narg) {
+		arcs_cmdline[0] = '\0';
+		argv = (char **) fw_arg1;
+		posn = 0;
+		for (indx = 1; indx < narg; ++indx) {
+			nchr = strlen(argv[indx]);
+			if (posn + 1 + nchr + 1 > sizeof(arcs_cmdline))
+				break;
+			if (posn)
+				arcs_cmdline[posn++] = ' ';
+			strcpy(arcs_cmdline + posn, argv[indx]);
+			posn += nchr;
+		}
+	}
+
+	add_memory_region(0x0, memsz, BOOT_MEM_RAM);
 }
 
 unsigned long __init prom_free_prom_memory(void)
