@@ -2022,10 +2022,9 @@ static struct console sercons = {
 /*
  *	Register console.
  */
-long __init zs_serial_console_init(long kmem_start, long kmem_end)
+void __init zs_serial_console_init(void)
 {
 	register_console(&sercons);
-	return kmem_start;
 }
 #endif /* ifdef CONFIG_SERIAL_CONSOLE */
 
