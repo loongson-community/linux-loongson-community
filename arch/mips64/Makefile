@@ -78,6 +78,18 @@ endif
 #
 # Board-dependent options and extra files
 #
+ifdef CONFIG_MIPS_ATLAS
+LIBS		+= arch/mips64/mips-boards/atlas/atlas.o arch/mips64/mips-boards/generic/mipsboards.o
+SUBDIRS		+= arch/mips64/mips-boards/generic arch/mips64/mips-boards/atlas
+LOADADDR	+= 0x80100000
+endif
+
+ifdef CONFIG_MIPS_MALTA
+LIBS		+= arch/mips64/mips-boards/malta/malta.o arch/mips64/mips-boards/generic/mipsboards.o
+SUBDIRS		+= arch/mips64/mips-boards/malta arch/mips64/mips-boards/generic
+LOADADDR	+= 0x80100000
+endif
+
 ifdef CONFIG_SGI_IP22
 LIBS          += arch/mips64/sgi-ip22/ip22.a arch/mips64/arc/arclib.a
 SUBDIRS       += arch/mips64/sgi-ip22 arch/mips64/arc

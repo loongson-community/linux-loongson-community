@@ -14,6 +14,14 @@
 #include <asm/addrspace.h>
 #include <asm/page.h>
 
+#ifdef CONFIG_MIPS_ATLAS
+#include <asm/mips-boards/io.h>
+#endif
+
+#ifdef CONFIG_MIPS_MALTA
+#include <asm/mips-boards/io.h>
+#endif
+
 #ifdef CONFIG_SGI_IP22
 #include <asm/sgi/io.h>
 #endif
@@ -120,6 +128,20 @@ static inline void * phys_to_virt(unsigned long address)
 {
 	return (void *)(address + PAGE_OFFSET);
 }
+
+/*
+ * IO bus memory addresses are also 1:1 with the physical address
+ */
+static inline unsigned long virt_to_bus(volatile void * address)
+{
+	return (unsigned long)address - PAGE_OFFSET;
+}
+
+static inline void * bus_to_virt(unsigned long address)
+{
+	return (void *)(address + PAGE_OFFSET);
+}
+
 
 /* This is too simpleminded for more sophisticated than dumb hardware ...  */
 #define page_to_bus page_to_phys

@@ -44,6 +44,18 @@ define_bool CONFIG_RWSEM_XCHGADD_ALGORITHM n
 # Select some configuration options automatically based on user selections
 #
 
+if [ "$CONFIG_MIPS_ATLAS" = "y" ]; then
+   define_bool CONFIG_BOOT_ELF32 y
+   define_int CONFIG_L1_CACHE_SHIFT 5
+   define_bool CONFIG_NONCOHERENT_IO y
+fi
+
+if [ "$CONFIG_MIPS_MALTA" = "y" ]; then
+   define_bool CONFIG_BOOT_ELF32 y
+   define_int CONFIG_L1_CACHE_SHIFT 5
+   define_bool CONFIG_NONCOHERENT_IO y
+fi
+
 if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_ARC32 y
    define_bool CONFIG_ARC_CONSOLE y

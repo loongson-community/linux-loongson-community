@@ -218,6 +218,8 @@ void free_irq(unsigned int irq, void *dev_id)
 	printk("Trying to free IRQ%d\n",irq);
 }
 
+void (*irq_setup)(void);
+
 void __init init_IRQ(void)
 {
 	irq_setup();

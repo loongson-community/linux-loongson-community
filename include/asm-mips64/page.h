@@ -59,7 +59,8 @@ typedef struct { unsigned long pgprot; } pgprot_t;
  * We handle pages at KSEG0 for kernels with upto 512mb of memory,
  * at XKPHYS for kernels with more than that.
  */
-#ifdef CONFIG_SGI_IP22
+#if defined(CONFIG_SGI_IP22) || defined(CONFIG_MIPS_ATLAS) || \
+    defined(CONFIG_MIPS_MALTA)
 #define PAGE_OFFSET	0xffffffff80000000UL
 #endif
 #if defined(CONFIG_SGI_IP27) || defined(CONFIG_SGI_IP32)
