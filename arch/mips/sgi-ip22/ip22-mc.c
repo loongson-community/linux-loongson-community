@@ -53,7 +53,7 @@ void __init sgimc_init(void)
 	rpsscounter = (unsigned int *) (KSEG1 + 0x1fa01004);
 	dmactrlregs = (struct sgimc_dma_ctrl *) (KSEG1+0x1fa02000);
 
-	printk("MC: SGI memory controller Revision %d\n",
+	printk(KERN_INFO "MC: SGI memory controller Revision %d\n",
 	       (int) mcmisc_regs->systemid & SGIMC_SYSID_MASKREV);
 
 #if 0 /* XXX Until I figure out what this bit really indicates XXX */

@@ -72,19 +72,19 @@ void __init load_mmu(void)
 	case CPU_R5000:
 	case CPU_R5000A:
 	case CPU_NEVADA:
-		printk("Loading R4000 MMU routines.\n");
+		printk(KERN_INFO "Loading R4000 MMU routines.\n");
 		ld_mmu_r4xx0();
 		break;
 #endif
 #ifdef CONFIG_CPU_R10000
 	case CPU_R10000:
-		printk("Loading R10000 MMU routines.\n");
+		printk(KERN_INFO "Loading R10000 MMU routines.\n");
 		ld_mmu_andes();
 		break;
 #endif
 #if defined CONFIG_CPU_SB1
 	case CPU_SB1:
-		printk("Loading SB1 MMU routines.\n");
+		printk(KERN_INFO "Loading SB1 MMU routines.\n");
 		ld_mmu_sb1();
 		sb1_tlb_init();
 		break;

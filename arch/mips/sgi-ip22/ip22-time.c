@@ -150,7 +150,7 @@ void indy_time_init(void)
 	tcwp = &p->tcword;
 	tc2p = &p->tcnt2;
 
-	printk("Calibrating system timer... ");
+	printk(KERN_INFO "Calibrating system timer... ");
 	dosample(tcwp, tc2p);                   /* Prime cache. */
 	dosample(tcwp, tc2p);                   /* Prime cache. */
 	/* Zero is NOT an option. */

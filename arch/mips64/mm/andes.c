@@ -106,7 +106,7 @@ static void andes_flush_cache_l2(void)
 			blast_scache128();
 			break;
 		default:
-			printk("Unknown L2 line size\n");
+			printk(KERN_EMERG "Unknown L2 line size\n");
 			while(1);
 	}
 }
@@ -321,7 +321,7 @@ void __init ld_mmu_andes(void)
 			scache_lsz64 = 0;
 			break;
 		default:
-			printk("Unknown L2 line size\n");
+			printk(KERN_EMERG "Unknown L2 line size\n");
 			while(1);
 	}
     

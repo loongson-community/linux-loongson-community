@@ -68,6 +68,7 @@ void __init sgi_sysinit(void)
 	p = ArcGetChild(PROM_NULL_COMPONENT);
 
 	/* Now scan for cpu(s). */
+	printk(KERN_INFO);
 	toplev = p = ArcGetChild(p);
 	while(p) {
 		int ncpus = 0;
