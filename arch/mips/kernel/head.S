@@ -90,6 +90,19 @@
 	.endm
 
 	/*
+	 * For the moment set ST0_KU so the CPU will not spit fire when
+	 * executing 64-bit instructions.  The full initialization of the
+	 * CPU's status register is done later in per_cpu_trap_init().
+	 */
+	.macro	setup_c0_status
+#ifdef CONFIG_MIPS64
+	mfc0	t0, CP0_STATUS
+	or	t0, ST0_KX
+	mtc0	t0, CP0_STATUS
+#endif
+	.endm
+
+	/*
 	 * Reserved space for exception handlers.
 	 * Necessary for machines which link their kernels at KSEG0.
 	 */
@@ -101,6 +114,8 @@ EXPORT(_stext)
 	__INIT
 
 NESTED(kernel_entry, 16, sp)			# kernel entry point
+	setup_c0_status
+
 #ifdef CONFIG_SGI_IP27
 	GET_NASID_ASM	t1
 	move	t2, t1				# text and data are here
@@ -152,17 +167,7 @@ NESTED(smp_bootstrap, 16, sp)
 #endif /* CONFIG_SGI_IP27 */
 
 	CLI
-
-#ifdef CONFIG_MIPS64
-	/*
-	 * For the moment set ST0_KU so the CPU will not spit fire when
-	 * executing 64-bit instructions.  The full initialization of the
-	 * CPU's status register is done later in per_cpu_trap_init().
-	 */
-	mfc0	t0, CP0_STATUS
-	or	t0, ST0_KX
-	mtc0	t0, CP0_STATUS
-#endif
+	setup_c0_status
 	jal	start_secondary
 	END(smp_bootstrap)
 #endif /* CONFIG_SMP */
