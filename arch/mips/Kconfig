@@ -112,6 +112,7 @@ endif
 config MIPS_EV96100
 	bool "Support for Galileo EV96100 Evaluation board (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
+	select MIPS_GT96100
 	help
 	  This is an evaluation board based on the Galielo GT-96100 LAN/WAN
 	  communications controllers containing a MIPS R5000 compatible core
@@ -692,19 +693,29 @@ config GENERIC_ISA_DMA
 	depends on SNI_RM200_PCI || MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61 || MIPS_MALTA
 	default y
 
-config CONFIG_GT64120
-	bool
-	depends on MIPS_EV64120 || MOMENCO_OCELOT
-	default y
-
 config I8259
 	bool
 	depends on SNI_RM200_PCI || DDB5477 || DDB5476 || DDB5074 || MIPS_MALTA || MIPS_MAGNUM_4000 || OLIVETTI_M700 || MIPS_COBALT || ACER_PICA_61
 	default y
 
+config MIPS_BONITO64
+	bool
+	depends on MIPS_ATLAS || MIPS_MALTA
+	default y
+
 config MIPS_JAZZ
 	bool
 	depends on MIPS_MAGNUM_4000 || OLIVETTI_M700 || ACER_PICA_61
+	default y
+
+config MIPS_MSC
+	bool
+	depends on MIPS_ATLAS || MIPS_MALTA
+	default y
+
+config MIPS_NILE4
+	bool
+	depends on LASAT
 	default y
 
 config NONCOHERENT_IO
@@ -756,6 +767,11 @@ config MIPS_BOARDS_GEN
 	depends on MIPS_ATLAS || MIPS_MALTA || MIPS_SEAD
 	default y
 
+config MIPS_GT64120
+	bool
+	depends on MIPS_EV64120 || MIPS_EV96100 || LASAT || MIPS_ATLAS || MIPS_MALTA || MOMENCO_OCELOT
+	default y
+
 config ITE_BOARD_GEN
 	bool
 	depends on MIPS_IVR || MIPS_ITE8172
@@ -763,7 +779,7 @@ config ITE_BOARD_GEN
 
 config NEW_PCI
 	bool
-	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MIPS_ITE8172 || HP_LASERJET || MIPS_IVR || MIPS_EV96100 || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || TANBAC_TB0226 || TANBAC_TB0229
+	depends on ZAO_CAPCELLA || VICTOR_MPC30X || TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || NEC_EAGLE || DDB5477 || DDB5476 || DDB5074 || MIPS_ITE8172 || HP_LASERJET || MIPS_EV96100 || MIPS_IVR || MIPS_PB1500 || MIPS_PB1100 || MIPS_PB1000 || TANBAC_TB0226 || TANBAC_TB0229
 	default y
 
 config SWAP_IO_SPACE
@@ -779,11 +795,6 @@ config AU1000_USB_DEVICE
 config COBALT_LCD
 	bool
 	depends on MIPS_COBALT
-	default y
-
-config MIPS_GT64120
-	bool
-	depends on MIPS_EV64120
 	default y
 
 config MIPS_GT96100

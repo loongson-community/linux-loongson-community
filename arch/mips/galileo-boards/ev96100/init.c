@@ -33,13 +33,13 @@
 #include <linux/mm.h>
 #include <linux/sched.h>
 #include <linux/bootmem.h>
-#include <asm/addrspace.h>
-#include <asm/bootinfo.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
-#include <asm/galileo-boards/ev96100.h>
+#include <asm/addrspace.h>
+#include <asm/bootinfo.h>
+#include <asm/gt64120/gt64120.h>
 
 
 /* Environment variable */

@@ -2,10 +2,6 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 
-void __init pcibios_fixup_bus(struct pci_bus *b)
-{
-}
-
 static int pcibios_enable_resources(struct pci_dev *dev, int mask)
 {
 	u16 cmd, old_cmd;
@@ -54,7 +50,14 @@ int pcibios_enable_device(struct pci_dev *dev, int mask)
 void __init pcibios_align_resource(void *data, struct resource *res,
 				   unsigned long size, unsigned long align)
 {
-	panic("Uhhoh called pcibios_align_resource");
+	if (res->flags & IORESOURCE_IO) {
+		unsigned long start = res->start;
+
+		if (start & 0x300) {
+			start = (start + 0x3ff) & ~0x3ff;
+			res->start = start;
+		}
+	}
 }
 
 unsigned __init int pcibios_assign_all_busses(void)

@@ -258,14 +258,14 @@ CLEAN_FILES			+= drivers/tc/lk201-map.c
 #
 # Galileo EV64120 Board
 #
-core-$(CONFIG_MIPS_EV64120)	+= arch/mips/galileo-boards/ev64120/
+core-$(CONFIG_MIPS_EV64120)	+= arch/mips/gt64120/ev64120/
+core-$(CONFIG_MIPS_EV64120)	+= arch/mips/gt64120/common/
 load-$(CONFIG_MIPS_EV64120)	+= 0x80100000
 
 #
 # Galileo EV96100 Board
 #
-core-$(CONFIG_MIPS_EV96100)	+= arch/mips/galileo-boards/generic/ \
-				   arch/mips/galileo-boards/ev96100/
+core-$(CONFIG_MIPS_EV96100)	+= arch/mips/galileo-boards/ev96100/
 load-$(CONFIG_MIPS_EV96100)	+= 0x80100000
 
 #
@@ -314,6 +314,7 @@ load-$(CONFIG_MIPS_SEAD)	+= 0x80100000
 #
 core-$(CONFIG_MOMENCO_OCELOT)	+= arch/mips/gt64120/common/ \
 				   arch/mips/gt64120/momenco_ocelot/
+core-$(CONFIG_MOMENCO_OCELOT)	+= arch/mips/gt64120/common/
 load-$(CONFIG_MOMENCO_OCELOT)	+= 0x80100000
 
 #

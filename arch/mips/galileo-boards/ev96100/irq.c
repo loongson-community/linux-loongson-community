@@ -57,18 +57,18 @@ static void disable_ev96100_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	local_irq_save(flags);
+	save_and_cli(flags);
 	clear_c0_status(0x100 << irq_nr);
-	local_irq_restore(flags);
+	restore_flags(flags);
 }
 
 static inline void enable_ev96100_irq(unsigned int irq_nr)
 {
 	unsigned long flags;
 
-	local_irq_save(flags);
+	save_and_cli(flags);
 	set_c0_status(0x100 << irq_nr);
-	local_irq_restore(flags);
+	restore_flags(flags);
 }
 
 static unsigned int startup_ev96100_irq(unsigned int irq)

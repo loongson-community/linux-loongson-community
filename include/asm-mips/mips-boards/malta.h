@@ -17,11 +17,10 @@
  *
  * Defines of the Malta board specific address-MAP, registers, etc.
  */
-#ifndef __ASM_MIPS_MALTA_H
-#define __ASM_MIPS_MALTA_H
+#ifndef __ASM_MIPS_BOARDS_MALTA_H
+#define __ASM_MIPS_BOARDS_MALTA_H
 
 #include <asm/addrspace.h>
-#include <asm/gt64120/gt64120.h>
 #include <asm/io.h>
 
 /*
@@ -35,7 +34,7 @@
 static inline unsigned long get_gt_port_base(unsigned long reg)
 {
 	unsigned long addr;
-	GT_READ(reg, addr);
+	addr = GT_READ(reg);
 	return KSEG1ADDR((addr & 0xffff) << 21);
 }
 
@@ -71,4 +70,4 @@ static inline unsigned long get_msc_port_base(unsigned long reg)
 
 #define MALTA_JMPRS_REG		(KSEG1ADDR(0x1f000210))
 
-#endif /* __ASM_MIPS_MALTA_H */
+#endif /* __ASM_MIPS_BOARDS_MALTA_H */

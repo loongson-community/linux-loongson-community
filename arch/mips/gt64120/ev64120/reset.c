@@ -3,12 +3,12 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1997, 2002 Ralf Baechle
+ * Copyright (C) 1997 Ralf Baechle
  */
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <asm/io.h>
-#include <asm/cacheflush.h>
+#include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/system.h>

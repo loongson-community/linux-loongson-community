@@ -40,17 +40,13 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/pci.h>
-#include <linux/major.h>
-#include <linux/kdev_t.h>
-#include <linux/root_dev.h>
 
 #include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/mipsregs.h>
 #include <asm/irq.h>
 #include <asm/delay.h>
-#include <asm/gt64120.h>
-#include <asm/galileo-boards/ev96100.h>
+#include <asm/gt64120/gt64120.h>
 #include <asm/galileo-boards/ev96100int.h>
 
 
@@ -69,9 +65,9 @@ unsigned char mac_0_1[12];
 
 void __init ev96100_setup(void)
 {
-	unsigned long config = read_c0_config();
-	unsigned long status = read_c0_status();
-	unsigned long info = read_c0_info();
+	unsigned int config = read_c0_config();
+	unsigned int status = read_c0_status();
+	unsigned int info = read_c0_info();
 	u32 tmp;
 
 	char *argptr;
@@ -146,7 +142,7 @@ void __init ev96100_setup(void)
 	ioport_resource.end   = GT_PCI_IO_BASE + 0x01ffffff;
 
 #ifdef CONFIG_BLK_DEV_INITRD
-	ROOT_DEV = Root_RAM0;
+	ROOT_DEV = MKDEV(RAMDISK_MAJOR, 0);
 #endif
 
 
@@ -165,7 +161,7 @@ void __init ev96100_setup(void)
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	udelay(2);
-	tmp = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
+	tmp = GT_READ(GT_PCI0_CFGDATA_OFS);
 
 	tmp |= (PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
 		PCI_COMMAND_MASTER | PCI_COMMAND_SERR);
@@ -175,7 +171,7 @@ void __init ev96100_setup(void)
 		 ((PCI_COMMAND / 4) << GT_PCI0_CFGADDR_REGNUM_SHF)   |
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 	udelay(2);
-	*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS) = cpu_to_le32(tmp);
+	GT_WRITE(GT_PCI0_CFGDATA_OFS, tmp);
 
 	/* Setup address */
 	GT_WRITE(GT_PCI0_CFGADDR_OFS,
@@ -185,10 +181,10 @@ void __init ev96100_setup(void)
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	udelay(2);
-	tmp = le32_to_cpu(*(volatile u32 *)(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
+	tmp = GT_READ(GT_PCI0_CFGDATA_OFS);
 }
 
-unsigned short get_gt_devid(void)
+unsigned short get_gt_devid()
 {
 	u32 gt_devid;
 
@@ -200,7 +196,7 @@ unsigned short get_gt_devid(void)
 		 GT_PCI0_CFGADDR_CONFIGEN_BIT);
 
 	udelay(4);
-	gt_devid = le32_to_cpu(*(volatile u32 *)
-			(MIPS_GT_BASE+GT_PCI0_CFGDATA_OFS));
-	return (unsigned short)(gt_devid>>16);
+	gt_devid = GT_READ(GT_PCI0_CFGDATA_OFS);
+
+	return gt_devid >> 16;
 }

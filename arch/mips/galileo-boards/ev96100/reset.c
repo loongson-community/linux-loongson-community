@@ -34,14 +34,12 @@
  */
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <asm/cacheflush.h>
 #include <asm/io.h>
+#include <asm/pgtable.h>
 #include <asm/processor.h>
 #include <asm/reboot.h>
 #include <asm/system.h>
-
-#include <asm/reboot.h>
-#include <asm/galileo-boards/ev96100.h>
+#include <asm/gt64120/gt64120.h>
 
 static void mips_machine_restart(char *command);
 static void mips_machine_halt(void);
