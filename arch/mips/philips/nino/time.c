@@ -19,6 +19,7 @@
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
+#include <linux/time.h>
 #include <linux/timex.h>
 #include <linux/delay.h>
 #include <asm/tx3912.h>
@@ -27,6 +28,9 @@ extern volatile unsigned long wall_jiffies;
 extern rwlock_t xtime_lock;
 
 static struct timeval xbase;
+
+void (*board_time_init)(void) = NULL;
+void (*board_timer_setup)(struct irqaction *irq) = NULL;
 
 #define USECS_PER_JIFFY (1000000/HZ)
 
@@ -200,8 +204,6 @@ timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 static struct irqaction irq0 = {timer_interrupt, SA_INTERRUPT, 0,
  			 "timer", NULL, NULL};
 
-void (*board_time_init) (struct irqaction * irq);
-
 int __init time_init(void)
 {
     struct timeval starttime;
@@ -210,7 +212,8 @@ int __init time_init(void)
     starttime.tv_usec = 0;
     do_settimeofday(&starttime);
 
-    board_time_init(&irq0);
+    board_time_init();
+    board_timer_setup(&irq0);
 
     return 0;
 }

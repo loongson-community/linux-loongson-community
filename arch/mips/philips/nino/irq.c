@@ -1,28 +1,23 @@
 /*
- *  linux/arch/mips/philips/nino/irq.c
+ * irq.c: Fine grained interrupt handling for Nino
  *
- *  Copyright (C) 1992 Linus Torvalds
- *  Copyright (C) 1999 Harald Koerfgen
- *  Copyright (C) 2000 Pavel Machek (pavel@suse.cz)
- *  Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
- * 
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *  
- *  Generic interrupt handler for Philips Nino.
+ * Copyright (C) 2001 Steven J. Hill (sjhill@realitydiluted.com)
  */
-#include <linux/errno.h>
 #include <linux/init.h>
+
+#include <linux/errno.h>
 #include <linux/kernel_stat.h>
 #include <linux/signal.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/interrupt.h>
+#include <linux/irq.h>
 #include <linux/ioport.h>
 #include <linux/timex.h>
 #include <linux/slab.h>
 #include <linux/random.h>
+#include <linux/smp.h>
+#include <linux/smp_lock.h>
 
 #include <asm/bitops.h>
 #include <asm/bootinfo.h>
@@ -30,285 +25,265 @@
 #include <asm/irq.h>
 #include <asm/mipsregs.h>
 #include <asm/system.h>
+
+#include <asm/ptrace.h>
+#include <asm/processor.h>
 #include <asm/tx3912.h>
 
-unsigned long spurious_count = 0;
-
-irq_cpustat_t irq_stat [NR_CPUS];
-
-static inline void mask_irq(unsigned int irq_nr)
-{
-	switch (irq_nr) {
-	case 0:  /* Periodic Timer Interrupt */ 
-		IntClear5 = INT5_PERIODICINT;
-		IntClear6 = INT6_PERIODICINT;
-		IntEnable6 &= ~INT6_PERIODICINT;
-		break;
-
-	case 3:
-		/* Serial port receive interrupt */
-		break;
-
-	case 2:
-		/* Serial port transmit interrupt */
-		break;
-
-	default:
-		printk( "Attempt to mask unknown IRQ %d?\n", irq_nr );
-	}
-}
-
-static inline void unmask_irq(unsigned int irq_nr)
-{
-	switch (irq_nr) {
-	case 0:
-		IntEnable6 |= INT6_PERIODICINT;
-		break;
-
-	case 3:
-		/* Serial port receive interrupt */
-		break;
-
-	case 2:
-		/* Serial port transmit interrupt */
-		break;
-
-	default:
-		printk( "Attempt to unmask unknown IRQ %d?\n", irq_nr );
-	}
-}
-
-void disable_irq(unsigned int irq_nr)
-{
-    unsigned long flags;
-
-    save_and_cli(flags);
-    mask_irq(irq_nr);
-    restore_flags(flags);
-}
-
-void enable_irq(unsigned int irq_nr)
-{
-    unsigned long flags;
-
-    save_and_cli(flags);
-    unmask_irq(irq_nr);
-    restore_flags(flags);
-}
-
 /*
- * Pointers to the low-level handlers: first the general ones, then the
- * fast ones, then the bad ones.
+ * Linux has a controller-independent x86 interrupt architecture.
+ * every controller has a 'controller-template', that is used
+ * by the main code to do the right thing. Each driver-visible
+ * interrupt source is transparently wired to the apropriate
+ * controller. Thus drivers need not be aware of the
+ * interrupt-controller.
+ *
+ * Various interrupt controllers we handle: 8259 PIC, SMP IO-APIC,
+ * PIIX4's internal 8259 PIC and SGI's Visual Workstation Cobalt (IO-)APIC.
+ * (IO-APICs assumed to be messaging to Pentium local-APICs)
+ *
+ * the code is designed to be easily extended with new/different
+ * interrupt controllers, without having to do assembly magic.
  */
-extern void interrupt(void);
 
-static struct irqaction *irq_action[NR_IRQS] =
+extern asmlinkage void ninoIRQ(void);
+extern asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
+extern void init_generic_irq(void);
+
+static void enable_irq4(unsigned int irq)
 {
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	unsigned long flags;
+
+	save_and_cli(flags);
+	if(irq == 0) {
+		IntEnable5 |= INT5_PERIODICINT;
+		IntEnable6 |= INT6_PERIODICINT;
+	}
+	restore_flags(flags);
+}
+
+static unsigned int startup_irq4(unsigned int irq)
+{
+	enable_irq4(irq);
+
+	return 0;		/* Never anything pending  */
+}
+
+static void disable_irq4(unsigned int irq)
+{
+	unsigned long flags;
+
+	save_and_cli(flags);
+	if(irq == 0) {
+                IntEnable6 &= ~INT6_PERIODICINT;
+	        IntClear5 |= INT5_PERIODICINT;
+                IntClear6 |= INT6_PERIODICINT;
+	}
+	restore_flags(flags);
+}
+
+#define shutdown_irq4		disable_irq4
+#define mask_and_ack_irq4	disable_irq4
+
+static void end_irq4(unsigned int irq)
+{
+	if(!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		enable_irq4(irq);
+}
+
+static struct hw_interrupt_type irq4_type = {
+	"IRQ4",
+	startup_irq4,
+	shutdown_irq4,
+	enable_irq4,
+	disable_irq4,
+	mask_and_ack_irq4,
+	end_irq4,
+	NULL
 };
 
-int get_irq_list(char *buf)
+void irq4_dispatch(struct pt_regs *regs)
 {
-    int i, len = 0;
-    struct irqaction *action;
+	int irq = -1;
 
-    for (i = 0; i < NR_IRQS; i++) {
-	action = irq_action[i];
-	if (!action)
-	    continue;
-	len += sprintf(buf + len, "%2d: %8d %c %s",
-		       i, kstat.irqs[0][i],
-		       (action->flags & SA_INTERRUPT) ? '+' : ' ',
-		       action->name);
-	for (action = action->next; action; action = action->next) {
-	    len += sprintf(buf + len, ",%s %s",
-			   (action->flags & SA_INTERRUPT) ? " +" : "",
-			   action->name);
+	if(IntStatus6 & INT6_PERIODICINT) {
+		irq = 0;
+		goto done;
 	}
-	len += sprintf(buf + len, "\n");
-    }
-    return len;
-}
 
-atomic_t __mips_bh_counter;
-
-/*
- * do_IRQ handles IRQ's that have been installed without the
- * SA_INTERRUPT flag: it uses the full signal-handling return
- * and runs with other interrupts enabled. All relatively slow
- * IRQ's should use this format: notably the keyboard/timer
- * routines.
- */
-asmlinkage void do_IRQ(int irq, struct pt_regs *regs)
-{
-    struct irqaction *action;
-    int do_random, cpu;
-
-    if (irq == 20) {
-        if (IntStatus2 & 0xfffff00) {
-		if (IntStatus2 & 0x0f000000)
-		return do_IRQ(2, regs);
+	/* if irq == -1, then the interrupt has already been cleared */
+	if(irq == -1) {
+		printk("IRQ6 Status Register = 0x%08x\n", IntStatus6);
+		goto end;
 	}
-    }
 
-    cpu = smp_processor_id();
-    irq_enter(cpu, irq);
-    kstat.irqs[cpu][irq]++;
+done:
+	do_IRQ(irq, regs);
 
-    if (irq == 20) {
-            printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
-                   IntStatus1, IntStatus2, IntStatus3,
-                   IntStatus4, IntStatus5 );
-            printk("20 %08lx %08lx\n   %08lx %08lx\n   %08lx\n",
-                   IntEnable1, IntEnable2, IntEnable3,
-                   IntEnable4, IntEnable5 );
-
-    }
-
-    mask_irq(irq);
-    action = *(irq + irq_action);
-    if (action) {
-	if (!(action->flags & SA_INTERRUPT))
-	    __sti();
-	do_random = 0;
-	do {
-	    do_random |= action->flags;
-	    action->handler(irq, action->dev_id, regs);
-	    action = action->next;
-	} while (action);
-	if (do_random & SA_SAMPLE_RANDOM)
-	    add_interrupt_randomness(irq);
-	unmask_irq(irq);
-	__cli();
-    } else {
-            IntClear1 = ~0;
-            IntClear3 = ~0;
-	    IntClear4 = ~0;
-	    IntClear5 = ~0;
-	    unmask_irq(irq);
-    }
-    irq_exit(cpu, irq);
-
-    /* unmasking and bottom half handling is done magically for us. */
-}
-
-/*
- * Idea is to put all interrupts
- * in a single table and differenciate them just by number.
- */
-int setup_nino_irq(int irq, struct irqaction *new)
-{
-    int shared = 0;
-    struct irqaction *old, **p;
-    unsigned long flags;
-
-    p = irq_action + irq;
-    if ((old = *p) != NULL) {
-	/* Can't share interrupts unless both agree to */
-	if (!(old->flags & new->flags & SA_SHIRQ))
-	    return -EBUSY;
-
-	/* Can't share interrupts unless both are same type */
-	if ((old->flags ^ new->flags) & SA_INTERRUPT)
-	    return -EBUSY;
-
-	/* add new interrupt at end of irq queue */
-	do {
-	    p = &old->next;
-	    old = *p;
-	} while (old);
-	shared = 1;
-    }
-    if (new->flags & SA_SAMPLE_RANDOM)
-	rand_initialize_irq(irq);
-
-    save_and_cli(flags);
-    *p = new;
-
-    if (!shared) {
-	unmask_irq(irq);
-    }
-    restore_flags(flags);
-    return 0;
-}
-
-int request_irq(unsigned int irq,
-		void (*handler) (int, void *, struct pt_regs *),
-		unsigned long irqflags,
-		const char *devname,
-		void *dev_id)
-{
-    int retval;
-    struct irqaction *action;
-
-    if (irq >= NR_IRQS)
-	return -EINVAL;
-    if (!handler)
-	return -EINVAL;
-
-    action = (struct irqaction *) kmalloc(sizeof(struct irqaction), GFP_KERNEL);
-    if (!action)
-	return -ENOMEM;
-
-    action->handler = handler;
-    action->flags = irqflags;
-    action->mask = 0;
-    action->name = devname;
-    action->next = NULL;
-    action->dev_id = dev_id;
-
-    retval = setup_nino_irq(irq, action);
-
-    if (retval)
-	kfree(action);
-    return retval;
-}
-
-void free_irq(unsigned int irq, void *dev_id)
-{
-    struct irqaction *action, **p;
-    unsigned long flags;
-
-    if (irq >= NR_IRQS) {
-	printk(KERN_CRIT __FUNCTION__ ": trying to free IRQ%d\n", irq);
+end:	
 	return;
-    }
-    for (p = irq + irq_action; (action = *p) != NULL; p = &action->next) {
-	if (action->dev_id != dev_id)
-	    continue;
+}
 
-	/* Found it - now free it */
+static void enable_irq2(unsigned int irq)
+{
+	unsigned long flags;
+
 	save_and_cli(flags);
-	*p = action->next;
-	if (!irq[irq_action])
-	    mask_irq(irq);
+	if(irq == 2 || irq == 3) {
+		IntEnable1 = 0x00000000;
+		IntEnable2 = 0xfffff000;
+		IntEnable3 = 0x00000000;
+		IntEnable4 = 0x00000000;
+		IntClear1 = 0xffffffff;
+		IntClear2 = 0xffffffff;
+		IntClear3 = 0xffffffff;
+		IntClear4 = 0xffffffff;
+		IntClear5 = 0xffffffff;
+	}
 	restore_flags(flags);
-	kfree(action);
+}
+
+static unsigned int startup_irq2(unsigned int irq)
+{
+	enable_irq2(irq);
+
+	return 0;		/* Never anything pending  */
+}
+
+static void disable_irq2(unsigned int irq)
+{
+	unsigned long flags;
+
+	save_and_cli(flags);
+	IntEnable1 = 0x00000000;
+	IntEnable2 = 0x00000000;
+	IntEnable3 = 0x00000000;
+	IntEnable4 = 0x00000000;
+	IntClear1 = 0xffffffff;
+	IntClear2 = 0xffffffff;
+	IntClear3 = 0xffffffff;
+	IntClear4 = 0xffffffff;
+	IntClear5 = 0xffffffff;
+	restore_flags(flags);
+}
+
+#define shutdown_irq2		disable_irq2
+#define mask_and_ack_irq2	disable_irq2
+
+static void end_irq2(unsigned int irq)
+{
+	if(!(irq_desc[irq].status & (IRQ_DISABLED|IRQ_INPROGRESS)))
+		enable_irq2(irq);
+}
+
+static struct hw_interrupt_type irq2_type = {
+	"IRQ2",
+	startup_irq2,
+	shutdown_irq2,
+	enable_irq2,
+	disable_irq2,
+	mask_and_ack_irq2,
+	end_irq2,
+	NULL
+};
+
+void irq2_dispatch(struct pt_regs *regs)
+{
+	int irq = -1;
+
+	if(IntStatus2 & 0xfffff000) {
+		irq = 2;
+		goto done;
+	}
+	if(IntStatus2 & 0xfffff000) {
+		irq = 3;
+		goto done;
+	}
+
+	/* if irq == -1, then the interrupt has already been cleared */
+	if (irq == -1) {
+		IntClear1 = 0xffffffff;
+		IntClear3 = 0xffffffff;
+		IntClear4 = 0xffffffff;
+		IntClear5 = 0xffffffff;
+		goto end;
+	}
+
+done:
+	do_IRQ(irq, regs);
+
+end:	
 	return;
-    }
-    printk(KERN_CRIT __FUNCTION__ ": trying to free free IRQ%d\n", irq);
 }
 
-unsigned long probe_irq_on(void)
+void irq_bad(struct pt_regs *regs)
 {
-    /* TODO */
-    return 0;
+	/* This should never happen */
+	printk("Invalid interrupt, spinning...\n");
+	printk(" CAUSE register = 0x%08lx\n", regs->cp0_cause);
+	printk("STATUS register = 0x%08lx\n", regs->cp0_status);
+	printk("   EPC register = 0x%08lx\n", regs->cp0_epc);
+	while(1);
 }
 
-int probe_irq_off(unsigned long irqs)
+void __init nino_irq_setup(void)
 {
-    /* TODO */
-    return 0;
+	unsigned int i;
+
+	/* Disable interrupts */
+	IntEnable1 = 0x00000000;
+	IntEnable2 = 0x00000000;
+	IntEnable3 = 0x00000000;
+	IntEnable4 = 0x00000000;
+	IntEnable5 = 0x00000000;
+	IntEnable6 = 0x00000000;
+
+	/* Clear interrupts */
+	IntClear1 = 0xffffffff;
+	IntClear2 = 0xffffffff;
+	IntClear3 = 0xffffffff;
+	IntClear4 = 0xffffffff;
+	IntClear5 = 0xffffffff;
+
+	/* Change location of exception vector table */
+	change_cp0_status(ST0_BEV, 0);
+
+	/* Initialize IRQ vector table */
+	init_generic_irq();
+
+	/* Initialize hardware IRQ structure */
+	for (i = 0; i < 16; i++) {
+		hw_irq_controller *handler = NULL;
+		if (i == 0)
+			handler		= &irq4_type;
+		else if (i > 1 && i < 4)
+			handler		= &irq2_type;
+		else
+			handler		= NULL;
+
+		irq_desc[i].status	= IRQ_DISABLED;
+		irq_desc[i].action	= 0;
+		irq_desc[i].depth	= 1;
+		irq_desc[i].handler	= handler;
+	}
+
+	/* Set up the external interrupt exception vector */
+	set_except_vector(0, ninoIRQ);
 }
+
+void (*irq_setup)(void);
 
 void __init init_IRQ(void)
 {
-    irq_setup();
+#ifdef CONFIG_REMOTE_DEBUG
+	extern void breakpoint(void);
+	extern void set_debug_traps(void);
+
+	printk("Wait for gdb client connection ...\n");
+	set_debug_traps();
+	breakpoint();
+#endif
+
+	/* Invoke board-specific irq setup */
+	irq_setup();
 }

@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/pm.h>
+#include <linux/serial.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/delay.h>
@@ -903,18 +904,17 @@ void __init tx3912_rs_init(void)
 
 	rc = rs_init_portstructs ();
 	rs_init_drivers ();
-	if (request_irq(2, rs_tx_interrupt_uarta, SA_SHIRQ | SA_INTERRUPT,
+	if (request_irq(2, rs_tx_interrupt_uarta, SA_INTERRUPT,
 			"serial", &rs_ports[0])) {
 		printk(KERN_ERR "rs: Cannot allocate irq for UARTA.\n");
 		rc = 0;
 	}
-	if (request_irq(3, rs_rx_interrupt_uarta, SA_SHIRQ | SA_INTERRUPT,
+	if (request_irq(3, rs_rx_interrupt_uarta, SA_INTERRUPT,
 			"serial", &rs_ports[0])) {
 		printk(KERN_ERR "rs: Cannot allocate irq for UARTA.\n");
 		rc = 0;
 	}
 
-	IntEnable6 |= INT6_UARTARXINT; 
 	rs_enable_rx_interrupts(&rs_ports[0]); 
 
 #ifndef CONFIG_SERIAL_TX3912_CONSOLE
