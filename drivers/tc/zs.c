@@ -403,6 +403,7 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 		if (!tty && (!info->hook || !info->hook->rx_char))
 			continue;
 
+		flag = TTY_NORMAL;
 		if (info->tty_break) {
 			info->tty_break = 0;
 			flag = TTY_BREAK;
@@ -418,9 +419,8 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 				flag = TTY_FRAME;
 			} else if (stat & PAR_ERR) {
 				flag = TTY_PARITY;
-			} else
-				flag = 0;
-			if (flag)
+			}
+			if (flag != TTY_NORMAL)
 				/* reset the error indication */
 				write_zsreg(info->zs_channel, R0, ERR_RES);
 		}
@@ -445,20 +445,7 @@ static _INLINE_ void receive_chars(struct dec_serial *info,
 			return;
   		}
 
-		if (tty->flip.count >= TTY_FLIPBUF_SIZE) {
-			static int flip_buf_ovf;
-			++flip_buf_ovf;
-			continue;
-		}
-		tty->flip.count++;
-		{
-			static int flip_max_cnt;
-			if (flip_max_cnt < tty->flip.count)
-				flip_max_cnt = tty->flip.count;
-		}
-
-		*tty->flip.flag_buf_ptr++ = flag;
-		*tty->flip.char_buf_ptr++ = ch;
+		tty_insert_flip_char(tty, ch, flag);
 	}
 	if (tty)
 		tty_flip_buffer_push(tty);
