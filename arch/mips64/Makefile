@@ -177,6 +177,17 @@ LOADADDR	:= 0x80002000
 endif
 
 #
+# Sibyte SB1250 SOC
+#
+ifdef CONFIG_SIBYTE_SB1250
+# This is a LIB so that it links at the end, and initcalls are later
+# the sequence; but it is built as an object so that modules don't get
+# removed (as happens, even if they have __initcall/module_init)
+LIBS		+= arch/mips/sibyte/sb1250/sb1250.o
+SUBDIRS		+= arch/mips/sibyte/sb1250
+endif
+
+#
 # Sibyte SWARM board
 #
 ifdef CONFIG_SIBYTE_SWARM
