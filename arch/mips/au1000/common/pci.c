@@ -68,15 +68,12 @@ static unsigned long virt_io_addr;
 static int __init au1x_pci_setup(void)
 {
 #if defined(CONFIG_SOC_AU1500) || defined(CONFIG_SOC_AU1550)
-	int i;
-	struct pci_dev *dev;
-	
 	virt_io_addr = (unsigned long)ioremap(Au1500_PCI_IO_START, 
 			Au1500_PCI_IO_END - Au1500_PCI_IO_START + 1);
 
 	if (!virt_io_addr) {
 		printk(KERN_ERR "Unable to ioremap pci space\n");
-		return;
+		return 1;
 	}
 
 #ifdef CONFIG_DMA_NONCOHERENT

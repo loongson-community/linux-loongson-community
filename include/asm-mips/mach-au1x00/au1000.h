@@ -1328,12 +1328,12 @@ extern au1xxx_irq_map_t au1xxx_irq_map[];
  * addresses.  For PCI IO, it's simpler because we get to do the ioremap
  * ourselves and then adjust the device's resources.
  */
-#define Au1500_EXT_CFG            0x600000000
-#define Au1500_EXT_CFG_TYPE1      0x680000000
-#define Au1500_PCI_IO_START       0x500000000
-#define Au1500_PCI_IO_END         0x5000FFFFF
-#define Au1500_PCI_MEM_START      0x440000000
-#define Au1500_PCI_MEM_END        0x44FFFFFFF
+#define Au1500_EXT_CFG            0x600000000ULL
+#define Au1500_EXT_CFG_TYPE1      0x680000000ULL
+#define Au1500_PCI_IO_START       0x500000000ULL
+#define Au1500_PCI_IO_END         0x5000FFFFFULL
+#define Au1500_PCI_MEM_START      0x440000000ULL
+#define Au1500_PCI_MEM_END        0x44FFFFFFFULL
 
 #define PCI_IO_START    (Au1500_PCI_IO_START + 0x1000)
 #define PCI_IO_END      (Au1500_PCI_IO_END)
