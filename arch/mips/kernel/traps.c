@@ -956,17 +956,6 @@ void __init trap_init(void)
 		if (mips_cpu.options & MIPS_CPU_VCE) {
 			memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000,
 			       0x80);
-		} else {
-			memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic,
-			       0x80);
-		}
-
-		if (mips_cpu.options & MIPS_CPU_FPU) {
-		        save_fp_context = _save_fp_context;
-			restore_fp_context = _restore_fp_context;
-		} else {
-		        save_fp_context = fpu_emulator_save_context;
-			restore_fp_context = fpu_emulator_restore_context;
 		}
 	} else switch (mips_cpu.cputype) {
 	case CPU_SB1:
@@ -982,18 +971,12 @@ void __init trap_init(void)
 		memcpy((void *)(KSEG1 + 0x100), &except_vec2_sb1, 0x80);
 #endif
 
-		save_fp_context = _save_fp_context;
-		restore_fp_context = _restore_fp_context;
-
 		/* Enable timer interrupt and scd mapped interrupt */
 		clear_cp0_status(0xf000);
 		set_cp0_status(0xc00);
 		break;
 	case CPU_R6000:
 	case CPU_R6000A:
-	        save_fp_context = _save_fp_context;
-		restore_fp_context = _restore_fp_context;
-
 		/*
 		 * The R6000 is the only R-series CPU that features a machine
 		 * check exception (similar to the R4000 cache error) and
@@ -1016,8 +999,6 @@ void __init trap_init(void)
 	case CPU_TX3922:
 	case CPU_TX3927:
 	case CPU_TX39XX:
-	        save_fp_context = _save_fp_context;
-		restore_fp_context = _restore_fp_context;
 		memcpy((void *)(KSEG0 + 0x80), &except_vec3_generic, 0x80);
 		break;
 
@@ -1025,12 +1006,16 @@ void __init trap_init(void)
 	default:
 		panic("Unknown CPU type");
 	}
-	if (!(mips_cpu.options & MIPS_CPU_FPU)) {
+
+	flush_icache_range(KSEG0, KSEG0 + 0x400);
+
+	if (mips_cpu.options & MIPS_CPU_FPU) {
+	        save_fp_context = _save_fp_context;
+		restore_fp_context = _restore_fp_context;
+	} else {
 		save_fp_context = fpu_emulator_save_context;
 		restore_fp_context = fpu_emulator_restore_context;
 	}
-
-	flush_icache_range(KSEG0, KSEG0 + 0x400);
 
 	if (mips_cpu.isa_level == MIPS_CPU_ISA_IV)
 		set_cp0_status(ST0_XX);
