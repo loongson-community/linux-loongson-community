@@ -16,6 +16,10 @@
 
 #include <asm/io.h>
 
+#ifndef UNCAC_BASE	/* Hack ... */
+#define UNCAC_BASE	0x9000000000000000UL
+#endif
+
 void *pci_alloc_consistent(struct pci_dev *hwdev, size_t size,
 			   dma_addr_t * dma_handle)
 {
