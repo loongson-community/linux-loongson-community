@@ -159,16 +159,25 @@ do_notify_resume_user (sigset_t *oldset, struct sigscratch *scr, long in_syscall
 		ia64_do_signal(oldset, scr, in_syscall);
 }
 
+static int pal_halt = 1;
+static int __init nohalt_setup(char * str)
+{
+	pal_halt = 0;
+	return 1;
+}
+__setup("nohalt", nohalt_setup);
+
 /*
  * We use this if we don't have any better idle routine..
  */
 void
 default_idle (void)
 {
-#ifdef CONFIG_IA64_PAL_IDLE
-	if (!need_resched())
-		safe_halt();
-#endif
+	unsigned long pmu_active = ia64_getreg(_IA64_REG_PSR) & (IA64_PSR_PP | IA64_PSR_UP);
+
+	while (!need_resched())
+		if (pal_halt && !pmu_active)
+			safe_halt();
 }
 
 void __attribute__((noreturn))
@@ -574,8 +583,8 @@ ia64_set_personality (struct elf64_hdr *elf_ex, int ibcs2_interpreter)
 pid_t
 kernel_thread (int (*fn)(void *), void *arg, unsigned long flags)
 {
-	extern void ia64_invoke_kernel_thread_helper (void);
-	unsigned long *helper_fptr = (unsigned long *) &ia64_invoke_kernel_thread_helper;
+	extern void start_kernel_thread (void);
+	unsigned long *helper_fptr = (unsigned long *) &start_kernel_thread;
 	struct {
 		struct switch_stack sw;
 		struct pt_regs pt;

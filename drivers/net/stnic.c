@@ -20,7 +20,7 @@
 
 #include <asm/system.h>
 #include <asm/io.h>
-#include <asm/hitachi_se.h>
+#include <asm/se/se.h>
 #include <asm/machvec.h>
 #ifdef CONFIG_SH_STANDARD_BIOS 
 #include <asm/sh_bios.h>
@@ -124,6 +124,9 @@ static int __init stnic_probe(void)
   dev->irq = IRQ_STNIC;
   dev->open = &stnic_open;
   dev->stop = &stnic_close;
+#ifdef CONFIG_NET_POLL_CONTROLLER
+  dev->poll_controller = ei_poll;
+#endif
 
   /* Snarf the interrupt now.  There's no point in waiting since we cannot
      share and the board will usually be enabled. */

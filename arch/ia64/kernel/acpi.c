@@ -62,8 +62,6 @@ void (*pm_power_off) (void);
 unsigned char acpi_kbd_controller_present = 1;
 unsigned char acpi_legacy_devices;
 
-int acpi_disabled;	/* XXX this shouldn't be needed---we can't boot without ACPI! */
-
 const char *
 acpi_get_sysname (void)
 {
@@ -626,6 +624,7 @@ acpi_boot_init (void)
 	return 0;
 }
 
+/* deprecated in favor of acpi_gsi_to_irq */
 int
 acpi_irq_to_vector (u32 gsi)
 {
@@ -633,6 +632,23 @@ acpi_irq_to_vector (u32 gsi)
 		return isa_irq_to_vector(gsi);
 
 	return gsi_to_vector(gsi);
+}
+
+int
+acpi_gsi_to_irq (u32 gsi, unsigned int *irq)
+{
+	int vector;
+
+	if (has_8259 && gsi < 16)
+		*irq = isa_irq_to_vector(gsi);
+	else {
+		vector = gsi_to_vector(gsi);
+		if (vector == -1)
+			return -1;
+
+		*irq = vector;
+	}
+	return 0;
 }
 
 int

@@ -31,6 +31,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/init.h>
 #include <linux/config.h>
 #include <linux/cpufreq.h>
@@ -50,8 +51,17 @@
 #include <asm/mach-au1x00/au1000.h>
 #include "au1000_generic.h"
 
-#ifdef PCMCIA_DEBUG
+#ifdef DEBUG
 static int pc_debug;
+
+module_param(pc_debug, int, 0644);
+
+#define debug(lvl,fmt) do {			\
+	if (pc_debug > (lvl))			\
+		printk(KERN_DEBUG fmt);		\
+} while (0)
+#else
+#define debug(lvl,fmt) do { } while (0)
 #endif
 
 MODULE_LICENSE("GPL");
@@ -147,7 +157,7 @@ static int au1x00_pcmcia_sock_init(struct pcmcia_socket *sock)
 {
 	struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-	DEBUG(2, "%s(): initializing socket %u\n", __FUNCTION__, skt->nr);
+	debug(2, "%s(): initializing socket %u\n", __FUNCTION__, skt->nr);
 
 	skt->ops->socket_init(skt);
 	return 0;
@@ -166,7 +176,7 @@ static int au1x00_pcmcia_suspend(struct pcmcia_socket *sock)
 	struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 	int ret;
 
-	DEBUG(2, "%s(): suspending socket %u\n", __FUNCTION__, skt->nr);
+	debug(2, "%s(): suspending socket %u\n", __FUNCTION__, skt->nr);
 
 	ret = au1x00_pcmcia_config_skt(skt, &dead_socket);
 	if (ret == 0)
@@ -183,7 +193,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 {
 	unsigned int events;
 
-	DEBUG(4, "%s(): entering PCMCIA monitoring thread\n", __FUNCTION__);
+	debug(4, "%s(): entering PCMCIA monitoring thread\n", __FUNCTION__);
 
 	do {
 		unsigned int status;
@@ -196,7 +206,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 		skt->status = status;
 		spin_unlock_irqrestore(&status_lock, flags);
 
-		DEBUG(2, "events: %s%s%s%s%s%s\n",
+		debug(2, "events: %s%s%s%s%s%s\n",
 			events == 0         ? "<NONE>"   : "",
 			events & SS_DETECT  ? "DETECT "  : "",
 			events & SS_READY   ? "READY "   : "",
@@ -216,7 +226,7 @@ static void au1x00_check_status(struct au1000_pcmcia_socket *skt)
 static void au1x00_pcmcia_poll_event(unsigned long dummy)
 {
 	struct au1000_pcmcia_socket *skt = (struct au1000_pcmcia_socket *)dummy;
-	DEBUG(4, "%s(): polling for events\n", __FUNCTION__);
+	debug(4, "%s(): polling for events\n", __FUNCTION__);
 
 	mod_timer(&skt->poll_timer, jiffies + AU1000_PCMCIA_POLL_PERIOD);
 
@@ -263,7 +273,7 @@ au1x00_pcmcia_get_socket(struct pcmcia_socket *sock, socket_state_t *state)
 {
   struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-  DEBUG(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
+  debug(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
   *state = skt->cs_state;
   return 0;
 }
@@ -282,9 +292,9 @@ au1x00_pcmcia_set_socket(struct pcmcia_socket *sock, socket_state_t *state)
 {
   struct au1000_pcmcia_socket *skt = to_au1000_socket(sock);
 
-  DEBUG(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
+  debug(2, "%s() for sock %u\n", __FUNCTION__, skt->nr);
 
-  DEBUG(3, "\tmask:  %s%s%s%s%s%s\n\tflags: %s%s%s%s%s%s\n",
+  debug(3, "\tmask:  %s%s%s%s%s%s\n\tflags: %s%s%s%s%s%s\n",
 	(state->csc_mask==0)?"<NONE>":"",
 	(state->csc_mask&SS_DETECT)?"DETECT ":"",
 	(state->csc_mask&SS_READY)?"READY ":"",
@@ -297,7 +307,7 @@ au1x00_pcmcia_set_socket(struct pcmcia_socket *sock, socket_state_t *state)
 	(state->flags&SS_RESET)?"RESET ":"",
 	(state->flags&SS_SPKR_ENA)?"SPKR_ENA ":"",
 	(state->flags&SS_OUTPUT_ENA)?"OUTPUT_ENA ":"");
-  DEBUG(3, "\tVcc %d  Vpp %d  irq %d\n",
+  debug(3, "\tVcc %d  Vpp %d  irq %d\n",
 	state->Vcc, state->Vpp, state->io_irq);
 
   return au1x00_pcmcia_config_skt(skt, state);
@@ -355,7 +365,7 @@ au1x00_pcmcia_set_mem_map(struct pcmcia_socket *sock, struct pccard_mem_map *map
 	}
 
 	map->sys_stop=map->sys_start+MAP_SIZE;
-	DEBUG(4, "set_mem_map %d start %Lx stop %Lx card_start %x\n", 
+	debug(4, "set_mem_map %d start %Lx stop %Lx card_start %x\n", 
 			map->map, map->sys_start, map->sys_stop, 
 			map->card_start);
 	return 0;

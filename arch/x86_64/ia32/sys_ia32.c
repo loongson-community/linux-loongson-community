@@ -40,9 +40,6 @@
 #include <linux/slab.h>
 #include <linux/uio.h>
 #include <linux/nfs_fs.h>
-#include <linux/smb_fs.h>
-#include <linux/smb_mount.h>
-#include <linux/ncp_fs.h>
 #include <linux/quota.h>
 #include <linux/module.h>
 #include <linux/sunrpc/svc.h>
@@ -63,6 +60,7 @@
 #include <linux/vfs.h>
 #include <linux/ptrace.h>
 #include <linux/highuid.h>
+#include <linux/vmalloc.h>
 #include <asm/mman.h>
 #include <asm/types.h>
 #include <asm/uaccess.h>
@@ -512,7 +510,7 @@ filldir32 (void *__buf, const char *name, int namlen, loff_t offset, ino_t ino,
 {
 	struct linux32_dirent * dirent;
 	struct getdents32_callback * buf = (struct getdents32_callback *) __buf;
-	int reclen = ROUND_UP(NAME_OFFSET(dirent) + namlen + 1, 4);
+	int reclen = ROUND_UP(NAME_OFFSET(dirent) + namlen + 2, 4);
 
 	buf->error = -EINVAL;	/* only used if we fail.. */
 	if (reclen > buf->count)
@@ -526,6 +524,7 @@ filldir32 (void *__buf, const char *name, int namlen, loff_t offset, ino_t ino,
 	put_user(reclen, &dirent->d_reclen);
 	copy_to_user(dirent->d_name, name, namlen);
 	put_user(0, dirent->d_name + namlen);
+	put_user(d_type, (char *)dirent + reclen - 1); 
 	dirent = ((void *)dirent) + reclen;
 	buf->current_dir = dirent;
 	buf->count -= reclen;
@@ -872,39 +871,6 @@ asmlinkage long
 sys32_sysfs(int option, u32 arg1, u32 arg2)
 {
 	return sys_sysfs(option, arg1, arg2);
-}
-
-static char *badfs[] = {
-	"smbfs", "ncpfs", NULL
-}; 	
-
-static int checktype(char *user_type) 
-{ 
-	int err = 0; 
-	char **s,*kernel_type = getname(user_type); 
-	if (!kernel_type || IS_ERR(kernel_type)) 
-		return -EFAULT; 
-	for (s = badfs; *s; ++s) 
-		if (!strcmp(kernel_type, *s)) { 
-			printk(KERN_ERR "mount32: unsupported fs `%s' -- use 64bit mount\n", *s); 
-			err = -EINVAL; 
-			break;
-		} 	
-	putname(user_type); 
-	return err;
-} 
-
-asmlinkage long
-sys32_mount(char *dev_name, char *dir_name, char *type,
-	    unsigned long new_flags, u32 data)
-{
-	int err;
-	if(!capable(CAP_SYS_ADMIN))
-		return -EPERM;
-	err = checktype(type);
-	if (err)
-		return err;
-	return sys_mount(dev_name, dir_name, type, new_flags, (void *)AA(data));
 }
 
 struct sysinfo32 {
@@ -1876,18 +1842,9 @@ long sys32_quotactl(void)
 
 cond_syscall(sys32_ipc)
 
-struct exec_domain ia32_exec_domain = { 
-	.name = "linux/x86",
-	.pers_low = PER_LINUX32,
-	.pers_high = PER_LINUX32,
-};      
-
 static int __init ia32_init (void)
 {
 	printk("IA32 emulation $Id: sys_ia32.c,v 1.32 2002/03/24 13:02:28 ak Exp $\n");  
-	ia32_exec_domain.signal_map = default_exec_domain.signal_map;
-	ia32_exec_domain.signal_invmap = default_exec_domain.signal_invmap;
-	register_exec_domain(&ia32_exec_domain);
 	return 0;
 }
 

@@ -173,7 +173,8 @@ mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	 * a MAP_NORESERVE private mapping to writable will now reserve.
 	 */
 	if (newflags & VM_WRITE) {
-		if (!(vma->vm_flags & (VM_ACCOUNT|VM_WRITE|VM_SHARED))) {
+		if (!(vma->vm_flags & (VM_ACCOUNT|VM_WRITE|VM_SHARED))
+				&& VM_MAYACCT(vma)) {
 			charged = (end - start) >> PAGE_SHIFT;
 			if (security_vm_enough_memory(charged))
 				return -ENOMEM;
@@ -237,7 +238,7 @@ sys_mprotect(unsigned long start, size_t len, unsigned long prot)
 	len = PAGE_ALIGN(len);
 	end = start + len;
 	if (end < start)
-		return -EINVAL;
+		return -ENOMEM;
 	if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC | PROT_SEM))
 		return -EINVAL;
 	if (end == start)

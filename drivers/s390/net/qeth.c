@@ -755,7 +755,7 @@ qeth_get_cards_problem(struct ccw_device *cdev, unsigned char *buffer,
 	int problem = 0;
 	struct qeth_card *card;
 
-	card = cdev->dev.driver_data;
+	card = CARD_FROM_CDEV(cdev);
 
 	if (atomic_read(&card->shutdown_phase))
 		return 0;
@@ -5930,7 +5930,7 @@ __qeth_try_to_flush_packets(struct qeth_card *card, int last_pci_hit,
 			LOW_WATERMARK_PACK);
 	/* first_element is the last buffer that we got back from hydra */
 	if (!switch_state && !last_pci_hit)
-		return;;
+		return;
 	QETH_DBF_CARD3(0, trace, "stchcw", card);
 	if (atomic_swap(&card->outbound_ringbuffer_lock[queue], QETH_LOCK_FLUSH)
 	    == QETH_LOCK_UNLOCKED) {
@@ -6105,7 +6105,7 @@ qeth_interrupt_handler_read(struct ccw_device *cdev, unsigned long intparm,
 	sprintf(dbf_text, "%4x", rqparam);
 	QETH_DBF_TEXT4(0, trace, dbf_text);
 
-	card = cdev->dev.driver_data;
+	card = CARD_FROM_CDEV(cdev);
 	if (!card)
 		return;
 
@@ -6231,7 +6231,7 @@ qeth_interrupt_handler_write(struct ccw_device *cdev, unsigned long intparm,
 	sprintf(dbf_text, "%4x", rqparam);
 	QETH_DBF_TEXT4(0, trace, dbf_text);
 
-	card = cdev->dev.driver_data;
+	card = CARD_FROM_CDEV(cdev);
 	if (!card)
 		return;
 
@@ -6343,7 +6343,7 @@ qeth_interrupt_handler_qdio(struct ccw_device *cdev, unsigned long intparm,
 	sprintf(dbf_text, "%4x", rqparam);
 	QETH_DBF_TEXT4(0, trace, dbf_text);
 
-	card = cdev->dev.driver_data;
+	card = CARD_FROM_CDEV(cdev);
 	if (!card)
 		return;
 
@@ -6404,6 +6404,8 @@ qeth_register_netdev(struct qeth_card *card)
 
 	QETH_DBF_CARD3(0, trace, "rgnd", card);
 
+	/* sysfs magic */
+	SET_NETDEV_DEV(card->dev, &card->gdev->dev);
 	result = register_netdev(card->dev);
 
 	return result;
@@ -6681,10 +6683,6 @@ qeth_remove_card(struct qeth_card *card, int method)
 						   hard_start_xmit */
 
 	if (atomic_read(&card->is_registered)) {
-		/* Remove sysfs symlinks. */
-		sysfs_remove_link(&card->gdev->dev.kobj, card->dev_name);
-		sysfs_remove_link(&card->dev->class_dev.kobj,
-				  CARD_BUS_ID(card));
 		QETH_DBF_TEXT2(0, trace, "unregdev");
 		qeth_unregister_netdev(card);
 		qeth_wait_nonbusy(QETH_REMOVE_WAIT_TIME);
@@ -6885,7 +6883,7 @@ qeth_idx_activate_read(struct qeth_card *card)
 
 	card->portname_required =
 	    ((!QETH_IDX_NO_PORTNAME_REQUIRED(card->dma_stuff->recbuf)) &&
-	     (card->type == QETH_CARD_TYPE_OSAE));;
+	     (card->type == QETH_CARD_TYPE_OSAE));
 
 	/*
 	 * however, as the portname indication of OSA is wrong, we have to
@@ -10622,13 +10620,10 @@ qeth_probe_device(struct ccwgroup_device *gdev)
 	card->gdev = gdev;
 
 	gdev->cdev[0]->handler = qeth_interrupt_handler_read;
-	gdev->cdev[0]->dev.driver_data = card;
 
 	gdev->cdev[1]->handler = qeth_interrupt_handler_write;
-	gdev->cdev[1]->dev.driver_data = card;
 
 	gdev->cdev[2]->handler = qeth_interrupt_handler_qdio;
-	gdev->cdev[2]->dev.driver_data = card;
 
 	ret = __qeth_create_attributes(&gdev->dev);
 	if (ret != 0)
@@ -10694,17 +10689,6 @@ qeth_activate(struct qeth_card *card)
 	if (qeth_init_netdev(card))
 		goto out_remove;
 
-	if (sysfs_create_link(&card->gdev->dev.kobj, &card->dev->class_dev.kobj,
-			      card->dev_name)) {
-		qeth_unregister_netdev(card);
-		goto out_remove;
-	}
-	if (sysfs_create_link(&card->dev->class_dev.kobj, &card->gdev->dev.kobj,
-			      CARD_BUS_ID(card))) {
-		sysfs_remove_link(&card->gdev->dev.kobj, card->dev_name);
-		qeth_unregister_netdev(card);
-		goto out_remove;
-	}
 	return 0;		/* success */
 
 out_remove:

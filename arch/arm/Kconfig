@@ -75,28 +75,6 @@ choice
 config ARCH_ADIFCC
 	bool "ADIFCC-based"
 
-config ARCH_ANAKIN
-	bool "Anakin"
-	---help---
-	  The Anakin is a StrongArm based SA110 - 2 DIN Vehicle Telematics Platform.
-	  64MB SDRAM - 4 Mb Flash - Compact Flash Interface - 1 MB VRAM
-
-	  On board peripherals:
-	  * Front display: 400x234 16 bit TFT touchscreen
-	  * External independent second screen interface
-	  * CAN controller SJA1000
-	  * USB host controller
-	  * 6 channel video codec with hardware overlay
-	  * Smartcard reader
-	  * IrDa
-
-	  Modules interfaced over the Multi Media Extension slots:
-	  * A communication card
-	  Wavecom GPRS modem
-	  uBlock GPS
-	  Bosch DAB module
-	  * An audio card ( 4 * 40W, AC97 Codec, I2S)
-
 config ARCH_CLPS7500
 	bool "Cirrus-CL-PS7500FE"
 
@@ -351,7 +329,7 @@ config CPU_FREQ_INTEGRATOR
 	help
 	  This enables the CPUfreq driver for ARM Integrator CPUs.
 
-	  For details, take a look at linux/Documentation/cpufreq.
+	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say Y.
 
@@ -623,11 +601,7 @@ source "arch/arm/oprofile/Kconfig"
 
 source "drivers/video/Kconfig"
 
-if ARCH_ACORN || ARCH_CLPS7500 || ARCH_TBOX || ARCH_SHARK || ARCH_SA1100 || PCI
-
 source "sound/Kconfig"
-
-endif
 
 source "drivers/misc/Kconfig"
 
@@ -656,6 +630,15 @@ config DEBUG_USER
 	  print a brief message explaining what the problem was. This is
 	  sometimes helpful for debugging but serves no purpose on a
 	  production system. Most people should say N here.
+
+	  In addition, you need to pass user_debug=N on the kernel command
+	  line to enable this feature.  N consists of the sum of:
+
+	      1 - undefined instruction events
+	      2 - system calls
+	      4 - invalid data aborts
+	      8 - SIGSEGV faults
+	     16 - SIGBUS faults
 
 config DEBUG_INFO
 	bool "Include GDB debugging information in kernel binary"

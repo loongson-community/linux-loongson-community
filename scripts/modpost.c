@@ -11,6 +11,7 @@
  * Usage: modpost vmlinux module1.o module2.o ...
  */
 
+#include <ctype.h>
 #include "modpost.h"
 
 /* Are we using CONFIG_MODVERSIONS? */
@@ -44,8 +45,6 @@ warn(const char *fmt, ...)
 	va_end(arglist);
 }
 
-#define NOFAIL(ptr)	do_nofail((ptr), __FILE__, __LINE__, #ptr)
-
 void *do_nofail(void *ptr, const char *file, int line, const char *expr)
 {
 	if (!ptr) {
@@ -63,18 +62,19 @@ struct module *
 new_module(char *modname)
 {
 	struct module *mod;
-	char *p;
+	char *p, *s;
 	
 	mod = NOFAIL(malloc(sizeof(*mod)));
 	memset(mod, 0, sizeof(*mod));
-	mod->name = NOFAIL(strdup(modname));
+	p = NOFAIL(strdup(modname));
 
 	/* strip trailing .o */
-	p = strstr(mod->name, ".o");
-	if (p)
-		*p = 0;
+	if ((s = strrchr(p, '.')) != NULL)
+		if (strcmp(s, ".o") == 0)
+			*s = '\0';
 
 	/* add to list */
+	mod->name = p;
 	mod->next = modules;
 	modules = mod;
 
@@ -141,26 +141,14 @@ new_symbol(const char *name, struct module *module, unsigned int *crc)
 	symbolhash[hash] = new;
 }
 
-#define DOTSYM_PFX "__dot_"
-
 struct symbol *
 find_symbol(const char *name)
 {
 	struct symbol *s;
-	char dotname[64 + sizeof(DOTSYM_PFX)];
 
-	/* .foo matches foo.  PPC64 needs this. */
-	if (name[0] == '.') {
+	/* For our purposes, .foo matches foo.  PPC64 needs this. */
+	if (name[0] == '.')
 		name++;
-		strcpy(dotname, DOTSYM_PFX);
-		strncat(dotname, name, sizeof(dotname) - sizeof(DOTSYM_PFX) - 1);
-		dotname[sizeof(dotname)-1] = 0;
-		/* Sparc32 wants .foo to match __dot_foo, try this first. */
-		for (s = symbolhash[tdb_hash(dotname) % SYMBOL_HASH_SIZE]; s; s=s->next) {
-			if (strcmp(s->name, dotname) == 0)
-				return s;
-		}
-	}
 
 	for (s = symbolhash[tdb_hash(name) % SYMBOL_HASH_SIZE]; s; s=s->next) {
 		if (strcmp(s->name, name) == 0)
@@ -204,6 +192,42 @@ grab_file(const char *filename, unsigned long *size)
 	if (map == MAP_FAILED)
 		return NULL;
 	return map;
+}
+
+/*
+   Return a copy of the next line in a mmap'ed file.
+   spaces in the beginning of the line is trimmed away.
+   Return a pointer to a static buffer.
+*/
+char*
+get_next_line(unsigned long *pos, void *file, unsigned long size)
+{
+	static char line[4096];
+	int skip = 1;
+	size_t len = 0;
+	char *p = (char *)file + *pos;
+	char *s = line;
+
+	for (; *pos < size ; (*pos)++)
+	{
+		if (skip && isspace(*p)) {
+			p++;
+			continue;
+		}
+		skip = 0;
+		if (*p != '\n' && (*pos < size)) {
+			len++;
+			*s++ = *p++;
+			if (len > 4095)
+				break; /* Too long, stop */
+		} else {
+			/* End of string */
+			*s = '\0';
+			return line;
+		}
+	}
+	/* End of buffer */
+	return NULL;
 }
 
 void

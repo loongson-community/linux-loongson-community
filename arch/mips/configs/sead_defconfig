@@ -191,10 +191,6 @@ CONFIG_BLK_DEV_INITRD=y
 #
 
 #
-# Macintosh device drivers
-#
-
-#
 # Networking support
 #
 # CONFIG_NET is not set
@@ -203,6 +199,8 @@ CONFIG_BLK_DEV_INITRD=y
 # Amateur Radio support
 #
 # CONFIG_HAMRADIO is not set
+# CONFIG_NETPOLL is not set
+# CONFIG_NET_POLL_CONTROLLER is not set
 
 #
 # ISDN subsystem
@@ -273,11 +271,6 @@ CONFIG_SERIAL_CORE_CONSOLE=y
 # CONFIG_UNIX98_PTYS is not set
 CONFIG_LEGACY_PTYS=y
 CONFIG_LEGACY_PTY_COUNT=256
-
-#
-# Mice
-#
-# CONFIG_BUSMOUSE is not set
 # CONFIG_QIC02_TAPE is not set
 
 #
@@ -289,7 +282,6 @@ CONFIG_LEGACY_PTY_COUNT=256
 # Watchdog Cards
 #
 # CONFIG_WATCHDOG is not set
-# CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
 # CONFIG_GEN_RTC is not set
 # CONFIG_DTLK is not set

@@ -136,6 +136,8 @@ struct snd_usb_audio {
 
 	struct list_head midi_list;	/* list of midi interfaces */
 	int next_midi_device;
+
+	unsigned int ignore_ctl_error;	/* for mixer */
 };  
 
 /*
@@ -205,8 +207,7 @@ void snd_usbmidi_disconnect(struct list_head *p, struct usb_driver *driver);
  * (conditional for compatibility with the older API)
  */
 #ifndef get_iface_desc
-#define get_iface(cfg, num)	((cfg)->interface[(num)])
-#define get_iface_desc(iface)	(&iface->desc)
+#define get_iface_desc(iface)	(&(iface)->desc)
 #define get_endpoint(alt,ep)	(&(alt)->endpoint[ep].desc)
 #define get_ep_desc(ep)		(&(ep)->desc)
 #define get_cfg_desc(cfg)	(&(cfg)->desc)
@@ -218,6 +219,10 @@ void snd_usbmidi_disconnect(struct list_head *p, struct usb_driver *driver);
 
 #ifndef snd_usb_complete_callback
 #define snd_usb_complete_callback(x) (x)
+#endif
+
+#ifndef snd_usb_get_speed
+#define snd_usb_get_speed(dev) ((dev)->speed)
 #endif
 
 #endif /* __USBAUDIO_H */

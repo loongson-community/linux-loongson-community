@@ -736,6 +736,14 @@ static ctl_table vm_table[] = {
 		.strategy	= &sysctl_intvec,
 		.extra1		= &zero,
 	},
+	{
+		.ctl_name	= VM_MAX_MAP_COUNT,
+		.procname	= "max_map_count",
+		.data		= &sysctl_max_map_count,
+		.maxlen		= sizeof(sysctl_max_map_count),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec
+	},
 	{ .ctl_name = 0 }
 };
 
@@ -1004,7 +1012,8 @@ int do_sysctl_strategy (ctl_table *table,
 	 * zero, proceed with automatic r/w */
 	if (table->data && table->maxlen) {
 		if (oldval && oldlenp) {
-			get_user(len, oldlenp);
+			if (get_user(len, oldlenp))
+				return -EFAULT;
 			if (len) {
 				if (len > table->maxlen)
 					len = table->maxlen;
@@ -1303,7 +1312,7 @@ int proc_dostring(ctl_table *table, int write, struct file *filp,
 		len = 0;
 		p = buffer;
 		while (len < *lenp) {
-			if(get_user(c, p++))
+			if (get_user(c, p++))
 				return -EFAULT;
 			if (c == 0 || c == '\n')
 				break;
@@ -1470,7 +1479,7 @@ static int do_proc_dointvec(ctl_table *table, int write, struct file *filp,
 		p = (char *) buffer;
 		while (left) {
 			char c;
-			if(get_user(c, p++))
+			if (get_user(c, p++))
 				return -EFAULT;
 			if (!isspace(c))
 				break;
@@ -1705,7 +1714,7 @@ static int do_proc_doulongvec_minmax(ctl_table *table, int write,
 		p = (char *) buffer;
 		while (left) {
 			char c;
-			if(get_user(c, p++))
+			if (get_user(c, p++))
 				return -EFAULT;
 			if (!isspace(c))
 				break;
@@ -1930,7 +1939,7 @@ int sysctl_string(ctl_table *table, int __user *name, int nlen,
 		return -ENOTDIR;
 	
 	if (oldval && oldlenp) {
-		if(get_user(len, oldlenp))
+		if (get_user(len, oldlenp))
 			return -EFAULT;
 		if (len) {
 			l = strlen(table->data);
@@ -1987,7 +1996,8 @@ int sysctl_intvec(ctl_table *table, int __user *name, int nlen,
 
 		for (i = 0; i < length; i++) {
 			int value;
-			get_user(value, vec + i);
+			if (get_user(value, vec + i))
+				return -EFAULT;
 			if (min && value < min[i])
 				return -EINVAL;
 			if (max && value > max[i])

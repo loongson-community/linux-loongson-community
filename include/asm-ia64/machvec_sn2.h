@@ -62,8 +62,11 @@ extern ia64_mv_dma_map_single		sn_dma_map_single;
 extern ia64_mv_dma_unmap_single		sn_dma_unmap_single;
 extern ia64_mv_dma_map_sg		sn_dma_map_sg;
 extern ia64_mv_dma_unmap_sg		sn_dma_unmap_sg;
-extern ia64_mv_dma_sync_single		sn_dma_sync_single;
-extern ia64_mv_dma_sync_sg		sn_dma_sync_sg;
+extern ia64_mv_dma_sync_single_for_cpu	sn_dma_sync_single_for_cpu;
+extern ia64_mv_dma_sync_sg_for_cpu	sn_dma_sync_sg_for_cpu;
+extern ia64_mv_dma_sync_single_for_device sn_dma_sync_single_for_device;
+extern ia64_mv_dma_sync_sg_for_device	sn_dma_sync_sg_for_device;
+extern ia64_mv_dma_mapping_error	sn_dma_mapping_error;
 extern ia64_mv_dma_supported		sn_dma_supported;
 
 /*
@@ -105,8 +108,11 @@ extern ia64_mv_dma_supported		sn_dma_supported;
 #define platform_dma_unmap_single	sn_dma_unmap_single
 #define platform_dma_map_sg		sn_dma_map_sg
 #define platform_dma_unmap_sg		sn_dma_unmap_sg
-#define platform_dma_sync_single	sn_dma_sync_single
-#define platform_dma_sync_sg		sn_dma_sync_sg
+#define platform_dma_sync_single_for_cpu sn_dma_sync_single_for_cpu
+#define platform_dma_sync_sg_for_cpu	sn_dma_sync_sg_for_cpu
+#define platform_dma_sync_single_for_device sn_dma_sync_single_for_device
+#define platform_dma_sync_sg_for_device	sn_dma_sync_sg_for_device
+#define platform_dma_mapping_error		sn_dma_mapping_error
 #define platform_dma_supported		sn_dma_supported
 
 #include <asm/sn/sn2/io.h>

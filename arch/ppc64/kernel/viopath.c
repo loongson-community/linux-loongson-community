@@ -28,7 +28,6 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
-#include <asm/uaccess.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -37,9 +36,10 @@
 #include <linux/proc_fs.h>
 #include <linux/dma-mapping.h>
 #include <linux/wait.h>
+#include <linux/seq_file.h>
 
-#include <asm/hardirq.h>	/* for is_atomic */
-
+#include <asm/hardirq.h>
+#include <asm/uaccess.h>
 #include <asm/iSeries/LparData.h>
 #include <asm/iSeries/HvLpEvent.h>
 #include <asm/iSeries/HvLpConfig.h>
@@ -104,6 +104,9 @@ EXPORT_SYMBOL(viopath_ourLp);
  * routine to call.
  */
 static vio_event_handler_t *vio_handler[VIO_MAX_SUBTYPES];
+
+#define VIOPATH_KERN_WARN	KERN_WARNING "viopath: "
+#define VIOPATH_KERN_INFO	KERN_INFO "viopath: "
 
 static unsigned char e2a(unsigned char x)
 {
@@ -184,21 +187,21 @@ static unsigned char e2a(unsigned char x)
 	return ' ';
 }
 
-/* Handle reads from the proc file system
- */
-static int proc_read(char *buf, char **start, off_t offset,
-		     int blen, int *eof, void *data)
+static int proc_viopath_show(struct seq_file *m, void *v)
 {
+	char *buf;
+	dma_addr_t handle;
 	HvLpEvent_Rc hvrc;
 	DECLARE_MUTEX_LOCKED(Semaphore);
-	dma_addr_t dmaa =
-	    dma_map_single(iSeries_vio_dev, buf, PAGE_SIZE, DMA_FROM_DEVICE);
-	int len = PAGE_SIZE;
 
-	if (len > blen)
-		len = blen;
+	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf)
+		return 0;
+	memset(buf, 0, PAGE_SIZE);
 
-	memset(buf, 0x00, len);
+	handle = dma_map_single(iSeries_vio_dev, buf, PAGE_SIZE,
+				DMA_FROM_DEVICE);
+
 	hvrc = HvCallEvent_signalLpEventFast(viopath_hostLp,
 			HvLpEvent_Type_VirtualIo,
 			viomajorsubtype_config | vioconfigget,
@@ -206,50 +209,54 @@ static int proc_read(char *buf, char **start, off_t offset,
 			viopath_sourceinst(viopath_hostLp),
 			viopath_targetinst(viopath_hostLp),
 			(u64)(unsigned long)&Semaphore, VIOVERSION << 16,
-			((u64)dmaa) << 32, len, 0, 0);
+			((u64)handle) << 32, PAGE_SIZE, 0, 0);
+
 	if (hvrc != HvLpEvent_Rc_Good)
-		printk("viopath hv error on op %d\n", (int) hvrc);
+		printk(VIOPATH_KERN_WARN "hv error on op %d\n", (int)hvrc);
 
 	down(&Semaphore);
 
-	dma_unmap_single(iSeries_vio_dev, dmaa, PAGE_SIZE, DMA_FROM_DEVICE);
+	dma_unmap_single(iSeries_vio_dev, handle, PAGE_SIZE, DMA_FROM_DEVICE);
+	kfree(buf);
 
-	sprintf(buf + strlen(buf), "SRLNBR=");
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.mfgID[2]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.mfgID[3]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.systemSerial[1]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.systemSerial[2]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.systemSerial[3]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.systemSerial[4]);
-	buf[strlen(buf)] = e2a(xItExtVpdPanel.systemSerial[5]);
-	buf[strlen(buf)] = '\n';
-	*eof = 1;
-	return strlen(buf);
+	buf[PAGE_SIZE] = '\0';
+	seq_printf(m, "%s", buf);
+
+	seq_printf(m, "SRLNBR=%c%c%c%c%c%c%c\n",
+		   e2a(xItExtVpdPanel.mfgID[2]),
+		   e2a(xItExtVpdPanel.mfgID[3]),
+		   e2a(xItExtVpdPanel.systemSerial[1]),
+		   e2a(xItExtVpdPanel.systemSerial[2]),
+		   e2a(xItExtVpdPanel.systemSerial[3]),
+		   e2a(xItExtVpdPanel.systemSerial[4]),
+		   e2a(xItExtVpdPanel.systemSerial[5]));
+
+	return 0;
 }
 
-/* Handle writes to our proc file system
- */
-static int proc_write(struct file *file, const char *buffer,
-		      unsigned long count, void *data)
+static int proc_viopath_open(struct inode *inode, struct file *file)
 {
-	/* Doesn't do anything today!!!
-	 */
-	return count;
+	return single_open(file, proc_viopath_show, NULL);
 }
 
-/* setup our proc file system entries
- */
-static void vio_proc_init(struct proc_dir_entry *iSeries_proc)
+static struct file_operations proc_viopath_operations = {
+	.open		= proc_viopath_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init vio_proc_init(void)
 {
-	struct proc_dir_entry *ent;
-	ent = create_proc_entry("config", S_IFREG | S_IRUSR, iSeries_proc);
-	if (!ent)
-		return;
-	ent->nlink = 1;
-	ent->data = NULL;
-	ent->read_proc = proc_read;
-	ent->write_proc = proc_write;
+	struct proc_dir_entry *e;
+
+	e = create_proc_entry("iSeries/config", 0, NULL);
+	if (e)
+		e->proc_fops = &proc_viopath_operations;
+
+        return 0;
 }
+__initcall(vio_proc_init);
 
 /* See if a given LP is active.  Allow for invalid lps to be passed in
  * and just return invalid
@@ -314,7 +321,7 @@ static void sendMonMsg(HvLpIndex remoteLp)
 	if (hvrc == HvLpEvent_Rc_Good)
 		viopathStatus[remoteLp].isActive = 1;
 	else {
-		printk(KERN_WARNING_VIO "could not connect to partition %d\n",
+		printk(VIOPATH_KERN_WARN "could not connect to partition %d\n",
 				remoteLp);
 		viopathStatus[remoteLp].isActive = 0;
 	}
@@ -351,11 +358,11 @@ static void handleMonitorEvent(struct HvLpEvent *event)
 	remoteLp = event->xTargetLp;
 	if ((event->xSourceInstanceId != viopathStatus[remoteLp].mSourceInst) ||
 	    (event->xTargetInstanceId != viopathStatus[remoteLp].mTargetInst)) {
-		printk(KERN_WARNING_VIO "ignoring ack....mismatched instances\n");
+		printk(VIOPATH_KERN_WARN "ignoring ack....mismatched instances\n");
 		return;
 	}
 
-	printk(KERN_WARNING_VIO "partition %d ended\n", remoteLp);
+	printk(VIOPATH_KERN_WARN "partition %d ended\n", remoteLp);
 
 	viopathStatus[remoteLp].isActive = 0;
 
@@ -399,7 +406,7 @@ static void handleConfig(struct HvLpEvent *event)
 	if (!event)
 		return;
 	if (event->xFlags.xFunction == HvLpEvent_Function_Int) {
-		printk(KERN_WARNING_VIO
+		printk(VIOPATH_KERN_WARN
 		       "unexpected config request from partition %d",
 		       event->xSourceLp);
 
@@ -433,13 +440,8 @@ void vio_set_hostlp(void)
 	viopath_ourLp = HvLpConfig_getLpIndex();
 	viopath_hostLp = HvCallCfg_getHostingLpIndex(viopath_ourLp);
 
-	/* If we have a valid hosting LP, create a proc file system entry
-	 * for config information
-	 */
-	if (viopath_hostLp != HvLpIndexInvalid) {
-		iSeries_proc_callback(&vio_proc_init);
+	if (viopath_hostLp != HvLpIndexInvalid)
 		vio_setHandler(viomajorsubtype_config, handleConfig);
-	}
 }
 EXPORT_SYMBOL(vio_set_hostlp);
 
@@ -462,7 +464,7 @@ static void vio_handleEvent(struct HvLpEvent *event, struct pt_regs *regs)
 		if (viopathStatus[remoteLp].isActive
 		    && (event->xSourceInstanceId !=
 			viopathStatus[remoteLp].mTargetInst)) {
-			printk(KERN_WARNING_VIO
+			printk(VIOPATH_KERN_WARN
 			       "message from invalid partition. "
 			       "int msg rcvd, source inst (%d) doesnt match (%d)\n",
 			       viopathStatus[remoteLp].mTargetInst,
@@ -473,7 +475,7 @@ static void vio_handleEvent(struct HvLpEvent *event, struct pt_regs *regs)
 		if (viopathStatus[remoteLp].isActive
 		    && (event->xTargetInstanceId !=
 			viopathStatus[remoteLp].mSourceInst)) {
-			printk(KERN_WARNING_VIO
+			printk(VIOPATH_KERN_WARN
 			       "message from invalid partition. "
 			       "int msg rcvd, target inst (%d) doesnt match (%d)\n",
 			       viopathStatus[remoteLp].mSourceInst,
@@ -484,7 +486,7 @@ static void vio_handleEvent(struct HvLpEvent *event, struct pt_regs *regs)
 		remoteLp = event->xTargetLp;
 		if (event->xSourceInstanceId !=
 		    viopathStatus[remoteLp].mSourceInst) {
-			printk(KERN_WARNING_VIO
+			printk(VIOPATH_KERN_WARN
 			       "message from invalid partition. "
 			       "ack msg rcvd, source inst (%d) doesnt match (%d)\n",
 			       viopathStatus[remoteLp].mSourceInst,
@@ -494,7 +496,7 @@ static void vio_handleEvent(struct HvLpEvent *event, struct pt_regs *regs)
 
 		if (event->xTargetInstanceId !=
 		    viopathStatus[remoteLp].mTargetInst) {
-			printk(KERN_WARNING_VIO
+			printk(VIOPATH_KERN_WARN
 			       "message from invalid partition. "
 			       "viopath: ack msg rcvd, target inst (%d) doesnt match (%d)\n",
 			       viopathStatus[remoteLp].mTargetInst,
@@ -504,7 +506,7 @@ static void vio_handleEvent(struct HvLpEvent *event, struct pt_regs *regs)
 	}
 
 	if (vio_handler[subtype] == NULL) {
-		printk(KERN_WARNING_VIO
+		printk(VIOPATH_KERN_WARN
 		       "unexpected virtual io event subtype %d from partition %d\n",
 		       event->xSubtype, remoteLp);
 		/* No handler.  Ack if necessary */
@@ -609,10 +611,10 @@ int viopath_open(HvLpIndex remoteLp, int subtype, int numReq)
 		HvLpEvent_registerHandler(HvLpEvent_Type_VirtualIo,
 					  &vio_handleEvent);
 		sendMonMsg(remoteLp);
-		printk(KERN_INFO_VIO
-		       "Opening connection to partition %d, setting sinst %d, tinst %d\n",
-		       remoteLp, viopathStatus[remoteLp].mSourceInst,
-		       viopathStatus[remoteLp].mTargetInst);
+		printk(VIOPATH_KERN_INFO "opening connection to partition %d, "
+				"setting sinst %d, tinst %d\n",
+				remoteLp, viopathStatus[remoteLp].mSourceInst,
+				viopathStatus[remoteLp].mTargetInst);
 	}
 
 	spin_unlock_irqrestore(&statuslock, flags);
@@ -663,7 +665,7 @@ int viopath_close(HvLpIndex remoteLp, int subtype, int numReq)
 		numOpen += viopathStatus[remoteLp].users[i];
 
 	if ((viopathStatus[remoteLp].isOpen) && (numOpen == 0)) {
-		printk(KERN_INFO_VIO "Closing connection to partition %d",
+		printk(VIOPATH_KERN_INFO "closing connection to partition %d",
 				remoteLp);
 
 		HvCallEvent_closeLpEventPath(remoteLp,
@@ -697,23 +699,21 @@ void vio_free_event_buffer(int subtype, void *buffer)
 {
 	subtype = subtype >> VIOMAJOR_SUBTYPE_SHIFT;
 	if ((subtype < 0) || (subtype >= VIO_MAX_SUBTYPES)) {
-		printk(KERN_WARNING_VIO
-		       "unexpected subtype %d freeing event buffer\n",
-		       subtype);
+		printk(VIOPATH_KERN_WARN
+		       "unexpected subtype %d freeing event buffer\n", subtype);
 		return;
 	}
 
 	if (atomic_read(&event_buffer_available[subtype]) != 0) {
-		printk(KERN_WARNING_VIO
+		printk(VIOPATH_KERN_WARN
 		       "freeing unallocated event buffer, subtype %d\n",
 		       subtype);
 		return;
 	}
 
 	if (buffer != &event_buffer[subtype * 256]) {
-		printk(KERN_WARNING_VIO
-		       "freeing invalid event buffer, subtype %d\n",
-		       subtype);
+		printk(VIOPATH_KERN_WARN
+		       "freeing invalid event buffer, subtype %d\n", subtype);
 	}
 
 	atomic_set(&event_buffer_available[subtype], 1);

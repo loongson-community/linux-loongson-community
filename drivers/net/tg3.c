@@ -2280,8 +2280,9 @@ static int tg3_rx(struct tg3 *tp, int budget)
 			copy_skb->dev = tp->dev;
 			skb_reserve(copy_skb, 2);
 			skb_put(copy_skb, len);
-			pci_dma_sync_single(tp->pdev, dma_addr, len, PCI_DMA_FROMDEVICE);
+			pci_dma_sync_single_for_cpu(tp->pdev, dma_addr, len, PCI_DMA_FROMDEVICE);
 			memcpy(copy_skb->data, skb->data, len);
+			pci_dma_sync_single_for_device(tp->pdev, dma_addr, len, PCI_DMA_FROMDEVICE);
 
 			/* We'll reuse the original ring buffer. */
 			skb = copy_skb;
@@ -2465,6 +2466,13 @@ static irqreturn_t tg3_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 static int tg3_init_hw(struct tg3 *);
 static int tg3_halt(struct tg3 *);
+
+#ifdef CONFIG_NET_POLL_CONTROLLER
+static void tg3_poll_controller(struct net_device *dev)
+{
+	tg3_interrupt(dev->irq, dev, NULL);
+}
+#endif
 
 static void tg3_reset_task(void *_data)
 {
@@ -7614,6 +7622,9 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 	dev->watchdog_timeo = TG3_TX_TIMEOUT;
 	dev->change_mtu = tg3_change_mtu;
 	dev->irq = pdev->irq;
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	dev->poll_controller = tg3_poll_controller;
+#endif
 
 	err = tg3_get_invariants(tp);
 	if (err) {

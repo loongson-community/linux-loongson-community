@@ -90,6 +90,7 @@ static unsigned char ap_cs8427_codec_select(ice1712_t *ice)
 		tmp |= ICE1712_DELTA_1010LT_CCLK | ICE1712_DELTA_1010LT_CS_CS8427;
 		break;
 	case ICE1712_SUBDEVICE_AUDIOPHILE:
+	case ICE1712_SUBDEVICE_DELTA410:
 		tmp |= ICE1712_DELTA_AP_CCLK | ICE1712_DELTA_AP_CS_CODEC;
 		tmp &= ~ICE1712_DELTA_AP_CS_DIGITAL;
 		break;
@@ -112,6 +113,7 @@ static void ap_cs8427_codec_deassert(ice1712_t *ice, unsigned char tmp)
 		tmp |= ICE1712_DELTA_1010LT_CS_NONE;
 		break;
 	case ICE1712_SUBDEVICE_AUDIOPHILE:
+	case ICE1712_SUBDEVICE_DELTA410:
 		tmp |= ICE1712_DELTA_AP_CS_DIGITAL;
 		break;
 	case ICE1712_SUBDEVICE_VX442:
@@ -511,20 +513,25 @@ static int __devinit snd_ice1712_delta_init(ice1712_t *ice)
 	switch (ice->eeprom.subvendor) {
 	case ICE1712_SUBDEVICE_AUDIOPHILE:
 		ice->num_total_dacs = 2;
+		ice->num_total_adcs = 2;
 		break;
 	case ICE1712_SUBDEVICE_DELTA410:
 		ice->num_total_dacs = 8;
+		ice->num_total_adcs = 2;
 		break;
 	case ICE1712_SUBDEVICE_DELTA44:
 	case ICE1712_SUBDEVICE_DELTA66:
 		ice->num_total_dacs = ice->omni ? 8 : 4;
+		ice->num_total_adcs = ice->omni ? 8 : 4;
 		break;
 	case ICE1712_SUBDEVICE_DELTA1010:
 	case ICE1712_SUBDEVICE_DELTA1010LT:
 		ice->num_total_dacs = 8;
+		ice->num_total_adcs = 8;
 		break;
 	case ICE1712_SUBDEVICE_VX442:
 		ice->num_total_dacs = 4;
+		ice->num_total_adcs = 4;
 		break;
 	}
 

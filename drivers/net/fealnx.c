@@ -1303,14 +1303,15 @@ static void init_ring(struct net_device *dev)
 	/* for the last tx descriptor */
 	np->tx_ring[i - 1].next_desc = np->tx_ring_dma;
 	np->tx_ring[i - 1].next_desc_logical = &np->tx_ring[0];
-
-	return;
 }
 
 
 static int start_tx(struct sk_buff *skb, struct net_device *dev)
 {
 	struct netdev_private *np = dev->priv;
+	unsigned long flags;
+
+	spin_lock_irqsave(&np->lock, flags);
 
 	np->cur_tx_copy->skbuff = skb;
 
@@ -1377,6 +1378,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	writel(0, dev->base_addr + TXPDR);
 	dev->trans_start = jiffies;
 
+	spin_unlock_irqrestore(&np->lock, flags);
 	return 0;
 }
 
@@ -1422,6 +1424,8 @@ static irqreturn_t intr_handler(int irq, void *dev_instance, struct pt_regs *rgs
 	long ioaddr, boguscnt = max_interrupt_work;
 	unsigned int num_tx = 0;
 	int handled = 0;
+
+	spin_lock(&np->lock);
 
 	writel(0, dev->base_addr + IMR);
 
@@ -1565,6 +1569,8 @@ static irqreturn_t intr_handler(int irq, void *dev_instance, struct pt_regs *rgs
 
 	writel(np->imrvalue, ioaddr + IMR);
 
+	spin_unlock(&np->lock);
+
 	return IRQ_RETVAL(handled);
 }
 
@@ -1647,10 +1653,6 @@ static int netdev_rx(struct net_device *dev)
 				printk(KERN_DEBUG "  netdev_rx() normal Rx pkt length %d"
 				       " status %x.\n", pkt_len, rx_status);
 #endif
-			pci_dma_sync_single(np->pci_dev, np->cur_rx->buffer,
-				np->rx_buf_sz, PCI_DMA_FROMDEVICE);
-			pci_unmap_single(np->pci_dev, np->cur_rx->buffer,
-				np->rx_buf_sz, PCI_DMA_FROMDEVICE);
 
 			/* Check if the packet is long enough to accept without copying
 			   to a minimally-sized skbuff. */
@@ -1658,6 +1660,10 @@ static int netdev_rx(struct net_device *dev)
 			    (skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 				skb->dev = dev;
 				skb_reserve(skb, 2);	/* 16 byte align the IP header */
+				pci_dma_sync_single_for_cpu(np->pci_dev,
+							    np->cur_rx->buffer,
+							    np->rx_buf_sz,
+							    PCI_DMA_FROMDEVICE);
 				/* Call copy + cksum if available. */
 
 #if ! defined(__alpha__)
@@ -1668,7 +1674,15 @@ static int netdev_rx(struct net_device *dev)
 				memcpy(skb_put(skb, pkt_len),
 					np->cur_rx->skbuff->tail, pkt_len);
 #endif
+				pci_dma_sync_single_for_device(np->pci_dev,
+							       np->cur_rx->buffer,
+							       np->rx_buf_sz,
+							       PCI_DMA_FROMDEVICE);
 			} else {
+				pci_unmap_single(np->pci_dev,
+						 np->cur_rx->buffer,
+						 np->rx_buf_sz,
+						 PCI_DMA_FROMDEVICE);
 				skb_put(skb = np->cur_rx->skbuff, pkt_len);
 				np->cur_rx->skbuff = NULL;
 				if (np->really_rx_count == RX_RING_SIZE)
@@ -1689,8 +1703,10 @@ static int netdev_rx(struct net_device *dev)
 
 			if (skb != NULL) {
 				skb->dev = dev;	/* Mark as being used by this device. */
-				np->cur_rx->buffer = pci_map_single(np->pci_dev, skb->tail,
-					np->rx_buf_sz, PCI_DMA_FROMDEVICE);
+				np->cur_rx->buffer = pci_map_single(np->pci_dev,
+								    skb->tail,
+								    np->rx_buf_sz,
+								    PCI_DMA_FROMDEVICE);
 				np->cur_rx->skbuff = skb;
 				++np->really_rx_count;
 			}

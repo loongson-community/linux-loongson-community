@@ -19,7 +19,6 @@
 #include <linux/init.h>
 
 #include <asm/prom.h>
-#include <asm/proc_fs.h>
 #include <asm/rtas.h>
 #include <asm/semaphore.h>
 #include <asm/machdep.h>
@@ -131,7 +130,7 @@ rtas_token(const char *service)
 void
 log_rtas_error(struct rtas_args	*rtas_args)
 {
-	struct rtas_args err_args;
+	struct rtas_args err_args, temp_args;
 
 	err_args.token = rtas_token("rtas-last-error");
 	err_args.nargs = 2;
@@ -142,6 +141,7 @@ log_rtas_error(struct rtas_args	*rtas_args)
 	err_args.args[1] = RTAS_ERROR_LOG_MAX;
 	err_args.args[2] = 0;
 
+	temp_args = *rtas_args;
 	get_paca()->xRtas = err_args;
 
 	PPCDBG(PPCDBG_RTAS, "\tentering rtas with 0x%lx\n",
@@ -149,8 +149,9 @@ log_rtas_error(struct rtas_args	*rtas_args)
 	enter_rtas((void *)__pa((unsigned long)&get_paca()->xRtas));
 	PPCDBG(PPCDBG_RTAS, "\treturned from rtas ...\n");
 
+
 	err_args = get_paca()->xRtas;
-	get_paca()->xRtas = *rtas_args;
+	get_paca()->xRtas = temp_args;
 
 	if (err_args.rets[0] == 0)
 		log_error(rtas_err_buf, ERR_TYPE_RTAS_LOG, 0);
@@ -259,6 +260,33 @@ rtas_get_power_level(int powerdomain, int *level)
 }
 
 int
+rtas_set_power_level(int powerdomain, int level, int *setlevel)
+{
+	int token = rtas_token("set-power-level");
+	unsigned int wait_time;
+	long returned_level;
+	int rc;
+
+	if (token == RTAS_UNKNOWN_SERVICE)
+		return RTAS_UNKNOWN_OP;
+
+	while (1) {
+		rc = (int) rtas_call(token, 2, 2, &returned_level, powerdomain,
+					level);
+		if (rc == RTAS_BUSY)
+			udelay(1);
+		else if (rtas_is_extended_busy(rc)) {
+			wait_time = rtas_extended_busy_delay_time(rc);
+			udelay(wait_time * 1000);
+		}
+		else
+			break;
+	}
+	*setlevel = (int) returned_level;
+	return rc;
+}
+
+int
 rtas_get_sensor(int sensor, int index, int *state)
 {
 	int token = rtas_token("get-sensor-state");
@@ -333,7 +361,7 @@ rtas_flash_firmware(void)
 	 */
 	rtas_firmware_flash_list.num_blocks = 0;
 	flist = (struct flash_block_list *)&rtas_firmware_flash_list;
-	rtas_block_list = virt_to_absolute((unsigned long)flist);
+	rtas_block_list = virt_to_abs(flist);
 	if (rtas_block_list >= (4UL << 20)) {
 		printk(KERN_ALERT "FLASH: kernel bug...flash list header addr above 4GB\n");
 		return;
@@ -345,13 +373,13 @@ rtas_flash_firmware(void)
 	for (f = flist; f; f = next) {
 		/* Translate data addrs to absolute */
 		for (i = 0; i < f->num_blocks; i++) {
-			f->blocks[i].data = (char *)virt_to_absolute((unsigned long)f->blocks[i].data);
+			f->blocks[i].data = (char *)virt_to_abs(f->blocks[i].data);
 			image_size += f->blocks[i].length;
 		}
 		next = f->next;
 		/* Don't translate NULL pointer for last entry */
-		if(f->next)
-			f->next = (struct flash_block_list *)virt_to_absolute((unsigned long)f->next);
+		if (f->next)
+			f->next = (struct flash_block_list *)virt_to_abs(f->next);
 		else
 			f->next = 0LL;
 		/* make num_blocks into the version/length field */
@@ -426,6 +454,7 @@ asmlinkage int ppc_rtas(struct rtas_args __user *uargs)
 {
 	struct rtas_args args;
 	unsigned long flags;
+	int nargs;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
@@ -433,14 +462,15 @@ asmlinkage int ppc_rtas(struct rtas_args __user *uargs)
 	if (copy_from_user(&args, uargs, 3 * sizeof(u32)) != 0)
 		return -EFAULT;
 
-	if (args.nargs > ARRAY_SIZE(args.args)
+	nargs = args.nargs;
+	if (nargs > ARRAY_SIZE(args.args)
 	    || args.nret > ARRAY_SIZE(args.args)
-	    || args.nargs + args.nret > ARRAY_SIZE(args.args))
+	    || nargs + args.nret > ARRAY_SIZE(args.args))
 		return -EINVAL;
 
 	/* Copy in args. */
 	if (copy_from_user(args.args, uargs->args,
-			   args.nargs * sizeof(rtas_arg_t)) != 0)
+			   nargs * sizeof(rtas_arg_t)) != 0)
 		return -EFAULT;
 
 	spin_lock_irqsave(&rtas.lock, flags);
@@ -449,14 +479,15 @@ asmlinkage int ppc_rtas(struct rtas_args __user *uargs)
 	enter_rtas((void *)__pa((unsigned long)&get_paca()->xRtas));
 	args = get_paca()->xRtas;
 
+	args.rets  = (rtas_arg_t *)&(args.args[nargs]);
 	if (args.rets[0] == -1)
 		log_rtas_error(&args);
 
 	spin_unlock_irqrestore(&rtas.lock, flags);
 
 	/* Copy out args. */
-	if (copy_to_user(uargs->args + args.nargs,
-			 args.args + args.nargs,
+	if (copy_to_user(uargs->args + nargs,
+			 args.args + nargs,
 			 args.nret * sizeof(rtas_arg_t)) != 0)
 		return -EFAULT;
 
@@ -472,4 +503,5 @@ EXPORT_SYMBOL(rtas_data_buf_lock);
 EXPORT_SYMBOL(rtas_extended_busy_delay_time);
 EXPORT_SYMBOL(rtas_get_sensor);
 EXPORT_SYMBOL(rtas_get_power_level);
+EXPORT_SYMBOL(rtas_set_power_level);
 EXPORT_SYMBOL(rtas_set_indicator);

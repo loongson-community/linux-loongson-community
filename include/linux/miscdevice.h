@@ -3,7 +3,6 @@
 #include <linux/module.h>
 #include <linux/major.h>
 
-#define BUSMOUSE_MINOR 0
 #define PSMOUSE_MINOR  1
 #define MS_BUSMOUSE_MINOR 2
 #define ATIXL_BUSMOUSE_MINOR 3
@@ -20,6 +19,7 @@
 #define SUN_OPENPROM_MINOR 139
 #define DMAPI_MINOR		140	/* DMAPI */
 #define NVRAM_MINOR 144
+#define STORE_QUEUE_MINOR	155
 #define I2O_MINOR 166
 #define MICROCODE_MINOR		184
 #define MWAVE_MINOR	219		/* ACP/Mwave Modem */

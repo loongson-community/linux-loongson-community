@@ -59,6 +59,7 @@
 #include <net/af_unix.h>	/* for Unix socket types */
 #include <linux/parser.h>
 #include <linux/nfs_mount.h>
+#include <linux/hugetlb.h>
 
 #include "avc.h"
 #include "objsec.h"
@@ -331,25 +332,24 @@ static int try_context_mount(struct super_block *sb, void *data)
 
 	name = sb->s_type->name;
 
-	/* Ignore these fileystems with binary mount option data. */
-	if (!strcmp(name, "coda") ||
-	    !strcmp(name, "afs") || !strcmp(name, "smbfs"))
-		goto out;
+	if (sb->s_type->fs_flags & FS_BINARY_MOUNTDATA) {
 
-	/* NFS we understand. */
-	if (!strcmp(name, "nfs")) {
-		struct nfs_mount_data *d = data;
+		/* NFS we understand. */
+		if (!strcmp(name, "nfs")) {
+			struct nfs_mount_data *d = data;
 
-		if (d->version <  NFS_MOUNT_VERSION)
+			if (d->version <  NFS_MOUNT_VERSION)
+				goto out;
+
+			if (d->context[0]) {
+				context = d->context;
+				seen |= Opt_context;
+			}
+		} else
 			goto out;
 
-		if (d->context[0]) {
-			context = d->context;
-			seen |= Opt_context;
-		}
-
-	/* Standard string-based options. */
 	} else {
+		/* Standard string-based options. */
 		char *p, *options = data;
 
 		while ((p = strsep(&options, ",")) != NULL) {
@@ -1454,7 +1454,7 @@ static int selinux_quotactl(int cmds, int type, int id, struct super_block *sb)
 
 static int selinux_quota_on(struct file *f)
 {
-	return file_has_perm(current, f, FILE__QUOTAON);;
+	return file_has_perm(current, f, FILE__QUOTAON);
 }
 
 static int selinux_syslog(int type)
@@ -1492,7 +1492,7 @@ static int selinux_syslog(int type)
  * succeed and -ENOMEM implies there is not.
  *
  * We currently support three overcommit policies, which are set via the
- * vm.overcommit_memory sysctl.  See Documentation/vm/overcommit-acounting
+ * vm.overcommit_memory sysctl.  See Documentation/vm/overcommit-accounting
  *
  * Strict overcommit modes added 2002 Feb 26 by Alan Cox.
  * Additional code 2002 Jul 20 by Robert Love.
@@ -1545,7 +1545,8 @@ static int selinux_vm_enough_memory(long pages)
 		return -ENOMEM;
 	}
 
-	allowed = totalram_pages * sysctl_overcommit_ratio / 100;
+	allowed = (totalram_pages - hugetlb_total_pages())
+		* sysctl_overcommit_ratio / 100;
 	allowed += total_swap_pages;
 
 	if (atomic_read(&vm_committed_space) < allowed)
@@ -1885,7 +1886,7 @@ static inline void take_option(char **to, char *from, int *first, int len)
 	*to += len;
 }
 
-static int selinux_sb_copy_data(const char *fstype, void *orig, void *copy)
+static int selinux_sb_copy_data(struct file_system_type *type, void *orig, void *copy)
 {
 	int fnosec, fsec, rc = 0;
 	char *in_save, *in_curr, *in_end;
@@ -1895,8 +1896,7 @@ static int selinux_sb_copy_data(const char *fstype, void *orig, void *copy)
 	sec_curr = copy;
 
 	/* Binary mount data: just copy */
-	if (!strcmp(fstype, "nfs") || !strcmp(fstype, "coda") ||
-	    !strcmp(fstype, "smbfs") || !strcmp(fstype, "afs")) {
+	if (type->fs_flags & FS_BINARY_MOUNTDATA) {
 		copy_page(sec_curr, in_curr);
 		goto out;
 	}
@@ -3041,6 +3041,8 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		goto out;
 	
 	err = avc_has_perm(isec->sid, node_sid, SECCLASS_NODE, node_perm, NULL, &ad);
+	if (err)
+		goto out;
 
 	if (recv_perm) {
 		u32 port_sid;

@@ -36,6 +36,13 @@
 #include <asm/tlb.h>
 #include <asm/hvcall.h>
 #include <asm/prom.h>
+#include <asm/abs_addr.h>
+
+/* in pSeries_hvCall.S */
+EXPORT_SYMBOL(plpar_hcall);
+EXPORT_SYMBOL(plpar_hcall_4out);
+EXPORT_SYMBOL(plpar_hcall_norets);
+EXPORT_SYMBOL(plpar_hcall_8arg_2ret);
 
 long poll_pending(void)
 {
@@ -129,7 +136,7 @@ static void tce_build_pSeriesLP(struct iommu_table *tbl, long tcenum, long npage
 	union tce_entry tce;
 
 	tce.te_word = 0;
-	tce.te_rpn = (virt_to_absolute(uaddr)) >> PAGE_SHIFT;
+	tce.te_rpn = (virt_to_abs(uaddr)) >> PAGE_SHIFT;
 	tce.te_rdwr = 1;
 	if (direction != PCI_DMA_TODEVICE)
 		tce.te_pciwr = 1;

@@ -280,7 +280,7 @@ static int trm290_ide_dma_begin (ide_drive_t *drive)
 static int trm290_ide_dma_end (ide_drive_t *drive)
 {
 	ide_hwif_t *hwif = HWIF(drive);
-	u16 status = 0;;
+	u16 status = 0;
 
 	drive->waiting_for_dma = 0;
 	/* purge DMA mappings */
@@ -408,6 +408,7 @@ static struct pci_device_id trm290_pci_tbl[] = {
 	{ PCI_VENDOR_ID_TEKRAM, PCI_DEVICE_ID_TEKRAM_DC290, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0},
 	{ 0, },
 };
+MODULE_DEVICE_TABLE(pci, trm290_pci_tbl);
 
 static struct pci_driver driver = {
 	.name		= "TRM290 IDE",

@@ -1012,3 +1012,60 @@ acpi_os_name_setup(char *str)
 }
 
 __setup("acpi_os_name=", acpi_os_name_setup);
+
+/*
+ * _OSI control
+ * empty string disables _OSI
+ * TBD additional string adds to _OSI
+ */
+int __init
+acpi_osi_setup(char *str)
+{
+	if (str == NULL || *str == '\0') {
+		printk(KERN_INFO PREFIX "_OSI method disabled\n");
+		acpi_gbl_create_osi_method = FALSE;
+	} else
+	{
+		/* TBD */
+		printk(KERN_ERR PREFIX "_OSI additional string ignored -- %s\n", str);
+	}
+
+	return 1;
+}
+
+__setup("acpi_osi=", acpi_osi_setup);
+
+/* enable serialization to combat AE_ALREADY_EXISTS errors */
+int __init
+acpi_serialize_setup(char *str)
+{
+	printk(KERN_INFO PREFIX "serialize enabled\n");
+
+	acpi_gbl_all_methods_serialized = TRUE;
+
+	return 1;
+}
+
+__setup("acpi_serialize", acpi_serialize_setup);
+
+/*
+ * Wake and Run-Time GPES are expected to be separate.
+ * We disable wake-GPEs at run-time to prevent spurious
+ * interrupts.
+ *
+ * However, if a system exists that shares Wake and
+ * Run-time events on the same GPE this flag is available
+ * to tell Linux to keep the wake-time GPEs enabled at run-time.
+ */
+static int __init
+acpi_leave_gpes_disabled_setup(char *str)
+{
+	printk(KERN_INFO PREFIX "leave wake GPEs disabled\n");
+
+	acpi_gbl_leave_wake_gpes_disabled = TRUE;
+
+	return 1;
+}
+
+__setup("acpi_leave_gpes_disabled", acpi_leave_gpes_disabled_setup);
+

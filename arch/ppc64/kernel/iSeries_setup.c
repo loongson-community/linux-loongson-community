@@ -51,7 +51,6 @@
 #include <asm/iSeries/ItLpQueue.h>
 #include <asm/iSeries/IoHriMainStore.h>
 #include <asm/iSeries/iSeries_proc.h>
-#include <asm/proc_pmc.h>
 #include <asm/iSeries/mf.h>
 
 /* Function Prototypes */
@@ -312,7 +311,6 @@ void __init iSeries_init_early(void)
 	iSeries_recal_titan = HvCallXm_loadTod();
 
 	ppc_md.setup_arch = iSeries_setup_arch;
-	ppc_md.setup_residual = iSeries_setup_residual;
 	ppc_md.get_cpuinfo = iSeries_get_cpuinfo;
 	ppc_md.init_IRQ = iSeries_init_IRQ;
 	ppc_md.get_irq = iSeries_get_irq;
@@ -393,12 +391,9 @@ void __init iSeries_init(unsigned long r3, unsigned long r4, unsigned long r5,
 
 	iSeries_setup_dprofile();
 
-	iSeries_proc_early_init();
 	mf_init();
 	mf_initialized = 1;
 	mb();
-
-	iSeries_proc_callback(&pmc_proc_init);
 }
 
 /*
@@ -663,8 +658,7 @@ static void __init iSeries_bolt_kernel(unsigned long saddr, unsigned long eaddr)
 			HvCallHpt_setPp(slot, PP_RWXX);
 		} else
 			/* No HPTE exists, so create a new bolted one */
-			iSeries_make_pte(va, (unsigned long)__v2a(ea),
-					mode_rw);
+			iSeries_make_pte(va, phys_to_abs(pa), mode_rw);
 	}
 }
 
@@ -728,29 +722,6 @@ void __init iSeries_setup_arch(void)
 			tbFreqMhzHundreths);
 	systemcfg->processor = xIoHriProcessorVpd[procIx].xPVR;
 	printk("Processor version = %x\n", systemcfg->processor);
-}
-
-/*
- * int as400_setup_residual()
- *
- * Description:
- *   This routine pretty-prints CPU information gathered from the VPD    
- *   for use in /proc/cpuinfo                               
- *
- * Input(s):
- *  *buffer - Buffer into which CPU data is to be printed.             
- *
- * Output(s):
- *  *buffer - Buffer with CPU data.
- */
-void iSeries_setup_residual(struct seq_file *m, int cpu_id)
-{
-	seq_printf(m, "clock\t\t: %lu.%02luMhz\n", procFreqMhz,
-			procFreqMhzHundreths);
-	seq_printf(m, "time base\t: %lu.%02luMHz\n", tbFreqMhz,
-			tbFreqMhzHundreths);
-	seq_printf(m, "i-cache\t\t: %d\n", systemcfg->iCacheL1LineSize);
-	seq_printf(m, "d-cache\t\t: %d\n", systemcfg->dCacheL1LineSize);
 }
 
 void iSeries_get_cpuinfo(struct seq_file *m)

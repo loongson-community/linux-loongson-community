@@ -32,6 +32,7 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/pci.h>
+#include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <asm/io.h>
 #include <asm/prom.h>
@@ -73,7 +74,7 @@ static unsigned long iommu_range_alloc(struct iommu_table *tbl, unsigned long np
 	if (unlikely(npages) == 0) {
 		if (printk_ratelimit())
 			WARN_ON(1);
-		return NO_TCE;
+		return DMA_ERROR_CODE;
 	}
 
 	if (handle && *handle)
@@ -100,16 +101,17 @@ static unsigned long iommu_range_alloc(struct iommu_table *tbl, unsigned long np
 	end = n + npages;
 
 	if (unlikely(end >= limit)) {
-		if (likely(pass++ < 2)) {
+		if (likely(pass < 2)) {
 			/* First failure, just rescan the half of the table.
 			 * Second failure, rescan the other half of the table.
 			 */
 			start = (largealloc ^ pass) ? tbl->it_halfpoint : 0;
 			limit = pass ? tbl->it_mapsize : limit;
+			pass++;
 			goto again;
 		} else {
 			/* Third failure, give up */
-			return NO_TCE;
+			return DMA_ERROR_CODE;
 		}
 	}
 
@@ -143,15 +145,15 @@ dma_addr_t iommu_alloc(struct iommu_table *tbl, void *page,
 		       unsigned int npages, int direction)
 {
 	unsigned long entry, flags;
-	dma_addr_t ret = NO_TCE;
+	dma_addr_t ret = DMA_ERROR_CODE;
 	
 	spin_lock_irqsave(&(tbl->it_lock), flags);
 
 	entry = iommu_range_alloc(tbl, npages, NULL);
 
-	if (unlikely(entry == NO_TCE)) {
+	if (unlikely(entry == DMA_ERROR_CODE)) {
 		spin_unlock_irqrestore(&(tbl->it_lock), flags);
-		return NO_TCE;
+		return DMA_ERROR_CODE;
 	}
 
 	entry += tbl->it_offset;	/* Offset into real TCE table */
@@ -262,7 +264,7 @@ int iommu_alloc_sg(struct iommu_table *tbl, struct device *dev,
 		DBG("  - vaddr: %lx, size: %lx\n", vaddr, slen);
 
 		/* Handle failure */
-		if (unlikely(entry == NO_TCE)) {
+		if (unlikely(entry == DMA_ERROR_CODE)) {
 			if (printk_ratelimit())
 				printk(KERN_INFO "iommu_alloc failed, tbl %p vaddr %lx"
 				       " npages %lx\n", tbl, vaddr, npages);
@@ -326,7 +328,7 @@ int iommu_alloc_sg(struct iommu_table *tbl, struct device *dev,
 	 */
 	if (outcount < nelems) {
 		outs++;
-		outs->dma_address = NO_TCE;
+		outs->dma_address = DMA_ERROR_CODE;
 		outs->dma_length = 0;
 	}
 	return outcount;

@@ -18,7 +18,6 @@
 #include <linux/devfs_fs_kernel.h>
 #include <linux/kernel.h>
 #include <linux/syscalls.h>
-#include <linux/unistd.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
@@ -42,6 +41,7 @@
 #include <linux/writeback.h>
 #include <linux/cpu.h>
 #include <linux/efi.h>
+#include <linux/unistd.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -156,8 +156,11 @@ static int __init obsolete_checksetup(char *line)
 	p = &__setup_start;
 	do {
 		int n = strlen(p->str);
-		if (!strncmp(line,p->str,n)) {
-			if (p->setup_func(line+n))
+		if (!strncmp(line, p->str, n)) {
+			if (!p->setup_func) {
+				printk(KERN_WARNING "Parameter %s is obsolete, ignored\n", p->str);
+				return 1;
+			} else if (p->setup_func(line + n))
 				return 1;
 		}
 		p++;
@@ -404,6 +407,7 @@ asmlinkage void __init start_kernel(void)
  * enable them
  */
 	lock_kernel();
+	page_address_init();
 	printk(linux_banner);
 	setup_arch(&command_line);
 	setup_per_cpu_areas();
@@ -447,7 +451,6 @@ asmlinkage void __init start_kernel(void)
 		initrd_start = 0;
 	}
 #endif
-	page_address_init();
 	mem_init();
 	kmem_cache_init();
 	if (late_time_init)
@@ -610,11 +613,11 @@ static int init(void * unused)
 	unlock_kernel();
 	system_running = 1;
 
-	if (open("/dev/console", O_RDWR, 0) < 0)
+	if (sys_open("/dev/console", O_RDWR, 0) < 0)
 		printk("Warning: unable to open an initial console.\n");
 
-	(void) dup(0);
-	(void) dup(0);
+	(void) sys_dup(0);
+	(void) sys_dup(0);
 	
 	/*
 	 * We try each of these until one succeeds.

@@ -1256,7 +1256,6 @@ sg_cmd_done(Scsi_Cmnd * SCpnt)
 	SRpnt->sr_request->rq_disk = NULL; /* "sg" _disowns_ request blk */
 
 	srp->my_cmdp = NULL;
-	srp->done = 1;
 
 	SCSI_LOG_TIMEOUT(4, printk("sg_cmd_done: %s, pack_id=%d, res=0x%x\n",
 		sdp->disk->disk_name, srp->header.pack_id, (int) SRpnt->sr_result));
@@ -1312,8 +1311,9 @@ sg_cmd_done(Scsi_Cmnd * SCpnt)
 	}
 	if (sfp && srp) {
 		/* Now wake up any sg_read() that is waiting for this packet. */
-		wake_up_interruptible(&sfp->read_wait);
 		kill_fasync(&sfp->async_qp, SIGPOLL, POLL_IN);
+		srp->done = 1;
+		wake_up_interruptible(&sfp->read_wait);
 	}
 }
 
@@ -1409,7 +1409,6 @@ find_empty_slot:
 	SCSI_LOG_TIMEOUT(3, printk("sg_add: dev=%d \n", k));
 	memset(sdp, 0, sizeof(*sdp));
 	sprintf(disk->disk_name, "sg%d", k);
-	strncpy(cdev->kobj.name, disk->disk_name, KOBJ_NAME_LEN);
 	cdev->owner = THIS_MODULE;
 	cdev->ops = &sg_fops;
 	disk->major = SCSI_GENERIC_MAJOR;
@@ -1439,7 +1438,7 @@ find_empty_slot:
 				MKDEV(SCSI_GENERIC_MAJOR, k), 
 				cl_dev->dev, "%s", 
 				disk->disk_name);
-		if (NULL == sg_class_member)
+		if (IS_ERR(sg_class_member))
 			printk(KERN_WARNING "sg_add: "
 				"class_simple_device_add failed\n");
 		class_set_devdata(sg_class_member, sdp);
@@ -1462,7 +1461,7 @@ find_empty_slot:
 out:
 	put_disk(disk);
 	if (cdev)
-		kobject_put(&cdev->kobj);
+		cdev_del(cdev);
 	return error;
 }
 

@@ -16,7 +16,7 @@
  *  Each contributing author retains all rights to their own work.
  *
  *  (C) 1998-1999 Dave Boynton
- *  (C) 1998-2001 Ben Fennema
+ *  (C) 1998-2004 Ben Fennema
  *  (C) 1999-2000 Stelias Computing Inc
  *
  * HISTORY

@@ -46,10 +46,6 @@
 #include <linux/ioport.h>  // request_region() prototype
 #include <linux/completion.h>
 
-#ifdef __alpha__
-#define __KERNEL_SYSCALLS__
-#endif
-#include <asm/unistd.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>   // ioctl related
 #include <asm/irq.h>
@@ -220,7 +216,7 @@ static void Cpqfc_initHBAdata(CPQFCHBA *cpqfcHBAdata, struct pci_dev *PciDev )
   cpqfcHBAdata->fcChip.InitializeTachyon = CpqTsInitializeTachLite;  
   cpqfcHBAdata->fcChip.LaserControl = CpqTsLaserControl;  
   cpqfcHBAdata->fcChip.ProcessIMQEntry = CpqTsProcessIMQEntry;
-  cpqfcHBAdata->fcChip.InitializeFrameManager = CpqTsInitializeFrameManager;;  
+  cpqfcHBAdata->fcChip.InitializeFrameManager = CpqTsInitializeFrameManager;
   cpqfcHBAdata->fcChip.ReadWriteWWN = CpqTsReadWriteWWN;
   cpqfcHBAdata->fcChip.ReadWriteNVRAM = CpqTsReadWriteNVRAM;
 

@@ -1108,17 +1108,7 @@ _GLOBAL(name) \
 	li	r3,-1; \
 	blr
 
-#define __NR__exit __NR_exit
-
-SYSCALL(setsid)
-SYSCALL(open)
-SYSCALL(read)
-SYSCALL(write)
-SYSCALL(lseek)
-SYSCALL(close)
-SYSCALL(dup)
 SYSCALL(execve)
-SYSCALL(waitpid)
 
 /* Why isn't this a) automatic, b) written in 'C'? */
 	.data
@@ -1373,7 +1363,7 @@ _GLOBAL(sys_call_table)
 	.long sys_clock_gettime
 	.long sys_clock_getres
 	.long sys_clock_nanosleep
-	.long sys_swapcontext
+	.long ppc_swapcontext
 	.long sys_tgkill	/* 250 */
 	.long sys_utimes
 	.long sys_statfs64

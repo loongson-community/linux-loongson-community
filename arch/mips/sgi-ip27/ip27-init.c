@@ -213,7 +213,7 @@ static void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 	router_a->rou_rflag = 0;
 }
 
-static int node_distance(nasid_t nasid_a, nasid_t nasid_b)
+int node_distance(nasid_t nasid_a, nasid_t nasid_b)
 {
 	klrou_t *router, *router_a = NULL, *router_b = NULL;
 	lboard_t *brd, *dest_brd;

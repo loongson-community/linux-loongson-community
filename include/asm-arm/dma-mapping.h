@@ -14,8 +14,6 @@
  * devices.  This is the "generic" version.  The PCI specific version
  * is in pci.h
  */
-extern void *consistent_alloc(int gfp, size_t size, dma_addr_t *handle, unsigned long flags);
-extern void consistent_free(void *vaddr, size_t size, dma_addr_t handle);
 extern void consistent_sync(void *kaddr, size_t size, int rw);
 
 /*
@@ -26,8 +24,10 @@ dma_addr_t sa1111_map_single(struct device *dev, void *, size_t, enum dma_data_d
 void sa1111_unmap_single(struct device *dev, dma_addr_t, size_t, enum dma_data_direction);
 int sa1111_map_sg(struct device *dev, struct scatterlist *, int, enum dma_data_direction);
 void sa1111_unmap_sg(struct device *dev, struct scatterlist *, int, enum dma_data_direction);
-void sa1111_dma_sync_single(struct device *dev, dma_addr_t, size_t, enum dma_data_direction);
-void sa1111_dma_sync_sg(struct device *dev, struct scatterlist *, int, enum dma_data_direction);
+void sa1111_dma_sync_single_for_cpu(struct device *dev, dma_addr_t, size_t, enum dma_data_direction);
+void sa1111_dma_sync_single_for_device(struct device *dev, dma_addr_t, size_t, enum dma_data_direction);
+void sa1111_dma_sync_sg_for_cpu(struct device *dev, struct scatterlist *, int, enum dma_data_direction);
+void sa1111_dma_sync_sg_for_device(struct device *dev, struct scatterlist *, int, enum dma_data_direction);
 
 #ifdef CONFIG_SA1111
 
@@ -97,12 +97,26 @@ dma_alloc_coherent(struct device *dev, size_t size, dma_addr_t *handle, int gfp)
  * References to memory and mappings associated with cpu_addr/handle
  * during and after this call executing are illegal.
  */
-static inline void
+extern void
 dma_free_coherent(struct device *dev, size_t size, void *cpu_addr,
-		  dma_addr_t handle)
-{
-	consistent_free(cpu_addr, size, handle);
-}
+		  dma_addr_t handle);
+
+/**
+ * dma_alloc_writecombine - allocate writecombining memory for DMA
+ * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
+ * @size: required memory size
+ * @handle: bus-specific DMA address
+ *
+ * Allocate some uncached, buffered memory for a device for
+ * performing DMA.  This function allocates pages, and will
+ * return the CPU-viewed address, and sets @handle to be the
+ * device-viewed address.
+ */
+extern void *
+dma_alloc_writecombine(struct device *dev, size_t size, dma_addr_t *handle, int gfp);
+
+#define dma_free_writecombine(dev,size,cpu_addr,handle) \
+	dma_free_coherent(dev,size,cpu_addr,handle)
 
 /**
  * dma_map_single - map a single buffer for streaming DMA
@@ -115,7 +129,8 @@ dma_free_coherent(struct device *dev, size_t size, void *cpu_addr,
  * or written back.
  *
  * The device owns this memory once this call has completed.  The CPU
- * can regain ownership by calling dma_unmap_single() or dma_sync_single().
+ * can regain ownership by calling dma_unmap_single() or
+ * dma_sync_single_for_cpu().
  */
 static inline dma_addr_t
 dma_map_single(struct device *dev, void *cpu_addr, size_t size,
@@ -140,7 +155,8 @@ dma_map_single(struct device *dev, void *cpu_addr, size_t size,
  * or written back.
  *
  * The device owns this memory once this call has completed.  The CPU
- * can regain ownership by calling dma_unmap_page() or dma_sync_single().
+ * can regain ownership by calling dma_unmap_page() or
+ * dma_sync_single_for_cpu().
  */
 static inline dma_addr_t
 dma_map_page(struct device *dev, struct page *page,
@@ -204,7 +220,7 @@ dma_unmap_page(struct device *dev, dma_addr_t handle, size_t size,
  *
  * Map a set of buffers described by scatterlist in streaming
  * mode for DMA.  This is the scatter-gather version of the
- * above pci_map_single interface.  Here the scatter gather list
+ * above dma_map_single interface.  Here the scatter gather list
  * elements are each tagged with the appropriate dma address
  * and length.  They are obtained via sg_dma_{address,length}(SG).
  *
@@ -214,7 +230,7 @@ dma_unmap_page(struct device *dev, dma_addr_t handle, size_t size,
  *       The routine returns the number of addr/length pairs actually
  *       used, at most nents.
  *
- * Device ownership issues as mentioned above for pci_map_single are
+ * Device ownership issues as mentioned above for dma_map_single are
  * the same here.
  */
 static inline int
@@ -246,7 +262,7 @@ dma_map_sg(struct device *dev, struct scatterlist *sg, int nents,
  *
  * Unmap a set of streaming mode DMA translations.
  * Again, CPU read rules concerning calls here are the same as for
- * pci_unmap_single() above.
+ * dma_unmap_single() above.
  */
 static inline void
 dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nents,
@@ -261,7 +277,7 @@ dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nents,
 }
 
 /**
- * dma_sync_single
+ * dma_sync_single_for_cpu
  * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
  * @handle: DMA address of buffer
  * @size: size of buffer to map
@@ -270,18 +286,31 @@ dma_unmap_sg(struct device *dev, struct scatterlist *sg, int nents,
  * Make physical memory consistent for a single streaming mode DMA
  * translation after a transfer.
  *
- * If you perform a pci_map_single() but wish to interrogate the
+ * If you perform a dma_map_single() but wish to interrogate the
  * buffer using the cpu, yet do not wish to teardown the PCI dma
  * mapping, you must call this function before doing so.  At the
- * next point you give the PCI dma address back to the card, the
+ * next point you give the PCI dma address back to the card, you
+ * must first the perform a dma_sync_for_device, and then the
  * device again owns the buffer.
  */
 static inline void
-dma_sync_single(struct device *dev, dma_addr_t handle, size_t size,
-		enum dma_data_direction dir)
+dma_sync_single_for_cpu(struct device *dev, dma_addr_t handle, size_t size,
+			enum dma_data_direction dir)
 {
 	if (dmadev_is_sa1111(dev)) {
-		sa1111_dma_sync_single(dev, handle, size, dir);
+		sa1111_dma_sync_single_for_cpu(dev, handle, size, dir);
+		return;
+	}
+
+	consistent_sync((void *)__bus_to_virt(handle), size, dir);
+}
+
+static inline void
+dma_sync_single_for_device(struct device *dev, dma_addr_t handle, size_t size,
+			   enum dma_data_direction dir)
+{
+	if (dmadev_is_sa1111(dev)) {
+		sa1111_dma_sync_single_for_device(dev, handle, size, dir);
 		return;
 	}
 
@@ -289,7 +318,7 @@ dma_sync_single(struct device *dev, dma_addr_t handle, size_t size,
 }
 
 /**
- * dma_sync_sg
+ * dma_sync_sg_for_cpu
  * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
  * @sg: list of buffers
  * @nents: number of buffers to map
@@ -298,17 +327,17 @@ dma_sync_single(struct device *dev, dma_addr_t handle, size_t size,
  * Make physical memory consistent for a set of streaming
  * mode DMA translations after a transfer.
  *
- * The same as pci_dma_sync_single but for a scatter-gather list,
+ * The same as dma_sync_single_for_* but for a scatter-gather list,
  * same rules and usage.
  */
 static inline void
-dma_sync_sg(struct device *dev, struct scatterlist *sg, int nents,
-	    enum dma_data_direction dir)
+dma_sync_sg_for_cpu(struct device *dev, struct scatterlist *sg, int nents,
+		    enum dma_data_direction dir)
 {
 	int i;
 
 	if (dmadev_is_sa1111(dev)) {
-		sa1111_dma_sync_sg(dev, sg, nents, dir);
+		sa1111_dma_sync_sg_for_cpu(dev, sg, nents, dir);
 		return;
 	}
 
@@ -316,6 +345,31 @@ dma_sync_sg(struct device *dev, struct scatterlist *sg, int nents,
 		char *virt = page_address(sg->page) + sg->offset;
 		consistent_sync(virt, sg->length, dir);
 	}
+}
+
+static inline void
+dma_sync_sg_for_device(struct device *dev, struct scatterlist *sg, int nents,
+		       enum dma_data_direction dir)
+{
+	int i;
+
+	if (dmadev_is_sa1111(dev)) {
+		sa1111_dma_sync_sg_for_device(dev, sg, nents, dir);
+		return;
+	}
+
+	for (i = 0; i < nents; i++, sg++) {
+		char *virt = page_address(sg->page) + sg->offset;
+		consistent_sync(virt, sg->length, dir);
+	}
+}
+
+/*
+ * DMA errors are defined by all-bits-set in the DMA address.
+ */
+static inline int dma_mapping_error(dma_addr_t dma_addr)
+{
+	return dma_addr == ~0;
 }
 
 #endif /* __KERNEL__ */

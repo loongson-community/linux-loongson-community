@@ -553,7 +553,7 @@ static void frame_prepare(struct video_card *video, unsigned int this_frame)
 	*(f->frame_end_branch) = cpu_to_le32(f->descriptor_pool_dma | f->first_n_descriptors);
 
 	/* make the latest version of this frame visible to the PCI card */
-	dma_region_sync(&video->dv_buf, f->data - (unsigned long) video->dv_buf.kvirt, video->frame_size);
+	dma_region_sync_for_device(&video->dv_buf, f->data - (unsigned long) video->dv_buf.kvirt, video->frame_size);
 
 	/* lock against DMA interrupt */
 	spin_lock_irqsave(&video->spinlock, irq_flags);
@@ -2033,9 +2033,9 @@ static void ir_tasklet_func(unsigned long data)
 			struct packet *p = dma_region_i(&video->packet_buf, struct packet, video->current_packet);
 
 			/* make sure we are seeing the latest changes to p */
-			dma_region_sync(&video->packet_buf,
-					(unsigned long) p - (unsigned long) video->packet_buf.kvirt,
-					sizeof(struct packet));
+			dma_region_sync_for_cpu(&video->packet_buf,
+						(unsigned long) p - (unsigned long) video->packet_buf.kvirt,
+						sizeof(struct packet));
 					
 			packet_length = le16_to_cpu(p->data_length);
 			packet_time   = le16_to_cpu(p->timestamp);
@@ -2616,7 +2616,6 @@ static int __init dv1394_init_module(void)
 
 	cdev_init(&dv1394_cdev, &dv1394_fops);
 	dv1394_cdev.owner = THIS_MODULE;
-	kobject_set_name(&dv1394_cdev.kobj, "dv1394");
 	ret = cdev_add(&dv1394_cdev, IEEE1394_DV1394_DEV, 16);
 	if (ret) {
 		printk(KERN_ERR "dv1394: unable to register character device\n");

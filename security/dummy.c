@@ -25,6 +25,7 @@
 #include <linux/netlink.h>
 #include <net/sock.h>
 #include <linux/xattr.h>
+#include <linux/hugetlb.h>
 
 static int dummy_ptrace (struct task_struct *parent, struct task_struct *child)
 {
@@ -101,6 +102,14 @@ static int dummy_syslog (int type)
 	return 0;
 }
 
+/*
+ * Check that a process has enough memory to allocate a new virtual
+ * mapping. 0 means there is enough memory for the allocation to
+ * succeed and -ENOMEM implies there is not.
+ *
+ * We currently support three overcommit policies, which are set via the
+ * vm.overcommit_memory sysctl.  See Documentation/vm/overcommit-accounting
+ */
 static int dummy_vm_enough_memory(long pages)
 {
 	unsigned long free, allowed;
@@ -138,7 +147,8 @@ static int dummy_vm_enough_memory(long pages)
 		return -ENOMEM;
 	}
 
-	allowed = totalram_pages * sysctl_overcommit_ratio / 100;
+	allowed = (totalram_pages - hugetlb_total_pages())
+		* sysctl_overcommit_ratio / 100;
 	allowed += total_swap_pages;
 
 	if (atomic_read(&vm_committed_space) < allowed)
@@ -194,7 +204,8 @@ static void dummy_sb_free_security (struct super_block *sb)
 	return;
 }
 
-static int dummy_sb_copy_data (const char *fstype, void *orig, void *copy)
+static int dummy_sb_copy_data (struct file_system_type *type,
+			       void *orig, void *copy)
 {
 	return 0;
 }

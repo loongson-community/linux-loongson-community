@@ -693,7 +693,7 @@ complete_scsi_command( CommandList_struct *cp, int timeout, __u32 tag)
 	scsi_cmd_free(ctlr, cp);
 }
 
-static int __init 
+static int
 cciss_scsi_detect(int ctlr)
 {
 	struct Scsi_Host *sh;
@@ -1058,6 +1058,7 @@ cciss_update_non_disk_devices(int cntl_num, int hostno)
 		int devtype;
 
 		/* for each physical lun, do an inquiry */
+		if (ld_buff->LUN[i][3] & 0xC0) continue;
 		memset(inq_buff, 0, sizeof(InquiryData_struct));
 		memcpy(&scsi3addr[0], &ld_buff->LUN[i][0], 8);
 

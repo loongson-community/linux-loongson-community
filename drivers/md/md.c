@@ -57,7 +57,7 @@
 
 
 #ifndef MODULE
-static void autostart_arrays (void);
+static void autostart_arrays (int part);
 #endif
 
 static mdk_personality_t *pers[MAX_PERSONALITY];
@@ -1447,7 +1447,7 @@ abort:
 	return 1;
 }
 
-static int mdp_major = 0;
+int mdp_major = 0;
 
 static struct kobject *md_probe(dev_t dev, int *part, void *data)
 {
@@ -1792,7 +1792,7 @@ static void autorun_array(mddev_t *mddev)
  *
  * If "unit" is allocated, then bump its reference count
  */
-static void autorun_devices(void)
+static void autorun_devices(int part)
 {
 	struct list_head candidates;
 	struct list_head *tmp;
@@ -1825,7 +1825,12 @@ static void autorun_devices(void)
 			       bdevname(rdev0->bdev, b), rdev0->preferred_minor);
 			break;
 		}
-		dev = MKDEV(MD_MAJOR, rdev0->preferred_minor);
+		if (part)
+			dev = MKDEV(mdp_major,
+				    rdev0->preferred_minor << MdpMinorShift);
+		else
+			dev = MKDEV(MD_MAJOR, rdev0->preferred_minor);
+
 		md_probe(dev, NULL, NULL);
 		mddev = mddev_find(dev);
 		if (!mddev) {
@@ -1922,7 +1927,7 @@ static int autostart_array(dev_t startdev)
 	/*
 	 * possibly return codes
 	 */
-	autorun_devices();
+	autorun_devices(0);
 	return 0;
 
 }
@@ -2407,7 +2412,7 @@ static int md_ioctl(struct inode *inode, struct file *file,
 #ifndef MODULE
 		case RAID_AUTORUN:
 			err = 0;
-			autostart_arrays();
+			autostart_arrays(arg);
 			goto done;
 #endif
 		default:;
@@ -3173,13 +3178,14 @@ DECLARE_WAIT_QUEUE_HEAD(resync_wait);
 static void md_do_sync(mddev_t *mddev)
 {
 	mddev_t *mddev2;
-	unsigned int max_sectors, currspeed = 0,
-		j, window;
+	unsigned int currspeed = 0,
+		 window;
+	sector_t max_sectors,j;
 	unsigned long mark[SYNC_MARKS];
-	unsigned long mark_cnt[SYNC_MARKS];
+	sector_t mark_cnt[SYNC_MARKS];
 	int last_mark,m;
 	struct list_head *tmp;
-	unsigned long last_check;
+	sector_t last_check;
 
 	/* just incase thread restarts... */
 	if (test_bit(MD_RECOVERY_DONE, &mddev->recovery))
@@ -3248,8 +3254,8 @@ static void md_do_sync(mddev_t *mddev)
 	 * Tune reconstruction:
 	 */
 	window = 32*(PAGE_SIZE/512);
-	printk(KERN_INFO "md: using %dk window, over a total of %d blocks.\n",
-		window/2,max_sectors/2);
+	printk(KERN_INFO "md: using %dk window, over a total of %Lu blocks.\n",
+		window/2,(unsigned long long) max_sectors/2);
 
 	atomic_set(&mddev->recovery_active, 0);
 	init_waitqueue_head(&mddev->recovery_wait);
@@ -3317,7 +3323,7 @@ static void md_do_sync(mddev_t *mddev)
 		 */
 		cond_resched();
 
-		currspeed = (j-mddev->resync_mark_cnt)/2/((jiffies-mddev->resync_mark)/HZ +1) +1;
+		currspeed = ((unsigned long)(j-mddev->resync_mark_cnt))/2/((jiffies-mddev->resync_mark)/HZ +1) +1;
 
 		if (currspeed > sysctl_speed_limit_min) {
 			if ((currspeed > sysctl_speed_limit_max) ||
@@ -3577,7 +3583,7 @@ void md_autodetect_dev(dev_t dev)
 }
 
 
-static void autostart_arrays(void)
+static void autostart_arrays(int part)
 {
 	char b[BDEVNAME_SIZE];
 	mdk_rdev_t *rdev;
@@ -3602,7 +3608,7 @@ static void autostart_arrays(void)
 	}
 	dev_cnt = 0;
 
-	autorun_devices();
+	autorun_devices(part);
 }
 
 #endif

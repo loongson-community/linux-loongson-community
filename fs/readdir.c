@@ -32,6 +32,7 @@ int vfs_readdir(struct file *file, filldir_t filler, void *buf)
 	res = -ENOENT;
 	if (!IS_DEADDIR(inode)) {
 		res = file->f_op->readdir(file, buf, filler);
+		file_accessed(file);
 	}
 	up(&inode->i_sem);
 out:
@@ -161,7 +162,7 @@ static int filldir(void * __buf, const char * name, int namlen, loff_t offset,
 	if (__put_user(d_type, (char *) dirent + reclen - 1))
 		goto efault;
 	buf->previous = dirent;
-	dirent = (void *)dirent + reclen;
+	dirent = (void __user *)dirent + reclen;
 	buf->current_dir = dirent;
 	buf->count -= reclen;
 	return 0;
@@ -247,7 +248,7 @@ static int filldir64(void * __buf, const char * name, int namlen, loff_t offset,
 	if (__put_user(0, dirent->d_name + namlen))
 		goto efault;
 	buf->previous = dirent;
-	dirent = (void *)dirent + reclen;
+	dirent = (void __user *)dirent + reclen;
 	buf->current_dir = dirent;
 	buf->count -= reclen;
 	return 0;

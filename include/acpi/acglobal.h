@@ -79,6 +79,15 @@ extern      u32                                 acpi_dbg_layer;
 
 extern      u32                                 acpi_gbl_nesting_level;
 
+/*****************************************************************************
+ *
+ * Runtime configuration
+ *
+ ****************************************************************************/
+
+ACPI_EXTERN u8                                  acpi_gbl_create_osi_method;
+ACPI_EXTERN u8                                  acpi_gbl_all_methods_serialized;
+ACPI_EXTERN u8                                  acpi_gbl_leave_wake_gpes_disabled;
 
 /*****************************************************************************
  *
@@ -169,6 +178,7 @@ extern const char                              *acpi_gbl_sleep_state_names[ACPI_
 extern const char                              *acpi_gbl_highest_dstate_names[4];
 extern const struct acpi_opcode_info            acpi_gbl_aml_op_info[AML_NUM_OPCODES];
 extern const char                              *acpi_gbl_region_types[ACPI_NUM_PREDEFINED_REGIONS];
+extern const char                              *acpi_gbl_valid_osi_strings[ACPI_NUM_OSI_STRINGS];
 
 
 /*****************************************************************************
@@ -179,7 +189,7 @@ extern const char                              *acpi_gbl_region_types[ACPI_NUM_P
 
 #define NUM_NS_TYPES                    ACPI_TYPE_INVALID+1
 
-#if defined (ACPI_NO_METHOD_EXECUTION) || defined (ACPI_CONSTANT_EVAL_ONLY)
+#if !defined (ACPI_NO_METHOD_EXECUTION) || defined (ACPI_CONSTANT_EVAL_ONLY)
 #define NUM_PREDEFINED_NAMES            10
 #else
 #define NUM_PREDEFINED_NAMES            9
@@ -187,6 +197,7 @@ extern const char                              *acpi_gbl_region_types[ACPI_NUM_P
 
 ACPI_EXTERN struct acpi_namespace_node          acpi_gbl_root_node_struct;
 ACPI_EXTERN struct acpi_namespace_node         *acpi_gbl_root_node;
+ACPI_EXTERN struct acpi_namespace_node         *acpi_gbl_fadt_gpe_device;
 
 extern const u8                                 acpi_gbl_ns_properties[NUM_NS_TYPES];
 extern const struct acpi_predefined_names       acpi_gbl_pre_defined_names [NUM_PREDEFINED_NAMES];

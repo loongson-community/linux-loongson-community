@@ -265,8 +265,6 @@ ia64_sync_itc (unsigned int master)
 static inline void __init
 smp_setup_percpu_timer (void)
 {
-	local_cpu_data->prof_counter = 1;
-	local_cpu_data->prof_multiplier = 1;
 }
 
 static void __init
@@ -300,9 +298,7 @@ smp_callin (void)
 	 */
 	ia64_set_kr(IA64_KR_IO_BASE, __pa(ia64_iobase));
 
-#ifdef CONFIG_IA64_MCA
 	ia64_mca_cmc_vector_setup();	/* Setup vector on AP & enable */
-#endif
 
 #ifdef CONFIG_PERFMON
 	pfm_init_percpu();

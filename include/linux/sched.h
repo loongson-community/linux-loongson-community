@@ -179,7 +179,9 @@ asmlinkage void schedule(void);
 struct namespace;
 
 /* Maximum number of active map areas.. This is a random (large) number */
-#define MAX_MAP_COUNT	(65536)
+#define DEFAULT_MAX_MAP_COUNT	65536
+
+extern int sysctl_max_map_count;
 
 #include <linux/aio.h>
 
@@ -547,6 +549,8 @@ extern void node_nr_running_init(void);
 #define node_nr_running_init() {}
 #endif
 
+/* Move tasks off this (offline) CPU onto another. */
+extern void migrate_all_tasks(void);
 extern void set_user_nice(task_t *p, long nice);
 extern int task_prio(task_t *p);
 extern int task_nice(task_t *p);
@@ -560,13 +564,9 @@ void yield(void);
  */
 extern struct exec_domain	default_exec_domain;
 
-#ifndef INIT_THREAD_SIZE
-# define INIT_THREAD_SIZE	2048*sizeof(long)
-#endif
-
 union thread_union {
 	struct thread_info thread_info;
-	unsigned long stack[INIT_THREAD_SIZE/sizeof(long)];
+	unsigned long stack[THREAD_SIZE/sizeof(long)];
 };
 
 #ifndef __HAVE_ARCH_KSTACK_END

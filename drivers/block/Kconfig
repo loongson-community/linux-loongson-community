@@ -6,7 +6,7 @@ menu "Block devices"
 
 config BLK_DEV_FD
 	tristate "Normal floppy disk support"
-	depends on (!X86_PC9800 && !ARCH_S390 && !M68K) || Q40 || (SUN3X && BROKEN)
+	depends on (!X86_PC9800 && !ARCH_S390 && !M68K && !IA64) || Q40 || (SUN3X && BROKEN)
 	---help---
 	  If you want to use the floppy disk drive(s) of your PC under Linux,
 	  say Y. Information about this driver, especially important for IBM
@@ -292,6 +292,15 @@ config BLK_DEV_NBD
 
 	  If unsure, say N.
 
+config BLK_DEV_CARMEL
+	tristate "Promise SATA SX8 (carmel) support"
+	depends on PCI
+	---help---
+	  Saying Y or M here will enable support for the 
+	  Promise SATA SX8 ("carmel") controllers.
+
+	  Use devices /dev/carmel/$N and /dev/carmel/$Np$M.
+
 config BLK_DEV_RAM
 	tristate "RAM disk support"
 	---help---
@@ -321,7 +330,7 @@ config BLK_DEV_RAM_SIZE
 
 config BLK_DEV_INITRD
 	bool "Initial RAM disk (initrd) support"
-	depends on BLK_DEV_RAM && BLK_DEV_RAM!=m
+	depends on BLK_DEV_RAM=y
 	help
 	  The initial RAM disk is a RAM disk that is loaded by the boot loader
 	  (loadlin or lilo) and that is mounted as root before the normal boot

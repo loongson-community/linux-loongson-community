@@ -1318,7 +1318,7 @@ typhoon_init_interface(struct typhoon *tp)
 	tp->rxHiRing.ringBase = (u8 *) tp->shared->rxHi;
 	tp->rxBuffRing.ringBase = (u8 *) tp->shared->rxBuff;
 	tp->cmdRing.ringBase = (u8 *) tp->shared->cmd;
-	tp->respRing.ringBase = (u8 *) tp->shared->resp;;
+	tp->respRing.ringBase = (u8 *) tp->shared->resp;
 
 	tp->txLoRing.writeRegister = TYPHOON_REG_TX_LO_READY;
 	tp->txHiRing.writeRegister = TYPHOON_REG_TX_HI_READY;
@@ -1701,9 +1701,13 @@ typhoon_rx(struct typhoon *tp, struct basic_ring *rxRing, volatile u32 * ready,
 		   (new_skb = dev_alloc_skb(pkt_len + 2)) != NULL) {
 			new_skb->dev = tp->dev;
 			skb_reserve(new_skb, 2);
-			pci_dma_sync_single(tp->pdev, dma_addr, PKT_BUF_SZ,
-					    PCI_DMA_FROMDEVICE);
+			pci_dma_sync_single_for_cpu(tp->pdev, dma_addr,
+						    PKT_BUF_SZ,
+						    PCI_DMA_FROMDEVICE);
 			eth_copy_and_sum(new_skb, skb->tail, pkt_len, 0);
+			pci_dma_sync_single_for_device(tp->pdev, dma_addr,
+						       PKT_BUF_SZ,
+						       PCI_DMA_FROMDEVICE);
 			skb_put(new_skb, pkt_len);
 			typhoon_recycle_rx_skb(tp, idx);
 		} else {

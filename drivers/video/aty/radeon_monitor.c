@@ -640,21 +640,21 @@ static void radeon_fixup_panel_info(struct radeonfb_info *rinfo)
 #ifdef CONFIG_PPC_OF
 	/* iBook2's */
 	if (machine_is_compatible("PowerBook4,3")) {
-		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;;
+		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;
 		rinfo->panel_info.post_divider = 0x6;
 		rinfo->panel_info.fbk_divider = 0xad;
 		rinfo->panel_info.use_bios_dividers = 1;
 	}
 	/* Aluminium PowerBook 17" */
 	if (machine_is_compatible("PowerBook5,3")) {
-		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;;
+		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;
 		rinfo->panel_info.post_divider = 0x4;
 		rinfo->panel_info.fbk_divider = 0x80;
 		rinfo->panel_info.use_bios_dividers = 1;
 	}
 	/* iBook G4 */
 	if (machine_is_compatible("PowerBook6,3")) {
-		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;;
+		rinfo->panel_info.ref_divider = rinfo->pll.ref_div;
 		rinfo->panel_info.post_divider = 0x6;
 		rinfo->panel_info.fbk_divider = 0xad;
 		rinfo->panel_info.use_bios_dividers = 1;
@@ -757,7 +757,7 @@ void __devinit radeon_check_modes(struct radeonfb_info *rinfo, const char *mode_
 	    && rinfo->mon1_EDID) {
 		struct fb_var_screeninfo var;
 		RTRACE("Parsing EDID data for panel info\n");
-		if (parse_edid(rinfo->mon1_EDID, &var) == 0) {
+		if (fb_parse_edid(rinfo->mon1_EDID, &var) == 0) {
 			if (var.xres >= rinfo->panel_info.xres &&
 			    var.yres >= rinfo->panel_info.yres)
 				radeon_var_to_panel_info(rinfo, &var);

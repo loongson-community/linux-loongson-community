@@ -30,13 +30,13 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <asm/iSeries/HvLpConfig.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <asm/nvram.h>
 #include <asm/time.h>
 #include <asm/iSeries/ItSpCommArea.h>
-#include <asm/iSeries/iSeries_proc.h>
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
 #include <linux/bcd.h>
@@ -560,6 +560,7 @@ void mf_allocateLpEvents(HvLpIndex targetLp, HvLpEvent_Type type,
 	if ((rc != 0) && (hdlr != NULL))
 		(*hdlr)(userToken, rc);
 }
+EXPORT_SYMBOL(mf_allocateLpEvents);
 
 /*
  * Global kernel interface to unseed and deallocate events already in
@@ -590,6 +591,7 @@ void mf_deallocateLpEvents(HvLpIndex targetLp, HvLpEvent_Type type,
 	if ((rc != 0) && (hdlr != NULL))
 		(*hdlr)(userToken, rc);
 }
+EXPORT_SYMBOL(mf_deallocateLpEvents);
 
 /*
  * Global kernel interface to tell the VSP object in the primary
@@ -680,8 +682,6 @@ void mf_init(void)
 
 	/* initialization complete */
 	printk(KERN_NOTICE "mf.c: iSeries Linux LPAR Machine Facilities initialized\n");
-
-	iSeries_proc_callback(&mf_proc_init);
 }
 
 void mf_setSide(char side)
@@ -763,14 +763,10 @@ void mf_getSrcHistory(char *buffer, int size)
 	ev->event.data.vsp_cmd.lp_index = HvLpConfig_getLpIndex();
 	ev->event.data.vsp_cmd.result_code = 0xFF;
 	ev->event.data.vsp_cmd.reserved = 0;
-	ev->event.data.vsp_cmd.sub_data.page[0] =
-		(0x8000000000000000ULL | virt_to_absolute((unsigned long)pages[0]));
-	ev->event.data.vsp_cmd.sub_data.page[1] =
-		(0x8000000000000000ULL | virt_to_absolute((unsigned long)pages[1]));
-	ev->event.data.vsp_cmd.sub_data.page[2] =
-		(0x8000000000000000ULL | virt_to_absolute((unsigned long)pages[2]));
-	ev->event.data.vsp_cmd.sub_data.page[3] =
-		(0x8000000000000000ULL | virt_to_absolute((unsigned long)pages[3]));
+	ev->event.data.vsp_cmd.sub_data.page[0] = ISERIES_HV_ADDR(pages[0]);
+	ev->event.data.vsp_cmd.sub_data.page[1] = ISERIES_HV_ADDR(pages[1]);
+	ev->event.data.vsp_cmd.sub_data.page[2] = ISERIES_HV_ADDR(pages[2]);
+	ev->event.data.vsp_cmd.sub_data.page[3] = ISERIES_HV_ADDR(pages[3]);
 	mb();
 	if (signal_event(ev) != 0)
 		return;

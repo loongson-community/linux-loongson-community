@@ -445,8 +445,8 @@ static inline void **dbg_userword(kmem_cache_t *cachep, void *objp)
 /*
  * Do not go above this order unless 0 objects fit into the slab.
  */
-#define	BREAK_GFP_ORDER_HI	2
-#define	BREAK_GFP_ORDER_LO	1
+#define	BREAK_GFP_ORDER_HI	1
+#define	BREAK_GFP_ORDER_LO	0
 static int slab_break_gfp_order = BREAK_GFP_ORDER_LO;
 
 /* Macros for storing/retrieving the cachep and or slab from the
@@ -576,7 +576,7 @@ static void __slab_error(const char *function, kmem_cache_t *cachep, char *msg)
  * Add the CPU number into the expiry time to minimize the possibility of the
  * CPUs getting into lockstep and contending for the global cache chain lock.
  */
-static void start_cpu_timer(int cpu)
+static void __devinit start_cpu_timer(int cpu)
 {
 	struct timer_list *rt = &per_cpu(reap_timers, cpu);
 
@@ -589,12 +589,19 @@ static void start_cpu_timer(int cpu)
 	}
 }
 
-/*
- * Note: if someone calls kmem_cache_alloc() on the new
- * cpu before the cpuup callback had a chance to allocate
- * the head arrays, it will oops.
- * Is CPU_ONLINE early enough?
- */
+#ifdef CONFIG_HOTPLUG_CPU
+static void stop_cpu_timer(int cpu)
+{
+	struct timer_list *rt = &per_cpu(reap_timers, cpu);
+
+	if (rt->function) {
+		del_timer_sync(rt);
+		WARN_ON(timer_pending(rt));
+		rt->function = NULL;
+	}
+}
+#endif
+
 static int __devinit cpuup_callback(struct notifier_block *nfb,
 				  unsigned long action,
 				  void *hcpu)
@@ -630,18 +637,28 @@ static int __devinit cpuup_callback(struct notifier_block *nfb,
 	case CPU_ONLINE:
 		start_cpu_timer(cpu);
 		break;
+#ifdef CONFIG_HOTPLUG_CPU
+	case CPU_DEAD:
+		stop_cpu_timer(cpu);
+		/* fall thru */
 	case CPU_UP_CANCELED:
 		down(&cache_chain_sem);
 
 		list_for_each_entry(cachep, &cache_chain, next) {
 			struct array_cache *nc;
 
+			spin_lock_irq(&cachep->spinlock);
+			/* cpu is dead; no one can alloc from it. */
 			nc = cachep->array[cpu];
 			cachep->array[cpu] = NULL;
+			cachep->free_limit -= cachep->batchcount;
+			free_block(cachep, ac_entry(nc), nc->avail);
+			spin_unlock_irq(&cachep->spinlock);
 			kfree(nc);
 		}
 		up(&cache_chain_sem);
 		break;
+#endif
 	}
 	return NOTIFY_OK;
 bad:
@@ -914,7 +931,7 @@ static void print_objinfo(kmem_cache_t *cachep, void *objp, int lines)
 		printk("\n");
 	}
 	realobj = (char*)objp+obj_dbghead(cachep);
-	size = cachep->objsize;
+	size = obj_reallen(cachep);
 	for (i=0; i<size && lines;i+=16, lines--) {
 		int limit;
 		limit = 16;
@@ -1262,6 +1279,9 @@ next:
 	cachep->dtor = dtor;
 	cachep->name = name;
 
+	/* Don't let CPUs to come and go */
+	lock_cpu_hotplug();
+
 	if (g_cpucache_up == FULL) {
 		enable_cpucache(cachep);
 	} else {
@@ -1311,6 +1331,7 @@ next:
 			if (!strcmp(pc->name,name)) { 
 				printk("kmem_cache_create: duplicate cache %s\n",name); 
 				up(&cache_chain_sem); 
+				unlock_cpu_hotplug();
 				BUG(); 
 			}	
 		}
@@ -1320,6 +1341,7 @@ next:
 	/* cache setup completed, link it into the list */
 	list_add(&cachep->next, &cache_chain);
 	up(&cache_chain_sem);
+	unlock_cpu_hotplug();
 opps:
 	return cachep;
 }
@@ -1470,6 +1492,9 @@ int kmem_cache_destroy (kmem_cache_t * cachep)
 	if (!cachep || in_interrupt())
 		BUG();
 
+	/* Don't let CPUs to come and go */
+	lock_cpu_hotplug();
+
 	/* Find the cache in the chain of caches. */
 	down(&cache_chain_sem);
 	/*
@@ -1483,9 +1508,13 @@ int kmem_cache_destroy (kmem_cache_t * cachep)
 		down(&cache_chain_sem);
 		list_add(&cachep->next,&cache_chain);
 		up(&cache_chain_sem);
+		unlock_cpu_hotplug();
 		return 1;
 	}
 
+	/* no cpu_online check required here since we clear the percpu
+	 * array on cpu offline and set this to NULL.
+	 */
 	for (i = 0; i < NR_CPUS; i++)
 		kfree(cachep->array[i]);
 
@@ -1493,6 +1522,8 @@ int kmem_cache_destroy (kmem_cache_t * cachep)
 	kfree(cachep->lists.shared);
 	cachep->lists.shared = NULL;
 	kmem_cache_free(&cache_cache, cachep);
+
+	unlock_cpu_hotplug();
 
 	return 0;
 }
@@ -2885,7 +2916,8 @@ void ptrinfo(unsigned long addr)
 #endif
 
 	page = virt_to_page((void*)addr);
-	printk("struct page at %p, flags %lxh.\n", page, page->flags);
+	printk("struct page at %p, flags %08lx\n",
+			page, (unsigned long)page->flags);
 	if (PageSlab(page)) {
 		kmem_cache_t *c;
 		struct slab *s;

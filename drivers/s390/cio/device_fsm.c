@@ -148,6 +148,7 @@ ccw_device_handle_oper(struct ccw_device *cdev)
 	struct subchannel *sch;
 
 	sch = to_subchannel(cdev->dev.parent);
+	cdev->private->flags.recog_done = 1;
 	/*
 	 * Check if cu type and device type still match. If
 	 * not, it is certainly another device and we have to
@@ -217,6 +218,7 @@ ccw_device_recog_done(struct ccw_device *cdev, int state)
 		__recover_lost_chpids(sch, old_lpm);
 	if (cdev->private->state == DEV_STATE_DISCONNECTED_SENSE_ID) {
 		if (state == DEV_STATE_NOT_OPER) {
+			cdev->private->flags.recog_done = 1;
 			cdev->private->state = DEV_STATE_DISCONNECTED;
 			return;
 		}
@@ -393,6 +395,7 @@ ccw_device_recognition(struct ccw_device *cdev)
 	 * timeout (or if sense pgid during path verification detects the device
 	 * is locked, as may happen on newer devices).
 	 */
+	cdev->private->flags.recog_done = 0;
 	cdev->private->state = DEV_STATE_SENSE_ID;
 	ccw_device_sense_id_start(cdev);
 	return 0;
@@ -728,6 +731,9 @@ ccw_device_w4sense(struct ccw_device *cdev, enum dev_event dev_event)
 	    		(SCSW_STCTL_STATUS_PEND | SCSW_STCTL_ALERT_STATUS)) {
 		if (cdev->handler)
 			cdev->handler (cdev, 0, irb);
+		if (irb->scsw.cc == 1)
+			/* Basic sense hasn't started. Try again. */
+			ccw_device_do_sense(cdev, irb);
 		return;
 	}
 	/* Add basic sense info to irb. */
@@ -825,6 +831,8 @@ ccw_device_wait4io_irq(struct ccw_device *cdev, enum dev_event dev_event)
 	    		(SCSW_STCTL_STATUS_PEND | SCSW_STCTL_ALERT_STATUS)) {
 		if (cdev->handler)
 			cdev->handler (cdev, 0, irb);
+		if (irb->scsw.cc == 1)
+			goto call_handler;
 		return;
 	}
 	/*
@@ -838,6 +846,7 @@ ccw_device_wait4io_irq(struct ccw_device *cdev, enum dev_event dev_event)
 		}
 		return;
 	}
+call_handler:
 	/* Iff device is idle, reset timeout. */
 	sch = to_subchannel(cdev->dev.parent);
 	if (!stsch(sch->irq, &sch->schib))
@@ -905,6 +914,8 @@ ccw_device_stlck_done(struct ccw_device *cdev, enum dev_event dev_event)
 		/* Check for unsolicited interrupt. */
 		if (irb->scsw.stctl ==
 		    (SCSW_STCTL_STATUS_PEND | SCSW_STCTL_ALERT_STATUS))
+			/* FIXME: we should restart stlck here, but this
+			 * is extremely unlikely ... */
 			goto out_wakeup;
 
 		ccw_device_accumulate_irb(cdev, irb);

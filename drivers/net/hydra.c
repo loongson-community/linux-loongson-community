@@ -142,6 +142,10 @@ static int __devinit hydra_init(struct zorro_dev *z)
     ei_status.reg_offset = hydra_offsets;
     dev->open = &hydra_open;
     dev->stop = &hydra_close;
+#ifdef CONFIG_NET_POLL_CONTROLLER
+    dev->poll_controller = ei_poll;
+#endif
+
     NS8390_init(dev, 0);
 
     err = register_netdev(dev);

@@ -636,7 +636,7 @@ struct super_block *get_sb_bdev(struct file_system_type *fs_type,
 		char b[BDEVNAME_SIZE];
 
 		s->s_flags = flags;
-		strncpy(s->s_id, bdevname(bdev, b), sizeof(s->s_id));
+		strlcpy(s->s_id, bdevname(bdev, b), sizeof(s->s_id));
 		s->s_old_blocksize = block_size(bdev);
 		sb_set_blocksize(s, s->s_old_blocksize);
 		error = fill_super(s, data, flags & MS_VERBOSE ? 1 : 0);
@@ -745,7 +745,7 @@ do_kern_mount(const char *fstype, int flags, const char *name, void *data)
 			goto out_mnt;
 		}
 
-		error = security_sb_copy_data(fstype, data, secdata);
+		error = security_sb_copy_data(type, data, secdata);
 		if (error) {
 			sb = ERR_PTR(error);
 			goto out_free_secdata;

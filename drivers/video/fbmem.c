@@ -55,7 +55,6 @@ extern int acornfb_init(void);
 extern int acornfb_setup(char*);
 extern int amifb_init(void);
 extern int amifb_setup(char*);
-extern int anakinfb_init(void);
 extern int atafb_init(void);
 extern int atafb_setup(char*);
 extern int macfb_init(void);
@@ -184,9 +183,6 @@ static struct {
 #endif
 #ifdef CONFIG_FB_AMIGA
 	{ "amifb", amifb_init, amifb_setup },
-#endif
-#ifdef CONFIG_FB_ANAKIN
-	{ "anakinfb", anakinfb_init, NULL },
 #endif
 #ifdef CONFIG_FB_CLPS711X
 	{ "clps711xfb", clps711xfb_init, NULL },
@@ -1193,13 +1189,11 @@ fb_mmap(struct file *file, struct vm_area_struct * vma)
 #elif defined(__i386__) || defined(__x86_64__)
 	if (boot_cpu_data.x86 > 3)
 		pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
-#elif defined(__arm__) || defined(__mips__)
+#elif defined(__mips__)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-#elif defined(__sh__)
-	pgprot_val(vma->vm_page_prot) &= ~_PAGE_CACHABLE;
 #elif defined(__hppa__)
 	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE;
-#elif defined(__ia64__)
+#elif defined(__ia64__) || defined(__arm__) || defined(__sh__)
 	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 #else
 #warning What do we have to do here??

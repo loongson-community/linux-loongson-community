@@ -32,12 +32,13 @@
 #include <asm/obio.h>
 #include <asm/mxcc.h>
 #include <asm/thread_info.h>
+#include <asm/param.h>
 
 #include <asm/asmmacro.h>
 
 #define curptr      g6
 
-#define NR_SYSCALLS 272      /* Each OS is different... */
+#define NR_SYSCALLS 273      /* Each OS is different... */
 
 /* These are just handy. */
 #define _SV	save	%sp, -STACKFRAME_SZ, %sp
@@ -287,10 +288,9 @@ bad_trap_handler:
 	wr	%l0, PSR_ET, %psr
 	WRITE_PAUSE
 
-	mov	%l7, %o0		! trap number
-	mov	%l0, %o1		! psr
+	add	%sp, STACKFRAME_SZ, %o0	! pt_regs
 	call	do_hw_interrupt
-	 mov	%l1, %o2		! pc
+	 mov	%l7, %o1		! trap number
 
 	RESTORE_ALL
 	
@@ -349,21 +349,15 @@ smp4m_ticker:
 	 * for cross calls.  That has a separate entry point below.
 	 */
 maybe_smp4m_msg:
-	GET_PROCESSOR_MID(o3, o2)
+	GET_PROCESSOR4M_ID(o3)
 	set	sun4m_interrupts, %l5
 	ld	[%l5], %o5
-	sethi	%hi(0x60000000), %o4
+	sethi	%hi(0x40000000), %o2
 	sll	%o3, 12, %o3
 	ld	[%o5 + %o3], %o1
-	andcc	%o1, %o4, %g0
+	andcc	%o1, %o2, %g0
 	be,a	smp4m_ticker
 	 cmp	%l7, 14
-	sethi	%hi(0x40000000), %o2
-	add	%o5, %o3, %o5
-	andcc	%o1, %o2, %g0
-	be,a	1f
-	 sethi	%hi(0x20000000), %o2
-1:
 	st	%o2, [%o5 + 0x4]
 	WRITE_PAUSE
 	ld	[%o5], %g0
@@ -373,15 +367,9 @@ maybe_smp4m_msg:
 	WRITE_PAUSE
 	wr	%l4, PSR_ET, %psr
 	WRITE_PAUSE
-	srl	%o2, (16+14), %o2
-	tst	%o2
-	bne	2f
-	 nop
 	call	smp_reschedule_irq
-	 add	%o7, 8, %o7
-2:
-	call	smp_stop_cpu_irq
 	 nop
+
 	RESTORE_ALL
 
 	.align	4
@@ -389,7 +377,7 @@ maybe_smp4m_msg:
 linux_trap_ipi15_sun4m:
 	SAVE_ALL
 	sethi	%hi(0x80000000), %o2
-	GET_PROCESSOR_MID(o0, o1)
+	GET_PROCESSOR4M_ID(o0)
 	set	sun4m_interrupts, %l5
 	ld	[%l5], %o5
 	sll	%o0, 12, %o0
@@ -1808,36 +1796,37 @@ fpload:
 	retl
 	 nop
 
-	.globl	ndelay
-ndelay:
+	/* __ndelay and __udelay take two arguments:
+	 * 0 - nsecs or usecs to delay
+	 * 1 - per_cpu udelay_val (loops per jiffy)
+	 *
+	 * Note that ndelay gives HZ times higher resolution but has a 10ms
+	 * limit.  udelay can handle up to 1s.
+	 */
+	.globl	__ndelay
+__ndelay:
 	save	%sp, -STACKFRAME_SZ, %sp
 	mov	%i0, %o0
 	call	.umul
-	 mov	5, %o1
+	 mov	0x1ad, %o1		! 2**32 / (1 000 000 000 / HZ)
+	call	.umul
+	 mov	%i1, %o1		! udelay_val
 	ba	delay_continue
-	 nop
+	 mov	%o1, %o0		! >>32 later for better resolution
 
-	.globl	udelay
-udelay:
+	.globl	__udelay
+__udelay:
 	save	%sp, -STACKFRAME_SZ, %sp
 	mov	%i0, %o0
 	sethi	%hi(0x10c6), %o1
 	call	.umul
-	 or	%o1, %lo(0x10c6), %o1
-delay_continue:
-#ifndef CONFIG_SMP
-	sethi	%hi(loops_per_jiffy), %o3
+	 or	%o1, %lo(0x10c6), %o1	! 2**32 / 1 000 000
 	call	.umul
-	 ld	[%o3 + %lo(loops_per_jiffy)], %o1
-#else
-	GET_PROCESSOR_OFFSET(o4, o2)
-	set	cpu_data, %o3
+	 mov	%i1, %o1		! udelay_val
 	call	.umul
-	 ld	[%o3 + %o4], %o1
-#endif
-	call	.umul
-	 mov	100, %o0
+	 mov	HZ, %o0			! >>32 earlier for wider range
 
+delay_continue:
 	cmp	%o0, 0x0
 1:
 	bne	1b

@@ -171,9 +171,10 @@ _GLOBAL(DoSyscall)
 	bl	do_show_syscall
 #endif /* SHOW_SYSCALLS */
 	rlwinm	r10,r1,0,0,18	/* current_thread_info() */
+	lwz	r11,TI_LOCAL_FLAGS(r10)
+	rlwinm	r11,r11,0,~_TIFL_FORCE_NOERROR
+	stw	r11,TI_LOCAL_FLAGS(r10)
 	lwz	r11,TI_FLAGS(r10)
-	rlwinm	r11,r11,0,~_TIF_FORCE_NOERROR
-	stw	r11,TI_FLAGS(r10)
 	andi.	r11,r11,_TIF_SYSCALL_TRACE
 	bne-	syscall_dotrace
 syscall_dotrace_cont:
@@ -196,8 +197,8 @@ ret_from_syscall:
 	cmpl	0,r3,r11
 	rlwinm	r12,r1,0,0,18	/* current_thread_info() */
 	blt+	30f
-	lwz	r11,TI_FLAGS(r12)
-	andi.	r11,r11,_TIF_FORCE_NOERROR
+	lwz	r11,TI_LOCAL_FLAGS(r12)
+	andi.	r11,r11,_TIFL_FORCE_NOERROR
 	bne	30f
 	neg	r3,r3
 	lwz	r10,_CCR(r1)	/* Set SO bit in CR */
@@ -414,6 +415,14 @@ ppc_clone:
 	stw	r0,TRAP(r1)		/* register set saved */
 	b	sys_clone
 
+	.globl	ppc_swapcontext
+ppc_swapcontext:
+	SAVE_NVGPRS(r1)
+	lwz	r0,TRAP(r1)
+	rlwinm	r0,r0,0,0,30		/* clear LSB to indicate full */
+	stw	r0,TRAP(r1)		/* register set saved */
+	b	sys_swapcontext
+
 /*
  * This routine switches between two different tasks.  The process
  * state of one is saved on its kernel stack.  Then the state
@@ -460,10 +469,19 @@ END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 	stw	r10,_CCR(r1)
 	stw	r1,KSP(r3)	/* Set old stack pointer */
 
+#ifdef CONFIG_SMP
+	/* We need a sync somewhere here to make sure that if the
+	 * previous task gets rescheduled on another CPU, it sees all
+	 * stores it has performed on this one.
+	 */
+	sync
+#endif /* CONFIG_SMP */
+
 	tophys(r0,r4)
 	CLR_TOP32(r0)
 	mtspr	SPRG3,r0	/* Update current THREAD phys addr */
 	lwz	r1,KSP(r4)	/* Load new stack pointer */
+
 	/* save the old current 'last' for return value */
 	mr	r3,r2
 	addi	r2,r4,-THREAD	/* Update current */

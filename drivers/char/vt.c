@@ -2315,7 +2315,7 @@ int tioclinux(struct tty_struct *tty, unsigned long arg)
 			break;
 		case TIOCL_SETVESABLANK:
 			set_vesa_blanking(arg);
-			break;;
+			break;
 		case TIOCL_SETKMSGREDIRECT:
 			if (!capable(CAP_SYS_ADMIN)) {
 				ret = -EPERM;
@@ -2481,19 +2481,20 @@ static int con_open(struct tty_struct *tty, struct file * filp)
 	return 0;
 }
 
-static void con_close(struct tty_struct *tty, struct file * filp)
+static void con_close(struct tty_struct *tty, struct file *filp)
 {
-	struct vt_struct *vt;
-	
-	if (!tty || tty->count != 1)
-		return;
-
-	vcs_remove_devfs(tty);
 	acquire_console_sem();
-	vt = (struct vt_struct*)tty->driver_data;
-	if (vt)
-		vc_cons[vt->vc_num].d->vc_tty = NULL;
-	tty->driver_data = 0;
+	if (tty && tty->count == 1) {
+		struct vt_struct *vt;
+
+		vt = tty->driver_data;
+		if (vt)
+			vc_cons[vt->vc_num].d->vc_tty = NULL;
+		tty->driver_data = 0;
+		release_console_sem();
+		vcs_remove_devfs(tty);
+		return;
+	}
 	release_console_sem();
 }
 

@@ -12,6 +12,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/dma-mapping.h>
 #include <asm/scatterlist.h>
 #include <asm/io.h>
 #include <asm/prom.h>
@@ -112,17 +113,33 @@ static inline void pci_unmap_sg(struct pci_dev *hwdev, struct scatterlist *sg,
 	pci_dma_ops.pci_unmap_sg(hwdev, sg, nents, direction);
 }
 
-static inline void pci_dma_sync_single(struct pci_dev *hwdev,
-				       dma_addr_t dma_handle,
-				       size_t size, int direction)
+static inline void pci_dma_sync_single_for_cpu(struct pci_dev *hwdev,
+					       dma_addr_t dma_handle,
+					       size_t size, int direction)
 {
 	BUG_ON(direction == PCI_DMA_NONE);
 	/* nothing to do */
 }
 
-static inline void pci_dma_sync_sg(struct pci_dev *hwdev,
-				   struct scatterlist *sg,
-				   int nelems, int direction)
+static inline void pci_dma_sync_single_for_device(struct pci_dev *hwdev,
+						  dma_addr_t dma_handle,
+						  size_t size, int direction)
+{
+	BUG_ON(direction == PCI_DMA_NONE);
+	/* nothing to do */
+}
+
+static inline void pci_dma_sync_sg_for_cpu(struct pci_dev *hwdev,
+					   struct scatterlist *sg,
+					   int nelems, int direction)
+{
+	BUG_ON(direction == PCI_DMA_NONE);
+	/* nothing to do */
+}
+
+static inline void pci_dma_sync_sg_for_device(struct pci_dev *hwdev,
+					      struct scatterlist *sg,
+					      int nelems, int direction)
 {
 	BUG_ON(direction == PCI_DMA_NONE);
 	/* nothing to do */
@@ -151,6 +168,11 @@ static inline int pci_dac_dma_supported(struct pci_dev *hwdev,u64 mask)
 	if (pci_dma_ops.pci_dac_dma_supported)
 		return pci_dma_ops.pci_dac_dma_supported(hwdev, mask);
 	return 0;
+}
+
+static inline int pci_dma_mapping_error(dma_addr_t dma_addr)
+{
+	return dma_mapping_error(dma_addr);
 }
 
 extern int pci_domain_nr(struct pci_bus *bus);

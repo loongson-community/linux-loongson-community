@@ -79,6 +79,7 @@ spinlock_t die_lock = SPIN_LOCK_UNLOCKED;
 void die(const char * str, struct pt_regs * fp, long err)
 {
 	static int die_counter;
+	int nl = 0;
 	console_verbose();
 	spin_lock_irq(&die_lock);
 #ifdef CONFIG_PMAC_BACKLIGHT
@@ -86,6 +87,16 @@ void die(const char * str, struct pt_regs * fp, long err)
 	set_backlight_level(BACKLIGHT_MAX);
 #endif
 	printk("Oops: %s, sig: %ld [#%d]\n", str, err, ++die_counter);
+#ifdef CONFIG_PREEMPT
+	printk("PREEMPT ");
+	nl = 1;
+#endif
+#ifdef CONFIG_SMP
+	printk("SMP NR_CPUS=%d ", NR_CPUS);
+	nl = 1;
+#endif
+	if (nl)
+		printk("\n");
 	show_regs(fp);
 	spin_unlock_irq(&die_lock);
 	/* do_exit() should take care of panic'ing from an interrupt
@@ -380,14 +391,25 @@ check_bug_trap(struct pt_regs *regs)
 		return 0;
 	if (bug->line & BUG_WARNING_TRAP) {
 		/* this is a WARN_ON rather than BUG/BUG_ON */
+#ifdef CONFIG_XMON
+		xmon_printf(KERN_ERR "Badness in %s at %s:%d\n",
+		       bug->function, bug->file,
+		       bug->line & ~BUG_WARNING_TRAP);
+#endif /* CONFIG_XMON */		
 		printk(KERN_ERR "Badness in %s at %s:%d\n",
 		       bug->function, bug->file,
 		       bug->line & ~BUG_WARNING_TRAP);
 		dump_stack();
 		return 1;
 	}
+#ifdef CONFIG_XMON
+	xmon_printf(KERN_CRIT "kernel BUG in %s at %s:%d!\n",
+	       bug->function, bug->file, bug->line);
+	xmon(regs);
+#endif /* CONFIG_XMON */
 	printk(KERN_CRIT "kernel BUG in %s at %s:%d!\n",
 	       bug->function, bug->file, bug->line);
+
 	return 0;
 }
 
@@ -416,8 +438,14 @@ ProgramCheckException(struct pt_regs *regs)
 		int code = 0;
 		u32 fpscr;
 
+		/* We must make sure the FP state is consistent with
+		 * our MSR_FP in regs
+		 */
+		preempt_disable();
 		if (regs->msr & MSR_FP)
 			giveup_fpu(current);
+		preempt_enable();
+
 		fpscr = current->thread.fpscr;
 		fpscr &= fpscr << 22;	/* mask summary bits with enables */
 		if (fpscr & FPSCR_VX)
@@ -581,12 +609,16 @@ TAUException(struct pt_regs *regs)
 void
 AltivecAssistException(struct pt_regs *regs)
 {
+	preempt_disable();
 	if (regs->msr & MSR_VEC)
 		giveup_altivec(current);
+	preempt_enable();
+
 	/* XXX quick hack for now: set the non-Java bit in the VSCR */
 	current->thread.vscr.u[3] |= 0x10000;
 }
 #endif /* CONFIG_ALTIVEC */
+
 
 void __init trap_init(void)
 {

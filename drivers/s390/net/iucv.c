@@ -1,5 +1,5 @@
 /* 
- * $Id: iucv.c,v 1.24 2004/02/05 14:16:01 braunu Exp $
+ * $Id: iucv.c,v 1.27 2004/03/22 07:43:43 braunu Exp $
  *
  * IUCV network driver
  *
@@ -29,7 +29,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- * RELEASE-TAG: IUCV lowlevel driver $Revision: 1.24 $
+ * RELEASE-TAG: IUCV lowlevel driver $Revision: 1.27 $
  *
  */
 
@@ -351,7 +351,7 @@ do { \
 static void
 iucv_banner(void)
 {
-	char vbuf[] = "$Revision: 1.24 $";
+	char vbuf[] = "$Revision: 1.27 $";
 	char *version = vbuf;
 
 	if ((version = strchr(version, ':'))) {
@@ -374,13 +374,13 @@ iucv_init(void)
 {
 	int ret;
 
+	if (iucv_external_int_buffer)
+		return 0;
+
 	if (!MACHINE_IS_VM) {
 		printk(KERN_ERR "IUCV: IUCV connection needs VM as base\n");
 		return -EPROTONOSUPPORT;
 	}
-
-	if (iucv_external_int_buffer)
-		return 0;
 
 	ret = bus_register(&iucv_bus);
 	if (ret != 0) {
@@ -670,10 +670,12 @@ iucv_declare_buffer (void)
 	ulong b2f0_result = 0x0deadbeef;
 
 	iucv_debug(1, "entering");
+	preempt_disable();
 	if (smp_processor_id() == 0)
 		iucv_declare_buffer_cpu0(&b2f0_result);
 	else
 		smp_call_function(iucv_declare_buffer_cpu0, &b2f0_result, 0, 1);
+	preempt_enable();
 	iucv_debug(1, "Address of EIB = %p", iucv_external_int_buffer);
 	if (b2f0_result == 0x0deadbeef)
 	    b2f0_result = 0xaa;
@@ -692,11 +694,13 @@ iucv_retrieve_buffer (void)
 {
 	iucv_debug(1, "entering");
 	if (declare_flag) {
+		preempt_disable();
 		if (smp_processor_id() == 0)
 			iucv_retrieve_buffer_cpu0(0);
 		else
 			smp_call_function(iucv_retrieve_buffer_cpu0, 0, 0, 1);
 		declare_flag = 0;
+		preempt_enable();
 	}
 	iucv_debug(1, "exiting");
 	return 0;
@@ -826,7 +830,7 @@ iucv_register_program (__u8 pgmname[16],
 			memset (new_handler->id.mask, 0xFF,
 				sizeof (new_handler->id.mask));
 		}
-		memset (new_handler->id.mask, 0x00,
+		memset (new_handler->id.userid, 0x00,
 			sizeof (new_handler->id.userid));
 	}
 	/* fill in the rest of handler */
@@ -2216,10 +2220,12 @@ iucv_setmask (int SetMaskFlag)
 	} u;
 
 	u.param = SetMaskFlag;
+	preempt_disable();
 	if (smp_processor_id() == 0)
 		iucv_setmask_cpu0(&u);
 	else
 		smp_call_function(iucv_setmask_cpu0, &u, 0, 1);
+	preempt_enable();
 
 	return u.result;
 }
@@ -2519,10 +2525,6 @@ module_exit(iucv_exit);
 
 /**
  * Export all public stuff
- * FIXME: I have commented out all the functions that
- * 	  are not used in netiucv. Is anyone else
- * 	  using them or should some of them be made
- * 	  static / removed? pls review. Arnd
  */
 EXPORT_SYMBOL (iucv_bus);
 EXPORT_SYMBOL (iucv_root);

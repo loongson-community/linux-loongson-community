@@ -157,7 +157,7 @@ int max_queued_signals = 1024;
 	 sigtestsetmask(&current->signal->shared_pending.signal, \
 						  M(SIGCONT) | M(SIGKILL)))
 
-static inline int sig_ignored(struct task_struct *t, int sig)
+static int sig_ignored(struct task_struct *t, int sig)
 {
 	void * handler;
 
@@ -532,7 +532,7 @@ int dequeue_signal(struct task_struct *tsk, sigset_t *mask, siginfo_t *info)
  * No need to set need_resched since signal event passing
  * goes through ->blocked
  */
-inline void signal_wake_up(struct task_struct *t, int resume)
+void signal_wake_up(struct task_struct *t, int resume)
 {
 	unsigned int mask;
 
@@ -837,7 +837,7 @@ force_sig_specific(int sig, struct task_struct *t)
 	 && (task_curr(p) || !signal_pending(p)))
 
 
-static inline void
+static void
 __group_complete_signal(int sig, struct task_struct *p, unsigned int mask)
 {
 	struct task_struct *t;
@@ -940,7 +940,7 @@ __group_complete_signal(int sig, struct task_struct *p, unsigned int mask)
 	return;
 }
 
-static inline int
+static int
 __group_send_sig_info(int sig, struct siginfo *info, struct task_struct *p)
 {
 	unsigned int mask;
@@ -1051,17 +1051,23 @@ int __kill_pg_info(int sig, struct siginfo *info, pid_t pgrp)
 	struct task_struct *p;
 	struct list_head *l;
 	struct pid *pid;
-	int err, retval = -ESRCH;
+	int retval;
+	int found;
 
 	if (pgrp <= 0)
 		return -EINVAL;
 
+	found = 0;
+	retval = 0;
 	for_each_task_pid(pgrp, PIDTYPE_PGID, p, l, pid) {
+		int err;
+
+		found = 1;
 		err = group_send_sig_info(sig, info, p);
-		if (retval)
+		if (!retval)
 			retval = err;
 	}
-	return retval;
+	return found ? retval : -ESRCH;
 }
 
 int
@@ -1369,7 +1375,7 @@ out:
  * Joy. Or not. Pthread wants us to wake up every thread
  * in our parent group.
  */
-static inline void __wake_up_parent(struct task_struct *p,
+static void __wake_up_parent(struct task_struct *p,
 				    struct task_struct *parent)
 {
 	struct task_struct *tsk = parent;
@@ -2476,7 +2482,8 @@ out:
 #endif /* __sparc__ */
 #endif
 
-#if !defined(__alpha__) && !defined(__ia64__) && !defined(__arm__)
+#if !defined(__alpha__) && !defined(__ia64__) && \
+    !defined(__arm__) && !defined(__s390__)
 /*
  * For backwards compatibility.  Functionality superseded by sigprocmask.
  */

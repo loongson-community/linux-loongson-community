@@ -82,6 +82,7 @@ static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;	/* Index 0-MAX */
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
 static int enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE_PNP;		/* Enable this card */
 static int omni[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS-1)] = 0};	/* Delta44 & 66 Omni I/O support */
+static int cs8427_timeout[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS-1)] = 500}; /* CS8427 S/PDIF transciever reset timeout value in msec */
 
 MODULE_PARM(index, "1-" __MODULE_STRING(SNDRV_CARDS) "i");
 MODULE_PARM_DESC(index, "Index value for ICE1712 soundcard.");
@@ -95,6 +96,9 @@ MODULE_PARM_SYNTAX(enable, SNDRV_ENABLE_DESC);
 MODULE_PARM(omni, "1-" __MODULE_STRING(SNDRV_CARDS) "i");
 MODULE_PARM_DESC(omni, "Enable Midiman M-Audio Delta Omni I/O support.");
 MODULE_PARM_SYNTAX(omni, SNDRV_ENABLED "," SNDRV_ENABLE_DESC);
+MODULE_PARM(cs8427_timeout, "1-" __MODULE_STRING(SNDRV_CARDS) "i");
+MODULE_PARM_DESC(cs8427_timeout, "Define reset timeout for cs8427 chip in msec resolution.");
+MODULE_PARM_SYNTAX(cs8427_timeout, SNDRV_ENABLED ", allows:{{1,1000}},default=500,skill:advanced");
 
 #ifndef PCI_VENDOR_ID_ICE
 #define PCI_VENDOR_ID_ICE		0x1412
@@ -386,7 +390,9 @@ int __devinit snd_ice1712_init_cs8427(ice1712_t *ice, int addr)
 {
 	int err;
 
-	if ((err = snd_cs8427_create(ice->i2c, addr, &ice->cs8427)) < 0) {
+	if ((err = snd_cs8427_create(ice->i2c, addr,
+				     (ice->cs8427_timeout * HZ) / 1000,
+				     &ice->cs8427)) < 0) {
 		snd_printk("CS8427 initialization failed\n");
 		return err;
 	}
@@ -886,7 +892,8 @@ static int __devinit snd_ice1712_pcm(ice1712_t * ice, int device, snd_pcm_t ** r
 	strcpy(pcm->name, "ICE1712 consumer");
 	ice->pcm = pcm;
 
-	snd_pcm_lib_preallocate_pci_pages_for_all(ice->pci, pcm, 64*1024, 64*1024);
+	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
+					      snd_dma_pci_data(ice->pci), 64*1024, 64*1024);
 
 	if (rpcm)
 		*rpcm = pcm;
@@ -922,7 +929,8 @@ static int __devinit snd_ice1712_pcm_ds(ice1712_t * ice, int device, snd_pcm_t *
 	strcpy(pcm->name, "ICE1712 consumer (DS)");
 	ice->pcm_ds = pcm;
 
-	snd_pcm_lib_preallocate_pci_pages_for_all(ice->pci, pcm, 64*1024, 128*1024);
+	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
+					      snd_dma_pci_data(ice->pci), 64*1024, 128*1024);
 
 	if (rpcm)
 		*rpcm = pcm;
@@ -1269,7 +1277,8 @@ static int __devinit snd_ice1712_pcm_profi(ice1712_t * ice, int device, snd_pcm_
 	pcm->info_flags = 0;
 	strcpy(pcm->name, "ICE1712 multi");
 
-	snd_pcm_lib_preallocate_pci_pages_for_all(ice->pci, pcm, 256*1024, 256*1024);
+	snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
+					      snd_dma_pci_data(ice->pci), 256*1024, 256*1024);
 
 	ice->pcm_pro = pcm;
 	if (rpcm)
@@ -1381,7 +1390,7 @@ static int snd_ice1712_pro_mixer_volume_put(snd_kcontrol_t * kcontrol, snd_ctl_e
 }
 
 
-static snd_kcontrol_new_t snd_ice1712_multi_ctrls[] __devinitdata = {
+static snd_kcontrol_new_t snd_ice1712_multi_playback_ctrls[] __devinitdata = {
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 		.name = "Multi Playback Switch",
@@ -1400,24 +1409,44 @@ static snd_kcontrol_new_t snd_ice1712_multi_ctrls[] __devinitdata = {
 		.private_value = 0,
 		.count = 10,
 	},
-	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name = "Multi Capture Switch",
-		.info = snd_ice1712_pro_mixer_switch_info,
-		.get = snd_ice1712_pro_mixer_switch_get,
-		.put = snd_ice1712_pro_mixer_switch_put,
-		.private_value = 10,
-		.count = 10,
-	},
-	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name = "Multi Capture Volume",
-		.info = snd_ice1712_pro_mixer_volume_info,
-		.get = snd_ice1712_pro_mixer_volume_get,
-		.put = snd_ice1712_pro_mixer_volume_put,
-		.private_value = 10,
-		.count = 10,
-	},
+};
+
+static snd_kcontrol_new_t snd_ice1712_multi_capture_analog_switch __devinitdata = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "H/W Multi Capture Switch",
+	.info = snd_ice1712_pro_mixer_switch_info,
+	.get = snd_ice1712_pro_mixer_switch_get,
+	.put = snd_ice1712_pro_mixer_switch_put,
+	.private_value = 10,
+};
+
+static snd_kcontrol_new_t snd_ice1712_multi_capture_spdif_switch __devinitdata = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "IEC958 Multi Capture Switch",
+	.info = snd_ice1712_pro_mixer_switch_info,
+	.get = snd_ice1712_pro_mixer_switch_get,
+	.put = snd_ice1712_pro_mixer_switch_put,
+	.private_value = 18,
+	.count = 2,
+};
+
+static snd_kcontrol_new_t snd_ice1712_multi_capture_analog_volume __devinitdata = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "H/W Multi Capture Volume",
+	.info = snd_ice1712_pro_mixer_volume_info,
+	.get = snd_ice1712_pro_mixer_volume_get,
+	.put = snd_ice1712_pro_mixer_volume_put,
+	.private_value = 10,
+};
+
+static snd_kcontrol_new_t snd_ice1712_multi_capture_spdif_volume __devinitdata = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "IEC958 Multi Capture Volume",
+	.info = snd_ice1712_pro_mixer_volume_info,
+	.get = snd_ice1712_pro_mixer_volume_get,
+	.put = snd_ice1712_pro_mixer_volume_put,
+	.private_value = 18,
+	.count = 2,
 };
 
 static int __devinit snd_ice1712_build_pro_mixer(ice1712_t *ice)
@@ -1427,14 +1456,46 @@ static int __devinit snd_ice1712_build_pro_mixer(ice1712_t *ice)
 	int err;
 
 	/* multi-channel mixer */
-	for (idx = 0; idx < ARRAY_SIZE(snd_ice1712_multi_ctrls); idx++) {
-		err = snd_ctl_add(card, snd_ctl_new1(&snd_ice1712_multi_ctrls[idx], ice));
+	for (idx = 0; idx < ARRAY_SIZE(snd_ice1712_multi_playback_ctrls); idx++) {
+		err = snd_ctl_add(card, snd_ctl_new1(&snd_ice1712_multi_playback_ctrls[idx], ice));
 		if (err < 0)
 			return err;
 	}
 	
+	if (ice->num_total_adcs > 0) {
+		snd_kcontrol_new_t tmp = snd_ice1712_multi_capture_analog_switch;
+		tmp.count = ice->num_total_adcs;
+		err = snd_ctl_add(card, snd_ctl_new1(&tmp, ice));
+		if (err < 0)
+			return err;
+	}
+
+	err = snd_ctl_add(card, snd_ctl_new1(&snd_ice1712_multi_capture_spdif_switch, ice));
+	if (err < 0)
+		return err;
+
+	if (ice->num_total_adcs > 0) {
+		snd_kcontrol_new_t tmp = snd_ice1712_multi_capture_analog_volume;
+		tmp.count = ice->num_total_adcs;
+		err = snd_ctl_add(card, snd_ctl_new1(&tmp, ice));
+		if (err < 0)
+			return err;
+	}
+
+	err = snd_ctl_add(card, snd_ctl_new1(&snd_ice1712_multi_capture_spdif_volume, ice));
+	if (err < 0)
+		return err;
+
 	/* initialize volumes */
-	for (idx = 0; idx < 20; idx++) {
+	for (idx = 0; idx < 10; idx++) {
+		ice->pro_volumes[idx] = 0x80008000;	/* mute */
+		snd_ice1712_update_volume(ice, idx);
+	}
+	for (idx = 10; idx < 10 + ice->num_total_adcs; idx++) {
+		ice->pro_volumes[idx] = 0x80008000;	/* mute */
+		snd_ice1712_update_volume(ice, idx);
+	}
+	for (idx = 18; idx < 20; idx++) {
 		ice->pro_volumes[idx] = 0x80008000;	/* mute */
 		snd_ice1712_update_volume(ice, idx);
 	}
@@ -1450,10 +1511,10 @@ static void snd_ice1712_mixer_free_ac97(ac97_t *ac97)
 static int __devinit snd_ice1712_ac97_mixer(ice1712_t * ice)
 {
 	int err;
+	ac97_t ac97;
+	ac97_bus_t bus, *pbus;
 
 	if (ice_has_con_ac97(ice)) {
-		ac97_bus_t bus, *pbus;
-		ac97_t ac97;
 		memset(&bus, 0, sizeof(bus));
 		bus.write = snd_ice1712_ac97_write;
 		bus.read = snd_ice1712_ac97_read;
@@ -1472,8 +1533,6 @@ static int __devinit snd_ice1712_ac97_mixer(ice1712_t * ice)
 	}
 
 	if (! (ice->eeprom.data[ICE_EEP1_ACLINK] & ICE1712_CFG_PRO_I2S)) {
-		ac97_bus_t bus, *pbus;
-		ac97_t ac97;
 		memset(&bus, 0, sizeof(bus));
 		bus.write = snd_ice1712_pro_ac97_write;
 		bus.read = snd_ice1712_pro_ac97_read;
@@ -2349,6 +2408,7 @@ static int snd_ice1712_dev_free(snd_device_t *device)
 static int __devinit snd_ice1712_create(snd_card_t * card,
 					struct pci_dev *pci,
 					int omni,
+					int cs8427_timeout,
 					ice1712_t ** r_ice1712)
 {
 	ice1712_t *ice;
@@ -2373,8 +2433,14 @@ static int __devinit snd_ice1712_create(snd_card_t * card,
 	if (ice == NULL)
 		return -ENOMEM;
 	ice->omni = omni ? 1 : 0;
+	if (cs8427_timeout < 1)
+		cs8427_timeout = 1;
+	else if (cs8427_timeout > 1000)
+		cs8427_timeout = 1000;
+	ice->cs8427_timeout = cs8427_timeout;
 	spin_lock_init(&ice->reg_lock);
 	init_MUTEX(&ice->gpio_mutex);
+	init_MUTEX(&ice->open_mutex);
 	ice->gpio.set_mask = snd_ice1712_set_gpio_mask;
 	ice->gpio.set_dir = snd_ice1712_set_gpio_dir;
 	ice->gpio.set_data = snd_ice1712_set_gpio_data;
@@ -2491,7 +2557,7 @@ static int __devinit snd_ice1712_probe(struct pci_dev *pci,
 	strcpy(card->driver, "ICE1712");
 	strcpy(card->shortname, "ICEnsemble ICE1712");
 	
-	if ((err = snd_ice1712_create(card, pci, omni[dev], &ice)) < 0) {
+	if ((err = snd_ice1712_create(card, pci, omni[dev], cs8427_timeout[dev], &ice)) < 0) {
 		snd_card_free(card);
 		return err;
 	}

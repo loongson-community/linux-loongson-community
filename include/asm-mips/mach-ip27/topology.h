@@ -9,6 +9,9 @@
 #define node_to_first_cpu(node)	(first_cpu(node_to_cpumask(node)))
 #define pcibus_to_cpumask(bus)	(cpu_online_map)
 
+extern int node_distance(nasid_t nasid_a, nasid_t nasid_b);
+#define node_distance(from, to)	node_distance(from, to)
+
 /* Cross-node load balancing interval. */
 #define NODE_BALANCE_RATE	10
 
