@@ -223,7 +223,7 @@ static irqreturn_t sonic_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 
 			/* We must free the original skb */
 			if (lp->tx_skb[entry]) {
-				dev_kfree_skb(lp->tx_skb[entry]);
+				dev_kfree_skb_irq(lp->tx_skb[entry]);
 				lp->tx_skb[entry] = 0;
 			}
 			/* and the VDMA address */
