@@ -5,7 +5,7 @@
  *      Code (mostly sleleton and comments) derived from DECstation IRQ
  *      handling.
  *
- * $Id: irq.c,v 1.5 1999/12/04 03:58:59 ralf Exp $
+ * $Id: irq.c,v 1.6 2000/02/04 07:40:23 ralf Exp $
  */
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -29,8 +29,7 @@
 
 #include <asm/baget/baget.h>
 
-unsigned int local_bh_count[NR_CPUS];
-unsigned int local_irq_count[NR_CPUS];
+irq_cpustat_t irq_stat [NR_CPUS];
 unsigned long spurious_count = 0;
 
 /*

@@ -34,6 +34,7 @@ int get_cpuinfo(char *buffer)
 	const char *mach_sgi_names[] = GROUP_SGI_NAMES;
 	const char *mach_cobalt_names[] = GROUP_COBALT_NAMES;
 	const char *mach_nec_ddb_names[] = GROUP_NEC_DDB_NAMES;
+	const char *mach_baget_names[] = GROUP_BAGET_NAMES;
 	const char **mach_group_to_name[] = { mach_unknown_names,
 	                                      mach_jazz_names,
 	                                      mach_dec_names,
@@ -42,7 +43,8 @@ int get_cpuinfo(char *buffer)
 	                                      mach_acn_names,
 	                                      mach_sgi_names,
 					      mach_cobalt_names,
-					      mach_nec_ddb_names };
+					      mach_nec_ddb_names,
+					      mach_baget_names };
 	unsigned int version = read_32bit_cp0_register(CP0_PRID);
 	int len;
 

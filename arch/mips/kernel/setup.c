@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.22 2000/01/27 01:05:23 ralf Exp $
+/* $Id: setup.c,v 1.23 2000/03/02 02:36:50 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -156,7 +156,7 @@ void __init setup_arch(char **cmdline_p)
 	switch(mips_machgroup)
 	{
 #ifdef CONFIG_BAGET_MIPS
-	case MACH_GROUP_UNKNOWN: 
+	case MACH_GROUP_BAGET: 
 		baget_setup();
 		break;
 #endif

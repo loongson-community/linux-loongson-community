@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.21 1999/09/28 22:25:44 ralf Exp $
+# $Id: Makefile,v 1.22 2000/01/26 00:07:44 ralf Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -125,6 +125,7 @@ endif
 ifdef CONFIG_BAGET_MIPS
 SUBDIRS       += arch/mips/baget arch/mips/baget/prom
 LIBS          += arch/mips/baget/baget.a arch/mips/baget/prom/bagetlib.a
+LOADADDR      += 0x80001000
 endif
 
 #
@@ -189,6 +190,7 @@ archclean:
 	@$(MAKEBOOT) clean
 	$(MAKE) -C arch/$(ARCH)/kernel clean
 	$(MAKE) -C arch/$(ARCH)/tools clean
+	$(MAKE) -C arch/mips/baget clean
 
 archmrproper:
 

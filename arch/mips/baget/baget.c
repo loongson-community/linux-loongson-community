@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: baget.c,v 1.1 1999/01/17 03:49:37 ralf Exp $
  *
  * baget.c: Baget low level stuff
  *
@@ -13,15 +13,9 @@
 #include <asm/bootinfo.h>
 #include <asm/mipsregs.h>
 #include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 
 #include <asm/baget/baget.h>
-
-/* 
- * Following values are set by BALO into RAM disk buffer parameters
- */
-unsigned long balo_ramdisk_base = 0xBA;  /* Signature for BALO ! */
-unsigned long balo_ramdisk_size = 0;
-
 
 /*
  *  Following code is based on routines from 'mm/vmalloc.c'
