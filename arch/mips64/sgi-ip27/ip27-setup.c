@@ -89,7 +89,6 @@ void __init ip27_setup(void)
 {
 	nasid_t nid;
 	hubreg_t p, e;
-	extern void mlreset(void);
 
 	set_cp0_status(ST0_IM, 0);
 	nid = get_nasid();
@@ -110,5 +109,4 @@ void __init ip27_setup(void)
 	verify_mode();
 	ioc3_sio_init();
 	ioc3_eth_init();
-	mlreset();
 }
