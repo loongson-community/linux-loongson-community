@@ -571,7 +571,7 @@ config NEW_PCI
 	default y
 
 config SWAP_IO_SPACE
-	bool "Support for paging of anonymous memory"
+	bool
 	depends on TOSHIBA_JMR3927 || TOSHIBA_RBTX4927 || SIBYTE_SB1250 || SGI_IP22 || MOMENCO_OCELOT_C || MOMENCO_OCELOT_G || MOMENCO_OCELOT || MIPS_MALTA || MIPS_ATLAS || MIPS_EV96100 || MIPS_PB1100 || MIPS_PB1000
 
 config SIBYTE_HAS_LDT
