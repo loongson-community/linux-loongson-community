@@ -92,8 +92,6 @@ void smp_prepare_boot_cpu(void);
 
 #else /* !SMP */
 
-#include <asm/page.h>
-
 /*
  *	These macros fold the SMP functionality into a single CPU system
  */
