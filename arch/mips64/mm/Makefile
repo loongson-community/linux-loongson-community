@@ -26,6 +26,6 @@ obj-$(CONFIG_CPU_MIPS64)	+= pg-mips64.o c-mips64.o tlb-r4k.o \
 
 obj-$(CONFIG_SGI_IP22)		+= umap.o
 
-CFLAGS_tlb-glue-r4k.o := -P
+AFLAGS_tlb-glue-r4k.o := -P
 
 include $(TOPDIR)/Rules.make

@@ -31,6 +31,6 @@ ifndef CONFIG_MAPPED_PCI_IO
 obj-y				+= pci-dma.o
 endif
 
-CFLAGS_r4k_genex.o := -P
+AFLAGS_r4k_genex.o := -P
 
 include $(TOPDIR)/Rules.make
