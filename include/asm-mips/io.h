@@ -217,7 +217,8 @@ extern void __iounmap(void *addr);
 #define ioremap_uncached_accelerated(offset, size)			\
 	__ioremap((offset), (size), _CACHE_UNCACHED_ACCELERATED)
 
-extern void iounmap(void *addr);
+#define iounmap(addr)							\
+	__iounmap(addr)
 
 /*
  * XXX We need system specific versions of these to handle EISA address bits
