@@ -135,12 +135,6 @@ extern unsigned int vced_count, vcei_count;
 /*
  * Bus types (default is ISA, but people can check others with these..)
  */
-#ifdef CONFIG_EISA
-extern int EISA_bus;
-#else
-#define EISA_bus (0)
-#endif
-
 #define MCA_bus 0
 #define MCA_bus__is_a_macro /* for versions in ksyms.c */
 
@@ -318,5 +312,14 @@ unsigned long get_wchan(struct task_struct *p);
  * address register on the stack.
  */
 #define return_address() ({__asm__ __volatile__("":::"$31");__builtin_return_address(0);})
+
+/*
+ * For now.  The 32-bit cycle counter is screwed up so solving this nicely takes a little
+ * brainwork ...
+ */
+static inline unsigned long long sched_clock(void)
+{
+	return 0ULL;
+}
 
 #endif /* _ASM_PROCESSOR_H */

@@ -17,14 +17,12 @@
 #include <linux/pci.h>
 
 #include <asm/sn/sgi.h>
-#include <linux/devfs_fs.h>
-#include <linux/devfs_fs_kernel.h>
 #include <asm/io.h>
 #include <asm/sn/iograph.h>
 #include <asm/sn/invent.h>
 #include <asm/sn/hcl.h>
 #include <asm/sn/labelcl.h>
-#include <asm//sn/sn_sal.h>
+#include <asm/sn/sn_sal.h>
 #include <asm/sn/addrs.h>
 #include <asm/sn/ioconfig_bus.h>
 
@@ -157,7 +155,7 @@ build_moduleid_table(char *file_contents, struct ascii_moduleid *table)
 	char *name;
 	char *temp;
 	char *next;
-	char *current;
+	char *curr;
 	char *line;
 	struct ascii_moduleid *moduleid;
 
@@ -166,10 +164,10 @@ build_moduleid_table(char *file_contents, struct ascii_moduleid *table)
 	name = kmalloc(125, GFP_KERNEL);
 	memset(name, 0, 125);
 	moduleid = table;
-	current = file_contents;
-	while (nextline(current, &next, line)){
+	curr = file_contents;
+	while (nextline(curr, &next, line)){
 
-		DBG("current 0x%lx next 0x%lx\n", current, next);
+		DBG("curr 0x%lx next 0x%lx\n", curr, next);
 
 		temp = line;
 		/*
@@ -182,7 +180,7 @@ build_moduleid_table(char *file_contents, struct ascii_moduleid *table)
 				break;
 
 		if (*temp == '\n') {
-			current = next;
+			curr = next;
 			memset(line, 0, 256);
 			continue;
 		}
@@ -191,7 +189,7 @@ build_moduleid_table(char *file_contents, struct ascii_moduleid *table)
 		 * Skip comment lines
 		 */
 		if (*temp == '#') {
-			current = next;
+			curr = next;
 			memset(line, 0, 256);
 			continue;
 		}
@@ -204,7 +202,7 @@ build_moduleid_table(char *file_contents, struct ascii_moduleid *table)
 		DBG("Found %s\n", name);
 		moduleid++;
 		free_entry++;
-		current = next;
+		curr = next;
 		memset(line, 0, 256);
 	}
 
@@ -354,7 +352,7 @@ struct file_operations ioconfig_bus_fops = {
 
 /*
  * init_ifconfig_bus() - Boot time initialization.  Ensure that it is called 
- *	after devfs has been initialized.
+ *	after hwgfs has been initialized.
  *
  */
 int init_ioconfig_bus(void)

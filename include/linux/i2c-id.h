@@ -100,6 +100,7 @@
 #define I2C_DRIVERID_STM41T00	52	/* real time clock		*/
 #define I2C_DRIVERID_UDA1342	53	/* UDA1342 audio codec		*/
 #define I2C_DRIVERID_ADV7170	54	/* video encoder		*/
+#define I2C_DRIVERID_RADEON	55	/* I2C bus on Radeon boards	*/
 #define I2C_DRIVERID_SAA7114H	55     /* video decoder			*/
 #define I2C_DRIVERID_MAX1617	56     /* temp sensor			*/
 #define I2C_DRIVERID_SAA7191	57	/* video encoder                */

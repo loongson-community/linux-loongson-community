@@ -22,7 +22,6 @@
 
 #include <linux/kdev_t.h>
 
-#include <linux/kdev_t.h>
 #include <linux/highmem.h>
 #include <linux/mempool.h>
 

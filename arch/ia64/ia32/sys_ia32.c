@@ -76,6 +76,7 @@
 
 #define OFFSET4K(a)		((a) & 0xfff)
 #define PAGE_START(addr)	((addr) & PAGE_MASK)
+#define MINSIGSTKSZ_IA32	2048
 
 #define high2lowuid(uid) ((uid) > 65535 ? 65534 : (uid))
 #define high2lowgid(gid) ((gid) > 65535 ? 65534 : (gid))
@@ -179,19 +180,21 @@ int cp_compat_stat(struct kstat *stat, struct compat_stat *ubuf)
 {
 	int err;
 
-	if ((u64) stat->size > MAX_NON_LFS)
+	if ((u64) stat->size > MAX_NON_LFS ||
+	    !old_valid_dev(stat->dev) ||
+	    !old_valid_dev(stat->rdev))
 		return -EOVERFLOW;
 
 	if (clear_user(ubuf, sizeof(*ubuf)))
 		return -EFAULT;
 
-	err  = __put_user(stat->dev, &ubuf->st_dev);
+	err  = __put_user(old_encode_dev(stat->dev), &ubuf->st_dev);
 	err |= __put_user(stat->ino, &ubuf->st_ino);
 	err |= __put_user(stat->mode, &ubuf->st_mode);
 	err |= __put_user(stat->nlink, &ubuf->st_nlink);
 	err |= __put_user(high2lowuid(stat->uid), &ubuf->st_uid);
 	err |= __put_user(high2lowgid(stat->gid), &ubuf->st_gid);
-	err |= __put_user(stat->rdev, &ubuf->st_rdev);
+	err |= __put_user(old_encode_dev(stat->rdev), &ubuf->st_rdev);
 	err |= __put_user(stat->size, &ubuf->st_size);
 	err |= __put_user(stat->atime.tv_sec, &ubuf->st_atime);
 	err |= __put_user(stat->atime.tv_nsec, &ubuf->st_atime_nsec);
@@ -2262,10 +2265,18 @@ sys32_sigaltstack (ia32_stack_t *uss32, ia32_stack_t *uoss32,
 			return -EFAULT;
 	uss.ss_sp = (void *) (long) buf32.ss_sp;
 	uss.ss_flags = buf32.ss_flags;
-	uss.ss_size = buf32.ss_size;
+	/* MINSIGSTKSZ is different for ia32 vs ia64. We lie here to pass the 
+           check and set it to the user requested value later */
+	if (buf32.ss_size < MINSIGSTKSZ_IA32) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	uss.ss_size = MINSIGSTKSZ;
 	set_fs(KERNEL_DS);
 	ret = do_sigaltstack(uss32 ? &uss : NULL, &uoss, pt->r12);
+ 	current->sas_ss_size = buf32.ss_size;	
 	set_fs(old_fs);
+out:
 	if (ret < 0)
 		return(ret);
 	if (uoss32) {
@@ -2479,7 +2490,7 @@ putstat64 (struct stat64 *ubuf, struct kstat *kbuf)
 	if (clear_user(ubuf, sizeof(*ubuf)))
 		return -EFAULT;
 
-	err  = __put_user(kbuf->dev, &ubuf->st_dev);
+	err  = __put_user(huge_encode_dev(kbuf->dev), &ubuf->st_dev);
 	err |= __put_user(kbuf->ino, &ubuf->__st_ino);
 	err |= __put_user(kbuf->ino, &ubuf->st_ino_lo);
 	err |= __put_user(kbuf->ino >> 32, &ubuf->st_ino_hi);
@@ -2487,7 +2498,7 @@ putstat64 (struct stat64 *ubuf, struct kstat *kbuf)
 	err |= __put_user(kbuf->nlink, &ubuf->st_nlink);
 	err |= __put_user(kbuf->uid, &ubuf->st_uid);
 	err |= __put_user(kbuf->gid, &ubuf->st_gid);
-	err |= __put_user(kbuf->rdev, &ubuf->st_rdev);
+	err |= __put_user(huge_encode_dev(kbuf->rdev), &ubuf->st_rdev);
 	err |= __put_user(kbuf->size, &ubuf->st_size_lo);
 	err |= __put_user((kbuf->size >> 32), &ubuf->st_size_hi);
 	err |= __put_user(kbuf->atime.tv_sec, &ubuf->st_atime);

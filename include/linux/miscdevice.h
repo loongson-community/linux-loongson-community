@@ -39,14 +39,12 @@
 
 #define LCD_MINOR	     140	/* Inofficial Linux/MIPS only alloc */
 
-extern int misc_init(void);
-
 struct miscdevice 
 {
 	int minor;
 	const char *name;
 	struct file_operations *fops;
-	struct miscdevice * next, * prev;
+	struct list_head list;
 	char devfs_name[64];
 };
 

@@ -30,9 +30,11 @@
  *	David Mosberger-Tang <davidm@hpl.hp.com>
  */
 
+#include <linux/compiler.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 
+#include <asm/intrinsics.h>
 #include <asm/pgtable.h>
 
 /*
@@ -56,9 +58,10 @@
  * address TASK_SIZE is never valid.  We also need to make sure that the address doesn't
  * point inside the virtually mapped linear page table.
  */
-#define __access_ok(addr,size,segment)	(((unsigned long) (addr)) <= (segment).seg	\
-	 && ((segment).seg == KERNEL_DS.seg						\
-	     || REGION_OFFSET((unsigned long) (addr)) < RGN_MAP_LIMIT))
+#define __access_ok(addr,size,segment)						\
+	likely(((unsigned long) (addr)) <= (segment).seg			\
+	       && ((segment).seg == KERNEL_DS.seg				\
+		   || REGION_OFFSET((unsigned long) (addr)) < RGN_MAP_LIMIT))
 #define access_ok(type,addr,size)	__access_ok((addr),(size),get_fs())
 
 static inline int
@@ -85,6 +88,8 @@ verify_area (int type, const void *addr, unsigned long size)
  */
 #define __put_user(x,ptr)	__put_user_nocheck((__typeof__(*(ptr)))(x),(ptr),sizeof(*(ptr)))
 #define __get_user(x,ptr)	__get_user_nocheck((x),(ptr),sizeof(*(ptr)))
+
+#ifdef ASM_SUPPORTED
 
 extern void __get_user_unknown (void);
 
@@ -216,6 +221,90 @@ extern void __put_user_unknown (void);
 		"\t.xdata4 \"__ex_table\", 1b-., 1f-.\n"				\
 		"[1:]"									\
 		: "=r"(__pu_err) : "m"(__m(addr)), "rO"(x), "0"(__pu_err))
+
+#else /* !ASM_SUPPORTED */
+
+#define RELOC_TYPE	2	/* ip-rel */
+
+#define __put_user_xx(val, addr, size, err)							\
+	__st_user("__ex_table", (unsigned long) addr, size, RELOC_TYPE, (unsigned long) (val));	\
+	(err) = ia64_getreg(_IA64_REG_R8);
+
+#define __get_user_xx(val, addr, size, err)					\
+	__ld_user("__ex_table", (unsigned long) addr, size, RELOC_TYPE);	\
+	(err) = ia64_getreg(_IA64_REG_R8);					\
+	(val) = ia64_getreg(_IA64_REG_R9);
+
+extern void __get_user_unknown (void);
+
+#define __get_user_nocheck(x, ptr, size)				\
+({									\
+	register long __gu_err = 0;					\
+	register long __gu_val = 0;					\
+	const __typeof__(*(ptr)) *__gu_addr = (ptr);			\
+	switch (size) {							\
+	      case 1: case 2: case 4: case 8:				\
+		__get_user_xx(__gu_val, __gu_addr, size, __gu_err);	\
+		break;							\
+	      default:							\
+		__get_user_unknown();					\
+		break;							\
+        }								\
+        (x) = (__typeof__(*(ptr))) __gu_val;				\
+        __gu_err;							\
+})
+
+#define __get_user_check(x,ptr,size,segment)					\
+({										\
+	register long __gu_err = -EFAULT;					\
+	register long __gu_val  = 0;						\
+	const __typeof__(*(ptr)) *__gu_addr = (ptr);				\
+	if (__access_ok((long) __gu_addr, size, segment)) {			\
+		switch (size) {							\
+		      case 1: case 2: case 4: case 8:				\
+			__get_user_xx(__gu_val, __gu_addr, size, __gu_err);	\
+			break;							\
+		      default:							\
+			__get_user_unknown(); break;				\
+		}								\
+	}									\
+	(x) = (__typeof__(*(ptr))) __gu_val;					\
+	__gu_err;								\
+})
+
+extern void __put_user_unknown (void);
+
+#define __put_user_nocheck(x, ptr, size)			\
+({								\
+	int __pu_err = 0;					\
+	__typeof__(*(ptr)) *__pu_addr = (ptr);			\
+	switch (size) {						\
+	      case 1: case 2: case 4: case 8:			\
+	  	__put_user_xx(x, __pu_addr, size, __pu_err);	\
+		break;						\
+	      default:						\
+	  	__put_user_unknown(); break;			\
+	}							\
+	__pu_err;						\
+})
+
+#define __put_user_check(x,ptr,size,segment)				\
+({									\
+	register long __pu_err = -EFAULT;				\
+	__typeof__(*(ptr)) *__pu_addr = (ptr);				\
+	if (__access_ok((long)__pu_addr,size,segment)) {		\
+		switch (size) {						\
+		      case 1: case 2: case 4: case 8:			\
+			__put_user_xx(x,__pu_addr, size, __pu_err);	\
+			break;						\
+		      default:						\
+			__put_user_unknown(); break;			\
+		}							\
+	}								\
+	__pu_err;							\
+})
+
+#endif /* !ASM_SUPPORTED */
 
 /*
  * Complex access routines

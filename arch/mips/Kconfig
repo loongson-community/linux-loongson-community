@@ -1100,7 +1100,8 @@ config SMP
 config NR_CPUS
 	int "Maximum number of CPUs (2-32)"
 	depends on SMP
-	default "32"
+	default "64" if SGI_IP27
+	default "2"
 	help
 	  This allows you to specify the maximum number of CPUs which this
 	  kernel will support.  The maximum supported value is 32 for 32-bit
@@ -1357,10 +1358,6 @@ source "drivers/message/i2o/Kconfig"
 
 source "net/Kconfig"
 
-source "net/ax25/Kconfig"
-
-source "net/irda/Kconfig"
-
 source "drivers/isdn/Kconfig"
 
 source "drivers/telephony/Kconfig"
@@ -1383,8 +1380,6 @@ source "drivers/video/Kconfig"
 source "sound/Kconfig"
 
 source "drivers/usb/Kconfig"
-
-source "net/bluetooth/Kconfig"
 
 
 menu "Kernel hacking"
