@@ -1,4 +1,4 @@
-/* $Id: irixsig.c,v 1.5 1996/08/05 09:20:56 dm Exp $
+/* $Id: irixsig.c,v 1.3 1997/07/24 11:28:49 ralf Exp $
  * irixsig.c: WHEEE, IRIX signals!  YOW, am I compatable or what?!?!
  *
  * Copyright (C) 1996 David S. Miller (dm@engr.sgi.com)
@@ -593,7 +593,6 @@ out:
 #define P_ALL    7
 
 extern int getrusage(struct task_struct *, int, struct rusage *);
-extern void release(struct task_struct * p);
 
 #define W_EXITED     1
 #define W_TRAPPED    2
