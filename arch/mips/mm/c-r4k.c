@@ -75,83 +75,47 @@ struct bcache_ops *bcops = &no_sc_ops;
 
 static inline void r4k_flush_cache_all_s16d16i16(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache16();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s32d16i16(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache32();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s64d16i16(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache64();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s128d16i16(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache16(); blast_icache16(); blast_scache128();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s32d32i32(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache32();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s64d32i32(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache64();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_s128d32i32(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache32(); blast_icache32(); blast_scache128();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_d16i16(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache16(); blast_icache16();
-	__restore_flags(flags);
 }
 
 static inline void r4k_flush_cache_all_d32i32(void)
 {
-	unsigned long flags;
-
-	__save_and_cli(flags);
 	blast_dcache32(); blast_icache32();
-	__restore_flags(flags);
 }
 
 static void
@@ -160,7 +124,6 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -178,7 +141,6 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while (start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -188,7 +150,6 @@ r4k_flush_cache_range_s16d16i16(struct mm_struct *mm,
 					blast_scache16_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -199,7 +160,6 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
                                 unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -217,7 +177,6 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -227,7 +186,6 @@ r4k_flush_cache_range_s32d16i16(struct mm_struct *mm,
 					blast_scache32_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -237,7 +195,6 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 					    unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -255,7 +212,6 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -265,7 +221,6 @@ static void r4k_flush_cache_range_s64d16i16(struct mm_struct *mm,
 					blast_scache64_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -275,7 +230,6 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 					     unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -293,7 +247,6 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -303,7 +256,6 @@ static void r4k_flush_cache_range_s128d16i16(struct mm_struct *mm,
 					blast_scache128_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -313,7 +265,6 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 					    unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -331,7 +282,6 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -341,7 +291,6 @@ static void r4k_flush_cache_range_s32d32i32(struct mm_struct *mm,
 					blast_scache32_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -351,7 +300,6 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 					    unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -369,7 +317,6 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -379,7 +326,6 @@ static void r4k_flush_cache_range_s64d32i32(struct mm_struct *mm,
 					blast_scache64_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -389,7 +335,6 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 					     unsigned long end)
 {
 	struct vm_area_struct *vma;
-	unsigned long flags;
 
 	if (mm->context == 0)
 		return;
@@ -407,7 +352,6 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 			pmd_t *pmd;
 			pte_t *pte;
 
-			__save_and_cli(flags);
 			while(start < end) {
 				pgd = pgd_offset(mm, start);
 				pmd = pmd_offset(pgd, start);
@@ -417,7 +361,6 @@ static void r4k_flush_cache_range_s128d32i32(struct mm_struct *mm,
 					blast_scache128_page(start);
 				start += PAGE_SIZE;
 			}
-			__restore_flags(flags);
 		}
 	}
 }
@@ -427,14 +370,10 @@ static void r4k_flush_cache_range_d16i16(struct mm_struct *mm,
 					 unsigned long end)
 {
 	if (mm->context != 0) {
-		unsigned long flags;
-
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		__save_and_cli(flags);
 		blast_dcache16(); blast_icache16();
-		__restore_flags(flags);
 	}
 }
 
@@ -443,14 +382,10 @@ static void r4k_flush_cache_range_d32i32(struct mm_struct *mm,
 					 unsigned long end)
 {
 	if (mm->context != 0) {
-		unsigned long flags;
-
 #ifdef DEBUG_CACHE
 		printk("crange[%d,%08lx,%08lx]", (int)mm->context, start, end);
 #endif
-		__save_and_cli(flags);
 		blast_dcache32(); blast_icache32();
-		__restore_flags(flags);
 	}
 }
 
@@ -553,7 +488,6 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 					   unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -568,7 +502,6 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -598,14 +531,12 @@ static void r4k_flush_cache_page_s16d16i16(struct vm_area_struct *vma,
 	} else
 		blast_scache16_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 					   unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -620,7 +551,6 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -649,14 +579,12 @@ static void r4k_flush_cache_page_s32d16i16(struct vm_area_struct *vma,
 	} else
 		blast_scache32_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 					   unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -671,7 +599,6 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -700,14 +627,12 @@ static void r4k_flush_cache_page_s64d16i16(struct vm_area_struct *vma,
 	} else
 		blast_scache64_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 					    unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -722,7 +647,6 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -752,14 +676,12 @@ static void r4k_flush_cache_page_s128d16i16(struct vm_area_struct *vma,
 	} else
 		blast_scache128_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 					   unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -774,7 +696,6 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -804,14 +725,12 @@ static void r4k_flush_cache_page_s32d32i32(struct vm_area_struct *vma,
 	} else
 		blast_scache32_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 					   unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -826,7 +745,6 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -856,14 +774,12 @@ static void r4k_flush_cache_page_s64d32i32(struct vm_area_struct *vma,
 	} else
 		blast_scache64_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 					    unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -878,7 +794,6 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -907,14 +822,12 @@ static void r4k_flush_cache_page_s128d32i32(struct vm_area_struct *vma,
 	} else
 		blast_scache128_page(page);
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 					unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -929,7 +842,6 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -958,14 +870,12 @@ static void r4k_flush_cache_page_d16i16(struct vm_area_struct *vma,
 		blast_dcache16_page_indexed(page);
 	}
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 					unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -980,7 +890,6 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1010,14 +919,12 @@ static void r4k_flush_cache_page_d32i32(struct vm_area_struct *vma,
 		blast_dcache32_page_indexed(page);
 	}
 out:
-	__restore_flags(flags);
 }
 
 static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 					      unsigned long page)
 {
 	struct mm_struct *mm = vma->vm_mm;
-	unsigned long flags;
 	pgd_t *pgdp;
 	pmd_t *pmdp;
 	pte_t *ptep;
@@ -1032,7 +939,6 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 #ifdef DEBUG_CACHE
 	printk("cpage[%d,%08lx]", (int)mm->context, page);
 #endif
-	__save_and_cli(flags);
 	page &= PAGE_MASK;
 	pgdp = pgd_offset(mm, page);
 	pmdp = pmd_offset(pgdp, page);
@@ -1062,7 +968,6 @@ static void r4k_flush_cache_page_d32i32_r4600(struct vm_area_struct *vma,
 		blast_dcache32_page_indexed(page ^ dcache_waybit);
 	}
 out:
-	__restore_flags(flags);
 }
 
 /* If the addresses passed to these routines are valid, they are
