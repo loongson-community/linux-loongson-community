@@ -1734,11 +1734,6 @@ static void r4k_dma_cache_inv_sc(unsigned long addr, unsigned long size)
 	}
 }
 
-static void r4k_dma_cache_wback(unsigned long addr, unsigned long size)
-{
-	panic("r4k_dma_cache called - should not happen.");
-}
-
 /*
  * While we're protected against bad userland addresses we don't care
  * very much about what happens in that case.  Usually a segmentation
@@ -2142,7 +2137,7 @@ static void __init setup_noscache_funcs(void)
 	}
 	_flush_icache_page = r4k_flush_icache_page_p;
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_pc;
-	_dma_cache_wback = r4k_dma_cache_wback;
+	_dma_cache_wback = r4k_dma_cache_wback_inv_pc;
 	_dma_cache_inv = r4k_dma_cache_inv_pc;
 }
 
@@ -2231,7 +2226,7 @@ static void __init setup_scache_funcs(void)
 	}
 	_flush_icache_page = r4k_flush_icache_page_s;
 	_dma_cache_wback_inv = r4k_dma_cache_wback_inv_sc;
-	_dma_cache_wback = r4k_dma_cache_wback;
+	_dma_cache_wback = r4k_dma_cache_wback_inv_sc;
 	_dma_cache_inv = r4k_dma_cache_inv_sc;
 }
 
