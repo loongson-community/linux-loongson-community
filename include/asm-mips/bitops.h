@@ -732,7 +732,7 @@ static __inline__ unsigned long ffz(unsigned long word)
  */
 static __inline__ unsigned long __ffs(unsigned long word)
 {
-	return ffz(word);
+	return ffz(~word);
 }
 
 #ifdef __KERNEL__
