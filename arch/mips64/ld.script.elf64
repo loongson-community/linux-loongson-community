@@ -16,6 +16,7 @@ SECTIONS
   /* . = 0xa800000000300000; */
   . = 0xffffffff80300000;
   .text : {
+    _ftext = .;
     *(.text)
     *(.rodata)
     *(.rodata.*)

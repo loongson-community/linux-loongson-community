@@ -6,6 +6,7 @@ SECTIONS
   .init          : { *(.init)		} =0
   .text      :
   {
+    _ftext = .;
     *(.text)
     *(.rodata)
     *(.rodata.*)
