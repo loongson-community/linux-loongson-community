@@ -2765,31 +2765,31 @@ static int sbmac_close(struct net_device *dev)
 {
 	struct sbmac_softc *sc = (struct sbmac_softc *)dev->priv;
 	unsigned long flags;
-	
+	int irq;
+
 	sbmac_set_channel_state(sc,sbmac_state_off);
-	
+
 	del_timer_sync(&sc->sbm_timer);
-	
+
 	spin_lock_irqsave(&sc->sbm_lock, flags);
-	
+
 	netif_stop_queue(dev);
-	
+
 	if (debug > 1) {
 		printk(KERN_DEBUG "%s: Shutting down ethercard\n",dev->name);
 	}
-	
+
 	spin_unlock_irqrestore(&sc->sbm_lock, flags);
-	
-	/* Make sure there is no irq-handler running on a different CPU. */
-	synchronize_irq();
-	
-	free_irq(dev->irq, dev);
-	
+
+	irq = dev->irq;
+	synchronize_irq(irq);
+	free_irq(irq, dev);
+
 	sbdma_emptyring(&(sc->sbm_txdma));
 	sbdma_emptyring(&(sc->sbm_rxdma));
 	
 	MOD_DEC_USE_COUNT;
-	
+
 	return 0;
 }
 
