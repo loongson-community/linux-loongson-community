@@ -1,6 +1,4 @@
 
-O_TARGET := idedriver-mips.o
-
 obj-y		:=
 obj-m		:=
 
