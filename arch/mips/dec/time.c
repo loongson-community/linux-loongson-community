@@ -1,4 +1,3 @@
-
 /*
  *  linux/arch/mips/dec/time.c
  *
@@ -18,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 
+#include <asm/cpu.h>
 #include <asm/bootinfo.h>
 #include <asm/mipsregs.h>
 #include <asm/io.h>
@@ -423,46 +423,6 @@ static void ioasic_timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	timer_interrupt(irq, dev_id, regs);
 }
 
-char cyclecounter_available;
-
-static inline void init_cycle_counter(void)
-{
-	switch (mips_cputype) {
-	case CPU_UNKNOWN:
-	case CPU_R2000:
-	case CPU_R3000:
-	case CPU_R3000A:
-	case CPU_R3041:
-	case CPU_R3051:
-	case CPU_R3052:
-	case CPU_R3081:
-	case CPU_R3081E:
-	case CPU_R6000:
-	case CPU_R6000A:
-	case CPU_R8000:	/* Not shure about that one, play safe */
-		cyclecounter_available = 0;
-		break;
-	case CPU_R4000PC:
-	case CPU_R4000SC:
-	case CPU_R4000MC:
-	case CPU_R4200:
-	case CPU_R4400PC:
-	case CPU_R4400SC:
-	case CPU_R4400MC:
-	case CPU_R4600:
-	case CPU_R10000:
-	case CPU_R4300:
-	case CPU_R4650:
-	case CPU_R4700:
-	case CPU_R5000:
-	case CPU_R5000A:
-	case CPU_R4640:
-	case CPU_NEVADA:
-		cyclecounter_available = 1;
-		break;
-	}
-}
-
 struct irqaction irq0 = {timer_interrupt, SA_INTERRUPT, 0,
 			 "timer", NULL, NULL};
 
@@ -514,9 +474,7 @@ void __init time_init(void)
 	xtime.tv_usec = 0;
 	write_unlock_irq(&xtime_lock);
 
-	init_cycle_counter();
-
-	if (cyclecounter_available) {
+	if (mips_cpu.options & MIPS_CPU_COUNTER) {
 		write_32bit_cp0_register(CP0_COUNT, 0);
 		do_gettimeoffset = do_fast_gettimeoffset;
 		irq0.handler = r4k_timer_interrupt;
@@ -527,3 +485,4 @@ void __init time_init(void)
         }
 	board_time_init(&irq0);
 }
+
