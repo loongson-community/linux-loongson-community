@@ -62,7 +62,7 @@ void __init board_setup(void)
 	au_writel(pin_func, SYS_PINFUNC);
 #endif
 
-#if defined(CONFIG_IRDA) && (defined(CONFIG_SOC_AU1000) || defined(CONFIG_SOC_AU1000))
+#if defined(CONFIG_IRDA) && (defined(CONFIG_SOC_AU1000) || defined(CONFIG_SOC_AU1100))
 	/* set IRFIRSEL instead of GPIO15 */
 	pin_func = au_readl(SYS_PINFUNC) | (u32)((1<<8));
 	au_writel(pin_func, SYS_PINFUNC);
