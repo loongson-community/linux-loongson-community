@@ -27,16 +27,14 @@
 #include <asm/fpu.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
-#include <asm/sections.h>
-#include <asm/io.h>
 #include <asm/ptrace.h>
-#include <asm/watch.h>
+#include <asm/sections.h>
 #include <asm/system.h>
 #include <asm/tlbdebug.h>
 #include <asm/traps.h>
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
-#include <asm/cachectl.h>
+#include <asm/watch.h>
 #include <asm/types.h>
 
 extern asmlinkage void __xtlb_mod(void);
@@ -76,16 +74,17 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
  */
 void show_stack(unsigned long *sp)
 {
-	int i;
+	const int field = 2 * sizeof(unsigned long);
 	long stackdata;
+	int i;
 
 	sp = sp ? sp : (unsigned long *) &sp;
 
-	printk("Stack:");
-	i = 0;
+	printk("Stack: ");
+	i = 1;
 	while ((unsigned long) sp & (PAGE_SIZE - 1)) {
-		if (i && ((i % 4) == 0))
-			printk("\n      ");
+		if (i && ((i % (64 / sizeof(unsigned long))) == 0))
+			printk("\n       ");
 		if (i > 40) {
 			printk(" ...");
 			break;
@@ -96,51 +95,31 @@ void show_stack(unsigned long *sp)
 			break;
 		}
 
-		printk(" %016lx", stackdata);
+		printk(" %0*lx", field, stackdata);
 		i++;
 	}
 	printk("\n");
 }
 
-void show_trace(unsigned long *sp)
+void show_trace(unsigned long *stack)
 {
-	int i;
+	const int field = 2 * sizeof(unsigned long);
 	unsigned long addr;
+	int i;
+
+	if (!stack)
+		stack = (unsigned long*)&stack;
 
 	printk("Call Trace:");
 #ifdef CONFIG_KALLSYMS
 	printk("\n");
 #endif
-	i = 0;
-	while ((long) sp & (PAGE_SIZE - 1)) {
-
-		if (__get_user(addr, sp++)) {
-			if (i && ((i % 3) == 0))
-				printk("\n           ");
-			printk(" (Bad stack address)\n");
-			break;
-		}
-
-		/*
-		 * If the address is either in the text segment of the
-		 * kernel, or in the region which contains vmalloc'ed
-		 * memory, it *may* be the address of a calling
-		 * routine; if so, print it so that someone tracing
-		 * down the cause of the crash will be able to figure
-		 * out the call path that was taken.
-		 */
-
+	i = 1;
+	while (((long) stack & (THREAD_SIZE-1)) != 0) {
+		addr = *stack++;
 		if (kernel_text_address(addr)) {
-			if (i && ((i % 3) == 0))
-				printk("\n           ");
-			if (i > 40) {
-				printk(" ...");
-				break;
-			}
-
-			printk(" [<%016lx>]", addr);
-			print_symbol(" %s\n", addr);
-			i++;
+			printk(" [<%0*lx>] ", field, addr);
+			print_symbol("%s\n", addr);
 		}
 	}
 	printk("\n");
@@ -173,59 +152,80 @@ void show_code(unsigned int *pc)
 			printk(" (Bad address in epc)\n");
 			break;
 		}
-		printk("%c%08x%c",(i?' ':'<'),insn,(i?' ':'>'));
+		printk("%c%08x%c", (i?' ':'<'), insn, (i?' ':'>'));
 	}
 }
 
 void show_regs(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
+	int i;
+
 	printk("Cpu %d\n", smp_processor_id());
-	/* Saved main processor registers. */
-	printk("$0      : %016lx %016lx %016lx %016lx\n",
-	       0UL, regs->regs[1], regs->regs[2], regs->regs[3]);
-	printk("$4      : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8      : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[8], regs->regs[9], regs->regs[10], regs->regs[11]);
-	printk("$12     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19]);
-	printk("$20     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24     : %016lx %016lx\n",
-	       regs->regs[24], regs->regs[25]);
-	printk("$28     : %016lx %016lx %016lx %016lx\n",
-	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
-	printk("Hi      : %016lx\n", regs->hi);
-	printk("Lo      : %016lx\n", regs->lo);
 
-	/* Saved cp0 registers. */
-	printk("epc     : %016lx    %s\nbadvaddr: %016lx\n",
-	       regs->cp0_epc, print_tainted(), regs->cp0_badvaddr);
-	printk("Status  : %08x  [ ", (unsigned int) regs->cp0_status);
-	if (regs->cp0_status & ST0_KX) printk("KX ");
-	if (regs->cp0_status & ST0_SX) printk("SX ");
-	if (regs->cp0_status & ST0_UX) printk("UX ");
-	switch (regs->cp0_status & ST0_KSU) {
-		case KSU_USER: printk("USER ");			break;
-		case KSU_SUPERVISOR: printk("SUPERVISOR ");	break;
-		case KSU_KERNEL: printk("KERNEL ");		break;
-		default: printk("BAD_MODE ");			break;
+	/*
+	 * Saved main processor registers
+	 */
+	for (i = 0; i < 32; i++) {
+		if ((i % 4) == 0)
+			printk("$%2d :", i);
+		if (i == 0)
+			printk(" %0*lx", field, 0UL);
+		else if (i == 26 || i == 27)
+			printk(" %*s", field, "");
+		else
+			printk(" %0*lx", field, regs->regs[i]);
+
+		i++;
+		if ((i % 4) == 0)
+			printk("\n");
 	}
-	if (regs->cp0_status & ST0_ERL) printk("ERL ");
-	if (regs->cp0_status & ST0_EXL) printk("EXL ");
-	if (regs->cp0_status & ST0_IE) printk("IE ");
-	printk("]\n");
 
-	printk("Cause   : %08x\n", (unsigned int) regs->cp0_cause);
+	printk("Hi      : %0*lx\n", field, regs->hi);
+	printk("Lo      : %0*lx\n", field, regs->lo);
+
+	/*
+	 * Saved cp0 registers
+	 */
+	printk("epc   : %0*lx    %s\n", field, regs->cp0_epc, print_tainted());
+	printk("Status: %0*lx\n", field, regs->cp0_status);
+	printk("Cause : %0*lx\n", field, regs->cp0_cause);
+
+	if (regs->cp0_status & ST0_KX)
+		printk("KX ");
+	if (regs->cp0_status & ST0_SX)
+		printk("SX ");
+	if (regs->cp0_status & ST0_UX)
+		printk("UX ");
+	switch (regs->cp0_status & ST0_KSU) {
+	case KSU_USER:
+		printk("USER ");
+		break;
+	case KSU_SUPERVISOR:
+		printk("SUPERVISOR ");
+		break;
+	case KSU_KERNEL:
+		printk("KERNEL ");
+		break;
+	default:
+		printk("BAD_MODE ");
+		break;
+	}
+	if (regs->cp0_status & ST0_ERL)
+		printk("ERL ");
+	if (regs->cp0_status & ST0_EXL)
+		printk("EXL ");
+	if (regs->cp0_status & ST0_IE)
+		printk("IE ");
 }
 
 void show_registers(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
+
 	show_regs(regs);
-	printk("Process %s (pid: %d, stackpage=%016lx)\n",
-		current->comm, current->pid, (unsigned long) current);
+	printk("Process %s (pid: %d, stackpage=%0*lx)\n",
+		current->comm, current->pid, field, (unsigned long) current);
 	show_stack((long *) regs->regs[29]);
 	show_trace((long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
@@ -270,6 +270,7 @@ void __declare_dbe_table(void)
 
 asmlinkage void do_be(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
 	const struct exception_table_entry *fixup = NULL;
 	int data = regs->cp0_cause & 4;
 	int action = MIPS_BE_FATAL;
@@ -300,9 +301,9 @@ asmlinkage void do_be(struct pt_regs *regs)
 	/*
 	 * Assume it would be too dangerous to continue ...
 	 */
-	printk(KERN_ALERT "%s bus error, epc == %08lx, ra == %08lx\n",
+	printk(KERN_ALERT "%s bus error, epc == %0*lx, ra == %0*lx\n",
 	       data ? "Data" : "Instruction",
-	       regs->cp0_epc, regs->regs[31]);
+	       field, regs->cp0_epc, field, regs->regs[31]);
 	die_if_kernel("Oops", regs);
 	force_sig(SIGBUS, current);
 }
@@ -677,6 +678,105 @@ asmlinkage void do_reserved(struct pt_regs *regs)
 	      (regs->cp0_cause & 0x7f) >> 2);
 }
 
+/*
+ * Some MIPS CPUs can enable/disable for cache parity detection, but do
+ * it different ways.
+ */
+static inline void parity_protection_init(void)
+{
+	switch (current_cpu_data.cputype) {
+	case CPU_5KC:
+		/* Set the PE bit (bit 31) in the c0_ecc register. */
+		printk(KERN_INFO "Enable the cache parity protection for "
+		       "MIPS 5KC CPUs.\n");
+		write_c0_ecc(read_c0_ecc() | 0x80000000);
+		break;
+	default:
+		break;
+	}
+}
+
+asmlinkage void cache_parity_error(void)
+{
+	const int field = 2 * sizeof(unsigned long);
+	unsigned int reg_val;
+
+	/* For the moment, report the problem and hang. */
+	printk("Cache error exception:\n");
+	printk("cp0_errorepc == %0*lx\n", field, read_c0_errorepc());
+	reg_val = read_c0_cacheerr();
+	printk("c0_cacheerr == %08x\n", reg_val);
+
+	printk("Decoded c0_cacheerr: %s cache fault in %s reference.\n",
+	       reg_val & (1<<30) ? "secondary" : "primary",
+	       reg_val & (1<<31) ? "data" : "insn");
+	printk("Error bits: %s%s%s%s%s%s%s\n",
+	       reg_val & (1<<29) ? "ED " : "",
+	       reg_val & (1<<28) ? "ET " : "",
+	       reg_val & (1<<26) ? "EE " : "",
+	       reg_val & (1<<25) ? "EB " : "",
+	       reg_val & (1<<24) ? "EI " : "",
+	       reg_val & (1<<23) ? "E1 " : "",
+	       reg_val & (1<<22) ? "E0 " : "");
+	printk("IDX: 0x%08x\n", reg_val & ((1<<22)-1));
+
+#if defined(CONFIG_CPU_MIPS32) || defined (CONFIG_CPU_MIPS64)
+	if (reg_val & (1<<22))
+		printk("DErrAddr0: 0x%08x\n", read_c0_derraddr0());
+
+	if (reg_val & (1<<23))
+		printk("DErrAddr1: 0x%08x\n", read_c0_derraddr1());
+#endif
+
+	panic("Can't handle the cache error!");
+}
+
+/*
+ * SDBBP EJTAG debug exception handler.
+ * We skip the instruction and return to the next instruction.
+ */
+void ejtag_exception_handler(struct pt_regs *regs)
+{
+	const int field = 2 * sizeof(unsigned long);
+	unsigned long depc, old_epc;
+	unsigned int debug;
+
+	printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
+	depc = read_c0_depc();
+	debug = read_c0_debug();
+	printk("c0_depc = %0*lx, DEBUG = %08x\n", field, depc, debug);
+	if (debug & 0x80000000) {
+		/*
+		 * In branch delay slot.
+		 * We cheat a little bit here and use EPC to calculate the
+		 * debug return address (DEPC). EPC is restored after the
+		 * calculation.
+		 */
+		old_epc = regs->cp0_epc;
+		regs->cp0_epc = depc;
+		__compute_return_epc(regs);
+		depc = regs->cp0_epc;
+		regs->cp0_epc = old_epc;
+	} else
+		depc += 4;
+	write_c0_depc(depc);
+
+#if 0
+	printk("\n\n----- Enable EJTAG single stepping ----\n\n");
+	write_c0_debug(debug | 0x100);
+#endif
+}
+
+/*
+ * NMI exception handler.
+ */
+void nmi_exception_handler(struct pt_regs *regs)
+{
+	printk("NMI taken!!!!\n");
+	die("NMI", regs);
+	while(1) ;
+}
+
 unsigned long exception_handlers[32];
 
 /*
@@ -731,6 +831,7 @@ void __init trap_init(void)
 {
 	extern char except_vec0_generic;
 	extern char except_vec3_generic, except_vec3_r4000;
+	extern char except_vec_ejtag_debug;
 	extern char except_vec4;
 	unsigned long i;
 
@@ -747,6 +848,13 @@ void __init trap_init(void)
 		set_except_vector(i, handle_reserved);
 
 	/*
+	 * Copy the EJTAG debug exception vector handler code to it's final
+	 * destination.
+	 */
+	if (cpu_has_ejtag)
+		memcpy((void *)(KSEG0 + 0x300), &except_vec_ejtag_debug, 0x80);
+
+	/*
 	 * Only some CPUs have the watch exceptions or a dedicated
 	 * interrupt vector.
 	 */
@@ -759,6 +867,12 @@ void __init trap_init(void)
 	 */
 	if (cpu_has_divec)
 		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 0x8);
+
+	/*
+	 * Some CPUs can enable/disable for cache parity detection, but does
+	 * it different ways.
+	 */
+	parity_protection_init();
 
 	/*
 	 * The Data Bus Errors / Instruction Bus Errors are signaled

@@ -25,11 +25,10 @@
 #include <asm/branch.h>
 #include <asm/cpu.h>
 #include <asm/fpu.h>
-#include <asm/inst.h>
 #include <asm/module.h>
 #include <asm/pgtable.h>
+#include <asm/ptrace.h>
 #include <asm/sections.h>
-#include <asm/siginfo.h>
 #include <asm/system.h>
 #include <asm/tlbdebug.h>
 #include <asm/traps.h>
@@ -75,16 +74,17 @@ int (*board_be_handler)(struct pt_regs *regs, int is_fixup);
  */
 void show_stack(unsigned long *sp)
 {
-	int i;
+	const int field = 2 * sizeof(unsigned long);
 	long stackdata;
+	int i;
 
 	sp = sp ? sp : (unsigned long *) &sp;
 
-	printk("Stack:   ");
+	printk("Stack: ");
 	i = 1;
 	while ((unsigned long) sp & (PAGE_SIZE - 1)) {
-		if (i && ((i % 8) == 0))
-			printk("\n");
+		if (i && ((i % (64 / sizeof(unsigned long))) == 0))
+			printk("\n       ");
 		if (i > 40) {
 			printk(" ...");
 			break;
@@ -95,53 +95,31 @@ void show_stack(unsigned long *sp)
 			break;
 		}
 
-		printk(" %08lx", stackdata);
+		printk(" %0*lx", field, stackdata);
 		i++;
 	}
 	printk("\n");
 }
 
-void show_trace(unsigned long *sp)
+void show_trace(unsigned long *stack)
 {
-	int i;
+	const int field = 2 * sizeof(unsigned long);
 	unsigned long addr;
+	int i;
 
-	sp = sp ? sp : (unsigned long *) &sp;
+	if (!stack)
+		stack = (unsigned long*)&stack;
 
-	printk("Call Trace:  ");
+	printk("Call Trace:");
 #ifdef CONFIG_KALLSYMS
 	printk("\n");
 #endif
 	i = 1;
-	while ((long) sp & (PAGE_SIZE - 1)) {
-
-		if (__get_user(addr, sp++)) {
-			if (i && ((i % 6) == 0))
-				printk("\n");
-			printk(" (Bad stack address)\n");
-			break;
-		}
-
-		/*
-		 * If the address is either in the text segment of the
-		 * kernel, or in the region which contains vmalloc'ed
-		 * memory, it *may* be the address of a calling
-		 * routine; if so, print it so that someone tracing
-		 * down the cause of the crash will be able to figure
-		 * out the call path that was taken.
-		 */
-
+	while (((long) stack & (THREAD_SIZE-1)) != 0) {
+		addr = *stack++;
 		if (kernel_text_address(addr)) {
-			if (i && ((i % 6) == 0))
-				printk("\n");
-			if (i > 40) {
-				printk(" ...");
-				break;
-			}
-
-			printk(" [<%08lx>]", addr);
-			print_symbol(" %s\n", addr);
-			i++;
+			printk(" [<%0*lx>] ", field, addr);
+			print_symbol("%s\n", addr);
 		}
 	}
 	printk("\n");
@@ -169,48 +147,85 @@ void show_code(unsigned int *pc)
 	printk("\nCode:");
 
 	for(i = -3 ; i < 6 ; i++) {
-		unsigned long insn;
+		unsigned int insn;
 		if (__get_user(insn, pc + i)) {
 			printk(" (Bad address in epc)\n");
 			break;
 		}
-		printk("%c%08lx%c",(i?' ':'<'),insn,(i?' ':'>'));
+		printk("%c%08x%c", (i?' ':'<'), insn, (i?' ':'>'));
 	}
 }
 
 void show_regs(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
+	int i;
+
+	printk("Cpu %d\n", smp_processor_id());
+
 	/*
 	 * Saved main processor registers
 	 */
-	printk("$0 : %08x %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
-	       0,             regs->regs[1], regs->regs[2], regs->regs[3],
-	       regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7]);
-	printk("$8 : %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
-	       regs->regs[8],  regs->regs[9],  regs->regs[10], regs->regs[11],
-	       regs->regs[12], regs->regs[13], regs->regs[14], regs->regs[15]);
-	printk("$16: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
-	       regs->regs[16], regs->regs[17], regs->regs[18], regs->regs[19],
-	       regs->regs[20], regs->regs[21], regs->regs[22], regs->regs[23]);
-	printk("$24: %08lx %08lx                   %08lx %08lx %08lx %08lx\n",
-	       regs->regs[24], regs->regs[25],
-	       regs->regs[28], regs->regs[29], regs->regs[30], regs->regs[31]);
-	printk("Hi : %08lx\n", regs->hi);
-	printk("Lo : %08lx\n", regs->lo);
+	for (i = 0; i < 32; i++) {
+		if ((i % 4) == 0)
+			printk("$%2d :", i);
+		if (i == 0)
+			printk(" %0*lx", field, 0UL);
+		else if (i == 26 || i == 27)
+			printk(" %*s", field, "");
+		else
+			printk(" %0*lx", field, regs->regs[i]);
+
+		i++;
+		if ((i % 4) == 0)
+			printk("\n");
+	}
+
+	printk("Hi      : %0*lx\n", field, regs->hi);
+	printk("Lo      : %0*lx\n", field, regs->lo);
 
 	/*
 	 * Saved cp0 registers
 	 */
-	printk("epc  : %08lx    %s\nStatus: %08lx\nCause : %08lx\n",
-	       regs->cp0_epc, print_tainted(), regs->cp0_status,
-	       regs->cp0_cause);
+	printk("epc   : %0*lx    %s\n", field, regs->cp0_epc, print_tainted());
+	printk("Status: %0*lx\n", field, regs->cp0_status);
+	printk("Cause : %0*lx\n", field, regs->cp0_cause);
+
+	if (regs->cp0_status & ST0_KX)
+		printk("KX ");
+	if (regs->cp0_status & ST0_SX)
+		printk("SX ");
+	if (regs->cp0_status & ST0_UX)
+		printk("UX ");
+	switch (regs->cp0_status & ST0_KSU) {
+	case KSU_USER:
+		printk("USER ");
+		break;
+	case KSU_SUPERVISOR:
+		printk("SUPERVISOR ");
+		break;
+	case KSU_KERNEL:
+		printk("KERNEL ");
+		break;
+	default:
+		printk("BAD_MODE ");
+		break;
+	}
+	if (regs->cp0_status & ST0_ERL)
+		printk("ERL ");
+	if (regs->cp0_status & ST0_EXL)
+		printk("EXL ");
+	if (regs->cp0_status & ST0_IE)
+		printk("IE ");
 }
 
 void show_registers(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
+
 	show_regs(regs);
-	printk("Process %s (pid: %d, stackpage=%08lx)\n",
-		current->comm, current->pid, (unsigned long) current);
+	printk("Process %s (pid: %d, stackpage=%0*lx)\n",
+		current->comm, current->pid, field, (unsigned long) current);
 	show_stack((long *) regs->regs[29]);
 	show_trace((long *) regs->regs[29]);
 	show_code((unsigned int *) regs->cp0_epc);
@@ -255,6 +270,7 @@ void __declare_dbe_table(void)
 
 asmlinkage void do_be(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
 	const struct exception_table_entry *fixup = NULL;
 	int data = regs->cp0_cause & 4;
 	int action = MIPS_BE_FATAL;
@@ -285,9 +301,9 @@ asmlinkage void do_be(struct pt_regs *regs)
 	/*
 	 * Assume it would be too dangerous to continue ...
 	 */
-	printk(KERN_ALERT "%s bus error, epc == %08lx, ra == %08lx\n",
+	printk(KERN_ALERT "%s bus error, epc == %0*lx, ra == %0*lx\n",
 	       data ? "Data" : "Instruction",
-	       regs->cp0_epc, regs->regs[31]);
+	       field, regs->cp0_epc, field, regs->regs[31]);
 	die_if_kernel("Oops", regs);
 	force_sig(SIGBUS, current);
 }
@@ -432,6 +448,7 @@ static inline int simulate_llsc(struct pt_regs *regs)
 		simulate_sc(regs, opcode);
 		return 0;
 	}
+
 	return -EFAULT;			/* Strange things going on ... */
 }
 
@@ -681,11 +698,12 @@ static inline void parity_protection_init(void)
 
 asmlinkage void cache_parity_error(void)
 {
+	const int field = 2 * sizeof(unsigned long);
 	unsigned int reg_val;
 
 	/* For the moment, report the problem and hang. */
 	printk("Cache error exception:\n");
-	printk("cp0_errorepc == %08lx\n", read_c0_errorepc());
+	printk("cp0_errorepc == %0*lx\n", field, read_c0_errorepc());
 	reg_val = read_c0_cacheerr();
 	printk("c0_cacheerr == %08x\n", reg_val);
 
@@ -719,13 +737,14 @@ asmlinkage void cache_parity_error(void)
  */
 void ejtag_exception_handler(struct pt_regs *regs)
 {
+	const int field = 2 * sizeof(unsigned long);
 	unsigned long depc, old_epc;
 	unsigned int debug;
 
 	printk("SDBBP EJTAG debug exception - not handled yet, just ignored!\n");
 	depc = read_c0_depc();
 	debug = read_c0_debug();
-	printk("c0_depc = %08lx, DEBUG = %08x\n", depc, debug);
+	printk("c0_depc = %0*lx, DEBUG = %08x\n", field, depc, debug);
 	if (debug & 0x80000000) {
 		/*
 		 * In branch delay slot.
@@ -844,7 +863,7 @@ void __init trap_init(void)
 	 * interrupt processing overhead.  Use it where available.
 	 */
 	if (cpu_has_divec)
-		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 8);
+		memcpy((void *)(KSEG0 + 0x200), &except_vec4, 0x8);
 
 	/*
 	 * Some CPUs can enable/disable for cache parity detection, but does
