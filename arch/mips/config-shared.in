@@ -304,7 +304,6 @@ if [ "$CONFIG_SGI_IP22" = "y" ]; then
    define_bool CONFIG_NONCOHERENT_IO y
    define_bool CONFIG_PC_KEYB y
    define_bool CONFIG_SGI y
-   define_bool CONFIG_SWAP_IO_SPACE y
 fi
 if [ "$CONFIG_SGI_IP27" = "y" ]; then
    define_bool CONFIG_BOOT_ELF64 y
