@@ -432,9 +432,6 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 			len = (w0 >> ERXBUF_BYTECNT_SHIFT) & 0x7ff;
 			skb_trim(skb, len);
 			skb->protocol = eth_type_trans(skb, dev);
-			netif_rx(skb);
-
-			ip->rx_skbs[rx_entry] = NULL;	/* Poison  */
 
 			new_skb = ioc3_alloc_skb(RX_BUF_ALLOC_SIZE, GFP_ATOMIC);
 			if (!new_skb) {
@@ -444,6 +441,9 @@ ioc3_rx(struct net_device *dev, struct ioc3_private *ip, struct ioc3 *ioc3)
 				new_skb = skb;
 				goto next;
 			}
+			netif_rx(skb);
+
+			ip->rx_skbs[rx_entry] = NULL;	/* Poison  */
 
 			new_skb->dev = dev;
 
