@@ -5,6 +5,7 @@
  * Copyright (C) 1999, 2000 Silicon Graphics, Inc.
  * Copyright (C) 1999 - 2001 Kanoj Sarcar
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/irq.h>
 #include <linux/errno.h>
@@ -171,6 +172,7 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 	LOCAL_HUB_S(pi_int_mask0, mask0 & ~pend0);
 
 	swlevel = ms1bit(pend0);
+#ifdef CONFIG_SMP
 	if (pend0 & (1UL << CPU_RESCHED_A_IRQ)) {
 		LOCAL_HUB_CLR_INTR(CPU_RESCHED_A_IRQ);
 	} else if (pend0 & (1UL << CPU_RESCHED_B_IRQ)) {
@@ -181,7 +183,9 @@ void ip27_do_irq_mask0(struct pt_regs *regs)
 	} else if (pend0 & (1UL << CPU_CALL_B_IRQ)) {
 		LOCAL_HUB_CLR_INTR(CPU_CALL_B_IRQ);
 		smp_call_function_interrupt();
-	} else {
+	} else
+#endif
+	{
 		/* "map" swlevel to irq */
 		irq = LEVEL_TO_IRQ(cpu, swlevel);
 		do_IRQ(irq, regs);
