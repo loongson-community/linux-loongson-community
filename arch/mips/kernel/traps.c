@@ -128,6 +128,7 @@ void show_stack(unsigned int *sp)
 void show_trace(unsigned int *sp)
 {
 	int i;
+	int column = 0;
 	unsigned int *stack;
 	unsigned long kernel_start, kernel_end;
 	unsigned long module_start, module_end;
@@ -141,7 +142,7 @@ void show_trace(unsigned int *sp)
 	module_start = VMALLOC_START;
 	module_end = module_start + MODULE_RANGE;
 
-	printk("\nCall Trace:");
+	printk("Call Trace:");
 
 	while ((unsigned long) stack & (PAGE_SIZE -1)) {
 		unsigned long addr;
@@ -164,12 +165,23 @@ void show_trace(unsigned int *sp)
 		    (addr >= module_start && addr < module_end)) { 
 
 			printk(" [<%08lx>]", addr);
+			if (column++ == 5) {
+				printk("\n");
+				column = 0;
+			}
 			if (++i > 40) {
 				printk(" ...");
 				break;
 			}
 		}
 	}
+	if (column != 0)
+		printk("\n");
+}
+
+void show_trace_task(struct task_struct *tsk)
+{
+	show_trace(tsk->thread.reg29);
 }
 
 void show_code(unsigned int *pc)
