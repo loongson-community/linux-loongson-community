@@ -177,9 +177,9 @@ dump_list_process(struct task_struct *t, void *address)
 
 	page = *pte;
 #ifdef CONFIG_64BIT_PHYS_ADDR
-	printk("page == %08Lx\n", (unsigned long long) pte_val(page));
+	printk("page == %08Lx\n", pte_val(page));
 #else
-	printk("page == %08lx\n", (unsigned int) pte_val(page));
+	printk("page == %08lx\n", pte_val(page));
 #endif
 
 	val = pte_val(page);

@@ -161,7 +161,7 @@ void dump_list_process(struct task_struct *t, void *address)
 	printk("pte == %08lx, ", (unsigned long) pte);
 
 	page = *pte;
-	printk("page == %08lx\n", (unsigned long) pte_val(page));
+	printk("page == %08lx\n", pte_val(page));
 
 	val = pte_val(page);
 	if (val & _PAGE_PRESENT) printk("present ");
