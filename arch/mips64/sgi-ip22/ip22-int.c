@@ -1,4 +1,4 @@
-/* $Id: ip22-int.c,v 1.3 1999/12/04 03:59:01 ralf Exp $
+/* $Id: ip22-int.c,v 1.4 2000/02/04 07:40:24 ralf Exp $
  *
  * indy_int.c: Routines for generic manipulation of the INT[23] ASIC
  *             found on INDY workstations..
@@ -36,6 +36,24 @@
 #include <asm/sgi/sgihpc.h>
 #include <asm/sgi/sgint23.h>
 #include <asm/sgialib.h>
+
+/*
+ * Linux has a controller-independent x86 interrupt architecture.
+ * every controller has a 'controller-template', that is used
+ * by the main code to do the right thing. Each driver-visible
+ * interrupt source is transparently wired to the apropriate
+ * controller. Thus drivers need not be aware of the
+ * interrupt-controller.
+ *
+ * Various interrupt controllers we handle: 8259 PIC, SMP IO-APIC,
+ * PIIX4's internal 8259 PIC and SGI's Visual Workstation Cobalt (IO-)APIC.
+ * (IO-APICs assumed to be messaging to Pentium local-APICs)
+ *
+ * the code is designed to be easily extended with new/different
+ * interrupt controllers, without having to do assembly magic.
+ */
+
+irq_cpustat_t irq_stat [NR_CPUS];
 
 struct sgi_int2_regs *sgi_i2regs;
 struct sgi_int3_regs *sgi_i3regs;

@@ -278,7 +278,7 @@ do_mmap_fake(struct file *file, unsigned long addr, unsigned long len,
 	if (!file)
 		return -EINVAL;
 	inode = file->f_dentry->d_inode;
-	if (!inode->i_op || !inode->i_op->default_file_ops)
+	if (!inode->i_fop)
 		return -EINVAL;
 	if (!file->f_op->read)
 		return -EINVAL;
@@ -1928,6 +1928,25 @@ sys32_ipc (u32 call, int first, int second, int third, u32 ptr, u32 fifth)
 out:
 	unlock_kernel();
 	return err;
+}
+
+/*
+ * sys_time() can be implemented in user-level using
+ * sys_gettimeofday().  IA64 did this but i386 Linux did not
+ * so we have to implement this system call here.
+ */
+asmlinkage long sys32_time(int * tloc)
+{
+	int i;
+
+	/* SMP: This is fairly trivial. We grab CURRENT_TIME and 
+	   stuff it to user space. No side effects */
+	i = CURRENT_TIME;
+	if (tloc) {
+		if (put_user(i,tloc))
+			i = -EFAULT;
+	}
+	return i;
 }
 
 #ifdef	NOTYET  /* UNTESTED FOR IA64 FROM HERE DOWN */

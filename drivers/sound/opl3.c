@@ -1204,7 +1204,7 @@ int init_module (void)
 
 void cleanup_module(void)
 {
-	if (devc)
+	if (devc && io != -1)
 	{
 		if(devc->base)
 			release_region(devc->base,4);
@@ -1217,7 +1217,7 @@ void cleanup_module(void)
 
 MODULE_PARM(io, "i");
 
-#endif
+#endif /* MODULE */
 
 EXPORT_SYMBOL(opl3_init);
 EXPORT_SYMBOL(opl3_detect);

@@ -18,7 +18,7 @@ SUB_DIRS     :=
 MOD_SUB_DIRS :=
 MOD_IN_SUB_DIRS :=
 ALL_SUB_DIRS := $(SUB_DIRS) fc hamradio irda pcmcia tokenring wan sk98lin \
-		arcnet skfp
+		arcnet skfp tulip
 
 O_TARGET := net.o
 MOD_LIST_NAME := NET_MODULES
@@ -35,6 +35,15 @@ ifeq ($(CONFIG_PCMCIA),y)
 else
   ifeq ($(CONFIG_PCMCIA),m)
     MOD_IN_SUB_DIRS += pcmcia
+  endif
+endif
+
+ifeq ($(CONFIG_TULIP),y)
+  SUB_DIRS += tulip
+  obj-y += tulip/tulip.o
+else
+  ifeq ($(CONFIG_TULIP),m)
+    MOD_SUB_DIRS += tulip
   endif
 endif
 
@@ -122,7 +131,6 @@ obj-$(CONFIG_NE2K_PCI) += ne2k-pci.o 8390.o
 obj-$(CONFIG_PCNET32) += pcnet32.o
 obj-$(CONFIG_EEPRO100) += eepro100.o
 obj-$(CONFIG_TLAN) += tlan.o
-obj-$(CONFIG_TULIP) += tulip.o
 obj-$(CONFIG_EPIC100) += epic100.o
 obj-$(CONFIG_SIS900) += sis900.o
 obj-$(CONFIG_DM9102) += dmfe.o

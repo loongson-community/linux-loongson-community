@@ -259,11 +259,31 @@ __CALL_PAL_RW2(wrperfmon, unsigned long, unsigned long, unsigned long);
 __CALL_PAL_W1(wrusp, unsigned long);
 __CALL_PAL_W1(wrvptptr, unsigned long);
 
-#define __cli()			((void) swpipl(7))
-#define __sti()			((void) swpipl(0))
+#define IPL_MIN		0
+#define IPL_SW0		1
+#define IPL_SW1		2
+#define IPL_DEV0	3
+#define IPL_DEV1	4
+#define IPL_TIMER	5
+#define IPL_PERF	6
+#define IPL_POWERFAIL	6
+#define IPL_MCHECK	7
+#define IPL_MAX		7
+
+#ifdef CONFIG_ALPHA_BROKEN_IRQ_MASK
+#undef IPL_MIN
+#define IPL_MIN		__min_ipl
+extern int __min_ipl;
+#endif
+
+#define getipl()		(rdps() & 7)
+#define setipl(ipl)		((void) swpipl(ipl))
+
+#define __cli()			setipl(IPL_MAX)
+#define __sti()			setipl(IPL_MIN)
 #define __save_flags(flags)	((flags) = rdps())
-#define __save_and_cli(flags)	((flags) = swpipl(7))
-#define __restore_flags(flags)	((void) swpipl(flags))
+#define __save_and_cli(flags)	((flags) = swpipl(IPL_MAX))
+#define __restore_flags(flags)	setipl(flags)
 
 #define local_irq_save(flags)		__save_and_cli(flags)
 #define local_irq_restore(flags)	__restore_flags(flags)
@@ -332,7 +352,7 @@ __xchg_u32(volatile int *m, unsigned long val)
 	"	stl_c %1,%2\n"
 	"	beq %1,2f\n"
 	"	mb\n"
-	".section .text2,\"ax\"\n"
+	".subsection 2\n"
 	"2:	br 1b\n"
 	".previous"
 	: "=&r" (val), "=&r" (dummy), "=m" (*m)
@@ -352,7 +372,7 @@ __xchg_u64(volatile long *m, unsigned long val)
 	"	stq_c %1,%2\n"
 	"	beq %1,2f\n"
 	"	mb\n"
-	".section .text2,\"ax\"\n"
+	".subsection 2\n"
 	"2:	br 1b\n"
 	".previous"
 	: "=&r" (val), "=&r" (dummy), "=m" (*m)
@@ -408,7 +428,7 @@ __cmpxchg_u32(volatile int *m, int old, int new)
 	"	stl_c %1,%2\n"
 	"	beq %1,3f\n"
 	"2:	mb\n"
-	".section .text2,\"ax\"\n"
+	".subsection 2\n"
 	"3:	br 1b\n"
 	".previous"
 	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
@@ -430,7 +450,7 @@ __cmpxchg_u64(volatile long *m, unsigned long old, unsigned long new)
 	"	stq_c %1,%2\n"
 	"	beq %1,3f\n"
 	"2:	mb\n"
-	".section .text2,\"ax\"\n"
+	".subsection 2\n"
 	"3:	br 1b\n"
 	".previous"
 	: "=&r"(prev), "=&r"(cmp), "=m"(*m)

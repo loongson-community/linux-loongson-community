@@ -1,4 +1,4 @@
-/* $Id: ip27-irq.c,v 1.5 2000/02/04 07:40:24 ralf Exp $
+/* $Id: ip27-irq.c,v 1.6 2000/02/10 05:58:56 dagum Exp $
  *
  * ip27-irq.c: Highlevel interrupt handling for IP27 architecture.
  *
@@ -34,6 +34,24 @@
 #include <asm/sn/sn0/hub.h>
 #include <asm/sn/sn0/ip27.h>
 #include <asm/sn/arch.h>
+
+/*
+ * Linux has a controller-independent x86 interrupt architecture.
+ * every controller has a 'controller-template', that is used
+ * by the main code to do the right thing. Each driver-visible
+ * interrupt source is transparently wired to the apropriate
+ * controller. Thus drivers need not be aware of the
+ * interrupt-controller.
+ *
+ * Various interrupt controllers we handle: 8259 PIC, SMP IO-APIC,
+ * PIIX4's internal 8259 PIC and SGI's Visual Workstation Cobalt (IO-)APIC.
+ * (IO-APICs assumed to be messaging to Pentium local-APICs)
+ *
+ * the code is designed to be easily extended with new/different
+ * interrupt controllers, without having to do assembly magic.
+ */
+
+irq_cpustat_t irq_stat [NR_CPUS];
 
 extern asmlinkage void ip27_irq(void);
 int (*irq_cannonicalize)(int irq);
@@ -255,7 +273,7 @@ void irq_debug(void)
 	printk("PI_INT_MASK0_A = 0x%x\n", LOCAL_HUB_L(PI_INT_MASK0_A));
 }
 
-int setup_irq(int irq, struct irqaction *new)
+int setup_irq(unsigned int irq, struct irqaction *new)
 {
 	int shared = 0;
 	struct irqaction *old, **p;

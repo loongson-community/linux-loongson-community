@@ -1,4 +1,4 @@
-/* $Id: hardirq.h,v 1.3 2000/02/04 07:40:53 ralf Exp $
+/* $Id: hardirq.h,v 1.4 2000/02/23 00:41:38 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -11,24 +11,23 @@
 #define _ASM_HARDIRQ_H
 
 #include <linux/threads.h>
-
-extern unsigned int local_irq_count[NR_CPUS];
+#include <linux/irq.h>
 
 /*
  * Are we in an interrupt context? Either doing bottom half
  * or hardware interrupt processing?
  */
 #define in_interrupt() ({ int __cpu = smp_processor_id(); \
-	(local_irq_count[__cpu] + local_bh_count[__cpu] != 0); })
-#define in_irq() (local_irq_count[smp_processor_id()] != 0)
+	(local_irq_count(__cpu) + local_bh_count(__cpu) != 0); })
+#define in_irq() (local_irq_count(smp_processor_id()) != 0)
 
 #ifndef __SMP__
 
-#define hardirq_trylock(cpu)	(local_irq_count[cpu] == 0)
+#define hardirq_trylock(cpu)	(local_irq_count(cpu) == 0)
 #define hardirq_endlock(cpu)	do { } while (0)
 
-#define irq_enter(cpu)		(local_irq_count[cpu]++)
-#define irq_exit(cpu)		(local_irq_count[cpu]--)
+#define irq_enter(cpu)		(local_irq_count(cpu)++)
+#define irq_exit(cpu)		(local_irq_count(cpu)--)
 
 #define synchronize_irq()	barrier();
 

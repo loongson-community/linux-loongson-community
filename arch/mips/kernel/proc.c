@@ -83,3 +83,8 @@ int get_cpuinfo(char *buffer)
 
 	return len;
 }
+
+void init_irq_proc(void)
+{
+	/* Nothing, for now.  */
+}

@@ -226,8 +226,7 @@ asmlinkage long sys_reboot(int magic1, int magic2, int cmd, void * arg)
 	default:
 		unlock_kernel();
 		return -EINVAL;
-		break;
-	};
+	}
 	unlock_kernel();
 	return 0;
 }
@@ -1049,6 +1048,22 @@ asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
 			}
 			current->dumpable = arg2;
 			break;
+	        case PR_SET_UNALIGN:
+#ifdef SET_UNALIGN_CTL
+			error = SET_UNALIGN_CTL(current, arg2);
+#else
+			error = -EINVAL;
+#endif
+			break;
+
+	        case PR_GET_UNALIGN:
+#ifdef GET_UNALIGN_CTL
+			error = GET_UNALIGN_CTL(current, arg2);
+#else
+			error = -EINVAL;
+#endif
+			break;
+
 		default:
 			error = -EINVAL;
 			break;

@@ -21,10 +21,10 @@
  ****************************************************************
  */
 
-#include <linux/lists.h>
-
 #ifndef _LINUX_SYSCTL_H
 #define _LINUX_SYSCTL_H
+
+#include <linux/list.h>
 
 #define CTL_MAXNAME 10
 
@@ -664,7 +664,7 @@ struct ctl_table
 struct ctl_table_header
 {
 	ctl_table *ctl_table;
-	DLNODE(struct ctl_table_header) ctl_entry;	
+	struct list_head ctl_entry;
 };
 
 struct ctl_table_header * register_sysctl_table(ctl_table * table, 

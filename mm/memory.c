@@ -418,7 +418,7 @@ static struct page * follow_page(unsigned long address)
 
 struct page * get_page_map(struct page *page, unsigned long vaddr)
 {
-	if (MAP_NR(page) >= max_mapnr)
+	if (MAP_NR(vaddr) >= max_mapnr)
 		return 0;
 	if (page == ZERO_PAGE(vaddr))
 		return 0;
@@ -712,6 +712,19 @@ int remap_page_range(unsigned long from, unsigned long phys_addr, unsigned long 
 }
 
 /*
+ * Establish a new mapping:
+ *  - flush the old one
+ *  - update the page tables
+ *  - inform the TLB about the new one
+ */
+static inline void establish_pte(struct vm_area_struct * vma, unsigned long address, pte_t *page_table, pte_t entry)
+{
+	flush_tlb_page(vma, address);
+	set_pte(page_table, entry);
+	update_mmu_cache(vma, address, entry);
+}
+
+/*
  * This routine handles present pages, when users try to write
  * to a shared page. It is done by copying the page to a new address
  * and decrementing the shared-page counter for the old page.
@@ -769,8 +782,7 @@ static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 		/* FallThrough */
 	case 1:
 		flush_cache_page(vma, address);
-		set_pte(page_table, pte_mkyoung(pte_mkdirty(pte_mkwrite(pte))));
-		flush_tlb_page(vma, address);
+		establish_pte(vma, address, page_table, pte_mkyoung(pte_mkdirty(pte_mkwrite(pte))));
 		spin_unlock(&tsk->mm->page_table_lock);
 		return 1;
 	}
@@ -793,8 +805,7 @@ static int do_wp_page(struct task_struct * tsk, struct vm_area_struct * vma,
 		copy_cow_page(old_page, new_page, address);
 		flush_page_to_ram(new_page);
 		flush_cache_page(vma, address);
-		set_pte(page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
-		flush_tlb_page(vma, address);
+		establish_pte(vma, address, page_table, pte_mkwrite(pte_mkdirty(mk_pte(new_page, vma->vm_page_prot))));
 
 		/* Free the old page.. */
 		new_page = old_page;
@@ -862,6 +873,8 @@ void vmtruncate(struct inode * inode, loff_t offset)
 	struct vm_area_struct * mpnt;
 	struct address_space *mapping = inode->i_mapping;
 
+	if (inode->i_size < offset)
+		goto out;
 	inode->i_size = offset;
 	truncate_inode_pages(mapping, offset);
 	spin_lock(&mapping->i_shared_lock);
@@ -906,6 +919,9 @@ void vmtruncate(struct inode * inode, loff_t offset)
 	} while ((mpnt = mpnt->vm_next_share) != NULL);
 out_unlock:
 	spin_unlock(&mapping->i_shared_lock);
+out:
+	/* this should go into ->truncate */
+	inode->i_size = offset;
 	if (inode->i_op && inode->i_op->truncate)
 		inode->i_op->truncate(inode);
 }
@@ -1120,9 +1136,7 @@ static inline int handle_pte_fault(struct task_struct *tsk,
 			entry = pte_mkdirty(entry);
 		}
 		entry = pte_mkyoung(entry);
-		set_pte(pte, entry);
-		flush_tlb_page(vma, address);
-		update_mmu_cache(vma, address, entry);
+		establish_pte(vma, address, pte, entry);
 	}
 	spin_unlock(&tsk->mm->page_table_lock);
 	return 1;

@@ -378,6 +378,8 @@ extern void show_free_areas_node(int nid);
 
 extern void clear_page_tables(struct mm_struct *, unsigned long, int);
 
+extern int map_zero_setup(struct vm_area_struct *);
+
 extern void zap_page_range(struct mm_struct *mm, unsigned long address, unsigned long size);
 extern int copy_page_range(struct mm_struct *dst, struct mm_struct *src, struct vm_area_struct *vma);
 extern int remap_page_range(unsigned long from, unsigned long to, unsigned long size, pgprot_t prot);
@@ -393,7 +395,6 @@ extern int ptrace_writedata(struct task_struct *tsk, char * src, unsigned long d
 extern int pgt_cache_water[2];
 extern int check_pgt_cache(void);
 
-extern void paging_init(void);
 extern void free_area_init(unsigned long * zones_size);
 extern void free_area_init_node(int nid, pg_data_t *pgdat, 
 		unsigned long * zones_size, unsigned long zone_start_paddr);

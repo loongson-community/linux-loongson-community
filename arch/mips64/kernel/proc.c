@@ -1,4 +1,4 @@
-/* $Id: proc.c,v 1.1 1999/09/27 16:01:37 ralf Exp $
+/* $Id: proc.c,v 1.1 1999/09/28 22:25:51 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -68,4 +68,9 @@ int get_cpuinfo(char *buffer)
 	len += sprintf(buffer + len, fmt, 'I', vcei_count);
 
 	return len;
+}
+
+void init_irq_proc(void)
+{
+	/* Nothing, for now.  */
 }

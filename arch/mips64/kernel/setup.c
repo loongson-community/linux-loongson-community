@@ -1,4 +1,4 @@
-/* $Id: setup.c,v 1.6 2000/01/27 01:05:24 ralf Exp $
+/* $Id: setup.c,v 1.7 2000/02/04 07:40:24 ralf Exp $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -183,4 +183,6 @@ void __init setup_arch(char **cmdline_p)
 			*memory_start_p = initrd_end;
 	}
 #endif
+
+	paging_init();
 }

@@ -1,4 +1,4 @@
-/* $Id: mips_ksyms.c,v 1.24 2000/02/04 07:40:23 ralf Exp $
+/* $Id: mips_ksyms.c,v 1.25 2000/02/24 00:12:40 ralf Exp $
  *
  * Export MIPS-specific functions needed for loadable modules.
  *
@@ -56,8 +56,6 @@ EXPORT_SYMBOL_NOVERS(strtok);
 EXPORT_SYMBOL_NOVERS(strpbrk);
 
 EXPORT_SYMBOL(_clear_page);
-EXPORT_SYMBOL(local_bh_count);
-EXPORT_SYMBOL(local_irq_count);
 EXPORT_SYMBOL(enable_irq);
 EXPORT_SYMBOL(disable_irq);
 EXPORT_SYMBOL(kernel_thread);

@@ -224,6 +224,7 @@ CONFIG_VT_CONSOLE=y
 # CONFIG_WATCHDOG is not set
 # CONFIG_NVRAM is not set
 # CONFIG_RTC is not set
+# CONFIG_EFI_RTC is not set
 
 #
 # Video For Linux
