@@ -159,20 +159,22 @@ void ip27_do_irq(struct pt_regs *regs)
 {
 	int irq, swlevel;
 	hubreg_t pend0, mask0;
+	int pi_int_mask0 = ((cputoslice(smp_processor_id()) == 0) ?
+					PI_INT_MASK0_A : PI_INT_MASK0_B);
 
 	/* copied from Irix intpend0() */
 	while (((pend0 = LOCAL_HUB_L(PI_INT_PEND0)) & 
-				(mask0 = LOCAL_HUB_L(PI_INT_MASK0_A))) != 0) {
+				(mask0 = LOCAL_HUB_L(pi_int_mask0))) != 0) {
 		do {
 			swlevel = ms1bit(pend0);
-			LOCAL_HUB_S(PI_INT_MASK0_A, mask0 & ~(1 << swlevel));
+			LOCAL_HUB_S(pi_int_mask0, mask0 & ~(1 << swlevel));
 			LOCAL_HUB_S(PI_INT_PEND_MOD, swlevel);
-			LOCAL_HUB_L(PI_INT_MASK0_A);		/* Flush */
+			LOCAL_HUB_L(pi_int_mask0);		/* Flush */
 			/* "map" swlevel to irq */
 			irq = SWLEVEL_TO_IRQ(swlevel);
 			do_IRQ(irq, regs);
 			/* reset INT_MASK0 register */
-			LOCAL_HUB_S(PI_INT_MASK0_A, mask0);
+			LOCAL_HUB_S(pi_int_mask0, mask0);
 			/* clear bit in pend0 */
 			pend0 ^= 1ULL << swlevel;
 		} while (pend0);
