@@ -440,7 +440,7 @@
 #define NODE_OFFSET_TO_K0(_nasid, _off)					\
 	PHYS_TO_K0((NODE_OFFSET(_nasid) + (_off)) | CAC_BASE)
 #define NODE_OFFSET_TO_K1(_nasid, _off)					\
-	TO_UNCAC((NODE_OFFSET(_nasid) + (_off)) | TO_UNCAC)
+	TO_UNCAC((NODE_OFFSET(_nasid) + (_off)) | UNCAC_BASE)
 #define K0_TO_NODE_OFFSET(_k0addr)					\
 	((__psunsigned_t)(_k0addr) & NODE_ADDRSPACE_MASK)
 
