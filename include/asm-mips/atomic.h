@@ -9,7 +9,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * Copyright (C) 1996, 97, 99, 2000, 03 by Ralf Baechle
+ * Copyright (C) 1996, 97, 99, 2000, 03, 04 by Ralf Baechle
  */
 
 /*
@@ -127,6 +127,32 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 	return result;
 }
 
+/*
+ * atomic_sub_if_positive - add integer to atomic variable
+ * @v: pointer of type atomic_t
+ *
+ * Atomically test @v and decrement if it is greater than 0.
+ * The function returns the old value of @v minus 1.
+ */
+static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
+{
+	unsigned long temp, result;
+
+	__asm__ __volatile__(
+	"1:	ll	%1, %2		# atomic_sub_if_positive\n"
+	"	subu	%0, %1, %3				\n"
+	"	bltz	%0, 1f					\n"
+	"	sc	%0, %2					\n"
+	"	beqz	%0, 1b					\n"
+	"	sync						\n"
+	"1:							\n"
+	: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+	: "Ir" (i), "m" (v->counter)
+	: "memory");
+
+	return result;
+}
+
 #else
 
 /*
@@ -192,6 +218,28 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
 	return temp;
 }
 
+/*
+ * atomic_sub_if_positive - add integer to atomic variable
+ * @v: pointer of type atomic_t
+ *
+ * Atomically test @v and decrement if it is greater than 0.
+ * The function returns the old value of @v minus 1.
+ */
+static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
+{
+	unsigned long flags;
+	int temp, result;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp -= i;
+	if (temp >= 0)
+		v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return result;
+}
+
 #endif /* CONFIG_CPU_HAS_LLSC */
 
 #define atomic_dec_return(v) atomic_sub_return(1,(v))
@@ -227,6 +275,12 @@ static __inline__ int atomic_sub_return(int i, atomic_t * v)
  * cases.
  */
 #define atomic_dec_and_test(v) (atomic_sub_return(1, (v)) == 0)
+
+/*
+ * atomic_dec_if_positive - decrement by 1 if old value positive
+ * @v: pointer of type atomic_t
+ */
+#define atomic_dec_if_positive(v)	atomic_sub_if_positive(1, v)
 
 /*
  * atomic_inc - increment atomic variable
@@ -356,6 +410,32 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 	return result;
 }
 
+/*
+ * atomic64_sub_if_positive - add integer to atomic variable
+ * @v: pointer of type atomic64_t
+ *
+ * Atomically test @v and decrement if it is greater than 0.
+ * The function returns the old value of @v minus 1.
+ */
+static __inline__ int atomic64_sub_if_positive(int i, atomic64_t * v)
+{
+	unsigned long temp, result;
+
+	__asm__ __volatile__(
+	"1:	lld	%1, %2		# atomic64_sub_if_positive\n"
+	"	subu	%0, %1, %3				\n"
+	"	bltz	%0, 1f					\n"
+	"	scd	%0, %2					\n"
+	"	beqz	%0, 1b					\n"
+	"	sync						\n"
+	"1:							\n"
+	: "=&r" (result), "=&r" (temp), "=m" (v->counter)
+	: "Ir" (i), "m" (v->counter)
+	: "memory");
+
+	return result;
+}
+
 #else
 
 /*
@@ -421,6 +501,28 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
 	return temp;
 }
 
+/*
+ * atomic64_sub_if_positive - add integer to atomic variable
+ * @v: pointer of type atomic64_t
+ *
+ * Atomically test @v and decrement if it is greater than 0.
+ * The function returns the old value of @v minus 1.
+ */
+static __inline__ int atomic64_sub_if_positive(int i, atomic64_t * v)
+{
+	unsigned long flags;
+	long temp, result;
+
+	spin_lock_irqsave(&atomic_lock, flags);
+	temp = v->counter;
+	temp -= i;
+	if (temp >= 0)
+		v->counter = temp;
+	spin_unlock_irqrestore(&atomic_lock, flags);
+
+	return result;
+}
+
 #endif /* CONFIG_CPU_HAS_LLDSCD */
 
 #define atomic64_dec_return(v) atomic64_sub_return(1,(v))
@@ -456,6 +558,12 @@ static __inline__ int atomic64_sub_return(int i, atomic64_t * v)
  * cases.
  */
 #define atomic64_dec_and_test(v) (atomic64_sub_return(1, (v)) == 0)
+
+/*
+ * atomic64_dec_if_positive - decrement by 1 if old value positive
+ * @v: pointer of type atomic64_t
+ */
+#define atomic64_dec_if_positive(v)	atomic64_sub_if_positive(1, v)
 
 /*
  * atomic64_inc - increment atomic variable
