@@ -375,7 +375,8 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 * in the delay slot of an emulated branch.
 	 */
 	/* Terminate if exception was recognized as a delay slot return */
-	if(do_dsemulret(regs)) return;
+	if (do_dsemulret(regs))
+		return;
 
 	/* Otherwise handle as normal */
 
