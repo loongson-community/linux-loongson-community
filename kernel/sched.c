@@ -1172,7 +1172,7 @@ static void show_task(struct task_struct * p)
 	else
 		printk(" (NOTLB)\n");
 
-#if defined(CONFIG_X86) || defined(CONFIG_SPARC64) || defined(CONFIG_ARM) ||
+#if defined(CONFIG_X86) || defined(CONFIG_SPARC64) || defined(CONFIG_ARM) || \
     defined(CONFIG_MIPS)
 /*
  * This is very useful, but only works on ARM, x86, MIPS and sparc64 right
