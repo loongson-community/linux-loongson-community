@@ -677,28 +677,21 @@ extern __inline__ int find_next_zero_bit (void * addr, int size, int offset)
  *
  * Undefined if no zero exists, so code should check against ~0UL first.
  */
-extern __inline__ unsigned long ffz(unsigned long word)
+static inline unsigned long ffz(unsigned long word)
 {
-	unsigned int	__res;
-	unsigned int	mask = 1;
+	unsigned long k;
 
-	__asm__ (
-		".set\tnoreorder\n\t"
-		".set\tnoat\n\t"
-		"move\t%0,$0\n"
-		"1:\tand\t$1,%2,%1\n\t"
-		"beqz\t$1,2f\n\t"
-		"sll\t%1,1\n\t"
-		"bnez\t%1,1b\n\t"
-		"addiu\t%0,1\n\t"
-		".set\tat\n\t"
-		".set\treorder\n"
-		"2:\n\t"
-		: "=&r" (__res), "=r" (mask)
-		: "r" (word), "1" (mask));
+	word = ~word;
+	k = 31;
+	if (word & 0x0000ffffUL) { k -= 16; word <<= 16; }
+	if (word & 0x00ff0000UL) { k -= 8;  word <<= 8;  }
+	if (word & 0x0f000000UL) { k -= 4;  word <<= 4;  }
+	if (word & 0x30000000UL) { k -= 2;  word <<= 2;  }
+	if (word & 0x40000000UL) { k -= 1; }
 
-	return __res;
+	return k;
 }
+
 
 #ifdef __KERNEL__
 
