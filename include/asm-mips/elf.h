@@ -228,7 +228,7 @@ do {	current->thread.mflags &= ~MF_ABI_MASK;			\
 #define irix_elf_check_arch(hdr)	((hdr)->e_machine == EM_MIPS)
 
 #define USE_ELF_CORE_DUMP
-#define ELF_EXEC_PAGESIZE	4096
+#define ELF_EXEC_PAGESIZE	PAGE_SIZE
 
 #define ELF_CORE_COPY_REGS(_dest,_regs)				\
 	memcpy((char *) &_dest, (char *) _regs,			\
