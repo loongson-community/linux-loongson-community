@@ -538,7 +538,7 @@ extern inline unsigned long get_pagemask(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $5\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -550,7 +550,7 @@ extern inline void set_pagemask(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $5\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -564,7 +564,7 @@ extern inline unsigned long get_entrylo0(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $2\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -576,7 +576,7 @@ extern inline void set_entrylo0(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $2\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -589,7 +589,7 @@ extern inline unsigned long get_entrylo1(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $3\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder" : "=r" (val));
 
 	return val;
@@ -601,7 +601,7 @@ extern inline void set_entrylo1(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $3\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -615,7 +615,7 @@ extern inline unsigned long get_entryhi(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $10\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 
@@ -628,7 +628,7 @@ extern inline void set_entryhi(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $10\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -642,7 +642,7 @@ extern inline unsigned long get_index(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $0\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -654,7 +654,7 @@ extern inline void set_index(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $0\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder\n\t"
 		: : "r" (val));
 }
@@ -668,7 +668,7 @@ extern inline unsigned long get_wired(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $6\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder\n\t"
 		: "=r" (val));
 	return val;
@@ -680,7 +680,7 @@ extern inline void set_wired(unsigned long val)
 		"\n\t.set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $6\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -694,7 +694,7 @@ extern inline unsigned long get_taglo(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $28\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -706,7 +706,7 @@ extern inline void set_taglo(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $28\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -719,7 +719,7 @@ extern inline unsigned long get_taghi(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $29\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 	return val;
@@ -731,7 +731,7 @@ extern inline void set_taghi(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $29\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
@@ -745,7 +745,7 @@ extern inline unsigned long get_context(void)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mfc0 %0, $4\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: "=r" (val));
 
@@ -758,7 +758,7 @@ extern inline void set_context(unsigned long val)
 		".set noreorder\n\t"
 		".set mips3\n\t"
 		"mtc0 %0, $4\n\t"
-		".set mips2\n\t"
+		".set mips0\n\t"
 		".set reorder"
 		: : "r" (val));
 }
