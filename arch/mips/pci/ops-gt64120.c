@@ -110,7 +110,7 @@ static int gt64120_pcibios_read(struct pci_bus *bus, unsigned int devfn,
 
 	if (gt64120_pcibios_config_access(PCI_ACCESS_READ, bus, devfn, where,
 				          &data))
-		return -1;
+		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	if (size == 1)
 		*val = (data >> ((where & 3) << 3)) & 0xff;
@@ -132,7 +132,7 @@ static int gt64120_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 	else {
 		if (gt64120_pcibios_config_access(PCI_ACCESS_READ, bus, devfn,
 		                                  where, &data))
-			return -1;
+			return PCIBIOS_DEVICE_NOT_FOUND;
 
 		if (size == 1)
 			data = (data & ~(0xff << ((where & 3) << 3))) |
@@ -144,7 +144,7 @@ static int gt64120_pcibios_write(struct pci_bus *bus, unsigned int devfn,
 
 	if (gt64120_pcibios_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
 				       &data))
-		return -1;
+		return PCIBIOS_DEVICE_NOT_FOUND;
 
 	return PCIBIOS_SUCCESSFUL;
 }
