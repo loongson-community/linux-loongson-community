@@ -163,20 +163,12 @@
 
 #define CL_SIZE      (80)
 
-#define BOOT_MEM_MAP_MAX        32
-#define BOOT_MEM_RAM            1
-#define BOOT_MEM_ROM_DATA       2
-#define BOOT_MEM_RESERVED       3
+#define BOOT_MEM_MAP_MAX	32
+#define BOOT_MEM_RAM		1
+#define BOOT_MEM_ROM_DATA	2
+#define BOOT_MEM_RESERVED	3
 
 #ifndef _LANGUAGE_ASSEMBLY
-
-/*
- * Some machine parameters passed by the bootloaders. 
- */
-
-struct drive_info_struct {
-	char dummy[32];
-};
 
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
@@ -186,12 +178,12 @@ extern unsigned long mips_machgroup;
  * or specified on the command line.
  */
 struct boot_mem_map {
-        int nr_map;
-        struct {
-                unsigned long addr;     /* start of memory segment */
-                unsigned long size;     /* size of memory segment */
-                long type;              /* type of memory segment */
-        } map[BOOT_MEM_MAP_MAX];
+	int nr_map;
+	struct {
+		unsigned long addr;	/* start of memory segment */
+		unsigned long size;	/* size of memory segment */
+		long type;		/* type of memory segment */
+	} map[BOOT_MEM_MAP_MAX];
 };
 
 extern struct boot_mem_map boot_mem_map;

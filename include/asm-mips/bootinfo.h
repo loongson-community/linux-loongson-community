@@ -273,32 +273,6 @@
 
 #ifndef __ASSEMBLY__
 
-/*
- * Some machine parameters passed by the bootloaders. 
- */
-
-struct drive_info_struct {
-	char dummy[32];
-};
-
-/* This is the same as in Milo but renamed for the sake of kernel's */
-/* namespace */
-typedef struct mips_arc_DisplayInfo {	/* video adapter information */
-	unsigned short cursor_x;
-	unsigned short cursor_y;
-	unsigned short columns;
-	unsigned short lines;
-} mips_arc_DisplayInfo;
-
-/* default values for drive info */
-#define DEFAULT_DRIVE_INFO { {0,}}
-
-/*
- * These are the kernel variables initialized from
- * the tag. And they have to be initialized to dummy/default
- * values in setup.c (or whereever suitable) so they are in
- * .data section
- */
 extern unsigned long mips_machtype;
 extern unsigned long mips_machgroup;
 
@@ -318,7 +292,7 @@ struct boot_mem_map {
 extern struct boot_mem_map boot_mem_map;
 
 extern void add_memory_region(unsigned long start, unsigned long size,
-			      long type);
+                              long type);
 
 #endif /* !__ASSEMBLY__ */
 
