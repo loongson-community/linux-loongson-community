@@ -1,4 +1,4 @@
-# $Id: Makefile,v 1.5 1999/01/03 17:50:47 ralf Exp $
+# $Id: Makefile,v 1.6 1999/02/25 21:44:46 tsbogend Exp $
 #
 # This file is subject to the terms and conditions of the GNU General Public
 # License.  See the file "COPYING" in the main directory of this archive
@@ -24,25 +24,17 @@ strip-flags	= $(addprefix --remove-section=,$(drop-sections))
 #
 # Fake compressed boot
 #
-zImage:	$(CONFIGURE) elf2ecoff $(TOPDIR)/vmlinux
-	./elf2ecoff $(TOPDIR)/vmlinux zImage
+vmlinux.ecoff:	$(CONFIGURE) elf2ecoff $(TOPDIR)/vmlinux
+	./elf2ecoff $(TOPDIR)/vmlinux vmlinux.ecoff
 
 elf2ecoff: elf2ecoff.c
 	$(HOSTCC) -o $@ $^
-
-zdisk:	zImage
-#	if [ -f /etc/remote-mcopy ]; then \
-#		ssh rio mcopy -o - a:vmlinux <zImage; \
-#	else \
-#		mcopy -o zImage a:vmlinux; \
-#	fi
-	cp zImage /boot/vmlinux
 
 # Don't build dependencies, this may die if $(CC) isn't gcc
 dep:
 
 clean:
-	rm -f zImage zImage.tmp mkboot
+	rm -f vmlinux.ecoff
 
 dummy:
 
