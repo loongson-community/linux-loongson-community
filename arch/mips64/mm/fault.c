@@ -31,7 +31,8 @@
 
 #define development_version (LINUX_VERSION_CODE & 0x100)
 
-extern void die(char *, struct pt_regs *, unsigned long write);
+extern void die(char *, struct pt_regs *, unsigned long write)
+	__attribute__((noreturn));
 
 /*
  * Macro for exception fixup code to access integer registers.
@@ -228,8 +229,6 @@ no_context:
 	       "address %016lx, epc == %016lx, ra == %016lx\n",
 	       smp_processor_id(), address, regs->cp0_epc, regs->regs[31]);
 	die("Oops", regs, write);
-	do_exit(SIGKILL);
-	bust_spinlocks(0);
 
 /*
  * We ran out of memory, or some other thing happened to us that made

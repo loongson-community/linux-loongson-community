@@ -202,8 +202,7 @@ no_context:
 	       "address %08lx, epc == %08lx, ra == %08lx\n",
 	       address, regs->cp0_epc, regs->regs[31]);
 	die("Oops", regs);
-	bust_spinlock(0);
-	do_exit(SIGKILL);
+	/* Game over.  */
 
 /*
  * We ran out of memory, or some other thing happened to us that made
