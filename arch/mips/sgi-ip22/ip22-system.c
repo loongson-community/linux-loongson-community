@@ -55,7 +55,7 @@ static int __init string_to_cpu(char *s)
 {
 	ULONG cnt;
 	char c;
-	int i;
+	unsigned int i;
 
 	for(i = 0; i < (sizeof(sgi_cputable) / sizeof(struct smatch)); i++) {
 		if(!strcmp(s, sgi_cputable[i].name))
