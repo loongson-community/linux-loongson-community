@@ -411,7 +411,7 @@ void __init tlb_init(void)
 	 *     be set for 4kb pages.
 	 */
 	probe_tlb(config);
-	write_c0_pagemask(PM_4K);
+	write_c0_pagemask(PM_DEFAULT_MASK);
 	write_c0_wired(0);
 	temp_tlb_entry = current_cpu_data.tlbsize - 1;
 	local_flush_tlb_all();
