@@ -55,10 +55,6 @@
 #define __bi_local_irq_restore(x)
 #endif /* __KERNEL__ */
 
-#define OH_PLEASURE_OH_JOY_OH_FUN					\
-	"	.set	noreorder	\n"				\
-	"	.set	reorder		\n"
-
 /*
  * set_bit - Atomically set a bit in memory
  * @nr: the bit to set
@@ -80,7 +76,6 @@ static inline void set_bit(unsigned long nr, volatile unsigned long *addr)
 		"	or	%0, %2					\n"
 		"	"__SC	"%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		OH_PLEASURE_OH_JOY_OH_FUN
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (1UL << (nr & SZLONG_MASK)), "m" (*m));
 	} else if (cpu_has_llsc) {
@@ -141,7 +136,6 @@ static inline void clear_bit(unsigned long nr, volatile unsigned long *addr)
 		"	and	%0, %2					\n"
 		"	" __SC "%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		OH_PLEASURE_OH_JOY_OH_FUN
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (~(1UL << (nr & SZLONG_MASK))), "m" (*m));
 	} else if (cpu_has_llsc) {
@@ -201,7 +195,6 @@ static inline void change_bit(unsigned long nr, volatile unsigned long *addr)
 		"	xor	%0, %2				\n"
 		"	"__SC	"%0, %1				\n"
 		"	beqzl	%0, 1b				\n"
-		OH_PLEASURE_OH_JOY_OH_FUN
 		: "=&r" (temp), "=m" (*m)
 		: "ir" (1UL << (nr & SZLONG_MASK)), "m" (*m));
 	} else if (cpu_has_llsc) {

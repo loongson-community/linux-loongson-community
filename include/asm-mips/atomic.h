@@ -49,9 +49,6 @@ typedef struct { volatile int counter; } atomic_t;
  */
 #define atomic_set(v,i)		((v)->counter = (i))
 
-#define SHOOT_AT_GAS_SHOOT_TO_KILL					\
-	"	.set	noreorder	\n"				\
-	"	.set	reorder		\n"
 /*
  * atomic_add - add integer to atomic variable
  * @i: integer value to add
@@ -69,7 +66,6 @@ static __inline__ void atomic_add(int i, atomic_t * v)
 		"	addu	%0, %2					\n"
 		"	sc	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		SHOOT_AT_GAS_SHOOT_TO_KILL
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 	} else if (cpu_has_llsc) {
@@ -108,7 +104,6 @@ static __inline__ void atomic_sub(int i, atomic_t * v)
 		"	subu	%0, %2					\n"
 		"	sc	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		SHOOT_AT_GAS_SHOOT_TO_KILL
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 	} else if (cpu_has_llsc) {
@@ -376,7 +371,6 @@ static __inline__ void atomic64_add(long i, atomic64_t * v)
 		"	addu	%0, %2					\n"
 		"	scd	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		SHOOT_AT_GAS_SHOOT_TO_KILL
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 	} else if (cpu_has_llsc) {
@@ -415,7 +409,6 @@ static __inline__ void atomic64_sub(long i, atomic64_t * v)
 		"	subu	%0, %2					\n"
 		"	scd	%0, %1					\n"
 		"	beqzl	%0, 1b					\n"
-		SHOOT_AT_GAS_SHOOT_TO_KILL
 		: "=&r" (temp), "=m" (v->counter)
 		: "Ir" (i), "m" (v->counter));
 	} else if (cpu_has_llsc) {
