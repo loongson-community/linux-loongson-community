@@ -292,6 +292,19 @@ asmlinkage void do_be(struct pt_regs *regs)
 	force_sig(SIGBUS, current);
 }
 
+static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
+{
+	unsigned int *epc;
+
+	epc = (unsigned int *) regs->cp0_epc +
+	      ((regs->cp0_cause & CAUSEF_BD) != 0);
+	if (!get_user(*opcode, epc))
+		return 0;
+
+	force_sig(SIGSEGV, current);
+	return 1;
+}
+
 /*
  * ll/sc emulation
  */
@@ -473,19 +486,6 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	}
 
 	force_sig(SIGFPE, current);
-}
-
-static inline int get_insn_opcode(struct pt_regs *regs, unsigned int *opcode)
-{
-	unsigned int *epc;
-
-	epc = (unsigned int *) regs->cp0_epc +
-	      ((regs->cp0_cause & CAUSEF_BD) != 0);
-	if (!get_user(*opcode, epc))
-		return 0;
-
-	force_sig(SIGSEGV, current);
-	return 1;
 }
 
 asmlinkage void do_bp(struct pt_regs *regs)
