@@ -136,14 +136,29 @@ static inline void seeq_go(struct sgiseeq_private *sp,
 	hregs->rx_ctrl = HPC3_ERXCTRL_ACTIVE;
 }
 
-static inline void seeq_load_eaddr(struct net_device *dev,
-				   struct sgiseeq_regs *sregs)
+static inline void __sgiseeq_set_mac_address(struct net_device *dev)
 {
+	struct sgiseeq_private *sp = netdev_priv(dev);
+	struct sgiseeq_regs *sregs = sp->sregs;
 	int i;
 
 	sregs->tstat = SEEQ_TCMD_RB0;
 	for (i = 0; i < 6; i++)
 		sregs->rw.eth_addr[i] = dev->dev_addr[i];
+}
+
+static int sgiseeq_set_mac_address(struct net_device *dev, void *addr)
+{
+	struct sgiseeq_private *sp = netdev_priv(dev);
+	struct sockaddr *sa = addr;
+
+	memcpy(dev->dev_addr, sa->sa_data, dev->addr_len);
+
+	spin_lock_irq(&sp->tx_lock);
+	__sgiseeq_set_mac_address(dev);
+	spin_unlock_irq(&sp->tx_lock);
+
+	return 0;
 }
 
 #define TCNTINFO_INIT (HPCDMA_EOX | HPCDMA_ETXD)
@@ -159,7 +174,7 @@ static int seeq_init_ring(struct net_device *dev)
 	sp->rx_new = sp->tx_new = 0;
 	sp->rx_old = sp->tx_old = 0;
 
-	seeq_load_eaddr(dev, sp->sregs);
+	__sgiseeq_set_mac_address(dev);
 
 	/* Setup tx ring. */
 	for(i = 0; i < SEEQ_TX_BUFFERS; i++) {
@@ -699,6 +714,7 @@ static int sgiseeq_init(struct hpc3_regs* regs, int irq)
 	dev->watchdog_timeo	= (200 * HZ) / 1000;
 	dev->get_stats		= sgiseeq_get_stats;
 	dev->set_multicast_list	= sgiseeq_set_multicast;
+	dev->set_mac_address	= sgiseeq_set_mac_address;
 	dev->irq		= irq;
 
 	if (register_netdev(dev)) {
