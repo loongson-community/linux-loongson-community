@@ -333,6 +333,7 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr,
 }
 
 extern void *set_except_vector(int n, void *addr);
+extern void per_cpu_trap_init(void);
 
 extern void __die(const char *, struct pt_regs *, const char *file,
 	const char *func, unsigned long line) __attribute__((noreturn));
