@@ -110,9 +110,9 @@ static void router_recurse(klrou_t *router_a, klrou_t *router_b, int depth)
 	router_a->rou_rflag = 0;
 }
 
-char node_distances[MAX_COMPACT_NODES][MAX_COMPACT_NODES];
+unsigned char __node_distances[MAX_COMPACT_NODES][MAX_COMPACT_NODES];
 
-int node_distance(nasid_t nasid_a, nasid_t nasid_b)
+static int __init compute_node_distance(nasid_t nasid_a, nasid_t nasid_b)
 {
 	klrou_t *router, *router_a = NULL, *router_b = NULL;
 	lboard_t *brd, *dest_brd;
@@ -186,13 +186,14 @@ static void __init init_topology_matrix(void)
 
 	for (row = 0; row < MAX_COMPACT_NODES; row++)
 		for (col = 0; col < MAX_COMPACT_NODES; col++)
-			node_distances[row][col] = -1;
+			__node_distances[row][col] = -1;
 
 	for (row = 0; row < numnodes; row++) {
 		nasid = COMPACT_TO_NASID_NODEID(row);
 		for (col = 0; col < numnodes; col++) {
 			nasid2 = COMPACT_TO_NASID_NODEID(col);
-			node_distances[row][col] = node_distance(nasid, nasid2);
+			__node_distances[row][col] =
+				compute_node_distance(nasid, nasid2);
 		}
 	}
 }
@@ -216,7 +217,7 @@ static void __init dump_topology(void)
 	for (row = 0; row < numnodes; row++) {
 		printk("%02d  ", row);
 		for (col = 0; col < numnodes; col++)
-			printk("%2d ", node_distances[row][col]);
+			printk("%2d ", node_distance(row, col));
 		printk("\n");
 	}
 
