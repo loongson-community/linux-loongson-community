@@ -241,16 +241,16 @@ void ip27_hub_error(struct pt_regs *regs)
  * Get values that vary depending on which CPU and bit we're operating on.
  */
 static void intr_get_ptrs(cpuid_t cpu, int bit, int *new_bit,
-				hubreg_t **intpend_masks, int *ip)
+                          hubreg_t **intpend_masks, int *ip)
 {
-	hub_intmasks_t *hub_intmasks = &cpu_data[cpu].p_intmasks;
+	struct hub_intmasks_s *hub_intmasks = &cpu_data[cpu].p_intmasks;
 
 	if (bit < N_INTPEND_BITS) {
-		*intpend_masks = hub_intmasks->intpend0_masks;
+		*intpend_masks = &hub_intmasks->intpend0_masks;
 		*ip = 0;
 		*new_bit = bit;
 	} else {
-		*intpend_masks = hub_intmasks->intpend1_masks;
+		*intpend_masks = &hub_intmasks->intpend1_masks;
 		*ip = 1;
 		*new_bit = bit - N_INTPEND_BITS;
 	}
@@ -269,7 +269,7 @@ static int intr_connect_level(int cpu, int bit)
 	/* Make sure it's not already pending when we connect it. */
 	REMOTE_HUB_CLR_INTR(nasid, bit + ip * N_INTPEND_BITS);
 
-	intpend_masks[0] |= (1ULL << (u64)bit);
+	*intpend_masks |= (1UL << bit);
 
 	if (ip == 0) {
 		mask_reg = REMOTE_HUB_ADDR(nasid, PI_INT_MASK0_A +
