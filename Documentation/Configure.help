@@ -1392,14 +1392,14 @@ CONFIG_DESKSTATION_RPC44
   This is a machine with a R4400 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux
   on the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://www.linux.sgi.com/.
+  http://oss.sgi.com/mips.
 
 Support for Acer PICA 1 chipset
 CONFIG_ACER_PICA_61
   This is a machine with a R4400 133/150 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://www.linux.sgi.com/.
+  http://oss.sgi.com/mips.
 
 Support for Algorithmics P4032 (EXPERIMENTAL)
 CONFIG_ALGOR_P4032
@@ -1411,12 +1411,12 @@ Support for BAGET MIPS series
 CONFIG_BAGET_MIPS
   This enables support for the Baget, a Russian embedded system.  For 
   more details about the Baget see the Linux/MIPS FAQ on 
-  http://www.linux.sgi.com.
+  http://oss.sgi.com/mips.
 
 Support for DECstations
 CONFIG_DECSTATION
   This enables support for DEC's MIPS based workstations.  For details
-  see the Linux/MIPS FAQ on http://www.linux.sgi.com or the 
+  see the Linux/MIPS FAQ on http://oss.sgi.com/mips. the 
   DECstation porting pages on http://decstation.unix-ag.org.
 
   If you have one of the following DECstation Models you definitely
@@ -1450,23 +1450,21 @@ CONFIG_BLK_DEV_PART
   This allows Linux on Acorn systems to determine its partitions in
   the 'non-ADFS' partition area of the hard disk - usually located
   after the ADFS partition.  You are probably using this system, so
-  you should enable it.
+  you should say Y it.
 
 Support for Mips Magnum 4000
 CONFIG_MIPS_MAGNUM_4000
   This is a machine with a R4000 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://www.linux.sgi.comm/ (To browse the WWW, you need to have access to
-  a machine on the Internet that has a program like lynx or netscape).
+  http://oss.sgi.com/mips.
 
 Support for Olivetti M700
 CONFIG_OLIVETTI_M700
   This is a machine with a R4000 100 MHz CPU. To compile a Linux
   kernel that runs on these, say Y here. For details about Linux on
   the MIPS architecture, check out the Linux/MIPS FAQ on the WWW at
-  http://www.linux.sgi.com/ (To browse the WWW, you need to have access to
-  a machine on the Internet that has a program like lynx or netscape).
+  http://oss.sgi.com/mips.
 
 Support for SGI IP22
 CONFIG_SGI_IP22
@@ -1504,10 +1502,6 @@ CONFIG_CPU_R3000
   However, since most the supported Machines have an R4000 (or similar)
   CPU R4xx0 might be a safe bet.
   If the resulting Kernel does not work try to recompile with R3000.
-
-Compile the kernel into the ECOFF object format
-CONFIG_ECOFF_KERNEL
-  Oops. How di I get here?
 
 Support for large 64-bit configurations
 CONFIG_MIPS_INSANE_LARGE
@@ -1777,11 +1771,6 @@ CONFIG_SERIAL_MULTIPORT
   signal when there are any serial ports on the board which need
   servicing. Say Y here to enable the serial driver to take advantage
   of those special I/O ports.
-
-Support for SGI Indy
-CONFIG_SGI
-  Enable this if you want to compile a kernel for an Silicon Graphics 
-  Indy workstation.
 
 SGI PROM Console Support
 CONFIG_SGI_PROM_CONSOLE
@@ -5427,7 +5416,7 @@ CONFIG_SCSI_IMM
   For more information about this driver and how to use it you should
   read the file drivers/scsi/README.ppa. You should also read the
   SCSI-HOWTO, which is available from
-  http://metalab.unc.edu/mdw/linux.html#howto . If you use this driver,
+  http://www.linuxdoc.org/docs.html#howto . If you use this driver,
   you will still be able to use the parallel port for other tasks,
   such as a printer; it is safe to compile both drivers into the
   kernel.
@@ -7710,7 +7699,7 @@ CONFIG_DE620
   This is a network (Ethernet) device which attaches to your parallel
   port. Read Documentation/networking/DLINK.txt as well as the
   Ethernet-HOWTO, available from
-  http://metalab.unc.edu/mdw/linux.html#howto , if you want to use
+  http://www.linuxdoc.org/docs.html#howto , if you want to use
   this. It is possible to have several devices share a single parallel
   port and it is safe to compile the corresponding drivers into the
   kernel.
@@ -13140,9 +13129,7 @@ CONFIG_RADIO_ZOLTRIX
   In order to control your radio card, you will need to use programs
   that are compatible with the Video for Linux API. Information on 
   this API and pointers to "v4l" programs may be found on the WWW at
-  http://roadrunner.swansea.uk.linux.org/v4l.shtml; to browse the WWW,
-  you need to have access to a machine on the Internet that has a 
-  program like lynx or netscape.
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml .
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -13188,9 +13175,7 @@ CONFIG_RADIO_GEMTEK
   In order to control your radio card, you will need to use programs
   that are compatible with the Video for Linux API. Information on 
   this API and pointers to "v4l" programs may be found on the WWW at
-  http://roadrunner.swansea.uk.linux.org/v4l.shtml; to browse the WWW,
-  you need to have access to a machine on the Internet that has a 
-  program like lynx or netscape.
+  http://roadrunner.swansea.uk.linux.org/v4l.shtml .
 
   If you want to compile this driver as a module ( = code which can be
   inserted in and removed from the running kernel whenever you want),
@@ -14042,7 +14027,7 @@ CONFIG_I2C_CHARDEV
 # LocalWords:  PMAX MILO Alphas Multia Tseng linuxelf endian mipsel mips drv HT
 # LocalWords:  kerneld callouts AdvanSys advansys Admin WDT DataStor EP verden
 # LocalWords:  wdt hdb hdc bugfix SiS vlb Acculogic CSA DTC dtc Holtek ht QDI
-# LocalWords:  QD qd UMC umc ALI ali www.linux.sgi.com azstarnet cdr fb MDA ps esdi
+# LocalWords:  QD qd UMC umc ALI ali oss sgi com azstarnet cdr fb MDA ps esdi
 # LocalWords:  Avanti XL AlphaStations Jensen DECpc AXPpci UDB Cabriolet MCA RC
 # LocalWords:  AlphaPC mca AOUT OUTput PPro sipx gwdg lo nwe FourPort Boca unm
 # LocalWords:  Keepalive linefill RELCOM keepalive analogue CDR conf CDI INIT
