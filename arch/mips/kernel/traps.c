@@ -162,7 +162,7 @@ void show_code(unsigned int *pc)
 void show_regs(struct pt_regs *regs)
 {
 	const int field = 2 * sizeof(unsigned long);
-	unsigned int cause = regs->c0_cause;
+	unsigned int cause = regs->cp0_cause;
 	int i;
 
 	printk("Cpu %d\n", smp_processor_id());
