@@ -11,7 +11,7 @@
 #include <linux/config.h>
 
 /*
- * Pleassures of the R4600 V1.x.  Cite from the IDT R4600 V1.7 errata:
+ * Pleasures of the R4600 V1.x.  Cite from the IDT R4600 V1.7 errata:
  *
  *  18. The CACHE instructions Hit_Writeback_Invalidate_D, Hit_Writeback_D,
  *      Hit_Invalidate_D and Create_Dirty_Excl_D should only be
