@@ -203,7 +203,6 @@ static struct fb_ops e1356fb_ops = {
 	fb_get_cmap:    e1356fb_get_cmap,
 	fb_set_cmap:    e1356fb_set_cmap,
 	fb_pan_display: e1356fb_pan_display,
-	fb_ioctl:	e1356fb_ioctl,
 	fb_mmap:        e1356fb_mmap,
 };
 
@@ -2030,46 +2029,6 @@ e1356fb_set_cmap(struct fb_cmap *cmap,
 	}
 	return 0;
 }
-
-static int
-e1356fb_ioctl(struct inode *inode, 
-	      struct file *file, 
-	      u_int cmd,
-	      u_long arg, 
-	      int con, 
-	      struct fb_info *fb)
-{
-	struct fb_info_e1356 *info = (struct fb_info_e1356*)fb;
-	blt_info_t blt;
-	u16* src = NULL;
-	int ret=0;
-    
-	switch (cmd) {
-	case FBIO_SED1356_BITBLT:
-		if (copy_from_user(&blt, (void *)arg, sizeof(blt_info_t)))
-			return -EFAULT;
-		if (blt.src) {
-			if ((ret = verify_area(VERIFY_READ,
-					       (void*)blt.src, blt.srcsize)))
-				return ret;
-			if ((src = (u16*)kmalloc(blt.srcsize,
-						 GFP_KERNEL)) == NULL)
-				return -ENOMEM;
-			if (copy_from_user(src, (void *)blt.src, blt.srcsize))
-				return -EFAULT;
-			blt.src = src;
-		}
-		ret = doBlt(&info->current_par, info, &blt);
-		if (src)
-			kfree(src);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return ret;
-}
-
 
 static int
 e1356fb_mmap(struct fb_info *fb,
