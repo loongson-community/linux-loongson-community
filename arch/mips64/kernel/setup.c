@@ -1,5 +1,4 @@
-/* $Id: setup.c,v 1.9 2000/03/14 01:39:27 ralf Exp $
- *
+/*
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
@@ -125,7 +124,7 @@ static struct console ip27_prom_console = {
 	NULL,
 	NULL,
 	NULL,
-	CON_CONSDEV | CON_ENABLED,
+	CON_PRINTBUFFER,
 	-1,
 	0,
 	NULL
@@ -223,6 +222,6 @@ void __init setup_arch(char **cmdline_p)
 	for (i = 0; i < (1 << KPTBL_PAGE_ORDER); pmd++,i++,pte+=PTRS_PER_PTE)
 		pmd_val(*pmd) = (unsigned long)pte;
 #ifdef CONFIG_SGI_IP27
-	register_console(&ip27_prom_console);
+//	register_console(&ip27_prom_console);
 #endif
 }

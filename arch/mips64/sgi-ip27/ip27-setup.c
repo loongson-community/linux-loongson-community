@@ -254,10 +254,14 @@ void __init pcibr_setup(cnodeid_t nid)
 	}
 }
 
+extern void ip27_setup_console(void);
+
 void __init ip27_setup(void)
 {
 	nasid_t nid;
 	hubreg_t p, e;
+
+	ip27_setup_console();
 
 	num_bridges = 0;
 	/*
