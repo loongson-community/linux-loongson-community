@@ -31,6 +31,7 @@
 #ifndef _AU1000_H_
 #define _AU1000_H_
 
+#include <linux/config.h>
 #include <linux/delay.h>
 #include <asm/io.h>
 

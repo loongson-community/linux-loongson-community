@@ -6,8 +6,9 @@
  * Copyright (C) 1997, 1998, 1999, 2000, 2001 by Ralf Baechle
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
-#include <asm/asm.h>
+#include <linux/config.h>
 #include <linux/errno.h>
+#include <asm/asm.h>
 #include <asm/current.h>
 #include <asm/mipsregs.h>
 #include <asm/regdef.h>

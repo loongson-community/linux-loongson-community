@@ -14,13 +14,11 @@
  *
  * Copyright (C) 1999 Ingo Molnar <mingo@redhat.com>
  */
-
 #ifndef _ASM_HIGHMEM_H
 #define _ASM_HIGHMEM_H
 
 #ifdef __KERNEL__
 
-#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <asm/kmap_types.h>

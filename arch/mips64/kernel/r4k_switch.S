@@ -8,7 +8,6 @@
  * Copyright (C) 1994, 1995, 1996, by Andreas Busse
  * Copyright (C) 1999 Silicon Graphics, Inc.
  */
-#include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/cachectl.h>
 #include <asm/current.h>

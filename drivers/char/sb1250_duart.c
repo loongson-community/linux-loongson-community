@@ -27,7 +27,7 @@
  * of the driver functions, though it (like most of the inline code
  * documentation :) is a bit out of date.  
  */
-
+#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/serial.h>
 #include <linux/module.h>

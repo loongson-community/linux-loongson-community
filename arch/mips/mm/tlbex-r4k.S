@@ -10,6 +10,7 @@
  * Copyright (C) 2000 MIPS Technologies, Inc.  All rights reserved.
  */
 #include <linux/init.h>
+#include <linux/config.h>
 
 #include <asm/asm.h>
 #include <asm/current.h>

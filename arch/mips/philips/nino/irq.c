@@ -9,6 +9,7 @@
  *
  *  Interrupt service routines for Philips Nino
  */
+#include <linux/config.h>
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>

@@ -55,6 +55,7 @@
  *		Dave Rusling david.rusling@reo.mts.dec.com
  *		David Mosberger davidm@cs.arizona.edu
  */
+#include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/types.h>

@@ -9,8 +9,6 @@
  * Copyright (C) 1999, 2000 Silicon Graphics
  * Copyright (C) 2001 MIPS Technologies, Inc.
  */
-#include <linux/config.h>
-
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>

@@ -19,9 +19,8 @@
 /*
  * Memory related routines 
  */
-
+#include <linux/config.h>
 #include <asm/page.h>
-#include <linux/autoconf.h>
 
 extern long swarm_mem_region_addrs[];
 extern long swarm_mem_region_sizes[];

@@ -9,6 +9,7 @@
  *
  *  Interrupt and exception initialization for Philips Nino
  */
+#include <linux/config.h>
 #include <linux/console.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>

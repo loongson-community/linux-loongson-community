@@ -9,9 +9,13 @@
  */
 #ifndef _ASM_IP32_MACHINE_H
 #define _ASM_IP32_MACHINE_H
+
+#include <linux/config.h>
+
 #ifdef CONFIG_SGI_IP32
 
 #define SGI_MACH_O2		0x3201
 
 #endif /* CONFIG_SGI_IP32 */
+
 #endif /* _ASM_SGI_MACHINE_H */

@@ -9,6 +9,8 @@
 #ifndef _ASM_TYPES_H
 #define _ASM_TYPES_H
 
+#include <linux/config.h>
+
 typedef unsigned short umode_t;
 
 /*

@@ -6,8 +6,6 @@
  */
 
 #ifdef EVB64120A
-#include <linux/config.h>
-
 #include <asm/asm.h>
 #include <asm/regdef.h>
 #include <asm/cacheops.h>

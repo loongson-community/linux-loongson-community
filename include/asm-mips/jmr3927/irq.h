@@ -11,6 +11,8 @@
 #define __ASM_TX3927_IRQ_H
 
 #ifndef _LANGUAGE_ASSEMBLY
+
+#include <linux/config.h>
 #include <asm/irq.h>
 
 struct tb_irq_space {

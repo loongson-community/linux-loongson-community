@@ -31,11 +31,10 @@
 #ifndef __ASM_AU1000_DMA_H
 #define __ASM_AU1000_DMA_H
 
-#include <linux/config.h>
-#include <asm/io.h>		/* need byte IO */
 #include <linux/spinlock.h>	/* And spinlocks */
 #include <linux/delay.h>
 #include <asm/system.h>
+#include <asm/io.h>		/* need byte IO */
 
 #define NUM_AU1000_DMA_CHANNELS	8
 

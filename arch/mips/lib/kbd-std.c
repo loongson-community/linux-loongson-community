@@ -7,6 +7,7 @@
  *
  * Copyright (C) 1998, 1999 by Ralf Baechle
  */
+#include <linux/config.h>
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/pc_keyb.h>

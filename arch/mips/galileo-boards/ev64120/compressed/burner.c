@@ -6,8 +6,6 @@
  *  Burn image from ram to flash 
  *  For use with Galileo EVB64120A MIPS eval board.
  */
-
-#include <linux/config.h>
 #include <asm/types.h>
 #include <asm/byteorder.h>
 #include <asm/galileo-boards/evb64120A/eeprom_param.h>

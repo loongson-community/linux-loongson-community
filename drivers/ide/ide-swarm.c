@@ -21,7 +21,6 @@
  *  Copyright (C) 1998 Paul Mackerras.
  *  Copyright (C) 1995-1998 Mark Lord
  */
-#include <linux/config.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>

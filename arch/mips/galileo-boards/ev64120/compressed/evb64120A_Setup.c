@@ -6,8 +6,6 @@
  *  Xfer an image from flash to ram.
  *  For use with Galileo EVB64120A MIPS eval board.
  */
-
-#include <linux/config.h>
 #include "ns16550.h"
 #include <linux/serial_reg.h>
 #include <asm/galileo-boards/evb64120A/pci.h>

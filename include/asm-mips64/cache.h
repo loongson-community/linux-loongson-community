@@ -9,6 +9,8 @@
 #ifndef _ASM_CACHE_H
 #define _ASM_CACHE_H
 
+#include <linux/config.h>
+
 #ifndef _LANGUAGE_ASSEMBLY
 /*
  * Descriptor for a cache

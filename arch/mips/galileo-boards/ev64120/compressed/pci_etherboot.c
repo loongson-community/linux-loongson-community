@@ -4,12 +4,11 @@
  * published by the Free Software Foundation; either version 2, or (at
  * your option) any later version.
  */
-
+#include <linux/config.h>
 #include "etherboot.h"
 #include <asm/galileo-boards/evb64120A/pci.h>
 #include <asm/byteorder.h>
 #include "pci_etherboot.h"
-//#include "gt64120ARegs.h"
 #include "galileo_port.h"
 
 #define MAX_PCI_DEVS 10

@@ -7,6 +7,7 @@
  *
  * Copyright (C) 2000 Harald Koerfgen
  */
+#include <linux/config.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/mc146818rtc.h>

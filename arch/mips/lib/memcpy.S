@@ -12,10 +12,10 @@
  *
  * Mnemonic names for arguments to memcpy/__copy_user
  */
+#include <linux/config.h>
 #include <asm/asm.h>
 #include <asm/offset.h>
 #include <asm/regdef.h>
-#include <linux/autoconf.h>
 
 #define dst a0
 #define src a1

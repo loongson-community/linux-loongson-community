@@ -8,25 +8,6 @@
  *	as published by the Free Software Foundation; either version
  *	2 of the License, or (at your option) any later version.
  */
-
-#ifndef __KERNEL__
-#  define __KERNEL__
-#endif
-
-#ifndef MFE_DEBUG
-#define MFE_DEBUG 0
-#endif
-
-#if MFE_DEBUG>=1
-#define DPRINTK(str,args...) printk (KERN_DEBUG "meth: %s: " str, __FUNCTION__ , ## args)
-#define MFE_RX_DEBUG 2
-#else
-#define DPRINTK(str,args...)
-#define MFE_RX_DEBUG 0
-#endif
-
-
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/init.h>
 
@@ -56,6 +37,19 @@
 #include <linux/in6.h>
 #include <asm/checksum.h>
 
+#ifndef MFE_DEBUG
+#define MFE_DEBUG 0
+#endif
+
+#if MFE_DEBUG>=1
+#define DPRINTK(str,args...) printk (KERN_DEBUG "meth: %s: " str, __FUNCTION__ , ## args)
+#define MFE_RX_DEBUG 2
+#else
+#define DPRINTK(str,args...)
+#define MFE_RX_DEBUG 0
+#endif
+
+
 static const char *version="meth.c: Ilya Volynets (ilya@theIlya.com)";
 static const char *meth_str="SGI O2 Fast Ethernet";
 MODULE_AUTHOR("Ilya Volynets");
@@ -71,7 +65,6 @@ MODULE_PARM(timeout, "i");
 #endif
 */
 int meth_eth;
-
 
 /*
  * This structure is private to each device. It is used to pass
