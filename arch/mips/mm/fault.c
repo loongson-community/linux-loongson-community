@@ -74,11 +74,13 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
 	const struct exception_table_entry *fixup;
+	const int szlong = sizeof(unsigned long);
 	siginfo_t info;
 
 #if 0
-	printk("Cpu%d[%s:%d:%08lx:%ld:%08lx]\n", smp_processor_id(),
-	       current->comm, current->pid, address, write, regs->cp0_epc);
+	printk("Cpu%d[%s:%d:%0*lx:%ld:%0*lx]\n", smp_processor_id(),
+	       current->comm, current->pid, szlong, address, write,
+	       szlong, regs->cp0_epc);
 #endif
 
 	/*
@@ -162,13 +164,13 @@ bad_area:
 		tsk->thread.cp0_badvaddr = address;
 		tsk->thread.error_code = write;
 #if 0
-		printk("do_page_fault() #2: sending SIGSEGV to %s for illegal %s\n"
-		       "%08lx (epc == %08lx, ra == %08lx)\n",
+		printk("do_page_fault() #2: sending SIGSEGV to %s for "
+		       "illegal %s\n%0*lx (epc == %0*lx, ra == %0*lx)\n",
 		       tsk->comm,
 		       write ? "write access to" : "read access from",
-		       address,
-		       (unsigned long) regs->cp0_epc,
-		       (unsigned long) regs->regs[31]);
+		       szlong, address,
+		       szlong, (unsigned long) regs->cp0_epc,
+		       szlong, (unsigned long) regs->regs[31]);
 #endif
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
@@ -199,9 +201,10 @@ no_context:
 
 	bust_spinlocks(1);
 
-	printk(KERN_ALERT "Unable to handle kernel paging request at virtual "
-	       "address %08lx, epc == %08lx, ra == %08lx\n",
-	       address, regs->cp0_epc, regs->regs[31]);
+	printk(KERN_ALERT "CPU %d Unable to handle kernel paging request at "
+	       "virtual address %0*lx, epc == %0*lx, ra == %0*lx\n",
+	       smp_processor_id(), szlong, address, szlong, regs->cp0_epc,
+	       szlong,  regs->regs[31]);
 	die("Oops", regs);
 
 /*
