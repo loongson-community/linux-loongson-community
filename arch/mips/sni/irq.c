@@ -102,27 +102,16 @@ static unsigned int ls1bit8(unsigned int x)
 }
 
 /*
- * The EISA_INT bit in CSITPEND is high active, all others are low active.
- */
-#define CSITPEND_HIGH_ACTIVE	0xdf
-
-/*
  * hwint 1 deals with EISA and SCSI interrupts,
- * hwint 3 should deal with the PCI A - D interrupts,
- * hwint 4 is used for only the onboard PCnet 32.
  * 
  * The EISA_INT bit in CSITPEND is high active, all others are low active.
  */
-void pciasic_hwint134(struct pt_regs *regs)
+void pciasic_hwint1(struct pt_regs *regs)
 {
-	u8 pend = *(volatile char *)PCIMT_CSITPEND ^ CSITPEND_HIGH_ACTIVE;
+	u8 pend = *(volatile char *)PCIMT_CSITPEND;
 	int irq;
 
-	if (!pend)
-		return;
-
-	irq = PCIMT_IRQ_INT2 + ls1bit8(pend);
-	if (irq == PCIMT_IRQ_EISA) {
+	if (pend & IT_EISA) {
 		/*
 		 * Note: ASIC PCI's builtin interrupt achknowledge feature is
 		 * broken.  Using it may result in loss of some or all i8259
@@ -131,9 +120,40 @@ void pciasic_hwint134(struct pt_regs *regs)
 		irq = i8259_irq();
 		if (unlikely(i8259_irq < 0))
 			return;
+
+		do_IRQ(irq, regs);
+		return;
 	}
 
+	if (!(pend & IT_SCSI)) {
+		clear_c0_status(IE_IRQ1);
+		do_IRQ(PCIMT_IRQ_SCSI, regs);
+		set_c0_status(IE_IRQ1);
+	}
+}
+
+/*
+ * hwint 3 should deal with the PCI A - D interrupts,
+ */
+void pciasic_hwint3(struct pt_regs *regs)
+{
+	u8 pend = *(volatile char *)PCIMT_CSITPEND;
+	int irq;
+
+	clear_c0_status(IE_IRQ3);
+	irq = PCIMT_IRQ_INT2 + ls1bit8(pend);
 	do_IRQ(irq, regs);
+	set_c0_status(IE_IRQ3);
+}
+
+/*
+ * hwint 4 is used for only the onboard PCnet 32.
+ */
+void pciasic_hwint4(struct pt_regs *regs)
+{
+	clear_c0_status(IE_IRQ4);
+	do_IRQ(PCIMT_IRQ_ETHERNET, regs);
+	set_c0_status(IE_IRQ4);
 }
 
 void __init init_pciasic(void)
