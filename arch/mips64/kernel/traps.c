@@ -757,7 +757,7 @@ void __init trap_init(void)
 		/* VCE and DIVEC are mutually exclusive. */
 		if (mips_cpu.options & MIPS_CPU_DIVEC)
 			BUG();
-		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x80);
+		memcpy((void *)(KSEG0 + 0x180), &except_vec3_r4000, 0x100);
 	} else if (mips_cpu.options & MIPS_CPU_4KEX)
 		memcpy((void *)(KSEG0 + 0x180), &except_vec3_generic, 0x80);
 	else
