@@ -195,13 +195,16 @@ extern unsigned long thread_saved_pc(struct thread_struct *t);
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-#define start_thread(regs, new_pc, new_sp) do {				\
-	/* New thread loses kernel and FPU privileges. */	       	\
-	regs->cp0_status = (regs->cp0_status & ~(ST0_CU0|ST0_KSU|ST0_CU1)) | KU_USER;\
-	regs->cp0_epc = new_pc;						\
-	regs->regs[29] = new_sp;					\
-	current_thread_info()->addr_limit = USER_DS;			\
-} while (0)
+void inline start_thread(struct pt_regs *regs, unsigned long pc,
+	unsigned long sp)
+{
+	/* New thread loses kernel and FPU privileges. */
+	regs->cp0_status &= ~(ST0_CU0|ST0_KSU|ST0_CU1);
+	regs->cp0_status |= KU_USER;
+	regs->cp0_epc = pc;
+	regs->regs[29] = new_sp;
+	current_thread_info()->addr_limit = USER_DS;
+}
 
 unsigned long get_wchan(struct task_struct *p);
 

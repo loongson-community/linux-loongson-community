@@ -237,19 +237,20 @@ extern unsigned long thread_saved_pc(struct thread_struct *t);
 /*
  * Do necessary setup to start up a newly executed thread.
  */
-#define start_thread(regs, pc, sp) 					\
-do {									\
-	unsigned long __status;						\
-									\
-	/* New thread looses kernel privileges. */			\
-	__status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);	\
-	__status |= KSU_USER;						\
-	__status |= (current->thread.mflags & MF_32BIT) ? 0 : ST0_FR;	\
-	regs->cp0_status = __status;					\
-	regs->cp0_epc = pc;						\
-	regs->regs[29] = sp;						\
-	current_thread_info()->addr_limit = USER_DS;			\
-} while(0)
+void inline start_thread(struct pt_regs *regs, unsigned long pc,
+	unsigned long sp)
+{
+	unsigned long status;
+
+	/* New thread looses kernel privileges. */
+	status = regs->cp0_status & ~(ST0_CU0|ST0_FR|ST0_KSU);
+	status |= KSU_USER;
+	status |= (current->thread.mflags & MF_32BIT) ? 0 : ST0_FR;
+	regs->cp0_status = status;
+	regs->cp0_epc = pc;
+	regs->regs[29] = sp;
+	current_thread_info()->addr_limit = USER_DS;
+}
 
 unsigned long get_wchan(struct task_struct *p);
 
