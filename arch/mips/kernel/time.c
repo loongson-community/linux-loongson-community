@@ -56,12 +56,6 @@ extern volatile unsigned long wall_jiffies;
 spinlock_t rtc_lock = SPIN_LOCK_UNLOCKED;
 
 /*
- * whether we emulate local_timer_interrupts for SMP machines.
- */
-int emulate_local_timer_interrupt;
-
-
-/*
  * By default we provide the null RTC ops
  */
 static unsigned long null_rtc_get_time(void)
@@ -503,7 +497,6 @@ irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 		}
 	}
 
-#if !defined(CONFIG_SMP)
 	/*
 	 * In UP mode, we call local_timer_interrupt() to do profiling
 	 * and process accouting.
@@ -512,21 +505,6 @@ irqreturn_t timer_interrupt(int irq, void *dev_id, struct pt_regs *regs)
 	 * low-level local timer interrupt handler.
 	 */
 	local_timer_interrupt(irq, dev_id, regs);
-
-#else	/* CONFIG_SMP */
-
-	if (emulate_local_timer_interrupt) {
-		/*
-		 * this is the place where we send out inter-process
-		 * interrupts and let each CPU do its own profiling
-		 * and process accouting.
-		 *
-		 * Obviously we need to call local_timer_interrupt() for
-		 * the current CPU too.
-		 */
-		panic("Not implemented yet!!!");
-	}
-#endif	/* CONFIG_SMP */
 
 	return IRQ_HANDLED;
 }
