@@ -903,6 +903,10 @@ else
   endif
 endif
 
+ifeq ($(CONFIG_SGI_IOC3_ETH),y)
+L_OBJS += ioc3-eth.o
+endif
+
 ifeq ($(CONFIG_BAGETLANCE),y)
 L_OBJS += bagetlance.o
 else
