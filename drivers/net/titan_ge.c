@@ -132,7 +132,6 @@ static int titan_ge_receive_queue(struct net_device *, unsigned int);
 /* MAC Address */
 extern unsigned char titan_ge_mac_addr_base[6];
 
-unsigned long ocd_base;
 unsigned long titan_ge_base;
 static unsigned long titan_ge_sram;
 
@@ -1871,12 +1870,6 @@ static int __init titan_ge_init_module(void)
 	device &= 0x0000ffff;
 
 	printk(KERN_NOTICE "Device Id : %x,  Version : %x \n", device, version);
-
-	ocd_base = ioremap(OCD_BASE, OCD_SIZE);
-	if (!ocd_base) {
-		printk(KERN_ERR "Mapping OCD failed\n");
-		goto out_unmap_ge;
-	}
 
 #ifdef TITAN_RX_RING_IN_SRAM
 	titan_ge_sram = (unsigned long) ioremap(TITAN_SRAM_BASE,
