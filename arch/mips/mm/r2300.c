@@ -391,11 +391,17 @@ static void r3k_flush_cache_sigtramp(unsigned long addr)
 
 	flags = read_32bit_cp0_register(CP0_STATUS);
 
+	write_32bit_cp0_register(CP0_STATUS, flags&~ST0_IEC);
+
+	/* Fill the TLB to avoid an exception with caches isolated. */
+	asm ( 	"lw\t$0,0x000(%0)\n\t"
+		"lw\t$0,0x004(%0)\n\t"
+		: : "r" (addr) );
+
 	write_32bit_cp0_register(CP0_STATUS, (ST0_ISC|ST0_SWC|flags)&~ST0_IEC);
 
 	asm ( 	"sb\t$0,0x000(%0)\n\t"
 		"sb\t$0,0x004(%0)\n\t"
-		"sb\t$0,0x008(%0)\n\t"
 		: : "r" (addr) );
 
 	write_32bit_cp0_register(CP0_STATUS, flags);
